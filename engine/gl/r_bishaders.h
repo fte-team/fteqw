@@ -3004,7 +3004,7 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 
 "affine varying vec2 tc;\n"
 "varying vec4 light;\n"
-"#if defined(SPECULAR) || defined(OFFSETMAPPING) || defined(REFLECTCUBEMASK)\n"
+"#if defined(SPECULAR) || defined(OFFSETMAPPING) || defined(REFLECTCUBEMASK) || defined(PBR)\n"
 "varying vec3 eyevector;\n"
 "#endif\n"
 "#if defined(PBR)||defined(REFLECTCUBEMASK)\n"
@@ -3039,9 +3039,7 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "#endif\n"
 "#endif\n"
 
-"#if defined(PBR)\n"
-"eyevector = e_eyepos - w.xyz;\n"
-"#elif defined(SPECULAR)||defined(OFFSETMAPPING) || defined(REFLECTCUBEMASK)\n"
+"#if defined(SPECULAR)||defined(OFFSETMAPPING) || defined(REFLECTCUBEMASK) || defined(PBR)\n"
 "vec3 eyeminusvertex = e_eyepos - w.xyz;\n"
 "eyevector.x = dot(eyeminusvertex, s.xyz);\n"
 "eyevector.y = dot(eyeminusvertex, t.xyz);\n"
@@ -3086,7 +3084,7 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "affine out vec2 t_tc[];\n"
 "in vec4 light[];\n"
 "out vec4 t_light[];\n"
-"#if defined(SPECULAR) || defined(OFFSETMAPPING) || defined(REFLECTCUBEMASK)\n"
+"#if defined(SPECULAR) || defined(OFFSETMAPPING) || defined(REFLECTCUBEMASK) || defined(PBR)\n"
 "in vec3 eyevector[];\n"
 "out vec3 t_eyevector[];\n"
 "#endif\n"
@@ -3102,7 +3100,7 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "t_normal[id] = normal[id];\n"
 "t_tc[id] = tc[id];\n"
 "t_light[id] = light[id];\n"
-"#if defined(SPECULAR) || defined(OFFSETMAPPING) || defined(REFLECTCUBEMASK)\n"
+"#if defined(SPECULAR) || defined(OFFSETMAPPING) || defined(REFLECTCUBEMASK) || defined(PBR)\n"
 "t_eyevector[id] = eyevector[id];\n"
 "#endif\n"
 "#ifdef REFLECTCUBEMASK\n"
@@ -3135,7 +3133,7 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "affine out vec2 tc;\n"
 "in vec4 t_light[];\n"
 "out vec4 light;\n"
-"#if defined(SPECULAR) || defined(OFFSETMAPPING) || defined(REFLECTCUBEMASK)\n"
+"#if defined(SPECULAR) || defined(OFFSETMAPPING) || defined(REFLECTCUBEMASK) || defined(PBR)\n"
 "in vec3 t_eyevector[];\n"
 "out vec3 eyevector;\n"
 "#endif\n"
@@ -3158,7 +3156,7 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 
 //FIXME: we should be recalcing these here, instead of just lerping them
 "light = LERP(t_light);\n"
-"#if defined(SPECULAR) || defined(OFFSETMAPPING) || defined(REFLECTCUBEMASK)\n"
+"#if defined(SPECULAR) || defined(OFFSETMAPPING) || defined(REFLECTCUBEMASK) || defined(PBR)\n"
 "eyevector = LERP(t_eyevector);\n"
 "#endif\n"
 "#ifdef REFLECTCUBEMASK\n"
@@ -3198,7 +3196,7 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 
 "affine varying vec2 tc;\n"
 "varying vec4 light;\n"
-"#if defined(SPECULAR) || defined(OFFSETMAPPING) || defined(REFLECTCUBEMASK)\n"
+"#if defined(SPECULAR) || defined(OFFSETMAPPING) || defined(REFLECTCUBEMASK) || defined(PBR)\n"
 "varying vec3 eyevector;\n"
 "#endif\n"
 "#if defined(PBR) || defined(REFLECTCUBEMASK)\n"
@@ -3292,7 +3290,8 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "#endif\n"
 "#else\n"
 "#define roughness 0.3\n"
-"#define specrgb 1.0 //vec3(dielectricSpecular)\n"
+"#define specrgb vec3(1.0) //vec3(dielectricSpecular)\n"
+"#define ambientrgb col.rgb\n"
 "#endif\n"
 
 "#ifdef BUMP\n"
@@ -5668,7 +5667,7 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "#include \"sys/fog.h\"\n"
 
 "#if !defined(TESS_CONTROL_SHADER)\n"
-"#if defined(OFFSETMAPPING) || defined(SPECULAR) || defined(REFLECTCUBEMASK)\n"
+"#if defined(OFFSETMAPPING) || defined(SPECULAR) || defined(REFLECTCUBEMASK) || defined(PBR)\n"
 "varying vec3 eyevector;\n"
 "#endif\n"
 
@@ -5700,7 +5699,7 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "#endif\n"
 "void main ()\n"
 "{\n"
-"#if defined(OFFSETMAPPING) || defined(SPECULAR) || defined(REFLECTCUBEMASK)\n"
+"#if defined(OFFSETMAPPING) || defined(SPECULAR) || defined(REFLECTCUBEMASK) || defined(PBR)\n"
 "vec3 eyeminusvertex = e_eyepos - v_position.xyz;\n"
 "eyevector.x = dot(eyeminusvertex, v_svector.xyz);\n"
 "eyevector.y = dot(eyeminusvertex, v_tvector.xyz);\n"
@@ -5751,7 +5750,7 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "out vec3 t_vertex[];\n"
 "in vec3 normal[];\n"
 "out vec3 t_normal[];\n"
-"#if defined(OFFSETMAPPING) || defined(SPECULAR) || defined(REFLECTCUBEMASK)\n"
+"#if defined(OFFSETMAPPING) || defined(SPECULAR) || defined(REFLECTCUBEMASK) || defined(PBR)\n"
 "in vec3 eyevector[];\n"
 "out vec3 t_eyevector[];\n"
 "#endif\n"
@@ -5793,7 +5792,7 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "#endif\n"
 "#endif\n"
 
-"#if defined(SPECULAR) || defined(OFFSETMAPPING) || defined(REFLECTCUBEMASK)\n"
+"#if defined(SPECULAR) || defined(OFFSETMAPPING) || defined(REFLECTCUBEMASK) || defined(PBR)\n"
 "t_eyevector[id] = eyevector[id];\n"
 "#endif\n"
 
@@ -5817,7 +5816,7 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 
 "in vec3 t_vertex[];\n"
 "in vec3 t_normal[];\n"
-"#if defined(OFFSETMAPPING) || defined(SPECULAR) || defined(REFLECTCUBEMASK)\n"
+"#if defined(OFFSETMAPPING) || defined(SPECULAR) || defined(REFLECTCUBEMASK) || defined(PBR)\n"
 "in vec3 t_eyevector[];\n"
 "#endif\n"
 "#ifdef REFLECTCUBEMASK\n"
@@ -5867,7 +5866,7 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "#ifdef REFLECTCUBEMASK\n"
 "invsurface = LERP(t_invsurface);\n"
 "#endif\n"
-"#if defined(SPECULAR) || defined(OFFSETMAPPING) || defined(REFLECTCUBEMASK)\n"
+"#if defined(SPECULAR) || defined(OFFSETMAPPING) || defined(REFLECTCUBEMASK) || defined(PBR)\n"
 "eyevector = LERP(t_eyevector);\n"
 "#endif\n"
 
@@ -5973,27 +5972,47 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "#define gloss (1.0-roughness)\n"
 "#define ambientrgb (specrgb+col.rgb)\n"
 "vec3 specrgb = mix(vec3(dielectricSpecular), col.rgb, metalness);\n"
-"col.rgb = col.rgb * (1.0 - dielectricSpecular) * (1.0-metalness);\n"
+"vec3 albedorgb = col.rgb * (1.0 - dielectricSpecular) * (1.0-metalness);\n"
 "#elif defined(SG) //pbr-style specular+glossiness\n"
 //occlusion needs to be baked in. :(
 "#define roughness (1.0-specs.a)\n"
 "#define gloss specs.a\n"
 "#define specrgb specs.rgb\n"
 "#define ambientrgb (specs.rgb+col.rgb)\n"
-"#else   //blinn-phong\n"
-"#define roughness (1.0-specs.a)\n"
+"#define albedorgb col.rgb\n"
+"#elif defined(PBR) //PBR using legacy texturemaps\n"
 "#define gloss specs.a\n"
-"#define specrgb specs.rgb\n"
+"#define roughness (1.0-gloss)\n"
+//metalness not relevant
+
+//our pbr stuff doesn't much like our inputs.
+"vec3 specrgb, albedorgb;\n"
+//if (1==0)
+//{	//metal
+//	specrgb = col.rgb;//+specs.rgb;
+//	albedorgb = vec3(0.0);
+//}
+//else
+//{	//non-metal
+"specrgb = vec3(dielectricSpecular);\n"
+"albedorgb = col.rgb;//+specs.rgb;\n"
+//}
 "#define ambientrgb col.rgb\n"
+"#else   //blinn-phong\n"
+"#define gloss specs.a\n"
+//occlusion not defined
+"#define specrgb specs.rgb\n"
 "#endif\n"
 "#else\n"
+//no specular map specified. doesn't mean we shouldn't have any though, at least with pbr enabled.
 "#define roughness 0.3\n"
 "#define specrgb 1.0 //vec3(dielectricSpecular)\n"
+"#define albedorgb col.rgb\n"
 "#endif\n"
 
 //add in specular, if applicable.
 "#ifdef PBR\n"
-"col.rgb = DoPBR(norm, normalize(eyevector), deluxe, roughness, col.rgb, specrgb, vec3(0.0,1.0,1.0));//*e_light_mul + e_light_ambient*.25*ambientrgb;\n"
+"col.rgb = DoPBR(norm, normalize(eyevector), deluxe, roughness, albedorgb, specrgb, vec3(0.0,1.0,1.0));//*e_light_mul + e_light_ambient*.25*ambientrgb;\n"
 "#elif defined(gloss)\n"
 "vec3 halfdir = normalize(normalize(eyevector) + deluxe); //this norm should be the deluxemap info instead\n"
 "float spec = pow(max(dot(halfdir, norm), 0.0), FTE_SPECULAR_EXPONENT * gloss);\n"
@@ -11124,7 +11143,7 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "#if defined(VERTEXCOLOURS)\n"
 "varying vec4 vc;\n"
 "#endif\n"
-"#if defined(SPECULAR) || defined(OFFSETMAPPING) || defined(REFLECTCUBEMASK)\n"
+"#if defined(SPECULAR) || defined(OFFSETMAPPING) || defined(REFLECTCUBEMASK) || defined(PBR)\n"
 "varying vec3 eyevector;\n"
 "#endif\n"
 "#ifdef REFLECTCUBEMASK\n"
@@ -11169,7 +11188,7 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "#if defined(VERTEXCOLOURS)\n"
 "vc = v_colour;\n"
 "#endif\n"
-"#if defined(SPECULAR)||defined(OFFSETMAPPING) || defined(REFLECTCUBEMASK)\n"
+"#if defined(SPECULAR)||defined(OFFSETMAPPING) || defined(REFLECTCUBEMASK) || defined(PBR)\n"
 "vec3 eyeminusvertex = e_eyepos - w.xyz;\n"
 "eyevector.x = dot(eyeminusvertex, s.xyz);\n"
 "eyevector.y = dot(eyeminusvertex, t.xyz);\n"
@@ -11210,7 +11229,7 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "in vec4 vc[];\n"
 "out vec4 t_vc[];\n"
 "#endif\n"
-"#if defined(SPECULAR) || defined(OFFSETMAPPING) || defined(REFLECTCUBEMASK)\n"
+"#if defined(SPECULAR) || defined(OFFSETMAPPING) || defined(REFLECTCUBEMASK) || defined(PBR)\n"
 "in vec3 eyevector[];\n"
 "out vec3 t_eyevector[];\n"
 "#endif\n"
@@ -11225,7 +11244,7 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "#if defined(VERTEXCOLOURS)\n"
 "t_vc[id] = vc[id];\n"
 "#endif\n"
-"#if defined(SPECULAR) || defined(OFFSETMAPPING) || defined(REFLECTCUBEMASK)\n"
+"#if defined(SPECULAR) || defined(OFFSETMAPPING) || defined(REFLECTCUBEMASK) || defined(PBR)\n"
 "t_eyevector[id] = eyevector[id];\n"
 "#endif\n"
 
@@ -11254,7 +11273,7 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "#if defined(VERTEXCOLOURS)\n"
 "in vec4 t_vc[];\n"
 "#endif\n"
-"#if defined(SPECULAR) || defined(OFFSETMAPPING) || defined(REFLECTCUBEMASK)\n"
+"#if defined(SPECULAR) || defined(OFFSETMAPPING) || defined(REFLECTCUBEMASK) || defined(PBR)\n"
 "in vec3 t_eyevector[];\n"
 "#endif\n"
 
@@ -11280,7 +11299,7 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "#if defined(VERTEXCOLOURS)\n"
 "vc = LERP(t_vc);\n"
 "#endif\n"
-"#if defined(SPECULAR) || defined(OFFSETMAPPING) || defined(REFLECTCUBEMASK)\n"
+"#if defined(SPECULAR) || defined(OFFSETMAPPING) || defined(REFLECTCUBEMASK) || defined(PBR)\n"
 "eyevector = LERP(t_eyevector);\n"
 "#endif\n"
 
@@ -11347,7 +11366,7 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "vec4 lc = texture2D(s_lower, tcbase);\n"
 "bases.rgb += lc.rgb*e_lowercolour*lc.a;\n"
 "#endif\n"
-"#if defined(BUMP) || defined(SPECULAR) || defined(REFLECTCUBEMASK)\n"
+"#if defined(BUMP) || defined(SPECULAR) || defined(REFLECTCUBEMASK) || defined(PBR)\n"
 "vec3 bumps = normalize(vec3(texture2D(s_normalmap, tcbase)) - 0.5);\n"
 "#elif defined(REFLECTCUBEMASK)\n"
 "vec3 bumps = vec3(0.0,0.0,1.0);\n"
@@ -11380,7 +11399,7 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "#endif\n"
 "#else\n"
 "#define roughness 0.3\n"
-"#define specrgb 1.0 //vec3(dielectricSpecular)\n"
+"#define specrgb bases.rgb //vec3(dielectricSpecular)\n"
 "#endif\n"
 
 "#ifdef PBR\n"

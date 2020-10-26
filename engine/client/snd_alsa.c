@@ -306,13 +306,20 @@ static qboolean QDECL ALSA_InitCard (soundcardinfo_t *sc, const char *pcmname)
 
 #if 1
 	if (!sc->sn.sampleformat)
-		sc->sn.sampleformat = (sc->sn.samplebytes==1)?QSF_U8:QSF_S16;
+	{
+		if (sc->sn.samplebytes >= 4)
+			sc->sn.sampleformat = QSF_F32;
+		else if (sc->sn.samplebytes != 1)
+			sc->sn.sampleformat = QSF_S16;
+		else
+			sc->sn.sampleformat = QSF_U8;
+	}
 	switch(sc->sn.sampleformat)
 	{
-	case QSF_U8:	err = SND_PCM_FORMAT_U8;	break;
-	case QSF_S8:	err = SND_PCM_FORMAT_S8;	break;
-	case QSF_S16:	err = SND_PCM_FORMAT_S16;	break;
-	case QSF_F32:	err = SND_PCM_FORMAT_FLOAT;	break;
+	case QSF_U8:	err = SND_PCM_FORMAT_U8;	sc->sn.samplebytes=1; break;
+	case QSF_S8:	err = SND_PCM_FORMAT_S8;	sc->sn.samplebytes=1; break;
+	case QSF_S16:	err = SND_PCM_FORMAT_S16;	sc->sn.samplebytes=2; break;
+	case QSF_F32:	err = SND_PCM_FORMAT_FLOAT;	sc->sn.samplebytes=4; break;
 	default:
 		Con_Printf (CON_ERROR "ALSA: unsupported sample format %i\n", sc->sn.sampleformat);
 		goto error;

@@ -36,7 +36,7 @@
 #include "sys/fog.h"
 
 #if !defined(TESS_CONTROL_SHADER)
-	#if defined(OFFSETMAPPING) || defined(SPECULAR) || defined(REFLECTCUBEMASK)
+	#if defined(OFFSETMAPPING) || defined(SPECULAR) || defined(REFLECTCUBEMASK) || defined(PBR)
 		varying vec3 eyevector;
 	#endif
 
@@ -68,7 +68,7 @@ varying vec3 vertex, normal;
 #endif
 void main ()
 {
-#if defined(OFFSETMAPPING) || defined(SPECULAR) || defined(REFLECTCUBEMASK)
+#if defined(OFFSETMAPPING) || defined(SPECULAR) || defined(REFLECTCUBEMASK) || defined(PBR)
 	vec3 eyeminusvertex = e_eyepos - v_position.xyz;
 	eyevector.x = dot(eyeminusvertex, v_svector.xyz);
 	eyevector.y = dot(eyeminusvertex, v_tvector.xyz);
@@ -119,7 +119,7 @@ in vec3 vertex[];
 out vec3 t_vertex[];
 in vec3 normal[];
 out vec3 t_normal[];
-#if defined(OFFSETMAPPING) || defined(SPECULAR) || defined(REFLECTCUBEMASK)
+#if defined(OFFSETMAPPING) || defined(SPECULAR) || defined(REFLECTCUBEMASK) || defined(PBR)
 	in vec3 eyevector[];
 	out vec3 t_eyevector[];
 #endif
@@ -161,7 +161,7 @@ void main()
 		#endif
 	#endif
 
-	#if defined(SPECULAR) || defined(OFFSETMAPPING) || defined(REFLECTCUBEMASK)
+	#if defined(SPECULAR) || defined(OFFSETMAPPING) || defined(REFLECTCUBEMASK) || defined(PBR)
 		t_eyevector[id] = eyevector[id];
 	#endif
 
@@ -185,7 +185,7 @@ layout(triangles) in;
 
 in vec3 t_vertex[];
 in vec3 t_normal[];
-#if defined(OFFSETMAPPING) || defined(SPECULAR) || defined(REFLECTCUBEMASK)
+#if defined(OFFSETMAPPING) || defined(SPECULAR) || defined(REFLECTCUBEMASK) || defined(PBR)
 	in vec3 t_eyevector[];
 #endif
 #ifdef REFLECTCUBEMASK
@@ -235,7 +235,7 @@ void main()
 #ifdef REFLECTCUBEMASK
 	invsurface = LERP(t_invsurface);
 #endif
-#if defined(SPECULAR) || defined(OFFSETMAPPING) || defined(REFLECTCUBEMASK)
+#if defined(SPECULAR) || defined(OFFSETMAPPING) || defined(REFLECTCUBEMASK) || defined(PBR)
 	eyevector = LERP(t_eyevector);
 #endif
 
@@ -331,37 +331,57 @@ void main ()
 #endif
 
 //	col *= factor_base;
-    #define dielectricSpecular 0.04
-    #ifdef SPECULAR
-        vec4 specs = texture2D(s_specular, tc);//*factor_spec;
-        #ifdef ORM
-            #define occlusion specs.r
-            #define roughness specs.g
-            #define metalness specs.b
-            #define gloss (1.0-roughness)
-            #define ambientrgb (specrgb+col.rgb)
-            vec3 specrgb = mix(vec3(dielectricSpecular), col.rgb, metalness);
-            col.rgb = col.rgb * (1.0 - dielectricSpecular) * (1.0-metalness);
-        #elif defined(SG) //pbr-style specular+glossiness
-            //occlusion needs to be baked in. :(
-            #define roughness (1.0-specs.a)
-            #define gloss specs.a
-            #define specrgb specs.rgb
-            #define ambientrgb (specs.rgb+col.rgb)
-        #else   //blinn-phong
-            #define roughness (1.0-specs.a)
-            #define gloss specs.a
-            #define specrgb specs.rgb
-            #define ambientrgb col.rgb
-        #endif
-    #else
-        #define roughness 0.3
-        #define specrgb 1.0 //vec3(dielectricSpecular)
-    #endif
+	#define dielectricSpecular 0.04
+	#ifdef SPECULAR
+		vec4 specs = texture2D(s_specular, tc);//*factor_spec;
+		#ifdef ORM
+			#define occlusion specs.r
+			#define roughness specs.g
+			#define metalness specs.b
+			#define gloss (1.0-roughness)
+			#define ambientrgb (specrgb+col.rgb)
+			vec3 specrgb = mix(vec3(dielectricSpecular), col.rgb, metalness);
+			vec3 albedorgb = col.rgb * (1.0 - dielectricSpecular) * (1.0-metalness);
+		#elif defined(SG) //pbr-style specular+glossiness
+			//occlusion needs to be baked in. :(
+			#define roughness (1.0-specs.a)
+			#define gloss specs.a
+			#define specrgb specs.rgb
+			#define ambientrgb (specs.rgb+col.rgb)
+			#define albedorgb col.rgb
+		#elif defined(PBR)	//PBR using legacy texturemaps
+			#define gloss specs.a
+			#define roughness (1.0-gloss)
+			//metalness not relevant
+
+			//our pbr stuff doesn't much like our inputs.
+			vec3 specrgb, albedorgb;
+			//if (1==0)
+			//{	//metal
+			//	specrgb = col.rgb;//+specs.rgb;
+			//	albedorgb = vec3(0.0);
+			//}
+			//else
+			//{	//non-metal
+				specrgb = vec3(dielectricSpecular);
+				albedorgb = col.rgb;//+specs.rgb;
+			//}
+			#define ambientrgb col.rgb
+		#else   //blinn-phong
+			#define gloss specs.a
+			//occlusion not defined
+			#define specrgb specs.rgb
+		#endif
+	#else
+		//no specular map specified. doesn't mean we shouldn't have any though, at least with pbr enabled.
+		#define roughness 0.3
+		#define specrgb 1.0 //vec3(dielectricSpecular)
+		#define albedorgb col.rgb
+	#endif
 
 	//add in specular, if applicable.
 	#ifdef PBR
-		col.rgb = DoPBR(norm, normalize(eyevector), deluxe, roughness, col.rgb, specrgb, vec3(0.0,1.0,1.0));//*e_light_mul + e_light_ambient*.25*ambientrgb;
+		col.rgb = DoPBR(norm, normalize(eyevector), deluxe, roughness, albedorgb, specrgb, vec3(0.0,1.0,1.0));//*e_light_mul + e_light_ambient*.25*ambientrgb;
 	#elif defined(gloss)
 		vec3 halfdir = normalize(normalize(eyevector) + deluxe);	//this norm should be the deluxemap info instead
 		float spec = pow(max(dot(halfdir, norm), 0.0), FTE_SPECULAR_EXPONENT * gloss);

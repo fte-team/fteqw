@@ -4926,6 +4926,7 @@ QCC_type_t *QCC_PR_ParseFunctionType (int newtype, QCC_type_t *returntype)
 					t = QCC_PR_FieldType(t);
 					t = QCC_PR_FieldType(t);
 					paramlist[numparms].type = t;
+					foundinout = false;
 				}
 			}
 			else

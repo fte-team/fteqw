@@ -51,6 +51,9 @@ extern int sourcefilesnumdefs;
 };
 static char *cmdlineargs;
 
+static progfuncs_t guiprogfuncs;
+static progexterns_t guiprogexterns;
+
 #undef NULL
 #define NULL nullptr
 
@@ -541,6 +544,7 @@ private:
 		time_t filemodifiedtime;
 		bool modified;
 		int cursorline;
+		int cursorindex;
 		enum endings_e endings;	//line endings for this file.
 		int savefmt;	//encoding to save as
 		QsciDocument doc;
@@ -564,6 +568,10 @@ private:
 				return;
 			dl.curdoc = oldval;
 			dl.s->setDocument(dl.curdoc->doc);
+
+			//annoying, but it completely loses your position otherwise.
+			dl.s->setCursorPosition(dl.curdoc->cursorline-1, dl.curdoc->cursorindex);
+			dl.s->ensureCursorVisible();
 		}
 	};
 
@@ -615,6 +623,7 @@ public:
 				if (curdoc)
 				{
 					curdoc->cursorline = line+1;
+					curdoc->cursorindex = index;
 					UpdateTitle();
 				}
 			});
@@ -1381,6 +1390,7 @@ public:
 			//UpdateEditorTitle(d);
 		}
 
+		UpdateTitle();
 		return true;
 	}
 
@@ -2079,27 +2089,25 @@ void RunCompiler(const char *args, pbool quick)
 	static FILE *logfile;
 	const char *argv[128];
 	int argc;
-	progexterns_t ext;
-	progfuncs_t funcs;
 
 	mainwnd->docs.saveAll();
 
-	memset(&funcs, 0, sizeof(funcs));
-	funcs.funcs.parms = &ext;
-	memset(&ext, 0, sizeof(ext));
-	ext.ReadFile = GUIReadFile;
-	ext.FileSize = GUIFileSize;
-	ext.WriteFile = QCC_WriteFile;
-	ext.Sys_Error = Sys_Error;
+	memset(&guiprogfuncs, 0, sizeof(guiprogfuncs));
+	guiprogfuncs.funcs.parms = &guiprogexterns;
+	memset(&guiprogexterns, 0, sizeof(guiprogexterns));
+	guiprogexterns.ReadFile = GUIReadFile;
+	guiprogexterns.FileSize = GUIFileSize;
+	guiprogexterns.WriteFile = QCC_WriteFile;
+	guiprogexterns.Sys_Error = Sys_Error;
 
 	if (quick)
-		ext.Printf = Dummyprintf;
+		guiprogexterns.Printf = Dummyprintf;
 	else
 	{
-		ext.Printf = GUIprintf;
+		guiprogexterns.Printf = GUIprintf;
 		GUIprintf("");
 	}
-	ext.DPrintf = ext.Printf;
+	guiprogexterns.DPrintf = guiprogexterns.Printf;
 
 	if (logfile)
 		fclose(logfile);
@@ -2110,7 +2118,7 @@ void RunCompiler(const char *args, pbool quick)
 
 	argc = GUI_BuildParms(args, argv, quick);
 
-	if (CompileParams(&funcs, NULL, argc, argv))
+	if (CompileParams(&guiprogfuncs, NULL, argc, argv))
 	{
 		if (!quick)
 		{
@@ -2151,18 +2159,16 @@ void GUI_DoDecompile(void *buf, size_t size)
 					{
 						int h = SafeOpenWrite(fname.toUtf8().data(), -1);
 
-						progfuncs_t funcs;
-						progexterns_t ext;
-						memset(&funcs, 0, sizeof(funcs));
-						funcs.funcs.parms = &ext;
-						memset(&ext, 0, sizeof(ext));
-						ext.ReadFile = GUIReadFile;
-						ext.FileSize = GUIFileSize;
-						ext.WriteFile = QCC_WriteFile;
-						ext.Sys_Error = Sys_Error;
-						ext.Printf = GUIprintf;
+						memset(&guiprogfuncs, 0, sizeof(guiprogfuncs));
+						guiprogfuncs.funcs.parms = &guiprogexterns;
+						memset(&guiprogexterns, 0, sizeof(guiprogexterns));
+						guiprogexterns.ReadFile = GUIReadFile;
+						guiprogexterns.FileSize = GUIFileSize;
+						guiprogexterns.WriteFile = QCC_WriteFile;
+						guiprogexterns.Sys_Error = Sys_Error;
+						guiprogexterns.Printf = GUIprintf;
 
-						qccprogfuncs = &funcs;
+						qccprogfuncs = &guiprogfuncs;
 						WriteSourceFiles(qcc_vfiles, h, true, false);
 						qccprogfuncs = NULL;
 

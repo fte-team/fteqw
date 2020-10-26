@@ -1189,10 +1189,16 @@ int WriteSourceFiles(qcc_cachedsourcefile_t *filelist, int h, pbool sourceaswell
 
 
 struct pkgctx_s;
+enum pkgtype_e
+{
+	PACKAGER_PAK,
+	PACKAGER_PK3,
+	PACKAGER_PK3_SPANNED,
+};
+pbool			Packager_CompressDir(const char *dirname, enum pkgtype_e type, void (*messagecallback)(void *userctx, const char *message, ...), void *userctx);
 struct pkgctx_s *Packager_Create(void (*messagecallback)(void *userctx, const char *message, ...), void *userctx);
 void			Packager_ParseFile(struct pkgctx_s *ctx, char *scriptfilename);
 void			Packager_ParseText(struct pkgctx_s *ctx, char *scripttext);
-void			Packager_WriteDataset(struct pkgctx_s *ctx, char *setname);
 void			Packager_Destroy(struct pkgctx_s *ctx);
 
 

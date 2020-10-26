@@ -57,7 +57,7 @@
 
 affine varying vec2 tc;
 varying vec4 light;
-#if defined(SPECULAR) || defined(OFFSETMAPPING) || defined(REFLECTCUBEMASK)
+#if defined(SPECULAR) || defined(OFFSETMAPPING) || defined(REFLECTCUBEMASK) || defined(PBR)
 varying vec3 eyevector;
 #endif
 #if defined(PBR)||defined(REFLECTCUBEMASK)
@@ -92,9 +92,7 @@ void main ()
 	#endif
 #endif
 
-#if defined(PBR)
-	eyevector = e_eyepos - w.xyz;
-#elif defined(SPECULAR)||defined(OFFSETMAPPING) || defined(REFLECTCUBEMASK)
+#if defined(SPECULAR)||defined(OFFSETMAPPING) || defined(REFLECTCUBEMASK) || defined(PBR)
 	vec3 eyeminusvertex = e_eyepos - w.xyz;
 	eyevector.x = dot(eyeminusvertex, s.xyz);
 	eyevector.y = dot(eyeminusvertex, t.xyz);
@@ -139,7 +137,7 @@ affine in vec2 tc[];
 affine out vec2 t_tc[];
 in vec4 light[];
 out vec4 t_light[];
-#if defined(SPECULAR) || defined(OFFSETMAPPING) || defined(REFLECTCUBEMASK)
+#if defined(SPECULAR) || defined(OFFSETMAPPING) || defined(REFLECTCUBEMASK) || defined(PBR)
 in vec3 eyevector[];
 out vec3 t_eyevector[];
 #endif
@@ -155,7 +153,7 @@ void main()
 	t_normal[id] = normal[id];
 	t_tc[id] = tc[id];
 	t_light[id] = light[id];
-#if defined(SPECULAR) || defined(OFFSETMAPPING) || defined(REFLECTCUBEMASK)
+#if defined(SPECULAR) || defined(OFFSETMAPPING) || defined(REFLECTCUBEMASK) || defined(PBR)
 	t_eyevector[id] = eyevector[id];
 #endif
 #ifdef REFLECTCUBEMASK
@@ -188,7 +186,7 @@ affine in vec2 t_tc[];
 affine out vec2 tc;
 in vec4 t_light[];
 out vec4 light;
-#if defined(SPECULAR) || defined(OFFSETMAPPING) || defined(REFLECTCUBEMASK)
+#if defined(SPECULAR) || defined(OFFSETMAPPING) || defined(REFLECTCUBEMASK) || defined(PBR)
 in vec3 t_eyevector[];
 out vec3 eyevector;
 #endif
@@ -211,7 +209,7 @@ void main()
 
 	//FIXME: we should be recalcing these here, instead of just lerping them
 	light = LERP(t_light);
-#if defined(SPECULAR) || defined(OFFSETMAPPING) || defined(REFLECTCUBEMASK)
+#if defined(SPECULAR) || defined(OFFSETMAPPING) || defined(REFLECTCUBEMASK) || defined(PBR)
 	eyevector = LERP(t_eyevector);
 #endif
 #ifdef REFLECTCUBEMASK
@@ -251,7 +249,7 @@ uniform float cvar_gl_specular;
 
 affine varying vec2 tc;
 varying vec4 light;
-#if defined(SPECULAR) || defined(OFFSETMAPPING) || defined(REFLECTCUBEMASK)
+#if defined(SPECULAR) || defined(OFFSETMAPPING) || defined(REFLECTCUBEMASK) || defined(PBR)
 varying vec3 eyevector;
 #endif
 #if defined(PBR) || defined(REFLECTCUBEMASK)
@@ -345,7 +343,8 @@ void main ()
 		#endif
 	#else
 		#define roughness 0.3
-		#define specrgb 1.0 //vec3(dielectricSpecular)
+		#define specrgb vec3(1.0) //vec3(dielectricSpecular)
+		#define ambientrgb col.rgb
 	#endif
 
 	#ifdef BUMP

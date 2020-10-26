@@ -4812,7 +4812,7 @@ qboolean Image_WriteKTXFile(const char *filename, enum fs_relative fsroot, struc
 
 	Image_BlockSizeForEncoding(mips->encoding, &bb, &bw, &bh, &bd);
 
-	switch(mips->encoding)
+	safeswitch(mips->encoding)
 	{
 	case PTI_ETC1_RGB8:			header.glinternalformat = 0x8D64/*GL_ETC1_RGB8_OES*/; break;
 	case PTI_ETC2_RGB8:			header.glinternalformat = 0x9274/*GL_COMPRESSED_RGB8_ETC2*/; break;
@@ -4933,6 +4933,7 @@ qboolean Image_WriteKTXFile(const char *filename, enum fs_relative fsroot, struc
 	case PTI_R16F:				header.glinternalformat = 0x822D/*GL_R16F*/;				header.glbaseinternalformat = 0x1903/*GL_RED*/;				header.glformat = 0x1903/*GL_RED*/;				header.gltype = 0x140B/*GL_HALF_FLOAT*/;					header.gltypesize = 2; break;
 	case PTI_R32F:				header.glinternalformat = 0x822E/*GL_R32F*/;				header.glbaseinternalformat = 0x1903/*GL_RED*/;				header.glformat = 0x1903/*GL_RED*/;				header.gltype = 0x1406/*GL_FLOAT*/;							header.gltypesize = 4; break;
 	case PTI_RGBA16F:			header.glinternalformat = 0x881A/*GL_RGBA16F*/;				header.glbaseinternalformat = 0x1908/*GL_RGBA*/;			header.glformat = 0x1908/*GL_RGBA*/;			header.gltype = 0x140B/*GL_HALF_FLOAT*/;					header.gltypesize = 2; break;
+	case PTI_RGB32F:			header.glinternalformat = 0x8815/*GL_RGB32F*/;				header.glbaseinternalformat = 0x1907/*GL_RGB*/;				header.glformat = 0x1907/*GL_RGB*/;				header.gltype = 0x1406/*GL_FLOAT*/;							header.gltypesize = 4; break;
 	case PTI_RGBA32F:			header.glinternalformat = 0x8814/*GL_RGBA32F*/;				header.glbaseinternalformat = 0x1908/*GL_RGBA*/;			header.glformat = 0x1908/*GL_RGBA*/;			header.gltype = 0x1406/*GL_FLOAT*/;							header.gltypesize = 4; break;
 	case PTI_A2BGR10:			header.glinternalformat = 0x8059/*GL_RGB10_A2*/;			header.glbaseinternalformat = 0x1908/*GL_RGBA*/;			header.glformat = 0x1908/*GL_RGBA*/;			header.gltype = 0x8368/*GL_UNSIGNED_INT_2_10_10_10_REV*/;	header.gltypesize = 4; break;
 	case PTI_E5BGR9:			header.glinternalformat = 0x8C3D/*GL_RGB9_E5*/;				header.glbaseinternalformat = 0x8C3D/*GL_RGB9_E5*/;			header.glformat = 0x1907/*GL_RGB*/;				header.gltype = 0x8C3E/*GL_UNSIGNED_INT_5_9_9_9_REV*/;		header.gltypesize = 4; break;
@@ -4956,7 +4957,6 @@ qboolean Image_WriteKTXFile(const char *filename, enum fs_relative fsroot, struc
 	case PTI_DEPTH32:			header.glinternalformat = 0x81A7/*GL_DEPTH_COMPONENT32*/;	header.glbaseinternalformat = 0x1902/*GL_DEPTH_COMPONENT*/;	header.glformat = 0x1902/*GL_DEPTH_COMPONENT*/;	header.gltype = 0x1406/*GL_FLOAT*/;							header.gltypesize = 4; break;
 	case PTI_DEPTH24_8:			header.glinternalformat = 0x88F0/*GL_DEPTH24_STENCIL8*/;	header.glbaseinternalformat = 0x84F9/*GL_DEPTH_STENCIL*/;	header.glformat = 0x84F9/*GL_DEPTH_STENCIL*/;	header.gltype = 0x84FA/*GL_UNSIGNED_INT_24_8*/;				header.gltypesize = 4; break;
 
-	case PTI_RGB32F:
 #ifdef FTE_TARGET_WEB
 	case PTI_WHOLEFILE:
 #endif
@@ -4964,8 +4964,8 @@ qboolean Image_WriteKTXFile(const char *filename, enum fs_relative fsroot, struc
 	case PTI_MAX:
 		return false;
 
-//	default:
-//		return;
+	safedefault:
+		return false;
 	}
 
 	if (strchr(filename, '*') || strchr(filename, ':'))
@@ -5142,6 +5142,7 @@ static struct pendingtextureinfo *Image_ReadKTXFile(unsigned int flags, const ch
 	case 0x8040/*GL_LUMINANCE8*/:								encoding = PTI_L8;					break;
 	case 0x8045/*GL_LUMINANCE8_ALPHA8*/:						encoding = PTI_L8A8;				break;
 	case 0x881A/*GL_RGBA16F_ARB*/:								encoding = PTI_RGBA16F;				break;
+	case 0x8815/*GL_RGB32F_ARB*/:								encoding = PTI_RGB32F;				break;
 	case 0x8814/*GL_RGBA32F_ARB*/:								encoding = PTI_RGBA32F;				break;
 	case 0x8059/*GL_RGB10_A2*/:									encoding = PTI_A2BGR10;				break;
 	case 0x8229/*GL_R8*/:										encoding = PTI_R8;					break;
@@ -5199,6 +5200,10 @@ static struct pendingtextureinfo *Image_ReadKTXFile(unsigned int flags, const ch
 			encoding = PTI_RGBA4444;
 		else if (header.glformat == 0x80E1/*GL_BGRA*/ && header.gltype == 0x8365/*GL_UNSIGNED_SHORT_4_4_4_4_REV*/)
 			encoding = PTI_ARGB4444;
+		break;
+
+	default:
+		encoding = TF_INVALID;
 		break;
 	}
 	if (encoding == TF_INVALID)
@@ -6065,7 +6070,7 @@ qboolean Image_WriteDDSFile(const char *filename, enum fs_relative fsroot, struc
 #define DX9RGBA			(0x40|0x1)
 #define DX9LUM			0x20000
 #define DX9LUMALPHA		(0x20000|0x1)
-	switch(mips->encoding)
+	safeswitch(mips->encoding)
 	{
 //	case PTI_INVALID:			h10.dxgiformat = 0x0/*DXGI_FORMAT_UNKNOWN*/;				break;
 //	case PTI_INVALID:			h10.dxgiformat = 0x1/*DXGI_FORMAT_R32G32B32A32_TYPELESS*/;	break;
@@ -6298,10 +6303,8 @@ qboolean Image_WriteDDSFile(const char *filename, enum fs_relative fsroot, struc
 	case PTI_MAX:
 		return false;
 
-#ifndef _DEBUG
-//	default:	//don't enable in debug builds, so we get warnings for any cases being missed.
-	//	return false;
-#endif
+	safedefault:	//don't enable in debug builds, so we get warnings for any cases being missed.
+		return false;
 	}
 
 	//truncate the mip chain if they're dodgy sizes.

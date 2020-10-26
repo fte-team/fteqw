@@ -292,17 +292,32 @@ void Sys_Quit (void)
 static void Sys_Register_File_Associations_f(void)
 {
 	char xdgbase[MAX_OSPATH];
+	char confbase[MAX_OSPATH];
 
 	if (1)
-	{
-		const char *e = getenv("XDG_DATA_HOME");
-		if (e && *e)
-			Q_strncpyz(xdgbase, e, sizeof(xdgbase));
+	{	//user
+		const char *data = getenv("XDG_DATA_HOME");
+		const char *config = getenv("XDG_CONFIG_HOME");
+		const char *home = getenv("HOME");
+		if (data && *data)
+			Q_strncpyz(xdgbase, data, sizeof(xdgbase));
 		else
 		{
-			e = getenv("HOME");
-			if (e && *e)
-				Q_snprintfz(xdgbase, sizeof(xdgbase), "%s/.local/share", e);
+			if (home && *home)
+				Q_snprintfz(xdgbase, sizeof(xdgbase), "%s/.local/share", home);
+			else
+			{
+				Con_Printf("homedir not known\n");
+				return;
+			}
+		}
+
+		if (config && *config)
+			Q_strncpyz(confbase, config, sizeof(confbase));
+		else
+		{
+			if (home && *home)
+				Q_snprintfz(confbase, sizeof(confbase), "%s/.config", home);
 			else
 			{
 				Con_Printf("homedir not known\n");
@@ -311,20 +326,33 @@ static void Sys_Register_File_Associations_f(void)
 		}
 	}
 	else
-	{
-		const char *e = getenv("XDG_DATA_DIRS");
-		while (e && *e == ':')
-			e++;
-		if (e && *e)
+	{	//system... gotta be root...
+		const char *data = getenv("XDG_DATA_DIRS");
+		const char *config = getenv("XDG_CONFIG_DIRS");
+		while (data && *data == ':')
+			data++;
+		if (data && *data)
 		{
 			char *c;
-			Q_strncpyz(xdgbase, e, sizeof(xdgbase));
+			Q_strncpyz(xdgbase, data, sizeof(xdgbase));
 			c = strchr(xdgbase, ':');
 			if (*c)
 				*c = 0;
 		}
 		else
 			Q_strncpyz(xdgbase, "/usr/local/share/", sizeof(xdgbase));
+		while (config && *config == ':')
+			config++;
+		if (config && *config)
+		{
+			char *c;
+			Q_strncpyz(confbase, config, sizeof(confbase));
+			c = strchr(confbase, ':');
+			if (*c)
+				*c = 0;
+		}
+		else
+			Q_strncpyz(confbase, "/etc/xdg/", sizeof(confbase));
 	}
 
 	//we need to create some .desktop file first, so stuff knows how to start us up.
@@ -349,7 +377,7 @@ static void Sys_Register_File_Associations_f(void)
 		if (!strcmp(iconname, "afterquake") || !strcmp(iconname, "nq"))	//hacks so that we don't need to create icons.
 			iconname = "quake";
 
-		if (FS_NativePath("icon.png", FS_GAME, iconsyspath, sizeof(iconsyspath)))
+		if (FS_NativePath("icon.png", FS_PUBBASEGAMEONLY, iconsyspath, sizeof(iconsyspath)))
 			iconname = iconsyspath;
 
 		desktopfile = va(desktopfile,
@@ -366,11 +394,11 @@ static void Sys_Register_File_Associations_f(void)
 	//write out a new file and rename the new over the top of the old
 	{
 		char *foundassoc = NULL;
-		vfsfile_t *out = FS_OpenVFS(va("%s/applications/.mimeapps.list.new", xdgbase), "wb", FS_SYSTEM);
+		vfsfile_t *out = FS_OpenVFS(va("%s/.mimeapps.list.new", confbase), "wb", FS_SYSTEM);
 		if (out)
 		{
 			qofs_t insize;
-			char *in = FS_MallocFile(va("%s/applications/mimeapps.list", xdgbase), FS_SYSTEM, &insize);
+			char *in = FS_MallocFile(va("%s/mimeapps.list", confbase), FS_SYSTEM, &insize);
 			if (in)
 			{
 				qboolean inadded = false;
@@ -404,7 +432,7 @@ static void Sys_Register_File_Associations_f(void)
 				if (foundassoc)
 				{	//if we found it, or somewhere to insert it, then insert it.
 					VFS_WRITE(out, in, foundassoc-in);
-					VFS_PRINTF(out, "x-scheme-handler/qw=fte-%s.desktop\n", fs_manifest->installation);
+					VFS_PRINTF(out, "x-scheme-handler/qw=fte-%s.desktop;\n", fs_manifest->installation);
 					VFS_WRITE(out, foundassoc, insize - (foundassoc-in));
 				}
 				else
@@ -414,11 +442,11 @@ static void Sys_Register_File_Associations_f(void)
 			if (!foundassoc)
 			{	//if file not found, or no appropriate section, just concat it on the end.
 				VFS_PRINTF(out, "[Added Associations]\n");
-				VFS_PRINTF(out, "x-scheme-handler/qw=fte-%s.desktop\n", fs_manifest->installation);
+				VFS_PRINTF(out, "x-scheme-handler/qw=fte-%s.desktop;\n", fs_manifest->installation);
 			}
 			VFS_FLUSH(out);
 			VFS_CLOSE(out);
-			FS_Rename2(va("%s/applications/.mimeapps.list.new", xdgbase), va("%s/applications/mimeapps.list", xdgbase), FS_SYSTEM, FS_SYSTEM);
+			FS_Rename2(va("%s/.mimeapps.list.new", confbase), va("%s/mimeapps.list", confbase), FS_SYSTEM, FS_SYSTEM);
 		}
 	}
 }

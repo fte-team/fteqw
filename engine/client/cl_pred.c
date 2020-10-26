@@ -891,6 +891,7 @@ void CL_PredictEntityMovement(entity_state_t *estate, float age)
 		VectorClear(startstate.velocity);
 		startstate.onground = false;
 		startstate.jump_held = false;
+		startstate.flags = 0;
 		CL_EntStateToPlayerState(&startstate, estate);
 		CL_EntStateToPlayerCommand(&cmd, estate, age);
 
@@ -1174,6 +1175,8 @@ void CL_PredictMovePNum (int seat)
 	{
 		packet_entities_t *pe;
 		pe = &cl.inframes[from.frame & UPDATE_MASK].packet_entities;
+		if (!pe->num_entities && !from.frame)
+			pe = &cl.inframes[to.frame & UPDATE_MASK].packet_entities;
 		for (i = 0; i < pe->num_entities; i++)
 		{
 			if (pe->entities[i].number == trackent)

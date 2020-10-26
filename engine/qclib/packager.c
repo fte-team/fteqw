@@ -1,8 +1,13 @@
 #include "qcc.h"
 #if !defined(MINIMAL) && !defined(OMIT_QCC)
 #include <time.h>
-#ifndef _WIN32
+#ifdef _WIN32
+#include <sys/types.h>
+#include <sys/stat.h>
+#else
 #include <unistd.h>
+#include <dirent.h>
+#include <sys/stat.h>
 #endif
 void QCC_Canonicalize(char *fullname, size_t fullnamesize, const char *newfile, const char *base);
 
@@ -79,6 +84,7 @@ struct pkgctx_s
 		struct oldpack_s *next;
 		char filename[128];
 		size_t numfiles;
+		unsigned int part;
 		struct
 		{
 			char name[128];
@@ -194,7 +200,7 @@ static struct class_s *PKG_FindClass(struct pkgctx_s *ctx, char *code)
 	}
 	return NULL;
 }
-static struct dataset_s *PKG_FindDataset(struct pkgctx_s *ctx, char *code)
+static struct dataset_s *PKG_FindDataset(struct pkgctx_s *ctx, const char *code)
 {
 	struct dataset_s *o;
 	for (o = ctx->datasets; o; o = o->next)
@@ -204,7 +210,7 @@ static struct dataset_s *PKG_FindDataset(struct pkgctx_s *ctx, char *code)
 	}
 	return NULL;
 }
-static struct dataset_s *PKG_GetDataset(struct pkgctx_s *ctx, char *code)
+static struct dataset_s *PKG_GetDataset(struct pkgctx_s *ctx, const char *code)
 {
 	struct dataset_s *s = PKG_FindDataset(ctx, code);
 	if (!s)
@@ -373,6 +379,37 @@ static void PKG_CreateOutput(struct pkgctx_s *ctx, struct dataset_s *s, const ch
 	QCC_Canonicalize(o->filename, sizeof(o->filename), path, ctx->gamepath);
 	o->next = s->outputs;
 	s->outputs = o;
+
+
+	if (diff)
+	{
+		char *end = path + strlen(path)-2;
+		unsigned int i;
+		for (i = 0; i <= 99; i++)
+		{
+#ifdef _WIN32
+			struct _stat statbuf;
+#else
+			struct stat statbuf;
+#endif
+			sprintf(end, "%02u", i+1);
+#ifdef _WIN32
+			//FIXME: use the utf16 version because microsoft suck and don't allow utf-8
+			if (_stat(path, &statbuf) == 0)
+#else
+			if (stat(path, &statbuf) == 0)
+#endif
+			{
+				struct oldpack_s *span = malloc(sizeof(*span));
+				strcpy(span->filename, path);
+				span->numfiles = 0;
+				span->file = NULL;
+				span->next = o->oldparts;
+				span->part = i;
+				o->oldparts = span;
+			}
+		}
+	}
 }
 
 static void PKG_ParseOutput(struct pkgctx_s *ctx, pbool diff)
@@ -440,6 +477,7 @@ static void PKG_AddOldPack(struct pkgctx_s *ctx, const char *fname)
 	ctx->oldpacks = pack;
 }
 #endif
+
 static void PKG_ParseOldPack(struct pkgctx_s *ctx)
 {
 	char token[MAX_OSPATH];
@@ -596,7 +634,6 @@ static void PKG_ParseRule(struct pkgctx_s *ctx)
 	r->next = ctx->rules;
 	ctx->rules = r;
 }
-#ifdef _WIN32
 static void PKG_AddClassFile(struct pkgctx_s *ctx, struct class_s *c, const char *fname, time_t mtime)
 {
 	struct file_s *f;
@@ -618,7 +655,6 @@ static void PKG_AddClassFile(struct pkgctx_s *ctx, struct class_s *c, const char
 	f->next = c->files;
 	c->files = f;
 }
-#endif
 static void PKG_AddClassFiles(struct pkgctx_s *ctx, struct class_s *c, const char *fname)
 {
 #ifdef _WIN32
@@ -638,7 +674,45 @@ static void PKG_AddClassFiles(struct pkgctx_s *ctx, struct class_s *c, const cha
 		} while(FindNextFile(h, &fd));
 	}
 #else
-	ctx->messagecallback(ctx->userctx, "no wildcard support, sorry\n");
+	DIR *dir;
+	struct dirent *ent;
+	char basepath[MAX_OSPATH], tmppath[MAX_OSPATH];
+	struct stat statbuf;
+
+	QCC_Canonicalize(basepath, sizeof(basepath), fname, ctx->sourcepath);
+	QC_strlcat(basepath, "/", sizeof(basepath));
+	dir = opendir(basepath);
+	if (!dir)
+	{
+		ctx->messagecallback(ctx->userctx, "unable to open dir %s\n", basepath);
+		return;
+	}
+	while ((ent = readdir(dir)))
+	{
+		if (*ent->d_name == '.')
+			continue;
+		QCC_Canonicalize(basepath, sizeof(basepath), ent->d_name, fname);
+		QCC_Canonicalize(tmppath, sizeof(tmppath), basepath, ctx->sourcepath);
+		if (stat(tmppath, &statbuf)!=0)
+			continue;
+
+		switch (statbuf.st_mode & S_IFMT)
+		{
+		default:	//some weird file type. shouldn't be a symlink sadly.
+//			ctx->messagecallback(ctx->userctx, "found weird %s\n", basepath);
+			break;
+		case S_IFDIR:
+			QC_strlcat(basepath, "/", sizeof(basepath));
+//			ctx->messagecallback(ctx->userctx, "found dir %s\n", basepath);
+			PKG_AddClassFiles(ctx, c, basepath);
+			break;
+		case S_IFREG:
+//			ctx->messagecallback(ctx->userctx, "found file %s\n", basepath);
+			PKG_AddClassFile(ctx, c, basepath, statbuf.st_mtime);
+			break;
+		}
+	}
+	closedir(dir);
 #endif
 }
 static void PKG_ParseClass(struct pkgctx_s *ctx, char *output)
@@ -887,6 +961,7 @@ static void *PKG_OpenSourceFile(struct pkgctx_s *ctx, struct file_s *file, size_
 	QCC_Canonicalize(fullname, sizeof(fullname), file->name, ctx->sourcepath);
 	strcpy(file->write.name, file->name);
 
+	//WIN32 FIXME: use the utf16 version because microsoft suck and don't allow utf-8
 	f = fopen(fullname, "rb");
 	if (!f)
 		return NULL;
@@ -1010,7 +1085,7 @@ static void *PKG_OpenSourceFile(struct pkgctx_s *ctx, struct file_s *file, size_
 	return data;
 }
 
-static void PKG_WritePackageData(struct pkgctx_s *ctx, struct output_s *out, unsigned int index, pbool directoryonly)
+static pbool PKG_WritePackageData(struct pkgctx_s *ctx, struct output_s *out, unsigned int index, pbool directoryonly)
 {
 	//helpers to deal with misaligned data. writes little-endian.
 #define misbyte(ptr,ofs,data)  ((unsigned char*)(ptr))[ofs] = (data)&0xff
@@ -1044,11 +1119,26 @@ static void PKG_WritePackageData(struct pkgctx_s *ctx, struct output_s *out, uns
 #else
 	#define compmethod 0/*Z_RAW*/
 #endif
-	if (!compmethod && !directoryonly)
+	if (!compmethod && !directoryonly && !index)
 		pak = true; //might as well boost compat...
 	ext = strrchr(out->filename, '.');
 	if (ext && !QC_strcasecmp(ext, ".pak") && !index)
 		pak = true;
+
+	if (!directoryonly)
+	{
+		for (f = out->files; f ; f=f->write.nextwrite)
+		{
+			if (index != f->write.zdisk)
+				continue;	//not in this disk...
+			break;
+		}
+		if (!f)
+		{
+			ctx->messagecallback(ctx->userctx, "\t\tNo files to write to %s\n", out->filename);
+			return false;
+		}
+	}
 
 	if (out->usediffs && !directoryonly)
 	{
@@ -1068,8 +1158,8 @@ static void PKG_WritePackageData(struct pkgctx_s *ctx, struct output_s *out, uns
 		outf = fopen(out->filename, "wb");
 	if (!outf)
 	{
-		ctx->messagecallback(ctx->userctx, "Unable to open %s\n", out->filename);
-		return;
+		ctx->messagecallback(ctx->userctx, "\t\tUnable to open %s\n", out->filename);
+		return false;
 	}
 
 	if (pak)	//reserve space for the pak header
@@ -1080,7 +1170,7 @@ static void PKG_WritePackageData(struct pkgctx_s *ctx, struct output_s *out, uns
 		for (f = out->files; f ; f=f->write.nextwrite)
 		{
 			char header[32+sizeof(f->write.name)];
-			size_t fnamelen = strlen(f->write.name);
+			size_t fnamelen;
 			size_t hofs;
 			unsigned short gpflags = GPF_UTF8;
 
@@ -1090,8 +1180,9 @@ static void PKG_WritePackageData(struct pkgctx_s *ctx, struct output_s *out, uns
 			filedata = PKG_OpenSourceFile(ctx, f, &f->write.rawsize);
 			if (!filedata)
 			{
-				ctx->messagecallback(ctx->userctx, "Unable to open %s\n", f->name);
+				ctx->messagecallback(ctx->userctx, "\t\tUnable to open %s\n", f->name);
 			}
+			fnamelen = strlen(f->write.name);
 
 			f->write.zcrc = QC_encodecrc(f->write.rawsize, filedata);
 			misint  (header, 0, 0x04034b50);
@@ -1104,10 +1195,10 @@ static void PKG_WritePackageData(struct pkgctx_s *ctx, struct output_s *out, uns
 			misint  (header, 18, f->write.rawsize);//compressed size
 			misint  (header, 22, f->write.rawsize);//uncompressed size
 			misshort(header, 26, fnamelen);//filename length
-			misshort(header, 28, 0);//extradata length
-			strcpy(header+30, f->write.name);
+			misshort(header, 28, 0);//extradata length (filled in later)
+			memcpy(header+30, f->write.name, fnamelen);
 			hofs = 30+fnamelen;
-
+			//Write extra data here...
 			misshort(header, 28, hofs-(30+fnamelen));//extradata length
 			f->write.zhdrofs = ftell(outf);
 			fwrite(header, 1, hofs, outf);
@@ -1170,8 +1261,8 @@ static void PKG_WritePackageData(struct pkgctx_s *ctx, struct output_s *out, uns
 		struct 
 		{
 			char name[56];
-			unsigned int size;
 			unsigned int offset;
+			unsigned int size;
 		} pakentry;
 		pakheader.tabofs = ftell(outf);
 
@@ -1216,7 +1307,7 @@ static void PKG_WritePackageData(struct pkgctx_s *ctx, struct output_s *out, uns
 		misint  (centralheader, 20, f->write.zipsize);//compressed size
 		misint  (centralheader, 24, f->write.rawsize);//uncompressed size
 		misshort(centralheader, 28, fnamelen);//filename length
-		misshort(centralheader, 30, 0);//extradata length
+		misshort(centralheader, 30, 0);//extradata length (filled in later)
 		misshort(centralheader, 32, 0);//comment length
 		misshort(centralheader, 34, f->write.zdisk);//first disk number
 		misshort(centralheader, 36, 0);//internal file attribs
@@ -1292,6 +1383,8 @@ static void PKG_WritePackageData(struct pkgctx_s *ctx, struct output_s *out, uns
 	fwrite(centralheader, 1, 22, outf);
 
 	fclose(outf);
+
+	return true;
 }
 
 /*
@@ -1337,7 +1430,7 @@ static void PKG_ReadPackContents(struct pkgctx_s *ctx, struct oldpack_s *old)
 
 		if (header[0] == 'P' && header[1] == 'K' && header[2] == 5 && header[3] == 6)
 		{
-			//thisdisk = shortfromptr(header+4);
+			old->part = shortfromptr(header+4);
 			//centraldirstart = shortfromptr(header+6);
 			old->numfiles = shortfromptr(header+8);
 			//numfiles_all = shortfromptr(header+10);
@@ -1360,7 +1453,7 @@ static void PKG_ReadPackContents(struct pkgctx_s *ctx, struct oldpack_s *old)
 				//gflags = shortfromptr(header+8);
 				old->file[u].zmethod = shortfromptr(header+10);
 				old->file[u].dostime = shortfromptr(header+12);
-				old->file[u].dosdate = shortfromptr(header+12);
+				old->file[u].dosdate = shortfromptr(header+14);
 				old->file[u].zcrc = longfromptr(header+16);
 				old->file[u].zipsize = longfromptr(header+20);
 				old->file[u].rawsize = longfromptr(header+24);
@@ -1462,8 +1555,13 @@ static void PKG_WriteDataset(struct pkgctx_s *ctx, struct dataset_s *set)
 		for (out = set->outputs; out; out = out->next)
 		{
 			if(out->usediffs)
-			{	//FIXME: look for old parts
-
+			{
+				for (old = out->oldparts; old; old = old->next)
+				{
+					PKG_ReadPackContents(ctx, old);
+					if (out->numparts <= old->part)
+						out->numparts = old->part + 1;
+				}
 			}
 		}
 	}
@@ -1514,7 +1612,10 @@ static void PKG_WriteDataset(struct pkgctx_s *ctx, struct dataset_s *set)
 				for (old = out->oldparts; old; old = old->next)
 				{
 					if (!PKG_FileIsModified(ctx, old, file))
+					{
+						file->write.zdisk = old->part;
 						break;
+					}
 				}
 
 				file->write.nextwrite = out->files;
@@ -1545,11 +1646,12 @@ static void PKG_WriteDataset(struct pkgctx_s *ctx, struct dataset_s *set)
 		else
 		{
 			ctx->messagecallback(ctx->userctx, "\tGenerating %s[%s] \"%s\"\n", out->code, set->name, out->filename);
-			PKG_WritePackageData(ctx, out, out->numparts, false);
+			if (PKG_WritePackageData(ctx, out, out->numparts, false))
+			{
+				if(out->usediffs)
+					PKG_WritePackageData(ctx, out, out->numparts+1, true);
+			}
 		}
-
-		if(out->usediffs)
-			PKG_WritePackageData(ctx, out, out->numparts+1, true);
 	}
 }
 void Packager_WriteDataset(struct pkgctx_s *ctx, char *setname)
@@ -1647,5 +1749,46 @@ void Packager_ParseFile(struct pkgctx_s *ctx, char *scriptname)
 
 void Packager_Destroy(struct pkgctx_s *ctx)
 {
+	free(ctx);
+}
+
+pbool			Packager_CompressDir(const char *dirname, enum pkgtype_e type, void (*messagecallback)(void *userctx, const char *message, ...), void *userctx)
+{
+	char *ext;
+	char filename[MAX_QPATH];
+	struct pkgctx_s *ctx = Packager_Create(messagecallback, userctx);
+	struct dataset_s *s;
+	struct class_s *c;
+	QC_strlcpy(ctx->sourcepath, dirname, sizeof(ctx->sourcepath));
+	ext = strrchr(ctx->sourcepath, '/');
+	if (*ctx->sourcepath && (!ext || ext[1]))
+		QC_strlcat(ctx->sourcepath, "/", sizeof(ctx->sourcepath));
+
+	QC_strlcpy(filename, dirname, sizeof(filename));
+	for (;(ext = strrchr(filename, '/')) && !ext[1]; *ext = 0)
+		;
+	ext = strrchr(filename, '.');
+	if (ext)
+		*ext = 0;
+	if (type == PACKAGER_PAK)
+		QC_strlcat(filename, ".pak", sizeof(filename));
+	else
+		QC_strlcat(filename, ".pk3", sizeof(filename));
+
+	s = PKG_GetDataset(ctx, "default");
+	PKG_CreateOutput(ctx, s, "default", filename, type == PACKAGER_PK3_SPANNED);
+
+	c = malloc(sizeof(*c));
+	memset(c, 0, sizeof(*c));
+	strcpy(c->name, "file");
+	strcpy(c->outname, "default");
+	c->next = ctx->classes;
+	ctx->classes = c;
+	PKG_AddClassFiles(ctx, c, "");
+
+	Packager_WriteDataset(ctx, NULL);
+	Packager_Destroy(ctx);
+
+	return true;
 }
 #endif

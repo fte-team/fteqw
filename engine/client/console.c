@@ -2770,6 +2770,8 @@ static void Con_DrawMouseOver(console_t *mouseconsole)
 	char *tiptext = NULL;
 	shader_t *shader = NULL;
 	model_t *model = NULL;
+	sfx_t	*audio = NULL;
+
 	char *mouseover;
 	if (!mouseconsole->mouseover || !mouseconsole->mouseover(mouseconsole, &tiptext, &shader))
 	{
@@ -2856,17 +2858,25 @@ static void Con_DrawMouseOver(console_t *mouseconsole)
 						if (model->loadstate != MLS_LOADED)
 							model = NULL;
 					}
+
+					key = Info_ValueForKey(info, "playaudio");
+					if (*key)
+					{
+						audio = S_PrecacheSound(key);
+						if (audio && audio->loadstate != SLS_LOADED)
+							audio = NULL;
+					}
 				}
 				tiptext = Info_ValueForKey(info, "tip");
 			}
 			Z_Free(mouseover);
 		}
 	}
-	if ((tiptext && *tiptext) || shader || model)
+	if ((tiptext && *tiptext) || shader || model || audio)
 	{
 		//FIXME: draw a proper background.
 		//FIXME: support line breaks.
-		conchar_t buffer[2048], *starts[64], *ends[countof(starts)];
+		conchar_t buffer[2048], *starts[64], *ends[countof(starts)], *eot;
 		int lines, i, px, py;
 		float tw, th;
 		float ih = 0, iw = 0;
@@ -2874,7 +2884,30 @@ static void Con_DrawMouseOver(console_t *mouseconsole)
 		float y = mousecursor_y+8;
 
 		Font_BeginString(font_console, x, y, &px, &py);
-		lines = Font_LineBreaks(buffer, COM_ParseFunString(CON_WHITEMASK, tiptext, buffer, sizeof(buffer), false), (256.0 * vid.pixelwidth) / vid.width, countof(starts), starts, ends);
+		eot = COM_ParseFunString(CON_WHITEMASK, tiptext, buffer, sizeof(buffer), false);
+		if (audio)
+		{
+			struct sfxcache_s cache;
+			char name[MAX_OSPATH];
+			float len;
+			*name = 0;
+			len = audio->decoder.querydata?audio->decoder.querydata(audio, &cache, name, sizeof(name)):-1;
+			if (len >= 0)
+			{
+				eot = COM_ParseFunString(CON_WHITEMASK, va("\n\n%s\n%gkhz, %s, %ibit, %g seconds%s",
+							name, cache.speed/1000.0, cache.numchannels==1?"mono":"stereo", QAF_BYTES(cache.format)*8, len, audio->loopstart>=0?" looped":""
+							), eot, sizeof(buffer)-((char*)eot-(char*)buffer), false);
+			}
+			else
+			{
+				cache = *(struct sfxcache_s *)audio->decoder.buf;
+				len = (double)cache.length / cache.speed;
+				eot = COM_ParseFunString(CON_WHITEMASK, va("\n\n\n%gkhz, %s, %ibit, %g seconds%s",
+							cache.speed/1000.0, cache.numchannels==1?"mono":"stereo", QAF_BYTES(cache.format)*8, len, audio->loopstart>=0?" looped":""
+							), eot, sizeof(buffer)-((char*)eot-(char*)buffer), false);
+			}
+		}
+		lines = Font_LineBreaks(buffer, eot, (256.0 * vid.pixelwidth) / vid.width, countof(starts), starts, ends);
 		th = (Font_CharHeight()*lines * vid.height) / vid.pixelheight;
 
 		if (model)

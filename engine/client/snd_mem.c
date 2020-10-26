@@ -569,9 +569,9 @@ static qboolean ResampleSfx (sfx_t *sfx, int inrate, int inchannels, qaudiofmt_t
 
 	scale = snd_speed / (double)inrate;
 	outsamps = insamps * scale;
-	if (loadas8bit.ival < 0)
+	if (snd_loadas8bit.ival < 0)
 		outformat = QAF_S16;
-	else if (loadas8bit.ival)
+	else if (snd_loadas8bit.ival)
 		outformat = QAF_S8;
 	else
 		outformat = informat;
@@ -789,7 +789,7 @@ static qboolean QDECL S_LoadWavSound (sfx_t *s, qbyte *data, size_t datalen, int
 		format = QAF_F32;
 	}
 #else
-	else if (info.format == 3 && info.bitwidth == 4)	//signed floats
+	else if (info.format == 3 && info.bitwidth == 32)	//signed floats
 	{
 		short *out = (short *)(data + info.dataofs);
 		float *in = (float *)(data + info.dataofs);

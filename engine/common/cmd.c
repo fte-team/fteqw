@@ -805,37 +805,56 @@ static void Cmd_Exec_f (void)
 #ifndef QUAKETC
 	//hack to try to work around nquake's b0rkedness
 	if (!strncmp(s, "// This is nQuake's Frogbot config", 33))
-		s = "echo Refusing to exec nQuake's Frogbot config";	//otherwise many people with nquake installed will be fucked over whenever they try playing singleplayer
-	else if (!strncmp(s, "// ", 3))
 	{
-		char *eol = strstr(s, "\n");
-		if (eol)
-		{
-			*eol = 0;
-			s = eol+1;
-			if (strstr(f, "nQuake"))
-			{	//this is evil, but if we're running quake then com_parseutf8 will be 0 and we can just convert to quake chars.
-				char *in = s;
-				char *out = s;
-				int foundone = 0;
-				while (*in)
-				{
-					if (*in == '^')
-					{
-						*out++ = 0x80|*++in;
-						foundone++;
-					}
-					else
-						*out++ = *in;
-					in++;
-				}
-				if (foundone)
-					Cbuf_InsertText(va("echo fixups for nquake config %s: %i replacements\n", buf, foundone), level, false);
-			}
-		}
+		s = "echo Refusing to exec nQuake's Frogbot config";	//otherwise many people with nquake installed will be fucked over whenever they try playing singleplayer
+		Cbuf_InsertText (s, level, true);
 	}
-#endif
+	else
+	{
+		int foundone = 0;
+		while (!strncmp(s, "//", 2))
+		{
+			char *eol = strstr(s, "\n");
+			if (eol)
+			{
+				*eol++ = 0;
+				if (strstr(s, "nQuake") || strstr(s, "N Q U A K E"))
+				{	//this is evil, but if we're running quake then com_parseutf8 will be 0 and we can just convert to quake chars (less text).
+					char *out = s = eol;
+					const char *in = s;
+					while (*in)
+					{
+						if (*in == '\n' && !strncmp(in,"\nexec configs/config.cfg", 24))
+						{	//ezquake writes its configs elsewhere, and nquake stomps on everything in its autoexec.cfg, so we need to try to work around its breakages
+							memmove(out, in, 6);out+=6;in+=6;
+							in += 8;
+							foundone++;
+							continue;
+						}
+						if (*in == '^')
+						{
+							*out++ = 0x80|*++in;
+							foundone++;
+						}
+						else
+							*out++ = *in;
+						in++;
+					}
+					*out = 0;
+					break;
+				}
+				s = eol;
+				continue;
+			}
+			break;
+		}
+		Cbuf_InsertText (s, level, true);
+		if (foundone)
+			Cbuf_InsertText(va("\necho \""CON_ERROR"fixups for nquake config %s: %i replacements\"\n", buf, foundone), level, false);
+	}
+#else
 	Cbuf_InsertText (s, level, true);
+#endif
 	if (cvar_watched)
 		Cbuf_InsertText (va("echo BEGIN %s", buf), level, true);
 	BZ_Free(f);

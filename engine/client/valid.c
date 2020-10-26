@@ -637,6 +637,8 @@ static rulesetrule_t rulesetrules_strict[] = {
 	{"ruleset_allow_sensitive_texture_replacements", "0"},
 	{"ruleset_allow_localvolume", "0"},
 	{"ruleset_allow_fbmodels", "0"},
+	{"r_particlesystem", "classic"},	/*block custom particles*/
+	{"r_part_density", "1"},	/*don't let people thin them out*/
 	{"scr_autoid_team", "0"},	/*sort of a wallhack*/
 	{"tp_disputablemacros", "0"},
 	{"cl_instantrotate", "0"},
@@ -645,6 +647,34 @@ static rulesetrule_t rulesetrules_strict[] = {
 	{"ruleset_allow_in", "0"},
 	{"r_projection", "0"},
 	{"gl_shadeq1_name", "*"},
+	{"cl_rollalpha", "20"},
+	{"cl_iDrive", "0"},
+	{NULL}
+};
+
+static rulesetrule_t rulesetrules_thunderdome[] = {
+	{"ruleset_allow_shaders", "0"},	/*users can potentially create all sorts of wallhacks or spiked models with this*/
+	{"ruleset_allow_watervis", "0"}, /*oh noes! users might be able to see underwater if they're already in said water. oh wait. what? why do we care, dude*/
+	{"r_vertexlight", "0"},
+	{"ruleset_allow_playercount", "0"},
+	{"ruleset_allow_frj", "0"},
+	{"ruleset_allow_packet", "0"},
+	{"ruleset_allow_particle_lightning", "0"},
+	{"ruleset_allow_overlong_sounds", "0"},
+	{"ruleset_allow_larger_models", "0"},
+	{"ruleset_allow_modified_eyes", "0"},
+	{"ruleset_allow_sensitive_texture_replacements", "0"},
+	{"ruleset_allow_localvolume", "0"},
+	{"ruleset_allow_fbmodels", "0"},
+	{"scr_autoid_team", "0"},	/*sort of a wallhack*/
+	{"tp_disputablemacros", "0"},
+	{"cl_instantrotate", "0"},
+	{"v_projectionmode", "0"},	/*no extended fovs*/
+	{"r_shadow_realtime_world", "0"}, /*static lighting can be used to cast shadows around corners*/
+	{"ruleset_allow_in", "0"},
+	{"r_projection", "0"},
+	{"gl_shadeq1_name", "*"},
+//	{"cl_rollalpha", "20"},
 	{"cl_iDrive", "0"},
 	{NULL}
 };
@@ -673,9 +703,12 @@ static rulesetrule_t rulesetrules_nqr[] = {
 
 static ruleset_t rulesets[] =
 {
-	{"strict", rulesetrules_strict},
-	{"nqr", rulesetrules_nqr},
-	//{"eql", rulesetrules_nqr},
+	{"strict",		rulesetrules_strict},
+	{"qcon",		rulesetrules_strict},	//not authorised but oh well. imported configs tend to piss people off.
+	{"smackdown",	rulesetrules_strict},	//officially, smackdown cannot authorise this, thus we do not use that name. however, imported configs tend to piss people off.
+	{"thunderdome",	rulesetrules_thunderdome},	//more permissive (doesn't block particles.
+	{"nqr",			rulesetrules_nqr},
+	//{"eql",		rulesetrules_nqr},
 	{NULL}
 };
 

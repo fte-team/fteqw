@@ -327,6 +327,8 @@ static qboolean Shader_EvaluateCondition(shader_t *shader, const char **ptr)
 			lhs = r_deluxemapping;
 		else if (!Q_stricmp(token, "softwarebanding"))
 			lhs = r_softwarebanding;
+		else if (!Q_stricmp(token, "unmaskedsky"))
+			lhs = cls.allow_unmaskedskyboxes;	//can/should skip writing depth values for sky surfaces.
 
 		//normalmaps are generated if they're not already known.
 		else if (!Q_stricmp(token, "normalmap"))
@@ -1372,7 +1374,7 @@ struct programpermu_s *Shader_LoadPermutation(program_t *prog, unsigned int p)
 	size_t offset;
 	qboolean fail = false;
 
-	extern cvar_t gl_specular, gl_specular_power;
+	extern cvar_t r_glsl_pbr, gl_specular, gl_specular_power;
 
 	if (~prog->supportedpermutations & p)
 		return NULL;	//o.O
@@ -1384,6 +1386,8 @@ struct programpermu_s *Shader_LoadPermutation(program_t *prog, unsigned int p)
 		Q_strlcatfz(defines, &offset, sizeof(defines), "#define MAX_GPU_BONES %i\n", sh_config.max_gpu_bones);
 	if (gl_specular.value)
 		Q_strlcatfz(defines, &offset, sizeof(defines), "#define SPECULAR\n#define SPECULAR_BASE_MUL %f\n#define SPECULAR_BASE_POW %f\n", 1.0*gl_specular.value, max(1,gl_specular_power.value));
+	if (r_glsl_pbr.ival)
+		Q_strlcatfz(defines, &offset, sizeof(defines), "#define PBR\n");
 #ifdef RTLIGHTS
 	if (r_fakeshadows)
 		Q_strlcatfz(defines, &offset, sizeof(defines), "#define FAKESHADOWS\n%s",
@@ -1932,7 +1936,7 @@ static qboolean Shader_LoadPermutations(char *name, program_t *prog, char *scrip
 			break;
 		while (*script && *script != '\n')
 			script++;
-	};
+	}
 	prog->shadertext = Z_StrDup(script);
 
 	if (qrenderer == qrtype && ver < 150)
@@ -6584,6 +6588,9 @@ char *Shader_DefaultBSPWater(parsestate_t *ps, const char *shortname, char *buff
 				"{\n"
 					"surfaceparm nodlight\n"
 					"surfaceparm nomarks\n"
+					"if %g < 1\n"
+						"sort underwater\n"
+					"endif\n"
 					"{\n"
 						"program defaultwarp%s\n"
 						"map $diffuse\n"
@@ -6595,7 +6602,7 @@ char *Shader_DefaultBSPWater(parsestate_t *ps, const char *shortname, char *buff
 					"}\n"
 					"surfaceparm hasdiffuse\n"
 				"}\n"
-				, (explicitalpha||alpha==1)?"":va("#ALPHA=%g",alpha), alpha, alpha);
+				, alpha, (explicitalpha||alpha==1)?"":va("#ALPHA=%g",alpha), alpha, alpha);
 		return buffer;
 	case 2:	//refraction of the underwater surface, with a fresnel
 		return (

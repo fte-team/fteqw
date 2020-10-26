@@ -49,37 +49,15 @@ pbool QC_strlcpy(char *dest, const char *src, size_t destsize) WARN_UNUSED_RESUL
 pbool QC_strnlcpy(char *dest, const char *src, size_t srclen, size_t destsize) WARN_UNUSED_RESULT;
 char *QC_strcasestr(const char *haystack, const char *needle);
 
-#ifdef _MSC_VER
-#define QC_vsnprintf _vsnprintf
-static void VARGS QC_snprintfz (char *dest, size_t size, const char *fmt, ...)
-{
-	va_list args;
-	va_start (args, fmt);
-	_vsnprintf (dest, size-1, fmt, args);
-	va_end (args);
-	//make sure its terminated.
-	dest[size-1] = 0;
-}
-#else
-#define QC_vsnprintf vsnprintf
-#define QC_snprintfz snprintf
-#endif
-
-#if (__GNUC__ > 3 || (__GNUC__ == 3 && __GNUC_MINOR__ >= 1))
-	#ifndef LIKEPRINTF
-		#define LIKEPRINTF(x) __attribute__((format(printf,x,x+1)))
-	#endif
-#endif
-#ifndef LIKEPRINTF
-#define LIKEPRINTF(x)
-#endif
-
-
-
 #if (__GNUC__ > 3 || (__GNUC__ == 3 && __GNUC_MINOR__ >= 1))
 	#define FTE_DEPRECATED  __attribute__((__deprecated__))	//no idea about the actual gcc version
-	#ifdef _WIN32
-		#define LIKEPRINTF(x) __attribute__((format(ms_printf,x,x+1)))
+	#if defined(_WIN32)
+		#include <stdio.h>
+		#ifdef __MINGW_PRINTF_FORMAT
+			#define LIKEPRINTF(x) __attribute__((format(__MINGW_PRINTF_FORMAT,x,x+1)))
+		#else
+			#define LIKEPRINTF(x) __attribute__((format(ms_printf,x,x+1)))
+		#endif
 	#else
 		#define LIKEPRINTF(x) __attribute__((format(printf,x,x+1)))
 	#endif
@@ -89,6 +67,25 @@ static void VARGS QC_snprintfz (char *dest, size_t size, const char *fmt, ...)
 #endif
 #ifndef NORETURN
 	#define NORETURN
+#endif
+#ifndef LIKEPRINTF
+	#define LIKEPRINTF(x)
+#endif
+
+#ifdef _MSC_VER
+#define QC_vsnprintf _vsnprintf
+static void VARGS QC_snprintfz (char *dest, size_t size, const char *fmt, ...) LIKEPRINTF(3)
+{
+	va_list args;
+	va_start (args, fmt);
+	_vsnprintf (dest, size-1, fmt, args);
+	va_end (args);
+	//make sure its terminated.
+	dest[size-1] = 0;
+}
+#else
+	#define QC_vsnprintf vsnprintf
+	#define QC_snprintfz snprintf
 #endif
 
 double I_FloatTime (void);

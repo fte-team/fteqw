@@ -11409,7 +11409,7 @@ static BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"bufstr_add",		PF_Fixme,			0,		0,		0,		448,	"float(strbuf bufhandle, string str, float ordered)"},//DP_QC_STRINGBUFFERS
 	{"bufstr_free",		PF_Fixme,			0,		0,		0,		449,	"void(strbuf bufhandle, float string_index)"},//DP_QC_STRINGBUFFERS
 	{"iscachedpic",		PF_Fixme,			0,		0,		0,		451,	"float(string name)"},// (EXT_CSQC)
-	{"precache_pic",	PF_Fixme,			0,		0,		0,		452,	"string(string name, optional float trywad)"},// (EXT_CSQC)
+	{"precache_pic",	PF_Fixme,			0,		0,		0,		452,	"string(string name, optional float flags)"},// (EXT_CSQC)
 	{"freepic",			PF_Fixme,			0,		0,		0,		453,	"void(string name)"},// (EXT_CSQC)
 	{"drawcharacter",	PF_Fixme,			0,		0,		0,		454,	"float(vector position, float character, vector scale, vector rgb, float alpha, optional float flag)"},// (EXT_CSQC, [EXT_CSQC_???])
 	{"drawrawstring",	PF_Fixme,			0,		0,		0,		455,	"float(vector position, string text, vector scale, vector rgb, float alpha, optional float flag)"},// (EXT_CSQC, [EXT_CSQC_???])
@@ -13144,6 +13144,8 @@ void PR_DumpPlatform_f(void)
 #endif
 
 		{"PRECACHE_PIC_FROMWAD","const float", CS|MENU, D("Attempt to load it from the legacy gfx.wad file (usually its better to just use a gfx/ prefix instead)."), 1},
+		{"PRECACHE_PIC_NOCLAMP","const float", CS|MENU, D("Texture coords for the pic will not be clamped nor padded nor atlased."), 4},
+//		{"PRECACHE_PIC_MIPMAP",	"const float", CS|MENU, D("Force the image to be mipmapped. This might result in it being blurry, but will not be noisy."), 8},
 		{"PRECACHE_PIC_DOWNLOAD","const float", CS|MENU, D("If no image could be loaded then attempt to download one from the server. This flag can cause the function to block until completion. (Slow!)"), 256},
 		{"PRECACHE_PIC_TEST",	"const float", CS|MENU, D("The precache will block until the image is fully loaded, returning a null string on failure. (Slow!)"), 512},
 

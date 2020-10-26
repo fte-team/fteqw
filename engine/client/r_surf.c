@@ -29,6 +29,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #if (defined(GLQUAKE) || defined(VKQUAKE)) && defined(MULTITHREAD)
 #define THREADEDWORLD
+int webo_blocklightmapupdates;	//0 no webo, &1=using threadedworld, &2=already uploaded. so update when !=3
 #endif
 #ifdef BEF_PUSHDEPTH
 qboolean r_pushdepth;
@@ -1776,7 +1777,7 @@ static void Surf_BuildLightMap_Worker (model_t *wmodel, msurface_t *surf, int sh
 						}
 					}
 				}
-				else switch(cl.worldmodel->lightmaps.fmt)
+				else switch(wmodel->lightmaps.fmt)
 				{
 				case LM_E5BGR9:
 					for (maps = 0 ; maps < MAXCPULIGHTMAPS && surf->styles[maps] != INVALID_LIGHTSTYLE ; maps++)
@@ -1876,7 +1877,7 @@ static void Surf_BuildLightMap_Worker (model_t *wmodel, msurface_t *surf, int sh
 // add all the lightmaps
 			if (src)
 			{
-				switch(cl.worldmodel->lightmaps.fmt)
+				switch(wmodel->lightmaps.fmt)
 				{
 				case LM_E5BGR9:
 					for (maps = 0 ; maps < MAXCPULIGHTMAPS && surf->styles[maps] != INVALID_LIGHTSTYLE ; maps++)
@@ -2882,7 +2883,7 @@ void Surf_GenBrushBatches(batch_t **batches, entity_t *ent)
 
 // calculate dynamic lighting for bmodel if it's not an
 // instanced model
-	if (model->fromgame != fg_quake3 && model->fromgame != fg_doom3 && lightmap && !r_temporalscenecache.ival)
+	if (model->fromgame != fg_quake3 && model->fromgame != fg_doom3 && lightmap && webo_blocklightmapupdates!=3)
 	{
 		int k;
 
@@ -2981,12 +2982,12 @@ void Surf_GenBrushBatches(batch_t **batches, entity_t *ent)
 		if (!b->shader)
 			b->shader = R_TextureAnimation(ent->framestate.g[FS_REG].frame[0], b->texture)->shader;
 
-		if (bef & BEF_FORCEADDITIVE)
+		if (bef & BEF_FORCEADDITIVE && b->shader->sort==SHADER_SORT_OPAQUE)
 		{
 			b->next = batches[SHADER_SORT_ADDITIVE];
 			batches[SHADER_SORT_ADDITIVE] = b;
 		}
-		else if (bef & BEF_FORCETRANSPARENT)
+		else if (bef & BEF_FORCETRANSPARENT && b->shader->sort==SHADER_SORT_OPAQUE)
 		{
 			b->next = batches[SHADER_SORT_BLEND];
 			batches[SHADER_SORT_BLEND] = b;
@@ -3025,6 +3026,7 @@ struct webostate_s
 	{
 		size_t numidx;
 		size_t maxidx;
+		size_t firstidx;	//offset into the final ebo
 		index_t *idxbuffer;
 		batch_t b;
 		mesh_t m;
@@ -3035,11 +3037,14 @@ struct webostate_s
 static struct webostate_s *webostates;
 static struct webostate_s *webogenerating;
 static int webogeneratingstate;	//1 if generating, 0 if not, for waiting for sync.
-int webo_blocklightmapupdates;	//0 no webo, &1=using threadedworld, &2=already uploaded.
 static void R_DestroyWorldEBO(struct webostate_s *es)
 {
+	int i;
 	if (!es)
 		return;
+
+	for (i = 0; i < es->numbatches; i++)
+		BZ_Free(es->batches[i].idxbuffer);
 
 #ifdef GLQUAKE
 	if (qrenderer == QR_OPENGL)
@@ -3077,14 +3082,16 @@ void R_GeneratedWorldEBO(void *ctx, void *data, size_t a_, size_t b_)
 		GL_DeselectVAO();
 
 		webostate->ebo.gl.addr = NULL;
-		qglGenBuffersARB(1, &webostate->ebo.gl.vbo);
+		if (!webostate->ebo.gl.vbo)
+			qglGenBuffersARB(1, &webostate->ebo.gl.vbo);
 		GL_SelectEBO(webostate->ebo.gl.vbo);
 		qglBufferDataARB(GL_ELEMENT_ARRAY_BUFFER_ARB, idxcount*sizeof(index_t), NULL, GL_STATIC_DRAW_ARB);
 		for (i = 0, idxcount = 0; i < webostate->numbatches; i++)
 		{
 			qglBufferSubDataARB(GL_ELEMENT_ARRAY_BUFFER_ARB, idxcount*sizeof(index_t), webostate->batches[i].numidx*sizeof(index_t), webostate->batches[i].idxbuffer);
-			BZ_Free(webostate->batches[i].idxbuffer);
-			webostate->batches[i].idxbuffer = (index_t*)NULL + idxcount;
+//			BZ_Free(webostate->batches[i].idxbuffer);
+//			webostate->batches[i].idxbuffer = NULL;
+			webostate->batches[i].firstidx = idxcount;
 			idxcount += webostate->batches[i].numidx;
 		}
 	}
@@ -3094,12 +3101,16 @@ void R_GeneratedWorldEBO(void *ctx, void *data, size_t a_, size_t b_)
 	{	//this malloc is stupid.
 		//with vulkan we really should be doing this on the worker instead, at least the staging part.
 		index_t *indexes = malloc(sizeof(*indexes) * idxcount);
+		BE_VBO_Destroy(&webostate->ebo, webostate->ebomem);
+		memset(&webostate->ebo, 0, sizeof(webostate->ebo));
+		webostate->ebomem = NULL;
 		webostate->ebo.vk.offs = 0;
 		for (i = 0, idxcount = 0; i < webostate->numbatches; i++)
 		{
 			memcpy(indexes + idxcount, webostate->batches[i].idxbuffer, webostate->batches[i].numidx*sizeof(index_t));
-			BZ_Free(webostate->batches[i].idxbuffer);
-			webostate->batches[i].idxbuffer = (index_t*)NULL + idxcount;
+//			BZ_Free(webostate->batches[i].idxbuffer);
+//			webostate->batches[i].idxbuffer = NULL;
+			webostate->batches[i].firstidx = idxcount;
 			idxcount += webostate->batches[i].numidx;
 		}
 		if (idxcount)
@@ -3144,7 +3155,7 @@ void R_GeneratedWorldEBO(void *ctx, void *data, size_t a_, size_t b_)
 			b->mesh = &webostate->batches[i].pm;
 			b->meshes = 1;
 			m->numindexes = webostate->batches[i].numidx;
-			m->vbofirstelement = webostate->batches[i].idxbuffer - (index_t*)NULL;
+			m->vbofirstelement = webostate->batches[i].firstidx;
 			m->vbofirstvert = 0;
 			m->indexes = NULL;
 			b->vbo = &webostate->batches[i].vbo;
@@ -3277,13 +3288,25 @@ void R_GenWorldEBO(void *ctx, void *data, size_t a, size_t b)
 	struct webostate_s *es = ctx;
 	qbyte *pvs;
 
-	es->numbatches = es->wmodel->numbatches;
-
-	for (i = 0; i < es->numbatches; i++)
+	if (!es->numbatches)
 	{
-		es->batches[i].numidx = 0;
-		es->batches[i].maxidx = 0;
-		es->batches[i].idxbuffer = NULL;
+		es->numbatches = es->wmodel->numbatches;
+
+		for (i = 0; i < es->numbatches; i++)
+		{
+			es->batches[i].firstidx = 0;
+			es->batches[i].numidx = 0;
+			es->batches[i].maxidx = 0;
+			es->batches[i].idxbuffer = NULL;
+		}
+	}
+	else
+	{
+		for (i = 0; i < es->numbatches; i++)
+		{
+			es->batches[i].firstidx = 0;
+			es->batches[i].numidx = 0;
+		}
 	}
 
 	//maybe we should just use fatpvs instead, and wait for completion when outside?
@@ -3351,19 +3374,19 @@ void Surf_DrawWorld (void)
 #ifdef THREADEDWORLD
 		if ((r_temporalscenecache.ival || currentmodel->numbatches) && !r_refdef.recurse && currentmodel->type == mod_brush)
 		{
-			struct webostate_s *webostate, *best = NULL, *kill;
+			struct webostate_s *webostate, *best = NULL, *kill, **link;
 			vec_t bestdist = FLT_MAX;
 			for (webostate = webostates; webostate; webostate = webostate->next)
 			{
 				if (webostate->wmodel != currentmodel)
 					continue;
 
-				kill = webostate->next;
-				if (kill && kill->lastvalid < cls.framecount-5)
-				{
-					webostate->next = kill->next;
-					R_DestroyWorldEBO(kill);
-				}
+//				kill = webostate->next;
+//				if (kill && kill->lastvalid < cls.framecount-5)
+//				{
+//					webostate->next = kill->next;
+//					R_DestroyWorldEBO(kill);
+//				}
 
 				if (webostate->cluster[0] == r_viewcluster && webostate->cluster[1] == r_viewcluster2)
 				{
@@ -3438,8 +3461,31 @@ void Surf_DrawWorld (void)
 								}
 							/*TODO submodels too*/
 						}
+
 						webogeneratingstate = true;
-						webogenerating = BZ_Malloc(sizeof(*webogenerating) + sizeof(webogenerating->batches[0]) * (currentmodel->numbatches-1) + currentmodel->pvsbytes);
+
+						webogenerating = NULL;
+						if (webostate)
+							webostate->lastvalid = cls.framecount;
+						for (link = &webostates; (kill=*link); )
+						{
+							if (kill->lastvalid < cls.framecount-5 && kill->wmodel == currentmodel)
+							{	//this one looks old... kill it.
+								if (webogenerating)
+									R_DestroyWorldEBO(webogenerating);	//can't use more than one!
+								webogenerating = kill;
+								*link = kill->next;
+							}
+							else
+								link = &(*link)->next;
+						}
+						if (!webogenerating)
+						{
+							webogenerating = BZ_Malloc(sizeof(*webogenerating) + sizeof(webogenerating->batches[0]) * (currentmodel->numbatches-1) + currentmodel->pvsbytes);
+							memset(&webogenerating->ebo, 0, sizeof(webogenerating->ebo));
+							webogenerating->ebomem = NULL;
+							webogenerating->numbatches = 0;
+						}
 						webogenerating->wmodel = currentmodel;
 						webogenerating->cluster[0] = r_viewcluster;
 						webogenerating->cluster[1] = r_viewcluster2;
@@ -3912,7 +3958,7 @@ int Surf_NewLightmaps(int count, int width, int height, uploadfmt_t fmt, qboolea
 		extern cvar_t gl_pbolightmaps;
 		//we might as well use a pbo for our staging memory.
 		if (qrenderer == QR_OPENGL && qglBufferStorage && qglMapBufferRange && gl_pbolightmaps.ival && Sys_IsMainThread())
-		{	//glBufferStorage and GL_MAP_PERSISTENT_BIT generally means gl4.4+
+		{	//glBufferStorage and GL_MAP_PERSISTENT_BIT generally means gl4.4+ (we need persistent for scenecache)
 			//pbos are 2.1
 			if (deluxe && ((i - numlightmaps)&1))
 			{

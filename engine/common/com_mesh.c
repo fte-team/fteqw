@@ -23,6 +23,7 @@ cvar_t r_lerpmuzzlehack						= CVARF  ("r_lerpmuzzlehack", "1", CVAR_ARCHIVE);
 #ifdef MD1MODELS
 cvar_t mod_h2holey_bugged					= CVARD ("mod_h2holey_bugged", "0", "Hexen2's holey-model flag uses index 0 as transparent (and additionally 255 in gl, due to a bug). GLQuake engines tend to have bugs that use ONLY index 255, resulting in a significant compatibility issue that can be resolved only with this shitty cvar hack.");
 cvar_t mod_halftexel						= CVARD ("mod_halftexel", "1", "Offset texture coords by a half-texel, for compatibility with glquake and the majority of engine forks.");
+cvar_t mod_nomipmap							= CVARD ("mod_nomipmap", "0", "Disables the use of mipmaps on quake1 mdls, consistent with its original software renderer.");
 #endif
 static void QDECL r_meshpitch_callback(cvar_t *var, char *oldvalue)
 {
@@ -3150,6 +3151,8 @@ void Mod_LoadAliasShaders(model_t *mod)
 		if (!ruleset_allow_sensitive_texture_replacements.ival)
 			imageflags |= IF_NOREPLACE;
 	}
+	if (mod->fromgame == fg_quake && mod_nomipmap.ival)
+		imageflags |= IF_NOMIPMAP;
 
 	slash = COM_SkipPath(mod->name);
 	if (slash != mod->name && slash-mod->name < sizeof(alttexpath))

@@ -6914,7 +6914,7 @@ QCC_sref_t QCC_PR_GenerateFunctionCallRef (QCC_sref_t newself, QCC_sref_t func, 
 				if (QCC_OPCodeValid(&pr_opcodes[OP_LOADA_V]))
 				{
 					copyop[2] = OP_LOADA_V;
-//					copyop[1] = OP_LOADA_L;
+//					copyop[1] = OP_LOADA_I64;
 					copyop[0] = OP_LOADA_F;
 					copyop_idx = -1;
 					copyop_index = arglist[i]->index;
@@ -8551,6 +8551,7 @@ void QCC_PR_EmitClassFromFunction(QCC_def_t *scope, QCC_type_t *basetype)
 
 static QCC_sref_t QCC_PR_ExpandField(QCC_sref_t ent, QCC_sref_t field, QCC_type_t *fieldtype, unsigned int preserveflags)
 {
+	QCC_type_t *basicfieldtype;
 	QCC_sref_t r;
 	if (!fieldtype)
 	{
@@ -8563,20 +8564,26 @@ static QCC_sref_t QCC_PR_ExpandField(QCC_sref_t ent, QCC_sref_t field, QCC_type_
 			fieldtype = type_variant;
 		}
 	}
+	basicfieldtype = fieldtype;
+	while(basicfieldtype->type == ev_accessor || basicfieldtype->type == ev_boolean || basicfieldtype->type == ev_enum)
+		basicfieldtype = (basicfieldtype->type == ev_enum)?basicfieldtype->aux_type:basicfieldtype->parentclass;
+
 	//FIXME: class.staticmember should directly read staticmember instead of trying to dereference
-	switch(fieldtype->type)
+	switch(basicfieldtype->type)
 	{
 	case ev_struct:
 	case ev_union:
-	case ev_enum:
 		{
-			int i;
+			int i = 0;
 			QCC_type_t *type = fieldtype;
 			QCC_sref_t dest = QCC_GetTemp(type);
 			QCC_sref_t source = field;
 			//don't bother trying to optimise any temps here, its not likely to happen anyway.
-			for (i = 0; i+2 < type->size; i+=3, dest.ofs += 3, source.ofs += 3)
+			for (; i+2 < type->size; i+=3, dest.ofs += 3, source.ofs += 3)
 				QCC_PR_SimpleStatement(&pr_opcodes[OP_LOAD_V], ent, source, dest, false);
+			if (QCC_OPCodeValid(&pr_opcodes[OP_LOAD_I64]))
+				for (; i+1 < type->size; i+=2, dest.ofs += 2, source.ofs += 2)
+					QCC_PR_SimpleStatement(&pr_opcodes[OP_LOAD_I64], ent, source, dest, false);
 			for (; i < type->size; i++, dest.ofs++, source.ofs++)
 				QCC_PR_SimpleStatement(&pr_opcodes[OP_LOAD_F], ent, source, dest, false);
 			source.ofs -= type->size;
@@ -8586,15 +8593,20 @@ static QCC_sref_t QCC_PR_ExpandField(QCC_sref_t ent, QCC_sref_t field, QCC_type_
 			if (!(preserveflags & STFL_PRESERVEB))
 				QCC_FreeTemp(field);
 
-			QCC_PR_ParseWarning(WARN_UNDESIRABLECONVENTION, "QCC_PR_ExpandField: inefficient");
+			if (type->size > 3)
+				QCC_PR_ParseWarning(WARN_UNDESIRABLECONVENTION, "inefficient - copying %u words to a temp", type->size);
 			return dest;
 		}
 		break;
 	case ev_void:
 	case ev_accessor:
 	case ev_boolean:
+	case ev_enum:
 	default:
-		QCC_PR_ParseErrorPrintSRef(ERR_INTERNAL, field, "QCC_PR_ExpandField: invalid field type");
+		{
+			char temp[256];
+			QCC_PR_ParseErrorPrintSRef(ERR_INTERNAL, field, "QCC_PR_ExpandField: invalid field type %s%s%s",  col_type,TypeName(fieldtype, temp, sizeof(temp)),col_none);
+		}
 		r = field;
 		break;
 	case ev_integer:

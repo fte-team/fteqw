@@ -380,7 +380,7 @@ static char *GUI_ParseInPlace(char **state)
 		{
 			if (*end == '\"')
 			{
-				end++;
+				*end++ = 0;
 				break;
 			}
 			else if (*end == '\'' && end[1] == '\\')

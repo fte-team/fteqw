@@ -257,13 +257,14 @@ int QC_EnumerateFilesFromBlob(const void *blob, size_t blobsize, void (*cb)(cons
 				continue;
 			if (nl != QC_ReadRawShort(le+26))
 				continue;	//name is weird...
-			if (el != QC_ReadRawShort(le+28))
-				continue;	//name is weird...
+//			if (el != QC_ReadRawShort(le+28))
+//				continue;	//extradata is weird...
 
 			csize = QC_ReadRawInt(le+18);
 			usize = QC_ReadRawInt(le+22);
-			if (!QC_strlcpy(name, cd+46, (nl+1<sizeof(name))?nl+1:sizeof(name)))
-				continue;	//name was too long.
+			if (nl >= sizeof(name))
+				continue;	//name is too long
+			QC_strlcpy(name, cd+46, (nl+1<sizeof(name))?nl+1:sizeof(name));
 
 			cb(name, le+30+QC_ReadRawShort(le+26)+QC_ReadRawShort(le+28), csize, method, usize);
 			ret++;

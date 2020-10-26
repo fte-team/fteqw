@@ -406,7 +406,7 @@ compiler_flag_t compiler_flag[] = {
 	{&pr_subscopedlocals,	FLAG_MIDCOMPILE,"subscope",		"Subscoped Locals",		"Restrict the scope of locals to the block they are actually defined within, as in C."},
 	{&verbose,				FLAG_MIDCOMPILE,"verbose",		"Verbose",				"Lots of extra compiler messages."},
 	{&flag_typeexplicit,	FLAG_MIDCOMPILE,"typeexplicit",	"Explicit types",		"All type conversions must be explicit or directly supported by instruction set."},
-	{&flag_boundchecks,		defaultflag,	"boundchecks",	"Disable Bound Checks",	"Disable array index checks, speeding up array access but can result in your code misbehaving."},
+	{&flag_boundchecks,		defaultflag,	"boundchecks",	"Enforce Bound Checks",	"Enforce array index checks to avoid accessing arrays out of bounds. This can be disabled for a speedup (the qcvm will still verify that the access is within the qcvm's memory, but it can't verify that its within the intended array)."},
 	{&flag_attributes,		hideflag,		"attributes",	"[[attributes]]",		"WARNING: This syntax conflicts with vector constructors."},
 	{&flag_assumevar,		hideflag,		"assumevar",	"explicit consts",		"Initialised globals will be considered non-const by default."},
 	{&flag_dblstarexp,		hideflag,		"ssp",			"** exponent",			"Treat ** as an operator for exponents, instead of multiplying by a dereferenced pointer."},
@@ -4114,7 +4114,7 @@ static void QCC_CopyFiles (void)
 		return;
 	}
 
-	for ( p = 0; p < 5; p++)
+	for ( p = 0; p < countof(QCC_Packname); p++)
 	{
 		s = QCC_Packname[p];
 		if (!*s)

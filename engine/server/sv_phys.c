@@ -349,32 +349,10 @@ static void WPhys_PortalTransform(world_t *w, wedict_t *ent, wedict_t *portal, v
 	if (ent->entnum > 0 && ent->entnum <= svs.allocated_client_slots)
 	{
 		client_t *cl = &svs.clients[ent->entnum-1];
-		int i;
-		vec3_t delta;
 		ent->v->angles[0] *= r_meshpitch.value;
-		if (!cl->lockangles && (cl->fteprotocolextensions2 & PEXT2_SETANGLEDELTA))
-		{
-			cl = ClientReliableWrite_BeginSplit(cl, svcfte_setangledelta, 7);
-
-			VectorSubtract(ent->v->angles, ent->v->v_angle, delta);
-			delta[2] = anglemod(delta[2]);
-			if (delta[2] > 90 && delta[2] < 270)
-			{
-				delta[2] -= 180;
-				delta[1] -= 180;
-				delta[0] -= -180;
-			}
-			for (i=0 ; i < 3 ; i++)
-				ClientReliableWrite_Angle16 (cl, delta[i]);
-		}
-		else
-		{
-			cl = ClientReliableWrite_BeginSplit (cl, svc_setangle, 7);
-			for (i=0 ; i < 3 ; i++)
-				ClientReliableWrite_Angle (cl, ent->v->angles[i]);
-		}
 		VectorCopy(ent->v->angles, ent->v->v_angle);
 		ent->v->angles[0] *= r_meshpitch.value;
+		SV_SendFixAngle(cl, NULL, FIXANGLE_AUTO, true);
 	}
 #endif
 

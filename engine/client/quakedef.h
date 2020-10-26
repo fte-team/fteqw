@@ -232,9 +232,9 @@ extern "C" {
 	#endif
 
 	#ifdef _WIN64
-		#define PRIxSIZE "Ix"
-		#define PRIuSIZE "Iu"
-		#define PRIiSIZE "Ii"
+		#define PRIxSIZE PRIx64
+		#define PRIuSIZE PRIu64
+		#define PRIiSIZE PRIi64
 	#else
 		//don't use I, for the sake of older libcs
 		#define PRIxSIZE "x"

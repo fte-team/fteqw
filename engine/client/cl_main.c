@@ -2280,7 +2280,8 @@ void CL_CheckServerInfo(void)
 	qboolean spectating = true;
 	int i;
 	qboolean oldwatervis = cls.allow_watervis;
-	
+	int oldskyboxes = cls.allow_unmaskedskyboxes;
+
 	//spectator 2 = spectator-with-scores, considered to be players. this means we don't want to allow spec cheats while they're inactive, because that would be weird.
 	for (i = 0; i < cl.splitclients; i++)
 		if (cl.playerview[i].spectator != 1)
@@ -2291,7 +2292,7 @@ void CL_CheckServerInfo(void)
 
 	cls.allow_cheats = false;
 	cls.allow_semicheats=true;
-	cls.allow_skyboxes=false;
+	cls.allow_unmaskedskyboxes=false;
 	cls.allow_fbskins = 1;
 //	cls.allow_fbskins = 0;
 //	cls.allow_overbrightlight;
@@ -2306,8 +2307,12 @@ void CL_CheckServerInfo(void)
 	else
 		cls.allow_watervis=false;
 
-	if (spectating || cls.demoplayback || atoi(InfoBuf_ValueForKey(&cl.serverinfo, "allow_skybox")) || atoi(InfoBuf_ValueForKey(&cl.serverinfo, "allow_skyboxes")))
-		cls.allow_skyboxes=true;	//mostly obsolete.
+	s = InfoBuf_ValueForKey(&cl.serverinfo, "allow_skybox");
+	if (!*s)
+		s = InfoBuf_ValueForKey(&cl.serverinfo, "allow_skyboxes");
+	if (!*s)
+		cls.allow_unmaskedskyboxes = (cl.worldmodel && cl.worldmodel->fromgame != fg_quake);
+	else cls.allow_unmaskedskyboxes = !!atoi(s);
 
 	s = InfoBuf_ValueForKey(&cl.serverinfo, "fbskins");
 	if (*s)
@@ -2409,7 +2414,7 @@ void CL_CheckServerInfo(void)
 //	if (allowed & 2)
 //		cls.allow_rearview = true;
 	if (allowed & 4)
-		cls.allow_skyboxes = true;
+		cls.allow_unmaskedskyboxes = true;
 //	if (allowed & 8)
 //		cls.allow_mirrors = true;
 	//16
@@ -2480,7 +2485,7 @@ void CL_CheckServerInfo(void)
 
 	if (oldteamplay != cl.teamplay)
 		Skin_FlushPlayers();
-	if (oldwatervis != cls.allow_watervis)
+	if (oldwatervis != cls.allow_watervis || oldskyboxes != cls.allow_unmaskedskyboxes)
 		Shader_NeedReload(false);
 
 	CSQC_ServerInfoChanged();
@@ -5885,45 +5890,66 @@ qboolean Host_RunFile(const char *fname, int nlen, vfsfile_t *file)
 	}
 	else
 #endif
+	{
 		if (nlen >= 5 && !strncmp(fname, "qw://", 5))
-	{	//this is also implemented by ezquake, so be careful here...
-		//"qw://[stream@]host[:port]/COMMAND" join, spectate, qtvplay
-		char *t, *cmd;
-		const char *url;
-		char buffer[8192];
-		t = Z_Malloc(nlen+1);
-		memcpy(t, fname, nlen);
-		t[nlen] = 0;
-		url = t+5;
+		{	//this is also implemented by ezquake, so be careful here...
+			//"qw://[stream@]host[:port]/COMMAND" join, spectate, qtvplay
+			char *t, *cmd;
+			const char *url;
+			char buffer[8192];
+			t = Z_Malloc(nlen+1);
+			memcpy(t, fname, nlen);
+			t[nlen] = 0;
+			url = t+5;
 
-		for (cmd = t+5; *cmd; cmd++)
-		{
-			if (*cmd == '/')
+			for (cmd = t+5; *cmd; cmd++)
 			{
-				*cmd++ = 0;
-				break;
+				if (*cmd == '/')
+				{
+					*cmd++ = 0;
+					break;
+				}
 			}
+
+			//quote the url safely.
+			url = COM_QuotedString(url, buffer, sizeof(buffer), false);
+
+			//now figure out what the command actually was
+			if (!Q_strcasecmp(cmd, "join"))
+				Cbuf_AddText(va("join %s\n", url), RESTRICT_LOCAL);
+			else if (!Q_strcasecmp(cmd, "spectate") || !strcmp(cmd, "observe"))
+				Cbuf_AddText(va("observe %s\n", url), RESTRICT_LOCAL);
+			else if (!Q_strcasecmp(cmd, "qtvplay"))
+				Cbuf_AddText(va("qtvplay %s\n", url), RESTRICT_LOCAL);
+			else if (!*cmd || !Q_strcasecmp(cmd, "connect"))
+				Cbuf_AddText(va("connect %s\n", url), RESTRICT_LOCAL);
+			else
+				Con_Printf("Unknown url command: %s\n", cmd);
+
+			if(file)
+				VFS_CLOSE(file);
+			Z_Free(t);
+			return true;
 		}
 
-		//quote the url safely.
-		url = COM_QuotedString(url, buffer, sizeof(buffer), false);
-
-		//now figure out what the command actually was
-		if (!Q_strcasecmp(cmd, "join"))
-			Cbuf_AddText(va("join %s\n", url), RESTRICT_LOCAL);
-		else if (!Q_strcasecmp(cmd, "spectate") || !strcmp(cmd, "observe"))
-			Cbuf_AddText(va("observe %s\n", url), RESTRICT_LOCAL);
-		else if (!Q_strcasecmp(cmd, "qtvplay"))
-			Cbuf_AddText(va("qtvplay %s\n", url), RESTRICT_LOCAL);
-		else if (!*cmd || !Q_strcasecmp(cmd, "connect"))
-			Cbuf_AddText(va("connect %s\n", url), RESTRICT_LOCAL);
-		else
-			Con_Printf("Unknown url command: %s\n", cmd);
-
-		if(file)
-			VFS_CLOSE(file);
-		Z_Free(t);
-		return true;
+		{
+			const char *netschemes[] = {"udp://", "udp4//", "udp6//", "ipx://", "tcp://", "tcp4//", "tcp6//", "spx://", "ws://", "wss://", "tls://", "dtls://", "ice://", "rtc://", "ices://", "rtcs://", "irc://", "udg://", "unix://"};
+			int i;
+			size_t slen;
+			for (i = 0; i < countof(netschemes); i++)
+			{
+				slen = strlen(netschemes[i]);
+				if (nlen >= slen && !strncmp(fname, netschemes[i], slen))
+				{
+					char quoted[8192];
+					char *t = Z_Malloc(nlen+1);
+					memcpy(t, fname, nlen);
+					t[nlen] = 0;
+					Cbuf_AddText(va("connect %s\n", COM_QuotedString(t, quoted, sizeof(quoted), false)), RESTRICT_LOCAL);
+					Z_Free(t);
+				}
+			}
+		}
 	}
 
 	f = Z_Malloc(sizeof(*f) + nlen);

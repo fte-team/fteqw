@@ -498,7 +498,7 @@ PR_EnterFunction
 Returns the new program statement counter
 ====================
 */
-int ASMCALL PR_EnterFunction (progfuncs_t *progfuncs, mfunction_t *f, int progsnum)
+static int ASMCALL PR_EnterFunction (progfuncs_t *progfuncs, mfunction_t *f, int progsnum)
 {
 	int		i, j, c, o;
 	prstack_t *st;
@@ -562,7 +562,7 @@ int ASMCALL PR_EnterFunction (progfuncs_t *progfuncs, mfunction_t *f, int progsn
 PR_LeaveFunction
 ====================
 */
-int ASMCALL PR_LeaveFunction (progfuncs_t *progfuncs)
+static int ASMCALL PR_LeaveFunction (progfuncs_t *progfuncs)
 {
 	int		i, c;
 	prstack_t *st;

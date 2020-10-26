@@ -5199,7 +5199,7 @@ void CL_LinkPlayers (void)
 			continue;
 #endif
 
-		if (info->spectator)
+		if (info->spectator || state->modelindex >= countof(cl.model_precache))
 			continue;
 
 		//the extra modelindex check is to stop lame mods from using vweps with rings

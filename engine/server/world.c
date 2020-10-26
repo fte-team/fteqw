@@ -2432,6 +2432,8 @@ static void World_ClipToNetwork (world_t *w, moveclip_t *clip)
 			if (touch->modelindex <= 0 || touch->modelindex >= MAX_PRECACHE_MODELS)
 				continue;	//erk
 			model = cl.model_precache[touch->modelindex];
+			if (!model)
+				continue;
 			VectorCopy(model->mins, bmins);
 			VectorCopy(model->maxs, bmaxs);
 		}

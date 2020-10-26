@@ -87,6 +87,12 @@ client_t *SV_GetClientForString(const char *name, int *id)
 	int first=0;
 	if (id && *id != -1)
 		first = *id;
+	if (first < 0)
+	{
+		if (id)
+			*id=sv.allocated_client_slots;
+		return NULL;
+	}
 
 	if (!strcmp(name, "*"))	//match with all
 	{
@@ -95,10 +101,12 @@ client_t *SV_GetClientForString(const char *name, int *id)
 			if (cl->state<=cs_loadzombie)
 				continue;
 
-			*id=i+1;
+			if (id)
+				*id=i+1;
 			return cl;
 		}
-		*id=sv.allocated_client_slots;
+		if (id)
+			*id=sv.allocated_client_slots;
 		return NULL;
 	}
 
@@ -114,7 +122,7 @@ client_t *SV_GetClientForString(const char *name, int *id)
 	if (!*s)
 	{
 		int uid = Q_atoi(name);
-		for (i = first, cl = svs.clients; i < sv.allocated_client_slots; i++, cl++)
+		for (i = first, cl = svs.clients+first; i < sv.allocated_client_slots; i++, cl++)
 		{
 			if (cl->state<=cs_loadzombie)
 				continue;
@@ -585,7 +593,7 @@ void SV_Map_f (void)
 				Con_DPrintf ("map_restart delay not implemented yet\n");
 		}
 		Q_strncpyz (level, ".", sizeof(level));
-		startspot = NULL;
+		startspot = NULL;	//FIXME: startspot forgotten on restart
 
 		//FIXME: if precaches+statics don't change, don't do the whole networking thing.
 	}

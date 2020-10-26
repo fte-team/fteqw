@@ -1430,6 +1430,7 @@ void M_Reinit(void)
 }
 
 void FPS_Preset_f(void);
+void FPS_Preset_c(int argn, const char *partial, struct xcommandargcompletioncb_s *ctx);
 void M_MenuPop_f(void);
 
 //menu.dat is loaded later... after the video and everything is up.
@@ -1438,7 +1439,7 @@ void M_Init (void)
 	Cmd_AddCommand("menu_restart", M_Restart_f);
 	Cmd_AddCommand("togglemenu", M_ToggleMenu_f);
 	Cmd_AddCommand("closemenu", M_CloseMenu_f);
-	Cmd_AddCommand("fps_preset", FPS_Preset_f);
+	Cmd_AddCommandAD("fps_preset", FPS_Preset_f, FPS_Preset_c, "Apply a preset");
 	Cmd_AddCommand("menupop", M_MenuPop_f);
 
 	//server browser is kinda complex, and has clipboard integration which we need to sandbox a little

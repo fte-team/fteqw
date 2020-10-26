@@ -24,8 +24,94 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 cvar_group_t *cvar_groups;
 
-hashtable_t cvar_hash;
-bucket_t *cvar_buckets[1024];
+//static bucket_t *cvar_buckets[1024];
+//static hashtable_t cvar_hash;
+
+typedef struct {
+	size_t maxentries;
+	size_t numentries;
+	struct
+	{
+		const char *string;
+		void *data;
+	} entry[1];
+} abucket_t;
+typedef struct {
+	abucket_t **bucket;
+	unsigned int numbuckets;
+} ahashtable_t;	//not thread-safe
+
+static abucket_t *cvar_buckets[1024];
+static ahashtable_t cvar_hash = {cvar_buckets, countof(cvar_buckets)};
+
+unsigned int Hash_KeyInsensitive(const char *name, unsigned int modulus);
+void *AHash_GetInsensitive(ahashtable_t *table, const char *name)
+{
+	abucket_t *b = table->bucket[Hash_KeyInsensitive(name, table->numbuckets)];
+	size_t i;
+	if (b)
+		for (i = 0; i < b->numentries; i++)
+		{
+			if (!strcasecmp(b->entry[i].string, name))
+				return b->entry[i].data;
+		}
+	return NULL;
+}
+
+void AHash_RemoveDataInsensitive(ahashtable_t *table, const char *name, void *data)
+{
+	abucket_t *b = table->bucket[Hash_KeyInsensitive(name, table->numbuckets)];
+	size_t i;
+	for (i = 0; i < b->numentries; i++)
+	{
+		if (b->entry[i].data == data && !strcasecmp(b->entry[i].string, name))
+		{
+			//strip it.
+			b->numentries--;
+			//shift everything down.
+			if (b->numentries > i)
+				memmove(&b->entry[i], &b->entry[i+1], b->numentries-1);
+			break;
+		}
+	}
+}
+void AHash_AddInsensitive(ahashtable_t *table, const char *name, void *data)
+{
+	unsigned int idx = Hash_KeyInsensitive(name, table->numbuckets);
+	abucket_t *b = table->bucket[idx];
+	if (!b)
+	{	//nothing there!...
+		b = table->bucket[idx] = BZ_Malloc(sizeof(*b));
+		b->numentries = 0;
+		b->maxentries = countof(b->entry);
+	}
+	else if (b->numentries == b->maxentries)
+	{	//can't add anything new
+		size_t n = b->maxentries*2;
+		table->bucket[idx] = BZ_Malloc(sizeof(*b)-sizeof(b->entry) + sizeof(b->entry)*n);
+		memcpy(table->bucket[idx]->entry, b->entry, sizeof(b->entry[0])*b->numentries);
+		table->bucket[idx]->numentries = b->numentries;
+		table->bucket[idx]->maxentries = n;
+		BZ_Free(b);
+		b = table->bucket[idx];
+	}
+	b->entry[b->numentries].data = data;
+	b->entry[b->numentries].string = name;
+	b->numentries++;
+}
+void AHash_Cleanup(ahashtable_t *table)
+{
+	size_t i;
+	for (i = 0; i < table->numbuckets; i++)
+	{
+		if (table->bucket[i] && !table->bucket[i]->numentries)
+		{
+			BZ_Free(table->bucket[i]);
+			table->bucket[i] = NULL;
+		}
+	}
+}
+
 int cvar_watched;
 
 //cvar_t	*cvar_vars;
@@ -69,7 +155,7 @@ Cvar_FindVar
 */
 cvar_t *Cvar_FindVar (const char *var_name)
 {
-	return Hash_GetInsensitive(&cvar_hash, var_name);
+	return AHash_GetInsensitive(&cvar_hash, var_name);
 /*
 	cvar_group_t	*grp;
 	cvar_t	*var;
@@ -1126,9 +1212,9 @@ unlinked:
 		Cvar_DefaultFree(tbf->defaultstr);
 	if (tbf->latched_string)
 		Z_Free(tbf->latched_string);
-	Hash_RemoveData(&cvar_hash, tbf->name, tbf);
+	AHash_RemoveDataInsensitive(&cvar_hash, tbf->name, tbf);
 	if (tbf->name2)
-		Hash_RemoveData(&cvar_hash, tbf->name2, tbf);
+		AHash_RemoveDataInsensitive(&cvar_hash, tbf->name2, tbf);
 	Z_Free(tbf);
 }
 
@@ -1190,9 +1276,9 @@ qboolean Cvar_Register (cvar_t *variable, const char *groupname)
 
 			Cvar_Free(old);
 
-			Hash_AddInsensitive(&cvar_hash, variable->name, variable, &variable->hbn1);
+			AHash_AddInsensitive(&cvar_hash, variable->name, variable);
 			if (variable->name2)
-				Hash_AddInsensitive(&cvar_hash, variable->name2, variable, &variable->hbn2);
+				AHash_AddInsensitive(&cvar_hash, variable->name2, variable);
 
 			return true;
 		}
@@ -1220,9 +1306,9 @@ qboolean Cvar_Register (cvar_t *variable, const char *groupname)
 	variable->restriction = 0;	//exe registered vars
 	group->cvars = variable;
 
-	Hash_AddInsensitive(&cvar_hash, variable->name, variable, &variable->hbn1);
+	AHash_AddInsensitive(&cvar_hash, variable->name, variable);
 	if (variable->name2)
-		Hash_AddInsensitive(&cvar_hash, variable->name2, variable, &variable->hbn2);
+		AHash_AddInsensitive(&cvar_hash, variable->name2, variable);
 
 	variable->string = NULL;
 
@@ -1588,7 +1674,7 @@ void QDECL Cvar_Limiter_ZeroToOne_Callback(struct cvar_s *var, char *oldvalue)
 void Cvar_Init(void)
 {
 	memset(cvar_buckets, 0, sizeof(cvar_buckets));
-	Hash_InitTable(&cvar_hash, sizeof(cvar_buckets)/Hash_BytesForBuckets(1), cvar_buckets);
+	//Hash_InitTable(&cvar_hash, sizeof(cvar_buckets)/Hash_BytesForBuckets(1), cvar_buckets);
 }
 
 void Cvar_Shutdown(void)
@@ -1622,4 +1708,5 @@ void Cvar_Shutdown(void)
 		cvar_groups = grp->next;
 		Z_Free(grp);
 	}
+	AHash_Cleanup(&cvar_hash);
 }

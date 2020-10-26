@@ -8,8 +8,13 @@
 	#define VARGS __cdecl
 #endif
 #if (__GNUC__ > 3 || (__GNUC__ == 3 && __GNUC_MINOR__ >= 1))
-	#ifdef _WIN32
-		#define LIKEPRINTF(x) __attribute__((format(ms_printf,x,x+1)))
+	#if defined(_WIN32)
+		#include <stdio.h>
+		#ifdef __MINGW_PRINTF_FORMAT
+			#define LIKEPRINTF(x) __attribute__((format(__MINGW_PRINTF_FORMAT,x,x+1)))
+		#else
+			#define LIKEPRINTF(x) __attribute__((format(ms_printf,x,x+1)))
+		#endif
 	#else
 		#define LIKEPRINTF(x) __attribute__((format(printf,x,x+1)))
 	#endif

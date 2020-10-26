@@ -16,6 +16,26 @@ extern cvar_t pr_ssqc_memsize;
 
 void SV_Savegame_f (void);
 
+
+typedef struct
+{
+	char name[32];
+	union
+	{
+		int i;
+		float f;
+	} parm[NUM_SPAWN_PARMS];
+	char *parmstr;
+
+	client_t *source;
+} loadplayer_t;
+
+struct loadinfo_s
+{
+	size_t numplayers;
+	loadplayer_t *players;
+};
+
 //Writes a SAVEGAME_COMMENT_LENGTH character comment describing the current
 void SV_SavegameComment (char *text, size_t textsize)
 {
@@ -80,7 +100,8 @@ void SV_SavegameComment (char *text, size_t textsize)
 
 pbool PDECL SV_ExtendedSaveData(pubprogfuncs_t *progfuncs, void *loadctx, const char **ptr)
 {
-	char token[8192];
+	struct loadinfo_s *loadinfo = loadctx;
+	char token[65536];
 	com_tokentype_t tt;
 	const char *l = *ptr;
 	size_t idx;
@@ -155,28 +176,35 @@ pbool PDECL SV_ExtendedSaveData(pubprogfuncs_t *progfuncs, void *loadctx, const 
 		l = COM_ParseTokenOut(l, NULL, token, sizeof(token), &tt);if (tt != TTP_STRING)return false;
 		sv.strings.particle_precache[idx] = PR_AddString(svprogfuncs, token, 0, false);
 	}
+	else if (!strcmp(token, "serverflags"))
+	{	//serverflags N  (for map_restart to work properly)
+		l = COM_ParseTokenOut(l, NULL, token, sizeof(token), &tt);if (tt != TTP_RAWTOKEN)return false;
+		idx = atoi(token);
+		svs.serverflags = idx;
+	}
+	else if (!strcmp(token, "startspot"))
+	{	//startspot "foo"  (for map_restart to work properly)
+		l = COM_ParseTokenOut(l, NULL, token, sizeof(token), &tt);if (tt != TTP_RAWTOKEN)return false;
+		InfoBuf_SetStarKey(&svs.info, "*startspot", token);
+	}
+	else if (loadinfo && !strcmp(token, "spawnparm"))
+	{	//spawnparm idx val  (for map_restart to work properly)
+		l = COM_ParseTokenOut(l, NULL, token, sizeof(token), &tt);if (tt != TTP_RAWTOKEN)return false;
+		idx = atoi(token);
+		if (idx == 0)
+		{	//the parmstr...
+			l = COM_ParseTokenOut(l, NULL, token, sizeof(token), &tt);if (tt != TTP_STRING)return false;
+			loadinfo->players[0].parmstr = Z_StrDup(token);
+		}
+		else if (idx >= 1 && idx <= countof(loadinfo->players->parm))
+		{	//regular parm
+			l = COM_ParseTokenOut(l, NULL, token, sizeof(token), &tt);if (tt != TTP_RAWTOKEN)return false;
+			loadinfo->players[0].parm[idx-1].f = atof(token);
+		}
+	}
+	//strbuffer+hashtable+etc junk
 	else if (PR_Common_LoadGame(svprogfuncs, token, &l))
 		;
-	/*
-	else if (!strcmp(token, "buffer"))
-	{
-		l = COM_ParseTokenOut(l, NULL, token, sizeof(token), &tt);if (tt != TTP_RAWTOKEN)return false;
-		//buffer = atoi(token);
-		l = COM_ParseTokenOut(l, NULL, token, sizeof(token), &tt);if (tt != TTP_RAWTOKEN)return false;
-		//flags = atoi(token);
-		l = COM_ParseTokenOut(l, NULL, token, sizeof(token), &tt);if (tt != TTP_STRING)return false;
-		//"string" == token
-		return false;
-	}
-	else if (!strcmp(token, "bufstr"))
-	{
-		l = COM_ParseTokenOut(l, NULL, token, sizeof(token), &tt);if (tt != TTP_RAWTOKEN)return false;
-		//buffer = atoi(token);
-		l = COM_ParseTokenOut(l, NULL, token, sizeof(token), &tt);if (tt != TTP_RAWTOKEN)return false;
-		//idx = atoi(token);
-		l = COM_ParseTokenOut(l, NULL, token, sizeof(token), &tt);if (tt != TTP_STRING)return false;
-		return false;
-	}*/
 	else
 		return false;
 	*ptr = l;
@@ -312,8 +340,25 @@ static qboolean SV_LegacySavegame (const char *savename, qboolean verbose)
 	for (i=1 ; i < countof(sv.strings.sound_precache); i++)
 	{
 		if (sv.strings.sound_precache[i])
-			VFS_PRINTF(f, "sv.lightstyles %i %s\n", i, sv.strings.sound_precache[i]);
+			VFS_PRINTF(f, "sv.sound_precache %i %s\n", i, sv.strings.sound_precache[i]);
 	}
+	for (i=1 ; i < countof(sv.strings.particle_precache); i++)
+	{
+		if (sv.strings.particle_precache[i])
+			VFS_PRINTF(f, "sv.particle_precache %i %s\n", i, sv.strings.particle_precache[i]);
+	}
+	VFS_PRINTF(f, "sv.serverflags %i\n", svs.serverflags);	//zomg! a fix for losing runes on load;restart!
+//	VFS_PRINTF(f, "sv.startspot %s\n", InfoBuf_ValueForKey(&svs.info, "*startspot")); //startspot, for restarts.
+	if (svs.clients->spawn_parmstring)
+	{
+		size_t maxlen = strlen(svs.clients->spawn_parmstring)*2+4 + 1;
+		char *buffer = BZ_Malloc(maxlen);
+		VFS_PRINTF(f, "spawnparm 0 %s\n", COM_QuotedString(svs.clients->spawn_parmstring, buffer, sizeof(maxlen), false));
+		BZ_Free(buffer);
+	}
+	if (version == SAVEGAME_VERSION_NQ || version == SAVEGAME_VERSION_QW)
+		for (i=16 ; i < countof(svs.clients->spawn_parms); i++)
+			VFS_PRINTF(f, "spawnparm %i %g\n", i+1, svs.clients->spawn_parms[i]);
 //	sv.buffer %i %i "string"
 //	sv.bufstr %i %i "%s"
 	VFS_PUTS(f, "*/\n");
@@ -1396,18 +1441,6 @@ void SV_AutoSave(void)
 #endif
 }
 
-typedef struct
-{
-	char name[32];
-	union
-	{
-		int i;
-		float f;
-	} parm[NUM_SPAWN_PARMS];
-	char *parmstr;
-
-	client_t *source;
-} loadplayer_t;
 static void SV_SwapPlayers(client_t *a, client_t *b)
 {
 	size_t i;
@@ -1671,6 +1704,10 @@ static qboolean SV_Loadgame_Legacy(const char *savename, const char *filename, v
 	char *modelnames[MAX_PRECACHE_MODELS];
 	char *soundnames[MAX_PRECACHE_SOUNDS];
 	loadplayer_t lp[255];
+	struct loadinfo_s loadinfo;
+
+	loadinfo.numplayers = countof(lp);
+	loadinfo.players = lp;
 
 	if (version != SAVEGAME_VERSION_FTE_LEG && version != SAVEGAME_VERSION_NQ && version != SAVEGAME_VERSION_QW)
 	{
@@ -1867,7 +1904,7 @@ static qboolean SV_Loadgame_Legacy(const char *savename, const char *filename, v
 	strcpy(file, "loadgame");
 	clnum=VFS_READ(f, file+8, filelen);
 	file[filelen+8]='\0';
-	sv.world.edict_size=svprogfuncs->load_ents(svprogfuncs, file, NULL, NULL, SV_ExtendedSaveData);
+	sv.world.edict_size=svprogfuncs->load_ents(svprogfuncs, file, &loadinfo, NULL, SV_ExtendedSaveData);
 	BZ_Free(file);
 
 	PR_LoadGlabalStruct(false);

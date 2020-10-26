@@ -703,7 +703,7 @@ void M_Menu_Audio_f (void)
 		MB_SLIDER("Volume", volume, 0, 1, 0.1, NULL),
 		MB_COMBOCVAR("Speaker Setup", snd_speakers, speakeroptions, speakervalues, NULL),
 		MB_COMBOCVAR("Frequency", snd_khz, soundqualityoptions, soundqualityvalues, NULL),
-		MB_CHECKBOXCVAR("Low Quality (8-bit)", loadas8bit, 0),
+		MB_CHECKBOXCVAR("Low Quality (8-bit)", snd_loadas8bit, 0),
 		MB_CHECKBOXCVAR("Flip Speakers", snd_leftisright, 0),
 		MB_SLIDER("Mixahead", _snd_mixahead, 0, 1, 0.05, NULL),
 		MB_CHECKBOXCVAR("Disable All Sounds", nosound, 0),
@@ -795,7 +795,7 @@ void M_Menu_Particles_f (void)
 		"highfps",
 		"spikeset",
 		"spikeset tsshaft",
-		"spikeset high tsshaft",
+		"high tsshaft",
 		"minimal",
 		NULL
 	};
@@ -1052,6 +1052,116 @@ const char *presetexec[] =
 	//end 'realtime'
 };
 
+struct
+{
+	const char *name;
+	const char *desc;
+	const char *settings;
+} builtinpresets[] =
+{
+	{	"hdr",
+		"Don't let colour depth stop you!",
+
+		"set vid_srgb 2\n"
+		"set r_hdr_irisadaptation 1\n"
+	},
+	{	"shib",
+		"Performance optimisations for large/detailed maps.",
+
+		"if r_dynamic >= 1\n"
+		"{\n"	//fake it anyway.
+			"set r_shadow_realtime_dlight 1\n"
+			"set r_shadow_realtime_dlight_shadows 0\n"
+			"set r_dynamic 0\n"
+		"}\n"
+		"set r_temporalscenecache 1\n"	//the main speedup.
+		"set r_lightstylespeed 0\n"		//FIXME: we shouldn't need this, but its too stuttery without.
+		"set sv_autooffload 1\n"		//Needs polish still.
+		"set gl_pbolightmaps 1\n"		//FIXME: this needs to be the default eventually.
+	},
+	{	"qw",
+		"Enable QuakeWorld-isms, for better gameplay.",
+
+		"set sv_nqplayerphysics 0\n"
+		"set sv_gameplayfix_multiplethinks 1\n"
+	},
+	{	"nq"
+		"Disable QuakeWorld-isms, for nq mod compat.",
+
+		"set sv_nqplayerphysics 1\n"
+		"set sv_gameplayfix_multiplethinks 0\n"
+	},
+
+	{	"dp",
+		"Reconfigures FTE to mimic DP for compat reasons.",
+
+		"if $server then echo Be sure to restart your server\n"
+
+		"fps_preset nq\n"
+		//these are for smc+derived mods
+		"sv_listen_dp 1\n"					//awkward, but forces the server to load the effectinfo.txt in advance.
+		"sv_bigcoords 1\n"					//for viewmodel lep precision (would be better to use csqc)
+		"r_particledesc \"effectinfo high\"\n" //blurgh.
+		"dpcompat_noretouchground 1\n"		//don't call touch functions on entities that already appear onground. this also changes the order that the onground flag is set relative to touch functions.
+		"cl_nopred 1\n"						//DP doesn't predict by default, and DP mods have a nasty habit of clearing .solid values during prethinks, which screws up prediction. so play safe.
+		"r_dynamic 0\nr_shadow_realtime_dlight 1\n" //fte has separate cvars for everything. which kinda surprises people and makes stuff twice as bright as it should be.
+		"r_coronas_intensity 0.25\n"
+		"con_logcenterprint 0\n"			//kinda annoying....
+		"scr_fov_mode 4\n"					//for fairer framerate comparisons
+
+		//general compat stuff
+		"dpcompat_console 1\n"				//
+		"dpcompat_findradiusarealinks 1\n"	//faster findradiuses (but that require things are setorigined properly)
+		"dpcompat_makeshitup 2\n"			//flatten shaders to a single pass, then add new specular etc passes.
+		//"dpcompat_nopremulpics 1\n"			//don't use premultiplied alpha (solving issues with compressed image formats)
+		"dpcompat_psa_ungroup 1\n"			//don't use framegroups with psk models at all.
+		"dpcompat_set 1\n"					//handle 3-arg sets differently
+		"dpcompat_stats 1\n"				//truncate float stats
+		"dpcompat_strcat_limit 16383\n"		//xonotic compat. maximum length of strcat strings.
+
+//		"sv_listen_dp 1\nsv_listen_nq 0\nsv_listen_qw 0\ncl_loopbackprotocol dpp7\ndpcompat_nopreparse 1\n"
+	},
+
+	{	"tenebrae",
+		"Reconfigures FTE to mimic Tenebrae for compat/style reasons.",
+		//for the luls. combine with the tenebrae mod for maximum effect.
+		"fps_preset nq\n"
+		"set r_shadow_realtime_world 1\n"
+		"set r_shadow_realtime_dlight 1\n"
+		"set r_shadow_bumpscale_basetexture 4\n"
+		"set r_shadow_shadowmapping 0\n"
+		"set gl_specular 1\n"
+		"set gl_specular_power 16\n"
+		"set gl_specular_fallback 1\n"
+		"set mod_litsprites_force 1\n"
+		"set r_nolerp 1\n"	//well, that matches tenebrae. for the luls, right?
+	},
+
+	{	"timedemo",
+		"Reconfigure some stuff to get through timedemos really fast. Some people might consider this cheating.",
+		//some extra things to pwn timedemos.
+		"fps_preset fast\n"
+		"set r_renderscale 1\n"
+		"set contrast 1\n"
+		"set gamma 1\n"
+		"set brightness 0\n"
+		"set scr_autoid 0\n"
+		"set scr_autoid_team 0\n"
+		"set r_dynamic 0\n"
+		"set sbar_teamstatus 2\n"
+		"set gl_polyblend 0\n"
+#if 1
+		//these are cheaty settings.
+		"set gl_flashblend 0\n"
+		"set cl_predict_players 0\n"	//very cheaty. you won't realise its off, but noone would disable it for actual play.
+#else
+		//to make things fair
+		"set gl_flashblend 1\n"
+		"set r_part_density 1\n"
+#endif
+	},
+};
+
 typedef struct fpsmenuinfo_s
 {
 	menucombo_t *preset;
@@ -1159,125 +1269,6 @@ void FPS_Preset_f (void)
 		}
 	}
 
-	if (!stricmp("hdr", arg))
-	{
-		Cbuf_InsertText(
-			"set vid_srgb 2\n"
-			"set r_hdr_irisadaptation 1\n"
-			, RESTRICT_LOCAL, false);
-		return;
-	}
-	if (!stricmp("shib", arg))
-	{
-		Cbuf_InsertText(
-			"if r_dynamic >= 1\n"
-			"{\n"	//fake it anyway.
-				"set r_shadow_realtime_dlight 1\n"
-				"set r_shadow_realtime_dlight_shadows 0\n"
-				"set r_dynamic 0\n"
-			"}\n"
-			"set r_temporalscenecache 1\n"	//the main speedup.
-			"set r_lightstylespeed 0\n"		//FIXME: we shouldn't need this, but its too stuttery without.
-			"set sv_autooffload 1\n"		//Needs polish still.
-			"set gl_pbolightmaps 1\n"		//FIXME: this needs to be the default eventually.
-			, RESTRICT_LOCAL, false);
-		return;
-	}
-	if (!stricmp("qw", arg))
-	{	//enable qwisms
-		Cbuf_InsertText(
-			"set sv_nqplayerphysics 0\n"
-			"set sv_gameplayfix_multiplethinks 1\n"
-			, RESTRICT_LOCAL, false);
-		return;
-	}
-	if (!stricmp("nq", arg))
-	{	//disable qwisms, for better mod compat
-		Cbuf_InsertText(
-			"set sv_nqplayerphysics 1\n"
-			"set sv_gameplayfix_multiplethinks 0\n"
-			, RESTRICT_LOCAL, false);
-		return;
-	}
-
-	if (!stricmp("dp", arg))
-	{
-#ifdef HAVE_SERVER
-		if (sv.state)
-			Cbuf_InsertText("echo Be sure to restart your server\n", RESTRICT_LOCAL, false);
-#endif
-		Cbuf_InsertText(
-			"fps_preset nq\n"
-			//these are for smc+derived mods
-			"sv_listen_dp 1\n"					//awkward, but forces the server to load the effectinfo.txt in advance.
-			"sv_bigcoords 1\n"					//for viewmodel lep precision (would be better to use csqc)
-			"r_particledesc \"effectinfo high\"\n" //blurgh.
-			"dpcompat_noretouchground 1\n"		//don't call touch functions on entities that already appear onground. this also changes the order that the onground flag is set relative to touch functions.
-			"cl_nopred 1\n"						//DP doesn't predict by default, and DP mods have a nasty habit of clearing .solid values during prethinks, which screws up prediction. so play safe.
-			"r_dynamic 0\nr_shadow_realtime_dlight 1\n" //fte has separate cvars for everything. which kinda surprises people and makes stuff twice as bright as it should be.
-			"r_coronas_intensity 0.25\n"
-			"con_logcenterprint 0\n"			//kinda annoying....
-			"scr_fov_mode 4\n"					//for fairer framerate comparisons
-
-			//general compat stuff
-			"dpcompat_console 1\n"				//
-			"dpcompat_findradiusarealinks 1\n"	//faster findradiuses (but that require things are setorigined properly)
-			"dpcompat_makeshitup 2\n"			//flatten shaders to a single pass, then add new specular etc passes.
-			//"dpcompat_nopremulpics 1\n"			//don't use premultiplied alpha (solving issues with compressed image formats)
-			"dpcompat_psa_ungroup 1\n"			//don't use framegroups with psk models at all.
-			"dpcompat_set 1\n"					//handle 3-arg sets differently
-			"dpcompat_stats 1\n"				//truncate float stats
-			"dpcompat_strcat_limit 16383\n"		//xonotic compat. maximum length of strcat strings.
-
-//			"sv_listen_dp 1\nsv_listen_nq 0\nsv_listen_qw 0\ncl_loopbackprotocol dpp7\ndpcompat_nopreparse 1\n"
-			, RESTRICT_LOCAL, false);
-		return;
-	}
-
-	if (!stricmp("tenebrae", arg))
-	{	//for the luls. combine with the tenebrae mod for maximum effect.
-		Cbuf_InsertText(
-			"fps_preset nq\n"
-			"set r_shadow_realtime_world 1\n"
-			"set r_shadow_realtime_dlight 1\n"
-			"set r_shadow_bumpscale_basetexture 4\n"
-			"set r_shadow_shadowmapping 0\n"
-			"set gl_specular 1\n"
-			"set gl_specular_power 16\n"
-			"set gl_specular_fallback 1\n"
-			"set mod_litsprites_force 1\n"
-			"set r_nolerp 1\n"	//well, that matches tenebrae. for the luls, right?
-			, RESTRICT_LOCAL, false);
-		return;
-	}
-
-	if (!stricmp("timedemo", arg))
-	{
-		//some extra things to pwn timedemos.
-		Cbuf_InsertText(
-			"fps_preset fast\n"
-			"set r_renderscale 1\n"
-			"set contrast 1\n"
-			"set gamma 1\n"
-			"set brightness 0\n"
-			"set scr_autoid 0\n"
-			"set scr_autoid_team 0\n"
-			"set r_dynamic 0\n"
-			"set sbar_teamstatus 2\n"
-			"set gl_polyblend 0\n"
-#if 1
-			//these are cheaty settings.
-			"set gl_flashblend 0\n"
-			"set cl_predict_players 0\n"	//very cheaty. you won't realise its off, but noone would disable it for actual play.
-#else
-			//to make things fair
-			"set gl_flashblend 1\n"
-			"set r_part_density 1\n"
-#endif
-			, RESTRICT_LOCAL, false);
-		return;
-	}
-
 	for (i = 0; i < PRESET_NUM; i++)
 	{
 		if (!stricmp(presetname[i], arg))
@@ -1287,10 +1278,53 @@ void FPS_Preset_f (void)
 		}
 	}
 
+	for (i = 0; i < countof(builtinpresets); i++)
+	{
+		if (!stricmp(builtinpresets[i].name, arg))
+		{
+			if (doreload)
+				Cbuf_InsertText("\nfs_restart\nvid_reload\n", RESTRICT_LOCAL, false);
+			Cbuf_InsertText(builtinpresets[i].settings, RESTRICT_LOCAL, false);
+			return;
+		}
+	}
+
 	Con_Printf("Preset %s not recognised\n", arg);
 	Con_Printf("Valid presests:\n");
 	for (i = 0; i < PRESET_NUM; i++)
 		Con_Printf("%s\n", presetname[i]);
+	for (i = 0; i < countof(builtinpresets); i++)
+		Con_DPrintf("%s\n", builtinpresets[i].name);
+}
+
+static int QDECL CompletePresetList (const char *name, qofs_t flags, time_t mtime, void *parm, searchpathfuncs_t *spath)
+{
+	struct xcommandargcompletioncb_s *ctx = parm;
+	if (!Q_strncasecmp(name, "configs/preset_", 15))
+	{
+		char preset[MAX_QPATH];
+		COM_StripExtension(name+15, preset, sizeof(preset));
+		ctx->cb(preset, NULL, NULL, ctx);
+	}
+	return true;
+}
+void FPS_Preset_c(int argn, const char *partial, struct xcommandargcompletioncb_s *ctx)
+{
+	if (argn == 1)
+	{
+		int i;
+		size_t partiallen = strlen(partial);
+
+		COM_EnumerateFiles(va("configs/preset_%s*.cfg", partial), CompletePresetList, ctx);
+
+		for (i = 0; i < PRESET_NUM; i++)
+			if (!Q_strncasecmp(partial, presetname[i], partiallen))
+				ctx->cb(presetname[i], NULL, NULL, ctx);
+
+		for (i = 0; i < countof(builtinpresets); i++)
+			if (!Q_strncasecmp(partial, builtinpresets[i].name, partiallen))
+				ctx->cb(builtinpresets[i].name, builtinpresets[i].desc, NULL, ctx);
+	}
 }
 
 qboolean M_PresetApply (union menuoption_s *op, struct emenu_s *menu, int key)

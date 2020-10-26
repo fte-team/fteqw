@@ -115,6 +115,89 @@ static int logprintf(const char *format, ...)
 	return 0;
 }
 
+static size_t totalsize, filecount;
+static void QCC_FileList(const char *name, const void *compdata, size_t compsize, int method, size_t plainsize)
+{
+	totalsize += plainsize;
+	filecount += 1;
+	if (!method && compsize==plainsize)
+		externs->Printf("%8u      %s\n", (unsigned)plainsize, name);
+	else
+		externs->Printf("%8u %3u%% %s\n", (unsigned)plainsize, plainsize?(unsigned)((100*compsize)/plainsize):100u, name);
+}
+#include <limits.h>
+#ifdef __unix__
+#include <sys/stat.h>
+void QCC_Mkdir(const char *path)
+{
+	char buf[MAX_OSPATH], *sl;
+	if (!strchr(path, '/'))
+		return;	//no need to create anything
+	memcpy(buf, path, MAX_OSPATH);
+	while((sl=strrchr(buf, '/')))
+	{
+		*sl = 0;
+		mkdir(buf, 0777);
+	}
+}
+#else
+void QCC_Mkdir(const char *path)
+{
+	//unsupported.
+}
+#endif
+static const char *extractonly;
+static pbool extractonlyfound;
+static void QCC_FileExtract(const char *name, const void *compdata, size_t compsize, int method, size_t plainsize)
+{
+	if (extractonly)
+	{
+		const char *sl = strrchr(extractonly, '/');
+		if (sl && !sl[1])
+		{	//trailing / - extract the entire dir.
+			if (!strcmp(name, extractonly))
+				return;	//ignore the dir itself...
+			if (strncmp(name, extractonly, strlen(extractonly)))
+				return;
+		}
+		else
+			if (strcmp(name, extractonly))
+				return;	//ignore it if its not the one we're going for.
+	}
+	extractonlyfound = true;
+	externs->Printf("Extracting %s...", name);
+	if (plainsize <= INT_MAX)
+	{
+		void *buffer = malloc(plainsize);
+		if (buffer && QC_decode(progfuncs, compsize, plainsize, method, compdata, buffer))
+		{
+			QCC_Mkdir(name);
+			if (!QCC_WriteFile(name, buffer, plainsize))
+				externs->Printf(" write failure\n");
+			else
+				externs->Printf(" done\n");
+		}
+		else
+			externs->Printf(" read failure\n");
+
+		free(buffer);
+	}
+	else
+		externs->Printf(" too large\n");
+}
+
+static void QCC_PR_PackagerMessage(void *userctx, const char *message, ...)
+{
+	va_list		argptr;
+	char		string[1024];
+
+	va_start (argptr,message);
+	QC_vsnprintf (string,sizeof(string)-1,message,argptr);
+	va_end (argptr);
+
+	externs->Printf ("%s", string);
+}
+
 int main (int argc, const char **argv)
 {
 	unsigned int i;
@@ -137,6 +220,52 @@ int main (int argc, const char **argv)
 	funcs.funcs.parms->Printf = logprintf;
 	funcs.funcs.parms->Sys_Error = Sys_Error;
 
+	if ((argc == 3 && !strcmp(argv[1], "-l")) || (argc >= 3 && !strcmp(argv[1], "-x")))
+	{
+		size_t blobsize;
+		void *blob = QCC_ReadFile(argv[2], NULL, NULL, &blobsize, false);
+		if (!blob)
+		{
+			logprintf("Unable to read %s\n", argv[2]);
+			return EXIT_FAILURE;
+		}
+		if (argc > 3)
+		{
+			for (i = 3; i < argc; i++)
+			{
+				extractonly = argv[i];
+				extractonlyfound = false;
+				QC_EnumerateFilesFromBlob(blob, blobsize, QCC_FileExtract);
+				if (!extractonlyfound)
+					externs->Printf("Unable to find file %s\n", extractonly);
+			}
+			extractonly = NULL;
+		}
+		else if (argv[1][1] == 'x')
+			QC_EnumerateFilesFromBlob(blob, blobsize, QCC_FileExtract);
+		else
+		{
+			QC_EnumerateFilesFromBlob(blob, blobsize, QCC_FileList);
+			externs->Printf("Total size %u bytes, %u files\n", (unsigned)totalsize, (unsigned)filecount);
+		}
+		free(blob);
+		return EXIT_SUCCESS;
+	}
+	if (argc == 3 && (!strncmp(argv[1], "-z", 2) || !strcmp(argv[1], "-0") || !strcmp(argv[1], "-9")))
+	{	//exe -0 foo.pk3dir
+		enum pkgtype_e t;
+		if (argv[1][1] == '9')
+			t = PACKAGER_PK3;
+		else if (argv[1][1] == '0')
+			t = PACKAGER_PAK;	//not really any difference but oh well
+		else
+			t = PACKAGER_PK3_SPANNED;
+
+		if (Packager_CompressDir(argv[2], t, QCC_PR_PackagerMessage, NULL))
+			return EXIT_SUCCESS;
+		else
+			return EXIT_FAILURE;
+	}
 	for (i = 0; i < argc; i++)
 	{
 		if (!argv[i])

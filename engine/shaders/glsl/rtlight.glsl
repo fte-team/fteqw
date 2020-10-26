@@ -52,7 +52,7 @@
 	#if defined(VERTEXCOLOURS)
 		varying vec4 vc;
 	#endif
-	#if defined(SPECULAR) || defined(OFFSETMAPPING) || defined(REFLECTCUBEMASK)
+	#if defined(SPECULAR) || defined(OFFSETMAPPING) || defined(REFLECTCUBEMASK) || defined(PBR)
 		varying vec3 eyevector;
 	#endif
 	#ifdef REFLECTCUBEMASK
@@ -97,7 +97,7 @@ t = normalize(t);
 #if defined(VERTEXCOLOURS)
 	vc = v_colour;
 #endif
-#if defined(SPECULAR)||defined(OFFSETMAPPING) || defined(REFLECTCUBEMASK)
+#if defined(SPECULAR)||defined(OFFSETMAPPING) || defined(REFLECTCUBEMASK) || defined(PBR)
 	vec3 eyeminusvertex = e_eyepos - w.xyz;
 	eyevector.x = dot(eyeminusvertex, s.xyz);
 	eyevector.y = dot(eyeminusvertex, t.xyz);
@@ -138,7 +138,7 @@ out vec3 t_lightvector[];
 in vec4 vc[];
 out vec4 t_vc[];
 #endif
-#if defined(SPECULAR) || defined(OFFSETMAPPING) || defined(REFLECTCUBEMASK)
+#if defined(SPECULAR) || defined(OFFSETMAPPING) || defined(REFLECTCUBEMASK) || defined(PBR)
 in vec3 eyevector[];
 out vec3 t_eyevector[];
 #endif
@@ -153,7 +153,7 @@ void main()
 #if defined(VERTEXCOLOURS)
 	t_vc[id] = vc[id];
 #endif
-#if defined(SPECULAR) || defined(OFFSETMAPPING) || defined(REFLECTCUBEMASK)
+#if defined(SPECULAR) || defined(OFFSETMAPPING) || defined(REFLECTCUBEMASK) || defined(PBR)
 	t_eyevector[id] = eyevector[id];
 #endif
 
@@ -182,7 +182,7 @@ in vec3 t_lightvector[];
 #if defined(VERTEXCOLOURS)
 in vec4 t_vc[];
 #endif
-#if defined(SPECULAR) || defined(OFFSETMAPPING) || defined(REFLECTCUBEMASK)
+#if defined(SPECULAR) || defined(OFFSETMAPPING) || defined(REFLECTCUBEMASK) || defined(PBR)
 in vec3 t_eyevector[];
 #endif
 
@@ -208,7 +208,7 @@ void main()
 #if defined(VERTEXCOLOURS)
 	vc = LERP(t_vc);
 #endif
-#if defined(SPECULAR) || defined(OFFSETMAPPING) || defined(REFLECTCUBEMASK)
+#if defined(SPECULAR) || defined(OFFSETMAPPING) || defined(REFLECTCUBEMASK) || defined(PBR)
 	eyevector = LERP(t_eyevector);
 #endif
 
@@ -275,7 +275,7 @@ void main ()
 	vec4 lc = texture2D(s_lower, tcbase);
 	bases.rgb += lc.rgb*e_lowercolour*lc.a;
 #endif
-#if defined(BUMP) || defined(SPECULAR) || defined(REFLECTCUBEMASK)
+#if defined(BUMP) || defined(SPECULAR) || defined(REFLECTCUBEMASK) || defined(PBR)
 	vec3 bumps = normalize(vec3(texture2D(s_normalmap, tcbase)) - 0.5);
 #elif defined(REFLECTCUBEMASK)
 	vec3 bumps = vec3(0.0,0.0,1.0);
@@ -308,7 +308,7 @@ void main ()
 		#endif
 	#else
 		#define roughness 0.3
-		#define specrgb 1.0 //vec3(dielectricSpecular)
+		#define specrgb bases.rgb //vec3(dielectricSpecular)
 	#endif
 
 #ifdef PBR

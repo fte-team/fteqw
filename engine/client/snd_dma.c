@@ -89,7 +89,7 @@ cvar_t nosound					= CVARFD(	"nosound", "0", CVAR_ARCHIVE,
 											"Disable all sound from the engine. Cannot be overriden by configs or anything if set via the -nosound commandline argument.");
 cvar_t snd_precache				= CVARAF(	"s_precache", "1",
 											"precache", 0);
-cvar_t loadas8bit				= CVARAFD(	"s_loadas8bit", "0",
+cvar_t snd_loadas8bit			= CVARAFD(	"s_loadas8bit", "0",
 											"loadas8bit", CVAR_ARCHIVE,
 											"Downsample sounds on load as lower quality 8-bit sound, to save memory.");
 #ifdef FTE_TARGET_WEB
@@ -2315,7 +2315,7 @@ void S_Init (void)
 	Cvar_Register(&mastervolume,		"Sound controls");
 	Cvar_Register(&volume,				"Sound controls");
 	Cvar_Register(&snd_precache,		"Sound controls");
-	Cvar_Register(&loadas8bit,			"Sound controls");
+	Cvar_Register(&snd_loadas8bit,		"Sound controls");
 	Cvar_Register(&snd_loadasstereo,	"Sound controls");
 	Cvar_Register(&bgmvolume,			"Sound controls");
 	Cvar_Register(&snd_nominaldistance,	"Sound controls");
@@ -2857,8 +2857,9 @@ static void SND_Spatialize(soundcardinfo_t *sc, channel_t *ch)
 		scale = 1;
 		scale = (1.0 - dist) * scale;
 		v = ch->master_vol * scale * volscale;
+		v = bound(0, v, 255);
 		for (i = 0; i < sc->sn.numchannels; i++)
-			ch->vol[i] = bound(0, v, 255);
+			ch->vol[i] = v;
 		return;
 	}
 
@@ -2890,7 +2891,8 @@ static void SND_Spatialize(soundcardinfo_t *sc, channel_t *ch)
 		scale = 1 + DotProduct(listener_vec, sc->speakerdir[i]);
 		scale = (1.0 - dist) * scale * sc->dist[i];
 		v = ch->master_vol * scale * volscale;
-		ch->vol[i] = bound(0, v, 255);
+		v = bound(0, v, 255);
+		ch->vol[i] = v;
 	}
 }
 

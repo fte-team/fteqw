@@ -1637,7 +1637,7 @@ void SV_SendFixAngle(client_t *client, sizebuf_t *msg, int fixtype, qboolean rol
 
 	if (fixtype == FIXANGLE_AUTO)
 	{
-		if (!client->lockangles && controller->delta_sequence != -1 && !client->viewent)
+		if (client->lockanglesseq<controller->netchan.incoming_acknowledged && controller->delta_sequence != -1 && !client->viewent)
 			fixtype = FIXANGLE_DELTA;
 		else
 			fixtype = FIXANGLE_FIXED;
@@ -1645,7 +1645,7 @@ void SV_SendFixAngle(client_t *client, sizebuf_t *msg, int fixtype, qboolean rol
 	if (fixtype == FIXANGLE_DELTA && !(controller->fteprotocolextensions2 & PEXT2_SETANGLEDELTA))
 		fixtype = FIXANGLE_FIXED;	//sorry, can't do it.
 
-	if (!client->lockangles && controller->netchan.message.cursize < controller->netchan.message.maxsize/2)
+	if (client->lockanglesseq>=controller->netchan.incoming_acknowledged && controller->netchan.message.cursize < controller->netchan.message.maxsize/2)
 		msg = NULL;	//try to keep them vaugely reliable, where feasable.
 	if (!msg)
 		msg = ClientReliable_StartWrite(client, 10);
@@ -1673,7 +1673,7 @@ void SV_SendFixAngle(client_t *client, sizebuf_t *msg, int fixtype, qboolean rol
 		for (i=0 ; i < 3 ; i++)
 			MSG_WriteAngle (msg, (i==2&&!roll)?0:ang[i]);
 	}
-	client->lockangles = true;	//so that spammed fixangles use absolute values, locking the camera in place.
+	client->lockanglesseq = controller->netchan.outgoing_sequence+1;	//so that spammed fixangles use absolute values, locking the camera in place.
 }
 
 void SV_WriteEntityDataToMessage (client_t *client, sizebuf_t *msg, int pnum)
@@ -1723,8 +1723,6 @@ void SV_WriteEntityDataToMessage (client_t *client, sizebuf_t *msg, int pnum)
 		SV_SendFixAngle(client, msg, ent->v->fixangle, true);
 		ent->v->fixangle = FIXANGLE_NO;
 	}
-	else
-		client->lockangles = false;
 }
 
 /*sends the a centerprint string directly to the client*/

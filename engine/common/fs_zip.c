@@ -1584,7 +1584,7 @@ static qboolean FSZIP_ReadCentralEntry(zipfile_t *zip, qbyte *data, struct zipce
 	entry->gflags = LittleU2FromPtr(data+8);
 	entry->cmethod = LittleU2FromPtr(data+10);
 	entry->lastmodfiletime = LittleU2FromPtr(data+12);
-	entry->lastmodfiledate = LittleU2FromPtr(data+12);
+	entry->lastmodfiledate = LittleU2FromPtr(data+14);
 	entry->crc32 = LittleU4FromPtr(data+16);
 	entry->csize = LittleU4FromPtr(data+20);
 	entry->usize = LittleU4FromPtr(data+24);

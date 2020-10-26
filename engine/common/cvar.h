@@ -82,7 +82,6 @@ typedef struct cvar_s
 #ifdef HLSERVER
 	struct hlcvar_s	*hlcvar;
 #endif
-	bucket_t hbn1, hbn2;
 } cvar_t;
 
 #ifdef MINIMAL

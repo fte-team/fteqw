@@ -94,12 +94,20 @@ void R_SetSky(const char *sky)
 				COM_WorkerPartialSync(tex.reflectcube, &tex.reflectcube->status, TEX_LOADING);
 			if (tex.reflectcube->width && TEXLOADED(tex.reflectcube))
 			{
-				/* FIXME: Q2/HL require the skybox to not draw over geometry, shouldn't we force it? --eukara */
-				if (cls.allow_skyboxes) {
-					forcedsky = R_RegisterShader(va("skybox_%s", sky), 0, "{\nsort sky\nprogram defaultskybox\n{\nmap \"$cube:$reflectcube\"\ntcgen skybox\n}\nsurfaceparm nodlight\nsurfaceparm sky\n}");
-				} else {
-					forcedsky = R_RegisterShader(va("skybox_%s", sky), 0, "{\nsort sky\nprogram defaultskybox\n{\ndepthwrite\nmap \"$cube:$reflectcube\"\ntcgen skybox\n}\nsurfaceparm nodlight\nsurfaceparm sky\n}");
-				}
+				forcedsky = R_RegisterShader(va("skybox_%s", sky), 0,
+					"{\n"
+						"sort sky\n"
+						"program defaultskybox\n"
+						"{\n"
+							"if !$unmaskedsky\n"	/* Q2/HL require the skybox to not draw over geometry, shouldn't we force it? --eukara */
+								"depthwrite\n"
+							"endif\n"
+							"map \"$cube:$reflectcube\"\n"
+							"tcgen skybox\n"
+						"}\n"
+						"surfaceparm nodlight\n"
+					"surfaceparm sky\n"
+					"}");
 				R_BuildDefaultTexnums(&tex, forcedsky, IF_WORLDTEX);
 				return;
 			}
@@ -222,7 +230,7 @@ qboolean R_DrawSkyroom(shader_t *skyshader)
 
 //q3 mustn't mask sky (breaks q3map2's invisible skyportals), whereas q1 must (or its a cheat). halflife doesn't normally expect masking.
 //we also MUST mask any sky inside skyrooms, or you'll see all the entities outside of the skyroom through the room's own sky (q3map2 skyportals are hopefully irrelevant in this case).
-#define SKYMUSTBEMASKED (r_worldentity.model->fromgame != fg_quake3 || ((r_refdef.flags & RDF_DISABLEPARTICLES) && r_ignoreentpvs.ival))
+#define SKYMUSTBEMASKED (r_worldentity.model->fromgame != fg_quake3 || ((r_refdef.flags & RDF_DISABLEPARTICLES) && r_ignoreentpvs.ival) || !cls.allow_unmaskedskyboxes)
 
 /*
 =================
@@ -691,7 +699,7 @@ static void gl_skyspherecalc(int skytype)
 
 static void GL_SkyForceDepth(batch_t *batch)
 {
-	if (!cls.allow_skyboxes && batch->texture)	//allow a little extra fps.
+	if (!cls.allow_unmaskedskyboxes && batch->texture)	//allow a little extra fps.
 	{
 		BE_SelectMode(BEM_DEPTHONLY);
 		BE_DrawMesh_List(batch->shader, batch->meshes-batch->firstmesh, batch->mesh+batch->firstmesh, batch->vbo, NULL, batch->flags);

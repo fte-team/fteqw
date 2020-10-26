@@ -94,7 +94,7 @@ size_t Fragment_ClipPlaneToBrush(vecV_t *points, size_t maxpoints, void *planes,
 	vec3_t right, forward;
 	double t;
 	float *plane;
-	
+
 //	if (face[2] != 1)
 //		return 0;
 
@@ -142,7 +142,7 @@ size_t Fragment_ClipPlaneToBrush(vecV_t *points, size_t maxpoints, void *planes,
 				numverts = Fragment_ClipPolyToPlane((float*)verts, (float*)verts2, numverts, norm, -plane[3]);
 			else
 				numverts = Fragment_ClipPolyToPlane((float*)verts2, (float*)verts, numverts, norm, -plane[3]);
-	
+
 			if (numverts < 3)	//totally clipped.
 				return 0;
 		}
@@ -621,7 +621,8 @@ void Mod_ClipDecal(struct model_s *mod, vec3_t center, vec3_t normal, vec3_t tan
 
 	if (!mod || mod->loadstate != MLS_LOADED)
 		return;
-
+	else if (mod->type != mod_brush)
+		;
 #ifdef Q1BSPS
 	else if (mod->fromgame == fg_quake || mod->fromgame == fg_halflife)
 		Q1BSP_ClipDecalToNodes(mod, &dec, mod->rootnode);
@@ -1498,7 +1499,7 @@ void Q1BSP_LoadBrushes(model_t *model, bspx_header_t *bspx, void *mod_base)
 				brush->planes[brush->numplanes].dist = -perbrush->mins[pl];
 				brush->numplanes++;
 			}
-			
+
 			/*link it in to the bsp tree*/
 			Q1BSP_InsertBrush(rootnode, brush, perbrush->mins, perbrush->maxs);
 
@@ -1807,7 +1808,7 @@ static qbyte *Q1BSP_ClusterPVS (model_t *model, int cluster, pvsbuffer_t *buffer
 static void SV_Q1BSP_AddToFatPVS (model_t *mod, const vec3_t org, mnode_t *node, pvsbuffer_t *pvsbuffer)
 {
 	mplane_t	*plane;
-	float	d; 
+	float	d;
 
 	while (1)
 	{
@@ -2760,7 +2761,7 @@ void Mod_FindCubemaps_f(void)
 		size_t	nenvmap = 0;
 		unsigned int *envmapidx = NULL;	//*numsurfaces
 		size_t nenvmapidx = 0, i;
-		
+
 		//find targetnames, and store their origins so that we can deal with spotlights.
 		for (lmp = entlump; ;)
 		{
@@ -2808,7 +2809,7 @@ void Mod_FindCubemaps_f(void)
 				else if (!strcmp("size", key))
 					sscanf(value, "%f", &size);
 			}
-			
+
 			if (isenvmap)
 			{
 				int e = nenvmap;

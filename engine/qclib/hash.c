@@ -54,7 +54,7 @@ unsigned int Hash_Key(const char *name, unsigned int modulus)
 		
 	return (key%modulus);
 }
-static unsigned int Hash_KeyInsensitive(const char *name, unsigned int modulus)
+unsigned int Hash_KeyInsensitive(const char *name, unsigned int modulus)
 {	//fixme: optimize.
 	unsigned int key;
 	for (key=0;*name; name++)

@@ -2013,14 +2013,26 @@ void R_DrawNameTags(void)
 #if defined(CSQC_DAT) || !defined(CLIENTONLY)
 	if (r_showshaders.ival && cl.worldmodel && cl.worldmodel->loadstate == MLS_LOADED)
 	{
+#ifdef CSQC_DAT
+		extern world_t csqc_world;
+#endif
 		trace_t trace;
 		char *str;
 		vec3_t targ;
 		vec2_t scale = {12,12};
 		msurface_t *surf;
 		VectorMA(r_refdef.vieworg, 8192, vpn, targ);
-		//FIXME: should probably do a general trace, to hit (networked) submodels too
-		cl.worldmodel->funcs.NativeTrace(cl.worldmodel, 0, PE_FRAMESTATE, NULL, r_refdef.vieworg, targ, vec3_origin, vec3_origin, false, ~0, &trace);
+#ifdef CSQC_DAT
+		if (csqc_world.progs)
+		{
+			int oldhit = csqc_world.edicts->xv->hitcontentsmaski;
+			csqc_world.edicts->xv->hitcontentsmaski = ~0;
+			trace = World_Move(&csqc_world, r_refdef.vieworg, vec3_origin, vec3_origin, targ, MOVE_EVERYTHING, csqc_world.edicts);
+			csqc_world.edicts->xv->hitcontentsmaski = oldhit;
+		}
+		else
+#endif
+			cl.worldmodel->funcs.NativeTrace(cl.worldmodel, 0, PE_FRAMESTATE, NULL, r_refdef.vieworg, targ, vec3_origin, vec3_origin, false, ~0, &trace);
 
 		surf = Mod_GetSurfaceNearPoint(cl.worldmodel, trace.endpos);
 		if (surf)

@@ -505,7 +505,7 @@ typedef struct client_s
 	usercmd_t		lastcmd;			// for filling in big drops and partial predictions
 	double			localtime;			// of last message
 	qboolean jump_held;
-	qboolean lockangles;	//mod is spamming angle changes, don't do relative changes
+	unsigned int	lockanglesseq;		//mod is spamming angle changes, don't do relative changes. outgoing sequence. v_angles isn't really known until netchan.incoming_acknowledged>=lockangles
 
 	float			maxspeed;			// localized maxspeed
 	float			entgravity;			// localized ent gravity

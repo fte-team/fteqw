@@ -23,25 +23,42 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #ifdef HAVE_MIXER
 
+
+//#define MIXER_PAINT_F32
+#ifdef MIXER_PAINT_F32
+	#define MIX_16_8(val) ((val)/(float)(1<<(15+8)))
+	#define MIX_8_8(val) ((val)/(float)(1<<(7+8)))
+	typedef struct {
+		float s[MAXSOUNDCHANNELS];
+	} portable_samplegroup_t;
+#else
+	#define MIX_16_8(val) ((val)>>8)	//value is a 16bit*8bit value (audio*vol) value. discard the lower 8 bits to treat the volume as a fraction
+	#define MIX_8_8(val) (val)	//value is a 8bit*8bit value (audio*vol) value. result is 16bit.
+
+	typedef struct {
+		int s[MAXSOUNDCHANNELS];	//signed, 1=0x7fff ish. will be clamped to allow oversaturation
+	} portable_samplegroup_t;
+#endif
+
 #define	PAINTBUFFER_SIZE	2048
 
-portable_samplegroup_t paintbuffer[PAINTBUFFER_SIZE];	//FIXME: we really ought to be using SSE and floats or something.
-
-int 	*snd_p, snd_vol;
-short	*snd_out;
+static portable_samplegroup_t paintbuffer[PAINTBUFFER_SIZE];	//FIXME: we really ought to be using SSE and floats or something.
 
 void S_TransferPaintBuffer(soundcardinfo_t *sc, int endtime)
 {
 	unsigned int 	out_idx;
 	unsigned int 	count;
 	unsigned int 	outlimit;
-	int 			*p;
+#ifdef MIXER_PAINT_F32
+	float 			*p = (float *fte_restrict)paintbuffer;
+#else
+	int 			*p = (int *fte_restrict) paintbuffer;
+#endif
 	int				val;
 //	int				snd_vol;
-	short			*pbuf;
+	void			*pbuf;
 	int				i, numc;
 
-	p = (int *) paintbuffer;
 	count = (endtime - sc->paintedtime) * sc->sn.numchannels;
 	outlimit = sc->sn.samples;
 	out_idx = (sc->paintedtime * sc->sn.numchannels) % outlimit;
@@ -64,12 +81,21 @@ void S_TransferPaintBuffer(soundcardinfo_t *sc, int endtime)
 			{
 				for (i = 0; i < numc; i++)
 				{
-					val = *p++;// * snd_vol) >> 8;
+#ifdef MIXER_PAINT_F32
+					val = (*p++ + 1)*128;
+					if (val > 255)
+						val = 255;
+					else if (val < 0)
+						val = 0;
+					out[out_idx] = val;
+#else
+					val = *p++;
 					if (val > 0x7fff)
 						val = 0x7fff;
 					else if (val < (short)0x8000)
 						val = (short)0x8000;
 					out[out_idx] = (val>>8) + 128;
+#endif
 					out_idx = (out_idx + 1) % outlimit;
 				}
 				p += MAXSOUNDCHANNELS - numc;
@@ -84,12 +110,21 @@ void S_TransferPaintBuffer(soundcardinfo_t *sc, int endtime)
 			{
 				for (i = 0; i < numc; i++)
 				{
-					val = *p++;// * snd_vol) >> 8;
+#ifdef MIXER_PAINT_F32
+					val = *p++*128;
+					if (val > 127)
+						val = 127;
+					else if (val < -128)
+						val = -128;
+					out[out_idx] = val;
+#else
+					val = *p++;
 					if (val > 0x7fff)
 						val = 0x7fff;
 					else if (val < (short)0x8000)
 						val = (short)0x8000;
 					out[out_idx] = (val>>8);
+#endif
 					out_idx = (out_idx + 1) % outlimit;
 				}
 				p += MAXSOUNDCHANNELS - numc;
@@ -104,7 +139,11 @@ void S_TransferPaintBuffer(soundcardinfo_t *sc, int endtime)
 			{
 				for (i = 0; i < numc; i++)
 				{
-					val = *p++;// * snd_vol) >> 8;
+#ifdef MIXER_PAINT_F32
+					val = *p++*0x7fff;
+#else
+					val = *p++;
+#endif
 					if (val > 0x7fff)
 						val = 0x7fff;
 					else if (val < (short)0x8000)
@@ -124,7 +163,11 @@ void S_TransferPaintBuffer(soundcardinfo_t *sc, int endtime)
 			{
 				for (i = 0; i < numc; i++)
 				{
+#ifdef MIXER_PAINT_F32	//FIXME: replace with a memcpy.
+					out[out_idx] = *p++;
+#else
 					out[out_idx] = *p++ * (1.0 / 32768);
+#endif
 					out_idx = (out_idx + 1) % outlimit;
 				}
 				p += MAXSOUNDCHANNELS - numc;
@@ -375,23 +418,23 @@ static void SND_PaintChannel8_O2I1 (channel_t *ch, sfxcache_t *sc, int starttime
 
 	if (rate != (1<<PITCHSHIFT))
 	{
-		sfx = (signed char *)sc->data;
+		sfx = (signed char *fte_restrict)sc->data;
 		for (i=0 ; i<count ; i++)
 		{
 			data = sfx[pos>>PITCHSHIFT];
 			pos += rate;
-			paintbuffer[starttime+i].s[0] += ch->vol[0] * data;
-			paintbuffer[starttime+i].s[1] += ch->vol[1] * data;
+			paintbuffer[starttime+i].s[0] += MIX_8_8(ch->vol[0] * data);
+			paintbuffer[starttime+i].s[1] += MIX_8_8(ch->vol[1] * data);
 		}
 	}
 	else
 	{
-		sfx = (signed char *)sc->data + (pos>>PITCHSHIFT);
+		sfx = (signed char *fte_restrict)sc->data + (pos>>PITCHSHIFT);
 		for (i=0 ; i<count ; i++)
 		{
 			data = sfx[i];
-			paintbuffer[starttime+i].s[0] += ch->vol[0] * data;
-			paintbuffer[starttime+i].s[1] += ch->vol[1] * data;
+			paintbuffer[starttime+i].s[0] += MIX_8_8(ch->vol[0] * data);
+			paintbuffer[starttime+i].s[1] += MIX_8_8(ch->vol[1] * data);
 		}
 	}
 }
@@ -405,21 +448,21 @@ static void SND_PaintChannel8_O2I2 (channel_t *ch, sfxcache_t *sc, int starttime
 
 	if (rate != (1<<PITCHSHIFT))
 	{
-		sfx = (signed char *)sc->data;
+		sfx = (signed char *fte_restrict)sc->data;
 		for (i=0 ; i<count ; i++)
 		{
-			paintbuffer[starttime+i].s[0] += ch->vol[0] * sfx[(pos>>(PITCHSHIFT-1))&~1];
-			paintbuffer[starttime+i].s[1] += ch->vol[1] * sfx[(pos>>(PITCHSHIFT-1))|1];
+			paintbuffer[starttime+i].s[0] += MIX_8_8(ch->vol[0] * sfx[(pos>>(PITCHSHIFT-1))&~1]);
+			paintbuffer[starttime+i].s[1] += MIX_8_8(ch->vol[1] * sfx[(pos>>(PITCHSHIFT-1))|1]);
 			pos += rate;
 		}
 	}
 	else
 	{
-		sfx = (signed char *)sc->data + (pos>>PITCHSHIFT)*2;
+		sfx = (signed char *fte_restrict)sc->data + (pos>>PITCHSHIFT)*2;
 		for (i=0 ; i<count ; i++)
 		{
-			paintbuffer[starttime+i].s[0] += ch->vol[0] * sfx[(i<<1)];
-			paintbuffer[starttime+i].s[1] += ch->vol[1] * sfx[(i<<1)+1];
+			paintbuffer[starttime+i].s[0] += MIX_8_8(ch->vol[0] * sfx[(i<<1)]);
+			paintbuffer[starttime+i].s[1] += MIX_8_8(ch->vol[1] * sfx[(i<<1)+1]);
 		}
 	}
 }
@@ -433,26 +476,26 @@ static void SND_PaintChannel8_O4I1 (channel_t *ch, sfxcache_t *sc, int count, in
 	if (rate != (1<<PITCHSHIFT))
 	{
 		signed char data;
-		sfx = (signed char *)sc->data;
+		sfx = (signed char *fte_restrict)sc->data;
 		for (i=0 ; i<count ; i++)
 		{
 			data = sfx[pos>>PITCHSHIFT];
 			pos += rate;
-			paintbuffer[i].s[0] += ch->vol[0] * data;
-			paintbuffer[i].s[1] += ch->vol[1] * data;
-			paintbuffer[i].s[2] += ch->vol[2] * data;
-			paintbuffer[i].s[3] += ch->vol[3] * data;
+			paintbuffer[i].s[0] += MIX_8_8(ch->vol[0] * data);
+			paintbuffer[i].s[1] += MIX_8_8(ch->vol[1] * data);
+			paintbuffer[i].s[2] += MIX_8_8(ch->vol[2] * data);
+			paintbuffer[i].s[3] += MIX_8_8(ch->vol[3] * data);
 		}
 	}
 	else
 	{
-		sfx = (signed char *)sc->data + (pos>>PITCHSHIFT);
+		sfx = (signed char *fte_restrict)sc->data + (pos>>PITCHSHIFT);
 		for (i=0 ; i<count ; i++)
 		{
-			paintbuffer[i].s[0] += ch->vol[0] * sfx[i];
-			paintbuffer[i].s[1] += ch->vol[1] * sfx[i];
-			paintbuffer[i].s[2] += ch->vol[2] * sfx[i];
-			paintbuffer[i].s[3] += ch->vol[3] * sfx[i];
+			paintbuffer[i].s[0] += MIX_8_8(ch->vol[0] * sfx[i]);
+			paintbuffer[i].s[1] += MIX_8_8(ch->vol[1] * sfx[i]);
+			paintbuffer[i].s[2] += MIX_8_8(ch->vol[2] * sfx[i]);
+			paintbuffer[i].s[3] += MIX_8_8(ch->vol[3] * sfx[i]);
 		}
 	}
 }
@@ -466,30 +509,30 @@ static void SND_PaintChannel8_O6I1 (channel_t *ch, sfxcache_t *sc, int count, in
 	if (rate != (1<<PITCHSHIFT))
 	{
 		signed char data;
-		sfx = (signed char *)sc->data;
+		sfx = (signed char *fte_restrict)sc->data;
 		for (i=0 ; i<count ; i++)
 		{
 			data = sfx[pos>>PITCHSHIFT];
 			pos += rate;
-			paintbuffer[i].s[0] += ch->vol[0] * data;
-			paintbuffer[i].s[1] += ch->vol[1] * data;
-			paintbuffer[i].s[2] += ch->vol[2] * data;
-			paintbuffer[i].s[3] += ch->vol[3] * data;
-			paintbuffer[i].s[4] += ch->vol[4] * data;
-			paintbuffer[i].s[5] += ch->vol[5] * data;
+			paintbuffer[i].s[0] += MIX_8_8(ch->vol[0] * data);
+			paintbuffer[i].s[1] += MIX_8_8(ch->vol[1] * data);
+			paintbuffer[i].s[2] += MIX_8_8(ch->vol[2] * data);
+			paintbuffer[i].s[3] += MIX_8_8(ch->vol[3] * data);
+			paintbuffer[i].s[4] += MIX_8_8(ch->vol[4] * data);
+			paintbuffer[i].s[5] += MIX_8_8(ch->vol[5] * data);
 		}
 	}
 	else
 	{
-		sfx = (signed char *)sc->data + (pos>>PITCHSHIFT);
+		sfx = (signed char *fte_restrict)sc->data + (pos>>PITCHSHIFT);
 		for (i=0 ; i<count ; i++)
 		{
-			paintbuffer[i].s[0] += ch->vol[0] * sfx[i];
-			paintbuffer[i].s[1] += ch->vol[1] * sfx[i];
-			paintbuffer[i].s[2] += ch->vol[2] * sfx[i];
-			paintbuffer[i].s[3] += ch->vol[3] * sfx[i];
-			paintbuffer[i].s[4] += ch->vol[4] * sfx[i];
-			paintbuffer[i].s[5] += ch->vol[5] * sfx[i];
+			paintbuffer[i].s[0] += MIX_8_8(ch->vol[0] * sfx[i]);
+			paintbuffer[i].s[1] += MIX_8_8(ch->vol[1] * sfx[i]);
+			paintbuffer[i].s[2] += MIX_8_8(ch->vol[2] * sfx[i]);
+			paintbuffer[i].s[3] += MIX_8_8(ch->vol[3] * sfx[i]);
+			paintbuffer[i].s[4] += MIX_8_8(ch->vol[4] * sfx[i]);
+			paintbuffer[i].s[5] += MIX_8_8(ch->vol[5] * sfx[i]);
 		}
 	}
 }
@@ -503,34 +546,34 @@ static void SND_PaintChannel8_O8I1 (channel_t *ch, sfxcache_t *sc, int count, in
 	if (rate != (1<<PITCHSHIFT))
 	{
 		signed char data;
-		sfx = (signed char *)sc->data;
+		sfx = (signed char *fte_restrict)sc->data;
 		for (i=0 ; i<count ; i++)
 		{
 			data = sfx[pos>>PITCHSHIFT];
 			pos += rate;
-			paintbuffer[i].s[0] += ch->vol[0] * data;
-			paintbuffer[i].s[1] += ch->vol[1] * data;
-			paintbuffer[i].s[2] += ch->vol[2] * data;
-			paintbuffer[i].s[3] += ch->vol[3] * data;
-			paintbuffer[i].s[4] += ch->vol[4] * data;
-			paintbuffer[i].s[5] += ch->vol[5] * data;
-			paintbuffer[i].s[6] += ch->vol[6] * data;
-			paintbuffer[i].s[7] += ch->vol[7] * data;
+			paintbuffer[i].s[0] += MIX_8_8(ch->vol[0] * data);
+			paintbuffer[i].s[1] += MIX_8_8(ch->vol[1] * data);
+			paintbuffer[i].s[2] += MIX_8_8(ch->vol[2] * data);
+			paintbuffer[i].s[3] += MIX_8_8(ch->vol[3] * data);
+			paintbuffer[i].s[4] += MIX_8_8(ch->vol[4] * data);
+			paintbuffer[i].s[5] += MIX_8_8(ch->vol[5] * data);
+			paintbuffer[i].s[6] += MIX_8_8(ch->vol[6] * data);
+			paintbuffer[i].s[7] += MIX_8_8(ch->vol[7] * data);
 		}
 	}
 	else
 	{
-		sfx = (signed char *)sc->data + (pos>>PITCHSHIFT);
+		sfx = (signed char *fte_restrict)sc->data + (pos>>PITCHSHIFT);
 		for (i=0 ; i<count ; i++)
 		{
-			paintbuffer[i].s[0] += ch->vol[0] * sfx[i];
-			paintbuffer[i].s[1] += ch->vol[1] * sfx[i];
-			paintbuffer[i].s[2] += ch->vol[2] * sfx[i];
-			paintbuffer[i].s[3] += ch->vol[3] * sfx[i];
-			paintbuffer[i].s[4] += ch->vol[4] * sfx[i];
-			paintbuffer[i].s[5] += ch->vol[5] * sfx[i];
-			paintbuffer[i].s[6] += ch->vol[6] * sfx[i];
-			paintbuffer[i].s[7] += ch->vol[7] * sfx[i];
+			paintbuffer[i].s[0] += MIX_8_8(ch->vol[0] * sfx[i]);
+			paintbuffer[i].s[1] += MIX_8_8(ch->vol[1] * sfx[i]);
+			paintbuffer[i].s[2] += MIX_8_8(ch->vol[2] * sfx[i]);
+			paintbuffer[i].s[3] += MIX_8_8(ch->vol[3] * sfx[i]);
+			paintbuffer[i].s[4] += MIX_8_8(ch->vol[4] * sfx[i]);
+			paintbuffer[i].s[5] += MIX_8_8(ch->vol[5] * sfx[i]);
+			paintbuffer[i].s[6] += MIX_8_8(ch->vol[6] * sfx[i]);
+			paintbuffer[i].s[7] += MIX_8_8(ch->vol[7] * sfx[i]);
 		}
 	}
 }
@@ -539,7 +582,6 @@ static void SND_PaintChannel8_O8I1 (channel_t *ch, sfxcache_t *sc, int count, in
 static void SND_PaintChannel16_O2I1 (channel_t *ch, sfxcache_t *sc, int starttime, int count, int rate)
 {
 	int data;
-	int left, right;
 	int leftvol, rightvol;
 	signed short *sfx;
 	int	i;
@@ -551,26 +593,24 @@ static void SND_PaintChannel16_O2I1 (channel_t *ch, sfxcache_t *sc, int starttim
 	if (rate != (1<<PITCHSHIFT))
 	{
 		signed int data;
-		sfx = (signed short *)sc->data;
+		sfx = (signed short *fte_restrict)sc->data;
 		for (i=0 ; i<count ; i++)
 		{
 			int frac = pos&((1<<PITCHSHIFT)-1);
 			data = sfx[pos>>PITCHSHIFT] * ((1<<PITCHSHIFT)-frac) + sfx[(pos>>PITCHSHIFT)+1] * frac;
 			pos += rate;
-			paintbuffer[starttime+i].s[0] += (leftvol * data)>>(PITCHSHIFT+8);
-			paintbuffer[starttime+i].s[1] += (rightvol * data)>>(PITCHSHIFT+8);
+			paintbuffer[starttime+i].s[0] += MIX_16_8((leftvol * data)>>PITCHSHIFT);
+			paintbuffer[starttime+i].s[1] += MIX_16_8((rightvol * data)>>PITCHSHIFT);
 		}
 	}
 	else
 	{
-		sfx = (signed short *)sc->data + (pos>>PITCHSHIFT);
+		sfx = (signed short *fte_restrict)sc->data + (pos>>PITCHSHIFT);
 		for (i=0 ; i<count ; i++)
 		{
 			data = sfx[i];
-			left = (data * leftvol) >> 8;
-			right = (data * rightvol) >> 8;
-			paintbuffer[starttime+i].s[0] += left;
-			paintbuffer[starttime+i].s[1] += right;
+			paintbuffer[starttime+i].s[0] += MIX_16_8(data * leftvol);
+			paintbuffer[starttime+i].s[1] += MIX_16_8(data * rightvol);
 		}
 	}
 }
@@ -588,23 +628,23 @@ static void SND_PaintChannel16_O2I2 (channel_t *ch, sfxcache_t *sc, int starttim
 	if (rate != (1<<PITCHSHIFT))
 	{
 		signed short l, r;
-		sfx = (signed short *)sc->data;
+		sfx = (signed short *fte_restrict)sc->data;
 		for (i=0 ; i<count ; i++)
 		{
 			l = sfx[(pos>>(PITCHSHIFT-1))&~1];
 			r = sfx[(pos>>(PITCHSHIFT-1))|1];
 			pos += rate;
-			paintbuffer[starttime+i].s[0] += (ch->vol[0] * l)>>8;
-			paintbuffer[starttime+i].s[1] += (ch->vol[1] * r)>>8;
+			paintbuffer[starttime+i].s[0] += MIX_16_8(ch->vol[0] * l);
+			paintbuffer[starttime+i].s[1] += MIX_16_8(ch->vol[1] * r);
 		}
 	}
 	else
 	{
-		sfx = (signed short *)sc->data + (pos>>PITCHSHIFT)*2;
+		sfx = (signed short *fte_restrict)sc->data + (pos>>PITCHSHIFT)*2;
 		for (i=0 ; i<count ; i++)
 		{
-			paintbuffer[starttime+i].s[0] += (*sfx++ * leftvol) >> 8;
-			paintbuffer[starttime+i].s[1] += (*sfx++ * rightvol) >> 8;
+			paintbuffer[starttime+i].s[0] += MIX_16_8(*sfx++ * leftvol);
+			paintbuffer[starttime+i].s[1] += MIX_16_8(*sfx++ * rightvol);
 		}
 	}
 }
@@ -624,26 +664,26 @@ static void SND_PaintChannel16_O4I1 (channel_t *ch, sfxcache_t *sc, int count, i
 	if (rate != (1<<PITCHSHIFT))
 	{
 		signed short data;
-		sfx = (signed short *)sc->data;
+		sfx = (signed short *fte_restrict)sc->data;
 		for (i=0 ; i<count ; i++)
 		{
 			data = sfx[pos>>PITCHSHIFT];
 			pos += rate;
-			paintbuffer[i].s[0] += (vol[0] * data)>>8;
-			paintbuffer[i].s[1] += (vol[1] * data)>>8;
-			paintbuffer[i].s[2] += (vol[2] * data)>>8;
-			paintbuffer[i].s[3] += (vol[3] * data)>>8;
+			paintbuffer[i].s[0] += MIX_16_8(vol[0] * data);
+			paintbuffer[i].s[1] += MIX_16_8(vol[1] * data);
+			paintbuffer[i].s[2] += MIX_16_8(vol[2] * data);
+			paintbuffer[i].s[3] += MIX_16_8(vol[3] * data);
 		}
 	}
 	else
 	{
-		sfx = (signed short *)sc->data + (pos>>PITCHSHIFT);
+		sfx = (signed short *fte_restrict)sc->data + (pos>>PITCHSHIFT);
 		for (i=0 ; i<count ; i++)
 		{
-			paintbuffer[i].s[0] += (sfx[i] * vol[0]) >> 8;
-			paintbuffer[i].s[1] += (sfx[i] * vol[1]) >> 8;
-			paintbuffer[i].s[2] += (sfx[i] * vol[2]) >> 8;
-			paintbuffer[i].s[3] += (sfx[i] * vol[3]) >> 8;
+			paintbuffer[i].s[0] += MIX_16_8(sfx[i] * vol[0]);
+			paintbuffer[i].s[1] += MIX_16_8(sfx[i] * vol[1]);
+			paintbuffer[i].s[2] += MIX_16_8(sfx[i] * vol[2]);
+			paintbuffer[i].s[3] += MIX_16_8(sfx[i] * vol[3]);
 		}
 	}
 }
@@ -665,30 +705,30 @@ static void SND_PaintChannel16_O6I1 (channel_t *ch, sfxcache_t *sc, int count, i
 	if (rate != (1<<PITCHSHIFT))
 	{
 		signed short data;
-		sfx = (signed short *)sc->data;
+		sfx = (signed short *fte_restrict)sc->data;
 		for (i=0 ; i<count ; i++)
 		{
 			data = sfx[pos>>PITCHSHIFT];
 			pos += rate;
-			paintbuffer[i].s[0] += (vol[0] * data)>>8;
-			paintbuffer[i].s[1] += (vol[1] * data)>>8;
-			paintbuffer[i].s[2] += (vol[2] * data)>>8;
-			paintbuffer[i].s[3] += (vol[3] * data)>>8;
-			paintbuffer[i].s[4] += (vol[4] * data)>>8;
-			paintbuffer[i].s[5] += (vol[5] * data)>>8;
+			paintbuffer[i].s[0] += MIX_16_8(vol[0] * data);
+			paintbuffer[i].s[1] += MIX_16_8(vol[1] * data);
+			paintbuffer[i].s[2] += MIX_16_8(vol[2] * data);
+			paintbuffer[i].s[3] += MIX_16_8(vol[3] * data);
+			paintbuffer[i].s[4] += MIX_16_8(vol[4] * data);
+			paintbuffer[i].s[5] += MIX_16_8(vol[5] * data);
 		}
 	}
 	else
 	{
-		sfx = (signed short *)sc->data + (pos>>PITCHSHIFT);
+		sfx = (signed short *fte_restrict)sc->data + (pos>>PITCHSHIFT);
 		for (i=0 ; i<count ; i++)
 		{
-			paintbuffer[i].s[0] += (sfx[i] * vol[0]) >> 8;
-			paintbuffer[i].s[1] += (sfx[i] * vol[1]) >> 8;
-			paintbuffer[i].s[2] += (sfx[i] * vol[2]) >> 8;
-			paintbuffer[i].s[3] += (sfx[i] * vol[3]) >> 8;
-			paintbuffer[i].s[4] += (sfx[i] * vol[4]) >> 8;
-			paintbuffer[i].s[5] += (sfx[i] * vol[5]) >> 8;
+			paintbuffer[i].s[0] += MIX_16_8(sfx[i] * vol[0]);
+			paintbuffer[i].s[1] += MIX_16_8(sfx[i] * vol[1]);
+			paintbuffer[i].s[2] += MIX_16_8(sfx[i] * vol[2]);
+			paintbuffer[i].s[3] += MIX_16_8(sfx[i] * vol[3]);
+			paintbuffer[i].s[4] += MIX_16_8(sfx[i] * vol[4]);
+			paintbuffer[i].s[5] += MIX_16_8(sfx[i] * vol[5]);
 		}
 	}
 }
@@ -712,34 +752,34 @@ static void SND_PaintChannel16_O8I1 (channel_t *ch, sfxcache_t *sc, int count, i
 	if (rate != (1<<PITCHSHIFT))
 	{
 		signed short data;
-		sfx = (signed short *)sc->data;
+		sfx = (signed short *fte_restrict)sc->data;
 		for (i=0 ; i<count ; i++)
 		{
 			data = sfx[pos>>PITCHSHIFT];
 			pos += rate;
-			paintbuffer[i].s[0] += (vol[0] * data)>>8;
-			paintbuffer[i].s[1] += (vol[1] * data)>>8;
-			paintbuffer[i].s[2] += (vol[2] * data)>>8;
-			paintbuffer[i].s[3] += (vol[3] * data)>>8;
-			paintbuffer[i].s[4] += (vol[4] * data)>>8;
-			paintbuffer[i].s[5] += (vol[5] * data)>>8;
-			paintbuffer[i].s[6] += (vol[6] * data)>>8;
-			paintbuffer[i].s[7] += (vol[7] * data)>>8;
+			paintbuffer[i].s[0] += MIX_16_8(vol[0] * data);
+			paintbuffer[i].s[1] += MIX_16_8(vol[1] * data);
+			paintbuffer[i].s[2] += MIX_16_8(vol[2] * data);
+			paintbuffer[i].s[3] += MIX_16_8(vol[3] * data);
+			paintbuffer[i].s[4] += MIX_16_8(vol[4] * data);
+			paintbuffer[i].s[5] += MIX_16_8(vol[5] * data);
+			paintbuffer[i].s[6] += MIX_16_8(vol[6] * data);
+			paintbuffer[i].s[7] += MIX_16_8(vol[7] * data);
 		}
 	}
 	else
 	{
-		sfx = (signed short *)sc->data + (pos>>PITCHSHIFT);
+		sfx = (signed short *fte_restrict)sc->data + (pos>>PITCHSHIFT);
 		for (i=0 ; i<count ; i++)
 		{
-			paintbuffer[i].s[0] += (sfx[i] * vol[0]) >> 8;
-			paintbuffer[i].s[1] += (sfx[i] * vol[1]) >> 8;
-			paintbuffer[i].s[2] += (sfx[i] * vol[2]) >> 8;
-			paintbuffer[i].s[3] += (sfx[i] * vol[3]) >> 8;
-			paintbuffer[i].s[4] += (sfx[i] * vol[4]) >> 8;
-			paintbuffer[i].s[5] += (sfx[i] * vol[5]) >> 8;
-			paintbuffer[i].s[6] += (sfx[i] * vol[6]) >> 8;
-			paintbuffer[i].s[7] += (sfx[i] * vol[7]) >> 8;
+			paintbuffer[i].s[0] += MIX_16_8(sfx[i] * vol[0]);
+			paintbuffer[i].s[1] += MIX_16_8(sfx[i] * vol[1]);
+			paintbuffer[i].s[2] += MIX_16_8(sfx[i] * vol[2]);
+			paintbuffer[i].s[3] += MIX_16_8(sfx[i] * vol[3]);
+			paintbuffer[i].s[4] += MIX_16_8(sfx[i] * vol[4]);
+			paintbuffer[i].s[5] += MIX_16_8(sfx[i] * vol[5]);
+			paintbuffer[i].s[6] += MIX_16_8(sfx[i] * vol[6]);
+			paintbuffer[i].s[7] += MIX_16_8(sfx[i] * vol[7]);
 		}
 	}
 }
@@ -759,7 +799,7 @@ static void SND_PaintChannel32F_O2I1 (channel_t *ch, sfxcache_t *sc, int startti
 
 	if (rate != (1<<PITCHSHIFT))
 	{
-		sfx = (float *)sc->data;
+		sfx = (float *fte_restrict)sc->data;
 		for (i=0 ; i<count ; i++)
 		{
 			float frac = pos&((1<<PITCHSHIFT)-1);
@@ -771,7 +811,7 @@ static void SND_PaintChannel32F_O2I1 (channel_t *ch, sfxcache_t *sc, int startti
 	}
 	else
 	{
-		sfx = (float *)sc->data + (pos>>PITCHSHIFT);
+		sfx = (float *fte_restrict)sc->data + (pos>>PITCHSHIFT);
 		for (i=0 ; i<count ; i++)
 		{
 			data = sfx[i];
@@ -796,7 +836,7 @@ static void SND_PaintChannel32F_O2I2 (channel_t *ch, sfxcache_t *sc, int startti
 	if (rate != (1<<PITCHSHIFT))
 	{
 		float l, r;
-		sfx = (float *)sc->data;
+		sfx = (float *fte_restrict)sc->data;
 		for (i=0 ; i<count ; i++)
 		{
 			l = sfx[(pos>>(PITCHSHIFT-1))&~1];
@@ -808,7 +848,7 @@ static void SND_PaintChannel32F_O2I2 (channel_t *ch, sfxcache_t *sc, int startti
 	}
 	else
 	{
-		sfx = (float *)sc->data + (pos>>PITCHSHIFT)*2;
+		sfx = (float *fte_restrict)sc->data + (pos>>PITCHSHIFT)*2;
 		for (i=0 ; i<count ; i++)
 		{
 			paintbuffer[starttime+i].s[0] += (*sfx++ * leftvol);
@@ -832,7 +872,7 @@ static void SND_PaintChannel32F_O4I1 (channel_t *ch, sfxcache_t *sc, int count, 
 	if (rate != (1<<PITCHSHIFT))
 	{
 		float data;
-		sfx = (float *)sc->data;
+		sfx = (float *fte_restrict)sc->data;
 		for (i=0 ; i<count ; i++)
 		{
 			data = sfx[pos>>PITCHSHIFT];
@@ -845,7 +885,7 @@ static void SND_PaintChannel32F_O4I1 (channel_t *ch, sfxcache_t *sc, int count, 
 	}
 	else
 	{
-		sfx = (float *)sc->data + (pos>>PITCHSHIFT);
+		sfx = (float *fte_restrict)sc->data + (pos>>PITCHSHIFT);
 		for (i=0 ; i<count ; i++)
 		{
 			paintbuffer[i].s[0] += (sfx[i] * vol[0]);
@@ -873,7 +913,7 @@ static void SND_PaintChannel32F_O6I1 (channel_t *ch, sfxcache_t *sc, int count, 
 	if (rate != (1<<PITCHSHIFT))
 	{
 		float data;
-		sfx = (float *)sc->data;
+		sfx = (float *fte_restrict)sc->data;
 		for (i=0 ; i<count ; i++)
 		{
 			data = sfx[pos>>PITCHSHIFT];
@@ -888,7 +928,7 @@ static void SND_PaintChannel32F_O6I1 (channel_t *ch, sfxcache_t *sc, int count, 
 	}
 	else
 	{
-		sfx = (float *)sc->data + (pos>>PITCHSHIFT);
+		sfx = (float *fte_restrict)sc->data + (pos>>PITCHSHIFT);
 		for (i=0 ; i<count ; i++)
 		{
 			paintbuffer[i].s[0] += (sfx[i] * vol[0]);
@@ -921,7 +961,7 @@ static void SND_PaintChannel32F_O8I1 (channel_t *ch, sfxcache_t *sc, int count, 
 	if (rate != (1<<PITCHSHIFT))
 	{
 		float data;
-		sfx = (float *)sc->data;
+		sfx = (float *fte_restrict)sc->data;
 		for (i=0 ; i<count ; i++)
 		{
 			data = sfx[pos>>PITCHSHIFT];
@@ -938,7 +978,7 @@ static void SND_PaintChannel32F_O8I1 (channel_t *ch, sfxcache_t *sc, int count, 
 	}
 	else
 	{
-		sfx = (float *)sc->data + (pos>>PITCHSHIFT);
+		sfx = (float *fte_restrict)sc->data + (pos>>PITCHSHIFT);
 		for (i=0 ; i<count ; i++)
 		{
 			paintbuffer[i].s[0] += (sfx[i] * vol[0]);

@@ -3827,9 +3827,10 @@ void SV_Snapshot_BuildQ1(client_t *client, packet_entities_t *pack, pvscamera_t 
 
 		if (cameras && tracecullent && !((unsigned int)ent->v->effects & (EF_DIMLIGHT|EF_BLUE|EF_RED|EF_BRIGHTLIGHT|EF_BRIGHTFIELD|EF_NODEPTHTEST)))
 		{	//more expensive culling
-			if ((e <= sv.allocated_client_slots && sv_cullplayers_trace.value) || sv_cullentities_trace.value)
-				if (Cull_Traceline(e < client->lastseen_count?&client->lastseen_time[e]:NULL, cameras, tracecullent))
-					continue;
+			if (!(pvsflags & PVSF_MODE_MASK))
+				if ((e <= sv.allocated_client_slots && sv_cullplayers_trace.value) || sv_cullentities_trace.value)
+					if (Cull_Traceline(e < client->lastseen_count?&client->lastseen_time[e]:NULL, cameras, tracecullent))
+						continue;
 		}
 
 		//EXT_CSQC

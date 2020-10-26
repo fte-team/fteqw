@@ -352,6 +352,20 @@ qboolean Media_CleanupTrackName(const char *track, int *out_track, char *result,
 		".mp3",
 #endif
 		".wav",
+#if defined(PLUGINS)	//ffmpeg plugin? woo.
+	#if !(defined(AVAIL_OGGOPUS) || defined(FTE_TARGET_WEB))
+		".opus",	//opus might be the future, but ogg is the present
+	#endif
+	#if !(defined(AVAIL_OGGVORBIS) || defined(FTE_TARGET_WEB))
+		".ogg",
+	#endif
+	#if !(defined(AVAIL_MP3_ACM) || defined(FTE_TARGET_WEB))
+		".mp3",
+	#endif
+		".flac",	//supported by QS at least.
+		//".s3m",	//some variant of mod that noone cares about. listed because of qs.
+		//".umx",	//wtf? qs is weird.
+#endif
 		NULL
 	};
 	unsigned int tracknum;

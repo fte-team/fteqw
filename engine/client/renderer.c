@@ -173,7 +173,7 @@ cvar_t r_drawviewmodel						= CVARF  ("r_drawviewmodel", "1", CVAR_ARCHIVE);
 cvar_t r_drawviewmodelinvis					= CVAR  ("r_drawviewmodelinvis", "0");
 cvar_t r_dynamic							= CVARFD ("r_dynamic", IFMINIMAL("0","1"),
 													  CVAR_ARCHIVE, "0: no standard dlights at all.\n1: coloured dlights will be used, they may show through walls. These are not realtime things.\n2: The dlights will be forced to monochrome (this does not affect coronas/flashblends/rtlights attached to the same light).");
-cvar_t r_temporalscenecache					= CVARFD ("r_temporalscenecache", "0", CVAR_ARCHIVE, "Controls whether to generate+reuse a scene cache over multiple frames. This is generated on a separate thread to avoid any associated costs. This can significantly boost framerates on complex maps, but can also stress the gpu more (performance tradeoff that varies per map). An outdated cache may be used if the cache takes too long to build (eg: lightmap animations), which could cause the odd glitch when moving fast (but retain more consistent framerates - another tradeoff).\n0: Tranditional quake rendering.\n1: Generate+Use the scene cache.");
+cvar_t r_temporalscenecache					= CVARFD ("r_temporalscenecache", "", CVAR_ARCHIVE, "Controls whether to generate+reuse a scene cache over multiple frames. This is generated on a separate thread to avoid any associated costs. This can significantly boost framerates on complex maps, but can also stress the gpu more (performance tradeoff that varies per map). An outdated cache may be used if the cache takes too long to build (eg: lightmap animations), which could cause the odd glitch when moving fast (but retain more consistent framerates - another tradeoff).\n0: Tranditional quake rendering.\n1: Generate+Use the scene cache.");
 cvar_t r_fastturb							= CVARF ("r_fastturb", "0",
 													CVAR_SHADERSYSTEM);
 cvar_t r_skycloudalpha						= CVARFD ("r_skycloudalpha", "1", CVAR_RENDERERLATCH, "Controls how opaque the front layer of legacy scrolling skies should be.");
@@ -455,7 +455,7 @@ cvar_t gl_smoothcrosshair					= CVAR  ("gl_smoothcrosshair", "1");
 cvar_t	gl_maxdist							= CVARAD	("gl_maxdist", "0", "gl_farclip", "The distance of the far clip plane. If set to 0, some fancy maths will be used to place it at an infinite distance.");
 
 #ifdef SPECULAR
-cvar_t gl_specular							= CVARF  ("gl_specular", "0.3", CVAR_ARCHIVE|CVAR_SHADERSYSTEM);
+cvar_t gl_specular							= CVARFD  ("gl_specular", "0.3", CVAR_ARCHIVE|CVAR_SHADERSYSTEM, "Multiplier for specular effects.");
 cvar_t gl_specular_power					= CVARF  ("gl_specular_power", "32", CVAR_ARCHIVE|CVAR_SHADERSYSTEM);
 cvar_t gl_specular_fallback					= CVARF  ("gl_specular_fallback", "0.05", CVAR_ARCHIVE|CVAR_RENDERERLATCH);
 cvar_t gl_specular_fallbackexp				= CVARF  ("gl_specular_fallbackexp", "1", CVAR_ARCHIVE|CVAR_RENDERERLATCH);
@@ -505,6 +505,7 @@ cvar_t r_shadow_bumpscale_bumpmap			= CVARD  ("r_shadow_bumpscale_bumpmap", "4",
 cvar_t r_shadow_heightscale_basetexture		= CVARD  ("r_shadow_heightscale_basetexture", "0", "scaler for generation of height maps from legacy paletted content.");
 cvar_t r_shadow_heightscale_bumpmap			= CVARD  ("r_shadow_heightscale_bumpmap", "1", "height scaler for 8bit _bump textures");
 
+cvar_t r_glsl_pbr							= CVARFD  ("r_glsl_pbr", "0", CVAR_ARCHIVE|CVAR_SHADERSYSTEM, "Force PBR shading.");
 cvar_t r_glsl_offsetmapping					= CVARFD  ("r_glsl_offsetmapping", "0", CVAR_ARCHIVE|CVAR_SHADERSYSTEM, "Enables the use of paralax mapping, adding fake depth to textures.");
 cvar_t r_glsl_offsetmapping_scale			= CVAR  ("r_glsl_offsetmapping_scale", "0.04");
 cvar_t r_glsl_offsetmapping_reliefmapping	= CVARFD("r_glsl_offsetmapping_reliefmapping", "0", CVAR_ARCHIVE|CVAR_SHADERSYSTEM, "Changes the paralax sampling mode to be a bit nicer, but noticably more expensive at high resolutions. r_glsl_offsetmapping must be set.");
@@ -904,6 +905,7 @@ void Renderer_Init(void)
 	Cvar_Register (&r_coronas_fadedist, GRAPHICALNICETIES);
 	Cvar_Register (&r_flashblend, GRAPHICALNICETIES);
 	Cvar_Register (&r_flashblendscale, GRAPHICALNICETIES);
+	Cvar_Register (&r_glsl_pbr, GRAPHICALNICETIES);
 	Cvar_Register (&gl_specular, GRAPHICALNICETIES);
 	Cvar_Register (&gl_specular_power, GRAPHICALNICETIES);
 	Cvar_Register (&gl_specular_fallback, GRAPHICALNICETIES);

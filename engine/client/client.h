@@ -527,8 +527,8 @@ typedef struct
 
 	float		latency;		// rolling average
 
+	char		allow_unmaskedskyboxes;	//skyboxes/domes do not need to be depth-masked when set. FIXME: we treat this as an optimisation hint, but some hl/q2/q3 maps require strict do-not-mask rules to look right.
 	qboolean	allow_anyparticles;
-	qboolean	allow_skyboxes;	//skyboxes/domes do not need to be depth-masked when set. FIXME: we treat this as an optimisation hint, but some hl/q2/q3 maps require strict do-not-mask rules to look right.
 	qboolean	allow_watervis;	//fixme: not checked any more
 	float		allow_fbskins;	//fraction of allowance
 	qboolean	allow_cheats;

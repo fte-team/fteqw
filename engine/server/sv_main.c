@@ -187,7 +187,7 @@ cvar_t	skill			= CVARF("skill",			"" ,	CVAR_SERVERINFO);			// 0, 1, 2 or 3
 cvar_t	spawn			= CVARF("spawn",			"" ,	CVAR_SERVERINFO);
 cvar_t	watervis		= CVARF("watervis",		"" ,	CVAR_SERVERINFO);
 #pragma warningmsg("Remove this some time")
-cvar_t	allow_skybox	= CVARF("allow_skybox",	"",		CVAR_SERVERINFO);
+cvar_t	allow_skybox	= CVARFD("allow_skybox",	"",		CVAR_SERVERINFO, "This setting says whether clients should skip writing skybox depth when rendering skyboxes/skydomes. Skipping depth writes is required for halflife, quake2, and quake3 compat, but q1 content generally requires depth masking. Empty uses format-specific defaults.");
 cvar_t	sv_allow_splitscreen = CVARFD("allow_splitscreen","",CVAR_SERVERINFO, "Specifies whether clients can use splitscreen extensions to dynamically add additional clients. This only affects remote clients and not the built-in client.\nClients may need to reconnect in order to add seats when this is changed.");
 cvar_t	fbskins			= CVARF("fbskins",			"",	CVAR_SERVERINFO);	//to get rid of lame fuhquake fbskins
 

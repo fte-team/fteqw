@@ -238,8 +238,17 @@ void R2D_Init(void)
 	}
 
 
-	glossval = min(gl_specular_fallback.value*255, 255);
-	glossval *= 0x10101;
+	if (strchr(gl_specular_fallback.string, ' '))
+	{
+		glossval = bound(0, (int)(gl_specular_fallback.vec4[0]*255), 255)<<0;
+		glossval |= bound(0, (int)(gl_specular_fallback.vec4[1]*255), 255)<<8;
+		glossval |= bound(0, (int)(gl_specular_fallback.vec4[2]*255), 255)<<16;
+	}
+	else
+	{
+		glossval = min(gl_specular_fallback.value*255, 255);
+		glossval *= 0x10101;
+	}
 	glossval |= 0x01000000 * bound(0, (int)(gl_specular_fallbackexp.value*255), 255);
 	glossval = LittleLong(glossval);
 	normval = 0xffff8080;

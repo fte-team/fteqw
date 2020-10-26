@@ -32,10 +32,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define PITCHSHIFT 6	/*max audio file length = ((1<<32)>>PITCHSHIFT)/KHZ*/
 
 struct sfx_s;
-typedef struct
-{
-	int s[MAXSOUNDCHANNELS];
-} portable_samplegroup_t;
 
 typedef struct {
 	struct sfxcache_s *(QDECL *decodedata) (struct sfx_s *sfx, struct sfxcache_s *buf, ssamplepos_t start, int length);	//return true when done.
@@ -135,7 +131,7 @@ typedef struct
 typedef struct
 {
 	sfx_t	*sfx;			// sfx number
-	int		vol[MAXSOUNDCHANNELS];		// volume, .8 fixed point.
+	int		vol[MAXSOUNDCHANNELS];		// volume, 0.8 fixed point.
 	ssamplepos_t pos;		// sample position in sfx, <0 means delay sound start (shifted up by PITCHSHIFT)
 	int		rate;			// fixed point rate scaling
 	int		flags;			// cf_ flags
@@ -308,7 +304,7 @@ extern int				snd_speed;
 
 extern cvar_t snd_nominaldistance;
 
-extern	cvar_t loadas8bit;
+extern	cvar_t snd_loadas8bit;
 extern	cvar_t bgmvolume;
 extern	cvar_t volume, mastervolume;
 extern	cvar_t snd_capture;

@@ -3037,12 +3037,13 @@ void QCBUILTIN PF_whichpack (pubprogfuncs_t *prinst, struct globalvars_s *pr_glo
 
 enum
 {
-	QCSEARCH_INSENSITIVE = 1u<<0,	//for dp, we're always insensitive you prick.
+//	QCSEARCH_INSENSITIVE = 1u<<0,	//for dp, we're always insensitive you prick.
 	QCSEARCH_FULLPACKAGE = 1u<<1,	//package names include gamedir prefix etc.
 	QCSEARCH_ALLOWDUPES  = 1u<<2,	//don't filter out dupes, allowing entries hidden by later packages to be shown.
 	QCSEARCH_FORCESEARCH = 1u<<3,	//force the search to succeed even if the gamedir/package is not active.
+	QCSEARCH_MULTISEARCH = 1u<<4,	//to avoid possible string manipulation exploits?
 };
-searchpathfuncs_t *COM_EnumerateFilesPackage (const char *match, const char *package, unsigned int flags, int (QDECL *func)(const char *, qofs_t, time_t mtime, void *, searchpathfuncs_t*), void *parm);
+searchpathfuncs_t *COM_EnumerateFilesPackage (char *matches, const char *package, unsigned int flags, int (QDECL *func)(const char *, qofs_t, time_t mtime, void *, searchpathfuncs_t*), void *parm);
 typedef struct prvmsearch_s {
 	pubprogfuncs_t *fromprogs;	//share across menu/server
 
@@ -3142,7 +3143,7 @@ static int QDECL search_enumerate(const char *name, qofs_t fsize, time_t mtime, 
 	return true;
 }
 
-//float	search_begin(string pattern, float caseinsensitive, float quiet) = #74;
+//float	search_begin(string pattern, float flags, float quiet) = #74;
 void QCBUILTIN PF_search_begin (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {	//< 0 for error, >= 0 for handle.
 	//error includes bad search patterns, but not no files
@@ -3153,7 +3154,7 @@ void QCBUILTIN PF_search_begin (pubprogfuncs_t *prinst, struct globalvars_s *pr_
 	prvmsearch_t *s;
 	size_t j;
 
-	if (!*pattern || (*pattern == '.' && pattern[1] == '.') || *pattern == '/' || *pattern == '\\' || strchr(pattern, ':'))
+	if (!*pattern || (*pattern == '.' && pattern[1] == '.') || *pattern == '/' || *pattern == '\\' || (!(flags&QCSEARCH_MULTISEARCH)&&strchr(pattern, ':')))
 	{
 		PF_Warningf(prinst, "PF_search_begin: bad search pattern \"%s\"\n", pattern);
 		G_FLOAT(OFS_RETURN) = -1;
@@ -3183,7 +3184,7 @@ void QCBUILTIN PF_search_begin (pubprogfuncs_t *prinst, struct globalvars_s *pr_
 		s->fsflags |= WP_FORCE;
 
 	Q_strncpyz(s->searchinfo.purepath, package?package:"", sizeof(s->searchinfo.purepath));
-	s->searchinfo.handle = COM_EnumerateFilesPackage(pattern, package?s->searchinfo.purepath:NULL, s->fsflags, search_enumerate, s);
+	s->searchinfo.handle = COM_EnumerateFilesPackage(s->pattern, package?s->searchinfo.purepath:NULL, s->fsflags, search_enumerate, s);
 
 	G_FLOAT(OFS_RETURN) = j;
 }

@@ -10628,7 +10628,13 @@ static BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"cvar_string",		PF_Fixme,			0,		0,		0,		71,	D("string(string name)", "Returns the value of a cvar, as a string.")},
 	{"crash",			PF_Fixme,			0,		0,		0,		72,	D("void()", "Demonstrates that no program is bug free.")},
 	{"stackdump",		PF_Fixme,			0,		0,		0,		73,	D("void()", "Prints out the QC's stack, for console-based error reports.")},
-	{"search_begin",	PF_Fixme,			0,		0,		0,		74,	"searchhandle(string pattern, enumflags:float{SB_CASEINSENSITIVE=1<<0,SB_FULLPACKAGEPATH=1<<1,SB_ALLOWDUPES=1<<2,SB_FORCESEARCH=1<<3} flags, float quiet, optional string package)"},
+	{"search_begin",	PF_Fixme,			0,		0,		0,		74,	"searchhandle(string pattern, enumflags:float{"
+																		"SB_CASEINSENSITIVE=1<<0,"
+																		"SB_FULLPACKAGEPATH=1<<1,"
+																		"SB_ALLOWDUPES=1<<2,"
+																		"SB_FORCESEARCH=1<<3"
+																		"SB_MULTISEARCH=1<<4"
+																		"} flags, float quiet, optional string package)"},
 	{"search_end",		PF_Fixme,			0,		0,		0,		75,	"void(searchhandle handle)"},
 	{"search_getsize",	PF_Fixme,			0,		0,		0,		76,	"float(searchhandle handle)"},
 	{"search_getfilename",PF_Fixme,			0,		0,		0,		77,	"string(searchhandle handle, float num)"},

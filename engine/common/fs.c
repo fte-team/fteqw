@@ -2671,9 +2671,55 @@ void FS_FreeFile(void *file)
 	BZ_Free(file);
 }
 
+//handle->EnumerateFiles on each a:b:c part of the given matches string.
+static qboolean FS_EnumerateFilesEach(searchpathfuncs_t *handle, char *matches, int (QDECL *func)(const char *fname, qofs_t fsize, time_t mtime, void *parm, searchpathfuncs_t *spath), void *parm)
+{
+	char cleanpath[MAX_QPATH];
+	const char *match;
+	char *sep;
+	for (; matches; matches = sep)
+	{
+		sep = strchr(matches, ':');
+		if (sep)
+		{
+			*sep = 0;
+			match = FS_GetCleanPath(matches, true, cleanpath, sizeof(cleanpath));
+			*sep++ = ':';
+		}
+		else
+			match = FS_GetCleanPath(matches, true, cleanpath, sizeof(cleanpath));
 
-searchpathfuncs_t *COM_EnumerateFilesPackage (const char *match, const char *package, unsigned int flags, int (QDECL *func)(const char *, qofs_t, time_t mtime, void *, searchpathfuncs_t*), void *parm)
-{	//special version that takes an explicit package name to search inside.
+		if (match && *match)
+			if (!handle->EnumerateFiles(handle, match, func, parm))
+				return false;
+	}
+	return true;
+}
+static int FS_EnumerateFilesEachSys (const char *syspath, char *matches, int (*func)(const char *, qofs_t, time_t modtime, void *, searchpathfuncs_t *), void *parm, searchpathfuncs_t *spath)
+{
+	char cleanpath[MAX_QPATH];
+	const char *match;
+	char *sep;
+	for (; matches; matches = sep)
+	{
+		sep = strchr(matches, ':');
+		if (sep)
+		{
+			*sep = 0;
+			match = FS_GetCleanPath(matches, true, cleanpath, sizeof(cleanpath));
+			*sep++ = ':';
+		}
+		else
+			match = FS_GetCleanPath(matches, true, cleanpath, sizeof(cleanpath));
+
+		if (!Sys_EnumerateFiles(syspath, match, func, parm, spath))
+			return false;
+	}
+	return true;
+}
+searchpathfuncs_t *COM_EnumerateFilesPackage (char *matches, const char *package, unsigned int flags, int (QDECL *func)(const char *, qofs_t, time_t mtime, void *, searchpathfuncs_t*), void *parm)
+{	//special version of COM_EnumerateFiles that takes an explicit package name to search inside.
+	//additionally accepts multiple patterns (separated by : chsrs)
 	searchpathfuncs_t *handle;
 	searchpath_t    *search;
 	const char *sp;
@@ -2696,8 +2742,8 @@ searchpathfuncs_t *COM_EnumerateFilesPackage (const char *match, const char *pac
 				continue;	//ignore this package
 		}
 		foundpackage = true;
-	// is the element a pak file?
-		if (!search->handle->EnumerateFiles(search->handle, match, func, parm))
+
+		if (!FS_EnumerateFilesEach(search->handle, matches, func, parm))
 			break;
 	}
 
@@ -2733,7 +2779,7 @@ searchpathfuncs_t *COM_EnumerateFilesPackage (const char *match, const char *pac
 			}
 
 			if (handle)
-				handle->EnumerateFiles(handle, match, func, parm);
+				FS_EnumerateFilesEach(handle, matches, func, parm);
 			return handle;	//caller can use this for context, but is expected to tidy it up too.
 		}
 		else
@@ -2744,11 +2790,11 @@ searchpathfuncs_t *COM_EnumerateFilesPackage (const char *match, const char *pac
 			if (com_homepathenabled)
 			{
 				Q_snprintfz(syspath, sizeof(syspath), "%s%s", com_homepath, package);
-				Sys_EnumerateFiles(syspath, match, func, parm, NULL);
+				FS_EnumerateFilesEachSys(syspath, matches, func, parm, NULL);
 			}
 
 			Q_snprintfz(syspath, sizeof(syspath), "%s%s", com_gamepath, package);
-			Sys_EnumerateFiles(syspath, match, func, parm, NULL);
+			FS_EnumerateFilesEachSys(syspath, matches, func, parm, NULL);
 		}
 	}
 	return NULL;

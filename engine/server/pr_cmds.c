@@ -10632,8 +10632,9 @@ static BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 																		"SB_CASEINSENSITIVE=1<<0,"
 																		"SB_FULLPACKAGEPATH=1<<1,"
 																		"SB_ALLOWDUPES=1<<2,"
-																		"SB_FORCESEARCH=1<<3"
-																		"SB_MULTISEARCH=1<<4"
+																		"SB_FORCESEARCH=1<<3,"
+																		"SB_MULTISEARCH=1<<4,"
+																		"SB_NAMESORT=1<<5"
 																		"} flags, float quiet, optional string package)"},
 	{"search_end",		PF_Fixme,			0,		0,		0,		75,	"void(searchhandle handle)"},
 	{"search_getsize",	PF_Fixme,			0,		0,		0,		76,	"float(searchhandle handle)"},

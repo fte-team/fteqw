@@ -3042,6 +3042,7 @@ enum
 	QCSEARCH_ALLOWDUPES  = 1u<<2,	//don't filter out dupes, allowing entries hidden by later packages to be shown.
 	QCSEARCH_FORCESEARCH = 1u<<3,	//force the search to succeed even if the gamedir/package is not active.
 	QCSEARCH_MULTISEARCH = 1u<<4,	//to avoid possible string manipulation exploits?
+	QCSEARCH_NAMESORT    = 1u<<5,	//sort results by filename, instead of by filesystem priority/randomness
 };
 searchpathfuncs_t *COM_EnumerateFilesPackage (char *matches, const char *package, unsigned int flags, int (QDECL *func)(const char *, qofs_t, time_t mtime, void *, searchpathfuncs_t*), void *parm);
 typedef struct prvmsearch_s {
@@ -3050,7 +3051,7 @@ typedef struct prvmsearch_s {
 	searchpath_t searchinfo;
 
 	int entries;
-	struct
+	struct prvmsearchentry_s
 	{
 		char *name;
 		qofs_t size;
@@ -3116,6 +3117,14 @@ void search_close_progs(pubprogfuncs_t *prinst, qboolean complain)
 		pr_searches = NULL;
 		numpr_searches = 0;
 	}
+}
+
+static int QDECL search_name_sort(const void *av, const void *bv)
+{
+	const struct prvmsearchentry_s *a = av, *b = bv;
+	int ret = strcmp(a->name, b->name);
+	//FIXME: if equal sort by original order!
+	return ret;
 }
 
 static int QDECL search_enumerate(const char *name, qofs_t fsize, time_t mtime, void *parm, searchpathfuncs_t *spath)
@@ -3185,6 +3194,9 @@ void QCBUILTIN PF_search_begin (pubprogfuncs_t *prinst, struct globalvars_s *pr_
 
 	Q_strncpyz(s->searchinfo.purepath, package?package:"", sizeof(s->searchinfo.purepath));
 	s->searchinfo.handle = COM_EnumerateFilesPackage(s->pattern, package?s->searchinfo.purepath:NULL, s->fsflags, search_enumerate, s);
+
+	if (flags&QCSEARCH_NAMESORT)
+		qsort(s->entry, s->entries, sizeof(*s->entry), search_name_sort);
 
 	G_FLOAT(OFS_RETURN) = j;
 }

@@ -23,7 +23,7 @@
 #endif
 
 #if SDL_MAJOR_VERSION >= 2
-SDL_Window *sdlwindow;
+extern SDL_Window *sdlwindow;
 #endif
 
 #ifndef isDedicated

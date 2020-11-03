@@ -44,7 +44,7 @@ extern qboolean vid_isfullscreen;
 unsigned short intitialgammaramps[3][256];
 #endif
 
-qboolean mouseactive;
+extern qboolean mouseactive;
 extern qboolean mouseusedforgui;
 
 #ifdef OPENGL_SDL

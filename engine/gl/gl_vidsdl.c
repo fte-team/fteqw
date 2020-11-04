@@ -308,8 +308,10 @@ static void	SDLVID_EnumerateVideoModes (const char *driver, const char *output, 
 static qboolean SDLVID_Init (rendererstate_t *info, unsigned char *palette, r_qrenderer_t qrenderer)
 {
 	int flags = 0;
+#if SDL_MAJOR_VERSION >= 2
 	int display = -1;
 	SDL_DisplayMode modeinfo, *usemode;
+#endif
 
 	SDL_Init(SDL_INIT_VIDEO | SDL_INIT_NOPARACHUTE);
 #if !defined(FTE_TARGET_WEB) && SDL_MAJOR_VERSION < 2
@@ -345,10 +347,10 @@ static qboolean SDLVID_Init (rendererstate_t *info, unsigned char *palette, r_qr
 		if (info->stereo)
 			SDL_GL_SetAttribute(SDL_GL_STEREO, 1);
 
+#if SDL_MAJOR_VERSION >= 2
 		if (info->srgb)
 			SDL_GL_SetAttribute(SDL_GL_FRAMEBUFFER_SRGB_CAPABLE, 1);
 
-#if SDL_MAJOR_VERSION >= 2
 		//FIXME: this stuff isn't part of info.
 		//this means it shouldn't be exposed to the menu or widely advertised.
 		if (*vid_gl_context_version.string)

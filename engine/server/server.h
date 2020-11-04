@@ -389,7 +389,7 @@ typedef struct	//merge?
 } q2client_frame_t;
 #endif
 #ifdef Q3SERVER
-#include "clq3defs.h"
+#include "../client/clq3defs.h"
 typedef struct	//merge?
 {
 	int					flags;

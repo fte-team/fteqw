@@ -327,10 +327,12 @@ static qboolean QDECL SDL_InitCard(soundcardinfo_t *sc, const char *devicename)
 		sc->sn.samplebytes = 2;
 		sc->sn.sampleformat = QSF_S16;
 		break;
+#if SDL_MAJOR_VERSION >= 2
 	case AUDIO_F32SYS:
 		sc->sn.samplebytes = 4;
 		sc->sn.sampleformat = QSF_F32;
 		break;
+#endif
 	default:
 		//unsupported. shouldn't have obtained that.
 #if SDL_MAJOR_VERSION >= 2

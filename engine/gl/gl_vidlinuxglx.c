@@ -3136,6 +3136,11 @@ static void GetEvent(void)
 						Cmd_ExecuteString("quit", RESTRICT_LOCAL);
 					x11.pXSetInputFocus(vid_dpy, vid_window, RevertToParent, CurrentTime);
 				}
+				else if (!strcmp(protname, "_NET_WM_PING"))
+				{
+					event.xclient.window = vid_root;
+					x11.pXSendEvent(vid_dpy, vid_root, false, SubstructureNotifyMask|SubstructureRedirectMask, &event);
+				}
 				else
 					Con_DPrintf("Got unknown x11wm message %s\n", protname);
 				x11.pXFree(protname);
@@ -3845,6 +3850,26 @@ static void X_StoreIcon(Window wnd)
 	}
 }
 
+static void X_StorePID(Window wnd)
+{
+	Atom net_wm_pid  = x11.pXInternAtom(vid_dpy, "_NET_WM_PID", false);
+	Atom wm_client_machine = x11.pXInternAtom(vid_dpy, "WM_CLIENT_MACHINE", false);
+	Atom cardinal = x11.pXInternAtom(vid_dpy, "CARDINAL", false);
+	Atom string = x11.pXInternAtom(vid_dpy, "STRING", false);
+	long pid = getpid();
+	#ifndef HOST_NAME_MAX
+	#define HOST_NAME_MAX 255
+	#endif
+	char hostname[HOST_NAME_MAX+1];
+	*hostname = 0;
+	if (gethostname(hostname, sizeof(hostname)) < 0)
+		return;	//just give up. if the hostname isn't valid then the pid won't be useful anyway.
+	hostname[countof(hostname)-1] = 0;	//make sure its null terminated... *sigh*
+
+	x11.pXChangeProperty(vid_dpy, wnd, wm_client_machine, string, 8, PropModeReplace, hostname, strlen(hostname));
+	x11.pXChangeProperty(vid_dpy, wnd, net_wm_pid, cardinal, 32, PropModeReplace, (void*)&pid, 1);
+}
+
 void X_GoFullscreen(void)
 {
 	XEvent xev;
@@ -3971,7 +3996,7 @@ static Window X_CreateWindow(rendererstate_t *info, qboolean override, XVisualIn
 	XSetWindowAttributes attr;
 	XSizeHints szhints;
 	unsigned int mask;
-	Atom prots[1];
+	Atom prots[2];
 
 	/* window attributes */
 	attr.background_pixel = 0;
@@ -4027,12 +4052,14 @@ static Window X_CreateWindow(rendererstate_t *info, qboolean override, XVisualIn
 						visinfo->visual, mask, &attr);
 	/*ask the window manager to stop triggering bugs in Xlib*/
 	prots[0] = x11.pXInternAtom(vid_dpy, "WM_DELETE_WINDOW", False);
-	x11.pXSetWMProtocols(vid_dpy, wnd, prots, sizeof(prots)/sizeof(prots[0]));
+	prots[1] = x11.pXInternAtom(vid_dpy, "_NET_WM_PING", False);
+	x11.pXSetWMProtocols(vid_dpy, wnd, prots, countof(prots));
 	x11.pXSetWMNormalHints(vid_dpy, wnd, &szhints);
 	/*set caption*/
 	x11.pXStoreName(vid_dpy, wnd, "FTE QuakeWorld");
 	x11.pXSetIconName(vid_dpy, wnd, "FTEQW");
 	X_StoreIcon(wnd);
+	X_StorePID(wnd);
 	/*make it visible*/
 	x11.pXMapWindow(vid_dpy, wnd);
 

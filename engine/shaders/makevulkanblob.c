@@ -1,6 +1,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
+#include "../client/quakedef.h"
+#include "../gl/shader.h"
 void dumpprogblob(FILE *out, unsigned char *buf, unsigned int size)
 {
 	if (out)
@@ -173,7 +176,7 @@ int generatevulkanblobs(struct blobheader *blob, size_t maxblobsize, const char 
 						arg = strtok(NULL, " ,=\r\n");
 						if (!arg)
 						{
-							printf("%s has no default value. Assuming 0\n", cb+4);
+							printf(" cvar %s has no default value. Assuming 0\n",  (char*)blob + blob->cvarsoffset + blob->cvarslength+4);
 							u[i].u = 0;	//0 either way.
 						}
 						else if (type == 'f' || type == 'F')
@@ -217,41 +220,43 @@ int generatevulkanblobs(struct blobheader *blob, size_t maxblobsize, const char 
 				{
 					//light
 					if (!strcasecmp(arg, "shadowmap"))
-						blob->defaulttextures |= 1u<<0;
+						blob->defaulttextures |= 1u<<S_SHADOWMAP;
 					else if (!strcasecmp(arg, "projectionmap"))
-						blob->defaulttextures |= 1u<<1;
+						blob->defaulttextures |= 1u<<S_PROJECTIONMAP;
 
 					//material
 					else if (!strcasecmp(arg, "diffuse"))
-						blob->defaulttextures |= 1u<<2;
+						blob->defaulttextures |= 1u<<S_DIFFUSE;
 					else if (!strcasecmp(arg, "normalmap"))
-						blob->defaulttextures |= 1u<<3;
+						blob->defaulttextures |= 1u<<S_NORMALMAP;
 					else if (!strcasecmp(arg, "specular"))
-						blob->defaulttextures |= 1u<<4;
+						blob->defaulttextures |= 1u<<S_SPECULAR;
 					else if (!strcasecmp(arg, "upper"))
-						blob->defaulttextures |= 1u<<5;
+						blob->defaulttextures |= 1u<<S_UPPERMAP;
 					else if (!strcasecmp(arg, "lower"))
-						blob->defaulttextures |= 1u<<6;
+						blob->defaulttextures |= 1u<<S_LOWERMAP;
 					else if (!strcasecmp(arg, "fullbright"))
-						blob->defaulttextures |= 1u<<7;
+						blob->defaulttextures |= 1u<<S_FULLBRIGHT;
 					else if (!strcasecmp(arg, "paletted"))
-						blob->defaulttextures |= 1u<<8;
+						blob->defaulttextures |= 1u<<S_PALETTED;
 					else if (!strcasecmp(arg, "reflectcube"))
-						blob->defaulttextures |= 1u<<9;
+						blob->defaulttextures |= 1u<<S_REFLECTCUBE;
 					else if (!strcasecmp(arg, "reflectmask"))
-						blob->defaulttextures |= 1u<<10;
+						blob->defaulttextures |= 1u<<S_REFLECTMASK;
 					else if (!strcasecmp(arg, "displacement"))
-						blob->defaulttextures |= 1u<<11;
+						blob->defaulttextures |= 1u<<S_DISPLACEMENT;
+					else if (!strcasecmp(arg, "occlusion"))
+						blob->defaulttextures |= 1u<<S_OCCLUSION;
 
 					//batch
 					else if (!strcasecmp(arg, "lightmap"))
-						blob->defaulttextures |= 1u<<12;
+						blob->defaulttextures |= 1u<<S_LIGHTMAP0;
 					else if (!strcasecmp(arg, "deluxemap") || !strcasecmp(arg, "deluxmap"))
-						blob->defaulttextures |= 1u<<13;
+						blob->defaulttextures |= 1u<<S_DELUXEMAP0;
 					else if (!strcasecmp(arg, "lightmaps"))
-						blob->defaulttextures |= 1u<<12 | 1u<<14 | 1u<<15 | 1u<<16;
+						blob->defaulttextures |= 1u<<S_LIGHTMAP0 | 1u<<S_LIGHTMAP1 | 1u<<S_LIGHTMAP2 | 1u<<S_LIGHTMAP3;
 					else if (!strcasecmp(arg, "deluxemaps") || !strcasecmp(arg, "deluxmaps"))
-						blob->defaulttextures |= 1u<<13 | 1u<<17 | 1u<<18 | 1u<<19;
+						blob->defaulttextures |= 1u<<S_DELUXEMAP0 | 1u<<S_DELUXEMAP1 | 1u<<S_DELUXEMAP2 | 1u<<S_DELUXEMAP3;
 
 					//shader pass
 					else if ((i=atoi(arg)))
@@ -307,6 +312,7 @@ int generatevulkanblobs(struct blobheader *blob, size_t maxblobsize, const char 
 				"uniform samplerCube s_reflectcube;\n",
 				"uniform sampler2D s_reflectmask;\n",
 				"uniform sampler2D s_displacement;\n",
+				"uniform sampler2D s_occlusion;\n",
 
 				//batch
 				"uniform sampler2D s_lightmap;\n#define s_lightmap0 s_lightmap\n",

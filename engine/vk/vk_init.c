@@ -26,6 +26,8 @@ static cvar_t vk_ext_astc_decode_mode			= CVARFD("vk_ext_astc_decode_mode",		"",
 #endif
 extern cvar_t vid_srgb, vid_vsync, vid_triplebuffer, r_stereo_method, vid_multisample, vid_bpp;
 
+texid_t r_blackcubeimage, r_whitecubeimage;
+
 
 void VK_RegisterVulkanCvars(void)
 {
@@ -185,7 +187,7 @@ char *VK_VKErrorToString(VkResult err)
 #endif
 
 	//irrelevant parts of the enum
-	case VK_RESULT_RANGE_SIZE:
+//	case VK_RESULT_RANGE_SIZE:
 	case VK_RESULT_MAX_ENUM:
 	default:
 		break;
@@ -255,7 +257,7 @@ char *DebugAnnotObjectToString(VkObjectType t)
 #ifdef VK_NV_ray_tracing
 	case VK_OBJECT_TYPE_ACCELERATION_STRUCTURE_NV:		return "VK_OBJECT_TYPE_ACCELERATION_STRUCTURE_NV";
 #endif
-	case VK_OBJECT_TYPE_RANGE_SIZE:
+//	case VK_OBJECT_TYPE_RANGE_SIZE:
     case VK_OBJECT_TYPE_MAX_ENUM:
 		break;
 	default:
@@ -469,6 +471,30 @@ static void VK_DestroySwapChain(void)
 		vk.frame = NULL;
 	}
 
+	if (vk.dopresent)
+		vk.dopresent(NULL);
+
+	//wait for it to all finish first...
+	if (vk.device)
+		vkDeviceWaitIdle(vk.device);
+#if 0	//don't bother waiting as they're going to be destroyed anyway, and we're having a lot of fun with drivers that don't bother signalling them on teardown
+	vk.acquirenext = vk.acquirelast;
+#else
+	//clean up our acquires so we know the driver isn't going to update anything.
+	while (vk.acquirenext < vk.acquirelast)
+	{
+		if (vk.acquirefences[vk.acquirenext%ACQUIRELIMIT])
+			VkWarnAssert(vkWaitForFences(vk.device, 1, &vk.acquirefences[vk.acquirenext%ACQUIRELIMIT], VK_FALSE, 1000000000u));	//drivers suck, especially in times of error, and especially if its nvidia's vulkan driver.
+		vk.acquirenext++;
+	}
+#endif
+	for (i = 0; i < ACQUIRELIMIT; i++)
+	{
+		if (vk.acquirefences[i])
+			vkDestroyFence(vk.device, vk.acquirefences[i], vkallocationcb);
+		vk.acquirefences[i] = VK_NULL_HANDLE;
+	}
+
 	for (i = 0; i < vk.backbuf_count; i++)
 	{
 		//swapchain stuff
@@ -481,25 +507,6 @@ static void VK_DestroySwapChain(void)
 		VK_DestroyVkTexture(&vk.backbufs[i].depth);
 		VK_DestroyVkTexture(&vk.backbufs[i].mscolour);
 		vkDestroySemaphore(vk.device, vk.backbufs[i].presentsemaphore, vkallocationcb);
-	}
-
-	if (vk.dopresent)
-		vk.dopresent(NULL);
-	//clean up our acquires so we know the driver isn't going to update anything.
-	while (vk.acquirenext < vk.acquirelast)
-	{
-		if (vk.acquirefences[vk.acquirenext%ACQUIRELIMIT])
-			VkWarnAssert(vkWaitForFences(vk.device, 1, &vk.acquirefences[vk.acquirenext%ACQUIRELIMIT], VK_FALSE, UINT64_MAX));
-		vk.acquirenext++;
-	}
-	//wait for it to all finish.
-	if (vk.device)
-		vkDeviceWaitIdle(vk.device);
-	for (i = 0; i < ACQUIRELIMIT; i++)
-	{
-		if (vk.acquirefences[i])
-			vkDestroyFence(vk.device, vk.acquirefences[i], vkallocationcb);
-		vk.acquirefences[i] = VK_NULL_HANDLE;
 	}
 
 	while(vk.unusedframes)
@@ -1937,7 +1944,7 @@ qboolean VK_LoadTextureMips (texid_t tex, const struct pendingtextureinfo *mips)
 	}
 	else
 	{
-		target = VK_CreateTexture2DArray(mips->mip[0].width, mips->mip[0].height, layers, mipcount/layers, mips->encoding, mips->type, !!(tex->flags&IF_RENDERTARGET), tex->ident);
+		target = VK_CreateTexture2DArray(mips->mip[0].width, mips->mip[0].height, layers, mipcount, mips->encoding, mips->type, !!(tex->flags&IF_RENDERTARGET), tex->ident);
 
 		if (target.mem.memory == VK_NULL_HANDLE)
 		{
@@ -2008,31 +2015,34 @@ qboolean VK_LoadTextureMips (texid_t tex, const struct pendingtextureinfo *mips)
 		//for compressed formats (ie: s3tc/dxt) we need to round up to deal with npot.
 		uint32_t blockswidth = (mips->mip[i].width+blockwidth-1) / blockwidth;
 		uint32_t blocksheight = (mips->mip[i].height+blockheight-1) / blockheight;
-		uint32_t blocksdepth = (mips->mip[i].depth+blockdepth-1) / blockdepth;
+		uint32_t blocksdepth = (mips->mip[i].depth+blockdepth-1) / blockdepth, z;
 
-		if (mips->mip[i].data)
-			memcpy((char*)mapdata + bci.size, (char*)mips->mip[i].data, blockswidth*blockbytes*blocksheight*blocksdepth);
-		else
-			memset((char*)mapdata + bci.size, 0, blockswidth*blockbytes*blocksheight*blocksdepth);
+		//build it in layers...
+		for (z = 0; z < blocksdepth; z++)
+		{
+			if (mips->mip[i].data)
+				memcpy((char*)mapdata + bci.size, (char*)mips->mip[i].data, blockswidth*blockbytes*blocksheight*blockdepth);
+			else
+				memset((char*)mapdata + bci.size, 0, blockswidth*blockbytes*blocksheight*blockdepth);
 
-		//queue up a buffer->image copy for this mip
-		region.bufferOffset = bci.size;
-		region.bufferRowLength = blockswidth*blockwidth;
-		region.bufferImageHeight = blocksheight*blockheight;
-		region.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-		region.imageSubresource.mipLevel = i;
-		region.imageSubresource.baseArrayLayer = 0;
-		region.imageSubresource.layerCount = mips->mip[i].depth;
-		region.imageOffset.x = 0;
-		region.imageOffset.y = 0;
-		region.imageOffset.z = 0;
-		region.imageExtent.width = mips->mip[i].width;
-		region.imageExtent.height = mips->mip[i].height;
-		region.imageExtent.depth = mips->mip[i].depth;
+			//queue up a buffer->image copy for this mip
+			region.bufferOffset = bci.size;
+			region.bufferRowLength = blockswidth*blockwidth;
+			region.bufferImageHeight = blocksheight*blockheight;
+			region.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+			region.imageSubresource.mipLevel = i;
+			region.imageSubresource.baseArrayLayer = z*blockdepth;
+			region.imageSubresource.layerCount = blockdepth;
+			region.imageOffset.x = 0;
+			region.imageOffset.y = 0;
+			region.imageOffset.z = 0;
+			region.imageExtent.width = mips->mip[i].width;
+			region.imageExtent.height = mips->mip[i].height;
+			region.imageExtent.depth = blockdepth;
 
-		vkCmdCopyBufferToImage(vkloadcmd, fence->stagingbuffer, target.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
-
-		bci.size += blockswidth*blocksheight*blockbytes;
+			vkCmdCopyBufferToImage(vkloadcmd, fence->stagingbuffer, target.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
+			bci.size += blockdepth*blockswidth*blocksheight*blockbytes;
+		}
 	}
 	vkUnmapMemory(vk.device, fence->stagingmemory);
 
@@ -2086,6 +2096,12 @@ void    VK_DestroyTexture			(texid_t tex)
 
 void	VK_R_Init					(void)
 {
+	uint32_t white[6] = {~0u,~0u,~0u,~0u,~0u,~0u};
+	r_blackcubeimage = Image_CreateTexture("***blackcube***", NULL, IF_NEAREST|IF_TEXTYPE_CUBE);
+	Image_Upload(r_blackcubeimage, TF_RGBX32, NULL, NULL, 1, 1, 6, IF_NEAREST|IF_NOMIPMAP|IF_NOGAMMA|IF_TEXTYPE_CUBE);
+
+	r_whitecubeimage = Image_CreateTexture("***whitecube***", NULL, IF_NEAREST|IF_TEXTYPE_CUBE);
+	Image_Upload(r_whitecubeimage, TF_RGBX32, white, NULL, 1, 1, 6, IF_NEAREST|IF_NOMIPMAP|IF_NOGAMMA|IF_TEXTYPE_CUBE);
 }
 void	VK_R_DeInit					(void)
 {
@@ -2278,7 +2294,7 @@ static void VK_Init_PostProc(void)
 			}
 		}
 
-		Image_Upload(scenepp_texture_warp, TF_RGBX32, pp_warp_tex, NULL, PP_WARP_TEX_SIZE, PP_WARP_TEX_SIZE, IF_LINEAR|IF_NOMIPMAP|IF_NOGAMMA);
+		Image_Upload(scenepp_texture_warp, TF_RGBX32, pp_warp_tex, NULL, PP_WARP_TEX_SIZE, PP_WARP_TEX_SIZE, 1, IF_LINEAR|IF_NOMIPMAP|IF_NOGAMMA);
 
 		// TODO: init edge texture - this is ampscale * 2, with ampscale calculated
 		// init warp texture - this specifies offset in
@@ -2322,7 +2338,7 @@ static void VK_Init_PostProc(void)
 			}
 		}
 
-		Image_Upload(scenepp_texture_edge, TF_RGBX32, pp_edge_tex, NULL, PP_AMP_TEX_SIZE, PP_AMP_TEX_SIZE, IF_LINEAR|IF_NOMIPMAP|IF_NOGAMMA);
+		Image_Upload(scenepp_texture_edge, TF_RGBX32, pp_edge_tex, NULL, PP_AMP_TEX_SIZE, PP_AMP_TEX_SIZE, 1, IF_LINEAR|IF_NOMIPMAP|IF_NOGAMMA);
 	}
 
 
@@ -4358,6 +4374,7 @@ void VK_CheckTextureFormats(void)
 
 	sh_config.texture2d_maxsize = props.limits.maxImageDimension2D;
 	sh_config.texturecube_maxsize = props.limits.maxImageDimensionCube;
+	sh_config.texture2darray_maxlayers = props.limits.maxImageArrayLayers;
 
 	for (i = 0; i < countof(texfmt); i++)
 	{
@@ -5155,6 +5172,7 @@ qboolean VK_Init(rendererstate_t *info, const char **sysextnames, qboolean (*cre
 	}
 	if (info->srgb > 0 && (vid.flags & VID_SRGB_FB))
 		vid.flags |= VID_SRGBAWARE;
+
 	return true;
 }
 void VK_Shutdown(void)

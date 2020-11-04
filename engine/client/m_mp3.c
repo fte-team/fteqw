@@ -2694,7 +2694,7 @@ void QDECL Media_UpdateTexture(void *ctx, uploadfmt_t fmt, int width, int height
 	cin_t *cin = ctx;
 	if (!TEXVALID(cin->texture))
 		TEXASSIGN(cin->texture, Image_CreateTexture("***cin***", NULL, IF_CLAMP|IF_NOMIPMAP));
-	Image_Upload(cin->texture, fmt, data, palette, width, height, IF_CLAMP|IF_NOMIPMAP|IF_NOGAMMA);
+	Image_Upload(cin->texture, fmt, data, palette, width, height, 1, IF_CLAMP|IF_NOMIPMAP|IF_NOGAMMA);
 }
 texid_tf Media_UpdateForShader(cin_t *cin)
 {

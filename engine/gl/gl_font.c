@@ -510,7 +510,7 @@ static void Font_Flush(void)
 		return;
 	if (fontplanes.planechanged)
 	{
-		Image_Upload(fontplanes.texnum[fontplanes.activeplane], TF_RGBA32, (void*)fontplanes.plane, NULL, PLANEWIDTH, PLANEHEIGHT, IF_UIPIC|IF_NEAREST|IF_NOPICMIP|IF_NOMIPMAP|IF_NOGAMMA|IF_NOPURGE);
+		Image_Upload(fontplanes.texnum[fontplanes.activeplane], TF_RGBA32, (void*)fontplanes.plane, NULL, PLANEWIDTH, PLANEHEIGHT, 1, IF_UIPIC|IF_NEAREST|IF_NOPICMIP|IF_NOMIPMAP|IF_NOGAMMA|IF_NOPURGE);
 
 		fontplanes.planechanged = false;
 	}
@@ -576,7 +576,7 @@ void Font_FlushPlane(void)
 
 	if (fontplanes.planechanged)
 	{
-		Image_Upload(fontplanes.texnum[fontplanes.activeplane], TF_RGBA32, (void*)fontplanes.plane, NULL, PLANEWIDTH, PLANEHEIGHT, IF_UIPIC|IF_NEAREST|IF_NOPICMIP|IF_NOMIPMAP|IF_NOGAMMA|IF_NOPURGE);
+		Image_Upload(fontplanes.texnum[fontplanes.activeplane], TF_RGBA32, (void*)fontplanes.plane, NULL, PLANEWIDTH, PLANEHEIGHT, 1, IF_UIPIC|IF_NEAREST|IF_NOPICMIP|IF_NOMIPMAP|IF_NOGAMMA|IF_NOPURGE);
 
 		fontplanes.planechanged = false;
 	}
@@ -2348,6 +2348,7 @@ struct font_s *Font_LoadFont(const char *fontfilename, float vheight, float scal
 
 	{
 		const char *start;
+		qboolean success;
 		start = fontfilename;
 		for(;;)
 		{
@@ -2356,12 +2357,15 @@ struct font_s *Font_LoadFont(const char *fontfilename, float vheight, float scal
 				*end = 0;
 
 			if (fmt == FMT_HORIZONTAL)
-				Font_LoadHorizontalFont(f, height, start);
+				success = Font_LoadHorizontalFont(f, height, start);
 #ifdef AVAIL_FREETYPE
 			else if (fmt == FMT_AUTO && Font_LoadFreeTypeFont(f, height, start))
-				;
+				success = true;
 #endif
-			else if (!TEXLOADED(f->singletexture) && *start)
+			else
+				success = false;
+
+			if (!success && !TEXLOADED(f->singletexture) && *start)
 			{
 				f->singletexture = R_LoadHiResTexture(start, "fonts:charsets", IF_PREMULTIPLYALPHA|(r_font_linear.ival?IF_LINEAR:IF_NEAREST)|IF_UIPIC|IF_NOPICMIP|IF_NOMIPMAP|IF_NOPURGE|IF_LOADNOW);
 				if (f->singletexture->status == TEX_LOADING)

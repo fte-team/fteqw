@@ -3504,12 +3504,27 @@ void Surf_DrawWorld (void)
 #ifdef Q3BSPS
 			else if (currentmodel->fromgame == fg_quake3)
 			{
-				if (webostate && webostate->cluster[0] == r_viewcluster && webostate->cluster[1] == r_viewcluster2)
+				if (!webogenerating)
 				{
-				}
-				else
-				{
-					if (!webogenerating)
+					qboolean gennew = false;
+					if (!webostate)
+						gennew = true;	//generate an initial one, if we can.
+
+					if (!gennew && webostate && (webostate->cluster[0] != r_viewcluster || webostate->cluster[1] != r_viewcluster2))
+					{
+						if (webostate->pvs.buffersize != currentmodel->pvsbytes || r_viewcluster2 != -1)
+							gennew = true;	//o.O
+						else if (memcmp(webostate->pvs.buffer, webostate->wmodel->funcs.ClusterPVS(webostate->wmodel, r_viewcluster, NULL, PVM_FAST), currentmodel->pvsbytes))
+							gennew = true;
+						else
+						{	//okay, so the pvs didn't change despite the clusters changing. this happens when using unvised maps or lots of func_detail
+							//just hack the cluster numbers so we don't have to do the memcmp above repeatedly for no reason.
+							webostate->cluster[0] = r_viewcluster;
+							webostate->cluster[1] = r_viewcluster2;
+						}
+					}
+
+					if (gennew)
 					{
 						if (!currentmodel->numbatches)
 						{
@@ -3522,9 +3537,33 @@ void Surf_DrawWorld (void)
 									batch->user.bmodel.ebobatch = currentmodel->numbatches;
 									currentmodel->numbatches++;
 								}
+							/*TODO submodels too*/
 						}
+
 						webogeneratingstate = true;
-						webogenerating = BZ_Malloc(sizeof(*webogenerating) + sizeof(webogenerating->batches[0]) * (currentmodel->numbatches-1) + currentmodel->pvsbytes);
+
+						webogenerating = NULL;
+						if (webostate)
+							webostate->lastvalid = cls.framecount;
+						for (link = &webostates; (kill=*link); )
+						{
+							if (kill->lastvalid < cls.framecount-5 && kill->wmodel == currentmodel)
+							{	//this one looks old... kill it.
+								if (webogenerating)
+									R_DestroyWorldEBO(webogenerating);	//can't use more than one!
+								webogenerating = kill;
+								*link = kill->next;
+							}
+							else
+								link = &(*link)->next;
+						}
+						if (!webogenerating)
+						{
+							webogenerating = BZ_Malloc(sizeof(*webogenerating) + sizeof(webogenerating->batches[0]) * (currentmodel->numbatches-1) + currentmodel->pvsbytes);
+							memset(&webogenerating->ebo, 0, sizeof(webogenerating->ebo));
+							webogenerating->ebomem = NULL;
+							webogenerating->numbatches = 0;
+						}
 						webogenerating->wmodel = currentmodel;
 						webogenerating->cluster[0] = r_viewcluster;
 						webogenerating->cluster[1] = r_viewcluster2;

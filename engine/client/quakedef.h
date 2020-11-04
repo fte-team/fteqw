@@ -22,7 +22,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #ifndef __QUAKEDEF_H__
 #define __QUAKEDEF_H__
 
-#include "bothdefs.h"	//first thing included by ALL files.
+#include "../common/bothdefs.h"	//first thing included by ALL files.
 
 //for msvc #pragma message lines
 #if defined(_MSC_VER)
@@ -163,19 +163,19 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 extern "C" {
 #endif
 
-#include "common.h"
-#include "bspfile.h"
+#include "../common/common.h"
+#include "../common/bspfile.h"
 #include "vid.h"
-#include "sys.h"
-#include "zone.h"
-#include "mathlib.h"
-#include "cvar.h"
-#include "translate.h"
-#include "net.h"
+#include "../common/sys.h"
+#include "../common/zone.h"
+#include "../common/mathlib.h"
+#include "../common/cvar.h"
+#include "../common/translate.h"
+#include "../common/net.h"
 #ifndef WEBSVONLY
-#include "protocol.h"
-#include "cmd.h"
-#include "console.h"
+#include "../common/protocol.h"
+#include "../common/cmd.h"
+#include "../common/console.h"
 #include "screen.h"
 #include "wad.h"
 #include "sbar.h"
@@ -183,28 +183,28 @@ extern "C" {
 #include "merged.h"
 #include "render.h"
 #include "client.h"
-#include "gl_model.h"
+#include "../gl/gl_model.h"
 
-#include "vm.h"
+#include "../common/vm.h"
 
 #include "input.h"
 #include "keys.h"
 #include "view.h"
 #include "menu.h"
-#include "crc.h"
+#include "../common/crc.h"
 #include "cdaudio.h"
-#include "pmove.h"
+#include "../common/pmove.h"
 
-#include "progtype.h"
-#include "progdefs.h"
-#include "progs.h"
-#include "world.h"
-#include "q2game.h"
+#include "../qclib/progtype.h"
+#include "../server/progdefs.h"
+#include "../server/progs.h"
+#include "../common/world.h"
+#include "../server/q2game.h"
 #include "../http/iweb.h"
 #ifdef CLIENTONLY
 #define SSV_IsSubServer() false
 #else
-#include "server.h"
+#include "../server/server.h"
 #endif
 #endif
 

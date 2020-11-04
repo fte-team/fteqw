@@ -373,12 +373,10 @@ void V_DriftPitch (playerview_t *pv)
 
 static void QDECL V_Gamma_Callback(struct cvar_s *var, char *oldvalue);
 
-static cshift_t	cshift_empty = { {130,80,50}, 0 };
-static cshift_t	cshift_water = { {130,80,50}, 128 };
-static cshift_t	cshift_slime = { {0,25,5}, 150 };
-static cshift_t	cshift_lava = { {255,80,0}, 150 };
-
-//static cshift_t	cshift_server = { {130,80,50}, 0 };
+static cvar_t		v_cshift_empty = CVARFD("v_cshift_empty", "130 80 50 0",	CVAR_ARCHIVE, "The colour tint to use when in the open air (additionally scaled by v_contentblend.");
+static cvar_t		v_cshift_water = CVARFD("v_cshift_water", "130 80 50 128",	CVAR_ARCHIVE, "The colour tint to use when underwater (additionally scaled by v_contentblend.");
+static cvar_t		v_cshift_slime = CVARFD("v_cshift_slime",   "0 25 5 150",	CVAR_ARCHIVE, "The colour tint to use when submerged in slime (additionally scaled by v_contentblend.");
+static cvar_t		v_cshift_lava  = CVARFD("v_cshift_lava",  "255 80 0 150",	CVAR_ARCHIVE, "The colour tint to use when burried in lava (ouchie!) (additionally scaled by v_contentblend.");
 
 cvar_t		v_gamma = CVARAFCD("gamma", "1.0", "v_gamma", CVAR_ARCHIVE|CVAR_RENDERERCALLBACK, V_Gamma_Callback, "Controls how bright the screen is. Setting this to anything but 1 without hardware gamma requires glsl support and can noticably harm your framerate.");
 cvar_t		v_gammainverted = CVARFCD("v_gammainverted", "0", CVAR_ARCHIVE, V_Gamma_Callback, "Boolean that controls whether the gamma should be inverted (like quake) or not.");
@@ -629,10 +627,8 @@ void V_cshift_f (void)
 		return;
 	}
 
-	cshift_empty.destcolor[0] = r;
-	cshift_empty.destcolor[1] = g;
-	cshift_empty.destcolor[2] = b;
-	cshift_empty.percent = p;
+	//always empty, to match vanilla.
+	Cvar_Set(&v_cshift_empty, va("%d %d %d %d", r, g, b, p));
 }
 
 
@@ -725,17 +721,21 @@ void V_SetContentsColor (int contents)
 {
 	int i;
 	playerview_t *pv = r_refdef.playerview;
+	cvar_t *v;
 
 	if (contents & FTECONTENTS_LAVA)
-		pv->cshifts[CSHIFT_CONTENTS] = cshift_lava;
+		v = &v_cshift_lava;
 	else if (contents & (FTECONTENTS_SLIME | FTECONTENTS_SOLID))
-		pv->cshifts[CSHIFT_CONTENTS] = cshift_slime;
+		v = &v_cshift_slime;
 	else if (contents & FTECONTENTS_WATER)
-		pv->cshifts[CSHIFT_CONTENTS] = cshift_water;
+		v = &v_cshift_water;
 	else
-		pv->cshifts[CSHIFT_CONTENTS] = cshift_empty;
+		v = &v_cshift_empty;
 
-	pv->cshifts[CSHIFT_CONTENTS].percent *= v_contentblend.value;
+	pv->cshifts[CSHIFT_CONTENTS].destcolor[0]	= v->vec4[0];
+	pv->cshifts[CSHIFT_CONTENTS].destcolor[1]	= v->vec4[1];
+	pv->cshifts[CSHIFT_CONTENTS].destcolor[2]	= v->vec4[2];
+	pv->cshifts[CSHIFT_CONTENTS].percent		= v->vec4[3] * v_contentblend.value;
 
 	if (pv->cshifts[CSHIFT_CONTENTS].percent)
 	{	//bound contents so it can't go negative
@@ -2623,6 +2623,11 @@ void V_Init (void)
 	Cvar_Register (&v_iyaw_level, VIEWVARS);
 	Cvar_Register (&v_iroll_level, VIEWVARS);
 	Cvar_Register (&v_ipitch_level, VIEWVARS);
+
+	Cvar_Register (&v_cshift_empty, VIEWVARS);
+	Cvar_Register (&v_cshift_water, VIEWVARS);
+	Cvar_Register (&v_cshift_slime, VIEWVARS);
+	Cvar_Register (&v_cshift_lava, VIEWVARS);
 
 	Cvar_Register (&v_contentblend, VIEWVARS);
 	Cvar_Register (&v_damagecshift, VIEWVARS);

@@ -14819,6 +14819,8 @@ static pbool QCC_CheckUninitialised(int firststatement, int laststatement)
 			continue;	//ignore slave symbols, cos they're not interesting and should have been checked as part of the parent.
 		if (local->isparameter)
 			continue;
+		if (local->arraysize)
+			continue;	//probably indexed. we won't detect things properly. its the user's resposibility to check. :(
 		err = QCC_CheckOneUninitialised(firststatement, laststatement, local, local->ofs, local->ofs + local->type->size * (local->arraysize?local->arraysize:1));
 		if (err > 0)
 		{
@@ -14890,7 +14892,7 @@ void QCC_Marshal_Locals(int firststatement, int laststatement)
 			{
 				st = &statements[i];
 
-				if (st->op == OP_GLOBALADDRESS && st->a.sym->scope)
+				if (st->op == OP_GLOBALADDRESS && st->a.sym->scope && !st->a.sym->isstatic)
 				{
 					error = true;
 					break;

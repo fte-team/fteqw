@@ -21,8 +21,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #ifndef __MODEL__
 #define __MODEL__
 
-#include "modelgen.h"
-#include "spritegn.h"
+#include "../client/modelgen.h"
+#include "../client/spritegn.h"
 
 struct hull_s;
 struct trace_s;

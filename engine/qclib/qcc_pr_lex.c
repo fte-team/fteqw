@@ -3913,9 +3913,9 @@ void QCC_PR_ParsePrintDef (int type, QCC_def_t *def)
 			else if (def->isstatic)
 				modifiers = "static ";
 			if (flag_msvcstyle)
-				externs->Printf ("%s%s(%i) :    %s%s%s %s%s%s is defined here\n", col_location, def->filen, def->s_line, col_none, modifiers, TypeName(def->type, tybuffer, sizeof(tybuffer)), col_symbol, def->name, col_none);
+				externs->Printf ("%s%s(%i) :    %s%s%s %s%s%s is defined here\n", col_location, def->filen, def->s_line, col_type, modifiers, TypeName(def->type, tybuffer, sizeof(tybuffer)), col_symbol, def->name, col_none);
 			else
-				externs->Printf ("%s%s:%i:    %s%s%s %s%s%s is defined here\n", col_location, def->filen, def->s_line, col_none, modifiers, TypeName(def->type, tybuffer, sizeof(tybuffer)), col_symbol, def->name, col_none);
+				externs->Printf ("%s%s:%i:    %s%s%s %s%s%s is defined here\n", col_location, def->filen, def->s_line, col_type, modifiers, TypeName(def->type, tybuffer, sizeof(tybuffer)), col_symbol, def->name, col_none);
 		}
 	}
 }

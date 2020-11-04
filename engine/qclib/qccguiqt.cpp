@@ -1582,8 +1582,12 @@ class optionswindow : public QDialog
 			w->setEnabled(fl_nondfltopts);	//FIXME: should use tristate on a per-setting basis
 		}
 	}
-
 public:
+	~optionswindow()
+	{
+		GUI_SaveConfig();
+	}
+
 	optionswindow()
 	{
 		setModal(true);
@@ -1726,7 +1730,7 @@ private:
 			fileMenu->addAction(prefs);
 			prefs->setShortcuts(QKeySequence::Preferences);
 			prefs->setStatusTip(tr("Reconfigure stuff"));
-			connect(prefs, &QAction::triggered, [](){(new optionswindow())->show();});
+			connect(prefs, &QAction::triggered, [](){auto w = new optionswindow();w->setAttribute(Qt::WidgetAttribute::WA_DeleteOnClose, true); w->show();});
 
 			auto goline = new QAction(tr("Go to line"), this);
 			fileMenu->addAction(goline);

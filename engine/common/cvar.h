@@ -53,7 +53,7 @@ Cvars are restricted from having the same names as commands to keep this
 interface from being ambiguous.
 */
 
-#include "hash.h"
+#include "../qclib/hash.h"
 
 typedef struct cvar_s
 {

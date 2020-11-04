@@ -900,7 +900,7 @@ void QCBUILTIN PF_CL_uploadimage (pubprogfuncs_t *prinst, struct globalvars_s *p
 			G_INT(OFS_RETURN) = 0;	//size isn't right. which means the pointer might be invalid too.
 		else
 		{
-			Image_Upload(tid, format, imgptr, NULL, width, height, RT_IMAGEFLAGS);
+			Image_Upload(tid, format, imgptr, NULL, width, height, 1, RT_IMAGEFLAGS);
 			tid->width = width;
 			tid->height = height;
 			G_INT(OFS_RETURN) = 1;

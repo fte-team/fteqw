@@ -2646,7 +2646,7 @@ qboolean SV_Physics (void)
 		}
 		if (host_frametime <= 0 || host_frametime < mintic)
 			break;
-		if (host_frametime > maxtic)
+		if (host_frametime > maxtic && maxtic>0)
 		{
 			if (maxtics-- <= 0)
 			{

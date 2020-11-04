@@ -484,7 +484,7 @@ qboolean Image_UnloadTexture(image_t *tex);	//true if it did something.
 void Image_DestroyTexture	(image_t *tex);
 qboolean Image_LoadTextureFromMemory(texid_t tex, int flags, const char *iname, const char *fname, qbyte *filedata, int filesize);	//intended really for worker threads, but should be fine from the main thread too
 qboolean Image_LocateHighResTexture(image_t *tex, flocation_t *bestloc, char *bestname, size_t bestnamesize, unsigned int *bestflags);
-void Image_Upload			(texid_t tex, uploadfmt_t fmt, void *data, void *palette, int width, int height, unsigned int flags);
+void Image_Upload			(texid_t tex, uploadfmt_t fmt, void *data, void *palette, int width, int height, int depth, unsigned int flags);
 void Image_Purge(void);	//purge any textures which are not needed any more (releases memory, but doesn't give null pointers).
 void Image_Init(void);
 void Image_Shutdown(void);

@@ -3669,7 +3669,7 @@ void Sh_DrawCrepuscularLight(dlight_t *dl, float *colours)
 			);
 
 		crepuscular_texture_id = Image_CreateTexture("***crepusculartexture***", NULL, IF_LINEAR|IF_NOMIPMAP|IF_CLAMP|IF_NOGAMMA);
-		Image_Upload(crepuscular_texture_id, TF_RGBA32, NULL, NULL, vid.pixelwidth, vid.pixelheight, IF_LINEAR|IF_NOMIPMAP|IF_CLAMP|IF_NOGAMMA);
+		Image_Upload(crepuscular_texture_id, TF_RGBA32, NULL, NULL, vid.pixelwidth, vid.pixelheight, 1, IF_LINEAR|IF_NOMIPMAP|IF_CLAMP|IF_NOGAMMA);
 	}
 
 	BE_Scissor(NULL);

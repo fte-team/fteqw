@@ -8085,7 +8085,7 @@ static int Image_GetPicMip(unsigned int flags)
 	return picmip;
 }
 
-static void Image_RoundDimensions(int *scaled_width, int *scaled_height, unsigned int flags)
+static void Image_RoundDimensions(int *scaled_width, int *scaled_height, int *scaled_depth, unsigned int flags)
 {
 	if (sh_config.texture_non_power_of_two)	//NPOT is a simple extension that relaxes errors.
 	{
@@ -8101,10 +8101,14 @@ static void Image_RoundDimensions(int *scaled_width, int *scaled_height, unsigne
 	{
 		int width = *scaled_width;
 		int height = *scaled_height;
+		int depth = *scaled_depth;
 		for (*scaled_width = 1 ; *scaled_width < width ; *scaled_width<<=1)
 			;
 		for (*scaled_height = 1 ; *scaled_height < height ; *scaled_height<<=1)
 			;
+		if ((flags&IF_TEXTYPEMASK) == IF_TEXTYPE_3D)
+			for (*scaled_depth = 1 ; *scaled_depth < depth ; *scaled_depth<<=1)
+				;
 
 		/*round npot textures down if we're running on an embedded system*/
 		if (sh_config.npot_rounddown)
@@ -8113,6 +8117,9 @@ static void Image_RoundDimensions(int *scaled_width, int *scaled_height, unsigne
 				*scaled_width >>= 1;
 			if (*scaled_height != height)
 				*scaled_height >>= 1;
+			if ((flags&IF_TEXTYPEMASK) == IF_TEXTYPE_3D)
+				if (*scaled_depth != depth)
+					*scaled_depth >>= 1;
 		}
 	}
 
@@ -8121,34 +8128,76 @@ static void Image_RoundDimensions(int *scaled_width, int *scaled_height, unsigne
 		int picmip = Image_GetPicMip(flags);
 		*scaled_width >>= picmip;
 		*scaled_height >>= picmip;
+		if ((flags&IF_TEXTYPEMASK) == IF_TEXTYPE_3D)
+			*scaled_depth >>= picmip;
 	}
 
 	TRACE(("dbg: GL_RoundDimensions: %f\n", gl_max_size.value));
 
-	if (sh_config.texture2d_maxsize)
+	switch((flags&IF_TEXTYPEMASK)>>IF_TEXTYPESHIFT)
 	{
-		if (*scaled_width > sh_config.texture2d_maxsize)
-			*scaled_width = sh_config.texture2d_maxsize;
-		if (*scaled_height > sh_config.texture2d_maxsize)
-			*scaled_height = sh_config.texture2d_maxsize;
-	}
-#ifdef HAVE_CLIENT
-	if (!(flags & (IF_UIPIC|IF_RENDERTARGET)))
-	{
-		if (gl_max_size.value)
+	default:
+		break;
+	case PTI_CUBE:
+	case PTI_CUBE_ARRAY:
+		if (sh_config.texturecube_maxsize)
 		{
-			if (*scaled_width > gl_max_size.value)
-				*scaled_width = gl_max_size.value;
-			if (*scaled_height > gl_max_size.value)
-				*scaled_height = gl_max_size.value;
+			if (*scaled_width > sh_config.texturecube_maxsize)
+				*scaled_width = sh_config.texturecube_maxsize;
+			if (*scaled_height > sh_config.texturecube_maxsize)
+				*scaled_height = sh_config.texturecube_maxsize;
 		}
-	}
+		if (sh_config.texture2darray_maxlayers)
+			if (*scaled_depth > sh_config.texture2darray_maxlayers)
+				*scaled_depth = sh_config.texture2darray_maxlayers;
+		break;
+	case PTI_3D:
+		if (sh_config.texture3d_maxsize)
+		{
+			if (*scaled_width > sh_config.texture3d_maxsize)
+				*scaled_width = sh_config.texture3d_maxsize;
+			if (*scaled_height > sh_config.texture3d_maxsize)
+				*scaled_height = sh_config.texture3d_maxsize;
+			if (*scaled_depth > sh_config.texture3d_maxsize)
+				*scaled_depth = sh_config.texture3d_maxsize;
+		}
+		break;
+	case PTI_2D:
+	case PTI_2D_ARRAY:
+		if (sh_config.texture2d_maxsize)
+		{
+			if (*scaled_width > sh_config.texture2d_maxsize)
+				*scaled_width = sh_config.texture2d_maxsize;
+			if (*scaled_height > sh_config.texture2d_maxsize)
+				*scaled_height = sh_config.texture2d_maxsize;
+		}
+		if (sh_config.texture2darray_maxlayers)
+			if (*scaled_depth > sh_config.texture2darray_maxlayers)
+				*scaled_depth = sh_config.texture2darray_maxlayers;
+
+#ifdef HAVE_CLIENT
+		if (!(flags & (IF_UIPIC|IF_RENDERTARGET)))
+		{
+			if (gl_max_size.value)
+			{
+				if (*scaled_width > gl_max_size.value)
+					*scaled_width = gl_max_size.value;
+				if (*scaled_height > gl_max_size.value)
+					*scaled_height = gl_max_size.value;
+				if (*scaled_height > gl_max_size.value)
+					*scaled_height = gl_max_size.value;
+			}
+		}
 #endif
+		break;
+	}
 
 	if (*scaled_width < 1)
 		*scaled_width = 1;
 	if (*scaled_height < 1)
 		*scaled_height = 1;
+	if (*scaled_depth < 1)
+		*scaled_depth = 1;
 }
 
 static void Image_Tr_NoTransform(struct pendingtextureinfo *mips, int dummy)
@@ -11727,7 +11776,7 @@ void Image_Premultiply(struct pendingtextureinfo *mips)
 
 //resamples and depalettes as required
 //ALWAYS frees rawdata, even on failure (but never mips).
-static qboolean Image_GenMip0(struct pendingtextureinfo *mips, unsigned int flags, void *rawdata, void *palettedata, int imgwidth, int imgheight, uploadfmt_t fmt, qboolean freedata)
+static qboolean Image_GenMip0(struct pendingtextureinfo *mips, unsigned int flags, void *rawdata, void *palettedata, int imgwidth, int imgheight, int imgdepth, uploadfmt_t fmt, qboolean freedata)
 {
 	unsigned int *rgbadata = rawdata;
 	int i;
@@ -11736,7 +11785,7 @@ static qboolean Image_GenMip0(struct pendingtextureinfo *mips, unsigned int flag
 
 	mips->mip[0].width = imgwidth;
 	mips->mip[0].height = imgheight;
-	mips->mip[0].depth = 1;
+	mips->mip[0].depth = imgdepth;
 	mips->mipcount = 1;
 
 	switch(fmt)
@@ -11745,16 +11794,17 @@ static qboolean Image_GenMip0(struct pendingtextureinfo *mips, unsigned int flag
 		if (fmt&PTI_FULLMIPCHAIN)
 		{
 			fmt = fmt&~PTI_FULLMIPCHAIN;
-			Image_RoundDimensions(&mips->mip[0].width, &mips->mip[0].height, flags);
-			if (mips->mip[0].width == imgwidth && mips->mip[0].height == imgheight)	//make sure its okay
+			Image_RoundDimensions(&mips->mip[0].width, &mips->mip[0].height, &mips->mip[0].depth, flags);
+			if (mips->mip[0].width == imgwidth && mips->mip[0].height == imgheight && mips->mip[0].depth == imgdepth)	//make sure its okay
 			{
 				size_t sz = 0;
+				int is3d = (mips->type == PTI_3D)?1:0;
 				Image_BlockSizeForEncoding(fmt, &bb, &bw, &bh, &bd);
-				for (i = 0; i < countof(mips->mip) && (imgwidth || imgheight); i++, imgwidth>>=1, imgheight>>=1)
+				for (i = 0; i < countof(mips->mip) && (imgwidth || imgheight || (is3d && imgdepth)); i++, imgwidth>>=1, imgheight>>=1, imgdepth>>=is3d)
 				{
 					mips->mip[i].width = max(1,imgwidth);
 					mips->mip[i].height = max(1,imgheight);
-					mips->mip[i].depth = 1;
+					mips->mip[i].depth = max(1,imgdepth);
 					mips->mip[i].datasize = bb * ((mips->mip[i].width+bw-1)/bw) * ((mips->mip[i].height+bh-1)/bh) * ((mips->mip[i].depth+bd-1)/bd);
 					mips->mip[i].needfree = false;
 					sz += mips->mip[i].datasize;
@@ -11778,6 +11828,11 @@ static qboolean Image_GenMip0(struct pendingtextureinfo *mips, unsigned int flag
 		mips->encoding = fmt;
 		break;
 
+	baddepth:
+		Con_Printf("R_LoadRawTexture: bad depth for format\n");
+		if (freedata)
+			BZ_Free(rawdata);
+		return false;
 	case TF_INVALID:
 		Con_Printf("R_LoadRawTexture: bad format\n");
 		if (freedata)
@@ -11786,9 +11841,9 @@ static qboolean Image_GenMip0(struct pendingtextureinfo *mips, unsigned int flag
 
 	case TF_MIP4_P8:
 		//8bit indexed data.
-		Image_RoundDimensions(&mips->mip[0].width, &mips->mip[0].height, flags);
+		Image_RoundDimensions(&mips->mip[0].width, &mips->mip[0].height, &mips->mip[0].depth, flags);
 		flags |= IF_NOPICMIP;
-		if (/*!r_dodgymiptex.ival &&*/ mips->mip[0].width == imgwidth && mips->mip[0].height == imgheight)
+		if (/*!r_dodgymiptex.ival &&*/ mips->mip[0].width == imgwidth && mips->mip[0].height == imgheight && mips->mip[0].depth == 1)
 		{
 			unsigned int pixels =
 				(imgwidth>>0) * (imgheight>>0) + 
@@ -11825,7 +11880,7 @@ static qboolean Image_GenMip0(struct pendingtextureinfo *mips, unsigned int flag
 		{	//if we can compact it, then do so!
 			mips->encoding = PTI_L8;
 			//can just do this in-place.
-			for (i = 0; i < imgwidth * imgheight; i++)
+			for (i = 0; i < imgwidth * imgheight * imgdepth; i++)
 				((qbyte*)rgbadata)[i] = ((qbyte*)rgbadata)[i*4];
 		}
 		//otherwise treat it as whatever the gpu prefers
@@ -11840,7 +11895,7 @@ static qboolean Image_GenMip0(struct pendingtextureinfo *mips, unsigned int flag
 		{	//if we can compact it, then do so!
 			mips->encoding = PTI_L8A8;
 			//can just do this in-place.
-			for (i = 0; i < imgwidth * imgheight; i++)
+			for (i = 0; i < imgwidth * imgheight * imgdepth; i++)
 			{
 				((qbyte*)rgbadata)[i*2+0] = ((qbyte*)rgbadata)[i*4+0];
 				((qbyte*)rgbadata)[i*2+1] = ((qbyte*)rgbadata)[i*4+3];
@@ -11853,10 +11908,10 @@ static qboolean Image_GenMip0(struct pendingtextureinfo *mips, unsigned int flag
 		break;
 	case TF_MIP4_SOLID8:
 		//8bit opaque data
-		Image_RoundDimensions(&mips->mip[0].width, &mips->mip[0].height, flags);
+		Image_RoundDimensions(&mips->mip[0].width, &mips->mip[0].height, &mips->mip[0].depth, flags);
 		flags |= IF_NOPICMIP;
 #ifdef HAVE_CLIENT
-		if (!r_dodgymiptex.ival && mips->mip[0].width == imgwidth && mips->mip[0].height == imgheight)
+		if (!r_dodgymiptex.ival && mips->mip[0].width == imgwidth && mips->mip[0].height == imgheight && mips->mip[0].depth == 1)
 		{	//special hack required to preserve the hand-drawn lower mips.
 			unsigned int pixels =
 				(imgwidth>>0) * (imgheight>>0) + 
@@ -11891,17 +11946,17 @@ static qboolean Image_GenMip0(struct pendingtextureinfo *mips, unsigned int flag
 #endif
 		//fall through
 	case TF_SOLID8:
-		rgbadata = BZ_Malloc(imgwidth * imgheight*4);
+		rgbadata = BZ_Malloc(imgdepth * imgwidth * imgheight*4);
 		if (sh_config.texfmt[PTI_BGRX8])
 		{	//bgra8 is typically faster when supported.
 			mips->encoding = PTI_BGRX8;
-			for (i = 0; i < imgwidth * imgheight; i++)
+			for (i = 0; i < imgwidth * imgheight * imgdepth; i++)
 				rgbadata[i] = d_8to24bgrtable[((qbyte*)rawdata)[i]];
 		}
 		else
 		{
 			mips->encoding = PTI_RGBX8;
-			for (i = 0; i < imgwidth * imgheight; i++)
+			for (i = 0; i < imgwidth * imgheight * imgdepth; i++)
 				rgbadata[i] = d_8to24rgbtable[((qbyte*)rawdata)[i]];
 		}
 		if (freedata)
@@ -11911,8 +11966,8 @@ static qboolean Image_GenMip0(struct pendingtextureinfo *mips, unsigned int flag
 	case TF_TRANS8:
 		{
 			mips->encoding = PTI_RGBX8;
-			rgbadata = BZ_Malloc(imgwidth * imgheight*4);
-			for (i = 0; i < imgwidth * imgheight; i++)
+			rgbadata = BZ_Malloc(imgdepth * imgwidth * imgheight*4);
+			for (i = 0; i < imgwidth * imgheight * imgdepth; i++)
 			{
 				if (((qbyte*)rawdata)[i] == 0xff)
 				{//fixme: blend non-0xff neighbours. no, just use premultiplied alpha instead, where it matters.
@@ -11930,8 +11985,8 @@ static qboolean Image_GenMip0(struct pendingtextureinfo *mips, unsigned int flag
 	case TF_H2_TRANS8_0:
 		{
 			mips->encoding = PTI_RGBX8;
-			rgbadata = BZ_Malloc(imgwidth * imgheight*4);
-			for (i = 0; i < imgwidth * imgheight; i++)
+			rgbadata = BZ_Malloc(imgdepth * imgwidth * imgheight*4);
+			for (i = 0; i < imgwidth * imgheight * imgdepth; i++)
 			{
 				qbyte px = ((qbyte*)rawdata)[i];
 				//Note: The proper value here is 0.
@@ -11952,8 +12007,8 @@ static qboolean Image_GenMip0(struct pendingtextureinfo *mips, unsigned int flag
 		break;
 	case TF_TRANS8_FULLBRIGHT:
 		mips->encoding = PTI_RGBA8;
-		rgbadata = BZ_Malloc(imgwidth * imgheight*4);
-		for (i = 0, valid = false; i < imgwidth * imgheight; i++)
+		rgbadata = BZ_Malloc(imgdepth * imgwidth * imgheight*4);
+		for (i = 0, valid = false; i < imgwidth * imgheight * imgdepth; i++)
 		{
 			if (((qbyte*)rawdata)[i] == 255 || ((qbyte*)rawdata)[i] < 256-vid.fullbright)
 				rgbadata[i] = 0;
@@ -11974,10 +12029,12 @@ static qboolean Image_GenMip0(struct pendingtextureinfo *mips, unsigned int flag
 		break;
 
 	case TF_HEIGHT8PAL:
+		if (imgdepth != 1)
+			goto baddepth;
 		mips->encoding = PTI_RGBA8;
 		rgbadata = BZ_Malloc(imgwidth * imgheight*5);
 		{
-			qbyte *heights = (qbyte*)(rgbadata + (imgwidth*imgheight));
+			qbyte *heights = (qbyte*)(rgbadata + (imgwidth*imgheight * imgdepth));
 			for (i = 0; i < imgwidth * imgheight; i++)
 			{
 				unsigned int rgb = d_8to24rgbtable[((qbyte*)rawdata)[i]];
@@ -11994,6 +12051,8 @@ static qboolean Image_GenMip0(struct pendingtextureinfo *mips, unsigned int flag
 		freedata = true;
 		break;
 	case TF_HEIGHT8:
+		if (imgdepth != 1)
+			goto baddepth;
 		mips->encoding = PTI_RGBA8;
 		rgbadata = BZ_Malloc(imgwidth * imgheight*4);
 #ifndef HAVE_CLIENT
@@ -12007,6 +12066,8 @@ static qboolean Image_GenMip0(struct pendingtextureinfo *mips, unsigned int flag
 		break;
 
 	case TF_BGR24_FLIP:
+		if (imgdepth != 1)
+			goto baddepth;
 		mips->encoding = PTI_RGBX8;
 		rgbadata = BZ_Malloc(imgwidth * imgheight*4);
 		for (i = 0; i < imgheight; i++)
@@ -12037,10 +12098,10 @@ static qboolean Image_GenMip0(struct pendingtextureinfo *mips, unsigned int flag
 					(imgwidth>>2) * (imgheight>>2) +
 					(imgwidth>>3) * (imgheight>>3);
 			palettedata = (qbyte*)rawdata + pixels;
-			Image_RoundDimensions(&mips->mip[0].width, &mips->mip[0].height, flags);
+			Image_RoundDimensions(&mips->mip[0].width, &mips->mip[0].height, &mips->mip[0].depth, flags);
 			flags |= IF_NOPICMIP;
 #ifdef HAVE_CLIENT
-			if (!r_dodgymiptex.ival && mips->mip[0].width == imgwidth && mips->mip[0].height == imgheight)
+			if (!r_dodgymiptex.ival && mips->mip[0].width == imgwidth && mips->mip[0].height == imgheight && mips->mip[0].depth == 1)
 			{
 				unsigned int pixels =
 					(imgwidth>>0) * (imgheight>>0) + 
@@ -12105,11 +12166,11 @@ static qboolean Image_GenMip0(struct pendingtextureinfo *mips, unsigned int flag
 				BZ_Free(rawdata);
 			return false;
 		}
-		rgbadata = BZ_Malloc(imgwidth * imgheight*4);
+		rgbadata = BZ_Malloc(imgdepth * imgwidth * imgheight*4);
 		if (fmt == TF_MIP4_8PAL24_T255)
 		{
 			mips->encoding = PTI_RGBA8;
-			for (i = 0; i < imgwidth * imgheight; i++)
+			for (i = 0; i < imgwidth * imgheight * imgdepth; i++)
 			{
 				qbyte idx = ((qbyte*)rawdata)[i];
 				if (idx == 255)
@@ -12124,7 +12185,7 @@ static qboolean Image_GenMip0(struct pendingtextureinfo *mips, unsigned int flag
 		else
 		{
 			mips->encoding = PTI_RGBX8;
-			for (i = 0; i < imgwidth * imgheight; i++)
+			for (i = 0; i < imgwidth * imgheight * imgdepth; i++)
 			{
 				qbyte *p = ((qbyte*)palettedata) + ((qbyte*)rawdata)[i]*3;
 				//FIXME: endian
@@ -12144,8 +12205,8 @@ static qboolean Image_GenMip0(struct pendingtextureinfo *mips, unsigned int flag
 			return false;
 		}
 		mips->encoding = PTI_RGBA8;
-		rgbadata = BZ_Malloc(imgwidth * imgheight*4);
-		for (i = 0; i < imgwidth * imgheight; i++)
+		rgbadata = BZ_Malloc(imgdepth * imgwidth * imgheight*4);
+		for (i = 0; i < imgwidth * imgheight * imgdepth; i++)
 			rgbadata[i] = ((unsigned int*)palettedata)[((qbyte*)rawdata)[i]];
 		if (freedata)
 			BZ_Free(rawdata);
@@ -12155,8 +12216,8 @@ static qboolean Image_GenMip0(struct pendingtextureinfo *mips, unsigned int flag
 #ifdef HEXEN2
 	case TF_H2_T7G1: /*8bit data, odd indexes give greyscale transparence*/
 		mips->encoding = PTI_RGBA8;
-		rgbadata = BZ_Malloc(imgwidth * imgheight*4);
-		for (i = 0; i < imgwidth * imgheight; i++)
+		rgbadata = BZ_Malloc(imgdepth * imgwidth * imgheight*4);
+		for (i = 0; i < imgwidth * imgheight * imgdepth; i++)
 		{
 			qbyte p = ((qbyte*)rawdata)[i];
 			rgbadata[i] = d_8to24rgbtable[p] & 0x00ffffff;
@@ -12173,8 +12234,8 @@ static qboolean Image_GenMip0(struct pendingtextureinfo *mips, unsigned int flag
 		break;
 	case TF_H2_T4A4:     /*8bit data, weird packing*/
 		mips->encoding = PTI_RGBA8;
-		rgbadata = BZ_Malloc(imgwidth * imgheight*4);
-		for (i = 0; i < imgwidth * imgheight; i++)
+		rgbadata = BZ_Malloc(imgdepth * imgheight * imgwidth*4);
+		for (i = 0; i < imgwidth * imgheight * imgdepth; i++)
 		{
 			static const int ColorIndex[16] = {0x00, 0x1f, 0x2f, 0x3f, 0x4f, 0x5f, 0x6f, 0x7f, 0x8f, 0x9f, 0xaf, 0xbf, 0xc7, 0xcf, 0xdf, 0xe7};
 			static const unsigned ColorPercent[16] = {25, 51, 76, 102, 114, 127, 140, 153, 165, 178, 191, 204, 216, 229, 237, 247};
@@ -12478,15 +12539,16 @@ static qboolean Image_GenMip0(struct pendingtextureinfo *mips, unsigned int flag
 	}
 
 
-	Image_RoundDimensions(&mips->mip[0].width, &mips->mip[0].height, flags);
+	Image_RoundDimensions(&mips->mip[0].width, &mips->mip[0].height, &mips->mip[0].depth, flags);
 	if (rgbadata)
 	{
-		if (mips->mip[0].width == imgwidth && mips->mip[0].height == imgheight)
+		if (mips->mip[0].width == imgwidth && mips->mip[0].height == imgheight && mips->mip[0].depth == imgdepth)
 			mips->mip[0].data = rgbadata;
 		else
 		{
-			mips->mip[0].data = Image_ResampleTexture(mips->encoding, rgbadata, imgwidth, imgheight, NULL, mips->mip[0].width, mips->mip[0].height);
-			if (mips->mip[0].data)
+			if (imgdepth == 1 &&
+				(mips->mip[0].data=Image_ResampleTexture(mips->encoding, rgbadata, imgwidth, imgheight, NULL, mips->mip[0].width, mips->mip[0].height))	//actually rescale it here.
+				)
 			{
 				if (freedata)
 					BZ_Free(rgbadata);
@@ -12497,7 +12559,7 @@ static qboolean Image_GenMip0(struct pendingtextureinfo *mips, unsigned int flag
 				mips->mip[0].data = rgbadata;
 				mips->mip[0].width = imgwidth;
 				mips->mip[0].height = imgheight;
-				mips->mip[0].depth = 1;
+				mips->mip[0].depth = imgdepth;
 			}
 		}
 	}
@@ -12762,7 +12824,7 @@ struct pendingtextureinfo *Image_LoadMipsFromMemory(int flags, const char *iname
 		mips->type = (flags & IF_TEXTYPEMASK)>>IF_TEXTYPESHIFT;
 		if (mips->type == PTI_ANY)
 			mips->type = PTI_2D;	//d
-		if (Image_GenMip0(mips, flags, rgbadata, NULL, imgwidth, imgheight, format, true))
+		if (Image_GenMip0(mips, flags, rgbadata, NULL, imgwidth, imgheight, 1, format, true))
 		{
 			Image_GenerateMips(mips, flags);
 			Image_ChangeFormatFlags(mips, flags, format, fname);
@@ -13032,7 +13094,7 @@ static qboolean Image_LoadRawTexture(texid_t tex, unsigned int flags, void *rawd
 	mips = Z_Malloc(sizeof(*mips));
 	mips->type = (flags&IF_TEXTYPEMASK)>>IF_TEXTYPESHIFT;
 
-	if (!Image_GenMip0(mips, flags, rawdata, palettedata, imgwidth, imgheight, fmt, true))
+	if (!Image_GenMip0(mips, flags, rawdata, palettedata, imgwidth, imgheight, 1, fmt, true))
 	{
 		Z_Free(mips);
 		if (flags & IF_NOWORKER)
@@ -13779,18 +13841,18 @@ image_t *QDECL Image_GetTexture(const char *identifier, const char *subpath, uns
 	}
 	return tex;
 }
-void Image_Upload			(texid_t tex, uploadfmt_t fmt, void *data, void *palette, int width, int height, unsigned int flags)
+void Image_Upload			(texid_t tex, uploadfmt_t fmt, void *data, void *palette, int width, int height, int depth, unsigned int flags)
 {
 	struct pendingtextureinfo mips;
 	size_t i;
 
 	//skip if we're not actually changing the data/size/format.
-	if (!data && tex->format == fmt && tex->width == width && tex->height == height && tex->depth == 1 && tex->status == TEX_LOADED)
+	if (!data && tex->format == fmt && tex->width == width && tex->height == height && tex->depth == depth && tex->status == TEX_LOADED)
 		return;
 
 	mips.extrafree = NULL;
 	mips.type = (flags&IF_TEXTYPEMASK)>>IF_TEXTYPESHIFT;
-	if (!Image_GenMip0(&mips, flags, data, palette, width, height, fmt, false))
+	if (!Image_GenMip0(&mips, flags, data, palette, width, height, depth, fmt, false))
 		return;
 	Image_GenerateMips(&mips, flags);
 	Image_ChangeFormatFlags(&mips, flags, fmt, tex->ident);
@@ -13798,7 +13860,7 @@ void Image_Upload			(texid_t tex, uploadfmt_t fmt, void *data, void *palette, in
 	tex->format = fmt;
 	tex->width = width;
 	tex->height = height;
-	tex->depth = 1;
+	tex->depth = depth;
 	tex->status = TEX_LOADED;
 
 	for (i = 0; i < mips.mipcount; i++)

@@ -499,7 +499,7 @@ apic_t *R2D_LoadAtlasedPic(const char *name)
 		{
 			atlas.lastid = atlasid;
 			if (atlas.dirty)
-				Image_Upload(atlas.tex, atlas.fmt, atlas.data, NULL, atlas.allocation.width, atlas.allocation.height, IF_NOMIPMAP);
+				Image_Upload(atlas.tex, atlas.fmt, atlas.data, NULL, atlas.allocation.width, atlas.allocation.height, 1, IF_NOMIPMAP);
 			atlas.tex = r_nulltex;
 			atlas.fmt = sh_config.texfmt[PTI_BGRA8]?PTI_BGRA8:PTI_RGBA8;
 			atlas.shader = NULL;
@@ -638,7 +638,7 @@ void R2D_ImageAtlas(float x, float y, float w, float h, float s1, float t1, floa
 		return;
 	if (atlas.dirty)
 	{
-		Image_Upload(atlas.tex, atlas.fmt, atlas.data, NULL, atlas.allocation.width, atlas.allocation.height, IF_NOMIPMAP);
+		Image_Upload(atlas.tex, atlas.fmt, atlas.data, NULL, atlas.allocation.width, atlas.allocation.height, 1, IF_NOMIPMAP);
 		atlas.dirty = false;
 	}
 
@@ -905,7 +905,7 @@ void R2D_TransPicTranslate (float x, float y, int width, int height, qbyte *pic,
 		translate_shader->defaulttextures->base = translate_texture;
 	}
 	/* could avoid reuploading already translated textures but this func really isn't used enough anyway */
-	Image_Upload(translate_texture, TF_RGBA32, trans, NULL, 64, 64, IF_UIPIC|IF_NOMIPMAP|IF_NOGAMMA);
+	Image_Upload(translate_texture, TF_RGBA32, trans, NULL, 64, 64, 1, IF_UIPIC|IF_NOMIPMAP|IF_NOGAMMA);
 	R2D_ScalePic(x, y, width, height, translate_shader);
 }
 
@@ -1766,7 +1766,7 @@ void R2D_Crosshair_Update(void)
 		}
 	}
 
-	Image_Upload(ch_int_texture, TF_RGBA32, crossdata, NULL, CS_WIDTH, CS_HEIGHT, IF_UIPIC|IF_NOMIPMAP|IF_NOGAMMA);
+	Image_Upload(ch_int_texture, TF_RGBA32, crossdata, NULL, CS_WIDTH, CS_HEIGHT, 1, IF_UIPIC|IF_NOMIPMAP|IF_NOGAMMA);
 
 }
 
@@ -1885,7 +1885,7 @@ texid_t R2D_RT_Configure(const char *id, int width, int height, uploadfmt_t rtfm
 			tid->flags = ((tid->flags & ~(IF_NEAREST|IF_LINEAR)) | (imageflags & (IF_NEAREST|IF_LINEAR)));
 			tid->width = -1;
 		}
-		Image_Upload(tid, rtfmt, NULL, NULL, width, height, imageflags);
+		Image_Upload(tid, rtfmt, NULL, NULL, width, height, 1, imageflags);
 		tid->width = width;
 		tid->height = height;
 	}

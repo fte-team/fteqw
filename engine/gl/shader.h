@@ -835,6 +835,33 @@ typedef struct
 } sh_config_t;
 extern sh_config_t sh_config;
 #endif
+
+enum
+{
+	S_SHADOWMAP		= 0,
+	S_PROJECTIONMAP	= 1,
+	S_DIFFUSE		= 2,
+	S_NORMALMAP		= 3,
+	S_SPECULAR		= 4,
+	S_UPPERMAP		= 5,
+	S_LOWERMAP		= 6,
+	S_FULLBRIGHT	= 7,
+	S_PALETTED		= 8,
+	S_REFLECTCUBE	= 9,
+	S_REFLECTMASK	= 10,
+	S_DISPLACEMENT	= 11,
+	S_OCCLUSION		= 12,
+	S_LIGHTMAP0		= 13,
+	S_DELUXEMAP0	= 14,
+#if MAXRLIGHTMAPS > 1
+	S_LIGHTMAP1		= 15,
+	S_LIGHTMAP2		= 16,
+	S_LIGHTMAP3		= 17,
+	S_DELUXEMAP1	= 18,
+	S_DELUXEMAP2	= 19,
+	S_DELUXEMAP3	= 20,
+#endif
+};
 extern const struct sh_defaultsamplers_s
 {
 	const char *name;

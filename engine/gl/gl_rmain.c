@@ -221,7 +221,7 @@ void GL_SetupSceneProcessingTextures (void)
 		}
 	}
 
-	Image_Upload(scenepp_texture_warp, TF_RGBX32, pp_warp_tex, NULL, PP_WARP_TEX_SIZE, PP_WARP_TEX_SIZE, IF_LINEAR|IF_NOMIPMAP|IF_NOGAMMA);
+	Image_Upload(scenepp_texture_warp, TF_RGBX32, pp_warp_tex, NULL, PP_WARP_TEX_SIZE, PP_WARP_TEX_SIZE, 1, IF_LINEAR|IF_NOMIPMAP|IF_NOGAMMA);
 
 	// TODO: init edge texture - this is ampscale * 2, with ampscale calculated
 	// init warp texture - this specifies offset in
@@ -265,7 +265,7 @@ void GL_SetupSceneProcessingTextures (void)
 		}
 	}
 
-	Image_Upload(scenepp_texture_edge, TF_RGBX32, pp_edge_tex, NULL, PP_AMP_TEX_SIZE, PP_AMP_TEX_SIZE, IF_LINEAR|IF_NOMIPMAP|IF_NOGAMMA);
+	Image_Upload(scenepp_texture_edge, TF_RGBX32, pp_edge_tex, NULL, PP_AMP_TEX_SIZE, PP_AMP_TEX_SIZE, 1, IF_LINEAR|IF_NOMIPMAP|IF_NOGAMMA);
 }
 
 void R_RotateForEntity (float *m, float *modelview, const entity_t *e, const model_t *mod)

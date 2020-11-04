@@ -1448,7 +1448,7 @@ void GenerateFogTexture(texid_t *tex, float density, float zscale)
 
 	if (!TEXVALID(*tex))
 		*tex = Image_CreateTexture("***fog***", NULL, IF_CLAMP|IF_NOMIPMAP);
-	Image_Upload(*tex, TF_RGBA32, fogdata, NULL, FOGS, FOGT, IF_CLAMP|IF_NOMIPMAP);
+	Image_Upload(*tex, TF_RGBA32, fogdata, NULL, FOGS, FOGT, 1, IF_CLAMP|IF_NOMIPMAP);
 }
 
 void GLBE_DestroyFBOs(void)

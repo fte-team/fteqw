@@ -234,7 +234,7 @@ static qhandle_t QDECL Plug_Draw_LoadImageData(const char *name, const char *mim
 			t = Image_CreateTexture(name, NULL, IF_PREMULTIPLYALPHA|IF_NOMIPMAP|IF_UIPIC|IF_CLAMP);
 		if (TEXVALID(t))
 		{
-			Image_Upload(t, format, rgbdata, NULL, width, height, IF_PREMULTIPLYALPHA|IF_NOMIPMAP|IF_UIPIC|IF_CLAMP);
+			Image_Upload(t, format, rgbdata, NULL, width, height, 1, IF_PREMULTIPLYALPHA|IF_NOMIPMAP|IF_UIPIC|IF_CLAMP);
 			ret = Plug_Draw_LoadImage(name, 3, NULL);
 		}
 		

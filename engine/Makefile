@@ -2357,7 +2357,11 @@ httpserver: $(RELEASE_DIR)/httpserver$(BITS)$(EXEPOSTFIX)
 
 IQM_OBJECTS=../iqm/iqm.cpp ../imgtool.c client/image.c ../plugins/models/gltf.c
 $(RELEASE_DIR)/iqm$(BITS)$(EXEPOSTFIX): $(IQM_OBJECTS)
+ifdef windir
 	$(CC) -o $@ $(IQM_OBJECTS) -Icommon -Iclient -Iqclib -Igl -Iserver $(ALL_CFLAGS) $(CLIENTLIBFLAGS) -DIQMTOOL $(BASELDFLAGS) $(CLIENTLDDEPS) -static -lstdc++ -lm -Os
+else
+	$(CC) -o $@ $(IQM_OBJECTS) -Icommon -Iclient -Iqclib -Igl -Iserver $(ALL_CFLAGS) $(CLIENTLIBFLAGS) -DIQMTOOL $(BASELDFLAGS) $(CLIENTLDDEPS) -lstdc++ -lm -Os
+endif
 iqm-rel: $(RELEASE_DIR)/iqm$(BITS)$(EXEPOSTFIX)
 iqm: iqm-rel
 iqmtool: iqm-rel

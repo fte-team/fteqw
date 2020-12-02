@@ -818,16 +818,16 @@ void V_CalcBlend (float *hw_blend)
 		//don't apply it to the server, we'll blend the two later if the user has no hardware gamma (if they do have it, we use just the server specified value) This way we avoid winnt users having a cheat with flashbangs and stuff.
 		for (j=0 ; j<NUM_CSHIFTS ; j++)
 		{
-			if (j != CSHIFT_SERVER && j != CSHIFT_BONUS)
+			if ((j == CSHIFT_SERVER&&!cls.demoplayback) || j == CSHIFT_BONUS)
+			{
+				a2 = pv->cshifts[j].percent / 255.0;	//don't allow modification of this one.
+			}
+			else
 			{
 				if (!gl_cshiftpercent.value || !gl_cshiftenabled.ival)
 					continue;
 
 				a2 = ((pv->cshifts[j].percent * gl_cshiftpercent.value) / 100.0) / 255.0;
-			}
-			else
-			{
-				a2 = pv->cshifts[j].percent / 255.0;	//don't allow modification of this one.
 			}
 
 			if (a2 <= 0)

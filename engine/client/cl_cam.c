@@ -553,6 +553,9 @@ void Cam_Unlock(playerview_t *pv)
 		SCR_CenterPrint(pv-cl.playerview, NULL, true);
 		Sbar_Changed();
 
+		//flashgrens suck
+		pv->cshifts[CSHIFT_SERVER].percent = 0;
+
 		Skin_FlushPlayers();
 	}
 }
@@ -563,6 +566,10 @@ void Cam_Lock(playerview_t *pv, int playernum)
 
 	CL_SendClientCommand(true, "ptrack %i", playernum);
 
+	if (pv->cam_spec_track != playernum)
+	{	//flashgrens suck
+		pv->cshifts[CSHIFT_SERVER].percent = 0;
+	}
 	pv->cam_spec_track = playernum;
 	pv->cam_state = CAM_PENDING;
 	pv->viewentity = (cls.demoplayback)?0:(pv->playernum+1);	//free floating until actually locked

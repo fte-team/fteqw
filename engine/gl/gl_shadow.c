@@ -2331,6 +2331,7 @@ static void Sh_GenShadowFace(dlight_t *l, vec3_t axis[3], int lighttype, shadowm
 
 	if (lighttype & LSHADER_FAKESHADOWS)
 		r_refdef.flipcull ^= SHADER_CULL_FLIP;
+	r_refdef.colourmask = 0u;
 
 #ifdef SHADOWDBG_COLOURNOTDEPTH
 	BE_SelectMode(BEM_STANDARD);
@@ -2448,6 +2449,7 @@ qboolean Sh_GenShadowMap (dlight_t *l, int lighttype, vec3_t axis[3], qbyte *lvi
 	shadowmesh_t *smesh;
 	int sidevisible;
 	int oldflip = r_refdef.flipcull;
+	unsigned int oldcolourmask = r_refdef.colourmask;
 	int oldexternalview = r_refdef.externalview;
 	int twidth;
 	int theight;
@@ -2593,6 +2595,7 @@ qboolean Sh_GenShadowMap (dlight_t *l, int lighttype, vec3_t axis[3], qbyte *lvi
 	r_refdef.pxrect = oprect;
 
 	r_refdef.flipcull = oldflip;
+	r_refdef.colourmask = oldcolourmask;
 	r_refdef.externalview = oldexternalview;
 	R_SetFrustum(r_refdef.m_projection_std, r_refdef.m_view);
 

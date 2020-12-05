@@ -689,6 +689,7 @@ void GL_Set2D (qboolean flipped)
 		r_refdef.flipcull = SHADER_CULL_FLIP;
 	else
 		r_refdef.flipcull = 0;
+	r_refdef.colourmask = 0u;
 
 	GL_SetShaderState2D(true);
 }

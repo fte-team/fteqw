@@ -705,6 +705,7 @@ r_refdef must be set before the first call
 */
 static void R_RenderScene_Internal(void)
 {
+	extern qboolean depthcleared;
 	int tmpvisents = cl_numvisedicts;
 	TRACE(("dbg: calling R_SetFrustrum\n"));
 	if (!r_refdef.recurse)
@@ -728,9 +729,12 @@ static void R_RenderScene_Internal(void)
 		RQ_RenderBatchClear();
 
 	cl_numvisedicts = tmpvisents;
+
+	depthcleared = false;	//whatever is in the depth buffer is no longer useful.
 }
 static void R_RenderEyeScene (texid_t rendertarget, vec4_t fovoverride, vec3_t axisorigin[4])
 {
+	extern qboolean depthcleared;
 	refdef_t refdef = r_refdef;
 	int pw = vid.fbpwidth;
 	int ph = vid.fbpheight;
@@ -741,6 +745,7 @@ static void R_RenderEyeScene (texid_t rendertarget, vec4_t fovoverride, vec3_t a
 		r = GLBE_FBO_Update(&fbo_vr, FBO_RB_DEPTH, &rendertarget, 1, r_nulltex,  rendertarget->width, rendertarget->height, 0);
 		GL_ForceDepthWritable();
 		qglClear (GL_DEPTH_BUFFER_BIT|GL_COLOR_BUFFER_BIT);
+		depthcleared = true;
 		vid.fbpwidth = rendertarget->width;
 		vid.fbpheight = rendertarget->height;
 	}
@@ -766,8 +771,11 @@ static void R_RenderScene (void)
 	int stereomode;
 	int i;
 	int cull = r_refdef.flipcull;
+	unsigned int colourmask = r_refdef.colourmask;
 	vec3_t axisorg[4], ang;
+	extern qboolean		depthcleared;
 
+	r_refdef.colourmask = 0u;
 	stereomode = r_refdef.stereomethod;
 	if (stereomode == STEREO_QUAD)
 	{
@@ -780,7 +788,7 @@ static void R_RenderScene (void)
 	}
 
 
-	if (r_refdef.recurse || !stereomode || !r_stereo_separation.value)
+	if (r_refdef.recurse || !stereomode)// || !(r_stereo_separation.value||r_stereo_convergence.value))
 	{
 		stereooffset[0] = 0;
 		stereoframes = 1;
@@ -800,7 +808,6 @@ static void R_RenderScene (void)
 	{
 		GL_ForceDepthWritable();
 		qglClear (GL_DEPTH_BUFFER_BIT);
-		r_framecount++;
 
 		R_SetupGL (NULL, NULL, NULL, NULL);
 		R_RenderScene_Internal();
@@ -823,6 +830,7 @@ static void R_RenderScene (void)
 #endif
 	else for (i = 0; i < stereoframes; i++)
 	{
+		r_refdef.colourmask = 0u;
 		switch (stereomode)
 		{
 		default:
@@ -840,21 +848,21 @@ static void R_RenderScene (void)
 #endif
 		case STEREO_RED_CYAN:	//red/cyan(green+blue)
 			if (stereooffset[i] < 0)
-				qglColorMask(GL_TRUE, GL_FALSE, GL_FALSE, GL_TRUE);
+				r_refdef.colourmask = (SBITS_MASK_GREEN|SBITS_MASK_BLUE);
 			else
-				qglColorMask(GL_FALSE, GL_TRUE, GL_TRUE, GL_TRUE);
+				r_refdef.colourmask = SBITS_MASK_RED;
 			break;
 		case STEREO_RED_BLUE: //red/blue
 			if (stereooffset[i] < 0)
-				qglColorMask(GL_TRUE, GL_FALSE, GL_FALSE, GL_TRUE);
+				r_refdef.colourmask = (SBITS_MASK_GREEN|SBITS_MASK_BLUE);
 			else
-				qglColorMask(GL_FALSE, GL_FALSE, GL_TRUE, GL_TRUE);
+				r_refdef.colourmask = (SBITS_MASK_RED|SBITS_MASK_GREEN);
 			break;
 		case STEREO_RED_GREEN:	//red/green
 			if (stereooffset[i] < 0)
-				qglColorMask(GL_TRUE, GL_FALSE, GL_FALSE, GL_TRUE);
+				r_refdef.colourmask = (SBITS_MASK_GREEN|SBITS_MASK_BLUE);
 			else
-				qglColorMask(GL_FALSE, GL_TRUE, GL_FALSE, GL_TRUE);
+				r_refdef.colourmask = (SBITS_MASK_RED|SBITS_MASK_BLUE);
 			break;
 #ifdef FTE_TARGET_WEB
 		case STEREO_WEBVR:
@@ -873,17 +881,19 @@ static void R_RenderScene (void)
 			//fixme: depth buffer doesn't need clearing
 			break;
 		}
-		if (i)
+
+		if (!depthcleared)
 		{
 			GL_ForceDepthWritable();
 			qglClear (GL_DEPTH_BUFFER_BIT);
-			r_framecount++;
+			depthcleared = true;
 		}
+		r_framecount++;	//view position changes, if only slightly. which means we need to rebuild vis info. :(
 
 		ang[0] = 0;
 		ang[1] = r_stereo_convergence.value * (i?0.5:-0.5);
-		ang[2] = 0;;
-		AngleVectors(ang, axisorg[0], axisorg[1], axisorg[2]);
+		ang[2] = 0;
+		AngleVectorsFLU(ang, axisorg[0], axisorg[1], axisorg[2]);
 		axisorg[3][0] = 0;
 		axisorg[3][1] = stereooffset[i];
 		axisorg[3][2] = 0;
@@ -904,13 +914,13 @@ static void R_RenderScene (void)
 	case STEREO_RED_BLUE:	//green should have already been cleared.
 	case STEREO_RED_GREEN:	//blue should have already been cleared.
 	case STEREO_RED_CYAN:
-		qglColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
 		break;
 	case 5:
 		break;
 	}
 
 	r_refdef.flipcull = cull;
+	r_refdef.colourmask = colourmask;
 }
 /*generates a new modelview matrix, as well as vpn vectors*/
 static void R_MirrorMatrix(plane_t *plane)
@@ -1459,7 +1469,6 @@ void R_Clear (qboolean fbo)
 {
 	/*tbh, this entire function should be in the backend*/
 	{
-		qglColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);	//FIXME: breaks backend!
 		if (!depthcleared || fbo)
 		{
 			GL_ForceDepthWritable();
@@ -1468,7 +1477,10 @@ void R_Clear (qboolean fbo)
 			//but for multiple scenes, we do need to clear depth still.
 			//fbos always get cleared depth, just in case (colour fbos may contain junk, but hey).
 			if ((fbo && r_clear.ival) || r_refdef.stereomethod==STEREO_RED_BLUE||r_refdef.stereomethod==STEREO_RED_GREEN)
+			{
+				qglClearColor(0, 0, 0, 1);
 				qglClear (GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT);
+			}
 			else
 				qglClear (GL_DEPTH_BUFFER_BIT);
 		}

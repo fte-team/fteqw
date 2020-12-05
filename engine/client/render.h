@@ -302,6 +302,7 @@ typedef struct
 	int			recurse;			/*in a mirror/portal/half way through drawing something else*/
 	qboolean	forcevis;			/*if true, vis comes from the forcedvis field instead of recalculated*/
 	unsigned int	flipcull;		/*reflected/flipped view, requires inverted culling (should be set to SHADER_CULL_FLIPPED or 0 - its implemented as a xor)*/
+	unsigned int	colourmask;		/*shaderbits mask. anything not here will be forced to 0. this is for red/green type stereo*/
 	qboolean	useperspective;		/*not orthographic*/
 
 	stereomethod_t stereomethod;

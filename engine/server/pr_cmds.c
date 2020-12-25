@@ -10329,7 +10329,7 @@ qboolean SV_RunFullQCMovement(client_t *client, usercmd_t *ucmd)
 		PR_ExecuteProgram(svprogfuncs, gfuncs.RunClientCommand);
 
 
-		if (!sv_player->v->fixangle)
+		if (!sv_player->v->fixangle && client->protocol != SCP_BAD)
 		{
 			int i;
 			vec3_t delta;

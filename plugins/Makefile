@@ -128,8 +128,11 @@ AV_PRE32_DEV=$(AV_VER)-win32-dev/
 AV_PRE64_DEV=$(AV_VER)-win64-dev/
 AV_PRE32_BIN=$(AV_VER)-win32-shared/
 AV_PRE64_BIN=$(AV_VER)-win64-shared/
+
 ifeq ($(findstring win,$(FTE_TARGET)),win)
   AV_BASE=$(abspath $(OUT_DIR)/../fte_libav_$(AV_VER))/
+else
+  AV_BASE=/usr/include/ffmpeg/
 endif
 
 ifneq ($(AV_BASE),)

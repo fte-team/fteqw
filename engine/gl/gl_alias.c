@@ -2855,7 +2855,7 @@ void BE_GenModelBatches(batch_t **batches, const dlight_t *dl, unsigned int bemo
 	{
 		ent = &cl_visedicts[i];
 
-		if ((r_refdef.externalview && (ent->flags & RF_FIRSTPERSON)) || chase_active.ival)
+		if ((r_refdef.externalview || chase_active.ival) && (ent->flags & RF_FIRSTPERSON))
 			continue;
 		if (!r_refdef.externalview && (ent->flags & RF_EXTERNALMODEL) && !chase_active.ival)
 			continue;

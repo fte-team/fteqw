@@ -811,12 +811,12 @@ typedef enum
 #define CSQCRF_USEAXIS					16 //use v_forward/v_right/v_up as an axis/matrix - predraw is needed to use this properly
 #define CSQCRF_NOSHADOW					32 //don't cast shadows upon other entities (can still be self shadowing, if the engine wishes, and not additive)
 #define CSQCRF_FRAMETIMESARESTARTTIMES	64 //EXT_CSQC_1: frame times should be read as (time-frametime).
+#define CSQCRF_FIRSTPERSON				1024 //drawn ONLY in mirrors
 //#define CSQCRFDP_USETRANSPARENTOFFSET	64 // Allows QC to customize origin used for transparent sorting via transparent_origin global, helps to fix transparent sorting bugs on a very large entities
 ////#define CSQCRF_NOAUTOADD			128 // removed in favour of predraw return values.
 //#define CSQCRFDP_WORLDOBJECT			128 // for large outdoor entities that should not be culled.
 //#define CSQCRFDP_FULLBRIGHT			256
 //#define CSQCRFDP_NOSHADOW				512
-//#define CSQCRF_UNUSED					1024
 //#define CSQCRF_UNUSED					2048
 //#define CSQCRFDP_MODELLIGHT			4096 // CSQC-set model light
 //#define CSQCRFDP_DYNAMICMODELLIGHT	8192 // origin-dependent model light

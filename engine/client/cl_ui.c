@@ -453,9 +453,8 @@ void VQ3_AddEntity(const q3refEntity_t *q3)
 	ent.forcedshader = VM_FROMSHANDLE(q3->customShader);
 	ent.shaderTime = q3->shaderTime;
 
-	/* no, these flags are not alike, the first_person rf in q3a so mirrors don't draw them -eukara */
-	/*if (q3->renderfx & Q3RF_FIRST_PERSON)
-		ent.flags |= RF_WEAPONMODEL;*/
+	if (q3->renderfx & Q3RF_FIRST_PERSON)
+		ent.flags |= RF_FIRSTPERSON;
 	if (q3->renderfx & Q3RF_DEPTHHACK)
 		ent.flags |= RF_DEPTHHACK;
 	if (q3->renderfx & Q3RF_THIRD_PERSON)

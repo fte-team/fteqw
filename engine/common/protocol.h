@@ -1357,7 +1357,8 @@ typedef struct q1usercmd_s
 #define RF_NOSHADOW				(1u<<20)	//disables shadow casting
 #define RF_NODEPTHTEST			(1u<<21)	//forces shader sort order and BEF_FORCENODEPTH
 #define RF_FORCECOLOURMOD		(1u<<22)	//forces BEF_FORCECOLOURMOD
-#define RF_WEAPONMODELNOBOB		(1u<<23)	//
+#define RF_WEAPONMODELNOBOB		(1u<<23)
+#define RF_FIRSTPERSON			(1u<<24)	//only draw through eyes
 
 // player_state_t->refdef flags
 #define	RDF_UNDERWATER			(1u<<0)		// warp the screen as apropriate (fov trick)

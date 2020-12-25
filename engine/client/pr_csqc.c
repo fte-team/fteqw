@@ -842,6 +842,8 @@ static qboolean CopyCSQCEdictToEntity(csqcedict_t *fte_restrict in, entity_t *ft
 		}
 		if (rflags & CSQCRF_EXTERNALMODEL)
 			out->flags |= RF_EXTERNALMODEL;
+		if (rflags & CSQCRF_FIRSTPERSON)
+			out->flags |= RF_FIRSTPERSON;
 		if (rflags & CSQCRF_DEPTHHACK)
 			out->flags |= RF_DEPTHHACK;
 		if (rflags & CSQCRF_ADDITIVE)

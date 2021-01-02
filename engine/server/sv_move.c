@@ -647,6 +647,7 @@ struct waypointnetwork_s
 	{
 		vec3_t pos;
 		int linkflags;
+		float radius;
 	} *displaynode;
 	size_t displaynodes;
 
@@ -884,6 +885,7 @@ static qboolean Route_Completed(struct routecalc_s *r, nodefrom_t *nodecamefrom)
 	//target point is first. yay.
 	VectorCopy(r->end, r->resultnodes[0].pos);
 	r->resultnodes[0].linkflags = LF_DESTINATION;
+	r->resultnodes[0].radius = 32;
 	r->numresultnodes++;
 
 	u = r->endn;
@@ -891,6 +893,7 @@ static qboolean Route_Completed(struct routecalc_s *r, nodefrom_t *nodecamefrom)
 	{
 		VectorCopy(n->waypoints[u].org, r->resultnodes[r->numresultnodes].pos);
 		r->resultnodes[r->numresultnodes].linkflags = nodecamefrom[u].flags;
+		r->resultnodes[r->numresultnodes].radius = n->waypoints[u].radius;
 		r->numresultnodes++;
 		if (u == r->startn)
 			break;
@@ -900,6 +903,7 @@ static qboolean Route_Completed(struct routecalc_s *r, nodefrom_t *nodecamefrom)
 	//and include the start point, because we can
 	VectorCopy(r->start, r->resultnodes[r->numresultnodes].pos);
 	r->resultnodes[r->numresultnodes].linkflags = 0;
+	r->resultnodes[r->numresultnodes].radius = 32;
 	r->numresultnodes++;
 	return true;
 }

@@ -11149,6 +11149,7 @@ static BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	"typedef struct\n{\n"	\
 		"\tvector dest;\n"	\
 		"\tint linkflags;\n"\
+		"\tfloat radius;\n"\
 	"} nodeslist_t;\n"
 	{"route_calculate",	PF_route_calculate,0,		0,		0,		0,		D(qcnodeslist "void(entity ent, vector dest, int denylinkflags, void(entity ent, vector dest, int numnodes, nodeslist_t *nodelist) callback)", "Begin calculating a route. The callback function will be called once the route has finished being calculated. The route must be memfreed once it is no longer needed. The route must be followed in reverse order (ie: the first node that must be reached is at index numnodes-1). If no route is available then the callback will be called with no nodes.")},
 #endif

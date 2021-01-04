@@ -4705,6 +4705,8 @@ void QCBUILTIN PF_applylightstyle(int style, const char *val, vec3_t rgb)
 
 	for (j=0, client = svs.clients ; j<sv.allocated_client_slots ; j++, client++)
 	{
+		if (client->protocol == SCP_BAD)
+			continue;
 		if (client->controller)
 			continue;
 		if (client->state == cs_spawned)

@@ -29,6 +29,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 //name of the current backdrop for the loading screen
 char levelshotname[MAX_QPATH];
+extern cvar_t con_textsize;
 
 
 void RSpeedShow(void)
@@ -42,9 +43,17 @@ void RSpeedShow(void)
 	char *s;
 	static int framecount;
 	int frameinterval = 100;
+	int tsize;
 
 	if (!r_speeds.ival)
 		return;
+
+	if (con_textsize.value < 0)
+		tsize = (-con_textsize.value * vid.height) / vid.pixelheight;	//size defined in physical pixels
+	else
+		tsize = con_textsize.value;	//size defined in virtual pixels.
+	if (!tsize)
+		tsize = 8;
 
 	memset(RSpNames, 0, sizeof(RSpNames));
 
@@ -92,20 +101,20 @@ void RSpeedShow(void)
 	{
 		for (i = 0; i < RSPEED_MAX; i++)
 		{
-			Draw_FunStringWidth(vid.width-20*8, i*8, RSpNames[i], 20*8, false, false);
+			Draw_FunStringWidthFont(font_console, vid.width-20*tsize, i*tsize, RSpNames[i], 20*tsize, false, false);
 			s = va("%g ", samplerspeeds[i]/(float)frameinterval);
-			Draw_FunStringWidth(0, i*8, s, vid.width-20*8, true, false);
+			Draw_FunStringWidthFont(font_console, 0, i*tsize, s, vid.width-20*tsize, true, false);
 		}
 	}
 	for (i = 0; i < RQUANT_MAX; i++)
 	{
 		s = va("%u.%.3u %-20s", samplerquant[i]/frameinterval, (samplerquant[i]%100), RQntNames[i]);
-		Draw_FunString(vid.width-strlen(s)*8, (i+RSPEED_MAX)*8, s);
+		Draw_FunStringWidthFont(font_console, 0, (i+RSPEED_MAX)*tsize, s, vid.width-20*tsize, true, false);
 	}
 	if (r_speeds.ival > 1)
 	{
 		s = va("%f %-20s", (frameinterval*1000*1000.0f)/samplerspeeds[RSPEED_TOTALREFRESH], "Framerate (refresh only)");
-		Draw_FunString(vid.width-strlen(s)*8, (i+RSPEED_MAX)*8, s);
+		Draw_FunStringWidthFont(font_console, 0, (i+RSPEED_MAX)*tsize, s, vid.width-20*tsize, true, false);
 	}
 	memcpy(rquant, savedsamplerquant, sizeof(rquant));
 

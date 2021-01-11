@@ -1184,16 +1184,16 @@ static void WPhys_Physics_Follow (world_t *w, wedict_t *ent)
 	}
 	else
 	{
-		angles[0] = -ent->xv->punchangle[0];
-		angles[1] =  ent->xv->punchangle[1];
-		angles[2] =  ent->xv->punchangle[2];
+		angles[0] = ent->xv->punchangle[0] * r_meshpitch.value;
+		angles[1] = ent->xv->punchangle[1];
+		angles[2] = ent->xv->punchangle[2] * r_meshroll.value;
 		AngleVectors (angles, vf, vr, vu);
 		v[0] = ent->v->view_ofs[0] * vf[0] + ent->v->view_ofs[1] * vr[0] + ent->v->view_ofs[2] * vu[0];
 		v[1] = ent->v->view_ofs[0] * vf[1] + ent->v->view_ofs[1] * vr[1] + ent->v->view_ofs[2] * vu[1];
 		v[2] = ent->v->view_ofs[0] * vf[2] + ent->v->view_ofs[1] * vr[2] + ent->v->view_ofs[2] * vu[2];
-		angles[0] = -e->v->angles[0];
-		angles[1] =  e->v->angles[1];
-		angles[2] =  e->v->angles[2];
+		angles[0] = e->v->angles[0] * r_meshpitch.value;
+		angles[1] = e->v->angles[1];
+		angles[2] = e->v->angles[2] * r_meshroll.value;
 		AngleVectors (angles, vf, vr, vu);
 		ent->v->origin[0] = v[0] * vf[0] + v[1] * vf[1] + v[2] * vf[2] + e->v->origin[0];
 		ent->v->origin[1] = v[0] * vr[0] + v[1] * vr[1] + v[2] * vr[2] + e->v->origin[1];

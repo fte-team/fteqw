@@ -4567,7 +4567,9 @@ static char *ShowTime(unsigned int seconds)
 }
 void CL_Status_f(void)
 {
+#ifdef CSQC_DAT
 	extern world_t csqc_world;
+#endif
 	char adr[128];
 	float pi, po, bi, bo;
 
@@ -4676,6 +4678,7 @@ void CL_Status_f(void)
 		Con_Printf ("current map      : %s (%s)\n", adr, cl.levelname);
 	}
 
+#ifdef CSQC_DAT
 	if (csqc_world.progs)
 	{
 		extern int num_sfx;
@@ -4703,6 +4706,7 @@ void CL_Status_f(void)
 		if (cl.csqcdebug)
 			Con_Printf("csqc debug       : true\n");
 	}
+#endif
 	Con_Printf("gamedir          : %s\n", FS_GetGamedir(true));
 }
 

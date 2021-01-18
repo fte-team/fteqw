@@ -2169,6 +2169,7 @@ void Mod_AddSingleSurface(entity_t *ent, int surfaceidx, shader_t *shader, qbool
 
 				posedata = m->xyz_array;
 				normdata = normals?m->normals_array:NULL;
+#ifdef SKELETALMODELS
 				if (m->numbones)
 				{	//intended shader might have caused it to use skeletal stuff.
 					//we're too lame for that though.
@@ -2182,6 +2183,7 @@ void Mod_AddSingleSurface(entity_t *ent, int surfaceidx, shader_t *shader, qbool
 						Alias_TransformVerticies_V(m->bones, m->numvertexes, m->bonenums[0], m->boneweights[0],		m->xyz_array[0], posedata[0]);
 				}
 				else
+#endif
 				{
 					if (m->xyz_blendw[1] == 1 && m->xyz2_array)
 						posedata = m->xyz2_array;

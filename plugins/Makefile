@@ -18,7 +18,13 @@ PLUG_LDFLAGS_ZLIB=-L../engine/libs/mingw64-libs -lz
 endif
 
 PLUG_PREFIX=$(OUT_DIR)/fteplug_
+
+ifeq ($(FTE_TARGET),bsd)
+PLUG_LDFLAGS_DL?=-ldl -lc
+else
 PLUG_LDFLAGS_DL?=-ldl -static-libgcc
+endif
+
 PLUG_LDFLAGS?=-L/usr/local/lib -Wl,-R/usr/local/lib -lm
 PLUG_LDFLAGS_ZLIB?=-lz
 
@@ -132,7 +138,11 @@ AV_PRE64_BIN=$(AV_VER)-win64-shared/
 ifeq ($(findstring win,$(FTE_TARGET)),win)
   AV_BASE=$(abspath $(OUT_DIR)/../fte_libav_$(AV_VER))/
 else
-  AV_BASE=/usr/include/ffmpeg/
+  ifeq ($(FTE_TARGET),bsd)
+    AV_BASE=/usr/local/include/
+  else
+    AV_BASE=/usr/include/ffmpeg/
+  endif
 endif
 
 ifneq ($(AV_BASE),)
@@ -141,6 +151,10 @@ ifneq ($(AV_BASE),)
   AV_LDFLAGS=-L$(AV_BASE)lib$(BITS) -lavcodec -lavformat -lavutil -lswscale
 else
   AV_LDFLAGS=-lavcodec -lavformat -lavutil -lswscale
+endif
+
+ifeq ($(FTE_TARGET),bsd)
+  AV_LDFLAGS+=-lc
 endif
 
 

@@ -2651,7 +2651,7 @@ GLhandleARB GLSlang_CreateProgramObject (program_t *prog, const char *name, GLha
 	{
 		if (gl_config.maxattribs > shader_attr_names[i].ptype)
 		{
-			if (prog->explicitsyms)
+			if (prog && prog->explicitsyms)
 				qglBindAttribLocationARB(program, shader_attr_names[i].ptype, va("fte_%s", shader_attr_names[i].name));
 			else
 				qglBindAttribLocationARB(program, shader_attr_names[i].ptype, shader_attr_names[i].name);
@@ -2891,7 +2891,7 @@ static void GLSlang_ProgAutoFields(program_t *prog, struct programpermu_s *pp, c
 	GLSlang_UseProgram(pp->h.glsl.handle);
 	for (i = 0; shader_attr_names[i].name; i++)
 	{
-		if (prog->explicitsyms)
+		if (prog && prog->explicitsyms)
 			uniformloc = qglGetAttribLocationARB(pp->h.glsl.handle, va("fte_%s", shader_attr_names[i].name));
 		else
 			uniformloc = qglGetAttribLocationARB(pp->h.glsl.handle, shader_attr_names[i].name);

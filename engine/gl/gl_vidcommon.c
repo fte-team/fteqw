@@ -1129,8 +1129,6 @@ static qboolean GL_CheckExtensions (void *(*getglfunction) (char *name))
 		Con_Printf(CON_NOTICE "Mesa detected, disabling the use of glsl's invariant keyword."CON_DEFAULT" This will result in z-fighting. Use '+set gl_blacklist_mesa_invariant 0' on the commandline to reenable it (but you will probably get glsl compilation errors from your driver).\n");
 	}
 
-	if (gl_config.arb_shader_objects)
-		qglGetIntegerv(GL_MAX_VERTEX_ATTRIBS_ARB, &gl_config.maxattribs);
 #endif
 
 	qglGetProgramBinary = NULL;
@@ -1148,6 +1146,7 @@ static qboolean GL_CheckExtensions (void *(*getglfunction) (char *name))
 			qglGetProgramBinary = (void *)getglext("glGetProgramBinaryOES");
 			qglProgramBinary = (void *)getglext("glProgramBinaryOES");
 		}
+		qglGetIntegerv(GL_MAX_VERTEX_ATTRIBS_ARB, &gl_config.maxattribs);
 	}
 
 	if (gl_config.glversion >= 4.5)	//the core version
@@ -2898,7 +2897,7 @@ static void GLSlang_ProgAutoFields(program_t *prog, struct programpermu_s *pp, c
 		if (uniformloc != -1)
 		{
 			if (shader_attr_names[i].ptype != uniformloc)
-				Con_Printf("Bad attribute: %s\n", shader_attr_names[i].name);
+				Con_Printf("Bad attribute \"%s\" in glslprogram \"%s\" (%i should be %i)\n", shader_attr_names[i].name, prog?prog->name:"<NULL>", uniformloc, shader_attr_names[i].ptype);
 			else
 				pp->attrmask |= 1u<<uniformloc;
 		}

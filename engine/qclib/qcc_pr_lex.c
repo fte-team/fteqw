@@ -218,56 +218,33 @@ pbool QCC_PR_UnInclude(void)
 	return true;
 }
 
-void QCC_Canonicalize(char *fullname, size_t fullnamesize, const char *newfile, const char *base)
+//expresses a relative path relative to an existing FILEname. any directories in base must be / terminated properly.
+void QCC_JoinPaths(char *fullname, size_t fullnamesize, const char *newfile, const char *base)
 {
-	int doubledots;
-	char *end = fullname;
-	
-	doubledots = 0;
+	char *end;
 
-	/*count how far up we need to go*/
-	while(1)
-	{
-		if (!strncmp(newfile, "./", 2) || !strncmp(newfile, ".\\", 2))
-			newfile+=2;
-		else if(!strncmp(newfile, "../", 3) || !strncmp(newfile, "..\\", 3))
-		{
-			newfile+=3;
-			doubledots++;
-		}
-		else
-			break;
+	if (*newfile == '/' || *newfile == '\\')
+	{	//its an absolute path...
+		QC_strlcpy(fullname, newfile, fullnamesize);
+		return;
 	}
-
-	//FIXME: length validation!
-	if (base)
-		strcpy(fullname, base);
-	else
-		*fullname = 0;
+	QC_strlcpy(fullname, base, fullnamesize);
 	end = fullname+strlen(fullname);
-
 	while (end > fullname)
 	{
 		end--;
-		/*stop at the slash, unless we're meant to go further*/
 		if (*end == '/' || *end == '\\')
 		{
-			if (!doubledots)
-			{
-				end++;
-				break;
-			}
-			doubledots--;
+			end++;
+			break;
 		}
 	}
+	QC_strlcpy(end, newfile, fullnamesize - (end-fullname));
 
-	while (doubledots-- > 0)
-	{
-		strcpy(end, "../");
-		end += 3;
-	}
-
-	strcpy(end, newfile);
+	//FIXME: do we want to convert /segment/../ into just / ?
+	//fteqw might insist on it for its filesystem sandboxing.
+	//but it breaks symlink weirdness (itself a possible security hole).
+	//should probably be a separate function.
 }
 
 extern char qccmsourcedir[];
@@ -291,7 +268,7 @@ void QCC_FindBestInclude(char *newfile, char *currentfile, pbool verbose)
 			currentfile = qccincludedir[includepath-1];
 		}
 
-		QCC_Canonicalize(fullname, sizeof(fullname), newfile, currentfile);
+		QCC_JoinPaths(fullname, sizeof(fullname), newfile, currentfile);
 
 		{
 			extern progfuncs_t *qccprogfuncs;
@@ -954,7 +931,7 @@ static pbool QCC_PR_Precompiler(void)
 			QCC_ImportProgs(pr_token);
 			if (!*destfile && !destfile_explicit)
 			{
-				QCC_Canonicalize(destfile, sizeof(destfile), pr_token, compilingfile);
+				QCC_JoinPaths(destfile, sizeof(destfile), pr_token, compilingfile);
 				externs->Printf("Outputfile: %s\n", destfile);
 			}
 
@@ -1079,7 +1056,7 @@ static pbool QCC_PR_Precompiler(void)
 			QCC_PR_SimpleGetString();
 			if (!destfile_explicit)
 			{
-				QCC_Canonicalize(destfile, sizeof(destfile), pr_token, compilingfile);
+				QCC_JoinPaths(destfile, sizeof(destfile), pr_token, compilingfile);
 				externs->Printf("Outputfile: %s\n", pr_token);
 			}
 
@@ -1213,7 +1190,7 @@ static pbool QCC_PR_Precompiler(void)
 						 QC_strlcat(qcc_token, "/", sizeof(qcc_token));
 				}
 
-				QCC_Canonicalize(newinc, sizeof(newinc), qcc_token, compilingfile);
+				QCC_JoinPaths(newinc, sizeof(newinc), qcc_token, compilingfile);
 				QCC_PR_AddIncludePath(newinc);
 			}
 			else if (!QC_strcasecmp(qcc_token, "noref"))
@@ -1332,7 +1309,7 @@ static pbool QCC_PR_Precompiler(void)
 				QCC_COM_Parse(msg);
 
 				if (!destfile_explicit) //if output file is named on the commandline, don't change it mid-compile
-					QCC_Canonicalize(destfile, sizeof(destfile), qcc_token, compilingfile);
+					QCC_JoinPaths(destfile, sizeof(destfile), qcc_token, compilingfile);
 
 				if (strcmp(destfile, olddest))
 					externs->Printf("Outputfile: %s\n", destfile);

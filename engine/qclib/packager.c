@@ -9,7 +9,7 @@
 #include <dirent.h>
 #include <sys/stat.h>
 #endif
-void QCC_Canonicalize(char *fullname, size_t fullnamesize, const char *newfile, const char *base);
+void QCC_JoinPaths(char *fullname, size_t fullnamesize, const char *newfile, const char *base);
 
 //package formats:
 //pakzip - files are uncompressed, with both a pak header and a zip trailer, allowing it to be read as either type of file.
@@ -376,7 +376,7 @@ static void PKG_CreateOutput(struct pkgctx_s *ctx, struct dataset_s *s, const ch
 	memset(o, 0, sizeof(*o));
 	strcpy(o->code, code);
 	o->usediffs = diff;
-	QCC_Canonicalize(o->filename, sizeof(o->filename), path, ctx->gamepath);
+	QCC_JoinPaths(o->filename, sizeof(o->filename), path, ctx->gamepath);
 	o->next = s->outputs;
 	s->outputs = o;
 
@@ -679,7 +679,7 @@ static void PKG_AddClassFiles(struct pkgctx_s *ctx, struct class_s *c, const cha
 	char basepath[MAX_OSPATH], tmppath[MAX_OSPATH];
 	struct stat statbuf;
 
-	QCC_Canonicalize(basepath, sizeof(basepath), fname, ctx->sourcepath);
+	QCC_JoinPaths(basepath, sizeof(basepath), fname, ctx->sourcepath);
 	QC_strlcat(basepath, "/", sizeof(basepath));
 	dir = opendir(basepath);
 	if (!dir)
@@ -691,8 +691,8 @@ static void PKG_AddClassFiles(struct pkgctx_s *ctx, struct class_s *c, const cha
 	{
 		if (*ent->d_name == '.')
 			continue;
-		QCC_Canonicalize(basepath, sizeof(basepath), ent->d_name, fname);
-		QCC_Canonicalize(tmppath, sizeof(tmppath), basepath, ctx->sourcepath);
+		QCC_JoinPaths(basepath, sizeof(basepath), ent->d_name, fname);
+		QCC_JoinPaths(tmppath, sizeof(tmppath), basepath, ctx->sourcepath);
 		if (stat(tmppath, &statbuf)!=0)
 			continue;
 
@@ -958,7 +958,7 @@ static void *PKG_OpenSourceFile(struct pkgctx_s *ctx, struct file_s *file, size_
 
 	*fsize = 0;
 
-	QCC_Canonicalize(fullname, sizeof(fullname), file->name, ctx->sourcepath);
+	QCC_JoinPaths(fullname, sizeof(fullname), file->name, ctx->sourcepath);
 	strcpy(file->write.name, file->name);
 
 	//WIN32 FIXME: use the utf16 version because microsoft suck and don't allow utf-8
@@ -996,7 +996,7 @@ static void *PKG_OpenSourceFile(struct pkgctx_s *ctx, struct file_s *file, size_
 			//delete temp file...
 			fclose(f);
 
-			QCC_Canonicalize(tempname, sizeof(tempname), file->write.name, ctx->sourcepath);
+			QCC_JoinPaths(tempname, sizeof(tempname), file->write.name, ctx->sourcepath);
 			f = fopen(tempname, "rb");
 			if (f)
 			{
@@ -1702,7 +1702,7 @@ void Packager_ParseText(struct pkgctx_s *ctx, char *scripttext)
 			if (PKG_GetStringToken(ctx, cmd, sizeof(cmd)))
 			{
 				QC_strlcat(cmd, "/", sizeof(cmd));
-				QCC_Canonicalize(ctx->sourcepath, sizeof(ctx->sourcepath), cmd, old);
+				QCC_JoinPaths(ctx->sourcepath, sizeof(ctx->sourcepath), cmd, old);
 			}
 		}
 		else if (!strcmp(cmd, "rule"))

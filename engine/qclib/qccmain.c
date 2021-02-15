@@ -3304,7 +3304,7 @@ static void	QCC_PR_BeginCompilation (void *memory, int memsize)
 	type_integer = QCC_PR_NewType("__int", ev_integer, true);
 	type_uint = QCC_PR_NewType("__uint", ev_uint, true);
 	type_int64 = QCC_PR_NewType("__int64", ev_int64, true);
-	type_uint64 = QCC_PR_NewType("__uint64", ev_int64, true);
+	type_uint64 = QCC_PR_NewType("__uint64", ev_uint64, true);
 	type_variant = QCC_PR_NewType("__variant", ev_variant, true);
 
 	type_floatfield = QCC_PR_NewType("__fieldfloat", ev_field, false);

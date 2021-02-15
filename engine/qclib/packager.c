@@ -490,7 +490,7 @@ static void PKG_ParseOldPack(struct pkgctx_s *ctx)
 		char oldpack[MAX_OSPATH];
 		WIN32_FIND_DATA fd;
 		HANDLE h;
-		QCC_Canonicalize(oldpack, sizeof(oldpack), token, ctx->gamepath);
+		QCC_JoinPaths(oldpack, sizeof(oldpack), token, ctx->gamepath);
 		h = FindFirstFile(oldpack, &fd);
 		if (h == INVALID_HANDLE_VALUE)
 			ctx->messagecallback(ctx->userctx, "wildcard string '%s' found no files\n", token);
@@ -498,7 +498,7 @@ static void PKG_ParseOldPack(struct pkgctx_s *ctx)
 		{
 			do
 			{
-				QCC_Canonicalize(token, sizeof(token), fd.cFileName, oldpack);
+				QCC_JoinPaths(token, sizeof(token), fd.cFileName, oldpack);
 				PKG_AddOldPack(ctx, token);
 			} while(FindNextFile(h, &fd));
 		}
@@ -661,7 +661,7 @@ static void PKG_AddClassFiles(struct pkgctx_s *ctx, struct class_s *c, const cha
 	WIN32_FIND_DATA fd;
 	HANDLE h;
 	char basepath[MAX_PATH];
-	QCC_Canonicalize(basepath, sizeof(basepath), fname, ctx->sourcepath);
+	QCC_JoinPaths(basepath, sizeof(basepath), fname, ctx->sourcepath);
 	h = FindFirstFile(basepath, &fd);
 	if (h == INVALID_HANDLE_VALUE)
 		ctx->messagecallback(ctx->userctx, "wildcard string '%s' found no files\n", fname);
@@ -669,7 +669,7 @@ static void PKG_AddClassFiles(struct pkgctx_s *ctx, struct class_s *c, const cha
 	{
 		do
 		{
-			QCC_Canonicalize(basepath, sizeof(basepath), fd.cFileName, fname);
+			QCC_JoinPaths(basepath, sizeof(basepath), fd.cFileName, fname);
 			PKG_AddClassFile(ctx, c, basepath, filetime_to_timet(fd.ftLastWriteTime));
 		} while(FindNextFile(h, &fd));
 	}

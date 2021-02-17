@@ -2796,6 +2796,13 @@ static void QCC_PR_LexGrab (void)
 		;
 		QCC_PR_Lex ();
 	}
+	else if (!STRCMP (pr_token, "frame_reset"))
+	{	//for compat with qfcc. full reset of all frame macros.
+		QCC_PR_ClearGrabMacros(false);
+		while (QCC_PR_LexMacroName ())
+		;
+		QCC_PR_Lex ();
+	}
 	else if (!STRCMP (pr_token, "framevalue"))
 	{
 		QCC_PR_LexMacroName ();

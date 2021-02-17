@@ -5225,6 +5225,21 @@ QCC_sref_t QCC_PR_StatementFlags ( QCC_opcode_t *op, QCC_sref_t var_a, QCC_sref_
 		case OP_EQ_U:		var_a.cast = type_integer;	var_b.cast = type_integer;	var_c = QCC_PR_StatementFlags(&pr_opcodes[OP_EQ_I],		var_a, var_b, NULL, flags); var_c.cast = type_uint; return var_c;
 		case OP_NE_U:		var_a.cast = type_integer;	var_b.cast = type_integer;	var_c = QCC_PR_StatementFlags(&pr_opcodes[OP_NE_I],		var_a, var_b, NULL, flags); var_c.cast = type_uint; return var_c;
 
+		case OP_ADD_U64:		var_a.cast = type_int64;	var_b.cast = type_int64;	var_c = QCC_PR_StatementFlags(&pr_opcodes[OP_ADD_I64],		var_a, var_b, NULL, flags); var_c.cast = type_uint64; return var_c;
+		case OP_SUB_U64:		var_a.cast = type_int64;	var_b.cast = type_int64;	var_c = QCC_PR_StatementFlags(&pr_opcodes[OP_SUB_I64],		var_a, var_b, NULL, flags); var_c.cast = type_uint64; return var_c;
+		case OP_MUL_U64:		var_a.cast = type_int64;	var_b.cast = type_int64;	var_c = QCC_PR_StatementFlags(&pr_opcodes[OP_MUL_I64],		var_a, var_b, NULL, flags); var_c.cast = type_uint64; return var_c;
+//		case OP_MOD_U64:		var_a.cast = type_int64;	var_b.cast = type_int64;	var_c = QCC_PR_StatementFlags(&pr_opcodes[OP_MOD_I64],		var_a, var_b, NULL, flags); var_c.cast = type_uint64; return var_c;
+		case OP_BITAND_U64:		var_a.cast = type_int64;	var_b.cast = type_int64;	var_c = QCC_PR_StatementFlags(&pr_opcodes[OP_BITAND_I64],	var_a, var_b, NULL, flags); var_c.cast = type_uint64; return var_c;
+		case OP_BITOR_U64:		var_a.cast = type_int64;	var_b.cast = type_int64;	var_c = QCC_PR_StatementFlags(&pr_opcodes[OP_BITOR_I64],	var_a, var_b, NULL, flags); var_c.cast = type_uint64; return var_c;
+		case OP_BITXOR_U64:		var_a.cast = type_int64;	var_b.cast = type_int64;	var_c = QCC_PR_StatementFlags(&pr_opcodes[OP_BITXOR_I64],	var_a, var_b, NULL, flags); var_c.cast = type_uint64; return var_c;
+		case OP_BITNOT_U64:		var_a.cast = type_int64;	var_b.cast = type_int64;	var_c = QCC_PR_StatementFlags(&pr_opcodes[OP_BITNOT_I64],	var_a, var_b, NULL, flags); var_c.cast = type_uint64; return var_c;
+		case OP_BITCLR_U64:		var_a.cast = type_int64;	var_b.cast = type_int64;	var_c = QCC_PR_StatementFlags(&pr_opcodes[OP_BITCLR_I64],	var_a, var_b, NULL, flags); var_c.cast = type_uint64; return var_c;
+		case OP_LSHIFT_U64I:	var_a.cast = type_int64;	var_b.cast = type_int64;	var_c = QCC_PR_StatementFlags(&pr_opcodes[OP_LSHIFT_I64I],	var_a, var_b, NULL, flags); var_c.cast = type_uint64; return var_c;
+		case OP_GE_U64:			var_a.cast = type_int64;	var_b.cast = type_int64;	return  QCC_PR_StatementFlags(&pr_opcodes[OP_LT_U64],		var_b, var_a, NULL, flags);
+		case OP_GT_U64:			var_a.cast = type_int64;	var_b.cast = type_int64;	return  QCC_PR_StatementFlags(&pr_opcodes[OP_LE_U64],		var_b, var_a, NULL, flags);
+		case OP_EQ_U64:			var_a.cast = type_int64;	var_b.cast = type_int64;	var_c = QCC_PR_StatementFlags(&pr_opcodes[OP_EQ_I64],		var_a, var_b, NULL, flags); var_c.cast = type_uint64; return var_c;
+		case OP_NE_U64:			var_a.cast = type_int64;	var_b.cast = type_int64;	var_c = QCC_PR_StatementFlags(&pr_opcodes[OP_NE_I64],		var_a, var_b, NULL, flags); var_c.cast = type_uint64; return var_c;
+
 		case OP_STORE_I64:
 			var_c = var_b;
 			var_c.cast = type_integer;
@@ -5889,9 +5904,11 @@ noflags:
 					//case 'll':	//long long
 					case 'l': isfloat = 0; break;	//long
 					case 'L': isfloat = 0; break;	//long double
-					case 'j': break;	//[u]intmax_t
-					case 'z': break;	//size_t
-					case 't': break;	//ptrdiff_t
+					case 'j':	//[u]intmax_t
+					case 'z':	//size_t
+					case 't':	//ptrdiff_t
+						QCC_PR_ParseWarning(WARN_FORMATSTRING, "%s: length modifier %s%c%s is a placeholder", funcname, col_type, *s, col_none);
+						break;
 					default:
 						goto nolength;
 				}
@@ -5963,6 +5980,7 @@ nolength:
 						switch(ARGTYPE(thisarg))
 						{
 						case ev_integer:
+						case ev_uint:
 						case ev_variant:
 							break;
 						case ev_entity:	//accept ents ONLY for %i
@@ -17338,8 +17356,8 @@ QCC_type_t *QCC_PR_ParseEnum(pbool flags)
 {
 	const char *name = NULL;
 	QCC_sref_t		sref;
-	int next_i = flags?1:0;
-	float next_f = next_i;
+	unsigned longlong next_i = flags?1:0;
+	double next_f = next_i;
 	struct accessor_s *acc;
 	QCC_type_t *enumtype = NULL, *basetype;
 	pbool strictenum = false;
@@ -17374,9 +17392,6 @@ QCC_type_t *QCC_PR_ParseEnum(pbool flags)
 		}
 		QCC_PR_Expect("{");
 	}
-
-	if (flags && basetype->type != ev_float && basetype->type != ev_integer && basetype->type != ev_vector)
-		QCC_PR_ParseError(ERR_NOTATYPE, "enumflags - must be numeric type");
 
 	if (name)
 	{
@@ -17420,11 +17435,19 @@ QCC_type_t *QCC_PR_ParseEnum(pbool flags)
 				{
 					if (sref.cast->type == ev_float)
 						next_i = next_f = eval->_float;
+					else if (sref.cast->type == ev_double)
+						next_i = next_f = eval->_double;
 					else if (sref.cast->type == ev_integer)
-						next_f = next_i = eval->_int;
+						next_f = (int)(next_i = eval->_int);
+					else if (sref.cast->type == ev_uint)
+						next_f = next_i = eval->_uint;
+					else if (sref.cast->type == ev_int64)
+						next_f = (longlong)(next_i = eval->_int64);
+					else if (sref.cast->type == ev_uint64)
+						next_f = next_i = eval->_uint64;
 				}
 				else if (sref.sym)
-					QCC_PR_ParseError(ERR_NOTANUMBER, "enum - %s is not a constant", sref.sym->name);
+					QCC_PR_ParseError(ERR_NOTANUMBER, "enum - %s is not a compile-time constant", sref.sym->name);
 				else
 					QCC_PR_ParseError(ERR_NOTANUMBER, "enum - not a number");
 
@@ -17434,10 +17457,30 @@ QCC_type_t *QCC_PR_ParseEnum(pbool flags)
 					QCC_FreeTemp(sref);
 					sref = QCC_MakeIntConst(next_i);
 				}
+				else if (basetype->type==ev_uint)
+				{
+					QCC_FreeTemp(sref);
+					sref = QCC_MakeUIntConst(next_i);
+				}
+				else if (basetype->type==ev_int64)
+				{
+					QCC_FreeTemp(sref);
+					sref = QCC_MakeInt64Const(next_i);
+				}
+				else if (basetype->type==ev_uint64)
+				{
+					QCC_FreeTemp(sref);
+					sref = QCC_MakeUInt64Const(next_i);
+				}
 				else if (basetype->type==ev_float)
 				{
 					QCC_FreeTemp(sref);
-					sref = QCC_MakeFloatConst(next_i);
+					sref = QCC_MakeFloatConst(next_f);
+				}
+				else if (basetype->type==ev_double)
+				{
+					QCC_FreeTemp(sref);
+					sref = QCC_MakeDoubleConst(next_f);
 				}
 			}
 		}
@@ -17445,15 +17488,37 @@ QCC_type_t *QCC_PR_ParseEnum(pbool flags)
 		{
 			if (basetype->type==ev_integer)
 				sref = QCC_MakeIntConst(next_i);
+			else if (basetype->type==ev_uint)
+				sref = QCC_MakeUIntConst(next_i);
+			else if (basetype->type==ev_int64)
+				sref = QCC_MakeInt64Const(next_i);
+			else if (basetype->type==ev_uint64)
+				sref = QCC_MakeUInt64Const(next_i);
 			else if (basetype->type==ev_float)
 				sref = QCC_MakeFloatConst(next_f);
+			else if (basetype->type==ev_double)
+				sref = QCC_MakeDoubleConst(next_f);
 			else
 				QCC_PR_ParseError(ERR_NOTANUMBER, "values for enums of this type must be initialised");
 		}
 		if (flags)
 		{
 			int bits = 0;
-			unsigned int i = (basetype->type==ev_integer)?next_i:(int)next_f;
+			unsigned longlong i;
+			if (basetype->type == ev_float)
+				i = (longlong)next_f;
+			else if (basetype->type == ev_double)
+				i = (longlong)next_f;
+			else if (basetype->type == ev_integer)
+				i = (int)next_i;
+			else if (basetype->type == ev_uint)
+				i = (unsigned int)next_i;
+			else if (basetype->type == ev_int64)
+				i = (longlong)next_i;
+			else if (basetype->type == ev_uint64)
+				i = (unsigned longlong)next_i;
+			else
+				QCC_PR_ParseError(ERR_NOTATYPE, "enumflags - must be numeric type");
 			if (basetype->type!=ev_integer && (double)i != next_f)
 				QCC_PR_ParseWarning(WARN_ENUMFLAGS_NOTINTEGER, "enumflags - %f not an integer value", next_f);
 			else
@@ -17469,6 +17534,11 @@ QCC_type_t *QCC_PR_ParseEnum(pbool flags)
 			}
 		}
 
+		//value gets added to global pool too (but referable whenever not strict)
+		//we just generate an entirely new def (within the parent's pr_globals allocation). this also gives 'symbol was defined HERE' info.
+		sref.sym = QCC_PR_DummyDef(sref.cast, name, pr_scope, 0, sref.sym, sref.ofs, !strictenum, GDF_CONST|GDF_STRIP);
+		sref.sym->initialized = true;	//must be true for it to have been considered a compile-time constant.
+		sref.ofs = 0;
 		if (enumtype)
 		{
 			//generate enumname::valname symbol info
@@ -17487,16 +17557,12 @@ QCC_type_t *QCC_PR_ParseEnum(pbool flags)
 			acc->staticval = sref;
 			acc->staticval.cast = enumtype;
 		}
-		if (!strictenum)
-		{	//value gets added to global pool too (whenever not strict)
-			pHash_Add(&globalstable, name, sref.sym, qccHunkAlloc(sizeof(bucket_t)));
-		}
 		QCC_FreeTemp(sref);
 
 		if (flags)
 		{
 			next_f *= 2;
-			next_i *= 2;
+			next_i <<= 1;
 
 			if (!next_i)
 				next_f = next_i = 1;	//so you can start with an explicit =0 without needing an =1.

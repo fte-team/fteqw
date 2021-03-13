@@ -2590,7 +2590,7 @@ bool parseobj(stream *f)
 			}
 			case 'u':
 			{
-				if(!strncmp(c, "usemtl", 6)) continue;
+				if(strncmp(c, "usemtl", 6)) continue;
 				while(isalpha(*c)) c++;
 				while(isspace(*c)) c++;
 				char *name = c;
@@ -5732,7 +5732,7 @@ int main(int argc, char **argv)
 						break;
 				if(j == countof(outfiles))
 				{
-					for (j = countof(outfiles); j --> 0; )
+					for (j = countof(outfiles)-1; j > 0; j--)
 						if (type && !strcasecmp(type, outputtypes[j].extname))
 							break;
 					outfiles[j] = argv[i];	//first arg is the output name, if its not an export script thingie.

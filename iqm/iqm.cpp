@@ -133,6 +133,7 @@ struct filespec
 	int endframe;
 	meshprop meshprops;
 	const char *materialprefix;
+	bool ignoresurfname;
 	Quat rotate;
 	float scale;
 	Vec3 translate;
@@ -152,6 +153,7 @@ struct filespec
 		endframe = -1;
 		meshprops = meshprop();
 		materialprefix = NULL;
+		ignoresurfname = false;
 		rotate = Quat(0, 0, 0, 1);
 		scale = 1;
 		translate = Vec3(0,0,0);
@@ -1170,6 +1172,14 @@ void makemeshes(const filespec &spec)
 		}
 	}
 
+	if (spec.ignoresurfname)
+	{
+		loopv(emeshes)
+		{
+			emeshes[i].name = getnamekey("");
+		}
+	}
+
 	loopv(emeshes)
 	{
 		emesh &em1 = emeshes[i];
@@ -1195,7 +1205,6 @@ void makemeshes(const filespec &spec)
 		if(tinfo.empty()) continue;
 
 		mesh &m = meshes.add();
-		m.name = sharestring(em1.name);
 		if (spec.materialprefix)
 		{
 			char material[512];
@@ -1204,6 +1213,10 @@ void makemeshes(const filespec &spec)
 		}
 		else
 			m.material = sharestring(em1.material);
+		if (!em1.name)
+			m.name = sharestring(em1.material);
+		else
+			m.name = sharestring(em1.name);
 		m.firsttri = triangles.length();
 		m.firstvert = numfverts+vmap.length();
 		maketriangles(tinfo, mmap);
@@ -2557,13 +2570,78 @@ void parseobjvert(char *s, vector<Vec3> &out)
 	}
 }
 
+struct mtlinfo{
+	const char *name;
+	const char *tex;	//often null
+	Vec4 rgba;			//often 1,1,1,1
+	mtlinfo(const char *matname) : name(getnamekey(matname)), tex(NULL),rgba(Vec4(1,1,1,1)) {}
+};
+static vector<mtlinfo> parsemtl(stream *f)
+{
+	vector<mtlinfo> ret;
+	char buf[512];
+	mtlinfo dummy(""), *curmat = &dummy;
+
+	if (f)
+	while(f->getline(buf, sizeof(buf)))
+	{
+		char *c = buf;
+		while(isspace(*c)) c++;
+		if (*c == '#')
+			continue;
+		else if(!strncmp(c, "newmtl", 6) && isspace(c[6]))
+		{
+			while(isalpha(*c)) c++;
+			while(isspace(*c)) c++;
+			char *name = c;
+			size_t namelen = strlen(c);
+			while(namelen > 0 && isspace(name[namelen-1])) namelen--;
+			name[namelen] = 0;
+
+			curmat = &ret.add(mtlinfo(name));
+		}
+		else if(!strncmp(c, "Kd", 2) && isspace(c[2]))
+		{	//diffuse colours...
+			while(isalpha(*c)) c++;
+			while(isspace(*c)) c++;
+			loopi(3)
+			{
+				curmat->rgba[i] = strtod(c, &c);
+				while(isspace(*c)) c++;
+				if(!*c) break;
+			}
+		}
+		else if(!strncmp(c, "D", 1) && isspace(c[1]))
+		{	//'disolve', so basically alpha
+			while(isalpha(*c)) c++;
+			while(isspace(*c)) c++;
+			curmat->rgba[3] = strtod(c, &c);
+		}
+		else if(!strncmp(c, "map_Kd", 6) && isspace(c[6]))
+		{
+			while(isalpha(*c)) c++;
+			while(isspace(*c)) c++;
+			char *name = c;
+			size_t namelen = strlen(c);
+			while(namelen > 0 && isspace(name[namelen-1])) namelen--;
+			name[namelen] = 0;
+			curmat->tex = getnamekey(name);
+		}
+	}
+
+	return ret;
+}
+
 bool parseobj(stream *f)
 {
-	vector<Vec3> attrib[3];
+	vector<Vec3> attrib[3];	//coord, tangemt, normal.
 	char buf[512];
 	hashtable<objvert, int> verthash;
-	string meshname = "", matname = "";
+	string meshname = "", matname = "", tmpname="";
 	int curmesh = -1, smooth = 0;
+	Vec4 col = {1,1,1,1};
+
+	vector<mtlinfo> mtl;
 
 	while(f->getline(buf, sizeof(buf)))
 	{
@@ -2588,15 +2666,42 @@ bool parseobj(stream *f)
 				curmesh = -1;
 				break;
 			}
+			case 'm':
+			{
+				if(strncmp(c, "mtllib", 6)) continue;
+				while(isalpha(*c)) c++;
+				while(isspace(*c)) c++;
+				const char *name = c;
+				size_t namelen = strlen(name);
+				while(namelen > 0 && isspace(name[namelen-1])) namelen--;
+				copystring(tmpname, name, min(namelen+1, sizeof(tmpname)));
+				mtl = parsemtl(openfile(tmpname, "r"));
+				break;
+			}
 			case 'u':
 			{
 				if(strncmp(c, "usemtl", 6)) continue;
 				while(isalpha(*c)) c++;
 				while(isspace(*c)) c++;
-				char *name = c;
+				const char *name = c;
 				size_t namelen = strlen(name);
 				while(namelen > 0 && isspace(name[namelen-1])) namelen--;
 				copystring(matname, name, min(namelen+1, sizeof(matname)));
+				col = Vec4(1,1,1,1);
+
+				loopv(mtl)
+				{	//if its an obj material, swap out the vertex colour+mat name for whatever the mtl file specifies.
+					if (!strcmp(matname, mtl[i].name))
+					{
+						col = mtl[i].rgba;
+						const char *tex = mtl[i].tex;
+						if (!tex)
+							tex = (col[3] < 1)?"whiteskin#VC#BLEND":"whiteskin#VC";	//not me being racist or anything...
+						copystring(matname, tex, sizeof(matname));
+						break;
+					}
+				}
+
 				curmesh = -1;
 				break;
 			}
@@ -2651,6 +2756,7 @@ bool parseobj(stream *f)
 						epositions.add(Vec4(vkey.attrib[0] < 0 ? Vec3(0, 0, 0) : attrib[0][vkey.attrib[0]].zxy(), 1));
 						if(vkey.attrib[2] >= 0) enormals.add(attrib[2][vkey.attrib[2]].zxy());
 						etexcoords.add(vkey.attrib[1] < 0 ? Vec4(0, 0, 0, 0) : Vec4(attrib[1][vkey.attrib[1]].x, 1-attrib[1][vkey.attrib[1]].y, 0, 0));
+						ecolors.add(col);
 					}
 					if(v0 < 0) v0 = *index;
 					else if(v1 < 0) v1 = *index;
@@ -5444,6 +5550,8 @@ bool parseanimfield(const char *tok, char **line, filespec &spec, bool defaults)
 		spec.noanim = !!strtoul(mystrtok(line), NULL, 0);
 	else if (!strcasecmp(tok, "materialprefix"))
 		spec.materialprefix = newstring(mystrtok(line));
+	else if (!strcasecmp(tok, "ignoresurfname"))
+		spec.ignoresurfname = atoi(mystrtok(line));
 	else if(!strcasecmp(tok, "start"))
 		spec.startframe = max(atoi(mystrtok(line)), 0);
 	else if(!strcasecmp(tok, "end"))
@@ -5687,6 +5795,7 @@ int main(int argc, char **argv)
 				else if(!strcasecmp(&argv[i][2], "start")) { if(i + 1 < argc) inspec.startframe = max(atoi(argv[++i]), 0); }
 				else if(!strcasecmp(&argv[i][2], "end")) { if(i + 1 < argc) inspec.endframe = atoi(argv[++i]); }
 				else if(!strcasecmp(&argv[i][2], "scale")) { if(i + 1 < argc) inspec.scale = clamp(atof(argv[++i]), 1e-8, 1e8); }
+				else if(!strcasecmp(&argv[i][2], "ignoresurfname")) inspec.ignoresurfname = true;
 				else if(!strcasecmp(&argv[i][2], "help")) help();
 				else if(!strcasecmp(&argv[i][2], "forcejoints")) forcejoints = true;
 				else if(!strcasecmp(&argv[i][2], "meshtrans"))
@@ -5753,8 +5862,8 @@ int main(int argc, char **argv)
 	{
 		if (outfiles[0])
 		{
-			inspec.reset();
 			infiles.add(inspec).file = outfiles[0];
+			inspec.reset();
 			outfiles[0] = NULL;
 		}
 		else

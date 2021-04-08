@@ -6,7 +6,17 @@ static string newgameinfo;
 nonstatic void(mitem_desktop desktop) M_Dir =
 {	//implementing this primarily so its available in QSS. :P
 	string path = argv(1);
-	searchhandle h = search_begin(path, SB_FULLPACKAGEPATH, 0);
+	string pack = argv(2);
+	searchhandle h;
+	if (path == "")
+	{
+		print("m_dir <FILEPATH> [PACKAGE]\n");
+		return;
+	}
+	if (pack != "")
+		h = search_begin(path, SB_FULLPACKAGEPATH|SB_FORCESEARCH|16, 0, argv(2));
+	else
+		h = search_begin(path, SB_FULLPACKAGEPATH|16|32, 0);
 	print(sprintf("Directory listing of %S (%g files)\n", path, search_getsize(h)));
 	for (float i = 0; i < search_getsize(h); i++)
 	{
@@ -32,68 +42,67 @@ nonstatic void(mitem_desktop desktop) M_Dir =
 #define FOURCC(a,b,c,d) ((int)(a)<<0i)|((int)(b)<<8i)|((int)(c)<<16i)|((int)(d)<<24i)
 static string(string name) getmapdesc =
 {
-	filestream f;
-	if (!checkbuiltin(fread) || !checkbuiltin(fseek) || !checkbuiltin(memalloc) || !checkbuiltin(memgetval))
-		return "";	//we can't do that in this engine... don't show anything, because its pointless showing the same thing twice.
-	else
+	if (checkbuiltin(fread) && checkbuiltin(fseek) && checkbuiltin(memalloc) && checkbuiltin(memfree) && checkbuiltin(memgetval) && checkbuiltin(itof) && checkbuiltin(ftoi))
 	{	//we can do it, so do it.
-		f = fopen(name, FILE_READ);
+		filestream f = fopen(name, FILE_READ);
 		if (f < 0)
 			print(sprintf("Unable to read %s\n", name));
-	}
-	name = substring(name, 5, -5);
-	if (f < 0)
-		return name;
+		
+		name = substring(name, 5, -5);
+		if (f < 0)
+			return name;
 
-	int *header = memalloc(sizeof(int)*4);
-	int bspver = 0, entofs, entlen;
-	if (fread(f, (void*)header, sizeof(int)*4) == sizeof(int)*4 && ((bspver=header[0]),(
-		bspver == FOURCC('I','B','S','P') ||	//IBSP (q2/q3)
-		bspver == FOURCC('R','B','S','P') ||	//RBSP (jk2o etc)
-		bspver == FOURCC('F','B','S','P') ||	//IBSP (qfusion/warsow)
-		bspver == 29i ||	//q1
-		bspver == 30i ||	//hl
-		bspver == FOURCC('B','S','P','2'))))	//bsp2
-	{
-		if (bspver == FOURCC('I','B','S','P'))
-		{	//has an actual version number! ooo...
-			entofs = header[2];
-			entlen = header[3];
-		}
-		else
+		int *header = memalloc(sizeof(int)*4);
+		int bspver = 0, entofs, entlen;
+		if (fread(f, (void*)header, sizeof(int)*4) == sizeof(int)*4 && ((bspver=header[0]),(
+			bspver == FOURCC('I','B','S','P') ||	//IBSP (q2/q3)
+			bspver == FOURCC('R','B','S','P') ||	//RBSP (jk2o etc)
+			bspver == FOURCC('F','B','S','P') ||	//IBSP (qfusion/warsow)
+			bspver == 29i ||	//q1
+			bspver == 30i ||	//hl
+			bspver == FOURCC('B','S','P','2'))))	//bsp2
 		{
-			entofs = header[1];
-			entlen = header[2];
-		}
-		fseek(f, entofs);
-		string s = (string)memalloc(entlen+1);
-		fread(f, (void*)s, entlen);
-		float argc = tokenize(s);
-		if (argv(0) == "{")
-		{
-			for (float p = 1; p < argc; p+=2)
-			{
-				string t = argv(p);
-				if (t == "message")
-				{	//finally found the human-readable name of the map. woo.
-					name = argv(p+1);
-					break;
-				}
-				if (t == "}")	//don't read the message from some kind of trigger
-					break;
-				if (t == "{")	//some sort of corruption
-					break;
+			if (bspver == FOURCC('I','B','S','P'))
+			{	//has an actual version number! ooo...
+				entofs = header[2];
+				entlen = header[3];
 			}
+			else
+			{
+				entofs = header[1];
+				entlen = header[2];
+			}
+			fseek(f, entofs);
+			string s = (string)memalloc(entlen+1);
+			fread(f, (void*)s, entlen);
+			float argc = tokenize(s);
+			if (argv(0) == "{")
+			{
+				for (float p = 1; p < argc; p+=2)
+				{
+					string t = argv(p);
+					if (t == "message")
+					{	//finally found the human-readable name of the map. woo.
+						name = argv(p+1);
+						break;
+					}
+					if (t == "}")	//don't read the message from some kind of trigger
+						break;
+					if (t == "{")	//some sort of corruption
+						break;
+				}
+			}
+			else
+				name = "ERROR";
+			memfree((void*)s);
 		}
 		else
-			name = "ERROR";
-		memfree((void*)s);
+			name = sprintf("UNSUPPORTED %i", bspver);
+		memfree(header);
+		fclose(f);
+		return name;
 	}
-	else
-		name = sprintf("UNSUPPORTED %i", bspver);
-	memfree(header);
-	fclose(f);
-	return name;
+	return "";	//we can't do that in this engine... don't show anything, because its pointless showing the same thing twice.
 };
 
 static string(string name) packagetogamedir =

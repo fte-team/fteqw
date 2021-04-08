@@ -1,13 +1,10 @@
 #pragma progs_dat "../menu.dat"
 
-
-#pragma target fte
-
+//#pragma target fte
 #define MENU					//select the module
+#include "fteextensions.qc"		//also sets up system defs
 
 #includelist
-fteextensions.qc				//also sets up system defs
-
 menusys/mitems.qc				//root item type
 menusys/mitems_common.qc		//basic types
 menusys/mitem_desktop.qc		//other sort of root item

@@ -31,6 +31,7 @@ void() mitem_desktop::mitem_desktop =
 #define menu_font_fallback	autocvar(gl_font, "")
 	queryscreensize();
 
+	__using(loadfont, drawfont)
 	if (checkextension("DP_GFX_FONTS"))
 	{
 		//make sure we have a font that can cope with slightly up-scaled stuff.
@@ -127,8 +128,11 @@ float(vector pos, float scan, float char, float down) mitem_desktop::item_keypre
 	if (scan == K_MOUSE1 && down)
 	{
 #if defined(CSQC) && defined(FTE_SPLITSCREEN)
-		if (numclientseats)
-			localcmd("in_forcesplitclient 0\n");
+		__using(numclientseats)
+		{
+			if (numclientseats)
+				cvar_set("in_forceseat", "0");	//disable it.
+		}
 #endif
 		if (item_flags & IF_NOCURSOR)
 		{
@@ -140,12 +144,15 @@ float(vector pos, float scan, float char, float down) mitem_desktop::item_keypre
 	if (scan == K_MOUSE2 && down)
 	{
 #if defined(CSQC) && defined(FTE_SPLITSCREEN)
-		if (numclientseats > 3)
-			localcmd(strcat("in_forcesplitclient ", ftos(1 + ((ui.mousepos[0]>ui.screensize[0]/2)?1:0) + ((ui.mousepos[1]>ui.screensize[1]/2)?2:0)), "\n"));
-		else if (numclientseats > 1)
-			localcmd(strcat("in_forcesplitclient ", ftos(1 + floor(ui.mousepos[1]*numclientseats/ui.screensize[1])), "\n"));
-		else if (numclientseats)
-			localcmd("in_forcesplitclient 0\n");
+		__using(numclientseats)
+		{
+			if (numclientseats > 3)
+				cvar_set("in_forceseat", ftos(1 + ((ui.mousepos[0]>ui.screensize[0]/2)?1:0) + ((ui.mousepos[1]>ui.screensize[1]/2)?2:0)));
+			else if (numclientseats > 1)
+				cvar_set("in_forceseat", ftos(1 + floor(ui.mousepos[1]*numclientseats/ui.screensize[1])));
+			else if (numclientseats)
+				cvar_set("in_forceseat", "0");	//disable it.
+		}
 #endif
 		if (item_flags & IF_NOCURSOR)
 		{
@@ -185,7 +192,7 @@ void(float seat, vector minpos, vector size) mitem_desktop::drawgame_helper =
 		clearscene();
 		addentities(MASK_ENGINE|MASK_VIEWMODEL);
 	}
-	else
+	else __using(VF_VIEWENTITY, VF_LPLAYER)
 	{
 		setviewprop(VF_LPLAYER, seat);
 		setproperty(VF_VIEWENTITY, player_localentnum);	
@@ -220,6 +227,7 @@ void(vector pos) mitem_desktop::item_draw =
 	else if (this.drawgame != __NULL__)
 	{
 #ifdef FTE_SPLITSCREEN
+		__using numclientseats, VF_LPLAYER;
 		if (numclientseats > 3)
 		{
 			drawgame_helper(0, [0, 0], 0.5*ui.screensize);

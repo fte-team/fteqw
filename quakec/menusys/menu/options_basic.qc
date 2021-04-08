@@ -2,7 +2,7 @@ class mitem_playerpreview : mitem_spinnymodel
 {
 	virtual void(vector pos) item_draw =
 	{
-		if (checkbuiltin2(setcustomskin, FALSE))
+		if (checkbuiltin(setcustomskin))
 		{
 			//if you wanted to get more advanced, you could use q3 skins here.
 			if (cvar("noskins")==1)

@@ -6,8 +6,7 @@
 #define CSQC		//select the module
 #ifdef CSQC_SIMPLE
 	#include "qsextensions.qc"		//also sets up system defs
-#undef CSQC_SIMPLE
-	#include "fteextensions.qc"		//extra stuff...
+	#include "fteextensions.qc"		//extra stuff
 #else
 	#include "fteextensions.qc"		//also sets up system defs
 #endif

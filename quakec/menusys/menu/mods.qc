@@ -31,6 +31,8 @@ void(mitem_desktop desktop) M_Menu_Mods =
 	float mod;
 	for (mod = 0; ; mod++)
 	{
+		__using GGDI_DESCRIPTION, GGDI_LOADCOMMAND, GGDI_ICON;
+
 		string gamedir = getgamedirinfo(mod, GGDI_GAMEDIR);
 		if not(gamedir)
 			break;

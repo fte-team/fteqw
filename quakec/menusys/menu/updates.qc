@@ -1,6 +1,6 @@
 #include "../menusys/mitem_grid.qc"
 
-enum
+enum : int
 {
 	GPMI_NAME,		//name of the package, for use with the pkg command.
 	GPMI_CATEGORY,		//category text
@@ -20,6 +20,7 @@ class mitem_updategrid : mitem_grid
 {
 	virtual void(vector pos) item_draw =
 	{	//make sure we see any updates as they're detected...
+		__using getpackagemanagerinfo, ftoi;
 		if (getpackagemanagerinfo(grid_numchildren, GPMI_NAME))
 		{
 			grid_numchildren++;
@@ -35,6 +36,7 @@ class mitem_updategrid : mitem_grid
 };
 void(vector pos, float idx) mitem_updategrid::grid_draw =
 {
+	__using getpackagemanagerinfo, ftoi;
 	string text = getpackagemanagerinfo(idx, GPMI_TITLE);
 
 	vector col = item_rgb;
@@ -88,6 +90,7 @@ void(vector pos, float idx) mitem_updategrid::grid_draw =
 };
 */float(vector pos, float scan, float char, float down, float idx) mitem_updategrid::grid_keypress =
 {
+	__using getpackagemanagerinfo, ftoi;
 	string text;
 	if (!down)
 		return FALSE;
@@ -136,6 +139,7 @@ class menu_updates : mitem_exmenu
 
 	virtual string(string key) get =
 	{
+		__using getpackagemanagerinfo, ftoi;
 		if (key == "info")
 		{
 			string text=__NULL__, tmp;
@@ -156,6 +160,9 @@ void(mitem_desktop desktop) M_Menu_Updates =
 {
 	mitem it;
 	float h = (480+240)/2;
+
+	if (!checkbuiltin(getpackagemanagerinfo))
+		return;	//not supported in this engine...
 
 	localcmd("pkg update\n");
 

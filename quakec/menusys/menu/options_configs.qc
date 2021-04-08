@@ -7,7 +7,7 @@ no background tint, so the game is still visible so you can preview it.
 
 nonstatic void(mitem_desktop desktop) M_Configs =
 {
-	local float i;
+	float i;
 	mitem_exmenu m;
 	m = spawn(mitem_exmenu, item_text:_("Game Presets / Configs"), item_flags:IF_SELECTABLE, item_command:"m_options");
 	desktop.add(m, RS_X_MIN_PARENT_MIN|RS_Y_MIN_PARENT_MIN | RS_X_MAX_PARENT_MAX|RS_Y_MAX_PARENT_MAX, '0 0', '0 0');
@@ -28,18 +28,22 @@ nonstatic void(mitem_desktop desktop) M_Configs =
 
 
 	float fs, y=0;
+	float c = 0;
 	fs = search_begin("configs/game_*.cfg", TRUE, TRUE);	
-	float c = search_getsize(fs);
-	for (i = 0; i < c; i++)
+	if (fs >= 0)
 	{
-		string fname = search_getfilename(fs, i);
-		string iname = strzone(substring(fname, 13, -5));
-		string dname = GetFirstLineComment(fname, iname);
-		iname = sprintf("exec \"%s\"", fname);
-		if (dname && !fr.findchildcmd(iname))
-			fr.add(spawn(mitem_text, item_text:dname, item_command:iname, item_scale:16, item_flags:IF_CENTERALIGN), RS_X_MIN_PARENT_MIN|RS_Y_MIN_PARENT_MIN | RS_X_MAX_PARENT_MAX|RS_Y_MAX_OWN_MIN, [0, y+=16], '100 16');
+		c = search_getsize(fs);
+		for (i = 0; i < c; i++)
+		{
+			string fname = search_getfilename(fs, i);
+			string iname = strzone(substring(fname, 13, -5));
+			string dname = GetFirstLineComment(fname, iname);
+			iname = sprintf("exec \"%s\"", fname);
+			if (dname && !fr.findchildcmd(iname))
+				fr.add(spawn(mitem_text, item_text:dname, item_command:iname, item_scale:16, item_flags:IF_CENTERALIGN), RS_X_MIN_PARENT_MIN|RS_Y_MIN_PARENT_MIN | RS_X_MAX_PARENT_MAX|RS_Y_MAX_OWN_MIN, [0, y+=16], '100 16');
+		}
+		search_end(fs);	
 	}
-	search_end(fs);	
 	if (c <= 0)
 		fr.add(spawn(mitem_text, item_text:"No configs found", item_scale:16, item_flags:IF_CENTERALIGN), RS_X_MIN_PARENT_MIN|RS_Y_MIN_PARENT_MIN | RS_X_MAX_PARENT_MAX|RS_Y_MAX_OWN_MIN, [0, y], '100 16');
 

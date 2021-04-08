@@ -6,6 +6,7 @@ nonstatic void(mitem_desktop desktop) M_Quit =
 {
 	local float pos;
 	mitem_exmenu m;
+	float unsaved = FALSE;
 	m = spawn(mitem_exmenu, item_text:_("Options"), item_flags:IF_SELECTABLE, item_command:"m_main");
 	desktop.add(m, RS_X_MIN_PARENT_MIN|RS_Y_MIN_PARENT_MIN | RS_X_MAX_PARENT_MAX|RS_Y_MAX_PARENT_MAX, '0 0', '0 0');
 	desktop.item_focuschange(m, IF_KFOCUSED);
@@ -18,7 +19,9 @@ nonstatic void(mitem_desktop desktop) M_Quit =
 //	mitem_pic banner = spawn(mitem_pic, item_text:"gfx/p_option.lmp", item_size_y:24, item_flags:IF_CENTERALIGN);
 //	m.add(banner, RS_X_MIN_PARENT_MID|RS_Y_MIN_PARENT_MID | RS_X_MAX_PARENT_MID|RS_Y_MAX_PARENT_MID, [(-160-banner.item_size_x)*0.5, pos-32], [(-160+banner.item_size_x)*0.5, pos-8]);
 
-	if (cvars_haveunsaved())
+	if (checkbuiltin(cvars_haveunsaved))
+		unsaved = cvars_haveunsaved();	//engines that don't have this are assumed to always save regardless. Which makes prompting for it irrelevant. The all-saved text ignores saving entirely so it still makes sense.
+	if (unsaved)
 	{
 		m.add(spawn(mitem_text, item_text:"Save configuration?", item_scale:16, item_flags:IF_CENTERALIGN), RS_X_MIN_PARENT_MID|RS_Y_MIN_PARENT_MID | RS_X_MAX_PARENT_MID|RS_Y_MAX_PARENT_MID, [-160, pos-(8+16)], [0, pos-8]);	pos += 16;
 

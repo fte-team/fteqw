@@ -67,10 +67,18 @@ class mitem_spinnymodel : mitem
 	//it might end up clobbering any fields used for multiple things...
 	virtual void(vector pos) item_draw =
 	{
+#ifndef CSQC
+		if (!checkbuiltin(clearscene) || !checkbuiltin(setviewprop) || !checkbuiltin(addentity) || !checkbuiltin(renderscene))
+		{
+			drawstring(pos, "Renderscene unsupported", [8,8], [1,1,1],1,0);
+			return;
+		}
+		__using VF_ORIGIN, VF_ANGLES, VF_MIN, VF_SIZE, VF_FOV, VF_AFOV;
+#endif
 		vector orgbias;
 		orgbias = '0 0 0';
 		if (dp_workarounds)
-			orgbias = (vector)getviewprop(VF_ORIGIN);	//DP still lights the entity even if the world isn't drawn. this results in inconsistant/buggy light levels. there's nothing we can do about that other than stopping it from being completely black.
+			__using(getviewprop) orgbias = (vector)getviewprop(VF_ORIGIN);	//DP still lights the entity even if the world isn't drawn. this results in inconsistant/buggy light levels. there's nothing we can do about that other than stopping it from being completely black.
 		origin = orgbias;
 		origin_z += zbias;
 	
@@ -137,8 +145,13 @@ class mitem_spinnymodel : mitem
 //			return;
 		}
 
-		precache_model(item_text);
-		setmodel(this, item_text);	//use the size information from the engine, woo for unreliability.
+#ifndef CSQC
+		if (checkbuiltin(precache_model) && checkbuiltin(setmodel))
+		{
+			precache_model(item_text);
+			setmodel(this, item_text);	//use the size information from the engine, woo for unreliability.
+		}
+#endif
 		zbias += (mins_z - maxs_z)/2 - mins_z; //center the model on its z axis, so the whole thing is visible.
 		frame = firstframe;
 		if (!angles_y && !rotatespeed)

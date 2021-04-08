@@ -171,7 +171,13 @@ class mitem_label : mitem
 		if (ui.drawrectmax[0] > ui.drawrectmin[0] && ui.drawrectmax[1] > ui.drawrectmin[1])
 		{
 			ui.setcliparea(ui.drawrectmin[0], ui.drawrectmin[1], ui.drawrectmax[0] - ui.drawrectmin[0], ui.drawrectmax[1] - ui.drawrectmin[1]);
-			clientsize[1] = drawtextfield(textpos, clientsize, fl, text) * item_scale;
+			if (checkbuiltin(drawtextfield))
+				clientsize[1] = drawtextfield(textpos, clientsize, fl, text) * item_scale;
+			else
+			{
+				drawstring(textpos, text, [8,8], [1,1,1],1,0);
+				clientsize[1] = 8;
+			}
 			ui.setcliparea(omin_x, omin_y, omax_x - omin_x, omax_y - omin_y);
 
 			if (vslider)

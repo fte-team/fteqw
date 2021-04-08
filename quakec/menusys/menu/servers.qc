@@ -27,7 +27,7 @@ var float autocvar_sb_showname = 1;
 #define COLUMN_FRAGLIMIT		COLUMN(4*8,	fraglimit,		"FL",			ui.drawstring(pos, sprintf("%-3g", gethostcachenumber(field_fraglimit, sv)), '8 8', col, 1, 0);)
 #define COLUMN_TIMELIMIT		COLUMN(4*8,	timelimit,		"TL",			ui.drawstring(pos, sprintf("%-3g", gethostcachenumber(field_timelimit, sv)), '8 8', col, 1, 0);)
 #define COLUMN_GAMEDIR		COLUMN(8*8,	gamedir,		"Gamedir",	ui.drawstring(pos, sprintf("%-.8s", gethostcachestring(field_gamedir, sv)), '8 8', col, 1, 0);)
-#define COLUMN_ADDRESS		COLUMN(16*8,	address,		"Address",		ui.drawstring(pos, sprintf("%-.16s", gethostcachestring(field_address, sv)), '8 8', col, 1, 0);)
+#define COLUMN_ADDRESS		COLUMN(21*8,	address,		"Address",		ui.drawstring(pos, sprintf("%-.21s", gethostcachestring(field_address, sv)), '8 8', col, 1, 0);)
 #define COLUMN_MAP			COLUMN(8*8,	map,			"Map",		ui.drawstring(pos, sprintf("%-.8s", gethostcachestring(field_map, sv)), '8 8', col, 1, 0);)
 #define COLUMN_HOSTNAME		COLUMN(64*8,	name,		"Name",		ui.drawstring(pos, sprintf("%s", gethostcachestring(field_name, sv)), '8 8', col, 1, 0);)
 //FIXME: add a little * icon before the hostname for favourites or something
@@ -149,6 +149,20 @@ class mitem_servers : mitem
 	
 		ui.setcliparea(omin_x, omin_y, omax_x - omin_x, omax_y - omin_y);
 	};
+	static string() getgamedircmd =
+	{	//sadly the vanilla NQ network protocol gave clients no idea which gamedir the server is actually using.
+		//many extended protocols still lack that info, so be sure to try to switch according to the server browser's gamedir info, because its more robust than not even trying.
+		float field_gamedir = gethostcacheindexforkey("gamedir");
+		if (field_gamedir < 0)
+			field_gamedir = gethostcacheindexforkey("mod");
+		if (field_gamedir < 0)
+			return "";	//erk. dodgy engine?
+
+		string gd = gethostcachestring(field_gamedir, server_selected);
+		if (strstrofs(gd, "\"")>=0 || strstrofs(gd, "\n")>=0 || strstrofs(gd, "\r")>=0)
+			return "";	//no, just no. trust the engine to reject bad paths, we're just preventing cbuf corruption here (DP doesn't support "%S").
+		return sprintf("gamedir \"%s\";", gd);
+	};
 	virtual float(vector pos, float scan, float char, float down) item_keypress =
 	{
 		float displaysize;
@@ -195,7 +209,7 @@ class mitem_servers : mitem
 				//connect on double clicks. because we can.
 				addr = gethostcachestring(gethostcacheindexforkey("cname"), server_selected);
 				if (addr)
-					localcmd(sprintf("m_pop;connect \"%s\"\n", addr));
+					localcmd(sprintf("m_pop;%sconnect \"%s\"\n", getgamedircmd(), addr));
 			}
 			else
 				server_selected = news;
@@ -207,19 +221,19 @@ class mitem_servers : mitem
 		{	//connect normally
 			addr = gethostcachestring(gethostcacheindexforkey("cname"), server_selected);
 			if (addr)
-				localcmd(sprintf("m_pop;connect \"%s\"\n", addr));
+				localcmd(sprintf("m_pop;%sconnect \"%s\"\n", getgamedircmd(), addr));
 		}
 		else if (scan == 's')
 		{	//s = join as a spectator
 			addr = gethostcachestring(gethostcacheindexforkey("cname"), server_selected);
 			if (addr)
-				localcmd(sprintf("m_pop;observe \"%s\"\n", addr));
+				localcmd(sprintf("m_pop;%sobserve \"%s\"\n", getgamedircmd(), addr));
 		}
 		else if (scan == 'j')
 		{	//s = join as a spectator
 			addr = gethostcachestring(gethostcacheindexforkey("cname"), server_selected);
 			if (addr)
-				localcmd(sprintf("m_pop;join \"%s\"\n", addr));
+				localcmd(sprintf("m_pop;%sjoin \"%s\"\n", getgamedircmd(), addr));
 		}
 		else if (scan == K_UPARROW || scan == K_MWHEELUP)
 		{
@@ -303,7 +317,10 @@ class mitem_servers_players : mitem
 			return;
 		for (player = 0, y = 0; player < 256; player++)
 		{
-			string playerinfo = gethostcachestring(gethostcacheindexforkey(sprintf("player%g", player)), listing.server_selected);
+			float key = gethostcacheindexforkey(sprintf("player%g", player));
+			if (key < 0)
+				break;	//probably DP. this isn't going to work for us.
+			string playerinfo = gethostcachestring(key, listing.server_selected);
 			if (!playerinfo)
 				break;
 			tokenize(playerinfo);
@@ -335,19 +352,23 @@ class mitem_servers_players : mitem
 			pos_x += 16*6;
 			y = 0;
 		}
-//		drawtextfield(opos, item_size, 3, gethostcachestring(gethostcacheindexforkey("serverinfo"), listing.server_selected));
-		m = tokenizebyseparator(gethostcachestring(gethostcacheindexforkey("serverinfo"), listing.server_selected), "\\");
-		for(player = 1; player <= m; player += 2)
+
+		if (checkbuiltin(drawtextfield))
 		{
-			drawtextfield(pos,		'64 8', 6, argv(player));
-			drawtextfield(pos+'68 0',	[32*8-40, 8], 3, argv(player+1));
-	
-			pos_y += 8;
-			if (++y == 8)
+//			drawtextfield(opos, item_size, 3, gethostcachestring(gethostcacheindexforkey("serverinfo"), listing.server_selected));
+			m = tokenizebyseparator(gethostcachestring(gethostcacheindexforkey("serverinfo"), listing.server_selected), "\\");
+			for(player = 1; player <= m; player += 2)
 			{
-				y-= 8;
-				pos_y -= 8*8;
-				pos_x += 32*8;
+				drawtextfield(pos,		'64 8', 6, argv(player));
+				drawtextfield(pos+'68 0',	[32*8-40, 8], 3, argv(player+1));
+		
+				pos_y += 8;
+				if (++y == 8)
+				{
+					y-= 8;
+					pos_y -= 8*8;
+					pos_x += 32*8;
+				}
 			}
 		}
 	};

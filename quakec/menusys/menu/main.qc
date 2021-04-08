@@ -53,6 +53,7 @@ helper functions to avoid blowing up in older clients.
 #endif
 float(string cmd, float assumption) checkcommand2 =
 {
+	__using checkcommand;
 	if (!checkextension("FTE_QC_CHECKCOMMAND"))
 		return assumption;
 	return checkcommand(cmd);
@@ -63,6 +64,7 @@ float(__variant cmd, float assumption) checkbuiltin2 =
 		return assumption;
 	return checkbuiltin(cmd);
 };
+#define checkbuiltin2(c,a) ((a)?checkbuiltin2(c,a):checkbuiltin(c))
 
 #ifdef CSQC
 float() clientstate =

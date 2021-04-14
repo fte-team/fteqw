@@ -467,9 +467,11 @@ showhelp:
 
 			// print cvar name
 			if (!cmd->defaultstr || !strcmp(cmd->string, cmd->defaultstr))
-				Con_Printf(S_COLOR_GREEN "%s", cmd->name);
+				Con_Printf(S_COLOR_GREEN "%s", cmd->name);	//cvar has default value, woo.
+			else if (cmd->flags & CVAR_ARCHIVE)
+				Con_Printf(S_COLOR_RED "%s", cmd->name);	//cvar will persist. oh noes.
 			else
-				Con_Printf(S_COLOR_RED "%s", cmd->name);
+				Con_Printf(S_COLOR_YELLOW "%s", cmd->name);	//cvar is changed, but won't be saved to a config so w/e.
 			total++;
 
 			// print current value

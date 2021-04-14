@@ -23,7 +23,8 @@ BUILD_WEB=y
 PLUGINS_LINUXx86="qi ezhud xmpp irc"
 PLUGINS_LINUXx64="qi ezhud xmpp irc"
 PLUGINS_LINUXx32="qi ezhud xmpp irc"
-PLUGINS_WINDOWS="avplug ode qi ezhud xmpp irc"
+PLUGINS_WIN32="avplug ode qi ezhud xmpp irc"
+PLUGINS_WIN64="avplug ode qi ezhud xmpp irc"
 THREADS="-j 4"
 
 TARGETS_LINUX="qcc-rel rel dbg vk-rel plugins-rel plugins-dbg"
@@ -218,14 +219,14 @@ if [ "$BUILD_CYGWIN" != "n" ]; then
 	NATIVE_PLUGINS="qi ezhud" build "Cygwin" cygwin qcc-rel rel dbg plugins-rel plugins-dbg
 fi
 if [ "$BUILD_WIN32" != "n" ]; then
-	NATIVE_PLUGINS="$PLUGINS_WINDOWS" build "Windows 32-bit" win32 FTE_TARGET=win32 CFLAGS="$WARNINGLEVEL" $TARGETS_WINDOWS
+	NATIVE_PLUGINS="$PLUGINS_WIN32" build "Windows 32-bit" win32 FTE_TARGET=win32 CFLAGS="$WARNINGLEVEL" $TARGETS_WINDOWS
 fi
 if [ "$BUILD_WIN64" != "n" ]; then
-	NATIVE_PLUGINS="$PLUGINS_WINDOWS" build "Windows 64-bit" win64 FTE_TARGET=win64 CFLAGS="$WARNINGLEVEL" $TARGETS_WINDOWS
+	NATIVE_PLUGINS="$PLUGINS_WIN64" build "Windows 64-bit" win64 FTE_TARGET=win64 CFLAGS="$WARNINGLEVEL" $TARGETS_WINDOWS
 fi
 if [ "$BUILD_MSVC" != "n" ]; then
-	NATIVE_PLUGINS="$PLUGINS_WINDOWS" build "Windows MSVC 32-bit" msvc FTE_TARGET=vc BITS=32 CFLAGS="$WARNINGLEVEL" sv-rel gl-rel vk-rel mingl-rel m-rel d3d-rel qcc-rel qccgui-scintilla qccgui-dbg gl-dbg sv-dbg plugins-dbg plugins-rel
-	NATIVE_PLUGINS="$PLUGINS_WINDOWS" build "Windows MSVC 64-bit" msvc FTE_TARGET=vc BITS=64 CFLAGS="$WARNINGLEVEL" sv-rel gl-rel vk-rel mingl-rel m-rel d3d-rel qcc-rel qccgui-scintilla qccgui-dbg gl-dbg sv-dbg plugins-dbg plugins-rel
+	NATIVE_PLUGINS="$PLUGINS_WIN32" build "Windows MSVC 32-bit" msvc FTE_TARGET=vc BITS=32 CFLAGS="$WARNINGLEVEL" sv-rel gl-rel vk-rel mingl-rel m-rel d3d-rel qcc-rel qccgui-scintilla qccgui-dbg gl-dbg sv-dbg plugins-dbg plugins-rel
+	NATIVE_PLUGINS="$PLUGINS_WIN64" build "Windows MSVC 64-bit" msvc FTE_TARGET=vc BITS=64 CFLAGS="$WARNINGLEVEL" sv-rel gl-rel vk-rel mingl-rel m-rel d3d-rel qcc-rel qccgui-scintilla qccgui-dbg gl-dbg sv-dbg plugins-dbg plugins-rel
 fi
 export NATIVE_PLUGINS="qi ezhud xmpp irc"
 if [ "$BUILD_ANDROID" != "n" ]; then

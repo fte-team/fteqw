@@ -1309,7 +1309,7 @@ void M_Menu_Preset_f (void)
 		MB_CONSOLECMDRETURN("^7normal    (faithful)",	"fps_preset normal\n",		"An updated but still faithful appearance, using content replacements where applicable", presetoption[4]),
 		MB_CONSOLECMDRETURN("^7nice       (dynamic)",	"fps_preset nice\n",		"For people who like nice things, but still want to actually play", presetoption[5]),
 			MB_COMBOCVAR("gen deluxemaps", r_deluxemapping_cvar, deluxeopts, NULL, NULL),
-#ifdef RTLIGHTS
+#if defined(RTLIGHTS) && (defined(GLQUAKE) || defined(VKQUAKE))
 		MB_CONSOLECMDRETURN("^7realtime    (all on)",	"fps_preset realtime\n",	"For people who value pretty over fast/smooth. Not viable for deathmatch.", presetoption[6]),
 			MB_CHECKBOXCVAR("bloom", r_bloom, 1),
 			MB_CHECKBOXCVAR("force rtlights", r_shadow_realtime_world_importlightentitiesfrommap, 1),
@@ -1554,7 +1554,7 @@ void M_Menu_Render_f (void)
 
 	emenu_t *menu;
 	extern cvar_t r_novis, cl_item_bobbing, r_waterwarp, r_nolerp, r_noframegrouplerp, r_fastsky, gl_nocolors, gl_lerpimages, r_wateralpha, r_drawviewmodel, gl_cshiftenabled, r_hdr_irisadaptation, scr_logcenterprint, r_fxaa, r_graphics;
-#ifdef GLQUAKE
+#if defined(GLQUAKE) || defined(VKQUAKE)
 	extern cvar_t r_bloom;
 #endif
 	static menuresel_t resel;
@@ -1580,7 +1580,7 @@ void M_Menu_Render_f (void)
 #endif
 		MB_COMBOCVAR("Log Centerprints", scr_logcenterprint, logcenteropts, logcentervalues, "Display centerprints in the console also."),
 		MB_CHECKBOXCVAR("FXAA", r_fxaa, 0),
-#ifdef GLQUAKE
+#if defined(GLQUAKE) || defined(VKQUAKE)
 		MB_CHECKBOXCVAR("Bloom", r_bloom, 0),
 #endif
 		MB_CHECKBOXCVARTIP("HDR", r_hdr_irisadaptation, 0, "Adjust scene brightness to compensate for lighting levels."),

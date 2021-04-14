@@ -52,9 +52,11 @@ fi
 #windows doesn't cross compile, so no system dependancy issues
 #skip some dependancies if we're running on cygwin, ode is buggy.
 if [ "$(uname -s)" == "Linux" ]; then
-	PLUGINS_WINDOWS="ffmpeg ode qi ezhud xmpp irc"
+	PLUGINS_WIN32="ffmpeg ode qi ezhud xmpp irc"
+	PLUGINS_WIN64="ffmpeg ode qi ezhud xmpp irc"
 else
-	PLUGINS_WINDOWS="qi ezhud xmpp irc"
+	PLUGINS_WIN32="qi ezhud xmpp irc"
+	PLUGINS_WIN64="qi ezhud xmpp irc"
 fi
 
 echo
@@ -229,7 +231,8 @@ if [ "$UID" != "0" ]; then
 
 	echo "TARGETS_WINDOWS=\"$TARGETS_WINDOWS\""		>>$FTECONFIG
 	echo "TARGETS_LINUX=\"$TARGETS_LINUX\""			>>$FTECONFIG
-	echo "PLUGINS_WINDOWS=\"$PLUGINS_WINDOWS\""		>>$FTECONFIG
+	echo "PLUGINS_WIN32=\"$PLUGINS_WIN32\""		>>$FTECONFIG
+	echo "PLUGINS_WIN64=\"$PLUGINS_WIN64\""		>>$FTECONFIG
 	echo "PLUGINS_LINUXx86=\"$PLUGINS_LINUXx86\""		>>$FTECONFIG
 	echo "PLUGINS_LINUXx64=\"$PLUGINS_LINUXx64\""		>>$FTECONFIG
 	echo "PLUGINS_LINUXx32=\"$PLUGINS_LINUXx32\""		>>$FTECONFIG
@@ -463,11 +466,11 @@ if [ $UID -ne 0 ] && [ $REBUILD_TOOLCHAINS == "y" ]; then
 		echo "Making libraries (win64)..."
 		make FTE_TARGET=win64 makelibs CPUOPTIMISATIONS=-fno-finite-math-only 2>&1 >>/dev/null
 	fi
-	if [ "$BUILD_WIN32" == "y" ] && [[ "$PLUGINS_WINDOWS" =~ "ode" ]]; then
+	if [ "$BUILD_WIN32" == "y" ] && [[ "$PLUGINS_WIN32" =~ "ode" ]]; then
 		echo "Prebuilding ODE library (win32)..."
 		make FTE_TARGET=win32 plugins-rel NATIVE_PLUGINS=ode 2>&1 >>/dev/null
 	fi
-	if [ "$BUILD_WIN64" == "y" ] && [[ "$PLUGINS_WINDOWS" =~ "ode" ]]; then
+	if [ "$BUILD_WIN64" == "y" ] && [[ "$PLUGINS_WIN64" =~ "ode" ]]; then
 		echo "Prebuilding ODE library (win64)..."
 		make FTE_TARGET=win64 plugins-rel NATIVE_PLUGINS=ode 2>&1 >>/dev/null
 	fi

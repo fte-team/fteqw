@@ -2407,10 +2407,10 @@ static void PM_UpdatePackageList(qboolean autoupdate, int retry)
 	PM_PreparePackageList();
 
 #ifndef WEBCLIENT
-	for (i = 0; i < numdownloadablelists; i++)
+	for (i = 0; i < pm_numsources; i++)
 	{
-		if (downloadablelist[i].status == SRCSTAT_PENDING)
-			downloadablelist[i].status = SRCSTAT_FAILED_DNS;
+		if (pm_source[i].status == SRCSTAT_PENDING)
+			pm_source[i].status = SRCSTAT_FAILED_DNS;
 	}
 #else
 	doautoupdate |= autoupdate;
@@ -3336,11 +3336,6 @@ int PM_IsApplying(qboolean listsonly)
 				count++;
 		}
 	}
-	/*for (i = 0; i < numdownloadablelists; i++)
-	{
-		if (downloadablelist[i].curdl)
-			count++;
-	}*/
 #endif
 	return count;
 }
@@ -5199,14 +5194,6 @@ static void MD_Download_UpdateStatus(struct emenu_s *m)
 	if (!info->populated)
 	{
 		y = 48;
-		/*for (i = 0; i < numdownloadablelists; i++)
-		{
-			if (downloadablelist[i].status == SRCSTAT_PENDING)
-			{
-				Draw_FunStringWidth(0, y, "Querying for package list", vid.width, 2, false);
-				return;
-			}
-		}*/
 
 		info->populated = true;
 		MC_AddFrameStart(m, 48);

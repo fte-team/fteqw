@@ -5509,6 +5509,7 @@ TRACE(("LoadBrushModel %i\n", __LINE__));
 
 		submod->cnodes = NULL;
 		Q1BSP_SetModelFuncs(submod);
+#ifdef Q2BSPS
 		if (bm->brushes)
 		{
 			struct bihleaf_s *leafs, *l;
@@ -5527,6 +5528,7 @@ TRACE(("LoadBrushModel %i\n", __LINE__));
 			BIH_Build(submod, leafs, l-leafs);
 			BZ_Free(leafs);
 		}
+#endif
 
 		if (i)
 			COM_AddWork(WG_MAIN, Mod_ModelLoaded, submod, NULL, MLS_LOADED, 0);

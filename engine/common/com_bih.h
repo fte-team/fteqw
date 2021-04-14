@@ -63,7 +63,7 @@ enum bihtype_e
 
 
 	//leaf types
-#ifdef Q2BSPS
+#if defined(Q2BSPS) || defined(Q3BSPS)
 	BIH_BRUSH,
 #endif
 #ifdef Q3BSPS
@@ -76,7 +76,7 @@ struct bihdata_s
 {
 	unsigned int contents;
 	union {
-#ifdef Q2BSPS
+#if defined(Q2BSPS) || defined(Q3BSPS)
 		q2cbrush_t *brush;
 #endif
 #ifdef Q3BSPS

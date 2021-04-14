@@ -549,7 +549,7 @@ static void BIH_TestToTriangle(struct bihtrace_s *fte_restrict tr, const struct 
 	tr->trace.contents |= info->contents;
 }
 
-#ifdef Q2BSPS
+#if defined(Q2BSPS) || defined(Q3BSPS)
 static void BIH_ClipBoxToBrush (struct bihtrace_s *fte_restrict tr, const q2cbrush_t *brush)
 {
 	int			i, j;
@@ -838,7 +838,7 @@ static void BIH_RecursiveTrace (struct bihtrace_s *fte_restrict tr, const struct
 	//if the tree were 1d, we wouldn't need to be so careful with the bounds, but if the trace is long then we want to avoid hitting all surfaces within that entire-map-encompassing move aabb
 	switch(node->type)
 	{	//leaf
-#ifdef Q2BSPS
+#if defined(Q2BSPS) || defined(Q3BSPS)
 	case BIH_BRUSH:
 		if (node->data.contents & tr->hitcontents)
 		{
@@ -1108,7 +1108,7 @@ static void BIH_RecursiveTest (struct bihtrace_s *fte_restrict tr, const struct 
 	//with BIH, its possible for a large child node to have a box larger than its sibling.
 	switch(node->type)
 	{
-#ifdef Q2BSPS
+#if defined(Q2BSPS) || defined(Q3BSPS)
 	case BIH_BRUSH:
 		if (node->data.contents & tr->hitcontents)
 		{
@@ -1384,7 +1384,7 @@ unsigned int BIH_TestContents (const struct bihnode_s *fte_restrict node, const 
 restart:
 	switch(node->type)
 	{	//leaf
-#ifdef Q2BSPS
+#if defined(Q2BSPS) || defined(Q3BSPS)
 	case BIH_BRUSH:
 		{
 			q2cbrush_t *b = node->data.brush;

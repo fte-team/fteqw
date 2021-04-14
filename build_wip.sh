@@ -23,8 +23,8 @@ BUILD_WEB=y
 PLUGINS_LINUXx86="qi ezhud xmpp irc"
 PLUGINS_LINUXx64="qi ezhud xmpp irc"
 PLUGINS_LINUXx32="qi ezhud xmpp irc"
-PLUGINS_WIN32="avplug ode qi ezhud xmpp irc"
-PLUGINS_WIN64="avplug ode qi ezhud xmpp irc"
+PLUGINS_WIN32="ffmpeg ode qi ezhud xmpp irc"
+PLUGINS_WIN64="ffmpeg ode qi ezhud xmpp irc"
 THREADS="-j 4"
 
 TARGETS_LINUX="qcc-rel rel dbg vk-rel plugins-rel plugins-dbg"

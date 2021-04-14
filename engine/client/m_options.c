@@ -1305,7 +1305,9 @@ void M_Menu_Preset_f (void)
 #endif
 		MB_CONSOLECMDRETURN("^7vanilla  (softwarey)",	"fps_preset vanilla\n",		"This is for purists! Party like its 1995! No sanity spared!", presetoption[3]),
 			MB_CHECKBOXCVAR("anim snapping", r_nolerp, 1),
+#if defined(GLQUAKE)
 			MB_CHECKBOXCVAR("model swimming", gl_affinemodels, 0),
+#endif
 		MB_CONSOLECMDRETURN("^7normal    (faithful)",	"fps_preset normal\n",		"An updated but still faithful appearance, using content replacements where applicable", presetoption[4]),
 		MB_CONSOLECMDRETURN("^7nice       (dynamic)",	"fps_preset nice\n",		"For people who like nice things, but still want to actually play", presetoption[5]),
 			MB_COMBOCVAR("gen deluxemaps", r_deluxemapping_cvar, deluxeopts, NULL, NULL),

@@ -48,7 +48,7 @@ extern cvar_t vid_conautoscale;
 #define WP_POINTER_CONSTRAINTS_NAME "zwp_pointer_constraints_v1"
 #define WP_RELATIVE_POINTER_MANAGER_NAME "zwp_relative_pointer_manager_v1"
 #define ORG_KDE_KWIN_SERVER_DECORATION_MANAGER_NAME "org_kde_kwin_server_decoration_manager" //comment out to disable once XDG_SHELL_DESKTOP
-#define XDG_SHELL_UNSTABLE
+//#define XDG_SHELL_UNSTABLE
 #ifdef XDG_SHELL_UNSTABLE
 #define XDG_SHELL_NAME "zxdg_shell_v6"
 #else
@@ -56,7 +56,10 @@ extern cvar_t vid_conautoscale;
 #endif
 #define WL_SHELL_NAME "wl_shell"	//fall back on this if xdg_shell is missing
 
-#if 1
+#ifndef STATIC_WAYLAND
+	#define DYNAMIC_WAYLAND
+#endif
+#ifdef DYNAMIC_WAYLAND
 
 static struct wl_display *(*pwl_display_connect)(const char *name);
 static void (*pwl_display_disconnect)(struct wl_display *display);
@@ -85,6 +88,7 @@ static const struct wl_interface		*pwl_output_interface;
 static const struct wl_interface		*pwl_shm_interface;
 static const struct wl_interface		*pwl_shm_pool_interface;
 static const struct wl_interface		*pwl_buffer_interface;
+static const struct wl_interface		*pwl_callback_interface;
 
 static dllfunction_t waylandexports_wl[] =
 {
@@ -113,6 +117,7 @@ static dllfunction_t waylandexports_wl[] =
 	{(void**)&pwl_shm_interface,						"wl_shm_interface"},
 	{(void**)&pwl_shm_pool_interface,					"wl_shm_pool_interface"},
 	{(void**)&pwl_buffer_interface,						"wl_buffer_interface"},
+	{(void**)&pwl_callback_interface,					"wl_callback_interface"},
 	{NULL, NULL}
 };
 static dllhandle_t *lib_wayland_wl;
@@ -192,6 +197,19 @@ static inline struct wl_pointer *pwl_seat_get_pointer(struct wl_seat *wl_seat)		
 static inline struct wl_keyboard *pwl_seat_get_keyboard(struct wl_seat *wl_seat)	{return (struct wl_keyboard *)(struct wl_proxy *) pwl_proxy_marshal_constructor((struct wl_proxy *) wl_seat, WL_SEAT_GET_KEYBOARD, pwl_keyboard_interface, NULL);}
 static inline int pwl_seat_add_listener(struct wl_seat *wl_seat, const struct wl_seat_listener *listener, void *data)	{return pwl_proxy_add_listener((struct wl_proxy *) wl_seat, (void (**)(void)) listener, data);}
 
+static inline struct wl_callback *pwl_surface_frame(struct wl_surface *wl_surface)	{return (struct wl_callback*)(struct wl_proxy *) pwl_proxy_marshal_constructor((struct wl_proxy *) wl_surface, WL_SURFACE_FRAME, pwl_callback_interface, NULL);}
+static inline int pwl_callback_add_listener(struct wl_callback *wl_callback, const struct wl_callback_listener *listener, void *data) {return pwl_proxy_add_listener((struct wl_proxy *) wl_callback, (void (**)(void)) listener, data);}
+
+static inline void pwl_pointer_set_cursor(struct wl_pointer *wl_pointer, uint32_t serial, struct wl_surface *surface, int32_t hotspot_x, int32_t hotspot_y)		{ pwl_proxy_marshal((struct wl_proxy *) wl_pointer, WL_POINTER_SET_CURSOR, serial, surface, hotspot_x, hotspot_y); }
+static inline struct wl_shm_pool *pwl_shm_create_pool(struct wl_shm *wl_shm, int32_t fd, int32_t size)		{ return (struct wl_shm_pool *)pwl_proxy_marshal_constructor((struct wl_proxy *) wl_shm, WL_SHM_CREATE_POOL, pwl_shm_pool_interface, NULL, fd, size); }
+static inline struct wl_buffer *pwl_shm_pool_create_buffer(struct wl_shm_pool *wl_shm_pool, int32_t offset, int32_t width, int32_t height, int32_t stride, uint32_t format)		{ return (struct wl_buffer *)pwl_proxy_marshal_constructor((struct wl_proxy *) wl_shm_pool, WL_SHM_POOL_CREATE_BUFFER, pwl_buffer_interface, NULL, offset, width, height, stride, format); }
+static inline void pwl_shm_pool_destroy(struct wl_shm_pool *wl_shm_pool)		{ pwl_proxy_marshal((struct wl_proxy *) wl_shm_pool, WL_SHM_POOL_DESTROY); pwl_proxy_destroy((struct wl_proxy *) wl_shm_pool); }
+static inline void pwl_surface_commit(struct wl_surface *wl_surface)		{ pwl_proxy_marshal((struct wl_proxy *) wl_surface, WL_SURFACE_COMMIT); }
+static inline void pwl_buffer_destroy(struct wl_buffer *wl_buffer)		{ pwl_proxy_marshal((struct wl_proxy *) wl_buffer, WL_BUFFER_DESTROY); pwl_proxy_destroy((struct wl_proxy *) wl_buffer); }
+static inline void pwl_surface_attach(struct wl_surface *wl_surface, struct wl_buffer *buffer, int32_t x, int32_t y)		{ pwl_proxy_marshal((struct wl_proxy *) wl_surface, WL_SURFACE_ATTACH, buffer, x, y); }
+static inline void pwl_surface_damage(struct wl_surface *wl_surface, int32_t x, int32_t y, int32_t width, int32_t height)		{ pwl_proxy_marshal((struct wl_proxy *) wl_surface, WL_SURFACE_DAMAGE, x, y, width, height); }
+static inline void pwl_surface_destroy(struct wl_surface *wl_surface)		{ pwl_proxy_marshal((struct wl_proxy *) wl_surface, WL_SURFACE_DESTROY); pwl_proxy_destroy((struct wl_proxy *) wl_surface); }
+
 #else
 #define pwl_keyboard_interface		&wl_keyboard_interface
 #define pwl_pointer_interface		&wl_pointer_interface
@@ -204,6 +222,66 @@ static inline int pwl_seat_add_listener(struct wl_seat *wl_seat, const struct wl
 #define pwl_shell_interface			&wl_shell_interface
 #endif
 #define pwl_seat_interface			&wl_seat_interface
+#define pwl_output_interface		&wl_output_interface
+#define pwl_shm_interface			&wl_shm_interface
+
+#define pwl_display_connect					wl_display_connect
+#define pwl_display_disconnect				wl_display_disconnect
+#define pwl_display_dispatch				wl_display_dispatch
+#define pwl_display_dispatch_pending		wl_display_dispatch_pending
+#define pwl_display_roundtrip				wl_display_roundtrip
+
+#define pwl_proxy_marshal					wl_proxy_marshal
+#define pwl_proxy_marshal_constructor		wl_proxy_marshal_constructor
+#define pwl_proxy_marshal_constructor_versioned		wl_proxy_marshal_constructor_versioned
+#define pwl_proxy_destroy					wl_proxy_destroy
+#define pwl_proxy_add_listener				wl_proxy_add_listener
+
+#define pwl_compositor_create_region		wl_compositor_create_region
+#define pwl_compositor_create_surface		wl_compositor_create_surface
+#define pwl_surface_set_opaque_region		wl_surface_set_opaque_region
+#define pwl_region_add						wl_region_add
+#define pwl_shell_get_shell_surface			wl_shell_get_shell_surface
+#define pwl_shell_surface_set_toplevel		wl_shell_surface_set_toplevel
+#define pwl_shell_surface_set_fullscreen	wl_shell_surface_set_fullscreen
+#define pwl_shell_surface_add_listener		wl_shell_surface_add_listener
+#define pwl_shell_surface_pong				wl_shell_surface_pong
+#define pwl_shell_surface_set_title			wl_shell_surface_set_title
+#define pwl_display_get_registry			wl_display_get_registry
+#define pwl_registry_bind					wl_registry_bind
+#define pwl_registry_add_listener			wl_registry_add_listener
+#define pwl_keyboard_destroy				wl_keyboard_destroy
+#define pwl_keyboard_add_listener			wl_keyboard_add_listener
+#define pwl_pointer_destroy					wl_pointer_destroy
+#define pwl_pointer_add_listener			wl_pointer_add_listener
+#define pwl_seat_get_pointer				wl_seat_get_pointer
+#define pwl_seat_get_keyboard				wl_seat_get_keyboard
+#define pwl_seat_add_listener				wl_seat_add_listener
+#define pwl_surface_frame					wl_surface_frame
+#define pwl_callback_add_listener			wl_callback_add_listener
+#define pwl_pointer_set_cursor				wl_pointer_set_cursor
+#define pwl_shm_create_pool					wl_shm_create_pool
+#define pwl_shm_pool_create_buffer			wl_shm_pool_create_buffer
+#define pwl_shm_pool_destroy				wl_shm_pool_destroy
+#define pwl_surface_commit					wl_surface_commit
+#define pwl_buffer_destroy					wl_buffer_destroy
+#define pwl_surface_attach					wl_surface_attach
+#define pwl_surface_damage					wl_surface_damage
+#define pwl_surface_destroy					wl_surface_destroy
+
+#define pwl_egl_window_create				wl_egl_window_create
+#define pwl_egl_window_destroy				wl_egl_window_destroy
+#define pwl_egl_window_resize				wl_egl_window_resize
+
+#define pxkb_context_new					xkb_context_new
+#define pxkb_keymap_new_from_string			xkb_keymap_new_from_string
+#define pxkb_state_new						xkb_state_new
+#define pxkb_state_key_get_one_sym			xkb_state_key_get_one_sym
+#define pxkb_keysym_to_utf32				xkb_keysym_to_utf32
+#define pxkb_state_unref					xkb_state_unref
+#define pxkb_keymap_unref					xkb_keymap_unref
+#define pxkb_state_update_mask				xkb_state_update_mask
+
 #endif
 static const struct wl_interface *pzwp_relative_pointer_v1_interface;
 static const struct wl_interface *pzwp_locked_pointer_v1_interface;
@@ -236,7 +314,7 @@ static struct wdisplay_s
 	struct xkb_context *xkb_context;
 	struct xkb_state *xkb_state;
 	//to try to fix mouse stuff
-	qboolean absmouse;
+	qboolean relative_mouse_active;
 #ifdef WP_POINTER_CONSTRAINTS_NAME
 	struct zwp_pointer_constraints_v1 *pointer_constraints;
 	struct zwp_locked_pointer_v1 *locked_pointer;
@@ -269,6 +347,8 @@ static struct wdisplay_s
 	struct wl_shell_surface *ssurface;
 	struct wl_shell *shell;	//manager
 #endif
+	qboolean wait_for_configure;	//WL is being slow and won't let us redraw yet.
+	qboolean waylandisblocking;
 
 	//belated sanity stuff
 #ifdef ORG_KDE_KWIN_SERVER_DECORATION_MANAGER_NAME
@@ -480,6 +560,8 @@ static const struct xdg_wm_base_listener myxdg_wm_base_listener =
 static void xdg_surface_handle_configure(void *data, struct xdg_surface *xdg_surface, uint32_t serial)
 {
 	xdg_surface_ack_configure(xdg_surface, serial);
+
+	w.wait_for_configure = false; //all good now
 }
 static const struct xdg_surface_listener myxdg_surface_listener =
 {
@@ -549,6 +631,8 @@ static void WL_shell_handle_configure(void *data, struct wl_shell_surface *shell
 		vid.pixelheight = height-w.csdsize;
 		Cvar_ForceCallback(&vid_conautoscale);
 	}
+
+	w.wait_for_configure = false; //all good now
 }
 static void WL_shell_handle_popup_done(void *data, struct wl_shell_surface *shell_surface)
 {
@@ -602,16 +686,6 @@ static qbyte waylandinputsucksbighairydonkeyballsshift[] =
 	0,0,0,0,0,K_LWIN,K_RWIN,K_APP	
 };
 
-static inline void pwl_pointer_set_cursor(struct wl_pointer *wl_pointer, uint32_t serial, struct wl_surface *surface, int32_t hotspot_x, int32_t hotspot_y)		{ pwl_proxy_marshal((struct wl_proxy *) wl_pointer, WL_POINTER_SET_CURSOR, serial, surface, hotspot_x, hotspot_y); }
-static inline struct wl_shm_pool *pwl_shm_create_pool(struct wl_shm *wl_shm, int32_t fd, int32_t size)		{ return (struct wl_shm_pool *)pwl_proxy_marshal_constructor((struct wl_proxy *) wl_shm, WL_SHM_CREATE_POOL, pwl_shm_pool_interface, NULL, fd, size); }
-static inline struct wl_buffer *pwl_shm_pool_create_buffer(struct wl_shm_pool *wl_shm_pool, int32_t offset, int32_t width, int32_t height, int32_t stride, uint32_t format)		{ return (struct wl_buffer *)pwl_proxy_marshal_constructor((struct wl_proxy *) wl_shm_pool, WL_SHM_POOL_CREATE_BUFFER, pwl_buffer_interface, NULL, offset, width, height, stride, format); }
-static inline void pwl_shm_pool_destroy(struct wl_shm_pool *wl_shm_pool)		{ pwl_proxy_marshal((struct wl_proxy *) wl_shm_pool, WL_SHM_POOL_DESTROY); pwl_proxy_destroy((struct wl_proxy *) wl_shm_pool); }
-static inline void pwl_surface_commit(struct wl_surface *wl_surface)		{ pwl_proxy_marshal((struct wl_proxy *) wl_surface, WL_SURFACE_COMMIT); }
-static inline void pwl_buffer_destroy(struct wl_buffer *wl_buffer)		{ pwl_proxy_marshal((struct wl_proxy *) wl_buffer, WL_BUFFER_DESTROY); pwl_proxy_destroy((struct wl_proxy *) wl_buffer); }
-static inline void pwl_surface_attach(struct wl_surface *wl_surface, struct wl_buffer *buffer, int32_t x, int32_t y)		{ pwl_proxy_marshal((struct wl_proxy *) wl_surface, WL_SURFACE_ATTACH, buffer, x, y); }
-static inline void pwl_surface_damage(struct wl_surface *wl_surface, int32_t x, int32_t y, int32_t width, int32_t height)		{ pwl_proxy_marshal((struct wl_proxy *) wl_surface, WL_SURFACE_DAMAGE, x, y, width, height); }
-static inline void pwl_surface_destroy(struct wl_surface *wl_surface)		{ pwl_proxy_marshal((struct wl_proxy *) wl_surface, WL_SURFACE_DESTROY); pwl_proxy_destroy((struct wl_proxy *) wl_surface); }
-
 static void WL_SetHWCursor(void)
 {	//called when the hardware cursor needs to be re-applied
 
@@ -623,7 +697,7 @@ static void WL_SetHWCursor(void)
 		return;	//nope, we don't own the cursor, don't try changing it.
 
 	/*'If surface is NULL, the pointer image is hidden'*/
-	if (w.absmouse && !w.locked_pointer && w.cursor)
+	if (!w.relative_mouse_active && !w.locked_pointer && w.cursor)
 	{
 		struct cursorinfo_s *c = w.cursor;
 		//weston bugs out if we don't redo this junk
@@ -792,7 +866,7 @@ static void WL_pointer_handle_motion(void *data, struct wl_pointer *pointer, uin
 	y -= s->csdsize;
 
 	//and let the game know.
-	if (s->absmouse)
+	if (!s->relative_mouse_active)
 		IN_MouseMove(0, true, x, y, 0, 0);
 }
 
@@ -807,7 +881,7 @@ static void WL_pointer_handle_button(void *data, struct wl_pointer *wl_pointer, 
 		return;	//blurgh.
 	case BTN_LEFT:
 		qkey = K_MOUSE1;
-		if ((s->absmouse||!vid.activeapp) && s->mousey < s->csdsize)
+		if ((!s->relative_mouse_active||!vid.activeapp) && s->mousey < s->csdsize)
 		{
 #ifdef XDG_SHELL_NAME
 			if (s->xdg_toplevel)
@@ -822,7 +896,7 @@ static void WL_pointer_handle_button(void *data, struct wl_pointer *wl_pointer, 
 		break;
 	case BTN_RIGHT:
 		qkey = K_MOUSE2;
-		if ((s->absmouse||!vid.activeapp) && s->mousey < s->csdsize)
+		if ((!s->relative_mouse_active||!vid.activeapp) && s->mousey < s->csdsize)
 		{
 #ifdef XDG_SHELL_NAME
 			if (s->xdg_toplevel)
@@ -889,8 +963,12 @@ struct zwp_relative_pointer_v1;
 
 static void WL_pointer_handle_delta(void *data, struct zwp_relative_pointer_v1 *pointer, uint32_t time_hi, uint32_t time_lo, wl_fixed_t dx_w, wl_fixed_t dy_w, wl_fixed_t dx_raw_w, wl_fixed_t dy_raw_w)
 {
-	if (!w.absmouse)
-		IN_MouseMove(0, false, wl_fixed_to_double(dx_raw_w), wl_fixed_to_double(dy_raw_w), 0, 0);
+	if (w.relative_mouse_active)
+	{
+		double xmove = wl_fixed_to_double(dx_raw_w);
+		double ymove = wl_fixed_to_double(dy_raw_w);
+		IN_MouseMove(0, false, xmove, ymove, 0, 0);
+	}
 }
 struct zwp_relative_pointer_v1_listener
 {
@@ -940,16 +1018,23 @@ static void WL_BindRelativePointerManager(struct wl_registry *registry, uint32_t
 #define ZWP_POINTER_CONSTRAINTS_V1_LOCK_POINTER 1
 #define ZWP_POINTER_CONSTRAINTS_V1_CONFINE_POINTER 2
 #define ZWP_POINTER_CONSTRAINTS_V1_LIFETIME_ONESHOT 1
+#define ZWP_POINTER_CONSTRAINTS_V1_LIFETIME_PERSISTENT 2
 #define ZWP_LOCKED_POINTER_V1_DESTROY 0
 #define ZWP_LOCKED_POINTER_V1_SET_CURSOR_POSITION_HINT 1
 #define ZWP_LOCKED_POINTER_V1_SET_REGION 2
 static void WL_pointer_handle_locked(void *data, struct zwp_locked_pointer_v1 *pointer)
 {
+	struct wdisplay_s *s = data;
+	s->relative_mouse_active = true;	//yay, everything works!...
+	WL_SetHWCursor();
 }
 static void WL_pointer_handle_unlocked(void *data, struct zwp_locked_pointer_v1 *pointer)
 {	//this is a one-shot. it gets destroyed automatically, but we still need to null it
 	struct wdisplay_s *s = data;
-	s->locked_pointer = NULL;
+	s->relative_mouse_active = false;	//probably the compositor killed it.
+	WL_SetHWCursor();
+
+//	s->locked_pointer = NULL;
 }
 struct zwp_locked_pointer_v1_listener
 {
@@ -1017,11 +1102,14 @@ static void WL_keyboard_handle_keymap(void *data, struct wl_keyboard *keyboard, 
 	{
 		struct xkb_keymap *keymap;
 		char *keymap_string = mmap (NULL, size, PROT_READ, MAP_SHARED, fd, 0);
-		keymap = pxkb_keymap_new_from_string (d->xkb_context, keymap_string, XKB_KEYMAP_FORMAT_TEXT_V1, XKB_KEYMAP_COMPILE_NO_FLAGS);
-		munmap (keymap_string, size);
-		pxkb_state_unref (d->xkb_state);
-		d->xkb_state = pxkb_state_new (keymap);
-		pxkb_keymap_unref (keymap);
+		if (keymap_string != MAP_FAILED)
+		{
+			keymap = pxkb_keymap_new_from_string (d->xkb_context, keymap_string, XKB_KEYMAP_FORMAT_TEXT_V1, XKB_KEYMAP_COMPILE_NO_FLAGS);
+			munmap (keymap_string, size);
+			pxkb_state_unref (d->xkb_state);
+			d->xkb_state = pxkb_state_new (keymap);
+			pxkb_keymap_unref (keymap);
+		}
 	}
 
 	close(fd);
@@ -1238,7 +1326,7 @@ static struct org_kde_kwin_server_decoration_listener myorg_kde_kwin_server_deco
 static void WL_handle_global(void *data, struct wl_registry *registry, uint32_t id, const char *interface, uint32_t version)
 {
 	struct wdisplay_s *d = data;
-Con_DLPrintf(2, "Wayland Interface %s id %u version %u\n", interface, id, version);
+Con_DLPrintf(0, "Wayland Interface %s id %u version %u\n", interface, id, version);
 	if (strcmp(interface, "wl_compositor") == 0)
 		d->compositor = pwl_registry_bind(registry, id, pwl_compositor_interface, 1);
 	else if (strcmp(interface, "wl_shm") == 0)
@@ -1249,7 +1337,7 @@ Con_DLPrintf(2, "Wayland Interface %s id %u version %u\n", interface, id, versio
 #endif
 #ifdef XDG_SHELL_NAME
 	else if (strcmp(interface, XDG_SHELL_NAME) == 0 && version > 1)	//old versions of kwin are buggy, sidestep it.
-		w.xdg_wm_base = pwl_registry_bind(registry, id, pxdg_wm_base_interface, 2);
+		d->xdg_wm_base = pwl_registry_bind(registry, id, pxdg_wm_base_interface, 2);
 #endif
 	else if (strcmp(interface, "wl_seat") == 0 && !d->seat)
 	{
@@ -1275,12 +1363,42 @@ Con_DLPrintf(2, "Wayland Interface %s id %u version %u\n", interface, id, versio
 */
 }
 
+static void WL_handle_global_remove(void *data, struct wl_registry *wl_registry, uint32_t id)
+{
+	Con_Printf("WL_handle_global_remove: %u\n", id);
+}
+
 static const struct wl_registry_listener WL_registry_listener = {
-	WL_handle_global
+	WL_handle_global,
+	WL_handle_global_remove
+};
+
+qboolean WL_MayRefresh(void)
+{
+	if (w.wait_for_configure || w.waylandisblocking)
+	{
+		if (pwl_display_dispatch(w.display) == -1)
+		{
+			Sys_Sleep(2);
+			Con_Printf(CON_ERROR "wayland connection was lost. Restarting video\n");
+			Cbuf_InsertText("vid_restart", RESTRICT_LOCAL, true);
+		}
+		return false;
+	}
+	return true;
+}
+static void frame_handle_done(void *data, struct wl_callback *callback, uint32_t time)
+{
+	pwl_proxy_destroy((struct wl_proxy *)callback);
+	w.waylandisblocking = false;
+}
+static const struct wl_callback_listener frame_listener = {
+	.done = frame_handle_done,
 };
 
 static void WL_SwapBuffers(void)
 {
+	qboolean wantabs;
 	TRACE(("WL_SwapBuffers\n"));
 
 	switch(qrenderer)
@@ -1311,6 +1429,13 @@ static void WL_SwapBuffers(void)
 		if (R2D_Flush)
 			R2D_Flush();
 
+		{
+			// Register a frame callback to know when we need to draw the next frame
+			struct wl_callback *callback = pwl_surface_frame(w.surface);
+			w.waylandisblocking = true;
+			pwl_callback_add_listener(callback, &frame_listener, NULL);
+		}
+
 		EGL_SwapBuffers();
 		//wl_surface_damage(w.surface, 0, 0, vid.pixelwidth, vid.pixelheight);
 		if (pwl_display_dispatch_pending(w.display) < 0)
@@ -1321,7 +1446,7 @@ static void WL_SwapBuffers(void)
 		}
 		if (w.hasssd)
 			w.csdsize = 0;	//kde's implementation-specific/legacy extension doesn't need us to draw crappy lame CSD junk
-		else if (vid.activeapp && !w.absmouse)
+		else if (vid.activeapp && w.relative_mouse_active)
 			w.csdsize = 0;	//kill the csd while using relative mouse coords.
 		else
 			w.csdsize = Font_CharPHeight(font_default)+8;
@@ -1339,21 +1464,24 @@ static void WL_SwapBuffers(void)
 	}
 
 	//if the game wants absolute mouse positions...
-	w.absmouse = !vid.activeapp || Key_MouseShouldBeFree() || !in_windowed_mouse.value;
+	wantabs = !vid.activeapp || Key_MouseShouldBeFree() || !in_windowed_mouse.value;
 	//and force it on if we're lacking one of the plethora of extensions that were needed to get the damn thing actually usable.
-	w.absmouse |= !w.relative_pointer || !w.locked_pointer;
-	if (!w.absmouse && !w.locked_pointer && w.pointer_constraints)
+	wantabs |= !w.relative_pointer || !w.pointer_constraints;
+	if (!wantabs && w.cursorfocus && !w.locked_pointer && w.pointer_constraints)
 	{
-		w.locked_pointer = zwp_pointer_constraints_v1_lock_pointer(w.pointer_constraints, w.surface, w.pointer, NULL, ZWP_POINTER_CONSTRAINTS_V1_LIFETIME_ONESHOT);
+		w.locked_pointer = zwp_pointer_constraints_v1_lock_pointer(w.pointer_constraints, w.surface, w.pointer, NULL, ZWP_POINTER_CONSTRAINTS_V1_LIFETIME_PERSISTENT);
 		zwp_locked_pointer_v1_add_listener(w.locked_pointer, &locked_pointer_listener, &w);
-		WL_SetHWCursor();
 	}
-	if (w.absmouse && w.locked_pointer)
+	if (wantabs && w.locked_pointer)
 	{
 		pwl_proxy_marshal((struct wl_proxy *) w.locked_pointer, ZWP_LOCKED_POINTER_V1_DESTROY);
 		pwl_proxy_destroy((struct wl_proxy *) w.locked_pointer);
 		w.locked_pointer = NULL;
-		WL_SetHWCursor();
+		if (!w.relative_mouse_active)
+		{
+			w.relative_mouse_active = false;
+			WL_SetHWCursor();
+		}
 	}
 }
 
@@ -1386,23 +1514,27 @@ static qboolean WL_NameAndShame(void)
 
 static qboolean WL_Init (rendererstate_t *info, unsigned char *palette)
 {
+#ifdef DYNAMIC_WAYLAND
 	if (!WL_InitLibrary())
 	{
 		Con_Printf("couldn't load wayland client libraries\n");
 		return false;
 	}
+#endif
 	WL_Setup_XDG_Shell();
 
 	switch(qrenderer)
 	{
 #if defined(GLQUAKE) && defined(USE_EGL)
 	case QR_OPENGL:
+#ifdef DYNAMIC_WAYLAND
 		lib_wayland_egl = Sys_LoadLibrary("libwayland-egl.so.1", waylandexports_egl);
 		if (!lib_wayland_egl)
 		{
 			Con_Printf("couldn't load libwayland-egl.so.1 library\n");
 			return false;
 		}
+#endif
 
 //		setenv("EGL_PLATFORM", "wayland", 1);	//if this actually matters then we're kinda screwed
 		if (!EGL_LoadLibrary(info->subrenderer))
@@ -1441,7 +1573,9 @@ static qboolean WL_Init (rendererstate_t *info, unsigned char *palette)
 
 	memset(&w, 0, sizeof(w));
 
+#ifdef DYNAMIC_WAYLAND
 	if (WL_InitLibraryXKB())
+#endif
 		w.xkb_context = pxkb_context_new(XKB_CONTEXT_NO_FLAGS);
 
 	w.csdsize = 0;
@@ -1493,6 +1627,11 @@ static qboolean WL_Init (rendererstate_t *info, unsigned char *palette)
 			pwl_shell_surface_add_listener(w.ssurface, &shell_surface_listener, &w);
 	}
 #endif
+	else
+	{
+		Con_Printf("no compositor shell running, apparently\n");
+		return false;	//no way to make it fullscreen/top-level means it'll probably stay hidden, so make this fatal.
+	}
 
 	WL_SetCaption("FTE Quake");
 #ifdef ORG_KDE_KWIN_SERVER_DECORATION_MANAGER_NAME
@@ -1569,6 +1708,13 @@ pwl_display_roundtrip(w.display);
 				Con_Printf("couldn't find suitable EGL config\n");
 				return false;
 			}
+			#ifdef XDG_SHELL_NAME
+				if (w.xdg_toplevel)
+				{
+					w.wait_for_configure = true;
+					pwl_surface_commit(w.surface);
+				}
+			#endif
 			if (!EGL_InitWindow(info, EGL_PLATFORM_WAYLAND_KHR, w.enwindow, (EGLNativeWindowType)w.enwindow, cfg))
 			{
 				Con_Printf("couldn't initialise EGL context\n");
@@ -1711,7 +1857,10 @@ rendererinfo_t rendererinfo_wayland_gl =
 	GLBE_RenderToTextureUpdate2d,
 
 	"",
-	WL_GetPriority
+	WL_GetPriority,
+	NULL,
+	NULL,
+	WL_MayRefresh
 };
 #endif
 

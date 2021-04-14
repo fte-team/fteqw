@@ -61,24 +61,24 @@ typedef struct trace_s
 {
 //DON'T ADD ANYTHING BETWEEN THIS LINE
 //q2 game dll code will memcpy the lot from trace_t to q2trace_t.
-	qboolean	allsolid;	// if true, plane is not valid
-	qboolean	startsolid;	// if true, the initial point was in a solid area
-	float		fraction;	// time completed, 1.0 = didn't hit anything (nudged closer to the start point to cover precision issues)
-	vec3_t		endpos;		// final position
-	cplane_t	plane;		// surface normal at impact
-	q2csurface_t	*surface;	// q2-compat surface hit
-	int			contents;	// contents on other side of surface hit
-	void		*ent;		// not set by CM_*() functions
+	qboolean			allsolid;	// if true, plane is not valid
+	qboolean			startsolid;	// if true, the initial point was in a solid area
+	float				fraction;	// time completed, 1.0 = didn't hit anything (nudged closer to the start point to cover precision issues)
+	vec3_t				endpos;		// final position
+	cplane_t			plane;		// surface normal at impact
+	const q2csurface_t	*surface;	// q2-compat surface hit
+	unsigned int		contents;	// contents on other side of surface hit
+	void				*ent;		// not set by CM_*() functions
 //AND THIS LINE
-	int entnum;
+	int					entnum;
 
-	qboolean	inopen, inwater;
-	float truefraction;	//can be negative, also has floating point precision issues, etc.
-	int			brush_id;
-	int			brush_face;
-	int			surface_id;
-	int			triangle_id;
-	int			bone_id;
+	qboolean			inopen, inwater;
+	float				truefraction;	//can be negative, also has floating point precision issues, etc.
+	int					brush_id;
+	int					brush_face;
+	int					surface_id;
+	int					triangle_id;
+	int					bone_id;
 } trace_t;
 
 typedef struct q2trace_s
@@ -88,7 +88,7 @@ typedef struct q2trace_s
 	float		fraction;	// time completed, 1.0 = didn't hit anything
 	vec3_t		endpos;		// final position
 	cplane_t	plane;		// surface normal at impact
-	q2csurface_t	*surface;	// surface hit
+	const q2csurface_t	*surface;	// surface hit
 	int			contents;	// contents on other side of surface hit
 	void	*ent;		// not set by CM_*() functions
 } q2trace_t;

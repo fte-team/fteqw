@@ -519,6 +519,7 @@ void *QDECL ZG_Malloc(zonegroup_t *ctx, size_t size)
 #else
 	newm = Z_Malloc(size);
 #endif
+
 	newm->next = ctx->first;
 	ctx->first = newm;
 	ctx->totalbytes += size;

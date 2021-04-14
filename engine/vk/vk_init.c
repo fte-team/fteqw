@@ -2009,6 +2009,7 @@ qboolean VK_LoadTextureMips (texid_t tex, const struct pendingtextureinfo *mips)
 	bci.size = 0;
 	for (i = 0; i < mipcount; i++)
 	{
+		size_t mipofs = 0;
 		VkBufferImageCopy region;
 		//figure out the number of 'blocks' in the image.
 		//for non-compressed formats this is just the width directly.
@@ -2021,7 +2022,7 @@ qboolean VK_LoadTextureMips (texid_t tex, const struct pendingtextureinfo *mips)
 		for (z = 0; z < blocksdepth; z++)
 		{
 			if (mips->mip[i].data)
-				memcpy((char*)mapdata + bci.size, (char*)mips->mip[i].data, blockswidth*blockbytes*blocksheight*blockdepth);
+				memcpy((char*)mapdata + bci.size, (char*)mips->mip[i].data+mipofs, blockswidth*blockbytes*blocksheight*blockdepth);
 			else
 				memset((char*)mapdata + bci.size, 0, blockswidth*blockbytes*blocksheight*blockdepth);
 
@@ -2042,6 +2043,7 @@ qboolean VK_LoadTextureMips (texid_t tex, const struct pendingtextureinfo *mips)
 
 			vkCmdCopyBufferToImage(vkloadcmd, fence->stagingbuffer, target.image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
 			bci.size += blockdepth*blockswidth*blocksheight*blockbytes;
+			mipofs += blockdepth*blockswidth*blocksheight*blockbytes;
 		}
 	}
 	vkUnmapMemory(vk.device, fence->stagingmemory);
@@ -2654,7 +2656,7 @@ static qboolean VK_R_RenderScene_Cubemap(struct vk_rendertarg *fb)
 	return true;
 }
 
-void VK_R_RenderEye(texid_t image, vec4_t fovoverride, vec3_t axisorg[4])
+void VK_R_RenderEye(texid_t image, vec4_t fovoverride, matrix3x4 axisorg)
 {
 	struct vk_rendertarg *rt;
 
@@ -4270,7 +4272,9 @@ void VK_CheckTextureFormats(void)
 		{PTI_A2BGR10,			VK_FORMAT_A2B10G10R10_UNORM_PACK32,	VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT|VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT},
 		{PTI_RGB565,			VK_FORMAT_R5G6B5_UNORM_PACK16,		VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT},
 		{PTI_RGBA4444,			VK_FORMAT_R4G4B4A4_UNORM_PACK16,	VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT},
-//		{PTI_ARGB4444,			VK_FORMAT_A4R4G4B4_UNORM_PACK16,	VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT},
+#ifdef VK_EXT_4444_formats
+		{PTI_ARGB4444,			VK_FORMAT_A4R4G4B4_UNORM_PACK16_EXT,VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT},
+#endif
 		{PTI_RGBA5551,			VK_FORMAT_R5G5B5A1_UNORM_PACK16,	VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT},
 		{PTI_ARGB1555,			VK_FORMAT_A1R5G5B5_UNORM_PACK16,	VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT},
 		{PTI_RGBA16F,			VK_FORMAT_R16G16B16A16_SFLOAT,		VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT|VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BIT|VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BLEND_BIT},
@@ -4434,6 +4438,96 @@ qboolean VK_CreateInstance(vrsetup_t *info, char *vrexts, void *result)
 
 	if (result)
 		*(VkInstance*)result = vk.instance;
+	return true;
+}
+
+qboolean VK_EnumerateDevices (void *usercontext, void(*callback)(void *context, const char *devicename, const char *outputname, const char *desc), const char *descprefix, PFN_vkGetInstanceProcAddr vk_GetInstanceProcAddr)
+{
+	VkInstance vk_instance;
+
+	VkApplicationInfo app;
+	VkInstanceCreateInfo inst_info;
+
+	#if 0	//for quicky debugging...
+		#define VKFunc(n) int vk##n;
+			VKFuncs
+		#undef VKFunc
+	#endif
+
+	#define VKFunc(n) PFN_vk##n vk_##n;
+		VKFunc(CreateInstance)
+
+		VKFunc(DestroyInstance)
+		VKFunc(EnumeratePhysicalDevices)
+		VKFunc(GetPhysicalDeviceProperties)
+	#undef VKFunc
+
+	//get second set of pointers... (instance-level)
+#ifdef VK_NO_PROTOTYPES
+	if (!vk_GetInstanceProcAddr)
+		return false;
+	#define VKFunc(n) vk_##n = (PFN_vk##n)vk_GetInstanceProcAddr(VK_NULL_HANDLE, "vk"#n);
+		//VKFunc(EnumerateInstanceLayerProperties)
+		//VKFunc(EnumerateInstanceExtensionProperties)
+		VKFunc(CreateInstance)
+	#undef VKFunc
+#endif
+
+#define ENGINEVERSION 1
+	memset(&app, 0, sizeof(app));
+	app.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
+	app.pNext = NULL;
+	app.pApplicationName = NULL;
+	app.applicationVersion = 0;
+	app.pEngineName = FULLENGINENAME;
+	app.engineVersion = ENGINEVERSION;
+	app.apiVersion = VK_MAKE_VERSION(1, 0, 2);
+
+	memset(&inst_info, 0, sizeof(inst_info));
+	inst_info.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
+	inst_info.pApplicationInfo = &app;
+	inst_info.enabledLayerCount = vklayercount;
+	inst_info.ppEnabledLayerNames = vklayerlist;
+	inst_info.enabledExtensionCount = 0;
+	inst_info.ppEnabledExtensionNames = NULL;
+
+	if (vk_CreateInstance(&inst_info, vkallocationcb, &vk_instance) != VK_SUCCESS)
+		return false;
+
+	//third set of functions...
+#ifdef VK_NO_PROTOTYPES
+	vk_GetInstanceProcAddr = (PFN_vkGetInstanceProcAddr)vk_GetInstanceProcAddr(vk_instance, "vkGetInstanceProcAddr");
+	#define VKFunc(n) vk_##n = (PFN_vk##n)vk_GetInstanceProcAddr(vk_instance, "vk"#n);
+		VKFunc(DestroyInstance)
+		VKFunc(EnumeratePhysicalDevices)
+		VKFunc(GetPhysicalDeviceProperties)
+	#undef VKFunc
+#endif
+
+	//enumerate the gpus
+	{
+		uint32_t gpucount = 0, i;
+		VkPhysicalDevice *devs;
+		char gpuname[64];
+
+		vk_EnumeratePhysicalDevices(vk_instance, &gpucount, NULL);
+		if (!gpucount)
+			return false;
+		devs = malloc(sizeof(VkPhysicalDevice)*gpucount);
+		vk_EnumeratePhysicalDevices(vk_instance, &gpucount, devs);
+		for (i = 0; i < gpucount; i++)
+		{
+			VkPhysicalDeviceProperties props;
+			vk_GetPhysicalDeviceProperties(devs[i], &props);
+
+			Q_snprintfz(gpuname, sizeof(gpuname), "GPU%u", i);
+			//FIXME: make sure its not a number or GPU#...
+			callback(usercontext, gpuname, "", va("%s%s", descprefix, props.deviceName));
+		}
+		free(devs);
+	}
+
+	vk_DestroyInstance(vk_instance, vkallocationcb);
 	return true;
 }
 
@@ -4690,7 +4784,7 @@ qboolean VK_Init(rendererstate_t *info, const char **sysextnames, qboolean (*cre
 		for (i = 0; i < gpucount; i++)
 		{
 			VkPhysicalDeviceProperties props;
-			uint32_t j, queue_count;
+			uint32_t j, queue_count = 0;
 			vkGetPhysicalDeviceProperties(devs[i], &props);
 			vkGetPhysicalDeviceQueueFamilyProperties(devs[i], &queue_count, NULL);
 
@@ -4706,7 +4800,7 @@ qboolean VK_Init(rendererstate_t *info, const char **sysextnames, qboolean (*cre
 				if (j == queue_count)
 				{
 					//no queues can present to that surface, so I guess we can't use that device
-					Con_DPrintf("vulkan: ignoring device \"%s\" as it can't present to window\n", props.deviceName);
+					Con_DLPrintf((wantdev != i)?1:0, "vulkan: ignoring device \"%s\" as it can't present to window\n", props.deviceName);
 					continue;
 				}
 			}
@@ -4778,6 +4872,9 @@ qboolean VK_Init(rendererstate_t *info, const char **sysextnames, qboolean (*cre
 		//explicit registered vendors
 		case 0x10001: vendor = "Vivante";		break;
 		case 0x10002: vendor = "VeriSilicon";	break;
+		case 0x10003: vendor = "Kazan";		break;
+		case 0x10004: vendor = "Codeplay";		break;
+		case /*VK_VENDOR_ID_MESA*/0x10005: vendor = "MESA";	break;
 
 		//pci vendor ids
 		//there's a lot of pci vendors, some even still exist, but not all of them actually have 3d hardware.

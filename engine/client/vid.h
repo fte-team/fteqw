@@ -75,7 +75,10 @@ typedef struct
 } pxrect_t;
 
 //srgb colourspace displays smoother visual gradients, but its more of an illusion than anything else.
-//
+//we can be in a few different modes:
+//linear - rendering is done using some float framebuffer or so. lighting is more correct. textures are converted from srgb colourspace when reading.
+//non-linear - the lame option where lighting is wrong, but used anyway for compat. final colours will be whatever the screen uses (probably srgb, so artwork looks fine)
+//srgb - like linear, except our framebuffer does extra transforms to hide that its storage is actually non-linear.
 #define VID_SRGBAWARE			(1u<<0)	//we need to convert input srgb values to actual linear values (requires vid_reload to change...)
 #define VID_SRGB_FB_LINEAR		(1u<<1) //framebuffer is linear (either the presentation engine is linear, or the blend unit is faking it)
 #define VID_SRGB_FB_FAKED		(1u<<2) //renderer is faking it with a linear texture

@@ -482,9 +482,10 @@ typedef struct rendererinfo_s {
 
 	char *alignment;	//just to make sure that added functions cause compile warnings.
 
-//FIXME: keep this...
 	int		(*VID_GetPriority)	(void);	//so that eg x11 or wayland can be prioritised depending on environment settings. assumed to be 1.
 	void	(*VID_EnumerateVideoModes) (const char *driver, const char *output, void (*cb) (int w, int h));
+	qboolean(*VID_EnumerateDevices) (void *usercontext, void(*callback)(void *context, const char *devicename, const char *outputname, const char *desc));
+	qboolean(*VID_MayRefresh)	(void);
 
 //FIXME: add getdestopres
 //FIXME: add clipboard handling
@@ -493,6 +494,7 @@ typedef struct rendererinfo_s {
 #define rf currentrendererstate.renderer
 
 #define VID_SwapBuffers		rf->VID_SwapBuffers
+#define VID_MayRefresh		rf->VID_MayRefresh
 
 #define BE_Init					rf->BE_Init
 #define BE_SelectMode			rf->BE_SelectMode

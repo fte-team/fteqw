@@ -60,7 +60,7 @@ typedef struct cvar_s
 	//must match q2's definition
 	char			*name;
 	char			*string;
-	char			*latched_string;	// for CVAR_LATCH vars
+	char			*latched_string;	// for CVAR_LATCHMASK vars
 	unsigned int	flags;
 	int				modified;	// increased each time the cvar is changed
 	float			value;
@@ -116,7 +116,7 @@ typedef struct cvar_group_s
 #define	CVAR_SERVERINFO		(1<<2)	// added to serverinfo when changed
 #define	CVAR_NOSET		(1<<3)	// don't allow change from console at all,
 							// but can be set from the command line
-#define	CVAR_LATCH		(1<<4)	// save changes until server restart
+#define	CVAR_MAPLATCH		(1<<4)	// save changes until server restart, to avoid q2 gamecode bugging out.
 
 //freestyle
 #define CVAR_POINTER		(1<<5)	// q2 style. May be converted to q1 if needed. These are often specified on the command line and then converted into q1 when registered properly.
@@ -143,7 +143,7 @@ typedef struct cvar_group_s
 
 #define CVAR_LASTFLAG CVAR_VIDEOLATCH
 
-#define CVAR_LATCHMASK		(CVAR_LATCH|CVAR_RENDERERLATCH|CVAR_SERVEROVERRIDE|CVAR_CHEAT|CVAR_SEMICHEAT)	//you're only allowed one of these.
+#define CVAR_LATCHMASK		(CVAR_MAPLATCH|CVAR_RENDERERLATCH|CVAR_VIDEOLATCH|CVAR_SERVEROVERRIDE|CVAR_CHEAT|CVAR_SEMICHEAT)	//you're only allowed one of these.
 #define CVAR_NEEDDEFAULT	CVAR_CHEAT
 
 //an alias
@@ -166,7 +166,7 @@ void	Cvar_ForceSetValue (cvar_t *var, float value);
 void	Cvar_SetValue (cvar_t *var, float value);
 // expands value to a string and calls Cvar_Set
 
-qboolean Cvar_ApplyLatchFlag(cvar_t *var, char *value, int flag);
+qboolean Cvar_ApplyLatchFlag(cvar_t *var, char *value, unsigned int newflag, unsigned int ignoreflags);
 
 qboolean Cvar_UnsavedArchive(void);
 void Cvar_Saved(void);
@@ -175,8 +175,8 @@ void Cvar_ConfigChanged(void);
 extern int cvar_watched;	//so that cmd.c knows that it should add messages when configs are execed
 void Cvar_ParseWatches(void);	//parse -watch args
 
-int Cvar_ApplyLatches(int latchflag);
-//sets vars to their latched values
+int Cvar_ApplyLatches(int latchflag, qboolean clearflag);
+//sets vars to their latched values (and optionally forgets the cvarflag in question)
 
 void Cvar_Hook(cvar_t *cvar, void (QDECL *callback) (struct cvar_s *var, char *oldvalue));
 //hook a cvar with a given callback function at runtime

@@ -1042,7 +1042,7 @@ const char *presetexec[] =
 
 	, // realtime options
 	"r_bloom 1;"
-	"r_deluxemapping 0;"	//won't be seen anyway
+	"r_deluxemapping 1;"	//won't be seen anyway
 	"r_particledesc \"high tsshaft\";"
 //	"r_waterstyle 3;"	//too expensive.
 	"r_glsl_offsetmapping 1;"
@@ -1176,12 +1176,106 @@ static void ApplyPreset (int presetnum, qboolean doreload)
 	if (doreload)
 	{
 		forcesaveprompt = true;
-		Cbuf_InsertText("\nfs_restart\nvid_reload\n", RESTRICT_LOCAL, true);
+		Cbuf_InsertText("\nfs_restart\nvid_reload\ncl_warncmd 1\n", RESTRICT_LOCAL, true);
 	}
 	for (i = presetnum; i >= 0; i--)
 	{
 		Cbuf_InsertText(presetexec[i], RESTRICT_LOCAL, true);
 	}
+	if (doreload)
+	{
+		Cbuf_InsertText("\ncl_warncmd 0\n", RESTRICT_LOCAL, true);
+	}
+}
+
+static int M_Menu_Preset_GetActive(void)
+{
+	extern cvar_t r_drawflat;
+
+	//bottoms up!
+#ifdef RTLIGHTS
+	if (r_shadow_realtime_world.ival)
+		return 6;	//realtime
+	else
+#endif
+		if (r_deluxemapping_cvar.ival)
+		return 5;	//nice
+	else if (gl_load24bit.ival)
+		return 4;	//normal
+	else if (r_softwarebanding_cvar.ival)
+		return 3;	//vanilla
+	else if (cl_sbar.ival == 2)
+		return 2;	//spasm
+	else if (!r_drawflat.ival)
+		return 1;	//fast
+	else
+		return 0;	//simple
+}
+
+static void M_Menu_Preset_Predraw(emenu_t *menu)
+{
+	extern cvar_t m_preset_chosen;
+	int last_y;
+	menuoption_t *op, *prev;
+	int preset = M_Menu_Preset_GetActive();
+	int i;
+	qboolean forcereload = false;
+
+#ifdef RTLIGHTS
+	preset = 6-preset;
+#else
+	preset = 5-preset;
+#endif
+
+	for (op = menu->options; op; op = op->common.next)
+	{
+		prev = op->common.next;
+		while (prev && prev->common.ishidden)
+		{	//this uglyness is because the menu items are added bottom-up.
+			prev = prev->common.next;	//erk...
+		}
+		last_y = prev?prev->common.posy:0;
+		if (op->common.type == mt_button)
+		{
+			if (!strcmp(op->button.command, "menupop\n"))
+			{
+				if (m_preset_chosen.ival)
+					op->button.text = "^sAccept";
+			}
+			else if (!strncmp(op->button.command, "fps_preset ", 11))
+			{
+				((char*)op->button.text)[1] = (preset==0)?'m':'7';
+				preset--;
+			}
+		}
+		else if(op->common.type == mt_checkbox||
+				op->common.type == mt_slider||
+				op->common.type == mt_combo) op->common.ishidden = preset!=0;
+
+		if (op->common.type == mt_combo && op->combo.cvar)
+		{	//make sure combo items are updated properly if their cvar value is changed via some other mechanism...
+			const char *curval = op->combo.cvar->latched_string?op->combo.cvar->latched_string:op->combo.cvar->string;
+			if (strcmp(curval, op->combo.values[op->combo.selectedoption]))
+			{
+				for (i = 0; i < op->combo.numoptions; i++)
+				{
+					if (!strcmp(curval, op->combo.values[i]))
+					{
+						op->combo.selectedoption = i;
+						break;
+					}
+				}
+			}
+			if (op->combo.cvar->latched_string && (op->combo.cvar->flags&CVAR_LATCHMASK) == CVAR_RENDERERLATCH)
+				forcereload = true;
+		}
+
+		if (op->common.grav_y)
+			op->common.posy = last_y+op->common.grav_y;
+	}
+
+	if (forcereload)
+		Cbuf_InsertText("\nfs_restart\nvid_reload\n", RESTRICT_LOCAL, true);
 }
 
 void M_Menu_Preset_f (void)
@@ -1189,25 +1283,45 @@ void M_Menu_Preset_f (void)
 	extern cvar_t cfg_save_auto;
 	emenu_t *menu;
 	int y;
+	menuoption_t *presetoption[7];
+	extern cvar_t r_nolerp, r_bloom, sv_nqplayerphysics, r_shadow_realtime_world_importlightentitiesfrommap;
+
+	static const char *deluxeopts[] = {
+		"Off",
+		"Auto",
+		"Force",
+		NULL
+	};
 	menubulk_t bulk[] =
 	{
 		MB_REDTEXT("Please Choose Preset", true),
 		MB_TEXT("^Ue080^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue082", true),
-		MB_CONSOLECMD("simple  (untextured)",	"fps_preset 286;menupop\n",			"Lacks textures, particles, pretty much everything."),
-		MB_CONSOLECMD("fast (qw deathmatch)",	"fps_preset fast;menupop\n",		"Fullscreen effects off to give consistant framerates"),
-		MB_CONSOLECMD("spasm    (nq compat)",	"fps_preset spasm;menupop\n",		"Aims for visual compatibility with common NQ engines. Also affects mods slightly."),
-		MB_CONSOLECMD("vanilla  (softwarey)",	"fps_preset vanilla;menupop\n",		"This is for purists! Party like its 1995! No sanity spared!"),
-		MB_CONSOLECMD("normal    (faithful)",	"fps_preset normal;menupop\n",		"An updated but still faithful appearance, using content replacements where applicable"),
-		MB_CONSOLECMD("nice       (dynamic)",	"fps_preset nice;menupop\n",		"For people who like nice things, but still want to actually play"),
+		MB_CONSOLECMDRETURN("^7simple  (untextured)",	"fps_preset 286\n",			"Lacks textures, particles, pretty much everything.", presetoption[0]),
+			MB_CHECKBOXCVAR("anim snapping", r_nolerp, 0),
+		MB_CONSOLECMDRETURN("^7fast (qw deathmatch)",	"fps_preset fast\n",		"Fullscreen effects off to give consistant framerates", presetoption[1]),
+		MB_CONSOLECMDRETURN("^7spasm    (nq compat)",	"fps_preset spasm\n",		"Aims for visual compatibility with common NQ engines. Also affects mods slightly.", presetoption[2]),
+#ifdef HAVE_SERVER
+			MB_CHECKBOXCVAR("nq physics", sv_nqplayerphysics, 0),
+#endif
+		MB_CONSOLECMDRETURN("^7vanilla  (softwarey)",	"fps_preset vanilla\n",		"This is for purists! Party like its 1995! No sanity spared!", presetoption[3]),
+			MB_CHECKBOXCVAR("anim snapping", r_nolerp, 1),
+			MB_CHECKBOXCVAR("model swimming", gl_affinemodels, 0),
+		MB_CONSOLECMDRETURN("^7normal    (faithful)",	"fps_preset normal\n",		"An updated but still faithful appearance, using content replacements where applicable", presetoption[4]),
+		MB_CONSOLECMDRETURN("^7nice       (dynamic)",	"fps_preset nice\n",		"For people who like nice things, but still want to actually play", presetoption[5]),
+			MB_COMBOCVAR("gen deluxemaps", r_deluxemapping_cvar, deluxeopts, NULL, NULL),
 #ifdef RTLIGHTS
-		MB_CONSOLECMD("realtime    (all on)",	"fps_preset realtime;menupop\n",	"For people who value pretty over fast/smooth. Not viable for deathmatch."),
+		MB_CONSOLECMDRETURN("^7realtime    (all on)",	"fps_preset realtime\n",	"For people who value pretty over fast/smooth. Not viable for deathmatch.", presetoption[6]),
+			MB_CHECKBOXCVAR("bloom", r_bloom, 1),
+			MB_CHECKBOXCVAR("force rtlights", r_shadow_realtime_world_importlightentitiesfrommap, 1),
 #endif
 		MB_SPACING(16),
 		MB_CHECKBOXCVARTIP("Auto-save Settings", cfg_save_auto, 1, "If this is disabled, you will need to explicitly save your settings."),
+		MB_SPACING(16),
+		MB_CONSOLECMD("Accept",					"menupop\n",	NULL),
 		MB_END()
 	};
 	static menuresel_t resel;
-	int item, bias = 0;
+	int item;
 	extern cvar_t r_drawflat;
 	menu = M_Options_Title(&y, 0);
 	MC_AddBulk(menu, &resel, bulk, 16, 216, y);
@@ -1215,28 +1329,32 @@ void M_Menu_Preset_f (void)
 	//bottoms up!
 #ifdef RTLIGHTS
 	if (r_shadow_realtime_world.ival)
-		item = 1;	//realtime
+		item = 6;	//realtime
 	else
-#else
-	bias = 1;
 #endif
 		if (r_deluxemapping_cvar.ival)
-		item = 2;	//nice
+		item = 5;	//nice
 	else if (gl_load24bit.ival)
-		item = 3;	//normal
+		item = 4;	//normal
 	else if (r_softwarebanding_cvar.ival)
-		item = 4;	//vanilla
+		item = 3;	//vanilla
 	else if (cl_sbar.ival == 2)
-		item = 5;	//spasm
+		item = 2;	//spasm
 	else if (!r_drawflat.ival)
-		item = 6;	//fast
+		item = 1;	//fast
 	else
-		item = 7;	//simple
-	item++; //the autosave option
-	item -= bias;
-	while (item --> 0)
-		menu->selecteditem = menu->selecteditem->common.next;
-	menu->cursoritem->common.posy = menu->selecteditem->common.posy;
+		item = 0;	//simple
+	if (presetoption[item])
+	{
+		menu->selecteditem = presetoption[item];
+		menu->cursoritem->common.posy = menu->selecteditem->common.posy;
+	}
+
+	//so they can actually see the preset they're picking.
+	menu->nobacktint = true;
+	menu->predraw = M_Menu_Preset_Predraw;
+
+	Cbuf_InsertText("\ndemos idle\n", RESTRICT_LOCAL, false);
 }
 
 void FPS_Preset_f (void)
@@ -3959,6 +4077,19 @@ void M_Modelviewer_Shutdown(struct emenu_s *menu)
 	skel_reset(&mv->ragworld);
 	World_RBE_Shutdown(&mv->ragworld);
 }
+void M_Modelviewer_Reset(struct menu_s *cmenu)
+{
+	emenu_t *menu = (emenu_t*)cmenu;
+	modelview_t *mv = menu->data;
+	mv->ragworld.worldmodel = NULL;	//already went away
+	rag_removedeltaent(&mv->ragent);
+	skel_reset(&mv->ragworld);
+	World_RBE_Shutdown(&mv->ragworld);
+
+	//we still want it.
+	mv->ragworld.worldmodel = NULL;//Mod_ForName("", MLV_SILENT);
+//	World_RBE_Start(&mv->ragworld);
+}
 //haxors, for skeletal objects+RBE
 char	*PDECL M_Modelviewer_AddString(pubprogfuncs_t *prinst, const char *val, int minlength, pbool demarkup)
 {
@@ -3977,6 +4108,8 @@ void M_Menu_ModelViewer_f(void)
 	emenu_t *menu;
 
 	menu = M_CreateMenu(sizeof(*mv));
+	menu->menu.persist = true;
+	menu->menu.videoreset = M_Modelviewer_Reset;
 	mv = menu->data;
 	c = MC_AddCustom(menu, 64, 32, mv, 0, NULL);
 	menu->cursoritem = (menuoption_t*)c;

@@ -7,6 +7,7 @@ ParsePlayer: Called from CSQC_Ent_Parse for csqc protocol ents
 
 static void() RemovePlayer;
 
+
 enum
 {
 	MF_BAD,
@@ -69,7 +70,7 @@ static float() Player_Interpolate =
 			self.renderflags = RF_EXTERNALMODEL;
 
 #ifdef POWERUP_SHELLS
-		if (!checkbuiltin(shaderforname))
+		if (checkbuiltin(shaderforname))
 		{
 			if (self.sveffects & SVE_INVIS)
 				self.forceshader = shaderforname("powerups/invisibility");

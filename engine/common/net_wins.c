@@ -499,7 +499,44 @@ qboolean	NET_CompareBaseAdr (netadr_t *a, netadr_t *b)
 		return false;
 
 	if (a->type != b->type)
+	{
+		int i;
+		if ((a->type == NA_INVALID || b->type == NA_INVALID) && (a->prot==NP_RTC_TCP||a->prot==NP_RTC_TLS)&&(b->prot==NP_RTC_TCP||b->prot==NP_RTC_TLS))
+			return true;	//broker stuff can be written as /foo which doesn't necessarily have all the info.
+		if (a->type == NA_IP && b->type == NA_IPV6)
+		{
+			for (i = 0; i < 10; i++)
+				if (b->address.ip6[i] != 0)
+					return false;	//only matches if they're 0s, otherwise its not an ipv4 address there
+			for (; i < 12; i++)
+				if (b->address.ip6[i] != 0xff)// && b->address.ip6[i] != 0x00)	//0x00 is depricated
+					return false;	//only matches if they're 0s or ffs, otherwise its not an ipv4 address there
+			for (i = 0; i < 4; i++)
+			{
+				if (a->address.ip[i] != b->address.ip6[12+i])
+					return false;	//mask doesn't match
+			}
+			return true;	//its an ipv4 address in there, the mask matched the whole way through
+		}
+		if (a->type == NA_IPV6 && b->type == NA_IP)
+		{
+			for (i = 0; i < 10; i++)
+				if (a->address.ip6[i] != 0)
+					return false;	//only matches if they're 0s, otherwise its not an ipv4 address there
+
+			for (; i < 12; i++)
+				if (a->address.ip6[i] != 0xff)// && a->address.ip6[i] != 0x00)	//0x00 is depricated
+					return false;	//only matches if they're 0s or ffs, otherwise its not an ipv4 address there
+
+			for (i = 0; i < 4; i++)
+			{
+				if (a->address.ip6[12+i] != b->address.ip[i])
+					return false;	//mask doesn't match
+			}
+			return true;	//its an ipv4 address in there, the mask matched the whole way through
+		}
 		return false;
+	}
 
 	if (a->type == NA_LOOPBACK)
 		return true;
@@ -2332,7 +2369,10 @@ vfsfile_t *FS_OpenSSL(const char *peername, vfsfile_t *source, qboolean isserver
 		f = SSPI_OpenVFS(hostname, source, isserver);
 #endif
 	if (!f)	//it all failed.
+	{
+		Con_Printf("%s: no tls provider available\n", peername);
 		VFS_CLOSE(source);
+	}
 	return f;
 }
 int TLS_GetChannelBinding(vfsfile_t *stream, qbyte *data, size_t *datasize)
@@ -4188,6 +4228,7 @@ qboolean FTENET_TCP_HTTPResponse(ftenet_tcp_stream_t *st, httparg_t arg[WCATTR_C
 	const char *resp = NULL;	//response headers (no length/gap)
 	const char *body = NULL;	//response body
 	int method;
+	net_from = st->remoteaddr;
 	if (!strcmp(arg[WCATTR_METHOD], "GET"))
 		method = 0;
 	else if (!strcmp(arg[WCATTR_METHOD], "HEAD"))
@@ -4319,7 +4360,7 @@ qboolean FTENET_TCP_HTTPResponse(ftenet_tcp_stream_t *st, httparg_t arg[WCATTR_C
 		}
 #endif
 #if defined(SV_MASTER) && !defined(HAVE_SERVER)
-		else if ((st->dlfile=SVM_GenerateIndex(arg[WCATTR_HOST], name)))
+		else if ((st->dlfile=SVM_GenerateIndex(arg[WCATTR_HOST], name, &filetype, query)))
 			;
 #endif
 #ifdef HAVE_SERVER
@@ -8888,7 +8929,7 @@ int QDECL VFSTCP_ReadBytes (struct vfsfile_s *file, void *buffer, int bytestorea
 					break;
 				case NET_ECONNREFUSED:
 					Con_DPrintf("connection to \"%s\" refused\n", tf->peer);
-					tf->readaborted = VFS_ERROR_NORESPONSE;
+					tf->readaborted = VFS_ERROR_REFUSED;
 					break;
 				case NET_ECONNRESET:
 					Con_DPrintf("connection to \"%s\" reset\n", tf->peer);
@@ -8962,9 +9003,16 @@ int QDECL VFSTCP_WriteBytes (struct vfsfile_s *file, const void *buffer, int byt
 		case NET_ETIMEDOUT:
 			Con_Printf("connection to \"%s\" timed out\n", tf->peer);
 			return VFS_ERROR_NORESPONSE;	//don't bother trying to read if we never connected.
-		case NET_ECONNABORTED:
+		case NET_ECONNREFUSED:	//peer sent a reset instead of accepting a new connection
+			Con_DPrintf("connection to \"%s\" refused\n", tf->peer);
+			return VFS_ERROR_REFUSED;	//don't bother trying to read if we never connected.
+		case NET_ECONNABORTED:	//peer closed its socket
 			Con_Printf("connection to \"%s\" aborted\n", tf->peer);
 			reason = len?VFS_ERROR_NORESPONSE:VFS_ERROR_EOF;
+			break;
+		case NET_ECONNRESET:	//'peer' claims no knowledge (rebooted?) or forcefully closed
+			Con_DPrintf("connection to \"%s\" reset\n", tf->peer);
+			reason = VFS_ERROR_EOF;
 			break;
 		case NET_ENOTCONN:
 #ifdef __unix__

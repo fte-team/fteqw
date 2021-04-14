@@ -41,18 +41,22 @@ struct wedict_s
 
 #define G_PROG G_FLOAT
 
-//the lh extension system asks for a name for the extension.
+//the checkextension system asks for a name for the extension.
 //the ebfs version is a function that returns a builtin number.
-//thus lh's system requires various builtins to exist at specific numbers.
-typedef struct lh_extension_s {
+//thus this system requires various builtins to exist at specific numbers.
+//this competes against checkbuiltin(funcreference).
+typedef struct {
+	unsigned int pext1, pext2;
+} extcheck_t;
+typedef struct qc_extension_s {
 	char *name;
+	qboolean(*extensioncheck)(extcheck_t *info);
 	int numbuiltins;
-	qboolean *queried;
 	char *builtinnames[21];	//extend freely
 	char *description;
-} lh_extension_t;
+} qc_extension_t;
 
-extern lh_extension_t QSG_Extensions[];
+extern qc_extension_t QSG_Extensions[];
 extern unsigned int QSG_Extensions_count;
 
 pbool QDECL QC_WriteFile(const char *name, void *data, int len);
@@ -685,6 +689,7 @@ typedef struct
 
 	void (QDECL *VectorAngles)(const float *forward, const float *up, float *result, qboolean meshpitch);
 	void (QDECL *AngleVectors)(const vec3_t angles, vec3_t forward, vec3_t right, vec3_t up);
+#define plugrbefuncs_name "RBE"
 } rbeplugfuncs_t;
 #define RBEPLUGFUNCS_VERSION 1
 
@@ -856,7 +861,8 @@ enum lightfield_e
 	lfield_rgbdecay=15,
 	lfield_radiusdecay=16,
 	lfield_stylestring=17,
-	lfield_nearclip=18
+	lfield_nearclip=18,
+	lfield_owner=19,
 };
 enum csqc_input_event
 {
@@ -1107,13 +1113,28 @@ enum
 	globalfloat (input_buttons)				/*float		filled by getinputstate, read by runplayerphysics*/ \
 	globalfloat (input_impulse)				/*float		filled by getinputstate, read by runplayerphysics*/ \
 	globalfloat (input_lightlevel)			/*unused float		filled by getinputstate, read by runplayerphysics*/ \
-	globalfloat (input_weapon)				/*unused float		filled by getinputstate, read by runplayerphysics*/ \
+	globaluint  (input_weapon)				/*unused float		filled by getinputstate, read by runplayerphysics*/ \
 	globalfloat (input_servertime)			/*float		filled by getinputstate, read by runplayerphysics*/ \
 	globalfloat (input_clienttime)			/*float		filled by getinputstate, read by runplayerphysics*/ \
 	globalvector(input_cursor_screen)		/*float		filled by getinputstate*/ \
 	globalvector(input_cursor_trace_start)	/*float		filled by getinputstate*/ \
 	globalvector(input_cursor_trace_endpos)	/*float		filled by getinputstate*/ \
 	globalfloat (input_cursor_entitynumber)	/*float		filled by getinputstate*/ \
+	globaluint  (input_head_status)			/*filled by getinputstate, for vr*/ \
+	globalvector(input_head_origin)			/*filled by getinputstate, for vr*/ \
+	globalvector(input_head_angles)			/*filled by getinputstate, for vr*/ \
+	globalvector(input_head_velocity)		/*filled by getinputstate, for vr*/ \
+	globalvector(input_head_avelocity)		/*filled by getinputstate, for vr*/ \
+	globaluint  (input_left_status)			/*filled by getinputstate, for vr*/ \
+	globalvector(input_left_origin)			/*filled by getinputstate, for vr*/ \
+	globalvector(input_left_angles)			/*filled by getinputstate, for vr*/ \
+	globalvector(input_left_velocity)		/*filled by getinputstate, for vr*/ \
+	globalvector(input_left_avelocity)		/*filled by getinputstate, for vr*/ \
+	globaluint  (input_right_status)		/*filled by getinputstate, for vr*/ \
+	globalvector(input_right_origin)		/*filled by getinputstate, for vr*/ \
+	globalvector(input_right_angles)		/*filled by getinputstate, for vr*/ \
+	globalvector(input_right_velocity)		/*filled by getinputstate, for vr*/ \
+	globalvector(input_right_avelocity)		/*filled by getinputstate, for vr*/ \
 	\
 	globalvector(global_gravitydir)			/*vector	used when .gravitydir is 0 0 0 */ \
 	globalfloat (dimension_default)			/*float		default value for dimension_hit+dimension_solid*/ \

@@ -76,7 +76,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 typedef struct
 {
-	int		fileofs, filelen;
+	unsigned int		fileofs, filelen;
 } lump_t;
 
 #define	LUMP_ENTITIES	0
@@ -160,23 +160,28 @@ typedef struct
 } dplane_t;
 
 
-
-#define	Q1CONTENTS_EMPTY	-1
-#define	Q1CONTENTS_SOLID	-2
-#define	Q1CONTENTS_WATER	-3
-#define	Q1CONTENTS_SLIME	-4
-#define	Q1CONTENTS_LAVA		-5
-#define	Q1CONTENTS_SKY		-6
-#define	Q1CONTENTS_STRIPPED	-7	/*not known to engine*/
-#define	Q1CONTENTS_CLIP		-8	/*solid to players*/
-#define	Q1CONTENTS_FLOW_1	-9	/*moves player*/
-#define	Q1CONTENTS_FLOW_2	-10	/*moves player*/
-#define	Q1CONTENTS_FLOW_3	-11	/*moves player*/
-#define	Q1CONTENTS_FLOW_4	-12	/*moves player*/
-#define	Q1CONTENTS_FLOW_5	-13	/*moves player*/
-#define	Q1CONTENTS_FLOW_6	-14	/*moves player*/
-#define	Q1CONTENTS_TRANS	-15	/*should be solid I guess*/
-#define	Q1CONTENTS_LADDER	-16	/*player can climb up/down*/
+enum q1contents_e
+{	//q1 and halflife bsp contents values.
+	//also used for .skin for content forcing.
+	Q1CONTENTS_EMPTY		= -1,
+	Q1CONTENTS_SOLID		= -2,
+	Q1CONTENTS_WATER		= -3,
+	Q1CONTENTS_SLIME		= -4,
+	Q1CONTENTS_LAVA			= -5,
+	Q1CONTENTS_SKY			= -6,
+//#define Q1CONTENTS_ORIGIN	  -7	/*not known to engine - origin or something*/
+	Q1CONTENTS_CLIP			= -8,	/*solid to players+monsters, but not tracelines*/
+	Q1CONTENTS_CURRENT_0	= -9,	/*moves player*/
+	Q1CONTENTS_CURRENT_90	= -10,	/*moves player*/
+	Q1CONTENTS_CURRENT_180	= -11,	/*moves player*/
+	Q1CONTENTS_CURRENT_270	= -12,	/*moves player*/
+	Q1CONTENTS_CURRENT_UP	= -13,	/*moves player*/
+	Q1CONTENTS_CURRENT_DOWN	= -14,	/*moves player*/
+	Q1CONTENTS_TRANS		= -15,	/*should be solid I guess*/
+	Q1CONTENTS_LADDER		= -16,	/*player can climb up/down*/
+	Q1CONTENTS_MONSTERCLIP	= -17,	/*solid to monster movement*/
+	Q1CONTENTS_PLAYERCLIP	= -18,	/*solid to player movement*/
+};
 
 // !!! if this is changed, it must be changed in asm_i386.h too !!!
 typedef struct

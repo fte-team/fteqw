@@ -51,6 +51,7 @@ void IN_MouseMove(unsigned int devid, int abs, float x, float y, float z, float 
 void IN_JoystickAxisEvent(unsigned int devid, int axis, float value);
 void IN_Accelerometer(unsigned int devid, float x, float y, float z);
 void IN_Gyroscope(unsigned int devid, float pitch, float yaw, float roll);
+qboolean IN_SetHandPosition(const char *devname, vec3_t org, vec3_t ang, vec3_t vel, vec3_t avel);
 
 //system-specific functions
 void INS_Move (void);

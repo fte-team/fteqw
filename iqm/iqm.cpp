@@ -1187,6 +1187,7 @@ void makemeshes(const filespec &spec)
 		for(int j = i; j < emeshes.length(); j++) 
 		{
 			emesh &em = emeshes[j];
+			if(em.used) continue;
 			if(strcmp(em.name, em1.name) || strcmp(em.material, em1.material) || memcmp(&em.explicits, &em1.explicits, sizeof(em.explicits))) continue;
 			int lasttri = emeshes.inrange(j+1) ? emeshes[j+1].firsttri : etriangles.length();
 			for(int k = em.firsttri; k < lasttri; k++)
@@ -2619,7 +2620,7 @@ static vector<mtlinfo> parsemtl(stream *f)
 		}
 		else if(!strncmp(c, "map_Kd", 6) && isspace(c[6]))
 		{
-			while(isalpha(*c)) c++;
+			while(isalpha(*c) || *c == '_') c++;
 			while(isspace(*c)) c++;
 			char *name = c;
 			size_t namelen = strlen(c);
@@ -5367,6 +5368,8 @@ void help(bool exitstatus = EXIT_SUCCESS)
 "      Sets the first frame of the animation to N (integer).\n"
 "    --end N\n"
 "      Sets the last frame of the animation to N (integer).\n"
+"    --zup\n"
+"      Source model is in quake's orientation.\n"
 "\n"
 "You can supply either a mesh file, animation files, or both.\n"
 "Note that if an input mesh file is supplied, it must come before the animation\n"
@@ -5795,6 +5798,9 @@ int main(int argc, char **argv)
 				else if(!strcasecmp(&argv[i][2], "start")) { if(i + 1 < argc) inspec.startframe = max(atoi(argv[++i]), 0); }
 				else if(!strcasecmp(&argv[i][2], "end")) { if(i + 1 < argc) inspec.endframe = atoi(argv[++i]); }
 				else if(!strcasecmp(&argv[i][2], "scale")) { if(i + 1 < argc) inspec.scale = clamp(atof(argv[++i]), 1e-8, 1e8); }
+				else if(!strcasecmp(&argv[i][2], "rotate")) { if(i + 3 < argc) inspec.rotate = Quat::fromdegrees(-Vec3(atof(argv[i+1]),atof(argv[i+3]),atof(argv[i+2]))); i+=3;}
+				else if(!strcasecmp(&argv[i][2], "yup"))	inspec.rotate = Quat::fromangles(Vec3(0,-M_PI,0));
+				else if(!strcasecmp(&argv[i][2], "zup"))	inspec.rotate = Quat::fromdegrees(Vec3(0,-90,-90));
 				else if(!strcasecmp(&argv[i][2], "ignoresurfname")) inspec.ignoresurfname = true;
 				else if(!strcasecmp(&argv[i][2], "help")) help();
 				else if(!strcasecmp(&argv[i][2], "forcejoints")) forcejoints = true;

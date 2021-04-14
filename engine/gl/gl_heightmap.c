@@ -2,6 +2,10 @@
 See gl_terrain.h for terminology, networking notes, etc.
 */
 
+//FIXME: render in lightmap batches. generate vbos accordingly.
+//FIXME: assign to lightmaps by matching textures. should be able to get up to 65536/(17*17)=226 per section before index limits hit, 16*16=256 allows for 1024*1024 lightmaps.
+//FIXME: sort texture blend names to reduce combinations
+
 #include "quakedef.h"
 
 #ifdef TERRAIN
@@ -2687,6 +2691,20 @@ static void Terr_RebuildMesh(model_t *model, hmsection_t *s, int x, int y)
 	}
 
 #ifdef GLQUAKE
+	#if 0
+	if (qrenderer == QR_OPENGL && qglGenBuffersARB)
+	{
+		vbobctx_t ctx;
+		size_t vertsize = sizeof(*mesh->xyz_array)+sizeof(*mesh->st_array)+sizeof(*mesh->lmst_array)+(mesh->colors4f_array?sizeof(*mesh->colors4f_array):0);
+		BE_VBO_Begin(&ctx, vertsize * mesh->numvertexes);
+		BE_VBO_Data(&ctx, mesh->xyz_array, sizeof(*mesh->xyz_array) * mesh->numvertexes, &s->vbo.coord);
+		BE_VBO_Data(&ctx, mesh->st_array, sizeof(*mesh->st_array) * mesh->numvertexes, &s->vbo.texcoord);
+		BE_VBO_Data(&ctx, mesh->lmst_array, sizeof(*mesh->lmst_array) * mesh->numvertexes, &s->vbo.lmcoord[0]);
+		if (mesh->colors4f_array)
+			BE_VBO_Data(&ctx, mesh->colors4f_array, sizeof(*mesh->colors4f_array) * mesh->numvertexes, &s->vbo.colours[0]);
+		BE_VBO_Finish(&ctx, mesh->indexes, sizeof(*mesh->indexes)*mesh->numindexes, &s->vbo.indicies, NULL, NULL);
+	}
+	#else
 	if (qrenderer == QR_OPENGL && qglGenBuffersARB)
 	{
 		if (!s->vbo.coord.gl.vbo)
@@ -2728,6 +2746,7 @@ static void Terr_RebuildMesh(model_t *model, hmsection_t *s, int x, int y)
 		mesh->indexes = NULL;
 #endif
 	}
+	#endif
 #endif
 #ifdef VKQUAKE
 	if (qrenderer == QR_VULKAN)

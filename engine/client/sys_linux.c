@@ -1077,7 +1077,7 @@ char *Sys_ConsoleInput(void)
 }
 
 #ifdef HAVE_GNUTLS
-static void DoSign(const char *fname)
+static void DoSign(const char *fname, int signtype)
 {
 	qbyte digest[1024];
 	qbyte signature[2048];
@@ -1104,14 +1104,30 @@ static void DoSign(const char *fname)
 		}
 		h->terminate(digest, ctx);
 		VFS_CLOSE(f);
-		printf(" \\\"dlsize=%zu\\\"", ts);
 
-		Base16_EncodeBlock(digest, h->digestsize, base64, sizeof(base64));
-		printf(" \\\"sha512=%s\\\"", base64);
+		if (signtype == 0)
+		{	//old junk
+			printf(" \\\"dlsize=%zu\\\"", ts);
 
-		sigsize = GNUTLS_GenerateSignature(digest, h->digestsize, signature, sizeof(signature));
-		Base64_EncodeBlock(signature, sigsize, base64, sizeof(base64));
-		printf(" \\\"sign=%s:%s\\\"\n", auth, base64);
+			Base16_EncodeBlock(digest, h->digestsize, base64, sizeof(base64));
+			printf(" \\\"sha512=%s\\\"", base64);
+
+			sigsize = GNUTLS_GenerateSignature(digest, h->digestsize, signature, sizeof(signature));
+			Base64_EncodeBlock(signature, sigsize, base64, sizeof(base64));
+			printf(" \\\"sign=%s:%s\\\"\n", auth, base64);
+		}
+		else if (signtype == 2)
+		{	//signature "auth" "signdata"
+			//printf(" \\\"dlsize=%zu\\\"", ts);
+
+			//Base16_EncodeBlock(digest, h->digestsize, base64, sizeof(base64));
+			//printf(" \\\"sha512=%s\\\"", base64);
+
+			sigsize = GNUTLS_GenerateSignature(digest, h->digestsize, signature, sizeof(signature));
+			Base64_EncodeBlock(signature, sigsize, base64, sizeof(base64));
+
+			printf("%s\n", base64);
+		}
 	}
 }
 #endif
@@ -1272,6 +1288,8 @@ int main (int c, const char **v)
 #ifdef HAVE_GNUTLS
 	//fteqw -privcert privcert.key -pubcert pubcert.key -sign binaryfile.pk3
 	i = COM_CheckParm("-sign");
+	if (!i)
+		i = COM_CheckParm("-sign2");
 	if (i)
 	{
 		//init some useless crap
@@ -1280,7 +1298,7 @@ int main (int c, const char **v)
 		Memory_Init ();
 		COM_Init ();
 
-		DoSign(com_argv[i+1]);
+		DoSign(com_argv[i+1], atoi(com_argv[i+0]+5));
 		return EXIT_SUCCESS;
 	}
 #endif

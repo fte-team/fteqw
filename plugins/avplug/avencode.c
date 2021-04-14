@@ -435,7 +435,7 @@ static void AVEnc_Audio (void *vctx, void *data, int bytes)
 			{
 				int32_t *f = (int32_t *)ctx->audio_outbuf + p*planesize + offset;
 				for (i = 0; i < count*chans; i+=chans)
-					*f++ = bound(0x80000000, (in[i] * 0x7fffffff), 0x7fffffff);
+					*f++ = bound(0x80000000, (int)(in[i] * (float)0x7fffffff), 0x7fffffff);
 				in++;
 			}
 			break;

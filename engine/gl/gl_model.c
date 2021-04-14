@@ -24,7 +24,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #include "quakedef.h"
 
-
+#include "com_bih.h"
 #if 1//ndef SERVERONLY	//FIXME
 #include "glquake.h"
 #include "com_mesh.h"
@@ -340,7 +340,14 @@ const char *Mod_GetEntitiesString(model_t *mod)
 	if (mod->entities_raw)	//still cached/correct
 		return mod->entities_raw;
 	if (!mod->numentityinfo)
-		return NULL;
+	{
+		if (mod->loadstate != MLS_LOADED)
+			return NULL;
+		mod->entities_raw = FS_LoadMallocFile(va("%s.ent", mod->name), NULL);
+		if (!mod->entities_raw)
+			mod->entities_raw = FS_LoadMallocFile(va("%s.ent", mod->name), NULL);
+		return mod->entities_raw;
+	}
 
 	//reform the entities back into a full string now that we apparently need it
 	//find needed buffer size
@@ -423,8 +430,7 @@ void Mod_ParseEntities(model_t *mod)
 	Z_Free(mod->entityinfo);
 	mod->entityinfo = NULL;
 
-
-	entdata = mod->entities_raw;
+	entdata = Mod_GetEntitiesString(mod);
 	while(1)
 	{
 		if (!(entdata=COM_ParseOut(entdata, key, sizeof(key))))
@@ -1227,7 +1233,13 @@ static void Mod_LoadModelWorker (void *ctx, void *data, size_t a, size_t b)
 //
 // fill it in
 //
-		Mod_DoCRC(mod, (char*)buf, filesize);
+		if (!Mod_DoCRC(mod, (char*)buf, filesize))
+		{
+			BZ_Free(buf);
+			continue;
+		}
+
+		memset(&mod->funcs, 0, sizeof(mod->funcs));	//just in case...
 
 		if (filesize < 4)
 			magic = 0;
@@ -2234,7 +2246,7 @@ void Mod_LoadEntities (model_t *loadmodel, qbyte *mod_base, lump_t *l)
 		ents[l->filelen] = 0;
 	}
 	else
-		loadmodel->entitiescrc = QCRC_Block(ents, strlen(ents));
+		loadmodel->entitiescrc = CalcHashInt(&hash_crc16, ents, strlen(ents));
 
 	Mod_SetEntitiesString(loadmodel, ents, false);
 
@@ -2817,8 +2829,8 @@ void Mod_LightmapAllocInit(lmalloc_t *lmallocator, qboolean hasdeluxe, unsigned 
 	lmallocator->lmnum = firstlm;
 	lmallocator->firstlm = firstlm;
 
-	lmallocator->width = width;
-	lmallocator->height = height;
+	lmallocator->width = min(LMBLOCK_SIZE_MAX, width);
+	lmallocator->height = min(LMBLOCK_SIZE_MAX, height);
 }
 void Mod_LightmapAllocDone(lmalloc_t *lmallocator, model_t *mod)
 {
@@ -3079,8 +3091,6 @@ static void Mod_Batches_Build(model_t *mod, builddata_t *bd)
 	batch_t *batch;
 	mesh_t *meshlist;
 	int merge = 1;
-
-	currentmodel = mod;
 
 	if (!mod->textures)
 		return;
@@ -4922,46 +4932,6 @@ static qboolean Mod_LoadPlanes (model_t *loadmodel, qbyte *mod_base, lump_t *l)
 	return true;
 }
 
-#ifndef SERVERONLY
-//combination of R_AddDynamicLights and R_MarkLights
-static void Q1BSP_StainNode (mnode_t *node, float *parms)
-{
-	mplane_t	*splitplane;
-	float		dist;
-	msurface_t	*surf;
-	int			i;
-	
-	if (node->contents < 0)
-		return;	
-
-	splitplane = node->plane;
-	dist = DotProduct ((parms+1), splitplane->normal) - splitplane->dist;
-	
-	if (dist > (*parms))
-	{
-		Q1BSP_StainNode (node->children[0], parms);
-		return;
-	}
-	if (dist < (-*parms))
-	{
-		Q1BSP_StainNode (node->children[1], parms);
-		return;
-	}
-
-// mark the polygons
-	surf = cl.worldmodel->surfaces + node->firstsurface;
-	for (i=0 ; i<node->numsurfaces ; i++, surf++)
-	{
-		if (surf->flags&~(SURF_DRAWALPHA|SURF_DONTWARP|SURF_PLANEBACK))
-			continue;
-		Surf_StainSurf(surf, parms);
-	}
-
-	Q1BSP_StainNode (node->children[0], parms);
-	Q1BSP_StainNode (node->children[1], parms);
-}
-#endif
-
 static void Mod_FixupNodeMinsMaxs (mnode_t *node, mnode_t *parent)
 {
 	if (!node)
@@ -5467,13 +5437,6 @@ static qboolean QDECL Mod_LoadBrushModel (model_t *mod, void *buffer, size_t fsi
 	TRACE(("LoadBrushModel %i\n", __LINE__));
 	Q1BSP_LoadBrushes(mod, bspx, mod_base);
 	TRACE(("LoadBrushModel %i\n", __LINE__));
-	Q1BSP_SetModelFuncs(mod);
-	TRACE(("LoadBrushModel %i\n", __LINE__));
-#ifndef SERVERONLY
-	mod->funcs.LightPointValues		= GLQ1BSP_LightPointValues;
-	mod->funcs.MarkLights			= Q1BSP_MarkLights;
-	mod->funcs.StainNode			= Q1BSP_StainNode;
-#endif
 
 	mod->numframes = 2;		// regular and alternate animation
 	
@@ -5543,6 +5506,27 @@ TRACE(("LoadBrushModel %i\n", __LINE__));
 			COM_AddWork(WG_MAIN, ModBrush_LoadGLStuff, submod, NULL, i, 0);
 		}
 		TRACE(("LoadBrushModel %i\n", __LINE__));
+
+		submod->cnodes = NULL;
+		Q1BSP_SetModelFuncs(submod);
+		if (bm->brushes)
+		{
+			struct bihleaf_s *leafs, *l;
+			size_t i;
+			leafs = l = BZ_Malloc(sizeof(*leafs)*bm->numbrushes);
+			for (i = 0; i < bm->numbrushes; i++)
+			{
+				struct q2cbrush_s *b = &bm->brushes[i];
+				l->type = BIH_BRUSH;
+				l->data.brush = b;
+				l->data.contents = b->contents;
+				VectorCopy(b->absmins, l->mins);
+				VectorCopy(b->absmaxs, l->maxs);
+				l++;
+			}
+			BIH_Build(submod, leafs, l-leafs);
+			BZ_Free(leafs);
+		}
 
 		if (i)
 			COM_AddWork(WG_MAIN, Mod_ModelLoaded, submod, NULL, MLS_LOADED, 0);

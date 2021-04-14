@@ -1,5 +1,6 @@
 #include "quakedef.h"
 
+#include "com_bih.h"
 #include "com_mesh.h"
 
 #ifdef __F16C__
@@ -24,6 +25,9 @@ cvar_t r_lerpmuzzlehack						= CVARF  ("r_lerpmuzzlehack", "1", CVAR_ARCHIVE);
 cvar_t mod_h2holey_bugged					= CVARD ("mod_h2holey_bugged", "0", "Hexen2's holey-model flag uses index 0 as transparent (and additionally 255 in gl, due to a bug). GLQuake engines tend to have bugs that use ONLY index 255, resulting in a significant compatibility issue that can be resolved only with this shitty cvar hack.");
 cvar_t mod_halftexel						= CVARD ("mod_halftexel", "1", "Offset texture coords by a half-texel, for compatibility with glquake and the majority of engine forks.");
 cvar_t mod_nomipmap							= CVARD ("mod_nomipmap", "0", "Disables the use of mipmaps on quake1 mdls, consistent with its original software renderer.");
+#endif
+#ifdef MODELFMT_OBJ
+cvar_t mod_obj_orientation					= CVARD("mod_obj_orientation", "1", "Controls how the model's axis are interpreted.\n0: x=forward, z=up (Quake)\n1: x=forward, y=up\n2: z=forward, y=up");
 #endif
 static void QDECL r_meshpitch_callback(cvar_t *var, char *oldvalue)
 {
@@ -57,28 +61,22 @@ static void Mod_UpdateCRC(void *ctx, void *data, size_t a, size_t b)
 #endif
 
 //Common loader function.
-void Mod_DoCRC(model_t *mod, char *buffer, int buffersize)
+qboolean Mod_DoCRC(model_t *mod, char *buffer, int buffersize)
 {
 #ifdef HAVE_CLIENT
 	//we've got to have this bit
 	if (mod->engineflags & MDLF_DOCRC)
 	{
-		unsigned short crc;
-		qbyte *p;
-		int len;
-
-		QCRC_Init(&crc);
-		for (len = buffersize, p = buffer; len; len--, p++)
-			QCRC_ProcessByte(&crc, *p);
-
-		COM_AddWork(WG_MAIN, Mod_UpdateCRC, (mod->engineflags & MDLF_PLAYER) ? pmodel_name : emodel_name, NULL, crc, 0);
-
+		unsigned int crc = CalcHashInt(&hash_crc16, buffer, buffersize);
 		if (!(mod->engineflags & MDLF_PLAYER))
 		{	//eyes
 			mod->tainted = (crc != 6967);
 		}
+		COM_AddWork(WG_MAIN, Mod_UpdateCRC, (mod->engineflags & MDLF_PLAYER) ? pmodel_name : emodel_name, NULL, crc, 0);
 	}
-	Validation_FileLoaded(mod->publicname, buffer, buffersize);
+	return Ruleset_FileLoaded(mod->publicname, buffer, buffersize);
+#else
+	return true;
 #endif
 }
 
@@ -2647,6 +2645,69 @@ static qboolean Mod_Trace(model_t *model, int forcehullnum, const framestate_t *
 	trace->allsolid = false;
 
 	return trace->fraction != 1;
+}
+
+static unsigned int Mod_Mesh_PointContents(struct model_s *model, const vec3_t axis[3], const vec3_t p)
+{	//trisoup doesn't have any actual volumes, thus we can't report anything...
+	return 0;
+}
+static int Mod_Mesh_ClusterForPoint(struct model_s *model, const vec3_t point, int *areaout)
+{	//trisoup doesn't have any actual pvs, thus we can't report anything...
+	if (areaout)
+		*areaout = 0;
+	return -1;
+}
+static qbyte *Mod_Mesh_ClusterPVS(struct model_s *model, int cluster, pvsbuffer_t *pvsbuffer, pvsmerge_t merge)
+{	//trisoup doesn't have any actual pvs, thus we can't report anything...
+	return NULL;
+}
+static unsigned int Mod_Mesh_FatPVS(struct model_s *model, const vec3_t org, pvsbuffer_t *pvsbuffer, qboolean merge)
+{	//trisoup doesn't have any actual pvs, thus we can't report anything...
+	return 0;
+}
+qboolean Mod_Mesh_EdictInFatPVS(struct model_s *model, const struct pvscache_s *edict, const qbyte *pvs, const int *areas)
+{	//trisoup doesn't have any actual pvs, thus we always report visible
+	return true;
+}
+void Mod_Mesh_FindTouchedLeafs(struct model_s *model, struct pvscache_s *ent, const vec3_t cullmins, const vec3_t cullmaxs)
+{
+}
+static void Mod_Mesh_LightPointValues(struct model_s *model, const vec3_t point, vec3_t res_diffuse, vec3_t res_ambient, vec3_t res_dir)
+{	//trisoup doesn't have any actual pvs, thus we can't report anything...
+	VectorSet(res_diffuse, 255,255,255);
+	VectorSet(res_ambient, 128,128,128);
+	VectorSet(res_dir, 0,0,1);
+}
+static void Mod_SetMeshModelFuncs(model_t *mod, qboolean isstatic)
+{
+	if (!isstatic)
+	{
+		mod->funcs.NativeTrace = Mod_Trace;
+		return;
+	}
+
+//	void (*PurgeModel) (struct model_s *mod);
+
+	mod->funcs.PointContents = Mod_Mesh_PointContents;
+//	unsigned int (*BoxContents)		(struct model_s *model, int hulloverride, const framestate_t *framestate, const vec3_t axis[3], const vec3_t p, const vec3_t mins, const vec3_t maxs);
+
+	//deals with whatever is native for the bsp (gamecode is expected to distinguish this).
+	mod->funcs.NativeTrace = Mod_Trace;
+//	unsigned int (*NativeContents)(struct model_s *model, int hulloverride, const framestate_t *framestate, const vec3_t axis[3], const vec3_t p, const vec3_t mins, const vec3_t maxs);
+
+	mod->funcs.FatPVS = Mod_Mesh_FatPVS;
+	mod->funcs.EdictInFatPVS = Mod_Mesh_EdictInFatPVS;
+	mod->funcs.FindTouchedLeafs = Mod_Mesh_FindTouchedLeafs;
+
+	mod->funcs.LightPointValues = Mod_Mesh_LightPointValues;
+//	void (*StainNode)			(struct mnode_s *node, float *parms);
+//	void (*MarkLights)			(struct dlight_s *light, dlightbitmask_t bit, struct mnode_s *node);
+
+	mod->funcs.ClusterForPoint = Mod_Mesh_ClusterForPoint;
+	mod->funcs.ClusterPVS = Mod_Mesh_ClusterPVS;
+//	qbyte *(*ClustersInSphere)	(struct model_s *model, const vec3_t point, float radius, pvsbuffer_t *pvsbuffer, const qbyte *fte_restrict unionwith);
+
+	BIH_BuildAlias(mod, mod->meshinfo);
 }
 
 
@@ -8345,8 +8406,8 @@ static galiasinfo_t *Mod_ParseIQMMeshModel(model_t *mod, const char *buffer, siz
 			AddPointToBounds(maxs, mod->mins, mod->maxs);
 		}
 	}
-	else
-		AddPointToBounds(vec3_origin, mod->mins, mod->maxs);
+
+
 
 	ftemesh = IQM_FindExtension(buffer, fsize, "FTE_MESH", 0, &extsize);
 	if (!extsize || extsize != sizeof(*ftemesh)*h->num_meshes)
@@ -8409,15 +8470,23 @@ static galiasinfo_t *Mod_ParseIQMMeshModel(model_t *mod, const char *buffer, siz
 
 		tris = (const struct iqmtriangle*)(buffer + LittleLong(h->ofs_triangles));
 		tris += firsttri;
-		gai[i].numindexes = numtris*3;
-		idx = ZG_Malloc(&mod->memgroup, sizeof(*idx)*gai[i].numindexes);
+		idx = ZG_Malloc(&mod->memgroup, sizeof(*idx)*numtris*3);
 		gai[i].ofs_indexes = idx;
 		for (t = 0; t < numtris; t++)
 		{
-			*idx++ = LittleLong(tris[t].vertex[0]) - firstvert;
-			*idx++ = LittleLong(tris[t].vertex[1]) - firstvert;
-			*idx++ = LittleLong(tris[t].vertex[2]) - firstvert;
+			unsigned int a,b,c;
+			a = LittleLong(tris[t].vertex[0]) - firstvert;
+			b = LittleLong(tris[t].vertex[1]) - firstvert;
+			c = LittleLong(tris[t].vertex[2]) - firstvert;
+			if (a > MAX_INDICIES || b > MAX_INDICIES || c > MAX_INDICIES)
+				continue;	//we can't handle this triangle properly.
+			*idx++ = a;
+			*idx++ = b;
+			*idx++ = c;
 		}
+		gai[i].numindexes = idx - gai[i].ofs_indexes;
+		if (gai[i].numindexes != numtris*3)
+			Con_Printf("%s(%s|%s): Dropped %u of %u triangles due to index size limit\n", mod->name, gai[i].surfacename,strings+mesh[i].material, numtris-gai[i].numindexes/3, numtris);
 
 		/*verts*/
 		gai[i].shares_verts = i;
@@ -8460,9 +8529,9 @@ static galiasinfo_t *Mod_ParseIQMMeshModel(model_t *mod, const char *buffer, siz
 	IQM_ImportArrayF(buffer, &vnorm, (float*)onorm1, 3, h->num_vertexes, defaultcolour);
 	IQM_ImportArrayF(buffer, &vpos, (float*)opos, sizeof(opos[0])/sizeof(float), h->num_vertexes, defaultvert);
 
-	//fixme: shouldn't really be needed for an animated model
-	for (i = 0; i < h->num_vertexes; i++)
-		AddPointToBounds(opos[i], mod->mins, mod->maxs);
+	if (!h->ofs_bounds || !h->num_frames)
+		for (i = 0; i < h->num_vertexes; i++)
+			AddPointToBounds(opos[i], mod->mins, mod->maxs);
 
 	if (vnorm.offset && vtang)
 	{
@@ -8515,7 +8584,7 @@ static qboolean QDECL Mod_LoadInterQuakeModel(model_t *mod, void *buffer, size_t
 	mod->numframes = root->numanimations;
 	mod->meshinfo = root;
 	mod->type = mod_alias;
-	mod->funcs.NativeTrace = Mod_Trace;
+	Mod_SetMeshModelFuncs(mod, !root->ofs_skel_idx&&!root->ofs_skel_weight);
 
 	return true;
 }
@@ -9346,7 +9415,7 @@ struct objattrib_s {
 	size_t maxlength;
 	float *data;
 };
-static qboolean parseobjvert(char *s, struct objattrib_s *out)
+static qboolean parseobjvert(char *s, struct objattrib_s *out, int reorient)
 {
 	int i;
 	float *v;
@@ -9368,6 +9437,23 @@ static qboolean parseobjvert(char *s, struct objattrib_s *out)
 	}
 	for (; i < 3; i++)
 		v[i] = 0;
+
+	if (reorient)
+	{
+		if (reorient == 1)
+		{	//xzy - DP's orientation.
+			float z = v[2];
+			v[2] = v[1];
+			v[1] = z;
+		}
+		else
+		{	//zxy - match iqmtool (doesn't need negative scaling)
+			float z = v[2];
+			v[2] = v[1];
+			v[1] = v[0];
+			v[0] = z;
+		}
+	}
 	return true;
 }
 
@@ -9395,6 +9481,7 @@ static galiasinfo_t *Obj_FinishFace(model_t *mod, galiasinfo_t *m, struct objatt
 				Vector2Clear(m->ofs_st_array[i]);
 			else
 				Vector2Copy(attribs[1].data+3*vert[i].attrib[1], m->ofs_st_array[i]);
+			m->ofs_st_array[i][1] = 1-m->ofs_st_array[i][1]; //flip y coords.
 
 			if (vert[i].attrib[2] >= attribs[2].length)
 			{
@@ -9437,6 +9524,7 @@ static qboolean QDECL Mod_LoadObjModel(model_t *mod, void *buffer, size_t fsize)
 
 	qboolean badinput = false;
 	int meshidx = 0;
+	int reorient = mod_obj_orientation.ival;
 
 	ClearBounds(mod->mins, mod->maxs);
 
@@ -9448,9 +9536,9 @@ static qboolean QDECL Mod_LoadObjModel(model_t *mod, void *buffer, size_t fsize)
 		{
 			case '#': continue;
 			case 'v':
-				if(isspace(c[1])) badinput |= !parseobjvert(c, &attrib[0]);
-				else if(c[1]=='t') badinput |= !parseobjvert(c, &attrib[1]);
-				else if(c[1]=='n') badinput |= !parseobjvert(c, &attrib[2]);
+				if(isspace(c[1])) badinput |= !parseobjvert(c, &attrib[0], reorient);
+				else if(c[1]=='t') badinput |= !parseobjvert(c, &attrib[1], false);
+				else if(c[1]=='n') badinput |= !parseobjvert(c, &attrib[2], reorient);
 				break;
 			case 'g':
 			{
@@ -9480,12 +9568,15 @@ static qboolean QDECL Mod_LoadObjModel(model_t *mod, void *buffer, size_t fsize)
 				namelen = strlen(name);
 				while(namelen > 0 && isspace(name[namelen-1])) namelen--;
 
-				Z_Free(matname);
-				matname = Z_Malloc(namelen+1);
-				memcpy(matname, name, namelen);
-				matname[namelen] = 0;
+				if (!matname || strncmp(matname, name, namelen)||matname[namelen])
+				{
+					Z_Free(matname);
+					matname = Z_Malloc(namelen+1);
+					memcpy(matname, name, namelen);
+					matname[namelen] = 0;
 
-				m = Obj_FinishFace(mod, m, attrib, vert, numverts, elem, &numelems);
+					m = Obj_FinishFace(mod, m, attrib, vert, numverts, elem, &numelems);
+				}
 				break;
 			}
 			case 's':
@@ -9590,9 +9681,18 @@ static qboolean QDECL Mod_LoadObjModel(model_t *mod, void *buffer, size_t fsize)
 							}
 							Z_ReallocElements((void**)&elem,&maxelems,numelems+1024,sizeof(*elem));
 						}
-						elem[numelems++] = cur;
-						elem[numelems++] = prev;
-						elem[numelems++] = first;
+						if (reorient == 1)
+						{
+							elem[numelems++] = first;
+							elem[numelems++] = prev;
+							elem[numelems++] = cur;
+						}
+						else
+						{
+							elem[numelems++] = cur;
+							elem[numelems++] = prev;
+							elem[numelems++] = first;
+						}
 					}
 					prev = cur;
 					v++;
@@ -9621,7 +9721,9 @@ static qboolean QDECL Mod_LoadObjModel(model_t *mod, void *buffer, size_t fsize)
 	mod->flags = 0;
 	mod->type = mod_alias;
 	mod->numframes = 0;
-	mod->funcs.NativeTrace = Mod_Trace;
+	Mod_SetMeshModelFuncs(mod, true);
+
+//	Con_Printf(CON_WARNING "%s: multi-surface obj files are unoptimised\n", mod->name);
 	return !!mod->meshinfo;
 }
 #endif
@@ -9670,6 +9772,7 @@ void Alias_Register(void)
 #endif
 #ifdef MODELFMT_OBJ
 	Mod_RegisterModelFormatText(NULL, "Wavefront Object (obj)",						".obj",									Mod_LoadObjModel);
+	Cvar_Register(&mod_obj_orientation, NULL);
 #endif
 
 #ifndef SERVERONLY

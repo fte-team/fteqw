@@ -1085,3 +1085,49 @@ void IN_Gyroscope(unsigned int devid, float pitch, float yaw, float roll)
 	ev->gyro.roll = roll;
 	in_finishevent();
 }
+
+
+extern usercmd_t cl_pendingcmd[MAX_SPLITS];
+qboolean IN_SetHandPosition(const char *devname, vec3_t org, vec3_t ang, vec3_t vel, vec3_t avel)
+{
+	int dtype;
+	int seat;
+	if (!strncmp(devname, "left", 4))
+	{
+		seat = atoi(devname+4);
+		dtype = VRDEV_LEFT;
+	}
+	else if (!strncmp(devname, "right", 5))
+	{
+		seat = atoi(devname+5);
+		dtype = VRDEV_RIGHT;
+	}
+	else if (!strncmp(devname, "head", 4))
+	{
+		seat = atoi(devname+4);
+		dtype = VRDEV_HEAD;
+	}
+	else
+		return false;	//no idea what you're talking about.
+	if (seat < 0 || seat >= MAX_SPLITS)
+		return false;	//duuuude!
+	cl_pendingcmd[seat].vr[dtype].status =
+			(org ?VRSTATUS_ORG:0)|
+			(ang ?VRSTATUS_ANG:0)|
+			(vel ?VRSTATUS_VEL:0)|
+			(avel?VRSTATUS_AVEL:0);
+
+	if (org)
+		VectorCopy(org, cl_pendingcmd[seat].vr[dtype].origin);
+	if (ang)
+		cl_pendingcmd[seat].vr[dtype].angles[0] = ANGLE2SHORT(ang[0]),
+		cl_pendingcmd[seat].vr[dtype].angles[1] = ANGLE2SHORT(ang[1]),
+		cl_pendingcmd[seat].vr[dtype].angles[2] = ANGLE2SHORT(ang[2]);
+	if (vel)
+		VectorCopy(vel, cl_pendingcmd[seat].vr[dtype].velocity);
+	if (avel)
+		cl_pendingcmd[seat].vr[dtype].avelocity[0] = ANGLE2SHORT(avel[0]),
+		cl_pendingcmd[seat].vr[dtype].avelocity[1] = ANGLE2SHORT(avel[1]),
+		cl_pendingcmd[seat].vr[dtype].avelocity[2] = ANGLE2SHORT(avel[2]);
+	return true;
+}

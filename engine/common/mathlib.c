@@ -540,24 +540,15 @@ R_ConcatRotations
 */
 void R_ConcatRotations (float in1[3][3], float in2[3][3], float out[3][3])
 {
-	out[0][0] = in1[0][0] * in2[0][0] + in1[0][1] * in2[1][0] +
-				in1[0][2] * in2[2][0];
-	out[0][1] = in1[0][0] * in2[0][1] + in1[0][1] * in2[1][1] +
-				in1[0][2] * in2[2][1];
-	out[0][2] = in1[0][0] * in2[0][2] + in1[0][1] * in2[1][2] +
-				in1[0][2] * in2[2][2];
-	out[1][0] = in1[1][0] * in2[0][0] + in1[1][1] * in2[1][0] +
-				in1[1][2] * in2[2][0];
-	out[1][1] = in1[1][0] * in2[0][1] + in1[1][1] * in2[1][1] +
-				in1[1][2] * in2[2][1];
-	out[1][2] = in1[1][0] * in2[0][2] + in1[1][1] * in2[1][2] +
-				in1[1][2] * in2[2][2];
-	out[2][0] = in1[2][0] * in2[0][0] + in1[2][1] * in2[1][0] +
-				in1[2][2] * in2[2][0];
-	out[2][1] = in1[2][0] * in2[0][1] + in1[2][1] * in2[1][1] +
-				in1[2][2] * in2[2][1];
-	out[2][2] = in1[2][0] * in2[0][2] + in1[2][1] * in2[1][2] +
-				in1[2][2] * in2[2][2];
+	out[0][0] = in1[0][0] * in2[0][0] + in1[0][1] * in2[1][0] + in1[0][2] * in2[2][0];
+	out[0][1] = in1[0][0] * in2[0][1] + in1[0][1] * in2[1][1] + in1[0][2] * in2[2][1];
+	out[0][2] = in1[0][0] * in2[0][2] + in1[0][1] * in2[1][2] + in1[0][2] * in2[2][2];
+	out[1][0] = in1[1][0] * in2[0][0] + in1[1][1] * in2[1][0] + in1[1][2] * in2[2][0];
+	out[1][1] = in1[1][0] * in2[0][1] + in1[1][1] * in2[1][1] + in1[1][2] * in2[2][1];
+	out[1][2] = in1[1][0] * in2[0][2] + in1[1][1] * in2[1][2] + in1[1][2] * in2[2][2];
+	out[2][0] = in1[2][0] * in2[0][0] + in1[2][1] * in2[1][0] + in1[2][2] * in2[2][0];
+	out[2][1] = in1[2][0] * in2[0][1] + in1[2][1] * in2[1][1] + in1[2][2] * in2[2][1];
+	out[2][2] = in1[2][0] * in2[0][2] + in1[2][1] * in2[1][2] + in1[2][2] * in2[2][2];
 }
 
 /*
@@ -1084,6 +1075,32 @@ void Matrix4x4_CM_Transform34(const float *matrix, const vec3_t vector, vec4_t p
 
 void Matrix4x4_CM_ModelViewMatrix(float *modelview, const vec3_t viewangles, const vec3_t vieworg)
 {
+#if 1
+	float *out = modelview;
+	float cp = cos(-viewangles[0] * M_PI / 180.0);
+	float sp = sin(-viewangles[0] * M_PI / 180.0);
+	float cy = cos(-viewangles[1] * M_PI / 180.0);
+	float sy = sin(-viewangles[1] * M_PI / 180.0);
+	float cr = cos(-viewangles[2] * M_PI / 180.0);
+	float sr = sin(-viewangles[2] * M_PI / 180.0);
+
+	out[0]  = -sr*sp*cy - cr*sy;
+	out[1]  = -cr*sp*cy + sr*sy;
+	out[2]  = -cp*cy;
+	out[3]  = 0;
+	out[4]  = sr*sp*sy - cr*cy;
+	out[5]  = cr*sp*sy + sr*cy;
+	out[6]  = cp*sy;
+	out[7]  = 0;
+	out[8]  = sr*cp;
+	out[9]  = cr*cp;
+	out[10] = -sp;
+	out[11] = 0;
+	out[12] =   - out[0]*vieworg[0] - out[4]*vieworg[1] - out[ 8]*vieworg[2];
+	out[13] =   - out[1]*vieworg[0] - out[5]*vieworg[1] - out[ 9]*vieworg[2];
+	out[14] =   - out[2]*vieworg[0] - out[6]*vieworg[1] - out[10]*vieworg[2];
+	out[15] = 1 - out[3]*vieworg[0] - out[7]*vieworg[1] - out[11]*vieworg[2];
+#else
 	float tempmat[16];
 	//load identity.
 	memset(modelview, 0, sizeof(*modelview)*16);
@@ -1110,6 +1127,7 @@ void Matrix4x4_CM_ModelViewMatrix(float *modelview, const vec3_t viewangles, con
 	Matrix4_Multiply(modelview, Matrix4x4_CM_NewRotation(-viewangles[1],  0, 0, 1), tempmat);
 
 	Matrix4_Multiply(tempmat, Matrix4x4_CM_NewTranslation(-vieworg[0],  -vieworg[1],  -vieworg[2]), modelview);	    // put Z going up
+#endif
 }
 
 void Matrix4x4_CM_CreateTranslate (float *out, float x, float y, float z)
@@ -1203,6 +1221,36 @@ void Matrix4x4_CM_ModelViewMatrixFromAxis(float *modelview, const vec3_t pn, con
 }
 
 
+void Matrix3x4_RM_FromAngles(const vec3_t angles, const vec3_t origin, float *out)
+{
+	float		angle;
+	float		sr, sp, sy, cr, cp, cy;
+
+	angle = angles[YAW] * (M_PI*2 / 360);
+	sy = sin(angle);
+	cy = cos(angle);
+	angle = angles[PITCH] * (M_PI*2 / 360);
+	sp = sin(angle);
+	cp = cos(angle);
+	angle = angles[ROLL] * (M_PI*2 / 360);
+	sr = sin(angle);
+	cr = cos(angle);
+
+	out[0] = cp*cy;
+	out[1] = (sr*sp*cy+cr*-sy);
+	out[2] = (cr*sp*cy+-sr*-sy);
+	out[3] = origin[0];
+
+	out[4] = cp*sy;
+	out[5] = (sr*sp*sy+cr*cy);
+	out[6] = (cr*sp*sy+-sr*cy);
+	out[7] = origin[1];
+
+	out[8] = -sp;
+	out[9] = sr*cp;
+	out[10] = cr*cp;
+	out[11] = origin[2];
+}
 void Matrix3x4_RM_ToVectors(const float *in, float vx[3], float vy[3], float vz[3], float t[3])
 {
 	vx[0] = in[0];

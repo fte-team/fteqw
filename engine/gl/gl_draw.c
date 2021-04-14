@@ -519,7 +519,12 @@ void GLDraw_Init (void)
 	extern cvar_t vid_srgb;
 	if ((vid.flags & VID_SRGB_CAPABLE) && gl_config.arb_framebuffer_srgb)
 	{	//srgb-capable
-		if (!vid_srgb.ival)
+		if (vid.vr)
+		{	//try to force our rendering to be linear when using vr output.
+			vid.flags |= VID_SRGB_FB_LINEAR;
+			qglEnable(GL_FRAMEBUFFER_SRGB);
+		}
+		else if (!vid_srgb.ival)
 		{	//srgb framebuffer not wanted...
 			qglDisable(GL_FRAMEBUFFER_SRGB);
 			vid.flags &= ~VID_SRGB_FB_LINEAR;
@@ -551,7 +556,7 @@ void GLDraw_Init (void)
 	qglDisable(GL_SCISSOR_TEST);
 	GL_Set2D(false);
 
-	if (scr_showloading.ival)
+	if (scr_showloading.ival && (!VID_MayRefresh || VID_MayRefresh()))
 	{
 		extern cvar_t scr_loadingscreen_picture;
 		mpic_t *pic = R2D_SafeCachePic (scr_loadingscreen_picture.string);

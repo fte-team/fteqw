@@ -1,12 +1,6 @@
-!!argb constcolour=0
 !!samps 1
 
 layout(constant_id = 0) const int alphatest = 4;
-
-layout(push_constant) uniform pushintf
-{
-	vec4 colour;	
-} push;
 
 //this shader is present for support for gles/gl3core contexts
 //it is single-texture-with-vertex-colours, and doesn't do anything special.
@@ -22,10 +16,7 @@ layout(location=1) varying vec4 vc;
 void main ()
 {
 	tc = v_texcoord;
-	if (arg_constcolour)
-		vc = push.colour;
-	else
-		vc = v_colour;
+	vc = v_colour;
 	gl_Position = ftetransform();
 }
 #endif

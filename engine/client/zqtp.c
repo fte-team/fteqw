@@ -866,6 +866,17 @@ static char *Macro_TF_Skin (void)
 }
 
 //Spike: added these:
+static char *Macro_Team (void)
+{
+	infobuf_t *info;
+	int seat = SP;
+	//read the userinfo's team from the server instead of our local/private cvar/userinfo, if we can.
+	if (cl.players[cl.playerview[seat].playernum].userinfovalid)
+		info = &cl.players[cl.playerview[seat].playernum].userinfo;
+	else //just use the userinfo (which should mirror the cvar - fixme: splitscreen...)
+		info = &cls.userinfo[seat];
+	return InfoBuf_ValueForKey(info, "team");
+}
 static char *Macro_ConnectionType (void)
 {
 	playerview_t *pv = &cl.playerview[SP];
@@ -1271,7 +1282,7 @@ static char *Macro_Match_Status(void)
 	}
 }
 /*static char *Macro_LastIP(void)
-{	//report the last ip that someone said in chat.
+{	//report the last ip that someone said in chat. requires making guesses about what's an ip or not. can't handle hostnames properly
 	return "---";
 }
 static char *Macro_MP3Info(void)
@@ -1331,6 +1342,7 @@ static void TP_InitMacros(void)
 	Cmd_AddMacro("powerups", Macro_Powerups, true);
 	Cmd_AddMacro("droppedweapon", Macro_DroppedWeapon, true);
 	Cmd_AddMacro("tf_skin", Macro_TF_Skin, true);
+	Cmd_AddMacro("team", Macro_Team, true);	//confusing
 
 	Cmd_AddMacro("deathloc", Macro_LastDeath, true);
 	Cmd_AddMacro("tookatloc", Macro_TookAtLoc, true);
@@ -1897,7 +1909,7 @@ static void TP_MsgTrigger_f (void)
 	}
 
 	if (c >= 3) {
-		if (strlen(Cmd_Argv(2)) > 63) {
+		if (strlen(Cmd_Argv(2)) >= countof(trig->string)) {
 			Com_Printf ("trigger string too long\n");
 			return;
 		}
@@ -1935,6 +1947,9 @@ void TP_SearchForMsgTriggers (char *s, int level)
 	if (cls.demoplayback)
 		return;
 
+	if (!ruleset_allow_triggers.ival)
+		return;
+
 	for (t=msg_triggers; t; t=t->next)
 		if ((t->level == level || (t->level == 3 && level == 4))
 			&& t->string[0] && strstr(s, t->string))
@@ -1958,45 +1973,6 @@ void TP_SearchForMsgTriggers (char *s, int level)
 				Com_Printf ("trigger \"%s\" has no matching alias\n", t->name);
 		}
 }
-
-/*
-void TP_CheckVersionRequest (char *s)
-{
-	char buf[11];
-	int	i;
-
-	if (cl.spectator)
-		return;
-
-	if (vars.f_version_reply_time
-		&& realtime - vars.f_version_reply_time < 20)
-		return;	// don't reply again if 20 seconds haven't passed
-
-	while (1)
-	{
-		switch (*s++)
-		{
-		case 0:
-		case '\n':
-			return;
-		case ':':
-		case (char)(':'|128):		// hmm.... why is this here?
-			goto ok;
-		}
-	}
-	return;
-
-ok:
-	for (i = 0; i < 11 && s[i]; i++)
-		buf[i] = s[i] &~ 128;			// strip high bit
-
-	if (!strncmp(buf, " f_version\n", 11) || !strncmp(buf, " z_version\n", 11))
-	{
-		Cbuf_AddText (va("say ZQuake version %s "
-			QW_PLATFORM ":" QW_RENDERER "\n", VersionString()));
-		vars.f_version_reply_time = realtime;
-	}
-}*/
 
 #ifdef QWSKINS
 /*

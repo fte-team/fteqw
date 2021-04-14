@@ -261,7 +261,7 @@ void COM_SwapLittleShortBlock (short *s, int size);
 
 struct usercmd_s;
 
-extern struct usercmd_s nullcmd;
+extern const struct usercmd_s nullcmd;
 
 typedef union {	//note: reading from packets can be misaligned
 	char b[4];
@@ -278,6 +278,7 @@ void MSG_WriteByte (sizebuf_t *sb, int c);
 void MSG_WriteShort (sizebuf_t *sb, int c);
 void MSG_WriteLong (sizebuf_t *sb, int c);
 void MSG_WriteInt64 (sizebuf_t *sb, qint64_t c);
+void MSG_WriteUInt64 (sizebuf_t *sb, quint64_t c);
 void MSG_WriteEntity (sizebuf_t *sb, unsigned int e);
 void MSG_WriteFloat (sizebuf_t *sb, float f);
 void MSG_WriteDouble (sizebuf_t *sb, double f);
@@ -287,7 +288,9 @@ void MSG_WriteBigCoord (sizebuf_t *sb, float f);
 void MSG_WriteAngle (sizebuf_t *sb, float f);
 void MSG_WriteAngle8 (sizebuf_t *sb, float f);
 void MSG_WriteAngle16 (sizebuf_t *sb, float f);
-void MSG_WriteDeltaUsercmd (sizebuf_t *sb, struct usercmd_s *from, struct usercmd_s *cmd);
+void MSGFTE_WriteDeltaUsercmd (sizebuf_t *buf, const struct usercmd_s *from, const struct usercmd_s *cmd);
+void MSGQW_WriteDeltaUsercmd (sizebuf_t *sb, const struct usercmd_s *from, const struct usercmd_s *cmd);
+void MSGCL_WriteDeltaUsercmd (sizebuf_t *sb, const struct usercmd_s *from, const struct usercmd_s *cmd);
 void MSG_WriteDir (sizebuf_t *sb, float *dir);
 
 extern	int			msg_readcount;
@@ -303,9 +306,11 @@ int MSG_ReadByte (void);
 int MSG_ReadShort (void);
 int MSG_ReadLong (void);
 qint64_t MSG_ReadInt64 (void);
+quint64_t MSG_ReadUInt64 (void);
 struct client_s;
 unsigned int MSGSV_ReadEntity (struct client_s *fromclient);
 unsigned int MSGCL_ReadEntity (void);
+unsigned int MSG_ReadBigEntity(void);
 float MSG_ReadFloat (void);
 double MSG_ReadDouble (void);
 char *MSG_ReadStringBuffer (char *out, size_t outsize);
@@ -317,8 +322,9 @@ float MSG_ReadCoordFloat (void);
 void MSG_ReadPos (float *pos);
 float MSG_ReadAngle (void);
 float MSG_ReadAngle16 (void);
-void MSG_ReadDeltaUsercmd (struct usercmd_s *from, struct usercmd_s *cmd, int qwprotocolver);
-void MSGQ2_ReadDeltaUsercmd (struct usercmd_s *from, struct usercmd_s *move);
+void MSGQW_ReadDeltaUsercmd (const struct usercmd_s *from, struct usercmd_s *cmd, int qwprotocolver);
+void MSGFTE_ReadDeltaUsercmd (const struct usercmd_s *from, struct usercmd_s *move);
+void MSGQ2_ReadDeltaUsercmd (const struct usercmd_s *from, struct usercmd_s *move);
 void MSG_ReadData (void *data, int len);
 void MSG_ReadSkip (int len);
 
@@ -583,10 +589,11 @@ typedef struct vfsfile_s
 #define VFS_ERROR_TRYLATER		0	//nothing to write/read yet.
 #define VFS_ERROR_UNSPECIFIED	-1	//no reason given
 #define VFS_ERROR_NORESPONSE	-2	//no reason given
-#define VFS_ERROR_EOF			-3	//no reason given
-#define VFS_ERROR_DNSFAILURE	-4	//weird one, but oh well
-#define VFS_ERROR_WRONGCERT		-5	//server gave a certificate with the wrong name
-#define VFS_ERROR_UNTRUSTED		-6	//server gave a certificate with the right name, but we don't have a full chain of trust
+#define VFS_ERROR_REFUSED		-3	//no reason given
+#define VFS_ERROR_EOF			-4	//no reason given
+#define VFS_ERROR_DNSFAILURE	-5	//weird one, but oh well
+#define VFS_ERROR_WRONGCERT		-6	//server gave a certificate with the wrong name
+#define VFS_ERROR_UNTRUSTED		-7	//server gave a certificate with the right name, but we don't have a full chain of trust
 
 #define VFS_CLOSE(vf) ((vf)->Close(vf))
 #define VFS_TELL(vf) ((vf)->Tell(vf))
@@ -679,8 +686,8 @@ typedef struct
 	enum
 	{
 		MANIFEST_SECURITY_NOT,		//don't trust it, don't even allow downloadsurl.
-		MANIFEST_SECURITY_DEFAULT,	//the default.fmf file may suggest packages
-		MANIFEST_SECURITY_INSTALLER	//built-in fmf files can force packages
+		MANIFEST_SECURITY_DEFAULT,	//the default.fmf file may suggest packages+force sources
+		MANIFEST_SECURITY_INSTALLER	//built-in fmf files can force packages+sources
 	} security;		//manifest was embedded in the engine. don't assume its already installed, but ask to install it (also, enable some extra permissions for writing dlls)
 
 	enum
@@ -779,6 +786,7 @@ qboolean COM_LoadMapPackFile(const char *name, qofs_t offset);
 void COM_FlushTempoaryPacks(void);
 
 void COM_EnumerateFiles (const char *match, int (QDECL *func)(const char *fname, qofs_t fsize, time_t mtime, void *parm, searchpathfuncs_t *spath), void *parm);
+searchpathfuncs_t *FS_OpenPackByExtension(vfsfile_t *f, searchpathfuncs_t *parent, const char *filename, const char *pakname);
 
 extern qboolean com_installer;	//says that the engine is running in an 'installer' mode, and that the correct basedir is not yet known.
 extern	struct cvar_s	registered;
@@ -893,9 +901,12 @@ extern hashfunc_t hash_sha224;
 extern hashfunc_t hash_sha256;
 extern hashfunc_t hash_sha384;
 extern hashfunc_t hash_sha512;
-#define HMAC HMAC_quake	//stop conflicts...
-size_t CalcHash(hashfunc_t *hash, unsigned char *digest, size_t maxdigestsize, const unsigned char *string, size_t stringlen);
-size_t HMAC(hashfunc_t *hashfunc, unsigned char *digest, size_t maxdigestsize, const unsigned char *data, size_t datalen, const unsigned char *key, size_t keylen);
+extern hashfunc_t hash_crc16;
+extern hashfunc_t hash_crc16_lower;
+unsigned int hashfunc_terminate_uint(const hashfunc_t *hash, void *context); //terminate, except returning the digest as a uint instead of a blob. folds the digest if longer than 4 bytes.
+unsigned int CalcHashInt(const hashfunc_t *hash, const unsigned char *data, size_t datasize);
+size_t CalcHash(const hashfunc_t *hash, unsigned char *digest, size_t maxdigestsize, const unsigned char *data, size_t datasize);
+size_t CalcHMAC(const hashfunc_t *hashfunc, unsigned char *digest, size_t maxdigestsize, const unsigned char *data, size_t datalen, const unsigned char *key, size_t keylen);
 
 int version_number(void);
 char *version_string(void);

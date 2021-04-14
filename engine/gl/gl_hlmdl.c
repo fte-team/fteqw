@@ -426,7 +426,7 @@ qboolean QDECL Mod_LoadHLModel (model_t *mod, void *buffer, size_t fsize)
 		for(i = 0; i < texheader->numtextures; i++)
 			while (sz < tex[i].w || sz < tex[i].h)
 				sz <<= 1;
-		for (; sz < sh_config.texture2d_maxsize; sz<<=1)
+		for (; sz < sh_config.texture2d_maxsize && sz <= LMBLOCK_SIZE_MAX; sz<<=1)
 		{
 			unsigned short x,y;
 			int atlasid;

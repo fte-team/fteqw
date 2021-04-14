@@ -1208,7 +1208,7 @@ void VARGS Con_SafeTPrintf (translation_t text, ...)
 
 static void Con_DPrintFromThread (void *ctx, void *data, size_t a, size_t b)
 {
-	if (log_developer.ival)
+	if (log_developer.ival || !a)
 		Con_Log(data);
 	if (developer.ival >= (int)a)
 	{
@@ -1272,7 +1272,7 @@ void VARGS Con_DLPrintf (int level, const char *fmt, ...)
 	Sys_Printf("%s", msg);
 	return;
 #else
-	if (developer.ival<level && !log_developer.ival)
+	if (developer.ival<level && (!log_developer.ival && level))
 		return; // early exit
 #endif
 
@@ -1286,7 +1286,7 @@ void VARGS Con_DLPrintf (int level, const char *fmt, ...)
 		return;
 	}
 
-	if (log_developer.ival)
+	if (log_developer.ival || !level)
 		Con_Log(msg);
 	if (developer.ival >= level)
 	{

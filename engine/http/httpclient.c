@@ -519,6 +519,8 @@ static int VFSError_To_HTTP(int vfserr)
 	default:
 	case VFS_ERROR_UNSPECIFIED:
 		return 0;	//don't know, no reason given.
+	case VFS_ERROR_REFUSED:
+		return HTTP_REFUSED;
 	case VFS_ERROR_EOF:
 		return HTTP_EOF;
 	case VFS_ERROR_DNSFAILURE:

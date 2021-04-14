@@ -491,14 +491,14 @@ static void VK_FinishProg(program_t *prog, const char *name)
 		VkPipelineLayout layout;
 		VkPushConstantRange push[1];
 		VkPipelineLayoutCreateInfo pipeLayoutCreateInfo = {VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO};
-		push[0].stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+		push[0].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
 		push[0].offset = 0;
 		push[0].size = sizeof(vec4_t);
 
 		pipeLayoutCreateInfo.flags = 0;
 		pipeLayoutCreateInfo.setLayoutCount = countof(sets);
 		pipeLayoutCreateInfo.pSetLayouts = sets;
-		pipeLayoutCreateInfo.pushConstantRangeCount = !strncmp(name, "fixedemu", 8);
+		pipeLayoutCreateInfo.pushConstantRangeCount = !strcmp(name, "fixedemu_flat");
 		pipeLayoutCreateInfo.pPushConstantRanges = push;
 		VkAssert(vkCreatePipelineLayout(vk.device, &pipeLayoutCreateInfo, vkallocationcb, &layout));
 		prog->layout = layout;
@@ -1289,7 +1289,7 @@ void VKBE_Init(void)
 
 
 	shaderstate.programfixedemu[0] = Shader_FindGeneric("fixedemu", QR_VULKAN);
-	shaderstate.programfixedemu[1] = Shader_FindGeneric("fixedemu#CONSTCOLOUR", QR_VULKAN);
+	shaderstate.programfixedemu[1] = Shader_FindGeneric("fixedemu_flat", QR_VULKAN);
 
 	R_InitFlashblends();
 
@@ -3767,7 +3767,7 @@ static void BE_DrawMeshChain_Internal(void)
 				vkCmdBindVertexBuffers(vk.rendertarg->cbuf, 0, VK_BUFF_MAX, vertexbuffers, vertexoffsets);
 				if (BE_SetupMeshProgram(shaderstate.programfixedemu[1], p, altshader->flags, idxcount))
 				{
-					vkCmdPushConstants(vk.rendertarg->cbuf, shaderstate.programfixedemu[1]->layout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(passcolour), passcolour);
+					vkCmdPushConstants(vk.rendertarg->cbuf, shaderstate.programfixedemu[1]->layout, VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(passcolour), passcolour);
 					vkCmdDrawIndexed(vk.rendertarg->cbuf, idxcount, 1, idxfirst, 0, 0);
 				}
 			}

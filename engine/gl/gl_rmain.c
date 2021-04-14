@@ -52,7 +52,7 @@ extern cvar_t	r_bloom;
 extern cvar_t	r_wireframe, r_wireframe_smooth;
 extern cvar_t	r_outline;
 
-cvar_t	gl_affinemodels = CVAR("gl_affinemodels","0");
+cvar_t	gl_affinemodels = CVARFD("gl_affinemodels","0", CVAR_ARCHIVE, "Use affine texture sampling for models. This replicates software rendering's distortions.");
 cvar_t	gl_finish = CVAR("gl_finish","0");
 cvar_t	gl_dither = CVAR("gl_dither", "1");
 extern cvar_t	r_stereo_separation;
@@ -435,7 +435,7 @@ void R_RotateForEntity (float *m, float *modelview, const entity_t *e, const mod
 R_SetupGL
 =============
 */
-static void R_SetupGL (vec3_t axisorigin[4], vec4_t fovoverrides, float projmatrix[16]/*for webvr*/, texid_t fbo)
+static void R_SetupGL (matrix3x4 eyematrix, vec4_t fovoverrides, float projmatrix[16]/*for webvr*/, texid_t fbo)
 {
 	int		x, x2, y2, y, w, h;
 	vec3_t newa;
@@ -450,29 +450,14 @@ static void R_SetupGL (vec3_t axisorigin[4], vec4_t fovoverrides, float projmatr
 		newa[0] = r_refdef.viewangles[0];
 		newa[1] = r_refdef.viewangles[1];
 		newa[2] = r_refdef.viewangles[2] + gl_screenangle.value;
-		if (axisorigin)
+		if (eyematrix)
 		{
-			vec3_t paxis[3];
-			AngleVectors (newa, paxis[0], paxis[1], paxis[2]);
-
-			//R_ConcatRotations(r_refdef.headaxis, paxis, vpn);
-
-			VectorMA(vec3_origin,	axisorigin[0][0], paxis[0], vpn);
-			VectorMA(vpn,			axisorigin[0][1], paxis[1], vpn);
-			VectorMA(vpn,			axisorigin[0][2], paxis[2], vpn);
-
-			VectorMA(vec3_origin,	axisorigin[1][0], paxis[0], vright);
-			VectorMA(vright,		axisorigin[1][1], paxis[1], vright);
-			VectorMA(vright,		axisorigin[1][2], paxis[2], vright);
-
-			VectorMA(vec3_origin,	axisorigin[2][0], paxis[0], vup);
-			VectorMA(vup,			axisorigin[2][1], paxis[1], vup);
-			VectorMA(vup,			axisorigin[2][2], paxis[2], vup);
-
-
-			VectorMA(r_refdef.vieworg, axisorigin[3][0], vpn, r_origin);
-			VectorMA(r_origin, axisorigin[3][1], vright, r_origin);
-			VectorMA(r_origin, axisorigin[3][2], vup, r_origin);
+			matrix3x4 headmatrix;
+			matrix3x4 viewmatrix;
+			Matrix3x4_RM_FromAngles(newa, r_refdef.vieworg, headmatrix[0]);
+			Matrix3x4_Multiply(headmatrix[0], eyematrix[0], viewmatrix[0]);
+			Matrix3x4_RM_ToVectors(viewmatrix[0], vpn, vright, vup, r_origin);
+			VectorNegate(vright, vright);
 		}
 		else
 		{
@@ -732,7 +717,7 @@ static void R_RenderScene_Internal(void)
 
 	depthcleared = false;	//whatever is in the depth buffer is no longer useful.
 }
-static void R_RenderEyeScene (texid_t rendertarget, vec4_t fovoverride, vec3_t axisorigin[4])
+static void R_RenderEyeScene (texid_t rendertarget, vec4_t fovoverride, matrix3x4 eyematrix)
 {
 	extern qboolean depthcleared;
 	refdef_t refdef = r_refdef;
@@ -750,8 +735,46 @@ static void R_RenderEyeScene (texid_t rendertarget, vec4_t fovoverride, vec3_t a
 		vid.fbpheight = rendertarget->height;
 	}
 
-	R_SetupGL (axisorigin, fovoverride, NULL, rendertarget);
+	R_SetupGL (eyematrix, fovoverride, NULL, rendertarget);
 	R_RenderScene_Internal();
+
+	//if (eyematrix)
+	{
+		vec3_t newa, newo;
+		matrix3x4 headmatrix;	//position of the head in local space
+		//eyematrix	//position of the eye in head space...
+		matrix3x4 headeyematrix;
+		matrix3x4 correctionmatrix;	//to nudge the 2d stuff into view
+		matrix3x4 viewmatrix;	//final transform
+		extern usercmd_t cl_pendingcmd[MAX_SPLITS];
+		newa[0] = SHORT2ANGLE(cl_pendingcmd[0].vr[VRDEV_HEAD].angles[0]);
+		newa[1] = SHORT2ANGLE(cl_pendingcmd[0].vr[VRDEV_HEAD].angles[1]);
+		newa[2] = SHORT2ANGLE(cl_pendingcmd[0].vr[VRDEV_HEAD].angles[2]);
+		Matrix3x4_RM_FromAngles(newa, cl_pendingcmd[0].vr[VRDEV_HEAD].origin, headmatrix[0]);
+
+		newa[0] = Cvar_Get("2dpitch", "-90", 0, "")->value;
+		newa[1] = Cvar_Get("2dyaw", "0", 0, "")->value;
+		newa[2] = Cvar_Get("2droll", "90", 0, "")->value;
+		//why /4, not /2? wtf?
+		newo[0] = vid.width/4 + Cvar_Get("2dfwd", "0", 0, "")->value;
+		newo[1] = vid.height/4 + Cvar_Get("2dleft", "0", 0, "")->value;
+		newo[2] = Cvar_Get("2dup", "-256", 0, "")->value;
+		Matrix3x4_RM_FromAngles(newa, newo, correctionmatrix[0]);
+
+		Matrix3x4_Multiply(headmatrix[0], eyematrix[0], headeyematrix[0]);
+		Matrix3x4_Multiply(headeyematrix[0], correctionmatrix[0], viewmatrix[0]);
+		Matrix3x4_RM_ToVectors(viewmatrix[0], vpn, vright, vup, r_origin);
+		VectorNegate(vright, vright);
+
+		Matrix4x4_CM_ModelViewMatrixFromAxis(r_refdef.m_view, vpn, vright, vup, r_origin);
+		GL_SetShaderState2D(true);
+
+		Menu_Draw();
+		SCR_DrawConsole(false);
+		if (R2D_Flush)
+			R2D_Flush();
+		GL_SetShaderState2D(false);
+	}
 
 	if (rendertarget)
 	{
@@ -772,7 +795,8 @@ static void R_RenderScene (void)
 	int i;
 	int cull = r_refdef.flipcull;
 	unsigned int colourmask = r_refdef.colourmask;
-	vec3_t axisorg[4], ang;
+	vec3_t ang, org;
+	matrix3x4 eyematrix;
 	extern qboolean		depthcleared;
 
 	r_refdef.colourmask = 0u;
@@ -893,11 +917,9 @@ static void R_RenderScene (void)
 		ang[0] = 0;
 		ang[1] = r_stereo_convergence.value * (i?0.5:-0.5);
 		ang[2] = 0;
-		AngleVectorsFLU(ang, axisorg[0], axisorg[1], axisorg[2]);
-		axisorg[3][0] = 0;
-		axisorg[3][1] = stereooffset[i];
-		axisorg[3][2] = 0;
-		R_SetupGL (axisorg, NULL, NULL, NULL);
+		VectorSet(org, 0, stereooffset[i], 0);
+		Matrix3x4_RM_FromAngles(ang, org, eyematrix[0]);
+		R_SetupGL (eyematrix, NULL, NULL, NULL);
 		R_RenderScene_Internal ();
 	}
 

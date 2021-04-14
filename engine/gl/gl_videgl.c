@@ -450,16 +450,11 @@ qboolean EGL_InitWindow (rendererstate_t *info, int eglplat, void *nwindow, EGLN
 		return false;
 	}
 
+
 	if (!qeglMakeCurrent(egldpy, eglsurf, eglsurf, eglctx))
 	{
 		Con_Printf(CON_ERROR "EGL: can't make current!\n");
 		return false;
-	}
-
-	if (eglplat == EGL_PLATFORM_WAYLAND_KHR)
-	{	//if we don't do this, only the first frame will get displayed, and we'll lock up
-		qeglSwapInterval = NULL;
-		Con_DPrintf(CON_WARNING"Wayland: Disabling vsync controls to work around wayland bug\n");
 	}
 
 	EGL_UpdateSwapInterval();

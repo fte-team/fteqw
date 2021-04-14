@@ -40,7 +40,7 @@ qboolean SV_MayCheat(void)
 cvar_t sv_autooffload = CVARD("sv_autooffload", "0", "Automatically start the server in a separate process, so that sporadic or persistent gamecode slowdowns do not affect visual framerates (equivelent to the mapcluster command). Note: Offloaded servers have separate cvar+command states which may complicate usage.");
 #endif
 extern cvar_t cl_warncmd;
-cvar_t sv_cheats = CVARF("sv_cheats", "0", CVAR_LATCH);
+cvar_t sv_cheats = CVARF("sv_cheats", "0", CVAR_MAPLATCH);
 	extern		redirect_t	sv_redirected;
 
 extern cvar_t sv_public;
@@ -833,11 +833,11 @@ void SV_Map_f (void)
 	{
 		cvar_t *gametype;
 
-		Cvar_ApplyLatches(CVAR_LATCH);
+		Cvar_ApplyLatches(CVAR_MAPLATCH, false);
 
 		host_mapname.flags |= CVAR_SERVERINFO;
 
-		gametype = Cvar_Get("g_gametype", "", CVAR_LATCH|CVAR_SERVERINFO, "Q3 compatability");
+		gametype = Cvar_Get("g_gametype", "", CVAR_MAPLATCH|CVAR_SERVERINFO, "Q3 compatability");
 //		gametype->callback = gtcallback;
 
 		/* map_restart doesn't need to handle gametype changes - eukara */
@@ -1462,7 +1462,7 @@ static void SV_FilterIP_f (void)
 	//if no flags were specified, 
 	if (!proto.banflags)
 	{
-		if (!strcmp(Cmd_Argv(0), "ban"))	
+		if (!strcmp(Cmd_Argv(0), "ban"))
 			proto.banflags = BAN_BAN;
 		else
 			proto.banflags = filterban.ival?BAN_BAN:BAN_PERMIT;

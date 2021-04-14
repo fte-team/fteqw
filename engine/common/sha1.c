@@ -185,9 +185,23 @@ hashfunc_t hash_sha1 =
 	SHA1Final,
 };
 
-
-
-size_t CalcHash(hashfunc_t *func, unsigned char *digest, size_t maxdigestsize, const unsigned char *string, size_t stringlen)
+unsigned int hashfunc_terminate_uint(const hashfunc_t *func, void *context)
+{
+	unsigned int r = 0, l;
+	unsigned char *digest = alloca(func->digestsize);
+	func->terminate(digest, context);
+	for (l = 0; l < func->digestsize; l++)
+		r ^= digest[l]<<((l%sizeof(r))*8);
+	return r;
+}
+unsigned int CalcHashInt(const hashfunc_t *func, const unsigned char *data, size_t datasize)
+{
+	void *ctx = alloca(func->contextsize);
+	func->init(ctx);
+	func->process(ctx, data, datasize);
+	return hashfunc_terminate_uint(func, ctx);
+}
+size_t CalcHash(const hashfunc_t *func, unsigned char *digest, size_t maxdigestsize, const unsigned char *string, size_t stringlen)
 {
 	void *ctx = alloca(func->contextsize);
 	if (maxdigestsize < func->digestsize)
@@ -232,7 +246,7 @@ static void memxor(char *dest, const char *src, size_t length)
 }
 
 //typedef size_t hashfunc_t(unsigned char *digest, size_t maxdigestsize, size_t numstrings, const unsigned char **strings, size_t *stringlens);
-size_t HMAC(hashfunc_t *hashfunc, unsigned char *digest, size_t maxdigestsize,
+size_t CalcHMAC(const hashfunc_t *hashfunc, unsigned char *digest, size_t maxdigestsize,
 				 const unsigned char *data, size_t datalen,
 				 const unsigned char *key, size_t keylen)
 {

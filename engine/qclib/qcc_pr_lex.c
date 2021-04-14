@@ -311,6 +311,8 @@ pbool defaultnoref;
 pbool defaultnosave;
 pbool defaultstatic;
 int ForcedCRC;
+float qcc_framerate;
+
 int QCC_PR_LexInteger (void);
 void	QCC_AddFile (char *filename);
 void QCC_PR_LexString (void);
@@ -947,7 +949,7 @@ static pbool QCC_PR_Precompiler(void)
 			while(1)
 			{
 				QCC_PR_LexWhitespace(false);
-				if (QCC_PR_CheckCompConst())
+				if (!flag_hashonly && QCC_PR_CheckCompConst())
 				{
 					defines++;
 					continue;
@@ -1103,16 +1105,12 @@ static pbool QCC_PR_Precompiler(void)
 
 			if (!QC_strcasecmp(qcc_token, "DONT_COMPILE_THIS_FILE"))
 			{
+				QCC_PR_LexWhitespace(false);
 				while (*pr_file_p)
 				{
-					while(*pr_file_p != '\n' && *pr_file_p != '\0')	//read on until the end of the line
+					if (!qcc_iswhite(*pr_file_p))
 						pr_file_p++;
-
-					if (*pr_file_p == '\n')
-					{
-						pr_file_p++;
-						QCC_PR_NewLine(false);
-					}
+					QCC_PR_LexWhitespace(false);
 				}
 			}
 			else if (!QC_strcasecmp(qcc_token, "COPYRIGHT"))
@@ -1134,6 +1132,10 @@ static pbool QCC_PR_Precompiler(void)
 			else if (!QC_strcasecmp(qcc_token, "forcecrc"))
 			{
 				ForcedCRC = atoi(msg);
+			}
+			else if (!QC_strcasecmp(qcc_token, "framerate"))
+			{
+				qcc_framerate = atof(msg);
 			}
 			else if (!QC_strcasecmp(qcc_token, "once"))
 			{
@@ -1813,21 +1815,29 @@ void QCC_PR_LexString (void)
 					*end = '\0';
 					cnst = QCC_PR_CheckCompConstString(pr_file_p);
 					if (cnst==pr_file_p)
-						cnst=NULL;
-					*end = c;
-					c = '#';	//undo
-					if (cnst)
 					{
-						QCC_PR_ParseWarning(WARN_MACROINSTRING, "Macro expansion in string");
+						if (*pr_file_p)
+							QCC_PR_ParseWarning(WARN_MACROINSTRING, "Unable to expand string macro %s", pr_file_p);
+
+					}
+					else if (cnst)
+					{
+						QCC_PR_ParseWarning(WARN_MACROINSTRING, "Macro %s expansion in string", pr_file_p);
+						*end = c;
 
 						if (len+strlen(cnst) >= sizeof(pr_token)-1)
 							QCC_Error(ERR_INVALIDSTRINGIMMEDIATE, "String length exceeds %u", (unsigned)sizeof(pr_token)-1);
 
 						strcpy(pr_token+len, cnst);
-						len+=strlen(cnst);
+						bytecount=strlen(cnst);
+						while (bytecount > 0 && qcc_iswhitesameline(pr_token[len+bytecount-1]))
+							bytecount--;	//make sure there's no trailing whitespace on the end.
+						len+=bytecount;
 						pr_file_p = end;
 						continue;
 					}
+					*end = c;
+					c = '#';	//undo
 				}
 				else if (c == 0x7C && flag_acc)	//reacc support... reacc is strange.
 					c = '\n';
@@ -3113,7 +3123,7 @@ so if present, the preceeding \\\n and following \\\n must become an actual \n i
 	{	//we always warn if it was already defined
 		//we use different warning codes so that -Wno-mundane can be used to ignore identical redefinitions.
 		if (strcmp(oldcnst->value, cnst->value))
-			QCC_PR_ParseWarning(WARN_DUPLICATEPRECOMPILER, "Alternate precompiler definition of %s", pr_token);
+			QCC_PR_ParseWarning(WARN_DUPLICATEPRECOMPILER, "Alternate precompiler definition of %s (%s -> %s)", pr_token, oldcnst->value, cnst->value);
 		else
 			QCC_PR_ParseWarning(WARN_IDENTICALPRECOMPILER, "Identical precompiler definition of %s", pr_token);
 	}
@@ -3245,6 +3255,52 @@ static const struct tm *QCC_CurrentTime(void)
 	return localtime(&t);
 }
 
+static char *QCC_PR_PopenMacro(const char *macroname, const char *cmd, char *retbuf, size_t retbufsize)
+{
+	char *ret = retbuf;
+	char temp[65536], *t = temp;
+#ifdef _WIN32
+	FILE *f = _popen(cmd, "rt");
+#else
+	FILE *f = popen(cmd, "r");
+#endif
+	int len;
+	if (!f)
+	{
+		QCC_PR_ParseWarning(ERR_CONSTANTNOTDEFINED, "%s: Unable to execute \"%s\" for value", macroname, cmd);
+		return NULL;
+	}
+	retbufsize-=3;	// '""\0'
+	*retbuf++ = '\"';
+	len = fread(temp, 1, sizeof(temp), f);
+	if (len < 0)
+		len = 0;
+	else while (len --> 0 && *t && retbufsize > 1)
+	{
+		if      (*t == '\"')	*retbuf = '\"';
+		else if (*t == '\n')	*retbuf = 'n';
+		else if (*t == '\r')	*retbuf = 'r';
+		else if (*t == '#')		*retbuf = '#';	//so we don't get preqcc-style expansion in strings.
+		else
+		{
+			*retbuf++ = *t++;
+			retbufsize--;
+			continue;
+		}
+		retbuf[0] = '\n';
+		retbuf+=2;
+		retbufsize-=2;
+	}
+	*retbuf++ = '\"';
+	*retbuf++ = 0;
+#ifdef _WIN32
+	_pclose(f);
+#else
+	pclose(f);
+#endif
+	return ret;
+}
+
 static char *QCC_PR_CheckBuiltinCompConst(char *constname, char *retbuf, size_t retbufsize)
 {
 	if (constname[0] != '_' || constname[1] != '_')
@@ -3259,6 +3315,16 @@ static char *QCC_PR_CheckBuiltinCompConst(char *constname, char *retbuf, size_t 
 		strftime( retbuf, retbufsize,	"\"%a %d %b %Y\"", QCC_CurrentTime());
 		return retbuf;
 	}
+	if (!strcmp(constname, "__GITURL__"))
+		return QCC_PR_PopenMacro(constname, "git remote get-url origin", retbuf, retbufsize);	//some git url...
+	if (!strcmp(constname, "__GITHASH__"))
+		return QCC_PR_PopenMacro(constname, "git log -1 --format=%H", retbuf, retbufsize);	//just a hash
+	if (!strcmp(constname, "__GITDATE__"))
+		return QCC_PR_PopenMacro(constname, "git log -1 --format=%cs", retbuf, retbufsize);	//YYYY-MM-DD
+	if (!strcmp(constname, "__GITDATETIME__"))
+		return QCC_PR_PopenMacro(constname, "git log -1 --format=%ci", retbuf, retbufsize);	//YYYY-MM-DD HH:MM:SS +TZ
+	if (!strcmp(constname, "__GITDESC__"))
+		return QCC_PR_PopenMacro(constname, "git describe", retbuf, retbufsize);
 	if (!strcmp(constname, "__RAND__"))
 	{
 		QC_snprintfz(retbuf, retbufsize, "%i", rand());
@@ -3823,7 +3889,7 @@ void QCC_PR_Lex (void)
 		return;
 	}
 
-	if (!flag_qccx && c == '#' && !(pr_file_p[1]==')' || pr_file_p[1]==',' || pr_file_p[1]=='\"' || pr_file_p[1]=='-' || (pr_file_p[1]>='0' && pr_file_p[1] <='9')))	//hash and not number
+	if (/*!flag_qccx &&*/ c == '#' && !(pr_file_p[1]==')' || pr_file_p[1]==',' || pr_file_p[1]=='\"' || pr_file_p[1]=='-' || (pr_file_p[1]>='0' && pr_file_p[1] <='9')))	//hash and not number
 	{
 		pr_file_p++;
 		if (!QCC_PR_CheckCompConst())

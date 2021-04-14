@@ -64,6 +64,9 @@ void() W_FireAxe =
 			WriteCoord (MSG_BROADCAST, org_x);
 			WriteCoord (MSG_BROADCAST, org_y);
 			WriteCoord (MSG_BROADCAST, org_z);
+			
+			WriteByte (MSG_BROADCAST, 8);
+			WriteString (MSG_BROADCAST, "overlong\n");
 		}
 		else
 		{
@@ -72,6 +75,9 @@ void() W_FireAxe =
 			WriteCoord (MSG_MULTICAST, org_x);
 			WriteCoord (MSG_MULTICAST, org_y);
 			WriteCoord (MSG_MULTICAST, org_z);
+
+			WriteByte (MSG_MULTICAST, 8);
+			WriteString (MSG_MULTICAST, "overlong\n");
 			multicast(org, MULTICAST_PVS);
 		}
 	}
@@ -231,6 +237,9 @@ void(float damage, vector dir) TraceAttack =
 	{
 		WriteByte (MSG_BROADCAST, SVC_TEMPENTITY);
 		WriteByte (MSG_BROADCAST, TE_GUNSHOT);
+#ifdef QWSSQC
+		WriteByte (MSG_BROADCAST, 1);	//count
+#endif
 		WriteCoord (MSG_BROADCAST, org_x);
 		WriteCoord (MSG_BROADCAST, org_y);
 		WriteCoord (MSG_BROADCAST, org_z);

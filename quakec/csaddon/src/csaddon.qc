@@ -20,9 +20,6 @@ float releasedmouse;
 #ifdef WALLBROWSERS
 string pointedshadername;
 #endif
-vector pointedsurfacenormal;
-entity pointedent;
-float pointedsurface;
 
 float editorrsd[editornames.length];
 

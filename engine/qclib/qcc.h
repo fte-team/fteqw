@@ -86,6 +86,7 @@ extern int MAX_CONSTANTS;
 
 typedef enum {QCF_STANDARD, QCF_HEXEN2, QCF_UHEXEN2, QCF_DARKPLACES, QCF_QSS, QCF_FTE, QCF_FTEDEBUG, QCF_FTEH2, QCF_KK7, QCF_QTEST} qcc_targetformat_t;
 extern qcc_targetformat_t qcc_targetformat;
+#define qcc_targetformat_ishexen2() (qcc_targetformat == QCF_HEXEN2 || qcc_targetformat == QCF_UHEXEN2 || qcc_targetformat == QCF_FTEH2)
 extern unsigned int qcc_targetversion;
 void QCC_OPCodeSetTarget(qcc_targetformat_t targfmt, unsigned int targver);
 pbool QCC_OPCodeSetTargetName(const char *targ);
@@ -337,7 +338,7 @@ typedef union QCC_eval_s
 {
 	QCC_string_t			string;
 	pvec_t				_float;
-	double				_double;
+	pdouble_t			_double;
 	pvec_t				vector[3];
 	func_t				function;
 	pint_t				_int;
@@ -1126,6 +1127,7 @@ extern int numtypeinfos;
 extern int maxtypeinfos;
 
 extern int ForcedCRC;
+extern float qcc_framerate;	//number of OP_STATE ticks per second.
 extern pbool defaultnoref;
 extern pbool defaultnosave;
 extern pbool defaultstatic;

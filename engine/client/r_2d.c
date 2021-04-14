@@ -304,6 +304,7 @@ void R2D_Init(void)
 				"rgbgen vertex\n"
 				"alphagen vertex\n"
 				"blendfunc blend\n"
+				"maskalpha\n"
 			"}\n"
 		"}\n");
 	shader_contrastup = R_RegisterShader("contrastupshader", SUF_NONE,
@@ -315,6 +316,7 @@ void R2D_Init(void)
 				"blendfunc gl_dst_color gl_one\n"
 				"rgbgen vertex\n"
 				"alphagen vertex\n"
+				"maskalpha\n"
 			"}\n"
 		"}\n"
 	);
@@ -327,6 +329,7 @@ void R2D_Init(void)
 				"blendfunc gl_dst_color gl_zero\n"
 				"rgbgen vertex\n"
 				"alphagen vertex\n"
+				"maskalpha\n"
 			"}\n"
 		"}\n"
 	);
@@ -339,6 +342,7 @@ void R2D_Init(void)
 				"blendfunc gl_one gl_one\n"
 				"rgbgen vertex\n"
 				"alphagen vertex\n"
+				"maskalpha\n"
 			"}\n"
 		"}\n"
 	);
@@ -349,6 +353,7 @@ void R2D_Init(void)
 			"{\n"
 				"map $currentrender\n"
 				"nodepthtest\n"
+				"maskalpha\n"
 			"}\n"
 		"}\n"
 	);
@@ -360,6 +365,7 @@ void R2D_Init(void)
 				"blendfunc gl_src_alpha gl_one_minus_src_alpha\n"
 				"rgbgen vertex\n"
 				"alphagen vertex\n"
+				"maskalpha\n"
 			"}\n"
 		"}\n"
 	);

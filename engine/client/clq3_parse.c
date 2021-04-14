@@ -903,7 +903,8 @@ void CLQ3_SendCmd(usercmd_t *cmd)
 	sizebuf_t msg;
 	outframe_t *frame, *oldframe;
 	int cmdcount, key;
-	usercmd_t *to, *from;
+	usercmd_t *to;
+	const usercmd_t *from;
 	extern cvar_t cl_nodelta, cl_c2sdupe;
 
 	//reuse the q1 array

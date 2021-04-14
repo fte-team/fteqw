@@ -20,7 +20,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 /* crc.c */
 
 #include "quakedef.h"
-#include "crc.h"
 #include <ctype.h>
 
 // this is a 16 bit, non-reflected CRC using the polynomial 0x1021
@@ -66,45 +65,51 @@ static unsigned short crctable[256] =
 	0x6e17,	0x7e36,	0x4e55,	0x5e74,	0x2e93,	0x3eb2,	0x0ed1,	0x1ef0
 };
 
-void QCRC_Init(unsigned short *crcvalue)
+static void CRC16_Init (void *context)
 {
-	*crcvalue = QCRC_INIT_VALUE;
+	unsigned short *ctx = context;
+	*ctx = QCRC_INIT_VALUE;
 }
-
-void QCRC_ProcessByte(unsigned short *crcvalue, qbyte data)
+static void CRC16_Update (void *context, const void *data, size_t datasize)
 {
-	*crcvalue = ((*crcvalue << 8)&0xffff) ^ crctable[(*crcvalue >> 8) ^ data];
-}
-
-unsigned short QCRC_Value(unsigned short crcvalue)
-{
-	return crcvalue ^ QCRC_XOR_VALUE;
-}
-
-unsigned short QCRC_Block (const qbyte *start, int count)
-{
-	unsigned short	crc;
-
-	QCRC_Init (&crc);
-	while (count--)
+	unsigned short *ctx = context;
+	unsigned short crc = *ctx;
+	const char *start = data;
+	while (datasize --> 0)
 		crc = ((crc << 8) & 0xffff) ^ crctable[(crc >> 8) ^ *start++];
-
-	return crc;
+	*ctx = crc;
 }
-
-unsigned short QCRC_Block_AsLower (const qbyte *start, int count)
+static void CRC16_Finish (unsigned char *digest, void *context)
 {
-	unsigned short	crc;
-
-	QCRC_Init (&crc);
-	while (count--)
-		crc = (crc << 8) ^ crctable[(crc >> 8) ^ tolower(*start++)];
-
-	return crc;
+	unsigned short *ctx = context;
+	unsigned short crc = *ctx ^ QCRC_XOR_VALUE;
+	digest[0] = (crc>>0)&0xff;	//digest should be the same regardless of endian. spit it out as little endian.
+	digest[1] = (crc>>8)&0xff;
 }
-
-void QCRC_AddBlock (unsigned short *crcvalue, const qbyte *start, int count)
+hashfunc_t hash_crc16 =
 {
-    while (count--)
-		QCRC_ProcessByte(crcvalue, *start++);
+	2,
+	2,
+	CRC16_Init,
+	CRC16_Update,
+	CRC16_Finish,
+};
+
+static void CRC16_Update_Lower (void *context, const void *data, size_t datasize)
+{
+	unsigned short *ctx = context;
+	unsigned short crc = *ctx;
+	const char *start = data;
+	while (datasize --> 0)
+		crc = ((crc << 8) & 0xffff) ^ crctable[(crc >> 8) ^ tolower(*start++)];
+	*ctx = crc;
 }
+hashfunc_t hash_crc16_lower =	//a case insensitive version...
+{
+	2,
+	2,
+	CRC16_Init,
+	CRC16_Update_Lower,
+	CRC16_Finish,
+};
+

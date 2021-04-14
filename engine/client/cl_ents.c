@@ -3347,6 +3347,12 @@ void CL_LinkStaticEntities(void *pvs, int *areas)
 			}
 			cl.worldmodel->funcs.FindTouchedLeafs(cl.worldmodel, &stat->ent.pvscache, mins, maxs);
 		}
+		else if (clmodel->loadstate != MLS_LOADED)
+		{
+			if (clmodel->loadstate == MLS_NOTLOADED)	//flushed?
+				Mod_LoadModel(clmodel, MLV_WARN);		//load it, but don't otherwise care for now.
+			continue;
+		}
 
 		/*pvs test*/
 		if (pvs && !cl.worldmodel->funcs.EdictInFatPVS(cl.worldmodel, &stat->ent.pvscache, pvs, areas))
@@ -4325,7 +4331,10 @@ void CL_LinkPacketEntities (void)
 		}
 
 		VectorCopy(angles, ent->angles);
-		AngleVectorsMesh(angles, ent->axis[0], ent->axis[1], ent->axis[2]);
+		if (model->type == mod_alias)
+			AngleVectorsMesh(angles, ent->axis[0], ent->axis[1], ent->axis[2]);
+		else
+			AngleVectors(angles, ent->axis[0], ent->axis[1], ent->axis[2]);
 		VectorInverse(ent->axis[1]);
 
 		/*if this entity is in a player's slot...*/
@@ -4815,7 +4824,7 @@ void CLQW_ParsePlayerinfo (void)
 
 	if (flags & PF_COMMAND)
 	{
-		MSG_ReadDeltaUsercmd (&nullcmd, &state->command, cl.protocol_qw);
+		MSGQW_ReadDeltaUsercmd (&nullcmd, &state->command, cl.protocol_qw);
 
 		state->viewangles[0] = state->command.angles[0] * (360.0/65536);
 		state->viewangles[1] = state->command.angles[1] * (360.0/65536);

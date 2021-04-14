@@ -83,8 +83,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define PEXT2_NEWSIZEENCODING		0x00000040	//richer size encoding.
 #define PEXT2_INFOBLOBS				0x00000080	//serverinfo+userinfo lengths can be MUCH higher (protocol is unbounded, but expect low sanity limits on userinfo), and contain nulls etc.
 #define PEXT2_STUNAWARE				0x00000100	//changes the netchan to biased-bigendian (so lead two bits are 1 and not stun's 0, so we don't get confused)
-//#define PEXT2_NEWINTENTS			0x00000200	//clc_move changes, more buttons etc. vr stuff!
-#define PEXT2_CLIENTSUPPORT			(PEXT2_PRYDONCURSOR|PEXT2_VOICECHAT|PEXT2_SETANGLEDELTA|PEXT2_REPLACEMENTDELTAS|PEXT2_MAXPLAYERS|PEXT2_PREDINFO|PEXT2_NEWSIZEENCODING|PEXT2_INFOBLOBS|PEXT2_STUNAWARE)
+#define PEXT2_VRINPUTS				0x00000200	//clc_move changes, more buttons etc. vr stuff!
+#define PEXT2_CLIENTSUPPORT			(PEXT2_PRYDONCURSOR|PEXT2_VOICECHAT|PEXT2_SETANGLEDELTA|PEXT2_REPLACEMENTDELTAS|PEXT2_MAXPLAYERS|PEXT2_PREDINFO|PEXT2_NEWSIZEENCODING|PEXT2_INFOBLOBS|PEXT2_STUNAWARE|PEXT2_VRINPUTS)
 
 //EzQuake/Mvdsv extensions. (use ezquake name, to avoid confusion about .mvd format and its protocol differences)
 #define EZPEXT1_FLOATENTCOORDS		0x00000001	//quirky - doesn't apply to broadcasts, just players+ents. this gives more precision, but will bug out if you try using it to increase map bounds in ways that may not be immediately apparent. iiuc this was added instead of fixing some inconsistent rounding...
@@ -147,6 +147,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define	PORT_QWMASTER	27000
 #define	PORT_QWSERVER	27500
 #define PORT_H2SERVER	26900
+#define PORT_Q2MASTER	27900
 #define PORT_Q2CLIENT	27901
 #define PORT_Q2SERVER	27910
 #define PORT_Q3MASTER	27950
@@ -1200,9 +1201,9 @@ typedef struct usercmd_s
 	//end q2 compat
 
 	float	msec;		//replace msec, but with more precision
-	int		buttons;	//replaces buttons, but with more bits.
-	int		weapon;		//q3 has a separate weapon field to supplement impulse.
-	int		servertime;	//q3 networks the time in order to calculate msecs
+	unsigned int buttons;	//replaces buttons, but with more bits.
+	unsigned int weapon;//q3 has a separate weapon field to supplement impulse.
+	unsigned int servertime;	//q3 networks the time in order to calculate msecs
 	float	fservertime;//used as part of nq msec calcs
 	float	fclienttime;//not used?
 
@@ -1210,7 +1211,24 @@ typedef struct usercmd_s
 	vec2_t	cursor_screen;
 	vec3_t	cursor_start;
 	vec3_t	cursor_impact;
-	int		cursor_entitynumber;
+	unsigned int	cursor_entitynumber;
+
+	//vr things
+	struct
+	{
+		unsigned int	status;
+#define VRSTATUS_ORG	(1u<<0)
+#define VRSTATUS_ANG	(1u<<1)
+#define VRSTATUS_VEL	(1u<<2)
+#define VRSTATUS_AVEL	(1u<<3)
+		short			angles[3];
+		short			avelocity[3];
+		vec3_t			origin;
+		vec3_t			velocity;
+#define VRDEV_LEFT	0
+#define VRDEV_RIGHT	1
+#define VRDEV_HEAD	2
+	} vr[3];	//left, right, head.
 } usercmd_t;
 
 typedef struct q2usercmd_s

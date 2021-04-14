@@ -3,9 +3,11 @@
 #define CSQC
 optsall.qc
 #ifdef QSS
-qsextensions.qc
-#endif
+csqc_api.qc
+//qsextensions.qc
+#else
 fteextensions.qc
+#endif
 cs/defs.qc
 
 common/classes.qc

@@ -152,9 +152,10 @@ void DL_DeThread(void);
 //internal 'http' error codes.
 #define HTTP_DNSFAILURE	900	//no ip known
 #define HTTP_NORESPONSE	901	//tcp failure
-#define HTTP_EOF		902	//unexpected eof
-#define HTTP_MITM		903	//wrong cert
-#define HTTP_UNTRUSTED	904	//unverifiable cert
+#define HTTP_REFUSED	902	//tcp failure
+#define HTTP_EOF		903	//unexpected eof
+#define HTTP_MITM		904	//wrong cert
+#define HTTP_UNTRUSTED	905	//unverifiable cert
 
 #endif
 

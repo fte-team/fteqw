@@ -57,7 +57,7 @@ qboolean		snd_initialized = false;
 int				snd_speed;
 float			voicevolumemod = 1;
 
-static struct
+static struct listener_s
 {
 	int		entnum;
 	vec3_t	origin;
@@ -3884,6 +3884,7 @@ static void S_UpdateCard(soundcardinfo_t *sc)
 //
 	if (snd_show.ival)
 	{
+		struct listener_s *l;
 		int			active, mute;
 		active = 0;
 		mute = 0;
@@ -3900,7 +3901,11 @@ static void S_UpdateCard(soundcardinfo_t *sc)
 				mute++;
 		}
 
-		Con_Printf ("----(%i+%i)----\n", active, mute);
+		if (sc->seat < 0)
+			l = &listener[0];
+		else
+			l = &listener[sc->seat];
+		Con_Printf ("----(%i+%i %s %i %.1f %.1f %.1f)----\n", active, mute, sc->name, l->entnum, l->origin[0], l->origin[1], l->origin[2]);
 	}
 
 #ifdef HAVE_MIXER

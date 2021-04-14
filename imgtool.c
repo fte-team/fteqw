@@ -1285,9 +1285,19 @@ static struct pendingtextureinfo *ImgTool_DecodeMiptex(struct opts_s *args, mipt
 			else if (sz > 16 && !strncmp(data+4, "ETCP", 4))	fmt = PTI_ETC2_RGB8A1;
 			else if (sz > 16 && !strncmp(data+4, "ETCA", 4))	fmt = PTI_ETC2_RGB8A8;
 			else if (sz > 16 && !strncmp(data+4, "AST4", 4))	fmt = PTI_ASTC_4X4_LDR;
+			else if (sz > 16 && !strncmp(data+4, "AS54", 4))	fmt = PTI_ASTC_5X4_LDR;
 			else if (sz > 16 && !strncmp(data+4, "AST5", 4))	fmt = PTI_ASTC_5X5_LDR;
+			else if (sz > 16 && !strncmp(data+4, "AS65", 4))	fmt = PTI_ASTC_6X5_LDR;
+			else if (sz > 16 && !strncmp(data+4, "AS85", 4))	fmt = PTI_ASTC_8X5_LDR;
+			else if (sz > 16 && !strncmp(data+4, "AS05", 4))	fmt = PTI_ASTC_10X5_LDR;
 			else if (sz > 16 && !strncmp(data+4, "AST6", 4))	fmt = PTI_ASTC_6X6_LDR;
-			else if (sz > 16 && !strncmp(data+4, "AST8", 4))	fmt = PTI_ASTC_8X8_LDR;
+			else if (sz > 16 && !strncmp(data+4, "AS86", 4))	fmt = PTI_ASTC_8X6_LDR;
+			else if (sz > 16 && !strncmp(data+4, "AS06", 4))	fmt = PTI_ASTC_10X6_LDR;
+			else if (sz > 16 && !strncmp(data+4, "AST8", 4))	fmt = PTI_ASTC_8X8_LDR;			
+			else if (sz > 16 && !strncmp(data+4, "AS08", 4))	fmt = PTI_ASTC_10X8_LDR;
+			else if (sz > 16 && !strncmp(data+4, "AST0", 4))	fmt = PTI_ASTC_10X10_LDR;
+			else if (sz > 16 && !strncmp(data+4, "AS20", 4))	fmt = PTI_ASTC_12X10_LDR;
+			else if (sz > 16 && !strncmp(data+4, "AST2", 4))	fmt = PTI_ASTC_12X12_LDR;
 			else if (sz > 16 && !strncmp(data+4, "EXP5", 4))	fmt = PTI_E5BGR9;
 			else {Con_Printf("%s: Unknown miptex extension %4s\n", mip->name, data+4);continue;}
 
@@ -1336,19 +1346,47 @@ static struct pendingtextureinfo *ImgTool_DecodeMiptex(struct opts_s *args, mipt
 	}
 	else
 	{
-		if (*mip->name == '{')
-			out->encoding = TF_TRANS8;
-		else if (!strncasecmp(mip->name, "sky", 3))
-			out->encoding = TF_H2_TRANS8_0;
+		if ((((dataend-data)+3)&~3) == (((256*3+2)+3)&~3) && data[0]==0&&data[1]==1)
+		{	//halflife format...
+			qbyte *idx, *rgb, *pal, *pi;
+			size_t s;
+			pal = data+2;
+			out->encoding = PTI_RGBX8;
+			for (out->mipcount = 0; out->mipcount < 4 && mip->offsets[out->mipcount]; out->mipcount++)
+			{
+				out->mip[out->mipcount].width = mip->width>>out->mipcount;
+				out->mip[out->mipcount].height = mip->height>>out->mipcount;
+				out->mip[out->mipcount].depth = 1;
+				s = out->mip[out->mipcount].width*out->mip[out->mipcount].height*out->mip[out->mipcount].depth;
+				out->mip[out->mipcount].datasize = s*4;
+				rgb = out->mip[out->mipcount].data = BZ_Malloc(out->mip[out->mipcount].datasize);
+				idx = (char*)mip + mip->offsets[out->mipcount];
+				while (s-->0)
+				{
+					pi = pal+3**idx++;
+					*rgb++ = pi[0];
+					*rgb++ = pi[1];
+					*rgb++ = pi[2];
+					*rgb++ = 255;
+				}
+			}
+		}
 		else
-			out->encoding = PTI_P8;
-		for (out->mipcount = 0; out->mipcount < 4 && mip->offsets[out->mipcount]; out->mipcount++)
 		{
-			out->mip[out->mipcount].width = mip->width>>out->mipcount;
-			out->mip[out->mipcount].height = mip->height>>out->mipcount;
-			out->mip[out->mipcount].depth = 1;
-			out->mip[out->mipcount].datasize = out->mip[out->mipcount].width*out->mip[out->mipcount].height*out->mip[out->mipcount].depth;
-			out->mip[out->mipcount].data = (char*)mip + mip->offsets[out->mipcount];
+			if (*mip->name == '{')
+				out->encoding = TF_TRANS8;
+			else if (!strncasecmp(mip->name, "sky", 3))
+				out->encoding = TF_H2_TRANS8_0;
+			else
+				out->encoding = PTI_P8;
+			for (out->mipcount = 0; out->mipcount < 4 && mip->offsets[out->mipcount]; out->mipcount++)
+			{
+				out->mip[out->mipcount].width = mip->width>>out->mipcount;
+				out->mip[out->mipcount].height = mip->height>>out->mipcount;
+				out->mip[out->mipcount].depth = 1;
+				out->mip[out->mipcount].datasize = out->mip[out->mipcount].width*out->mip[out->mipcount].height*out->mip[out->mipcount].depth;
+				out->mip[out->mipcount].data = (char*)mip + mip->offsets[out->mipcount];
+			}
 		}
 	}
 	if (*mip->name == '*')
@@ -1382,7 +1420,24 @@ static struct pendingtextureinfo *ImgTool_DecodeMiptex(struct opts_s *args, mipt
 	}
 	return out;
 }
-static void ImgTool_Info(struct opts_s *args, const char *inname)
+static void ImgTool_PrintInfo(const char *inname, struct pendingtextureinfo *in)
+{
+	size_t m;
+	if (in->mipcount == 1 && in->type == PTI_2D && in->mip[0].depth == 1)
+		printf("%-20s(%s): %4i*%-4i\n", inname, Image_FormatName(in->encoding), in->mip[0].width, in->mip[0].height);
+	else if (in->mipcount == 1)
+		printf("%-20s(%s): %s, %i*%i*%i, %u bytes\n", inname, Image_FormatName(in->encoding), imagetypename[in->type], in->mip[0].width, in->mip[0].height, in->mip[0].depth, (unsigned)in->mip[0].datasize);
+	else
+	{
+		/*if (mip)
+			printf("%-20s(%s): \"%s\"%s %i*%i, %i mips\n", inname, Image_FormatName(in->encoding), mip->name, mip->offsets[0]?"":" (stripped)", mip->width, mip->height, in->mipcount);
+		else*/
+			printf("%-20s(%s): %s, %i*%i*%i, %i mips\n", inname, Image_FormatName(in->encoding), imagetypename[in->type], in->mip[0].width, in->mip[0].height, in->mip[0].depth, in->mipcount);
+		for (m = 0; m < in->mipcount; m++)
+			printf("\t%u: %i*%i*%i, %u\n", (unsigned)m, in->mip[m].width, in->mip[m].height, in->mip[m].depth, (unsigned)in->mip[m].datasize);
+	}
+}
+static void ImgTool_Enumerate(struct opts_s *args, const char *inname, void(*callback)(const char *name, struct pendingtextureinfo *mips))
 {
 	qbyte *indata;
 	size_t fsize;
@@ -1404,9 +1459,11 @@ static void ImgTool_Info(struct opts_s *args, const char *inname)
 			case TYP_MIPTEX:
 				{
 					miptex_t *mip = (miptex_t *)(indata+e->offset);
-					in = ImgTool_DecodeMiptex(NULL, mip, 0);
+					in = ImgTool_DecodeMiptex(NULL, mip, min(e->size, e->dsize));
 
-					/*mip name SHOULD match entry name... but gah!*/
+					callback(e->name, in);
+/*
+					//mip name SHOULD match entry name... but gah!
 					if (strcasecmp(e->name, mip->name))
 						printf("\t%16.16s (%s): ", e->name, mip->name);
 					else
@@ -1414,7 +1471,7 @@ static void ImgTool_Info(struct opts_s *args, const char *inname)
 					printf("%u*%u%s", mip->width, mip->height, mip->offsets[0]?"":" (omitted)");
 
 					if (in->encoding != PTI_P8)
-						printf(" (%s %u*%u)", Image_FormatName(in->encoding), in->mip[0].width, in->mip[0].height);
+						printf(" (%s %u*%u)", Image_FormatName(in->encoding), in->mip[0].width, in->mip[0].height);*/
 					printf("\n");
 					ImgTool_FreeMips(in);
 				}
@@ -1455,13 +1512,74 @@ static void ImgTool_Info(struct opts_s *args, const char *inname)
 
 			in = ImgTool_DecodeMiptex(NULL, miptex, sz - texlump->dataofs[i]);
 			sz = texlump->dataofs[i];
-			if (in->encoding != PTI_P8)
+			callback(miptex->name, in);
+/*			if (in->encoding != PTI_P8)
 				printf("\t%16.16s: %u*%u%s (%s: %i*%i)\n", miptex->name, miptex->width, miptex->height, miptex->offsets[0]?"":" (external data)", Image_FormatName(in->encoding), in->mip[0].width, in->mip[0].height);
 			else
 				printf("\t%16.16s: %u*%u%s\n", miptex->name, miptex->width, miptex->height, miptex->offsets[0]?"":" (external data)");
-			ImgTool_FreeMips(in);
+*/			ImgTool_FreeMips(in);
 		}
 	}
+	else if (fsize >= sizeof(dmdl_t) && (
+		((indata[0])|(indata[1]<<8)|(indata[2]<<16)|(indata[3]<<24)) == IDPOLYHEADER && ((dmdl_t*)indata)->version == ALIAS_VERSION))
+	{
+		int i, j, numframes;
+		dmdl_t *mdl = (dmdl_t *)indata;
+		daliasskintype_t *pskintype = (daliasskintype_t*)(indata + sizeof(*mdl));
+		daliasskingroup_t *pskingroup;
+		daliasskininterval_t *intervals;
+
+		struct pendingtextureinfo *out = Z_Malloc(sizeof(*out));
+		out->type = PTI_2D;
+
+	#ifdef HEXEN2
+		if( mdl->flags & MFH2_TRANSPARENT )
+			out->encoding = TF_H2_T7G1;	//hexen2
+		else
+	#endif
+		 if( mdl->flags & MFH2_HOLEY )
+			out->encoding = TF_H2_TRANS8_0;	//hexen2
+	#ifdef HEXEN2
+		else if( mdl->flags & MFH2_SPECIAL_TRANS )
+			out->encoding = TF_H2_T4A4;	//hexen2
+	#endif
+		else
+			out->encoding = TF_SOLID8;
+
+		out->mipcount = 1;
+		out->mip[0].datasize = mdl->skinwidth*mdl->skinheight;
+		out->mip[0].width = mdl->skinwidth;
+		out->mip[0].height = mdl->skinheight;
+		out->mip[0].depth = 1;
+
+		printf("%-20s: mdl file (%u skingroups)\n", inname, mdl->numskins);
+		for (i = 0; i < mdl->numskins; i++)
+		{
+			switch(LittleLong(pskintype->type))
+			{
+			case ALIAS_SKIN_SINGLE:
+				out->mip[0].data = (qbyte*)(pskintype+1);
+				printf("\t%u: %i*%i\n", i, mdl->skinwidth, mdl->skinheight);
+				pskintype = (daliasskintype_t *)((char *)out->mip[0].data+out->mip[0].datasize);
+				break;
+
+			default:
+				pskingroup = (daliasskingroup_t*)(pskintype+1);
+				intervals = (daliasskininterval_t *)(pskingroup+1);
+				numframes = LittleLong(pskingroup->numskins);
+				out->mip[0].data = (qbyte *)(intervals + numframes);
+
+				printf("\t%u\n", i);
+				for (j = 0; j < numframes; j++,out->mip[0].data=(char*)out->mip[0].data+out->mip[0].datasize)
+				{
+					printf("\t\t%u.%u: %i*%i\n", i, j, mdl->skinwidth, mdl->skinheight);
+				}
+				pskintype = (daliasskintype_t *)out->mip[0].data;
+				break;
+			}
+		}
+	}
+	//else spr
 	else
 	{
 		const miptex_t *mip = NULL;
@@ -1476,7 +1594,10 @@ static void ImgTool_Info(struct opts_s *args, const char *inname)
 			in = Image_LoadMipsFromMemory(args->flags|IF_NOMIPMAP, inname, inname, indata, fsize);
 		if (!in)
 			printf("%-20s: unsupported format\n", inname);
-		else if (in->mipcount == 1 && in->type == PTI_2D && in->mip[0].depth == 1)
+		else
+			callback(inname, in);
+		(void)mip;
+		/* if (in->mipcount == 1 && in->type == PTI_2D && in->mip[0].depth == 1)
 			printf("%-20s(%s): %4i*%-4i\n", inname, Image_FormatName(in->encoding), in->mip[0].width, in->mip[0].height);
 		else if (in->mipcount == 1)
 			printf("%-20s(%s): %s, %i*%i*%i, %u bytes\n", inname, Image_FormatName(in->encoding), imagetypename[in->type], in->mip[0].width, in->mip[0].height, in->mip[0].depth, (unsigned)in->mip[0].datasize);
@@ -1488,9 +1609,8 @@ static void ImgTool_Info(struct opts_s *args, const char *inname)
 				printf("%-20s(%s): %s, %i*%i*%i, %i mips\n", inname, Image_FormatName(in->encoding), imagetypename[in->type], in->mip[0].width, in->mip[0].height, in->mip[0].depth, in->mipcount);
 			for (m = 0; m < in->mipcount; m++)
 				printf("\t%u: %i*%i*%i, %u\n", (unsigned)m, in->mip[m].width, in->mip[m].height, in->mip[m].depth, (unsigned)in->mip[m].datasize);
-
-			ImgTool_FreeMips(in);
-		}
+		}*/
+		ImgTool_FreeMips(in);
 	}
 	fflush(stdout);
 }
@@ -1800,6 +1920,66 @@ static void ImgTool_WadExtract(struct opts_s *args, const char *wadname)
 			{
 				ImgTool_DecodeMiptex(args, miptex, sz - texlump->dataofs[i]);
 				sz = texlump->dataofs[i];
+			}
+		}
+	}
+	else if (fsize >= sizeof(dmdl_t) && (
+		((indata[0])|(indata[1]<<8)|(indata[2]<<16)|(indata[3]<<24)) == IDPOLYHEADER && ((dmdl_t*)indata)->version == ALIAS_VERSION))
+	{
+		char imgname[1024];
+		int i, j, numframes;
+		dmdl_t *mdl = (dmdl_t *)indata;
+		daliasskintype_t *pskintype = (daliasskintype_t*)(indata + sizeof(*mdl));
+		daliasskingroup_t *pskingroup;
+		daliasskininterval_t *intervals;
+
+		struct pendingtextureinfo *out = Z_Malloc(sizeof(*out));
+		out->type = PTI_2D;
+
+	#ifdef HEXEN2
+		if( mdl->flags & MFH2_TRANSPARENT )
+			out->encoding = TF_H2_T7G1;	//hexen2
+		else
+	#endif
+		 if( mdl->flags & MFH2_HOLEY )
+			out->encoding = TF_H2_TRANS8_0;	//hexen2
+	#ifdef HEXEN2
+		else if( mdl->flags & MFH2_SPECIAL_TRANS )
+			out->encoding = TF_H2_T4A4;	//hexen2
+	#endif
+		else
+			out->encoding = TF_SOLID8;
+
+		out->mipcount = 1;
+		out->mip[0].datasize = mdl->skinwidth*mdl->skinheight;
+		out->mip[0].width = mdl->skinwidth;
+		out->mip[0].height = mdl->skinheight;
+		out->mip[0].depth = 1;
+
+		for (i = 0; i < mdl->numskins; i++)
+		{
+			switch(LittleLong(pskintype->type))
+			{
+			case ALIAS_SKIN_SINGLE:
+				out->mip[0].data = (qbyte*)(pskintype+1);
+				Q_snprintfz(imgname, sizeof(imgname), "%s_%i.", wadname, i);
+				ImgTool_Convert(args, out, imgname, NULL);
+				pskintype = (daliasskintype_t *)((char *)out->mip[0].data+out->mip[0].datasize);
+				break;
+
+			default:
+				pskingroup = (daliasskingroup_t*)(pskintype+1);
+				intervals = (daliasskininterval_t *)(pskingroup+1);
+				numframes = LittleLong(pskingroup->numskins);
+				out->mip[0].data = (qbyte *)(intervals + numframes);
+
+				for (j = 0; j < numframes; j++,out->mip[0].data=(char*)out->mip[0].data+out->mip[0].datasize)
+				{
+					Q_snprintfz(imgname, sizeof(imgname), "%s_%i_%i.", wadname, i, j);
+					ImgTool_Convert(args, out, imgname, NULL);
+				}
+				pskintype = (daliasskintype_t *)out->mip[0].data;
+				break;
 			}
 		}
 	}
@@ -2189,7 +2369,10 @@ static void ImgTool_WadConvert(struct opts_s *args, const char *destpath, const 
 	FileList_Release(&list);
 }
 
-
+#ifdef FTE_SDL
+static void SDLL_Loop(void);
+static void ImgTool_View(const char *inname, struct pendingtextureinfo *in);
+#endif
 int main(int argc, const char **argv)
 {
 	static const struct
@@ -2230,6 +2413,9 @@ int main(int argc, const char **argv)
 	{
 		mode_unspecified,
 		mode_info,
+#ifdef FTE_SDL
+		mode_view,
+#endif
 		mode_convert,
 		mode_autotree,
 		mode_genwadx,
@@ -2332,6 +2518,10 @@ showhelp:
 				mode = mode_autotree;
 			else if (!files && (!strcmp(argv[u], "-i") || !strcmp(argv[u], "--info")))
 				mode = mode_info;
+#ifdef FTE_SDL
+			else if (!files && (!strcmp(argv[u], "-v") || !strcmp(argv[u], "--view")))
+				mode = mode_view;
+#endif
 			else if (!files && (!strcmp(argv[u], "-w") || !strcmp(argv[u], "--genwad2")))
 				mode = mode_genwad2;
 			else if (!files && (!strcmp(argv[u], "-w") || !strcmp(argv[u], "--genwad3")))
@@ -2455,7 +2645,13 @@ showhelp:
 	if (!args.defaultext)
 	{
 		if (mode == mode_unspecified)
+		{
+#ifdef FTE_SDL
+			mode = mode_view;
+#else
 			mode = mode_info;
+#endif
+		}
 
 		if (mode == mode_extractwad)
 			args.defaultext = "png";	//something the user expects to be able to view easily (and lossless)
@@ -2473,7 +2669,7 @@ showhelp:
 	if (mode == mode_info)
 	{	//just print info about each listed file.
 		for (u = 0; u < files; u++)
-			ImgTool_Info(&args, argv[u]);
+			ImgTool_Enumerate(&args, argv[u], ImgTool_PrintInfo);
 	}
 	else if (mode == mode_convert && args.textype!=PTI_ANY && outname)	//overwrite input
 	{
@@ -2491,6 +2687,14 @@ showhelp:
 		ImgTool_WadConvert(&args, argv[0], argv+1, files-1, mode-mode_genwadx);
 	else if ((mode == mode_extractwad) && files == 1)
 		ImgTool_WadExtract(&args, argv[0]);
+#ifdef FTE_SDL
+	else if (mode == mode_view)
+	{
+		for (u = 0; u < files; u++)
+			ImgTool_Enumerate(&args, argv[u], ImgTool_View);
+		SDLL_Loop();
+	}
+#endif
 	else
 	{
 		printf("%u files\n", (int)files);
@@ -2499,4 +2703,326 @@ showhelp:
 	}
 	return EXIT_SUCCESS;
 }
+
+#ifdef FTE_SDL
+#include <SDL.h>
+
+struct sdlwindow_s
+{
+	SDL_Window *w;
+	SDL_Renderer *r;
+
+	size_t texshown;
+	size_t texcount;
+	struct
+	{
+		char *name;
+		size_t w, h;
+		SDL_Texture *t;
+	} *tex;
+};
+static struct
+{
+	qboolean inited;
+	qboolean tried;
+	size_t windowcount;
+
+	int				(SDLCALL *Init)				(Uint32 flags);
+	SDL_Window *	(SDLCALL *CreateWindow)		(const char *title, int x, int y, int w, int h, Uint32 flags);
+	void *			(SDLCALL *SetWindowData)	(SDL_Window * window, const char *name, void *userdata);
+	void *			(SDLCALL *GetWindowData)	(SDL_Window * window, const char *name);
+	void			(SDLCALL *SetWindowTitle)	(SDL_Window * window, const char *title);
+	void			(SDLCALL *SetWindowSize)	(SDL_Window * window, int w, int h);
+	SDL_Renderer *	(SDLCALL *CreateRenderer)	(SDL_Window * window, int index, Uint32 flags);
+	int				(SDLCALL *GetRendererInfo)	(SDL_Renderer * renderer, SDL_RendererInfo * info);
+	SDL_Texture *	(SDLCALL *CreateTexture)	(SDL_Renderer * renderer, Uint32 format, int access, int w, int h);
+	int				(SDLCALL *UpdateTexture)	(SDL_Texture * texture, const SDL_Rect * rect, const void *pixels, int pitch);
+	int				(SDLCALL *RenderCopy)		(SDL_Renderer * renderer, SDL_Texture * texture, const SDL_Rect * srcrect, const SDL_Rect * dstrect);
+	void			(SDLCALL *RenderPresent)	(SDL_Renderer * renderer);
+	int				(SDLCALL *WaitEvent)		(SDL_Event * event);
+	int				(SDLCALL *PollEvent)		(SDL_Event * event);
+	SDL_Window *	(SDLCALL *GetWindowFromID)	(Uint32 id);
+	void			(SDLCALL *DestroyTexture)	(SDL_Texture * texture);
+	void			(SDLCALL *DestroyRenderer)	(SDL_Renderer * renderer);
+	void			(SDLCALL *DestroyWindow)	(SDL_Window * window);
+	void			(SDLCALL *Quit)				(void);
+
+	struct sdlwindow_s *texview;
+} sdl;
+static qboolean SDLL_Setup(void)
+{
+	static dllfunction_t funcs[] =
+	{
+		{(void**)&sdl.Init,				"SDL_Init"},
+		{(void**)&sdl.CreateWindow,		"SDL_CreateWindow"},
+		{(void**)&sdl.SetWindowData,	"SDL_SetWindowData"},
+		{(void**)&sdl.GetWindowData,	"SDL_GetWindowData"},
+		{(void**)&sdl.SetWindowTitle,	"SDL_SetWindowTitle"},
+		{(void**)&sdl.SetWindowSize,	"SDL_SetWindowSize"},
+		{(void**)&sdl.CreateRenderer,	"SDL_CreateRenderer"},
+		{(void**)&sdl.GetRendererInfo,	"SDL_GetRendererInfo"},
+		{(void**)&sdl.CreateTexture,	"SDL_CreateTexture"},
+		{(void**)&sdl.UpdateTexture,	"SDL_UpdateTexture"},
+		{(void**)&sdl.RenderCopy,		"SDL_RenderCopy"},
+		{(void**)&sdl.RenderPresent,	"SDL_RenderPresent"},
+		{(void**)&sdl.WaitEvent,		"SDL_WaitEvent"},
+		{(void**)&sdl.PollEvent,		"SDL_PollEvent"},
+		{(void**)&sdl.GetWindowFromID,	"SDL_GetWindowFromID"},
+		{(void**)&sdl.DestroyTexture,	"SDL_DestroyTexture"},
+		{(void**)&sdl.DestroyRenderer,	"SDL_DestroyRenderer"},
+		{(void**)&sdl.DestroyWindow,	"SDL_DestroyWindow"},
+		{(void**)&sdl.Quit,				"SDL_Quit"},
+		{NULL,NULL}
+	};
+
+	if (!sdl.tried)
+	{
+		sdl.tried = true;
+
+#ifdef _WIN32
+		if (!Sys_LoadLibrary("SDL2.dll", funcs))
+#else
+		if (!Sys_LoadLibrary("libSDL2-2.0.so.0", funcs))
+		if (!Sys_LoadLibrary("libSDL2-2.0.so", funcs))
+		if (!Sys_LoadLibrary("libSDL2-2.so", funcs))
+		if (!Sys_LoadLibrary("libSDL2.so", funcs))
+		if (!Sys_LoadLibrary("SDL2.so", funcs))
+#endif
+		{
+			printf("Unable to load SDL2 library\n");
+			return sdl.inited;
+		}
+
+		sdl.Init(SDL_INIT_VIDEO);
+		sdl.inited = true;
+	}
+	return sdl.inited;
+}
+static void SDLL_KillWindow(struct sdlwindow_s *wc)
+{
+	while (wc->texcount --> 0)
+	{
+		if (wc->tex[wc->texcount].t)
+			sdl.DestroyTexture(wc->tex[wc->texcount].t);
+		BZ_Free(wc->tex[wc->texcount].name);
+	}
+	BZ_Free(wc->tex);
+	if (wc->r)
+		sdl.DestroyRenderer(wc->r);
+	if (wc->w)
+		sdl.DestroyWindow(wc->w);
+	Z_Free(wc);
+	sdl.windowcount--;
+	if (sdl.texview == wc)
+		sdl.texview = NULL;
+}
+static void SDLL_RepaintWindow(struct sdlwindow_s *wc)
+{
+	if (wc->texshown < wc->texcount)
+	{
+		sdl.RenderCopy(wc->r, wc->tex[wc->texshown].t, NULL, NULL);
+		sdl.RenderPresent(wc->r);
+	}
+}
+static void SDLL_Change(struct sdlwindow_s *wc, size_t newshown)
+{
+	if (newshown < wc->texcount)
+	{
+		wc->texshown = newshown;
+		sdl.SetWindowTitle(wc->w, wc->tex[wc->texshown].name);
+		sdl.SetWindowSize(wc->w, wc->tex[wc->texshown].w, wc->tex[wc->texshown].h);
+		SDLL_RepaintWindow(wc);
+	}
+}
+static void SDLL_Event(SDL_Event *ev)
+{
+	struct sdlwindow_s *wc;
+	switch (ev->type)
+	{
+	case SDL_KEYDOWN:
+		wc = sdl.GetWindowData(sdl.GetWindowFromID(ev->key.windowID), "uptr");
+		if (!wc) break;
+		switch(ev->key.keysym.sym)
+		{
+		case SDLK_ESCAPE:
+		case SDLK_q:
+			SDLL_KillWindow(wc);
+			break;
+		case SDLK_LEFT:
+			SDLL_Change(wc, wc->texshown-1);
+			break;
+		case SDLK_RIGHT:
+			SDLL_Change(wc, wc->texshown+1);
+			break;
+		}
+		break;
+	case SDL_WINDOWEVENT:
+		wc = sdl.GetWindowData(sdl.GetWindowFromID(ev->window.windowID), "uptr");
+		if (!wc) break;
+		switch (ev->window.event)
+		{
+		case SDL_WINDOWEVENT_CLOSE:
+			SDLL_KillWindow(wc);
+			break;
+		case SDL_WINDOWEVENT_EXPOSED:
+			SDLL_RepaintWindow(wc);
+			break;
+		}
+		break;
+	//don't bother with SDL_QUIT, it doesn't get sent if we kill the last window via a keypress. just count live windows instead.
+	default:
+//		printf("event type %x\n", ev->type);
+		break;
+	}
+}
+static void SDLL_Loop(void)
+{
+	SDL_Event ev;
+	if (!sdl.inited)
+		return;
+
+	while (sdl.windowcount && sdl.WaitEvent(&ev))
+		SDLL_Event(&ev);
+
+	sdl.Quit();
+}
+static void ImgTool_View(const char *inname, struct pendingtextureinfo *in)
+{
+	unsigned int sdlfmt;
+	SDL_RendererInfo rinfo;
+	int s;
+	qboolean outformats[PTI_MAX] = {false};
+	struct sdlwindow_s *wc;
+	SDL_Event ev;
+
+	if (!SDLL_Setup())
+	{
+		ImgTool_PrintInfo(inname, in);
+		return;
+	}
+
+	while (sdl.windowcount>=64 && sdl.WaitEvent(&ev))
+		SDLL_Event(&ev);
+
+	if (sdl.texview)
+		wc = sdl.texview;
+	else
+	{
+		sdl.texview = wc = Z_Malloc(sizeof(*wc));
+
+		s = 1;
+		while (	 (in->mip[0].width*s < 256 && in->mip[0].height*s < 512)||
+				 (in->mip[0].height*s < 256 && in->mip[0].width*s < 512))
+			s<<=1;
+		wc->w = sdl.CreateWindow("textureview", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, 64, 64, SDL_WINDOW_RESIZABLE);
+		sdl.windowcount++;
+		if (wc->w)
+		{
+			sdl.SetWindowData(wc->w, "uptr", wc);
+
+			//needs a rendering context too
+			wc->r = sdl.CreateRenderer(wc->w, -1, SDL_RENDERER_SOFTWARE);
+			if (!wc->r)
+			{
+				printf("Unable to create rendering context\n");
+				SDLL_KillWindow(wc);
+				return;
+			}
+		}
+	}
+	if (wc->r)
+	{
+		//figure out which formats we can pass to sdl
+		sdl.GetRendererInfo(wc->r, &rinfo);
+		while (rinfo.num_texture_formats --> 0)
+		{
+			switch(rinfo.texture_formats[rinfo.num_texture_formats])
+			{
+			//packed formats use hex ordering in both apis.
+			case SDL_PIXELFORMAT_RGB565:		outformats[PTI_RGB565] = true;	break;
+//			case SDL_PIXELFORMAT_BGR565:		outformats[PTI_BGR565] = true;	break;
+			case SDL_PIXELFORMAT_RGBA4444:		outformats[PTI_RGBA4444] = true;	break;
+			case SDL_PIXELFORMAT_ABGR4444:		outformats[PTI_ARGB4444] = true;	break;
+			case SDL_PIXELFORMAT_RGBA5551:		outformats[PTI_RGBA5551] = true;	break;
+			case SDL_PIXELFORMAT_ARGB1555:		outformats[PTI_ARGB1555] = true;	break;
+//			case SDL_PIXELFORMAT_ARGB2101010:	outformats[PTI_A2RGB10] = true;	break;
+//			case SDL_PIXELFORMAT_ABGR2101010:	outformats[PTI_A2BGR10] = true;	break;
+
+			//these sdl aliases are for explicit byte orders, rather than packed.
+			case SDL_PIXELFORMAT_RGBA32:		outformats[PTI_RGBA8] = true;	break;
+			case SDL_PIXELFORMAT_BGRA32:		outformats[PTI_BGRA8] = true;	break;
+			case SDL_PIXELFORMAT_BGR24:			outformats[PTI_RGB8] = true;	break;
+			case SDL_PIXELFORMAT_RGB24:			outformats[PTI_BGR8] = true;	break;
+//			case SDL_PIXELFORMAT_ARGB32:		outformats[PTI_ARGB8] = true;	break;
+//			case SDL_PIXELFORMAT_ABGR32:		outformats[PTI_ABGR8] = true;	break;
+#if SDL_BYTEORDER == SDL_BIG_ENDIAN
+			case SDL_PIXELFORMAT_RGBX8888:		outformats[PTI_RGBX8] = true;	break;
+			case SDL_PIXELFORMAT_BGRX8888:		outformats[PTI_BGRX8] = true;	break;
+#else
+			//case SDL_PIXELFORMAT_XBGR8888:		outformats[PTI_RGBX8] = true;	break;
+			//case SDL_PIXELFORMAT_XRGB8888:		outformats[PTI_BGRX8] = true;	break;
+#endif
+			}
+		}
+
+		//convert our image, if needed.
+		if (!outformats[in->encoding])
+			Image_ChangeFormat(in, outformats, PTI_INVALID, inname);
+		if (!outformats[in->encoding])
+			sdlfmt = SDL_PIXELFORMAT_UNKNOWN,printf("Unable to convert to usable pixel format\n");
+		else switch(in->encoding)
+		{
+		//packed formats
+		case PTI_RGB565:	sdlfmt = SDL_PIXELFORMAT_RGB565;		break;
+//		case PTI_BGR565:	sdlfmt = SDL_PIXELFORMAT_BGR565;		break;
+		case PTI_RGBA4444:	sdlfmt = SDL_PIXELFORMAT_RGBA4444;		break;
+		case PTI_ARGB4444:	sdlfmt = SDL_PIXELFORMAT_ARGB4444;		break;
+		case PTI_RGBA5551:	sdlfmt = SDL_PIXELFORMAT_RGBA5551;		break;
+		case PTI_ARGB1555:	sdlfmt = SDL_PIXELFORMAT_ARGB1555;		break;
+//		case PTI_A2RGB10:	sdlfmt = SDL_PIXELFORMAT_ARGB2101010;	break;
+//		case PTI_A2BGR10:	sdlfmt = SDL_PIXELFORMAT_ABGR2101010;	break;
+
+		//byte-ordered formats.
+		case PTI_RGBA8:		sdlfmt = SDL_PIXELFORMAT_RGBA32;		break;
+		case PTI_BGRA8:		sdlfmt = SDL_PIXELFORMAT_BGRA32;		break;
+		case PTI_RGB8:		sdlfmt = SDL_PIXELFORMAT_RGB24;			break;
+		case PTI_BGR8:		sdlfmt = SDL_PIXELFORMAT_BGR24;			break;
+#if SDL_BYTEORDER == SDL_BIG_ENDIAN
+		case PTI_RGBX8:		sdlfmt = SDL_PIXELFORMAT_RGBX8888;		break;
+		case PTI_BGRX8:		sdlfmt = SDL_PIXELFORMAT_BGRX8888;		break;
+#else
+		case PTI_RGBX8:		sdlfmt = SDL_PIXELFORMAT_XBGR8888;		break;
+		case PTI_BGRX8:		sdlfmt = SDL_PIXELFORMAT_XRGB8888;		break;
+#endif
+
+		default:			sdlfmt = SDL_PIXELFORMAT_UNKNOWN;		 break;	//shouldn't happen.
+		}
+
+		wc->tex = realloc(wc->tex, sizeof(*wc->tex)*(wc->texcount+1));
+		wc->tex[wc->texcount].name = Z_StrDup(inname);
+		wc->tex[wc->texcount].w = in->mip[0].width;
+		wc->tex[wc->texcount].h = in->mip[0].height;
+		wc->tex[wc->texcount].t = sdl.CreateTexture(wc->r, sdlfmt, SDL_TEXTUREACCESS_STATIC, in->mip[0].width, in->mip[0].height);	//which needs a texture...
+		if (wc->tex[wc->texcount].t)
+		{
+			sdl.UpdateTexture(wc->tex[wc->texcount].t, NULL, in->mip[0].data, in->mip[0].datasize/in->mip[0].height);				//with our image data
+			if (!wc->texcount++)
+				SDLL_Change(wc, 0);
+
+			while (sdl.PollEvent(&ev))
+				SDLL_Event(&ev);
+		}
+		else
+		{
+			printf("Unable to create texture\n");
+			BZ_Free(wc->tex[wc->texcount].name);
+		}
+	}
+	else
+	{
+		printf("Unable to create window\n");
+		SDLL_KillWindow(wc);
+	}
+}
+#endif
 #endif

@@ -1,10 +1,10 @@
 ../progs.dat
 
+//#define QWSSQC
 #define SSQC
 optsall.qc
-#ifdef QSS
+#if defined(QSS) && !defined(QWSSQC)
 qsextensions.qc
-#undef CSQC
 #endif
 fteextensions.qc
 

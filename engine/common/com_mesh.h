@@ -273,7 +273,7 @@ const char *Mod_FrameNameForNum(model_t *model, int surfaceidx, int num);
 const char *Mod_SkinNameForNum(model_t *model, int surfaceidx, int num);
 qboolean Mod_FrameInfoForNum(model_t *model, int surfaceidx, int num, char **name, int *numframes, float *duration, qboolean *loop);
 
-void Mod_DoCRC(model_t *mod, char *buffer, int buffersize);
+qboolean Mod_DoCRC(model_t *mod, char *buffer, int buffersize);
 
 void QDECL Mod_AccumulateTextureVectors(vecV_t *const vc, vec2_t *const tc, vec3_t *nv, vec3_t *sv, vec3_t *tv, const index_t *idx, int numidx, qboolean calcnorms);
 void Mod_AccumulateMeshTextureVectors(mesh_t *mesh);

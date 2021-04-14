@@ -494,7 +494,7 @@ qbyte *W_GetTexture(const char *name, int *width, int *height, uploadfmt_t *form
 
 				if (con_ocranaleds.ival)
 				{
-					if (con_ocranaleds.ival != 2 || QCRC_Block(lump, 128*128) == 798)
+					if (con_ocranaleds.ival != 2 || CalcHashInt(&hash_crc16, lump, 128*128) == 798)
 						AddOcranaLEDsIndexed (lump, 128, 128);
 				}
 

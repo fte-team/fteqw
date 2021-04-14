@@ -317,6 +317,8 @@ cvar_t vid_renderer_opts					= CVARFD ("_vid_renderer_opts", NULL, CVAR_NOSET, "
 
 cvar_t vid_bpp								= CVARFD ("vid_bpp", "0",
 												CVAR_ARCHIVE | CVAR_VIDEOLATCH, "The number of colour bits to request from the renedering context");
+cvar_t vid_depthbits						= CVARFD ("vid_depthbits", "0",
+												CVAR_ARCHIVE | CVAR_VIDEOLATCH, "The number of depth bits to request from the renedering context. Try 24.");
 cvar_t vid_desktopsettings					= CVARFD ("vid_desktopsettings", "0",
 												CVAR_ARCHIVE | CVAR_VIDEOLATCH, "Ignore the values of vid_width and vid_height, and just use the same settings that are used for the desktop.");
 cvar_t vid_fullscreen						= CVARF ("vid_fullscreen", "2",
@@ -494,7 +496,7 @@ cvar_t r_lodscale							= CVARFD ("r_lodscale", "5", CVAR_ARCHIVE, "Scales the l
 cvar_t r_lodbias							= CVARFD ("r_lodbias", "0", CVAR_ARCHIVE, "Biases the level-of-detail on models (for those that have lod).");
 cvar_t r_shadows							= CVARFD ("r_shadows", "0", CVAR_ARCHIVE, "Draw basic blob shadows underneath entities without using realtime lighting.");
 cvar_t r_showbboxes							= CVARD("r_showbboxes", "0", "Debugging. Shows bounding boxes. 1=ssqc, 2=csqc. Red=solid, Green=stepping/toss/bounce, Blue=onground.");
-cvar_t r_showfields							= CVARD("r_showfields", "0", "Debugging. Shows entity fields boxes (entity closest to crosshair). 1=ssqc, 2=csqc.");
+cvar_t r_showfields							= CVARD("r_showfields", "0", "Debugging. Shows entity fields boxes (entity closest to crosshair). 1=ssqc, 2=csqc, 3=snapshots.");
 cvar_t r_showshaders						= CVARD("r_showshaders", "0", "Debugging. Shows the name of the (worldmodel) shader being pointed to.");
 cvar_t r_lightprepass_cvar					= CVARFD("r_lightprepass", "0", CVAR_ARCHIVE, "Experimental. Attempt to use a different lighting mechanism (aka: deferred lighting). Requires vid_reload to take effect.");
 int r_lightprepass;
@@ -741,7 +743,7 @@ void R_ToggleFullscreen_f(void)
 	if (currentrendererstate.renderer->rtype == QR_HEADLESS || currentrendererstate.renderer->rtype == QR_NONE)
 		return;
 
-	Cvar_ApplyLatches(CVAR_VIDEOLATCH|CVAR_RENDERERLATCH);
+	Cvar_ApplyLatches(CVAR_VIDEOLATCH|CVAR_RENDERERLATCH, false);
 
 	newr = currentrendererstate;
 	if (newr.fullscreen)
@@ -834,6 +836,7 @@ void Renderer_Init(void)
 
 	Cvar_Register (&vid_fullscreen, VIDCOMMANDGROUP);
 	Cvar_Register (&vid_bpp, VIDCOMMANDGROUP);
+	Cvar_Register (&vid_depthbits, VIDCOMMANDGROUP);
 
 	Cvar_Register (&vid_conwidth, VIDCOMMANDGROUP);
 	Cvar_Register (&vid_conheight, VIDCOMMANDGROUP);
@@ -1097,7 +1100,7 @@ qboolean Renderer_Started(void)
 void Renderer_Start(void)
 {
 	r_blockvidrestart = false;
-	Cvar_ApplyLatches(CVAR_VIDEOLATCH|CVAR_RENDERERLATCH);
+	Cvar_ApplyLatches(CVAR_VIDEOLATCH|CVAR_RENDERERLATCH, false);
 
 	//renderer = none && currentrendererstate.bpp == -1 means we've never applied any mode at all
 	//if we currently have none, we do actually need to apply it still
@@ -1155,6 +1158,7 @@ qboolean R_RegisterRenderer(void *module, rendererinfo_t *ri)
 		{
 			rendererinfo[i].module = module;
 			rendererinfo[i].ri = ri;
+			R_UpdateRendererOpts();
 			return true;
 		}
 	}
@@ -1586,15 +1590,15 @@ qboolean R_ApplyRenderer_Load (rendererstate_t *newr)
 				memcpy(host_basepal, default_quakepal, 768);
 			}
 		}
-		Validation_FileLoaded("gfx/palette.lmp", host_basepal, 768);
+		if (!Ruleset_FileLoaded("gfx/palette.lmp", host_basepal, 768))
+			memcpy(host_basepal, default_quakepal, 768);
 
 		{
 			size_t csize;
 			qbyte *colormap = (qbyte *)FS_LoadMallocFile ("gfx/colormap.lmp", &csize);
 
-			if (colormap && csize == VID_GRADES*256+1)
+			if (colormap && csize == VID_GRADES*256+1 && Ruleset_FileLoaded("gfx/colormap.lmp", colormap, csize))
 			{
-				Validation_FileLoaded("gfx/colormap.lmp", colormap, csize);
 				j = VID_GRADES-1;
 				data = colormap + j*256;
 				vid.fullbright = 0;
@@ -1959,7 +1963,7 @@ void R_ReloadRenderer_f (void)
 	}
 #endif
 
-	Cvar_ApplyLatches(CVAR_VIDEOLATCH|CVAR_RENDERERLATCH);
+	Cvar_ApplyLatches(CVAR_VIDEOLATCH|CVAR_RENDERERLATCH, false);
 	R_ShutdownRenderer(false);
 	Con_DPrintf("teardown = %f\n", Sys_DoubleTime() - time);
 	//reloads textures without destroying video context.
@@ -2006,6 +2010,7 @@ qboolean R_BuildRenderstate(rendererstate_t *newr, char *rendererstring)
 	newr->triplebuffer = vid_triplebuffer.value;
 	newr->multisample = vid_multisample.value;
 	newr->bpp = vid_bpp.value;
+	newr->depthbits = vid_depthbits.value;
 	newr->fullscreen = vid_fullscreen.value;
 	newr->rate = vid_refreshrate.value;
 	newr->stereo = (r_stereo_method.ival == 1);
@@ -2301,6 +2306,7 @@ void R_RestartRenderer (rendererstate_t *newr)
 				Con_Printf("%s: %s\n", vid_width.name, vid_width.string);
 				Con_Printf("%s: %s\n", vid_height.name, vid_height.string);
 				Con_Printf("%s: %s\n", vid_bpp.name, vid_bpp.string);
+				Con_Printf("%s: %s\n", vid_depthbits.name, vid_depthbits.string);
 				Con_Printf("%s: %s\n", vid_refreshrate.name, vid_refreshrate.string);
 				Con_Printf("%s: %s\n", vid_renderer.name, vid_renderer.string);
 				Con_Printf("%s: %s\n", gl_driver.name, gl_driver.string);
@@ -2332,7 +2338,7 @@ void R_RestartRenderer_f (void)
 	double time;
 	rendererstate_t newr;
 
-	Cvar_ApplyLatches(CVAR_VIDEOLATCH|CVAR_RENDERERLATCH);
+	Cvar_ApplyLatches(CVAR_VIDEOLATCH|CVAR_RENDERERLATCH, false);
 	if (!R_BuildRenderstate(&newr, vid_renderer.string))
 	{
 		Con_Printf("vid_renderer \"%s\" unsupported. Using default.\n", vid_renderer.string);
@@ -2347,6 +2353,34 @@ void R_RestartRenderer_f (void)
 	Con_DPrintf("main thread video restart took %f secs\n", Sys_DoubleTime() - time);
 //	COM_WorkerFullSync();
 //	Con_Printf("full video restart took %f secs\n", Sys_DoubleTime() - time);
+}
+
+static void R_EnumeratedRenderer(void *ctx, const char *devname, const char *outputname, const char *desc)
+{
+	rendererinfo_t *r = ctx;
+	char quoteddesc[1024];
+
+	const char *dev;
+	if (*outputname)
+		dev = va("%s %s %s", r->name[0], devname, outputname);
+	else if (*devname)
+		dev = va("%s %s", r->name[0], devname);
+	else
+		dev = r->name[0];
+	dev = COM_QuotedString(dev, quoteddesc,sizeof(quoteddesc), false);
+
+	if (*outputname)
+		Con_Printf("^[%s (%s, %s)\\type\\/setrenderer %s^]^7: %s%s\n",
+			r->name[0], devname, outputname,	//link text
+			dev,	//link itself.
+			desc, (currentrendererstate.renderer == r)?" ^2(current)":"");
+	else if (*devname)
+		Con_Printf("^[%s (%s)\\type\\/setrenderer %s^]^7: %s%s\n",
+			r->name[0], devname,	//link text
+			dev,	//link itself.
+			desc, (currentrendererstate.renderer == r)?" ^2(current)":"");
+	else
+		Con_Printf("^[%s\\type\\/setrenderer %s^]^7: %s%s\n", r->name[0], dev, r->description, (currentrendererstate.renderer == r)?" ^2(current)":"");
 }
 
 void R_SetRenderer_f (void)
@@ -2371,12 +2405,15 @@ void R_SetRenderer_f (void)
 		{
 			rendererinfo_t *r = sorted[i].r;
 			if (r && r->description)
-				Con_Printf("^[%s\\type\\/setrenderer %s^]^7: %s%s\n", r->name[0], r->name[0], r->description, (currentrendererstate.renderer == r)?" ^2(current)":"");
+			{
+				if (!r->VID_EnumerateDevices || !r->VID_EnumerateDevices(r, R_EnumeratedRenderer))
+					R_EnumeratedRenderer(r, "", "", r->description);
+			}
 		}
 		return;
 	}
 
-	Cvar_ApplyLatches(CVAR_VIDEOLATCH|CVAR_RENDERERLATCH);
+	Cvar_ApplyLatches(CVAR_VIDEOLATCH|CVAR_RENDERERLATCH, false);
 	if (!R_BuildRenderstate(&newr, param))
 	{
 		Con_Printf("setrenderer: parameter not supported (%s)\n", param);
@@ -2395,11 +2432,32 @@ void R_SetRenderer_f (void)
 		R_RestartRenderer(&newr);
 }
 
-static void R_UpdateRendererOpts(void)
+struct videnumctx_s
 {
-	char *v = NULL;
+	char *v;
+	char *apiname;
+};
+static void R_DeviceEnumerated(void *context, const char *devicename, const char *outputname, const char *description)
+{
+	struct videnumctx_s *ctx = context;
+	char quotedname[1024];
+	char quoteddesc[1024];
+	char *name = va("%s %s %s", ctx->apiname,
+			COM_QuotedString(devicename, quotedname,sizeof(quotedname), false),
+			COM_QuotedString(outputname, quoteddesc,sizeof(quoteddesc), false));
+	Z_StrCat(&ctx->v, va("%s %s ", COM_QuotedString(name, quotedname, sizeof(quotedname), false), COM_QuotedString(description, quoteddesc, sizeof(quoteddesc), false)));
+}
+
+static qboolean rendereroptsupdated;
+static void R_UpdateRendererOptsNow(int iarg, void *data)
+{
+	struct videnumctx_s e = {NULL};
 	size_t i;
 	struct sortedrenderers_s sorted[countof(rendererinfo)];
+	if (!rendereroptsupdated)
+		return;	//multiple got queued...
+	rendereroptsupdated = false;
+
 	for (i = 0; i < countof(sorted); i++)
 	{
 		sorted[i].index = i;
@@ -2409,7 +2467,7 @@ static void R_UpdateRendererOpts(void)
 	qsort(sorted, countof(sorted), sizeof(sorted[0]), R_SortRenderers);
 
 
-	v = NULL;
+	e.v = NULL;
 	for (i = 0; i < countof(rendererinfo); i++)
 	{
 		rendererinfo_t *r = sorted[i].r;
@@ -2417,12 +2475,20 @@ static void R_UpdateRendererOpts(void)
 		{
 			if (r->rtype == QR_HEADLESS || r->rtype == QR_NONE)
 				continue;	//skip these, they're kinda dangerous.
-			Z_StrCat(&v, va("%s \"%s\" ", r->name[0], r->description));
+			e.apiname = r->name[0];
+			if (!r->VID_EnumerateDevices || !r->VID_EnumerateDevices(&e, R_DeviceEnumerated))
+				R_DeviceEnumerated(&e, r->name[0], "", r->description);
 		}
 	}
 
-	Z_Free(vid_renderer_opts.enginevalue);
-	vid_renderer_opts.enginevalue = v;
+	Cvar_SetEngineDefault(&vid_renderer_opts, e.v?e.v:"");
+	Cvar_ForceSet(&vid_renderer_opts, e.v?e.v:"");
+	Z_Free(e.v);
+}
+static void R_UpdateRendererOpts(void)
+{	//use a timer+flag, so we don't reenumerate everything any time any device gets registered.
+	rendereroptsupdated	= true;
+	Cmd_AddTimer(0, R_UpdateRendererOptsNow, 0, NULL, 0);
 }
 
 

@@ -715,7 +715,7 @@ static cvar_t *VARGS Q2Cvar_Get (const char *var_name, const char *value, int fl
 {
 	cvar_t *var;
 	//q2 gamecode knows about these flags. anything else is probably a bug, or 3rd-party extension.
-	flags &= (CVAR_NOSET|CVAR_SERVERINFO|CVAR_USERINFO|CVAR_ARCHIVE|CVAR_LATCH);
+	flags &= (CVAR_NOSET|CVAR_SERVERINFO|CVAR_USERINFO|CVAR_ARCHIVE|CVAR_MAPLATCH);
 
 	if (!strcmp(var_name, "gamedir"))
 		var_name = "fs_gamedir";
@@ -923,9 +923,9 @@ qboolean SVQ2_InitGameProgs(void)
 	if (svq2_maxclients != maxclients.value)
 		Cvar_SetValue(&maxclients, svq2_maxclients);
 
-	maxclients.flags |= CVAR_LATCH;
-	deathmatch.flags |= CVAR_LATCH;
-	coop.flags |= CVAR_LATCH;
+	maxclients.flags |= CVAR_MAPLATCH;
+	deathmatch.flags |= CVAR_MAPLATCH;
+	coop.flags |= CVAR_MAPLATCH;
 
 	SVQ2_InitWorld();
 	ge->Init ();

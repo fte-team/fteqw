@@ -42,7 +42,7 @@ int Surf_NewLightmaps(int count, int width, int height, uploadfmt_t fmt, qboolea
 #define CHUNKBIAS	(MAXCLUSTERS*MAXSECTIONS/2)
 #define CHUNKLIMIT	(MAXCLUSTERS*MAXSECTIONS)
 
-#define LMCHUNKS 8//(LMBLOCK_WIDTH/SECTTEXSIZE)
+#define LMCHUNKS 8//(LMBLOCK_WIDTH/SECTTEXSIZE)	//FIXME: make dynamic.
 #define HMLMSTRIDE (LMCHUNKS*SECTTEXSIZE)
 
 #define SECTION_MAGIC (*(int*)"HMMS")

@@ -1158,7 +1158,7 @@ nonstatic vector(string skinname) Anim_GetHeadOffset =
 
 
 
-float(float channel, string soundname, vector pos, float vol, float attenuation) CSQC_ServerSound =
+float(float channel, string soundname, vector pos, float vol, float attenuation, float flags) CSQC_ServerSound =
 {	//the server started a sound on an entity that the csqc has control over.
 	if (!self.headent)
 	{
@@ -1248,7 +1248,7 @@ float(float sventnum, float channel, string soundname, float vol, float att, vec
 {
 	self = findfloat(world, entnum, sventnum);
 	if (self)
-		return CSQC_ServerSound(channel, soundname, org, vol, att);
+		return CSQC_ServerSound(channel, soundname, org, vol, att, flags);
 	return false;
 };
 #endif

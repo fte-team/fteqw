@@ -795,6 +795,11 @@ static ssize_t SSL_Push(gnutls_transport_ptr_t p, const void *data, size_t size)
 		case VFS_ERROR_DNSFAILURE:
 		case VFS_ERROR_NORESPONSE:	eno = ECONNRESET;	break;
 		case VFS_ERROR_TRYLATER:	eno = EAGAIN;		break;
+		case VFS_ERROR_REFUSED:		eno = ECONNREFUSED;	break;
+//		case VFS_ERROR_UNSPECIFIED:
+//		case VFS_ERROR_DNSFAILURE:
+//		case VFS_ERROR_WRONGCERT:
+//		case VFS_ERROR_UNTRUSTED:
 		default:					eno = ECONNRESET;	break;
 		}
 		qgnutls_transport_set_errno(file->session, eno);
@@ -817,6 +822,7 @@ static ssize_t SSL_Pull(gnutls_transport_ptr_t p, void *data, size_t size)
 		case VFS_ERROR_DNSFAILURE:
 		case VFS_ERROR_NORESPONSE:	eno = ECONNRESET;	break;
 		case VFS_ERROR_TRYLATER:	eno = EAGAIN;		break;
+		case VFS_ERROR_REFUSED:		eno = ECONNREFUSED;	break;
 		default:					eno = ECONNRESET;	break;
 		}
 		qgnutls_transport_set_errno(file->session, eno);

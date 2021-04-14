@@ -1089,6 +1089,9 @@ extern	cvar_t	sv_antilag_frac;
 void SV_Master_ReResolve(void);
 void SV_Master_Shutdown(void);
 void SV_Master_Heartbeat (void);
+qboolean SV_Master_AddressIsMaster(netadr_t *adr);
+void SV_Master_HeartbeatResponse(netadr_t *adr, const char *challenge);
+extern	cvar_t	sv_antilag_frac;
 
 extern	cvar_t	pr_ssqc_progs;
 extern	cvar_t	sv_csqcdebug;
@@ -1381,8 +1384,8 @@ void SV_SendClientPrespawnInfo(client_t *client);
 void SV_ClientProtocolExtensionsChanged(client_t *client);
 
 //sv_master.c
-void SVM_Think(int port);
-vfsfile_t *SVM_GenerateIndex(const char *requesthost, const char *fname);
+float SVM_Think(int port);
+vfsfile_t *SVM_GenerateIndex(const char *requesthost, const char *fname, const char **mimetype, const char *query);
 void SVM_AddBrokerGame(const char *brokerid, const char *info);
 void SVM_RemoveBrokerGame(const char *brokerid);
 

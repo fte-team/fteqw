@@ -52,6 +52,23 @@ typedef unsigned char pbyte;
 
 #include "pr_comp.h"
 
+#ifndef safeswitch
+	//safeswitch(foo){safedefault: break;}
+	//switch, but errors for any omitted enum values despite the presence of a default case.
+	//(gcc will generally give warnings without the default, but sometimes you don't have control over the source of your enumeration values)
+	#if (__GNUC__ >= 4)
+		#define safeswitch	\
+			_Pragma("GCC diagnostic push")	\
+			_Pragma("GCC diagnostic error \"-Wswitch-enum\"") \
+			_Pragma("GCC diagnostic error \"-Wswitch-default\"") \
+			switch
+		#define safedefault _Pragma("GCC diagnostic pop") default
+	#else
+		#define safeswitch switch
+		#define safedefault default
+	#endif
+#endif
+
 
 #ifdef _MSC_VER
 #pragma warning(disable : 4244)

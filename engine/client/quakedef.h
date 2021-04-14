@@ -191,7 +191,6 @@ extern "C" {
 #include "keys.h"
 #include "view.h"
 #include "menu.h"
-#include "../common/crc.h"
 #include "cdaudio.h"
 #include "../common/pmove.h"
 
@@ -320,7 +319,6 @@ extern	quakeparms_t host_parms;
 
 extern	cvar_t		fs_gamename;
 #ifdef PACKAGEMANAGER
-extern	cvar_t		pkg_downloads_url;
 extern	cvar_t		pkg_autoupdate;
 #endif
 extern	cvar_t		com_protocolname;

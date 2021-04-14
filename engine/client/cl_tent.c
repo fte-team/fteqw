@@ -328,6 +328,7 @@ typedef struct associatedeffect_s
 	unsigned int meflags;
 } associatedeffect_t;
 associatedeffect_t *associatedeffect;
+char part_parsenamespace[MAX_QPATH];
 void CL_AssociateEffect_f(void)
 {
 	char *modelname = Cmd_Argv(1);
@@ -335,6 +336,16 @@ void CL_AssociateEffect_f(void)
 	int type, i;
 	unsigned int flags = 0;
 	struct associatedeffect_s *ae;
+	if (Cmd_Argc() == 1)
+	{
+		for(ae = associatedeffect; ae; ae = ae->next)
+		{
+			Con_Printf("^h%c^h %s: %s%s%s\n", (ae->type==AE_TRAIL)?'t':'e', ae->mname, ae->pname,
+				(ae->meflags & MDLF_EMITREPLACE)?" (replace)":"",
+				(ae->meflags & MDLF_EMITFORWARDS)?" (foward)":"");
+		}
+		return;
+	}
 	if (!strcmp(Cmd_Argv(0), "r_trail"))
 		type = AE_TRAIL;
 	else
@@ -366,6 +377,9 @@ void CL_AssociateEffect_f(void)
 		Con_Printf("Sorry: Not allowed to attach effects to model \"%s\"\n", modelname);
 		return;
 	}
+
+	if (*part_parsenamespace && !strchr(effectname, '.'))
+		effectname = va("%s.%s", part_parsenamespace, effectname);
 
 	if (strlen (modelname) >= MAX_QPATH || strlen(effectname) >= MAX_QPATH)
 		return;

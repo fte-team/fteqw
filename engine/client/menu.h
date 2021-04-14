@@ -174,6 +174,10 @@ typedef struct {	//must be first of each structure type.
 	int width;		//total width
 	int height;		//total height
 	int extracollide; // dirty hack to stretch collide box left (the real fix is to have separate collide/render rects)
+	//unsigned int grav_type;
+	//int grav_x;	//
+	int	grav_y;		//
+	//int grav_size[2];
 	const char *tooltip;
 	qboolean noselectionsound:1;
 	qboolean iszone:1;
@@ -309,11 +313,12 @@ struct emenu_s {
 	int ypos;
 	int width;
 	int height;
-	qboolean dontexpand;
+	qboolean dontexpand;		//false=recenter xpos
 	int numoptions;
 	menuresel_t *reselection;	//stores some info to restore selection properly.
 
-	qboolean iszone;
+	qboolean	iszone;
+	qboolean	nobacktint;
 
 	void *data;	//typecast
 
@@ -384,9 +389,10 @@ typedef struct menubulk_s {
 } menubulk_t;
 
 #define MB_CONSOLECMD(text, cmd, tip) 								{mt_button, 0, text, tip, cmd}
-#define MB_CHECKBOXCVAR(text, cvar, flags) 							{mt_checkbox, 0, text, NULL, NULL, &cvar, flags}
-#define MB_CHECKBOXCVARTIP(text, cvar, flags, tip) 					{mt_checkbox, 0, text, tip, NULL, &cvar, flags}
-#define MB_CHECKBOXCVARRETURN(text, cvar, flags, ret) 				{mt_checkbox, 0, text, NULL, NULL, &cvar, flags, NULL, 0, 0, 0, false, NULL, NULL, NULL, NULL, 0, (union menuoption_s **)&ret}
+#define MB_CONSOLECMDRETURN(text, cmd, tip, ret)					{mt_button, 0, text, tip, cmd, NULL, 0, NULL, 0, 0, 0, false, NULL, NULL, NULL, NULL, 0, (union menuoption_s **)&ret}
+#define MB_CHECKBOXCVAR(text, cvar, cvarflag) 						{mt_checkbox, 0, text, NULL, NULL, &cvar, cvarflag}
+#define MB_CHECKBOXCVARTIP(text, cvar, cvarflag, tip) 				{mt_checkbox, 0, text, tip, NULL, &cvar, cvarflag}
+#define MB_CHECKBOXCVARRETURN(text, cvar, cvarflag, ret) 			{mt_checkbox, 0, text, NULL, NULL, &cvar, cvarflag, NULL, 0, 0, 0, false, NULL, NULL, NULL, NULL, 0, (union menuoption_s **)&ret}
 #define MB_CHECKBOXFUNC(text, func, flags, tip) 					{mt_checkbox, 0, text, tip, NULL, NULL, flags, func}
 #define MB_SLIDER(text, cvar, min, max, delta, tip) 				{mt_slider, 0, text, tip, NULL, &cvar, 0, NULL, min, max, delta}
 #define MB_TEXT(text, align) 										{mt_text, 0, text, NULL, NULL, NULL, 0, NULL, 0, 0, 0, align}

@@ -9,6 +9,7 @@
 
 float show_scoreboard;
 string dbgstr;
+vector mousepos;
 
 void()	CSQC_Shutdown = {};
 
@@ -223,6 +224,8 @@ void() drawloadingscreen =
 
 void(float apilevel, string enginename, float engineversion) CSQC_Init =
 {
+	__using renderflags;
+
 	checkengineversion();
 
 	precache_model("progs/eyes.mdl");
@@ -248,6 +251,8 @@ void(float apilevel, string enginename, float engineversion) CSQC_Init =
 
 void(entity ent) CSQC_DrawViewModel =
 {
+	__using shaderforname, checkbuiltin, forceshader;
+
 	if (player_local.sveffects & SVE_INVIS)
 	{
 		if (!checkbuiltin(shaderforname))
@@ -321,6 +326,18 @@ float (float event, float parama, float paramb, float paramc) CSQC_InputEvent =
 			break;
 		}
 	}
+	else if (event == IE_MOUSEABS)
+		mousepos = [parama, paramb];
+	else if (event == IE_MOUSEDELTA)
+	{	//move it...
+		mousepos += [parama, paramb];
+
+		//bound it.
+		vector ssize = getviewprop(VF_SCREENVSIZE);
+		mousepos_x = bound(0, mousepos_x, ssize_x);
+		mousepos_y = bound(0, mousepos_y, ssize_y);
+	}
+
 	return Menu_InputEvent(event, parama, paramb);
 };
 
@@ -333,8 +350,6 @@ void(float width, float height, float do2d) CSQC_UpdateView =
 		chasecam = 1;
 
 	clearscene();
-
-	setviewprop(VF_DRAWCROSSHAIR, 1);
 
 	//force fullscreen views (ignore viewsize).
 	setviewprop(VF_MIN, '0 0 0');
@@ -355,6 +370,7 @@ void(float width, float height, float do2d) CSQC_UpdateView =
 	{
 		setviewprop(VF_DRAWENGINESBAR, 1);
 	}
+	setviewprop(VF_DRAWCROSSHAIR, !player_local || !checkbuiltin(project));
 
 	addentities(MASK_NORMAL|MASK_ENGINE);
 
@@ -404,6 +420,33 @@ void(float width, float height, float do2d) CSQC_UpdateView =
 		default:
 			if (hudtype)
 				Hud_Draw(hudtype, show_scoreboard, width, height);
+			//quicky `project` test
+			if (player_local)
+			{
+				if (checkbuiltin(project))
+				{
+					setviewprop(VF_DRAWCROSSHAIR, 0);
+					vector shotorg = player_local.origin+'0 0 16';	//quake is weird.
+					traceline(shotorg, shotorg + v_forward*8192, FALSE, player_local);
+					drawcharacter(project(trace_endpos)-'4 4', '+', '8 8', '1 1 1',1);
+				}
+		
+				if (autocvar(cg_unprojecttest, FALSE))
+				{
+					static float nexttime;
+					nexttime += clframetime;
+					drawcharacter(mousepos-'4 4', '+', '8 8', '1 1 1',1);
+					if (nexttime > 1)
+					{
+						vector near = unproject([mousepos_x,mousepos_y,0]);
+						vector far = unproject([mousepos_x,mousepos_y,1]);
+						traceline(near, far, FALSE, player_local);
+						te_explosion(trace_endpos);
+						nexttime-=1;
+					}
+				}
+			}
+			
 			break;
 		}
 

@@ -590,17 +590,12 @@ unsigned SV_CheckModel(char *mdl)
 	size_t fsize;
 	qbyte *buf;
 	unsigned short crc;
-//	int len;
 
 	buf = (qbyte *)FS_LoadMallocFile (mdl, &fsize);
 	if (!buf)
 		return 0;
-	crc = QCRC_Block(buf, fsize);
-//	for (len = com_filesize; len; len--, buf++)
-//		CRC_ProcessByte(&crc, *buf);
-
+	crc = CalcHashInt(&hash_crc16, buf, fsize);
 	BZ_Free(buf);
-
 	return crc;
 }
 
@@ -955,7 +950,7 @@ void SV_SpawnServer (const char *server, const char *startspot, qboolean noents,
 	#define SCR_SetLoadingFile(s)
 #endif
 
-	Cvar_ApplyLatches(CVAR_LATCH);
+	Cvar_ApplyLatches(CVAR_MAPLATCH, false);
 
 //work out the gamespeed
 //reset the server time.
@@ -1033,11 +1028,16 @@ void SV_SpawnServer (const char *server, const char *startspot, qboolean noents,
 			}
 			sv.world.worldmodel->mtime = filetime;
 		}
+
+		if (!sv.world.worldmodel || sv.world.worldmodel->loadstate != MLS_LOADED)
+			Sys_Error("\"%s\" is missing or corrupt\n", sv.modelname);
+//	if (sv.world.worldmodel->type != mod_brush && sv.world.worldmodel->type != mod_heightmap)
+		if (!sv.world.worldmodel->funcs.NativeTrace && !sv.world.worldmodel->funcs.PointContents)
+			Sys_Error("\"%s\" is not a bsp model\n", sv.modelname);
+		else if (!Mod_GetEntitiesString(sv.world.worldmodel))
+			Sys_Error("\"%s\" has no entity data\n", sv.modelname);
 	}
-	if (!sv.world.worldmodel || sv.world.worldmodel->loadstate != MLS_LOADED)
-		Sys_Error("\"%s\" is missing or corrupt\n", sv.modelname);
-	if (sv.world.worldmodel->type != mod_brush && sv.world.worldmodel->type != mod_heightmap)
-		Sys_Error("\"%s\" is not a bsp model\n", sv.modelname);
+
 	sv.state = ss_dead;
 
 #ifndef SERVERONLY
@@ -1054,7 +1054,9 @@ void SV_SpawnServer (const char *server, const char *startspot, qboolean noents,
 	SCR_SetLoadingFile("gamecode");
 #endif
 
-	if (sv.world.worldmodel->fromgame == fg_doom)
+	if (sv.world.worldmodel->type != mod_brush)
+		InfoBuf_SetStarKey(&svs.info, "*bspversion", "");
+	else if (sv.world.worldmodel->fromgame == fg_doom)
 		InfoBuf_SetStarKey(&svs.info, "*bspversion", "1");
 	else if (sv.world.worldmodel->fromgame == fg_halflife)
 		InfoBuf_SetStarKey(&svs.info, "*bspversion", "30");
@@ -1469,7 +1471,7 @@ MSV_OpenUserDatabase();
 				eval = PR_FindGlobal(svprogfuncs, "deathmatch", 0, NULL);
 				if (eval) eval->_float = deathmatch.value;
 			}
-			cv = Cvar_Get("randomclass", "0", CVAR_LATCH, "Hexen2");
+			cv = Cvar_Get("randomclass", "0", CVAR_MAPLATCH, "Hexen2");
 			eval = PR_FindGlobal(svprogfuncs, "randomclass", 0, NULL);
 			if (eval && cv) eval->_float = cv->value;
 

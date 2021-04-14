@@ -438,7 +438,9 @@ void R_RenderDlights (void)
 		if (coronastyle)
 		{
 			int method;
-			if (!*r_coronas_occlusion.string)
+			if (r_refdef.recurse)
+				method = 1;	//don't confuse queries... FIXME: splitscreen/PIP will still have issues.
+			else if (!*r_coronas_occlusion.string)
 				method = 4;	//default to using hardware queries where possible.
 			else
 				method = r_coronas_occlusion.ival;

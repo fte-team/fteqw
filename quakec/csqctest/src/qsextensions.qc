@@ -9,7 +9,7 @@ You will probably need to use FTEQCC to compile this.
 #if defined(QUAKEWORLD) || defined(MENU)
 #error Mixed up module defs
 #endif
-#ifndef CSQC
+#if !defined(CSQC) && !defined(SSQC) && !defined(MENU)
 #define CSQC
 #endif
 #ifndef CSQC_SIMPLE
@@ -97,6 +97,7 @@ You will probably need to use FTEQCC to compile this.
 
 //Explicitly flag this stuff as probably-not-referenced, meaning fteqcc will shut up about it and silently strip what it can.
 #pragma noref 1
+#if defined(CSQC_SIMPLE) || defined(SSQC)
 entity		self,other,world;
 float		time,frametime,force_retouch;
 string		mapname;
@@ -110,6 +111,7 @@ float		trace_inopen,trace_inwater;
 entity		msg_entity;
 void() 		main,StartFrame,PlayerPreThink,PlayerPostThink,ClientKill,ClientConnect,PutClientInServer,ClientDisconnect,SetNewParms,SetChangeParms;
 void		end_sys_globals;
+
 .float		modelindex;
 .vector		absmin, absmax;
 .float		ltime,movetype,solid;
@@ -142,6 +144,7 @@ void		end_sys_globals;
 .float		sounds;
 .string		noise, noise1, noise2, noise3;
 void		end_sys_fields;
+#endif
 
 
 //Some custom types (that might be redefined as accessors by fteextensions.qc, although we don't define any methods here)
@@ -158,15 +161,35 @@ accessor filestream:float;
 #define infostring string
 #define filestream float
 #endif
-void(string cmd) SV_ParseClientCommand;
-void() EndFrame;
-void(float apilevel, string enginename, float engineversion) CSQC_Init;
-float(string cmdstr) CSQC_ConsoleCommand;
-void(vector virtsize, float showscores) CSQC_DrawHud;
-void(vector virtsize, float showscores) CSQC_DrawScores;
-float(float evtype, float scanx, float chary, float devid) CSQC_InputEvent;
-void() CSQC_Parse_Event;
-float(float save, float take, vector dir) CSQC_Parse_Damage;
+
+
+//Common entry points
+void() EndFrame
+void(string cmdtext) GameCommand
+
+
+//Serverside entry points
+void(string cmd) SV_ParseClientCommand
+void() SV_RunClientCommand
+
+
+//CSQC entry points
+void(float apilevel, string enginename, float engineversion) CSQC_Init
+void() CSQC_Shutdown
+void(vector virtsize, float showscores) CSQC_DrawHud
+void(vector virtsize, float showscores) CSQC_DrawScores
+float(float evtype, float scanx, float chary, float devid) CSQC_InputEvent
+float(string cmdstr) CSQC_ConsoleCommand
+void() CSQC_Parse_Event
+float(float save, float take, vector dir) CSQC_Parse_Damage
+void(float vwidth, float vheight, float notmenu) CSQC_UpdateView
+void() CSQC_Input_Frame
+float(string msg) CSQC_Parse_CenterPrint
+void(string printmsg, float printlvl) CSQC_Parse_Print
+void(float isnew) CSQC_Ent_Update
+void() CSQC_Ent_Remove
+float() CSQC_Parse_TempEntity
+void(string msg) CSQC_Parse_StuffCmd
 float cltime;				/* increases regardless of pause state or game speed */
 float maxclients;			/* maximum number of players possible on this server */
 float intermission;			/* in intermission */
@@ -175,11 +198,8 @@ float player_localnum;		/* the player slot that is believed to be assigned to us
 float player_localentnum;	/* the entity number that the view is attached to */
 const float FALSE		= 0;
 const float TRUE		= 1;
-const float IE_KEYDOWN		= 0;
-const float IE_KEYUP		= 1;
-const float IE_MOUSEDELTA	= 2;
-const float IE_MOUSEABS		= 3;
-const float IE_JOYAXIS		= 6;
+const float MASK_ENGINE = 1;
+const float MASK_VIEWMODEL = 2;
 const float STAT_HEALTH = 0;		/* Player's health. */
 const float STAT_WEAPONMODELI = 2;	/* This is the modelindex of the current viewmodel (renamed from the original name 'STAT_WEAPON' due to confusions). */
 const float STAT_AMMO = 3;			/* player.currentammo */
@@ -202,7 +222,39 @@ const float STAT_IDEALPITCH = 25;
 const float STAT_PUNCHANGLE_X = 26;
 const float STAT_PUNCHANGLE_Y = 27;
 const float STAT_PUNCHANGLE_Z = 28;
-const float STAT_USER = 32;			/* Custom user stats start here (lower values are reserved for engine use). */
+const float SOLID_BBOX = 2;
+const float SOLID_BSP = 4;
+const float SOLID_NOT = 0;
+const float SOLID_SLIDEBOX = 3;
+const float SOLID_TRIGGER = 1;
+const float CONTENTS_EMPTY = -1;
+const float CONTENTS_SOLID = -2;
+const float CONTENTS_WATER = -3;
+const float CONTENTS_SLIME = -4;
+const float CONTENTS_LAVA = -5;
+const float CONTENTS_SKY = -6;
+const float CONTENTS_LADDER = -16;
+__used var float physics_mode = 2;
+const float TE_SPIKE = 0;
+const float TE_SUPERSPIKE = 1;
+const float TE_GUNSHOT = 2;
+const float TE_EXPLOSION = 3;
+const float TE_TAREXPLOSION = 4;
+const float TE_LIGHTNING1 = 5;
+const float TE_LIGHTNING2 = 6;
+const float TE_WIZSPIKE = 7;
+const float TE_KNIGHTSPIKE = 8;
+const float TE_LIGHTNING3 = 9;
+const float TE_LAVASPLASH = 10;
+const float TE_TELEPORT = 11;
+const float TE_EXPLOSION2 = 12;
+const float TE_BEAM = 13;
+const float IE_KEYDOWN		= 0;
+const float IE_KEYUP		= 1;
+const float IE_MOUSEDELTA	= 2;
+const float IE_MOUSEABS		= 3;
+const float IE_JOYAXIS		= 6;
+const float VF_MIN = 1;const float VF_MIN_X = 2;const float VF_MIN_Y = 3;const float VF_SIZE = 4;const float VF_SIZE_X = 5;const float VF_SIZE_Y = 6;const float VF_VIEWPORT = 7;const float VF_FOV = 8;const float VF_FOV_X = 9;const float VF_FOV_Y = 10;const float VF_ORIGIN = 11;const float VF_ORIGIN_X = 12;const float VF_ORIGIN_Y = 13;const float VF_ORIGIN_Z = 14;const float VF_ANGLES = 15;const float VF_ANGLES_X = 16;const float VF_ANGLES_Y = 17;const float VF_ANGLES_Z = 18;const float VF_DRAWWORLD = 19;const float VF_DRAWENGINESBAR = 20;const float VF_DRAWCROSSHAIR = 21;const float VF_CL_VIEWANGLES = 33;const float VF_CL_VIEWANGLES_X = 34;const float VF_CL_VIEWANGLES_Y = 35;const float VF_CL_VIEWANGLES_Z = 36;const float VF_AFOV = 203;const float VF_SCREENVSIZE = 204;const float VF_SCREENPSIZE = 205;const float RF_VIEWMODEL = 1;const float RF_EXTERNALMODEL = 2;const float RF_DEPTHHACK = 4;const float RF_ADDITIVE = 8;const float RF_USEAXIS = 16;const float RF_NOSHADOW = 32;const float RF_WEIRDFRAMETIMES = 64;const float SLIST_HOSTCACHEVIEWCOUNT = 0;const float SLIST_HOSTCACHETOTALCOUNT = 1;const float SLIST_SORTFIELD = 6;const float SLIST_SORTDESCENDING = 7;const float STAT_USER = 32;			/* Custom user stats start here (lower values are reserved for engine use). */
 const float EV_VOID = 0;
 const float EV_STRING = 1;
 const float EV_FLOAT = 2;
@@ -215,26 +267,41 @@ const float EV_INTEGER = 8;
 
 
 //Supported Extension fields
-.float gravity;
-//.float items2;			/*if defined, overrides serverflags for displaying runes on the hud*/
-.float traileffectnum;		/*can also be set with 'traileffect' from a map editor*/
-.float emiteffectnum;		/*can also be set with 'traileffect' from a map editor*/
-.vector movement;			/*describes which forward/right/up keys the player is holidng*/
-.entity viewmodelforclient;	/*attaches this entity to the specified player's view. invisible to other players*/
-.entity exteriormodeltoclient;/*hides the entity in the specified player's main view. it will remain visible in mirrors etc.*/
-.float scale;				/*rescales the etntiy*/
-.float alpha;				/*entity opacity*/
-.vector colormod;			/*tints the entity's colours*/
+.float alpha;
+.float scale;
+.vector colormod;
 .entity tag_entity;
 .float tag_index;
+.float modelflags;
+.vector origin;
+.vector angles;
+.float frame;
+.float skin;
+.void() customphysics;
+.float gravity;
+.float frame2;
+.float lerpfrac;
+.float frame1time;
+.float frame2time;
+.float renderflags;
+.float entnum;
+.float drawmask;
+.float() predraw;
+//.float items2;
+.vector movement;
+.entity viewmodelforclient;
+.entity exteriormodeltoclient;
+.float traileffectnum;
+.float emiteffectnum;
 .float button3;
 .float button4;
 .float button5;
 .float button6;
 .float button7;
 .float button8;
-.float viewzoom;			/*rescales the user's fov*/
-.float modelflags;			/*provides additional modelflags to use (effects&EF_NOMODELFLAGS to replace the original model's)*/
+.float viewzoom;
+.float(entity to, float changedflags) SendEntity;
+.float SendFlags;
 
 
 //Supported Extension Constants
@@ -273,23 +340,60 @@ void(entity,vector) setorigin = #2;
 void(entity,string) setmodel = #3;
 void(entity,vector,vector) setsize = #4;
 float() random = #7;
+//void(entity e, float chan, string samp, float vol, float atten, optional float speedpct, optional float flags, optional float timeofs) sound = #8;
 vector(vector) normalize = #9;
 void(string e) error = #10;
 void(string n) objerror = #11;
 float(vector) vlen = #12;
+//float(vector fwd) vectoyaw = #13;
 entity() spawn = #14;
 void(entity e) remove = #15;
+void(vector v1, vector v2, float flags, entity ent) traceline = #16;
+entity() checkclient = #17;
+entity(entity start, .string fld, string match) find = #18;
+string(string s) precache_sound = #19;
+string(string s) precache_model = #20;
+void(entity client, string s) stuffcmd = #21;
+//entity(vector org, float rad, optional .entity chainfield) findradius = #22;
+//void(string s, optional string s2, optional string s3, optional string s4, optional string s5, optional string s6, optional string s7, optional string s8) bprint = #23;
+//void(entity pl, string s, optional string s2, optional string s3, optional string s4, optional string s5, optional string s6, optional string s7) sprint = #24;
 void(string,...) dprint = #25;
 string(float) ftos = #26;
 string(vector) vtos = #27;
+//float(float yaw, float dist, optional float settraceglobals) walkmove = #32;
+float() droptofloor = #34;
+//void(float lightstyle, string stylestring, optional vector rgb) lightstyle = #35;
 float(float n) rint = #36;
 float(float n) floor = #37;
 float(float n) ceil = #38;
+float(entity e) checkbottom = #40;
+float(vector point) pointcontents = #41;
 float(float n) fabs = #43;
+vector(entity e, float speed) aim = #44;
 float(string) cvar = #45;
 void(string,...) localcmd = #46;
 entity(entity) nextent = #47;
+//void(vector o, vector d, float color, float count) particle = #48;
+void() changeyaw = #49;
+void(float to, float val) WriteByte = #52;
+void(float to, float val) WriteChar = #53;
+void(float to, float val) WriteShort = #54;
+void(float to, float val) WriteLong = #55;
+void(float to, float val) WriteCoord = #56;
+void(float to, float val) WriteAngle = #57;
+void(float to, string val) WriteString = #58;
+void(float to, entity val) WriteEntity = #59;
+void(float step) movetogoal = #67;
+string(string s) precache_file = #68;
+void(entity e) makestatic = #69;
+void(string mapname, optional string newmapstartspot) changelevel = #70;
 void(string var, string val) cvar_set = #72;
+void(entity ent, string text, optional string text2, optional string text3, optional string text4, optional string text5, optional string text6, optional string text7) centerprint = #73;
+void (vector pos, string samp, float vol, float atten) ambientsound = #74;
+string(string str) precache_model2 = #75;
+string(string str) precache_sound2 = #76;
+string(string str) precache_file2 = #77;
+void(entity player) setspawnparms = #78;
 
 
 //Builtin list
@@ -691,8 +795,8 @@ entity(entity from, optional entity to) copyentity = #400; /*
 void(entity ent, float colours) setcolors = #401; /*
 		Changes a player's colours. The bits 0-3 are the lower/trouser colour, bits 4-7 are the upper/shirt colours. */
 
-entity(.string field, string match) findchain = #402;
-entity(.float fld, float match) findchainfloat = #403;
+entity(.string field, string match, optional .entity chainfield) findchain = #402;
+entity(.float fld, float match, optional .entity chainfield) findchainfloat = #403;
 void(vector org, vector dir, float count) te_blood = #405;
 void(vector mincorner, vector maxcorner, vector vel, float howmany, float color) te_particlerain = #409;
 void(vector mincorner, vector maxcorner, vector vel, float howmany, float color) te_particlesnow = #410;
@@ -723,7 +827,7 @@ string(float n) argv = #442;
 float() argc = #0;
 void(entity e, entity tagentity, string tagname) setattachment = #443; /* */
 
-searchhandle(string pattern, optional float caseinsensitive, optional float quiet) search_begin = #444; /*
+searchhandle(string pattern, float flags, float quiet, optional string filterpackage) search_begin = #444; /*
 		initiate a filesystem scan based upon filenames. Be sure to call search_end on the returned handle. */
 
 void(searchhandle handle) search_end = #445; /* */
@@ -745,7 +849,7 @@ string(searchhandle handle, float num) search_getpackagename = #0; /*
 
 string(string cvarname) cvar_string = #448;
 entity(entity start, .float fld, float match) findflags = #449;
-entity(.float fld, float match) findchainflags = #450;
+entity(.float fld, float match, optional .entity chainfield) findchainflags = #450;
 void(entity player) dropclient = #453;
 entity() spawnclient = #454; /*
 		Spawns a dummy player entity.
@@ -890,9 +994,10 @@ string(float n, float prop) getgamedirinfo = #626; /*
 string(string fmt, ...) sprintf = #627;
 float(entity e, float s) getsurfacenumtriangles = #628;
 vector(entity e, float s, float n) getsurfacetriangle = #629;
-float(float key, string bind, optional float bindmap) setkeybind = #630; /*
+float(float key, string bind, optional float bindmap, optional float modifier) setkeybind = #630; /*
 		Changes a key binding. */
 
+string(string digest, string data, ...) digest_hex = #639;
 
 
 //Builtin Stubs List (these are present for simpler compatibility, but not properly supported in QuakeSpasm at this time).
@@ -915,7 +1020,6 @@ void(float mask, float fld, float num, float op) sethostcachemasknumber = #617;
 void(string key) addwantedhostcachekey = #623;
 vector() getbindmaps = #631;
 float(vector bm) setbindmaps = #632;
-string(string digest, string data, ...) digest_hex = #639;
 */
 const float K_TAB = 9;
 const float K_ENTER = 13;

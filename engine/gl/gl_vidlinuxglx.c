@@ -4388,6 +4388,7 @@ static qboolean X11VID_Init (rendererstate_t *info, unsigned char *palette, int 
 			const char *extnames[] = {VK_KHR_XLIB_SURFACE_EXTENSION_NAME, NULL};
 			if (VK_Init(info, extnames, XVK_SetupSurface_XLib, NULL))
 				break;
+			VK_Shutdown();
 		}
 #endif
 #ifdef VK_USE_PLATFORM_XCB_KHR
@@ -4395,6 +4396,7 @@ static qboolean X11VID_Init (rendererstate_t *info, unsigned char *palette, int 
 			const char *extnames[] = {VK_KHR_XCB_SURFACE_EXTENSION_NAME, NULL};
 			if (x11xcb_initlib() && VK_Init(info, extnames, XVK_SetupSurface_XCB, NULL))
 				break;
+			VK_Shutdown();
 		}
 #endif
 		//Con_Printf(CON_ERROR "Failed to create a vulkan context.\n");
@@ -4565,6 +4567,31 @@ static qboolean XVK_SetupSurface_XCB(void)
 	return false;
 }
 #endif
+static qboolean XVK_EnumerateDevices(void *usercontext, void(*callback)(void *context, const char *devicename, const char *outputname, const char *desc))
+{
+	qboolean ret = false;
+#ifdef VK_NO_PROTOTYPES
+	PFN_vkGetInstanceProcAddr vkGetInstanceProcAddr;
+	void *lib = NULL;
+	dllfunction_t func[] =
+	{
+		{(void*)&vkGetInstanceProcAddr,		"vkGetInstanceProcAddr"},
+		{NULL,							NULL}
+	};
+
+	if (!lib)
+		lib = Sys_LoadLibrary("libvulkan.so.1", func);
+	if (!lib)
+		lib = Sys_LoadLibrary("libvulkan.so", func);
+	if (!lib)
+		return false;
+#endif
+	ret = VK_EnumerateDevices(usercontext, callback, "Vulkan-X11-", vkGetInstanceProcAddr);
+#ifdef VK_NO_PROTOTYPES
+	Sys_CloseLibrary(lib);
+#endif
+	return ret;
+}
 rendererinfo_t vkrendererinfo =
 {
 	"Vulkan (X11)",
@@ -4622,7 +4649,11 @@ rendererinfo_t vkrendererinfo =
 
 	VKBE_RenderToTextureUpdate2d,
 
-	""
+	"",
+
+	NULL,//int	(*VID_GetPriority)	(void);	//so that eg x11 or wayland can be prioritised depending on environment settings. assumed to be 1.
+	NULL,//void	(*VID_EnumerateVideoModes) (const char *driver, const char *output, void (*cb) (int w, int h));
+	XVK_EnumerateDevices,//qboolean	(*VID_EnumerateDevices) (void *usercontext, void(*callback)(void *context, const char *devicename, const char *outputname, const char *desc));
 };
 #endif
 

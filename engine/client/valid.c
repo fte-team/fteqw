@@ -1,6 +1,16 @@
 #include "quakedef.h"
 #include <ctype.h>
 
+//ruleset validation:
+//internal rulesets are taken at their word.
+//	we cannot verify the client build itself.
+//	its too easy to spoof replies from the client (eg by using a proxy) so there's not much point trying to sign things by hashing the engine binary etc
+//	and private keys in gpl software is not feasable.
+//custom/external rulesets may get out of sync with the engine. or the file hand-edited, or poorly updated etc.
+//	we DO hash the rules and report them with the hash. this stops trivial text-editing cheaters.
+//	we sort the rules etc so comments or reordering does not affect anything, allowing for some maintainence of the files without functional changes.
+//	this ensures newcomers to a tournament do not have to worry about inadvertantly using a cheat, they just need to update their ruleset files (presumably alongside the rest of whatever mod(s) they're playing with).
+
 #ifdef _WIN32
 #include "winquake.h"
 #endif
@@ -8,6 +18,41 @@
 qboolean care_f_modified;
 qboolean f_modified_particles;
 
+
+typedef struct {
+	char *rulecond;
+	char *rulename;
+	char *rulevalue;
+} rulesetrule_t;
+typedef struct {
+	hashfunc_t *hashfunc;
+	char *filename;
+	char *hash;
+	size_t numhashes;	//we may allow more than one hash.
+} rulesetfilehashes_t;
+typedef struct ruleset_s {
+	struct ruleset_s *next;
+	char *rulesetname;
+
+	size_t rules;
+	rulesetrule_t *rule;
+
+	size_t filehashes;
+	rulesetfilehashes_t *filehash;
+
+	qboolean flagged;
+
+	qbyte hash[20];	//sha1
+	qboolean external;
+} ruleset_t;
+
+static ruleset_t *ruleset_list;
+static ruleset_t *ruleset_current;
+
+
+
+
+static void RulesetLatch(cvar_t *cvar);
 static void QDECL rulesetcallback(cvar_t *var, char *oldval)
 {
 	Validation_Apply_Ruleset();
@@ -482,7 +527,7 @@ static qboolean Validation_IsModified(void)
 	modified_neednotify = true;
 	return false;
 }
-void Validation_WarnModified(void *ctx, void *data, size_t a, size_t b)
+static void Validation_WarnModified(void *ctx, void *data, size_t a, size_t b)
 {
 	if (modified_neednotify)
 	{
@@ -493,13 +538,39 @@ void Validation_WarnModified(void *ctx, void *data, size_t a, size_t b)
 	}
 }
 #endif
-void Validation_FileLoaded(const char *filename, const qbyte *filedata, size_t filesize)
+qboolean Ruleset_FileLoaded(const char *filename, const qbyte *filedata, size_t filesize)
 {	//usually called on worker threads
-#ifdef HAVE_LEGACY
 	qbyte digest[20];
 	size_t i, j;
 	unsigned int status;
-	for (i = 0; i < countof(modifiles); i++)
+
+	if (ruleset_current && ruleset_current->filehashes)
+	{
+		size_t filehashes = ruleset_current->filehashes;
+		rulesetfilehashes_t *filehash = ruleset_current->filehash;
+		for (i = 0; i < filehashes; i++, filehash++)
+		{
+			if (!strcmp(filename, filehash->filename))
+			{
+				CalcHash(filehash->hashfunc, digest, sizeof(digest), filedata, filesize);
+
+				for (j = 0; j < filehash->numhashes; j++)
+				{
+					if (!memcmp(digest, filehash->hash+j*filehash->hashfunc->digestsize, filehash->hashfunc->digestsize))
+						return true;	//it matched one of the allowed hashes...
+				}
+				{
+					char base16[512+1];
+					//none of the hashes matched. bail. refuse usage of the file.
+					base16[Base16_EncodeBlock(digest, filehash->hashfunc->digestsize, base16, sizeof(base16)-1)] = 0;
+					Con_Printf(CON_ERROR"ERROR: File version \"%s\" \"%s\" is not permitted by ruleset %s\n", filename, base16, ruleset_current->rulesetname);
+				}
+				return false;
+			}
+		}
+	}
+#ifdef HAVE_LEGACY
+	else for (i = 0; i < countof(modifiles); i++)
 	{
 		if (!strcmp(filename, modifiles[i].name) && (modifiles[i].flags & (cl.teamfortress?FMOD_TF:FMOD_DM)))
 		{
@@ -514,10 +585,11 @@ void Validation_FileLoaded(const char *filename, const qbyte *filedata, size_t f
 			if (status == FMOD_MODIFIED && modifiles_status[i] == FMOD_UNMODIFIED)
 				COM_AddWork(WG_MAIN, Validation_WarnModified, NULL, NULL, 0, 0); //make sure its the main thread that does the anouncing.
 			modifiles_status[i] = status;
-			return;
+			return true;
 		}
 	}
 #endif
+	return true;	//nothing restricting it.
 }
 void Validation_FlushFileList(void)
 {
@@ -611,189 +683,352 @@ static void Validation_CmdLine(void)
 //////////////////////
 //rulesets
 
-typedef struct {
-	char *rulename;
-	char *rulevalue;
-} rulesetrule_t;
-typedef struct {
-	char *rulesetname;
+/*when a ruleset is activated, we flag its various cvars are applicable to rulesets, and notify the servers whenever they're changed after having been queried.
+changing a cvar to something and then back MUST still warn, in case its a cvar that locks down a command before being switched back.
 
-	rulesetrule_t *rule;
+we used to latch cvars so they couldn't be changed after querying, but this results in potential race conditions with other reasons to latch cvars. changing a ruleset cvar is now equivelent to just changing ruleset midgame.
+*/
 
-	qboolean flagged;
-} ruleset_t;
-
-static rulesetrule_t rulesetrules_strict[] = {
-	{"ruleset_allow_shaders", "0"},	/*users can potentially create all sorts of wallhacks or spiked models with this*/
-	{"ruleset_allow_watervis", "0"}, /*oh noes! users might be able to see underwater if they're already in said water. oh wait. what? why do we care, dude*/
-	{"r_vertexlight", "0"},
-	{"ruleset_allow_playercount", "0"},
-	{"ruleset_allow_frj", "0"},
-	{"ruleset_allow_packet", "0"},
-	{"ruleset_allow_particle_lightning", "0"},
-	{"ruleset_allow_overlong_sounds", "0"},
-	{"ruleset_allow_larger_models", "0"},
-	{"ruleset_allow_modified_eyes", "0"},
-	{"ruleset_allow_sensitive_texture_replacements", "0"},
-	{"ruleset_allow_localvolume", "0"},
-	{"ruleset_allow_fbmodels", "0"},
-	{"r_particlesystem", "classic"},	/*block custom particles*/
-	{"r_part_density", "1"},	/*don't let people thin them out*/
-	{"scr_autoid_team", "0"},	/*sort of a wallhack*/
-	{"tp_disputablemacros", "0"},
-	{"cl_instantrotate", "0"},
-	{"v_projectionmode", "0"},	/*no extended fovs*/
-	{"r_shadow_realtime_world", "0"}, /*static lighting can be used to cast shadows around corners*/
-	{"ruleset_allow_in", "0"},
-	{"r_projection", "0"},
-	{"gl_shadeq1_name", "*"},
-	{"cl_rollalpha", "20"},
-	{"cl_iDrive", "0"},
-	{NULL}
-};
-
-static rulesetrule_t rulesetrules_thunderdome[] = {
-	{"ruleset_allow_shaders", "0"},	/*users can potentially create all sorts of wallhacks or spiked models with this*/
-	{"ruleset_allow_watervis", "0"}, /*oh noes! users might be able to see underwater if they're already in said water. oh wait. what? why do we care, dude*/
-	{"r_vertexlight", "0"},
-	{"ruleset_allow_playercount", "0"},
-	{"ruleset_allow_frj", "0"},
-	{"ruleset_allow_packet", "0"},
-	{"ruleset_allow_particle_lightning", "0"},
-	{"ruleset_allow_overlong_sounds", "0"},
-	{"ruleset_allow_larger_models", "0"},
-	{"ruleset_allow_modified_eyes", "0"},
-	{"ruleset_allow_sensitive_texture_replacements", "0"},
-	{"ruleset_allow_localvolume", "0"},
-	{"ruleset_allow_fbmodels", "0"},
-	{"scr_autoid_team", "0"},	/*sort of a wallhack*/
-	{"tp_disputablemacros", "0"},
-	{"cl_instantrotate", "0"},
-	{"v_projectionmode", "0"},	/*no extended fovs*/
-	{"r_shadow_realtime_world", "0"}, /*static lighting can be used to cast shadows around corners*/
-	{"ruleset_allow_in", "0"},
-	{"r_projection", "0"},
-	{"gl_shadeq1_name", "*"},
-//	{"cl_rollalpha", "20"},
-	{"cl_iDrive", "0"},
-	{NULL}
-};
-
-static rulesetrule_t rulesetrules_nqr[] = {
-	{"ruleset_allow_larger_models", "0"},
-	{"ruleset_allow_watervis", "0"}, /*block seeing through turbs, as well as all our cool graphics stuff. apparently we're not allowed.*/
-	{"ruleset_allow_overlong_sounds", "0"},
-	{"ruleset_allow_particle_lightning", "0"},
-	{"ruleset_allow_packet", "0"},
-	{"ruleset_allow_frj", "0"},
-	{"ruleset_allow_modified_eyes", "0"},
-	{"ruleset_allow_sensitive_texture_replacements", "0"},
-	{"ruleset_allow_localvolume", "0"},
-	{"ruleset_allow_shaders", "0"},
-	{"ruleset_allow_fbmodels", "0"},
-	{"r_vertexlight", "0"},
-	{"v_projectionmode", "0"},
-	{"sbar_teamstatus", "0"},
-	{"ruleset_allow_in", "0"},
-	{"r_projection", "0"},
-	{"gl_shadeq1_name", "*"},
-	{"cl_iDrive", "0"},
-	{NULL}
-};
-
-static ruleset_t rulesets[] =
+static ruleset_t *Ruleset_Find(const char *name)	//finds a ruleset by name
 {
-	{"strict",		rulesetrules_strict},
-	{"qcon",		rulesetrules_strict},	//not authorised but oh well. imported configs tend to piss people off.
-	{"smackdown",	rulesetrules_strict},	//officially, smackdown cannot authorise this, thus we do not use that name. however, imported configs tend to piss people off.
-	{"thunderdome",	rulesetrules_thunderdome},	//more permissive (doesn't block particles.
-	{"nqr",			rulesetrules_nqr},
-	//{"eql",		rulesetrules_nqr},
-	{NULL}
-};
+	ruleset_t *rs;
+	for (rs = ruleset_list; rs; rs = rs->next)
+	{
+		if (!Q_strcasecmp(name, rs->rulesetname))
+			break;
+	}
+	return rs;
+}
 
-static qboolean ruleset_locked;
-void RulesetLatch(cvar_t *cvar)
+static int QDECL Ruleset_SortRuleCB (const void *v1, const void *v2)
+{
+	const rulesetrule_t *r1 = v1;
+	const rulesetrule_t *r2 = v2;
+	int r = Q_strcmp(r1->rulename, r2->rulename);
+	if (!r)
+	{
+		r = Q_strcmp(r1->rulecond, r2->rulecond);
+		if (!r)
+			r = Q_strcmp(r1->rulevalue, r2->rulevalue);
+	}
+	return r;
+}
+static int QDECL Ruleset_SortFileCB (const void *v1, const void *v2)
+{
+	const rulesetfilehashes_t *r1 = v1;
+	const rulesetfilehashes_t *r2 = v2;
+	return Q_strcmp(r1->filename, r2->filename);
+}
+
+static ruleset_t *Ruleset_Parse(const char *name, char *file)
+{
+	ruleset_t *rs = Z_Malloc(sizeof(*rs) + strlen(name)+1);
+	char *line = file, *linestart, *eol;	//evil non-const...
+	unsigned r, hashidx=~0, h;
+	hashfunc_t *hashfunc = &hash_sha1;
+	void *hctx;
+	char fname[MAX_QPATH];
+
+	*fname = 0;
+	rs->rulesetname = (char*)(rs+1);
+	strcpy(rs->rulesetname, name);
+
+	for (line = file; line; )
+	{
+		eol = strchr(line, '\n');
+		if (eol)
+			*eol = 0;
+
+		if (*line)
+		{
+			linestart = line;
+			line = COM_Parse(line);
+			if (!strcmp(com_token, "set"))
+			{
+				char *var, *val;
+				line = COM_Parse(line);
+				var = Z_StrDup(com_token);
+				line = COM_Parse(line);
+				val = Z_StrDup(com_token);
+
+				r = rs->rules;
+				Z_ReallocElements((void**)&rs->rule, &rs->rules, r+1, sizeof(*rs->rule));
+				rs->rule[r].rulecond = NULL;
+				rs->rule[r].rulename = var;
+				rs->rule[r].rulevalue = val;
+
+				hashidx = ~0;
+			}
+			else if (!strcmp(com_token, "if"))
+			{
+				char *var, *val, *cond = NULL;
+				line = COM_Parse(line);
+				if (*com_token)
+					Z_StrCat(&cond, com_token);
+				line = COM_Parse(line);
+				if (*com_token == '>' || *com_token == '<' || *com_token == '=' || *com_token == '!')
+				{
+					if (*com_token)
+						Z_StrCat(&cond, com_token);
+					line = COM_Parse(line);
+					if (*com_token)
+						Z_StrCat(&cond, com_token);
+					line = COM_Parse(line);
+				}
+				var = Z_StrDup(com_token);
+				line = COM_Parse(line);
+				val = Z_StrDup(com_token);
+
+				r = rs->rules;
+				Z_ReallocElements((void**)&rs->rule, &rs->rules, r+1, sizeof(*rs->rule));
+				rs->rule[r].rulecond = cond;
+				rs->rule[r].rulename = var;
+				rs->rule[r].rulevalue = val;
+
+				hashidx = ~0;
+			}
+			/*else if (!strcmp(com_token, "alias"))
+			{
+				line = COM_Parse(line);
+				//alias = Z_StrDup(com_token);
+			}*/
+			else if (!strcmp(com_token, "sha1file"))
+			{
+				hashfunc = &hash_sha1;
+				line = COM_ParseOut(line, fname, sizeof(fname));
+				line = COM_Parse(line);
+
+				for (hashidx = 0; hashidx < rs->filehashes; hashidx++)
+				{
+					if (!strcmp(rs->filehash[hashidx].filename, fname) && hashfunc == rs->filehash[hashidx].hashfunc)
+						goto extrafilehash;
+				}
+
+				Z_ReallocElements((void**)&rs->filehash, &rs->filehashes, hashidx+1, sizeof(*rs->filehash));
+				rs->filehash[hashidx].filename = Z_StrDup(fname);
+				rs->filehash[hashidx].numhashes = 0;
+				rs->filehash[hashidx].hash = NULL;
+				rs->filehash[hashidx].hashfunc = hashfunc;
+extrafilehash:
+				if (!*com_token)
+					;
+				else if (strlen(com_token) != hashfunc->digestsize*2)
+					Con_Printf("Ruleset %s file %s is of incorrect length.\n", name, fname);
+				else
+				{
+					h = rs->filehash[hashidx].numhashes++;
+					rs->filehash[hashidx].hash = BZ_Realloc(rs->filehash[hashidx].hash, rs->filehash[hashidx].numhashes*hashfunc->digestsize);
+					if (hashfunc->digestsize != Base16_DecodeBlock(com_token, rs->filehash[hashidx].hash+h*hashfunc->digestsize, hashfunc->digestsize))
+						Con_Printf("Ruleset %s file %s is not base16.\n", name, fname);
+				}
+			}
+			else if (!strcmp(com_token, "+"))
+			{
+				line = COM_Parse(line);
+				if (hashidx != ~0 && hashfunc)
+					goto extrafilehash;
+			}
+			else if (*com_token)
+			{
+				Con_Printf("%s.rules: Unknown directive \"%s\".\n", name, com_token);
+				hashidx = ~0;
+				line += strlen(line);
+			}	//else blank line
+
+			line = COM_Parse(line);
+			if (*com_token)
+				Con_Printf("%s.rules: Trailing junk at end of line \"%s\".\n", name, linestart);
+		}
+
+		if (eol)
+			*eol++ = '\n';
+		line = eol;
+	}
+
+	//sort it for consistency
+	qsort(rs->rule, rs->rules, sizeof(*rs->rule), Ruleset_SortRuleCB);
+	qsort(rs->filehash, rs->filehashes, sizeof(*rs->filehash), Ruleset_SortFileCB);
+
+	hashfunc = &hash_sha1;
+	hctx = alloca(hashfunc->contextsize);
+	hashfunc->init(hctx);
+	for (r = 0; r < rs->rules; r++)
+	{	//be sure to hash the nulls too. This prevents cheating lamas from using weird cvar names to fake results.
+		char *rc = rs->rule[r].rulecond;
+		if (!rc) rc = "";
+		hashfunc->process(hctx, rc, strlen(rc)+1);
+		hashfunc->process(hctx, rs->rule[r].rulename, strlen(rs->rule[r].rulename)+1);
+		hashfunc->process(hctx, rs->rule[r].rulevalue, strlen(rs->rule[r].rulevalue)+1);
+	}
+	for (r = 0; r < rs->filehashes; r++)
+	{	//be sure to hash the nulls too. This prevents cheating lamas from using weird file names to fake results.
+		hash_sha1.process(hctx, rs->filehash[r].filename, strlen(rs->filehash[r].filename)+1);
+		hash_sha1.process(hctx, rs->filehash[r].hash, rs->filehash[r].numhashes*rs->filehash[r].hashfunc->digestsize);	//should this be base16ed first?...
+	}
+	hashfunc->terminate(rs->hash, hctx);
+
+	rs->next = ruleset_list;
+	ruleset_list = rs;
+
+	return rs;
+}
+static ruleset_t *Ruleset_ParseInternal(const char *name, const char *file)
+{
+	ruleset_t *rs;
+	char *lazy;
+	lazy = Z_StrDup(file);
+	rs = Ruleset_Parse(name, lazy);
+	Z_Free(lazy);
+	return rs;
+}
+
+static int QDECL Ruleset_Read(const char *fname, qofs_t size, time_t mtime, void *parm, searchpathfuncs_t *spath)
+{
+	ruleset_t *rs;
+	size_t fsize;
+	char name[128];
+	char *file = FS_LoadMallocFile(fname, &fsize);
+	if (file && fsize == size)	//o.O
+	{
+		COM_StripExtension(fname, name, sizeof(name));
+		rs = Ruleset_Parse(name, file);
+		if (rs)
+			rs->external = true;
+	}
+	Z_Free(file);
+	return true;
+}
+void Ruleset_Shutdown(void)
+{
+	ruleset_current = NULL;
+	while (ruleset_list)
+	{
+		ruleset_t *rs = ruleset_list;
+		ruleset_list = rs->next;
+
+		while (rs->rules)
+		{
+			rs->rules--;
+			Z_Free(rs->rule[rs->rules].rulename);
+			Z_Free(rs->rule[rs->rules].rulevalue);
+		}
+
+		Z_Free(rs->rule);
+		Z_Free(rs);
+	}
+}
+void Ruleset_Scan(void)
+{
+	COM_EnumerateFiles("*.rules", Ruleset_Read, NULL);
+
+#ifdef HAVE_LEGACY	//TCs should probably include their own.
+	Ruleset_ParseInternal("strict",
+//			"alias smackdown\n"
+//			"alias qcon\n"
+			"set ruleset_allow_shaders 0\n"	/*users can potentially create all sorts of wallhacks or spiked models with this*/
+			"set ruleset_allow_watervis 0\n" /*oh noes! users might be able to see underwater if they're already in said water. oh wait. what? why do we care, dude*/
+			"set r_vertexlight 0\n"
+			"set ruleset_allow_playercount 0\n"
+			"set ruleset_allow_frj 0\n"
+			"set ruleset_allow_packet 0\n"
+			"set ruleset_allow_particle_lightning 0\n"
+			"set ruleset_allow_overlong_sounds 0\n"
+			"set ruleset_allow_larger_models 0\n"
+			"set ruleset_allow_modified_eyes 0\n"
+			"set ruleset_allow_sensitive_texture_replacements 0\n"
+			"set ruleset_allow_localvolume 0\n"
+			"set ruleset_allow_fbmodels 0\n"
+			"set ruleset_allow_triggers 0\n"
+			"set r_particlesystem classic\n"	/*block custom particles*/
+			"set r_part_density 1\n"	/*don't let people thin them out*/
+			"set scr_autoid_team 0\n"	/*sort of a wallhack*/
+			"set tp_disputablemacros 0\n"
+			"set cl_instantrotate 0\n"
+			"set v_projectionmode 0\n"	/*no extended fovs*/
+			"set r_shadow_realtime_world 0\n" /*static lighting can be used to cast shadows around corners*/
+			"set ruleset_allow_in 0\n"
+			"set r_projection 0\n"
+			"set gl_shadeq1_name *\n"
+			"set cl_rollalpha 20\n"
+			"set cl_iDrive 0\n"
+			);
+
+	Ruleset_ParseInternal("thunderdome",
+			"set ruleset_allow_shaders 0\n"	/*users can potentially create all sorts of wallhacks or spiked models with this*/
+			"set ruleset_allow_watervis 0\n" /*oh noes! users might be able to see underwater if they're already in said water. oh wait. what? why do we care, dude*/
+			"set r_vertexlight 0\n"
+			"set ruleset_allow_playercount 0\n"
+			"set ruleset_allow_frj 0\n"
+			"set ruleset_allow_packet 0\n"
+			"set ruleset_allow_particle_lightning 0\n"
+			"set ruleset_allow_overlong_sounds 0\n"
+			"set ruleset_allow_larger_models 0\n"
+			"set ruleset_allow_modified_eyes 0\n"
+			"set ruleset_allow_sensitive_texture_replacements 0\n"
+			"set ruleset_allow_localvolume 0\n"
+			"set ruleset_allow_fbmodels 0\n"
+			"set ruleset_allow_triggers 0\n"
+			"set scr_autoid_team 0\n"
+			"set tp_disputablemacros 0\n"
+			"set cl_instantrotate 0\n"
+			"set v_projectionmode 0\n"	/*no extended fovs*/
+			"set r_shadow_realtime_world 0\n" /*static lighting can be used to cast shadows around corners*/
+			"set ruleset_allow_in 0\n"
+			"set r_projection 0\n"
+			"set gl_shadeq1_name *\n"
+		//	"set cl_rollalpha 20\n"
+			"set cl_iDrive 0\n"
+			);
+
+	Ruleset_ParseInternal("nqr",
+//			"alias eql\n"
+			"set ruleset_allow_larger_models 0\n"
+			"set ruleset_allow_watervis 0\n" /*block seeing through turbs, as well as all our cool graphics stuff. apparently we're not allowed.*/
+			"set ruleset_allow_overlong_sounds 0\n"
+			"set ruleset_allow_particle_lightning 0\n"
+			"set ruleset_allow_packet 0\n"
+			"set ruleset_allow_frj 0\n"
+			"set ruleset_allow_modified_eyes 0\n"
+			"set ruleset_allow_sensitive_texture_replacements 0\n"
+			"set ruleset_allow_localvolume 0\n"
+			"set ruleset_allow_shaders 0\n"
+			"set ruleset_allow_fbmodels 0\n"
+			"set r_vertexlight 0\n"
+			"set v_projectionmode 0\n"
+			"set sbar_teamstatus 0\n"
+			"set ruleset_allow_in 0\n"
+			"set r_projection 0\n"
+			"set gl_shadeq1_name *\n"
+			"set cl_iDrive 0\n"
+			);
+#endif
+}
+
+static void RulesetLatch(cvar_t *cvar)
 {
 	cvar->flags |= CVAR_RULESETLATCH;
 }
 
 void Validation_DelatchRulesets(void)
 {	//game has come to an end, allow the ruleset to be changed
-	ruleset_locked = false;
-	if (Cvar_ApplyLatches(CVAR_RULESETLATCH))
+	if (Cvar_ApplyLatches(CVAR_RULESETLATCH, true))
 		Con_DPrintf("Ruleset deactivated\n");
 }
 
-static qboolean Validation_GetCurrentRulesetName(char *rsnames, int resultbuflen, qboolean enforcechosenrulesets)
-{	//this code is more complex than it needs to be
-	//this allows for the ruleset code to print a ruleset name that is applied via the cvars, but not directly named by the user
-	cvar_t *var;
-	ruleset_t *rs;
-	int i;
-
-	if (enforcechosenrulesets)
-		ruleset_locked = true;
-
-	rs = rulesets;
-	*rsnames = '\0';
-
-	for (rs = rulesets; rs->rulesetname; rs++)
-	{
-		rs->flagged = false;
-
-		for (i = 0; rs->rule[i].rulename; i++)
-		{
-			var = Cvar_FindVar(rs->rule[i].rulename);
-			if (!var)	//sw rendering?
-				continue;
-
-			if (strcmp(var->string, rs->rule[i].rulevalue))
-			{
-				Con_DPrintf("ruleset \"%s\" requires \"%s\" to be \"%s\"\n", rs->rulesetname, rs->rule[i].rulename, rs->rule[i].rulevalue);
-				break;	//current settings don't match
-			}
-		}
-		if (!rs->rule[i].rulename)
-		{
-			if (*rsnames)
-			{
-				Q_strncatz(rsnames, ", ", resultbuflen);
-			}
-			Q_strncatz(rsnames, rs->rulesetname, resultbuflen);
-			rs->flagged = true;
-		}
-	}
-	if (*rsnames)
-	{
-		//as we'll be telling the other players what rules we're playing by, we'd best stick to them
-		if (enforcechosenrulesets)
-		{
-			for (rs = rulesets; rs->rulesetname; rs++)
-			{
-				if (!rs->flagged)
-					continue;
-				for (i = 0; rs->rule[i].rulename; i++)
-				{
-					var = Cvar_FindVar(rs->rule[i].rulename);
-					if (!var)
-						continue;
-					RulesetLatch(var);	//set the latched flag
-				}
-			}
-		}
-		return true;
-	}
+const char *Ruleset_GetRulesetName(void)
+{
+	if (ruleset_current)
+		return ruleset_current->rulesetname;
 	else
-		return false;
+		return NULL;
 }
 
 static void Validation_OldRuleset(void)
 {
-	char rsnames[1024];
+	const char *rsname = Ruleset_GetRulesetName();
 
-	if (Validation_GetCurrentRulesetName(rsnames, sizeof(rsnames), true))
-		Cbuf_AddText(va("say Ruleset: %s\n", rsnames), RESTRICT_LOCAL);
+	if (rsname)
+		Cbuf_AddText(va("say Ruleset: %s\n", rsname), RESTRICT_LOCAL);
 	else
 		Cbuf_AddText("say No specific ruleset\n", RESTRICT_LOCAL);
 }
@@ -806,7 +1041,7 @@ static void Validation_AllChecks(void)
 	char *rawenginebuild = version_string();
 	char enginebuild[64];
 	char localpnamelen = strlen(cl.players[cl.playerview[0].playernum].name);
-	char ruleset[1024];
+	const char *ruleset;
 	char extras[2][8];
 	size_t i, j;
 	qboolean hadspace;
@@ -844,8 +1079,9 @@ static void Validation_AllChecks(void)
 	NET_AdrToString(servername, sizeof(servername), &cls.netchan.remote_address);
 
 	//get the ruleset names
-	if (!Validation_GetCurrentRulesetName(ruleset, sizeof(ruleset), true))
-		Q_strncpyz(ruleset, "default", sizeof(ruleset));
+	ruleset = Ruleset_GetRulesetName();
+	if (!ruleset)
+		ruleset = "default";
 
 	extras[0][0] = '-';	//extra restrictions.
 	extras[1][0] = '+';	//extra cheats.
@@ -862,69 +1098,316 @@ static void Validation_AllChecks(void)
 		*extras[1] = 0;
 
 	//now send it
-	CL_SendClientCommand(true, "say \"%s%21s " "%16s %s%s%s\"", playername, servername, enginebuild, ruleset, extras[1], extras[0]);
+	CL_SendClientCommand(true, "say \"%s%21s " "%16s %s" /*FIXME*/"_dbg" "%s%s\"", playername, servername, enginebuild, ruleset, extras[1], extras[0]);
+}
 
+void Ruleset_Check(char *keyval, char *out, size_t outsize)
+{
+	size_t l;
+	char *status;
+	char *b64;
+	ruleset_t *rs;
+
+	if (strchr(keyval, '^'))	//don't let people corrupt scoreboards...
+		keyval = "?";
+
+	b64 = strchr(keyval, ':');
+	if (!b64 || b64==keyval)
+	{	//can't validate it. don't bother showing it.
+		rs = Ruleset_Find(keyval);
+		if (!rs || rs->external)
+		{
+			status = S_COLOR_RED;
+		}
+		else
+		{
+			//valid internal name... no hash so we can't validate it, but the only way someone can generate this is if they mod the engine, so its as valid as its going to get, so consider it okay.
+			status = S_COLOR_GREEN;
+			keyval = rs->rulesetname;
+		}
+	}
+	else
+	{
+		char digest[20];
+		*b64++ = 0;
+		Base64_DecodeBlock(b64, NULL, digest, sizeof(digest));
+
+		for (rs = ruleset_list; rs; rs = rs->next)
+			if (rs->external && !memcmp(rs->hash, digest, sizeof(digest)))
+				break;
+
+		if (rs)
+		{
+			status = S_COLOR_GREEN;
+			keyval = rs->rulesetname;	//use our local name for it
+		}
+		else status = S_COLOR_RED;	//they changed their ruleset file, or they're trying to spoof an internal name...
+	}
+
+	if (!*keyval)
+		keyval = "default";
+
+	if (*keyval)
+	{
+		l = strlen(status);
+		if (outsize > l)
+		{
+			memcpy(out, status, l);
+			out += l;
+			outsize -= l;
+		}
+		l = strlen(keyval);
+		if (outsize > l)
+		{
+			memcpy(out, keyval, l);
+			out += l;
+			outsize -= l;
+		}
+	}
+	*out = 0;
+}
+
+static int Ruleset_CheckRuleConditionIsOkay(char *cond)	//-1 on error
+{
+	if (cond)
+	{
+		enum ct_e {CT_EQUAL, CT_UNEQUAL, CT_GEQUAL, CT_LESS, CT_LEQUAL, CT_GREATER, CT_INVALID1, CT_INVALID2} checktype;
+		char *key, *value, c;
+		qboolean not = (*cond=='!');
+		int truth = 1;
+		if (not)
+			cond++;
+
+		key = cond;
+		while (*cond=='$'||isalnum(*cond))
+			cond++;
+		c = *cond;
+		if (c == 0)
+		{
+			checktype = CT_UNEQUAL;
+			value = "";
+		}
+		else
+		{
+			*cond = 0;
+			value = cond+1;
+			if (c == '>')
+			{
+				if (cond[1] == '=')
+					value++, checktype = CT_GEQUAL;
+				else
+					checktype = CT_GREATER;
+			}
+			else if (c == '<')
+			{
+				if (cond[1] == '=')
+					value++, checktype = CT_LEQUAL;
+				else
+					checktype = CT_LESS;
+			}
+			else if (c == '=')
+			{
+				if (cond[1] == '=')
+					value++;	//allow = or ==
+				checktype = CT_EQUAL;
+			}
+			else if (c == '!')
+			{
+				if (cond[1] == '=')
+					value++, checktype = CT_EQUAL;
+				else
+					key="", value="", checktype = CT_INVALID1;
+			}
+			else
+			{
+				Con_Printf ("Unknown comparison type\n");
+				key="", value="", checktype = CT_INVALID1;
+			}
+		}
+		if (not)
+			checktype ^= 1;
+
+#ifndef SVNREVISION
+#define SVNREVISION -
+#endif
+#define SVNREVISIONSTR STRINGIFY(SVNREVISION)
+//		if (!strcmp(key, "$GAME"))	//FIXME: need to reload rulesets on gamedir changes for that, which we can't reliably do.
+//			key = FS_GetGamedir(true);
+		if (!strcmp(key, "$FTEQW"))
+			key = SVNREVISIONSTR;	//"-" is smaller than 0, but not empty. yay for private builds.
+		if (!strcmp(key, "$QW"))
+			key = "2.40";	//we're originally derived from the 2.40 source release.
+		if (*key == '$')
+			key = "";	//don't know what this is. some engine-specific key for another engine? treat it as false.
+		switch(checktype)
+		{
+		case CT_EQUAL:	truth =  ! strcmp(key, value);	break;
+		case CT_UNEQUAL:truth = !! strcmp(key, value);	break;
+		case CT_GEQUAL:	truth = 0<=strcmp(key, value);	break;
+		case CT_GREATER:truth = 0< strcmp(key, value);	break;
+		case CT_LEQUAL:	truth = 0>=strcmp(key, value);	break;
+		case CT_LESS:	truth = 0> strcmp(key, value);	break;
+		case CT_INVALID1:
+		case CT_INVALID2:	truth = -1;
+		}
+		*cond = c;
+		return truth;
+	}
+	return true;
 }
 
 void Validation_Apply_Ruleset(void)
 {	//rulesets are applied when the client first gets a connection to the server
-	ruleset_t *rs;
-	rulesetrule_t *rule;
-	cvar_t *var;
+	char b64[64];
+	ruleset_t *rs = NULL;
 	int i;
 	char *rulesetname = ruleset.string;
+	cvar_t **vars, *var;
+	unsigned int latches = 0;
+	int okay;
 
-	if (ruleset_locked)
+	if (!*rulesetname)
+		rulesetname = "default";
+	rs = Ruleset_Find(rulesetname);
+
+	if (ruleset_current == rs)
+		return;	//ruleset is already applied. no work needed (don't disconnect!).
+
+	//the worker can poke the current ruleset for file hash checks. make sure none are active.
+	COM_WorkerFullSync();
+
+	Validation_DelatchRulesets();
+	ruleset_current = NULL;
+	InfoBuf_SetStarKey(&cls.userinfo[0], RULESET_USERINFO, "");
+
+	if (!rs)
 	{
-		if (ruleset.modified)
+		if (strcmp(rulesetname, "default") && strcmp(rulesetname, "none"))
 		{
-			Con_Printf("Cannot change rulesets after the current ruleset has been announced\n");
-			ruleset.modified = false;
+			Con_Printf("Cannot apply ruleset \"%s\" - not recognised\n", rulesetname);
+			if (ruleset_list)
+			{
+				Con_Printf("Known rulesets:\n");
+				for (rs = ruleset_list; rs; rs = rs->next)
+					Con_Printf("\t%s\n", rs->rulesetname);
+			}
+		}
+
+		Con_DPrintf("Ruleset set to %s\n", "default");
+		if (cls.state && !cls.demoplayback)
+		{	//changing a ruleset while on-server MUST disconnect(+reconnect) you, to make it obvious you just tried to cheat (wiping any scores).
+			//note that this can often happen on initial connection (gamedir changes execing configs from different gamedirs).
+			Con_Printf("Reconnecting to enforce change to ruleset \"%s\"\n", rulesetname);
+
+#ifdef HAVE_SERVER
+			if (sv.state)
+				Cbuf_AddText("disconnect;map_restart\n", RESTRICT_LOCAL);
+			else
+#endif
+				Cbuf_AddText("disconnect;reconnect\n", RESTRICT_LOCAL);
 		}
 		return;
 	}
-	ruleset.modified = false;
 
-	if  (!strcmp(rulesetname, "smackdown"))	//officially, smackdown cannot authorise this, thus we do not use that name. however, imported configs tend to piss people off.
-		rulesetname = "strict";
+	ruleset_current = NULL;
+	vars = Z_Malloc(sizeof(*vars)*rs->rules);
+	for (i = 0; i < rs->rules; i++)
+	{	//make sure we're actually allowed to make these changes.
+		vars[i] = NULL;
 
-	if (!*rulesetname || !strcmp(rulesetname, "none") || !strcmp(rulesetname, "default"))
-	{
-		if (Cvar_ApplyLatches(CVAR_RULESETLATCH))
-			Con_DPrintf("Ruleset deactivated\n");
-		return;	//no ruleset is set
-	}
+		okay = Ruleset_CheckRuleConditionIsOkay(rs->rule[i].rulecond);
+		if (okay < 0)
+			break;	//error!
+		if (!okay)
+			continue;	//condition is false, this rule does not apply to us.
 
-	for (rs = rulesets; rs->rulesetname; rs++)
-	{
-		if (!stricmp(rs->rulesetname, rulesetname))
+		if (!strcmp(rs->rule[i].rulename, "ruleset_unsupported"))
+		{	//special pseudo-setting to cause the ruleset to fail entirely, with a reason for failure (eg 'Engine version too old').
+			if (*rs->rule[i].rulevalue)
+				Con_Printf("Ruleset %s is unsupported: %s\n", rs->rulesetname, rs->rule[i].rulevalue);
+			else
+				Con_Printf("Ruleset %s is unsupported\n", rs->rulesetname);
 			break;
-	}
-	if (!rs->rulesetname)
-	{
-		Con_Printf("Cannot apply ruleset %s - not recognised\n", rulesetname);
-		if (Cvar_ApplyLatches(CVAR_RULESETLATCH))
-			Con_DPrintf("Ruleset deactivated\n");
-		return;
-	}
-	
-	for (rule = rs->rule; rule->rulename; rule++)
-	{
-		for (i = 0; rs->rule[i].rulename; i++)
+		}
+
+		var = Cvar_FindVar(rs->rule[i].rulename);
+		if (!var)
 		{
-			var = Cvar_FindVar(rs->rule[i].rulename);
-			if (!var)
+			if (!rs->rule[i].rulecond)
+				continue;	//doesn't exist... assume it was for some other engine
+			//they gave a condition. it doesn't exist... wtf.
+			Con_Printf("Ruleset %s requires cvar %s\n", rs->rulesetname, rs->rule[i].rulename);
+			break;
+		}
+		//FIXME: should cvars need to be engine-defined? it would break mods...
+		//       oh well, default.cfg should have set/seta commands for any mod cvars to make sure they're set in advance.
+		if (var->flags & CVAR_NOSET)
+		{
+			Con_Printf("Ruleset %s requires change to read-only cvar %s\n", rs->rulesetname, var->name);
+			break;
+		}
+
+		if ((var->flags & CVAR_NOTFROMSERVER) && Cmd_IsInsecure())
+		{
+			Con_Printf ("Server tried setting %s cvar\n", var->name);
+			break;
+		}
+
+		vars[i] = var;
+		if (strcmp(var->string, rs->rule[i].rulevalue))
+			latches |= var->flags;
+	}
+
+	if (i == rs->rules)
+	{
+		//lock down the cvars.
+		for (i = 0; i < rs->rules; i++)
+		{
+			cvar_t *var = vars[i];
+			if (!var)	//for some other engine
 				continue;
 
-			if (!Cvar_ApplyLatchFlag(var, rs->rule[i].rulevalue, CVAR_RULESETLATCH))
+			if (!Cvar_ApplyLatchFlag(var, rs->rule[i].rulevalue, CVAR_RULESETLATCH,
+					CVAR_VIDEOLATCH|CVAR_RENDERERLATCH|	//ignore these, we'll vid_restart as required anyway.
+					CVAR_SERVEROVERRIDE|CVAR_MAPLATCH|	//we're going to reconnect/restart anyway.
+					CVAR_CHEAT|CVAR_SEMICHEAT))			//ignore these too,
 			{
 				Con_Printf("Failed to apply ruleset %s due to cvar %s\n", rs->rulesetname, var->name);
 				break;
 			}
 		}
-	}
 
-	Con_DPrintf("Ruleset set to %s\n", rs->rulesetname);
+		ruleset_current = rs;
+		Base64_EncodeBlock(rs->hash, sizeof(rs->hash), b64, sizeof(b64));
+		if (rs->external)	//include a hash, so it can be validated
+			InfoBuf_SetStarKey(&cls.userinfo[0], RULESET_USERINFO, va("%s:%s", rulesetname, b64));
+		else	//internals don't bother including a hash, to reduce issues with old servers/clients...
+			InfoBuf_SetStarKey(&cls.userinfo[0], RULESET_USERINFO, rulesetname);
+
+		Con_DPrintf("Ruleset set to %s\n", rs->rulesetname);
+
+		//force video restart, if required.
+		if (latches & CVAR_VIDEOLATCH)
+			Cbuf_AddText("vid_restart\n", RESTRICT_LOCAL);
+		else if (latches & CVAR_RENDERERLATCH)
+			Cbuf_AddText("vid_reload\n", RESTRICT_LOCAL);
+		else
+			Cbuf_AddText("flush\n", RESTRICT_LOCAL);	//make sure file hashes take effect.
+
+		if ((cls.state && !cls.demoplayback) || (latches&CVAR_MAPLATCH))
+		{	//changing a ruleset while on-server MUST disconnect(+reconnect) you, to make it obvious you just tried to cheat (wiping any scores).
+			//note that this can often happen on initial connection (gamedir changes execing configs from different gamedirs).
+			Con_Printf("Reconnecting to enforce change to ruleset \"%s\"\n", rulesetname);
+
+#ifdef HAVE_SERVER
+			if (sv.state)
+				Cbuf_AddText("disconnect;map_restart\n", RESTRICT_LOCAL);
+			else
+#endif
+				Cbuf_AddText("disconnect;reconnect\n", RESTRICT_LOCAL);
+		}
+	}
+	Z_Free(vars);
 }
 
 //////////////////////

@@ -818,7 +818,7 @@ void V_CalcBlend (float *hw_blend)
 		//don't apply it to the server, we'll blend the two later if the user has no hardware gamma (if they do have it, we use just the server specified value) This way we avoid winnt users having a cheat with flashbangs and stuff.
 		for (j=0 ; j<NUM_CSHIFTS ; j++)
 		{
-			if ((j == CSHIFT_SERVER&&!cls.demoplayback) || j == CSHIFT_BONUS)
+			if ((j == CSHIFT_SERVER&&!cls.demoplayback&&!pv->spectator) || j == CSHIFT_BONUS)
 			{
 				a2 = pv->cshifts[j].percent / 255.0;	//don't allow modification of this one.
 			}
@@ -2034,7 +2034,7 @@ void R_DrawNameTags(void)
 #endif
 			cl.worldmodel->funcs.NativeTrace(cl.worldmodel, 0, PE_FRAMESTATE, NULL, r_refdef.vieworg, targ, vec3_origin, vec3_origin, false, ~0, &trace);
 
-		surf = Mod_GetSurfaceNearPoint(cl.worldmodel, trace.endpos);
+		surf = (trace.fraction == 1)?NULL:Mod_GetSurfaceNearPoint(cl.worldmodel, trace.endpos);
 		if (surf)
 		{
 			shader_t *shader = surf->texinfo->texture->shader;
@@ -2703,6 +2703,7 @@ void V_Init (void)
 	Cvar_Register (&r_projection, VIEWVARS);
 
 	BuildGammaTable (1.0, 1.0, 1.0, 0.0);	// no gamma yet
+	Cvar_Register (&v_gammainverted, VIEWVARS);
 	Cvar_Register (&v_gamma, VIEWVARS);
 	Cvar_Register (&v_contrast, VIEWVARS);
 	Cvar_Register (&v_contrastboost, VIEWVARS);

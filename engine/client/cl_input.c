@@ -798,10 +798,10 @@ void CL_GatherButtons (usercmd_t *cmd, int pnum)
 	GATHERBIT(in_button[7],		6);
 	GATHERBIT(in_button[8],		7);
 
-	//these are fucked, as required for dpcompat.
+	//more inconsistencies, as required for dpcompat.
 	GATHERBIT(in_use,			(cls.protocol==CP_QUAKEWORLD)?4:8);
-	bits |= (Key_Dest_Has(~kdm_game))	?(1u<<9):0;		//game is the lowest priority, anything else will take focus away. we consider that to mean 'chat' (although it could be menus).
-	bits |= (cursor_active)				?(1u<<10):0;	//prydon cursor stuff.
+	bits |= (Key_Dest_Has(~kdm_game))	?(1u<<9):0;		//'buttonchat'. game is the lowest priority, anything else will take focus away. we consider that to mean 'chat' (although it could be menus).
+	bits |= (cursor_active)				?(1u<<10):0;	//'cursor_active'. prydon cursor stuff.
 	GATHERBIT(in_button[9],		11);
 	GATHERBIT(in_button[10],	12);
 	GATHERBIT(in_button[11],	13);
@@ -815,6 +815,10 @@ void CL_GatherButtons (usercmd_t *cmd, int pnum)
 	UNUSEDBUTTON(18);
 	UNUSEDBUTTON(19);
 //	UNUSEDBUTTON(20);
+
+//NQ protocol:
+//bit 30 means input_weapon field is sent. figured out at time of sending.
+//bit 31 means input_cursor* fields are sent. figured out at time of sending.
 	cmd->buttons |= bits;
 }
 
@@ -910,6 +914,9 @@ void CL_BaseMove (usercmd_t *cmd, int pnum, float priortime, float extratime)
 {
 	float nscale = extratime?extratime / (extratime+priortime):0;
 	float oscale = 1 - nscale;
+
+	cmd->fservertime = cl.time*1000;
+	cmd->servertime = cl.time*1000;
 
 //
 // adjust for speed key
@@ -1253,6 +1260,7 @@ void CL_UpdatePrydonCursor(usercmd_t *from, int pnum)
 void CLNQ_SendMove (usercmd_t *cmd, int pnum, sizebuf_t *buf)
 {
 	int i;
+	unsigned int bits;
 
 	if (cls.demoplayback!=DPB_NONE)
 		return;	//err... don't bother... :)
@@ -1278,42 +1286,59 @@ void CLNQ_SendMove (usercmd_t *cmd, int pnum, sizebuf_t *buf)
 	else if (cls.fteprotocolextensions2 & PEXT2_PREDINFO)
 		MSG_WriteShort(buf, cl.movesequence&0xffff);
 
-	MSG_WriteFloat (buf, cmd->fservertime);	// use latest time. because ping reports!
-
-	for (i=0 ; i<3 ; i++)
-	{
-		if (cls.protocol_nq == CPNQ_FITZ666 || (cls.proquake_angles_hack && buf->prim.anglesize <= 1))
-		{
-			//fitz/proquake protocols are always 16bit for this angle and 8bit elsewhere. rmq is always at least 16bit
-			//the above logic should satify everything.
-			MSG_WriteAngle16 (buf, cl.playerview[pnum].viewangles[i]);
-		}
-		else
-			MSG_WriteAngle (buf, cl.playerview[pnum].viewangles[i]);
-	}
-	
-	MSG_WriteShort (buf, cmd->forwardmove);
-	MSG_WriteShort (buf, cmd->sidemove);
-	MSG_WriteShort (buf, cmd->upmove);
-
-	if (cls.protocol_nq >= CPNQ_DP6 || (cls.fteprotocolextensions2 & PEXT2_PRYDONCURSOR))
-	{
-		MSG_WriteLong (buf, cmd->buttons);
-		MSG_WriteByte (buf, cmd->impulse);
-		MSG_WriteShort (buf, cmd->cursor_screen[0] * 32767.0f);
-		MSG_WriteShort (buf, cmd->cursor_screen[1] * 32767.0f);
-		MSG_WriteFloat (buf, cmd->cursor_start[0]);
-		MSG_WriteFloat (buf, cmd->cursor_start[1]);
-		MSG_WriteFloat (buf, cmd->cursor_start[2]);
-		MSG_WriteFloat (buf, cmd->cursor_impact[0]);
-		MSG_WriteFloat (buf, cmd->cursor_impact[1]);
-		MSG_WriteFloat (buf, cmd->cursor_impact[2]);
-		MSG_WriteEntity (buf, cmd->cursor_entitynumber);
-	}
+	if (cls.fteprotocolextensions2 & PEXT2_VRINPUTS)
+		MSGFTE_WriteDeltaUsercmd(buf, &nullcmd, cmd);
 	else
 	{
-		MSG_WriteByte (buf, cmd->buttons);
+		MSG_WriteFloat (buf, cmd->fservertime);	// use latest time. because ping reports!
+
+		for (i=0 ; i<3 ; i++)
+		{
+			if (cls.protocol_nq == CPNQ_FITZ666 || (cls.proquake_angles_hack && buf->prim.anglesize <= 1))
+			{
+				//fitz/proquake protocols are always 16bit for this angle and 8bit elsewhere. rmq is always at least 16bit
+				//the above logic should satify everything.
+				MSG_WriteAngle16 (buf, cl.playerview[pnum].viewangles[i]);
+			}
+			else
+				MSG_WriteAngle (buf, cl.playerview[pnum].viewangles[i]);
+		}
+
+		MSG_WriteShort (buf, cmd->forwardmove);
+		MSG_WriteShort (buf, cmd->sidemove);
+		MSG_WriteShort (buf, cmd->upmove);
+
+		bits = cmd->buttons;
+		if (cls.fteprotocolextensions2 & PEXT2_PRYDONCURSOR)
+		{
+			if (cmd->cursor_screen[0] || cmd->cursor_screen[1] ||
+				cmd->cursor_start[0] || cmd->cursor_start[1] || cmd->cursor_start[2] ||
+				cmd->cursor_impact[0] || cmd->cursor_impact[1] || cmd->cursor_impact[2] ||
+				cmd->cursor_entitynumber)
+				bits |= (1u<<31);	//set it if there's actually something to send.
+			MSG_WriteLong (buf, bits);
+		}
+		else if (cls.protocol_nq >= CPNQ_DP6)
+		{
+			MSG_WriteLong (buf, bits);
+			bits |= (1u<<31);	//unconditionally set it (without writing it)
+		}
+		else
+			MSG_WriteByte (buf, cmd->buttons);
 		MSG_WriteByte (buf, cmd->impulse);
+
+		if (bits & (1u<<31))
+		{
+			MSG_WriteShort (buf, cmd->cursor_screen[0] * 32767.0f);
+			MSG_WriteShort (buf, cmd->cursor_screen[1] * 32767.0f);
+			MSG_WriteFloat (buf, cmd->cursor_start[0]);
+			MSG_WriteFloat (buf, cmd->cursor_start[1]);
+			MSG_WriteFloat (buf, cmd->cursor_start[2]);
+			MSG_WriteFloat (buf, cmd->cursor_impact[0]);
+			MSG_WriteFloat (buf, cmd->cursor_impact[1]);
+			MSG_WriteFloat (buf, cmd->cursor_impact[2]);
+			MSG_WriteEntity (buf, cmd->cursor_entitynumber);
+		}
 	}
 }
 
@@ -1700,21 +1725,21 @@ qboolean CL_WriteDeltas (int plnum, sizebuf_t *buf)
 	cmd = &cl.outframes[i].cmd[plnum];
 	if (cl_c2sImpulseBackup.ival >= 2)
 		dontdrop = dontdrop || cmd->impulse;
-	MSG_WriteDeltaUsercmd (buf, &nullcmd, cmd);
+	MSGCL_WriteDeltaUsercmd (buf, &nullcmd, cmd);
 	oldcmd = cmd;
 
 	i = (cls.netchan.outgoing_sequence-1) & UPDATE_MASK;
 	if (cl_c2sImpulseBackup.ival >= 3)
 		dontdrop = dontdrop || cmd->impulse;
 	cmd = &cl.outframes[i].cmd[plnum];
-	MSG_WriteDeltaUsercmd (buf, oldcmd, cmd);
+	MSGCL_WriteDeltaUsercmd (buf, oldcmd, cmd);
 	oldcmd = cmd;
 
 	i = (cls.netchan.outgoing_sequence) & UPDATE_MASK;
 	if (cl_c2sImpulseBackup.ival >= 1)
 		dontdrop = dontdrop || cmd->impulse;
 	cmd = &cl.outframes[i].cmd[plnum];
-	MSG_WriteDeltaUsercmd (buf, oldcmd, cmd);
+	MSGCL_WriteDeltaUsercmd (buf, oldcmd, cmd);
 
 	return dontdrop;
 }

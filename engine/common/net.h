@@ -276,7 +276,6 @@ typedef struct
 extern	int	net_drop;		// packets dropped before this one
 
 void Net_Master_Init(void);
-qboolean Net_AddressIsMaster(netadr_t *adr);
 
 void Netchan_Init (void);
 int Netchan_Transmit (netchan_t *chan, int length, qbyte *data, int rate);
@@ -292,7 +291,14 @@ qboolean Netchan_CanPacket (netchan_t *chan, int rate);
 void Netchan_Block (netchan_t *chan, int bytes, int rate);
 qboolean Netchan_CanReliable (netchan_t *chan, int rate);
 #ifdef NQPROT
-qboolean NQNetChan_Process(netchan_t *chan);
+enum nqnc_packettype_e
+{
+	NQNC_IGNORED,
+	NQNC_ACK,
+	NQNC_RELIABLE,
+	NQNC_UNRELIABLE,
+};
+enum nqnc_packettype_e NQNetChan_Process(netchan_t *chan);
 #endif
 
 #ifdef HUFFNETWORK

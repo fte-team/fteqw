@@ -852,6 +852,7 @@ COMMON_OBJS = \
 	gl_hlmdl.o	\
 	gl_heightmap.o		\
 	gl_model.o	\
+	com_bih.o	\
 	com_mesh.o	\
 	common.o 		\
 	cvar.o 		\

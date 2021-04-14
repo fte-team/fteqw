@@ -624,6 +624,7 @@ cvar_t r_part_contentswitch = CVARFD("r_part_contentswitch", "1", CVAR_ARCHIVE, 
 cvar_t r_part_density = CVARF("r_part_density", "1", CVAR_ARCHIVE);
 cvar_t r_part_classic_expgrav = CVARFD("r_part_classic_expgrav", "10", CVAR_ARCHIVE, "Scaler for how fast classic explosion particles should accelerate due to gravity. 1 for like vanilla, 10 for like zquake.");
 cvar_t r_part_classic_opaque = CVARFD("r_part_classic_opaque", "0", CVAR_ARCHIVE, "Disables transparency on classic particles, for the oldskool look.");
+cvar_t r_part_classic_square = CVARFD("r_part_classic_square", "0", CVAR_ARCHIVE, "Enables square particles, for the oldskool look.");
 
 cvar_t r_part_maxparticles = CVAR("r_part_maxparticles", "65536");
 cvar_t r_part_maxdecals = CVAR("r_part_maxdecals", "8192");
@@ -669,6 +670,7 @@ void P_InitParticleSystem(void)
 	Cvar_Register(&r_part_density, particlecvargroupname);
 	Cvar_Register(&r_part_classic_expgrav, particlecvargroupname);
 	Cvar_Register(&r_part_classic_opaque, particlecvargroupname);
+	Cvar_Register(&r_part_classic_square, particlecvargroupname);
 
 	Cvar_Register (&gl_part_flame, particlecvargroupname);
 

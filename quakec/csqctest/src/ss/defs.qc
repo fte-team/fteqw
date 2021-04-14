@@ -505,3 +505,7 @@ float isdp;
 
 #define FULLSEND 0xffffff
 
+#ifdef QWSSQC
+#define sprint(pl,...) sprint(pl, PRINT_HIGH, __VA_ARGS__)
+#define bprint(...) bprint(PRINT_HIGH, __VA_ARGS__)
+#endif

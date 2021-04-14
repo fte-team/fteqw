@@ -1130,4 +1130,25 @@ STAT_MOVEVARS_AIRACCEL_SIDEWAYS_FRICTION	= 255, // DP
 #define dem_all			6
 
 
+#if 0 //fuck sake, just build it in an older chroot.
+/*
+glibc SUCKS. 64bit glibc is depending upon glibc 2.14 because of some implementation-defined copy direction change that breaks flash.
+or something.
+anyway, the actual interface is the same. the old version might be slower, but when updating glibc generally results in also installing systemd, requiring the new version is NOT an option.
+*/
+#if defined(__GNUC__) && defined(__amd64__) && defined(__linux__) && !defined(FTE_SDL)
+	#include <features.h>       /* for glibc version */
+	#if defined(__GLIBC__) && (__GLIBC__ == 2) && (__GLIBC_MINOR__ >= 14)
+		__asm__(".symver memcpy,memcpy@GLIBC_2.2.5");
+		__asm__(".symver memmove,memmove@GLIBC_2.2.5");
+	#endif
+	#if defined(__GLIBC__) && (__GLIBC__ == 2) && (__GLIBC_MINOR__ >= 29)
+		__asm__(".symver exp,exp@GLIBC_2.2.5");
+		__asm__(".symver log,log@GLIBC_2.2.5");
+		__asm__(".symver pow,pow@GLIBC_2.2.5");
+	#endif
+#endif
+/*end glibc workaround*/
+#endif
+
 #endif	//ifndef __BOTHDEFS_H

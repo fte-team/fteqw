@@ -418,8 +418,8 @@ typedef struct
 	void (*callback)(void *, promptbutton_t);
 	void *ctx;
 
-	int lines;
-	const char *messages;
+	conchar_t *msg;
+	size_t msglen;
 	const char *buttons[3];
 	int kbutton, mbutton;
 	qboolean mousedown;
@@ -516,22 +516,35 @@ static void Prompt_Draw(struct menu_s *g)
 	promptmenu_t *m = (promptmenu_t*)g;
 	int x = 64;
 	int y = 76;
+	int px, py;
 	float scale = Font_CharVHeight(font_console);
 	int w = 320*scale/8;
-	int h = (m->lines+3)*scale;
+	int h, lines;
 	int i;
-	const char *msg = m->messages;
 	int bx[4];
+	conchar_t *linestart[16];
+	conchar_t *lineend[countof(linestart)];
 
-	x = ((vid.width-w)>>1);
+	x = (((int)vid.width-w)>>1);
+
+	Font_BeginString(font_console, w, 0, &px, &py);
+	lines = Font_LineBreaks(m->msg, m->msg+m->msglen, px, countof(linestart), linestart, lineend);
+	h = (lines+3)*scale;
+	Font_EndString(font_console);
 
 	Draw_ApproxTextBox(x, y, w, h);
 	y+=scale;
-	for (i = 0; i < m->lines; i++, msg = msg+strlen(msg)+1)
+
+	Font_BeginString(font_console, x, y, &px, &py);
+	for (i = 0; i < lines; i++)
 	{
-		Draw_FunStringWidthFont(font_console, x, y, msg, w, 2, false);
-		y+=scale;
+		int xoffset = (w*vid.rotpixelwidth/vid.width) - Font_LineWidth(linestart[i], lineend[i]);
+		Font_LineDraw(px + xoffset/2, py, linestart[i], lineend[i]);
+		py+=Font_CharHeight();
 	}
+	Font_EndString(font_console);
+
+	y+=scale*lines;
 	y+=scale;
 	m->mbutton = -1;
 	bx[0] = x;
@@ -576,8 +589,11 @@ void Menu_Prompt (void (*callback)(void *, promptbutton_t), void *ctx, const cha
 {
 	promptmenu_t *m;
 	char *t;
+	conchar_t message[8192], *e;
 
-	m = (promptmenu_t*)Z_Malloc(sizeof(*m) + strlen(messages)+(optionyes?strlen(optionyes):0)+(optionno?strlen(optionno):0)+(optioncancel?strlen(optioncancel):0)+7);
+	e = COM_ParseFunString(CON_WHITEMASK, messages, message, sizeof(message)-sizeof(conchar_t), false);
+
+	m = (promptmenu_t*)Z_Malloc(sizeof(*m) + (e-message)*sizeof(conchar_t)+(optionyes?strlen(optionyes):0)+(optionno?strlen(optionno):0)+(optioncancel?strlen(optioncancel):0)+7);
 
 	m->m.cursor = &key_customcursor[kc_console];
 	/*void (*videoreset)	(struct menu_s *);	//called after a video mode switch / shader reload.
@@ -617,16 +633,8 @@ void Menu_Prompt (void (*callback)(void *, promptbutton_t), void *ctx, const cha
 		t += strlen(t)+1;
 	}
 
-	m->messages = t;
-	strcpy(t, messages);
-
-	for(messages = t; t;)
-	{
-		t = strchr(t, '\n');
-		if (t)
-			*t++ = 0;
-		m->lines++;
-	}
+	m->msglen = e-message;
+	m->msg = memcpy(t, message, (m->msglen)*sizeof(conchar_t));
 }
 
 #ifndef NOBUILTINMENUS

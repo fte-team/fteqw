@@ -3309,7 +3309,7 @@ void GL_ForgetPointers(void)
 qboolean GL_Init(rendererstate_t *info, void *(*getglfunction) (char *name))
 {
 #ifndef GL_STATIC
-	qglBindTexture			= (void *)getglcore("glBindTexture");	//for compleateness. core in 1.1. needed by fte.
+	qglBindTexture		= (void *)getglcore("glBindTexture");	//for compleateness. core in 1.1. needed by fte.
 	qglBlendFunc		= (void *)getglcore("glBlendFunc");
 	qglClear			= (void *)getglcore("glClear");
 	qglClearColor		= (void *)getglcore("glClearColor");

@@ -1,6 +1,14 @@
 #ifndef QCLIB_PROGTYPE_H
 #define QCLIB_PROGTYPE_H
 
+#if _MSC_VER >= 1300
+	#define QC_ALIGN(a) __declspec(align(a))
+#elif (__GNUC__ >= 3) || defined(__clang__)
+	#define QC_ALIGN(a) __attribute__((aligned(a)))
+#else
+	#define QC_ALIGN(a)	//I hope misaligned accesses are okay...
+#endif
+
 #if 0
 //64bit primitives allows for:
 //	greater precision timers (so maps can last longer without getting restarted)
@@ -24,8 +32,8 @@ typedef float pvec_t;
 typedef int pint_t;
 typedef unsigned int puint_t;
 #ifdef _MSC_VER
-	typedef __int64 pint64_t;
-	typedef unsigned __int64 puint64_t;
+	typedef __int64 pint64_t QC_ALIGN(4);
+	typedef unsigned __int64 puint64_t QC_ALIGN(4);
 
 	#define pPRId "d"
 	#define pPRIi "i"
@@ -36,8 +44,8 @@ typedef unsigned int puint_t;
 	#define pPRIx64 "I64x"
 #else
 	#include <inttypes.h>
-	typedef int64_t pint64_t;
-	typedef uint64_t puint64_t;
+	typedef int64_t pint64_t QC_ALIGN(4);
+	typedef uint64_t puint64_t QC_ALIGN(4);
 
 	#define pPRId PRId32
 	#define pPRIi PRIi32
@@ -50,6 +58,7 @@ typedef unsigned int puint_t;
 #define QCVM_32
 #endif
 
+typedef double pdouble_t QC_ALIGN(4);	//the qcvm uses vectors and stuff, so any 64bit types are only 4-byte aligned. we don't do atomics so this is fine so long as the compiler handles it for us.
 typedef unsigned int pbool;
 typedef pvec_t pvec3_t[3];
 typedef pint_t progsnum_t;

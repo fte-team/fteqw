@@ -219,7 +219,7 @@ static void(string descname) loadparticles =
 	if (descname != "")
 	{
 		f = fopen(strcat("particles/", descname, ".cfg"), FILE_READNL);
-		if (f >= 0)
+		if ((float)f >= 0)
 		{
 			particlesfile = strzone(fgets(f));
 			fclose(f);
@@ -253,7 +253,7 @@ static void(string descname) saveparticle =
 	if (descname != "")
 	{
 		f = fopen(strcat("particles/", descname, ".cfg"), FILE_WRITE);
-		if (f >= 0)
+		if ((float)f >= 0)
 		{
 			fputs(f, particlesfile);
 			fclose(f);

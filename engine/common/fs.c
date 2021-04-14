@@ -16,7 +16,7 @@ void FS_BeginManifestUpdates(void);
 static void QDECL fs_game_callback(cvar_t *var, char *oldvalue);
 static void COM_InitHomedir(ftemanifest_t *man);
 hashtable_t filesystemhash;
-qboolean com_fschanged = true;
+static qboolean com_fschanged = true;
 qboolean com_installer = false;
 qboolean fs_readonly;
 int waitingformanifest;
@@ -24,20 +24,20 @@ static unsigned int fs_restarts;
 void *fs_thread_mutex;
 float fs_accessed_time;	//timestamp of read (does not include flocates, which should normally happen via a cache).
 
-cvar_t com_fs_cache			= CVARF("fs_cache", IFMINIMAL("2","1"), CVAR_ARCHIVE);
-cvar_t fs_noreexec			= CVARD("fs_noreexec", "0", "Disables automatic re-execing configs on gamedir switches.\nThis means your cvar defaults etc may be from the wrong mod, and cfg_save will leave that stuff corrupted!");	
-cvar_t cfg_reload_on_gamedir = CVAR("cfg_reload_on_gamedir", "1");
-cvar_t fs_game = CVARAFCD("fs_game"/*q3*/, "", "game"/*q2/qs*/, CVAR_NOSAVE|CVAR_NORESET, fs_game_callback, "Provided for Q2 compat.");
-cvar_t fs_gamedir = CVARFD("fs_gamedir", "", CVAR_NOUNSAFEEXPAND|CVAR_NOSET|CVAR_NOSAVE, "Provided for Q2 compat.");
-cvar_t fs_basedir = CVARFD("fs_basedir", "", CVAR_NOUNSAFEEXPAND|CVAR_NOSET|CVAR_NOSAVE, "Provided for Q2 compat.");
-cvar_t dpcompat_ignoremodificationtimes = CVARAFD("fs_packageprioritisation", "1", "dpcompat_ignoremodificationtimes", CVAR_NOUNSAFEEXPAND|CVAR_NOSAVE, "Favours the package that is:\n0: Most recently modified\n1: Is alphabetically last (favour z over a, 9 over 0).");
+static cvar_t com_fs_cache			= CVARF("fs_cache", IFMINIMAL("2","1"), CVAR_ARCHIVE);
+static cvar_t fs_noreexec			= CVARD("fs_noreexec", "0", "Disables automatic re-execing configs on gamedir switches.\nThis means your cvar defaults etc may be from the wrong mod, and cfg_save will leave that stuff corrupted!");
+static cvar_t cfg_reload_on_gamedir = CVAR("cfg_reload_on_gamedir", "1");
+static cvar_t fs_game = CVARAFCD("fs_game"/*q3*/, "", "game"/*q2/qs*/, CVAR_NOSAVE|CVAR_NORESET, fs_game_callback, "Provided for Q2 compat.");
+static cvar_t fs_gamedir = CVARFD("fs_gamedir", "", CVAR_NOUNSAFEEXPAND|CVAR_NOSET|CVAR_NOSAVE, "Provided for Q2 compat.");
+static cvar_t fs_basedir = CVARFD("fs_basedir", "", CVAR_NOUNSAFEEXPAND|CVAR_NOSET|CVAR_NOSAVE, "Provided for Q2 compat.");
+static cvar_t dpcompat_ignoremodificationtimes = CVARAFD("fs_packageprioritisation", "1", "dpcompat_ignoremodificationtimes", CVAR_NOUNSAFEEXPAND|CVAR_NOSAVE, "Favours the package that is:\n0: Most recently modified\n1: Is alphabetically last (favour z over a, 9 over 0).");
 int active_fs_cachetype;
 static int fs_referencetype;
 int fs_finds;
 void COM_CheckRegistered (void);
 void Mods_FlushModList(void);
 static qboolean Sys_SteamHasFile(char *basepath, int basepathlen, char *steamdir, char *fname);
-static searchpathfuncs_t *FS_OpenPackByExtension(vfsfile_t *f, searchpathfuncs_t *parent, const char *filename, const char *pakname);
+searchpathfuncs_t *FS_OpenPackByExtension(vfsfile_t *f, searchpathfuncs_t *parent, const char *filename, const char *pakname);
 
 static void QDECL fs_game_callback(cvar_t *var, char *oldvalue)
 {
@@ -52,7 +52,7 @@ static void QDECL fs_game_callback(cvar_t *var, char *oldvalue)
 	runaway = false;
 }
 
-struct
+static struct
 {
 	void *module;
 	const char *extension;
@@ -169,16 +169,16 @@ void VARGS VFS_PRINTF(vfsfile_t *vf, const char *format, ...)
 
 
 char	gamedirfile[MAX_OSPATH];
-char	pubgamedirfile[MAX_OSPATH];	//like gamedirfile, but not set to the fte-only paths
+static char	pubgamedirfile[MAX_OSPATH];	//like gamedirfile, but not set to the fte-only paths
 
 
-searchpath_t *gameonly_homedir;
-searchpath_t *gameonly_gamedir;
+static searchpath_t *gameonly_homedir;
+static searchpath_t *gameonly_gamedir;
 
 char	com_gamepath[MAX_OSPATH];	//c:\games\quake
 char	com_homepath[MAX_OSPATH];	//c:\users\foo\my docs\fte\quake
 qboolean	com_homepathenabled;
-qboolean	com_homepathusable;	//com_homepath is safe, even if not enabled.
+static qboolean	com_homepathusable;	//com_homepath is safe, even if not enabled.
 
 //char	com_configdir[MAX_OSPATH];	//homedir/fte/configs
 
@@ -192,9 +192,9 @@ int fs_hash_files;
 
 
 static const char *FS_GetCleanPath(const char *pattern, qboolean silent, char *outbuf, int outlen);
-void FS_RegisterDefaultFileSystems(void);
+static void FS_RegisterDefaultFileSystems(void);
 static void	COM_CreatePath (char *path);
-ftemanifest_t *FS_ReadDefaultManifest(char *newbasedir, size_t newbasedirsize, qboolean fixedbasedir);
+static ftemanifest_t *FS_ReadDefaultManifest(char *newbasedir, size_t newbasedirsize, qboolean fixedbasedir);
 
 #define ENFORCEFOPENMODE(mode) {if (strcmp(mode, "r") && strcmp(mode, "w")/* && strcmp(mode, "rw")*/)Sys_Error("fs mode %s is not permitted here\n");}
 
@@ -900,7 +900,7 @@ ftemanifest_t *FS_Manifest_ReadMod(const char *moddir)
 //======================================================================================================
 
 
-char *fs_loadedcommand;			//execed once all packages are (down)loaded
+static char *fs_loadedcommand;			//execed once all packages are (down)loaded
 ftemanifest_t	*fs_manifest;	//currently active manifest.
 static searchpath_t	*com_searchpaths;
 static searchpath_t	*com_purepaths;
@@ -2992,7 +2992,7 @@ static void FS_LoadWildDataFiles (filelist_t *list, wildpaks_t *wp)
 	list->maxfiles = list->maxnames = 0;
 }
 
-static searchpathfuncs_t *FS_OpenPackByExtension(vfsfile_t *f, searchpathfuncs_t *parent, const char *filename, const char *pakname)
+searchpathfuncs_t *FS_OpenPackByExtension(vfsfile_t *f, searchpathfuncs_t *parent, const char *filename, const char *pakname)
 {
 	searchpathfuncs_t *pak;
 	int j;
@@ -3740,7 +3740,7 @@ typedef struct {
 	const char *downloadsurl;
 	const char *manifestfile;
 } gamemode_info_t;
-const gamemode_info_t gamemode_info[] = {
+static const gamemode_info_t gamemode_info[] = {
 #ifdef GAME_SHORTNAME
 	#ifndef GAME_PROTOCOL
 	#define GAME_PROTOCOL			DISTRIBUTION
@@ -5124,9 +5124,6 @@ void FS_Shutdown(void)
 	fs_thread_mutex = NULL;
 
 	Cvar_SetEngineDefault(&fs_gamename, NULL);
-#ifdef PACKAGEMANAGER
-	Cvar_SetEngineDefault(&pkg_downloads_url, NULL);
-#endif
 	Cvar_SetEngineDefault(&com_protocolname, NULL);
 }
 
@@ -5759,6 +5756,8 @@ qboolean FS_ChangeGame(ftemanifest_t *man, qboolean allowreloadconfigs, qboolean
 	fs_manifest = man;
 
 #ifdef PACKAGEMANAGER
+	PM_Shutdown(true);
+
 	if (man->security == MANIFEST_SECURITY_NOT && strcmp(man->downloadsurl?man->downloadsurl:"", olddownloadsurl?olddownloadsurl:""))
 	{	//make sure we only fuck over the user if this is a 'secure' manifest, and not hacked in some way.
 		Z_Free(man->downloadsurl);
@@ -5956,31 +5955,27 @@ qboolean FS_ChangeGame(ftemanifest_t *man, qboolean allowreloadconfigs, qboolean
 			if (reloadconfigs)
 			{
 				Cvar_SetEngineDefault(&fs_gamename, man->formalname?man->formalname:"FTE");
-#ifdef PACKAGEMANAGER
-				Cvar_SetEngineDefault(&pkg_downloads_url, man->downloadsurl?man->downloadsurl:"");
-#endif
 				Cvar_SetEngineDefault(&com_protocolname, man->protocolname?man->protocolname:"FTE");
 				//FIXME: flag this instead and do it after a delay?
 				Cvar_ForceSet(&fs_gamename, fs_gamename.enginevalue);
-#ifdef PACKAGEMANAGER
-				Cvar_ForceSet(&pkg_downloads_url, pkg_downloads_url.enginevalue);
-#endif
 				Cvar_ForceSet(&com_protocolname, com_protocolname.enginevalue);
 #ifdef HAVE_CLIENT
 				vidrestart = false;
 #endif
 
-				if (isDedicated)
-				{
 #ifdef HAVE_SERVER
+				if (isDedicated)
 					SV_ExecInitialConfigs(man->defaultexec?man->defaultexec:"");
-#endif
-				}
 				else
-				{
-#ifdef HAVE_CLIENT
-					CL_ExecInitialConfigs(man->defaultexec?man->defaultexec:"");
 #endif
+#ifdef HAVE_CLIENT
+				if (1)
+					CL_ExecInitialConfigs(man->defaultexec?man->defaultexec:"");
+				else
+#endif
+				{
+					COM_ParsePlusSets(true);
+					Cbuf_Execute ();
 				}
 			}
 #ifdef HAVE_CLIENT
@@ -6673,6 +6668,13 @@ static void FS_ChangeMod_f(void)
 				packages++;
 			}
 		}
+		else if (!strcmp(arg, "hash"))
+		{
+			if (!packages)
+				break;
+			arg = Cmd_Argv(i++);
+//			packagespaths[packages-1].hash = Z_StrDup(arg);
+		}
 		else if (!strcmp(arg, "prefix"))
 		{
 			if (!packages)
@@ -7069,7 +7071,6 @@ void COM_InitFilesystem (void)
 	Cvar_Register(&com_fs_cache, "Filesystem");
 	Cvar_Register(&fs_gamename, "Filesystem");
 #ifdef PACKAGEMANAGER
-	Cvar_Register(&pkg_downloads_url, "Filesystem");
 	Cvar_Register(&pkg_autoupdate, "Filesystem");
 #endif
 	Cvar_Register(&com_protocolname, "Server Info");

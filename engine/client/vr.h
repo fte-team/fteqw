@@ -74,7 +74,7 @@ typedef struct plugvrfuncs_s
 	qboolean	(*Prepare)	(vrsetup_t *setupinfo);	//called before graphics context init
 	qboolean	(*Init)		(vrsetup_t *setupinfo, rendererstate_t *info);	//called after graphics context init
 	qboolean	(*SyncFrame)(double *frametime);	//called in the client's main loop, to block/tweak frame times. True means the game should render as fast as possible.
-	qboolean	(*Render)	(void(*rendereye)(texid_t tex, vec4_t fovoverride, vec3_t axisorg[4]));
+	qboolean	(*Render)	(void(*rendereye)(texid_t tex, vec4_t fovoverride, matrix3x4 axisorg));
 	void		(*Shutdown)	(void);
 #define plugvrfuncs_name "VR"
 } plugvrfuncs_t;

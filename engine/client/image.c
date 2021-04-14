@@ -11572,6 +11572,19 @@ static struct
 	{PTI_RGBX8,		PTI_RGBA8,		Image_Tr_NoTransform},
 	{PTI_BGRX8,		PTI_BGRA8,		Image_Tr_NoTransform},
 
+	{PTI_LLLX8,		PTI_RGBA5551,	Image_Tr_8888to5551,	false,	true},
+	{PTI_RGBX8,		PTI_RGBA5551,	Image_Tr_8888to5551,	false,	true},
+	{PTI_BGRX8,		PTI_RGBA5551,	Image_Tr_8888to5551,	true,	true},
+	{PTI_LLLX8,		PTI_ARGB1555,	Image_Tr_8888to1555,	false,	true},
+	{PTI_RGBX8,		PTI_ARGB1555,	Image_Tr_8888to1555,	false,	true},
+	{PTI_BGRX8,		PTI_ARGB1555,	Image_Tr_8888to1555,	true,	true},
+	{PTI_LLLX8,		PTI_RGBA4444,	Image_Tr_8888to4444,	false},
+	{PTI_RGBX8,		PTI_RGBA4444,	Image_Tr_8888to4444,	false},
+	{PTI_BGRX8,		PTI_RGBA4444,	Image_Tr_8888to4444,	true},
+	{PTI_LLLX8,		PTI_ARGB4444,	Image_Tr_8888toARGB4444,	false},
+	{PTI_RGBX8,		PTI_ARGB4444,	Image_Tr_8888toARGB4444,	false},
+	{PTI_BGRX8,		PTI_ARGB4444,	Image_Tr_8888toARGB4444,	true},
+
 	{PTI_RGBX8,		PTI_R8,			Image_Tr_DropBytes, (4<<16)|1, true},
 	{PTI_RGBX8,		PTI_RG8,		Image_Tr_DropBytes, (4<<16)|2, true},	//for small normalmaps (b can be inferred, a isn't available so avoid offsetmapping)
 	{PTI_RGBA16,	PTI_R16,		Image_Tr_DropBytes, (8<<16)|2, true},

@@ -105,6 +105,7 @@ typedef struct {
 #define globalfloatdep(name,dep) globalfloat(name)
 #define globalfloat(name) float *name;
 #define globalint(name) int *name;
+#define globaluint(name) unsigned int *name;
 #define globalvector(name) float *name;
 #define globalentity(name) int *name;
 #define globalstring(name) string_t *name;
@@ -115,6 +116,7 @@ typedef struct {
 
 #undef globalfloat
 #undef globalint
+#undef globaluint
 #undef globalvector
 #undef globalentity
 #undef globalstring
@@ -204,6 +206,7 @@ static void CSQC_FindGlobals(qboolean nofuncs)
 	static vec3_t defaultgravity = {0, 0, -1};
 #define globalfloat(name) csqcg.name = (float*)PR_FindGlobal(csqcprogs, #name, 0, NULL);
 #define globalint(name) csqcg.name = (int*)PR_FindGlobal(csqcprogs, #name, 0, NULL);
+#define globaluint(name) csqcg.name = (unsigned int*)PR_FindGlobal(csqcprogs, #name, 0, NULL);
 #define globalvector(name) csqcg.name = (float*)PR_FindGlobal(csqcprogs, #name, 0, NULL);
 #define globalentity(name) csqcg.name = (int*)PR_FindGlobal(csqcprogs, #name, 0, NULL);
 #define globalstring(name) csqcg.name = (string_t*)PR_FindGlobal(csqcprogs, #name, 0, NULL);
@@ -213,6 +216,7 @@ static void CSQC_FindGlobals(qboolean nofuncs)
 
 #undef globalfloat
 #undef globalint
+#undef globaluint
 #undef globalvector
 #undef globalentity
 #undef globalstring
@@ -237,8 +241,12 @@ static void CSQC_FindGlobals(qboolean nofuncs)
 		csqcg.pmove_org = NULL;	//can't make aimbots if you don't know where you're aiming from.
 		csqcg.pmove_vel = NULL;	//no dead reckoning please
 		csqcg.pmove_mins = csqcg.pmove_maxs = csqcg.pmove_jump_held = csqcg.pmove_waterjumptime = csqcg.pmove_onground = NULL; //I just want to kill theses
-		csqcg.input_angles = csqcg.input_movevalues = csqcg.input_buttons = csqcg.input_impulse = csqcg.input_lightlevel = csqcg.input_weapon = csqcg.input_servertime = NULL;
+		csqcg.input_angles = csqcg.input_movevalues = csqcg.input_buttons = csqcg.input_impulse = csqcg.input_lightlevel = csqcg.input_servertime = NULL;
+		csqcg.input_weapon = NULL;
 		csqcg.input_clienttime = csqcg.input_cursor_screen = csqcg.input_cursor_trace_start = csqcg.input_cursor_trace_endpos = csqcg.input_cursor_entitynumber = NULL;
+		csqcg.input_head_status = csqcg.input_left_status = csqcg.input_right_status = NULL;
+		csqcg.input_head_angles = csqcg.input_left_angles = csqcg.input_right_angles = NULL;
+		csqcg.input_head_origin = csqcg.input_left_origin = csqcg.input_right_origin = NULL;
 	}
 	else if (csqcg.CSQC_UpdateView || csqcg.CSQC_UpdateViewLoading)
 	{	//full csqc AND simplecsqc's entry points at the same time are a bad idea that just result in confusion.
@@ -1218,6 +1226,15 @@ static void QCBUILTIN PF_R_DynamicLight_Set(pubprogfuncs_t *prinst, struct globa
 	case lfield_radiusdecay:
 		l->decay = G_FLOAT(OFS_PARM2);
 		break;
+	case lfield_owner:
+		{
+			csqcedict_t *ed = (csqcedict_t*)G_EDICT(prinst, OFS_PARM2);
+			if (ed->xv->entnum > 0)
+				l->key = ed->xv->entnum;	//attach it to the indicated ssqc ent.
+			else
+				l->key = -ed->entnum;		//use the csqc index for it.
+		}
+		break;
 	default:
 		break;
 	}
@@ -1303,6 +1320,15 @@ static void QCBUILTIN PF_R_DynamicLight_Get(pubprogfuncs_t *prinst, struct globa
 		break;
 	case lfield_radiusdecay:
 		G_FLOAT(OFS_RETURN) = l->decay;
+		break;
+
+	case lfield_owner:
+		if (l->key < 0 && -l->key < prinst->edicttable_length && prinst->edicttable[-l->key])	//csqc ent
+			RETURN_EDICT(prinst, prinst->edicttable[-l->key]);
+		else if (l->key > 0 && l->key < maxcsqcentities && csqcent[l->key]) 	//ssqc ent
+			RETURN_EDICT(prinst, csqcent[l->key]);
+		else
+			RETURN_EDICT(prinst, prinst->edicttable[0]);	//probably an ssqc ent not known to the csqc, so we can't report this info.
 		break;
 	default:
 		G_INT(OFS_RETURN) = 0;
@@ -1833,7 +1859,7 @@ void QCBUILTIN PF_R_AddTrisoup_Simple(pubprogfuncs_t *prinst, struct globalvars_
 	unsigned int numindexes	= G_INT(OFS_PARM4);
 	qboolean twod = qcflags & DRAWFLAG_2D;
 	unsigned int beflags;
-	unsigned int numverts;
+	unsigned int maxverts;
 	const qcvertex_t *fte_restrict vert;
 	const unsigned int *fte_restrict idx;
 	unsigned int i, j, first;
@@ -1860,8 +1886,8 @@ void QCBUILTIN PF_R_AddTrisoup_Simple(pubprogfuncs_t *prinst, struct globalvars_
 	}
 
 	//validates the pointer.
-	numverts = (prinst->stringtablesize - vertsptr) / sizeof(qcvertex_t);
-	if (numverts < 1 || vertsptr <= 0 || vertsptr+numverts*sizeof(qcvertex_t) > prinst->stringtablesize)
+	maxverts = (prinst->stringtablesize - vertsptr) / sizeof(qcvertex_t);
+	if (maxverts < 1 || vertsptr <= 0 || vertsptr+maxverts*sizeof(qcvertex_t) > prinst->stringtablesize)
 	{
 		PR_BIError(prinst, "PF_R_AddTrisoup: invalid vertexes pointer\n");
 		return;
@@ -1886,6 +1912,8 @@ void QCBUILTIN PF_R_AddTrisoup_Simple(pubprogfuncs_t *prinst, struct globalvars_
 		{
 			R2D_Flush();
 			first = 0;
+			csqc_poly_origvert = cl_numstrisvert;
+			csqc_poly_origidx = cl_numstrisidx;
 		}
 	}
 
@@ -1906,7 +1934,7 @@ void QCBUILTIN PF_R_AddTrisoup_Simple(pubprogfuncs_t *prinst, struct globalvars_
 	for (i = 0; i < numindexes; i++)
 	{
 		j = *idx++;
-		if (j >= numverts)
+		if (j >= maxverts)
 			j = 0;	//out of bounds.
 
 		VectorCopy(vert[j].xyz, cl_strisvertv[cl_numstrisvert]);
@@ -3026,6 +3054,23 @@ static void QCBUILTIN PF_cs_pointcontents(pubprogfuncs_t *prinst, struct globalv
 	else
 		G_FLOAT(OFS_RETURN) = Q1CONTENTS_EMPTY;
 }
+static void QCBUILTIN PF_cs_pointcontentsmask(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	world_t *w = prinst->parms->user;
+
+	float	*v;
+	int cont;
+
+	v = G_VECTOR(OFS_PARM0);
+
+	if (!w->worldmodel || w->worldmodel->loadstate != MLS_LOADED)
+		cont = FTECONTENTS_EMPTY;
+	else if (prinst->callargc < 1 || G_FLOAT(OFS_PARM1))
+		cont = World_PointContentsWorldOnly(w, v);
+	else
+		cont = World_PointContentsAllBSPs(w, v);
+	G_UINT(OFS_RETURN) = cont;
+}
 
 static model_t *csqc_setmodel(pubprogfuncs_t *prinst, csqcedict_t *ent, int modelindex)
 {
@@ -3791,6 +3836,64 @@ static void cs_set_input_state (usercmd_t *cmd)
 		VectorCopy(cmd->cursor_impact, csqcg.input_cursor_trace_endpos);
 	if (csqcg.input_cursor_entitynumber)
 		*csqcg.input_cursor_entitynumber = cmd->cursor_entitynumber;
+
+
+	if (csqcg.input_head_status)
+		*csqcg.input_head_status = cmd->vr[VRDEV_HEAD].status;
+	if (csqcg.input_head_origin)
+		VectorCopy(cmd->vr[VRDEV_HEAD].origin, csqcg.input_head_origin);
+	if (csqcg.input_head_velocity)
+		VectorCopy(cmd->vr[VRDEV_HEAD].velocity, csqcg.input_head_velocity);
+	if (csqcg.input_head_angles)
+	{
+		csqcg.input_head_angles[0] = SHORT2ANGLE(cmd->vr[VRDEV_HEAD].angles[0]);
+		csqcg.input_head_angles[1] = SHORT2ANGLE(cmd->vr[VRDEV_HEAD].angles[1]);
+		csqcg.input_head_angles[2] = SHORT2ANGLE(cmd->vr[VRDEV_HEAD].angles[2]);
+	}
+	if (csqcg.input_head_avelocity)
+	{
+		csqcg.input_head_avelocity[0] = SHORT2ANGLE(cmd->vr[VRDEV_HEAD].avelocity[0]);
+		csqcg.input_head_avelocity[1] = SHORT2ANGLE(cmd->vr[VRDEV_HEAD].avelocity[1]);
+		csqcg.input_head_avelocity[2] = SHORT2ANGLE(cmd->vr[VRDEV_HEAD].avelocity[2]);
+	}
+
+	if (csqcg.input_left_status)
+		*csqcg.input_left_status = cmd->vr[VRDEV_LEFT].status;
+	if (csqcg.input_left_origin)
+		VectorCopy(cmd->vr[VRDEV_LEFT].origin, csqcg.input_left_origin);
+	if (csqcg.input_left_velocity)
+		VectorCopy(cmd->vr[VRDEV_LEFT].velocity, csqcg.input_left_velocity);
+	if (csqcg.input_left_angles)
+	{
+		csqcg.input_left_angles[0] = SHORT2ANGLE(cmd->vr[VRDEV_LEFT].angles[0]);
+		csqcg.input_left_angles[1] = SHORT2ANGLE(cmd->vr[VRDEV_LEFT].angles[1]);
+		csqcg.input_left_angles[2] = SHORT2ANGLE(cmd->vr[VRDEV_LEFT].angles[2]);
+	}
+	if (csqcg.input_left_avelocity)
+	{
+		csqcg.input_left_avelocity[0] = SHORT2ANGLE(cmd->vr[VRDEV_LEFT].avelocity[0]);
+		csqcg.input_left_avelocity[1] = SHORT2ANGLE(cmd->vr[VRDEV_LEFT].avelocity[1]);
+		csqcg.input_left_avelocity[2] = SHORT2ANGLE(cmd->vr[VRDEV_LEFT].avelocity[2]);
+	}
+
+	if (csqcg.input_right_status)
+		*csqcg.input_right_status = cmd->vr[VRDEV_RIGHT].status;
+	if (csqcg.input_right_origin)
+		VectorCopy(cmd->vr[VRDEV_RIGHT].origin, csqcg.input_right_origin);
+	if (csqcg.input_right_velocity)
+		VectorCopy(cmd->vr[VRDEV_RIGHT].velocity, csqcg.input_right_velocity);
+	if (csqcg.input_right_angles)
+	{
+		csqcg.input_right_angles[0] = SHORT2ANGLE(cmd->vr[VRDEV_RIGHT].angles[0]);
+		csqcg.input_right_angles[1] = SHORT2ANGLE(cmd->vr[VRDEV_RIGHT].angles[1]);
+		csqcg.input_right_angles[2] = SHORT2ANGLE(cmd->vr[VRDEV_RIGHT].angles[2]);
+	}
+	if (csqcg.input_right_avelocity)
+	{
+		csqcg.input_right_avelocity[0] = SHORT2ANGLE(cmd->vr[VRDEV_RIGHT].avelocity[0]);
+		csqcg.input_right_avelocity[1] = SHORT2ANGLE(cmd->vr[VRDEV_RIGHT].avelocity[1]);
+		csqcg.input_right_avelocity[2] = SHORT2ANGLE(cmd->vr[VRDEV_RIGHT].avelocity[2]);
+	}
 }
 
 static void cs_get_input_state (usercmd_t *cmd)
@@ -3829,6 +3932,63 @@ static void cs_get_input_state (usercmd_t *cmd)
 		VectorCopy(csqcg.input_cursor_trace_endpos, cmd->cursor_impact);
 	if (csqcg.input_cursor_entitynumber)
 		cmd->cursor_entitynumber = *csqcg.input_cursor_entitynumber;
+
+	if (csqcg.input_head_status)
+		cmd->vr[VRDEV_HEAD].status = *csqcg.input_head_status;
+	if (csqcg.input_head_origin)
+		VectorCopy(csqcg.input_head_origin, cmd->vr[VRDEV_HEAD].origin);
+	if (csqcg.input_head_velocity)
+		VectorCopy(csqcg.input_head_velocity, cmd->vr[VRDEV_HEAD].velocity);
+	if (csqcg.input_head_angles)
+	{
+		cmd->vr[VRDEV_HEAD].angles[0] = ANGLE2SHORT(csqcg.input_head_angles[0]);
+		cmd->vr[VRDEV_HEAD].angles[1] = ANGLE2SHORT(csqcg.input_head_angles[1]);
+		cmd->vr[VRDEV_HEAD].angles[2] = ANGLE2SHORT(csqcg.input_head_angles[2]);
+	}
+	if (csqcg.input_head_avelocity)
+	{
+		cmd->vr[VRDEV_HEAD].avelocity[0] = ANGLE2SHORT(csqcg.input_head_avelocity[0]);
+		cmd->vr[VRDEV_HEAD].avelocity[1] = ANGLE2SHORT(csqcg.input_head_avelocity[1]);
+		cmd->vr[VRDEV_HEAD].avelocity[2] = ANGLE2SHORT(csqcg.input_head_avelocity[2]);
+	}
+
+	if (csqcg.input_left_status)
+		cmd->vr[VRDEV_LEFT].status = *csqcg.input_left_status;
+	if (csqcg.input_left_origin)
+		VectorCopy(csqcg.input_left_origin, cmd->vr[VRDEV_LEFT].origin);
+	if (csqcg.input_left_velocity)
+		VectorCopy(csqcg.input_left_velocity, cmd->vr[VRDEV_LEFT].velocity);
+	if (csqcg.input_left_angles)
+	{
+		cmd->vr[VRDEV_LEFT].angles[0] = ANGLE2SHORT(csqcg.input_left_angles[0]);
+		cmd->vr[VRDEV_LEFT].angles[1] = ANGLE2SHORT(csqcg.input_left_angles[1]);
+		cmd->vr[VRDEV_LEFT].angles[2] = ANGLE2SHORT(csqcg.input_left_angles[2]);
+	}
+	if (csqcg.input_left_avelocity)
+	{
+		cmd->vr[VRDEV_LEFT].avelocity[0] = ANGLE2SHORT(csqcg.input_left_avelocity[0]);
+		cmd->vr[VRDEV_LEFT].avelocity[1] = ANGLE2SHORT(csqcg.input_left_avelocity[1]);
+		cmd->vr[VRDEV_LEFT].avelocity[2] = ANGLE2SHORT(csqcg.input_left_avelocity[2]);
+	}
+
+	if (csqcg.input_right_status)
+		cmd->vr[VRDEV_RIGHT].status = *csqcg.input_right_status;
+	if (csqcg.input_right_origin)
+		VectorCopy(csqcg.input_right_origin, cmd->vr[VRDEV_RIGHT].origin);
+	if (csqcg.input_right_velocity)
+		VectorCopy(csqcg.input_right_velocity, cmd->vr[VRDEV_RIGHT].velocity);
+	if (csqcg.input_right_angles)
+	{
+		cmd->vr[VRDEV_RIGHT].angles[0] = ANGLE2SHORT(csqcg.input_right_angles[0]);
+		cmd->vr[VRDEV_RIGHT].angles[1] = ANGLE2SHORT(csqcg.input_right_angles[1]);
+		cmd->vr[VRDEV_RIGHT].angles[2] = ANGLE2SHORT(csqcg.input_right_angles[2]);
+	}
+	if (csqcg.input_right_avelocity)
+	{
+		cmd->vr[VRDEV_RIGHT].avelocity[0] = ANGLE2SHORT(csqcg.input_right_avelocity[0]);
+		cmd->vr[VRDEV_RIGHT].avelocity[1] = ANGLE2SHORT(csqcg.input_right_avelocity[1]);
+		cmd->vr[VRDEV_RIGHT].avelocity[2] = ANGLE2SHORT(csqcg.input_right_avelocity[2]);
+	}
 }
 
 //sets implicit pause (only works when singleplayer)
@@ -4492,13 +4652,15 @@ static void QCBUILTIN PF_checkextension (pubprogfuncs_t *prinst, struct globalva
 		if (!QSG_Extensions[i].name)
 			continue;
 
-		if (i < 32 && cls.protocol == CP_QUAKEWORLD)
-			if (!(cls.fteprotocolextensions & (1<<i)))
-				continue;
-
 		if (!strcmp(QSG_Extensions[i].name, extname))
 		{
-			G_FLOAT(OFS_RETURN) = true;
+			if (QSG_Extensions[i].extensioncheck)
+			{
+				extcheck_t ctx = {cls.fteprotocolextensions, cls.fteprotocolextensions2};
+				G_FLOAT(OFS_RETURN) = QSG_Extensions[i].extensioncheck(&ctx);
+			}
+			else
+				G_FLOAT(OFS_RETURN) = true;
 			return;
 		}
 	}
@@ -6136,14 +6298,24 @@ static void QCBUILTIN PF_cs_getplayerstat(pubprogfuncs_t *prinst, struct globalv
 		break;
 
 	case ev_integer:
+	case ev_uint:
 	case ev_field:		//Hopefully NOT useful, certainly not reliable
 	case ev_function:	//Hopefully NOT useful
 	case ev_pointer:	//NOT useful in a networked capacity.
 		G_INT(OFS_RETURN) = cl.players[playernum].stats[statnum];
 		break;
 
+	case ev_int64:		//lamely takes two consecutive stats.
+	case ev_uint64:
+		G_UINT64(OFS_RETURN) =   (puint64_t)((statnum+0 >= MAX_CL_STATS)?0:cl.players[playernum].stats[statnum+0]) |
+								((puint64_t)((statnum+1 >= MAX_CL_STATS)?0:cl.players[playernum].stats[statnum+1]) <<32);
+		break;
+
 	case ev_float:
 		G_FLOAT(OFS_RETURN) = cl.players[playernum].statsf[statnum];
+		break;
+	case ev_double:	//lame truncation for network.
+		G_DOUBLE(OFS_RETURN) = cl.players[playernum].statsf[statnum];
 		break;
 	case ev_vector:
 		G_FLOAT(OFS_RETURN+0) = (statnum+0 >= MAX_CL_STATS)?0:cl.players[playernum].statsf[statnum+0];
@@ -6573,7 +6745,7 @@ static struct {
 	{"setmodel",				PF_cs_SetModel, 3},			// #3 void(entity e, string modl) setmodel (QUAKE)
 	{"setsize",					PF_cs_SetSize, 4},			// #4 void(entity e, vector mins, vector maxs) setsize (QUAKE)
 //5
-	{"debugbreak",				PF_cs_break, 6},			// #6 void() debugbreak (QUAKE)
+	{"breakpoint",				PF_cs_break, 6},			// #6 void() debugbreak (QUAKE)
 	{"random",					PF_random,	7},				// #7 float() random (QUAKE)
 	{"sound",					PF_cs_sound,	8},			// #8 void(entity e, float chan, string samp, float vol, float atten) sound (QUAKE)
 	{"normalize",				PF_normalize,	9},			// #9 vector(vector in) normalize (QUAKE)
@@ -6618,6 +6790,7 @@ static struct {
 //40
 	{"checkbottom",				PF_checkbottom,	40},	// #40 float(entity e) checkbottom (QUAKE)
 	{"pointcontents",			PF_cs_pointcontents,	41},	// #41 float(vector org) pointcontents (QUAKE)
+	{"pointcontentsmask",		PF_cs_pointcontentsmask,	0},	// #41 float(vector org) pointcontents (QUAKE)
 //	{"?",						PF_Fixme,	42},				// #42
 	{"fabs",					PF_fabs,	43},				// #43 float(float f) fabs (QUAKE)
 	{"aim",						PF_NoCSQC,	44},				// #44 vector(entity e, float speed) aim (QUAKE) (don't support)
@@ -7595,7 +7768,7 @@ static qboolean CSQC_ValidateMainCSProgs(void *file, size_t filesize, unsigned i
 		return false;
 	if (cls.protocol == CP_NETQUAKE && !(cls.fteprotocolextensions2 & PEXT2_PREDINFO))
 	{	//DP uses really lame checksums.
-		if (QCRC_Block(file, filesize) != checksum)
+		if (CalcHashInt(&hash_crc16, file, filesize) != checksum)
 			return false;
 	}
 	else
@@ -8265,7 +8438,7 @@ void PR_CSExtensionList_f(void)
 	int i;
 	int ebi;
 	int bi;
-	lh_extension_t *extlist;
+	qc_extension_t *extlist;
 
 #define SHOW_ACTIVEEXT 1
 #define SHOW_ACTIVEBI 2

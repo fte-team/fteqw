@@ -383,7 +383,7 @@ void(string shader, vector org, vector s, vector t, string text, vector col, flo
 	vector st = draw_getimagesize(shader);
 	vector pos = org;
 	float chr;
-	float idx;
+	float idx = 0;
 	vector tc0,tc1,tc2,tc3;
 
 	//with GL_LINEAR sampling, the sample value is interpolated from the nearby two pixels

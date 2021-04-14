@@ -64,6 +64,7 @@ cvar_t	sv_mapcheck	= CVAR("sv_mapcheck", "1");
 cvar_t	sv_fullredirect = CVARD("sv_fullredirect", "", "This is the ip:port to redirect players to when the server is full");
 cvar_t	sv_antilag			= CVARFD("sv_antilag", "", CVAR_SERVERINFO, "Attempt to backdate impacts to compensate for lag via the MOVE_ANTILAG feature.\n0=completely off.\n1=mod-controlled (default).\n2=forced, which might break certain uses of traceline.\n3=Also attempt to recalculate trace start positions to avoid lagged knockbacks.");
 cvar_t	sv_antilag_frac		= CVARF("sv_antilag_frac", "", CVAR_SERVERINFO);
+cvar_t	sv_showpredloss		= CVARD("sv_showpredloss", "0", "Print messages whenever input frames are ignored or forced serverside, to prevent speedcheats or hover cheats. Any such prints will be accompanied by prediction misses in the named client.");
 #ifndef NEWSPEEDCHEATPROT
 cvar_t	sv_cheatpc				= CVARD("sv_cheatpc", "125", "If the client tried to claim more than this percentage of time within any speed-cheat period, the client will be deemed to have cheated.");
 cvar_t	sv_cheatspeedchecktime	= CVARD("sv_cheatspeedchecktime", "30", "The interval between each speed-cheat check.");
@@ -103,7 +104,7 @@ cvar_t	voteminimum	= CVARD("voteminimum", "4", "At least this many players must 
 cvar_t	votepercent	= CVARD("votepercent", "-1", "At least this percentage of players must vote the same way for the vote to pass.");
 cvar_t	votetime	= CVARD("votetime", "10", "Votes will be discarded after this many minutes");
 
-cvar_t	pr_allowbutton1 = CVARFD("pr_allowbutton1", "1", CVAR_LATCH, "The button1 field is believed to have been intended to work with the +use command, but it was never hooked up. In NetQuake, this field was often repurposed for other things as it was not otherwise used (and cannot be removed without breaking the crc), while third-party QuakeWorld engines did decide to implement it as believed was intended. As a result, this cvar only applies to QuakeWorld mods and a value of 1 is only likely to cause issues with NQ mods that were ported to QW.");
+cvar_t	pr_allowbutton1 = CVARFD("pr_allowbutton1", "1", CVAR_MAPLATCH, "The button1 field is believed to have been intended to work with the +use command, but it was never hooked up. In NetQuake, this field was often repurposed for other things as it was not otherwise used (and cannot be removed without breaking the crc), while third-party QuakeWorld engines did decide to implement it as believed was intended. As a result, this cvar only applies to QuakeWorld mods and a value of 1 is only likely to cause issues with NQ mods that were ported to QW.");
 extern cvar_t sv_minping;
 
 
@@ -739,7 +740,7 @@ void SVNQ_New_f (void)
 			MSG_WriteByte (&host_client->netchan.message, svc_stufftext);
 			MSG_WriteString (&host_client->netchan.message, va("csqc_progsize %u\n", (unsigned int)sz));
 			MSG_WriteByte (&host_client->netchan.message, svc_stufftext);
-			MSG_WriteString (&host_client->netchan.message, va("csqc_progcrc %i\n", QCRC_Block(f, sz)));
+			MSG_WriteString (&host_client->netchan.message, va("csqc_progcrc %i\n", CalcHashInt(&hash_crc16, f, sz)));
 
 			MSG_WriteByte (&host_client->netchan.message, svc_stufftext);
 			MSG_WriteString (&host_client->netchan.message, "cmd enablecsqc\n");
@@ -2417,10 +2418,11 @@ void SV_DarkPlacesDownloadAck(client_t *cl)
 	else
 	{
 		char *s;
-		unsigned short crc;
+		const hashfunc_t *hfunc = &hash_crc16;
+		void *hctx = alloca(hfunc->contextsize);
 		int pos=0, csize;
-		qbyte chunk[1024];
-		QCRC_Init(&crc);
+		qbyte chunk[65536];
+		hfunc->init(hctx);
 		VFS_SEEK(host_client->download, 0);
 		while (pos < host_client->downloadsize)
 		{
@@ -2428,11 +2430,11 @@ void SV_DarkPlacesDownloadAck(client_t *cl)
 			if (pos + csize > host_client->downloadsize)
 				csize = host_client->downloadsize - pos;
 			VFS_READ(host_client->download, chunk, csize);
-			QCRC_AddBlock(&crc, chunk, csize);
+			hfunc->process(hctx, chunk, csize);
 			pos += csize;
 		}
 
-		s = va("\ncl_downloadfinished %u %i \"\"\n", (unsigned int)host_client->downloadsize, crc);
+		s = va("\ncl_downloadfinished %u %i \"%s\"\n", (unsigned int)host_client->downloadsize, hashfunc_terminate_uint(hfunc, hctx), "");
 		ClientReliableWrite_Begin (cl, svc_stufftext, 2+strlen(s));
 		ClientReliableWrite_String(cl, s);
 
@@ -6622,7 +6624,7 @@ static qboolean AddEntityToPmove(world_t *w, wedict_t *player, wedict_t *check)
 {
 	physent_t	*pe;
 	int			solid = check->v->solid;
-	int			q1contents;
+	enum q1contents_e			q1contents;
 
 	if (pmove.numphysent == MAX_PHYSENTS)
 		return false;
@@ -6641,33 +6643,26 @@ static qboolean AddEntityToPmove(world_t *w, wedict_t *player, wedict_t *check)
 	q1contents = (int)check->v->skin;
 	if (solid == SOLID_LADDER)
 		q1contents = Q1CONTENTS_LADDER;	//legacy crap
-	switch(q1contents)
+	safeswitch(q1contents)
 	{
-	case Q1CONTENTS_SOLID:
-		pe->nonsolid = false;
-		pe->forcecontentsmask = FTECONTENTS_SOLID;
-		break;
-	case Q1CONTENTS_WATER:
-		pe->nonsolid = true;
-		pe->forcecontentsmask = FTECONTENTS_WATER;
-		break;
-	case Q1CONTENTS_LAVA:
-		pe->nonsolid = true;
-		pe->forcecontentsmask = FTECONTENTS_LAVA;
-		break;
-	case Q1CONTENTS_SLIME:
-		pe->nonsolid = true;
-		pe->forcecontentsmask = FTECONTENTS_SLIME;
-		break;
-	case Q1CONTENTS_SKY:
-		pe->nonsolid = true;
-		pe->forcecontentsmask = FTECONTENTS_SKY;
-		break;
-	case Q1CONTENTS_LADDER:
-		pe->nonsolid = true;
-		pe->forcecontentsmask = FTECONTENTS_LADDER;
-		break;
-	default:
+	case Q1CONTENTS_EMPTY:			pe->nonsolid = true;	pe->forcecontentsmask = FTECONTENTS_EMPTY;	break;
+	case Q1CONTENTS_TRANS:
+	case Q1CONTENTS_SOLID:			pe->nonsolid = false;	pe->forcecontentsmask = FTECONTENTS_SOLID;	break;
+	case Q1CONTENTS_WATER:			pe->nonsolid = true;	pe->forcecontentsmask = FTECONTENTS_WATER;	break;
+	case Q1CONTENTS_LAVA:			pe->nonsolid = true;	pe->forcecontentsmask = FTECONTENTS_LAVA;	break;
+	case Q1CONTENTS_SLIME:			pe->nonsolid = true;	pe->forcecontentsmask = FTECONTENTS_SLIME;	break;
+	case Q1CONTENTS_SKY:			pe->nonsolid = true;	pe->forcecontentsmask = FTECONTENTS_SKY;	break;
+	case Q1CONTENTS_CLIP:			pe->nonsolid = false;	pe->forcecontentsmask = FTECONTENTS_PLAYERCLIP|FTECONTENTS_MONSTERCLIP;	break;
+	case Q1CONTENTS_CURRENT_0:		pe->nonsolid = true;	pe->forcecontentsmask = FTECONTENTS_WATER|Q2CONTENTS_CURRENT_0;			break;
+	case Q1CONTENTS_CURRENT_90:		pe->nonsolid = true;	pe->forcecontentsmask = FTECONTENTS_WATER|Q2CONTENTS_CURRENT_90;		break;
+	case Q1CONTENTS_CURRENT_180:	pe->nonsolid = true;	pe->forcecontentsmask = FTECONTENTS_WATER|Q2CONTENTS_CURRENT_180;		break;
+	case Q1CONTENTS_CURRENT_270:	pe->nonsolid = true;	pe->forcecontentsmask = FTECONTENTS_WATER|Q2CONTENTS_CURRENT_270;		break;
+	case Q1CONTENTS_CURRENT_UP:		pe->nonsolid = true;	pe->forcecontentsmask = FTECONTENTS_WATER|Q2CONTENTS_CURRENT_UP;		break;
+	case Q1CONTENTS_CURRENT_DOWN:	pe->nonsolid = true;	pe->forcecontentsmask = FTECONTENTS_WATER|Q2CONTENTS_CURRENT_DOWN;		break;
+	case Q1CONTENTS_LADDER:			pe->nonsolid = true;	pe->forcecontentsmask = FTECONTENTS_LADDER;			break;
+	case Q1CONTENTS_MONSTERCLIP:	pe->nonsolid = true;	pe->forcecontentsmask = FTECONTENTS_MONSTERCLIP;	break;
+	case Q1CONTENTS_PLAYERCLIP:		pe->nonsolid = false;	pe->forcecontentsmask = FTECONTENTS_PLAYERCLIP;		break;
+	safedefault:
 		pe->forcecontentsmask = 0;
 		break;
 	}
@@ -7073,7 +7068,11 @@ void SV_RunCmd (usercmd_t *ucmd, qboolean recurse)
 			if (ucmd->msec > 10)
 				ucmd->msec -= 1;
 			if (ucmd->msec > host_client->msecs)
+			{
+				if (sv_showpredloss.ival)
+					Con_Printf("%s: ignoring %g msecs (anti speed cheat)\n", host_client->name, ucmd->msec);
 				return;
+			}
 			ucmd->msec = host_client->msecs;
 		}
 		host_client->msecs -= ucmd->msec;
@@ -7682,11 +7681,20 @@ void SV_PostRunCmd(void)
 	}
 }
 
-void SV_ReadPrydonCursor(void)
+static void SV_ReadPrydonCursor(usercmd_t *cmd)
 {
-	float f;
-	int entnum;
 	eval_t *cursor_screen, *cursor_start, *cursor_impact, *cursor_entitynumber;
+
+	cmd->cursor_screen[0] = MSG_ReadShort() * (1.0f / 32767.0f);
+	cmd->cursor_screen[1] = MSG_ReadShort() * (1.0f / 32767.0f);
+	cmd->cursor_start[0] = MSG_ReadFloat();
+	cmd->cursor_start[1] = MSG_ReadFloat();
+	cmd->cursor_start[2] = MSG_ReadFloat();
+	cmd->cursor_impact[0] = MSG_ReadFloat();
+	cmd->cursor_impact[1] = MSG_ReadFloat();
+	cmd->cursor_impact[2] = MSG_ReadFloat();
+	cmd->cursor_entitynumber = MSGSV_ReadEntity(host_client);
+
 
 	if (svprogfuncs)
 	{
@@ -7702,39 +7710,20 @@ void SV_ReadPrydonCursor(void)
 		cursor_impact	= NULL;
 		cursor_entitynumber	= NULL;
 	}
+	if (cursor_screen)
+		Vector2Copy(cmd->cursor_screen, cursor_screen->_vector);
+	if (cursor_start)
+		VectorCopy(cmd->cursor_start, cursor_start->_vector);
+	if (cursor_impact)
+		VectorCopy(cmd->cursor_impact, cursor_impact->_vector);
 
-	f = MSG_ReadShort() * (1.0f / 32767.0f);
-	if (cursor_screen) cursor_screen->_vector[0] = f;
-	f = MSG_ReadShort() * (1.0f / 32767.0f);
-	if (cursor_screen) cursor_screen->_vector[1] = f;
-
-	f = MSG_ReadFloat();
-	if (cursor_start) cursor_start->_vector[0] = f;
-	f = MSG_ReadFloat();
-	if (cursor_start) cursor_start->_vector[1] = f;
-	f = MSG_ReadFloat();
-	if (cursor_start) cursor_start->_vector[2] = f;
-
-	f = MSG_ReadFloat();
-	if (cursor_impact) cursor_impact->_vector[0] = f;
-	f = MSG_ReadFloat();
-	if (cursor_impact) cursor_impact->_vector[1] = f;
-	f = MSG_ReadFloat();
-	if (cursor_impact) cursor_impact->_vector[2] = f;
-
-	entnum = MSGSV_ReadEntity(host_client);
-	if (entnum >= sv.world.max_edicts)
-	{
-		Con_DPrintf("SV_ReadPrydonCursor: client sent bad cursor_entitynumber\n");
-		entnum = 0;
-	}
 	// as requested by FrikaC, cursor_trace_ent is reset to world if the
 	// entity is free at time of receipt
-	if (!svprogfuncs || ED_ISFREE(EDICT_NUM_UB(svprogfuncs, entnum)))
-		entnum = 0;
+	if (!svprogfuncs || ED_ISFREE(EDICT_NUM_UB(svprogfuncs, cmd->cursor_entitynumber)))
+		cmd->cursor_entitynumber = 0;
 	if (msg_badread) Con_Printf("SV_ReadPrydonCursor: badread at %s:%i\n", __FILE__, __LINE__);
 
-	if (cursor_entitynumber) cursor_entitynumber->edict = entnum;
+	if (cursor_entitynumber) cursor_entitynumber->edict = cmd->cursor_entitynumber;
 }
 
 void SV_ReadQCRequest(void)
@@ -7789,7 +7778,7 @@ void SV_ReadQCRequest(void)
 			break;
 		case ev_double:
 			args[i] = 'F';
-			G_FLOAT(OFS_PARM0+i*3) = MSG_ReadDouble();
+			G_DOUBLE(OFS_PARM0+i*3) = MSG_ReadDouble();
 			break;
 		case ev_vector:
 			args[i] = 'v';
@@ -8015,9 +8004,22 @@ void SV_ExecuteClientMessage (client_t *cl)
 				if (split)
 					split->lossage = cl->lossage;
 			}
-			MSG_ReadDeltaUsercmd (&nullcmd, &oldest, PROTOCOL_VERSION_QW);
-			MSG_ReadDeltaUsercmd (&oldest, &oldcmd, PROTOCOL_VERSION_QW);
-			MSG_ReadDeltaUsercmd (&oldcmd, &newcmd, PROTOCOL_VERSION_QW);
+			if (cl->fteprotocolextensions2 & PEXT2_VRINPUTS)
+			{
+				MSGFTE_ReadDeltaUsercmd (&nullcmd, &oldest);
+				MSGFTE_ReadDeltaUsercmd (&oldest, &oldcmd);
+				MSGFTE_ReadDeltaUsercmd (&oldcmd, &newcmd);
+			}
+			else
+			{
+				MSGQW_ReadDeltaUsercmd (&nullcmd, &oldest, PROTOCOL_VERSION_QW);
+				Vector2Copy(split->lastcmd.cursor_screen, oldest.cursor_screen);
+				VectorCopy(split->lastcmd.cursor_start, oldest.cursor_start);
+				VectorCopy(split->lastcmd.cursor_impact, oldest.cursor_impact);
+				oldest.cursor_entitynumber = split->lastcmd.cursor_entitynumber;
+				MSGQW_ReadDeltaUsercmd (&oldest, &oldcmd, PROTOCOL_VERSION_QW);
+				MSGQW_ReadDeltaUsercmd (&oldcmd, &newcmd, PROTOCOL_VERSION_QW);
+			}
 			if (!split)
 				break;		// either someone is trying to cheat, or they sent input commands for splitscreen clients they no longer own.
 
@@ -8096,23 +8098,57 @@ void SV_ExecuteClientMessage (client_t *cl)
 						split->isindependant = true;
 						SV_PreRunCmd();
 
-						if (net_drop < 20)
-						{
-							while (net_drop > 2)
+						if (cl->fteprotocolextensions2 & PEXT2_VRINPUTS)
+						{	//this protocol uses bigger timestamps instead of msecs
+							usercmd_t *c;
+							unsigned int curtime = sv.time*1000;
+							if (newcmd.servertime < split->lastruncmd)
 							{
-								SV_RunCmd (&split->lastcmd, false);
-								net_drop--;
+								if (sv_showpredloss.ival)
+									Con_Printf("%s: client jumped %u msecs backwards (anti speed cheat)\n", split->name, split->lastruncmd - newcmd.servertime);
 							}
-							if (net_drop > 1)
-								SV_RunCmd (&oldest, false);
-							if (net_drop > 0)
-								SV_RunCmd (&oldcmd, false);
+							else while (split->lastruncmd < newcmd.servertime)
+							{
+								//try to find the oldest (valid) command.
+								if (split->lastcmd.servertime < oldest.servertime)
+									c = &oldest;
+								else if (split->lastcmd.servertime < oldcmd.servertime)
+									c = &oldcmd;
+								else
+									c = &newcmd;
+
+								if (c->servertime > curtime)
+								{
+									if (sv_showpredloss.ival)
+										Con_Printf("%s: client is %u msecs in the future (anti speed cheat)\n", split->name, c->servertime - curtime);
+									break;	//from last map?... attempted speedcheat?
+								}
+
+								c->msec = c->servertime - split->lastruncmd;
+								SV_RunCmd (c, false);
+								split->lastruncmd = c->servertime;
+							}
 						}
-						SV_RunCmd (&newcmd, false);
+						else
+						{
+							if (net_drop < 20)
+							{
+								while (net_drop > 2)
+								{
+									SV_RunCmd (&split->lastcmd, false);
+									net_drop--;
+								}
+								if (net_drop > 1)
+									SV_RunCmd (&oldest, false);
+								if (net_drop > 0)
+									SV_RunCmd (&oldcmd, false);
+							}
+							SV_RunCmd (&newcmd, false);
+							host_client->lastruncmd = sv.time*1000;
+						}
 
 						if (!SV_PlayerPhysicsQC || host_client->spectator)
 							SV_PostRunCmd();
-						host_client->lastruncmd = sv.time*1000;
 					}
 
 				}
@@ -8131,7 +8167,7 @@ void SV_ExecuteClientMessage (client_t *cl)
 			break;
 
 		case clcfte_prydoncursor:
-			SV_ReadPrydonCursor();
+			SV_ReadPrydonCursor(&host_client->lastcmd);	//lame...
 			break;
 		case clcfte_qcrequest:
 			SV_ReadQCRequest();
@@ -8410,13 +8446,14 @@ void SVQ2_ExecuteClientMessage (client_t *cl)
 }
 #endif
 #ifdef NQPROT
-void SVNQ_ReadClientMove (usercmd_t *move, qboolean forceangle16)
+void SVNQ_ReadClientMove (qboolean forceangle16)
 {
 	int		i;
-	int		bits;
 	client_frame_t	*frame;
 	float timesincelast;
-	float cltime;
+
+	usercmd_t *from = &host_client->lastcmd;
+	usercmd_t cmd;
 
 	frame = &host_client->frameunion.frames[host_client->netchan.incoming_acknowledged & UPDATE_MASK];
 
@@ -8431,20 +8468,75 @@ void SVNQ_ReadClientMove (usercmd_t *move, qboolean forceangle16)
 	}
 	else
 		host_client->last_sequence = 0;
-	cltime = MSG_ReadFloat ();
-	if (cltime < move->fservertime)
-		cltime = move->fservertime;
-	if (cltime > sv.time)
-		cltime = sv.time;
-	if (cltime < sv.time - 2)	//if you do lag more than this, you won't get your free time.
-		cltime = sv.time - 2;
-	timesincelast = cltime - move->fservertime;
 
-	move->fservertime = cltime;
-	move->servertime = move->fservertime*1000;
+	if (host_client->fteprotocolextensions2 & PEXT2_VRINPUTS)
+	{	//this actually drops from 37 to 23 bytes (according to showpackets), so that's cool. obviously it goes up when vr inputs are actually networked...
+		MSGFTE_ReadDeltaUsercmd(&nullcmd, &cmd);
+		cmd.fservertime = cmd.servertime/1000.0;
+	}
+	else
+	{
+		cmd = nullcmd;
 
-	frame->ping_time = sv.time - cltime;
+		//read the time, woo... should be an ack of our serverside time.
+		cmd.fservertime = MSG_ReadFloat ();
+		if (cmd.fservertime < from->fservertime)
+			cmd.fservertime = from->fservertime;
+		if (cmd.fservertime > sv.time)
+			cmd.fservertime = sv.time;
+		if (cmd.fservertime < sv.time - 2)	//if you do lag more than this, you won't get your free time.
+			cmd.fservertime = sv.time - 2;
+		cmd.servertime = cmd.fservertime*1000;
 
+		//read angles
+		for (i=0 ; i<3 ; i++)
+		{
+			float a;
+			if (forceangle16)
+				a = MSG_ReadAngle16 ();
+			else
+				a = MSG_ReadAngle ();
+
+			cmd.angles[i] = ANGLE2SHORT(a);
+		}
+
+		// read movement
+		cmd.forwardmove = MSG_ReadShort ();
+		cmd.sidemove = MSG_ReadShort ();
+		cmd.upmove = MSG_ReadShort ();
+
+		// read buttons
+		if (host_client->protocol == SCP_DARKPLACES6 || host_client->protocol == SCP_DARKPLACES7)
+			cmd.buttons = MSG_ReadLong() | (1u<<31);
+		else if (host_client->fteprotocolextensions2 & PEXT2_PRYDONCURSOR)
+			cmd.buttons = MSG_ReadLong();
+		else
+			cmd.buttons = MSG_ReadByte ();
+
+		//impulse...
+		cmd.impulse = MSG_ReadByte ();
+
+		//weapon extension
+		if (cmd.buttons & (1u<<30))
+			cmd.weapon = MSG_ReadLong();
+		else
+			cmd.weapon = 0;
+
+		//cursor extension
+		if (cmd.buttons & (1u<<31))
+			SV_ReadPrydonCursor(&cmd);
+
+		//clear out extension buttons that are part of the protocol rather than actual buttons..
+		cmd.buttons &= ~((1u<<30)|(1u<<31));
+	}
+
+	//figure out ping
+	frame->ping_time = sv.time - cmd.fservertime;
+
+	//figure out how far we moved.
+	timesincelast = cmd.fservertime - from->fservertime;
+	cmd.msec=bound(0, timesincelast*1000, 250);
+	frame->move_msecs = timesincelast*1000;
 
 	if (frame->ping_time*1000 > sv_minping.value+1)
 	{
@@ -8459,35 +8551,11 @@ void SVNQ_ReadClientMove (usercmd_t *move, qboolean forceangle16)
 			host_client->delay = 1;
 	}
 
-
-// read current angles
-	for (i=0 ; i<3 ; i++)
-	{
-		if (forceangle16)
-			host_client->edict->v->v_angle[i] = MSG_ReadAngle16 ();
-		else
-			host_client->edict->v->v_angle[i] = MSG_ReadAngle ();
-
-		move->angles[i] = ANGLE2SHORT(host_client->edict->v->v_angle[i]);
-	}
-
-// read movement
-	move->forwardmove = MSG_ReadShort ();
-	move->sidemove = MSG_ReadShort ();
-	move->upmove = MSG_ReadShort ();
-
-	move->msec=bound(0, timesincelast*1000, 250);
-	frame->move_msecs = timesincelast*1000;
-
-// read buttons
-	if (host_client->protocol == SCP_DARKPLACES6 || host_client->protocol == SCP_DARKPLACES7 || (host_client->fteprotocolextensions2 & PEXT2_PRYDONCURSOR))
-		bits = MSG_ReadLong();
-	else
-		bits = MSG_ReadByte ();
 	if (host_client->spectator)
 	{
 		qboolean tracknext = false;
-		if (bits & (move->buttons ^ bits) & BUTTON_ATTACK)
+		unsigned int pressed = cmd.buttons & ~from->buttons;
+		if (pressed & BUTTON_ATTACK)
 		{	//enable/disable tracking
 			if (host_client->spec_track)
 			{	//disable tracking
@@ -8499,7 +8567,7 @@ void SVNQ_ReadClientMove (usercmd_t *move, qboolean forceangle16)
 			else	//otherwise track the next person, if we can
 				tracknext = true;
 		}
-		if ((bits & (move->buttons ^ bits) & BUTTON_JUMP) && host_client->spec_track)
+		if ((pressed & BUTTON_JUMP) && host_client->spec_track)
 			tracknext = true;
 
 		if (tracknext)
@@ -8530,19 +8598,14 @@ void SVNQ_ReadClientMove (usercmd_t *move, qboolean forceangle16)
 				SV_ClientTPrintf (host_client, PRINT_HIGH, "tracking %s\n", svs.clients[i-1].name);
 		}
 	}
-	move->buttons = bits;
 
-	i = MSG_ReadByte ();
-	move->impulse = i;
+	host_client->edict->v->v_angle[0] = SHORT2ANGLE(cmd.angles[0]);
+	host_client->edict->v->v_angle[1] = SHORT2ANGLE(cmd.angles[1]);
+	host_client->edict->v->v_angle[2] = SHORT2ANGLE(cmd.angles[2]);
 
-	if (host_client->protocol == SCP_DARKPLACES6 || host_client->protocol == SCP_DARKPLACES7 || (host_client->fteprotocolextensions2 & PEXT2_PRYDONCURSOR))
-	{
-		SV_ReadPrydonCursor();
-	}
-
-	if (SV_RunFullQCMovement(host_client, move))
-	{
-		host_client->msecs -= move->msec;
+	if (SV_RunFullQCMovement(host_client, &cmd))
+	{	//mod provides its own movement logic. this forces independance.
+		host_client->msecs -= cmd.msec;
 		pr_global_struct->time = sv.world.physicstime;
 		pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, sv_player);
 #ifdef VM_Q1
@@ -8555,33 +8618,31 @@ void SVNQ_ReadClientMove (usercmd_t *move, qboolean forceangle16)
 				PR_ExecuteProgram (svprogfuncs, pr_global_struct->PlayerPostThink);
 		}
 		host_client->isindependant = true;
-		return;
-	}
-
-
-//	if (i && SV_FilterImpulse(i, host_client->trustlevel))
-//		host_client->edict->v->impulse = i;
-
-	SV_SetEntityButtons(host_client->edict, bits);
-
-	if (host_client->last_sequence && !sv_nqplayerphysics.ival && host_client->state == cs_spawned)
-	{
-		host_frametime = timesincelast;
-
-		host_client->isindependant = true;
-		SV_PreRunCmd();
-		SV_RunCmd (move, false);
-		SV_PostRunCmd();
-		move->impulse = 0;
-		host_client->lastruncmd = sv.time*1000;
 	}
 	else
 	{
-		host_client->last_sequence = 0;	//let the client know that prediction is fucked, by not acking any input frames.
-		if (i)
-			host_client->edict->v->impulse = i;
-		host_client->isindependant = false;
+		SV_SetEntityButtons(host_client->edict, cmd.buttons);
+
+		if (host_client->last_sequence && !sv_nqplayerphysics.ival && host_client->state == cs_spawned)
+		{
+			host_frametime = timesincelast;
+
+			host_client->isindependant = true;
+			SV_PreRunCmd();
+			SV_RunCmd (&cmd, false);
+			SV_PostRunCmd();
+			cmd.impulse = 0;
+			host_client->lastruncmd = sv.time*1000;
+		}
+		else
+		{
+			host_client->last_sequence = 0;	//let the client know that prediction is fucked, by not acking any input frames.
+			if (cmd.impulse)
+				host_client->edict->v->impulse = cmd.impulse;
+			host_client->isindependant = false;
+		}
 	}
+	*from = cmd;
 }
 
 void SVNQ_ExecuteClientMessage (client_t *cl)
@@ -8665,7 +8726,8 @@ void SVNQ_ExecuteClientMessage (client_t *cl)
 				//Hack to work around buggy DP clients that don't reset the proquake hack for the next server
 				//this ONLY works because the other clc commands are very unlikely to both be 3 bytes big and sent unreliably
 				//aka: DP ProQuake angles hack hack
-				//note that if a client then decides to use 16bit coords because of this hack then it would be the 'fte dp proquake angles hack hack hack'....
+				//note that if a client then decides to use 16bit angles via this hack then it would be the 'fte dp proquake angles hack hack hack'....
+				if (!cl->fteprotocolextensions && !cl->fteprotocolextensions2)
 				if ((net_message.cursize-(msg_readcount-1) == 16 &&  cl->proquake_angles_hack) ||
 					(net_message.cursize-(msg_readcount-1) == 19 && !cl->proquake_angles_hack))
 				{
@@ -8683,7 +8745,7 @@ void SVNQ_ExecuteClientMessage (client_t *cl)
 				break;
 			}
 				
-			SVNQ_ReadClientMove (&cl->lastcmd, forceangle16);
+			SVNQ_ReadClientMove (forceangle16);
 //			cmd = host_client->lastcmd;
 //			SV_ClientThink();
 			break;
@@ -8767,6 +8829,7 @@ void SV_UserInit (void)
 	Cvar_Register (&sv_cheatpc, cvargroup_servercontrol);
 	Cvar_Register (&sv_cheatspeedchecktime, cvargroup_servercontrol);
 #endif
+	Cvar_Register (&sv_showpredloss, cvargroup_servercontrol);
 	Cvar_Register (&sv_playermodelchecks, cvargroup_servercontrol);
 
 	Cvar_Register (&sv_getrealip, cvargroup_servercontrol);

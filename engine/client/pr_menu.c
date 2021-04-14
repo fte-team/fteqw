@@ -3275,9 +3275,6 @@ void MP_RegisterCvarsAndCmds(void)
 	Cvar_Register(&forceqmenu, MENUPROGSGROUP);
 	Cvar_Register(&pr_menu_coreonerror, MENUPROGSGROUP);
 	Cvar_Register(&pr_menu_memsize, MENUPROGSGROUP);
-
-	if (COM_CheckParm("-qmenu"))
-		Cvar_Set(&forceqmenu, "1");
 }
 
 qboolean MP_UsingGamecodeLoadingScreen(void)

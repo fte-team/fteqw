@@ -588,7 +588,7 @@ void(vector mousepos) editor_terrain_overlay =
 	}
 	if (curtool == ter_tex)
 	{
-		if (texturesearch < 0)
+		if ((float)texturesearch < 0)
 			texturesearch = search_begin("textures/*", FALSE, TRUE);
 		if (texturesearchfirst > search_getsize(texturesearch)-4)
 			texturesearchfirst = search_getsize(texturesearch)-4;

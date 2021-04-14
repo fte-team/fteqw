@@ -563,7 +563,7 @@ enum qcop_e {
 	OPD_GOTO_WHILE1,
 
 	OP_NUMOPS,
-	OP_BIT_BREAKPOINT = 0x8000,
+#define OP_BIT_BREAKPOINT 0x8000
 };
 
 #define	MAX_PARMS	8

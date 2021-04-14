@@ -1919,6 +1919,8 @@ static void *QDECL PlugBI_GetEngineInterface(const char *interfacename, size_t s
 			M_FindKeysForBind,
 			Plug_Key_GetKeyBind,
 			Plug_Key_SetKeyBind,
+
+			IN_SetHandPosition,
 		};
 		if (structsize == sizeof(funcs))
 			return &funcs;
@@ -1959,7 +1961,7 @@ static void *QDECL PlugBI_GetEngineInterface(const char *interfacename, size_t s
 		return &iceapi;
 #endif
 #ifdef USERBE
-	if (!strcmp(interfacename, "RBE"))
+	if (!strcmp(interfacename, plugrbefuncs_name))
 	{
 		static rbeplugfuncs_t funcs =
 		{
@@ -1995,7 +1997,7 @@ static void *QDECL PlugBI_GetEngineInterface(const char *interfacename, size_t s
 	}
 #endif
 #ifdef SKELETALMODELS
-	if (!strcmp(interfacename, "Models"))
+	if (!strcmp(interfacename, plugmodfuncs_name))
 	{
 		static plugmodfuncs_t funcs =
 		{
@@ -2032,7 +2034,7 @@ static void *QDECL PlugBI_GetEngineInterface(const char *interfacename, size_t s
 #endif
 
 #ifdef TERRAIN
-	if (!strcmp(interfacename, "Terrain"))
+	if (!strcmp(interfacename, /*plugterrainfuncs_name*/"Terrain"))
 		return Terr_GetTerrainFuncs(structsize);
 #endif
 

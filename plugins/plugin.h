@@ -284,6 +284,7 @@ typedef struct	//for menu-like stuff
 	F(const char*,GetKeyBind,		(int bindmap, int keynum, int modifier));
 	F(void,		SetKeyBind,			(int bindmap, int keycode, int modifier, const char *newbinding));
 
+	F(qboolean,	SetHandPosition,	(const char *devname, vec3_t org, vec3_t ang, vec3_t vel, vec3_t avel));	//for VR.
 #define pluginputfuncs_name "Input"
 } pluginputfuncs_t;
 

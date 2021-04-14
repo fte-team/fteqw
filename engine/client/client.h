@@ -171,6 +171,7 @@ typedef struct player_info_s
 	int		frags;
 	int		ping;
 	qbyte	pl;
+	char	ruleset[19]; //has colour markup to say if its accepted or not
 
 	char	ip[128];
 
@@ -1066,6 +1067,7 @@ extern cvar_t ruleset_allow_sensitive_texture_replacements;
 extern cvar_t ruleset_allow_localvolume;
 extern cvar_t ruleset_allow_shaders;
 extern cvar_t ruleset_allow_watervis;
+extern cvar_t ruleset_allow_triggers;
 
 #ifndef SERVERONLY
 extern	client_state_t	cl;
@@ -1614,13 +1616,17 @@ void Skin_FlushAll(void);
 
 
 //valid.c
-void	RulesetLatch(cvar_t *cvar);
+#define RULESET_USERINFO	"*rs"	//the userinfo used to report the ruleset name to other clients. FIXME: remove the _dbg when we think its all working properly.
+void		Ruleset_Check(char *keyval, char *out, size_t outsize);
+void		Ruleset_Scan(void);
+void		Ruleset_Shutdown(void);
+const char *Ruleset_GetRulesetName(void);
+qboolean	Ruleset_FileLoaded(const char *filename, const qbyte *filedata, size_t filesize);	//return false if the file is not permitted.
 void	Validation_Apply_Ruleset(void);
 void	Validation_FlushFileList(void);
 void	Validation_CheckIfResponse(char *text);
 void	Validation_DelatchRulesets(void);
 void	InitValidation(void);
-void	Validation_FileLoaded(const char *filename, const qbyte *filedata, size_t filesize);
 void	Validation_Auto_Response(int playernum, char *s);
 
 extern	qboolean f_modified_particles;

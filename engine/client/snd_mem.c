@@ -994,8 +994,12 @@ static void S_LoadSoundWorker (void *ctx, void *ctxdata, size_t forcedecode, siz
 			}
 		}
 
-		if (data)
-			Validation_FileLoaded(name, data, filesize);
+		if (data && !Ruleset_FileLoaded(name, data, filesize))
+		{
+			BZ_Free(data);
+			data = NULL;
+			filesize = 0;
+		}
 	}
 
 	if (!data)

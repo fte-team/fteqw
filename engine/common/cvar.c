@@ -213,7 +213,7 @@ static char *Cvar_FlagToName(int flag)
 		return "serverinfo";
 	case CVAR_NOSET:
 		return "noset";
-	case CVAR_LATCH:
+	case CVAR_MAPLATCH:
 		return "latch";
 	case CVAR_POINTER:
 		return "pointer";
@@ -868,7 +868,7 @@ static cvar_t *Cvar_SetCore (cvar_t *var, const char *value, qboolean force)
 		;
 	else if (0)//var->flags & CVAR_SERVEROVERRIDE && !force)
 		latch = "variable %s is under server control - latched\n";
-	else if (var->flags & CVAR_LATCH && (sv_state || cls_state))
+	else if (var->flags & CVAR_MAPLATCH && (sv_state || cls_state))
 		latch = "variable %s is latched and will be applied for the start of the next map\n";
 //	else if (var->flags & CVAR_LATCHFLUSH)
 //		latch = "variable %s is latched (type flush)\n";
@@ -1017,12 +1017,12 @@ static cvar_t *Cvar_SetCore (cvar_t *var, const char *value, qboolean force)
 	return var;
 }
 
-qboolean Cvar_ApplyLatchFlag(cvar_t *var, char *value, int flag)
+qboolean Cvar_ApplyLatchFlag(cvar_t *var, char *value, unsigned int newflag, unsigned int ignoreflags)
 {
 	qboolean result = true;
 
 	char *latch;
-	var->flags &= ~flag;
+	var->flags &= ~newflag;
 	latch = var->latched_string;
 	var->latched_string = NULL;
 	if (!latch)
@@ -1033,10 +1033,11 @@ qboolean Cvar_ApplyLatchFlag(cvar_t *var, char *value, int flag)
 		latch = Z_StrDup(var->string);
 //		var->string = NULL;
 	}
-#ifdef warningmsg
-#pragma warningmsg("set or forceset?")
-#endif
+
+	ignoreflags = var->flags & ignoreflags;	//figure out which latching flags we're ignoring
+	var->flags -= ignoreflags;	//and clear them
 	Cvar_ForceSet(var, value);
+	var->flags |= ignoreflags;	//give them back.
 
 	if (var->latched_string)
 	{	//something else latched it
@@ -1045,7 +1046,7 @@ qboolean Cvar_ApplyLatchFlag(cvar_t *var, char *value, int flag)
 		result = false;
 	}
 	else
-		var->flags |= flag;
+		var->flags |= newflag;
 
 	if (latch)
 	{
@@ -1081,7 +1082,12 @@ void Cvar_ForceCheatVars(qboolean semicheats, qboolean absolutecheats)
 		if (var->flags & CVAR_CHEAT)
 		{
 			if (!absolutecheats)
-				Cvar_ForceSet(var, var->defaultstr);
+			{
+				if (var->enginevalue)
+					Cvar_ForceSet(var, var->enginevalue);
+				else
+					Cvar_ForceSet(var, var->defaultstr);
+			}
 			else
 				Cvar_ForceSet(var, latch);
 		}
@@ -1105,7 +1111,7 @@ void Cvar_ForceCheatVars(qboolean semicheats, qboolean absolutecheats)
 	}
 }
 
-int Cvar_ApplyLatches(int latchflag)
+int Cvar_ApplyLatches(int latchflag, qboolean clearflag)
 {
 	int result = 0;
 	cvar_group_t	*grp;
@@ -1113,7 +1119,7 @@ int Cvar_ApplyLatches(int latchflag)
 	int mask = ~0;
 	int of;
 
-	if (latchflag == CVAR_SERVEROVERRIDE || latchflag == CVAR_RULESETLATCH)	//these ones are cleared
+	if (clearflag)	//these flags are cleared from cvars.
 		mask = ~latchflag;
 
 	for (grp=cvar_groups ; grp ; grp=grp->next)
@@ -1243,7 +1249,7 @@ qboolean Cvar_Register (cvar_t *variable, const char *groupname)
 
 // check to see if it has already been defined
 	old = Cvar_FindVar (variable->name);
-	if (old && variable->name2)
+	if (!old && variable->name2)
 		old = Cvar_FindVar (variable->name2);
 	if (old)
 	{
@@ -1419,7 +1425,7 @@ qboolean	Cvar_Command (int level)
 	{
 		if (v->latched_string)
 		{
-			if (v->flags & CVAR_LATCH)
+			if (v->flags & CVAR_MAPLATCH)
 			{
 				Con_TPrintf ("\"%s\" is currently \"%s\"\n", v->name, COM_QuotedString(v->string, buffer, sizeof(buffer), true));
 				Con_TPrintf ("Will be changed to \"%s\" on the next map\n", COM_QuotedString(v->latched_string, buffer, sizeof(buffer), true));

@@ -68,6 +68,7 @@ ENDIF()
 
 SET(FTE_BUILD_CONFIG ${CMAKE_HOME_DIRECTORY}/engine/common/config_fteqw.h CACHE FILEPATH "Which build config file to use to control supported features.")
 SET(FTE_LIB_DEFINES ${FTE_LIB_DEFINES};CONFIG_FILE_NAME=${FTE_BUILD_CONFIG})
+SET(FTE_USE_SDL false CACHE BOOL "Force the use of SDL instead of using native builds.")
 
 IF(NOT WIN32)
 	SET(SYS_LIBS ${SYS_LIBS} m)
@@ -166,6 +167,7 @@ IF(CMAKE_C_COMPILER_ID MATCHES "GNU")
 	set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wformat-truncation=1")
 	#TODO SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wmissing-prototypes")			#for finding missing statics.
 	#SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wno-unused-function")			#
+#	set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wswitch-enum")					#to warn about omitted enums despite default.
 
 	#might as well do this, public builds use the regular Makefile.
 	set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -march=native")
@@ -184,6 +186,7 @@ IF(CMAKE_BUILD_TYPE MATCHES "Debug")
 	set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -std=gnu89")
 	set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -D_DEBUG")
 ENDIF()
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -D_FILE_OFFSET_BITS=64")
 
 IF(${ANDROID})
 #	FIND_PACKAGE(Freetype REQUIRED)
@@ -244,16 +247,35 @@ ELSEIF(${WIN32})
 		engine/common/fs_win32.c
 		engine/server/sv_sys_win.c
 	)
-ELSEIF(${UNIX})	#linux(ish)
+ELSEIF(${UNIX} AND NOT FTE_USE_SDL)	#linux(ish)
 				#openbsd will have issues with snd_linux.c
 
-	#linux-only packages
+	IF(FTE_PRIVATE_USE_ONLY)
+		#the openssl license is incompatible with the GPL, so while we have code to use it distributing the binaries built with it is not a (legal) option.
+		#note that openssl 3.0.0 upwards are apache-2 licensed, which IS gpl-3 compatible. debian has not caught up with that yet, however.
+		FIND_PACKAGE(OpenSSL)
+		IF(NOT OPENSSL_FOUND)
+			MESSAGE(WARNING "openssl library NOT available. HTTPS/DTLS will not be available.")
+		ELSEIF(OPENSSL_VERSION_MAJOR LESS 3 AND NOT FTE_PRIVATE_USE_ONLY)
+			MESSAGE(WARNING "openssl library version is not 3 or above. Ignoring due to incompatible license.")
+		ELSE()
+		MESSAGE(WARNING "Using openssl.")
+			SET(FTE_LIB_DEFINES ${FTE_LIB_DEFINES};HAVE_OPENSSL)
+
+			SET(FTE_ARCH_FILES ${FTE_ARCH_FILES} engine/common/net_ssl_openssl.c)
+			SET(FTE_LIBS ${FTE_LIBS} ${OPENSSL_LIBRARIES})
+			SET(FTESV_ARCH_FILES ${FTESV_ARCH_FILES} engine/common/net_ssl_openssl.c)
+			SET(FTESV_LIBS ${FTESV_LIBS} ${OPENSSL_LIBRARIES})
+		ENDIF()
+	ENDIF()
+
 	FIND_PACKAGE(GnuTLS)
 	IF(NOT GNUTLS_FOUND)
 		MESSAGE(WARNING "gnutls library NOT available. HTTPS/DTLS will not be available.")
 		SET(FTE_LIB_DEFINES ${FTE_LIB_DEFINES};NO_GNUTLS)
 	ENDIF()
 
+	#linux-only packages
 	FIND_PACKAGE(ALSA)
 	IF(ALSA_FOUND)
 		SET(FTE_LIB_DEFINES ${FTE_LIB_DEFINES};AUDIO_ALSA;AUDIO_PULSE)
@@ -278,7 +300,7 @@ ELSEIF(${UNIX})	#linux(ish)
 
 	SET(FTE_DEFINES ${FTE_DEFINES};DYNAMIC_SDL;MULTITHREAD)
 	SET(FTE_LIBS ${FTE_LIBS} ${SYS_LIBS} ${CMAKE_DL_LIBS} pthread ${SDL2_LIBRARIES})
-	SET(FTE_ARCH_FILES
+	SET(FTE_ARCH_FILES ${FTE_ARCH_FILES}
 		engine/client/sys_linux.c
 		engine/common/sys_linux_threads.c
 		engine/common/net_ssl_gnutls.c
@@ -307,10 +329,14 @@ ELSEIF(${UNIX})	#linux(ish)
 		SET(FTE_LIBS ${FTE_LIBS} ${OSSAUDIO_LIBRARY})
 	ENDIF()
 
-	#on linux, use wayland.
+	#on linux, use wayland (we normally dynamically link, but we still need headers).
 	FIND_LIBRARY(
 		WAYLAND_CLIENT_LIBRARY
 		NAMES wayland-client libwayland-client
+	)
+	FIND_LIBRARY(
+		WAYLAND_EGL
+		NAMES wayland-egl
 	)
 	FIND_LIBRARY(
 		HAVE_XKBCOMMON
@@ -320,7 +346,10 @@ ELSEIF(${UNIX})	#linux(ish)
 		MESSAGE(WARNING "xkbcommon library not found, needed for wayland to be usable.")
 		UNSET(WAYLAND_CLIENT_LIBRARY)
 	ENDIF()
-	IF(WAYLAND_CLIENT_LIBRARY)
+	IF(WAYLAND_CLIENT_LIBRARY AND WAYLAND_EGL)
+#		SET(FTE_LIBS ${FTE_LIBS} ${WAYLAND_CLIENT_LIBRARY} ${HAVE_XKBCOMMON} ${WAYLAND_EGL})
+#		SET(FTE_DEFINES ${FTE_DEFINES};STATIC_WAYLAND)
+
 		SET(FTE_DEFINES ${FTE_DEFINES};WAYLANDQUAKE;USE_EGL)
 		SET(FTE_ARCH_FILES ${FTE_ARCH_FILES}
 			engine/gl/gl_vidwayland.c
@@ -334,7 +363,7 @@ ELSEIF(${UNIX})	#linux(ish)
 	ENDIF()
 
 	SET(FTESV_DEFINES MULTITHREAD)
-	SET(FTESV_ARCH_FILES 
+	SET(FTESV_ARCH_FILES ${FTESV_ARCH_FILES}
 		engine/server/sv_sys_unix.c
 		engine/common/sys_linux_threads.c
 		engine/common/net_ssl_gnutls.c
@@ -451,10 +480,30 @@ SET(FTE_VK_FILES
 	engine/vk/vk_backend.c
 	engine/vk/vk_init.c
 )
+SET(FTE_QCVM_FILES
+	engine/qclib/comprout.c
+	engine/qclib/initlib.c
+	engine/qclib/pr_edict.c
+	engine/qclib/pr_exec.c
+	engine/qclib/pr_multi.c
+	engine/qclib/qcc_cmdlib.c
+	engine/qclib/qcc_pr_comp.c
+	engine/qclib/qcc_pr_lex.c
+#	engine/qclib/decomp.c
+#	engine/qclib/packager.c
+#	engine/qclib/pr_x86.c
+#	engine/qclib/qccgui.c
+#	engine/qclib/qccguistuff.c
+#	engine/qclib/qcctui.c
+	engine/qclib/qccmain.c
+	engine/qclib/qcd_main.c
+	engine/qclib/qcdecomp.c
+)
 SET(FTE_COMMON_FILES
 	#these files are common to both server-only and client+server builds.
 	engine/common/cmd.c
 	engine/common/com_mesh.c
+	engine/common/com_bih.c
 	engine/common/common.c
 	engine/common/crc.c
 	engine/common/cvar.c
@@ -583,6 +632,17 @@ SET(FTE_COMMON_FILES
 	engine/gl/gl_hlmdl.c
 	engine/gl/gl_model.c
 	
+	engine/server/sv_move.c
+	engine/server/sv_phys.c
+	engine/server/world.c
+	
+	${FTE_QCVM_FILES}
+	engine/qclib/hash.c
+	
+	engine/http/httpclient.c
+)
+
+SET(FTE_SERVER_FILES
 	engine/server/net_preparse.c
 	engine/server/pr_cmds.c
 	engine/server/pr_lua.c
@@ -596,10 +656,8 @@ SET(FTE_COMMON_FILES
 	engine/server/sv_init.c
 	engine/server/sv_main.c
 	engine/server/sv_master.c
-	engine/server/sv_move.c
 	engine/server/sv_mvd.c
 	engine/server/sv_nchan.c
-	engine/server/sv_phys.c
 	engine/server/sv_rankin.c
 	engine/server/sv_send.c
 	engine/server/sv_sql.c
@@ -610,28 +668,6 @@ SET(FTE_COMMON_FILES
 	engine/server/svq2_ents.c
 	engine/server/svq2_game.c
 	engine/server/svq3_game.c
-	engine/server/world.c
-	
-	engine/qclib/comprout.c
-	engine/qclib/hash.c
-	engine/qclib/initlib.c
-	engine/qclib/pr_edict.c
-	engine/qclib/pr_exec.c
-	engine/qclib/pr_multi.c
-	engine/qclib/qcc_cmdlib.c
-	engine/qclib/qcc_pr_comp.c
-	engine/qclib/qcc_pr_lex.c
-#	engine/qclib/decomp.c
-#	engine/qclib/packager.c
-#	engine/qclib/pr_x86.c
-#	engine/qclib/qccgui.c
-#	engine/qclib/qccguistuff.c
-#	engine/qclib/qcctui.c
-	engine/qclib/qccmain.c
-	engine/qclib/qcd_main.c
-	engine/qclib/qcdecomp.c
-	
-	engine/http/httpclient.c
 )
 
 #these files are only in the client
@@ -786,6 +822,7 @@ ELSE()
 		${FTE_ARCH_FILES}
 		${FTE_COMMON_FILES}
 		${FTE_CLIENT_FILES}
+		${FTE_SERVER_FILES}
 	)
 	SET_TARGET_PROPERTIES(fteqw PROPERTIES COMPILE_DEFINITIONS "${FTE_LIB_DEFINES};${FTE_DEFINES};${FTE_REVISON}")
 	TARGET_LINK_LIBRARIES(fteqw ${FTE_LIBS})
@@ -794,10 +831,28 @@ ELSE()
 	ADD_EXECUTABLE(fteqw-sv
 		${FTESV_ARCH_FILES}
 		${FTE_COMMON_FILES}
+		${FTE_SERVER_FILES}
 	)
 	SET_TARGET_PROPERTIES(fteqw-sv PROPERTIES COMPILE_DEFINITIONS "SERVERONLY;${FTE_LIB_DEFINES};${FTESV_DEFINES};${FTE_REVISON}")
 	TARGET_LINK_LIBRARIES(fteqw-sv ${FTESV_LIBS})
 	SET(INSTALLTARGS ${INSTALLTARGS} fteqw-sv)
+
+	IF(0)
+		ADD_EXECUTABLE(fteqw-cl
+			${FTE_ARCH_FILES}
+			${FTE_COMMON_FILES}
+			${FTE_CLIENT_FILES}
+		)
+		SET_TARGET_PROPERTIES(fteqw-cl PROPERTIES COMPILE_DEFINITIONS "CLIENTONLY;${FTE_LIB_DEFINES};${FTE_DEFINES};${FTE_REVISON}")
+		TARGET_LINK_LIBRARIES(fteqw-cl ${FTE_LIBS})
+		SET(INSTALLTARGS ${INSTALLTARGS} fteqw-cl)
+	ENDIF()
+
+	FIND_PACKAGE(SDL2 REQUIRED)
+	IF(SDL2_FOUND)
+		SET(FTE_SDL2 FTE_SDL)
+		SET(FTE_SDL2_INCLUDES ${SDL2_INCLUDE_DIRS})
+	ENDIF()
 
 	ADD_EXECUTABLE(iqmtool
 		iqm/iqm.cpp
@@ -814,7 +869,8 @@ ELSE()
 		engine/client/image.c
 		imgtool.c
 	)
-	SET_TARGET_PROPERTIES(imgtool PROPERTIES COMPILE_DEFINITIONS "IMGTOOL;${FTE_LIB_DEFINES};${FTE_DEFINES};${FTE_REVISON}")
+	TARGET_INCLUDE_DIRECTORIES(imgtool PUBLIC ${FTE_SDL2_INCLUDES})
+	SET_TARGET_PROPERTIES(imgtool PROPERTIES COMPILE_DEFINITIONS "IMGTOOL;${FTE_LIB_DEFINES};${FTE_DEFINES};${FTE_REVISON};${FTE_SDL2}")
 	TARGET_LINK_LIBRARIES(imgtool ${FTE_LIBS} )
 	SET(INSTALLTARGS ${INSTALLTARGS} imgtool)
 
@@ -888,6 +944,7 @@ ELSE()
 		engine/qclib/qcc_pr_lex.c
 		engine/qclib/qccmain.c
 		engine/qclib/qcd_main.c
+		engine/qclib/packager.c
 	)
 	SET_TARGET_PROPERTIES(fteqcc PROPERTIES COMPILE_DEFINITIONS "${FTE_LIB_DEFINES};${FTE_REVISON}")
 	TARGET_LINK_LIBRARIES(fteqcc ${FTEQCC_LIBS} ${SYS_LIBS})
@@ -938,7 +995,7 @@ ELSE()
 				engine/qclib/qcc_pr_lex.c
 				engine/qclib/qccmain.c
 				engine/qclib/decomp.c
-				engine/qclib/packager.c
+#				engine/qclib/packager.c
 				engine/qclib/qcd_main.c
 			)
 			TARGET_INCLUDE_DIRECTORIES(fteqccgui PUBLIC ${Qt5Widgets_INCLUDE_DIRS} ${QSCINTILLA_INCLUDE_DIR})
@@ -950,6 +1007,29 @@ ELSE()
 			MESSAGE(WARNING "qscintilla/qt5widgets library not detected, no fteqccgui for you")
 		ENDIF()
 	ENDIF()
+ENDIF()
+
+IF(0)
+	#software renderer plugin
+	#not stable enough, and probably won't ever be
+	ADD_LIBRARY(sw MODULE
+		plugins/plugin.c
+		engine/sw/sw_backend.c
+		engine/sw/sw_image.c
+		engine/sw/sw_rast.c
+		#engine/sw/sw_viddos.c
+#		engine/sw/sw_vidwin.c
+		engine/common/mathlib.c
+#		engine/client/in_win.c
+
+		engine/sw/sw.h
+		engine/sw/sw_spans.h
+	)
+	SET_TARGET_PROPERTIES(sw PROPERTIES COMPILE_DEFINITIONS "FTEPLUGIN;${FTE_LIB_DEFINES};SWQUAKE")
+	SET_TARGET_PROPERTIES(sw PROPERTIES PREFIX "fteplug_")
+	SET_TARGET_PROPERTIES(sw PROPERTIES LINK_FLAGS "-Wl,--no-undefined")
+	TARGET_LINK_LIBRARIES(sw ${SYS_LIBS})
+	SET(INSTALLTARGS ${INSTALLTARGS} sw)
 ENDIF()
 
 #Quake Injector Alike plugin
@@ -1088,6 +1168,27 @@ ELSE()
 	MESSAGE(WARNING "ffmpeg library NOT available. Quake shouldn't be playing fmv anyway.")
 ENDIF()
 
+IF(0)
+	#timidity
+	FIND_PATH(TIMIDITY_INCLUDE_DIR timidity/timidity.h)
+	IF(TIMIDITY_INCLUDE_DIR)
+		FIND_LIBRARY(TIMIDITY_LIBRARY timidity)
+
+		ADD_LIBRARY(timidity MODULE
+			plugins/plugin.c
+			plugins/timidity.c
+		)
+		TARGET_INCLUDE_DIRECTORIES(timidity PUBLIC ${TIMIDITY_INCLUDE_DIR})
+		SET_TARGET_PROPERTIES(timidity PROPERTIES LINK_FLAGS "-Wl,--no-undefined")
+		TARGET_LINK_LIBRARIES(timidity ${SYS_LIBS} ${TIMIDITY_LIBRARY})
+		SET_TARGET_PROPERTIES(timidity PROPERTIES COMPILE_DEFINITIONS "FTEPLUGIN;${FTE_LIB_DEFINES}")
+		SET_TARGET_PROPERTIES(timidity PROPERTIES PREFIX "fteplug_")
+		SET(INSTALLTARGS ${INSTALLTARGS} timidity)
+	ELSE()
+		MESSAGE(WARNING "timidity library NOT available. We'll just stick to fake-cd music for hexen2.")
+	ENDIF()
+ENDIF()
+
 #openxr plugin
 FIND_PACKAGE(PkgConfig)
 IF (PKGCONFIG_FOUND)
@@ -1149,6 +1250,7 @@ IF(NOT ANDROID)
 		plugins/jabber/jingle.c
 		plugins/jabber/sift.c
 		engine/common/sha1.c
+		engine/common/sha2.c
 		plugins/emailnot/md5.c
 	)
 	SET_TARGET_PROPERTIES(xmpp PROPERTIES COMPILE_DEFINITIONS "FTEPLUGIN;${FTE_LIB_DEFINES}")
@@ -1164,11 +1266,11 @@ ENDIF()
 INCLUDE(GNUInstallDirs)
 SET(FTE_INSTALL_BINDIR games CACHE STRING "Binary dir to install to.")
 INSTALL(TARGETS ${INSTALLTARGS}
-	RUNTIME DESTINATION "${CMAKE_INSTALL_PREFIX}${FTE_INSTALL_BINDIR}"
+	RUNTIME DESTINATION "${CMAKE_INSTALL_PREFIX}/${FTE_INSTALL_BINDIR}"
 	LIBRARY DESTINATION "${CMAKE_INSTALL_FULL_LIBDIR}"
 )
 
-IF (0)
+IF (1)
 	ADD_CUSTOM_TARGET(menusys ALL
 		VERBATIM
 		COMMAND fteqcc -srcfile "${CMAKE_CURRENT_SOURCE_DIR}/quakec/menusys/menu.src" -o "${CMAKE_CURRENT_BINARY_DIR}/menu.dat"

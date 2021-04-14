@@ -61,6 +61,7 @@ static FT_Library fontlib;
 #define pFT_New_Face		FT_New_Face
 #define pFT_New_Memory_Face	FT_New_Memory_Face
 #define pFT_Done_Face		FT_Done_Face
+#define pFT_Error_String	FT_Error_String
 #else
 qboolean triedtoloadfreetype;
 dllhandle_t *fontmodule;
@@ -72,6 +73,7 @@ FT_Error (VARGS *pFT_Select_Size)		(FT_Face face, FT_Int strike_index);
 FT_Error (VARGS *pFT_New_Face)			(FT_Library library, const char *pathname, FT_Long face_index, FT_Face *aface);
 FT_Error (VARGS *pFT_New_Memory_Face)	(FT_Library library, const FT_Byte* file_base, FT_Long file_size, FT_Long face_index, FT_Face *aface);
 FT_Error (VARGS *pFT_Done_Face)			(FT_Face face);
+const char *(VARGS *pFT_Error_String)	(FT_Error  error_code);
 #endif
 #else
 typedef unsigned int FT_Pixel_Mode; //for consistency even without freetype support.
@@ -1674,6 +1676,7 @@ qboolean Font_LoadFreeTypeFont(struct font_s *f, int height, const char *fontfil
 			{(void**)&pFT_New_Memory_Face, "FT_New_Memory_Face"},
 			{(void**)&pFT_Init_FreeType, "FT_Init_FreeType"},
 			{(void**)&pFT_Done_Face, "FT_Done_Face"},
+			{(void**)&pFT_Error_String, "FT_Error_String"},
 			{NULL, NULL}
 		};
 		if (triedtoloadfreetype)
@@ -1800,7 +1803,7 @@ qboolean Font_LoadFreeTypeFont(struct font_s *f, int height, const char *fontfil
 		Z_Free(qface);
 	}
 	if (error && error != FT_Err_Cannot_Open_Resource)
-		Con_Printf("Freetype error: %i\n", error);
+		Con_Printf("Freetype(%s): error %i - %s\n", fontfilename, error, pFT_Error_String(error));
 	if (fbase)
 		BZ_Free(fbase);
 
@@ -2067,7 +2070,7 @@ static qboolean Font_LoadFontLump(font_t *f, const char *facename)
 
 		if (con_ocranaleds.ival)
 		{
-			if (con_ocranaleds.ival != 2 || QCRC_Block(lumpdata, 128*128) == 798)
+			if (con_ocranaleds.ival != 2 || CalcHashInt(&hash_crc16, lumpdata, 128*128) == 798)
 				AddOcranaLEDsIndexed (lumpdata, 128, 128);
 		}
 

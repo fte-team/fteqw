@@ -5,6 +5,7 @@
 char shaders[][64] =
 {
 	"fixedemu",
+	"fixedemu_flat",
 	"q3terrain",
 	"altwater",
 	"bloom_blur",

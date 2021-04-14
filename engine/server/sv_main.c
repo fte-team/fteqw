@@ -135,6 +135,7 @@ cvar_t sv_use_dns			= CVARD("sv_use_dns", "", "Performs a reverse-dns lookup in 
 extern cvar_t net_enable_dtls;
 cvar_t sv_reportheartbeats	= CVARD("sv_reportheartbeats", "2", "Print a notice each time a heartbeat is sent to a master server. When set to 2, the message will be displayed once.");
 cvar_t sv_heartbeat_interval = CVARD("sv_heartbeat_interval", "110", "Interval between heartbeats. Low values are abusive, high values may cause NAT/ghost issues.");
+cvar_t sv_heartbeat_checks	= CVARD("sv_heartbeat_checks", "1", "Report when sv_public 1 fails due to PROBABLE router/NAT issues.");
 cvar_t sv_highchars			= CVAR("sv_highchars", "1");
 cvar_t sv_maxrate			= CVARCD("sv_maxrate", "50000", CvarPostfixKMG, "This controls the maximum number of bytes any indivual player may receive (when not downloading). The individual user's rate will also be controlled by the user's rate cvar.");
 cvar_t sv_maxdrate			= CVARAFCD("sv_maxdrate", "500000",
@@ -142,7 +143,7 @@ cvar_t sv_maxdrate			= CVARAFCD("sv_maxdrate", "500000",
 cvar_t sv_minping			= CVARFD("sv_minping", "", CVAR_SERVERINFO, "Simulate fake lag for any players with a ping under the value specified here. Value is in milliseconds.");
 
 cvar_t sv_bigcoords			= CVARFD("sv_bigcoords", "1", 0, "Uses floats for coordinates instead of 16bit values.\nAlso boosts angle precision, so can be useful even on small maps.\nAffects clients thusly:\nQW: enforces a mandatory protocol extension\nDP: enables DPP7 protocol support\nNQ: uses RMQ protocol (protocol 999).");
-cvar_t sv_calcphs			= CVARFD("sv_calcphs", "2", CVAR_LATCH, "Enables culling of sound effects. 0=always skip phs. Sounds are globally broadcast. 1=always generate phs. Sounds are always culled. On large maps the phs will be dumped to disk. 2=On large single-player maps, generation of phs is skipped. Otherwise like option 1.");
+cvar_t sv_calcphs			= CVARFD("sv_calcphs", "2", CVAR_MAPLATCH, "Enables culling of sound effects. 0=always skip phs. Sounds are globally broadcast. 1=always generate phs. Sounds are always culled. On large maps the phs will be dumped to disk. 2=On large single-player maps, generation of phs is skipped. Otherwise like option 1.");
 
 cvar_t sv_showconnectionlessmessages	= CVARD("sv_showconnectionlessmessages", "0", "Display a line describing each connectionless message that arrives on the server. Primarily a debugging feature, but also potentially useful to admins.");
 cvar_t sv_cullplayers_trace		= CVARFD("sv_cullplayers_trace", "", CVAR_SERVERINFO, "Attempt to cull player entities using tracelines as an anti-wallhack.");
@@ -1198,7 +1199,7 @@ static void SVC_Status (void)
 }
 
 #if 1//def NQPROT
-static void SVC_GetInfo (char *challenge, int fullstatus)
+static void SVC_GetInfo (const char *challenge, int fullstatus)
 {
 	//dpmaster support
 	char response[MAX_UDP_PACKET];
@@ -3847,7 +3848,7 @@ qboolean SVC_ThrottleInfo (void)
 	static unsigned int blockuntil;
 	unsigned int curtime, inc = 1000/THROTTLE_PPS;
 
-	if (Net_AddressIsMaster(&net_from))
+	if (SV_Master_AddressIsMaster(&net_from))
 		return true; //allow it without contributing to any throttling.
 
 	curtime = Sys_Milliseconds();
@@ -4018,8 +4019,13 @@ qboolean SV_ConnectionlessPacket (void)
 	else if (!strcmp(c, "getinfo"))
 	{	//q3/dpmaster support
 		if (sv_public.ival >= 0)
+		{
+			const char *chal = Cmd_Args();
+			SV_Master_HeartbeatResponse(&net_from, chal);
+
 			if (SVC_ThrottleInfo())
-				SVC_GetInfo(Cmd_Args(), false);
+				SVC_GetInfo(chal, false);
+		}
 	}
 	else if (!strcmp(c, "rcon"))
 	{
@@ -4525,11 +4531,22 @@ void SV_ReadPacket(void)
 				if (cl->delay > 0)
 					goto dominping;
 
-				if (NQNetChan_Process(&cl->netchan))
+				switch(NQNetChan_Process(&cl->netchan))
 				{
+				case NQNC_IGNORED:
+					break;
+				case NQNC_ACK:
+					if (cl->netchan.message.cursize)
+						inboundsequence++;	//we need to wake up...
+					if (cl->netchan.reliable_length > cl->netchan.reliable_start)
+						inboundsequence++;	//we need to wake up...
+					break;
+				case NQNC_RELIABLE:
+				case NQNC_UNRELIABLE:
 					inboundsequence++;
 					svs.stats.packets++;
 					SVNQ_ExecuteClientMessage(cl);
+					break;
 				}
 			}
 			break;
@@ -5063,7 +5080,7 @@ float SV_Frame (void)
 		svs.framenum = 0;
 
 	delay = sv_maxtic.value;
-	if (isDedicated && sv.spawned_client_slots == 0 && sv.spawned_observer_slots == 0)
+	if (isDedicated && sv.allocated_client_slots == 0)
 		delay = max(delay, 1);	//when idle, don't keep waking up for no reason
 
 // keep the random time dependent
@@ -5477,6 +5494,8 @@ void SV_InitLocal (void)
 	SVNET_RegisterCvars();
 
 	Cvar_Register (&sv_reportheartbeats, cvargroup_servercontrol);
+	Cvar_Register (&sv_heartbeat_interval, cvargroup_servercontrol);
+	Cvar_Register (&sv_heartbeat_checks, cvargroup_servercontrol);
 
 	Cvar_Register (&sv_showconnectionlessmessages, cvargroup_servercontrol);
 	Cvar_Register (&sv_banproxies, cvargroup_serverpermissions);

@@ -1624,7 +1624,7 @@ void GLBE_Init(void)
 		(!gl_config.tex_env_combine && !gl_config_nofixedfunc)
 #endif
 		&& gl_overbright.ival)
-		Cvar_ApplyLatchFlag(&gl_overbright, "0", CVAR_RENDERERLATCH);
+		Cvar_ApplyLatchFlag(&gl_overbright, "0", CVAR_RENDERERLATCH, 0);
 	shaderstate.shaderbits = ~SBITS_ATEST_BITS;
 	BE_SendPassBlendDepthMask(0);
 	currententity = &r_worldentity;
@@ -1770,7 +1770,10 @@ static void GenerateTCFog(int passnum, mfog_t *fog)
 	for (m = 0; m < shaderstate.meshcount; m++)
 	{
 		mesh = shaderstate.meshes[m];
-		tcgen_fog(texcoordarray[passnum]+mesh->vbofirstvert*2, mesh->numvertexes, (float*)mesh->xyz_array, fog);
+		if (!mesh->xyz_array)
+			memset(texcoordarray[passnum]+mesh->vbofirstvert*2, 0, mesh->numvertexes*sizeof(float)*2);
+		else
+			tcgen_fog(texcoordarray[passnum]+mesh->vbofirstvert*2, mesh->numvertexes, (float*)mesh->xyz_array, fog);
 	}
 
 	shaderstate.pendingtexcoordparts[passnum] = 2;

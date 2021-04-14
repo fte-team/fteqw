@@ -1348,7 +1348,7 @@ R_BuildLightMap
 Combine and scale multiple lightmaps into the 8.8 format in blocklights
 ===============
 */
-static void Surf_BuildLightMap (model_t *currentmodel, msurface_t *surf, int map, int shift, int ambient, int *d_lightstylevalue)
+static void Surf_BuildLightMap (model_t *model, msurface_t *surf, int map, int shift, int ambient, int *d_lightstylevalue)
 {
 	int			smax = (surf->extents[0]>>surf->lmshift)+1;
 	int			tmax = (surf->extents[1]>>surf->lmshift)+1;
@@ -1398,7 +1398,7 @@ static void Surf_BuildLightMap (model_t *currentmodel, msurface_t *surf, int map
 		stainsrc = lm->stainmaps + (surf->light_t[map] * lm->width + surf->light_s[map]) * 3;
 
 	lm->modified = true;
-	if (lm->hasdeluxe && currentmodel->deluxdata)
+	if (lm->hasdeluxe && model->deluxdata)
 	{
 		lightmapinfo_t *dlm = lightmap[surf->lightmaptexturenums[map]+1];
 		dlm->modified = true;
@@ -1414,7 +1414,7 @@ static void Surf_BuildLightMap (model_t *currentmodel, msurface_t *surf, int map
 
 		deluxedest = dlm->lightmaps + (surf->light_t[map] * dlm->width + surf->light_s[map]) * dlm->pixbytes;
 
-		Surf_BuildDeluxMap(currentmodel, surf, deluxedest, dlm, blocknormals);
+		Surf_BuildDeluxMap(model, surf, deluxedest, dlm, blocknormals);
 	}
 
 	if (lm->fmt != PTI_L8)
@@ -1449,7 +1449,7 @@ static void Surf_BuildLightMap (model_t *currentmodel, msurface_t *surf, int map
 				}
 			}
 		}
-		else if (!currentmodel->lightdata)
+		else if (!model->lightdata)
 		{
 			/*fullbright if map is not lit. but not overbright*/
 			for (i=0 ; i<size*3 ; i++)
@@ -1480,9 +1480,9 @@ static void Surf_BuildLightMap (model_t *currentmodel, msurface_t *surf, int map
 // add all the lightmaps
 			if (src)
 			{
-				if (currentmodel->fromgame == fg_quake3)
+				if (model->fromgame == fg_quake3)
 					Sys_Error("Surf_BuildLightMap: q3bsp");
-				switch(currentmodel->lightmaps.fmt)
+				switch(model->lightmaps.fmt)
 				{
 				case LM_E5BGR9:
 					for (maps = 0 ; maps < MAXCPULIGHTMAPS && surf->styles[maps] != INVALID_LIGHTSTYLE ; maps++)
@@ -1589,7 +1589,7 @@ static void Surf_BuildLightMap (model_t *currentmodel, msurface_t *surf, int map
 				}
 			}
 		}
-		else if (!currentmodel->lightdata)
+		else if (!model->lightdata)
 		{	//no scalers here.
 			for (i=0 ; i<size ; i++)
 				blocklights[i] = 255*256;
@@ -1613,7 +1613,7 @@ static void Surf_BuildLightMap (model_t *currentmodel, msurface_t *surf, int map
 // add all the lightmaps
 			if (src)
 			{
-				switch(currentmodel->lightmaps.fmt)
+				switch(model->lightmaps.fmt)
 				{
 				case LM_E5BGR9:
 					for (maps = 0 ; maps < MAXCPULIGHTMAPS && surf->styles[maps] != INVALID_LIGHTSTYLE ; maps++)
@@ -2699,7 +2699,7 @@ void Surf_SetupFrame(void)
 	vec3_t	temp, pvsorg;
 	int viewcontents;
 
-	if (!cl.worldmodel || (!cl.worldmodel->nodes && cl.worldmodel->type != mod_heightmap))
+	if (!cl.worldmodel || cl.worldmodel->loadstate!=MLS_LOADED)
 		r_refdef.flags |= RDF_NOWORLDMODEL;
 
 	R_AnimateLight();
@@ -3374,7 +3374,7 @@ void Surf_DrawWorld (void)
 		Surf_LightmapShift(currentmodel);
 
 #ifdef THREADEDWORLD
-		if ((r_temporalscenecache.ival || currentmodel->numbatches) && !r_refdef.recurse && currentmodel->type == mod_brush)
+		if ((r_temporalscenecache.ival /*|| currentmodel->numbatches*/) && !r_refdef.recurse && currentmodel->type == mod_brush)
 		{
 			struct webostate_s *webostate, *best = NULL, *kill, **link;
 			vec_t bestdist = FLT_MAX;
@@ -3608,16 +3608,13 @@ void Surf_DrawWorld (void)
 
 		Surf_PushChains(currentmodel->batches);
 
-#ifdef TERRAIN
-		if (currentmodel->type == mod_heightmap)
+		if (currentmodel->type != mod_brush)
 		{
 			frustumvis = NULL;
 			entvis = surfvis = NULL;
 		}
-		else
-#endif
 #if defined(Q2BSPS) || defined(Q3BSPS)
-		if (currentmodel->fromgame == fg_quake2 || currentmodel->fromgame == fg_quake3)
+		else if (currentmodel->fromgame == fg_quake2 || currentmodel->fromgame == fg_quake3)
 		{
 			pvsbuffer_t *vis = &surf_frustumvis[r_refdef.recurse];
 			if (vis->buffersize < currentmodel->pvsbytes)
@@ -3656,25 +3653,22 @@ void Surf_DrawWorld (void)
 
 			surfvis = frustumvis;
 		}
-		else
 #endif
 #ifdef MAP_PROC
-			if (currentmodel->fromgame == fg_doom3)
+		else if (currentmodel->fromgame == fg_doom3)
 		{
 			entvis = surfvis = D3_CalcVis(currentmodel, r_origin);
 		}
-		else
 #endif
 #ifdef MAP_DOOM
-			if (currentmodel->fromgame == fg_doom)
+		else if (currentmodel->fromgame == fg_doom)
 		{
 			entvis = surfvis = NULL;
 			R_DoomWorld();
 		}
-		else
 #endif
 #ifdef Q1BSPS
-		if (1)
+		else if (1)
 		{
 			//extern cvar_t temp1;
 //			if (0)//temp1.value)
@@ -3699,8 +3693,8 @@ void Surf_DrawWorld (void)
 				surfvis = frustumvis;
 			}
 		}
-		else
 #endif
+		else
 		{
 			frustumvis = NULL;
 			entvis = surfvis = NULL;
@@ -4533,7 +4527,7 @@ TRACE(("dbg: Surf_NewMap: tp\n"));
 			VectorCopy(mins, cl_static_entities[i].ent.origin);
 			VectorCopy(maxs, cl_static_entities[i].ent.origin);
 		}
-		if (cl.worldmodel->funcs.FindTouchedLeafs)
+		if (cl.worldmodel && cl.worldmodel->loadstate == MLS_LOADED)
 			cl.worldmodel->funcs.FindTouchedLeafs(cl.worldmodel, &cl_static_entities[i].ent.pvscache, mins, maxs);
 		cl_static_entities[i].emit = NULL;
 	}

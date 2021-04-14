@@ -1,5 +1,6 @@
 #include "plugin.h"
 static plugfsfuncs_t *fsfuncs;
+static pluginputfuncs_t *inputfuncs;
 
 #include "../engine/client/vr.h"
 
@@ -116,6 +117,7 @@ XRFUNCS
 #endif
 
 static cvar_t *xr_enable;
+static cvar_t *xr_debug;
 static cvar_t *xr_formfactor;
 static cvar_t *xr_viewconfig;
 static cvar_t *xr_metresize;
@@ -124,36 +126,117 @@ static cvar_t *xr_skipregularview;
 #define METRES_TO_QUAKE(x) ((x)*xr_metresize->value)
 #define QUAKE_TO_METRES(x) ((x)/xr_metresize->value)
 
-static void XR_PoseToTransform(XrPosef *pose, vec3_t axisorg[4])
+static void Matrix3x4_FromAngles (const vec3_t angles, const vec3_t org, float *fte_restrict transform)
 {
-	float xx, xy, xz, xw, yy, yz, yw, zz, zw;
-	float x2, y2, z2;
-	x2 = pose->orientation.x + pose->orientation.x;
-	y2 = pose->orientation.y + pose->orientation.y;
-	z2 = pose->orientation.z + pose->orientation.z;
+	float		angle;
+	float		sr, sp, sy, cr, cp, cy;
 
-	xx = pose->orientation.x * x2;   xy = pose->orientation.x * y2;   xz = pose->orientation.x * z2;
-	yy = pose->orientation.y * y2;   yz = pose->orientation.y * z2;   zz = pose->orientation.z * z2;
-	xw = pose->orientation.w * x2;   yw = pose->orientation.w * y2;   zw = pose->orientation.w * z2;
+	angle = angles[YAW] * (M_PI*2 / 360);
+	sy = sin(angle);
+	cy = cos(angle);
+	angle = angles[PITCH] * (M_PI*2 / 360);
+	sp = sin(angle);
+	cp = cos(angle);
+	angle = angles[ROLL] * (M_PI*2 / 360);
+	sr = sin(angle);
+	cr = cos(angle);
 
-	axisorg[0][0] = (1.0f - (yy + zz));
-	axisorg[0][1] = (xy + zw);
-	axisorg[0][2] = (xz - yw);
+	transform[0+0] = cp*cy;
+	transform[0+1] = cp*sy;
+	transform[0+2] = -sp;
+	transform[0+3] = org[0];
 
-	axisorg[1][0] = (xy - zw);
-	axisorg[1][1] = (1.0f - (xx + zz));
-	axisorg[1][2] = (yz + xw);
+	transform[4+0] = (-1*sr*sp*cy+-1*cr*-sy);
+	transform[4+1] = (-1*sr*sp*sy+-1*cr*cy);
+	transform[4+2] = -1*sr*cp;
+	transform[4+3] = org[1];
 
-	axisorg[2][0] = (xz + yw);
-	axisorg[2][1] = (yz - xw);
-	axisorg[2][2] = (1.0f - (xx + yy));
-
-	axisorg[3][0]  =     METRES_TO_QUAKE(-pose->position.z);	//-z forward
-	axisorg[3][1]  =     METRES_TO_QUAKE(pose->position.x);		//+x right
-	axisorg[3][2]  =     METRES_TO_QUAKE(pose->position.y);		//+y up
+	transform[8+0] = (cr*sp*cy+-sr*-sy);
+	transform[8+1] = (cr*sp*sy+-sr*cy);
+	transform[8+2] = cr*cp;
+	transform[8+3] = org[2];
 }
+static void XR_PoseToAngOrg(const XrPosef *pose, vec3_t ang, vec3_t org)
+{
+	XrQuaternionf q = pose->orientation;
+    const float sqw = q.w * q.w;
+    const float sqx = q.x * q.x;
+    const float sqy = q.y * q.y;
+    const float sqz = q.z * q.z;
+
+    ang[PITCH] = -asin(-2 * (q.y * q.z - q.w * q.x)) * (180/M_PI);
+    ang[YAW] = atan2(2 * (q.x * q.z + q.w * q.y), sqw - sqx - sqy + sqz) * (180/M_PI);
+    ang[ROLL] = -atan2(2 * (q.x * q.y + q.w * q.z), sqw - sqx + sqy - sqz) * (180/M_PI);
+
+#if 1
+	org[0]  =     METRES_TO_QUAKE(-pose->position.z);
+	org[1]  =     METRES_TO_QUAKE(-pose->position.x);
+	org[2]  =     METRES_TO_QUAKE(pose->position.y);
+#else
+	org[0]  =     METRES_TO_QUAKE(pose->position.x);
+	org[1]  =     METRES_TO_QUAKE(pose->position.y);
+	org[2]  =     METRES_TO_QUAKE(pose->position.z);
+#endif
+}
+static void XR_PoseToTransform(const XrPosef *pose, float *fte_restrict transform)
+{
+	vec3_t ang, org;
+    XR_PoseToAngOrg(pose, ang, org);
+	Matrix3x4_FromAngles(ang, org, transform);
+}
+static void Matrix3x4_Invert_XR (const float *in1, float *fte_restrict out)
+{
+	// we only support uniform scaling, so assume the first row is enough
+	// (note the lack of sqrt here, because we're trying to undo the scaling,
+	// this means multiplying by the inverse scale twice - squaring it, which
+	// makes the sqrt a waste of time)
+#if 1
+	double scale = 1.0 / (in1[0] * in1[0] + in1[1] * in1[1] + in1[2] * in1[2]);
+#else
+	double scale = 3.0 / sqrt
+		 (in1->m[0][0] * in1->m[0][0] + in1->m[0][1] * in1->m[0][1] + in1->m[0][2] * in1->m[0][2]
+		+ in1->m[1][0] * in1->m[1][0] + in1->m[1][1] * in1->m[1][1] + in1->m[1][2] * in1->m[1][2]
+		+ in1->m[2][0] * in1->m[2][0] + in1->m[2][1] * in1->m[2][1] + in1->m[2][2] * in1->m[2][2]);
+	scale *= scale;
+#endif
+
+	// invert the rotation by transposing and multiplying by the squared
+	// recipricol of the input matrix scale as described above
+	out[0] = in1[0] * scale;
+	out[1] = in1[4] * scale;
+	out[2] = in1[8] * scale;
+	out[4] = in1[1] * scale;
+	out[5] = in1[5] * scale;
+	out[6] = in1[9] * scale;
+	out[8] = in1[2] * scale;
+	out[9] = in1[6] * scale;
+	out[10] = in1[10] * scale;
+
+	// invert the translate
+	out[3] = -(in1[3] * out[0] + in1[7] * out[1] + in1[11] * out[2]);
+	out[7] = -(in1[3] * out[4] + in1[7] * out[5] + in1[11] * out[6]);
+	out[11] = -(in1[3] * out[8] + in1[7] * out[9] + in1[11] * out[10]);
+}
+static void Matrix3x4_Multiply_XR(const float *a, const float *b, float *fte_restrict out)
+{
+	out[0]  = a[0] * b[0] + a[4] * b[1] + a[8] * b[2];
+	out[1]  = a[1] * b[0] + a[5] * b[1] + a[9] * b[2];
+	out[2]  = a[2] * b[0] + a[6] * b[1] + a[10] * b[2];
+	out[3]  = a[3] * b[0] + a[7] * b[1] + a[11] * b[2] + b[3];
+
+	out[4]  = a[0] * b[4] + a[4] * b[5] + a[8] * b[6];
+	out[5]  = a[1] * b[4] + a[5] * b[5] + a[9] * b[6];
+	out[6]  = a[2] * b[4] + a[6] * b[5] + a[10] * b[6];
+	out[7]  = a[3] * b[4] + a[7] * b[5] + a[11] * b[6] + b[7];
+
+	out[8]  = a[0] * b[8] + a[4] * b[9] + a[8] * b[10];
+	out[9]  = a[1] * b[8] + a[5] * b[9] + a[9] * b[10];
+	out[10] = a[2] * b[8] + a[6] * b[9] + a[10] * b[10];
+	out[11] = a[3] * b[8] + a[7] * b[9] + a[11] * b[10] + b[11];
+}
+
 #define VectorAngles VectorAnglesPluginsSuck
-void QDECL VectorAngles(const float *forward, const float *up, float *result, qboolean meshpitch)	//up may be NULL
+static void VectorAngles(const float *forward, const float *up, float *result, qboolean meshpitch)	//up may be NULL
 {
 	float	yaw, pitch, roll;
 
@@ -241,6 +324,7 @@ static struct
 	qboolean timeknown;
 	XrTime time;
 	XrFrameState framestate;
+	qboolean needrender;	//we MUST call xrBegin before the next xrWait
 	int srgb;	//<0 = gamma-only. 0 = no srgb at all, >0 full srgb, including textures and stuff
 
 	unsigned int numactions;
@@ -382,12 +466,15 @@ static qboolean XR_PreInit(vrsetup_t *qreqs)
 
 	if (qreqs->structsize != sizeof(*qreqs))
 		return false;	//nope, get lost.
-
+	if (!strncasecmp(xr_formfactor->string, "none", 4))
+		qreqs->vrplatform = VR_HEADLESS;
 	switch(qreqs->vrplatform)
 	{
-	/*case VR_HEADLESS:
+#ifdef XR_MND_HEADLESS_EXTENSION_NAME
+	case VR_HEADLESS:
 		ext = XR_MND_HEADLESS_EXTENSION_NAME;
-		break;*/
+		break;
+#endif
 #ifdef XR_USE_GRAPHICS_API_VULKAN
 	case VR_VULKAN:
 		ext = XR_KHR_VULKAN_ENABLE_EXTENSION_NAME;
@@ -397,6 +484,10 @@ static qboolean XR_PreInit(vrsetup_t *qreqs)
 #ifdef XR_MND_EGL_ENABLE_EXTENSION_NAME
 	case VR_EGL:
 		ext = XR_MND_EGL_ENABLE_EXTENSION_NAME;
+		break;
+#elif defined(XR_MNDX_EGL_ENABLE_EXTENSION_NAME)
+	case VR_EGL:
+		ext = XR_MNDX_EGL_ENABLE_EXTENSION_NAME;
 		break;
 #endif
 #ifdef XR_USE_PLATFORM_XLIB
@@ -414,28 +505,9 @@ static qboolean XR_PreInit(vrsetup_t *qreqs)
 		break;
 #endif
 	default:
-		Con_Printf("OpenXR: windowing-api or rendering-api not supported\n");
+		Con_Printf(CON_ERROR"OpenXR: windowing-api or rendering-api not supported\n");
 		return false;
 	}
-
-#ifdef XR_NO_PROTOTYPES
-	{
-		static dllhandle_t *lib;
-		static dllfunction_t funcs[] = {
-			#define XRFUNC(n) {(void*)&n, #n},
-				XRFUNCS
-			#undef XRFUNC
-			{NULL}};
-#define XR_LOADER_LIBNAME "libopenxr_loader"
-		if (!lib)
-			lib = plugfuncs->LoadDLL(XR_LOADER_LIBNAME, funcs);
-		if (!lib)
-		{
-			Con_Printf(CON_ERROR"OpenXR: Unable to load "XR_LOADER_LIBNAME"\n");
-			return false;
-		}
-	}
-#endif
 
 	xr.instance = XR_NULL_HANDLE;
 	{
@@ -449,10 +521,12 @@ static qboolean XR_PreInit(vrsetup_t *qreqs)
 				extlist[u].type = XR_TYPE_EXTENSION_PROPERTIES;
 			xrEnumerateInstanceExtensionProperties(NULL, exts, &exts, extlist);
 
-			Con_Printf("OpenXR:");
-			for (u = 0; u < exts; u++)
-				Con_Printf(" %s", extlist[u].extensionName);
-			Con_Printf("\n");
+			if (xr_debug->ival)
+			{
+				Con_Printf("OpenXR:\n");
+				for (u = 0; u < exts; u++)
+					Con_Printf("\t%s\n", extlist[u].extensionName);
+			}
 
 			for (u = 0; u < exts; u++)
 				if (!strcmp(extlist[u].extensionName, ext))
@@ -460,10 +534,13 @@ static qboolean XR_PreInit(vrsetup_t *qreqs)
 			free(extlist);
 		}
 		else
-			Con_DPrintf("OpenXR: xrEnumerateInstanceExtensionProperties failed (%s)\n", XR_StringForResult(res));
+		{
+			Con_Printf(CON_ERROR"OpenXR: xrEnumerateInstanceExtensionProperties failed (%s)\n", XR_StringForResult(res));
+			return false;
+		}
 		if (u == exts)
 		{
-			Con_Printf("OpenXR: instance driver does not support required %s\n", ext);
+			Con_Printf(CON_ERROR"OpenXR: instance driver does not support required %s\n", ext);
 			return false;	//would just give an error on xrCreateInstance anyway.
 		}
 	}
@@ -485,10 +562,11 @@ static qboolean XR_PreInit(vrsetup_t *qreqs)
 	}
 	if (XR_FAILED(res) || !xr.instance)
 	{
-		Con_Printf("OpenXR Runtime: xrCreateInstance failed (%s)\n", XR_StringForResult(res));
+		Con_Printf(CON_ERROR"OpenXR Runtime: xrCreateInstance failed (%s)\n", XR_StringForResult(res));
 		return false;
 	}
 
+	if (xr_debug->ival)
 	{
 		XrInstanceProperties props = {XR_TYPE_INSTANCE_PROPERTIES};
 		if (!XR_FAILED(xrGetInstanceProperties(xr.instance, &props)))
@@ -499,7 +577,9 @@ static qboolean XR_PreInit(vrsetup_t *qreqs)
 
 	{
 		XrSystemGetInfo systemInfo = { XR_TYPE_SYSTEM_GET_INFO };
-		if (!strncasecmp(xr_formfactor->string, "hand", 4))
+		if (qreqs->vrplatform == VR_HEADLESS)
+			systemInfo.formFactor = XR_FORM_FACTOR_HEAD_MOUNTED_DISPLAY;	//err... woteva
+		else if (!strncasecmp(xr_formfactor->string, "hand", 4))
 			systemInfo.formFactor = XR_FORM_FACTOR_HANDHELD_DISPLAY;
 		else if (!strncasecmp(xr_formfactor->string, "head",4))
 			systemInfo.formFactor = XR_FORM_FACTOR_HEAD_MOUNTED_DISPLAY;
@@ -516,6 +596,7 @@ static qboolean XR_PreInit(vrsetup_t *qreqs)
 			return false;
 	}
 
+	if (xr_debug->ival)
 	{
 		XrSystemProperties props = {XR_TYPE_SYSTEM_PROPERTIES};
 		if (XR_SUCCEEDED(xrGetSystemProperties(xr.instance, xr.systemid, &props)))
@@ -705,6 +786,18 @@ static qboolean XR_Init(vrsetup_t *qreqs, rendererstate_t *info)
 			xr.renderer = QR_OPENGL;
 		}
 		break;
+#elif defined(XR_MNDX_EGL_ENABLE_EXTENSION_NAME)
+	case VR_EGL:	//x11-egl, wayland, and hopefully android...
+		{
+			XrGraphicsBindingEGLMNDX *egl = xr.bindinginfo = calloc(1, sizeof(*egl));
+			egl->type = XR_TYPE_GRAPHICS_BINDING_EGL_MNDX;
+			egl->getProcAddress = (PFNEGLGETPROCADDRESSPROC)qreqs->egl.getprocaddr;
+			egl->display = qreqs->egl.egldisplay;
+			egl->config = qreqs->egl.eglconfig;
+			egl->context = qreqs->egl.eglcontext;
+			xr.renderer = QR_OPENGL;
+		}
+		break;
 #endif
 #ifdef XR_USE_PLATFORM_XLIB
 	case VR_X11_GLX:
@@ -757,7 +850,7 @@ static XrAction XR_DefineAction(XrActionType type, const char *name, const char 
 	int dconflicts = 0;
 	for (u = 0; u < xr.numactions; u++)
 	{
-		if (xr.actions[u].acttype == type && !strcmp(xr.actions[u].actname, name) && !strcmp(xr.actions[u].actdescription, description) && !strcmp(xr.actions[u].subactionpath?xr.actions[u].subactionpath:"", root?root:""))
+		if (xr.actions[u].acttype == type && !strcmp(xr.actions[u].actname, name) /*&& !strcmp(xr.actions[u].actdescription, description)*/ && !strcmp(xr.actions[u].subactionpath?xr.actions[u].subactionpath:"", root?root:""))
 		{	//looks like a dupe...
 			return xr.actions[u].action;
 		}
@@ -970,14 +1063,18 @@ static void XR_SetupInputs(void)
 		//FIXME: set up some proper bindings!
 		XR_BindProfileStr("khr_simple",
 			"/interaction_profiles/khr/simple_controller    /user/hand/left/ /user/hand/right/\n"
-			"+select		\"Select\"				button		input/select/click\n"
-			"togglemenu		\"Toggle Menu\"			button		input/menu/click\n"
-			"grip_pose		\"Grip Pose\"			pose		input/grip/pose\n"
-			"aim_pose		\"Aim Pose\"			pose		input/aim/pose\n"
+			"+attack_left	\"Left Attack\"			button		input/select/click	/user/hand/left\n"
+			"+attack_right	\"Right Attack\"		button		input/select/click	/user/hand/right\n"
+			"+menu_left		\"Left Menu\"			button		input/menu/click	/user/hand/left\n"
+			"+menu_right	\"Right Menu\"			button		input/menu/click	/user/hand/right\n"
+			"left_aim		\"Left Aim Pose\"		pose		input/grip/pose		/user/hand/left\n"
+			"right_aim		\"Right Aim Pose\"		pose		input/grip/pose		/user/hand/right\n"
+//			"grip_pose		\"Grip Pose\"			pose		input/grip/pose\n"
+//			"aim_pose		\"Aim Pose\"			pose		input/aim/pose\n"
 			"vibrate		\"A Vibrator\"			vibration	output/haptic\n"
 			);
 
-		XR_BindProfileStr("valve_index",
+/*		XR_BindProfileStr("valve_index",
 			"/interaction_profiles/valve/index_controller    /user/hand/left/ /user/hand/right/\n"
 			//"unbound		\"Unused Button\"		button		input/system/click\n"
     		//"unbound		\"Unused Button\"		button		input/system/touch\n"
@@ -990,18 +1087,40 @@ static void XR_SetupInputs(void)
     		//"unbound		\"Unused Button\"		button		input/trigger/click\n"
     		//"unbound		\"Unused Button\"		float		input/trigger/value\n"
     		//"unbound		\"Unused Button\"		button		input/trigger/touch\n"
-    		//"unbound		\"Unused Button\"		float		input/thumbstick/x\n"
-    		//"unbound		\"Unused Button\"		float		input/thumbstick/y\n"
+    		//"unbound		\"Unused Button\"		vector2f	input/thumbstick\n"
     		//"unbound		\"Unused Button\"		button		input/thumbstick/click\n"
     		//"unbound		\"Unused Button\"		button		input/thumbstick/touch\n"
-    		//"unbound		\"Unused Button\"		float		input/trackpad/x\n"
-    		//"unbound		\"Unused Button\"		float		input/trackpad/y\n"
+    		//"unbound		\"Unused Button\"		vector2f	input/trackpad\n"
     		//"unbound		\"Unused Button\"		button		input/trackpad/force\n"
     		//"unbound		\"Unused Button\"		button		input/trackpad/touch\n"
     		//"unbound		\"Unused Button\"		pose		input/grip/pose\n"
     		//"unbound		\"Unused Button\"		pose		input/aim/pose\n"
     		//"unbound		\"Unused Button\"		vibration	output/haptic\n"
 			);
+*/
+/*		XR_BindProfileStr("htc_vive",
+			"/interaction_profiles/htc/vive_controller    /user/hand/left/ /user/hand/right/\n"
+			//"unbound		\"Unused Button\"		button		input/system/click\n"
+			//"unbound		\"Unused Button\"		button		input/squeeze/click\n"
+			//"unbound		\"Unused Button\"		button		input/menu/click\n"
+			//"unbound		\"Unused Button\"		button		input/trigger/click\n"
+			//"unbound		\"Unused Button\"		float		input/trigger/value\n"
+			//"unbound		\"Unused Button\"		vector2f	input/trackpad\n"
+			//"unbound		\"Unused Button\"		button		input/trackpad/click\n"
+			//"unbound		\"Unused Button\"		button		input/trackpad/touch\n"
+			//"unbound		\"Unused Button\"		pose		input/grip/pose\n"
+			//"unbound		\"Unused Button\"		pose		input/aim/pose\n"
+			//"unbound		\"Unused Button\"		vibration	output/haptic\n"
+			);
+*/
+/*		XR_BindProfileStr("htc_vive_pro",
+			"/interaction_profiles/htc/vive_pro    /user/head/\n"
+			//"unbound		\"Unused Button\"		button		input/system/click\n"
+			//"unbound		\"Unused Button\"		button		input/volume_up/click\n"
+			//"unbound		\"Unused Button\"		button		input/volume_down/click\n"
+			//"unbound		\"Unused Button\"		button		input/mute_mic/click\n"
+			);
+*/
 
 		//FIXME: map to quake's keys.
 		XR_BindProfileStr("gamepad", "/interaction_profiles/microsoft/xbox_controller    /user/gamepad/\n"
@@ -1068,12 +1187,13 @@ static void XR_SetupInputs(void)
 	}
 
 #if 1
-	if (cvarfuncs->GetFloat("developer"))
+	if (xr_debug->ival)
 	{
 		XrInteractionProfileState profile = {XR_TYPE_INTERACTION_PROFILE_STATE};
 		XrPath path;
 		unsigned int u;
 		static const char *paths[] = {"/user/hand/left", "/user/hand/right", "/user/head", "/user/gamepad", "/user/treadmill", "/user/"};
+		Con_Printf("OpenXR Interaction Profiles:\n");
 		for (u = 0; u < countof(paths); u++)
 		{
 			xrStringToPath(xr.instance, paths[u], &path);
@@ -1083,11 +1203,11 @@ static void XR_SetupInputs(void)
 				char buf[256];
 				uint32_t len = sizeof(buf);
 				if (!profile.interactionProfile)
-					Con_Printf("openxr: %s == no profile/device\n", paths[u]);
+					Con_Printf("\t%s: "S_COLOR_GRAY"no profile/device\n", paths[u]);
 				else
 				{
 					res = xrPathToString(xr.instance, profile.interactionProfile, sizeof(buf), &len, buf);
-					Con_Printf("openxr: %s == %s\n", paths[u], buf);
+					Con_Printf("\t%s: "S_COLOR_GREEN"%s\n", paths[u], buf);
 				}
 			}
 		}
@@ -1104,7 +1224,9 @@ static void XR_SetupInputs(void)
 			if (XR_SUCCEEDED(res))
 			{
 				Con_Printf("\t%s:\n", xr.actions[u].actname);
-				for (i = 0; i < inputs; i++)
+				if (!inputs)
+					Con_Printf(S_COLOR_GRAY"\t(unbound)\n");
+				else for (i = 0; i < inputs; i++)
 				{
 					char buffer[8192];
 					XrInputSourceLocalizedNameGetInfo info = {XR_TYPE_INPUT_SOURCE_LOCALIZED_NAME_GET_INFO};
@@ -1115,7 +1237,7 @@ static void XR_SetupInputs(void)
 					res = xrGetInputSourceLocalizedName(xr.session, &info, sizeof(buffer), &bufsize, buffer);
 					if (XR_FAILED(res))
 						Q_snprintf(buffer, sizeof(buffer), "error %i", res);
-					Con_Printf("\t\t%s\n", buffer);
+					Con_Printf(S_COLOR_GREEN"\t\t%s\n", buffer);
 				}
 			}
 			else if (res == XR_ERROR_HANDLE_INVALID)	//monado reports this for unimplemented things.
@@ -1155,23 +1277,33 @@ static void XR_UpdateInputs(XrTime time)
 				info.action = xr.actions[h].action;
 				info.subactionPath = xr.actions[h].path;
 
-				xrGetActionStatePose(xr.session, &info, &pose);
+				res = xrGetActionStatePose(xr.session, &info, &pose);
 				if (pose.isActive)
 				{	//its mapped to something, woo.
-					XrSpaceLocation loc = {XR_TYPE_SPACE_LOCATION};
-					vec3_t transform[4];
-					xrLocateSpace(xr.actions[h].space, xr.space, time, &loc);
-					//if (loc.locationFlags & XR_SPACE_LOCATION_ORIENTATION_VALID_BIT)
-					//if (loc.locationFlags & XR_SPACE_LOCATION_POSITION_VALID_BIT)
-					//if (loc.locationFlags & XR_SPACE_LOCATION_ORIENTATION_TRACKED_BIT)
-					//if (loc.locationFlags & XR_SPACE_LOCATION_POSITION_TRACKED_BIT)
-					XR_PoseToTransform(&loc.pose, transform);
+					XrSpaceVelocity vel = {XR_TYPE_SPACE_VELOCITY};
+					XrSpaceLocation loc = {XR_TYPE_SPACE_LOCATION, &vel};
+					vec3_t transform[4], angles, lvel, avel;
+					res = xrLocateSpace(xr.actions[h].space, xr.space, time, &loc);
+//					XR_PoseToTransform(&loc.pose, transform);
+					XR_PoseToAngOrg(&loc.pose, angles, transform[3]);
 
+//					VectorAngles(transform[0], transform[2], angles, false);
+					VectorSet(lvel, vel.linearVelocity.x, vel.linearVelocity.y, vel.linearVelocity.z);
+					VectorSet(avel, vel.angularVelocity.x, vel.angularVelocity.y, vel.angularVelocity.z);
+					if (!inputfuncs->SetHandPosition(xr.actions[h].actname,
+							(loc.locationFlags&XR_SPACE_LOCATION_POSITION_VALID_BIT)?transform[3]:NULL,
+							(loc.locationFlags&XR_SPACE_LOCATION_ORIENTATION_VALID_BIT)?angles:NULL,
+							(vel.velocityFlags&XR_SPACE_VELOCITY_LINEAR_VALID_BIT)?lvel:NULL,
+							(vel.velocityFlags&XR_SPACE_VELOCITY_ANGULAR_VALID_BIT)?avel:NULL))
+					if (transform[3][0] || transform[3][1] || transform[3][2])
 					{
 						vec3_t angles;
 						char cmd[256];
 						VectorAngles(transform[0], transform[2], angles, false);
-						Q_snprintf(cmd, sizeof(cmd), "echo %s %g %g %g %g %g %g\n", xr.actions[h].actname, angles[0], angles[1], angles[2], transform[3][0], transform[3][1], transform[3][2]);
+
+						Q_snprintf(cmd, sizeof(cmd), "%s %g %g %g %g %g %g %g %g %g %g %g %g\n", xr.actions[h].actname,
+											 angles[0], angles[1], angles[2], transform[3][0], transform[3][1], transform[3][2],
+											 vel.angularVelocity.x, vel.angularVelocity.y, vel.angularVelocity.z, vel.linearVelocity.x, vel.linearVelocity.y, vel.linearVelocity.z);
 						cmdfuncs->AddText(cmd, false);
 					}
 				}
@@ -1211,7 +1343,7 @@ static void XR_UpdateInputs(XrTime time)
 				if (!state.isActive) state.currentState = 0.0f;
 				{
 					char cmd[256];
-					Q_snprintf(cmd, sizeof(cmd), "echo %s %g\n", xr.actions[h].actname, state.currentState);
+					Q_snprintf(cmd, sizeof(cmd), "%s %g\n", xr.actions[h].actname, state.currentState);
 					cmdfuncs->AddText(cmd, false);
 				}
 			}
@@ -1227,7 +1359,7 @@ static void XR_UpdateInputs(XrTime time)
 				if (!state.isActive) state.currentState.x = state.currentState.y = 0.0f;
 				{
 					char cmd[256];
-					Q_snprintf(cmd, sizeof(cmd), "echo %s %g %g\n", xr.actions[h].actname, state.currentState.x, state.currentState.y);
+					Q_snprintf(cmd, sizeof(cmd), "%s %g %g\n", xr.actions[h].actname, state.currentState.x, state.currentState.y);
 					cmdfuncs->AddText(cmd, false);
 				}
 			}
@@ -1260,7 +1392,7 @@ static qboolean XR_Begin(void)
 
 	{
 		XrReferenceSpaceCreateInfo info = {XR_TYPE_REFERENCE_SPACE_CREATE_INFO};
-		info.referenceSpaceType = XR_REFERENCE_SPACE_TYPE_VIEW;
+		info.referenceSpaceType = XR_REFERENCE_SPACE_TYPE_LOCAL;
 		info.poseInReferenceSpace.orientation.w = 1;
 		res = xrCreateReferenceSpace(xr.session, &info, &xr.space);
 		if (XR_FAILED(res))
@@ -1279,6 +1411,7 @@ static qboolean XR_Begin(void)
 		for (u = 0; u < swapfmts; u++) switch(fmts[u])
 		{
 		case GL_RGBA16F:			Con_DPrintf("OpenXr fmt%u: %s\n", u, "GL_RGBA16F");		if (xr.srgb) fmttouse = fmts[u],u=swapfmts; break;
+		case GL_RGB10_A2:			Con_DPrintf("OpenXr fmt%u: %s\n", u, "GL_RGB10_A2");	if (!xr.srgb) fmttouse = fmts[u],u=swapfmts; break;
 		case GL_RGBA8:				Con_DPrintf("OpenXr fmt%u: %s\n", u, "GL_RGBA8");		if (!xr.srgb) fmttouse = fmts[u],u=swapfmts; break;
 		case GL_SRGB8_ALPHA8_EXT:	Con_DPrintf("OpenXr fmt%u: %s\n", u, "GL_SRGB8_ALPHA8");if (xr.srgb) fmttouse = fmts[u],u=swapfmts; break;
 		default:
@@ -1510,22 +1643,34 @@ static qboolean XR_SyncFrame(double *frametime)
 	if (!xr.instance)
 		return false;
 
+	if (xr.needrender)
+	{	//something screwed up.
+//		*frametime = 0;
+		return true;
+	}
+
+	XR_ProcessEvents();
+
 	memset(&xr.framestate, 0, sizeof(xr.framestate));
 	xr.framestate.type = XR_TYPE_FRAME_STATE;
 	switch(xr.state)
 	{
+	case XR_SESSION_STATE_READY:
 	case XR_SESSION_STATE_FOCUSED:
 	case XR_SESSION_STATE_SYNCHRONIZED:
 	case XR_SESSION_STATE_VISIBLE:
 		xr.framestate.shouldRender = !!xr.session;
 		break;
 	default:
+		xr.framestate.shouldRender = false;
 		break;
 	}
 
 	if (xr.framestate.shouldRender)
 	{
 		XrTime time;
+		memset(&xr.framestate, 0, sizeof(xr.framestate));
+		xr.framestate.type = XR_TYPE_FRAME_STATE;
 		res = xrWaitFrame(xr.session, NULL, &xr.framestate);
 		if (XR_FAILED(res))
 		{
@@ -1541,15 +1686,16 @@ static qboolean XR_SyncFrame(double *frametime)
 		}
 		xr.time = time;
 		xr.timeknown = true;
+
+		xr.needrender = true;
 	}
 
-	XR_ProcessEvents();
 	if (xr.session)
 		XR_UpdateInputs(xr.framestate.predictedDisplayTime);
 
 	return true;
 }
-static qboolean XR_Render(void(*rendereye)(texid_t tex, vec4_t fovoverride, vec3_t axisorg[4]))
+static qboolean XR_Render(void(*rendereye)(texid_t tex, vec4_t fovoverride, matrix3x4 axisorg))
 {
 	XrFrameEndInfo endframeinfo = {XR_TYPE_FRAME_END_INFO};
 	unsigned int u;
@@ -1590,21 +1736,33 @@ static qboolean XR_Render(void(*rendereye)(texid_t tex, vec4_t fovoverride, vec3
 	case XR_SESSION_STATE_FOCUSED:
 	case XR_SESSION_STATE_SYNCHRONIZED:
 	case XR_SESSION_STATE_VISIBLE:
+	case XR_SESSION_STATE_READY:
 		break;
 	default:
 		return false;	//not ready.
 	}
 
+	if (!xr.needrender)
+		return false;	//xrWaitFrame not called?
+	xr.needrender = false;
+
 	res = xrBeginFrame(xr.session, NULL);
 	if (XR_FAILED(res))
+	{
 		Con_Printf("xrBeginFrame: %s\n", XR_StringForResult(res));
+		if(res == XR_ERROR_SESSION_LOST)
+			XR_SessionEnded();
+		else
+			XR_Shutdown();
+		return false;
+	}
 	if (xr.framestate.shouldRender)
 	{
 		uint32_t eyecount;
 		XrViewState viewstate = {XR_TYPE_VIEW_STATE};
 		XrViewLocateInfo locateinfo = {XR_TYPE_VIEW_LOCATE_INFO};
 		XrView eyeview[MAX_VIEW_COUNT]={};
-		vec3_t transform[4];
+		matrix3x4 transform, eyetransform, inv;
 		for (u = 0; u < MAX_VIEW_COUNT; u++)
 			eyeview[u].type = XR_TYPE_VIEW;
 
@@ -1618,6 +1776,36 @@ static qboolean XR_Render(void(*rendereye)(texid_t tex, vec4_t fovoverride, vec3
 		proj.space = xr.space;
 		proj.views = projviews;
 		endframeinfo.layerCount = 1;
+
+		//set up the head position, as an average of all the eyes, the eyes, the awful knowing eyes...
+		{
+			float scale;
+			vec3_t ang, org;
+			XrPosef apose = {0};
+			for (u = 0; u < xr.viewcount && u < eyecount; u++)
+			{	//add em up
+				apose.orientation.x += eyeview[u].pose.orientation.x;
+				apose.orientation.y += eyeview[u].pose.orientation.y;
+				apose.orientation.z += eyeview[u].pose.orientation.z;
+				apose.orientation.w += eyeview[u].pose.orientation.w;
+				apose.position.x += eyeview[u].pose.position.x;
+				apose.position.y += eyeview[u].pose.position.y;
+				apose.position.z += eyeview[u].pose.position.z;
+			}
+			//normalize them
+			scale = 1 / sqrt(apose.orientation.x*apose.orientation.x+apose.orientation.y*apose.orientation.y+apose.orientation.z*apose.orientation.z+apose.orientation.w*apose.orientation.w);
+			apose.orientation.x *= scale;
+			apose.orientation.y *= scale;
+			apose.orientation.z *= scale;
+			apose.orientation.w *= scale;
+			apose.position.x /= xr.viewcount;
+			apose.position.y /= xr.viewcount;
+			apose.position.z /= xr.viewcount;
+			XR_PoseToAngOrg(&apose, ang, org);
+			Matrix3x4_FromAngles(ang, org, transform[0]);
+			Matrix3x4_Invert_XR(transform[0], inv[0]);
+			inputfuncs->SetHandPosition("head", org, ang, NULL, NULL);
+		}
 
 		for (u = 0; u < xr.viewcount && u < eyecount; u++)
 		{
@@ -1634,7 +1822,9 @@ static qboolean XR_Render(void(*rendereye)(texid_t tex, vec4_t fovoverride, vec3
 			projviews[u].fov = eyeview[u].fov;
 			projviews[u].subImage = xr.eye[u].subimage;
 
-			XR_PoseToTransform(&eyeview[u].pose, transform);
+			XR_PoseToTransform(&eyeview[u].pose, transform[0]);
+			Matrix3x4_Multiply_XR(transform[0], inv[0], eyetransform[0]);
+
 			fovoverride[0] = eyeview[u].fov.angleLeft * (180/M_PI);
 			fovoverride[1] = eyeview[u].fov.angleRight * (180/M_PI);
 			fovoverride[2] = eyeview[u].fov.angleDown * (180/M_PI);
@@ -1644,7 +1834,7 @@ static qboolean XR_Render(void(*rendereye)(texid_t tex, vec4_t fovoverride, vec3
 			res = xrWaitSwapchainImage(xr.eye[u].swapchain, &waitinfo);
 			if (XR_FAILED(res))
 				Con_Printf("xrWaitSwapchainImage: %s\n", XR_StringForResult(res));
-			rendereye(&xr.eye[u].swapimages[imgidx], fovoverride, transform);
+			rendereye(&xr.eye[u].swapimages[imgidx], fovoverride, eyetransform);
 			//GL note: the OpenXR specification says NOTHING about the application having to glFlush or glFinish.
 			//	I take this to mean that the openxr runtime is responsible for setting up barriers or w/e inside ReleaseSwapchainImage.
 			//VK note: the OpenXR spec does say that it needs to be color_attachment_optimal+owned by queue. which it is.
@@ -1684,11 +1874,36 @@ static plugvrfuncs_t openxr =
 
 qboolean Plug_Init(void)
 {
+#ifdef XR_NO_PROTOTYPES
+	{
+		static dllhandle_t *lib;
+		static dllfunction_t funcs[] = {
+			#define XRFUNC(n) {(void*)&n, #n},
+				XRFUNCS
+			#undef XRFUNC
+			{NULL}};
+#ifdef _WIN32
+	#define XR_LOADER_LIBNAME "openxr_loader"
+#else
+	#define XR_LOADER_LIBNAME "libopenxr_loader"
+#endif
+		if (!lib)
+			lib = plugfuncs->LoadDLL(XR_LOADER_LIBNAME, funcs);
+		if (!lib)
+		{
+			Con_Printf(CON_ERROR"OpenXR: Unable to load "XR_LOADER_LIBNAME ARCH_DL_POSTFIX"\n");
+			return false;
+		}
+	}
+#endif
+
 	fsfuncs = plugfuncs->GetEngineInterface(plugfsfuncs_name, sizeof(*fsfuncs));
+	inputfuncs = plugfuncs->GetEngineInterface(pluginputfuncs_name, sizeof(*inputfuncs));
 	plugfuncs->ExportFunction("MayUnload", XR_PluginMayUnload);
 	if (plugfuncs->ExportInterface(plugvrfuncs_name, &openxr, sizeof(openxr)))
 	{
 		xr_enable			= cvarfuncs->GetNVFDG("xr_enable",			"1",			0,				"Controls whether to use openxr rendering or not.",									"OpenXR configuration");
+		xr_debug			= cvarfuncs->GetNVFDG("xr_debug",			"0",			0,				"Controls whether to spam debug info or not.",										"OpenXR configuration");
 		xr_formfactor		= cvarfuncs->GetNVFDG("xr_formfactor",		"head",			CVAR_ARCHIVE,	"Controls which VR system to try to use. Valid options are head, or hand",			"OpenXR configuration");
 		xr_viewconfig		= cvarfuncs->GetNVFDG("xr_viewconfig",		"",				CVAR_ARCHIVE,	"Controls the type of view we aim for. Valid options are mono, stereo, or quad",	"OpenXR configuration");
 		xr_metresize		= cvarfuncs->GetNVFDG("xr_metresize",		"26.24671916",	CVAR_ARCHIVE,	"Size of a metre in game units",													"OpenXR configuration");

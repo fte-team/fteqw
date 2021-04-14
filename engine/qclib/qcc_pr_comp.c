@@ -3578,6 +3578,35 @@ QCC_sref_t QCC_PR_StatementFlags ( QCC_opcode_t *op, QCC_sref_t var_a, QCC_sref_
 
 	switch (op - pr_opcodes)
 	{
+	case OP_STATE:
+		if (qcc_framerate>0 && qcc_framerate != (qcc_targetformat_ishexen2()?20:10))
+		{	//can't use the normal opcode.
+			QCC_ref_t tempref;
+			QCC_sref_t self = QCC_PR_GetSRef(type_entity, "self", NULL, true, 0, false);
+			QCC_sref_t time = QCC_PR_GetSRef(type_float, "time", NULL, true, 0, false);
+			QCC_sref_t fldframe = QCC_PR_GetSRef(type_floatfield, "frame", NULL, true, 0, false);
+			QCC_sref_t fldthink = QCC_PR_GetSRef(QCC_PR_FieldType(type_function), "think", NULL, true, 0, false);
+			QCC_sref_t fldnextthink = QCC_PR_GetSRef(type_floatfield, "nextthink", NULL, true, 0, false);
+
+			//self.frame = var_a;
+			QCC_StoreSRefToRef(QCC_PR_BuildRef(&tempref, REF_FIELD,	self,
+				fldframe, fldframe.cast->aux_type,
+				true), var_a, false, false);
+
+			//self.think = var_b;
+			QCC_StoreSRefToRef(QCC_PR_BuildRef(&tempref, REF_FIELD, self,
+				fldthink, fldthink.cast->aux_type,
+				true), var_b, false, false);
+
+			//self.frame = time + interval;
+			time = QCC_PR_Statement(&pr_opcodes[OP_ADD_F], time, QCC_MakeFloatConst(1/qcc_framerate), NULL);
+			QCC_StoreSRefToRef(QCC_PR_BuildRef(&tempref, REF_FIELD, self,
+				fldnextthink, fldnextthink.cast->aux_type,
+				true), time, false, false);
+			return nullsref;
+		}
+		break;
+
 	case OP_STORE_F:
 	case OP_STORE_V:
 	case OP_STORE_FLD:
@@ -9662,7 +9691,7 @@ QCC_sref_t QCC_PR_GenerateLogicalNot(QCC_sref_t e, const char *errormessage)
 		return QCC_PR_Statement (&pr_opcodes[OP_NOT_V], e, nullsref, NULL);
 	else if (t == ev_function)
 		return QCC_PR_Statement (&pr_opcodes[OP_NOT_FNC], e, nullsref, NULL);
-	else if (t == ev_integer)
+	else if (t == ev_integer || t == ev_uint)
 		return QCC_PR_Statement (&pr_opcodes[OP_NOT_I], e, nullsref, NULL);	//functions are integer values too.
 	else if (t == ev_pointer)
 		return QCC_PR_Statement (&pr_opcodes[OP_NOT_I], e, nullsref, NULL);	//Pointers are too.
@@ -9779,7 +9808,7 @@ static QCC_sref_t QCC_TryEvaluateCast(QCC_sref_t src, QCC_type_t *cast, pbool im
 		src = QCC_PR_Statement (&pr_opcodes[OP_CONV_II64], src, nullsref, NULL);
 		src.cast = cast;
 	}
-	else if ((totype == ev_integer||totype == ev_uint) && (src.cast->type == ev_integer||src.cast->type == ev_uint))
+	else if ((totype == ev_integer||totype == ev_uint) && (src.cast->type == ev_int64||src.cast->type == ev_uint64))
 	{	//truncates. we could emulate this but that means endian issues.
 		src = QCC_PR_Statement (&pr_opcodes[OP_CONV_I64I], src, nullsref, NULL);
 		src.cast = cast;
@@ -14153,7 +14182,6 @@ void QCC_PR_ParseState (void)
 
 	QCC_PR_Expect ("]");
 
-	//FIXME: emulate this in order to provide other framerates
 	QCC_FreeTemp(QCC_PR_Statement (&pr_opcodes[OP_STATE], s1, def, NULL));
 }
 
@@ -14211,8 +14239,15 @@ void QCC_PR_ParseAsm(void)
 				}
 				else
 				{
-					a = QCC_PR_ParseValue(pr_classtype, false, false, true);
-					b = QCC_PR_ParseValue(pr_classtype, false, false, true);
+					if (QCC_PR_CheckName("void"))
+						a = nullsref;
+					else
+						a = QCC_PR_ParseValue(pr_classtype, false, false, true);
+					QCC_PR_Expect(",");
+					if (QCC_PR_CheckName("void"))
+						b = nullsref;
+					else
+						b = QCC_PR_ParseValue(pr_classtype, false, false, true);
 					patch1 = QCC_PR_SimpleStatement(&pr_opcodes[op], a, b, nullsref, true);
 
 					if (pr_token_type == tt_name)
@@ -14224,27 +14259,36 @@ void QCC_PR_ParseAsm(void)
 						p = (int)pr_immediate._float;
 						patch1->c.ofs = p;
 					}
-
-					QCC_PR_Lex();
 				}
 			}
 			else
 			{
 				if (pr_opcodes[op].type_a != &type_void)
-					a = QCC_PR_ParseValue(pr_classtype, false, false, true);
+				{
+					if (QCC_PR_CheckName("void"))
+						a = nullsref;
+					else
+						a = QCC_PR_ParseValue(pr_classtype, false, false, true);
+				}
 				else
 					a=nullsref;
 				if (pr_opcodes[op].type_b != &type_void)
 				{
 					QCC_PR_CheckToken(",");
-					b = QCC_PR_ParseValue(pr_classtype, false, false, true);
+					if (QCC_PR_CheckName("void"))
+						b = nullsref;
+					else
+						b = QCC_PR_ParseValue(pr_classtype, false, false, true);
 				}
 				else
 					b=nullsref;
 				if (pr_opcodes[op].associative==ASSOC_LEFT && pr_opcodes[op].type_c != &type_void)
 				{
 					QCC_PR_CheckToken(",");
-					c = QCC_PR_ParseValue(pr_classtype, false, false, true);
+					if (QCC_PR_CheckName("void"))
+						c = nullsref;
+					else
+						c = QCC_PR_ParseValue(pr_classtype, false, false, true);
 				}
 				else
 					c=nullsref;
@@ -14723,7 +14767,7 @@ static int QCC_CheckOneUninitialised(int firststatement, int laststatement, QCC_
 			return -2;
 		}
 
-		if (st->op == OP_GLOBALADDRESS && (st->a.sym->symbolheader == def || (st->a.sym->symbolheader == def)))
+		if (st->op == OP_GLOBALADDRESS && st->a.sym && (st->a.sym->symbolheader == def || (st->a.sym->symbolheader == def)))
 			return -1;	//assume taking a pointer to it is an initialisation.
 
 //		this code catches gotos, but can cause issues with while statements.

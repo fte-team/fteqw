@@ -540,10 +540,9 @@ void M_Menu_SinglePlayer_f (void)
 	p = R2D_SafeCachePic("gfx/sp_menu.lmp");
 	if (!p)
 	{
-		MC_AddBox (menu, 60, 10*8, 23*8, 4*8);
-
 		MC_AddWhiteText(menu, 92, 0, 12*8, "Couldn't find file", false);
 		MC_AddWhiteText(menu, 92, 0, 13*8, "gfx/sp_menu.lmp", false);
+		MC_AddBox (menu, 72, 11*8, 23*8, 4*8);
 	}
 	else
 	{

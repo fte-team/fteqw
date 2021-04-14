@@ -1927,7 +1927,7 @@ static void SV_InitBotLib(void)
 		botlib = NULL;
 	if (!botlib)
 	{
-		bot_enable->flags |= CVAR_LATCH;
+		bot_enable->flags |= CVAR_MAPLATCH;
 		Cvar_ForceSet(bot_enable, "0");
 	}
 #else
@@ -3428,7 +3428,7 @@ qboolean SVQ3_RestartGamecode(void)
 	if (sv.allocated_client_slots != newmaxclients)
 		return false;	//can't do it if maxclients needs to change.
 
-	Cvar_ApplyLatches(CVAR_LATCH);
+	Cvar_ApplyLatches(CVAR_MAPLATCH, false);
 
 	//reload the gamecode
 	sv.state = ss_loading;
@@ -3485,7 +3485,7 @@ void SVQ3_NewMapConnects(void)
 
 	/* Kick old bots in SP - eukara */
 	cvar_t *gametype;
-	gametype = Cvar_Get("g_gametype", "", CVAR_LATCH|CVAR_SERVERINFO, "Q3 compatability");
+	gametype = Cvar_Get("g_gametype", "", CVAR_MAPLATCH|CVAR_SERVERINFO, "Q3 compatability");
 
 	for (i = 0; i < sv.allocated_client_slots; i++)
 	{

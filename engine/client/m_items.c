@@ -482,12 +482,6 @@ static void MenuDrawItems(int xpos, int ypos, menuoption_t *option, emenu_t *men
 
 	menuframe_t *framescroller = NULL;
 
-	if (option && option->common.type == mt_box && !option->common.ishidden)
-	{	//FIXME: why is this here? why is this special?
-		Draw_ApproxTextBox(xpos+option->common.posx, ypos+option->common.posy, option->box.width, option->box.height);
-		option = option->common.next;
-	}
-
 	for (; option; option = option->common.next)
 	{
 		if (option->common.ishidden)
@@ -1382,21 +1376,23 @@ menucombo_t *MC_AddCvarCombo(emenu_t *menu, int tx, int cx, int y, const char *c
 	char **newops;
 	char **newvalues;
 	char *optbuf;
+	const char *v;
 	int i;
 
 	maxoptlen = 0;
 	optbufsize = sizeof(char*)*2 + strlen(caption)+1;
-	numopts = 0;
 	optlen = 0;
-	while(ops[numopts])
+	for (i = 0; ops[i]; i++)
 	{
-		optlen = strlen(ops[numopts]);
+		v = values?values[i]:va("%i", i);
+
+		optlen = strlen(ops[i]);
 		if (maxoptlen < optlen)
 			maxoptlen = optlen;
 		optbufsize += optlen+1+sizeof(char*);
-		optbufsize += strlen(values[numopts])+1+sizeof(char*);
-		numopts++;
+		optbufsize += strlen(v)+1+sizeof(char*);
 	}
+	numopts = i;
 
 
 
@@ -1432,14 +1428,16 @@ menucombo_t *MC_AddCvarCombo(emenu_t *menu, int tx, int cx, int y, const char *c
 	n->numoptions = numopts;
 	for (i = 0; i < numopts; i++)
 	{
-		if (!strcmp(values[i], cvar->string))
+		v = values?values[i]:va("%i", i);
+
+		if (!strcmp(v, cvar->string))
 			n->selectedoption = i;
 
 		strcpy(optbuf, ops[i]);
 		newops[i] = optbuf;
 		optbuf += strlen(optbuf)+1;
 
-		strcpy(optbuf, values[i]);
+		strcpy(optbuf, v);
 		newvalues[i] = optbuf;
 		optbuf += strlen(optbuf)+1;
 	}
@@ -1729,7 +1727,7 @@ static void M_Draw (menu_t *menu)
 	}
 	if ((!menu_script || scr_con_current))
 	{
-		if (m->selecteditem && m->selecteditem->common.type == mt_slider && (m->selecteditem->slider.var == &v_gamma || m->selecteditem->slider.var == &v_contrast))
+		if (m->nobacktint || (m->selecteditem && m->selecteditem->common.type == mt_slider && (m->selecteditem->slider.var == &v_gamma || m->selecteditem->slider.var == &v_contrast)))
 			/*no menu tint if we're trying to adjust gamma*/;
 		else
 			R2D_FadeScreen ();
@@ -1873,7 +1871,7 @@ void M_MenuPop_f (void)
 	Menu_Unlink(topmenu);
 }
 
-menuoption_t *M_NextItem(emenu_t *m, menuoption_t *old)
+static menuoption_t *M_NextItem(emenu_t *m, menuoption_t *old)
 {
 	menuoption_t *op = m->options;
 	while(op->common.next)
@@ -1888,6 +1886,9 @@ menuoption_t *M_NextItem(emenu_t *m, menuoption_t *old)
 menuoption_t *M_NextSelectableItem(emenu_t *m, menuoption_t *old)
 {
 	menuoption_t *op;
+
+	if (!m->options)
+		return NULL;	//erk!
 
 	if (!old)
 		old = M_NextItem(m, old);
@@ -1919,6 +1920,9 @@ menuoption_t *M_NextSelectableItem(emenu_t *m, menuoption_t *old)
 menuoption_t *M_PrevSelectableItem(emenu_t *m, menuoption_t *old)
 {
 	menuoption_t *op;
+
+	if (!m->options)
+		return NULL;	//erk!
 
 	if (!old)
 		old = m->options;
@@ -2485,7 +2489,7 @@ void M_Menu_Main_f (void)
 
 int MC_AddBulk(struct emenu_s *menu, menuresel_t *resel, menubulk_t *bulk, int xstart, int xtextend, int y)
 {
-	int selectedy = y;
+	int selectedy = y, last_y = y;
 	menuoption_t *selected = NULL;
 
 	while (bulk)
@@ -2597,6 +2601,9 @@ int MC_AddBulk(struct emenu_s *menu, menuresel_t *resel, menubulk_t *bulk, int x
 
 		if (bulk->ret)
 			*bulk->ret = control;
+		if (control)
+			control->common.grav_y = y-last_y;
+		last_y = y;
 		if (control && MI_Selectable(control) && !selected)
 			selected = control;
 		if (control && bulk->tooltip)

@@ -163,7 +163,7 @@ cvar_t	cl_chatsound	= CVAR("cl_chatsound","1");
 cvar_t	cl_enemychatsound	= CVAR("cl_enemychatsound", "misc/talk.wav");
 cvar_t	cl_teamchatsound	= CVAR("cl_teamchatsound", "misc/talk.wav");
 
-cvar_t	r_torch					= CVARF("r_torch",	"0",	CVAR_CHEAT);
+cvar_t	r_torch					= CVARFD("r_torch",	"0",	CVAR_CHEAT, "Generate a dynamic light at the player's position.");
 cvar_t	r_rocketlight			= CVARFC("r_rocketlight",	"1", CVAR_ARCHIVE, Cvar_Limiter_ZeroToOne_Callback);
 cvar_t	r_lightflicker			= CVAR("r_lightflicker",	"1");
 cvar_t	cl_r2g					= CVARFD("cl_r2g",	"0", CVAR_ARCHIVE, "Uses progs/grenade.mdl instead of progs/missile.mdl when 1.");
@@ -188,7 +188,7 @@ cvar_t	cl_download_redirection	= CVARFD("cl_download_redirection", "2", CVAR_NOT
 cvar_t  cl_download_mapsrc		= CVARFD("cl_download_mapsrc", "", CVAR_ARCHIVE, "Specifies an http location prefix for map downloads. EG: \"http://example.com/path/quakemaps/\"");
 cvar_t	cl_download_packages	= CVARFD("cl_download_packages", "1", CVAR_NOTFROMSERVER, "0=Do not download packages simply because the server is using them. 1=Download and load packages as needed (does not affect games which do not use this package). 2=Do download and install permanently (use with caution!)");
 cvar_t	requiredownloads		= CVARFD("requiredownloads","1", CVAR_ARCHIVE, "0=join the game before downloads have even finished (might be laggy). 1=wait for all downloads to complete before joining.");
-cvar_t	mod_precache			= CVARD("mod_precache","1", "Controls when models are loaded.\n0: Load them only when they're visible.\n1: Load them upfront.\n2: Lazily load them to shorten load times at the risk of brief stuttering during only the start of the map.");
+cvar_t	mod_precache			= CVARD("mod_precache","1", "Controls when models are loaded.\n0: Load them only when they're actually needed.\n1: Load them upfront.\n2: Lazily load them to shorten load times at the risk of brief stuttering during only the start of the map.");
 
 cvar_t	cl_muzzleflash			= CVAR("cl_muzzleflash", "1");
 
@@ -225,6 +225,7 @@ cvar_t	ruleset_allow_localvolume			= CVARD("ruleset_allow_localvolume", "1", "Al
 cvar_t  ruleset_allow_shaders				= CVARFD("ruleset_allow_shaders", "1", CVAR_SHADERSYSTEM, "When 0, this completely disables the use of external shader files, preventing custom shaders from being used for wallhacks."RULESETADVICE);
 cvar_t  ruleset_allow_watervis				= CVARFCD("ruleset_allow_watervis", "1", CVAR_SHADERSYSTEM, Cvar_CheckServerInfo, "When 0, this enforces ugly opaque water."RULESETADVICE);
 cvar_t  ruleset_allow_fbmodels				= CVARFD("ruleset_allow_fbmodels", "0", CVAR_SHADERSYSTEM, "When 1, allows all models to be displayed fullbright, completely ignoring the lightmaps. This feature exists only for parity with ezquake's defaults."RULESETADVICE);
+cvar_t  ruleset_allow_triggers				= CVARAD("ruleset_allow_triggers", "1", "tp_msgtriggers"/*ez*/, "When 0, blocks the use of msg_trigger checks."RULESETADVICE);
 
 extern cvar_t cl_hightrack;
 extern cvar_t	vid_renderer;
@@ -1261,6 +1262,7 @@ void CL_BeginServerReconnect(void)
 	connectinfo.trying = true;
 	connectinfo.istransfer = false;
 	connectinfo.time = 0;
+	connectinfo.tries = 0;	//re-ensure routes.
 
 	NET_InitClient(false);
 }
@@ -1705,7 +1707,7 @@ void CL_ClearState (qboolean gamestart)
 	S_UntouchAll();
 	S_ResetFailedLoad();
 
-	Cvar_ApplyLatches(CVAR_SERVEROVERRIDE);
+	Cvar_ApplyLatches(CVAR_SERVEROVERRIDE, true);
 
 	Con_DPrintf ("Clearing memory\n");
 	if (!serverrunning || !tolocalserver)
@@ -1717,7 +1719,7 @@ void CL_ClearState (qboolean gamestart)
 		Mod_ClearAll ();
 		r_regsequence++;
 
-		Cvar_ApplyLatches(CVAR_LATCH);
+		Cvar_ApplyLatches(CVAR_MAPLATCH, false);
 	}
 
 	CL_ClearParseState();
@@ -1894,7 +1896,7 @@ void CL_Disconnect (const char *reason)
 
 	SCR_SetLoadingStage(0);
 
-	Cvar_ApplyLatches(CVAR_SERVEROVERRIDE);
+	Cvar_ApplyLatches(CVAR_SERVEROVERRIDE, true);
 
 // stop sounds (especially looping!)
 	S_StopAllSounds (true);
@@ -1999,8 +2001,6 @@ void CL_Disconnect (const char *reason)
 	cl.servercount = 0;
 	cls.findtrack = false;
 	cls.realserverip.type = NA_INVALID;
-
-	Validation_DelatchRulesets();
 
 #ifdef TCPCONNECT
 	//disconnects it, without disconnecting the others.
@@ -2899,6 +2899,15 @@ Return to looping demos
 */
 void CL_Demos_f (void)
 {
+	const char *mode = Cmd_Argv(1);
+	if (!strcmp(mode, "idle"))
+	{	//'demos idle' only plays the demos when we're idle.
+		//this can be used for menu backgrounds (engine and menuqc).
+		if (cls.state || cls.demoplayback || CL_TryingToConnect())
+			return;
+	}
+	//else disconnects can switch gamedirs/paks and kill menuqc etc.
+
 	if (cls.demonum == -1)
 		cls.demonum = 1;
 	CL_Disconnect_f ();
@@ -3012,7 +3021,6 @@ void CL_Reconnect_f (void)
 #endif
 
 	CL_Disconnect(NULL);
-	connectinfo.tries = 0;	//re-ensure routes.
 	CL_BeginServerReconnect();
 }
 
@@ -6325,47 +6333,51 @@ double Host_Frame (double time)
 	if (host_speeds.ival)
 		time1 = Sys_DoubleTime ();
 
-	for (i = 0; i < MAX_SPLITS; i++)
+	if (!VID_MayRefresh || VID_MayRefresh())
 	{
-		cl.playerview[i].audio.defaulted = true;
-		cl.playerview[i].audio.entnum = cl.playerview[i].viewentity;
-		VectorClear(cl.playerview[i].audio.origin);
-		VectorSet(cl.playerview[i].audio.forward, 1, 0, 0);
-		VectorSet(cl.playerview[i].audio.right, 0, 1, 0);
-		VectorSet(cl.playerview[i].audio.up, 0, 0, 1);
-		cl.playerview[i].audio.reverbtype = 0;
-		VectorClear(cl.playerview[i].audio.velocity);
-	}
-
-	if (R2D_Flush)
-	{
-		R2D_Flush();
-		Con_Printf("R2D_Flush was set outside of SCR_UpdateScreen\n");
-	}
-	if (SCR_UpdateScreen && !vid.isminimized)
-	{
-		extern cvar_t r_stereo_method;
-		r_refdef.warndraw = false;
-		r_refdef.stereomethod = r_stereo_method.ival;
-#ifdef FTE_TARGET_WEB
-		if (emscriptenfte_getvrframedata())
-			r_refdef.stereomethod = STEREO_WEBVR;
-#endif
-		CL_UpdateHeadAngles();
-
+		if (R2D_Flush)
 		{
-			RSpeedMark();
-			vid.ime_allow = false;
-			if (SCR_UpdateScreen())
-				fps_count++;
-			if (R2D_Flush)
-				Sys_Error("update didn't flush 2d cache\n");
-			RSpeedEnd(RSPEED_TOTALREFRESH);
+			R2D_Flush();
+			Con_Printf("R2D_Flush was set outside of SCR_UpdateScreen\n");
 		}
-		r_refdef.warndraw = true;
+
+		for (i = 0; i < MAX_SPLITS; i++)
+		{
+			cl.playerview[i].audio.defaulted = true;
+			cl.playerview[i].audio.entnum = cl.playerview[i].viewentity;
+			VectorClear(cl.playerview[i].audio.origin);
+			VectorSet(cl.playerview[i].audio.forward, 1, 0, 0);
+			VectorSet(cl.playerview[i].audio.right, 0, 1, 0);
+			VectorSet(cl.playerview[i].audio.up, 0, 0, 1);
+			cl.playerview[i].audio.reverbtype = 0;
+			VectorClear(cl.playerview[i].audio.velocity);
+		}
+
+		if (SCR_UpdateScreen && !vid.isminimized)
+		{
+			extern cvar_t r_stereo_method;
+			r_refdef.warndraw = false;
+			r_refdef.stereomethod = r_stereo_method.ival;
+	#ifdef FTE_TARGET_WEB
+			if (emscriptenfte_getvrframedata())
+				r_refdef.stereomethod = STEREO_WEBVR;
+	#endif
+			CL_UpdateHeadAngles();
+
+			{
+				RSpeedMark();
+				vid.ime_allow = false;
+				if (SCR_UpdateScreen())
+					fps_count++;
+				if (R2D_Flush)
+					Sys_Error("update didn't flush 2d cache\n");
+				RSpeedEnd(RSPEED_TOTALREFRESH);
+			}
+			r_refdef.warndraw = true;
+		}
+		else
+			fps_count++;
 	}
-	else
-		fps_count++;
 
 	if (host_speeds.ival)
 		time2 = Sys_DoubleTime ();
@@ -6446,7 +6458,7 @@ void CL_ReadCDKey(void)
 				break;
 			}
 		}
-		Cvar_Get("cl_cdkey", buffer, CVAR_LATCH|CVAR_NOUNSAFEEXPAND, "Q3 compatability");
+		Cvar_Get("cl_cdkey", buffer, CVAR_MAPLATCH|CVAR_NOUNSAFEEXPAND, "Q3 compatability");
 	}
 }
 #endif
@@ -6549,7 +6561,7 @@ void CL_StartCinematicOrMenu(void)
 #endif
 			if (!cls.state && !Key_Dest_Has(~kdm_game) && cl_demoreel.ival)
 			{
-				cls.demonum = 0;
+				cls.demonum = MAX_DEMOS;
 				CL_NextDemo();
 			}
 			if (!cls.state && !Key_Dest_Has(~kdm_game))
@@ -6596,6 +6608,9 @@ void CL_ArgumentOverrides(void)
 
 	if ((i = COM_CheckParm ("-particles")))
 		Cvar_Set(Cvar_FindVar("r_part_maxparticles"), com_argv[i+1]);
+
+	if (COM_CheckParm("-qmenu"))
+		Cvar_ForceSet(Cvar_FindVar("forceqmenu"), "1");
 }
 
 //note that this does NOT include commandline.
@@ -6692,6 +6707,8 @@ void CL_ExecInitialConfigs(char *resetcommand)
 
 	//and disable the 'you have unsaved stuff' prompt.
 	Cvar_Saved();
+
+	Ruleset_Scan();
 }
 
 
@@ -6969,6 +6986,7 @@ void Host_Shutdown(void)
 #ifdef QUAKEHUD
 	Stats_Clear();
 #endif
+	Ruleset_Shutdown();
 #ifdef Q3CLIENT
 	VMQ3_FlushStringHandles();
 #endif

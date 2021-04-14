@@ -780,6 +780,11 @@ static int Shader_SetImageFlags(parsestate_t *parsestate, shaderpass_t *pass, ch
 			flags &= ~IF_NEAREST;
 			flags |= IF_LINEAR;
 		}
+		else if (!Q_strnicmp(*name, "$palettize:", 11))
+		{
+			*name+=11;
+			flags |= IF_PALETTIZE;
+		}
 		else
 			break;
 	}
@@ -6519,7 +6524,7 @@ char *Shader_DefaultBSPWater(parsestate_t *ps, const char *shortname, char *buff
 	else
 		wstyle = 1;
 
-	if (wstyle > 1 && !cls.allow_watervis)
+	if ((wstyle < 0 || wstyle > 1) && !cls.allow_watervis)
 		wstyle = 1;
 
 	if (wstyle > 1 && !sh_config.progs_supported)
@@ -6559,8 +6564,8 @@ char *Shader_DefaultBSPWater(parsestate_t *ps, const char *shortname, char *buff
 	case -2:	//regular with r_wateralpha forced off.
 		return (
 			"{\n"
+				"fte_program defaultwarp\n"
 				"{\n"
-					"program defaultwarp\n"
 					"map $diffuse\n"
 					"tcmod turb 0.02 0.1 0.5 0.1\n"
 				"}\n"
@@ -6591,8 +6596,8 @@ char *Shader_DefaultBSPWater(parsestate_t *ps, const char *shortname, char *buff
 					"if %g < 1\n"
 						"sort underwater\n"
 					"endif\n"
+					"fte_program defaultwarp%s\n"
 					"{\n"
-						"program defaultwarp%s\n"
 						"map $diffuse\n"
 						"tcmod turb 0.02 0.1 0.5 0.1\n"
 						"if %g < 1\n"
@@ -7008,6 +7013,9 @@ void Shader_DefaultSkin(parsestate_t *ps, const char *shortname, const void *arg
 			"{\n"
 				"map $diffuse\n"
 				"rgbgen lightingDiffuse\n"
+				"if #BLEND\n"
+					"blendfunc blend\n"	//straight blend
+				"endif\n"
 			"}\n"
 			"{\n"
 				"map $loweroverlay\n"

@@ -89,6 +89,7 @@ cvar_t	qport = CVARF("qport_", "0", CVAR_NOSAVE);
 cvar_t	net_mtu = CVARD("net_mtu", "1440", "Specifies a maximum udp payload size, above which packets will be fragmented. If routers all worked properly this could be some massive value, and some massive value may work really nicely for lans. Use smaller values than the default if you're connecting through nested tunnels through routers that fail with IP fragmentation.");
 cvar_t	net_compress = CVARD("net_compress", "0", "Enables huffman compression of network packets.");
 
+cvar_t	pext_vrinputs = CVARD("_pext_vrinputs", "0", "RENAME ME WHEN STABLE. Networks player inputs slightly differently, allowing for greater capabilities, particuarly vr controller info.");
 cvar_t	pext_infoblobs = CVARD("_pext_infoblobs", "0", "RENAME ME WHEN STABLE. Enables the use of very large infokeys containing potentially invalid chars. Note that the userinfo is still limited by sv_userinfo_bytelimit and sv_userinfo_keylimit.");
 cvar_t	pext_replacementdeltas = CVARD("pext_replacementdeltas", "1", "Enables the use of alternative nack-based entity deltas");
 cvar_t	pext_predinfo = CVARD("pext_predinfo", "1", "Enables some extra things to support prediction over NQ protocols.");
@@ -221,6 +222,9 @@ unsigned int Net_PextMask(unsigned int protover, qboolean fornq)
 		if (pext_infoblobs.ival)
 			mask |= PEXT2_INFOBLOBS;
 
+		if (pext_vrinputs.ival)
+			mask |= PEXT2_VRINPUTS;
+
 		if (MAX_CLIENTS != QWMAX_CLIENTS)
 			mask |= PEXT2_MAXPLAYERS;
 
@@ -232,7 +236,7 @@ unsigned int Net_PextMask(unsigned int protover, qboolean fornq)
 		if (fornq)
 		{
 			//only ones that are tested
-			mask &= /*PEXT2_PRYDONCURSOR |*/ PEXT2_VOICECHAT | PEXT2_SETANGLEDELTA | PEXT2_REPLACEMENTDELTAS | PEXT2_MAXPLAYERS | PEXT2_PREDINFO | PEXT2_NEWSIZEENCODING;
+			mask &= PEXT2_PRYDONCURSOR | PEXT2_VOICECHAT | PEXT2_SETANGLEDELTA | PEXT2_REPLACEMENTDELTAS | PEXT2_MAXPLAYERS | PEXT2_PREDINFO | PEXT2_NEWSIZEENCODING /*| PEXT2_VRINPUTS - FIXME: do we want multiple per packet, to cover packetloss?*/;
 		}
 //		else
 //			mask &= ~PEXT2_PREDINFO;
@@ -270,6 +274,7 @@ void Netchan_Init (void)
 	Cvar_Register (&pext_predinfo, "Protocol Extensions");
 	Cvar_Register (&pext_replacementdeltas, "Protocol Extensions");
 	Cvar_Register (&pext_infoblobs, "Protocol Extensions");
+	Cvar_Register (&pext_vrinputs, "Protocol Extensions");
 	Cvar_Register (&showpackets, "Networking");
 	Cvar_Register (&showdrop, "Networking");
 	Cvar_Register (&qport, "Networking");
@@ -432,7 +437,7 @@ qboolean ServerPaused(void);
 #endif
 
 #ifdef NQPROT
-qboolean NQNetChan_Process(netchan_t *chan)
+enum nqnc_packettype_e NQNetChan_Process(netchan_t *chan)
 {
 	int header;
 	int sequence;
@@ -443,10 +448,10 @@ qboolean NQNetChan_Process(netchan_t *chan)
 
 	header = LongSwap(MSG_ReadLong());
 	if (net_message.cursize != (header & NETFLAG_LENGTH_MASK))
-		return false;	//size was wrong, couldn't have been ours.
+		return NQNC_IGNORED;	//size was wrong, couldn't have been ours.
 
 	if (header & NETFLAG_CTL)
-		return false;	//huh?
+		return NQNC_IGNORED;	//huh?
 
 	sequence = LongSwap(MSG_ReadLong());
 
@@ -483,7 +488,7 @@ qboolean NQNetChan_Process(netchan_t *chan)
 						, sequence
 						, 0);
 
-		return false;	//don't try execing the 'payload'. I hate ack packets.
+		return NQNC_ACK;	//don't try execing the 'payload'. I hate ack packets.
 	}
 
 	if (header & NETFLAG_UNRELIABLE)
@@ -492,7 +497,7 @@ qboolean NQNetChan_Process(netchan_t *chan)
 		{
 			if (showdrop.ival)
 				Con_Printf("Stale datagram recieved (%i<=%i)\n", sequence, chan->incoming_unreliable);
-			return false;
+			return NQNC_IGNORED;
 		}
 		drop = sequence - chan->incoming_unreliable - 1;
 		if (drop > 0)
@@ -520,7 +525,7 @@ qboolean NQNetChan_Process(netchan_t *chan)
 						, chan->sock != NS_SERVER?"s2c":"c2s"
 						, chan->incoming_unreliable
 						, net_message.cursize);
-		return true;
+		return NQNC_UNRELIABLE;
 	}
 	if (header & NETFLAG_DATA)
 	{
@@ -543,7 +548,7 @@ qboolean NQNetChan_Process(netchan_t *chan)
 			if (chan->in_fragment_length + net_message.cursize-8 >= sizeof(chan->in_fragment_buf))
 			{
 				chan->fatal_error = true;
-				return false;
+				return NQNC_IGNORED;
 			}
 
 			memcpy(chan->in_fragment_buf + chan->in_fragment_length, net_message.data+8, net_message.cursize-8);
@@ -561,7 +566,7 @@ qboolean NQNetChan_Process(netchan_t *chan)
 								, chan->sock != NS_SERVER?"s2c":"c2s"
 								, sequence
 								, net_message.cursize);
-				return true;	//we can read it now
+				return NQNC_RELIABLE;	//we can read it now
 			}
 		}
 		else
@@ -570,10 +575,10 @@ qboolean NQNetChan_Process(netchan_t *chan)
 				Con_Printf("Stale reliable (%i)\n", sequence);
 		}
 
-		return false;
+		return NQNC_IGNORED;
 	}
 
-	return false;	//not supported.
+	return NQNC_IGNORED;	//not supported.
 }
 #endif
 

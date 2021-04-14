@@ -265,7 +265,7 @@ typedef struct {
 	void (*PurgeModel) (struct model_s *mod);
 
 	unsigned int (*PointContents)	(struct model_s *model, const vec3_t axis[3], const vec3_t p);
-	unsigned int (*BoxContents)		(struct model_s *model, int hulloverride, const framestate_t *framestate, const vec3_t axis[3], const vec3_t p, const vec3_t mins, const vec3_t maxs);
+//	unsigned int (*BoxContents)		(struct model_s *model, int hulloverride, const framestate_t *framestate, const vec3_t axis[3], const vec3_t p, const vec3_t mins, const vec3_t maxs);
 
 	//deals with whatever is native for the bsp (gamecode is expected to distinguish this).
 	qboolean (*NativeTrace)		(struct model_s *model, int hulloverride, const framestate_t *framestate, const vec3_t axis[3], const vec3_t p1, const vec3_t p2, const vec3_t mins, const vec3_t maxs, qboolean capsule, unsigned int against, struct trace_s *trace);
@@ -482,7 +482,7 @@ typedef struct msurface_s
 	qbyte		*samples;		// [numstyles*surfsize]
 } msurface_t;
 
-typedef struct mbrush_s
+/*typedef struct mbrush_s
 {
 	struct mbrush_s *next;
 	unsigned int contents;
@@ -492,7 +492,7 @@ typedef struct mbrush_s
 		vec3_t normal;
 		float dist;
 	} planes[1];
-} mbrush_t;
+} mbrush_t;*/
 
 typedef struct mnode_s
 {
@@ -504,7 +504,7 @@ typedef struct mnode_s
 	float		minmaxs[6];		// for bounding box culling
 
 	struct mnode_s	*parent;
-	struct mbrush_s	*brushes;
+//	struct mbrush_s	*brushes;
 
 // node specific
 	mplane_t	*plane;
@@ -529,7 +529,6 @@ typedef struct mleaf_s
 	float		minmaxs[6];		// for bounding box culling
 
 	struct mnode_s	*parent;
-	struct mbrush_s	*brushes;
 
 // leaf specific
 	qbyte		*compressed_vis;
@@ -555,12 +554,15 @@ typedef struct mleaf_s
 
 typedef struct
 {
-	float		mins[3], maxs[3];
-	float		origin[3];
-	int			headnode[MAX_MAP_HULLSM];
-	int			visleafs;		// not including the solid leaf 0
-	int			firstface, numfaces;
-	qboolean	hullavailable[MAX_MAP_HULLSM];
+	float				mins[3], maxs[3];
+	float				origin[3];
+	unsigned int		headnode[MAX_MAP_HULLSM];
+	unsigned int		visleafs;		// not including the solid leaf 0
+	unsigned int		firstface, numfaces;
+	qboolean			hullavailable[MAX_MAP_HULLSM];
+
+	struct q2cbrush_s	*brushes;
+	unsigned int		numbrushes;
 } mmodel_t;
 
 
@@ -932,13 +934,13 @@ typedef struct model_s
 {
 	char		name[MAX_QPATH];	//actual name on disk
 	char		publicname[MAX_QPATH];	//name that the gamecode etc sees
-	int			datasequence;
-	int			loadstate;//MLS_
+	int			datasequence;	//if it gets old enough, we can purge it.
+	int			loadstate;		//MLS_
 	qboolean	tainted;		// differs from the server's version. this model will be invisible as a result, to avoid spiked models.
 	qboolean	pushdepth;		// bsp submodels have this flag set so you don't get z fighting on co-planar surfaces.
 	time_t		mtime;			// modification time. so we can flush models if they're changed on disk. or at least worldmodels.
 
-	struct model_s *submodelof;
+	struct model_s *submodelof;	// shares memory allocations with this model.
 
 	modtype_t	type;
 	fromgame_t	fromgame;
@@ -951,9 +953,6 @@ typedef struct model_s
 	int			particleeffect;
 	int			particletrail;
 	int			traildefaultindex;
-	struct skytris_s		*skytris;	//for surface emittance
-	float					skytime;	//for surface emittance
-	struct skytriblock_s	*skytrimem;
 
 //
 // volume occupied by the model graphics
@@ -969,6 +968,7 @@ typedef struct model_s
 	qboolean	clipbox;
 	vec3_t		clipmins, clipmaxs;
 
+	void		*cnodes;	//BIH tree
 //
 // brush model
 //
@@ -994,7 +994,6 @@ typedef struct model_s
 
 	int			numnodes;
 	mnode_t		*nodes;
-	void		*cnodes;
 	mnode_t		*rootnode;
 
 	int			numtexinfo;
@@ -1028,13 +1027,20 @@ typedef struct model_s
 	int			numfogs;
 	menvmap_t	*envmaps;
 	unsigned	numenvmaps;
+
+	struct skytris_s		*skytris;	//for surface emittance
+	float					skytime;	//for surface emittance
+	struct skytriblock_s	*skytrimem;
+
 	struct {unsigned int id; char *keyvals;} *entityinfo;
 	size_t		numentityinfo;
 	const char	*entities_raw;
 	int			entitiescrc;
 
-	struct doll_s		*dollinfo;
-	shader_t	*simpleskin[4];
+	struct doll_s		*dollinfo;	//ragdoll info
+	int camerabone;	//the 1-based bone index that the camera should be attached to (for gltf rather than anything else)
+
+	shader_t	*simpleskin[4];		//simpleitems cache
 
 	struct {
 		texture_t *tex;
@@ -1079,7 +1085,6 @@ typedef struct model_s
 //
 	void *meshinfo;	//data allocated within the memgroup allocations, will be nulled out when the model is flushed
 	zonegroup_t memgroup;
-	int camerabone;	//the 1-based bone index that the camera should be attached to (for gltf rather than anything else)
 } model_t;
 
 #define MDLF_EMITREPLACE     0x0001 // particle effect engulphs model (don't draw)
@@ -1093,7 +1098,7 @@ typedef struct model_s
 #define MDLF_BOLT            0x0100 // doesn't produce shadows
 #define	MDLF_NOTREPLACEMENTS 0x0200 // can be considered a cheat, disable texture replacements
 #define MDLF_EZQUAKEFBCHEAT  0x0400 // this is a blatent cheat, one that can disadvantage us fairly significantly if we don't support it.
-#define MDLF_HASBRUSHES		 0x0800 // q1bsp has brush info for more precise traceboxes
+//#define MDLF_HASBRUSHES		 0x0800 // q1bsp has brush info for more precise traceboxes
 #define MDLF_RECALCULATERAIN 0x1000 // particles changed, recalculate any sky polys
 
 //============================================================================

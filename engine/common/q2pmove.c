@@ -43,7 +43,7 @@ typedef struct
 	float		frametime;
 
 
-	q2csurface_t	*groundsurface;
+	const q2csurface_t	*groundsurface;
 	cplane_t	groundplane;
 	int			groundcontents;
 

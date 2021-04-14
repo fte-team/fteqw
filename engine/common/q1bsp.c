@@ -3,6 +3,7 @@
 #include "pr_common.h"
 
 #include "shader.h"
+#include "com_bih.h"
 
 extern cvar_t r_decal_noperpendicular;
 extern cvar_t mod_loadsurfenvmaps;
@@ -1047,7 +1048,7 @@ qboolean Q1BSP_RecursiveHullCheck (hull_t *hull, int num, float p1f, float p2f, 
 }
 #endif
 
-#ifdef Q1BSPS
+#if 0//def Q1BSPS
 
 /*
 the bsp tree we're walking through is the renderable hull
@@ -1325,44 +1326,29 @@ static void Q1BSP_RecursiveBrushCheck (struct traceinfo_s *traceinfo, mnode_t *n
 }
 #endif	//Q1BSPS
 
-static unsigned int Q1BSP_TranslateContents(int contents)
+static unsigned int Q1BSP_TranslateContents(enum q1contents_e contents)
 {
-	switch(contents)
+	safeswitch(contents)
 	{
-	case Q1CONTENTS_EMPTY:
-		return FTECONTENTS_EMPTY;
-	case Q1CONTENTS_SOLID:
-		return FTECONTENTS_SOLID;
-	case Q1CONTENTS_WATER:
-		return FTECONTENTS_WATER;
-	case Q1CONTENTS_SLIME:
-		return FTECONTENTS_SLIME;
-	case Q1CONTENTS_LAVA:
-		return FTECONTENTS_LAVA;
-	case Q1CONTENTS_SKY:
-		return FTECONTENTS_SKY|FTECONTENTS_PLAYERCLIP|FTECONTENTS_MONSTERCLIP;
-	case Q1CONTENTS_LADDER:
-		return FTECONTENTS_LADDER;
-	case Q1CONTENTS_CLIP:
-		return FTECONTENTS_PLAYERCLIP|FTECONTENTS_MONSTERCLIP;
-	case Q1CONTENTS_TRANS:
-		return FTECONTENTS_SOLID;
+	case Q1CONTENTS_EMPTY:			return FTECONTENTS_EMPTY;
+	case Q1CONTENTS_SOLID:			return FTECONTENTS_SOLID;
+	case Q1CONTENTS_WATER:			return FTECONTENTS_WATER;
+	case Q1CONTENTS_SLIME:			return FTECONTENTS_SLIME;
+	case Q1CONTENTS_LAVA:			return FTECONTENTS_LAVA;
+	case Q1CONTENTS_SKY:			return FTECONTENTS_SKY|FTECONTENTS_PLAYERCLIP|FTECONTENTS_MONSTERCLIP;
+	case Q1CONTENTS_LADDER:			return FTECONTENTS_LADDER;
+	case Q1CONTENTS_CLIP:			return FTECONTENTS_PLAYERCLIP|FTECONTENTS_MONSTERCLIP;
+	case Q1CONTENTS_CURRENT_0:		return FTECONTENTS_WATER|Q2CONTENTS_CURRENT_0;		//q2 is better than nothing, right?
+	case Q1CONTENTS_CURRENT_90:		return FTECONTENTS_WATER|Q2CONTENTS_CURRENT_90;
+	case Q1CONTENTS_CURRENT_180:	return FTECONTENTS_WATER|Q2CONTENTS_CURRENT_180;
+	case Q1CONTENTS_CURRENT_270:	return FTECONTENTS_WATER|Q2CONTENTS_CURRENT_270;
+	case Q1CONTENTS_CURRENT_UP:		return FTECONTENTS_WATER|Q2CONTENTS_CURRENT_UP;
+	case Q1CONTENTS_CURRENT_DOWN:	return FTECONTENTS_WATER|Q2CONTENTS_CURRENT_DOWN;
+	case Q1CONTENTS_TRANS:			return FTECONTENTS_SOLID;
+	case Q1CONTENTS_MONSTERCLIP:	return FTECONTENTS_MONSTERCLIP;
+	case Q1CONTENTS_PLAYERCLIP:		return FTECONTENTS_PLAYERCLIP;
 
-	//q2 is better than nothing, right?
-	case Q1CONTENTS_FLOW_1:
-		return Q2CONTENTS_CURRENT_0;
-	case Q1CONTENTS_FLOW_2:
-		return Q2CONTENTS_CURRENT_90;
-	case Q1CONTENTS_FLOW_3:
-		return Q2CONTENTS_CURRENT_180;
-	case Q1CONTENTS_FLOW_4:
-		return Q2CONTENTS_CURRENT_270;
-	case Q1CONTENTS_FLOW_5:
-		return Q2CONTENTS_CURRENT_UP;
-	case Q1CONTENTS_FLOW_6:
-		return Q2CONTENTS_CURRENT_DOWN;
-
-	default:
+	safedefault:
 		Con_Printf("Q1BSP_TranslateContents: Unknown contents type - %i", contents);
 		return FTECONTENTS_SOLID;
 	}
@@ -1403,116 +1389,120 @@ unsigned int Q1BSP_PointContents(model_t *model, const vec3_t axis[3], const vec
 
 void Q1BSP_LoadBrushes(model_t *model, bspx_header_t *bspx, void *mod_base)
 {
-	struct {
+	const struct {
 		unsigned int ver;
 		unsigned int modelnum;
 		unsigned int numbrushes;
 		unsigned int numplanes;
-	} *permodel;
-	struct {
+	} *srcmodel;
+	const struct {
 		float mins[3];
 		float maxs[3];
 		signed short contents;
 		unsigned short numplanes;
-	} *perbrush;
+	} *srcbrush;
 	/*
 	Note to implementors:
 	a pointy brush with angles pointier than 90 degrees will extend further than any adjacent brush, thus creating invisible walls with larger expansions.
 	the engine inserts 6 axial planes acording to the bbox, thus the qbsp need not write any axial planes
 	note that doing it this way probably isn't good if you want to query textures...
 	*/
-	struct {
+	const struct{
 		vec3_t normal;
 		float dist;
-	} *perplane;
+	} *srcplane;
 
 	static vec3_t axis[3] = {{1, 0, 0}, {0, 1, 0}, {0, 0, 1}};
-	int br, pl, remainingplanes;
-	mbrush_t *brush;
-	mnode_t *rootnode;
+	unsigned int br, pl;
+	q2cbrush_t *brush;
+	q2cbrushside_t *sides;	//grr!
+	mplane_t *planes;	//bulky?
 	unsigned int lumpsizeremaining;
+	unsigned int numplanes;
 
-	model->engineflags &= ~MDLF_HASBRUSHES;
+	unsigned int srcver, srcmodelidx, modbrushes, modplanes;
 
-	permodel = BSPX_FindLump(bspx, mod_base, "BRUSHLIST", &lumpsizeremaining);
-	if (!permodel)
+	srcmodel = BSPX_FindLump(bspx, mod_base, "BRUSHLIST", &lumpsizeremaining);
+	if (!srcmodel)
 		return;
 
 	while (lumpsizeremaining)
 	{
-		if (lumpsizeremaining < sizeof(*permodel))
+		if (lumpsizeremaining < sizeof(*srcmodel))
 			return;
-		permodel->ver = LittleLong(permodel->ver);
-		permodel->modelnum = LittleLong(permodel->modelnum);
-		permodel->numbrushes = LittleLong(permodel->numbrushes);
-		permodel->numplanes = LittleLong(permodel->numplanes);
-		if (permodel->ver != 1 || lumpsizeremaining < sizeof(*permodel) + permodel->numbrushes*sizeof(*perbrush) + permodel->numplanes*sizeof(*perplane))
+		srcver = LittleLong(srcmodel->ver);
+		srcmodelidx = LittleLong(srcmodel->modelnum);
+		modbrushes = LittleLong(srcmodel->numbrushes);
+		modplanes = LittleLong(srcmodel->numplanes);
+		if (srcver != 1 || lumpsizeremaining < sizeof(*srcmodel) + modbrushes*sizeof(*srcmodel) + modplanes*sizeof(*srcplane))
+			return;
+		lumpsizeremaining -= ((const char*)(srcmodel+1) + modbrushes*sizeof(*srcbrush) + modplanes*sizeof(*srcplane)) - (const char*)srcmodel;
+
+		if (srcmodelidx > model->numsubmodels)
 			return;
 
-		//find the correct rootnode for the submodel (submodels are not set up yet).
-		rootnode = model->nodes;
-		if (permodel->modelnum > model->numsubmodels)
-			return;
-		rootnode += model->submodels[permodel->modelnum].headnode[0];
-
-		brush = ZG_Malloc(&model->memgroup, (sizeof(*brush) - sizeof(brush->planes[0]))*permodel->numbrushes + sizeof(brush->planes[0])*(permodel->numbrushes*6+permodel->numplanes));
-		remainingplanes = permodel->numplanes;
-		perbrush = (void*)(permodel+1);
-		for (br = 0; br < permodel->numbrushes; br++)
+		brush = ZG_Malloc(&model->memgroup, sizeof(*brush)*modbrushes +
+											sizeof(*sides)*(modbrushes*6+modplanes) +
+											sizeof(*planes)*(modbrushes*6+modplanes));
+		sides = (void*)(brush + modbrushes);
+		planes = (void*)(sides + modbrushes*6+modplanes);
+		model->submodels[srcmodelidx].brushes = brush;
+		srcbrush = (const void*)(srcmodel+1);
+		for (br = 0; br < modbrushes; br++, srcbrush = (const void*)srcplane)
 		{
 			/*byteswap it all in place*/
-			perbrush->mins[0] = LittleFloat(perbrush->mins[0]);
-			perbrush->mins[1] = LittleFloat(perbrush->mins[1]);
-			perbrush->mins[2] = LittleFloat(perbrush->mins[2]);
-			perbrush->maxs[0] = LittleFloat(perbrush->maxs[0]);
-			perbrush->maxs[1] = LittleFloat(perbrush->maxs[1]);
-			perbrush->maxs[2] = LittleFloat(perbrush->maxs[2]);
-			perbrush->contents = LittleShort(perbrush->contents);
-			perbrush->numplanes = LittleShort(perbrush->numplanes);
+			brush->absmins[0] = LittleFloat(srcbrush->mins[0]);
+			brush->absmins[1] = LittleFloat(srcbrush->mins[1]);
+			brush->absmins[2] = LittleFloat(srcbrush->mins[2]);
+			brush->absmaxs[0] = LittleFloat(srcbrush->maxs[0]);
+			brush->absmaxs[1] = LittleFloat(srcbrush->maxs[1]);
+			brush->absmaxs[2] = LittleFloat(srcbrush->maxs[2]);
+			numplanes = (unsigned short)LittleShort(srcbrush->numplanes);
 
 			/*make sure planes don't overflow*/
-			if (perbrush->numplanes > remainingplanes)
+			if (numplanes > modplanes)
 				return;
-			remainingplanes-=perbrush->numplanes;
+			modplanes-=numplanes;
 
 			/*set up the mbrush from the file*/
-			brush->contents = Q1BSP_TranslateContents(perbrush->contents);
-			brush->numplanes = perbrush->numplanes;
-			for (pl = 0, perplane = (void*)(perbrush+1); pl < perbrush->numplanes; pl++, perplane++)
+			brush->contents = Q1BSP_TranslateContents(LittleShort(srcbrush->contents));
+			brush->brushside = sides;
+			for (srcplane = (const void*)(srcbrush+1); numplanes --> 0; srcplane++)
 			{
-				brush->planes[pl].normal[0] = LittleFloat(perplane->normal[0]);
-				brush->planes[pl].normal[1] = LittleFloat(perplane->normal[1]);
-				brush->planes[pl].normal[2] = LittleFloat(perplane->normal[2]);
-				brush->planes[pl].dist = LittleFloat(perplane->dist);
+				planes->normal[0] = LittleFloat(srcplane->normal[0]);
+				planes->normal[1] = LittleFloat(srcplane->normal[1]);
+				planes->normal[2] = LittleFloat(srcplane->normal[2]);
+				planes->dist = LittleFloat(srcplane->dist);
+
+				sides->surface = NULL;
+				sides++->plane = planes++;
 			}
 
 			/*and add axial planes acording to the brush's bbox*/
 			for (pl = 0; pl < 3; pl++)
 			{
-				VectorCopy(axis[pl], brush->planes[brush->numplanes].normal);
-				brush->planes[brush->numplanes].dist = perbrush->maxs[pl];
-				brush->numplanes++;
+				VectorCopy(axis[pl], planes->normal);
+				planes->dist = brush->absmaxs[pl];
+
+				sides->surface = NULL;
+				sides++->plane = planes++;
 			}
 			for (pl = 0; pl < 3; pl++)
 			{
-				VectorNegate(axis[pl], brush->planes[brush->numplanes].normal);
-				brush->planes[brush->numplanes].dist = -perbrush->mins[pl];
-				brush->numplanes++;
+				VectorNegate(axis[pl], planes->normal);
+				planes->dist = -brush->absmins[pl];
+
+				sides->surface = NULL;
+				sides++->plane = planes++;
 			}
-
-			/*link it in to the bsp tree*/
-			Q1BSP_InsertBrush(rootnode, brush, perbrush->mins, perbrush->maxs);
-
-			/*set up for the next brush*/
-			brush = (void*)&brush->planes[brush->numplanes];
-			perbrush = (void*)perplane;
+			brush->numsides = sides - brush->brushside;
+			brush++;
 		}
+		model->submodels[srcmodelidx].numbrushes = brush-model->submodels[srcmodelidx].brushes;
+
 		/*move on to the next model*/
-		lumpsizeremaining -= sizeof(*permodel) + permodel->numbrushes*sizeof(*perbrush) + permodel->numplanes*sizeof(*perplane);
-		permodel = (void*)((char*)permodel + sizeof(*permodel) + permodel->numbrushes*sizeof(*perbrush) + permodel->numplanes*sizeof(*perplane));
+		srcmodel = (const void*)srcbrush;
 	}
-	/*parsing was successful! flag it as okay*/
-	model->engineflags |= MDLF_HASBRUSHES;
 }
 
 hull_t *Q1BSP_ChooseHull(model_t *model, int forcehullnum, const vec3_t mins, const vec3_t maxs, vec3_t offset)
@@ -1566,82 +1556,6 @@ qboolean Q1BSP_Trace(model_t *model, int forcehullnum, const framestate_t *frame
 	hull_t *hull;
 	vec3_t start_l, end_l;
 	vec3_t offset;
-
-	if ((model->engineflags & MDLF_HASBRUSHES))// && (size[0] || size[1] || size[2]))
-	{
-		struct traceinfo_s traceinfo;
-		memset (&traceinfo.trace, 0, sizeof(trace_t));
-		traceinfo.trace.fraction = 1;
-		traceinfo.trace.allsolid = false;
-		VectorCopy(mins, traceinfo.mins);
-		VectorCopy(maxs, traceinfo.maxs);
-
-		if (axis)
-		{
-			traceinfo.start[0] = DotProduct(start, axis[0]);
-			traceinfo.start[1] = DotProduct(start, axis[1]);
-			traceinfo.start[2] = DotProduct(start, axis[2]);
-			traceinfo.end[0] = DotProduct(end, axis[0]);
-			traceinfo.end[1] = DotProduct(end, axis[1]);
-			traceinfo.end[2] = DotProduct(end, axis[2]);
-		}
-		else
-		{
-			VectorCopy(start, traceinfo.start);
-			VectorCopy(end, traceinfo.end);
-		}
-		traceinfo.capsule = capsule;
-
-		if (traceinfo.capsule)
-		{
-			float ext;
-			traceinfo.capsulesize[0] = ((maxs[0]-mins[0]) + (maxs[1]-mins[1]))/4.0;
-			traceinfo.capsulesize[1] = maxs[2];
-			traceinfo.capsulesize[2] = mins[2];
-			ext = (traceinfo.capsulesize[1] > -traceinfo.capsulesize[2])?traceinfo.capsulesize[1]:-traceinfo.capsulesize[2];
-			traceinfo.capsulesize[1] -= traceinfo.capsulesize[0];
-			traceinfo.capsulesize[2] += traceinfo.capsulesize[0];
-			traceinfo.extents[0] = ext+1;
-			traceinfo.extents[1] = ext+1;
-			traceinfo.extents[2] = ext+1;
-			VectorSet(traceinfo.up, 0, 0, 1);
-		}
-
-/*		traceinfo.sphere = true;
-		traceinfo.radius = 48;
-		traceinfo.mins[0] = -traceinfo.radius;
-		traceinfo.mins[1] = -traceinfo.radius;
-		traceinfo.mins[2] = -traceinfo.radius;
-		traceinfo.maxs[0] = traceinfo.radius;
-		traceinfo.maxs[1] = traceinfo.radius;
-		traceinfo.maxs[2] = traceinfo.radius;
-*/
-		traceinfo.solidcontents = hitcontentsmask;
-		Q1BSP_RecursiveBrushCheck(&traceinfo, model->rootnode, 0, 1, traceinfo.start, traceinfo.end);
-		memcpy(trace, &traceinfo.trace, sizeof(trace_t));
-		if (trace->fraction < 1)
-		{
-			float d1 = DotProduct(start, trace->plane.normal) - trace->plane.dist;
-			float d2 = DotProduct(end, trace->plane.normal) - trace->plane.dist;
-			float f = (d1 - DIST_EPSILON) / (d1 - d2);
-			if (f < 0)
-				f = 0;
-			trace->fraction = f;
-
-			if (axis)
-			{
-				vec3_t iaxis[3];
-				vec3_t norm;
-				Matrix3x3_RM_Invert_Simple((const void *)axis, iaxis);
-				VectorCopy(trace->plane.normal, norm);
-				trace->plane.normal[0] = DotProduct(norm, iaxis[0]);
-				trace->plane.normal[1] = DotProduct(norm, iaxis[1]);
-				trace->plane.normal[2] = DotProduct(norm, iaxis[2]);
-			}
-		}
-		VectorInterpolate(start, trace->fraction, end, trace->endpos);
-		return trace->fraction != 1;
-	}
 
 	memset (trace, 0, sizeof(trace_t));
 	trace->fraction = 1;
@@ -1793,6 +1707,43 @@ void Q1BSP_MarkLights (dlight_t *light, dlightbitmask_t bit, mnode_t *node)
 	Q1BSP_MarkLights (light, bit, node->children[1]);
 }
 
+//combination of R_AddDynamicLights and R_MarkLights
+static void Q1BSP_StainNode (mnode_t *node, float *parms)
+{
+	mplane_t	*splitplane;
+	float		dist;
+	msurface_t	*surf;
+	int			i;
+
+	if (node->contents < 0)
+		return;
+
+	splitplane = node->plane;
+	dist = DotProduct ((parms+1), splitplane->normal) - splitplane->dist;
+
+	if (dist > (*parms))
+	{
+		Q1BSP_StainNode (node->children[0], parms);
+		return;
+	}
+	if (dist < (-*parms))
+	{
+		Q1BSP_StainNode (node->children[1], parms);
+		return;
+	}
+
+// mark the polygons
+	surf = cl.worldmodel->surfaces + node->firstsurface;
+	for (i=0 ; i<node->numsurfaces ; i++, surf++)
+	{
+		if (surf->flags&~(SURF_DRAWALPHA|SURF_DONTWARP|SURF_PLANEBACK))
+			continue;
+		Surf_StainSurf(surf, parms);
+	}
+
+	Q1BSP_StainNode (node->children[0], parms);
+	Q1BSP_StainNode (node->children[1], parms);
+}
 #endif
 /*
 Rendering functions (Client only)
@@ -2227,9 +2178,6 @@ void Q1BSP_SetModelFuncs(model_t *mod)
 #endif
 	mod->funcs.EdictInFatPVS		= Q1BSP_EdictInFatPVS;
 	mod->funcs.FindTouchedLeafs		= Q1BSP_FindTouchedLeafs;
-	mod->funcs.LightPointValues		= NULL;
-	mod->funcs.StainNode			= NULL;
-	mod->funcs.MarkLights			= NULL;
 
 	mod->funcs.ClustersInSphere		= Q1BSP_ClustersInSphere;
 	mod->funcs.ClusterForPoint		= Q1BSP_ClusterForPoint;
@@ -2237,6 +2185,12 @@ void Q1BSP_SetModelFuncs(model_t *mod)
 //	mod->funcs.ClusterPHS			= Q1BSP_ClusterPHS;
 	mod->funcs.NativeTrace			= Q1BSP_Trace;
 	mod->funcs.PointContents		= Q1BSP_PointContents;
+
+#ifndef SERVERONLY
+	mod->funcs.LightPointValues		= GLQ1BSP_LightPointValues;
+	mod->funcs.MarkLights			= Q1BSP_MarkLights;
+	mod->funcs.StainNode			= Q1BSP_StainNode;
+#endif
 }
 #endif
 

@@ -30,6 +30,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define CHAN_ITEM   3
 #define CHAN_BODY   4
 
+extern cvar_t sv_showpredloss;
 extern cvar_t sv_gravity, sv_friction, sv_waterfriction, sv_gamespeed, sv_stopspeed, sv_spectatormaxspeed, sv_accelerate, sv_airaccelerate, sv_wateraccelerate, pm_edgefriction, sv_reliable_sound;
 extern cvar_t  dpcompat_stats;
 
@@ -2184,13 +2185,22 @@ void SV_UpdateQCStats(edict_t	*ent, int *statsi, char const** statss, float *sta
 		case ev_float:
 			statsf[qcstats[i].statnum] = eval->_float;
 			break;
-		case ev_vector:
+		case ev_double:
+			statsf[qcstats[i].statnum] = eval->_double;	//FIXME: precision loss.
+			break;
+		case ev_vector:	//split over 3 stats.
 			statsf[qcstats[i].statnum+0] = eval->_vector[0];
 			statsf[qcstats[i].statnum+1] = eval->_vector[1];
 			statsf[qcstats[i].statnum+2] = eval->_vector[2];
 			break;
 		case ev_integer:
+		case ev_uint:
 			statsi[qcstats[i].statnum] = eval->_int;
+			break;
+		case ev_int64:
+		case ev_uint64:	//split over 2 stats.
+			statsi[qcstats[i].statnum] = eval->_uint64&0xffffffff;
+			statsi[qcstats[i].statnum+1] = eval->_uint64>>32;
 			break;
 		case ev_entity:
 			statsi[qcstats[i].statnum] = NUM_FOR_EDICT(svprogfuncs, PROG_TO_EDICT(svprogfuncs, eval->edict));
@@ -3511,11 +3521,14 @@ void SV_SendClientMessages (void)
 				SV_PreRunCmd();
 				stepmsec = 12;
 				cmd.msec = stepmsec;
+
+				if (sv_showpredloss.ival)
+					Con_Printf("%s: forcing %g msecs (anti-hover)\n", c->name, cmd.msec);
 				VectorCopy(c->lastcmd.angles, cmd.angles);
 				cmd.buttons = c->lastcmd.buttons;
 				SV_RunCmd (&cmd, true);
 				SV_PostRunCmd();
-				c->lastruncmd = sv.time*1000;
+				c->lastruncmd = sv.time*1000-c->msecs;
 				if (stepmsec > c->msecs)
 					c->msecs = 0;
 				else

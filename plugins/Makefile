@@ -71,7 +71,13 @@ ifeq ($(PLUG_NATIVE_EXT),)
 		endif
 	endif
 	ifneq ($(shell echo|$(CC) -E -dM -|grep __ppc__),)
-		PLUG_NATIVE_EXT=_ppc.so
+		PLUG_NATIVE_EXT=_ppc.so		#32bit big-endian
+	endif
+	ifneq ($(shell echo|$(CC) -E -dM -|grep __ppc64__),)
+		PLUG_NATIVE_EXT=_ppc64.so	#64bit big-endian
+	endif
+	ifneq ($(shell echo|$(CC) -E -dM -|grep __ppc64le__),)
+		PLUG_NATIVE_EXT=_ppc64le.so	#64bit little-endian.
 	endif
 endif
 ifeq ($(FTE_TARGET),droid)
@@ -87,7 +93,7 @@ ifeq ($(FTE_TARGET),droid)
 endif
 
 #fallback
-PLUG_NATIVE_EXT?=_unk.so
+PLUG_NATIVE_EXT?=.so
 
 PLUG_DEFFILE?=
 PLUG_CFLAGS?=-fPIC -Wl,--no-undefined -Bsymbolic -fvisibility=hidden -static-libgcc
@@ -333,7 +339,7 @@ $(PLUG_PREFIX)mpq$(PLUG_NATIVE_EXT): mpq/fs_mpq.c mpq/blast.c plugin.c
 	$(CC) $(BASE_CFLAGS) $(CFLAGS) -DFTEPLUGIN -o $@ -shared $(PLUG_CFLAGS) -Impq $^ $(PLUG_DEFFILE) $(PLUG_LDFLAGS_ZLIB) $(PLUG_LDFLAGS)
 NATIVE_PLUGINS+=mpq
 
-$(PLUG_PREFIX)xmpp$(PLUG_NATIVE_EXT): jabber/jabberclient.c jabber/jingle.c jabber/sift.c jabber/xml.c plugin.c ../engine/common/sha1.c emailnot/md5.c
+$(PLUG_PREFIX)xmpp$(PLUG_NATIVE_EXT): jabber/jabberclient.c jabber/jingle.c jabber/sift.c jabber/xml.c plugin.c ../engine/common/sha1.c ../engine/common/sha2.c emailnot/md5.c
 	$(CC) $(BASE_CFLAGS) $(CFLAGS) -DFTEPLUGIN -o $@ -shared $(PLUG_CFLAGS) -Ijabber $^ $(PLUG_DEFFILE) $(PLUG_LDFLAGS) $(LIBRESOLV)
 NATIVE_PLUGINS+=xmpp
 
@@ -350,9 +356,9 @@ NATIVE_PLUGINS+=irc
 #OpenXR plugin...
 $(PLUG_PREFIX)openxr$(PLUG_NATIVE_EXT): openxr.c plugin.c
 	$(CC) $(BASE_CFLAGS) $(CFLAGS) -DFTEPLUGIN -o $@ -shared $(PLUG_CFLAGS) $^ $(PLUG_DEFFILE) $(PLUG_LDFLAGS) -DXR_NO_PROTOTYPES `pkg-config --cflags openxr` -DGLQUAKE -DVKQUAKE -DD3D11QUAKE
-#ifeq ($(shell pkg-config --exists openxr && echo 1),1)
-#NATIVE_PLUGINS+=openxr
-#endif
+ifeq ($(shell pkg-config --exists openxr && echo 1),1)
+NATIVE_PLUGINS+=openxr
+endif
 
 #for compat with ezquake
 $(PLUG_PREFIX)ezhud$(PLUG_NATIVE_EXT): ezhud/ezquakeisms.c ezhud/hud.c ezhud/hud_common.c ezhud/hud_editor.c plugin.c

@@ -202,11 +202,10 @@ typedef struct jclient_s
 		{
 			qboolean plus;
 			char authnonce[256];
-			char authvhash[20];
+			char authvhash[DIGEST_MAXSIZE];
 			char authcbindtype[20];
 			char authcbinding[256];
 			hashfunc_t *hashfunc;
-			size_t hashsize;
 		} scram;
 
 		struct

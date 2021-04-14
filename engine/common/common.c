@@ -56,21 +56,7 @@ fte_inlinebody float M_LinearToSRGB(float x, float mag);
 	#endif
 #endif
 
-/*
-glibc SUCKS. 64bit glibc is depending upon glibc 2.14 because of some implementation-defined copy direction change that breaks flash.
-or something.
-anyway, the actual interface is the same. the old version might be slower, but when updating glibc generally results in also installing systemd, requiring the new version is NOT an option.
-*/
-#if defined(__GNUC__) && defined(__amd64__) && defined(__linux__) && !defined(FTE_SDL)
-	#include <features.h>       /* for glibc version */
-	#if defined(__GLIBC__) && (__GLIBC__ == 2) && (__GLIBC_MINOR__ >= 14)
-		__asm__(".symver memcpy,memcpy@GLIBC_2.2.5");
-		__asm__(".symver memmove,memmove@GLIBC_2.2.5");
-	#endif
-#endif
-/*end glibc workaround*/
-
-usercmd_t nullcmd; // guarenteed to be zero
+const usercmd_t nullcmd; // guarenteed to be zero
 
 entity_state_t nullentitystate;	//this is the default state
 
@@ -914,19 +900,27 @@ void MSG_WriteLong (sizebuf_t *sb, int c)
 	buf[2] = (c>>16)&0xff;
 	buf[3] = (c>>24)&0xff;
 }
+void MSG_WriteUInt64 (sizebuf_t *sb, quint64_t c)
+{	//0* 10*,*, 110*,*,* etc, up to 0xff followed by 8 continuation bytes
+	qbyte *buf;
+	int b = 0;
+	quint64_t l = 128;
+	while (c > l-1u)
+	{	//count the extra bytes we need
+		b++;
+		l <<= 7;	//each byte we add gains 8 bits, but we spend one on length.
+	}
+	buf = (qbyte*)SZ_GetSpace (sb, 1+b);
+	*buf++ = 0xffu<<(8-b) | (c >> (b*8));
+	while(b --> 0)
+		*buf++ = (c >> (b*8))&0xff;
+}
 void MSG_WriteInt64 (sizebuf_t *sb, qint64_t c)
-{
-	qbyte	*buf;
-
-	buf = (qbyte*)SZ_GetSpace (sb, 8);
-	buf[0] = c&0xff;
-	buf[1] = (c>>8)&0xff;
-	buf[2] = (c>>16)&0xff;
-	buf[3] = (c>>24)&0xff;
-	buf[4] = (c>>32)&0xff;
-	buf[5] = (c>>40)&0xff;
-	buf[6] = (c>>48)&0xff;
-	buf[7] = (c>>52)&0xff;
+{	//move the sign bit into the low bit and avoid sign extension for more efficient length coding.
+	if (c < 0)
+		MSG_WriteUInt64(sb, ((quint64_t)(-1-c)<<1)|1);
+	else
+		MSG_WriteUInt64(sb, c<<1);
 }
 
 void MSG_WriteFloat (sizebuf_t *sb, float f)
@@ -947,12 +941,21 @@ void MSG_WriteDouble (sizebuf_t *sb, double f)
 {
 	union
 	{
-		double		f;
-		qint64_t	l;
-	} dat;
+		double	f;
+		quint64_t l;
+	} dat = {f};
+	quint64_t c = dat.l;
+	qbyte	*buf;
 
-	dat.f = f;
-	MSG_WriteInt64(sb, dat.l);
+	buf = (qbyte*)SZ_GetSpace (sb, 8);
+	buf[0] = (c>> 0)&0xff;
+	buf[1] = (c>> 8)&0xff;
+	buf[2] = (c>>16)&0xff;
+	buf[3] = (c>>24)&0xff;
+	buf[4] = (c>>32)&0xff;
+	buf[5] = (c>>40)&0xff;
+	buf[6] = (c>>48)&0xff;
+	buf[7] = (c>>56)&0xff;
 }
 
 void MSG_WriteString (sizebuf_t *sb, const char *s)
@@ -1154,7 +1157,7 @@ void MSG_WriteEntity(sizebuf_t *sb, unsigned int entnum)
 	else
 		MSG_WriteShort(sb, entnum);
 }
-static unsigned int MSG_ReadBigEntity(void)
+unsigned int MSG_ReadBigEntity(void)
 {
 	unsigned int num;
 	num = MSG_ReadShort();
@@ -1197,7 +1200,420 @@ unsigned int MSGCL_ReadEntity(void)
 }
 #endif
 
-void MSG_WriteDeltaUsercmd (sizebuf_t *buf, usercmd_t *from, usercmd_t *cmd)
+#if defined(Q2CLIENT) && defined(HAVE_CLIENT)
+void MSGQ2_WriteDeltaUsercmd (sizebuf_t *buf, const usercmd_t *from, const usercmd_t *cmd)
+{
+	unsigned int  bits = 0;
+	unsigned char buttons = 0;
+	if (cmd->angles[0] != from->angles[0])
+		bits |= Q2CM_ANGLE1;
+	if (cmd->angles[1] != from->angles[1])
+		bits |= Q2CM_ANGLE2;
+	if (cmd->angles[2] != from->angles[2])
+		bits |= Q2CM_ANGLE3;
+	if (cmd->forwardmove != from->forwardmove)
+		bits |= Q2CM_FORWARD;
+	if (cmd->sidemove != from->sidemove)
+		bits |= Q2CM_SIDE;
+	if (cmd->upmove != from->upmove)
+		bits |= Q2CM_UP;
+	if (cmd->buttons != from->buttons)
+		bits |= Q2CM_BUTTONS;
+	if (cmd->impulse != from->impulse)
+		bits |= Q2CM_IMPULSE;
+
+
+	if (buf->prim.flags & NPQ2_R1Q2_UCMD)
+	{
+		if (bits & Q2CM_ANGLE1)
+			buttons = cmd->buttons & (1|2|128);	//attack, jump, any.
+		if ((bits & Q2CM_FORWARD) && !(cmd->forwardmove % 5) && abs(cmd->forwardmove/5) < 128)
+			buttons |= R1Q2_BUTTON_BYTE_FORWARD;
+		if ((bits & Q2CM_SIDE) && !(cmd->sidemove % 5) && abs(cmd->sidemove/5) < 128)
+			buttons |= R1Q2_BUTTON_BYTE_SIDE;
+		if ((bits & Q2CM_UP) && !(cmd->upmove % 5) && abs(cmd->upmove/5) < 128)
+			buttons |= R1Q2_BUTTON_BYTE_UP;
+		if ((bits & Q2CM_ANGLE1) && !(cmd->angles[0] % 64) && abs(cmd->angles[0] / 64) < 128)
+			buttons |= R1Q2_BUTTON_BYTE_ANGLE1;
+		if ((bits & Q2CM_ANGLE2) && !(cmd->angles[1] % 256))
+			buttons |= R1Q2_BUTTON_BYTE_ANGLE2;
+		if (buttons & (R1Q2_BUTTON_BYTE_FORWARD|R1Q2_BUTTON_BYTE_SIDE|R1Q2_BUTTON_BYTE_UP|R1Q2_BUTTON_BYTE_ANGLE1|R1Q2_BUTTON_BYTE_ANGLE2))
+			bits |= Q2CM_BUTTONS;
+	}
+
+	MSG_WriteByte (buf, bits);
+	if (buf->prim.flags & NPQ2_R1Q2_UCMD)
+	{
+		if (bits & Q2CM_BUTTONS)
+			MSG_WriteByte (buf, buttons);
+	}
+
+	if (bits & Q2CM_ANGLE1)
+	{
+		if (buttons & R1Q2_BUTTON_BYTE_ANGLE1)
+			MSG_WriteChar (buf, cmd->angles[0] / 64);
+		else
+			MSG_WriteShort (buf, cmd->angles[0]);
+	}
+	if (bits & Q2CM_ANGLE2)
+	{
+		if (buttons & R1Q2_BUTTON_BYTE_ANGLE2)
+			MSG_WriteChar (buf, cmd->angles[1] / 256);
+		else
+			MSG_WriteShort (buf, cmd->angles[1]);
+	}
+	if (bits & Q2CM_ANGLE3)
+		MSG_WriteShort (buf, cmd->angles[2]);
+
+	if (bits & Q2CM_FORWARD)
+	{
+		if (buttons & R1Q2_BUTTON_BYTE_FORWARD)
+			MSG_WriteChar (buf, cmd->forwardmove/5);
+		else
+			MSG_WriteShort (buf, cmd->forwardmove);
+	}
+	if (bits & Q2CM_SIDE)
+	{
+		if (buttons & R1Q2_BUTTON_BYTE_SIDE)
+			MSG_WriteChar (buf, cmd->sidemove/5);
+		else
+			MSG_WriteShort (buf, cmd->sidemove);
+	}
+	if (bits & Q2CM_UP)
+	{
+		if (buttons & R1Q2_BUTTON_BYTE_UP)
+			MSG_WriteChar (buf, cmd->upmove/5);
+		else
+			MSG_WriteShort (buf, cmd->upmove);
+	}
+
+	if (!(buf->prim.flags & NPQ2_R1Q2_UCMD))
+	{
+		if (bits & Q2CM_BUTTONS)
+			MSG_WriteByte (buf, cmd->buttons);
+	}
+	if (bits & Q2CM_IMPULSE)
+		MSG_WriteByte (buf, cmd->impulse);
+	MSG_WriteByte (buf, bound(0, cmd->msec, 250));	//clamp msecs to 250, because r1q2 likes kicking us if we stall for any reason
+
+	MSG_WriteByte (buf, cmd->lightlevel);
+}
+#endif
+
+#define	UC_ANGLE1		(1<<0)
+#define	UC_ANGLE2		(1<<1)
+#define	UC_ANGLE3		(1<<2)
+#define	UC_FORWARD		(1<<3)
+#define	UC_RIGHT		(1<<4)
+#define	UC_BUTTONS		(1<<5)
+#define	UC_IMPULSE		(1<<6)
+#define	UC_UP			(1<<7)	//split from forward/right because its rare, and this avoids sending an extra byte.
+#define UC_ABSANG		(1<<8)	//angle values are shorts
+#define UC_BIGMOVES		(1<<9)	//fwd/left/up are shorts, rather than a fith.
+#define	UC_WEAPON		(1<<10)
+#define	UC_CURSORFLDS	(1<<11)	//lots of data in one.
+#define	UC_LIGHTLEV		(1<<12)
+#define	UC_VR_HEAD		(1<<13)
+#define	UC_VR_RIGHT		(1<<14)
+#define	UC_VR_LEFT		(1<<15)
+//#define	UC_UNUSED		(1<<16)
+//#define	UC_UNUSED		(1<<17)
+//#define	UC_UNUSED		(1<<18)
+//#define	UC_UNUSED		(1<<19)
+//#define	UC_UNUSED		(1<<20)
+//#define	UC_UNUSED		(1<<21)
+//#define	UC_UNUSED		(1<<22)
+//#define	UC_UNUSED		(1<<23)
+//#define	UC_UNUSED		(1<<24)
+//#define	UC_UNUSED		(1<<25)
+//#define	UC_UNUSED		(1<<26)
+//#define	UC_UNUSED		(1<<27)
+//#define	UC_UNUSED		(1<<28)
+//#define	UC_UNUSED		(1<<29)
+//#define	UC_UNUSED		(1<<30)
+//#define	UC_UNUSED		(1<<31)
+#define UC_UNSUPPORTED (~(UC_ANGLE1 | UC_ANGLE2 | UC_ANGLE3 | UC_FORWARD | UC_RIGHT | UC_BUTTONS | UC_IMPULSE | UC_UP | UC_ABSANG | UC_BIGMOVES | UC_WEAPON | UC_CURSORFLDS | UC_LIGHTLEV | UC_VR_HEAD | UC_VR_RIGHT | UC_VR_LEFT))
+
+#ifdef HAVE_CLIENT
+fte_inlinestatic qboolean MSG_CompareVR(int i, const usercmd_t *from, const usercmd_t *cmd)
+{
+	if (cmd->vr[i].status != from->vr[i].status)
+		return true;
+	return
+		(cmd->vr[i].angles[0] != from->vr[i].angles[0]||cmd->vr[i].angles[1] != from->vr[i].angles[1]||cmd->vr[i].angles[2] != from->vr[i].angles[2])|
+		(cmd->vr[i].avelocity[0] != from->vr[i].avelocity[0]||cmd->vr[i].avelocity[1] != from->vr[i].avelocity[1]||cmd->vr[i].avelocity[2] != from->vr[i].avelocity[2])|
+		(cmd->vr[i].origin[0] != from->vr[i].angles[0]||cmd->vr[i].origin[1] != from->vr[i].origin[1]||cmd->vr[i].origin[2] != from->vr[i].origin[2])|
+		(cmd->vr[i].velocity[0] != from->vr[i].velocity[0]||cmd->vr[i].velocity[1] != from->vr[i].velocity[1]||cmd->vr[i].velocity[2] != from->vr[i].velocity[2]);
+}
+static  void MSG_WriteVR(int i, sizebuf_t *buf, const usercmd_t *from, const usercmd_t *cmd)
+{
+	quint64_t status = cmd->vr[i].status;
+	status <<= 4;
+	if (cmd->vr[i].angles[0] != from->vr[i].angles[0] || cmd->vr[i].angles[1] != from->vr[i].angles[1] || cmd->vr[i].angles[2] != from->vr[i].angles[2])
+		status |= VRSTATUS_ANG;
+	if (cmd->vr[i].avelocity[0] != from->vr[i].avelocity[0] || cmd->vr[i].avelocity[1] != from->vr[i].avelocity[1] || cmd->vr[i].avelocity[2] != from->vr[i].avelocity[2])
+		status |= VRSTATUS_AVEL;
+	if (cmd->vr[i].origin[0] != from->vr[i].origin[0] || cmd->vr[i].origin[1] != from->vr[i].origin[1] || cmd->vr[i].origin[2] != from->vr[i].origin[2])
+		status |= VRSTATUS_ORG;
+	if (cmd->vr[i].velocity[0] != from->vr[i].velocity[0] || cmd->vr[i].velocity[1] != from->vr[i].velocity[1] || cmd->vr[i].velocity[2] != from->vr[i].velocity[2])
+		status |= VRSTATUS_VEL;
+
+	MSG_WriteUInt64(buf,status);
+	if (status & VRSTATUS_ANG)
+	{
+		MSG_WriteShort(buf, cmd->vr[i].angles[0]);
+		MSG_WriteShort(buf, cmd->vr[i].angles[1]);
+		MSG_WriteShort(buf, cmd->vr[i].angles[2]);
+	}
+	if (status & VRSTATUS_AVEL)
+	{
+		MSG_WriteShort(buf, cmd->vr[i].avelocity[0]);
+		MSG_WriteShort(buf, cmd->vr[i].avelocity[1]);
+		MSG_WriteShort(buf, cmd->vr[i].avelocity[2]);
+	}
+	if (status & VRSTATUS_ORG)
+	{
+		MSG_WriteFloat(buf, cmd->vr[i].origin[0]);
+		MSG_WriteFloat(buf, cmd->vr[i].origin[1]);
+		MSG_WriteFloat(buf, cmd->vr[i].origin[2]);
+	}
+	if (status & VRSTATUS_VEL)
+	{
+		MSG_WriteFloat(buf, cmd->vr[i].velocity[0]);
+		MSG_WriteFloat(buf, cmd->vr[i].velocity[1]);
+		MSG_WriteFloat(buf, cmd->vr[i].velocity[2]);
+	}
+}
+void MSGFTE_WriteDeltaUsercmd (sizebuf_t *buf, const usercmd_t *from, const usercmd_t *cmd)
+{
+	unsigned int		bits = 0;
+	int i;
+	short d;
+//
+// send the movement message
+//
+	for (i = 0; i < 3; i++)
+	{
+		d = cmd->angles[i]-from->angles[i];
+		if (d)
+		{
+			bits |= UC_ANGLE1<<i;
+			if (d < -128 || d > 127)
+				bits |= UC_ABSANG;	//can't delta it.
+		}
+	}
+	if (cmd->forwardmove != from->forwardmove)
+	{
+		bits |= UC_FORWARD;
+		if ((cmd->forwardmove%5) || cmd->forwardmove > 127*5 || cmd->forwardmove < -128*5)
+			bits |= UC_BIGMOVES;	//can't compact it.
+	}
+	if (cmd->sidemove != from->sidemove)
+	{
+		bits |= UC_RIGHT;
+		if ((cmd->sidemove%5) || cmd->sidemove > 127*5 || cmd->sidemove < -128*5)
+			bits |= UC_BIGMOVES;	//can't compact it.
+	}
+	if (cmd->upmove != from->upmove)
+	{
+		bits |= UC_UP;
+		if ((cmd->upmove%5) || cmd->upmove > 127*5 || cmd->upmove < -128*5)
+			bits |= UC_BIGMOVES;	//can't compact it.
+	}
+
+	if (cmd->buttons != from->buttons)
+		bits |= UC_BUTTONS;
+	if (cmd->buttons != from->buttons)
+		bits |= UC_WEAPON;
+	if (cmd->impulse != from->impulse)
+		bits |= UC_IMPULSE;
+	if (cmd->lightlevel != from->lightlevel)
+		bits |= UC_LIGHTLEV;
+
+	if (cmd->cursor_screen[0] != from->cursor_screen[0] || cmd->cursor_screen[1] != from->cursor_screen[1] ||
+		cmd->cursor_start[0] != from->cursor_start[0] || cmd->cursor_start[1] != from->cursor_start[1] || cmd->cursor_start[2] != from->cursor_start[2] ||
+		cmd->cursor_impact[0] != from->cursor_impact[0] || cmd->cursor_impact[1] != from->cursor_impact[1] || cmd->cursor_impact[2] != from->cursor_impact[2] ||
+		cmd->cursor_entitynumber != from->cursor_entitynumber)
+		bits |= UC_CURSORFLDS;
+
+	if (MSG_CompareVR(VRDEV_HEAD, from, cmd))
+		bits |= UC_VR_HEAD;
+	if (MSG_CompareVR(VRDEV_RIGHT, from, cmd))
+		bits |= UC_VR_RIGHT;
+	if (MSG_CompareVR(VRDEV_LEFT, from, cmd))
+		bits |= UC_VR_LEFT;
+
+	//NOTE: WriteUInt64 actually uses some utf-8-like length coding, so its not quite as bloated as it looks.
+	MSG_WriteUInt64(buf, bits);
+	MSG_WriteUInt64(buf, cmd->servertime-from->servertime);
+	for (i = 0; i < 3; i++)
+	{
+		if (bits & (UC_ANGLE1<<i))
+		{
+			if (bits & UC_ABSANG)
+				MSG_WriteShort(buf, cmd->angles[i]);
+			else
+				MSG_WriteChar(buf, cmd->angles[i]-from->angles[i]);
+		}
+	}
+	if (bits & UC_FORWARD)
+	{
+		if (bits & UC_BIGMOVES)
+			MSG_WriteShort(buf, cmd->forwardmove);
+		else
+			MSG_WriteChar(buf, cmd->forwardmove/5);
+	}
+	if (bits & UC_RIGHT)
+	{
+		if (bits & UC_BIGMOVES)
+			MSG_WriteShort(buf, cmd->sidemove);
+		else
+			MSG_WriteChar(buf, cmd->sidemove/5);
+	}
+	if (bits & UC_UP)
+	{
+		if (bits & UC_BIGMOVES)
+			MSG_WriteShort(buf, cmd->upmove);
+		else
+			MSG_WriteChar(buf, cmd->upmove/5);
+	}
+
+
+	if (bits & UC_BUTTONS)
+		MSG_WriteUInt64 (buf, cmd->buttons);
+	if (bits & UC_IMPULSE)
+		MSG_WriteUInt64 (buf, cmd->impulse);
+	if (bits & UC_WEAPON)
+		MSG_WriteUInt64 (buf, cmd->weapon);
+	if (bits & UC_CURSORFLDS)
+	{
+		//prydon cursor crap. kinda bloated.
+		MSG_WriteShort(buf, cmd->cursor_screen[0] * 32767);
+		MSG_WriteShort(buf, cmd->cursor_screen[1] * 32767);
+		MSG_WriteFloat(buf, cmd->cursor_start[0]);	//avoiding WriteAngle/WriteCoord means we can avoid netprim size difference issues.
+		MSG_WriteFloat(buf, cmd->cursor_start[1]);
+		MSG_WriteFloat(buf, cmd->cursor_start[2]);
+		MSG_WriteFloat(buf, cmd->cursor_impact[0]);
+		MSG_WriteFloat(buf, cmd->cursor_impact[1]);
+		MSG_WriteFloat(buf, cmd->cursor_impact[2]);
+		MSG_WriteEntity(buf, cmd->cursor_entitynumber);
+	}
+	if (bits & UC_LIGHTLEV)
+		MSG_WriteUInt64 (buf, cmd->lightlevel);	//yay hdr?
+
+	if (bits & UC_VR_HEAD)
+		MSG_WriteVR(VRDEV_HEAD, buf, from, cmd);
+	if (bits & UC_VR_RIGHT)
+		MSG_WriteVR(VRDEV_RIGHT, buf, from, cmd);
+	if (bits & UC_VR_LEFT)
+		MSG_WriteVR(VRDEV_LEFT, buf, from, cmd);
+}
+#endif
+#ifdef HAVE_SERVER
+static void MSG_ReadVR(int i, usercmd_t *cmd)
+{
+	quint64_t status = MSG_ReadUInt64();
+	cmd->vr[i].status = status>>4;
+	if (status & VRSTATUS_ANG)
+	{
+		cmd->vr[i].angles[0] = MSG_ReadShort();
+		cmd->vr[i].angles[1] = MSG_ReadShort();
+		cmd->vr[i].angles[2] = MSG_ReadShort();
+	}
+	if (status & VRSTATUS_AVEL)
+	{
+		cmd->vr[i].avelocity[0] = MSG_ReadShort();
+		cmd->vr[i].avelocity[1] = MSG_ReadShort();
+		cmd->vr[i].avelocity[2] = MSG_ReadShort();
+	}
+	if (status & VRSTATUS_ORG)
+	{
+		cmd->vr[i].origin[0] = MSG_ReadFloat();
+		cmd->vr[i].origin[1] = MSG_ReadFloat();
+		cmd->vr[i].origin[2] = MSG_ReadFloat();
+	}
+	if (status & VRSTATUS_VEL)
+	{
+		cmd->vr[i].velocity[0] = MSG_ReadFloat();
+		cmd->vr[i].velocity[1] = MSG_ReadFloat();
+		cmd->vr[i].velocity[2] = MSG_ReadFloat();
+	}
+}
+void MSGFTE_ReadDeltaUsercmd (const usercmd_t *from, usercmd_t *cmd)
+{
+	int i;
+	unsigned int bits = MSG_ReadUInt64();
+
+	if (bits & UC_UNSUPPORTED)
+	{
+		if (!msg_badread)
+			Con_Printf("MSG_ReadDeltaUsercmdNew: Unsupported bits (%#x)\n", bits&UC_UNSUPPORTED);
+		msg_badread = true;
+		return;
+	}
+	*cmd = *from;
+	cmd->servertime = from->servertime+MSG_ReadUInt64();
+	for (i = 0; i < 3; i++)
+	{
+		if (bits & (UC_ANGLE1<<i))
+		{
+			if (bits & UC_ABSANG)
+				cmd->angles[i] = MSG_ReadShort();
+			else
+				cmd->angles[i] = from->angles[i]+MSG_ReadChar();
+		}
+	}
+	if (bits & UC_FORWARD)
+	{
+		if (bits & UC_BIGMOVES)
+			cmd->forwardmove = MSG_ReadShort();
+		else
+			cmd->forwardmove = MSG_ReadChar()*5;
+	}
+	if (bits & UC_RIGHT)
+	{
+		if (bits & UC_BIGMOVES)
+			cmd->sidemove = MSG_ReadShort();
+		else
+			cmd->sidemove = MSG_ReadChar()*5;
+	}
+	if (bits & UC_UP)
+	{
+		if (bits & UC_BIGMOVES)
+			cmd->upmove = MSG_ReadShort();
+		else
+			cmd->upmove = MSG_ReadChar()*5;
+	}
+
+	if (bits & UC_BUTTONS)
+		cmd->buttons = MSG_ReadUInt64();
+	if (bits & UC_IMPULSE)
+		cmd->impulse = MSG_ReadUInt64();
+	if (bits & UC_WEAPON)
+		cmd->weapon = MSG_ReadUInt64();
+	if (bits & UC_CURSORFLDS)
+	{	//prydon cursor crap. kinda bloated.
+		cmd->cursor_screen[0] = MSG_ReadShort() / 32767.0;
+		cmd->cursor_screen[1] = MSG_ReadShort() / 32767.0;
+		cmd->cursor_start[0] = MSG_ReadFloat();	//avoiding WriteAngle/WriteCoord means we can avoid netprim size difference issues.
+		cmd->cursor_start[1] = MSG_ReadFloat();
+		cmd->cursor_start[2] = MSG_ReadFloat();
+		cmd->cursor_impact[0] = MSG_ReadFloat();
+		cmd->cursor_impact[1] = MSG_ReadFloat();
+		cmd->cursor_impact[2] = MSG_ReadFloat();
+		cmd->cursor_entitynumber = MSG_ReadBigEntity();
+	}
+	if (bits & UC_LIGHTLEV)
+		cmd->lightlevel = MSG_ReadUInt64();
+	if (bits & UC_VR_HEAD)
+		MSG_ReadVR(VRDEV_HEAD, cmd);
+	if (bits & UC_VR_RIGHT)
+		MSG_ReadVR(VRDEV_RIGHT, cmd);
+	if (bits & UC_VR_LEFT)
+		MSG_ReadVR(VRDEV_LEFT, cmd);
+}
+#endif
+void MSGQW_WriteDeltaUsercmd (sizebuf_t *buf, const usercmd_t *from, const usercmd_t *cmd)
 {
 	int		bits;
 
@@ -1207,102 +1623,7 @@ void MSG_WriteDeltaUsercmd (sizebuf_t *buf, usercmd_t *from, usercmd_t *cmd)
 	bits = 0;
 #if defined(Q2CLIENT) && defined(HAVE_CLIENT)
 	if (cls_state && cls.protocol == CP_QUAKE2)
-	{
-		unsigned char buttons = 0;
-		if (cmd->angles[0] != from->angles[0])
-			bits |= Q2CM_ANGLE1;
-		if (cmd->angles[1] != from->angles[1])
-			bits |= Q2CM_ANGLE2;
-		if (cmd->angles[2] != from->angles[2])
-			bits |= Q2CM_ANGLE3;
-		if (cmd->forwardmove != from->forwardmove)
-			bits |= Q2CM_FORWARD;
-		if (cmd->sidemove != from->sidemove)
-			bits |= Q2CM_SIDE;
-		if (cmd->upmove != from->upmove)
-			bits |= Q2CM_UP;
-		if (cmd->buttons != from->buttons)
-			bits |= Q2CM_BUTTONS;
-		if (cmd->impulse != from->impulse)
-			bits |= Q2CM_IMPULSE;
-
-
-		if (buf->prim.flags & NPQ2_R1Q2_UCMD)
-		{
-			if (bits & Q2CM_ANGLE1)
-				buttons = cmd->buttons & (1|2|128);	//attack, jump, any.
-			if ((bits & Q2CM_FORWARD) && !(cmd->forwardmove % 5) && abs(cmd->forwardmove/5) < 128)
-				buttons |= R1Q2_BUTTON_BYTE_FORWARD;
-			if ((bits & Q2CM_SIDE) && !(cmd->sidemove % 5) && abs(cmd->sidemove/5) < 128)
-				buttons |= R1Q2_BUTTON_BYTE_SIDE;
-			if ((bits & Q2CM_UP) && !(cmd->upmove % 5) && abs(cmd->upmove/5) < 128)
-				buttons |= R1Q2_BUTTON_BYTE_UP;
-			if ((bits & Q2CM_ANGLE1) && !(cmd->angles[0] % 64) && abs(cmd->angles[0] / 64) < 128)
-				buttons |= R1Q2_BUTTON_BYTE_ANGLE1;
-			if ((bits & Q2CM_ANGLE2) && !(cmd->angles[1] % 256))
-				buttons |= R1Q2_BUTTON_BYTE_ANGLE2;
-			if (buttons & (R1Q2_BUTTON_BYTE_FORWARD|R1Q2_BUTTON_BYTE_SIDE|R1Q2_BUTTON_BYTE_UP|R1Q2_BUTTON_BYTE_ANGLE1|R1Q2_BUTTON_BYTE_ANGLE2))
-				bits |= Q2CM_BUTTONS;
-		}
-
-		MSG_WriteByte (buf, bits);
-		if (buf->prim.flags & NPQ2_R1Q2_UCMD)
-		{
-			if (bits & Q2CM_BUTTONS)
-				MSG_WriteByte (buf, buttons);
-		}
-
-		if (bits & Q2CM_ANGLE1)
-		{
-			if (buttons & R1Q2_BUTTON_BYTE_ANGLE1)
-				MSG_WriteChar (buf, cmd->angles[0] / 64);
-			else
-				MSG_WriteShort (buf, cmd->angles[0]);
-		}
-		if (bits & Q2CM_ANGLE2)
-		{
-			if (buttons & R1Q2_BUTTON_BYTE_ANGLE2)
-				MSG_WriteChar (buf, cmd->angles[1] / 256);
-			else
-				MSG_WriteShort (buf, cmd->angles[1]);
-		}
-		if (bits & Q2CM_ANGLE3)
-			MSG_WriteShort (buf, cmd->angles[2]);
-
-		if (bits & Q2CM_FORWARD)
-		{
-			if (buttons & R1Q2_BUTTON_BYTE_FORWARD)
-				MSG_WriteChar (buf, cmd->forwardmove/5);
-			else
-				MSG_WriteShort (buf, cmd->forwardmove);
-		}
-		if (bits & Q2CM_SIDE)
-		{
-			if (buttons & R1Q2_BUTTON_BYTE_SIDE)
-				MSG_WriteChar (buf, cmd->sidemove/5);
-			else
-				MSG_WriteShort (buf, cmd->sidemove);
-		}
-		if (bits & Q2CM_UP)
-		{
-			if (buttons & R1Q2_BUTTON_BYTE_UP)
-				MSG_WriteChar (buf, cmd->upmove/5);
-			else
-				MSG_WriteShort (buf, cmd->upmove);
-		}
-
-		if (!(buf->prim.flags & NPQ2_R1Q2_UCMD))
-		{
-			if (bits & Q2CM_BUTTONS)
-				MSG_WriteByte (buf, cmd->buttons);
-		}
-		if (bits & Q2CM_IMPULSE)
-			MSG_WriteByte (buf, cmd->impulse);
-		MSG_WriteByte (buf, bound(0, cmd->msec, 250));	//clamp msecs to 250, because r1q2 likes kicking us if we stall for any reason
-
-		MSG_WriteByte (buf, cmd->lightlevel);
-
-	}
+		MSGQ2_WriteDeltaUsercmd(buf, from, cmd);
 	else
 #endif
 	{
@@ -1347,6 +1668,20 @@ void MSG_WriteDeltaUsercmd (sizebuf_t *buf, usercmd_t *from, usercmd_t *cmd)
 	}
 }
 
+#ifdef HAVE_CLIENT
+void MSGCL_WriteDeltaUsercmd (sizebuf_t *buf, const usercmd_t *from, const usercmd_t *cmd)
+{
+#if defined(Q2CLIENT)
+	if (cls_state && cls.protocol == CP_QUAKE2)
+		MSGQ2_WriteDeltaUsercmd(buf, from, cmd);
+	else
+#endif
+	if (cls.fteprotocolextensions2 & PEXT2_VRINPUTS)
+		MSGFTE_WriteDeltaUsercmd(buf, from, cmd);
+	else
+		MSGQW_WriteDeltaUsercmd(buf, from, cmd);
+}
+#endif
 
 //
 // reading functions
@@ -1611,35 +1946,28 @@ int MSG_ReadLong (void)
 
 	return c;
 }
+quint64_t MSG_ReadUInt64 (void)
+{	//0* 10*,*, 110*,*,* etc, up to 0xff followed by 8 continuation bytes
+	qbyte l=0x80, v, b = 0;
+	quint64_t r;
+	v = MSG_ReadByte();
+	for (; v&l; l>>=1)
+	{
+		v-=l;
+		b++;
+	}
+	r = v<<(b*8);
+	while(b --> 0)
+		r |= MSG_ReadByte()<<(b*8);
+	return r;
+}
 qint64_t MSG_ReadInt64 (void)
-{
-	qint64_t c;
-
-	if (net_message.packing!=SZ_RAWBYTES)
-	{
-		c = (unsigned int)MSG_ReadBits(32)
-		  | ((qint64_t)(unsigned int)MSG_ReadBits(32)<<32);
-		return c;
-	}
-
-	if (msg_readcount+4 > net_message.cursize)
-	{
-		msg_badread = true;
-		return -1;
-	}
-
-	c = (net_message.data[msg_readcount+0]<<0)
-	  | (net_message.data[msg_readcount+1]<<8)
-	  | (net_message.data[msg_readcount+2]<<16)
-	  | (net_message.data[msg_readcount+3]<<24)
-	  | ((qint64_t)net_message.data[msg_readcount+5]<<32)
-	  | ((qint64_t)net_message.data[msg_readcount+6]<<40)
-	  | ((qint64_t)net_message.data[msg_readcount+7]<<48)
-	  | ((qint64_t)net_message.data[msg_readcount+8]<<52);
-
-	msg_readcount += 8;
-
-	return c;
+{	//we do some fancy bit recoding for more efficient length coding.
+	quint64_t c = MSG_ReadUInt64();
+	if (c&1)
+		return -1-(qint64_t)(c>>1);
+	else
+		return (qint64_t)(c>>1);
 }
 
 float MSG_ReadFloat (void)
@@ -1675,14 +2003,30 @@ float MSG_ReadFloat (void)
 	return dat.f;
 }
 double MSG_ReadDouble (void)
-{	//type-pun it as an int64 over the network for easier handling of endian.
+{
 	union
 	{
-		double		d;
-		qint64_t	l;
+		quint64_t l;
+		double	f;
 	} dat;
-	dat.l = MSG_ReadInt64();
-	return dat.d;
+
+	if (msg_readcount+8 > net_message.cursize)
+	{
+		msg_badread = true;
+		return -1;
+	}
+
+	dat.l = (           net_message.data[msg_readcount+0]<< 0)|
+			(           net_message.data[msg_readcount+1]<< 8)|
+			(           net_message.data[msg_readcount+2]<<16)|
+			(           net_message.data[msg_readcount+3]<<24)|
+			((quint64_t)net_message.data[msg_readcount+4]<<32)|
+			((quint64_t)net_message.data[msg_readcount+5]<<40)|
+			((quint64_t)net_message.data[msg_readcount+6]<<48)|
+			((quint64_t)net_message.data[msg_readcount+7]<<56);
+	msg_readcount += 8;
+
+	return dat.f;
 }
 
 char *MSG_ReadStringBuffer (char *out, size_t outsize)
@@ -1838,7 +2182,7 @@ float MSG_ReadAngle (void)
 	}
 }
 
-void MSG_ReadDeltaUsercmd (usercmd_t *from, usercmd_t *move, int protover)
+void MSGQW_ReadDeltaUsercmd (const usercmd_t *from, usercmd_t *move, int protover)
 {
 	int bits;
 
@@ -1903,7 +2247,7 @@ void MSG_ReadDeltaUsercmd (usercmd_t *from, usercmd_t *move, int protover)
 	}
 }
 
-void MSGQ2_ReadDeltaUsercmd (usercmd_t *from, usercmd_t *move)
+void MSGQ2_ReadDeltaUsercmd (const usercmd_t *from, usercmd_t *move)
 {
 	int bits;
 	unsigned int buttons = 0;
@@ -2131,7 +2475,7 @@ char *COM_FileExtension (const char *in, char *result, size_t sizeofresult)
 
 	for (dot = in + strlen(in); dot >= in && *dot != '.' && *dot != '/' && *dot != '\\'; dot--)
 		;
-	if (dot < in)
+	if (dot < in || *dot != '.')
 	{
 		*result = 0;
 		return result;
@@ -6258,18 +6602,20 @@ size_t Base16_EncodeBlock(const char *in, size_t length, qbyte *out, size_t outs
 /*
   Info Buffers
 */
-const char *basicuserinfos[] = {
-	"*",
+const char *basicuserinfos[] =	//these are used by the client itself, and ignored when the user isn't using csqc.
+{
+	"*",	//special: all '*' prefixed keys
 	"name",
 	"team",
 	"skin",
 	"topcolor",
 	"bottomcolor",
 	"chat",	//ezquake's afk indicators
-	NULL};
-const char *privateuserinfos[] =
+	NULL
+};
+const char *privateuserinfos[] =	//these can be sent to the server, but must NOT be reported to other clients.
 {
-	"_",		//ignore comments
+	"_",		//special prefix: ignore comments
 	"password",	//many users will forget to clear it after.
 	"prx",		//if someone has this set, don't bother broadcasting it.
 	"*ip",		//this is the ip the client used to connect to the server. this isn't useful as any proxy that would affect it can trivially strip/rewrite it anyway.
@@ -7529,7 +7875,7 @@ qbyte	COM_BlockSequenceCRCByte (qbyte *base, int length, int sequence)
 
 	length += 4;
 
-	crc = QCRC_Block(chkb, length);
+	crc = CalcHashInt(&hash_crc16, chkb, length);
 
 	crc &= 0xff;
 
@@ -7637,7 +7983,7 @@ qbyte	Q2COM_BlockSequenceCRCByte (qbyte *base, int length, int sequence)
 
 	length += 4;
 
-	crc = QCRC_Block(chkb, length);
+	crc = CalcHashInt(&hash_crc16, chkb, length);
 
 	for (x=0, n=0; n<length; n++)
 		x += chkb[n];

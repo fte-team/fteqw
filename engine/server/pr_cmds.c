@@ -70,15 +70,15 @@ extern cvar_t pr_autocreatecvars;
 cvar_t	pr_ssqc_memsize = CVARD("pr_ssqc_memsize", "-1", "The ammount of memory available to the QC vm. This has a theoretical maximum of 1gb, but that value can only really be used in 64bit builds. -1 will attempt to use some conservative default, but you may need to increase it. Consider also clearing pr_fixbrokenqccarrays if you need to change this cvar.");
 
 /*cvars purely for compat with others*/
-cvar_t	pr_imitatemvdsv = CVARFD("pr_imitatemvdsv", "0", CVAR_LATCH, "Enables mvdsv-specific builtins, and fakes identifiers so that mods made for mvdsv can run properly and with the full feature set.");
+cvar_t	pr_imitatemvdsv = CVARFD("pr_imitatemvdsv", "0", CVAR_MAPLATCH, "Enables mvdsv-specific builtins, and fakes identifiers so that mods made for mvdsv can run properly and with the full feature set.");
 
 /*other stuff*/
-cvar_t	pr_maxedicts = CVARAFD("pr_maxedicts", "32768", "max_edicts", CVAR_LATCH, "Maximum number of entities spawnable on the map at once. Low values will crash the server on some maps/mods. High values will result in excessive memory useage (see pr_ssqc_memsize). Illegible server messages may occur with old/other clients above 32k. FTE's network protocols have a maximum at a little over 4 million. Please don't ever make a mod that actually uses that many...");
+cvar_t	pr_maxedicts = CVARAFD("pr_maxedicts", "32768", "max_edicts", CVAR_MAPLATCH, "Maximum number of entities spawnable on the map at once. Low values will crash the server on some maps/mods. High values will result in excessive memory useage (see pr_ssqc_memsize). Illegible server messages may occur with old/other clients above 32k. FTE's network protocols have a maximum at a little over 4 million. Please don't ever make a mod that actually uses that many...");
 
 #ifndef HAVE_LEGACY
 cvar_t	pr_no_playerphysics = CVARFD("pr_no_playerphysics", "1", CVAR_LATCH, "Prevents support of the 'SV_PlayerPhysics' QC function. This allows servers to prevent needless breakage of player prediction.");
 #else
-static cvar_t	pr_no_playerphysics = CVARFD("pr_no_playerphysics", "0", CVAR_LATCH, "Prevents support of the 'SV_PlayerPhysics' QC function. This allows servers to prevent needless breakage of player prediction.");
+static cvar_t	pr_no_playerphysics = CVARFD("pr_no_playerphysics", "0", CVAR_MAPLATCH, "Prevents support of the 'SV_PlayerPhysics' QC function. This allows servers to prevent needless breakage of player prediction.");
 #endif
 static cvar_t	pr_no_parsecommand = CVARFD("pr_no_parsecommand", "0", 0, "Provides a way around invalid mod usage of SV_ParseClientCommand, eg xonotic.");
 
@@ -88,7 +88,7 @@ static cvar_t	pr_nonetaccess = CVARD("pr_nonetaccess", "0", "Block all direct ac
 
 static cvar_t pr_overridebuiltins = CVAR("pr_overridebuiltins", "1");
 
-static cvar_t pr_compatabilitytest = CVARFD("pr_compatabilitytest", "0", CVAR_LATCH, "Only enables builtins if the extension they are part of was queried.");
+static cvar_t pr_compatabilitytest = CVARFD("pr_compatabilitytest", "0", CVAR_MAPLATCH, "Only enables builtins if the extension they are part of was queried.");
 
 cvar_t pr_ssqc_coreonerror = CVAR("pr_coreonerror", "1");
 
@@ -248,15 +248,24 @@ void PR_ResetBuiltins(progstype_t type);
 static qcstate_t *PR_CreateThread(pubprogfuncs_t *prinst, float retval, float resumetime, qboolean wait)
 {
 	qcstate_t *state;
+	edict_t *ed;
 
 	state = prinst->parms->memalloc(sizeof(qcstate_t));
 	state->next = qcthreads;
 	qcthreads = state;
 	state->resumetime = resumetime;
-	state->self = NUM_FOR_EDICT(prinst, PROG_TO_EDICT(prinst, pr_global_struct->self));
-	state->selfid = PROG_TO_EDICT(prinst, state->self)->xv->uniquespawnid;
-	state->other = NUM_FOR_EDICT(prinst, PROG_TO_EDICT(prinst, pr_global_struct->other));
-	state->otherid = PROG_TO_EDICT(prinst, state->other)->xv->uniquespawnid;
+
+	if (prinst->edicttable_length)
+	{
+		ed = PROG_TO_EDICT(prinst, pr_global_struct->self);
+		state->self = NUM_FOR_EDICT(prinst, ed);
+		state->selfid = (ed->ereftype==ER_ENTITY)?ed->xv->uniquespawnid:0;
+		ed = PROG_TO_EDICT(prinst, pr_global_struct->other);
+		state->other = NUM_FOR_EDICT(prinst, ed);
+		state->otherid = (ed->ereftype==ER_ENTITY)?ed->xv->uniquespawnid:0;
+	}
+	else	//allows us to call this during init().
+		state->self = state->other = state->selfid = state->otherid = 0;
 	state->thread = prinst->Fork(prinst);
 	state->waiting = wait;
 	state->returnval = retval;
@@ -906,89 +915,117 @@ void PR_LoadGlabalStruct(qboolean muted)
 	globalptrs_t *pr_globals = pr_global_ptrs;
 	memset(pr_global_ptrs, 0, sizeof(*pr_global_ptrs));
 
-#define globalfloat(need,name)	(pr_globals)->name = (pvec_t *)PR_FindGlobal(svprogfuncs, #name, 0, NULL);	if (need && !(pr_globals)->name)	{static pvec_t fallback##name; (pr_globals)->name = &fallback##name; if (!muted) Con_DPrintf("Could not find \""#name"\" export in progs\n");}
-#define globalint(need,name)	(pr_globals)->name = (pint_t *)PR_FindGlobal(svprogfuncs, #name, 0, NULL);	if (need && !(pr_globals)->name)	{static pint_t fallback##name; (pr_globals)->name = &fallback##name; if (!muted) Con_DPrintf("Could not find \""#name"\" export in progs\n");}
-#define globalstring(need,name)	(pr_globals)->name = (string_t*)PR_FindGlobal(svprogfuncs, #name, 0, NULL);	if (need && !(pr_globals)->name)	{static string_t fallback##name; (pr_globals)->name = &fallback##name; if (!muted) Con_DPrintf("Could not find \""#name"\" export in progs\n");}
-#define globalvec(need,name)	(pr_globals)->name = (pvec3_t *)PR_FindGlobal(svprogfuncs, #name, 0, NULL);	if (need && !(pr_globals)->name)	{static pvec3_t fallback##name; (pr_globals)->name = &fallback##name; if (!muted) Con_DPrintf("Could not find \""#name"\" export in progs\n");}
-#define globalfunc(need,name)	(pr_globals)->name = (func_t *)PR_FindGlobal(svprogfuncs, #name, 0, NULL);	if (!(pr_globals)->name)			{static func_t stripped##name; stripped##name = PR_FindFunction(svprogfuncs, #name, 0); if (stripped##name) (pr_globals)->name = &stripped##name; else if (need && !muted) Con_DPrintf("Could not find function \""#name"\" in progs\n"); }
-//			globalint(pad);
-	globalint		(true, self);	//we need the qw ones, but any in standard quake and not quakeworld, we don't really care about.
-	globalint		(true, other);
-	globalint		(true, world);
-	globalfloat		(true, time);
-	globalfloat		(true, frametime);
-	globalint		(false, newmis);	//not always in nq.
-	globalfloat		(false, force_retouch);
-	globalstring	(true, mapname);
-	globalfloat		(false, deathmatch);
-	globalfloat		(false, coop);
-	globalfloat		(false, teamplay);
-	globalfloat		(false, serverflags);
-	globalfloat		(false, total_secrets);
-	globalfloat		(false, total_monsters);
-	globalfloat		(false, found_secrets);
-	globalfloat		(false, killed_monsters);
-	globalvec		(true, v_forward);
-	globalvec		(true, v_up);
-	globalvec		(true, v_right);
-	globalfloat		(false, trace_allsolid);
-	globalfloat		(false, trace_startsolid);
-	globalfloat		(false, trace_fraction);
-	globalvec		(false, trace_endpos);
-	globalvec		(false, trace_plane_normal);
-	globalfloat		(false, trace_plane_dist);
-	globalint		(true, trace_ent);
-	globalfloat		(false, trace_inopen);
-	globalfloat		(false, trace_inwater);
+	//we need the qw ones, but any in standard quake and not quakeworld, we don't really care about.
 #ifdef HAVE_LEGACY
-	globalfloat		(false, trace_endcontentsf);
+#define ssqcglobals_legacy	\
+	globalfloat		(false, trace_endcontentsf)	\
+	globalfloat		(false, trace_surfaceflagsf)	\
+	globalstring	(false, trace_dphittexturename)	\
+	globalfloat		(false, trace_dpstartcontents)	\
+	globalfloat		(false, trace_dphitcontents)	\
+	globalfloat		(false, trace_dphitq3surfaceflags)
+#else
+	#define ssqcglobals_legacy
 #endif
-	globalint		(false, trace_endcontentsi);
-#ifdef HAVE_LEGACY
-	globalfloat		(false, trace_surfaceflagsf);
-#endif
-	globalint		(false, trace_surfaceflagsi);
-	globalstring	(false, trace_surfacename);
-	globalint		(false, trace_brush_id);
-	globalint		(false, trace_brush_faceid);
-	globalint		(false, trace_surface_id);
-	globalint		(false, trace_bone_id);
-	globalint		(false, trace_triangle_id);
-#ifdef HAVE_LEGACY
-	globalstring	(false, trace_dphittexturename);
-	globalfloat		(false, trace_dpstartcontents);
-	globalfloat		(false, trace_dphitcontents);
-	globalfloat		(false, trace_dphitq3surfaceflags);
-#endif
-	globalfloat		(false, cycle_wrapped);
-	globalint		(false, msg_entity);
-	globalfunc		(false, main);
-	globalfunc		(true, StartFrame);
-	globalfunc		(true, PlayerPreThink);
-	globalfunc		(true, PlayerPostThink);
-	globalfunc		(true, ClientKill);
-	globalfunc		(true, ClientConnect);
-	globalfunc		(true, PutClientInServer);
-	globalfunc		(true, ClientDisconnect);
-	globalfunc		(false, SetNewParms);
-	globalfunc		(false, SetChangeParms);
-	globalfloat		(false, cycle_wrapped);
-	globalfloat		(false, dimension_send);
-	globalfloat		(false, dimension_default);
+#define ssqcglobals	\
+	globalentity	(true, self)			\
+	globalentity	(true, other)			\
+	globalentity	(true, world)			\
+	globalfloat		(true, time)			\
+	globalfloat		(true, frametime)		\
+	globalentity	(false, newmis)			\
+	globalfloat		(false, force_retouch)	\
+	globalstring	(true, mapname)			\
+	globalfloat		(false, deathmatch)		\
+	globalfloat		(false, coop)			\
+	globalfloat		(false, teamplay)		\
+	globalfloat		(false, serverflags)	\
+	globalfloat		(false, total_secrets)	\
+	globalfloat		(false, total_monsters)	\
+	globalfloat		(false, found_secrets)	\
+	globalfloat		(false, killed_monsters)	\
+	globalvec		(true, v_forward)	\
+	globalvec		(true, v_up)	\
+	globalvec		(true, v_right)	\
+	globalfloat		(false, trace_allsolid)	\
+	globalfloat		(false, trace_startsolid)	\
+	globalfloat		(false, trace_fraction)	\
+	globalvec		(false, trace_endpos)	\
+	globalvec		(false, trace_plane_normal)	\
+	globalfloat		(false, trace_plane_dist)	\
+	globalentity	(true, trace_ent)	\
+	globalfloat		(false, trace_inopen)	\
+	globalfloat		(false, trace_inwater)	\
+	globalint		(false, trace_endcontentsi)	\
+	globalint		(false, trace_surfaceflagsi)	\
+	globalstring	(false, trace_surfacename)	\
+	globalint		(false, trace_brush_id)	\
+	globalint		(false, trace_brush_faceid)	\
+	globalint		(false, trace_surface_id)	\
+	globalint		(false, trace_bone_id)	\
+	globalint		(false, trace_triangle_id)	\
+	\
+	globalfloat		(false, cycle_wrapped)	\
+	globalentity	(false, msg_entity)	\
+	globalfunc		(false, main, "void()")	\
+	globalfunc		(true, StartFrame, "void()")	\
+	globalfunc		(true, PlayerPreThink, "void()")	\
+	globalfunc		(true, PlayerPostThink, "void()")	\
+	globalfunc		(true, ClientKill, "void()")	\
+	globalfunc		(true, ClientConnect, "void()")	\
+	globalfunc		(true, PutClientInServer, "void()")	\
+	globalfunc		(true, ClientDisconnect, "void()")	\
+	globalfunc		(false, SetNewParms, "void()")	\
+	globalfunc		(false, SetChangeParms, "void()")	\
+	globalfloat		(false, cycle_wrapped)	\
+	globalfloat		(false, dimension_send)	\
+	globalfloat		(false, dimension_default)	\
+	\
+	globalfloat		(false, clientcommandframe)	\
+	globalfloat		(false, input_timelength)	\
+	globalfloat		(false, input_impulse)	\
+	globalvec		(false, input_angles)	\
+	globalvec		(false, input_movevalues)	\
+	globalfloat		(false, input_buttons)	\
+	globaluint		(false, input_weapon)	\
+	globalfloat		(false, input_lightlevel)	\
+	globalvec		(false, input_cursor_screen)	\
+	globalvec		(false, input_cursor_trace_start)	\
+	globalvec		(false, input_cursor_trace_endpos)	\
+	globalfloat		(false, input_cursor_entitynumber)	\
+	globaluint		(false, input_head_status)	\
+	globalvec		(false, input_head_origin)	\
+	globalvec		(false, input_head_angles)	\
+	globalvec		(false, input_head_velocity)	\
+	globalvec		(false, input_head_avelocity)	\
+	globaluint		(false, input_left_status)	\
+	globalvec		(false, input_left_origin)	\
+	globalvec		(false, input_left_angles)	\
+	globalvec		(false, input_left_velocity)	\
+	globalvec		(false, input_left_avelocity)	\
+	globaluint		(false, input_right_status)	\
+	globalvec		(false, input_right_origin)	\
+	globalvec		(false, input_right_angles)	\
+	globalvec		(false, input_right_velocity)	\
+	globalvec		(false, input_right_avelocity)	\
+	\
+	globalint		(false, serverid)	\
+	globalvec		(false, global_gravitydir)	\
+	globalstring	(false, parm_string)	\
+	ssqcglobals_legacy
 
-
-	globalfloat		(false, clientcommandframe);
-	globalfloat		(false, input_timelength);
-	globalfloat		(false, input_impulse);
-	globalvec		(false, input_angles);
-	globalvec		(false, input_movevalues);
-	globalfloat		(false, input_buttons);
-	globalint		(false, serverid);
-	globalvec		(false, global_gravitydir);
-	globalstring	(false, parm_string);
-
+#define globalfloat(need,name)			(pr_globals)->name = (pvec_t *)PR_FindGlobal(svprogfuncs, #name, 0, NULL);	if (need && !(pr_globals)->name)	{static pvec_t fallback##name; (pr_globals)->name = &fallback##name; if (!muted) Con_DPrintf("Could not find \""#name"\" export in progs\n");}
+#define globalentity(need,name)			(pr_globals)->name = (pint_t *)PR_FindGlobal(svprogfuncs, #name, 0, NULL);	if (need && !(pr_globals)->name)	{static pint_t fallback##name; (pr_globals)->name = &fallback##name; if (!muted) Con_DPrintf("Could not find \""#name"\" export in progs\n");}
+#define globalint(need,name)			(pr_globals)->name = (pint_t *)PR_FindGlobal(svprogfuncs, #name, 0, NULL);	if (need && !(pr_globals)->name)	{static pint_t fallback##name; (pr_globals)->name = &fallback##name; if (!muted) Con_DPrintf("Could not find \""#name"\" export in progs\n");}
+#define globaluint(need,name)			(pr_globals)->name = (puint_t *)PR_FindGlobal(svprogfuncs, #name, 0, NULL);	if (need && !(pr_globals)->name)	{static puint_t fallback##name; (pr_globals)->name = &fallback##name; if (!muted) Con_DPrintf("Could not find \""#name"\" export in progs\n");}
+#define globalstring(need,name)			(pr_globals)->name = (string_t*)PR_FindGlobal(svprogfuncs, #name, 0, NULL);	if (need && !(pr_globals)->name)	{static string_t fallback##name; (pr_globals)->name = &fallback##name; if (!muted) Con_DPrintf("Could not find \""#name"\" export in progs\n");}
+#define globalvec(need,name)			(pr_globals)->name = (pvec3_t *)PR_FindGlobal(svprogfuncs, #name, 0, NULL);	if (need && !(pr_globals)->name)	{static pvec3_t fallback##name; (pr_globals)->name = &fallback##name; if (!muted) Con_DPrintf("Could not find \""#name"\" export in progs\n");}
+#define globalfunc(need,name,typestr)	(pr_globals)->name = (func_t *)PR_FindGlobal(svprogfuncs, #name, 0, NULL);	if (!(pr_globals)->name)			{static func_t stripped##name; stripped##name = PR_FindFunction(svprogfuncs, #name, 0); if (stripped##name) (pr_globals)->name = &stripped##name; else if (need && !muted) Con_DPrintf("Could not find function \""#name"\" in progs\n"); }
+	ssqcglobals
 #undef globalfloat
+#undef globalentity
 #undef globalint
+#undef globaluint
 #undef globalstring
 #undef globalvec
 #undef globalfunc
@@ -1617,6 +1654,11 @@ void PR_Init(void)
 #ifdef SQL
 	SQL_Init();
 #endif
+
+	{	//hide this extension, because AD maps often fail to signal that its not needed, resulting in horrendous stalls when people fire shotguns.
+		static cvar_t var = CVARFD("pr_ext_dp_qc_getsurface", "", CVAR_ARCHIVE, "Set to 0 to block detection of the extension");
+		Cvar_Register (&var, "QC Extensions");
+	}
 }
 
 void SVQ1_CvarChanged(cvar_t *var)
@@ -4891,6 +4933,15 @@ static void QCBUILTIN PF_pointcontents (pubprogfuncs_t *prinst, struct globalvar
 	else
 		G_FLOAT(OFS_RETURN) = Q1CONTENTS_EMPTY;
 }
+static void QCBUILTIN PF_pointcontentsmask (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	world_t *w = prinst->parms->user;
+	VM_VECTORARG(v, OFS_PARM0);
+	if (prinst->callargc < 1 || G_FLOAT(OFS_PARM1))
+		G_UINT(OFS_RETURN) = World_PointContentsWorldOnly(w, v);
+	else
+		G_UINT(OFS_RETURN) = World_PointContentsAllBSPs(w, v);
+}
 
 /*
 =============
@@ -7092,8 +7143,8 @@ void PR_SQLCycle(void)
 
 
 
-
-lh_extension_t *checkfteextensioncl(int mask, const char *name)	//true if the cient extension mask matches an extension name
+/*
+static qc_extension_t *checkfteextensioncl(int mask, const char *name)	//true if the cient extension mask matches an extension name
 {
 	int i;
 	for (i = 0; i < 32; i++)
@@ -7108,15 +7159,15 @@ lh_extension_t *checkfteextensioncl(int mask, const char *name)	//true if the ci
 	return NULL;
 }
 
-lh_extension_t *checkfteextensionsv(const char *name)	//true if the server supports an protocol extension.
+static qc_extension_t *checkfteextensionsv(const char *name)	//true if the server supports an protocol extension.
 {
 	return checkfteextensioncl(Net_PextMask(PROTOCOL_VERSION_FTE1, false), name);
 }
 
-lh_extension_t *checkextension(const char *name)
+static qc_extension_t *checkextension(const char *name)
 {
 	int i;
-	for (i = 32; i < QSG_Extensions_count; i++)
+	for (i = 0; i < QSG_Extensions_count; i++)
 	{
 		if (!QSG_Extensions[i].name)
 			continue;
@@ -7124,7 +7175,7 @@ lh_extension_t *checkextension(const char *name)
 			return &QSG_Extensions[i];
 	}
 	return NULL;
-}
+}*/
 
 /*
 =================
@@ -7137,58 +7188,68 @@ checkextension(string extensionname, [entity client])
 */
 static void QCBUILTIN PF_checkextension (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	lh_extension_t *ext = NULL;
+	qc_extension_t *ext;
 	const char *s = PR_GetStringOfs(prinst, OFS_PARM0);
+	int clnum = (svprogfuncs->callargc == 2)?NUM_FOR_EDICT(prinst, G_EDICT(prinst, OFS_PARM1)):0;
+	int i;
+	cvar_t *v;
+	char *cvn;
 
-	ext = checkextension(s);
-	if (!ext)
+	G_FLOAT(OFS_RETURN) = false;
+
+	for (i = 0; i < QSG_Extensions_count; i++)
 	{
-		if (svprogfuncs->callargc == 2)
+		if (!stricmp(s, QSG_Extensions[i].name))
 		{
-			int clnum = NUM_FOR_EDICT(prinst, G_EDICT(prinst, OFS_PARM1));
-			if (clnum >= 1 && clnum <= sv.allocated_client_slots)	//valid client as second parameter
+			ext = &QSG_Extensions[i];
+
+			if (ext->extensioncheck && clnum >= 1 && clnum <= sv.allocated_client_slots)
 			{
-				ext = checkfteextensioncl(svs.clients[clnum-1].fteprotocolextensions, s);
+				client_t *cl = &svs.clients[clnum-1];
+				extcheck_t check = {cl->fteprotocolextensions, cl->fteprotocolextensions2};
+				if (!ext->extensioncheck(&check))
+					return;	//blocked by some setting somewhere, somehow.
 			}
-			else if (clnum == 0)
-				ext = checkfteextensionsv(s);
-			else
+			else if (ext->extensioncheck)
 			{
-			//ent wasn't valid
-				Con_Printf("PF_CheckExtension with invalid client number");
+				extcheck_t check = {Net_PextMask(PROTOCOL_VERSION_FTE1, false), Net_PextMask(PROTOCOL_VERSION_FTE2, false)};
+				if (!ext->extensioncheck(&check))
+					return;	//blocked by some setting somewhere, somehow.
 			}
-		}
-		else
-		{
-			ext = checkfteextensionsv(s);
+
+			//user cvar blocks. note that the qc isn't meant to be aware of them, we use CVAR_NOUNSAFEEXPAND so mods don't can't bypass checkextension in a non-portable way.
+			cvn = va("pr_ext_%s", ext->name);
+			for (i = 0; cvn[i]; i++)
+				if (cvn[i] >= 'A' && cvn[i] <= 'Z')
+					cvn[i] = 'a' + (cvn[i]-'A');
+			v = Cvar_Get2(cvn, "1", CVAR_ARCHIVE|CVAR_NOUNSAFEEXPAND, "Set to 0 to block detection of the extension, or 1 to enable it.", "QC Extensions");
+			if (v && !v->ival)
+			{
+				if (!*v->string && (v->flags&CVAR_POINTER))
+					;	//user-defined cvars arn't explicitly defined elsewhere. interpret them as 1 when empty, because they're probably old ones that we're no longer trying to block...
+				else
+					break;
+			}
+
+			for (i = 0; i < ext->numbuiltins; i++)
+			{
+				if (*ext->builtinnames[i] == '.' || *ext->builtinnames[i] == '#')
+				{
+					/*field or global*/
+				}
+				else if (!PR_EnableEBFSBuiltin(ext->builtinnames[i], 0))
+				{
+					Con_Printf("Failed to initialise builtin \"%s\" for extension \"%s\"\n", ext->builtinnames[i], s);
+					return;	//whoops, we failed.
+				}
+			}
+
+			G_FLOAT(OFS_RETURN) = true;
+			Con_DPrintf("Extension %s is supported\n", s);
+			break;
 		}
 	}
 
-	if (ext)
-	{
-		int i;
-		G_FLOAT(OFS_RETURN) = false;
-		for (i = 0; i < ext->numbuiltins; i++)
-		{
-			if (*ext->builtinnames[i] == '.' || *ext->builtinnames[i] == '#')
-			{
-				/*field or global*/
-			}
-			else if (!PR_EnableEBFSBuiltin(ext->builtinnames[i], 0))
-			{
-				Con_Printf("Failed to initialise builtin \"%s\" for extension \"%s\"\n", ext->builtinnames[i], s);
-				return;	//whoops, we failed.
-			}
-		}
-
-		if (ext->queried)
-			*ext->queried = true;
-
-		G_FLOAT(OFS_RETURN) = true;
-		Con_DPrintf("Extension %s is supported\n", s);
-	}
-	else
-		G_FLOAT(OFS_RETURN) = false;
 }
 
 static void QCBUILTIN PF_checkbuiltin (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
@@ -10291,11 +10352,6 @@ qboolean SV_RunFullQCMovement(client_t *client, usercmd_t *ucmd)
 				V_CalcRoll (sv_player->v->angles, sv_player->v->velocity)*4;
 		}
 
-		//prethink should be consistant with what the engine normally does
-		pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, client->edict);
-		PR_ExecuteProgram (svprogfuncs, pr_global_struct->PlayerPreThink);
-		WPhys_RunThink (&sv.world, (wedict_t*)client->edict);
-
 
 
 
@@ -10326,6 +10382,81 @@ qboolean SV_RunFullQCMovement(client_t *client, usercmd_t *ucmd)
 		(pr_global_struct->input_movevalues)[1] = ucmd->sidemove;
 		(pr_global_struct->input_movevalues)[2] = ucmd->upmove;
 		pr_global_struct->input_buttons = ucmd->buttons;
+		if (pr_global_ptrs->input_weapon)
+			pr_global_struct->input_weapon = ucmd->weapon;
+		if (pr_global_ptrs->input_lightlevel)
+			pr_global_struct->input_lightlevel = ucmd->lightlevel;
+
+		if (pr_global_ptrs->input_cursor_screen)
+			VectorSet(pr_global_struct->input_cursor_screen, ucmd->cursor_screen[0], ucmd->cursor_screen[1], 0);
+		if (pr_global_ptrs->input_cursor_trace_start)
+			VectorCopy(ucmd->cursor_start, pr_global_struct->input_cursor_trace_start);
+		if (pr_global_ptrs->input_cursor_trace_endpos)
+			VectorCopy(ucmd->cursor_impact, pr_global_struct->input_cursor_trace_endpos);
+		if (pr_global_ptrs->input_cursor_entitynumber)
+			pr_global_struct->input_cursor_entitynumber = ucmd->cursor_entitynumber;
+
+		if (pr_global_ptrs->input_head_status)
+			pr_global_struct->input_head_status = ucmd->vr[VRDEV_HEAD].status;
+		if (pr_global_ptrs->input_head_origin)
+			VectorCopy(ucmd->vr[VRDEV_HEAD].origin, pr_global_struct->input_head_origin);
+		if (pr_global_ptrs->input_head_velocity)
+			VectorCopy(ucmd->vr[VRDEV_HEAD].velocity, pr_global_struct->input_head_velocity);
+		if (pr_global_ptrs->input_head_angles)
+		{
+			(pr_global_struct->input_head_angles)[0] = SHORT2ANGLE(ucmd->vr[VRDEV_HEAD].angles[0]);
+			(pr_global_struct->input_head_angles)[1] = SHORT2ANGLE(ucmd->vr[VRDEV_HEAD].angles[1]);
+			(pr_global_struct->input_head_angles)[2] = SHORT2ANGLE(ucmd->vr[VRDEV_HEAD].angles[2]);
+		}
+		if (pr_global_ptrs->input_head_avelocity)
+		{
+			(pr_global_struct->input_head_avelocity)[0] = SHORT2ANGLE(ucmd->vr[VRDEV_HEAD].avelocity[0]);
+			(pr_global_struct->input_head_avelocity)[1] = SHORT2ANGLE(ucmd->vr[VRDEV_HEAD].avelocity[1]);
+			(pr_global_struct->input_head_avelocity)[2] = SHORT2ANGLE(ucmd->vr[VRDEV_HEAD].avelocity[2]);
+		}
+
+		if (pr_global_ptrs->input_left_status)
+			pr_global_struct->input_left_status = ucmd->vr[VRDEV_LEFT].status;
+		if (pr_global_ptrs->input_left_origin)
+			VectorCopy(ucmd->vr[VRDEV_LEFT].origin, pr_global_struct->input_left_origin);
+		if (pr_global_ptrs->input_left_velocity)
+			VectorCopy(ucmd->vr[VRDEV_LEFT].velocity, pr_global_struct->input_left_velocity);
+		if (pr_global_ptrs->input_left_angles)
+		{
+			(pr_global_struct->input_left_angles)[0] = SHORT2ANGLE(ucmd->vr[VRDEV_LEFT].angles[0]);
+			(pr_global_struct->input_left_angles)[1] = SHORT2ANGLE(ucmd->vr[VRDEV_LEFT].angles[1]);
+			(pr_global_struct->input_left_angles)[2] = SHORT2ANGLE(ucmd->vr[VRDEV_LEFT].angles[2]);
+		}
+		if (pr_global_ptrs->input_left_avelocity)
+		{
+			(pr_global_struct->input_left_avelocity)[0] = SHORT2ANGLE(ucmd->vr[VRDEV_LEFT].avelocity[0]);
+			(pr_global_struct->input_left_avelocity)[1] = SHORT2ANGLE(ucmd->vr[VRDEV_LEFT].avelocity[1]);
+			(pr_global_struct->input_left_avelocity)[2] = SHORT2ANGLE(ucmd->vr[VRDEV_LEFT].avelocity[2]);
+		}
+
+		if (pr_global_ptrs->input_right_status)
+			pr_global_struct->input_right_status = ucmd->vr[VRDEV_RIGHT].status;
+		if (pr_global_ptrs->input_right_origin)
+			VectorCopy(ucmd->vr[VRDEV_RIGHT].origin, pr_global_struct->input_right_origin);
+		if (pr_global_ptrs->input_right_velocity)
+			VectorCopy(ucmd->vr[VRDEV_RIGHT].velocity, pr_global_struct->input_right_velocity);
+		if (pr_global_ptrs->input_right_angles)
+		{
+			(pr_global_struct->input_right_angles)[0] = SHORT2ANGLE(ucmd->vr[VRDEV_RIGHT].angles[0]);
+			(pr_global_struct->input_right_angles)[1] = SHORT2ANGLE(ucmd->vr[VRDEV_RIGHT].angles[1]);
+			(pr_global_struct->input_right_angles)[2] = SHORT2ANGLE(ucmd->vr[VRDEV_RIGHT].angles[2]);
+		}
+		if (pr_global_ptrs->input_right_avelocity)
+		{
+			(pr_global_struct->input_right_avelocity)[0] = SHORT2ANGLE(ucmd->vr[VRDEV_RIGHT].avelocity[0]);
+			(pr_global_struct->input_right_avelocity)[1] = SHORT2ANGLE(ucmd->vr[VRDEV_RIGHT].avelocity[1]);
+			(pr_global_struct->input_right_avelocity)[2] = SHORT2ANGLE(ucmd->vr[VRDEV_RIGHT].avelocity[2]);
+		}
+
+		//prethink should be consistant with what the engine normally does
+		pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, client->edict);
+		PR_ExecuteProgram (svprogfuncs, pr_global_struct->PlayerPreThink);
+		WPhys_RunThink (&sv.world, (wedict_t*)client->edict);
 
 		pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, client->edict);
 		PR_ExecuteProgram(svprogfuncs, gfuncs.RunClientCommand);
@@ -10719,7 +10850,8 @@ static BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"ceil",			PF_ceil,			38,		38,		38,		0,	D("float(float)", "Rounds the given float upwards, even when negative.")},
 	{"qtest_canreach",	PF_Ignore,			39,		0,		0,		0,	"DEP float(vector v)"}, // QTest builtin called in effectless statement
 	{"checkbottom",		PF_checkbottom,		40,		40,		40,		0,	D("float(entity ent)", "Expensive checks to ensure that the entity is actually sitting on something solid, returns true if it is.")},
-	{"pointcontents",	PF_pointcontents,	41,		41,		41,		0,	D("float(vector pos)", "Checks the given point to see what is there. Returns one of the SOLID_* constants. Just because a spot is empty does not mean that the player can stand there due to the size of the player - use tracebox for such tests.")},
+	{"pointcontents",	PF_pointcontents,	41,		41,		41,		0,	D("float(vector pos)", "Checks the given point to see what is there. Returns one of the CONTENTS_* constants. Just because a point is empty does not mean that the player can stand there due to the size of the player - use tracebox for such tests.")},
+	{"pointcontentsmask",PF_pointcontentsmask,0,	0,		0,		0,	D("__uint(vector pos, optional float worldonly=1)", "Checks the given point to see what is there. Returns a mask of the CONTENTBIT_* constants. Just because a point is empty does not mean that the player can stand there due to the size of the player - use tracebox for such tests.")},
 //	{"qtest_stopsound",	NULL,				42}, // defined QTest builtin that is never called
 	{"fabs",			PF_fabs,			43,		43,		43,		0,	D("float(float)", "Removes the sign of the float, making it positive if it is negative.")},
 	{"aim",				PF_aim,				44,		44,		44,		0,	D("vector(entity player, float missilespeed)", "Returns a tweaked copy of the v_forward vector (must be set! ie: makevectors(player.v_angle) ). This is important for keyboard users (that don't want to have to look up/down the whole time), as well as joystick users (who's aim is otherwise annoyingly imprecise). Only the upwards component of the result will differ from the value of v_forward. The builtin will select the enemy closest to the crosshair within the angle of acos(sv_aim).")},	//44
@@ -11859,13 +11991,6 @@ void PR_ResetBuiltins(progstype_t type)	//fix all nulls to PF_FIXME and add any 
 		}
 	}
 
-
-	for (i = 0; i < QSG_Extensions_count; i++)
-	{
-		if (QSG_Extensions[i].queried)
-			*QSG_Extensions[i].queried = false;
-	}
-
 	if (type == PROG_QW)
 	{
 		//this conflicts with dp's logarithm builtin.
@@ -11907,7 +12032,7 @@ void PR_SVExtensionList_f(void)
 	int i, j;
 	int ebi;
 	int bi;
-	lh_extension_t *extlist;
+	qc_extension_t *extlist;
 
 #define SHOW_ACTIVEEXT 1
 #define SHOW_ACTIVEBI 2
@@ -12573,11 +12698,6 @@ void PR_DumpPlatform_f(void)
 		{"input_buttons",		"float",	QW|NQ},
 		{"input_impulse",		"float",	QW|NQ},
 
-		{"input_cursor_screen",			"vector",	CS/*|QW|NQ*/},
-		{"input_cursor_trace_start",	"vector",	CS/*|QW|NQ*/},
-		{"input_cursor_trace_endpos",	"vector",	CS/*|QW|NQ*/},
-		{"input_cursor_trace_entnum",	"float",	CS/*|QW|NQ*/},
-
 		{"trace_endcontents",		"int", QW|NQ|CS},
 		{"trace_surfaceflags",		"int", QW|NQ|CS},
 //		{"trace_surfacename",		"string", QW|NQ|CS},
@@ -12742,6 +12862,21 @@ void PR_DumpPlatform_f(void)
 		{"drawfont",				"float", CS|MENU, "Allows you to choose exactly which font is to be used to draw text. Fonts can be registered/allocated with the loadfont builtin."},
 		{"FONT_DEFAULT",			"const float", CS|MENU, NULL, 0},
 
+#define globalfloat(need,name)			{#name, "float", QW|NQ, "ssqc global"},
+#define globalentity(need,name)			{#name, "entity", QW|NQ, "ssqc global"},
+#define globalint(need,name)			{#name, "int", QW|NQ, "ssqc global"},
+#define globaluint(need,name)			{#name, "unsigned int", QW|NQ, "ssqc global"},
+#define globalstring(need,name)			{#name, "string", QW|NQ, "ssqc global"},
+#define globalvec(need,name)			{#name, "vector", QW|NQ, "ssqc global"},
+#define globalfunc(need,name,typestr)	{#name, typestr, QW|NQ, "ssqc global"},
+		ssqcglobals
+#undef globalfloat
+#undef globalentity
+#undef globalint
+#undef globaluint
+#undef globalstring
+#undef globalvec
+#undef globalfunc
 
 #define globalfloatdep(name,depreason)	{#name, "DEP(\""depreason"\") float", CS},
 #define globalfunction(name,typestr)	{#name, typestr, CS},
@@ -12750,6 +12885,7 @@ void PR_DumpPlatform_f(void)
 #define globalvector(name)				{#name, "vector", CS},
 #define globalstring(name)				{#name, "string", CS},
 #define globalint(name)					{#name, "int", CS},
+#define globaluint(name)				{#name, "unsigned int", CS},
 		csqcglobals
 #undef globalfunction
 #undef globalfloat
@@ -12757,6 +12893,7 @@ void PR_DumpPlatform_f(void)
 #undef globalvector
 #undef globalstring
 #undef globalint
+#undef globaluint
 #undef globalfloatdep
 
 		{"TRUE",					"const float", ALL, NULL, 1},
@@ -13296,6 +13433,7 @@ void PR_DumpPlatform_f(void)
 		{"LFIELD_RADIUSDECAY",	"const float", CS, NULL, lfield_radiusdecay},
 		{"LFIELD_STYLESTRING",	"const float", CS, NULL, lfield_stylestring},
 		{"LFIELD_NEARCLIP",		"const float", CS, NULL, lfield_nearclip},
+		{"LFIELD_OWNER",		"const float", CS, NULL, lfield_owner},
 
 		{"LFLAG_NORMALMODE",	"const float", CS, NULL, LFLAG_NORMALMODE},
 		{"LFLAG_REALTIMEMODE",	"const float", CS, NULL, LFLAG_REALTIMEMODE},
@@ -13607,12 +13745,27 @@ void PR_DumpPlatform_f(void)
 	VFS_PRINTF(f, "\n");
 
 
+	for (idx = 0; knowndefs[idx].name; idx++)
+	{	//system fields
+		if (!strcmp(knowndefs[idx].name, "end_sys_fields"))
+			break;
+	}
 	for (i = 0; knowndefs[i].name; i++)
 	{
 		for (j = 0; j < i; j++)
 		{
 			if (!strcmp(knowndefs[i].name, knowndefs[j].name))
+			{	//promote the first one to the relevant module...
+				if (j >= idx)
+				if (!strcmp(knowndefs[i].type, knowndefs[j].type))
+				if (knowndefs[i].desc==knowndefs[j].desc||!knowndefs[i].desc||!knowndefs[j].desc||!strcmp(knowndefs[i].desc, knowndefs[j].desc))
+				if (knowndefs[i].valuestr==knowndefs[j].valuestr||(knowndefs[i].valuestr&&knowndefs[j].valuestr&&!strcmp(knowndefs[i].valuestr, knowndefs[j].valuestr)))
+				if (knowndefs[i].value==knowndefs[j].value)
+				{
+					knowndefs[j].module |= knowndefs[i].module; /*give the first def the later one's module flag*/
+				}
 				knowndefs[i].module &= ~knowndefs[j].module; /*clear the flag on the later dupe def*/
+			}
 		}
 	}
 

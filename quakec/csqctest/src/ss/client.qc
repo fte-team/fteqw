@@ -541,11 +541,8 @@ void() PutClientInServer =
 	self.effects = 0;
 	self.invincible_time = 0;
 
-	if (serverusingcsqc)
-	{
-		self.SendEntity = SendPlayer;
-		self.SendFlags = FULLSEND;
-	}
+	self.SendEntity = SendPlayer;
+	self.SendFlags = FULLSEND;
 
 	DecodeLevelParms ();
 	
@@ -1258,7 +1255,7 @@ enum {
 float(entity ent) GetGender =
 {
 	local string s;
-	if (!isdp)
+	if (checkbuiltin(infokey))
 	{
 		s = infokey(ent, "s");
 		if (s == "" || s == "m" || s == "male" || s == "yesplease")
@@ -1267,7 +1264,8 @@ float(entity ent) GetGender =
 			return GENDER_FEMALE;
 		return GENDER_NEUTER;
 	}
-	return GENDER_MALE;
+	else
+		return GENDER_NEUTER;
 };
 
 /*

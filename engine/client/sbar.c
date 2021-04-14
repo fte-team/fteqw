@@ -39,6 +39,7 @@ cvar_t scr_scoreboard_backgroundalpha = CVARD("scr_scoreboard_backgroundalpha", 
 cvar_t scr_scoreboard_teamscores = CVARD("scr_scoreboard_teamscores", "1", "Makes +showscores act as +showteamscores. Because reasons.");
 cvar_t scr_scoreboard_teamsort = CVARD("scr_scoreboard_teamsort", "0", "On the scoreboard, sort players by their team BEFORE their personal score.");
 cvar_t scr_scoreboard_titleseperator = CVAR("scr_scoreboard_titleseperator", "1");
+cvar_t scr_scoreboard_showruleset = CVAR("scr_scoreboard_showruleset", "1");
 cvar_t sbar_teamstatus = CVARD("sbar_teamstatus", "1", "Display the last team say from each of your team members just above the sbar area.");
 
 cvar_t cl_sbaralpha = CVARAD("cl_sbaralpha", "0.75", "scr_sbaralpha", "Specifies the transparency of the status bar. Only Takes effect when cl_sbar is set to 2.");	//with premultiplied alpha, this needs to affect the RGB values too.
@@ -1141,6 +1142,7 @@ void Sbar_Init (void)
 	Cvar_Register(&scr_scoreboard_newstyle, "Scoreboard settings");
 	Cvar_Register(&scr_scoreboard_showfrags, "Scoreboard settings");
 	Cvar_Register(&scr_scoreboard_showflags, "Scoreboard settings");
+	Cvar_Register(&scr_scoreboard_showruleset, "Scoreboard settings");
 	Cvar_Register(&scr_scoreboard_fillalpha, "Scoreboard settings");
 	Cvar_Register(&scr_scoreboard_backgroundalpha, "Scoreboard settings");
 	Cvar_Register(&scr_scoreboard_teamscores, "Scoreboard settings");
@@ -3316,6 +3318,7 @@ ping time frags name
 		Draw_FunStringWidth(x, y, s->team, 4*8, false, false);			\
 	}													\
 },NOFILL)
+#define COLUMN_RULESET COLUMN(ruleset, 8*8,	{Draw_FunStringWidth(x, y, s->ruleset, 8*8, false, false);},NOFILL)
 #define COLUMN_NAME COLUMN(name, namesize,	{Draw_FunStringWidth(x, y, s->name, namesize, false, false);},NOFILL)
 #define COLUMN_KILLS COLUMN(kils, 4*8, {Draw_FunStringWidth(x, y, va("%4i", Stats_GetKills(k)), 4*8, false, false);},NOFILL)
 #define COLUMN_TKILLS COLUMN(tkil, 4*8, {Draw_FunStringWidth(x, y, va("%4i", Stats_GetTKills(k)), 4*8, false, false);},NOFILL)
@@ -3326,7 +3329,7 @@ ping time frags name
 
 
 //columns are listed here in display order
-#define ALLCOLUMNS COLUMN_PING COLUMN_PL COLUMN_TIME COLUMN_FRAGS COLUMN_TEAMNAME COLUMN_NAME COLUMN_KILLS COLUMN_TKILLS COLUMN_DEATHS COLUMN_TOUCHES COLUMN_CAPS COLUMN_AFK
+#define ALLCOLUMNS COLUMN_PING COLUMN_PL COLUMN_TIME COLUMN_RULESET COLUMN_FRAGS COLUMN_TEAMNAME COLUMN_NAME COLUMN_KILLS COLUMN_TKILLS COLUMN_DEATHS COLUMN_TOUCHES COLUMN_CAPS COLUMN_AFK
 
 enum
 {
@@ -3457,6 +3460,10 @@ void Sbar_DeathmatchOverlay (playerview_t *pv, int start)
 	if (scr_scoreboard_showflags.ival && cl.teamplay && Stats_HaveFlags(scr_scoreboard_showflags.ival&1))
 	{
 		COLUMN_TOUCHES
+	}
+	if (scr_scoreboard_showruleset.ival && (scr_scoreboard_showruleset.ival==2||Ruleset_GetRulesetName()))
+	{
+		COLUMN_RULESET
 	}
 	COLUMN_AFK
 #undef COLUMN

@@ -78,8 +78,8 @@ void(vector pos, textfield_t *fld, textfield_linedesc_t *fields) textfield_draw 
 {
 	string t;
 	int l;
-	int nummatches;
-	int lastmatch;
+	int nummatches = 0;
+	int lastmatch = 0;
 	for (l = 0i; l < fld->linecount; l+=1i, pos_y += 8)
 	{
 		if (l == fld->cursorline && ((cltime * 4) & 1))
@@ -154,7 +154,7 @@ void(textfield_t *fld) textfield_localcmd =
 string(textfield_t *fld) textfield_strcat =
 {
 	int l;
-	string res;
+	string res = "";
 	for (l = 0i; l < fld->linecount; l+=1i)
 	{
 		res = strcat(res, fld->lines[l], "\n");

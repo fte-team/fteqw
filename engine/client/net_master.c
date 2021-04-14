@@ -85,6 +85,7 @@ static void SV_SetMaster_f (void);
 extern cvar_t sv_public;
 extern cvar_t sv_reportheartbeats;
 extern cvar_t sv_heartbeat_interval;
+extern cvar_t sv_heartbeat_checks;
 
 extern cvar_t sv_listen_qw;
 extern cvar_t sv_listen_nq;
@@ -204,7 +205,8 @@ static net_masterlist_t net_masterlist[] = {
 
 	{MP_UNSPECIFIED, CVAR(NULL, NULL)}
 };
-qboolean Net_AddressIsMaster(netadr_t *adr)
+#ifdef HAVE_SERVER
+qboolean SV_Master_AddressIsMaster(netadr_t *adr)
 {
 	size_t i, j;
 	//never throttle packets from master servers. we don't want to go missing.
@@ -214,13 +216,51 @@ qboolean Net_AddressIsMaster(netadr_t *adr)
 			continue;
 		for (j = 0; j < MAX_MASTER_ADDRESSES; j++)
 			if (net_masterlist[i].adr[j].type != NA_INVALID)
-				if (NET_CompareAdr(&net_from, &net_masterlist[i].adr[j]))
+				if (NET_CompareBaseAdr(&net_from, &net_masterlist[i].adr[j]))
 					return true;
 	}
 	return false;
 }
+void SV_Master_HeartbeatResponse(netadr_t *adr, const char *challenge)
+{
+//ftemaster responds from two different ports. one direct, one indirect.
+//if there's a NAT/firewall issue then the indirect response is lost.
+//thus if we get more than X direct responses without any indirect ones in that time, start warning because the server is unreachable and thus probably pointless.
+	qboolean directresponse = (*challenge=='?');	//this is a fallback (direct) response.
+	static size_t directresponse_count;
+	static double okaytimestamp;	//timer throttle, in case there's spoofing going on. we won't get any DoS attacks but its still annoying.
 
-#ifdef HAVE_SERVER
+	//'?' denotes the master trying to send a direct response.
+	//length>0&&length<12 denotes a dpmaster query
+	//no challengedenotes a client (if they get our address then its all good)
+	if (*challenge && strlen(challenge) <= 12)
+		return;	//outdated dpmaster. these are (probably) direct responses that don't really mean anything.
+
+	if (NET_ClassifyAddress(adr, NULL) != ASCOPE_NET)
+		return;	//ignore any broadcast lan probes.
+
+	//if we're getting fake-direct responses without typical indirect ones then someone's probably being obnoxious and trying to trigger some false positives.
+	//FIXME: spoofed fake-direct responses can still be an annoyance, but this is informative only, so not a real issue.
+	if (directresponse && !SV_Master_AddressIsMaster(adr))
+		directresponse = false;
+
+	if (directresponse && sv_public.ival == 1)
+		directresponse_count++;		//bad...
+	else
+		directresponse_count = 0;	//yay! we're reachable!... for now...
+
+	if (directresponse_count >= 4)
+	{
+		if ((realtime - okaytimestamp) > 60)
+		{
+			Con_Printf(CON_ERROR"WARNING: 'sv_public %s' is ineffective, this server appears unreachable due to NAT/Firewall issues\n", sv_public.string);
+			okaytimestamp = realtime;
+			directresponse_count = 0;
+		}
+	}
+	else
+		okaytimestamp = realtime;
+}
 
 static void QDECL Net_Masterlist_Callback(struct cvar_s *var, char *oldvalue)
 {
@@ -238,7 +278,7 @@ static void QDECL Net_Masterlist_Callback(struct cvar_s *var, char *oldvalue)
 	net_masterlist[i].needsresolve = true;
 }
 
-void SV_Master_SingleHeartbeat(net_masterlist_t *master)
+static void SV_Master_SingleHeartbeat(net_masterlist_t *master)
 {
 	char		string[2048];
 	qboolean	madeqwstring = false;
@@ -286,7 +326,7 @@ void SV_Master_SingleHeartbeat(net_masterlist_t *master)
 			case MP_QUAKE2:
 				if (svs.gametype == GT_QUAKE2 && sv_listen_qw.value && na->type == NA_IP)	//sv_listen==sv_listen_qw, yes, weird.
 				{
-					char *str = "\377\377\377\377heartbeat\n%s\n%s";
+					char *str = "\377\377\377\377""heartbeat\n%s\n%s";
 					char info[8192];
 					char q2users[8192];
 					size_t i;
@@ -314,7 +354,7 @@ void SV_Master_SingleHeartbeat(net_masterlist_t *master)
 				{
 					//darkplaces here refers to the master server protocol, rather than the game protocol
 					//(specifies that the server responds to infoRequest packets from the master)
-					char *str = "\377\377\377\377heartbeat DarkPlaces\x0A";
+					char *str = "\377\377\377\377""heartbeat DarkPlaces\n";
 					e = NET_SendPacket (svs.sockets, strlen(str), str, na);
 				}
 				break;
@@ -374,10 +414,10 @@ struct thr_res
 	netadr_t na[8];
 	char str[1];	//trailing
 };
-void SV_Master_Worker_Resolved(void *ctx, void *data, size_t a, size_t b)
+static void SV_Master_Worker_Resolved(void *ctx, void *data, size_t a, size_t b)
 {
 	char adr[256];
-	int i;
+	int i, j;
 	struct thr_res *work = data;
 	netadr_t *na;
 	net_masterlist_t *master = &net_masterlist[a];
@@ -410,6 +450,17 @@ void SV_Master_Worker_Resolved(void *ctx, void *data, size_t a, size_t b)
 				if (na->type != NA_IP && na->type != NA_IPV6)
 					na->type = NA_INVALID;
 				break;	//protocol
+			}
+			if (na->type != NA_INVALID)
+			{
+				for (j = 0; j < i; j++)
+				{
+					if (NET_CompareAdr(&master->adr[j], na))
+					{	//a dupe of a previous one...
+						na->type = NA_INVALID;
+						break;
+					}
+				}
 			}
 
 			if (na->type == NA_INVALID)
@@ -470,7 +521,7 @@ void SV_Master_Worker_Resolved(void *ctx, void *data, size_t a, size_t b)
 	Z_Free(work);
 }
 //worker thread
-void SV_Master_Worker_Resolve(void *ctx, void *data, size_t a, size_t b)
+static void SV_Master_Worker_Resolve(void *ctx, void *data, size_t a, size_t b)
 {
 	char token[1024];
 	int found = 0;

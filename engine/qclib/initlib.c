@@ -517,7 +517,7 @@ int PDECL PR_InitEnts(pubprogfuncs_t *ppf, int max_ents)
 
 	return prinst.max_fields_size;
 }
-edictrun_t tempedict;	//used as a safty buffer
+edictrun_t tempedict={ER_FREE};	//used as a safty buffer
 static float tempedictfields[2048];
 
 static void PDECL PR_Configure (pubprogfuncs_t *ppf, size_t addressable_size, int max_progs, pbool profiling)	//can be used to wipe all memory
@@ -574,14 +574,13 @@ static void PDECL PR_Configure (pubprogfuncs_t *ppf, size_t addressable_size, in
 
 	prinst.profiling = profiling;
 	prinst.profilingalert = Sys_GetClockRate();
-	prinst.maxedicts = 1;
+	progfuncs->funcs.edicttable_length = prinst.maxedicts = 0;
 	prinst.edicttable = (edictrun_t**)(progfuncs->funcs.edicttable = &sv_edicts);
-	progfuncs->funcs.edicttable_length = 1;
-	sv_num_edicts = 1;	//set up a safty buffer so things won't go horribly wrong too often
+	sv_num_edicts = 0;	//set up a safty buffer so things won't go horribly wrong too often
 	sv_edicts=(struct edict_s *)&tempedict;
 	tempedict.readonly = true;
 	tempedict.fields = tempedictfields;
-	tempedict.ereftype = ER_ENTITY;
+	tempedict.ereftype = ER_OBJECT;
 }
 
 
@@ -1033,9 +1032,10 @@ const char *ASMCALL PR_StringToNative				(pubprogfuncs_t *ppf, string_t str)
 	return progfuncs->funcs.stringtable + str;
 }
 
+//guarentees a return value for tempstrings, but requires a small enough data size to do so.
 eval_t *PR_GetReadTempStringPtr(progfuncs_t *progfuncs, string_t str, size_t offset, size_t datasize)
 {
-	static pvec3_t dummy;	//don't resize anything when reading.
+	static eval_t dummy;	//don't resize anything when reading.
 	if (((unsigned int)str & STRING_SPECMASK) == STRING_TEMP)
 	{
 		unsigned int i = str & ~STRING_SPECMASK;
@@ -1044,8 +1044,8 @@ eval_t *PR_GetReadTempStringPtr(progfuncs_t *progfuncs, string_t str, size_t off
 		{
 			if (offset + datasize <= temp->size)
 				return (eval_t*)(temp->value + offset);
-			else
-				return (eval_t*)dummy;
+			else if (datasize <= sizeof(dummy))
+				return &dummy;
 		}
 	}
 	return NULL;
@@ -1067,6 +1067,8 @@ eval_t *PR_GetWriteTempStringPtr(progfuncs_t *progfuncs, string_t str, size_t of
 					return NULL;	//gotta have a cut-off point somewhere.
 				newsize = (newsize+sizeof(float)-1)&~(sizeof(float)-1);
 				newtemp = progfuncs->funcs.parms->memalloc(sizeof(tempstr_t) - sizeof(((tempstr_t*)NULL)->value) + newsize);
+				if (!newtemp)
+					return NULL;
 				newtemp->size = newsize;
 				memcpy(newtemp->value, temp->value, temp->size);
 				memset(newtemp->value+temp->size, 0, newsize-temp->size);
@@ -1075,6 +1077,47 @@ eval_t *PR_GetWriteTempStringPtr(progfuncs_t *progfuncs, string_t str, size_t of
 			}
 			return (eval_t*)(temp->value + offset);
 		}
+	}
+	return NULL;
+}
+
+//returns null for invalid accesses.
+void *PR_PointerToNative_Resize(pubprogfuncs_t *inst, pint_t ptr, size_t offset, size_t datasize)
+{
+	progfuncs_t *progfuncs = (progfuncs_t*)inst;
+	if (((unsigned int)ptr & STRING_SPECMASK) == STRING_TEMP)
+	{	//buffer. these auto-upsize.
+		unsigned int i = ptr & ~STRING_SPECMASK;
+		tempstr_t *temp;
+		if (i < prinst.maxtempstrings && (temp=prinst.tempstrings[i]))
+		{
+			if (datasize > temp->size || offset >= temp->size-datasize)
+			{	//access is beyond the current size. expand it.
+				unsigned int newsize;
+				tempstr_t *newtemp;
+				newsize = offset + datasize;
+				if (newsize > (1u<<20u))
+					return NULL;	//gotta have a cut-off point somewhere.
+				newsize = (newsize+sizeof(float)-1)&~(sizeof(float)-1);
+				newtemp = progfuncs->funcs.parms->memalloc(sizeof(tempstr_t) - sizeof(((tempstr_t*)NULL)->value) + newsize);
+				if (!newtemp)
+					return NULL;	//erk!
+				newtemp->size = newsize;
+				memcpy(newtemp->value, temp->value, temp->size);
+				memset(newtemp->value+temp->size, 0, newsize-temp->size);
+				progfuncs->funcs.parms->memfree(temp);
+				prinst.tempstrings[i] = temp = newtemp;
+			}
+			return (eval_t*)(temp->value + offset);
+		}
+		return NULL;	//nothing not allocated.
+	}
+	else
+	{	//regular pointer
+		offset += ptr;
+		if (datasize > inst->stringtablesize || offset >= inst->stringtablesize-datasize || !offset)
+			return NULL;	//can't autoresize these. just fail.
+		return inst->stringtable + ptr;
 	}
 	return NULL;
 }

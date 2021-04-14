@@ -3298,6 +3298,7 @@ static void	QCC_PR_BeginCompilation (void *memory, int memsize)
 	type_vector = QCC_PR_NewType("vector", ev_vector, true);
 	type_entity = QCC_PR_NewType("entity", ev_entity, true);
 	type_field = QCC_PR_NewType("__field", ev_field, false);
+	type_field->aux_type = type_void;
 	type_function = QCC_PR_NewType("__function", ev_function, false);
 	type_function->aux_type = type_void;
 	type_pointer = QCC_PR_NewType("__pointer", ev_pointer, false);
@@ -4688,6 +4689,7 @@ static void QCC_SetDefaultProperties (void)
 
 	Hash_InitTable(&compconstantstable, MAX_CONSTANTS, qccHunkAlloc(Hash_BytesForBuckets(MAX_CONSTANTS)));
 
+	qcc_framerate = 0;	//depends on target (engine's OP_STATE)
 	ForcedCRC = 0;
 	defaultstatic = 0;
 	verbose = 0;

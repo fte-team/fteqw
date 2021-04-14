@@ -347,7 +347,7 @@ skinid_t Mod_ReadSkinFile(const char *skinname, const char *skintext)
 				skin->nummappings++;
 			}
 		}
-		else if (!strcmp(com_token, "geomset"))
+		else if (!strcmp(com_token, "geomset") || !strcmp(com_token, "meshgroup"))
 		{
 			int set;
 			skintext = COM_ParseToken(skintext, NULL);
@@ -2826,10 +2826,25 @@ void BE_GenModelBatches(batch_t **batches, const dlight_t *dl, unsigned int bemo
 	for (i = 0; i < SHADER_SORT_COUNT; i++)
 		batches[i] = NULL;
 
+	if (cl.worldmodel && !(r_refdef.flags & RDF_NOWORLDMODEL))
+	{
+		if (cl.worldmodel->terrain)
 #if defined(TERRAIN)
-	if (cl.worldmodel && cl.worldmodel->terrain && !(r_refdef.flags & RDF_NOWORLDMODEL))
-		Terr_DrawTerrainModel(batches, &r_worldentity);
+			Terr_DrawTerrainModel(batches, &r_worldentity);
 #endif
+		if (cl.worldmodel->type == mod_alias)
+		{
+			r_worldentity.framestate.g[FS_REG].lerpweight[0] = 1;
+			r_worldentity.scale = 1;
+
+			VectorSet(r_worldentity.light_avg,   1.0, 1.0, 1.0);
+			VectorSet(r_worldentity.light_range, 0.5, 0.5, 0.5);
+			VectorSet(r_worldentity.light_dir,   0.0, 0.196, 0.98);
+			r_worldentity.light_known = 1;
+
+			R_GAlias_GenerateBatches(&r_worldentity, batches);
+		}
+	}
 
 	R_Clutter_Emit(batches);
 

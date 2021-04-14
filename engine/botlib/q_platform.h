@@ -184,8 +184,10 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #undef idx64
 #define idx64 1
 #define ARCH_STRING "x86_64"
+#elif defined __ppc64le__
+#define ARCH_STRING "ppc64le"	//more common than ppc64[be] on linux nowadays.
 #elif defined __powerpc64__
-#define ARCH_STRING "ppc64"
+#define ARCH_STRING "ppc64"		//big-endian/original variant.
 #elif defined __powerpc__
 #define ARCH_STRING "ppc"
 #elif defined __s390__

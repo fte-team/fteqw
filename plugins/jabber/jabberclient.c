@@ -1173,14 +1173,14 @@ typedef struct
 	int len;
 	char buf[512];
 } buf_t;
-static int sasl_scram_initial(struct sasl_ctx_s *ctx, char *buf, int bufsize, hashfunc_t *hashfunc, size_t hashsize, qboolean plus)
+static int sasl_scram_initial(struct sasl_ctx_s *ctx, char *buf, int bufsize, hashfunc_t *hashfunc, qboolean plus)
 {
 	if (ctx->allowauth_scramsha1)
 	{
 		unsigned int t;
 		buf_t bindingdata;
 		int bs;
-		if (!*ctx->password_plain && ctx->password_hash_size != hashsize)
+		if (!*ctx->password_plain && ctx->password_hash_size != hashfunc->digestsize)
 			return -2;
 
 #if 1//FIXME: test that we're compliant when we're verifying channel bindings.
@@ -1227,7 +1227,6 @@ static int sasl_scram_initial(struct sasl_ctx_s *ctx, char *buf, int bufsize, ha
 		Base64_Add((void*)&jclient_curtime, sizeof(jclient_curtime));
 		strcpy(ctx->scram.authnonce, Base64_Finish());
 		ctx->scram.hashfunc = hashfunc;
-		ctx->scram.hashsize = hashsize;
 
 		Q_snprintf(buf, bufsize, "%s,,n=%s,r=%s", ctx->scram.authcbindtype, ctx->username, ctx->scram.authnonce);
 		return strlen(buf);
@@ -1236,11 +1235,27 @@ static int sasl_scram_initial(struct sasl_ctx_s *ctx, char *buf, int bufsize, ha
 }
 static int sasl_scramsha1minus_initial(struct sasl_ctx_s *ctx, char *buf, int bufsize)
 {
-	return sasl_scram_initial(ctx, buf, bufsize, &hash_sha1, 20, false);
+	return sasl_scram_initial(ctx, buf, bufsize, &hash_sha1, false);
+}
+static int sasl_scramsha256minus_initial(struct sasl_ctx_s *ctx, char *buf, int bufsize)
+{
+	return sasl_scram_initial(ctx, buf, bufsize, &hash_sha256, false);
+}
+static int sasl_scramsha512minus_initial(struct sasl_ctx_s *ctx, char *buf, int bufsize)
+{
+	return sasl_scram_initial(ctx, buf, bufsize, &hash_sha512, false);
 }
 static int sasl_scramsha1plus_initial(struct sasl_ctx_s *ctx, char *buf, int bufsize)
 {
-	return sasl_scram_initial(ctx, buf, bufsize, &hash_sha1, 20, true);
+	return sasl_scram_initial(ctx, buf, bufsize, &hash_sha1, true);
+}
+static int sasl_scramsha256plus_initial(struct sasl_ctx_s *ctx, char *buf, int bufsize)
+{
+	return sasl_scram_initial(ctx, buf, bufsize, &hash_sha256, true);
+}
+static int sasl_scramsha512plus_initial(struct sasl_ctx_s *ctx, char *buf, int bufsize)
+{
+	return sasl_scram_initial(ctx, buf, bufsize, &hash_sha512, true);
 }
 
 static void buf_cat(buf_t *buf, char *data, int len)
@@ -1261,13 +1276,13 @@ static size_t HMAC_Hi(hashfunc_t *hashfunc, char *out, char *password, int passw
 
 	//first iteration is special
 	buf_cat(salt, "\0\0\0\1", 4);
-	digestsize = HMAC(hashfunc, prev, sizeof(prev), salt->buf, salt->len, password, passwordlen);
+	digestsize = CalcHMAC(hashfunc, prev, sizeof(prev), salt->buf, salt->len, password, passwordlen);
 	memcpy(out, prev, digestsize);
 	
 	//later iterations just use the previous iteration
 	for (i = 1; i < times; i++)
 	{
-		HMAC(hashfunc, prev, digestsize, prev, digestsize, password, passwordlen);
+		CalcHMAC(hashfunc, prev, digestsize, prev, digestsize, password, passwordlen);
 
 		for (j = 0; j < digestsize; j++)
 			out[j] ^= prev[j];
@@ -1276,9 +1291,8 @@ static size_t HMAC_Hi(hashfunc_t *hashfunc, char *out, char *password, int passw
 }
 static int sasl_scram_challenge(struct sasl_ctx_s *ctx, char *in, int inlen, char *out, int outlen)
 {
-#define MAX_DIGEST_SIZE 20
-	size_t digestsize = ctx->scram.hashsize;
 	hashfunc_t *func = ctx->scram.hashfunc;
+	size_t digestsize = func->digestsize;
 	//sasl SCRAM-SHA-1 challenge
 	//send back the same 'r' attribute
 	buf_t saslchal;
@@ -1288,15 +1302,18 @@ static int sasl_scram_challenge(struct sasl_ctx_s *ctx, char *in, int inlen, cha
 	buf_t itr;
 	buf_t final;
 	buf_t sigkey;
-	unsigned char salted_password[MAX_DIGEST_SIZE];
-	unsigned char proof[MAX_DIGEST_SIZE];
-	unsigned char clientkey[MAX_DIGEST_SIZE];
-	unsigned char serverkey[MAX_DIGEST_SIZE];
-	unsigned char storedkey[MAX_DIGEST_SIZE];
-	unsigned char clientsignature[MAX_DIGEST_SIZE];
+	unsigned char salted_password[DIGEST_MAXSIZE];
+	unsigned char proof[DIGEST_MAXSIZE];
+	unsigned char clientkey[DIGEST_MAXSIZE];
+	unsigned char serverkey[DIGEST_MAXSIZE];
+	unsigned char storedkey[DIGEST_MAXSIZE];
+	unsigned char clientsignature[DIGEST_MAXSIZE];
 	char *username = ctx->username;
 	char validationstr[256];
 	const unsigned char *tmp;
+
+	if (digestsize > DIGEST_MAXSIZE)
+		return -1;
 
 	saslchal.len = 0;
 	buf_cat(&saslchal, in, inlen);
@@ -1352,11 +1369,11 @@ static int sasl_scram_challenge(struct sasl_ctx_s *ctx, char *in, int inlen, cha
 	else
 		return -2;	//panic. password not known any more. the server should not be changing salt/itr.
 
-	HMAC(func, clientkey, sizeof(clientkey), "Client Key", strlen("Client Key"), salted_password, digestsize);
+	CalcHMAC(func, clientkey, digestsize, "Client Key", strlen("Client Key"), salted_password, digestsize);
 //Note: if we wanted to be fancy, we could store both clientkey and serverkey instead of salted_password, but I'm not sure there's all that much point.
 	tmp = clientkey;
-	CalcHash(func, storedkey, sizeof(storedkey), tmp, digestsize);
-	HMAC(func, clientsignature, sizeof(clientsignature), sigkey.buf, sigkey.len, storedkey, digestsize);
+	CalcHash(func, storedkey, digestsize, tmp, digestsize);
+	CalcHMAC(func, clientsignature, digestsize, sigkey.buf, sigkey.len, storedkey, digestsize);
 
 	for (i = 0; i < digestsize; i++)
 		proof[i] = clientkey[i] ^ clientsignature[i];
@@ -1365,8 +1382,8 @@ static int sasl_scram_challenge(struct sasl_ctx_s *ctx, char *in, int inlen, cha
 	Base64_Finish();
 
 	//to validate the server...
-	HMAC(func, serverkey, sizeof(serverkey), "Server Key", strlen("Server Key"), salted_password, sizeof(salted_password));
-	HMAC(func, ctx->scram.authvhash, sizeof(ctx->scram.authvhash), sigkey.buf, sigkey.len, serverkey, sizeof(serverkey)); //aka:serversignature
+	CalcHMAC(func, serverkey, digestsize, "Server Key", strlen("Server Key"), salted_password, digestsize);
+	CalcHMAC(func, ctx->scram.authvhash, digestsize, sigkey.buf, sigkey.len, serverkey, digestsize); //aka:serversignature
 
 	//"c=biws,r=fyko+d2lbbFgONRv9qkxdawL3rfcNHYJY1ZVvWVs7j,p=v0X8v3Bz2T0CJGbJQyF0X+HI4Ts="
 	Q_snprintf(out, outlen, "%s,p=%s", final.buf, base64);
@@ -1379,7 +1396,7 @@ static int sasl_scram_final(struct sasl_ctx_s *ctx, char *in, int inlen)
 
 	valid.len = saslattr(valid.buf, sizeof(valid.buf), in, inlen, "v");
 	valid.len = Base64_Decode(valid.buf, sizeof(valid.buf), valid.buf, valid.len);
-	if (valid.len != 20 || memcmp(ctx->scram.authvhash, valid.buf, valid.len))
+	if (valid.len != ctx->scram.hashfunc->digestsize || memcmp(ctx->scram.authvhash, valid.buf, valid.len))
 		return -1;	//server didn't give us the right answer. this is NOT the server we're looking for. give up now.
 	return true;
 }
@@ -1717,15 +1734,15 @@ static int sasl_oauth2_initial(struct sasl_ctx_s *ctx, char *buf, int bufsize)
 //in descending priority order
 static saslmethod_t saslmethods[] =
 {
-//	{"SCRAM-SHA-512-PLUS",	sasl_scramsha512plus_initial,	sasl_scram_challenge,		sasl_scram_final},	//lots of unreadable hashing, with added channel bindings
-//	{"SCRAM-SHA-256-PLUS",	sasl_scramsha256plus_initial,	sasl_scram_challenge,		sasl_scram_final},	//lots of unreadable hashing, with added channel bindings
+	{"SCRAM-SHA-512-PLUS",	sasl_scramsha512plus_initial,	sasl_scram_challenge,		sasl_scram_final},	//lots of unreadable hashing, with added channel bindings
+	{"SCRAM-SHA-256-PLUS",	sasl_scramsha256plus_initial,	sasl_scram_challenge,		sasl_scram_final},	//lots of unreadable hashing, with added channel bindings
 	{"SCRAM-SHA-1-PLUS",	sasl_scramsha1plus_initial,		sasl_scram_challenge,		sasl_scram_final},	//lots of unreadable hashing, with added channel bindings
-//	{"SCRAM-SHA-512",		sasl_scramsha512minus_initial,	sasl_scram_challenge,		sasl_scram_final},	//lots of unreadable hashing
-//	{"SCRAM-SHA-256",		sasl_scramsha256minus_initial,	sasl_scram_challenge,		sasl_scram_final},	//lots of unreadable hashing
+	{"SCRAM-SHA-512",		sasl_scramsha512minus_initial,	sasl_scram_challenge,		sasl_scram_final},	//lots of unreadable hashing
+	{"SCRAM-SHA-256",		sasl_scramsha256minus_initial,	sasl_scram_challenge,		sasl_scram_final},	//lots of unreadable hashing
 	{"SCRAM-SHA-1",			sasl_scramsha1minus_initial,	sasl_scram_challenge,		sasl_scram_final},	//lots of unreadable hashing
-	{"DIGEST-MD5",			sasl_digestmd5_initial,			sasl_digestmd5_challenge,	NULL},				//kinda silly
+	{"DIGEST-MD5",			sasl_digestmd5_initial,			sasl_digestmd5_challenge,	NULL},				//kinda silly but still better than plaintext.
 	{"PLAIN",				sasl_plain_initial,				NULL,						NULL},				//realm\0username\0password
-	{NULL,					sasl_oauth2_initial,			NULL,						NULL}				//potentially avoids having to ask+store their password. a browser is required to obtain auth token for us.
+	{NULL,					sasl_oauth2_initial,			NULL,						NULL}				//potentially avoids having to ask+store their password. a browser is required to obtain auth token for us, so basically like pulling teeth.
 };
 
 /*

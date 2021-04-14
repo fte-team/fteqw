@@ -2967,6 +2967,7 @@ static void CLDP_ParseDownloadFinished(char *s)
 {
 	qdownload_t *dl = cls.download;
 	unsigned short runningcrc = 0;
+	const hashfunc_t *hfunc = &hash_crc16;
 	char buffer[8192];
 	int size, pos, chunk;
 	if (!dl || !dl->file)
@@ -2979,18 +2980,21 @@ static void CLDP_ParseDownloadFinished(char *s)
 	dl->file = FS_OpenVFS (dl->tempname+dl->prefixbytes, "rb", dl->fsroot);
 	if (dl->file)
 	{
+		char *hashctx = alloca(hfunc->digestsize);
 		size = dl->size;
-		QCRC_Init(&runningcrc);
+		hfunc->init(&hashctx);
 		for (pos = 0, chunk = 1; chunk; pos += chunk)
 		{
 			chunk = size - pos;
 			if (chunk > sizeof(buffer))
 				chunk = sizeof(buffer);
 			VFS_READ(dl->file, buffer, chunk);
-			QCRC_AddBlock(&runningcrc, buffer, chunk);
+			hfunc->process(&hashctx, buffer, chunk);
 		}
 		VFS_CLOSE (dl->file);
 		dl->file = NULL;
+
+		runningcrc = hashfunc_terminate_uint(hfunc, hashctx);
 	}
 	else
 	{
@@ -3376,7 +3380,7 @@ static void CLQW_ParseServerData (void)
 		{
 			cl.playerview[pnum].spectator = true;
 			if (cls.z_ext & Z_EXT_VIEWHEIGHT)
-				cl.playerview[pnum].viewheight = 0;
+				cl.playerview[pnum].viewheight = cl.playerview[pnum].statsf[STAT_VIEWHEIGHT];
 			cl.playerview[pnum].playernum = (qbyte)MSG_ReadByte();
 			if (cl.playerview[pnum].playernum >= cl.allocated_client_slots)
 				Host_EndGame("unsupported local player slot\n");
@@ -3392,7 +3396,7 @@ static void CLQW_ParseServerData (void)
 			if (clnum == MAX_SPLITS)
 				Host_EndGame("Server sent us over %u seats\n", MAX_SPLITS);
 			if (cls.z_ext & Z_EXT_VIEWHEIGHT)
-				cl.playerview[pnum].viewheight = 0;
+				cl.playerview[pnum].viewheight = cl.playerview[pnum].statsf[STAT_VIEWHEIGHT];
 			cl.playerview[clnum].playernum = pnum;
 			if (cl.playerview[clnum].playernum & 128)
 			{
@@ -5332,6 +5336,8 @@ static void CL_ProcessUserInfo (int slot, player_info_t *player)
 	int ospec = player->spectator;
 	Q_strncpyz (player->name, InfoBuf_ValueForKey (&player->userinfo, "name"), sizeof(player->name));
 	Q_strncpyz (player->team, InfoBuf_ValueForKey (&player->userinfo, "team"), sizeof(player->team));
+
+	Ruleset_Check(InfoBuf_ValueForKey (&player->userinfo, RULESET_USERINFO), player->ruleset, sizeof(player->ruleset));
 
 	col = InfoBuf_ValueForKey (&player->userinfo, "topcolor");
 	if (!strncmp(col, "0x", 2))

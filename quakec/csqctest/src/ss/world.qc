@@ -332,10 +332,17 @@ void() worldspawn =
 	// 63 testing
 	lightstyle(63, "a");
 
-	isdp = autocvar(test_dpcompat, 0);
 	serverusingcsqc = checkextension("EXT_CSQC") || checkextension("EXT_CSQC_1");
-	if (isdp)
-		serverusingcsqc = TRUE;
+	if (!serverusingcsqc)
+	{
+		if (checkbuiltin(print))
+			print("Server does not support csqc\n");
+		else
+		{
+			cvar_set("developer", "1");
+			dprint("Server is not using csqc\n");
+		}
+	}
 };
 
 void() StartFrame =

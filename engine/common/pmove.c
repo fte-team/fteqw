@@ -1222,7 +1222,7 @@ static void PM_NudgePosition (void)
 	vec3_t	base;
 	int		x, y, z;
 	int		i;
-	static float	sign[5] = {0, -1/8.0, 1/8.0, -2/8.0, 2/8.0};
+	static float	sign[] = {0, -1/8.0, 1/8.0};
 
 	//really we want to just use this here
 	//base[i] = MSG_FromCoord(MSG_ToCoord(pmove.origin[i], movevars.coordsize), movevars.coordsize);
@@ -1240,10 +1240,20 @@ static void PM_NudgePosition (void)
 	{
 		for (i=0 ; i<3 ; i++)
 		{
-			if (pmove.origin[i] >= 0)
-				base[i] = (qintptr_t)(pmove.origin[i]*8+0.5f) / 8.0;
+			if (pmove.velocity[i])
+			{	//round in the direction of velocity, which means we're less likely to get stuck.
+				if (pmove.velocity[i] >= 0)
+					base[i] = (qintptr_t)(pmove.origin[i]*8+0.5f) / 8.0;
+				else
+					base[i] = (qintptr_t)(pmove.origin[i]*8-0.5f) / 8.0;
+			}
 			else
-				base[i] = (qintptr_t)(pmove.origin[i]*8-0.5f) / 8.0;
+			{
+				if (pmove.origin[i] >= 0)
+					base[i] = (qintptr_t)(pmove.origin[i]*8+0.5f) / 8.0;
+				else
+					base[i] = (qintptr_t)(pmove.origin[i]*8-0.5f) / 8.0;
+			}
 		}
 	}
 	else for (i=0 ; i<3 ; i++)
@@ -1256,6 +1266,8 @@ static void PM_NudgePosition (void)
 //		if (PM_TestPlayerPosition (pmove.origin, false))
 //			return;
 
+	//this is potentially 27 tests, and required for qw compat...
+	//with unquantized floors it often succeeds only after 19 checks. which sucks.
 	for (z=0 ; z<countof(sign) ; z++)
 	{
 		for (x=0 ; x<countof(sign) ; x++)
@@ -1269,6 +1281,20 @@ static void PM_NudgePosition (void)
 					return;
 			}
 		}
+	}
+
+	//still not managed it... be more agressive axially.
+	for (z=0 ; z<3; z++)
+	{
+		VectorCopy(base, pmove.origin);
+		pmove.origin[z] = base[z] + (2/8.0);
+		if (PM_TestPlayerPosition (pmove.origin, false))
+			return;
+
+		VectorCopy(base, pmove.origin);
+		pmove.origin[z] = base[z] - (2/8.0);
+		if (PM_TestPlayerPosition (pmove.origin, false))
+			return;
 	}
 
 	//be more aggresssive at moving up, to match NQ

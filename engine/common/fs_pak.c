@@ -154,7 +154,7 @@ static int QDECL FSPAK_EnumerateFiles (searchpathfuncs_t *handle, const char *ma
 }
 
 static int QDECL FSPAK_GeneratePureCRC(searchpathfuncs_t *handle, int seed, int crctype)
-{
+{	//this is really weak. :(
 	pack_t *pak = (void*)handle;
 
 	int result;
@@ -169,7 +169,7 @@ static int QDECL FSPAK_GeneratePureCRC(searchpathfuncs_t *handle, int seed, int 
 	{
 		if (pak->files[i].filelen > 0)
 		{
-			filecrcs[numcrcs++] = pak->files[i].filepos ^ pak->files[i].filelen ^ QCRC_Block(pak->files[i].name, sizeof(56));
+			filecrcs[numcrcs++] = pak->files[i].filepos ^ pak->files[i].filelen ^ CalcHashInt(&hash_crc16, pak->files[i].name, sizeof(56));
 		}
 	}
 
@@ -313,14 +313,12 @@ searchpathfuncs_t *QDECL FSPAK_LoadArchive (vfsfile_t *file, searchpathfuncs_t *
 {
 	dpackheader_t	header;
 	int				i;
-//	int				j;
 	mpackfile_t		*newfiles;
 	int				numpackfiles;
 	pack_t			*pack;
 	vfsfile_t		*packhandle;
 	dpackfile_t		info;
 	int read;
-//	unsigned short		crc;
 
 	packhandle = file;
 	if (packhandle == NULL)
@@ -341,22 +339,9 @@ searchpathfuncs_t *QDECL FSPAK_LoadArchive (vfsfile_t *file, searchpathfuncs_t *
 
 	numpackfiles = header.dirlen / sizeof(dpackfile_t);
 
-//	if (numpackfiles > MAX_FILES_IN_PACK)
-//		Sys_Error ("%s has %i files", packfile, numpackfiles);
-
-//	if (numpackfiles != PAK0_COUNT)
-//		com_modified = true;	// not the original file
-
 	newfiles = (mpackfile_t*)Z_Malloc (numpackfiles * sizeof(mpackfile_t));
 
 	VFS_SEEK(packhandle, header.dirofs);
-//	fread (&info, 1, header.dirlen, packhandle);
-
-// crc the directory to check for modifications
-//	crc = QCRC_Block((qbyte *)info, header.dirlen);
-
-
-//	QCRC_Init (&crc);
 
 	pack = (pack_t*)Z_Malloc (sizeof (pack_t));
 // parse the directory
@@ -370,10 +355,7 @@ searchpathfuncs_t *QDECL FSPAK_LoadArchive (vfsfile_t *file, searchpathfuncs_t *
 			numpackfiles = i;
 			break;
 		}
-/*
-		for (j=0 ; j<sizeof(info) ; j++)
-			CRC_ProcessByte(&crc, ((qbyte *)&info)[j]);
-*/
+
 		memcpy(newfiles[i].name, info.name, sizeof(info.name));
 		newfiles[i].name[min(sizeof(info.name), MAX_QPATH-1)] = 0; //paranoid
 		COM_CleanUpPath(newfiles[i].name);	//blooming tanks.
@@ -381,7 +363,7 @@ searchpathfuncs_t *QDECL FSPAK_LoadArchive (vfsfile_t *file, searchpathfuncs_t *
 		newfiles[i].filelen = LittleLong(info.filelen);
 	}
 /*
-	if (crc != PAK0_CRC)
+	if (crc != PAK0_CRC || numpackfiles != PAK0_COUNT)
 		com_modified = true;
 */
 	strcpy (pack->descname, desc);

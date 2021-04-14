@@ -434,6 +434,7 @@ static void QI_AddPackages(xmltree_t *qifile)
 	const char *id;
 	char extra[1024];
 	char clean[512];
+	const char *hash;
 	unsigned int i;
 
 	xmltree_t *tech;
@@ -488,6 +489,10 @@ static void QI_AddPackages(xmltree_t *qifile)
 		}
 	}
 
+	hash = XML_GetChildBody(qifile, "md5hash", "");
+	if (strchr(hash, '\\') || strchr(hash, '\"'))	//if it has a dodgy escape-breaking char then drop it.
+		hash = "";
+
 	id = XML_GetParameter(qifile, "id", "unknown");
 	if (strchr(clean, '\\') || strchr(clean, '\"') || strchr(clean, '\n') || strchr(clean, ';'))
 		return;
@@ -495,7 +500,7 @@ static void QI_AddPackages(xmltree_t *qifile)
 		return;
 
 
-	Q_snprintf(extra, sizeof(extra), " package \""FILEDOWNLOADURL"\" prefix \"%s\"", id, clean);
+	Q_snprintf(extra, sizeof(extra), " package \""FILEDOWNLOADURL"\" prefix \"%s\" hash \"md5:%s\"", id, clean, hash);
 	cmdfuncs->AddText(extra, false);
 }
 static void QI_RunMap(xmltree_t *qifile, const char *map)

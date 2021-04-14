@@ -1275,7 +1275,7 @@ static trace_t World_ClipMoveToEntity (world_t *w, wedict_t *ent, vec3_t eorg, v
 	if ((ent->v->solid == SOLID_BSP || ent->v->solid == SOLID_BSPTRIGGER || ent->v->solid == SOLID_PORTAL) && mdlidx)
 	{
 		model = w->Get_CModel(w, mdlidx);
-		if (!model || (model->type != mod_brush && model->type != mod_heightmap))
+		if (!model || !model->funcs.PointContents)
 		{
 //			Host_Error("SOLID_BSP with non bsp model (classname: %s)", PR_GetString(w->progs, ent->v->classname));
 			model = NULL;
@@ -1325,16 +1325,26 @@ static trace_t World_ClipMoveToEntity (world_t *w, wedict_t *ent, vec3_t eorg, v
 		{	//if forcedcontents is set, then ALL brushes in this model are forced to the specified contents value.
 			//we achive this by tracing against ALL then forcing it after.
 			int forcedcontents;
-			switch((int)ent->v->skin)
+			safeswitch((enum q1contents_e)(int)ent->v->skin)
 			{
-			case Q1CONTENTS_EMPTY:  forcedcontents = FTECONTENTS_EMPTY; break;
-			case Q1CONTENTS_SOLID:  forcedcontents = FTECONTENTS_SOLID; break;
-			case Q1CONTENTS_WATER:  forcedcontents = FTECONTENTS_WATER; break;
-			case Q1CONTENTS_SLIME:  forcedcontents = FTECONTENTS_SLIME; break;
-			case Q1CONTENTS_LAVA:   forcedcontents = FTECONTENTS_LAVA;  break;
-			case Q1CONTENTS_SKY:    forcedcontents = FTECONTENTS_SKY;   break;
-			case Q1CONTENTS_LADDER: forcedcontents = FTECONTENTS_LADDER;break;
-			default:				forcedcontents = 0;                 break;
+			case Q1CONTENTS_EMPTY:			forcedcontents = FTECONTENTS_EMPTY;			break;
+			case Q1CONTENTS_SOLID:			forcedcontents = FTECONTENTS_SOLID;			break;
+			case Q1CONTENTS_WATER:			forcedcontents = FTECONTENTS_WATER;			break;
+			case Q1CONTENTS_SLIME:			forcedcontents = FTECONTENTS_SLIME;			break;
+			case Q1CONTENTS_LAVA:			forcedcontents = FTECONTENTS_LAVA;			break;
+			case Q1CONTENTS_SKY:			forcedcontents = FTECONTENTS_SKY;			break;
+			case Q1CONTENTS_LADDER:			forcedcontents = FTECONTENTS_LADDER;		break;
+			case Q1CONTENTS_CLIP:			forcedcontents = FTECONTENTS_PLAYERCLIP|FTECONTENTS_MONSTERCLIP;break;
+			case Q1CONTENTS_CURRENT_0:		forcedcontents = FTECONTENTS_WATER|Q2CONTENTS_CURRENT_0;		break;
+			case Q1CONTENTS_CURRENT_90:		forcedcontents = FTECONTENTS_WATER|Q2CONTENTS_CURRENT_90;		break;
+			case Q1CONTENTS_CURRENT_180:	forcedcontents = FTECONTENTS_WATER|Q2CONTENTS_CURRENT_180;		break;
+			case Q1CONTENTS_CURRENT_270:	forcedcontents = FTECONTENTS_WATER|Q2CONTENTS_CURRENT_270;		break;
+			case Q1CONTENTS_CURRENT_UP:		forcedcontents = FTECONTENTS_WATER|Q2CONTENTS_CURRENT_UP;		break;
+			case Q1CONTENTS_CURRENT_DOWN:	forcedcontents = FTECONTENTS_WATER|Q2CONTENTS_CURRENT_DOWN;		break;
+			case Q1CONTENTS_TRANS:			forcedcontents = FTECONTENTS_SOLID;			break;
+			case Q1CONTENTS_MONSTERCLIP:	forcedcontents = FTECONTENTS_MONSTERCLIP;	break;
+			case Q1CONTENTS_PLAYERCLIP:		forcedcontents = FTECONTENTS_PLAYERCLIP;	break;
+			safedefault:					forcedcontents = 0;							break;
 			}
 			if (hitcontentsmask & forcedcontents)
 			{
@@ -1345,7 +1355,7 @@ static trace_t World_ClipMoveToEntity (world_t *w, wedict_t *ent, vec3_t eorg, v
 			else
 			{
 				memset (&trace, 0, sizeof(trace_t));
-				trace.fraction = 1;
+				trace.fraction = trace.truefraction = 1;
 				trace.allsolid = false;
 				trace.startsolid = false;
 				trace.inopen = true;	//probably wrong...
@@ -2167,16 +2177,26 @@ static unsigned int World_ContentsOfLinks (world_t *w, areagridlink_t *node, vec
 		{	//if forcedcontents is set, then ALL brushes in this model are forced to the specified contents value.
 			//we achive this by tracing against ALL then forcing it after.
 			unsigned int forcedcontents;
-			switch((int)touch->v->skin)
+			safeswitch((enum q1contents_e)(int)touch->v->skin)
 			{
-			case Q1CONTENTS_EMPTY:  forcedcontents = FTECONTENTS_EMPTY; break;
-			case Q1CONTENTS_SOLID:  forcedcontents = FTECONTENTS_SOLID; break;
-			case Q1CONTENTS_WATER:  forcedcontents = FTECONTENTS_WATER; break;
-			case Q1CONTENTS_SLIME:  forcedcontents = FTECONTENTS_SLIME; break;
-			case Q1CONTENTS_LAVA:   forcedcontents = FTECONTENTS_LAVA;  break;
-			case Q1CONTENTS_SKY:    forcedcontents = FTECONTENTS_SKY;   break;
-			case Q1CONTENTS_LADDER: forcedcontents = FTECONTENTS_LADDER;break;
-			default:				forcedcontents = 0;                 break;
+			case Q1CONTENTS_EMPTY:			forcedcontents = FTECONTENTS_EMPTY;			break;
+			case Q1CONTENTS_SOLID:			forcedcontents = FTECONTENTS_SOLID;			break;
+			case Q1CONTENTS_WATER:			forcedcontents = FTECONTENTS_WATER;			break;
+			case Q1CONTENTS_SLIME:			forcedcontents = FTECONTENTS_SLIME;			break;
+			case Q1CONTENTS_LAVA:			forcedcontents = FTECONTENTS_LAVA;			break;
+			case Q1CONTENTS_SKY:			forcedcontents = FTECONTENTS_SKY;			break;
+			case Q1CONTENTS_CLIP:			forcedcontents = FTECONTENTS_PLAYERCLIP|FTECONTENTS_MONSTERCLIP;	break;
+			case Q1CONTENTS_CURRENT_0:		forcedcontents = FTECONTENTS_WATER|Q2CONTENTS_CURRENT_0;			break;
+			case Q1CONTENTS_CURRENT_90:		forcedcontents = FTECONTENTS_WATER|Q2CONTENTS_CURRENT_90;			break;
+			case Q1CONTENTS_CURRENT_180:	forcedcontents = FTECONTENTS_WATER|Q2CONTENTS_CURRENT_180;			break;
+			case Q1CONTENTS_CURRENT_270:	forcedcontents = FTECONTENTS_WATER|Q2CONTENTS_CURRENT_270;			break;
+			case Q1CONTENTS_CURRENT_UP:		forcedcontents = FTECONTENTS_WATER|Q2CONTENTS_CURRENT_UP;			break;
+			case Q1CONTENTS_CURRENT_DOWN:	forcedcontents = FTECONTENTS_WATER|Q2CONTENTS_CURRENT_DOWN;			break;
+			case Q1CONTENTS_TRANS:			forcedcontents = FTECONTENTS_SOLID;			break;
+			case Q1CONTENTS_LADDER:			forcedcontents = FTECONTENTS_LADDER;		break;
+			case Q1CONTENTS_MONSTERCLIP:	forcedcontents = FTECONTENTS_MONSTERCLIP;	break;
+			case Q1CONTENTS_PLAYERCLIP:		forcedcontents = FTECONTENTS_PLAYERCLIP;	break;
+			safedefault:					forcedcontents = 0;							break;
 			}
 			c = forcedcontents;
 		}

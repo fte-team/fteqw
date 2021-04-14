@@ -1230,7 +1230,7 @@ static int QDECL FSDZ_GeneratePureCRC(searchpathfuncs_t *handle, int seed, int c
 	{
 		if (pak->files[i].filelen > 0)
 		{
-			filecrcs[numcrcs++] = pak->files[i].filepos ^ pak->files[i].filelen ^ QCRC_Block(pak->files[i].name, sizeof(56));
+			filecrcs[numcrcs++] = pak->files[i].filepos ^ pak->files[i].filelen ^ CalcHashInt(&hash_crc16, pak->files[i].name, sizeof(56));
 		}
 	}
 

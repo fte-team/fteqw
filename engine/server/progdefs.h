@@ -102,12 +102,35 @@ typedef struct nqglobalvars_s
 	pvec_t *dimension_default;
 
 	pvec_t *physics_mode;
+
 	pvec_t *clientcommandframe;
 	pvec_t *input_timelength;
 	pvec_t *input_impulse;
 	pvec3_t *input_angles;
 	pvec3_t *input_movevalues;
 	pvec_t *input_buttons;
+	puint_t *input_weapon;
+	pvec_t *input_lightlevel;
+	pvec3_t *input_cursor_screen;
+	pvec3_t *input_cursor_trace_start;
+	pvec3_t *input_cursor_trace_endpos;
+	pvec_t *input_cursor_entitynumber;
+	puint_t *input_head_status;
+	pvec3_t *input_head_origin;
+	pvec3_t *input_head_angles;
+	pvec3_t *input_head_velocity;
+	pvec3_t *input_head_avelocity;
+	puint_t *input_left_status;
+	pvec3_t *input_left_origin;
+	pvec3_t *input_left_angles;
+	pvec3_t *input_left_velocity;
+	pvec3_t *input_left_avelocity;
+	puint_t *input_right_status;
+	pvec3_t *input_right_origin;
+	pvec3_t *input_right_angles;
+	pvec3_t *input_right_velocity;
+	pvec3_t *input_right_avelocity;
+
 	pvec3_t *global_gravitydir;
 	pvec_t *spawnparamglobals[NUM_SPAWN_PARMS];
 	string_t *parm_string;

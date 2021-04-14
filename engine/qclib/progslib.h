@@ -288,7 +288,7 @@ typedef struct progexterns_s {
 pubprogfuncs_t * PDECL InitProgs(progparms_t *ext);
 
 typedef union eval_s
-{
+{	//FIXME: we should not be using a leading underscore here. that is reserved for libc.
 	string_t		string;
 	pvec_t			_float;
 	pvec_t			_vector[3];
@@ -297,7 +297,7 @@ typedef union eval_s
 	puint_t			_uint;
 	pint64_t		_int64;
 	puint64_t		_uint64;
-	double			_double;
+	pdouble_t		_double;
 	pint_t			edict;
 	pvec_t			prog;	//so it can easily be changed
 } eval_t;
@@ -368,7 +368,7 @@ typedef union eval_s
 //To use these outside of builtins, you will likly have to use the 'globals' method.
 #define	G_FLOAT(o) (((pvec_t *)pr_globals)[o])
 #define	G_FLOAT2(o) (((pvec_t *)pr_globals)[OFS_PARM0 + o*3])
-#define	G_DOUBLE(o) (*(double *)(((pvec_t *)pr_globals+(o))))
+#define	G_DOUBLE(o) (*(pdouble_t *)(((pvec_t *)pr_globals+(o))))
 #define	G_INT(o) (((pint_t *)pr_globals)[o])
 #define	G_UINT(o) (((puint_t *)pr_globals)[o])
 #define	G_INT64(o) (*(pint64_t *)((pint_t *)pr_globals+(o)))

@@ -573,6 +573,7 @@ void() trigger_hurt =
 
 float PUSH_ONCE = 1;
 
+void() target_position = {};
 //function provided by mercury (of oztf)
 void () trigger_push_findtarget =
 {
@@ -634,6 +635,7 @@ Pushes the player
 */
 void() trigger_push =
 {
+print("Found trigger_push\n");
 	InitTrigger ();
 	precache_sound ("ambience/windfly.wav");
 	self.touch = trigger_push_touch;

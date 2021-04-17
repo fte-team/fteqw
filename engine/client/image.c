@@ -11595,6 +11595,7 @@ static struct
 	{PTI_RG8,		PTI_RGBX8,		Image_Tr_RG8ToRGXX8},
 	{PTI_RGBX8,		PTI_P8,			Image_Tr_RGBX8toPaletted},
 	{PTI_P8,		PTI_RGBX8,		Image_Tr_PalettedtoRGBX8, -1},
+	{TF_SOLID8,		PTI_RGBX8,		Image_Tr_PalettedtoRGBX8, -1},
 	{TF_H2_TRANS8_0,PTI_RGBA8,		Image_Tr_PalettedtoRGBX8, 0},
 	{TF_TRANS8,		PTI_RGBA8,		Image_Tr_PalettedtoRGBX8, 255},
 };

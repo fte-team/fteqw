@@ -3379,8 +3379,10 @@ static void CLQW_ParseServerData (void)
 		for (pnum = 0; pnum < cl.splitclients; pnum++)
 		{
 			cl.playerview[pnum].spectator = true;
+#ifdef QUAKESTATS
 			if (cls.z_ext & Z_EXT_VIEWHEIGHT)
 				cl.playerview[pnum].viewheight = cl.playerview[pnum].statsf[STAT_VIEWHEIGHT];
+#endif
 			cl.playerview[pnum].playernum = (qbyte)MSG_ReadByte();
 			if (cl.playerview[pnum].playernum >= cl.allocated_client_slots)
 				Host_EndGame("unsupported local player slot\n");
@@ -3395,8 +3397,10 @@ static void CLQW_ParseServerData (void)
 		{
 			if (clnum == MAX_SPLITS)
 				Host_EndGame("Server sent us over %u seats\n", MAX_SPLITS);
+#ifdef QUAKESTATS
 			if (cls.z_ext & Z_EXT_VIEWHEIGHT)
 				cl.playerview[pnum].viewheight = cl.playerview[pnum].statsf[STAT_VIEWHEIGHT];
+#endif
 			cl.playerview[clnum].playernum = pnum;
 			if (cl.playerview[clnum].playernum & 128)
 			{

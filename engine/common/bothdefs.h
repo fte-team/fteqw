@@ -320,7 +320,9 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 	#endif
 //	#undef RTLIGHTS
 	#undef HEADLESSQUAKE
+	#ifndef NO_FREETYPE
 	#define NO_FREETYPE
+	#endif
 #endif
 #ifdef WINRT
 	//microsoft do not support winsock any more.

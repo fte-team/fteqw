@@ -4071,33 +4071,34 @@ static qboolean M_ModelViewerKey(struct menucustom_s *c, struct emenu_s *m, int 
 	return true;
 }
 
-#ifdef RAGDOLL
-void M_Modelviewer_Shutdown(struct emenu_s *menu)
-{
-	modelview_t *mv = menu->data;
-	rag_removedeltaent(&mv->ragent);
-	skel_reset(&mv->ragworld);
-	World_RBE_Shutdown(&mv->ragworld);
-}
 void M_Modelviewer_Reset(struct menu_s *cmenu)
 {
 	emenu_t *menu = (emenu_t*)cmenu;
 	modelview_t *mv = menu->data;
 	mv->ragworld.worldmodel = NULL;	//already went away
+#ifdef RAGDOLL
 	rag_removedeltaent(&mv->ragent);
 	skel_reset(&mv->ragworld);
 	World_RBE_Shutdown(&mv->ragworld);
-
+#endif
 	//we still want it.
 	mv->ragworld.worldmodel = NULL;//Mod_ForName("", MLV_SILENT);
 //	World_RBE_Start(&mv->ragworld);
 }
+#ifdef RAGDOLL
+static void M_Modelviewer_Shutdown(struct emenu_s *menu)
+{
+	modelview_t *mv = menu->data;
+	rag_removedeltaent(&mv->ragent);
+	skel_reset(&mv->ragworld);
+	World_RBE_Shutdown(&mv->ragworld);
+}
 //haxors, for skeletal objects+RBE
-char	*PDECL M_Modelviewer_AddString(pubprogfuncs_t *prinst, const char *val, int minlength, pbool demarkup)
+static char	*PDECL M_Modelviewer_AddString(pubprogfuncs_t *prinst, const char *val, int minlength, pbool demarkup)
 {
 	return Z_Malloc(minlength);
 }
-struct edict_s	*PDECL M_Modelviewer_ProgsToEdict(pubprogfuncs_t *prinst, int num)
+static struct edict_s	*PDECL M_Modelviewer_ProgsToEdict(pubprogfuncs_t *prinst, int num)
 {
 	return (struct edict_s*)prinst->edicttable[num];
 }

@@ -4071,21 +4071,19 @@ static qboolean M_ModelViewerKey(struct menucustom_s *c, struct emenu_s *m, int 
 	return true;
 }
 
+#ifdef RAGDOLL
 void M_Modelviewer_Reset(struct menu_s *cmenu)
 {
 	emenu_t *menu = (emenu_t*)cmenu;
 	modelview_t *mv = menu->data;
 	mv->ragworld.worldmodel = NULL;	//already went away
-#ifdef RAGDOLL
 	rag_removedeltaent(&mv->ragent);
 	skel_reset(&mv->ragworld);
 	World_RBE_Shutdown(&mv->ragworld);
-#endif
 	//we still want it.
 	mv->ragworld.worldmodel = NULL;//Mod_ForName("", MLV_SILENT);
 //	World_RBE_Start(&mv->ragworld);
 }
-#ifdef RAGDOLL
 static void M_Modelviewer_Shutdown(struct emenu_s *menu)
 {
 	modelview_t *mv = menu->data;
@@ -4112,7 +4110,6 @@ void M_Menu_ModelViewer_f(void)
 
 	menu = M_CreateMenu(sizeof(*mv));
 	menu->menu.persist = true;
-	menu->menu.videoreset = M_Modelviewer_Reset;
 	mv = menu->data;
 	c = MC_AddCustom(menu, 64, 32, mv, 0, NULL);
 	menu->cursoritem = (menuoption_t*)c;
@@ -4127,6 +4124,7 @@ void M_Menu_ModelViewer_f(void)
 	mv->framechangetime = realtime;
 	mv->skinchangetime = realtime;
 #ifdef RAGDOLL
+	menu->menu.videoreset = M_Modelviewer_Reset;
 	menu->remove = M_Modelviewer_Shutdown;
 	mv->ragworld.progs = &mv->ragfuncs;
 	mv->ragfuncs.AddString = M_Modelviewer_AddString;

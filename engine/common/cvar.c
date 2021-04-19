@@ -70,7 +70,7 @@ void AHash_RemoveDataInsensitive(ahashtable_t *table, const char *name, void *da
 			b->numentries--;
 			//shift everything down.
 			if (b->numentries > i)
-				memmove(&b->entry[i], &b->entry[i+1], b->numentries-1);
+				memmove(&b->entry[i], &b->entry[i+1], sizeof(*b->entry)*(b->numentries-i));
 			break;
 		}
 	}

@@ -7240,10 +7240,10 @@ static struct pendingtextureinfo *Image_ReadVTFFile(unsigned int flags, const ch
 		unsigned int numresources;
 	} *vtf;
 	fmtfmt_t vmffmt, lrfmt;
-	unsigned int bw, bh, bb;
+	unsigned int bw, bh, bd, bb;
 	qbyte *end = filedata + filesize;
-	unsigned int face, faces, frame, frames, miplevel, miplevels, img;
-	unsigned int w, h;
+	unsigned int faces, frame, frames, miplevel, miplevels, img;
+	unsigned int w, h, d = 1;
 	size_t	datasize;
 	unsigned int version;
 
@@ -7294,10 +7294,10 @@ static struct pendingtextureinfo *Image_ReadVTFFile(unsigned int flags, const ch
 		filedata += vtf->headersize;
 		//and skip the low-res image too.
 		if (vtf->lowreswidth && vtf->lowresheight)
-			Image_BlockSizeForEncoding(ImageVTF_VtfToFTE(lrfmt), &bb, &bw, &bh);
+			Image_BlockSizeForEncoding(ImageVTF_VtfToFTE(lrfmt), &bb, &bw, &bh, &bd);
 		else
-			bb=bw=bh=1;
-		datasize = ((vtf->lowreswidth+bw-1)/bw) * ((vtf->lowresheight+bh-1)/bh) * bb;
+			bb=bw=bh=bd=1;
+		datasize = ((vtf->lowreswidth+bw-1)/bw) * ((vtf->lowresheight+bh-1)/bh) * ((1/*vtf->lowresdepth*/+bd-1)/bd) * bb;
 		filedata += datasize;
 	}
 
@@ -7307,7 +7307,7 @@ static struct pendingtextureinfo *Image_ReadVTFFile(unsigned int flags, const ch
 		mips->type = (vtf->flags & 0x4000)?PTI_CUBE:PTI_2D;
 
 		mips->encoding = ImageVTF_VtfToFTE(vmffmt);
-		Image_BlockSizeForEncoding(mips->encoding, &bb, &bw, &bh);
+		Image_BlockSizeForEncoding(mips->encoding, &bb, &bw, &bh, &bd);
 
 		miplevels = vtf->mipmapcount;
 		frames = 1;//vtf->numframes;
@@ -7335,7 +7335,7 @@ static struct pendingtextureinfo *Image_ReadVTFFile(unsigned int flags, const ch
 				w = 1;
 			if (!h)
 				h = 1;
-			datasize = ((w+bw-1)/bw) * ((h+bh-1)/bh) * bb;
+			datasize = ((w+bw-1)/bw) * ((h+bh-1)/bh) * ((d+bd-1)/bd) * bb;
 			for (frame = 0; frame < vtf->numframes; frame++)
 			{
 				if (miplevel < miplevels)

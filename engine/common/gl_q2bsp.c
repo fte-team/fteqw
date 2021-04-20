@@ -4354,9 +4354,9 @@ static void CM_BuildBIH(model_t *mod, int submodel)
 
 	bihleafs = sub->num_brushes;
 	for (i = 0; i < sub->num_patches; i++)
-		bihleafs += prv->patches[prv->leafpatches[sub->firstpatch + i]].numfacets;
+		bihleafs += prv->patches[sub->firstpatch + i].numfacets;
 	for (i = 0; i < sub->num_cmeshes; i++)
-		bihleafs += prv->cmeshes[prv->leafcmeshes[sub->firstcmesh + i]].numincidies/3;
+		bihleafs += prv->cmeshes[sub->firstcmesh + i].numincidies/3;
 	bihleaf = l = BZ_Malloc(sizeof(*bihleaf)*bihleafs);
 
 	//now we have enough storage, spit them out providing bounds info.

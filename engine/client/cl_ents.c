@@ -3050,6 +3050,9 @@ void R_AddItemTimer(vec3_t shadoworg, float yaw, float radius, float percent, ve
 	ctx.scale[2] = 1/radius;
 	ctx.scale[0] = 0;//.5/radius;
 
+	if (R2D_Flush)
+		R2D_Flush();
+
 	/*reuse the previous trigroup if its the same shader*/
 	if (cl_numstris && cl_stris[cl_numstris-1].shader == s && cl_stris[cl_numstris-1].flags == (BEF_NODLIGHT|BEF_NOSHADOWS))
 		t = &cl_stris[cl_numstris-1];
@@ -3125,6 +3128,9 @@ void CLQ1_AddShadow(entity_t *ent)
 	ctx.scale[1] = 1/radius;
 	ctx.scale[2] = 1/radius;
 	ctx.scale[0] = 0.5/radius;
+
+	if (R2D_Flush)
+		R2D_Flush();
 
 	/*reuse the previous trigroup if its the same shader*/
 	if (cl_numstris && cl_stris[cl_numstris-1].shader == s && cl_stris[cl_numstris-1].flags == (BEF_NODLIGHT|BEF_NOSHADOWS))

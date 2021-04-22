@@ -571,6 +571,7 @@ struct audiomenuinfo *M_Menu_Audio_Setup(emenu_t *menu)
 	extern cvar_t snd_device_opts;
 	int pairs, i;
 	struct audiomenuinfo *info = menu->data;
+	char buf[8192];
 	menu->remove = M_Menu_Audio_Remove;
 
 	Cmd_TokenizeString(snd_device_opts.string?snd_device_opts.string:"", false, false);
@@ -579,7 +580,7 @@ struct audiomenuinfo *M_Menu_Audio_Setup(emenu_t *menu)
 	info->outdevdescs = BZ_Malloc((pairs+1)*sizeof(char*));
 	for (i = 0; i < pairs; i++)
 	{
-		info->outdevnames[i] = Z_StrDup(Cmd_Argv(i*2+0));
+		info->outdevnames[i] = Z_StrDup(COM_QuotedString(Cmd_Argv(i*2+0), buf, sizeof(buf), false));
 		info->outdevdescs[i] = Z_StrDup(Cmd_Argv(i*2+1));
 	}
 	info->outdevnames[i] = NULL;
@@ -591,7 +592,7 @@ struct audiomenuinfo *M_Menu_Audio_Setup(emenu_t *menu)
 	info->capdevdescs = BZ_Malloc((pairs+1)*sizeof(char*));
 	for (i = 0; i < pairs; i++)
 	{
-		info->capdevnames[i] = Z_StrDup(Cmd_Argv(i*2+0));
+		info->capdevnames[i] = Z_StrDup(COM_QuotedString(Cmd_Argv(i*2+0), buf, sizeof(buf), false));
 		info->capdevdescs[i] = Z_StrDup(Cmd_Argv(i*2+1));
 	}
 	info->capdevnames[i] = NULL;
@@ -917,7 +918,7 @@ const char *presetexec[] =
 	"seta cl_rollangle 0;"
 	"seta cl_bob 0;"
 	"seta cl_sbar 0;"
-	"cvarreset sv_nqplayerphysics;"	//server settings in a preset might be bad.
+//	"cvarreset sv_nqplayerphysics;"	//server settings in a preset might be bad.
 	"seta cl_demoreel 0;"
 	"seta cl_gibfilter 1;"
 	"if cl_deadbodyfilter == 0 then seta cl_deadbodyfilter 1;"		//as useful as 2 is, some mods use death frames for crouching etc.
@@ -968,7 +969,7 @@ const char *presetexec[] =
 	"r_part_classic_opaque 1;"
 //	"r_particlesystem script;"	//q2 or hexen2 particle effects need to be loadable
 	"cl_sbar 2;"				//its a style thing
-	"sv_nqplayerphysics 1;"		//gb wanted this, should give nq physics to people who want nq settings. note that this disables prediction.
+//	"sv_nqplayerphysics 1;"		//gb wanted this, should give nq physics to people who want nq settings. note that this disables prediction. disabled again because 'auto' matches the mod, which generally works out better.
 	"cl_demoreel 1;"			//yup, arcadey
 	//"d_mipcap \"0 3\";"		//logically correct, but will fuck up on ATI drivers if increased mid-map, because ATI will just ignore any levels that are not currently enabled.
 	"cl_gibfilter 0;"
@@ -1013,7 +1014,7 @@ const char *presetexec[] =
 	"gl_texturemode2d l;"
 	"cl_sbar 0;"
 	"v_viewmodel_quake 0;"	//don't move the gun around weirdly.
-	"cvarreset sv_nqplayerphysics;"
+//	"cvarreset sv_nqplayerphysics;"
 	"cl_demoreel 0;"
 	"r_loadlit 1;"
 	"r_nolerp 0;"
@@ -3879,7 +3880,7 @@ static void M_ModelViewerDraw(int x, int y, struct menucustom_s *c, struct emenu
 				if (*mods->shaderfile)
 					mods->shadertext = Z_StrDup(va("\n\nPress space to view+edit the shader\n\n%s", body));
 				else
-					mods->shadertext = Z_StrDup(body);
+					mods->shadertext = Z_StrDup(va("{%s",body));
 			}
 			R_DrawTextField(r_refdef.grect.x, r_refdef.grect.y+16, r_refdef.grect.width, r_refdef.grect.height-16, mods->shadertext, CON_WHITEMASK, CPRINT_TALIGN|CPRINT_LALIGN, font_default, fs);
 

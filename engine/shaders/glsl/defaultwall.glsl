@@ -7,6 +7,8 @@
 !!permu BUMP
 !!permu SPECULAR
 !!permu REFLECTCUBEMASK
+//!!permu TWOWAY	//blend between diffuse and the 'upper' texture.
+//!!permu EIGHTBIT	//our fancy software banding.
 !!permu FAKESHADOWS
 !!cvarf r_glsl_offsetmapping_scale
 !!cvardf r_glsl_pcf
@@ -16,12 +18,14 @@
 !!samps !EIGHTBIT =BUMP normalmap
 !!samps !EIGHTBIT =REFLECTCUBEMASK reflectmask reflectcube
 //diffuse gives us alpha, and prevents dlight from bugging out when there's no diffuse.
-!!samps =EIGHTBIT paletted 1
+!!samps =EIGHTBIT colourmap=0
+!!samps =EIGHTBIT paletted
 !!samps =SPECULAR specular
 !!samps !VERTEXLIT lightmap
 !!samps =LIGHTSTYLED lightmap1 lightmap2 lightmap3
 !!samps =DELUXE deluxemap
 !!samps =LIGHTSTYLED =DELUXE deluxemap1 deluxemap2 deluxemap3
+!!samps =TWOWAY upper
 !!samps =FAKESHADOWS shadowmap
 
 #if defined(ORM) || defined(SG)
@@ -56,7 +60,9 @@
 			varying vec2 lm0;
 		#endif
 	#endif
-
+	#ifdef TWOWAY
+		varying float alpha;
+	#endif
 	#ifdef FAKESHADOWS	
 		varying vec4 vtexprojcoord;
 	#endif
@@ -80,6 +86,9 @@ void main ()
 	tc = v_texcoord;
 #ifdef FLOW
 	tc.s += e_time * -0.5;
+#endif
+#ifdef TWOWAY
+	alpha = v_colour.a;
 #endif
 #ifdef VERTEXLIT
 	#ifdef LIGHTSTYLED
@@ -249,7 +258,6 @@ void main()
 
 
 #ifdef FRAGMENT_SHADER
-#define s_colourmap	s_t0
 
 #include "sys/pbr.h"
 #include "sys/pcf.h"
@@ -282,6 +290,11 @@ void main ()
 
 //Read the base texture (with EIGHTBIT only alpha is needed)
 	vec4 col = texture2D(s_diffuse, tc);
+
+#ifdef TWOWAY
+	gl_FragColor *= (1.0-alpha);
+	gl_FragColor += alpha*texture2D(s_upper, tc);
+#endif
 
 #if defined(BUMP) && (defined(DELUXE) || defined(SPECULAR) || defined(REFLECTCUBEMASK))
 	vec3 norm = normalize(texture2D(s_normalmap, tc).rgb - 0.5);

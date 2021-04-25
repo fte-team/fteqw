@@ -355,7 +355,7 @@ void GL_DeselectVAO(void);
 
 typedef struct texture_s
 {
-	char		name[64];
+	char		name[128];
 	unsigned	vwidth, vheight;	//used for lightmap coord generation
 
 	struct shader_s	*shader;

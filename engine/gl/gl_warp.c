@@ -42,6 +42,9 @@ cvar_t r_skyboxname							= CVARFC ("r_skybox", "", CVAR_RENDERERCALLBACK | CVAR
 cvar_t r_skybox_orientation					= CVARFD ("r_glsl_skybox_orientation", "0 0 0 0", CVAR_SHADERSYSTEM, "Defines the axis around which skyboxes will rotate (the first three values). The fourth value defines the speed the skybox rotates at, in degrees per second.");
 cvar_t r_skyfog								= CVARD  ("r_skyfog", "0.5", "This controls an alpha-blend value for fog on skyboxes, cumulative with regular fog alpha.");
 
+#ifdef MATERIAL_VMT
+static shader_t *forcedskyfaces[6];
+#endif
 static shader_t *forcedsky;
 static shader_t *skyboxface;
 static shader_t *skygridface;
@@ -55,6 +58,9 @@ void R_SkyShutdown(void)
 	skyboxface = NULL;
 	skygridface = NULL;
 	forcedsky = NULL;
+#ifdef MATERIAL_VMT
+	memset(forcedskyfaces, 0, sizeof(forcedskyfaces));
+#endif
 }
 
 //lets the backend know which fallback envmap it can use.
@@ -89,8 +95,21 @@ void R_SetSky(const char *sky)
 		if (!*sky)
 			return; //no need to do anything
 
+#ifdef MATERIAL_VMT	//hl2 skies have specific shaders (with their own maps) for each face. can't automatically use cubemap optimisations - we would need to interrogate the shaders. :(
+		for (i = 0; i < 6; i++)
+		{
+			static const char *facenames[] = {"rt", "bk", "lf", "ft", "up", "dn"};
+			forcedskyfaces[i] = R_RegisterCustom(va("materials/skybox/%s%s", sky, facenames[i]), SUF_NONE, NULL, NULL);	//don't allow a fallback, so we know when it fails.
+			if (!forcedskyfaces[i])
+				break;
+		}
+		if (i == 6)
+			return;	//okay, we have all 6 faces okay...
+		memset(forcedskyfaces, 0, sizeof(forcedskyfaces));
+#endif
 		memset(&tex, 0, sizeof(tex));
 
+		//equirectangular skies
 		tex.base = R_LoadHiResTexture(sky, "env:gfx/env", IF_LOADNOW|IF_NOMIPMAP);
 		if (tex.reflectcube && tex.reflectcube->status == TEX_LOADING)
 			COM_WorkerPartialSync(tex.reflectcube, &tex.reflectcube->status, TEX_LOADING);
@@ -442,6 +461,13 @@ qboolean R_DrawSkyChain (batch_t *batch)
 		if (!opaque)
 			GL_DrawSkySphere(batch, skyshader);
 	}
+#ifdef MATERIAL_VMT
+	else if (forcedskyfaces[0])
+	{
+		R_CalcSkyChainBounds(batch);
+		GL_DrawSkyBox (NULL, batch);
+	}
+#endif
 	else if (skyboxtex && TEXVALID(*skyboxtex))
 	{	//draw a skybox if we were given the textures
 		R_CalcSkyChainBounds(batch);
@@ -1130,7 +1156,7 @@ static void GL_DrawSkyBox (texid_t *texnums, batch_t *s)
 	skyfacemesh.numindexes = 6;
 	skyfacemesh.numvertexes = 4;
 
-	if (!skyboxface)
+	if (texnums && !skyboxface)
 		skyboxface = R_RegisterShader("skyboxface", SUF_NONE,
 				"{\n"
 					"program default2d\n"
@@ -1152,8 +1178,15 @@ static void GL_DrawSkyBox (texid_t *texnums, batch_t *s)
 		GL_MakeSkyVec (skymaxs[0][i], skymaxs[1][i], i, skyface_vertex[2], skyface_texcoord[2]);
 		GL_MakeSkyVec (skymaxs[0][i], skymins[1][i], i, skyface_vertex[3], skyface_texcoord[3]);
 
-		skyboxface->defaulttextures->base = texnums[skytexorder[i]];
-		R_DrawSkyMesh(s, &skyfacemesh, skyboxface);
+#ifdef MATERIAL_VMT
+		if (!texnums)
+			R_DrawSkyMesh(s, &skyfacemesh, forcedskyfaces[skytexorder[i]]);
+		else
+#endif
+		{
+			skyboxface->defaulttextures->base = texnums[skytexorder[i]];
+			R_DrawSkyMesh(s, &skyfacemesh, skyboxface);
+		}
 	}
 }
 

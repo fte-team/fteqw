@@ -627,7 +627,10 @@ qboolean Shader_ParseSkySides (char *shadername, char *texturename, texid_t *ima
 		"%s_%s",
 		"%s%s",
 		"env/%s%s",
-		"gfx/env/%s%s"
+		"gfx/env/%s%s",
+#ifdef HL2BSPS
+		"materials/skybox/%s%s",
+#endif
 	};
 
 	if (*texturename == '$')
@@ -663,7 +666,8 @@ qboolean Shader_ParseSkySides (char *shadername, char *texturename, texid_t *ima
 			}
 			if (!images[i]->width)
 			{
-				Con_Printf("Sky \"%s\" missing texture: %s\n", shadername, path);
+				if (allokay)
+					Con_Printf("Sky \"%s\" missing texture: [gfx/env/]%s%s\n", shadername, texturename, skyname_suffix[countof(skyname_suffix)-1][i]);
 				images[i] = missing_texture;
 				allokay = false;
 			}
@@ -7069,8 +7073,12 @@ void Shader_DefaultSkinShell(parsestate_t *ps, const char *shortname, const void
 void Shader_Default2D(parsestate_t *ps, const char *shortname, const void *genargs)
 {
 	shader_t *s = ps->s;
+	qboolean wrap;
 	if (Shader_ParseShader(ps, "default2d"))
 		return;
+
+	wrap = Com_FloatArgument(s->name, "WRAP", 4, 0);
+
 	if (sh_config.progs_supported && qrenderer != QR_DIRECT3D9
 #ifdef HAVE_LEGACY
 			&& !dpcompat_nopremulpics.ival
@@ -7080,35 +7088,35 @@ void Shader_Default2D(parsestate_t *ps, const char *shortname, const void *genar
 		//hexen2 needs premultiplied alpha to avoid looking ugly
 		//but that results in problems where things are drawn with alpha not 0, so scale vertex colour by alpha in the fragment program
 		Shader_DefaultScript(ps, shortname,
-			"{\n"
+			va("{\n"
 				"affine\n"
 				"nomipmaps\n"
 				"program default2d#PREMUL\n"
 				"{\n"
-				"clampmap $diffuse\n"
+				"%s $diffuse\n"
 				"blendfunc gl_one gl_one_minus_src_alpha\n"
 				"}\n"
 				"sort additive\n"
-			"}\n"
-			);
-		TEXASSIGN(s->defaulttextures->base, R_LoadHiResTexture(s->name, genargs, IF_PREMULTIPLYALPHA|IF_UIPIC|IF_NOPICMIP|IF_NOMIPMAP|IF_CLAMP|IF_HIGHPRIORITY));
+			"}\n", (wrap?"map":"clampmap")
+			));
+		TEXASSIGN(s->defaulttextures->base, R_LoadHiResTexture(s->name, genargs, IF_PREMULTIPLYALPHA|IF_UIPIC|IF_NOPICMIP|IF_NOMIPMAP|(wrap?0:IF_CLAMP)|IF_HIGHPRIORITY));
 	}
 	else
 	{
 		Shader_DefaultScript(ps, shortname,
-			"{\n"
+			va("{\n"
 				"affine\n"
 				"nomipmaps\n"
 				"{\n"
-					"clampmap $diffuse\n"
+					"%s $diffuse\n"
 					"rgbgen vertex\n"
 					"alphagen vertex\n"
 					"blendfunc gl_src_alpha gl_one_minus_src_alpha\n"
 				"}\n"
 				"sort additive\n"
-			"}\n"
-			);
-		TEXASSIGN(s->defaulttextures->base, R_LoadHiResTexture(s->name, genargs, IF_UIPIC|IF_NOPICMIP|IF_NOMIPMAP|IF_CLAMP|IF_HIGHPRIORITY));
+			"}\n", (wrap?"map":"clampmap")
+			));
+		TEXASSIGN(s->defaulttextures->base, R_LoadHiResTexture(s->name, genargs, IF_UIPIC|IF_NOPICMIP|IF_NOMIPMAP|(wrap?0:IF_CLAMP)|IF_HIGHPRIORITY));
 	}
 }
 void Shader_PolygonShader(struct shaderparsestate_s *ps, const char *shortname, const void *args)
@@ -7276,6 +7284,305 @@ static void Shader_ReadShader(parsestate_t *ps, const char *shadersource, shader
 	}
 }
 
+#ifdef MATERIAL_VMT
+typedef struct
+{
+	char type[MAX_QPATH];
+	struct
+	{
+		char name[MAX_QPATH];
+	} tex[5];
+	char envmap[MAX_QPATH];
+	float alphatestref;
+	qboolean alphatest;
+	qboolean culldisable;
+	qboolean ignorez;
+	char *replaceblock;
+} vmtstate_t;
+
+static qboolean R_ReadVMT(const char *materialname, vmtstate_t *st);
+static char *R_ParseVMTBlock(const char *fname, vmtstate_t *st, char *line)
+{	//assumes the open { was already parsed, but will parse the close.
+	char *replace = NULL;
+	com_tokentype_t ttype;
+	char key[MAX_OSPATH];
+	char value[MAX_OSPATH];
+	char *qmark;
+	qboolean cond;
+	for(;line;)
+	{
+		line = COM_ParseType(line, key, sizeof(key), &ttype);
+		if (ttype == TTP_RAWTOKEN && !strcmp(key, "}"))
+			break;	//end-of-block
+		line = COM_ParseType(line, value, sizeof(value), &ttype);
+		if (ttype == TTP_RAWTOKEN && !strcmp(value, "{"))
+		{	//sub block. we don't go into details here.
+			if (!Q_strcasecmp(key, "replace"))
+				replace = line;
+			else
+				Con_DPrintf("%s: Unknown block \"%s\"\n", fname, key);
+			line = R_ParseVMTBlock(fname, NULL, line);
+			continue;
+		}
+
+		while ((qmark = strchr(key, '?')))
+		{
+			*qmark++ = 0;
+			if (!Q_strcasecmp(key, "srgb"))
+				cond = !!(vid.flags & VID_SRGBAWARE);
+			else
+			{
+				Con_DPrintf("%s: Unknown vmt conditional \"%s\"\n", fname, key);
+				cond = false;
+			}
+			if (!cond)
+			{
+				*key = 0;
+				break;
+			}
+			else
+				memmove(key, qmark, strlen(qmark)+1);
+		}
+
+		if (!*key || !st)
+			;
+		else if (!Q_strcasecmp(key, "include"))
+		{
+			if (!R_ReadVMT(value, st))
+				return NULL;
+		}
+		else if (!Q_strcasecmp(key, "$basetexture") || !Q_strcasecmp(key, "$hdrbasetexture"))	//fixme: hdr version should probably override the other. order matters.
+			Q_strncpyz(st->tex[0].name, value, sizeof(st->tex[0].name));
+		else if (!Q_strcasecmp(key, "$hdrcompressedtexture"))	//named texture is R8G8B8E8 and needs to be decompressed manually... should probably just use e5bgr9 but we don't have a way to transcode it here.
+			;
+		else if (!Q_strcasecmp(key, "$basetexturetransform"))
+			;
+		else if (!Q_strcasecmp(key, "$bumpmap"))
+			;
+		else if (!Q_strcasecmp(key, "$ssbump"))
+			;
+		else if (!Q_strcasecmp(key, "$ssbumpmathfix"))
+			;
+		else if (!Q_strcasecmp(key, "$basetexture2") || !strcmp(key, "$texture2"))
+			Q_strncpyz(st->tex[1].name, value, sizeof(st->tex[1].name));
+		else if (!Q_strcasecmp(key, "$basetexturetransform2"))
+			;
+		else if (!Q_strcasecmp(key, "$surfaceprop"))
+			;
+
+		else if (!Q_strcasecmp(key, "$ignorez"))
+			st->ignorez = !!atoi(value);
+		else if (!Q_strcasecmp(key, "$nocull") && (!strcmp(value, "1")||!strcmp(value, "0")))
+			st->culldisable = atoi(value);
+		else if (!Q_strcasecmp(key, "$alphatest") && (!strcmp(value, "1")||!strcmp(value, "0")))
+			st->alphatest = atoi(value);
+		else if (!Q_strcasecmp(key, "$alphatestreference"))
+			st->alphatestref = atof(value);
+		else if (!Q_strcasecmp(key, "$alphafunc"))
+		{
+			Con_DPrintf("%s: %s \"%s\"\n", fname, key, value);
+		}
+		else if (!Q_strcasecmp(key, "$alpha"))
+		{
+			Con_DPrintf("%s: %s \"%s\"\n", fname, key, value);
+		}
+		else if (!Q_strcasecmp(key, "$translucent"))
+			Con_DPrintf("%s: %s \"%s\"\n", fname, key, value);
+		else if (!Q_strcasecmp(key, "$additive"))
+			Con_DPrintf("%s: %s \"%s\"\n", fname, key, value);
+		else if (!Q_strcasecmp(key, "$color"))
+			Con_DPrintf("%s: %s \"%s\"\n", fname, key, value);
+		else if (!Q_strcasecmp(key, "$vertexcolor"))
+			Con_DPrintf("%s: %s \"%s\"\n", fname, key, value);
+		else if (!Q_strcasecmp(key, "$vertexalpha"))
+			Con_DPrintf("%s: %s \"%s\"\n", fname, key, value);
+		else if (!Q_strcasecmp(key, "$decal"))
+			Con_DPrintf("%s: %s \"%s\"\n", fname, key, value);
+		else if (!Q_strcasecmp(key, "$decalscale"))
+			Con_DPrintf("%s: %s \"%s\"\n", fname, key, value);
+		else if (!Q_strcasecmp(key, "$decalsize"))
+			Con_DPrintf("%s: %s \"%s\"\n", fname, key, value);
+		else if (!Q_strcasecmp(key, "$envmap"))
+			Q_strncpyz(st->envmap, value, sizeof(st->envmap));
+		else if (!Q_strcasecmp(key, "$envmaptint"))
+			Con_DPrintf("%s: %s \"%s\"\n", fname, key, value);
+		else if (!Q_strcasecmp(key, "$envmapmask"))
+			Con_DPrintf("%s: %s \"%s\"\n", fname, key, value);
+		else if (!Q_strcasecmp(key, "$envmapcontrast"))
+			Con_DPrintf("%s: %s \"%s\"\n", fname, key, value);
+		else if (!Q_strcasecmp(key, "$envmaptint"))
+			Con_DPrintf("%s: %s \"%s\"\n", fname, key, value);
+		else if (!Q_strcasecmp(key, "$envmapsaturation"))
+			Con_DPrintf("%s: %s \"%s\"\n", fname, key, value);
+		else if (!Q_strcasecmp(key, "$basealphaenvmapmask"))
+			Con_DPrintf("%s: %s \"%s\"\n", fname, key, value);
+		else if (!Q_strcasecmp(key, "$normalmapalphaenvmapmask"))
+			Con_DPrintf("%s: %s \"%s\"\n", fname, key, value);
+		else if (!Q_strcasecmp(key, "$crackmaterial"))
+			Con_DPrintf("%s: %s \"%s\"\n", fname, key, value);
+		else if (!Q_strcasecmp(key, "$selfillum"))
+			Con_DPrintf("%s: %s \"%s\"\n", fname, key, value);
+		else if (!Q_strcasecmp(key, "$selfillummask"))
+			Con_DPrintf("%s: %s \"%s\"\n", fname, key, value);
+		else if (!Q_strcasecmp(key, "$selfillumtint"))
+			Con_DPrintf("%s: %s \"%s\"\n", fname, key, value);
+		else if (!Q_strcasecmp(key, "$nofog"))
+			Con_DPrintf("%s: %s \"%s\"\n", fname, key, value);
+		else if (!Q_strcasecmp(key, "$nomip"))
+			Con_DPrintf("%s: %s \"%s\"\n", fname, key, value);
+		else if (!Q_strcasecmp(key, "$nodecal"))
+			Con_DPrintf("%s: %s \"%s\"\n", fname, key, value);
+		else if (!Q_strcasecmp(key, "$detail"))
+			Con_DPrintf("%s: %s \"%s\"\n", fname, key, value);
+		else if (!Q_strcasecmp(key, "$detailscale"))
+			Con_DPrintf("%s: %s \"%s\"\n", fname, key, value);
+		else if (!Q_strcasecmp(key, "$detailtint"))
+			Con_DPrintf("%s: %s \"%s\"\n", fname, key, value);
+		else if (!Q_strcasecmp(key, "$detailblendfactor"))
+			Con_DPrintf("%s: %s \"%s\"\n", fname, key, value);
+		else if (!Q_strcasecmp(key, "$detailblendmode"))
+			Con_DPrintf("%s: %s \"%s\"\n", fname, key, value);
+
+		else if (!Q_strcasecmp(key, "$surfaceprop2"))
+			Con_DPrintf("%s: %s \"%s\"\n", fname, key, value);
+		else if (!Q_strcasecmp(key, "$AllowAlphaToCoverage"))
+			Con_DPrintf("%s: %s \"%s\"\n", fname, key, value);
+		else if (!Q_strcasecmp(key, "$blendmodulatetexture"))
+			Con_DPrintf("%s: %s \"%s\"\n", fname, key, value);
+
+		//water/reflection stuff
+		else if (!Q_strcasecmp(key, "$refracttexture"))
+			Con_DPrintf("%s: %s \"%s\"\n", fname, key, value);
+		else if (!Q_strcasecmp(key, "$refractamount"))
+			Con_DPrintf("%s: %s \"%s\"\n", fname, key, value);
+		else if (!Q_strcasecmp(key, "$refracttint"))
+			Con_DPrintf("%s: %s \"%s\"\n", fname, key, value);
+		else if (!Q_strcasecmp(key, "$reflecttexture"))
+			Con_DPrintf("%s: %s \"%s\"\n", fname, key, value);
+		else if (!Q_strcasecmp(key, "$reflectamount"))
+			Con_DPrintf("%s: %s \"%s\"\n", fname, key, value);
+		else if (!Q_strcasecmp(key, "$reflecttint"))
+			Con_DPrintf("%s: %s \"%s\"\n", fname, key, value);
+		else if (!Q_strcasecmp(key, "$fresnelpower"))
+			Con_DPrintf("%s: %s \"%s\"\n", fname, key, value);
+		else if (!Q_strcasecmp(key, "$minreflectivity"))
+			Con_DPrintf("%s: %s \"%s\"\n", fname, key, value);
+		else if (!Q_strcasecmp(key, "$maxreflectivity"))
+			Con_DPrintf("%s: %s \"%s\"\n", fname, key, value);
+		else if (!Q_strcasecmp(key, "$normalmap"))
+			Con_DPrintf("%s: %s \"%s\"\n", fname, key, value);
+		else if (!Q_strcasecmp(key, "$bumpframe"))
+			Con_DPrintf("%s: %s \"%s\"\n", fname, key, value);
+		else if (!Q_strcasecmp(key, "$fogenable"))
+			Con_DPrintf("%s: %s \"%s\"\n", fname, key, value);
+		else if (!Q_strcasecmp(key, "$fogcolor"))
+			Con_DPrintf("%s: %s \"%s\"\n", fname, key, value);
+		else if (!Q_strcasecmp(key, "$fogstart"))
+			Con_DPrintf("%s: %s \"%s\"\n", fname, key, value);
+		else if (!Q_strcasecmp(key, "$fogend"))
+			Con_DPrintf("%s: %s \"%s\"\n", fname, key, value);
+		else if (!Q_strcasecmp(key, "$abovewater"))
+			Con_DPrintf("%s: %s \"%s\"\n", fname, key, value);
+		else if (!Q_strcasecmp(key, "$underwateroverlay"))
+			Con_DPrintf("%s: %s \"%s\"\n", fname, key, value);
+		else if (!Q_strcasecmp(key, "$reflectentities"))
+			Con_DPrintf("%s: %s \"%s\"\n", fname, key, value);
+		else if (!Q_strcasecmp(key, "$scale"))
+			Con_DPrintf("%s: %s \"%s\"\n", fname, key, value);
+		else if (!Q_strcasecmp(key, "$bottommaterial"))
+			Con_DPrintf("%s: %s \"%s\"\n", fname, key, value);
+		else if (!Q_strcasecmp(key, "$scroll1"))
+			Con_DPrintf("%s: %s \"%s\"\n", fname, key, value);
+		else if (!Q_strcasecmp(key, "$scroll2"))
+			Con_DPrintf("%s: %s \"%s\"\n", fname, key, value);
+
+		else if (*key == '%')
+			;	//editor lines
+		else
+			Con_Printf("%s: Unknown field \"%s\"\n", fname, key);
+	}
+	if (replace)
+		R_ParseVMTBlock(fname, st, replace);
+	return line;
+}
+static void Shader_GenerateFromVMT(parsestate_t *ps, vmtstate_t *st, const char *shortname)
+{
+	size_t offset = 0;
+	char script[8192];
+	if (!*st->tex[0].name)
+		Q_strncpyz(st->tex[0].name, shortname, sizeof(st->tex[0].name));
+
+	//Q_strlcatfz(script, &offset, sizeof(script), "{\n");
+	if (!Q_strcasecmp(st->type, "WorldVertexTransition"))
+	{	//attempt to do terrain blending
+		Q_strncpyz(st->type, "defaultwall#TWOWAY", sizeof(st->type));
+		Q_strlcatfz(script, &offset, sizeof(script),	"program \"%s\"\n", st->type);
+		Q_strlcatfz(script, &offset, sizeof(script),	"diffusemap \"%s%s.vtf\"\n", strcmp(st->tex[0].name, "materials/")?"materials/":"", st->tex[0].name);
+		Q_strlcatfz(script, &offset, sizeof(script),	"uppermap \"%s%s.vtf\"\n", strcmp(st->tex[1].name, "materials/")?"materials/":"", st->tex[1].name);
+	}
+	else
+	{
+		Q_strncpyz(st->type, "defaultwall", sizeof(st->type));	//FIXME
+
+		Q_strlcatfz(script, &offset, sizeof(script),	"program \"%s\"\n", st->type);
+		Q_strlcatfz(script, &offset, sizeof(script),	"diffusemap \"%s%s.vtf\"\n", strcmp(st->tex[0].name, "materials/")?"materials/":"", st->tex[0].name);
+	}
+	if (*st->envmap)
+		Q_strlcatfz(script, &offset, sizeof(script),	"reflectcube \"%s%s.vtf\"\n", strcmp(st->envmap, "materials/")?"materials/":"", st->envmap);
+	if (st->alphatest)
+		Q_strlcatfz(script, &offset, sizeof(script), "alphatest ge128\n");
+	if (st->culldisable)
+		Q_strlcatfz(script, &offset, sizeof(script), "cull disable\n");
+	if (st->ignorez)
+		Q_strlcatfz(script, &offset, sizeof(script), "nodepth\n");
+	Q_strlcatfz(script, &offset, sizeof(script), "}\n");
+
+	Shader_Reset(ps->s);
+	Shader_ReadShader(ps, script, NULL);
+}
+static qboolean R_ReadVMT(const char *fname, vmtstate_t *st)
+{
+	char *line, *file = NULL;
+	com_tokentype_t ttype;
+	char token[MAX_QPATH];
+	char *prefix="", *postfix="";
+
+	//don't dupe the mandatory materials/ prefix
+	if (strncmp(fname, "materials/", 10))
+		prefix = "materials/";
+	if (strcmp(COM_GetFileExtension(fname, NULL), ".vmt"))
+		postfix = ".vmt";
+	Q_snprintfz(token, sizeof(token), "%s%s%s", prefix, fname, postfix);
+
+	file = FS_LoadMallocFile(token, NULL);
+	if (file)
+	{
+		line = file;
+		line = COM_ParseType(line, st->type, sizeof(st->type), &ttype);
+		line = COM_ParseType(line, token, sizeof(token), &ttype);
+		if (!strcmp(token, "{"))
+		{
+			line = R_ParseVMTBlock(fname, st, line);
+		}
+
+
+		BZ_Free(file);
+		return !!line;
+	}
+	return false;
+}
+static qboolean Shader_ReadVMT(parsestate_t *ps, const char *filename)
+{
+	vmtstate_t st;
+	memset(&st, 0, sizeof(st));
+	if (!R_ReadVMT(filename, &st))
+		return false;
+
+	Shader_GenerateFromVMT(ps, &st, filename);
+	return true;
+}
+#endif
+
 static qboolean Shader_ParseShader(parsestate_t *ps, const char *parsename)
 {
 	size_t offset = 0, length;
@@ -7293,6 +7600,11 @@ static qboolean Shader_ParseShader(parsestate_t *ps, const char *parsename)
 			char shaderfile[MAX_QPATH];
 			if (!*token)
 			{
+#ifdef MATERIAL_VMT
+				if (Shader_ReadVMT(ps, parsename))
+					return true;
+#endif
+
 				Q_snprintfz(shaderfile, sizeof(shaderfile), "%s.mat", parsename);
 				file = COM_LoadTempMoreFile(shaderfile, &length);
 			}

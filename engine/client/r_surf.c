@@ -4046,9 +4046,22 @@ void Surf_DrawWorld (void)
 				}
 				else
 				{
+					size_t i;
+					dispinfo_t *disp;
+					msurface_t *surf;
 					areas[0] = 1;
 					areas[1] = r_viewarea;
 					Surf_RecursiveHL2WorldNode (currentmodel->nodes);
+					for (i = 0; i < currentmodel->numdisplacements; i++)
+					{
+						disp = &currentmodel->displacements[i];
+						if (currentmodel->funcs.EdictInFatPVS(currentmodel, &disp->pvs, surfvis, areas))
+						{
+							surf = disp->surf;
+							Surf_RenderDynamicLightmaps (surf);
+							surf->sbatch->mesh[surf->sbatch->meshes++] = surf->mesh;
+						}
+					}
 				}
 			}
 #endif

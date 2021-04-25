@@ -27,13 +27,6 @@ typedef struct plane_s
 	float	dist;
 } plane_t;
 
-typedef struct csurface_s
-{
-	char		name[16];
-	int			flags;
-	int			value;
-} q2csurface_t;
-
 typedef struct cplane_s
 {
 	vec3_t	normal;

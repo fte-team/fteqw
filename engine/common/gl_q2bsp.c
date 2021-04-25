@@ -42,6 +42,10 @@ cvar_t q3bsp_mergeq3lightmaps = CVARD("q3bsp_mergelightmaps", "1", "Specifies wh
 cvar_t q3bsp_ignorestyles = CVARD("q3bsp_ignorestyles", "0", "Ignores multiple lightstyles in Raven's q3bsp variant(and derivatives) for better batch/rendering performance.");
 cvar_t q3bsp_bihtraces = CVARFD("_q3bsp_bihtraces", /*FIXME: generate BIH leafs more carefully*/"0", CVAR_RENDERERLATCH, "Uses runtime-generated bih collision culling for faster traces.");
 
+#ifdef HL2BSPS
+static cvar_t hl2_displacement_scale = CVARFD("hl2_displacement_scale", "1", CVAR_RENDERERLATCH|CVAR_CHEAT, "Multiplier for how far displacements can move.");
+#endif
+
 #if Q3SURF_NODRAW != TI_NODRAW
 #error "nodraw isn't constant"
 #endif
@@ -4385,14 +4389,20 @@ static void CM_BuildBIH(model_t *mod, int submodel)
 	if (!q3bsp_bihtraces.ival)
 		return;	//skip this. fall back on other stuff.
 
-	if (mod->fromgame != fg_quake3)
-		return;
+//	if (mod->fromgame == fg_quake2)
+//		return;
 
 	bihleafs = sub->num_brushes;
 	for (i = 0; i < sub->num_patches; i++)
 		bihleafs += prv->patches[sub->firstpatch + i].numfacets;
 	for (i = 0; i < sub->num_cmeshes; i++)
 		bihleafs += prv->cmeshes[sub->firstcmesh + i].numincidies/3;
+#ifdef HL2BSPS
+	if (!submodel)
+		for (i = 0; i < mod->numdisplacements; i++)
+			bihleafs += mod->displacements[i].numindexes/3;
+#endif
+
 	bihleaf = l = BZ_Malloc(sizeof(*bihleaf)*bihleafs);
 
 	//now we have enough storage, spit them out providing bounds info.
@@ -4407,6 +4417,31 @@ static void CM_BuildBIH(model_t *mod, int submodel)
 		VectorCopy(b->absmaxs, l->maxs);
 		l++;
 	}
+#ifdef HL2BSPS
+	if (!submodel)
+	for (i = 0; i < mod->numdisplacements; i++)
+	{
+		dispinfo_t *d = &mod->displacements[i];
+
+		size_t j;
+		for (j = 0; j < d->numindexes; j+=3)
+		{
+			index_t *v = d->idx+j;
+			vec_t *v1 = d->xyz[v[0]], *v2 = d->xyz[v[1]], *v3 = d->xyz[v[2]];
+
+			l->type = BIH_TRIANGLE;
+			l->data.tri.xyz = d->xyz;
+			l->data.tri.indexes = v;
+
+			l->data.contents = d->contents;
+			VectorCopy(v1, l->mins);
+			VectorCopy(v1, l->maxs);
+			AddPointToBounds(v2, l->mins, l->maxs);
+			AddPointToBounds(v3, l->mins, l->maxs);
+			l++;
+		}
+	}
+#endif
 #ifdef Q3BSPS
 	for (i = 0; i < sub->num_patches; i++)
 	{
@@ -4482,16 +4517,16 @@ enum hllumps_e
 //	VLUMP_FOO			= 23,
 //	VLUMP_FOO			= 24,
 //	VLUMP_FOO			= 25,
-//	VLUMP_FOO			= 26,
+	VLUMP_DISP_INFO		= 26,
 //	VLUMP_FOO			= 27,
 //	VLUMP_FOO			= 28,
 //	VLUMP_FOO			= 29,
 //	VLUMP_FOO			= 30,
 //	VLUMP_FOO			= 31,
-//	VLUMP_FOO			= 32,
-//	VLUMP_FOO			= 33,
-//	VLUMP_FOO			= 34,
-//	VLUMP_FOO			= 35,
+	VLUMP_DISP_LMALPHA	= 32,
+	VLUMP_DISP_VERTS	= 33,
+	VLUMP_DISP_LMCOORDS	= 34,
+	VLUMP_GAMELUMP		= 35,
 //	VLUMP_FOO			= 36,
 //	VLUMP_FOO			= 37,
 //	VLUMP_FOO			= 38,
@@ -4505,7 +4540,7 @@ enum hllumps_e
 //	VLUMP_FOO			= 45,
 //	VLUMP_FOO			= 46,
 //	VLUMP_FOO			= 47,
-//	VLUMP_FOO			= 48,
+	VLUMP_DISP_TRIFLAGS	= 48,
 //	VLUMP_FOO			= 49,
 //	VLUMP_FOO			= 50,
 //	VLUMP_FOO			= 51,
@@ -4566,7 +4601,6 @@ static qboolean CModHL2_LoadSurfaces (model_t *mod, qbyte *mod_base, lump_t *l)
 
 	return true;
 }
-
 #ifdef HAVE_CLIENT
 typedef struct
 {
@@ -5069,6 +5103,183 @@ static qboolean CModHL2_LoadAreaPortals (model_t *mod, qbyte *mod_base, lump_t *
 	return true;
 }
 
+typedef struct
+{	//the main displacement lump
+	vec3_t position;	//not really sure how to use this.
+	int firstvert;		//((1<<power)+1) squared verts
+	int firsttriflags;	//ignored (two shorts per quad)
+	int power;
+	int minpower;	//ignored... FIXME: add lod...
+	float smoothangle;
+	unsigned int contents;
+	unsigned short faceidx; //mod->surfaces index
+	unsigned int lightmapalphaoffset;	//erk, rgba? that's going to restrict lightmap formats.
+	unsigned int lightofs;	//extents? cabbage? oh noes we've gone mad again! or is this some special blend weights in addition to the surface's lighting?
+	struct
+	{	//erk
+		unsigned short peer;
+		unsigned char orientation;
+		unsigned char span;
+		unsigned char peerspan;
+	} edgepeers[8];	//two per edge
+	struct
+	{	//no idea how this works
+		unsigned short peer[4];
+		unsigned char numpeers;
+	} cornerpeers[4];
+	unsigned int allowedverts[10];
+} hl2ddisplacement_t;
+typedef struct
+{
+	vec3_t norm;
+	float dist;
+	float alpha;	//vertex alpha.
+} hl2displacementvert_t;
+static qboolean CModHL2_LoadDisplacements (model_t *mod, qbyte *mod_base, lump_t *lumps)
+{
+	lump_t 				*l = &lumps[VLUMP_DISP_INFO];
+	lump_t 				*vl = &lumps[VLUMP_DISP_VERTS];
+	hl2ddisplacement_t	*in;
+	dispinfo_t			*out;
+	int					i, count, x, y;
+	hl2displacementvert_t *inv;
+	struct dispvert_s	*verts;
+	vecV_t				*xyz;
+	index_t 			*indexes;
+	size_t				maxverts;
+	msurface_t 			*surf;
+	float *sverts[4];
+	signed int e, idx;
+	float fx,fy;
+	vec3_t p, base;
+	size_t stride;
+
+	int primary;
+	float pdist,dist;
+
+	in = (void *)(mod_base + l->fileofs);
+	if (l->filelen % sizeof(*in))
+	{
+		Con_Printf ("MOD_LoadBmodel: funny lump size in %s\n",mod->name);
+		return false;
+	}
+	count = l->filelen / sizeof(*in);
+	if (!count)
+		return true;	//nothing to worry about.
+	out = ZG_Malloc(&mod->memgroup, count*sizeof(*out));
+
+	for (maxverts = 0, i = 0; i < count; i++)
+		maxverts += ((1<<in[i].power)) * ((1<<in[i].power));
+	indexes = ZG_Malloc(&mod->memgroup, maxverts*sizeof(*indexes)*6);
+
+	for (maxverts = 0, i = 0; i < count; i++)
+		maxverts += ((1<<in[i].power)+1) * ((1<<in[i].power)+1);
+	verts = ZG_Malloc(&mod->memgroup, maxverts*sizeof(*verts));
+	xyz = ZG_Malloc(&mod->memgroup, maxverts*sizeof(*xyz));
+
+	mod->displacements = out;
+	mod->numdisplacements = count;
+	for (i = 0; i < count; i++, out++, in++)
+	{
+		surf = mod->surfaces + in->faceidx;
+		if (surf->numedges != 4)
+		{
+			Con_Printf ("MOD_LoadBmodel: displacement surface doesn't have 4 edges in %s\n",mod->name);
+			return false;
+		}
+
+		//find the 4 verts... messy.
+		for (x = 0; x < 4; x++)
+		{
+			e = mod->surfedges[surf->firstedge+x];
+			idx = e < 0;
+			if (idx)
+				e = -e;
+			if (e < 0 || e >= mod->numedges)
+				sverts[x] = mod->vertexes[0].position;
+			else
+				sverts[x] = mod->vertexes[mod->edges[e].v[idx]].position;
+		}
+
+		//this is just stupid and pointless.
+		//the in->position point tells us which point is the primary one, instead of just rotating the edges.
+		primary = 0;
+		pdist = FLT_MAX;
+		for (x = 0; x < 4; x++)
+		{
+			VectorSubtract(sverts[x], in->position, p);
+			dist = DotProduct(p,p);
+			if (dist < pdist)
+			{
+				pdist = dist;
+				primary = x;
+			}
+		}
+
+		out->surf = surf;
+		surf->dispinfo = out;	//the surface needs to be able to get its proper info when building vbos
+		ClearBounds(out->aamin, out->aamax);
+		out->contents = in->contents;
+		out->width = (1<<in->power);
+		out->height = (1<<in->power);
+
+		out->idx = indexes;
+		stride = out->width+1;
+		for (y=0 ; y<out->height ; y++)
+		for (x=0 ; x<out->width ; x++)
+		{
+			if ((x+y)&1)
+			{	//a diamond pattern - flipping alternately
+				*indexes++ = (x+0)+(y+1)*stride;
+				*indexes++ = (x+1)+(y+1)*stride;
+				*indexes++ = (x+1)+(y+0)*stride;
+				*indexes++ = (x+0)+(y+1)*stride;
+				*indexes++ = (x+1)+(y+0)*stride;
+				*indexes++ = (x+0)+(y+0)*stride;
+			}
+			else
+			{
+				*indexes++ = (x+0)+(y+0)*stride;
+				*indexes++ = (x+0)+(y+1)*stride;
+				*indexes++ = (x+1)+(y+1)*stride;
+				*indexes++ = (x+0)+(y+0)*stride;
+				*indexes++ = (x+1)+(y+1)*stride;
+				*indexes++ = (x+1)+(y+0)*stride;
+			}
+		}
+		out->numindexes = indexes - out->idx;
+
+		inv = (void *)(mod_base + vl->fileofs);
+		inv += in->firstvert;
+		out->verts = verts;
+		out->xyz = xyz;
+		for (y = 0; y <= out->height; y++)
+			for (x = 0; x <= out->width; x++)
+			{
+				//I have no idea if this is right. probably not. oh well.
+				fx = (float)x/out->width;
+				fy = (float)y/out->height;
+				VectorClear(base);
+				VectorMA(base, (1-fx)*(1-fy), sverts[(primary+0)&3], base);
+				VectorMA(base, (1-fx)*(  fy), sverts[(primary+1)&3], base);
+				VectorMA(base, (  fx)*(  fy), sverts[(primary+2)&3], base);
+				VectorMA(base, (  fx)*(1-fy), sverts[(primary+3)&3], base);
+				verts->st[0] = DotProduct(base, surf->texinfo->vecs[0]) + surf->texinfo->vecs[0][3];
+				verts->st[1] = DotProduct(base, surf->texinfo->vecs[1]) + surf->texinfo->vecs[1][3];
+
+				VectorScale(inv->norm, inv->dist*hl2_displacement_scale.value, p);
+				VectorNormalize2(p, verts->norm);
+				VectorAdd(base, p, (*xyz));
+				verts->alpha = inv->alpha;
+				AddPointToBounds((*xyz), out->aamin, out->aamax);
+
+				inv++;
+				verts++;
+				xyz++;
+			}
+	}
+	return true;
+}
 #ifdef HAVE_CLIENT
 typedef struct
 {
@@ -5256,6 +5467,10 @@ static qboolean CModHL2_LoadBrushSides (model_t *mod, qbyte *mod_base, lump_t *l
 			out->surface = &nullsurface;
 		else
 			out->surface = &prv->surfaces[j];
+		if (in->dispinfo != 0xffff)
+			out->dispinfo = mod->displacements+in->dispinfo;
+		else
+			out->dispinfo = NULL;
 	}
 
 	return true;
@@ -5341,6 +5556,7 @@ static qboolean VBSP_LoadModel(model_t *mod, qbyte *mod_base, size_t filelen, ch
 		if (noerrors)
 			Mod_LoadEntities							(mod, mod_base, &header.lumps[VLUMP_ENTITIES]);
 		noerrors = noerrors && CModHL2_LoadFaces		(mod, mod_base, header.lumps, header.version);
+		noerrors = noerrors && CModHL2_LoadDisplacements(mod, mod_base, header.lumps);
 		noerrors = noerrors && Mod_LoadMarksurfaces		(mod, mod_base, &header.lumps[VLUMP_LEAFFACES], false);
 		noerrors = noerrors && CModQ2_LoadVisibility	(mod, mod_base, &header.lumps[VLUMP_VISIBILITY]);
 		noerrors = noerrors && CModHL2_LoadBrushSides	(mod, mod_base, &header.lumps[VLUMP_BRUSHSIDES]);
@@ -5371,6 +5587,9 @@ static qboolean VBSP_LoadModel(model_t *mod, qbyte *mod_base, size_t filelen, ch
 #endif
 	}
 
+	//displacements suck
+	for (i = 0; i < mod->numdisplacements; i++)
+		mod->funcs.FindTouchedLeafs(mod, &mod->displacements[i].pvs, mod->displacements[i].aamin, mod->displacements[i].aamax);
 //	if (noerrors)
 //		CM_CreatePatchesForLeafs (mod, prv);
 
@@ -6429,6 +6648,13 @@ static void CM_FinalizeBrush(q2cbrush_t *brush)
 	}
 	for (i = 0; i < brush->numsides; i++)
 	{
+#ifdef HL2BSPS
+		if (brush->brushside[i].dispinfo)
+		{
+			AddPointToBounds(brush->brushside[i].dispinfo->aamin, brush->absmins, brush->absmaxs);
+			AddPointToBounds(brush->brushside[i].dispinfo->aamax, brush->absmins, brush->absmaxs);
+		}
+#endif
 		//most brushes are axial, which can save some a little loadtime
 		if (planes[i][0] == 1)
 			brush->absmaxs[0] = planes[i][3];
@@ -7364,7 +7590,6 @@ return;
 	CM_RecursiveHullCheck (mod, node->childnum[side^1], midf, p2f, mid, p2);
 }
 
-
 //======================================================================
 
 /*
@@ -8286,6 +8511,10 @@ void CM_Init(void)	//register cvars.
 	Cvar_Register(&q3bsp_ignorestyles, MAPOPTIONS);
 	Cvar_Register(&q3bsp_bihtraces, MAPOPTIONS);
 	Cvar_Register(&r_subdivisions, MAPOPTIONS);
+
+#ifdef HL2BSPS
+	Cvar_Register(&hl2_displacement_scale, MAPOPTIONS);
+#endif
 
 	CM_InitBoxHull ();
 }

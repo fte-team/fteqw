@@ -2408,8 +2408,57 @@ void ModQ1_Batches_BuildQ1Q2Poly(model_t *mod, msurface_t *surf, builddata_t *co
 		mesh->colors4f_array[0] = (vec4_t*)(mesh->tnormals_array+mesh->numvertexes);
 		mesh->indexes = (index_t*)(mesh->colors4f_array[0]+mesh->numvertexes);
 	}
-	mesh->istrifan = true;
 
+#ifdef HL2BSPS
+	if (surf->dispinfo)
+	{
+		dispinfo_t *d = surf->dispinfo;
+		struct dispvert_s *dv = d->verts;
+
+		memcpy(mesh->indexes, d->idx, sizeof(index_t)*d->numindexes);
+
+		//output the renderable verticies
+		for (i=0 ; i<mesh->numvertexes ; i++, dv++)
+		{
+			//xyz
+			VectorCopy (d->xyz[i], mesh->xyz_array[i]);
+
+			//st
+			mesh->st_array[i][0] = dv->st[0];
+			mesh->st_array[i][1] = dv->st[1];
+			if (surf->texinfo->texture->vwidth)
+				mesh->st_array[i][0] /= surf->texinfo->texture->vwidth;
+			if (surf->texinfo->texture->vheight)
+				mesh->st_array[i][1] /= surf->texinfo->texture->vheight;
+
+			//lmst
+			s = (float)(i%(d->width+1))/d->width;
+			t = (float)(i/(d->width+1))/d->height;
+			for (sty = 0; sty < 1; sty++)
+			{
+				mesh->lmst_array[sty][i][0] = (s*surf->extents[0] + surf->light_s[sty] + 0.5) / (mod->lightmaps.width);
+				mesh->lmst_array[sty][i][1] = (t*surf->extents[1] + surf->light_t[sty] + 0.5) / (mod->lightmaps.height);
+			}
+
+			//normals
+			VectorCopy(surf->plane->normal, mesh->normals_array[i]);
+			VectorCopy(surf->texinfo->vecs[0], mesh->snormals_array[i]);
+			VectorNegate(surf->texinfo->vecs[1], mesh->tnormals_array[i]);
+
+			//rgba
+			for (sty = 0; sty < 1; sty++)
+			{
+				mesh->colors4f_array[sty][i][0] = 1;
+				mesh->colors4f_array[sty][i][1] = 1;
+				mesh->colors4f_array[sty][i][2] = 1;
+				mesh->colors4f_array[sty][i][3] = ((int)dv->alpha&255)/255.0;
+			}
+		}
+		return;
+	}
+#endif
+
+	mesh->istrifan = true;
 	//output the mesh's indicies
 	for (i=0 ; i<mesh->numvertexes-2 ; i++)
 	{
@@ -3166,6 +3215,13 @@ static void Mod_Batches_Build(model_t *mod, builddata_t *bd)
 			mesh = surf->mesh = &meshlist[i];
 			mesh->numvertexes = surf->numedges;
 			mesh->numindexes = (surf->numedges-2)*3;
+#ifdef HL2BSPS
+			if (surf->dispinfo)
+			{
+				mesh->numvertexes = (surf->dispinfo->width+1)*(surf->dispinfo->height+1);
+				mesh->numindexes = surf->dispinfo->numindexes;
+			}
+#endif
 		}
 		else
 			mesh = surf->mesh;

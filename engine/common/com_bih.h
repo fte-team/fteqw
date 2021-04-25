@@ -13,6 +13,7 @@ typedef struct
 {
 	mplane_t	*plane;
 	q2mapsurface_t	*surface;
+	struct dispinfo_s	*dispinfo;
 } q2cbrushside_t;
 typedef struct q2cbrush_s
 {

@@ -54,6 +54,13 @@ typedef enum {
 	SHADER_SORT_COUNT
 } shadersort_t;
 
+typedef struct csurface_s
+{
+	char		name[16];
+	int			flags;
+	int			value;
+} q2csurface_t;
+
 #ifdef FTE_TARGET_WEB
 #define MAX_BONES 256
 #elif defined(IQMTOOL)
@@ -446,6 +453,31 @@ typedef struct
 	texid_t image;
 } menvmap_t;
 
+#ifdef HL2BSPS
+typedef struct dispinfo_s
+{
+	struct msurface_s *surf;
+	vec3_t aamin;
+	vec3_t aamax;
+	pvscache_t pvs;	//which pvs clusters this displacement is visible in...
+	unsigned int contents;
+	unsigned int width;
+	unsigned int height;
+	vecV_t *xyz;	//(width+1)*(height+1)
+	index_t *idx;	//width*height*6;
+	size_t numindexes;
+	struct dispvert_s
+	{
+		vec3_t norm;
+		vec2_t st;
+		float alpha;
+	} *verts;
+	//unsigned short *flags;
+
+	q2csurface_t csurface;	//collision info for q2 gamecode.
+} dispinfo_t;
+#endif
+
 #define LMSHIFT_DEFAULT 4
 typedef struct msurface_s
 {
@@ -467,6 +499,9 @@ typedef struct msurface_s
 
 	batch_t		*sbatch;
 	mtexinfo_t	*texinfo;
+#ifdef HL2BSPS
+	dispinfo_t	*dispinfo;
+#endif
 	int			visframe;		// should be drawn when node is crossed
 #ifdef RTLIGHTS
 	int			shadowframe;
@@ -1094,6 +1129,11 @@ typedef struct model_s
 
 	portal_t *portal;
 	unsigned int numportals;
+
+#ifdef HL2BSPS
+	dispinfo_t *displacements;
+	unsigned int numdisplacements;
+#endif
 
 	modelfuncs_t	funcs;
 //

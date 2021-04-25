@@ -726,6 +726,11 @@ static void R_RenderScene_Internal(void)
 	TRACE(("dbg: calling R_RenderDlights\n"));
 	R_RenderDlights ();
 
+#ifdef HL2BSPS
+	if (cl.worldmodel->fromgame == fg_halflife2)
+		CModHL2_DrawAreaPortals(cl.worldmodel);
+#endif
+
 	if (r_refdef.recurse)
 		RQ_RenderBatch();
 	else

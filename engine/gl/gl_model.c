@@ -683,6 +683,9 @@ void Mod_Init (qboolean initial)
 		Mod_RegisterModelFormatMagic(NULL, "Raven Map (bsp)",				('R'<<0)+('B'<<8)+('S'<<16)+('P'<<24),	Mod_LoadQ2BrushModel);
 		Mod_RegisterModelFormatMagic(NULL, "QFusion Map (bsp)",				('F'<<0)+('B'<<8)+('S'<<16)+('P'<<24),	Mod_LoadQ2BrushModel);
 #endif
+#ifdef HL2BSPS
+		Mod_RegisterModelFormatMagic(NULL, "HL2/'Source' Map (bsp)",		('V'<<0)+('B'<<8)+('S'<<16)+('P'<<24),	Mod_LoadQ2BrushModel);
+#endif
 
 		//doom maps
 #ifdef MAP_DOOM
@@ -774,7 +777,11 @@ mleaf_t *Mod_PointInLeaf (model_t *model, vec3_t p)
 	if (!model->nodes)
 		return NULL;
 #if defined(Q2BSPS) || defined(Q3BSPS)
-	if (model->fromgame == fg_quake2 || model->fromgame == fg_quake3)
+	if (model->fromgame == fg_quake2 || model->fromgame == fg_quake3
+#ifdef HL2BSPS
+			|| model->fromgame == fg_halflife2
+#endif
+			)
 	{
 		return model->leafs + CM_PointLeafnum(model, p);
 	}
@@ -2463,6 +2470,20 @@ void ModQ1_Batches_BuildQ1Q2Poly(model_t *mod, msurface_t *surf, builddata_t *co
 			}
 		}
 
+#ifdef HL2BSPS
+		if (mod->fromgame == fg_halflife2)
+		{
+			s = DotProduct (vec, surf->texinfo->lmvecs[0]) + surf->texinfo->lmvecs[0][3];
+			t = DotProduct (vec, surf->texinfo->lmvecs[1]) + surf->texinfo->lmvecs[1][3];
+			for (sty = 0; sty < 1; sty++)
+			{
+				mesh->lmst_array[sty][i][0] = (s - surf->texturemins[0] + surf->light_s[sty] + 0.5) / (mod->lightmaps.width);
+				mesh->lmst_array[sty][i][1] = (t - surf->texturemins[1] + surf->light_t[sty] + 0.5) / (mod->lightmaps.height);
+			}
+		}
+#endif
+
+
 		//figure out the texture directions, for bumpmapping and stuff
 		if (mod->normals && (surf->texinfo->flags & 0x800) && (mod->normals[vertidx][0] || mod->normals[vertidx][1] || mod->normals[vertidx][2])) 
 		{
@@ -2820,6 +2841,9 @@ static int Mod_Batches_Generate(model_t *mod)
 				{
 #ifdef Q2BSPS
 				case fg_quake2:
+#ifdef HL2BSPS
+				case fg_halflife2:
+#endif
 					batch->buildmeshes = Mod_UpdateBatchShader_Q2;
 					break;
 #endif
@@ -4073,6 +4097,9 @@ static qboolean Mod_LoadFaces (model_t *loadmodel, bspx_header_t *bspx, qbyte *m
 
 	switch(loadmodel->lightmaps.fmt)
 	{
+#ifdef HL2BSPS
+	case LM_E8BGR8:
+#endif
 	case LM_E5BGR9:
 		lofsscale = 4;
 		break;
@@ -5139,7 +5166,12 @@ void ModBrush_LoadGLStuff(void *ctx, void *data, size_t a, size_t b)
 		else
 #endif
 #ifdef Q2BSPS
-		if (mod->fromgame == fg_quake2)
+		if (mod->fromgame == fg_quake2
+
+#ifdef HL2BSPS
+		 || mod->fromgame == fg_halflife2
+#endif
+		 )
 		{
 			COM_FileBase (mod->name, loadname, sizeof(loadname));
 			for(a = 0; a < mod->numtextures; a++)

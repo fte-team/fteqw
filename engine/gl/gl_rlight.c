@@ -2543,6 +2543,21 @@ static int GLRecursiveLightPoint (mnode_t *node, vec3_t start, vec3_t end)
 		{
 			switch(cl.worldmodel->lightmaps.fmt)
 			{
+#ifdef HL2BSPS
+			case LM_E8BGR8:
+				lightmap += (dt * ((surf->extents[0]>>surf->lmshift)+1) + ds)<<2;
+				for (maps = 0 ; maps < MAXCPULIGHTMAPS && surf->styles[maps] != INVALID_LIGHTSTYLE ; maps++)
+				{
+					unsigned int l = *(unsigned int*)lightmap;
+					scale = d_lightstylevalue[surf->styles[maps]];
+					scale *= pow(2, (signed char)(l>>24));
+
+					r += max3(((l>> 0)&0xff), ((l>> 8)&0xff), ((l>>16)&0xff)) * scale;
+
+					lightmap += ((surf->extents[0]>>surf->lmshift)+1) * ((surf->extents[1]>>surf->lmshift)+1)<<2;
+				}
+				break;
+#endif
 			case LM_E5BGR9:
 				lightmap += (dt * ((surf->extents[0]>>surf->lmshift)+1) + ds)<<2;
 				for (maps = 0 ; maps < MAXCPULIGHTMAPS && surf->styles[maps] != INVALID_LIGHTSTYLE ; maps++)
@@ -2637,7 +2652,11 @@ static float *GLRecursiveLightPoint3C (model_t *mod, mnode_t *node, const vec3_t
 	float	scale, overbright;
 	int			maps;
 
-	if (mod->fromgame == fg_quake2)
+	if (mod->fromgame == fg_quake2
+#ifdef HL2BSPS
+			|| mod->fromgame == fg_halflife2
+#endif
+			)
 	{
 		if (node->contents != -1)
 			return NULL;		// solid
@@ -2681,8 +2700,18 @@ static float *GLRecursiveLightPoint3C (model_t *mod, mnode_t *node, const vec3_t
 
 		tex = surf->texinfo;
 		
-		s = DotProduct (mid, tex->vecs[0]) + tex->vecs[0][3];
-		t = DotProduct (mid, tex->vecs[1]) + tex->vecs[1][3];
+#ifdef HL2BSPS
+		if (mod->fromgame == fg_halflife2)
+		{
+			s = DotProduct (mid, tex->lmvecs[0]) + tex->lmvecs[0][3];
+			t = DotProduct (mid, tex->lmvecs[1]) + tex->lmvecs[1][3];
+		}
+		else
+#endif
+		{
+			s = DotProduct (mid, tex->vecs[0]) + tex->vecs[0][3];
+			t = DotProduct (mid, tex->vecs[1]) + tex->vecs[1][3];
+		}
 
 		if (s < surf->texturemins[0] ||
 		t < surf->texturemins[1])
@@ -2714,6 +2743,34 @@ static float *GLRecursiveLightPoint3C (model_t *mod, mnode_t *node, const vec3_t
 			{
 				switch(mod->lightmaps.fmt)
 				{
+#ifdef HL2BSPS
+				case LM_E8BGR8:	//FIXME
+					deluxmap = ((surf->samples - mod->lightdata)>>2)*3 + mod->deluxdata;
+
+					lightmap += (dt * ((surf->extents[0]>>surf->lmshift)+1) + ds)<<2;
+					deluxmap += (dt * ((surf->extents[0]>>surf->lmshift)+1) + ds)<<4;
+					for (maps = 0 ; maps < MAXCPULIGHTMAPS && surf->styles[maps] != INVALID_LIGHTSTYLE ; maps++)
+					{
+						unsigned int lm = *(unsigned int*)lightmap;
+						scale = d_lightstylevalue[surf->styles[maps]]*overbright;
+						//scale *= pow(2, (int)(lm>>27)-15-9+8);
+						scale *= pow(2, (signed char)(lm>>24));
+
+						l[0] += ((lm>> 0)&0xff) * scale * cl_lightstyle[surf->styles[maps]].colours[0];
+						l[1] += ((lm>> 8)&0xff) * scale * cl_lightstyle[surf->styles[maps]].colours[1];
+						l[2] += ((lm>>16)&0xff) * scale * cl_lightstyle[surf->styles[maps]].colours[2];
+
+						l[3] += (deluxmap[0]-127)*scale;
+						l[4] += (deluxmap[1]-127)*scale;
+						l[5] += (deluxmap[2]-127)*scale;
+
+						lightmap += ((surf->extents[0]>>surf->lmshift)+1) *
+								((surf->extents[1]>>surf->lmshift)+1)<<2;
+						deluxmap += ((surf->extents[0]>>surf->lmshift)+1) *
+								((surf->extents[1]>>surf->lmshift)+1) * 3;
+					}
+					break;
+#endif
 				case LM_E5BGR9:
 					deluxmap = ((surf->samples - mod->lightdata)>>2)*3 + mod->deluxdata;
 
@@ -2792,6 +2849,25 @@ static float *GLRecursiveLightPoint3C (model_t *mod, mnode_t *node, const vec3_t
 			{
 				switch(mod->lightmaps.fmt)
 				{
+#ifdef HL2BSPS
+				case LM_E8BGR8:	//FIXME
+					lightmap += (dt * ((surf->extents[0]>>surf->lmshift)+1) + ds)<<2;
+					for (maps = 0 ; maps < MAXCPULIGHTMAPS && surf->styles[maps] != INVALID_LIGHTSTYLE ; maps++)
+					{
+						unsigned int lm = *(unsigned int*)lightmap;
+						scale = d_lightstylevalue[surf->styles[maps]]*overbright;
+						//scale *= pow(2, (int)(lm>>27)-15-9+8);
+						scale *= pow(2, (signed char)(lm>>24));
+
+						l[0] += ((lm>> 0)&0xff) * scale * cl_lightstyle[surf->styles[maps]].colours[0];
+						l[1] += ((lm>> 8)&0xff) * scale * cl_lightstyle[surf->styles[maps]].colours[1];
+						l[2] += ((lm>>16)&0xff) * scale * cl_lightstyle[surf->styles[maps]].colours[2];
+
+						lightmap += ((surf->extents[0]>>surf->lmshift)+1) *
+								((surf->extents[1]>>surf->lmshift)+1)<<2;
+					}
+					break;
+#endif
 				case LM_E5BGR9:
 					lightmap += (dt * ((surf->extents[0]>>surf->lmshift)+1) + ds)<<2;
 					for (maps = 0 ; maps < MAXCPULIGHTMAPS && surf->styles[maps] != INVALID_LIGHTSTYLE ; maps++)

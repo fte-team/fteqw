@@ -389,6 +389,9 @@ typedef struct
 #define SURF_NOFLAT			0x08000
 #define SURF_DRAWALPHA		0x10000
 #define SURF_NODRAW			0x20000	//set on non-vertical halflife water submodel surfaces
+#ifdef HL2BSPS
+#define SURF_ONNODE			0x40000	//o.O
+#endif
 
 // !!! if this is changed, it must be changed in asm_draw.h too !!!
 typedef struct
@@ -403,8 +406,12 @@ typedef struct mtexinfo_s
 	texture_t	*texture;
 	int			flags;
 
+#ifdef HL2BSPS
+	float		lmvecs[2][4];
+#endif
+
 	//it's a q2 thing.
-	int			numframes;
+//	int			numframes;
 	struct mtexinfo_s	*next;
 } mtexinfo_t;
 
@@ -874,7 +881,12 @@ typedef struct {
 //
 
 typedef enum {mod_brush, mod_sprite, mod_alias, mod_dummy, mod_halflife, mod_heightmap} modtype_t;
-typedef enum {fg_quake, fg_quake2, fg_quake3, fg_halflife, fg_new, fg_doom, fg_doom3} fromgame_t;	//useful when we have very similar model types. (eg quake/halflife bsps)
+
+typedef enum {fg_quake, fg_quake2, fg_quake3, fg_halflife, 
+#ifdef HL2BSPS
+fg_halflife2,	//these should probably be switched to bits, so that I can easily check multiple (and define to 0 to easily no-op code).
+#endif
+fg_new, fg_doom, fg_doom3} fromgame_t;	//useful when we have very similar model types. (eg quake/halflife bsps)
 
 #define	MF_ROCKET				(1u<<0)			// leave a trail
 #define	MF_GRENADE				(1u<<1)			// leave a trail
@@ -1068,7 +1080,10 @@ typedef struct model_s
 			//internally, we still use integers for lighting, with .7 bits of extra precision.
 			LM_L8,
 			LM_RGB8,
-			LM_E5BGR9
+			LM_E5BGR9,
+#ifdef HL2BSPS
+			LM_E8BGR8,	//erk?
+#endif
 		} fmt;
 		qboolean deluxemapping;	//lightmaps are interleaved with deluxemap data (lightmap indicies should only be even values)
 		qboolean deluxemapping_modelspace; //deluxemaps are in modelspace - we need different glsl.
@@ -1182,6 +1197,10 @@ qofs_t	CM_ReadPortalState (model_t *mod, qbyte *ptr, qofs_t ptrsize);
 
 
 #endif	//Q2BSPS
+
+#ifdef HL2BSPS
+void CModHL2_DrawAreaPortals(model_t *mod);
+#endif
 
 void CategorizePlane ( mplane_t *plane );
 void CalcSurfaceExtents (model_t *mod, msurface_t *s);

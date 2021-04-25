@@ -2766,7 +2766,7 @@ qbyte *R_MarkLeaves_Q2 (void)
 		vis = cvis[portal];
 		if (!portal)
 		{
-			if (r_oldviewcluster == r_viewcluster && r_oldviewcluster2 == r_viewcluster2)
+			if (r_oldviewcluster == r_viewcluster && r_oldviewcluster2 == r_viewcluster2 && vis)
 				return vis;
 
 			r_oldviewcluster = r_viewcluster;

@@ -643,6 +643,25 @@ static void Surf_BuildDeluxMap (model_t *wmodel, msurface_t *surf, qbyte *dest, 
 	{
 		switch(wmodel->lightmaps.fmt)
 		{
+#ifdef HL2BSPS
+		case LM_E8BGR8:	//FIXME
+			deluxmap = ((surf->samples - wmodel->lightdata)/4)*3 + wmodel->deluxdata;
+			for (maps = 0 ; maps < MAXCPULIGHTMAPS && surf->styles[maps] != INVALID_LIGHTSTYLE ; maps++)
+			{
+				scale = d_lightstylevalue[surf->styles[maps]];
+				for (i=0 ; i<size ; i++)
+				{
+					unsigned lm = ((unsigned int*)lightmap)[i];
+					intensity = max3(((lm>>0)&0xff),((lm>>8)&0xff),((lm>>16)&0xff)) * scale * pow(2, (signed char)(lm>>24));
+					blocknormals[i][0] += intensity*(deluxmap[i*3+0]-127);
+					blocknormals[i][1] += intensity*(deluxmap[i*3+1]-127);
+					blocknormals[i][2] += intensity*(deluxmap[i*3+2]-127);
+				}
+				lightmap += size*4;	// skip to next lightmap
+				deluxmap += size*3;
+			}
+			break;
+#endif
 		case LM_E5BGR9:
 			deluxmap = ((surf->samples - wmodel->lightdata)/4)*3 + wmodel->deluxdata;
 			for (maps = 0 ; maps < MAXCPULIGHTMAPS && surf->styles[maps] != INVALID_LIGHTSTYLE ; maps++)
@@ -1484,6 +1503,28 @@ static void Surf_BuildLightMap (model_t *model, msurface_t *surf, int map, int s
 					Sys_Error("Surf_BuildLightMap: q3bsp");
 				switch(model->lightmaps.fmt)
 				{
+#ifdef HL2BSPS
+				case LM_E8BGR8:
+					for (maps = 0 ; maps < MAXCPULIGHTMAPS && surf->styles[maps] != INVALID_LIGHTSTYLE ; maps++)
+					{
+						surf->cached_light[maps] = scale = d_lightstylevalue[surf->styles[maps]];	// 8.8 fraction
+						surf->cached_colour[maps] = cl_lightstyle[surf->styles[maps]].colourkey;
+						if (scale)
+						{
+							VectorScale(cl_lightstyle[surf->styles[maps]].colours, scale, scalergb);
+							for (i=0 ; i<size ; i++)
+							{
+								unsigned int l = ((unsigned int*)src)[i];
+								float e = pow(2, (signed char)(l>>24));
+								blocklights[i*3+0] += scalergb[0] * e * ((l>> 0)&0xff);
+								blocklights[i*3+1] += scalergb[1] * e * ((l>> 8)&0xff);
+								blocklights[i*3+2] += scalergb[2] * e * ((l>>16)&0xff);
+							}
+						}
+						src += size*4;	// skip to next lightmap
+					}
+					break;
+#endif
 				case LM_E5BGR9:
 					for (maps = 0 ; maps < MAXCPULIGHTMAPS && surf->styles[maps] != INVALID_LIGHTSTYLE ; maps++)
 					{
@@ -1615,6 +1656,23 @@ static void Surf_BuildLightMap (model_t *model, msurface_t *surf, int map, int s
 			{
 				switch(model->lightmaps.fmt)
 				{
+#ifdef HL2BSPS
+				case LM_E8BGR8:	//FIXME
+					for (maps = 0 ; maps < MAXCPULIGHTMAPS && surf->styles[maps] != INVALID_LIGHTSTYLE ; maps++)
+					{
+						scale = d_lightstylevalue[surf->styles[maps]];
+						surf->cached_light[maps] = scale;	// 8.8 fraction
+						surf->cached_colour[maps] = cl_lightstyle[surf->styles[maps]].colourkey;
+						for (i=0 ; i<size ; i++)
+						{
+							unsigned int lm = ((unsigned int *)src)[i];
+							blocklights[i] += max3(((lm>>0)&0xff),((lm>>8)&0xff),((lm>>16)&0xff)) * scale *
+									pow(2, (signed char)(lm>>24));
+						}
+						src += size*4;	// skip to next lightmap
+					}
+					break;
+#endif
 				case LM_E5BGR9:
 					for (maps = 0 ; maps < MAXCPULIGHTMAPS && surf->styles[maps] != INVALID_LIGHTSTYLE ; maps++)
 					{
@@ -1781,6 +1839,28 @@ static void Surf_BuildLightMap_Worker (model_t *wmodel, msurface_t *surf, int sh
 				}
 				else switch(wmodel->lightmaps.fmt)
 				{
+#ifdef HL2BSPS
+				case LM_E8BGR8:	//FIXME
+					for (maps = 0 ; maps < MAXCPULIGHTMAPS && surf->styles[maps] != INVALID_LIGHTSTYLE ; maps++)
+					{
+						surf->cached_light[maps] = scale = d_lightstylevalue[surf->styles[maps]];	// 8.8 fraction
+						surf->cached_colour[maps] = cl_lightstyle[surf->styles[maps]].colourkey;
+						if (scale)
+						{
+							VectorScale(cl_lightstyle[surf->styles[maps]].colours, scale, scalergb);
+							for (i=0 ; i<size ; i++)
+							{
+								unsigned int l = ((unsigned int*)src)[i];
+								float e = pow(2, (signed char)(l>>24));
+								blocklights[i*3+0] += scalergb[0] * e * ((l>> 0)&0xff);
+								blocklights[i*3+1] += scalergb[1] * e * ((l>> 8)&0xff);
+								blocklights[i*3+2] += scalergb[2] * e * ((l>>16)&0xff);
+							}
+						}
+						src += size*4;	// skip to next lightmap
+					}
+					break;
+#endif
 				case LM_E5BGR9:
 					for (maps = 0 ; maps < MAXCPULIGHTMAPS && surf->styles[maps] != INVALID_LIGHTSTYLE ; maps++)
 					{
@@ -1881,6 +1961,23 @@ static void Surf_BuildLightMap_Worker (model_t *wmodel, msurface_t *surf, int sh
 			{
 				switch(wmodel->lightmaps.fmt)
 				{
+#ifdef HL2BSPS
+				case LM_E8BGR8:	//FIXME
+					for (maps = 0 ; maps < MAXCPULIGHTMAPS && surf->styles[maps] != INVALID_LIGHTSTYLE ; maps++)
+					{
+						scale = d_lightstylevalue[surf->styles[maps]];
+						surf->cached_light[maps] = scale;	// 8.8 fraction
+						surf->cached_colour[maps] = cl_lightstyle[surf->styles[maps]].colourkey;
+						for (i=0 ; i<size ; i++)
+						{
+							unsigned int lm = ((unsigned int *)lightmap)[i];
+							blocklights[i] += max3(((lm>>0)&0x1ff),((lm>>9)&0x1ff),((lm>>18)&0x1ff)) * scale *
+										pow(2, (signed char)(lm>>24));
+						}
+						lightmap += size*4;	// skip to next lightmap
+					}
+					break;
+#endif
 				case LM_E5BGR9:
 					for (maps = 0 ; maps < MAXCPULIGHTMAPS && surf->styles[maps] != INVALID_LIGHTSTYLE ; maps++)
 					{
@@ -2441,6 +2538,117 @@ static void Surf_RecursiveQ2WorldNode (mnode_t *node)
 }
 #endif
 
+#ifdef HL2BSPS
+static void Surf_RecursiveHL2WorldNode (mnode_t *node)
+{
+	int			c, side;
+	mplane_t	*plane;
+	msurface_t	*surf, **mark;
+	mleaf_t		*pleaf;
+	double		dot;
+
+	int sidebit;
+
+	if (node->contents == Q2CONTENTS_SOLID)
+		return;		// solid
+
+	if (node->visframe != r_visframecount)
+		return;
+	if (R_CullBox (node->minmaxs, node->minmaxs+3))
+		return;
+
+// if a leaf node, draw stuff
+	if (node->contents != -1)
+	{
+		pleaf = (mleaf_t *)node;
+
+		// check for door connected areas
+		if (! (r_refdef.areabits[pleaf->area>>3] & (1<<(pleaf->area&7)) ) )
+			return;		// not visible
+
+		c = pleaf->cluster;
+		if (c >= 0)
+			frustumvis[c>>3] |= 1<<(c&7);
+
+		mark = pleaf->firstmarksurface;
+		c = pleaf->nummarksurfaces;
+
+		if (c)
+		{
+			do
+			{
+				surf = *mark;
+				if (surf->flags & SURF_ONNODE)
+					surf->visframe = r_framecount;
+				else if (surf->visframe != r_framecount)
+				{
+					surf->visframe = r_framecount;
+					Surf_RenderDynamicLightmaps (surf);
+					surf->sbatch->mesh[surf->sbatch->meshes++] = surf->mesh;
+				}
+				mark++;
+			} while (--c);
+		}
+		return;
+	}
+
+// node is just a decision point, so go down the apropriate sides
+
+// find which side of the node we are on
+	plane = node->plane;
+
+	switch (plane->type)
+	{
+	case PLANE_X:
+		dot = modelorg[0] - plane->dist;
+		break;
+	case PLANE_Y:
+		dot = modelorg[1] - plane->dist;
+		break;
+	case PLANE_Z:
+		dot = modelorg[2] - plane->dist;
+		break;
+	default:
+		dot = DotProduct (modelorg, plane->normal) - plane->dist;
+		break;
+	}
+
+	if (dot >= 0)
+	{
+		side = 0;
+		sidebit = 0;
+	}
+	else
+	{
+		side = 1;
+		sidebit = SURF_PLANEBACK;
+	}
+
+// recurse down the children, front side first
+	Surf_RecursiveHL2WorldNode (node->children[side]);
+
+	// draw stuff
+	for ( c = node->numsurfaces, surf = currentmodel->surfaces + node->firstsurface; c ; c--, surf++)
+	{
+		if (surf->visframe != r_framecount)
+			continue;
+
+		if ( (surf->flags & SURF_PLANEBACK) != sidebit )
+			continue;		// wrong side
+
+		surf->visframe = 0;//r_framecount+1;//-1;
+
+		Surf_RenderDynamicLightmaps (surf);
+
+		surf->sbatch->mesh[surf->sbatch->meshes++] = surf->mesh;
+	}
+
+
+// recurse down the back side
+	Surf_RecursiveHL2WorldNode (node->children[!side]);
+}
+#endif
+
 #ifdef Q3BSPS
 #if 0
 static void Surf_LeafWorldNode (void)
@@ -2726,7 +2934,11 @@ void Surf_SetupFrame(void)
 		r_viewcluster2 = -1;
 	}
 #if defined(Q2BSPS) || defined(Q3BSPS)
-	else if (cl.worldmodel->fromgame == fg_quake2 || cl.worldmodel->fromgame == fg_quake3)
+	else if (cl.worldmodel->fromgame == fg_quake2 || cl.worldmodel->fromgame == fg_quake3
+#ifdef HL2BSPS
+			|| cl.worldmodel->fromgame == fg_halflife2
+#endif
+			)
 	{
 		leaf = Mod_PointInLeaf (cl.worldmodel, pvsorg);
 		r_viewarea = leaf->area;
@@ -3513,7 +3725,11 @@ void R_GenWorldEBO(void *ctx, void *data, size_t a, size_t b)
 		pvs = es->wmodel->funcs.ClusterPVS(es->wmodel, es->cluster[0], &es->pvs, PVM_REPLACE);
 
 #if defined(Q2BSPS) || defined(Q3BSPS)
-	if (es->wmodel->fromgame == fg_quake2 || es->wmodel->fromgame == fg_quake3)
+	if (es->wmodel->fromgame == fg_quake2 || es->wmodel->fromgame == fg_quake3
+#ifdef HL2BSPS
+			|| es->wmodel->fromgame == fg_halflife2
+#endif
+			)
 		Surf_SimpleWorld_Q3BSP(es, pvs);
 	else
 #endif
@@ -3784,7 +4000,11 @@ void Surf_DrawWorld (void)
 			entvis = surfvis = NULL;
 		}
 #if defined(Q2BSPS) || defined(Q3BSPS)
-		else if (currentmodel->fromgame == fg_quake2 || currentmodel->fromgame == fg_quake3)
+		else if (currentmodel->fromgame == fg_quake2 || currentmodel->fromgame == fg_quake3
+#ifdef HL2BSPS
+				|| currentmodel->fromgame == fg_halflife2
+#endif
+				)
 		{
 			pvsbuffer_t *vis = &surf_frustumvis[r_refdef.recurse];
 			if (vis->buffersize < currentmodel->pvsbytes)
@@ -3807,6 +4027,30 @@ void Surf_DrawWorld (void)
 				//Surf_LeafWorldNode ();
 			}
 			else
+#endif
+#ifdef HL2BSPS
+			if (currentmodel->fromgame == fg_halflife2)
+			{
+				entvis = surfvis = R_MarkLeaves_Q2 ();
+				VectorCopy (r_refdef.vieworg, modelorg);
+				if (!surfvis)
+				{
+					size_t i;
+					msurface_t *surf;
+					for (i = 0; i < currentmodel->nummodelsurfaces; i++)
+					{
+						surf = &currentmodel->surfaces[i];
+						Surf_RenderDynamicLightmaps (surf);
+						surf->sbatch->mesh[surf->sbatch->meshes++] = surf->mesh;
+					}
+				}
+				else
+				{
+					areas[0] = 1;
+					areas[1] = r_viewarea;
+					Surf_RecursiveHL2WorldNode (currentmodel->nodes);
+				}
+			}
 #endif
 #ifdef Q2BSPS
 			if (currentmodel->fromgame == fg_quake2)
@@ -4055,6 +4299,9 @@ uploadfmt_t Surf_LightmapMode(model_t *model)
 		{
 			switch (model->lightmaps.fmt)
 			{
+#ifdef HL2BSPS
+			case LM_E8BGR8:
+#endif
 			case LM_E5BGR9:
 				hdr = rgb = true;
 				break;

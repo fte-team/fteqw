@@ -5476,6 +5476,26 @@ static qboolean CModHL2_LoadBrushSides (model_t *mod, qbyte *mod_base, lump_t *l
 	return true;
 }
 
+#include "fs.h"
+static searchpathfuncs_t *CModHL2_LoadArchive(model_t *mod, void *base, size_t len)
+{
+	vfsfile_t *f = VFSPIPE_Open(1, true);
+	searchpathfuncs_t *r = NULL;
+	if (f)
+	{
+		if (len > 0x7fffffff || VFS_WRITE(f, base, len) != len)
+		{
+			Con_Printf("CModHL2_LoadArchive: archive too large for pipe sanity limit\n");
+			r = NULL;
+		}
+		else
+			r = FSZIP_LoadArchive (f, NULL, mod->name, mod->name, NULL);
+		if (!r)
+			VFS_CLOSE(f);	//it didn't take, for some reason.
+	}
+	return r;
+}
+
 static qboolean VBSP_LoadModel(model_t *mod, qbyte *mod_base, size_t filelen, char *loadname)
 {
 	struct {
@@ -5508,6 +5528,9 @@ static qboolean VBSP_LoadModel(model_t *mod, qbyte *mod_base, size_t filelen, ch
 	}
 	BSPX_Setup(mod, mod_base, filelen, header.lumps, i);
 
+	mod->archive = CModHL2_LoadArchive(mod, mod_base+header.lumps[VLUMP_ZIPFILE].fileofs, header.lumps[VLUMP_ZIPFILE].filelen);
+	if (mod->archive)
+		FS_LoadMapPackFile(mod->name, mod->archive);
 	switch(qrenderer)
 	{
 	case QR_NONE:	//dedicated only

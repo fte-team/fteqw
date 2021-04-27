@@ -65,6 +65,7 @@
 #define Q1BSPS					//Quake1
 #define Q2BSPS					//Quake2
 #define Q3BSPS					//Quake3, as well as a load of other games too...
+#define HL2BSPS				//HalfLife2 map compat.
 #define RFBSPS					//qfusion's bsp format / jk2o etc.
 #define TERRAIN					//FTE's terrain, as well as .map support
 //#define DOOMWADS				//map support, filesystem support is separate.
@@ -86,6 +87,7 @@
 #define MODELFMT_MDX			//kingpin's format (for hitboxes+geomsets).
 #define MODELFMT_OBJ			//lame mesh-only format that needs far too much processing and even lacks a proper magic identifier too
 #define MODELFMT_GLTF			//khronos 'transmission format'. .gltf or .glb extension. PBR. Version 2 only, for now.
+#define MODELFMT_HL2			//HalfLife2 / Source models, or something.
 #define RAGDOLL					//ragdoll support. requires RBE support (via a plugin...).
 
 //Image formats
@@ -106,7 +108,7 @@
 #define IMAGEFMT_BMP			//windows bmp. yuck. also includes .ico for the luls
 #define IMAGEFMT_PCX			//paletted junk. required for qw player skins, q2 and a few old skyboxes.
 #define IMAGEFMT_EXR			//openexr, via Industrial Light & Magic's rgba api, giving half-float data.
-#define IMAGEFMT_VTF			//HalfLife2's image format (also enables its materials format)
+#define IMAGEFMT_VTF			//HalfLife2's image format (you'll probably want the material format too)
 #define AVAIL_PNGLIB			//.png image format support (read+screenshots)
 #define AVAIL_JPEGLIB			//.jpeg image format support (read+screenshots)
 //#define AVAIL_STBI			//make use of Sean T. Barrett's lightweight public domain stb_image[_write] single-file-library, to avoid libpng/libjpeg dependancies.
@@ -117,6 +119,7 @@
 #define DECOMPRESS_RGTC			//bc4+bc5
 #define DECOMPRESS_BPTC			//bc6+bc7
 #define DECOMPRESS_ASTC			//ASTC, for drivers that don't support it properly.
+#define MATERIAL_VMT			//attempt to parse halflife2's vmt files.
 
 // Game/Gamecode Support
 #define CSQC_DAT

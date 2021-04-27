@@ -1059,6 +1059,7 @@ void Mod_ModelLoaded(void *ctx, void *data, size_t a, size_t b)
 	}
 #endif
 
+	if (a != MLS_LOADED)
 	switch(verbose)
 	{
 	default:
@@ -1070,6 +1071,7 @@ void Mod_ModelLoaded(void *ctx, void *data, size_t a, size_t b)
 		if (*mod->name != '*' && strcmp(mod->name, "null") && mod_warnmodels.ival && !previouslyfailed)
 			Con_Printf(CON_ERROR "Unable to load %s\n", mod->name);
 		break;
+	case MLV_NOLOAD:	//shouldn't happen.
 	case MLV_SILENT:
 		break;
 	}
@@ -1338,7 +1340,7 @@ static void Mod_LoadModelWorker (void *ctx, void *data, size_t a, size_t b)
 
 		BZ_Free(buf);
 
-		COM_AddWork(WG_MAIN, Mod_ModelLoaded, mod, NULL, MLS_LOADED, 0);
+		COM_AddWork(WG_MAIN, Mod_ModelLoaded, mod, NULL, MLS_LOADED, verbose);
 		return;
 	}
 
@@ -1356,7 +1358,7 @@ static void Mod_LoadModelWorker (void *ctx, void *data, size_t a, size_t b)
 
 model_t *Mod_LoadModel (model_t *mod, enum mlverbosity_e verbose)
 {
-	if (mod->loadstate == MLS_NOTLOADED && *mod->name != '*')
+	if (mod->loadstate == MLS_NOTLOADED && *mod->name != '*' && verbose != MLV_NOLOAD)
 	{
 		mod->loadstate = MLS_LOADING;
 		if (verbose == MLV_ERROR || verbose == MLV_WARNSYNC)

@@ -5476,6 +5476,200 @@ static qboolean CModHL2_LoadBrushSides (model_t *mod, qbyte *mod_base, lump_t *l
 	return true;
 }
 
+typedef struct {
+	unsigned int count;
+	struct {
+		unsigned int id;
+		unsigned short flags;
+		unsigned short version;
+		unsigned int ofs;
+		unsigned int len;
+	} sl[1];
+} hlgamelumpheader_t;
+static qboolean CModHL2_LoadStaticProps(model_t *mod, qbyte *offset, size_t size, int version)
+{
+	struct {
+		const char name[128];
+	} *modelref;
+	size_t nummodels, numleafrefs, numprops, i;
+	unsigned short *leafref;
+	entity_t *ent;
+
+	size_t modelindex;
+
+	qboolean skip = false;
+	int dxlevel = 95, cpulevel=0, gpulevel=0;
+
+	qbyte *prop;
+	size_t propsize;
+	switch(version)
+	{
+	case 4:
+		propsize = 14*4;
+		break;
+	case 5:	//+scale
+		propsize = 15*4;
+		break;
+	case 6://+dxlevels
+		propsize = 16*4;
+		break;
+	case 7:	//+rgba
+	case 8: //-dxlevels+[cg]pulevels
+		propsize = 17*4;
+		break;
+	case 9:	//+360
+	case 10://-360+flags
+		propsize = 18*4;
+		break;
+	case 11://+scale
+		propsize = 19*4;
+		break;
+	default:
+		return true;	//version not supported, just ignore it entirely. sorry.
+	}
+
+
+	nummodels = LittleLong(*(int*)offset);
+	offset	+= 4;
+	size	-= 4;
+	modelref = (void*)offset;
+	offset	+= nummodels*sizeof(*modelref);
+	size	-= nummodels*sizeof(*modelref);
+
+	numleafrefs = LittleLong(*(int*)offset);
+	offset	+= 4;
+	size	-= 4;
+	leafref = (void*)offset;
+	offset	+= numleafrefs*sizeof(*leafref);
+	size	-= numleafrefs*sizeof(*leafref);
+
+	numprops = LittleLong(*(int*)offset);
+	offset	+= 4;
+	size	-= 4;
+	prop = (void*)offset;
+	offset	+= numprops*propsize;
+	size	-= numprops*propsize;
+
+	if (size)
+		return true;	//funny lump size...
+
+	mod->staticents = ZG_Malloc(&mod->memgroup, sizeof(*mod->staticents)*numprops);
+	for (i = 0, ent = mod->staticents; i < numprops; i++)
+	{
+		skip = false;
+		V_ClearEntity(ent);
+
+		ent->playerindex = -1;
+		ent->topcolour = TOP_DEFAULT;
+		ent->bottomcolour = BOTTOM_DEFAULT;
+#ifdef PEXT_SCALE
+		ent->scale = 1;
+#endif
+		ent->shaderRGBAf[0] = 1;
+		ent->shaderRGBAf[1] = 1;
+		ent->shaderRGBAf[2] = 1;
+		ent->shaderRGBAf[3] = 1;
+		ent->framestate.g[FS_REG].frame[0] = 0;
+		ent->framestate.g[FS_REG].lerpweight[0] = 1;
+
+
+		ent->origin[0] = LittleFloat(*(float*)prop);					prop += sizeof(float);
+		ent->origin[1] = LittleFloat(*(float*)prop);					prop += sizeof(float);
+		ent->origin[2] = LittleFloat(*(float*)prop);					prop += sizeof(float);
+		ent->angles[0] = LittleFloat(*(float*)prop);					prop += sizeof(float);
+		ent->angles[1] = LittleFloat(*(float*)prop);					prop += sizeof(float);
+		ent->angles[2] = LittleFloat(*(float*)prop);					prop += sizeof(float);
+		modelindex = (unsigned short)LittleShort(*(short*)prop);		prop += sizeof(unsigned short);
+		/*firstleaf = LittleShort(*(unsigned short*)prop)*/;			prop += sizeof(unsigned short);
+		/*leafcount = LittleShort(*(unsigned short*)prop)*/;			prop += sizeof(unsigned short);
+		/*ent->solid = *prop*/;											prop += sizeof(qbyte);
+		/*ent->flags = *prop*/;											prop += sizeof(qbyte);
+		ent->skinnum = LittleLong(*(unsigned int*)prop);				prop += sizeof(unsigned int);
+		/*ent->fademindist = LittleFloat(*(float*)prop)*/;				prop += sizeof(float);
+		/*ent->fademaxdist = LittleFloat(*(float*)prop)*/;				prop += sizeof(float);
+		/*ent->lightingorigin[0] = LittleFloat(*(float*)prop)*/;		prop += sizeof(float);
+		/*ent->lightingorigin[1] = LittleFloat(*(float*)prop)*/;		prop += sizeof(float);
+		/*ent->lightingorigin[2] = LittleFloat(*(float*)prop)*/;		prop += sizeof(float);
+		if (version >= 5)
+		{
+			/*ent->fadescale = LittleFloat(*(float*)prop);*/			prop += sizeof(float);
+		}
+		if (version >= 8)
+		{
+			skip |= (prop[0] > cpulevel || cpulevel > prop[1]);			prop += sizeof(qbyte)*2;
+			skip |= (prop[0] > gpulevel || gpulevel > prop[1]);			prop += sizeof(qbyte)*2;
+		}
+		else if (version >= 6)
+		{
+			unsigned short minlev, maxlev;
+			minlev = LittleShort(*(unsigned short*)prop);				prop += sizeof(unsigned short);
+			maxlev = LittleShort(*(unsigned short*)prop);				prop += sizeof(unsigned short);
+			skip |= (minlev > dxlevel || dxlevel > maxlev);
+		}
+		if (version >= 7)
+		{
+			VectorScale(prop, 1/255.0, ent->shaderRGBAf);				prop += sizeof(qbyte)*4;
+		}
+
+		if (version == 9)
+		{
+			/*disablex360 = LittleLong(*(int*)prop);*/					prop += sizeof(int);
+		}
+		if (version >= 10)
+		{
+			ent->flags = LittleLong(*(int*)prop);						prop += sizeof(int);
+		}
+		if (version >= 11)
+		{
+			ent->scale = LittleFloat(*(float*)prop);					prop += sizeof(float);
+		}
+
+		//okay, we parsed the prop data now...
+		skip |= modelindex >= nummodels;
+		if (skip)
+			continue;	//we're ignoring it for some reason
+		ent->model = Mod_FindName(modelref[modelindex].name);
+		AngleVectorsFLU(ent->angles, ent->axis[0], ent->axis[1], ent->axis[2]);
+
+		//Hack: lighting is wrong.
+		ent->light_known = 1;
+		VectorSet(ent->light_dir, 0, 0.707, 0.707);
+		VectorSet(ent->light_avg, 0.75, 0.75, 0.75);
+		VectorSet(ent->light_range, 0.5, 0.5, 0.5);
+
+		//not all props will be emitted, according to d3d levels...
+		mod->numstaticents++;
+		ent++;
+	}
+
+	return true;
+}
+static qboolean CModHL2_LoadGameLump(model_t *mod, qbyte *mod_base, lump_t *l)
+{
+	size_t i;
+	hlgamelumpheader_t *blob = (void*)(mod_base + l->fileofs);
+	if (!l->filelen)
+		return true; //missing
+	if (l->filelen < sizeof(*blob) + sizeof(*blob->sl)*(blob->count-1))
+		return false;	//not even enough space for the header...
+	for (i = 0; i < blob->count; i++)
+	{
+#define LUMPTYPE(a,b,c,d, minver, maxver) (blob->sl[i].id == (((qbyte)a<<24)|((qbyte)b<<16)|((qbyte)c<<8)|((qbyte)d<<0)) && blob->sl[i].version >= minver && blob->sl[i].version <= maxver)
+		if (LUMPTYPE('s','p','r','p', 4,10) && !blob->sl[i].flags)	//static props (placed by mapper)
+			CModHL2_LoadStaticProps(mod, mod_base+blob->sl[i].ofs/*sigh*/, blob->sl[i].len, blob->sl[i].version);
+		else if (LUMPTYPE('d','p','r','p', 4,4) && !blob->sl[i].flags)	//dynamic props (generated by textures)
+			;
+		else if (LUMPTYPE('d','p','l','t', 0,0) && !blob->sl[i].flags)	//detail prop ldr lighting
+			;
+		else if (LUMPTYPE('d','p','l','h', 0,0) && !blob->sl[i].flags)	//detail prop hdr lighting
+			;
+		else
+			Con_Printf("Unsupported gamelump id/version %c%c%c%c %i\n", (blob->sl[i].id>>24),(blob->sl[i].id>>16),(blob->sl[i].id>>8),(blob->sl[i].id>>0),blob->sl[i].version);
+#undef LUMPTYPE
+	}
+	return true;
+}
+
 #include "fs.h"
 static searchpathfuncs_t *CModHL2_LoadArchive(model_t *mod, void *base, size_t len)
 {
@@ -5590,6 +5784,8 @@ static qboolean VBSP_LoadModel(model_t *mod, qbyte *mod_base, size_t filelen, ch
 		noerrors = noerrors && CModQ2_LoadSubmodels		(mod, mod_base, &header.lumps[VLUMP_MODELS]);
 		noerrors = noerrors && CModQ2_LoadAreas			(mod, mod_base, &header.lumps[VLUMP_AREAS]);
 		noerrors = noerrors && CModHL2_LoadAreaPortals	(mod, mod_base, &header.lumps[VLUMP_AREAPORTALS], &header.lumps[VLUMP_AREAPORTALVERTS]);
+
+		noerrors = noerrors && CModHL2_LoadGameLump		(mod, mod_base, &header.lumps[VLUMP_GAMELUMP]);
 
 		if (!noerrors)
 			return false;

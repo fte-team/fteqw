@@ -2123,6 +2123,56 @@ void R_DrawNameTags(void)
 					}
 				}
 			}
+
+			for (i=0 ; i<cl.num_statics ; i++)
+			{
+				entity_t *state = &cl_static_entities[i].ent;
+				mod = state->model;
+				if (mod && mod->loadstate == MLS_LOADED)
+					VectorInterpolate(mod->mins, 0.5, mod->maxs, org);
+				else
+					VectorClear(org);
+				VectorAdd(org, state->origin, org);
+				if (Matrix4x4_CM_Project(org, screenspace, r_refdef.viewangles, r_refdef.vieworg, r_refdef.fov_x, r_refdef.fov_y))
+				{
+					char *entstr;
+					int x, y;
+
+					entstr = state->model->name;
+					if (entstr)
+					{
+						vec2_t scale = {8,8};
+						x = screenspace[0]*r_refdef.vrect.width+r_refdef.vrect.x;
+						y = (1-screenspace[1])*r_refdef.vrect.height+r_refdef.vrect.y;
+						R_DrawTextField(x, y, vid.width - x, vid.height - y, entstr, CON_WHITEMASK, CPRINT_TALIGN, font_default, scale);
+					}
+				}
+			}
+
+			for (i=0 ; i<cl.worldmodel->numstaticents; i++)
+			{
+				entity_t *state = &cl.worldmodel->staticents[i];
+				mod = state->model;
+				if (mod && mod->loadstate == MLS_LOADED)
+					VectorInterpolate(mod->mins, 0.5, mod->maxs, org);
+				else
+					VectorClear(org);
+				VectorAdd(org, state->origin, org);
+				if (Matrix4x4_CM_Project(org, screenspace, r_refdef.viewangles, r_refdef.vieworg, r_refdef.fov_x, r_refdef.fov_y))
+				{
+					char *entstr;
+					int x, y;
+
+					entstr = state->model->name;
+					if (entstr)
+					{
+						vec2_t scale = {8,8};
+						x = screenspace[0]*r_refdef.vrect.width+r_refdef.vrect.x;
+						y = (1-screenspace[1])*r_refdef.vrect.height+r_refdef.vrect.y;
+						R_DrawTextField(x, y, vid.width - x, vid.height - y, entstr, CON_WHITEMASK, CPRINT_TALIGN, font_default, scale);
+					}
+				}
+			}
 		}
 #ifdef Q2SERVER //not enough fields for it to really be worth it.
 		if (w == &sv.world && svs.gametype == GT_QUAKE2 && ge)

@@ -168,6 +168,7 @@ enum mod_purge_e
 };
 enum mlverbosity_e
 {
+	MLV_NOLOAD,	//leave it notloaded.
 	MLV_SILENT,
 	MLV_WARN,
 	MLV_WARNSYNC,

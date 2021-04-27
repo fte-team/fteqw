@@ -1133,6 +1133,8 @@ typedef struct model_s
 #ifdef HL2BSPS
 	dispinfo_t *displacements;
 	unsigned int numdisplacements;
+	entity_t *staticents;
+	size_t numstaticents;
 #endif
 
 	modelfuncs_t	funcs;

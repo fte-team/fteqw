@@ -3297,6 +3297,7 @@ void CL_ClearLerpEntsParticleState(void)
 	}
 }
 
+qboolean R_CalcModelLighting(entity_t *e, model_t *clmodel);
 void CL_LinkStaticEntities(void *pvs, int *areas)
 {
 	int i;
@@ -3400,6 +3401,33 @@ void CL_LinkStaticEntities(void *pvs, int *areas)
 
 //  FIXME: no effects on static ents
 //		CLQ1_AddPowerupShell(ent, false, stat->effects);
+	}
+
+	if (cl.worldmodel->numstaticents)
+	{
+		entity_t *src;
+		for (i = 0; i < cl.worldmodel->numstaticents; i++)
+		{
+			if (cl_numvisedicts == cl_maxvisedicts)
+			{
+				cl_expandvisents=true;
+				break;
+			}
+			src = &cl.worldmodel->staticents[i];
+			if (!src->model || src->model->loadstate != MLS_LOADED)
+			{
+				if (src->model && src->model->loadstate == MLS_NOTLOADED)
+					Mod_LoadModel(src->model, MLV_WARN);	//we use threads, so these'll load in time.
+				continue;
+			}
+			if (!src->light_known)
+				R_CalcModelLighting(src, src->model);	//bake and cache, now everything else is working.
+
+			ent = &cl_visedicts[cl_numvisedicts++];
+			*ent = *src;
+			ent->framestate.g[FS_REG].frametime[0] = cl.time;
+			ent->framestate.g[FS_REG].frametime[1] = cl.time;
+		}
 	}
 }
 

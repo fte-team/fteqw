@@ -727,7 +727,7 @@ static void R_RenderScene_Internal(void)
 	R_RenderDlights ();
 
 #ifdef HL2BSPS
-	if (cl.worldmodel->fromgame == fg_halflife2)
+	if (!(r_refdef.flags & RDF_NOWORLDMODEL) && cl.worldmodel && cl.worldmodel->fromgame == fg_halflife2)
 		CModHL2_DrawAreaPortals(cl.worldmodel);
 #endif
 

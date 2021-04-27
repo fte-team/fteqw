@@ -866,9 +866,17 @@ model_t *Mod_FindName (const char *name)
 		{
 #endif
 			if (mod_numknown == MAX_MOD_KNOWN)
+			{
+				Sys_UnlockMutex(com_resourcemutex);
 				Sys_Error ("mod_numknown == MAX_MOD_KNOWN");
+				return NULL;
+			}
 			if (strlen(name) >= sizeof(mod->publicname))
+			{
+				Sys_UnlockMutex(com_resourcemutex);
 				Sys_Error ("model name is too long: %s", name);
+				return NULL;
+			}
 			memset(mod, 0, sizeof(model_t));	//clear the old model as the renderers use the same globals
 			Q_strncpyz (mod->publicname, name, sizeof(mod->publicname));
 			Q_strncpyz (mod->name, name, sizeof(mod->name));

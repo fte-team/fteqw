@@ -5587,6 +5587,7 @@ void GLBE_UpdateLightmaps(void)
 			else
 			{
 				GL_MTBind(0, GL_TEXTURE_2D, lm->lightmap_texture);
+				lm->lightmap_texture->format = lm->fmt;
 				if (lm->pbo_handle)
 				{
 					qglBindBufferARB(GL_PIXEL_UNPACK_BUFFER_ARB, lm->pbo_handle);

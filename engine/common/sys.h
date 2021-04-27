@@ -164,7 +164,7 @@ void *Sys_CreateMutexNamed(char *file, int line);
 #endif
 
 #else
-	#ifdef __GNUC__	//gcc complains about if (true) when these are maros. msvc complains about static not being called in headers. gah.
+	#ifdef __GNUC__	//gcc complains about if (true) when these are macros. msvc complains about static not being called in headers. gah.
 		static inline qboolean Sys_MutexStub(void) {return qtrue;}
 		static inline void *Sys_CreateMutex(void) {return NULL;}
 		#define Sys_IsMainThread() Sys_MutexStub()

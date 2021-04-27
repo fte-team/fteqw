@@ -4,6 +4,536 @@
 
 #include "shader.h"
 #include "com_mesh.h"
+
+#ifdef MODELFMT_HL2
+/*
+   Half-Life 2 / Source models store much of their data in other files.
+   I'm only going to try loading simple static models, so we don't need much data from the .mdl itself.
+
+   FIXME: multiple meshes are still buggy.
+   FIXME: materials are not loaded properly.
+   FIXME: no lod stuff.
+*/
+typedef struct
+{
+	unsigned int magic;
+	unsigned int version;
+	unsigned int revisionid;
+	char name[64];
+	unsigned int filesize;
+
+	vec3_t _80;
+	vec3_t _92;
+	vec3_t mins;
+	vec3_t maxs;
+	vec3_t _128;
+	vec3_t _140;
+	unsigned int _152;
+	unsigned int _156;
+	unsigned int _160;
+	unsigned int _164;
+	unsigned int _168;
+	unsigned int _172;
+	unsigned int _176;
+	unsigned int _180;
+	unsigned int _184;
+	unsigned int _188;
+	unsigned int _192;
+	unsigned int _196;
+	unsigned int _200;
+	unsigned int tex_count;
+	unsigned int tex_ofs;
+	unsigned int tex2_count;
+	unsigned int tex2_ofs;
+	unsigned int _220;
+	unsigned int _224;
+	unsigned int _228;
+	unsigned int body_count;
+	unsigned int body_ofs;
+	//other stuff?
+} hl2mdlheader_t;
+typedef struct
+{
+	unsigned int name_ofs;
+	unsigned int surf_count;
+	unsigned int base;
+	unsigned int surf_ofs;
+} hl2mdlbody_t;
+typedef struct
+{
+	char name[64];
+	unsigned int type;
+	unsigned int radius;
+	unsigned int mesh_count;
+	unsigned int mesh_ofs;
+	unsigned int _80;
+	unsigned int _84;
+	unsigned int _88;
+	unsigned int _92;
+	unsigned int _96;
+	unsigned int _100;
+	unsigned int _104;
+	unsigned int _108;
+	unsigned int _112;
+	unsigned int _116;
+	unsigned int _120;
+	unsigned int _124;
+	unsigned int _128;
+	unsigned int _132;
+	unsigned int _136;
+	unsigned int _140;
+	unsigned int _144;
+} hl2mdlsurf_t;
+typedef struct
+{
+	unsigned int mat_idx;
+	unsigned int model_ofs;
+	unsigned int vert_count;
+	unsigned int vert_first;
+	unsigned int _16;
+	unsigned int _20;
+	unsigned int _24;
+	unsigned int _28;
+	unsigned int _32;
+	unsigned int _36;
+	unsigned int _40;
+	unsigned int _44;
+	unsigned int _48;
+	unsigned int _52;
+	unsigned int _56;
+	unsigned int _60;
+	unsigned int _64;
+	unsigned int _68;
+	unsigned int _72;
+	unsigned int _76;
+	unsigned int _80;
+	unsigned int _84;
+	unsigned int _88;
+	unsigned int _92;
+	unsigned int _96;
+	unsigned int _100;
+	unsigned int _104;
+	unsigned int _108;
+	unsigned int _112;
+} hl2mdlmesh_t;
+#pragma pack(push,1)	//urgh wtf is this bullshit
+typedef struct
+{
+	unsigned int numskins;
+	unsigned int offsetskin;
+} hl2vtxskins_t;
+typedef struct
+{
+	unsigned short foo;
+	//no padding
+	unsigned int offsetskinname;
+} hl2vtxskin_t;
+typedef struct
+{
+	unsigned int version;
+	unsigned int vertcachesize;
+	unsigned short bonesperstrip;
+	unsigned short bonespertri;
+	unsigned int bonespervert;
+	unsigned int revisionid;
+	unsigned int lod_count;
+	unsigned int texreplacements_offset;
+	unsigned int body_count;
+	unsigned int body_ofs;
+} hl2vtxheader_t;
+typedef struct
+{
+	unsigned int surf_count;
+	unsigned int surf_ofs;
+} hl2vtxbody_t;
+typedef struct
+{
+	unsigned int lod_count;
+	unsigned int lod_ofs;
+} hl2vtxsurf_t;
+typedef struct
+{
+	unsigned int mesh_count;
+	unsigned int mesh_ofs;
+	float dist;
+} hl2vtxlod_t;
+typedef struct
+{
+	unsigned int stripg_count;
+	unsigned int stripg_ofs;
+	unsigned char flags;
+	//no padding (3 bytes)
+} hl2vtxmesh_t;
+typedef struct
+{
+	unsigned int vert_count;
+	unsigned int vert_ofs;
+	unsigned int idx_count;
+	unsigned int idx_ofs;
+	unsigned int strip_count;
+	unsigned int strip_ofs;
+	unsigned char flags;
+	//no padding (3 bytes)
+} hl2vtxstripg_t;
+typedef struct
+{
+	unsigned int idx_num;
+	unsigned int idx_ofs;
+	unsigned int vert_count;
+	unsigned int vert_ofs;
+	unsigned short bone_count;
+	unsigned char flags;
+	//no padding (1 byte)
+	unsigned int bonestate_count;
+	unsigned int bonestate_ofs;
+} hl2vtxstrip_t;
+typedef struct
+{
+	qbyte bone[3];
+	qbyte bone_count;
+	unsigned short vert;
+	qbyte boneID[3];
+	//no padding
+} hl2vtxvert_t;
+typedef struct
+{
+	unsigned int magic;
+	unsigned int version;
+	unsigned int revisionid;
+	unsigned int lod_count;
+	unsigned int lodverts_count[8];
+	unsigned int fixups_count;
+	unsigned int fixups_offset;
+	unsigned int verts_offset;
+	unsigned int tangents_offset;
+} hl2vvdheader_t;
+typedef struct
+{
+	unsigned int lod;
+	unsigned int sourcevert;
+	unsigned int numverts;
+} hl2vvdfixup_t;
+typedef struct
+{
+	float weight[3];
+	qbyte bone[3];
+	qbyte numbones;
+	vec3_t xyz;
+	vec3_t norm;
+	vec2_t st;
+} hl2vvdvert_t;
+#pragma pack(pop)
+/*seriously, how many structs do you need?*/
+typedef struct
+{
+	model_t *mod;
+	struct
+	{
+		unsigned numverts;
+		vec2_t *ofs_st_array;
+		vecV_t *ofs_skel_xyz;
+		vec3_t *ofs_skel_norm;
+		vec3_t *ofs_skel_svect;
+		vec3_t *ofs_skel_tvect;
+//		byte_vec4_t *ofs_skel_idx;
+//		vec4_t *ofs_skel_weight;
+	} lod[1];	//must remain at 1 (instead of 8) until fixups are handled.
+} hl2parsecontext_t;
+
+static index_t *Mod_HL2_LoadIndexes(hl2parsecontext_t *ctx, unsigned int *idxcount, const hl2vtxmesh_t *vmesh, index_t firstindex)
+{
+	size_t numidx = 0, g;
+	const hl2vtxstripg_t *vg;
+	index_t *idx, *ret = NULL;
+
+	vg = (const void*)((const qbyte*)vmesh+vmesh->stripg_ofs);
+	for (g = 0; g < vmesh->stripg_count; g++, vg++)
+	{
+#if 1
+		if (vg->idx_count%3)
+		{
+			*idxcount = 0;
+			return NULL;
+		}
+		numidx += vg->idx_count;
+#else
+		numidx += (vg->idx_count-2)*3;
+#endif
+	}
+
+	ret = idx = ZG_Malloc(&ctx->mod->memgroup, sizeof(*idx)*numidx);
+
+	vg = (const void*)((const qbyte*)vmesh+vmesh->stripg_ofs);
+	for (g = 0; g < vmesh->stripg_count; g++, vg++)
+	{
+		const unsigned short *in = (const void*)((const qbyte*)vg+vg->idx_ofs);
+		const unsigned short *e = in+vg->idx_count;
+		const hl2vtxvert_t *v = (const void*)((const qbyte*)vg+vg->vert_ofs);
+#if 1
+		for(;;)
+		{
+			if (in == e)
+				break;
+			*idx++ = v[*in++].vert+firstindex;
+		}
+#else
+		unsigned int flip=0;
+		index_t f, l;
+		f = v[*in++].vert;
+		l = v[*in++].vert;
+		for(;;)
+		{
+			if (in == e)
+				break;
+			if (flip++&1)
+			{	//every other index wants the previous two verts flipped.
+				*idx++ = l;
+				*idx++ = f;
+			}
+			else
+			{
+				*idx++ = f;
+				*idx++ = l;
+			}
+			f = l;
+			*idx++ = l = v[*in++].vert;
+		}
+#endif
+	}
+	*idxcount = idx-ret;
+	return ret;
+}
+static qboolean Mod_HL2_LoadVTX(hl2parsecontext_t *ctx, const void *buffer, size_t fsize, unsigned int rev, const hl2mdlbody_t *mbody)
+{	//horribly overcomplicated way to express this stuff.
+	size_t totalsurfs = 0, b, s, l, m, t;
+	const hl2vtxheader_t *header = buffer;
+	const hl2vtxbody_t *vbody;
+	const hl2vtxsurf_t *vsurf;
+	const hl2vtxlod_t *vlod;
+	const hl2vtxmesh_t *vmesh;
+	const hl2vtxskins_t *vskins;
+	const hl2vtxskin_t *vskin;
+
+	galiasinfo_t *surf=NULL;
+	galiasskin_t *skin;
+	skinframe_t *skinframe;
+
+	if (fsize < sizeof(*header) || header->version != 7 || header->revisionid != rev || header->body_count == 0)
+		return false;
+
+	vbody = (const void*)((const qbyte*)header + header->body_ofs);
+	for (b = 0; b < header->body_count; b++, vbody++)
+	{
+		vsurf = (const void*)((const qbyte*)vbody + vbody->surf_ofs);
+		for (s = 0; s < vbody->surf_count; s++, vsurf++)
+		{
+			vlod = (const void*)((const qbyte*)vsurf + vsurf->lod_ofs);
+			for (l = 0; l < min(vsurf->lod_count, countof(ctx->lod)); l++, vlod++)
+				totalsurfs += vlod->mesh_count;
+		}
+	}
+
+	if (!totalsurfs)
+		return false;
+
+	ctx->mod->meshinfo = surf = ZG_Malloc(&ctx->mod->memgroup, sizeof(*surf)*totalsurfs);
+
+	vskins = (const hl2vtxskins_t*)((const qbyte*)header + header->texreplacements_offset);
+	for (l = 0, t=0; l < min(header->lod_count, countof(ctx->lod)); l++)
+		t += max(1,vskins[l].numskins);
+	skin = ZG_Malloc(&ctx->mod->memgroup, sizeof(*skin)*t + sizeof(*skinframe)*t);
+	skinframe = (skinframe_t*)(skin+t);
+	for (l = 0, t=0; l < min(header->lod_count, countof(ctx->lod)); l++, vskins++)
+	{
+		vskin = (const hl2vtxskin_t*)((const qbyte*)vskins+vskins->offsetskin);
+		for (s = 0; s < vskins->numskins; s++, vskin++)
+		{
+			Q_strncpyz(skin[t].name, (const qbyte*)vskin + vskin->offsetskinname, sizeof(skin[t].name));
+			Q_strncpyz(skinframe->shadername, (const qbyte*)vskin + vskin->offsetskinname, sizeof(skinframe->shadername));
+			skin[t].numframes = 1;
+			skin[t].skinspeed = 10;
+			skin[t].frame = skinframe;
+			skinframe++;
+			t++;
+		}
+
+		if (!s)
+		{	//make sure there's at least one skin...
+			Q_strncpyz(skin[t].name, "", sizeof(skin[t].name));
+			Q_strncpyz(skinframe->shadername, "", sizeof(skinframe->shadername));
+			skin[t].numframes = 1;
+			skin[t].skinspeed = 10;
+			skin[t].frame = skinframe;
+			skinframe++;
+			t++;
+		}
+	}
+
+	vbody = (const void*)((const qbyte*)header + header->body_ofs);
+	for (b = 0; b < header->body_count; b++, vbody++, mbody++)
+	{
+		const hl2mdlsurf_t *msurf = (const hl2mdlsurf_t*)((const qbyte*)mbody + mbody->surf_ofs);
+		vsurf = (const void*)((const qbyte*)vbody + vbody->surf_ofs);
+		for (s = 0; s < vbody->surf_count; s++, vsurf++, msurf++)
+		{
+			vlod = (const void*)((const qbyte*)vsurf + vsurf->lod_ofs);
+			vskins = (const hl2vtxskins_t*)((const qbyte*)header + header->texreplacements_offset);
+			for (l = 0, t = 0; l < min(vsurf->lod_count, countof(ctx->lod)); l++, vlod++, vskins++)
+			{
+				const hl2mdlmesh_t *mmesh = (const hl2mdlmesh_t*)((const qbyte*)msurf + msurf->mesh_ofs);
+				vmesh = (const void*)((const qbyte*)vlod + vlod->mesh_ofs);
+				for (m = 0; m < vlod->mesh_count; m++, vmesh++, mmesh++)
+				{
+					Q_snprintfz(surf->surfacename, sizeof(surf->surfacename), "b%u_s%u_l%u_m%u", (unsigned)b, (unsigned)s, (unsigned)l, (unsigned)m);
+
+					/*animation info*/
+					surf->shares_bones = 0;
+					surf->numbones = 0;
+					surf->ofsbones = NULL;		//no support for animations...
+					surf->numanimations = 0;
+					surf->ofsanimations = NULL;	//we have no animation data
+
+					#ifndef SERVERONLY
+					/*skin data*/
+					surf->numskins = (l<header->lod_count)?max(1,vskins->numskins):0;
+					surf->ofsskins = skin+t;
+
+					/*vertdata*/
+					surf->ofs_rgbaf = NULL;
+					surf->ofs_rgbaub = NULL;
+					surf->ofs_st_array = ctx->lod[l].ofs_st_array;
+					#endif
+					surf->shares_verts = l;//surf-(galiasinfo_t*)ctx->mod->meshinfo;
+					surf->numverts = ctx->lod[l].numverts;
+					surf->ofs_skel_xyz = ctx->lod[l].ofs_skel_xyz;
+					surf->ofs_skel_norm = ctx->lod[l].ofs_skel_norm;
+					surf->ofs_skel_svect = ctx->lod[l].ofs_skel_svect;
+					surf->ofs_skel_tvect = ctx->lod[l].ofs_skel_tvect;
+					//surf->ofs_skel_idx = ctx->lod[l].ofs_skel_idx;
+					//surf->ofs_skel_weight = ctx->lod[l].ofs_skel_weight;
+
+					/*index data*/
+					if (mmesh->vert_first+mmesh->vert_count > surf->numverts)
+						surf->ofs_indexes = NULL, surf->numindexes = 0;	//erk?
+					else
+						surf->ofs_indexes = Mod_HL2_LoadIndexes(ctx, &surf->numindexes, vmesh, mmesh->vert_first);
+
+					/*misc data*/
+					surf->geomset = 0;
+					surf->geomid = 0;
+					surf->contents = FTECONTENTS_BODY;
+					surf->csurface.flags = 0;
+					surf->surfaceid = 0;
+					surf->mindist = 0;
+					surf->maxdist = 0;
+
+					if (surf != ctx->mod->meshinfo)
+						surf[-1].nextsurf = surf;
+					surf->nextsurf = NULL;
+					surf++;
+				}
+				t += (l<header->lod_count)?max(1,vskins->numskins):0;
+			}
+		}
+	}
+
+	if (surf == ctx->mod->meshinfo)
+		return false;
+
+	if (surf-1 != ctx->mod->meshinfo)
+		return false;	//FIXME: multiple-surface meshes screw up some how.
+
+	return true;
+}
+static qboolean Mod_HL2_LoadVVD(hl2parsecontext_t *ctx, const void *buffer, size_t fsize, unsigned int rev)
+{
+	const hl2vvdheader_t *header = buffer;
+	size_t lod;
+	const hl2vvdvert_t *in;
+	const vec4_t *it;
+	if (fsize < sizeof(*header) || header->magic != (('I'<<0)|('D'<<8)|('S'<<16)|('V'<<24)) || header->version != 4 || header->revisionid != rev || header->lodverts_count[0] == 0)
+		return false;
+
+	for (lod = 0; lod < countof(ctx->lod) && lod < header->lod_count; lod++)
+	{
+		size_t v, numverts = ctx->lod[lod].numverts = header->lodverts_count[lod];
+		vec2_t *st = ctx->lod[lod].ofs_st_array = ZG_Malloc(&ctx->mod->memgroup, sizeof(*st)*numverts);
+		vecV_t *xyz = ctx->lod[lod].ofs_skel_xyz = ZG_Malloc(&ctx->mod->memgroup, sizeof(*xyz)*numverts);
+		vec3_t *norm = ctx->lod[lod].ofs_skel_norm = ZG_Malloc(&ctx->mod->memgroup, sizeof(*norm)*numverts);
+		vec3_t *sdir = ctx->lod[lod].ofs_skel_svect = ZG_Malloc(&ctx->mod->memgroup, sizeof(*sdir)*numverts);
+		vec3_t *tdir = ctx->lod[lod].ofs_skel_tvect = ZG_Malloc(&ctx->mod->memgroup, sizeof(*tdir)*numverts);
+//		byte_vec4_t *bone = ctx->lod[lod].ofs_skel_idx = ZG_Malloc(&ctx->mod->memgroup, sizeof(*bone)*numverts);
+//		vec4_t *weight = ctx->lod[lod].ofs_skel_weight = ZG_Malloc(&ctx->mod->memgroup, sizeof(*weight)*numverts);
+
+		in = (const void*)((const char*)buffer+header->verts_offset);
+		it = (const void*)((const char*)buffer+header->tangents_offset);
+		for(v = 0; v < numverts; v++, in++, it++)
+		{
+			Vector2Copy(in->st, st[v]);
+			VectorCopy(in->xyz, xyz[v]);
+			VectorCopy(in->norm, norm[v]);
+
+//			VectorCopy(in->bone, bone[v]);
+//			bone[v][3] = bone[v][2];	//make sure its valid, and in cache.
+//			VectorCopy(in->weight, weight[v]);
+//			weight[v][3] = 0;			//missing influences cannot influence.
+
+			//tangents are compacted, and for some reason in a different part of the file.
+			VectorCopy((*it), sdir[v]);
+			CrossProduct(in->norm, (*it), tdir[v]);
+			VectorScale(tdir[v], (*it)[3], tdir[v]);
+		}
+	}
+	return true;
+}
+qboolean QDECL Mod_LoadHL2Model (model_t *mod, const void *buffer, size_t fsize)
+{
+	hl2parsecontext_t ctx = {mod};
+	const hl2mdlheader_t *header = buffer;
+	void *vtx = NULL, *vvd = NULL;
+	size_t vtxsize = 0, vvdsize = 0;
+	char base[MAX_QPATH];
+	qboolean result;
+	size_t i;
+	const char *vtxpostfixes[] = {
+		".dx90.vtx",
+		".dx80.vtx",
+		".vtx",
+		".sw.vtx"
+	};
+	const char *vvdpostfixes[] = {
+		".vvd"
+	};
+
+	for (i = 0; !vtx && i < countof(vtxpostfixes); i++)
+	{
+		COM_StripExtension(mod->name, base, sizeof(base));
+		Q_strncatz(base, vtxpostfixes[i], sizeof(base));
+		vtx = FS_LoadMallocFile(base, &vtxsize);
+	}
+	for (i = 0; !vvd && i < countof(vvdpostfixes); i++)
+	{
+		COM_StripExtension(mod->name, base, sizeof(base));
+		Q_strncatz(base, vvdpostfixes[i], sizeof(base));
+		vvd = FS_LoadMallocFile(base, &vvdsize);
+	}
+
+	result  = Mod_HL2_LoadVVD(&ctx, vvd, vvdsize, header->revisionid);
+	result &= Mod_HL2_LoadVTX(&ctx, vtx, vtxsize, header->revisionid, (const hl2mdlbody_t*)((const qbyte*)buffer + header->body_ofs));
+	FS_FreeFile(vvd);
+	FS_FreeFile(vtx);
+
+	VectorCopy(header->mins, mod->mins);
+	VectorCopy(header->maxs, mod->maxs);
+
+	mod->type = mod_alias;
+	return result;
+}
+#endif
+
+
+
+
 /*
  +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 	Half-Life Model Renderer (Experimental) Copyright (C) 2001 James 'Ender' Brown [ender@quakesrc.org] This program is
@@ -308,6 +838,17 @@ qboolean QDECL Mod_LoadHLModel (model_t *mod, void *buffer, size_t fsize)
 	hlmdl_bonecontroller_t	*bonectls;
 	void *texmem = NULL;
 
+	header = buffer;
+	if (fsize < 8)
+	{
+		Con_Printf(CON_ERROR "%s - file is truncated\n", mod->name);
+		return false;
+	}
+
+#ifdef MODELFMT_HL2
+	if (header->version >= 44 && header->version <= 48)
+		return Mod_LoadHL2Model(mod, buffer, fsize);
+#endif
 
 	//load the model into hunk
 	model = ZG_Malloc(&mod->memgroup, sizeof(hlmodel_t));

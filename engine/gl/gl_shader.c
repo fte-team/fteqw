@@ -2493,6 +2493,17 @@ static void Shader_HLSL11ProgramName (parsestate_t *ps, const char **ptr)
 	Shader_SLProgramName(shader,pass,ptr,QR_DIRECT3D11);
 }
 
+static void Shaderpass_BlendFunc (parsestate_t *ps, const char **ptr);
+static void Shader_ProgBlendFunc (parsestate_t *ps, const char **ptr)
+{
+	if (ps->s->prog)
+	{
+		ps->pass = ps->s->passes;
+		Shaderpass_BlendFunc(ps, ptr);
+		ps->pass = NULL;
+	}
+}
+
 static void Shader_ReflectCube(parsestate_t *ps, const char **ptr)
 {
 	char *token = Shader_ParseSensString(ptr);
@@ -2851,7 +2862,7 @@ static shaderkey_t shaderkeys[] =
 	{"glslprogram",			Shader_GLSLProgramName,		"fte"},	//for renderers that accept embedded glsl
 	{"hlslprogram",			Shader_HLSL9ProgramName,	"fte"},	//for d3d with embedded hlsl
 	{"hlsl11program",		Shader_HLSL11ProgramName,	"fte"},	//for d3d with embedded hlsl
-//	{"progblendfunc",		Shader_ProgBlendFunc,		"fte"},	//specifies the blend mode (actually just overrides the first subpasses' blendmode.
+	{"progblendfunc",		Shader_ProgBlendFunc,		"fte"},	//specifies the blend mode (actually just overrides the first subpasses' blendmode.
 //	{"progmap",				Shader_ProgMap,				"fte"},	//avoids needing extra subpasses (actually just inserts an extra pass).
 
 	//dp compat
@@ -7287,21 +7298,25 @@ static void Shader_ReadShader(parsestate_t *ps, const char *shadersource, shader
 #ifdef MATERIAL_VMT
 typedef struct
 {
+	char **savefile;
+	char *sourcefile;
 	char type[MAX_QPATH];
+	char normalmap[MAX_QPATH];
 	struct
 	{
 		char name[MAX_QPATH];
 	} tex[5];
 	char envmap[MAX_QPATH];
 	float alphatestref;
+	char *blendfunc;
 	qboolean alphatest;
 	qboolean culldisable;
 	qboolean ignorez;
 	char *replaceblock;
 } vmtstate_t;
 
-static qboolean R_ReadVMT(const char *materialname, vmtstate_t *st);
-static char *R_ParseVMTBlock(const char *fname, vmtstate_t *st, char *line)
+static qboolean VMT_ReadVMT(const char *materialname, vmtstate_t *st);	//this is made more complicated on account of includes allowing recursion
+static char *VMT_ParseBlock(const char *fname, vmtstate_t *st, char *line)
 {	//assumes the open { was already parsed, but will parse the close.
 	char *replace = NULL;
 	com_tokentype_t ttype;
@@ -7321,7 +7336,7 @@ static char *R_ParseVMTBlock(const char *fname, vmtstate_t *st, char *line)
 				replace = line;
 			else
 				Con_DPrintf("%s: Unknown block \"%s\"\n", fname, key);
-			line = R_ParseVMTBlock(fname, NULL, line);
+			line = VMT_ParseBlock(fname, NULL, line);
 			continue;
 		}
 
@@ -7348,7 +7363,7 @@ static char *R_ParseVMTBlock(const char *fname, vmtstate_t *st, char *line)
 			;
 		else if (!Q_strcasecmp(key, "include"))
 		{
-			if (!R_ReadVMT(value, st))
+			if (!VMT_ReadVMT(value, st))
 				return NULL;
 		}
 		else if (!Q_strcasecmp(key, "$basetexture") || !Q_strcasecmp(key, "$hdrbasetexture"))	//fixme: hdr version should probably override the other. order matters.
@@ -7387,9 +7402,16 @@ static char *R_ParseVMTBlock(const char *fname, vmtstate_t *st, char *line)
 			Con_DPrintf("%s: %s \"%s\"\n", fname, key, value);
 		}
 		else if (!Q_strcasecmp(key, "$translucent"))
-			Con_DPrintf("%s: %s \"%s\"\n", fname, key, value);
+		{
+			if (atoi(value))
+				st->blendfunc = "src_alpha one_minus_src_alpha\n";
+		}
 		else if (!Q_strcasecmp(key, "$additive"))
+		{
+			if (atoi(value))
+				st->blendfunc = "src_one one_minus_src_alpha\n";
 			Con_DPrintf("%s: %s \"%s\"\n", fname, key, value);
+		}
 		else if (!Q_strcasecmp(key, "$color"))
 			Con_DPrintf("%s: %s \"%s\"\n", fname, key, value);
 		else if (!Q_strcasecmp(key, "$vertexcolor"))
@@ -7470,7 +7492,10 @@ static char *R_ParseVMTBlock(const char *fname, vmtstate_t *st, char *line)
 		else if (!Q_strcasecmp(key, "$maxreflectivity"))
 			Con_DPrintf("%s: %s \"%s\"\n", fname, key, value);
 		else if (!Q_strcasecmp(key, "$normalmap"))
+		{
+			Q_strncpyz(st->normalmap, value, sizeof(st->normalmap));
 			Con_DPrintf("%s: %s \"%s\"\n", fname, key, value);
+		}
 		else if (!Q_strcasecmp(key, "$bumpframe"))
 			Con_DPrintf("%s: %s \"%s\"\n", fname, key, value);
 		else if (!Q_strcasecmp(key, "$fogenable"))
@@ -7502,45 +7527,80 @@ static char *R_ParseVMTBlock(const char *fname, vmtstate_t *st, char *line)
 			Con_Printf("%s: Unknown field \"%s\"\n", fname, key);
 	}
 	if (replace)
-		R_ParseVMTBlock(fname, st, replace);
+		VMT_ParseBlock(fname, st, replace);
 	return line;
 }
 static void Shader_GenerateFromVMT(parsestate_t *ps, vmtstate_t *st, const char *shortname)
 {
 	size_t offset = 0;
 	char script[8192];
-	if (!*st->tex[0].name)
+	char *progargs = "";
+	if (!*st->tex[0].name)	//fill in a default...
 		Q_strncpyz(st->tex[0].name, shortname, sizeof(st->tex[0].name));
 
-	//Q_strlcatfz(script, &offset, sizeof(script), "{\n");
+	if (st->alphatest)
+		progargs = "#MASK=0.5#MASKLT";	//alphamask has to be handled by glsl (when glsl is used)
+
+	Q_strlcatfz(script, &offset, sizeof(script), "\n");
 	if (!Q_strcasecmp(st->type, "WorldVertexTransition"))
 	{	//attempt to do terrain blending
 		Q_strncpyz(st->type, "defaultwall#TWOWAY", sizeof(st->type));
-		Q_strlcatfz(script, &offset, sizeof(script),	"program \"%s\"\n", st->type);
-		Q_strlcatfz(script, &offset, sizeof(script),	"diffusemap \"%s%s.vtf\"\n", strcmp(st->tex[0].name, "materials/")?"materials/":"", st->tex[0].name);
-		Q_strlcatfz(script, &offset, sizeof(script),	"uppermap \"%s%s.vtf\"\n", strcmp(st->tex[1].name, "materials/")?"materials/":"", st->tex[1].name);
+		Q_strlcatfz(script, &offset, sizeof(script),	"\tprogram \"%s%s\"\n", st->type, progargs);
+		Q_strlcatfz(script, &offset, sizeof(script),	"\tdiffusemap \"%s%s.vtf\"\n", strcmp(st->tex[0].name, "materials/")?"materials/":"", st->tex[0].name);
+		Q_strlcatfz(script, &offset, sizeof(script),	"\tuppermap \"%s%s.vtf\"\n", strcmp(st->tex[1].name, "materials/")?"materials/":"", st->tex[1].name);
+	}
+	else if (!Q_strcasecmp(st->type, "Water"))
+	{
+		Q_strlcatfz(script, &offset, sizeof(script),
+			"\t{\n"
+				"\tprogram \"altwater%s#FRESNEL=4\"\n"
+				"\t\tmap $refraction\n"
+				"\t\tmap $null\n"
+				"\t\tmap $null\n"//$ripplemap
+				"\t\tmap $null\n"//$refractiondepth
+			"\t}\n", progargs);
+		Q_strlcatfz(script, &offset, sizeof(script),	"\tdiffusemap \"%s%s.vtf\"\n", strcmp(st->tex[0].name, "materials/")?"materials/":"", st->tex[0].name);
+		Q_strlcatfz(script, &offset, sizeof(script),	"\tnormalmap \"%s%s.vtf\"\n", strcmp(st->normalmap, "materials/")?"materials/":"", st->normalmap);
 	}
 	else
 	{
 		Q_strncpyz(st->type, "defaultwall", sizeof(st->type));	//FIXME
 
-		Q_strlcatfz(script, &offset, sizeof(script),	"program \"%s\"\n", st->type);
-		Q_strlcatfz(script, &offset, sizeof(script),	"diffusemap \"%s%s.vtf\"\n", strcmp(st->tex[0].name, "materials/")?"materials/":"", st->tex[0].name);
+		Q_strlcatfz(script, &offset, sizeof(script),	"\tprogram \"%s%s\"\n", st->type, progargs);
+		Q_strlcatfz(script, &offset, sizeof(script),	"\tdiffusemap \"%s%s.vtf\"\n", strcmp(st->tex[0].name, "materials/")?"materials/":"", st->tex[0].name);
 	}
 	if (*st->envmap)
-		Q_strlcatfz(script, &offset, sizeof(script),	"reflectcube \"%s%s.vtf\"\n", strcmp(st->envmap, "materials/")?"materials/":"", st->envmap);
+		Q_strlcatfz(script, &offset, sizeof(script),	"\treflectcube \"%s%s.vtf\"\n", strcmp(st->envmap, "materials/")?"materials/":"", st->envmap);
 	if (st->alphatest)
-		Q_strlcatfz(script, &offset, sizeof(script), "alphatest ge128\n");
+		Q_strlcatfz(script, &offset, sizeof(script), "\talphatest ge128\n");
 	if (st->culldisable)
-		Q_strlcatfz(script, &offset, sizeof(script), "cull disable\n");
+		Q_strlcatfz(script, &offset, sizeof(script), "\tcull disable\n");
 	if (st->ignorez)
-		Q_strlcatfz(script, &offset, sizeof(script), "nodepth\n");
+		Q_strlcatfz(script, &offset, sizeof(script), "\tnodepth\n");
+	if (st->blendfunc)
+		Q_strlcatfz(script, &offset, sizeof(script), "\tprogblendfunc %s\n", st->blendfunc);
 	Q_strlcatfz(script, &offset, sizeof(script), "}\n");
 
 	Shader_Reset(ps->s);
 	Shader_ReadShader(ps, script, NULL);
+
+	if (st->sourcefile)
+	{	//cat the original file on there...
+		if (st->savefile)
+		{
+			char *winsucks;	//strip any '\r' chars in there that like to show as ugly glyphs.
+			for (winsucks = st->sourcefile; *winsucks; winsucks++)
+				if (*winsucks=='\r')
+					*winsucks = ' ';
+
+			Z_StrCat(st->savefile, "\n/*\n");
+			Z_StrCat(st->savefile, st->sourcefile);
+			Z_StrCat(st->savefile, "*/");
+		}
+		BZ_Free(st->sourcefile);
+	}
 }
-static qboolean R_ReadVMT(const char *fname, vmtstate_t *st)
+static qboolean VMT_ReadVMT(const char *fname, vmtstate_t *st)
 {
 	char *line, *file = NULL;
 	com_tokentype_t ttype;
@@ -7557,26 +7617,42 @@ static qboolean R_ReadVMT(const char *fname, vmtstate_t *st)
 	file = FS_LoadMallocFile(token, NULL);
 	if (file)
 	{
+		if (st->savefile)
+		{
+			if (st->sourcefile)
+			{
+				Z_StrCat(&st->sourcefile, fname);
+				Z_StrCat(&st->sourcefile, ":\n");
+				Z_StrCat(&st->sourcefile, file);
+			}
+			else
+				st->sourcefile = Z_StrDup(file);
+		}
+
 		line = file;
 		line = COM_ParseType(line, st->type, sizeof(st->type), &ttype);
 		line = COM_ParseType(line, token, sizeof(token), &ttype);
 		if (!strcmp(token, "{"))
 		{
-			line = R_ParseVMTBlock(fname, st, line);
+			line = VMT_ParseBlock(fname, st, line);
 		}
-
 
 		BZ_Free(file);
 		return !!line;
 	}
 	return false;
 }
-static qboolean Shader_ReadVMT(parsestate_t *ps, const char *filename)
+static qboolean Shader_LoadVMT(parsestate_t *ps, const char *filename)
 {
 	vmtstate_t st;
 	memset(&st, 0, sizeof(st));
-	if (!R_ReadVMT(filename, &st))
+	st.savefile = ps->saveshaderbody;
+	if (!VMT_ReadVMT(filename, &st))
+	{
+		if (st.sourcefile)
+			BZ_Free(st.sourcefile);
 		return false;
+	}
 
 	Shader_GenerateFromVMT(ps, &st, filename);
 	return true;
@@ -7601,7 +7677,7 @@ static qboolean Shader_ParseShader(parsestate_t *ps, const char *parsename)
 			if (!*token)
 			{
 #ifdef MATERIAL_VMT
-				if (Shader_ReadVMT(ps, parsename))
+				if (Shader_LoadVMT(ps, parsename))
 					return true;
 #endif
 

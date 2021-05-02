@@ -1596,6 +1596,17 @@ static void Surf_BuildLightMap (model_t *model, msurface_t *surf, int map, int s
 		if (surf->dlightframe == r_dlightframecount)
 			Surf_AddDynamicLights_RGB (surf);
 
+#ifdef HL2BSPS
+		if (model->fromgame == fg_halflife2)
+			for (i=0 ; i<size*3 ; i++)
+			{
+				int t = M_LinearToSRGB(blocklights[i], (256<<7)-1);
+				if (t < 0)
+					t = 0;
+				blocklights[i] = t;
+			}
+#endif
+
 		Surf_StoreLightmap_RGB(dest, blocklights, smax, tmax, shift, stainsrc, lm);
 	}
 	else
@@ -1716,6 +1727,16 @@ static void Surf_BuildLightMap (model_t *model, msurface_t *surf, int map, int s
 				Surf_AddDynamicLights_Lum (surf);
 		}
 
+#ifdef HL2BSPS
+		if (model->fromgame == fg_halflife2)
+			for (i=0 ; i<size ; i++)
+			{
+				int t = M_LinearToSRGB(blocklights[i], (256<<7)-1);
+				if (t < 0)
+					t = 0;
+				blocklights[i] = t;
+			}
+#endif
 		Surf_StoreLightmap_Lum(dest, blocklights, smax, tmax, shift, stainsrc, lm->width);
 	}
 }
@@ -1931,6 +1952,17 @@ static void Surf_BuildLightMap_Worker (model_t *wmodel, msurface_t *surf, int sh
 		if (!r_stains.value || !surf->stained)
 			stainsrc = NULL;
 
+#ifdef HL2BSPS
+		if (wmodel->fromgame == fg_halflife2)
+			for (i=0 ; i<size*3 ; i++)
+			{
+				int t = M_LinearToSRGB(blocklights[i], (256<<7)-1);
+				if (t < 0)
+					t = 0;
+				blocklights[i] = t;
+			}
+#endif
+
 		Surf_StoreLightmap_RGB(dest, blocklights, smax, tmax, shift, stainsrc, lm);
 	}
 	else
@@ -2021,6 +2053,16 @@ static void Surf_BuildLightMap_Worker (model_t *wmodel, msurface_t *surf, int sh
 			}
 		}
 
+#ifdef HL2BSPS
+		if (wmodel->fromgame == fg_halflife2)
+			for (i=0 ; i<size ; i++)
+			{
+				int t = M_LinearToSRGB(blocklights[i], (256<<7)-1);
+				if (t < 0)
+					t = 0;
+				blocklights[i] = t;
+			}
+#endif
 		Surf_StoreLightmap_Lum(dest, blocklights, smax, tmax, shift, stainsrc, lm->width);
 	}
 
@@ -4314,6 +4356,9 @@ uploadfmt_t Surf_LightmapMode(model_t *model)
 			{
 #ifdef HL2BSPS
 			case LM_E8BGR8:
+				//hdr SHOULD be true, but that doesn't match hl2, and there's a few areas with lightmaps that are set FAR too bright.
+				rgb = true;
+				break;
 #endif
 			case LM_E5BGR9:
 				hdr = rgb = true;

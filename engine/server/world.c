@@ -1090,7 +1090,7 @@ void Q23BSP_FindTouchedLeafs(model_t *model, struct pvscache_s *ent, const float
 	int			topnode;
 	int i, j;
 	int			area;
-	int nullarea = (model->fromgame == fg_quake2)?0:-1;
+	int nullarea = (model->fromgame != fg_quake3)?0:-1;	//q2 always has area0, while q3 defines the outside as not-an-area.
 
 	//ent->num_leafs == q2's ent->num_clusters
 	ent->num_leafs = 0;

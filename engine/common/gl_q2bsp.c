@@ -8367,7 +8367,7 @@ unsigned int Q23BSP_FatPVS(model_t *mod, const vec3_t org, pvsbuffer_t *fte_rest
 qboolean Q23BSP_EdictInFatPVS(model_t *mod, const pvscache_t *ent, const qbyte *pvs, const int *areas)
 {
 	int i,l;
-	int nullarea = (mod->fromgame != fg_quake3)?-1:0;
+	int nullarea = (mod->fromgame != fg_quake3)?0:-1;
 	if (areas)
 	{
 		for (i = 1; ; i++)
@@ -8565,10 +8565,11 @@ int CM_WriteAreaBits (model_t *mod, qbyte *buffer, int area, qboolean merge)
 	int		i;
 	int		floodnum;
 	int		bytes;
+	int		nullarea = (mod->fromgame != fg_quake3)?0:-1;
 
 	bytes = (prv->numareas+7)>>3;
 
-	if (map_noareas.value || (area < 0 && !merge))
+	if (map_noareas.value || (area == nullarea && !merge))
 	{	// for debugging, send everything
 		if (!merge)
 			memset (buffer, 255, bytes);
@@ -8581,7 +8582,7 @@ int CM_WriteAreaBits (model_t *mod, qbyte *buffer, int area, qboolean merge)
 		floodnum = prv->areaflood[area].floodnum;
 		for (i=0 ; i<prv->numareas ; i++)
 		{
-			if (prv->areaflood[i].floodnum == floodnum || !area)
+			if (prv->areaflood[i].floodnum == floodnum)
 				buffer[i>>3] |= 1<<(i&7);
 		}
 	}

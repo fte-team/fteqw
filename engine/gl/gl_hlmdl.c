@@ -525,6 +525,7 @@ qboolean QDECL Mod_LoadHL2Model (model_t *mod, const void *buffer, size_t fsize)
 
 	VectorCopy(header->mins, mod->mins);
 	VectorCopy(header->maxs, mod->maxs);
+	mod->radius = RadiusFromBounds(mod->mins, mod->maxs);
 
 	mod->type = mod_alias;
 	return result;

@@ -5631,6 +5631,8 @@ static qboolean CModHL2_LoadStaticProps(model_t *mod, qbyte *offset, size_t size
 		ent->model = Mod_FindName(modelref[modelindex].name);
 		AngleVectorsFLU(ent->angles, ent->axis[0], ent->axis[1], ent->axis[2]);
 
+		//Hack: special value to flag it for linking once we've loaded its model. this needs to go when we make them solid.
+		ent->pvscache.num_leafs = -2;
 		//Hack: lighting is wrong.
 		ent->light_known = 1;
 		VectorSet(ent->light_dir, 0, 0.707, 0.707);

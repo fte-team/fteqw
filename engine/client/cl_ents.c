@@ -3422,6 +3422,16 @@ void CL_LinkStaticEntities(void *pvs, int *areas)
 			}
 			if (!src->light_known)
 				R_CalcModelLighting(src, src->model);	//bake and cache, now everything else is working.
+			if (src->pvscache.num_leafs==-2)
+			{
+				vec3_t absmin, absmax;
+				float r = src->model->radius;
+				VectorSet(absmin, -r,-r,-r);
+				VectorSet(absmax, r,r,r);
+				VectorAdd(absmin, src->origin, absmin);
+				VectorAdd(absmax, src->origin, absmax);
+				cl.worldmodel->funcs.FindTouchedLeafs(cl.worldmodel, &src->pvscache, absmin, absmax);
+			}
 
 			ent = &cl_visedicts[cl_numvisedicts++];
 			*ent = *src;

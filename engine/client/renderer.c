@@ -2759,7 +2759,7 @@ qbyte *R_MarkLeaves_Q2 (void)
 		vis = cvis[portal] = r_refdef.forcedvis;
 
 		r_oldviewcluster = -1;
-		r_oldviewcluster2 = -1;
+		r_oldviewcluster2 = -2;
 	}
 	else
 	{
@@ -2775,7 +2775,7 @@ qbyte *R_MarkLeaves_Q2 (void)
 		else
 		{
 			r_oldviewcluster = -1;
-			r_oldviewcluster2 = -1;
+			r_oldviewcluster2 = -2;
 		}
 
 		if (r_novis.ival == 2)
@@ -2784,6 +2784,7 @@ qbyte *R_MarkLeaves_Q2 (void)
 		if (r_novis.ival || r_viewcluster == -1 || !cl.worldmodel->vis)
 		{
 			// mark everything
+			r_visframecount++;
 			for (i=0 ; i<cl.worldmodel->numleafs ; i++)
 				cl.worldmodel->leafs[i].visframe = r_visframecount;
 			for (i=0 ; i<cl.worldmodel->numnodes ; i++)

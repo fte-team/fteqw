@@ -43,11 +43,11 @@ typedef struct
 	unsigned int _200;
 	unsigned int tex_count;
 	unsigned int tex_ofs;
-	unsigned int tex2_count;
-	unsigned int tex2_ofs;
-	unsigned int _220;
-	unsigned int _224;
-	unsigned int _228;
+	unsigned int texpath_count;
+	unsigned int texpath_ofs;
+	unsigned int texbind_count;	//N slots per skin
+	unsigned int skin_count;
+	unsigned int texbind_offset;//provides skin|slot->texture mappings
 	unsigned int body_count;
 	unsigned int body_ofs;
 	//other stuff?
@@ -66,7 +66,7 @@ typedef struct
 	unsigned int radius;
 	unsigned int mesh_count;
 	unsigned int mesh_ofs;
-	unsigned int _80;
+	unsigned int vertex_count;
 	unsigned int _84;
 	unsigned int _88;
 	unsigned int _92;
@@ -116,6 +116,29 @@ typedef struct
 	unsigned int _108;
 	unsigned int _112;
 } hl2mdlmesh_t;
+typedef struct
+{
+	unsigned int nameofs;
+	unsigned int _4;
+	unsigned int _8;
+	unsigned int _12;
+	unsigned int _16;
+	unsigned int _20;
+	unsigned int _24;
+	unsigned int _28;
+	unsigned int _32;
+	unsigned int _36;
+	unsigned int _40;
+	unsigned int _44;
+	unsigned int _48;
+	unsigned int _52;
+	unsigned int _56;
+	unsigned int _60;
+} hl2mdltexture_t;
+typedef struct
+{
+	unsigned int nameofs;
+} hl2mdltexturepath_t;
 #pragma pack(push,1)	//urgh wtf is this bullshit
 typedef struct
 {
@@ -227,20 +250,23 @@ typedef struct
 typedef struct
 {
 	model_t *mod;
+
+	unsigned numverts;
+	vec2_t *ofs_st_array;
+	vecV_t *ofs_skel_xyz;
+	vec3_t *ofs_skel_norm;
+	vec3_t *ofs_skel_svect;
+	vec3_t *ofs_skel_tvect;
+//	byte_vec4_t *ofs_skel_idx;
+//	vec4_t *ofs_skel_weight;
 	struct
 	{
-		unsigned numverts;
-		vec2_t *ofs_st_array;
-		vecV_t *ofs_skel_xyz;
-		vec3_t *ofs_skel_norm;
-		vec3_t *ofs_skel_svect;
-		vec3_t *ofs_skel_tvect;
-//		byte_vec4_t *ofs_skel_idx;
-//		vec4_t *ofs_skel_weight;
+		unsigned int numfixups;
+		index_t *fixup;
 	} lod[1];	//must remain at 1 (instead of 8) until fixups are handled.
 } hl2parsecontext_t;
 
-static index_t *Mod_HL2_LoadIndexes(hl2parsecontext_t *ctx, unsigned int *idxcount, const hl2vtxmesh_t *vmesh, index_t firstindex)
+static index_t *Mod_HL2_LoadIndexes(hl2parsecontext_t *ctx, unsigned int *idxcount, const hl2vtxmesh_t *vmesh, unsigned int lod, index_t firstindex)
 {
 	size_t numidx = 0, g;
 	const hl2vtxstripg_t *vg;
@@ -249,16 +275,12 @@ static index_t *Mod_HL2_LoadIndexes(hl2parsecontext_t *ctx, unsigned int *idxcou
 	vg = (const void*)((const qbyte*)vmesh+vmesh->stripg_ofs);
 	for (g = 0; g < vmesh->stripg_count; g++, vg++)
 	{
-#if 1
 		if (vg->idx_count%3)
 		{
 			*idxcount = 0;
 			return NULL;
 		}
 		numidx += vg->idx_count;
-#else
-		numidx += (vg->idx_count-2)*3;
-#endif
 	}
 
 	ret = idx = ZG_Malloc(&ctx->mod->memgroup, sizeof(*idx)*numidx);
@@ -269,41 +291,30 @@ static index_t *Mod_HL2_LoadIndexes(hl2parsecontext_t *ctx, unsigned int *idxcou
 		const unsigned short *in = (const void*)((const qbyte*)vg+vg->idx_ofs);
 		const unsigned short *e = in+vg->idx_count;
 		const hl2vtxvert_t *v = (const void*)((const qbyte*)vg+vg->vert_ofs);
-#if 1
-		for(;;)
+		if (ctx->lod[lod].numfixups)
 		{
-			if (in == e)
-				break;
-			*idx++ = v[*in++].vert+firstindex;
-		}
-#else
-		unsigned int flip=0;
-		index_t f, l;
-		f = v[*in++].vert;
-		l = v[*in++].vert;
-		for(;;)
-		{
-			if (in == e)
-				break;
-			if (flip++&1)
-			{	//every other index wants the previous two verts flipped.
-				*idx++ = l;
-				*idx++ = f;
-			}
-			else
+			index_t *fixup = ctx->lod[lod].fixup;
+			for(;;)
 			{
-				*idx++ = f;
-				*idx++ = l;
+				if (in == e)
+					break;
+				*idx++ = fixup[v[*in++].vert+firstindex];
 			}
-			f = l;
-			*idx++ = l = v[*in++].vert;
 		}
-#endif
+		else
+		{
+			for(;;)
+			{
+				if (in == e)
+					break;
+				*idx++ = v[*in++].vert+firstindex;
+			}
+		}
 	}
 	*idxcount = idx-ret;
 	return ret;
 }
-static qboolean Mod_HL2_LoadVTX(hl2parsecontext_t *ctx, const void *buffer, size_t fsize, unsigned int rev, const hl2mdlbody_t *mbody)
+static qboolean Mod_HL2_LoadVTX(hl2parsecontext_t *ctx, const void *buffer, size_t fsize, unsigned int rev, const hl2mdlheader_t *mdl)
 {	//horribly overcomplicated way to express this stuff.
 	size_t totalsurfs = 0, b, s, l, m, t;
 	const hl2vtxheader_t *header = buffer;
@@ -311,12 +322,17 @@ static qboolean Mod_HL2_LoadVTX(hl2parsecontext_t *ctx, const void *buffer, size
 	const hl2vtxsurf_t *vsurf;
 	const hl2vtxlod_t *vlod;
 	const hl2vtxmesh_t *vmesh;
-	const hl2vtxskins_t *vskins;
-	const hl2vtxskin_t *vskin;
+//	const hl2vtxskins_t *vskins;
+//	const hl2vtxskin_t *vskin;
+
+	const hl2mdlbody_t *mbody = (const hl2mdlbody_t*)((const qbyte*)mdl + mdl->body_ofs);
+	const hl2mdltexture_t *mtex = (const hl2mdltexture_t*)((const qbyte*)mdl + mdl->tex_ofs);
+	const unsigned short *skinbind;
 
 	galiasinfo_t *surf=NULL;
 	galiasskin_t *skin;
 	skinframe_t *skinframe;
+	size_t firstvert = 0;
 
 	if (fsize < sizeof(*header) || header->version != 7 || header->revisionid != rev || header->body_count == 0)
 		return false;
@@ -338,35 +354,34 @@ static qboolean Mod_HL2_LoadVTX(hl2parsecontext_t *ctx, const void *buffer, size
 
 	ctx->mod->meshinfo = surf = ZG_Malloc(&ctx->mod->memgroup, sizeof(*surf)*totalsurfs);
 
-	vskins = (const hl2vtxskins_t*)((const qbyte*)header + header->texreplacements_offset);
-	for (l = 0, t=0; l < min(header->lod_count, countof(ctx->lod)); l++)
-		t += max(1,vskins[l].numskins);
+	t = mdl->skin_count*mdl->texbind_count;
+	skinbind = (const unsigned short*)((const qbyte*)mdl+mdl->texbind_offset);
 	skin = ZG_Malloc(&ctx->mod->memgroup, sizeof(*skin)*t + sizeof(*skinframe)*t);
 	skinframe = (skinframe_t*)(skin+t);
-	for (l = 0, t=0; l < min(header->lod_count, countof(ctx->lod)); l++, vskins++)
+	for (s = 0; s < mdl->skin_count; s++)
+	for (t = 0; t < mdl->texbind_count; t++)
 	{
-		vskin = (const hl2vtxskin_t*)((const qbyte*)vskins+vskins->offsetskin);
-		for (s = 0; s < vskins->numskins; s++, vskin++)
-		{
-			Q_strncpyz(skin[t].name, (const qbyte*)vskin + vskin->offsetskinname, sizeof(skin[t].name));
-			Q_strncpyz(skinframe->shadername, (const qbyte*)vskin + vskin->offsetskinname, sizeof(skinframe->shadername));
-			skin[t].numframes = 1;
-			skin[t].skinspeed = 10;
-			skin[t].frame = skinframe;
-			skinframe++;
-			t++;
-		}
+		galiasskin_t *ns = &skin[s + t*mdl->skin_count];
+		Q_snprintfz(ns->name, sizeof(ns->name), "skin%u %u", (unsigned)s, (unsigned)t);
 
-		if (!s)
-		{	//make sure there's at least one skin...
-			Q_strncpyz(skin[t].name, "", sizeof(skin[t].name));
-			Q_strncpyz(skinframe->shadername, "", sizeof(skinframe->shadername));
-			skin[t].numframes = 1;
-			skin[t].skinspeed = 10;
-			skin[t].frame = skinframe;
-			skinframe++;
-			t++;
+		m = *skinbind++;
+		if (mdl->texpath_count)
+		{
+			const hl2mdltexturepath_t *mpath = (const hl2mdltexturepath_t*)((const qbyte*)mdl + mdl->texpath_ofs);
+			Q_strncpyz(skinframe->shadername, (const char*)mdl+mpath->nameofs, sizeof(skinframe->shadername));
 		}
+		else
+		{
+			COM_StripExtension((const char*)ctx->mod->name, skinframe->shadername, sizeof(skinframe->shadername));
+			Q_strncatz(skinframe->shadername, "/", sizeof(skinframe->shadername));
+		}
+		Q_strncatz(skinframe->shadername, (const char*)&mtex[m]+mtex[m].nameofs, sizeof(skinframe->shadername));
+		Q_strncatz(skinframe->shadername, ".vmt", sizeof(skinframe->shadername));
+
+		ns->numframes = 1;	//no skingroups... not that kind anyway.
+		ns->skinspeed = 10;
+		ns->frame = skinframe;
+		skinframe++;
 	}
 
 	vbody = (const void*)((const qbyte*)header + header->body_ofs);
@@ -377,14 +392,14 @@ static qboolean Mod_HL2_LoadVTX(hl2parsecontext_t *ctx, const void *buffer, size
 		for (s = 0; s < vbody->surf_count; s++, vsurf++, msurf++)
 		{
 			vlod = (const void*)((const qbyte*)vsurf + vsurf->lod_ofs);
-			vskins = (const hl2vtxskins_t*)((const qbyte*)header + header->texreplacements_offset);
-			for (l = 0, t = 0; l < min(vsurf->lod_count, countof(ctx->lod)); l++, vlod++, vskins++)
+//			vskins = (const hl2vtxskins_t*)((const qbyte*)header + header->texreplacements_offset);
+			for (l = 0, t = 0; l < min(vsurf->lod_count, countof(ctx->lod)); l++, vlod++/*, vskins++*/)
 			{
 				const hl2mdlmesh_t *mmesh = (const hl2mdlmesh_t*)((const qbyte*)msurf + msurf->mesh_ofs);
 				vmesh = (const void*)((const qbyte*)vlod + vlod->mesh_ofs);
 				for (m = 0; m < vlod->mesh_count; m++, vmesh++, mmesh++)
 				{
-					Q_snprintfz(surf->surfacename, sizeof(surf->surfacename), "b%u_s%u_l%u_m%u", (unsigned)b, (unsigned)s, (unsigned)l, (unsigned)m);
+					Q_snprintfz(surf->surfacename, sizeof(surf->surfacename), "%s:%s:l%u:m%u", (const char*)mbody+mbody->name_ofs, msurf->name, (unsigned)l, (unsigned)m);
 
 					/*animation info*/
 					surf->shares_bones = 0;
@@ -395,28 +410,28 @@ static qboolean Mod_HL2_LoadVTX(hl2parsecontext_t *ctx, const void *buffer, size
 
 					#ifndef SERVERONLY
 					/*skin data*/
-					surf->numskins = (l<header->lod_count)?max(1,vskins->numskins):0;
-					surf->ofsskins = skin+t;
+					surf->numskins = mdl->skin_count;
+					surf->ofsskins = skin+mmesh->mat_idx*mdl->skin_count;
 
 					/*vertdata*/
 					surf->ofs_rgbaf = NULL;
 					surf->ofs_rgbaub = NULL;
-					surf->ofs_st_array = ctx->lod[l].ofs_st_array;
+					surf->ofs_st_array = ctx->ofs_st_array;
 					#endif
-					surf->shares_verts = l;//surf-(galiasinfo_t*)ctx->mod->meshinfo;
-					surf->numverts = ctx->lod[l].numverts;
-					surf->ofs_skel_xyz = ctx->lod[l].ofs_skel_xyz;
-					surf->ofs_skel_norm = ctx->lod[l].ofs_skel_norm;
-					surf->ofs_skel_svect = ctx->lod[l].ofs_skel_svect;
-					surf->ofs_skel_tvect = ctx->lod[l].ofs_skel_tvect;
-					//surf->ofs_skel_idx = ctx->lod[l].ofs_skel_idx;
-					//surf->ofs_skel_weight = ctx->lod[l].ofs_skel_weight;
+					surf->shares_verts = 0;
+					surf->numverts = ctx->numverts;
+					surf->ofs_skel_xyz = ctx->ofs_skel_xyz;
+					surf->ofs_skel_norm = ctx->ofs_skel_norm;
+					surf->ofs_skel_svect = ctx->ofs_skel_svect;
+					surf->ofs_skel_tvect = ctx->ofs_skel_tvect;
+					//surf->ofs_skel_idx = ctx->ofs_skel_idx;
+					//surf->ofs_skel_weight = ctx->ofs_skel_weight;
 
 					/*index data*/
 					if (mmesh->vert_first+mmesh->vert_count > surf->numverts)
 						surf->ofs_indexes = NULL, surf->numindexes = 0;	//erk?
 					else
-						surf->ofs_indexes = Mod_HL2_LoadIndexes(ctx, &surf->numindexes, vmesh, mmesh->vert_first);
+						surf->ofs_indexes = Mod_HL2_LoadIndexes(ctx, &surf->numindexes, vmesh, l, firstvert+mmesh->vert_first);
 
 					/*misc data*/
 					surf->geomset = 0;
@@ -432,16 +447,13 @@ static qboolean Mod_HL2_LoadVTX(hl2parsecontext_t *ctx, const void *buffer, size
 					surf->nextsurf = NULL;
 					surf++;
 				}
-				t += (l<header->lod_count)?max(1,vskins->numskins):0;
 			}
+			firstvert += msurf->vertex_count;
 		}
 	}
 
 	if (surf == ctx->mod->meshinfo)
 		return false;
-
-	if (surf-1 != ctx->mod->meshinfo)
-		return false;	//FIXME: multiple-surface meshes screw up some how.
 
 	return true;
 }
@@ -454,14 +466,13 @@ static qboolean Mod_HL2_LoadVVD(hl2parsecontext_t *ctx, const void *buffer, size
 	if (fsize < sizeof(*header) || header->magic != (('I'<<0)|('D'<<8)|('S'<<16)|('V'<<24)) || header->version != 4 || header->revisionid != rev || header->lodverts_count[0] == 0)
 		return false;
 
-	for (lod = 0; lod < countof(ctx->lod) && lod < header->lod_count; lod++)
 	{
-		size_t v, numverts = ctx->lod[lod].numverts = header->lodverts_count[lod];
-		vec2_t *st = ctx->lod[lod].ofs_st_array = ZG_Malloc(&ctx->mod->memgroup, sizeof(*st)*numverts);
-		vecV_t *xyz = ctx->lod[lod].ofs_skel_xyz = ZG_Malloc(&ctx->mod->memgroup, sizeof(*xyz)*numverts);
-		vec3_t *norm = ctx->lod[lod].ofs_skel_norm = ZG_Malloc(&ctx->mod->memgroup, sizeof(*norm)*numverts);
-		vec3_t *sdir = ctx->lod[lod].ofs_skel_svect = ZG_Malloc(&ctx->mod->memgroup, sizeof(*sdir)*numverts);
-		vec3_t *tdir = ctx->lod[lod].ofs_skel_tvect = ZG_Malloc(&ctx->mod->memgroup, sizeof(*tdir)*numverts);
+		size_t v, numverts = ctx->numverts = header->lodverts_count[0];
+		vec2_t *st = ctx->ofs_st_array = ZG_Malloc(&ctx->mod->memgroup, sizeof(*st)*numverts);
+		vecV_t *xyz = ctx->ofs_skel_xyz = ZG_Malloc(&ctx->mod->memgroup, sizeof(*xyz)*numverts);
+		vec3_t *norm = ctx->ofs_skel_norm = ZG_Malloc(&ctx->mod->memgroup, sizeof(*norm)*numverts);
+		vec3_t *sdir = ctx->ofs_skel_svect = ZG_Malloc(&ctx->mod->memgroup, sizeof(*sdir)*numverts);
+		vec3_t *tdir = ctx->ofs_skel_tvect = ZG_Malloc(&ctx->mod->memgroup, sizeof(*tdir)*numverts);
 //		byte_vec4_t *bone = ctx->lod[lod].ofs_skel_idx = ZG_Malloc(&ctx->mod->memgroup, sizeof(*bone)*numverts);
 //		vec4_t *weight = ctx->lod[lod].ofs_skel_weight = ZG_Malloc(&ctx->mod->memgroup, sizeof(*weight)*numverts);
 
@@ -482,6 +493,31 @@ static qboolean Mod_HL2_LoadVVD(hl2parsecontext_t *ctx, const void *buffer, size
 			VectorCopy((*it), sdir[v]);
 			CrossProduct(in->norm, (*it), tdir[v]);
 			VectorScale(tdir[v], (*it)[3], tdir[v]);
+		}
+	}
+
+	if (header->fixups_count)
+	{
+		size_t fixups = header->fixups_count, f, v;
+		const hl2vvdfixup_t *fixup = (const hl2vvdfixup_t*)((const qbyte*)header+header->fixups_offset);
+		for (lod = 0; lod < countof(ctx->lod) && lod < header->lod_count; lod++)
+		{
+			size_t numverts;
+			for (numverts=0, f = 0; f < fixups; f++)
+			{
+				if (fixup[f].lod >= lod)
+					numverts += fixup[f].numverts;
+			}
+			if (numverts != header->lodverts_count[lod])
+				continue;
+			ctx->lod[lod].numfixups = numverts;
+			ctx->lod[lod].fixup = ZG_Malloc(&ctx->mod->memgroup, sizeof(index_t)*numverts);
+			for (numverts=0, f = 0; f < fixups; f++)
+			{
+				if (fixup[f].lod >= lod)
+					for (v = 0; v < fixup[f].numverts; v++)
+						ctx->lod[lod].fixup[numverts++] = fixup[f].sourcevert+v;
+			}
 		}
 	}
 	return true;
@@ -519,7 +555,7 @@ qboolean QDECL Mod_LoadHL2Model (model_t *mod, const void *buffer, size_t fsize)
 	}
 
 	result  = Mod_HL2_LoadVVD(&ctx, vvd, vvdsize, header->revisionid);
-	result &= Mod_HL2_LoadVTX(&ctx, vtx, vtxsize, header->revisionid, (const hl2mdlbody_t*)((const qbyte*)buffer + header->body_ofs));
+	result &= Mod_HL2_LoadVTX(&ctx, vtx, vtxsize, header->revisionid, header);
 	FS_FreeFile(vvd);
 	FS_FreeFile(vtx);
 

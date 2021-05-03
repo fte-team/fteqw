@@ -1739,7 +1739,11 @@ qboolean Alias_GAliasBuildMesh(mesh_t *mesh, vbo_t **vbop, galiasinfo_t *inf, in
 			mesh->snormals_array = meshcache.anorms;
 			mesh->tnormals_array = meshcache.anormt;
 			if (vbop)
+			{
 				*vbop = meshcache.vbop;
+				meshcache.vbo.indicies = inf->vboindicies;
+				meshcache.vbo.indexcount = inf->numindexes;
+			}
 
 #ifndef SKELETALMODELS
 			return false;

@@ -240,8 +240,13 @@ void Draw_FunStringWidthFont(struct font_s *font, float x, float y, const void *
 			w = Font_Decode(w, &codeflags, &codepoint);
 			fw += Font_CharWidth(codeflags, codepoint);
 		}
-		if (rightalign == 2)
-		{
+		if (rightalign == 3)
+		{	//center the text (ignoring width info)
+			px -= fw/2;
+			width = fw;
+		}
+		else if (rightalign == 2)
+		{	//center the text (left align when too long)
 			if (fw < width)
 			{
 				px += (width-fw)/2;
@@ -249,7 +254,7 @@ void Draw_FunStringWidthFont(struct font_s *font, float x, float y, const void *
 			}
 		}
 		else
-		{
+		{	//right align the text if shorter than specified width..
 			px += width;
 			if (fw > width)
 				fw = width;

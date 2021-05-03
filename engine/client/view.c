@@ -2047,7 +2047,7 @@ void R_DrawNameTags(void)
 			if (body)
 			{
 //				Q_snprintfz(fname, sizeof(fname), "<default shader>");
-				str = va("^2%s^7\n%s%s\n{%s\n", fname, ruleset_allow_shaders.ival?"":CON_ERROR"WARNING: ruleset_allow_shaders disables external shaders"CON_DEFAULT"\n", surf->texinfo->texture->name, body);
+				str = va("^2%s^7\n%s%s\n{\n%s\n", fname, ruleset_allow_shaders.ival?"":CON_ERROR"WARNING: ruleset_allow_shaders disables external shaders"CON_DEFAULT"\n", surf->texinfo->texture->name, ((*body=='\n')?body+1:body));
 				Z_Free(body);
 			}
 			else
@@ -2141,10 +2141,9 @@ void R_DrawNameTags(void)
 					entstr = state->model->name;
 					if (entstr)
 					{
-						vec2_t scale = {8,8};
 						x = screenspace[0]*r_refdef.vrect.width+r_refdef.vrect.x;
 						y = (1-screenspace[1])*r_refdef.vrect.height+r_refdef.vrect.y;
-						R_DrawTextField(x, y, vid.width - x, vid.height - y, entstr, CON_WHITEMASK, CPRINT_TALIGN, font_default, scale);
+						Draw_FunStringWidth(x, y, entstr, 0, 3, false);
 					}
 				}
 			}
@@ -2166,10 +2165,9 @@ void R_DrawNameTags(void)
 					entstr = state->model->name;
 					if (entstr)
 					{
-						vec2_t scale = {8,8};
 						x = screenspace[0]*r_refdef.vrect.width+r_refdef.vrect.x;
 						y = (1-screenspace[1])*r_refdef.vrect.height+r_refdef.vrect.y;
-						R_DrawTextField(x, y, vid.width - x, vid.height - y, entstr, CON_WHITEMASK, CPRINT_TALIGN, font_default, scale);
+						Draw_FunStringWidth(x, y, entstr, 0, 3, false);
 					}
 				}
 			}

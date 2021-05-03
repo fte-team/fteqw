@@ -1484,54 +1484,57 @@ static struct charcache_s *Font_GetChar(font_t *f, unsigned int codepoint)
 		//not cached, can't get.
 		c = Font_TryLoadGlyph(f, charidx);
 
-		if (!c && charidx >= 0x400 && charidx <= 0x45f)
-		{	//apparently there's a lot of russian players out there.
-			//if we just replace all their chars with a '?', they're gonna get pissed.
-			//so lets at least attempt to provide some default mapping that makes sense even if they don't have a full font.
-			//koi8-u is a mapping useful with 7-bit email because the message is still vaugely readable in latin if the high bits get truncated.
-			//not being a language specialist, I'm just going to use that mapping, with the high bit truncated to ascii (which mostly exists in the quake charset).
-			//this exact table is from ezquake. because I'm too lazy to figure out the proper mapping. (beware of triglyphs)
-			static char *wc2koi_table =
-				"?3??4?67??" "??" "??" ">?"	//400
-				"abwgdevzijklmnop"	//410
-				"rstufhc~{}/yx|`q"	//420
-				"ABWGDEVZIJKLMNOP"	//430
-				"RSTUFHC^[]_YX\\@Q"	//440
-				"?#??$?&'??" "??" "??.?";	//450
-			charidx = wc2koi_table[charidx - 0x400];
-			if (charidx != '?')
-			{
-				c = Font_GetCharIfLoaded(f, charidx);
-				if (!c)
-					c = Font_TryLoadGlyph(f, charidx);
+		if (!c)
+		{
+			CHARIDXTYPE nc;
+			if (charidx >= 0xA0 && charidx <= 0x17F)
+			{	//latin-1 glyphs can mostly just drop their accents.
+				//should give a better fallback when people don't have these glyphs defined.
+				static char *latinfallback_table =
+					" !c###|S@c?<@-R@"	//A0
+					"@@@@'u@.,@@>@@@?"	//B0
+					"AAAAAAECEEEEIIII"	//C0
+					"DNOOOOO*OUUUUYYs"	//D0
+					"aaaaaaeceeeeiiii"	//E0
+					"onooooo/ouuuuyyy"	//F0
+
+					"AaAaAaCcCcCcCcDd"	//100
+					"DdEeEeEeEeEeGgGg"	//110
+					"GgGgHhHhIiIiIiIi"	//120
+					"IiIiJjKkkLlLlLlL"	//130
+					"lllNnNnNnnNnOoOo"	//140
+					"OoEeRrRrRrSsSsSs"	//150
+					"SsTtTtTtUuUuUuUu"	//160
+					"UuUuWwYyYZzZzZzf";	//170
+				nc = latinfallback_table[charidx - 0xA0];
+				if (nc != '@')
+				{
+					c = Font_GetCharIfLoaded(f, nc);
+					if (!c)
+						c = Font_TryLoadGlyph(f, nc);
+				}
 			}
-		}
-
-		if (!c && charidx >= 0xA0 && charidx <= 0x17F)
-		{	//try to make sense of iso8859-1
-			//(mostly for zerstorer's o-umlout...)
-			static char *latin_table =
-				" ?c###|S?c?<??R?"	//A0
-				"??""??""'u?.,??"">??""??"	//B0
-				"AAAAAAECEEEEIIII"	//C0
-				"DNOOOOO*OUUUUYYs"	//D0
-				"aaaaaaeceeeeiiii"	//E0
-				"onooooo/ouuuuyyy"	//F0
-
-				"AaAaAaCcCcCcCcDd"	//100
-				"DdEeEeEeEeEeGgGg"	//110
-				"GgGgHhHhIiIiIiIi"	//120
-				"IiIiJjKkkLlLlLlL"	//130
-				"lllNnNnNnnNnOoOo"	//140
-				"OoEeRrRrRrSsSsSs"	//150
-				"SsTtTtTtUuUuUuUu"	//160
-				"UuUuWwYyYZzZzZzf";	//170
-			charidx = latin_table[charidx - 0xA0];
-			if (charidx != '?')
-			{
-				c = Font_GetCharIfLoaded(f, charidx);
-				if (!c)
-					c = Font_TryLoadGlyph(f, charidx);
+			else if (charidx >= 0x400 && charidx <= 0x45f)
+			{	//apparently there's a lot of russian players out there.
+				//if we just replace all their chars with a '?', they're gonna get pissed.
+				//so lets at least attempt to provide some default mapping that makes sense even if they don't have a full font.
+				//koi8-u is a mapping useful with 7-bit email because the message is still vaugely readable in latin if the high bits get truncated.
+				//not being a language specialist, I'm just going to use that mapping, with the high bit truncated to ascii (which mostly exists in the quake charset).
+				//this exact table is from ezquake. because I'm too lazy to figure out the proper mapping. (beware of triglyphs)
+				static qbyte *wc2koi_table =
+					"?3??4?67??" "??" "??" ">?"
+					"abwgdevzijklmnop"
+					"rstufhc~{}/yx|`q"
+					"ABWGDEVZIJKLMNOP"
+					"RSTUFHC^[]_YX\\@Q"
+					"?#??$?&'??" "??" "??.?";
+				nc = wc2koi_table[charidx - 0x400];
+				if (nc != '?')
+				{
+					c = Font_GetCharIfLoaded(f, nc);
+					if (!c)
+						c = Font_TryLoadGlyph(f, nc);
+				}
 			}
 		}
 

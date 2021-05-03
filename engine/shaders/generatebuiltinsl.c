@@ -44,6 +44,12 @@ char shaders[][64] =
 	"menutint",
 	"terrain",
 	"rtlight",
+	"vmt_lightmapped",
+	"vmt_refract",
+	"vmt_transition",
+	"vmt_unlit",
+	"vmt_vertexlit",
+	"vmt_water",
 	""
 };
 

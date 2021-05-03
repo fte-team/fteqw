@@ -7307,6 +7307,10 @@ typedef struct
 		char name[MAX_QPATH];
 	} tex[5];
 	char envmap[MAX_QPATH];
+	char envmapmask[MAX_QPATH];
+	char envfrombase;
+	char halflambert;
+
 	float alphatestref;
 	char *blendfunc;
 	qboolean alphatest;
@@ -7372,8 +7376,11 @@ static char *VMT_ParseBlock(const char *fname, vmtstate_t *st, char *line)
 			;
 		else if (!Q_strcasecmp(key, "$basetexturetransform"))
 			;
-		else if (!Q_strcasecmp(key, "$bumpmap"))
-			;
+		else if (!Q_strcasecmp(key, "$bumpmap")) // same as normalmap ~eukara
+		{
+			Q_strncpyz(st->normalmap, value, sizeof(st->normalmap));
+			Con_DPrintf("%s: %s \"%s\"\n", fname, key, value);
+		}
 		else if (!Q_strcasecmp(key, "$ssbump"))
 			;
 		else if (!Q_strcasecmp(key, "$ssbumpmathfix"))
@@ -7412,6 +7419,8 @@ static char *VMT_ParseBlock(const char *fname, vmtstate_t *st, char *line)
 				st->blendfunc = "src_one one_minus_src_alpha\n";
 			Con_DPrintf("%s: %s \"%s\"\n", fname, key, value);
 		}
+		else if (!Q_strcasecmp(key, "$halflambert"))
+			st->halflambert = 1;
 		else if (!Q_strcasecmp(key, "$color"))
 			Con_DPrintf("%s: %s \"%s\"\n", fname, key, value);
 		else if (!Q_strcasecmp(key, "$vertexcolor"))
@@ -7426,10 +7435,8 @@ static char *VMT_ParseBlock(const char *fname, vmtstate_t *st, char *line)
 			Con_DPrintf("%s: %s \"%s\"\n", fname, key, value);
 		else if (!Q_strcasecmp(key, "$envmap"))
 			Q_strncpyz(st->envmap, value, sizeof(st->envmap));
-		else if (!Q_strcasecmp(key, "$envmaptint"))
-			Con_DPrintf("%s: %s \"%s\"\n", fname, key, value);
 		else if (!Q_strcasecmp(key, "$envmapmask"))
-			Con_DPrintf("%s: %s \"%s\"\n", fname, key, value);
+			Q_strncpyz(st->envmapmask, value, sizeof(st->envmapmask));
 		else if (!Q_strcasecmp(key, "$envmapcontrast"))
 			Con_DPrintf("%s: %s \"%s\"\n", fname, key, value);
 		else if (!Q_strcasecmp(key, "$envmaptint"))
@@ -7437,9 +7444,9 @@ static char *VMT_ParseBlock(const char *fname, vmtstate_t *st, char *line)
 		else if (!Q_strcasecmp(key, "$envmapsaturation"))
 			Con_DPrintf("%s: %s \"%s\"\n", fname, key, value);
 		else if (!Q_strcasecmp(key, "$basealphaenvmapmask"))
-			Con_DPrintf("%s: %s \"%s\"\n", fname, key, value);
+			st->envfrombase=1;
 		else if (!Q_strcasecmp(key, "$normalmapalphaenvmapmask"))
-			Con_DPrintf("%s: %s \"%s\"\n", fname, key, value);
+			st->envfrombase=0;
 		else if (!Q_strcasecmp(key, "$crackmaterial"))
 			Con_DPrintf("%s: %s \"%s\"\n", fname, key, value);
 		else if (!Q_strcasecmp(key, "$selfillum"))
@@ -7473,6 +7480,8 @@ static char *VMT_ParseBlock(const char *fname, vmtstate_t *st, char *line)
 			Con_DPrintf("%s: %s \"%s\"\n", fname, key, value);
 
 		//water/reflection stuff
+		else if (!Q_strcasecmp(key, "$refracttinttexture"))
+			Q_strncpyz(st->tex[0].name, value, sizeof(st->tex[0].name));
 		else if (!Q_strcasecmp(key, "$refracttexture"))
 			Con_DPrintf("%s: %s \"%s\"\n", fname, key, value);
 		else if (!Q_strcasecmp(key, "$refractamount"))
@@ -7544,31 +7553,92 @@ static void Shader_GenerateFromVMT(parsestate_t *ps, vmtstate_t *st, const char 
 	Q_strlcatfz(script, &offset, sizeof(script), "\n");
 	if (!Q_strcasecmp(st->type, "WorldVertexTransition"))
 	{	//attempt to do terrain blending
-		Q_strncpyz(st->type, "defaultwall#TWOWAY", sizeof(st->type));
+		Q_strncpyz(st->type, "vmt_transition#TWOWAY", sizeof(st->type));
 		Q_strlcatfz(script, &offset, sizeof(script),	"\tprogram \"%s%s\"\n", st->type, progargs);
 		Q_strlcatfz(script, &offset, sizeof(script),	"\tdiffusemap \"%s%s.vtf\"\n", strcmp(st->tex[0].name, "materials/")?"materials/":"", st->tex[0].name);
 		Q_strlcatfz(script, &offset, sizeof(script),	"\tuppermap \"%s%s.vtf\"\n", strcmp(st->tex[1].name, "materials/")?"materials/":"", st->tex[1].name);
+	}
+	else if (!Q_strcasecmp(st->type, "Decal"))
+	{
+		Q_strncpyz(st->type, "vmt_vertexlit", sizeof(st->type));
+		Q_strlcatfz(script, &offset, sizeof(script),	"\tprogram \"%s%s\"\n", st->type, progargs);
+		Q_strlcatfz(script, &offset, sizeof(script),	"\tdiffusemap \"%s%s.vtf\"\n", strcmp(st->tex[0].name, "materials/")?"materials/":"", st->tex[0].name);
+		Q_strlcatfz(script, &offset, sizeof(script),	"\tpolygonOffset 1\n");
+	}
+	else if (!Q_strcasecmp(st->type, "DecalModulate"))
+	{
+		Q_strncpyz(st->type, "vmt_vertexlit", sizeof(st->type));
+		Q_strlcatfz(script, &offset, sizeof(script),	"\tprogram \"%s%s\"\n", st->type, progargs);
+		Q_strlcatfz(script, &offset, sizeof(script),	"\tdiffusemap \"%s%s.vtf\"\n", strcmp(st->tex[0].name, "materials/")?"materials/":"", st->tex[0].name);
+		Q_strlcatfz(script, &offset, sizeof(script),	"\tpolygonOffset 1\n");
+		//Q_strncpyz(st->blendfunc, "dst_color one_minus_src_alpha", sizeof(st->blendfunc));
+		st->blendfunc = "dst_color one_minus_src_alpha\n";
+	}
+	else if (!Q_strcasecmp(st->type, "UnlitGeneric"))
+	{
+		Q_strncpyz(st->type, "vmt_unlit", sizeof(st->type));
+		Q_strlcatfz(script, &offset, sizeof(script),	"\tprogram \"%s%s\"\n", st->type, progargs);
+		Q_strlcatfz(script, &offset, sizeof(script),	"\tdiffusemap \"%s%s.vtf\"\n", strcmp(st->tex[0].name, "materials/")?"materials/":"", st->tex[0].name);
 	}
 	else if (!Q_strcasecmp(st->type, "Water"))
 	{
 		Q_strlcatfz(script, &offset, sizeof(script),
 			"\t{\n"
-				"\tprogram \"altwater%s#FRESNEL=4\"\n"
+				"\t\tprogram \"vmt_water\"\n"
 				"\t\tmap $refraction\n"
-				"\t\tmap $null\n"
-				"\t\tmap $null\n"//$ripplemap
-				"\t\tmap $null\n"//$refractiondepth
+				"\t\tmap $reflection\n"
 			"\t}\n", progargs);
 		Q_strlcatfz(script, &offset, sizeof(script),	"\tdiffusemap \"%s%s.vtf\"\n", strcmp(st->tex[0].name, "materials/")?"materials/":"", st->tex[0].name);
 		Q_strlcatfz(script, &offset, sizeof(script),	"\tnormalmap \"%s%s.vtf\"\n", strcmp(st->normalmap, "materials/")?"materials/":"", st->normalmap);
 	}
-	else
+	else if (!Q_strcasecmp(st->type, "Refract"))
 	{
-		Q_strncpyz(st->type, "defaultwall", sizeof(st->type));	//FIXME
+		Q_strlcatfz(script, &offset, sizeof(script),
+			"\t{\n"
+				"\t\tprogram \"vmt_refract\"\n"
+				"\t\tmap $refraction\n"
+			"\t}\n", progargs);
+		Q_strlcatfz(script, &offset, sizeof(script),	"\tdiffusemap \"%s%s.vtf\"\n", strcmp(st->tex[0].name, "materials/")?"materials/":"", st->tex[0].name);
+		Q_strlcatfz(script, &offset, sizeof(script),	"\tnormalmap \"%s%s.vtf\"\n", strcmp(st->normalmap, "materials/")?"materials/":"", st->normalmap);
+	}
+	else if (!Q_strcasecmp(st->type, "VertexlitGeneric"))
+	{
+		if (*st->envmap && st->envfrombase) {
+			if (st->halflambert)
+				Q_strncpyz(st->type, "vmt_vertexlit#ENVFROMBASE#HALFLAMBERT", sizeof(st->type));
+			else
+				Q_strncpyz(st->type, "vmt_vertexlit#ENVFROMBASE", sizeof(st->type));
+		} else {
+			if (st->halflambert)
+				Q_strncpyz(st->type, "vmt_vertexlit#HALFLAMBERT", sizeof(st->type));
+			else
+				Q_strncpyz(st->type, "vmt_vertexlit", sizeof(st->type));
+		}
 
 		Q_strlcatfz(script, &offset, sizeof(script),	"\tprogram \"%s%s\"\n", st->type, progargs);
 		Q_strlcatfz(script, &offset, sizeof(script),	"\tdiffusemap \"%s%s.vtf\"\n", strcmp(st->tex[0].name, "materials/")?"materials/":"", st->tex[0].name);
+
+		if (*st->normalmap)
+			Q_strlcatfz(script, &offset, sizeof(script),	"\tnormalmap \"%s%s.vtf\"\n", strcmp(st->normalmap, "materials/")?"materials/":"", st->normalmap);
 	}
+	else
+	{
+		/* reflectmask from diffuse map alpha */
+		if (*st->envmap && st->envfrombase)
+			Q_strncpyz(st->type, "vmt_lightmapped#ENVFROMBASE", sizeof(st->type));
+		else if (*st->envmap && *st->envmapmask) /* dedicated reflectmask */
+			Q_strncpyz(st->type, "vmt_lightmapped#ENVFROMMASK", sizeof(st->type));
+		else /* take from normalmap */
+			Q_strncpyz(st->type, "vmt_lightmapped", sizeof(st->type));
+
+		Q_strlcatfz(script, &offset, sizeof(script),	"\tprogram \"%s%s\"\n", st->type, progargs);
+		Q_strlcatfz(script, &offset, sizeof(script),	"\tdiffusemap \"%s%s.vtf\"\n", strcmp(st->tex[0].name, "materials/")?"materials/":"", st->tex[0].name);
+
+		if (*st->normalmap)
+			Q_strlcatfz(script, &offset, sizeof(script),	"\tnormalmap \"%s%s.vtf\"\n", strcmp(st->normalmap, "materials/")?"materials/":"", st->normalmap);
+	}
+	if (*st->envmapmask)
+		Q_strlcatfz(script, &offset, sizeof(script),	"\treflectmask \"%s%s.vtf\"\n", strcmp(st->envmapmask, "materials/")?"materials/":"", st->envmapmask);
 	if (*st->envmap)
 		Q_strlcatfz(script, &offset, sizeof(script),	"\treflectcube \"%s%s.vtf\"\n", strcmp(st->envmap, "materials/")?"materials/":"", st->envmap);
 	if (st->alphatest)
@@ -7579,6 +7649,7 @@ static void Shader_GenerateFromVMT(parsestate_t *ps, vmtstate_t *st, const char 
 		Q_strlcatfz(script, &offset, sizeof(script), "\tnodepth\n");
 	if (st->blendfunc)
 		Q_strlcatfz(script, &offset, sizeof(script), "\tprogblendfunc %s\n", st->blendfunc);
+
 	Q_strlcatfz(script, &offset, sizeof(script), "}\n");
 
 	Shader_Reset(ps->s);

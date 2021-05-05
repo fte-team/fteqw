@@ -4082,6 +4082,12 @@ static void Cmd_WriteConfig_f(void)
 
 static void Cmd_Reset_f(void)
 {
+	//FIXME: this should reset to _engine_ defaults (with fmf overrides)
+	Cbuf_InsertText("cvarreset *\n", RESTRICT_LOCAL, false);
+	//FIXME: wipe aliases
+	//FIXME: reset + commands
+	//FIXME: destroy custom cvars (unless there's a live pointer still... which is not tracked properly, bah)
+//	Cbuf_InsertText("exec default.cfg\n", RESTRICT_LOCAL, false);
 }
 
 #ifdef HAVE_CLIENT
@@ -4268,7 +4274,8 @@ void Cmd_Init (void)
 	Cmd_AddCommandAD ("saveconfig",Cmd_WriteConfig_f, Cmd_Exec_c, NULL);	//for dpcompat
 
 	Cmd_AddCommandAD ("cfg_load",Cmd_Exec_f, Cmd_Exec_c, NULL);
-	Cmd_AddCommand ("cfg_reset",Cmd_Reset_f);
+	Cmd_AddCommand ("cfg_reset",Cmd_Reset_f);	//ezquake
+	Cmd_AddCommand ("resetcfg",Cmd_Reset_f);	//QS
 
 	Cmd_AddCommandAD ("exec",Cmd_Exec_f, Cmd_Exec_c, NULL);
 	Cmd_AddCommand ("echo",Cmd_Echo_f);

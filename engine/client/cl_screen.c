@@ -80,41 +80,40 @@ void RSpeedShow(void)
 	RSpNames[RSPEED_SERVER]			= "Server";
 
 	memset(RQntNames, 0, sizeof(RQntNames));
-	RQntNames[RQUANT_MSECS] = "Microseconds";
-	RQntNames[RQUANT_PRIMITIVEINDICIES] = "Draw Indicies";
-	RQntNames[RQUANT_DRAWS] = "Draw Calls";
-	RQntNames[RQUANT_2DBATCHES] = "2d Batches";
-	RQntNames[RQUANT_WORLDBATCHES] = "World Batches";
-	RQntNames[RQUANT_ENTBATCHES] = "Ent Batches";
-	RQntNames[RQUANT_SHADOWINDICIES] = "Shadow Indicies";
-	RQntNames[RQUANT_SHADOWEDGES] = "Shadow Edges";
-	RQntNames[RQUANT_SHADOWSIDES] = "Shadowmap Sides";
-	RQntNames[RQUANT_LITFACES] = "Lit faces";
+	RQntNames[RQUANT_MSECS]					= "Microseconds";
+	RQntNames[RQUANT_PRIMITIVEINDICIES]		= "Draw Indicies";
+	RQntNames[RQUANT_DRAWS]					= "Draw Calls";
+	RQntNames[RQUANT_2DBATCHES]				= "2d Batches";
+	RQntNames[RQUANT_WORLDBATCHES]			= "World Batches";
+	RQntNames[RQUANT_ENTBATCHES]			= "Ent Batches";
+	RQntNames[RQUANT_SHADOWINDICIES]		= "Shadow Indicies";
+	RQntNames[RQUANT_SHADOWEDGES]			= "Shadow Edges";
+	RQntNames[RQUANT_SHADOWSIDES]			= "Shadowmap Sides";
+	RQntNames[RQUANT_LITFACES]				= "Lit faces";
 
-	RQntNames[RQUANT_RTLIGHT_DRAWN] = "Lights Drawn";
-	RQntNames[RQUANT_RTLIGHT_CULL_FRUSTUM] = "Lights offscreen";
-	RQntNames[RQUANT_RTLIGHT_CULL_PVS] = "Lights PVS Culled";
-	RQntNames[RQUANT_RTLIGHT_CULL_SCISSOR] = "Lights Scissored";
+	RQntNames[RQUANT_RTLIGHT_DRAWN]			= "Lights Drawn";
+	RQntNames[RQUANT_RTLIGHT_CULL_FRUSTUM]	= "Lights offscreen";
+	RQntNames[RQUANT_RTLIGHT_CULL_PVS]		= "Lights PVS Culled";
+	RQntNames[RQUANT_RTLIGHT_CULL_SCISSOR]	= "Lights Scissored";
 
 	memcpy(savedsamplerquant, rquant, sizeof(savedsamplerquant));
 	if (r_speeds.ival > 1)
 	{
 		for (i = 0; i < RSPEED_MAX; i++)
 		{
-			Draw_FunStringWidthFont(font_console, vid.width-20*tsize, i*tsize, RSpNames[i], 20*tsize, false, false);
-			s = va("%g ", samplerspeeds[i]/(float)frameinterval);
-			Draw_FunStringWidthFont(font_console, 0, i*tsize, s, vid.width-20*tsize, true, false);
+			s = va("%g %-24s", samplerspeeds[i]/(float)frameinterval, RSpNames[i]);
+			Draw_FunStringWidthFont(font_console, 0, i*tsize, s, vid.width, true, false);
 		}
 	}
 	for (i = 0; i < RQUANT_MAX; i++)
 	{
-		s = va("%u.%.3u %-20s", samplerquant[i]/frameinterval, (samplerquant[i]%100), RQntNames[i]);
-		Draw_FunStringWidthFont(font_console, 0, (i+RSPEED_MAX)*tsize, s, vid.width-20*tsize, true, false);
+		s = va("%u.%.3u %-24s", samplerquant[i]/frameinterval, (samplerquant[i]%100), RQntNames[i]);
+		Draw_FunStringWidthFont(font_console, 0, (i+RSPEED_MAX)*tsize, s, vid.width, true, false);
 	}
 	if (r_speeds.ival > 1)
 	{
-		s = va("%f %-20s", (frameinterval*1000*1000.0f)/samplerspeeds[RSPEED_TOTALREFRESH], "Framerate (refresh only)");
-		Draw_FunStringWidthFont(font_console, 0, (i+RSPEED_MAX)*tsize, s, vid.width-20*tsize, true, false);
+		s = va("%f %-24s", (frameinterval*1000*1000.0f)/samplerspeeds[RSPEED_TOTALREFRESH], "Framerate (refresh only)");
+		Draw_FunStringWidthFont(font_console, 0, (i+RSPEED_MAX)*tsize, s, vid.width, true, false);
 	}
 	memcpy(rquant, savedsamplerquant, sizeof(rquant));
 

@@ -7544,6 +7544,7 @@ static void Shader_GenerateFromVMT(parsestate_t *ps, vmtstate_t *st, const char 
 	size_t offset = 0;
 	char script[8192];
 	char *progargs = "";
+
 	if (!*st->tex[0].name)	//fill in a default...
 		Q_strncpyz(st->tex[0].name, shortname, sizeof(st->tex[0].name));
 
@@ -7567,18 +7568,13 @@ static void Shader_GenerateFromVMT(parsestate_t *ps, vmtstate_t *st, const char 
 	}
 	else if (!Q_strcasecmp(st->type, "DecalModulate"))
 	{
-		Q_strncpyz(st->type, "vmt_vertexlit", sizeof(st->type));
-		Q_strlcatfz(script, &offset, sizeof(script),	"\tprogram \"%s%s\"\n", st->type, progargs);
+		Q_strlcatfz(script, &offset, sizeof(script),
+			"\t{\n"
+				"\t\tprogram \"vmt_vertexlit\"\n"
+				"\t\tblendFunc gl_dst_color gl_one_minus_src_alpha\n"
+			"\t}\n", progargs);
 		Q_strlcatfz(script, &offset, sizeof(script),	"\tdiffusemap \"%s%s.vtf\"\n", strcmp(st->tex[0].name, "materials/")?"materials/":"", st->tex[0].name);
 		Q_strlcatfz(script, &offset, sizeof(script),	"\tpolygonOffset 1\n");
-		//Q_strncpyz(st->blendfunc, "dst_color one_minus_src_alpha", sizeof(st->blendfunc));
-		st->blendfunc = "dst_color one_minus_src_alpha\n";
-	}
-	else if (!Q_strcasecmp(st->type, "UnlitGeneric"))
-	{
-		Q_strncpyz(st->type, "vmt_unlit", sizeof(st->type));
-		Q_strlcatfz(script, &offset, sizeof(script),	"\tprogram \"%s%s\"\n", st->type, progargs);
-		Q_strlcatfz(script, &offset, sizeof(script),	"\tdiffusemap \"%s%s.vtf\"\n", strcmp(st->tex[0].name, "materials/")?"materials/":"", st->tex[0].name);
 	}
 	else if (!Q_strcasecmp(st->type, "Water"))
 	{
@@ -7621,7 +7617,7 @@ static void Shader_GenerateFromVMT(parsestate_t *ps, vmtstate_t *st, const char 
 		if (*st->normalmap)
 			Q_strlcatfz(script, &offset, sizeof(script),	"\tnormalmap \"%s%s.vtf\"\n", strcmp(st->normalmap, "materials/")?"materials/":"", st->normalmap);
 	}
-	else
+	else if (!Q_strcasecmp(st->type, "LightmappedGeneric"))
 	{
 		/* reflectmask from diffuse map alpha */
 		if (*st->envmap && st->envfrombase)
@@ -7637,6 +7633,14 @@ static void Shader_GenerateFromVMT(parsestate_t *ps, vmtstate_t *st, const char 
 		if (*st->normalmap)
 			Q_strlcatfz(script, &offset, sizeof(script),	"\tnormalmap \"%s%s.vtf\"\n", strcmp(st->normalmap, "materials/")?"materials/":"", st->normalmap);
 	}
+	else 
+	{
+		/* the default should just be unlit, let's not make any assumptions - eukara*/
+		Q_strncpyz(st->type, "vmt_unlit", sizeof(st->type));
+		Q_strlcatfz(script, &offset, sizeof(script),	"\tprogram \"%s%s\"\n", st->type, progargs);
+		Q_strlcatfz(script, &offset, sizeof(script),	"\tdiffusemap \"%s%s.vtf\"\n", strcmp(st->tex[0].name, "materials/")?"materials/":"", st->tex[0].name);
+	}
+
 	if (*st->envmapmask)
 		Q_strlcatfz(script, &offset, sizeof(script),	"\treflectmask \"%s%s.vtf\"\n", strcmp(st->envmapmask, "materials/")?"materials/":"", st->envmapmask);
 	if (*st->envmap)

@@ -7633,12 +7633,20 @@ static void Shader_GenerateFromVMT(parsestate_t *ps, vmtstate_t *st, const char 
 		if (*st->normalmap)
 			Q_strlcatfz(script, &offset, sizeof(script),	"\tnormalmap \"%s%s.vtf\"\n", strcmp(st->normalmap, "materials/")?"materials/":"", st->normalmap);
 	}
-	else 
+	else
 	{
-		/* the default should just be unlit, let's not make any assumptions - eukara*/
-		Q_strncpyz(st->type, "vmt_unlit", sizeof(st->type));
-		Q_strlcatfz(script, &offset, sizeof(script),	"\tprogram \"%s%s\"\n", st->type, progargs);
-		Q_strlcatfz(script, &offset, sizeof(script),	"\tdiffusemap \"%s%s.vtf\"\n", strcmp(st->tex[0].name, "materials/")?"materials/":"", st->tex[0].name);
+		/* render-target camera/monitor - eukara*/
+		if (!Q_strcasecmp(st->tex[0].name, "_rt_Camera")) {
+			Q_strlcatfz(script, &offset, sizeof(script),
+			"\t{\n"
+				"\t\tmap $rt:base\n"
+			"\t}\n", progargs);
+		} else {
+			/* the default should just be unlit, let's not make any assumptions - eukara*/
+			Q_strncpyz(st->type, "vmt_unlit", sizeof(st->type));
+			Q_strlcatfz(script, &offset, sizeof(script),	"\tprogram \"%s%s\"\n", st->type, progargs);
+			Q_strlcatfz(script, &offset, sizeof(script),	"\tdiffusemap \"%s%s.vtf\"\n", strcmp(st->tex[0].name, "materials/")?"materials/":"", st->tex[0].name);
+		}
 	}
 
 	if (*st->envmapmask)

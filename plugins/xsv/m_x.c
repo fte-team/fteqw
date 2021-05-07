@@ -761,7 +761,6 @@ nextmessage:
 
 //Con_Printf("Request %i\n", req->reqType);
 //						Z_CheckSentinals();
-						XS_CheckResourceSentinals();
 						if (!req->length)
 						{
 							int rt, data;
@@ -779,7 +778,6 @@ nextmessage:
 						}
 						else
 							XRequests[req->reqType](cl, req);
-						XS_CheckResourceSentinals();
 //						Z_CheckSentinals();
 //Con_Printf("Done request\n");
 					}
@@ -1063,8 +1061,6 @@ void XWindows_Startup(int x11display)	//initialise the server socket and do any 
 
 		system(va("DISPLAY=127.0.0.1:%i /usr/bin/x-terminal-emulator &", x11display));
 	}
-
-	XS_CheckResourceSentinals();
 
 //	Menu_Control(MENU_GRAB);
 }
@@ -1863,7 +1859,6 @@ void X_EvalutateFocus(int movemode)
 
 void XWindows_Draw(void)
 {
-	XS_CheckResourceSentinals();
 	{
 		X_EvalutateCursorOwner(NotifyNormal);
 	}
@@ -1899,13 +1894,10 @@ void XWindows_Draw(void)
 //	Con_DrawNotify();
 
 	XWindows_TendToClients();
-	XS_CheckResourceSentinals();
 }
 
 void XWindows_KeyDown(int key)
 {
-	XS_CheckResourceSentinals();
-
 	if (!key)	//hrm
 		return;
 /*
@@ -2007,7 +1999,6 @@ void XWindows_KeyDown(int key)
 		else if (XS_GetResource(ev.u.keyButtonPointer.child, (void**)&wnd) == x_window)
 			X_SendInputNotification(&ev, wnd, (ev.u.u.type==ButtonPress)?ButtonPressMask:KeyPressMask);
 	}
-	XS_CheckResourceSentinals();
 }
 void XWindows_Keyup(int key)
 {
@@ -2016,7 +2007,6 @@ void XWindows_Keyup(int key)
 	if (key == K_ALT)
 		altdown = false;
 
-	XS_CheckResourceSentinals();
 	{
 		xEvent ev;
 		xwindow_t *wnd;
@@ -2110,7 +2100,6 @@ void XWindows_Keyup(int key)
 			X_SendInputNotification(&ev, wnd, (ev.u.u.type==ButtonRelease)?ButtonReleaseMask:KeyReleaseMask);
 		}
 	}
-	XS_CheckResourceSentinals();
 }
 
 /*qboolean QDECL X11_MenuEvent(int eventtype, int param, float mousecursor_x, float mousecursor_y)

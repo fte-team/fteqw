@@ -435,7 +435,7 @@ void R_RotateForEntity (float *m, float *modelview, const entity_t *e, const mod
 R_SetupGL
 =============
 */
-static void R_SetupGL (matrix3x4 eyematrix, vec4_t fovoverrides, float projmatrix[16]/*for webvr*/, texid_t fbo)
+static void R_SetupGL (vec3_t eyeangorg[2], vec4_t fovoverrides, float projmatrix[16]/*for webvr*/, texid_t fbo)
 {
 	int		x, x2, y2, y, w, h;
 	vec3_t newa;
@@ -450,14 +450,32 @@ static void R_SetupGL (matrix3x4 eyematrix, vec4_t fovoverrides, float projmatri
 		newa[0] = r_refdef.viewangles[0];
 		newa[1] = r_refdef.viewangles[1];
 		newa[2] = r_refdef.viewangles[2] + gl_screenangle.value;
-		if (eyematrix)
+		if (eyeangorg)
 		{
-			matrix3x4 headmatrix;
+			extern cvar_t in_vraim;
+			matrix3x4 basematrix;
+			matrix3x4 eyematrix;
 			matrix3x4 viewmatrix;
-			Matrix3x4_RM_FromAngles(newa, r_refdef.vieworg, headmatrix[0]);
-			Matrix3x4_Multiply(headmatrix[0], eyematrix[0], viewmatrix[0]);
-			Matrix3x4_RM_ToVectors(viewmatrix[0], vpn, vright, vup, r_origin);
-			VectorNegate(vright, vright);
+
+			Matrix3x4_RM_FromAngles(eyeangorg[0], eyeangorg[1], eyematrix[0]);
+			if (r_refdef.base_known)
+			{	//mod is specifying its own base ang+org.
+				Matrix3x4_RM_FromAngles(r_refdef.base_angles, r_refdef.base_origin, basematrix[0]);
+				Matrix3x4_Multiply(eyematrix[0], basematrix[0], viewmatrix[0]);
+				Matrix3x4_RM_ToVectors(viewmatrix[0], vpn, vright, vup, r_origin);
+				VectorNegate(vright, vright);
+			}
+			else
+			{	//mod provides no info.
+				//client will fiddle with input_angles
+				newa[0] = newa[2] = 0;	//ignore player pitch+roll. sorry. apply the eye's transform on top.
+				if (in_vraim.ival)
+					newa[1] -= SHORT2ANGLE(r_refdef.playerview->vrdev[VRDEV_HEAD].angles[YAW]);
+				Matrix3x4_RM_FromAngles(newa, r_refdef.vieworg, basematrix[0]);
+				Matrix3x4_Multiply(eyematrix[0], basematrix[0], viewmatrix[0]);
+				Matrix3x4_RM_ToVectors(viewmatrix[0], vpn, vright, vup, r_origin);
+				VectorNegate(vright, vright);
+			}
 		}
 		else
 		{
@@ -717,13 +735,18 @@ static void R_RenderScene_Internal(void)
 
 	depthcleared = false;	//whatever is in the depth buffer is no longer useful.
 }
-static void R_RenderEyeScene (texid_t rendertarget, vec4_t fovoverride, matrix3x4 eyematrix)
+static void R_RenderEyeScene (texid_t rendertarget, vec4_t fovoverride, vec3_t eyeangorg[2])
 {
 	extern qboolean depthcleared;
 	refdef_t refdef = r_refdef;
 	int pw = vid.fbpwidth;
 	int ph = vid.fbpheight;
 	int r = 0;
+
+	extern void CL_ClampPitch (int pnum, float frametime);
+/*the vr code tends to be somewhat laggy with its head angles, leaving it to the last minute, so redo this to reduce latency*/
+	if ((size_t)(refdef.playerview-cl.playerview) < MAX_SPLITS)
+		CL_ClampPitch (refdef.playerview-cl.playerview, 0);
 
 	if (rendertarget)
 	{
@@ -735,10 +758,10 @@ static void R_RenderEyeScene (texid_t rendertarget, vec4_t fovoverride, matrix3x
 		vid.fbpheight = rendertarget->height;
 	}
 
-	R_SetupGL (eyematrix, fovoverride, NULL, rendertarget);
+	R_SetupGL (eyeangorg, fovoverride, NULL, rendertarget);
 	R_RenderScene_Internal();
 
-	//if (eyematrix)
+	/*//if (eyematrix)
 	{
 		vec3_t newa, newo;
 		matrix3x4 headmatrix;	//position of the head in local space
@@ -774,7 +797,7 @@ static void R_RenderEyeScene (texid_t rendertarget, vec4_t fovoverride, matrix3x
 		if (R2D_Flush)
 			R2D_Flush();
 		GL_SetShaderState2D(false);
-	}
+	}*/
 
 	if (rendertarget)
 	{
@@ -795,8 +818,7 @@ static void R_RenderScene (void)
 	int i;
 	int cull = r_refdef.flipcull;
 	unsigned int colourmask = r_refdef.colourmask;
-	vec3_t ang, org;
-	matrix3x4 eyematrix;
+	vec3_t eyeangorg[2];
 	extern qboolean		depthcleared;
 
 	r_refdef.colourmask = 0u;
@@ -914,12 +936,11 @@ static void R_RenderScene (void)
 		}
 		r_framecount++;	//view position changes, if only slightly. which means we need to rebuild vis info. :(
 
-		ang[0] = 0;
-		ang[1] = r_stereo_convergence.value * (i?0.5:-0.5);
-		ang[2] = 0;
-		VectorSet(org, 0, stereooffset[i], 0);
-		Matrix3x4_RM_FromAngles(ang, org, eyematrix[0]);
-		R_SetupGL (eyematrix, NULL, NULL, NULL);
+		eyeangorg[0][0] = 0;
+		eyeangorg[0][1] = r_stereo_convergence.value * (i?0.5:-0.5);
+		eyeangorg[0][2] = 0;
+		VectorSet(eyeangorg[1], 0, stereooffset[i], 0);
+		R_SetupGL (eyeangorg, NULL, NULL, NULL);
 		R_RenderScene_Internal ();
 	}
 

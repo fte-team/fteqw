@@ -787,12 +787,12 @@ typedef enum
 	VF_SKYROOM_CAMERA	= 222,
 	VF_PIXELPSCALE		= 223,	//[dpi_x, dpi_y, dpi_y/dpi_x]
 	VF_PROJECTIONOFFSET	= 224,	//allows for off-axis projections.
+	VF_VRBASEORIENTATION= 225,	//specifies the worldspace coords+angles of the VR room space.
 	//WARNING: update fteqcc when new entries are added.
 
 
 	VF_DP_CLEARSCREEN		= 201, //misnomer - NOTOVERLAY would be a better name. when set to false prevents any and all post-proc things that might write colour values in areas with no geometry there.
-//fuck DP and their complete lack of respect for existing implemenetations
-	VF_DP_FOG_DENSITY		= 202, //misassigned
+	VF_DP_FOG_DENSITY		= 202, //misassigned - fuck DP and their complete lack of respect for existing implemenetations
 	VF_DP_FOG_COLOR			= 203, //misassigned
 	VF_DP_FOG_COLOR_R		= 204, //misassigned
 	VF_DP_FOG_COLOR_G		= 205, //misassigned
@@ -802,7 +802,7 @@ typedef enum
 	VF_DP_FOG_END   		= 209, //misassigned
 	VF_DP_FOG_HEIGHT		= 210, //misassigned
 	VF_DP_FOG_FADEDEPTH		= 211, //misassigned
-	VF_DP_MAINVIEW			= 400, // defective. should be a viewid instead, allowing for per-view motionblur instead of disabling it outright
+	VF_DP_MAINVIEW			= 400, // defective. should have been a 1-based viewid instead, allowing for per-view motionblur instead of disabling it outright
 	VF_DP_MINFPS_QUALITY	= 401,	//multiplier for lod and culling to try to reduce costs.
 } viewflags;
 

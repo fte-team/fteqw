@@ -5069,8 +5069,6 @@ QCC_type_t *QCC_PR_ParseFunctionType (int newtype, QCC_type_t *returntype)
 			if (QCC_PR_CheckToken("="))
 			{
 				paramlist[numparms].defltvalue = QCC_PR_ParseDefaultInitialiser(paramlist[numparms].type);
-				if (!paramlist[numparms].defltvalue.sym->constant)
-					QCC_PR_ParseError(0, "Default initialiser is not constant\n");
 				QCC_FreeTemp(paramlist[numparms].defltvalue);
 			}
 			numparms++;

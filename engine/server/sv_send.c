@@ -2271,6 +2271,7 @@ void SV_CalcClientStats(client_t *client, int statsi[MAX_CL_STATS], float statsf
 		}
 
 		statsf[STAT_VIEWHEIGHT] = ent->v->view_ofs[2];
+		statsf[STAT_IDEALPITCH] = ent->xv->idealpitch;
 
 		statsf[STAT_PUNCHANGLE_X] = ent->xv->punchangle[0];
 		statsf[STAT_PUNCHANGLE_Y] = ent->xv->punchangle[1];

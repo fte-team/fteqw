@@ -8113,9 +8113,9 @@ void SV_ExecuteClientMessage (client_t *cl)
 							else while (split->lastruncmd < newcmd.servertime)
 							{
 								//try to find the oldest (valid) command.
-								if (split->lastcmd.servertime < oldest.servertime)
+								if (split->lastruncmd < oldest.servertime)
 									c = &oldest;
-								else if (split->lastcmd.servertime < oldcmd.servertime)
+								else if (split->lastruncmd < oldcmd.servertime)
 									c = &oldcmd;
 								else
 									c = &newcmd;

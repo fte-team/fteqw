@@ -1189,6 +1189,22 @@ typedef struct
 	size_t			bonedatamax;
 } packet_entities_t;
 
+struct vrdevinfo_s
+{
+	unsigned int	status;
+#define VRSTATUS_ORG	(1u<<0)
+#define VRSTATUS_ANG	(1u<<1)
+#define VRSTATUS_VEL	(1u<<2)
+#define VRSTATUS_AVEL	(1u<<3)
+	short			angles[3];
+	short			avelocity[3];
+	vec3_t			origin;
+	vec3_t			velocity;
+#define VRDEV_LEFT	0
+#define VRDEV_RIGHT	1
+#define VRDEV_HEAD	2
+#define VRDEV_COUNT	3
+};
 typedef struct usercmd_s
 {
 	//the first members of this structure MUST match the q2 version
@@ -1214,21 +1230,7 @@ typedef struct usercmd_s
 	unsigned int	cursor_entitynumber;
 
 	//vr things
-	struct
-	{
-		unsigned int	status;
-#define VRSTATUS_ORG	(1u<<0)
-#define VRSTATUS_ANG	(1u<<1)
-#define VRSTATUS_VEL	(1u<<2)
-#define VRSTATUS_AVEL	(1u<<3)
-		short			angles[3];
-		short			avelocity[3];
-		vec3_t			origin;
-		vec3_t			velocity;
-#define VRDEV_LEFT	0
-#define VRDEV_RIGHT	1
-#define VRDEV_HEAD	2
-	} vr[3];	//left, right, head.
+	struct vrdevinfo_s vr[VRDEV_COUNT];	//left, right, head.
 } usercmd_t;
 
 typedef struct q2usercmd_s

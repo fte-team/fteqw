@@ -6147,7 +6147,7 @@ static void QCC_VerifyArgs_setviewprop (const char *funcname, QCC_ref_t **arglis
 		{"VF_CL_VIEWANGLES_X",	35, ev_float},
 		{"VF_CL_VIEWANGLES_X",	36, ev_float},
 		{"VF_PERSPECTIVE",		200, ev_float},
-		//201
+//		{"VF_DP_CLEARSCENE",	201, ev_float},
 		{"VF_ACTIVESEAT",		202, ev_float, ev_float},
 		{"VF_AFOV",				203, ev_float},
 //		{"VF_SCREENVSIZE",		204, ev_vector},
@@ -6171,6 +6171,10 @@ static void QCC_VerifyArgs_setviewprop (const char *funcname, QCC_ref_t **arglis
 		{"VF_SKYROOM_CAMERA",	222, ev_vector},
 //		{"VF_PIXELPSCALE",		223, ev_vector},
 		{"VF_PROJECTIONOFFSET",	224, ev_vector},
+		{"VF_VRBASEORIENTATION",225, ev_vector, ev_vector},
+
+		{"VF_DP_MAINVIEW",			400, ev_float},
+//		{"VF_DP_MINFPS_QUALITY",	401, ev_float},
 	};
 
 	char temp[256];

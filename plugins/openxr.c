@@ -126,36 +126,6 @@ static cvar_t *xr_skipregularview;
 #define METRES_TO_QUAKE(x) ((x)*xr_metresize->value)
 #define QUAKE_TO_METRES(x) ((x)/xr_metresize->value)
 
-static void Matrix3x4_FromAngles (const vec3_t angles, const vec3_t org, float *fte_restrict transform)
-{
-	float		angle;
-	float		sr, sp, sy, cr, cp, cy;
-
-	angle = angles[YAW] * (M_PI*2 / 360);
-	sy = sin(angle);
-	cy = cos(angle);
-	angle = angles[PITCH] * (M_PI*2 / 360);
-	sp = sin(angle);
-	cp = cos(angle);
-	angle = angles[ROLL] * (M_PI*2 / 360);
-	sr = sin(angle);
-	cr = cos(angle);
-
-	transform[0+0] = cp*cy;
-	transform[0+1] = cp*sy;
-	transform[0+2] = -sp;
-	transform[0+3] = org[0];
-
-	transform[4+0] = (-1*sr*sp*cy+-1*cr*-sy);
-	transform[4+1] = (-1*sr*sp*sy+-1*cr*cy);
-	transform[4+2] = -1*sr*cp;
-	transform[4+3] = org[1];
-
-	transform[8+0] = (cr*sp*cy+-sr*-sy);
-	transform[8+1] = (cr*sp*sy+-sr*cy);
-	transform[8+2] = cr*cp;
-	transform[8+3] = org[2];
-}
 static void XR_PoseToAngOrg(const XrPosef *pose, vec3_t ang, vec3_t org)
 {
 	XrQuaternionf q = pose->orientation;
@@ -177,62 +147,6 @@ static void XR_PoseToAngOrg(const XrPosef *pose, vec3_t ang, vec3_t org)
 	org[1]  =     METRES_TO_QUAKE(pose->position.y);
 	org[2]  =     METRES_TO_QUAKE(pose->position.z);
 #endif
-}
-static void XR_PoseToTransform(const XrPosef *pose, float *fte_restrict transform)
-{
-	vec3_t ang, org;
-    XR_PoseToAngOrg(pose, ang, org);
-	Matrix3x4_FromAngles(ang, org, transform);
-}
-static void Matrix3x4_Invert_XR (const float *in1, float *fte_restrict out)
-{
-	// we only support uniform scaling, so assume the first row is enough
-	// (note the lack of sqrt here, because we're trying to undo the scaling,
-	// this means multiplying by the inverse scale twice - squaring it, which
-	// makes the sqrt a waste of time)
-#if 1
-	double scale = 1.0 / (in1[0] * in1[0] + in1[1] * in1[1] + in1[2] * in1[2]);
-#else
-	double scale = 3.0 / sqrt
-		 (in1->m[0][0] * in1->m[0][0] + in1->m[0][1] * in1->m[0][1] + in1->m[0][2] * in1->m[0][2]
-		+ in1->m[1][0] * in1->m[1][0] + in1->m[1][1] * in1->m[1][1] + in1->m[1][2] * in1->m[1][2]
-		+ in1->m[2][0] * in1->m[2][0] + in1->m[2][1] * in1->m[2][1] + in1->m[2][2] * in1->m[2][2]);
-	scale *= scale;
-#endif
-
-	// invert the rotation by transposing and multiplying by the squared
-	// recipricol of the input matrix scale as described above
-	out[0] = in1[0] * scale;
-	out[1] = in1[4] * scale;
-	out[2] = in1[8] * scale;
-	out[4] = in1[1] * scale;
-	out[5] = in1[5] * scale;
-	out[6] = in1[9] * scale;
-	out[8] = in1[2] * scale;
-	out[9] = in1[6] * scale;
-	out[10] = in1[10] * scale;
-
-	// invert the translate
-	out[3] = -(in1[3] * out[0] + in1[7] * out[1] + in1[11] * out[2]);
-	out[7] = -(in1[3] * out[4] + in1[7] * out[5] + in1[11] * out[6]);
-	out[11] = -(in1[3] * out[8] + in1[7] * out[9] + in1[11] * out[10]);
-}
-static void Matrix3x4_Multiply_XR(const float *a, const float *b, float *fte_restrict out)
-{
-	out[0]  = a[0] * b[0] + a[4] * b[1] + a[8] * b[2];
-	out[1]  = a[1] * b[0] + a[5] * b[1] + a[9] * b[2];
-	out[2]  = a[2] * b[0] + a[6] * b[1] + a[10] * b[2];
-	out[3]  = a[3] * b[0] + a[7] * b[1] + a[11] * b[2] + b[3];
-
-	out[4]  = a[0] * b[4] + a[4] * b[5] + a[8] * b[6];
-	out[5]  = a[1] * b[4] + a[5] * b[5] + a[9] * b[6];
-	out[6]  = a[2] * b[4] + a[6] * b[5] + a[10] * b[6];
-	out[7]  = a[3] * b[4] + a[7] * b[5] + a[11] * b[6] + b[7];
-
-	out[8]  = a[0] * b[8] + a[4] * b[9] + a[8] * b[10];
-	out[9]  = a[1] * b[8] + a[5] * b[9] + a[9] * b[10];
-	out[10] = a[2] * b[8] + a[6] * b[9] + a[10] * b[10];
-	out[11] = a[3] * b[8] + a[7] * b[9] + a[11] * b[10] + b[11];
 }
 
 #define VectorAngles VectorAnglesPluginsSuck
@@ -1037,32 +951,14 @@ static int QDECL XR_BindProfileFile(const char *fname, qofs_t fsize, time_t mtim
 	return false;
 }
 
-static void XR_SetupInputs(void)
+static const struct
 {
-	unsigned int h;
-	XrResult res;
-
-//begin instance-level init
-	{
-		XrActionSetCreateInfo info = {XR_TYPE_ACTION_SET_CREATE_INFO};
-		Q_strlcpy(info.actionSetName, "actions", sizeof(info.actionSetName));
-		Q_strlcpy(info.localizedActionSetName, FULLENGINENAME" Actions", sizeof(info.localizedActionSetName));
-		info.priority = 0;
-
-		xr.actionset.subactionPath = XR_NULL_PATH;
-		res = xrCreateActionSet(xr.instance, &info, &xr.actionset.actionSet);
-		if (XR_FAILED(res))
-			Con_Printf("openxr: Unable to create actionset - %s\n", XR_StringForResult(res));
-	}
-
-	h = 0;
-	if (fsfuncs)
-		fsfuncs->EnumerateFiles("oxr_*.binds", XR_BindProfileFile, &h);
-	if (!h)	//no user bindings defined, use fallbacks. probably this needs to be per-mod.
-	{
-		//FIXME: set up some proper bindings!
-		XR_BindProfileStr("khr_simple",
-			"/interaction_profiles/khr/simple_controller    /user/hand/left/ /user/hand/right/\n"
+	const char *name;
+	const char *script;
+} xr_knownprofiles[] =
+{
+	//FIXME: set up some proper bindings!
+	{"khr_simple",		"/interaction_profiles/khr/simple_controller    /user/hand/left/ /user/hand/right/\n"
 			"+attack_left	\"Left Attack\"			button		input/select/click	/user/hand/left\n"
 			"+attack_right	\"Right Attack\"		button		input/select/click	/user/hand/right\n"
 			"+menu_left		\"Left Menu\"			button		input/menu/click	/user/hand/left\n"
@@ -1072,10 +968,9 @@ static void XR_SetupInputs(void)
 //			"grip_pose		\"Grip Pose\"			pose		input/grip/pose\n"
 //			"aim_pose		\"Aim Pose\"			pose		input/aim/pose\n"
 			"vibrate		\"A Vibrator\"			vibration	output/haptic\n"
-			);
+	},
 
-/*		XR_BindProfileStr("valve_index",
-			"/interaction_profiles/valve/index_controller    /user/hand/left/ /user/hand/right/\n"
+/*	{"valve_index",		"/interaction_profiles/valve/index_controller    /user/hand/left/ /user/hand/right/\n"
 			//"unbound		\"Unused Button\"		button		input/system/click\n"
     		//"unbound		\"Unused Button\"		button		input/system/touch\n"
     		//"unbound		\"Unused Button\"		button		input/a/click\n"
@@ -1096,10 +991,9 @@ static void XR_SetupInputs(void)
     		//"unbound		\"Unused Button\"		pose		input/grip/pose\n"
     		//"unbound		\"Unused Button\"		pose		input/aim/pose\n"
     		//"unbound		\"Unused Button\"		vibration	output/haptic\n"
-			);
+	},
 */
-/*		XR_BindProfileStr("htc_vive",
-			"/interaction_profiles/htc/vive_controller    /user/hand/left/ /user/hand/right/\n"
+/*	{"htc_vive",		"/interaction_profiles/htc/vive_controller    /user/hand/left/ /user/hand/right/\n"
 			//"unbound		\"Unused Button\"		button		input/system/click\n"
 			//"unbound		\"Unused Button\"		button		input/squeeze/click\n"
 			//"unbound		\"Unused Button\"		button		input/menu/click\n"
@@ -1113,8 +1007,7 @@ static void XR_SetupInputs(void)
 			//"unbound		\"Unused Button\"		vibration	output/haptic\n"
 			);
 */
-/*		XR_BindProfileStr("htc_vive_pro",
-			"/interaction_profiles/htc/vive_pro    /user/head/\n"
+/*	{"htc_vive_pro",	"/interaction_profiles/htc/vive_pro    /user/head/\n"
 			//"unbound		\"Unused Button\"		button		input/system/click\n"
 			//"unbound		\"Unused Button\"		button		input/volume_up/click\n"
 			//"unbound		\"Unused Button\"		button		input/volume_down/click\n"
@@ -1123,7 +1016,7 @@ static void XR_SetupInputs(void)
 */
 
 		//FIXME: map to quake's keys.
-		XR_BindProfileStr("gamepad", "/interaction_profiles/microsoft/xbox_controller    /user/gamepad/\n"
+	{"gamepad", "/interaction_profiles/microsoft/xbox_controller    /user/gamepad/\n"
 			"togglemenu		Menu					button		input/menu/click\n"
 			//"unbound		\"Unused Button\"		button		input/view/click\n"
 			//"unbound		\"Unused Button\"		button		input/a/click\n"
@@ -1148,7 +1041,34 @@ static void XR_SetupInputs(void)
 			//"unbound		\"Unused Vibrator\"		vibration	output/haptic_left_trigger\n"
 			//"unbound		\"Unused Vibrator\"		vibration	output/haptic_right\n"
 			//"unbound		\"Unused Vibrator\"		vibration	output/haptic_right_trigger\n"
-			);
+	},
+};
+
+static void XR_SetupInputs(void)
+{
+	unsigned int h;
+	XrResult res;
+
+//begin instance-level init
+	{
+		XrActionSetCreateInfo info = {XR_TYPE_ACTION_SET_CREATE_INFO};
+		Q_strlcpy(info.actionSetName, "actions", sizeof(info.actionSetName));
+		Q_strlcpy(info.localizedActionSetName, FULLENGINENAME" Actions", sizeof(info.localizedActionSetName));
+		info.priority = 0;
+
+		xr.actionset.subactionPath = XR_NULL_PATH;
+		res = xrCreateActionSet(xr.instance, &info, &xr.actionset.actionSet);
+		if (XR_FAILED(res))
+			Con_Printf("openxr: Unable to create actionset - %s\n", XR_StringForResult(res));
+	}
+
+	h = 0;
+	if (fsfuncs)
+		fsfuncs->EnumerateFiles("oxr_*.binds", XR_BindProfileFile, &h);
+	if (!h)	//no user bindings defined, use fallbacks. probably this needs to be per-mod.
+	{
+		for (h = 0; h < countof(xr_knownprofiles); h++)
+			XR_BindProfileStr(xr_knownprofiles[h].name, xr_knownprofiles[h].script);
 	}
 
 //begin session specific. stuff
@@ -1295,8 +1215,7 @@ static void XR_UpdateInputs(XrTime time)
 							(loc.locationFlags&XR_SPACE_LOCATION_ORIENTATION_VALID_BIT)?angles:NULL,
 							(vel.velocityFlags&XR_SPACE_VELOCITY_LINEAR_VALID_BIT)?lvel:NULL,
 							(vel.velocityFlags&XR_SPACE_VELOCITY_ANGULAR_VALID_BIT)?avel:NULL))
-					if (transform[3][0] || transform[3][1] || transform[3][2])
-					{
+					{	//custom poses that mods might want to handle themselves...
 						vec3_t angles;
 						char cmd[256];
 						VectorAngles(transform[0], transform[2], angles, false);
@@ -1695,7 +1614,7 @@ static qboolean XR_SyncFrame(double *frametime)
 
 	return true;
 }
-static qboolean XR_Render(void(*rendereye)(texid_t tex, vec4_t fovoverride, matrix3x4 axisorg))
+static qboolean XR_Render(void(*rendereye)(texid_t tex, vec4_t fovoverride, vec3_t angorg[2]))
 {
 	XrFrameEndInfo endframeinfo = {XR_TYPE_FRAME_END_INFO};
 	unsigned int u;
@@ -1762,7 +1681,6 @@ static qboolean XR_Render(void(*rendereye)(texid_t tex, vec4_t fovoverride, matr
 		XrViewState viewstate = {XR_TYPE_VIEW_STATE};
 		XrViewLocateInfo locateinfo = {XR_TYPE_VIEW_LOCATE_INFO};
 		XrView eyeview[MAX_VIEW_COUNT]={};
-		matrix3x4 transform, eyetransform, inv;
 		for (u = 0; u < MAX_VIEW_COUNT; u++)
 			eyeview[u].type = XR_TYPE_VIEW;
 
@@ -1802,8 +1720,6 @@ static qboolean XR_Render(void(*rendereye)(texid_t tex, vec4_t fovoverride, matr
 			apose.position.y /= xr.viewcount;
 			apose.position.z /= xr.viewcount;
 			XR_PoseToAngOrg(&apose, ang, org);
-			Matrix3x4_FromAngles(ang, org, transform[0]);
-			Matrix3x4_Invert_XR(transform[0], inv[0]);
 			inputfuncs->SetHandPosition("head", org, ang, NULL, NULL);
 		}
 
@@ -1812,6 +1728,7 @@ static qboolean XR_Render(void(*rendereye)(texid_t tex, vec4_t fovoverride, matr
 			vec4_t fovoverride;
 			XrSwapchainImageWaitInfo waitinfo = {XR_TYPE_SWAPCHAIN_IMAGE_WAIT_INFO};
 			unsigned int imgidx = 0;
+			vec3_t orientation[2];
 			res = xrAcquireSwapchainImage(xr.eye[u].swapchain, NULL, &imgidx);
 			if (XR_FAILED(res))
 				Con_Printf("xrAcquireSwapchainImage: %s\n", XR_StringForResult(res));
@@ -1822,8 +1739,7 @@ static qboolean XR_Render(void(*rendereye)(texid_t tex, vec4_t fovoverride, matr
 			projviews[u].fov = eyeview[u].fov;
 			projviews[u].subImage = xr.eye[u].subimage;
 
-			XR_PoseToTransform(&eyeview[u].pose, transform[0]);
-			Matrix3x4_Multiply_XR(transform[0], inv[0], eyetransform[0]);
+			XR_PoseToAngOrg(&eyeview[u].pose, orientation[0], orientation[1]);
 
 			fovoverride[0] = eyeview[u].fov.angleLeft * (180/M_PI);
 			fovoverride[1] = eyeview[u].fov.angleRight * (180/M_PI);
@@ -1834,7 +1750,7 @@ static qboolean XR_Render(void(*rendereye)(texid_t tex, vec4_t fovoverride, matr
 			res = xrWaitSwapchainImage(xr.eye[u].swapchain, &waitinfo);
 			if (XR_FAILED(res))
 				Con_Printf("xrWaitSwapchainImage: %s\n", XR_StringForResult(res));
-			rendereye(&xr.eye[u].swapimages[imgidx], fovoverride, eyetransform);
+			rendereye(&xr.eye[u].swapimages[imgidx], fovoverride, orientation);
 			//GL note: the OpenXR specification says NOTHING about the application having to glFlush or glFinish.
 			//	I take this to mean that the openxr runtime is responsible for setting up barriers or w/e inside ReleaseSwapchainImage.
 			//VK note: the OpenXR spec does say that it needs to be color_attachment_optimal+owned by queue. which it is.

@@ -10291,9 +10291,109 @@ void SV_SetEntityButtons(edict_t *ent, unsigned int buttonbits)
 	}
 }
 
+static void SV_SetSSQCInputs(usercmd_t *ucmd)
+{
+	pr_global_struct->input_timelength = ucmd->msec/1000.0f * sv.gamespeed;
+	pr_global_struct->input_impulse = ucmd->impulse;
+//precision inaccuracies. :(
+#define ANGLE2SHORT(x) (x) * (65536/360.0)
+	if (sv_player->v->fixangle)
+	{
+		(pr_global_struct->input_angles)[0] = sv_player->v->v_angle[0];
+		(pr_global_struct->input_angles)[1] = sv_player->v->v_angle[1];
+		(pr_global_struct->input_angles)[2] = sv_player->v->v_angle[2];
+	}
+	else
+	{
+		(pr_global_struct->input_angles)[0] = SHORT2ANGLE(ucmd->angles[0]);
+		(pr_global_struct->input_angles)[1] = SHORT2ANGLE(ucmd->angles[1]);
+		(pr_global_struct->input_angles)[2] = SHORT2ANGLE(ucmd->angles[2]);
+	}
+
+	(pr_global_struct->input_movevalues)[0] = ucmd->forwardmove;
+	(pr_global_struct->input_movevalues)[1] = ucmd->sidemove;
+	(pr_global_struct->input_movevalues)[2] = ucmd->upmove;
+	pr_global_struct->input_buttons = ucmd->buttons;
+	if (pr_global_ptrs->input_weapon)
+		pr_global_struct->input_weapon = ucmd->weapon;
+	if (pr_global_ptrs->input_lightlevel)
+		pr_global_struct->input_lightlevel = ucmd->lightlevel;
+
+	if (pr_global_ptrs->input_cursor_screen)
+		VectorSet(pr_global_struct->input_cursor_screen, ucmd->cursor_screen[0], ucmd->cursor_screen[1], 0);
+	if (pr_global_ptrs->input_cursor_trace_start)
+		VectorCopy(ucmd->cursor_start, pr_global_struct->input_cursor_trace_start);
+	if (pr_global_ptrs->input_cursor_trace_endpos)
+		VectorCopy(ucmd->cursor_impact, pr_global_struct->input_cursor_trace_endpos);
+	if (pr_global_ptrs->input_cursor_entitynumber)
+		pr_global_struct->input_cursor_entitynumber = ucmd->cursor_entitynumber;
+
+	if (pr_global_ptrs->input_head_status)
+		pr_global_struct->input_head_status = ucmd->vr[VRDEV_HEAD].status;
+	if (pr_global_ptrs->input_head_origin)
+		VectorCopy(ucmd->vr[VRDEV_HEAD].origin, pr_global_struct->input_head_origin);
+	if (pr_global_ptrs->input_head_velocity)
+		VectorCopy(ucmd->vr[VRDEV_HEAD].velocity, pr_global_struct->input_head_velocity);
+	if (pr_global_ptrs->input_head_angles)
+	{
+		(pr_global_struct->input_head_angles)[0] = SHORT2ANGLE(ucmd->vr[VRDEV_HEAD].angles[0]);
+		(pr_global_struct->input_head_angles)[1] = SHORT2ANGLE(ucmd->vr[VRDEV_HEAD].angles[1]);
+		(pr_global_struct->input_head_angles)[2] = SHORT2ANGLE(ucmd->vr[VRDEV_HEAD].angles[2]);
+	}
+	if (pr_global_ptrs->input_head_avelocity)
+	{
+		(pr_global_struct->input_head_avelocity)[0] = SHORT2ANGLE(ucmd->vr[VRDEV_HEAD].avelocity[0]);
+		(pr_global_struct->input_head_avelocity)[1] = SHORT2ANGLE(ucmd->vr[VRDEV_HEAD].avelocity[1]);
+		(pr_global_struct->input_head_avelocity)[2] = SHORT2ANGLE(ucmd->vr[VRDEV_HEAD].avelocity[2]);
+	}
+
+	if (pr_global_ptrs->input_left_status)
+		pr_global_struct->input_left_status = ucmd->vr[VRDEV_LEFT].status;
+	if (pr_global_ptrs->input_left_origin)
+		VectorCopy(ucmd->vr[VRDEV_LEFT].origin, pr_global_struct->input_left_origin);
+	if (pr_global_ptrs->input_left_velocity)
+		VectorCopy(ucmd->vr[VRDEV_LEFT].velocity, pr_global_struct->input_left_velocity);
+	if (pr_global_ptrs->input_left_angles)
+	{
+		(pr_global_struct->input_left_angles)[0] = SHORT2ANGLE(ucmd->vr[VRDEV_LEFT].angles[0]);
+		(pr_global_struct->input_left_angles)[1] = SHORT2ANGLE(ucmd->vr[VRDEV_LEFT].angles[1]);
+		(pr_global_struct->input_left_angles)[2] = SHORT2ANGLE(ucmd->vr[VRDEV_LEFT].angles[2]);
+	}
+	if (pr_global_ptrs->input_left_avelocity)
+	{
+		(pr_global_struct->input_left_avelocity)[0] = SHORT2ANGLE(ucmd->vr[VRDEV_LEFT].avelocity[0]);
+		(pr_global_struct->input_left_avelocity)[1] = SHORT2ANGLE(ucmd->vr[VRDEV_LEFT].avelocity[1]);
+		(pr_global_struct->input_left_avelocity)[2] = SHORT2ANGLE(ucmd->vr[VRDEV_LEFT].avelocity[2]);
+	}
+
+	if (pr_global_ptrs->input_right_status)
+		pr_global_struct->input_right_status = ucmd->vr[VRDEV_RIGHT].status;
+	if (pr_global_ptrs->input_right_origin)
+		VectorCopy(ucmd->vr[VRDEV_RIGHT].origin, pr_global_struct->input_right_origin);
+	if (pr_global_ptrs->input_right_velocity)
+		VectorCopy(ucmd->vr[VRDEV_RIGHT].velocity, pr_global_struct->input_right_velocity);
+	if (pr_global_ptrs->input_right_angles)
+	{
+		(pr_global_struct->input_right_angles)[0] = SHORT2ANGLE(ucmd->vr[VRDEV_RIGHT].angles[0]);
+		(pr_global_struct->input_right_angles)[1] = SHORT2ANGLE(ucmd->vr[VRDEV_RIGHT].angles[1]);
+		(pr_global_struct->input_right_angles)[2] = SHORT2ANGLE(ucmd->vr[VRDEV_RIGHT].angles[2]);
+	}
+	if (pr_global_ptrs->input_right_avelocity)
+	{
+		(pr_global_struct->input_right_avelocity)[0] = SHORT2ANGLE(ucmd->vr[VRDEV_RIGHT].avelocity[0]);
+		(pr_global_struct->input_right_avelocity)[1] = SHORT2ANGLE(ucmd->vr[VRDEV_RIGHT].avelocity[1]);
+		(pr_global_struct->input_right_avelocity)[2] = SHORT2ANGLE(ucmd->vr[VRDEV_RIGHT].avelocity[2]);
+	}
+}
+
 //EXT_CSQC_1 (called when a movement command is received. runs full acceleration + movement)
 qboolean SV_RunFullQCMovement(client_t *client, usercmd_t *ucmd)
 {
+	if (ucmd->vr[VRDEV_HEAD].status & VRSTATUS_ANG)
+		sv_player->xv->idealpitch = SHORT2ANGLE(ucmd->vr[VRDEV_HEAD].angles[0]);
+	else
+		sv_player->xv->idealpitch = 0;
+	SV_SetSSQCInputs(ucmd);	//make sure its available for PlayerPreThink.
 	if (gfuncs.RunClientCommand)
 	{
 		vec3_t startangle;
@@ -10350,107 +10450,6 @@ qboolean SV_RunFullQCMovement(client_t *client, usercmd_t *ucmd)
 			}
 			sv_player->v->angles[ROLL] =
 				V_CalcRoll (sv_player->v->angles, sv_player->v->velocity)*4;
-		}
-
-
-
-
-
-
-
-
-
-
-		pr_global_struct->input_timelength = ucmd->msec/1000.0f * sv.gamespeed;
-		pr_global_struct->input_impulse = ucmd->impulse;
-	//precision inaccuracies. :(
-#define ANGLE2SHORT(x) (x) * (65536/360.0)
-		if (sv_player->v->fixangle)
-		{
-			(pr_global_struct->input_angles)[0] = sv_player->v->v_angle[0];
-			(pr_global_struct->input_angles)[1] = sv_player->v->v_angle[1];
-			(pr_global_struct->input_angles)[2] = sv_player->v->v_angle[2];
-		}
-		else
-		{
-			(pr_global_struct->input_angles)[0] = SHORT2ANGLE(ucmd->angles[0]);
-			(pr_global_struct->input_angles)[1] = SHORT2ANGLE(ucmd->angles[1]);
-			(pr_global_struct->input_angles)[2] = SHORT2ANGLE(ucmd->angles[2]);
-		}
-
-		(pr_global_struct->input_movevalues)[0] = ucmd->forwardmove;
-		(pr_global_struct->input_movevalues)[1] = ucmd->sidemove;
-		(pr_global_struct->input_movevalues)[2] = ucmd->upmove;
-		pr_global_struct->input_buttons = ucmd->buttons;
-		if (pr_global_ptrs->input_weapon)
-			pr_global_struct->input_weapon = ucmd->weapon;
-		if (pr_global_ptrs->input_lightlevel)
-			pr_global_struct->input_lightlevel = ucmd->lightlevel;
-
-		if (pr_global_ptrs->input_cursor_screen)
-			VectorSet(pr_global_struct->input_cursor_screen, ucmd->cursor_screen[0], ucmd->cursor_screen[1], 0);
-		if (pr_global_ptrs->input_cursor_trace_start)
-			VectorCopy(ucmd->cursor_start, pr_global_struct->input_cursor_trace_start);
-		if (pr_global_ptrs->input_cursor_trace_endpos)
-			VectorCopy(ucmd->cursor_impact, pr_global_struct->input_cursor_trace_endpos);
-		if (pr_global_ptrs->input_cursor_entitynumber)
-			pr_global_struct->input_cursor_entitynumber = ucmd->cursor_entitynumber;
-
-		if (pr_global_ptrs->input_head_status)
-			pr_global_struct->input_head_status = ucmd->vr[VRDEV_HEAD].status;
-		if (pr_global_ptrs->input_head_origin)
-			VectorCopy(ucmd->vr[VRDEV_HEAD].origin, pr_global_struct->input_head_origin);
-		if (pr_global_ptrs->input_head_velocity)
-			VectorCopy(ucmd->vr[VRDEV_HEAD].velocity, pr_global_struct->input_head_velocity);
-		if (pr_global_ptrs->input_head_angles)
-		{
-			(pr_global_struct->input_head_angles)[0] = SHORT2ANGLE(ucmd->vr[VRDEV_HEAD].angles[0]);
-			(pr_global_struct->input_head_angles)[1] = SHORT2ANGLE(ucmd->vr[VRDEV_HEAD].angles[1]);
-			(pr_global_struct->input_head_angles)[2] = SHORT2ANGLE(ucmd->vr[VRDEV_HEAD].angles[2]);
-		}
-		if (pr_global_ptrs->input_head_avelocity)
-		{
-			(pr_global_struct->input_head_avelocity)[0] = SHORT2ANGLE(ucmd->vr[VRDEV_HEAD].avelocity[0]);
-			(pr_global_struct->input_head_avelocity)[1] = SHORT2ANGLE(ucmd->vr[VRDEV_HEAD].avelocity[1]);
-			(pr_global_struct->input_head_avelocity)[2] = SHORT2ANGLE(ucmd->vr[VRDEV_HEAD].avelocity[2]);
-		}
-
-		if (pr_global_ptrs->input_left_status)
-			pr_global_struct->input_left_status = ucmd->vr[VRDEV_LEFT].status;
-		if (pr_global_ptrs->input_left_origin)
-			VectorCopy(ucmd->vr[VRDEV_LEFT].origin, pr_global_struct->input_left_origin);
-		if (pr_global_ptrs->input_left_velocity)
-			VectorCopy(ucmd->vr[VRDEV_LEFT].velocity, pr_global_struct->input_left_velocity);
-		if (pr_global_ptrs->input_left_angles)
-		{
-			(pr_global_struct->input_left_angles)[0] = SHORT2ANGLE(ucmd->vr[VRDEV_LEFT].angles[0]);
-			(pr_global_struct->input_left_angles)[1] = SHORT2ANGLE(ucmd->vr[VRDEV_LEFT].angles[1]);
-			(pr_global_struct->input_left_angles)[2] = SHORT2ANGLE(ucmd->vr[VRDEV_LEFT].angles[2]);
-		}
-		if (pr_global_ptrs->input_left_avelocity)
-		{
-			(pr_global_struct->input_left_avelocity)[0] = SHORT2ANGLE(ucmd->vr[VRDEV_LEFT].avelocity[0]);
-			(pr_global_struct->input_left_avelocity)[1] = SHORT2ANGLE(ucmd->vr[VRDEV_LEFT].avelocity[1]);
-			(pr_global_struct->input_left_avelocity)[2] = SHORT2ANGLE(ucmd->vr[VRDEV_LEFT].avelocity[2]);
-		}
-
-		if (pr_global_ptrs->input_right_status)
-			pr_global_struct->input_right_status = ucmd->vr[VRDEV_RIGHT].status;
-		if (pr_global_ptrs->input_right_origin)
-			VectorCopy(ucmd->vr[VRDEV_RIGHT].origin, pr_global_struct->input_right_origin);
-		if (pr_global_ptrs->input_right_velocity)
-			VectorCopy(ucmd->vr[VRDEV_RIGHT].velocity, pr_global_struct->input_right_velocity);
-		if (pr_global_ptrs->input_right_angles)
-		{
-			(pr_global_struct->input_right_angles)[0] = SHORT2ANGLE(ucmd->vr[VRDEV_RIGHT].angles[0]);
-			(pr_global_struct->input_right_angles)[1] = SHORT2ANGLE(ucmd->vr[VRDEV_RIGHT].angles[1]);
-			(pr_global_struct->input_right_angles)[2] = SHORT2ANGLE(ucmd->vr[VRDEV_RIGHT].angles[2]);
-		}
-		if (pr_global_ptrs->input_right_avelocity)
-		{
-			(pr_global_struct->input_right_avelocity)[0] = SHORT2ANGLE(ucmd->vr[VRDEV_RIGHT].avelocity[0]);
-			(pr_global_struct->input_right_avelocity)[1] = SHORT2ANGLE(ucmd->vr[VRDEV_RIGHT].avelocity[1]);
-			(pr_global_struct->input_right_avelocity)[2] = SHORT2ANGLE(ucmd->vr[VRDEV_RIGHT].avelocity[2]);
 		}
 
 		//prethink should be consistant with what the engine normally does

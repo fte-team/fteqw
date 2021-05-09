@@ -90,6 +90,7 @@ cvar_t  pr_csqc_formenus = CVAR("pr_csqc_formenus", "0");
 #endif
 static cvar_t	dpcompat_csqcinputeventtypes = CVARD("dpcompat_csqcinputeventtypes", "999999", "Specifies the first csqc input event that the mod does not recognise. This should never have been a thing, but some mods are simply too buggy.");
 extern cvar_t dpcompat_stats;
+extern cvar_t	in_vraim;
 
 // standard effect cvars/sounds
 extern cvar_t r_explosionlight;
@@ -2244,6 +2245,12 @@ nogameaccess:
 		*r = r_refdef.viewangles[parametertype-VF_ANGLES_X];
 		break;
 
+	case VF_VRBASEORIENTATION:
+		if (csqc_nogameaccess && prinst == csqc_world.progs)
+			goto nogameaccess;
+		VectorCopy(r_refdef.base_angles, r);
+		break;
+
 	case VF_CL_VIEWANGLES_V:
 		if (csqc_nogameaccess && prinst == csqc_world.progs)
 			goto nogameaccess;
@@ -2508,6 +2515,13 @@ void QCBUILTIN PF_R_SetViewFlag(pubprogfuncs_t *prinst, struct globalvars_s *pr_
 	case VF_ANGLES_Y:
 	case VF_ANGLES_Z:
 		r_refdef.viewangles[parametertype-VF_ANGLES_X] = *p;
+		break;
+
+	case VF_VRBASEORIENTATION:
+		in_vraim.ival = 0;	//csqc mod with explicit vr stuff.
+		r_refdef.base_known = true;
+		VectorCopy(p, r_refdef.base_angles);
+		VectorCopy(G_VECTOR(OFS_PARM2), r_refdef.base_origin);
 		break;
 
 	case VF_CL_VIEWANGLES_V:
@@ -3823,7 +3837,7 @@ static void cs_set_input_state (usercmd_t *cmd)
 	if (csqcg.input_servertime)
 		*csqcg.input_servertime = cmd->fservertime;
 	if (csqcg.input_clienttime)
-		*csqcg.input_clienttime = cmd->fclienttime/1000.0f;
+		*csqcg.input_clienttime = cmd->fclienttime;
 
 	if (csqcg.input_cursor_screen)
 	{
@@ -3922,7 +3936,10 @@ static void cs_get_input_state (usercmd_t *cmd)
 	if (csqcg.input_weapon)
 		cmd->weapon = *csqcg.input_weapon;
 	if (csqcg.input_servertime)
+	{
 		cmd->fservertime = *csqcg.input_servertime;
+		cmd->servertime = *csqcg.input_servertime*1000;
+	}
 
 	if (csqcg.input_cursor_screen)
 		Vector2Copy(csqcg.input_cursor_screen, cmd->cursor_screen);
@@ -4064,6 +4081,11 @@ static void QCBUILTIN PF_cs_getinputstate (pubprogfuncs_t *prinst, struct global
 		if (!cmd->msec)
 			*cmd = cl.outframes[(f-1)&UPDATE_MASK].cmd[seat];
 		cmd->msec = (realtime - cl.outframes[(f-1)&UPDATE_MASK].senttime)*1000;
+
+		//make sure we have the latest info...
+		cmd->vr[VRDEV_LEFT] = csqc_playerview->vrdev[VRDEV_LEFT];
+		cmd->vr[VRDEV_RIGHT] = csqc_playerview->vrdev[VRDEV_RIGHT];
+		cmd->vr[VRDEV_HEAD] = csqc_playerview->vrdev[VRDEV_HEAD];
 	}
 	else
 	{
@@ -7751,6 +7773,8 @@ void CSQC_Shutdown(void)
 	csqc_world.num_edicts = 0;
 	memset(&csqc_world, 0, sizeof(csqc_world));
 	memset(&csqcg, 0, sizeof(csqcg));
+
+	in_vraim.ival = in_vraim.value;	//csqc mod with explicit vr stuff.
 
 	if (csqc_deprecated_warned>1)
 	{

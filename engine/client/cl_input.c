@@ -49,7 +49,8 @@ static cvar_t cl_sendchatstate = CVARD("cl_sendchatstate", "1", "Announce your c
 
 cvar_t	cl_prydoncursor = CVAR("cl_prydoncursor", "");	//for dp protocol
 cvar_t	cl_instantrotate = CVARF("cl_instantrotate", "1", CVAR_SEMICHEAT);
-cvar_t in_xflip = {"in_xflip", "0"};
+cvar_t in_xflip = CVAR("in_xflip", "0");
+cvar_t in_vraim = CVARD("in_vraim", "1", "When set to 1, the 'view' angle sent to the server is controlled by your vr headset instead of separately. This is for fallback behaviour and blocks mouse+joy+gamepad aiming.");
 
 cvar_t	prox_inmenu = CVAR("prox_inmenu", "0");
 
@@ -915,7 +916,7 @@ void CL_BaseMove (usercmd_t *cmd, int pnum, float priortime, float extratime)
 	float nscale = extratime?extratime / (extratime+priortime):0;
 	float oscale = 1 - nscale;
 
-	cmd->fservertime = cl.time*1000;
+	cmd->fservertime = cl.time;
 	cmd->servertime = cl.time*1000;
 
 //
@@ -940,7 +941,7 @@ void CL_BaseMove (usercmd_t *cmd, int pnum, float priortime, float extratime)
 		CL_GatherButtons(cmd, pnum);
 }
 
-static void CL_ClampPitch (int pnum, float frametime)
+void CL_ClampPitch (int pnum, float frametime)
 {
 	float mat[16];
 	float roll;
@@ -1097,6 +1098,30 @@ static void CL_ClampPitch (int pnum, float frametime)
 	pv->viewangles[YAW] *= 360;
 	VectorClear(pv->viewanglechange);
 
+	if (in_vraim.ival && (pv->vrdev[VRDEV_HEAD].status&VRSTATUS_ANG))
+	{	//overcomplicated code to replace the pitch+roll angles and add to the yaw angle.
+#if 0
+		matrix3x4 base, head, res;
+		vec3_t na = {0, pv->viewangles[YAW], 0};
+		vec3_t f,l,u,o;
+		Matrix3x4_RM_FromAngles(na, vec3_origin, base[0]);
+		for (i=0 ; i<3 ; i++)
+			na[i] = SHORT2ANGLE(pv->vrdev[VRDEV_HEAD].angles[i]);
+		Matrix3x4_RM_FromAngles(na, pv->vrdev[VRDEV_HEAD].origin, head[0]);
+		Matrix3x4_Multiply(head[0], base[0], res[0]);
+		Matrix3x4_RM_ToVectors(res[0], f,l,u,o);
+		VectorAngles(f,u,pv->aimangles,false);
+		for (i=0 ; i<3 ; i++)
+			cmd->angles[i] = ANGLE2SHORT(na[i]);
+#else
+		pv->aimangles[PITCH] = SHORT2ANGLE(pv->vrdev[VRDEV_HEAD].angles[PITCH]);
+		pv->aimangles[YAW]   = SHORT2ANGLE(pv->vrdev[VRDEV_HEAD].angles[YAW]) + pv->viewangles[YAW];
+		pv->aimangles[ROLL]  = SHORT2ANGLE(pv->vrdev[VRDEV_HEAD].angles[ROLL]);
+#endif
+	}
+	else
+		VectorCopy(pv->viewangles, pv->aimangles);
+
 #ifdef Q2CLIENT
 	if (cls.protocol == CP_QUAKE2)
 	{
@@ -1129,6 +1154,11 @@ static void CL_ClampPitch (int pnum, float frametime)
 			pv->viewangles[PITCH] = cl.maxpitch;
 		if (pv->viewangles[PITCH] < cl.minpitch)
 			pv->viewangles[PITCH] = cl.minpitch;
+
+		if (pv->aimangles[PITCH] > cl.maxpitch)
+			pv->aimangles[PITCH] = cl.maxpitch;
+		if (pv->aimangles[PITCH] < cl.minpitch)
+			pv->aimangles[PITCH] = cl.minpitch;
 	} 
 
 //	if (cl.viewangles[pnum][ROLL] > 50)
@@ -1169,7 +1199,10 @@ static void CL_FinishMove (usercmd_t *cmd, int pnum)
 	CL_GatherButtons(cmd, pnum);
 
 	for (i=0 ; i<3 ; i++)
-		cmd->angles[i] = ((int)(cl.playerview[pnum].viewangles[i]*65536.0/360)&65535);
+		cmd->angles[i] = (int)(ANGLE2SHORT(cl.playerview[pnum].aimangles[i]))&65535;
+	cmd->vr[VRDEV_LEFT] = cl.playerview[pnum].vrdev[VRDEV_LEFT];
+	cmd->vr[VRDEV_RIGHT] = cl.playerview[pnum].vrdev[VRDEV_RIGHT];
+	cmd->vr[VRDEV_HEAD] = cl.playerview[pnum].vrdev[VRDEV_HEAD];
 
 	if (in_impulsespending[pnum] && !cl.paused)
 	{
@@ -2559,6 +2592,7 @@ void CL_InitInput (void)
 
 	Cvar_Register (&cl_fastaccel, inputnetworkcvargroup);
 	Cvar_Register (&in_xflip, inputnetworkcvargroup);
+	Cvar_Register (&in_vraim, inputnetworkcvargroup);
 	Cvar_Register (&cl_nodelta, inputnetworkcvargroup);
 
 	Cvar_Register (&prox_inmenu, inputnetworkcvargroup);

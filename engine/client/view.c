@@ -326,7 +326,11 @@ void V_DriftPitch (playerview_t *pv)
 		return;
 	}
 
+#ifdef QUAKESTATS
+	delta = pv->statsf[STAT_IDEALPITCH] - pv->viewangles[PITCH];
+#else
 	delta = 0 - pv->viewangles[PITCH];
+#endif
 
 	if (!delta)
 	{

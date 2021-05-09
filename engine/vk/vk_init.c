@@ -2656,7 +2656,7 @@ static qboolean VK_R_RenderScene_Cubemap(struct vk_rendertarg *fb)
 	return true;
 }
 
-void VK_R_RenderEye(texid_t image, vec4_t fovoverride, matrix3x4 axisorg)
+void VK_R_RenderEye(texid_t image, vec4_t fovoverride, vec3_t eyeangorg[2])
 {
 	struct vk_rendertarg *rt;
 

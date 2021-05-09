@@ -260,9 +260,11 @@ typedef struct
 	vec3_t		vieworg;			/*logical view center*/
 	vec3_t		viewangles;
 	vec3_t		viewaxis[3];		/*forward, left, up (NOT RIGHT)*/
-	vec3_t		headaxis[3];		/*this is for head mounted displays. this is relative to the view*/
 	vec3_t		eyeoffset;			/*world space, for vr screenies*/
 	vec2_t		projectionoffset;	/*for off-centre rendering*/
+
+	qboolean	base_known;			/*otherwise we do some fallback behaviour (ie: viewangles.0y0 and forcing input_angles)*/
+	vec3_t		base_angles, base_origin; /*for vr output, overrides per-eye viewangles according to that eye's matrix.*/
 
 	float		fov_x, fov_y, afov;
 	float		fovv_x, fovv_y;	//viewmodel fovs

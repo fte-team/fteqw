@@ -5978,55 +5978,6 @@ qboolean Host_RunFile(const char *fname, int nlen, vfsfile_t *file)
 	return true;
 }
 
-void CL_UpdateHeadAngles(void)
-{
-/*FIXME: no idea what I'm doing with this. lets just not break anything for now
-	//identity, for now
-	vec3_t headchange[3] =
-	{
-		{1,0,0},
-		{0,1,0},
-		{0,0,1}
-	};
-	vec3_t tmp[3], tmp2[3];
-	playerview_t *pv = &cl.playerview[0];
-
-	tmp2[0][0] = 0;
-	tmp2[0][1] = host_frametime*90;
-	tmp2[0][2] = 0;
-	AngleVectorsFLU(tmp2[0], headchange[0], headchange[1], headchange[2]);
-
-	switch(cl_headmode.ival)
-	{
-	case 3: //head angles change both
-		R_ConcatRotations(headchange, r_refdef.headaxis, tmp);
-		break;
-	case 2:	//head changes are entirely relative to the 'view' angle
-		R_ConcatRotations(headchange, r_refdef.headaxis, tmp);
-		memcpy(r_refdef.headaxis, tmp, sizeof(r_refdef.headaxis));
-		break;
-	case 1:	//head changes change the view angle directly.
-
-		AngleVectorsFLU(pv->viewangles, tmp[0], tmp[1], tmp[2]);
-		R_ConcatRotations(headchange, tmp, tmp2);
-		VectorAngles(tmp2[0], tmp2[2], pv->viewangles);
-		pv->viewangles[0] *= r_meshpitch.value;
-		pv->viewangles[2] *= r_meshroll.value;
-
-		//fall through
-	default:
-	case 0:	//off
-		VectorSet(r_refdef.headaxis[0], 1, 0, 0);
-		VectorSet(r_refdef.headaxis[1], 0, 1, 0);
-		VectorSet(r_refdef.headaxis[2], 0, 0, 1);
-		break;
-	}
-	*/
-	VectorSet(r_refdef.headaxis[0], 1, 0, 0);
-	VectorSet(r_refdef.headaxis[1], 0, 1, 0);
-	VectorSet(r_refdef.headaxis[2], 0, 0, 1);
-}
-
 /*
 ==================
 Host_Frame
@@ -6363,8 +6314,6 @@ double Host_Frame (double time)
 			if (emscriptenfte_getvrframedata())
 				r_refdef.stereomethod = STEREO_WEBVR;
 	#endif
-			CL_UpdateHeadAngles();
-
 			{
 				RSpeedMark();
 				vid.ime_allow = false;

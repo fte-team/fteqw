@@ -1036,7 +1036,7 @@ void CL_PredictMovePNum (int seat)
 		else
 		{
 			lerpangles = (cls.demoplayback == DPB_QUAKEWORLD);
-			VectorCopy (pv->viewangles, pv->simangles);
+			VectorCopy (pv->aimangles, pv->simangles);
 		}
 	}
 

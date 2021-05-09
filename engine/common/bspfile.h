@@ -500,7 +500,7 @@ typedef struct
 
 #define	FTECONTENTS_EMPTY			0x00000000
 #define	FTECONTENTS_SOLID			0x00000001
-//q2window							0x00000002
+#define FTECONTENTS_WINDOW			0x00000002	//solid to bullets, but not sight/agro
 //q2aux								0x00000004
 #define	FTECONTENTS_LAVA			0x00000008
 #define	FTECONTENTS_SLIME			0x00000010
@@ -656,8 +656,8 @@ typedef struct
 
 // content masks. Allow q2contents_window in here
 //#define	MASK_ALL				(-1)
-#define	MASK_WORLDSOLID				(FTECONTENTS_SOLID|Q2CONTENTS_WINDOW)	/*default trace type for something simple that ignores non-bsp stuff*/
-#define	MASK_POINTSOLID				(FTECONTENTS_SOLID|Q2CONTENTS_WINDOW|FTECONTENTS_BODY)	/*default trace type for an entity of no size*/
+#define	MASK_WORLDSOLID				(FTECONTENTS_SOLID|FTECONTENTS_WINDOW)	/*default trace type for something simple that ignores non-bsp stuff*/
+#define	MASK_POINTSOLID				(FTECONTENTS_SOLID|FTECONTENTS_WINDOW|FTECONTENTS_BODY)	/*default trace type for an entity of no size*/
 #define	MASK_BOXSOLID				(FTECONTENTS_SOLID|FTECONTENTS_PLAYERCLIP|Q2CONTENTS_WINDOW|FTECONTENTS_BODY) /*default trace type for an entity that does have size*/
 #define	MASK_PLAYERSOLID			MASK_BOXSOLID
 //#define	MASK_DEADSOLID			(Q2CONTENTS_SOLID|Q2CONTENTS_PLAYERCLIP|Q2CONTENTS_WINDOW)

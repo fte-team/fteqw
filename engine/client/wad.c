@@ -245,10 +245,10 @@ typedef struct
 	int position;
 	int size;
 } texwadlump_t;
-int numwadtextures;
+static int numwadtextures;
 static texwadlump_t texwadlump[TEXWAD_MAXIMAGES];
 
-wadfile_t *openwadfiles;
+static wadfile_t *openwadfiles;
 
 void Wads_Flush (void)
 {

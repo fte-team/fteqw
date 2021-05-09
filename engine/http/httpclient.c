@@ -1594,7 +1594,10 @@ void DL_DeThread(void)
 	{
 		dl->threadenable = false;
 		if (dl->threadctx)
+		{
 			Sys_WaitOnThread(dl->threadctx);
+			dl->threadctx = NULL;
+		}
 	}
 #endif
 }

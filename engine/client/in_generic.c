@@ -1092,6 +1092,7 @@ qboolean IN_SetHandPosition(const char *devname, vec3_t org, vec3_t ang, vec3_t 
 {
 	int dtype;
 	int seat;
+	struct vrdevinfo_s *dev;
 	if (!strncmp(devname, "left", 4))
 	{
 		seat = atoi(devname+4);
@@ -1111,23 +1112,35 @@ qboolean IN_SetHandPosition(const char *devname, vec3_t org, vec3_t ang, vec3_t 
 		return false;	//no idea what you're talking about.
 	if (seat < 0 || seat >= MAX_SPLITS)
 		return false;	//duuuude!
-	cl_pendingcmd[seat].vr[dtype].status =
+	dev = &cl.playerview[seat].vrdev[dtype];
+
+	if (org)
+		VectorCopy(org, dev->origin);
+	else
+		VectorClear(dev->origin);
+	if (ang)
+	{
+		dev->angles[0] = ANGLE2SHORT(ang[0]),
+		dev->angles[1] = ANGLE2SHORT(ang[1]),
+		dev->angles[2] = ANGLE2SHORT(ang[2]);
+	}
+	else
+		VectorClear(dev->angles);
+	if (vel)
+		VectorCopy(vel, dev->velocity);
+	else
+		VectorClear(dev->velocity);
+	if (avel)
+		dev->avelocity[0] = ANGLE2SHORT(avel[0]),
+		dev->avelocity[1] = ANGLE2SHORT(avel[1]),
+		dev->avelocity[2] = ANGLE2SHORT(avel[2]);
+	else
+		VectorClear(dev->avelocity);
+
+	dev->status =
 			(org ?VRSTATUS_ORG:0)|
 			(ang ?VRSTATUS_ANG:0)|
 			(vel ?VRSTATUS_VEL:0)|
 			(avel?VRSTATUS_AVEL:0);
-
-	if (org)
-		VectorCopy(org, cl_pendingcmd[seat].vr[dtype].origin);
-	if (ang)
-		cl_pendingcmd[seat].vr[dtype].angles[0] = ANGLE2SHORT(ang[0]),
-		cl_pendingcmd[seat].vr[dtype].angles[1] = ANGLE2SHORT(ang[1]),
-		cl_pendingcmd[seat].vr[dtype].angles[2] = ANGLE2SHORT(ang[2]);
-	if (vel)
-		VectorCopy(vel, cl_pendingcmd[seat].vr[dtype].velocity);
-	if (avel)
-		cl_pendingcmd[seat].vr[dtype].avelocity[0] = ANGLE2SHORT(avel[0]),
-		cl_pendingcmd[seat].vr[dtype].avelocity[1] = ANGLE2SHORT(avel[1]),
-		cl_pendingcmd[seat].vr[dtype].avelocity[2] = ANGLE2SHORT(avel[2]);
 	return true;
 }

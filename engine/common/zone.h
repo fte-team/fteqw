@@ -88,6 +88,7 @@ Zone block
 #else
 	#define VALGRIND_MAKE_MEM_UNDEFINED(ptr,sz)	//as an alternative to memzero..
 	#define VALGRIND_MAKE_MEM_NOACCESS(ptr,sz)
+	#define VALGRIND_MAKE_MEM_DEFINED_IF_ADDRESSABLE(ptr,sz) //undo VALGRIND_MAKE_MEM_UNDEFINED, to make sure we don't read past the end of buffers.
 #endif
 
 void Memory_Init (void);

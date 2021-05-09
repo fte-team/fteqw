@@ -661,6 +661,7 @@ struct playerview_s
 // the client maintains its own idea of view angles, which are
 // sent to the server each frame.  And only reset at level change
 // and teleport times
+	vec3_t		aimangles;			//angles actually being sent to the server (different due to in_vraim)
 	vec3_t		viewangles;			//current angles
 	vec3_t		viewanglechange;	//angles set by input code this frame
 	vec3_t		intermissionangles;	//absolute angles for intermission
@@ -773,6 +774,8 @@ struct playerview_s
 		size_t reverbtype;
 		vec3_t velocity;
 	} audio;
+
+	struct vrdevinfo_s vrdev[VRDEV_COUNT];
 };
 
 //

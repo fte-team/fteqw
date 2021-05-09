@@ -772,6 +772,39 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 	#define fte_alignof(type) sizeof(qintptr_t)
 #endif
 
+//WARNING: FTE_CONSTRUCTOR things are unordered.
+#ifdef __cplusplus
+	//use standard constructors in any c++ code...
+	#define FTE_CONSTRUCTOR(fn) \
+		static void fn(void);	\
+		class atinit_##fn {atinit_##fn(void){fn();}};	\
+		static void fn(void)
+#elif _MSC_VER
+    #pragma section(".CRT$XCU",read)
+    #if _MSC_VER >= 1500	//use '/include' so it doesn't get stripped from linker optimisations
+		#define INITIALIZER2_(f,p) \
+			static void f(void); \
+			__declspec(allocate(".CRT$XCU")) void (*f##_)(void) = f; \
+			__pragma(comment(linker,"/include:" p #f "_")) \
+			static void f(void)
+	#else	// '/include' doesn't exist, hope there's no linker optimisations.
+		#define INITIALIZER2_(f,p) \
+			static void f(void); \
+			__declspec(allocate(".CRT$XCU")) void (*f##_)(void) = f; \
+			static void f(void)
+	#endif
+    #ifdef _WIN64
+        #define INITIALIZER(f) INITIALIZER2_(f,"")
+    #else
+        #define INITIALIZER(f) INITIALIZER2_(f,"_")
+    #endif
+#else
+	//assume gcc/clang...
+	#define FTE_CONSTRUCTOR(fn) \
+		__attribute__((constructor)) static void fn(void)
+#endif
+
+
 //safeswitch(foo){safedefault: break;}
 //switch, but errors for any omitted enum values despite the presence of a default case.
 //(gcc will generally give warnings without the default, but sometimes you don't have control over the source of your enumeration values)

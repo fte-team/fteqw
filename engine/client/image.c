@@ -13529,7 +13529,7 @@ static struct pendingtextureinfo *Image_LoadCubemapTextureData(const char *nicen
 						int bb,bw,bh, bd;
 						Image_BlockSizeForEncoding(format, &bb, &bw, &bh, &bd);
 						if (needsflipping && (bw!=1 || bh!=1 || bd!=1))
-							/*can't do it*/;
+							Con_Printf(CON_WARNING"%s: %s requires flipping, which is unsupported with pixel format %s\n", nicename, fname, Image_FormatName(format));	/*can't do it*/
 						else if (width == height && (!mips || width == mips->mip[0].width))	//cubemaps must be square and all the same size (npot is fine though)
 						{	//(skies have a fallback for invalid sizes, but it'll run a bit slower)
 
@@ -13555,6 +13555,13 @@ static struct pendingtextureinfo *Image_LoadCubemapTextureData(const char *nicen
 
 							BZ_Free(buf);
 							goto nextface;
+						}
+						else
+						{
+							if (mips)
+								Con_Printf(CON_WARNING"%s: %s has inconsistent dimensions (%i*%i, must be %i*%i)\n", nicename, fname, width, height, mips->mip[0].width, mips->mip[0].height);
+							else
+								Con_Printf(CON_WARNING"%s: %s has inconsistent dimensions (%i*%i, must be square)\n", nicename, fname, width, height);
 						}
 						BZ_Free(data);
 					}

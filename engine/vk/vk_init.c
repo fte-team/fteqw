@@ -4542,6 +4542,7 @@ qboolean VK_Init(rendererstate_t *info, const char **sysextnames, qboolean (*cre
 	const char *extensions[8];
 	uint32_t extensions_count = 0;
 
+	qboolean	ignorequeuebugs = false;
 	qboolean okay;
 	vrsetup_t vrsetup = {sizeof(vrsetup)};
 
@@ -4799,9 +4800,17 @@ qboolean VK_Init(rendererstate_t *info, const char **sysextnames, qboolean (*cre
 				}
 				if (j == queue_count)
 				{
-					//no queues can present to that surface, so I guess we can't use that device
-					Con_DLPrintf((wantdev != i)?1:0, "vulkan: ignoring device \"%s\" as it can't present to window\n", props.deviceName);
-					continue;
+					if ((wantdev >= 0 && i==wantdev) || (wantdev==-1 && *info->subrenderer && !Q_strcasecmp(props.deviceName, info->subrenderer)))
+					{
+						Con_Printf(CON_WARNING"vulkan: attempting to use device \"%s\" despite no device queues being able to present to window surface\n", props.deviceName);
+						ignorequeuebugs = true;
+					}
+					else
+					{
+						//no queues can present to that surface, so I guess we can't use that device
+						Con_DLPrintf((wantdev != i)?1:0, "vulkan: ignoring device \"%s\" as it can't present to window\n", props.deviceName);
+						continue;
+					}
 				}
 			}
 			Con_DPrintf("Found Vulkan Device \"%s\"\n", props.deviceName);
@@ -4981,9 +4990,16 @@ qboolean VK_Init(rendererstate_t *info, const char **sysextnames, qboolean (*cre
 
 		if (vk.queuefam[0] == ~0u || vk.queuefam[1] == ~0u)
 		{
-			free(queueprops);
-			Con_Printf(CON_ERROR"vulkan: unable to find suitable queues\n");
-			return false;
+			if (ignorequeuebugs && queue_count>0)
+			{
+				vk.queuefam[0] = vk.queuefam[1] = 0;
+			}
+			else
+			{
+				free(queueprops);
+				Con_Printf(CON_ERROR"vulkan: unable to find suitable queues\n");
+				return false;
+			}
 		}
 	}
 

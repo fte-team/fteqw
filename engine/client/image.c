@@ -5021,7 +5021,7 @@ qboolean Image_WriteKTXFile(const char *filename, enum fs_relative fsroot, struc
 
 #define LongSwap(i) (((i&0xff000000) >> 24)|((i&0x00ff0000) >> 8)|((i&0x0000ff00) << 8)|((i&0x000000ff) << 24))
 #define ShortSwap(i) (((i&0xff00) >> 8)|((i&0x00ff) << 8))
-static struct pendingtextureinfo *Image_ReadKTXFile(unsigned int flags, const char *fname, qbyte *filedata, size_t filesize)
+static struct pendingtextureinfo *Image_ReadKTX1File(unsigned int flags, const char *fname, qbyte *filedata, size_t filesize)
 {
 	static const char magic[12] = {0xAB, 0x4B, 0x54, 0x58, 0x20, 0x31, 0x31, 0xBB, 0x0D, 0x0A, 0x1A, 0x0A};
 	ktxheader_t header;
@@ -5349,6 +5349,500 @@ static struct pendingtextureinfo *Image_ReadKTXFile(unsigned int flags, const ch
 #endif
 
 	return mips;
+}
+
+typedef struct
+{
+	char magic[12];
+	quint32_t vkFormat;
+	quint32_t typesize;
+	quint32_t pixelwidth;
+	quint32_t pixelheight;
+	quint32_t pixeldepth;
+	quint32_t layercount;
+	quint32_t facecount;
+	quint32_t levelcount;
+	quint32_t compressionscheme;
+
+	quint32_t dfdoffset;
+	quint32_t dfdsize;
+	quint32_t kvdoffset;
+	quint32_t kvdsize;
+	quint64_t sgdoffset;
+	quint64_t sgdsize;
+} ktx2header_t;
+typedef struct
+{
+	quint64_t offset;
+	quint64_t compsize;
+	quint64_t rawsize;
+} ktx2lavelheader_t;
+static struct pendingtextureinfo *Image_ReadKTX2File(unsigned int flags, const char *fname, qbyte *filedata, size_t filesize)
+{
+	static const char magic[12] = {0xAB, 0x4B, 0x54, 0x58, 0x20, 0x32, 0x30, 0xBB, 0x0D, 0x0A, 0x1A, 0x0A};
+	ktx2header_t header;
+	const ktx2lavelheader_t *levelheader;
+	int mipnum;
+	unsigned int w, h, d;
+	struct pendingtextureinfo *mips;
+	int encoding = TF_INVALID, itype;
+
+	unsigned int bw, bh, bd, bb;
+
+	if (filesize < sizeof(ktxheader_t) || memcmp(filedata, magic, sizeof(magic)))
+		return NULL;	//not a ktx file
+
+	header = *(const ktx2header_t*)filedata;
+	levelheader = (const ktx2lavelheader_t*)((const ktx2header_t*)filedata+1);
+
+	header.vkFormat			= LittleLong(header.vkFormat);
+	header.typesize			= LittleLong(header.typesize);
+	header.pixelwidth		= LittleLong(header.pixelwidth);
+	header.pixelheight		= LittleLong(header.pixelheight);
+	header.pixeldepth		= LittleLong(header.pixeldepth);
+	header.layercount		= LittleLong(header.layercount);
+	header.facecount		= LittleLong(header.facecount);
+	header.levelcount		= LittleLong(header.levelcount);
+	header.compressionscheme= LittleLong(header.compressionscheme);
+	header.dfdoffset		= LittleLong(header.dfdoffset);
+	header.dfdsize			= LittleLong(header.dfdsize);
+	header.kvdoffset		= LittleLong(header.kvdoffset);
+	header.kvdsize			= LittleLong(header.kvdsize);
+	header.sgdoffset		= LittleI64(header.sgdoffset);
+	header.sgdsize			= LittleI64(header.sgdsize);
+
+	if (!header.pixelheight)
+		header.pixelheight = 1;	//we don't support 1D textures. force it to 2d.
+	if (header.pixeldepth)
+	{
+		if (header.layercount || header.facecount!=1)
+			return NULL;	//neither 3d arrays nor 3d cubes are supported, nor do they really make sense.
+		header.layercount = 1;
+		itype = PTI_3D;
+	}
+	else
+	{
+		header.pixeldepth = 1;
+
+		if (header.facecount==6)
+		{	//cube...
+			if (header.layercount)
+				itype = PTI_CUBE_ARRAY;
+			else itype = PTI_CUBE, header.layercount=1;
+		}
+		else if (header.facecount == 1)
+		{	//boring 2d
+			if (header.layercount)
+				itype = PTI_2D_ARRAY;
+			else itype = PTI_2D, header.layercount=1;
+		}
+		else
+			return NULL;	//not allowed
+	}
+
+	w = header.pixelwidth;
+	h = header.pixelheight;
+	d = header.pixeldepth*header.facecount*header.layercount;
+
+	if (!header.levelcount)
+		header.levelcount = 1;	//means we must auto-generate the mip pyramid. should warn if texflags doesn't match.
+
+	switch (header.compressionscheme)
+	{
+	case 0:	//no compression
+		break;
+	case 1: //basis... w/e
+	case 2:	//zstd... we have no decompression lib
+	case 3: //zlib... we probably have zlib! but the docs imply zlib yet states raw deflate (so requires a passing the windowsize to zlib's inflateInit2 as negative, which is non-obvious).
+	default:
+		return NULL;	//we don't support this junk. gzip it. you'll get better compression than doing it per-level.
+	}
+
+	/*FIXME: validate format+type for non-compressed formats*/
+	switch(header.vkFormat)
+	{
+//	case 1/*VK_FORMAT_R4G4_UNORM_PACK8*/:				encoding = PTI_RG4;			break;
+	case 2/*VK_FORMAT_R4G4B4A4_UNORM_PACK16*/:			encoding = PTI_RGBA4444;	break;
+//	case 3/*VK_FORMAT_B4G4R4A4_UNORM_PACK16*/:			encoding = PTI_BGRA4444;	break;
+	case 4/*VK_FORMAT_R5G6B5_UNORM_PACK16*/:			encoding = PTI_RGB565;		break;
+//	case 5/*VK_FORMAT_B5G6R5_UNORM_PACK16*/:			encoding = PTI_BGR565;		break;
+	case 6/*VK_FORMAT_R5G5B5A1_UNORM_PACK16*/:			encoding = PTI_RGBA5551;	break;
+//	case 7/*VK_FORMAT_B5G5R5A1_UNORM_PACK16*/:			encoding = PTI_BGRA5551;	break;
+	case 8/*VK_FORMAT_A1R5G5B5_UNORM_PACK16*/:			encoding = PTI_ARGB1555;	break;
+	case 9/*VK_FORMAT_R8_UNORM*/:						encoding = PTI_R8;			break;
+	case 10/*VK_FORMAT_R8_SNORM*/:						encoding = PTI_R8_SNORM;	break;
+//	case 11/*VK_FORMAT_R8_USCALED*/:
+//	case 12/*VK_FORMAT_R8_SSCALED*/:
+//	case 13/*VK_FORMAT_R8_UINT*/:
+//	case 14/*VK_FORMAT_R8_SINT*/:
+	case 15/*VK_FORMAT_R8_SRGB*/:						encoding = PTI_L8_SRGB;		break;	//erk
+	case 16/*VK_FORMAT_R8G8_UNORM*/:					encoding = PTI_RG8;			break;
+	case 17/*VK_FORMAT_R8G8_SNORM*/:					encoding = PTI_RG8_SNORM;	break;
+//	case 18/*VK_FORMAT_R8G8_USCALED*/:
+//	case 19/*VK_FORMAT_R8G8_SSCALED*/:
+//	case 20/*VK_FORMAT_R8G8_UINT*/:
+//	case 21/*VK_FORMAT_R8G8_SINT*/:
+//	case 22/*VK_FORMAT_R8G8_SRGB*/:
+	case 23/*VK_FORMAT_R8G8B8_UNORM*/:					encoding = PTI_RGB8;		break;
+//	case 24/*VK_FORMAT_R8G8B8_SNORM*/:
+//	case 25/*VK_FORMAT_R8G8B8_USCALED*/:
+//	case 26/*VK_FORMAT_R8G8B8_SSCALED*/:
+//	case 27/*VK_FORMAT_R8G8B8_UINT*/:
+//	case 28/*VK_FORMAT_R8G8B8_SINT*/:
+	case 29/*VK_FORMAT_R8G8B8_SRGB*/:					encoding = PTI_RGB8_SRGB;	break;
+	case 30/*VK_FORMAT_B8G8R8_UNORM*/:					encoding = PTI_BGR8;		break;
+//	case 31/*VK_FORMAT_B8G8R8_SNORM*/:
+//	case 32/*VK_FORMAT_B8G8R8_USCALED*/:
+//	case 33/*VK_FORMAT_B8G8R8_SSCALED*/:
+//	case 34/*VK_FORMAT_B8G8R8_UINT*/:
+//	case 35/*VK_FORMAT_B8G8R8_SINT*/:
+	case 36/*VK_FORMAT_B8G8R8_SRGB*/:					encoding = PTI_BGR8_SRGB;	break;
+	case 37/*VK_FORMAT_R8G8B8A8_UNORM*/:				encoding = PTI_RGBA8;		break;
+//	case 38/*VK_FORMAT_R8G8B8A8_SNORM*/:
+//	case 39/*VK_FORMAT_R8G8B8A8_USCALED*/:
+//	case 40/*VK_FORMAT_R8G8B8A8_SSCALED*/:
+//	case 41/*VK_FORMAT_R8G8B8A8_UINT*/:
+//	case 42/*VK_FORMAT_R8G8B8A8_SINT*/:
+	case 43/*VK_FORMAT_R8G8B8A8_SRGB*/:					encoding = PTI_RGBA8_SRGB;	break;
+	case 44/*VK_FORMAT_B8G8R8A8_UNORM*/:				encoding = PTI_BGRA8;		break;
+//	case 45/*VK_FORMAT_B8G8R8A8_SNORM*/:
+//	case 46/*VK_FORMAT_B8G8R8A8_USCALED*/:
+//	case 47/*VK_FORMAT_B8G8R8A8_SSCALED*/:
+//	case 48/*VK_FORMAT_B8G8R8A8_UINT*/:
+//	case 49/*VK_FORMAT_B8G8R8A8_SINT*/:
+	case 50/*VK_FORMAT_B8G8R8A8_SRGB*/:					encoding = PTI_BGRA8_SRGB;	break;
+//	case 51/*VK_FORMAT_A8B8G8R8_UNORM_PACK32*/:
+//	case 52/*VK_FORMAT_A8B8G8R8_SNORM_PACK32*/:
+//	case 53/*VK_FORMAT_A8B8G8R8_USCALED_PACK32*/:
+//	case 54/*VK_FORMAT_A8B8G8R8_SSCALED_PACK32*/:
+//	case 55/*VK_FORMAT_A8B8G8R8_UINT_PACK32*/:
+//	case 56/*VK_FORMAT_A8B8G8R8_SINT_PACK32*/:
+//	case 57/*VK_FORMAT_A8B8G8R8_SRGB_PACK32*/:
+//	case 58/*VK_FORMAT_A2R10G10B10_UNORM_PACK32*/:
+//	case 59/*VK_FORMAT_A2R10G10B10_SNORM_PACK32*/:
+//	case 60/*VK_FORMAT_A2R10G10B10_USCALED_PACK32*/:
+//	case 61/*VK_FORMAT_A2R10G10B10_SSCALED_PACK32*/:
+//	case 62/*VK_FORMAT_A2R10G10B10_UINT_PACK32*/:
+//	case 63/*VK_FORMAT_A2R10G10B10_SINT_PACK32*/:
+	case 64/*VK_FORMAT_A2B10G10R10_UNORM_PACK32*/:		encoding = PTI_A2BGR10;		break;
+//	case 65/*VK_FORMAT_A2B10G10R10_SNORM_PACK32*/:
+//	case 66/*VK_FORMAT_A2B10G10R10_USCALED_PACK32*/:
+//	case 67/*VK_FORMAT_A2B10G10R10_SSCALED_PACK32*/:
+//	case 68/*VK_FORMAT_A2B10G10R10_UINT_PACK32*/:
+//	case 69/*VK_FORMAT_A2B10G10R10_SINT_PACK32*/:
+	case 70/*VK_FORMAT_R16_UNORM*/:						encoding = PTI_R16;			break;
+//	case 71/*VK_FORMAT_R16_SNORM*/:
+//	case 72/*VK_FORMAT_R16_USCALED*/:
+//	case 73/*VK_FORMAT_R16_SSCALED*/:
+//	case 74/*VK_FORMAT_R16_UINT*/:
+//	case 75/*VK_FORMAT_R16_SINT*/:
+	case 76/*VK_FORMAT_R16_SFLOAT*/:					encoding = PTI_R16F;		break;
+//	case 77/*VK_FORMAT_R16G16_UNORM*/:
+//	case 78/*VK_FORMAT_R16G16_SNORM*/:
+//	case 79/*VK_FORMAT_R16G16_USCALED*/:
+//	case 80/*VK_FORMAT_R16G16_SSCALED*/:
+//	case 81/*VK_FORMAT_R16G16_UINT*/:
+//	case 82/*VK_FORMAT_R16G16_SINT*/:
+//	case 83/*VK_FORMAT_R16G16_SFLOAT*/:
+//	case 84/*VK_FORMAT_R16G16B16_UNORM*/:
+//	case 85/*VK_FORMAT_R16G16B16_SNORM*/:
+//	case 86/*VK_FORMAT_R16G16B16_USCALED*/:
+//	case 87/*VK_FORMAT_R16G16B16_SSCALED*/:
+//	case 88/*VK_FORMAT_R16G16B16_UINT*/:
+//	case 89/*VK_FORMAT_R16G16B16_SINT*/:
+	case 90/*VK_FORMAT_R16G16B16_SFLOAT*/:				encoding = PTI_RGB32F;		break;
+	case 91/*VK_FORMAT_R16G16B16A16_UNORM*/:			encoding = PTI_RGBA16;		break;
+//	case 92/*VK_FORMAT_R16G16B16A16_SNORM*/:
+//	case 93/*VK_FORMAT_R16G16B16A16_USCALED*/:
+//	case 94/*VK_FORMAT_R16G16B16A16_SSCALED*/:
+//	case 95/*VK_FORMAT_R16G16B16A16_UINT*/:
+//	case 96/*VK_FORMAT_R16G16B16A16_SINT*/:
+	case 97/*VK_FORMAT_R16G16B16A16_SFLOAT*/:			encoding = PTI_RGBA16F;		break;
+//	case 98/*VK_FORMAT_R32_UINT*/:
+//	case 99/*VK_FORMAT_R32_SINT*/:
+	case 100/*VK_FORMAT_R32_SFLOAT*/:					encoding = PTI_R32F;		break;
+//	case 101/*VK_FORMAT_R32G32_UINT*/:
+//	case 102/*VK_FORMAT_R32G32_SINT*/:
+//	case 103/*VK_FORMAT_R32G32_SFLOAT*/:
+//	case 104/*VK_FORMAT_R32G32B32_UINT*/:
+//	case 105/*VK_FORMAT_R32G32B32_SINT*/:
+	case 106/*VK_FORMAT_R32G32B32_SFLOAT*/:				encoding = PTI_RGB32F;		break;
+//	case 107/*VK_FORMAT_R32G32B32A32_UINT*/:
+//	case 108/*VK_FORMAT_R32G32B32A32_SINT*/:
+	case 109/*VK_FORMAT_R32G32B32A32_SFLOAT*/:			encoding = PTI_RGBA32F;		break;
+//	case 110/*VK_FORMAT_R64_UINT*/:
+//	case 111/*VK_FORMAT_R64_SINT*/:
+//	case 112/*VK_FORMAT_R64_SFLOAT*/:
+//	case 113/*VK_FORMAT_R64G64_UINT*/:
+//	case 114/*VK_FORMAT_R64G64_SINT*/:
+//	case 115/*VK_FORMAT_R64G64_SFLOAT*/:
+//	case 116/*VK_FORMAT_R64G64B64_UINT*/:
+//	case 117/*VK_FORMAT_R64G64B64_SINT*/:
+//	case 118/*VK_FORMAT_R64G64B64_SFLOAT*/:
+//	case 119/*VK_FORMAT_R64G64B64A64_UINT*/:
+//	case 120/*VK_FORMAT_R64G64B64A64_SINT*/:
+//	case 121/*VK_FORMAT_R64G64B64A64_SFLOAT*/:
+	case 122/*VK_FORMAT_B10G11R11_UFLOAT_PACK32*/:		encoding = PTI_B10G11R11F;	break;
+	case 123/*VK_FORMAT_E5B9G9R9_UFLOAT_PACK32*/:		encoding = PTI_E5BGR9;		break;
+	//case 124/*VK_FORMAT_D16_UNORM*/:					encoding = PTI_DEPTH16;		break;
+	//case 125/*VK_FORMAT_X8_D24_UNORM_PACK32*/:		encoding = PTI_DEPTH24;		break;
+	//case 126/*VK_FORMAT_D32_SFLOAT*/:					encoding = PTI_DEPTH32;		break;
+//	case 127/*VK_FORMAT_S8_UINT*/:
+//	case 128/*VK_FORMAT_D16_UNORM_S8_UINT*/:
+	//case 129/*VK_FORMAT_D24_UNORM_S8_UINT*/:			encoding = PTI_DEPTH24_8;	break;
+//	case 130/*VK_FORMAT_D32_SFLOAT_S8_UINT*/:
+	case 131/*VK_FORMAT_BC1_RGB_UNORM_BLOCK*/:			encoding = PTI_BC1_RGB;			break;
+	case 132/*VK_FORMAT_BC1_RGB_SRGB_BLOCK*/:			encoding = PTI_BC1_RGB_SRGB;	break;
+	case 133/*VK_FORMAT_BC1_RGBA_UNORM_BLOCK*/:			encoding = PTI_BC1_RGBA;		break;
+	case 134/*VK_FORMAT_BC1_RGBA_SRGB_BLOCK*/:			encoding = PTI_BC1_RGBA_SRGB;	break;
+	case 135/*VK_FORMAT_BC2_UNORM_BLOCK*/:				encoding = PTI_BC2_RGBA;		break;
+	case 136/*VK_FORMAT_BC2_SRGB_BLOCK*/:				encoding = PTI_BC2_RGBA_SRGB;	break;
+	case 137/*VK_FORMAT_BC3_UNORM_BLOCK*/:				encoding = PTI_BC3_RGBA;		break;
+	case 138/*VK_FORMAT_BC3_SRGB_BLOCK*/:				encoding = PTI_BC1_RGBA_SRGB;	break;
+	case 139/*VK_FORMAT_BC4_UNORM_BLOCK*/:				encoding = PTI_BC4_R;			break;
+	case 140/*VK_FORMAT_BC4_SNORM_BLOCK*/:				encoding = PTI_BC4_R_SNORM;		break;
+	case 141/*VK_FORMAT_BC5_UNORM_BLOCK*/:				encoding = PTI_BC5_RG;			break;
+	case 142/*VK_FORMAT_BC5_SNORM_BLOCK*/:				encoding = PTI_BC5_RG_SNORM;	break;
+	case 143/*VK_FORMAT_BC6H_UFLOAT_BLOCK*/:			encoding = PTI_BC6_RGB_UFLOAT;	break;
+	case 144/*VK_FORMAT_BC6H_SFLOAT_BLOCK*/:			encoding = PTI_BC6_RGB_SFLOAT;	break;
+	case 145/*VK_FORMAT_BC7_UNORM_BLOCK*/:				encoding = PTI_BC7_RGBA;		break;
+	case 146/*VK_FORMAT_BC7_SRGB_BLOCK*/:				encoding = PTI_BC7_RGBA_SRGB;	break;
+	case 147/*VK_FORMAT_ETC2_R8G8B8_UNORM_BLOCK*/:		encoding = PTI_ETC2_RGB8;		break;
+	case 148/*VK_FORMAT_ETC2_R8G8B8_SRGB_BLOCK*/:		encoding = PTI_ETC2_RGB8_SRGB;	break;
+	case 149/*VK_FORMAT_ETC2_R8G8B8A1_UNORM_BLOCK*/:	encoding = PTI_ETC2_RGB8A1;		break;
+	case 150/*VK_FORMAT_ETC2_R8G8B8A1_SRGB_BLOCK*/:		encoding = PTI_ETC2_RGB8A1_SRGB;break;
+	case 151/*VK_FORMAT_ETC2_R8G8B8A8_UNORM_BLOCK*/:	encoding = PTI_ETC2_RGB8A8;		break;
+	case 152/*VK_FORMAT_ETC2_R8G8B8A8_SRGB_BLOCK*/:		encoding = PTI_ETC2_RGB8A8_SRGB;break;
+	case 153/*VK_FORMAT_EAC_R11_UNORM_BLOCK*/:			encoding = PTI_EAC_R11;			break;
+	case 154/*VK_FORMAT_EAC_R11_SNORM_BLOCK*/:			encoding = PTI_EAC_R11_SNORM;	break;
+	case 155/*VK_FORMAT_EAC_R11G11_UNORM_BLOCK*/:		encoding = PTI_EAC_RG11;		break;
+	case 156/*VK_FORMAT_EAC_R11G11_SNORM_BLOCK*/:		encoding = PTI_EAC_RG11_SNORM;	break;
+	case 157/*VK_FORMAT_ASTC_4x4_UNORM_BLOCK*/:			encoding = PTI_ASTC_4X4_LDR;	break;
+	case 158/*VK_FORMAT_ASTC_4x4_SRGB_BLOCK*/:			encoding = PTI_ASTC_4X4_SRGB;	break;
+	case 159/*VK_FORMAT_ASTC_5x4_UNORM_BLOCK*/:			encoding = PTI_ASTC_5X4_LDR;	break;
+	case 160/*VK_FORMAT_ASTC_5x4_SRGB_BLOCK*/:			encoding = PTI_ASTC_5X4_SRGB;	break;
+	case 161/*VK_FORMAT_ASTC_5x5_UNORM_BLOCK*/:			encoding = PTI_ASTC_5X5_LDR;	break;
+	case 162/*VK_FORMAT_ASTC_5x5_SRGB_BLOCK*/:			encoding = PTI_ASTC_5X5_SRGB;	break;
+	case 163/*VK_FORMAT_ASTC_6x5_UNORM_BLOCK*/:			encoding = PTI_ASTC_6X5_LDR;	break;
+	case 164/*VK_FORMAT_ASTC_6x5_SRGB_BLOCK*/:			encoding = PTI_ASTC_6X5_SRGB;	break;
+	case 165/*VK_FORMAT_ASTC_6x6_UNORM_BLOCK*/:			encoding = PTI_ASTC_6X6_LDR;	break;
+	case 166/*VK_FORMAT_ASTC_6x6_SRGB_BLOCK*/:			encoding = PTI_ASTC_6X6_SRGB;	break;
+	case 167/*VK_FORMAT_ASTC_8x5_UNORM_BLOCK*/:			encoding = PTI_ASTC_8X5_LDR;	break;
+	case 168/*VK_FORMAT_ASTC_8x5_SRGB_BLOCK*/:			encoding = PTI_ASTC_8X5_SRGB;	break;
+	case 169/*VK_FORMAT_ASTC_8x6_UNORM_BLOCK*/:			encoding = PTI_ASTC_8X6_LDR;	break;
+	case 170/*VK_FORMAT_ASTC_8x6_SRGB_BLOCK*/:			encoding = PTI_ASTC_8X6_SRGB;	break;
+	case 171/*VK_FORMAT_ASTC_8x8_UNORM_BLOCK*/:			encoding = PTI_ASTC_8X8_LDR;	break;
+	case 172/*VK_FORMAT_ASTC_8x8_SRGB_BLOCK*/:			encoding = PTI_ASTC_8X8_SRGB;	break;
+	case 173/*VK_FORMAT_ASTC_10x5_UNORM_BLOCK*/:		encoding = PTI_ASTC_10X5_LDR;	break;
+	case 174/*VK_FORMAT_ASTC_10x5_SRGB_BLOCK*/:			encoding = PTI_ASTC_10X5_SRGB;	break;
+	case 175/*VK_FORMAT_ASTC_10x6_UNORM_BLOCK*/:		encoding = PTI_ASTC_10X6_LDR;	break;
+	case 176/*VK_FORMAT_ASTC_10x6_SRGB_BLOCK*/:			encoding = PTI_ASTC_10X6_SRGB;	break;
+	case 177/*VK_FORMAT_ASTC_10x8_UNORM_BLOCK*/:		encoding = PTI_ASTC_10X8_LDR;	break;
+	case 178/*VK_FORMAT_ASTC_10x8_SRGB_BLOCK*/:			encoding = PTI_ASTC_10X8_SRGB;	break;
+	case 179/*VK_FORMAT_ASTC_10x10_UNORM_BLOCK*/:		encoding = PTI_ASTC_10X10_LDR;	break;
+	case 180/*VK_FORMAT_ASTC_10x10_SRGB_BLOCK*/:		encoding = PTI_ASTC_10X10_SRGB;	break;
+	case 181/*VK_FORMAT_ASTC_12x10_UNORM_BLOCK*/:		encoding = PTI_ASTC_12X10_LDR;	break;
+	case 182/*VK_FORMAT_ASTC_12x10_SRGB_BLOCK*/:		encoding = PTI_ASTC_12X10_SRGB;	break;
+	case 183/*VK_FORMAT_ASTC_12x12_UNORM_BLOCK*/:		encoding = PTI_ASTC_12X12_LDR;	break;
+	case 184/*VK_FORMAT_ASTC_12x12_SRGB_BLOCK*/:		encoding = PTI_ASTC_12X12_SRGB;	break;
+
+	case 0/*VK_FORMAT_UNDEFINED*/:
+	default:
+		encoding = PTI_INVALID;
+		break;
+	}
+	if (encoding == PTI_INVALID)
+	{
+		//TODO: we might be able to make sense of these by decoding the DFD.
+		Con_Printf(CON_WARNING"%s: Unsupported ktx2 vkformat %x\n", fname, header.vkFormat);
+		return NULL;
+	}
+
+	if (header.kvdsize)
+	{
+		size_t kvd = header.kvdoffset;
+		const qbyte *key;	//utf-8.
+		const qbyte *val;	//often utf-8, but might be binary.
+		size_t kvdend = kvd+header.kvdsize;
+//		VALGRIND_MAKE_MEM_UNDEFINED(filedata+kvdend, 1);
+		while(kvd+4 <= kvdend)
+		{
+			quint32_t len = (filedata[kvd+0]<<0)|(filedata[kvd+1]<<8)|(filedata[kvd+2]<<16)|(filedata[kvd+3]<<24), klen;
+			quint32_t vlen;
+			kvd+=4;
+			if (kvd+len > kvdend)
+				break;	//some sort of error
+			for(klen = 0;;)
+			{
+				if (!filedata[kvd+klen++])
+					break;
+				if (klen >= len)
+				{
+					Con_Printf(CON_WARNING"%s: unterminated kvd key\n", fname);
+					return NULL; //we NEED a null for it to be valid.
+				}
+			}
+			key = filedata+kvd;
+			val = filedata+kvd+klen;
+			vlen = len-klen;
+			if (!strcmp(key, "KTXwriter"))
+				;
+			else if (!strcmp(key, "KTXcubemapIncomplete"))
+			{
+				Con_Printf(CON_WARNING"%s: incomplete cubemaps are not supported\n", fname);
+				return NULL;	//would be seen as a 2darray.
+			}
+			else if (!strcmp(key, "KTXorientation"))
+			{
+				if (vlen >= 2 && val[0] && val[1] == 'u')
+					Con_Printf("%s: warning: image is bottom up\n", fname);
+			}
+			else if (!strcmp(key, "KTXglFormat"))
+				/*uninteresting, we're not loading it directly*/;
+			else if (!strcmp(key, "KTXdxgiFormat__"))	//why do the docs say the trailing underscores?
+				/*uninteresting, we're not loading it directly*/;
+			else if (!strcmp(key, "KTXmetalPixelFormat"))
+				/*uninteresting, we're not loading it directly*/;
+			else if (!strcmp(key, "KTXswizzle"))
+			{
+				if (encoding == PTI_R8 && vlen >= 5 && !strcmp(val, "rrr1"))
+					encoding = PTI_L8;
+//				else if (encoding == PTI_R8_SRGB && vlen >= 5 && !strcmp(val, "rrr1"))
+//					encoding = PTI_L8_SRGB;
+				else if (encoding == PTI_RG8 && vlen >= 5 && !strcmp(val, "rrrg"))
+					encoding = PTI_L8A8;
+				else
+					Con_Printf("%s: unsupported swizzle: %s\n", fname, val);
+			}
+			else if (!strcmp(key, "KTXwriterScParams"))
+				;
+			else if (!strcmp(key, "KTXastcDecodeMode"))
+				;
+			else if (!strcmp(key, "KTXanimData"))
+				/*uint32_t duration, timescale, loopcount*/;
+			else
+				Con_Printf("%s: unhandled kvd: %s\n", fname, key);
+			kvd+=(len+3)&~3;	//padding... strangely the start offset does not 'need' to be aligned. weird.
+		}
+		if (kvd != kvdend)
+			Con_Printf(CON_WARNING"%s: misparsed kvd data\n", fname);
+//		VALGRIND_MAKE_MEM_DEFINED_IF_ADDRESSABLE(filedata+kvdend, 1);
+	}
+
+	Image_BlockSizeForEncoding(encoding, &bb, &bw, &bh, &bd);
+
+	mips = Z_Malloc(sizeof(*mips));
+	mips->encoding = encoding;
+	mips->type = itype;
+	mips->mipcount = 0;
+	mips->extrafree = filedata;
+	mips->encoding = encoding;
+
+	if (header.levelcount > countof(mips->mip))
+		header.levelcount = countof(mips->mip);
+
+	for (mipnum = 0; mipnum < header.levelcount; mipnum++, levelheader++)
+	{
+		size_t ofs = LittleI64(levelheader->offset);
+		qbyte *src = filedata + ofs;
+		size_t csz = LittleI64(levelheader->compsize);
+		size_t rsz = LittleI64(levelheader->rawsize);
+		size_t needsize =	((w+bw-1)/bw)*
+							((h+bh-1)/bh)*
+							((d+bd-1)/bd)*
+							bb;
+		if (rsz != needsize)
+		{
+			Con_Printf(CON_WARNING"%s: mip %i does not match expected size (%u, required %u)\n", fname, mipnum, (unsigned int)rsz, (unsigned int)needsize);
+			break;
+		}
+		if (ofs+csz > filesize || csz > filesize || ofs+csz < ofs)
+		{
+			Con_Printf(CON_WARNING"%s: truncation at mip %i\n", fname, mipnum);
+			break;
+		}
+		if (rsz != csz)
+		{
+			Con_Printf(CON_WARNING"%s: compression size mismatch\n", fname);
+			break;
+		}
+
+		if (mips->mipcount >= countof(mips->mip))
+			break;
+
+		mips->mip[mips->mipcount].width = w;
+		mips->mip[mips->mipcount].height = h;
+		mips->mip[mips->mipcount].depth = d;
+		mips->mip[mips->mipcount].datasize = rsz;
+		mips->mip[mips->mipcount].data = src;
+#ifndef FTE_LITTLE_ENDIAN
+		switch(header.typesize)
+		{
+		case 1:
+			break;
+		case 4:
+			{
+				quint32_t *in = mips->mip[mips->mipcount].data;
+				quint32_t *out = mips->mip[mips->mipcount].data = BZ_Malloc(rsz);
+				mips->mip[mips->mipcount].needfree = true;
+				for (csz = 0; csz < rsz; csz+=4)
+					*out++ = LittleLong(*in++);
+			}
+			break;
+		case 2:
+			{
+				quint16_t *in = mips->mip[mips->mipcount].data;
+				quint16_t *out = mips->mip[mips->mipcount].data = BZ_Malloc(rsz);
+				mips->mip[mips->mipcount].needfree = true;
+				for (csz = 0; csz < rsz; csz+=2)
+					*out++ = LittleShort(*in++);
+			}
+			break;
+		default:
+			Con_Printf(CON_WARNING"%s: unsupported type size.\n", fname);
+			Z_Free(mips);
+			return NULL;
+		}
+#endif
+		mips->mipcount++;
+
+		w = max(1, w>>1);
+		h = max(1, h>>1);
+		if (mips->type == PTI_3D)
+			d = max(1, d>>1);
+	}
+
+	if (!mips->mipcount)
+	{
+		Z_Free(mips);
+		return NULL;
+	}
+
+#ifdef ASTC_WITH_HDRTEST
+	if (encoding >= PTI_ASTC_4X4_LDR && encoding < PTI_ASTC_4X4_SRGB)
+	{	//assumption: if any levels are hdr then level0 will contain such a block. might be nicer to start mid-way though, for less blocks.
+		if (ASTC_BlocksAreHDR(mips->mip[0].data, mips->mip[0].datasize, bw, bh, bd))
+		{	//convert it to one of the hdr formats if we can.
+			mips->encoding = PTI_ASTC_4X4_HDR+(encoding-PTI_ASTC_4X4_LDR);
+		}
+	}
+#endif
+
+	return mips;
+}
+static struct pendingtextureinfo *Image_ReadKTXFile(unsigned int flags, const char *fname, qbyte *filedata, size_t filesize)
+{
+	if (filesize >= 12)
+	{
+		if (filedata[0] == 0xAB && filedata[1] == 0x4B && filedata[2] == 0x54 && filedata[3] == 0x58 && filedata[4] == 0x20)
+		{
+			if (filedata[5] == '2')
+				return Image_ReadKTX2File(flags, fname, filedata, filesize);
+			else
+				return Image_ReadKTX1File(flags, fname, filedata, filesize);
+		}
+	}
+	return NULL;	//not enough size for the header.
 }
 #endif
 

@@ -748,12 +748,14 @@ void deleetstring(char *result, const char *leet)
 #if !defined(FTE_BIG_ENDIAN) && !defined(FTE_LITTLE_ENDIAN)
 qboolean	bigendian;
 
-short	(*BigShort) (short l);
-short	(*LittleShort) (short l);
-int	(*BigLong) (int l);
-int	(*LittleLong) (int l);
-float	(*BigFloat) (float l);
-float	(*LittleFloat) (float l);
+short		(*BigShort)		(short l);
+short		(*LittleShort)	(short l);
+int			(*BigLong)		(int l);
+int			(*LittleLong)	(int l);
+qint64_t	(*BigI64)		(qint64_t l);
+qint64_t	(*LittleI64)	(qint64_t l);
+float		(*BigFloat)		(float l);
+float		(*LittleFloat)	(float l);
 
 static short	ShortNoSwap (short l)	{	return l;	}
 static int		LongNoSwap (int l)		{	return l;	}
@@ -6215,6 +6217,8 @@ void COM_Init (void)
 		LittleShort = ShortNoSwap;
 		BigLong = LongSwap;
 		LittleLong = LongNoSwap;
+		BigI64 = I64Swap;
+		LittleI64 = I64NoSwap;
 		BigFloat = FloatSwap;
 		LittleFloat = FloatNoSwap;
 	}
@@ -6225,6 +6229,8 @@ void COM_Init (void)
 		LittleShort = ShortSwap;
 		BigLong = LongNoSwap;
 		LittleLong = LongSwap;
+		BigI64 = I64NoSwap;
+		LittleI64 = I64Swap;
 		BigFloat = FloatNoSwap;
 		LittleFloat = FloatSwap;
 	}

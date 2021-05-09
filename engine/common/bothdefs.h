@@ -693,6 +693,21 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 	#endif
 #endif
 
+#if defined(_WIN32)
+	#define FTE_LITTLE_ENDIAN
+#elif defined(__BYTE_ORDER__)
+	#ifdef __ORDER_BIG_ENDIAN__
+		#if (__BYTE_ORDER__==__ORDER_BIG_ENDIAN__) && (__FLOAT_WORD_ORDER__==__ORDER_BIG_ENDIAN__)
+			#define FTE_BIG_ENDIAN
+		#endif
+	#endif
+	#ifdef __ORDER_LITTLE_ENDIAN__
+		#if (__BYTE_ORDER__==__ORDER_LITTLE_ENDIAN__) && (__FLOAT_WORD_ORDER__==__ORDER_LITTLE_ENDIAN__)
+			#define FTE_LITTLE_ENDIAN
+		#endif
+	#endif
+#endif
+
 #ifdef _MSC_VER
 	#define VARGS __cdecl
 	#define MSVCDISABLEWARNINGS

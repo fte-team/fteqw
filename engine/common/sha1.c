@@ -28,12 +28,12 @@ typedef struct
 } SHA1_CTX;
 #define SHA1_DIGEST_SIZE 20
 
-#define BigLong(l)  (((unsigned char*)&l)[0]<<24) | (((unsigned char*)&l)[1]<<16) | (((unsigned char*)&l)[2]<<8) | (((unsigned char*)&l)[3]<<0)
+#define ShaBigLong(l)  (((unsigned char*)&l)[0]<<24) | (((unsigned char*)&l)[1]<<16) | (((unsigned char*)&l)[2]<<8) | (((unsigned char*)&l)[3]<<0)
 
 
 #define rol(value, bits) (((value) << (bits)) | ((value) >> (32 - (bits))))
 
-#define blk0(i) (block->l[i] = BigLong(block->l[i]))
+#define blk0(i) (block->l[i] = ShaBigLong(block->l[i]))
 
 #define blk(i) (block->l[i&15] = rol(block->l[(i+13)&15]^block->l[(i+8)&15] \
 ^block->l[(i+2)&15]^block->l[i&15],1))

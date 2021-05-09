@@ -3,8 +3,6 @@
 #undef stderr
 #define stderr stdout
 
-#define LittleLong(s) s
-
 #include <limits.h>
 #include <ctype.h>
 #ifdef _WIN32

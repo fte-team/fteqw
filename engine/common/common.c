@@ -745,6 +745,7 @@ void deleetstring(char *result, const char *leet)
 ============================================================================
 */
 
+#if !defined(FTE_BIG_ENDIAN) && !defined(FTE_LITTLE_ENDIAN)
 qboolean	bigendian;
 
 short	(*BigShort) (short l);
@@ -754,39 +755,36 @@ int	(*LittleLong) (int l);
 float	(*BigFloat) (float l);
 float	(*LittleFloat) (float l);
 
-short   ShortSwap (short l)
+static short	ShortNoSwap (short l)	{	return l;	}
+static int		LongNoSwap (int l)		{	return l;	}
+static qint64_t	I64NoSwap (qint64_t l)	{	return l;	}
+static float	FloatNoSwap (float f)	{	return f;	}
+#endif
+
+short		ShortSwap	(short l)
 {
-	qbyte    b1,b2;
-
-	b1 = l&255;
-	b2 = (l>>8)&255;
-
-	return (b1<<8) + b2;
+	return	((l>> 8)&0x00ff)|
+			((l<< 8)&0xff00);
 }
-
-static short	ShortNoSwap (short l)
+int			LongSwap	(int l)
 {
-	return l;
+	return	((l>>24)&0x000000ff)|
+			((l>> 8)&0x0000ff00)|
+			((l<< 8)&0x00ff0000)|
+			((l<<24)&0xff000000);
 }
-
-int    LongSwap (int l)
+qint64_t    I64Swap		(qint64_t l)
 {
-	qbyte    b1,b2,b3,b4;
-
-	b1 = l&255;
-	b2 = (l>>8)&255;
-	b3 = (l>>16)&255;
-	b4 = (l>>24)&255;
-
-	return ((int)b1<<24) + ((int)b2<<16) + ((int)b3<<8) + b4;
+	return	((l>>56)&        0x000000ff)|
+			((l>>40)&        0x0000ff00)|
+			((l>>24)&        0x00ff0000)|
+			((l>> 8)&        0xff000000)|
+			((l<< 8)&0x000000ff00000000)|
+			((l<<24)&0x0000ff0000000000)|
+			((l<<40)&0x00ff000000000000)|
+			((l<<56)&0xff00000000000000);
 }
-
-static int	LongNoSwap (int l)
-{
-	return l;
-}
-
-static float FloatSwap (float f)
+float FloatSwap (float f)
 {
 	union
 	{
@@ -801,11 +799,6 @@ static float FloatSwap (float f)
 	dat2.b[2] = dat1.b[1];
 	dat2.b[3] = dat1.b[0];
 	return dat2.f;
-}
-
-static float FloatNoSwap (float f)
-{
-	return f;
 }
 
 void COM_SwapLittleShortBlock (short *s, int size)
@@ -6212,11 +6205,9 @@ COM_Init
 */
 void COM_Init (void)
 {
-	qbyte	swaptest[2] = {1,0};
-
-	wantquit = false;
-
+#if !defined(FTE_BIG_ENDIAN) && !defined(FTE_LITTLE_ENDIAN)
 // set the qbyte swapping variables in a portable manner
+	qbyte	swaptest[2] = {1,0};
 	if ( *(short *)swaptest == 1)
 	{
 		bigendian = false;
@@ -6237,6 +6228,9 @@ void COM_Init (void)
 		BigFloat = FloatNoSwap;
 		LittleFloat = FloatSwap;
 	}
+#endif
+
+	wantquit = false;
 
 	//random should be random from the start...
 	srand(time(0));

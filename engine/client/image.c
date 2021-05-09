@@ -8,13 +8,7 @@
 
 #ifndef HAVE_CLIENT
 //#define Con_Printf(f, ...)
-//hope you're on a littleendian machine
-#define LittleShort(s) s
-#define LittleLong(s) s
-#define LittleFloat(s) s
-
-#define BigFloat(s) SwapFloat(s)
-static float	SwapFloat (float l)
+float	FloatSwap (float l)
 {
 	union {qbyte b[4]; float f;} in, out;
 	in.f = l;

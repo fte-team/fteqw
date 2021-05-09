@@ -232,27 +232,57 @@ void InsertLinkAfter (link_t *l, link_t *after);
 #define Q_MAXSHORT ((short)0x7fff)
 #define Q_MAXINT	((int)0x7fffffff)
 #define Q_MAXLONG ((int)0x7fffffff)
-#define Q_MAXFLOAT ((int)0x7fffffff)
+//#define Q_MAXFLOAT ((int)0x7fffffff)
 
 #define Q_MINCHAR ((char)0x80)
 #define Q_MINSHORT ((short)0x8000)
 #define Q_MININT 	((int)0x80000000)
 #define Q_MINLONG ((int)0x80000000)
-#define Q_MINFLOAT ((int)0x7fffffff)
+//#define Q_MINFLOAT ((int)0x7fffffff)
 
 //============================================================================
 
-extern	qboolean		bigendian;
+#if defined(FTE_LITTLE_ENDIAN)
+	#define bigendian		false
 
-extern	short	(*BigShort) (short l);
-extern	short	(*LittleShort) (short l);
-extern	int	(*BigLong) (int l);
-extern	int	(*LittleLong) (int l);
-extern	float	(*BigFloat) (float l);
-extern	float	(*LittleFloat) (float l);
+	#define LittleShort(x)	((short)(x))
+	#define LittleLong(x)	((int)(x))
+	#define LittleI64(x)	((qint64_t)(x))
+	#define LittleFloat(x)	((float)(x))
 
-short   ShortSwap (short l);
-int    LongSwap (int l);
+	#define BigShort(x)		(ShortSwap(x))
+	#define BigLong(x)		(LongSwap(x))
+	#define BigI64(x)		(I64Swap(x))
+	#define BigFloat(x)		(FloatSwap(x))
+#elif defined(FTE_BIG_ENDIAN)
+	#define bigendian		true
+
+	#define BigShort(x)		((short)(x))
+	#define BigLong(x)		((int)(x))
+	#define BigI64(x)		((qint64_t)(x))
+	#define BigFloat(x)		((float)(x))
+
+	#define LittleShort(x)	(ShortSwap(x))
+	#define LittleLong(x)	(LongSwap(x))
+	#define LittleI64(x)	(I64Swap(x))
+	#define LittleFloat(x)	(FloatSwap(x))
+#else
+	extern	qboolean		bigendian;
+
+	extern	short	(*BigShort) (short l);
+	extern	short	(*LittleShort) (short l);
+	extern	int	(*BigLong) (int l);
+	extern	int	(*LittleLong) (int l);
+	extern	qint64_t	(*BigI64) (qint64_t l);
+	extern	qint64_t	(*LittleI64) (qint64_t l);
+	extern	float	(*BigFloat) (float l);
+	extern	float	(*LittleFloat) (float l);
+#endif
+
+short		ShortSwap	(short l);
+int			LongSwap	(int l);
+qint64_t    I64Swap		(qint64_t l);
+float		FloatSwap	(float f);
 
 void COM_CharBias (signed char *c, int size);
 void COM_SwapLittleShortBlock (short *s, int size);

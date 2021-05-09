@@ -74,7 +74,7 @@ static void CRC16_Update (void *context, const void *data, size_t datasize)
 {
 	unsigned short *ctx = context;
 	unsigned short crc = *ctx;
-	const char *start = data;
+	const qbyte *start = data;
 	while (datasize --> 0)
 		crc = ((crc << 8) & 0xffff) ^ crctable[(crc >> 8) ^ *start++];
 	*ctx = crc;
@@ -99,7 +99,7 @@ static void CRC16_Update_Lower (void *context, const void *data, size_t datasize
 {
 	unsigned short *ctx = context;
 	unsigned short crc = *ctx;
-	const char *start = data;
+	const qbyte *start = data;
 	while (datasize --> 0)
 		crc = ((crc << 8) & 0xffff) ^ crctable[(crc >> 8) ^ tolower(*start++)];
 	*ctx = crc;

@@ -3305,19 +3305,19 @@ static void P_ImportEffectInfo(char *config, char *line)
 		}
 #if 1
 		else if (!strcmp(arg[0], "staincolor") && args == 3)	//stainmaps multiplier
-			Con_ThrottlePrintf(&printtimer, 1, "%s.%s: Particle effect token %s not supported\n", ptype->config?ptype->config:"<NONE>", ptype->name,arg[0]);
+			Con_ThrottlePrintf(&printtimer, 1, "%s.%s: Particle effect token %s not supported\n", *ptype->config?ptype->config:"<NONE>", ptype->name,arg[0]);
 		else if (!strcmp(arg[0], "stainalpha") && args == 3)	//affects stainmaps AND stain-decals.
-			Con_ThrottlePrintf(&printtimer, 1, "%s.%s: Particle effect token %s not supported\n", ptype->config?ptype->config:"<NONE>", ptype->name,arg[0]);
+			Con_ThrottlePrintf(&printtimer, 1, "%s.%s: Particle effect token %s not supported\n", *ptype->config?ptype->config:"<NONE>", ptype->name,arg[0]);
 		else if (!strcmp(arg[0], "stainsize") && args == 3)		//affects stainmaps AND stain-decals.
-			Con_ThrottlePrintf(&printtimer, 1, "%s.%s: Particle effect token %s not supported\n", ptype->config?ptype->config:"<NONE>", ptype->name,arg[0]);
+			Con_ThrottlePrintf(&printtimer, 1, "%s.%s: Particle effect token %s not supported\n", *ptype->config?ptype->config:"<NONE>", ptype->name,arg[0]);
 		else if (!strcmp(arg[0], "staintex") && args == 3)		//actually spawns a decal
-			Con_ThrottlePrintf(&printtimer, 1, "%s.%s: Particle effect token %s not supported\n", ptype->config?ptype->config:"<NONE>", ptype->name,arg[0]);
+			Con_ThrottlePrintf(&printtimer, 1, "%s.%s: Particle effect token %s not supported\n", *ptype->config?ptype->config:"<NONE>", ptype->name,arg[0]);
 		else if (!strcmp(arg[0], "stainless") && args == 2)
-			Con_ThrottlePrintf(&printtimer, 1, "%s.%s: Particle effect token %s not supported\n", ptype->config?ptype->config:"<NONE>", ptype->name,arg[0]);
+			Con_ThrottlePrintf(&printtimer, 1, "%s.%s: Particle effect token %s not supported\n", *ptype->config?ptype->config:"<NONE>", ptype->name,arg[0]);
 		else if (!strcmp(arg[0], "relativeoriginoffset") && args == 4)
-			Con_ThrottlePrintf(&printtimer, 1, "%s.%s: Particle effect token %s not supported\n", ptype->config?ptype->config:"<NONE>", ptype->name,arg[0]);
+			Con_ThrottlePrintf(&printtimer, 1, "%s.%s: Particle effect token %s not supported\n", *ptype->config?ptype->config:"<NONE>", ptype->name,arg[0]);
 		else if (!strcmp(arg[0], "relativevelocityoffset") && args == 4)
-			Con_ThrottlePrintf(&printtimer, 1, "%s.%s: Particle effect token %s not supported\n", ptype->config?ptype->config:"<NONE>", ptype->name, arg[0]);
+			Con_ThrottlePrintf(&printtimer, 1, "%s.%s: Particle effect token %s not supported\n", *ptype->config?ptype->config:"<NONE>", ptype->name, arg[0]);
 #endif
 		else if (!strcmp(arg[0], "rotate") && args == 5)
 		{
@@ -3332,7 +3332,7 @@ static void P_ImportEffectInfo(char *config, char *line)
 			ptype->rotationstartmin += M_PI/4;
 		}
 		else
-			Con_ThrottlePrintf(&printtimer, 0, "%s.%s: Particle effect token not recognised, or invalid args: %s %s %s %s %s %s\n", ptype->config?ptype->config:"<NONE>", ptype->name, arg[0], args<2?"":arg[1], args<3?"":arg[2], args<4?"":arg[3], args<5?"":arg[4], args<6?"":arg[5]);
+			Con_ThrottlePrintf(&printtimer, 0, "%s.%s: Particle effect token not recognised, or invalid args: %s %s %s %s %s %s\n", *ptype->config?ptype->config:"<NONE>", ptype->name, arg[0], args<2?"":arg[1], args<3?"":arg[2], args<4?"":arg[3], args<5?"":arg[4], args<6?"":arg[5]);
 		args = 0;
 	}
 

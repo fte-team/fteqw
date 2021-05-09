@@ -42,7 +42,7 @@ cvar_t scr_scoreboard_titleseperator = CVAR("scr_scoreboard_titleseperator", "1"
 cvar_t scr_scoreboard_showruleset = CVAR("scr_scoreboard_showruleset", "1");
 cvar_t sbar_teamstatus = CVARD("sbar_teamstatus", "1", "Display the last team say from each of your team members just above the sbar area.");
 
-cvar_t cl_sbaralpha = CVARAD("cl_sbaralpha", "0.75", "scr_sbaralpha", "Specifies the transparency of the status bar. Only Takes effect when cl_sbar is set to 2.");	//with premultiplied alpha, this needs to affect the RGB values too.
+cvar_t cl_sbaralpha = CVARAFD("cl_sbaralpha", "0.75", "scr_sbaralpha", CVAR_ARCHIVE, "Specifies the transparency of the status bar. Only Takes effect when cl_sbar is set to 2.");	//with premultiplied alpha, this needs to affect the RGB values too.
 
 //===========================================
 //rogue changed and added defines

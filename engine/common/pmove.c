@@ -1448,6 +1448,9 @@ void PM_PlayerMove (float gamespeed)
 	// set onground, watertype, and waterlevel
 	PM_CategorizePosition ();
 
+	if (movevars.autobunny && !pmove.onground)
+		pmove.jump_held = false;
+
 	if (pmove.waterlevel == 2 && pmove.pm_type != PM_FLY)
 		PM_CheckWaterJump ();
 

@@ -74,6 +74,7 @@ cvar_t	pm_watersinkspeed	 = CVARFD("pm_watersinkspeed", "", CVAR_SERVERINFO, "Th
 cvar_t	pm_flyfriction		= CVARFD("pm_flyfriction", "", CVAR_SERVERINFO, "Amount of friction that applies in fly or 6dof mode. Empty means 4.");
 cvar_t	pm_slidefix			 = CVARFD("pm_slidefix", "", CVAR_SERVERINFO, "Fixes an issue when walking down slopes (ie: so they act more like slopes and not a series of steps)");
 cvar_t	pm_slidyslopes		 = CVARFD("pm_slidyslopes", "", CVAR_SERVERINFO, "Replicates NQ behaviour, where players will slowly slide down ramps");
+cvar_t	pm_autobunny		= CVARFD("pm_autobunny", "", CVAR_SERVERINFO, "Players will continue jumping without needing to release the jump button.");
 cvar_t	pm_airstep			 = CVARAFD("pm_airstep", "", /*dp*/"sv_jumpstep", CVAR_SERVERINFO, "Allows players to step up while jumping. This makes stairs more graceful but also increases potential jump heights.");
 cvar_t	pm_pground			 = CVARFD("pm_pground", "", CVAR_SERVERINFO, "Use persisten onground state instead of recalculating every frame."CON_WARNING"Do NOT use with nq mods, as most nq mods will interfere with onground state, resulting in glitches.");
 cvar_t	pm_stepdown			 = CVARFD("pm_stepdown", "", CVAR_SERVERINFO, "Causes physics to stick to the ground, instead of constantly losing traction whiloe going down steps.");

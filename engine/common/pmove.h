@@ -120,6 +120,7 @@ typedef struct {
 	qboolean pground;
 	qboolean stepdown;
 	qboolean slidyslopes;
+	qboolean autobunny;
 	int stepheight;
 
 	qbyte coordtype;	//FIXME: EZPEXT1_FLOATENTCOORDS should mean 4, but the result does not match ezquake/mvdsv which would result in inconsistencies. so player coords are rounded inconsistently.

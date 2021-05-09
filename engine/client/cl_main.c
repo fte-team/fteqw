@@ -2362,6 +2362,7 @@ void CL_CheckServerInfo(void)
 		movevars.stepdown = (Q_atof(InfoBuf_ValueForKey(&cl.serverinfo, "pm_stepdown")) != 0);
 		movevars.walljump = (Q_atof(InfoBuf_ValueForKey(&cl.serverinfo, "pm_walljump")));
 		movevars.ktjump = Q_atof(InfoBuf_ValueForKey(&cl.serverinfo, "pm_ktjump"));
+		movevars.autobunny = (Q_atof(InfoBuf_ValueForKey(&cl.serverinfo, "pm_autobunny")) != 0);
 		s = InfoBuf_ValueForKey(&cl.serverinfo, "pm_stepheight");
 		movevars.stepheight = *s?Q_atof(s):PM_DEFAULTSTEPHEIGHT;
 		s = InfoBuf_ValueForKey(&cl.serverinfo, "pm_watersinkspeed");

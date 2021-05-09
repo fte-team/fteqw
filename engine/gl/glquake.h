@@ -323,7 +323,6 @@ void Sh_PurgeShadowMeshes(void);
 #ifdef GLQUAKE
 void R_TranslatePlayerSkin (int playernum);
 void GL_MTBind(int tmu, int target, texid_t texnum); /*use this if you're going to change the texture object (ensures glActiveTexture(tmu))*/
-void GL_LazyBind(int tmu, int target, texid_t texnum); /*use this if you don't care about the active tmu, only that it is bound on that tmu (does not guarentee glActiveTexture) (ie: no glTexImage etc)*/
 void GL_CullFace(unsigned int sflags);
 void GL_TexEnv(GLenum mode);
 

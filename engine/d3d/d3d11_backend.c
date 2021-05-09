@@ -1065,8 +1065,6 @@ static void SelectPassTexture(unsigned int tu, const shaderpass_t *pass)
 	case T_GEN_ANIMMAP:
 		BindTexture(tu, pass->anim_frames[(int)(pass->anim_fps * shaderstate.curtime) % pass->anim_numframes]);
 		break;
-	case T_GEN_3DMAP:
-	case T_GEN_CUBEMAP:
 	case T_GEN_SINGLEMAP:
 		BindTexture(tu, pass->anim_frames[0]);
 		break;

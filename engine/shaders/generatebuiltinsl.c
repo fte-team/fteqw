@@ -17,6 +17,7 @@ char shaders[][64] =
 	"crepuscular_sky",
 	"depthonly",
 	"default2d",
+	"default2danim",
 	"defaultadditivesprite",
 	"defaultskin",
 	"defaultsky",

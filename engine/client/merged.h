@@ -294,7 +294,7 @@ typedef struct texid_s texid_tf;
 
 struct pendingtextureinfo
 {
-	enum
+	enum imgtype_e
 	{
 		//formats are all w*h*d (where depth has limitations according to type)
 		PTI_2D,			//w*h*1 - depth MUST be 1
@@ -376,17 +376,17 @@ typedef struct
 
 typedef struct texnums_s {
 	char	mapname[MAX_QPATH];	//the 'official' name of the diffusemap. used to generate filenames for other textures.
-	texid_t base;			//regular diffuse texture. may have alpha if surface is transparent.
-	texid_t bump;			//normalmap. height values packed in alpha.
-	texid_t specular;		//specular lighting values. alpha contains exponent multiplier
-	texid_t upperoverlay;	//diffuse texture for the upper body(shirt colour). no alpha channel. added to base.rgb. ideally an l8 texture
-	texid_t loweroverlay;	//diffuse texture for the lower body(trouser colour). no alpha channel. added to base.rgb. ideally an l8 texture
-	texid_t paletted;		//8bit paletted data, just because.
-	texid_t fullbright;		//emissive texture. alpha should be 1.
-	texid_t reflectcube;	//for fake reflections
-	texid_t reflectmask;	//defines how reflective it is (for cubemap reflections)
-	texid_t displacement;	//alternative to bump.a, eg R16[F] for offsetmapping or tessellation
-	texid_t occlusion;		//occlusion map...
+	texid_t base;			//2d,	regular diffuse texture. may have alpha if surface is transparent.
+	texid_t bump;			//2d,	normalmap. height values packed in alpha.
+	texid_t specular;		//2d,	specular lighting values. alpha contains exponent multiplier
+	texid_t upperoverlay;	//2d,	diffuse texture for the upper body(shirt colour). no alpha channel. added to base.rgb. ideally an l8 texture
+	texid_t loweroverlay;	//2d,	diffuse texture for the lower body(trouser colour). no alpha channel. added to base.rgb. ideally an l8 texture
+	texid_t paletted;		//2d,	8bit paletted data, just because. only red is used.
+	texid_t fullbright;		//2d,	emissive texture. alpha should be 1.
+	texid_t reflectcube;	//cube,	for fake reflections
+	texid_t reflectmask;	//2d,	defines how reflective it is (for cubemap reflections)
+	texid_t displacement;	//2d,	alternative to bump.a, eg R16[F] for offsetmapping or tessellation
+	texid_t occlusion;		//2d,	occlusion map... only red is used.
 
 	//the material's pushconstants. vulkan guarentees only 128 bytes. so 8 vec4s. note that lmscales should want 4 of them...
 	/*struct

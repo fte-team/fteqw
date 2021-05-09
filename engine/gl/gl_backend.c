@@ -503,7 +503,7 @@ void GL_MTBind(int tmu, int target, texid_t texnum)
 }
 
 #if 0//def GLSLONLY
-void GL_LazyBind(int tmu, int target, texid_t texnum)
+static void GL_LazyBind(int tmu, texid_t texnum)
 {
 	int glnum = texnum?texnum->num:0;
 	if (shaderstate.currenttextures[tmu] != glnum)
@@ -513,9 +513,18 @@ void GL_LazyBind(int tmu, int target, texid_t texnum)
 	}
 }
 #else
-void GL_LazyBind(int tmu, int target, texid_t texnum)
+static void GL_LazyBind(int tmu, texid_t texnum)
 {
-	int glnum = texnum?texnum->num:0;
+	int glnum;
+	GLenum target;
+	if (texnum)
+	{
+		static GLenum imgtab[] = {GL_TEXTURE_2D, GL_TEXTURE_3D, GL_TEXTURE_CUBE_MAP_ARB, GL_TEXTURE_2D_ARRAY, GL_TEXTURE_CUBE_MAP_ARRAY_ARB};
+		glnum = texnum->num, target = imgtab[(enum imgtype_e)((texnum->flags & IF_TEXTYPEMASK)>>IF_TEXTYPESHIFT)];
+	}
+	else
+		glnum = 0, target = 0;
+
 #ifndef FORCESTATE
 	if (shaderstate.currenttextures[tmu] != glnum)
 #endif
@@ -1097,7 +1106,7 @@ qboolean GLBE_BeginShadowMap(int id, int w, int h, uploadfmt_t encoding, int *re
 
 	while(shaderstate.lastpasstmus>0)
 	{
-		GL_LazyBind(--shaderstate.lastpasstmus, 0, r_nulltex);
+		GL_LazyBind(--shaderstate.lastpasstmus, r_nulltex);
 	}
 
 	shaderstate.shaderbits &= ~SBITS_MISC_DEPTHWRITE;
@@ -1246,8 +1255,7 @@ static void Shader_BindTextureForPass(int tmu, const shaderpass_t *pass)
 			t = shaderstate.curbatch->envmap;
 		else
 			t = shaderstate.tex_reflectcube;
-		GL_LazyBind(tmu, GL_TEXTURE_CUBE_MAP_ARB, t);
-		return;
+		break;
 	case T_GEN_REFLECTMASK:
 		if (shaderstate.curtexnums && TEXLOADED(shaderstate.curtexnums->reflectmask))
 			t = shaderstate.curtexnums->reflectmask;
@@ -1273,21 +1281,11 @@ static void Shader_BindTextureForPass(int tmu, const shaderpass_t *pass)
 		break;
 
 	case T_GEN_LIGHTCUBEMAP:
-		GL_LazyBind(tmu, GL_TEXTURE_CUBE_MAP_ARB, shaderstate.lightcubemap);
-		return;
-	case T_GEN_CUBEMAP:
-		t = pass->anim_frames[0];
-		GL_LazyBind(tmu, GL_TEXTURE_CUBE_MAP_ARB, t);
-		return;
+		t = shaderstate.lightcubemap;
+		break;
 	case T_GEN_SOURCECUBE:
 		t = scenepp_postproc_cube;
-		GL_LazyBind(tmu, GL_TEXTURE_CUBE_MAP_ARB, t);
-		return;
-
-	case T_GEN_3DMAP:
-		t = pass->anim_frames[0];
-		GL_LazyBind(tmu, GL_TEXTURE_3D, t);
-		return;
+		break;
 
 #ifdef HAVE_MEDIA_DECODER
 	case T_GEN_VIDEOMAP:
@@ -1328,7 +1326,7 @@ static void Shader_BindTextureForPass(int tmu, const shaderpass_t *pass)
 		t = shaderstate.tex_gbuf[pass->texgen-T_GEN_GBUFFER0];
 		break;
 	}
-	GL_LazyBind(tmu, GL_TEXTURE_2D, t);
+	GL_LazyBind(tmu, t);
 }
 
 /*========================================== matrix functions =====================================*/
@@ -1534,7 +1532,7 @@ void GLBE_Shutdown(void)
 	GL_SelectEBO(0);
 
 	for (u = 0; u < countof(shaderstate.currenttextures); u++)
-		GL_LazyBind(u, 0, r_nulltex);
+		GL_LazyBind(u, r_nulltex);
 	GL_SelectTexture(0);
 }
 
@@ -3326,7 +3324,7 @@ static void DrawPass(const shaderpass_t *pass)
 				/*make sure no textures linger*/
 				for (k = tmu; k < shaderstate.lastpasstmus; k++)
 				{
-					GL_LazyBind(k, 0, r_nulltex);
+					GL_LazyBind(k, r_nulltex);
 				}
 				shaderstate.lastpasstmus = tmu;
 
@@ -3336,7 +3334,7 @@ static void DrawPass(const shaderpass_t *pass)
 				tmu = 0;
 
 				/*bind the light texture*/
-				GL_LazyBind(tmu, GL_TEXTURE_2D, lightmap[shaderstate.curbatch->lightmap[j]]->lightmap_texture);
+				GL_LazyBind(tmu, lightmap[shaderstate.curbatch->lightmap[j]]->lightmap_texture);
 
 				/*set up the colourmod for this style's lighting*/
 				shaderstate.pendingcolourvbo = 0;
@@ -3366,7 +3364,7 @@ static void DrawPass(const shaderpass_t *pass)
 			{
 				for (k = tmu; k < shaderstate.lastpasstmus; k++)
 				{
-					GL_LazyBind(k, 0, r_nulltex);
+					GL_LazyBind(k, r_nulltex);
 				}
 				shaderstate.lastpasstmus = tmu;
 				BE_EnableShaderAttributes(attr, 0);
@@ -3386,7 +3384,7 @@ static void DrawPass(const shaderpass_t *pass)
 
 	for (i = tmu; i < shaderstate.lastpasstmus; i++)
 	{
-		GL_LazyBind(i, 0, r_nulltex);
+		GL_LazyBind(i, r_nulltex);
 	}
 	shaderstate.lastpasstmus = tmu;
 	BE_EnableShaderAttributes(attr, 0);
@@ -3948,16 +3946,16 @@ static void BE_RenderMeshProgram(const shader_t *shader, const shaderpass_t *pas
 #if MAXRLIGHTMAPS > 1
 	if (perm & PERMUTATION_LIGHTSTYLES)
 	{
-		GL_LazyBind(i++, GL_TEXTURE_2D, shaderstate.curbatch->lightmap[1]>=0?lightmap[shaderstate.curbatch->lightmap[1]]->lightmap_texture:r_nulltex);
-		GL_LazyBind(i++, GL_TEXTURE_2D, shaderstate.curbatch->lightmap[2]>=0?lightmap[shaderstate.curbatch->lightmap[2]]->lightmap_texture:r_nulltex);
-		GL_LazyBind(i++, GL_TEXTURE_2D, shaderstate.curbatch->lightmap[3]>=0?lightmap[shaderstate.curbatch->lightmap[3]]->lightmap_texture:r_nulltex);
-		GL_LazyBind(i++, GL_TEXTURE_2D, (shaderstate.curbatch->lightmap[1]>=0&&lightmap[shaderstate.curbatch->lightmap[1]]->hasdeluxe)?lightmap[shaderstate.curbatch->lightmap[1]+1]->lightmap_texture:missing_texture_normal);
-		GL_LazyBind(i++, GL_TEXTURE_2D, (shaderstate.curbatch->lightmap[2]>=0&&lightmap[shaderstate.curbatch->lightmap[2]]->hasdeluxe)?lightmap[shaderstate.curbatch->lightmap[2]+1]->lightmap_texture:missing_texture_normal);
-		GL_LazyBind(i++, GL_TEXTURE_2D, (shaderstate.curbatch->lightmap[3]>=0&&lightmap[shaderstate.curbatch->lightmap[3]]->hasdeluxe)?lightmap[shaderstate.curbatch->lightmap[3]+1]->lightmap_texture:missing_texture_normal);
+		GL_LazyBind(i++, shaderstate.curbatch->lightmap[1]>=0?lightmap[shaderstate.curbatch->lightmap[1]]->lightmap_texture:r_nulltex);
+		GL_LazyBind(i++, shaderstate.curbatch->lightmap[2]>=0?lightmap[shaderstate.curbatch->lightmap[2]]->lightmap_texture:r_nulltex);
+		GL_LazyBind(i++, shaderstate.curbatch->lightmap[3]>=0?lightmap[shaderstate.curbatch->lightmap[3]]->lightmap_texture:r_nulltex);
+		GL_LazyBind(i++, (shaderstate.curbatch->lightmap[1]>=0&&lightmap[shaderstate.curbatch->lightmap[1]]->hasdeluxe)?lightmap[shaderstate.curbatch->lightmap[1]+1]->lightmap_texture:missing_texture_normal);
+		GL_LazyBind(i++, (shaderstate.curbatch->lightmap[2]>=0&&lightmap[shaderstate.curbatch->lightmap[2]]->hasdeluxe)?lightmap[shaderstate.curbatch->lightmap[2]+1]->lightmap_texture:missing_texture_normal);
+		GL_LazyBind(i++, (shaderstate.curbatch->lightmap[3]>=0&&lightmap[shaderstate.curbatch->lightmap[3]]->hasdeluxe)?lightmap[shaderstate.curbatch->lightmap[3]+1]->lightmap_texture:missing_texture_normal);
 	}
 #endif
 	while (shaderstate.lastpasstmus > i)
-		GL_LazyBind(--shaderstate.lastpasstmus, 0, r_nulltex);
+		GL_LazyBind(--shaderstate.lastpasstmus, r_nulltex);
 	shaderstate.lastpasstmus = i;
 
 	BE_EnableShaderAttributes(permu->attrmask, shaderstate.sourcevbo->vao);
@@ -4045,7 +4043,7 @@ void GLBE_SelectMode(backendmode_t mode)
 			/*BEM_DEPTHONLY does support mesh writing, but its not the only way its used... FIXME!*/
 			while(shaderstate.lastpasstmus>0)
 			{
-				GL_LazyBind(--shaderstate.lastpasstmus, 0, r_nulltex);
+				GL_LazyBind(--shaderstate.lastpasstmus, r_nulltex);
 			}
 
 			//we don't write or blend anything (maybe alpha test... but mneh)
@@ -4075,7 +4073,7 @@ void GLBE_SelectMode(backendmode_t mode)
 			//disable all tmus
 			while(shaderstate.lastpasstmus>0)
 			{
-				GL_LazyBind(--shaderstate.lastpasstmus, 0, r_nulltex);
+				GL_LazyBind(--shaderstate.lastpasstmus, r_nulltex);
 			}
 #ifndef GLSLONLY
 			if (!gl_config_nofixedfunc)
@@ -4123,9 +4121,9 @@ void GLBE_SelectMode(backendmode_t mode)
 		case BEM_FOG:
 			while(shaderstate.lastpasstmus>0)
 			{
-				GL_LazyBind(--shaderstate.lastpasstmus, 0, r_nulltex);
+				GL_LazyBind(--shaderstate.lastpasstmus, r_nulltex);
 			}
-			GL_LazyBind(0, GL_TEXTURE_2D, shaderstate.fogtexture);
+			GL_LazyBind(0, shaderstate.fogtexture);
 			shaderstate.lastpasstmus = 1;
 
 			Vector4Set(shaderstate.pendingcolourflat, 1, 1, 1, 1);
@@ -4379,7 +4377,7 @@ static void BE_LegacyLighting(void)
 			shaderstate.normalisationcubemap = GenerateNormalisationCubeMap();
 
 		//tmu0: normalmap+replace+regular tex coords
-		GL_LazyBind(tmu, GL_TEXTURE_2D, shaderstate.curtexnums->bump);
+		GL_LazyBind(tmu, shaderstate.curtexnums->bump);
 		BE_SetPassBlendMode(tmu, PBM_REPLACE);
 		shaderstate.pendingtexcoordparts[tmu] = 2;
 		shaderstate.pendingtexcoordvbo[tmu] = shaderstate.sourcevbo->texcoord.gl.vbo;
@@ -4388,7 +4386,7 @@ static void BE_LegacyLighting(void)
 		tmu++;
 
 		//tmu1: normalizationcubemap+dot3+lightdir
-		GL_LazyBind(tmu, GL_TEXTURE_CUBE_MAP_ARB, shaderstate.normalisationcubemap);
+		GL_LazyBind(tmu, shaderstate.normalisationcubemap);
 		BE_SetPassBlendMode(tmu, PBM_DOTPRODUCT);
 		shaderstate.pendingtexcoordparts[tmu] = 3;
 		shaderstate.pendingtexcoordvbo[tmu] = 0;
@@ -4397,7 +4395,7 @@ static void BE_LegacyLighting(void)
 		tmu++;
 
 		//tmu2: $diffuse+multiply+regular tex coords
-		GL_LazyBind(tmu, GL_TEXTURE_2D, shaderstate.curtexnums->base);	//texture not used, its just to make sure the code leaves it enabled.
+		GL_LazyBind(tmu, shaderstate.curtexnums->base);	//texture not used, its just to make sure the code leaves it enabled.
 		BE_SetPassBlendMode(tmu, PBM_MODULATE);
 		shaderstate.pendingtexcoordparts[tmu] = 2;
 		shaderstate.pendingtexcoordvbo[tmu] = shaderstate.sourcevbo->texcoord.gl.vbo;
@@ -4406,7 +4404,7 @@ static void BE_LegacyLighting(void)
 		tmu++;
 	
 		//tmu3: $any+multiply-by-colour+notc
-		GL_LazyBind(tmu, GL_TEXTURE_2D, shaderstate.curtexnums->base);	//texture not used, its just to make sure the code leaves it enabled.
+		GL_LazyBind(tmu, shaderstate.curtexnums->base);	//texture not used, its just to make sure the code leaves it enabled.
 		BE_SetPassBlendMode(tmu, PBM_MODULATE_PREV_COLOUR);
 		shaderstate.pendingtexcoordparts[tmu] = 0;
 		shaderstate.pendingtexcoordvbo[tmu] = 0;
@@ -4417,7 +4415,7 @@ static void BE_LegacyLighting(void)
 
 		for (i = tmu; i < shaderstate.lastpasstmus; i++)
 		{
-			GL_LazyBind(i, 0, r_nulltex);
+			GL_LazyBind(i, r_nulltex);
 		}
 		shaderstate.lastpasstmus = tmu;
 	}
@@ -4427,14 +4425,14 @@ static void BE_LegacyLighting(void)
 
 		//tmu0: $diffuse+multiply+regular tex coords
 		//multiplies by vertex colours
-		GL_LazyBind(0, GL_TEXTURE_2D, shaderstate.curtexnums->base);	//texture not used, its just to make sure the code leaves it enabled.
+		GL_LazyBind(0, shaderstate.curtexnums->base);	//texture not used, its just to make sure the code leaves it enabled.
 		BE_SetPassBlendMode(0, PBM_MODULATE);
 		shaderstate.pendingtexcoordvbo[0] = shaderstate.sourcevbo->texcoord.gl.vbo;
 		shaderstate.pendingtexcoordpointer[0] = shaderstate.sourcevbo->texcoord.gl.addr;
 
 		for (i = 1; i < shaderstate.lastpasstmus; i++)
 		{
-			GL_LazyBind(i, 0, r_nulltex);
+			GL_LazyBind(i, r_nulltex);
 		}
 		shaderstate.lastpasstmus = 1;
 	}
@@ -4646,7 +4644,7 @@ static void DrawMeshes(void)
 			Vector4Set(shaderstate.pendingcolourflat, 1, 1, 1, 1);
 			while(shaderstate.lastpasstmus>0)
 			{
-				GL_LazyBind(--shaderstate.lastpasstmus, 0, r_nulltex);
+				GL_LazyBind(--shaderstate.lastpasstmus, r_nulltex);
 			}
 			BE_SendPassBlendDepthMask((shaderstate.curshader->passes[0].shaderbits & ~SBITS_BLEND_BITS) | SBITS_SRCBLEND_SRC_ALPHA | SBITS_DSTBLEND_ONE_MINUS_SRC_ALPHA | ((r_wireframe.ival == 1)?SBITS_MISC_NODEPTHTEST:0));
 
@@ -4690,7 +4688,7 @@ static void DrawMeshes(void)
 				Vector4Set(shaderstate.pendingcolourflat, 0, 0, 0, 1);
 				while(shaderstate.lastpasstmus>0)
 				{
-					GL_LazyBind(--shaderstate.lastpasstmus, 0, r_nulltex);
+					GL_LazyBind(--shaderstate.lastpasstmus, r_nulltex);
 				}
 
 				BE_SetPassBlendMode(0, PBM_REPLACE);
@@ -4843,9 +4841,9 @@ static void DrawMeshes(void)
 
 			while(shaderstate.lastpasstmus>1)
 			{
-				GL_LazyBind(--shaderstate.lastpasstmus, 0, r_nulltex);
+				GL_LazyBind(--shaderstate.lastpasstmus, r_nulltex);
 			}
-			GL_LazyBind(0, GL_TEXTURE_2D, shaderstate.fogtexture);
+			GL_LazyBind(0, shaderstate.fogtexture);
 			shaderstate.lastpasstmus = 1;
 
 			Vector4Scale(shaderstate.curbatch->fog->shader->fog_color, (1/255.0), shaderstate.pendingcolourflat);
@@ -6285,7 +6283,7 @@ void GLBE_DrawWorld (batch_t **worldbatches)
 
 		while(shaderstate.lastpasstmus>0)
 		{
-			GL_LazyBind(--shaderstate.lastpasstmus, 0, r_nulltex);
+			GL_LazyBind(--shaderstate.lastpasstmus, r_nulltex);
 		}
 #ifdef RTLIGHTS
 		Sh_Reset();

@@ -1674,11 +1674,8 @@ void VKBE_Shutdown(void)
 
 static texid_t SelectPassTexture(const shaderpass_t *pass)
 {
-	switch(pass->texgen)
+	safeswitch(pass->texgen)
 	{
-#ifndef _DEBUG
-	default:
-#endif
 	case T_GEN_DIFFUSE:
 		return shaderstate.curtexnums->base;
 	case T_GEN_NORMALMAP:
@@ -1715,8 +1712,6 @@ static texid_t SelectPassTexture(const shaderpass_t *pass)
 
 	case T_GEN_ANIMMAP:
 		return pass->anim_frames[(int)(pass->anim_fps * shaderstate.curtime) % pass->anim_numframes];
-	case T_GEN_3DMAP:
-	case T_GEN_CUBEMAP:
 	case T_GEN_SINGLEMAP:
 		return pass->anim_frames[0];
 	case T_GEN_DELUXMAP:
@@ -1782,6 +1777,7 @@ static texid_t SelectPassTexture(const shaderpass_t *pass)
 	case T_GEN_GBUFFER5:
 	case T_GEN_GBUFFER6:
 	case T_GEN_GBUFFER7:
+	safedefault:
 		return r_nulltex;
 	}
 	return r_nulltex;

@@ -289,8 +289,6 @@ typedef struct shaderpass_s {
 #ifdef HAVE_MEDIA_DECODER
 		T_GEN_VIDEOMAP,		//use the media playback as an image source, updating each frame for which it is visible
 #endif
-		T_GEN_CUBEMAP,		//use a cubemap instead, otherwise like T_GEN_SINGLEMAP
-		T_GEN_3DMAP,		//use a 3d texture instead, otherwise T_GEN_SINGLEMAP.
 
 #define GBUFFER_COUNT 8
 #define T_GEN_GBUFFERCASE T_GEN_GBUFFER0:case T_GEN_GBUFFER1:case T_GEN_GBUFFER2:case T_GEN_GBUFFER3:case T_GEN_GBUFFER4:case T_GEN_GBUFFER5:case T_GEN_GBUFFER6:case T_GEN_GBUFFER7 

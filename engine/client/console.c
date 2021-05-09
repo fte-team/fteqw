@@ -2262,6 +2262,11 @@ static int Con_DrawConsoleLines(console_t *con, conline_t *l, float displayscrol
 							pic = R_RegisterShader("tiprawimgcube", 0, "{\nprogram postproc_equirectangular\n{\nmap \"$cube:$reflectcube\"\n}\n}");
 							pic->defaulttextures->reflectcube = img;
 						}
+						else if (img && (img->flags & IF_TEXTYPEMASK)==IF_TEXTYPE_2D_ARRAY)
+						{
+							pic = R_RegisterShader("tiprawimgarray", 0, "{\nprogram default2danim\n{\nmap \"$2darray:$diffuse\"\n}\n}");
+							pic->defaulttextures->base = img;
+						}
 						else
 						{
 							pic = R2D_SafeCachePic("tiprawimg");
@@ -2826,6 +2831,11 @@ static void Con_DrawMouseOver(console_t *mouseconsole)
 						{
 							shader = R_RegisterShader("tiprawimgcube", 0, "{\nprogram postproc_equirectangular\n{\nmap \"$cube:$reflectcube\"\n}\n}");
 							shader->defaulttextures->reflectcube = img;
+						}
+						else if ((img->flags & IF_TEXTYPEMASK)==IF_TEXTYPE_2D_ARRAY)
+						{
+							shader = R_RegisterShader("tiprawimgarray", 0, "{\nprogram default2danim\n{\nmap \"$2darray:$diffuse\"\n}\n}");
+							shader->defaulttextures->base = img;
 						}
 						else if ((img->flags&IF_TEXTYPEMASK) == IF_TEXTYPE_2D)
 						{

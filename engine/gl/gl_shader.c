@@ -3081,22 +3081,7 @@ static void Shaderpass_Map (parsestate_t *ps, const char **ptr)
 	flags = Shader_SetImageFlags (ps, pass, &token, 0);
 	if (!Shaderpass_MapGen(ps, pass, token))
 	{
-		switch((flags & IF_TEXTYPEMASK) >> IF_TEXTYPESHIFT)
-		{
-		case PTI_2D:
-			pass->texgen = T_GEN_SINGLEMAP;
-			break;
-		case PTI_3D:
-			pass->texgen = T_GEN_3DMAP;
-			break;
-		case PTI_CUBE:
-			pass->texgen = T_GEN_CUBEMAP;
-			break;
-		default:
-			pass->texgen = T_GEN_SINGLEMAP;
-			break;
-		}
-
+		pass->texgen = T_GEN_SINGLEMAP;
 		if (pass->tcgen == TC_GEN_UNSPECIFIED)
 			pass->tcgen = TC_GEN_BASE;
 		if (!*shader->defaulttextures->mapname && *token != '$' && pass->tcgen == TC_GEN_BASE)
@@ -3186,20 +3171,7 @@ static void Shaderpass_ClampMap (parsestate_t *ps, const char **ptr)
 		if (pass->tcgen == TC_GEN_UNSPECIFIED)
 			pass->tcgen = TC_GEN_BASE;
 		pass->anim_frames[0] = Shader_FindImage (ps, token, flags);
-
-		switch((flags & IF_TEXTYPEMASK) >> IF_TEXTYPESHIFT)
-		{
-		default:
-		case PTI_2D:
-			pass->texgen = T_GEN_SINGLEMAP;
-			break;
-		case PTI_3D:
-			pass->texgen = T_GEN_3DMAP;
-			break;
-		case PTI_CUBE:
-			pass->texgen = T_GEN_CUBEMAP;
-			break;
-		}
+		pass->texgen = T_GEN_SINGLEMAP;
 
 		if (!TEXVALID(pass->anim_frames[0]))
 		{
@@ -3921,8 +3893,8 @@ static void Shaderpass_CubeMap(parsestate_t *ps, const char **ptr)
 
 	if (pass->tcgen == TC_GEN_UNSPECIFIED)
 		pass->tcgen = TC_GEN_SKYBOX;
-	pass->texgen = T_GEN_CUBEMAP;
 	pass->anim_frames[0] = Shader_FindImage(ps, token, IF_TEXTYPE_CUBE);
+	pass->texgen = T_GEN_SINGLEMAP;
 
 	if (!TEXVALID(pass->anim_frames[0]))
 	{
@@ -7700,8 +7672,6 @@ static char *Shader_DecomposeSubPass(char *o, shader_t *s, shaderpass_t *p, qboo
 #ifdef HAVE_MEDIA_DECODER
 	case T_GEN_VIDEOMAP:		Shader_DecomposeSubPassMap(o, s, "videomap", Media_UpdateForShader(p->cin)); break;
 #endif
-	case T_GEN_CUBEMAP:			Shader_DecomposeSubPassMap(o, s, "map $cubemap", p->anim_frames[0]); break;
-	case T_GEN_3DMAP:			Shader_DecomposeSubPassMap(o, s, "map $3dmap", p->anim_frames[0]); break;
 	case T_GEN_LIGHTMAP:		sprintf(o, "map $lightmap "); break;
 	case T_GEN_DELUXMAP:		sprintf(o, "map $deluxemap "); break;
 	case T_GEN_SHADOWMAP:		sprintf(o, "map $shadowmap "); break;

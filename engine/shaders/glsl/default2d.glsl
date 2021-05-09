@@ -1,5 +1,5 @@
 !!ver 100-450
-!!samps 1
+!!samps img=0
 
 //this shader is present for support for gles/gl3core contexts
 //it is single-texture-with-vertex-colours, and doesn't do anything special.
@@ -26,7 +26,7 @@ void main ()
 #ifdef PREMUL
 	f.rgb *= f.a;
 #endif
-	f *= texture2D(s_t0, tc);
+	f *= texture2D(s_img, tc);
 	gl_FragColor = f;
 }
 #endif

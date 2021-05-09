@@ -202,18 +202,18 @@ function build_fteqcc {
 echo "--- Engine builds ---"
 #the -fno-finite-math-only is to avoid a glibc dependancy
 if [ "$BUILD_LINUXx86" != "n" ]; then
-	NATIVE_PLUGINS="$PLUGINS_LINUXx86" build "Linux 32-bit" linux_x86 FTE_TARGET=linux32 CPUOPTIMIZATIONS=-fno-finite-math-only $TARGETS_LINUX
+	NATIVE_PLUGINS="$PLUGINS_LINUXx86" build "Linux 32-bit" linux_x86 FTE_TARGET=linux_x86 CPUOPTIMIZATIONS=-fno-finite-math-only $TARGETS_LINUX
 fi
 if [ "$BUILD_LINUXx64" != "n" ]; then
 	NATIVE_PLUGINS="$PLUGINS_LINUXx64" build "Linux 64-bit" linux_amd64 FTE_TARGET=linux64 CPUOPTIMIZATIONS=-fno-finite-math-only $TARGETS_LINUX
 fi
 if [ "$BUILD_LINUXx32" != "n" ]; then
 # 	CFLAGS="-DNO_JPEG"
-	NATIVE_PLUGINS="$PLUGINS_LINUXx32" build "Linux x32" linux_x32 FTE_TARGET=linuxx32 CPUOPTIMIZATIONS=-fno-finite-math-only $TARGETS_LINUX
+	NATIVE_PLUGINS="$PLUGINS_LINUXx32" build "Linux x32" linux_x32 FTE_TARGET=linux_x32 CPUOPTIMIZATIONS=-fno-finite-math-only $TARGETS_LINUX
 fi
 if [ "$BUILD_LINUXarmhf" != "n" ]; then
 	#debian/ubuntu's armhf targets armv7. we instead target armv6, because that means we work on rpi too (but still with hard-float). It should be compatible although we likely need more ops.
-	NATIVE_PLUGINS="$PLUGINS_LINUXarmhf" build "Linux ARMhf" linux_armhf FTE_TARGET=linuxarmhf CPUOPTIMIZATIONS=-fno-finite-math-only $TARGETS_LINUX
+	NATIVE_PLUGINS="$PLUGINS_LINUXarmhf" build "Linux ARMhf" linux_armhf FTE_TARGET=linux_armhf CPUOPTIMIZATIONS=-fno-finite-math-only $TARGETS_LINUX
 fi
 if [ "$BUILD_CYGWIN" != "n" ]; then
 	NATIVE_PLUGINS="qi ezhud" build "Cygwin" cygwin qcc-rel rel dbg plugins-rel plugins-dbg

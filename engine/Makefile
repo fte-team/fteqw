@@ -55,9 +55,9 @@ BULLETVER=2.87
 #linux->win64 (FTE_TARGET=win64) RPM Package: "mingw32-gcc", DEB Package: "mingw32"
 #linux->linux 32 (FTE_TARGET=linux32)
 #linux->linux 64 (FTE_TARGET=linux64)
-#linux->linux x32 (FTE_TARGET=linuxx32)
-#linux->linux armhf (FTE_TARGET=linuxarmhf)
-#linux->linux arm64/aarch64 (FTE_TARGET=linuxarm64)
+#linux->linux x32 (FTE_TARGET=linux_x32)
+#linux->linux armhf (FTE_TARGET=linux_armhf)
+#linux->linux arm64/aarch64 (FTE_TARGET=linux_arm64)
 #linux->linux *others* (FTE_TARGET=linux CC=other-gcc)
 #linux->morphos (FTE_TARGET=morphos)
 #linux->macosx (FTE_TARGET=macosx) or (FTE_TARGET=macosx_x86)
@@ -418,7 +418,7 @@ ifeq ($(FTE_TARGET),linux32)
 	STRIP=strip
 	BITS=32
 endif
-ifeq ($(FTE_TARGET),linuxx86)
+ifeq ($(FTE_TARGET),linux_x86)
 	FTE_TARGET=linux
 	CC=i686-linux-gnu-gcc
 	PKGCONFIG=i686-linux-gnu-pkg-config
@@ -426,7 +426,15 @@ ifeq ($(FTE_TARGET),linuxx86)
 	STRIP=i686-linux-gnu-strip
 	BITS=32
 endif
-ifeq ($(FTE_TARGET),linuxarmhf)
+ifeq ($(FTE_TARGET),linux_amd64)
+	FTE_TARGET=linux
+	CC=x86_64-linux-gnu-gcc
+	PKGCONFIG=x86_64-linux-gnu-pkg-config
+	CXX=x86_64-linux-gnu-g++
+	STRIP=x86_64-linux-gnu-strip
+	BITS=64
+endif
+ifeq ($(FTE_TARGET),linux_armhf)
 	#debian's armhf is armv7, but armv6 works on RPI too.
 	FTE_TARGET=linux
 	CC=arm-linux-gnueabihf-gcc -marm -march=armv6 -mfpu=vfp -mfloat-abi=hard
@@ -434,7 +442,7 @@ ifeq ($(FTE_TARGET),linuxarmhf)
 	STRIP=arm-linux-gnueabihf-strip
 	BITS=armhf
 endif
-ifeq ($(FTE_TARGET),linuxarm64)
+ifeq ($(FTE_TARGET),linux_arm64)
 	FTE_TARGET=linux
 	CC=aarch64-linux-gnu-gcc
 	CXX=aarch64-linux-gnu-g++
@@ -442,7 +450,8 @@ ifeq ($(FTE_TARGET),linuxarm64)
 	BITS=arm64
 	USE_SPEEX=0 #fails to compile due to neon asm, I'm just going to disable it (will still soft-link).
 endif
-ifeq ($(FTE_TARGET),linuxx32)
+ifeq ($(FTE_TARGET),linux_x32)
+	#DO NOT CONFUSE WITH linux_x86. this target is amd64-with-32bit-pointers
 	#note: the x32 abi is still not finished or something.
 	#at the current time, you will need to edit your kernel's commandline to allow this stuff to run
 	#try and use a proper cross-compiler if we can, otherwise fall back on multi-arch.

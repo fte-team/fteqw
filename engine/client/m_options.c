@@ -334,15 +334,15 @@ void M_Menu_Options_f (void)
 
 	extern cvar_t cfg_save_auto;
 	menubulk_t bulk[] = {
-		MB_CONSOLECMD("Customize controls", "menu_keys\n", "Modify keyboard and mouse inputs."),
+		MB_CONSOLECMD("Save all settings", "cfg_save\n", "Writes changed settings out to a config file."),
+		MB_CHECKBOXCVARTIP("Auto-save Settings", cfg_save_auto, 1, "If this is disabled, you will need to explicitly save your settings."),
+		MB_CONSOLECMD("Reset to defaults", "cvarreset *\nexec default.cfg\nplay misc/menu2.wav\n", "Reloads the default configuration."),
+		MB_SPACING(4),
+		MB_CONSOLECMD("Controls", "menu_keys\n", "Modify keyboard and mouse inputs."),
 #ifdef PACKAGEMANAGER
 		MB_CONSOLECMD("Updates and Packages", "menu_download\n", "Configure additional content and plugins."),
 #endif
 		MB_CONSOLECMD("Go to console", "toggleconsole\nplay misc/menu2.wav\n", "Open up the engine console."),
-		MB_CONSOLECMD("Reset to defaults", "cvarreset *\nexec default.cfg\nplay misc/menu2.wav\n", "Reloads the default configuration."),
-		MB_CONSOLECMD("Save all settings", "cfg_save\n", "Writes changed settings out to a config file."),
-		MB_CHECKBOXCVARTIP("Auto-save Settings", cfg_save_auto, 1, "If this is disabled, you will need to explicitly save your settings."),
-		MB_SPACING(4),
 		MB_COMBOCVAR("View Projection", r_projection, projections, projectionvalues, NULL),
 		MB_COMBOCVAR("FOV Mode", scr_fov_mode, fovmodes, fovmodevalues, NULL),
 		MB_SLIDER("Field of View", scr_fov, 70, 360, 5, NULL),
@@ -362,17 +362,9 @@ void M_Menu_Options_f (void)
 #endif
 		MB_SPACING(4),
 		// removed hud options (cl_sbar, cl_hudswap, old-style chat, old-style msg)
-		MB_CONSOLECMD("Video Options", "menu_video\n", "Set video resolution, color depth, refresh rate, and anti-aliasing options."),
-		MB_CONSOLECMD("Graphics Presets", "fps_preset\n", "Choose a different graphical preset to use."),
 		MB_CONSOLECMD("Audio Options", "menu_audio\n", "Set audio quality and speaker setup options."),
-		MB_SPACING(4),
-		MB_CONSOLECMD("FPS Options", "menu_fps\n", "Set model filtering and graphical profile options."),
-		MB_CONSOLECMD("Rendering Options", "menu_render\n", "Set rendering options such as water warp and tinting effects."),
-		MB_CONSOLECMD("Lighting Options", "menu_lighting\n", "Set options for level lighting and dynamic lights."),
-		MB_CONSOLECMD("Texture Options", "menu_textures\n", "Set options for texture detail and effects."),
-#ifndef MINIMAL
-		MB_CONSOLECMD("Particle Options", "menu_particles\n", "Set particle effect options."),
-#endif
+		MB_CONSOLECMD("Graphics Presets", "fps_preset\n", "Choose a different graphical preset to use."),
+		MB_CONSOLECMD("Video Options", "menu_video\n", "Set video resolution, color depth, refresh rate, and anti-aliasing options."),
 #ifdef TEXTEDITOR
 		//this option is a bit strange in q2.
 //		MB_CHECKBOXCVAR("QC Debugger", pr_debugger, 0),
@@ -1163,11 +1155,6 @@ struct
 	},
 };
 
-typedef struct fpsmenuinfo_s
-{
-	menucombo_t *preset;
-} fpsmenuinfo_t;
-
 static void ApplyPreset (int presetnum, qboolean doreload)
 {
 	int i;
@@ -1448,6 +1435,10 @@ void FPS_Preset_c(int argn, const char *partial, struct xcommandargcompletioncb_
 	}
 }
 
+/*typedef struct fpsmenuinfo_s
+{
+	menucombo_t *preset;
+} fpsmenuinfo_t;
 qboolean M_PresetApply (union menuoption_s *op, struct emenu_s *menu, int key)
 {
 	fpsmenuinfo_t *info = (fpsmenuinfo_t*)menu->data;
@@ -1460,7 +1451,7 @@ qboolean M_PresetApply (union menuoption_s *op, struct emenu_s *menu, int key)
 	Cbuf_AddText("\n", RESTRICT_LOCAL);
 
 	return true;
-}
+}*/
 
 void M_Menu_FPS_f (void)
 {
@@ -1496,13 +1487,14 @@ void M_Menu_FPS_f (void)
 	static const char *values_0_1[] = {"0", "1", NULL};
 
 	emenu_t *menu;
-	fpsmenuinfo_t *info;
+//	fpsmenuinfo_t *info;
 
 	extern cvar_t v_contentblend, show_fps, cl_r2g, cl_gibfilter, cl_expsprite, cl_deadbodyfilter, cl_lerp_players, cl_nolerp, cl_maxfps, cl_yieldcpu;
 	static menuresel_t resel;
 	int y;
-	menu = M_Options_Title(&y, sizeof(fpsmenuinfo_t));
-	info = (fpsmenuinfo_t *)menu->data;
+	menu = M_Options_Title(&y, 0);
+//	menu = M_Options_Title(&y, sizeof(fpsmenuinfo_t));
+//	info = (fpsmenuinfo_t *)menu->data;
 
 	/*lerping is here because I'm not sure where else to put it. if they care about framerate that much then they'll want to disable interpolation to get as up-to-date stuff as possible*/
 
@@ -1511,9 +1503,9 @@ void M_Menu_FPS_f (void)
 		{
 			MB_REDTEXT("FPS Options", true),
 			MB_TEXT("^Ue080^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue082", true),
-			MB_COMBORETURN("Preset", presetname, 2, info->preset, "Select a builtin configuration of graphical settings."),
-			MB_CMD("Apply", M_PresetApply, "Applies selected preset."),
-			MB_SPACING(4),
+//			MB_COMBORETURN("Preset", presetname, 2, info->preset, "Select a builtin configuration of graphical settings."),
+//			MB_CMD("Apply", M_PresetApply, "Applies selected preset."),
+//			MB_SPACING(4),
 			MB_COMBOCVAR("Show FPS", show_fps, fpsopts, fpsvalues, "Display FPS or frame millisecond values on screen. Settings except immediate are for values across 1 second."),
 			MB_EDITCVARSLIM("Framerate Limiter", cl_maxfps.name, "Limits the maximum framerate. Set to 0 for none."),
 			MB_CHECKBOXCVARTIP("Yield CPU", cl_yieldcpu, 1, "Reduce CPU usage between frames.\nShould probably be off when using vsync."),
@@ -3115,6 +3107,8 @@ void M_Menu_Video_f (void)
 		{
 			MB_REDTEXT("Video Options", true),
 			MB_TEXT("^Ue080^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue082", true),
+			MB_CMD("Apply Settings", M_VideoApply, "Restart video and apply renderer, display, and 2D resolution options."),
+			MB_SPACING(4),
 #ifdef ANDROID
 			MB_COMBOCVAR("Orientation", sys_orientation, orientationopts, orientationvalues, NULL),
 #else
@@ -3141,7 +3135,7 @@ void M_Menu_Video_f (void)
 			MB_EDITCVARSLIMRETURN("Color Depth", "vid_bpp", info->bpp),
 			MB_EDITCVARSLIMRETURN("Refresh Rate", "vid_displayfrequency", info->hz),
 
-			MB_SPACING(4),
+//			MB_SPACING(4),
 			MB_COMBORETURN("2D Mode", res2dmodeopts, res2dmodechoice, info->res2dmode, "Select method for determining or configuring 2D resolution and scaling. The default option matches the current display resolution, and the scale option scales by a factor of the display resolution."),
 			// scale entry
 			MB_COMBOCVARRETURN("Amount", vid_conautoscale, scaleopts, scalevalues, info->scale, NULL),
@@ -3159,18 +3153,25 @@ void M_Menu_Video_f (void)
 			MB_EDITCVARSLIMRETURN("Width", "vid_conwidth", info->width2d),
 			MB_EDITCVARSLIMRETURN("Height", "vid_conheight", info->height2d),
 			MB_SPACING(4),
-			MB_CMD("Apply Settings", M_VideoApply, "Restart video and apply renderer, display, and 2D resolution options."),
-			MB_SPACING(4),
 			MB_COMBOCVAR("sRGB", vid_srgb, srgbopts, srgbvalues, "Controls the colour space to try to use."),
-			MB_COMBOCVAR("Gamma Mode", v_gamma, gammamodeopts, gammamodevalues, "Controls how gamma is applied"),
+			MB_COMBOCVAR("Gamma Mode", vid_hardwaregamma, gammamodeopts, gammamodevalues, "Controls how gamma is applied"),
 			MB_SLIDER("Gamma", v_gamma, 1.5, 0.25, -0.05, NULL),
 			MB_SLIDER("Contrast", v_contrast, 0.8, 3, 0.05, NULL),
 			MB_SLIDER("Brightness", v_brightness, 0.0, 0.5, 0.05, NULL),
 			MB_SPACING(4),
 			MB_SLIDER("View Size", scr_viewsize, 30, 120, 10, NULL),
 			MB_COMBOCVAR("VSync", vid_vsync, vsyncopts, vsyncvalues, "Controls whether to wait for rendering to finish."),
-			MB_EDITCVARSLIM("Framerate Limiter", cl_maxfps.name, "Limits the maximum framerate. Set to 0 for none."),
-			MB_CHECKBOXCVARTIP("Yield CPU", cl_yieldcpu, 1, "Reduce CPU usage between frames.\nShould probably be off when using vsync."),
+//			MB_EDITCVARSLIM("Framerate Limiter", cl_maxfps.name, "Limits the maximum framerate. Set to 0 for none."),
+//			MB_CHECKBOXCVARTIP("Yield CPU", cl_yieldcpu, 1, "Reduce CPU usage between frames.\nShould probably be off when using vsync."),
+
+			MB_SPACING(4),
+			MB_CONSOLECMD("FPS Options", "menu_fps\n", "Set model filtering and graphical profile options."),
+			MB_CONSOLECMD("Rendering Options", "menu_render\n", "Set rendering options such as water warp and tinting effects."),
+			MB_CONSOLECMD("Lighting Options", "menu_lighting\n", "Set options for level lighting and dynamic lights."),
+			MB_CONSOLECMD("Texture Options", "menu_textures\n", "Set options for texture detail and effects."),
+#ifndef MINIMAL
+			MB_CONSOLECMD("Particle Options", "menu_particles\n", "Set particle effect options."),
+#endif
 			
 			MB_END()
 		};

@@ -1542,7 +1542,7 @@ static void ImgTool_Enumerate(struct opts_s *args, const char *inname, void(*cal
 	}
 	else if (fsize >= sizeof(dheader_t) && (
 		((indata[0])|(indata[1]<<8)|(indata[2]<<16)|(indata[3]<<24)) == BSPVERSION		||
-//		((indata[0])|(indata[1]<<8)|(indata[2]<<16)|(indata[3]<<24)) == BSPVERSIONHL	||
+		((indata[0])|(indata[1]<<8)|(indata[2]<<16)|(indata[3]<<24)) == BSPVERSIONHL	||
 		((indata[0])|(indata[1]<<8)|(indata[2]<<16)|(indata[3]<<24)) == BSPVERSIONPREREL||
 		((indata[0])|(indata[1]<<8)|(indata[2]<<16)|(indata[3]<<24)) == BSPVERSION_LONG1||
 		((indata[0])|(indata[1]<<8)|(indata[2]<<16)|(indata[3]<<24)) == BSPVERSION_LONG2))
@@ -2767,6 +2767,9 @@ struct sdlwindow_s
 {
 	SDL_Window *w;
 	SDL_Renderer *r;
+	int width;
+	int height;
+	float scale;
 
 	size_t texshown;
 	size_t texcount;
@@ -2878,7 +2881,16 @@ static void SDLL_RepaintWindow(struct sdlwindow_s *wc)
 {
 	if (wc->texshown < wc->texcount)
 	{
-		sdl.RenderCopy(wc->r, wc->tex[wc->texshown].t, NULL, NULL);
+		SDL_Rect dest;
+		dest.x=dest.y=0;
+		dest.w=dest.h=1;
+		sdl.RenderCopy(wc->r, wc->tex[wc->texshown].t, &dest, NULL);
+
+		dest.w = wc->tex[wc->texshown].w*wc->scale;
+		dest.h = wc->tex[wc->texshown].h*wc->scale;
+		dest.x = (wc->width - dest.w)/2;
+		dest.y = (wc->height - dest.h)/2;
+		sdl.RenderCopy(wc->r, wc->tex[wc->texshown].t, NULL, &dest);
 		sdl.RenderPresent(wc->r);
 	}
 }
@@ -2886,6 +2898,7 @@ static void SDLL_Change(struct sdlwindow_s *wc, size_t newshown)
 {
 	if (newshown < wc->texcount)
 	{
+		int w, h;
 		char title[512];
 		wc->texshown = newshown;
 		if (wc->texcount==1)
@@ -2893,8 +2906,20 @@ static void SDLL_Change(struct sdlwindow_s *wc, size_t newshown)
 		else
 			snprintf(title, sizeof(title), "[%u/%u] %s", 1+(unsigned int)newshown, (unsigned int)wc->texcount, wc->tex[wc->texshown].name);
 		sdl.SetWindowTitle(wc->w, title);
-		if (!(sdl.GetWindowFlags(wc->w) & (SDL_WINDOW_MAXIMIZED|SDL_WINDOW_FULLSCREEN)))	//SetWindowSize seems to bug out on linux when its maximized.
-			sdl.SetWindowSize(wc->w, wc->tex[wc->texshown].w, wc->tex[wc->texshown].h);
+
+		w = wc->tex[wc->texshown].w * wc->scale;
+		h = wc->tex[wc->texshown].h * wc->scale;
+		if (w > 1024)
+			w = 1024;
+		if (h > 768)
+			h = 768;
+		if (wc->width < w || wc->height < h)
+			if (!(sdl.GetWindowFlags(wc->w) & (SDL_WINDOW_MAXIMIZED|SDL_WINDOW_FULLSCREEN)))	//SetWindowSize seems to bug out on linux when its maximized.
+			{
+				wc->width = w;
+				wc->height = h;
+				sdl.SetWindowSize(wc->w, w, h);
+			}
 		SDLL_RepaintWindow(wc);
 	}
 }
@@ -2913,10 +2938,24 @@ static void SDLL_Event(SDL_Event *ev)
 			SDLL_KillWindow(wc);
 			break;
 		case SDLK_LEFT:
+			wc->scale = 1;
 			SDLL_Change(wc, wc->texshown-1);
 			break;
 		case SDLK_RIGHT:
+			wc->scale = 1;
 			SDLL_Change(wc, wc->texshown+1);
+			break;
+		case SDLK_UP:
+			wc->scale /= 0.9;
+			if (wc->scale > 4)
+				wc->scale = 4;
+			SDLL_Change(wc, wc->texshown);
+			break;
+		case SDLK_DOWN:
+			wc->scale *= 0.9;
+			if (wc->scale < 0.25)
+				wc->scale = 0.25;
+			SDLL_Change(wc, wc->texshown);
 			break;
 		}
 		break;
@@ -2927,6 +2966,10 @@ static void SDLL_Event(SDL_Event *ev)
 		{
 		case SDL_WINDOWEVENT_CLOSE:
 			SDLL_KillWindow(wc);
+			break;
+		case SDL_WINDOWEVENT_SIZE_CHANGED:
+			wc->width = ev->window.data1;
+			wc->height = ev->window.data2;
 			break;
 		case SDL_WINDOWEVENT_EXPOSED:
 			SDLL_RepaintWindow(wc);
@@ -2962,6 +3005,9 @@ static void ImgTool_View(const char *inname, struct pendingtextureinfo *in)
 	struct sdlwindow_s *wc;
 	SDL_Event ev;
 
+	if (in->mipcount < 1 || in->mip[0].width <= 0 || in->mip[0].height <= 0)
+		return;
+
 	if (!SDLL_Setup())
 	{
 		ImgTool_PrintInfo(inname, in);
@@ -2976,6 +3022,7 @@ static void ImgTool_View(const char *inname, struct pendingtextureinfo *in)
 	else
 	{
 		sdl.texview = wc = Z_Malloc(sizeof(*wc));
+		wc->scale = 2;
 
 		s = 1;
 		while (	 (in->mip[0].width*s < 256 && in->mip[0].height*s < 512)||

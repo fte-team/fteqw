@@ -3312,7 +3312,7 @@ static void CLQW_ParseServerData (void)
 
 	Cvar_ForceCallback(Cvar_FindVar("r_particlesdesc"));
 
-	cl.teamfortress = !Q_strcasecmp(str, "fortress");
+	cl.teamfortress = !!Q_strcasestr(str, "fortress");
 
 	if (cl.gamedirchanged)
 	{

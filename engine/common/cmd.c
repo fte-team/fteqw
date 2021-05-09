@@ -3993,6 +3993,7 @@ static void Cvar_Watch_f(void)
 
 static void Cmd_WriteConfig_f(void)
 {
+	char curtime[256];
 	vfsfile_t *f;
 	char *filename;
 	char fname[MAX_QPATH];
@@ -4058,7 +4059,11 @@ static void Cmd_WriteConfig_f(void)
 		return;
 	}
 
-	VFS_PRINTF(f, "// %s config file\n\n", *fs_gamename.string?fs_gamename.string:FULLENGINENAME);
+	{
+		time_t t = time(NULL);
+		strftime(curtime, sizeof(curtime), "%Y-%m-%d %H:%M", localtime(&t));
+	}
+	VFS_PRINTF(f, "// %s config file (%s)\n\n", *fs_gamename.string?fs_gamename.string:FULLENGINENAME, curtime);
 #ifdef HAVE_CLIENT
 	if (cfg_save_binds.ival)
 		Key_WriteBindings (f);

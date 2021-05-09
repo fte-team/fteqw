@@ -5196,12 +5196,20 @@ static void COM_Version_f (void)
 	Con_Printf("^4"ENGINEWEBSITE"\n");
 	Con_Printf("%s\n", version_string());
 
+#ifdef FTE_BRANCH
+	Con_Printf("Branch: "STRINGIFY(FTE_BRANCH)"\n");
+#endif
 #if defined(SVNREVISION) && defined(SVNDATE)
-	Con_Printf("SVN Revision: %s - %s\n",STRINGIFY(SVNREVISION), STRINGIFY(SVNDATE));
+	if (!strncmp(STRINGIFY(SVNREVISION), "git-", 4))
+		Con_Printf("GIT Revision: %s - %s\n",STRINGIFY(SVNREVISION), STRINGIFY(SVNDATE));
+	else
+		Con_Printf("SVN Revision: %s - %s\n",STRINGIFY(SVNREVISION), STRINGIFY(SVNDATE));
 #else
 	Con_TPrintf ("Exe: %s %s\n", __DATE__, __TIME__);
 #ifdef SVNREVISION
-	if (strcmp(STRINGIFY(SVNREVISION), "-"))
+	if (!strncmp(STRINGIFY(SVNREVISION), "git-", 4))
+		Con_Printf("GIT Revision: %s\n",STRINGIFY(SVNREVISION));
+	else if (strcmp(STRINGIFY(SVNREVISION), "-"))
 		Con_Printf("SVN Revision: %s\n",STRINGIFY(SVNREVISION));
 #endif
 #endif
@@ -8078,10 +8086,15 @@ char *version_string(void)
 #ifdef OFFICIAL_RELEASE
 		Q_snprintfz(s, sizeof(s), "%s v%i.%02i", DISTRIBUTION, FTE_VER_MAJOR, FTE_VER_MINOR);
 #elif defined(SVNREVISION) && defined(SVNDATE)
-		Q_snprintfz(s, sizeof(s), "%s SVN %s", DISTRIBUTION, STRINGIFY(SVNREVISION));	//if both are defined then its a known unmodified svn revision.
+		if (!strncmp(STRINGIFY(SVNREVISION), "git-", 4))
+			Q_snprintfz(s, sizeof(s), "%s %s", DISTRIBUTION, STRINGIFY(SVNREVISION));	//if both are defined then its a known unmodified svn revision.
+		else
+			Q_snprintfz(s, sizeof(s), "%s SVN %s", DISTRIBUTION, STRINGIFY(SVNREVISION));	//if both are defined then its a known unmodified svn revision.
 #else
 	#if defined(SVNREVISION)
-		if (strcmp(STRINGIFY(SVNREVISION), "-"))
+		if (!strncmp(STRINGIFY(SVNREVISION), "git-", 4))
+			Q_snprintfz(s, sizeof(s), "%s %s %s", DISTRIBUTION, STRINGIFY(SVNREVISION), __DATE__);
+		else if (strcmp(STRINGIFY(SVNREVISION), "-"))
 			Q_snprintfz(s, sizeof(s), "%s SVN %s %s", DISTRIBUTION, STRINGIFY(SVNREVISION), __DATE__);
 		else
 	#endif

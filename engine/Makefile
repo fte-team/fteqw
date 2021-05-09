@@ -1,3 +1,28 @@
+#FTEQW Makefile
+
+#make m-rel plugins-rel sv-rel [FTE_TARGET=$ARCH]
+
+#only limited forms of cross-making is supported
+#only the following 3 are supported
+#linux->win32 (FTE_TARGET=win32) RPM Package: "mingw32-gcc", DEB Package: "mingw32"
+#linux->win64 (FTE_TARGET=win64) RPM Package: "mingw32-gcc", DEB Package: "mingw32"
+#linux->linux 32 (FTE_TARGET=linux32)
+#linux->linux 64 (FTE_TARGET=linux64)
+#linux->linux x32 (FTE_TARGET=linux_x32)
+#linux->linux armhf (FTE_TARGET=linux_armhf)
+#linux->linux arm64/aarch64 (FTE_TARGET=linux_arm64)
+#linux->linux *others* (FTE_TARGET=linux CC=other-gcc)
+#linux->morphos (FTE_TARGET=morphos)
+#linux->macosx (FTE_TARGET=macosx) or (FTE_TARGET=macosx_x86)
+#linux->javascript (FTE_TARGET=web)
+#linux->nacl (FTE_TARGET=nacl NARCH=x86_64) deprecated.
+#win32->nacl
+#linux->droid (make droid)
+#win32->droid (make droid)
+#if you are cross compiling, you'll need to use FTE_TARGET=mytarget
+#note: cross compiling will typically require 'make makelibs FTE_TARGET=mytarget', which avoids installing lots of extra system packages.
+
+#
 CC=gcc
 WINDRES=windres
 STRIP?=strip
@@ -19,13 +44,23 @@ else
 endif
 
 ifeq ($(SVNREVISION),)
+	#try subversion firstly...
     SVN_VERSION:=$(shell test -d $(BASE_DIR)/../.svn && svnversion $(BASE_DIR))
     SVN_DATE:=$(shell test -d $(BASE_DIR)/../.svn && cd $(BASE_DIR) && svn info --show-item last-changed-date --no-newline)
+    ifeq (,$(SVN_VERSION))
+        #try to get git version info instead.
+        SVN_VERSION:=$(shell test -d $(BASE_DIR)/../.git && cd $(BASE_DIR) && git describe --long --always --dirty)
+        SVN_DATE:=$(shell test -d $(BASE_DIR)/../.git && git log -1 --format=%cs $(BASE_DIR))
+        ifneq (,$(SVN_VERSION))
+            #make sure its prefixed with something specific. we use versions for versioning, which will confuse the update mechanism if they're inconsistent - like random hashses that have no implied ordering...
+            SVN_VERSION:=git-$(SVN_VERSION)
+        endif
+    endif
 
     SVNREVISION=
-ifneq (,$(SVN_VERSION))
-    SVNREVISION+=-DSVNREVISION=$(SVN_VERSION)
-endif
+    ifneq (,$(SVN_VERSION))
+        SVNREVISION+=-DSVNREVISION=$(SVN_VERSION)
+    endif
 ifneq (M,$(findstring M,$(SVN_VERSION)))
     SVNREVISION+=-DSVNDATE=$(SVN_DATE)
 endif
@@ -48,26 +83,6 @@ SPEEXVER=1.2.0
 SPEEXDSPVER=1.2.0
 FREETYPEVER=2.10.1
 BULLETVER=2.87
-
-#only limited forms of cross-making is supported
-#only the following 3 are supported
-#linux->win32 (FTE_TARGET=win32) RPM Package: "mingw32-gcc", DEB Package: "mingw32"
-#linux->win64 (FTE_TARGET=win64) RPM Package: "mingw32-gcc", DEB Package: "mingw32"
-#linux->linux 32 (FTE_TARGET=linux32)
-#linux->linux 64 (FTE_TARGET=linux64)
-#linux->linux x32 (FTE_TARGET=linux_x32)
-#linux->linux armhf (FTE_TARGET=linux_armhf)
-#linux->linux arm64/aarch64 (FTE_TARGET=linux_arm64)
-#linux->linux *others* (FTE_TARGET=linux CC=other-gcc)
-#linux->morphos (FTE_TARGET=morphos)
-#linux->macosx (FTE_TARGET=macosx) or (FTE_TARGET=macosx_x86)
-#linux->javascript (FTE_TARGET=web)
-#linux->nacl (FTE_TARGET=nacl NARCH=x86_64) deprecated.
-#win32->nacl
-#linux->droid (make droid)
-#win32->droid (make droid)
-#if you are cross compiling, you'll need to use FTE_TARGET=mytarget
-#note: cross compiling will typically require 'make makelibs FTE_TARGET=mytarget', which avoids installing lots of extra system packages.
 
 #cygwin's make's paths confuses non-cygwin things
 RELEASE_DIR=$(BASE_DIR)/release
@@ -2430,4 +2445,8 @@ install: sv-rel gl-rel mingl-rel qcc-rel
 	$(INSTALL_PROGRAM) $(RELEASE_DIR)/$(EXE_NAME)-mingl $(DESTDIR)$(bindir)/$(EXE_NAME)-mingl
 	$(INSTALL_PROGRAM) $(RELEASE_DIR)/$(EXE_NAME)-sv $(DESTDIR)$(bindir)/$(EXE_NAME)-sv
 	$(INSTALL_PROGRAM) $(RELEASE_DIR)/fteqcc $(DESTDIR)$(bindir)/fteqcc
+
+version:
+	@echo $(SVN_VERSION)
+	@echo $(SVN_DATE)
 

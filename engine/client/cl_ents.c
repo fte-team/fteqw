@@ -4406,7 +4406,7 @@ void CL_LinkPacketEntities (void)
 			trailef = P_INVALID;
 			trailidx = P_INVALID;
 		}
-		if (state->effects & EF_HASPARTICLETRAIL)
+		if ((state->effects & EF_HASPARTICLETRAIL) || modelflags)
 			P_DefaultTrail (state->effects, modelflags, &trailef, &trailidx);
 		if (state->u.q1.traileffectnum)
 			trailef = CL_TranslateParticleFromServer(state->u.q1.traileffectnum);

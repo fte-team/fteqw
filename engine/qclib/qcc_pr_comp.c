@@ -5290,7 +5290,7 @@ QCC_sref_t QCC_PR_StatementFlags ( QCC_opcode_t *op, QCC_sref_t var_a, QCC_sref_
 	}
 
 	if (!pr_scope)
-		QCC_PR_ParseError(ERR_BADEXTENSION, "Unable to generate statements at global scope.\n");
+		QCC_PR_ParseError(ERR_BADEXTENSION, "Unable to generate statements at global scope.");
 
 	if (op->type_c == &type_void || op->associative==ASSOC_RIGHT || op->type_c == NULL)
 	{
@@ -17390,6 +17390,12 @@ QCC_sref_t QCC_PR_ParseDefaultInitialiser(QCC_type_t *type)
 	QCC_sref_t ref = QCC_PR_Expression(TOP_PRIORITY, EXPR_DISALLOW_COMMA);
 	if (!ref.sym->constant)
 		QCC_PR_ParseError(0, "Default value not a constant\n");
+	if (!ref.sym->initialized)
+	{
+		if (autoprototype)
+			return nullsref;
+		QCC_PR_ParseError(0, "Default value not initialized yet\n");
+	}
 	return QCC_EvaluateCast(ref, type, true);
 }
 

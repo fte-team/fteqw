@@ -806,7 +806,7 @@ static void Cmd_Exec_f (void)
 	//hack to try to work around nquake's b0rkedness
 	if (!strncmp(s, "// This is nQuake's Frogbot config", 33))
 	{
-		s = "echo Refusing to exec nQuake's Frogbot config";	//otherwise many people with nquake installed will be fucked over whenever they try playing singleplayer
+		s = va("echo \""CON_ERROR"Refusing to exec nQuake's %s\"", buf);	//otherwise many people with nquake installed will be fucked over whenever they try playing singleplayer
 		Cbuf_InsertText (s, level, true);
 	}
 	else
@@ -848,6 +848,16 @@ static void Cmd_Exec_f (void)
 			}
 			break;
 		}
+
+		#ifdef HAVE_CLIENT
+		if (!cl_warncmd.ival && foundone && (!strcmp(name, "quake.rc") || !strcmp(name, "default.cfg") || !strcmp(name, "autoexec.cfg")))
+		{
+			Menu_Prompt(NULL, NULL, va("WARNING: nquake %s file detected. The file has been ignored.", name), NULL, NULL, "Argh");
+			*s = 0;
+			foundone = 0;
+		}
+		#endif
+
 		Cbuf_InsertText (s, level, true);
 		if (foundone)
 			Cbuf_InsertText(va("\necho \""CON_ERROR"fixups for nquake config %s: %i replacements\"\n", buf, foundone), level, false);

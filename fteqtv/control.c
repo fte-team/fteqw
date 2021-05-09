@@ -215,26 +215,35 @@ void Cluster_Run(cluster_t *cluster, qboolean dowait)
 
 	if (dowait)
 	{
+		//FIXME: use poll or epoll to work around FD_SETSIZE limits, though we're mostly only doing this for the sleeping.
 
 		FD_ZERO(&socketset);
 		m = 0;
 		if (cluster->qwdsocket[0] != INVALID_SOCKET)
 		{
-			FD_SET(cluster->qwdsocket[0], &socketset);
-			if (cluster->qwdsocket[0] >= m)
-				m = cluster->qwdsocket[0]+1;
+			if (cluster->qwdsocket[0] < FD_SETSIZE)
+			{
+				FD_SET(cluster->qwdsocket[0], &socketset);
+				if (cluster->qwdsocket[0] >= m)
+					m = cluster->qwdsocket[0]+1;
+			}
 		}
 		if (cluster->qwdsocket[1] != INVALID_SOCKET)
 		{
-			FD_SET(cluster->qwdsocket[1], &socketset);
-			if (cluster->qwdsocket[1] >= m)
-				m = cluster->qwdsocket[1]+1;
+			if (cluster->qwdsocket[1] < FD_SETSIZE)
+			{
+				FD_SET(cluster->qwdsocket[1], &socketset);
+				if (cluster->qwdsocket[1] >= m)
+					m = cluster->qwdsocket[1]+1;
+			}
 		}
 
 		for (sv = cluster->servers; sv; sv = sv->next)
 		{
 			if (sv->usequakeworldprotocols && sv->sourcesock != INVALID_SOCKET)
 			{
+				if (sv->sourcesock >= FD_SETSIZE)
+					continue;	//panic...
 				FD_SET(sv->sourcesock, &socketset);
 				if (sv->sourcesock >= m)
 					m = sv->sourcesock+1;

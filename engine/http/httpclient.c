@@ -532,6 +532,9 @@ static int VFSError_To_HTTP(int vfserr)
 	}
 }
 
+#ifdef HAVE_EPOLL
+#include <poll.h>
+#endif
 static qboolean HTTP_DL_Work(struct dl_download *dl)
 {
 	struct http_dl_ctx_s *con = dl->ctx;
@@ -547,6 +550,16 @@ static qboolean HTTP_DL_Work(struct dl_download *dl)
 	//if we're running in a thread, wait for some actual activity instead of busylooping like an moron.
 	if (dl->threadctx)
 	{
+#ifdef HAVE_EPOLL
+		struct pollfd fd;
+		fd.fd = con->sock;
+		fd.events = POLLIN;
+		fd.revents = 0;
+		if (con->state == HC_REQUESTING)
+			fd.events |= POLLOUT;
+		poll(&fd, 1, 0.1*1000);	//wake up when we can read OR write
+		//note that https should wake up more often, but we don't want to wake up because we *can* write when we're reading without any need to write.
+#else
 		struct timeval timeout;
 		fd_set	rdset, wrset;
 		FD_ZERO(&wrset);
@@ -560,6 +573,7 @@ static qboolean HTTP_DL_Work(struct dl_download *dl)
 		else
 			select(con->sock+1, &rdset, NULL, NULL, &timeout);	//wake when we can read.
 		//note that https should wake up more often, but we don't want to wake up because we *can* write when we're reading without any need to write.
+#endif
 	}
 #endif
 

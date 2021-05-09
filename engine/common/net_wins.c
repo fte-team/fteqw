@@ -8859,6 +8859,42 @@ void	NET_Shutdown (void)
 
 
 #ifdef HAVE_TCP
+#ifdef HAVE_EPOLL
+#include <poll.h>
+#endif
+static qboolean VFSTCP_IsStillConnecting(SOCKET sock)
+{
+#ifdef HAVE_EPOLL
+	//poll has no arbitrary fd limit. use it instead of select where possible.
+	struct pollfd ourfd[1];
+	ourfd[0].fd = sock;
+	ourfd[0].events = POLLOUT;
+	ourfd[0].revents = 0;
+	if (!poll(ourfd, countof(ourfd), 0))
+		return true;	//no events yet.
+#else
+	//okay on windows where sock+1 is ignored, has issues when lots of other fds are already open (for any reason).
+	fd_set fdw, fdx;
+	struct timeval timeout;
+	timeout.tv_sec = 0;
+	timeout.tv_usec = 0;
+	FD_ZERO(&fdw);
+	FD_SET(sock, &fdw);
+	FD_ZERO(&fdx);
+	FD_SET(sock, &fdx);
+	//check if we can actually write to it yet, without generating weird errors...
+	if (!select((int)sock+1, NULL, &fdw, &fdx, &timeout))
+		return true;
+#endif
+
+	//if we get here then its writable(read: connected) or failed.
+
+//	int error = NET_ENOTCONN;
+//	socklen_t sz = sizeof(error);
+//	if (getsockopt(sock, SOL_SOCKET, SO_ERROR, &error, &sz))
+//		error = NET_ENOTCONN;
+	return false;
+}
 typedef struct {
 	vfsfile_t funcs;
 
@@ -8879,16 +8915,7 @@ int QDECL VFSTCP_ReadBytes (struct vfsfile_s *file, void *buffer, int bytestorea
 
 	if (tf->conpending)
 	{
-		fd_set wr;
-		fd_set ex;
-		struct timeval timeout;
-		timeout.tv_sec = 0;
-		timeout.tv_usec = 0;
-		FD_ZERO(&wr);
-		FD_SET(tf->sock, &wr);
-		FD_ZERO(&ex);
-		FD_SET(tf->sock, &ex);
-		if (!select((int)tf->sock+1, NULL, &wr, &ex, &timeout))
+		if (VFSTCP_IsStillConnecting(tf->sock))
 			return 0;
 		tf->conpending = false;
 	}
@@ -8976,16 +9003,7 @@ int QDECL VFSTCP_WriteBytes (struct vfsfile_s *file, const void *buffer, int byt
 
 	if (tf->conpending)
 	{
-		fd_set fdw, fdx;
-		struct timeval timeout;
-		timeout.tv_sec = 0;
-		timeout.tv_usec = 0;
-		FD_ZERO(&fdw);
-		FD_SET(tf->sock, &fdw);
-		FD_ZERO(&fdx);
-		FD_SET(tf->sock, &fdx);
-		//check if we can actually write to it yet, without generating weird errors...
-		if (!select((int)tf->sock+1, NULL, &fdw, &fdx, &timeout))
+		if (VFSTCP_IsStillConnecting(tf->sock))
 			return 0;
 		tf->conpending = false;
 	}

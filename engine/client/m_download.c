@@ -3221,6 +3221,7 @@ static qboolean QDECL SHA1File_Close (struct vfsfile_s *file)
 	hashfile_t *f = (hashfile_t*)file;
 	if (!VFS_CLOSE(f->f))
 		f->fail = true;	//something went wrong.
+	f->f = NULL;
 
 	f->hashfunc->terminate(digest, &f->ctx);
 	if (f->fail)
@@ -3434,10 +3435,9 @@ static void PM_StartADownload(void)
 #ifdef AVAIL_XZDEC
 			case EXTRACT_XZ:
 				{
-					vfsfile_t *raw;
-					raw = FS_OpenVFS(temp, "wb", temproot);
-					tmpfile = FS_XZ_DecompressWriteFilter(raw);
-					if (!tmpfile)
+					vfsfile_t *raw = FS_OpenVFS(temp, "wb", temproot);
+					tmpfile = raw?FS_XZ_DecompressWriteFilter(raw):NULL;
+					if (!tmpfile && raw)
 						VFS_CLOSE(raw);
 				}
 				break;
@@ -3445,10 +3445,9 @@ static void PM_StartADownload(void)
 #ifdef AVAIL_GZDEC
 			case EXTRACT_GZ:
 				{
-					vfsfile_t *raw;
-					raw = FS_OpenVFS(temp, "wb", temproot);
-					tmpfile = FS_GZ_WriteFilter(raw, true, false);
-					if (!tmpfile)
+					vfsfile_t *raw = FS_OpenVFS(temp, "wb", temproot);
+					tmpfile = raw?FS_GZ_WriteFilter(raw, true, false):NULL;
+					if (!tmpfile && raw)
 						VFS_CLOSE(raw);
 				}
 				break;
@@ -3474,6 +3473,7 @@ static void PM_StartADownload(void)
 				char syspath[MAX_OSPATH];
 				FS_NativePath(temp, temproot, syspath, sizeof(syspath));
 				Con_Printf("Unable to write %s. Fix permissions before trying to download %s\n", syspath, p->name);
+				p->trymirrors = 0;	//don't bother trying other mirrors if we can't write the file or understand its type.
 			}
 			if (p->download)
 			{

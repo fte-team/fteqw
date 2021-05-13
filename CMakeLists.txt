@@ -883,139 +883,125 @@ ELSE()
 		SET(FTE_SDL2_INCLUDES ${SDL2_INCLUDE_DIRS})
 	ENDIF()
 
-	ADD_EXECUTABLE(iqmtool
-		iqm/iqm.cpp
-		plugins/models/gltf.c
-		engine/client/image.c
-		imgtool.c
-		iqm/iqm.h
-	)
-	SET_TARGET_PROPERTIES(iqmtool PROPERTIES COMPILE_DEFINITIONS "IQMTOOL;${FTE_REVISON}")
-	TARGET_LINK_LIBRARIES(iqmtool ${CMAKE_DL_LIBS})
-	SET(INSTALLTARGS ${INSTALLTARGS} iqmtool)
-
-	ADD_EXECUTABLE(imgtool
-		engine/client/image.c
-		imgtool.c
-	)
-	TARGET_INCLUDE_DIRECTORIES(imgtool PUBLIC ${FTE_SDL2_INCLUDES})
-	SET_TARGET_PROPERTIES(imgtool PROPERTIES COMPILE_DEFINITIONS "IMGTOOL;${FTE_LIB_DEFINES};${FTE_DEFINES};${FTE_REVISON};${FTE_SDL2}")
-	TARGET_LINK_LIBRARIES(imgtool ${FTE_LIBS} )
-	SET(INSTALLTARGS ${INSTALLTARGS} imgtool)
-
-	ADD_EXECUTABLE(qtv
-		fteqtv/netchan.c
-		fteqtv/parse.c
-		fteqtv/msg.c
-		fteqtv/qw.c
-		fteqtv/source.c
-		fteqtv/bsp.c
-		fteqtv/rcon.c
-		fteqtv/mdfour.c
-		fteqtv/crc.c
-		fteqtv/control.c
-		fteqtv/forward.c
-		fteqtv/pmove.c
-		fteqtv/menu.c
-		fteqtv/httpsv.c
-		fteqtv/libqtvc/glibc_sucks.c
-		engine/common/sha1.c
-	)
-	SET_TARGET_PROPERTIES(qtv PROPERTIES COMPILE_DEFINITIONS "${FTE_REVISON}")
-	IF(WIN32)
-		TARGET_LINK_LIBRARIES(qtv ws2_32 winmm ${SYS_LIBS})
-	ELSE()
-		TARGET_LINK_LIBRARIES(qtv ${SYS_LIBS})
-	ENDIF()
-	SET(INSTALLTARGS ${INSTALLTARGS} qtv)
-
-	IF(NOT WIN32)
-		ADD_EXECUTABLE(ftemaster
-			${FTESV_ARCH_FILES}
-			engine/server/sv_master.c
-			engine/common/net_ice.c		#for the stun responses.
-			engine/common/net_wins.c
-			engine/common/cvar.c
-			engine/common/cmd.c
-			engine/common/sha1.c		#for websockets
-			engine/http/httpclient.c	#for the pipe stuff
-			engine/common/log.c
-			engine/common/fs.c
-			engine/common/fs_stdio.c
-			engine/common/common.c
-			engine/common/translate.c
-			engine/common/zone.c
-			engine/qclib/hash.c
+	SET(FTE_TOOL_IQM true CACHE BOOL "Compile IQM Tool.")
+	IF(FTE_TOOL_IQM)
+		ADD_EXECUTABLE(iqmtool
+			iqm/iqm.cpp
+			plugins/models/gltf.c
+			engine/client/image.c
+			imgtool.c
+			iqm/iqm.h
 		)
-		SET_TARGET_PROPERTIES(ftemaster PROPERTIES COMPILE_DEFINITIONS "MASTERONLY;${FTE_LIB_DEFINES};${FTESV_DEFINES};${FTE_REVISON}")
-		TARGET_LINK_LIBRARIES(ftemaster ${FTESV_LIBS})
-		SET(INSTALLTARGS ${INSTALLTARGS} ftemaster)
+		SET_TARGET_PROPERTIES(iqmtool PROPERTIES COMPILE_DEFINITIONS "IQMTOOL;${FTE_REVISON}")
+		TARGET_LINK_LIBRARIES(iqmtool ${CMAKE_DL_LIBS})
+		SET(INSTALLTARGS ${INSTALLTARGS} iqmtool)
 	ENDIF()
 
-	ADD_EXECUTABLE(httpserver
-		engine/common/fs_stdio.c
-		engine/http/httpserver.c
-		engine/http/iwebiface.c
-		engine/http/ftpserver.c
-	)
-	SET_TARGET_PROPERTIES(httpserver PROPERTIES COMPILE_DEFINITIONS "WEBSERVER;WEBSVONLY;${FTE_REVISON}")
-	IF(WIN32)
-		TARGET_LINK_LIBRARIES(httpserver ws2_32)
+	SET(FTE_TOOL_IMAGE true CACHE BOOL "Compile Image Tool.")
+	IF(FTE_TOOL_IMAGE)
+		ADD_EXECUTABLE(imgtool
+			engine/client/image.c
+			imgtool.c
+		)
+		TARGET_INCLUDE_DIRECTORIES(imgtool PUBLIC ${FTE_SDL2_INCLUDES})
+		SET_TARGET_PROPERTIES(imgtool PROPERTIES COMPILE_DEFINITIONS "IMGTOOL;${FTE_LIB_DEFINES};${FTE_DEFINES};${FTE_REVISON};${FTE_SDL2}")
+		TARGET_LINK_LIBRARIES(imgtool ${FTE_LIBS} )
+		SET(INSTALLTARGS ${INSTALLTARGS} imgtool)
 	ENDIF()
-	#SET(INSTALLTARGS ${INSTALLTARGS} httpserver)
 
-	ADD_EXECUTABLE(fteqcc
-		engine/qclib/qcctui.c
-		engine/qclib/comprout.c
-		engine/qclib/hash.c
-		engine/qclib/qcc_cmdlib.c
-		engine/qclib/qcc_pr_comp.c
-		engine/qclib/qcc_pr_lex.c
-		engine/qclib/qccmain.c
-		engine/qclib/qcd_main.c
-		engine/qclib/packager.c
-	)
-	SET_TARGET_PROPERTIES(fteqcc PROPERTIES COMPILE_DEFINITIONS "${FTE_LIB_DEFINES};${FTE_REVISON}")
-	TARGET_LINK_LIBRARIES(fteqcc ${FTEQCC_LIBS} ${SYS_LIBS})
-	SET(INSTALLTARGS ${INSTALLTARGS} fteqcc)
+	SET(FTE_TOOL_QTV true CACHE BOOL "Compile qtv server.")
+	IF(FTE_TOOL_QTV)
+		ADD_EXECUTABLE(qtv
+			fteqtv/netchan.c
+			fteqtv/parse.c
+			fteqtv/msg.c
+			fteqtv/qw.c
+			fteqtv/source.c
+			fteqtv/bsp.c
+			fteqtv/rcon.c
+			fteqtv/mdfour.c
+			fteqtv/crc.c
+			fteqtv/control.c
+			fteqtv/forward.c
+			fteqtv/pmove.c
+			fteqtv/menu.c
+			fteqtv/httpsv.c
+			fteqtv/libqtvc/glibc_sucks.c
+			engine/common/sha1.c
+		)
+		SET_TARGET_PROPERTIES(qtv PROPERTIES COMPILE_DEFINITIONS "${FTE_REVISON}")
+		IF(WIN32)
+			TARGET_LINK_LIBRARIES(qtv ws2_32 winmm ${SYS_LIBS})
+		ELSE()
+			TARGET_LINK_LIBRARIES(qtv ${SYS_LIBS})
+		ENDIF()
+		SET(INSTALLTARGS ${INSTALLTARGS} qtv)
+	ENDIF()
 
-	IF(${WIN32})
-		ADD_EXECUTABLE(fteqccgui WIN32
-			engine/qclib/qccgui.c
-			engine/qclib/qccguistuff.c
+	SET(FTE_TOOL_MASTER true CACHE BOOL "Compile master server.")
+	IF(FTE_TOOL_MASTER)
+		IF(NOT WIN32)
+			ADD_EXECUTABLE(ftemaster
+				${FTESV_ARCH_FILES}
+				engine/server/sv_master.c
+				engine/common/net_ice.c		#for the stun responses.
+				engine/common/net_wins.c
+				engine/common/cvar.c
+				engine/common/cmd.c
+				engine/common/sha1.c		#for websockets
+				engine/http/httpclient.c	#for the pipe stuff
+				engine/common/log.c
+				engine/common/fs.c
+				engine/common/fs_stdio.c
+				engine/common/common.c
+				engine/common/translate.c
+				engine/common/zone.c
+				engine/qclib/hash.c
+			)
+			SET_TARGET_PROPERTIES(ftemaster PROPERTIES COMPILE_DEFINITIONS "MASTERONLY;${FTE_LIB_DEFINES};${FTESV_DEFINES};${FTE_REVISON}")
+			TARGET_LINK_LIBRARIES(ftemaster ${FTESV_LIBS})
+			SET(INSTALLTARGS ${INSTALLTARGS} ftemaster)
+		ENDIF()
+	ENDIF()
+
+	SET(FTE_TOOL_HTTPSV true CACHE BOOL "Compile small http server.")
+	IF(FTE_TOOL_HTTPSV)
+		ADD_EXECUTABLE(httpserver
+			engine/common/fs_stdio.c
+			engine/http/httpserver.c
+			engine/http/iwebiface.c
+			engine/http/ftpserver.c
+		)
+		SET_TARGET_PROPERTIES(httpserver PROPERTIES COMPILE_DEFINITIONS "WEBSERVER;WEBSVONLY;${FTE_REVISON}")
+		IF(WIN32)
+			TARGET_LINK_LIBRARIES(httpserver ws2_32)
+		ENDIF()
+		#SET(INSTALLTARGS ${INSTALLTARGS} httpserver)
+	ENDIF()
+
+	SET(FTE_TOOL_QCC true CACHE BOOL "Compile commandline qc compiler.")
+	IF(FTE_TOOL_QCC)
+		ADD_EXECUTABLE(fteqcc
+			engine/qclib/qcctui.c
 			engine/qclib/comprout.c
 			engine/qclib/hash.c
 			engine/qclib/qcc_cmdlib.c
 			engine/qclib/qcc_pr_comp.c
 			engine/qclib/qcc_pr_lex.c
 			engine/qclib/qccmain.c
-			engine/qclib/decomp.c
-			engine/qclib/packager.c
 			engine/qclib/qcd_main.c
+			engine/qclib/packager.c
 		)
-		SET_TARGET_PROPERTIES(fteqccgui PROPERTIES COMPILE_DEFINITIONS "${FTE_LIB_DEFINES};${FTE_REVISON}")
-		TARGET_LINK_LIBRARIES(fteqccgui ${FTEQCC_LIBS} shlwapi ole32 comctl32 comdlg32)
-		SET(INSTALLTARGS ${INSTALLTARGS} fteqccgui)
-	ELSE()
-		FIND_PACKAGE(Qt5Widgets)
+		SET_TARGET_PROPERTIES(fteqcc PROPERTIES COMPILE_DEFINITIONS "${FTE_LIB_DEFINES};${FTE_REVISON}")
+		TARGET_LINK_LIBRARIES(fteqcc ${FTEQCC_LIBS} ${SYS_LIBS})
+		SET(INSTALLTARGS ${INSTALLTARGS} fteqcc)
+	ENDIF()
 
-		FIND_PATH(QSCINTILLA_INCLUDE_DIR
-			NAMES Qsci/qsciglobal.h
-			PATHS ${Qt5Widgets_INCLUDE_DIRS}
-			PATH_SUFFIXES Qsci
-		)
-		FIND_LIBRARY(QSCINTILLA_LIBRARY
-			NAMES qscintilla2_qt5
-			PATHS
-				${QT_LIBRARY_DIR}
-				/usr/local/lib
-				/usr/local/lib/qt5
-				/usr/lib
-		)
-
-		IF (QSCINTILLA_INCLUDE_DIR AND QSCINTILLA_LIBRARY AND Qt5Widgets_FOUND)
-			ADD_EXECUTABLE(fteqccgui
-				engine/qclib/qccguiqt.cpp
+	SET(FTE_TOOL_QCCGUI true CACHE BOOL "Compile gui qc compiler.")
+	IF(FTE_TOOL_QCCGUI)
+		IF(${WIN32})
+			ADD_EXECUTABLE(fteqccgui WIN32
+				engine/qclib/qccgui.c
 				engine/qclib/qccguistuff.c
 				engine/qclib/comprout.c
 				engine/qclib/hash.c
@@ -1024,16 +1010,51 @@ ELSE()
 				engine/qclib/qcc_pr_lex.c
 				engine/qclib/qccmain.c
 				engine/qclib/decomp.c
-#				engine/qclib/packager.c
+				engine/qclib/packager.c
 				engine/qclib/qcd_main.c
 			)
-			TARGET_INCLUDE_DIRECTORIES(fteqccgui PUBLIC ${Qt5Widgets_INCLUDE_DIRS} ${QSCINTILLA_INCLUDE_DIR})
-			SET_TARGET_PROPERTIES(fteqccgui PROPERTIES COMPILE_DEFINITIONS "${FTE_LIB_DEFINES};${FTE_REVISON};${Qt5Widgets_COMPILE_DEFINITIONS}")
-			SET_PROPERTY(TARGET fteqccgui PROPERTY POSITION_INDEPENDENT_CODE TRUE)
-			TARGET_LINK_LIBRARIES(fteqccgui ${FTEQCC_LIBS} ${Qt5Widgets_LIBRARIES} ${QSCINTILLA_LIBRARY})
+			SET_TARGET_PROPERTIES(fteqccgui PROPERTIES COMPILE_DEFINITIONS "${FTE_LIB_DEFINES};${FTE_REVISON}")
+			TARGET_LINK_LIBRARIES(fteqccgui ${FTEQCC_LIBS} shlwapi ole32 comctl32 comdlg32)
 			SET(INSTALLTARGS ${INSTALLTARGS} fteqccgui)
 		ELSE()
-			MESSAGE(WARNING "qscintilla/qt5widgets library not detected, no fteqccgui for you")
+			FIND_PACKAGE(Qt5Widgets)
+
+			FIND_PATH(QSCINTILLA_INCLUDE_DIR
+				NAMES Qsci/qsciglobal.h
+				PATHS ${Qt5Widgets_INCLUDE_DIRS}
+				PATH_SUFFIXES Qsci
+			)
+			FIND_LIBRARY(QSCINTILLA_LIBRARY
+				NAMES qscintilla2_qt5
+				PATHS
+					${QT_LIBRARY_DIR}
+					/usr/local/lib
+					/usr/local/lib/qt5
+					/usr/lib
+			)
+
+			IF (QSCINTILLA_INCLUDE_DIR AND QSCINTILLA_LIBRARY AND Qt5Widgets_FOUND)
+				ADD_EXECUTABLE(fteqccgui
+					engine/qclib/qccguiqt.cpp
+					engine/qclib/qccguistuff.c
+					engine/qclib/comprout.c
+					engine/qclib/hash.c
+					engine/qclib/qcc_cmdlib.c
+					engine/qclib/qcc_pr_comp.c
+					engine/qclib/qcc_pr_lex.c
+					engine/qclib/qccmain.c
+					engine/qclib/decomp.c
+#					engine/qclib/packager.c
+					engine/qclib/qcd_main.c
+				)
+				TARGET_INCLUDE_DIRECTORIES(fteqccgui PUBLIC ${Qt5Widgets_INCLUDE_DIRS} ${QSCINTILLA_INCLUDE_DIR})
+				SET_TARGET_PROPERTIES(fteqccgui PROPERTIES COMPILE_DEFINITIONS "${FTE_LIB_DEFINES};${FTE_REVISON};${Qt5Widgets_COMPILE_DEFINITIONS}")
+				SET_PROPERTY(TARGET fteqccgui PROPERTY POSITION_INDEPENDENT_CODE TRUE)
+				TARGET_LINK_LIBRARIES(fteqccgui ${FTEQCC_LIBS} ${Qt5Widgets_LIBRARIES} ${QSCINTILLA_LIBRARY})
+				SET(INSTALLTARGS ${INSTALLTARGS} fteqccgui)
+			ELSE()
+				MESSAGE(WARNING "qscintilla/qt5widgets library not detected, no fteqccgui for you")
+			ENDIF()
 		ENDIF()
 	ENDIF()
 ENDIF()

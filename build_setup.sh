@@ -78,20 +78,17 @@ if [ -e $FTECONFIG ]; then
 	. $FTECONFIG
 
 	if [ $UID -eq 0 ]; then
-		REUSE_CONFIG=y	#root shouldn't be writing/owning the config file.
+		REUSE_CONFIG="y"	#root shouldn't be writing/owning the config file.
 	else
-		read -n 1 -p "Reuse previous build config? [y/N] " REUSE_CONFIG && echo
-		REUSE_CONFIG=${REUSE_CONFIG:-n}
+		REUSE_CONFIG="u"
 	fi
 else
 	if [ $UID -eq 0 ]; then
 		exit	#root can't create the output, as that would take ownership.
 	else
-		REUSE_CONFIG=n
+		REUSE_CONFIG="n"
 	fi
 fi
-
-
 
 if [ "$BUILD_CLEAN" == "n" ]; then
 	NOUPDATE="y"
@@ -101,7 +98,7 @@ fi
 while [[ $# -gt 0 ]]
 do
 	case $1 in
-	-r)
+	-r)				#for people that want to build a specific revision for some reason.
 		SVN_REV_ARG="-r $2"
 		NOUPDATE=
 		shift
@@ -116,12 +113,19 @@ do
 		echo "  --help       This text"
 		exit 0
 		;;
-	-build|--build)
+	-build|--build)	#for custom build settings
 		TARGET="FTE_CONFIG=$2"
 		shift
 		;;
-	--noupdate)
+	--fast)			#for people that want to live dangerously.
+		BUILD_CLEAN="n"
+		;;
+	--noupdate)		#for people living privately or building old revisions...
 		NOUPDATE="y"
+		;;
+	--unattended)	#don't prompt, use various defaults.
+		UNATTENDED="y"
+		REUSE_CONFIG="y"
 		;;
 	*)
 		echo "Unknown option $1"
@@ -130,6 +134,10 @@ do
 	shift
 done
 
+if [ "$REUSE_CONFIG" == "u" ]; then
+	read -n 1 -p "Reuse previous build config? [y/N] " REUSE_CONFIG && echo
+	REUSE_CONFIG=${REUSE_CONFIG:-n}
+fi
 
 if [ "$REUSE_CONFIG" != "y" ]; then
 	#linux compiles are native-only, so don't bug out on cygwin which lacks a cross compiler.
@@ -265,7 +273,9 @@ function debianpackages {
 
 	if [ $ret == $false ]; then
 		echo "Packages are not installed. Press enter to continue (or ctrl+c and install)."
-		read
+		if [ "$UNATTENDED" != "y" ]; then
+			read
+		fi
 		ret=$true
 	fi
 	return $ret
@@ -361,10 +371,14 @@ if [ "$UID" == "0" ]; then
 	exit
 fi
 
-echo
-echo "(Any new toolchains will be installed to $FTEROOT)"
-echo "(Say no if you're certain you already set up everything)"
-read -n 1 -p "Rebuild/update any toolchains now? [y/N] " REBUILD_TOOLCHAINS && echo
+if [ "$UNATTENDED" != "y" ]; then
+	echo
+	echo "(Any new toolchains will be installed to $FTEROOT)"
+	echo "(Say no if you're certain you already set up everything)"
+	read -n 1 -p "Rebuild/update any toolchains now? [y/N] " REBUILD_TOOLCHAINS && echo
+else
+	REBUILD_TOOLCHAINS="y"
+fi
 REBUILD_TOOLCHAINS=${REBUILD_TOOLCHAINS:-n}
 mkdir -p $FTEROOT
 
@@ -406,7 +420,7 @@ fi
 
 
 #osxcross, for mac crap
-if [ "$BUILD_MAC" == "y" ] && [ $UID -ne 0 ] && [ $REBUILD_TOOLCHAINS == "y" ]; then
+if [ "$BUILD_MAC" == "y" ] && [ $UID -ne 0 ] && [ $REBUILD_TOOLCHAINS == "y" ] && [ "$UNATTENDED" != "y" ]; then
 	echo "Setting up OSXCross... THIS IS TOTALLY UNTESTED"
 	read -p "You need to download xcode first. Where did you download the .dmg file to?" XCODE
 	git clone https://github.com/tpoechtrager/osxcross.git $OSXCROSSROOT
@@ -467,6 +481,8 @@ if [ $UID -ne 0 ] && [ $REBUILD_TOOLCHAINS == "y" ]; then
 		echo "Making libraries (win64)..."
 		make FTE_TARGET=win64 makelibs CPUOPTIMISATIONS=-fno-finite-math-only 2>&1 >>/dev/null
 	fi
+
+	#These plugins have external 3rd-party dependancies that are downloaded as part of building.
 	if [ "$BUILD_WIN32" == "y" ] && [[ "$PLUGINS_WIN32" =~ "ode" ]]; then
 		echo "Prebuilding ODE library (win32)..."
 		make FTE_TARGET=win32 plugins-rel NATIVE_PLUGINS=ode 2>&1 >>/dev/null

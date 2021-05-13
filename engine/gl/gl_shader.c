@@ -5550,7 +5550,11 @@ done:;
 
 	if (!s->sort)
 	{
-		s->sort = SHADER_SORT_OPAQUE;
+		extern cvar_t r_refract_fbo;
+		if ((s->flags & SHADER_HASREFRACT) && !r_refract_fbo.ival)
+			s->sort = SHADER_SORT_UNDERWATER;
+		else
+			s->sort = SHADER_SORT_OPAQUE;
 	}
 
 	if ((s->flags & SHADER_SKY) && (s->flags & SHADER_DEPTHWRITE))

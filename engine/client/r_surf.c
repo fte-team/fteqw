@@ -3312,7 +3312,14 @@ void R_GenWorldEBO(void *ctx, void *data, size_t a, size_t b)
 	}
 
 	//maybe we should just use fatpvs instead, and wait for completion when outside?
-	if (es->cluster[1] != -1 && es->cluster[0] != es->cluster[1])
+	if (r_novis.ival)
+	{
+		if (es->pvs.buffersize < es->wmodel->pvsbytes)
+			es->pvs.buffer = BZ_Realloc(es->pvs.buffer, es->pvs.buffersize=es->wmodel->pvsbytes);
+		memset(es->pvs.buffer, 0xff, es->pvs.buffersize);
+		pvs = es->pvs.buffer;
+	}
+	else if (es->cluster[1] != -1 && es->cluster[0] != es->cluster[1])
 	{	//view is near to a water boundary. this implies the water crosses the near clip plane. we need both leafs.
 		pvs = es->wmodel->funcs.ClusterPVS(es->wmodel, es->cluster[0], &es->pvs, PVM_REPLACE);
 		pvs = es->wmodel->funcs.ClusterPVS(es->wmodel, es->cluster[1], &es->pvs, PVM_MERGE);

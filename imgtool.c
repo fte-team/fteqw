@@ -3069,13 +3069,13 @@ static void ImgTool_View(const char *inname, struct pendingtextureinfo *in)
 			case SDL_PIXELFORMAT_RGB24:			outformats[PTI_BGR8] = true;	break;
 //			case SDL_PIXELFORMAT_ARGB32:		outformats[PTI_ARGB8] = true;	break;
 //			case SDL_PIXELFORMAT_ABGR32:		outformats[PTI_ABGR8] = true;	break;
-#if SDL_BYTEORDER == SDL_BIG_ENDIAN
+/*#if SDL_BYTEORDER == SDL_BIG_ENDIAN
 			case SDL_PIXELFORMAT_RGBX8888:		outformats[PTI_RGBX8] = true;	break;
 			case SDL_PIXELFORMAT_BGRX8888:		outformats[PTI_BGRX8] = true;	break;
 #else
-			//case SDL_PIXELFORMAT_XBGR8888:		outformats[PTI_RGBX8] = true;	break;
-			//case SDL_PIXELFORMAT_XRGB8888:		outformats[PTI_BGRX8] = true;	break;
-#endif
+			case SDL_PIXELFORMAT_XBGR8888:		outformats[PTI_RGBX8] = true;	break;
+			case SDL_PIXELFORMAT_XRGB8888:		outformats[PTI_BGRX8] = true;	break;
+#endif*/
 			}
 		}
 
@@ -3101,13 +3101,13 @@ static void ImgTool_View(const char *inname, struct pendingtextureinfo *in)
 		case PTI_BGRA8:		sdlfmt = SDL_PIXELFORMAT_BGRA32;		break;
 		case PTI_RGB8:		sdlfmt = SDL_PIXELFORMAT_RGB24;			break;
 		case PTI_BGR8:		sdlfmt = SDL_PIXELFORMAT_BGR24;			break;
-#if SDL_BYTEORDER == SDL_BIG_ENDIAN
+/*#if SDL_BYTEORDER == SDL_BIG_ENDIAN
 		case PTI_RGBX8:		sdlfmt = SDL_PIXELFORMAT_RGBX8888;		break;
 		case PTI_BGRX8:		sdlfmt = SDL_PIXELFORMAT_BGRX8888;		break;
 #else
 		case PTI_RGBX8:		sdlfmt = SDL_PIXELFORMAT_XBGR8888;		break;
 		case PTI_BGRX8:		sdlfmt = SDL_PIXELFORMAT_XRGB8888;		break;
-#endif
+#endif*/
 
 		default:			sdlfmt = SDL_PIXELFORMAT_UNKNOWN;		 break;	//shouldn't happen.
 		}

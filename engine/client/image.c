@@ -8854,7 +8854,7 @@ static void Image_Tr_8888to1555(struct pendingtextureinfo *mips, int bgra)
 	}
 }
 
-static void Image_Tr_8888to5551(struct pendingtextureinfo *mips, int bgra)
+static void Image_Tr_8888to5551(struct pendingtextureinfo *mips, int bgra)	//zomg
 {
 	unsigned int mip;
 	for (mip = 0; mip < mips->mipcount; mip++)
@@ -12057,9 +12057,10 @@ static struct
 	{PTI_BGRA8,		PTI_RGB565,		Image_Tr_8888to565,	true,	true},
 	{PTI_RGBX8,		PTI_L8,			Image_Tr_8888toLuminence,		1,	true},
 	{PTI_RGBA8,		PTI_L8A8,		Image_Tr_8888toLuminence,		2,	true},
+
+	//FIXME: these don't pad alphas properly.
 	{PTI_RGBX8,		PTI_RGBA8,		Image_Tr_NoTransform},
 	{PTI_BGRX8,		PTI_BGRA8,		Image_Tr_NoTransform},
-
 	{PTI_LLLX8,		PTI_RGBA5551,	Image_Tr_8888to5551,	false,	true},
 	{PTI_RGBX8,		PTI_RGBA5551,	Image_Tr_8888to5551,	false,	true},
 	{PTI_BGRX8,		PTI_RGBA5551,	Image_Tr_8888to5551,	true,	true},

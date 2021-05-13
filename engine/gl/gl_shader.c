@@ -7570,7 +7570,7 @@ static void Shader_GenerateFromVMT(parsestate_t *ps, vmtstate_t *st, const char 
 	{
 		Q_strlcatfz(script, &offset, sizeof(script),
 			"\t{\n"
-				"\t\tprogram \"vmt_vertexlit\"\n"
+				"\t\tprogram \"vmt_vertexlit%s\"\n"
 				"\t\tblendFunc gl_dst_color gl_one_minus_src_alpha\n"
 			"\t}\n", progargs);
 		Q_strlcatfz(script, &offset, sizeof(script),	"\tdiffusemap \"%s%s.vtf\"\n", strcmp(st->tex[0].name, "materials/")?"materials/":"", st->tex[0].name);
@@ -7580,7 +7580,7 @@ static void Shader_GenerateFromVMT(parsestate_t *ps, vmtstate_t *st, const char 
 	{
 		Q_strlcatfz(script, &offset, sizeof(script),
 			"\t{\n"
-				"\t\tprogram \"vmt_water\"\n"
+				"\t\tprogram \"vmt_water%s\"\n"
 				"\t\tmap $refraction\n"
 				"\t\tmap $reflection\n"
 			"\t}\n", progargs);
@@ -7591,7 +7591,7 @@ static void Shader_GenerateFromVMT(parsestate_t *ps, vmtstate_t *st, const char 
 	{
 		Q_strlcatfz(script, &offset, sizeof(script),
 			"\t{\n"
-				"\t\tprogram \"vmt_refract\"\n"
+				"\t\tprogram \"vmt_refract%s\"\n"
 				"\t\tmap $refraction\n"
 			"\t}\n", progargs);
 		Q_strlcatfz(script, &offset, sizeof(script),	"\tdiffusemap \"%s%s.vtf\"\n", strcmp(st->tex[0].name, "materials/")?"materials/":"", st->tex[0].name);
@@ -7599,12 +7599,15 @@ static void Shader_GenerateFromVMT(parsestate_t *ps, vmtstate_t *st, const char 
 	}
 	else if (!Q_strcasecmp(st->type, "VertexlitGeneric"))
 	{
-		if (*st->envmap && st->envfrombase) {
+		if (*st->envmap && st->envfrombase)
+		{
 			if (st->halflambert)
 				Q_strncpyz(st->type, "vmt_vertexlit#ENVFROMBASE#HALFLAMBERT", sizeof(st->type));
 			else
 				Q_strncpyz(st->type, "vmt_vertexlit#ENVFROMBASE", sizeof(st->type));
-		} else {
+		}
+		else
+		{
 			if (st->halflambert)
 				Q_strncpyz(st->type, "vmt_vertexlit#HALFLAMBERT", sizeof(st->type));
 			else
@@ -7636,12 +7639,13 @@ static void Shader_GenerateFromVMT(parsestate_t *ps, vmtstate_t *st, const char 
 	else
 	{
 		/* render-target camera/monitor - eukara*/
-		if (!Q_strcasecmp(st->tex[0].name, "_rt_Camera")) {
+		if (!Q_strcasecmp(st->tex[0].name, "_rt_Camera"))
 			Q_strlcatfz(script, &offset, sizeof(script),
 			"\t{\n"
 				"\t\tmap $rt:base\n"
-			"\t}\n", progargs);
-		} else {
+			"\t}\n"/*, progargs*/);
+		else
+		{
 			/* the default should just be unlit, let's not make any assumptions - eukara*/
 			Q_strncpyz(st->type, "vmt_unlit", sizeof(st->type));
 			Q_strlcatfz(script, &offset, sizeof(script),	"\tprogram \"%s%s\"\n", st->type, progargs);

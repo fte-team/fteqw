@@ -4601,7 +4601,7 @@ static qboolean CModHL2_LoadSurfaces (model_t *mod, qbyte *mod_base, lump_t *l)
 
 	return true;
 }
-#ifdef HAVE_CLIENT
+
 typedef struct
 {
 	vec3_t reflectivity;		//not very useful to us.
@@ -4725,7 +4725,7 @@ static qboolean CModHL2_LoadTexInfo (model_t *mod, qbyte *mod_base, lump_t *lump
 
 	return true;
 }
-#endif
+
 typedef struct
 {
 	//shared with q2dnode_t
@@ -5280,7 +5280,7 @@ static qboolean CModHL2_LoadDisplacements (model_t *mod, qbyte *mod_base, lump_t
 	}
 	return true;
 }
-#ifdef HAVE_CLIENT
+
 typedef struct
 {
 	short		planenum;
@@ -5404,7 +5404,7 @@ static qboolean CModHL2_LoadFaces (model_t *mod, qbyte *mod_base, lump_t *lumps,
 
 	return true;
 }
-
+#ifdef HAVE_CLIENT
 static void CModHL2_LoadLighting (model_t *mod, qbyte *mod_base, lump_t *oldl, lump_t *newl)
 {
 	if (newl->filelen)
@@ -5557,7 +5557,11 @@ static qboolean CModHL2_LoadStaticProps(model_t *mod, qbyte *offset, size_t size
 	for (i = 0, ent = mod->staticents; i < numprops; i++)
 	{
 		skip = false;
+#ifdef HAVE_CLIENT
 		V_ClearEntity(ent);
+#else
+		memset(ent, 0, sizeof(*ent));
+#endif
 
 		ent->playerindex = -1;
 		ent->topcolour = TOP_DEFAULT;
@@ -5708,6 +5712,9 @@ static qboolean VBSP_LoadModel(model_t *mod, qbyte *mod_base, size_t filelen, ch
 	cminfo_t *prv = mod->meshinfo;
 	size_t i;
 	qboolean noerrors = true;
+#ifdef HAVE_CLIENT
+	qboolean haverenderer = qrenderer != QR_NONE;
+#endif
 
 	mod->lightmaps.width = LMBLOCK_SIZE_MAX;
 	mod->lightmaps.height = LMBLOCK_SIZE_MAX;
@@ -5727,86 +5734,51 @@ static qboolean VBSP_LoadModel(model_t *mod, qbyte *mod_base, size_t filelen, ch
 	mod->archive = CModHL2_LoadArchive(mod, mod_base+header.lumps[VLUMP_ZIPFILE].fileofs, header.lumps[VLUMP_ZIPFILE].filelen);
 	if (mod->archive)
 		FS_LoadMapPackFile(mod->name, mod->archive);
-	switch(qrenderer)
-	{
-	case QR_NONE:	//dedicated only
-		noerrors = noerrors && CModHL2_LoadSurfaces		(mod, mod_base, &header.lumps[VLUMP_TEXINFO]);
-		noerrors = noerrors && CModQ2_LoadPlanes		(mod, mod_base, &header.lumps[VLUMP_PLANES]);
-		noerrors = noerrors && CModQ2_LoadVisibility	(mod, mod_base, &header.lumps[VLUMP_VISIBILITY]);
-		noerrors = noerrors && CModHL2_LoadBrushSides	(mod, mod_base, &header.lumps[VLUMP_BRUSHSIDES]);
-		noerrors = noerrors && CModQ2_LoadBrushes		(mod, mod_base, &header.lumps[VLUMP_BRUSHES]);
-		noerrors = noerrors && CModQ2_LoadLeafBrushes	(mod, mod_base, &header.lumps[VLUMP_LEAFBRUSHES]);
-		noerrors = noerrors && CModHL2_LoadLeafs		(mod, mod_base, &header.lumps[VLUMP_LEAFS], header.version);
-		noerrors = noerrors && CModHL2_LoadNodes		(mod, mod_base, &header.lumps[VLUMP_NODES]);
-		noerrors = noerrors && CModQ2_LoadSubmodels		(mod, mod_base, &header.lumps[VLUMP_MODELS]);
-		noerrors = noerrors && CModQ2_LoadAreas			(mod, mod_base, &header.lumps[VLUMP_AREAS]);
-		noerrors = noerrors && CModHL2_LoadAreaPortals	(mod, mod_base, &header.lumps[VLUMP_AREAPORTALS], &header.lumps[VLUMP_AREAPORTALVERTS]);
-		if (noerrors)
-			Mod_LoadEntities							(mod, mod_base, &header.lumps[VLUMP_ENTITIES]);
 
-#ifdef HAVE_SERVER
-		mod->funcs.FatPVS				= Q23BSP_FatPVS;
-		mod->funcs.EdictInFatPVS		= Q23BSP_EdictInFatPVS;
-		mod->funcs.FindTouchedLeafs		= Q23BSP_FindTouchedLeafs;
-#endif
-		mod->funcs.LightPointValues		= NULL;
-		mod->funcs.StainNode			= NULL;
-		mod->funcs.MarkLights			= NULL;
-		mod->funcs.ClusterPVS			= CM_ClusterPVS;
-		mod->funcs.ClusterForPoint		= CM_PointCluster;
-		mod->funcs.PointContents		= Q2BSP_PointContents;
-		mod->funcs.NativeTrace			= CM_NativeTrace;
-		mod->funcs.NativeContents		= CM_NativeContents;
-
-		break;
-#ifdef HAVE_CLIENT
-	default:
 	// load into heap
-		noerrors = noerrors && Mod_LoadVertexes			(mod, mod_base, &header.lumps[VLUMP_VERTEXES]);
-//		if (header.version == BSPVERSION_Q2W)
-//			/*noerrors = noerrors &&*/ Mod_LoadVertexNormals(mod, mod_base, &header.lumps[19]);
-		noerrors = noerrors && Mod_LoadEdges			(mod, mod_base, &header.lumps[VLUMP_EDGES], false);
-		noerrors = noerrors && Mod_LoadSurfedges		(mod, mod_base, &header.lumps[VLUMP_SURFEDGES]);
-		if (noerrors)
-			CModHL2_LoadLighting						(mod, mod_base, &header.lumps[VLUMP_LIGHTING], &header.lumps[VLUMP_LIGHTING_HDR]);
-		noerrors = noerrors && CModHL2_LoadSurfaces		(mod, mod_base, &header.lumps[VLUMP_TEXINFO]);
-		noerrors = noerrors && CModQ2_LoadPlanes		(mod, mod_base, &header.lumps[VLUMP_PLANES]);
-		noerrors = noerrors && CModHL2_LoadTexInfo		(mod, mod_base, header.lumps, loadname);
-		if (noerrors)
-			Mod_LoadEntities							(mod, mod_base, &header.lumps[VLUMP_ENTITIES]);
-		noerrors = noerrors && CModHL2_LoadFaces		(mod, mod_base, header.lumps, header.version);
-		noerrors = noerrors && CModHL2_LoadDisplacements(mod, mod_base, header.lumps);
-		noerrors = noerrors && Mod_LoadMarksurfaces		(mod, mod_base, &header.lumps[VLUMP_LEAFFACES], false);
-		noerrors = noerrors && CModQ2_LoadVisibility	(mod, mod_base, &header.lumps[VLUMP_VISIBILITY]);
-		noerrors = noerrors && CModHL2_LoadBrushSides	(mod, mod_base, &header.lumps[VLUMP_BRUSHSIDES]);
-		noerrors = noerrors && CModQ2_LoadBrushes		(mod, mod_base, &header.lumps[VLUMP_BRUSHES]);
-		noerrors = noerrors && CModQ2_LoadLeafBrushes	(mod, mod_base, &header.lumps[VLUMP_LEAFBRUSHES]);
-		noerrors = noerrors && CModHL2_LoadLeafs		(mod, mod_base, &header.lumps[VLUMP_LEAFS], header.version);
-		noerrors = noerrors && CModHL2_LoadNodes		(mod, mod_base, &header.lumps[VLUMP_NODES]);
-		noerrors = noerrors && CModQ2_LoadSubmodels		(mod, mod_base, &header.lumps[VLUMP_MODELS]);
-		noerrors = noerrors && CModQ2_LoadAreas			(mod, mod_base, &header.lumps[VLUMP_AREAS]);
-		noerrors = noerrors && CModHL2_LoadAreaPortals	(mod, mod_base, &header.lumps[VLUMP_AREAPORTALS], &header.lumps[VLUMP_AREAPORTALVERTS]);
+	noerrors = noerrors && Mod_LoadVertexes			(mod, mod_base, &header.lumps[VLUMP_VERTEXES]);
+	noerrors = noerrors && Mod_LoadEdges			(mod, mod_base, &header.lumps[VLUMP_EDGES], false);
+	noerrors = noerrors && Mod_LoadSurfedges		(mod, mod_base, &header.lumps[VLUMP_SURFEDGES]);
+#ifdef HAVE_CLIENT
+	if (noerrors && haverenderer)
+		CModHL2_LoadLighting						(mod, mod_base, &header.lumps[VLUMP_LIGHTING], &header.lumps[VLUMP_LIGHTING_HDR]);
+#endif
+	noerrors = noerrors && CModHL2_LoadSurfaces		(mod, mod_base, &header.lumps[VLUMP_TEXINFO]);
+	noerrors = noerrors && CModQ2_LoadPlanes		(mod, mod_base, &header.lumps[VLUMP_PLANES]);
+	noerrors = noerrors && CModHL2_LoadTexInfo		(mod, mod_base, header.lumps, loadname);
+	if (noerrors)
+		Mod_LoadEntities							(mod, mod_base, &header.lumps[VLUMP_ENTITIES]);
+	noerrors = noerrors && CModHL2_LoadFaces		(mod, mod_base, header.lumps, header.version);
+	noerrors = noerrors && CModHL2_LoadDisplacements(mod, mod_base, header.lumps);
+	noerrors = noerrors && Mod_LoadMarksurfaces		(mod, mod_base, &header.lumps[VLUMP_LEAFFACES], false);
+	noerrors = noerrors && CModQ2_LoadVisibility	(mod, mod_base, &header.lumps[VLUMP_VISIBILITY]);
+	noerrors = noerrors && CModHL2_LoadBrushSides	(mod, mod_base, &header.lumps[VLUMP_BRUSHSIDES]);
+	noerrors = noerrors && CModQ2_LoadBrushes		(mod, mod_base, &header.lumps[VLUMP_BRUSHES]);
+	noerrors = noerrors && CModQ2_LoadLeafBrushes	(mod, mod_base, &header.lumps[VLUMP_LEAFBRUSHES]);
+	noerrors = noerrors && CModHL2_LoadLeafs		(mod, mod_base, &header.lumps[VLUMP_LEAFS], header.version);
+	noerrors = noerrors && CModHL2_LoadNodes		(mod, mod_base, &header.lumps[VLUMP_NODES]);
+	noerrors = noerrors && CModQ2_LoadSubmodels		(mod, mod_base, &header.lumps[VLUMP_MODELS]);
+	noerrors = noerrors && CModQ2_LoadAreas			(mod, mod_base, &header.lumps[VLUMP_AREAS]);
+	noerrors = noerrors && CModHL2_LoadAreaPortals	(mod, mod_base, &header.lumps[VLUMP_AREAPORTALS], &header.lumps[VLUMP_AREAPORTALVERTS]);
+	noerrors = noerrors && CModHL2_LoadGameLump		(mod, mod_base, &header.lumps[VLUMP_GAMELUMP]);
 
-		noerrors = noerrors && CModHL2_LoadGameLump		(mod, mod_base, &header.lumps[VLUMP_GAMELUMP]);
-
-		if (!noerrors)
-			return false;
+	if (!noerrors)
+		return false;
 #ifdef HAVE_SERVER
-		mod->funcs.FatPVS				= Q23BSP_FatPVS;
-		mod->funcs.EdictInFatPVS		= Q23BSP_EdictInFatPVS;
-		mod->funcs.FindTouchedLeafs		= Q23BSP_FindTouchedLeafs;
+	mod->funcs.FatPVS				= Q23BSP_FatPVS;
+	mod->funcs.EdictInFatPVS		= Q23BSP_EdictInFatPVS;
+	mod->funcs.FindTouchedLeafs		= Q23BSP_FindTouchedLeafs;
 #endif
-		mod->funcs.LightPointValues		= GLQ2BSP_LightPointValues;
-		mod->funcs.StainNode			= GLR_Q2BSP_StainNode;
-		mod->funcs.MarkLights			= Q2BSP_MarkLights;
-		mod->funcs.ClusterPVS			= CM_ClusterPVS;
-		mod->funcs.ClusterForPoint		= CM_PointCluster;
-		mod->funcs.PointContents		= Q2BSP_PointContents;
-		mod->funcs.NativeTrace			= CM_NativeTrace;
-		mod->funcs.NativeContents		= CM_NativeContents;
-		break;
+#ifdef HAVE_CLIENT
+	mod->funcs.LightPointValues		= GLQ2BSP_LightPointValues;
+	mod->funcs.StainNode			= GLR_Q2BSP_StainNode;
+	mod->funcs.MarkLights			= Q2BSP_MarkLights;
 #endif
-	}
+	mod->funcs.ClusterPVS			= CM_ClusterPVS;
+	mod->funcs.ClusterForPoint		= CM_PointCluster;
+	mod->funcs.PointContents		= Q2BSP_PointContents;
+	mod->funcs.NativeTrace			= CM_NativeTrace;
+	mod->funcs.NativeContents		= CM_NativeContents;
 
 	//displacements suck
 	for (i = 0; i < mod->numdisplacements; i++)

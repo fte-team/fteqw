@@ -316,7 +316,7 @@ static index_t *Mod_HL2_LoadIndexes(hl2parsecontext_t *ctx, unsigned int *idxcou
 }
 static qboolean Mod_HL2_LoadVTX(hl2parsecontext_t *ctx, const void *buffer, size_t fsize, unsigned int rev, const hl2mdlheader_t *mdl)
 {	//horribly overcomplicated way to express this stuff.
-	size_t totalsurfs = 0, b, s, l, m, t;
+	size_t totalsurfs = 0, b, s, l, m;
 	const hl2vtxheader_t *header = buffer;
 	const hl2vtxbody_t *vbody;
 	const hl2vtxsurf_t *vsurf;
@@ -326,12 +326,15 @@ static qboolean Mod_HL2_LoadVTX(hl2parsecontext_t *ctx, const void *buffer, size
 //	const hl2vtxskin_t *vskin;
 
 	const hl2mdlbody_t *mbody = (const hl2mdlbody_t*)((const qbyte*)mdl + mdl->body_ofs);
-	const hl2mdltexture_t *mtex = (const hl2mdltexture_t*)((const qbyte*)mdl + mdl->tex_ofs);
-	const unsigned short *skinbind;
 
 	galiasinfo_t *surf=NULL;
+#ifdef HAVE_CLIENT
+	size_t t;
+	const hl2mdltexture_t *mtex = (const hl2mdltexture_t*)((const qbyte*)mdl + mdl->tex_ofs);
+	const unsigned short *skinbind;
 	galiasskin_t *skin;
 	skinframe_t *skinframe;
+#endif
 	size_t firstvert = 0;
 
 	if (fsize < sizeof(*header) || header->version != 7 || header->revisionid != rev || header->body_count == 0)
@@ -354,6 +357,7 @@ static qboolean Mod_HL2_LoadVTX(hl2parsecontext_t *ctx, const void *buffer, size
 
 	ctx->mod->meshinfo = surf = ZG_Malloc(&ctx->mod->memgroup, sizeof(*surf)*totalsurfs);
 
+#ifdef HAVE_CLIENT
 	t = mdl->skin_count*mdl->texbind_count;
 	skinbind = (const unsigned short*)((const qbyte*)mdl+mdl->texbind_offset);
 	skin = ZG_Malloc(&ctx->mod->memgroup, sizeof(*skin)*t + sizeof(*skinframe)*t);
@@ -383,6 +387,7 @@ static qboolean Mod_HL2_LoadVTX(hl2parsecontext_t *ctx, const void *buffer, size
 		ns->frame = skinframe;
 		skinframe++;
 	}
+#endif
 
 	vbody = (const void*)((const qbyte*)header + header->body_ofs);
 	for (b = 0; b < header->body_count; b++, vbody++, mbody++)
@@ -393,7 +398,7 @@ static qboolean Mod_HL2_LoadVTX(hl2parsecontext_t *ctx, const void *buffer, size
 		{
 			vlod = (const void*)((const qbyte*)vsurf + vsurf->lod_ofs);
 //			vskins = (const hl2vtxskins_t*)((const qbyte*)header + header->texreplacements_offset);
-			for (l = 0, t = 0; l < min(vsurf->lod_count, countof(ctx->lod)); l++, vlod++/*, vskins++*/)
+			for (l = 0; l < min(vsurf->lod_count, countof(ctx->lod)); l++, vlod++/*, vskins++*/)
 			{
 				const hl2mdlmesh_t *mmesh = (const hl2mdlmesh_t*)((const qbyte*)msurf + msurf->mesh_ofs);
 				vmesh = (const void*)((const qbyte*)vlod + vlod->mesh_ofs);

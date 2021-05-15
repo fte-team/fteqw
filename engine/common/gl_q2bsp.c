@@ -5486,19 +5486,21 @@ typedef struct {
 		unsigned int len;
 	} sl[1];
 } hlgamelumpheader_t;
-static qboolean CModHL2_LoadStaticProps(model_t *mod, qbyte *offset, size_t size, int version)
+static qboolean CModHL2_LoadStaticProps(model_t *mod, qbyte *offset, size_t size, int version)	//present on server, because they're potentially solid.
 {
 	struct {
 		const char name[128];
 	} *modelref;
 	size_t nummodels, numleafrefs, numprops, i;
-	unsigned short *leafref;
+	unsigned short *leafref, *eleafref;
+	struct modelstaticent_s *sent;
 	entity_t *ent;
 
 	size_t modelindex;
 
 	qboolean skip = false;
 	int dxlevel = 95, cpulevel=0, gpulevel=0;
+	unsigned int leafcount, l;
 
 	qbyte *prop;
 	size_t propsize;
@@ -5554,8 +5556,9 @@ static qboolean CModHL2_LoadStaticProps(model_t *mod, qbyte *offset, size_t size
 		return true;	//funny lump size...
 
 	mod->staticents = ZG_Malloc(&mod->memgroup, sizeof(*mod->staticents)*numprops);
-	for (i = 0, ent = mod->staticents; i < numprops; i++)
+	for (i = 0, sent = mod->staticents; i < numprops; i++)
 	{
+		ent = &sent->ent;
 		skip = false;
 #ifdef HAVE_CLIENT
 		V_ClearEntity(ent);
@@ -5584,16 +5587,16 @@ static qboolean CModHL2_LoadStaticProps(model_t *mod, qbyte *offset, size_t size
 		ent->angles[1] = LittleFloat(*(float*)prop);					prop += sizeof(float);
 		ent->angles[2] = LittleFloat(*(float*)prop);					prop += sizeof(float);
 		modelindex = (unsigned short)LittleShort(*(short*)prop);		prop += sizeof(unsigned short);
-		/*firstleaf = LittleShort(*(unsigned short*)prop)*/;			prop += sizeof(unsigned short);
-		/*leafcount = LittleShort(*(unsigned short*)prop)*/;			prop += sizeof(unsigned short);
+		eleafref = leafref+(unsigned short)LittleShort(*(unsigned short*)prop);			prop += sizeof(unsigned short);
+		leafcount = LittleShort(*(unsigned short*)prop);				prop += sizeof(unsigned short);
 		/*ent->solid = *prop*/;											prop += sizeof(qbyte);
 		/*ent->flags = *prop*/;											prop += sizeof(qbyte);
 		ent->skinnum = LittleLong(*(unsigned int*)prop);				prop += sizeof(unsigned int);
-		/*ent->fademindist = LittleFloat(*(float*)prop)*/;				prop += sizeof(float);
-		/*ent->fademaxdist = LittleFloat(*(float*)prop)*/;				prop += sizeof(float);
-		/*ent->lightingorigin[0] = LittleFloat(*(float*)prop)*/;		prop += sizeof(float);
-		/*ent->lightingorigin[1] = LittleFloat(*(float*)prop)*/;		prop += sizeof(float);
-		/*ent->lightingorigin[2] = LittleFloat(*(float*)prop)*/;		prop += sizeof(float);
+		sent->fademindist = LittleFloat(*(float*)prop);					prop += sizeof(float);
+		sent->fademaxdist = LittleFloat(*(float*)prop);					prop += sizeof(float);
+		sent->lightorg[0] = LittleFloat(*(float*)prop);					prop += sizeof(float);
+		sent->lightorg[1] = LittleFloat(*(float*)prop);					prop += sizeof(float);
+		sent->lightorg[2] = LittleFloat(*(float*)prop);					prop += sizeof(float);
 		if (version >= 5)
 		{
 			/*ent->fadescale = LittleFloat(*(float*)prop);*/			prop += sizeof(float);
@@ -5636,7 +5639,24 @@ static qboolean CModHL2_LoadStaticProps(model_t *mod, qbyte *offset, size_t size
 		AngleVectorsFLU(ent->angles, ent->axis[0], ent->axis[1], ent->axis[2]);
 
 		//Hack: special value to flag it for linking once we've loaded its model. this needs to go when we make them solid.
-		ent->pvscache.num_leafs = -2;
+		if (leafcount > countof(ent->pvscache.leafnums))
+			ent->pvscache.num_leafs = -2;	//overflow. calculate it later once its loaded.
+		else
+		{
+			ent->pvscache.areanum = -1;	//FIXME
+			ent->pvscache.areanum2 = -1;
+			ent->pvscache.num_leafs = leafcount;	//overflow. calculate it later once its loaded.
+			for (l = 0; l < leafcount; l++)
+			{
+				mleaf_t *lf = mod->leafs + *eleafref++;
+				ent->pvscache.leafnums[l]/*actually clusters*/ = lf->cluster;
+				//and try to track the areas too. not quite so reliable...
+				if (ent->pvscache.areanum == -1)
+					ent->pvscache.areanum = lf->area;
+				else
+					ent->pvscache.areanum2 = lf->area;
+			}
+		}
 		//Hack: lighting is wrong.
 		ent->light_known = 1;
 		VectorSet(ent->light_dir, 0, 0.707, 0.707);
@@ -5645,7 +5665,7 @@ static qboolean CModHL2_LoadStaticProps(model_t *mod, qbyte *offset, size_t size
 
 		//not all props will be emitted, according to d3d levels...
 		mod->numstaticents++;
-		ent++;
+		sent++;
 	}
 
 	return true;

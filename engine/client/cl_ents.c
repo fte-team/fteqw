@@ -3405,7 +3405,10 @@ void CL_LinkStaticEntities(void *pvs, int *areas)
 
 	if (cl.worldmodel->numstaticents)
 	{
+		struct modelstaticent_s *sent;
 		entity_t *src;
+		float d;
+		vec3_t disp;
 		for (i = 0; i < cl.worldmodel->numstaticents; i++)
 		{
 			if (cl_numvisedicts == cl_maxvisedicts)
@@ -3413,7 +3416,23 @@ void CL_LinkStaticEntities(void *pvs, int *areas)
 				cl_expandvisents=true;
 				break;
 			}
-			src = &cl.worldmodel->staticents[i];
+			sent = &cl.worldmodel->staticents[i];
+			src = &sent->ent;
+
+			if (sent->fademaxdist)
+			{
+				VectorSubtract(r_refdef.vieworg, src->origin, disp);
+				d = VectorLength(disp);
+				if (d > sent->fademaxdist)
+					continue;	//skip it.
+				d -= sent->fademindist;
+				d /= sent->fademaxdist-sent->fademindist;
+				if (d < 0)
+					d = 0;
+			}
+			else
+				d = 0;
+
 			if (!src->model || src->model->loadstate != MLS_LOADED)
 			{
 				if (src->model && src->model->loadstate == MLS_NOTLOADED)
@@ -3421,7 +3440,13 @@ void CL_LinkStaticEntities(void *pvs, int *areas)
 				continue;
 			}
 			if (!src->light_known)
+			{
+				vec3_t tmp;
+				VectorCopy(src->origin, tmp);
+				VectorCopy(sent->lightorg, src->origin);
 				R_CalcModelLighting(src, src->model);	//bake and cache, now everything else is working.
+				VectorCopy(tmp, src->origin);
+			}
 			if (src->pvscache.num_leafs==-2)
 			{
 				vec3_t absmin, absmax;
@@ -3437,6 +3462,11 @@ void CL_LinkStaticEntities(void *pvs, int *areas)
 			*ent = *src;
 			ent->framestate.g[FS_REG].frametime[0] = cl.time;
 			ent->framestate.g[FS_REG].frametime[1] = cl.time;
+			if (d)
+			{
+				ent->shaderRGBAf[3] *= 1-d;
+				ent->flags |= RF_TRANSLUCENT;
+			}
 		}
 	}
 }

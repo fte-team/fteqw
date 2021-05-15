@@ -1133,7 +1133,13 @@ typedef struct model_s
 #ifdef HL2BSPS
 	dispinfo_t *displacements;
 	unsigned int numdisplacements;
-	entity_t *staticents;
+	struct modelstaticent_s
+	{
+		float fademindist;
+		float fademaxdist;
+		vec3_t	lightorg;
+		entity_t ent;
+	} *staticents;
 	size_t numstaticents;
 #endif
 

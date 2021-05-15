@@ -2150,19 +2150,19 @@ void R_DrawNameTags(void)
 
 			for (i=0 ; i<cl.worldmodel->numstaticents; i++)
 			{
-				entity_t *state = &cl.worldmodel->staticents[i];
-				mod = state->model;
+				struct modelstaticent_s *state = &cl.worldmodel->staticents[i];
+				mod = state->ent.model;
 				if (mod && mod->loadstate == MLS_LOADED)
 					VectorInterpolate(mod->mins, 0.5, mod->maxs, org);
 				else
 					VectorClear(org);
-				VectorAdd(org, state->origin, org);
+				VectorAdd(org, state->ent.origin, org);
 				if (Matrix4x4_CM_Project(org, screenspace, r_refdef.viewangles, r_refdef.vieworg, r_refdef.fov_x, r_refdef.fov_y))
 				{
 					char *entstr;
 					int x, y;
 
-					entstr = state->model->name;
+					entstr = mod->name;
 					if (entstr)
 					{
 						x = screenspace[0]*r_refdef.vrect.width+r_refdef.vrect.x;

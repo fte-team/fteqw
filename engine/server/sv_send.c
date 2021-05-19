@@ -528,6 +528,7 @@ void SV_MulticastProtExt(vec3_t origin, multicast_t to, int dimension_mask, int 
 	client_t	*oneclient = NULL, *split;
 	int seat;
 	qboolean	andspecs = false;
+	extern cvar_t sv_nopvs;
 
 	if (!sv.multicast.cursize 
 #ifdef NQPROT
@@ -601,7 +602,7 @@ void SV_MulticastProtExt(vec3_t origin, multicast_t to, int dimension_mask, int 
 		case MULTICAST_PHS:
 			leafnum = CM_PointLeafnum (sv.world.worldmodel, origin);
 			cluster = CM_LeafCluster (sv.world.worldmodel, leafnum);
-			mask = CM_ClusterPHS (sv.world.worldmodel, cluster, NULL);
+			mask = sv_nopvs.ival?NULL:CM_ClusterPHS (sv.world.worldmodel, cluster, NULL);
 			break;
 
 		case MULTICAST_PVS_R:
@@ -609,7 +610,7 @@ void SV_MulticastProtExt(vec3_t origin, multicast_t to, int dimension_mask, int 
 		case MULTICAST_PVS:
 			leafnum = CM_PointLeafnum (sv.world.worldmodel, origin);
 			cluster = CM_LeafCluster (sv.world.worldmodel, leafnum);
-			mask = CM_ClusterPVS (sv.world.worldmodel, cluster, NULL, PVM_FAST);
+			mask = sv_nopvs.ival?NULL:CM_ClusterPVS (sv.world.worldmodel, cluster, NULL, PVM_FAST);
 			break;
 
 		case MULTICAST_ONE_R_NOSPECS:

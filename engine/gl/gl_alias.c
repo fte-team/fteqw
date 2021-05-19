@@ -415,6 +415,13 @@ skinid_t Mod_ReadSkinFile(const char *skinname, const char *skintext)
 			break;
 	}
 	registeredskins[id] = skin;
+
+#ifdef QWSKINS
+	//warm it up, hopefully before its stictly necessary.
+	if (*skin->qwskinname)
+		Skin_Lookup (skin->qwskinname);
+#endif
+
 	return id+1;
 }
 //registers a skin. loads it if there's not one with that name already registered.

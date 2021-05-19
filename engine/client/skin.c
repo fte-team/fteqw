@@ -313,7 +313,7 @@ void Skin_WorkerDone(void *skinptr, void *skindata, size_t width, size_t height)
 	skin->width = width;
 	skin->height = height;
 	skin->skindata = skindata;
-	if (skindata)
+	if (skindata || TEXLOADED(skin->textures.base))
 		skin->loadstate = SKIN_LOADED;
 	else
 		skin->loadstate = SKIN_FAILED;
@@ -323,30 +323,62 @@ void Skin_WorkerLoad(void *skinptr, void *data, size_t a, size_t b)
 	qwskin_t *skin = skinptr;
 	char	name[MAX_QPATH];
 	qbyte	*out;
-	int		srcw, srch;
-	size_t	pcxsize;
+	int		srcw = 0, srch = 0;
 
-	void *pcxfiledata;
+	size_t	pcxsize = 0;
+	void *pcxfiledata = NULL;
+
+	const char *skinpath = "skins";
+
+	skin->textures.base = r_nulltex;
+	if (gl_load24bit.ival)
+		skin->textures.base = R_LoadHiResTexture(skin->name, skinpath, IF_LOADNOW|IF_NOALPHA|IF_NOPCX);
 	
-	Q_snprintfz (name, sizeof(name), "skins/%s.pcx", skin->name);
-	pcxfiledata = FS_LoadMallocFileFlags (name, FSLF_IGNOREPURE, &pcxsize);
-	if (!pcxfiledata)
+	if (skin->textures.base && skin->textures.base->width)	//result was already posted and will be handled before Skin_WorkerDone.
 	{
-		//use 24bit skins even if gl_load24bit is failed
-		if (strcmp(skin->name, baseskin.string))
+		if (!skin->textures.upperoverlay)
 		{
-			//if its not already the base skin, try the base (and warn if anything not base couldn't load).
-			Con_Printf ("Couldn't load skin %s\n", name);
-			if (*baseskin.string)
-			{
-				Q_snprintfz (name, sizeof(name), "skins/%s.pcx", baseskin.string);
-				pcxfiledata = FS_LoadMallocFileFlags (name, FSLF_IGNOREPURE, &pcxsize);
-			}
+			Q_snprintfz (name, sizeof(name), "%s_shirt", skin->name);
+			TEXASSIGN(skin->textures.upperoverlay, R_LoadHiResTexture(name, skinpath, IF_LOADNOW));
 		}
+		if (!skin->textures.loweroverlay)
+		{
+			Q_snprintfz (name, sizeof(name), "%s_pants", skin->name);
+			TEXASSIGN(skin->textures.loweroverlay, R_LoadHiResTexture(name, skinpath, IF_LOADNOW));
+		}
+		if (!skin->textures.fullbright)
+		{
+			Q_snprintfz (name, sizeof(name), "%s_luma", skin->name);
+			TEXASSIGN(skin->textures.fullbright, R_LoadHiResTexture(skin->name, skinpath, IF_LOADNOW));
+		}
+		if (!skin->textures.specular)
+		{
+			Q_snprintfz (name, sizeof(name), "%s_gloss", skin->name);
+			TEXASSIGN(skin->textures.specular, R_LoadHiResTexture(skin->name, skinpath, IF_LOADNOW));
+		}
+	}
+	else
+	{
+		Q_snprintfz (name, sizeof(name), "skins/%s.pcx", skin->name);
+		pcxfiledata = FS_LoadMallocFileFlags (name, FSLF_IGNOREPURE, &pcxsize);
 		if (!pcxfiledata)
 		{
-			Skin_WorkerDone(skin, NULL, 0, 0);
-			return;
+			//use 24bit skins even if gl_load24bit is failed
+			if (strcmp(skin->name, baseskin.string))
+			{
+				//if its not already the base skin, try the base (and warn if anything not base couldn't load).
+				Con_Printf ("Couldn't load skin %s\n", name);
+				if (*baseskin.string)
+				{
+					Q_snprintfz (name, sizeof(name), "skins/%s.pcx", baseskin.string);
+					pcxfiledata = FS_LoadMallocFileFlags (name, FSLF_IGNOREPURE, &pcxsize);
+				}
+			}
+			if (!pcxfiledata)
+			{
+				Skin_WorkerDone(skin, NULL, 0, 0);
+				return;
+			}
 		}
 	}
 
@@ -375,9 +407,6 @@ Returns a pointer to the skin bitmap, or NULL to use the default
 */
 qbyte	*Skin_TryCache8 (qwskin_t *skin)
 {
-	char	name[1024];
-	char *skinpath;
-
 	if (noskins.value==1) // JACK: So NOSKINS > 1 will show skins, but
 		return NULL;	  // not download new ones.
 
@@ -415,43 +444,6 @@ qbyte	*Skin_TryCache8 (qwskin_t *skin)
 		skin->loadstate = SKIN_LOADED;
 
 		return out;
-	}
-
-	skinpath = "skins";
-
-	if (gl_load24bit.ival || skin->loadstate == SKIN_FAILED)
-	{
-		if (!skin->textures.base)
-			skin->textures.base = R_LoadHiResTexture(skin->name, skinpath, IF_NOALPHA|IF_NOPCX);
-		if (skin->textures.base->status == TEX_LOADING)
-			return NULL;	//don't spam the others until we actually know this one will load.
-		if (TEXLOADED(skin->textures.base))
-		{
-			if (!skin->textures.upperoverlay)
-			{
-				Q_snprintfz (name, sizeof(name), "%s_shirt", skin->name);
-				TEXASSIGN(skin->textures.upperoverlay, R_LoadHiResTexture(name, skinpath, 0));
-			}
-			if (!skin->textures.loweroverlay)
-			{
-				Q_snprintfz (name, sizeof(name), "%s_pants", skin->name);
-				TEXASSIGN(skin->textures.loweroverlay, R_LoadHiResTexture(name, skinpath, 0));
-			}
-			if (!skin->textures.fullbright)
-			{
-				Q_snprintfz (name, sizeof(name), "%s_luma", skin->name);
-				TEXASSIGN(skin->textures.fullbright, R_LoadHiResTexture(skin->name, skinpath, 0));
-			}
-			if (!skin->textures.specular)
-			{
-				Q_snprintfz (name, sizeof(name), "%s_gloss", skin->name);
-				TEXASSIGN(skin->textures.specular, R_LoadHiResTexture(skin->name, skinpath, 0));
-			}
-			skin->loadstate = SKIN_LOADED;
-			return NULL;	//can use the high-res textures instead.
-		}
-		else
-			skin->textures.base = r_nulltex;
 	}
 
 	if (skin->loadstate == SKIN_FAILED)

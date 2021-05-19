@@ -3913,7 +3913,7 @@ static void CLNQ_ParseServerData(void)		//Doesn't change gamedir - use with caut
 			Con_TPrintf ("Server sent too many model precaches\n");
 			return;
 		}
-		strcpy (cl.model_name[nummodels], str);
+		Q_strncpyz(cl.model_name[nummodels], str, sizeof(cl.model_name[nummodels]));
 		if (*str != '*' && strcmp(str, "null"))	//not inline models!
 			CL_CheckOrEnqueDownloadFile(str, NULL, ((nummodels==1)?DLLF_REQUIRED|DLLF_ALLOWWEB:0));
 
@@ -3959,7 +3959,8 @@ static void CLNQ_ParseServerData(void)		//Doesn't change gamedir - use with caut
 			Con_TPrintf ("Server sent too many sound precaches\n");
 			return;
 		}
-		strcpy (cl.sound_name[numsounds], str);
+		Q_strncpyz(cl.sound_name[numsounds], str, sizeof(cl.sound_name[numsounds]));
+		cl.sound_precache[numsounds] = S_FindName(cl.sound_name[numsounds], true, false);
 
 		Sound_CheckDownload(str);
 		S_TouchSound (str);

@@ -275,7 +275,10 @@ static struct
 {
 	qboolean			trying;
 	qboolean			istransfer;		//ignore the user's desired server (don't change connect.adr).
-	netadr_t			adr;			//address that we're trying to transfer to. FIXME: support multiple resolved addresses, eg both ::1 AND 127.0.0.1
+	qboolean			resolving;
+	int					numadr;
+	int					nextadr;
+	netadr_t			adr[8];			//addresses that we're trying to transfer to, one entry per dns result, eg both ::1 AND 127.0.0.1
 #ifdef HAVE_DTLS
 	enum
 	{
@@ -651,7 +654,7 @@ void CL_SendConnectPacket (netadr_t *to, int mtu,
 
 	//fixme: we shouldn't cycle these so much
 	connectinfo.qport = qport.value;
-	if (connectinfo.adr.type != NA_LOOPBACK)
+	if (to->type != NA_LOOPBACK)
 		Cvar_SetValue(&qport, (connectinfo.qport+1)&0xffff);
 
 	if (connectinfo.protocol == CP_QUAKE2 && (connectinfo.subprotocol == PROTOCOL_VERSION_R1Q2 || connectinfo.subprotocol == PROTOCOL_VERSION_Q2PRO))
@@ -752,6 +755,89 @@ static void CL_NullReadPacket(void)
 }
 #endif
 
+
+struct resolvectx_s
+{
+	netadr_t adr[countof(connectinfo.adr)];
+	size_t found;
+	char servername[1];
+	/*servername text*/
+};
+static void CL_ResolvedServer(void *vctx, void *data, size_t a, size_t b)
+{
+	size_t i;
+	struct resolvectx_s *ctx = vctx;
+
+	//something screwed us over...
+	if (strcmp(ctx->servername, cls.servername))
+		return;
+
+	if (!ctx->found)
+	{
+		Cvar_Set(&cl_disconnectreason, va("Bad server address \"%s\"", ctx->servername));
+		Con_TPrintf ("Bad server address \"%s\"\n", ctx->servername);
+		connectinfo.trying = false;
+		SCR_EndLoadingPlaque();
+		return;
+	}
+
+#ifdef HAVE_DTLS
+	for (i = 0; i < ctx->found; i++)
+	{
+		if (connectinfo.dtlsupgrade == DTLS_ACTIVE)
+		{	//if we've already established a dtls connection, stick with it
+			if (ctx->adr[i].prot == NP_DGRAM)
+				ctx->adr[i].prot = NP_DTLS;
+		}
+		else if (connectinfo.adr[i].prot == NP_DTLS)
+		{	//dtls connections start out with regular udp, and upgrade to dtls once its established that the server supports it.
+			connectinfo.dtlsupgrade = DTLS_REQUIRE;
+			ctx->adr[i].prot = NP_DGRAM;
+		}
+		else
+		{
+			//hostname didn't specify dtls. upgrade if we're allowed, but don't mandate it.
+			//connectinfo.dtlsupgrade = DTLS_TRY;
+		}
+	}
+#endif
+
+	connectinfo.numadr = ctx->found;
+	connectinfo.nextadr = 0;
+	connectinfo.resolving = false;
+	memcpy(connectinfo.adr, ctx->adr, sizeof(*connectinfo.adr)*ctx->found);
+
+}
+static void CL_ResolveServer(void *vctx, void *data, size_t a, size_t b)
+{
+	struct resolvectx_s *ctx = vctx;
+	const char *host = strrchr(cls.servername+1, '@');
+	if (host)
+		host++;
+	else
+		host = cls.servername;
+
+	ctx->found = NET_StringToAdr2 (host, connectinfo.defaultport, ctx->adr, countof(ctx->adr), NULL);
+
+	COM_AddWork(WG_MAIN, CL_ResolvedServer, ctx, data, a, b);
+}
+static qboolean CL_IsPendingServerAddress(netadr_t *adr)
+{
+	size_t i;
+	for (i = 0; i < connectinfo.numadr; i++)
+		if (NET_CompareAdr(&connectinfo.adr[i], adr))
+			return true;
+	return false;
+}
+static qboolean CL_IsPendingServerBaseAddress(netadr_t *adr)
+{
+	size_t i;
+	for (i = 0; i < connectinfo.numadr; i++)
+		if (NET_CompareBaseAdr(&connectinfo.adr[i], adr))
+			return true;
+	return false;
+}
+
 /*
 =================
 CL_CheckForResend
@@ -766,8 +852,8 @@ void CL_CheckForResend (void)
 	double t1, t2;
 	int contype = 0;
 	qboolean keeptrying = true;
-	char *host;
 	extern int	r_blockvidrestart;
+	netadr_t *to;
 
 #ifdef HAVE_SERVER
 	if (!cls.state && (!connectinfo.trying || sv.state != ss_clustermode) && sv.state)
@@ -787,14 +873,16 @@ void CL_CheckForResend (void)
 		connectinfo.time = realtime;
 		Q_strncpyz (cls.servername, "internalserver", sizeof(cls.servername));
 		Cvar_ForceSet(&cl_servername, cls.servername);
-		if (!NET_StringToAdr(cls.servername, 0, &connectinfo.adr))
+		connectinfo.numadr = NET_StringToAdr(cls.servername, 0, &connectinfo.adr[0]);
+		connectinfo.nextadr = 0;
+		if (!connectinfo.numadr)
 			return;	//erk?
 
 		if (*cl_disconnectreason.string)
 			Cvar_Set(&cl_disconnectreason, "");
 		connectinfo.trying = true;
 		connectinfo.istransfer = false;
-		connectinfo.adr.prot = NP_DGRAM;
+		connectinfo.adr[0].prot = NP_DGRAM;
 
 		NET_InitClient(sv.state != ss_clustermode);
 
@@ -971,14 +1059,16 @@ void CL_CheckForResend (void)
 #ifdef NQPROT
 		if (connectinfo.protocol == CP_NETQUAKE)
 		{
-			if (!NET_StringToAdr (cls.servername, connectinfo.defaultport, &connectinfo.adr))
+			connectinfo.numadr = NET_StringToAdr2 (cls.servername, connectinfo.defaultport, connectinfo.adr, 1, NULL);
+			connectinfo.nextadr = 0;
+			if (!connectinfo.numadr)
 			{
 				Con_TPrintf ("CL_CheckForResend: Bad server address \"%s\"\n", cls.servername);
 				connectinfo.trying = false;
 				SCR_EndLoadingPlaque();
 				return;
 			}
-			NET_AdrToString(data, sizeof(data), &connectinfo.adr);
+			NET_AdrToString(data, sizeof(data), &connectinfo.adr[connectinfo.nextadr]);
 
 			/*eat up the server's packets, to clear any lingering loopback packets (like disconnect commands... yes this might cause packetloss for other clients)*/
 			svs.sockets->ReadGamePacket = CL_NullReadPacket;
@@ -991,41 +1081,41 @@ void CL_CheckForResend (void)
 
 			if (connectinfo.subprotocol == CPNQ_ID && !proquakeangles)
 			{
-				net_from = connectinfo.adr;
+				net_from = connectinfo.adr[connectinfo.nextadr];
 				Cmd_TokenizeString (va("connect %i %i %i \"\\name\\unconnected\"", NQ_NETCHAN_VERSION, 0, SV_NewChallenge()), false, false);
 
 				SVC_DirectConnect(0);
 			}
 			else if (connectinfo.subprotocol == CPNQ_BJP3)
 			{
-				net_from = connectinfo.adr;
+				net_from = connectinfo.adr[connectinfo.nextadr];
 				Cmd_TokenizeString (va("connect %i %i %i \"\\name\\unconnected\\mod\\%i\"", NQ_NETCHAN_VERSION, 0, SV_NewChallenge(), PROTOCOL_VERSION_BJP3), false, false);
 
 				SVC_DirectConnect(0);
 			}
 			else if (connectinfo.subprotocol == CPNQ_FITZ666)
 			{
-				net_from = connectinfo.adr;
+				net_from = connectinfo.adr[connectinfo.nextadr];
 				Cmd_TokenizeString (va("connect %i %i %i \"\\name\\unconnected\\mod\\%i\"", NQ_NETCHAN_VERSION, 0, SV_NewChallenge(), PROTOCOL_VERSION_FITZ), false, false);
 
 				SVC_DirectConnect(0);
 			}
 			else if (proquakeangles)
 			{
-				net_from = connectinfo.adr;
+				net_from = connectinfo.adr[connectinfo.nextadr];
 				Cmd_TokenizeString (va("connect %i %i %i \"\\name\\unconnected\\mod\\1\"", NQ_NETCHAN_VERSION, 0, SV_NewChallenge()), false, false);
 
 				SVC_DirectConnect(0);
 			}
 			else if (1)
 			{
-				net_from = connectinfo.adr;
+				net_from = connectinfo.adr[connectinfo.nextadr];
 				Q_snprintfz(net_message.data, net_message.maxsize, "xxxxconnect\\protocol\\darkplaces 3\\protocols\\DP7 DP6 DP5 RMQ FITZ NEHAHRABJP2 NEHAHRABJP NEHAHRABJP3 QUAKE\\challenge\\0x%x\\name\\%s", SV_NewChallenge(), name.string);
 				Cmd_TokenizeString (net_message.data+4, false, false);
 				SVC_DirectConnect(0);
 			}
 			else
-				CL_ConnectToDarkPlaces("", &connectinfo.adr);
+				CL_ConnectToDarkPlaces("", &connectinfo.adr[connectinfo.nextadr]);
 //			connectinfo.trying = false;
 		}
 		else
@@ -1049,9 +1139,9 @@ void CL_CheckForResend (void)
 		return;
 
 #ifdef HAVE_DTLS
-	if (connectinfo.adr.prot == NP_DTLS)
+	if (connectinfo.numadr>0 && connectinfo.adr[0].prot == NP_DTLS)
 	{	//get through the handshake first, instead of waiting for a 5-sec timeout between polls.
-		switch(NET_SendPacket (cls.sockets, 0, NULL, &connectinfo.adr))
+		switch(NET_SendPacket (cls.sockets, 0, NULL, &connectinfo.adr[0]))
 		{
 		case NETERR_CLOGGED:	//temporary failure
 			return;
@@ -1070,40 +1160,27 @@ void CL_CheckForResend (void)
 	t1 = Sys_DoubleTime ();
 	if (!connectinfo.istransfer)
 	{
-		host = strrchr(cls.servername+1, '@');
-		if (host)
-			host++;
-		else
-			host = cls.servername;
-
-		if (!NET_StringToAdr (host, connectinfo.defaultport, &connectinfo.adr))
+		if ((!connectinfo.numadr||connectinfo.nextadr>connectinfo.numadr*60) && !connectinfo.resolving)
 		{
-			Cvar_Set(&cl_disconnectreason, va("Bad server address \"%s\"", host));
-			Con_TPrintf ("Bad server address \"%s\"\n", host);
-			connectinfo.trying = false;
-			SCR_EndLoadingPlaque();
-			return;
+			struct resolvectx_s *rctx = Z_Malloc(sizeof(*rctx) + strlen(cls.servername));
+			strcpy(rctx->servername, cls.servername);
+			connectinfo.resolving = true;
+			COM_AddWork(WG_LOADER, CL_ResolveServer, rctx, NULL, 0, 0);
 		}
-
-#ifdef HAVE_DTLS
-		if (connectinfo.dtlsupgrade == DTLS_ACTIVE)
-		{	//if we've already established a dtls connection, stick with it
-			if (connectinfo.adr.prot == NP_DGRAM)
-				connectinfo.adr.prot = NP_DTLS;
-		}
-		else if (connectinfo.adr.prot == NP_DTLS)
-		{	//dtls connections start out with regular udp, and upgrade to dtls once its established that the server supports it.
-			connectinfo.dtlsupgrade = DTLS_REQUIRE;
-			connectinfo.adr.prot = NP_DGRAM;
-		}
-		else
-		{
-			//hostname didn't specify dtls. upgrade if we're allowed, but don't mandate it.
-			//connectinfo.dtlsupgrade = DTLS_TRY;
-		}
-#endif
 	}
-	if (!NET_IsClientLegal(&connectinfo.adr))
+
+	CL_FlushClientCommands();
+
+	t2 = Sys_DoubleTime ();
+
+	Cvar_ForceSet(&cl_servername, cls.servername);
+
+	if (!connectinfo.numadr)
+		return;	//nothing to do yet...
+	connectinfo.time = realtime+t2-t1;	// for retransmit requests
+
+	to = &connectinfo.adr[connectinfo.nextadr++%connectinfo.numadr];
+	if (!NET_IsClientLegal(to))
 	{
 		Cvar_Set(&cl_disconnectreason, va("Illegal server address"));
 		Con_TPrintf ("Illegal server address\n");
@@ -1112,28 +1189,20 @@ void CL_CheckForResend (void)
 		return;
 	}
 
-	CL_FlushClientCommands();
-
-	t2 = Sys_DoubleTime ();
-
-	connectinfo.time = realtime+t2-t1;	// for retransmit requests
-
-	Cvar_ForceSet(&cl_servername, cls.servername);
-
 #ifdef Q3CLIENT
 	//Q3 clients send their cdkey to the q3 authorize server.
 	//they send this packet with the challenge.
 	//and the server will refuse the client if it hasn't sent it.
-	CLQ3_SendAuthPacket(&connectinfo.adr);
+	CLQ3_SendAuthPacket(to);
 #endif
 
-	if (connectinfo.istransfer)
-		Con_TPrintf ("Connecting to %s(%s)...\n", cls.servername, NET_AdrToString(data, sizeof(data), &connectinfo.adr));
+	if (connectinfo.istransfer || connectinfo.numadr>1)
+		Con_TPrintf ("Connecting to %s(%s)...\n", cls.servername, NET_AdrToString(data, sizeof(data), to));
 	else
 		Con_TPrintf ("Connecting to %s...\n", cls.servername);
 
-	if (connectinfo.tries == 0)
-		if (!NET_EnsureRoute(cls.sockets, "conn", cls.servername, &connectinfo.adr))
+	if (connectinfo.tries == 0 && to == &connectinfo.adr[0])
+		if (!NET_EnsureRoute(cls.sockets, "conn", cls.servername, to))
 		{
 			Cvar_Set(&cl_disconnectreason, va("Unable to establish connection to %s\n", cls.servername));
 			Con_Printf ("Unable to establish connection to %s\n", cls.servername);
@@ -1154,7 +1223,7 @@ void CL_CheckForResend (void)
 	if (contype & 1)
 	{
 		Q_snprintfz (data, sizeof(data), "%c%c%c%cgetchallenge\n", 255, 255, 255, 255);
-		switch(NET_SendPacket (cls.sockets, strlen(data), data, &connectinfo.adr))
+		switch(NET_SendPacket (cls.sockets, strlen(data), data, to))
 		{
 		case NETERR_CLOGGED:	//temporary failure
 			connectinfo.time = 0;
@@ -1195,7 +1264,7 @@ void CL_CheckForResend (void)
 			MSG_WriteString(&sb, "getchallenge");
 
 		*(int*)sb.data = LongSwap(NETFLAG_CTL | sb.cursize);
-		switch(NET_SendPacket (cls.sockets, sb.cursize, sb.data, &connectinfo.adr))
+		switch(NET_SendPacket (cls.sockets, sb.cursize, sb.data, to))
 		{
 		case NETERR_CLOGGED:	//temporary failure
 		case NETERR_SENT:		//yay, works!
@@ -1231,7 +1300,8 @@ void CL_BeginServerConnect(const char *host, int port, qboolean noproxy)
 	if (!port)
 		port = cl_defaultport.value;
 #ifdef HAVE_DTLS
-	NET_DTLS_Disconnect(cls.sockets, &connectinfo.adr);
+	if (connectinfo.numadr)
+		NET_DTLS_Disconnect(cls.sockets, &connectinfo.adr[0]);
 #endif
 	memset(&connectinfo, 0, sizeof(connectinfo));
 	if (*cl_disconnectreason.string)
@@ -1254,7 +1324,8 @@ void CL_BeginServerReconnect(void)
 	}
 #endif
 #ifdef HAVE_DTLS
-	NET_DTLS_Disconnect(cls.sockets, &connectinfo.adr);
+	if (connectinfo.numadr>0)
+		NET_DTLS_Disconnect(cls.sockets, &connectinfo.adr[0]);
 	connectinfo.dtlsupgrade = 0;
 #endif
 	if (*cl_disconnectreason.string)
@@ -1287,7 +1358,8 @@ void CL_Transfer_f(void)
 
 	Q_strncpyz(oldguid, connectinfo.guid, sizeof(oldguid));
 	memset(&connectinfo, 0, sizeof(connectinfo));
-	if (NET_StringToAdr(server, 0, &connectinfo.adr))
+	connectinfo.numadr = NET_StringToAdr(server, 0, &connectinfo.adr[0]);
+	if (connectinfo.numadr)
 	{
 		connectinfo.istransfer = true;
 		Q_strncpyz(connectinfo.guid, oldguid, sizeof(oldguid));	//retain the same guid on transfers
@@ -3124,14 +3196,15 @@ void CL_ConnectionlessPacket (void)
 			Con_TPrintf ("redirect to %s\n", data);
 			if (NET_StringToAdr(data, PORT_DEFAULTSERVER, &adr))
 			{
-				if (NET_CompareAdr(&connectinfo.adr, &net_from))
+				if (CL_IsPendingServerAddress(&net_from))
 				{
-					if (!NET_EnsureRoute(cls.sockets, "redir", cls.servername, &connectinfo.adr))
+					if (!NET_EnsureRoute(cls.sockets, "redir", cls.servername, &net_from))
 						Con_Printf ("Unable to redirect to %s\n", data);
 					else
 					{
 						connectinfo.istransfer = true;
-						connectinfo.adr = adr;
+						connectinfo.numadr = 1;
+						connectinfo.adr[0] = adr;
 
 						data = "\xff\xff\xff\xffgetchallenge\n";
 						NET_SendPacket (cls.sockets, strlen(data), data, &adr);
@@ -3144,7 +3217,7 @@ void CL_ConnectionlessPacket (void)
 		{	//generic rejection. stop trying.
 			char *data = MSG_ReadStringLine();
 			Con_Printf ("reject\n%s\n", data);
-			if (NET_CompareAdr(&connectinfo.adr, &net_from))
+			if (CL_IsPendingServerAddress(&net_from))
 			{
 				Cvar_Set(&cl_disconnectreason, va("%s\n", data));
 				connectinfo.trying = false;
@@ -3153,7 +3226,7 @@ void CL_ConnectionlessPacket (void)
 		}
 		else if (!strcmp(s, "badname"))
 		{	//rejected purely because of player name
-			if (NET_CompareAdr(&connectinfo.adr, &net_from))
+			if (CL_IsPendingServerAddress(&net_from))
 			{
 				Cvar_Set(&cl_disconnectreason, va("bad player name\n"));
 				connectinfo.trying = false;
@@ -3161,7 +3234,7 @@ void CL_ConnectionlessPacket (void)
 		}
 		else if (!strcmp(s, "badaccount"))
 		{	//rejected because username or password is wrong
-			if (NET_CompareAdr(&connectinfo.adr, &net_from))
+			if (CL_IsPendingServerAddress(&net_from))
 			{
 				Cvar_Set(&cl_disconnectreason, va("invalid username or password\n"));
 				connectinfo.trying = false;
@@ -3204,12 +3277,14 @@ void CL_ConnectionlessPacket (void)
 
 		Con_TPrintf ("challenge\n");
 
-		if (!NET_CompareAdr(&connectinfo.adr, &net_from))
+		if (!CL_IsPendingServerAddress(&net_from))
 		{
-			if (connectinfo.adr.prot != NP_RTC_TCP && connectinfo.adr.prot != NP_RTC_TLS)
+			if (net_from.prot != NP_RTC_TCP && net_from.prot != NP_RTC_TLS)
 				Con_Printf("Challenge from wrong server, ignoring\n");
 			return;
 		}
+		connectinfo.numadr = 1;
+		connectinfo.adr[0] = net_from; //lock in only this specific address.
 
 		if (!strcmp(com_token, "hallengeResponse"))
 		{
@@ -3389,11 +3464,11 @@ void CL_ConnectionlessPacket (void)
 		}
 
 #ifdef HAVE_DTLS
-		if (candtls && connectinfo.adr.prot == NP_DGRAM && (connectinfo.dtlsupgrade || candtls > 1))
+		if (candtls && net_from.prot == NP_DGRAM && (connectinfo.dtlsupgrade || candtls > 1))
 		{
 			//c2s getchallenge
 			//s2c c%u\0DTLS=$candtls
-			//c2s dtlsconnect %u
+			//c2s dtlsconnect %u  <<YOU ARE HERE>>
 			//s2c dtlsopened
 			//c2s DTLS(getchallenge)
 			//DTLS(etc)
@@ -3410,11 +3485,11 @@ void CL_ConnectionlessPacket (void)
 			if ((at = strrchr(cls.servername, '@')))
 			{
 				*at = 0;
-				pkt = va("%c%c%c%cdtlsconnect %i %s", 255, 255, 255, 255, connectinfo.challenge, cls.servername);
+				pkt = va("%c%c%c%c""dtlsconnect %i %s", 255, 255, 255, 255, connectinfo.challenge, cls.servername);
 				*at = '@';
 			}
 			else
-				pkt = va("%c%c%c%cdtlsconnect %i", 255, 255, 255, 255, connectinfo.challenge);
+				pkt = va("%c%c%c%c""dtlsconnect %i", 255, 255, 255, 255, connectinfo.challenge);
 			NET_SendPacket (cls.sockets, strlen(pkt), pkt, &net_from);
 			return;
 		}
@@ -3450,7 +3525,7 @@ void CL_ConnectionlessPacket (void)
 			Con_TPrintf ("print\n");
 
 			s = MSG_ReadString ();
-			if (connectinfo.trying && NET_CompareBaseAdr(&connectinfo.adr, &net_from) == false)
+			if (connectinfo.trying && CL_IsPendingServerBaseAddress(&net_from) == false)
 				Cvar_Set(&cl_disconnectreason, s);
 			Con_Printf ("%s", s);
 			return;
@@ -3496,7 +3571,7 @@ void CL_ConnectionlessPacket (void)
 			if (cls.state == ca_connected)
 				return;	//we're already connected. don't do it again!
 
-			if (!NET_CompareAdr(&connectinfo.adr, &net_from))
+			if (!CL_IsPendingServerAddress(&net_from))
 			{
 				//if (net_from.type != NA_LOOPBACK)
 				Con_TPrintf ("ignoring connection\n");
@@ -3567,7 +3642,7 @@ void CL_ConnectionlessPacket (void)
 		if (!strcmp(com_token, "isconnect"))
 		{
 			Con_Printf("Disconnect\n");
-			if (NET_CompareAdr(&connectinfo.adr, &net_from))
+			if (CL_IsPendingServerAddress(&net_from))
 			{
 				Cvar_Set(&cl_disconnectreason, "Disconnect request from server");
 				CL_Disconnect_f();
@@ -3577,13 +3652,15 @@ void CL_ConnectionlessPacket (void)
 		{	//server is letting us know that its now listening for a dtls handshake.
 #ifdef HAVE_DTLS
 			Con_Printf ("dtlsopened\n");
-			if (!NET_CompareAdr(&connectinfo.adr, &net_from))
+			if (!CL_IsPendingServerAddress(&net_from))
 				return;
 
 			if (NET_DTLS_Create(cls.sockets, &net_from))
 			{
 				connectinfo.dtlsupgrade = DTLS_ACTIVE;
-				connectinfo.adr.prot = NP_DTLS;
+				connectinfo.numadr = 1;	//fixate on this resolved address.
+				connectinfo.adr[0] = net_from;
+				connectinfo.adr[0].prot = NP_DTLS;
 
 				connectinfo.time = 0;	//send a new challenge NOW.
 			}
@@ -3623,7 +3700,7 @@ client_connect:	//fixme: make function
 		if (net_from.type == NA_INVALID)
 			return;	//I've found a qizmo demo that contains one of these. its best left ignored.
 
-		if (!NET_CompareAdr(&connectinfo.adr, &net_from))
+		if (!CL_IsPendingServerAddress(&net_from))
 		{
 			if (net_from.type != NA_LOOPBACK)
 				Con_TPrintf ("ignoring connection\n");
@@ -3774,7 +3851,7 @@ client_connect:	//fixme: make function
 			Con_TPrintf ("print\n");
 			Con_Printf ("%s", net_message.data+10);
 
-			if (connectinfo.trying && NET_CompareBaseAdr(&connectinfo.adr, &net_from) == false)
+			if (connectinfo.trying && CL_IsPendingServerBaseAddress(&net_from) == false)
 				Cvar_Set(&cl_disconnectreason, net_message.data+10);
 			return;
 		}
@@ -3786,7 +3863,7 @@ client_connect:	//fixme: make function
 		s = MSG_ReadString ();
 		Con_Printf ("%s", s);
 
-		if (connectinfo.trying && NET_CompareBaseAdr(&connectinfo.adr, &net_from) == false)
+		if (connectinfo.trying && CL_IsPendingServerBaseAddress(&net_from) == false)
 			Cvar_Set(&cl_disconnectreason, s);
 		return;
 	}
@@ -3795,7 +3872,7 @@ client_connect:	//fixme: make function
 		s = MSG_ReadString ();
 		Con_Printf("r%s\n", s);
 
-		if (connectinfo.trying && NET_CompareBaseAdr(&connectinfo.adr, &net_from) == false)
+		if (connectinfo.trying && CL_IsPendingServerBaseAddress(&net_from) == false)
 			Cvar_Set(&cl_disconnectreason, s);
 		return;
 	}
@@ -3892,7 +3969,7 @@ void CLNQ_ConnectionlessPacket(void)
 		s = MSG_ReadString();
 		Con_Printf("Connect failed\n%s\n", s);
 
-		if (connectinfo.trying && NET_CompareBaseAdr(&connectinfo.adr, &net_from) == false)
+		if (connectinfo.trying && CL_IsPendingServerBaseAddress(&net_from) == false)
 			Cvar_Set(&cl_disconnectreason, s);
 		return;
 	}

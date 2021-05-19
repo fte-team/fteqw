@@ -33,7 +33,7 @@ varying vec3 eyeminusvertex;
 		vec4 out_f = vec4( 1.0, 1.0, 1.0, 1.0 );
 
 		norm_f = ( texture2D( s_normalmap, tex_c).xyz);
-		norm_f.g *= -1.0f;
+		norm_f.g *= -1.0;
 		norm_f = normalize( norm_f );
 
 		// Reflection/View coordinates

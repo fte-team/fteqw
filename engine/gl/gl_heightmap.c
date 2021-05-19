@@ -4444,7 +4444,7 @@ void Heightmap_FindTouchedLeafs	(model_t *mod, pvscache_t *ent, const float *min
 }
 #endif
 
-void Heightmap_LightPointValues	(model_t *mod, const vec3_t point, vec3_t res_diffuse, vec3_t res_ambient, vec3_t res_dir)
+enum entlighttype_e Heightmap_LightPointValues	(model_t *mod, const vec3_t point, vec3_t res_diffuse, vec3_t res_ambient, vec3_t res_dir, vec3_t res_cube[6])
 {
 	res_diffuse[0] = 128;
 	res_diffuse[1] = 128;
@@ -4456,6 +4456,7 @@ void Heightmap_LightPointValues	(model_t *mod, const vec3_t point, vec3_t res_di
 	res_dir[1] = 0;//cos(time);
 	res_dir[2] = 0;//sin(time);
 	VectorNormalize(res_dir);
+	return ELT_LAMBERT;
 }
 void Heightmap_StainNode			(mnode_t *node, float *parms)
 {

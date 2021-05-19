@@ -3439,14 +3439,14 @@ void CL_LinkStaticEntities(void *pvs, int *areas)
 					Mod_LoadModel(src->model, MLV_WARN);	//we use threads, so these'll load in time.
 				continue;
 			}
-			if (!src->light_known)
+			/*if (!src->light_known)
 			{
 				vec3_t tmp;
 				VectorCopy(src->origin, tmp);
 				VectorCopy(sent->lightorg, src->origin);
 				R_CalcModelLighting(src, src->model);	//bake and cache, now everything else is working.
 				VectorCopy(tmp, src->origin);
-			}
+			}*/
 			if (src->pvscache.num_leafs==-2)
 			{
 				vec3_t absmin, absmax;
@@ -4072,7 +4072,7 @@ void CL_LinkPacketEntities (void)
 #ifdef HEXEN2
 		ent->h2playerclass = 0;
 #endif
-		ent->light_known = 0;
+		ent->light_type = ELT_UNKNOWN;
 		ent->forcedshader = NULL;
 		ent->shaderTime = 0;
 

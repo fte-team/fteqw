@@ -2062,7 +2062,7 @@ static void CLQ2_AddPacketEntities (q2frame_t *frame)
 			ent.shaderRGBAf[1] = 0;
 			ent.shaderRGBAf[2] = 0;
 			//bypasses world lighting
-			ent.light_known = true;
+			ent.light_type = ELT_LAMBERT;
 			VectorSet(ent.light_avg, 1, 1, 1);
 			VectorSet(ent.light_range, 0, 0, 0);
 			//(yes, its a bit shit. not even a post-process thing)
@@ -2070,7 +2070,7 @@ static void CLQ2_AddPacketEntities (q2frame_t *frame)
 
 		// add to refresh list
 		V_AddEntity (&ent);
-		ent.light_known = false;
+		ent.light_type = ELT_UNKNOWN;
 		ent.customskin = 0;
 
 

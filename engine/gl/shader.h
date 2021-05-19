@@ -373,6 +373,9 @@ enum{
 		#define PERMUTATION_LIGHTSTYLES	0u
 	#endif
 
+	#define PERMUTATION_AMBIENTCUBE			(1u<<PERMUTATION_BIT_AMBIENTCUBE)
+	PERMUTATION_BIT_AMBIENTCUBE,			//light info is 6 axial light values.
+
 	PERMUTATION_BIT_MAX
 };
 #define PERMUTATIONS				(1u<<PERMUTATION_BIT_MAX)
@@ -436,6 +439,7 @@ typedef struct {
 		SP_E_L_DIR, /*these light values are non-dynamic light as in classic quake*/
 		SP_E_L_MUL,
 		SP_E_L_AMBIENT,
+		SP_E_L_AMBIENTCUBE,
 		SP_E_EYEPOS, /*viewer's eyepos, in model space*/
 		SP_V_EYEPOS, /*viewer's eyepos, in world space*/
 		SP_W_FOG,

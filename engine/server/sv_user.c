@@ -7282,7 +7282,7 @@ void SV_RunCmd (usercmd_t *ucmd, qboolean recurse)
 		//fixme: should probably support rtlights, but this is a server, so urgh.
 		if (sv.world.worldmodel && sv.world.worldmodel->funcs.LightPointValues)
 		{
-			vec3_t diffuse, ambient, dir;
+			vec3_t diffuse, ambient, dir, cube[6];
 			float lev = 0;
 #if defined(RTLIGHTS) && !defined(SERVERONLY)
 			Sh_CalcPointLight(sv_player->v->origin, ambient);
@@ -7291,7 +7291,7 @@ void SV_RunCmd (usercmd_t *ucmd, qboolean recurse)
 			if (!r_shadow_realtime_world.ival || r_shadow_realtime_world_lightmaps.value)
 #endif
 			{
-				sv.world.worldmodel->funcs.LightPointValues(sv.world.worldmodel, sv_player->v->origin, ambient, diffuse, dir);
+				sv.world.worldmodel->funcs.LightPointValues(sv.world.worldmodel, sv_player->v->origin, ambient, diffuse, dir, cube);
 				lev += (VectorLength(ambient) + VectorLength(diffuse)/2.0)/256;
 			}
 			sv_player->xv->light_level = lev * 255;

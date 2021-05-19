@@ -1361,7 +1361,8 @@ static struct
 	{"SKELETAL", PERMUTATION_SKELETAL},
 	{"FOG", PERMUTATION_FOG},
 	{"FRAMEBLEND", PERMUTATION_FRAMEBLEND},
-	{"LIGHTSTYLED", PERMUTATION_LIGHTSTYLES}
+	{"LIGHTSTYLED", PERMUTATION_LIGHTSTYLES},
+	{"AMBIENTCUBE", PERMUTATION_AMBIENTCUBE},
 };
 #define MAXMODIFIERS 64
 
@@ -2340,6 +2341,7 @@ struct shader_field_names_s shader_unif_names[] =
 /**/{"e_light_dir",				SP_E_L_DIR},		//lightgrid light dir. dotproducts should be clamped to 0-1.
 /**/{"e_light_mul",				SP_E_L_MUL},		//lightgrid light scaler.
 /**/{"e_light_ambient",			SP_E_L_AMBIENT},	//lightgrid light value for the unlit side.
+/**/{"e_light_ambientcube",		SP_E_L_AMBIENTCUBE},//6 lightgrid light values.
 
 	{"s_colour",				SP_S_COLOUR},	//the rgbgen/alphagen stuff. obviously doesn't work with per-vertex ones.
 

@@ -1350,7 +1350,7 @@ static void R_DrawShadowVolume(mesh_t *mesh)
 #endif
 
 //true if no shading is to be used.
-qboolean R_CalcModelLighting(entity_t *e, model_t *clmodel)
+void R_CalcModelLighting(entity_t *e, model_t *clmodel)
 {
 	vec3_t lightdir;
 	int i;
@@ -1358,16 +1358,16 @@ qboolean R_CalcModelLighting(entity_t *e, model_t *clmodel)
 	float add, m;
 	vec3_t shadelight, ambientlight;
 
-	if (e->light_known)
-		return e->light_known-1;
+	if (e->light_type != ELT_UNKNOWN) //don't bother recalculating if its already been calced.
+		return;
 
 	e->light_dir[0] = 0; e->light_dir[1] = 1; e->light_dir[2] = 0;
 	if ((clmodel->engineflags & MDLF_FLAME) || r_fullbright.ival)
 	{
 		e->light_avg[0] = e->light_avg[1] = e->light_avg[2] = 1;
 		e->light_range[0] = e->light_range[1] = e->light_range[2] = 0;
-		e->light_known = 2;
-		return e->light_known-1;
+		e->light_type = ELT_FLAT;
+		return;
 	}
 	if (
 #ifdef HEXEN2
@@ -1377,22 +1377,22 @@ qboolean R_CalcModelLighting(entity_t *e, model_t *clmodel)
 	{
 		e->light_avg[0] = e->light_avg[1] = e->light_avg[2] = 1;
 		e->light_range[0] = e->light_range[1] = e->light_range[2] = 0;
-		e->light_known = 2;
-		return e->light_known-1;
+		e->light_type = ELT_FLAT;
+		return;
 	}
 	if (r_fb_models.ival == 1 && ruleset_allow_fbmodels.ival && (clmodel->engineflags & MDLF_EZQUAKEFBCHEAT) && cls.protocol == CP_QUAKEWORLD && cl.deathmatch)
 	{
 		e->light_avg[0] = e->light_avg[1] = e->light_avg[2] = 1;
 		e->light_range[0] = e->light_range[1] = e->light_range[2] = 0;
-		e->light_known = 2;
-		return e->light_known-1;
+		e->light_type = ELT_FLAT;
+		return;
 	}
 
 	if (!(r_refdef.flags & RDF_NOWORLDMODEL))
 	{
 		if (e->flags & RF_WEAPONMODEL)
 		{
-			cl.worldmodel->funcs.LightPointValues(cl.worldmodel, r_refdef.vieworg, shadelight, ambientlight, lightdir);
+			e->light_type = cl.worldmodel->funcs.LightPointValues(cl.worldmodel, r_refdef.vieworg, shadelight, ambientlight, lightdir, e->light_cube);
 			for (i = 0; i < 3; i++)
 			{	/*viewmodels may not be pure black*/
 				if (ambientlight[i] < 24)
@@ -1407,9 +1407,9 @@ qboolean R_CalcModelLighting(entity_t *e, model_t *clmodel)
 			VectorAdd(e->origin, center, center);
 			#else
 			VectorCopy(e->origin, center);
-			center[2] += 24;
+//			center[2] += 24;
 			#endif
-			cl.worldmodel->funcs.LightPointValues(cl.worldmodel, center, shadelight, ambientlight, lightdir);
+			e->light_type = cl.worldmodel->funcs.LightPointValues(cl.worldmodel, center, shadelight, ambientlight, lightdir, e->light_cube);
 		}
 	}
 	else
@@ -1579,8 +1579,8 @@ qboolean R_CalcModelLighting(entity_t *e, model_t *clmodel)
 					VectorClear(e->light_range);
 					VectorScale(shadelight, fb, e->light_avg);
 
-					e->light_known = 2;
-					return e->light_known-1;
+					e->light_type = ELT_FLAT;
+					return;
 				}
 				else
 				{
@@ -1658,9 +1658,6 @@ qboolean R_CalcModelLighting(entity_t *e, model_t *clmodel)
 		VectorMA(ambientlight, 0.5, shadelight, e->light_avg);
 		VectorSubtract(shadelight, ambientlight, e->light_range);
 	}
-
-	e->light_known = 1;
-	return e->light_known-1;
 }
 
 void R_GAlias_DrawBatch(batch_t *batch)
@@ -2871,7 +2868,7 @@ void BE_GenModelBatches(batch_t **batches, const dlight_t *dl, unsigned int bemo
 			VectorSet(r_worldentity.light_avg,   1.0, 1.0, 1.0);
 			VectorSet(r_worldentity.light_range, 0.5, 0.5, 0.5);
 			VectorSet(r_worldentity.light_dir,   0.0, 0.196, 0.98);
-			r_worldentity.light_known = 1;
+			r_worldentity.light_type = ELT_LAMBERT;
 
 			R_GAlias_GenerateBatches(&r_worldentity, batches);
 		}

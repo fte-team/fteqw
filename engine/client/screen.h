@@ -107,7 +107,7 @@ typedef enum uploadfmt
 	PTI_L8_SRGB,	//8bit format. luminance gets flooded to all RGB channels. might be supported using swizzles.
 	PTI_L8A8_SRGB,	//16bit format. L=luminance. note: this cannot be implemented as a swizzle as there's no way to get srgb on red without it on green.
 	//small formats.
-	PTI_P8,			//used for paletted data. Loaded as R8, but separate purely due to mipmap generation. should probably make a mipgen enum.
+	PTI_P8,			//used for paletted data (with common/engine palette). Loaded as R8, but separate purely due to mipmap generation. should probably make a mipgen enum.
 	PTI_R8,			//used for greyscale data (that doesn't need to get expanded to rgb).
 	PTI_RG8,		//might be useful for normalmaps
 	PTI_R8_SNORM,

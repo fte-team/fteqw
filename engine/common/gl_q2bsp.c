@@ -44,6 +44,7 @@ cvar_t q3bsp_bihtraces = CVARFD("_q3bsp_bihtraces", /*FIXME: generate BIH leafs 
 
 #ifdef HL2BSPS
 static cvar_t hl2_displacement_scale = CVARFD("hl2_displacement_scale", "1", CVAR_RENDERERLATCH|CVAR_CHEAT, "Multiplier for how far displacements can move.");
+static cvar_t hl2_favour_ldr = CVARFD("hl2_favour_ldr", "0", CVAR_RENDERERLATCH|CVAR_CHEAT, "Favour LDR data instead of HDR (when both are present).");
 #endif
 
 #if Q3SURF_NODRAW != TI_NODRAW
@@ -324,6 +325,16 @@ typedef struct cminfo_s
 	qbyte			portalquerying[MAX_Q2MAP_AREAPORTALS];
 	mesh_t			*portalpoly;		//[numq2areaportals]
 	int				*occlusionqueries; //[numq2areaportals]
+
+	struct mleaflight_s
+	{
+		struct leaflightpoint_s
+		{
+			vec3_t rgb[6];
+			qbyte x, y, z;
+		} *point;
+		int count;
+	} *leaflight;
 #endif
 
 
@@ -4498,8 +4509,8 @@ enum hllumps_e
 	VLUMP_VISIBILITY	= LUMP_VISIBILITY,
 	VLUMP_NODES			= LUMP_NODES,
 	VLUMP_TEXINFO		= LUMP_TEXINFO,
-	VLUMP_FACES			= LUMP_FACES,
-	VLUMP_LIGHTING		= LUMP_LIGHTING,
+	VLUMP_FACES_LDR		= LUMP_FACES,
+	VLUMP_LIGHTING_LDR	= LUMP_LIGHTING,
 //	VLUMP_FOO			= 9,//LUMP_CLIPNODES
 	VLUMP_LEAFS			= LUMP_LEAFS,
 //	VLUMP_FOO			= 11,//LUMP_MARKSURFACES
@@ -4543,14 +4554,14 @@ enum hllumps_e
 	VLUMP_DISP_TRIFLAGS	= 48,
 //	VLUMP_FOO			= 49,
 //	VLUMP_FOO			= 50,
-//	VLUMP_FOO			= 51,
-//	VLUMP_FOO			= 52,
+	VLUMP_LEAFLIGHTI_HDR= 51,	//indexes into VLUMP_LEAFLIGHTV_HDR, two shorts per leaf.
+	VLUMP_LEAFLIGHTI_LDR= 52,
 	VLUMP_LIGHTING_HDR	= 53,
 //	VLUMP_FOO			= 54,
-//	VLUMP_FOO			= 55,
-//	VLUMP_FOO			= 56,
+	VLUMP_LEAFLIGHTV_HDR= 55,
+	VLUMP_LEAFLIGHTV_LDR= 56,
 //	VLUMP_FOO			= 57,
-//	VLUMP_FOO			= 58,
+	VLUMP_FACES_HDR		= 58,
 //	VLUMP_FOO			= 59,
 //	VLUMP_FOO			= 60,
 //	VLUMP_FOO			= 61,
@@ -4821,6 +4832,11 @@ typedef struct
 
 	//new for hl2
 	short leafwaterid;
+	struct	//present in v19. gone in v20.
+	{
+		qbyte rgb[3];
+		signed char e;
+	} light[6];
 	short pad;
 } hl2dleaf_t;
 static qboolean CModHL2_LoadLeafs (model_t *mod, qbyte *mod_base, lump_t *l, int ver)
@@ -4831,7 +4847,8 @@ static qboolean CModHL2_LoadLeafs (model_t *mod, qbyte *mod_base, lump_t *l, int
 	hl2dleaf_t	*in;
 	int			count;
 	size_t		insize = sizeof(*in);
-	if (ver == 19)
+	struct leaflightpoint_s *lightpoint = NULL;
+	if (ver < 20)
 		insize = 56;	//older maps have some lighting info here.
 	else
 		insize = 32;
@@ -4861,6 +4878,12 @@ static qboolean CModHL2_LoadLeafs (model_t *mod, qbyte *mod_base, lump_t *l, int
 
 	mod->leafs = out;
 	mod->numleafs = count;
+
+	if (ver < 20)
+	{
+		prv->leaflight = ZG_Malloc(&mod->memgroup, sizeof(*out) * count);
+		lightpoint = ZG_Malloc(&mod->memgroup, sizeof(*lightpoint) * count);
+	}
 
 	for ( i=0 ; i<count ; i++, in = (hl2dleaf_t*)((qbyte*)in+insize), out++)
 	{
@@ -4892,12 +4915,177 @@ static qboolean CModHL2_LoadLeafs (model_t *mod, qbyte *mod_base, lump_t *l, int
 
 		if (out->cluster >= mod->numclusters)
 			mod->numclusters = out->cluster + 1;
+
+		if (lightpoint)
+		{
+			for (j = 0; j < 6; j++)
+			{
+				float e = pow(2, in->light[j].e);
+				lightpoint->rgb[j][0] = e * in->light[j].rgb[0];
+				lightpoint->rgb[j][1] = e * in->light[j].rgb[1];
+				lightpoint->rgb[j][2] = e * in->light[j].rgb[2];
+			}
+			prv->leaflight[i].count = 1;
+			prv->leaflight[i].point = lightpoint++;
+		}
 	}
-	out = mod->leafs;
 	mod->pvsbytes = ((mod->numclusters + 31)>>3)&~3;
 
 	return true;
 }
+
+#ifdef HAVE_CLIENT
+static void CModHL2_LoadLeafLight (model_t *mod, qbyte *mod_base, lump_t *hdridx, lump_t *ldridx, lump_t *hdrvals, lump_t *ldrvals, int version)
+{
+	cminfo_t	*prv = (cminfo_t*)mod->meshinfo;
+	lump_t *lump_idx, *lump_vals;
+	struct leaflightpoint_s *point;
+	size_t i, j;
+	unsigned short *in;
+	qbyte *inpoint;
+
+	if (version < 20)
+		return; //nope. this info is in the leafs.
+
+	if (hdridx && hdrvals)
+		lump_idx = hdridx, lump_vals = hdrvals;
+	else if (ldridx && ldrvals)
+		lump_idx = ldridx, lump_vals = ldrvals;
+	else
+		return;	//unsupported.
+
+	if (lump_vals->filelen%(7*4))
+		return;
+
+	if (lump_idx->filelen != mod->numleafs*sizeof(short)*2)
+		return;	//erk?
+
+	//easy enough to load some of the data...
+	point = ZG_Malloc(&mod->memgroup, sizeof(*point)*(lump_vals->filelen/(7*4)));
+	inpoint = mod_base + lump_vals->fileofs;
+	for (i = 0; i < lump_vals->filelen/(7*4); i++)
+	{
+		for (j = 0; j < 6; j++, inpoint+=4)
+		{
+			float e = pow(2, (signed char)inpoint[3]);
+			point[i].rgb[j][0] = e * inpoint[0];
+			point[i].rgb[j][1] = e * inpoint[1];
+			point[i].rgb[j][2] = e * inpoint[2];
+		}
+		point[i].x = *inpoint++;
+		point[i].y = *inpoint++;
+		point[i].z = *inpoint++;
+		inpoint++;
+	}
+
+	prv->leaflight = ZG_Malloc(&mod->memgroup, sizeof(*prv->leaflight)*mod->numleafs);
+	in = (unsigned short*)(mod_base + lump_idx->fileofs);
+	for (i = 0; i < mod->numleafs; i++)
+	{
+		prv->leaflight[i].count = LittleShort(*in++);
+		prv->leaflight[i].point = point + (unsigned short)LittleShort(*in++);
+	}
+}
+enum entlighttype_e HL2BSP_LightPointValues	(struct model_s *model, const vec3_t point, vec3_t res_diffuse, vec3_t res_ambient, vec3_t res_dir, vec3_t res_cube[6])
+{
+	cvar_t *srgbmag = Cvar_Get("lt_srgb_mag", "1", 0, "TEST");
+	cvar_t *scale = Cvar_Get("lt_scale", "256", 0, "TEST");
+	cvar_t *forceface = Cvar_Get("lt_face", "-1", 0, "TEST");
+
+	cminfo_t	*prv = (cminfo_t*)model->meshinfo;
+	int leafnum = CM_PointLeafnum(model,point);
+	mleaf_t *leaf = model->leafs+leafnum;
+	struct mleaflight_s *leaflight = prv->leaflight+leafnum;
+	struct leaflightpoint_s *best, *lp;
+	size_t i, j, d, bd=~0;
+	int xyz[3];
+	vec3_t diff[6];
+	float sig[6];
+
+	if (prv->leaflight && leaflight->count)
+	{
+		for (i = 0; i < 3; i++)
+			xyz[i] = 255*(point[i] - leaf->minmaxs[i]) / (leaf->minmaxs[3+i]-leaf->minmaxs[i]);
+		for (i = 0, best=lp = leaflight->point; i < leaflight->count; i++, lp++)
+		{
+			int m[3];
+			m[0] = xyz[0] - lp->x;
+			m[1] = xyz[1] - lp->y;
+			m[2] = xyz[2] - lp->z;
+			d = DotProduct(m,m);
+			if (bd > d)
+			{
+				bd = d;
+				best = lp;
+			}
+		}
+
+
+		VectorClear(res_ambient);
+		for (j = 0; j < 6; j++)
+			VectorAdd(res_ambient, best->rgb[j], res_ambient);
+		VectorScale(res_ambient, 1.0/6, res_ambient);
+
+		//try and figure out an average dir for the brightest direction
+		for (j = 0; j < 6; j++)
+		{
+			VectorSubtract(best->rgb[j], res_ambient, diff[j]);
+			sig[j] = VectorLength(diff[j]);
+		}
+		for (j = 0; j < 3; j++)
+			res_dir[j] = sig[j*2+1] - sig[j*2];
+		VectorNormalize(res_dir);
+
+		//figure out how much light there should be in that direction.
+		VectorCopy(res_ambient, res_diffuse);
+		for (j = 0; j < 3; j++)
+		{
+			if (res_dir[0]>=0)
+				VectorMA(res_diffuse, res_dir[0], diff[j*2+1], res_diffuse);
+			else
+				VectorMA(res_diffuse, -res_dir[0], diff[j*2+0], res_diffuse);
+		}
+
+		if (forceface->ival >= 0)
+		{
+			VectorCopy(best->rgb[forceface->ival], res_diffuse);
+			VectorCopy(best->rgb[forceface->ival], res_ambient);
+			VectorClear(res_dir);
+			res_dir[forceface->ival/3] = (forceface->ival&1)?-1:1;
+		}
+
+		if (srgbmag->value)
+		{
+			for (j = 0; j < 3; j++)
+			{
+				res_diffuse[j] = M_LinearToSRGB(res_diffuse[j], srgbmag->value)*scale->value;
+				res_ambient[j] = M_LinearToSRGB(res_ambient[j], srgbmag->value)*scale->value;
+			}
+
+			for (j = 0; j < 6; j++)
+			{
+				res_cube[j][0] = M_LinearToSRGB(best->rgb[j][0], srgbmag->value)*scale->value;
+				res_cube[j][1] = M_LinearToSRGB(best->rgb[j][1], srgbmag->value)*scale->value;
+				res_cube[j][2] = M_LinearToSRGB(best->rgb[j][2], srgbmag->value)*scale->value;
+			}
+		}
+		else
+		{
+			VectorScale(res_diffuse, scale->value, res_diffuse);
+			VectorScale(res_ambient, scale->value, res_ambient);
+
+			for (j = 0; j < 6; j++)
+				VectorScale(best->rgb[j], scale->value, res_cube[j]);
+		}
+
+		return ELT_CUBE;
+	}
+	VectorSet(res_dir, 0,0.707,0.707);
+	VectorSet(res_diffuse, 64,64,64);
+	VectorSet(res_ambient, 192,192,192);
+	return ELT_FLAT;
+}
+#endif
 
 #if defined(HAVE_CLIENT) && defined(GLQUAKE)
 //for each area that we recurse, follow the neighbouring areas and check their area portals too.
@@ -5308,8 +5496,8 @@ typedef struct
 } hl2dface_t;
 static qboolean CModHL2_LoadFaces (model_t *mod, qbyte *mod_base, lump_t *lumps, int version)
 {
-	lump_t *l = &lumps[VLUMP_FACES];
-	lump_t *l2 = &lumps[58];
+	lump_t *l = &lumps[VLUMP_FACES_LDR];
+	lump_t *l2 = &lumps[VLUMP_FACES_HDR];
 	hl2dface_t	*in;
 	msurface_t 	*out;
 	int			i, count, surfnum;
@@ -5317,7 +5505,7 @@ static qboolean CModHL2_LoadFaces (model_t *mod, qbyte *mod_base, lump_t *lumps,
 	int			ti, st;
 	int			lumpsize = sizeof(*in);
 
-	if (l2->filelen)
+	if (l2->filelen && !(hl2_favour_ldr.ival && lumps[VLUMP_LIGHTING_LDR].filelen))
 		l = l2;
 
 	if (version == 18)
@@ -5405,21 +5593,21 @@ static qboolean CModHL2_LoadFaces (model_t *mod, qbyte *mod_base, lump_t *lumps,
 	return true;
 }
 #ifdef HAVE_CLIENT
-static void CModHL2_LoadLighting (model_t *mod, qbyte *mod_base, lump_t *oldl, lump_t *newl)
+static void CModHL2_LoadLighting (model_t *mod, qbyte *mod_base, lump_t *ldr, lump_t *hdr)
 {
-	if (newl->filelen)
-	{	//this data is screwy. it LOOKS like e8bgr8, but we still get weird results.
-		mod->lightmaps.fmt = LM_E8BGR8;
-		mod->lightdatasize = newl->filelen;
-		mod->lightdata = ZG_Malloc(&mod->memgroup, mod->lightdatasize);
-		memcpy(mod->lightdata, (void *)(mod_base + newl->fileofs), mod->lightdatasize);
-	}
-	else if (oldl->filelen)
+	if (hdr->filelen && !(hl2_favour_ldr.ival && ldr->filelen))
 	{
 		mod->lightmaps.fmt = LM_E8BGR8;
-		mod->lightdatasize = oldl->filelen;
+		mod->lightdatasize = hdr->filelen;
 		mod->lightdata = ZG_Malloc(&mod->memgroup, mod->lightdatasize);
-		memcpy(mod->lightdata, (void *)(mod_base + oldl->fileofs), mod->lightdatasize);
+		memcpy(mod->lightdata, (void *)(mod_base + hdr->fileofs), mod->lightdatasize);
+	}
+	else if (ldr->filelen)
+	{
+		mod->lightmaps.fmt = LM_E8BGR8;
+		mod->lightdatasize = ldr->filelen;
+		mod->lightdata = ZG_Malloc(&mod->memgroup, mod->lightdatasize);
+		memcpy(mod->lightdata, (void *)(mod_base + ldr->fileofs), mod->lightdatasize);
 	}
 }
 #endif
@@ -5658,7 +5846,7 @@ static qboolean CModHL2_LoadStaticProps(model_t *mod, qbyte *offset, size_t size
 			}
 		}
 		//Hack: lighting is wrong.
-		ent->light_known = 1;
+		ent->light_type = ELT_UNKNOWN;
 		VectorSet(ent->light_dir, 0, 0.707, 0.707);
 		VectorSet(ent->light_avg, 0.75, 0.75, 0.75);
 		VectorSet(ent->light_range, 0.5, 0.5, 0.5);
@@ -5761,7 +5949,7 @@ static qboolean VBSP_LoadModel(model_t *mod, qbyte *mod_base, size_t filelen, ch
 	noerrors = noerrors && Mod_LoadSurfedges		(mod, mod_base, &header.lumps[VLUMP_SURFEDGES]);
 #ifdef HAVE_CLIENT
 	if (noerrors && haverenderer)
-		CModHL2_LoadLighting						(mod, mod_base, &header.lumps[VLUMP_LIGHTING], &header.lumps[VLUMP_LIGHTING_HDR]);
+		CModHL2_LoadLighting						(mod, mod_base, &header.lumps[VLUMP_LIGHTING_LDR], &header.lumps[VLUMP_LIGHTING_HDR]);
 #endif
 	noerrors = noerrors && CModHL2_LoadSurfaces		(mod, mod_base, &header.lumps[VLUMP_TEXINFO]);
 	noerrors = noerrors && CModQ2_LoadPlanes		(mod, mod_base, &header.lumps[VLUMP_PLANES]);
@@ -5780,6 +5968,11 @@ static qboolean VBSP_LoadModel(model_t *mod, qbyte *mod_base, size_t filelen, ch
 	noerrors = noerrors && CModQ2_LoadSubmodels		(mod, mod_base, &header.lumps[VLUMP_MODELS]);
 	noerrors = noerrors && CModQ2_LoadAreas			(mod, mod_base, &header.lumps[VLUMP_AREAS]);
 	noerrors = noerrors && CModHL2_LoadAreaPortals	(mod, mod_base, &header.lumps[VLUMP_AREAPORTALS], &header.lumps[VLUMP_AREAPORTALVERTS]);
+#ifdef HAVE_CLIENT
+	if (noerrors && haverenderer)
+		CModHL2_LoadLeafLight						(mod, mod_base, &header.lumps[VLUMP_LEAFLIGHTI_HDR], &header.lumps[VLUMP_LEAFLIGHTI_LDR],
+																	&header.lumps[VLUMP_LEAFLIGHTV_HDR], &header.lumps[VLUMP_LEAFLIGHTV_LDR], header.version);
+#endif
 	noerrors = noerrors && CModHL2_LoadGameLump		(mod, mod_base, &header.lumps[VLUMP_GAMELUMP]);
 
 	if (!noerrors)
@@ -5790,7 +5983,7 @@ static qboolean VBSP_LoadModel(model_t *mod, qbyte *mod_base, size_t filelen, ch
 	mod->funcs.FindTouchedLeafs		= Q23BSP_FindTouchedLeafs;
 #endif
 #ifdef HAVE_CLIENT
-	mod->funcs.LightPointValues		= GLQ2BSP_LightPointValues;
+	mod->funcs.LightPointValues		= HL2BSP_LightPointValues;
 	mod->funcs.StainNode			= GLR_Q2BSP_StainNode;
 	mod->funcs.MarkLights			= Q2BSP_MarkLights;
 #endif
@@ -8728,6 +8921,7 @@ void CM_Init(void)	//register cvars.
 
 #ifdef HL2BSPS
 	Cvar_Register(&hl2_displacement_scale, MAPOPTIONS);
+	Cvar_Register(&hl2_favour_ldr, MAPOPTIONS);
 #endif
 
 	CM_InitBoxHull ();

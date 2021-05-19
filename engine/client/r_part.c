@@ -93,7 +93,7 @@ float R_Clutter_FRandom(clutter_build_ctx_t *ctx)
 
 static void R_Clutter_Insert_Soup(clutter_build_ctx_t *ctx, shader_t *shader, vecV_t *fte_restrict coord, vec2_t *fte_restrict texcoord, vec3_t *fte_restrict normal, vec3_t *fte_restrict sdir, vec3_t *fte_restrict tdir, vec4_t *fte_restrict colours, size_t numverts, index_t *fte_restrict index, size_t numidx, float scale, vec3_t origin, vec3_t axis[])
 {
-	vec3_t diffuse, ambient, ldir;
+	vec3_t diffuse, ambient, ldir, cube[6];
 	float dot;
 	struct clutter_build_ctx_soup_s *soup = NULL;
 	size_t i;
@@ -141,7 +141,7 @@ static void R_Clutter_Insert_Soup(clutter_build_ctx_t *ctx, shader_t *shader, ve
 		soup->idx[soup->numidx++] = soup->numverts+*index++;
 
 
-	cl.worldmodel->funcs.LightPointValues(cl.worldmodel, origin, diffuse, ambient, ldir);
+	cl.worldmodel->funcs.LightPointValues(cl.worldmodel, origin, diffuse, ambient, ldir, cube);
 	VectorScale(ambient, 1/255.0, ambient);
 	VectorScale(diffuse, 1/255.0, diffuse);
 

@@ -283,7 +283,7 @@ typedef struct {
 	qboolean (*EdictInFatPVS)	(struct model_s *model, const struct pvscache_s *edict, const qbyte *pvs, const int *areas);	//areas[0] is the count of accepted areas, if valid.
 	void (*FindTouchedLeafs)	(struct model_s *model, struct pvscache_s *ent, const vec3_t cullmins, const vec3_t cullmaxs);	//edict system as opposed to q2 game dll system.
 
-	void (*LightPointValues)	(struct model_s *model, const vec3_t point, vec3_t res_diffuse, vec3_t res_ambient, vec3_t res_dir);
+	enum entlighttype_e			(*LightPointValues)		(struct model_s *model, const vec3_t point, vec3_t res_diffuse, vec3_t res_ambient, vec3_t res_dir, vec3_t res_cube[6]);
 	void (*StainNode)			(struct mnode_s *node, float *parms);
 	void (*MarkLights)			(struct dlight_s *light, dlightbitmask_t bit, struct mnode_s *node);
 
@@ -636,7 +636,7 @@ size_t Fragment_ClipPlaneToBrush(vecV_t *points, size_t maxpoints, void *planes,
 void Mod_ClipDecal(struct model_s *mod, vec3_t center, vec3_t normal, vec3_t tangent1, vec3_t tangent2, float size, unsigned int surfflagmask, unsigned int surflagmatch, void (*callback)(void *ctx, vec3_t *fte_restrict points, size_t numpoints, shader_t *shader), void *ctx);
 
 void Q1BSP_MarkLights (dlight_t *light, dlightbitmask_t bit, mnode_t *node);
-void GLQ1BSP_LightPointValues(struct model_s *model, const vec3_t point, vec3_t res_diffuse, vec3_t res_ambient, vec3_t res_dir);
+enum entlighttype_e GLQ1BSP_LightPointValues(struct model_s *model, const vec3_t point, vec3_t res_diffuse, vec3_t res_ambient, vec3_t res_dir, vec3_t res_cube[6]);
 qboolean Q1BSP_RecursiveHullCheck (hull_t *hull, int num, const vec3_t p1, const vec3_t p2, unsigned int hitcontents, struct trace_s *trace);
 
 /*

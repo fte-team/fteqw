@@ -3,8 +3,8 @@
 !!permu BUMP
 !!permu FOG
 !!permu SKELETAL
+!!permu AMBIENTCUBE
 !!samps diffuse fullbright normalmap
-
 !!permu FAKESHADOWS
 !!cvardf r_glsl_pcf
 !!samps =FAKESHADOWS shadowmap
@@ -104,11 +104,18 @@ varying vec3 norm;
 		diffuse_f.rgb += (textureCube(s_reflectcube, cube_c).rgb * vec3(refl,refl,refl));
 #endif
 
-#ifdef HALFLAMBERT
-		light = e_light_ambient + (e_light_mul * halflambert(norm, e_light_dir));
+#ifdef AMBIENTCUBE
+		//no specular effect here. use rtlights for that.
+		vec3 nn = norm*norm; //FIXME: should be worldspace normal.
+		light = nn.x * e_light_ambientcube[(norm.x<0.0)?1:0] +
+				nn.y * e_light_ambientcube[(norm.y<0.0)?3:2] +
+				nn.z * e_light_ambientcube[(norm.z<0.0)?5:4];
 #else
+	#ifdef HALFLAMBERT
+		light = e_light_ambient + (e_light_mul * halflambert(norm, e_light_dir));
+	#else
 		light = e_light_ambient + (e_light_mul * lambert(norm, e_light_dir));
-#endif
+	#endif
 
 		/* the light we're getting is always too bright */
 		light *= 0.75;
@@ -120,6 +127,7 @@ varying vec3 norm;
 			light.g = 1.5;
 		if (light.b > 1.5)
 			light.b = 1.5;
+#endif
 
 		diffuse_f.rgb *= light;
 

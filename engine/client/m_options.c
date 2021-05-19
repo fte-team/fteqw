@@ -3535,7 +3535,7 @@ static void M_ModelViewerDraw(int x, int y, struct menucustom_s *c, struct emenu
 	ent.light_dir[1] = DotProduct(lightpos, ent.axis[1]);
 	ent.light_dir[2] = DotProduct(lightpos, ent.axis[2]);
 
-	ent.light_known = 2;
+	ent.light_type = ELT_FLAT;
 
 	if (ent.model->type == mod_dummy)
 	{

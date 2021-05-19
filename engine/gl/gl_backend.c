@@ -3412,7 +3412,7 @@ static void BE_Program_Set_Attributes(const program_t *prog, struct programpermu
 	for (i = perm->numparms; i > 0; i--, p++)
 	{
 		ph = p->handle;
-		switch(p->type)
+		safeswitch(p->type)
 		{
 /*
 		case SP_UBO_ENTITYINFO:
@@ -3666,23 +3666,23 @@ static void BE_Program_Set_Attributes(const program_t *prog, struct programpermu
 			break;
 
 		case SP_E_GLOWMOD:
-			qglUniform3fvARB(ph, 1, (GLfloat*)shaderstate.curentity->glowmod);
+			qglUniform3fvARB(ph, 1, (const GLfloat*)shaderstate.curentity->glowmod);
 			break;
 		case SP_E_ORIGIN:
-			qglUniform3fvARB(ph, 1, (GLfloat*)shaderstate.curentity->origin);
+			qglUniform3fvARB(ph, 1, (const GLfloat*)shaderstate.curentity->origin);
 			break;
 		case SP_E_COLOURS:
-			qglUniform4fvARB(ph, 1, (GLfloat*)shaderstate.curentity->shaderRGBAf);
+			qglUniform4fvARB(ph, 1, (const GLfloat*)shaderstate.curentity->shaderRGBAf);
 			break;
 		case SP_S_COLOUR:
 			if (shaderstate.colourarraytype)
 				qglUniform4fARB(ph, 1, 1, 1, 1);	//invalid use
 			else
-				qglUniform4fvARB(ph, 1, (GLfloat*)shaderstate.pendingcolourflat);
+				qglUniform4fvARB(ph, 1, (const GLfloat*)shaderstate.pendingcolourflat);
 			break;
 		case SP_E_COLOURSIDENT:
 			if (shaderstate.flags & BEF_FORCECOLOURMOD)
-				qglUniform4fvARB(ph, 1, (GLfloat*)shaderstate.curentity->shaderRGBAf);
+				qglUniform4fvARB(ph, 1, (const GLfloat*)shaderstate.curentity->shaderRGBAf);
 			else
 				qglUniform4fARB(ph, 1, 1, 1, shaderstate.curentity->shaderRGBAf[3]);
 			break;
@@ -3814,19 +3814,28 @@ static void BE_Program_Set_Attributes(const program_t *prog, struct programpermu
 
 		/*static lighting info*/
 		case SP_E_L_DIR:
-			qglUniform3fvARB(ph, 1, (float*)shaderstate.curentity->light_dir);
+			qglUniform3fvARB(ph, 1, (const float*)shaderstate.curentity->light_dir);
 			break;
 		case SP_E_L_MUL:
 			if (shaderstate.mode == BEM_DEPTHDARK)
 				qglUniform3fvARB(ph, 1, vec3_origin);
 			else
-				qglUniform3fvARB(ph, 1, (float*)shaderstate.curentity->light_range);
+				qglUniform3fvARB(ph, 1, (const float*)shaderstate.curentity->light_range);
 			break;
 		case SP_E_L_AMBIENT:
 			if (shaderstate.mode == BEM_DEPTHDARK)
 				qglUniform3fvARB(ph, 1, vec3_origin);
 			else
-				qglUniform3fvARB(ph, 1, (float*)shaderstate.curentity->light_avg);
+				qglUniform3fvARB(ph, 1, (const float*)shaderstate.curentity->light_avg);
+			break;
+		case SP_E_L_AMBIENTCUBE:
+			if (shaderstate.mode == BEM_DEPTHDARK)
+			{
+				static vec3_t nulllightcube[6];
+				qglUniform3fvARB(ph, 6, (const float*)nulllightcube);
+			}
+			else
+				qglUniform3fvARB(ph, 6, (const float*)shaderstate.curentity->light_cube);
 			break;
 
 		case SP_E_TIME:
@@ -3861,7 +3870,19 @@ static void BE_Program_Set_Attributes(const program_t *prog, struct programpermu
 			qglUniform3fvARB(ph, 1, ((cvar_t*)p->pval)->vec4);
 			break;
 
-		default:
+		case SP_CONST2I:
+			//qglUniform2iARB(ph, p->ival[0], p->ival[1], 0);
+			//break;
+		case SP_CONST3I:
+			//qglUniform3iARB(ph, p->ival[0], p->ival[1], p->ival[2]);
+			//break;
+		case SP_CONST4I:
+			//qglUniform4iARB(ph, p->ival[0], p->ival[1], p->ival[2], p->ival[3]);
+			//break;
+		case SP_BAD:
+		case SP_FIRSTIMMEDIATE:
+		case SP_M_ENTBONES_MAT4:
+		safedefault:
 			Host_EndGame("Bad shader program parameter type (%i)", p->type);
 			break;
 		}
@@ -3891,6 +3912,8 @@ static void BE_RenderMeshProgram(const shader_t *shader, const shaderpass_t *pas
 		perm |= PERMUTATION_UPPERLOWER;
 	if (r_refdef.globalfog.density)
 		perm |= PERMUTATION_FOG;
+	if (shaderstate.curentity->light_type==ELT_CUBE)
+		perm |= PERMUTATION_AMBIENTCUBE;
 //	if (TEXLOADED(shaderstate.curtexnums->bump) && shaderstate.curbatch->lightmap[0] >= 0 && lightmap[shaderstate.curbatch->lightmap[0]]->hasdeluxe)
 //		perm |= PERMUTATION_DELUXE;
 	if ((TEXLOADED(shaderstate.curtexnums->reflectcube) || TEXLOADED(shaderstate.curtexnums->reflectmask)))
@@ -3904,6 +3927,7 @@ static void BE_RenderMeshProgram(const shader_t *shader, const shaderpass_t *pas
 	permu = p->permu[perm];
 	if (!permu)
 	{
+		Con_DLPrintf(2, "%s: Lazy permutation load - %x\n", p->name, perm);
 		p->permu[perm] = permu = Shader_LoadPermutation(p, perm);
 		if (!permu)
 		{	//failed? copy from 0 so we don't keep re-failing

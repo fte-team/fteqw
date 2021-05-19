@@ -2808,7 +2808,7 @@ static void Con_DrawModelPreview(model_t *model, float x, float y, float w, floa
 	ent.light_dir[1] = DotProduct(lightpos, ent.axis[1]);
 	ent.light_dir[2] = DotProduct(lightpos, ent.axis[2]);
 
-	ent.light_known = 2;
+	ent.light_type = ELT_FLAT;
 
 	V_AddEntity(&ent);
 

@@ -68,7 +68,7 @@ void R_UpdateHDR(vec3_t org)
 	if (r_hdr_irisadaptation.ival && cl.worldmodel && !(r_refdef.flags & RDF_NOWORLDMODEL))
 	{
 		//fake and lame, but whatever.
-		vec3_t ambient, diffuse, dir;
+		vec3_t ambient, diffuse, dir, cube[6];
 		float lev = 0;
 
 #ifdef RTLIGHTS
@@ -79,7 +79,7 @@ void R_UpdateHDR(vec3_t org)
 		if (!r_shadow_realtime_world.ival || r_shadow_realtime_world_lightmaps.value)
 #endif
 		{
-			cl.worldmodel->funcs.LightPointValues(cl.worldmodel, org, ambient, diffuse, dir);
+			cl.worldmodel->funcs.LightPointValues(cl.worldmodel, org, ambient, diffuse, dir, cube);
 			lev += (VectorLength(ambient) + VectorLength(diffuse))/256;
 		}
 
@@ -2346,7 +2346,7 @@ static void GLQ3_AddLatLong(const qbyte latlong[2], vec3_t dir, float mag)
 	dir[2] += mag * cos ( lat );
 }
 
-void GLQ3_LightGrid(model_t *mod, const vec3_t point, vec3_t res_diffuse, vec3_t res_ambient, vec3_t res_dir)
+enum entlighttype_e GLQ3_LightGrid(model_t *mod, const vec3_t point, vec3_t res_diffuse, vec3_t res_ambient, vec3_t res_dir, vec3_t res_cube[6])
 {
 	q3lightgridinfo_t *lg = (q3lightgridinfo_t *)mod->lightgrid;
 	int index[8];
@@ -2378,7 +2378,7 @@ void GLQ3_LightGrid(model_t *mod, const vec3_t point, vec3_t res_diffuse, vec3_t
 			res_dir[1] = 1;
 			res_dir[2] = 0.1;
 		}
-		return;
+		return ELT_LAMBERT;
 	}
 
 	//If in doubt, steal someone else's code...
@@ -2458,6 +2458,8 @@ void GLQ3_LightGrid(model_t *mod, const vec3_t point, vec3_t res_diffuse, vec3_t
 		VectorAdd(diffuse, ambient, res_diffuse);
 	if (res_dir)
 		VectorCopy(direction, res_dir);
+
+	return ELT_LAMBERT;
 }
 
 static int GLRecursiveLightPoint (mnode_t *node, vec3_t start, vec3_t end)
@@ -2616,7 +2618,7 @@ int R_LightPoint (vec3_t p)
 
 	if (cl.worldmodel->fromgame == fg_quake3)
 	{
-		GLQ3_LightGrid(cl.worldmodel, p, NULL, end, NULL);
+		GLQ3_LightGrid(cl.worldmodel, p, NULL, end, NULL, NULL);
 		return (end[0] + end[1] + end[2])/3;
 	}
 
@@ -2925,7 +2927,7 @@ static float *GLRecursiveLightPoint3C (model_t *mod, mnode_t *node, const vec3_t
 
 #endif
 
-void GLQ1BSP_LightPointValues(model_t *model, const vec3_t point, vec3_t res_diffuse, vec3_t res_ambient, vec3_t res_dir)
+enum entlighttype_e GLQ1BSP_LightPointValues(model_t *model, const vec3_t point, vec3_t res_diffuse, vec3_t res_ambient, vec3_t res_dir, vec3_t res_cube[6])
 {
 	vec3_t		end;
 	float *r;
@@ -2949,7 +2951,7 @@ void GLQ1BSP_LightPointValues(model_t *model, const vec3_t point, vec3_t res_dif
 		res_dir[1] = 1;
 		res_dir[2] = 0.1;
 		VectorNormalize(res_dir);
-		return;
+		return ELT_LAMBERT;
 	}
 
 	end[0] = point[0];
@@ -3000,6 +3002,7 @@ void GLQ1BSP_LightPointValues(model_t *model, const vec3_t point, vec3_t res_dif
 		VectorScale(res_ambient, lm, res_ambient);
 	}
 #endif
+	return ELT_LAMBERT;
 }
 
 #endif

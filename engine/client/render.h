@@ -87,6 +87,13 @@ typedef enum {
 
 	RT_MAX_REF_ENTITY_TYPE
 } refEntityType_t;
+enum entlighttype_e
+{
+	ELT_UNKNOWN, //not computed yet.
+	ELT_LAMBERT,
+	ELT_FLAT,
+	ELT_CUBE,
+};
 
 typedef unsigned int skinid_t;	//skin 0 is 'unused'
 
@@ -105,7 +112,8 @@ typedef struct entity_s
 	float					shaderTime;  /*timestamp, for syncing shader times to spawns*/
 	vec3_t					glowmod;     /*meant to be a multiplier for the fullbrights*/
 
-	int						light_known; /*bsp lighting has been calced*/
+	enum entlighttype_e		light_type; /*bsp lighting has been calced*/
+	vec3_t					light_cube[6];   /*hl2-style lighting*/
 	vec3_t					light_avg;   /*midpoint level*/
 	vec3_t					light_range; /*avg + this = max, avg - this = min*/
 	vec3_t					light_dir;

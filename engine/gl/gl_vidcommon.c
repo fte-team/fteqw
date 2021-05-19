@@ -1547,10 +1547,14 @@ static const char *glsl_hdrs[] =
 				"uniform vec4 e_colourident;"
 				"uniform vec3 e_glowmod;"
 				"uniform vec3 e_uppercolour;"
-				"uniform vec3 e_lowercolour;"
+				"uniform vec3 e_lowercolour;\n"
+				"#ifdef AMBIENTCUBE\n"
+				"uniform vec3 e_light_ambientcube[6];\n"
+				"#else\n"
 				"uniform vec3 e_light_dir;"
 				"uniform vec3 e_light_mul;"
-				"uniform vec3 e_light_ambient;"
+				"uniform vec3 e_light_ambient;\n"
+				"#endif\n"
 
 				/*rtlight properties, use with caution*/
 				"uniform vec2	l_lightscreen;"

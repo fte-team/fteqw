@@ -2736,11 +2736,12 @@ qboolean Mod_Mesh_EdictInFatPVS(struct model_s *model, const struct pvscache_s *
 void Mod_Mesh_FindTouchedLeafs(struct model_s *model, struct pvscache_s *ent, const vec3_t cullmins, const vec3_t cullmaxs)
 {
 }
-static void Mod_Mesh_LightPointValues(struct model_s *model, const vec3_t point, vec3_t res_diffuse, vec3_t res_ambient, vec3_t res_dir)
+static enum entlighttype_e Mod_Mesh_LightPointValues(struct model_s *model, const vec3_t point, vec3_t res_diffuse, vec3_t res_ambient, vec3_t res_dir, vec3_t res_cube[6])
 {	//trisoup doesn't have any actual pvs, thus we can't report anything...
 	VectorSet(res_diffuse, 255,255,255);
 	VectorSet(res_ambient, 128,128,128);
 	VectorSet(res_dir, 0,0,1);
+	return ELT_LAMBERT;
 }
 static void Mod_SetMeshModelFuncs(model_t *mod, qboolean isstatic)
 {

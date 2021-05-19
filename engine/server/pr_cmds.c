@@ -4202,12 +4202,12 @@ static void QCBUILTIN PF_sv_getlight (pubprogfuncs_t *prinst, struct globalvars_
 #ifdef HAVE_CLIENT
 	/*not shared with client - clients get more lights*/
 	float *point = G_VECTOR(OFS_PARM0);
-	vec3_t diffuse, ambient, dir;
+	vec3_t diffuse, ambient, dir, cube[6];
 	model_t *wm = sv.world.worldmodel;
 
 	if (wm && wm->loadstate == MLS_LOADED && wm->funcs.LightPointValues && wm->lightmaps.maxstyle<cl_max_lightstyles)
 	{
-		wm->funcs.LightPointValues(wm, point, diffuse, ambient, dir);
+		wm->funcs.LightPointValues(wm, point, diffuse, ambient, dir, cube);
 		VectorMA(ambient, 0.5, diffuse, G_VECTOR(OFS_RETURN));
 		return;
 	}

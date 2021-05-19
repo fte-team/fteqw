@@ -534,14 +534,6 @@ static qboolean GL_CheckExtensions (void *(*getglfunction) (char *name))
 	//yes, I know, this can't cope with minor versions of 10+... I don't care yet.
 	gl_config.glversion += gl_major_version + (gl_minor_version/10.f);
 
-#if GL_INDEX_TYPE == GL_UNSIGNED_INT
-	if (gl_config_gles && gl_config.glversion < 3.0)
-	{	//opengles 1 and 2 do NOT support 32bit indexes. desktop gl always does but es supports it starting with gles3.0
-		Con_Printf ("Support for OpenGL ES 3.0 is required.\n");
-		return false;
-	}
-#endif
-
 	/*gl3 adds glGetStringi instead, as core, with the old form require GL_ARB_compatibility*/
 	if (gl_major_version >= 3 && qglGetStringi) /*warning: wine fails to export qglGetStringi*/
 	{
@@ -653,6 +645,15 @@ static qboolean GL_CheckExtensions (void *(*getglfunction) (char *name))
 	}
 	else
 		gl_config.maxglslversion = 110;
+
+
+#if GL_INDEX_TYPE == GL_UNSIGNED_INT
+	if (gl_config_gles && gl_config.glversion < 3.0 && !GL_CheckExtension("GL_OES_element_index_uint"))
+	{	//opengles 1 and 2 do NOT support 32bit indexes. desktop gl always does but es supports it starting with gles3.0
+		Con_Printf ("Support for OpenGL ES 3.0 is required.\n");
+		return false;
+	}
+#endif
 
 	//multitexture
 	gl_mtexable = false;

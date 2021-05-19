@@ -137,6 +137,7 @@ cvar_t vid_devicename						= CVARFD ("vid_devicename", "", CVAR_ARCHIVE | CVAR_V
 cvar_t gl_shadeq1_name						= CVARD  ("gl_shadeq1_name", "*", "Rename all surfaces from quake1 bsps using this pattern for the purposes of shader names.");
 extern cvar_t r_vertexlight;
 extern cvar_t r_forceprogramify;
+extern cvar_t r_glsl_precache;
 extern cvar_t dpcompat_nopremulpics;
 #ifdef PSKMODELS
 cvar_t dpcompat_psa_ungroup					= CVAR  ("dpcompat_psa_ungroup", "0");
@@ -1058,6 +1059,7 @@ void Renderer_Init(void)
 	Cvar_Register (&r_polygonoffset_stencil_offset, GLRENDEREROPTIONS);
 
 	Cvar_Register (&r_forceprogramify, GLRENDEREROPTIONS);
+	Cvar_Register (&r_glsl_precache, GLRENDEREROPTIONS);
 #ifdef HAVE_LEGACY
 	Cvar_Register (&dpcompat_nopremulpics, GLRENDEREROPTIONS);
 #endif

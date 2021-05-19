@@ -42,7 +42,10 @@ sh_config_t sh_config;
 //cvars that affect shader generation
 cvar_t r_vertexlight = CVARFD("r_vertexlight", "0", CVAR_SHADERSYSTEM, "Hack loaded shaders to remove detail pass and lightmap sampling for faster rendering.");
 cvar_t r_forceprogramify = CVARAFD("r_forceprogramify", "0", "dpcompat_makeshitup", CVAR_SHADERSYSTEM, "Reduce the shader to a single texture, and then make stuff up about its mother. The resulting fist fight results in more colour when you shine a light upon its face.\nSet to 2 to ignore 'depthfunc equal' and 'tcmod scale' in order to tolerate bizzare shaders made for a bizzare engine.\nBecause most shaders made for DP are by people who _clearly_ have no idea what the heck they're doing, you'll typically need the '2' setting.");
+#ifdef HAVE_LEGACY
 cvar_t dpcompat_nopremulpics = CVARFD("dpcompat_nopremulpics", "0", CVAR_SHADERSYSTEM, "By default FTE uses premultiplied alpha for hud/2d images, while DP does not (which results in halos with low-res content). Unfortunately DDS files would need to be recompressed, resulting in visible issues.");
+#endif
+cvar_t r_glsl_precache = CVARFD("r_glsl_precache", "0", CVAR_SHADERSYSTEM, "Force all relevant glsl permutations to load upfront.");
 
 extern cvar_t r_glsl_offsetmapping_reliefmapping;
 extern cvar_t r_drawflat;
@@ -2014,7 +2017,23 @@ static qboolean Shader_LoadPermutations(char *name, program_t *prog, char *scrip
 	//ensure that permutation 0 works correctly as a fallback.
 	//FIXME: add debug mode to compile all.
 	prog->permu[0] = Shader_LoadPermutation(prog, 0);
-	return !!prog->permu[0];
+	if (!prog->permu[0])
+		return false;
+
+	if (r_glsl_precache.ival)
+	{
+		for (p = prog->supportedpermutations; p > 0; )
+		{
+			if (p != (p&prog->supportedpermutations))
+				p &= prog->supportedpermutations;	//this permutation isn't active, skip to the next one
+			else
+			{
+				prog->permu[p] = Shader_LoadPermutation(prog, p);
+				p--;
+			}
+		}
+	}
+	return true;
 #else
 	return false;
 #endif

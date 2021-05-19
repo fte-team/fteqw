@@ -1155,7 +1155,7 @@ static void ImgTool_Convert(struct opts_s *args, struct pendingtextureinfo *in, 
 							(k == PTI_RGBA8) || (k == PTI_RGBX8) ||
 							(k == PTI_BGRA8) || (k == PTI_BGRX8) ||
 							(k == PTI_LLLA8) || (k == PTI_LLLX8) ||
-							(k == PTI_RGBA16) ||
+							(k == PTI_RGBA16) || (k == PTI_P8) ||
 							(k == PTI_L8) || (k == PTI_L8A8) ||
 							/*(k == PTI_L16) ||*/
 							(k == PTI_BGR8) || (k == PTI_BGR8) ||
@@ -2777,6 +2777,7 @@ struct sdlwindow_s
 	{
 		char *name;
 		size_t w, h;
+		uploadfmt_t fmt;
 		SDL_Texture *t;
 	} *tex;
 };
@@ -2902,9 +2903,9 @@ static void SDLL_Change(struct sdlwindow_s *wc, size_t newshown)
 		char title[512];
 		wc->texshown = newshown;
 		if (wc->texcount==1)
-			snprintf(title, sizeof(title), "%s", wc->tex[wc->texshown].name);
+			snprintf(title, sizeof(title), "%s %s", wc->tex[wc->texshown].name, Image_FormatName(wc->tex[wc->texshown].fmt));
 		else
-			snprintf(title, sizeof(title), "[%u/%u] %s", 1+(unsigned int)newshown, (unsigned int)wc->texcount, wc->tex[wc->texshown].name);
+			snprintf(title, sizeof(title), "[%u/%u] %s %s", 1+(unsigned int)newshown, (unsigned int)wc->texcount, wc->tex[wc->texshown].name, Image_FormatName(wc->tex[wc->texshown].fmt));
 		sdl.SetWindowTitle(wc->w, title);
 
 		w = wc->tex[wc->texshown].w * wc->scale;
@@ -3004,6 +3005,7 @@ static void ImgTool_View(const char *inname, struct pendingtextureinfo *in)
 	qboolean outformats[PTI_MAX] = {false};
 	struct sdlwindow_s *wc;
 	SDL_Event ev;
+	uploadfmt_t origencoding = in->encoding;
 
 	if (in->mipcount < 1 || in->mip[0].width <= 0 || in->mip[0].height <= 0)
 		return;
@@ -3116,6 +3118,7 @@ static void ImgTool_View(const char *inname, struct pendingtextureinfo *in)
 		wc->tex[wc->texcount].name = Z_StrDup(inname);
 		wc->tex[wc->texcount].w = in->mip[0].width;
 		wc->tex[wc->texcount].h = in->mip[0].height;
+		wc->tex[wc->texcount].fmt = origencoding;
 		wc->tex[wc->texcount].t = sdl.CreateTexture(wc->r, sdlfmt, SDL_TEXTUREACCESS_STATIC, in->mip[0].width, in->mip[0].height);	//which needs a texture...
 		if (wc->tex[wc->texcount].t)
 		{

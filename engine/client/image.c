@@ -1370,6 +1370,8 @@ static void (PNGAPI *qpng_set_filler) PNGARG((png_structp png_ptr, png_uint_32 f
 static void (PNGAPI *qpng_set_palette_to_rgb) PNGARG((png_structp png_ptr)) PSTATIC(png_set_palette_to_rgb);
 static png_uint_32 (PNGAPI *qpng_get_IHDR) PNGARG((png_const_structrp png_ptr, png_const_inforp info_ptr, png_uint_32 *width, png_uint_32 *height,
 			int *bit_depth, int *color_type, int *interlace_method, int *compression_method, int *filter_method)) PSTATIC(png_get_IHDR);
+static png_uint_32 (PNGAPI *qpng_get_PLTE) PNGARG((png_const_structrp png_ptr, png_inforp info_ptr, png_colorp *palette, int *num_palette)) PSTATIC(png_get_PLTE);
+
 static void (PNGAPI *qpng_read_info) PNGARG((png_structp png_ptr, png_infop info_ptr)) PSTATIC(png_read_info);
 static void (PNGAPI *qpng_set_sig_bytes) PNGARG((png_structp png_ptr, int num_bytes)) PSTATIC(png_set_sig_bytes);
 static void (PNGAPI *qpng_set_read_fn) PNGARG((png_structp png_ptr, png_voidp io_ptr, png_rw_ptr read_data_fn)) PSTATIC(png_set_read_fn);
@@ -1386,6 +1388,8 @@ static void (PNGAPI *qpng_set_text) PNGARG((png_const_structrp png_ptr, png_info
 #endif
 static void (PNGAPI *qpng_set_IHDR) PNGARG((png_const_structrp png_ptr, png_infop info_ptr, png_uint_32 width, png_uint_32 height,
 			int bit_depth, int color_type, int interlace_method, int compression_method, int filter_method)) PSTATIC(png_set_IHDR);
+//static void png_set_PLTE(void);
+static void (PNGAPI *qpng_set_PLTE) PNGARG((png_structrp png_ptr, png_inforp info_ptr, png_const_colorp palette, int num_palette)) PSTATIC(png_set_PLTE);
 static void (PNGAPI *qpng_set_compression_level) PNGARG((png_structrp png_ptr, int level)) PSTATIC(png_set_compression_level);
 static void (PNGAPI *qpng_init_io) PNGARG((png_structp png_ptr, png_FILE_p fp)) PSTATIC(png_init_io);
 static png_voidp (PNGAPI *qpng_get_io_ptr) PNGARG((png_const_structrp png_ptr)) PSTATIC(png_get_io_ptr);
@@ -1422,6 +1426,7 @@ qboolean LibPNG_Init(void)
 		{(void **) &qpng_set_filler,					"png_set_filler"},
 		{(void **) &qpng_set_palette_to_rgb,			"png_set_palette_to_rgb"},
 		{(void **) &qpng_get_IHDR,						"png_get_IHDR"},
+		{(void **) &qpng_get_PLTE,						"png_get_PLTE"},
 		{(void **) &qpng_read_info,						"png_read_info"},
 		{(void **) &qpng_set_sig_bytes,					"png_set_sig_bytes"},
 		{(void **) &qpng_set_read_fn,					"png_set_read_fn"},
@@ -1437,6 +1442,7 @@ qboolean LibPNG_Init(void)
 		{(void **) &qpng_write_image,					"png_write_image"},
 		{(void **) &qpng_write_info,					"png_write_info"},
 		{(void **) &qpng_set_IHDR,						"png_set_IHDR"},
+		{(void **) &qpng_set_PLTE,						"png_set_PLTE"},
 		{(void **) &qpng_set_compression_level,			"png_set_compression_level"},
 		{(void **) &qpng_init_io,						"png_init_io"},
 		{(void **) &qpng_get_io_ptr,					"png_get_io_ptr"},
@@ -1592,12 +1598,32 @@ error:
 
 	if (colortype == PNG_COLOR_TYPE_PALETTE)
 	{
-		qpng_set_palette_to_rgb(png);
-		qpng_set_filler(png, ~0u, PNG_FILLER_AFTER);
+		int numpal = 0;
+		png_colorp pal = NULL;
+		if (bitdepth==8 && format)
+			qpng_get_PLTE(png, pnginfo, &pal, &numpal);
+		if (numpal == 256)
+		{
+			for (numpal = 0; numpal < 256; numpal++)
+			{
+				if (pal[numpal].red == host_basepal[numpal*3+0] &&
+					pal[numpal].green == host_basepal[numpal*3+1] &&
+					pal[numpal].blue == host_basepal[numpal*3+2])
+					continue;
+				else
+					break; //bum
+			}
+		}
+		if (numpal != 256)
+		{
+			qpng_set_palette_to_rgb(png);
+			qpng_set_filler(png, ~0u, PNG_FILLER_AFTER);
+			colortype = PNG_COLOR_TYPE_RGB;
+		}
 	}
 
 	if (colortype == PNG_COLOR_TYPE_GRAY && bitdepth < 8)
-	{
+	{	//don't handle small greyscale formats
 		#if PNG_LIBPNG_VER > 10400
 			qpng_set_expand_gray_1_2_4_to_8(png);
 		#else
@@ -1629,7 +1655,9 @@ error:
 	channels = qpng_get_channels(png, pnginfo);
 	bitdepth = qpng_get_bit_depth(png, pnginfo);
 
-	if (bitdepth == 8 && channels == 4)
+	if (colortype == PNG_COLOR_TYPE_PALETTE)
+		*format = PTI_P8;
+	else if (bitdepth == 8 && channels == 4)
 	{
 		if (format)
 		{
@@ -1766,6 +1794,12 @@ int Image_WritePNG (const char *filename, enum fs_relative fsroot, int compressi
 		bgr = false;
 		break;
 
+	case PTI_P8:
+		havepad = false;
+		colourtype = PNG_COLOR_TYPE_PALETTE;
+		chanbits = 8;
+		bgr = false;
+		break;
 	case PTI_L8:
 		havepad = false;
 		colourtype = PNG_COLOR_TYPE_GRAY;
@@ -1851,6 +1885,18 @@ err:
 	if (bgr)
 		qpng_set_bgr(png_ptr);
 	qpng_set_IHDR(png_ptr, info_ptr, outwidth, height, chanbits, colourtype, PNG_INTERLACE_NONE, PNG_COMPRESSION_TYPE_DEFAULT, PNG_FILTER_TYPE_DEFAULT);
+
+	if (colourtype == PNG_COLOR_TYPE_PALETTE)
+	{
+		png_color pal[256];
+		for (i = 0; i < countof(pal); i++) {
+			pal[i].red   = host_basepal[i*3+0];
+			pal[i].green = host_basepal[i*3+1];
+			pal[i].blue  = host_basepal[i*3+2];
+		}
+		qpng_set_PLTE(png_ptr, info_ptr, pal, countof(pal));
+		//png_set_tRNS
+	}
 
 #if defined(PNG_TEXT_SUPPORTED) && defined(PNG_ITXT_COMPRESSION_NONE)
 	if (writemetadata)
@@ -3254,7 +3300,8 @@ static qbyte *ReadICOFile(const char *fname, qbyte *buf, int length, int *width,
 #endif
 		if ((ret = ReadRawBMPFile(indata, insize, width, height, 0)))
 		{
-			*fmt = PTI_RGBA8;
+			if (fmt)
+				*fmt = PTI_RGBA8;
 			TRACE(("dbg: Read32BitImageFile: icon bmp\n"));
 			return ret;
 		}
@@ -4358,6 +4405,8 @@ static qbyte *ReadXCFFile(const qbyte *filedata, size_t len, const char *fname, 
 			return NULL;
 		}
 	}
+	if (!format && ctx.outformat != PTI_RGBA8)
+		return NULL;	//caller insists on rgba8 :(
 	XCF_ReadHeaderProperties(&ctx);
 	while((offs=XCF_ReadOffset(&ctx)))
 	{
@@ -4369,7 +4418,8 @@ static qbyte *ReadXCFFile(const qbyte *filedata, size_t len, const char *fname, 
 	//without any layers, its fully transparent
 	Image_BlockSizeForEncoding(ctx.outformat, &bb,&bw,&bh,&bd); //just for the bb...
 	ctx.flat = Z_Malloc(ctx.width*ctx.height*bb);
-	*format = ctx.outformat;
+	if (format)
+		*format = ctx.outformat;
 	*width = ctx.width;
 	*height = ctx.height;
 
@@ -7390,7 +7440,7 @@ qbyte *ReadRawImageFile(qbyte *buf, int len, int *width, int *height, uploadfmt_
 		return data;
 	}
 
-	if (len > 6 && buf[0]==0&&buf[1]==0 && buf[2]==1&&buf[3]==0 && (data = ReadICOFile(fname, buf, len, width, height, format)))
+	if (len > 6 && buf[0]==0&&buf[1]==0 && buf[2]==1&&buf[3]==0 && (data = ReadICOFile(fname, buf, len, width, height, force_rgba8?NULL:format)))
 	{
 		TRACE(("dbg: ReadRawImageFile: ico\n"));
 		return data;
@@ -7410,7 +7460,7 @@ qbyte *ReadRawImageFile(qbyte *buf, int len, int *width, int *height, uploadfmt_
 		return data;
 #endif
 #ifdef IMAGEFMT_XCF
-	if (len > 9 && !strncmp(buf, "gimp xcf ", 9) && (data = ReadXCFFile(buf, len, fname, width, height, format)))
+	if (len > 9 && !strncmp(buf, "gimp xcf ", 9) && (data = ReadXCFFile(buf, len, fname, width, height, force_rgba8?NULL:format)))
 		return data;
 #endif
 
@@ -12181,13 +12231,18 @@ void Image_ChangeFormat(struct pendingtextureinfo *mips, qboolean *allowedformat
 static void Image_ChangeFormatFlags(struct pendingtextureinfo *mips, unsigned int flags, uploadfmt_t origfmt, const char *imagename)
 {
 	if (flags & IF_PALETTIZE)
-	{
+	{	//paletizing things
 		qboolean p8only[PTI_MAX] = {0};
 		p8only[PTI_P8] = true;
 		Image_ChangeFormat(mips, p8only, origfmt, imagename);
 	}
 	else
+	{	//don't allow r8-as-indexes if its fed as an input. it won't make sense unless its explicit.
+		qboolean p8 = sh_config.texfmt[PTI_P8];
+		sh_config.texfmt[PTI_P8] = false;
 		Image_ChangeFormat(mips, sh_config.texfmt, origfmt, imagename);
+		sh_config.texfmt[PTI_P8] = p8;
+	}
 }
 
 //operates in place...

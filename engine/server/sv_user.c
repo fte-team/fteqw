@@ -7515,6 +7515,8 @@ if (sv_player->v->health > 0 && before && !after )
 	else
 		sv_player->v->watertype = Q1CONTENTS_EMPTY;
 
+	if (pmove.jump_held && movevars.autobunny)	//make sure the qc thinks we released the button at some point, triggering a new jump sound.
+		sv_player->v->flags = (int)sv_player->v->flags | FL_JUMPRELEASED;
 	if (pmove.onground)
 	{
 		sv_player->v->flags = (int)sv_player->v->flags | FL_ONGROUND;

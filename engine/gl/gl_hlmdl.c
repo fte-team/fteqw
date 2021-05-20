@@ -510,14 +510,14 @@ qboolean QDECL Mod_LoadHLModel (model_t *mod, void *buffer, size_t fsize)
 					if (*in >= 256-96 && *in < 256-64)
 					{	//rows 11 and 12 are the player's upper colour (in the lower range)
 						*out++ = 0xff000000;
-						*upper++ = 7+(*in-(256-96))*(256/32);
+						*upper++ = 255-(7+(*in-(256-96))*(256/32));
 						*lower++ = 0;
 					}
 					else if (*in >= 256-64 && *in < 256-32)
 					{	//rows 13 and 14 are the player's lower colour
 						*out++ = 0xff000000;
 						*upper++ = 0;
-						*lower++ = 7+(*in-(256-64))*(256/32);
+						*lower++ = 255-(7+(*in-(256-64))*(256/32));
 					}
 					else
 					{	//regular and fullbright ranges... not that there is fullbrights on hlmdl

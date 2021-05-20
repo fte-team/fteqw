@@ -14341,7 +14341,11 @@ image_t *QDECL Image_GetTexture(const char *identifier, const char *subpath, uns
 				unsigned int lev;
 				Image_BlockSizeForEncoding(fallbackfmt&~PTI_FULLMIPCHAIN, &bb, &bw, &bh, &bd);
 				for (b=0, lev = 0; fallbackwidth>>lev||fallbackheight>>lev; lev++)
+				{
 					b += bb * (max(1,fallbackwidth>>lev)+bw-1)/bw * (max(1,fallbackheight>>lev)+bh-1)/bh;// * (max(1,fallbackdepth>>lev)+bd-1)/bd;
+					if (!(fallbackfmt&PTI_FULLMIPCHAIN))
+						break;
+				}
 			}
 			break;
 		}

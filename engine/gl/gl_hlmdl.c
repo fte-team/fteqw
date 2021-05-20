@@ -298,6 +298,7 @@ qboolean QDECL Mod_LoadHLModel (model_t *mod, void *buffer, size_t fsize)
 	hlmdl_tex_t	*tex;
 
 	lmalloc_t atlas;
+	char texname[MAX_QPATH];
 #endif
 
 	hlmodel_t *model;
@@ -433,7 +434,7 @@ qboolean QDECL Mod_LoadHLModel (model_t *mod, void *buffer, size_t fsize)
 			Mod_LightmapAllocInit(&atlas, false, sz, sz, 0);
 			for(i = 0; i < texheader->numtextures; i++)
 			{
-				if (tex[i].flags & HLMDLFL_CHROME)
+				if ((tex[i].flags & HLMDLFL_CHROME) || !Q_strncasecmp(tex[i].name, "DM_Base", 7))
 					continue;
 				Mod_LightmapAllocBlock(&atlas, tex[i].w, tex[i].h, &x, &y, &atlasid);
 			}
@@ -444,7 +445,7 @@ qboolean QDECL Mod_LoadHLModel (model_t *mod, void *buffer, size_t fsize)
 	}
 	for(i = 0; i < texheader->numtextures; i++)
 	{
-		if (tex[i].flags & HLMDLFL_CHROME)
+		if ((tex[i].flags & HLMDLFL_CHROME) || !Q_strncasecmp(tex[i].name, "DM_Base", 7))
 		{
 			shaders[i].x =
 			shaders[i].y = 0;
@@ -462,7 +463,6 @@ qboolean QDECL Mod_LoadHLModel (model_t *mod, void *buffer, size_t fsize)
 	//now we know where the various textures will be, generate the atlas images.
 	for (j = 0; j < atlas.lmnum; j++)
 	{
-		char texname[MAX_QPATH];
 		texid_t basetex;
 		int y, x;
 		unsigned int *basepix = Z_Malloc(atlas.width * atlas.height * sizeof(*basepix));
@@ -494,11 +494,56 @@ qboolean QDECL Mod_LoadHLModel (model_t *mod, void *buffer, size_t fsize)
 	//and chrome textures need to preserve their texture coords to avoid weirdness.
 	for(i = 0; i < texheader->numtextures; i++)
 	{
-		if (tex[i].flags & HLMDLFL_CHROME)
+		if (!Q_strncasecmp(tex[i].name, "DM_Base", 7))
+		{
+			int y, x;
+			unsigned int *basepix = Z_Malloc(tex[i].w*tex[i].h*sizeof(*basepix) + tex[i].w*tex[i].h*2);
+			unsigned int *out = basepix;
+			qbyte *upper = (qbyte*)(basepix + tex[i].w * tex[i].h);	//we use an L8 texture, because we can.
+			qbyte *lower = upper + tex[i].w * tex[i].h;
+			qbyte *in = (qbyte *) texheader + tex[i].offset;
+			qbyte *pal = (qbyte *) texheader + tex[i].w * tex[i].h + tex[i].offset;
+			qbyte *rgb;
+			for(y = 0; y < tex[i].h; y++)
+				for(x = 0; x < tex[i].w; x++, in++)
+				{
+					if (*in >= 256-96 && *in < 256-64)
+					{	//rows 11 and 12 are the player's upper colour (in the lower range)
+						*out++ = 0xff000000;
+						*upper++ = 7+(*in-(256-96))*(256/32);
+						*lower++ = 0;
+					}
+					else if (*in >= 256-64 && *in < 256-32)
+					{	//rows 13 and 14 are the player's lower colour
+						*out++ = 0xff000000;
+						*upper++ = 0;
+						*lower++ = 7+(*in-(256-64))*(256/32);
+					}
+					else
+					{	//regular and fullbright ranges... not that there is fullbrights on hlmdl
+						rgb = pal + *in*3;
+						*out++ = 0xff000000 | (rgb[0]<<0) | (rgb[1]<<8) | (rgb[2]<<16);
+						*upper++ = 0;
+						*lower++ = 0;
+					}
+				}
+
+			out = basepix;
+			upper = (qbyte*)(basepix + tex[i].w * tex[i].h);	//we use an L8 texture, because we can.
+			lower = upper + tex[i].w * tex[i].h;
+
+			Q_snprintfz(texname, sizeof(texname), "%s*%s", mod->name, tex[i].name);
+			shaders[i].defaulttex.base         = Image_GetTexture(texname, "", IF_NOALPHA|IF_NOREPLACE, out, NULL, tex[i].w, tex[i].h, PTI_RGBX8);
+			Q_snprintfz(texname, sizeof(texname), "%s*%s*upper", mod->name, tex[i].name);
+			shaders[i].defaulttex.upperoverlay = Image_GetTexture(texname, "", IF_NOALPHA|IF_NOREPLACE, upper, NULL, tex[i].w, tex[i].h, PTI_L8);
+			Q_snprintfz(texname, sizeof(texname), "%s*%s*lower", mod->name, tex[i].name);
+			shaders[i].defaulttex.loweroverlay = Image_GetTexture(texname, "", IF_NOALPHA|IF_NOREPLACE, lower, NULL, tex[i].w, tex[i].h, PTI_L8);
+			Z_Free(basepix);
+		}
+		else if (tex[i].flags & HLMDLFL_CHROME)
 		{
 			qbyte *in = (qbyte *) texheader + tex[i].offset;
 			qbyte *pal = (qbyte *) texheader + tex[i].w * tex[i].h + tex[i].offset;
-			char texname[MAX_QPATH];
 
 			shaders[i].atlasid = j++;
 			Q_snprintfz(texname, sizeof(texname), "%s*%i", mod->name, shaders[i].atlasid);

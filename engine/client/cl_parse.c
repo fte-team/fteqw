@@ -6240,76 +6240,94 @@ static char acceptedchars[] = {'.', '?', '!', '\'', ',', ':', ' ', '\0'};
 static void CL_PrintStandardMessage(char *msgtext, int printlevel)
 {
 	int i;
-	player_info_t *p;
+	player_info_t *p, *foundp = NULL;
 	extern cvar_t cl_standardmsg, msg;
 	char *begin = msgtext;
 	char fullmessage[2048];
+
+	char *found;
 
 	if (printlevel < msg.ival)
 		return;
 
 	fullmessage[0] = 0;
 
-	// search for player names in message
-	for (i = 0, p = cl.players; i < cl.allocated_client_slots; p++, i++)
+	while(*msgtext)
 	{
-		char *v;
-		char *name;
-		int len;
-		qboolean coloured;
-		char c;
-
-		name = p->name;
-		if (!(*name))
-			continue;
-		len = strlen(name);
-		v = strstr(msgtext, name);
-		while (v)
+		found = NULL;
+		// search for player names in message
+		for (i = 0, p = cl.players; i < cl.allocated_client_slots; p++, i++)
 		{
-			// name parsing rules
-			if (v != begin && *(v-1) != ' ') // must be space before name
-			{
-					v = strstr(v+len, name);
-					continue;
-			}
+			char *v;
+			char *name;
+			int len;
 
+			name = p->name;
+			if (!(*name))
+				continue;
+			len = strlen(name);
+			v = strstr(msgtext, name);
+			while (v)
 			{
-				int i;
-				char aftername = *(v + len);
-
-				// search for accepted chars in char after name in msg
-				for (i = 0; i < sizeof(acceptedchars); i++)
+				// name parsing rules
+				if (v != begin && *(v-1) != ' ') // must be space before name
 				{
-					if (acceptedchars[i] == aftername)
-						break;
+						v = strstr(v+len, name);
+						continue;
 				}
 
-				if (sizeof(acceptedchars) == i)
 				{
-					v = strstr(v+len, name);
-					continue; // no accepted char found
-				}
-			}
+					int i;
+					char aftername = *(v + len);
 
-			*v = 0; // cut off message
+					// search for accepted chars in char after name in msg
+					for (i = 0; i < sizeof(acceptedchars); i++)
+					{
+						if (acceptedchars[i] == aftername)
+							break;
+					}
+
+					if (sizeof(acceptedchars) == i)
+					{
+						v = strstr(v+len, name);
+						continue; // no accepted char found
+					}
+				}
+
+				if (!found || v < found)
+				{
+					found = v;
+					foundp = p;
+				}
+				break;
+			}
+		}
+
+		if (found)
+		{
+			qboolean coloured;
+			char c;
+			int len = strlen(foundp->name);
 
 			// print msg chunk
+			*found = 0; // cut off message
 			Q_strncatz(fullmessage, msgtext, sizeof(fullmessage));
-			msgtext = v + len; // update search point
+			msgtext = found + len; // update search point
 
 			// get name color
-			if (p->spectator || cl_standardmsg.ival)
+			if (foundp->spectator || cl_standardmsg.ival)
 			{
 				coloured = false;
 				c = '7';
 			}
 			else
-				c = '0' + CL_PlayerColor(p, &coloured);
+				c = '0' + CL_PlayerColor(foundp, &coloured);
 
 			// print name
-			Q_strncatz(fullmessage, va("^[%s^%c%s^d\\player\\%i^]", coloured?"^m":"", c, name, (int)(p - cl.players)), sizeof(fullmessage));
-			break;
+			Q_strncatz(fullmessage, va("^[%s^%c%s^d\\player\\%i^]", coloured?"^m":"", c, foundp->name, (int)(foundp - cl.players)), sizeof(fullmessage));
 		}
+		else
+			break; //nope, can't find anyone in there...
 	}
 
 	// print final chunk

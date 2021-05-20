@@ -2574,12 +2574,51 @@ static int Con_DrawConsoleLines(console_t *con, conline_t *l, float displayscrol
 								con->selstartoffset = c - (conchar_t*)(l+1);
 							else
 								con->selstartoffset = 0;
+
+							if (selactive == 2 && s)
+							{	//checking for mouseover
+								//scan earlier to find any link enclosure
+								for(; c >= (conchar_t*)(l+1); c--)
+								{
+									if (*c == CON_LINKSTART)
+									{
+										selactive = 3;	//we're mouse-overing a link!
+										con->selstartoffset = c - (conchar_t*)(l+1);
+										break;
+									}
+									if (*c == CON_LINKEND)
+										break;	//some other link ended here. don't use its start.
+								}
+
+								if (selactive == 3 && con->selendline==l)
+								{
+									for (; c < (conchar_t*)(l+1)+l->length; c++)
+										if (*c == CON_LINKEND)
+										{
+											con->selendoffset = c - (conchar_t*)(l+1);
+											break;
+										}
+
+									sstart = picw;
+									for (c = s; c < (conchar_t*)(l+1)+con->selstartoffset; )
+									{
+										c = Font_Decode(c, &codeflags, &codepoint);
+										sstart = Font_CharEndCoord(font_console, sstart, codeflags, codepoint);
+									}
+									send = sstart;
+									for (; c < (conchar_t*)(l+1)+con->selendoffset; )
+									{
+										c = Font_Decode(c, &codeflags, &codepoint);
+										send = Font_CharEndCoord(font_console, send, codeflags, codepoint);
+									}
+								}
+							}
 						}
 
 						sstart += center;
 						send += center;
 
-						if (selactive == 1)
+						if (selactive != 2)
 						{
 							if (selactive == 1)
 								R2D_ImageColours(SRGBA(0.1,0.1,0.3, alphaval));	//selected
@@ -2587,8 +2626,14 @@ static int Con_DrawConsoleLines(console_t *con, conline_t *l, float displayscrol
 								R2D_ImageColours(SRGBA(0.3,0.3,0.3, alphaval));	//mouseover.
 
 							if (send < sstart)
-								R2D_FillBlock((send*vid.width)/(float)vid.rotpixelwidth, (y*vid.height)/(float)vid.rotpixelheight, ((sstart - send)*vid.width)/(float)vid.rotpixelwidth, (Font_CharHeight()*vid.height)/(float)vid.rotpixelheight);
-							else
+							{
+								center = sstart;
+								sstart = send;
+								send = center;
+							}
+							if (selactive == 3)	//2 pixels high
+								R2D_FillBlock((sstart*vid.width)/(float)vid.rotpixelwidth, ((y+Font_CharHeight()-2)*vid.height)/(float)vid.rotpixelheight, ((send - sstart)*vid.width)/(float)vid.rotpixelwidth, (2*vid.height)/(float)vid.rotpixelheight);
+							else				//full height
 								R2D_FillBlock((sstart*vid.width)/(float)vid.rotpixelwidth, (y*vid.height)/(float)vid.rotpixelheight, ((send - sstart)*vid.width)/(float)vid.rotpixelwidth, (Font_CharHeight()*vid.height)/(float)vid.rotpixelheight);
 							R2D_Flush();
 						}

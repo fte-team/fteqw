@@ -899,7 +899,7 @@ void Key_DefaultLinkClicked(console_t *con, char *text, char *info)
 			if (*cl.players[player].ip)
 				Con_Footerf(con, true, "\n%s", cl.players[player].ip);
 
-			if (cl.playerview[0].spectator || cls.demoplayback)
+			if (cl.playerview[0].spectator || cls.demoplayback==DPB_MVD||cls.demoplayback==DPB_EZTV)
 			{
 				//we're spectating, or an mvd
 				Con_Footerf(con, true, " ^[Spectate\\player\\%i\\action\\spec^]", player);

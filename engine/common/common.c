@@ -3282,7 +3282,7 @@ char *COM_DeFunString(conchar_t *str, conchar_t *stop, char *out, int outsize, q
 				}
 				if (d & CON_2NDCHARSETTEXT)
 				{	//FIXME: convert to quake glyphs...
-					if (!com_parseutf8.ival && !forceutf8 && codepoint >= 32 && codepoint <= 127)
+					if (!com_parseutf8.ival && !forceutf8 && codepoint >= 32 && codepoint <= 127 && (codeflags&CON_2NDCHARSETTEXT))
 					{	//strip the flag and encode it in private use (so it gets encoded as quake-compatible)
 						codeflags &= ~CON_2NDCHARSETTEXT;
 						codepoint |= 0xe080;

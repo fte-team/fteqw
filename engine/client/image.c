@@ -1371,6 +1371,7 @@ static void (PNGAPI *qpng_set_palette_to_rgb) PNGARG((png_structp png_ptr)) PSTA
 static png_uint_32 (PNGAPI *qpng_get_IHDR) PNGARG((png_const_structrp png_ptr, png_const_inforp info_ptr, png_uint_32 *width, png_uint_32 *height,
 			int *bit_depth, int *color_type, int *interlace_method, int *compression_method, int *filter_method)) PSTATIC(png_get_IHDR);
 static png_uint_32 (PNGAPI *qpng_get_PLTE) PNGARG((png_const_structrp png_ptr, png_inforp info_ptr, png_colorp *palette, int *num_palette)) PSTATIC(png_get_PLTE);
+static png_uint_32 (PNGAPI *qpng_get_tRNS) PNGARG((png_const_structrp png_ptr, png_inforp info_ptr, png_bytep *trans_alpha, int *num_trans, png_color_16p *trans_color)) PSTATIC(png_get_tRNS);
 
 static void (PNGAPI *qpng_read_info) PNGARG((png_structp png_ptr, png_infop info_ptr)) PSTATIC(png_read_info);
 static void (PNGAPI *qpng_set_sig_bytes) PNGARG((png_structp png_ptr, int num_bytes)) PSTATIC(png_set_sig_bytes);
@@ -1427,6 +1428,7 @@ qboolean LibPNG_Init(void)
 		{(void **) &qpng_set_palette_to_rgb,			"png_set_palette_to_rgb"},
 		{(void **) &qpng_get_IHDR,						"png_get_IHDR"},
 		{(void **) &qpng_get_PLTE,						"png_get_PLTE"},
+		{(void **) &qpng_get_tRNS,						"png_get_tRNS"},
 		{(void **) &qpng_read_info,						"png_read_info"},
 		{(void **) &qpng_set_sig_bytes,					"png_set_sig_bytes"},
 		{(void **) &qpng_set_read_fn,					"png_set_read_fn"},
@@ -1598,10 +1600,14 @@ error:
 
 	if (colortype == PNG_COLOR_TYPE_PALETTE)
 	{
-		int numpal = 0;
+		int numpal = 0, numtrans = 0;
 		png_colorp pal = NULL;
+		png_bytep trans = NULL;
 		if (bitdepth==8 && format)
+		{
+			qpng_get_tRNS(png, pnginfo, &trans, &numtrans, NULL);
 			qpng_get_PLTE(png, pnginfo, &pal, &numpal);
+		}
 		if (numpal == 256)
 		{
 			for (numpal = 0; numpal < 256; numpal++)
@@ -1609,13 +1615,17 @@ error:
 				if (pal[numpal].red == host_basepal[numpal*3+0] &&
 					pal[numpal].green == host_basepal[numpal*3+1] &&
 					pal[numpal].blue == host_basepal[numpal*3+2])
+				{
+					if (numpal < numtrans && trans[numpal] != 255)
+						break; //we require it to be fully opaque, because our PTI_P8 has no transparency info(nor does quake) and we don't want to make assumptions here.
 					continue;
+				}
 				else
 					break; //bum
 			}
 		}
 		if (numpal != 256)
-		{
+		{	//the palette isn't ours. give up and just treat it as rgb(a)
 			qpng_set_palette_to_rgb(png);
 			qpng_set_filler(png, ~0u, PNG_FILLER_AFTER);
 			colortype = PNG_COLOR_TYPE_RGB;
@@ -1631,21 +1641,31 @@ error:
 		#endif
 	}
 
-	if (qpng_get_valid( png, pnginfo, PNG_INFO_tRNS))
+	if (colortype != PNG_COLOR_TYPE_PALETTE && qpng_get_valid( png, pnginfo, PNG_INFO_tRNS))
+	{
 		qpng_set_tRNS_to_alpha(png);
+		//for these types, the trns lump specifies a specific colour to treat as transparent.
+		//make sure our resulting format reflects it.
+		if (colortype == PNG_COLOR_TYPE_GRAY)
+			colortype = PNG_COLOR_TYPE_GRAY_ALPHA;
+		else if (colortype == PNG_COLOR_TYPE_RGB)
+			colortype = PNG_COLOR_TYPE_RGB_ALPHA;
+	}
 
 	if (bitdepth >= 8 && colortype == PNG_COLOR_TYPE_RGB)
 		qpng_set_filler(png, ~0u, PNG_FILLER_AFTER);
 
-	if (colortype == PNG_COLOR_TYPE_GRAY || colortype == PNG_COLOR_TYPE_GRAY_ALPHA)
-	{	//FIXME: skip this if !format
+	//expand greyscale to rgb when we're forcing 32bit output (with padding, as appropriate).
+	if ((colortype == PNG_COLOR_TYPE_GRAY || colortype == PNG_COLOR_TYPE_GRAY_ALPHA)&&!format)
+	{
 		qpng_set_gray_to_rgb( png );
-		qpng_set_filler(png, ~0u, PNG_FILLER_AFTER);
+		if (colortype == PNG_COLOR_TYPE_GRAY)
+			qpng_set_filler(png, ~0u, PNG_FILLER_AFTER);
 	}
 
 	if (bitdepth < 8)
 		qpng_set_expand (png);
-	else if (bitdepth == 16 && !format)
+	else if (bitdepth == 16 && (!format || colortype!=PNG_COLOR_TYPE_RGB_ALPHA))
 		qpng_set_strip_16(png);
 	else if (bitdepth == 16)
         qpng_set_swap(png);
@@ -1657,6 +1677,12 @@ error:
 
 	if (colortype == PNG_COLOR_TYPE_PALETTE)
 		*format = PTI_P8;
+	else if (bitdepth == 8 && channels == 1 && format)
+		*format = PTI_L8;
+	else if (bitdepth == 8 && channels == 2 && format)
+		*format = (colortype == PNG_COLOR_TYPE_GRAY_ALPHA)?PTI_L8A8:PTI_RG8;
+	else if (bitdepth == 8 && channels == 3 && format)
+		*format = PTI_RGB8;
 	else if (bitdepth == 8 && channels == 4)
 	{
 		if (format)
@@ -1671,7 +1697,7 @@ error:
 				*format = PTI_RGBA8;
 		}
 	}
-	else if (bitdepth == 16 && channels == 4)
+	else if (bitdepth == 16 && channels == 4 && format)
 		*format = PTI_RGBA16;
 	else
 	{

@@ -63,7 +63,7 @@ cvar_t	cfg_save_binds = CVARFD("cfg_save_binds", "1", CVAR_ARCHIVE|CVAR_NOTFROMS
 cvar_t	cfg_save_buttons = CVARFD("cfg_save_buttons", "0", CVAR_ARCHIVE|CVAR_NOTFROMSERVER, "If 1, saves the state of things such as +mlook or +forward to configs.");
 
 cvar_t cl_warncmd			= CVARF("cl_warncmd", "1", CVAR_NOSAVE|CVAR_NORESET);
-cvar_t cl_aliasoverlap		= CVARF("cl_aliasoverlap", "1", CVAR_NOTFROMSERVER);
+cvar_t cl_aliasoverlap		= CVARFD("cl_aliasoverlap", "1", CVAR_NOTFROMSERVER, "Rename new aliases if they would override cvar names.");
 
 #ifdef HAVE_CLIENT
 cvar_t tp_disputablemacros	= CVARF("tp_disputablemacros", "1", CVAR_SEMICHEAT);
@@ -1059,35 +1059,39 @@ static void Cmd_Alias_f (void)
 		return;
 	}
 
+	// check for overlap with a command
+	if (Cmd_Exists (s))
+	{	//commands always take precedence over aliases (so mods can't clobber 'quit' etc), so creating an alias with one of these names is stupid. always try to rename them.
+		if (Cmd_IsInsecure())
+		{
+			snprintf(cmd, sizeof(cmd), "%s_a", s);
+			if (Cmd_Exists (cmd))
+			{
+				Con_Printf (S_COLOR_RED"Can't register alias, %s is a command\n", s);
+				return;
+			}
+			Con_Printf (S_COLOR_RED"alias %s: renamed to %s due to command conflict\n", s, cmd);
+			s = cmd;
+		}
+		else
+		{
+			Con_Printf (S_COLOR_RED"Can't register alias, %s is a command\n", s);
+			return;
+		}
+	}
 	if (!cl_aliasoverlap.value)
-	{
+	{	//aliases take precedence over cvars (while cvars can be set via 'set'), so user's choice.
 		if (Cvar_FindVar (s))
 		{
 			if (Cmd_IsInsecure())
 			{
 				snprintf(cmd, sizeof(cmd), "%s_a", s);
-				Con_Printf ("Can't register alias, %s is a cvar\nAlias has been named %s instead\n", s, cmd);
+				Con_Printf (S_COLOR_RED"alias %s: renamed to %s due to cvar conflict\n", s, cmd);
 				s = cmd;
 			}
 			else
 			{
-				Con_Printf ("Can't register alias, %s is a cvar\n", s);
-				return;
-			}
-		}
-
-	// check for overlap with a command
-		if (Cmd_Exists (s))
-		{
-			if (Cmd_IsInsecure())
-			{
-				snprintf(cmd, sizeof(cmd), "%s_a", s);
-				Con_Printf ("Can't register alias, %s is a command\nAlias has been named %s instead\n", s, cmd);
-				s = cmd;
-			}
-			else
-			{
-				Con_Printf ("Can't register alias, %s is a command\n", s);
+				Con_Printf (S_COLOR_RED"alias %s: can't register alias - matches existing cvar\n", s);
 				return;
 			}
 		}

@@ -14,6 +14,7 @@ CompilerConstant_t *QCC_PR_CheckCompConstDefined(const char *def);
 int QCC_PR_CheckCompConst(void);
 pbool QCC_Include(const char *filename);
 void QCC_FreeDef(QCC_def_t *def);
+void QCC_PR_LexComment(char **comment);
 
 extern pbool	destfile_explicit;
 extern char		destfile[1024];
@@ -36,6 +37,7 @@ char		*pr_line_start;		// start of current source line
 
 int			pr_bracelevel;
 
+char		*pr_token_precomment;
 char		pr_token[8192];
 token_type_t	pr_token_type;
 int				pr_token_line;
@@ -1641,7 +1643,7 @@ void QCC_PR_LexString (void)
 		raw = 0;
 		texttype = 0;
 
-		QCC_PR_LexWhitespace(false);
+		QCC_PR_LexComment(&pr_token_precomment);
 
 		if (flag_qccx && *pr_file_p == ':')
 		{
@@ -3819,7 +3821,9 @@ void QCC_PR_Lex (void)
 		return;
 	}
 
-	QCC_PR_LexWhitespace (false);
+	pr_token_precomment = NULL;
+	QCC_PR_LexComment(&pr_token_precomment);
+//	QCC_PR_LexWhitespace (false);
 
 	pr_token_line_last = pr_token_line;
 	pr_token_line = pr_source_line;
@@ -4214,7 +4218,7 @@ void QCC_PR_Expect (const char *string)
 }
 #endif
 
-pbool QCC_PR_CheckTokenComment(const char *string, char **comment)
+void QCC_PR_LexComment(char **comment)
 {
 	char c;
 	char *start;
@@ -4224,6 +4228,108 @@ pbool QCC_PR_CheckTokenComment(const char *string, char **comment)
 	pbool replace = true;
 	pbool nextcomment = true;
 
+	// skip whitespace
+	nl = false;
+	while(nextcomment)
+	{
+		nextcomment = false;
+
+		while ((c = *pr_file_p) && qcc_iswhite(c))
+		{
+			if (qcc_islineending(c, pr_file_p[1]))	//allow new lines, but only if there's whitespace before any tokens, and no double newlines.
+			{
+				if (nl)
+				{
+					pr_file_p++;
+					QCC_PR_NewLine(false);
+					break;
+				}
+				nl = true;
+			}
+			else
+			{
+				pr_file_p++;
+				nl = false;
+			}
+		}
+		if (nl)
+			break;
+
+		// parse // comments
+		if (c=='/' && pr_file_p[1] == '/')
+		{
+			pr_file_p += 2;
+			while (*pr_file_p == ' ' || *pr_file_p == '\t')
+				pr_file_p++;
+			start = pr_file_p;
+			while (*pr_file_p && *pr_file_p != '\n')
+				pr_file_p++;
+
+			if (*pr_file_p == '\n')
+			{
+				pr_file_p++;
+				QCC_PR_NewLine(false);
+			}
+
+			old = replace?NULL:*comment;
+			replace = false;
+			oldlen = old?strlen(old)+1:0;
+			*comment = qccHunkAlloc(oldlen + (pr_file_p-start)+1);
+			if (oldlen)
+			{
+				memcpy(*comment, old, oldlen-1);
+				memcpy(*comment+oldlen-1, "\n", 1);
+			}
+			memcpy(*comment + oldlen, start, pr_file_p - start);
+			oldlen = oldlen+pr_file_p - start;
+			while(oldlen > 0 && ((*comment)[oldlen-1] == '\r' || (*comment)[oldlen-1] == '\n' || (*comment)[oldlen-1] == '\t' || (*comment)[oldlen-1] == ' '))
+				oldlen--;
+			(*comment)[oldlen] = 0;
+			nextcomment = true;	//include the next // too
+			nl = true;
+		}
+		// parse /* comments
+		else if (c=='/' && pr_file_p[1] == '*' && replace)
+		{
+			pr_file_p+=1;
+			start = pr_file_p+1;
+
+			do
+			{
+				pr_file_p++;
+				if (pr_file_p[0]=='\n')
+				{
+					QCC_PR_NewLine(true);
+				}
+				else if (pr_file_p[1] == 0)
+				{
+					QCC_PR_ParseError(0, "EOF inside comment\n");
+					break;
+				}
+				if (pr_file_p[0] == '/' && pr_file_p[1] == '*')
+					QCC_PR_ParseWarning(WARN_NESTEDCOMMENT, "\"/*\" inside comment");
+			} while (pr_file_p[0] != '*' || pr_file_p[1] != '/');
+
+			if (pr_file_p[1] == 0)
+				break;
+
+			old = replace?NULL:*comment;
+			replace = false;
+			oldlen = old?strlen(old):0;
+			*comment = qccHunkAlloc(oldlen + (pr_file_p-start)+1);
+			memcpy(*comment, old, oldlen);
+			memcpy(*comment + oldlen, start, pr_file_p - start);
+			(*comment)[oldlen+pr_file_p - start] = 0;
+
+			pr_file_p+=2;
+		}
+	}
+
+	QCC_PR_LexWhitespace(false);
+}
+
+pbool QCC_PR_CheckTokenComment(const char *string, char **comment)
+{
 	if (pr_token_type != tt_punct)
 		return false;
 
@@ -4231,104 +4337,7 @@ pbool QCC_PR_CheckTokenComment(const char *string, char **comment)
 		return false;
 
 	if (comment)
-	{
-		// skip whitespace
-		nl = false;
-		while(nextcomment)
-		{
-			nextcomment = false;
-
-			while ((c = *pr_file_p) && qcc_iswhite(c))
-			{
-				if (c=='\n')	//allow new lines, but only if there's whitespace before any tokens, and no double newlines.
-				{
-					if (nl)
-					{
-						pr_file_p++;
-						QCC_PR_NewLine(false);
-						break;
-					}
-					nl = true;
-				}
-				else
-				{
-					pr_file_p++;
-					nl = false;
-				}
-			}
-			if (nl)
-				break;
-
-			// parse // comments
-			if (c=='/' && pr_file_p[1] == '/')
-			{
-				pr_file_p += 2;
-				while (*pr_file_p == ' ' || *pr_file_p == '\t')
-					pr_file_p++;
-				start = pr_file_p;
-				while (*pr_file_p && *pr_file_p != '\n')
-					pr_file_p++;
-
-				if (*pr_file_p == '\n')
-				{
-					pr_file_p++;
-					QCC_PR_NewLine(false);
-				}
-
-				old = replace?NULL:*comment;
-				replace = false;
-				oldlen = old?strlen(old)+1:0;
-				*comment = qccHunkAlloc(oldlen + (pr_file_p-start)+1);
-				if (oldlen)
-				{
-					memcpy(*comment, old, oldlen-1);
-					memcpy(*comment+oldlen-1, "\n", 1);
-				}
-				memcpy(*comment + oldlen, start, pr_file_p - start);
-				oldlen = oldlen+pr_file_p - start;
-				while(oldlen > 0 && ((*comment)[oldlen-1] == '\r' || (*comment)[oldlen-1] == '\n' || (*comment)[oldlen-1] == '\t' || (*comment)[oldlen-1] == ' '))
-					oldlen--;
-				(*comment)[oldlen] = 0;
-				nextcomment = true;	//include the next // too
-				nl = true;
-			}
-			// parse /* comments
-			else if (c=='/' && pr_file_p[1] == '*' && replace)
-			{
-				pr_file_p+=1;
-				start = pr_file_p+1;
-
-				do
-				{
-					pr_file_p++;
-					if (pr_file_p[0]=='\n')
-					{
-						QCC_PR_NewLine(true);
-					}
-					else if (pr_file_p[1] == 0)
-					{
-						QCC_PR_ParseError(0, "EOF inside comment\n");
-						break;
-					}
-					if (pr_file_p[0] == '/' && pr_file_p[1] == '*')
-						QCC_PR_ParseWarning(WARN_NESTEDCOMMENT, "\"/*\" inside comment");
-				} while (pr_file_p[0] != '*' || pr_file_p[1] != '/');
-
-				if (pr_file_p[1] == 0)
-					break;
-
-				old = replace?NULL:*comment;
-				replace = false;
-				oldlen = old?strlen(old):0;
-				*comment = qccHunkAlloc(oldlen + (pr_file_p-start)+1);
-				memcpy(*comment, old, oldlen);
-				memcpy(*comment + oldlen, start, pr_file_p - start);
-				(*comment)[oldlen+pr_file_p - start] = 0;
-
-				pr_file_p+=2;
-			}
-		}
-	}
+		QCC_PR_LexComment(comment);
 
 	//and then do the rest properly.
 	QCC_PR_Lex ();

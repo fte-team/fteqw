@@ -582,6 +582,7 @@ tt_punct, 		// code punctuation
 tt_immediate,	// string, float, vector
 } token_type_t;
 
+extern	char			*pr_token_precomment;
 extern	char		pr_token[8192];
 extern	token_type_t	pr_token_type;
 extern	int				pr_token_line;

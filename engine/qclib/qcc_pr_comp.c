@@ -7450,18 +7450,26 @@ static QCC_sref_t QCC_PR_ParseFunctionCall (QCC_ref_t *funcref)	//warning, the f
 		}
 		if (!strcmp(funcname, "_"))
 		{
+			char *comment = pr_token_precomment;
 			func.sym->unused = true;
 			func.sym->referenced = true;
 			QCC_FreeTemp(func);
 			if (pr_token_type == tt_immediate && pr_immediate_type->type == ev_string)
 			{
 				d = QCC_MakeTranslateStringConst(pr_immediate_string);
+
+				d.sym->comment = comment;
 				QCC_PR_Lex();
+				if (!d.sym->comment)
+					d.sym->comment = pr_token_precomment;
+				if (QCC_PR_CheckTokenComment (")", &d.sym->comment))
+					return d;
 			}
 			else
 			{
 				QCC_PR_ParseErrorPrintSRef (ERR_TYPEMISMATCHPARM, func, "_() intrinsic accepts only a string immediate", 1);
 				d = nullsref;
+
 			}
 			QCC_PR_Expect(")");
 			return d;
@@ -8369,6 +8377,9 @@ static QCC_sref_t QCC_MakeStringConstInternal(const char *value, size_t length, 
 	cn->scope = NULL;		// always share immediates
 	cn->arraysize = 0;
 	cn->localscope = false;
+
+	cn->filen = s_filen;
+	cn->s_line = pr_source_line;
 
 // copy the immediate to the global area
 	cn->ofs = 0;

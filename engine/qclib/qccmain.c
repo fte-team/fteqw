@@ -142,6 +142,7 @@ static pbool flag_dumpfilenames;
 static pbool flag_dumpfields;
 static pbool flag_dumpsymbols;
 static pbool flag_dumpautocvars;
+static pbool flag_dumplocalisation;
 
 
 struct {
@@ -424,6 +425,7 @@ compiler_flag_t compiler_flag[] = {
 	{&flag_dumpfields,		FLAG_MIDCOMPILE,"dumpfields",	"Write a .fld file",	"Writes a .fld file that shows which fields are defined, along with their offsets etc, for weird debugging."},
 	{&flag_dumpsymbols,		FLAG_MIDCOMPILE,"dumpsymbols",	"Write a .sym file",	"Writes a .sym file alongside the dat which contains a list of all global symbols defined in the code (before stripping)"},
 	{&flag_dumpautocvars,	FLAG_MIDCOMPILE,"dumpautocvars","Write a .cfg file",	"Writes a .cfg file that contains a default value for each autocvar listed in the code"},
+	{&flag_dumplocalisation,FLAG_MIDCOMPILE,"dumplocalisation","Write a .pot file",	"Writes a .po template file from your _("") strings that can be edited (with eg gettext's tools) for translations, resulting in eg csprogs.en_US.po vs csprogs.en.po and other various other dialects vs languages."},
 	{NULL}
 };
 
@@ -724,6 +726,9 @@ static void QCC_DumpAutoCvars (const char *outputname)
 				QCC_def_t *def = QCC_PR_GetDef(NULL, n, NULL, false, 0, 0);
 				n += 9;
 
+				if (!def)
+					continue;	//erk?
+
 				if (def->comment)
 					desc = def->comment;
 				else
@@ -763,6 +768,114 @@ static void QCC_DumpAutoCvars (const char *outputname)
 			}
 		}
 	}
+}
+
+static void QCC_DumpLocalisation (const char *outputname)
+{
+	char line[65536];
+	int		h, o;
+	QCC_def_t *def;
+	char *n;
+
+	snprintf(line, sizeof(line), "%s.pot", outputname);
+	h = SafeOpenWrite (line, 2*1024*1024);
+	if (h >= 0)
+	{
+		for (def = pr.def_head.next ; def ; def = def->next)
+		{
+			if (!strncmp(def->name, "dotranslate_", 12))
+			{
+				const QCC_eval_t *val = (const QCC_eval_t*)def->symboldata;
+				if (def->type->type != ev_string)
+					continue;
+
+				if (def->comment)
+				{
+					n = def->comment;
+					snprintf(line, sizeof(line), "#. ");
+					for (o = strlen(line); *n && o < countof(line)-10; n++)
+					{
+						if (*n == '\n')
+						{
+							if (n[1])
+							{
+								line[o++] = '\n';
+								line[o++] = '#';
+								line[o++] = '.';
+								line[o++] = ' ';
+								continue;
+							}
+							else				line[++o] = 'n';
+						}
+						else if (*n == '\\')	line[++o] = '\\';
+						else if (*n == '\"')	line[++o] = '\"';
+						else if (*n == '\n')	line[++o] = 'n';
+						else if (*n == '\r')	line[++o] = 'r';
+						else if (*n == '\t')	line[++o] = 't';
+						else
+						{	//hopefully the programmer used utf-8...
+							line[o++] = *n;
+							continue;
+						}
+						line[o++-1] = '\\';
+					}
+					line[o++] = '\n';
+					line[o++] = 0;
+					SafeWrite(h, line, strlen(line));
+				}
+
+				if (def->filen)
+				{	//strip any extra macro info there...
+					char *c = strchr(def->filen, ':');
+					if (c && (c[1] < '0' || c[1] > '9'))	//don't get fooled by windows paths...
+						c = strchr(c+1, ':');
+					if (c)
+					{
+						*c = 0;
+						snprintf(line, sizeof(line), "#: %s:%i\n", def->filen, def->s_line);
+						*c = ':';
+					}
+					else
+						snprintf(line, sizeof(line), "#: %s:%i\n", def->filen, def->s_line);
+					SafeWrite(h, line, strlen(line));
+				}
+
+				n = strings + val->_int;
+				snprintf(line, sizeof(line), "msgid \"");
+				for (o = strlen(line); *n && o < countof(line)-5; n++)
+				{
+					if (*n == '\n' && n[1] && o < countof(line)-10)
+					{	//split multi-line stuff onto multiple lines, becase we can.
+						line[o++] = '\\';
+						line[o++] = 'n';
+						line[o++] = '\"';
+						line[o++] = '\n';
+						line[o++] = '\"';
+						continue;
+					}
+					else if (*n == '\\')	line[++o] = '\\';
+					else if (*n == '\"')	line[++o] = '\"';
+					else if (*n == '\n')	line[++o] = 'n';
+					else if (*n == '\r')	line[++o] = 'r';
+					else if (*n == '\t')	line[++o] = 't';
+					else
+					{	//hopefully the programmer used utf-8...
+						line[o++] = *n;
+						continue;
+					}
+					line[o++-1] = '\\';
+				}
+				line[o++] = '\"';
+				line[o++] = '\n';
+				line[o++] = 0;
+				SafeWrite(h, line, strlen(line));
+
+				snprintf(line, sizeof(line), "msgstr \"\"\n\n");
+				SafeWrite(h, line, strlen(line));
+			}
+		}
+	}
+	SafeClose(h);
 }
 
 static void QCC_DumpFiles (const char *outputname)
@@ -2285,6 +2398,8 @@ strofs = (strofs+3)&~3;
 		QCC_DumpSymbols(destfile);
 	if (flag_dumpautocvars)
 		QCC_DumpAutoCvars(destfile);
+	if (flag_dumplocalisation)
+		QCC_DumpLocalisation(destfile);
 
 	switch(outputsttype)
 	{

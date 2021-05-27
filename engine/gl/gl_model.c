@@ -5601,7 +5601,9 @@ void Mod_LoadDoomSprite (model_t *mod)
 				"endif\n"									\
 				"{\n"										\
 					"map $diffuse\n"						\
-					"if gl_blendsprites\n"					\
+					"if gl_blendsprites == 2\n"				\
+						"blendfunc GL_ONE GL_ONE\n"			\
+					"elif gl_blendsprites\n"				\
 						"blendfunc GL_ONE GL_ONE_MINUS_SRC_ALPHA\n"	\
 					"else\n"								\
 						"alphafunc ge128\n"					\
@@ -5668,29 +5670,7 @@ void Mod_LoadSpriteFrameShader(model_t *spr, int frame, int subframe, mspritefra
 #endif
 
 	if (litsprite)	// a ! in the filename makes it non-fullbright (and can also be lit by rtlights too).
-	{
-		shadertext = 
-			"{\n"
-				"program defaultsprite\n"
-				"{\n"
-					"map $diffuse\n"
-					"blendfunc GL_ONE GL_ONE\n"	//lit sprites are actually additive...
-					"rgbgen vertex\n"
-					"alphagen vertex\n"
-				"}\n"
-				"surfaceparm noshadows\n"
-				"sort seethrough\n"
-				"bemode rtlight\n"
-				"{\n"
-					"program rtlight#NOBUMP\n"
-					"{\n"
-						"map $diffuse\n"
-						"blendfunc add\n"
-					"}\n"
-				"}\n"
-			"}\n"
-			;
-	}
+		shadertext = SPRITE_SHADER_MAIN SPRITE_SHADER_LIT SPRITE_SHADER_FOOTER;
 	else
 		shadertext = SPRITE_SHADER_MAIN SPRITE_SHADER_UNLIT SPRITE_SHADER_FOOTER;
 	frameinfo->shader = R_RegisterShader(name, SUF_NONE, shadertext);

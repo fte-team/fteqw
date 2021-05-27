@@ -1502,9 +1502,9 @@ static int QDECL V_DepthSortTwoEntities(const void *p1,const void *p2)
 	const entity_t *b = p2;
 
 	if (a->angles[0] < b->angles[0])
-		return -1;
-	if (a->angles[0] > b->angles[0])
 		return 1;
+	if (a->angles[0] > b->angles[0])
+		return -1;
 	return 0;
 }
 void V_DepthSortEntities(float *vieworg)

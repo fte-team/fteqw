@@ -399,7 +399,7 @@ cvar_t r_tessellation						= CVARAFD  ("r_tessellation", "0", "gl_ati_truform", 
 cvar_t gl_ati_truform_type					= CVAR  ("gl_ati_truform_type", "1");
 cvar_t r_tessellation_level					= CVAR  ("r_tessellation_level", "5");
 cvar_t gl_blend2d							= CVAR  ("gl_blend2d", "1");
-cvar_t gl_blendsprites						= CVARD  ("gl_blendsprites", "0", "Blend sprites instead of alpha testing them");
+cvar_t gl_blendsprites						= CVARD  ("gl_blendsprites", "0", "Specifies how sprites are blended.\n0: Alpha tested.\n1: Premultiplied blend.\n2: Additive blend.");
 cvar_t r_deluxemapping_cvar					= CVARAFD ("r_deluxemapping", "1", "r_glsl_deluxemapping",
 												CVAR_ARCHIVE|CVAR_RENDERERLATCH, "Enables bumpmapping based upon precomputed light directions.\n0=off\n1=use if available\n2=auto-generate (if possible)");
 cvar_t mod_loadsurfenvmaps					= CVARD ("r_loadsurfenvmaps", "1", "Load local reflection environment-maps, where available. These are normally defined via env_cubemap entities dotted around the place.");

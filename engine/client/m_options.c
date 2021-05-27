@@ -1127,6 +1127,7 @@ struct
 		"set gl_specular_power 16\n"
 		"set gl_specular_fallback 1\n"
 		"set mod_litsprites_force 1\n"
+		"set gl_blendsprites 2\n"
 		"set r_nolerp 1\n"	//well, that matches tenebrae. for the luls, right?
 	},
 

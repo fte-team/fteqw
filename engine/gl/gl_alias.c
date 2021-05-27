@@ -2659,13 +2659,9 @@ static void R_Sprite_GenerateTrisoup(entity_t *e, int bemode)
 	case SPR_ORIENTED:
 		// bullet marks on walls
 		if ((e->flags & RF_WEAPONMODEL) && r_refdef.playerview->viewentity > 0)
-		{
-			vec3_t ea[3];
-			AngleVectors (e->angles, ea[0], ea[1], ea[2]);
-			Matrix3_Multiply(ea, r_refdef.playerview->vw_axis, spraxis);
-		}
+			Matrix3_Multiply(e->axis, r_refdef.playerview->vw_axis, spraxis);
 		else
-			AngleVectors (e->angles, spraxis[0], spraxis[1], spraxis[2]);
+			memcpy(spraxis, e->axis, sizeof(spraxis));
 		break;
 
 	case SPR_FACING_UPRIGHT:
@@ -2699,12 +2695,12 @@ static void R_Sprite_GenerateTrisoup(entity_t *e, int bemode)
 
 	if (e->shaderRGBAf[0] != 0 || e->shaderRGBAf[1] != 0 || e->shaderRGBAf[2] != 0 || (batchflags & BEF_FORCECOLOURMOD))
 	{
-		if (e->shaderRGBAf[0] > 1)
-			e->shaderRGBAf[0] = 1;
-		if (e->shaderRGBAf[1] > 1)
-			e->shaderRGBAf[1] = 1;
-		if (e->shaderRGBAf[2] > 1)
-			e->shaderRGBAf[2] = 1;
+//		if (e->shaderRGBAf[0] > 1)
+//			e->shaderRGBAf[0] = 1;
+//		if (e->shaderRGBAf[1] > 1)
+//			e->shaderRGBAf[1] = 1;
+//		if (e->shaderRGBAf[2] > 1)
+//			e->shaderRGBAf[2] = 1;
 	}
 	else
 	{

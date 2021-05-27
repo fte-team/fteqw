@@ -16856,8 +16856,19 @@ static pbool QCC_PR_GenerateInitializerType(QCC_def_t *basedef, QCC_sref_t tmp, 
 			}
 			else
 			{
-				for (i = 0; (unsigned)i < type->size; i++)
-					def.sym->symboldata[def.ofs+i]._int = tmp.sym->symboldata[tmp.ofs+i]._int;
+				const int *srcdata = (const void*)QCC_SRef_EvalConst(tmp);
+				if (!srcdata)
+				{
+					QCC_PR_ParseWarning(WARN_NOTCONSTANT, "initializer is not initialised yet, %s will be treated as 0", QCC_GetSRefName(tmp));
+					QCC_PR_ParsePrintSRef(WARN_NOTCONSTANT, tmp);
+					for (i = 0; (unsigned)i < type->size; i++)
+						def.sym->symboldata[def.ofs+i]._int = 0;
+				}
+				else
+				{
+					for (i = 0; (unsigned)i < type->size; i++)
+						def.sym->symboldata[def.ofs+i]._int = srcdata[i];
+				}
 			}
 		}
 	}

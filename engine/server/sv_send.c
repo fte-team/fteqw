@@ -3521,7 +3521,7 @@ void SV_SendClientMessages (void)
 				host_client = c;
 				sv_player = c->edict;
 				SV_PreRunCmd();
-				stepmsec = 12;
+				stepmsec = 13;
 				cmd.msec = stepmsec;
 
 				if (sv_showpredloss.ival)

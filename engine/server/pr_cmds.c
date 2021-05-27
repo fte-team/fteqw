@@ -10293,27 +10293,36 @@ void SV_SetEntityButtons(edict_t *ent, unsigned int buttonbits)
 
 static void SV_SetSSQCInputs(usercmd_t *ucmd)
 {
-	pr_global_struct->input_timelength = ucmd->msec/1000.0f * sv.gamespeed;
-	pr_global_struct->input_impulse = ucmd->impulse;
+	if (pr_global_ptrs->input_timelength)
+		pr_global_struct->input_timelength = ucmd->msec/1000.0f * sv.gamespeed;
+	if (pr_global_ptrs->input_impulse)
+		pr_global_struct->input_impulse = ucmd->impulse;
 //precision inaccuracies. :(
 #define ANGLE2SHORT(x) (x) * (65536/360.0)
-	if (sv_player->v->fixangle)
+	if (pr_global_ptrs->input_angles)
 	{
-		(pr_global_struct->input_angles)[0] = sv_player->v->v_angle[0];
-		(pr_global_struct->input_angles)[1] = sv_player->v->v_angle[1];
-		(pr_global_struct->input_angles)[2] = sv_player->v->v_angle[2];
-	}
-	else
-	{
-		(pr_global_struct->input_angles)[0] = SHORT2ANGLE(ucmd->angles[0]);
-		(pr_global_struct->input_angles)[1] = SHORT2ANGLE(ucmd->angles[1]);
-		(pr_global_struct->input_angles)[2] = SHORT2ANGLE(ucmd->angles[2]);
+		if (sv_player->v->fixangle)
+		{
+			(pr_global_struct->input_angles)[0] = sv_player->v->v_angle[0];
+			(pr_global_struct->input_angles)[1] = sv_player->v->v_angle[1];
+			(pr_global_struct->input_angles)[2] = sv_player->v->v_angle[2];
+		}
+		else
+		{
+			(pr_global_struct->input_angles)[0] = SHORT2ANGLE(ucmd->angles[0]);
+			(pr_global_struct->input_angles)[1] = SHORT2ANGLE(ucmd->angles[1]);
+			(pr_global_struct->input_angles)[2] = SHORT2ANGLE(ucmd->angles[2]);
+		}
 	}
 
-	(pr_global_struct->input_movevalues)[0] = ucmd->forwardmove;
-	(pr_global_struct->input_movevalues)[1] = ucmd->sidemove;
-	(pr_global_struct->input_movevalues)[2] = ucmd->upmove;
-	pr_global_struct->input_buttons = ucmd->buttons;
+	if (pr_global_ptrs->input_movevalues)
+	{
+		(pr_global_struct->input_movevalues)[0] = ucmd->forwardmove;
+		(pr_global_struct->input_movevalues)[1] = ucmd->sidemove;
+		(pr_global_struct->input_movevalues)[2] = ucmd->upmove;
+	}
+	if (pr_global_ptrs->input_buttons)
+		pr_global_struct->input_buttons = ucmd->buttons;
 	if (pr_global_ptrs->input_weapon)
 		pr_global_struct->input_weapon = ucmd->weapon;
 	if (pr_global_ptrs->input_lightlevel)

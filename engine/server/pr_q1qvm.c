@@ -429,11 +429,12 @@ static unsigned int QDECL Q1QVMPF_NumForEdict(pubprogfuncs_t *pf, edict_t *e)
 }
 
 static int QDECL Q1QVMPF_EdictToProgs(pubprogfuncs_t *pf, edict_t *e)
-{
+{	//sadly ktx still uses byte-offset-from-world :(
 	return e->entnum*sv.world.edict_size;
 }
 static edict_t *QDECL Q1QVMPF_ProgsToEdict(pubprogfuncs_t *pf, int num)
 {
+	//sadly ktx still uses byte-offset-from-world :(
 	if (num % sv.world.edict_size)
 		Con_Printf("Edict To Progs with remainder\n");
 	num /= sv.world.edict_size;
@@ -1062,23 +1063,30 @@ static qintptr_t QVM_SetSpawnParams (void *offset, quintptr_t mask, const qintpt
 }
 static qintptr_t QVM_ChangeLevel (void *offset, quintptr_t mask, const qintptr_t *arg)
 {
+	const char *arg_mapname = VM_POINTER(arg[0]);
+//	const char *arg_entfilename = VM_POINTER(arg[1]);
+
 	char newmap[MAX_QPATH];
 	if (sv.mapchangelocked)
 		return 0;
 	sv.mapchangelocked = true;
-	COM_QuotedString(VM_POINTER(arg[0]), newmap, sizeof(newmap), false);
+	COM_QuotedString(arg_mapname, newmap, sizeof(newmap), false);
 	Cbuf_AddText (va("\nchangelevel %s\n", newmap), RESTRICT_LOCAL);
 	return 1;
 }
-static qintptr_t QVM_ChangeLevel2 (void *offset, quintptr_t mask, const qintptr_t *arg)
+static qintptr_t QVM_ChangeLevelHub (void *offset, quintptr_t mask, const qintptr_t *arg)
 {
+	const char *arg_mapname = VM_POINTER(arg[0]);
+//	const char *arg_entfile = VM_POINTER(arg[1]);
+	const char *arg_startspot = VM_POINTER(arg[2]);
+
 	char newmap[MAX_QPATH];
 	char startspot[MAX_QPATH];
 	if (sv.mapchangelocked)
 		return 0;
 	sv.mapchangelocked = true;
-	COM_QuotedString(VM_POINTER(arg[0]), newmap, sizeof(newmap), false);
-	COM_QuotedString(VM_POINTER(arg[1]), startspot, sizeof(startspot), false);
+	COM_QuotedString(arg_mapname, newmap, sizeof(newmap), false);
+	COM_QuotedString(arg_startspot, startspot, sizeof(startspot), false);
 	Cbuf_AddText (va("\nchangelevel %s %s\n", newmap, startspot), RESTRICT_LOCAL);
 	return 1;
 }
@@ -1990,7 +1998,7 @@ struct
 {
 	{"SetExtField",			QVM_SetExtField},
 	{"GetExtField",			QVM_GetExtField},
-	{"ChangeLevel2",		QVM_ChangeLevel2},	//with start spot
+	{"ChangeLevelHub",		QVM_ChangeLevelHub},	//with start spot
 #ifdef WEBCLIENT
 	{"URI_Query",			QVM_uri_query},
 #endif

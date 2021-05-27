@@ -449,6 +449,7 @@ static int QDECL ShowMapList (const char *name, qofs_t flags, time_t mtime, void
 }
 static void SV_MapList_f(void)
 {
+	//FIXME: maps/mapname#modifier.ent
 	COM_EnumerateFiles("maps/*.bsp", ShowMapList, "");
 	COM_EnumerateFiles("maps/*.bsp.gz", ShowMapList, ".bsp.gz");
 	COM_EnumerateFiles("maps/*.map", ShowMapList, ".map");
@@ -481,6 +482,7 @@ static void SV_Map_c(int argn, const char *partial, struct xcommandargcompletion
 {
 	if (argn == 1)
 	{
+		//FIXME: maps/mapname#modifier.ent
 		COM_EnumerateFiles(va("maps/%s*.bsp", partial), CompleteMapList, ctx);
 		COM_EnumerateFiles(va("maps/%s*.bsp.gz", partial), CompleteMapListExt, ctx);
 		COM_EnumerateFiles(va("maps/%s*.map", partial), CompleteMapListExt, ctx);
@@ -529,6 +531,10 @@ quake2:
 
 quake:
 + is used in certain map names. * cannot be, but $ potentially could be.
+
+mvdsv:
+basemap#modifier.ent files
+
 ======================
 */
 void SV_Map_f (void)
@@ -628,7 +634,7 @@ void SV_Map_f (void)
 	sv.mapchangelocked = false;
 
 	if (!strcmp(level, "."))
-		;//restart current
+		;//restart current - deprecated.
 	else
 	{
 		snprintf (expanded, sizeof(expanded), "maps/%s.bsp", level); // this function and the if statement below, is a quake bugfix which stopped a map called "dm6++.bsp" from loading because of the + sign, quake2 map syntax interprets + character as "intro.cin+base1.bsp", to play a cinematic then load a map after

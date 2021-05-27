@@ -642,7 +642,7 @@ static qboolean PM_MergePackage(package_t *oldp, package_t *newp)
 		if (newp->previewimage){Z_Free(oldp->previewimage); oldp->previewimage = Z_StrDup(newp->previewimage);}
 
 		if (newp->signature){Z_Free(oldp->signature); oldp->signature = Z_StrDup(newp->signature);}
-		if (newp->filesha1){Z_Free(oldp->filesha1); oldp->previewimage = Z_StrDup(newp->filesha1);}
+		if (newp->filesha1){Z_Free(oldp->filesha1); oldp->filesha1 = Z_StrDup(newp->filesha1);}
 		if (newp->filesha512){Z_Free(oldp->filesha512); oldp->filesha512 = Z_StrDup(newp->filesha512);}
 		if (newp->filesize){oldp->filesize = newp->filesize;}
 
@@ -5120,7 +5120,7 @@ static void MD_Download_UpdateStatus(struct emenu_s *m)
 			if (op->common.iszone)
 				Z_Free(op);
 		}
-		m->cursoritem = m->selecteditem = NULL;
+		m->cursoritem = m->selecteditem = m->mouseitem = NULL;
 		info->downloadablessequence = downloadablessequence;
 
 		info->populated = false;

@@ -569,6 +569,7 @@ mirror:
 
 qboolean FS_GamedirIsOkay(const char *path)
 {
+	char tmp[MAX_QPATH];
 	if (!*path || strchr(path, '\n') || strchr(path, '\r') || !strcmp(path, ".") || !strcmp(path, "..") || strchr(path, ':') || strchr(path, '/') || strchr(path, '\\') || strchr(path, '$'))
 	{
 		Con_Printf("Illegal path specified: %s\n", path);
@@ -585,7 +586,18 @@ qboolean FS_GamedirIsOkay(const char *path)
 	}
 
 	//some gamedirs should never be used for actual games/mods. Reject them.
-	if (!Q_strncasecmp(path, "downloads", 9) || !Q_strncasecmp(path, "docs", 4) || !Q_strncasecmp(path, "help", 4))
+	if (!Q_strncasecmp(path, "downloads", 9) ||	//QI stuff uses this for arbitrary downloads. it doesn't make sense as a gamedir.
+		!Q_strncasecmp(path, "docs", 4) ||		//don't pollute this
+		!Q_strncasecmp(path, "help", 4) ||		//don't pollute this
+		!Q_strncasecmp(path, "bin", 3) ||		//if scripts try executing stuff here then we want to make extra sure that we don't allow writing anything within it.
+		!Q_strncasecmp(path, "lib", 3))			//same deal
+	{
+		Con_Printf ("Gamedir should not be \"%s\"\n", path);
+		return false;
+	}
+
+	//this checks for system-specific entries.
+	if (!FS_GetCleanPath(path, true, tmp, sizeof(tmp)))
 	{
 		Con_Printf ("Gamedir should not be \"%s\"\n", path);
 		return false;
@@ -1878,7 +1890,7 @@ static const char *FS_GetCleanPath(const char *pattern, qboolean silent, char *o
 
 	s = pattern;
 	seg = o = outbuf;
-	if (!pattern)
+	if (!pattern || !*pattern)
 	{
 		Con_Printf("Error: Empty filename\n");
 		return NULL;
@@ -2433,6 +2445,17 @@ static int QDECL FS_RemoveTreeCallback(const char *fname, qofs_t fsize, time_t m
 qboolean FS_RemoveTree(searchpathfuncs_t *pathhandle, const char *fname)
 {	//this requires that the searchpath a) supports remove. b) supports listing directories...
 	//path is expected to have a trailing /
+
+	/*char cleaned[MAX_QPATH];
+	fname = FS_GetCleanPath(fname, false, cleaned, sizeof(cleaned));
+	if (!fname)
+		return false;*/
+
+	if (fs_readonly)
+		return false;
+
+	//FIXME: don't cross filesystems.
+	//FIXME: remove dir symlinks instead of the target's contents.
 	if (FS_RemoveTreeCallback(fname, 0, 0, NULL, pathhandle))
 		return true;
 	return false;

@@ -1542,10 +1542,11 @@ static pbool PR_ExecRunWarning (pubprogfuncs_t *ppf, int xstatement, char *error
 	if (prinst.pr_depth != 0)
 		PR_StackTrace (ppf, false);
 
-	if (progfuncs->funcs.debug_trace == 0)
+	if (progfuncs->funcs.debug_trace == DEBUG_TRACE_OFF)
 	{
 		prinst.pr_xstatement = ShowStep(progfuncs, xstatement, string, false);
-		return true;
+		if (progfuncs->funcs.debug_trace != DEBUG_TRACE_OFF)
+			return true;
 	}
 	return false;
 }

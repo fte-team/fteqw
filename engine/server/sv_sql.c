@@ -923,7 +923,7 @@ int SQL_NewServer(void *owner, const char *driver, const char **paramstr)
 
 int SQL_NewQuery(sqlserver_t *server, qboolean (*callback)(queryrequest_t *req, int firstrow, int numrows, int numcols, qboolean eof), const char *str, queryrequest_t **reqout)
 {
-	int qsize = Q_strlen(str);
+	int qsize = Q_strlen(str)+1;
 	queryrequest_t *qreq;
 	int querynum;
 

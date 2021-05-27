@@ -36,7 +36,7 @@ static void DLC_Poll(qdownload_t *dl);
 static void CL_ProcessUserInfo (int slot, player_info_t *player);
 
 #ifdef NQPROT
-char cl_dp_packagenames[4096];
+char *cl_dp_packagenames;
 static char cl_dp_csqc_progsname[128];
 static int cl_dp_csqc_progssize;
 static int cl_dp_csqc_progscrc;
@@ -2253,7 +2253,7 @@ static void CL_ParseChunkedDownload(qdownload_t *dl)
 					if (!strncmp(svname, "package/", 8))
 					{
 						int i, c;
-						Cmd_TokenizeString(cl.serverpaknames, false, false);
+						Cmd_TokenizeString(cl.serverpacknames, false, false);
 						c = Cmd_Argc();
 						for (i = 0; i < c; i++)
 						{
@@ -2265,10 +2265,10 @@ static void CL_ParseChunkedDownload(qdownload_t *dl)
 						else
 						{
 							char localname[MAX_OSPATH];
-							char *crc;
-							Cmd_TokenizeString(cl.serverpakcrcs, false, false);
-							crc = Cmd_Argv(i);
-							if (FS_GenCachedPakName(svname+8, crc, localname, sizeof(localname)))
+							char *hash;
+							Cmd_TokenizeString(cl.serverpackhashes, false, false);
+							hash = Cmd_Argv(i);
+							if (FS_GenCachedPakName(svname+8, hash, localname, sizeof(localname)))
 							{
 								if (CL_CheckOrEnqueDownloadFile(svname+8, localname, DLLF_NONGAME))
 									if (!CL_CheckDLFile(dl->localname))
@@ -3679,7 +3679,8 @@ static void CLQ2_ParseServerData (void)
 void CL_ParseEstablished(void)
 {
 #ifdef NQPROT
-	*cl_dp_packagenames = 0;
+	Z_Free(cl_dp_packagenames);
+	cl_dp_packagenames = NULL;
 	cl_dp_serverextension_download = false;
 	*cl_dp_csqc_progsname = 0;
 	cl_dp_csqc_progscrc = 0;
@@ -3985,19 +3986,15 @@ static void CLNQ_ParseServerData(void)		//Doesn't change gamedir - use with caut
 		InfoBuf_SetStarKey(&cl.serverinfo, "*csprogsname", va("%s", cl_dp_csqc_progsname));
 	}
 
-	if (*cl_dp_packagenames)
+	if (cl_dp_packagenames)
 	{
 		char *in = cl_dp_packagenames;
-		while (*in)
+		if (cl.serverpacknames)
+			Z_StrCat(&cl.serverpacknames, " ");
+		Z_StrCat(&cl.serverpacknames, in);
+		while ((in = COM_Parse(in)))
 		{
-			in = COM_Parse(in);
-
-			if (*cl.serverpaknames)
-				Q_strncatz(cl.serverpaknames, " ", sizeof(cl.serverpaknames));
-			Q_strncatz(cl.serverpaknames, com_token, sizeof(cl.serverpaknames));
-			if (*cl.serverpakcrcs)
-				Q_strncatz(cl.serverpakcrcs, " ", sizeof(cl.serverpakcrcs));
-			Q_strncatz(cl.serverpakcrcs, "-", sizeof(cl.serverpakcrcs));	//we don't have any crc info. we'll instead need this info as part of the filename.
+			Z_StrCat(&cl.serverpackhashes, cl.serverpackhashes?" -":"-");	//no hash info.
 			cl.serverpakschanged = true;
 		}
 	}
@@ -6593,12 +6590,12 @@ static void CL_ParseStuffCmd(char *msg, int destsplit)	//this protects stuffcmds
 
 		else if (!strncmp(stufftext, "//paknames ", 11))	//so that the client knows what to download...
 		{													//there's a couple of prefixes involved etc
-			Q_strncatz(cl.serverpaknames, stufftext+11, sizeof(cl.serverpaknames));
+			Z_StrCat(&cl.serverpacknames, stufftext+(cl.serverpackhashes?11:10));
 			cl.serverpakschanged = true;
 		}
 		else if (!strncmp(stufftext, "//paks ", 7))			//gives the client a list of hashes to match against
 		{													//the client can re-order for cl_pure support, or download dupes to avoid version mismatches
-			Q_strncatz(cl.serverpakcrcs, stufftext+7, sizeof(cl.serverpakcrcs));
+			Z_StrCat(&cl.serverpackhashes, stufftext+(cl.serverpackhashes?7:6));
 			cl.serverpakschanged = true;
 			CL_CheckServerPacks();
 		}

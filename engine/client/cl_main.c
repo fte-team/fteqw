@@ -1882,6 +1882,8 @@ void CL_ClearState (qboolean gamestart)
 	}
 
 	Z_Free(cl.windowtitle);
+	Z_Free(cl.serverpacknames);
+	Z_Free(cl.serverpackhashes);
 
 	InfoBuf_Clear(&cl.serverinfo, true);
 
@@ -2278,13 +2280,13 @@ void CL_PakDownloads(int mode)
 	*/
 	char local[256];
 	char *pname;
-	char *s = cl.serverpakcrcs;
+	char *s = cl.serverpackhashes;
 	int i;
 
 	if (!cl.serverpakschanged || !mode)
 		return;
 
-	Cmd_TokenizeString(cl.serverpaknames, false, false);
+	Cmd_TokenizeString(cl.serverpacknames, false, false);
 	for (i = 0; i < Cmd_Argc(); i++)
 	{
 		s = COM_Parse(s);
@@ -2318,13 +2320,13 @@ void CL_CheckServerPacks(void)
 		pure = cl_pure.ival;
 	pure = bound(0, pure, 2);
 
-	if (!*cl.serverpakcrcs || cls.demoplayback)
+	if (!cl.serverpackhashes || cls.demoplayback)
 		pure = 0;
 
 	if (pure != oldpure || cl.serverpakschanged)
 	{
 		CL_PakDownloads((pure && !cl_download_packages.ival)?1:cl_download_packages.ival);
-		FS_PureMode(pure, cl.serverpaknames, cl.serverpakcrcs, NULL, NULL, cls.challenge);
+		FS_PureMode(pure, cl.serverpacknames, cl.serverpackhashes, NULL, NULL, cls.challenge);
 
 		if (pure)
 		{
@@ -4197,7 +4199,7 @@ static void CL_Curl_f(void)
 	char localname[MAX_QPATH];
 	int usage = 0;
 	qboolean alreadyhave = false;
-	extern char cl_dp_packagenames[4096];
+	extern char *cl_dp_packagenames;
 	unsigned int dlflags = DLLF_VERBOSE;
 	if (argc < 2)
 	{
@@ -4250,7 +4252,8 @@ static void CL_Curl_f(void)
 		}
 		else if (!strcmp(arg, "--clear_autodownload"))
 		{
-			*cl_dp_packagenames = 0;
+			Z_Free(cl_dp_packagenames);
+			cl_dp_packagenames = NULL;
 			return;
 		}
 		else if (!strcmp(arg, "--finish_autodownload"))
@@ -4283,9 +4286,8 @@ static void CL_Curl_f(void)
 			if (!CL_CheckOrEnqueDownloadFile(arg, localname, dlflags))
 				Con_Printf("Downloading %s to %s\n", arg, localname);
 
-		if (*cl_dp_packagenames)
-			Q_strncatz(cl_dp_packagenames, " ", sizeof(cl_dp_packagenames));
-		Q_strncatz(cl_dp_packagenames, va("%s/%s", gamedir, localterse), sizeof(cl_dp_packagenames));
+		if (cl_dp_packagenames)
+			Z_StrCat(&cl_dp_packagenames, va("%s%s/%s", cl_dp_packagenames?" ":"", gamedir, localterse));
 	}
 	else
 	{

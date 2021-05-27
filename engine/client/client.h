@@ -797,8 +797,8 @@ typedef struct
 
 	qboolean	haveserverinfo;	//nq servers will usually be false. don't override stuff if we already know better.
 	infobuf_t	serverinfo;
-	char		serverpaknames[1024];
-	char		serverpakcrcs[1024];
+	char		*serverpacknames;
+	char		*serverpackhashes;
 	qboolean	serverpakschanged;
 
 	int			parsecount;		// server message counter

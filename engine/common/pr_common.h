@@ -151,6 +151,8 @@ void QCBUILTIN PF_stov (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 void QCBUILTIN PF_strzone(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 void QCBUILTIN PF_strunzone(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 void QCBUILTIN PF_Spawn (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_spawn_object (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_respawnedict (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 void QCBUILTIN PF_entityprotection (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 void QCBUILTIN PF_copyentity (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 void QCBUILTIN PF_droptofloor (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
@@ -364,6 +366,8 @@ void QCBUILTIN PF_randomvec (pubprogfuncs_t *prinst, struct globalvars_s *pr_glo
 void QCBUILTIN PF_strreplace (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 void QCBUILTIN PF_strireplace (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 void QCBUILTIN PF_randomvector (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+int PR_QCFile_From_VFS (pubprogfuncs_t *prinst, const char *name, vfsfile_t *f, qboolean write);
+int PR_QCFile_From_Buffer (pubprogfuncs_t *prinst, const char *name, void *buffer, size_t offset, size_t len);
 void QCBUILTIN PF_fopen (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 
 void QCBUILTIN PF_fcopy (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);

@@ -2663,29 +2663,32 @@ void SV_DoDirectConnect(svconnectinfo_t *fte_restrict info)
 			clients++;
 
 		if (cl->state == cs_loadzombie)
-		{
-			if (!newcl)
+		{	//only try if they actually match this one...
+			if ((!strcmp(cl->name, name) || !*cl->name) && (!*cl->guid || !strcmp(info->guid, cl->guid)))
 			{
-				if (((!strcmp(cl->name, name) || !*cl->name) && (!*cl->guid || !strcmp(info->guid, cl->guid))) || sv.allocated_client_slots <= 1)	//named, or first come first serve.
-				{
-					if (cl->istobeloaded)
-						Con_DPrintf("%s:Using loadzombie\n", svs.name);
-					else
-						Con_DPrintf("%s:Using parmzombie\n", svs.name);
-					newcl = cl;
-					preserveparms = true;
-					temp.istobeloaded = cl->istobeloaded;
-					temp.spawned = cl->spawned;
-					memcpy(temp.spawn_parms, cl->spawn_parms, sizeof(temp.spawn_parms));
-					if (cl->userid)
-						temp.userid = cl->userid;
-					break;
-				}
+				newcl = cl;
+				break;
 			}
+			if (!newcl)	//just use any.
+				newcl = cl;
 		}
 	}
 
-	if (!newcl)	//client has no slot. It's possible to bipass this if server is loading a game. (or a duplicated qsocket)
+	if (newcl)
+	{	//client is reprising a loaded slot.
+		SV_BroadcastTPrintf(PRINT_HIGH, "%s reprises %s\n", name, newcl->name);
+		if (cl->istobeloaded)
+			Con_DPrintf("%s:Using loadzombie\n", svs.name);
+		else
+			Con_DPrintf("%s:Using parmzombie\n", svs.name);
+		preserveparms = true;
+		temp.istobeloaded = newcl->istobeloaded;
+		temp.spawned = newcl->spawned;
+		memcpy(temp.spawn_parms, newcl->spawn_parms, sizeof(temp.spawn_parms));
+		if (newcl->userid)
+			temp.userid = newcl->userid;
+	}
+	else 	//client has no existing slot.
 	{
 #ifdef SUBSERVERS
 		if (SSV_IsSubServer())
@@ -2893,7 +2896,7 @@ void SV_DoDirectConnect(svconnectinfo_t *fte_restrict info)
 	InfoSync_Clear(&newcl->infosync);
 	*newcl = temp;
 	newcl->userinfo.ChangeCB = svs.info.ChangeCB;
-	newcl->userinfo.ChangeCTX = &svs.clients[i].userinfo;
+	newcl->userinfo.ChangeCTX = &newcl->userinfo;
 	InfoBuf_FromString(&newcl->userinfo, info->userinfo, false);
 
 	newcl->challenge = info->challenge;

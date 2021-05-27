@@ -583,7 +583,7 @@ qboolean SV_LoadLevelCache(const char *savename, const char *level, const char *
 
 	VFS_GETS(f, str, sizeof(str));
 	version = atoi(str);
-	if (version != CACHEGAME_VERSION_OLD && version != CACHEGAME_VERSION_VERBOSE)
+	if (version != CACHEGAME_VERSION_OLD && version != CACHEGAME_VERSION_VERBOSE && version != CACHEGAME_VERSION_MODSAVED)
 	{
 		VFS_CLOSE (f);
 		Con_TPrintf ("Savegame is version %i, not %i\n", version, CACHEGAME_VERSION_DEFAULT);
@@ -664,6 +664,7 @@ qboolean SV_LoadLevelCache(const char *savename, const char *level, const char *
 	sv.time = time;
 	if (svs.gametype != gametype)
 	{
+		VFS_CLOSE (f);
 		Con_Printf("Incorrect gamecode type. Cannot load game.\n");
 		return false;
 	}
@@ -672,6 +673,77 @@ qboolean SV_LoadLevelCache(const char *savename, const char *level, const char *
 		VFS_CLOSE (f);
 		Con_TPrintf ("Couldn't load map\n");
 		return false;
+	}
+
+	if (version == CACHEGAME_VERSION_MODSAVED)
+	{
+		const char *line;
+		void *pr_globals = PR_globals(svprogfuncs, PR_CURRENT);
+		func_t restorefunc = PR_FindFunction(svprogfuncs, "SV_PerformLoad", PR_ANY);
+		com_tokentype_t tt;
+		if (!restorefunc)
+		{
+			VFS_CLOSE (f);
+			Con_TPrintf ("SV_PerformLoad missing, unable to load game\n");
+			return false;
+		}
+
+		//shove it into a buffer to make the next bit easier.
+		filepos = VFS_TELL(f);
+		filelen = VFS_GETLEN(f);
+		filelen -= filepos;
+		file = BZ_Malloc(filelen+1);
+		memset(file, 0, filelen+1);
+		filelen = VFS_READ(f, file, filelen);
+		VFS_CLOSE (f);
+		if ((int)filelen < 0)
+			filelen = 0;
+		file[filelen]='\0';
+
+		//look for possible engine commands followed by a 'moddata' line (with no args)
+		line = file;
+		while(line && *line)
+		{
+			if (SV_ExtendedSaveData(svprogfuncs, NULL, &line))
+				continue;
+			line = COM_ParseTokenOut(line, NULL, com_token, sizeof(com_token), &tt);
+			if (!strcmp(com_token, "moddata"))
+			{
+				//loop till end of line
+				while (line && tt != TTP_LINEENDING)
+					line = COM_ParseTokenOut(line, NULL, com_token, sizeof(com_token), &tt);
+				break;	//terminates the postamble
+			}
+
+			//loop till end of line
+			while (line && tt != TTP_LINEENDING)
+				line = COM_ParseTokenOut(line, NULL, com_token, sizeof(com_token), &tt);
+		}
+		if (!line)
+		{
+			BZ_Free(file);
+			Con_TPrintf ("unsupported saved game\n");
+			return false;
+		}
+
+//		for(i = sv.allocated_client_slots+1; i < sv.world.num_edicts; i++)
+//			svprogfuncs->EntFree (svprogfuncs, EDICT_NUM_PB(svprogfuncs, i), false);
+
+		//and now we can stomp on everything. yay.
+		sv.world.edicts[0].readonly = false;
+		G_FLOAT(OFS_PARM0) = PR_QCFile_From_Buffer(svprogfuncs, name, file, line-file, filelen);
+		G_FLOAT(OFS_PARM1) = sv.world.num_edicts;
+		G_FLOAT(OFS_PARM2) = sv.allocated_client_slots;
+		PR_ExecuteProgram(svprogfuncs, restorefunc);
+		sv.world.edicts[0].readonly = true;
+
+		//in case they forgot to setorigin everything after blindly loading its fields...
+		World_ClearWorld (&sv.world, true);
+
+		//let time jump to match whatever time the mod wanted.
+		sv.time = sv.world.physicstime = pr_global_struct->time = time;
+		sv.starttime = Sys_DoubleTime() - sv.time;
+		return true;
 	}
 
 // load the edicts out of the savegame file
@@ -853,6 +925,7 @@ void SV_SaveLevelCache(const char *savedir, qboolean dontharmgame)
 	char	comment[SAVEGAME_COMMENT_LENGTH+1];
 	levelcache_t *cache;
 	int version = CACHEGAME_VERSION_DEFAULT;
+	func_t func;
 
 	if (!sv.state)
 		return;
@@ -953,6 +1026,10 @@ void SV_SaveLevelCache(const char *savedir, qboolean dontharmgame)
 	}
 #endif
 
+	func = PR_FindFunction(svprogfuncs, "SV_PerformSave", PR_ANY);
+	if (func)
+		version = CACHEGAME_VERSION_MODSAVED;
+
 	f = FS_OpenVFS (name, "wbp", FS_GAMEONLY);
 	if (!f)
 	{
@@ -1039,59 +1116,74 @@ void SV_SaveLevelCache(const char *savedir, qboolean dontharmgame)
 		VFS_PRINTF (f,"\n");
 	}
 
-	if (version >= CACHEGAME_VERSION_BINARY)
+	if (version == CACHEGAME_VERSION_MODSAVED)
 	{
-		VFS_PUTS(f, va("%i\n", svprogfuncs->stringtablesize));
-		VFS_WRITE(f, svprogfuncs->stringtable, svprogfuncs->stringtablesize);
+		struct globalvars_s *pr_globals = PR_globals(svprogfuncs, PR_CURRENT);
+		func_t func = PR_FindFunction(svprogfuncs, "SV_PerformSave", PR_ANY);
+
+		//FIXME: save precaches here.
+		VFS_PRINTF (f, "moddata\n");
+		G_FLOAT(OFS_PARM0) = PR_QCFile_From_VFS(svprogfuncs, name, f, true);
+		G_FLOAT(OFS_PARM1) = sv.world.num_edicts;
+		G_FLOAT(OFS_PARM2) = sv.allocated_client_slots;
+		PR_ExecuteProgram(svprogfuncs, func);
 	}
 	else
 	{
-		s = PR_SaveEnts(svprogfuncs, NULL, &len, 0, 1);
-		VFS_PUTS(f, s);
-		VFS_PUTS(f, "\n");
-		svprogfuncs->parms->memfree(s);
-	}
+		/*if (version >= CACHEGAME_VERSION_BINARY)
+		{
+			VFS_PUTS(f, va("%i\n", svprogfuncs->stringtablesize));
+			VFS_WRITE(f, svprogfuncs->stringtable, svprogfuncs->stringtablesize);
+		}
+		else*/
+		{
+			s = PR_SaveEnts(svprogfuncs, NULL, &len, 0, 1);
+			VFS_PUTS(f, s);
+			VFS_PUTS(f, "\n");
+			svprogfuncs->parms->memfree(s);
+		}
 
-	if (version >= CACHEGAME_VERSION_VERBOSE)
-	{
-		char buf[8192];
-		for (i=0 ; i<sv.maxlightstyles ; i++)
-			if (sv.lightstyles[i].str)
-				VFS_PRINTF (f, "lightstyle %i %s %f %f %f\n", i, COM_QuotedString(sv.lightstyles[i].str, buf, sizeof(buf), false), sv.lightstyles[i].colours[0], sv.lightstyles[i].colours[1], sv.lightstyles[i].colours[2]);
-		for (i=1 ; i<MAX_PRECACHE_MODELS ; i++)
-			if (sv.strings.model_precache[i] && *sv.strings.model_precache[i])
-				VFS_PRINTF (f, "model %i %s\n", i, COM_QuotedString(sv.strings.model_precache[i], buf, sizeof(buf), false));
-		for (i=1 ; i<MAX_PRECACHE_SOUNDS ; i++)
-			if (sv.strings.sound_precache[i] && *sv.strings.sound_precache[i])
-				VFS_PRINTF (f, "sound %i %s\n", i, COM_QuotedString(sv.strings.sound_precache[i], buf, sizeof(buf), false));
-		for (i=1 ; i<MAX_SSPARTICLESPRE ; i++)
-			if (sv.strings.particle_precache[i] && *sv.strings.particle_precache[i])
-				VFS_PRINTF (f, "particle %i %s\n", i, COM_QuotedString(sv.strings.particle_precache[i], buf, sizeof(buf), false));
+		if (version >= CACHEGAME_VERSION_VERBOSE)
+		{
+			char buf[8192];
+			for (i=0 ; i<sv.maxlightstyles ; i++)
+				if (sv.lightstyles[i].str)
+					VFS_PRINTF (f, "lightstyle %i %s %f %f %f\n", i, COM_QuotedString(sv.lightstyles[i].str, buf, sizeof(buf), false), sv.lightstyles[i].colours[0], sv.lightstyles[i].colours[1], sv.lightstyles[i].colours[2]);
+			for (i=1 ; i<MAX_PRECACHE_MODELS ; i++)
+				if (sv.strings.model_precache[i] && *sv.strings.model_precache[i])
+					VFS_PRINTF (f, "model %i %s\n", i, COM_QuotedString(sv.strings.model_precache[i], buf, sizeof(buf), false));
+			for (i=1 ; i<MAX_PRECACHE_SOUNDS ; i++)
+				if (sv.strings.sound_precache[i] && *sv.strings.sound_precache[i])
+					VFS_PRINTF (f, "sound %i %s\n", i, COM_QuotedString(sv.strings.sound_precache[i], buf, sizeof(buf), false));
+			for (i=1 ; i<MAX_SSPARTICLESPRE ; i++)
+				if (sv.strings.particle_precache[i] && *sv.strings.particle_precache[i])
+					VFS_PRINTF (f, "particle %i %s\n", i, COM_QuotedString(sv.strings.particle_precache[i], buf, sizeof(buf), false));
 #ifdef HAVE_LEGACY
-		for (i = 0; i < sizeof(sv.strings.vw_model_precache)/sizeof(sv.strings.vw_model_precache[0]); i++)
-			if (sv.strings.vw_model_precache[i])
-				VFS_PRINTF (f, "vwep %i %s\n", i, COM_QuotedString(sv.strings.vw_model_precache[i], buf, sizeof(buf), false));
+			for (i = 0; i < sizeof(sv.strings.vw_model_precache)/sizeof(sv.strings.vw_model_precache[0]); i++)
+				if (sv.strings.vw_model_precache[i])
+					VFS_PRINTF (f, "vwep %i %s\n", i, COM_QuotedString(sv.strings.vw_model_precache[i], buf, sizeof(buf), false));
 #endif
 
-		PR_Common_SaveGame(f, svprogfuncs, version >= CACHEGAME_VERSION_BINARY);
+			PR_Common_SaveGame(f, svprogfuncs, false);//, version >= CACHEGAME_VERSION_BINARY);
 
-		//FIXME: string buffers
-		//FIXME: hash tables
-		//FIXME: skeletal objects?
-		//FIXME: static entities
-		//FIXME: midi track
-		//FIXME: custom temp-ents?
-		//FIXME: pending uri_gets? (if only just to report fails on load)
-		//FIXME: routing calls?
-		//FIXME: sql queries?
-		//FIXME: frik files?
-		//FIXME: qc threads?
+			//FIXME: string buffers
+			//FIXME: hash tables
+			//FIXME: skeletal objects?
+			//FIXME: static entities
+			//FIXME: midi track
+			//FIXME: custom temp-ents?
+			//FIXME: pending uri_gets? (if only just to report fails on load)
+			//FIXME: routing calls?
+			//FIXME: sql queries?
+			//FIXME: frik files?
+			//FIXME: qc threads?
 
-		//	portalblobsize = CM_WritePortalState(sv.world.worldmodel, &portalblob);
-		//	VFS_WRITE(f, portalblob, portalblobsize);
+			//	portalblobsize = CM_WritePortalState(sv.world.worldmodel, &portalblob);
+			//	VFS_WRITE(f, portalblob, portalblobsize);
+		}
+
+		VFS_CLOSE (f);
 	}
-
-	VFS_CLOSE (f);
 
 
 	if (!dontharmgame)
@@ -1131,7 +1223,7 @@ void SV_Savegame (const char *savename, qboolean mapchange)
 #ifndef QUAKETC
 	{
 		int savefmt = sv_savefmt.ival;
-		if (!*sv_savefmt.string && (svs.gametype != GT_PROGS || progstype == PROG_H2 || svs.levcache || (progstype == PROG_QW && strcmp(pr_ssqc_progs.string, "spprogs"))))
+		if (!*sv_savefmt.string && (svs.gametype != GT_PROGS || progstype == PROG_H2 || svs.levcache || (progstype == PROG_QW && strcmp(pr_ssqc_progs.string, "spprogs")) || (svs.gametype==GT_PROGS && PR_FindFunction(svprogfuncs, "SV_PerformSave", PR_ANY))))
 			savefmt = 1;	//hexen2+q2/etc must not use the legacy format by default. can't use it when using any kind of hub system either (harder to detect upfront, which might give confused saved game naming but will at least work).
 		else
 			savefmt = sv_savefmt.ival;
@@ -1262,7 +1354,7 @@ void SV_Savegame (const char *savename, qboolean mapchange)
 
 	VFS_PRINTF (f, "%s\n", svs.name);
 
-	VFS_PRINTF (f, "%g\n", (float)svs.serverflags);
+	VFS_PRINTF (f, "%i\n", svs.serverflags);
 
 	VFS_CLOSE(f);
 
@@ -1474,17 +1566,18 @@ static void SV_SwapPlayers(client_t *a, client_t *b)
 	if (b->team == a->teambuf)	b->team = b->teambuf;
 
 	if (a->netchan.message.data)
-		a->netchan.message.data += (qbyte*)b-(qbyte*)a;
+		a->netchan.message.data += (qbyte*)a-(qbyte*)b;
 	if (a->datagram.data)
-		a->datagram.data += (qbyte*)b-(qbyte*)a;
+		a->datagram.data += (qbyte*)a-(qbyte*)b;
 	if (a->backbuf.data)
-		a->backbuf.data += (qbyte*)b-(qbyte*)a;
+		a->backbuf.data += (qbyte*)a-(qbyte*)b;
+
 	if (b->netchan.message.data)
-		b->netchan.message.data += (qbyte*)a-(qbyte*)b;
+		b->netchan.message.data += (qbyte*)b-(qbyte*)a;
 	if (b->datagram.data)
-		b->datagram.data += (qbyte*)a-(qbyte*)b;
+		b->datagram.data += (qbyte*)b-(qbyte*)a;
 	if (b->backbuf.data)
-		b->backbuf.data += (qbyte*)a-(qbyte*)b;
+		b->backbuf.data += (qbyte*)b-(qbyte*)a;
 }
 void SV_LoadPlayers(loadplayer_t *lp, size_t slots)
 {	//loading games is messy as fuck
@@ -1519,9 +1612,9 @@ void SV_LoadPlayers(loadplayer_t *lp, size_t slots)
 	{
 		to[clnum] = -1;
 		cl = &svs.clients[clnum];
+		SV_DespawnClient(cl);
 		if (cl->state <= cs_loadzombie)
 			continue;
-		SV_DespawnClient(cl);
 		if (cl->state == cs_spawned)
 			cl->state = cs_connected;
 
@@ -1555,6 +1648,8 @@ void SV_LoadPlayers(loadplayer_t *lp, size_t slots)
 				continue;	//spectators shouldn't be pulled into a player against their will. it may still happen though.
 			to[clnum] = p;
 			lp[p].source = cl;
+
+			SV_BroadcastPrintf(PRINT_HIGH, "%s reprises %s\n", cl->name, lp[p].name);
 			break;
 		}
 	}
@@ -1647,6 +1742,9 @@ static void SV_GameLoaded(loadplayer_t *lp, size_t slots, const char *savename)
 				cl->playerclass = 0;
 		}
 #endif
+#ifdef HAVE_LEGACY
+		cl->edict->xv->clientcolors = cl->playercolor;
+#endif
 
 		if (cl->state == cs_spawned)	//shouldn't have gotten past SV_SpawnServer, but just in case...
 			cl->state = cs_connected;	//client needs new serverinfo.
@@ -1678,6 +1776,10 @@ static void SV_GameLoaded(loadplayer_t *lp, size_t slots, const char *savename)
 		}
 	}
 	host_client = NULL;
+	//make sure userinfos match any renamed players.
+	for (clnum = 0; clnum < slots; clnum++)
+		if (svs.clients[clnum].state >= cs_connected)
+			SV_ExtractFromUserinfo (&svs.clients[clnum], true);
 }
 
 #ifndef QUAKETC
@@ -2209,12 +2311,14 @@ qboolean SV_Loadgame (const char *unsafe_savename)
 
 void SV_Loadgame_f (void)
 {
-#ifndef SERVERONLY
+#ifdef HAVE_CLIENT
 	if (!Renderer_Started() && !isDedicated)
 	{
 		Cbuf_AddText(va("wait;%s %s\n", Cmd_Argv(0), Cmd_Args()), Cmd_ExecLevel);
 		return;
 	}
+	if (sv.state == ss_dead)
+		CL_Disconnect(NULL);
 #endif
 
 	if (sv.state == ss_clustermode && MSV_ForwardToAutoServer())

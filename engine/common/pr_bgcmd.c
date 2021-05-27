@@ -2435,7 +2435,56 @@ void QCBUILTIN PF_fopen (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals
 		G_FLOAT(OFS_RETURN) = -1;
 		break;
 	}
- }
+}
+
+//non-builtin function used by saved game code.
+int PR_QCFile_From_VFS (pubprogfuncs_t *prinst, const char *name, vfsfile_t *f, qboolean write)
+{
+	int i;
+
+	for (i = 0; i < MAX_QC_FILES; i++)
+		if (!pf_fopen_files[i].prinst)
+			break;
+	if (i == MAX_QC_FILES)	//too many already open
+		return -1;
+
+	pf_fopen_files[i].accessmode = write?FRIK_FILE_STREAM:FRIK_FILE_READ_DELAY;
+
+	Q_strncpyz(pf_fopen_files[i].name, name, sizeof(pf_fopen_files[i].name));
+	pf_fopen_files[i].file = f;
+
+	pf_fopen_files[i].ofs = VFS_TELL(pf_fopen_files[i].file);
+	if (pf_fopen_files[i].file)
+	{
+		pf_fopen_files[i].len = VFS_GETLEN(pf_fopen_files[i].file);
+
+		pf_fopen_files[i].prinst = prinst;
+		return i + FIRST_QC_FILE_INDEX;
+	}
+	else
+		return -1;
+}
+int PR_QCFile_From_Buffer (pubprogfuncs_t *prinst, const char *name, void *buffer, size_t ofs, size_t len)
+{
+	int i;
+
+	for (i = 0; i < MAX_QC_FILES; i++)
+		if (!pf_fopen_files[i].prinst)
+			break;
+	if (i == MAX_QC_FILES)	//too many already open
+		return -1;
+
+	pf_fopen_files[i].accessmode = FRIK_FILE_READ;
+
+	Q_strncpyz(pf_fopen_files[i].name, name, sizeof(pf_fopen_files[i].name));
+	pf_fopen_files[i].file = NULL;
+	pf_fopen_files[i].data = (void*)buffer;
+	pf_fopen_files[i].ofs = ofs;
+	pf_fopen_files[i].len = len;
+
+	pf_fopen_files[i].prinst = prinst;
+	return i + FIRST_QC_FILE_INDEX;
+}
 
 //internal function used by search_begin
 static int PF_fopen_search (pubprogfuncs_t *prinst, const char *name, flocation_t *loc)
@@ -3014,6 +3063,15 @@ void QCBUILTIN PF_rmtree (pubprogfuncs_t *prinst, struct globalvars_s *pr_global
 {
 	const char *fname = PR_GetStringOfs(prinst, OFS_PARM0);
 	Con_Printf("rmtree(\"%s\"): rmtree is not implemented at this\n", fname);
+
+	/*flocation_t loc;
+	G_FLOAT(OFS_RETURN) = -1; //error
+	if (FS_FLocateFile(fname, FSLF_IGNORELINKS|FSLF_DONTREFERENCE, &loc))	//find the right gamedir for it...
+	{
+		fname = va("%s/", fname);	//its meant to be a directory, make sure that's explicit
+		if (FS_RemoveTree(loc.search->handle, fname))
+			G_FLOAT(OFS_RETURN) = 0;
+	}*/
 }
 
 //DP_QC_WHICHPACK
@@ -3737,10 +3795,27 @@ void QCBUILTIN PF_Spawn (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals
 
 void QCBUILTIN PF_spawn_object (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	int obj = G_INT(OFS_PARM0);
-	int size = G_INT(OFS_PARM1);
+	int size = G_INT(OFS_PARM0);
 	struct edict_s	*ed;
-	ed = ED_Alloc(prinst, obj, size);
+	if (prinst->callargc > 1)
+	{
+		int idx = G_INT(OFS_PARM1);
+		ed = EDICT_NUM_UB(prinst, idx);
+		G_FLOAT(OFS_PARM2) = (ed && ed->ereftype == ER_ENTITY);
+		ed = prinst->EntAllocIndex(prinst, idx, true, size);
+	}
+	else
+		ed = ED_Alloc(prinst, true, size);
+	pr_globals = PR_globals(prinst, PR_CURRENT);
+	RETURN_EDICT(prinst, ed);
+}
+
+void QCBUILTIN PF_respawnedict (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	int idx = G_FLOAT(OFS_PARM0);
+	struct edict_s	*ed = EDICT_NUM_UB(prinst, idx);
+	G_FLOAT(OFS_PARM1) = (ed && ed->ereftype == ER_ENTITY);
+	ed = prinst->EntAllocIndex(prinst, idx, false, 0);
 	pr_globals = PR_globals(prinst, PR_CURRENT);
 	RETURN_EDICT(prinst, ed);
 }

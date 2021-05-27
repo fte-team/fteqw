@@ -1163,9 +1163,9 @@ STAT_MOVEVARS_AIRACCEL_SIDEWAYS_FRICTION	= 255, // DP
 #define	SAVEGAME_VERSION_QW			6		//actually zQuake, but the functional difference is that its qw instead of nq.
 #define	SAVEGAME_VERSION_FTE_LEG	667		//found in .sav files. this is for legacy-like saved games with multiple players.
 #define SAVEGAME_VERSION_FTE_HUB	25000	//found in .fsv files. includes svs.gametype, so bumps should be large.
-#define CACHEGAME_VERSION_OLD		513
-#define CACHEGAME_VERSION_VERBOSE	514
-#define CACHEGAME_VERSION_BINARY	515
+#define CACHEGAME_VERSION_OLD		513		//lame ordering.
+#define CACHEGAME_VERSION_VERBOSE	514		//saved fields got names, making it more extensible.
+#define CACHEGAME_VERSION_MODSAVED	515		//qc is responsible for saving all they need to, and restoring it after.
 
 
 #define PM_DEFAULTSTEPHEIGHT	18

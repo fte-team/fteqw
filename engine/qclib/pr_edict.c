@@ -32,9 +32,33 @@ void PDECL QC_ClearEdict (pubprogfuncs_t *ppf, struct edict_s *ed)
 	e->entnum = num;
 }
 
-edictrun_t *ED_AllocIntoTable (progfuncs_t *progfuncs, int num, pbool object, unsigned int fields_size)
+struct edict_s *PDECL ED_AllocIndex (pubprogfuncs_t *ppf, unsigned int num, pbool object, size_t extrasize)
 {
+	progfuncs_t *progfuncs = (progfuncs_t*)ppf;
 	edictrun_t *e;
+
+	unsigned int fields_size;
+
+	if (num >= prinst.maxedicts)
+	{
+		externs->Sys_Error ("ED_AllocIndex: index %u exceeds limit of %u", num, prinst.maxedicts);
+		return NULL;
+	}
+	if (!object)
+	{
+		while(sv_num_edicts < num)
+		{	//fill in any holes
+			e = (edictrun_t*)EDICT_NUM(progfuncs, sv_num_edicts);
+			if (!e)
+			{
+				e = (edictrun_t*)ED_AllocIndex(&progfuncs->funcs, sv_num_edicts, object, extrasize);
+				e->ereftype=ER_FREE;
+			}
+			sv_num_edicts++;
+		}
+		if (num >= sv_num_edicts)
+			sv_num_edicts=num+1;
+	}
 
 	e = prinst.edicttable[num];
 	if (!e)
@@ -43,6 +67,9 @@ edictrun_t *ED_AllocIntoTable (progfuncs_t *progfuncs, int num, pbool object, un
 		prinst.edicttable[num] = e;
 		memset(e, 0, externs->edictsize);
 	}
+
+	fields_size = object?0:prinst.fields_size;
+	fields_size += extrasize;
 	if (e->fieldsize != fields_size)
 	{
 		if (e->fields)
@@ -58,7 +85,10 @@ edictrun_t *ED_AllocIntoTable (progfuncs_t *progfuncs, int num, pbool object, un
 	memset (e->fields, 0, e->fieldsize);
 
 	e->ereftype = object?ER_OBJECT:ER_ENTITY;
-	return e;
+
+	if (externs->entspawn)
+		externs->entspawn((struct edict_s *) e, false);
+	return (struct edict_s*)e;
 }
 
 /*
@@ -77,27 +107,18 @@ struct edict_s *PDECL ED_Alloc (pubprogfuncs_t *ppf, pbool object, size_t extras
 	progfuncs_t *progfuncs = (progfuncs_t*)ppf;
 	unsigned int			i;
 	edictrun_t		*e;
-	unsigned int fields_size;
-	
-	fields_size = object?0:prinst.fields_size;
-	fields_size += extrasize;
 
 	if (object)
 	{
-		//objects are allocated at the end.
+		//objects are allocated at the end (won't be networked, so this reduces issues with users on old protocols).
+		//also they're potentially higher than num_edicts, which is handy.
 		for ( i=prinst.maxedicts-1 ; i>0 ; i--)
 		{
 			e = (edictrun_t*)EDICT_NUM(progfuncs, i);
 			// the first couple seconds of server time can involve a lot of
 			// freeing and allocating, so relax the replacement policy
 			if (!e || (e->ereftype==ER_FREE && ( e->freetime < 2 || *externs->gametime - e->freetime > 0.5 ) ))
-			{
-				e = ED_AllocIntoTable(progfuncs, i, object, fields_size);
-
-				if (externs->entspawn)
-					externs->entspawn((struct edict_s *) e, false);
-				return (struct edict_s *)e;
-			}
+				return ED_AllocIndex(&progfuncs->funcs, i, object, extrasize);
 		}
 		externs->Sys_Error ("ED_Alloc: no free edicts (max is %i)", prinst.maxedicts);
 	}
@@ -111,13 +132,7 @@ struct edict_s *PDECL ED_Alloc (pubprogfuncs_t *ppf, pbool object, size_t extras
 		// the first couple seconds of server time can involve a lot of
 		// freeing and allocating, so relax the replacement policy
 		if (!e || (e->ereftype==ER_FREE && ( e->freetime < 2 || *externs->gametime - e->freetime > 0.5 ) ))
-		{
-			e = ED_AllocIntoTable(progfuncs, i, object, fields_size);
-
-			if (externs->entspawn)
-				externs->entspawn((struct edict_s *) e, false);
-			return (struct edict_s *)e;
-		}
+			return ED_AllocIndex(&progfuncs->funcs, i, object, extrasize);
 	}
 
 	if (i >= prinst.maxedicts-1)	//try again, but use timed out ents.
@@ -128,13 +143,7 @@ struct edict_s *PDECL ED_Alloc (pubprogfuncs_t *ppf, pbool object, size_t extras
 			// the first couple seconds of server time can involve a lot of
 			// freeing and allocating, so relax the replacement policy
 			if (!e || (e->ereftype==ER_FREE))
-			{
-				e = ED_AllocIntoTable(progfuncs, i, object, fields_size);
-
-				if (externs->entspawn)
-					externs->entspawn((struct edict_s *) e, false);
-				return (struct edict_s *)e;
-			}
+				return ED_AllocIndex(&progfuncs->funcs, i, object, extrasize);
 		}
 
 		if (i >= prinst.maxedicts-2)
@@ -151,25 +160,7 @@ struct edict_s *PDECL ED_Alloc (pubprogfuncs_t *ppf, pbool object, size_t extras
 		}
 	}
 
-	while(sv_num_edicts < i)
-	{
-		e = (edictrun_t*)EDICT_NUM(progfuncs, sv_num_edicts);
-		if (!e)
-		{
-			e = ED_AllocIntoTable(progfuncs, sv_num_edicts, object, fields_size);
-			if (externs->entspawn)
-				externs->entspawn((struct edict_s *) e, false);
-			e->ereftype=ER_FREE;
-		}
-		sv_num_edicts++;
-	}
-	sv_num_edicts++;
-
-	e = ED_AllocIntoTable(progfuncs, i, object, fields_size);
-	if (externs->entspawn)
-		externs->entspawn((struct edict_s *) e, false);
-
-	return (struct edict_s *)e;
+	return ED_AllocIndex(&progfuncs->funcs, i, object, extrasize);
 }
 
 /*
@@ -2137,7 +2128,7 @@ int PDECL PR_LoadEnts(pubprogfuncs_t *ppf, const char *file, void *ctx, void (PD
 
 					if (!ed)
 					{
-						ed = ED_AllocIntoTable(progfuncs, num, false, prinst.fields_size);
+						ed = (edictrun_t *)ED_AllocIndex(&progfuncs->funcs, num, false, 0);
 						ed->ereftype = ER_FREE;
 						if (externs->entspawn)
 							externs->entspawn((struct edict_s *) ed, true);
@@ -2160,7 +2151,7 @@ int PDECL PR_LoadEnts(pubprogfuncs_t *ppf, const char *file, void *ctx, void (PD
 				if (!ed)
 				{
 					externs->Sys_Error("Edict was not allocated\n");
-					ed = ED_AllocIntoTable(progfuncs, num, false, prinst.fields_size);
+					ed = (edictrun_t *)ED_AllocIndex(&progfuncs->funcs, num, false, 0);
 				}
 			}
 			ed->ereftype = ER_ENTITY;
@@ -2226,7 +2217,7 @@ int PDECL PR_LoadEnts(pubprogfuncs_t *ppf, const char *file, void *ctx, void (PD
 
 					if (!ed)
 					{
-						ed = ED_AllocIntoTable(progfuncs, num, false, prinst.fields_size);
+						ed = (edictrun_t *)ED_AllocIndex(&progfuncs->funcs, num, false, 0);
 						ed->ereftype = ER_FREE;
 					}
 
@@ -2403,7 +2394,7 @@ int PDECL PR_LoadEnts(pubprogfuncs_t *ppf, const char *file, void *ctx, void (PD
 				}
 				else
 				{
-					ed = ED_AllocIntoTable(progfuncs, numents, false, prinst.fields_size);
+					ed = (edictrun_t *)ED_AllocIndex(&progfuncs->funcs, numents, false, 0);
 
 					if (externs->entspawn)
 						externs->entspawn((struct edict_s *) ed, true);
@@ -2426,7 +2417,7 @@ int PDECL PR_LoadEnts(pubprogfuncs_t *ppf, const char *file, void *ctx, void (PD
 
 					if (!ed)
 					{
-						ed = ED_AllocIntoTable(progfuncs, num, false, prinst.fields_size);
+						ed = (edictrun_t *)ED_AllocIndex(&progfuncs->funcs, num, false, 0);
 						ed->ereftype = ER_FREE;
 					}
 				}
@@ -2563,7 +2554,10 @@ struct edict_s *PDECL PR_RestoreEnt (pubprogfuncs_t *ppf, const char *buf, size_
 		return NULL;
 
 	if (strcmp(qcc_token, "{"))
-		externs->Sys_Error("Restore Ent with no opening brace");
+	{
+		externs->Printf("PR_RestoreEnt: with no opening brace");
+		return NULL;
+	}
 
 	if (!ed)
 		ent = (edictrun_t *)ED_Alloc(&progfuncs->funcs, false, 0);
@@ -2571,7 +2565,13 @@ struct edict_s *PDECL PR_RestoreEnt (pubprogfuncs_t *ppf, const char *buf, size_
 		ent = (edictrun_t *)ed;
 
 	if (ent->ereftype == ER_FREE && externs->entspawn)
+	{
+		memset (ent->fields, 0, ent->fieldsize);
+		ent->ereftype = ER_ENTITY;
 		externs->entspawn((struct edict_s *) ent, false);
+	}
+	if (ent->ereftype != ER_ENTITY)
+		return NULL;	//not allowed to spawn it into that ent.
 
 	buf = ED_ParseEdict(progfuncs, buf, ent, &maphacks);
 

@@ -1565,6 +1565,7 @@ static pubprogfuncs_t deffuncs = {
 	PR_RunError,
 	ED_Print,
 	ED_Alloc,
+	ED_AllocIndex,
 	ED_Free,
 
 	QC_EDICT_NUM,

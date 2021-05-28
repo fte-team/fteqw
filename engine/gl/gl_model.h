@@ -585,7 +585,7 @@ void Q1BSP_Init(void);
 
 void BSPX_LoadEnvmaps(struct model_s *mod, bspx_header_t *bspx, void *mod_base);
 void *BSPX_FindLump(bspx_header_t *bspxheader, void *mod_base, char *lumpname, int *lumpsize);
-bspx_header_t *BSPX_Setup(struct model_s *mod, char *filebase, unsigned int filelen, lump_t *lumps, int numlumps);
+bspx_header_t *BSPX_Setup(struct model_s *mod, char *filebase, size_t filelen, lump_t *lumps, size_t numlumps);
 
 typedef struct fragmentdecal_s fragmentdecal_t;
 void Fragment_ClipPoly(fragmentdecal_t *dec, int numverts, float *inverts, shader_t *surfshader);
@@ -1084,6 +1084,7 @@ typedef struct model_s
 // additional model data
 //
 	void *meshinfo;	//data allocated within the memgroup allocations, will be nulled out when the model is flushed
+	searchpathfuncs_t *archive;	//some bsp formats have an embedded zip...
 	zonegroup_t memgroup;
 } model_t;
 

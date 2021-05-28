@@ -8,7 +8,7 @@ Files may be shared between threads, but not simultaneously.
 The filesystem driver is responsible for closing the pak/pk3 once all files are closed, and must ensure that opens+reads+closes as well as archive closure are thread safe.
 */
 
-#define FSVER 2
+#define FSVER 3
 
 
 #define FF_NOTFOUND		(0u)	//file wasn't found
@@ -32,7 +32,8 @@ struct searchpath_s;
 struct searchpathfuncs_s
 {
 	int				fsver;
-	void			(QDECL *ClosePath)(searchpathfuncs_t *handle);
+	void			(QDECL *ClosePath)(searchpathfuncs_t *handle);		//removes a reference, kills it when it reaches 0. the package can only actually be killed once all contained files are closed.
+	void			(QDECL *AddReference)(searchpathfuncs_t *handle);	//adds an extra reference, so we survive closes better.
 
 	void			(QDECL *GetPathDetails)(searchpathfuncs_t *handle, char *outdetails, size_t sizeofdetails);
 	void			(QDECL *BuildHash)(searchpathfuncs_t *handle, int depth, void (QDECL *FS_AddFileHash)(int depth, const char *fname, fsbucket_t *filehandle, void *pathhandle));

@@ -2201,6 +2201,7 @@ Init stuff
 
 BSPX Stuff
 */
+#include "fs.h"
 
 typedef struct {
     char lumpname[24]; // up to 23 chars, zero-padded
@@ -2240,10 +2241,10 @@ void *BSPX_FindLump(bspx_header_t *bspxheader, void *mod_base, char *lumpname, i
 	}
 	return NULL;
 }
-bspx_header_t *BSPX_Setup(model_t *mod, char *filebase, unsigned int filelen, lump_t *lumps, int numlumps)
+bspx_header_t *BSPX_Setup(model_t *mod, char *filebase, size_t filelen, lump_t *lumps, size_t numlumps)
 {
-	int i;
-	int offs = 0;
+	size_t i;
+	size_t offs = 0;
 	bspx_header_t *h;
 
 	for (i = 0; i < numlumps; i++, lumps++)
@@ -2253,22 +2254,45 @@ bspx_header_t *BSPX_Setup(model_t *mod, char *filebase, unsigned int filelen, lu
 	}
 	offs = (offs + 3) & ~3;
 	if (offs + sizeof(*h) > filelen)
-		return NULL; /*no space for it*/
-	h = (bspx_header_t*)(filebase + offs);
-
-	i = LittleLong(h->numlumps);
-	/*verify the header*/
-	if (*(int*)h->id != (('B'<<0)|('S'<<8)|('P'<<16)|('X'<<24)) ||
-		i < 0 ||
-		offs + sizeof(*h) + sizeof(h->lumps[0])*(i-1) > filelen)
-		return NULL;
-	h->numlumps = i;
-	while(i-->0)
+		h = NULL; /*no space for it*/
+	else
 	{
-		h->lumps[i].fileofs = LittleLong(h->lumps[i].fileofs);
-		h->lumps[i].filelen = LittleLong(h->lumps[i].filelen);
-		if (h->lumps[i].fileofs + h->lumps[i].filelen > filelen)
-			return NULL;
+		h = (bspx_header_t*)(filebase + offs);
+
+		i = LittleLong(h->numlumps);
+		/*verify the header*/
+		if (*(int*)h->id != (('B'<<0)|('S'<<8)|('P'<<16)|('X'<<24)) ||
+			i < 0 ||
+			offs + sizeof(*h) + sizeof(h->lumps[0])*(i-1) > filelen)
+			h = NULL;
+		else
+		{
+			h->numlumps = i;
+			while(i-->0)
+			{
+				h->lumps[i].fileofs = LittleLong(h->lumps[i].fileofs);
+				h->lumps[i].filelen = LittleLong(h->lumps[i].filelen);
+				if (h->lumps[i].fileofs + h->lumps[i].filelen > filelen)
+					return NULL;	//some sort of corruption/truncation.
+
+				if (offs < lumps->fileofs + lumps->filelen)
+					offs = lumps->fileofs + lumps->filelen;
+			}
+		}
+	}
+
+	if (offs < filelen && !mod->archive)
+	{	//we have some sort of trailing junk... is it a zip?...
+		vfsfile_t *f = VFSPIPE_Open(1,true);
+		if (f)
+		{
+			VFS_WRITE(f, filebase+offs, filelen-offs);
+			mod->archive = FSZIP_LoadArchive(f, NULL, mod->name, mod->name, NULL);
+			if (mod->archive)
+				FS_LoadMapPackFile(mod->name, mod->archive);	//give it to the filesystem to use.
+			else
+				VFS_CLOSE(f);	//give up.
+		}
 	}
 
 	return h;

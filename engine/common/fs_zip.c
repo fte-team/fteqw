@@ -596,6 +596,14 @@ static void QDECL FSZIP_GetPathDetails(searchpathfuncs_t *handle, char *out, siz
 	else
 		*out = '\0';
 }
+static void QDECL FSZIP_UnclosePath(searchpathfuncs_t *handle)
+{
+	zipfile_t *zip = (void*)handle;
+	if (!Sys_LockMutex(zip->mutex))
+		return;	//ohnoes
+	zip->references++;
+	Sys_UnlockMutex(zip->mutex);
+}
 static void QDECL FSZIP_ClosePath(searchpathfuncs_t *handle)
 {
 	size_t s;
@@ -2105,6 +2113,7 @@ searchpathfuncs_t *QDECL FSZIP_LoadArchive (vfsfile_t *packhandle, searchpathfun
 	zip->pub.fsver				= FSVER;
 	zip->pub.GetPathDetails		= FSZIP_GetPathDetails;
 	zip->pub.ClosePath			= FSZIP_ClosePath;
+	zip->pub.AddReference		= FSZIP_UnclosePath;
 	zip->pub.BuildHash			= FSZIP_BuildHash;
 	zip->pub.FindFile			= FSZIP_FLocate;
 	zip->pub.ReadFile			= FSZIP_ReadFile;

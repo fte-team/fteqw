@@ -2793,14 +2793,14 @@ searchpathfuncs_t *COM_EnumerateFilesPackage (char *matches, const char *package
 			if (com_homepathenabled)
 			{	//try the homedir
 				Q_snprintfz(syspath, sizeof(syspath), "%s%s", com_homepath, package);
-				handle = FS_OpenPackByExtension(VFSOS_Open(package, "rb"), NULL, package, package);
+				handle = FS_OpenPackByExtension(VFSOS_Open(syspath, "rb"), NULL, package, package);
 			}
 			else
 				handle = NULL;
 			if (!handle)
 			{	//now go for the basedir to see if ther.
 				Q_snprintfz(syspath, sizeof(syspath), "%s%s", com_gamepath, package);
-				handle = FS_OpenPackByExtension(VFSOS_Open(package, "rb"), NULL, package, package);
+				handle = FS_OpenPackByExtension(VFSOS_Open(syspath, "rb"), NULL, package, package);
 			}
 
 			if (handle)
@@ -2835,17 +2835,20 @@ void COM_EnumerateFiles (const char *match, int (QDECL *func)(const char *, qofs
 	}
 }
 
-void COM_FlushTempoaryPacks(void)
+void COM_FlushTempoaryPacks(void)	//flush all temporary packages
 {
-#if 0
 	searchpath_t *sp, **link;
+
+	COM_WorkerLock();	//make sure no workers are poking files...
+	Sys_LockMutex(fs_thread_mutex);
+
 	link = &com_searchpaths;
 	while (*link)
 	{
 		sp = *link;
 		if (sp->flags & SPF_TEMPORARY)
 		{
-			FS_FlushFSHashReally();
+			FS_FlushFSHashFull();
 
 			*link = sp->next;
 
@@ -2856,15 +2859,52 @@ void COM_FlushTempoaryPacks(void)
 			link = &sp->next;
 	}
 	com_purepaths = NULL;
-#endif
-}
-
-qboolean COM_LoadMapPackFile (const char *filename, qofs_t ofs)
-{
-	return false;
+	Sys_UnlockMutex(fs_thread_mutex);
+	COM_WorkerUnlock();	//workers can continue now
 }
 
 static searchpath_t *FS_AddPathHandle(searchpath_t **oldpaths, const char *purepath, const char *probablepath, searchpathfuncs_t *handle, const char *prefix, unsigned int flags, unsigned int loadstuff);
+qboolean FS_LoadMapPackFile (const char *filename, searchpathfuncs_t *archive)
+{
+	if (!archive->AddReference)
+		return false;	//nope...
+	archive->AddReference(archive);
+	if (FS_AddPathHandle(NULL, filename, filename, archive, "", SPF_TEMPORARY, 0))
+		return true;
+	return false;
+}
+void FS_CloseMapPackFile (searchpathfuncs_t *archive)
+{
+	searchpath_t *sp, **link;
+
+	COM_WorkerLock();	//make sure no workers are poking files...
+	Sys_LockMutex(fs_thread_mutex);
+
+	link = &com_searchpaths;
+	while (*link)
+	{
+		sp = *link;
+		if (sp->handle == archive)
+		{
+			FS_FlushFSHashFull();
+
+			*link = sp->next;
+
+			sp->handle->ClosePath(sp->handle);
+			Z_Free (sp);
+			break;
+		}
+		else
+			link = &sp->next;
+	}
+	com_purepaths = NULL;
+
+	Sys_UnlockMutex(fs_thread_mutex);
+	COM_WorkerUnlock();	//workers can continue now
+
+	archive->ClosePath(archive);
+}
+
 static searchpathfuncs_t *FS_GetOldPath(searchpath_t **oldpaths, const char *dir, unsigned int *keepflags)
 {
 	searchpath_t *p;
@@ -3356,7 +3396,7 @@ static searchpath_t *FS_AddPathHandle(searchpath_t **oldpaths, const char *purep
 	flags &= ~SPF_WRITABLE;
 
 	//temp packages also do not nest
-//	if (!(flags & SPF_TEMPORARY))
+	if (!(flags & SPF_TEMPORARY))
 		FS_AddDataFiles(oldpaths, purepath, logicalpath, search, flags&(SPF_COPYPROTECTED|SPF_UNTRUSTED|SPF_TEMPORARY|SPF_PRIVATE|SPF_QSHACK), loadstuff);
 
 	if (flags & SPF_TEMPORARY)

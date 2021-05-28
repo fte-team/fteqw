@@ -23,7 +23,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 // on the same machine.
 
 #include "quakedef.h"
-
+#include "fs.h"
 #include "com_bih.h"
 #if 1//ndef SERVERONLY	//FIXME
 #include "glquake.h"
@@ -541,8 +541,13 @@ qboolean Mod_PurgeModel(model_t	*mod, enum mod_purge_e ptype)
 #endif
 
 	//and obliterate anything else remaining in memory.
-	ZG_FreeGroup(&mod->memgroup);
 	mod->meshinfo = NULL;
+	if (mod->archive)
+	{
+		FS_CloseMapPackFile(mod->archive);
+		mod->archive = NULL;
+	}
+	ZG_FreeGroup(&mod->memgroup);
 	mod->loadstate = MLS_NOTLOADED;
 
 	mod->submodelof = NULL;
@@ -5496,7 +5501,10 @@ TRACE(("LoadBrushModel %i\n", __LINE__));
 		submod->pvsbytes = ((submod->numclusters+31)>>3)&~3;
 
 		if (i)
+		{
 			submod->entities_raw = NULL;
+			submod->archive = NULL;
+		}
 
 		memset(&submod->batches, 0, sizeof(submod->batches));
 		submod->vbos = NULL;

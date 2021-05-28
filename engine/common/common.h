@@ -812,7 +812,8 @@ void FS_FreeFile(void *file);
 
 qbyte *COM_LoadFile (const char *path, unsigned int locateflags, int usehunk, size_t *filesize);
 
-qboolean COM_LoadMapPackFile(const char *name, qofs_t offset);
+qboolean FS_LoadMapPackFile (const char *filename, searchpathfuncs_t *archive);
+void FS_CloseMapPackFile (searchpathfuncs_t *archive);
 void COM_FlushTempoaryPacks(void);
 
 void COM_EnumerateFiles (const char *match, int (QDECL *func)(const char *fname, qofs_t fsize, time_t mtime, void *parm, searchpathfuncs_t *spath), void *parm);

@@ -4914,6 +4914,7 @@ static cmodel_t *CM_LoadMap (model_t *mod, qbyte *filein, size_t filelen, qboole
 		Q_snprintfz (name, sizeof(name), "*%i:%s", i, wmod->publicname);
 		mod = Mod_FindName (name);
 		*mod = *wmod;
+		mod->archive = NULL;
 		mod->entities_raw = NULL;
 		mod->submodelof = wmod;
 		Q_strncpyz(mod->publicname, name, sizeof(mod->publicname));

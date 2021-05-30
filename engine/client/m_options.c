@@ -3984,7 +3984,7 @@ static void M_ModelViewerDraw(int x, int y, struct menucustom_s *c, struct emenu
 
 					w = (float)vid.width / shader->defaulttextures->base->width;
 					h = (float)(vid.height-y) / shader->defaulttextures->base->height;
-					h = min(w,h);
+					h = min(min(w,h), 1);
 					w = h*shader->defaulttextures->base->width;
 					h = h*shader->defaulttextures->base->height;
 					R2D_Image(0, y, w, h, 0, 0, 1, 1, shader);

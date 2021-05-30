@@ -888,7 +888,7 @@ qboolean QDECL Mod_LoadHLModel (model_t *mod, void *buffer, size_t fsize)
 	}
 
 #ifdef MODELFMT_HL2
-	if (header->version >= 44 && header->version <= 48)
+	if (header->version >= 44 && header->version <= 49)
 		return Mod_LoadHL2Model(mod, buffer, fsize);
 #endif
 

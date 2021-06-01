@@ -1447,7 +1447,7 @@ ifeq ($(FTE_TARGET),bsd)
 	GL_EXE_NAME=../$(EXE_NAME)-gl
 	GLCL_EXE_NAME=../$(EXE_NAME)-glcl
 	GL_LDFLAGS= -L/usr/local/lib $(GLLDFLAGS) $(XLDFLAGS) -lpthread
-	GL_CFLAGS=$(GLCFLAGS) -I/usr/local/include -I/usr/X11R6/include -I/usr/X11R6/include/freetype2 -DAUDIO_OSS
+	GL_CFLAGS=$(GLCFLAGS) -I/usr/local/include -I/usr/X11R6/include -I/usr/X11R6/include/freetype2 -DMULTITHREAD -DAUDIO_OSS
 	GLB_DIR=gl_bsd
 	GLCL_DIR=glcl_bsd
 

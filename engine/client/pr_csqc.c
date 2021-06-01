@@ -2707,6 +2707,7 @@ static void QCBUILTIN PF_R_RenderScene(pubprogfuncs_t *prinst, struct globalvars
 	{
 		csqc_worldchanged = false;
 		cl.worldmodel = r_worldentity.model = csqc_world.worldmodel;
+		FS_LoadMapPackFile(cl.worldmodel->name, cl.worldmodel->archive);
 		Surf_NewMap();
 		CL_UpdateWindowTitle();
 

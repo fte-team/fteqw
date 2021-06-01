@@ -7,6 +7,7 @@
 
 extern cvar_t r_decal_noperpendicular;
 extern cvar_t mod_loadsurfenvmaps;
+extern cvar_t mod_loadmappackages;
 
 /*
 Decal functions
@@ -2281,7 +2282,7 @@ bspx_header_t *BSPX_Setup(model_t *mod, char *filebase, size_t filelen, lump_t *
 		}
 	}
 
-	if (offs < filelen && !mod->archive)
+	if (offs < filelen && !mod->archive && mod_loadmappackages.ival)
 	{	//we have some sort of trailing junk... is it a zip?...
 		vfsfile_t *f = VFSPIPE_Open(1,true);
 		if (f)

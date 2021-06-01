@@ -216,7 +216,7 @@ int QC_EnumerateFilesFromBlob(const void *blob, size_t blobsize, void (*cb)(cons
 	cd = blob;
 	cd += QC_ReadRawInt(eocd+16);
 	cdlen = QC_ReadRawInt(eocd+12);
-	cdentries = QC_ReadRawInt(eocd+10);
+	cdentries = QC_ReadRawShort(eocd+10);
 	if (cd+cdlen>=(const unsigned char*)blob+blobsize)
 		return ret;
 

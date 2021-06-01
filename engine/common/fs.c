@@ -2839,6 +2839,8 @@ void COM_FlushTempoaryPacks(void)	//flush all temporary packages
 {
 	searchpath_t *sp, **link;
 
+	COM_AssertMainThread("COM_FlushTempoaryPacks");
+
 	COM_WorkerLock();	//make sure no workers are poking files...
 	Sys_LockMutex(fs_thread_mutex);
 
@@ -2851,6 +2853,7 @@ void COM_FlushTempoaryPacks(void)	//flush all temporary packages
 			FS_FlushFSHashFull();
 
 			*link = sp->next;
+			com_purepaths = NULL;
 
 			sp->handle->ClosePath(sp->handle);
 			Z_Free (sp);
@@ -2858,16 +2861,32 @@ void COM_FlushTempoaryPacks(void)	//flush all temporary packages
 		else
 			link = &sp->next;
 	}
-	com_purepaths = NULL;
 	Sys_UnlockMutex(fs_thread_mutex);
 	COM_WorkerUnlock();	//workers can continue now
+}
+
+static searchpath_t *FS_MapPackIsActive(searchpathfuncs_t *archive)
+{
+	searchpath_t *sp;
+	Sys_LockMutex(fs_thread_mutex);
+	for (sp = com_searchpaths; sp; sp = sp->next)
+	{
+		if (sp->handle == archive)
+			break;
+	}
+	Sys_UnlockMutex(fs_thread_mutex);
+	return sp;
 }
 
 static searchpath_t *FS_AddPathHandle(searchpath_t **oldpaths, const char *purepath, const char *probablepath, searchpathfuncs_t *handle, const char *prefix, unsigned int flags, unsigned int loadstuff);
 qboolean FS_LoadMapPackFile (const char *filename, searchpathfuncs_t *archive)
 {
+	if (!archive)
+		return false;
 	if (!archive->AddReference)
 		return false;	//nope...
+	if (FS_MapPackIsActive(archive))
+		return false;	//don't do it twice.
 	archive->AddReference(archive);
 	if (FS_AddPathHandle(NULL, filename, filename, archive, "", SPF_TEMPORARY, 0))
 		return true;
@@ -2876,6 +2895,8 @@ qboolean FS_LoadMapPackFile (const char *filename, searchpathfuncs_t *archive)
 void FS_CloseMapPackFile (searchpathfuncs_t *archive)
 {
 	searchpath_t *sp, **link;
+
+	COM_AssertMainThread("FS_CloseMapPackFile");
 
 	COM_WorkerLock();	//make sure no workers are poking files...
 	Sys_LockMutex(fs_thread_mutex);
@@ -2889,6 +2910,7 @@ void FS_CloseMapPackFile (searchpathfuncs_t *archive)
 			FS_FlushFSHashFull();
 
 			*link = sp->next;
+			com_purepaths = NULL; //FIXME...
 
 			sp->handle->ClosePath(sp->handle);
 			Z_Free (sp);
@@ -2897,7 +2919,6 @@ void FS_CloseMapPackFile (searchpathfuncs_t *archive)
 		else
 			link = &sp->next;
 	}
-	com_purepaths = NULL;
 
 	Sys_UnlockMutex(fs_thread_mutex);
 	COM_WorkerUnlock();	//workers can continue now

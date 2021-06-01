@@ -1040,6 +1040,10 @@ void SV_SpawnServer (const char *server, const char *startspot, qboolean noents,
 
 	sv.state = ss_dead;
 
+	//make sure our map's package is loaded.
+	if (sv.world.worldmodel)
+		FS_LoadMapPackFile(sv.world.worldmodel->name, sv.world.worldmodel->archive);
+
 #ifndef SERVERONLY
 	current_loading_size+=10;
 //	SCR_BeginLoadingPlaque();

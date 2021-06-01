@@ -849,7 +849,12 @@ void CL_DownloadFinished(qdownload_t *dl)
 						cl.model_precache[i]->loadstate = MLS_NOTLOADED;
 					cl.model_precache[i] = Mod_ForName(cl.model_name[i], MLV_WARN);
 					if (i == 1)
+					{
 						cl.worldmodel = cl.model_precache[i];
+						//just in case.
+						if (cl.model_precache[1] && cl.model_precache[1]->loadstate == MLS_LOADED)
+							FS_LoadMapPackFile(cl.model_precache[1]->name, cl.model_precache[1]->archive);
+					}
 					break;
 				}
 			}
@@ -1404,6 +1409,8 @@ static int CL_LoadModels(int stage, qboolean dontactuallyload)
 		//the worldmodel can take a while to load, so be sure to wait.
 		if (cl.worldmodel && cl.worldmodel->loadstate == MLS_LOADING)
 			return -1;
+
+		FS_LoadMapPackFile(cl.worldmodel->name, cl.worldmodel->archive);
 
 #ifdef Q2CLIENT
 		if (cls.protocol == CP_QUAKE2 && cl.worldmodel && cl.worldmodel->checksum != cl.q2mapchecksum)
@@ -4385,6 +4392,13 @@ static void CL_ParseModellist (qboolean lots)
 		return;
 	}
 
+	SCR_SetLoadingFile("loading data");
+
+	//we need to try to load it now if we can, so any embedded archive will be loaded *before* we start looking for other content...
+	cl.model_precache[1] = Mod_ForName (cl.model_name[1], MLV_WARNSYNC);
+	if (cl.model_precache[1] && cl.model_precache[1]->loadstate == MLS_LOADED)
+		FS_LoadMapPackFile(cl.model_precache[1]->name, cl.model_precache[1]->archive);
+
 	Sound_CheckDownloads();
 	Model_CheckDownloads();
 
@@ -4392,7 +4406,6 @@ static void CL_ParseModellist (qboolean lots)
 
 	//set the flag to load models and send prespawn
 	cl.sendprespawn = true;
-	SCR_SetLoadingFile("loading data");
 }
 
 #ifdef Q2CLIENT

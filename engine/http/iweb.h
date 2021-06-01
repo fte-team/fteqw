@@ -62,7 +62,8 @@ char *Q_strcpyline(char *out, const char *in, int maxlen);
 
 //server tick/control functions
 iwboolean FTP_ServerRun(iwboolean ftpserverwanted, int port);
-qboolean HTTP_ServerPoll(qboolean httpserverwanted, int port);
+
+qboolean HTTP_ServerInit(int epfd, int port);
 
 //server interface called from main server routines.
 void IWebInit(void);

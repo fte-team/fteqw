@@ -149,6 +149,132 @@ int COM_CheckParm(const char *parm)
 #include <signal.h>
 #endif
 
+#ifndef _WIN32
+struct stun_ctx
+{
+	struct epollctx_s pub;
+	int udpsock;
+	int reportport;
+	int id[3];
+};
+struct stunheader_s
+{
+	unsigned short msgtype;
+	unsigned short msglen;
+	unsigned int magiccookie;
+	unsigned int transactid[3];
+};
+static void StunResponse(struct epollctx_s *pubctx, unsigned int ev)
+{
+	struct stun_ctx *ctx = (struct stun_ctx*)pubctx;
+	unsigned char buf[8192];
+	int respsize = recvfrom(ctx->udpsock, buf, sizeof(buf), 0, NULL, NULL);
+	int offset;
+	struct stunheader_s *h = (struct stunheader_s*)buf;
+	if (h->transactid[0] != ctx->id[0] ||
+		h->transactid[1] != ctx->id[1] ||
+		h->transactid[2] != ctx->id[2])
+		return;	//someone trying to spoof?
+
+	if (((buf[0]<<8)|buf[1]) == 0x0101)
+	{
+		unsigned short attr;
+		unsigned short sz;
+		offset = sizeof(struct stunheader_s);
+		while (offset+4 < respsize)
+		{
+			attr = (buf[offset+0]<<8)|buf[offset+1];
+			sz   = (buf[offset+2]<<8)|buf[offset+3];
+			offset+= 4;
+
+			if (offset + sz > respsize)
+				break;	//corrupt.
+			if ((attr == 0x1 || attr == 0x20) && sz >= 4)
+			{
+				unsigned short type = (buf[offset+0]<<8)|buf[offset+1];
+				unsigned short port = (buf[offset+2]<<8)|buf[offset+3];
+				if (attr == 0x20)
+					port ^= (buf[4]<<8)|buf[5];
+				if (sz == 4+4 && type == 1)
+				{
+					printf("Address: %s%i.%i.%i.%i:%u\n",
+						ctx->reportport?"http://":"",
+						buf[offset+4]^((attr == 0x20)?buf[4]:0),
+						buf[offset+5]^((attr == 0x20)?buf[5]:0),
+						buf[offset+6]^((attr == 0x20)?buf[6]:0),
+						buf[offset+7]^((attr == 0x20)?buf[7]:0),ctx->reportport?ctx->reportport:port
+					);
+				}
+			}
+			offset += sz;
+		}
+	}
+}
+void PrepareStun(int epfd, int reportport)
+{
+#if 0
+	char *stunserver = "localhost";
+	int stunport = 27500;
+#elif 1
+	char *stunserver = "stun.l.google.com";
+	int stunport = 19302;
+#else
+	char *stunserver = "master.frag-net.com";
+	int stunport = 27950;
+#endif
+
+	SOCKET newsocket;
+	struct sockaddr_in address;
+	struct hostent *h;
+
+	struct stunheader_s msg = {htons(1), 0, htonl(0x2112a442), {42,42,42}};
+	if (epfd < 0)
+		return;
+
+	h = gethostbyname(stunserver);
+	if (!h)
+		return;
+
+	if (h->h_addrtype != AF_INET)
+		return;	//too many assumptions
+
+	if ((newsocket = socket (h->h_addrtype, SOCK_CLOEXEC|SOCK_DGRAM, IPPROTO_UDP)) == INVALID_SOCKET)
+		return;
+
+	address.sin_family = h->h_addrtype;
+	address.sin_addr.s_addr = INADDR_ANY;
+	address.sin_port = 0;
+
+	if (bind (newsocket, (void *)&address, sizeof(address)) == -1)
+		return;
+
+	//FIXME: not random enough to avoid hacks.
+	srand(time(NULL)^*(int*)&msg);
+	msg.transactid[0] = rand();
+	msg.transactid[1] = rand();
+	msg.transactid[2] = rand();
+	if (epfd >= 0)
+	{
+		static struct stun_ctx ctx;
+		struct epoll_event ev;
+		ctx.udpsock = newsocket;
+		ctx.pub.Polled = StunResponse;
+		ctx.id[0] = msg.transactid[0];
+		ctx.id[1] = msg.transactid[1];
+		ctx.id[2] = msg.transactid[2];
+		ctx.reportport = reportport;
+		ev.events = EPOLLIN;
+		ev.data.ptr = &ctx;
+		epoll_ctl(epfd, EPOLL_CTL_ADD, newsocket, &ev);
+	}
+
+	msg.msglen = htons(sizeof(msg)-20);
+	memcpy(&address.sin_addr, h->h_addr, h->h_length);
+	address.sin_port = htons(stunport);
+	sendto(newsocket, &msg, sizeof(msg), 0, (struct sockaddr*)&address, sizeof(address));
+}
+#endif
+
 char *authedusername;
 char *autheduserpassword;
 int lport_min, lport_max;
@@ -163,6 +289,7 @@ int main(int argc, char **argv)
 	WSADATA pointlesscrap;
 	WSAStartup(2, &pointlesscrap);
 #else
+	int ep = epoll_create1(0);
 	signal(SIGPIPE, SIG_IGN);	//so we don't crash out if a peer closes the socket half way through.
 #endif
 
@@ -240,6 +367,7 @@ int main(int argc, char **argv)
 	else
 		printf("Server is read only\n");
 
+#ifdef _WIN32
 	while(1)
 	{
 		if (ftpport)
@@ -252,6 +380,22 @@ int main(int argc, char **argv)
 		usleep(10000);
 #endif
 	}
+#else
+
+	while (!HTTP_ServerInit(ep, httpport))
+		sleep(5);
+	PrepareStun(ep, httpport);
+	for (;;)
+	{
+		struct epoll_event events[1];
+		int e, me = epoll_wait(ep, events, countof(events), -1);
+		for (e = 0; e < me; e++)
+		{
+			struct epollctx_s *ctx = events[e].data.ptr;
+			ctx->Polled(ctx, events[e].events);
+		}
+	}
+#endif
 }
 
 int IWebGetSafeListeningPort(void)

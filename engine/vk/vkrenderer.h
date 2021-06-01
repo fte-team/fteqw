@@ -275,7 +275,6 @@ extern struct vulkaninfo_s
 	qboolean		allowsubmissionthread;
 
 	qboolean		khr_swapchain;					//aka: not headless. we're actually rendering stuff!
-	qboolean		nv_glsl_shader;					//we can load glsl shaders. probably missing lots of reflection info though, so this is probably too limited.
 	qboolean		khr_get_memory_requirements2;	//slightly richer info
 	qboolean		khr_dedicated_allocation;		//standardised version of the above where the driver decides whether a resource is worth a dedicated allocation.
 	qboolean		khr_push_descriptor;			//more efficient descriptor streaming

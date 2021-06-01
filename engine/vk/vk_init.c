@@ -16,7 +16,6 @@ static cvar_t vk_dualqueue						= CVARFD("vk_dualqueue",				"", CVAR_VIDEOLATCH,
 static cvar_t vk_busywait						= CVARD ("vk_busywait",					"", "Force busy waiting until the GPU finishes doing its thing.");
 static cvar_t vk_waitfence						= CVARD ("vk_waitfence",				"", "Waits on fences, instead of semaphores. This is more likely to result in gpu stalls while the cpu waits.");
 static cvar_t vk_usememorypools					= CVARFD("vk_usememorypools",			"",	CVAR_VIDEOLATCH, "Allocates memory pools for sub allocations. Vulkan has a limit to the number of memory allocations allowed so this should always be enabled, however at this time FTE is unable to reclaim pool memory, and would require periodic vid_restarts to flush them.");
-static cvar_t vk_nv_glsl_shader					= CVARFD("vk_loadglsl",					"", CVAR_VIDEOLATCH, "Enable direct loading of glsl, where supported by drivers. Do not use in combination with vk_debug 2 (vk_debug should be 1 if you want to see any glsl compile errors). Don't forget to do a vid_restart after.");
 static cvar_t vk_khr_get_memory_requirements2	= CVARFD("vk_khr_get_memory_requirements2", "", CVAR_VIDEOLATCH, "Enable extended memory info querires");
 static cvar_t vk_khr_dedicated_allocation		= CVARFD("vk_khr_dedicated_allocation",	"", CVAR_VIDEOLATCH, "Flag vulkan memory allocations as dedicated, where applicable.");
 static cvar_t vk_khr_push_descriptor			= CVARFD("vk_khr_push_descriptor",		"", CVAR_VIDEOLATCH, "Enables better descriptor streaming.");
@@ -40,7 +39,6 @@ void VK_RegisterVulkanCvars(void)
 	Cvar_Register (&vk_waitfence,				VKRENDEREROPTIONS);
 	Cvar_Register (&vk_usememorypools,			VKRENDEREROPTIONS);
 
-	Cvar_Register (&vk_nv_glsl_shader,			VKRENDEREROPTIONS);
 	Cvar_Register (&vk_khr_get_memory_requirements2,VKRENDEREROPTIONS);
 	Cvar_Register (&vk_khr_dedicated_allocation,VKRENDEREROPTIONS);
 	Cvar_Register (&vk_khr_push_descriptor,		VKRENDEREROPTIONS);
@@ -4560,7 +4558,6 @@ qboolean VK_Init(rendererstate_t *info, const char **sysextnames, qboolean (*cre
 	} knowndevexts[] =
 	{
 		{&vk.khr_swapchain,					VK_KHR_SWAPCHAIN_EXTENSION_NAME,				NULL,							true, NULL, " Nothing will be drawn!"},
-		{&vk.nv_glsl_shader,				VK_NV_GLSL_SHADER_EXTENSION_NAME,				&vk_nv_glsl_shader,				false, NULL, " Direct use of glsl is not supported."},
 		{&vk.khr_get_memory_requirements2,	VK_KHR_GET_MEMORY_REQUIREMENTS_2_EXTENSION_NAME,&vk_khr_get_memory_requirements2,true, NULL, NULL},
 		{&vk.khr_dedicated_allocation,		VK_KHR_DEDICATED_ALLOCATION_EXTENSION_NAME,		&vk_khr_dedicated_allocation,	true, NULL, NULL},
 		{&vk.khr_push_descriptor,			VK_KHR_PUSH_DESCRIPTOR_EXTENSION_NAME,			&vk_khr_push_descriptor,		true, NULL, NULL},
@@ -5202,14 +5199,8 @@ qboolean VK_Init(rendererstate_t *info, const char **sysextnames, qboolean (*cre
 
 	
 	sh_config.progpath = "vulkan/%s.fvb";
-	sh_config.blobpath = "spirv";
+	sh_config.blobpath = NULL;	//just use general pipeline cache instead.
 	sh_config.shadernamefmt = NULL;//"_vulkan";
-
-	if (vk.nv_glsl_shader)
-	{
-		sh_config.progpath = "glsl/%s.glsl";
-		sh_config.shadernamefmt = "%s_glsl";
-	}
 
 	sh_config.progs_supported = true;
 	sh_config.progs_required = true;
@@ -5232,10 +5223,7 @@ qboolean VK_Init(rendererstate_t *info, const char **sysextnames, qboolean (*cre
 
 	sh_config.pDeleteProg = NULL;
 	sh_config.pLoadBlob = NULL;
-	if (vk.nv_glsl_shader)
-		sh_config.pCreateProgram = VK_LoadGLSL;
-	else
-		sh_config.pCreateProgram = NULL;
+	sh_config.pCreateProgram = NULL;
 	sh_config.pValidateProgram = NULL;
 	sh_config.pProgAutoFields = NULL;
 

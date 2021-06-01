@@ -37,6 +37,7 @@ cvar_t mod_loadentfiles_dir					= CVAR("sv_loadentfiles_dir", "");
 cvar_t mod_external_vis						= CVARD("mod_external_vis", "1", "Attempt to load .vis patches for quake maps, allowing transparent water to work properly.");
 cvar_t mod_warnmodels						= CVARD("mod_warnmodels", "1", "Warn if any models failed to load. Set to 0 if your mod is likely to lack optional models (like its in development).");	//set to 0 for hexen2 and its otherwise-spammy-as-heck demo.
 cvar_t mod_litsprites_force					= CVARD("mod_litsprites_force", "0", "If set to 1, sprites will be lit according to world lighting (including rtlights), like Tenebrae. Ideally use EF_ADDITIVE or EF_FULLBRIGHT to make emissive sprites instead.");
+cvar_t mod_loadmappackages					= CVARD ("mod_loadmappackages", "1", "Load additional content embedded within bsp files.");
 cvar_t temp_lit2support						= CVARD("temp_mod_lit2support", "0", "Set to 1 to enable lit2 support. This cvar will be removed once the format is finalised.");
 #ifdef SERVERONLY
 cvar_t gl_overbright, gl_specular, gl_load24bit, r_replacemodels, gl_miptexLevel, r_fb_bmodels;	//all of these can/should default to 0
@@ -627,6 +628,7 @@ void Mod_Init (qboolean initial)
 		Cvar_Register(&mod_litsprites_force, "Graphical Nicaties");
 		Cvar_Register(&mod_loadentfiles, NULL);
 		Cvar_Register(&mod_loadentfiles_dir, NULL);
+		Cvar_Register(&mod_loadmappackages, NULL);
 		Cvar_Register(&temp_lit2support, NULL);
 		Cvar_Register (&r_meshpitch, "Gamecode");
 		Cvar_Register (&r_meshroll, "Gamecode");

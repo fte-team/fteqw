@@ -2431,7 +2431,12 @@ void QDECL COM_StripExtension (const char *in, char *out, int outlen)
 		if (*s == '.')
 		{
 			*s = 0;
-			break;
+
+			//some extensions don't really count, strip the next one too...
+			if (!strcmp(s+1,"gz"))
+				;
+			else
+				break;
 		}
 
 		s--;
@@ -2568,8 +2573,12 @@ void COM_FileBase (const char *in, char *out, int outlen)
 
 	s = in + strlen(in) - 1;
 
-	while (s > in && *s != '.' && *s != '/')
+	while (s > in)
+	{
+		if ((*s == '.'&&strcmp(s+1,"gz")) || *s == '/')
+			break;
 		s--;
+	}
 
 	for (s2 = s ; s2 > in && *s2 && *s2 != '/' ; s2--)
 		;

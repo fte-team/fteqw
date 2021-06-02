@@ -7059,7 +7059,11 @@ void Shader_Default2D(parsestate_t *ps, const char *shortname, const void *genar
 	shader_t *s = ps->s;
 	if (Shader_ParseShader(ps, "default2d"))
 		return;
-	if (sh_config.progs_supported && qrenderer != QR_DIRECT3D9 && !dpcompat_nopremulpics.ival)
+	if (sh_config.progs_supported && qrenderer != QR_DIRECT3D9
+#ifdef HAVE_LEGACY
+			&& !dpcompat_nopremulpics.ival
+#endif
+	)
 	{
 		//hexen2 needs premultiplied alpha to avoid looking ugly
 		//but that results in problems where things are drawn with alpha not 0, so scale vertex colour by alpha in the fragment program

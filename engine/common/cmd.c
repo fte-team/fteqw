@@ -733,7 +733,7 @@ static void Cmd_Exec_f (void)
 		Con_TPrintf ("couldn't exec %s\n", name);
 		return;
 	}
-	file = FS_OpenReadLocation(&loc);
+	file = FS_OpenReadLocation(name, &loc);
 	if (!file)
 	{
 		Con_TPrintf ("couldn't exec %s. check permissions.\n", name);

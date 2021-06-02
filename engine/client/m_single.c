@@ -57,7 +57,7 @@ static void M_ScanSave(unsigned int slot, const char *name, qboolean savable)
 		if (!FS_FLocateFile(line, FSLF_DONTREFERENCE|FSLF_IGNOREPURE, &loc))
 			return;	//not found
 	}
-	f = FS_OpenReadLocation(&loc);
+	f = FS_OpenReadLocation(line, &loc);
 	if (f)
 	{
 		VFS_GETS(f, line, sizeof(line));

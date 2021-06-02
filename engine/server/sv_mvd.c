@@ -2811,9 +2811,7 @@ char *SV_MVDName2Txt(char *name)
 	Q_strncpyz(s, name, MAX_OSPATH);
 
 	ext = COM_GetFileExtension(s, NULL);
-	if (!Q_strcasecmp(ext, ".gz"))
-		ext = COM_GetFileExtension(s, ext);
-	else if (!Q_strcasecmp(ext, ".xz"))
+	if (!Q_strcasecmp(ext, ".gz") || !Q_strcasecmp(ext, ".xz"))
 		ext = COM_GetFileExtension(s, ext);
 	if (!ext || !*ext)	//if there's no extension on there, then make sure we're pointing to the end of the string.
 		ext = s+strlen(s);

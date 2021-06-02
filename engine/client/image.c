@@ -14088,7 +14088,7 @@ static void Image_LoadHiResTextureWorker(void *ctx, void *data, size_t a, size_t
 
 	if (Image_LocateHighResTexture(tex, &loc, fname, sizeof(fname), &locflags))
 	{
-		f = FS_OpenReadLocation(&loc);
+		f = FS_OpenReadLocation(fname, &loc);
 		if (f)
 		{
 			fsize = VFS_GETLEN(f);

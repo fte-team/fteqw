@@ -3052,11 +3052,11 @@ static int QDECL FS_XZ_Dec_Write(vfsfile_t *f, const void *buffer, int len)
 			break;
 
 		case XZ_MEM_ERROR:
-			Con_Printf("Memory allocation failed\n");
+			Con_Printf("XZ: Memory allocation failed\n");
 			break;
 
 		case XZ_MEMLIMIT_ERROR:
-			Con_Printf("Memory usage limit reached\n");
+			Con_Printf("XZ: Memory usage limit reached\n");
 			break;
 
 		case XZ_FORMAT_ERROR:
@@ -3069,7 +3069,7 @@ static int QDECL FS_XZ_Dec_Write(vfsfile_t *f, const void *buffer, int len)
 
 		case XZ_DATA_ERROR:
 		case XZ_BUF_ERROR:
-			Con_Printf("File is corrupt\n");
+			Con_Printf("XZ: File is corrupt\n");
 			break;
 
 		default:
@@ -3082,6 +3082,7 @@ static int QDECL FS_XZ_Dec_Write(vfsfile_t *f, const void *buffer, int len)
 	return n->b.in_pos;
 }
 
+//return a write-only wrapper around another file. .xz data written to the wrapper will be seen as decompressed for the wrapee.
 vfsfile_t *FS_XZ_DecompressWriteFilter(vfsfile_t *outfile)
 {
 	vf_xz_dec_t *n = Z_Malloc(sizeof(*n));
@@ -3115,6 +3116,34 @@ vfsfile_t *FS_XZ_DecompressWriteFilter(vfsfile_t *outfile)
 	n->vf.seekstyle			= SS_UNSEEKABLE;
 
 	return &n->vf;
+}
+
+//returns a read-only filter around a compressed .xz file
+vfsfile_t *FS_XZ_DecompressReadFilter(vfsfile_t *srcfile)
+{
+	char block[65536];
+	int blocksize = VFS_READ(srcfile, block, HEADER_MAGIC_SIZE);
+
+	if (blocksize == HEADER_MAGIC_SIZE && !memcmp(block, HEADER_MAGIC, HEADER_MAGIC_SIZE))
+	{	//okay, looks like an xz.
+		vfsfile_t *pipe = VFSPIPE_Open(2, false);
+		vfsfile_t *xzpipe = FS_XZ_DecompressWriteFilter(pipe);
+		for (;blocksize;)
+		{
+			if (blocksize < 0 || blocksize != VFS_WRITE(xzpipe, block, blocksize))
+			{
+				VFS_CLOSE(pipe);
+				pipe = NULL;
+				break;
+			}
+			blocksize = VFS_READ(srcfile, block, sizeof(block));
+		}
+		VFS_CLOSE(srcfile);
+		VFS_CLOSE(xzpipe);
+		return pipe;
+	}
+	VFS_SEEK(srcfile, 0);
+	return srcfile;
 }
 #endif
 

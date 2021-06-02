@@ -2514,7 +2514,7 @@ static int PF_fopen_search (pubprogfuncs_t *prinst, const char *name, flocation_
 
 	Q_strncpyz(pf_fopen_files[i].name, fallbackread, sizeof(pf_fopen_files[i].name));
 	if (loc->search->handle)
-		pf_fopen_files[i].file = FS_OpenReadLocation(loc);
+		pf_fopen_files[i].file = FS_OpenReadLocation(name, loc);
 	else
 		pf_fopen_files[i].file = FS_OpenVFS(loc->rawname, "rb", FS_ROOT);
 

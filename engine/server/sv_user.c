@@ -3681,7 +3681,7 @@ void SV_BeginDownload_f(void)
 
 		if (result == 0)
 		{	//if we are allowed and could find it
-			host_client->download = FS_OpenReadLocation(&loc);
+			host_client->download = FS_OpenReadLocation(NULL, &loc);
 		}
 	}
 

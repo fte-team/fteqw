@@ -7829,8 +7829,11 @@ static void *CSQC_FindMainProgs(size_t *sz, const char *name, unsigned int check
 		if (!found && *progsname && cls.state)
 			found = FS_FLocateFile(progsname, FSLF_IGNOREPURE, &loc);
 		if (!found && strcmp(progsname, "csprogs.dat"))
-			found = FS_FLocateFile("csprogs.dat", FSLF_IGNOREPURE, &loc);
-		if (found && (f=FS_OpenReadLocation(&loc)))
+		{
+			progsname = "csprogs.dat";
+			found = FS_FLocateFile(progsname, FSLF_IGNOREPURE, &loc);
+		}
+		if (found && (f=FS_OpenReadLocation(progsname, &loc)))
 		{
 			*sz = VFS_GETLEN(f);
 			file = Hunk_TempAlloc (*sz);

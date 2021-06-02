@@ -2099,7 +2099,7 @@ qboolean SV_Loadgame (const char *unsafe_savename)
 	}
 	
 	Q_snprintfz (filename, sizeof(filename), savefiles[best].pattern, savename);
-	f = FS_OpenReadLocation(&savefiles[best].loc);
+	f = FS_OpenReadLocation(filename, &savefiles[best].loc);
 	if (!f)
 	{
 		Con_TPrintf ("ERROR: couldn't open %s.\n", filename);

@@ -757,7 +757,7 @@ static void *PDECL SSQC_PRReadFile (const char *path, qbyte *(PDECL *buf_get)(vo
 	if (FS_FLocateFile(path, FSLF_IFFOUND, &loc))
 	{
 		qbyte *buffer = NULL;
-		vfsfile_t *file = FS_OpenReadLocation(&loc);
+		vfsfile_t *file = FS_OpenReadLocation(path, &loc);
 		if (file)
 		{
 			*size = loc.len;

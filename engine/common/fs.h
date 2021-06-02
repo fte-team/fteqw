@@ -105,6 +105,7 @@ qboolean FS_LoadPackageFromFile(vfsfile_t *vfs, char *pname, char *localname, in
 
 #ifdef AVAIL_XZDEC
 vfsfile_t *FS_XZ_DecompressWriteFilter(vfsfile_t *infile);
+vfsfile_t *FS_XZ_DecompressReadFilter(vfsfile_t *srcfile);
 #endif
 #ifdef AVAIL_GZDEC
 vfsfile_t *FS_GZ_WriteFilter(vfsfile_t *outfile, qboolean autoclosefile, qboolean compress);

@@ -5461,7 +5461,7 @@ unsigned int Host_GuessFileType(const char *mimetype, const char *filename)
 		ext = COM_GetFileExtension(filename, stop);
 		if (!Q_strstopcasecmp(ext, stop, ".php"))	//deal with extra extensions the easy way
 			ext = COM_GetFileExtension(filename, stop=ext);
-		if (!Q_strstopcasecmp(ext, stop, ".gz"))	//deal with extra extensions the easy way
+		if (!Q_strstopcasecmp(ext, stop, ".gz") || !Q_strstopcasecmp(ext, stop, ".xz"))	//deal with extra extensions the easy way
 			ext = COM_GetFileExtension(filename, ext);
 		if (*ext == '.')
 			ext++;

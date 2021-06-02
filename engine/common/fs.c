@@ -1053,7 +1053,7 @@ static int QDECL COM_Dir_List(const char *name, qofs_t size, time_t mtime, void 
 		colour = "^2";
 
 		ext = COM_GetFileExtension(name, NULL);
-		if (!Q_strcasecmp(ext, ".gz"))
+		if (!Q_strcasecmp(ext, ".gz") || !Q_strcasecmp(ext, ".xz"))
 			ext = COM_GetFileExtension(name, ext);
 		if (*ext == '.')
 		{
@@ -2005,10 +2005,22 @@ static const char *FS_GetCleanPath(const char *pattern, qboolean silent, char *o
 static vfsfile_t *VFS_Filter(const char *filename, vfsfile_t *handle)
 {
 //	char *ext;
-
-	if (!handle || !handle->ReadBytes || handle->seekstyle == SS_SLOW || handle->seekstyle == SS_UNSEEKABLE)	//only on readonly files for which we can undo any header read damage
+	if (!filename)
+		return handle;	//block any filtering (so we don't do stupid stuff like having servers pre-decompressing when downloading)
+	if (!handle || !handle->ReadBytes || handle->seekstyle == SS_UNSEEKABLE)	//only on readonly files for which we can undo any header read damage
 		return handle;
-//	ext = COM_FileExtension (filename);
+//	if (handle->seekstyle == SS_SLOW)
+//		return handle;	//we only peek at the header, so rewinding shouldn't be too expensive at least...
+//	const char *ext = COM_GetFileExtension(filename, NULL);
+#ifdef AVAIL_XZDEC
+//	if (!Q_strcasecmp(ext, ".xz"))
+	{
+		vfsfile_t *nh;
+		nh = FS_XZ_DecompressReadFilter(handle);
+		if (nh!=handle)
+			return nh;
+	}
+#endif
 #ifdef AVAIL_GZDEC
 //	if (!Q_strcasecmp(ext, ".gz"))
 	{
@@ -2373,11 +2385,11 @@ qboolean FS_GetLocMTime(flocation_t *location, time_t *modtime)
 }
 
 /*opens a vfsfile from an already discovered location*/
-vfsfile_t *FS_OpenReadLocation(flocation_t *location)
+vfsfile_t *FS_OpenReadLocation(const char *fname, flocation_t *location)
 {
 	if (location->search)
 	{
-		return VFS_Filter(NULL, location->search->handle->OpenVFS(location->search->handle, location, "rb"));
+		return VFS_Filter(fname, location->search->handle->OpenVFS(location->search->handle, location, "rb"));
 	}
 	return NULL;
 }

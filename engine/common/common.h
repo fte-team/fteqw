@@ -574,7 +574,7 @@ struct vfsfile_s;
 //if loc is valid, loc->search is always filled in, the others are filled on success.
 //standard return value is 0 on failure, or depth on success.
 int FS_FLocateFile(const char *filename, unsigned int flags, flocation_t *loc);
-struct vfsfile_s *FS_OpenReadLocation(flocation_t *location);
+struct vfsfile_s *FS_OpenReadLocation(const char *fname, flocation_t *location);	//fname used for extension-based filters
 #define WP_REFERENCE	1
 #define WP_FULLPATH		2
 #define WP_FORCE		4

@@ -760,6 +760,7 @@ struct decompressstate
 {
 	struct decompressstate *(*Reinit)(zipfile_t *source, qofs_t start, qofs_t csize, qofs_t usize, char *filename, char *password, unsigned int crc);
 	qofs_t (*Read)(struct decompressstate *st, qbyte *buffer, qofs_t bytes);
+	qboolean (*Seek)(struct decompressstate *st, qofs_t *fileofs, qofs_t newofs);	//may fail, file will be fully decompressed.
 	void (*Destroy)(struct decompressstate *st);
 
 	zipfile_t *source;
@@ -846,6 +847,34 @@ static void FSZIP_DecryptBlock(struct decompressstate *st, char *block, size_t b
 #endif
 
 #ifdef AVAIL_ZLIB
+//if the offset is still within our decompressed block then we can just rewind a smidge
+static qboolean FSZIP_Deflate_Seek(struct decompressstate *st, qofs_t *offset, qofs_t newoffset)
+{
+	qofs_t dist;
+	if (newoffset <= *offset)
+	{	//rewinding
+		dist = *offset-newoffset;
+		if (st->readoffset >= dist)
+		{
+			st->readoffset -= dist;
+			*offset -= dist;
+			return true;
+		}
+		//went too far back, we lost that data.
+	}
+	else
+	{	//seek forward... mneh
+		dist = newoffset - *offset;
+		if (st->readoffset+dist <= st->strm.total_out)
+		{
+			st->readoffset += dist;
+			*offset += dist;
+			return true;
+		}
+		//fail. we could just decompress more, but we're probably better off copying to a temp file instead.
+	}
+	return false;
+}
 static qofs_t FSZIP_Deflate_Read(struct decompressstate *st, qbyte *buffer, qofs_t bytes)
 {
 	qboolean eof = false;
@@ -925,6 +954,7 @@ static struct decompressstate *FSZIP_Deflate_Init(zipfile_t *source, qofs_t star
 	st = Z_Malloc(sizeof(*st));
 	st->Reinit	= FSZIP_Deflate_Init;
 	st->Read	= FSZIP_Deflate_Read;
+	st->Seek	= FSZIP_Deflate_Seek;
 	st->Destroy	= FSZIP_Deflate_Destroy;
 	st->source = source;
 
@@ -960,6 +990,35 @@ static struct decompressstate *FSZIP_Deflate_Init(zipfile_t *source, qofs_t star
 #endif
 
 #ifdef AVAIL_BZLIB
+//if the offset is still within our decompressed block then we can just rewind a smidge
+static qboolean FSZIP_BZip2_Seek(struct decompressstate *st, qofs_t *offset, qofs_t newoffset)
+{
+	qofs_t dist;
+	if (newoffset <= *offset)
+	{	//rewinding
+		dist = *offset-newoffset;
+		if (st->readoffset >= dist)
+		{
+			st->readoffset -= dist;
+			*offset -= dist;
+			return true;
+		}
+		//went too far back, we lost that data.
+	}
+	else
+	{	//seek forward... mneh
+		dist = newoffset - *offset;
+		if (st->readoffset+dist <= st->bstrm.total_out_lo32)
+		{
+			st->readoffset += dist;
+			*offset += dist;
+			return true;
+		}
+		//fail. we could just decompress more, but we're probably better off copying to a temp file instead.
+	}
+	return false;
+}
+//decompress in chunks.
 static qofs_t FSZIP_BZip2_Read(struct decompressstate *st, qbyte *buffer, qofs_t bytes)
 {
 	qboolean eof = false;
@@ -1040,6 +1099,7 @@ static struct decompressstate *FSZIP_BZip2_Init(zipfile_t *source, qofs_t start,
 	st = Z_Malloc(sizeof(*st));
 	st->Reinit	= FSZIP_BZip2_Init;
 	st->Read	= FSZIP_BZip2_Read;
+	st->Seek	= FSZIP_BZip2_Seek;
 	st->Destroy	= FSZIP_BZip2_Destroy;
 	st->source	= source;
 
@@ -1073,50 +1133,55 @@ static struct decompressstate *FSZIP_BZip2_Init(zipfile_t *source, qofs_t start,
 }
 #endif
 
-static vfsfile_t *FSZIP_Decompress_ToTempFile(struct decompressstate *decompress)
-{	//if they're going to seek on a file in a zip, let's just copy it out
+struct decompressstate *FSZIP_Decompress_Rewind(struct decompressstate *decompress)
+{
 	qofs_t cstart = decompress->cstart, csize = decompress->cend - cstart;
-	qofs_t upos = 0, usize = decompress->usize;
-	qofs_t chunk;
-	struct decompressstate *nc;
-	qbyte buffer[16384];
-	vfsfile_t *defer;
+	qofs_t usize = decompress->usize;
 	struct decompressstate *(*Reinit)(zipfile_t *source, qofs_t start, qofs_t csize, qofs_t usize, char *filename, char *password, unsigned int crc) = decompress->Reinit;
 	zipfile_t *source = decompress->source;
 #ifdef ZIPCRYPT	//we need to preserve any crypto stuff if we're restarting the stream
 	qboolean encrypted = decompress->encrypted;
 	unsigned int cryptkeys[3];
 	const z_crc_t *crctab = decompress->crctable;
-
 	memcpy(cryptkeys, decompress->initialkey, sizeof(cryptkeys));
 #endif
+
+	decompress->Destroy(decompress);
+
+	decompress = Reinit(source, cstart, csize, usize, NULL, NULL, 0);
+#ifdef ZIPCRYPT
+	decompress->encrypted = encrypted;
+	decompress->crctable = crctab;
+	memcpy(decompress->initialkey, cryptkeys, sizeof(decompress->initialkey));
+	memcpy(decompress->cryptkey, cryptkeys, sizeof(decompress->cryptkey));
+#endif
+	return decompress;
+}
+
+static vfsfile_t *FSZIP_Decompress_ToTempFile(struct decompressstate *decompress)
+{	//if they're going to seek on a file in a zip, let's just copy it out
+	qofs_t upos = 0, usize = decompress->usize;
+	qofs_t chunk;
+	qbyte buffer[16384];
+	vfsfile_t *defer;
 
 	defer = FS_OpenTemp();
 	if (defer)
 	{
-		decompress->Destroy(decompress);
-		decompress = NULL;
-
-		nc = Reinit(source, cstart, csize, usize, NULL, NULL, 0);
-#ifdef ZIPCRYPT
-		nc->encrypted = encrypted;
-		nc->crctable = crctab;
-		memcpy(nc->initialkey, cryptkeys, sizeof(nc->initialkey));
-		memcpy(nc->cryptkey, cryptkeys, sizeof(nc->cryptkey));
-#endif
+		decompress = FSZIP_Decompress_Rewind(decompress);
 
 		while (upos < usize)
 		{
 			chunk = usize - upos;
 			if (chunk > sizeof(buffer))
 				chunk = sizeof(buffer);
-			if (!nc->Read(nc, buffer, chunk))
+			if (!decompress->Read(decompress, buffer, chunk))
 				break;
 			if (VFS_WRITE(defer, buffer, chunk) != chunk)
 				break;
 			upos += chunk;
 		}
-		nc->Destroy(nc);
+		decompress->Destroy(decompress);
 
 		return defer;
 	}
@@ -1183,11 +1248,18 @@ static qboolean QDECL VFSZIP_Seek (struct vfsfile_s *file, qofs_t pos)
 	//This is *really* inefficient
 	if (vfsz->decompress)
 	{	//if they're going to seek on a file in a zip, let's just copy it out
-		vfsz->defer = FSZIP_Decompress_ToTempFile(vfsz->decompress);
-		vfsz->decompress = NULL;
-		if (vfsz->defer)
-			return VFS_SEEK(vfsz->defer, pos);
-		return false;
+		if (vfsz->decompress->Seek(vfsz->decompress, &vfsz->pos, pos))
+			return true;
+		else if (pos == 0)
+			vfsz->decompress = FSZIP_Decompress_Rewind(vfsz->decompress);
+		else
+		{
+			vfsz->defer = FSZIP_Decompress_ToTempFile(vfsz->decompress);
+			vfsz->decompress = NULL;
+			if (vfsz->defer)
+				return VFS_SEEK(vfsz->defer, pos);
+			return false;
+		}
 	}
 
 	if (pos > vfsz->length)

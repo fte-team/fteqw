@@ -2988,7 +2988,7 @@ static void *PDECL MP_PRReadFile (const char *path, qbyte *(PDECL *buf_get)(void
 	if (FS_FLocateFile(path, FSLF_IFFOUND|FSLF_SECUREONLY, &loc))
 	{
 		qbyte *buffer = NULL;
-		vfsfile_t *file = FS_OpenReadLocation(&loc);
+		vfsfile_t *file = FS_OpenReadLocation(path, &loc);
 		if (file)
 		{
 			*size = loc.len;

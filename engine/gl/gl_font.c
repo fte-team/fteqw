@@ -1721,7 +1721,7 @@ qboolean Font_LoadFreeTypeFont(struct font_s *f, int height, const char *fontfil
 		{
 			/*File is inside an archive, we need to read it and pass it as memory (and keep it available)*/
 			vfsfile_t *f;
-			f = FS_OpenReadLocation(&loc);
+			f = FS_OpenReadLocation(loc.rawname, &loc);
 			if (f && loc.len > 0)
 			{
 				fbase = BZ_Malloc(loc.len);

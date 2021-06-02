@@ -132,6 +132,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 	#undef PACKAGE_DOOMWAD
 	#undef PACKAGE_VPK
 	#undef PACKAGE_DZIP
+	#undef AVAIL_XZDEC
 	#undef AVAIL_GZDEC
 #else
 	#if defined(SERVERONLY) && defined(CLIENTONLY)

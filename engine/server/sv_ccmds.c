@@ -452,6 +452,7 @@ static void SV_MapList_f(void)
 	//FIXME: maps/mapname#modifier.ent
 	COM_EnumerateFiles("maps/*.bsp", ShowMapList, "");
 	COM_EnumerateFiles("maps/*.bsp.gz", ShowMapList, ".bsp.gz");
+	COM_EnumerateFiles("maps/*.bsp.xz", ShowMapList, ".bsp.xz");
 	COM_EnumerateFiles("maps/*.map", ShowMapList, ".map");
 	COM_EnumerateFiles("maps/*.map.gz", ShowMapList, ".gz");
 	COM_EnumerateFiles("maps/*.cm", ShowMapList, ".cm");
@@ -485,6 +486,7 @@ static void SV_Map_c(int argn, const char *partial, struct xcommandargcompletion
 		//FIXME: maps/mapname#modifier.ent
 		COM_EnumerateFiles(va("maps/%s*.bsp", partial), CompleteMapList, ctx);
 		COM_EnumerateFiles(va("maps/%s*.bsp.gz", partial), CompleteMapListExt, ctx);
+		COM_EnumerateFiles(va("maps/%s*.bsp.xz", partial), CompleteMapListExt, ctx);
 		COM_EnumerateFiles(va("maps/%s*.map", partial), CompleteMapListExt, ctx);
 		COM_EnumerateFiles(va("maps/%s*.map.gz", partial), CompleteMapListExt, ctx);
 		COM_EnumerateFiles(va("maps/%s*.cm", partial), CompleteMapList, ctx);
@@ -742,7 +744,7 @@ void SV_Map_f (void)
 	else
 #endif
 	{
-		char *exts[] = {"maps/%s", "maps/%s.bsp", "maps/%s.bsp.gz", "maps/%s.cm", "maps/%s.hmp", /*"maps/%s.map",*/ /*"maps/%s.ent",*/ NULL};
+		char *exts[] = {"maps/%s", "maps/%s.bsp", "maps/%s.bsp.gz", "maps/%s.bsp.xz", "maps/%s.cm", "maps/%s.hmp", /*"maps/%s.map",*/ /*"maps/%s.ent",*/ NULL};
 		int i, j;
 
 		for (i = 0; exts[i]; i++)

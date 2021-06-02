@@ -553,180 +553,209 @@ static void SVM_Init(void)
 			);
 }
 
-vfsfile_t *SVM_GenerateIndex(const char *requesthost, const char *fname, const char **mimetype, const char *query)
+vfsfile_t *SVM_Generate_Gamelist(const char **mimetype, const char *query)
 {
+	vfsfile_t *f = VFSPIPE_Open(1, false);
+	char tmpbuf[256];
+	char hostname[1024];
+	svm_game_t *game;
+	svm_server_t *server;
+	unsigned clients=0,bots=0,specs=0, totalclients=0, totalbots=0, totalspecs=0;
+
+	VFS_PRINTF(f, "%s", master_css);
+	VFS_PRINTF(f, "<h1>%s</h1>\n", sv_hostname.string);
+	VFS_PRINTF(f, "<table border=1>\n");
+	VFS_PRINTF(f, "<tr><th>Active Games</th><th>Players</th><th>Server Count</th></tr>\n");
+	for (game = svm.firstgame; game; game = game->next)
+	{
+		for (clients=0,bots=0,specs=0, server = game->firstserver; server; server = server->next)
+		{
+			clients += server->clients;
+			bots += server->bots;
+			specs += server->spectators;
+		}
+		if (game->numservers || !sv_hideinactivegames.ival)	//only show active servers
+		{
+			QuakeCharsToHTML(tmpbuf, sizeof(tmpbuf), game->name, true);
+			VFS_PRINTF(f, "<tr><td><a href=\"game/%s%s%s\">%s</a></td><td>%u player%s", game->name, query?"?":"", query?query:"", tmpbuf, clients, clients==1?"":"s");
+			if (bots)
+				VFS_PRINTF(f, ", %u bot%s", bots, bots==1?"":"s");
+			if (specs)
+				VFS_PRINTF(f, ", %u spectator%s", specs, specs==1?"":"s");
+			VFS_PRINTF(f, "</td><td>%u server%s</td></tr>\n", (unsigned)game->numservers, game->numservers==1?"":"s");
+		}
+		totalclients += clients;
+		totalbots += bots;
+		totalspecs += specs;
+	}
+	VFS_PRINTF(f, "</table>\n");
+	VFS_PRINTF(f, "%u game%s", (unsigned)svm.numgames, svm.numgames==1?"":"s");
+	if (totalclients)
+		VFS_PRINTF(f, ", %u player%s", totalclients, totalclients==1?"":"s");
+	if (totalbots)
+		VFS_PRINTF(f, ", %u bot%s", totalbots, totalbots==1?"":"s");
+	if (totalspecs)
+		VFS_PRINTF(f, ", %u spectator%s", totalspecs, totalspecs==1?"":"s");
+	VFS_PRINTF(f, ", %u server%s<br/>\n", (unsigned)svm.numservers, svm.numservers==1?"":"s");
+
+	net_from.prot = NP_DGRAM;
+	VFS_PRINTF(f, "Your IP is %s<br/>\n", NET_BaseAdrToString(hostname, sizeof(hostname), &net_from));
+
+	*mimetype = "text/html";
+	return f;
+}
+vfsfile_t *SVM_Generate_Serverinfo(const char **mimetype, const char *serveraddr, const char *query)
+{
+	vfsfile_t *f = VFSPIPE_Open(1, false);
+	char tmpbuf[256];
+	char hostname[1024];
+	svm_server_t *server;
+	netadr_t adr[64];
+	int count;
+
+	VFS_PRINTF(f, "%s", master_css);
+	VFS_PRINTF(f, "<h1>Single Server Info</h1>\n");
+
+	VFS_PRINTF(f, "<table border=1>\n");
+	VFS_PRINTF(f, "<tr><th>Game</th><th>Address</th><th>Hostname</th><th>Mod dir</th><th>Mapname</th><th>Players</th></tr>\n");
+	//FIXME: block dns lookups here?
+	count = NET_StringToAdr2(serveraddr, 0, adr, countof(adr), NULL);
+	while(count-->0)
+	{
+		server = SVM_GetServer(&adr[count]);
+		if (server)
+		{
+			QuakeCharsToHTML(hostname, sizeof(hostname), server->hostname, false);
+			VFS_PRINTF(f, "<tr><td>%s</td><td>%s</td><td>%s%s</td><td>%s</td><td>%s</td><td>%u/%u</td></tr>\n", server->game?server->game->name:"Unknown", NET_AdrToString(tmpbuf, sizeof(tmpbuf), &server->adr), (server->needpass&1)?"&#x1F512;":"", hostname, server->gamedir, server->mapname, server->clients, server->maxclients);
+		}
+		else
+			VFS_PRINTF(f, "<tr><td>?</td><td>%s</td><td>?</td><td>?</td><td>?</td><td>?/?</td></tr>\n", NET_AdrToString(tmpbuf, sizeof(tmpbuf), &adr[count]));
+	}
+	VFS_PRINTF(f, "</table>\n");
+
+	*mimetype = "text/html";
+	return f;
+}
+
+vfsfile_t *SVM_Generate_Serverlist(const char **mimetype, const char *masteraddr, const char *gamename, const char *query)
+{
+	vfsfile_t *f = VFSPIPE_Open(1, false);
 	char tmpbuf[256];
 	char hostname[1024];
 	const char *url;
 	svm_game_t *game;
 	svm_server_t *server;
+	unsigned clients=0,bots=0,specs=0;
+
+	qboolean showver = query && !!strstr(query, "ver=1");
+	game = SVM_FindGame(gamename, false);
+
+	VFS_PRINTF(f, "%s", master_css);
+
+	if (!strcmp(gamename, "UNKNOWN"))
+	{
+		VFS_PRINTF(f, "<h1>Unresponsive Servers</h1>\n");
+		VFS_PRINTF(f, "These servers have sent a heartbeat but have failed to respond to an appropriate query from a different port. This can happen when:<ul>"
+		"<li>Server is firewalled and all inbound packets are dropped. Try reconfiguring your firewall to allow packets to that process or port.</li>"
+		"<li>An intermediate router implements an Address/Port-Dependant-Filtering NAT. Try setting up port forwarding.</li>"
+		"<li>Outgoing connections are asynchronous with regard to port forwarding. Such servers will show with arbitrary ephemerial ports. Docker: you can supposedly work around this with --net=host.</li>"
+		"<li>Plain and simple packet loss, servers in this state for less than 5 mins may still be fine.</li>"
+		"<li>Server crashed or was reconfigured before it could respond.</li>"
+		"<li>MTU limits with failed defragmentation.</li>"
+		"<li>Routing table misconfiguration.</li>"
+		"<li>Other.</li>"
+		"</ul>\n");
+	}
+	else
+		VFS_PRINTF(f, "<h1>Servers for %s</h1>\n", QuakeCharsToHTML(tmpbuf, sizeof(tmpbuf), gamename, true));
+
+	if(game)
+	{
+		SVM_SortServers(game);
+
+		VFS_PRINTF(f, "<table border=1>\n");
+		VFS_PRINTF(f, "<tr><th>Address</th><th>Hostname</th><th>Gamedir</th><th>Mapname</th><th>Players</th>");
+		if (showver)
+			VFS_PRINTF(f, "<th>Version</th>");
+		VFS_PRINTF(f, "</tr>\n");
+		for (server = game->firstserver; server; server = server->next)
+		{
+			if (server->brokerid)
+			{
+				url = tmpbuf;
+				Q_snprintfz(tmpbuf, sizeof(tmpbuf), "rtc://%s/%s", masteraddr, server->brokerid);
+			}
+			else
+				url = NET_AdrToString(tmpbuf, sizeof(tmpbuf), &server->adr);
+			QuakeCharsToHTML(hostname, sizeof(hostname), server->hostname, false);
+			VFS_PRINTF(f, "<tr><td>%s</td><td>%s%s%s</td><td>%s</td><td>%s</td><td>%u", url, (server->needpass&1)?"&#x1F512;":"", (server->coop&1)?"&#x1F6B8;":"", hostname, server->gamedir, server->mapname, server->clients);
+			if (server->bots)
+				VFS_PRINTF(f, "+%ub", server->bots);
+			VFS_PRINTF(f, "/%u", server->maxclients);
+			if (server->spectators)
+				VFS_PRINTF(f, ", %us", server->spectators);
+			VFS_PRINTF(f, "</td>");
+			if (showver)
+				VFS_PRINTF(f, "<td>%s</td>", server->version);
+			VFS_PRINTF(f, "</tr>\n");
+			clients += server->clients;
+			bots += server->bots;
+			specs += server->spectators;
+		}
+		VFS_PRINTF(f, "</table>\n");
+		VFS_PRINTF(f, "%u server%s", (unsigned)game->numservers, game->numservers==1?"":"s");
+		if (clients)
+			VFS_PRINTF(f, ", %u client%s", (unsigned)clients, clients==1?"":"s");
+		if (bots)
+			VFS_PRINTF(f, ", %u bot%s", (unsigned)bots, bots==1?"":"s");
+		if (specs)
+			VFS_PRINTF(f, ", %u spectator%s", (unsigned)specs, specs==1?"":"s");
+		VFS_PRINTF(f, "\n");
+	}
+	else
+		VFS_PRINTF(f, "Protocol '%s' is not known\n", gamename);
+
+	*mimetype = "text/html";
+	return f;
+}
+
+vfsfile_t *SVM_Generate_Rawlist(const char **mimetype, const char *masteraddr, const char *gamename, const char *query)
+{	//just spews all
+	char tmpbuf[256];
+	svm_game_t *game;
+	svm_server_t *server;
+	vfsfile_t *f = VFSPIPE_Open(1, false);
+
+	COM_StripExtension(gamename, tmpbuf, sizeof(tmpbuf));
+	game = SVM_FindGame(tmpbuf, false);
+
+	f = VFSPIPE_Open(1, false);
+	VFS_PRINTF(f, "#Server list for \"%s\"\n", tmpbuf);
+	for (server = (game?game->firstserver:NULL); server; server = server->next)
+	{
+		if (server->brokerid)
+			VFS_PRINTF(f, "rtc://%s/%s \\maxclients\\%u\\clients\\%u\\bots\\%u\\hostname\\%s\\modname\\%s\\mapname\\%s\\needpass\\%i\n", masteraddr, server->brokerid, server->maxclients, server->clients, server->bots, server->hostname, server->gamedir, server->mapname, server->needpass);
+		else
+			VFS_PRINTF(f, "%s\n", NET_AdrToString(tmpbuf, sizeof(tmpbuf), &server->adr));
+	}
+
+	*mimetype = "text/plain";
+	return f;
+}
+
+vfsfile_t *SVM_GenerateIndex(const char *requesthost, const char *fname, const char **mimetype, const char *query)
+{
 	vfsfile_t *f = NULL;
-	unsigned clients=0,bots=0,specs=0, totalclients=0, totalbots=0, totalspecs=0;
 	if (!master_css)
 		SVM_Init();
 	if (!strcmp(fname, "index.html"))
-	{
-		f = VFSPIPE_Open(1, false);
-		VFS_PRINTF(f, "%s", master_css);
-		VFS_PRINTF(f, "<h1>%s</h1>\n", sv_hostname.string);
-		VFS_PRINTF(f, "<table border=1>\n");
-		VFS_PRINTF(f, "<tr><th>Active Games</th><th>Players</th><th>Server Count</th></tr>\n");
-		for (game = svm.firstgame; game; game = game->next)
-		{
-			for (clients=0,bots=0,specs=0, server = game->firstserver; server; server = server->next)
-			{
-				clients += server->clients;
-				bots += server->bots;
-				specs += server->spectators;
-			}
-			if (game->numservers || !sv_hideinactivegames.ival)	//only show active servers
-			{
-				QuakeCharsToHTML(tmpbuf, sizeof(tmpbuf), game->name, true);
-				VFS_PRINTF(f, "<tr><td><a href=\"game/%s%s%s\">%s</a></td><td>%u player%s", game->name, query?"?":"", query?query:"", tmpbuf, clients, clients==1?"":"s");
-				if (bots)
-					VFS_PRINTF(f, ", %u bot%s", bots, bots==1?"":"s");
-				if (specs)
-					VFS_PRINTF(f, ", %u spectator%s", specs, specs==1?"":"s");
-				VFS_PRINTF(f, "</td><td>%u server%s</td></tr>\n", (unsigned)game->numservers, game->numservers==1?"":"s");
-			}
-			totalclients += clients;
-			totalbots += bots;
-			totalspecs += specs;
-		}
-		VFS_PRINTF(f, "</table>\n");
-		VFS_PRINTF(f, "%u game%s", (unsigned)svm.numgames, svm.numgames==1?"":"s");
-		if (totalclients)
-			VFS_PRINTF(f, ", %u player%s", totalclients, totalclients==1?"":"s");
-		if (totalbots)
-			VFS_PRINTF(f, ", %u bot%s", totalbots, totalbots==1?"":"s");
-		if (totalspecs)
-			VFS_PRINTF(f, ", %u spectator%s", totalspecs, totalspecs==1?"":"s");
-		VFS_PRINTF(f, ", %u server%s<br/>\n", (unsigned)svm.numservers, svm.numservers==1?"":"s");
-
-		net_from.prot = NP_DGRAM;
-		VFS_PRINTF(f, "Your IP is %s<br/>\n", NET_BaseAdrToString(hostname, sizeof(hostname), &net_from));
-
-		*mimetype = "text/html";
-	}
+		f = SVM_Generate_Gamelist(mimetype, query);
 	else if (!strncmp(fname, "server/", 7))
-	{
-		netadr_t adr[64];
-		int count;
-
-		f = VFSPIPE_Open(1, false);
-		VFS_PRINTF(f, "%s", master_css);
-		VFS_PRINTF(f, "<h1>Single Server Info</h1>\n");
-
-		VFS_PRINTF(f, "<table border=1>\n");
-		VFS_PRINTF(f, "<tr><th>Game</th><th>Address</th><th>Hostname</th><th>Mod dir</th><th>Mapname</th><th>Players</th></tr>\n");
-		//FIXME: block dns lookups here?
-		count = NET_StringToAdr2(fname+7, 0, adr, countof(adr), NULL);
-		while(count-->0)
-		{
-			server = SVM_GetServer(&adr[count]);
-			if (server)
-			{
-				QuakeCharsToHTML(hostname, sizeof(hostname), server->hostname, false);
-				VFS_PRINTF(f, "<tr><td>%s</td><td>%s</td><td>%s%s</td><td>%s</td><td>%s</td><td>%u/%u</td></tr>\n", server->game?server->game->name:"Unknown", NET_AdrToString(tmpbuf, sizeof(tmpbuf), &server->adr), (server->needpass&1)?"&#x1F512;":"", hostname, server->gamedir, server->mapname, server->clients, server->maxclients);
-			}
-			else
-				VFS_PRINTF(f, "<tr><td>?</td><td>%s</td><td>?</td><td>?</td><td>?</td><td>?/?</td></tr>\n", NET_AdrToString(tmpbuf, sizeof(tmpbuf), &adr[count]));
-		}
-		VFS_PRINTF(f, "</table>\n");
-
-		*mimetype = "text/html";
-	}
+		f = SVM_Generate_Serverinfo(mimetype, fname+7, query);
 	else if (!strncmp(fname, "game/", 5))
-	{
-		qboolean showver = query && !!strstr(query, "ver=1");
-		const char *gamename = fname+5;
-		game = SVM_FindGame(gamename, false);
-
-		f = VFSPIPE_Open(1, false);
-		VFS_PRINTF(f, "%s", master_css);
-
-		if (!strcmp(gamename, "UNKNOWN"))
-		{
-			VFS_PRINTF(f, "<h1>Unresponsive Servers</h1>\n");
-			VFS_PRINTF(f, "These servers have sent a heartbeat but have failed to respond to an appropriate query from a different port. This can happen when:<ul>"
-			"<li>Server is firewalled and all inbound packets are dropped. Try reconfiguring your firewall to allow packets to that process or port.</li>"
-			"<li>An intermediate router implements an Address/Port-Dependant-Filtering NAT. Try setting up port forwarding.</li>"
-			"<li>Outgoing connections are asynchronous with regard to port forwarding. Such servers will show with arbitrary ephemerial ports. Docker: you can supposedly work around this with --net=host.</li>"
-			"<li>Plain and simple packet loss, servers in this state for less than 5 mins may still be fine.</li>"
-			"<li>Server crashed or was reconfigured before it could respond.</li>"
-			"<li>MTU limits with failed defragmentation.</li>"
-			"<li>Routing table misconfiguration.</li>"
-			"<li>Other.</li>"
-			"</ul>\n");
-		}
-		else
-			VFS_PRINTF(f, "<h1>Servers for %s</h1>\n", QuakeCharsToHTML(tmpbuf, sizeof(tmpbuf), gamename, true));
-
-		if(game)
-		{
-			SVM_SortServers(game);
-
-			VFS_PRINTF(f, "<table border=1>\n");
-			VFS_PRINTF(f, "<tr><th>Address</th><th>Hostname</th><th>Gamedir</th><th>Mapname</th><th>Players</th>");
-			if (showver)
-				VFS_PRINTF(f, "<th>Version</th>");
-			VFS_PRINTF(f, "</tr>\n");
-			for (server = game->firstserver; server; server = server->next)
-			{
-				if (server->brokerid)
-				{
-					url = tmpbuf;
-					Q_snprintfz(tmpbuf, sizeof(tmpbuf), "rtc://%s/%s", requesthost, server->brokerid);
-				}
-				else
-					url = NET_AdrToString(tmpbuf, sizeof(tmpbuf), &server->adr);
-				QuakeCharsToHTML(hostname, sizeof(hostname), server->hostname, false);
-				VFS_PRINTF(f, "<tr><td>%s</td><td>%s%s%s</td><td>%s</td><td>%s</td><td>%u", url, (server->needpass&1)?"&#x1F512;":"", (server->coop&1)?"&#x1F6B8;":"", hostname, server->gamedir, server->mapname, server->clients);
-				if (server->bots)
-					VFS_PRINTF(f, "+%ub", server->bots);
-				VFS_PRINTF(f, "/%u", server->maxclients);
-				if (server->spectators)
-					VFS_PRINTF(f, ", %us", server->spectators);
-				VFS_PRINTF(f, "</td>");
-				if (showver)
-					VFS_PRINTF(f, "<td>%s</td>", server->version);
-				VFS_PRINTF(f, "</tr>\n");
-				clients += server->clients;
-				bots += server->bots;
-				specs += server->spectators;
-			}
-			VFS_PRINTF(f, "</table>\n");
-			VFS_PRINTF(f, "%u server%s", (unsigned)game->numservers, game->numservers==1?"":"s");
-			if (clients)
-				VFS_PRINTF(f, ", %u client%s", (unsigned)clients, clients==1?"":"s");
-			if (bots)
-				VFS_PRINTF(f, ", %u bot%s", (unsigned)bots, bots==1?"":"s");
-			if (specs)
-				VFS_PRINTF(f, ", %u spectator%s", (unsigned)specs, specs==1?"":"s");
-			VFS_PRINTF(f, "\n");
-		}
-		else
-			VFS_PRINTF(f, "Protocol '%s' is not known\n", gamename);
-
-		*mimetype = "text/html";
-	}
+		f = SVM_Generate_Serverlist(mimetype, requesthost, fname+5, query);
 	else if (!strncmp(fname, "raw/", 4))
-	{	//just spews all
-		COM_StripExtension(fname+4, tmpbuf, sizeof(tmpbuf));
-		game = SVM_FindGame(tmpbuf, false);
-
-		f = VFSPIPE_Open(1, false);
-		VFS_PRINTF(f, "#Server list for \"%s\"\n", tmpbuf);
-		for (server = (game?game->firstserver:NULL); server; server = server->next)
-		{
-			if (server->brokerid)
-				VFS_PRINTF(f, "rtc:///%s \\maxclients\\%u\\clients\\%u\\bots\\%u\\hostname\\%s\\modname\\%s\\mapname\\%s\\needpass\\%i\n", server->brokerid, server->maxclients, server->clients, server->bots, server->hostname, server->gamedir, server->mapname, server->needpass);
-			else
-				VFS_PRINTF(f, "%s\n", NET_AdrToString(tmpbuf, sizeof(tmpbuf), &server->adr));
-		}
-
-		*mimetype = "text/plain";
-	}
+		f = SVM_Generate_Rawlist(mimetype, requesthost, fname+4, query);
 	return f;
 }
 
@@ -1255,6 +1284,7 @@ static void SVM_ProcessUDPPacket(void)
 	{	//response from a FTE-master request (lots of IPs from a 'slave' master that we're stealing)
 		netadr_t a = {NA_INVALID};
 		msg_readcount = 4+21;	//grr
+		msg_badread = false;
 		svm.total.heartbeats++;
 		for (;;)
 		{

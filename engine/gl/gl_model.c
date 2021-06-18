@@ -5484,8 +5484,10 @@ TRACE(("LoadBrushModel %i\n", __LINE__));
 			{
 				if (mod->surfaces[j].flags & SURF_DRAWTURB)
 				{
-					if (mod->surfaces[j].plane->type == PLANE_Z && mod->surfaces[j].plane->dist == bm->maxs[2]-1)
+					float mid = bm->mins[2] + (0.5 * (bm->maxs[2] - bm->mins[2]));
+					if (mod->surfaces[j].plane->type == PLANE_Z && mod->surfaces[j].plane->dist >= mid) {
 						continue;
+					}
 					mod->surfaces[j].flags |= SURF_NODRAW;
 				}
 			}

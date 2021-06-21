@@ -903,7 +903,7 @@ static gnutls_certificate_credentials_t xcred[2];
 static gnutls_datum_t cookie_key;
 #endif
 
-vfsfile_t *SSL_OpenPrivKey(char *nativename, size_t nativesize)
+static vfsfile_t *SSL_OpenPrivKey(char *nativename, size_t nativesize)
 {
 #define privname "privkey.pem"
 	vfsfile_t *privf;
@@ -926,7 +926,7 @@ vfsfile_t *SSL_OpenPrivKey(char *nativename, size_t nativesize)
 	return privf;
 #undef privname
 }
-vfsfile_t *SSL_OpenPubKey(char *nativename, size_t nativesize)
+static vfsfile_t *SSL_OpenPubKey(char *nativename, size_t nativesize)
 {
 #define fullchainname "fullchain.pem"
 #define pubname "cert.pem"
@@ -1231,7 +1231,7 @@ static qboolean SSL_InitConnection(gnutlsfile_t *newf, qboolean isserver, qboole
 	return true;
 }
 
-vfsfile_t *GNUTLS_OpenVFS(const char *hostname, vfsfile_t *source, qboolean isserver)
+static vfsfile_t *GNUTLS_OpenVFS(const char *hostname, vfsfile_t *source, qboolean isserver)
 {
 	gnutlsfile_t *newf;
 
@@ -1270,7 +1270,7 @@ vfsfile_t *GNUTLS_OpenVFS(const char *hostname, vfsfile_t *source, qboolean isse
 	return &newf->funcs;
 }
 
-int GNUTLS_GetChannelBinding(vfsfile_t *vf, qbyte *binddata, size_t *bindsize)
+static int GNUTLS_GetChannelBinding(vfsfile_t *vf, qbyte *binddata, size_t *bindsize)
 {
 	gnutls_datum_t cb;
 	gnutlsfile_t *f = (gnutlsfile_t*)vf;
@@ -1293,9 +1293,9 @@ int GNUTLS_GetChannelBinding(vfsfile_t *vf, qbyte *binddata, size_t *bindsize)
 }
 
 //crypto: generates a signed blob
-int GNUTLS_GenerateSignature(qbyte *hashdata, size_t hashsize, qbyte *signdata, size_t signsizemax)
+static int GNUTLS_GenerateSignature(const qbyte *hashdata, size_t hashsize, qbyte *signdata, size_t signsizemax)
 {
-	gnutls_datum_t hash = {hashdata, hashsize};
+	gnutls_datum_t hash = {(qbyte*)hashdata, hashsize};
 	gnutls_datum_t sign = {NULL, 0};
 
 	gnutls_certificate_credentials_t cred;
@@ -1324,24 +1324,21 @@ int GNUTLS_GenerateSignature(qbyte *hashdata, size_t hashsize, qbyte *signdata, 
 }
 
 //crypto: verifies a signed blob matches an authority's public cert. windows equivelent https://docs.microsoft.com/en-us/windows/win32/seccrypto/example-c-program-signing-a-hash-and-verifying-the-hash-signature
-enum hashvalidation_e GNUTLS_VerifyHash(qbyte *hashdata, size_t hashsize, const char *authority, qbyte *signdata, size_t signsize)
+static enum hashvalidation_e GNUTLS_VerifyHash(const qbyte *hashdata, size_t hashsize, const qbyte *pubkeydata, size_t pubkeysize, const qbyte *signdata, size_t signsize)
 {
-	gnutls_datum_t hash = {hashdata, hashsize};
-	gnutls_datum_t sign = {signdata, signsize};
+	gnutls_datum_t hash = {(qbyte*)hashdata, hashsize};
+	gnutls_datum_t sign = {(qbyte*)signdata, signsize};
 	int r;
 
-	gnutls_datum_t rawcert;
+	gnutls_datum_t rawcert = {(qbyte*)pubkeydata, pubkeysize};
 #if 1
-	size_t sz;
 	gnutls_pubkey_t pubkey;
 	gnutls_x509_crt_t cert;
 
-	rawcert.data = Auth_GetKnownCertificate(authority, &sz);
 	if (!rawcert.data)
 		return VH_AUTHORITY_UNKNOWN;
 	if (!Init_GNUTLS())
 		return VH_UNSUPPORTED;
-	rawcert.size = sz;
 
 	qgnutls_pubkey_init(&pubkey);
 	qgnutls_x509_crt_init(&cert);
@@ -1437,7 +1434,7 @@ static neterr_t GNUDTLS_Transmit(void *ctx, const qbyte *data, size_t datasize)
 	return NETERR_SENT;
 }
 
-static neterr_t GNUDTLS_Received(void *ctx, qbyte *data, size_t datasize)
+static neterr_t GNUDTLS_Received(void *ctx, sizebuf_t *message)
 {
 	int cli_addr = 0xdeadbeef;
 	int ret;
@@ -1450,7 +1447,7 @@ static neterr_t GNUDTLS_Received(void *ctx, qbyte *data, size_t datasize)
 		memset(&f->prestate, 0, sizeof(f->prestate));
 		ret = qgnutls_dtls_cookie_verify(&cookie_key,
 				&cli_addr, sizeof(cli_addr),
-				data, datasize,
+				message->data, message->cursize,
 				&f->prestate);
 
 		if (ret < 0)
@@ -1473,8 +1470,8 @@ static neterr_t GNUDTLS_Received(void *ctx, qbyte *data, size_t datasize)
 		f->handshaking = true;
 	}
 
-	f->readdata = data;
-	f->readsize = datasize;
+	f->readdata = message->data;
+	f->readsize = message->cursize;
 
 	if (f->handshaking)
 	{
@@ -1487,7 +1484,7 @@ static neterr_t GNUDTLS_Received(void *ctx, qbyte *data, size_t datasize)
 			return NETERR_DISCONNECTED;
 	}
 
-	ret = qgnutls_record_recv(f->session, net_message_buffer, sizeof(net_message_buffer));
+	ret = qgnutls_record_recv(f->session, message->data, message->maxsize);
 //Sys_Printf("DTLS_Received returned %i of %i\n", ret, f->readsize);
 	f->readsize = 0;
 	if (ret <= 0)
@@ -1505,8 +1502,8 @@ static neterr_t GNUDTLS_Received(void *ctx, qbyte *data, size_t datasize)
 //		Sys_Printf("DTLS_Received temp error\n");
 		return NETERR_CLOGGED;
 	}
-	net_message.cursize = ret;
-	data[ret] = 0;
+	message->cursize = ret;
+	message->data[ret] = 0;
 //	Sys_Printf("DTLS_Received returned %s\n", data);
 	return NETERR_SENT;
 }
@@ -1540,26 +1537,37 @@ static const dtlsfuncs_t dtlsfuncs_gnutls =
 	GNUDTLS_Received,
 	GNUDTLS_Timeouts,
 };
-const dtlsfuncs_t *GNUDTLS_InitServer(void)
+static const dtlsfuncs_t *GNUDTLS_InitServer(void)
 {
 	if (!SSL_InitGlobal(true))
 		return NULL;	//unable to init a server certificate. don't allow dtls to init.
 	return &dtlsfuncs_gnutls;
 }
-const dtlsfuncs_t *GNUDTLS_InitClient(void)
+static const dtlsfuncs_t *GNUDTLS_InitClient(void)
 {
 	return &dtlsfuncs_gnutls;
 }
+#else
+#define GNUDTLS_InitServer NULL
+#define GNUDTLS_InitClient NULL
 #endif
+
+ftecrypto_t crypto_gnutls =
+{
+	"GNUTLS",
+	GNUTLS_OpenVFS,
+	GNUTLS_GetChannelBinding,
+	GNUDTLS_InitClient,
+	GNUDTLS_InitServer,
+	GNUTLS_VerifyHash,
+	GNUTLS_GenerateSignature,
+};
 
 #else
 #warning "GNUTLS version is too old (3.0+ required). Please clean and then recompile with CFLAGS=-DNO_GNUTLS"
 
+ftecrypto_t crypto_gnutls;
 qboolean SSL_InitGlobal(qboolean isserver) {return false;}
-vfsfile_t *FS_OpenSSL(const char *hostname, vfsfile_t *source, qboolean isserver) {return NULL;}
-int GNUTLS_GetChannelBinding(vfsfile_t *vf, qbyte *binddata, size_t *bindsize) {return -1;}
-const dtlsfuncs_t *GNUDTLS_InitClient(void) {return NULL;}
-const dtlsfuncs_t *GNUDTLS_InitServer(void) {return NULL;}
 #endif
 #endif
 

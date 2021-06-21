@@ -351,35 +351,32 @@ typedef struct dtlsfuncs_s
 	void *(*CreateContext)(const char *remotehost, void *cbctx, neterr_t(*push)(void *cbctx, const qbyte *data, size_t datasize), qboolean isserver);	//if remotehost is null then their certificate will not be validated.
 	void (*DestroyContext)(void *ctx);
 	neterr_t (*Transmit)(void *ctx, const qbyte *data, size_t datasize);
-	neterr_t (*Received)(void *ctx, qbyte *data, size_t datasize);
+	neterr_t (*Received)(void *ctx, sizebuf_t *message);	//operates in-place...
 	neterr_t (*Timeouts)(void *ctx);
 	void (*GetPeerCertificate)(void *ctx);
 } dtlsfuncs_t;
 const dtlsfuncs_t *DTLS_InitServer(void);
 const dtlsfuncs_t *DTLS_InitClient(void);
 #endif
-#ifdef HAVE_WINSSPI
-	vfsfile_t *SSPI_OpenVFS(const char *hostname, vfsfile_t *source, qboolean isserver);
-	int SSPI_GetChannelBinding(vfsfile_t *vf, qbyte *binddata, size_t *bindsize);
-	const struct dtlsfuncs_s *SSPI_DTLS_InitServer(void);	//returns NULL if there's no cert available.
-	const struct dtlsfuncs_s *SSPI_DTLS_InitClient(void);	//should always return something, if implemented.
-	enum hashvalidation_e SSPI_VerifyHash(qbyte *hashdata, size_t hashsize, const char *authority, qbyte *signdata, size_t signsize);
-#endif
-#ifdef HAVE_GNUTLS
-	vfsfile_t *GNUTLS_OpenVFS(const char *hostname, vfsfile_t *source, qboolean isserver);
-	int GNUTLS_GetChannelBinding(vfsfile_t *vf, qbyte *binddata, size_t *bindsize);
-	const struct dtlsfuncs_s *GNUDTLS_InitServer(void);	//returns NULL if there's no cert available.
-	const struct dtlsfuncs_s *GNUDTLS_InitClient(void);	//should always return something, if implemented.
-	enum hashvalidation_e GNUTLS_VerifyHash(qbyte *hashdata, size_t hashsize, const char *authority, qbyte *signdata, size_t signsize);
-	int GNUTLS_GenerateSignature(qbyte *hashdata, size_t hashsize, qbyte *signdata, size_t signsizemax);
-#endif
-#ifdef HAVE_OPENSSL
-	vfsfile_t *OSSL_OpenVFS(const char *hostname, vfsfile_t *source, qboolean isserver);
-	int OSSL_GetChannelBinding(vfsfile_t *vf, qbyte *binddata, size_t *bindsize);
-	const struct dtlsfuncs_s *OSSL_InitServer(void);	//returns NULL if there's no cert available.
-	const struct dtlsfuncs_s *OSSL_InitClient(void);	//should always return something, if implemented.
-	enum hashvalidation_e OSSL_VerifyHash(qbyte *hashdata, size_t hashsize, const char *authority, qbyte *signdata, size_t signsize);
-#endif
+typedef struct ftecrypto_s
+{
+	const char *drivername;
+
+	//tlsey things
+	vfsfile_t *(*OpenStream)(const char *hostname, vfsfile_t *source, qboolean isserver);	//establish a tls connection around a tcp stream
+	int (*GetChannelBinding)(vfsfile_t *vf, qbyte *binddata, size_t *bindsize);	//returns -1 if functions don't match those from OpenStream
+
+	//dtls entry points
+	const struct dtlsfuncs_s *(*DTLS_InitClient)(void);	//should always return something, if implemented.
+	const struct dtlsfuncs_s *(*DTLS_InitServer)(void);	//returns NULL if there's no cert available.
+
+	//digital signature stuff. note: uses sha2_512
+	enum hashvalidation_e (*VerifyHash)(const qbyte *hashdata, size_t hashsize, const qbyte *certdata, size_t certsize, const qbyte *signdata, size_t signsize);
+	int (*GenerateSignature)(const qbyte *hashdata, size_t hashsize, qbyte *signdata, size_t signsizemax);
+} ftecrypto_t;
+#define cryptolib_count 6
+extern ftecrypto_t	crypto_sspi, crypto_gnutls;
+extern ftecrypto_t *cryptolib[cryptolib_count];
 
 
 

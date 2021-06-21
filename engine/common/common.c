@@ -5566,9 +5566,6 @@ static void COM_Version_f (void)
 #ifdef HAVE_GNUTLS             //on linux
 	Con_Printf(" GnuTLS");
 #endif
-#ifdef HAVE_OPENSSL          //on linux. hardlinked, so typically set only via the makefile.
-	Con_Printf(" OpenSSL");
-#endif
 #ifdef HAVE_WINSSPI            //on windows
 	Con_Printf(" WINSSPI");
 #endif

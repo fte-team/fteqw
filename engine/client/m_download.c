@@ -361,8 +361,11 @@ void PM_ValidateAuthenticity(package_t *p, enum hashvalidation_e validated)
 	size_t hashsize = 0;
 	qbyte signdata[1024];
 	size_t signsize = 0;
-	int r;
+	int r, i;
 	char authority[MAX_QPATH], *sig;
+
+	const qbyte *pubkey;
+	size_t pubkeysize;
 
 #ifndef _DEBUG
 #pragma message("Temporary code.")
@@ -412,28 +415,25 @@ void PM_ValidateAuthenticity(package_t *p, enum hashvalidation_e validated)
 			sig++;
 		}
 		else
+		{
+			strcpy(authority, "Spike");	//legacy bollocks
 			sig = p->signature;
+		}
 		hashsize = Base16_DecodeBlock(p->filesha512, hashdata, sizeof(hashdata));
 		signsize = Base64_DecodeBlock(sig, NULL, signdata, sizeof(signdata));
 		r = VH_UNSUPPORTED;//preliminary
 	}
 
-	(void)signsize;
-	(void)hashsize;
+	pubkey = Auth_GetKnownCertificate(authority, &pubkeysize);
+	if (!pubkey)
+		r = VH_AUTHORITY_UNKNOWN;
 
 	//try and get one of our providers to verify it...
-#ifdef HAVE_WINSSPI
-	if (r == VH_UNSUPPORTED)
-		r = SSPI_VerifyHash(hashdata, hashsize, authority, signdata, signsize);
-#endif
-#ifdef HAVE_GNUTLS
-	if (r == VH_UNSUPPORTED)
-		r = GNUTLS_VerifyHash(hashdata, hashsize, authority, signdata, signsize);
-#endif
-#ifdef HAVE_OPENSSL
-	if (r == VH_UNSUPPORTED)
-		r = OSSL_VerifyHash(hashdata, hashsize, authority, signdata, signsize);
-#endif
+	for (i = 0; r==VH_UNSUPPORTED && i < cryptolib_count; i++)
+	{
+		if (cryptolib[i] && cryptolib[i]->VerifyHash)
+			r = cryptolib[i]->VerifyHash(hashdata, hashsize, pubkey, pubkeysize, signdata, signsize);
+	}
 
 	p->flags &= ~(DPF_SIGNATUREACCEPTED|DPF_SIGNATUREREJECTED|DPF_SIGNATUREUNKNOWN);
 	if (r == VH_CORRECT)
@@ -1379,8 +1379,11 @@ static qboolean PM_ParsePackageList(const char *f, unsigned int parseflags, cons
 					char authority[MAX_OSPATH];
 					char signdata[MAX_OSPATH];
 					char signature_base64[MAX_OSPATH];
+					qbyte *pubkey;
+					size_t pubkeysize;
 					size_t signsize;
 					enum hashvalidation_e r;
+					int i;
 					hashfunc_t *hf = &hash_sha512;
 					void *hashdata = Z_Malloc(hf->digestsize);
 					void *hashctx = Z_Malloc(hf->contextsize);
@@ -1395,20 +1398,16 @@ static qboolean PM_ParsePackageList(const char *f, unsigned int parseflags, cons
 					Z_Free(hashctx);
 					r = VH_UNSUPPORTED;//preliminary
 
-					(void)signsize;
+					pubkey = Auth_GetKnownCertificate(authority, &pubkeysize);
+					if (!pubkey)
+						r = VH_AUTHORITY_UNKNOWN;
+
 					//try and get one of our providers to verify it...
-					#ifdef HAVE_WINSSPI
-						if (r == VH_UNSUPPORTED)
-							r = SSPI_VerifyHash(hashdata, hf->digestsize, authority, signdata, signsize);
-					#endif
-					#ifdef HAVE_GNUTLS
-						if (r == VH_UNSUPPORTED)
-							r = GNUTLS_VerifyHash(hashdata, hf->digestsize, authority, signdata, signsize);
-					#endif
-					#ifdef HAVE_OPENSSL
-						if (r == VH_UNSUPPORTED)
-							r = OSSL_VerifyHash(hashdata, hf->digestsize, authority, signdata, signsize);
-					#endif
+					for (i = 0; r==VH_UNSUPPORTED && i < cryptolib_count; i++)
+					{
+						if (cryptolib[i] && cryptolib[i]->VerifyHash)
+							r = cryptolib[i]->VerifyHash(hashdata, hf->digestsize, pubkey, pubkeysize, signdata, signsize);
+					}
 
 					Z_Free(hashdata);
 					source.validated = r;

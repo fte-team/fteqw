@@ -159,7 +159,6 @@
 //FIXME: Stuff that Spike has added that Eukara needs to decide whether to keep or not.
 #define HAVE_OPUS
 //#define HAVE_SPEEX
-//#define HAVE_OPENSSL
 //#define IMAGEFMT_HDR
 //#define IMAGEFMT_PBM
 //#define IMAGEFMT_PSD

@@ -10,7 +10,6 @@
 #undef FTPSERVER
 #undef HAVE_TCP
 #undef HAVE_GNUTLS
-#undef HAVE_OPENSSL
 #undef HAVE_WINSSPI
 #undef SUPPORT_ICE
 #undef SUBSERVERS

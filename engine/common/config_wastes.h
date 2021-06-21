@@ -179,7 +179,6 @@
 #undef WAYLANDQUAKE
 #undef SERVER_DEMO_PLAYBACK	/* deprecated */
 #undef DECOMPRESS_BPTC
-#undef HAVE_OPENSSL		/* incomplete */
 #undef IMAGEFMT_HDR
 #undef IMAGEFMT_PBM
 #undef IMAGEFMT_PSD

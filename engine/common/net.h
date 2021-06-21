@@ -194,6 +194,8 @@ void NET_DTLS_Timeouts(struct ftenet_connections_s *col);
 #endif
 extern cvar_t timeout;
 extern cvar_t tls_ignorecertificateerrors;	//evil evil evil.
+struct ftecrypto_s;
+qboolean NET_RegisterCrypto(void *module, struct ftecrypto_s *driver);
 
 //============================================================================
 

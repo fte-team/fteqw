@@ -125,7 +125,8 @@ static cvar_t net_dns_ipv6		= CVARD("net_dns_ipv6",				"1", "If 0, disables dns 
 cvar_t	net_enabled				= CVARD("net_enabled",				"1", "If 0, disables all network access, including name resolution and socket creation. Does not affect loopback/internal connections.");
 #if defined(HAVE_SSL)
 cvar_t	tls_ignorecertificateerrors	= CVARFD("tls_ignorecertificateerrors", "0", CVAR_NOTFROMSERVER|CVAR_NOSAVE|CVAR_NOUNSAFEEXPAND|CVAR_NOSET, "This should NEVER be set to 1!");
-static cvar_t	tls_provider	= CVARFD("tls_provider", "0", CVAR_NOTFROMSERVER, "Controls which TLS provider to use.\n0: Auto.\n1: GNUTLS\n2: OpenSSL\n3: SSPI");
+static void QDECL NET_TLS_Provider_Changed(struct cvar_s *var, char *oldvalue);
+static cvar_t	tls_provider	= CVARFCD("tls_provider", "", CVAR_NOTFROMSERVER, NET_TLS_Provider_Changed, "Controls which TLS provider to use.");
 #endif
 #if defined(TCPCONNECT) && (defined(HAVE_SERVER) || defined(HAVE_HTTPSV))
 #ifdef HAVE_SERVER
@@ -209,6 +210,64 @@ static neterr_t FTENET_DTLS_SendPacket(ftenet_connections_t *col, int length, co
 #endif
 static neterr_t NET_SendPacketCol (ftenet_connections_t *collection, int length, const void *data, netadr_t *to);
 
+
+static void		*cryptolibmodule[cryptolib_count];
+ftecrypto_t *cryptolib[cryptolib_count] =
+{
+	NULL,
+	NULL,
+	NULL,
+	NULL,
+#ifdef HAVE_WINSSPI
+	&crypto_sspi,
+#endif
+#ifdef HAVE_GNUTLS
+	&crypto_gnutls,
+#endif
+};
+static void NET_TLS_Provider_Changed(struct cvar_s *var, char *oldvalue)
+{
+	int i;
+	var->ival = 0;
+	if (!*var->string || !strcmp(var->string, "0"))
+		return;
+	for (i = 0; i < cryptolib_count; i++)
+	{
+		if (cryptolib[i] && !Q_strcasecmp(var->string, cryptolib[i]->drivername))
+			var->ival = i+1;
+	}
+	if (host_initialized && !var->ival)
+	{
+		Con_Printf("%s: \"%s\" not loaded, valid values are:", var->name, var->string);
+		for (i = 0; i < cryptolib_count; i++)
+			if (cryptolib[i])
+				Con_Printf(" %s", cryptolib[i]->drivername);
+		Con_Printf("\n");
+	}
+}
+qboolean NET_RegisterCrypto(void *module, ftecrypto_t *driver)
+{
+	int i;
+	if (!driver)
+	{
+		for (i = 0; i < cryptolib_count; i++)
+			if (cryptolibmodule[i] == module)
+				cryptolibmodule[i] = NULL, cryptolib[i] = NULL;
+		Cvar_ForceCallback(&tls_provider);
+		return true;
+	}
+	else
+	{
+		for (i = 0; i < cryptolib_count; i++)
+			if (!cryptolib[i])
+			{
+				cryptolibmodule[i] = module, cryptolib[i] = driver;
+				Cvar_ForceCallback(&tls_provider);
+				return true;
+			}
+		return false;
+	}
+}
 
 //=============================================================================
 
@@ -2247,6 +2306,7 @@ void *Auth_GetKnownCertificate(const char *certname, size_t *size)
 		qbyte *cert;
 	} certs[] =
 	{	//the contents of a -pubcert FILE
+		//note: not enforced for pk3 files (which we will otherwise happily randomly download of random servers anyway).
 		{"Spike",	"-----BEGIN CERTIFICATE-----\n"
 					"MIIDnTCCAgUCCjE1ODQ4ODg2OTEwDQYJKoZIhvcNAQELBQAwEDEOMAwGA1UEAxMF\n"
 					"U3Bpa2UwHhcNMjAwMzIyMTQ1MTMwWhcNMzAwMzIwMTQ1MTMxWjAQMQ4wDAYDVQQD\n"
@@ -2329,6 +2389,7 @@ void *TLS_GetKnownCertificate(const char *certname, size_t *size)
 
 vfsfile_t *FS_OpenSSL(const char *peername, vfsfile_t *source, qboolean isserver)
 {
+	int i;
 	vfsfile_t *f = NULL;
 	char hostname[MAX_OSPATH];
 
@@ -2356,18 +2417,13 @@ vfsfile_t *FS_OpenSSL(const char *peername, vfsfile_t *source, qboolean isserver
 	else
 		*hostname = 0;
 
-#ifdef HAVE_GNUTLS
-	if (!f && (!tls_provider.ival || tls_provider.ival==1))
-		f = GNUTLS_OpenVFS(hostname, source, isserver);
-#endif
-#ifdef HAVE_OPENSSL
-	if (!f && (!tls_provider.ival || tls_provider.ival==2))
-		f = OSSL_OpenVFS(hostname, source, isserver);
-#endif
-#ifdef HAVE_WINSSPI
-	if (!f && (!tls_provider.ival || tls_provider.ival==3))
-		f = SSPI_OpenVFS(hostname, source, isserver);
-#endif
+	if (tls_provider.ival>0 && tls_provider.ival <= cryptolib_count && cryptolib[tls_provider.ival-1])
+		f = !cryptolib[tls_provider.ival-1]->OpenStream?NULL:cryptolib[tls_provider.ival-1]->OpenStream(hostname, source, isserver);
+	else for (i = 0; !f && i < cryptolib_count; i++)
+	{
+		if (cryptolib[i] && cryptolib[i]->OpenStream)
+			f = cryptolib[i]->OpenStream(hostname, source, isserver);
+	}
 	if (!f)	//it all failed.
 	{
 		Con_Printf("%s: no tls provider available\n", peername);
@@ -2378,18 +2434,12 @@ vfsfile_t *FS_OpenSSL(const char *peername, vfsfile_t *source, qboolean isserver
 int TLS_GetChannelBinding(vfsfile_t *stream, qbyte *data, size_t *datasize)
 {
 	int r = -1;
-#ifdef HAVE_GNUTLS
-	if (r == -1)
-		r = GNUTLS_GetChannelBinding(stream, data, datasize);
-#endif
-#ifdef HAVE_OPENSSL
-	if (r == -1)
-		r = OSSL_GetChannelBinding(stream, data, datasize);
-#endif
-#ifdef HAVE_WINSSPI
-	if (r == -1)
-		r = SSPI_GetChannelBinding(stream, data, datasize);
-#endif
+	int i;
+	for (i = 0; r==-1 && i < cryptolib_count; i++)
+	{
+		if (cryptolib[i] && cryptolib[i]->GetChannelBinding)
+			r = cryptolib[i]->GetChannelBinding(stream, data, datasize);
+	}
 	return r;
 }
 #endif
@@ -2880,35 +2930,27 @@ void NET_DTLS_Timeouts(ftenet_connections_t *col)
 const dtlsfuncs_t *DTLS_InitServer(void)
 {
 	const dtlsfuncs_t *f = NULL;
-#ifdef HAVE_GNUTLS
-	if (!f && (!tls_provider.ival || tls_provider.ival==1))
-		f = GNUDTLS_InitServer();
-#endif
-#ifdef HAVE_OPENSSL
-	if (!f && (!tls_provider.ival || tls_provider.ival==2))
-		f = OSSL_InitServer();
-#endif
-#ifdef HAVE_WINSSPI
-	if (!f && (!tls_provider.ival || tls_provider.ival==3))
-		f = SSPI_DTLS_InitServer();
-#endif
+	int i;
+	if (tls_provider.ival>0 && tls_provider.ival <= cryptolib_count && cryptolib[tls_provider.ival-1])
+		f = !cryptolib[tls_provider.ival-1]->DTLS_InitServer?NULL:cryptolib[tls_provider.ival-1]->DTLS_InitServer();
+	else for (i = 0; !f && i < cryptolib_count; i++)
+	{
+		if (cryptolib[i] && cryptolib[i]->DTLS_InitServer)
+			f = cryptolib[i]->DTLS_InitServer();
+	}
 	return f;
 }
 const dtlsfuncs_t *DTLS_InitClient(void)
 {
 	const dtlsfuncs_t *f = NULL;
-#ifdef HAVE_GNUTLS
-	if (!f && (!tls_provider.ival || tls_provider.ival==1))
-		f = GNUDTLS_InitClient();
-#endif
-#ifdef HAVE_OPENSSL
-	if (!f && (!tls_provider.ival || tls_provider.ival==2))
-		f = OSSL_InitClient();
-#endif
-#ifdef HAVE_WINSSPI
-	if (!f && (!tls_provider.ival || tls_provider.ival==3))
-		f = SSPI_DTLS_InitClient();
-#endif
+	int i;
+	if (tls_provider.ival>0 && tls_provider.ival <= cryptolib_count && cryptolib[tls_provider.ival-1])
+		f = !cryptolib[tls_provider.ival-1]->DTLS_InitClient?NULL:cryptolib[tls_provider.ival-1]->DTLS_InitClient();
+	else for (i = 0; !f && i < cryptolib_count; i++)
+	{
+		if (cryptolib[i] && cryptolib[i]->DTLS_InitClient)
+			f = cryptolib[i]->DTLS_InitClient();
+	}
 	return f;
 }
 
@@ -3013,7 +3055,7 @@ qboolean NET_DTLS_Decode(ftenet_connections_t *col)
 		if (NET_CompareAdr(&peer->addr, &net_from))
 		{
 			peer->timeout = realtime+timeout.value;	//refresh the timeout if our peer is still alive.
-			switch(peer->funcs->Received(peer->dtlsstate, net_message.data, net_message.cursize))
+			switch(peer->funcs->Received(peer->dtlsstate, &net_message))
 			{
 			case NETERR_DISCONNECTED:
 				Sys_Printf("disconnected %p\n", peer->dtlsstate);
@@ -6278,6 +6320,8 @@ ftenet_generic_connection_t *FTENET_TCP_EstablishConnection(ftenet_connections_t
 				hostonly[port-host] = 0;
 
 				newcon->tcpstreams->clientstream = FS_OpenSSL(hostonly, newcon->tcpstreams->clientstream, false);
+				if (!newcon->tcpstreams->clientstream)
+					return NULL;
 			}
 #endif
 

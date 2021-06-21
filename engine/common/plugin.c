@@ -401,6 +401,8 @@ static qboolean QDECL PlugBI_ExportInterface(const char *name, void *interfacept
 		return Media_RegisterEncoder(currentplug, interfaceptr);
 #endif
 #endif
+	if (!strcmp(name, "Crypto"))
+		return NET_RegisterCrypto(currentplug, interfaceptr);
 #ifdef HAVE_CLIENT
 	if (!strcmp(name, plugvrfuncs_name))
 		return R_RegisterVRDriver(currentplug, interfaceptr);
@@ -1529,6 +1531,7 @@ void Plug_Close(plugin_t *plug)
 #ifdef HAVE_CLIENT
 	S_UnregisterSoundInputModule(plug);
 #endif
+	NET_RegisterCrypto(plug, NULL);
 	FS_UnRegisterFileSystemModule(plug);
 	Mod_UnRegisterAllModelFormats(plug);
 

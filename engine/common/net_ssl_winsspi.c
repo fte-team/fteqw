@@ -996,7 +996,7 @@ static qboolean QDECL SSPI_Close (struct vfsfile_s *file)
 }
 
 #include <wchar.h>
-vfsfile_t *SSPI_OpenVFS(const char *servername, vfsfile_t *source, qboolean server)
+static vfsfile_t *SSPI_OpenVFS(const char *servername, vfsfile_t *source, qboolean server)
 {
 	sslfile_t *newf;
 	int i = 0;
@@ -1071,7 +1071,7 @@ typedef struct _SecPkgContext_Bindings
 	SEC_CHANNEL_BINDINGS *Bindings;
 } SecPkgContext_Bindings, *PSecPkgContext_Bindings;
 #endif
-int SSPI_GetChannelBinding(vfsfile_t *vf, qbyte *binddata, size_t *bindsize)
+static int SSPI_GetChannelBinding(vfsfile_t *vf, qbyte *binddata, size_t *bindsize)
 {
 	int ret;
 	sslfile_t *f = (sslfile_t*)vf;
@@ -1105,59 +1105,7 @@ int SSPI_GetChannelBinding(vfsfile_t *vf, qbyte *binddata, size_t *bindsize)
 }
 
 #include "netinc.h"
-#if 0
-struct fakedtls_s
-{
-	void *cbctx;
-	neterr_t(*push)(void *cbctx, const qbyte *data, size_t datasize);
-};
-static void *FAKEDTLS_CreateContext(const char *remotehost, void *cbctx, neterr_t(*push)(void *cbctx, const qbyte *data, size_t datasize), qboolean isserver)
-{
-	struct fakedtls_s *ctx = Z_Malloc(sizeof(*ctx));
-	ctx->cbctx = cbctx;
-	ctx->push = push;
-	return ctx;
-}
-static void FAKEDTLS_DestroyContext(void *vctx)
-{
-	Z_Free(vctx);
-}
-static neterr_t FAKEDTLS_Transmit(void *vctx, const qbyte *data, size_t datasize)
-{
-	struct fakedtls_s *ctx = vctx;
-	neterr_t r;
-	*(int*)data ^= 0xdeadbeef;
-	r = ctx->push(ctx->cbctx, data, datasize);
-	*(int*)data ^= 0xdeadbeef;
-	return r;
-}
-static neterr_t FAKEDTLS_Received(void *ctx, qbyte *data, size_t datasize)
-{
-	*(int*)data ^= 0xdeadbeef;
-	return NETERR_SENT;
-}
-static neterr_t FAKEDTLS_Timeouts(void *ctx)
-{
-//	fakedtls_s *f = (fakedtls_s *)ctx;
-	return NETERR_SENT;
-}
-static const dtlsfuncs_t dtlsfuncs_fakedtls =
-{
-	FAKEDTLS_CreateContext,
-	FAKEDTLS_DestroyContext,
-	FAKEDTLS_Transmit,
-	FAKEDTLS_Received,
-	FAKEDTLS_Timeouts,
-};
-const dtlsfuncs_t *FAKEDTLS_InitServer(void)
-{
-	return &dtlsfuncs_fakedtls;
-}
-const dtlsfuncs_t *FAKEDTLS_InitClient(void)
-{
-	return &dtlsfuncs_fakedtls;
-}
-#elif defined(HAVE_DTLS)
+#if defined(HAVE_DTLS)
 static void *SSPI_DTLS_CreateContext(const char *remotehost, void *cbctx, neterr_t(*push)(void *cbctx, const qbyte *data, size_t datasize), qboolean isserver)
 {
 	int i = 0;
@@ -1236,15 +1184,15 @@ static neterr_t SSPI_DTLS_Transmit(void *ctx, const qbyte *data, size_t datasize
 	return ret;
 }
 
-static neterr_t SSPI_DTLS_Received(void *ctx, qbyte *data, size_t datasize)
+static neterr_t SSPI_DTLS_Received(void *ctx, sizebuf_t *msg)
 {
 	int ret;
 	sslfile_t *f = (sslfile_t *)ctx;
 
 //Con_Printf("DTLS_Received: %i\n", datasize);
 
-	f->incrypt.data = data;
-	f->incrypt.avail = f->incrypt.datasize = datasize;
+	f->incrypt.data = msg->data;
+	f->incrypt.avail = f->incrypt.datasize = msg->cursize;
 
 	if (f->handshaking)
 	{
@@ -1259,12 +1207,12 @@ static neterr_t SSPI_DTLS_Received(void *ctx, qbyte *data, size_t datasize)
 		SSPI_Decode(f);
 		ret = NETERR_SENT;
 
-		memcpy(net_message_buffer, f->inraw.data, f->inraw.avail);
-		net_message.cursize = f->inraw.avail;
+		if (f->inraw.avail > msg->maxsize)
+			msg->cursize = f->inraw.avail;
+		else
+			msg->cursize = msg->maxsize;
+		memcpy(msg->data, f->inraw.data, msg->cursize);
 		f->inraw.avail = 0;
-
-		net_message_buffer[net_message.cursize] = 0;
-//		Con_Printf("returning %i bytes: %s\n", net_message.cursize, net_message_buffer);
 	}
 	f->incrypt.data = NULL;
 	return ret;
@@ -1288,14 +1236,14 @@ static const dtlsfuncs_t dtlsfuncs_schannel =
 	SSPI_DTLS_Received,
 	SSPI_DTLS_Timeouts,
 };
-const dtlsfuncs_t *SSPI_DTLS_InitServer(void)
+/*static const dtlsfuncs_t *SSPI_DTLS_InitServer(void)
 {
 	//FIXME: at this point, schannel is still returning errors when I try acting as a server.
 	//so just block any attempt to use this as a server.
 	//clients don't need/get certs.
-	return NULL;
-}
-const dtlsfuncs_t *SSPI_DTLS_InitClient(void)
+	return &dtlsfuncs_schannel;
+}*/
+static const dtlsfuncs_t *SSPI_DTLS_InitClient(void)
 {
 	return &dtlsfuncs_schannel;
 }
@@ -1305,12 +1253,11 @@ const dtlsfuncs_t *SSPI_DTLS_InitClient(void)
 //#include <ntstatus.h>	//windows sucks too much to actually include this. oh well.
 #define STATUS_SUCCESS ((NTSTATUS)0x00000000)
 #define STATUS_INVALID_SIGNATURE ((NTSTATUS)0xC000A000)
-enum hashvalidation_e SSPI_VerifyHash(qbyte *hashdata, size_t hashsize, const char *authority, qbyte *signdata, size_t signsize)
+static enum hashvalidation_e SSPI_VerifyHash(const qbyte *hashdata, size_t hashsize, const qbyte *pemcert, size_t pemcertsize, const qbyte *signdata, size_t signsize)
 {
 	NTSTATUS status;
 	BCRYPT_KEY_HANDLE pubkey;
-	size_t sz;
-	const char *pem = Auth_GetKnownCertificate(authority, &sz);
+	const char *pem = pemcert;
 	const char *pemend;
 	qbyte *der;
 	size_t dersize;
@@ -1368,7 +1315,7 @@ enum hashvalidation_e SSPI_VerifyHash(qbyte *hashdata, size_t hashsize, const ch
 	}
 
 	//yay, now we can do what we actually wanted in the first place.
-	status = pBCryptVerifySignature(pubkey, NULL, hashdata, hashsize, signdata, signsize, 0);
+	status = pBCryptVerifySignature(pubkey, NULL, (qbyte*)hashdata, hashsize, (qbyte*)signdata, signsize, 0);
 	pBCryptDestroyKey(pubkey);
 	if (status == STATUS_SUCCESS)
 		return VH_CORRECT;		//its okay
@@ -1377,4 +1324,14 @@ enum hashvalidation_e SSPI_VerifyHash(qbyte *hashdata, size_t hashsize, const ch
 	return VH_UNSUPPORTED;		//some weird transient error...?
 }
 
+ftecrypto_t crypto_sspi =
+{
+	"WinSSPI",
+	SSPI_OpenVFS,
+	SSPI_GetChannelBinding,
+	SSPI_DTLS_InitClient,
+	NULL,//SSPI_DTLS_InitServer,
+	SSPI_VerifyHash,
+	NULL,//SSPI_GenerateHash,
+};
 #endif

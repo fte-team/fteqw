@@ -274,25 +274,6 @@ ELSEIF(${WIN32})
 ELSEIF(${UNIX} AND NOT FTE_USE_SDL)	#linux(ish)
 				#openbsd will have issues with snd_linux.c
 
-	IF(FTE_PRIVATE_USE_ONLY)
-		#the openssl license is incompatible with the GPL, so while we have code to use it distributing the binaries built with it is not a (legal) option.
-		#note that openssl 3.0.0 upwards are apache-2 licensed, which IS gpl-3 compatible. debian has not caught up with that yet, however.
-		FIND_PACKAGE(OpenSSL)
-		IF(NOT OPENSSL_FOUND)
-			MESSAGE(WARNING "openssl library NOT available. HTTPS/DTLS will not be available.")
-		ELSEIF(OPENSSL_VERSION_MAJOR LESS 3 AND NOT FTE_PRIVATE_USE_ONLY)
-			MESSAGE(WARNING "openssl library version is not 3 or above. Ignoring due to incompatible license.")
-		ELSE()
-		MESSAGE(WARNING "Using openssl.")
-			SET(FTE_LIB_DEFINES ${FTE_LIB_DEFINES};HAVE_OPENSSL)
-
-			SET(FTE_ARCH_FILES ${FTE_ARCH_FILES} engine/common/net_ssl_openssl.c)
-			SET(FTE_LIBS ${FTE_LIBS} ${OPENSSL_LIBRARIES})
-			SET(FTESV_ARCH_FILES ${FTESV_ARCH_FILES} engine/common/net_ssl_openssl.c)
-			SET(FTESV_LIBS ${FTESV_LIBS} ${OPENSSL_LIBRARIES})
-		ENDIF()
-	ENDIF()
-
 	FIND_PACKAGE(GnuTLS)
 	IF(NOT GNUTLS_FOUND)
 		MESSAGE(WARNING "gnutls library NOT available. HTTPS/DTLS will not be available.")
@@ -328,7 +309,6 @@ ELSEIF(${UNIX} AND NOT FTE_USE_SDL)	#linux(ish)
 		engine/client/sys_linux.c
 		engine/common/sys_linux_threads.c
 		engine/common/net_ssl_gnutls.c
-#		engine/common/net_ssl_openssl.c
 
 		engine/client/snd_al.c
 		engine/client/snd_alsa.c
@@ -391,14 +371,9 @@ ELSEIF(${UNIX} AND NOT FTE_USE_SDL)	#linux(ish)
 		engine/server/sv_sys_unix.c
 		engine/common/sys_linux_threads.c
 		engine/common/net_ssl_gnutls.c
-#		engine/common/net_ssl_openssl.c
 	)
 	SET(FTESV_LIBS ${FTESV_LIBS} ${SYS_LIBS} ${CMAKE_DL_LIBS} pthread)
 
-#	SET(FTE_DEFINES ${FTE_DEFINES};HAVE_OPENSSL)
-#	SET(FTESV_DEFINES ${FTESV_DEFINES};HAVE_OPENSSL)
-#	SET(FTE_LIBS ${FTE_LIBS} ssl crypto)
-#	SET(FTESV_LIBS ${FTE_LIBS} ssl crypto)
 ELSEIF(1)	#SDL
 #	FIND_PACKAGE(Freetype REQUIRED)
 #	INCLUDE_DIRECTORIES(engine/libs engine/libs/freetype2/include)

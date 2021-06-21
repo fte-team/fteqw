@@ -1076,7 +1076,19 @@ char *Sys_ConsoleInput(void)
 	return NULL;
 }
 
-#ifdef HAVE_GNUTLS
+//begin meta generation helper
+#include "fs.h"
+static int Crypto_GenerateSignature(qbyte *hashdata, size_t hashsize, qbyte *signdata, size_t signsizemax)
+{
+	int i;
+	int sigsize = -1;
+	for (i = 0; sigsize==-1 && i<cryptolib_count; i++)
+	{
+		if (cryptolib[i] && cryptolib[i]->GenerateSignature)
+			sigsize = cryptolib[i]->GenerateSignature(hashdata, hashsize, signdata, signsizemax);
+	}
+	return sigsize;
+}
 static void DoSign(const char *fname, int signtype)
 {
 	qbyte digest[1024];
@@ -1112,25 +1124,20 @@ static void DoSign(const char *fname, int signtype)
 			Base16_EncodeBlock(digest, h->digestsize, base64, sizeof(base64));
 			printf(" \\\"sha512=%s\\\"", base64);
 
-			sigsize = GNUTLS_GenerateSignature(digest, h->digestsize, signature, sizeof(signature));
+			sigsize = Crypto_GenerateSignature(digest, h->digestsize, signature, sizeof(signature));
 			Base64_EncodeBlock(signature, sigsize, base64, sizeof(base64));
 			printf(" \\\"sign=%s:%s\\\"\n", auth, base64);
 		}
 		else if (signtype == 2)
-		{	//signature "auth" "signdata"
-			//printf(" \\\"dlsize=%zu\\\"", ts);
-
-			//Base16_EncodeBlock(digest, h->digestsize, base64, sizeof(base64));
-			//printf(" \\\"sha512=%s\\\"", base64);
-
-			sigsize = GNUTLS_GenerateSignature(digest, h->digestsize, signature, sizeof(signature));
+		{	//spits out the raw signature.
+			sigsize = Crypto_GenerateSignature(digest, h->digestsize, signature, sizeof(signature));
 			Base64_EncodeBlock(signature, sigsize, base64, sizeof(base64));
 
 			printf("%s\n", base64);
 		}
 	}
 }
-#endif
+//end meta helpers
 
 #ifdef _POSIX_C_SOURCE
 static void SigCont(int code)
@@ -1285,7 +1292,7 @@ int main (int c, const char **v)
 	if (COM_CheckParm("-nostdout"))
 		nostdout = 1;
 
-#ifdef HAVE_GNUTLS
+//begin meta generation helpers
 	//fteqw -privcert privcert.key -pubcert pubcert.key -sign binaryfile.pk3
 	i = COM_CheckParm("-sign");
 	if (!i)
@@ -1301,7 +1308,7 @@ int main (int c, const char **v)
 		DoSign(com_argv[i+1], atoi(com_argv[i+0]+5));
 		return EXIT_SUCCESS;
 	}
-#endif
+//end
 
 	if (parms.binarydir)
 		Sys_Printf("Binary is located at \"%s\"\n", parms.binarydir);

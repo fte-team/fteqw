@@ -86,7 +86,7 @@ cvar_t	sv_nqplayerphysics	= CVARAFCD("sv_nqplayerphysics", "auto", "sv_nomsec", 
 #ifdef HAVE_LEGACY
 static cvar_t	sv_brokenmovetypes	= CVARD("sv_brokenmovetypes", "0", "Emulate vanilla quakeworld by forcing MOVETYPE_WALK on all players. Shouldn't be used for any games other than QuakeWorld.");
 cvar_t pext_ezquake_nochunks	= CVARD("pext_ezquake_nochunks", "0", "Prevents ezquake clients from being able to use the chunked download extension. This sidesteps numerous ezquake issues, and will make downloads slower but more robust.");
-cvar_t pext_ezquake_verfortrans	= CVARD("pext_ezquake_verfortrans", "999999999", "ezQuake does not implement PEXT_TRANS properly. This is the version of ezquake required for PEXT_TRANS to be allowed. This was still broken when I wrote this description, hence the large value.");
+cvar_t pext_ezquake_verfortrans	= CVARD("pext_ezquake_verfortrans", "7088"/*Reki's revision at least*/, "ezQuake does not implement PEXT_TRANS properly. This is the version of ezquake required for PEXT_TRANS to be allowed. This was still broken when I wrote this description, hence the large value.");
 #endif
 
 cvar_t	sv_chatfilter	= CVAR("sv_chatfilter", "0");

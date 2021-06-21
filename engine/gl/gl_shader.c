@@ -197,7 +197,8 @@ static float Com_FloatArgument(const char *shadername, char *arg, size_t arglen,
 	const char *var;
 
 	//grab an argument instead, otherwise 0
-	var = shadername;
+	var = shadername+1;
+	if (*shadername)
 	while((var = strchr(var, '#')))
 	{
 		var++;
@@ -1963,7 +1964,7 @@ static qboolean Shader_LoadPermutations(char *name, program_t *prog, char *scrip
 	if (prog->defaulttextures & ((1u<<(ALTDELUXMAPSAMP+0)) | (1u<<(ALTDELUXMAPSAMP+1)) | (1u<<(ALTDELUXMAPSAMP+2))))
 		prog->defaulttextures |=((1u<<(ALTDELUXMAPSAMP+0)) | (1u<<(ALTDELUXMAPSAMP+1)) | (1u<<(ALTDELUXMAPSAMP+2)));
 
-	for (end = strchr(name, '#'); end && *end; )
+	for (end = *name?strchr(name+1, '#'):NULL; end && *end; )
 	{
 		char *start = end+1;
 		end = strchr(start, '#');
@@ -6061,7 +6062,7 @@ void QDECL R_BuildLegacyTexnums(shader_t *shader, const char *fallbackname, cons
 	}
 	*/
 	strcpy(imagename, shader->name);
-	h = strchr(imagename, '#');
+	h = *imagename?strchr(imagename+1, '#'):NULL;
 	if (h)
 		*h = 0;
 	if (*imagename == '/' || strchr(imagename, ':'))
@@ -6220,9 +6221,9 @@ void QDECL R_BuildLegacyTexnums(shader_t *shader, const char *fallbackname, cons
 		if (loadflags & SHADER_HASPALETTED)
 		{
 			if (!TEXVALID(tex->paletted) && *mapname)
-				tex->paletted = R_LoadHiResTexture(va("%s_pal", mapname), NULL, imageflags|IF_NEAREST);
+				tex->paletted = R_LoadHiResTexture(va("%s_pal", mapname), NULL, imageflags|IF_NEAREST|IF_PALETTIZE);
 			if (!TEXVALID(tex->paletted))
-				tex->paletted = Image_GetTexture(va("%s_pal", imagename), subpath, imageflags|IF_NEAREST|IF_NOSRGB, srcdata, palette, width, height, (basefmt==TF_MIP4_SOLID8)?TF_MIP4_P8:PTI_P8);
+				tex->paletted = Image_GetTexture(va("%s_pal", imagename), subpath, imageflags|IF_NEAREST|IF_NOSRGB|IF_PALETTIZE, srcdata, palette, width, height, (basefmt==TF_MIP4_SOLID8)?TF_MIP4_P8:PTI_P8);
 		}
 
 		imageflags |= IF_LOWPRIORITY;
@@ -7442,7 +7443,7 @@ static shader_t *R_LoadShader (const char *name, unsigned int usageflags, shader
 			s->genargs = NULL;
 
 		//now determine the 'short name'. ie: the shader that is loaded off disk (no args, no extension)
-		argsstart = strchr(cleanname, '#');
+		argsstart = *cleanname?strchr(cleanname+1, '#'):NULL;
 		if (argsstart)
 			*argsstart = 0;
 		COM_StripExtension (cleanname, shortname, sizeof(shortname));
@@ -8017,7 +8018,7 @@ void Shader_DoReload(void)
 		ps.saveshaderbody = NULL;
 
 		strcpy(cleanname, s->name);
-		argsstart = strchr(cleanname, '#');
+		argsstart = *cleanname?strchr(cleanname+1, '#'):NULL;
 		if (argsstart)
 			*argsstart = 0;
 		COM_StripExtension (cleanname, shortname, sizeof(shortname));

@@ -201,6 +201,7 @@ void MyRegDeleteKeyValue(void *base, const char *keyname, const char *valuename)
 
 #define VFSW32_Open VFSOS_Open
 #define VFSW32_OpenPath VFSOS_OpenPath
+#define VFSW32_OpenTemp FS_OpenTemp
 
 typedef struct {
 	searchpathfuncs_t pub;
@@ -313,6 +314,75 @@ static qboolean QDECL VFSW32_Close(vfsfile_t *file)
 	CloseHandle(intfile->hand);
 	Z_Free(file);
 	return true;
+}
+static qboolean QDECL VFSW32_CloseTemp(vfsfile_t *file)
+{
+	vfsw32file_t *intfile = (vfsw32file_t*)file;
+	if (intfile->mmap)
+	{
+		UnmapViewOfFile(intfile->mmap);
+		CloseHandle(intfile->mmh);
+	}
+	CloseHandle(intfile->hand);
+	DeleteFileA((char*)(intfile+1));
+	Z_Free(file);
+	return true;
+}
+
+vfsfile_t *QDECL VFSW32_OpenTemp(void)
+{
+	static int seq=-1;
+	HANDLE h = INVALID_HANDLE_VALUE;
+	vfsw32file_t *file;
+	if (WinNT)
+	{	//gotta use wide stuff.
+		//on the plus side, FILE_SHARE_DELETE works.
+		wchar_t osname[MAX_PATH];
+		wchar_t tmppath[MAX_PATH];
+		if (GetTempPathW(countof(tmppath), tmppath))
+			if ((seq=GetTempFileNameW(tmppath, L"fte", ++seq, osname)))
+				h = CreateFileW(osname, GENERIC_READ|GENERIC_WRITE, FILE_SHARE_DELETE, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_TEMPORARY|FILE_FLAG_DELETE_ON_CLOSE, NULL);
+		if (!h)
+			return VFSPIPE_Open(1, true);
+		DeleteFileW(osname);
+
+		file = Z_Malloc(sizeof(vfsw32file_t));
+#ifdef _DEBUG
+		narrowen(file->funcs.dbgname, sizeof(file->funcs.dbgname), osname);
+#endif
+		file->funcs.Close = VFSW32_Close;	//we already deleted it. woo.
+	}
+	else
+	{	//can't use wide stuff.
+		//FLIE_SHARE_DELETE doesn't work. we have to faff around ourselves.
+		char osname[MAX_PATH];
+		char tmppath[MAX_PATH];
+		if (GetTempPathA(countof(tmppath), tmppath))
+			if ((seq=GetTempFileNameA(tmppath, "fte", ++seq, osname)))
+				h = CreateFileA(osname, GENERIC_READ|GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_TEMPORARY, NULL);
+		if (!h)
+			return VFSPIPE_Open(1, true);
+
+		file = Z_Malloc(sizeof(vfsw32file_t) + strlen(osname)+1);
+		strcpy((char*)(file+1), osname);
+#ifdef _DEBUG
+		narrowen(file->funcs.dbgname, sizeof(file->funcs.dbgname), osname);
+#endif
+		file->funcs.Close = VFSW32_CloseTemp;	//gotta delete it after close. hopefully we won't crash too often...
+	}
+	file->funcs.ReadBytes = VFSW32_ReadBytes;
+	file->funcs.WriteBytes = VFSW32_WriteBytes;
+	file->funcs.Seek = VFSW32_Seek;
+	file->funcs.Tell = VFSW32_Tell;
+	file->funcs.GetLen = VFSW32_GetSize;
+	file->funcs.Flush = VFSW32_Flush;
+	file->hand = h;
+	file->mmh = INVALID_HANDLE_VALUE;
+	file->mmap = NULL;
+	file->offset = 0;
+	file->length = 0;
+
+	return &file->funcs;
 }
 
 //WARNING: handle can be null

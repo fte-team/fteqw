@@ -2,7 +2,7 @@
 #include "fs.h"
 #include "errno.h"
 
-#if !defined(NACL) && !defined(FTE_TARGET_WEB)
+#if !defined(NACL) && !defined(FTE_TARGET_WEB) && !defined(_WIN32)
 
 #ifdef WEBSVONLY
 	#define Z_Free free
@@ -120,7 +120,8 @@ vfsfile_t *FSSTDIO_OpenTemp(void)
 	vfsstdiofile_t *file;
 
 #ifdef _WIN32
-	/*warning: annother app might manage to open the file before we can. if the file is not opened exclusively then we can end up with issues
+	/*microsoft's tmpfile will nearly always fail, as it insists on writing to the root directory and that requires running everything with full admin rights.
+	warning: there's a race condition between tempnam and fopen. if the file is not opened exclusively then we can end up with issues
 	on windows, fopen is typically exclusive anyway, but not on unix. but on unix, tmpfile is actually usable, so special-case the windows code
 	we also have a special close function to ensure the file is deleted too
 	*/

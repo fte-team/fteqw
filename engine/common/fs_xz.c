@@ -2994,13 +2994,19 @@ typedef struct
 	struct xz_dec *s;
 } vf_xz_dec_t;
 
-static qboolean QDECL FS_XZ_Dec_Close(vfsfile_t *f)
+static vfsfile_t *FS_XZ_Finish(vfsfile_t *f)
 {
 	vf_xz_dec_t *n = (vf_xz_dec_t*)f;
-	VFS_CLOSE(n->outfile);
+	vfsfile_t *r = n->outfile;
 	if (n->s)
 		xz_dec_end(n->s);
 	Z_Free(n);
+	return r;
+}
+static qboolean QDECL FS_XZ_Dec_Close(vfsfile_t *f)
+{
+	vfsfile_t *orig = FS_XZ_Finish(f);
+	VFS_CLOSE(orig);
 	return true;
 }
 static int QDECL FS_XZ_Dec_Write(vfsfile_t *f, const void *buffer, int len)
@@ -3126,21 +3132,26 @@ vfsfile_t *FS_XZ_DecompressReadFilter(vfsfile_t *srcfile)
 
 	if (blocksize == HEADER_MAGIC_SIZE && !memcmp(block, HEADER_MAGIC, HEADER_MAGIC_SIZE))
 	{	//okay, looks like an xz.
-		vfsfile_t *pipe = VFSPIPE_Open(2, false);
-		vfsfile_t *xzpipe = FS_XZ_DecompressWriteFilter(pipe);
+		vfsfile_t *xzpipe = FS_OpenTemp();
+		if (!xzpipe)
+			xzpipe = VFSPIPE_Open(1, true);
+		xzpipe = FS_XZ_DecompressWriteFilter(xzpipe);
 		for (;blocksize;)
 		{
 			if (blocksize < 0 || blocksize != VFS_WRITE(xzpipe, block, blocksize))
 			{
-				VFS_CLOSE(pipe);
-				pipe = NULL;
+				VFS_CLOSE(xzpipe);
+				xzpipe = NULL;
 				break;
 			}
 			blocksize = VFS_READ(srcfile, block, sizeof(block));
 		}
 		VFS_CLOSE(srcfile);
-		VFS_CLOSE(xzpipe);
-		return pipe;
+
+		if (xzpipe)
+			xzpipe = FS_XZ_Finish(xzpipe);
+		VFS_SEEK(xzpipe, 0);
+		return xzpipe;
 	}
 	VFS_SEEK(srcfile, 0);
 	return srcfile;

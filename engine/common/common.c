@@ -2616,7 +2616,7 @@ void COM_DefaultExtension (char *path, const char *extension, int maxlen)
 //
 	src = path + strlen(path) - 1;
 
-	while (*src != '/' && src != path)
+	while (src > path && *src != '/')
 	{
 		if (*src == '.')
 			return;                 // it has an extension

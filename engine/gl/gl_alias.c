@@ -40,6 +40,7 @@ typedef struct
 extern cvar_t gl_part_flame, r_fullbrightSkins, r_fb_models, ruleset_allow_fbmodels;
 extern cvar_t r_noaliasshadows;
 extern cvar_t r_lodscale, r_lodbias;
+extern cvar_t r_sprite_backfacing;
 
 extern cvar_t gl_ati_truform;
 extern cvar_t r_vertexdlights;
@@ -2654,7 +2655,7 @@ static void R_Sprite_GenerateTrisoup(entity_t *e, int bemode)
 		sprtype = psprite->type;
 	}
 
-	switch(sprtype)
+	safeswitch(sprtype)
 	{
 	case SPR_ORIENTED:
 		// bullet marks on walls
@@ -2662,9 +2663,13 @@ static void R_Sprite_GenerateTrisoup(entity_t *e, int bemode)
 			Matrix3_Multiply(e->axis, r_refdef.playerview->vw_axis, spraxis);
 		else
 			memcpy(spraxis, e->axis, sizeof(spraxis));
+		if (!r_sprite_backfacing.ival)
+			VectorNegate(spraxis[1], spraxis[1]);
 		break;
 
 	case SPR_FACING_UPRIGHT:
+		//up vector is worldspace up
+		//side is crossproduct of (org-vieworg),up
 		spraxis[2][0] = 0;spraxis[2][1] = 0;spraxis[2][2]=1;
 		spraxis[1][0] = sprorigin[1] - r_origin[1];
 		spraxis[1][1] = -(sprorigin[0] - r_origin[0]);
@@ -2672,13 +2677,31 @@ static void R_Sprite_GenerateTrisoup(entity_t *e, int bemode)
 		VectorNormalize (spraxis[1]);
 		break;
 	case SPR_VP_PARALLEL_UPRIGHT:
+		//up vector is worldspace up
+		//side vector matches view
 		spraxis[2][0] = 0;spraxis[2][1] = 0;spraxis[2][2]=1;
 		VectorCopy (vright, spraxis[1]);
 		break;
 
-	default:
+	case SPR_VP_PARALLEL_ORIENTED:
+		//normal sprite, except rotating with roll angles
+		{
+			vec3_t ang;
+			int i;
+			float cr,sr;
+			VectorAngles(e->axis[0], e->axis[2], ang, false);	//bah, slow.
+			cr = cos(ang[2] * M_PI/180);
+			sr = sin(ang[2]);
+			for (i=0 ; i<3 ; i++)
+			{
+				spraxis[1][i] = vright[i] * cr + vup[i] * sr;
+				spraxis[2][i] = vright[i] * -sr + vup[i] * cr;
+			}
+        }
+		break;
 	case SPR_VP_PARALLEL:
 		//normal sprite
+	safedefault:
 		VectorCopy(vup, spraxis[2]);
 		VectorCopy(vright, spraxis[1]);
 		break;

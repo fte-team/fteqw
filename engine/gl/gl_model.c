@@ -5887,7 +5887,7 @@ qboolean QDECL Mod_LoadSpriteModel (model_t *mod, void *buffer, size_t fsize)
 	case SPR_FACING_UPRIGHT:
 	case SPR_VP_PARALLEL:
 	case SPR_ORIENTED:
-//	case SPR_VP_PARALLEL_ORIENTED:
+	case SPR_VP_PARALLEL_ORIENTED:
 //	case SPRDP_LABEL:
 //	case SPRDP_LABEL_SCALE:
 //	case SPRDP_OVERHEAD:

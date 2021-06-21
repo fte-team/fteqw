@@ -239,6 +239,7 @@ extern	QCC_opcode_t	pr_opcodes[];		// sized by initialization
 #define OPF_STOREPTROFS	0x040	//a[c] <- b   (c must be 0 when QCC_OPCode_StorePOffset returns false)
 #define OPF_STOREFLD	0x080	//a.b <- c
 #define OPF_LOADPTR		0x100
+#define OPF_STDUNARY	0x200	//reads a, writes c.
 //FIXME: add jumps
 
 

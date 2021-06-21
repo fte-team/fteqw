@@ -429,11 +429,11 @@ QCC_opcode_t pr_opcodes[] =
 
  {6, "<RETURN>", "RETURN",	PC_NONE, ASSOC_LEFT,		&type_vector,	&type_void,		&type_void},
 
- {6, "!", "NOT_F",			PC_UNARY, ASSOC_LEFT,		&type_float,	&type_void,		&type_bfloat},
- {6, "!", "NOT_V",			PC_UNARY, ASSOC_LEFT,		&type_vector,	&type_void,		&type_bfloat},
- {6, "!", "NOT_S",			PC_UNARY, ASSOC_LEFT,		&type_vector,	&type_void,		&type_bfloat},
- {6, "!", "NOT_ENT",		PC_UNARY, ASSOC_LEFT,		&type_entity,	&type_void,		&type_bfloat},
- {6, "!", "NOT_FNC",		PC_UNARY, ASSOC_LEFT,		&type_function,	&type_void,		&type_bfloat},
+ {6, "!", "NOT_F",			PC_UNARY, ASSOC_LEFT,		&type_float,	&type_void,		&type_bfloat,	OPF_STDUNARY},
+ {6, "!", "NOT_V",			PC_UNARY, ASSOC_LEFT,		&type_vector,	&type_void,		&type_bfloat,	OPF_STDUNARY},
+ {6, "!", "NOT_S",			PC_UNARY, ASSOC_LEFT,		&type_vector,	&type_void,		&type_bfloat,	OPF_STDUNARY},
+ {6, "!", "NOT_ENT",		PC_UNARY, ASSOC_LEFT,		&type_entity,	&type_void,		&type_bfloat,	OPF_STDUNARY},
+ {6, "!", "NOT_FNC",		PC_UNARY, ASSOC_LEFT,		&type_function,	&type_void,		&type_bfloat,	OPF_STDUNARY},
 
   {6, "<IF>", "IF",			PC_NONE, ASSOC_RIGHT,		&type_float,	NULL,			&type_void},
   {6, "<IFNOT>", "IFNOT",	PC_NONE, ASSOC_RIGHT,		&type_float,	NULL,			&type_void},
@@ -560,7 +560,7 @@ QCC_opcode_t pr_opcodes[] =
  {7, "<IFNOTS>", "IFNOTS",	PC_NONE, ASSOC_RIGHT,		&type_string,	NULL, &type_void},
  {7, "<IFS>", "IFS",		PC_NONE, ASSOC_RIGHT,		&type_string,	NULL, &type_void},
 
- {7, "!", "NOT_I",			PC_UNARY, ASSOC_LEFT,		&type_integer,	&type_void,		&type_bint},
+ {7, "!", "NOT_I",			PC_UNARY, ASSOC_LEFT,		&type_integer,	&type_void,		&type_bint,	OPF_STDUNARY},
 
  {7, "/", "DIV_VF",			PC_MULDIV, ASSOC_LEFT,		&type_vector,	&type_float, &type_vector,	OPF_STD},
 
@@ -775,9 +775,9 @@ QCC_opcode_t pr_opcodes[] =
  {7, "=", "LOADA_STRUCT",	PC_STORE, ASSOC_LEFT,				&type_float,	&type_integer, &type_float},
 
  {7, "=",	"LOADP_P",		PC_STORE, ASSOC_LEFT,				&type_pointer,	&type_integer, &type_pointer,	OPF_LOADPTR},
- {7, "=",	"STOREP_P",		PC_STORE,	ASSOC_RIGHT,			&type_pointer,	&type_pointer, &type_pointer, OPF_STOREPTROFS},
- {7, "~",	"BITNOT_F",		PC_UNARY, ASSOC_LEFT,				&type_float,	&type_void, &type_float},
- {7, "~",	"BITNOT_I",		PC_UNARY, ASSOC_LEFT,				&type_integer,	&type_void, &type_integer},
+ {7, "=",	"STOREP_P",		PC_STORE,	ASSOC_RIGHT,			&type_pointer,	&type_pointer, &type_pointer,	OPF_STOREPTROFS},
+ {7, "~",	"BITNOT_F",		PC_UNARY, ASSOC_LEFT,				&type_float,	&type_void, &type_float,		OPF_STDUNARY},
+ {7, "~",	"BITNOT_I",		PC_UNARY, ASSOC_LEFT,				&type_integer,	&type_void, &type_integer,		OPF_STDUNARY},
 
  {7, "==", "EQ_P",			PC_EQUALITY, ASSOC_LEFT,						&type_pointer,	&type_pointer, &type_bfloat, OPF_STD},
  {7, "!=", "NE_P",			PC_EQUALITY, ASSOC_LEFT,						&type_pointer,	&type_pointer, &type_bfloat, OPF_STD},
@@ -849,7 +849,7 @@ QCC_opcode_t pr_opcodes[] =
 {7, "&",	"BITAND_U",		PC_BITAND,	ASSOC_LEFT,		&type_uint,		&type_uint,		&type_uint,	OPF_STD},
 {7, "|",	"BITOR_U",		PC_BITOR,	ASSOC_LEFT,		&type_uint,		&type_uint,		&type_uint,	OPF_STD},
 {7, "^",	"BITXOR_U",		PC_BITXOR,	ASSOC_LEFT,		&type_uint,		&type_uint,		&type_uint,	OPF_STD},
-{7, "~",	"BITNOT_U",		PC_UNARY,	ASSOC_LEFT,		&type_uint,		&type_void,		&type_uint},
+{7, "~",	"BITNOT_U",		PC_UNARY,	ASSOC_LEFT,		&type_uint,		&type_void,		&type_uint,	OPF_STDUNARY},
 {7, "&~=",	"BITCLR_U",		PC_STORE,	ASSOC_LEFT,		&type_uint,		&type_uint,		&type_uint,	OPF_STORE},
 {7, "<<",	"LSHIFT_U",		PC_SHIFT,	ASSOC_LEFT,		&type_uint,		&type_uint,		&type_uint,	OPF_STD},
 {7, ">=",	"GE_U",			PC_RELATION, ASSOC_LEFT,	&type_uint,		&type_uint,		&type_bint,	OPF_STD},
@@ -858,7 +858,7 @@ QCC_opcode_t pr_opcodes[] =
 {7, "!=",	"NE_U",			PC_EQUALITY, ASSOC_LEFT,	&type_uint,		&type_uint,		&type_bint, OPF_STD},
 
 //64bit ones that we can emulate cheaply or are rare.
-{7, "~",	"BITNOT_I64",	PC_UNARY,	ASSOC_LEFT,		&type_int64,		&type_void,			&type_int64},
+{7, "~",	"BITNOT_I64",	PC_UNARY,	ASSOC_LEFT,		&type_int64,		&type_void,			&type_int64,	OPF_STDUNARY},
 {7, "&~=",	"BITCLR_I64",	PC_STORE,	ASSOC_LEFT,		&type_int64,		&type_int64,		&type_int64, OPF_STORE},
 {7, ">",	"GT_I64",		PC_RELATION, ASSOC_LEFT,	&type_int64,		&type_int64,		&type_bint,		OPF_STD},
 {7, ">=",	"GE_I64",		PC_RELATION, ASSOC_LEFT,	&type_int64,		&type_int64,		&type_bint,		OPF_STD},
@@ -871,7 +871,7 @@ QCC_opcode_t pr_opcodes[] =
 {7, "&",	"BITAND_U64",	PC_BITAND,	ASSOC_LEFT,		&type_uint64,		&type_uint64,		&type_uint64,	OPF_STD},
 {7, "|",	"BITOR_U64",	PC_BITOR,	ASSOC_LEFT,		&type_uint64,		&type_uint64,		&type_uint64,	OPF_STD},
 {7, "^",	"BITXOR_U64",	PC_BITXOR,	ASSOC_LEFT,		&type_uint64,		&type_uint64,		&type_uint64,	OPF_STD},
-{7, "~",	"BITNOT_U64",	PC_UNARY,	ASSOC_LEFT,		&type_uint64,		&type_void,			&type_uint64},
+{7, "~",	"BITNOT_U64",	PC_UNARY,	ASSOC_LEFT,		&type_uint64,		&type_void,			&type_uint64,	OPF_STDUNARY},
 {7, "&~=",	"BITCLR_U64",	PC_STORE,	ASSOC_LEFT,		&type_uint64,		&type_uint64,		&type_uint64,	OPF_STORE},
 {7, "<<",	"LSHIFT_U64I",	PC_SHIFT,	ASSOC_LEFT,		&type_uint64,		&type_integer,		&type_uint64,	OPF_STD},
 {7, ">",	"GT_U64",		PC_RELATION, ASSOC_LEFT,	&type_uint64,		&type_uint64,		&type_bint,		OPF_STD},
@@ -883,7 +883,7 @@ QCC_opcode_t pr_opcodes[] =
 {7, "&",	"BITAND_D",		PC_BITAND,	ASSOC_LEFT,		&type_double,		&type_double,		&type_double,	OPF_STD},
 {7, "|",	"BITOR_D",		PC_BITOR,	ASSOC_LEFT,		&type_double,		&type_double,		&type_double,	OPF_STD},
 {7, "^",	"BITXOR_D",		PC_BITXOR,	ASSOC_LEFT,		&type_double,		&type_double,		&type_double,	OPF_STD},
-{7, "~",	"BITNOT_D",		PC_UNARY,	ASSOC_LEFT,		&type_double,		&type_void,			&type_bint},
+{7, "~",	"BITNOT_D",		PC_UNARY,	ASSOC_LEFT,		&type_double,		&type_void,			&type_bint,		OPF_STDUNARY},
 {7, "&~=",	"BITCLR_D",		PC_STORE,	ASSOC_LEFT,		&type_double,		&type_double,		&type_double,	OPF_STORE},
 {7, "<<",	"LSHIFT_DI",	PC_SHIFT,	ASSOC_LEFT,		&type_double,		&type_integer,		&type_double,	OPF_STD},
 {7, ">>",	"RSHIFT_DI",	PC_SHIFT,	ASSOC_LEFT,		&type_double,		&type_integer,		&type_double,	OPF_STD},

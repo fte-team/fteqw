@@ -1986,7 +1986,16 @@ void DecompileDecompileStatement(dfunction_t * df, dstatement_t * s, int *indent
 
 		DecompileIndent(*indent);
 		QCC_CatVFile(Decompileofile, "%s %s %s;\n", arg2, pr_opcodes[s->op].name, arg1);
+	}
+	else if (pr_opcodes[s->op].flags & OPF_STOREFLD)
+	{
+		arg1 = DecompileGet(df, s->a, typ1);
+		//FIXME: we need to deal with ref types and other crazyness, so we know whether we need to add * or *& or if we can skip that completely
+		arg2 = DecompileGet(df, s->b, typ2);
+		arg3 = DecompileGet(df, s->c, typ3);
 
+		DecompileIndent(*indent);
+		QCC_CatVFile(Decompileofile, "%s.%s %s %s;\n", arg1, arg2, pr_opcodes[s->op].name, arg3);
 	}
 	else if (OP_CONV_FTOI == s->op)
 	{
@@ -2017,13 +2026,11 @@ void DecompileDecompileStatement(dfunction_t * df, dstatement_t * s, int *indent
 		QC_snprintfz(line, sizeof(line), "random(%s, %s)", arg1, arg2);
 		DecompileImmediate_Insert(df, ofs_return, line, type_float);
 	}
-	else if (OP_NOT_F <= s->op && s->op <= OP_NOT_FNC)
+	else if (pr_opcodes[s->op].flags & OPF_STDUNARY)
 	{
-
 		arg1 = DecompileGet(df, s->a, typ1);
-		QC_snprintfz(line, sizeof(line), "!%s", arg1);
+		QC_snprintfz(line, sizeof(line), "%s%s", pr_opcodes[s->op].name, arg1);
 		DecompileImmediate_Insert(df, s->c, line, type_float);
-
 	}
 	else if ((OP_CALL0 <= s->op && s->op <= OP_CALL8) || (OP_CALL1H <= s->op && s->op <= OP_CALL8H))
 	{

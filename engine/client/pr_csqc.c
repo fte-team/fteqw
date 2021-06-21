@@ -2199,11 +2199,11 @@ nogameaccess:
 		r[1] = r_refdef.fov_y;
 		break;
 
-	case VF_FOVX:
+	case VF_FOV_X:
 		*r = r_refdef.fov_x;
 		break;
 
-	case VF_FOVY:
+	case VF_FOV_Y:
 		*r = r_refdef.fov_y;
 		break;
 
@@ -2461,14 +2461,14 @@ void QCBUILTIN PF_R_SetViewFlag(pubprogfuncs_t *prinst, struct globalvars_s *pr_
 		r_refdef.dirty |= RDFD_FOV;
 		break;
 
-	case VF_FOVX:
+	case VF_FOV_X:
 		r_refdef.afov = 0;
 		r_refdef.fov_x = *p;
 		r_refdef.fovv_x = r_refdef.fovv_y = 0;
 		r_refdef.dirty |= RDFD_FOV;
 		break;
 
-	case VF_FOVY:
+	case VF_FOV_Y:
 		r_refdef.afov = 0;
 		r_refdef.fov_y = *p;
 		r_refdef.fovv_x = r_refdef.fovv_y = 0;

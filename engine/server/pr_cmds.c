@@ -12390,7 +12390,9 @@ static void PR_DumpPlatform_LoadSymbolTables(vfsfile_t *outfile, struct symtable
 			continue;
 		if (!symtabs->warning)
 			continue;
-		f = FS_MallocFile(symtabs->fname, FS_GAME, &sz);
+		f = FS_MallocFile(va("src/%s", symtabs->fname), FS_GAME, &sz);
+		if (!f)
+			f = FS_MallocFile(symtabs->fname, FS_GAME, &sz);
 		if (f)
 		{
 			i = f;
@@ -12413,6 +12415,8 @@ static void PR_DumpPlatform_LoadSymbolTables(vfsfile_t *outfile, struct symtable
 			if (symtabs->define)
 				VFS_PRINTF(outfile, "%s", symtabs->define);
 		}
+		else
+			Con_Printf("%s not found, not filtering\n", symtabs->fname);
 	}
 }
 static void PR_DumpPlatform_SymbolType(vfsfile_t *f, const struct symtable_s *symtabs, const char *symtype, const char *symbol)
@@ -13316,8 +13320,8 @@ void PR_DumpPlatform_f(void)
 		{"VF_SIZE_Y",			"const float", CS|MENU, NULL, VF_SIZE_Y},
 		{"VF_VIEWPORT",			"const float", CS|MENU, D("vector+vector. Two argument shortcut for VF_MIN and VF_SIZE"), VF_VIEWPORT},
 		{"VF_FOV",				"const float", CS|MENU, D("sets both fovx and fovy. consider using afov instead."), VF_FOV},
-		{"VF_FOVX",				"const float", CS|MENU, D("horizontal field of view. does not consider aspect at all."), VF_FOVX},
-		{"VF_FOVY",				"const float", CS|MENU, D("vertical field of view. does not consider aspect at all."), VF_FOVY},
+		{"VF_FOV_X",			"const float", CS|MENU, D("horizontal field of view. does not consider aspect at all."), VF_FOV_X},
+		{"VF_FOV_Y",			"const float", CS|MENU, D("vertical field of view. does not consider aspect at all."), VF_FOV_Y},
 		{"VF_ORIGIN",			"const float", CS|MENU, D("The origin of the view. Not of the player."), VF_ORIGIN},
 		{"VF_ORIGIN_X",			"const float", CS|MENU, NULL, VF_ORIGIN_X},
 		{"VF_ORIGIN_Y",			"const float", CS|MENU, NULL, VF_ORIGIN_Y},

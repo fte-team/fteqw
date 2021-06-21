@@ -2616,8 +2616,7 @@ static void PM_WriteInstalledPackages(void)
 					COM_QuotedKeyVal("title", p->title, buf, sizeof(buf));
 				if (*p->version)
 					COM_QuotedKeyVal("ver", p->version, buf, sizeof(buf));
-				//if (*p->gamedir)
-					COM_QuotedKeyVal("gamedir", p->gamedir, buf, sizeof(buf));
+				COM_QuotedKeyVal("gamedir", p->gamedir, buf, sizeof(buf));
 				if (p->qhash)
 					COM_QuotedKeyVal("qhash", p->qhash, buf, sizeof(buf));
 				if (p->priority!=PM_DEFAULTPRIORITY)

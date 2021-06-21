@@ -195,9 +195,9 @@ typedef enum {
 	BM_PREMUL/*ONE ONE_MINUS_SRC_ALPHA*/,
 	BM_RTSMOKE	/*special shader generation that causes these particles to be lit up by nearby rtlights, instead of just being fullbright junk*/
 } blendmode_t;
-#define frandom() (rand()*(1.0f/RAND_MAX))
-#define crandom() (rand()*(2.0f/RAND_MAX)-1.0f)
-#define hrandom() (rand()*(1.0f/RAND_MAX)-0.5f)
+#define frandom() (rand()*(1.0f/(float)RAND_MAX))
+#define crandom() (rand()*(2.0f/(float)RAND_MAX)-1.0f)
+#define hrandom() (rand()*(1.0f/(float)RAND_MAX)-0.5f)
 
 #define P_INVALID -1
 

@@ -1727,7 +1727,7 @@ ifeq ($(FTE_TARGET),web)
 	JSLIBS=--js-library web/ftejslib.js
 	EMCC_CFLAGS= -DFTE_TARGET_WEB
 	EMCC_LDFLAGS=$(EMCC_CFLAGS) $(JSLIBS) $(WEB_PREJS)
-	EMCC_CFLAGS+= -s BINARYEN_TRAP_MODE='clamp'		#fix bigfloat->int rounding crashes
+#	EMCC_CFLAGS+= -s BINARYEN_TRAP_MODE='clamp'		#fix bigfloat->int rounding crashes
 	EMCC_CFLAGS+= -s LEGACY_GL_EMULATION=0			#simplify the opengl wrappers.
 	EMCC_CFLAGS+= -s NO_FILESYSTEM=1				#we have our own.
    	EMCC_LDFLAGS+=-s ERROR_ON_UNDEFINED_SYMBOLS=1	#fairly obvious. no runtime errors please.
@@ -1736,8 +1736,8 @@ ifeq ($(FTE_TARGET),web)
 	RELEASE_LDFLAGS=-O3	-s TOTAL_MEMORY=$(ASMJS_MEMORY) $(EMCC_LDFLAGS)
 #	RELEASE_LDFLAGS=-O1	-s TOTAL_MEMORY=$(WEB_MEMORY) $(EMCC_LDFLAGS)
 	DEBUG_LDFLAGS=-O0 -g4 -s TOTAL_MEMORY=$(WEB_MEMORY) $(EMCC_LDFLAGS) -s SAFE_HEAP=1 -s ALIASING_FUNCTION_POINTERS=0 -s ASSERTIONS=2
-	CC?=emcc
-	CXX?=emcc
+	CC=emcc
+	CXX=em++
 	#BASELDFLAGS=
 	PRECOMPHEADERS=
 

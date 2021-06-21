@@ -788,6 +788,7 @@ struct decompressstate
 };
 
 #if defined(AVAIL_ZLIB) || defined(AVAIL_BZLIB)
+#define DO_ZIP_DECOMPRESS
 
 #ifdef ZIPCRYPT
 #define CRC32(c, b) ((*(st->crctable+(((int)(c) ^ (b)) & 0xff))) ^ ((c) >> 8))
@@ -1187,11 +1188,6 @@ static vfsfile_t *FSZIP_Decompress_ToTempFile(struct decompressstate *decompress
 	}
 	return NULL;
 }
-#else
-vfsfile_t *FSZIP_Decompress_ToTempFile(struct decompressstate *decompress)
-{
-	return NULL;
-}
 #endif
 
 //an open vfsfile_t
@@ -1202,7 +1198,9 @@ typedef struct {
 
 	//in case we're forced away.
 	zipfile_t *parent;
+#ifdef DO_ZIP_DECOMPRESS
 	struct decompressstate *decompress;
+#endif
 	qofs_t pos;
 	qofs_t length;	//try and optimise some things
 //	int index;
@@ -1217,11 +1215,14 @@ static int QDECL VFSZIP_ReadBytes (struct vfsfile_s *file, void *buffer, int byt
 	if (vfsz->defer)
 		return VFS_READ(vfsz->defer, buffer, bytestoread);
 
+#ifdef DO_ZIP_DECOMPRESS
 	if (vfsz->decompress)
 	{
 		read = vfsz->decompress->Read(vfsz->decompress, buffer, bytestoread);
 	}
-	else if (Sys_LockMutex(vfsz->parent->mutex))
+	else
+#endif
+	if (Sys_LockMutex(vfsz->parent->mutex))
 	{
 		VFS_SEEK(vfsz->parent->raw, vfsz->pos+vfsz->startpos);
 		if (vfsz->pos + bytestoread > vfsz->length)
@@ -1245,6 +1246,7 @@ static qboolean QDECL VFSZIP_Seek (struct vfsfile_s *file, qofs_t pos)
 	if (vfsz->defer)
 		return VFS_SEEK(vfsz->defer, pos);
 
+#ifdef DO_ZIP_DECOMPRESS
 	//This is *really* inefficient
 	if (vfsz->decompress)
 	{	//if they're going to seek on a file in a zip, let's just copy it out
@@ -1261,6 +1263,7 @@ static qboolean QDECL VFSZIP_Seek (struct vfsfile_s *file, qofs_t pos)
 			return false;
 		}
 	}
+#endif
 
 	if (pos > vfsz->length)
 		return false;
@@ -1289,8 +1292,10 @@ static qboolean QDECL VFSZIP_Close (struct vfsfile_s *file)
 	if (vfsz->defer)
 		VFS_CLOSE(vfsz->defer);
 
+#ifdef DO_ZIP_DECOMPRESS
 	if (vfsz->decompress)
 		vfsz->decompress->Destroy(vfsz->decompress);
+#endif
 
 	FSZIP_ClosePath(&vfsz->parent->pub);
 	Z_Free(vfsz);
@@ -1419,8 +1424,10 @@ static vfsfile_t *QDECL FSZIP_OpenVFS(searchpathfuncs_t *handle, flocation_t *lo
 	}
 	else
 	{
+#ifdef DO_ZIP_DECOMPRESS
 		if (vfsz->decompress)
 			vfsz->decompress->Destroy(vfsz->decompress);
+#endif
 		Z_Free(vfsz);
 		return NULL;
 	}

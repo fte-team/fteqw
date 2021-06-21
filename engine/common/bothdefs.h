@@ -308,8 +308,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 	#undef RUNTIMELIGHTING	//too slow anyway
 	#undef Q2CLIENT
 	#undef Q2SERVER	//requires a dll anyway.
-	#undef Q3CLIENT
-	#undef Q3SERVER //trying to trim memory use
+//	#undef Q3CLIENT
+//	#undef Q3SERVER //trying to trim memory use
 //	#undef Q2BSPS	//emscripten can't cope with bss, leading to increased download time. too lazy to fix.
 //	#undef Q3BSPS	//emscripten can't cope with bss, leading to increased download time. too lazy to fix.
 	#undef TERRAIN

@@ -225,6 +225,7 @@ ftecrypto_t *cryptolib[cryptolib_count] =
 	&crypto_gnutls,
 #endif
 };
+#if defined(HAVE_SSL)
 static void NET_TLS_Provider_Changed(struct cvar_s *var, char *oldvalue)
 {
 	int i;
@@ -245,6 +246,7 @@ static void NET_TLS_Provider_Changed(struct cvar_s *var, char *oldvalue)
 		Con_Printf("\n");
 	}
 }
+#endif
 qboolean NET_RegisterCrypto(void *module, ftecrypto_t *driver)
 {
 	int i;
@@ -253,7 +255,9 @@ qboolean NET_RegisterCrypto(void *module, ftecrypto_t *driver)
 		for (i = 0; i < cryptolib_count; i++)
 			if (cryptolibmodule[i] == module)
 				cryptolibmodule[i] = NULL, cryptolib[i] = NULL;
+#if defined(HAVE_SSL)
 		Cvar_ForceCallback(&tls_provider);
+#endif
 		return true;
 	}
 	else
@@ -262,7 +266,9 @@ qboolean NET_RegisterCrypto(void *module, ftecrypto_t *driver)
 			if (!cryptolib[i])
 			{
 				cryptolibmodule[i] = module, cryptolib[i] = driver;
+#if defined(HAVE_SSL)
 				Cvar_ForceCallback(&tls_provider);
+#endif
 				return true;
 			}
 		return false;
@@ -2296,10 +2302,10 @@ qboolean	NET_IsLoopBackAddress (netadr_t *adr)
 }
 
 
-#ifdef HAVE_SSL
 void *Auth_GetKnownCertificate(const char *certname, size_t *size)
 {	//our 'code signing' certs
 	//we only allow packages to be installed into the root dir (or with dll/so/exe extensions) when their signature is signed by one of these certificates
+#ifdef HAVE_SSL
 	static struct
 	{
 		const char *name;
@@ -2339,8 +2345,10 @@ void *Auth_GetKnownCertificate(const char *certname, size_t *size)
 			return certs[i].cert;
 		}
 	}
+#endif
 	return NULL;
 }
+#ifdef HAVE_SSL
 void *TLS_GetKnownCertificate(const char *certname, size_t *size)
 {
 	//Note: This is XORed because of shitty scanners flagging binaries through false positive, flagging the sites that they were downloaded from, flagging binaries that contain references to those sites, and flagging any site that contains binaries.
@@ -3779,11 +3787,9 @@ static qboolean FTENET_Datagram_ChangeLocalAddress(struct ftenet_generic_connect
 	//doesn't match how its currently bound, so I guess we need to rebind then.
 	return false;
 }
-#endif
 
 static void FTENET_Datagram_Close(ftenet_generic_connection_t *con)
 {
-#ifdef HAVE_PACKET
 	if (con->thesocket != INVALID_SOCKET)
 	{
 #ifdef HAVE_EPOLL
@@ -3791,9 +3797,9 @@ static void FTENET_Datagram_Close(ftenet_generic_connection_t *con)
 #endif
 		closesocket(con->thesocket);
 	}
-#endif
 	Z_Free(con);
 }
+#endif
 
 #ifdef HAVE_EPOLL
 static void FTENET_Datagram_Polled(epollctx_t *ctx, unsigned int events)

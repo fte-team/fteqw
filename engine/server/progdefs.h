@@ -104,6 +104,8 @@ typedef struct nqglobalvars_s
 	pvec_t *physics_mode;
 
 	pvec_t *clientcommandframe;
+	pvec_t *input_servertime;
+	pvec_t *input_clienttime;
 	pvec_t *input_timelength;
 	pvec_t *input_impulse;
 	pvec3_t *input_angles;

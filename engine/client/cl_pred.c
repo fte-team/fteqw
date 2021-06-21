@@ -906,40 +906,10 @@ void CL_PredictEntityMovement(entity_state_t *estate, float age)
 	}
 }
 
-/*
-==============
-CL_PredictMove
-==============
-*/
-void CL_PredictMovePNum (int seat)
+float CL_GetPredictionRealtime(playerview_t *pv)
 {
-	//when this is called, the entity states have been interpolated.
-	//interpolation state should be updated to match prediction state, so entities move correctly in mirrors/portals.
-
-	//this entire function is pure convolouted bollocks.
-	struct {
-		int frame;
-		double time;
-		player_state_t *state;
-		usercmd_t *cmd;
-	} from, to;
-	playerview_t *pv = &cl.playerview[seat];
-	int			i;
-	float		f;
-	outframe_t	*backdate;
-	player_state_t framebuf[2];	//need two framebufs so we can interpolate between two states.
-	static player_state_t nullstate;
-	int			oldphysent;
-	double		simtime;	//this is server time if nopred is set (lerp-only), and local time if we're predicting
-	extern cvar_t cl_netfps;
-	lerpents_t	*le;
-	qboolean	nopred;
-	qboolean	lerpangles = false;
-	int			trackent;
-	qboolean	cam_nowlocked = false;
-	usercmd_t indcmd;
-	
-	//these are to make svc_viewentity work better
+	float simtime;
+//these are to make svc_viewentity work better
 	float netfps = cl_netfps.value;
 
 	if (!netfps)
@@ -977,6 +947,43 @@ void CL_PredictMovePNum (int seat)
 	if (cls.demoplayback == DPB_QUAKEWORLD || pv->cam_state == CAM_EYECAM)
 		simtime -= cls.latency;	//push back when playing demos.
 	simtime += bound(-0.5, cl_predict_timenudge.value, 0.5);
+
+	return simtime;
+}
+/*
+==============
+CL_PredictMove
+==============
+*/
+void CL_PredictMovePNum (int seat)
+{
+	//when this is called, the entity states have been interpolated.
+	//interpolation state should be updated to match prediction state, so entities move correctly in mirrors/portals.
+
+	//this entire function is pure convolouted bollocks.
+	struct {
+		int frame;
+		double time;
+		player_state_t *state;
+		usercmd_t *cmd;
+	} from, to;
+	playerview_t *pv = &cl.playerview[seat];
+	int			i;
+	float		f;
+	outframe_t	*backdate;
+	player_state_t framebuf[2];	//need two framebufs so we can interpolate between two states.
+	static player_state_t nullstate;
+	int			oldphysent;
+	double		simtime;	//this is server time if nopred is set (lerp-only), and local time if we're predicting
+	extern cvar_t cl_netfps;
+	lerpents_t	*le;
+	qboolean	nopred;
+	qboolean	lerpangles = false;
+	int			trackent;
+	qboolean	cam_nowlocked = false;
+	usercmd_t indcmd;
+	
+	simtime = CL_GetPredictionRealtime(pv);
 
 	pv->nolocalplayer = !!(cls.fteprotocolextensions2 & PEXT2_REPLACEMENTDELTAS) || (cls.protocol != CP_QUAKEWORLD);
 

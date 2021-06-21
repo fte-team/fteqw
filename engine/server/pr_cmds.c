@@ -1008,6 +1008,7 @@ void PR_LoadGlabalStruct(qboolean muted)
 	globalvec		(false, input_right_angles)	\
 	globalvec		(false, input_right_velocity)	\
 	globalvec		(false, input_right_avelocity)	\
+	globalfloat		(false, input_servertime)	\
 	\
 	globalint		(false, serverid)	\
 	globalvec		(false, global_gravitydir)	\
@@ -10321,6 +10322,10 @@ static void SV_SetSSQCInputs(usercmd_t *ucmd)
 		(pr_global_struct->input_movevalues)[1] = ucmd->sidemove;
 		(pr_global_struct->input_movevalues)[2] = ucmd->upmove;
 	}
+	if (pr_global_ptrs->input_servertime)
+		pr_global_struct->input_servertime = ucmd->fservertime;
+	if (pr_global_ptrs->input_clienttime)
+		pr_global_struct->input_clienttime = ucmd->fclienttime;
 	if (pr_global_ptrs->input_buttons)
 		pr_global_struct->input_buttons = ucmd->buttons;
 	if (pr_global_ptrs->input_weapon)
@@ -10462,6 +10467,7 @@ qboolean SV_RunFullQCMovement(client_t *client, usercmd_t *ucmd)
 		}
 
 		//prethink should be consistant with what the engine normally does
+		pr_global_struct->time = sv.time;
 		pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, client->edict);
 		PR_ExecuteProgram (svprogfuncs, pr_global_struct->PlayerPreThink);
 		WPhys_RunThink (&sv.world, (wedict_t*)client->edict);
@@ -12706,6 +12712,8 @@ void PR_DumpPlatform_f(void)
 		{"end_sys_fields",		"void", QW|NQ|CS|MENU},
 
 		{"time",				"float",	MENU,	D("The current local time. Increases while paused.")},
+		{"input_servertime",	"float",	QW|NQ|CS,	D("Server's timestamp of the client's interpolation state.")},
+//		{"input_clienttime",	"float",	QW|NQ|CS,	D("This is the timestamp that player prediction is simulating.")},
 		{"input_timelength",	"float",	QW|NQ},
 		{"input_angles",		"vector",	QW|NQ,	D("+x=DOWN")},
 		{"input_movevalues",	"vector",	QW|NQ},

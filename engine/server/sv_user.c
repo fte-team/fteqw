@@ -7946,55 +7946,53 @@ void SV_ExecuteClientMessage (client_t *cl)
 	qbyte	checksum, calculatedChecksum;
 	int		seq_hash;
 
-	// calc ping time
-	if (cl->frameunion.frames)
-	{	//split screen doesn't always have frames.
-		frame = &cl->frameunion.frames[cl->netchan.incoming_acknowledged & UPDATE_MASK];
-
-		if (cl->lastsequence_acknowledged + UPDATE_BACKUP > cl->netchan.incoming_acknowledged)
-		{
-			/*note that if there is packetloss, we can change a single frame's ping_time multiple times
-			  this means that the 'ping' is more latency than ping times*/
-			if (frame->ping_time == -1 || !sv_ping_ignorepl.ival)
-				frame->ping_time = realtime - frame->senttime;	//no more phenomanally low pings please
-
-			if (cl->spectator)
-				cl->delay = 0;
-			else
-			{
-				float diff = frame->ping_time*1000 - sv_minping.value;
-				if (fabs(diff) > 1)
-				{
-					//FIXME: we should use actual arrival times instead, so we don't get so much noise and seesawing.
-					diff = bound(-25, diff, 25);	//don't swing wildly
-					cl->delay -= 0.001*(diff/25);	//scale towards the ideal value
-					cl->delay = bound(0, cl->delay, 1);	//but make sure things don't go crazy
-				}
-			}
-			if (cl->penalties & BAN_LAGGED)
-				if (cl->delay < 0.2)
-					cl->delay = 0.2;
-		}
-
-		if (sv_antilag.ival || !*sv_antilag.string)
-		{
-#ifdef warningmsg
-#pragma warningmsg("FIXME: make antilag optionally support non-player ents too")
-#endif
-			cl->laggedents_count = sv.allocated_client_slots;
-			memcpy(cl->laggedents, frame->laggedplayer, sizeof(*cl->laggedents)*cl->laggedents_count);
-			cl->laggedents_time = frame->laggedtime;
-			cl->laggedents_frac = !*sv_antilag_frac.string?1:sv_antilag_frac.value;
-		}
-		else
-			cl->laggedents_count = 0;
-	}
-	else
+	if (!cl->frameunion.frames)
 	{
 		Con_Printf("Server bug: No frames!\n");
 		cl->send_message = false;
 		return;	//shouldn't happen...
 	}
+
+// calc ping time
+	frame = &cl->frameunion.frames[cl->netchan.incoming_acknowledged & UPDATE_MASK];
+
+	if (cl->lastsequence_acknowledged + UPDATE_BACKUP > cl->netchan.incoming_acknowledged)
+	{
+		/*note that if there is packetloss, we can change a single frame's ping_time multiple times
+		  this means that the 'ping' is more latency than ping times*/
+		if (frame->ping_time == -1 || !sv_ping_ignorepl.ival)
+			frame->ping_time = realtime - frame->senttime;	//no more phenomanally low pings please
+
+		if (cl->spectator)
+			cl->delay = 0;
+		else
+		{
+			float diff = frame->ping_time*1000 - sv_minping.value;
+			if (fabs(diff) > 1)
+			{
+				//FIXME: we should use actual arrival times instead, so we don't get so much noise and seesawing.
+				diff = bound(-25, diff, 25);	//don't swing wildly
+				cl->delay -= 0.001*(diff/25);	//scale towards the ideal value
+				cl->delay = bound(0, cl->delay, 1);	//but make sure things don't go crazy
+			}
+		}
+		if (cl->penalties & BAN_LAGGED)
+			if (cl->delay < 0.2)
+				cl->delay = 0.2;
+	}
+
+	if (sv_antilag.ival || !*sv_antilag.string)
+	{
+#ifdef warningmsg
+#pragma warningmsg("FIXME: make antilag optionally support non-player ents too")
+#endif
+		cl->laggedents_count = sv.allocated_client_slots;
+		memcpy(cl->laggedents, frame->laggedplayer, sizeof(*cl->laggedents)*cl->laggedents_count);
+		cl->laggedents_time = frame->laggedtime;
+		cl->laggedents_frac = !*sv_antilag_frac.string?1:sv_antilag_frac.value;
+	}
+	else
+		cl->laggedents_count = 0;
 
 	// make sure the reply sequence number matches the incoming
 	// sequence number
@@ -8076,6 +8074,8 @@ void SV_ExecuteClientMessage (client_t *cl)
 			else
 			{
 				MSGQW_ReadDeltaUsercmd (&nullcmd, &oldest, PROTOCOL_VERSION_QW);
+				oldest.fservertime = frame->laggedtime;	//not very accurate, but our best guess.
+				oldest.servertime = frame->laggedtime*1000;	//not very accurate
 				Vector2Copy(split->lastcmd.cursor_screen, oldest.cursor_screen);
 				VectorCopy(split->lastcmd.cursor_start, oldest.cursor_start);
 				VectorCopy(split->lastcmd.cursor_impact, oldest.cursor_impact);

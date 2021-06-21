@@ -3941,6 +3941,8 @@ static void cs_get_input_state (usercmd_t *cmd)
 		cmd->fservertime = *csqcg.input_servertime;
 		cmd->servertime = *csqcg.input_servertime*1000;
 	}
+	if (csqcg.input_clienttime)
+		cmd->fclienttime = *csqcg.input_clienttime;
 
 	if (csqcg.input_cursor_screen)
 		Vector2Copy(csqcg.input_cursor_screen, cmd->cursor_screen);

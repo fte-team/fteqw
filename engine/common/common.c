@@ -1454,21 +1454,21 @@ void MSGFTE_WriteDeltaUsercmd (sizebuf_t *buf, const usercmd_t *from, const user
 	if (bits & UC_FORWARD)
 	{
 		if (bits & UC_BIGMOVES)
-			MSG_WriteShort(buf, cmd->forwardmove);
+			MSG_WriteInt64(buf, cmd->forwardmove);
 		else
 			MSG_WriteChar(buf, cmd->forwardmove/5);
 	}
 	if (bits & UC_RIGHT)
 	{
 		if (bits & UC_BIGMOVES)
-			MSG_WriteShort(buf, cmd->sidemove);
+			MSG_WriteInt64(buf, cmd->sidemove);
 		else
 			MSG_WriteChar(buf, cmd->sidemove/5);
 	}
 	if (bits & UC_UP)
 	{
 		if (bits & UC_BIGMOVES)
-			MSG_WriteShort(buf, cmd->upmove);
+			MSG_WriteInt64(buf, cmd->upmove);
 		else
 			MSG_WriteChar(buf, cmd->upmove/5);
 	}
@@ -1548,6 +1548,7 @@ void MSGFTE_ReadDeltaUsercmd (const usercmd_t *from, usercmd_t *cmd)
 	}
 	*cmd = *from;
 	cmd->servertime = from->servertime+MSG_ReadUInt64();
+	cmd->fservertime = cmd->servertime/1000.0;
 	for (i = 0; i < 3; i++)
 	{
 		if (bits & (UC_ANGLE1<<i))
@@ -1561,21 +1562,21 @@ void MSGFTE_ReadDeltaUsercmd (const usercmd_t *from, usercmd_t *cmd)
 	if (bits & UC_FORWARD)
 	{
 		if (bits & UC_BIGMOVES)
-			cmd->forwardmove = MSG_ReadShort();
+			cmd->forwardmove = MSG_ReadInt64();
 		else
 			cmd->forwardmove = MSG_ReadChar()*5;
 	}
 	if (bits & UC_RIGHT)
 	{
 		if (bits & UC_BIGMOVES)
-			cmd->sidemove = MSG_ReadShort();
+			cmd->sidemove = MSG_ReadInt64();
 		else
 			cmd->sidemove = MSG_ReadChar()*5;
 	}
 	if (bits & UC_UP)
 	{
 		if (bits & UC_BIGMOVES)
-			cmd->upmove = MSG_ReadShort();
+			cmd->upmove = MSG_ReadInt64();
 		else
 			cmd->upmove = MSG_ReadChar()*5;
 	}

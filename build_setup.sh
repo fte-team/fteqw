@@ -38,22 +38,22 @@ TARGETS_WINDOWS="sv-rel m-rel qcc-rel qccgui-scintilla qccgui-dbg m-dbg sv-dbg p
 
 
 PLUGINS_DROID="qi ezhud irc"
-PLUGINS_LINUXx86="ode qi ezhud xmpp irc"
-PLUGINS_LINUXx64="ode qi ezhud xmpp irc"
+PLUGINS_LINUXx86="openxr ode qi ezhud xmpp irc"
+PLUGINS_LINUXx64="openxr ode qi ezhud xmpp irc"
 PLUGINS_LINUXx32="qi ezhud xmpp irc"
 PLUGINS_LINUXarmhf="qi ezhud xmpp irc"
 if [ "$(uname -m)" != "x86_64" ]; then
-	PLUGINS_LINUXx86="ffmpeg ode qi ezhud xmpp irc"
+	PLUGINS_LINUXx86="openxr ode qi ezhud xmpp irc"
 fi
 if [ "$(uname -m)" == "x86_64" ]; then
-	PLUGINS_LINUX64="ffmpeg ode qi ezhud xmpp irc"
+	PLUGINS_LINUX64="openxr ode qi ezhud xmpp irc"
 fi
 #windows is always cross compiled, so we don't have issues with non-native ffmpeg
 #windows doesn't cross compile, so no system dependancy issues
 #skip some dependancies if we're running on cygwin, ode is buggy.
 if [ "$(uname -s)" == "Linux" ]; then
-	PLUGINS_WIN32="ffmpeg ode qi ezhud xmpp irc"
-	PLUGINS_WIN64="ffmpeg ode qi ezhud xmpp irc"
+	PLUGINS_WIN32="ode qi ezhud xmpp irc"
+	PLUGINS_WIN64="ode qi ezhud xmpp irc"
 else
 	PLUGINS_WIN32="qi ezhud xmpp irc"
 	PLUGINS_WIN64="qi ezhud xmpp irc"
@@ -317,6 +317,9 @@ if [ "$BUILD_LINUXx86" == "y" ]; then
 	if [[ "$PLUGINS_LINUXx86" =~ "ffmpeg" ]]; then
 		debianpackages libswscale-dev libavcodec-dev || otherpackages || exit
 	fi
+	if [[ "$PLUGINS_LINUXx86" =~ "openxr" ]]; then
+		debianpackages libopenxr-dev || otherpackages || exit
+	fi
 fi
 if [ "$BUILD_LINUXx64" == "y" ]; then
 	#for building linux targets
@@ -324,6 +327,9 @@ if [ "$BUILD_LINUXx64" == "y" ]; then
 	jessiepackages libgnutls28-dev || debianpackages libgnutls28-dev || otherpackages gcc || exit
 	if [[ "$PLUGINS_LINUXx64" =~ "ffmpeg" ]]; then
 		debianpackages libswscale-dev libavcodec-dev || otherpackages || exit
+	fi
+	if [[ "$PLUGINS_LINUXx64" =~ "openxr" ]]; then
+		debianpackages libopenxr-dev || otherpackages || exit
 	fi
 fi
 if [ "$BUILD_LINUXx32" == "y" ]; then
@@ -499,11 +505,11 @@ if [ $UID -ne 0 ] && [ $REBUILD_TOOLCHAINS == "y" ]; then
 		echo "Prebuilding ODE library (linux x86_64)..."
 		make FTE_TARGET=linux64 plugins-rel NATIVE_PLUGINS=ode CPUOPTIMISATIONS=-fno-finite-math-only 2>&1 >>/dev/null
 	fi
-	if [ "$BUILD_WIN32" == "y" ]; then
+	if [ "$BUILD_WIN32" == "y" ] && [[ "$PLUGINS_WIN32" =~ "ffmpeg" ]]; then
 		echo "Obtaining ffmpeg library (win32)..."
 		make FTE_TARGET=win32 plugins-rel NATIVE_PLUGINS=ffmpeg 2>&1 >>/dev/null
 	fi
-	if [ "$BUILD_WIN64" == "y" ]; then
+	if [ "$BUILD_WIN64" == "y" ] && [[ "$PLUGINS_WIN64" =~ "ffmpeg" ]]; then
 		echo "Obtaining ffmpeg library (win64)..."
 		make FTE_TARGET=win64 plugins-rel NATIVE_PLUGINS=ffmpeg 2>&1 >>/dev/null
 	fi

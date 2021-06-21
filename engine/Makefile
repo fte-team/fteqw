@@ -2087,7 +2087,7 @@ endif
 plugins-dbg:
 	@-mkdir -p $(DEBUG_DIR)
 	@if test -e ../plugins/Makefile; \
-	then $(MAKE) native -C ../plugins  OUT_DIR="$(DEBUG_DIR)" CC="$(CC) $(W32_CFLAGS) $(DEBUG_CFLAGS)" CXX="$(CXX) $(W32_CFLAGS) $(subst -Wno-pointer-sign,,$(DEBUG_CFLAGS))" ARCH="$(ARCH)" BASE_CFLAGS="$(BASE_CFLAGS) $(BRANDFLAGS)" BASE_CXXFLAGS="$(subst -Wno-pointer-sign,,$(BASE_CFLAGS)) $(BRANDFLAGS)" FTE_TARGET="$(FTE_TARGET)"; \
+	then $(MAKE) native -C ../plugins  OUT_DIR="$(DEBUG_DIR)" CC="$(CC) $(W32_CFLAGS) $(DEBUG_CFLAGS)" CXX="$(CXX) $(W32_CFLAGS) $(subst -Wno-pointer-sign,,$(DEBUG_CFLAGS))" PKGCONFIG="$(PKGCONFIG)" ARCH="$(ARCH)" BASE_CFLAGS="$(BASE_CFLAGS) $(BRANDFLAGS)" BASE_CXXFLAGS="$(subst -Wno-pointer-sign,,$(BASE_CFLAGS)) $(BRANDFLAGS)" FTE_TARGET="$(FTE_TARGET)"; \
 	 else echo no plugins directory installed; \
 	fi
 plugins:
@@ -2095,7 +2095,7 @@ plugins:
 plugins-rel:
 	@-mkdir -p $(RELEASE_DIR)
 	@if test -e ../plugins/Makefile; \
-	then $(MAKE) native -C ../plugins  OUT_DIR="$(RELEASE_DIR)" CC="$(CC) $(W32_CFLAGS) $(RELEASE_CFLAGS)" CXX="$(CXX) $(W32_CFLAGS) $(subst -Wno-pointer-sign,,$(RELEASE_CFLAGS))" ARCH="$(ARCH)" BASE_CFLAGS="$(BASE_CFLAGS) $(BRANDFLAGS)" BASE_CXXFLAGS="$(subst -Wno-pointer-sign,,$(BASE_CFLAGS)) $(BRANDFLAGS)" FTE_TARGET="$(FTE_TARGET)"; \
+	then $(MAKE) native -C ../plugins  OUT_DIR="$(RELEASE_DIR)" CC="$(CC) $(W32_CFLAGS) $(RELEASE_CFLAGS)" CXX="$(CXX) $(W32_CFLAGS) $(subst -Wno-pointer-sign,,$(RELEASE_CFLAGS))" PKGCONFIG="$(PKGCONFIG)" ARCH="$(ARCH)" BASE_CFLAGS="$(BASE_CFLAGS) $(BRANDFLAGS)" BASE_CXXFLAGS="$(subst -Wno-pointer-sign,,$(BASE_CFLAGS)) $(BRANDFLAGS)" FTE_TARGET="$(FTE_TARGET)"; \
 	 else echo no plugins directory installed; \
 	fi
 plugins-rel:

@@ -1074,6 +1074,34 @@ IF(FTE_PLUG_QI)
 	SET(INSTALLTARGS ${INSTALLTARGS} plug_qi)
 ENDIF()
 
+SET(FTE_PLUG_OPENSSL false CACHE BOOL "Compile OpenSSL (beware license).")
+IF(FTE_PLUG_OPENSSL)
+	#the openssl license is incompatible with the GPL, so while we have code to use it distributing the binaries built with it is not a (legal) option.
+	#note that openssl 3.0.0 upwards are apache-2 licensed, which IS gpl-3 compatible (though not gpl-2). debian has not caught up with that yet, however.
+	FIND_PACKAGE(OpenSSL)
+	IF(NOT OPENSSL_FOUND)
+		MESSAGE(WARNING "openssl library NOT available. you'll have to use some other library.")
+	ELSE()
+		IF(OPENSSL_VERSION_MAJOR LESS 3 AND NOT FTE_PRIVATE_USE_ONLY)
+			MESSAGE(WARNING "openssl library version is not 3 or above. You may not distribute plugin binaries due to license conflict.")
+		ELSE()
+			MESSAGE(WARNING "Using openssl. Resulting plugin must be licensed as GPLv3.")
+		ENDIF()
+		SET(FTE_LIB_DEFINES ${FTE_LIB_DEFINES})
+
+		ADD_LIBRARY(plug_openssl MODULE
+			plugins/plugin.c
+			plugins/net_ssl_openssl.c
+		)
+		SET_TARGET_PROPERTIES(plug_openssl PROPERTIES COMPILE_DEFINITIONS "FTEPLUGIN;${FTE_LIB_DEFINES}")
+		SET_TARGET_PROPERTIES(plug_openssl PROPERTIES OUTPUT_NAME "openssl")
+		SET_TARGET_PROPERTIES(plug_openssl PROPERTIES PREFIX "fteplug_")
+		SET_TARGET_PROPERTIES(plug_openssl PROPERTIES LINK_FLAGS "-Wl,--no-undefined")
+		TARGET_LINK_LIBRARIES(plug_openssl ${SYS_LIBS} ${OPENSSL_LIBRARIES})
+		SET(INSTALLTARGS ${INSTALLTARGS} plug_openssl)
+	ENDIF()
+ENDIF()
+
 #ODE Physics library plugin
 SET(FTE_PLUG_ODE true CACHE BOOL "Compile ODE rigid body physics plugin.")
 IF(FTE_PLUG_ODE)

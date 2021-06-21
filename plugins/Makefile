@@ -120,6 +120,7 @@ help:
 #linux users are expected to have the library installed locally already. If your version is too old or missing, run the following command to install it (to /usr/local), then delete the gz and directory.
 #wget http://ffmpeg.org/releases/ffmpeg-1.2.tar.gz && cd tar xvfz ffmpeg-1.2.tar.gz && cd ffmpeg-1.2/ && ./configure --disable-yasm --enable-shared && make && sudo make install
 #we use ffmpeg's version for some reason, as opposed to libav. not sure what the differences are meant to be, but libav seemed to have non-depricated functions defined, docs that say to use them, and these functions missing.
+ifeq ($(findstring win,$(FTE_TARGET)),win)
 AV_VER=ffmpeg-4.0
 ifeq (0,1)
     AV_ARCHIVEEXT=.z7
@@ -213,6 +214,17 @@ $(PLUG_PREFIX)ffmpeg$(PLUG_NATIVE_EXT): $(AV_DEP) $(FFMPEG_ZIP)
 
 $(PLUG_PREFIX)ffmpeg$(PLUG_NATIVE_EXT): $(AVPLUG_OBJS)
 	$(CC) $(BASE_CFLAGS) $(CFLAGS) -DFTEPLUGIN -s -o $@ -shared $(PLUG_CFLAGS) $(AV_CFLAGS) $(AVPLUG_OBJS) $(PLUG_DEFFILE) $(PLUG_LDFLAGS) $(AV_LDFLAGS)
+
+#above uses wget and zips and mess.
+else
+#just use pkg-config
+$(PLUG_PREFIX)ffmpeg$(PLUG_NATIVE_EXT): $(AVPLUG_OBJS)
+	$(CC) $(BASE_CFLAGS) $(CFLAGS) -DFTEPLUGIN -s -o $@ -shared $(PLUG_CFLAGS) $(AVPLUG_OBJS) $(PLUG_DEFFILE) $(PLUG_LDFLAGS) `$(PKGCONFIG) --cflags --libs libavformat libavcodec libavutil libswscale`
+ifeq ($(shell $(PKGCONFIG) --exists libavformat libavcodec libavutil libswscale && echo 1),1)
+NATIVE_PLUGINS+=ffmpeg
+endif
+endif
+
 ######################################
 
 ######################################
@@ -355,8 +367,8 @@ NATIVE_PLUGINS+=irc
 
 #OpenXR plugin...
 $(PLUG_PREFIX)openxr$(PLUG_NATIVE_EXT): openxr.c plugin.c
-	$(CC) $(BASE_CFLAGS) $(CFLAGS) -DFTEPLUGIN -o $@ -shared $(PLUG_CFLAGS) $^ $(PLUG_DEFFILE) $(PLUG_LDFLAGS) -DXR_NO_PROTOTYPES `pkg-config --cflags openxr` -DGLQUAKE -DVKQUAKE -DD3D11QUAKE
-ifeq ($(shell pkg-config --exists openxr && echo 1),1)
+	$(CC) $(BASE_CFLAGS) $(CFLAGS) -DFTEPLUGIN -o $@ -shared $(PLUG_CFLAGS) $^ $(PLUG_DEFFILE) $(PLUG_LDFLAGS) -DXR_NO_PROTOTYPES `$(PKGCONFIG) --cflags openxr` -DGLQUAKE -DVKQUAKE -DD3D11QUAKE
+ifeq ($(shell $(PKGCONFIG) --exists openxr && echo 1),1)
 NATIVE_PLUGINS+=openxr
 endif
 
@@ -369,6 +381,13 @@ NATIVE_PLUGINS+=ezhud
 $(PLUG_PREFIX)models$(PLUG_NATIVE_EXT): models/gltf.c models/exportiqm.c models/models.c plugin.c
 	$(CC) $(BASE_CFLAGS) $(CFLAGS) -DFTEPLUGIN -o $@ -shared $(PLUG_CFLAGS) -Imodels $^ $(PLUG_DEFFILE) $(PLUG_LDFLAGS)
 #NATIVE_PLUGINS+=models
+
+#Openssl crypto plugin, to replace microsoft's shoddy dtls implementation. could also be useful on the BSDs, yay system components?
+$(PLUG_PREFIX)openssl$(PLUG_NATIVE_EXT): net_ssl_openssl.c plugin.c
+	$(CC) $(BASE_CFLAGS) $(CFLAGS) -DFTEPLUGIN -o $@ -shared $(PLUG_CFLAGS) $^ $(PLUG_DEFFILE) $(PLUG_LDFLAGS) `$(PKGCONFIG) --libs --cflags openssl`
+#ifeq ($(shell $(PKGCONFIG) --exists openssl && echo 1),1)
+#Disabled due to licensing issues #NATIVE_PLUGINS+=openssl
+#endif
 
 
 

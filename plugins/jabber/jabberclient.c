@@ -83,6 +83,7 @@ static struct
 icefuncs_t *piceapi;
 #endif
 static qboolean jclient_needreadconfig;
+static qboolean jclient_configdirty;
 static qboolean jclient_updatebuddylist;
 static jclient_t *jclient_action_cl;
 static buddy_t *jclient_action_buddy;
@@ -2469,12 +2470,14 @@ int JCL_ConExecuteCommand(qboolean isinsecure)
 			if (jclient_action_cl->status == JCL_INACTIVE)
 				jclient_action_cl->status = JCL_DEAD;
 			jclient_action = ACT_NONE;
+			jclient_configdirty = true;
 			return 2;	//ask to not store in history.
 		case ACT_ADDFRIEND:
 			if (*args)
 				XMPP_AddFriend(jclient_action_cl, args, "");
 			break;
 		case ACT_SETBALIAS:
+			jclient_configdirty = true;
 			Q_strncpyz(jclient_action_buddy->name, args, sizeof(jclient_action_buddy->name));
 			if (jclient_action_buddy->btype == BT_ROSTER)
 				JCL_SendIQf(jclient_action_cl, NULL, "set", NULL, "<query xmlns='jabber:iq:roster'><item jid='%s' name='%s'></item></query>", jclient_action_buddy->accountdomain, jclient_action_buddy->name);
@@ -3656,6 +3659,8 @@ static qboolean JCL_BuddyVCardReply(jclient_t *jcl, xmltree_t *tree, struct iq_s
 					bi->imagehash = strdup(hasha);
 					bi->image = strdup(photobinval->body);
 					bi->imagemime = strdup(photomime);
+
+					jclient_configdirty = true;
 				}
 			}
 			else
@@ -5808,7 +5813,10 @@ void JCL_CloseConnection(jclient_t *jcl, const char *reason, qboolean reconnect)
 		for (i = 0; i < sizeof(jclients)/sizeof(jclients[0]); i++)
 		{
 			if (jclients[i] == jcl)
+			{
 				jclients[i] = NULL;
+				jclient_configdirty = true;
+			}
 		}
 	}
 
@@ -6411,6 +6419,10 @@ void JCL_WriteConfig(void)
 	struct buddyinfo_s *bi;
 	buddy_t *bud;
 
+	if (!jclient_configdirty)
+		return; //no point yet.
+	jclient_configdirty = false;
+
 	//don't write the config if we're meant to be reading it. avoid wiping it if we're killed fast.
 	if (jclient_needreadconfig)
 		return;
@@ -6525,6 +6537,7 @@ void JCL_LoadConfig(void)
 		qhandle_t config;
 		char *buf;
 		qboolean oldtls;
+		jclient_configdirty = false;
 		len = filefuncs->Open("**plugconfig", &config, 1);
 		if (len >= 0)
 		{
@@ -6986,6 +6999,7 @@ void JCL_Command(int accid, char *console)
 				Con_TrySubPrint(console, "Connect failed\n");
 				return;
 			}
+			jclient_configdirty = true;
 		}
 		else if (!strcmp(arg[0]+1, "help")) 
 		{
@@ -7041,6 +7055,7 @@ void JCL_Command(int accid, char *console)
 		}
 		else if (!strcmp(arg[0]+1, "oa2token"))
 		{
+			jclient_configdirty = true;
 			free(jcl->sasl.oauth2.authtoken);
 			jcl->sasl.oauth2.authtoken = strdup(arg[1]);
 			if (jcl->status == JCL_INACTIVE)
@@ -7048,6 +7063,7 @@ void JCL_Command(int accid, char *console)
 		}
 		else if (!strcmp(arg[0]+1, "set"))
 		{
+			jclient_configdirty = true;
 			if (!strcmp(arg[1], "savepassword"))
 				jcl->savepassword = atoi(arg[2]);
 			else if (!strcmp(arg[1], "avatars"))
@@ -7069,6 +7085,7 @@ void JCL_Command(int accid, char *console)
 		}
 		else if (!strcmp(arg[0]+1, "password"))
 		{
+			jclient_configdirty = true;
 			Q_strncpyz(jcl->sasl.password_plain, arg[1], sizeof(jcl->sasl.password_plain));
 			jcl->sasl.password_hash_size = 0;
 			if (jcl->status == JCL_INACTIVE)

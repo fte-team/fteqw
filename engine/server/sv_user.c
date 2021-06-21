@@ -797,15 +797,25 @@ void SVNQ_New_f (void)
 	MSG_WriteString (&host_client->netchan.message, sv.mapname);
 
 
-	//fixme: don't send too many models.
-	for (i = 1; sv.strings.model_precache[i] ; i++)
-		MSG_WriteString (&host_client->netchan.message, sv.strings.model_precache[i]);
-	MSG_WriteByte (&host_client->netchan.message, 0);
+	if (host_client->fteprotocolextensions2)
+	{	//don't bother sending much. we'll spew late precaches later.
+		if (sv.strings.model_precache[1])
+			MSG_WriteString (&host_client->netchan.message, sv.strings.model_precache[1]);
+		MSG_WriteByte (&host_client->netchan.message, 0);	//models. worldmodel only.
+		MSG_WriteByte (&host_client->netchan.message, 0);	//sounds. none at all.
+	}
+	else
+	{
+		//fixme: don't send too many models.
+		for (i = 1; sv.strings.model_precache[i] ; i++)
+			MSG_WriteString (&host_client->netchan.message, sv.strings.model_precache[i]);
+		MSG_WriteByte (&host_client->netchan.message, 0);
 
-	//fixme: don't send too many sounds.
-	for (i = 1; sv.strings.sound_precache[i] ; i++)
-		MSG_WriteString (&host_client->netchan.message, sv.strings.sound_precache[i]);
-	MSG_WriteByte (&host_client->netchan.message, 0);
+		//fixme: don't send too many sounds.
+		for (i = 1; sv.strings.sound_precache[i] ; i++)
+			MSG_WriteString (&host_client->netchan.message, sv.strings.sound_precache[i]);
+		MSG_WriteByte (&host_client->netchan.message, 0);
+	}
 
 // set view
 	MSG_WriteByte (&host_client->netchan.message, svc_setview);
@@ -1219,9 +1229,7 @@ void SV_SendClientPrespawnInfo(client_t *client)
 
 	if (client->prespawn_stage == PRESPAWN_SOUNDLIST)
 	{
-		if (!ISQWCLIENT(client))
-			client->prespawn_stage++;	//nq sends sound lists as part of the svc_serverdata
-		else
+		if (ISQWCLIENT(client))
 		{
 			int maxclientsupportedsounds = 256;
 #ifdef PEXT_SOUNDDBL
@@ -1288,6 +1296,32 @@ void SV_SendClientPrespawnInfo(client_t *client)
 
 			}
 		}
+		else if (ISNQCLIENT(client) && client->fteprotocolextensions2)
+		{
+			if (client->prespawn_idx < 1)
+				client->prespawn_idx = 1;
+			while (client->netchan.message.cursize < maxsize)
+			{
+				if (client->prespawn_idx >= MAX_PRECACHE_SOUNDS || !sv.strings.sound_precache[client->prespawn_idx])
+				{
+					if (sv.strings.sound_precache[client->prespawn_idx] && !(client->plimitwarned & PLIMIT_SOUNDS))
+					{
+						client->plimitwarned |= PLIMIT_SOUNDS;
+						SV_ClientPrintf(client, PRINT_HIGH, "WARNING: Your client's network protocol only supports %i sounds. Please upgrade or enable extensions.\n", client->prespawn_idx);
+					}
+
+					client->prespawn_stage++;
+					client->prespawn_idx = 0;
+					break;
+				}
+				MSG_WriteByte (&client->netchan.message, svcdp_precache);
+				MSG_WriteShort(&client->netchan.message, 0x8000|client->prespawn_idx);
+				MSG_WriteString (&client->netchan.message, sv.strings.sound_precache[client->prespawn_idx]);
+				client->prespawn_idx++;
+			}
+		}
+		else
+			client->prespawn_stage++;
 	}
 
 #ifdef HAVE_LEGACY
@@ -1334,9 +1368,7 @@ void SV_SendClientPrespawnInfo(client_t *client)
 
 	if (client->prespawn_stage == PRESPAWN_MODELLIST)
 	{
-		if (!ISQWCLIENT(client))
-			client->prespawn_stage++;
-		else
+		if (ISQWCLIENT(client))
 		{
 			started = false;
 
@@ -1393,6 +1425,32 @@ void SV_SendClientPrespawnInfo(client_t *client)
 				MSG_WriteByte (&client->netchan.message, (client->prespawn_idx&0xff)?client->prespawn_idx&0xff:0xff);
 			}
 		}
+		else if (ISNQCLIENT(client) && client->fteprotocolextensions2)
+		{
+			if (client->prespawn_idx < 1)
+				client->prespawn_idx = 1;
+			while (client->netchan.message.cursize < maxsize)
+			{
+				if (client->prespawn_idx >= client->maxmodels || !sv.strings.model_precache[client->prespawn_idx])
+				{
+					if (sv.strings.model_precache[client->prespawn_idx] && !(client->plimitwarned & PLIMIT_MODELS))
+					{
+						client->plimitwarned |= PLIMIT_MODELS;
+						SV_ClientPrintf(client, PRINT_HIGH, "WARNING: Your client's network protocol only supports %i models. Please upgrade or enable extensions.\n", client->prespawn_idx);
+					}
+
+					client->prespawn_stage++;
+					client->prespawn_idx = 0;
+					break;
+				}
+				MSG_WriteByte (&client->netchan.message, svcdp_precache);
+				MSG_WriteShort(&client->netchan.message, client->prespawn_idx);
+				MSG_WriteString (&client->netchan.message, sv.strings.model_precache[client->prespawn_idx]);
+				client->prespawn_idx++;
+			}
+		}
+		else
+			client->prespawn_stage++;
 	}
 
 	if (client->prespawn_stage == PRESPAWN_MAPCHECK)

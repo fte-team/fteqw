@@ -2878,7 +2878,7 @@ void CSQC_GetEntityOrigin(unsigned int csqcent, float *out);
 CL_UpdateBeams
 =================
 */
-void CL_UpdateBeams (void)
+void CL_UpdateBeams (float frametime)
 {
 	int bnum;
 	int			i, j;
@@ -3053,7 +3053,7 @@ void CL_UpdateBeams (void)
 		}
 
 		if (ruleset_allow_particle_lightning.ival || !type->modelname)
-			if (type->ef_beam >= 0 && !P_ParticleTrail(org, b->end, type->ef_beam, host_frametime, b->entity, NULL, &b->trailstate))
+			if (type->ef_beam >= 0 && !P_ParticleTrail(org, b->end, type->ef_beam, frametime, b->entity, NULL, &b->trailstate))
 				continue;
 		if (!type->model)
 		{
@@ -3111,7 +3111,7 @@ void CL_UpdateBeams (void)
 CL_UpdateExplosions
 =================
 */
-void CL_UpdateExplosions (void)
+void CL_UpdateExplosions (float frametime)
 {
 	int			i;
 	float		f;
@@ -3122,12 +3122,7 @@ void CL_UpdateExplosions (void)
 	entity_t	*ent;
 	int lastrunningexplosion = -1;
 	vec3_t pos, norm;
-	static float oldtime;
 	float		scale;
-	float frametime = cl.time - oldtime;
-	if (frametime < 0 || frametime > 100)
-		frametime = 0;
-	oldtime = cl.time;
 
 	for (i=0, ex=cl_explosions; i < explosions_running; i++, ex++)
 	{
@@ -3264,7 +3259,13 @@ CL_UpdateTEnts
 */
 void CL_UpdateTEnts (void)
 {
-	CL_UpdateBeams ();
-	CL_UpdateExplosions ();
+	static float oldtime;
+	float frametime = cl.time - oldtime;
+	if (frametime < 0 || frametime > 100)
+		frametime = 0;
+	oldtime = cl.time;
+
+	CL_UpdateBeams (frametime);
+	CL_UpdateExplosions (frametime);
 	CL_RunPCustomTEnts ();
 }

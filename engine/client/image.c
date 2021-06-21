@@ -14124,16 +14124,19 @@ static void Image_LoadHiResTextureWorker(void *ctx, void *data, size_t a, size_t
 		}
 	}
 
-	//now look in wad files and swap over the fallback. (halflife compatability)
-	COM_StripExtension(tex->ident, fname, sizeof(fname));
-	buf = W_GetTexture(fname, &imgwidth, &imgheight, &format);
-	if (buf)
+	if (!tex->fallbackdata)
 	{
-		BZ_Free(tex->fallbackdata);
-		tex->fallbackdata = buf;
-		tex->fallbackfmt = format;
-		tex->fallbackwidth = imgwidth;
-		tex->fallbackheight = imgheight;
+		//now look in wad files and swap over the fallback. (halflife compatability)
+		COM_StripExtension(tex->ident, fname, sizeof(fname));
+		buf = W_GetTexture(fname, &imgwidth, &imgheight, &format);
+		if (buf)
+		{
+			BZ_Free(tex->fallbackdata);
+			tex->fallbackdata = buf;
+			tex->fallbackfmt = format;
+			tex->fallbackwidth = imgwidth;
+			tex->fallbackheight = imgheight;
+		}
 	}
 
 	if (tex->fallbackdata)

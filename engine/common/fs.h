@@ -78,6 +78,7 @@ int PM_IsApplying(qboolean listsonly);
 unsigned int PM_MarkUpdates (void);	//mark new/updated packages as needing install.
 void PM_ApplyChanges(void);	//for -install/-doinstall args
 void PM_ManifestPackage(const char *name, int security);
+qboolean PM_AreSourcesNew(qboolean doprompt);
 qboolean PM_FindUpdatedEngine(char *syspath, size_t syspathsize);	//names the engine we should be running
 void PM_AddManifestPackages(ftemanifest_t *man);
 void Menu_Download_Update(void);

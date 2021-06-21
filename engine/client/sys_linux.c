@@ -1102,9 +1102,20 @@ static void DoSign(const char *fname, int signtype)
 		auth = com_argv[i+1];
 
 	f = FS_OpenVFS(fname, "rb", FS_SYSTEM);
-	if (f)
+	if (f && signtype == -1)
+	{	//just report the qhash
+		searchpathfuncs_t *search = FS_OpenPackByExtension(f, NULL, fname, fname);
+		if (search)
+		{
+			printf("%#08x", search->GeneratePureCRC(search, 0, 0));
+			search->ClosePath(search);
+		}
+		else
+			printf("-");
+	}
+	else if (f)
 	{
-		hashfunc_t *h = &hash_sha512;
+		hashfunc_t *h = (signtype==1)?&hash_sha256:&hash_sha512;
 		size_t l, ts = 0;
 		void *ctx = alloca(h->contextsize);
 		qbyte data[65536*16];
@@ -1133,7 +1144,12 @@ static void DoSign(const char *fname, int signtype)
 			sigsize = Crypto_GenerateSignature(digest, h->digestsize, signature, sizeof(signature));
 			Base64_EncodeBlock(signature, sigsize, base64, sizeof(base64));
 
-			printf("%s\n", base64);
+			printf("%s", base64);
+		}
+		else
+		{	//just spits out the hash
+			Base16_EncodeBlock(digest, h->digestsize, base64, sizeof(base64));
+			printf("%s", base64);
 		}
 	}
 }
@@ -1294,19 +1310,36 @@ int main (int c, const char **v)
 
 //begin meta generation helpers
 	//fteqw -privcert privcert.key -pubcert pubcert.key -sign binaryfile.pk3
-	i = COM_CheckParm("-sign");
-	if (!i)
-		i = COM_CheckParm("-sign2");
-	if (i)
 	{
-		//init some useless crap
-		host_parms = parms;
-		Cvar_Init();
-		Memory_Init ();
-		COM_Init ();
+		static struct
+		{
+			const char *arg;
+			int type;
+		} signarg[] =
+		{
+			{"-sign", 0},
+			{"-sign2", 2},
+			{"-qhash", -1},
+			{"-sha1", 1},
+			{"-sha256", 256},
+			{"-sha512", 512},
+		};
+		int j;
+		for (j = 0; j < countof(signarg); j++)
+		{
+			i = COM_CheckParm(signarg[j].arg);
+			if (i)
+			{
+				//init some useless crap
+				host_parms = parms;
+				Cvar_Init();
+				Memory_Init ();
+				COM_Init ();
 
-		DoSign(com_argv[i+1], atoi(com_argv[i+0]+5));
-		return EXIT_SUCCESS;
+				DoSign(com_argv[i+1], signarg[j].type);
+				return EXIT_SUCCESS;
+			}
+		}
 	}
 //end
 

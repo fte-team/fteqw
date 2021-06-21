@@ -2,6 +2,7 @@
 
 #include "quakedef.h"
 #include "winquake.h"
+#include "fs.h"
 
 
 static const char *res4x3[] =
@@ -1246,6 +1247,14 @@ static void M_Menu_Preset_Predraw(emenu_t *menu)
 				((char*)op->button.text)[1] = (preset==0)?'m':'7';
 				preset--;
 			}
+#if defined(WEBCLIENT) && defined(PACKAGEMANAGER)
+			else if (!strcmp(op->button.command, "menu_download\n"))
+			{
+				op->button.text = PM_AreSourcesNew(false)?"^bPackages (New!)":"Packages";
+				op->common.posx = op->common.next->common.posx;
+				op->common.width = 216-op->common.posx;
+			}
+#endif
 		}
 		else if (!filtering)
 		{
@@ -1322,7 +1331,7 @@ void M_Menu_Preset_f (void)
 		MB_SPACING(16),
 		MB_CHECKBOXCVARTIP("Auto-save Settings", cfg_save_auto, 1, "If this is disabled, you will need to explicitly save your settings."),
 #if defined(WEBCLIENT) && defined(PACKAGEMANAGER)
-		MB_CONSOLECMD("Updates",				"menu_download\n",	"Configure sources and packages."),
+		MB_CONSOLECMD("Packages",				"menu_download\n",	"Configure sources and packages."),
 #endif
 		MB_SPACING(16),
 		MB_CONSOLECMD("Accept",					"menupop\n",	"Continue with selected settings."),
@@ -4191,7 +4200,6 @@ void M_Menu_ModelViewer_f(void)
 }
 #endif
 
-#include "fs.h"
 static void Mods_Draw(int x, int y, struct menucustom_s *c, struct emenu_s *m)
 {
 	int i = c->dint;

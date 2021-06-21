@@ -300,57 +300,24 @@ if [ -e "$HOME/nocompat_readme.html" ]; then
 	cp $HOME/nocompat_readme.html $BUILDFOLDER/nocompat/README.html
 fi
 
-#this really should use the native cpu type... until then we use 32bit in case anyone's still using a 32bit kernel.
-if [ "$BUILD_LINUXx86" != "n" ]; then
-	echo "--- QC builds ---"
-	rm -rf $QCCBUILDFOLDER 2>&1
-	mkdir -p $QCCBUILDFOLDER
-	if [ -e "$BUILDFOLDER/linux_x86/fteqw32" ]; then
-		echo "Making fteextensions.qc"
-		mkdir -p ~/.fte/fte
-		echo "pr_dumpplatform -o fteextensions" > ~/.fte/fte/minusargsaresilly.cfg
-		echo "pr_dumpplatform -o csqcsysdefs -Tcs" >> ~/.fte/fte/minusargsaresilly.cfg
-		echo "pr_dumpplatform -o menusysdefs -Tmenu" >> ~/.fte/fte/minusargsaresilly.cfg
-		$BUILDFOLDER/linux_x86/fteqw32 -basedir ~/.fte -nohome -quake +set snd_device none -nosound +set vid_renderer sv +exec minusargsaresilly.cfg +quit >> /dev/null
-		mv ~/.fte/fte/src/fteextensions.qc $QCCBUILDFOLDER
-		mv ~/.fte/fte/src/csqcsysdefs.qc $QCCBUILDFOLDER
-		mv ~/.fte/fte/src/menusysdefs.qc $QCCBUILDFOLDER
-	else
-		echo "Skipping FTE Extensions, no Linux x86 (merged) build located"
-	fi
 
-	if [ -e $BUILDFOLDER/linux_x86/fteqcc32 ]; then
-		mkdir -p $BUILDFOLDER/csaddon/
-		cd $SVNROOT/quakec
-		cd csaddon/src
-		echo -n "Making csaddon... "
-		$BUILDFOLDER/linux_x86/fteqcc32 -srcfile csaddon.src > $BUILDLOGFOLDER/csaddon.txt
-		if [ $? -eq 0 ]; then
-			echo "done"
-			cp ../csaddon.dat $BUILDFOLDER/csaddon/
-			cd ..
-			zip -9 $BUILDFOLDER/csaddon/csaddon.pk3 csaddon.dat
-		else
-			echo "failed"
-		fi
-
-		cd $SVNROOT/quakec
-		cd menusys
-		echo -n "Making menusys... "
-		$BUILDFOLDER/linux_x86/fteqcc32 -srcfile menu.src > $BUILDLOGFOLDER/menu.txt
-		if [ $? -eq 0 ]; then
-			echo "done"
-			zip -q -9 -o -r $BUILDFOLDER/csaddon/menusys_src.zip .
-			cp ../menu.dat $BUILDFOLDER/csaddon/
-			cd ..
-			zip -9 $BUILDFOLDER/csaddon/menusys.pk3 menu.dat
-		else
-			echo "failed"
-		fi
-	else
-		echo "Skiping csaddon + qcmenu, no compiler build"
+#call out to build_qc.sh to invoke native builds as appropriate.
+case "$(uname -m)" in
+x86_64)
+	if [ "$BUILD_LINUXx64" != "n" ]; then
+		rm -rf $QCCBUILDFOLDER 2>&1
+		mkdir -p $QCCBUILDFOLDER
+		FTEQCC=$BUILDFOLDER/linux_amd64/fteqcc64 FTEQW=$BUILDFOLDER/linux_amd64/fteqw64 QUAKESPASM=quakespasm-spiked-linux64 ./build_qc.sh
 	fi
-fi
+	;;
+i386 | i486 | i586)
+	if [ "$BUILD_LINUXx86" != "n" ]; then
+		rm -rf $QCCBUILDFOLDER 2>&1
+		mkdir -p $QCCBUILDFOLDER
+		FTEQCC=$BUILDFOLDER/linux_x86/fteqcc32 FTEQW=$BUILDFOLDER/linux_x86/fteqw32 QUAKESPASM= ./build_qc.sh
+	fi
+	;;
+esac
 
 cd $SVNROOT/engine/
 svn info > $BUILDFOLDER/version.txt

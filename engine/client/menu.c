@@ -454,9 +454,12 @@ static qboolean Prompt_MenuKeyEvent(struct menu_s *gm, qboolean isdown, unsigned
 		action = PROMPT_YES;
 	else if (key==K_RIGHTARROW || key==K_GP_DPAD_RIGHT || key==K_DOWNARROW || key==K_GP_DPAD_DOWN || (key == K_TAB && !keydown[K_LSHIFT] && !keydown[K_RSHIFT]))
 	{
+		int start = m->kbutton;
 		for(;;)
 		{
 			m->kbutton++;
+			if (start == m->kbutton)
+				break;
 			if (m->kbutton >= 3)
 				m->kbutton -= 3;
 			if (m->buttons[m->kbutton])
@@ -466,9 +469,12 @@ static qboolean Prompt_MenuKeyEvent(struct menu_s *gm, qboolean isdown, unsigned
 	}
 	else if (key == K_LEFTARROW || key == K_GP_DPAD_LEFT || key==K_UPARROW || key==K_GP_DPAD_UP || key==K_TAB)
 	{
+		int start = m->kbutton;
 		for(;;)
 		{
 			m->kbutton--;
+			if (start == m->kbutton)
+				break;
 			if (m->kbutton < 0)
 				m->kbutton += 3;
 			if (m->buttons[m->kbutton])

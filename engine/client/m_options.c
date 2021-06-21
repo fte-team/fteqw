@@ -1201,14 +1201,30 @@ static int M_Menu_Preset_GetActive(void)
 		return 0;	//simple
 }
 
+static int M_Menu_ApplyGravity(menuoption_t *op)
+{	//menu is bottom-up, so we return the y pos of its parent...
+	if (!op)
+		return 0;
+
+	if (op->common.ishidden)
+		return M_Menu_ApplyGravity(op->common.next);
+
+	if (op->common.grav_y)
+		op->common.posy = M_Menu_ApplyGravity(op->common.next)+op->common.grav_y;
+	else	//not moving this one, but make sure others move properly.
+		M_Menu_ApplyGravity(op->common.next);
+
+	return op->common.posy;
+}
 static void M_Menu_Preset_Predraw(emenu_t *menu)
 {
 	extern cvar_t m_preset_chosen;
-	int last_y;
-	menuoption_t *op, *prev;
+	menuoption_t *op;
 	int preset = M_Menu_Preset_GetActive();
 	int i;
 	qboolean forcereload = false;
+	qboolean filtering = false;
+	extern cvar_t cfg_save_auto;
 
 #ifdef RTLIGHTS
 	preset = 6-preset;
@@ -1218,12 +1234,6 @@ static void M_Menu_Preset_Predraw(emenu_t *menu)
 
 	for (op = menu->options; op; op = op->common.next)
 	{
-		prev = op->common.next;
-		while (prev && prev->common.ishidden)
-		{	//this uglyness is because the menu items are added bottom-up.
-			prev = prev->common.next;	//erk...
-		}
-		last_y = prev?prev->common.posy:0;
 		if (op->common.type == mt_button)
 		{
 			if (!strcmp(op->button.command, "menupop\n"))
@@ -1236,6 +1246,11 @@ static void M_Menu_Preset_Predraw(emenu_t *menu)
 				((char*)op->button.text)[1] = (preset==0)?'m':'7';
 				preset--;
 			}
+		}
+		else if (!filtering)
+		{
+			if (op->check.var == &cfg_save_auto)
+				filtering = true;
 		}
 		else if(op->common.type == mt_checkbox||
 				op->common.type == mt_slider||
@@ -1258,10 +1273,9 @@ static void M_Menu_Preset_Predraw(emenu_t *menu)
 			if (op->combo.cvar->latched_string && (op->combo.cvar->flags&CVAR_LATCHMASK) == CVAR_RENDERERLATCH)
 				forcereload = true;
 		}
-
-		if (op->common.grav_y)
-			op->common.posy = last_y+op->common.grav_y;
 	}
+	M_Menu_ApplyGravity(menu->options);
+	menu->cursoritem->common.posy = menu->selecteditem->common.posy;	//make sure it shows the right place still
 
 	if (forcereload)
 		Cbuf_InsertText("\nfs_restart\nvid_reload\n", RESTRICT_LOCAL, true);
@@ -1307,8 +1321,11 @@ void M_Menu_Preset_f (void)
 #endif
 		MB_SPACING(16),
 		MB_CHECKBOXCVARTIP("Auto-save Settings", cfg_save_auto, 1, "If this is disabled, you will need to explicitly save your settings."),
+#if defined(WEBCLIENT) && defined(PACKAGEMANAGER)
+		MB_CONSOLECMD("Updates",				"menu_download\n",	"Configure sources and packages."),
+#endif
 		MB_SPACING(16),
-		MB_CONSOLECMD("Accept",					"menupop\n",	NULL),
+		MB_CONSOLECMD("Accept",					"menupop\n",	"Continue with selected settings."),
 		MB_END()
 	};
 	static menuresel_t resel;
@@ -1580,7 +1597,7 @@ void M_Menu_Render_f (void)
 		MB_CHECKBOXCVAR("Bloom", r_bloom, 0),
 #endif
 		MB_CHECKBOXCVARTIP("HDR", r_hdr_irisadaptation, 0, "Adjust scene brightness to compensate for lighting levels."),
-		MB_CHECKBOXCVARTIP("Temporal Scene Cache", r_temporalscenecache, 0, "Cache scene data to optimise complex scenes or unvised maps."),
+		MB_CHECKBOXCVARTIP("Temporal Scene Cache", r_temporalscenecache, 0, "Cache scene data to significantly optimise highly complex scenes or unvised maps.\n"CON_WARNING"Unfortunately this is incompatible with certain techniques, so may need to be disabled for compat with legacy content."),
 		MB_END()
 	};
 	menu = M_Options_Title(&y, 0);
@@ -1745,9 +1762,6 @@ qboolean M_VideoApplyShadowLighting (union menuoption_s *op,struct emenu_s *menu
 			cvarsrds = "1";
 			break;
 		case 4:
-			cvard = "-1";
-			break;
-		case 5:
 			cvard = "1";
 			cvarvd = "1";
 			break;
@@ -1811,7 +1825,6 @@ void M_Menu_Lighting_f (void)
 #ifdef RTLIGHTS
 		"Realtime",
 		"RT+Shadows",
-		"Threaded Lightmaps",
 #ifndef MINIMAL
 		"Vertex",
 #endif
@@ -1937,11 +1950,9 @@ void M_Menu_Lighting_f (void)
 		else
 			dlightselect = 2;
 	}
-	else if (r_dynamic.ival < 0)
-		dlightselect = 4;
 #ifndef MINIMAL
 	else if (r_vertexdlights.ival)
-		dlightselect = 5;
+		dlightselect = 4;
 #endif
 	else
 #endif

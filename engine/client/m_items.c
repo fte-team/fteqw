@@ -2602,8 +2602,10 @@ int MC_AddBulk(struct emenu_s *menu, menuresel_t *resel, menubulk_t *bulk, int x
 		if (bulk->ret)
 			*bulk->ret = control;
 		if (control)
+		{
 			control->common.grav_y = y-last_y;
-		last_y = y;
+			last_y = y;
+		}
 		if (control && MI_Selectable(control) && !selected)
 			selected = control;
 		if (control && bulk->tooltip)

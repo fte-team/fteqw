@@ -331,7 +331,7 @@ static void QI_RefreshMapList(qboolean forcedisplay)
 		day = atoi(date?date:"1");
 		date = date?strchr(date, '.'):NULL;
 		month = atoi(date?date+1:"1");
-		date = date?strchr(date, '.'):NULL;
+		date = date?strchr(date+1, '.'):NULL;
 		year = atoi(date?date+1:"1990");
 		if (year < 90)
 			year += 2000;
@@ -365,6 +365,7 @@ static void QI_RefreshMapList(qboolean forcedisplay)
 	Con_SubPrintf(console, "^[Change Filter^]\n");
 	Con_SubPrintf(console, "^[Maps^] %s\n", (filters.type!=2)?"shown":"hidden");
 	Con_SubPrintf(console, "^[Mods^] %s\n", (filters.type!=1)?"shown":"hidden");
+	Con_SubPrintf(console, "Sort: ^[Alphabetically^] ^[Date^] ^[Rating^]\n");
 	if (filters.minrating == filters.maxrating)
 	{
 		char *gah[] = {"Any Rating", "Unrated", "1","2","3","4","5"};
@@ -525,6 +526,79 @@ static void QI_RunMap(xmltree_t *qifile, const char *map)
 	cmdfuncs->AddText("\n", false);
 }
 
+static unsigned int QI_GetDate(xmltree_t *file)
+{
+	unsigned int day, month, year;
+	const char *date = XML_GetChildBody(file, "date", "1.1.1990");
+	day = atoi(date?date:"1");
+	date = date?strchr(date, '.'):NULL;
+	month = atoi(date?date+1:"1");
+	date = date?strchr(date+1, '.'):NULL;
+	year = atoi(date?date+1:"1990");
+	if (year < 90)
+		year += 2000;
+	else if (year < 1900)
+		year += 1900;
+	return year*10000 + month*100 + day;
+}
+static int QDECL QI_ResortName (const void *v1, const void *v2)
+{
+	const char *n1 = XML_GetChildBody(*(xmltree_t*const*)v1, "title", "<NO TITLE>");
+	const char *n2 = XML_GetChildBody(*(xmltree_t*const*)v2, "title", "<NO TITLE>");
+	return strcasecmp(n1,n2);
+}
+static int QDECL QI_ResortDate (const void *v1, const void *v2)
+{
+	unsigned int d1 = QI_GetDate(*(xmltree_t*const*)v1);
+	unsigned int d2 = QI_GetDate(*(xmltree_t*const*)v2);
+
+	if (d1>d2)
+		return 1;
+	if (d1<d2)
+		return -1;
+	return QI_ResortName(v1,v2);
+}
+static int QDECL QI_ResortRating (const void *v1, const void *v2)
+{
+	int r1 = atoi(XML_GetParameter(*(xmltree_t*const*)v1, "rating", ""));
+	int r2 = atoi(XML_GetParameter(*(xmltree_t*const*)v2, "rating", ""));
+
+	if (r1>r2)
+		return 1;
+	if (r1<r2)
+		return -1;
+	return QI_ResortDate(v1,v2);	//equal... go by date.
+}
+
+static qboolean QI_Resort(int sorttype)
+{
+	xmltree_t *file;
+	xmltree_t **files;
+	unsigned int count;
+	if (!thedatabase || !thedatabase->child)
+		return true;
+
+	for (count = 0, file = thedatabase->child; file; file = file->sibling)
+		count++;
+	files = malloc(sizeof(*files)*count);
+	for (count = 0, file = thedatabase->child; file; file = file->sibling)
+		files[count++] = file;
+	if (sorttype == 0)
+		qsort(files, count, sizeof(*files), QI_ResortName);
+	else if (sorttype == 1)
+		qsort(files, count, sizeof(*files), QI_ResortDate);
+	else if (sorttype == 2)
+		qsort(files, count, sizeof(*files), QI_ResortRating);
+	thedatabase->child = NULL;
+	while (count --> 0)
+	{
+		file = files[count];
+		file->sibling = thedatabase->child;
+		thedatabase->child = file;
+	}
+	QI_RefreshMapList(true);
+	return true;
+}
 static qboolean QDECL QI_ConsoleLink(void)
 {
 	xmltree_t *file;
@@ -536,36 +610,45 @@ static qboolean QDECL QI_ConsoleLink(void)
 	cmdfuncs->Argv(0, text, sizeof(text));
 	cmdfuncs->Argv(1, link, sizeof(link));
 
-	if (!strcmp(text, "Change Filter") && !*link)
+	if (!*link)
 	{
-		const char *console = WINDOWNAME;
-		confuncs->SetConsoleFloat(console, "linebuffered", true);
-		confuncs->SetConsoleString(console, "footer", "Please enter filter:");
-		return true;
-	}
-	if (!strcmp(text, "Maps") && !*link)
-	{
-		filters.type = (filters.type==2)?0:2;
-		QI_RefreshMapList(true);
-		return true;
-	}
-	if (!strcmp(text, "Mods") && !*link)
-	{
-		filters.type = (filters.type==1)?0:1;
-		QI_RefreshMapList(true);
-		return true;
-	}
-	if (!strcmp(text, "Any Rating") && !*link)
-	{
-		filters.minrating = filters.maxrating = -1;
-		QI_RefreshMapList(true);
-		return true;
-	}
-	if ((atoi(text) || !strcmp(text, "Unrated")) && !*link)
-	{
-		filters.minrating = filters.maxrating = atoi(text);
-		QI_RefreshMapList(true);
-		return true;
+		if (!strcmp(text, "Change Filter"))
+		{
+			const char *console = WINDOWNAME;
+			confuncs->SetConsoleFloat(console, "linebuffered", true);
+			confuncs->SetConsoleString(console, "footer", "Please enter filter:");
+			return true;
+		}
+		if (!strcmp(text, "Maps"))
+		{
+			filters.type = (filters.type==2)?0:2;
+			QI_RefreshMapList(true);
+			return true;
+		}
+		if (!strcmp(text, "Mods"))
+		{
+			filters.type = (filters.type==1)?0:1;
+			QI_RefreshMapList(true);
+			return true;
+		}
+		if (!strcmp(text, "Any Rating"))
+		{
+			filters.minrating = filters.maxrating = -1;
+			QI_RefreshMapList(true);
+			return true;
+		}
+		if (atoi(text) || !strcmp(text, "Unrated"))
+		{
+			filters.minrating = filters.maxrating = atoi(text);
+			QI_RefreshMapList(true);
+			return true;
+		}
+		if (atoi(text) || !strcmp(text, "Alphabetically"))
+			return QI_Resort(0);
+		if (atoi(text) || !strcmp(text, "Date"))
+			return QI_Resort(1);
+		if (atoi(text) || !strcmp(text, "Rating"))
+			return QI_Resort(2);
 	}
 
 

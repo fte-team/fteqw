@@ -35,7 +35,7 @@ define(`LINENGINE2',`{
 	}')dnl
 define(`LINENGINE',`LINENGINE2($1,$2,CAT($2_lin64.zip))')dnl
 define(`HIDE',)dnl
-define(`GAME',`ifelse(FTE_GAME,$1,$2
+define(`GAME',`ifelse(FTE_GAME,`$1',`$2'
 ,)')dnl
 define(`TEST',`ifelse(FTE_TEST,`1',`	test		"1"
 ',`	test		"0"
@@ -101,7 +101,7 @@ define(`LINPLUG',`{
 		URL(linux_amd64/fteplug_$1_amd64.so)
 	}')dnl
 GAME(quake,
-{
+`{
 	package "fteplug_ezhud"
 	WINPLUG(ezhud)
 	LINPLUG(ezhud)
@@ -109,9 +109,9 @@ GAME(quake,
 	replace			"ezhud"
 	desc			"Some lame alternative configurable hud."
 TEST()dnl
-})dnl
+}')dnl
 GAME(quake,
-{
+`{
 	package 		"fteplug_qi"
 	WINPLUG(qi)
 	LINPLUG(qi)
@@ -121,10 +121,10 @@ GAME(quake,
 	author			"Spike"
 	website			"https://www.quaddicted.com/reviews/"
 	desc			"Provides a way to quickly list+install+load numerous different maps and mods. Some better than others."
-	desc			"If you're a single-player fan then these will keep you going for quite some time."
+	desc			"If youre a single-player fan then these will keep you going for quite some time."
 	desc			"The database used is from quaddicted.com."
 TEST()dnl
-})dnl
+}')dnl
 {
 	package "fteplug_irc"
 	WINPLUG(irc)
@@ -205,7 +205,7 @@ TEST()dnl
 }
 ')dnl
 GAME(quake2,
-{
+`{
 	package			"q2game_baseq2"
 	{
 		arch		"win_x86"
@@ -229,9 +229,9 @@ GAME(quake2,
 	website			"https://github.com/yquake2/yquake2"
 	desc			"Quake2 Gamecode (from yamagiq2). Required for single player or servers."
 TEST()dnl
-})dnl
+}')dnl
 GAME(quake,
-{
+`{
 	package			"fte_csaddon"
 	category		"Plugins"
 	title			"Ingame Map Editor"
@@ -239,14 +239,14 @@ GAME(quake,
 	gamedir			"fte"
 	FILE(csaddon.dat)
 	URL(csaddon/csaddon.dat)
-	desc			"This is Spike's map editing user interface. It is only active while running singleplayer (or sv_cheats is enabled)."
+	desc			"This is Spikes map editing user interface. It is only active while running singleplayer (or sv_cheats is enabled)."
 	desc			"To activate, set the ca_show cvar to 1 (suggestion: ^abind c toggle ca_show^a)."
-	license			"GPLv2, source on fte's svn"
+	license			"GPLv2, source on the fte svn"
 	author			"Spike"
 TEST()dnl
-})dnl
+}')dnl
 GAME(quake,
-{
+`{
 	package			"fte_menusys"
 	category		"AfterQuake"
 	title			"Replacement Menus"
@@ -255,8 +255,8 @@ GAME(quake,
 	FILE(menu.dat)
 	URL(csaddon/menu.dat)
 	desc			"This provides a more modern mouse-first menu system."
-	license			"GPLv2, source on fte's svn"
+	license			"GPLv2, source on the fte svn"
 	author			"Spike"
 TEST()dnl
-})dnl
+}')dnl
 

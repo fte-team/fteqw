@@ -202,7 +202,7 @@ function build_fteqcc {
 echo "--- Engine builds ---"
 #the -fno-finite-math-only is to avoid a glibc dependancy
 if [ "$BUILD_LINUXx86" != "n" ]; then
-	NATIVE_PLUGINS="$PLUGINS_LINUXx86" build "Linux 32-bit" linux_x86 FTE_TARGET=linux_x86 CPUOPTIMIZATIONS=-fno-finite-math-only $TARGETS_LINUX
+	NATIVE_PLUGINS="$PLUGINS_LINUXx86" build "Linux 32-bit" linux_x86 FTE_TARGET=linux32 CPUOPTIMIZATIONS=-fno-finite-math-only $TARGETS_LINUX
 fi
 if [ "$BUILD_LINUXx64" != "n" ]; then
 	NATIVE_PLUGINS="$PLUGINS_LINUXx64" build "Linux 64-bit" linux_amd64 FTE_TARGET=linux64 CPUOPTIMIZATIONS=-fno-finite-math-only $TARGETS_LINUX

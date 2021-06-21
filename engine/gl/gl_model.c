@@ -39,6 +39,9 @@ cvar_t mod_warnmodels						= CVARD("mod_warnmodels", "1", "Warn if any models fa
 cvar_t mod_litsprites_force					= CVARD("mod_litsprites_force", "0", "If set to 1, sprites will be lit according to world lighting (including rtlights), like Tenebrae. Ideally use EF_ADDITIVE or EF_FULLBRIGHT to make emissive sprites instead.");
 cvar_t mod_loadmappackages					= CVARD ("mod_loadmappackages", "1", "Load additional content embedded within bsp files.");
 cvar_t temp_lit2support						= CVARD("temp_mod_lit2support", "0", "Set to 1 to enable lit2 support. This cvar will be removed once the format is finalised.");
+#ifdef SPRMODELS
+cvar_t r_sprite_backfacing					= CVARD	("r_sprite_backfacing", "0", "Make oriented sprites face backwards relative to their orientation, for compat with q1.");
+#endif
 #ifdef SERVERONLY
 cvar_t gl_overbright, gl_specular, gl_load24bit, r_replacemodels, gl_miptexLevel, r_fb_bmodels;	//all of these can/should default to 0
 cvar_t r_noframegrouplerp					= CVARF  ("r_noframegrouplerp", "0", CVAR_ARCHIVE);
@@ -634,6 +637,9 @@ void Mod_Init (qboolean initial)
 		Cmd_AddCommandD("mod_showent", Mod_ShowEnt_f, "Allows you to quickly search through a map's entities.");
 		Cmd_AddCommand("version_modelformats", Mod_PrintFormats_f);
 
+#ifdef SPRMODELS
+		Cvar_Register (&r_sprite_backfacing, NULL);
+#endif
 #ifndef SERVERONLY
 		Cmd_AddCommandD("mod_findcubemaps", Mod_FindCubemaps_f, "Scans the entities of a map to find reflection env_cubemap sites and determines the nearest one to each surface.");
 		Cmd_AddCommandD("mod_realign", Mod_Realign_f, "Reads the named bsp and writes it back out with only alignment changes.");
@@ -5883,10 +5889,13 @@ qboolean QDECL Mod_LoadSpriteModel (model_t *mod, void *buffer, size_t fsize)
 	mod->meshinfo = psprite;
 	switch(sptype)
 	{
+	case SPR_ORIENTED:
+		if (r_sprite_backfacing.ival)
+			sptype = SPR_ORIENTED_BACKFACE;
+		break;
 	case SPR_VP_PARALLEL_UPRIGHT:
 	case SPR_FACING_UPRIGHT:
 	case SPR_VP_PARALLEL:
-	case SPR_ORIENTED:
 	case SPR_VP_PARALLEL_ORIENTED:
 //	case SPRDP_LABEL:
 //	case SPRDP_LABEL_SCALE:

@@ -91,6 +91,8 @@ typedef struct {
 #define SPRDP_LABEL_SCALE			6
 #define SPRDP_OVERHEAD				7
 
+#define SPR_ORIENTED_BACKFACE		8	//SPR_ORIENTED except facing along its normal...
+
 #define SPRHL_OPAQUE	0
 #define SPRHL_ADDITIVE	1
 #define SPRHL_INDEXALPHA	2

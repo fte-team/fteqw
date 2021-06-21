@@ -2,7 +2,7 @@
 #include "fs.h"
 #include "errno.h"
 
-#if !defined(NACL) && !defined(FTE_TARGET_WEB) && !defined(_WIN32)
+#if !defined(NACL) && !defined(FTE_TARGET_WEB) && (!defined(_WIN32) || defined(FTE_SDL))
 
 #ifdef WEBSVONLY
 	#define Z_Free free

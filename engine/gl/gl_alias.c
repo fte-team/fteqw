@@ -40,7 +40,6 @@ typedef struct
 extern cvar_t gl_part_flame, r_fullbrightSkins, r_fb_models, ruleset_allow_fbmodels;
 extern cvar_t r_noaliasshadows;
 extern cvar_t r_lodscale, r_lodbias;
-extern cvar_t r_sprite_backfacing;
 
 extern cvar_t gl_ati_truform;
 extern cvar_t r_vertexdlights;
@@ -2663,8 +2662,14 @@ static void R_Sprite_GenerateTrisoup(entity_t *e, int bemode)
 			Matrix3_Multiply(e->axis, r_refdef.playerview->vw_axis, spraxis);
 		else
 			memcpy(spraxis, e->axis, sizeof(spraxis));
-		if (!r_sprite_backfacing.ival)
-			VectorNegate(spraxis[1], spraxis[1]);
+		break;
+	case SPR_ORIENTED_BACKFACE:
+		// bullet marks on walls, invisible to anyone in the direction that its facing...
+		if ((e->flags & RF_WEAPONMODEL) && r_refdef.playerview->viewentity > 0)
+			Matrix3_Multiply(e->axis, r_refdef.playerview->vw_axis, spraxis);
+		else
+			memcpy(spraxis, e->axis, sizeof(spraxis));
+		VectorNegate(spraxis[1], spraxis[1]);
 		break;
 
 	case SPR_FACING_UPRIGHT:

@@ -3971,7 +3971,6 @@ static void CLNQ_ParseServerData(void)		//Doesn't change gamedir - use with caut
 		cl.sound_precache[numsounds] = S_FindName(cl.sound_name[numsounds], true, false);
 
 		Sound_CheckDownload(str);
-		S_TouchSound (str);
 	}
 
 	cls.signon = 0;

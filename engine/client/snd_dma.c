@@ -2488,7 +2488,7 @@ sfx_t *S_FindName (const char *name, qboolean create, qboolean syspath)
 	if (num_sfx == MAX_SFX)
 		Sys_Error ("S_FindName: out of sfx_t");
 
-	if (create)
+	if (create && known_sfx)
 	{
 		sfx = &known_sfx[i];
 		strcpy (sfx->name, name);
@@ -2573,20 +2573,6 @@ void S_UntouchAll(void)
 	int i;
 	for (i=0 ; i < num_sfx ; i++)
 		known_sfx[i].touched = false;
-}
-
-/*
-==================
-S_TouchSound
-
-==================
-*/
-void S_TouchSound (char *name)
-{
-	if (!sound_started)
-		return;
-
-	S_FindName (name, true, false);
 }
 
 /*

@@ -224,7 +224,6 @@ sfx_t *Media_NextTrack(int musicchanel, float *time);	//queries the track we're 
 sfx_t *S_FindName (const char *name, qboolean create, qboolean syspath);
 sfx_t *S_PrecacheSound2 (const char *sample, qboolean syspath);
 #define S_PrecacheSound(s) S_PrecacheSound2(s,false)
-void S_TouchSound (char *sample);
 void S_UntouchAll(void);
 void S_ClearPrecache (void);
 void S_BeginPrecaching (void);

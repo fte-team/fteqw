@@ -1398,7 +1398,10 @@ void printbones(int parent = -1, size_t ind = 1)
 	{
 		if (joints[i].parent == parent)
 		{	//show as 1-based for consistency with quake.
-			conoutf("%sbone %i:\tname=\"%s\"\tparent=%i, group=%i (%f %f %f)", prefix, i+1, &stringdata[joints[i].name], joints[i].parent+1, joints[i].group, joints[i].pos[0], joints[i].pos[1], joints[i].pos[2]);
+			if (parent == -1)
+				conoutf("%sbone %i:\tname=\"%s\"\tparent=NONE, group=%i (%f %f %f)", prefix, i+1, &stringdata[joints[i].name], joints[i].group, joints[i].pos[0], joints[i].pos[1], joints[i].pos[2]);
+			else
+				conoutf("%sbone %i:\tname=\"%s\"\tparent=%i, group=%i (%f %f %f)", prefix, i+1, &stringdata[joints[i].name], joints[i].parent+1, joints[i].group, joints[i].pos[0], joints[i].pos[1], joints[i].pos[2]);
 			printbones(i, ind+1);
 		}
 	}
@@ -1528,7 +1531,7 @@ void makeanims(const filespec &spec)
 			{
 				anim &a = anims.add();
 				char nname[256];
-				formatstring(nname, "%s%i", ea.name, j+1-ea.startframe);
+				formatstring(nname, "%s_%i", ea.name, j+1-ea.startframe);
 				a.name = sharestring(nname);
 				a.firstframe = frames.length();
 				a.numframes = 0;
@@ -1538,8 +1541,8 @@ void makeanims(const filespec &spec)
 				int offset = eframes[j], range = (eframes.inrange(j+1) ? eframes[j+1] : eposes.length()) - offset;
 				if(range <= 0) continue;
 				frame &fr = frames.add();
-				loopk(min(range, ejoints.length())) fr.pose.add(frame::framepose(ejoints[i], eposes[offset + k])); 
-				loopk(max(ejoints.length() - range, 0)) fr.pose.add(frame::framepose(ejoints[i], transform(Vec3(0, 0, 0), Quat(0, 0, 0, 1), Vec3(1, 1, 1))));
+				loopk(min(range, ejoints.length())) fr.pose.add(frame::framepose(ejoints[k], eposes[offset + k]));
+				loopk(max(ejoints.length() - range, 0)) fr.pose.add(frame::framepose(ejoints[k], transform(Vec3(0, 0, 0), Quat(0, 0, 0, 1), Vec3(1, 1, 1))));
 				a.numframes++;
 
 				printlastanim();
@@ -3874,10 +3877,28 @@ bool loadfbx(const char *filename, const filespec &spec)
 
 namespace fte
 {
+	static vector<cvar_t*> cvars;
 	static plugfsfuncs_t cppfsfuncs;
 	static plugmodfuncs_t cppmodfuncs;
 	static plugcorefuncs_t cppplugfuncs;
 	static plugcvarfuncs_t cppcvarfuncs;
+
+	static cvar_t *Cvar_Create(const char *name, const char *defaultval, unsigned int flags, const char *description, const char *groupname)
+	{	//could maybe fill with environment settings perhaps? yuck.
+		cvar_t *v = NULL;
+		for (int i = 0; i < cvars.length(); i++)
+			if (!strcmp(cvars[i]->name, name))
+				return cvars[i];
+		if (!v)
+		{
+			v = cvars.add() = new cvar_t();
+			v->name = strdup(name);
+			v->string = strdup(defaultval);
+			v->value = atof(v->string);
+			v->ival = atoi(v->string);
+		}
+		return v;
+	};
 
 	static void SetupFTEPluginFuncs(void)
 	{
@@ -4019,15 +4040,7 @@ namespace fte
 			return ret;
 		};
 
-		cppcvarfuncs.GetNVFDG = [](const char *name, const char *defaultval, unsigned int flags, const char *description, const char *groupname)
-		{	//could maybe fill with environment settings perhaps? yuck.
-			auto v = new cvar_t();
-			v->name = strdup(name);
-			v->string = strdup(defaultval);
-			v->value = atof(v->string);
-			v->ival = atoi(v->string);
-			return v;
-		};
+		cppcvarfuncs.GetNVFDG = Cvar_Create;
 	}
 	extern "C"
 	{	//our plugin-style stuff has a few external dependancies not provided via pointers...
@@ -4164,6 +4177,7 @@ namespace fte
 					a.startframe = firstframe;
 					a.fps = anim.rate;
 					a.flags = anim.loop?IQM_LOOP:0;
+					a.flags |= spec.flags;
 					a.endframe = eframes.length();
 				}
 #endif
@@ -4231,6 +4245,9 @@ namespace fte
 						materialname = surf->ofsskins[0].name;
 					else
 						materialname = surf->surfacename;
+
+					if (surf->nummorphs)
+						printf("Morph targets on input surface \"%s\" \"%s\" cannot be supported\n", surf->surfacename, materialname);
 
 					emesh mesh(surf->surfacename, materialname, etriangles.length());
 
@@ -5313,70 +5330,114 @@ static bool writemd3(const char *filename)
 	return false;
 }
 
-void help(bool exitstatus = EXIT_SUCCESS)
+static void help(bool exitstatus, bool fullhelp)
 {
 	fprintf(exitstatus != EXIT_SUCCESS ? stderr : stdout,
 "-- FTE's Fork of Lee Salzman's iqm exporter --\n"
 "Usage:\n"
 "\n"
-"./iqm cmdfile.cmd\n"
-"./iqm [options] output.iqm mesh.iqe anim1.iqe ... animN.iqe\n"
-"./iqm [options] output.iqm mesh.md5mesh anim1.md5anim ... animN.md5anim\n"
-"./iqm [options] output.iqm mesh.smd anim1.smd ... animN.smd\n"
-"./iqm [options] output.iqm mesh.fbx anim1.fbx ... animN.fbx\n"
-"./iqm [options] output.iqm mesh.obj\n"
+"./iqmtool cmdfile.cmd\n"
+"./iqmtool [options] output.iqm mesh.iqe anim1.iqe ... animN.iqe\n"
+"./iqmtool [options] output.iqm mesh.md5mesh anim1.md5anim ... animN.md5anim\n"
+"./iqmtool [options] output.iqm mesh.smd anim1.smd ... animN.smd\n"
+"./iqmtool [options] output.iqm mesh.fbx anim1.fbx ... animN.fbx\n"
+"./iqmtool [options] output.iqm mesh.obj\n"
+"./iqmtool [options] output.iqm source.gltf\n"
+"\n"
+"Basic commandline options:\n"
+"   --help              Show full help.\n"
+"   -v                  Verbose\n"
+"   -q                  Quiet operation\n"
+"   -n                  Disable output of fte's iqm extensions\n"
+	);
+
+	if (fullhelp)
+		fprintf(exitstatus != EXIT_SUCCESS ? stderr : stdout,
 "\n"
 "For certain formats, IQE, OBJ, and FBX, it is possible to combine multiple mesh\n"
 "files of the exact same vertex layout and skeleton by supplying them as\n"
 "\"mesh1.iqe,mesh2.iqe,mesh3.iqe\", that is, a comma-separated list of the mesh\n"
 "files (with no spaces) in place of the usual mesh filename.\n"
 "\n"
-"Options can be any of the following command-line switches:\n"
+"Legacy commandline options that affect mesh import for the next file:\n"
 "\n"
-"    -s N\n"
-"    --scale N\n"
-"      Sets the output scale to N (float).\n"
+"   -s N                Sets the output scale to N (float).\n"
+"   --meshtrans Z\n"
+"   --meshtrans X,Y,Z   Translates a mesh by X,Y,Z (floats).\n"
+"                       This does not affect the skeleton.\n"
+"   -j\n"
+"   --forcejoints       Forces the exporting of joint information in animation"
+"                       files without meshes.\n"
 "\n"
-"    --meshtrans Z\n"
-"    --meshtrans X,Y,Z\n"
-"      Translates a mesh by X,Y,Z (floats). This does not affect the skeleton.\n"
+"Legacy commandline options that affect the following animation file:\n"
 "\n"
-"    -j\n"
-"    --forcejoints\n"
-"      Forces the exporting of joint information in animation files without\n"
-"      meshes.\n"
-"\n"
-"    -q\n"
-"      Quiet. Only display warnings or errors.\n"
-"\n"
-"    -v\n"
-"      Verbose. Print lots of extra info.\n"
-"\n"
-"    -n\n"
-"      No Extensions. Disables the use of fte-specific iqm extensions.\n"
-"\n"
-"Each animation file can be preceded by any combination of the following command-\n"
-"line switches:\n"
-"\n"
-"    --name A\n"
-"      Sets the name of the animation to A.\n"
-"    --fps N\n"
-"      Sets the FPS of the animation to N (float).\n"
-"    --loop\n"
-"      Sets the loop flag for the animation.\n"
-"    --start N\n"
-"      Sets the first frame of the animation to N (integer).\n"
-"    --end N\n"
-"      Sets the last frame of the animation to N (integer).\n"
-"    --zup\n"
-"      Source model is in quake's orientation.\n"
+"    --name A			Sets the name of the animation to A.\n"
+"    --fps N            Sets the FPS of the animation to N (float).\n"
+"    --loop             Sets the loop flag for the animation.\n"
+"    --start N          Sets the first frame of the animation to N (integer).\n"
+"    --end N            Sets the last frame of the animation to N (integer).\n"
+"    --zup              Source model is in quake's orientation.\n"
 "\n"
 "You can supply either a mesh file, animation files, or both.\n"
 "Note that if an input mesh file is supplied, it must come before the animation\n"
 "files in the file list.\n"
 "The output IQM file will contain the supplied mesh and any supplied animations.\n"
-"If no mesh is provided,the IQM file will simply contain the supplied animations.\n"
-	);
+"If no mesh is provided,the IQM file will simply contain the supplied animations\n"
+"\n"
+"Command script commands:\n"
+"   hitbox BODYNUM BONENAME x y z x y z\n"
+"                       Attaches a hitbox surface around the specified bone\n"
+"                       (in base pose). Gamecode knows which part of the model\n"
+"                       was hit via the body value.\n"
+"   exec FILENAME       Reads additional commands from the specified file.\n"
+"                       Handy for shared animations.\n"
+"   modelflags FLAGS    Specifies the model's flags, mostly for trail effects.\n"
+"                       Known values are rocket, grenade, gib, rotate, tracer1,\n"
+"                       zomgib, tracer2, tracer3, or 0xXXXXXXXX\n"
+"   mesh NAME MESHPROPS Overrides properties for a specific source surface.\n"
+"   bone NAME BONEPROPS Overrides properties for a specific bone.\n"
+"   ANIMPROPS           Provides default values for following imported files.\n"
+"   import FILENAME [PROPS]\n"
+"                       Loads the specified file, with per-file properties.\n"
+"   output FILENAME     Specifies the iqm filename to write.\n"
+"   output_mdl FILENAME Specifies the (q1) mdl filename to write.\n"
+"\n"
+"Bone Properties:\n"
+"   rename NEWNAME      Renames the bone accordingly.\n"
+"   group GROUPID       Inherited from parents this allows resorting bones.\n"
+"\n"
+"Mesh Properties:\n"
+"   contents a[,b,c]    Override surface content values for collisons\n"
+"                       Accepted values are empty, solid, lava, slime, water,\n"
+"                       fluid, fte_ladder, playerclip, monsterclip, body,\n"
+"                       corpse, q2_ladder, fte_sky,	q3_nodrop,\n"
+"                       or 0xXXXXXXXX for custom values.\n"
+"   surfaceflags a[,b]  Specifies explicit surface flags values.\n"
+"                       Accepted values are nodraw, or custom 0xXXXXXXXX values.\n"
+"   body BODYNUM        Specifies mod-specific body numbers.\n"
+"   geomset GROUP IDX   Controls which geomset this surface is part of\n"
+"   lodrange min max    Specifies a distance range within which to draw this lod\n"
+"\n"
+"Anim Properties:\n"
+"   name NAME           Defines the output's name for this animation.\n"
+"   fps RATE            Controls the playback rate.\n"
+"   loop                Forces the animation(s) to loop.\n"
+"   clamp               Forces the animation(s) to not loop.\n"
+"   unpack              Extract each pose into its own single-pose 'animation'.\n"
+"   pack                Undoes the effect of 'unpack'.\n"
+"   nomesh 1            Skips importing of meshes, getting animations only.\n"
+"   noanim 1            Skips importing of animations, for mesh import only.\n"
+"   materialprefix PRE  Prefixes material names with the specified string.\n"
+"   ignoresurfname 1    Ignores source surface names.\n"
+"   start FRAME         The Imported animation starts on this frame...\n"
+"   end FRAME           ... and ends on this one.\n"
+"   rotate X Y Z        Rotates the input model by the specified angles.\n"
+"   scale FACTOR        Scales the input model by some value\n"
+"   origin X Y Z        Translates the input model.\n"
+"   event reset         Discard previously specified events\n"
+"   event [ANIMIDX:]TIME CODE \"VALUE\"\n"
+"                       Inserts a model event into the relevant animation index.\n"
+		);
 	exit(exitstatus);
 }
 
@@ -5778,7 +5839,7 @@ void parsecommands(char *filename, const char *outfiles[countof(outputtypes)], v
 
 int main(int argc, char **argv)
 {
-	if(argc <= 1) help(EXIT_FAILURE);
+	if(argc <= 1) help(EXIT_FAILURE, false);
 
 	vector<filespec> infiles;
 	vector<hitbox> hitboxes;
@@ -5790,11 +5851,13 @@ int main(int argc, char **argv)
 		{
 			if(argv[i][1] == '-')
 			{
-				if(!strcasecmp(&argv[i][2], "cmd")) { if(i + 1 < argc) parsecommands(argv[++i], outfiles, infiles, hitboxes); }
+				if(!strcasecmp(&argv[i][2], "set")) { if(i + 2 < argc) fte::Cvar_Create(argv[i+1], argv[i+2], 0, NULL, "cmdline");i+=2;}
+				else if(!strcasecmp(&argv[i][2], "cmd")) { if(i + 1 < argc) parsecommands(argv[++i], outfiles, infiles, hitboxes); }
 				else if(!strcasecmp(&argv[i][2], "noext")) noext = true;
 				else if(!strcasecmp(&argv[i][2], "fps")) { if(i + 1 < argc) inspec.fps = atof(argv[++i]); }
 				else if(!strcasecmp(&argv[i][2], "name")) { if(i + 1 < argc) inspec.name = argv[++i]; }
 				else if(!strcasecmp(&argv[i][2], "loop")) { inspec.flags |= IQM_LOOP; }
+				else if(!strcasecmp(&argv[i][2], "unpack")) { inspec.flags |= IQM_UNPACK; }
 				else if(!strcasecmp(&argv[i][2], "start")) { if(i + 1 < argc) inspec.startframe = max(atoi(argv[++i]), 0); }
 				else if(!strcasecmp(&argv[i][2], "end")) { if(i + 1 < argc) inspec.endframe = atoi(argv[++i]); }
 				else if(!strcasecmp(&argv[i][2], "scale")) { if(i + 1 < argc) inspec.scale = clamp(atof(argv[++i]), 1e-8, 1e8); }
@@ -5802,7 +5865,7 @@ int main(int argc, char **argv)
 				else if(!strcasecmp(&argv[i][2], "yup"))	inspec.rotate = Quat::fromangles(Vec3(0,-M_PI,0));
 				else if(!strcasecmp(&argv[i][2], "zup"))	inspec.rotate = Quat::fromdegrees(Vec3(0,-90,-90));
 				else if(!strcasecmp(&argv[i][2], "ignoresurfname")) inspec.ignoresurfname = true;
-				else if(!strcasecmp(&argv[i][2], "help")) help();
+				else if(!strcasecmp(&argv[i][2], "help")) help(EXIT_SUCCESS,true);
 				else if(!strcasecmp(&argv[i][2], "forcejoints")) forcejoints = true;
 				else if(!strcasecmp(&argv[i][2], "meshtrans"))
 				{
@@ -5815,7 +5878,7 @@ int main(int argc, char **argv)
 			else switch(argv[i][1])
 			{
 			case 'h':
-				help();
+				help(EXIT_SUCCESS,true);
 				break;
 			case 's':
 				if(i + 1 < argc) gscale = clamp(atof(argv[++i]), 1e-8, 1e8);
@@ -5934,9 +5997,12 @@ int main(int argc, char **argv)
 
 	calcanimdata();
 
-	conoutf("bone list:");
-	printbones();
-//	printbonelist();
+	if (!quiet)
+	{
+		conoutf("bone list:");
+		printbones();
+//		printbonelist();
+	}
 
 	if (!quiet)
 		conoutf("");

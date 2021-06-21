@@ -2037,7 +2037,7 @@ m-dbg:
 m-profile:
 	@$(MAKE) m-tmp TYPE=_clsv-profile OUT_DIR="$(PROFILE_DIR)/$(NCDIRPREFIX)$(MB_DIR)"
 
-.PHONY: m-tmp mcl-tmp mingl-tmp glcl-tmp gl-tmp sv-tmp _clsv-dbg _clsv-rel _cl-dbg _cl-rel _out-rel _out-dbg reldir debugdir makelibs wel-rel web-dbg httpserver iqm imgtool
+.PHONY: m-tmp mcl-tmp mingl-tmp glcl-tmp gl-tmp sv-tmp _clsv-dbg _clsv-rel _cl-dbg _cl-rel _out-rel _out-dbg reldir debugdir makelibs wel-rel web-dbg httpserver iqmtool imgtool
 
 
 _qcc-tmp: $(REQDIR)
@@ -2381,15 +2381,16 @@ $(RELEASE_DIR)/httpserver$(BITS)$(EXEPOSTFIX): $(HTTP_OBJECTS)
 httpserver: $(RELEASE_DIR)/httpserver$(BITS)$(EXEPOSTFIX)
 
 IQM_OBJECTS=../iqm/iqm.cpp ../imgtool.c client/image.c ../plugins/models/gltf.c
-$(RELEASE_DIR)/iqm$(BITS)$(EXEPOSTFIX): $(IQM_OBJECTS)
+$(RELEASE_DIR)/iqmtool$(BITS)$(EXEPOSTFIX): $(IQM_OBJECTS)
 ifdef windir
-	$(CC) -o $@ $(IQM_OBJECTS) -Icommon -Iclient -Iqclib -Igl -Iserver $(ALL_CFLAGS) $(CLIENTLIBFLAGS) -DIQMTOOL $(BASELDFLAGS) $(CLIENTLDDEPS) -static -lstdc++ -lm -Os
+	$(CC) -o $@ $(IQM_OBJECTS) -Icommon -Iclient -Iqclib -Igl -Iserver $(ALL_CFLAGS) $(CLIENTLIBFLAGS) -DIQMTOOL $(BASELDFLAGS) $(CLIENTLDDEPS) --static -static-libgcc -static-libstdc++ -lstdc++ -lm -Os
 else
-	$(CC) -o $@ $(IQM_OBJECTS) -Icommon -Iclient -Iqclib -Igl -Iserver $(ALL_CFLAGS) $(CLIENTLIBFLAGS) -DIQMTOOL $(BASELDFLAGS) $(CLIENTLDDEPS) -lstdc++ -lm -Os
+	$(CC) -o $@ $(IQM_OBJECTS) -Icommon -Iclient -Iqclib -Igl -Iserver $(ALL_CFLAGS) $(CLIENTLIBFLAGS) -DIQMTOOL $(BASELDFLAGS) $(CLIENTLDDEPS) --static -static-libgcc -static-libstdc++ -lstdc++ -lm -Os
 endif
-iqm-rel: $(RELEASE_DIR)/iqm$(BITS)$(EXEPOSTFIX)
+iqm-rel: $(RELEASE_DIR)/iqmtool$(BITS)$(EXEPOSTFIX)
+iqmtool-rel: $(RELEASE_DIR)/iqmtool$(BITS)$(EXEPOSTFIX)
 iqm: iqm-rel
-iqmtool: iqm-rel
+iqmtool: iqmtool-rel
 
 IMGTOOL_OBJECTS=../imgtool.c client/image.c
 $(RELEASE_DIR)/imgtool$(BITS)$(EXEPOSTFIX): $(IMGTOOL_OBJECTS)

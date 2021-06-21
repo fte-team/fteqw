@@ -10,6 +10,9 @@
 #ifdef IQMTOOL
 #define Con_Printf printf
 #define Con_DPrintf printf
+
+#undef CON_WARNING
+#define CON_WARNING
 #endif
 
 #ifdef SKELETALMODELS
@@ -49,10 +52,12 @@
 static plugmodfuncs_t *modfuncs;
 static plugfsfuncs_t *filefuncs;
 
+static cvar_t *mod_gltf_loop;
 static cvar_t *mod_gltf_scale;
 static cvar_t *mod_gltf_fixbuggyanims;
 static cvar_t *mod_gltf_privatematerials;
 static cvar_t *mod_gltf_ignoretechniques;
+static cvar_t *mod_gltf_standardorientation;
 
 #include <stdarg.h>
 void VARGS Q_snprintfcat (char *dest, size_t size, const char *fmt, ...)
@@ -2712,7 +2717,7 @@ static qboolean GLTF_ProcessNode(gltf_t *gltf, json_t *nodeid, double pmatrix[16
 					skinmatrix[i] = JSON_GetIndexedFloat(bdsm, i, ((i%5)==0)?1.0:0.0);
 			}
 		}
-		JSON_FlagAsUsed(node, "name");
+		JSON_FlagAsUsed(skin, "name");
 	}
 
 	if (gltf->ver <= 1)
@@ -3127,10 +3132,11 @@ static float *QDECL GLTF_AnimateBones(const galiasinfo_t *surf, const galiasanim
 		if (surf->ofsbones[j].parent < 0)
 		{	//rotate any root bones from gltf to quake's orientation.
 			float fnar[12];
-			float toquake[12]={
-				0,0,mod_gltf_scale->value, 0,
-				mod_gltf_scale->value,0,0, 0,
-				0,mod_gltf_scale->value,0, 0};
+			float toquake[12]={0};
+			if (mod_gltf_standardorientation->ival)
+				toquake[2] = toquake[4] = toquake[9] = mod_gltf_scale->value;
+			else
+				toquake[0] = toquake[5] = toquake[10] = mod_gltf_scale->value;
 			memcpy(fnar, bonematrix, sizeof(fnar));
 			modfuncs->ConcatTransforms((void*)toquake, (void*)fnar, (void*)bonematrix);
 		}
@@ -3250,11 +3256,16 @@ static qboolean GLTF_LoadModel(struct model_s *mod, char *json, size_t jsonsize,
 		scene = GLTF_FindJSONID_First(&gltf, "scenes", JSON_FindChild(gltf.r, "scene"), NULL);
 
 		memset(&rootmatrix, 0, sizeof(rootmatrix));
-#if 1	//transform from gltf to quake. mostly only needed for the base pose.
-		rootmatrix[2] = rootmatrix[4] = rootmatrix[9] = mod_gltf_scale->value; rootmatrix[15] = 1;
-#else
-		rootmatrix[0] = rootmatrix[5] = rootmatrix[10] = 1; rootmatrix[15] = 1;
-#endif
+		if (mod_gltf_standardorientation->ival)	//transform from gltf to quake. mostly only needed for the base pose.
+		{
+			rootmatrix[2] = rootmatrix[4] = rootmatrix[9] = mod_gltf_scale->value;
+			rootmatrix[15] = 1;
+		}
+		else	//identity orientation that violates gltf standards.
+		{
+			rootmatrix[0] = rootmatrix[5] = rootmatrix[10] = mod_gltf_scale->value;
+			rootmatrix[15] = 1;
+		}
 
 		n = JSON_FindChild(gltf.r, "nodes");
 		for (j = 0; ; j++)
@@ -3354,7 +3365,7 @@ static qboolean GLTF_LoadModel(struct model_s *mod, char *json, size_t jsonsize,
 					else
 						Q_snprintf(fg->name, sizeof(fg->name), "anim%u", (unsigned int)k);
 				}
-				fg->loop = true;
+				fg->loop = !!mod_gltf_loop->ival;
 				fg->skeltype = SKEL_RELATIVE;
 				for(chan = JSON_FindIndexedChild(anim, "channels", 0); chan; chan = chan->sibling)
 				{
@@ -3414,11 +3425,10 @@ static qboolean GLTF_LoadModel(struct model_s *mod, char *json, size_t jsonsize,
 				if (!maxtime)
 					maxtime = 1.0/30;	//some stuff doesn't like 0-length animations. divisions by 0 are not nice.
 				a->duration = maxtime;
-
 				//calc average framerate
 				fg->numposes = maxposes;
-				if (maxtime)
-					fg->rate = fg->numposes/maxtime;	//fix up the rate so we hit the exact end of the animation (so it doesn't have to be quite so exact).
+				if (maxtime&&fg->numposes>1)
+					fg->rate = (fg->numposes-1)/maxtime;	//fix up the rate so we hit the exact end of the animation (so it doesn't have to be quite so exact).
 				else
 					fg->rate = 60;
 
@@ -3460,11 +3470,40 @@ static qboolean GLTF_LoadModel(struct model_s *mod, char *json, size_t jsonsize,
 			surf->geomset = ~0;	//invalid set = always visible. FIXME: set this according to scene numbers?
 			surf->geomid = 0;
 		}
+
 		VectorScale(mod->mins, mod_gltf_scale->value, mod->mins);
 		VectorScale(mod->maxs, mod_gltf_scale->value, mod->maxs);
 
-		if (!mod->meshinfo)
+		if (!mod->meshinfo && numframegroups>0)
 			Con_Printf("%s: Doesn't contain any meshes...\n", mod->name);
+		else if (!mod_gltf_loop->ival)
+		{	//gltf doesn't specify if things loop or not.
+			//our lerping is between previous+next frames, we don't actually handle wrapping here, and our 'numframes' is entirely arbitrary.
+			//if the last frame and first frame are identical then its safe to say that it MAY loop, otherwise there'll be a judder when trying to do so.
+			//and if it does seem to loop okay, don't hold that last frame for an extra 1/fps when the repeats starts, just go snap straight to the first frame.
+			float *first = malloc(sizeof(*first)*12*gltf.numbones*2);
+			float *last = first+12*gltf.numbones;
+			galiasanimation_t *fg;
+			struct galiasanimation_gltf_s *a;
+			surf = mod->meshinfo;
+			for (k = 0; k < numframegroups; k++)
+			{
+				fg = &framegroups[k];
+				a = fg->boneofs;
+
+				fg->GetRawBones(surf, fg, 0, first, gltf.numbones);
+				fg->GetRawBones(surf, fg, a->duration, last, gltf.numbones);	//should fall on an exact frame.
+				for (j = 0; j < 12*gltf.numbones; j++)
+					if (first[j] != last[j])
+						break;
+				if (j == 12*gltf.numbones)
+				{
+					fg->loop = true;
+					fg->numposes--;
+				}
+			}
+			free(first);
+		}
 		JSON_WarnUnused(gltf.r, &gltf.warnlimit);
 	}
 	else
@@ -3541,11 +3580,14 @@ qboolean Plug_GLTF_Init(void)
 	mod_gltf_scale = cvarfuncs->GetNVFDG("mod_gltf_scale", "30", CVAR_RENDERERLATCH, "This defines the number of units per metre, in order to correctly load standard-scale gltf models.", "GLTF Models");
 	mod_gltf_fixbuggyanims = cvarfuncs->GetNVFDG("mod_gltf_fixbuggyanims", "1", CVAR_RENDERERLATCH, "Work around buggy exporters by merging animations that affect only a single bone.", "GLTF Models");
 #ifdef IQMTOOL
+	mod_gltf_loop = cvarfuncs->GetNVFDG("mod_gltf_loop", "0", CVAR_RENDERERLATCH, "This forces all gltf models to loop, instead of only when the last frame matches the first.", "GLTF Models");
 	mod_gltf_privatematerials = cvarfuncs->GetNVFDG("mod_gltf_privatematerials", "0", CVAR_RENDERERLATCH, "Add the model path to material names, to isolate them between different models.", "GLTF Models");
 #else
+	mod_gltf_loop = cvarfuncs->GetNVFDG("mod_gltf_loop", "1", CVAR_RENDERERLATCH, "This forces all gltf models to loop, instead of only when the last frame matches the first.", "GLTF Models");
 	mod_gltf_privatematerials = cvarfuncs->GetNVFDG("mod_gltf_privatematerials", "1", CVAR_RENDERERLATCH, "Add the model path to material names, to isolate them between different models.", "GLTF Models");
 #endif
-	mod_gltf_ignoretechniques = cvarfuncs->GetNVFDG("mod_gltf_ignoretechniques", "1", CVAR_RENDERERLATCH, "Ignore the gltf1 model-specific glsl. This is enabled by default because it just doesn't work very well.", "GLTF Models");
+	mod_gltf_ignoretechniques = cvarfuncs->GetNVFDG("mod_gltf_ignoretechniques", "1", CVAR_RENDERERLATCH, "Ignore the GLTF-1 model-specific glsl. This is enabled by default because it just doesn't work very well.", "GLTF Models");
+	mod_gltf_standardorientation = cvarfuncs->GetNVFDG("mod_gltf_standardorientation", "1", CVAR_RENDERERLATCH, "Transform GLTF files from standard y-up to Quake's z-up orientation. Set to 0 to violate the GLTF specification.", "GLTF Models");
 
 	if (modfuncs && filefuncs)
 	{

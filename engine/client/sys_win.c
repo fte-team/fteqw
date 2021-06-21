@@ -3005,14 +3005,7 @@ qboolean Sys_EngineMayUpdate(void)
 
 	if (!COM_CheckParm("-allowupdate"))
 	{
-		//no revision info in this build, meaning its custom built and thus cannot check against the available updated versions.
-		if (!strcmp(SVNREVISIONSTR, "-"))
-			return false;
-
-		//svn revision didn't parse as an exact number.	this implies it has an 'M' in it to mark it as modified.
-		//either way, its bad and autoupdates when we don't know what we're updating from is a bad idea.
-		strtoul(SVNREVISIONSTR, &e, 10);
-		if (!*SVNREVISIONSTR || *e)
+		if (revision_number(true) <= 0)
 			return false;
 	}
 

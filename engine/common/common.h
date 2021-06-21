@@ -939,6 +939,8 @@ unsigned int CalcHashInt(const hashfunc_t *hash, const unsigned char *data, size
 size_t CalcHash(const hashfunc_t *hash, unsigned char *digest, size_t maxdigestsize, const unsigned char *data, size_t datasize);
 size_t CalcHMAC(const hashfunc_t *hashfunc, unsigned char *digest, size_t maxdigestsize, const unsigned char *data, size_t datalen, const unsigned char *key, size_t keylen);
 
+int parse_revision_number(const char *revstr, qboolean strict);	//returns our 'svn' revision numbers
+int revision_number(qboolean strict);	//returns our 'svn' revision numbers
 int version_number(void);
 char *version_string(void);
 

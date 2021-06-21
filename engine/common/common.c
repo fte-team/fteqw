@@ -8112,6 +8112,60 @@ char *version_string(void)
 	return s;
 }
 
+//returns <=0 on error.
+//this function is useful for auto updates.
+int parse_revision_number(const char *s, qboolean strict)
+{
+	int rev;
+	char *e;
+
+	//no revision info in this build, meaning its custom built and thus cannot check against the available updated versions.
+	if (!s || !strcmp(s, "-") || !*s)
+		return false; //no version info at all.
+
+	if (!strncmp(s, "git-", 4))
+	{	//git gets messy and takes the form of one of the following...
+		//bad: git-XXXXXXXX[-dirty]
+		//git-tag-extracommits-hash[-dirty]
+		//if 'tag' is [R]VVVV then someone's tagging revisions to match svn revisions.
+		//if a fork wants to block updates, then they can either just disable engine updates or they can fiddle with this tagging stuff.
+		s+=4;
+		if (*s == 'r' || *s == 'R')
+			s++;	//R prefix is optional.
+
+		if (strict && strstr(s, "-dirty"))
+			return false;	//boo hiss.
+
+		rev = strtoul(s, &e, 10);
+		if (*e == '-')
+		{	//we used --long so this should be a count of extra commits
+			if (strtoul(e+1, &e, 10) && strict)
+				return false;	//doesn't exactly match the tag, and we're strict
+			if (*e != '-')
+				return false;	//no hash info? something odd is happening...
+			//hash is uninteresting.
+		}
+		else	//looks like there's no tag info there, just a commit hash. don't consider it a valid revision number.
+			return false;	//--long didn't
+	}
+	else
+	{
+		//[lower-]upper[M]
+		rev = strtoul(s, &e, 10);
+		if (*e && strict)
+			return false;	//something odd.
+	}
+	return rev;
+}
+int revision_number(qboolean strict)
+{
+#ifdef SVNREVISION
+	return parse_revision_number(STRINGIFY(SVNREVISION), strict);
+#else
+	return 0;
+#endif
+}
+
 //C90
 void COM_TimeOfDay(date_t *date)
 {

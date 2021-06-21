@@ -1860,6 +1860,7 @@ static package_t *PM_MarkedPackage(const char *packagename, int markflag)
 static void PM_RevertChanges(void)
 {
 	package_t *p;
+	int us = parse_revision_number(enginerevision, true), them;
 
 	if (pkg_updating)
 		return;
@@ -1868,7 +1869,8 @@ static void PM_RevertChanges(void)
 	{
 		if (p->flags & DPF_ENGINE)
 		{
-			if (!(p->flags & DPF_HIDDEN) && !strcmp(enginerevision, p->version) && (p->flags & DPF_PRESENT))
+			them = parse_revision_number(p->version, true);
+			if (!(p->flags & DPF_HIDDEN) && us && us==them && (p->flags & DPF_PRESENT))
 				p->flags |= DPF_AUTOMARKED;
 			else
 				p->flags &= ~DPF_MARKED;
@@ -2102,6 +2104,8 @@ unsigned int PM_MarkUpdates (void)
 {
 	unsigned int changecount = 0;
 	package_t *p, *o, *b, *e = NULL;
+	int bestengine = parse_revision_number(enginerevision, true);
+	int them;
 
 	if (manifestpackages)
 	{
@@ -2130,12 +2134,15 @@ unsigned int PM_MarkUpdates (void)
 
 	for (p = availablepackages; p; p = p->next)
 	{
-		if ((p->flags & DPF_ENGINE) && !(p->flags & DPF_HIDDEN))
+		if ((p->flags & DPF_ENGINE) && !(p->flags & DPF_HIDDEN) && bestengine>0 && PM_SignatureOkay(p))
 		{
+			them = parse_revision_number(p->version, true);
 			if (!(p->flags & DPF_TESTING) || pkg_autoupdate.ival >= UPD_TESTING)
-				if (!e || strcmp(e->version, p->version) < 0)	//package must be more recent than the previously found engine
-					if (strcmp(enginerevision, "-") && strcmp(enginerevision, p->version) < 0)	//package must be more recent than the current engine too, there's no point auto-updating to an older revision.
-						e = p;
+				if (them > bestengine)
+				{
+					e = p;
+					bestengine = them;
+				}
 		}
 		if (p->flags & DPF_MARKED)
 		{
@@ -4258,6 +4265,11 @@ qboolean PM_FindUpdatedEngine(char *syspath, size_t syspathsize)
 	struct packagedep_s *dep;
 	package_t *e = NULL, *p;
 	char *pfname;
+
+	int best = parse_revision_number(enginerevision, true);
+	int them;
+	if (best <= 0)
+		return false;	//no idea what revision we are, we might be more recent.
 	//figure out what we've previously installed.
 	PM_PreparePackageList();
 
@@ -4265,8 +4277,8 @@ qboolean PM_FindUpdatedEngine(char *syspath, size_t syspathsize)
 	{
 		if ((p->flags & DPF_ENGINE) && !(p->flags & DPF_HIDDEN) && p->fsroot == FS_ROOT)
 		{
-			if ((p->flags & DPF_ENABLED) && (!e || strcmp(e->version, p->version) < 0))
-			if (strcmp(enginerevision, "-") && strcmp(enginerevision, p->version) < 0)	//package must be more recent than the current engine too, there's no point auto-updating to an older revision.
+			them = parse_revision_number(p->version, true);
+			if ((p->flags & DPF_ENABLED) && them>best)
 			{
 				for (dep = p->deps, pfname = NULL; dep; dep = dep->next)
 				{
@@ -4283,7 +4295,10 @@ qboolean PM_FindUpdatedEngine(char *syspath, size_t syspathsize)
 				if (pfname && PM_CheckFile(pfname, p->fsroot))
 				{
 					if (FS_NativePath(pfname, p->fsroot, syspath, syspathsize))
+					{
 						e = p;
+						best = them;
+					}
 				}
 			}
 		}

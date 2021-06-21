@@ -578,22 +578,12 @@ qboolean Sys_SetUpdatedBinary(const char *newbinary)
 qboolean Sys_EngineMayUpdate(void)
 {
 	char enginebinary[MAX_OSPATH];
-	char *e;
 	int len;
 
-#define SVNREVISIONSTR STRINGIFY(SVNREVISION)
+	//if we can't get a revision number from our cflags then don't allow updates (unless forced on).
 	if (!COM_CheckParm("-allowupdate"))
-	{
-		//no revision info in this build, meaning its custom built and thus cannot check against the available updated versions.
-		if (!strcmp(SVNREVISIONSTR, "-"))
+		if (revision_number(true)<=0)
 			return false;
-
-		//svn revision didn't parse as an exact number.	this implies it has an 'M' in it to mark it as modified.
-		//either way, its bad and autoupdates when we don't know what we're updating from is a bad idea.
-		strtoul(SVNREVISIONSTR, &e, 10);
-		if (!*SVNREVISIONSTR || *e)
-			return false;
-	}
 
 	//update blocked via commandline
 	if (COM_CheckParm("-noupdate") || COM_CheckParm("--noupdate") || COM_CheckParm("-noautoupdate") || COM_CheckParm("--noautoupdate"))

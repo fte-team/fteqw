@@ -2580,6 +2580,13 @@ static void X_KeyEvent(XKeyEvent *ev, qboolean pressed, qboolean filtered)
 		case XK_KP_Enter:		key = K_KP_ENTER;	break;
 		case XK_Return:			key = K_ENTER;		 break;
 
+		case XK_Num_Lock:		key = K_KP_NUMLOCK;		break;
+		case XK_Caps_Lock:		key = K_CAPSLOCK;		break;
+		case XK_Scroll_Lock:	key = K_SCRLCK;			break;
+		case XK_Print:			key = K_PRINTSCREEN;	break;
+		case XK_Super_L:		key = K_LWIN;			break;
+		case XK_Super_R:		key = K_RWIN;			break;
+
 		case XK_Tab:			key = K_TAB;			 break;
 
 		case XK_F1:				key = K_F1;				break;

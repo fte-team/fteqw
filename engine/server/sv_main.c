@@ -5309,6 +5309,10 @@ float SV_Frame (void)
 		if (sv.state < ss_active)	//whoops...
 			return delay;
 
+		//make sure the worldmodel is actually valid...
+		if (sv.world.worldmodel && sv.world.worldmodel->loadstate != MLS_LOADED)
+			Mod_LoadModel(sv.world.worldmodel, MLV_ERROR);
+
 		SV_CheckVars ();
 
 // send messages back to the clients that had packets read this frame

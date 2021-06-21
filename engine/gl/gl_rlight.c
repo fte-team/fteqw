@@ -737,13 +737,16 @@ void R_PushDlights (void)
 		return;
 #endif
 
-	if (r_dynamic.ival <= 0|| !cl.worldmodel)
+	if (r_dynamic.ival <= 0|| !r_worldentity.model)
 		return;
 
-	if (!cl.worldmodel->nodes)
+	if (r_worldentity.model->loadstate != MLS_LOADED)
 		return;
 
-	currentmodel = cl.worldmodel;
+	if (!r_worldentity.model->nodes)
+		return;
+
+	currentmodel = r_worldentity.model;
 	if (!currentmodel->funcs.MarkLights)
 		return;
 	

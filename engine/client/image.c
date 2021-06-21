@@ -37,14 +37,8 @@ cvar_t r_dodgytgafiles = CVARD("r_dodgytgafiles", "0", "Many old glquake engines
 cvar_t r_dodgypcxfiles = CVARD("r_dodgypcxfiles", "0", "When enabled, this will ignore the palette stored within pcx files, for compatibility with quake2.");
 #endif
 cvar_t r_dodgymiptex = CVARD("r_dodgymiptex", "1", "When enabled, this will force regeneration of mipmaps, discarding mips1-4 like glquake did. This may eg solve fullbright issues with some maps, but may reduce distant detail levels.");
-static void QDECL R_Image_BuggyCvar (struct cvar_s *var, char *oldvalue)
-{	//force these cvars to value 1 if they're empty.
-	//cvars using this should be changed to 0 by default, once our engine bugs are debugged/fixed.
-	if (!*var->string)
-		var->ival = var->value = true;
-}
-cvar_t r_keepimages = CVARCD("r_keepimages", "", R_Image_BuggyCvar, "Retain unused images in memory for slightly faster map loading. FIXME: a setting of 0 may be crashy! (empty is treated as 1 for now).\n0: Redundant images will be purged after each map change.\n1: Images will be retained until vid_reload (potentially consuming a lot of ram).");
-cvar_t r_ignoremapprefixes = CVARCD("r_ignoremapprefixes", "", R_Image_BuggyCvar, "Ignores when textures were loaded from map-specific paths. FIXME: empty is currently interpretted as 1 because the alternative is too memory hungary with r_keepimages 1.");
+cvar_t r_keepimages = CVARD("r_keepimages", "0", "Retain unused images in memory for slightly faster map loading.\n0: Redundant images will be purged after each map change.\n1: Images will be retained until vid_reload (potentially consuming a lot of ram).");
+cvar_t r_ignoremapprefixes = CVARD("r_ignoremapprefixes", "0",  "Ignores when textures were loaded from map-specific paths.\n0: textures/foo/tex.tga will not be confused with textures/foo/tex.tga.\n1: The same texture might be loaded multiple times over.");
 
 char *r_defaultimageextensions =
 #ifdef IMAGEFMT_DDS

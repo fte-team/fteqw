@@ -6383,6 +6383,8 @@ double Host_Frame (double time)
 			cl.playerview[i].audio.reverbtype = 0;
 			VectorClear(cl.playerview[i].audio.velocity);
 		}
+		if (cls.state && r_worldentity.model && r_worldentity.model->loadstate == MLS_NOTLOADED)
+			Mod_LoadModel(cl.worldmodel, MLV_WARNSYNC);
 
 		if (SCR_UpdateScreen && !vid.isminimized)
 		{

@@ -505,15 +505,18 @@ qboolean Mod_PurgeModel(model_t	*mod, enum mod_purge_e ptype)
 
 #ifdef TERRAIN
 	//we can safely flush all terrain sections at any time
-	if (mod->terrain && ptype != MP_MAPCHANGED)
+	if (mod->terrain)
+	{
+		if (ptype == MP_MAPCHANGED)
+			return false;	//don't destroy any data there that the user might want to save. FIXME: handle better.
 		Terr_PurgeTerrainModel(mod, false, true);
+	}
 #endif
 
 	//purge any vbos
 	if (mod->type == mod_brush)
 	{
-		//brush models cannot be safely flushed.
-		if (ptype != MP_RESET)
+		if (ptype == MP_FLUSH)
 			return false;
 #ifndef SERVERONLY
 		Surf_Clear(mod);
@@ -522,12 +525,7 @@ qboolean Mod_PurgeModel(model_t	*mod, enum mod_purge_e ptype)
 
 #ifdef TERRAIN
 	if (mod->type == mod_brush || mod->type == mod_heightmap)
-	{
-		//heightmap/terrain models cannot be safely flushed (brush models might have terrain embedded).
-		if (ptype != MP_RESET)
-			return false;
 		Terr_FreeModel(mod);
-	}
 #endif
 	if (mod->type == mod_alias)
 	{
@@ -1004,6 +1002,8 @@ void Mod_ModelLoaded(void *ctx, void *data, size_t a, size_t b)
 	if (mod->type == mod_brush)
 	{
 		Surf_BuildModelLightmaps(mod);
+		r_oldviewcluster = -1;	//just in case.
+		r_oldviewcluster2 = -2;
 	}
 	if (mod->type == mod_sprite)
 	{

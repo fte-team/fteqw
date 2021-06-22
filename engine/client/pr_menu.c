@@ -803,7 +803,7 @@ void QCBUILTIN PF_CL_is_cached_pic (pubprogfuncs_t *prinst, struct globalvars_s 
 {
 	const char	*str;
 	str = PR_GetStringOfs(prinst, OFS_PARM0);
-	G_FLOAT(OFS_RETURN) = !!R_RegisterCustom(str, SUF_2D, NULL, NULL);
+	G_FLOAT(OFS_RETURN) = !!R_RegisterCustom(NULL, str, SUF_2D, NULL, NULL);
 }
 
 void QCBUILTIN PF_CL_precache_pic (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
@@ -1231,7 +1231,7 @@ void QCBUILTIN PF_SubConGetSet (pubprogfuncs_t *prinst, struct globalvars_s *pr_
 			Q_strncpyz(con->backimage, "", sizeof(con->backimage));
 			if (con->backshader)
 				R_UnloadShader(con->backshader);
-			con->backshader = R_RegisterCustom(va("consolevid_%s", con->name), SUF_NONE, Shader_DefaultCinematic, value);
+			con->backshader = R_RegisterCustom(NULL, va("consolevid_%s", con->name), SUF_NONE, Shader_DefaultCinematic, value);
 		}
 	}
 }

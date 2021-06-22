@@ -3150,7 +3150,7 @@ void R_GeneratedWorldEBO(void *ctx, void *data, size_t a_, size_t b_)
 				//while we could figure out this info, there would be a lot of vertexes that are not referenced, which would be horrendously slow.
 				if (b->shader->flags & SHADER_SKY)
 					continue;
-				b->shader = R_RegisterShader_Vertex("unsupported");
+				b->shader = R_RegisterShader_Vertex(mod, "unsupported");
 			}
 
 			m->numvertexes = webostate->batches[i].b.vbo->vertcount;

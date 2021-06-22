@@ -719,7 +719,7 @@ static void P_LoadTexture(part_type_t *ptype, qboolean warn)
 		case BM_RTSMOKE:	bmpostfix = "#RTSMOKE"; break;
 		}
 		/*try and load the shader, fail if we would need to generate one*/
-		ptype->looks.shader = R_RegisterCustom(va("%s%s", ptype->texname, bmpostfix), SUF_NONE, NULL, NULL);
+		ptype->looks.shader = R_RegisterCustom(NULL, va("%s%s", ptype->texname, bmpostfix), SUF_NONE, NULL, NULL);
 	}
 	else
 		ptype->looks.shader = NULL;

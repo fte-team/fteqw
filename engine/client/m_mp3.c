@@ -2583,7 +2583,7 @@ static qboolean Media_BeginNextFilm(void)
 		return false;
 	}
 
-	videoshader = R_RegisterCustom(sname, SUF_NONE, Shader_DefaultCinematic, p->name);
+	videoshader = R_RegisterCustom(NULL, sname, SUF_NONE, Shader_DefaultCinematic, p->name);
 
 	cin = R_ShaderGetCinematic(videoshader);
 	if (cin)
@@ -2885,7 +2885,7 @@ void Media_PlayVideoWindowed_f (void)
 	console_t *con;
 	if (!qrenderer)
 		return;
-	s = R_RegisterCustom(va("consolevid_%s", videomap), SUF_NONE, Shader_DefaultCinematic, videomap);
+	s = R_RegisterCustom(NULL, va("consolevid_%s", videomap), SUF_NONE, Shader_DefaultCinematic, videomap);
 	if (!R_ShaderGetCinematic(s))
 	{
 		R_UnloadShader(s);

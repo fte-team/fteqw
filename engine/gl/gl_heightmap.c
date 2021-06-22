@@ -159,7 +159,7 @@ static void QDECL Terr_LoadSectionTextures(hmsection_t *s)
 	}
 	for (w = s->water; w; w = w->next)
 	{
-		w->shader = R_RegisterCustom (w->shadername, SUF_NONE, Shader_DefaultWaterShader, NULL);
+		w->shader = R_RegisterCustom (NULL, w->shadername, SUF_NONE, Shader_DefaultWaterShader, NULL);
 		R_BuildDefaultTexnums(NULL, w->shader, IF_WORLDTEX);	//this might get expensive. hideously so.
 	}
 #endif
@@ -5505,7 +5505,7 @@ void Terr_FinishTerrain(model_t *mod)
 	{
 		if (*hm->skyname)
 		{
-			hm->skyshader = R_RegisterCustom(va("skybox_%s", hm->skyname), SUF_NONE, Shader_DefaultSkybox, NULL);
+			hm->skyshader = R_RegisterCustom(mod, va("skybox_%s", hm->skyname), SUF_NONE, Shader_DefaultSkybox, NULL);
 			if (!hm->skyshader->skydome)
 				hm->skyshader = NULL;
 		}
@@ -5930,13 +5930,13 @@ void Terr_Brush_Draw(heightmap_t *hm, batch_t **batches, entity_t *e)
 			const miptex_t *tx = NULL;
 #endif
 
-			bt->shader = R_RegisterCustom (va("textures/%s", bt->shadername), SUF_LIGHTMAP, NULL, NULL);
+			bt->shader = R_RegisterCustom (NULL, va("textures/%s", bt->shadername), SUF_LIGHTMAP, NULL, NULL);
 			if (!bt->shader)
 			{
 				if (!Q_strcasecmp(bt->shadername, "clip") || !Q_strcasecmp(bt->shadername, "hint") || !Q_strcasecmp(bt->shadername, "skip"))
 					bt->shader = R_RegisterShader(bt->shadername, SUF_LIGHTMAP, "{\nsurfaceparm nodraw\n}");
 				else
-					bt->shader = R_RegisterCustom (bt->shadername, SUF_LIGHTMAP, Shader_DefaultBSPQ1, NULL);
+					bt->shader = R_RegisterCustom (NULL, bt->shadername, SUF_LIGHTMAP, Shader_DefaultBSPQ1, NULL);
 //					bt->shader = R_RegisterShader_Lightmap(bt->shadername);
 			}
 

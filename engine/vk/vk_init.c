@@ -2756,7 +2756,7 @@ void	VK_R_RenderView				(void)
 	{
 		if (*r_postprocshader.string)
 		{
-			custompostproc = R_RegisterCustom(r_postprocshader.string, SUF_NONE, NULL, NULL);
+			custompostproc = R_RegisterCustom(NULL, r_postprocshader.string, SUF_NONE, NULL, NULL);
 			if (custompostproc)
 				r_refdef.flags |= RDF_CUSTOMPOSTPROC;
 		}

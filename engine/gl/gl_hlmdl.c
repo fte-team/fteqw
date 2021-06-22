@@ -1592,7 +1592,7 @@ void R_HalfLife_GenerateBatches(entity_t *rent, batch_t **batches)
 				if (s->defaultshadertext)
 					s->shader = R_RegisterShader(s->name, SUF_NONE, s->defaultshadertext);
 				else
-					s->shader = R_RegisterSkin(s->name, rent->model->name);
+					s->shader = R_RegisterSkin(rent->model, s->name);
 //				R_BuildDefaultTexnums(&s->defaulttex, s->shader, 0);
 			}
 

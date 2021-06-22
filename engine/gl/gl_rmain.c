@@ -2074,7 +2074,7 @@ void GLR_RenderView (void)
 		if (r_fxaa.ival)
 			r_refdef.flags |= RDF_ANTIALIAS;
 		if (*r_postprocshader.string)
-			custompostproc = R_RegisterCustom(r_postprocshader.string, SUF_NONE, NULL, NULL);
+			custompostproc = R_RegisterCustom(NULL, r_postprocshader.string, SUF_NONE, NULL, NULL);
 		else if (!r_graphics.ival)
 			custompostproc = R_RegisterShader("postproc_ascii", 0, 
 				"{\n"

@@ -2090,6 +2090,8 @@ float MSG_ReadCoord (void)
 	coorddata c = {{0}};
 	if (net_message.prim.coordtype == COORDTYPE_UNDEFINED)
 		net_message.prim.coordtype = COORDTYPE_FIXED_13_3;
+	if ((net_message.prim.coordtype&COORDTYPE_SIZE_MASK)>sizeof(c))
+		return 0;
 	MSG_ReadData(c.b, net_message.prim.coordtype&COORDTYPE_SIZE_MASK);
 	return MSG_FromCoord(c, net_message.prim.coordtype);
 }

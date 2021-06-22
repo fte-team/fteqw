@@ -2296,7 +2296,7 @@ static int Con_DrawConsoleLines(console_t *con, conline_t *l, float displayscrol
 					{
 						char *fl = Info_ValueForKey(linkinfo, "imgtype");
 						if (*fl)
-							pic = R_RegisterCustom(imgname, atoi(fl), NULL, NULL);
+							pic = R_RegisterCustom(NULL, imgname, atoi(fl), NULL, NULL);
 						else
 							pic = R_RegisterPic(imgname, NULL);
 						if (pic)
@@ -2844,7 +2844,7 @@ static void Con_DrawMouseOver(console_t *mouseconsole)
 				{
 					char *fl = Info_ValueForKey(info, "tipimgtype");
 					if (*fl)
-						shader = R_RegisterCustom(key, atoi(fl), NULL, NULL);
+						shader = R_RegisterCustom(NULL, key, atoi(fl), NULL, NULL);
 					else
 						shader = R2D_SafeCachePic(key);
 				}

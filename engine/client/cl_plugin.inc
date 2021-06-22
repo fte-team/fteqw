@@ -1038,7 +1038,7 @@ static qboolean QDECL Plug_Con_SetConsoleString(const char *conname, const char 
 		if (con->backshader)
 			R_UnloadShader(con->backshader);
 		if (qrenderer != QR_NONE)
-			con->backshader = R_RegisterCustom(va("consolevid_%s", con->name), SUF_NONE, Shader_DefaultCinematic, value);
+			con->backshader = R_RegisterCustom(NULL, va("consolevid_%s", con->name), SUF_NONE, Shader_DefaultCinematic, value);
 		else
 			con->backshader = NULL;
 	}

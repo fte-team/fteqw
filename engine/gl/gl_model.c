@@ -1439,7 +1439,7 @@ static const char *Mod_RemapBuggyTexture(const char *name, const qbyte *data, un
 	return NULL;
 }
 
-static void Mod_FinishTexture(texture_t *tx, const char *loadname, qboolean safetoloadfromwads)
+static void Mod_FinishTexture(model_t *mod, texture_t *tx, const char *loadname, qboolean safetoloadfromwads)
 {
 	extern cvar_t gl_shadeq1_name;
 	char altname[MAX_QPATH];
@@ -1470,7 +1470,7 @@ static void Mod_FinishTexture(texture_t *tx, const char *loadname, qboolean safe
 			shadername = altname;
 		}
 
-		tx->shader = R_RegisterCustom (shadername, SUF_LIGHTMAP, Shader_DefaultBSPQ1, NULL);
+		tx->shader = R_RegisterCustom (mod, shadername, SUF_LIGHTMAP, Shader_DefaultBSPQ1, NULL);
 
 		if (!tx->srcdata && !safetoloadfromwads)
 			return;
@@ -1523,7 +1523,7 @@ void Mod_NowLoadExternal(model_t *loadmodel)
 		if (tx->srcdata)
 			continue;
 
-		Mod_FinishTexture(tx, loadname, true);
+		Mod_FinishTexture(loadmodel, tx, loadname, true);
 	}
 #endif
 }
@@ -5073,7 +5073,7 @@ void ModBrush_LoadGLStuff(void *ctx, void *data, size_t a, size_t b)
 	{	//submodels share textures, so only do this if 'a' is 0 (inline index, 0 = world).
 		for (a = 0; a < mod->numfogs; a++)
 		{
-			mod->fogs[a].shader = R_RegisterShader_Lightmap(mod->fogs[a].shadername);
+			mod->fogs[a].shader = R_RegisterShader_Lightmap(mod, mod->fogs[a].shadername);
 			R_BuildDefaultTexnums(NULL, mod->fogs[a].shader, IF_WORLDTEX);
 			if (!mod->fogs[a].shader->fog_dist)
 			{
@@ -5090,10 +5090,10 @@ void ModBrush_LoadGLStuff(void *ctx, void *data, size_t a, size_t b)
 			{
 				for(a = 0; a < mod->numtexinfo; a++)
 				{
-					mod->textures[a]->shader = R_RegisterShader_Lightmap(va("%s#BUMPMODELSPACE", mod->textures[a]->name));
+					mod->textures[a]->shader = R_RegisterShader_Lightmap(mod, va("%s#BUMPMODELSPACE", mod->textures[a]->name));
 					R_BuildDefaultTexnums(NULL, mod->textures[a]->shader, IF_WORLDTEX);
 
-					mod->textures[a+mod->numtexinfo]->shader = R_RegisterShader_Vertex (va("%s#VERTEXLIT", mod->textures[a+mod->numtexinfo]->name));
+					mod->textures[a+mod->numtexinfo]->shader = R_RegisterShader_Vertex (mod, va("%s#VERTEXLIT", mod->textures[a+mod->numtexinfo]->name));
 					R_BuildDefaultTexnums(NULL, mod->textures[a+mod->numtexinfo]->shader, IF_WORLDTEX);
 				}
 			}
@@ -5101,14 +5101,14 @@ void ModBrush_LoadGLStuff(void *ctx, void *data, size_t a, size_t b)
 			{
 				for(a = 0; a < mod->numtexinfo; a++)
 				{
-					mod->textures[a]->shader = R_RegisterShader_Lightmap(mod->textures[a]->name);
+					mod->textures[a]->shader = R_RegisterShader_Lightmap(mod, mod->textures[a]->name);
 					R_BuildDefaultTexnums(NULL, mod->textures[a]->shader, IF_WORLDTEX);
 
-					mod->textures[a+mod->numtexinfo]->shader = R_RegisterShader_Vertex (va("%s#VERTEXLIT", mod->textures[a+mod->numtexinfo]->name));
+					mod->textures[a+mod->numtexinfo]->shader = R_RegisterShader_Vertex (mod, va("%s#VERTEXLIT", mod->textures[a+mod->numtexinfo]->name));
 					R_BuildDefaultTexnums(NULL, mod->textures[a+mod->numtexinfo]->shader, IF_WORLDTEX);
 				}
 			}
-			mod->textures[2*mod->numtexinfo]->shader = R_RegisterShader_Flare("noshader");
+			mod->textures[2*mod->numtexinfo]->shader = R_RegisterShader_Flare(mod, "noshader");
 		}
 		else
 #endif
@@ -5119,7 +5119,7 @@ void ModBrush_LoadGLStuff(void *ctx, void *data, size_t a, size_t b)
 			for(a = 0; a < mod->numtextures; a++)
 			{
 				unsigned int maps = 0;
-				mod->textures[a]->shader = R_RegisterCustom (mod->textures[a]->name, SUF_LIGHTMAP, Shader_DefaultBSPQ2, NULL);
+				mod->textures[a]->shader = R_RegisterCustom (mod, mod->textures[a]->name, SUF_LIGHTMAP, Shader_DefaultBSPQ2, NULL);
 
 				maps |= SHADER_HASPALETTED;
 				maps |= SHADER_HASDIFFUSE;
@@ -5141,7 +5141,7 @@ void ModBrush_LoadGLStuff(void *ctx, void *data, size_t a, size_t b)
 			if (!strncmp(loadname, "b_", 2))
 				Q_strncpyz(loadname, "bmodels", sizeof(loadname));
 			for(a = 0; a < mod->numtextures; a++)
-				Mod_FinishTexture(mod->textures[a], loadname, false);
+				Mod_FinishTexture(mod, mod->textures[a], loadname, false);
 		}
 	}
 	Mod_Batches_Build(mod, data);

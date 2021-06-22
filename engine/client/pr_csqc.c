@@ -1589,7 +1589,7 @@ static shader_t *PR_R_PolygonShader(const char *shadername, qboolean twod)
 	else if (twod)
 		shader = R_RegisterPic(shadername, NULL);
 	else
-		shader = R_RegisterCustom(shadername, 0, Shader_PolygonShader, NULL);
+		shader = R_RegisterCustom(NULL, shadername, 0, Shader_PolygonShader, NULL);
 	return shader;
 }
 

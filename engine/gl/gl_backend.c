@@ -4203,7 +4203,7 @@ static qboolean GLBE_RegisterLightShader(int mode)
 			);
 
 		shaderstate.inited_shader_light[mode] = true;
-		shaderstate.shader_light[mode] = R_RegisterCustom(name, SUF_NONE, Shader_LightPass, NULL);
+		shaderstate.shader_light[mode] = R_RegisterCustom(NULL, name, SUF_NONE, Shader_LightPass, NULL);
 	}
 
 	if (shaderstate.shader_light[mode])

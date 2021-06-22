@@ -600,6 +600,7 @@ enum
 struct shader_s
 {
 	char name[MAX_QPATH];
+	struct model_s *model;
 	enum {
 		SUF_NONE		= 0,
 		SUF_LIGHTMAP	= 1<<0,	//$lightmap passes are valid. otherwise collapsed to an rgbgen
@@ -720,11 +721,11 @@ void R_UnloadShader(shader_t *shader);
 int R_GetShaderSizes(shader_t *shader, int *width, int *height, qboolean blocktillloaded);
 shader_t *R_RegisterPic (const char *name, const char *subdirs);
 shader_t *QDECL R_RegisterShader (const char *name, unsigned int usageflags, const char *shaderscript);
-shader_t *R_RegisterShader_Lightmap (const char *name);
-shader_t *R_RegisterShader_Vertex (const char *name);
-shader_t *R_RegisterShader_Flare (const char *name);
-shader_t *QDECL R_RegisterSkin  (const char *shadername, const char *modname);
-shader_t *R_RegisterCustom (const char *name, unsigned int usageflags, shader_gen_t *defaultgen, const void *args);
+shader_t *R_RegisterShader_Lightmap (model_t *mod, const char *name);
+shader_t *R_RegisterShader_Vertex (model_t *mod, const char *name);
+shader_t *R_RegisterShader_Flare (model_t *mod, const char *name);
+shader_t *QDECL R_RegisterSkin  (model_t *mod, const char *shadername);
+shader_t *R_RegisterCustom (model_t *mod, const char *name, unsigned int usageflags, shader_gen_t *defaultgen, const void *args);
 //once loaded, most shaders should have one of the following two calls used upon it
 void QDECL R_BuildDefaultTexnums(texnums_t *tn, shader_t *shader, unsigned int imageflags);
 void QDECL R_BuildLegacyTexnums(shader_t *shader, const char *fallbackname, const char *subpath, unsigned int loadflags, unsigned int imageflags, uploadfmt_t basefmt, size_t width, size_t height, qbyte *mipdata, qbyte *palette);

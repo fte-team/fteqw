@@ -3301,7 +3301,7 @@ void Mod_LoadAliasShaders(model_t *mod)
 						if ((ai->csurface.flags & 0x80) || dpcompat_skinfiles.ival)	//nodraw
 							f->shader = R_RegisterShader(f->shadername, SUF_NONE,	"{\nsurfaceparm nodraw\nsurfaceparm nodlight\nsurfaceparm nomarks\nsurfaceparm noshadows\n}\n");
 						else
-							f->shader = R_RegisterSkin(f->shadername, mod->name);
+							f->shader = R_RegisterSkin(mod, f->shadername);
 					}
 					else
 						f->shader = R_RegisterShader(f->shadername, SUF_NONE, f->defaultshader);

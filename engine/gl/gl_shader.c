@@ -2787,12 +2787,12 @@ static void Shader_BEMode(parsestate_t *ps, const char **ptr)
 																""
 #endif
 																);
-			shader->bemoverrides[mode] = R_RegisterCustom(subname, shader->usageflags|(embed?SUR_FORCEFALLBACK:0), embed?Shader_DefaultScript:NULL, embed);
+			shader->bemoverrides[mode] = R_RegisterCustom(shader->model, subname, shader->usageflags|(embed?SUR_FORCEFALLBACK:0), embed?Shader_DefaultScript:NULL, embed);
 		}
 	}
 	else
 	{
-		shader->bemoverrides[mode] = R_RegisterCustom(tokencopy, shader->usageflags|(embed?SUR_FORCEFALLBACK:0), embed?Shader_DefaultScript:NULL, embed);
+		shader->bemoverrides[mode] = R_RegisterCustom(shader->model, tokencopy, shader->usageflags|(embed?SUR_FORCEFALLBACK:0), embed?Shader_DefaultScript:NULL, embed);
 	}
 	if (embed)
 		BZ_Free(embed);
@@ -4363,6 +4363,7 @@ void Shader_Reset(shader_t *s)
 	float dtrate = s->defaulttextures_fps;	//FIXME!
 	int w = s->width;
 	int h = s->height;
+	model_t *mod = s->model;
 	unsigned int uf = s->usageflags;
 	Q_strncpyz(name, s->name, sizeof(name));
 	s->genargs = NULL;
@@ -4375,6 +4376,7 @@ void Shader_Reset(shader_t *s)
 	s->id = id;
 	s->width = w;
 	s->height = h;
+	s->model = mod;
 	s->defaulttextures = dt;
 	s->numdefaulttextures = dtcount;
 	s->defaulttextures_fps = dtrate;
@@ -7339,7 +7341,7 @@ void R_UnloadShader(shader_t *shader)
 	if (--shader->uses == 0)
 		Shader_Free(shader);
 }
-static shader_t *R_LoadShader (const char *name, unsigned int usageflags, shader_gen_t *defaultgen, const char *genargs)
+static shader_t *R_LoadShader (model_t *mod, const char *name, unsigned int usageflags, shader_gen_t *defaultgen, const char *genargs)
 {
 	int i, f = -1;
 	char cleanname[MAX_QPATH];
@@ -7357,6 +7359,7 @@ static shader_t *R_LoadShader (const char *name, unsigned int usageflags, shader
 	s = Hash_Get(&shader_active_hash, cleanname);
 	while (s)
 	{
+		if (!mod || s->model == mod)
 		//make sure the same texture can be used as either a lightmap or vertexlit shader
 		//if it has an explicit shader overriding it then that still takes precidence. we might just have multiple copies of it.
 		//q3 has a separate (internal) shader for every lightmap.
@@ -7432,6 +7435,7 @@ static shader_t *R_LoadShader (const char *name, unsigned int usageflags, shader
 			memset(s->defaulttextures, 0, sizeof(*s->defaulttextures));
 		s->numdefaulttextures = 0;
 		Q_strncpyz(s->name, cleanname, sizeof(s->name));
+		s->model = mod;
 		s->usageflags = usageflags;
 		s->generator = defaultgen;
 		s->width = 0;
@@ -7904,11 +7908,11 @@ char *Shader_GetShaderBody(shader_t *s, char *fname, size_t fnamesize)
 void Shader_ShowShader_f(void)
 {
 	char *sourcename = Cmd_Argv(1);
-	shader_t *o = R_LoadShader(sourcename, SUF_NONE, NULL, NULL);
+	shader_t *o = R_LoadShader(NULL, sourcename, SUF_NONE, NULL, NULL);
 	if (!o)
-		o = R_LoadShader(sourcename, SUF_LIGHTMAP, NULL, NULL);
+		o = R_LoadShader(NULL, sourcename, SUF_LIGHTMAP, NULL, NULL);
 	if (!o)
-		o = R_LoadShader(sourcename, SUF_2D, NULL, NULL);
+		o = R_LoadShader(NULL, sourcename, SUF_2D, NULL, NULL);
 	if (o)
 	{
 		char fname[256];
@@ -8144,7 +8148,7 @@ void R_RemapShader(const char *sourcename, const char *destname, float timeoffse
 		{
 			if (!strncmp(o->name, cleansrcname, l) && (!o->name[l] || o->name[l]=='#'))
 			{
-				n = R_LoadShader (va("%s%s", destname, o->name+l), o->usageflags, NULL, NULL);
+				n = R_LoadShader (o->model, va("%s%s", destname, o->name+l), o->usageflags, NULL, NULL);
 				if (!n)
 				{	//if it isn't actually available on disk then don't care about usageflags, just find ANY that's already loaded.
 					// check the hash first
@@ -8305,31 +8309,31 @@ int R_GetShaderSizes(shader_t *shader, int *width, int *height, qboolean blockti
 shader_t *R_RegisterPic (const char *name, const char *subdirs)
 {
 	shader_t *shader;
-	shader = R_LoadShader (name, SUF_2D, Shader_Default2D, subdirs);
+	shader = R_LoadShader (NULL, name, SUF_2D, Shader_Default2D, subdirs);
 	return shader;
 }
 
 shader_t *QDECL R_RegisterShader (const char *name, unsigned int usageflags, const char *shaderscript)
 {
-	return R_LoadShader (name, usageflags, Shader_DefaultScript, shaderscript);
+	return R_LoadShader (NULL, name, usageflags, Shader_DefaultScript, shaderscript);
 }
 
-shader_t *R_RegisterShader_Lightmap (const char *name)
+shader_t *R_RegisterShader_Lightmap (model_t *mod, const char *name)
 {
-	return R_LoadShader (name, SUF_LIGHTMAP, Shader_DefaultBSPLM, NULL);
+	return R_LoadShader (mod, name, SUF_LIGHTMAP, Shader_DefaultBSPLM, NULL);
 }
 
-shader_t *R_RegisterShader_Vertex (const char *name)
+shader_t *R_RegisterShader_Vertex (model_t *mod, const char *name)
 {
-	return R_LoadShader (name, 0, Shader_DefaultBSPVertex, NULL);
+	return R_LoadShader (mod, name, 0, Shader_DefaultBSPVertex, NULL);
 }
 
-shader_t *R_RegisterShader_Flare (const char *name)
+shader_t *R_RegisterShader_Flare (model_t *mod, const char *name)
 {
-	return R_LoadShader (name, 0, Shader_DefaultBSPFlare, NULL);
+	return R_LoadShader (mod, name, 0, Shader_DefaultBSPFlare, NULL);
 }
 
-shader_t *QDECL R_RegisterSkin (const char *shadername, const char *modname)
+shader_t *QDECL R_RegisterSkin (model_t *mod, const char *shadername)
 {
 	char newsname[MAX_QPATH];
 	shader_t *shader;
@@ -8339,8 +8343,9 @@ shader_t *QDECL R_RegisterSkin (const char *shadername, const char *modname)
 #endif
 
 	newsname[0] = 0;
-	if (modname && !strchr(shadername, '/') && *shadername)
+	if (mod && !strchr(shadername, '/') && *shadername)
 	{
+		char *modname = mod->name;
 		char *b = COM_SkipPath(modname);
 		if (b != modname && b-modname + strlen(shadername)+1 < sizeof(newsname))
 		{
@@ -8356,11 +8361,11 @@ shader_t *QDECL R_RegisterSkin (const char *shadername, const char *modname)
 	}
 	else
 		Q_strncpyz(newsname, "models", sizeof(newsname));
-	shader = R_LoadShader (shadername, 0, Shader_DefaultSkin, newsname);
+	shader = R_LoadShader (mod, shadername, 0, Shader_DefaultSkin, newsname);
 	return shader;
 }
-shader_t *R_RegisterCustom (const char *name, unsigned int usageflags, shader_gen_t *defaultgen, const void *args)
+shader_t *R_RegisterCustom (model_t *mod, const char *name, unsigned int usageflags, shader_gen_t *defaultgen, const void *args)
 {
-	return R_LoadShader (name, usageflags, defaultgen, args);
+	return R_LoadShader (mod, name, usageflags, defaultgen, args);
 }
 #endif //SERVERONLY

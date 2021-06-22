@@ -910,7 +910,7 @@ void QCBUILTIN PF_shaderforname (pubprogfuncs_t *prinst, struct globalvars_s *pr
 	if (*defaultbody)
 		shad = R_RegisterShader(str, SUF_NONE, defaultbody);
 	else
-		shad = R_RegisterSkin(str, NULL);
+		shad = R_RegisterSkin(NULL, str);
 	if (shad)
 		G_FLOAT(OFS_RETURN) = shad->id+1;
 	else

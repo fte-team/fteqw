@@ -464,7 +464,7 @@ mpic_t *R2D_SafePicFromWad (const char *name)
 	shader_t *s;
 	if (!qrenderer)
 		return NULL;
-	s = R_RegisterCustom (va("gfx/%s", name), SUF_2D, Shader_Default2D, "wad");
+	s = R_RegisterCustom (NULL, va("gfx/%s", name), SUF_2D, Shader_Default2D, "wad");
 	return s;
 }
 
@@ -1032,7 +1032,7 @@ void QDECL R2D_Conback_Callback(struct cvar_s *var, char *oldvalue)
 
 	if (!R_GetShaderSizes(conback, NULL, NULL, true))
 	{
-		conback = R_RegisterCustom("console", SUF_2D, NULL, NULL);	//quake3
+		conback = R_RegisterCustom(NULL, "console", SUF_2D, NULL, NULL);	//quake3
 		if (!R_GetShaderSizes(conback, NULL, NULL, true))
 		{
 #ifdef HEXEN2

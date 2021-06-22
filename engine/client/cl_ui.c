@@ -746,7 +746,7 @@ int UI_Cin_Play(const char *name, int x, int y, int w, int h, unsigned int flags
 		break;	//this slot is usable
 	}
 
-	mediashader = R_RegisterCustom(name, SUF_NONE, Shader_DefaultCinematic, va("video/%s", name));
+	mediashader = R_RegisterCustom(NULL, name, SUF_NONE, Shader_DefaultCinematic, va("video/%s", name));
 	if (!mediashader)
 		return -1;	//wtf?
 	cin = R_ShaderGetCinematic(mediashader);

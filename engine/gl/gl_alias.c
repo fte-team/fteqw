@@ -295,7 +295,7 @@ skinid_t Mod_ReadSkinFile(const char *skinname, const char *skintext)
 				Q_strncpyz(skin->mappings[skin->nummappings].surface, com_token, sizeof(skin->mappings[skin->nummappings].surface));
 				skintext = COM_ParseToken(skintext, NULL);
 				Q_strncpyz(shadername, com_token, sizeof(shadername));
-				skin->mappings[skin->nummappings].shader = R_RegisterSkin(shadername, skin->skinname);
+				skin->mappings[skin->nummappings].shader = R_RegisterSkin(NULL, shadername);
 				R_BuildDefaultTexnums(NULL, skin->mappings[skin->nummappings].shader, 0);
 				skin->mappings[skin->nummappings].texnums = *skin->mappings[skin->nummappings].shader->defaulttextures;
 				skin->mappings[skin->nummappings].needsfree = false;
@@ -317,7 +317,7 @@ skinid_t Mod_ReadSkinFile(const char *skinname, const char *skintext)
 				Q_strncpyz(skin->mappings[skin->nummappings].surface, com_token, sizeof(skin->mappings[skin->nummappings].surface));
 				skintext = COM_ParseToken(skintext, NULL);
 				Q_strncpyz(shadername, com_token, sizeof(shadername));
-				skin->mappings[skin->nummappings].shader = R_RegisterSkin(shadername, skin->skinname);
+				skin->mappings[skin->nummappings].shader = R_RegisterSkin(NULL, shadername);
 				R_BuildDefaultTexnums(NULL, skin->mappings[skin->nummappings].shader, 0);
 				skin->mappings[skin->nummappings].texnums = *skin->mappings[skin->nummappings].shader->defaulttextures;
 
@@ -396,7 +396,7 @@ skinid_t Mod_ReadSkinFile(const char *skinname, const char *skintext)
 				Q_strncpyz(skin->mappings[skin->nummappings].surface, com_token, sizeof(skin->mappings[skin->nummappings].surface));
 				skintext = COM_ParseToken(skintext+1, NULL);
 				Q_strncpyz(shadername, com_token, sizeof(shadername));
-				skin->mappings[skin->nummappings].shader = R_RegisterCustom (shadername, 0, Shader_DefaultSkin, NULL);
+				skin->mappings[skin->nummappings].shader = R_RegisterCustom (NULL, shadername, 0, Shader_DefaultSkin, NULL);
 				R_BuildDefaultTexnums(NULL, skin->mappings[skin->nummappings].shader, 0);
 				skin->mappings[skin->nummappings].texnums = *skin->mappings[skin->nummappings].shader->defaulttextures;
 				skin->mappings[skin->nummappings].needsfree = false;
@@ -661,7 +661,7 @@ static shader_t *GL_ChooseSkin(galiasinfo_t *inf, model_t *model, int surfnum, e
 	if (inf->numskins < e->skinnum && e->skinnum >= r_globalskin_first.ival && e->skinnum < r_globalskin_first.ival+r_globalskin_count.ival)
 	{
 		shader_t *s;
-		s = R_RegisterSkin(va("gfx/skin%d.lmp", e->skinnum), NULL);
+		s = R_RegisterSkin(NULL, va("gfx/skin%d.lmp", e->skinnum));
 		if (s)
 		{
 			if (!TEXVALID(s->defaulttextures->base))
@@ -813,7 +813,7 @@ static shader_t *GL_ChooseSkin(galiasinfo_t *inf, model_t *model, int surfnum, e
 				{
 					*forcedtex = &cm->texnum;
 					if (!shader)
-						shader = R_RegisterSkin(skinname, NULL);
+						shader = R_RegisterSkin(model, skinname);
 					return shader;
 				}
 			}
@@ -847,7 +847,7 @@ static shader_t *GL_ChooseSkin(galiasinfo_t *inf, model_t *model, int surfnum, e
 			//q2 has no surfaces in its player models, so don't crash from that
 			//note that q2 should also always have a custom skin set. its not our problem (here) if it doesn't.
 			if (!shader)
-				shader = R_RegisterSkin(skinname, NULL);
+				shader = R_RegisterSkin(model, skinname);
 
 			cm->texnum.bump = shader->defaulttextures->bump;	//can't colour bumpmapping
 			if (plskin)

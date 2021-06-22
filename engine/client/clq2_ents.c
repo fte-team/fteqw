@@ -2121,7 +2121,7 @@ static void CLQ2_AddPacketEntities (q2frame_t *frame)
 			ent.shaderRGBAf[0] = (!!(renderfx & Q2RF_SHELL_RED));
 			ent.shaderRGBAf[1] = (!!(renderfx & Q2RF_SHELL_GREEN));
 			ent.shaderRGBAf[2] = (!!(renderfx & Q2RF_SHELL_BLUE));
-			ent.forcedshader = R_RegisterCustom("q2/shell", SUF_NONE, Shader_DefaultSkinShell, NULL);
+			ent.forcedshader = R_RegisterCustom(NULL, "q2/shell", SUF_NONE, Shader_DefaultSkinShell, NULL);
 			ent.fatness = 2;
 			V_AddEntity (&ent);
 			ent.fatness = 0;

@@ -2276,13 +2276,13 @@ bspx_header_t *BSPX_Setup(model_t *mod, char *filebase, size_t filelen, lump_t *
 				if (h->lumps[i].fileofs + h->lumps[i].filelen > filelen)
 					return NULL;	//some sort of corruption/truncation.
 
-				if (offs < lumps->fileofs + lumps->filelen)
-					offs = lumps->fileofs + lumps->filelen;
+				if (offs < h->lumps[i].fileofs + h->lumps[i].filelen)
+					offs = h->lumps[i].fileofs + h->lumps[i].filelen;
 			}
 		}
 	}
 
-	if (offs < filelen && !mod->archive && mod_loadmappackages.ival)
+	if (offs < filelen && mod && !mod->archive && mod_loadmappackages.ival)
 	{	//we have some sort of trailing junk... is it a zip?...
 		vfsfile_t *f = VFSPIPE_Open(1,true);
 		if (f)

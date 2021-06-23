@@ -5716,10 +5716,21 @@ void SV_DeDupeName(const char *val, client_t *cl, char *newname, size_t newnames
 
 				if (newname[0] == '(')
 				{
-					if (newname[2] == ')')
-						p = newname + 3;
-					else if (val[3] == ')')
-						p = newname + 4;
+					if (newname[1]>='0'&&newname[1]<='9')
+					{
+						if (newname[2] == ')')
+							p = newname + 3;
+						else if (newname[2]>='0'&&newname[2]<='9')
+						{
+							if (newname[3] == ')')
+								p = newname + 4;
+							else if (newname[3]>='0'&&newname[3]<='9')
+							{
+								if (newname[4] == ')')
+									p = newname + 5;
+							}
+						}
+					}
 				}
 
 				memcpy(tmpname, p, strlen(p)+1);

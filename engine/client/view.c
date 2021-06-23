@@ -2529,7 +2529,7 @@ void V_RenderView (qboolean no2d)
 
 			switch(extra)
 			{
-#ifdef QUAKEHUD
+#if 0//def QUAKEHUD
 			case 0:	//show a mini-console.
 				{
 					console_t *con = Con_GetMain();
@@ -2584,6 +2584,7 @@ void V_RenderView (qboolean no2d)
 					VectorCopy(cam_view.cam_desired_position, cam_view.simorg);
 
 					V_ClearRefdef(&cam_view);
+					SCR_VRectForPlayer(&r_refdef.grect, seatnum, maxseats);
 					V_EditExternalModels(0, NULL, 0);
 					V_RenderPlayerViews(r_refdef.playerview);
 				}

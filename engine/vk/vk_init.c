@@ -549,6 +549,7 @@ static qboolean VK_CreateSwapChain(void)
 	VkFramebufferCreateInfo fb_info = {VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO};
 	VkSampleCountFlagBits oldms;
 	uint32_t rpassflags = 0;
+	VkResult err;
 
 	VkFormat oldformat = vk.backbufformat;
 	VkFormat olddepthformat = vk.depthformat;
@@ -722,7 +723,6 @@ static qboolean VK_CreateSwapChain(void)
 		swapinfo.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
 		swapinfo.queueFamilyIndexCount = 0;
 		swapinfo.pQueueFamilyIndices = NULL;
-		swapinfo.oldSwapchain = vk.swapchain;
 		swapinfo.clipped = vid_isfullscreen?VK_FALSE:VK_TRUE;	//allow fragment shaders to be skipped on parts that are obscured by another window. screenshots might get weird, so use proper captures if required/automagic.
 
 		swapinfo.presentMode = VK_PRESENT_MODE_FIFO_KHR;	//support is guarenteed by spec, in theory.
@@ -880,8 +880,29 @@ static qboolean VK_CreateSwapChain(void)
 		free(presentmode);
 		free(surffmts);
 
+		swapinfo.oldSwapchain = vk.swapchain;
+
 		newvkswapchain = VK_NULL_HANDLE;
-		VkAssert(vkCreateSwapchainKHR(vk.device, &swapinfo, vkallocationcb, &newvkswapchain));
+		err = vkCreateSwapchainKHR(vk.device, &swapinfo, vkallocationcb, &newvkswapchain);
+		switch(err)
+		{
+		case VK_SUCCESS:
+			break;
+		default:
+			Sys_Error("vkCreateSwapchainKHR returned undocumented error!\n");
+		case VK_ERROR_OUT_OF_HOST_MEMORY:
+        case VK_ERROR_OUT_OF_DEVICE_MEMORY:
+        case VK_ERROR_DEVICE_LOST:
+        case VK_ERROR_SURFACE_LOST_KHR:
+        case VK_ERROR_NATIVE_WINDOW_IN_USE_KHR:
+        case VK_ERROR_INITIALIZATION_FAILED:
+			if (swapinfo.oldSwapchain)
+				Con_Printf(CON_WARNING"vkCreateSwapchainKHR(%u * %u) failed with error %s\n", swapinfo.imageExtent.width, swapinfo.imageExtent.height, VK_VKErrorToString(err));
+			else
+				Sys_Error("vkCreateSwapchainKHR(%u * %u) failed with error %s\n", swapinfo.imageExtent.width, swapinfo.imageExtent.height, VK_VKErrorToString(err));
+			VK_DestroySwapChain();
+			return false;
+        }
 		if (!newvkswapchain)
 			return false;
 		if (vk.swapchain)
@@ -3649,13 +3670,13 @@ qboolean VK_SCR_GrabBackBuffer(void)
 		rpbi.framebuffer = vk.frame->backbuf->framebuffer;
 		rpbi.renderArea.offset.x = 0;
 		rpbi.renderArea.offset.y = 0;
-		rpbi.renderArea.extent.width = vid.pixelwidth;
-		rpbi.renderArea.extent.height = vid.pixelheight;
+		rpbi.renderArea.extent.width = vk.frame->backbuf->colour.width;
+		rpbi.renderArea.extent.height = vk.frame->backbuf->colour.height;
 		rpbi.pClearValues = clearvalues;
 		vkCmdBeginRenderPass(vk.rendertarg->cbuf, &rpbi, VK_SUBPASS_CONTENTS_INLINE);
 
-		vk.frame->backbuf->width = vid.pixelwidth;
-		vk.frame->backbuf->height = vid.pixelheight;
+		vk.frame->backbuf->width = rpbi.renderArea.extent.width;
+		vk.frame->backbuf->height = rpbi.renderArea.extent.height;
 
 		rpbi.clearValueCount = 0;
 		rpbi.pClearValues = NULL;
@@ -3758,7 +3779,8 @@ qboolean	VK_SCR_UpdateScreen			(void)
 		if (vk.dopresent)
 			vk.dopresent(NULL);
 		vkDeviceWaitIdle(vk.device);
-		VK_CreateSwapChain();
+		if (!VK_CreateSwapChain())
+			return false;
 		vk.neednewswapchain = false;
 
 #ifdef MULTITHREAD

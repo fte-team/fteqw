@@ -3357,7 +3357,7 @@ void R_InitParticleTexture (void)
 		}
 	}
 
-	TEXASSIGN(particletexture, R_LoadTexture32("dotparticle", 8, 8, data, IF_NOMIPMAP|IF_NOPICMIP|IF_CLAMP|IF_NOPURGE));
+	TEXASSIGN(particletexture, R_LoadTexture32("dotparticle", 8, 8, data, IF_NOMIPMAP|IF_NOPICMIP|IF_CLAMP|IF_NOPURGE|IF_INEXACT));
 
 
 	//
@@ -3381,7 +3381,7 @@ void R_InitParticleTexture (void)
 				data[y*32+x][3] = 255;
 		}
 	}
-	particlecqtexture = Image_GetTexture("classicparticle", "particles", IF_NOMIPMAP|IF_NOPICMIP|IF_CLAMP|IF_NOPURGE, data, NULL, 32, 32, TF_RGBA32);
+	particlecqtexture = Image_GetTexture("classicparticle", "particles", IF_NOMIPMAP|IF_NOPICMIP|IF_CLAMP|IF_NOPURGE|IF_INEXACT, data, NULL, 32, 32, TF_RGBA32);
 
 	//draw a square in the top left. still a triangle.
 	for (x=0 ; x<16 ; x++)
@@ -3391,7 +3391,7 @@ void R_InitParticleTexture (void)
 			data[y*32+x][3] = 255;
 		}
 	}
-	Image_GetTexture("classicparticle_square", "particles", IF_NOMIPMAP|IF_NOPICMIP|IF_CLAMP|IF_NOPURGE, data, NULL, 32, 32, TF_RGBA32);
+	Image_GetTexture("classicparticle_square", "particles", IF_NOMIPMAP|IF_NOPICMIP|IF_CLAMP|IF_NOPURGE|IF_INEXACT, data, NULL, 32, 32, TF_RGBA32);
 
 
 	for (x=0 ; x<16 ; x++)
@@ -3404,7 +3404,7 @@ void R_InitParticleTexture (void)
 			data[y*16+x][3] = exptexture[x][y]*255/9.0;
 		}
 	}
-	explosiontexture = Image_GetTexture("fte_fuzzyparticle", "particles", IF_NOMIPMAP|IF_NOPICMIP|IF_NOPURGE, data, NULL, 16, 16, TF_RGBA32);
+	explosiontexture = Image_GetTexture("fte_fuzzyparticle", "particles", IF_NOMIPMAP|IF_NOPICMIP|IF_NOPURGE|IF_INEXACT, data, NULL, 16, 16, TF_RGBA32);
 
 	for (x=0 ; x<16 ; x++)
 	{
@@ -3416,7 +3416,7 @@ void R_InitParticleTexture (void)
 			data[y*16+x][3] = exptexture[x][y]*255/9.0;
 		}
 	}
-	Image_GetTexture("fte_bloodparticle", "particles", IF_NOMIPMAP|IF_NOPICMIP|IF_NOPURGE, data, NULL, 16, 16, TF_RGBA32);
+	Image_GetTexture("fte_bloodparticle", "particles", IF_NOMIPMAP|IF_NOPICMIP|IF_NOPURGE|IF_INEXACT, data, NULL, 16, 16, TF_RGBA32);
 
 	for (x=0 ; x<16 ; x++)
 	{
@@ -3428,7 +3428,7 @@ void R_InitParticleTexture (void)
 			data[y*16+x][3] = 255;
 		}
 	}
-	Image_GetTexture("fte_blooddecal", "particles", IF_NOMIPMAP|IF_NOPICMIP|IF_NOPURGE, data, NULL, 16, 16, TF_RGBA32);
+	Image_GetTexture("fte_blooddecal", "particles", IF_NOMIPMAP|IF_NOPICMIP|IF_NOPURGE|IF_INEXACT, data, NULL, 16, 16, TF_RGBA32);
 
 	memset(data, 255, sizeof(data));
 	for (y = 0;y < PARTICLETEXTURESIZE;y++)
@@ -3442,7 +3442,7 @@ void R_InitParticleTexture (void)
 			data[y*PARTICLETEXTURESIZE+x][3] = (qbyte) d;
 		}
 	}
-	balltexture = R_LoadTexture32("balltexture", PARTICLETEXTURESIZE, PARTICLETEXTURESIZE, data, IF_NOMIPMAP|IF_NOPICMIP|IF_NOPURGE);
+	balltexture = R_LoadTexture32("balltexture", PARTICLETEXTURESIZE, PARTICLETEXTURESIZE, data, IF_NOMIPMAP|IF_NOPICMIP|IF_NOPURGE|IF_INEXACT);
 
 	memset(data, 255, sizeof(data));
 	for (y = 0;y < PARTICLETEXTURESIZE;y++)
@@ -3455,7 +3455,7 @@ void R_InitParticleTexture (void)
 			data[y*PARTICLETEXTURESIZE+x][3] = (qbyte) d;
 		}
 	}
-	beamtexture = R_LoadTexture32("beamparticle", PARTICLETEXTURESIZE, PARTICLETEXTURESIZE, data, IF_NOMIPMAP|IF_NOPICMIP|IF_NOPURGE);
+	beamtexture = R_LoadTexture32("beamparticle", PARTICLETEXTURESIZE, PARTICLETEXTURESIZE, data, IF_NOMIPMAP|IF_NOPICMIP|IF_NOPURGE|IF_INEXACT);
 
 	for (y = 0;y < PARTICLETEXTURESIZE;y++)
 	{
@@ -3473,6 +3473,6 @@ void R_InitParticleTexture (void)
 			data[y*PARTICLETEXTURESIZE+x][3] = (qbyte) d/2;
 		}
 	}
-	ptritexture = R_LoadTexture32("ptritexture", PARTICLETEXTURESIZE, PARTICLETEXTURESIZE, data, IF_NOMIPMAP|IF_NOPICMIP|IF_NOPURGE);
+	ptritexture = R_LoadTexture32("ptritexture", PARTICLETEXTURESIZE, PARTICLETEXTURESIZE, data, IF_NOMIPMAP|IF_NOPICMIP|IF_NOPURGE|IF_INEXACT);
 }
 

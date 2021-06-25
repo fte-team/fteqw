@@ -14188,7 +14188,7 @@ image_t *Image_FindTexture(const char *identifier, const char *subdir, unsigned 
 	{
 		if (!((tex->flags ^ flags) & (IF_CLAMP|IF_PALETTIZE|IF_PREMULTIPLYALPHA)))
 		{
-			if (r_ignoremapprefixes.ival || !strcmp(subdir, tex->subpath?tex->subpath:""))
+			if (r_ignoremapprefixes.ival || !strcmp(subdir, tex->subpath?tex->subpath:"") || ((flags|tex->flags) & IF_INEXACT))
 			{
 				tex->regsequence = r_regsequence;
 				return tex;

@@ -455,7 +455,7 @@ enum imageflags
 
 	IF_UNUSED15			= 1<<15,	//
 	IF_UNUSED16			= 1<<16,	//
-	IF_UNUSED17			= 1<<17,	//
+	IF_INEXACT			= 1<<17,	//subdir info isn't to be used for matching
 
 	IF_WORLDTEX			= 1<<18,	//gl_picmip_world
 	IF_SPRITETEX		= 1<<19,	//gl_picmip_sprites

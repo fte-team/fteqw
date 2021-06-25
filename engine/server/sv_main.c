@@ -450,7 +450,7 @@ void SV_FinalMessage (char *message)
 	MSG_WriteByte (&buf, svc_disconnect);
 
 	for (i=0, cl = svs.clients ; i<svs.allocated_client_slots ; i++, cl++)
-		if (cl->state >= cs_spawned)
+		if (cl->state >= cs_spawned && !cl->controlled)
 			if (ISNQCLIENT(cl) || ISQWCLIENT(cl))
 				Netchan_Transmit (&cl->netchan, buf.cursize
 						, buf.data, 10000);
@@ -621,7 +621,8 @@ void SV_DropClient (client_t *drop)
 #ifndef SERVERONLY
 	if (drop->netchan.remote_address.type == NA_LOOPBACK)
 	{
-		Netchan_Transmit(&drop->netchan, 0, "", SV_RateForClient(drop));
+		if (drop->protocol != SCP_BAD)
+			Netchan_Transmit(&drop->netchan, 0, "", SV_RateForClient(drop));
 #ifdef warningmsg
 #pragma warningmsg("This means that we may not see the reason we kicked ourselves.")
 #endif
@@ -2378,6 +2379,7 @@ client_t *SV_AddSplit(client_t *controller, char *info, int id)
 	cl->playerclass = 0;
 	cl->pendingdeltabits = NULL;
 	cl->pendingcsqcbits = NULL;
+	cl->seat = curclients;
 
 	cl->edict = NULL;
 #ifdef Q2SERVER

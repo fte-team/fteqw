@@ -1651,8 +1651,7 @@ void SV_SendFixAngle(client_t *client, sizebuf_t *msg, int fixtype, qboolean rol
 		msg = NULL;	//try to keep them vaugely reliable, where feasable.
 	if (!msg)
 		msg = ClientReliable_StartWrite(client, 10);
-
-	if (client->seat)
+	else if (client->seat)
 	{
 		MSG_WriteByte(msg, svcfte_choosesplitclient);
 		MSG_WriteByte(msg, client->seat);

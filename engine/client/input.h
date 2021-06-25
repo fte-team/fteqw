@@ -66,6 +66,7 @@ void INS_SetupControllerAudioDevices(qboolean enabled);	//creates audio devices 
 
 #define DEVID_UNSET ~0u
 
+extern cvar_t	cl_splitscreen;
 extern cvar_t	cl_nodelta;
 extern cvar_t	cl_c2spps;
 extern cvar_t	cl_c2sImpulseBackup;

@@ -996,7 +996,7 @@ void Cam_FinishMove(playerview_t *pv, usercmd_t *cmd)
 	int i;
 	player_info_t	*s;
 	int end;
-	extern cvar_t cl_demospeed, cl_splitscreen;
+	extern cvar_t cl_demospeed;
 
 	if (cls.state != ca_active)
 		return;

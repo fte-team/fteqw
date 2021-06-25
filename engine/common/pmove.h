@@ -58,7 +58,7 @@ typedef struct
 
 	// player state
 	vec3_t		origin;
-	vec3_t		safeorigin;
+	vec3_t		safeorigin;	//valid when safeorigin_known. needed for extrasr4's ladders otherwise they bug out.
 	vec3_t		angles;
 	vec3_t		velocity;
 	vec3_t		basevelocity;

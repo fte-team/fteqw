@@ -316,7 +316,6 @@ void M_Menu_Load_f (void)
 
 #endif
 
-extern cvar_t cl_splitscreen;
 void M_Menu_SinglePlayer_f (void)
 {
 	emenu_t *menu;

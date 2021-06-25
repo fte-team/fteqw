@@ -36,7 +36,7 @@ line of sight checks trace->crosscontent, but bullets don't
 size_t areagridsequence;	//used to avoid poking the same ent twice.
 
 extern cvar_t sv_compatiblehulls;
-extern cvar_t sv_gameplayfix_nolinknonsolid;
+extern cvar_t sv_gameplayfix_linknonsolid;
 
 typedef struct
 {
@@ -655,7 +655,7 @@ void QDECL World_LinkEdict (world_t *w, wedict_t *ent, qboolean touch_triggers)
 		w->worldmodel->funcs.FindTouchedLeafs(w->worldmodel, &ent->pvsinfo, ent->v->absmin, ent->v->absmax);
 	}
 
-	if (ent->v->solid == SOLID_NOT && !sv_gameplayfix_nolinknonsolid.ival)
+	if (ent->v->solid == SOLID_NOT && !sv_gameplayfix_linknonsolid.ival)
 		return;
 
 #ifdef USEAREAGRID

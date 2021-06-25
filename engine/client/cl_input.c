@@ -59,7 +59,6 @@ usercmd_t cl_pendingcmd[MAX_SPLITS];
 /*kinda a hack...*/
 unsigned int		con_splitmodifier;
 cvar_t	cl_forceseat = CVARAD("in_forceseat", "0", "in_forcesplitclient", "Overrides the device identifiers to control a specific client from any device. This can be used for debugging mods, where you only have one keyboard/mouse.");
-extern cvar_t cl_splitscreen;
 int CL_TargettedSplit(qboolean nowrap)
 {
 	int mod;
@@ -1723,6 +1722,7 @@ void CL_UpdateSeats(void)
 			}
 			if (!*InfoBuf_ValueForKey(info, "skin"))	//give players the same skin by default, because we can. q2 cares for teams. qw might as well (its not like anyone actually uses them thanks to enemy-skin forcing).
 				InfoBuf_SetKey(info, "skin", InfoBuf_ValueForKey(&cls.userinfo[0], "skin"));
+			InfoBuf_SetKey(info, "chat", "");
 
 #ifdef SVNREVISION
 			if (strcmp(STRINGIFY(SVNREVISION), "-"))
@@ -2093,7 +2093,7 @@ static void CL_SendUserinfoUpdate(void)
 void CL_SendCmd (double frametime, qboolean mainloop)
 {
 	sizebuf_t	buf;
-	qbyte		data[MAX_DATAGRAM];
+	qbyte		data[MAX_DATAGRAM*16];
 	int			i, plnum;
 	usercmd_t	*cmd;
 	float wantfps;
@@ -2581,7 +2581,7 @@ CL_InitInput
 */
 void CL_InitInput (void)
 {
-	static char pcmd[MAX_SPLITS][3][5];
+	static char pcmd[MAX_SPLITS][3][6];
 	unsigned int sp, i;
 #define inputnetworkcvargroup "client networking options"
 	cl.splitclients = 1;

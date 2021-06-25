@@ -4755,7 +4755,6 @@ void CLQW_ParsePlayerinfo (void)
 		//add a new splitscreen autotrack view if we can
 		if (cl.splitclients < MAX_SPLITS && !cl.players[num].spectator)
 		{
-			extern cvar_t cl_splitscreen;
 			if (cl.splitclients < cl_splitscreen.value+1)
 			{
 				for (i = 0; i < cl.splitclients; i++)

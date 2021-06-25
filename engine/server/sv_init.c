@@ -1319,7 +1319,6 @@ MSV_OpenUserDatabase();
 #ifndef SERVERONLY
 		/*force coop 1 if splitscreen and not deathmatch*/
 		{
-		extern cvar_t cl_splitscreen;
 		if (cl_splitscreen.value && !deathmatch.value && !coop.value)
 			Cvar_Set(&coop, "1");
 		}

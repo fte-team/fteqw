@@ -1313,7 +1313,7 @@ static void PM_NudgePosition (void)
 		}
 	}
 
-	if (pmove.safeorigin_known)
+	if (pmove.safeorigin_known && PM_TestPlayerPosition(pmove.safeorigin, false))
 		VectorCopy (pmove.safeorigin, pmove.origin);
 	else
 		VectorCopy (base, pmove.origin);

@@ -4403,7 +4403,7 @@ static void SV_UpdateSeats(client_t *controller)
 		return;	//wait for the clientinfo stuff instead.
 
 	for (curclients = 0, cl = controller; cl; cl = cl->controlled)
-		curclients++;
+		cl->seat = curclients++;
 
 	ClientReliableWrite_Begin(controller, svcfte_splitscreenconfig, 2+curclients);
 	ClientReliableWrite_Byte(controller, curclients);
@@ -4412,11 +4412,11 @@ static void SV_UpdateSeats(client_t *controller)
 		ClientReliableWrite_Byte(controller, cl - svs.clients);
 	}
 
-	for (curclients = 0, cl = controller; cl; cl = cl->controlled, curclients++)
+	/*for (curclients = 0, cl = controller; cl; cl = cl->controlled, curclients++)
 	{
 		SV_SendFixAngle(cl, NULL, FIXANGLE_FIXED, false);
 		cl->edict->v->fixangle = FIXANGLE_NO;	//no point doing it again
-	}
+	}*/
 }
 
 /*
@@ -5375,7 +5375,8 @@ static void Cmd_AddSeat_f(void)
 
 		if (!num || host_client->joinobservelockeduntil > realtime)
 			return;
-		host_client->joinobservelockeduntil = realtime + 2;
+		if (host_client->netchan.remote_address.type != NA_LOOPBACK)
+			host_client->joinobservelockeduntil = realtime + 2;
 
 		for (count = 1, prev = host_client, cl = host_client->controlled; cl; cl = cl->controlled)
 		{
@@ -8251,6 +8252,9 @@ void SV_ExecuteClientMessage (client_t *cl)
 		case clc_stringcmd:
 			s = MSG_ReadString ();
 			SV_ExecuteUserCommand (s, false);
+#ifdef NETPREPARSE
+			NPP_Flush();	//flush it just in case there was an error and we stopped preparsing. This is only really needed while debugging.
+#endif
 
 			host_client = cl;
 			sv_player = cl->edict;
@@ -8819,7 +8823,9 @@ void SVNQ_ExecuteClientMessage (client_t *cl)
 		case clc_stringcmd:
 			s = MSG_ReadString ();
 			SV_ExecuteUserCommand (s, false);
-
+#ifdef NETPREPARSE
+			NPP_Flush();	//flush it just in case there was an error and we stopped preparsing. This is only really needed while debugging.
+#endif
 			host_client = cl;
 			sv_player = cl->edict;
 			if (cl->state < cs_connected)

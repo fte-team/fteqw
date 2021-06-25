@@ -104,16 +104,9 @@ sizebuf_t *ClientReliable_StartWrite(client_t *cl, int maxsize)
 		return MVDWrite_Begin(dem_all, 0, maxsize);
 #endif
 
-	if (cl->controller)
+	if (cl->seat)
 	{
-		client_t *sp;
-		int pnum = 0;
-		for (sp = cl->controller; sp; sp = sp->controlled)
-		{
-			if (sp == cl)
-				break;
-			pnum++;
-		}
+		int pnum = cl->seat;
 		cl = cl->controller;
 		ClientReliableWrite_Begin (cl, svcfte_choosesplitclient, 2+maxsize);
 		ClientReliableWrite_Byte (cl, pnum);

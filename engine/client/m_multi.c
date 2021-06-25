@@ -991,7 +991,6 @@ void M_Menu_Teamplay_Items_Status_Location_Misc_f (void)
 void M_Menu_Network_f (void)
 {
 #if MAX_SPLITS > 1
-	extern cvar_t cl_splitscreen;
 	static const char *splitopts[] = {
 		"Disabled",
 		"2 Screens",

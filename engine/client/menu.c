@@ -891,9 +891,6 @@ void M_Menu_Keys_f (void)
 	int y;
 	emenu_t *menu;
 	vfsfile_t *bindslist;
-#if MAX_SPLITS > 1
-	extern cvar_t cl_splitscreen;
-#endif
 
 	menu = M_CreateMenu(0);
 	switch(M_GameType())

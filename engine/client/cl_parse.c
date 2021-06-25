@@ -1737,6 +1737,9 @@ void CL_RequestNextDownload (void)
 
 		cl.sendprespawn = false;
 
+		if (cl_splitscreen.ival && !(cls.fteprotocolextensions & PEXT_SPLITSCREEN))
+			Con_TPrintf(CON_WARNING "Splitscreen requested but not available on this server.\n");
+
 		if (cl.worldmodel && cl.worldmodel->loadstate == MLS_LOADING)
 			COM_WorkerPartialSync(cl.worldmodel, &cl.worldmodel->loadstate, MLS_LOADING);
 
@@ -6777,8 +6780,8 @@ static void CL_ParsePrecache(void)
 			model_t *model;
 			CL_CheckOrEnqueDownloadFile(s, s, 0);
 			model = Mod_ForName(Mod_FixName(s, cl.model_name[1]), (i == 1)?MLV_ERROR:MLV_WARN);
-			if (!model)
-				Con_Printf("svc_precache: Mod_ForName(\"%s\") failed\n", s);
+//			if (!model)
+//				Con_Printf("svc_precache: Mod_ForName(\"%s\") failed\n", s);
 			cl.model_precache[i] = model;
 			Q_strncpyz (cl.model_name[i], s, sizeof(cl.model_name[i]));
 
@@ -6796,8 +6799,8 @@ static void CL_ParsePrecache(void)
 			if (S_HaveOutput())
 				CL_CheckOrEnqueDownloadFile(va("sound/%s", s), NULL, 0);
 			sfx = S_PrecacheSound (s);
-			if (!sfx)
-				Con_Printf("svc_precache: S_PrecacheSound(\"%s\") failed\n", s);
+//			if (!sfx)
+//				Con_Printf("svc_precache: S_PrecacheSound(\"%s\") failed\n", s);
 			cl.sound_precache[i] = sfx;
 			Q_strncpyz (cl.sound_name[i], s, sizeof(cl.sound_name[i]));
 		}
@@ -7098,11 +7101,14 @@ void CLQW_ParseServerMessage (void)
  			CLQW_ParseServerData ();
 			break;
 		case svcfte_splitscreenconfig:
+			j = cl.splitclients;
 			cl.splitclients = MSG_ReadByte();
 			for (i = 0; i < cl.splitclients && i < MAX_SPLITS; i++)
 			{
 				cl.playerview[i].playernum = MSG_ReadByte();
 				cl.playerview[i].viewentity = cl.playerview[i].playernum+1;
+				if (i>=j)	//its new.
+					cl.playerview[i].chatstate = 0;
 			}
 			if (i < cl.splitclients)
 			{

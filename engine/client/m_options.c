@@ -3964,9 +3964,18 @@ static void M_ModelViewerDraw(int x, int y, struct menucustom_s *c, struct emenu
 				}
 				if (shader->defaulttextures->base)
 				{
-					Draw_FunString(0, y, va("%s: %s  (%s)", t, shader->defaulttextures->base->ident, shader->defaulttextures->base->subpath?shader->defaulttextures->base->subpath:""));
+					float w, h;
+					Draw_FunString(0, y, va("%s: %s  (%s), %s %u*%u*%u",
+							t, shader->defaulttextures->base->ident, shader->defaulttextures->base->subpath?shader->defaulttextures->base->subpath:"",
+							Image_FormatName(shader->defaulttextures->base->format), shader->defaulttextures->base->width, shader->defaulttextures->base->height, shader->defaulttextures->base->depth));
 					y+=8;
-					R2D_Image(0, y, shader->defaulttextures->base->width, shader->defaulttextures->base->height, 0, 0, 1, 1, shader);
+
+					w = (float)vid.width / shader->defaulttextures->base->width;
+					h = (float)(vid.height-y) / shader->defaulttextures->base->height;
+					h = min(min(w,h), 1);
+					w = h*shader->defaulttextures->base->width;
+					h = h*shader->defaulttextures->base->height;
+					R2D_Image(0, y, w, h, 0, 0, 1, 1, shader);
 				}
 				else
 					Draw_FunString(0, y, va("%s: <NO TEXTURE>", t));

@@ -3009,10 +3009,12 @@ struct webostate_s
 	struct webostate_s *next;
 	int lastvalid;	//keyed to cls.framecount, for cleaning up.
 	model_t *wmodel;
+	int framecount;
 	int cluster[2];
 	qboolean generating;
 	pvsbuffer_t pvs;
 	vboarray_t ebo;
+	vboarray_t vbo;
 	void *ebomem;
 	size_t idxcount;
 	int numbatches;
@@ -3026,6 +3028,7 @@ struct webostate_s
 
 	struct wesbatch_s
 	{
+		qboolean inefficient;	//this batch's shader needs special care with vertex data too
 		size_t numidx;
 		size_t maxidx;
 		size_t firstidx;	//offset into the final ebo
@@ -3034,6 +3037,8 @@ struct webostate_s
 		mesh_t m;
 		mesh_t *pm;
 		vbo_t vbo;
+
+		size_t maxverts;
 	} batches[1];
 };
 static struct webostate_s *webostates;
@@ -3046,11 +3051,27 @@ static void R_DestroyWorldEBO(struct webostate_s *es)
 		return;
 
 	for (i = 0; i < es->numbatches; i++)
+	{
+		if (es->batches[i].inefficient)
+		{
+			BZ_Free(es->batches[i].m.xyz_array);
+			BZ_Free(es->batches[i].m.st_array);
+			BZ_Free(es->batches[i].m.lmst_array[0]);
+			BZ_Free(es->batches[i].m.normals_array);
+			BZ_Free(es->batches[i].m.snormals_array);
+			BZ_Free(es->batches[i].m.tnormals_array);
+		}
 		BZ_Free(es->batches[i].idxbuffer);
+	}
 
 #ifdef GLQUAKE
 	if (qrenderer == QR_OPENGL)
-		qglDeleteBuffersARB(1, &es->ebo.gl.vbo);
+	{
+		if (es->ebo.gl.vbo)
+			qglDeleteBuffersARB(1, &es->ebo.gl.vbo);
+		if (es->vbo.gl.vbo)
+			qglDeleteBuffersARB(1, &es->vbo.gl.vbo);
+	}
 #endif
 #ifdef VKQUAKE
 	if (qrenderer == QR_VULKAN)
@@ -3060,7 +3081,7 @@ static void R_DestroyWorldEBO(struct webostate_s *es)
 }
 void R_GeneratedWorldEBO(void *ctx, void *data, size_t a_, size_t b_)
 {
-	size_t idxcount;
+	size_t idxcount, vertcount;
 	unsigned int i;
 	model_t *mod;
 	batch_t *b, *batch;
@@ -3076,12 +3097,60 @@ void R_GeneratedWorldEBO(void *ctx, void *data, size_t a_, size_t b_)
 
 	webostate->lastvalid = cls.framecount;
 
-	for (i = 0, idxcount = 0; i < webostate->numbatches; i++)
+	for (i = 0, idxcount = 0, vertcount = 0; i < webostate->numbatches; i++)
+	{
 		idxcount += webostate->batches[i].numidx;
+		vertcount += webostate->batches[i].m.numvertexes;
+	}
 #ifdef GLQUAKE
 	if (qrenderer == QR_OPENGL)
 	{
 		GL_DeselectVAO();
+
+		if (vertcount)
+		{
+			size_t vc;
+			vbo_t *vbo;
+			size_t v_coord	= 0;
+			size_t v_tc		= v_coord	+ sizeof(vecV_t)*vertcount;
+			size_t v_lmtc	= v_tc		+ sizeof(vec2_t)*vertcount;
+			size_t v_norm	= v_lmtc	+ sizeof(vec2_t)*vertcount;
+			size_t v_snorm	= v_norm	+ sizeof(vec3_t)*vertcount;
+			size_t v_tnorm	= v_snorm	+ sizeof(vec3_t)*vertcount;
+			size_t v_colour	= v_tnorm	+ sizeof(vec3_t)*vertcount;
+			size_t vbosize	= v_colour	+ sizeof(vec4_t)*vertcount;
+
+			if (!webostate->vbo.gl.vbo)
+				qglGenBuffersARB(1, &webostate->vbo.gl.vbo);
+			GL_SelectVBO(webostate->vbo.gl.vbo);
+			qglBufferDataARB(GL_ARRAY_BUFFER_ARB, vbosize, NULL, GL_STATIC_DRAW_ARB);
+			for (i = 0, vertcount = 0; i < webostate->numbatches; i++)
+			{
+				if (webostate->batches[i].inefficient)
+				{
+					vc = webostate->batches[i].m.numvertexes;
+
+					vbo = &webostate->batches[i].vbo;
+					vbo->coord.gl.vbo		= webostate->vbo.gl.vbo;	vbo->coord.gl.addr		= (char*)v_coord	+ sizeof(vecV_t)*vertcount;
+					vbo->texcoord.gl.vbo	= webostate->vbo.gl.vbo;	vbo->texcoord.gl.addr	= (char*)v_tc		+ sizeof(vec2_t)*vertcount;
+					vbo->lmcoord[0].gl.vbo	= webostate->vbo.gl.vbo;	vbo->lmcoord[0].gl.addr = (char*)v_lmtc		+ sizeof(vec2_t)*vertcount;
+					vbo->normals.gl.vbo		= webostate->vbo.gl.vbo;	vbo->normals.gl.addr	= (char*)v_norm		+ sizeof(vec3_t)*vertcount;
+					vbo->svector.gl.vbo		= webostate->vbo.gl.vbo;	vbo->svector.gl.addr	= (char*)v_snorm	+ sizeof(vec3_t)*vertcount;
+					vbo->tvector.gl.vbo		= webostate->vbo.gl.vbo;	vbo->tvector.gl.addr	= (char*)v_tnorm	+ sizeof(vec3_t)*vertcount;
+					vbo->colours[0].gl.vbo	= webostate->vbo.gl.vbo;	vbo->colours[0].gl.addr	= (char*)v_colour	+ sizeof(vec4_t)*vertcount;
+
+					qglBufferSubDataARB(GL_ARRAY_BUFFER_ARB,(qintptr_t)vbo->coord.gl.addr,		vc*sizeof(vecV_t), webostate->batches[i].m.xyz_array);
+					qglBufferSubDataARB(GL_ARRAY_BUFFER_ARB,(qintptr_t)vbo->texcoord.gl.addr,	vc*sizeof(vec2_t), webostate->batches[i].m.st_array);
+					qglBufferSubDataARB(GL_ARRAY_BUFFER_ARB,(qintptr_t)vbo->lmcoord[0].gl.addr,	vc*sizeof(vec2_t), webostate->batches[i].m.lmst_array[0]);
+					qglBufferSubDataARB(GL_ARRAY_BUFFER_ARB,(qintptr_t)vbo->normals.gl.addr,	vc*sizeof(vec3_t), webostate->batches[i].m.normals_array);
+					qglBufferSubDataARB(GL_ARRAY_BUFFER_ARB,(qintptr_t)vbo->svector.gl.addr,	vc*sizeof(vec3_t), webostate->batches[i].m.snormals_array);
+					qglBufferSubDataARB(GL_ARRAY_BUFFER_ARB,(qintptr_t)vbo->tvector.gl.addr,	vc*sizeof(vec3_t), webostate->batches[i].m.tnormals_array);
+					qglBufferSubDataARB(GL_ARRAY_BUFFER_ARB,(qintptr_t)vbo->colours[0].gl.addr,	vc*sizeof(vec4_t), webostate->batches[i].m.colors4f_array[0]);
+					webostate->batches[i].m.vbofirstvert = 0;
+					vertcount += vc;
+				}
+			}
+		}
 
 		webostate->ebo.gl.addr = NULL;
 		if (!webostate->ebo.gl.vbo)
@@ -3123,6 +3192,8 @@ void R_GeneratedWorldEBO(void *ctx, void *data, size_t a_, size_t b_)
 			webostate->ebomem = NULL;
 		}
 		free(indexes);
+
+		vertcount = 0; //unsupported for now.
 	}
 #endif
 
@@ -3142,28 +3213,33 @@ void R_GeneratedWorldEBO(void *ctx, void *data, size_t a_, size_t b_)
 			webostate->batches[i].pm = m;
 			b = &webostate->batches[i].b;
 			memcpy(b, batch, sizeof(*b));
-			memset(m, 0, sizeof(*m));
 
-			if (b->shader->flags & SHADER_NEEDSARRAYS)
-			{	//this ebo cache stuff tracks only indexes, we don't know the actual surfs any more.
-				//if NEEDSARRAYS is flagged then the cpu will need access to the mesh data - which it doesn't have.
-				//while we could figure out this info, there would be a lot of vertexes that are not referenced, which would be horrendously slow.
-				if (b->shader->flags & SHADER_SKY)
-					continue;
-				b->shader = R_RegisterShader_Vertex(mod, "unsupported");
-			}
-
-			m->numvertexes = webostate->batches[i].b.vbo->vertcount;
 			b->mesh = &webostate->batches[i].pm;
 			b->meshes = 1;
-			m->numindexes = webostate->batches[i].numidx;
-			m->vbofirstelement = webostate->batches[i].firstidx;
-			m->vbofirstvert = 0;
-			m->indexes = NULL;
 			b->vbo = &webostate->batches[i].vbo;
-			*b->vbo = *batch->vbo;
+			if (webostate->batches[i].inefficient)
+			{	//we had to generate new buffers because there's something evil in the shader..
+				m->indexes = webostate->batches[i].idxbuffer;
+				b->vbo->vao = 0;
+			}
+			else
+			{
+				*b->vbo = *batch->vbo;
+				if (b->shader->flags & SHADER_NEEDSARRAYS)
+				{	//this ebo cache stuff tracks only indexes, we don't know the actual surfs any more.
+					//if NEEDSARRAYS is flagged then the cpu will need access to the mesh data - which it doesn't have.
+					//while we could figure out this info, there would be a lot of vertexes that are not referenced, which would be horrendously slow.
+					if (b->shader->flags & SHADER_SKY)
+						continue;
+					b->shader = R_RegisterShader_Vertex(mod, "unsupported");
+				}
+				m->numvertexes = webostate->batches[i].b.vbo->vertcount;
+			}
 			b->vbo->indicies = webostate->ebo;
 			b->vbo->vao = 0;
+			m->numindexes = webostate->batches[i].numidx;
+			m->vbofirstelement = webostate->batches[i].firstidx;
+
 
 			b->next = webostate->rbatches[sortid];
 			webostate->rbatches[sortid] = b;
@@ -3201,11 +3277,42 @@ static void Surf_SimpleWorld_Q1BSP(struct webostate_s *es, qbyte *pvs)
 					if (eb->maxidx < eb->numidx + mesh->numindexes)
 					{
 						//FIXME: pre-allocate
-						eb->maxidx = eb->numidx + surf->mesh->numindexes + 512;
+						eb->maxidx = eb->numidx + mesh->numindexes + 512;
 						eb->idxbuffer = BZ_Realloc(eb->idxbuffer, eb->maxidx * sizeof(index_t));
 					}
-					for (i = 0; i < mesh->numindexes; i++)
-						eb->idxbuffer[eb->numidx+i] = mesh->indexes[i] + mesh->vbofirstvert;
+
+					if (eb->inefficient)
+					{	//slow path that needs to create new VBOs on the fly too.
+						if (eb->maxverts < eb->m.numvertexes + mesh->numvertexes)
+						{
+							//FIXME: pre-allocate
+							eb->maxverts = eb->m.numvertexes + mesh->numvertexes + 512;
+							eb->m.xyz_array			= BZ_Realloc(eb->m.xyz_array,			eb->maxverts * sizeof(*eb->m.xyz_array));
+							eb->m.st_array			= BZ_Realloc(eb->m.st_array,			eb->maxverts * sizeof(*eb->m.st_array));
+							eb->m.lmst_array[0]		= BZ_Realloc(eb->m.lmst_array[0],		eb->maxverts * sizeof(*eb->m.lmst_array[0]));
+							eb->m.normals_array		= BZ_Realloc(eb->m.normals_array,		eb->maxverts * sizeof(*eb->m.normals_array));
+							eb->m.snormals_array	= BZ_Realloc(eb->m.snormals_array,		eb->maxverts * sizeof(*eb->m.snormals_array));
+							eb->m.tnormals_array	= BZ_Realloc(eb->m.tnormals_array,		eb->maxverts * sizeof(*eb->m.tnormals_array));
+							eb->m.colors4f_array[0]	= BZ_Realloc(eb->m.colors4f_array[0],	eb->maxverts * sizeof(*eb->m.colors4f_array[0]));
+						}
+
+						memcpy(eb->m.xyz_array+eb->m.numvertexes,		mesh->xyz_array,		sizeof(*eb->m.xyz_array)*mesh->numvertexes);
+						memcpy(eb->m.st_array+eb->m.numvertexes,		mesh->st_array,			sizeof(*eb->m.st_array)*mesh->numvertexes);
+						memcpy(eb->m.lmst_array[0]+eb->m.numvertexes,	mesh->lmst_array[0],	sizeof(*eb->m.lmst_array[0])*mesh->numvertexes);
+						memcpy(eb->m.normals_array+eb->m.numvertexes,	mesh->normals_array,	sizeof(*eb->m.normals_array)*mesh->numvertexes);
+						memcpy(eb->m.snormals_array+eb->m.numvertexes,	mesh->snormals_array,	sizeof(*eb->m.snormals_array)*mesh->numvertexes);
+						memcpy(eb->m.tnormals_array+eb->m.numvertexes,	mesh->tnormals_array,	sizeof(*eb->m.tnormals_array)*mesh->numvertexes);
+						memcpy(eb->m.colors4f_array[0]+eb->m.numvertexes,mesh->colors4f_array[0],sizeof(*eb->m.colors4f_array[0])*mesh->numvertexes);
+
+						for (i = 0; i < mesh->numindexes; i++)
+							eb->idxbuffer[eb->numidx+i] = mesh->indexes[i] + eb->m.numvertexes;
+						eb->m.numvertexes+=mesh->numvertexes;
+					}
+					else
+					{
+						for (i = 0; i < mesh->numindexes; i++)
+							eb->idxbuffer[eb->numidx+i] = mesh->indexes[i] + mesh->vbofirstvert;
+					}
 					eb->numidx += mesh->numindexes;
 				}
 			}
@@ -3248,11 +3355,11 @@ static void Surf_SimpleWorld_Q3BSP(struct webostate_s *es, qbyte *pvs)
 	model_t *wmodel = es->wmodel;
 	int l = wmodel->numleafs;	//is this doing submodels too?
 	int c;
-	int fc = -r_framecount;
-	for (leaf = wmodel->leafs; l-- > 0; leaf++)
+	int fc = es->framecount;
+	for (leaf = wmodel->leafs; l --> 0; leaf++)
 	{
 		c = leaf->cluster;
-		if (c < 0)
+		if (c < 0 || !leaf->parent)
 			continue;	//o.O
 		if ((pvs[c>>3] & (1u<<(c&7))) && leaf->nummarksurfaces)
 		{
@@ -3272,11 +3379,40 @@ static void Surf_SimpleWorld_Q3BSP(struct webostate_s *es, qbyte *pvs)
 					if (eb->maxidx < eb->numidx + mesh->numindexes)
 					{
 						//FIXME: pre-allocate
-						eb->maxidx = eb->numidx + surf->mesh->numindexes + 512;
+						eb->maxidx = eb->numidx + mesh->numindexes + 512;
 						eb->idxbuffer = BZ_Realloc(eb->idxbuffer, eb->maxidx * sizeof(index_t));
 					}
-					for (i = 0; i < mesh->numindexes; i++)
-						eb->idxbuffer[eb->numidx+i] = mesh->indexes[i] + mesh->vbofirstvert;
+					if (eb->inefficient)
+					{	//slow path that needs to create a single ram-backed mesh
+						if (eb->maxverts < eb->m.numvertexes + mesh->numvertexes)
+						{
+							//FIXME: pre-allocate
+							eb->maxverts = eb->m.numvertexes + mesh->numvertexes + 512;
+							eb->m.xyz_array		= BZ_Realloc(eb->m.xyz_array,		eb->maxverts * sizeof(*eb->m.xyz_array));
+							eb->m.st_array		= BZ_Realloc(eb->m.st_array,		eb->maxverts * sizeof(*eb->m.st_array));
+							eb->m.lmst_array[0]	= BZ_Realloc(eb->m.lmst_array[0],	eb->maxverts * sizeof(*eb->m.lmst_array[0]));
+							eb->m.normals_array	= BZ_Realloc(eb->m.normals_array,	eb->maxverts * sizeof(*eb->m.normals_array));
+							eb->m.snormals_array= BZ_Realloc(eb->m.snormals_array,	eb->maxverts * sizeof(*eb->m.snormals_array));
+							eb->m.tnormals_array= BZ_Realloc(eb->m.tnormals_array,	eb->maxverts * sizeof(*eb->m.tnormals_array));
+							eb->m.colors4f_array[0]= BZ_Realloc(eb->m.colors4f_array[0],eb->maxverts * sizeof(*eb->m.colors4f_array[0]));
+						}
+						memcpy(eb->m.numvertexes+eb->m.xyz_array,		mesh->xyz_array,		sizeof(*eb->m.xyz_array)*mesh->numvertexes);
+						memcpy(eb->m.numvertexes+eb->m.st_array,		mesh->st_array,			sizeof(*eb->m.st_array)*mesh->numvertexes);
+						memcpy(eb->m.numvertexes+eb->m.lmst_array[0],	mesh->lmst_array[0],	sizeof(*eb->m.lmst_array[0])*mesh->numvertexes);
+						memcpy(eb->m.numvertexes+eb->m.normals_array,	mesh->normals_array,	sizeof(*eb->m.normals_array)*mesh->numvertexes);
+						memcpy(eb->m.numvertexes+eb->m.snormals_array,	mesh->snormals_array,	sizeof(*eb->m.snormals_array)*mesh->numvertexes);
+						memcpy(eb->m.numvertexes+eb->m.tnormals_array,	mesh->tnormals_array,	sizeof(*eb->m.tnormals_array)*mesh->numvertexes);
+						memcpy(eb->m.numvertexes+eb->m.colors4f_array[0],mesh->colors4f_array[0],sizeof(*eb->m.colors4f_array[0])*mesh->numvertexes);
+
+						for (i = 0; i < mesh->numindexes; i++)
+							eb->idxbuffer[eb->numidx+i] = mesh->indexes[i] + eb->m.numvertexes;
+						eb->m.numvertexes+=mesh->numvertexes;
+					}
+					else
+					{	//using the general prebaked entire-batch vbos
+						for (i = 0; i < mesh->numindexes; i++)
+							eb->idxbuffer[eb->numidx+i] = mesh->indexes[i] + mesh->vbofirstvert;
+					}
 					eb->numidx += mesh->numindexes;
 				}
 			}
@@ -3292,6 +3428,9 @@ void R_GenWorldEBO(void *ctx, void *data, size_t a, size_t b)
 
 	if (!es->numbatches)
 	{
+		int sortid;
+		batch_t *batch;
+
 		es->numbatches = es->wmodel->numbatches;
 
 		for (i = 0; i < es->numbatches; i++)
@@ -3300,7 +3439,25 @@ void R_GenWorldEBO(void *ctx, void *data, size_t a, size_t b)
 			es->batches[i].numidx = 0;
 			es->batches[i].maxidx = 0;
 			es->batches[i].idxbuffer = NULL;
+			es->batches[i].inefficient = false;
+
+			es->batches[i].maxverts = 0;
+			memset(&es->batches[i].m, 0, sizeof(es->batches[i].m));
+			memset(&es->batches[i].vbo, 0, sizeof(es->batches[i].vbo));
 		}
+
+		//set to 2 to reveal the inefficient surfaces...
+		if (r_temporalscenecache.ival < 2)
+			for (sortid = 0; sortid < SHADER_SORT_COUNT; sortid++)
+				for (batch = currentmodel->batches[sortid]; batch != NULL; batch = batch->next)
+				{
+#if MAXRLIGHTMAPS > 1
+					if (batch->lmlightstyle[1] != INVALID_LIGHTSTYLE || batch->vtlightstyle[1] != INVALID_VLIGHTSTYLE)
+						continue;	//not supported here, show fallback shader instead (would work but with screwed lighting, we prefer a better-defined result).
+#endif
+					if (!batch->shader || batch->shader->flags & SHADER_NEEDSARRAYS)
+						es->batches[batch->user.bmodel.ebobatch].inefficient = true;
+				}
 	}
 	else
 	{
@@ -3308,6 +3465,7 @@ void R_GenWorldEBO(void *ctx, void *data, size_t a, size_t b)
 		{
 			es->batches[i].firstidx = 0;
 			es->batches[i].numidx = 0;
+			es->batches[i].m.numvertexes = 0;
 		}
 	}
 
@@ -3381,6 +3539,15 @@ void Surf_DrawWorld (void)
 		Surf_LightmapShift(currentmodel);
 
 #ifdef THREADEDWORLD
+#warning Enable auto threaded world when ready
+/*
+		if (!*r_temporalscenecache.string && cl.worldmodel && cl.worldmodel->loadstate == MLS_LOADED && (cl.worldmodel->fromgame == fg_quake || cl.worldmodel->fromgame == fg_halflife))
+		{	//when empty, pick a suitable default.
+			//at what point is it a win? should we consider batch counts? probability of offscreen-only surfaces?
+			if (cl.worldmodel->fromgame == fg_quake || cl.worldmodel->fromgame == fg_halflife)
+				r_temporalscenecache.ival = cl.worldmodel->numleafs > 6000 && r_waterstyle.ival<=1 && r_telestyle.ival<=1 && r_slimestyle.ival<=1 && r_lavastyle.ival<=1;
+		}
+*/
 		if ((r_temporalscenecache.ival /*|| currentmodel->numbatches*/) && !r_refdef.recurse && currentmodel->type == mod_brush)
 		{
 			struct webostate_s *webostate, *best = NULL, *kill, **link;
@@ -3420,14 +3587,14 @@ void Surf_DrawWorld (void)
 			if (qrenderer != QR_OPENGL && qrenderer != QR_VULKAN)
 				;
 #ifdef Q1BSPS
-			else if (currentmodel->fromgame == fg_quake || currentmodel->fromgame == fg_halflife)
+			else if (currentmodel->fromgame == fg_quake || currentmodel->fromgame == fg_halflife || currentmodel->fromgame == fg_quake3)
 			{
 				if (!webogenerating)
 				{
 					qboolean gennew = false;
 					if (!webostate)
 						gennew = true;	//generate an initial one, if we can.
-					if (!gennew && webostate)
+					if (!gennew && webostate && currentmodel->fromgame != fg_quake3)
 					{
 						int i = cl_max_lightstyles;
 						for (i = 0; i < cl_max_lightstyles; i++)
@@ -3440,7 +3607,7 @@ void Surf_DrawWorld (void)
 						}
 					}
 
-					if (!gennew && webostate && (webostate->cluster[0] != r_viewcluster || webostate->cluster[1] != r_viewcluster2))
+					if (!gennew && webostate)// && (webostate->cluster[0] != r_viewcluster || webostate->cluster[1] != r_viewcluster2))
 					{
 						if (webostate->pvs.buffersize != currentmodel->pvsbytes || r_viewcluster2 != -1)
 							gennew = true;	//o.O
@@ -3491,91 +3658,19 @@ void Surf_DrawWorld (void)
 						if (!webogenerating)
 						{
 							webogenerating = BZ_Malloc(sizeof(*webogenerating) + sizeof(webogenerating->batches[0]) * (currentmodel->numbatches-1) + currentmodel->pvsbytes);
+							memset(&webogenerating->vbo, 0, sizeof(webogenerating->vbo));
 							memset(&webogenerating->ebo, 0, sizeof(webogenerating->ebo));
 							webogenerating->ebomem = NULL;
 							webogenerating->numbatches = 0;
 						}
 						webogenerating->wmodel = currentmodel;
+						webogenerating->framecount = -r_framecount;
 						webogenerating->cluster[0] = r_viewcluster;
 						webogenerating->cluster[1] = r_viewcluster2;
 						webogenerating->pvs.buffer = (qbyte*)(webogenerating+1) + sizeof(webogenerating->batches[0])*(currentmodel->numbatches-1);
 						webogenerating->pvs.buffersize = currentmodel->pvsbytes;
 						for (i = 0; i < cl_max_lightstyles; i++)
 							webogenerating->lightstylevalues[i] = d_lightstylevalue[i];
-						Q_strncpyz(webogenerating->dbgid, "webostate", sizeof(webogenerating->dbgid));
-						COM_AddWork(WG_LOADER, R_GenWorldEBO, webogenerating, NULL, 0, 0);
-					}
-				}
-			}
-#endif
-#ifdef Q3BSPS
-			else if (currentmodel->fromgame == fg_quake3)
-			{
-				if (!webogenerating)
-				{
-					qboolean gennew = false;
-					if (!webostate)
-						gennew = true;	//generate an initial one, if we can.
-
-					if (!gennew && webostate && (webostate->cluster[0] != r_viewcluster || webostate->cluster[1] != r_viewcluster2))
-					{
-						if (webostate->pvs.buffersize != currentmodel->pvsbytes || r_viewcluster2 != -1)
-							gennew = true;	//o.O
-						else if (memcmp(webostate->pvs.buffer, webostate->wmodel->funcs.ClusterPVS(webostate->wmodel, r_viewcluster, NULL, PVM_FAST), currentmodel->pvsbytes))
-							gennew = true;
-						else
-						{	//okay, so the pvs didn't change despite the clusters changing. this happens when using unvised maps or lots of func_detail
-							//just hack the cluster numbers so we don't have to do the memcmp above repeatedly for no reason.
-							webostate->cluster[0] = r_viewcluster;
-							webostate->cluster[1] = r_viewcluster2;
-						}
-					}
-
-					if (gennew)
-					{
-						if (!currentmodel->numbatches)
-						{
-							int sortid;
-							batch_t *batch;
-							currentmodel->numbatches = 0;
-							for (sortid = 0; sortid < SHADER_SORT_COUNT; sortid++)
-								for (batch = currentmodel->batches[sortid]; batch != NULL; batch = batch->next)
-								{
-									batch->user.bmodel.ebobatch = currentmodel->numbatches;
-									currentmodel->numbatches++;
-								}
-							/*TODO submodels too*/
-						}
-
-						webogeneratingstate = true;
-
-						webogenerating = NULL;
-						if (webostate)
-							webostate->lastvalid = cls.framecount;
-						for (link = &webostates; (kill=*link); )
-						{
-							if (kill->lastvalid < cls.framecount-5 && kill->wmodel == currentmodel)
-							{	//this one looks old... kill it.
-								if (webogenerating)
-									R_DestroyWorldEBO(webogenerating);	//can't use more than one!
-								webogenerating = kill;
-								*link = kill->next;
-							}
-							else
-								link = &(*link)->next;
-						}
-						if (!webogenerating)
-						{
-							webogenerating = BZ_Malloc(sizeof(*webogenerating) + sizeof(webogenerating->batches[0]) * (currentmodel->numbatches-1) + currentmodel->pvsbytes);
-							memset(&webogenerating->ebo, 0, sizeof(webogenerating->ebo));
-							webogenerating->ebomem = NULL;
-							webogenerating->numbatches = 0;
-						}
-						webogenerating->wmodel = currentmodel;
-						webogenerating->cluster[0] = r_viewcluster;
-						webogenerating->cluster[1] = r_viewcluster2;
-						webogenerating->pvs.buffer = (qbyte*)(webogenerating+1) + sizeof(webogenerating->batches[0])*(currentmodel->numbatches-1);
-						webogenerating->pvs.buffersize = currentmodel->pvsbytes;
 						Q_strncpyz(webogenerating->dbgid, "webostate", sizeof(webogenerating->dbgid));
 						COM_AddWork(WG_LOADER, R_GenWorldEBO, webogenerating, NULL, 0, 0);
 					}
@@ -4494,6 +4589,10 @@ void Surf_NewMap (void)
 		Mod_ParseInfoFromEntityLump(cl.worldmodel);
 	}
 	Shader_DoReload();
+
+#ifdef THREADEDWORLD
+	Cvar_ForceCallback(&r_temporalscenecache);
+#endif
 
 	if (!pe)
 		Cvar_ForceCallback(&r_particlesystem);

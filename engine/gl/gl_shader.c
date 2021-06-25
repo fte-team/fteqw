@@ -5760,7 +5760,9 @@ done:;
 #endif
 		s->passes->numMergedPasses = s->numpasses;
 	}
-	else if (s->numdeforms)
+	else if(s->numdeforms ||
+			s->sort == SHADER_SORT_PORTAL ||	//q3-style portals (needed for pvs info)
+			s->flags & (SHADER_HASREFLECT|SHADER_HASREFRACT)) //water effects (needed for pvs info)
 		s->flags |= SHADER_NEEDSARRAYS;
 	else
 	{
@@ -5774,10 +5776,17 @@ done:;
 				s->flags |= SHADER_NEEDSARRAYS;
 				break;
 			}
+			if (pass->alphagen == ALPHA_GEN_PORTAL ||	//needs xyz
+				pass->alphagen == ALPHA_GEN_SPECULAR)	//needs xyz+norm
+			{
+				s->flags |= SHADER_NEEDSARRAYS;
+				break;
+			}
 			if (!(pass->flags & SHADER_PASS_NOCOLORARRAY))
 			{
 				if (!(((pass->rgbgen == RGB_GEN_VERTEX_LIGHTING) ||
 					(pass->rgbgen == RGB_GEN_VERTEX_EXACT) ||
+					(pass->alphagen == ALPHA_GEN_VERTEX) ||
 					(pass->rgbgen == RGB_GEN_ONE_MINUS_VERTEX)) &&
 					(pass->alphagen == ALPHA_GEN_VERTEX)))
 				{

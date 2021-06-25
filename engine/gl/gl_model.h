@@ -159,8 +159,8 @@ typedef struct batch_s
 	{
 		struct
 		{
-			unsigned int shadowbatch;	//a unique index to accelerate shadowmesh generation (dlights, yay!)
 			unsigned int ebobatch;		//temporal scene cache stuff, basically just a simple index so we don't have to deal with shader sort values when generating new index lists.
+			unsigned int shadowbatch;	//a unique index to accelerate shadowmesh generation (dlights, yay!)
 //		} bmodel;
 //		struct
 //		{
@@ -186,6 +186,7 @@ typedef struct batch_s
 		} surf;*/
 		struct
 		{
+			unsigned int ebobatch;		//temporal scene cache stuff, basically just a simple index so we don't have to deal with shader sort values when generating new index lists.
 			mesh_t meshbuf;
 			mesh_t *meshptr;
 		};

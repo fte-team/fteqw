@@ -2675,6 +2675,8 @@ batch->firstmesh is set only in and for this function, its cleared out elsewhere
 */
 static int Mod_Batches_Generate(model_t *mod)
 {
+//#define NOBATCH	//define this to force each surface into its own batch...
+
 	int i;
 	msurface_t *surf;
 	shader_t *shader;
@@ -2752,17 +2754,21 @@ static int Mod_Batches_Generate(model_t *mod)
 			plane[3] = 0;
 		}
 
+#ifdef NOBATCH
+		batch = NULL;
+		(void)lbatch;
+#else
 		if (lbatch && (
 					lbatch->texture == surf->texinfo->texture &&
 					lbatch->shader == shader &&
 					lbatch->lightmap[0] == lmmerge(surf->lightmaptexturenums[0]) &&
 					Vector4Compare(plane, lbatch->user.bmodel.plane) &&
 					lbatch->firstmesh + surf->mesh->numvertexes <= MAX_INDICIES &&
-#if MAXRLIGHTMAPS > 1
+	#if MAXRLIGHTMAPS > 1
 					lbatch->lightmap[1] == lmmerge(surf->lightmaptexturenums[1]) &&
 					lbatch->lightmap[2] == lmmerge(surf->lightmaptexturenums[2]) &&
 					lbatch->lightmap[3] == lmmerge(surf->lightmaptexturenums[3]) &&
-#endif
+	#endif
 					lbatch->fog == surf->fog &&
 					lbatch->envmap == envmap))
 			batch = lbatch;
@@ -2776,16 +2782,17 @@ static int Mod_Batches_Generate(model_t *mod)
 							batch->lightmap[0] == lmmerge(surf->lightmaptexturenums[0]) &&
 							Vector4Compare(plane, batch->user.bmodel.plane) &&
 							batch->firstmesh + surf->mesh->numvertexes <= MAX_INDICIES &&
-#if MAXRLIGHTMAPS > 1
+	#if MAXRLIGHTMAPS > 1
 							batch->lightmap[1] == lmmerge(surf->lightmaptexturenums[1]) &&
 							batch->lightmap[2] == lmmerge(surf->lightmaptexturenums[2]) &&
 							batch->lightmap[3] == lmmerge(surf->lightmaptexturenums[3]) &&
-#endif
+	#endif
 							batch->fog == surf->fog &&
 							batch->envmap == envmap)
 					break;
 			}
 		}
+#endif
 		if (!batch)
 		{
 			batch = ZG_Malloc(&mod->memgroup, sizeof(*batch));
@@ -2824,6 +2831,7 @@ static int Mod_Batches_Generate(model_t *mod)
 
 			mod->batches[sortid] = batch;
 		}
+		batch->user.bmodel.ebobatch = -1;
 
 		surf->sbatch = batch;	//let the surface know which batch its in
 		batch->maxmeshes++;

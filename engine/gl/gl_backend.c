@@ -2683,7 +2683,7 @@ static void alphagen(const shaderpass_t *pass, int cnt, avec4_t *const src, avec
 
 	case ALPHA_GEN_PORTAL:
 		//FIXME: should this be per-vert?
-		if (r_refdef.recurse)
+		if (r_refdef.recurse || !mesh->xyz_array)
 			f = 1;
 		else
 		{

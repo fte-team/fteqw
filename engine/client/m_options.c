@@ -1568,11 +1568,15 @@ void M_Menu_Render_f (void)
 		"1",
 		NULL
 	};
+
 	static const char *logcenteropts[] = {"Off", "Singleplayer", "Always", NULL};
 	static const char *logcentervalues[] = {"0", "1", "2", NULL};
 
 	static const char *cshiftopts[] = {"Off", "Fullscreen", "Edges", NULL};
 	static const char *cshiftvalues[] = {"0", "1", "2", NULL};
+
+	static const char *scenecacheopts[] = {"Auto", "Force Off", "Force On", NULL};
+	static const char *scenecachevalues[] = {"", "0", "1", NULL};
 
 	emenu_t *menu;
 	extern cvar_t r_novis, cl_item_bobbing, r_waterwarp, r_nolerp, r_noframegrouplerp, r_fastsky, gl_nocolors, gl_lerpimages, r_wateralpha, r_drawviewmodel, gl_cshiftenabled, r_hdr_irisadaptation, scr_logcenterprint, r_fxaa, r_graphics;
@@ -1593,6 +1597,7 @@ void M_Menu_Render_f (void)
 		MB_CHECKBOXCVAR("Disable Model Lerp", r_nolerp, 0),
 		MB_CHECKBOXCVAR("Disable Framegroup Lerp", r_noframegrouplerp, 0),
 		MB_CHECKBOXCVAR("Model Bobbing", cl_item_bobbing, 0),
+		MB_COMBOCVAR("Scene Cache", r_temporalscenecache, scenecacheopts,scenecachevalues, "Cache scene data to significantly optimise highly complex scenes or unvised maps.\nThis may result in offscreen surfaces getting rendered."),
 		MB_COMBOCVAR("Water Warp", r_waterwarp, warpopts, warpvalues, NULL),
 		MB_SLIDER("Water Alpha", r_wateralpha, 0, 1, 0.1, NULL),
 		MB_SLIDER("Viewmodel Alpha", r_drawviewmodel, 0, 1, 0.1, NULL),
@@ -1606,7 +1611,6 @@ void M_Menu_Render_f (void)
 		MB_CHECKBOXCVAR("Bloom", r_bloom, 0),
 #endif
 		MB_CHECKBOXCVARTIP("HDR", r_hdr_irisadaptation, 0, "Adjust scene brightness to compensate for lighting levels."),
-		MB_CHECKBOXCVARTIP("Temporal Scene Cache", r_temporalscenecache, 0, "Cache scene data to significantly optimise highly complex scenes or unvised maps.\n"CON_WARNING"Unfortunately this is incompatible with certain techniques, so may need to be disabled for compat with legacy content."),
 		MB_END()
 	};
 	menu = M_Options_Title(&y, 0);

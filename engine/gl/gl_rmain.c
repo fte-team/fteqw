@@ -1121,39 +1121,41 @@ void GLR_DrawPortal(batch_t *batch, batch_t **blist, batch_t *depthmasklist[2], 
 	pvsbuffer_t newvis;
 	float ivmat[16], trmat[16];
 
-	if (!mesh->xyz_array)
+	if (mesh->xyz_array)
+	{
+		if (!mesh->normals_array)
+		{
+			VectorSet(plane.normal, 0, 0, 1);
+		}
+		else
+		{
+			VectorCopy(mesh->normals_array[0], plane.normal);
+		}
+
+		if (batch->ent == &r_worldentity)
+		{
+			plane.dist = DotProduct(mesh->xyz_array[0], plane.normal);
+		}
+		else
+		{
+			vec3_t point;
+			VectorCopy(plane.normal, oplane.normal);
+			//rotate the surface normal around its entity's matrix
+			plane.normal[0] = oplane.normal[0]*batch->ent->axis[0][0] + oplane.normal[1]*batch->ent->axis[1][0] + oplane.normal[2]*batch->ent->axis[2][0];
+			plane.normal[1] = oplane.normal[0]*batch->ent->axis[0][1] + oplane.normal[1]*batch->ent->axis[1][1] + oplane.normal[2]*batch->ent->axis[2][1];
+			plane.normal[2] = oplane.normal[0]*batch->ent->axis[0][2] + oplane.normal[1]*batch->ent->axis[1][2] + oplane.normal[2]*batch->ent->axis[2][2];
+
+			//rotate some point on the mesh around its entity's matrix
+			point[0] = mesh->xyz_array[0][0]*batch->ent->axis[0][0] + mesh->xyz_array[0][1]*batch->ent->axis[1][0] + mesh->xyz_array[0][2]*batch->ent->axis[2][0] + batch->ent->origin[0];
+			point[1] = mesh->xyz_array[0][0]*batch->ent->axis[0][1] + mesh->xyz_array[0][1]*batch->ent->axis[1][1] + mesh->xyz_array[0][2]*batch->ent->axis[2][1] + batch->ent->origin[1];
+			point[2] = mesh->xyz_array[0][0]*batch->ent->axis[0][2] + mesh->xyz_array[0][1]*batch->ent->axis[1][2] + mesh->xyz_array[0][2]*batch->ent->axis[2][2] + batch->ent->origin[2];
+
+			//now we can figure out the plane dist
+			plane.dist = DotProduct(point, plane.normal);
+		}
+	}
+	else
 		return;
-
-	if (!mesh->normals_array)
-	{
-		VectorSet(plane.normal, 0, 0, 1);
-	}
-	else
-	{
-		VectorCopy(mesh->normals_array[0], plane.normal);
-	}
-
-	if (batch->ent == &r_worldentity)
-	{
-		plane.dist = DotProduct(mesh->xyz_array[0], plane.normal);
-	}
-	else
-	{
-		vec3_t point;
-		VectorCopy(plane.normal, oplane.normal);
-		//rotate the surface normal around its entity's matrix
-		plane.normal[0] = oplane.normal[0]*batch->ent->axis[0][0] + oplane.normal[1]*batch->ent->axis[1][0] + oplane.normal[2]*batch->ent->axis[2][0];
-		plane.normal[1] = oplane.normal[0]*batch->ent->axis[0][1] + oplane.normal[1]*batch->ent->axis[1][1] + oplane.normal[2]*batch->ent->axis[2][1];
-		plane.normal[2] = oplane.normal[0]*batch->ent->axis[0][2] + oplane.normal[1]*batch->ent->axis[1][2] + oplane.normal[2]*batch->ent->axis[2][2];
-
-		//rotate some point on the mesh around its entity's matrix
-		point[0] = mesh->xyz_array[0][0]*batch->ent->axis[0][0] + mesh->xyz_array[0][1]*batch->ent->axis[1][0] + mesh->xyz_array[0][2]*batch->ent->axis[2][0] + batch->ent->origin[0];
-		point[1] = mesh->xyz_array[0][0]*batch->ent->axis[0][1] + mesh->xyz_array[0][1]*batch->ent->axis[1][1] + mesh->xyz_array[0][2]*batch->ent->axis[2][1] + batch->ent->origin[1];
-		point[2] = mesh->xyz_array[0][0]*batch->ent->axis[0][2] + mesh->xyz_array[0][1]*batch->ent->axis[1][2] + mesh->xyz_array[0][2]*batch->ent->axis[2][2] + batch->ent->origin[2];
-
-		//now we can figure out the plane dist
-		plane.dist = DotProduct(point, plane.normal);
-	}
 
 	//if we're too far away from the surface, don't draw anything
 	if (batch->shader->flags & SHADER_AGEN_PORTAL)
@@ -1211,12 +1213,15 @@ void GLR_DrawPortal(batch_t *batch, batch_t **blist, batch_t *depthmasklist[2], 
 			int clust, i, j;
 			float d;
 			vec3_t point;
-			r_refdef.forcevis = true;
+			r_refdef.forcevis = false;
 			r_refdef.forcedvis = NULL;
 			newvis.buffer = alloca(newvis.buffersize=cl.worldmodel->pvsbytes);
 			for (i = batch->firstmesh; i < batch->meshes; i++)
 			{
 				mesh = batch->mesh[i];
+				if (!mesh->xyz_array)
+					continue;
+				r_refdef.forcevis = true;
 				VectorClear(point);
 				for (j = 0; j < mesh->numvertexes; j++)
 					VectorAdd(point, mesh->xyz_array[j], point);

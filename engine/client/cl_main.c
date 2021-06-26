@@ -765,7 +765,9 @@ struct resolvectx_s
 };
 static void CL_ResolvedServer(void *vctx, void *data, size_t a, size_t b)
 {
+#ifdef HAVE_DTLS
 	size_t i;
+#endif
 	struct resolvectx_s *ctx = vctx;
 
 	//something screwed us over...

@@ -2122,9 +2122,12 @@ static qboolean PM_NameIsInStrings(const char *strings, const char *match)
 unsigned int PM_MarkUpdates (void)
 {
 	unsigned int changecount = 0;
-	package_t *p, *o, *b, *e = NULL;
+	package_t *p, *o, *b;
+#ifdef WEBCLIENT
+	package_t *e = NULL;
 	int bestengine = parse_revision_number(enginerevision, true);
 	int them;
+#endif
 
 	if (manifestpackages)
 	{
@@ -2153,6 +2156,7 @@ unsigned int PM_MarkUpdates (void)
 
 	for (p = availablepackages; p; p = p->next)
 	{
+#ifdef WEBCLIENT
 		if ((p->flags & DPF_ENGINE) && !(p->flags & DPF_HIDDEN) && bestengine>0 && PM_SignatureOkay(p))
 		{
 			them = parse_revision_number(p->version, true);
@@ -2163,6 +2167,7 @@ unsigned int PM_MarkUpdates (void)
 					bestengine = them;
 				}
 		}
+#endif
 		if (p->flags & DPF_MARKED)
 		{
 			b = NULL;
@@ -2188,6 +2193,7 @@ unsigned int PM_MarkUpdates (void)
 			}
 		}
 	}
+#ifdef WEBCLIENT
 	if (e && !(e->flags & DPF_MARKED))
 	{
 		if (pkg_autoupdate.ival >= UPD_STABLE)
@@ -2196,6 +2202,7 @@ unsigned int PM_MarkUpdates (void)
 				changecount++;
 		}
 	}
+#endif
 
 	return changecount;
 }

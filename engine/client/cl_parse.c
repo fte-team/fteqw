@@ -1419,10 +1419,6 @@ static int CL_LoadModels(int stage, qboolean dontactuallyload)
 
 		SCR_SetLoadingFile("csprogs world");
 
-#ifdef CSQC_DAT
-		CSQC_WorldLoaded();
-#endif
-
 		endstage();
 	}
 
@@ -1491,8 +1487,10 @@ static int CL_LoadModels(int stage, qboolean dontactuallyload)
 
 #ifdef CSQC_DAT
 	if (atstage())
-	{
+	{		
 		SCR_SetLoadingFile("csqc init");
+		CSQC_WorldLoaded();
+
 		if (CSQC_Inited())
 		{
 			if (cls.fteprotocolextensions & PEXT_CSQC)

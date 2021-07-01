@@ -2538,7 +2538,7 @@ static void MediaView_DrawFilm(menu_t *m)
 		}
 	}
 	else if (!videoshader)
-		Menu_Unlink(m);
+		Menu_Unlink(m, true);
 }
 static qboolean MediaView_KeyEvent(menu_t *m, qboolean isdown, unsigned int devid, int key, int unicode)
 {
@@ -2560,7 +2560,7 @@ static qboolean MediaView_MouseMove(menu_t *m, qboolean isabs, unsigned int devi
 		cin->cursormove(cin, x, y);
 	return true;
 }
-static void MediaView_StopFilm(menu_t *m)
+static void MediaView_StopFilm(menu_t *m, qboolean forced)
 {	//display is going away for some reason. might as well kill them all
 	Media_StopFilm(true);
 }
@@ -2612,7 +2612,7 @@ static qboolean Media_BeginNextFilm(void)
 		Menu_Push(&videomenu, false);
 	}
 	else
-		Menu_Unlink(&videomenu);
+		Menu_Unlink(&videomenu, true);
 	return !!videoshader;
 }
 qboolean Media_StopFilm(qboolean all)

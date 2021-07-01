@@ -5911,6 +5911,27 @@ int GLBE_FBO_Update(fbostate_t *state, unsigned int enables, texid_t *destcol, i
 			Con_Printf("glCheckFramebufferStatus returned %#x\n", i);
 			break;
 		}
+
+		Con_Printf("FBO Enables: %x %i*%i\n", enables, width, height);
+		for (i = 0; i < mrt; i++)
+		{
+			if (destcol[i])
+			{
+				Con_Printf("^[\\imgptr\\%#"PRIxSIZE"^]", (quintptr_t)destcol[i]);
+				Con_Printf("Colour%i: \"%s\" %x %i*%i*%i%s %s\n", i, destcol[i]->ident, destcol[i]->flags, destcol[i]->width, destcol[i]->height, destcol[i]->depth, (destcol[i]->status != TEX_LOADED)?" NOT LOADED":"",  Image_FormatName(destcol[i]->format));
+			}
+			else
+				Con_Printf("Colour%i: <NO IMAGE>\n", i);
+		}
+		if (enables & FBO_TEX_DEPTH && destdepth)
+		{
+			Con_Printf("^[\\imgptr\\%#"PRIxSIZE"^]", (quintptr_t)destdepth);
+			Con_Printf("Depth: \"%s\" %x %i*%i*%i%s %s\n", destdepth->ident, destdepth->flags, destdepth->width, destdepth->height, destdepth->depth, (destdepth->status != TEX_LOADED)?" NOT LOADED":"",  Image_FormatName(destdepth->format));
+		}
+		else if (enables & FBO_TEX_DEPTH)
+			Con_Printf("Depth: <NO IMAGE>\n");
+		else if (enables & FBO_RB_DEPTH)
+			Con_Printf("Depth: <RenderBuffer>\n");
 	}
 	return old;
 }

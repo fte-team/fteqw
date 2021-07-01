@@ -1776,7 +1776,7 @@ static qboolean M_KeyEvent(menu_t *m, qboolean isdown, unsigned int devid, int k
 	}
 }
 
-void M_Release (menu_t *m)
+void M_Release (menu_t *m, qboolean forced)
 {
 	emenu_t *menu = (emenu_t*)m;
 	menuoption_t *op, *oop;
@@ -1836,7 +1836,7 @@ emenu_t *M_CreateMenu (int extrasize)
 }
 void M_RemoveMenu (emenu_t *menu)
 {
-	Menu_Unlink((menu_t*)menu);
+	Menu_Unlink((menu_t*)menu, false);
 }
 
 void M_ReloadMenus(void)
@@ -1851,24 +1851,29 @@ void M_ReloadMenus(void)
 }
 
 void M_RemoveAllMenus (qboolean leaveprompts)
-{
-	menu_t **link, *m;
+{	//certain menuqc mods are evil and force themselves open again each time we ask them to close, which means we get into an infinite loop trying to ask them to kindly fuck off.
+	//so only kill the current ones.
+	menu_t **list, *m;
+	int count = 0;
+	for (m = topmenu; m; m = m->prev)
+		count++;
+	list = BZ_Malloc(count * sizeof(list));
 
-	for (link = &topmenu; *link; )
+	for (count = 0, m = topmenu; m; m = m->prev)
 	{
-		m = *link;
 		if (m->persist && leaveprompts)
-			link = &m->prev;
-		else
-			Menu_Unlink(m);
+			continue;
+		list[count++] = m;
 	}
-
+	while(count --> 0)
+		Menu_Unlink(list[count], true);
+	BZ_Free(list);
 }
 void M_MenuPop_f (void)
 {
 	if (!topmenu)
 		return;
-	Menu_Unlink(topmenu);
+	Menu_Unlink(topmenu, false);
 }
 
 static menuoption_t *M_NextItem(emenu_t *m, menuoption_t *old)

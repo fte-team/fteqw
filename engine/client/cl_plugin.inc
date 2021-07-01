@@ -4,7 +4,7 @@
 static plugin_t *protocolclientplugin;
 
 
-static void PlugMenu_Close(menu_t *m)
+static void PlugMenu_Close(menu_t *m, qboolean forced)
 {
 	Z_Free(m);
 }
@@ -48,7 +48,7 @@ static qboolean QDECL Plug_SetMenuFocus (qboolean wantkeyfocus, const char *curs
 		}
 	}
 	else if (m)
-		Menu_Unlink(m);
+		Menu_Unlink(m, false);
 
 	if (wantkeyfocus)
 	{
@@ -1058,7 +1058,7 @@ static void Plug_Client_Close(plugin_t *plug)
 	Plug_FreePlugImages(plug);
 
 	if (m)
-		Menu_Unlink(m);
+		Menu_Unlink(m, true);
 	if (protocolclientplugin == plug)
 	{
 		protocolclientplugin = NULL;

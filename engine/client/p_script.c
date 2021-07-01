@@ -7191,8 +7191,8 @@ static void PScript_DrawParticleTypes (void)
 					RQ_AddDistReorder(pdraw, p, type->slooks, p->org);
 
 				// make sure emitter runs at least once
-				if (type->emit >= 0 && type->emitstart <= 0)
-					P_RunParticleEffectType(p->org, p->vel, 1, type->emit);
+				if (type->emit >= 0 && type->emitstart <= 0 && pframetime)
+					P_RunParticleEffectType(p->org, p->vel, pframetime, type->emit);
 
 				// make sure stain effect runs
 				if (type->stainonimpact && r_bloodstains.value)

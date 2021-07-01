@@ -102,7 +102,7 @@ typedef struct menu_s {
 
 	void *ctx;	//for finding a specific menu
 	void (*videoreset)	(struct menu_s *);	//called after a video mode switch / shader reload.
-	void (*release)		(struct menu_s *);	//
+	void (*release)		(struct menu_s *, qboolean forced);	//forced says 'dont load any other menus'.
 	qboolean (*keyevent)(struct menu_s *, qboolean isdown, unsigned int devid, int key, int unicode);	//true if key was handled
 	qboolean (*mousemove)(struct menu_s *, qboolean abs, unsigned int devid, float x, float y);
 	qboolean (*joyaxis)	(struct menu_s *, unsigned int devid, int axis, float val);
@@ -117,9 +117,10 @@ void Menu_KeyEvent(qboolean down, int qdeviceid, int key, int unicode);
 void Menu_Draw(void);
 void Prompts_Draw(void);
 void Menu_PopAll(void); //attempts to pop all menus (this is for map starts, some might linger)
-void Menu_Unlink(menu_t *menu);
+void Menu_Unlink(menu_t *menu, qboolean forced);
 void Menu_Push(menu_t *menu, qboolean prompt);
 menu_t *Menu_FindContext(void *ctx);
+qboolean Menu_IsLinked(menu_t *menu);
 
 typedef enum
 {

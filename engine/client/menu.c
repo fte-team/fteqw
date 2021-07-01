@@ -75,7 +75,7 @@ menu_t *Menu_FindContext(void *ctx)
 	}
 	return NULL;
 }
-void Menu_Unlink(menu_t *menu)
+void Menu_Unlink(menu_t *menu, qboolean forced)
 {
 	menu_t **link;
 	for (link = &promptmenu; *link; link = &(*link)->prev)
@@ -84,7 +84,7 @@ void Menu_Unlink(menu_t *menu)
 		{
 			*link = menu->prev;
 			if (menu->release)
-				menu->release(menu);
+				menu->release(menu, forced);
 
 			Menu_UpdateFocus();
 			return;
@@ -96,7 +96,7 @@ void Menu_Unlink(menu_t *menu)
 		{
 			*link = menu->prev;
 			if (menu->release)
-				menu->release(menu);
+				menu->release(menu, forced);
 
 			Menu_UpdateFocus();
 			return;
@@ -150,7 +150,7 @@ void Menu_PopAll(void)
 	}
 	//third link to actually unlink them safely without unlinking multiple times etc (grr menuqc mods re-grabbing focus when closing)
 	for (i = 0; i < count; i++)
-		Menu_Unlink(menus[i]);
+		Menu_Unlink(menus[i], true);
 }
 
 void Menu_Draw(void)
@@ -511,7 +511,7 @@ static qboolean Prompt_MenuKeyEvent(struct menu_s *gm, qboolean isdown, unsigned
 		return false; // no idea what that is
 
 	m->callback = NULL;	//so the remove handler can't fire.
-	Menu_Unlink(&m->m);
+	Menu_Unlink(&m->m, false);
 	if (callback)
 		callback(ctx, action);
 
@@ -580,7 +580,7 @@ static void Prompt_Draw(struct menu_s *g)
 		}
 	}
 }
-static void Prompt_Release(struct menu_s *gm)
+static void Prompt_Release(struct menu_s *gm, qboolean forced)
 {
 	promptmenu_t *m = (promptmenu_t*)gm;
 	void (*callback)(void *, promptbutton_t) = m->callback;

@@ -1622,7 +1622,7 @@ void QCBUILTIN PF_cl_setkeydest (pubprogfuncs_t *prinst, struct globalvars_s *pr
 		// key_game
 		if (Key_Dest_Has(kdm_menu))
 		{
-			Menu_Unlink(&menuqc);
+			Menu_Unlink(&menuqc, false);
 			Key_Dest_Remove(kdm_menu);
 //			Key_Dest_Remove(kdm_message);
 //			if (cls.state == ca_disconnected)
@@ -2881,12 +2881,6 @@ static qboolean MP_KeyEvent(menu_t *menu, qboolean isdown, unsigned int devid, i
 		R2D_Flush();
 	return result;
 }
-static void MP_TryRelease(menu_t *m)
-{
-	if (inmenuprogs)
-		return;	//if the qc asked for it, the qc probably already knows about it. don't recurse.
-	MP_Toggle(0);
-}
 
 void MP_Shutdown (void)
 {
@@ -2895,7 +2889,7 @@ void MP_Shutdown (void)
 		return;
 
 	menuqc.release = NULL; //don't notify
-	Menu_Unlink(&menuqc);
+	Menu_Unlink(&menuqc, false);
 /*
 	{
 		char *buffer;
@@ -2924,6 +2918,20 @@ void MP_Shutdown (void)
 
 	Key_Dest_Remove(kdm_menu);
 	key_dest_absolutemouse &= ~kdm_menu;
+}
+
+static void MP_TryRelease(menu_t *m, qboolean force)
+{
+	if (inmenuprogs)
+		return;	//if the qc asked for it, the qc probably already knows about it. don't recurse.
+	MP_Toggle(0);
+
+	if (force && Menu_IsLinked(m))
+	{
+		Con_Printf(CON_ERROR"Menuqc retook key grabs when ordered to yield. Killing.\n");
+		MP_Shutdown();
+		M_Init_Internal();
+	}
 }
 
 void *VARGS PR_CB_Malloc(int size);	//these functions should be tracked by the library reliably, so there should be no need to track them ourselves.

@@ -41,7 +41,7 @@ void Q3_SetKeyCatcher(int newcatcher)
 		if (newcatcher&2)
 			Menu_Push(&uimenu, false);
 		else
-			Menu_Unlink(&uimenu);
+			Menu_Unlink(&uimenu, false);
 	}
 }
 int Q3_GetKeyCatcher(void)
@@ -1739,7 +1739,7 @@ static qintptr_t EXPORT_FN UI_SystemCallsNative(qintptr_t arg, ...)
 	return UI_SystemCalls(NULL, ~(quintptr_t)0, arg, args);
 }
 
-static void UI_Release(menu_t *m)
+static void UI_Release(menu_t *m, qboolean forced)
 {
 	keycatcher &= ~2;
 }
@@ -1800,7 +1800,7 @@ static qboolean UI_MousePosition(struct menu_s *m, qboolean abs, unsigned int de
 
 void UI_Reset(void)
 {
-	Menu_Unlink(&uimenu);
+	Menu_Unlink(&uimenu, true);
 
 	if (qrenderer == QR_NONE)	//no renderer loaded
 		UI_Stop();
@@ -1810,7 +1810,7 @@ void UI_Reset(void)
 
 void UI_Stop (void)
 {
-	Menu_Unlink(&uimenu);
+	Menu_Unlink(&uimenu, true);
 
 	if (uivm)
 	{

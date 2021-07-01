@@ -4118,9 +4118,9 @@ qboolean Shader_Init (void)
 	else
 	{
 		memset(wibuf, 0xff, sizeof(wibuf));
-		r_whiteimage = R_LoadTexture("$whiteimage", 4, 4, TF_RGBA32, wibuf, IF_NOMIPMAP|IF_NOPICMIP|IF_NEAREST|IF_NOGAMMA);
+		r_whiteimage = R_LoadTexture("$whiteimage", 4, 4, TF_RGBA32, wibuf, IF_NOMIPMAP|IF_NOPICMIP|IF_NEAREST|IF_NOGAMMA|IF_NOPURGE);
 		memset(wibuf, 0, sizeof(wibuf));
-		r_blackimage = R_LoadTexture("$blackimage", 4, 4, TF_RGBA32, wibuf, IF_NOMIPMAP|IF_NOPICMIP|IF_NEAREST|IF_NOGAMMA);
+		r_blackimage = R_LoadTexture("$blackimage", 4, 4, TF_RGBA32, wibuf, IF_NOMIPMAP|IF_NOPICMIP|IF_NEAREST|IF_NOGAMMA|IF_NOPURGE);
 	}
 
 	Shader_NeedReload(true);

@@ -395,6 +395,16 @@ extern struct vulkaninfo_s
 	qboolean neednewswapchain;	//something changed that invalidates the old one.
 	qboolean devicelost;		//we seriously fucked up somewhere. or the gpu is shite.
 
+	struct vksamplers_s
+	{
+		VkSampler samp;
+		unsigned int usages;	//refcounted.
+		unsigned int flags;
+		VkSamplerCreateInfo props;
+		struct vksamplers_s *next;
+		struct vksamplers_s **link;
+	} *samplers;
+
 	struct vkwork_s
 	{
 		struct vkwork_s *next;

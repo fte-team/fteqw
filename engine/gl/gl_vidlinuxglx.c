@@ -103,6 +103,7 @@ static Window vid_root;
 #ifdef GLQUAKE
 static GLXContext ctx = NULL;
 #endif
+extern qboolean vid_isfullscreen;
 static int scrnum;
 static long vid_x_eventmask;
 static enum
@@ -4430,6 +4431,7 @@ static qboolean X11VID_Init (rendererstate_t *info, unsigned char *palette, int 
 		x11.pXMoveResizeWindow(vid_dpy, vid_window, fullscreenx, fullscreeny, fullscreenwidth, fullscreenheight);
 	if (fullscreenflags)
 		fullscreenflags |= FULLSCREEN_ACTIVE;
+	vid_isfullscreen = !!(fullscreenflags &FULLSCREEN_ACTIVE);
 
 	if (X11_CheckFeature("xi2", true) && XI2_Init())
 	{
@@ -4891,6 +4893,7 @@ void Sys_SendKeyEvents(void)
 				}
 				if (fullscreenflags)
 					fullscreenflags |= FULLSCREEN_ACTIVE;
+				vid_isfullscreen = !!(fullscreenflags &FULLSCREEN_ACTIVE);
 			}
 			if (modeswitchpending < 0)
 			{
@@ -4923,6 +4926,7 @@ void Sys_SendKeyEvents(void)
 						x11.pXMapWindow(vid_dpy, vid_decoywindow);
 					}
 					fullscreenflags &= ~FULLSCREEN_ACTIVE;
+					vid_isfullscreen = !!(fullscreenflags &FULLSCREEN_ACTIVE);
 				}
 			}
 			modeswitchpending = 0;

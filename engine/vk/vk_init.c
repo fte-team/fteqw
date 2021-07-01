@@ -48,6 +48,7 @@ void VK_RegisterVulkanCvars(void)
 #endif
 }
 void R2D_Console_Resize(void);
+static void VK_DestroySampler(VkSampler s);
 
 extern qboolean		scr_con_forcedraw;
 
@@ -408,7 +409,7 @@ void VK_DestroyVkTexture(vk_image_t *img)
 	if (!img)
 		return;
 	if (img->sampler)
-		vkDestroySampler(vk.device, img->sampler, vkallocationcb);
+		VK_DestroySampler(img->sampler);
 	if (img->view)
 		vkDestroyImageView(vk.device, img->view, vkallocationcb);
 	if (img->image)
@@ -880,6 +881,8 @@ static qboolean VK_CreateSwapChain(void)
 		free(presentmode);
 		free(surffmts);
 
+		if (vid_isfullscreen)	//nvidia really doesn't like this. its fine when windowed though.
+			VK_DestroySwapChain();
 		swapinfo.oldSwapchain = vk.swapchain;
 
 		newvkswapchain = VK_NULL_HANDLE;
@@ -1149,13 +1152,38 @@ void	VK_Draw_Shutdown(void)
 	Image_Shutdown();
 }
 
+static void VK_DestroySampler(VkSampler s)
+{
+	struct vksamplers_s *ref;
+	for (ref = vk.samplers; ref; ref = ref->next)
+	{
+		if (ref->samp == s)
+		{
+			if (--ref->usages == 0)
+			{
+				vkDestroySampler(vk.device, ref->samp, vkallocationcb);
+				*ref->link = ref->next;
+				if (ref->next)
+					ref->next->link = ref->link;
+				Z_Free(ref);
+			}
+		}
+	}
+}
+static void VK_DestroySampler_FrameEnd(void *w)
+{
+	VK_DestroySampler(*(VkSampler*)w);
+}
+
 void VK_CreateSampler(unsigned int flags, vk_image_t *img)
 {
+	struct vksamplers_s *ref;
 	qboolean clamptoedge = flags & IF_CLAMP;
 	VkSamplerCreateInfo lmsampinfo = {VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO};
 
+
 	if (img->sampler)
-		vkDestroySampler(vk.device, img->sampler, vkallocationcb);
+		VK_DestroySampler(img->sampler);
 
 	if (flags & IF_LINEAR)
 	{
@@ -1196,14 +1224,28 @@ void VK_CreateSampler(unsigned int flags, vk_image_t *img)
 	lmsampinfo.maxLod = vk.mipcap[1];
 	lmsampinfo.borderColor = VK_BORDER_COLOR_FLOAT_OPAQUE_BLACK;
 	lmsampinfo.unnormalizedCoordinates = VK_FALSE;
-	VkAssert(vkCreateSampler(vk.device, &lmsampinfo, NULL, &img->sampler));
+
+	for (ref = vk.samplers; ref; ref = ref->next)
+		if (ref->flags == flags)
+			if (!memcmp(&ref->props, &lmsampinfo, sizeof(lmsampinfo)))
+				break;
+
+	if (!ref)
+	{
+		ref = Z_Malloc(sizeof(*ref));
+		ref->flags = flags;
+		ref->props = lmsampinfo;
+		ref->next = vk.samplers;
+		ref->link = &vk.samplers;
+		if (vk.samplers)
+			vk.samplers->link = &ref->next;
+		vk.samplers = ref;
+		VkAssert(vkCreateSampler(vk.device, &ref->props, NULL, &ref->samp));
+	}
+	ref->usages++;
+	img->sampler = ref->samp;
 }
 
-static void VK_DestroySampler(void *w)
-{
-	VkSampler s = *(VkSampler*)w;
-	vkDestroySampler(vk.device, s, vkallocationcb);
-}
 void VK_UpdateFiltering(image_t *imagelist, int filtermip[3], int filterpic[3], int mipcap[2], float lodbias, float anis)
 {
 	uint32_t i;
@@ -1223,7 +1265,7 @@ void VK_UpdateFiltering(image_t *imagelist, int filtermip[3], int filterpic[3], 
 			if (imagelist->vkimage->sampler)
 			{	//the sampler might still be in use, so clean it up at the end of the frame.
 				//all this to avoid syncing all the queues...
-				VK_AtFrameEnd(VK_DestroySampler, &imagelist->vkimage->sampler, sizeof(imagelist->vkimage->sampler));
+				VK_AtFrameEnd(VK_DestroySampler_FrameEnd, &imagelist->vkimage->sampler, sizeof(imagelist->vkimage->sampler));
 				imagelist->vkimage->sampler = VK_NULL_HANDLE;
 			}
 			VK_CreateSampler(imagelist->flags, imagelist->vkimage);
@@ -2118,10 +2160,10 @@ void    VK_DestroyTexture			(texid_t tex)
 void	VK_R_Init					(void)
 {
 	uint32_t white[6] = {~0u,~0u,~0u,~0u,~0u,~0u};
-	r_blackcubeimage = Image_CreateTexture("***blackcube***", NULL, IF_NEAREST|IF_TEXTYPE_CUBE);
+	r_blackcubeimage = Image_CreateTexture("***blackcube***", NULL, IF_NEAREST|IF_TEXTYPE_CUBE|IF_NOPURGE);
 	Image_Upload(r_blackcubeimage, TF_RGBX32, NULL, NULL, 1, 1, 6, IF_NEAREST|IF_NOMIPMAP|IF_NOGAMMA|IF_TEXTYPE_CUBE);
 
-	r_whitecubeimage = Image_CreateTexture("***whitecube***", NULL, IF_NEAREST|IF_TEXTYPE_CUBE);
+	r_whitecubeimage = Image_CreateTexture("***whitecube***", NULL, IF_NEAREST|IF_TEXTYPE_CUBE|IF_NOPURGE);
 	Image_Upload(r_whitecubeimage, TF_RGBX32, white, NULL, 1, 1, 6, IF_NEAREST|IF_NOMIPMAP|IF_NOGAMMA|IF_TEXTYPE_CUBE);
 }
 void	VK_R_DeInit					(void)

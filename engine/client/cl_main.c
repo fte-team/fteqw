@@ -5369,6 +5369,7 @@ typedef struct {
 	struct dl_download *dl;
 	vfsfile_t *srcfile;
 	vfsfile_t *dstfile;
+	char *packageinfo;
 	unsigned int flags;
 	char fname[1];	//system path or url.
 } hrf_t;
@@ -5621,6 +5622,7 @@ void Host_DoRunFile(hrf_t *f)
 	char loadcommand[MAX_OSPATH];
 	qboolean isnew = false;
 	qboolean haschanged = false;
+	enum fs_relative qroot = FS_GAME;
 
 	if (f->flags & HRF_WAITING)
 	{
@@ -5634,6 +5636,8 @@ done:
 		if (f->flags & HRF_WAITING)
 			waitingformanifest--;
 
+		if (f->packageinfo)
+			Z_Free(f->packageinfo);
 		if (f->srcfile)
 			VFS_CLOSE(f->srcfile);
 		if (f->dstfile)
@@ -5862,13 +5866,17 @@ done:
 		goto done;
 	}
 
-	if (f->flags & HRF_MANIFEST)
+	if (f->flags & HRF_PACKAGE)
+	{
+		Z_Free(f->packageinfo);
+		f->packageinfo = PM_GeneratePackageFromMeta(f->srcfile, qname,sizeof(qname), &qroot);
+	}
+	else if (f->flags & HRF_MANIFEST)
 	{
 		Host_DoRunFile(f);
 		return;
 	}
-
-	if (f->flags & HRF_QTVINFO)
+	else if (f->flags & HRF_QTVINFO)
 	{
 		//pass the file object to the qtv code instead of trying to install it.
 		CL_ParseQTVDescriptor(f->srcfile, f->fname);
@@ -5879,56 +5887,61 @@ done:
 
 	VFS_SEEK(f->srcfile, 0);
 
-	f->dstfile = FS_OpenVFS(qname, "rb", FS_GAME);
-	if (f->dstfile)
+	if (f->flags & HRF_OVERWRITE)
+		;//haschanged = isnew = true;
+	else
 	{
-		//do a real diff.
-		if (f->srcfile->seekstyle == SS_UNSEEKABLE || VFS_GETLEN(f->srcfile) != VFS_GETLEN(f->dstfile))
+		f->dstfile = FS_OpenVFS(qname, "rb", (qroot==FS_GAMEONLY)?FS_GAME:qroot);
+		if (f->dstfile)
 		{
-			//if we can't seek, or the sizes differ, just assume that the file is modified.
-			haschanged = true;
+			//do a real diff.
+			if (f->srcfile->seekstyle == SS_UNSEEKABLE || VFS_GETLEN(f->srcfile) != VFS_GETLEN(f->dstfile))
+			{
+				//if we can't seek, or the sizes differ, just assume that the file is modified.
+				haschanged = true;
+			}
+			else
+			{
+				int len = VFS_GETLEN(f->srcfile);
+				char sbuf[8192], dbuf[8192];
+				if (len > sizeof(sbuf))
+					len = sizeof(sbuf);
+				VFS_READ(f->srcfile, sbuf, len);
+				VFS_READ(f->dstfile, dbuf, len);
+				haschanged = memcmp(sbuf, dbuf, len);
+				VFS_SEEK(f->srcfile, 0);
+			}
+			VFS_CLOSE(f->dstfile);
+			f->dstfile = NULL;
 		}
 		else
-		{
-			int len = VFS_GETLEN(f->srcfile);
-			char sbuf[8192], dbuf[8192];
-			if (len > sizeof(sbuf))
-				len = sizeof(sbuf);
-			VFS_READ(f->srcfile, sbuf, len);
-			VFS_READ(f->dstfile, dbuf, len);
-			haschanged = memcmp(sbuf, dbuf, len);
-			VFS_SEEK(f->srcfile, 0);
-		}
-		VFS_CLOSE(f->dstfile);
-		f->dstfile = NULL;
+			isnew = true;
 	}
-	else
-		isnew = true;
 
-	if (haschanged)
+	if (!(f->flags & HRF_ACTION))
 	{
-		if (!(f->flags & HRF_ACTION))
+		Key_Dest_Remove(kdm_console);
+		if (haschanged)
 		{
-			Key_Dest_Remove(kdm_console);
 			Menu_Prompt(Host_RunFilePrompted, f, va("File already exists.\nWhat would you like to do?\n%s\n", displayname), "Overwrite", "Run old", "Cancel");
 			return;
 		}
-	}
-	else if (isnew)
-	{
-		if (!(f->flags & HRF_ACTION))
+		else if (isnew)
 		{
-			Key_Dest_Remove(kdm_console);
 			Menu_Prompt(Host_RunFilePrompted, f, va("File appears new.\nWould you like to install\n%s\n", displayname), "Install!", "", "Cancel");
 			return;
 		}
+		else
+		{
+			Menu_Prompt(NULL, NULL, va("File is already installed\n%s\n", displayname), NULL, NULL, "Cancel");
+			f->flags |= HRF_ABORT;
+		}
 	}
-
-	if (f->flags & HRF_OVERWRITE)
+	else if (f->flags & HRF_OVERWRITE)
 	{
 		char buffer[8192];
 		int len;
-		f->dstfile = FS_OpenVFS(qname, "wb", FS_GAMEONLY);
+		f->dstfile = FS_OpenVFS(qname, "wb", qroot);
 		if (f->dstfile)
 		{
 #ifdef FTE_TARGET_WEB
@@ -5943,16 +5956,18 @@ done:
 					break;
 				VFS_WRITE(f->dstfile, buffer, len);
 			}
+
 			VFS_CLOSE(f->dstfile);
 			f->dstfile = NULL;
 		}
+
+		if (f->flags & HRF_PACKAGE)
+			PM_FileInstalled(COM_SkipPath(f->fname), qroot, f->packageinfo, true);
+
+		Cbuf_AddText(loadcommand, RESTRICT_LOCAL);
 	}
 
-	Cbuf_AddText(loadcommand, RESTRICT_LOCAL);
-
-	f->flags |= HRF_ABORT;
-	Host_DoRunFile(f);
-	return;
+	goto done;
 }
 
 //only valid once the host has been initialised, as it needs a working filesystem.

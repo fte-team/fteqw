@@ -118,6 +118,8 @@ typedef struct q2trace_s
 								//19
 #define	FL_HUBSAVERESET			(1<<20) //hexen2, ent is reverted to original state on map changes.
 #define FL_CLASS_DEPENDENT		(1<<21)	//hexen2
+								//22
+								//23
 
 
 

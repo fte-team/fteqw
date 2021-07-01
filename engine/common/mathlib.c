@@ -1467,6 +1467,7 @@ void Matrix4x4_CM_Projection_Far(float *proj, float fovx, float fovy, float near
 
 void Matrix4x4_CM_Projection_Inf(float *proj, float fovx, float fovy, float neard, qboolean d3d)
 {
+//FIXME: glDepthRange(1,0) for reverse-z (with cull flipped). combine with arb_clip_control for 0-1. this should give much better depth precision with floating point depth buffers.
 	float xmin, xmax, ymin, ymax;
 	double dn = (d3d?0:-1), df = 1;
 

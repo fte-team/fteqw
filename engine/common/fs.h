@@ -73,6 +73,8 @@ void FS_UnRegisterFileSystemModule(void *module);
 
 void FS_AddHashedPackage(searchpath_t **oldpaths, const char *parent_pure, const char *parent_logical, searchpath_t *search, unsigned int loadstuff, const char *pakpath, const char *qhash, const char *pakprefix, unsigned int packageflags);
 void PM_LoadPackages(searchpath_t **oldpaths, const char *parent_pure, const char *parent_logical, searchpath_t *search, unsigned int loadstuff, int minpri, int maxpri);
+void *PM_GeneratePackageFromMeta(vfsfile_t *file, char *fname, size_t fnamesize, enum fs_relative *fsroot);
+void PM_FileInstalled(const char *filename, enum fs_relative fsroot, void *metainfo, qboolean enable); //we finished installing a file via some other mechanism (drag+drop or from server. insert it into the updates menu.
 void PM_EnumeratePlugins(void (*callback)(const char *name));
 int PM_IsApplying(qboolean listsonly);
 unsigned int PM_MarkUpdates (void);	//mark new/updated packages as needing install.

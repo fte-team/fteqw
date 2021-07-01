@@ -2447,7 +2447,7 @@ void Key_SetBinding (int keynum, int modifier, const char *binding, int level)
 		}
 		return;
 	}
-			
+
 	if (keynum < 0 || keynum >= K_MAX)
 		return;
 

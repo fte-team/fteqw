@@ -22,6 +22,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "quakedef.h"
 #include "cl_ignore.h"
 #include "shader.h"
+#include "fs.h"
 
 void CL_GetNumberedEntityInfo (int num, float *org, float *ang);
 void CLDP_ParseDarkPlaces5Entities(void);
@@ -2563,6 +2564,8 @@ void DL_Abort(qdownload_t *dl, enum qdlabort aborttype)
 					Con_Printf("Couldn't rename %s to %s\n", nativetmp, nativefinal);
 				}
 			}
+
+			PM_FileInstalled(dl->localname, dl->fsroot, NULL, true);
 		}
 		else
 		{

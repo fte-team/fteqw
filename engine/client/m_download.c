@@ -129,7 +129,7 @@ typedef struct package_s {
 
 	char *mirror[MAXMIRRORS];	//FIXME: move to two types of dep...
 	char gamedir[16];
-	enum fs_relative fsroot;
+	enum fs_relative fsroot;	//FS_BINARYPATH or FS_ROOT _ONLY_
 	char version[16];
 	char *arch;
 	char *qhash;
@@ -320,6 +320,24 @@ static void PM_AddDep(package_t *p, int deptype, const char *depname)
 	strcpy(nd->name, depname);
 	nd->next = *link;
 	*link = nd;
+}
+static const char *PM_GetDepSingle(package_t *p, int deptype)
+{
+	struct packagedep_s *d;
+	const char *val = NULL;
+
+	//no dupes.
+	for (d = p->deps; d ; d = d->next)
+	{
+		if (d->dtype == deptype)
+		{
+			if (val)
+				return NULL;	//found a second. give up in confusion.
+			else
+				val = d->name;	//found the first, but continue to make sure there's no second.
+		}
+	}
+	return val;
 }
 static qboolean PM_HasDep(package_t *p, int deptype, const char *depname)
 {
@@ -934,7 +952,7 @@ struct packagesourceinfo_s
 	char mirror[MAXMIRRORS][MAX_OSPATH];
 	int nummirrors;
 };
-static const char *PM_ParsePackage(struct packagesourceinfo_s *source, const char *tokstart, int wantvariation)
+static const char *PM_ParsePackage(struct packagesourceinfo_s *source, const char *tokstart, package_t **outpackage, int wantvariation)
 {
 	package_t *p;
 	struct packagedep_s *dep;
@@ -1279,16 +1297,21 @@ static const char *PM_ParsePackage(struct packagesourceinfo_s *source, const cha
 	if (source->url)
 		PM_AddDep(p, DEP_SOURCE, source->url);
 
-	PM_InsertPackage(p);
-
-	if (wantvariation == 0)	//only the first!
+	if (outpackage)
+		*outpackage = p;
+	else
 	{
-		while (++wantvariation < variation)
-			if (tokstart != PM_ParsePackage(source, start, wantvariation))
-			{
-				Con_Printf(CON_ERROR"%s: Unable to parse package variation...\n", source->url);
-				break;	//erk?
-			}
+		PM_InsertPackage(p);
+
+		if (wantvariation == 0)	//only the first!
+		{
+			while (++wantvariation < variation)
+				if (tokstart != PM_ParsePackage(source, start, NULL, wantvariation))
+				{
+					Con_Printf(CON_ERROR"%s: Unable to parse package variation...\n", source->url);
+					break;	//erk?
+				}
+		}
 	}
 
 	return tokstart;
@@ -1524,13 +1547,13 @@ static qboolean PM_ParsePackageList(const char *f, unsigned int parseflags, cons
 			if (!strcmp(com_token, "{"))
 			{
 				linestart = COM_StringParse (linestart, com_token, sizeof(com_token), false, false);
-				f = PM_ParsePackage(&source, linestart, 0);
+				f = PM_ParsePackage(&source, linestart, NULL, 0);
 				if (!f)
 					break;	//erk!
 			}
 			else if (source.version < 3)
 			{	//old single-line gibberish
-				PM_ParsePackage(&source, tokstart, -1);
+				PM_ParsePackage(&source, tokstart, NULL, -1);
 			}
 			else
 			{
@@ -1567,6 +1590,149 @@ void PM_EnumeratePlugins(void (*callback)(const char *name))
 }
 #endif
 
+static qboolean QDECL Host_StubClose (struct vfsfile_s *file)
+{
+	return true;
+}
+static char *PM_GetMetaTextFromFile(vfsfile_t *file, char *filename, char *qhash, size_t hashsize)	//seeks, but does not close.
+{
+	qboolean (QDECL *OriginalClose) (struct vfsfile_s *file) = file->Close;	//evilness
+	searchpathfuncs_t *archive;
+	char *ret = NULL, *line;
+	*qhash = 0;
+
+	file->Close = Host_StubClose;	//so it doesn't go away without our say
+	archive = FS_OpenPackByExtension(file, NULL, filename, filename);
+	if (archive)
+	{
+		flocation_t loc;
+		vfsfile_t *metafile = NULL;
+		if (archive->FindFile(archive, &loc, "fte.meta", NULL))
+			metafile = archive->OpenVFS(archive, &loc, "rb");
+		if (metafile)
+		{
+			size_t sz = VFS_GETLEN(metafile);
+			ret = BZ_Malloc(sz+1);
+			VFS_READ(metafile, ret, sz);
+			ret[sz] = 0;
+			VFS_CLOSE(metafile);
+		}
+
+		//get the archive's qhash.
+		Q_snprintfz(qhash, hashsize, "0x%x", archive->GeneratePureCRC(archive, 0, 0));
+
+		line = ret;
+		do
+		{
+			line = (char*)Cmd_TokenizeString (line, false, false);
+			if (!strcmp(com_token, "{"))
+				break;	//okay, found the start of it.
+		} while (*line);
+		//and leave it pointing there for easier parsing later. single package only.
+		line = va("qhash %s\n%s", qhash, line);
+		line = Z_StrDup(line);
+		Z_Free(ret);
+		ret = line;
+
+		archive->ClosePath(archive);
+	}
+	file->Close = OriginalClose;
+	return ret;
+}
+
+void *PM_GeneratePackageFromMeta(vfsfile_t *file, char *fname, size_t fnamesize, enum fs_relative *fsroot)
+{
+	package_t *p = NULL;
+	char pkgname[MAX_QPATH];
+	char qhash[64];
+	char *pkgdata = PM_GetMetaTextFromFile(file, fname, qhash, sizeof(qhash));
+
+	struct packagesourceinfo_s pkgsrc = {DPF_ENABLED};
+	pkgsrc.version = 3;
+	pkgsrc.categoryprefix = "";
+
+	COM_StripAllExtensions(COM_SkipPath(fname), pkgname,sizeof(pkgname));
+
+	PM_PreparePackageList();	//just in case.
+
+	//see if we can make any sense of it.
+	PM_ParsePackage(&pkgsrc, pkgdata, &p, 1);
+	if (p)
+	{
+		if (p->extract == EXTRACT_COPY)
+		{
+			const char *f = PM_GetDepSingle(p, DEP_FILE);
+			if (!f)
+				f = va("%s", fname);	//erk?
+
+			if (*p->gamedir)
+				f = va("%s/%s", p->gamedir, f);
+
+			Z_StrDupPtr(&p->qhash, qhash);
+			if (PM_TryGenCachedName(f, p, fname, fnamesize))
+				;
+			else
+				Q_strncpyz(fname, f, fnamesize);
+			*fsroot = p->fsroot;
+		}
+
+		//okay, seems there's something in it.
+		PM_FreePackage(p);
+	}
+
+	return pkgdata;
+}
+
+static qboolean PM_FileInstalled_Internal(const char *package, const char *category, const char *title, const char *filename, enum fs_relative fsroot, unsigned pkgflags, void *metainfo, qboolean enable)
+{
+	package_t *p;
+
+	if (metainfo)
+	{
+		struct packagesourceinfo_s pkgsrc = {DPF_ENABLED};
+		pkgsrc.version = 3;
+		pkgsrc.categoryprefix = "";
+
+		PM_ParsePackage(&pkgsrc, metainfo, &p, 1);
+		if (!p)
+			return false;
+	}
+	else
+	{
+		p = Z_Malloc(sizeof(*p));
+		p->priority = PM_DEFAULTPRIORITY;
+		p->fsroot = fsroot;
+		strcpy(p->version, "?" "?" "?" "?");
+	}
+
+	p->deps = Z_Malloc(sizeof(*p->deps) + strlen(filename));
+	p->deps->dtype = DEP_FILE;
+	strcpy(p->deps->name, filename);
+
+	if (pkgflags&DPF_PLUGIN)
+		p->arch = Z_StrDup(THISARCH);
+	if (!p->name)
+		p->name = Z_StrDup(package);
+	if (!p->title)
+		p->title = Z_StrDup(title);
+	if (!p->category && !*p->category)
+		p->category = Z_StrDup(category);
+	p->flags = pkgflags|DPF_NATIVE|DPF_FORGETONUNINSTALL;
+	if (enable)
+		p->flags |= DPF_USERMARKED|DPF_ENABLED;
+
+	if (PM_InsertPackage(p))
+		PM_WriteInstalledPackages();
+
+	return true;
+}
+void PM_FileInstalled(const char *filename, enum fs_relative fsroot, void *metainfo, qboolean enable)
+{
+	char pkgname[MAX_QPATH];
+	COM_StripAllExtensions(COM_SkipPath(filename), pkgname,sizeof(pkgname));
+	PM_FileInstalled_Internal(pkgname, "", pkgname, filename, fsroot, DPF_GUESSED,  metainfo, enable);
+}
+
 #ifdef PLUGINS
 static package_t *PM_FindExactPackage(const char *packagename, const char *arch, const char *version, unsigned int flags);
 static package_t *PM_FindPackage(const char *packagename);
@@ -1583,7 +1749,6 @@ static int QDECL PM_EnumeratedPlugin (const char *name, qofs_t size, time_t mtim
 	char vmname[MAX_QPATH];
 	int len, l, a;
 	char *dot;
-	const char *synthver = "??""??";
 	char *pkgname;
 	if (!strncmp(name, PLUGINPREFIX, strlen(PLUGINPREFIX)))
 		Q_strncpyz(vmname, name+strlen(PLUGINPREFIX), sizeof(vmname));
@@ -1637,26 +1802,13 @@ static int QDECL PM_EnumeratedPlugin (const char *name, qofs_t size, time_t mtim
 		return true;	//don't include it if its a dupe anyway.
 	//FIXME: should be checking whether there's a package that provides the file...
 
-	p = Z_Malloc(sizeof(*p));
-	p->deps = Z_Malloc(sizeof(*p->deps) + strlen(name));
-	p->deps->dtype = DEP_FILE;
-	strcpy(p->deps->name, name);
-	p->arch = Z_StrDup(THISARCH);
-	p->name = Z_StrDup(pkgname);
-	p->title = Z_StrDup(vmname);
-	p->category = Z_StrDup("Plugins/");
-	p->priority = PM_DEFAULTPRIORITY;
-	p->fsroot = FS_BINARYPATH;
-	strcpy(p->version, synthver);
-	p->flags = DPF_PLUGIN|DPF_NATIVE|DPF_FORGETONUNINSTALL;
+	return PM_FileInstalled_Internal(pkgname, "Plugins/", vmname, name, FS_BINARYPATH, DPF_PLUGIN, NULL,
 #ifdef ENABLEPLUGINSBYDEFAULT
-	p->flags |= DPF_USERMARKED|DPF_ENABLED;
+			true
 #else
-	*(int*)param = true;
+			false
 #endif
-	PM_InsertPackage(p);
-
-	return true;
+		);
 }
 #ifndef SERVERONLY
 #ifndef ENABLEPLUGINSBYDEFAULT
@@ -1674,8 +1826,8 @@ static void PM_PluginDetected(void *ctx, int status)
 #endif
 #endif
 
-#ifndef SERVERONLY
-void PM_AutoUpdateQuery(void *ctx, promptbutton_t status)
+/*#ifndef SERVERONLY
+static void PM_AutoUpdateQuery(void *ctx, promptbutton_t status)
 {
 	if (status == PROMPT_CANCEL)
 		return; //'Later'
@@ -1683,7 +1835,7 @@ void PM_AutoUpdateQuery(void *ctx, promptbutton_t status)
 		Cmd_ExecuteString("menu_download\n", RESTRICT_LOCAL);
 	Menu_Download_Update();
 }
-#endif
+#endif*/
 
 static void PM_PreparePackageList(void)
 {
@@ -3943,7 +4095,23 @@ void PM_Command_f(void)
 				{
 					if ((pm_source[i].flags & SRCFL_HISTORIC) && !developer.ival)
 						continue;	//hidden ones were historically enabled/disabled. remember the state even when using a different fmf, but don't confuse the user.
-					Con_Printf("%s %s\n", pm_source[i].url, pm_source[i].flags?"(explicit)":"(implicit)");
+
+					if (pm_source[i].flags & SRCFL_ENABLED)
+						Con_Printf("^&02 ");
+					else if (pm_source[i].flags & SRCFL_DISABLED)
+						Con_Printf("^&04 ");
+					else
+						Con_Printf("^&0E ");
+
+					if (pm_source[i].flags & SRCFL_DISABLED)
+						Con_Printf("%s ", pm_source[i].url);	//enable
+					else
+						Con_Printf("%s ", pm_source[i].url);	//disable
+
+					if (pm_source[i].flags & SRCFL_USER)
+						Con_Printf("- ^[[Delete]\\type\\pkg remsource \"%s\"^]\n", pm_source[i].url);
+					else
+						Con_Printf("(implicit)\n");
 					c++;
 				}
 				Con_Printf("<%u sources>\n", (unsigned)c);

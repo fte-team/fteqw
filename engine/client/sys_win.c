@@ -3001,8 +3001,6 @@ qboolean Sys_SetUpdatedBinary(const char *newbinary)
 }
 qboolean Sys_EngineMayUpdate(void)
 {
-	char *e;
-
 	if (!COM_CheckParm("-allowupdate"))
 	{
 		if (revision_number(true) <= 0)

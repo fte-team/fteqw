@@ -5009,23 +5009,18 @@ This isn't really needed, but might make some thing nicer.
 void COM_ParsePlusSets (qboolean docbuf)
 {
 	int i;
+	int c;
 	for (i=1 ; i<com_argc-2 ; i++)
 	{
 		if (!com_argv[i])
 			continue;		// NEXTSTEP sometimes clears appkit vars.
-		if (!com_argv[i+1])
-			continue;
-		if (!com_argv[i+2])
-			continue;
-
-		if (*com_argv[i+1] == '-' || *com_argv[i+1] == '+')
-			continue;	//erm
-		if (*com_argv[i+2] == '-' || *com_argv[i+2] == '+')
-			continue;	//erm
+		for (c = 1; i+c < com_argc && com_argv[i+c] && *com_argv[i+c] != '-' && *com_argv[i+c] != '+'; c++)
+			;
 
 		if (docbuf)
 		{
-			if (!strcmp(com_argv[i], "+set") || !strcmp(com_argv[i], "+seta"))
+			if (c == 3 && (!strcmp(com_argv[i], "+set") || !strcmp(com_argv[i], "+seta") ||
+				!strcmp(com_argv[i], "-set") || !strcmp(com_argv[i], "-seta")))
 			{
 				char buf[8192];
 				Cbuf_AddText(com_argv[i]+1, RESTRICT_LOCAL);
@@ -5035,10 +5030,18 @@ void COM_ParsePlusSets (qboolean docbuf)
 				Cbuf_AddText(COM_QuotedString(com_argv[i+2], buf, sizeof(buf), false), RESTRICT_LOCAL);
 				Cbuf_AddText("\n", RESTRICT_LOCAL);
 			}
+			else if (c == 2 && !strcmp(com_argv[i], "-exec"))
+			{
+				char buf[8192];
+				Cbuf_AddText(com_argv[i]+1, RESTRICT_LOCAL);
+				Cbuf_AddText(" ", RESTRICT_LOCAL);
+				Cbuf_AddText(COM_QuotedString(com_argv[i+1], buf, sizeof(buf), false), RESTRICT_LOCAL);
+				Cbuf_AddText("\n", RESTRICT_LOCAL);
+			}
 		}
 		else
 		{
-			if (!strcmp(com_argv[i], "+set") || !strcmp(com_argv[i], "+seta"))
+			if (c == 3 && (!strcmp(com_argv[i], "+set") || !strcmp(com_argv[i], "+seta")))
 			{
 #if defined(Q2CLIENT) || defined(Q2SERVER)
 				if (!strcmp("basedir", com_argv[i+1]))
@@ -5048,7 +5051,7 @@ void COM_ParsePlusSets (qboolean docbuf)
 					Cvar_Get(com_argv[i+1], com_argv[i+2], (!strcmp(com_argv[i], "+seta"))?CVAR_ARCHIVE:0, "Cvars set on commandline");
 			}
 		}
-		i+=2;
+		i += c-1;
 	}
 }
 

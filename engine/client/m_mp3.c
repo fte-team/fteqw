@@ -2996,6 +2996,7 @@ struct capture_raw_ctx
 qboolean FS_FixPath(char *path, size_t pathsize);
 static void *QDECL capture_raw_begin (char *streamname, int videorate, int width, int height, int *sndkhz, int *sndchannels, int *sndbits)
 {
+	char filename[MAX_OSPATH];
 	struct capture_raw_ctx *ctx = Z_Malloc(sizeof(*ctx));
 
 	if (!strcmp(capturecodec.string, "png") || !strcmp(capturecodec.string, "jpeg") || !strcmp(capturecodec.string, "jpg") || !strcmp(capturecodec.string, "bmp") || !strcmp(capturecodec.string, "pcx") || !strcmp(capturecodec.string, "tga"))
@@ -3014,10 +3015,13 @@ static void *QDECL capture_raw_begin (char *streamname, int videorate, int width
 		return NULL;
 	}
 	ctx->fsroot = FS_SYSTEM;
+
+	if (FS_NativePath(ctx->videonameprefix, ctx->fsroot, filename, sizeof(filename)))
+		FS_CreatePath(filename, ctx->fsroot);
+
 	ctx->audio = NULL;
 	if (*sndkhz)
 	{
-		char filename[MAX_OSPATH];
 		if (*sndbits < 8)
 			*sndbits = 8;
 		if (*sndbits != 8)
@@ -3027,7 +3031,6 @@ static void *QDECL capture_raw_begin (char *streamname, int videorate, int width
 		if (*sndchannels < 1)
 			*sndchannels = 1;
 		Q_snprintfz(filename, sizeof(filename), "%saudio_%ichan_%ikhz_%ib.raw", ctx->videonameprefix, *sndchannels, *sndkhz/1000, *sndbits);
-		FS_CreatePath(filename, ctx->fsroot);
 		ctx->audio = FS_OpenVFS(filename, "wb", ctx->fsroot);
 	}
 	if (!ctx->audio)
@@ -3066,7 +3069,7 @@ static void QDECL capture_raw_video (void *vctx, int frame, void *data, int stri
 			}
 			else
 			{
-				Con_Printf("%s: unable to query free disk space. Disabling\n", capturethrottlesize.name);
+				Con_Printf("%s: unable to query free disk space for %s. Disabling\n", capturethrottlesize.name, filename);
 				capturethrottlesize.ival = capturethrottlesize.value = 0;
 			}
 		}

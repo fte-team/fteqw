@@ -777,10 +777,13 @@ qboolean Sys_GetFreeDiskSpace(const char *path, quint64_t *freespace)
 {	//symlinks means the path needs to be fairly full. it may also be a file, and relative to the working directory.
 	wchar_t ffs[MAX_OSPATH];
 	ULARGE_INTEGER freebytes;
+	unsigned int err;
 	if (GetDiskFreeSpaceExW(widen(ffs, sizeof(ffs), path), &freebytes, NULL, NULL))
 	{
 		*freespace = freebytes.QuadPart;
 		return true;
 	}
+	err = GetLastError();
+	Con_Printf("GetDiskFreeSpaceExW(%s) failed: %x\n", path, err);
 	return false;
 }

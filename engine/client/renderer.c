@@ -2456,6 +2456,7 @@ static void R_UpdateRendererOptsNow(int iarg, void *data)
 	struct videnumctx_s e = {NULL};
 	size_t i;
 	struct sortedrenderers_s sorted[countof(rendererinfo)];
+	qboolean safe = COM_CheckParm("-noenumerate") || COM_CheckParm("-safe");
 	if (!rendereroptsupdated)
 		return;	//multiple got queued...
 	rendereroptsupdated = false;
@@ -2478,7 +2479,7 @@ static void R_UpdateRendererOptsNow(int iarg, void *data)
 			if (r->rtype == QR_HEADLESS || r->rtype == QR_NONE)
 				continue;	//skip these, they're kinda dangerous.
 			e.apiname = r->name[0];
-			if (!r->VID_EnumerateDevices || !r->VID_EnumerateDevices(&e, R_DeviceEnumerated))
+			if (safe || !r->VID_EnumerateDevices || !r->VID_EnumerateDevices(&e, R_DeviceEnumerated))
 				R_DeviceEnumerated(&e, r->name[0], "", r->description);
 		}
 	}

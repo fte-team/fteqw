@@ -2070,6 +2070,8 @@ void S_EnumerateDevices(void)
 {
 	int i;
 	sounddriver_t *sd;
+	qboolean safe = COM_CheckParm("-noenumerate") || COM_CheckParm("-safe");
+
 	Cvar_ForceSet(&snd_device_opts, "");
 	S_EnumeratedOutDevice("", NULL, "Default");
 	S_EnumeratedOutDevice("none", NULL, "None");
@@ -2079,7 +2081,7 @@ void S_EnumerateDevices(void)
 		sd = outputdrivers[i];
 		if (sd && sd->name)
 		{
-			if (!sd->Enumerate || !sd->Enumerate(S_EnumeratedOutDevice))
+			if (safe || !sd->Enumerate || !sd->Enumerate(S_EnumeratedOutDevice))
 				S_EnumeratedOutDevice(sd->name, "", va("Default %s", sd->name));
 		}
 	}
@@ -2091,7 +2093,7 @@ void S_EnumerateDevices(void)
 	{
 		if (!capturedrivers[i]->Init)
 			continue;
-		if (!capturedrivers[i]->Enumerate || !capturedrivers[i]->Enumerate(S_Voip_EnumeratedCaptureDevice))
+		if (safe || !capturedrivers[i]->Enumerate || !capturedrivers[i]->Enumerate(S_Voip_EnumeratedCaptureDevice))
 			S_Voip_EnumeratedCaptureDevice(capturedrivers[i]->drivername, NULL, va("Default %s", capturedrivers[i]->drivername));
 	}
 #endif

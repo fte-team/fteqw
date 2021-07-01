@@ -118,15 +118,16 @@ typedef struct
 #define CF_NOREVERB			32	// disables reverb on this channel, if possible.
 #define CF_FOLLOW			64	// follows the owning entity (stops moving if we lose track)
 //#define CF_RESERVEDN		128	// reserved for things that should be networked.
+#define CF_NOREPLACE		128	// start sound event is ignored if there's already a sound playing on that entchannel (probably paired with CF_FORCELOOP).
 
 #define CF_SV_UNICAST		256 // serverside only. the sound is sent to msg_entity only.
 #define CF_SV_SENDVELOCITY	512	// serverside hint that velocity is important
 #define CF_CLI_AUTOSOUND	1024	// generated from q2 entities, which avoids breaking regular sounds, using it outside the sound system will probably break things.
 #define CF_CLI_INACTIVE		2048	// try to play even when inactive
 #ifdef Q3CLIENT
-#define CF_CLI_NODUPES		4096	// block multiple identical sounds being started on the same entity within rapid succession. required by quake3.
+#define CF_CLI_NODUPES		4096	// block multiple identical sounds being started on the same entity within rapid succession (regardless of channel). required by quake3.
 #endif
-#define CF_NETWORKED (CF_NOSPACIALISE|CF_NOREVERB|CF_FORCELOOP|CF_FOLLOW/*|CF_RESERVEDN*/)
+#define CF_NETWORKED (CF_NOSPACIALISE|CF_NOREVERB|CF_FORCELOOP|CF_FOLLOW|CF_NOREPLACE)
 
 typedef struct
 {

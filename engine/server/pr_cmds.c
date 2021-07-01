@@ -13066,6 +13066,7 @@ void PR_DumpPlatform_f(void)
 		{"SOUNDFLAG_NOSPACIALISE",	"const float",	/*QW|NQ|*/CS,D("The different audio channels are played at the same volume regardless of which way the player is facing, without needing to use 0 attenuation."), CF_NOSPACIALISE},
 		{"SOUNDFLAG_NOREVERB",		"const float",	QW|NQ|CS,	D("Disables the use of underwater/reverb effects on this sound effect."), CF_NOREVERB},
 		{"SOUNDFLAG_FOLLOW",		"const float",	QW|NQ|CS,	D("The sound's origin will updated to follow the emitting entity."), CF_FOLLOW},
+		{"SOUNDFLAG_NOREPLACE",		"const float",	QW|NQ|CS,	D("Sounds started with this flag will be ignored when there's already a sound playing on that same ent-channel."), CF_NOREPLACE},
 		{"SOUNDFLAG_UNICAST",		"const float",	QW|NQ,		D("The sound will be sent only by the player specified by msg_entity. Spectators and related splitscreen players will also hear the sound."), CF_SV_UNICAST},
 		{"SOUNDFLAG_SENDVELOCITY",	"const float",	QW|NQ,		D("The entity's current velocity will be sent to the client, only useful if doppler is enabled."), CF_SV_SENDVELOCITY},
 
@@ -13194,7 +13195,7 @@ void PR_DumpPlatform_f(void)
 		{"FL_ONGROUND",			"const float", QW|NQ|CS, NULL, FL_ONGROUND},
 		{"FL_PARTIALGROUND",	"const float", QW|NQ|CS, NULL, FL_PARTIALGROUND},
 		{"FL_WATERJUMP",		"const float", QW|NQ|CS, NULL, FL_WATERJUMP},
-		{"FL_JUMPRELEASED",		"const float",    NQ|CS, NULL, FL_JUMPRELEASED},
+		{"FL_JUMPRELEASED",		"const float",    NQ,    NULL, FL_JUMPRELEASED},
 		{"FL_FINDABLE_NONSOLID","const float", QW|NQ|CS, D("Allows this entity to be found with findradius"), FL_FINDABLE_NONSOLID},
 		{"FL_MOVECHAIN_ANGLE",	"const float", H2, NULL, FL_MOVECHAIN_ANGLE},
 		{"FL_LAGGEDMOVE",		"const float", QW|NQ, D("Enables anti-lag on rockets etc."), FLQW_LAGGEDMOVE},

@@ -1310,7 +1310,7 @@ static void SV_SoundMulticast(client_t *client, sizebuf_t *msg, void *vctx)
 		}
 		MSG_WriteByte (msg, field_mask&0xff);
 		if (field_mask & FTESND_MOREFLAGS)
-			MSG_WriteByte (msg, field_mask>>8);
+			MSG_WriteUInt64 (msg, field_mask>>8);
 		if (field_mask & NQSND_VOLUME)
 			MSG_WriteByte (msg, bound(0, ctx->volume, 255));
 		if (field_mask & NQSND_ATTENUATION)

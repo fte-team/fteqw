@@ -3047,6 +3047,15 @@ void S_StartSound(int entnum, int entchannel, sfx_t *sfx, vec3_t origin, vec3_t 
 	S_LockMixer();
 	for (sc = sndcardinfo; sc; sc = sc->next)
 	{
+		if (flags & CF_NOREPLACE)
+		{
+			int i;
+			for (i = 0; i < sc->total_chans; i++)
+				if (sc->channel[i].entnum == entnum && sc->channel[i].entchannel == entchannel)
+					break;
+			if (i < sc->total_chans)
+				continue;
+		}
 #ifdef Q3CLIENT
 		if (flags & CF_CLI_NODUPES)
 		{	//don't start too many simultaneous sounds. q3 sucks or something.

@@ -5060,7 +5060,7 @@ static void CLNQ_ParseStartSoundPacket(void)
 	field_mask = MSG_ReadByte();
 
 	if (field_mask & FTESND_MOREFLAGS)
-		field_mask |= MSG_ReadByte()<<8;
+		field_mask |= MSG_ReadUInt64()<<8;
 
 	if (field_mask & NQSND_VOLUME)
 		volume = MSG_ReadByte ();

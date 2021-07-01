@@ -38,6 +38,7 @@ cvar_t mod_external_vis						= CVARD("mod_external_vis", "1", "Attempt to load .
 cvar_t mod_warnmodels						= CVARD("mod_warnmodels", "1", "Warn if any models failed to load. Set to 0 if your mod is likely to lack optional models (like its in development).");	//set to 0 for hexen2 and its otherwise-spammy-as-heck demo.
 cvar_t mod_litsprites_force					= CVARD("mod_litsprites_force", "0", "If set to 1, sprites will be lit according to world lighting (including rtlights), like Tenebrae. Ideally use EF_ADDITIVE or EF_FULLBRIGHT to make emissive sprites instead.");
 cvar_t mod_loadmappackages					= CVARD ("mod_loadmappackages", "1", "Load additional content embedded within bsp files.");
+cvar_t mod_lightscale_broken				= CVARFD("mod_lightscale_broken", "0", CVAR_RENDERERLATCH, "When active, replicates a bug from vanilla - the radius of r_dynamic lights is scaled by per-surface texture scale rather than using actual distance.");
 cvar_t temp_lit2support						= CVARD("temp_mod_lit2support", "0", "Set to 1 to enable lit2 support. This cvar will be removed once the format is finalised.");
 #ifdef SPRMODELS
 cvar_t r_sprite_backfacing					= CVARD	("r_sprite_backfacing", "0", "Make oriented sprites face backwards relative to their orientation, for compat with q1.");
@@ -630,6 +631,7 @@ void Mod_Init (qboolean initial)
 		Cvar_Register(&mod_loadentfiles, NULL);
 		Cvar_Register(&mod_loadentfiles_dir, NULL);
 		Cvar_Register(&mod_loadmappackages, NULL);
+		Cvar_Register(&mod_lightscale_broken, NULL);
 		Cvar_Register(&temp_lit2support, NULL);
 		Cvar_Register (&r_meshpitch, "Gamecode");
 		Cvar_Register (&r_meshroll, "Gamecode");
@@ -3902,8 +3904,16 @@ static qboolean Mod_LoadTexinfo (model_t *loadmodel, qbyte *mod_base, lump_t *l)
 			out->vecs[0][j] = LittleFloat (in->vecs[0][j]);
 			out->vecs[1][j] = LittleFloat (in->vecs[1][j]);
 		}
-		out->vecscale[0] = 1.0/Length (out->vecs[0]);
-		out->vecscale[1] = 1.0/Length (out->vecs[1]);
+		if (mod_lightscale_broken.ival)
+		{
+			out->vecscale[0] = 1.0;
+			out->vecscale[1] = 1.0;
+		}
+		else
+		{
+			out->vecscale[0] = 1.0/Length (out->vecs[0]);
+			out->vecscale[1] = 1.0/Length (out->vecs[1]);
+		}
 
 		miptex = LittleLong (in->miptex);
 		out->flags = LittleLong (in->flags);

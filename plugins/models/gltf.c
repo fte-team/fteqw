@@ -2923,7 +2923,7 @@ static void LerpAnimData(const struct gltf_animsampler *samp, float time, float 
 {
 	float t0, t1;
 	float w0, w1;
-	float v0[4], v1[4];
+	float v0[max(4,MAX_MORPHWEIGHTS)], v1[max(4,MAX_MORPHWEIGHTS)];
 	int f0, f1, c;
 
 	const struct gltf_accessor *in = &samp->input;

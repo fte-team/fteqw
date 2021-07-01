@@ -318,7 +318,10 @@ void main ()
 
 	col *= factor_base;
 
-	#define dielectricSpecular 0.04
+    #ifndef IOR
+        #define IOR 1.5 //Index Of Reflection.
+    #endif
+    #define dielectricSpecular pow(((IOR - 1.0)/(IOR + 1.0)),2.0)
 	#ifdef SPECULAR
 		vec4 specs = texture2D(s_specular, tc)*factor_spec;
 		#ifdef ORM

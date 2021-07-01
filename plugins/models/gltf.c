@@ -713,6 +713,8 @@ typedef struct gltf_s
 	json_t *r;
 	int ver;
 
+	unsigned int variations;
+
 	int *bonemap;//[MAX_BONES];	//remap skinned bones. I hate that we have to do this.
 	struct gltfbone_s
 	{
@@ -785,8 +787,21 @@ static json_t *GLTF_FindJSONID_First(struct gltf_s *gltf, const char *restype, j
 	return GLTF_FindJSONIDParent(gltf, JSON_FindChild(gltf->r, restype), id, idx);
 }
 
+static int dehex(int i)
+{
+	if      (i >= '0' && i <= '9')
+		return (i-'0');
+	else if (i >= 'A' && i <= 'F')
+		return (i-'A'+10);
+	else if (i >= 'a' && i <= 'f')
+		return (i-'a'+10);
+	else
+		return -1;
+}
+
 static void GLTF_RelativePath(const char *base, const char *relative, char *out, size_t outsize)
 {
+	char *out_start = out;
 	size_t t;
 	const char *sep;
 	const char *end = base;
@@ -830,13 +845,27 @@ static void GLTF_RelativePath(const char *base, const char *relative, char *out,
 	out += t;
 	outsize -= t;
 
-	//FIXME: uris should be percent-decoded here.
-	t = strlen(relative);
-	if (t > outsize)
-		t = outsize;
-	memcpy(out, relative, t);
-	out += t;
-	outsize -= t;
+	for (; *relative && outsize; outsize--)
+	{
+		if (*relative == '%' && ((out-out_start>=7 && !strncmp(out_start, "http://", 7)) || (out-out_start>=8 && !strncmp(out_start, "https://", 8))))
+		{
+			int high, low;
+			char b = *relative++;
+			high = dehex(relative[0]);
+			if (high >= 0)
+			{
+				low = dehex(relative[1]);
+				if (low >= 0 && (high || low))
+				{
+					relative += 2;
+					b = (high<<4) | low;
+				}
+			}
+			*out++ = b;
+		}
+		else
+			*out++ = *relative++;
+	}
 
 	*out = 0;
 }
@@ -1961,7 +1990,7 @@ static qboolean GLTF1_LoadMaterial(gltf_t *gltf, json_t *mat, texnums_t *texnums
 	return true;
 }
 
-static galiasskin_t *GLTF_LoadMaterial(gltf_t *gltf, json_t *materialid, qboolean vertexcolours)
+static void GLTF_LoadMaterial(gltf_t *gltf, json_t *materialid, galiasskin_t *ret, qboolean vertexcolours)
 {
 	qboolean doubleSided;
 	int alphaMode;
@@ -1970,7 +1999,6 @@ static galiasskin_t *GLTF_LoadMaterial(gltf_t *gltf, json_t *materialid, qboolea
 	char alphaCutoffmodifier[128];
 	quintptr_t materialidx;
 	json_t *mat = GLTF_FindJSONID(gltf, "materials", materialid, &materialidx);
-	galiasskin_t *ret;
 	char tmp[64];
 	const char *t;
 
@@ -1998,7 +2026,6 @@ static galiasskin_t *GLTF_LoadMaterial(gltf_t *gltf, json_t *materialid, qboolea
 			Con_Printf(CON_WARNING"%s: unsupported alphaMode: %s\n", gltf->mod->name, t);
 	}
 
-	ret = modfuncs->ZG_Malloc(&gltf->mod->memgroup, sizeof(*ret));
 	ret->numframes = 1;
 	ret->skinspeed = 0.1;
 	ret->frame = modfuncs->ZG_Malloc(&gltf->mod->memgroup, sizeof(*ret->frame));
@@ -2018,7 +2045,7 @@ static galiasskin_t *GLTF_LoadMaterial(gltf_t *gltf, json_t *materialid, qboolea
 			skip = 0;
 		if (mod_gltf_privatematerials->ival && !strchr(shader, '/'))
 		{
-			Q_snprintf(ret->frame->shadername, sizeof(ret->frame->shadername), "%s", gltf->mod->name-skip);
+			Q_snprintf(ret->frame->shadername, sizeof(ret->frame->shadername), "%s/%u", gltf->mod->name-skip, (unsigned)materialidx);
 			Q_strncatz(ret->frame->shadername, "/", sizeof(ret->frame->shadername));
 		}
 		else
@@ -2116,6 +2143,7 @@ static galiasskin_t *GLTF_LoadMaterial(gltf_t *gltf, json_t *materialid, qboolea
 	else if (pbrsg)
 	{	//if this extension was used, then we can use rgb gloss instead of metalness stuff.
 		json_t *occ = JSON_FindChild(mat, "occlusionTexture.index");	//.r
+		float ior = JSON_GetFloat(mat, "extensions.KHR_materials_ior.ior", 1.5);	//supposedly still relevant here
 		ret->frame->texnums.base     = GLTF_LoadTexture(gltf, JSON_FindChild(pbrsg, "diffuseTexture.index"), 0);
 		ret->frame->texnums.specular = GLTF_LoadTexture(gltf, JSON_FindChild(pbrsg, "specularGlossinessTexture.index"), 0);
 		if (occ)
@@ -2124,7 +2152,7 @@ static galiasskin_t *GLTF_LoadMaterial(gltf_t *gltf, json_t *materialid, qboolea
 		Q_snprintf(shader, sizeof(shader),
 			"{\n"
 				"%s"//cull
-				"program defaultskin#SG#VC%s%s\n"
+				"program defaultskin" "#SG" "#VC" "#IOR=%.02f" "%s"/*occlude*/ "%s"/*alphacutoff*/ "\n"
 				"{\n"
 					"map $diffuse\n"
 					"%s"	//blend
@@ -2136,6 +2164,7 @@ static galiasskin_t *GLTF_LoadMaterial(gltf_t *gltf, json_t *materialid, qboolea
 				"bemode rtlight rtlight_sg\n"
 			"}\n",
 			doubleSided?"cull disable\n":"",
+			ior,
 			(occ)?"#OCCLUDE":"",
 			alphaCutoffmodifier,
 			(alphaMode==1)?"":(alphaMode==2)?"blendfunc blend\n":"",
@@ -2162,6 +2191,7 @@ static galiasskin_t *GLTF_LoadMaterial(gltf_t *gltf, json_t *materialid, qboolea
 		json_t *n;
 		char occname[MAX_QPATH];
 		char mrtname[MAX_QPATH];
+		float ior = JSON_GetFloat(mat, "extensions.KHR_materials_ior.ior", 1.5);
 
 		if (JSON_GetInteger(pbrmr, "baseColorTexture.texCoord", 0) != 0)
 			if (gltf->warnlimit --> 0)
@@ -2198,7 +2228,7 @@ static galiasskin_t *GLTF_LoadMaterial(gltf_t *gltf, json_t *materialid, qboolea
 		Q_snprintf(shader, sizeof(shader),
 			"{\n"
 				"%s"//cull
-				"program defaultskin#ORM#VC%s%s\n"
+				"program defaultskin" "#ORM" "#VC" "#IOR=%.02f" "%s"/*occlude*/ "%s"/*alphatest*/ "\n"
 				"{\n"
 					"map $diffuse\n"
 					"%s"	//blend
@@ -2210,6 +2240,7 @@ static galiasskin_t *GLTF_LoadMaterial(gltf_t *gltf, json_t *materialid, qboolea
 				"bemode rtlight rtlight_orm\n"
 			"}\n",
 			doubleSided?"cull disable\n":"",
+			ior,
 			(!occ)?"#NOOCCLUDE":(strcmp(occname,mrtname)?"#OCCLUDE":""),
 			alphaCutoffmodifier,
 			(alphaMode==1)?"":(alphaMode==2)?"blendfunc blend\n":"",
@@ -2237,7 +2268,6 @@ static galiasskin_t *GLTF_LoadMaterial(gltf_t *gltf, json_t *materialid, qboolea
 	ret->frame->defaultshader = memcpy(modfuncs->ZG_Malloc(&gltf->mod->memgroup, strlen(shader)+1), shader, strlen(shader)+1);
 
 	Q_strlcpy(ret->name, ret->frame->shadername, sizeof(ret->name));
-	return ret;
 }
 #endif
 static const float *QDECL GLTF_AnimateMorphs(const galiasinfo_t *surf, const framestate_t *framestate);
@@ -2461,8 +2491,30 @@ static qboolean GLTF_ProcessMesh(gltf_t *gltf, json_t *meshid, int basebone, dou
 		}
 
 #ifndef SERVERONLY
-		surf->numskins = 1;
-		surf->ofsskins = GLTF_LoadMaterial(gltf, JSON_FindChild(prim, "material"), surf->ofs_rgbaub||surf->ofs_rgbaf);
+		{
+			json_t *mapping, *var;
+			surf->numskins = 1+gltf->variations;
+			surf->ofsskins = modfuncs->ZG_Malloc(&gltf->mod->memgroup, sizeof(*surf->ofsskins)*surf->numskins);
+			GLTF_LoadMaterial(gltf, JSON_FindChild(prim, "material"), surf->ofsskins, surf->ofs_rgbaub||surf->ofs_rgbaf);
+			for (i = 0; i < gltf->variations; i++)
+				surf->ofsskins[1+i] = surf->ofsskins[0];	//unspecified matches defaults...
+
+			for (mapping=JSON_FindIndexedChild(prim, "extensions.KHR_materials_variants.mappings", 0); mapping; mapping = mapping->sibling)
+			{
+				i = 0;
+				for(var = JSON_FindIndexedChild(mapping, "variants", 0); var; var = var->sibling)
+				{
+					j = 1+JSON_GetUInteger(var, NULL, ~0u);
+					if (j < 1 || j >= surf->numskins)
+						continue;	//not valid.
+					if (!i)
+						GLTF_LoadMaterial(gltf, JSON_FindChild(mapping, "material"), &surf->ofsskins[j], surf->ofs_rgbaub||surf->ofs_rgbaf);
+					else
+						surf->ofsskins[j] = surf->ofsskins[i];
+					i = j;
+				}
+			}
+		}
 #endif
 
 		if (!tang.data)
@@ -3164,17 +3216,22 @@ static qboolean GLTF_LoadModel(struct model_s *mod, char *json, size_t jsonsize,
 		{"KHR_materials_pbrSpecularGlossiness",		true,   false},
 //		{"KHR_materials_cmnBlinnPhong",				true,   true},
 		{"KHR_materials_unlit",						true,	false},
-		{"KHR_texture_transform",					false,	true},	//probably not fatal
-		{"KHR_draco_mesh_compression",				false,	true},	//probably fatal
 		{"KHR_mesh_quantization",					true,	true},
 		{"MSFT_texture_dds",						true,	false},
 		{"MSFT_packing_occlusionRoughnessMetallic", true,	false},
+		{"KHR_materials_variants",					true,	false},
+		{"KHR_materials_ior",						true,	false},
+
+		{"KHR_draco_mesh_compression",				false,	true},	//probably fatal
+		{"KHR_texture_transform",					false,	false},	//requires glsl tweaks, per texmap. can't use tcmod if its only on the bumpmap etc.
+		{"KHR_materials_sheen",						false,	false},	//requires glsl tweaks, extra brdf layer in the middle for velvet.
+		{"KHR_materials_clearcoat",					false,	false},	//requires glsl tweaks, extra brdf layer over the top for varnish etc.
 		{NULL}
 	}, *extensions;
 	gltf_t gltf;
 	int pos=0;
 	quintptr_t j,k;
-	json_t *scene, *n, *anim;
+	json_t *scene, *n, *anim, *var;
 	double rootmatrix[16];
 	double gltfver;
 	galiasinfo_t *surf;
@@ -3296,6 +3353,11 @@ static qboolean GLTF_LoadModel(struct model_s *mod, char *json, size_t jsonsize,
 			gltf.bones[j].rel.rmatrix[0] = gltf.bones[j].rel.rmatrix[5] = gltf.bones[j].rel.rmatrix[10] = gltf.bones[j].rel.rmatrix[15] = 1;
 		}
 		gltf.numbones = j;
+
+
+		gltf.variations = 0;
+		for (var = JSON_FindIndexedChild(gltf.r, "extensions.KHR_materials_variants.variants", 0); var; var = var->sibling)
+			gltf.variations++;
 
 		JSON_FlagAsUsed(scene, "name");
 		GLTF_FlagExtras(scene);
@@ -3469,6 +3531,16 @@ static qboolean GLTF_LoadModel(struct model_s *mod, char *json, size_t jsonsize,
 			surf->csurface.flags = 0;
 			surf->geomset = ~0;	//invalid set = always visible. FIXME: set this according to scene numbers?
 			surf->geomid = 0;
+
+#ifndef SERVERONLY
+			if (surf->numskins>1)
+			{
+				int i;
+				Q_snprintf(surf->ofsskins[0].name, sizeof(surf->ofsskins[0].name), "Default");
+				for (i = 1; i < surf->numskins; i++)
+					JSON_GetString(JSON_FindIndexedChild(gltf.r, "extensions.KHR_materials_variants.variants", i-1), "name", surf->ofsskins[i].name, sizeof(surf->ofsskins[i].name), surf->ofsskins[i].name);
+			}
+#endif
 		}
 
 		VectorScale(mod->mins, mod_gltf_scale->value, mod->mins);

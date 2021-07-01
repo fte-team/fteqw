@@ -2578,7 +2578,7 @@ static int Con_DrawConsoleLines(console_t *con, conline_t *l, float displayscrol
 							if (selactive == 2 && s)
 							{	//checking for mouseover
 								//scan earlier to find any link enclosure
-								for(; c >= (conchar_t*)(l+1); c--)
+								for(c--; c >= (conchar_t*)(l+1); c--)
 								{
 									if (*c == CON_LINKSTART)
 									{

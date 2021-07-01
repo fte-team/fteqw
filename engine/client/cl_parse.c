@@ -2564,8 +2564,9 @@ void DL_Abort(qdownload_t *dl, enum qdlabort aborttype)
 					Con_Printf("Couldn't rename %s to %s\n", nativetmp, nativefinal);
 				}
 			}
-
+#ifdef PACKAGEMANAGER
 			PM_FileInstalled(dl->localname, dl->fsroot, NULL, true);
+#endif
 		}
 		else
 		{

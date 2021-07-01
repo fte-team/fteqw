@@ -586,17 +586,17 @@ endif
 ifeq ($(FTE_TARGET),morphos)
 	BASELDFLAGS=-lm
 endif
-ifeq ($(FTE_TARGET),bsd)
+ifneq (,$(findstring bsd,$(FTE_TARGET)))
 	BASELDFLAGS=-lm
 	VISIBILITY_FLAGS=-fvisibility=hidden
 endif
-ifeq ($(FTE_TARGET),linux)
+ifneq (,$(findstring linux,$(FTE_TARGET)))
 	VISIBILITY_FLAGS=-fvisibility=hidden
 endif
-ifeq ($(FTE_TARGET),droid)
+ifneq (,$(findstring droid,$(FTE_TARGET)))
 	VISIBILITY_FLAGS=-fvisibility=hidden
 endif
-ifeq ($(FTE_TARGET),macosx)
+ifneq (,$(findstring macos,$(FTE_TARGET)))
 	VISIBILITY_FLAGS=-fvisibility=hidden
 endif
 BASELDFLAGS ?= -lm -ldl -lpthread

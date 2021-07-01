@@ -5868,8 +5868,10 @@ done:
 
 	if (f->flags & HRF_PACKAGE)
 	{
+#ifdef PACKAGEMANAGER
 		Z_Free(f->packageinfo);
 		f->packageinfo = PM_GeneratePackageFromMeta(f->srcfile, qname,sizeof(qname), &qroot);
+#endif
 	}
 	else if (f->flags & HRF_MANIFEST)
 	{
@@ -5961,8 +5963,10 @@ done:
 			f->dstfile = NULL;
 		}
 
+#ifdef PACKAGEMANAGER
 		if (f->flags & HRF_PACKAGE)
 			PM_FileInstalled(COM_SkipPath(f->fname), qroot, f->packageinfo, true);
+#endif
 
 		Cbuf_AddText(loadcommand, RESTRICT_LOCAL);
 	}

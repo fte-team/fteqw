@@ -7645,6 +7645,7 @@ qc_extension_t QSG_Extensions[] = {
 	{"DP_SV_CLIENTCAMERA",				NULL,	0,{NULL}, "Works like svc_setview except also handles pvs."},
 	{"DP_SV_CLIENTCOLORS",				NULL,	0,{NULL}, "Provided only for compatibility with DP."},
 	{"DP_SV_CLIENTNAME",				NULL,	0,{NULL}, "Provided only for compatibility with DP."},
+	{"DP_SV_CUSTOMIZEENTITYFORCLIENT",	NULL,	0,{NULL}, "Deprecated feature for compat with DP. Can be slow, incompatible with splitscreen, usually malfunctions with mvds."},
 	{"DP_SV_DRAWONLYTOCLIENT"},
 	{"DP_SV_DROPCLIENT",				NULL,	1,{"dropclient"}, "Equivelent to quakeworld's stuffcmd(self,\"disconnect\\n\"); hack"},
 	{"DP_SV_EFFECT",					NULL,	1,{"effect"}},

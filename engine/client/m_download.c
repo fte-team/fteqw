@@ -1711,11 +1711,11 @@ static qboolean PM_FileInstalled_Internal(const char *package, const char *categ
 
 	if (pkgflags&DPF_PLUGIN)
 		p->arch = Z_StrDup(THISARCH);
-	if (!p->name)
+	if (!p->name || !*p->name)
 		p->name = Z_StrDup(package);
-	if (!p->title)
+	if (!p->title || !*p->title)
 		p->title = Z_StrDup(title);
-	if (!p->category && !*p->category)
+	if (!p->category || !*p->category)
 		p->category = Z_StrDup(category);
 	p->flags = pkgflags|DPF_NATIVE|DPF_FORGETONUNINSTALL;
 	if (enable)

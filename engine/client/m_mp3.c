@@ -4217,6 +4217,7 @@ void Media_RecordDemo_f(void)
 
 void Media_CaptureDemoEnd(void) {}
 qboolean Media_PausedDemo(qboolean fortiming) {return false;}
+int Media_Capturing (void) { return 0; }
 double Media_TweekCaptureFrameTime(double oldtime, double time) { return oldtime+time ; }
 void Media_RecordFrame (void) {}
 void Media_VideoRestarting(void) {}

@@ -1258,7 +1258,7 @@ static void M_Menu_Preset_Predraw(emenu_t *menu)
 		}
 		else if (!filtering)
 		{
-			if (op->check.var == &cfg_save_auto)
+			if (op->common.type == mt_checkbox && op->check.var == &cfg_save_auto)
 				filtering = true;
 		}
 		else if(op->common.type == mt_checkbox||

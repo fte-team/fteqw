@@ -6215,6 +6215,22 @@ static void COM_InitWorkerThread(void)
 	Cvar_Register(&worker_sleeptime, NULL);
 	Cvar_ForceCallback(&worker_count);
 }
+
+qint32_t FTE_Atomic32Mutex_Add(qint32_t *ptr, qint32_t change)
+{
+	qint32_t r;
+	Sys_LockMutex(com_resourcemutex);
+	r = (*ptr += change);
+	Sys_UnlockMutex(com_resourcemutex);
+	return r;
+}
+#else
+qint32_t FTE_Atomic32Mutex_Add(qint32_t *ptr, qint32_t change)
+{
+	qint32_t r;
+	r = (*ptr += change);
+	return r;
+}
 #endif
 
 /*

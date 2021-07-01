@@ -25,7 +25,7 @@ typedef struct pack_s
 	void		*mutex;
 	vfsfile_t	*handle;
 	unsigned int filepos;	//the pos the subfiles left it at (to optimize calls to vfs_seek)
-	int references;	//seeing as all vfiles from a pak file use the parent's vfsfile, we need to keep the parent open until all subfiles are closed.
+	qatomic32_t references;	//seeing as all vfiles from a pak file use the parent's vfsfile, we need to keep the parent open until all subfiles are closed.
 } pack_t;
 
 //
@@ -67,15 +67,17 @@ static void QDECL FSPAK_GetPathDetails(searchpathfuncs_t *handle, char *out, siz
 	if (pak->references != 1)
 		Q_snprintfz(out, outlen, "(%i)", pak->references-1);
 }
+static void QDECL FSPAK_AddReference(searchpathfuncs_t *handle)
+{
+	pack_t *pak = (void*)handle;
+	FTE_Atomic32_Inc(&pak->references);
+}
 static void QDECL FSPAK_ClosePath(searchpathfuncs_t *handle)
 {
 	qboolean stillopen;
 	pack_t *pak = (void*)handle;
 
-	if (!Sys_LockMutex(pak->mutex))
-		return;	//ohnoes
-	stillopen = --pak->references > 0;
-	Sys_UnlockMutex(pak->mutex);
+	stillopen = FTE_Atomic32_Dec(&pak->references) > 0;
 	if (stillopen)
 		return;	//not free yet
 
@@ -260,13 +262,7 @@ static vfsfile_t *QDECL FSPAK_OpenVFS(searchpathfuncs_t *handle, flocation_t *lo
 	vfs = Z_Malloc(sizeof(vfspack_t));
 
 	vfs->parentpak = pack;
-	if (!Sys_LockMutex(pack->mutex))
-	{
-		Z_Free(vfs);
-		return NULL;
-	}
-	vfs->parentpak->references++;
-	Sys_UnlockMutex(pack->mutex);
+	FTE_Atomic32_Inc(&vfs->parentpak->references);
 
 	vfs->startpos = loc->offset;
 	vfs->length = loc->len;
@@ -381,6 +377,7 @@ searchpathfuncs_t *QDECL FSPAK_LoadArchive (vfsfile_t *file, searchpathfuncs_t *
 
 	pack->pub.fsver			= FSVER;
 	pack->pub.GetPathDetails = FSPAK_GetPathDetails;
+	pack->pub.AddReference = FSPAK_AddReference;
 	pack->pub.ClosePath = FSPAK_ClosePath;
 	pack->pub.BuildHash = FSPAK_BuildHash;
 	pack->pub.FindFile = FSPAK_FLocate;

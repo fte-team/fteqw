@@ -583,7 +583,7 @@ typedef struct zipfile_s
 	qofs_t			rawsize;
 	vfsfile_t		*raw;
 
-	int				references;	//number of files open inside, so things don't crash if is closed in the wrong order.
+	qatomic32_t		references;	//number of files open inside, so things don't crash if is closed in the wrong order.
 } zipfile_t;
 
 
@@ -599,10 +599,7 @@ static void QDECL FSZIP_GetPathDetails(searchpathfuncs_t *handle, char *out, siz
 static void QDECL FSZIP_UnclosePath(searchpathfuncs_t *handle)
 {
 	zipfile_t *zip = (void*)handle;
-	if (!Sys_LockMutex(zip->mutex))
-		return;	//ohnoes
-	zip->references++;
-	Sys_UnlockMutex(zip->mutex);
+	FTE_Atomic32_Inc(&zip->references);
 }
 static void QDECL FSZIP_ClosePath(searchpathfuncs_t *handle)
 {
@@ -610,10 +607,7 @@ static void QDECL FSZIP_ClosePath(searchpathfuncs_t *handle)
 	qboolean stillopen;
 	zipfile_t *zip = (void*)handle;
 
-	if (!Sys_LockMutex(zip->mutex))
-		return;	//ohnoes
-	stillopen = --zip->references > 0;
-	Sys_UnlockMutex(zip->mutex);
+	stillopen = FTE_Atomic32_Dec(&zip->references) > 0;
 	if (stillopen)
 		return;	//not free yet
 
@@ -1417,21 +1411,7 @@ static vfsfile_t *QDECL FSZIP_OpenVFS(searchpathfuncs_t *handle, flocation_t *lo
 		}
 	}
 
-	if (Sys_LockMutex(zip->mutex))
-	{
-		zip->references++;
-		Sys_UnlockMutex(zip->mutex);
-	}
-	else
-	{
-#ifdef DO_ZIP_DECOMPRESS
-		if (vfsz->decompress)
-			vfsz->decompress->Destroy(vfsz->decompress);
-#endif
-		Z_Free(vfsz);
-		return NULL;
-	}
-
+	FTE_Atomic32_Inc(&zip->references);
 	return (vfsfile_t*)vfsz;
 }
 

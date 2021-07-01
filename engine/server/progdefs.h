@@ -268,7 +268,7 @@ and the extension fields are added on the end and can have extra vm-specific stu
 	comfieldfloat(dimension_hit,"This is the bitmask of dimensions which the entity will be blocked by. If other.dimension_solid & self.dimension_hit, our traces will impact and not proceed. If its false, the traces will NOT impact, allowing self to pass straight through.")/*EXT_DIMENSION_PHYSICS*/\
 	/*comfieldfloat_legacy(hitcontentsmask,"Traces performed for this entity will impact against surfaces that match this contents mask.")*/ \
 	comfieldint(hitcontentsmaski,"Traces performed for this entity will impact against surfaces that match this contents mask (CONTENTBITS_* constants).")\
-	comfieldfloatdep_legacy(dphitcontentsmask, "Some crappy field that inefficiently requires translating to the native contents flags. Ditch the 'dp', do it properly.", "Does not support mos-ecific contents.")\
+	comfieldfloatdep_legacy(dphitcontentsmask, "Some crappy field that inefficiently requires translating to the native contents flags. Ditch the 'dp', do it properly.", "Does not support mod-specific contents.")\
 	comfieldfloat(scale,"Multiplier that resizes the entity. 1 is normal sized, 2 is double sized. scale 0 is remapped to 1. In SSQC, this is limited to 1/16th precision, with a maximum just shy of 16.")/*DP_ENT_SCALE*/\
 	comfieldfloat(fatness,"How many QuakeUnits to push the entity's verticies along their normals by.")/*FTE_PEXT_FATNESS*/\
 	comfieldfloat(alpha,"The transparency of the entity. 1 means opaque, 0.0001 means virtually invisible. 0 is remapped to 1, for compatibility.")/*DP_ENT_ALPHA*/\

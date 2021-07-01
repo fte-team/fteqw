@@ -307,14 +307,16 @@ x86_64)
 	if [ "$BUILD_LINUXx64" != "n" ]; then
 		rm -rf $QCCBUILDFOLDER 2>&1
 		mkdir -p $QCCBUILDFOLDER
-		FTEQCC=$BUILDFOLDER/linux_amd64/fteqcc64 FTEQW=$BUILDFOLDER/linux_amd64/fteqw64 QUAKESPASM=quakespasm-spiked-linux64 ./build_qc.sh
+		cd $SVNROOT/
+		FTEQCC=$BUILDFOLDER/linux_amd64/fteqcc64 FTEQW=$BUILDFOLDER/linux_amd64/fteqw64 QSS=$BUILDFOLDER/qss/quakespasm-spiked-linux64 ./build_qc.sh
 	fi
 	;;
 i386 | i486 | i586)
 	if [ "$BUILD_LINUXx86" != "n" ]; then
 		rm -rf $QCCBUILDFOLDER 2>&1
 		mkdir -p $QCCBUILDFOLDER
-		FTEQCC=$BUILDFOLDER/linux_x86/fteqcc32 FTEQW=$BUILDFOLDER/linux_x86/fteqw32 QUAKESPASM= ./build_qc.sh
+		cd $SVNROOT/
+		FTEQCC=$BUILDFOLDER/linux_x86/fteqcc32 FTEQW=$BUILDFOLDER/linux_x86/fteqw32 QSS= ./build_qc.sh
 	fi
 	;;
 esac

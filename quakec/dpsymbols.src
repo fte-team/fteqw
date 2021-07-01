@@ -18,6 +18,7 @@
 #define ReadShort readshort
 #define ReadString readstring
 #define draw_getimagesize drawgetimagesize
+#define addstat clientstat
 
 #define skel_mul_bone skel_premul_bone
 #define skel_mul_bones skel_premul_bones

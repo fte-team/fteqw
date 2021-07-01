@@ -7221,7 +7221,7 @@ static struct {
 	{"entityprotection",		PF_entityprotection,		0},
 //400
 	{"copyentity",				PF_copyentity,				400},	// #400 void(entity from, entity to) copyentity (DP_QC_COPYENTITY)
-	{"setcolors",				PF_NoCSQC,					401},	// #401 void(entity cl, float colours) setcolors (DP_SV_SETCOLOR) (don't implement)
+	{"setcolor",				PF_NoCSQC,					401},	// #401 void(entity cl, float colours) setcolors (DP_SV_SETCOLOR) (don't implement)
 	{"findchain",				PF_findchain,				402},	// #402 entity(string field, string match) findchain (DP_QC_FINDCHAIN)
 	{"findchainfloat",			PF_findchainfloat,			403},	// #403 entity(float fld, float match) findchainfloat (DP_QC_FINDCHAINFLOAT)
 	{"effect",					PF_cl_effect,				404},		// #404 void(vector org, string modelname, float startframe, float endframe, float framerate) effect (DP_SV_EFFECT)

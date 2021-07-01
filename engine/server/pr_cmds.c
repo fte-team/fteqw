@@ -11499,7 +11499,7 @@ static BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 //DP_QC_COPYENTITY
 	{"copyentity",		PF_copyentity,		0,		0,		0,		400,	D("entity(entity from, optional entity to)", "Copies all fields from one entity to another.")},// (DP_QC_COPYENTITY)
 //DP_SV_SETCOLOR
-	{"setcolors",		PF_setcolors,		0,		0,		0,		401,	D("__deprecated(\"No RGB support.\") void(entity ent, float colours)", "Changes a player's colours. The bits 0-3 are the lower/trouser colour, bits 4-7 are the upper/shirt colours.")},//DP_SV_SETCOLOR
+	{"setcolor",		PF_setcolors,		0,		0,		0,		401,	D("__deprecated(\"No RGB support.\") void(entity ent, float colours)", "Changes a player's colours. The bits 0-3 are the lower/trouser colour, bits 4-7 are the upper/shirt colours.")},//DP_SV_SETCOLOR
 //DP_QC_FINDCHAIN
 	{"findchain",		PF_findchain,	0,		0,		0,		402,	"entity(.string field, string match, optional .entity chainfield)"},// (DP_QC_FINDCHAIN)
 //DP_QC_FINDCHAINFLOAT

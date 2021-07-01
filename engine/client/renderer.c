@@ -174,7 +174,7 @@ cvar_t r_drawviewmodel						= CVARF  ("r_drawviewmodel", "1", CVAR_ARCHIVE);
 cvar_t r_drawviewmodelinvis					= CVAR  ("r_drawviewmodelinvis", "0");
 cvar_t r_dynamic							= CVARFD ("r_dynamic", IFMINIMAL("0","1"),
 													  CVAR_ARCHIVE, "0: no standard dlights at all.\n1: coloured dlights will be used, they may show through walls. These are not realtime things.\n2: The dlights will be forced to monochrome (this does not affect coronas/flashblends/rtlights attached to the same light).");
-cvar_t r_temporalscenecache					= CVARAFD ("r_temporalscenecache", "", "r_scenecache", CVAR_ARCHIVE, "Controls whether to generate+reuse a scene cache over multiple frames. This is generated on a separate thread to avoid any associated costs. This can significantly boost framerates on complex maps, but can also stress the gpu more (performance tradeoff that varies per map). An outdated cache may be used if the cache takes too long to build (eg: lightmap animations), which could cause the odd glitch when moving fast (but retain more consistent framerates - another tradeoff).\n0: Tranditional quake rendering.\n1: Generate+Use the scene cache.");
+extern cvar_t r_temporalscenecache;
 cvar_t r_fastturb							= CVARF ("r_fastturb", "0",
 													CVAR_SHADERSYSTEM);
 cvar_t r_skycloudalpha						= CVARFD ("r_skycloudalpha", "1", CVAR_RENDERERLATCH, "Controls how opaque the front layer of legacy scrolling skies should be.");

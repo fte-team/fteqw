@@ -3022,7 +3022,7 @@ struct webostate_s
 
 //TODO	qbyte *bakedsubmodels;	//flags saying whether each submodel was baked or not. baked submodels need to be untinted uncaled unrotated at origin etc
 
-	vec3_t lastpos;
+	vec3_t lastpos;	//for better stale ebo selection when we're generating a new position.
 
 	batch_t *rbatches[SHADER_SORT_COUNT];
 
@@ -3501,6 +3501,9 @@ void R_GenWorldEBO(void *ctx, void *data, size_t a, size_t b)
 
 	COM_AddWork(WG_MAIN, R_GeneratedWorldEBO, es, NULL, 0, 0);
 }
+cvar_t r_temporalscenecache					= CVARAFD ("r_temporalscenecache", "", "r_scenecache", CVAR_ARCHIVE, "Controls whether to generate+reuse a scene cache over multiple frames. This is generated on a separate thread to avoid any associated costs. This can significantly boost framerates on complex maps, but can also stress the gpu more (performance tradeoff that varies per map). An outdated cache may be used if the cache takes too long to build (eg: lightmap animations), which could cause the odd glitch when moving fast (but retain more consistent framerates - another tradeoff).\n0: Tranditional quake rendering.\n1: Generate+Use the scene cache.");
+#else
+cvar_t r_temporalscenecache					= CVARAFD ("r_temporalscenecache", "", "r_scenecache", CVAR_NOSET, "Controls whether to generate+reuse a scene cache over multiple frames. This is generated on a separate thread to avoid any associated costs. This can significantly boost framerates on complex maps, but can also stress the gpu more (performance tradeoff that varies per map). An outdated cache may be used if the cache takes too long to build (eg: lightmap animations), which could cause the odd glitch when moving fast (but retain more consistent framerates - another tradeoff).\n0: Tranditional quake rendering.\n1: Generate+Use the scene cache.");
 #endif
 
 /*
@@ -3534,21 +3537,42 @@ void Surf_DrawWorld (void)
 	currententity = &r_worldentity;
 
 	{
+		int sc = r_temporalscenecache.ival;
 		RSpeedRemark();
 
 		Surf_LightmapShift(currentmodel);
 
 #ifdef THREADEDWORLD
-#warning Enable auto threaded world when ready
-/*
 		if (!*r_temporalscenecache.string && cl.worldmodel && cl.worldmodel->loadstate == MLS_LOADED && (cl.worldmodel->fromgame == fg_quake || cl.worldmodel->fromgame == fg_halflife))
 		{	//when empty, pick a suitable default.
 			//at what point is it a win? should we consider batch counts? probability of offscreen-only surfaces?
 			if (cl.worldmodel->fromgame == fg_quake || cl.worldmodel->fromgame == fg_halflife)
-				r_temporalscenecache.ival = cl.worldmodel->numleafs > 6000 && r_waterstyle.ival<=1 && r_telestyle.ival<=1 && r_slimestyle.ival<=1 && r_lavastyle.ival<=1;
+				sc = cl.worldmodel->numleafs > 6000 && r_waterstyle.ival<=1 && r_telestyle.ival<=1 && r_slimestyle.ival<=1 && r_lavastyle.ival<=1 && Media_Capturing()<2;
 		}
-*/
-		if ((r_temporalscenecache.ival /*|| currentmodel->numbatches*/) && !r_refdef.recurse && currentmodel->type == mod_brush)
+		if (sc != r_temporalscenecache.ival)
+		{
+			r_temporalscenecache.ival = sc;
+			r_temporalscenecache.modified = true;
+		}
+		if (r_temporalscenecache.modified || r_dynamic.modified)
+		{
+			r_dynamic.modified = false;
+			r_temporalscenecache.modified = false;
+			Sh_CheckSettings(); //fiddle with r_dynamic vs r_shadow_realtime_dlight.
+		}
+
+		if (!r_temporalscenecache.ival)
+		{
+			r_dynamic.ival = r_dynamic.value;
+			webo_blocklightmapupdates = false;
+			while (webostates)
+			{
+				void *webostate = webostates;
+				webostates = webostates->next;
+				R_DestroyWorldEBO(webostate);
+			}
+		}
+		else if (!r_refdef.recurse && currentmodel->type == mod_brush)
 		{
 			struct webostate_s *webostate, *best = NULL, *kill, **link;
 			vec_t bestdist = FLT_MAX;
@@ -3567,6 +3591,7 @@ void Surf_DrawWorld (void)
 				if (webostate->cluster[0] == r_viewcluster && webostate->cluster[1] == r_viewcluster2)
 				{
 					best = webostate;
+					bestdist = 0;
 					break;
 				}
 				else
@@ -3607,7 +3632,7 @@ void Surf_DrawWorld (void)
 						}
 					}
 
-					if (!gennew && webostate)// && (webostate->cluster[0] != r_viewcluster || webostate->cluster[1] != r_viewcluster2))
+					if (!gennew && webostate && (webostate->cluster[0] != r_viewcluster || webostate->cluster[1] != r_viewcluster2))
 					{
 						if (webostate->pvs.buffersize != currentmodel->pvsbytes || r_viewcluster2 != -1)
 							gennew = true;	//o.O
@@ -3645,7 +3670,7 @@ void Surf_DrawWorld (void)
 							webostate->lastvalid = cls.framecount;
 						for (link = &webostates; (kill=*link); )
 						{
-							if (kill->lastvalid < cls.framecount-5 && kill->wmodel == currentmodel)
+							if (kill->lastvalid < cls.framecount-5 && kill->wmodel == currentmodel && kill != webostate)
 							{	//this one looks old... kill it.
 								if (webogenerating)
 									R_DestroyWorldEBO(webogenerating);	//can't use more than one!
@@ -3663,6 +3688,7 @@ void Surf_DrawWorld (void)
 							webogenerating->ebomem = NULL;
 							webogenerating->numbatches = 0;
 						}
+						VectorCopy(r_refdef.vieworg, webogenerating->lastpos);
 						webogenerating->wmodel = currentmodel;
 						webogenerating->framecount = -r_framecount;
 						webogenerating->cluster[0] = r_viewcluster;
@@ -3678,11 +3704,21 @@ void Surf_DrawWorld (void)
 			}
 #endif
 
+			//if they teleported, don't show something ugly - like obvious wallhacks.
+			if (webogenerating && bestdist > 16 && cl.splitclients<=1)
+			{
+				Con_DPrintf("Blocking for scenecache generation\n");
+				webostate = webogenerating;
+				COM_WorkerPartialSync(webogenerating, &webogeneratingstate, true);
+			}
+
 			if (webostate)
 			{
 				entvis = surfvis = webostate->pvs.buffer;
 
 				webostate->lastvalid = cls.framecount;
+
+				VectorCopy(r_refdef.vieworg, webostate->lastpos);
 
 				r_dynamic.ival = -1;	//don't waste time on dlighting models.
 

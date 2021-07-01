@@ -3765,8 +3765,8 @@ void Sh_PreGenerateLights(void)
 		}
 	}
 
-	ignoreflags = (r_shadow_realtime_world.value?LFLAG_REALTIMEMODE:0)
-			| (r_shadow_realtime_dlight.value?LFLAG_NORMALMODE:0);
+	ignoreflags = (r_shadow_realtime_world.ival?LFLAG_REALTIMEMODE:0)
+			| (r_shadow_realtime_dlight.ival?LFLAG_NORMALMODE:0);
 
 	for (dl = cl_dlights+rtlights_first, i=rtlights_first; i<rtlights_max; i++, dl++)
 	{
@@ -3913,6 +3913,14 @@ void Sh_CheckSettings(void)
 		//both shadow methods available.
 	}
 
+	r_dynamic.ival = r_dynamic.value;
+	if (canshadowless && r_dynamic.value && !r_shadow_realtime_dlight.ival && (r_temporalscenecache.ival || (cl.worldmodel && cl.worldmodel->fromgame == fg_quake3)))
+	{
+		r_shadow_realtime_dlight.ival = 1;
+		r_shadow_realtime_dlight_shadows.ival = 0;
+		r_dynamic.ival = 0;
+	}
+
 	cansmap = cansmap && (r_shadows.ival==2);
 	if (r_fakeshadows != cansmap)
 	{
@@ -3933,8 +3941,8 @@ void Sh_CalcPointLight(vec3_t point, vec3_t light)
 	unsigned int ignoreflags;
 
 	vec3_t norm, impact;
-	ignoreflags = (r_shadow_realtime_world.value?LFLAG_REALTIMEMODE:0)
-			| (r_shadow_realtime_dlight.value?LFLAG_NORMALMODE:0);
+	ignoreflags = (r_shadow_realtime_world.ival?LFLAG_REALTIMEMODE:0)
+			| (r_shadow_realtime_dlight.ival?LFLAG_NORMALMODE:0);
 
 	VectorClear(light);
 	if (ignoreflags)
@@ -4013,8 +4021,8 @@ void Sh_DrawLights(qbyte *vis)
 		return;
 	}
 
-	ignoreflags = (r_shadow_realtime_world.value?LFLAG_REALTIMEMODE:0)
-				| (r_shadow_realtime_dlight.value?LFLAG_NORMALMODE:0);
+	ignoreflags = (r_shadow_realtime_world.ival?LFLAG_REALTIMEMODE:0)
+				| (r_shadow_realtime_dlight.ival?LFLAG_NORMALMODE:0);
 
 //	if (r_refdef.recurse)
 	for (dl = cl_dlights+rtlights_first, i=rtlights_first; i<rtlights_max; i++, dl++)

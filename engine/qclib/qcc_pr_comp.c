@@ -1886,7 +1886,20 @@ static const char *QCC_GetRefName(QCC_ref_t *ref, char *buffer, size_t buffersiz
 		QC_snprintfz(buffer, buffersize, "%s->%s", QCC_GetSRefName(ref->base), QCC_GetSRefName(ref->index));
 		return buffer;
 	case REF_ACCESSOR:
-		//FIXME
+		if (*ref->accessor->fieldname)
+		{	//not an anonymous field
+			if (ref->index.sym)
+				QC_snprintfz(buffer, buffersize, "%s.%s[%s]", QCC_GetSRefName(ref->base), ref->accessor->fieldname, QCC_GetSRefName(ref->index));
+			else
+				QC_snprintfz(buffer, buffersize, "%s.%s", QCC_GetSRefName(ref->base), ref->accessor->fieldname);
+		}
+		else
+		{
+			if (ref->index.sym)
+				QC_snprintfz(buffer, buffersize, "%s[%s]", QCC_GetSRefName(ref->base), QCC_GetSRefName(ref->index));
+			else
+				QC_snprintfz(buffer, buffersize, "*%s", QCC_GetSRefName(ref->base));
+		}
 		break;
 	case REF_ARRAYHEAD:
 	case REF_GLOBAL:
@@ -8728,78 +8741,95 @@ static QCC_ref_t *QCC_PR_ParseField(QCC_ref_t *refbuf, QCC_ref_t *lhs)
 {
 	QCC_type_t *t;
 	t = lhs->cast;
-	if (t->type == ev_entity && (QCC_PR_CheckToken(".") || QCC_PR_CheckToken("->")))
+	if ((t->accessors || t->type == ev_entity) && (QCC_PR_CheckToken(".") || QCC_PR_CheckToken("->")))
 	{
 		QCC_ref_t *field;
 		QCC_ref_t fieldbuf;
-		if (QCC_PR_CheckToken("("))
-		{
-			field = QCC_PR_RefExpression(&fieldbuf, TOP_PRIORITY, 0);
-			QCC_PR_Expect(")");
-		}
-		else
-			field = QCC_PR_ParseRefValue(&fieldbuf, t, false, false, true);
-		if (field->type != REF_ARRAYHEAD && (field->cast->type == ev_field || field->cast->type == ev_variant))
-		{
-			//fields are generally always readonly. that refers to the field def itself, rather than products of said field.
-			//entities, like 'world' might also be consts. just ignore that fact. the def itself is not assigned, but the fields of said def.
-			//the engine may have a problem with this, but the qcc has no way to referenced locations as readonly separately from the def itself.
-			lhs = QCC_PR_BuildRef(refbuf, REF_FIELD, QCC_RefToDef(lhs, true), QCC_RefToDef(field, true), (field->cast->type == ev_field)?field->cast->aux_type:type_variant, false);
-		}
-		else
-		{
-			if (field->type == REF_GLOBAL && strstr(QCC_GetSRefName(field->base), "::"))
-			{
-				QCC_sref_t theent = QCC_RefToDef(lhs, true);
-				*refbuf = *field;
-				refbuf->type = REF_NONVIRTUAL;
-				refbuf->index = theent;
-				return refbuf;
-			}
-			if (t->parentclass)
-				QCC_PR_ParseError(ERR_INTERNAL, "%s is not a field of class %s", QCC_GetSRefName(QCC_RefToDef(field, false)), t->name);
-			else
-				QCC_PR_ParseError(ERR_INTERNAL, "%s is not a field", QCC_GetSRefName(QCC_RefToDef(field, false)));
-		}
 
-		lhs = QCC_PR_ParseField(refbuf, lhs);
+		if (pr_token_type == tt_name)
+		{
+			QCC_sref_t index = nullsref;
+			char *fieldname = pr_token;
+			struct accessor_s *acc = NULL, *anon = NULL;
+			QCC_type_t *a;
 
-		lhs = QCC_PR_ParseRefArrayPointer (refbuf, lhs, false, false);
-	}
-	else if (t->accessors && (QCC_PR_CheckToken(".") || QCC_PR_CheckToken("->")))
-	{
-		QCC_sref_t index = nullsref;
-		char *fieldname = QCC_PR_ParseName();
-		struct accessor_s *acc;
-
-		for (acc = t->accessors; acc; acc = acc->next)
-			if (!strcmp(acc->fieldname, fieldname))
-			{
-				if (acc->indexertype)
+			for (a = t; a && !acc; a = a->parentclass)
+				for (acc = a->accessors; acc; acc = acc->next)
 				{
-					if (QCC_PR_CheckToken(".") || QCC_PR_CheckToken("->"))
-						index = QCC_MakeStringConst(QCC_PR_ParseName());
-					else
+					if (!*acc->fieldname && acc->indexertype)
 					{
-						QCC_PR_Expect("[");
-						index = QCC_PR_Expression (TOP_PRIORITY, 0);
-						QCC_PR_Expect("]");
+						if (!anon)
+							anon = acc;
+					}
+					else if (!strcmp(acc->fieldname, fieldname))
+					{
+						fieldname = QCC_PR_ParseName(); //do it for real now.
+						if (acc->indexertype)
+						{
+							if (QCC_PR_CheckToken(".") || QCC_PR_CheckToken("->"))
+								index = QCC_MakeStringConst(QCC_PR_ParseName());
+							else
+							{
+								QCC_PR_Expect("[");
+								index = QCC_PR_Expression (TOP_PRIORITY, 0);
+								QCC_PR_Expect("]");
+							}
+						}
+						break;
 					}
 				}
-				break;
+			if (!acc && anon)
+			{
+				acc = anon;
+				fieldname = QCC_PR_ParseName(); //do it for real now.
+				index = QCC_MakeStringConst(fieldname);
 			}
-		if (!acc)
-			for (acc = t->accessors; acc; acc = acc->next)
-				if (!*acc->fieldname && acc->indexertype)
-				{
-					index = QCC_MakeStringConst(fieldname);
-					break;
-				}
-		if (!acc)
-			QCC_PR_ParseError(ERR_INTERNAL, "%s is not a member of %s", fieldname, t->name);
+			if (acc)
+			{
+				lhs = QCC_PR_BuildAccessorRef(refbuf, QCC_RefToDef(lhs, true), index, acc, lhs->readonly);
+				lhs = QCC_PR_ParseField(refbuf, lhs);
+				return lhs;
+			}
+		}
 
-		lhs = QCC_PR_BuildAccessorRef(refbuf, QCC_RefToDef(lhs, true), index, acc, lhs->readonly);
-		lhs = QCC_PR_ParseField(refbuf, lhs);
+		if (t->type == ev_entity)
+		{
+			if (QCC_PR_CheckToken("("))
+			{
+				field = QCC_PR_RefExpression(&fieldbuf, TOP_PRIORITY, 0);
+				QCC_PR_Expect(")");
+			}
+			else
+				field = QCC_PR_ParseRefValue(&fieldbuf, t, false, false, true);
+			if (field->type != REF_ARRAYHEAD && (field->cast->type == ev_field || field->cast->type == ev_variant))
+			{
+				//fields are generally always readonly. that refers to the field def itself, rather than products of said field.
+				//entities, like 'world' might also be consts. just ignore that fact. the def itself is not assigned, but the fields of said def.
+				//the engine may have a problem with this, but the qcc has no way to referenced locations as readonly separately from the def itself.
+				lhs = QCC_PR_BuildRef(refbuf, REF_FIELD, QCC_RefToDef(lhs, true), QCC_RefToDef(field, true), (field->cast->type == ev_field)?field->cast->aux_type:type_variant, false);
+			}
+			else
+			{
+				if (field->type == REF_GLOBAL && strstr(QCC_GetSRefName(field->base), "::"))
+				{
+					QCC_sref_t theent = QCC_RefToDef(lhs, true);
+					*refbuf = *field;
+					refbuf->type = REF_NONVIRTUAL;
+					refbuf->index = theent;
+					return refbuf;
+				}
+				if (t->parentclass)
+					QCC_PR_ParseError(ERR_INTERNAL, "%s is not a field of class %s", QCC_GetSRefName(QCC_RefToDef(field, false)), t->name);
+				else
+					QCC_PR_ParseError(ERR_INTERNAL, "%s is not a field", QCC_GetSRefName(QCC_RefToDef(field, false)));
+			}
+
+			lhs = QCC_PR_ParseField(refbuf, lhs);
+
+			lhs = QCC_PR_ParseRefArrayPointer (refbuf, lhs, false, false);
+		}
+		else
+			QCC_PR_ParseError(ERR_INTERNAL, "%s is not a member of %s", QCC_PR_ParseName(), t->name);
 	}
 	else if (flag_qccx && t->type == ev_entity && QCC_PR_CheckToken("["))
 	{	//p[%0] gives a regular array reference. except that p is probably a float, and we're expecting OP_LOAD_F
@@ -9522,6 +9552,7 @@ QCC_ref_t	*QCC_PR_ParseRefValue (QCC_ref_t *refbuf, QCC_type_t *assumeclass, pbo
 				{
 					for(type = assumeclass; type && !d.cast; type = type->parentclass)
 					{
+
 						//look for virtual things
 						QC_snprintfz(membername, sizeof(membername), "%s::"MEMBERFIELDNAME, type->name, name);
 						d = QCC_PR_GetSRef (NULL, membername, pr_scope, false, 0, false);

@@ -5248,6 +5248,142 @@ QCC_type_t *QCC_PR_GenFunctionType (QCC_type_t *rettype, struct QCC_typeparam_s 
 	return QCC_PR_FindType (ftype);
 }
 
+
+struct accessor_s *QCC_PR_ParseAccessorMember(QCC_type_t *classtype, pbool isinline, pbool setnotget)
+{
+	struct accessor_s  *acc, *pacc;
+	char *fieldtypename;
+	QCC_type_t *fieldtype;
+	QCC_type_t *indextype;
+	QCC_sref_t def;
+	QCC_type_t *functype;
+	QCC_type_t *parenttype;
+	struct QCC_typeparam_s arg[3];
+	int args;
+	char *indexname;
+	pbool isref;
+	char *accessorname;
+
+	if (QCC_PR_CheckToken("&"))
+		isref = 2;
+	else
+		isref = QCC_PR_CheckToken("*");
+
+	fieldtypename = QCC_PR_ParseName();
+	fieldtype = QCC_TypeForName(fieldtypename);
+	if (!fieldtype)
+		QCC_PR_ParseError(ERR_NOTATYPE, "Invalid type: %s", fieldtypename);
+	while(QCC_PR_CheckToken("*"))
+		fieldtype = QCC_PR_PointerType(fieldtype);
+
+	if (pr_token_type != tt_punct)
+		accessorname = QCC_PR_ParseName();
+	else
+		accessorname = "";
+
+	indextype = NULL;
+	indexname = "index";
+	if (QCC_PR_CheckToken("["))
+	{
+		fieldtypename = QCC_PR_ParseName();
+		indextype = QCC_TypeForName(fieldtypename);
+
+		if (!QCC_PR_CheckToken("]"))
+		{
+			indexname = QCC_PR_ParseName();
+			QCC_PR_Expect("]");
+		}
+	}
+
+	QCC_PR_Expect("=");
+
+	args = 0;
+	memset(arg, 0, sizeof(arg));
+	strcpy (pr_parm_names[args], "this");
+	arg[args].paramname = "this";
+	if (isref == 2)
+	{
+		arg[args].type = classtype;
+		arg[args].out = 1;	//inout
+	}
+	else if (isref)
+		arg[args].type = QCC_PointerTypeTo(classtype);
+	else
+		arg[args].type = classtype;
+	args++;
+	if (indextype)
+	{
+		strcpy (pr_parm_names[args], indexname);
+		arg[args].paramname = indexname;
+		arg[args++].type = indextype;
+	}
+	if (setnotget)
+	{
+		strcpy (pr_parm_names[args], "value");
+		arg[args].paramname = "value";
+		arg[args++].type = fieldtype;
+	}
+	functype = QCC_PR_GenFunctionType(setnotget?type_void:fieldtype, arg, args);
+
+	if (pr_token_type != tt_name)
+	{
+		QCC_function_t *f;
+		char funcname[256];
+		QC_snprintfz(funcname, sizeof(funcname), "%s::%s_%s", classtype->name, setnotget?"set":"get", accessorname);
+
+		def = QCC_PR_GetSRef(functype, funcname, NULL, true, 0, GDF_CONST | (isinline?GDF_INLINE:0));
+
+		pr_classtype = ((classtype->type==ev_entity)?classtype:NULL);
+		f = QCC_PR_ParseImmediateStatements (def.sym, functype, false);
+		pr_classtype = NULL;
+		pr_scope = NULL;
+		def.sym->symboldata[def.ofs].function = f - functions;
+		f->def = def.sym;
+		def.sym->initialized = 1;
+	}
+	else
+	{
+		const char *funcname = QCC_PR_ParseName();
+		def = QCC_PR_GetSRef(functype, funcname, NULL, true, 0, GDF_CONST|(isinline?GDF_INLINE:0));
+		if (!def.cast)
+			QCC_Error(ERR_NOFUNC, "%s::set_%s: %s was not defined", classtype->name, accessorname, funcname);
+	}
+	if (!def.cast || !def.sym || def.sym->temp)
+		QCC_Error(ERR_NOFUNC, "%s::%s_%s function invalid", classtype->name, setnotget?"set":"get", accessorname);
+
+	for (acc = classtype->accessors; acc; acc = acc->next)
+		if (!strcmp(acc->fieldname, accessorname))
+			break;
+	if (!acc)
+	{
+		acc = qccHunkAlloc(sizeof(*acc));
+		acc->fieldname = accessorname;
+		acc->next = classtype->accessors;
+		acc->type = fieldtype;
+		acc->indexertype = indextype;
+		classtype->accessors = acc;
+	}
+
+	if (acc->getset_func[setnotget].cast)
+		QCC_Error(ERR_TOOMANYINITIALISERS, "%s::%s_%s already declared", classtype->name, setnotget?"set":"get", accessorname);
+	acc->getset_func[setnotget] = def;
+	acc->getset_isref[setnotget] = isref;
+	QCC_FreeTemp(def);
+
+	for (parenttype = classtype->parentclass; parenttype; parenttype = parenttype->parentclass)
+	{
+		if (!parenttype->accessors)
+			continue;
+		for (pacc = parenttype->accessors; pacc; pacc = pacc->next)
+		{
+			if (!strcmp(acc->fieldname, pacc->fieldname))
+				QCC_PR_ParseWarning(WARN_DUPLICATEDEFINITION, "%s::%s shadows parent %s", classtype->name, acc->fieldname?acc->fieldname:"<anon>", parenttype->name);
+		}
+	}
+
+	return acc;
+}
+
 extern char *basictypenames[];
 extern QCC_type_t **basictypes[];
 pbool type_inlinefunction;
@@ -5404,19 +5540,8 @@ QCC_type_t *QCC_PR_ParseType (int newtype, pbool silentfail)
 
 		if (QCC_PR_CheckToken("{"))
 		{
-			struct accessor_s  *acc;
 			pbool setnotget;
-			char *fieldtypename;
-			QCC_type_t *fieldtype;
-			QCC_type_t *indextype;
-			QCC_sref_t def;
-			QCC_type_t *functype;
-			struct QCC_typeparam_s arg[3];
-			int args;
-			char *indexname;
-			pbool isref;
 			pbool isinline;
-
 
 			do
 			{
@@ -5428,115 +5553,8 @@ QCC_type_t *QCC_PR_ParseType (int newtype, pbool silentfail)
 					setnotget = false;
 				else
 					break;
-				if (QCC_PR_CheckToken("&"))
-					isref = 2;
-				else
-					isref = QCC_PR_CheckToken("*");
 
-				fieldtypename = QCC_PR_ParseName();
-				fieldtype = QCC_TypeForName(fieldtypename);
-				if (!fieldtype)
-					QCC_PR_ParseError(ERR_NOTATYPE, "Invalid type: %s", fieldtypename);
-				while(QCC_PR_CheckToken("*"))
-					fieldtype = QCC_PR_PointerType(fieldtype);
-
-				if (pr_token_type != tt_punct)
-				{
-					funcname = QCC_PR_ParseName();
-					accessorname = qccHunkAlloc(strlen(funcname)+1);
-					strcpy(accessorname, funcname);
-				}
-				else
-					accessorname = "";
-
-				indextype = NULL;
-				indexname = "index";
-				if (QCC_PR_CheckToken("["))
-				{
-					fieldtypename = QCC_PR_ParseName();
-					indextype = QCC_TypeForName(fieldtypename);
-
-					if (!QCC_PR_CheckToken("]"))
-					{
-						indexname = QCC_PR_ParseName();
-						QCC_PR_Expect("]");
-					}
-				}
-
-				QCC_PR_Expect("=");
-
-				args = 0;
-				memset(arg, 0, sizeof(arg));
-				strcpy (pr_parm_names[args], "this");
-				arg[args].paramname = "this";
-				if (isref == 2)
-				{
-					arg[args].type = newt;
-					arg[args].out = 1;	//inout
-				}
-				else if (isref)
-					arg[args].type = QCC_PointerTypeTo(newt);
-				else
-					arg[args].type = newt;
-				args++;
-				if (indextype)
-				{
-					strcpy (pr_parm_names[args], indexname);
-					arg[args].paramname = indexname;
-					arg[args++].type = indextype;
-				}
-				if (setnotget)
-				{
-					strcpy (pr_parm_names[args], "value");
-					arg[args].paramname = "value";
-					arg[args++].type = fieldtype;
-				}
-				functype = QCC_PR_GenFunctionType(setnotget?type_void:fieldtype, arg, args);
-
-				if (pr_token_type != tt_name)
-				{
-					QCC_function_t *f;
-					char funcname[256];
-					QC_snprintfz(funcname, sizeof(funcname), "%s::%s_%s", newt->name, setnotget?"set":"get", accessorname);
-
-					def = QCC_PR_GetSRef(functype, funcname, NULL, true, 0, GDF_CONST | (isinline?GDF_INLINE:0));
-
-					//pr_classtype = newt;
-					f = QCC_PR_ParseImmediateStatements (def.sym, functype, false);
-					pr_classtype = NULL;
-					pr_scope = NULL;
-					def.sym->symboldata[def.ofs].function = f - functions;
-					f->def = def.sym;
-					def.sym->initialized = 1;
-				}
-				else
-				{
-					funcname = QCC_PR_ParseName();
-					def = QCC_PR_GetSRef(functype, funcname, NULL, true, 0, GDF_CONST|(isinline?GDF_INLINE:0));
-					if (!def.cast)
-						QCC_Error(ERR_NOFUNC, "%s::set_%s: %s was not defined", newt->name, accessorname, funcname);
-				}
-				if (!def.cast || !def.sym || def.sym->temp)
-					QCC_Error(ERR_NOFUNC, "%s::%s_%s function invalid", newt->name, setnotget?"set":"get", accessorname);
-				
-				for (acc = newt->accessors; acc; acc = acc->next)
-					if (!strcmp(acc->fieldname, accessorname))
-						break;
-				if (!acc)
-				{
-					acc = qccHunkAlloc(sizeof(*acc));
-					acc->fieldname = accessorname;
-					acc->next = newt->accessors;
-					acc->type = fieldtype;
-					acc->indexertype = indextype;
-					newt->accessors = acc;
-				}
-
-				if (acc->getset_func[setnotget].cast)
-					QCC_Error(ERR_TOOMANYINITIALISERS, "%s::%s_%s already declared", newt->name, setnotget?"set":"get", accessorname);
-				acc->getset_func[setnotget] = def;
-				acc->getset_isref[setnotget] = isref;
-				QCC_FreeTemp(def);
+				QCC_PR_ParseAccessorMember(newt, isinline, setnotget);
 			} while (QCC_PR_CheckToken(",") || QCC_PR_CheckToken(";"));
 			QCC_PR_Expect("}");
 		}
@@ -5619,6 +5637,9 @@ QCC_type_t *QCC_PR_ParseType (int newtype, pbool silentfail)
 			pbool isnonvirt = false;
 			pbool isstatic = false;
 			pbool isignored = false;
+			pbool isinline = false;
+			pbool isget = false;
+			pbool isset = false;
 //			pbool ispublic = false;
 //			pbool isprivate = false;
 //			pbool isprotected = false;
@@ -5634,6 +5655,12 @@ QCC_type_t *QCC_PR_ParseType (int newtype, pbool silentfail)
 					isignored = true;
 				else if (QCC_PR_CheckKeyword(1, "strip"))
 					isignored = true;
+				else if (QCC_PR_CheckKeyword(1, "inline"))
+					isinline = true;
+				else if (QCC_PR_CheckKeyword(1, "get"))
+					isget = true;
+				else if (QCC_PR_CheckKeyword(1, "set"))
+					isset = true;
 				else if (QCC_PR_CheckKeyword(1, "public"))
 					/*ispublic = true*/;
 				else if (QCC_PR_CheckKeyword(1, "private"))
@@ -5651,6 +5678,17 @@ QCC_type_t *QCC_PR_ParseType (int newtype, pbool silentfail)
 					assumevirtual = -1;
 				continue;
 			}
+			if (isget || isset)
+			{
+				if (isvirt)
+					QCC_PR_ParseWarning(ERR_INTERNAL, "virtual accessors are not supported at this time");
+				if (isstatic)
+					QCC_PR_ParseError(ERR_INTERNAL, "static accessors are not supported");
+				QCC_PR_ParseAccessorMember(newt, isinline, isset);
+				QCC_PR_CheckToken(";");
+				continue;
+			}
+
 			newparm = QCC_PR_ParseType(false, false);
 
 			if (!newparm)
@@ -5700,6 +5738,8 @@ QCC_type_t *QCC_PR_ParseType (int newtype, pbool silentfail)
 			{
 				if (isvirt||isnonvirt)
 					QCC_Error(ERR_INTERNAL, "virtual keyword on member that is not a function");
+				if (isinline)
+					QCC_Error(ERR_INTERNAL, "inline keyword on member that is not a function");
 			}
 
 			if (newparm->type == ev_function)
@@ -5710,6 +5750,8 @@ QCC_type_t *QCC_PR_ParseType (int newtype, pbool silentfail)
 				}
 				else if (pr_token[0] == '{')
 					havebody = true;
+				if (isinline && (!havebody || isvirt))
+					QCC_Error(ERR_INTERNAL, "inline keyword on function prototype or virtual function");
 			}
 
 			if (havebody)

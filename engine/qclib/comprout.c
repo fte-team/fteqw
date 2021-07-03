@@ -21,26 +21,55 @@ void QCC_PR_ResetErrorScope(void);
 
 #else
 
-int qccalloced;
-int qcchunksize;
-char *qcchunk;
+static struct qcchunk_s
+{
+	struct qcchunk_s *older;
+	char *data;
+	char *end;
+} *qcc_hunk;
+static void qccHunkExtend(size_t minsize)
+{
+	struct qcchunk_s *n;
+	size_t sz;
+	minsize += sizeof(struct qcchunk_s)+64;
+	sz = max(minsize, 256*1024*1024);
+
+	for (;;)
+	{
+		if (sz < minsize)
+			QCC_Error(ERR_INTERNAL, "Compile hunk was filled");
+		n = malloc(sz);
+		if (n)
+			break;
+		sz /= 2;
+	}
+
+	n->data = (char*)(n+1);
+	n->end = ((char*)n)+sz;
+	n->older = qcc_hunk;
+	qcc_hunk = n;
+}
 void *qccHunkAlloc(size_t mem)
 {
+	char *ret;
 	mem = (mem + 7)&~7;
 
-	qccalloced+=mem;
-	if (qccalloced > qcchunksize)
-		QCC_Error(ERR_INTERNAL, "Compile hunk was filled");
+	if (qcc_hunk->data+mem > qcc_hunk->end)
+		qccHunkExtend(mem);
+	ret = qcc_hunk->data;
+	qcc_hunk->data += mem;
 
-	memset(qcchunk+qccalloced-mem, 0, mem);
-	return qcchunk+qccalloced-mem;
+	memset(ret, 0, mem);
+	return ret;
 }
 void qccClearHunk(void)
 {
-	if (qcchunk)
+	struct qcchunk_s *t;
+	while (qcc_hunk)
 	{
-		free(qcchunk);
-		qcchunk=NULL;
+		t = qcc_hunk;
+		qcc_hunk = t->older;
+		free(t);
 	}
 }
 int qccpersisthunk;
@@ -63,18 +92,9 @@ pbool PreCompile(void)
 
 	qccClearHunk();
 	strcpy(qcc_gamedir, "");
-	if (sizeof(void*) > 4)
-		qcchunk = malloc(qcchunksize=512*1024*1024);
-	else
-		qcchunk = malloc(qcchunksize=256*1024*1024);
-	while(!qcchunk && qcchunksize > 8*1024*1024)
-	{
-		qcchunksize /= 2;
-		qcchunk = malloc(qcchunksize);
-	}
-	qccalloced=0;
 
-	return !!qcchunk;
+	qccHunkExtend(0);
+	return true;
 }
 
 pbool QCC_main (int argc, const char **argv);

@@ -491,9 +491,11 @@ void MSV_MapCluster_Setup(const char *landingmap, qboolean use_database, qboolea
 	SV_WipeServerState();
 
 	//this is the new-player map.
-	Q_strncpyz(sv.modelname, landingmap, sizeof(sv.modelname));
-	if (!*sv.modelname)
-		Q_strncpyz(sv.modelname, "start", sizeof(sv.modelname));
+	Q_strncpyz(svs.name, landingmap, sizeof(svs.name));
+	if (!*svs.name)
+		Q_strncpyz(svs.name, "start", sizeof(svs.name));
+
+	Q_strncpyz(sv.modelname, svs.name, sizeof(sv.modelname));
 
 	if (use_database)
 	{

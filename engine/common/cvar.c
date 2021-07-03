@@ -271,6 +271,7 @@ void Cvar_List_f (void)
 	int listflags = 0, cvarflags = 0;
 	int total = 0;
 	char strtmp[512];
+	char *col;
 	static char *cvarlist_help =
 "cvarlist list all cvars matching given parameters\n"
 "Syntax: cvarlist [-FLdhlrv] [-f flag] [-g group] [cvar]\n"
@@ -467,23 +468,32 @@ showhelp:
 
 			// print cvar name
 			if (!cmd->defaultstr || !strcmp(cmd->string, cmd->defaultstr))
-				Con_Printf(S_COLOR_GREEN "%s", cmd->name);	//cvar has default value, woo.
+				col = S_COLOR_GREEN;	//cvar has default value, woo.
 			else if (cmd->flags & CVAR_ARCHIVE)
-				Con_Printf(S_COLOR_RED "%s", cmd->name);	//cvar will persist. oh noes.
+				col = S_COLOR_RED;		//cvar will persist. oh noes.
 			else
-				Con_Printf(S_COLOR_YELLOW "%s", cmd->name);	//cvar is changed, but won't be saved to a config so w/e.
+				col = S_COLOR_YELLOW;	//cvar is changed, but won't be saved to a config so w/e.
+			if (cmd->flags & CVAR_NOUNSAFEEXPAND)
+				Con_Printf("^[%s%s\\type\\%s\\tip\\"S_COLOR_YELLOW"%s^]", col, cmd->name, cmd->name, cmd->description?cmd->description:"");	//cvar is changed, but won't be saved to a config so w/e.
+			else
+				Con_Printf("^[%s%s\\type\\%s %s\\tip\\Default: %s\nCurrent: %s\n\n"S_COLOR_YELLOW"%s^]", col, cmd->name, cmd->name,cmd->string, cmd->defaultstr,cmd->string, cmd->description?cmd->description:"");	//cvar is changed, but won't be saved to a config so w/e.
 			total++;
 
 			// print current value
-			if (listflags & CLF_VALUES)
+			if (cmd->flags & CVAR_NOUNSAFEEXPAND)
+				;
+			else
 			{
-				if (*cmd->string)
-					Con_Printf(" %s", cmd->string);
-			}
+				if (listflags & CLF_VALUES)
+				{
+					if (*cmd->string)
+						Con_Printf(" %s", cmd->string);
+				}
 
-			// print default value
-			if (cmd->defaultstr && (listflags & CLF_DEFAULT))
-				Con_Printf(", default \"%s\"", cmd->defaultstr);
+				// print default value
+				if (cmd->defaultstr && (listflags & CLF_DEFAULT))
+					Con_Printf(", default \"%s\"", cmd->defaultstr);
+			}
 
 			// print alternate name
 			if ((listflags & CLF_ALTNAME) && cmd->name2)
@@ -506,7 +516,9 @@ showhelp:
 			// print latched value
 			if (listflags & CLF_LATCHES)
 			{
-				if (cmd->latched_string)
+				if (cmd->flags & CVAR_NOUNSAFEEXPAND)
+					;
+				else if (cmd->latched_string)
 					Con_Printf(", latched as \"%s\"", cmd->latched_string);
 			}
 

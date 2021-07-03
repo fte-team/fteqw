@@ -304,13 +304,14 @@ void IN_DeviceIDs_f(void)
 
 float IN_DetermineMouseRate(void)
 {
-	float time = Sys_DoubleTime();
-	static float timer;
+	double time = Sys_DoubleTime();
+	static double timer;
 	static float last;
-	if (fabs(time - timer) > 1)
+	float interval = time - timer;
+	if (fabs(interval) >= 1)
 	{
 		timer = time;
-		last = ptr[0].updates;
+		last = ptr[0].updates/interval;
 		ptr[0].updates = 0;
 	}
 	return last;

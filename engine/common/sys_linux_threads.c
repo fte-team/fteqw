@@ -540,9 +540,9 @@ qboolean Sys_SetUpdatedBinary(const char *newbinary)
 	int i;
 	struct stat src, dst;
 
-	//windows is annoying. we can't delete a file that's in use (no orphaning)
-	//we can normally rename it to something else before writing a new file with the original name.
-	//then delete the old file later (sadly only on reboot)
+	//update blocked via commandline. just in case.
+	if (COM_CheckParm("-noupdate") || COM_CheckParm("--noupdate") || COM_CheckParm("-noautoupdate") || COM_CheckParm("--noautoupdate"))
+		return false;
 
 	//get the binary name
 	i = readlink("/proc/self/exe", enginebinary, sizeof(enginebinary)-1);
@@ -585,20 +585,34 @@ qboolean Sys_EngineMayUpdate(void)
 	char enginebinary[MAX_OSPATH];
 	int len;
 
-	//if we can't get a revision number from our cflags then don't allow updates (unless forced on).
-	if (!COM_CheckParm("-allowupdate"))
-		if (revision_number(true)<=0)
-			return false;
-
 	//update blocked via commandline
 	if (COM_CheckParm("-noupdate") || COM_CheckParm("--noupdate") || COM_CheckParm("-noautoupdate") || COM_CheckParm("--noautoupdate"))
 		return false;
-
 
 	//check that we can actually do it.
 	len = readlink("/proc/self/exe", enginebinary, sizeof(enginebinary)-1);
 	if (len <= 0)
 		return false;
+
+	//if we can't get a revision number from our cflags then don't allow updates (unless forced on).
+	if (!COM_CheckParm("-allowupdate"))
+	{
+		char *s;
+		if (revision_number(true)<=0)
+			return false;
+
+		//if there's 3 consecutive digits or digit.digit then assume the user is doing their own versioning, and disallow engine updates (unless they use the -allowupdate arg).
+		//(that or they ran one of our older builds directly)
+		s = COM_SkipPath(enginebinary);
+		while (*s)
+		{
+			if ( s[0] >= '0' && s[0] <= '9')
+			if ((s[1] >= '0' && s[1] <= '9') || s[1] == '.' || s[1] == '_' || s[1] == '-')
+			if ( s[2] >= '0' && s[2] <= '9')
+				return false;
+		}
+	}
+
 	enginebinary[len] = 0;
 	if (access(enginebinary, R_OK|W_OK|X_OK) < 0)
 		return false;	//can't write it. don't try downloading updates.

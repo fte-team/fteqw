@@ -2956,6 +2956,10 @@ qboolean Sys_SetUpdatedBinary(const char *newbinary)
 	wchar_t enginebinarybackup[MAX_OSPATH+4];
 	size_t len;
 	static qboolean alreadymoved = false;
+	
+	//update blocked via commandline. to be doubly sure its checked.
+	if (COM_CheckParm("-noupdate") || COM_CheckParm("--noupdate") || COM_CheckParm("-noautoupdate") || COM_CheckParm("--noautoupdate"))
+		return false;
 
 	//windows is annoying. we can't delete a file that's in use (no orphaning)
 	//we can normally rename it to something else before writing a new file with the original name.
@@ -3001,10 +3005,26 @@ qboolean Sys_SetUpdatedBinary(const char *newbinary)
 }
 qboolean Sys_EngineMayUpdate(void)
 {
+	wchar_t enginebinaryw[MAX_OSPATH];
 	if (!COM_CheckParm("-allowupdate"))
 	{
+		char enginebinary[MAX_OSPATH*4];
+		char *s;
 		if (revision_number(true) <= 0)
 			return false;
+
+		GetModuleFileNameW(NULL, enginebinaryw, countof(enginebinaryw)-1);
+		narrowen(enginebinary, sizeof(enginebinary), enginebinaryw);
+		//if there's 3 consecutive digits or digit.digit then assume the user is doing their own versioning, and disallow engine updates (unless they use the -allowupdate arg).
+		//(that or they ran one of our older builds directly)
+		s = COM_SkipPath(enginebinary);
+		while (*s)
+		{
+			if ( s[0] >= '0' && s[0] <= '9')
+			if ((s[1] >= '0' && s[1] <= '9') || s[1] == '.' || s[1] == '_' || s[1] == '-')
+			if ( s[2] >= '0' && s[2] <= '9')
+				return false;
+		}
 	}
 
 	//update blocked via commandline

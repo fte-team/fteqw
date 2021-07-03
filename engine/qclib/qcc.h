@@ -654,6 +654,7 @@ extern pbool flag_acc;
 extern pbool flag_caseinsensitive;
 extern pbool flag_laxcasts;
 extern pbool flag_hashonly;
+extern pbool flag_macroinstrings;
 extern pbool flag_fasttrackarrays;
 extern pbool flag_assume_integer;
 extern pbool flag_assume_double;

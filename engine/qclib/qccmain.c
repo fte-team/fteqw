@@ -398,6 +398,7 @@ compiler_flag_t compiler_flag[] = {
 	{&flag_caseinsensitive,	0,				"caseinsens",	"Case insensitivity",	"Causes fteqcc to become case insensitive whilst compiling names. It's generally not advised to use this as it compiles a little more slowly and provides little benefit. However, it is required for full reacc support."},	//symbols will be matched to an insensitive case if the specified case doesn't exist. This should b usable for any mod
 	{&flag_laxcasts,		FLAG_MIDCOMPILE,"lax",			"Lax type checks",		"Disables many errors (generating warnings instead) when function calls or operations refer to two normally incompatible types. This is required for reacc support, and can also allow certain (evil) mods to compile that were originally written for frikqcc."},		//Allow lax casting. This'll produce loadsa warnings of course. But allows compilation of certain dodgy code.
 	{&flag_hashonly,		FLAG_MIDCOMPILE,"hashonly",		"Hash-only constants",	"Allows use of only #constant for precompiler constants, allows certain preqcc using mods to compile"},
+	{&flag_macroinstrings,	FLAG_MIDCOMPILE,"macroinstrings","Expand macros in strings",	"Allows the use #constant inside string immediates. This is a feature of preqcc, but should otherwise probably be left disabled."},
 	{&opt_logicops,			FLAG_MIDCOMPILE,"lo",			"Logic ops",			"This changes the behaviour of your code. It generates additional if operations to early-out in if statements. With this flag, the line if (0 && somefunction()) will never call the function. It can thus be considered an optimisation. However, due to the change of behaviour, it is not considered so by fteqcc. Note that due to inprecisions with floats, this flag can cause runaway loop errors within the player walk and run functions (without iffloat also enabled). This code is advised:\nplayer_stand1:\n    if (self.velocity_x || self.velocity_y)\nplayer_run\n    if (!(self.velocity_x || self.velocity_y))"},
 	{&flag_msvcstyle,		FLAG_MIDCOMPILE,"msvcstyle",	"MSVC-style errors",	"Generates warning and error messages in a format that msvc understands, to facilitate ide integration."},
 	{&flag_debugmacros,		FLAG_MIDCOMPILE,"debugmacros",	"Verbose Macro Expansion",	"Print out the contents of macros that are expanded. This can help look inside macros that are expanded and is especially handy if people are using preprocessor hacks."},
@@ -4463,6 +4464,7 @@ static void QCC_PR_CommandLinePrecompilerOptions (void)
 				flag_assume_integer = true;	//unqualified numeric constants are assumed to be ints, consistent with C.
 				flag_assume_double = true;	//and any immediates with a decimal points are assumed to be doubles, consistent with C.
 				flag_qcfuncs = false;
+				flag_macroinstrings = false;
 
 				qccwarningaction[WARN_UNINITIALIZED] = WA_WARN;		//C doesn't like that, might as well warn here too.
 				qccwarningaction[WARN_TOOMANYPARAMS] = WA_ERROR;	//too many args to function is weeeeird.
@@ -4496,13 +4498,18 @@ static void QCC_PR_CommandLinePrecompilerOptions (void)
 			else if (!strcmp(myargv[i]+5, "preqcc"))
 			{
 				flag_hashonly = true;
+				flag_macroinstrings = true;
 			}
 			else if (!strcmp(myargv[i]+5, "reacc"))
 			{
 				flag_acc = true;
+				flag_macroinstrings = false;
 			}
 			else if (!strcmp(myargv[i]+5, "frikqcc"))
+			{
 				keyword_state = true;
+				flag_macroinstrings = false;
+			}
 			else if (!strcmp(myargv[i]+5, "fteqcc"))
 				;	//as above, its the default.
 			else if (!strcmp(myargv[i]+5, "qcc") || !strcmp(myargv[i]+5, "id"))
@@ -4523,6 +4530,7 @@ static void QCC_PR_CommandLinePrecompilerOptions (void)
 			else if (!strcmp(myargv[i]+5, "hcc") || !strcmp(myargv[i]+5, "hexenc"))
 			{
 				flag_ifvector = flag_vectorlogic = false;
+				flag_macroinstrings = false;
 
 				keyword_asm = keyword_continue = keyword_for = keyword_goto = false;
 				keyword_const = keyword_var = keyword_inout = keyword_optional = keyword_state = keyword_inline = keyword_nosave = keyword_extern = keyword_shared = keyword_noref = keyword_unused = keyword_used = keyword_static = keyword_nonstatic = keyword_ignore = keyword_strip = false;
@@ -4540,6 +4548,7 @@ static void QCC_PR_CommandLinePrecompilerOptions (void)
 				flag_ifvector = flag_vectorlogic = true;
 				flag_dblstarexp = flag_attributes = flag_assumevar = pr_subscopedlocals = flag_cpriority = flag_allowuninit = true;
 				flag_boundchecks = false;	//gmqcc doesn't support dynamic bound checks, so xonotic is buggy shite. we don't want to generate code that will crash.
+				flag_macroinstrings = false;
 				opt_logicops = true;
 
 				//we have to disable some of these warnings, because xonotic insists on using -Werror. use -Wextra to override.
@@ -4554,6 +4563,7 @@ static void QCC_PR_CommandLinePrecompilerOptions (void)
 				qccwarningaction[WARN_GMQCC_SPECIFIC] = WA_IGNORE;		//we shouldn't warn about gmqcc syntax when we're trying to be compatible with it. there's always -Wextra.
 				qccwarningaction[WARN_SYSTEMCRC] = WA_IGNORE;			//lameness
 				qccwarningaction[WARN_SYSTEMCRC2] = WA_IGNORE;			//extra lameness
+				qccwarningaction[WARN_ARGUMENTCHECK] = WA_IGNORE;		//gmqcc is often used on DP mods, and DP is just too horrible to fix its problems. Also there's a good chance its using some undocumented/new thing.
 
 				qccwarningaction[WARN_ASSIGNMENTTOCONSTANT] = WA_ERROR;	//some sanity.
 

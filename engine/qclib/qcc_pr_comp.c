@@ -132,6 +132,7 @@ pbool flag_acc;				//reacc like behaviour of src files (finds *.qc in start dir 
 pbool flag_caseinsensitive;	//symbols will be matched to an insensitive case if the specified case doesn't exist. This should b usable for any mod
 pbool flag_laxcasts;		//Allow lax casting. This'll produce loadsa warnings of course. But allows compilation of certain dodgy code.
 pbool flag_hashonly;		//Allows use of only #constant for precompiler constants, allows certain preqcc using mods to compile
+pbool flag_macroinstrings;	//preqcc's support macro expansion in strings (blind expansion).
 pbool flag_fasttrackarrays;	//Faster arrays, dynamically detected, activated only in supporting engines.
 pbool flag_msvcstyle;		//MSVC style warnings, so msvc's ide works properly
 pbool flag_debugmacros;		//Print out #defines as they are expanded, for debugging.

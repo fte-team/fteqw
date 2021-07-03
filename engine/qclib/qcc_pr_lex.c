@@ -1781,7 +1781,7 @@ void QCC_PR_LexString (void)
 				{
 					break;
 				}
-				else if (c == '#')
+				else if (c == '#' && flag_macroinstrings)
 				{
 					for (end = pr_file_p; ; end++)
 					{

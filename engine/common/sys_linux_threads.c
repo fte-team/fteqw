@@ -487,9 +487,9 @@ static int QDECL Sys_StdinRead (struct vfsfile_s *file, void *buffer, int bytest
 	ssize_t r;
 #if defined(__linux__) && defined(_DEBUG)
 	int fl = fcntl (STDIN_FILENO, F_GETFL, 0);
-	if (!(fl & FNDELAY))
+	if (!(fl & O_NONBLOCK))
 	{
-		fcntl(STDIN_FILENO, F_SETFL, fl | FNDELAY);
+		fcntl(STDIN_FILENO, F_SETFL, fl | O_NONBLOCK);
 		Sys_Printf(CON_WARNING "stdin flags became blocking - gdb bug?\n");
 	}
 #endif
@@ -512,6 +512,11 @@ qboolean QDECL Sys_StdinOutClose(vfsfile_t *fs)
 vfsfile_t *Sys_GetStdInOutStream(void)
 {
 	vfsfile_t *stream = Z_Malloc(sizeof(*stream));
+
+	//make sure nothing bad is going to happen.
+	fcntl(STDIN_FILENO, F_SETFL, fcntl(STDIN_FILENO, F_GETFL, 0)|O_NONBLOCK);
+	fcntl(STDOUT_FILENO, F_SETFL, fcntl(STDOUT_FILENO, F_GETFL, 0)|O_NONBLOCK);
+
 	stream->WriteBytes = Sys_StdoutWrite;
 	stream->ReadBytes = Sys_StdinRead;
 	stream->Close = Sys_StdinOutClose;

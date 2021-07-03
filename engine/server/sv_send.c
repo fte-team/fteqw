@@ -2675,7 +2675,7 @@ SV_SendClientDatagram
 */
 qboolean SV_SendClientDatagram (client_t *client)
 {
-	qbyte		buf[MAX_OVERALLMSGLEN];
+	qbyte		buf[MAX_OVERALLMSGLEN-64/*play safe*/];
 	sizebuf_t	msg;
 	size_t		clientlimit;
 	unsigned int sentbytes;
@@ -2707,6 +2707,8 @@ qboolean SV_SendClientDatagram (client_t *client)
 		else
 			clientlimit = client->netchan.mtu;	//try not to overflow
 	}
+	else if (client->netchan.remote_address.type == NA_LOOPBACK && ISNQCLIENT(client))
+		clientlimit = countof(buf);			//go wild. demos don't care about reliable/unreliable.
 	else if (client->netchan.mtu)
 		clientlimit = client->netchan.mtu;
 	else if (client->protocol == SCP_NETQUAKE)

@@ -554,31 +554,8 @@ vrect_t scr_vrect;
 
 void EZHud_Tick(double realtime, double gametime)
 {
-	static float lasttime, lasttime_min = 99999;
-	static int framecount;
-
-	//realtime(ms), realtime(secs), servertime
-	float oldtime = cls.realtime;
 	cls.realtime = realtime;
-	cls.frametime = cls.realtime - oldtime;
-
 	cl.time = gametime;
-
-	if (cls.realtime - lasttime > 1)
-	{
-		cls.fps = framecount/(cls.realtime - lasttime);
-		lasttime = cls.realtime;
-		framecount = 0;
-
-		if (cls.realtime - lasttime_min > 30)
-		{
-			cls.min_fps = cls.fps;
-			lasttime_min = cls.realtime;
-		}
-		else if (cls.min_fps > cls.fps)
-			cls.min_fps = cls.fps;
-	}
-	framecount++;
 }
 char *findinfo(char *info, char *findkey)
 {
@@ -630,6 +607,31 @@ int EZHud_Draw(int seat, float viewx, float viewy, float viewwidth, float viewhe
 	char serverinfo[4096];
 	char val[64];
 	int i;
+
+	static float lasttime, lasttime_min = 99999;
+	static int framecount;
+	static float oldtime;
+	if (cls.realtime - lasttime > 1)
+	{
+		cls.fps = framecount/(cls.realtime - lasttime);
+		lasttime = cls.realtime;
+		framecount = 0;
+
+		if (cls.realtime - lasttime_min > 30)
+		{
+			cls.min_fps = cls.fps;
+			lasttime_min = cls.realtime;
+		}
+		else if (cls.min_fps > cls.fps)
+			cls.min_fps = cls.fps;
+	}
+	if (!seat)
+	{
+		cls.frametime = cls.realtime - oldtime;
+		framecount++;
+		oldtime = cls.realtime;
+	}
+
 	cl.splitscreenview = seat;
 	scr_vrect.x = viewx;
 	scr_vrect.y = viewy;

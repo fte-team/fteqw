@@ -55,6 +55,7 @@ typedef struct pubsubserver_s
 	qboolean started;
 #ifdef HAVE_CLIENT
 	console_t *console;
+	qboolean killing;
 #endif
 
 
@@ -470,8 +471,11 @@ qboolean MSV_InstructSlave(unsigned int id, sizebuf_t *cmd)
 
 void SV_SetupNetworkBuffers(qboolean bigcoords);
 
-void MSV_MapCluster_f(void)
+void MSV_MapCluster_Setup(const char *landingmap, qboolean use_database, qboolean singleplayer)
 {
+	extern cvar_t sv_playerslots;
+	int plslots;	//not really used, but affects whether we open public sockets or not.
+
 	//this command will likely be used in configs. don't ever allow subservers to act as entire new clusters
 	if (SSV_IsSubServer())
 		return;
@@ -482,14 +486,16 @@ void MSV_MapCluster_f(void)
 
 	if (sv.state)
 		SV_UnspawnServer();
-	NET_InitServer();
 
 	//child processes return 0 and fall through
 	SV_WipeServerState();
-	Q_strncpyz(sv.modelname, Cmd_Argv(1), sizeof(sv.modelname));
+
+	//this is the new-player map.
+	Q_strncpyz(sv.modelname, landingmap, sizeof(sv.modelname));
 	if (!*sv.modelname)
 		Q_strncpyz(sv.modelname, "start", sizeof(sv.modelname));
-	if (atoi(Cmd_Argv(2)))
+
+	if (use_database)
 	{
 #ifdef SQL
 		const char *sqlparams[] =
@@ -519,8 +525,59 @@ void MSV_MapCluster_f(void)
 	ClearLink(&clusterplayers);
 
 	//and for legacy clients, we need some server stuff inited.
-	SV_SetupNetworkBuffers(false);
-	SV_UpdateMaxPlayers(32);
+	SV_SetupNetworkBuffers(false);	
+
+	if (sv_playerslots.ival > 0)
+		plslots = sv_playerslots.ival;
+	else if (singleplayer)
+	{
+		/*only make one slot for single-player (ktx sucks)*/
+		if (!isDedicated && !deathmatch.value && !coop.value)
+			plslots = 1;
+		else
+			plslots = QWMAX_CLIENTS;
+	}
+	else
+		plslots = QWMAX_CLIENTS;
+	if (plslots > MAX_CLIENTS)
+		plslots = MAX_CLIENTS;
+	SV_UpdateMaxPlayers(plslots);
+
+	NET_InitServer();
+
+	//get on with it now...
+	if (singleplayer && !use_database)
+		MSV_FindSubServerName(va(":%s", sv.modelname));
+}
+void MSV_MapCluster_f(void)
+{
+	MSV_MapCluster_Setup(Cmd_Argv(1), atoi(Cmd_Argv(2)), false);
+}
+void MSV_Shutdown(void)
+{
+	sizebuf_t buf;
+	char bufmem[128];
+
+	pubsubserver_t *s;
+	for (s = subservers; s; s = s->next)
+	{
+		buf.data = bufmem;
+		buf.maxsize = sizeof(bufmem);
+		buf.cursize = 2;
+		buf.packing = SZ_RAWBYTES;
+		MSG_WriteByte(&buf, ccmd_stuffcmd);
+		MSG_WriteString(&buf, "\nquit\n");
+		buf.data[0] = buf.cursize & 0xff;
+		buf.data[1] = (buf.cursize>>8) & 0xff;
+		MSV_WriteSlave(s, &buf);
+
+#ifdef HAVE_CLIENT
+		s->killing = true;
+		if (s->console)
+			Con_Destroy(s->console);
+		s->console = NULL;
+#endif
+	}
 }
 
 void SSV_PrintToMaster(char *s)
@@ -771,9 +828,9 @@ static void MSV_PrintFromSubServer(pubsubserver_t *s, const char *newtext)
 #ifdef HAVE_CLIENT
 	if (!s->console)
 	{
-//		extern cvar_t con_window;
-//		if (con_window.ival)	//might as well pop one up.
-			MSV_SubConsole_Show(s, false);
+		if (s->killing)
+			return;
+		MSV_SubConsole_Show(s, false);
 	}
 	if (s->console)
 	{

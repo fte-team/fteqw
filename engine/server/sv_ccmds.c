@@ -784,9 +784,12 @@ void SV_Map_f (void)
 	}
 
 #ifdef SUBSERVERS
-	if (!isDedicated && sv_autooffload.ival && !sv.state && !SSV_IsSubServer() && !strcmp(Cmd_Argv(0), "map") && Cmd_Argc()==2)
+	if (!isDedicated && sv_autooffload.ival && !sv.state && !SSV_IsSubServer() && (
+			isrestart
+			|| (!strcmp(Cmd_Argv(0), "map") && Cmd_Argc()==2)
+		))
 	{
-		Cmd_ExecuteString(va("mapcluster \"%s\"", Cmd_Argv(1)), Cmd_ExecLevel);
+		MSV_MapCluster_Setup(level, false, true);
 		return;
 	}
 #endif

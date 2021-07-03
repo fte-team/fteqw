@@ -1244,6 +1244,8 @@ extern qboolean isClusterSlave;
 
 void MSV_SubServerCommand_f(void);
 void MSV_MapCluster_f(void);
+void MSV_MapCluster_Setup(const char *landingmap, qboolean use_database, qboolean singleplyaer);
+void MSV_Shutdown(void);
 void SSV_Send(const char *dest, const char *src, const char *cmd, const char *msg);
 qboolean MSV_ClusterLogin(svconnectinfo_t *info);
 void MSV_PollSlaves(void);

@@ -607,6 +607,11 @@ void SV_UnspawnServer (void)	//terminate the running server.
 		Con_TPrintf("Server ended\n");
 		SV_FinalMessage("Server unspawned\n");
 
+#ifdef SUBSERVERS
+		if (sv.state == ss_clustermode && svs.allocated_client_slots == 1)
+			MSV_Shutdown();
+#endif
+
 #ifdef MVD_RECORDING
 		if (sv.mvdrecording)
 			SV_MVDStop (MVD_CLOSE_STOPPED, false);

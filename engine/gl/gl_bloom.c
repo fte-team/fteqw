@@ -317,7 +317,7 @@ void R_BloomBlend (texid_t source, int x, int y, int w, int h)
 	if (!TEXVALID(pingtex[0][0]))
 	{
 		sprintf(name, "***bloom*%c*%i***", 'a'+0, 0);
-		TEXASSIGN(pingtex[0][0], Image_CreateTexture(name, NULL, IF_CLAMP|IF_NOMIPMAP|IF_NOPICMIP|IF_LINEAR));
+		TEXASSIGN(pingtex[0][0], Image_CreateTexture(name, NULL, IF_CLAMP|IF_NOMIPMAP|IF_NOPICMIP|IF_LINEAR|IF_NOPURGE));
 		Image_Upload(pingtex[0][0], PTI_RGBA8, NULL, NULL, texwidth[0], texheight[0], 1, IF_CLAMP|IF_NOMIPMAP|IF_NOPICMIP|IF_LINEAR|IF_NOSRGB);
 	}
 
@@ -340,13 +340,13 @@ void R_BloomBlend (texid_t source, int x, int y, int w, int h)
 		if (!TEXVALID(pingtex[0][i]))
 		{
 			sprintf(name, "***bloom*%c*%i***", 'a'+0, i);
-			TEXASSIGN(pingtex[0][i], Image_CreateTexture(name, NULL, IF_CLAMP|IF_NOMIPMAP|IF_NOPICMIP|IF_LINEAR));
+			TEXASSIGN(pingtex[0][i], Image_CreateTexture(name, NULL, IF_CLAMP|IF_NOMIPMAP|IF_NOPICMIP|IF_LINEAR|IF_NOPURGE));
 			Image_Upload(pingtex[0][i], PTI_RGBA8, NULL, NULL, texwidth[i], texheight[i], 1, IF_CLAMP|IF_NOMIPMAP|IF_NOPICMIP|IF_LINEAR|IF_NOSRGB);
 		}
 		if (!TEXVALID(pingtex[1][i]))
 		{
 			sprintf(name, "***bloom*%c*%i***", 'a'+1, i);
-			TEXASSIGN(pingtex[1][i], Image_CreateTexture(name, NULL, IF_CLAMP|IF_NOMIPMAP|IF_NOPICMIP|IF_LINEAR));
+			TEXASSIGN(pingtex[1][i], Image_CreateTexture(name, NULL, IF_CLAMP|IF_NOMIPMAP|IF_NOPICMIP|IF_LINEAR|IF_NOPURGE));
 			Image_Upload(pingtex[1][i], PTI_RGBA8, NULL, NULL, texwidth[i], texheight[i], 1, IF_CLAMP|IF_NOMIPMAP|IF_NOPICMIP|IF_LINEAR|IF_NOSRGB);
 		}
 

@@ -1474,6 +1474,7 @@ void Q1BSP_LoadBrushes(model_t *model, bspx_header_t *bspx, void *mod_base)
 				planes->normal[1] = LittleFloat(srcplane->normal[1]);
 				planes->normal[2] = LittleFloat(srcplane->normal[2]);
 				planes->dist = LittleFloat(srcplane->dist);
+				CategorizePlane(planes);
 
 				sides->surface = NULL;
 				sides++->plane = planes++;

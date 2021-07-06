@@ -22,6 +22,16 @@ void main ()
 {
 	vec2 tccoord;
 	vec3 dir = pos - e_eyepos;
+
+#ifdef EQUI
+#define PI 3.1415926535897932384626433832795
+	dir = normalize(dir);
+	tccoord.x = atan(dir.x,dir.y) / (PI*2.0) + 0.5;
+	tccoord.y = acos(dir.z) / PI;
+	
+	vec3 sky = vec3(texture2D(s_base, tccoord));
+#else
+
 	dir.z *= 3.0;
 	dir.xy /= 0.5*length(dir);
 	tccoord = (dir.xy + e_time*0.03125);
@@ -29,6 +39,8 @@ void main ()
 	tccoord = (dir.xy + e_time*0.0625);
 	vec4 clouds = texture2D(s_cloud, tccoord);
 	sky = (sky.rgb*(1.0-clouds.a)) + (clouds.a*clouds.rgb);
+#endif
+
 #ifdef FOG
 	sky.rgb = mix(sky.rgb, w_fogcolour, float(r_skyfog)*w_fogalpha);	//flat fog ignoring actual geometry
 	//sky = fog3(sky);													//fog according to actual geometry

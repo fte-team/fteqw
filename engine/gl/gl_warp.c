@@ -79,22 +79,47 @@ void R_SetSky(const char *sky)
 	shadername = va("skybox_%s", sky);
 	if (!forcedsky || strcmp(shadername, forcedsky->name))
 	{
+		texnums_t tex;
 		forcedsky = NULL;	//fall back to regular skies if forcing fails.
 
 		if (!*sky)
 			return; //no need to do anything
 
+		memset(&tex, 0, sizeof(tex));
+
+		tex.base = R_LoadHiResTexture(sky, "env:gfx/env", IF_LOADNOW|IF_NOMIPMAP);
+		if (tex.reflectcube && tex.reflectcube->status == TEX_LOADING)
+			COM_WorkerPartialSync(tex.reflectcube, &tex.reflectcube->status, TEX_LOADING);
+		if (tex.base->width && TEXLOADED(tex.base))
+		{
+			forcedsky = R_RegisterShader(shadername, 0,
+				"{\n"
+					"sort sky\n"
+					"program defaultsky#EQUI\n"
+					"{\n"
+						"if !$unmaskedsky\n"	/* Q2/HL require the skybox to not draw over geometry, shouldn't we force it? --eukara */
+							"depthwrite\n"
+						"endif\n"
+						"map \"$diffuse\"\n"
+						"tcgen skybox\n"
+					"}\n"
+					"surfaceparm nodlight\n"
+				"surfaceparm sky\n"
+				"}");
+			R_BuildDefaultTexnums(&tex, forcedsky, IF_WORLDTEX);
+			return;
+		}
+
 		//if we have cubemaps then we can just go and use a cubemap for our skybox
 		if (sh_config.havecubemaps)
 		{
-			texnums_t tex;
 			memset(&tex, 0, sizeof(tex));
-			tex.reflectcube = R_LoadHiResTexture(sky, "env:gfx/env", IF_LOADNOW|IF_TEXTYPE_CUBE|IF_CLAMP);
+			tex.reflectcube = R_LoadHiResTexture(sky, "env:gfx/env", IF_LOADNOW|IF_TEXTYPE_CUBE|IF_NOMIPMAP|IF_CLAMP);
 			if (tex.reflectcube && tex.reflectcube->status == TEX_LOADING)
 				COM_WorkerPartialSync(tex.reflectcube, &tex.reflectcube->status, TEX_LOADING);
 			if (tex.reflectcube->width && TEXLOADED(tex.reflectcube))
 			{
-				forcedsky = R_RegisterShader(va("skybox_%s", sky), 0,
+				forcedsky = R_RegisterShader(shadername, 0,
 					"{\n"
 						"sort sky\n"
 						"program defaultskybox\n"

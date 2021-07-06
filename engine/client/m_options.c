@@ -1062,16 +1062,24 @@ struct
 	{	"shib",
 		"Performance optimisations for large/detailed maps.",
 
-		"if r_dynamic >= 1\n"
-		"{\n"	//fake it anyway.
-			"set r_shadow_realtime_dlight 1\n"
-			"set r_shadow_realtime_dlight_shadows 0\n"
-			"set r_dynamic 0\n"
-		"}\n"
 		"set r_temporalscenecache 1\n"	//the main speedup.
 		"set r_lightstylespeed 0\n"		//FIXME: we shouldn't need this, but its too stuttery without.
 		"set sv_autooffload 1\n"		//Needs polish still.
 		"set gl_pbolightmaps 1\n"		//FIXME: this needs to be the default eventually.
+	},
+	{	"dm",
+		"Various settings to make you more competitive."
+
+		"set cl_yieldcpu 0\n"
+		"set v_kickroll 0\n"		//roll change when taking damage
+		"set v_kickpitch 0\n"		//pitch change when taking damage
+		"set v_damagecshift 0\n"	//colour change when taking damage
+		"set v_gunkick 0\n"			//recoil when firing
+		"set cl_rollangle 0\n"		//rolling when strafing
+		"set cl_bob 0\n"			//view bobbing when moving.
+#ifdef _WIN32
+		"set sys_clockprecision 1\n"	//windows kinda sucks otherwise
+#endif
 	},
 	{	"qw",
 		"Enable QuakeWorld-isms, for better gameplay.",

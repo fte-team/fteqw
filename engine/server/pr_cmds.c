@@ -4231,21 +4231,27 @@ static void QCBUILTIN PF_cvar (pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 
 static void QCBUILTIN PF_sv_getlight (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
+#ifdef HAVE_CLIENT
 	/*not shared with client - clients get more lights*/
 	float *point = G_VECTOR(OFS_PARM0);
 	vec3_t diffuse, ambient, dir;
-	if (sv.world.worldmodel && sv.world.worldmodel->funcs.LightPointValues)
+	model_t *wm = sv.world.worldmodel;
+
+	if (wm && wm->loadstate == MLS_LOADED && wm->funcs.LightPointValues)
 	{
-		sv.world.worldmodel->funcs.LightPointValues(sv.world.worldmodel, point, diffuse, ambient, dir);
-		VectorMA(ambient, 0.5, diffuse, G_VECTOR(OFS_RETURN));
+		if (cl_max_lightstyles < wm->lightmaps.maxstyle)	//client's light info might not be set up yet. this sucks.
+		{
+			wm->funcs.LightPointValues(wm, point, diffuse, ambient, dir);
+			VectorMA(ambient, 0.5, diffuse, G_VECTOR(OFS_RETURN));
+			return;
+		}
 	}
-	else
-	{
-		G_FLOAT(OFS_RETURN+0) = 128;
-		G_FLOAT(OFS_RETURN+1) = 128;
-		G_FLOAT(OFS_RETURN+2) = 128;
-		return;
-	}
+#endif
+
+	//something failed.
+	G_FLOAT(OFS_RETURN+0) = 128;
+	G_FLOAT(OFS_RETURN+1) = 128;
+	G_FLOAT(OFS_RETURN+2) = 128;
 }
 
 #ifdef HAVE_LEGACY

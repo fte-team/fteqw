@@ -1231,13 +1231,9 @@ static qboolean BIH_Trace(model_t *model, int forcehullnum, const framestate_t *
 	tr.trace.fraction = tr.trace.truefraction = 1;
 	tr.trace.surface = &(nullsurface.c);
 
-	if (!model)	// map not loaded
-		VectorCopy (end, tr.trace.endpos);
-	else
+	if (model)	// map is loaded...
 	{
 		tr.hitcontents = contents;
-		VectorCopy (start, tr.startpos);
-		VectorCopy (end, tr.endpos);
 		VectorCopy (mins, tr.size.min);
 		VectorCopy (maxs, tr.size.max);
 
@@ -1320,9 +1316,9 @@ static qboolean BIH_Trace(model_t *model, int forcehullnum, const framestate_t *
 
 
 		for (i = 0; i < 3; i++)
-			tr.negativedir[i] = (end[i] - start[i]) < 0;
-		VectorSubtract(end, start, tr.totalmove);
-		if (start[0] == end[0] && start[1] == end[1] && start[2] == end[2])
+			tr.negativedir[i] = (tr.endpos[i] - tr.startpos[i]) < 0;
+		VectorSubtract(tr.endpos, tr.startpos, tr.totalmove);
+		if (tr.startpos[0] == tr.endpos[0] && tr.startpos[1] == tr.endpos[1] && tr.startpos[2] == tr.endpos[2])
 			BIH_RecursiveTest(&tr, model->cnodes);
 		else
 		{
@@ -1332,15 +1328,8 @@ static qboolean BIH_Trace(model_t *model, int forcehullnum, const framestate_t *
 			BIH_RecursiveTrace(&tr, model->cnodes, &tr.bounds, &worldsize);
 		}
 
-		if (tr.trace.fraction == 1)
-			VectorCopy (end, tr.trace.endpos);
-		else
-		{
-			if (tr.trace.fraction<0)
-				tr.trace.fraction=0;
-			for (i=0 ; i<3 ; i++)
-				tr.trace.endpos[i] = start[i] + tr.trace.fraction * (end[i] - start[i]);
-		}
+		if (tr.trace.fraction<0)
+			tr.trace.fraction=0;
 	}
 
 	*out_trace = tr.trace;

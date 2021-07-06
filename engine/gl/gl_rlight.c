@@ -2348,7 +2348,7 @@ static void GLQ3_AddLatLong(const qbyte latlong[2], vec3_t dir, float mag)
 
 void GLQ3_LightGrid(model_t *mod, const vec3_t point, vec3_t res_diffuse, vec3_t res_ambient, vec3_t res_dir)
 {
-	q3lightgridinfo_t *lg = (q3lightgridinfo_t *)cl.worldmodel->lightgrid;
+	q3lightgridinfo_t *lg = (q3lightgridinfo_t *)mod->lightgrid;
 	int index[8];
 	int vi[3];
 	int i, j;

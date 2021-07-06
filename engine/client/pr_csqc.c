@@ -5417,6 +5417,12 @@ static void QCBUILTIN PF_cs_droptofloor (pubprogfuncs_t *prinst, struct globalva
 static void QCBUILTIN PF_cl_getlight (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	vec3_t ambient, diffuse, dir;
+
+	if (cl_max_lightstyles < csqc_world.worldmodel->lightmaps.maxstyle) {
+		VectorSet(G_VECTOR(OFS_RETURN), 0, 0, 0);
+		return;
+	}
+
 	if (!csqc_world.worldmodel || csqc_world.worldmodel->loadstate != MLS_LOADED || !csqc_world.worldmodel->funcs.LightPointValues)
 		VectorSet(G_VECTOR(OFS_RETURN), 0, 0, 0);
 	else

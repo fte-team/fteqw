@@ -725,13 +725,18 @@ void SV_SetupNetworkBuffers(qboolean bigcoords)
 	int i;
 
 	//determine basic primitive sizes.
+	svs.netprim.flags = 0;
 	if (bigcoords)
 	{
+		if (svs.netprim.coordtype && svs.netprim.coordtype != COORDTYPE_FLOAT_32)
+			Con_Printf("Switching to big coords\n");
 		svs.netprim.coordtype = COORDTYPE_FLOAT_32;
 		svs.netprim.anglesize = 2;
 	}
 	else
 	{
+		if (svs.netprim.coordtype && svs.netprim.coordtype != COORDTYPE_FIXED_13_3)
+			Con_Printf("Switching to classic coords\n");
 		svs.netprim.coordtype = COORDTYPE_FIXED_13_3;
 		svs.netprim.anglesize = 1;
 	}

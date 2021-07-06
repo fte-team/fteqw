@@ -1069,8 +1069,10 @@ void MSG_WriteAngle (sizebuf_t *sb, float f)
 		MSG_WriteAngle16(sb, f);
 	else if (sb->prim.anglesize==4)
 		MSG_WriteFloat(sb, f);
-	else
+	else if (sb->prim.anglesize==1)
 		MSG_WriteAngle8 (sb, f);
+	else
+		Sys_Error("MSG_WriteAngle: undefined network primitive size");
 }
 
 
@@ -2088,12 +2090,17 @@ char *MSG_ReadStringLine (void)
 float MSG_ReadCoord (void)
 {
 	coorddata c = {{0}};
-	if (net_message.prim.coordtype == COORDTYPE_UNDEFINED)
-		net_message.prim.coordtype = COORDTYPE_FIXED_13_3;
-	if ((net_message.prim.coordtype&COORDTYPE_SIZE_MASK)>sizeof(c))
+	unsigned char coordtype = net_message.prim.coordtype;
+	if (coordtype == COORDTYPE_UNDEFINED)
+	{
+		static float throttle;
+		Con_ThrottlePrintf(&throttle, 0, CON_WARNING"MSG_ReadCoord: primitives not yet configured. assuming 13.3\n");
+		coordtype = COORDTYPE_FIXED_13_3;
+	}
+	if ((coordtype&COORDTYPE_SIZE_MASK)>sizeof(c))
 		return 0;
-	MSG_ReadData(c.b, net_message.prim.coordtype&COORDTYPE_SIZE_MASK);
-	return MSG_FromCoord(c, net_message.prim.coordtype);
+	MSG_ReadData(c.b, coordtype&COORDTYPE_SIZE_MASK);
+	return MSG_FromCoord(c, coordtype);
 }
 float MSG_ReadCoordFloat (void)
 {
@@ -2163,10 +2170,14 @@ float MSG_ReadAngle16 (void)
 }
 float MSG_ReadAngle (void)
 {
-	if (!net_message.prim.anglesize)
-		net_message.prim.anglesize = 1;
-
-	switch(net_message.prim.anglesize)
+	int sz = net_message.prim.anglesize;
+	if (!sz)
+	{
+		static float throttle;
+		Con_ThrottlePrintf(&throttle, 0, CON_WARNING"MSG_ReadAngle: primitives not yet configured. assuming 8 bit\n");
+		sz = 1;
+	}
+	switch(sz)
 	{
 	case 2:
 		return MSG_ReadAngle16();

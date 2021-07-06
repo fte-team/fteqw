@@ -1348,6 +1348,7 @@ static unsigned int Q1BSP_TranslateContents(enum q1contents_e contents)
 	case Q1CONTENTS_TRANS:			return FTECONTENTS_SOLID;
 	case Q1CONTENTS_MONSTERCLIP:	return FTECONTENTS_MONSTERCLIP;
 	case Q1CONTENTS_PLAYERCLIP:		return FTECONTENTS_PLAYERCLIP;
+	case Q1CONTENTS_CORPSE:			return FTECONTENTS_CORPSE;
 
 	safedefault:
 		Con_Printf("Q1BSP_TranslateContents: Unknown contents type - %i", contents);

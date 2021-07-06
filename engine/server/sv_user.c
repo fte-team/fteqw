@@ -32,7 +32,7 @@ hull_t *SV_HullForEntity (edict_t *ent, int hullnum, vec3_t mins, vec3_t maxs, v
 
 edict_t	*sv_player;
 
-usercmd_t	cmd;
+static usercmd_t	cmd;
 
 void QDECL SV_NQPhysicsUpdate(cvar_t *var, char *oldvalue)
 {
@@ -6703,6 +6703,8 @@ static qboolean AddEntityToPmove(world_t *w, wedict_t *player, wedict_t *check)
 	q1contents = (int)check->v->skin;
 	if (solid == SOLID_LADDER)
 		q1contents = Q1CONTENTS_LADDER;	//legacy crap
+	else if (solid == SOLID_CORPSE)
+		q1contents = Q1CONTENTS_CORPSE;	//legacy crap
 	safeswitch(q1contents)
 	{
 	case Q1CONTENTS_EMPTY:			pe->nonsolid = true;	pe->forcecontentsmask = FTECONTENTS_EMPTY;	break;
@@ -6722,6 +6724,7 @@ static qboolean AddEntityToPmove(world_t *w, wedict_t *player, wedict_t *check)
 	case Q1CONTENTS_LADDER:			pe->nonsolid = true;	pe->forcecontentsmask = FTECONTENTS_LADDER;			break;
 	case Q1CONTENTS_MONSTERCLIP:	pe->nonsolid = true;	pe->forcecontentsmask = FTECONTENTS_MONSTERCLIP;	break;
 	case Q1CONTENTS_PLAYERCLIP:		pe->nonsolid = false;	pe->forcecontentsmask = FTECONTENTS_PLAYERCLIP;		break;
+	case Q1CONTENTS_CORPSE:			pe->nonsolid = true;	pe->forcecontentsmask = FTECONTENTS_CORPSE;			break;
 	safedefault:
 		pe->forcecontentsmask = 0;
 		break;
@@ -9340,6 +9343,8 @@ void SV_ClientThink (void)
 		sv_player->xv->movement[1] = cmd.sidemove;
 		sv_player->xv->movement[2] = cmd.upmove;
 	}
+
+	SV_SetSSQCInputs(&cmd);
 
 	if (SV_PlayerPhysicsQC && !host_client->spectator)
 	{

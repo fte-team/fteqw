@@ -1227,7 +1227,15 @@ qboolean World_TransformedTrace (struct model_s *model, int hulloverride, frames
 
 		if (angles[0] || angles[1] || angles[2])
 		{
-			AngleVectors (angles, axis[0], axis[1], axis[2]);
+			if (model->type == mod_alias)
+			{
+				axis[2][0] = angles[0] * r_meshpitch.value;
+				axis[2][1] = angles[1];
+				axis[2][2] = angles[2] * r_meshroll.value;
+				AngleVectors (axis[2], axis[0], axis[1], axis[2]);
+			}
+			else
+				AngleVectors (angles, axis[0], axis[1], axis[2]);
 			VectorNegate(axis[1], axis[1]);
 			result = model->funcs.NativeTrace (model, hulloverride, framestate, axis, start_l, end_l, mins, maxs, capsule, hitcontentsmask, trace);
 		}
@@ -1270,9 +1278,10 @@ static trace_t World_ClipMoveToEntity (world_t *w, wedict_t *ent, vec3_t eorg, v
 	model_t		*model;
 	int mdlidx = ent->v->modelindex;
 	framestate_t framestate;
+	int solid = ent->v->solid;
 
 // get the clipping hull
-	if ((ent->v->solid == SOLID_BSP || ent->v->solid == SOLID_BSPTRIGGER || ent->v->solid == SOLID_PORTAL) && mdlidx)
+	if ((solid == SOLID_BSP || solid == SOLID_BSPTRIGGER || solid == SOLID_PORTAL) && mdlidx)
 	{
 		model = w->Get_CModel(w, mdlidx);
 		if (!model || !model->funcs.PointContents)
@@ -1291,11 +1300,6 @@ static trace_t World_ClipMoveToEntity (world_t *w, wedict_t *ent, vec3_t eorg, v
 		VectorSubtract (ent->v->mins, maxs, boxmins);
 		VectorSubtract (ent->v->maxs, mins, boxmaxs);
 
-		if (hitcontentsmask & ((ent->v->solid == SOLID_CORPSE && w->usesolidcorpse)?FTECONTENTS_CORPSE:FTECONTENTS_BODY))
-			hitcontentsmask = FTECONTENTS_CORPSE|FTECONTENTS_BODY;
-		else
-			hitcontentsmask = 0;
-
 //		if (ent->xv->geomtype == GEOMTYPE_CAPSULE && !hitmodel)
 //			model = World_CapsuleForBox(boxmins, boxmaxs);
 //		else
@@ -1305,7 +1309,7 @@ static trace_t World_ClipMoveToEntity (world_t *w, wedict_t *ent, vec3_t eorg, v
 	w->Get_FrameState(w, ent, &framestate);
 
 // trace a line through the apropriate clipping hull
-	if (ent->v->solid == SOLID_PORTAL)
+	if (solid == SOLID_PORTAL)
 	{
 		//solid_portal cares only about origins and as such has no mins/max
 		World_TransformedTrace(model, 0, &framestate, start, end, vec3_origin, vec3_origin, capsule, &trace, eorg, eang, hitcontentsmask);
@@ -1313,58 +1317,52 @@ static trace_t World_ClipMoveToEntity (world_t *w, wedict_t *ent, vec3_t eorg, v
 			trace.startsolid = false;
 		hitmodel = false;
 	}
-	else if (ent->v->solid != SOLID_BSP && ent->v->solid != SOLID_BSPTRIGGER)
-	{
-		eang[0]*=r_meshpitch.value;	//carmack made bsp models rotate wrongly.
-		World_TransformedTrace(model, hullnum, &framestate, start, end, mins, maxs, capsule, &trace, eorg, eang, hitcontentsmask);
-		eang[0]*=r_meshpitch.value;
-	}
-	else
-	{
-		if (ent->v->skin < 0)
-		{	//if forcedcontents is set, then ALL brushes in this model are forced to the specified contents value.
-			//we achive this by tracing against ALL then forcing it after.
-			int forcedcontents;
-			safeswitch((enum q1contents_e)(int)ent->v->skin)
-			{
-			case Q1CONTENTS_EMPTY:			forcedcontents = FTECONTENTS_EMPTY;			break;
-			case Q1CONTENTS_SOLID:			forcedcontents = FTECONTENTS_SOLID;			break;
-			case Q1CONTENTS_WATER:			forcedcontents = FTECONTENTS_WATER;			break;
-			case Q1CONTENTS_SLIME:			forcedcontents = FTECONTENTS_SLIME;			break;
-			case Q1CONTENTS_LAVA:			forcedcontents = FTECONTENTS_LAVA;			break;
-			case Q1CONTENTS_SKY:			forcedcontents = FTECONTENTS_SKY;			break;
-			case Q1CONTENTS_LADDER:			forcedcontents = FTECONTENTS_LADDER;		break;
-			case Q1CONTENTS_CLIP:			forcedcontents = FTECONTENTS_PLAYERCLIP|FTECONTENTS_MONSTERCLIP;break;
-			case Q1CONTENTS_CURRENT_0:		forcedcontents = FTECONTENTS_WATER|Q2CONTENTS_CURRENT_0;		break;
-			case Q1CONTENTS_CURRENT_90:		forcedcontents = FTECONTENTS_WATER|Q2CONTENTS_CURRENT_90;		break;
-			case Q1CONTENTS_CURRENT_180:	forcedcontents = FTECONTENTS_WATER|Q2CONTENTS_CURRENT_180;		break;
-			case Q1CONTENTS_CURRENT_270:	forcedcontents = FTECONTENTS_WATER|Q2CONTENTS_CURRENT_270;		break;
-			case Q1CONTENTS_CURRENT_UP:		forcedcontents = FTECONTENTS_WATER|Q2CONTENTS_CURRENT_UP;		break;
-			case Q1CONTENTS_CURRENT_DOWN:	forcedcontents = FTECONTENTS_WATER|Q2CONTENTS_CURRENT_DOWN;		break;
-			case Q1CONTENTS_TRANS:			forcedcontents = FTECONTENTS_SOLID;			break;
-			case Q1CONTENTS_MONSTERCLIP:	forcedcontents = FTECONTENTS_MONSTERCLIP;	break;
-			case Q1CONTENTS_PLAYERCLIP:		forcedcontents = FTECONTENTS_PLAYERCLIP;	break;
-			safedefault:					forcedcontents = 0;							break;
-			}
-			if (hitcontentsmask & forcedcontents)
-			{
-				World_TransformedTrace(model, hullnum, &framestate, start, end, mins, maxs, capsule, &trace, eorg, eang, ~0u);
-				if (trace.contents)
-					trace.contents = forcedcontents;
-			}
-			else
-			{
-				memset (&trace, 0, sizeof(trace_t));
-				trace.fraction = trace.truefraction = 1;
-				trace.allsolid = false;
-				trace.startsolid = false;
-				trace.inopen = true;	//probably wrong...
-				VectorCopy (end, trace.endpos);
-			}
+	else if (solid == SOLID_CORPSE)
+		goto scorpse;
+	else if (ent->v->skin < 0)
+	{	//if forcedcontents is set, then ALL brushes in this model are forced to the specified contents value.
+		//we achive this by tracing against ALL then forcing it after.
+		int forcedcontents;
+		safeswitch((enum q1contents_e)(int)ent->v->skin)
+		{
+		case Q1CONTENTS_EMPTY:			forcedcontents = FTECONTENTS_EMPTY;			break;
+		case Q1CONTENTS_SOLID:			forcedcontents = FTECONTENTS_SOLID;			break;
+		case Q1CONTENTS_WATER:			forcedcontents = FTECONTENTS_WATER;			break;
+		case Q1CONTENTS_SLIME:			forcedcontents = FTECONTENTS_SLIME;			break;
+		case Q1CONTENTS_LAVA:			forcedcontents = FTECONTENTS_LAVA;			break;
+		case Q1CONTENTS_SKY:			forcedcontents = FTECONTENTS_SKY;			break;
+		case Q1CONTENTS_LADDER:			forcedcontents = FTECONTENTS_LADDER;		break;
+		case Q1CONTENTS_CLIP:			forcedcontents = FTECONTENTS_PLAYERCLIP|FTECONTENTS_MONSTERCLIP;break;
+		case Q1CONTENTS_CURRENT_0:		forcedcontents = FTECONTENTS_WATER|Q2CONTENTS_CURRENT_0;		break;
+		case Q1CONTENTS_CURRENT_90:		forcedcontents = FTECONTENTS_WATER|Q2CONTENTS_CURRENT_90;		break;
+		case Q1CONTENTS_CURRENT_180:	forcedcontents = FTECONTENTS_WATER|Q2CONTENTS_CURRENT_180;		break;
+		case Q1CONTENTS_CURRENT_270:	forcedcontents = FTECONTENTS_WATER|Q2CONTENTS_CURRENT_270;		break;
+		case Q1CONTENTS_CURRENT_UP:		forcedcontents = FTECONTENTS_WATER|Q2CONTENTS_CURRENT_UP;		break;
+		case Q1CONTENTS_CURRENT_DOWN:	forcedcontents = FTECONTENTS_WATER|Q2CONTENTS_CURRENT_DOWN;		break;
+		case Q1CONTENTS_TRANS:			forcedcontents = FTECONTENTS_SOLID;			break;
+		case Q1CONTENTS_MONSTERCLIP:	forcedcontents = FTECONTENTS_MONSTERCLIP;	break;
+		case Q1CONTENTS_PLAYERCLIP:		forcedcontents = FTECONTENTS_PLAYERCLIP;	break;
+		case Q1CONTENTS_CORPSE:scorpse: forcedcontents = FTECONTENTS_CORPSE;		break;
+		safedefault:					forcedcontents = 0;							break;
+		}
+		if (hitcontentsmask & forcedcontents)
+		{
+			World_TransformedTrace(model, hullnum, &framestate, start, end, mins, maxs, capsule, &trace, eorg, eang, ~0u);
+			if (trace.contents)
+				trace.contents = forcedcontents;
 		}
 		else
-			World_TransformedTrace(model, hullnum, &framestate, start, end, mins, maxs, capsule, &trace, eorg, eang, hitcontentsmask);
+		{
+			memset (&trace, 0, sizeof(trace_t));
+			trace.fraction = trace.truefraction = 1;
+			trace.allsolid = false;
+			trace.startsolid = false;
+			trace.inopen = true;	//probably wrong...
+			VectorCopy (end, trace.endpos);
+		}
 	}
+	else
+		World_TransformedTrace(model, hullnum, &framestate, start, end, mins, maxs, capsule, &trace, eorg, eang, hitcontentsmask);
 
 // if using hitmodel, we know it hit the bounding box, so try a proper trace now.
 	if (hitmodel && (trace.fraction != 1 || trace.startsolid) && !model)
@@ -2196,6 +2194,7 @@ static unsigned int World_ContentsOfLinks (world_t *w, areagridlink_t *node, vec
 			case Q1CONTENTS_LADDER:			forcedcontents = FTECONTENTS_LADDER;		break;
 			case Q1CONTENTS_MONSTERCLIP:	forcedcontents = FTECONTENTS_MONSTERCLIP;	break;
 			case Q1CONTENTS_PLAYERCLIP:		forcedcontents = FTECONTENTS_PLAYERCLIP;	break;
+			case Q1CONTENTS_CORPSE:			forcedcontents = FTECONTENTS_CORPSE;		break;
 			safedefault:					forcedcontents = 0;							break;
 			}
 			c = forcedcontents;
@@ -2487,6 +2486,7 @@ static void World_ClipToNetwork (world_t *w, moveclip_t *clip)
 			case Q1CONTENTS_CURRENT_270:	touchcontents = FTECONTENTS_WATER|Q2CONTENTS_CURRENT_270;		break;
 			case Q1CONTENTS_CURRENT_UP:		touchcontents = FTECONTENTS_WATER|Q2CONTENTS_CURRENT_UP;		break;
 			case Q1CONTENTS_CURRENT_DOWN:	touchcontents = FTECONTENTS_WATER|Q2CONTENTS_CURRENT_DOWN;		break;
+			case Q1CONTENTS_CORPSE:			touchcontents = FTECONTENTS_CORPSE;			break;
 			safedefault:					touchcontents = ~0;							break;	//could be anything... :(
 			}
 		}

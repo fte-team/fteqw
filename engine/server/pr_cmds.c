@@ -10298,7 +10298,7 @@ void SV_SetEntityButtons(edict_t *ent, unsigned int buttonbits)
 	}
 }
 
-static void SV_SetSSQCInputs(usercmd_t *ucmd)
+void SV_SetSSQCInputs(usercmd_t *ucmd)
 {
 	if (pr_global_ptrs->input_timelength)
 		pr_global_struct->input_timelength = ucmd->msec/1000.0f * sv.gamespeed;

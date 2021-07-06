@@ -181,6 +181,7 @@ enum q1contents_e
 	Q1CONTENTS_LADDER		= -16,	/*player can climb up/down*/
 	Q1CONTENTS_MONSTERCLIP	= -17,	/*solid to monster movement*/
 	Q1CONTENTS_PLAYERCLIP	= -18,	/*solid to player movement*/
+	Q1CONTENTS_CORPSE		= -19,	/*solid to tracelines*/
 };
 
 // !!! if this is changed, it must be changed in asm_i386.h too !!!

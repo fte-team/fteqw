@@ -1358,6 +1358,7 @@ void SV_VoiceInitClient(client_t *client);
 void SV_VoiceSendPacket(client_t *client, sizebuf_t *buf);
 #endif
 
+void SV_SetSSQCInputs(usercmd_t *ucmd);
 void SV_ClientThink (void);
 void SV_Begin_Core(client_t *split);	//sets up the player's gamecode state
 void SV_DespawnClient(client_t *cl);	//shuts down the gamecode state.

@@ -341,6 +341,8 @@ void GUI_SaveConfig(void)
 
 	for (p = 0; compiler_flag[p].enabled; p++)
 	{
+		if (p>0 && compiler_flag[p].enabled == compiler_flag[p-1].enabled)
+			continue;	//don't list dupe names.
 		if (!strncmp(compiler_flag[p].fullname, "Keyword: ", 9))
 			GUI_WriteConfigLine(file, "keyword",	compiler_flag[p].abbrev,	(compiler_flag[p].flags&FLAG_SETINGUI)?"true":"false",	compiler_flag[p].description);
 		else

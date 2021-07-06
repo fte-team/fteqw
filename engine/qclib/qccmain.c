@@ -143,6 +143,7 @@ static pbool flag_dumpfields;
 static pbool flag_dumpsymbols;
 static pbool flag_dumpautocvars;
 static pbool flag_dumplocalisation;
+static pbool flag_dumptags;
 
 
 struct {
@@ -427,6 +428,8 @@ compiler_flag_t compiler_flag[] = {
 	{&flag_dumpsymbols,		FLAG_MIDCOMPILE,"dumpsymbols",	"Write a .sym file",	"Writes a .sym file alongside the dat which contains a list of all global symbols defined in the code (before stripping)"},
 	{&flag_dumpautocvars,	FLAG_MIDCOMPILE,"dumpautocvars","Write a .cfg file",	"Writes a .cfg file that contains a default value for each autocvar listed in the code"},
 	{&flag_dumplocalisation,FLAG_MIDCOMPILE,"dumplocalisation","Write a .pot file",	"Writes a .po template file from your _("") strings that can be edited (with eg gettext's tools) for translations, resulting in eg csprogs.en_US.po vs csprogs.en.po and other various other dialects vs languages."},
+	{&flag_dumptags,		FLAG_MIDCOMPILE,"dumptags",		"Write vi's tags file",	"Writes a .tags file for text editors compatible with vi to locate symbols by name. This file is unsorted and per-module, so you will need to 'cat ../*.tags|LC_COLLATE=C sort>tags' for it to be used."},
+	{&flag_dumptags,		FLAG_MIDCOMPILE|FLAG_HIDDENINGUI,"tags","aka dumptags",	"See dumptags"},
 	{NULL}
 };
 
@@ -919,6 +922,98 @@ static void QCC_DumpFiles (const char *outputname)
 		if (header)
 			externs->Printf("\n");
 	}
+}
+
+void QCC_DumpPreProcTags(void *ctx, void *data)
+{
+	char line[2048];
+	int h = *(int*)ctx;
+	CompilerConstant_t *def = data;
+	if (def->fromfile)
+	{
+		snprintf(line, sizeof(line), "%s\t%s\t%i;\"\td\n", def->name, def->fromfile, def->fromline);
+		SafeWrite(h, line, strlen(line));
+	}
+}
+static void QCC_DumpTags(const char *outputname)
+{
+	char line[65536];
+	char scope[2048];
+	int		h;
+	QCC_def_t *def;
+	QCC_function_t	*fnc;
+	int i;
+	QCC_type_t *t;
+
+	snprintf(line, sizeof(line), "%s.tags", outputname);
+	h = SafeOpenWrite (line, 2*1024*1024);
+	if (h >= 0)
+	{
+		Hash_Enumerate(&compconstantstable, QCC_DumpPreProcTags, &h);
+
+		for (i = 0; i < numtypeinfos; i++)
+		{
+			t = &qcc_typeinfo[i];
+			if (!t->line || !t->filen)
+				continue;	//predefined type, not from any file.
+			if (!*t->name || strchr(t->name, '<'))
+				continue;	//anonymous stuff happens.
+			if (t->typedefed)
+				snprintf(line, sizeof(line), "%s\t%s\t%i;\"\tt\n", t->name, t->filen, t->line);
+			else if (t->type == ev_struct)
+				snprintf(line, sizeof(line), "%s\t%s\t%i;\"\ts\n", t->name, t->filen, t->line);
+			else if (t->type == ev_union)
+				snprintf(line, sizeof(line), "%s\t%s\t%i;\"\tu\n", t->name, t->filen, t->line);
+			else if (t->type == ev_enum)
+				snprintf(line, sizeof(line), "%s\t%s\t%i;\"\tg\n", t->name, t->filen, t->line);
+			else if ((t->type == ev_entity||t->type == ev_accessor) && t->parentclass)
+				snprintf(line, sizeof(line), "%s\t%s\t%i;\"\tc\n", t->name, t->filen, t->line);
+			else
+				continue;
+			SafeWrite(h, line, strlen(line));
+		}
+
+		for (def = pr.def_head.next; def; def = def->next)
+		{
+			//immediates are uninteresting...
+			if (!strcmp(def->name, "IMMEDIATE"))
+				continue;
+			if (strchr(def->name, '.') || strchr(def->name, '[') || strchr(def->name, '*'))
+				continue;	//weird symbols, listed for savedgames only...
+			if (def->scope && !strchr(def->scope->name, ':'))
+				snprintf(scope, sizeof(scope), "\tfunction:%s\n", def->scope->name);
+			else if (def->isstatic)
+				snprintf(scope, sizeof(scope), "\file:\n");	//local scope
+			else
+				*scope = 0;
+
+			if (def->type->type == ev_function && def->constant && !def->arraysize)
+			{
+				int fnum = def->symboldata[0].function;
+
+				if (fnum > 0 && fnum < numfunctions)
+				{
+					fnc = &functions[fnum];
+					if (fnc->code>=0 && fnc->filen)
+					{
+						snprintf(line, sizeof(line), "%s\t%s\t%i;\"\tf%s\n", def->name, fnc->filen, fnc->line, scope);
+						SafeWrite(h, line, strlen(line));
+					}
+				}
+				if (def->filen)
+				{
+					snprintf(line, sizeof(line), "%s\t%s\t%i;\"\tp%s\n", def->name, def->filen, def->s_line, scope);
+					SafeWrite(h, line, strlen(line));
+				}
+			}
+			else if (def->filen)
+			{
+				snprintf(line, sizeof(line), "%s\t%s\t%i;\"\tv%s\n", def->name, def->filen, def->s_line, scope);
+				SafeWrite(h, line, strlen(line));
+			}
+		}
+	}
+	SafeClose(h);
 }
 
 int WriteSourceFiles(qcc_cachedsourcefile_t *filelist, int h, pbool sourceaswell, pbool legacyembed)
@@ -2401,6 +2496,8 @@ strofs = (strofs+3)&~3;
 		QCC_DumpAutoCvars(destfile);
 	if (flag_dumplocalisation)
 		QCC_DumpLocalisation(destfile);
+	if (flag_dumptags)
+		QCC_DumpTags(destfile);
 
 	switch(outputsttype)
 	{
@@ -3370,6 +3467,9 @@ QCC_type_t *QCC_PR_NewType (const char *name, int basictype, pbool typedefed)
 	qcc_typeinfo[numtypeinfos].params = NULL;
 	qcc_typeinfo[numtypeinfos].size = type_size[basictype];
 	qcc_typeinfo[numtypeinfos].typedefed = typedefed;
+
+	qcc_typeinfo[numtypeinfos].filen = s_filen;
+	qcc_typeinfo[numtypeinfos].line = pr_source_line;
 
 	if (typedefed)
 		pHash_Add(&typedeftable, name, &qcc_typeinfo[numtypeinfos], qccHunkAlloc(sizeof(bucket_t)));

@@ -388,6 +388,9 @@ typedef struct QCC_type_s
 	const char *name;
 	const char *aname;
 
+	const char *filen;
+	unsigned int line;
+
 	struct accessor_s *accessors;
 
 	struct QCC_type_s *ptrto;	//(cache) this points to a type that is a pointer back to this type. yeah, weird.

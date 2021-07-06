@@ -5543,6 +5543,9 @@ QCC_type_t *QCC_PR_ParseType (int newtype, pbool silentfail)
 			pbool setnotget;
 			pbool isinline;
 
+			newt->filen = s_filen;
+			newt->line = pr_source_line;
+
 			do
 			{
 				isinline = QCC_PR_CheckName("inline");
@@ -5594,6 +5597,10 @@ QCC_type_t *QCC_PR_ParseType (int newtype, pbool silentfail)
 			fieldtype = QCC_TypeForName(parentname);
 			if (!fieldtype)
 				QCC_PR_ParseError(ERR_NOTANAME, "Parent class %s was not yet defined", parentname);
+
+			//FIXME: we should allow inheriting from 'object' too.
+			if (fieldtype->type != ev_entity)
+				QCC_PR_ParseError(ERR_NOTANAME, "Parent type %s is not a class/entity", parentname);
 			forwarddeclaration = false;
 
 			QCC_PR_Expect("{");
@@ -5612,7 +5619,7 @@ QCC_type_t *QCC_PR_ParseType (int newtype, pbool silentfail)
 
 		if (!newt)
 		{
-			newt = QCC_PR_NewType(classname, ev_entity, true);
+			newt = QCC_PR_NewType(classname, fieldtype->type, true);
 			newt->size=type_entity->size;
 		}
 
@@ -5626,6 +5633,8 @@ QCC_type_t *QCC_PR_ParseType (int newtype, pbool silentfail)
 		if (redeclaration && fieldtype != newt->parentclass)
 			QCC_PR_ParseError(ERR_REDECLARATION, "Parent class changed on redeclaration of %s%s%s", col_type,classname,col_none);
 		newt->parentclass = fieldtype;
+		newt->filen = s_filen;
+		newt->line = pr_source_line;
 
 		if (QCC_PR_CheckToken(","))
 			QCC_PR_ParseError(ERR_NOTANAME, "member missing name");

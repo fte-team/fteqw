@@ -2555,7 +2555,7 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 #ifdef GLQUAKE
 {QR_OPENGL, 110, "default2d",
 "!!ver 100-450\n"
-"!!samps 1\n"
+"!!samps img=0\n"
 
 //this shader is present for support for gles/gl3core contexts
 //it is single-texture-with-vertex-colours, and doesn't do anything special.
@@ -2582,7 +2582,7 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "#ifdef PREMUL\n"
 "f.rgb *= f.a;\n"
 "#endif\n"
-"f *= texture2D(s_t0, tc);\n"
+"f *= texture2D(s_img, tc);\n"
 "gl_FragColor = f;\n"
 "}\n"
 "#endif\n"
@@ -2856,6 +2856,46 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "}\n"
 "#endif\n"
 
+},
+#endif
+#ifdef GLQUAKE
+{QR_OPENGL, 110, "default2danim",
+"!!ver 300-450\n"
+"!!samps anim:2DArray=0\n"
+
+"#include \"sys/defs.h\"\n"
+
+//this shader is present for support for gles/gl3core contexts
+//it is single-texture-with-vertex-colours, and doesn't do anything special.
+//beware that a few things use this, including apparently fonts and bloom rescaling.
+//its really not meant to do anything special.
+
+"varying vec2 tc;\n"
+"varying vec4 vc;\n"
+
+"#ifdef VERTEX_SHADER\n"
+"void main ()\n"
+"{\n"
+"tc = v_texcoord;\n"
+"vc = v_colour;\n"
+"gl_Position = ftetransform();\n"
+"}\n"
+"#endif\n"
+"#ifdef FRAGMENT_SHADER\n"
+"void main ()\n"
+"{\n"
+//figure out which frame to use.
+"ivec3 sz = textureSize(s_anim, 0);\n"
+"float layer = mod(e_time*10, sz.z-1);\n"
+
+"vec4 f = vc;\n"
+"#ifdef PREMUL\n"
+"f.rgb *= f.a;\n"
+"#endif\n"
+"f *= texture(s_anim, vec3(tc, layer));\n"
+"gl_FragColor = f;\n"
+"}\n"
+"#endif\n"
 },
 #endif
 #ifdef GLQUAKE
@@ -3488,7 +3528,10 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 
 "col *= factor_base;\n"
 
-"#define dielectricSpecular 0.04\n"
+"#ifndef IOR\n"
+"#define IOR 1.5 //Index Of Reflection.\n"
+"#endif\n"
+"#define dielectricSpecular pow(((IOR - 1.0)/(IOR + 1.0)),2.0)\n"
 "#ifdef SPECULAR\n"
 "vec4 specs = texture2D(s_specular, tc)*factor_spec;\n"
 "#ifdef ORM\n"
@@ -4405,6 +4448,16 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "{\n"
 "vec2 tccoord;\n"
 "vec3 dir = pos - e_eyepos;\n"
+
+"#ifdef EQUI\n"
+"#define PI 3.1415926535897932384626433832795\n"
+"dir = normalize(dir);\n"
+"tccoord.x = atan(dir.x,dir.y) / (PI*2.0) + 0.5;\n"
+"tccoord.y = acos(dir.z) / PI;\n"
+
+"vec3 sky = vec3(texture2D(s_base, tccoord));\n"
+"#else\n"
+
 "dir.z *= 3.0;\n"
 "dir.xy /= 0.5*length(dir);\n"
 "tccoord = (dir.xy + e_time*0.03125);\n"
@@ -4412,6 +4465,8 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "tccoord = (dir.xy + e_time*0.0625);\n"
 "vec4 clouds = texture2D(s_cloud, tccoord);\n"
 "sky = (sky.rgb*(1.0-clouds.a)) + (clouds.a*clouds.rgb);\n"
+"#endif\n"
+
 "#ifdef FOG\n"
 "sky.rgb = mix(sky.rgb, w_fogcolour, float(r_skyfog)*w_fogalpha); //flat fog ignoring actual geometry\n"
 //sky = fog3(sky);													//fog according to actual geometry
@@ -6185,7 +6240,10 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "#endif\n"
 
 //	col *= factor_base;
-"#define dielectricSpecular 0.04\n"
+"#ifndef IOR\n"
+"#define IOR 1.5 //Index Of Reflection.\n"
+"#endif\n"
+"#define dielectricSpecular pow(((IOR - 1.0)/(IOR + 1.0)),2.0)\n"
 "#ifdef SPECULAR\n"
 "vec4 specs = texture2D(s_specular, tc);//*factor_spec;\n"
 "#ifdef ORM\n"

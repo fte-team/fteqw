@@ -695,8 +695,14 @@ int Netchan_Transmit (netchan_t *chan, int length, qbyte *data, int rate)
 			SZ_Write (&send, data, length);
 
 			*(int*)send_buf = BigLong(NETFLAG_UNRELIABLE | send.cursize);
-			NET_SendPacket (chan->sock, send.cursize, send.data, &chan->remote_address);
-			sentsize += send.cursize;
+			for (i = -1, e = NETERR_SENT; i < dupes && e == NETERR_SENT; i++)
+				e = NET_SendPacket (chan->sock, send.cursize, send.data, &chan->remote_address);
+			sentsize += send.cursize*i;
+			if (e == NETERR_MTU && chan->mtu > 560)
+			{
+				Con_Printf("Reducing MSS to %i\n", chan->mtu);
+				chan->mtu -= 10;
+			}
 
 			if (showpackets.value)
 				Con_Printf ("out %s u=%i %i\n"

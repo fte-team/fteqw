@@ -1799,7 +1799,7 @@ void CL_ClearState (qboolean gamestart)
 	CL_ClearParseState();
 	CL_ClearTEnts();
 	CL_ClearCustomTEnts();
-	Surf_ClearLightmaps();
+	Surf_ClearSceneCache();
 #ifdef HEXEN2
 	T_FreeInfoStrings();
 #endif

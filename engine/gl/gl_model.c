@@ -303,6 +303,7 @@ void Mod_RebuildLightmaps (void)
 	}
 }
 
+#ifdef HAVE_CLIENT
 void Mod_ResortShaders(void)
 {
 	//called when some shader changed its sort key.
@@ -332,7 +333,10 @@ void Mod_ResortShaders(void)
 			}
 		}
 	}
+
+	Surf_ClearSceneCache();	//make sure their caches are updated.
 }
+#endif
 
 const char *Mod_GetEntitiesString(model_t *mod)
 {

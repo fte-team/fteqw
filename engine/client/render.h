@@ -358,7 +358,7 @@ void Surf_WipeStains(void);
 void Surf_DeInit(void);
 void Surf_Clear(struct model_s *mod);
 void Surf_BuildLightmaps(void);				//enables Surf_BuildModelLightmaps, calls it for each bsp.
-void Surf_ClearLightmaps(void);				//stops Surf_BuildModelLightmaps from working.
+void Surf_ClearSceneCache(void);			//stops Surf_BuildModelLightmaps from working.
 void Surf_BuildModelLightmaps (struct model_s *m);	//rebuild lightmaps for a single bsp. beware of submodels.
 void Surf_RenderDynamicLightmaps (struct msurface_s *fa);
 void Surf_RenderAmbientLightmaps (struct msurface_s *fa, int ambient);

@@ -3384,6 +3384,8 @@ static void Surf_SimpleWorld_Q3BSP(struct webostate_s *es, qbyte *pvs)
 					}
 					if (eb->inefficient)
 					{	//slow path that needs to create a single ram-backed mesh
+
+						//FIXME: for portal/refract surfaces, track surfaces for refract pvs info
 						if (eb->maxverts < eb->m.numvertexes + mesh->numvertexes)
 						{
 							//FIXME: pre-allocate
@@ -3426,11 +3428,12 @@ void R_GenWorldEBO(void *ctx, void *data, size_t a, size_t b)
 	struct webostate_s *es = ctx;
 	qbyte *pvs;
 
+	int sortid;
+	batch_t *batch;
+	qboolean inefficient;
+
 	if (!es->numbatches)
 	{
-		int sortid;
-		batch_t *batch;
-
 		es->numbatches = es->wmodel->numbatches;
 
 		for (i = 0; i < es->numbatches; i++)
@@ -3445,19 +3448,6 @@ void R_GenWorldEBO(void *ctx, void *data, size_t a, size_t b)
 			memset(&es->batches[i].m, 0, sizeof(es->batches[i].m));
 			memset(&es->batches[i].vbo, 0, sizeof(es->batches[i].vbo));
 		}
-
-		//set to 2 to reveal the inefficient surfaces...
-		if (r_temporalscenecache.ival < 2)
-			for (sortid = 0; sortid < SHADER_SORT_COUNT; sortid++)
-				for (batch = currentmodel->batches[sortid]; batch != NULL; batch = batch->next)
-				{
-#if MAXRLIGHTMAPS > 1
-					if (batch->lmlightstyle[1] != INVALID_LIGHTSTYLE || batch->vtlightstyle[1] != INVALID_VLIGHTSTYLE)
-						continue;	//not supported here, show fallback shader instead (would work but with screwed lighting, we prefer a better-defined result).
-#endif
-					if (!batch->shader || batch->shader->flags & SHADER_NEEDSARRAYS)
-						es->batches[batch->user.bmodel.ebobatch].inefficient = true;
-				}
 	}
 	else
 	{
@@ -3468,6 +3458,43 @@ void R_GenWorldEBO(void *ctx, void *data, size_t a, size_t b)
 			es->batches[i].m.numvertexes = 0;
 		}
 	}
+
+	//set to 2 to reveal the inefficient surfaces...
+	for (sortid = 0; sortid < SHADER_SORT_COUNT; sortid++)
+		for (batch = es->wmodel->batches[sortid]; batch != NULL; batch = batch->next)
+		{
+			inefficient = false;
+			if (r_temporalscenecache.ival < 2)
+			{
+#if MAXRLIGHTMAPS > 1
+				if (batch->lmlightstyle[1] != INVALID_LIGHTSTYLE || batch->vtlightstyle[1] != INVALID_VLIGHTSTYLE)
+					continue;	//not supported here, show fallback shader instead (would work but with screwed lighting, we prefer a better-defined result).
+#endif
+				if (!batch->shader)
+					inefficient = true;
+				else if (batch->shader->flags & SHADER_NEEDSARRAYS)
+					inefficient = true;
+			}
+			if (es->batches[batch->user.bmodel.ebobatch].inefficient != inefficient)
+			{
+				es->batches[batch->user.bmodel.ebobatch].inefficient = inefficient;
+				if (!inefficient)
+				{
+					if (es->batches[i].inefficient)
+					{
+						BZ_Free(es->batches[i].m.xyz_array);
+						BZ_Free(es->batches[i].m.st_array);
+						BZ_Free(es->batches[i].m.lmst_array[0]);
+						BZ_Free(es->batches[i].m.normals_array);
+						BZ_Free(es->batches[i].m.snormals_array);
+						BZ_Free(es->batches[i].m.tnormals_array);
+					}
+					BZ_Free(es->batches[i].idxbuffer);
+
+					memset(&es->batches[i], 0, sizeof(es->batches[i]));
+				}
+			}
+		}
 
 	//maybe we should just use fatpvs instead, and wait for completion when outside?
 	if (r_novis.ival)
@@ -3554,23 +3581,26 @@ void Surf_DrawWorld (void)
 			r_temporalscenecache.ival = sc;
 			r_temporalscenecache.modified = true;
 		}
+
 		if (r_temporalscenecache.modified || r_dynamic.modified)
 		{
 			r_dynamic.modified = false;
 			r_temporalscenecache.modified = false;
 			Sh_CheckSettings(); //fiddle with r_dynamic vs r_shadow_realtime_dlight.
-		}
 
-		if (!r_temporalscenecache.ival)
-		{
-			r_dynamic.ival = r_dynamic.value;
-			webo_blocklightmapupdates = false;
+			COM_WorkerPartialSync(webogenerating, &webogeneratingstate, true);
 			while (webostates)
 			{
 				void *webostate = webostates;
 				webostates = webostates->next;
 				R_DestroyWorldEBO(webostate);
 			}
+			webo_blocklightmapupdates = false;
+		}
+
+		if (!r_temporalscenecache.ival)
+		{
+			r_dynamic.ival = r_dynamic.value;
 		}
 		else if (!r_refdef.recurse && currentmodel->type == mod_brush)
 		{
@@ -3673,7 +3703,7 @@ void Surf_DrawWorld (void)
 							if (kill->lastvalid < cls.framecount-5 && kill->wmodel == currentmodel && kill != webostate)
 							{	//this one looks old... kill it.
 								if (webogenerating)
-									R_DestroyWorldEBO(webogenerating);	//can't use more than one!
+									R_DestroyWorldEBO(webogenerating);	//can't use more than one, tidy up stale ones
 								webogenerating = kill;
 								*link = kill->next;
 							}
@@ -4486,7 +4516,7 @@ void Surf_BuildModelLightmaps (model_t *m)
 	m->lightmaps.first = newfirst;
 }
 
-void Surf_ClearLightmaps(void)
+void Surf_ClearSceneCache(void)
 {
 #ifdef THREADEDWORLD
 	while(webogenerating)

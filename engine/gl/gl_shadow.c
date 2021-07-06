@@ -3914,7 +3914,7 @@ void Sh_CheckSettings(void)
 	}
 
 	r_dynamic.ival = r_dynamic.value;
-	if (canshadowless && r_dynamic.value && !r_shadow_realtime_dlight.ival && (r_temporalscenecache.ival || (cl.worldmodel && cl.worldmodel->fromgame == fg_quake3)))
+	if (canshadowless && r_dynamic.value && !r_shadow_realtime_dlight.ival && (r_temporalscenecache.ival))// || (cl.worldmodel && cl.worldmodel->fromgame == fg_quake3)))
 	{
 		r_shadow_realtime_dlight.ival = 1;
 		r_shadow_realtime_dlight_shadows.ival = 0;

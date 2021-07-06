@@ -3266,6 +3266,8 @@ void SV_InitOperatorCommands (void)
 	Cmd_AddCommandAD ("mapedit", SV_Map_f, SV_Map_c, "Loads the named map without any gamecode active.");
 #ifdef Q3SERVER
 	Cmd_AddCommandAD ("spmap", SV_Map_f, SV_Map_c, NULL);
+	Cmd_AddCommandAD ("spdevmap", SV_Map_f, SV_Map_c, NULL);
+	Cmd_AddCommandAD ("devmap", SV_Map_f, SV_Map_c, NULL);
 #endif
 	Cmd_AddCommandAD ("gamemap", SV_Map_f, SV_Map_c, NULL);
 	Cmd_AddCommandAD ("changelevel", SV_Map_f, SV_Map_c, NULL);

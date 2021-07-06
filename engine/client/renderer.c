@@ -1439,7 +1439,7 @@ void R_ShutdownRenderer(qboolean devicetoo)
 	if (host_basepal)
 		BZ_Free(host_basepal);
 	host_basepal = NULL;
-	Surf_ClearLightmaps();
+	Surf_ClearSceneCache();
 
 	RQ_Shutdown();
 

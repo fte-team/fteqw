@@ -603,8 +603,7 @@ qboolean Sys_EngineMayUpdate(void)
 
 		//if there's 3 consecutive digits or digit.digit then assume the user is doing their own versioning, and disallow engine updates (unless they use the -allowupdate arg).
 		//(that or they ran one of our older builds directly)
-		s = COM_SkipPath(enginebinary);
-		while (*s)
+		for (s=COM_SkipPath(enginebinary); *s; s++)
 		{
 			if ( s[0] >= '0' && s[0] <= '9')
 			if ((s[1] >= '0' && s[1] <= '9') || s[1] == '.' || s[1] == '_' || s[1] == '-')

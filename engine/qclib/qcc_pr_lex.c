@@ -3954,6 +3954,7 @@ void QCC_PR_ParsePrintDef (int type, QCC_def_t *def)
 	{
 		char tybuffer[512];
 		char tmbuffer[512];
+		char vlbuffer[512];
 		char *modifiers;
 		if (QCC_Temp_Describe(def, tmbuffer, sizeof(tmbuffer)))
 		{
@@ -3966,10 +3967,28 @@ void QCC_PR_ParsePrintDef (int type, QCC_def_t *def)
 				modifiers = "const ";
 			else if (def->isstatic)
 				modifiers = "static ";
-			if (flag_msvcstyle)
-				externs->Printf ("%s%s(%i) :    %s%s%s %s%s%s is defined here\n", col_location, def->filen, def->s_line, col_type, modifiers, TypeName(def->type, tybuffer, sizeof(tybuffer)), col_symbol, def->name, col_none);
+
+
+			if (def && def->initialized && def->constant && !def->arraysize)
+			{
+				const QCC_eval_t *ev = (const QCC_eval_t*)&def->symboldata[0];
+				switch(def->type->type)
+				{
+				case ev_float:	QC_snprintfz(vlbuffer, sizeof(vlbuffer), " = %g", ev->_float);	break;
+				case ev_double:	QC_snprintfz(vlbuffer, sizeof(vlbuffer), " = %g", ev->_double);	break;
+				case ev_integer:QC_snprintfz(vlbuffer, sizeof(vlbuffer), " = %i", ev->_int);	break;
+				case ev_uint:	QC_snprintfz(vlbuffer, sizeof(vlbuffer), " = %u", ev->_uint);	break;
+				case ev_int64:	QC_snprintfz(vlbuffer, sizeof(vlbuffer), " = %i", (int)ev->_int64);	break;
+				case ev_uint64:	QC_snprintfz(vlbuffer, sizeof(vlbuffer), " = %u", (unsigned)ev->_uint64);	break;
+				default:		*vlbuffer = 0;													break;
+				}
+			}
 			else
-				externs->Printf ("%s%s:%i:    %s%s%s %s%s%s is defined here\n", col_location, def->filen, def->s_line, col_type, modifiers, TypeName(def->type, tybuffer, sizeof(tybuffer)), col_symbol, def->name, col_none);
+				*vlbuffer = 0;
+			if (flag_msvcstyle)
+				externs->Printf ("%s%s(%i) :    %s%s%s %s%s%s%s%s is defined here\n", col_location, def->filen, def->s_line, col_type, modifiers, TypeName(def->type, tybuffer, sizeof(tybuffer)), col_symbol, def->name, col_type, vlbuffer, col_none);
+			else
+				externs->Printf ("%s%s:%i:    %s%s%s %s%s%s%s%s is defined here\n", col_location, def->filen, def->s_line, col_type, modifiers, TypeName(def->type, tybuffer, sizeof(tybuffer)), col_symbol, def->name, col_type, vlbuffer, col_none);
 		}
 	}
 }
@@ -4559,7 +4578,8 @@ int typecmp(QCC_type_t *a, QCC_type_t *b)
 			return 1;
 		if (typecmp(a->params[i].type, b->params[i].type))
 			return 1;
-		if (a->params[i].defltvalue.cast || b->params[i].defltvalue.cast)
+		if ((a->type != ev_function && (a->params[i].defltvalue.cast || b->params[i].defltvalue.cast)) ||
+			(a->type == ev_function && (a->params[i].defltvalue.cast && b->params[i].defltvalue.cast)))
 		{
 			if (typecmp(a->params[i].defltvalue.cast, b->params[i].defltvalue.cast) ||
 				a->params[i].defltvalue.sym != b->params[i].defltvalue.sym ||
@@ -4635,7 +4655,8 @@ int typecmp_lax(QCC_type_t *a, QCC_type_t *b)
 				return 1;
 		}
 
-		if (a->params[t].defltvalue.cast || b->params[t].defltvalue.cast)
+		if ((a->type != ev_function && (a->params[t].defltvalue.cast || b->params[t].defltvalue.cast)) ||
+			(a->type == ev_function && (a->params[t].defltvalue.cast && b->params[t].defltvalue.cast)))
 		{
 			if (typecmp(a->params[t].defltvalue.cast, b->params[t].defltvalue.cast) ||
 				a->params[t].defltvalue.sym != b->params[t].defltvalue.sym ||
@@ -5333,13 +5354,45 @@ struct accessor_s *QCC_PR_ParseAccessorMember(QCC_type_t *classtype, pbool isinl
 
 		def = QCC_PR_GetSRef(functype, funcname, NULL, true, 0, GDF_CONST | (isinline?GDF_INLINE:0));
 
-		pr_classtype = ((classtype->type==ev_entity)?classtype:NULL);
-		f = QCC_PR_ParseImmediateStatements (def.sym, functype, false);
-		pr_classtype = NULL;
-		pr_scope = NULL;
-		def.sym->symboldata[def.ofs].function = f - functions;
-		f->def = def.sym;
-		def.sym->initialized = 1;
+		if (autoprototype)
+		{
+			if (QCC_PR_CheckToken("["))
+			{
+				while (!QCC_PR_CheckToken("]"))
+				{
+					if (pr_token_type == tt_eof)
+						break;
+					QCC_PR_Lex();
+				}
+			}
+			QCC_PR_Expect("{");
+
+			{
+				int blev = 1;
+				//balance out the { and }
+				while(blev)
+				{
+					if (pr_token_type == tt_eof)
+						break;
+					if (QCC_PR_CheckToken("{"))
+						blev++;
+					else if (QCC_PR_CheckToken("}"))
+						blev--;
+					else
+						QCC_PR_Lex();	//ignore it.
+				}
+			}
+		}
+		else
+		{
+			pr_classtype = ((classtype->type==ev_entity)?classtype:NULL);
+			f = QCC_PR_ParseImmediateStatements (def.sym, functype, false);
+			pr_classtype = NULL;
+			pr_scope = NULL;
+			def.sym->symboldata[def.ofs].function = f - functions;
+			f->def = def.sym;
+			def.sym->initialized = 1;
+		}
 	}
 	else
 	{
@@ -5364,7 +5417,10 @@ struct accessor_s *QCC_PR_ParseAccessorMember(QCC_type_t *classtype, pbool isinl
 		classtype->accessors = acc;
 	}
 
-	if (acc->getset_func[setnotget].cast)
+	if (acc->getset_func[setnotget].cast && (
+		acc->getset_func[setnotget].sym != def.sym ||
+		acc->getset_func[setnotget].cast != def.cast ||
+		acc->getset_func[setnotget].ofs != def.ofs))
 		QCC_Error(ERR_TOOMANYINITIALISERS, "%s::%s_%s already declared", classtype->name, setnotget?"set":"get", accessorname);
 	acc->getset_func[setnotget] = def;
 	acc->getset_isref[setnotget] = isref;

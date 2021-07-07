@@ -17477,7 +17477,7 @@ QCC_type_t *QCC_PR_ParseEnum(pbool flags)
 
 		strictenum = QCC_PR_CheckName("class");	//c++11 style
 
-		type = QCC_PR_ParseType(false, true);	//legacy behaviour
+		type = autoprototyped?NULL:QCC_PR_ParseType(false, true);	//legacy behaviour
 		if (type)
 		{
 			QCC_PR_ParseWarning(WARN_DEPRECACTEDSYNTAX, "legacy enum base type. Use \"enum [class] [name_e]:type\" instead");
@@ -17501,7 +17501,7 @@ QCC_type_t *QCC_PR_ParseEnum(pbool flags)
 		QCC_PR_Expect("{");
 	}
 
-	if (name)
+	if (name && !enumtype)
 	{
 		enumtype = QCC_TypeForName(name);
 		if (!enumtype)
@@ -17642,6 +17642,8 @@ QCC_type_t *QCC_PR_ParseEnum(pbool flags)
 			}
 		}
 
+		sref.sym->referenced = true;
+
 		//value gets added to global pool too (but referable whenever not strict)
 		//we just generate an entirely new def (within the parent's pr_globals allocation). this also gives 'symbol was defined HERE' info.
 		sref.sym = QCC_PR_DummyDef(sref.cast, name, pr_scope, 0, sref.sym, sref.ofs, !strictenum, GDF_CONST|GDF_STRIP);
@@ -17653,17 +17655,25 @@ QCC_type_t *QCC_PR_ParseEnum(pbool flags)
 			for (acc = enumtype->accessors; acc; acc = acc->next)
 				if (!strcmp(acc->fieldname, name))
 				{
-					QCC_Error(ERR_TOOMANYINITIALISERS, "%s::%s already declared", enumtype->name, name);
+					const QCC_eval_t *old, *new;
+					old = QCC_SRef_EvalConst(acc->staticval);
+					new = QCC_SRef_EvalConst(sref);
+					if (old && old == new && !typecmp(acc->staticval.cast, sref.cast))
+						break;
+					QCC_PR_ParseError(ERR_TOOMANYINITIALISERS, "%s::%s already declared", enumtype->name, name);
 					break;
 				}
-			acc = qccHunkAlloc(sizeof(*acc));
-			acc->fieldname = (char*)name;
-			acc->next = enumtype->accessors;
-			acc->type = enumtype;//sref.cast;
-			acc->indexertype = NULL;
-			enumtype->accessors = acc;
-			acc->staticval = sref;
-			acc->staticval.cast = enumtype;
+			if (!acc)
+			{
+				acc = qccHunkAlloc(sizeof(*acc));
+				acc->fieldname = (char*)name;
+				acc->next = enumtype->accessors;
+				acc->type = enumtype;//sref.cast;
+				acc->indexertype = NULL;
+				enumtype->accessors = acc;
+				acc->staticval = sref;
+				acc->staticval.cast = enumtype;
+			}
 		}
 		QCC_FreeTemp(sref);
 

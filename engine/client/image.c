@@ -46,9 +46,11 @@ char *r_defaultimageextensions =
 #endif
 #ifdef IMAGEFMT_KTX
 	"ktx "	//compressed or something. not to be confused with the qw mod by the same name. GL requires that etc2 compression is supported by modern drivers, but not necessarily the hardware. as such, dds with its s3tc bias should always come first (as the patents mean that drivers are much less likely to advertise it when they don't support it properly).
+	//"ktx2 "
 #endif
 #ifdef IMAGEFMT_TGA
 	"tga"	//fairly fast to load
+	//" htga"
 #endif
 #if defined(IMAGEFMT_PNG) || defined(FTE_TARGET_WEB)
 	" png"	//pngs, fairly common, but slow
@@ -3602,7 +3604,7 @@ static void *ReadRadianceFile(qbyte *buf, size_t len, const char *fname, int *wi
 				*o++ = 1;
 			}
 		}
-		else if (rgbe[0] == 1 && rgbe[1] == 1 && rgbe[2] == 1)
+		else if (buf[0] == 1 && buf[1] == 1 && buf[2] == 1)
 		{ //old rle logic
 			Con_Printf("%s uses unsupported (old) RLE compression\n", fname);
 			goto fail;

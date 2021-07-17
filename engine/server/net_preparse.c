@@ -1885,6 +1885,9 @@ void NPP_QWFlush(void)
 	case svc_bigkick:
 		bufferlen = 0;
 		break;
+	case svcqw_updatestatlong:
+		buffer[0] = svcnq_updatestatlong;
+		break;
 	case svc_updateuserinfo:
 		if (buffer[6])
 		{

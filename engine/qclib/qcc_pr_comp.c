@@ -9762,6 +9762,47 @@ QCC_sref_t QCC_PR_GenerateLogicalNot(QCC_sref_t e, const char *errormessage)
 		return nullsref;
 	}
 }
+QCC_sref_t QCC_PR_GenerateBitwiseNot(QCC_sref_t e, const char *errormessage)
+{
+	etype_t	t;
+	QCC_type_t *type = e.cast;
+	while(type->type == ev_accessor || type->type == ev_boolean)
+		type = type->parentclass;
+	t = type->type;
+	if (t == ev_float)
+		return QCC_PR_Statement (&pr_opcodes[OP_BITNOT_F], e, nullsref, NULL);
+	else if (t == ev_string)
+		return QCC_PR_Statement (&pr_opcodes[flag_brokenifstring?OP_NOT_ENT:OP_NOT_S], e, nullsref, NULL);
+//	else if (t == ev_entity)
+//		return QCC_PR_Statement (&pr_opcodes[OP_BITNOT_ENT], e, nullsref, NULL);
+	else if (t == ev_vector)
+		return QCC_PR_Statement (&pr_opcodes[OP_BITNOT_V], e, nullsref, NULL);
+//	else if (t == ev_function)
+//		return QCC_PR_Statement (&pr_opcodes[OP_BITNOT_FNC], e, nullsref, NULL);
+	else if (t == ev_integer || t == ev_uint)
+		return QCC_PR_Statement (&pr_opcodes[OP_BITNOT_I], e, nullsref, NULL);	//functions are integer values too.
+	else if (t == ev_pointer)
+		return QCC_PR_Statement (&pr_opcodes[OP_BITNOT_I], e, nullsref, NULL);	//Pointers are too.
+	else if (t == ev_double)
+		return QCC_PR_Statement (&pr_opcodes[OP_BITNOT_D], e, QCC_MakeDoubleConst(0), NULL);
+	else if (t == ev_int64)
+		return QCC_PR_Statement (&pr_opcodes[OP_BITNOT_I64], e, QCC_MakeInt64Const(0), NULL);
+	else if (t == ev_uint64)
+		return QCC_PR_Statement (&pr_opcodes[OP_BITNOT_U64], e, QCC_MakeUInt64Const(0), NULL);
+	else if (t == ev_void && flag_laxcasts)
+	{
+		QCC_PR_ParseWarning(WARN_LAXCAST, errormessage, "void");
+		return QCC_PR_Statement (&pr_opcodes[OP_NOT_F], e, nullsref, NULL);
+	}
+	else
+	{
+		char etype[256];
+		TypeName(e.cast, etype, sizeof(etype));
+
+		QCC_PR_ParseError (ERR_BADNOTTYPE, errormessage, etype);
+		return nullsref;
+	}
+}
 
 //doesn't consider parents
 static QCC_sref_t QCC_TryEvaluateCast(QCC_sref_t src, QCC_type_t *cast, pbool implicit)
@@ -10042,7 +10083,6 @@ static QCC_ref_t *QCC_PR_RefTerm (QCC_ref_t *retbuf, unsigned int exprflags)
 {
 	QCC_ref_t	*r;
 	QCC_sref_t	e, e2;
-	etype_t	t;
 	if (pr_token_type == tt_punct)	//a little extra speed...
 	{
 		int preinc;
@@ -10108,29 +10148,8 @@ static QCC_ref_t *QCC_PR_RefTerm (QCC_ref_t *retbuf, unsigned int exprflags)
 		if (QCC_PR_CheckToken ("~"))
 		{
 			e = QCC_PR_Expression (NOT_PRIORITY, EXPR_DISALLOW_COMMA|EXPR_WARN_ABOVE_1);
-			t = e.cast->type;
-			if (t == ev_accessor)
-				t = e.cast->parentclass->type;
-			if (t == ev_float)
-				e2 = QCC_PR_Statement (&pr_opcodes[OP_BITNOT_F], e, nullsref, NULL);
-//			else if (t == ev_double)
-//				e2 = QCC_PR_Statement (&pr_opcodes[OP_BITNOT_D], e, nullsref, NULL);
-			else if (t == ev_integer)
-				e2 = QCC_PR_Statement (&pr_opcodes[OP_BITNOT_I], e, nullsref, NULL);
-			else if (t == ev_uint)
-				e2 = QCC_PR_Statement (&pr_opcodes[OP_BITNOT_U], e, nullsref, NULL);
-			else if (t == ev_int64)
-				e2 = QCC_PR_Statement (&pr_opcodes[OP_BITNOT_I64], e, nullsref, NULL);
-			else if (t == ev_uint64)
-				e2 = QCC_PR_Statement (&pr_opcodes[OP_BITNOT_U64], e, nullsref, NULL);
-			else if (t == ev_vector)
-				e2 = QCC_PR_Statement (&pr_opcodes[OP_BITNOT_V], e, nullsref, NULL);
-			else
-			{
-				e2 = nullsref;		// shut up compiler warning;
-				QCC_PR_ParseError (ERR_BADNOTTYPE, "type mismatch for binary not");
-			}
-			return QCC_DefToRef(retbuf, e2);
+			e = QCC_PR_GenerateBitwiseNot(e, "Type mismatch: ~%s");
+			return QCC_DefToRef(retbuf, e);
 		}
 		if (QCC_PR_CheckToken ("&"))
 		{

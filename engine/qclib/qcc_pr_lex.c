@@ -3274,25 +3274,32 @@ static char *QCC_PR_PopenMacro(const char *macroname, const char *cmd, char *ret
 	}
 	retbufsize-=3;	// '""\0'
 	*retbuf++ = '\"';
-	len = fread(temp, 1, sizeof(temp), f);
-	if (len < 0)
-		len = 0;
-	else while (len --> 0 && *t && retbufsize > 1)
+	for (;;)
 	{
-		if      (*t == '\"')	*retbuf = '\"';
-		else if (*t == '\n')	*retbuf = 'n';
-		else if (*t == '\r')	*retbuf = 'r';
-		else if (*t == '#')		*retbuf = '#';	//so we don't get preqcc-style expansion in strings.
-		else
+		len = fread(temp, 1, sizeof(temp), f);
+		if (len <= 0)
+			break;
+		else for (t=temp; len --> 0 && *t && retbufsize > 1; t++)
 		{
-			*retbuf++ = *t++;
-			retbufsize--;
-			continue;
+			if      (*t == '\"')	retbuf[1] = '\"';
+			else if (*t == '\n')	retbuf[1] = 'n';
+			else if (*t == '\r')	retbuf[1] = 'r';
+			else if (*t == '#')		retbuf[1] = '#';	//so we don't get preqcc-style expansion in strings.
+			else
+			{
+				*retbuf++ = *t;
+				retbufsize--;
+				continue;
+			}
+			retbuf[0] = '\\';
+			retbuf+=2;
+			retbufsize-=2;
 		}
-		retbuf[0] = '\n';
-		retbuf+=2;
-		retbufsize-=2;
 	}
+	if (retbuf[-1] == 'n' && retbuf[-2] == '\\')
+		retbuf -= 2;
+	if (retbuf[-1] == 'r' && retbuf[-2] == '\\')
+		retbuf -= 2;
 	*retbuf++ = '\"';
 	*retbuf++ = 0;
 #ifdef _WIN32

@@ -522,9 +522,9 @@ mirror:
 			else if (legacyextractname)
 			{
 				if (!strcmp(legacyextractname, "xz") || !strcmp(legacyextractname, "gz"))
-					mirror[mirrors++] = Z_StrDup(va("%s:%s", legacyextractname, a));
+					mirror[mirrors++] = Z_StrDupf("%s:%s", legacyextractname, a);
 				else
-					mirror[mirrors++] = Z_StrDup(va("unzip:%s,%s", legacyextractname, a));
+					mirror[mirrors++] = Z_StrDupf("unzip:%s,%s", legacyextractname, a);
 			}
 			else
 				mirror[mirrors++] = Z_StrDup(a);
@@ -669,7 +669,7 @@ static qboolean FS_Manifest_ParseTokens(ftemanifest_t *man)
 	{
 		Z_Free(man->mainconfig);
 		if (strcmp(".cfg", COM_GetFileExtension(Cmd_Argv(1),NULL)))
-			man->mainconfig = Z_StrDup(va("%s.cfg", Cmd_Argv(1)));
+			man->mainconfig = Z_StrDupf("%s.cfg", Cmd_Argv(1));
 		else
 			man->mainconfig = Z_StrDup(Cmd_Argv(1));
 	}

@@ -4282,7 +4282,7 @@ char *COM_ParseStringSet (const char *data, char *out, size_t outsize)
 }
 
 
-char *COM_ParseType (const char *data, char *out, int outlen, com_tokentype_t *toktype)
+char *COM_ParseType (const char *data, char *out, size_t outlen, com_tokentype_t *toktype)
 {
 	int		c;
 	int		len;

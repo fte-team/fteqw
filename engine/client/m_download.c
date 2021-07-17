@@ -1246,7 +1246,7 @@ static const char *PM_ParsePackage(struct packagesourceinfo_s *source, const cha
 			if (relurl)
 			{
 				for (m = 0; m < source->nummirrors; m++)
-					p->mirror[m] = Z_StrDup(va("%s%s%s", source->mirror[m], relurl, ext));
+					p->mirror[m] = Z_StrDupf("%s%s%s", source->mirror[m], relurl, ext);
 			}
 		}
 
@@ -3922,7 +3922,7 @@ static qboolean PM_DeclinedPackages(char *out, size_t outsize)
 					if (declinedpackages)
 					{
 						char *t = declinedpackages;
-						declinedpackages = Z_StrDup(va("%s;%s", declinedpackages, tok));
+						declinedpackages = Z_StrDupf("%s;%s", declinedpackages, tok);
 						Z_Free(t);
 					}
 					else
@@ -4587,12 +4587,12 @@ void PM_AddManifestPackages(ftemanifest_t *man)
 		p = Z_Malloc(sizeof(*p));
 		p->name = Z_StrDup(pack->path);
 		p->title = Z_StrDup(pack->path);
-		p->category = Z_StrDup(va("%s/", man->formalname));
+		p->category = Z_StrDupf("%s/", man->formalname);
 		p->priority = PM_DEFAULTPRIORITY;
 		p->fsroot = FS_ROOT;
 		strcpy(p->version, "");
 		p->flags = DPF_FORGETONUNINSTALL|DPF_MANIFEST|DPF_GUESSED;
-		p->qhash = pack->crcknown?Z_StrDup(va("%#x", pack->crc)):NULL;
+		p->qhash = pack->crcknown?Z_StrDupf("%#x", pack->crc):NULL;
 
 		{
 			char *c = p->name;
@@ -4940,7 +4940,7 @@ static void MD_Draw (int x, int y, struct menucustom_s *c, struct emenu_s *m)
 //		if (&m->selecteditem->common == &c->common)
 //			Draw_AltFunString (x+48, y, n);
 //		else
-			Draw_FunString(x+48, y, n);
+			Draw_FunStringU8(CON_WHITEMASK, x+48, y, n);
 	}
 }
 
@@ -5110,7 +5110,7 @@ static void MD_Source_Draw (int x, int y, struct menucustom_s *c, struct emenu_s
 
 	text = va("%s%s",	(pm_source[c->dint].flags & (SRCFL_ENABLED|SRCFL_DISABLED))?"":"^b",
 						pm_source[c->dint].url);
-	Draw_FunString (x+48, y, text);
+	Draw_FunStringU8 (CON_WHITEMASK, x+48, y, text);
 }
 static qboolean MD_Source_Key (struct menucustom_s *c, struct emenu_s *m, int key, unsigned int unicode)
 {
@@ -5294,9 +5294,9 @@ static int MD_AddItemsToDownloadMenu(emenu_t *m, int y, const char *pathprefix)
 #endif
 
 			if (head && desc)
-				desc = va("%s\n%s", head, desc);
+				desc = va(U8("%s\n%s"), head, desc);
 			else if (head)
-				desc = head;
+				desc = va(U8("%s"), head);
 
 			c = MC_AddCustom(m, 0, y, p, downloadablessequence, desc);
 			c->draw = MD_Draw;

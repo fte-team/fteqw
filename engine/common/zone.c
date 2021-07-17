@@ -213,6 +213,26 @@ void *Z_Malloc(size_t size)
 }
 #endif
 
+char	*Z_StrDupf(const char *format, ...)
+{
+	va_list		argptr;
+	char		*string;
+	int n;
+
+	va_start (argptr, format);
+	n = vsnprintf (NULL,0, format,argptr);
+	va_end (argptr);
+	if (n < 0)
+		n = 1024;	//windows bullshit. whatever. good luck with that.
+
+	string = Z_Malloc(n+1);
+	va_start (argptr, format);
+	vsnprintf (string,n, format,argptr);
+	va_end (argptr);
+	string[n] = 0;
+
+	return string;
+}
 void Z_StrCat(char **ptr, const char *append)
 {
 	size_t oldlen = *ptr?strlen(*ptr):0;

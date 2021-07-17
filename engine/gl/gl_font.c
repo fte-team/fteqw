@@ -1492,12 +1492,12 @@ static struct charcache_s *Font_GetChar(font_t *f, unsigned int codepoint)
 			//not being a language specialist, I'm just going to use that mapping, with the high bit truncated to ascii (which mostly exists in the quake charset).
 			//this exact table is from ezquake. because I'm too lazy to figure out the proper mapping. (beware of triglyphs)
 			static char *wc2koi_table =
-				"?3??4?67??" "??" "??" ">?"
-				"abwgdevzijklmnop"
-				"rstufhc~{}/yx|`q"
-				"ABWGDEVZIJKLMNOP"
-				"RSTUFHC^[]_YX\\@Q"
-				"?#??$?&'??" "??" "??.?";
+				"?3??4?67??" "??" "??" ">?"	//400
+				"abwgdevzijklmnop"	//410
+				"rstufhc~{}/yx|`q"	//420
+				"ABWGDEVZIJKLMNOP"	//430
+				"RSTUFHC^[]_YX\\@Q"	//440
+				"?#??$?&'??" "??" "??.?";	//450
 			charidx = wc2koi_table[charidx - 0x400];
 			if (charidx != '?')
 			{
@@ -1506,6 +1506,35 @@ static struct charcache_s *Font_GetChar(font_t *f, unsigned int codepoint)
 					c = Font_TryLoadGlyph(f, charidx);
 			}
 		}
+
+		if (!c && charidx >= 0xA0 && charidx <= 0x17F)
+		{	//try to make sense of iso8859-1
+			//(mostly for zerstorer's o-umlout...)
+			static char *latin_table =
+				" ?c###|S?c?<??R?"	//A0
+				"??""??""'u?.,??"">??""??"	//B0
+				"AAAAAAECEEEEIIII"	//C0
+				"DNOOOOO*OUUUUYYs"	//D0
+				"aaaaaaeceeeeiiii"	//E0
+				"onooooo/ouuuuyyy"	//F0
+
+				"AaAaAaCcCcCcCcDd"	//100
+				"DdEeEeEeEeEeGgGg"	//110
+				"GgGgHhHhIiIiIiIi"	//120
+				"IiIiJjKkkLlLlLlL"	//130
+				"lllNnNnNnnNnOoOo"	//140
+				"OoEeRrRrRrSsSsSs"	//150
+				"SsTtTtTtUuUuUuUu"	//160
+				"UuUuWwYyYZzZzZzf";	//170
+			charidx = latin_table[charidx - 0xA0];
+			if (charidx != '?')
+			{
+				c = Font_GetCharIfLoaded(f, charidx);
+				if (!c)
+					c = Font_TryLoadGlyph(f, charidx);
+			}
+		}
+
 		if (!c)
 			c = Font_LoadPlaceholderGlyph(f, charidx);
 		if (!c)

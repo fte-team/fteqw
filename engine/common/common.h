@@ -428,7 +428,7 @@ extern com_tokentype_t com_tokentype;
 //char *COM_Parse (const char *data);
 #define COM_Parse(d) COM_ParseOut(d,com_token, sizeof(com_token))
 #define COM_ParseOut(d,o,l) COM_ParseType(d,o,l,NULL)
-char *COM_ParseType (const char *data, char *out, int outlen, com_tokentype_t *toktype);
+char *COM_ParseType (const char *data, char *out, size_t outlen, com_tokentype_t *toktype);
 char *COM_ParseStringSet (const char *data, char *out, size_t outlen);	//whitespace or semi-colon separators
 char *COM_ParseStringSetSep (const char *data, char sep, char *out, size_t outsize);	//single-char-separator, no whitespace
 char *COM_ParseCString (const char *data, char *out, size_t maxoutlen, size_t *writtenlen);

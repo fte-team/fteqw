@@ -333,12 +333,12 @@ static struct icestate_s *QDECL ICE_Create(void *module, const char *conname, co
 	{
 		int rnd[1];	//'must have at least 24 bits randomness'
 		Sys_RandomBytes((void*)rnd, sizeof(rnd));
-		con->lufrag = Z_StrDup(va("%08x", rnd[0]));
+		con->lufrag = Z_StrDupf("%08x", rnd[0]);
 	}
 	{
 		int rnd[4];	//'must have at least 128 bits randomness'
 		Sys_RandomBytes((void*)rnd, sizeof(rnd));
-		con->lpwd = Z_StrDup(va("%08x%08x%08x%08x", rnd[0], rnd[1], rnd[2], rnd[3]));
+		con->lpwd = Z_StrDupf("%08x%08x%08x%08x", rnd[0], rnd[1], rnd[2], rnd[3]);
 	}
 
 	Sys_RandomBytes((void*)&con->tiehigh, sizeof(con->tiehigh));

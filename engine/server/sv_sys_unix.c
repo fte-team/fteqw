@@ -276,7 +276,7 @@ void Sys_Error (const char *error, ...)
 	vsnprintf (string,sizeof(string)-1, error,argptr);
 	va_end (argptr);
 	COM_WorkerAbort(string);
-	printf ("Fatal error: %s\n",string);
+	fprintf(stderr, "Fatal error: %s\n",string);
 
 	if (!noconinput)
 	{
@@ -1192,8 +1192,10 @@ static int Sys_EnumerateFiles2 (const char *truepath, int apathofs, const char *
 						return false;
 					}
 				}
+				else if (lstat(file, &st) == 0)
+					;//okay, so bad symlink, just mute it
 				else
-					printf("Stat failed for \"%s\"\n", file);
+					fprintf(stderr, "Stat failed for \"%s\"\n", file);
 			}
 		}
 	} while(1);

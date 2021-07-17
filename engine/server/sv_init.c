@@ -1267,12 +1267,12 @@ MSV_OpenUserDatabase();
 		memset(&sv.strings, 0, sizeof(sv.strings));
 
 		if (deathmatch.value)
-			sv.strings.configstring[Q2CS_AIRACCEL] = Z_StrDup(va("%g", sv_airaccelerate.value));
+			sv.strings.configstring[Q2CS_AIRACCEL] = Z_StrDupf("%g", sv_airaccelerate.value);
 		else
 			sv.strings.configstring[Q2CS_AIRACCEL] = Z_StrDup("0");
 
 		// init map checksum config string but only for Q2/Q3 maps
-		sv.strings.configstring[Q2CS_MAPCHECKSUM] = Z_StrDup(va("%i", sv.world.worldmodel->checksum));
+		sv.strings.configstring[Q2CS_MAPCHECKSUM] = Z_StrDupf("%i", sv.world.worldmodel->checksum);
 
 		subs = sv.world.worldmodel->numsubmodels;
 		if (subs > MAX_PRECACHE_MODELS-1)
@@ -1284,12 +1284,12 @@ MSV_OpenUserDatabase();
 		sv.strings.configstring[Q2CS_MODELS+1] = Z_StrDup(sv.modelname);
 		for (i=1; i<subs && i < Q2MAX_MODELS-2; i++)
 		{
-			sv.strings.configstring[Q2CS_MODELS+1+i] = Z_StrDup(va("*%u", i));
+			sv.strings.configstring[Q2CS_MODELS+1+i] = Z_StrDupf("*%u", i);
 			sv.models[i+1] = Mod_ForName (Mod_FixName(sv.strings.configstring[Q2CS_MODELS+1+i], sv.modelname), MLV_WARN);
 		}
 		for ( ; i<subs; i++)
 		{
-			sv.strings.q2_extramodels[1+i] = Z_StrDup(va("*%u", i));
+			sv.strings.q2_extramodels[1+i] = Z_StrDupf("*%u", i);
 			sv.models[i+1] = Mod_ForName (Mod_FixName(sv.strings.q2_extramodels[1+i], sv.modelname), MLV_WARN);
 		}
 	}

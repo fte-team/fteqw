@@ -210,6 +210,7 @@ struct galiasbone_s *Mod_GetBoneInfo(struct model_s *model, int *numbones);
 const char *Mod_GetBoneName(struct model_s *model, int bonenum);
 
 void Draw_FunString(float x, float y, const void *str);
+void Draw_FunStringU8(unsigned int flags, float x, float y, const void *str);
 void Draw_AltFunString(float x, float y, const void *str);
 void Draw_FunStringWidthFont(struct font_s *font, float x, float y, const void *str, int width, int rightalign, qboolean highlight);
 #define Draw_FunStringWidth(x,y,str,width,rightalign,highlight) Draw_FunStringWidthFont(font_default,x,y,str,width,rightalign,highlight)

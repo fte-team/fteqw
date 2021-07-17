@@ -475,7 +475,7 @@ void COM_EnumerateFiles (const char *match, int (*func)(const char *, qofs_t, ti
 }
 #endif
 
-char *COM_ParseType (const char *data, char *out, int outlen, com_tokentype_t *toktype)
+char *COM_ParseType (const char *data, char *out, size_t outlen, com_tokentype_t *toktype)
 {
 	int		c;
 	int		len;

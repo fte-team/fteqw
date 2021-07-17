@@ -199,6 +199,13 @@ void Draw_FunString(float x, float y, const void *str)
 
 	Draw_ExpandedString(font_default, x, y, buffer);
 }
+void Draw_FunStringU8(unsigned int flags, float x, float y, const void *str)
+{
+	conchar_t buffer[2048];
+	COM_ParseFunString(flags, str, buffer, sizeof(buffer), PFS_FORCEUTF8);
+
+	Draw_ExpandedString(font_default, x, y, buffer);
+}
 //Draws a marked up string using the alt char set (legacy mode would be |128)
 void Draw_AltFunString(float x, float y, const void *str)
 {

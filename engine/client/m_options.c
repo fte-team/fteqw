@@ -3911,9 +3911,9 @@ static void M_ModelViewerDraw(int x, int y, struct menucustom_s *c, struct emenu
 					break;
 				}
 				if (*mods->shaderfile)
-					mods->shadertext = Z_StrDup(va("\n\nPress space to view+edit the shader\n\n%s", body));
+					mods->shadertext = Z_StrDupf("\n\nPress space to view+edit the shader\n\n%s", body);
 				else
-					mods->shadertext = Z_StrDup(va("{%s",body));
+					mods->shadertext = Z_StrDupf("{%s",body);
 			}
 			R_DrawTextField(r_refdef.grect.x, r_refdef.grect.y+16, r_refdef.grect.width, r_refdef.grect.height-16, mods->shadertext, CON_WHITEMASK, CPRINT_TALIGN|CPRINT_LALIGN, font_default, fs);
 

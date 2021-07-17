@@ -148,6 +148,7 @@ void ZG_FreeGroup(zonegroup_t *ctx);
 #define Z_StrDup(s) strcpy(Z_Malloc(strlen(s)+1), s)
 #define Z_StrDupPtr(v,s) do{Z_Free(*v),*(v) = strcpy(Z_Malloc(strlen(s)+1), s);}while(0)
 
+char	*Z_StrDupf(const char *format, ...);
 void Z_StrCat(char **ptr, const char *append);
 
 /*

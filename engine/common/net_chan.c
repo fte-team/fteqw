@@ -236,7 +236,7 @@ unsigned int Net_PextMask(unsigned int protover, qboolean fornq)
 		if (fornq)
 		{
 			//only ones that are tested
-			mask &= PEXT2_PRYDONCURSOR | PEXT2_VOICECHAT | PEXT2_SETANGLEDELTA | PEXT2_REPLACEMENTDELTAS | PEXT2_MAXPLAYERS | PEXT2_PREDINFO | PEXT2_NEWSIZEENCODING /*| PEXT2_VRINPUTS - FIXME: do we want multiple per packet, to cover packetloss?*/;
+			mask &= PEXT2_PRYDONCURSOR | PEXT2_VOICECHAT | PEXT2_SETANGLEDELTA | PEXT2_REPLACEMENTDELTAS | PEXT2_MAXPLAYERS | PEXT2_PREDINFO | PEXT2_NEWSIZEENCODING | PEXT2_VRINPUTS;
 		}
 //		else
 //			mask &= ~PEXT2_PREDINFO;

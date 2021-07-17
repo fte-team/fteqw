@@ -2783,8 +2783,9 @@ qboolean SV_SendClientDatagram (client_t *client)
 	sentbytes = Netchan_Transmit (&client->netchan, msg.cursize, buf, SV_RateForClient(client));
 	if (ISNQCLIENT(client))
 	{
-		client_frame_t *frame = &client->frameunion.frames[client->netchan.outgoing_sequence & UPDATE_MASK];
+		client_frame_t *frame = &client->frameunion.frames[outframeseq & UPDATE_MASK];
 		frame->packetsizeout += sentbytes;
+		frame->ping_time = -1;
 		frame->senttime = realtime;
 	}
 	else if (ISQWCLIENT(client))

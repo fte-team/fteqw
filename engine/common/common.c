@@ -1674,9 +1674,6 @@ void MSGCL_WriteDeltaUsercmd (sizebuf_t *buf, const usercmd_t *from, const userc
 		MSGQ2_WriteDeltaUsercmd(buf, from, cmd);
 	else
 #endif
-	if (cls.fteprotocolextensions2 & PEXT2_VRINPUTS)
-		MSGFTE_WriteDeltaUsercmd(buf, from, cmd);
-	else
 		MSGQW_WriteDeltaUsercmd(buf, from, cmd);
 }
 #endif

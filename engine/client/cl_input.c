@@ -34,9 +34,10 @@ static cvar_t	cl_movement = CVARD("cl_movement","1", "Specifies whether to send 
 
 cvar_t	cl_nodelta = CVAR("cl_nodelta","0");
 
-cvar_t	cl_c2sdupe = CVAR("cl_c2sdupe", "0");
+cvar_t	cl_c2sdupe = CVARD("cl_c2sdupe", "0", "Send duplicate copies of packets to the server. This avoids extra latency caused by packetloss, but could also make the problem worse.");
 cvar_t	cl_c2spps = CVARD("cl_c2spps", "0", "Reduces outgoing packet rates by dropping up to a third of outgoing packets.");
 cvar_t	cl_c2sImpulseBackup = CVARD("cl_c2sImpulseBackup","3", "Prevents the cl_c2spps setting from dropping redundant packets that contain impulses, in an attempt to keep impulses more reliable.");
+static cvar_t	cl_c2sMaxRedundancy = CVARD("cl_c2sMaxRedundancy","5", "This is the maximum number of input frames to send in each input packet. Values greater than 1 provide redundancy and avoid prediction misses, though you might find cl_c2sdupe provides equivelent result and at lower latency. It is locked at 3 for vanilla quakeworld, and locked at 1 for vanilla netquake.");
 cvar_t	cl_netfps = CVARD("cl_netfps", "150", "Send up to this many packets to the server per second. The rate used is also limited by the server which usually forces a cap to this setting of 77. Low packet rates can result in extra extrapolation to try to hide the resulting latencies.");
 cvar_t	cl_sparemsec = CVARCD("cl_sparemsec", "10", CL_SpareMsec_Callback, "Allows the 'banking' of a little extra time, so that one slow frame will not delay the timing of the following frame so much.");
 cvar_t  cl_queueimpulses = CVARD("cl_queueimpulses", "0", "Queues unsent impulses instead of replacing them. This avoids the need for extra wait commands (and the timing issues of such commands), but potentially increases latency and can cause scripts to be desynced with regard to buttons and impulses.");
@@ -1213,6 +1214,82 @@ static void CL_FinishMove (usercmd_t *cmd, int pnum)
 		cmd->impulse = 0;
 }
 
+
+static qboolean CLFTE_SendVRCmd (sizebuf_t *buf, unsigned int seats)
+{
+	//compute the delay between receiving the frame we're acking and when we're sending the new frame
+	unsigned int cldelay = (realtime - cl.inframes[cls.netchan.incoming_sequence&UPDATE_MASK].receivedtime)*10000;	//this is to report actual network latency instead of just reporting our packet rate (framerates may still be a factor).
+	unsigned int lost = CL_CalcNet(r_netgraph.value);	//report packetloss
+	unsigned int flags = 0;
+	unsigned int first = cl.ackedmovesequence+1;	//no point resending that which has already been acked.
+	unsigned int last = cl.movesequence+1;			//we want to ignore moveseq itself
+	unsigned int frame, seat, count, i;
+	const usercmd_t *from, *to;
+	qboolean dontdrop = false;
+	if (first > last)
+		first = last-1;
+	if (first < last-(countof(cl.outframes)-2))
+		first = last-(countof(cl.outframes)-2);
+	if (first < 1)
+		first = 1;
+	if (last < first)
+		count = 0;
+	else
+		count = last-first;
+	if (count > max(1,cl_c2sMaxRedundancy.ival))
+		count = max(1,cl_c2sMaxRedundancy.ival);
+	if (cl.inframes[cls.netchan.incoming_sequence&UPDATE_MASK].receivedtime<0)
+		cldelay = 0;	//erk?
+
+	MSG_WriteByte (buf, clcfte_move);
+
+#ifdef NQPROT
+	if (cls.protocol == CP_NETQUAKE)	//nq uses fully separate packet+movement sequences (unlike qw).
+		MSG_WriteShort(buf, (last-1)&0xffff);
+#endif
+
+	if (seats!=1)
+		flags |= VRM_SEATS;
+	if (lost)
+		flags |= VRM_LOSS;
+	if (cldelay)
+		flags |= VRM_DELAY;
+	if (count!=3)
+		flags |= VRM_FRAMES;
+	if (cl.numackframes)
+		flags |= VRM_ACKS;
+	MSG_WriteUInt64 (buf, flags);
+
+	if (flags & VRM_SEATS)
+		MSG_WriteUInt64 (buf, seats);
+	if (flags & VRM_FRAMES)
+		MSG_WriteUInt64 (buf, count);
+	if (flags & VRM_LOSS)
+		MSG_WriteByte (buf, (qbyte)lost);
+	if (flags & VRM_DELAY)
+		MSG_WriteByte (buf, bound(0,cldelay,255));	//a byte should always be enough for any framerate above 40.
+	if (flags & VRM_ACKS)
+	{
+		MSG_WriteUInt64(buf, cl.numackframes);
+		for (i = 0; i < cl.numackframes; i++)
+			MSG_WriteLong(buf, cl.ackframes[i]);
+		cl.numackframes = 0;
+	}
+
+	from = &nullcmd;
+	for (seat = 0; seat < seats; seat++)
+		for (frame = last-count; frame < last; frame++)
+		{
+			to = &cl.outframes[frame&UPDATE_MASK].cmd[seat];
+			MSGFTE_WriteDeltaUsercmd (buf, from, to);
+			if (to->impulse && (int)(last-frame)>=cl_c2sImpulseBackup.ival)
+				dontdrop = true;
+			from = to;
+		}
+	return dontdrop;
+}
+
+
 void CL_UpdatePrydonCursor(usercmd_t *from, int pnum)
 {
 	int hit;
@@ -1318,59 +1395,54 @@ void CLNQ_SendMove (usercmd_t *cmd, int pnum, sizebuf_t *buf)
 	else if (cls.fteprotocolextensions2 & PEXT2_PREDINFO)
 		MSG_WriteShort(buf, cl.movesequence&0xffff);
 
-	if (cls.fteprotocolextensions2 & PEXT2_VRINPUTS)
-		MSGFTE_WriteDeltaUsercmd(buf, &nullcmd, cmd);
-	else
+	MSG_WriteFloat (buf, cmd->fservertime);	// use latest time. because ping reports!
+
+	for (i=0 ; i<3 ; i++)
 	{
-		MSG_WriteFloat (buf, cmd->fservertime);	// use latest time. because ping reports!
-
-		for (i=0 ; i<3 ; i++)
+		if (cls.protocol_nq == CPNQ_FITZ666 || (cls.proquake_angles_hack && buf->prim.anglesize <= 1))
 		{
-			if (cls.protocol_nq == CPNQ_FITZ666 || (cls.proquake_angles_hack && buf->prim.anglesize <= 1))
-			{
-				//fitz/proquake protocols are always 16bit for this angle and 8bit elsewhere. rmq is always at least 16bit
-				//the above logic should satify everything.
-				MSG_WriteAngle16 (buf, cl.playerview[pnum].viewangles[i]);
-			}
-			else
-				MSG_WriteAngle (buf, cl.playerview[pnum].viewangles[i]);
-		}
-
-		MSG_WriteShort (buf, cmd->forwardmove);
-		MSG_WriteShort (buf, cmd->sidemove);
-		MSG_WriteShort (buf, cmd->upmove);
-
-		bits = cmd->buttons;
-		if (cls.fteprotocolextensions2 & PEXT2_PRYDONCURSOR)
-		{
-			if (cmd->cursor_screen[0] || cmd->cursor_screen[1] ||
-				cmd->cursor_start[0] || cmd->cursor_start[1] || cmd->cursor_start[2] ||
-				cmd->cursor_impact[0] || cmd->cursor_impact[1] || cmd->cursor_impact[2] ||
-				cmd->cursor_entitynumber)
-				bits |= (1u<<31);	//set it if there's actually something to send.
-			MSG_WriteLong (buf, bits);
-		}
-		else if (cls.protocol_nq >= CPNQ_DP6)
-		{
-			MSG_WriteLong (buf, bits);
-			bits |= (1u<<31);	//unconditionally set it (without writing it)
+			//fitz/proquake protocols are always 16bit for this angle and 8bit elsewhere. rmq is always at least 16bit
+			//the above logic should satify everything.
+			MSG_WriteAngle16 (buf, cl.playerview[pnum].viewangles[i]);
 		}
 		else
-			MSG_WriteByte (buf, cmd->buttons);
-		MSG_WriteByte (buf, cmd->impulse);
+			MSG_WriteAngle (buf, cl.playerview[pnum].viewangles[i]);
+	}
 
-		if (bits & (1u<<31))
-		{
-			MSG_WriteShort (buf, cmd->cursor_screen[0] * 32767.0f);
-			MSG_WriteShort (buf, cmd->cursor_screen[1] * 32767.0f);
-			MSG_WriteFloat (buf, cmd->cursor_start[0]);
-			MSG_WriteFloat (buf, cmd->cursor_start[1]);
-			MSG_WriteFloat (buf, cmd->cursor_start[2]);
-			MSG_WriteFloat (buf, cmd->cursor_impact[0]);
-			MSG_WriteFloat (buf, cmd->cursor_impact[1]);
-			MSG_WriteFloat (buf, cmd->cursor_impact[2]);
-			MSG_WriteEntity (buf, cmd->cursor_entitynumber);
-		}
+	MSG_WriteShort (buf, cmd->forwardmove);
+	MSG_WriteShort (buf, cmd->sidemove);
+	MSG_WriteShort (buf, cmd->upmove);
+
+	bits = cmd->buttons;
+	if (cls.fteprotocolextensions2 & PEXT2_PRYDONCURSOR)
+	{
+		if (cmd->cursor_screen[0] || cmd->cursor_screen[1] ||
+			cmd->cursor_start[0] || cmd->cursor_start[1] || cmd->cursor_start[2] ||
+			cmd->cursor_impact[0] || cmd->cursor_impact[1] || cmd->cursor_impact[2] ||
+			cmd->cursor_entitynumber)
+			bits |= (1u<<31);	//set it if there's actually something to send.
+		MSG_WriteLong (buf, bits);
+	}
+	else if (cls.protocol_nq >= CPNQ_DP6)
+	{
+		MSG_WriteLong (buf, bits);
+		bits |= (1u<<31);	//unconditionally set it (without writing it)
+	}
+	else
+		MSG_WriteByte (buf, cmd->buttons);
+	MSG_WriteByte (buf, cmd->impulse);
+
+	if (bits & (1u<<31))
+	{
+		MSG_WriteShort (buf, cmd->cursor_screen[0] * 32767.0f);
+		MSG_WriteShort (buf, cmd->cursor_screen[1] * 32767.0f);
+		MSG_WriteFloat (buf, cmd->cursor_start[0]);
+		MSG_WriteFloat (buf, cmd->cursor_start[1]);
+		MSG_WriteFloat (buf, cmd->cursor_start[2]);
+		MSG_WriteFloat (buf, cmd->cursor_impact[0]);
+		MSG_WriteFloat (buf, cmd->cursor_impact[1]);
+		MSG_WriteFloat (buf, cmd->cursor_impact[2]);
+		MSG_WriteEntity (buf, cmd->cursor_entitynumber);
 	}
 }
 
@@ -1411,26 +1483,31 @@ void CLNQ_SendCmd(sizebuf_t *buf)
 	CL_ClearPendingCommands();
 
 	//inputs are only sent once we receive an entity.
-	if (cls.signon == 4)
-	{
-		for (seat = 0; seat < cl.splitclients; seat++)
-		{
-			// send the unreliable message
-//			if (independantphysics[seat].impulse && !cls.netchan.message.cursize)
-//				CLNQ_SendMove (&cl.outframes[i].cmd[seat], seat, &cls.netchan.message);
-//			else
-				CLNQ_SendMove (&cl.outframes[i].cmd[seat], seat, buf);
-		}
-	}
+	if (cls.fteprotocolextensions2 & PEXT2_VRINPUTS)
+		CLFTE_SendVRCmd(buf, (cls.signon != 4 || cls.state == ca_connected)?0:cl.splitclients);
 	else
-		MSG_WriteByte (buf, clc_nop);
-
-	for (i = 0; i < cl.numackframes; i++)
 	{
-		MSG_WriteByte(buf, clcdp_ackframe);
-		MSG_WriteLong(buf, cl.ackframes[i]);
+		if (cls.signon == 4)
+		{
+			for (seat = 0; seat < cl.splitclients; seat++)
+			{
+				// send the unreliable message
+	//			if (independantphysics[seat].impulse && !cls.netchan.message.cursize)
+	//				CLNQ_SendMove (&cl.outframes[i].cmd[seat], seat, &cls.netchan.message);
+	//			else
+					CLNQ_SendMove (&cl.outframes[i].cmd[seat], seat, buf);
+			}
+		}
+		else
+			MSG_WriteByte (buf, clc_nop);
+
+		for (i = 0; i < cl.numackframes; i++)
+		{
+			MSG_WriteByte(buf, clcdp_ackframe);
+			MSG_WriteLong(buf, cl.ackframes[i]);
+		}
+		cl.numackframes = 0;
 	}
-	cl.numackframes = 0;
 }
 #else
 void Name_Callback(struct cvar_s *var, char *oldvalue)
@@ -1924,52 +2001,57 @@ qboolean CLQW_SendCmd (sizebuf_t *buf, qboolean actuallysend)
 	}
 	CL_ClearPendingCommands();
 
-	cmd = &cl.outframes[curframe].cmd[0];
-	if (cmd->cursor_screen[0] || cmd->cursor_screen[1] || cmd->cursor_entitynumber ||
-		cmd->cursor_start[0] || cmd->cursor_start[1] || cmd->cursor_start[2] ||
-		cmd->cursor_impact[0] || cmd->cursor_impact[1] || cmd->cursor_impact[2])
+	if (cls.fteprotocolextensions2 & PEXT2_VRINPUTS)
+		dontdrop = CLFTE_SendVRCmd(buf, clientcount);
+	else
 	{
-		MSG_WriteByte (buf, clcfte_prydoncursor);
-		MSG_WriteShort(buf, cmd->cursor_screen[0] * 32767.0f);
-		MSG_WriteShort(buf, cmd->cursor_screen[1] * 32767.0f);
-		MSG_WriteFloat(buf, cmd->cursor_start[0]);
-		MSG_WriteFloat(buf, cmd->cursor_start[1]);
-		MSG_WriteFloat(buf, cmd->cursor_start[2]);
-		MSG_WriteFloat(buf, cmd->cursor_impact[0]);
-		MSG_WriteFloat(buf, cmd->cursor_impact[1]);
-		MSG_WriteFloat(buf, cmd->cursor_impact[2]);
-		MSG_WriteEntity(buf, cmd->cursor_entitynumber);
+		cmd = &cl.outframes[curframe].cmd[0];
+		if (cmd->cursor_screen[0] || cmd->cursor_screen[1] || cmd->cursor_entitynumber ||
+			cmd->cursor_start[0] || cmd->cursor_start[1] || cmd->cursor_start[2] ||
+			cmd->cursor_impact[0] || cmd->cursor_impact[1] || cmd->cursor_impact[2])
+		{
+			MSG_WriteByte (buf, clcfte_prydoncursor);
+			MSG_WriteShort(buf, cmd->cursor_screen[0] * 32767.0f);
+			MSG_WriteShort(buf, cmd->cursor_screen[1] * 32767.0f);
+			MSG_WriteFloat(buf, cmd->cursor_start[0]);
+			MSG_WriteFloat(buf, cmd->cursor_start[1]);
+			MSG_WriteFloat(buf, cmd->cursor_start[2]);
+			MSG_WriteFloat(buf, cmd->cursor_impact[0]);
+			MSG_WriteFloat(buf, cmd->cursor_impact[1]);
+			MSG_WriteFloat(buf, cmd->cursor_impact[2]);
+			MSG_WriteEntity(buf, cmd->cursor_entitynumber);
+		}
+
+		MSG_WriteByte (buf, clc_move);
+
+		// save the position for a checksum qbyte
+		checksumIndex = buf->cursize;
+		MSG_WriteByte (buf, 0);
+
+		// write our lossage percentage
+		lost = CL_CalcNet(r_netgraph.value);
+		MSG_WriteByte (buf, (qbyte)lost);
+
+		firstsize=0;
+		for (plnum = 0; plnum<clientcount; plnum++)
+		{
+			cmd = &cl.outframes[curframe].cmd[plnum];
+
+			if (plnum)
+				MSG_WriteByte (buf, clc_move);
+
+			dontdrop = CL_WriteDeltas(plnum, buf) || dontdrop;
+
+			if (!firstsize)
+				firstsize = buf->cursize;
+		}
+
+	// calculate a checksum over the move commands
+
+		buf->data[checksumIndex] = COM_BlockSequenceCRCByte(
+			buf->data + checksumIndex + 1, firstsize - checksumIndex - 1,
+			seq_hash);
 	}
-
-	MSG_WriteByte (buf, clc_move);
-
-	// save the position for a checksum qbyte
-	checksumIndex = buf->cursize;
-	MSG_WriteByte (buf, 0);
-
-	// write our lossage percentage
-	lost = CL_CalcNet(r_netgraph.value);
-	MSG_WriteByte (buf, (qbyte)lost);
-
-	firstsize=0;
-	for (plnum = 0; plnum<clientcount; plnum++)
-	{
-		cmd = &cl.outframes[curframe].cmd[plnum];
-
-		if (plnum)
-			MSG_WriteByte (buf, clc_move);
-
-		dontdrop = CL_WriteDeltas(plnum, buf) || dontdrop;
-
-		if (!firstsize)
-			firstsize = buf->cursize;
-	}
-
-// calculate a checksum over the move commands
-
-	buf->data[checksumIndex] = COM_BlockSequenceCRCByte(
-		buf->data + checksumIndex + 1, firstsize - checksumIndex - 1,
-		seq_hash);
 
 	// request delta compression of entities
 	if (cls.netchan.outgoing_sequence - cl.validsequence >= UPDATE_BACKUP-1)
@@ -2599,6 +2681,7 @@ void CL_InitInput (void)
 
 	Cvar_Register (&cl_c2sdupe, inputnetworkcvargroup);
 	Cvar_Register (&cl_c2sImpulseBackup, inputnetworkcvargroup);
+	Cvar_Register (&cl_c2sMaxRedundancy, inputnetworkcvargroup);
 	Cvar_Register (&cl_c2spps, inputnetworkcvargroup);
 	Cvar_Register (&cl_queueimpulses, inputnetworkcvargroup);
 	Cvar_Register (&cl_netfps, inputnetworkcvargroup);

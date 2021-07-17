@@ -501,6 +501,13 @@ enum {
 #define clcfte_prydoncursor		82
 #define clcfte_voicechat		83
 #define clcfte_brushedit		84
+#define clcfte_move				85	//part of PEXT2_VRINPUTS. replaces clc_move+clcfte_prydoncursor+clcdp_ackframe
+
+#define VRM_LOSS	(1u<<0)	//for server packetloss reports
+#define VRM_DELAY	(1u<<1)	//for server to compute lag properly.
+#define VRM_SEATS	(1u<<2) //for splitscreen to work properly
+#define VRM_FRAMES	(1u<<3) //number of input frames in this packet.
+#define VRM_ACKS	(1u<<4)	//number of sequence acks included in message.
 
 //==============================================
 

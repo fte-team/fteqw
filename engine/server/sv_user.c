@@ -7931,6 +7931,124 @@ done:
 		SV_ClientPrintf(host_client, PRINT_HIGH, "qcrequest \"%s\" not supported\n", fname);
 }
 
+static double SVFTE_ExecuteClientMove(client_t *controller)
+{
+	client_t *split = controller;
+	unsigned int flags = MSG_ReadUInt64();
+	unsigned int seats = (flags & VRM_SEATS)?MSG_ReadUInt64():1;
+	unsigned int frames = (flags & VRM_FRAMES)?MSG_ReadUInt64():3;
+	unsigned int loss = (flags & VRM_LOSS)?MSG_ReadByte():0;
+	double delay = (flags & VRM_DELAY)?MSG_ReadByte()/10000.0:0;	//networked as 10ths of a millisecond.
+	unsigned int numacks = (flags & VRM_ACKS)?MSG_ReadUInt64():0;
+	usercmd_t old;
+
+	unsigned int seat, frame, a;
+	qboolean ran;
+
+	for (a = 0; a < numacks; a++)
+	{
+		controller->delta_sequence = MSG_ReadLong();
+		if (controller->delta_sequence == -1)
+		{
+			unsigned int e;
+			if (controller->pendingdeltabits)
+				controller->pendingdeltabits[0] = UF_REMOVE;
+			if (host_client->pendingcsqcbits)
+				for (e = 1; e < host_client->max_net_ents; e++)
+					if (host_client->pendingcsqcbits[e] & SENDFLAGS_PRESENT)
+						host_client->pendingcsqcbits[e] |= SENDFLAGS_USABLE;
+		}
+		SV_AckEntityFrame(controller, controller->delta_sequence);
+	}
+
+	for (seat = 0; seat < seats; seat++)
+	{
+		if (!split)
+		{	//err, they sent too many seats... assume we kicked one.
+			for (frame = 0; frame < frames; frame++)
+				MSGFTE_ReadDeltaUsercmd(&nullcmd, &old);
+			continue;
+		}
+
+		host_client = split;
+		sv_player = split->edict;
+
+		split->lossage = loss;
+		split->localtime = loss;
+
+		//all sorts of reasons why we might not want to do physics here and now.
+		split->isindependant = !(sv_nqplayerphysics.ival || split->state < cs_spawned || SV_PlayerPhysicsQC || sv.paused || !sv.world.worldmodel || sv.world.worldmodel->loadstate != MLS_LOADED);
+
+		ran = false;
+		old = nullcmd;
+		for (frame = 0; frame < frames; frame++)
+		{
+			MSGFTE_ReadDeltaUsercmd(&old, &split->lastcmd);
+			old = split->lastcmd;
+
+			if (split->penalties & BAN_CRIPPLED)
+			{
+				split->lastcmd.forwardmove = 0;
+				split->lastcmd.sidemove = 0;
+				split->lastcmd.upmove = 0;
+			}
+
+			if (split->state == cs_spawned)
+			{
+				if (split->lastcmd.impulse)
+					split->edict->v->impulse = split->lastcmd.impulse;
+				if (split->isindependant)
+				{	//this protocol uses bigger timestamps instead of msecs
+					unsigned int curtime = sv.time*1000;
+					if (split->lastcmd.servertime < split->lastruncmd)
+					{
+						if (sv_showpredloss.ival)
+							Con_Printf("%s: client jumped %u msecs backwards (anti speed cheat)\n", split->name, split->lastruncmd - split->lastcmd.servertime);
+					}
+					else if (split->lastruncmd < split->lastcmd.servertime)
+					{
+						if (split->lastcmd.servertime > curtime)
+						{
+							//from last map?... attempted speedcheat?
+							if (sv_showpredloss.ival)
+								Con_Printf("%s: client is %u msecs in the future (anti speed cheat)\n", split->name, split->lastcmd.servertime - curtime);
+							split->lastcmd.servertime = curtime;
+						}
+
+						if (!ran)
+						{
+							SV_PreRunCmd();
+							ran=true;
+						}
+
+						split->lastcmd.msec = split->lastcmd.servertime - split->lastruncmd;
+						SV_RunCmd (&split->lastcmd, false);
+						split->lastruncmd = split->lastcmd.servertime;
+					}
+				}
+				else
+				{
+					SV_SetEntityButtons(split->edict, split->lastcmd.buttons);
+					split->lastcmd.buttons = 0;
+				}
+			}
+		}
+		if (ran)
+			SV_PostRunCmd();
+
+		//for framerate calcs
+		if (split->frameunion.frames)
+			split->frameunion.frames[split->netchan.outgoing_sequence&UPDATE_MASK].move_msecs = split->lastcmd.msec;
+		split->lastcmd.msec = 0;
+
+		split = split->controlled;
+	}
+
+	host_client = controller;
+	sv_player = host_client->edict;
+	return delay;
+}
+
 /*
 ===================
 SV_ExecuteClientMessage
@@ -8053,6 +8171,9 @@ void SV_ExecuteClientMessage (client_t *cl)
 			cl->delta_sequence = MSG_ReadByte ();
 			break;
 
+		case clcfte_move:
+			frame->ping_time -= SVFTE_ExecuteClientMove(cl);
+			break;
 		case clc_move:
 			if (split == cl)
 			{
@@ -8069,27 +8190,18 @@ void SV_ExecuteClientMessage (client_t *cl)
 				if (split)
 					split->lossage = cl->lossage;
 			}
-			if (cl->fteprotocolextensions2 & PEXT2_VRINPUTS)
+			MSGQW_ReadDeltaUsercmd (&nullcmd, &oldest, PROTOCOL_VERSION_QW);
+			oldest.fservertime = frame->laggedtime;	//not very accurate, but our best guess.
+			oldest.servertime = frame->laggedtime*1000;	//not very accurate
+			if (split)
 			{
-				MSGFTE_ReadDeltaUsercmd (&nullcmd, &oldest);
-				MSGFTE_ReadDeltaUsercmd (&oldest, &oldcmd);
-				MSGFTE_ReadDeltaUsercmd (&oldcmd, &newcmd);
+				Vector2Copy(split->lastcmd.cursor_screen, oldest.cursor_screen);
+				VectorCopy(split->lastcmd.cursor_start, oldest.cursor_start);
+				VectorCopy(split->lastcmd.cursor_impact, oldest.cursor_impact);
+				oldest.cursor_entitynumber = split->lastcmd.cursor_entitynumber;
 			}
-			else
-			{
-				MSGQW_ReadDeltaUsercmd (&nullcmd, &oldest, PROTOCOL_VERSION_QW);
-				oldest.fservertime = frame->laggedtime;	//not very accurate, but our best guess.
-				oldest.servertime = frame->laggedtime*1000;	//not very accurate
-				if (split)
-				{
-					Vector2Copy(split->lastcmd.cursor_screen, oldest.cursor_screen);
-					VectorCopy(split->lastcmd.cursor_start, oldest.cursor_start);
-					VectorCopy(split->lastcmd.cursor_impact, oldest.cursor_impact);
-					oldest.cursor_entitynumber = split->lastcmd.cursor_entitynumber;
-				}
-				MSGQW_ReadDeltaUsercmd (&oldest, &oldcmd, PROTOCOL_VERSION_QW);
-				MSGQW_ReadDeltaUsercmd (&oldcmd, &newcmd, PROTOCOL_VERSION_QW);
-			}
+			MSGQW_ReadDeltaUsercmd (&oldest, &oldcmd, PROTOCOL_VERSION_QW);
+			MSGQW_ReadDeltaUsercmd (&oldcmd, &newcmd, PROTOCOL_VERSION_QW);
 			if (!split)
 				break;		// either someone is trying to cheat, or they sent input commands for splitscreen clients they no longer own.
 
@@ -8168,54 +8280,20 @@ void SV_ExecuteClientMessage (client_t *cl)
 						split->isindependant = true;
 						SV_PreRunCmd();
 
-						if (cl->fteprotocolextensions2 & PEXT2_VRINPUTS)
-						{	//this protocol uses bigger timestamps instead of msecs
-							usercmd_t *c;
-							unsigned int curtime = sv.time*1000;
-							if (newcmd.servertime < split->lastruncmd)
-							{
-								if (sv_showpredloss.ival)
-									Con_Printf("%s: client jumped %u msecs backwards (anti speed cheat)\n", split->name, split->lastruncmd - newcmd.servertime);
-							}
-							else while (split->lastruncmd < newcmd.servertime)
-							{
-								//try to find the oldest (valid) command.
-								if (split->lastruncmd < oldest.servertime)
-									c = &oldest;
-								else if (split->lastruncmd < oldcmd.servertime)
-									c = &oldcmd;
-								else
-									c = &newcmd;
-
-								if (c->servertime > curtime)
-								{
-									if (sv_showpredloss.ival)
-										Con_Printf("%s: client is %u msecs in the future (anti speed cheat)\n", split->name, c->servertime - curtime);
-									break;	//from last map?... attempted speedcheat?
-								}
-
-								c->msec = c->servertime - split->lastruncmd;
-								SV_RunCmd (c, false);
-								split->lastruncmd = c->servertime;
-							}
-						}
-						else
+						if (net_drop < 20)
 						{
-							if (net_drop < 20)
+							while (net_drop > 2)
 							{
-								while (net_drop > 2)
-								{
-									SV_RunCmd (&split->lastcmd, false);
-									net_drop--;
-								}
-								if (net_drop > 1)
-									SV_RunCmd (&oldest, false);
-								if (net_drop > 0)
-									SV_RunCmd (&oldcmd, false);
+								SV_RunCmd (&split->lastcmd, false);
+								net_drop--;
 							}
-							SV_RunCmd (&newcmd, false);
-							host_client->lastruncmd = sv.time*1000;
+							if (net_drop > 1)
+								SV_RunCmd (&oldest, false);
+							if (net_drop > 0)
+								SV_RunCmd (&oldcmd, false);
 						}
+						SV_RunCmd (&newcmd, false);
+						host_client->lastruncmd = sv.time*1000;
 
 						if (!SV_PlayerPhysicsQC || host_client->spectator)
 							SV_PostRunCmd();
@@ -8542,66 +8620,58 @@ void SVNQ_ReadClientMove (qboolean forceangle16)
 	else
 		host_client->last_sequence = 0;
 
-	if (host_client->fteprotocolextensions2 & PEXT2_VRINPUTS)
-	{	//this actually drops from 37 to 23 bytes (according to showpackets), so that's cool. obviously it goes up when vr inputs are actually networked...
-		MSGFTE_ReadDeltaUsercmd(&nullcmd, &cmd);
-		cmd.fservertime = cmd.servertime/1000.0;
-	}
-	else
+	cmd = nullcmd;
+
+	//read the time, woo... should be an ack of our serverside time.
+	cmd.fservertime = MSG_ReadFloat ();
+	if (cmd.fservertime < from->fservertime)
+		cmd.fservertime = from->fservertime;
+	if (cmd.fservertime > sv.time)
+		cmd.fservertime = sv.time;
+	if (cmd.fservertime < sv.time - 2)	//if you do lag more than this, you won't get your free time.
+		cmd.fservertime = sv.time - 2;
+	cmd.servertime = cmd.fservertime*1000;
+
+	//read angles
+	for (i=0 ; i<3 ; i++)
 	{
-		cmd = nullcmd;
-
-		//read the time, woo... should be an ack of our serverside time.
-		cmd.fservertime = MSG_ReadFloat ();
-		if (cmd.fservertime < from->fservertime)
-			cmd.fservertime = from->fservertime;
-		if (cmd.fservertime > sv.time)
-			cmd.fservertime = sv.time;
-		if (cmd.fservertime < sv.time - 2)	//if you do lag more than this, you won't get your free time.
-			cmd.fservertime = sv.time - 2;
-		cmd.servertime = cmd.fservertime*1000;
-
-		//read angles
-		for (i=0 ; i<3 ; i++)
-		{
-			float a;
-			if (forceangle16)
-				a = MSG_ReadAngle16 ();
-			else
-				a = MSG_ReadAngle ();
-
-			cmd.angles[i] = ANGLE2SHORT(a);
-		}
-
-		// read movement
-		cmd.forwardmove = MSG_ReadShort ();
-		cmd.sidemove = MSG_ReadShort ();
-		cmd.upmove = MSG_ReadShort ();
-
-		// read buttons
-		if (host_client->protocol == SCP_DARKPLACES6 || host_client->protocol == SCP_DARKPLACES7)
-			cmd.buttons = MSG_ReadLong() | (1u<<31);
-		else if (host_client->fteprotocolextensions2 & PEXT2_PRYDONCURSOR)
-			cmd.buttons = MSG_ReadLong();
+		float a;
+		if (forceangle16)
+			a = MSG_ReadAngle16 ();
 		else
-			cmd.buttons = MSG_ReadByte ();
+			a = MSG_ReadAngle ();
 
-		//impulse...
-		cmd.impulse = MSG_ReadByte ();
-
-		//weapon extension
-		if (cmd.buttons & (1u<<30))
-			cmd.weapon = MSG_ReadLong();
-		else
-			cmd.weapon = 0;
-
-		//cursor extension
-		if (cmd.buttons & (1u<<31))
-			SV_ReadPrydonCursor(&cmd);
-
-		//clear out extension buttons that are part of the protocol rather than actual buttons..
-		cmd.buttons &= ~((1u<<30)|(1u<<31));
+		cmd.angles[i] = ANGLE2SHORT(a);
 	}
+
+	// read movement
+	cmd.forwardmove = MSG_ReadShort ();
+	cmd.sidemove = MSG_ReadShort ();
+	cmd.upmove = MSG_ReadShort ();
+
+	// read buttons
+	if (host_client->protocol == SCP_DARKPLACES6 || host_client->protocol == SCP_DARKPLACES7)
+		cmd.buttons = MSG_ReadLong() | (1u<<31);
+	else if (host_client->fteprotocolextensions2 & PEXT2_PRYDONCURSOR)
+		cmd.buttons = MSG_ReadLong();
+	else
+		cmd.buttons = MSG_ReadByte ();
+
+	//impulse...
+	cmd.impulse = MSG_ReadByte ();
+
+	//weapon extension
+	if (cmd.buttons & (1u<<30))
+		cmd.weapon = MSG_ReadLong();
+	else
+		cmd.weapon = 0;
+
+	//cursor extension
+	if (cmd.buttons & (1u<<31))
+		SV_ReadPrydonCursor(&cmd);
+
+	//clear out extension buttons that are part of the protocol rather than actual buttons..
+	cmd.buttons &= ~((1u<<30)|(1u<<31));
 
 	//figure out ping
 	frame->ping_time = sv.time - cmd.fservertime;
@@ -8784,6 +8854,45 @@ void SVNQ_ExecuteClientMessage (client_t *cl)
 //			cl->delta_sequence = MSG_ReadByte ();
 //			break;
 
+		case clcfte_move:
+			{
+				int seq = (unsigned short)MSG_ReadShort ();
+
+				unsigned int oldservertime = cl->lastcmd.servertime;
+				float delay = SVFTE_ExecuteClientMove(cl);
+				client_frame_t *frame;
+
+				//this is the input sequence that we'll need to ack later (no
+				if (seq < (host_client->last_sequence&0xffff))
+					host_client->last_sequence += 0x10000;	//wrapped
+				host_client->last_sequence = (host_client->last_sequence&0xffff0000) | seq;
+
+				if (cl->lastsequence_acknowledged)
+				{
+					frame = &host_client->frameunion.frames[cl->netchan.incoming_acknowledged & UPDATE_MASK];
+					if (frame->ping_time == -1)
+						frame->ping_time = (realtime - frame->senttime) - delay;
+				}
+				else
+				{
+					frame = &host_client->frameunion.frames[cl->netchan.incoming_acknowledged & UPDATE_MASK];
+					frame->ping_time = (sv.time - cl->lastcmd.servertime/1000.0) - delay;
+				}
+				frame->move_msecs = cl->lastcmd.servertime - oldservertime;
+				if (frame->ping_time*1000 > sv_minping.value+1)
+				{
+					host_client->delay -= 0.001;
+					if (host_client->delay < 0)
+						host_client->delay = 0;
+				}
+				if (frame->ping_time*1000 < sv_minping.value)
+				{
+					host_client->delay += 0.001;
+					if (host_client->delay > 1)
+						host_client->delay = 1;
+				}
+			}
+			break;
 		case clc_move:	//bytes: 16(nq), 19(proquake/fitz), 56(dp7)
 			if (cl->state != cs_spawned)
 				return;	//shouldn't be sending moves at this point. typically they're stale, left from the previous map. this results in crashes if the protocol is different.

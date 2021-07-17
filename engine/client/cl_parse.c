@@ -500,7 +500,7 @@ void CL_AckedInputFrame(int inseq, int outseq, qboolean worldstateokay)
 				cls.latency += 0.001;	// drift up, so correction are needed
 		}
 
-		if (cl.inframes[inseq&UPDATE_MASK].invalid)
+		if (cls.protocol != CP_NETQUAKE && cl.inframes[inseq&UPDATE_MASK].invalid)
 			frame->latency = -4;
 
 		//and mark any missing ones as dropped

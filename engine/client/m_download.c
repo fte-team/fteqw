@@ -4946,7 +4946,6 @@ static void MD_Draw (int x, int y, struct menucustom_s *c, struct emenu_s *m)
 
 static qboolean MD_Key (struct menucustom_s *c, struct emenu_s *m, int key, unsigned int unicode)
 {
-	extern qboolean	keydown[];
 	qboolean ctrl = keydown[K_LCTRL] || keydown[K_RCTRL];
 	package_t *p, *p2;
 	struct packagedep_s *dep, *dep2;

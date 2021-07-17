@@ -494,7 +494,6 @@ static void Con_Editor_LineChanged(console_t *con, conline_t *line)
 }
 qboolean Con_Editor_Key(console_t *con, unsigned int unicode, int key)
 {
-	extern qboolean	keydown[K_MAX];
 	qboolean altdown = keydown[K_LALT] || keydown[K_RALT];
 	qboolean ctrldown = keydown[K_LCTRL] || keydown[K_RCTRL];
 	qboolean shiftdown = keydown[K_LSHIFT] || keydown[K_RSHIFT];

@@ -430,7 +430,6 @@ static qboolean Prompt_MenuKeyEvent(struct menu_s *gm, qboolean isdown, unsigned
 	promptbutton_t action;
 	void (*callback)(void *, promptbutton_t) = m->callback;
 	void *ctx = m->ctx;
-	extern qboolean keydown[];
 
 	if (key == K_MOUSE1)
 	{	//mouse events fire their action on release.

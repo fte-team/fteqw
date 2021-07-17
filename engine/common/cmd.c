@@ -2798,7 +2798,6 @@ static void	Cmd_ExecuteStringGlobalsAreEvil (const char *text, int level)
 			int execlevel;
 
 #ifdef HAVE_CLIENT	//an emergency escape mechansim, to avoid infinatly recursing aliases.
-			extern qboolean keydown[];
 			extern unsigned int con_splitmodifier;
 
 			if (keydown[K_SHIFT] && (keydown[K_LCTRL]||keydown[K_RCTRL]) && (keydown[K_LALT]||keydown[K_RALT]) && !isDedicated)

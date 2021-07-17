@@ -584,7 +584,6 @@ static void MenuDrawItems(int xpos, int ypos, menuoption_t *option, emenu_t *men
 			{
 				srect_t srect;
 				menuoption_t *opt2;
-				extern qboolean keydown[];
 				int maxy = option->frame.common.posy;
 				option->frame.common.width = 16;
 				option->frame.common.posx = vid.width - option->frame.common.width - xpos;
@@ -1986,7 +1985,6 @@ void M_Complex_Key(emenu_t *currentmenu, int key, int unicode)
 			if (key != K_ESCAPE && key != '`')
 			{
 				int modifiers = 0;
-				extern qboolean keydown[];
 				if (keydown[K_LSHIFT] && key != K_LSHIFT)
 					modifiers |= 1;
 				if (keydown[K_RSHIFT] && key != K_RSHIFT)
@@ -2370,7 +2368,7 @@ void M_Menu_Main_f (void)
 			b->common.height = 20;
 			y += 20;
 
-			b=MC_AddConsoleCommandHexen2BigFont	(mainm, 80, y,	"Mods", "menu_modshelp\n");
+			b=MC_AddConsoleCommandHexen2BigFont	(mainm, 80, y,	"Mods", "menu_mods\n");
 			b->common.width = 12*20;
 			b->common.height = 20;
 			y += 20;

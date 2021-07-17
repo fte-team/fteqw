@@ -215,7 +215,6 @@ static unsigned int hsvtorgb(float inh, float s, float v)
 
 qboolean SetupMenuColour (union menuoption_s *option,struct emenu_s *menu, int key)
 {
-	extern qboolean	keydown[K_MAX];
 	setupmenu_t *info = menu->data;
 	unsigned int *ptr = (*option->button.text == 'T')?&info->topcolour:&info->lowercolour;
 

@@ -2815,7 +2815,6 @@ static qboolean MP_KeyEvent(menu_t *menu, qboolean isdown, unsigned int devid, i
 #ifdef _DEBUG
 		if (key == 'c')
 		{
-			extern qboolean	keydown[K_MAX];
 			if ((keydown[K_LCTRL] || keydown[K_RCTRL]) && (keydown[K_LSHIFT] || keydown[K_RSHIFT]))
 			{
 				MP_Shutdown();

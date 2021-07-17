@@ -323,7 +323,6 @@ static qboolean SL_ServerKey (menucustom_t *ths, emenu_t *menu, int key, unsigne
 	int oldselection;
 	serverlist_t *info = (serverlist_t*)(menu + 1);
 	serverinfo_t *server;
-	extern qboolean	keydown[];
 	qboolean ctrl = keydown[K_LCTRL] || keydown[K_RCTRL];
 
 	if (key == K_MOUSE1)
@@ -743,7 +742,6 @@ static qboolean SL_Key	(int key, emenu_t *menu)
 	{
 		char buf[64];
 		serverinfo_t *server = selectedserver.inuse?Master_InfoForServer(&selectedserver.adr, selectedserver.brokerid):NULL;
-		extern qboolean	keydown[];
 		qboolean ctrldown = keydown[K_LCTRL] || keydown[K_RCTRL];
 
 		if (key == K_ESCAPE || key == K_GP_BACK || key == K_MOUSE2)
@@ -954,7 +952,6 @@ static void SL_ServerPlayer (int x, int y, menucustom_t *ths, emenu_t *menu)
 
 static void SL_SliderDraw (int x, int y, menucustom_t *ths, emenu_t *menu)
 {
-	extern qboolean	keydown[K_MAX];
 	serverlist_t *info = (serverlist_t*)(menu + 1);
 
 	mpic_t *pic;

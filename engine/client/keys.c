@@ -34,7 +34,6 @@ void Key_ClearTyping (void);
 unsigned char	*key_lines[CON_EDIT_LINES_MASK+1];
 int		key_linepos;
 int		shift_down=false;
-int		key_lastpress;
 
 int		edit_line=0;
 int		history_line=0;
@@ -45,15 +44,13 @@ unsigned int key_dest_absolutemouse;
 
 struct key_cursor_s key_customcursor[kc_max];
 
-int		key_count;			// incremented every key event
-
 int		key_bindmaps[2];
 char	*keybindings[K_MAX][KEY_MODIFIERSTATES];
 qbyte	bindcmdlevel[K_MAX][KEY_MODIFIERSTATES];	//should be a struct, but not due to 7 bytes wasted per on 64bit machines
 qboolean	consolekeys[K_MAX];	// if true, can't be rebound while in console
 int		keyshift[K_MAX];		// key to map to if shift held down in console
-int		key_repeats[K_MAX];	// if > 1, it is autorepeating
-qboolean	keydown[K_MAX];
+unsigned int	keydown[K_MAX];	//	bitmask, for each device (to block autorepeat binds per-seat).
+//unsigned int	key_modifier[K_MAX];
 
 #define MAX_INDEVS 8
 
@@ -64,15 +61,15 @@ extern cvar_t con_displaypossibilities;
 cvar_t con_echochat = CVAR("con_echochat", "0");
 extern cvar_t cl_chatmode;
 
-static int KeyModifier (qboolean shift, qboolean alt, qboolean ctrl)
+static int KeyModifier (unsigned int shift, unsigned int alt, unsigned int ctrl, unsigned int devbit)
 {
 	int stateset = 0;
-	if (shift)
-		stateset |= 1;
-	if (alt)
-		stateset |= 2;
-	if (ctrl)
-		stateset |= 4;
+	if (shift&devbit)
+		stateset |= KEY_MODIFIER_SHIFT;
+	if (alt&devbit)
+		stateset |= KEY_MODIFIER_ALT;
+	if (ctrl&devbit)
+		stateset |= KEY_MODIFIER_CTRL;
 
 	return stateset;
 }
@@ -2896,11 +2893,13 @@ On some systems, keys and (uni)char codes will be entirely separate events.
 */
 void Key_Event (unsigned int devid, int key, unsigned int unicode, qboolean down)
 {
+	unsigned int devbit = 1u<<devid;
 	int bl, bkey;
 	char	*dc, *uc;
 	char	p[16];
 	int modifierstate;
 	int conkey = consolekeys[key] || ((unicode || key == '`') && (key != '`' || key_linepos>0));	//if the input line is empty, allow ` to toggle the console, otherwise enter it as actual text.
+	qboolean wasdown = !!(keydown[key]&devbit);
 
 //	Con_Printf ("%i : %i : %i\n", key, unicode, down); //@@@
 
@@ -2912,25 +2911,15 @@ void Key_Event (unsigned int devid, int key, unsigned int unicode, qboolean down
 	if (key == K_RSHIFT && !keydown[K_RSHIFT] && keydown[K_LSHIFT])
 		Key_Event(devid, K_LSHIFT, 0, false);
 
-	modifierstate = KeyModifier(keydown[K_LSHIFT]|keydown[K_RSHIFT], keydown[K_LALT]|keydown[K_RALT], keydown[K_LCTRL]|keydown[K_RCTRL]);
+	modifierstate = KeyModifier(keydown[K_LSHIFT]|keydown[K_RSHIFT], keydown[K_LALT]|keydown[K_RALT], keydown[K_LCTRL]|keydown[K_RCTRL], devbit);
 
-	keydown[key] = down;
+	if (down)
+		keydown[key] |= devbit;
+	else
+		keydown[key] &= ~devbit;
 
-	if (!down)
-		key_repeats[key] = 0;
-
-	key_lastpress = key;
-	key_count++;
-	if (key_count <= 0)
-	{
-		return;		// just catching keys for Con_NotifyBox
-	}
-
-// update auto-repeat status
 	if (down)
 	{
-		key_repeats[key]++;
-			
 //		if (key >= 200 && !keybindings[key])	//is this too annoying?
 //			Con_Printf ("%s is unbound, hit F4 to set.\n", Key_KeynumToString (key) );
 	}
@@ -3144,7 +3133,7 @@ void Key_Event (unsigned int devid, int key, unsigned int unicode, qboolean down
 	//anything else is a key binding.
 
 	/*don't auto-repeat binds as it breaks too many scripts*/
-	if (key_repeats[key] > 1)
+	if (down && wasdown)
 		return;
 
 	//first player is normally assumed anyway.
@@ -3255,10 +3244,7 @@ defaultedbind:
 					bl = bindcmdlevel[bkey][modifierstate];
 				}
 				else if (!Key_MouseShouldBeFree())
-				{
-					key_repeats[key] = 0;
 					return;
-				}
 			}
 		}
 	}
@@ -3303,9 +3289,6 @@ void Key_ClearStates (void)
 	int		i;
 
 	for (i=0 ; i<K_MAX ; i++)
-	{
-		keydown[i] = false;
-		key_repeats[i] = false;
-	}
+		keydown[i] = 0;
 }
 

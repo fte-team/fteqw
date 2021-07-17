@@ -692,7 +692,7 @@ int EZHud_Draw(int seat, float viewx, float viewy, float viewwidth, float viewhe
 	return true;
 }
 
-int keydown[K_MAX];
+unsigned int keydown[K_MAX];
 float cursor_x;
 float cursor_y;
 float mouse_x;

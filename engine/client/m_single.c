@@ -611,7 +611,6 @@ typedef struct {
 
 static void M_DemoDraw(int x, int y, menucustom_t *control, emenu_t *menu)
 {
-	extern qboolean	keydown[K_MAX];
 	char *text;
 	demomenu_t *info = menu->data;
 	demoitem_t *item, *lostit;

@@ -40,10 +40,10 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include "hud.h"
 #include "hud_editor.h"
 
-extern int keydown[];
-#define isShiftDown() false
-#define isCtrlDown() false
-#define isAltDown() false
+extern unsigned int keydown[];
+#define isShiftDown() (keydown[K_LSHIFT]||keydown[K_RSHIFT])
+#define isCtrlDown() (keydown[K_LCTRL]||keydown[K_RCTRL])
+#define isAltDown() (keydown[K_LALT]||keydown[K_RALT])
 
 #ifdef HAXX
 ez_tree_t help_control_tree;

@@ -1233,7 +1233,6 @@ static qintptr_t UI_SystemCalls(void *offset, quintptr_t mask, qintptr_t fn, con
 
 	case UI_KEY_ISDOWN:
 		{
-			extern qboolean	keydown[K_MAX];
 			unsigned int k = VM_LONG(arg[0]);
 			if (k < K_MAX && keydown[k])
 				VM_LONG(ret) = 1;

@@ -266,9 +266,8 @@ typedef enum	//highest has priority
 extern unsigned int key_dest_absolutemouse;	//if the active key dest bit is set, the mouse is absolute.
 extern unsigned int key_dest_mask;
 extern char *keybindings[K_MAX][KEY_MODIFIERSTATES];
-extern	int		key_repeats[K_MAX];
-extern	int		key_count;			// incremented every key event
-extern	int		key_lastpress;
+
+extern unsigned int keydown[K_MAX];	//bitmask of devices.
 
 enum
 {

@@ -3375,7 +3375,6 @@ static unsigned int tobit(unsigned int bitmask)
 }
 static void M_ModelViewerDraw(int x, int y, struct menucustom_s *c, struct emenu_s *m)
 {
-	extern qboolean keydown[];
 	static playerview_t pv;
 	entity_t ent;
 	vec3_t fwd, rgt, up;
@@ -4003,7 +4002,6 @@ static void M_ModelViewerDraw(int x, int y, struct menucustom_s *c, struct emenu
 }
 static qboolean M_ModelViewerKey(struct menucustom_s *c, struct emenu_s *m, int key, unsigned int unicode)
 {
-	extern qboolean keydown[];
 	modelview_t *mods = c->dptr;
 
 	if ((key == 'w' && !keydown[K_MOUSE1]) || key == K_MWHEELUP)

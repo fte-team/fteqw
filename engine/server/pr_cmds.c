@@ -7453,6 +7453,8 @@ static void QCBUILTIN PF_readcmd (pubprogfuncs_t *prinst, struct globalvars_s *p
 	s = PR_GetStringOfs(prinst, OFS_PARM0);
 
 	Cbuf_Execute();
+	if (svs.spawncount != spawncount || sv.state < ss_loading)
+		Host_EndGame("PF_readcmd: map changed before reading\n");
 	Cbuf_AddText (s, RESTRICT_LOCAL);
 
 	old = sv_redirected;

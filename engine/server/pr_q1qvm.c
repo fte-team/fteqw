@@ -1460,6 +1460,7 @@ static qintptr_t QVM_ReadCmd (void *offset, quintptr_t mask, const qintptr_t *ar
 	extern int sv_redirectedlang;
 	redirect_t old;
 	int oldl;
+	int spawncount = svs.spawncount;
 
 	char *s = VM_POINTER(arg[0]);
 	char *output = VM_POINTER(arg[1]);
@@ -1469,6 +1470,8 @@ static qintptr_t QVM_ReadCmd (void *offset, quintptr_t mask, const qintptr_t *ar
 		return -1;
 
 	Cbuf_Execute();	//FIXME: this code is flawed
+	if (svs.spawncount != spawncount || sv.state < ss_loading)
+		Host_EndGame("QVM_ReadCmd: Map changed before reading");
 	Cbuf_AddText (s, RESTRICT_LOCAL);
 
 	old = sv_redirected;
@@ -1480,6 +1483,9 @@ static qintptr_t QVM_ReadCmd (void *offset, quintptr_t mask, const qintptr_t *ar
 	Cbuf_Execute();
 	Q_strncpyz(output, sv_redirected_buf, outputlen);
 	SV_EndRedirect();
+
+	if (svs.spawncount != spawncount || sv.state < ss_loading)
+		Host_EndGame("QVM_ReadCmd: Map changed after reading");
 
 	if (old != RD_NONE)
 		SV_BeginRedirect(old, oldl);

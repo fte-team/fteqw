@@ -465,6 +465,7 @@ enum clcq2_ops_e
 	clcr1q2_multimoves = 6,	// for crappy clients that can't lerp
 
 	//fte-extended
+	clcq2_stringcmd_seat = 30,
 	clcq2_voicechat = 31
 };
 
@@ -502,6 +503,7 @@ enum {
 #define clcfte_voicechat		83
 #define clcfte_brushedit		84
 #define clcfte_move				85	//part of PEXT2_VRINPUTS. replaces clc_move+clcfte_prydoncursor+clcdp_ackframe
+#define clcfte_stringcmd_seat	86
 
 #define VRM_LOSS	(1u<<0)	//for server packetloss reports
 #define VRM_DELAY	(1u<<1)	//for server to compute lag properly.

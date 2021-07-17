@@ -1563,10 +1563,11 @@ typedef struct clcmdbuf_s {
 	struct clcmdbuf_s *next;
 	int len;
 	qboolean reliable;
+	unsigned int seat;
 	char command[4];	//this is dynamically allocated, so this is variably sized.
 } clcmdbuf_t;
-clcmdbuf_t *clientcmdlist;
-void VARGS CL_SendClientCommand(qboolean reliable, char *format, ...)
+static clcmdbuf_t *clientcmdlist;
+void VARGS CL_SendSeatClientCommand(qboolean reliable, unsigned int seat, char *format, ...)
 {
 	qboolean oldallow;
 	va_list		argptr;
@@ -1594,6 +1595,7 @@ void VARGS CL_SendClientCommand(qboolean reliable, char *format, ...)
 	strcpy(buf->command, string);
 	buf->len = strlen(buf->command);
 	buf->reliable = reliable;
+	buf->seat = seat;
 
 	//add to end of the list so that the first of the list is the first to be sent.
 	if (!clientcmdlist)
@@ -1606,6 +1608,17 @@ void VARGS CL_SendClientCommand(qboolean reliable, char *format, ...)
 	}
 
 	CL_AllowIndependantSendCmd(oldallow);
+}
+void VARGS CL_SendClientCommand(qboolean reliable, char *format, ...)
+{
+	va_list		argptr;
+	char		string[2048];
+
+	va_start (argptr, format);
+	Q_vsnprintfz (string,sizeof(string), format,argptr);
+	va_end (argptr);
+
+	CL_SendSeatClientCommand(reliable, 0, "%s", string);
 }
 
 //sometimes a server will quickly restart twice.
@@ -2090,13 +2103,6 @@ static void CL_SendUserinfoUpdate(void)
 	qboolean final = true;
 	char enckey[2048];
 	char encval[2048];
-	//handle splitscreen
-	char pl[64];
-
-	if (seat)
-		Q_snprintfz(pl, sizeof(pl), "%i ", seat);
-	else
-		*pl = 0;
 
 #ifdef Q3CLIENT
 	if (cls.protocol == CP_QUAKE3)
@@ -2121,7 +2127,6 @@ static void CL_SendUserinfoUpdate(void)
 			InfoBuf_ToString(info, userinfo, sizeof(userinfo), NULL, NULL, NULL, NULL, NULL);
 
 			MSG_WriteByte (&cls.netchan.message, clcq2_userinfo);
-			SZ_Write(&cls.netchan.message, pl, strlen(pl));
 			MSG_WriteString (&cls.netchan.message, userinfo);
 		}
 		return;
@@ -2145,24 +2150,27 @@ static void CL_SendUserinfoUpdate(void)
 
 		if (final && !bloboffset && *encval != '\xff' && *encval != '\xff')
 		{	//vanilla-compatible info.
-			s = va("%ssetinfo \"%s\" \"%s\"", pl, enckey, encval);
+			s = va("setinfo \"%s\" \"%s\"", enckey, encval);
 		}
 		else if (cls.fteprotocolextensions2 & PEXT2_INFOBLOBS)
 		{	//only flood servers that actually support it.
 			if (final)
-				s = va("%ssetinfo \"%s\" \"%s\" %u", pl, enckey, encval, (unsigned int)bloboffset);
+				s = va("setinfo \"%s\" \"%s\" %u", enckey, encval, (unsigned int)bloboffset);
 			else
-				s = va("%ssetinfo \"%s\" \"%s\" %u+", pl, enckey, encval, (unsigned int)bloboffset);
+				s = va("setinfo \"%s\" \"%s\" %u+", enckey, encval, (unsigned int)bloboffset);
 		}
 		else
 		{	//server doesn't support it, just ignore the key
 			InfoSync_Remove(&cls.userinfosync, 0);
 			return;
 		}
-		if (cls.protocol == CP_QUAKE2)
-			MSG_WriteByte (&cls.netchan.message, clcq2_stringcmd);
+		if (seat && (cls.fteprotocolextensions&PEXT_SPLITSCREEN))
+		{
+			MSG_WriteByte (&cls.netchan.message, (cls.protocol == CP_QUAKE2)?clcq2_stringcmd_seat:clcfte_stringcmd_seat);
+			MSG_WriteByte (&cls.netchan.message, seat);
+		}
 		else
-			MSG_WriteByte (&cls.netchan.message, clc_stringcmd);
+			MSG_WriteByte (&cls.netchan.message, (cls.protocol == CP_QUAKE2)?clcq2_stringcmd:clc_stringcmd);
 		MSG_WriteString (&cls.netchan.message, s);
 	}
 
@@ -2462,14 +2470,26 @@ void CL_SendCmd (double frametime, qboolean mainloop)
 					break;
 				if (!strncmp(clientcmdlist->command, "spawn", 5) && cls.userinfosync.numkeys && cl.haveserverinfo)
 					break;	//HACK: don't send the spawn until all pending userinfos have been flushed.
-				MSG_WriteByte (&cls.netchan.message, clc_stringcmd);
+				if (clientcmdlist->seat && (cls.fteprotocolextensions&PEXT_SPLITSCREEN))
+				{
+					MSG_WriteByte (&cls.netchan.message, clcfte_stringcmd_seat);
+					MSG_WriteByte (&cls.netchan.message, clientcmdlist->seat);
+				}
+				else
+					MSG_WriteByte (&cls.netchan.message, clc_stringcmd);
 				MSG_WriteString (&cls.netchan.message, clientcmdlist->command);
 			}
 			else
 			{
 				if (buf.cursize + 2+strlen(clientcmdlist->command)+100 <= buf.maxsize)
 				{
-					MSG_WriteByte (&buf, clc_stringcmd);
+					if (clientcmdlist->seat && (cls.fteprotocolextensions&PEXT_SPLITSCREEN))
+					{
+						MSG_WriteByte (&cls.netchan.message, clcfte_stringcmd_seat);
+						MSG_WriteByte (&cls.netchan.message, clientcmdlist->seat);
+					}
+					else
+						MSG_WriteByte (&buf, clc_stringcmd);
 					MSG_WriteString (&buf, clientcmdlist->command);
 				}
 			}
@@ -2653,7 +2673,7 @@ void CL_SendCvar_f (void)
 		val = "";
 	else
 		val = var->string;
-	CL_SendClientCommand(true, "sentcvar %s \"%s\"", name, val);
+	CL_SendSeatClientCommand(true, CL_TargettedSplit(false), "sentcvar %s \"%s\"", name, val);
 }
 
 /*

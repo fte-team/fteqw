@@ -3883,10 +3883,10 @@ void CL_Say (qboolean team, char *extra)
 		//the server is expected to use Cmd_Args and to strip first+last chars if the first is a quote. this is annoying and clumsy for mods to parse.
 #ifdef HAVE_LEGACY
 		if (!dpcompat_console.ival)
-			CL_SendClientCommand(true, "%s%s \"%s%s\"", split?va("%i ", split+1):"", team ? "say_team" : "say", extra?extra:"", sendtext);
+			CL_SendSeatClientCommand(true, split, "%s \"%s%s\"", team ? "say_team" : "say", extra?extra:"", sendtext);
 		else
 #endif
-			CL_SendClientCommand(true, "%s%s %s%s", split?va("%i ", split+1):"", team ? "say_team" : "say", extra?extra:"", sendtext);
+			CL_SendSeatClientCommand(true, split, "%s %s%s", team ? "say_team" : "say", extra?extra:"", sendtext);
 	}
 }
 

@@ -1275,6 +1275,7 @@ qboolean CL_AllowIndependantSendCmd(qboolean allow);	//returns previous state.
 
 void CL_FlushClientCommands(void);
 void VARGS CL_SendClientCommand(qboolean reliable, char *format, ...) LIKEPRINTF(2);
+void VARGS CL_SendSeatClientCommand(qboolean reliable, unsigned int seat, char *format, ...) LIKEPRINTF(3);
 float CL_FilterTime (double time, float wantfps, float limit, qboolean ignoreserver);
 int CL_RemoveClientCommands(char *command);
 

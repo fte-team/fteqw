@@ -1497,10 +1497,7 @@ qboolean	Cvar_Command (int level)
 		if (Cmd_FromGamecode() && cls.protocol == CP_QUAKEWORLD)
 		{	//don't bother even changing the cvar locally, just update the server's version.
 			//fixme: quake2/quake3 latching.
-			if (seat)
-				CL_SendClientCommand(true, "%i setinfo %s %s", seat+1, v->name, COM_QuotedString(str, buffer, sizeof(buffer), false));
-			else
-				CL_SendClientCommand(true, "setinfo %s %s", v->name, COM_QuotedString(str, buffer, sizeof(buffer), false));
+			CL_SendSeatClientCommand(true, seat, "setinfo %s %s", v->name, COM_QuotedString(str, buffer, sizeof(buffer), false));
 		}
 		else
 			CL_SetInfo(seat, v->name, str);

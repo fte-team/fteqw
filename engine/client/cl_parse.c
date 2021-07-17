@@ -7118,7 +7118,7 @@ void CLQW_ParseServerMessage (void)
 				for (; i < cl.splitclients; i++)
 				{	//svcfte_choosesplitclient has a modulo that is also broken, but at least there's no parse errors this way
 					MSG_ReadByte();
-//					CL_SendClientCommand(true, va("%i drop", i+1));
+//					CL_SendSeatClientCommand(true, i, drop");
 				}
 				cl.splitclients = MAX_SPLITS;
 			}

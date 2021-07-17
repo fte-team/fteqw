@@ -6459,31 +6459,6 @@ void SV_ExecuteUserCommand (const char *s, qboolean fromQC)
 
 	Cmd_ExecLevel=1;
 
-	if (!fromQC && host_client->controlled)	//now see if it's meant to be from a slave client
-	{	//'cmd 2 say hi' should 
-		char *a=Cmd_Argv(0), *e;
-		int pnum = strtoul(a, &e, 10);
-
-		//commands might be in the form of eg '2on2' so make sure that its fully numeric.
-		//KTX uses eg 'cmd 231', so don't take it if it can't be a seat, but there may be race conditions so we don't want error messages when it might have been a seat.
-		if (!*e && pnum >= 1 && pnum <= MAX_SPLITS)
-		{
-			client_t *sp;
-			for (sp = host_client; sp; sp = sp->controlled)
-			{
-				if (!--pnum)
-				{
-					host_client = sp;
-					break;
-				}
-			}
-
-			sv_player = host_client->edict;
-			s = Cmd_Args();
-			Cmd_ShiftArgs(1, false);
-		}
-	}
-
 #ifdef Q2SERVER
 	if (ISQ2CLIENT(host_client))
 		u = ucmdsq2;
@@ -8330,6 +8305,13 @@ void SV_ExecuteClientMessage (client_t *cl)
 			break;
 #endif
 
+		case clcfte_stringcmd_seat:
+			c = MSG_ReadByte();
+			host_client = cl;
+			while (c --> 0 && host_client->controlled)
+				host_client = host_client->controlled;
+			sv_player = host_client->edict;
+			//fall through
 		case clc_stringcmd:
 			s = MSG_ReadString ();
 			SV_ExecuteUserCommand (s, false);
@@ -8576,6 +8558,13 @@ void SVQ2_ExecuteClientMessage (client_t *cl)
 			ge->ClientUserinfoChanged (cl->q2edict, s);	//tell the gamecode
 			break;
 
+		case clcq2_stringcmd_seat:
+			c = MSG_ReadByte();
+			host_client = cl;
+			while (c --> 0 && host_client->controlled)
+				host_client = host_client->controlled;
+			sv_player = host_client->edict;
+			//fall through
 		case clcq2_stringcmd:
 			s = MSG_ReadString ();
 			SV_ExecuteUserCommand (s, false);

@@ -811,7 +811,7 @@ static void Sbar_Hexen2InvLeft_f(void)
 #endif
 	if (cls.protocol == CP_QUAKE2)
 	{
-		CL_SendClientCommand(true, "invprev");
+		CL_SendSeatClientCommand(true, seat, "invprev");
 	}
 	else
 	{
@@ -838,7 +838,7 @@ static void Sbar_Hexen2InvRight_f(void)
 #endif
 	if (cls.protocol == CP_QUAKE2)
 	{
-		CL_SendClientCommand(true, "invnext");
+		CL_SendSeatClientCommand(true, seat, "invnext");
 	}
 	else
 	{
@@ -866,7 +866,7 @@ static void Sbar_Hexen2InvUse_f(void)
 
 	if (cls.protocol == CP_QUAKE2)
 	{
-		CL_SendClientCommand(true, "invuse");
+		CL_SendSeatClientCommand(true, seat, "invuse");
 	}
 	else
 	{

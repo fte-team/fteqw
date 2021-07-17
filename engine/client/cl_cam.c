@@ -547,7 +547,7 @@ void Cam_Unlock(playerview_t *pv)
 {
 	if (pv->cam_state)
 	{
-		CL_SendClientCommand(true, "ptrack");
+		CL_SendSeatClientCommand(true, pv-cl.playerview, "ptrack");
 		pv->cam_state = CAM_FREECAM;
 		pv->viewentity = (cls.demoplayback)?0:(pv->playernum+1);	//free floating
 		SCR_CenterPrint(pv-cl.playerview, NULL, true);
@@ -564,7 +564,7 @@ void Cam_Lock(playerview_t *pv, int playernum)
 {
 	pv->cam_lastviewtime = -1000;	//allow the wallcam to re-snap as soon as it can
 
-	CL_SendClientCommand(true, "ptrack %i", playernum);
+	CL_SendSeatClientCommand(true, pv-cl.playerview, "ptrack %i", playernum);
 
 	if (pv->cam_spec_track != playernum)
 	{	//flashgrens suck

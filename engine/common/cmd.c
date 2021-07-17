@@ -2638,20 +2638,10 @@ void Cmd_ForwardToServer (void)
 #endif
 
 	sp = CL_TargettedSplit(false);
-	if (sp)
-	{
-		if (Cmd_Argc() > 1)
-			CL_SendClientCommand(true, "%i %s %s", sp+1, Cmd_Argv(0), Cmd_Args());
-		else
-			CL_SendClientCommand(true, "%i %s", sp+1, Cmd_Argv(0));
-	}
+	if (Cmd_Argc() > 1)
+		CL_SendSeatClientCommand(true, sp, "%s %s", Cmd_Argv(0), Cmd_Args());
 	else
-	{
-		if (Cmd_Argc() > 1)
-			CL_SendClientCommand(true, "%s %s", Cmd_Argv(0), Cmd_Args());
-		else
-			CL_SendClientCommand(true, "%s", Cmd_Argv(0));
-	}
+		CL_SendSeatClientCommand(true, sp, "%s", Cmd_Argv(0));
 }
 
 // don't forward the first argument
@@ -2713,10 +2703,7 @@ static void Cmd_ForwardToServer_f (void)
 	if (Cmd_Argc() > 1)
 	{
 		int split = CL_TargettedSplit(false);
-		if (split)
-			CL_SendClientCommand(true, "%i %s", split+1, Cmd_Args());
-		else
-			CL_SendClientCommand(true, "%s", Cmd_Args());
+		CL_SendSeatClientCommand(true, split, "%s", Cmd_Args());
 	}
 }
 #else

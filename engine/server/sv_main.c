@@ -1424,10 +1424,10 @@ static void SVC_Log (void)
 			seq = seq+1;	//they will get the next sequence from the one they already have
 	}
 	else
-		seq = 0;
+		seq = svs.logsequence-1;
 
 	if (!fraglog_public.ival)
-	{	//frag logs are not public (for DoS protection perhaps?.
+	{	//frag logs are not public (for DoS protection perhaps?)
 		data[0] = A2A_NACK;
 		NET_SendPacket (svs.sockets, 1, data, &net_from);
 		return;
@@ -2372,6 +2372,8 @@ client_t *SV_AddSplit(client_t *controller, char *info, int id)
 		Q_strncpyz(cl->guid, "", sizeof(cl->guid));
 	cl->name = cl->namebuf;
 	cl->team = cl->teambuf;
+	cl->userinfo.ChangeCB = svs.info.ChangeCB;
+	cl->userinfo.ChangeCTX = &cl->userinfo;
 
 	if (!cl->userid || !loadgame)
 		cl->userid = ++nextuserid;

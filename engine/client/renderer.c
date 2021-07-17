@@ -55,27 +55,6 @@ extern int gl_anisotropy_factor;
 void QDECL SCR_Viewsize_Callback (struct cvar_s *var, char *oldvalue);
 void QDECL SCR_Fov_Callback (struct cvar_s *var, char *oldvalue);
 void QDECL Image_TextureMode_Callback (struct cvar_s *var, char *oldvalue);
-void QDECL R_SkyBox_Changed (struct cvar_s *var, char *oldvalue)
-{
-	R_SetSky(var->string);
-//	Shader_NeedReload(false);
-}
-void R_ForceSky_f(void)
-{
-	if (Cmd_Argc() < 2)
-	{
-		if (*r_skyboxname.string)
-			Con_Printf("Current user skybox is %s\n", r_skyboxname.string);
-		else if (*cl.skyname)
-			Con_Printf("Current per-map skybox is %s\n", cl.skyname);
-		else
-			Con_Printf("no skybox forced.\n");
-	}
-	else
-	{
-		R_SetSky(Cmd_Argv(1));
-	}
-}
 static void QDECL R_Lightmap_Format_Changed(struct cvar_s *var, char *oldvalue)
 {
 	if (qrenderer)
@@ -177,11 +156,6 @@ cvar_t r_dynamic							= CVARFD ("r_dynamic", IFMINIMAL("0","1"),
 extern cvar_t r_temporalscenecache;
 cvar_t r_fastturb							= CVARF ("r_fastturb", "0",
 													CVAR_SHADERSYSTEM);
-cvar_t r_skycloudalpha						= CVARFD ("r_skycloudalpha", "1", CVAR_RENDERERLATCH, "Controls how opaque the front layer of legacy scrolling skies should be.");
-cvar_t r_fastsky							= CVARF ("r_fastsky", "0",
-													CVAR_ARCHIVE);
-cvar_t r_fastskycolour						= CVARF ("r_fastskycolour", "0",
-													CVAR_RENDERERCALLBACK|CVAR_SHADERSYSTEM);
 cvar_t r_fb_bmodels							= CVARAFD("r_fb_bmodels", "1",
 													"gl_fb_bmodels", CVAR_SEMICHEAT|CVAR_RENDERERLATCH, "Enables loading lumas on the map, as well as any external bsp models.");
 cvar_t r_fb_models							= CVARAFD  ("r_fb_models", "1",
@@ -238,9 +212,6 @@ cvar_t r_novis								= CVARF	("r_novis", "0", CVAR_ARCHIVE);
 cvar_t r_part_rain							= CVARFD ("r_part_rain", "0",
 												CVAR_ARCHIVE,
 												"Enable particle effects to emit off of surfaces. Mainly used for weather or lava/slime effects.");
-cvar_t r_skyboxname							= CVARFC ("r_skybox", "",
-												CVAR_RENDERERCALLBACK | CVAR_SHADERSYSTEM, R_SkyBox_Changed);
-cvar_t r_skybox_orientation					= CVARFD ("r_glsl_skybox_orientation", "0 0 0 0", CVAR_SHADERSYSTEM, "Defines the axis around which skyboxes will rotate (the first three values). The fourth value defines the speed the skybox rotates at, in degrees per second.");
 cvar_t r_softwarebanding_cvar				= CVARFD ("r_softwarebanding", "0", CVAR_SHADERSYSTEM|CVAR_RENDERERLATCH|CVAR_ARCHIVE, "Utilise the Quake colormap in order to emulate 8bit software rendering. This results in banding as well as other artifacts that some believe adds character. Also forces nearest sampling on affected surfaces (palette indicies do not interpolate well).");
 qboolean r_softwarebanding;
 cvar_t r_speeds								= CVAR ("r_speeds", "0");
@@ -257,7 +228,6 @@ cvar_t r_wallcolour							= CVARAF ("r_wallcolour", "128 128 128",
 													  "r_wallcolor", CVAR_RENDERERCALLBACK|CVAR_SHADERSYSTEM);//FIXME: broken
 //cvar_t r_walltexture						= CVARF ("r_walltexture", "",
 //												CVAR_RENDERERCALLBACK|CVAR_SHADERSYSTEM);	//FIXME: broken
-cvar_t r_skyfog								= CVARD  ("r_skyfog", "0.5", "This controls an alpha-blend value for fog on skyboxes, cumulative with regular fog alpha.");
 cvar_t r_wateralpha							= CVARF  ("r_wateralpha", "1",
 												CVAR_ARCHIVE | CVAR_SHADERSYSTEM);
 cvar_t r_lavaalpha							= CVARF  ("r_lavaalpha", "",
@@ -453,7 +423,6 @@ cvar_t gl_picmip_sprites					= CVARFD  ("gl_picmip_sprites", "0", CVAR_ARCHIVE, 
 cvar_t gl_picmip_other						= CVARFD  ("gl_picmip_other", "0", CVAR_ARCHIVE, "Effectively added to gl_picmip for the purposes of model textures.");
 cvar_t gl_nohwblend							= CVARD  ("gl_nohwblend","1", "If 1, don't use hardware gamma ramps for transient effects that change each frame (does not affect long-term effects like holding quad or underwater tints).");
 //cvar_t gl_schematics						= CVARD  ("gl_schematics", "0", "Gimmick rendering mode that draws the length of various world edges.");
-cvar_t gl_skyboxdist						= CVARD  ("gl_skyboxdist", "0", "The distance of the skybox. If 0, the engine will determine it based upon the far clip plane distance.");	//0 = guess.
 cvar_t gl_smoothcrosshair					= CVAR  ("gl_smoothcrosshair", "1");
 cvar_t	gl_maxdist							= CVARAD	("gl_maxdist", "0", "gl_farclip", "The distance of the far clip plane. If set to 0, some fancy maths will be used to place it at an infinite distance.");
 
@@ -636,8 +605,6 @@ void GLRenderer_Init(void)
 
 	Cvar_Register (&gl_screenangle, GLRENDEREROPTIONS);
 
-	Cvar_Register (&gl_skyboxdist, GLRENDEREROPTIONS);
-
 	Cvar_Register (&r_wallcolour, GLRENDEREROPTIONS);
 	Cvar_Register (&r_floorcolour, GLRENDEREROPTIONS);
 //	Cvar_Register (&r_walltexture, GLRENDEREROPTIONS);
@@ -708,22 +675,6 @@ void R_ListFonts_f(void)
 void R_ListSkins_f(void)
 {
 	COM_EnumerateFiles("skins/*.*", ShowFileList, NULL);
-}
-void R_ListSkyBoxes_f(void)
-{
-	//FIXME: this demonstrates why we need a nicer result printer.
-	COM_EnumerateFiles("env/*rt.*", ShowFileList, NULL);
-	COM_EnumerateFiles("env/*px.*", ShowFileList, NULL);
-	COM_EnumerateFiles("env/*posx.*", ShowFileList, NULL);
-	COM_EnumerateFiles("gfx/env/*rt.*", ShowFileList, NULL);
-	COM_EnumerateFiles("gfx/env/*px.*", ShowFileList, NULL);
-	COM_EnumerateFiles("gfx/env/*posx.*", ShowFileList, NULL);
-	COM_EnumerateFiles("textures/env/*rt.*", ShowFileList, NULL);
-	COM_EnumerateFiles("textures/env/*px.*", ShowFileList, NULL);
-	COM_EnumerateFiles("textures/env/*posx.*", ShowFileList, NULL);
-	COM_EnumerateFiles("textures/gfx/env/*rt.*", ShowFileList, NULL);
-	COM_EnumerateFiles("textures/gfx/env/*px.*", ShowFileList, NULL);
-	COM_EnumerateFiles("textures/gfx/env/*posx.*", ShowFileList, NULL);
 }
 
 
@@ -862,12 +813,6 @@ void Renderer_Init(void)
 	Cvar_Register (&r_mirroralpha, GLRENDEREROPTIONS);
 	Cvar_Register (&r_softwarebanding_cvar, GRAPHICALNICETIES);
 
-	Cvar_Register (&r_skyfog, GRAPHICALNICETIES);
-	Cvar_Register (&r_skyboxname, GRAPHICALNICETIES);
-	Cvar_Register (&r_skybox_orientation, GRAPHICALNICETIES);
-	Cmd_AddCommand("sky", R_ForceSky_f);	//QS compat
-	Cmd_AddCommand("loadsky", R_ForceSky_f);//DP compat
-
 	Cvar_Register(&r_keepimages, GRAPHICALNICETIES);
 	Cvar_Register(&r_ignoremapprefixes, GRAPHICALNICETIES);
 	Cvar_ForceCallback(&r_keepimages);
@@ -1003,9 +948,6 @@ void Renderer_Init(void)
 	Cvar_Register (&r_nolightdir, GRAPHICALNICETIES);
 
 	Cvar_Register (&r_fastturb, GRAPHICALNICETIES);
-	Cvar_Register (&r_skycloudalpha, GRAPHICALNICETIES);
-	Cvar_Register (&r_fastsky, GRAPHICALNICETIES);
-	Cvar_Register (&r_fastskycolour, GRAPHICALNICETIES);
 	Cvar_Register (&r_wateralpha, GRAPHICALNICETIES);
 	Cvar_Register (&r_lavaalpha, GRAPHICALNICETIES);
 	Cvar_Register (&r_slimealpha, GRAPHICALNICETIES);
@@ -1072,9 +1014,9 @@ void Renderer_Init(void)
 
 	Cmd_AddCommand ("listfonts", R_ListFonts_f);
 	Cmd_AddCommand ("listskins", R_ListSkins_f);
-	Cmd_AddCommand ("listskyboxes", R_ListSkyBoxes_f);
 	Cmd_AddCommand ("listconfigs", R_ListConfigs_f);
 
+	R_Sky_Register();
 
 #if defined(D3DQUAKE)
 	GLD3DRenderer_Init();

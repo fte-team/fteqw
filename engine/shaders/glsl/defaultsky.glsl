@@ -26,7 +26,7 @@ void main ()
 #ifdef EQUI
 #define PI 3.1415926535897932384626433832795
 	dir = normalize(dir);
-	tccoord.x = atan(dir.x,dir.y) / (PI*2.0) + 0.5;
+	tccoord.x = atan(dir.y,-dir.x) / (PI*2.0);
 	tccoord.y = acos(dir.z) / PI;
 	
 	vec3 sky = vec3(texture2D(s_base, tccoord));

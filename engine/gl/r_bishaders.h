@@ -4452,7 +4452,7 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "#ifdef EQUI\n"
 "#define PI 3.1415926535897932384626433832795\n"
 "dir = normalize(dir);\n"
-"tccoord.x = atan(dir.x,dir.y) / (PI*2.0) + 0.5;\n"
+"tccoord.x = atan(dir.y,-dir.x) / (PI*2.0);\n"
 "tccoord.y = acos(dir.z) / PI;\n"
 
 "vec3 sky = vec3(texture2D(s_base, tccoord));\n"

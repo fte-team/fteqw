@@ -391,6 +391,7 @@ extern int numlightmaps;
 void QDECL Surf_RebuildLightmap_Callback (struct cvar_s *var, char *oldvalue);
 
 
+void R_Sky_Register(void);
 void R_SkyShutdown(void);
 void R_SetSky(const char *skyname);
 texid_t R_GetDefaultEnvmap(void);

@@ -20,7 +20,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 // gl_warp.c -- sky and water polygons
 
 #include "quakedef.h"
-#ifndef SERVERONLY
+#ifdef HAVE_CLIENT
 #include "glquake.h"
 #include "shader.h"
 #include <ctype.h>
@@ -32,15 +32,19 @@ static void GL_DrawSkyBox (texid_t *texnums, batch_t *s);
 
 static void GL_DrawSkyGrid (texnums_t *tex);
 
-extern cvar_t gl_skyboxdist;
-extern cvar_t r_fastsky;
-extern cvar_t r_fastskycolour;
-extern cvar_t r_skycloudalpha;
+static void QDECL R_SkyBox_Changed (struct cvar_s *var, char *oldvalue);
+
+cvar_t r_fastsky							= CVARF ("r_fastsky", "0",	CVAR_ARCHIVE);
+static cvar_t r_fastskycolour						= CVARF ("r_fastskycolour", "0",	CVAR_RENDERERCALLBACK|CVAR_SHADERSYSTEM);
+static cvar_t gl_skyboxdist						= CVARD  ("gl_skyboxdist", "0", "The distance of the skybox. If 0, the engine will determine it based upon the far clip plane distance.");	//0 = guess.
+static cvar_t r_skycloudalpha						= CVARFD ("r_skycloudalpha", "1", CVAR_RENDERERLATCH, "Controls how opaque the front layer of legacy scrolling skies should be.");
+cvar_t r_skyboxname							= CVARFC ("r_skybox", "", CVAR_RENDERERCALLBACK | CVAR_SHADERSYSTEM, R_SkyBox_Changed);
+cvar_t r_skybox_orientation					= CVARFD ("r_glsl_skybox_orientation", "0 0 0 0", CVAR_SHADERSYSTEM, "Defines the axis around which skyboxes will rotate (the first three values). The fourth value defines the speed the skybox rotates at, in degrees per second.");
+cvar_t r_skyfog								= CVARD  ("r_skyfog", "0.5", "This controls an alpha-blend value for fog on skyboxes, cumulative with regular fog alpha.");
 
 static shader_t *forcedsky;
 static shader_t *skyboxface;
 static shader_t *skygridface;
-
 
 
 //=========================================================
@@ -153,6 +157,110 @@ void R_SetSky(const char *sky)
 		if (i == 6)	//couldn't find ANY sky textures.
 			forcedsky = NULL;
 	}
+}
+
+struct skylist_s
+{
+	const char *prefix;
+	const char *partial;
+	size_t partiallen;
+	struct xcommandargcompletioncb_s *ctx;
+};
+static int QDECL R_ForceSky_Enumerated (const char *name, qofs_t flags, time_t mtime, void *parm, searchpathfuncs_t *spath)
+{
+	struct skylist_s *ctx = parm;
+	char base[MAX_QPATH];
+	const char *ext;
+	size_t l = strlen(ctx->prefix), pl;
+	size_t p;
+
+	static char *skypost[] =
+	{
+		"rt","lf","bk","ft","up","dn",
+		"px","nx","py","ny","pz","nz",
+		"posx","negx","posy","negy","posz","negz",
+	};
+
+	if (!strncmp(name, ctx->prefix, l))
+	{
+		ext = COM_GetFileExtension(name+l, NULL);
+		COM_StripExtension(name+l, base, sizeof(base));
+		l = strlen(base);
+		for (p = 0; p < countof(skypost); p++)
+		{
+			pl = strlen(skypost[p]);
+			if (pl > l)
+				continue;
+			if (!strcmp(base+l-pl, skypost[p]))
+			{
+				if (p%6)
+					return true;
+				base[l-pl] = 0;	//strip the postfix too.
+				break;
+			}
+		}
+		if (p == countof(skypost) && strcmp(ext, ".tga") && strcmp(ext, ".png"))	//give it its extension back if its not a regular skybox.
+			Q_strncatz(base, ext, sizeof(base));
+		if (!Q_strncasecmp(base, ctx->partial, ctx->partiallen))
+		{
+			//non-matches are dds/ktx cubemaps, or equirectangular or something
+			if (ctx->ctx)
+				ctx->ctx->cb(base, NULL, NULL, ctx->ctx);
+			else
+				Con_Printf("\t^[%s\\type\\%s %s^]\n", base, r_skyboxname.name, base);
+		}
+	}
+	return true;
+}
+static void R_ForceSky_c(int argn, const char *partial, struct xcommandargcompletioncb_s *ctx)
+{
+	static char *skypath[] =
+	{
+		"env/",
+		"gfx/env/",
+		"textures/env/",
+		"textures/gfx/env/",
+	};
+	struct skylist_s l;
+	size_t pre;
+	l.ctx = ctx;
+	l.partial = partial;
+	l.partiallen = strlen(partial);
+	for (pre = 0; pre < countof(skypath); pre++)
+	{
+		l.prefix = skypath[pre];
+		COM_EnumerateFiles(va("%s*.*", l.prefix), R_ForceSky_Enumerated, &l);
+	}
+
+	//no skybox is also an option.
+	if (ctx && !*partial)
+		ctx->cb("", NULL, NULL, ctx);
+}
+static void R_ListSkyBoxes_f(void)
+{
+	Con_Printf("Skybox Options:\n");
+	R_ForceSky_c(0, "", NULL);
+}
+static void R_ForceSky_f(void)
+{
+	if (Cmd_Argc() < 2)
+	{
+		if (*r_skyboxname.string)
+			Con_Printf("Current user skybox is %s\n", r_skyboxname.string);
+		else if (*cl.skyname)
+			Con_Printf("Current per-map skybox is %s\n", cl.skyname);
+		else
+			Con_Printf("no skybox forced.\n");
+	}
+	else
+	{
+		R_SetSky(Cmd_Argv(1));
+	}
+}
+void QDECL R_SkyBox_Changed (struct cvar_s *var, char *oldvalue)
+{
+	R_SetSky(var->string);
+//	Shader_NeedReload(false);
 }
 
 void R_DrawFastSky(batch_t *batch)
@@ -1217,5 +1325,21 @@ void R_InitSky (shader_t *shader, const char *skyname, uploadfmt_t fmt, qbyte *s
 		}
 		BZ_Free(temp);
 	}
+}
+
+void R_Sky_Register(void)
+{
+	const char *groupname = "Skies";
+	Cvar_Register (&r_skycloudalpha,		groupname);
+	Cvar_Register (&r_fastsky,				groupname);
+	Cvar_Register (&r_fastskycolour,		groupname);
+	Cvar_Register (&r_skyfog,				groupname);
+	Cvar_Register (&r_skyboxname,			groupname);
+	Cvar_Register (&r_skybox_orientation,	groupname);
+	Cvar_Register (&gl_skyboxdist,			groupname);
+
+	Cmd_AddCommandAD("sky", R_ForceSky_f, R_ForceSky_c, "For compat with Quakespasm");	//QS compat
+	Cmd_AddCommandAD("loadsky", R_ForceSky_f, R_ForceSky_c, "For compat with DP");
+	Cmd_AddCommand ("listskyboxes", R_ListSkyBoxes_f);
 }
 #endif

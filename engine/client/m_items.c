@@ -479,6 +479,7 @@ static void MenuDrawItems(int xpos, int ypos, menuoption_t *option, emenu_t *men
 	mpic_t *p;
 	int pw,ph;
 	int framescroll = 0;
+	int framescrollheight = 0;
 
 	menuframe_t *framescroller = NULL;
 
@@ -487,17 +488,21 @@ static void MenuDrawItems(int xpos, int ypos, menuoption_t *option, emenu_t *men
 		if (option->common.ishidden)
 			continue;
 
-		if (framescroller && option == menu->selecteditem)
+		if (framescroller && option == menu->selecteditem && framescrollheight)
 		{
 			if (ypos+option->common.posy < framescroller->common.posy)
 			{
-				framescroller->frac -= 0.1;
+				int i = ypos+option->common.posy+framescroll - framescroller->common.posy;
+				i-=8;
+				framescroller->frac = (i)/(float)framescrollheight;
 				if (framescroller->frac < 0)
 					framescroller->frac = 0;
 			}
 			else if (ypos+option->common.posy+option->common.height > framescroller->common.posy+framescroller->common.height)
 			{
-				framescroller->frac += 0.1;
+				int i = ypos+option->common.posy+framescroll - framescroller->common.posy;
+				i -= vid.height-8-framescroller->common.posy-option->common.height;
+				framescroller->frac = (i)/(float)framescrollheight;
 				if (framescroller->frac > 1)
 					framescroller->frac = 1;
 			}
@@ -594,6 +599,7 @@ static void MenuDrawItems(int xpos, int ypos, menuoption_t *option, emenu_t *men
 						maxy = opt2->common.posy + opt2->common.height;
 				}
 				maxy -= vid.height-8;
+				framescrollheight = maxy;
 
 				if (maxy < 0)
 				{
@@ -601,6 +607,7 @@ static void MenuDrawItems(int xpos, int ypos, menuoption_t *option, emenu_t *men
 					option->frame.frac = 0;
 					option->frame.common.width = 0;
 					option->frame.common.height = 0;
+					framescrollheight= 0;
 				}
 				else
 				{

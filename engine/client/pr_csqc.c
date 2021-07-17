@@ -2681,7 +2681,7 @@ void QCBUILTIN PF_R_SetViewFlag(pubprogfuncs_t *prinst, struct globalvars_s *pr_
 				PR_BIError(prinst, "PF_R_SetViewFlag: invalid pointer\n");
 				return;
 			}
-			ptr = (struct reverbproperties_s*)(prinst->stringtable + qcptr);
+			ptr = (prinst->stringtable + qcptr);
 			memcpy(r_refdef.userdata, ptr, size);
 		}
 		break;
@@ -4531,7 +4531,7 @@ static void QCBUILTIN PF_cs_serverkeyblob (pubprogfuncs_t *prinst, struct global
 		PR_BIError(prinst, "PF_cs_serverkeyblob: invalid pointer\n");
 		return;
 	}
-	ptr = (struct reverbproperties_s*)(prinst->stringtable + qcptr);
+	ptr = (prinst->stringtable + qcptr);
 
 	blob = InfoBuf_BlobForKey(&cl.serverinfo, keyname, &blobsize, NULL);
 
@@ -4619,7 +4619,7 @@ static void QCBUILTIN PF_cs_getplayerkeyblob (pubprogfuncs_t *prinst, struct glo
 		PR_BIError(prinst, "PF_cs_getplayerkeyblob: invalid pointer\n");
 		return;
 	}
-	ptr = (struct reverbproperties_s*)(prinst->stringtable + qcptr);
+	ptr = (prinst->stringtable + qcptr);
 
 	if ((unsigned int)pnum >= (unsigned int)cl.allocated_client_slots)
 		G_INT(OFS_RETURN) = 0;
@@ -4668,10 +4668,11 @@ static void QCBUILTIN PF_cs_infokey (pubprogfuncs_t *prinst, struct globalvars_s
 		G_INT(OFS_RETURN) = 0;
 }
 
+static int PR_CSQC_NamedBuiltinUnsupported(const char *name);
 static void QCBUILTIN PF_checkextension (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	const char *extname = PR_GetStringOfs(prinst, OFS_PARM0);
-	int i;
+	int i, ebi;
 	for (i = 0; i < QSG_Extensions_count; i++)
 	{
 		if (!QSG_Extensions[i].name)
@@ -4685,7 +4686,18 @@ static void QCBUILTIN PF_checkextension (pubprogfuncs_t *prinst, struct globalva
 				G_FLOAT(OFS_RETURN) = QSG_Extensions[i].extensioncheck(&ctx);
 			}
 			else
+			{
+				//make sure all of its builtins are actually supported.
+				//if any is marked as 'fixme' then we've not implemented it in csqc yet.
+				for (ebi = 0; ebi < countof(QSG_Extensions[i].builtinnames) && QSG_Extensions[i].builtinnames[ebi]; ebi++)
+					if (PR_CSQC_NamedBuiltinUnsupported(QSG_Extensions[i].builtinnames[ebi]))
+					{
+						G_FLOAT(OFS_RETURN) = false;
+						return;
+					}
+
 				G_FLOAT(OFS_RETURN) = true;
+			}
 			return;
 		}
 	}
@@ -6928,9 +6940,9 @@ static struct {
 	{"registertempent",			PF_NoCSQC,	208},//{"RegisterTempEnt", PF_RegisterTEnt,	0,		0,		0,		208},
 	{"customtempent",			PF_NoCSQC,	209},//{"CustomTempEnt",	PF_CustomTEnt,		0,		0,		0,		209},
 //210
-//	{"fork",					PF_Fixme,	210},//{"fork",			PF_Fork,			0,		0,		0,		210},
+	{"fork",					PF_Fixme,	210},//{"fork",			PF_Fork,			0,		0,		0,		210},
 	{"abort",					PF_Abort,	211}, //#211 void() abort (FTE_MULTITHREADED)
-//	{"sleep",					PF_Fixme,	212},//{"sleep",			PF_Sleep,			0,		0,		0,		212},
+	{"sleep",					PF_Fixme,	212},//{"sleep",			PF_Sleep,			0,		0,		0,		212},
 	{"forceinfokey",			PF_NoCSQC,	213},//{"forceinfokey",	PF_ForceInfoKey,	0,		0,		0,		213},
 	{"forceinfokeyblob",		PF_NoCSQC,	0},//{"forceinfokey",	PF_ForceInfoKey,	0,		0,		0,		213},
 	{"chat",					PF_NoCSQC,	214},//{"chat",			PF_chat,			0,		0,		0,		214},// #214 void(string filename, float starttag, entity edict) SV_Chat (FTE_NPCCHAT)
@@ -7515,6 +7527,16 @@ static struct {
 	{NULL}
 };
 
+static int PR_CSQC_NamedBuiltinUnsupported(const char *name)
+{
+	int i;
+	for (i = 0; BuiltinList[i].name; i++)
+	{
+		if (!strcmp(BuiltinList[i].name, name))
+			return (BuiltinList[i].bifunc == PF_Fixme);
+	}
+	return false;
+}
 int PR_CSQC_BuiltinValid(char *name, int num)
 {
 	int i;
@@ -8476,6 +8498,17 @@ void PR_CSExtensionList_f(void)
 	int ebi;
 	int bi;
 	qc_extension_t *extlist;
+	qboolean inactive;
+
+	char biissues[8192];
+	const builtin_t *pr_builtin = csqc_builtin;
+	int num;
+	qboolean wrongmodule;
+	int j;
+	const char *extname;
+
+	extcheck_t extcheck = {cls.fteprotocolextensions, cls.fteprotocolextensions2};
+
 
 #define SHOW_ACTIVEEXT 1
 #define SHOW_ACTIVEBI 2
@@ -8525,56 +8558,83 @@ void PR_CSExtensionList_f(void)
 
 		for (i = 0; i < QSG_Extensions_count; i++)
 		{
+			*biissues = 0;
+			inactive = false;
 			if (!extlist[i].name)
 				continue;
 
-			if (i < 32)
+			for (ebi = 0; ebi < countof(extlist[i].builtinnames) && extlist[i].builtinnames[ebi]; ebi++)
 			{
-				if (!(cls.fteprotocolextensions & (1<<i)))
-				{
-					if (showflags & SHOW_NOTSUPPORTEDEXT)
-						Con_Printf("^4protocol %s is not supported\n", extlist[i].name);
-					continue;
-				}
-			}
+				wrongmodule = false;
 
-			for (ebi = 0; ebi < extlist[i].numbuiltins; ebi++)
-			{
 				for (bi = 0; BuiltinList[bi].name; bi++)
 				{
 					if (!strcmp(BuiltinList[bi].name, extlist[i].builtinnames[ebi]))
-						break;
+					{
+						if (BuiltinList[bi].bifunc == PF_Fixme)
+							wrongmodule=true;
+						else
+							break;
+					}
 				}
 
 				if (!BuiltinList[bi].name)
 				{
-					if (showflags & SHOW_NOTSUPPORTEDEXT)
-						Con_Printf("^4%s is not supported\n", extlist[i].name);
-					break;
+					if (wrongmodule)
+						continue;
+					Q_strncatz2(biissues, va(CON_ERROR"\t^4#:%s is not known\n", extlist[i].builtinnames[ebi]));
+					inactive = true;
+					continue;
 				}
-				if (csqc_builtin[BuiltinList[bi].ebfsnum] != BuiltinList[bi].bifunc)
+
+
+				num = BuiltinList[bi].ebfsnum;
+				if (!num)
+					;//builtins with no number are handled at load time. there are no number conflicts so no way for the builtin to be inactive. if there is an error then its not because of the extension itself.
+				else if (pr_builtin[num] != BuiltinList[bi].bifunc)
 				{
-					if (csqc_builtin[BuiltinList[bi].ebfsnum] == PF_Fixme)
-					{
-						if (showflags & SHOW_NOTACTIVEEXT)
-							Con_Printf("^4%s is not currently active (builtin: %s#%i)\n", extlist[i].name, BuiltinList[bi].name, BuiltinList[bi].ebfsnum);
-					}
+					if (pr_builtin[num] == PF_Fixme)
+						Q_strncatz2(biissues, va("\t^4#%i:%s is not implemented\n", num, BuiltinList[bi].name));
 					else
 					{
-						if (showflags & SHOW_NOTACTIVEEXT)
-							Con_Printf("^4%s was overridden (builtin: %s#%i)\n", extlist[i].name, BuiltinList[bi].name, BuiltinList[bi].ebfsnum);
+						for (j = 0; BuiltinList[j].name; j++)
+						{
+							if (BuiltinList[j].bifunc == pr_builtin[num])
+							{
+								Q_strncatz2(biissues, va("\t#%i:%s is currently %s\n", num,BuiltinList[bi].name, BuiltinList[j].name));
+								break;
+							}
+						}
+						if (!BuiltinList[j].name)
+							Q_strncatz2(biissues, va("\t^4#%i:%s is currently unknown\n", num, BuiltinList[bi].name));
 					}
-					break;
+					inactive = true;
 				}
 			}
-			if (ebi == extlist[i].numbuiltins)
+
+			if (extlist[i].description)
+				extname = va("^[%s\\tip\\%s^]", extlist[i].name, extlist[i].description);
+			else
+				extname = extlist[i].name;
+
+			if (extlist[i].extensioncheck && !extlist[i].extensioncheck(&extcheck))
+			{
+				if (showflags & SHOW_NOTSUPPORTEDEXT)
+					Con_Printf(CON_WARNING"protocol %s is blocked\n%s", extname, biissues);
+			}
+			else if (inactive)
+			{
+				if (showflags & SHOW_NOTSUPPORTEDEXT)
+					Con_Printf(CON_ERROR"%s is inactive\n%s", extname, biissues);
+			}
+			else
 			{
 				if (showflags & SHOW_ACTIVEEXT)
 				{
-					if (!extlist[i].numbuiltins)
-						Con_Printf("%s is supported\n", extlist[i].name);
+					if (!extlist[i].builtinnames[0])
+						Con_Printf("%s is supported\n%s", extname, biissues);
 					else
-						Con_Printf("%s is currently active\n", extlist[i].name);
+						Con_Printf("%s is currently active\n%s", extname, biissues);
 				}
 			}
 		}

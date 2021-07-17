@@ -7533,9 +7533,9 @@ static qboolean check_pext_csqc				(extcheck_t *extcheck) {return !!(extcheck->p
 //static qboolean check_pext2_maxplayers		(extcheck_t *extcheck) {return !!(extcheck->pext2 & PEXT2_MAXPLAYERS);}
 //static qboolean check_pext2_predinfo		(extcheck_t *extcheck) {return !!(extcheck->pext2 & PEXT2_PREDINFO);}
 //static qboolean check_pext2_newsizeencoding	(extcheck_t *extcheck) {return !!(extcheck->pext2 & PEXT2_NEWSIZEENCODING);}
-//static qboolean check_pext2_infoblobs		(extcheck_t *extcheck) {return !!(extcheck->pext2 & PEXT2_INFOBLOBS);}
+static qboolean check_pext2_infoblobs		(extcheck_t *extcheck) {return !!(extcheck->pext2 & PEXT2_INFOBLOBS);}
 //static qboolean check_pext2_stunaware		(extcheck_t *extcheck) {return !!(extcheck->pext2 & PEXT2_STUNAWARE);}
-//static qboolean check_pext2_vrinputs		(extcheck_t *extcheck) {return !!(extcheck->pext2 & PEXT2_VRINPUTS);}
+static qboolean check_pext2_vrinputs		(extcheck_t *extcheck) {return !!(extcheck->pext2 & PEXT2_VRINPUTS);}
 
 #define NOBI NULL, 0,{NULL},
 qc_extension_t QSG_Extensions[] = {
@@ -7545,7 +7545,7 @@ qc_extension_t QSG_Extensions[] = {
 	{"??MVDSV_BUILTINS",				NULL,	21,{"executecommand", "mvdtokenize", "mvdargc", "mvdargv",
 												"teamfield", "substr", "mvdstrcat", "mvdstrlen", "str2byte",
 												"str2short", "mvdnewstr", "mvdfreestr", "conprint", "readcmd",
-												"mvdstrcpy", "strstr", "mvdstrncpy", "log", "redirectcmd",
+												"mvdstrcpy", "strstr", "mvdstrncpy", "logtext", "redirectcmd",
 												"mvdcalltimeofday", "forcedemoframe"}},
 	{"BX_COLOREDTEXT"},
 	{"DP_CON_SET",						NULL,	0,{NULL}, "The 'set' console command exists, and can be used to create/set cvars."},
@@ -7784,7 +7784,7 @@ qc_extension_t QSG_Extensions[] = {
 	{"FTE_QC_PERSISTENTTEMPSTRINGS",	NOBI	 "Supersedes DP_QC_MULTIPLETEMPSTRINGS. Temp strings are garbage collected automatically, and do not expire while they're still in use. This makes strzone redundant."},
 #endif
 #ifdef RAGDOLL
-	{"FTE_QC_RAGDOLL_WIP",				NULL,	1,{"ragupdate", "skel_set_bone_world", "skel_mmap"}},
+	{"FTE_QC_RAGDOLL_WIP",				NULL,	1,{"skel_ragupdate", "skel_set_bone_world", "skel_mmap"}},
 #endif
 	{"FTE_QC_SENDPACKET",				NULL,	1,{"sendpacket"}, "Allows the use of out-of-band udp packets to/from other hosts. Includes the SV_ParseConnectionlessPacket event."},
 	{"FTE_QC_STUFFCMDFLAGS",			NULL,	1,{"stuffcmdflags"}, "Variation on regular stuffcmd that gives control over how spectators/mvds should be treated."},
@@ -7828,7 +7828,8 @@ qc_extension_t QSG_Extensions[] = {
 	{"FTE_TERRAIN_MAP",					NULL,	1,{"terrain_edit"}, "This engine supports .hmp files, as well as terrain embedded within bsp files."},
 	{"FTE_RAW_MAP",						NULL,	7,{"brush_get","brush_create","brush_delete","brush_selected","brush_getfacepoints","brush_calcfacepoints","brush_findinvolume"}, "This engine supports directly loading .map files, as well as realtime editing of the various brushes."},
 #endif
-
+	{"FTE_INFOBLOBS",					check_pext2_infoblobs,	0,{"forceinfokeyblob", "getplayerkeyblob", "setlocaluserinfoblob", "getlocaluserinfoblob", "serverkeyblob"}, "Removes the length limits on user/server/local info strings, and allows embedded nulls and other otherwise-reserved characters. This can be used to network avatar images and the like, or other binary data."},
+	{"FTE_VRINPUTS",					check_pext2_vrinputs,	0,{NULL}, "input_weapon, input_left_*, input_right_*, input_head_* work, both in csqc (as inputs with suitable plugin/hardware support) and ssqc (available in PlayerPreThink)."},
 
 	{"KRIMZON_SV_PARSECLIENTCOMMAND",	NULL,	3,{"clientcommand", "tokenize", "argv"}, "SSQC's SV_ParseClientCommand function is able to handle client 'cmd' commands. The tokenizing parts also work in csqc."},	//very very similar to the mvdsv system.
 	{"NEH_CMD_PLAY2"},

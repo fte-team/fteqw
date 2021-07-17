@@ -3848,7 +3848,7 @@ void SVC_ACK (void)
 }
 
 //returns false to block replies
-//this is to mitigate wasted bandwidth if we're used as a udp escilation
+//this is to mitigate wasted bandwidth if we're used as a udp amplification
 qboolean SVC_ThrottleInfo (void)
 {
 #define THROTTLE_PPS 20
@@ -3872,6 +3872,98 @@ qboolean SVC_ThrottleInfo (void)
 	blockuntil += inc;
 	return true;
 }
+
+//more aggressive logic.
+static struct attacker_s
+{
+	int af;
+	qbyte addr[16];
+
+	qboolean blocked;	//if we reach 10 status requests within 30 secs
+	double timeout;
+	int count;
+} *dosattacker;
+static size_t dosattacker_count;
+static size_t dosattacker_max;
+#define dosattacker_limit 10				//if we get X packets
+#define dosattacker_period 30					//within Y secs
+#define dosattacker_blocktime (60*60*24)	//block them for Z secs (24 hours).
+static qboolean SV_DetectAmplificationDDOS (void)
+{
+	size_t at;
+	double t = Sys_DoubleTime();
+	int as;
+	switch(net_from.type)	//trying to be efficient and avoiding net_comparebaseaddr
+	{
+	case NA_IP:		as = 4;	break;
+	case NA_IPX:	as = 10;break;
+	case NA_IPV6:	as = 16;break;
+	default:		as = 0;	break;
+	}
+	if (as)
+	{
+		for (at = 0; at < dosattacker_count; at++)
+		{	//look for an existing one
+			if (net_from.type != dosattacker->af)
+				continue;
+			if (!memcmp(dosattacker[at].addr, &net_from.address, as))
+			{	//a match.
+				if (t > dosattacker[at].timeout)
+				{	//they survived, for now...
+					dosattacker[at].count = 0;
+					dosattacker[at].timeout = t + dosattacker_period;
+				}
+				if (++dosattacker[at].count >= dosattacker_limit)
+				{
+					if (dosattacker[at].count == dosattacker_limit)
+					{
+						char buf[128];
+						Con_Printf(CON_ERROR "%s: Presumed amplification ddos attack, blocking further status queries.\n", NET_BaseAdrToString(buf, sizeof(buf), &net_from));
+						Q_snprintfz(buf, sizeof(buf), "\xff\xff\xff\xff%cProbable ddos amplification attack\n", A2C_PRINT);
+						NET_SendPacket(svs.sockets, strlen(buf), buf, &net_from);
+
+						dosattacker[at].timeout = t + dosattacker_blocktime;	//a 24 hour block.
+					}
+					else	//extend by a smidge...
+						dosattacker[at].timeout += dosattacker_period/(double)dosattacker_limit;
+					return true;
+				}
+				break;
+			}
+		}
+		if (at == dosattacker_count)
+		{	//didn't find one
+			for (at = 0; at < dosattacker_count; at++)
+			{	//try to find one to recycle
+				if (t > dosattacker[at].timeout)
+					break;
+			}
+			if (at == dosattacker_count)
+			{
+				if (at == dosattacker_max)
+				{
+					if (at > 4096)	//should we be using hash tables?...
+						at--;	//stomp on the last.
+					else
+					{
+						Z_ReallocElements((void**)&dosattacker, &dosattacker_max, max(16, dosattacker_count * 2), sizeof(dosattacker[0]));
+					}
+				}
+				else
+					at = dosattacker_count++;
+			}
+			dosattacker[at].af = net_from.type;
+			memcpy(dosattacker[at].addr, &net_from.address, as);
+			dosattacker[at].count = 0;
+			dosattacker[at].timeout = t + dosattacker_period;
+		}
+	}
+
+	if (SVC_ThrottleInfo())
+		return true;
+	return false;
+}
+
 /*
 =================
 SV_ConnectionlessPacket
@@ -3918,7 +4010,7 @@ qboolean SV_ConnectionlessPacket (void)
 	else if (!strcmp(c,"status"))
 	{
 		if (sv_public.ival >= 0)
-			if (SVC_ThrottleInfo())
+			if (SV_DetectAmplificationDDOS())
 				SVC_Status ();
 	}
 	else if (!strcmp(c,"log"))
@@ -3930,7 +4022,7 @@ qboolean SV_ConnectionlessPacket (void)
 	else if (!strcmp(c, "info"))
 	{
 		if (sv_public.ival >= 0)
-			if (SVC_ThrottleInfo())
+			if (SV_DetectAmplificationDDOS())
 				SVC_InfoQ2 ();
 	}
 #endif
@@ -4020,7 +4112,7 @@ qboolean SV_ConnectionlessPacket (void)
 	else if (!strcmp(c, "getstatus"))
 	{	//q3/dpmaster support
 		if (sv_public.ival >= 0)
-			if (SVC_ThrottleInfo())
+			if (SV_DetectAmplificationDDOS())
 				SVC_GetInfo(Cmd_Args(), true);
 	}
 	else if (!strcmp(c, "getinfo"))
@@ -4030,13 +4122,13 @@ qboolean SV_ConnectionlessPacket (void)
 			const char *chal = Cmd_Args();
 			SV_Master_HeartbeatResponse(&net_from, chal);
 
-			if (SVC_ThrottleInfo())
+			if (SV_DetectAmplificationDDOS())
 				SVC_GetInfo(chal, false);
 		}
 	}
 	else if (!strcmp(c, "rcon"))
 	{
-		if (SVC_ThrottleInfo())
+		if (SV_DetectAmplificationDDOS())
 			SVC_RemoteCommand ();
 	}
 	else if (!strcmp(c, "realip") || !strcmp(c, "ip"))

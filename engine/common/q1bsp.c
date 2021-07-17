@@ -1486,6 +1486,7 @@ void Q1BSP_LoadBrushes(model_t *model, bspx_header_t *bspx, void *mod_base)
 			{
 				VectorCopy(axis[pl], planes->normal);
 				planes->dist = brush->absmaxs[pl];
+				CategorizePlane(planes);
 
 				sides->surface = NULL;
 				sides++->plane = planes++;

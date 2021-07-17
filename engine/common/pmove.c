@@ -1219,10 +1219,12 @@ allow for the cut precision of the net coordinates
 */
 static void PM_NudgePosition (void)
 {
-	vec3_t	base;
+	vec3_t	base, nudged;
 	int		x, y, z;
 	int		i;
 	static float	sign[] = {0, -1/8.0, 1/8.0};
+
+	VectorCopy (pmove.origin, base);
 
 	//really we want to just use this here
 	//base[i] = MSG_FromCoord(MSG_ToCoord(pmove.origin[i], movevars.coordsize), movevars.coordsize);
@@ -1234,7 +1236,7 @@ static void PM_NudgePosition (void)
 #endif
 			movevars.coordtype == COORDTYPE_FLOAT_32)	//float precision on the network. no need to truncate.
 	{
-		VectorCopy (pmove.origin, base);
+		VectorCopy (base, nudged);
 	}
 	else if (movevars.coordtype == COORDTYPE_FIXED_13_3)	//1/8th precision, but don't truncate because that screws everything up.
 	{
@@ -1243,21 +1245,21 @@ static void PM_NudgePosition (void)
 			if (pmove.velocity[i])
 			{	//round in the direction of velocity, which means we're less likely to get stuck.
 				if (pmove.velocity[i] >= 0)
-					base[i] = (qintptr_t)(pmove.origin[i]*8+0.5f) / 8.0;
+					nudged[i] = (qintptr_t)(base[i]*8+0.5f) / 8.0;
 				else
-					base[i] = (qintptr_t)(pmove.origin[i]*8-0.5f) / 8.0;
+					nudged[i] = (qintptr_t)(base[i]*8-0.5f) / 8.0;
 			}
 			else
 			{
-				if (pmove.origin[i] >= 0)
-					base[i] = (qintptr_t)(pmove.origin[i]*8+0.5f) / 8.0;
+				if (base[i] >= 0)
+					nudged[i] = (qintptr_t)(base[i]*8+0.5f) / 8.0;
 				else
-					base[i] = (qintptr_t)(pmove.origin[i]*8-0.5f) / 8.0;
+					nudged[i] = (qintptr_t)(base[i]*8-0.5f) / 8.0;
 			}
 		}
 	}
 	else for (i=0 ; i<3 ; i++)
-		base[i] = ((qintptr_t) (pmove.origin[i] * 8)) * 0.125;	//legacy compat, which biases towards the origin.
+		nudged[i] = ((qintptr_t) (pmove.origin[i] * 8)) * 0.125;	//legacy compat, which biases towards the origin.
 
 //	VectorCopy (base, pmove.origin);
 
@@ -1274,9 +1276,9 @@ static void PM_NudgePosition (void)
 		{
 			for (y=0 ; y<countof(sign) ; y++)
 			{
-				pmove.origin[0] = base[0] + sign[x];
-				pmove.origin[1] = base[1] + sign[y];
-				pmove.origin[2] = base[2] + sign[z];
+				pmove.origin[0] = nudged[0] + sign[x];
+				pmove.origin[1] = nudged[1] + sign[y];
+				pmove.origin[2] = nudged[2] + sign[z];
 				if (PM_TestPlayerPosition (pmove.origin, false))
 					return;
 			}
@@ -1287,12 +1289,12 @@ static void PM_NudgePosition (void)
 	for (z=0 ; z<3; z++)
 	{
 		VectorCopy(base, pmove.origin);
-		pmove.origin[z] = base[z] + (2/8.0);
+		pmove.origin[z] = nudged[z] + (2/8.0);
 		if (PM_TestPlayerPosition (pmove.origin, false))
 			return;
 
 		VectorCopy(base, pmove.origin);
-		pmove.origin[z] = base[z] - (2/8.0);
+		pmove.origin[z] = nudged[z] - (2/8.0);
 		if (PM_TestPlayerPosition (pmove.origin, false))
 			return;
 	}
@@ -1304,9 +1306,9 @@ static void PM_NudgePosition (void)
 		{
 			for (y=0 ; y<3 ; y++)
 			{
-				pmove.origin[0] = base[0] + sign[x];
-				pmove.origin[1] = base[1] + sign[y];
-				pmove.origin[2] = base[2] + z;
+				pmove.origin[0] = nudged[0] + sign[x];
+				pmove.origin[1] = nudged[1] + sign[y];
+				pmove.origin[2] = nudged[2] + z;
 				if (PM_TestPlayerPosition (pmove.origin, false))
 					return;
 			}

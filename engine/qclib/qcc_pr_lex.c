@@ -5696,11 +5696,15 @@ QCC_type_t *QCC_PR_ParseType (int newtype, pbool silentfail)
 			QCC_PR_ParseError(ERR_NOTANAME, "member missing name");
 		while (!QCC_PR_CheckToken("}"))
 		{
+			unsigned int gdf_flags;
+
 			pbool havebody = false;
 			pbool isnull = false;
 			pbool isvirt = false;
 			pbool isnonvirt = false;
 			pbool isstatic = false;
+			pbool isconst = false;
+			pbool isvar = false;
 			pbool isignored = false;
 			pbool isinline = false;
 			pbool isget = false;
@@ -5714,6 +5718,10 @@ QCC_type_t *QCC_PR_ParseType (int newtype, pbool silentfail)
 					isnonvirt = true;
 				else if (QCC_PR_CheckKeyword(1, "static"))
 					isstatic = true;
+				else if (QCC_PR_CheckKeyword(1, "const"))
+					isconst = isstatic = true;
+				else if (QCC_PR_CheckKeyword(1, "var"))
+					isvar = true;
 				else if (QCC_PR_CheckKeyword(1, "virtual"))
 					isvirt = true;
 				else if (QCC_PR_CheckKeyword(1, "ignore"))
@@ -5794,7 +5802,10 @@ QCC_type_t *QCC_PR_ParseType (int newtype, pbool silentfail)
 					else if (assumevirtual == -1)
 						isnonvirt = true;
 					else
+					{
 						QCC_PR_ParseWarning(WARN_MISSINGMEMBERQUALIFIER, "%s::%s was not qualified. Assuming non-virtual.", classname, parmname);
+						isnonvirt = true;
+					}
 				}
 				if (isvirt+isnonvirt+isstatic != 1)
 					QCC_PR_ParseError(ERR_INTERNAL, "Multiple conflicting qualifiers on %s::%s.", classname, pr_token);
@@ -5807,17 +5818,16 @@ QCC_type_t *QCC_PR_ParseType (int newtype, pbool silentfail)
 					QCC_Error(ERR_INTERNAL, "inline keyword on member that is not a function");
 			}
 
-			if (newparm->type == ev_function)
-			{
-				if (QCC_PR_CheckToken("="))
-				{
-					havebody = true;
-				}
-				else if (pr_token[0] == '{')
-					havebody = true;
-				if (isinline && (!havebody || isvirt))
-					QCC_Error(ERR_INTERNAL, "inline keyword on function prototype or virtual function");
-			}
+			if (QCC_PR_CheckToken("="))
+				havebody = true;
+			else if (newparm->type == ev_function && pr_token[0] == '{')
+				havebody = true;
+			if (isinline && (!havebody || isvirt))
+				QCC_Error(ERR_INTERNAL, "inline keyword on function prototype or virtual function");
+
+			gdf_flags = 0;
+			if ((newparm->type == ev_function && !arraysize && !isvar) || isconst)
+				gdf_flags = GDF_CONST;
 
 			if (havebody)
 			{
@@ -5833,7 +5843,7 @@ QCC_type_t *QCC_PR_ParseType (int newtype, pbool silentfail)
 						def = NULL;
 					else
 					{
-						def = QCC_PR_GetDef(newparm, membername, NULL, true, 0, 0);
+						def = QCC_PR_GetDef(newparm, membername, NULL, true, 0, gdf_flags);
 						def->symboldata[def->ofs].function = 0;
 						def->initialized = 1;
 					}
@@ -5843,9 +5853,9 @@ QCC_type_t *QCC_PR_ParseType (int newtype, pbool silentfail)
 					if (isignored)
 						def = NULL;
 					else
-						def = QCC_PR_GetDef(newparm, membername, NULL, true, 0, GDF_CONST);
+						def = QCC_PR_GetDef(newparm, membername, NULL, true, 0, gdf_flags);
 
-					if (newparm->type != ev_function)
+					if (newparm->type != ev_function && !isstatic)
 						QCC_Error(ERR_INTERNAL, "Can only initialise member functions");
 					else
 					{
@@ -5942,12 +5952,8 @@ QCC_type_t *QCC_PR_ParseType (int newtype, pbool silentfail)
 			//static members are technically just funny-named globals, and do not generate fields.
 			if (isnonvirt || isstatic || (newparm->type == ev_function && !arraysize))
 			{
-				unsigned int fl = 0;
-				if (newparm->type == ev_function && !arraysize)
-					fl = GDF_CONST;
-
 				QC_snprintfz(membername, sizeof(membername), "%s::%s", classname, parmname);
-				QCC_FreeDef(QCC_PR_GetDef(newparm, membername, NULL, true, 0, fl));
+				QCC_FreeDef(QCC_PR_GetDef(newparm, membername, NULL, true, 0, gdf_flags));
 
 				if (isnonvirt || isstatic)
 					continue;

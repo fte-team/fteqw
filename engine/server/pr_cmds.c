@@ -8871,6 +8871,13 @@ static void QCBUILTIN PF_h2getstring(pubprogfuncs_t *prinst, struct globalvars_s
 	char *s = T_GetString(G_FLOAT(OFS_PARM0)-1);
 	RETURN_PSTRING(s);
 }
+
+void QCBUILTIN PF_sj_strhash (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{	//not quite the same, but oh well
+	const char *str = PF_VarString(prinst, 0, pr_globals);
+	int len = strlen(str);
+	G_FLOAT(OFS_RETURN) = Com_BlockChecksum(str, len);
+}
 #endif
 static void QCBUILTIN PF_StopSound(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
@@ -11082,9 +11089,9 @@ static BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"stopsound",		PF_StopSound,		0,		0,		106,	0,	D("void(entity ent, float channel)", "Terminates playback of sounds on the specified entity-channel. CHAN_AUTO should not be used.")},
 
 	//shanjaq's fork of uhexen2... listed here to avoid confusion with other builtins.
-	{"set_extra_flags",	PF_Fixme,			0,		0,		107,	0, "void(string model, float flags)"},
-	{"set_fx_color",	PF_Fixme,			0,		0,		108,	0, "void(string model,float r,float g,float b,float a)"},
-	{"strhash",			PF_Fixme,			0,		0,		109,	0, "float(string)"},
+	{"set_extra_flags",	PF_Ignore,			0,		0,		107,	0, D("void(string model, float flags)", "You should probably use .traileffectnum/r_effect instead."), true},
+	{"set_fx_color",	PF_Ignore,			0,		0,		108,	0, D("void(string model,float r,float g,float b,float a)", "You should probably use .traileffectnum/r_effect instead and/or .glowmod and/or tenebrae_gfx_dlights."), true},
+	{"strhash",			PF_sj_strhash,		0,		0,		109,	0, D("float(string)", "A poor-man's strzone, apparently. digest_hex should be used instead of you care about the hash function used."), true},
 
 	{"precache_model5",	PF_precache_model,	0,		0,		116,	0},//please don't use...
 	{"precache_sound5",	PF_precache_sound,	0,		0,		117,	0},

@@ -1798,6 +1798,9 @@ typedef struct
 	void *mutex;
 	int refs;
 	qboolean terminate;	//one end has closed, make the other report failures now that its no longer needed.
+
+	void *ctx;
+	void (*callback) (void *ctx, vfsfile_t *pipe);
 } vfspipe_t;
 
 static qboolean QDECL VFSPIPE_Close(vfsfile_t *f)
@@ -1814,6 +1817,8 @@ static qboolean QDECL VFSPIPE_Close(vfsfile_t *f)
 		Sys_DestroyMutex(p->mutex);
 		free(p);
 	}
+	else if (p->callback)
+		p->callback(p->ctx, f);
 	return true;
 }
 static qofs_t QDECL VFSPIPE_GetLen(vfsfile_t *f)
@@ -1892,7 +1897,7 @@ static int QDECL VFSPIPE_WriteBytes(vfsfile_t *f, const void *buffer, int len)
 	return len;
 }
 
-vfsfile_t *VFSPIPE_Open(int refs, qboolean seekable)
+vfsfile_t *VFS_OpenPipeInternal(int refs, qboolean seekable, void (*callback)(void *ctx, vfsfile_t *file), void *ctx)
 {
 	vfspipe_t *newf;
 	newf = malloc(sizeof(*newf));
@@ -1909,6 +1914,9 @@ vfsfile_t *VFSPIPE_Open(int refs, qboolean seekable)
 	newf->funcs.ReadBytes = VFSPIPE_ReadBytes;
 	newf->funcs.WriteBytes = VFSPIPE_WriteBytes;
 
+	newf->ctx = ctx;
+	newf->callback = callback;
+
 	if (seekable)
 	{	//if this is set, then we allow changing the readpos at the expense of buffering the ENTIRE file. no more fifo.
 		newf->funcs.Seek = VFSPIPE_Seek;
@@ -1923,4 +1931,13 @@ vfsfile_t *VFSPIPE_Open(int refs, qboolean seekable)
 	}
 
 	return &newf->funcs;
+}
+vfsfile_t *VFS_OpenPipeCallback(void (*callback)(void*ctx, vfsfile_t *file), void *ctx)
+{
+	return VFS_OpenPipeInternal(2, false, callback, ctx);
+}
+
+vfsfile_t *VFSPIPE_Open(int refs, qboolean seekable)
+{
+	return VFS_OpenPipeInternal(refs, seekable, NULL, NULL);
 }

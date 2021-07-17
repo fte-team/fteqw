@@ -5378,7 +5378,6 @@ extern int waitingformanifest;
 void Host_DoRunFile(hrf_t *f);
 void CL_PlayDemoStream(vfsfile_t *file, char *filename, qboolean issyspath, int demotype, float bufferdelay);
 void CL_ParseQTVDescriptor(vfsfile_t *f, const char *name);
-qboolean FS_PathURLCache(char *url, char *path, size_t pathsize);
 
 //guesses the file type based upon its file extension. mdl/md3/iqm distinctions are not important, so we can usually get away with this in the context of quake.
 unsigned int Host_GuessFileType(const char *mimetype, const char *filename)

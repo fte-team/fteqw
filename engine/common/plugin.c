@@ -407,6 +407,10 @@ static qboolean QDECL PlugBI_ExportInterface(const char *name, void *interfacept
 	if (!strcmp(name, plugvrfuncs_name))
 		return R_RegisterVRDriver(currentplug, interfaceptr);
 #endif
+#ifdef PACKAGEMANAGER
+	if (!strcmp(name, plugupdatesourcefuncs_name))
+		return PM_RegisterUpdateSource(currentplug, interfaceptr);
+#endif
 	return false;
 }
 
@@ -1117,7 +1121,6 @@ static void QDECL Plug_Net_Close(qhandle_t handle)
 }
 
 #if defined(HAVE_SERVER) && defined(HAVE_CLIENT)
-qboolean FS_PathURLCache(const char *url, char *path, size_t pathsize);
 static qboolean QDECL Plug_MapLog_Query(const char *packagename, const char *mapname, float *vals)
 {
 	if (!strncmp(packagename, "http://", 7) || !strncmp(packagename, "https://", 8))
@@ -1532,6 +1535,9 @@ void Plug_Close(plugin_t *plug)
 	S_UnregisterSoundInputModule(plug);
 #endif
 	NET_RegisterCrypto(plug, NULL);
+#ifdef PACKAGEMANAGER
+	PM_RegisterUpdateSource(currentplug, NULL);
+#endif
 	FS_UnRegisterFileSystemModule(plug);
 	Mod_UnRegisterAllModelFormats(plug);
 
@@ -1791,11 +1797,14 @@ static void *QDECL PlugBI_GetEngineInterface(const char *interfacename, size_t s
 	{
 		static plugcmdfuncs_t funcs =
 		{
-			Plug_Cmd_AddCommand,
+			COM_QuotedString,
+			COM_ParseType,
+			COM_ParseTokenOut,
 			Plug_Cmd_TokenizeString,
 			Plug_Cmd_Args,
 			Plug_Cmd_Argv,
 			Plug_Cmd_Argc,
+			Plug_Cmd_AddCommand,
 			Plug_Cmd_AddText,
 		};
 		if (structsize == sizeof(funcs))

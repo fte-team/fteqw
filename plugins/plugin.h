@@ -216,14 +216,20 @@ typedef struct	//subconsole handling
 #define plugsubconsolefuncs_name "SubConsole"
 } plugsubconsolefuncs_t;
 
+enum com_tokentype_e;
 typedef struct	//console command/tokenizing/cbuf functions
 {
-	F(qboolean,	AddCommand,			(const char *buffer));	//Registers a console command.
+	F(const char *,QuotedString,	(const char *string, char *buf, int buflen, qboolean omitquotes));	//generates a string with c-style markup and relevant quote types.
+	F(char *,	ParseToken,			(const char *data, char *token, size_t tokenlen, enum com_tokentype_e *tokentype));	//standard quake-style token parsing.
+	F(char *,	ParsePunctuation,	(const char *data, const char *punctuation, char *token, size_t tokenlen, enum com_tokentype_e *tokentype));	//use explicit punctuation.
+
 	F(void,		TokenizeString,		(const char *msg));	//tokenize a string.
 
 	F(void,		Args,				(char *buffer, int bufsize));	//Gets the extra args
 	F(void,		Argv,				(int argnum, char *buffer, size_t bufsize));	//Gets a 0-based token
 	F(int,		Argc,				(void));	//gets the number of tokens available.
+
+	F(qboolean,	AddCommand,			(const char *cmdname));	//Registers a console command.
 
 	F(void,		AddText,			(const char *text, qboolean insert));
 #define plugcmdfuncs_name "Cmd"

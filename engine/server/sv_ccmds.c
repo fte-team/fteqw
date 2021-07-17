@@ -19,6 +19,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 */
 #include "quakedef.h"
 #include "pr_common.h"
+#include "fs.h"
 
 #ifndef CLIENTONLY
 
@@ -491,6 +492,10 @@ static void SV_Map_c(int argn, const char *partial, struct xcommandargcompletion
 		COM_EnumerateFiles(va("maps/%s*.map.gz", partial), CompleteMapListExt, ctx);
 		COM_EnumerateFiles(va("maps/%s*.cm", partial), CompleteMapList, ctx);
 		COM_EnumerateFiles(va("maps/%s*.hmp", partial), CompleteMapList, ctx);
+
+#ifdef PACKAGEMANAGER
+		PM_EnumerateMaps(partial, ctx);
+#endif
 	}
 }
 
@@ -533,6 +538,9 @@ quake2:
 
 quake:
 + is used in certain map names. * cannot be, but $ potentially could be.
+
+fte:
+'map package:mapname' should download the specified map package and load up its maps.
 
 mvdsv:
 basemap#modifier.ent files
@@ -615,6 +623,20 @@ void SV_Map_f (void)
 			SV_MapList_f();
 			return;
 		}
+
+#ifdef PACKAGEMANAGER
+		if (Cmd_Argc() == 2)
+		{
+			char *mangled = Cmd_Argv(1);
+			char *sep = strchr(mangled, ':');
+			if (sep)
+			{
+				*sep++ = 0;
+				PM_LoadMap(mangled, sep);
+				return;
+			}
+		}
+#endif
 
 		Q_strncpyz (level, Cmd_Argv(1), sizeof(level));
 		startspot = ((Cmd_Argc() == 2)?NULL:Cmd_Argv(2));

@@ -139,6 +139,7 @@ struct dl_download
 };
 
 vfsfile_t *VFSPIPE_Open(int refs, qboolean seekable);	//refs should be 1 or 2, to say how many times it must be closed before its actually closed, so both ends can close separately
+vfsfile_t *VFS_OpenPipeCallback(void (*callback)(void*ctx, vfsfile_t *file), void *ctx);
 void HTTP_CL_Think(const char **fname, float *percent);
 void HTTP_CL_Terminate(void);	//kills all active downloads
 unsigned int HTTP_CL_GetActiveDownloads(void);

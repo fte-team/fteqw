@@ -1,3 +1,5 @@
+#include "quakedef.h"
+#include "fs.h"
 #include "../plugin.h"
 static plugsubconsolefuncs_t *confuncs;
 static plugfsfuncs_t *filefuncs;
@@ -8,6 +10,7 @@ static plugclientfuncs_t *clientfuncs;
 #define DATABASEURL		"https://www.quaddicted.com/reviews/quaddicted_database.xml"
 #define FILEIMAGEURL	"https://www.quaddicted.com/reviews/screenshots/%s_injector.jpg"
 #define FILEDOWNLOADURL	"https://www.quaddicted.com/filebase/%s.zip"
+#define FILEREVIEWURL	"https://www.quaddicted.com/reviews/%s.html"
 #define WINDOWTITLE		"Quaddicted Map+Mod Archive"
 #define WINDOWNAME		"QI"
 
@@ -30,6 +33,7 @@ static plugclientfuncs_t *clientfuncs;
 
 static xmltree_t *thedatabase;
 static qhandle_t dlcontext = -1;
+static vfsfile_t *packagemanager;
 
 static struct
 {
@@ -102,7 +106,7 @@ static qboolean QI_SetupWindow(const char *console, qboolean force)
 		confuncs->SetActive(console);
 	return true;
 }
-static void QI_DeHTML(const char *in, char *out, size_t outsize)
+static void QI_DeHTML(const char *in, qboolean escapes, char *out, size_t outsize)
 {
 	outsize--;
 	while(*in && outsize > 0)
@@ -174,6 +178,12 @@ static void QI_DeHTML(const char *in, char *out, size_t outsize)
 				*out++ = *in++;
 				outsize--;
 			}
+		}
+		else if ((*in == '\"') && escapes && outsize >= 2)
+		{
+			*out++ = '\\';
+			*out++ = *in++;
+			outsize-=2;
 		}
 		else
 		{
@@ -339,7 +349,7 @@ static void QI_RefreshMapList(qboolean forcedisplay)
 			year += 1900;
 		Q_snprintf(descbuf, sizeof(descbuf), "^aId:^a %s\n^aAuthor(s):^a %s\n^aDate:^a %04u-%02u-%02u\n^aRating:^a %s\n\n", id, author, year, month, day, ratingtext);
 
-		QI_DeHTML(desc, descbuf + strlen(descbuf), sizeof(descbuf) - strlen(descbuf));
+		QI_DeHTML(desc, false, descbuf + strlen(descbuf), sizeof(descbuf) - strlen(descbuf));
 		desc = descbuf;
 
 		Con_SubPrintf(console, "%s %s ^[^4%s: ^1%s\\tip\\%s\\tipimg\\"FILEIMAGEURL"\\id\\%s^]", type, ratingtext, id, XML_GetChildBody(file, "title", "<NO TITLE>"), desc, id, id);
@@ -526,6 +536,187 @@ static void QI_RunMap(xmltree_t *qifile, const char *map)
 	cmdfuncs->AddText("\n", false);
 }
 
+
+void VARGS VFS_PRINTF(vfsfile_t *vf, const char *format, ...)
+{
+	va_list		argptr;
+	char		string[1024];
+
+	va_start (argptr, format);
+	vsnprintf (string,sizeof(string)-1, format,argptr);
+	va_end (argptr);
+
+	VFS_PUTS(vf, string);
+}
+static void QI_WriteUpdateList(vfsfile_t *pminfo)
+{
+	xmltree_t *file;
+	char descbuf[1024], *d, *nl;
+
+	if (thedatabase)
+	for (file = thedatabase->child; file; file = file->sibling)
+	{
+		const char *id = XML_GetParameter(file, "id", "unnamed");
+		const char *rating = XML_GetParameter(file, "rating", "");
+		int ratingnum = atoi(rating);
+		const char *author = XML_GetChildBody(file, "author", "unknown");
+		const char *desc = XML_GetChildBody(file, "description", "<NO DESCRIPTION>");
+		const char *type = XML_GetParameter(file, "type", "");
+		const char *date = XML_GetChildBody(file, "date", "1.1.1990");
+		xmltree_t *tech = XML_ChildOfTree(file, "techinfo", 0);
+		const char *cmdline = XML_GetChildBody(tech, "commandline", "");
+		const char *zipbasedir = XML_GetChildBody(tech, "zipbasedir", "");
+		int year, month, day;
+		int startmapnum, i;
+		char ratingtext[65];
+		char gamedir[65];
+		char prefix[MAX_QPATH];
+		xmltree_t *startmap;
+		if (strcmp(file->name, "file"))
+			continue;	//erk?
+		if (atoi(XML_GetParameter(file, "hide", "")) || atoi(XML_GetParameter(file, "fte_hide", "")))
+			continue;
+		switch(atoi(type))
+		{
+		case 1:
+			type = "map";	//'single map file(s)'
+			break;
+		case 2:
+			type = "mod";	//'Partial conversion'
+			break;
+		case 4:
+			type = "spd";	//'speedmapping'
+			break;
+		case 5:
+			type = "otr";	//'misc files'
+			break;
+		default:
+			type = "???";	//no idea
+			break;
+		}
+
+		if (ratingnum > (sizeof(ratingtext)-5)/6)
+			ratingnum = (sizeof(ratingtext)-5)/6;
+		if (ratingnum)
+		{
+			Q_snprintf(ratingtext, sizeof(ratingtext), "^a");
+			for (i = 0; i < ratingnum; i++)
+				Q_snprintf(ratingtext + i+2, sizeof(ratingtext)-i*2+2, "*");
+			Q_snprintf(ratingtext + i+2, sizeof(ratingtext)-i*2+2, "^a");
+		}
+		else if (*rating)
+			Q_snprintf(ratingtext, sizeof(ratingtext), "%s", rating);
+		else
+			Q_snprintf(ratingtext, sizeof(ratingtext), "%s", "unrated");
+
+
+		day = atoi(date?date:"1");
+		date = date?strchr(date, '.'):NULL;
+		month = atoi(date?date+1:"1");
+		date = date?strchr(date+1, '.'):NULL;
+		year = atoi(date?date+1:"1990");
+		if (year < 90)
+			year += 2000;
+		else if (year < 1900)
+			year += 1900;
+
+		strcpy(gamedir, "id1");
+		while (cmdline)
+		{
+			cmdline = cmdfuncs->ParseToken(cmdline, descbuf, sizeof(descbuf), NULL);
+			if (!strcmp(descbuf, "-game"))
+				cmdline = cmdfuncs->ParseToken(cmdline, gamedir, sizeof(gamedir), NULL);
+			else if (!strcmp(descbuf, "-hipnotic") || !strcmp(descbuf, "-rogue") || !strcmp(descbuf, "-quoth"))
+			{
+				if (!*gamedir)
+					strcpy(gamedir, descbuf+1);
+			}
+		}
+		if (!*gamedir)
+			continue;	//bad package
+
+
+		*descbuf = 0;
+		QI_DeHTML(desc, true, descbuf + strlen(descbuf), sizeof(descbuf) - strlen(descbuf));
+		desc = descbuf;
+
+		VFS_PRINTF(pminfo, "{\n"
+								"\tpackage \"qi_%s\"\n"
+								"\ttitle \"%s %s\"\n"
+								"\tcategory \"Quaddicted - %i\"\n"
+								"\tlicense \"Unknown\"\n"
+								"\tauthor \"Unknown\"\n"
+								"\tqhash \"\"\n"
+								,id, ratingtext, XML_GetChildBody(file, "title", "<NO TITLE>"), year);
+
+		VFS_PRINTF(pminfo, 		"\tgamedir \"%s\"\n", gamedir);
+
+		VFS_PRINTF(pminfo, 		"\tver %04u-%02u-%02u\n", year, month, day);
+		if (!strchr(author, '\"') && !strchr(author, '\n'))
+			VFS_PRINTF(pminfo, 		"\tauthor \"%s\"\n", author);
+		VFS_PRINTF(pminfo, 		"\twebsite \""FILEREVIEWURL"\"\n", id);	//in lieu of an actual site, lets fill it with quaddicted's reviews.
+
+		VFS_PRINTF(pminfo, 		"\turl \""FILEDOWNLOADURL"\"\n", id);
+
+
+		//skip any dodgy leading slashes
+		while (*zipbasedir == '/' || *zipbasedir == '\\')
+			zipbasedir++;
+		if (!*zipbasedir)
+			strcpy(prefix, "..");	//err, there wasn't a directory... we still need to 'strip' it though.
+		else
+		{
+			//skip the zip's gamedir
+			while (*zipbasedir && *zipbasedir != '/' && *zipbasedir != '\\')
+				zipbasedir++;
+			//skip any trailing
+			while (*zipbasedir == '/' || *zipbasedir == '\\')
+				zipbasedir++;
+			for (i = 0; *zipbasedir; i++)
+			{
+				if (i >= sizeof(prefix)-1)
+					break;
+				if (*zipbasedir == '\\')	//sigh
+					prefix[i] = '/';
+				else if (*zipbasedir == '\"' || *zipbasedir == '\n' || *zipbasedir == '\r')
+					break;	//bad char...
+				else
+					prefix[i] = *zipbasedir;
+				zipbasedir++;
+			}
+			while (i > 0 && prefix[i-1] == '/')
+				i--;
+			prefix[i] = 0;
+		}
+		if (*prefix)
+			VFS_PRINTF(pminfo, 		"\tpackprefix \"%s\"\n", prefix);
+
+		for(d = descbuf;;)
+		{
+			nl = strchr(d, '\n');
+			if (nl)
+				*nl++ = 0;
+			VFS_PRINTF(pminfo, 		"\tdesc \"%s\"\n", d);
+			if (!nl)
+				break;
+			d = nl;
+		}
+
+		//VFS_PRINTF(pminfo,		"\tpreview \""FILEIMAGEURL"\"\n", id);
+		for (startmapnum = 0; ; startmapnum++)
+		{
+			startmap = XML_ChildOfTree(tech, "startmap", startmapnum);
+			if (!startmap)
+				break;
+
+			VFS_PRINTF(pminfo, "\tmap \"%s\"\n", startmap->body);
+		}
+		if (!startmapnum)	//if there's no start maps listed, use the package's id instead. these are not intended for anything else.
+			VFS_PRINTF(pminfo, "\tmap \"%s\"\n", id);
+		VFS_PRINTF(pminfo, "}\n");
+	}
+}
+
 static unsigned int QI_GetDate(xmltree_t *file)
 {
 	unsigned int day, month, year;
@@ -685,8 +876,8 @@ static void QDECL QI_Tick(double realtime, double gametime)
 {
 	if (dlcontext != -1)
 	{
-		qofs_t flen;
-		if (filefuncs->GetLen(dlcontext, &flen))
+		qofs_t flen=0;
+		if (dlcontext < 0 || filefuncs->GetLen(dlcontext, &flen))
 		{
 			int ofs = 0;
 			char *file;
@@ -728,6 +919,22 @@ static void QDECL QI_Tick(double realtime, double gametime)
 
 //			XML_ConPrintTree(thedatabase, "quadicted_xml", 0);
 		}
+	}
+	else if (packagemanager)
+	{
+		if (!thedatabase && dlcontext == -1)
+		{
+			dlcontext = -2;
+			//if (filefuncs->Open(DATABASEURL, &dlcontext, 1) >= 0)
+				return;
+		}
+		else
+		{
+			VFS_PRINTF(packagemanager, "version 3\n");
+			QI_WriteUpdateList(packagemanager);
+		}
+		VFS_CLOSE(packagemanager);
+		packagemanager = NULL;
 	}
 }
 
@@ -774,11 +981,25 @@ static qboolean QI_ExecuteCommand(qboolean isinsecure)
 	return false;
 }
 
+void QI_GenPackages(const char *url, vfsfile_t *pipe)
+{
+	if (packagemanager)
+		VFS_CLOSE(packagemanager);
+	packagemanager = pipe;
+}
+static plugupdatesourcefuncs_t sourcefuncs =
+{
+	"Quaddicted Maps",
+	QI_GenPackages
+};
+
 qboolean Plug_Init(void)
 {
 	confuncs = plugfuncs->GetEngineInterface(plugsubconsolefuncs_name, sizeof(*confuncs));
 	filefuncs = plugfuncs->GetEngineInterface(plugfsfuncs_name, sizeof(*filefuncs));
 	clientfuncs = plugfuncs->GetEngineInterface(plugclientfuncs_name, sizeof(*clientfuncs));
+
+	plugfuncs->ExportInterface(plugupdatesourcefuncs_name, &sourcefuncs, sizeof(sourcefuncs));
 
 	if (confuncs && filefuncs && clientfuncs)
 	{

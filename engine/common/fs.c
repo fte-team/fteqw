@@ -3139,12 +3139,19 @@ void FS_AddHashedPackage(searchpath_t **oldpaths, const char *parentpath, const 
 			continue;
 		if ((loadstuff & (1<<fmt)) && !Q_strcasecmp(ext, searchpathformats[fmt].extension))
 		{
-
 			//figure out the logical path names
 			if (!FS_GenCachedPakName(pakpath, qhash, pname, sizeof(pname)))
 				return;	//file name was invalid, panic.
-			snprintf (lname, sizeof(lname), "%s%s", logicalpaths, pname+ptlen+1);
-			snprintf (lname2, sizeof(lname), "%s%s", logicalpaths, pakpath+ptlen+1);
+			if (!search)
+			{
+				FS_NativePath(pname, FS_ROOT, lname, sizeof(lname));
+				FS_NativePath(pakpath, FS_ROOT, lname2, sizeof(lname2));
+			}
+			else
+			{
+				snprintf (lname, sizeof(lname), "%s%s", logicalpaths, pname+ptlen+1);
+				snprintf (lname2, sizeof(lname), "%s%s", logicalpaths, pakpath+ptlen+1);
+			}
 
 			//see if we already added it
 			for (oldp = com_searchpaths; oldp; oldp = oldp->next)

@@ -132,12 +132,11 @@ typedef struct {
 	int tiwidth, tiheight;
 	qbyte translationimage[128*128];
 } setupmenu_t;
-qboolean ApplySetupMenu (union menuoption_s *option,struct emenu_s *menu, int key)
+void MSetup_Removed(emenu_t *menu)
 {
 	char bot[64], top[64];
 	setupmenu_t *info = menu->data;
-	if (key != K_MOUSE1 && key != K_ENTER && key != K_KP_ENTER && key != K_GP_START)
-		return false;
+
 	Cvar_Set(&name, info->nameedit->text);
 	Cvar_Set(&team, info->teamedit->text);
 	if (info->skinedit)
@@ -155,9 +154,6 @@ qboolean ApplySetupMenu (union menuoption_s *option,struct emenu_s *menu, int ke
 	else
 		Q_snprintfz(top, sizeof(top), "%i", info->topcolour);
 	Cbuf_AddText(va("color %s %s\n", top, bot), RESTRICT_LOCAL);
-	S_LocalSound ("misc/menu2.wav");
-	M_RemoveMenu(menu);
-	return true;
 }
 
 //http://axonflux.com/handy-rgb-to-hsl-and-rgb-to-hsv-color-model-c
@@ -229,13 +225,13 @@ qboolean SetupMenuColour (union menuoption_s *option,struct emenu_s *menu, int k
 	//but we give the top free reign.
 	//unless they hold shift, in which case it switches around
 	//this allows for whatever you want
-	if (key == K_ENTER || key == K_KP_ENTER || key == K_GP_START || key == K_RIGHTARROW || key == K_KP_RIGHTARROW || key == K_GP_DPAD_RIGHT)
+	if (key == K_ENTER || key == K_KP_ENTER || key == K_GP_START || key == K_RIGHTARROW || key == K_KP_RIGHTARROW || key == K_MOUSE1 || key == K_GP_DPAD_RIGHT)
 	{
 		if ((keydown[K_LSHIFT] || keydown[K_RSHIFT]) ^ (ptr == &info->topcolour))
 		{
 			vec3_t hsv;
 			rgbtohsv(*ptr, hsv);
-			*ptr = hsvtorgb(hsv[0]+1/128.0, 1, 1);//hsv[1], hsv[2]);
+			*ptr = hsvtorgb(hsv[0]+((key == K_MOUSE1)?5:1)/128.0, 1, 1);//hsv[1], hsv[2]);
 		}
 		else
 		{
@@ -447,6 +443,7 @@ void M_Menu_Setup_f (void)
 		menucustom_t *cu;
 
 		menu = M_CreateMenu(sizeof(setupmenu_t));
+		menu->remove = MSetup_Removed;
 		info = menu->data;
 //		menu->key = MC_Main_Key;
 
@@ -469,6 +466,7 @@ void M_Menu_Setup_f (void)
 #endif
 
 	menu = M_CreateMenu(sizeof(setupmenu_t));
+	menu->remove = MSetup_Removed;
 	info = menu->data;
 
 //	MC_AddPicture(menu, 72, 32, Draw_CachePic ("gfx/mp_menu.lmp") );
@@ -508,10 +506,9 @@ void M_Menu_Setup_f (void)
 	MC_AddCommand(menu, 64, 160, 96, "Top colour", SetupMenuColour);
 	MC_AddCommand(menu, 64, 160, 120, "Lower colour", SetupMenuColour);
 
-	MC_AddCommand(menu, 64, 320, 152, "Accept changes", ApplySetupMenu);
-	b = MC_AddConsoleCommand(menu, 64, 320, 168, "Network Settings", "menu_network\n");
+	b = MC_AddConsoleCommand(menu, 64, 204, 168, "Network Settings", "menu_network\n");
 	b->common.tooltip = "Change network and client prediction settings.";
-	b = MC_AddConsoleCommand(menu, 64, 320, 176, "Teamplay Settings", "menu_teamplay\n");
+	b = MC_AddConsoleCommand(menu, 64, 204, 176, "Teamplay Settings", "menu_teamplay\n");
 	b->common.tooltip = "Change teamplay macro settings.";
 	menu->cursoritem = (menuoption_t*)MC_AddCursorSmall(menu, &resel, 54, 32);
 

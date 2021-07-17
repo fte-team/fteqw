@@ -53,10 +53,12 @@ void ModBrush_LoadGLStuff(void *ctx, void *data, size_t a, size_t b);	//data ===
 		#define GLclampd GLclampf
 		#define GLdouble GLfloat
 		#define GL_NONE                           0
-	#elif defined(__MACOSX__)
-		//apple, you suck.
-		#include <AGL/agl.h>
-	#elif defined(__APPLE__)
+	#elif defined(__APPLE__) || defined(__MACOSX__)
+		#include <OpenGL/OpenGLAvailability.h>
+		#if defined(OPENGL_DEPRECATED) && !defined(GL_SILENCE_DEPRECATION)
+			#undef OPENGL_DEPRECATED
+			#define OPENGL_DEPRECATED(from, to) API_DEPRECATED("Apple is deprecated. (Define GL_SILENCE_DEPRECATION to silence these warnings)", macos(from, to))
+		#endif
 		#include <OpenGL/gl.h>	//tuna says use this.
 		//apple really do suck.
 	#elif defined(NACL) || defined(FTE_TARGET_WEB)

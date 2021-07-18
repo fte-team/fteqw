@@ -198,17 +198,13 @@ static char *manifestpackages;	//metapackage named by the manicfest.
 static char *declinedpackages;	//metapackage named by the manicfest.
 static int domanifestinstall;	//SECURITY_MANIFEST_*
 
+#ifdef WEBCLIENT
 static struct
 {
 	char *package;	//package to load. don't forget its dependancies too.
 	char *map;		//the map to load.
 } pm_onload;
 
-#ifndef SERVERONLY
-//static qboolean pluginpromptshown;	//so we only show prompts for new externally-installed plugins once, instead of every time the file is reloaded.
-#endif
-
-#ifdef WEBCLIENT
 static int allowphonehome = -1;	//if autoupdates are disabled, make sure we get (temporary) permission before phoning home for available updates. (-1=unknown, 0=no, 1=yes)
 static qboolean doautoupdate;	//updates will be marked (but not applied without the user's actions)
 static qboolean pkg_updating;	//when flagged, further changes are blocked until completion.
@@ -3982,6 +3978,10 @@ void PM_LoadMap(const char *package, const char *map)
 
 	pkg_updating = true;
 	PM_StartADownload();
+}
+#else
+void PM_LoadMap(const char *package, const char *map)
+{	//not supported, which is a shame because it might have been downloaded via other means.
 }
 #endif
 //'just' starts doing all the things needed to remove/install selected packages

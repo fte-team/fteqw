@@ -542,7 +542,6 @@ qboolean Ruleset_FileLoaded(const char *filename, const qbyte *filedata, size_t 
 {	//usually called on worker threads
 	qbyte digest[20];
 	size_t i, j;
-	unsigned int status;
 
 	if (ruleset_current && ruleset_current->filehashes)
 	{
@@ -574,6 +573,7 @@ qboolean Ruleset_FileLoaded(const char *filename, const qbyte *filedata, size_t 
 	{
 		if (!strcmp(filename, modifiles[i].name) && (modifiles[i].flags & (cl.teamfortress?FMOD_TF:FMOD_DM)))
 		{
+			unsigned int status;
 			CalcHash(&hash_sha1, digest, sizeof(digest), filedata, filesize);
 
 			for (j = 0; j < modifiles[i].hashes; j++)
@@ -872,6 +872,7 @@ extrafilehash:
 
 	return rs;
 }
+#ifdef HAVE_LEGACY
 static ruleset_t *Ruleset_ParseInternal(const char *name, const char *file)
 {
 	ruleset_t *rs;
@@ -881,6 +882,7 @@ static ruleset_t *Ruleset_ParseInternal(const char *name, const char *file)
 	Z_Free(lazy);
 	return rs;
 }
+#endif
 
 static int QDECL Ruleset_Read(const char *fname, qofs_t size, time_t mtime, void *parm, searchpathfuncs_t *spath)
 {

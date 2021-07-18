@@ -5848,7 +5848,6 @@ static void PM_ConfirmSource(void *ctx, promptbutton_t button)
 			Cmd_ExecuteString("menu_download\n", RESTRICT_LOCAL);
 	}
 }
-#endif
 
 //given a url, try to chop it down to just a hostname
 static const char *PrettyHostFromURL(const char *origurl)
@@ -5883,6 +5882,7 @@ static const char *PrettyHostFromURL(const char *origurl)
 
 	return url;
 }
+#endif
 
 qboolean PM_AreSourcesNew(qboolean doprompt)
 {

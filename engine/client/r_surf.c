@@ -3564,7 +3564,9 @@ void Surf_DrawWorld (void)
 	currententity = &r_worldentity;
 
 	{
+#ifdef THREADEDWORLD
 		int sc = r_temporalscenecache.ival;
+#endif
 		RSpeedRemark();
 
 		Surf_LightmapShift(currentmodel);

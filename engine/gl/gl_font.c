@@ -2905,7 +2905,7 @@ void Font_InvalidateColour(vec4_t newcolour)
 	if (font_foretint[0] == newcolour[0] && font_foretint[1] == newcolour[1] && font_foretint[2] == newcolour[2] && font_foretint[3] == newcolour[3])
 		return;
 
-	if (font_colourmask & CON_NONCLEARBG)
+	if ((font_colourmask & CON_NONCLEARBG) && font_foremesh.numindexes)
 	{
 		if (R2D_Flush)
 			R2D_Flush();

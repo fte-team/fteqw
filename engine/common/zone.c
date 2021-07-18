@@ -23,6 +23,9 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #ifdef _WIN32
 #include "winquake.h"
 #endif
+#ifdef __GLIBC__
+#include <malloc.h>
+#endif
 
 #define NOZONE
 
@@ -674,6 +677,10 @@ void Cache_Flush(void)
 #endif
 #ifdef HAVE_CLIENT
 	Image_Purge();
+#endif
+
+#ifdef __GLIBC__
+	malloc_trim(0);
 #endif
 }
 

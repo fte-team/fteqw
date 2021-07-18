@@ -1187,6 +1187,15 @@ void PR_LoadGlabalStruct(qboolean muted)
 
 	PR_SV_FillWorldGlobals(&sv.world);
 
+	for (i = 0; i < countof(buttonfields); i++)
+	{
+		eval_t *val = svprogfuncs->GetEdictFieldValue(svprogfuncs, (edict_t*)sv.world.edicts, buttonfields[i].fieldname, ev_float, NULL);
+		if (val)
+			buttonfields[i].offset = (float*)val - (float*)sv.world.edicts->v;
+		else
+			buttonfields[i].offset = -1;
+	}
+
 #ifdef HEXEN2
 	/*Hexen2 has lots of extra stats, which I don't want special support for, so list them here and send them as for csqc*/
 	if (progstype == PROG_H2)

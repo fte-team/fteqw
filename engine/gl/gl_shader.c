@@ -7964,6 +7964,8 @@ void Shader_TouchTextures(void)
 			t = &s->defaulttextures[j];
 			if (t->base)
 				t->base->regsequence = r_regsequence;
+			if (t->paletted)
+				t->paletted->regsequence = r_regsequence;
 			if (t->bump)
 				t->bump->regsequence = r_regsequence;
 			if (t->fullbright)

@@ -3846,8 +3846,8 @@ static void Cmd_set_f(void)
 		{
 			if (docalc)
 				text = If_Token(text, &end, IF_PRI_MAX);
-			Cvar_Set(var, text);
 			var->flags |= CVAR_USERCREATED | forceflags;
+			Cvar_Set(var, text);
 
 			if (Cmd_ExecLevel == RESTRICT_TEAMPLAY)
 				var->flags |= CVAR_TEAMPLAYTAINT;

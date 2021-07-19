@@ -592,6 +592,10 @@ void Mod_Purge(enum mod_purge_e ptype)
 				Con_DLPrintf(2, "model \"%s\" no longer needed\n", mod->name);
 			Mod_PurgeModel(mod, (ptype==MP_FLUSH && unused)?MP_RESET:ptype);
 		}
+#if defined(HALFLIFEMODELS) && defined(HAVE_CLIENT)
+		else if (mod->fromgame == fg_halflife)
+			R_HalfLife_TouchTextures(mod);
+#endif
 	}
 }
 

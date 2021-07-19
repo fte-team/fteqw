@@ -1807,8 +1807,28 @@ static void *QDECL PlugBI_GetEngineInterface(const char *interfacename, size_t s
 			Plug_Cmd_AddCommand,
 			Plug_Cmd_AddText,
 		};
+
+		static struct
+		{
+			qboolean	(QDECL*AddCommand)			(const char *cmdname);
+			void		(QDECL*TokenizeString)		(const char *msg);
+			void		(QDECL*Args)				(char *buffer, int bufsize);
+			void		(QDECL*Argv)				(int argnum, char *buffer, size_t bufsize);
+			int			(QDECL*Argc)				(void);
+			void		(QDECL*AddText)				(const char *text, qboolean insert);
+		} oldfuncs =
+		{
+			Plug_Cmd_AddCommand,
+			Plug_Cmd_TokenizeString,
+			Plug_Cmd_Args,
+			Plug_Cmd_Argv,
+			Plug_Cmd_Argc,
+			Plug_Cmd_AddText,
+		};
 		if (structsize == sizeof(funcs))
 			return &funcs;
+		if (structsize == sizeof(oldfuncs))
+			return &oldfuncs;
 	}
 	if (!strcmp(interfacename, plugcvarfuncs_name))
 	{

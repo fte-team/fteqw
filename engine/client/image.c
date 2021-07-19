@@ -11335,7 +11335,28 @@ void Image_BlockSizeForEncoding(uploadfmt_t encoding, unsigned int *blockbytes, 
 	case PTI_ASTC_6X6X6_LDR:	w = 6; h = 6; d = 6; b = 16; break;
 #endif
 
-	case PTI_EMULATED:
+	case TF_BGR24_FLIP:
+	case TF_SOLID8:
+	case TF_TRANS8:
+	case TF_TRANS8_FULLBRIGHT:
+	case TF_HEIGHT8:
+	case TF_HEIGHT8PAL:
+	case TF_H2_T7G1:
+	case TF_H2_TRANS8_0:
+	case TF_H2_T4A4:
+		b=1;
+		break;
+	case PTI_LLLX8:
+	case PTI_LLLA8:
+		b=4;
+		break;
+	case TF_8PAL24:
+	case TF_8PAL32:
+	case TF_INVALID:
+	case TF_MIP4_P8:
+	case TF_MIP4_SOLID8:
+	case TF_MIP4_8PAL24:
+	case TF_MIP4_8PAL24_T255:
 #ifdef FTE_TARGET_WEB
 	case PTI_WHOLEFILE: //UNKNOWN!
 #endif
@@ -14622,8 +14643,6 @@ void Image_DestroyTexture(image_t *tex)
 	Z_Free(tex);
 }
 
-
-void Shader_TouchTextures(void);
 void Image_Purge(void)
 {
 	image_t *tex;

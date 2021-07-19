@@ -731,6 +731,9 @@ void QDECL R_BuildDefaultTexnums(texnums_t *tn, shader_t *shader, unsigned int i
 void QDECL R_BuildLegacyTexnums(shader_t *shader, const char *fallbackname, const char *subpath, unsigned int loadflags, unsigned int imageflags, uploadfmt_t basefmt, size_t width, size_t height, qbyte *mipdata, qbyte *palette);
 void R_RemapShader(const char *sourcename, const char *destname, float timeoffset);
 
+void Shader_TouchTexnums(texnums_t *t);
+void Shader_TouchTextures(void);
+
 cin_t *R_ShaderGetCinematic(shader_t *s);
 cin_t *R_ShaderFindCinematic(const char *name);
 shader_t *R_ShaderFind(const char *name);	//does NOT increase the shader refcount.

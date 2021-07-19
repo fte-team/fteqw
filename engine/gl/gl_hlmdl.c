@@ -1515,6 +1515,13 @@ static void R_HL_BuildMeshes(batch_t *b)
 }
 qboolean R_CalcModelLighting(entity_t *e, model_t *clmodel);
 
+void R_HalfLife_TouchTextures(model_t *mod)
+{
+	hlmodel_t *model = Mod_Extradata(mod);
+	unsigned int t;
+	for (t = 0; t < model->header->numtextures; t++)
+		Shader_TouchTexnums(&model->shaders[t].defaulttex);
+}
 void R_HalfLife_GenerateBatches(entity_t *rent, batch_t **batches)
 {
 	hlmodel_t *model = Mod_Extradata(rent->model);

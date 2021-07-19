@@ -7940,12 +7940,36 @@ void Shader_ShowShader_f(void)
 		Con_Printf("Shader \"%s\" is not loaded\n", sourcename);
 }
 
+void Shader_TouchTexnums(texnums_t *t)
+{
+	if (t->base)
+		t->base->regsequence = r_regsequence;
+	if (t->bump)
+		t->bump->regsequence = r_regsequence;
+	if (t->specular)
+		t->specular->regsequence = r_regsequence;
+	if (t->upperoverlay)
+		t->upperoverlay->regsequence = r_regsequence;
+	if (t->loweroverlay)
+		t->loweroverlay->regsequence = r_regsequence;
+	if (t->paletted)
+		t->paletted->regsequence = r_regsequence;
+	if (t->fullbright)
+		t->fullbright->regsequence = r_regsequence;
+	if (t->reflectcube)
+		t->reflectcube->regsequence = r_regsequence;
+	if (t->reflectmask)
+		t->reflectmask->regsequence = r_regsequence;
+	if (t->displacement)
+		t->displacement->regsequence = r_regsequence;
+	if (t->occlusion)
+		t->occlusion->regsequence = r_regsequence;
+}
 void Shader_TouchTextures(void)
 {
 	int i, j, k;
 	shader_t *s;
 	shaderpass_t *p;
-	texnums_t *t;
 	for (i = 0; i < r_numshaders; i++)
 	{
 		s = r_shaders[i];
@@ -7960,23 +7984,7 @@ void Shader_TouchTextures(void)
 					p->anim_frames[k]->regsequence = r_regsequence;
 		}
 		for (j = 0; j < max(1,s->numdefaulttextures); j++)
-		{
-			t = &s->defaulttextures[j];
-			if (t->base)
-				t->base->regsequence = r_regsequence;
-			if (t->paletted)
-				t->paletted->regsequence = r_regsequence;
-			if (t->bump)
-				t->bump->regsequence = r_regsequence;
-			if (t->fullbright)
-				t->fullbright->regsequence = r_regsequence;
-			if (t->specular)
-				t->specular->regsequence = r_regsequence;
-			if (t->upperoverlay)
-				t->upperoverlay->regsequence = r_regsequence;
-			if (t->loweroverlay)
-				t->loweroverlay->regsequence = r_regsequence;
-		}
+			Shader_TouchTexnums(&s->defaulttextures[j]);
 	}
 }
 

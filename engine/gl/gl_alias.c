@@ -2954,7 +2954,7 @@ void BE_GenModelBatches(batch_t **batches, const dlight_t *dl, unsigned int bemo
 						continue;
 			}
 
-			switch(emodel->type)
+			safeswitch(emodel->type)
 			{
 			case mod_brush:
 				if (r_drawentities.ival == 2 && cls.allow_cheats)	//2 is considered a cheat, because it can be used as a wallhack (whereas mdls are not normally considered as occluding).
@@ -2980,6 +2980,8 @@ void BE_GenModelBatches(batch_t **batches, const dlight_t *dl, unsigned int bemo
 				if (emodel->terrain && !(r_refdef.flags & RDF_NOWORLDMODEL))
 					Terr_DrawTerrainModel(batches, ent);
 #endif
+				break;
+			safedefault:
 				break;
 			}
 			break;

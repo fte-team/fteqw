@@ -339,9 +339,10 @@ const char *HLMDL_GetBoneName(model_t *mod, int bonenum);
 int HLMDL_GetBoneData(model_t *model, int firstbone, int lastbone, const framestate_t *fstate, float *result);
 int HLMDL_GetAttachment(model_t *model, int tagnum, float *resultmatrix);
 
-#ifndef SERVERONLY
+#ifdef HAVE_CLIENT
 //stuff only useful for clients that need to draw stuff
 void	R_DrawHLModel(entity_t	*curent);
 void HLMDL_DrawHitBoxes(entity_t *ent);
 void R_HalfLife_GenerateBatches(entity_t *rent, batch_t **batches);
+void R_HalfLife_TouchTextures(model_t *mod);
 #endif

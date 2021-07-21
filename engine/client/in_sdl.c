@@ -171,7 +171,7 @@ static struct sdljoy_s *J_DevId(SDL_JoystickID jid)
 	return NULL;
 }
 static void J_ControllerAxis(SDL_JoystickID jid, int axis, int value)
-{	//FIXME: sdlaxis 4 and 5 should trigger K_GP_LEFT_TRIGGER and K_GP_RIGHT_TRIGGER
+{
 	int axismap[] = {
 //			SDL_CONTROLLER_AXIS_LEFTX,	SDL_CONTROLLER_AXIS_LEFTY,		SDL_CONTROLLER_AXIS_RIGHTX,
 			GPAXIS_LT_RIGHT,			GPAXIS_LT_DOWN,					GPAXIS_RT_RIGHT,
@@ -179,8 +179,15 @@ static void J_ControllerAxis(SDL_JoystickID jid, int axis, int value)
 			GPAXIS_RT_DOWN,				GPAXIS_LT_TRIGGER,				GPAXIS_RT_TRIGGER};
 
 	struct sdljoy_s *joy = J_DevId(jid);
-	if (joy && axis < sizeof(axismap)/sizeof(axismap[0]) && joy->qdevid != DEVID_UNSET)
-		IN_JoystickAxisEvent(joy->qdevid, axismap[axis], value / 32767.0);
+	if (joy && axis < sizeof(axismap)/sizeof(axismap[0]) && joy->qdevid != DEVID_UNSET) {
+		/* hack to allow for RTRIGGER and LTRIGGER */
+		if (axis == 4)
+			IN_KeyEvent(joy->qdevid, (value > 128) ? 1 : 0, K_GP_LEFT_TRIGGER, 0);
+		else if (axis == 5)
+			IN_KeyEvent(joy->qdevid, (value > 128) ? 1 : 0, K_GP_RIGHT_TRIGGER, 0);
+		else
+			IN_JoystickAxisEvent(joy->qdevid, axismap[axis], value / 32767.0);
+	}
 }
 static void J_JoystickAxis(SDL_JoystickID jid, int axis, int value)
 {
@@ -977,7 +984,7 @@ void Sys_SendKeyEvents(void)
 //			break;
 		case SDL_JOYBUTTONDOWN:
 		case SDL_JOYBUTTONUP:
-			J_JoystickButton(event.jbutton.which, event.jbutton.button, event.type==SDL_CONTROLLERBUTTONDOWN);
+			J_JoystickButton(event.jbutton.which, event.jbutton.button, (event.type==SDL_CONTROLLERBUTTONDOWN) ? 1 : 0);
 			break;
 		case SDL_JOYDEVICEADDED:
 			J_JoystickAdded(event.jdevice.which);

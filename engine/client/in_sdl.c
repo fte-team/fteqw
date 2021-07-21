@@ -984,7 +984,7 @@ void Sys_SendKeyEvents(void)
 //			break;
 		case SDL_JOYBUTTONDOWN:
 		case SDL_JOYBUTTONUP:
-			J_JoystickButton(event.jbutton.which, event.jbutton.button, (event.type==SDL_CONTROLLERBUTTONDOWN) ? 1 : 0);
+			J_JoystickButton(event.jbutton.which, event.jbutton.button, event.type==SDL_JOYBUTTONDOWN);
 			break;
 		case SDL_JOYDEVICEADDED:
 			J_JoystickAdded(event.jdevice.which);

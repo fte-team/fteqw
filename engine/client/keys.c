@@ -340,6 +340,10 @@ keyname_t keynames[] =
 	{"RTRIGGER",				K_GP_RIGHT_TRIGGER},
 #endif
 
+	/* Steam Controller */
+	{"SC_LPADDLE",				K_AUX12},
+	{"SC_RPADDLE",				K_AUX13},
+
 	{NULL,			0}
 };
 

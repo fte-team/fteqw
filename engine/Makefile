@@ -682,8 +682,17 @@ ifeq ($(COMPILE_SYS),Darwin)
 	endif
 endif
 
-PROFILE_CFLAGS=-pg
+# Statically link everything but SDL/AL for the SDL target,
+# this assumes makelibs; but we don't really care. These are portable builds
+# that can only make one assumption: SDL/AL are installed.
+# Dependencies like libjpeg9 don't exist everywhere.
+ifeq ($(FTE_TARGET),SDL2)
+	IMAGELDFLAGS:= libs-$(ARCH)/libpng.a libs-$(ARCH)/libjpeg.a
+	OGGVORBISLDFLAGS:= libs-$(ARCH)/libvorbisfile.a libs-$(ARCH)/libvorbis.a libs-$(ARCH)/libogg.a
+	BASE_CFLAGS+=-DLIBJPEG_STATIC -DLIBJPEG_STATIC -DLIBPNG_STATIC -DOPUS_STATIC -DSPEEX_STATIC -DFREETYPE_STATIC -DLIBVORBISFILE_STATIC
+endif
 
+PROFILE_CFLAGS=-pg
 DX7SDK=-I./libs/dxsdk7/include/
 
 GLCFLAGS?=-DGLQUAKE

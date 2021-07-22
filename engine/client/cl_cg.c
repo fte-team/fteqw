@@ -1397,6 +1397,52 @@ qboolean CG_KeyPress(int key, int unicode, int down)
 	int catcher = Q3_GetKeyCatcher();
 	if (!cgvm || !(catcher&8))
 		return false;
+
+	/* if you change this here, it'll have to be changed in cl_cg.c too */
+	switch (key)
+	{
+		/* all these get interpreted as enter in Q3's UI... */
+		case K_JOY1:
+		case K_JOY2:
+		case K_JOY3:
+		case K_JOY4:
+		case K_AUX1:
+		case K_AUX2:
+		case K_AUX3:
+		case K_AUX4:
+		case K_AUX5:
+		case K_AUX6:
+		case K_AUX7:
+		case K_AUX8:
+		case K_AUX9:
+		case K_AUX10:
+		case K_AUX11:
+		case K_AUX14:
+		case K_AUX15:
+		case K_AUX16:
+			return true;
+			break;
+		/* Q3 doesn't know about these keys, remap them */
+		case K_GP_START:
+			key = K_ESCAPE;
+			break;
+		case K_GP_DPAD_UP:
+			key = K_UPARROW;
+			break;
+		case K_GP_DPAD_DOWN:
+			key = K_DOWNARROW;
+			break;
+		case K_GP_DPAD_LEFT:
+			key = K_LEFTARROW;
+			break;
+		case K_GP_DPAD_RIGHT:
+			key = K_RIGHTARROW;
+			break;
+		case K_GP_A:
+			key = K_ENTER;
+			break;
+	}
+
 	return VM_Call(cgvm, CG_KEY_EVENT, key, down);
 }
 

@@ -2,16 +2,17 @@
 #windows is special as always, but we don't support itanium, and microsoft don't support anything else (not even arm with the nt win32 api)
 ifeq ($(FTE_TARGET),win32)
 	PLUG_NATIVE_EXT=_x86.dll
-PLUG_LDFLAGS= -static-libgcc
-PLUG_LDFLAGS_ZLIB=-L../engine/libs/mingw-libs -lzlib
+	PLUG_LDFLAGS= -static-libgcc
+	PLUG_LDFLAGS_ZLIB=-L../engine/libs/mingw-libs -lzlib
 	BITS=32
 	PLUG_LDFLAGS_DL=
 	CMAKERULES=$(OUT_DIR)/toolchain_$(FTE_TARGET).cmake
 endif
+
 ifeq ($(FTE_TARGET),win64)
 	PLUG_NATIVE_EXT=_x64.dll
-PLUG_LDFLAGS=-Wl,--support-old-code -static-libgcc
-PLUG_LDFLAGS_ZLIB=-L../engine/libs/mingw64-libs -lz
+	PLUG_LDFLAGS=-Wl,--support-old-code -static-libgcc
+	PLUG_LDFLAGS_ZLIB=-L../engine/libs/mingw64-libs -lz
 	BITS=64
 	PLUG_LDFLAGS_DL=
 	CMAKERULES=$(OUT_DIR)/toolchain_$(FTE_TARGET).cmake
@@ -20,9 +21,9 @@ endif
 PLUG_PREFIX=$(OUT_DIR)/fteplug_
 
 ifeq ($(FTE_TARGET),bsd)
-PLUG_LDFLAGS_DL?=-ldl -lc
+	PLUG_LDFLAGS_DL?=-ldl -lc
 else
-PLUG_LDFLAGS_DL?=-ldl -static-libgcc
+	PLUG_LDFLAGS_DL?=-ldl -static-libgcc
 endif
 
 PLUG_LDFLAGS?=-L/usr/local/lib -Wl,-R/usr/local/lib -lm
@@ -59,9 +60,11 @@ ifeq ($(PLUG_NATIVE_EXT),)
 			PLUG_NATIVE_EXT=_amd64.so
 		endif
 	endif
+
 	ifneq ($(shell echo|$(CC) -E -dM -|grep __i386__),)
 		PLUG_NATIVE_EXT=_x86.so
 	endif
+
 	ifneq ($(shell echo|$(CC) -E -dM -|grep __arm__),)
 		#gnueabi[hf]
 		ifneq ($(shell echo|$(CC) -E -dM -|grep __SOFTFP__),)
@@ -70,16 +73,20 @@ ifeq ($(PLUG_NATIVE_EXT),)
 			PLUG_NATIVE_EXT=_armhf.so
 		endif
 	endif
+
 	ifneq ($(shell echo|$(CC) -E -dM -|grep __ppc__),)
 		PLUG_NATIVE_EXT=_ppc.so		#32bit big-endian
 	endif
+
 	ifneq ($(shell echo|$(CC) -E -dM -|grep __ppc64__),)
 		PLUG_NATIVE_EXT=_ppc64.so	#64bit big-endian
 	endif
+
 	ifneq ($(shell echo|$(CC) -E -dM -|grep __ppc64le__),)
 		PLUG_NATIVE_EXT=_ppc64le.so	#64bit little-endian.
 	endif
 endif
+
 ifeq ($(FTE_TARGET),droid)
 	#plugins get written to the tmp build dir, to avoid conflicts
 	PLUG_PREFIX=$(OUT_DIR)/m_droid-$(DROID_ARCH)/libplug_
@@ -120,60 +127,64 @@ help:
 #linux users are expected to have the library installed locally already. If your version is too old or missing, run the following command to install it (to /usr/local), then delete the gz and directory.
 #wget http://ffmpeg.org/releases/ffmpeg-1.2.tar.gz && cd tar xvfz ffmpeg-1.2.tar.gz && cd ffmpeg-1.2/ && ./configure --disable-yasm --enable-shared && make && sudo make install
 #we use ffmpeg's version for some reason, as opposed to libav. not sure what the differences are meant to be, but libav seemed to have non-depricated functions defined, docs that say to use them, and these functions missing.
-ifeq ($(findstring win,$(FTE_TARGET)),win)
+
 AV_VER=ffmpeg-4.0
-ifeq (0,1)
-    AV_ARCHIVEEXT=.z7
-    AV_EXTRACT=7z e -y
-else
-    AV_ARCHIVEEXT=.zip
-    AV_EXTRACT=unzip -ju
-endif
-AV_W32_DEV=$(AV_VER)-win32-dev$(AV_ARCHIVEEXT)
-AV_W64_DEV=$(AV_VER)-win64-dev$(AV_ARCHIVEEXT)
-AV_W32_BIN=$(AV_VER)-win32-shared$(AV_ARCHIVEEXT)
-AV_W64_BIN=$(AV_VER)-win64-shared$(AV_ARCHIVEEXT)
-AV_URL32_DEV=https://ffmpeg.zeranoe.com/builds/win32/dev/$(AV_W32_DEV)
-AV_URL64_DEV=https://ffmpeg.zeranoe.com/builds/win64/dev/$(AV_W64_DEV)
-AV_URL32_BIN=https://ffmpeg.zeranoe.com/builds/win32/shared/$(AV_W32_BIN)
-AV_URL64_BIN=https://ffmpeg.zeranoe.com/builds/win64/shared/$(AV_W64_BIN)
-AV_PRE32_DEV=$(AV_VER)-win32-dev/
-AV_PRE64_DEV=$(AV_VER)-win64-dev/
-AV_PRE32_BIN=$(AV_VER)-win32-shared/
-AV_PRE64_BIN=$(AV_VER)-win64-shared/
 
 ifeq ($(findstring win,$(FTE_TARGET)),win)
-  AV_BASE=$(abspath $(OUT_DIR)/../fte_libav_$(AV_VER))/
+	AV_BASE=$(abspath $(OUT_DIR)/../fte_libav_$(AV_VER))/
 else
-  ifeq ($(FTE_TARGET),bsd)
-    AV_BASE=/usr/local/include/
-  else
-    AV_BASE=/usr/include/ffmpeg/
-  endif
+	ifeq ($(FTE_TARGET),bsd)
+		AV_BASE=/usr/local/include/
+	else
+		AV_BASE=/usr/include/ffmpeg/
+	endif
 endif
 
 ifneq ($(AV_BASE),)
-  AV_DEP=$(AV_BASE)libavformat/avformat.h
-  AV_CFLAGS=-I$(AV_BASE)
-  AV_LDFLAGS=-L$(AV_BASE)lib$(BITS) -lavcodec -lavformat -lavutil -lswscale
+	AV_DEP=$(AV_BASE)libavformat/avformat.h
+	AV_CFLAGS=-I$(AV_BASE)
+	AV_LDFLAGS=-L$(AV_BASE)lib$(BITS) -lavcodec -lavformat -lavutil -lswscale
 else
-  AV_LDFLAGS=-lavcodec -lavformat -lavutil -lswscale
+	AV_LDFLAGS=-lavcodec -lavformat -lavutil -lswscale
 endif
 
 ifeq ($(FTE_TARGET),bsd)
-  AV_LDFLAGS+=-lc
+	AV_LDFLAGS+=-lc
 endif
-
 
 AVPLUG_OBJS= avplug/avaudio.c avplug/avencode.c avplug/avdecode.c plugin.c
-ifeq ($(FTE_TARGET),win32)
-FFMPEG_ZIP=$(OUT_DIR)/$(AV_VER)-x86.zip
-#NATIVE_PLUGINS+=ffmpeg
-endif
-ifeq ($(FTE_TARGET),win64)
-FFMPEG_ZIP=$(OUT_DIR)/$(AV_VER)-x64.zip
-#NATIVE_PLUGINS+=ffmpeg
-endif
+
+ifeq ($(findstring win,$(FTE_TARGET)),win)
+	ifeq (0,1)
+		AV_ARCHIVEEXT=.z7
+		AV_EXTRACT=7z e -y
+	else
+		AV_ARCHIVEEXT=.zip
+		AV_EXTRACT=unzip -ju
+	endif
+
+	AV_W32_DEV=$(AV_VER)-win32-dev$(AV_ARCHIVEEXT)
+	AV_W64_DEV=$(AV_VER)-win64-dev$(AV_ARCHIVEEXT)
+	AV_W32_BIN=$(AV_VER)-win32-shared$(AV_ARCHIVEEXT)
+	AV_W64_BIN=$(AV_VER)-win64-shared$(AV_ARCHIVEEXT)
+	AV_URL32_DEV=https://archive.org/download/zeranoe/win32/dev/$(AV_W32_DEV)
+	AV_URL64_DEV=https://archive.org/download/zeranoe/win64/dev/$(AV_W64_DEV)
+	AV_URL32_BIN=https://archive.org/download/zeranoe/win32/shared/$(AV_W32_BIN)
+	AV_URL64_BIN=https://archive.org/download/zeranoe/win64/shared/$(AV_W64_BIN)
+	AV_PRE32_DEV=$(AV_VER)-win32-dev/
+	AV_PRE64_DEV=$(AV_VER)-win64-dev/
+	AV_PRE32_BIN=$(AV_VER)-win32-shared/
+	AV_PRE64_BIN=$(AV_VER)-win64-shared/
+
+	ifeq ($(FTE_TARGET),win32)
+		FFMPEG_ZIP=$(AV_BASE)/$(AV_VER)-x86.zip
+		#NATIVE_PLUGINS+=ffmpeg
+	endif
+
+	ifeq ($(FTE_TARGET),win64)
+		FFMPEG_ZIP=$(AV_BASE)/$(AV_VER)-x64.zip
+		#NATIVE_PLUGINS+=ffmpeg
+	endif
 
 $(AV_BASE)$(AV_VER)-win32.zip:
 	mkdir -p $(AV_BASE)
@@ -187,10 +198,10 @@ $(AV_BASE)$(AV_VER)-win64.zip:
 	mkdir -p $(AV_BASE)bin64 && cd $(AV_BASE)bin64 && $(AV_EXTRACT) ../$(AV_W64_BIN) $(AV_PRE64_BIN)bin/avcodec-*.dll $(AV_PRE64_BIN)bin/avutil-*.dll $(AV_PRE64_BIN)bin/swresample-*.dll $(AV_PRE64_BIN)bin/avformat-*.dll $(AV_PRE64_BIN)bin/swscale-*.dll && cd -
 	zip -j9 $@ $(AV_BASE)bin64/*.dll
 
-ifneq ($(FFMPEG_ZIP),)
-$(FFMPEG_ZIP): $(AV_BASE)$(AV_VER)-$(FTE_TARGET).zip
-	cp $(AV_BASE)$(AV_VER)-$(FTE_TARGET).zip $@
-endif
+	ifneq ($(FFMPEG_ZIP),)
+	$(FFMPEG_ZIP): $(AV_BASE)$(AV_VER)-$(FTE_TARGET).zip
+		cp $(AV_BASE)$(AV_VER)-$(FTE_TARGET).zip $@
+	endif
 
 $(AV_BASE)libavformat/avformat.h:
 	mkdir -p $(AV_BASE)
@@ -200,29 +211,21 @@ $(AV_BASE)libavformat/avformat.h:
 	mkdir -p $(AV_BASE)libavutil   && cd $(AV_BASE)libavutil   && $(AV_EXTRACT) ../$(AV_W32_DEV) $(AV_PRE32_DEV)include/libavutil/*   && cd -
 	mkdir -p $(AV_BASE)libswscale  && cd $(AV_BASE)libswscale  && $(AV_EXTRACT) ../$(AV_W32_DEV) $(AV_PRE32_DEV)include/libswscale/*  && cd -
 	mkdir -p $(AV_BASE)lib32 && cd $(AV_BASE)lib32 && $(AV_EXTRACT) ../$(AV_W32_DEV) $(AV_PRE32_DEV)lib/avformat.lib $(AV_PRE32_DEV)lib/avcodec.lib $(AV_PRE32_DEV)lib/avutil.lib $(AV_PRE32_DEV)lib/swscale.lib && cd -
-	#rm $(AV_BASE)$(AV_W32)
 	cd $(AV_BASE) && wget -N $(AV_URL64_DEV)
 	mkdir -p $(AV_BASE)lib64 && cd $(AV_BASE)lib64 && $(AV_EXTRACT) ../$(AV_W64_DEV) $(AV_PRE64_DEV)lib/avformat.lib $(AV_PRE64_DEV)lib/avcodec.lib $(AV_PRE64_DEV)lib/avutil.lib $(AV_PRE64_DEV)lib/swscale.lib && cd -
-	#rm $(AV_BASE)$(AV_W64)
 
 distclean:
 	rm $(AV_BASE)libavformat/avformat.h
 	rm $(AV_BASE)$(AV_VER)-win32.zip
 	rm $(AV_BASE)$(AV_VER)-win64.zip
 
-$(PLUG_PREFIX)ffmpeg$(PLUG_NATIVE_EXT): $(AV_DEP) $(FFMPEG_ZIP)
-
-$(PLUG_PREFIX)ffmpeg$(PLUG_NATIVE_EXT): $(AVPLUG_OBJS)
+$(PLUG_PREFIX)ffmpeg$(PLUG_NATIVE_EXT): $(AV_DEP) $(AVPLUG_OBJS)
 	$(CC) $(BASE_CFLAGS) $(CFLAGS) -DFTEPLUGIN -s -o $@ -shared $(PLUG_CFLAGS) $(AV_CFLAGS) $(AVPLUG_OBJS) $(PLUG_DEFFILE) $(PLUG_LDFLAGS) $(AV_LDFLAGS)
 
-#above uses wget and zips and mess.
-else
-#just use pkg-config
-$(PLUG_PREFIX)ffmpeg$(PLUG_NATIVE_EXT): $(AVPLUG_OBJS)
-	$(CC) $(BASE_CFLAGS) $(CFLAGS) -DFTEPLUGIN -s -o $@ -shared $(PLUG_CFLAGS) $(AVPLUG_OBJS) $(PLUG_DEFFILE) $(PLUG_LDFLAGS) `$(PKGCONFIG) --cflags --libs libavformat libavcodec libavutil libswscale`
-ifeq ($(shell $(PKGCONFIG) --exists libavformat libavcodec libavutil libswscale && echo 1),1)
-NATIVE_PLUGINS+=ffmpeg
-endif
+
+else # NIX
+$(PLUG_PREFIX)ffmpeg$(PLUG_NATIVE_EXT):
+	$(CC) $(BASE_CFLAGS) $(CFLAGS) -DFTEPLUGIN -s -o $@ -shared $(PLUG_CFLAGS) $(AV_CFLAGS) $(AVPLUG_OBJS) $(PLUG_DEFFILE) $(PLUG_LDFLAGS) $(AV_LDFLAGS)
 endif
 
 ######################################
@@ -288,7 +291,7 @@ $(BULLET_BASE)bullet3-$(BULLET_VER)/lib/libBulletDynamics.a $(BULLET_BASE)bullet
 $(BULLET_LIB): $(OUT_DIR)/../bullet3-$(BULLET_VER).tar.gz $(CMAKERULES)
 	mkdir -p $(BULLET_BASE) && cd $(BULLET_BASE) && tar xvfz $<
 	rm $(BULLET_BASE)bullet3-$(BULLET_VER)/build3/cmake/FindPythonLibs.cmake	#cmake is a pile of shite and fails at cross compiling. oh well, we didn't want any python stuff anyway.
-	cd $(BULLET_BASE)bullet3-$(BULLET_VER)/ && cmake $(PLUG_CMAKE) -DBUILD_DEMOS:BOOL=OFF -DBUILD_EXTRAS:BOOL=OFF -DLIBRARY_OUTPUT_PATH=$(BULLET_BASE)bullet3-$(BULLET_VER)/lib . && $(MAKE) LinearMath BulletDynamics BulletCollision
+	cd $(BULLET_BASE)bullet3-$(BULLET_VER)/ && cmake $(subst -O3,,$(PLUG_CMAKE)) -DBUILD_DEMOS:BOOL=OFF -DBUILD_EXTRAS:BOOL=OFF -DLIBRARY_OUTPUT_PATH=$(BULLET_BASE)bullet3-$(BULLET_VER)/lib . && $(MAKE) LinearMath BulletDynamics BulletCollision
 #./configure --enable-double-precision --disable-demos --without-x CXX="$(CC)" CFLAGS="$(PLUG_CFLAGS)" CXXFLAGS="$(PLUG_CXXFLAGS)" --host=`$(CC) -dumpmachine` && make
 
 

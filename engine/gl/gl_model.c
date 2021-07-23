@@ -593,7 +593,7 @@ void Mod_Purge(enum mod_purge_e ptype)
 			Mod_PurgeModel(mod, (ptype==MP_FLUSH && unused)?MP_RESET:ptype);
 		}
 #if defined(HALFLIFEMODELS) && defined(HAVE_CLIENT)
-		else if (mod->fromgame == fg_halflife)
+		else if (mod->type == mod_halflife)
 			R_HalfLife_TouchTextures(mod);
 #endif
 	}

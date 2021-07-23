@@ -1712,6 +1712,50 @@ void SCR_DrawNet (void)
 	R2D_ScalePic (scr_vrect.x+64, scr_vrect.y, 64, 64, scr_net);
 }
 
+void R_GetGPUUtilisation(float *gpu, float *mem)
+{
+#ifdef __linux__
+	static qboolean tried;
+	typedef void *nvmlDevice_t;
+	struct nvmlUtilization_s
+	{
+		unsigned int cpu;
+		unsigned int mem;
+	} util = {-1,-1};
+	static int (*nvmlDeviceGetUtilizationRates) (nvmlDevice_t device, struct nvmlUtilization_s *utilization);
+	static nvmlDevice_t dev;
+	if (!tried)
+	{
+		int (*nvmlInit_v2) (void);
+		int (*nvmlDeviceGetHandleByIndex_v2) (unsigned int index, nvmlDevice_t *device);
+		dllhandle_t *nvml;
+		dllfunction_t funcs[] =
+		{
+			{(void**)&nvmlInit_v2, "nvmlInit_v2"},
+			{(void**)&nvmlDeviceGetHandleByIndex_v2, "nvmlDeviceGetHandleByIndex_v2"},
+			{(void**)&nvmlDeviceGetUtilizationRates, "nvmlDeviceGetUtilizationRates"},
+			{NULL}
+		};
+		tried = true;
+
+		nvml = Sys_LoadLibrary("libnvidia-ml.so.1", funcs);
+		if (nvml)
+		{
+			if (!nvmlInit_v2())
+				if (nvmlDeviceGetHandleByIndex_v2(0, &dev))
+					dev = NULL;
+		}
+	}
+
+	if (dev)
+		nvmlDeviceGetUtilizationRates(dev, &util);
+	*gpu = util.cpu/100.0;
+	*mem = util.mem/100.0;
+#else
+	*gpu = *mem = -1;
+#endif
+}
+
 void SCR_DrawFPS (void)
 {
 	extern cvar_t show_fps;
@@ -1724,6 +1768,8 @@ void SCR_DrawFPS (void)
 
 	float frametime;
 
+	static float gpu=-1, gpumem=-1;
+
 	if (!show_fps.ival)
 		return;
 
@@ -1733,6 +1779,8 @@ void SCR_DrawFPS (void)
 		lastfps = fps_count/(t - lastupdatetime);
 		fps_count = 0;
 		lastupdatetime = t;
+
+		R_GetGPUUtilisation(&gpu, &gpumem);	//not all that accurate, but oh well.
 	}
 	frametime = t - lastsystemtime;
 	lastsystemtime = t;
@@ -1743,6 +1791,12 @@ void SCR_DrawFPS (void)
 		R_FrameTimeGraph(frametime, show_fps.value-1);
 	sprintf(str, "%3.1f FPS", lastfps);
 	SCR_StringXY(str, show_fps_x.value, show_fps_y.value);
+
+	if (gpu>=0)
+	{
+		sprintf(str, "%.0f%% GPU", gpu*100);
+		SCR_StringXY(str, show_fps_x.value, (show_fps_y.value>=0)?(show_fps_y.value+8):(show_fps_y.value-1));
+	}
 }
 
 void SCR_DrawClock(void)

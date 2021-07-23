@@ -11,11 +11,11 @@ int qcinput_scan;
 int qcinput_unicode;
 
 //QC key codes are based upon DP's keycode constants. This is on account of menu.dat coming first.
-int MP_TranslateFTEtoQCCodes(int code)
+int MP_TranslateFTEtoQCCodes(keynum_t code)
 {
-	switch(code)
+	safeswitch(code)
 	{
-	case K_TAB:				return 9;
+	case K_TAB:			return 9;
 	case K_ENTER:			return 13;
 	case K_ESCAPE:			return 27;
 	case K_SPACE:			return 32;
@@ -94,51 +94,51 @@ int MP_TranslateFTEtoQCCodes(int code)
 	case K_JOY2:			return 769;
 	case K_JOY3:			return 770;
 	case K_JOY4:			return 771;
-//	case K_JOY5:			return 772;
-//	case K_JOY6:			return 773;
-//	case K_JOY7:			return 774;
-//	case K_JOY8:			return 775;
-//	case K_JOY9:			return 776;
-//	case K_JOY10:			return 777;
-//	case K_JOY11:			return 778;
-//	case K_JOY12:			return 779;
-//	case K_JOY13:			return 780;
-//	case K_JOY14:			return 781;
-//	case K_JOY15:			return 782;
-//	case K_JOY16:			return 783;
+	case K_JOY5:			return 772;
+	case K_JOY6:			return 773;
+	case K_JOY7:			return 774;
+	case K_JOY8:			return 775;
+	case K_JOY9:			return 776;
+	case K_JOY10:			return 777;
+	case K_JOY11:			return 778;
+	case K_JOY12:			return 779;
+	case K_JOY13:			return 780;
+	case K_JOY14:			return 781;
+	case K_JOY15:			return 782;
+	case K_JOY16:			return 783;
+	case K_JOY17:			return 784;
+	case K_JOY18:			return 785;
+	case K_JOY19:			return 786;
+	case K_JOY20:			return 787;
+	case K_JOY21:			return 788;
+	case K_JOY22:			return 789;
+	case K_JOY23:			return 790;
+	case K_JOY24:			return 791;
+	case K_JOY25:			return 792;
+	case K_JOY26:			return 793;
+	case K_JOY27:			return 794;
+	case K_JOY28:			return 795;
+	case K_JOY29:			return 796;
+	case K_JOY30:			return 797;
+	case K_JOY31:			return 798;
+	case K_JOY32:			return 799;
 
-	case K_AUX1:			return 784;
-	case K_AUX2:			return 785;
-	case K_AUX3:			return 786;
-	case K_AUX4:			return 787;
-	case K_AUX5:			return 788;
-	case K_AUX6:			return 789;
-	case K_AUX7:			return 790;
-	case K_AUX8:			return 791;
-	case K_AUX9:			return 792;
-	case K_AUX10:			return 793;
-	case K_AUX11:			return 794;
-	case K_AUX12:			return 795;
-	case K_AUX13:			return 796;
-	case K_AUX14:			return 797;
-	case K_AUX15:			return 798;
-	case K_AUX16:			return 799;
-	case K_AUX17:			return 800;
-	case K_AUX18:			return 801;
-	case K_AUX19:			return 802;
-	case K_AUX20:			return 803;
-	case K_AUX21:			return 804;
-	case K_AUX22:			return 805;
-	case K_AUX23:			return 806;
-	case K_AUX24:			return 807;
-	case K_AUX25:			return 808;
-	case K_AUX26:			return 809;
-	case K_AUX27:			return 810;
-	case K_AUX28:			return 811;
-	case K_AUX29:			return 812;
-	case K_AUX30:			return 813;
-	case K_AUX31:			return 814;
-	case K_AUX32:			return 815;
+	case K_AUX1:			return 800;
+	case K_AUX2:			return 801;
+	case K_AUX3:			return 802;
+	case K_AUX4:			return 803;
+	case K_AUX5:			return 804;
+	case K_AUX6:			return 805;
+	case K_AUX7:			return 806;
+	case K_AUX8:			return 807;
+	case K_AUX9:			return 808;
+	case K_AUX10:			return 809;
+	case K_AUX11:			return 810;
+	case K_AUX12:			return 811;
+	case K_AUX13:			return 812;
+	case K_AUX14:			return 813;
+	case K_AUX15:			return 814;
+	case K_AUX16:			return 815;
 
 	case K_GP_DPAD_UP:			return 816;
 	case K_GP_DPAD_DOWN:		return 817;
@@ -146,8 +146,8 @@ int MP_TranslateFTEtoQCCodes(int code)
 	case K_GP_DPAD_RIGHT:		return 819;
 	case K_GP_START:			return 820;
 	case K_GP_BACK:				return 821;
-	case K_GP_LEFT_THUMB:		return 822;
-	case K_GP_RIGHT_THUMB:		return 823;
+	case K_GP_LEFT_STICK:		return 822;
+	case K_GP_RIGHT_STICK:		return 823;
 	case K_GP_LEFT_SHOULDER:	return 824;
 	case K_GP_RIGHT_SHOULDER:	return 825;
 	case K_GP_A:				return 826;
@@ -169,7 +169,26 @@ int MP_TranslateFTEtoQCCodes(int code)
 	case K_JOY_LEFT:			return 842;
 	case K_JOY_RIGHT:			return 843;
 
-
+	case K_GP_MISC1:
+	case K_GP_PADDLE1:
+	case K_GP_PADDLE2:
+	case K_GP_PADDLE3:
+	case K_GP_PADDLE4:
+	case K_GP_TOUCHPAD:
+	case K_GP_GUIDE:
+	case K_GP_UNKNOWN:
+	case K_MM_BROWSER_FAVORITES:
+	case K_MM_BROWSER_FORWARD:
+	case K_MM_BROWSER_BACK:
+	case K_MM_BROWSER_HOME:
+	case K_MM_BROWSER_REFRESH:
+	case K_MM_BROWSER_STOP:
+	case K_MM_VOLUME_MUTE:
+	case K_MM_TRACK_NEXT:
+	case K_MM_TRACK_PREV:
+	case K_MM_TRACK_STOP:
+	case K_MAX:
+	case K_MM_TRACK_PLAYPAUSE:
 	case K_F13:
 	case K_F14:
 	case K_F15:
@@ -181,7 +200,7 @@ int MP_TranslateFTEtoQCCodes(int code)
 	case K_APP:
 	case K_SEARCH:			return -code;
 
-	default:
+	safedefault:
 		if (code == -1)	//mod bug
 			return code;
 		if (code < 0)	//negative values are 'qc-native' keys, for stuff that the api lacks.
@@ -192,7 +211,7 @@ int MP_TranslateFTEtoQCCodes(int code)
 	}
 }
 
-int MP_TranslateQCtoFTECodes(int code)
+keynum_t MP_TranslateQCtoFTECodes(int code)
 {
 	switch(code)
 	{
@@ -272,51 +291,51 @@ int MP_TranslateQCtoFTECodes(int code)
 	case 769:		return K_JOY2;
 	case 770:		return K_JOY3;
 	case 771:		return K_JOY4;
-//	case 772:		return K_JOY5;
-//	case 773:		return K_JOY6;
-//	case 774:		return K_JOY7;
-//	case 775:		return K_JOY8;
-//	case 776:		return K_JOY9;
-//	case 777:		return K_JOY10;
-//	case 778:		return K_JOY11;
-//	case 779:		return K_JOY12;
-//	case 780:		return K_JOY13;
-//	case 781:		return K_JOY14;
-//	case 782:		return K_JOY15;
-//	case 783:		return K_JOY16;
+	case 772:		return K_JOY5;
+	case 773:		return K_JOY6;
+	case 774:		return K_JOY7;
+	case 775:		return K_JOY8;
+	case 776:		return K_JOY9;
+	case 777:		return K_JOY10;
+	case 778:		return K_JOY11;
+	case 779:		return K_JOY12;
+	case 780:		return K_JOY13;
+	case 781:		return K_JOY14;
+	case 782:		return K_JOY15;
+	case 783:		return K_JOY16;
+	case 784:		return K_JOY17;
+	case 785:		return K_JOY18;
+	case 786:		return K_JOY19;
+	case 787:		return K_JOY20;
+	case 788:		return K_JOY21;
+	case 789:		return K_JOY22;
+	case 790:		return K_JOY23;
+	case 791:		return K_JOY24;
+	case 792:		return K_JOY25;
+	case 793:		return K_JOY26;
+	case 794:		return K_JOY27;
+	case 795:		return K_JOY28;
+	case 796:		return K_JOY29;
+	case 797:		return K_JOY30;
+	case 798:		return K_JOY31;
+	case 799:		return K_JOY32;
 
-	case 784:		return K_AUX1;
-	case 785:		return K_AUX2;
-	case 786:		return K_AUX3;
-	case 787:		return K_AUX4;
-	case 788:		return K_AUX5;
-	case 789:		return K_AUX6;
-	case 790:		return K_AUX7;
-	case 791:		return K_AUX8;
-	case 792:		return K_AUX9;
-	case 793:		return K_AUX10;
-	case 794:		return K_AUX11;
-	case 795:		return K_AUX12;
-	case 796:		return K_AUX13;
-	case 797:		return K_AUX14;
-	case 798:		return K_AUX15;
-	case 799:		return K_AUX16;
-	case 800:		return K_AUX17;
-	case 801:		return K_AUX18;
-	case 802:		return K_AUX19;
-	case 803:		return K_AUX20;
-	case 804:		return K_AUX21;
-	case 805:		return K_AUX22;
-	case 806:		return K_AUX23;
-	case 807:		return K_AUX24;
-	case 808:		return K_AUX25;
-	case 809:		return K_AUX26;
-	case 810:		return K_AUX27;
-	case 811:		return K_AUX28;
-	case 812:		return K_AUX29;
-	case 813:		return K_AUX30;
-	case 814:		return K_AUX31;
-	case 815:		return K_AUX32;
+	case 800:		return K_AUX1;
+	case 801:		return K_AUX2;
+	case 802:		return K_AUX3;
+	case 803:		return K_AUX4;
+	case 804:		return K_AUX5;
+	case 805:		return K_AUX6;
+	case 806:		return K_AUX7;
+	case 807:		return K_AUX8;
+	case 808:		return K_AUX9;
+	case 809:		return K_AUX10;
+	case 810:		return K_AUX11;
+	case 811:		return K_AUX12;
+	case 812:		return K_AUX13;
+	case 813:		return K_AUX14;
+	case 814:		return K_AUX15;
+	case 815:		return K_AUX16;
 
 	case 816:		return K_GP_DPAD_UP;
 	case 817:		return K_GP_DPAD_DOWN;
@@ -324,8 +343,8 @@ int MP_TranslateQCtoFTECodes(int code)
 	case 819:		return K_GP_DPAD_RIGHT;
 	case 820:		return K_GP_START;
 	case 821:		return K_GP_BACK;
-	case 822:		return K_GP_LEFT_THUMB;
-	case 823:		return K_GP_RIGHT_THUMB;
+	case 822:		return K_GP_LEFT_STICK;
+	case 823:		return K_GP_RIGHT_STICK;
 	case 824:		return K_GP_LEFT_SHOULDER;
 	case 825:		return K_GP_RIGHT_SHOULDER;
 	case 826:		return K_GP_A;

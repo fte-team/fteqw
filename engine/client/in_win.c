@@ -351,35 +351,35 @@ static const int mmjbuttons[32] =
 	K_JOY3,
 	K_JOY4,
 	//yes, aux1-4 skipped for compat with other quake engines.
-	K_AUX5,
-	K_AUX6,
-	K_AUX7,
-	K_AUX8,
-	K_AUX9,
-	K_AUX10,
-	K_AUX11,
-	K_AUX12,
-	K_AUX13,
-	K_AUX14,
-	K_AUX15,
-	K_AUX16,
-	K_AUX17,
-	K_AUX18,
-	K_AUX19,
-	K_AUX20,
-	K_AUX21,
-	K_AUX22,
-	K_AUX23,
-	K_AUX24,
-	K_AUX25,
-	K_AUX26,
-	K_AUX27,
-	K_AUX28,
+	K_JOY9,
+	K_JOY10,
+	K_JOY11,
+	K_JOY12,
+	K_JOY13,
+	K_JOY14,
+	K_JOY15,
+	K_JOY16,
+	K_JOY17,
+	K_JOY18,
+	K_JOY19,
+	K_JOY20,
+	K_JOY21,
+	K_JOY22,
+	K_JOY23,
+	K_JOY24,
+	K_JOY25,
+	K_JOY26,
+	K_JOY27,
+	K_JOY28,
+	K_JOY29,
+	K_JOY30,
+	K_JOY31,
+	K_JOY32,
 	//29-32 used for the pov stuff, so lets switch back to aux1-4 to avoid wastage
-	K_AUX1,
-	K_AUX2,
-	K_AUX3,
-	K_AUX4
+	K_JOY5,
+	K_JOY6,
+	K_JOY7,
+	K_JOY8
 };
 
 // forward-referenced functions
@@ -2018,12 +2018,12 @@ void INS_Commands (void)
 				{
 					if ( (povstate & (1<<i)) && !(joy->oldpovstate & (1<<i)) )
 					{
-						Key_Event (joy->devid, K_AUX29 + i, 0, true);
+						Key_Event (joy->devid, K_AUX13 + i, 0, true);
 					}
 
 					if ( !(povstate & (1<<i)) && (joy->oldpovstate & (1<<i)) )
 					{
-						Key_Event (joy->devid, K_AUX29 + i, 0, false);
+						Key_Event (joy->devid, K_AUX13 + i, 0, false);
 					}
 				}
 				joy->oldpovstate = povstate;

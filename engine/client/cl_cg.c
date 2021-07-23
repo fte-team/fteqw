@@ -1441,6 +1441,12 @@ qboolean CG_KeyPress(int key, int unicode, int down)
 		case K_GP_A:
 			key = K_ENTER;
 			break;
+		case K_GP_B:
+			key = K_ESCAPE;
+			break;
+		case K_GP_X:
+			key = K_BACKSPACE;
+			break;
 	}
 
 	return VM_Call(cgvm, CG_KEY_EVENT, key, down);

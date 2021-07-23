@@ -1818,6 +1818,12 @@ qboolean UI_KeyPress(struct menu_s *m, qboolean isdown, unsigned int devid, int 
 		case K_GP_A:
 			key = K_ENTER;
 			break;
+		case K_GP_B:
+			key = K_ESCAPE;
+			break;
+		case K_GP_X:
+			key = K_BACKSPACE;
+			break;
 	}
 
 	if (key && key < 1024)

@@ -217,6 +217,34 @@ keyname_t keynames[] =
 	{"JOY2",	K_JOY2},
 	{"JOY3",	K_JOY3},
 	{"JOY4",	K_JOY4},
+	{"JOY5",	K_JOY5},
+	{"JOY6",	K_JOY6},
+	{"JOY7",	K_JOY7},
+	{"JOY8",	K_JOY8},
+	{"JOY9",	K_JOY9},
+	{"JOY10",	K_JOY10},
+	{"JOY11",	K_JOY11},
+	{"JOY12",	K_JOY12},
+	{"JOY13",	K_JOY13},
+	{"JOY14",	K_JOY14},
+	{"JOY15",	K_JOY15},
+	{"JOY16",	K_JOY16},
+	{"JOY17",	K_JOY17},
+	{"JOY18",	K_JOY18},
+	{"JOY19",	K_JOY19},
+	{"JOY20",	K_JOY20},
+	{"JOY21",	K_JOY21},
+	{"JOY22",	K_JOY22},
+	{"JOY23",	K_JOY23},
+	{"JOY24",	K_JOY24},
+	{"JOY25",	K_JOY25},
+	{"JOY26",	K_JOY26},
+	{"JOY27",	K_JOY27},
+	{"JOY28",	K_JOY28},
+	{"JOY29",	K_JOY29},
+	{"JOY30",	K_JOY30},
+	{"JOY31",	K_JOY31},
+	{"JOY32",	K_JOY32},
 
 	{"AUX1",	K_AUX1},
 	{"AUX2",	K_AUX2},
@@ -234,22 +262,6 @@ keyname_t keynames[] =
 	{"AUX14",	K_AUX14},
 	{"AUX15",	K_AUX15},
 	{"AUX16",	K_AUX16},
-	{"AUX17",	K_AUX17},
-	{"AUX18",	K_AUX18},
-	{"AUX19",	K_AUX19},
-	{"AUX20",	K_AUX20},
-	{"AUX21",	K_AUX21},
-	{"AUX22",	K_AUX22},
-	{"AUX23",	K_AUX23},
-	{"AUX24",	K_AUX24},
-	{"AUX25",	K_AUX25},
-	{"AUX26",	K_AUX26},
-	{"AUX27",	K_AUX27},
-	{"AUX28",	K_AUX28},
-	{"AUX29",	K_AUX29},
-	{"AUX30",	K_AUX30},
-	{"AUX31",	K_AUX31},
-	{"AUX32",	K_AUX32},
 
 	{"PAUSE",		K_PAUSE},
 
@@ -275,13 +287,19 @@ keyname_t keynames[] =
 	{"GP_RTRIGGER",		K_GP_RIGHT_TRIGGER},
 	{"GP_BACK",			K_GP_BACK},
 	{"GP_START",		K_GP_START},
-	{"GP_LTHUMB",		K_GP_LEFT_THUMB},
-	{"GP_RTHUMB",		K_GP_RIGHT_THUMB},
+	{"GP_LTHUMB",		K_GP_LEFT_STICK},
+	{"GP_RTHUMB",		K_GP_RIGHT_STICK},
 	{"GP_DPAD_UP",		K_GP_DPAD_UP},
 	{"GP_DPAD_DOWN",	K_GP_DPAD_DOWN},
 	{"GP_DPAD_LEFT",	K_GP_DPAD_LEFT},
 	{"GP_DPAD_RIGHT",	K_GP_DPAD_RIGHT},
 	{"GP_GUIDE",		K_GP_GUIDE},
+	{"GP_SHARE",		K_GP_MISC1},
+	{"GP_PADDLE1",		K_GP_PADDLE1},
+	{"GP_PADDLE2",		K_GP_PADDLE2},
+	{"GP_PADDLE3",		K_GP_PADDLE3},
+	{"GP_PADDLE4",		K_GP_PADDLE4},
+	{"GP_TOUCHPAD",		K_GP_TOUCHPAD},
 	{"GP_UNKNOWN",		K_GP_UNKNOWN},
 
 	//names for playstation controllers
@@ -289,6 +307,7 @@ keyname_t keynames[] =
 	{"GP_CIRCLE",		K_GP_B},
 	{"GP_SQUARE",		K_GP_X},
 	{"GP_TRIANGLE",		K_GP_Y},
+	{"GP_MIC",		K_GP_MISC1},
 
 	//axis->button emulation
 	{"GP_LTHUMB_UP",	K_GP_LEFT_THUMB_UP},
@@ -308,8 +327,8 @@ keyname_t keynames[] =
 	{"X360_DPAD_RIGHT",			K_GP_DPAD_RIGHT},
 	{"X360_START",				K_GP_START},
 	{"X360_BACK",				K_GP_BACK},
-	{"X360_LEFT_THUMB",			K_GP_LEFT_THUMB},
-	{"X360_RIGHT_THUMB",		K_GP_RIGHT_THUMB},
+	{"X360_LEFT_THUMB",			K_GP_LEFT_STICK},
+	{"X360_RIGHT_THUMB",		K_GP_RIGHT_STICK},
 	{"X360_LEFT_SHOULDER",		K_GP_LEFT_SHOULDER},
 	{"X360_RIGHT_SHOULDER",		K_GP_RIGHT_SHOULDER},
 	{"X360_A",					K_GP_A},
@@ -328,8 +347,8 @@ keyname_t keynames[] =
 	{"X360_RIGHT_THUMB_RIGHT",	K_GP_RIGHT_THUMB_RIGHT},
 
 	//quakespasm compat
-	{"LTHUMB",					K_GP_LEFT_THUMB},
-	{"RTHUMB",					K_GP_RIGHT_THUMB},
+	{"LTHUMB",					K_GP_LEFT_STICK},
+	{"RTHUMB",					K_GP_RIGHT_STICK},
 	{"LSHOULDER",				K_GP_LEFT_SHOULDER},
 	{"RSHOULDER",				K_GP_RIGHT_SHOULDER},
 	{"ABUTTON",					K_GP_A},
@@ -341,14 +360,14 @@ keyname_t keynames[] =
 #endif
 
 	/* Steam Controller */
-	{"SC_LPADDLE",				K_AUX12},
-	{"SC_RPADDLE",				K_AUX13},
+	{"SC_LPADDLE",				K_JOY16},
+	{"SC_RPADDLE",				K_JOY17},
 
 	{NULL,			0}
 };
 
 #if defined(CSQC_DAT) || defined(MENU_DAT)
-int MP_TranslateFTEtoQCCodes(int code);
+int MP_TranslateFTEtoQCCodes(keynum_t code);
 void Key_PrintQCDefines(vfsfile_t *f, qboolean defines)
 {
 	int i, j;
@@ -3212,8 +3231,8 @@ void Key_Event (unsigned int devid, int key, unsigned int unicode, qboolean down
 		case K_GP_DPAD_RIGHT:		dc = "+moveright";		goto defaultedbind;
 		case K_GP_GUIDE:			dc = "togglemenu";		goto defaultedbind;
 
-		case K_GP_LEFT_THUMB:		dc = "+movedown";		goto defaultedbind;
-		case K_GP_RIGHT_THUMB:
+		case K_GP_LEFT_STICK:		dc = "+movedown";		goto defaultedbind;
+		case K_GP_RIGHT_STICK:
 		default:
 			break;
 		}

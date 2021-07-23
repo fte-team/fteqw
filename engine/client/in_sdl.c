@@ -182,9 +182,9 @@ static void J_ControllerAxis(SDL_JoystickID jid, int axis, int value)
 	if (joy && axis < sizeof(axismap)/sizeof(axismap[0]) && joy->qdevid != DEVID_UNSET) {
 		/* hack to allow for RTRIGGER and LTRIGGER */
 		if (axis == 4)
-			IN_KeyEvent(joy->qdevid, (value > 128) ? 1 : 0, K_GP_LEFT_TRIGGER, 0);
+			IN_KeyEvent(joy->qdevid, (value > 16382) ? 1 : 0, K_GP_LEFT_TRIGGER, 0);
 		else if (axis == 5)
-			IN_KeyEvent(joy->qdevid, (value > 128) ? 1 : 0, K_GP_RIGHT_TRIGGER, 0);
+			IN_KeyEvent(joy->qdevid, (value > 16382) ? 1 : 0, K_GP_RIGHT_TRIGGER, 0);
 		else
 			IN_JoystickAxisEvent(joy->qdevid, axismap[axis], value / 32767.0);
 	}
@@ -204,21 +204,27 @@ static void J_ControllerButton(SDL_JoystickID jid, int button, qboolean pressed)
 	//but that doesn't meant that fte has specific k_ names for those buttons, but the mapping should be reliable, at least until they get mapped to proper k_ values.
 	int buttonmap[] =
 	{
-		K_GP_A,				/*SDL_CONTROLLER_BUTTON_A*/
-		K_GP_B,				/*SDL_CONTROLLER_BUTTON_B*/
-		K_GP_X,				/*SDL_CONTROLLER_BUTTON_X*/
-		K_GP_Y,				/*SDL_CONTROLLER_BUTTON_Y*/
-		K_GP_BACK,			/*SDL_CONTROLLER_BUTTON_BACK*/
-		K_GP_GUIDE,					/*SDL_CONTROLLER_BUTTON_GUIDE*/
-		K_GP_START,			/*SDL_CONTROLLER_BUTTON_START*/
-		K_GP_LEFT_THUMB,		/*SDL_CONTROLLER_BUTTON_LEFTSTICK*/
-		K_GP_RIGHT_THUMB,		/*SDL_CONTROLLER_BUTTON_RIGHTSTICK*/
-		K_GP_LEFT_SHOULDER,	/*SDL_CONTROLLER_BUTTON_LEFTSHOULDER*/
-		K_GP_RIGHT_SHOULDER,	/*SDL_CONTROLLER_BUTTON_RIGHTSHOULDER*/
-		K_GP_DPAD_UP,			/*SDL_CONTROLLER_BUTTON_DPAD_UP*/
-		K_GP_DPAD_DOWN,		/*SDL_CONTROLLER_BUTTON_DPAD_DOWN*/
-		K_GP_DPAD_LEFT,		/*SDL_CONTROLLER_BUTTON_DPAD_LEFT*/
-		K_GP_DPAD_RIGHT		/*SDL_CONTROLLER_BUTTON_DPAD_RIGHT*/
+		K_GP_A,
+		K_GP_B,
+		K_GP_X,
+		K_GP_Y,
+		K_GP_BACK,
+		K_GP_GUIDE,
+		K_GP_START,
+		K_GP_LEFT_STICK,
+		K_GP_RIGHT_STICK,
+		K_GP_LEFT_SHOULDER,
+		K_GP_RIGHT_SHOULDER,
+		K_GP_DPAD_UP,
+		K_GP_DPAD_DOWN,
+		K_GP_DPAD_LEFT,
+		K_GP_DPAD_RIGHT,
+		K_GP_MISC1,
+		K_GP_PADDLE1,
+		K_GP_PADDLE2,
+		K_GP_PADDLE3,
+		K_GP_PADDLE4,
+		K_GP_TOUCHPAD
 	};
 
 	struct sdljoy_s *joy = J_DevId(jid);
@@ -241,6 +247,34 @@ static void J_JoystickButton(SDL_JoystickID jid, int button, qboolean pressed)
 		K_JOY2,
 		K_JOY3,
 		K_JOY4,
+		K_JOY5,
+		K_JOY6,
+		K_JOY7,
+		K_JOY8,
+		K_JOY9,
+		K_JOY10,
+		K_JOY11,
+		K_JOY12,
+		K_JOY13,
+		K_JOY14,
+		K_JOY15,
+		K_JOY16,
+		K_JOY17,
+		K_JOY18,
+		K_JOY19,
+		K_JOY20,
+		K_JOY21,
+		K_JOY22,
+		K_JOY23,
+		K_JOY24,
+		K_JOY25,
+		K_JOY26,
+		K_JOY27,
+		K_JOY28,
+		K_JOY29,
+		K_JOY30,
+		K_JOY31,
+		K_JOY32,
 		K_AUX1,
 		K_AUX2,
 		K_AUX3,
@@ -256,23 +290,7 @@ static void J_JoystickButton(SDL_JoystickID jid, int button, qboolean pressed)
 		K_AUX13,
 		K_AUX14,
 		K_AUX15,
-		K_AUX16,
-		K_AUX17,
-		K_AUX18,
-		K_AUX19,
-		K_AUX20,
-		K_AUX21,
-		K_AUX22,
-		K_AUX23,
-		K_AUX24,
-		K_AUX25,
-		K_AUX26,
-		K_AUX27,
-		K_AUX28,
-		K_AUX29,
-		K_AUX30,
-		K_AUX31,
-		K_AUX32
+		K_AUX16
 	};
 
 	struct sdljoy_s *joy = J_DevId(jid);

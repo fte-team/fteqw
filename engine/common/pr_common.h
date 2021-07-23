@@ -85,8 +85,8 @@ extern cvar_t pr_gc_threaded;
 
 extern int qcinput_scan;
 extern int qcinput_unicode;
-int MP_TranslateFTEtoQCCodes(int code);
-int MP_TranslateQCtoFTECodes(int code);
+int MP_TranslateFTEtoQCCodes(keynum_t code);
+keynum_t MP_TranslateQCtoFTECodes(int code);
 qboolean WPhys_Push (world_t *w, wedict_t *pusher, vec3_t move, vec3_t amove);
 
 #ifdef ENGINE_ROUTING

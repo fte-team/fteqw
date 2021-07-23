@@ -230,7 +230,7 @@ char	*Z_StrDupf(const char *format, ...)
 
 	string = Z_Malloc(n+1);
 	va_start (argptr, format);
-	vsnprintf (string,n, format,argptr);
+	vsnprintf (string,n+1, format,argptr);
 	va_end (argptr);
 	string[n] = 0;
 

@@ -5380,7 +5380,7 @@ static void Cmd_AddSeat_f(void)
 
 		for (count = 1, prev = host_client, cl = host_client->controlled; cl; cl = cl->controlled)
 		{
-			if (count >= num)
+			if (count > num)
 			{
 				for(; cl; cl = prev->controlled)
 				{

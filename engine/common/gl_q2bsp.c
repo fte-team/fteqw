@@ -4967,7 +4967,7 @@ static cmodel_t *CM_LoadMap (model_t *mod, qbyte *filein, size_t filelen, qboole
 	}
 
 #ifdef TERRAIN
-	mod->terrain = Mod_LoadTerrainInfo(mod, loadname, false);
+	wmod->terrain = Mod_LoadTerrainInfo(wmod, loadname, false);
 #endif
 
 	return &prv->cmodels[0];

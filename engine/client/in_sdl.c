@@ -172,7 +172,7 @@ static struct sdljoy_s *J_DevId(SDL_JoystickID jid)
 }
 static void J_ControllerAxis(SDL_JoystickID jid, int axis, int value)
 {
-	int axismap[] = {
+	static int axismap[] = {
 //			SDL_CONTROLLER_AXIS_LEFTX,	SDL_CONTROLLER_AXIS_LEFTY,		SDL_CONTROLLER_AXIS_RIGHTX,
 			GPAXIS_LT_RIGHT,			GPAXIS_LT_DOWN,					GPAXIS_RT_RIGHT,
 //			SDL_CONTROLLER_AXIS_RIGHTY,	SDL_CONTROLLER_AXIS_TRIGGERLEFT,SDL_CONTROLLER_AXIS_TRIGGERRIGHT,
@@ -191,7 +191,7 @@ static void J_ControllerAxis(SDL_JoystickID jid, int axis, int value)
 }
 static void J_JoystickAxis(SDL_JoystickID jid, int axis, int value)
 {
-	int axismap[] = {0,1,3,4,2,5};
+	static int axismap[] = {0,1,3,4,2,5};
 
 	struct sdljoy_s *joy = J_DevId(jid);
 	if (joy && axis < sizeof(axismap)/sizeof(axismap[0]) && joy->qdevid != DEVID_UNSET)
@@ -202,7 +202,7 @@ static void J_ControllerButton(SDL_JoystickID jid, int button, qboolean pressed)
 {
 	//controllers have reliable button maps.
 	//but that doesn't meant that fte has specific k_ names for those buttons, but the mapping should be reliable, at least until they get mapped to proper k_ values.
-	int buttonmap[] =
+	static int buttonmap[] =
 	{
 		K_GP_A,
 		K_GP_B,
@@ -242,7 +242,7 @@ static void J_ControllerButton(SDL_JoystickID jid, int button, qboolean pressed)
 static void J_JoystickButton(SDL_JoystickID jid, int button, qboolean pressed)
 {
 	//generic joysticks have no specific mappings. they're really random like that.
-	int buttonmap[] = {
+	static int buttonmap[] = {
 		K_JOY1,
 		K_JOY2,
 		K_JOY3,

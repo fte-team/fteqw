@@ -916,8 +916,14 @@ qboolean SVQ2_InitGameProgs(void)
 		svq2_maxclients = 1;
 	else
 		svq2_maxclients = maxclients.ival;
-	if (Cvar_VariableValue("cl_splitscreen"))
+#ifdef HAVE_CLIENT
+	if (cl_splitscreen.ival)
+	{
+		if (!deathmatch.value && !coop.value)
+			Cvar_Set(&coop, "1");	//force coop, for coop rules. we get spawn spot problems otherwise.
 		svq2_maxclients = max(svq2_maxclients, MAX_SPLITS);
+	}
+#endif
 	if (svq2_maxclients > MAX_CLIENTS)
 		svq2_maxclients = MAX_CLIENTS;
 	if (svq2_maxclients != maxclients.value)

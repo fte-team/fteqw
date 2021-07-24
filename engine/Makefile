@@ -29,7 +29,7 @@ STRIP?=strip
 
 STRIPFLAGS=--strip-unneeded --remove-section=.comment
 
-CPUOPTIMIZATIONS=
+CPUOPTIMIZATIONS=-Os
 
 COMPILE_SYS:=$(shell uname -o 2>&1)
 
@@ -637,7 +637,7 @@ SERVER_ONLY_CFLAGS=-DSERVERONLY
 JOINT_CFLAGS=
 DEBUG_CFLAGS?=-ggdb -g
 DEBUG_CFLAGS+=-DDEBUG
-RELEASE_CFLAGS?=-O3 $(CPUOPTIMIZATIONS)
+RELEASE_CFLAGS?=$(CPUOPTIMIZATIONS)
 #
 #note: RELEASE_CFLAGS used to contain -ffast-math
 #however, its use resulted in the player getting stuck etc, so be warned if you try re-enabling it.
@@ -2104,7 +2104,7 @@ plugins:
 plugins-rel:
 	@-mkdir -p $(RELEASE_DIR)
 	@if test -e ../plugins/Makefile; \
-	then $(MAKE) native -C ../plugins  OUT_DIR="$(RELEASE_DIR)" CC="$(CC) $(W32_CFLAGS) $(RELEASE_CFLAGS)" CXX="$(CXX) $(W32_CFLAGS) $(subst -Wno-pointer-sign,,$(RELEASE_CFLAGS))" PKGCONFIG="$(PKGCONFIG)" ARCH="$(ARCH)" BASE_CFLAGS="$(BASE_CFLAGS) $(BRANDFLAGS)" BASE_CXXFLAGS="$(subst -Wno-pointer-sign,,$(BASE_CFLAGS)) $(BRANDFLAGS)" FTE_TARGET="$(FTE_TARGET)"; \
+	then $(MAKE) native -C ../plugins  OUT_DIR="$(RELEASE_DIR)" CC="$(CC)" CXX="$(CXX)" PKGCONFIG="$(PKGCONFIG)" ARCH="$(ARCH)" BASE_CFLAGS="$(BASE_CFLAGS) $(BRANDFLAGS)" BASE_CXXFLAGS="$(subst -Wno-pointer-sign,,$(BASE_CFLAGS)) $(BRANDFLAGS)" FTE_TARGET="$(FTE_TARGET)"; \
 	 else echo no plugins directory installed; \
 	fi
 plugins-rel:

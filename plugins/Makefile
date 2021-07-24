@@ -291,7 +291,7 @@ $(BULLET_BASE)bullet3-$(BULLET_VER)/lib/libBulletDynamics.a $(BULLET_BASE)bullet
 $(BULLET_LIB): $(OUT_DIR)/../bullet3-$(BULLET_VER).tar.gz $(CMAKERULES)
 	mkdir -p $(BULLET_BASE) && cd $(BULLET_BASE) && tar xvfz $<
 	rm $(BULLET_BASE)bullet3-$(BULLET_VER)/build3/cmake/FindPythonLibs.cmake	#cmake is a pile of shite and fails at cross compiling. oh well, we didn't want any python stuff anyway.
-	cd $(BULLET_BASE)bullet3-$(BULLET_VER)/ && cmake $(subst -O3,,$(PLUG_CMAKE)) -DBUILD_DEMOS:BOOL=OFF -DBUILD_EXTRAS:BOOL=OFF -DLIBRARY_OUTPUT_PATH=$(BULLET_BASE)bullet3-$(BULLET_VER)/lib . && $(MAKE) LinearMath BulletDynamics BulletCollision
+	cd $(BULLET_BASE)bullet3-$(BULLET_VER)/ && cmake $(PLUG_CMAKE) -DBUILD_DEMOS:BOOL=OFF -DBUILD_EXTRAS:BOOL=OFF -DLIBRARY_OUTPUT_PATH=$(BULLET_BASE)bullet3-$(BULLET_VER)/lib . && $(MAKE) LinearMath BulletDynamics BulletCollision
 #./configure --enable-double-precision --disable-demos --without-x CXX="$(CC)" CFLAGS="$(PLUG_CFLAGS)" CXXFLAGS="$(PLUG_CXXFLAGS)" --host=`$(CC) -dumpmachine` && make
 
 

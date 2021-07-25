@@ -4084,7 +4084,7 @@ static void CM_OpenAllPortals(model_t *mod, char *ents)	//this is a compleate ha
 #endif
 
 
-#if !defined(CLIENTONLY) && defined(Q3BSPS)
+#if defined(HAVE_SERVER) && defined(Q3BSPS)
 static void CalcClusterPHS(cminfo_t	*prv, int cluster)
 {
 	int j, k, l, index;
@@ -4742,7 +4742,7 @@ static cmodel_t *CM_LoadMap (model_t *mod, qbyte *filein, size_t filelen, qboole
 			BZ_Free(prv->faces);
 			return NULL;
 		}
-#ifndef CLIENTONLY
+#ifdef HAVE_SERVER
 		CMQ3_CalcPHS(mod);
 #endif
 //			BZ_Free(map_verts);
@@ -6839,6 +6839,7 @@ qbyte	*CM_ClusterPVS (model_t *mod, int cluster, pvsbuffer_t *buffer, pvsmerge_t
 	}
 }
 
+#ifdef HAVE_SERVER
 qbyte	*CM_ClusterPHS (model_t *mod, int cluster, pvsbuffer_t *buffer)
 {
 	cminfo_t	*prv = (cminfo_t*)mod->meshinfo;
@@ -6848,6 +6849,7 @@ qbyte	*CM_ClusterPHS (model_t *mod, int cluster, pvsbuffer_t *buffer)
 	if (buffer->buffersize < mod->pvsbytes)
 		buffer->buffer = BZ_Realloc(buffer->buffer, buffer->buffersize=mod->pvsbytes);
 
+#ifdef Q3BSPS
 	if (mod->fromgame != fg_quake2)
 	{
 		if (cluster != -1 && prv->q3phs->numclusters)
@@ -6862,6 +6864,7 @@ qbyte	*CM_ClusterPHS (model_t *mod, int cluster, pvsbuffer_t *buffer)
 			return buffer->buffer;
 		}
 	}
+#endif
 
 	if (cluster == -1)
 		memset (buffer->buffer, 0, (mod->numclusters+7)>>3);
@@ -6869,6 +6872,7 @@ qbyte	*CM_ClusterPHS (model_t *mod, int cluster, pvsbuffer_t *buffer)
 		CM_DecompressVis (mod, ((qbyte*)prv->q2vis) + prv->q2vis->bitofs[cluster][DVIS_PHS], buffer->buffer, false);
 	return buffer->buffer;
 }
+#endif
 
 static unsigned int  SV_Q2BSP_FatPVS (model_t *mod, const vec3_t org, pvsbuffer_t *result, qboolean merge)
 {

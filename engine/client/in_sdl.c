@@ -94,7 +94,7 @@ static uint32_t SDL_GiveFinger(SDL_JoystickID jid, SDL_TouchID tid, SDL_FingerID
 #endif
 
 #if SDL_MAJOR_VERSION >= 2
-#define MAX_JOYSTICKS 4
+#define MAX_JOYSTICKS 16
 static struct sdljoy_s
 {
 	//fte doesn't distinguish between joysticks and controllers.
@@ -348,10 +348,11 @@ static void J_JoystickButton(SDL_JoystickID jid, int button, qboolean pressed)
 void J_Rumble(int id, uint16_t amp_low, uint16_t amp_high, int duration)
 {
 #if SDL_VERSION_ATLEAST(2,0,9)
+	int i;
 	if (duration > 10000)
 		duration = 10000;
 
-	for (int i = 0; i < MAX_JOYSTICKS; i++)
+	for (i = 0; i < MAX_JOYSTICKS; i++)
 	{
 		if (sdljoy[i].qdevid == id)
 		{
@@ -367,10 +368,11 @@ void J_Rumble(int id, uint16_t amp_low, uint16_t amp_high, int duration)
 void J_RumbleTriggers(int id, uint16_t left, uint16_t right, uint32_t duration)
 {
 #if SDL_VERSION_ATLEAST(2,0,14)
+	int i;
 	if (duration > 10000)
 		duration = 10000;
 
-	for (int i = 0; i < MAX_JOYSTICKS; i++)
+	for (i = 0; i < MAX_JOYSTICKS; i++)
 	{
 		if (sdljoy[i].qdevid == id)
 		{
@@ -386,12 +388,13 @@ void J_RumbleTriggers(int id, uint16_t left, uint16_t right, uint32_t duration)
 void J_SetLEDColor(int id, vec3_t color)
 {
 #if SDL_VERSION_ATLEAST(2,0,14)
+	int i;
 	/* maybe we'll eventually get sRGB LEDs */
 	color[0] *= 255.0f;
 	color[1] *= 255.0f;
 	color[2] *= 255.0f;
 
-	for (int i = 0; i < MAX_JOYSTICKS; i++)
+	for (i = 0; i < MAX_JOYSTICKS; i++)
 	{
 		if (sdljoy[i].qdevid == id)
 		{

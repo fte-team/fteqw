@@ -7331,6 +7331,48 @@ void PR_Common_SaveGame(vfsfile_t *f, pubprogfuncs_t *prinst, qboolean binary)
 }
 
 
+void *PR_GetWriteQCPtr(pubprogfuncs_t *prinst, int qcptr, int qcsize)
+{
+//	void *r;
+	if (qcsize < 0)
+		return NULL;
+	if (!qcptr)
+		return NULL;
+	if (qcptr >= 0 && qcptr <= prinst->stringtablemaxsize)
+	{
+		if (qcptr + qcsize <= prinst->stringtablemaxsize)
+			return prinst->stringtable+qcptr;	//its in bounds
+	}
+	/*else
+	{
+		r = PR_GetString(prinst, qcptr);
+		if (qcsize < strlen(r))
+			return r;
+	}*/
+	return NULL;
+}
+const void *PR_GetReadQCPtr(pubprogfuncs_t *prinst, int qcptr, int qcsize)
+{
+	const char *r;
+	if (qcsize < 0)
+		return NULL;
+	if (!qcptr)
+		return NULL;
+	if (qcptr >= 0 && qcptr <= prinst->stringtablemaxsize)
+	{
+		if (qcptr + qcsize <= prinst->stringtablemaxsize)
+			return prinst->stringtable+qcptr;	//its in bounds
+	}
+	else
+	{
+		r = PR_GetString(prinst, qcptr);
+		if (qcsize < strlen(r))
+			return r;
+	}
+	return NULL;
+}
+
+
 #define DEF_SAVEGLOBAL (1u<<15)
 static void PR_AutoCvarApply(pubprogfuncs_t *prinst, eval_t *val, etype_t type, cvar_t *var)
 {

@@ -272,47 +272,6 @@ static qcstate_t *PR_CreateThread(pubprogfuncs_t *prinst, float retval, float re
 	return state;
 }
 
-void *PR_GetWriteQCPtr(pubprogfuncs_t *prinst, int qcptr, int qcsize)
-{
-//	void *r;
-	if (qcsize < 0)
-		return NULL;
-	if (!qcptr)
-		return NULL;
-	if (qcptr >= 0 && qcptr <= prinst->stringtablemaxsize)
-	{	
-		if (qcptr + qcsize <= prinst->stringtablemaxsize)
-			return prinst->stringtable+qcptr;	//its in bounds
-	}
-	/*else
-	{
-		r = PR_GetString(prinst, qcptr);
-		if (qcsize < strlen(r))
-			return r;
-	}*/
-	return NULL;
-}
-const void *PR_GetReadQCPtr(pubprogfuncs_t *prinst, int qcptr, int qcsize)
-{
-	const char *r;
-	if (qcsize < 0)
-		return NULL;
-	if (!qcptr)
-		return NULL;
-	if (qcptr >= 0 && qcptr <= prinst->stringtablemaxsize)
-	{	
-		if (qcptr + qcsize <= prinst->stringtablemaxsize)
-			return prinst->stringtable+qcptr;	//its in bounds
-	}
-	else
-	{
-		r = PR_GetString(prinst, qcptr);
-		if (qcsize < strlen(r))
-			return r;
-	}
-	return NULL;
-}
-
 void PDECL ED_Spawned (struct edict_s *ent, int loading)
 {
 #ifdef VM_Q1

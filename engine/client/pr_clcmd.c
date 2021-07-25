@@ -15,7 +15,7 @@ int MP_TranslateFTEtoQCCodes(keynum_t code)
 {
 	safeswitch(code)
 	{
-	case K_TAB:			return 9;
+	case K_TAB:				return 9;
 	case K_ENTER:			return 13;
 	case K_ESCAPE:			return 27;
 	case K_SPACE:			return 32;
@@ -187,7 +187,6 @@ int MP_TranslateFTEtoQCCodes(keynum_t code)
 	case K_MM_TRACK_NEXT:
 	case K_MM_TRACK_PREV:
 	case K_MM_TRACK_STOP:
-	case K_MAX:
 	case K_MM_TRACK_PLAYPAUSE:
 	case K_F13:
 	case K_F14:
@@ -200,6 +199,7 @@ int MP_TranslateFTEtoQCCodes(keynum_t code)
 	case K_APP:
 	case K_SEARCH:			return -code;
 
+	case K_MAX:
 	safedefault:
 		if (code == -1)	//mod bug
 			return code;

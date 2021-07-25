@@ -647,7 +647,7 @@ static const struct wl_shell_surface_listener shell_surface_listener =
 #endif
 
 //qkeys are ascii-compatible for the most part.
-static qbyte waylandinputsucksbighairydonkeyballs[] =
+static unsigned short waylandinputsucksbighairydonkeyballs[] =
 {
 	0, 	K_ESCAPE,'1','2','3','4','5','6',	//0x
 	'7','8','9','0','-','=',K_BACKSPACE,K_TAB,
@@ -666,7 +666,7 @@ static qbyte waylandinputsucksbighairydonkeyballs[] =
 	0,0,0,0,0,0,0,K_PAUSE,	//7x
 	0,0,0,0,0,K_LWIN,K_RWIN,K_APP
 };
-static qbyte waylandinputsucksbighairydonkeyballsshift[] =
+static unsigned short waylandinputsucksbighairydonkeyballsshift[] =
 {
 	0, 	K_ESCAPE,'!','\"','3','$','%','^',	//0x
 	'&','*','(',')','_','+',K_BACKSPACE,K_TAB,

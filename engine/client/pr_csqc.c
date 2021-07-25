@@ -6764,7 +6764,7 @@ static void QCBUILTIN PF_cl_gp_settriggerfx(pubprogfuncs_t *prinst, struct globa
 {
 	int device = G_FLOAT(OFS_PARM0);
 	int size = G_INT(OFS_PARM2);
-	void *fxptr = PR_GetReadQCPtr(prinst, G_INT(OFS_PARM1), size);
+	const void *fxptr = PR_GetReadQCPtr(prinst, G_INT(OFS_PARM1), size);
 
 	if (!fxptr)
 		PR_BIError(prinst, "PF_cl_gp_settriggerfx: invalid pointer/size\n");

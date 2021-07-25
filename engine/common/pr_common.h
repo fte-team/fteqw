@@ -577,6 +577,9 @@ void PR_Common_Shutdown(pubprogfuncs_t *progs, qboolean errored);
 void PR_Common_SaveGame(vfsfile_t *f, pubprogfuncs_t *prinst, qboolean binary);
 qboolean PR_Common_LoadGame(pubprogfuncs_t *prinst, char *command, const char **file);
 
+const void *PR_GetReadQCPtr(pubprogfuncs_t *prinst, int qcptr, int qcsize);
+void *PR_GetWriteQCPtr(pubprogfuncs_t *prinst, int qcptr, int qcsize);
+
 uploadfmt_t PR_TranslateTextureFormat(int qcformat);
 
 //FIXME

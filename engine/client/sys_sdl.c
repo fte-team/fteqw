@@ -309,6 +309,9 @@ void Sys_Quit (void)
 {
 	Host_Shutdown();
 
+	SDL_free((char*)host_parms.binarydir);
+	host_parms.binarydir = NULL;
+
 	exit (0);
 }
 
@@ -671,6 +674,12 @@ dllhandle_t *Sys_LoadLibrary(const char *name, dllfunction_t *funcs)
 
 	lib = SDL_LoadObject(name);
 	if (!lib)
+	{
+		char libpath[MAX_OSPATH];
+		Q_snprintfz(libpath, sizeof(libpath), "%s"ARCH_DL_POSTFIX, name);
+		lib = SDL_LoadObject(libpath);
+	}
+	if (!lib)
 		return NULL;
 
 	if (funcs)
@@ -812,6 +821,7 @@ int QDECL main(int argc, char **argv)
 	memset(&parms, 0, sizeof(parms));
 
 	parms.basedir = "./";
+	parms.binarydir = SDL_GetBasePath();
 
 	parms.argc = argc;
 	parms.argv = (const char**)argv;
@@ -940,14 +950,64 @@ void Sys_SaveClipboard(clipboardtype_t cbt, const char *text)
 #endif
 
 #ifdef MULTITHREAD
-/* Thread creation calls */
+
+/*Thread management stuff*/
+static SDL_threadID mainthread;
+static SDL_TLSID tls_threadinfo;
+struct threadinfo_s
+{
+	jmp_buf jmpbuf;	//so we can actually abort our threads...
+	int (*threadfunc)(void *args);
+	void *args;
+};
+
+void Sys_ThreadsInit(void)
+{
+	mainthread = SDL_ThreadID();
+}
+qboolean Sys_IsThread(void *thread)
+{
+	return SDL_GetThreadID(thread) == SDL_ThreadID();
+}
+qboolean Sys_IsMainThread(void)
+{
+	return mainthread == SDL_ThreadID();
+}
+void Sys_ThreadAbort(void)
+{
+	//SDL_KillThread(NULL) got removed... so we have to do things the shitty way.
+
+	struct threadinfo_s *tinfo = SDL_TLSGet(tls_threadinfo);
+	if (!tinfo)
+	{	//erk... not created via Sys_CreateThread?!?
+		SDL_Delay(10*1000);
+		exit(0);
+	}
+	longjmp(tinfo->jmpbuf, 1);
+}
+static int FTESDLThread(void *args)
+{	//all for Sys_ThreadAbort
+	struct threadinfo_s *tinfo = args;
+	int r;
+	SDL_TLSSet(tls_threadinfo, tinfo, NULL);
+	if (setjmp(tinfo->jmpbuf))
+		r = 0;	//aborted...
+	else
+		r = tinfo->threadfunc(tinfo->args);
+	SDL_TLSSet(tls_threadinfo, NULL, NULL);
+	Z_Free(tinfo);
+	return r;
+}
 void *Sys_CreateThread(char *name, int (*func)(void *), void *args, int priority, int stacksize)
 {
 	// SDL threads do not support setting thread stack size
+	struct threadinfo_s *tinfo = Z_Malloc(sizeof(*tinfo));
+	tinfo->threadfunc = func;
+	tinfo->args = args;
 #if SDL_MAJOR_VERSION >= 2
-	return (void *)SDL_CreateThread(func, name, args);
+	return (void *)SDL_CreateThread(FTESDLThread, name, tinfo);
 #else
-	return (void *)SDL_CreateThread(func, args);
+	return (void *)SDL_CreateThread(FTESDLThread, tinfo);
 #endif
 }
 
@@ -958,6 +1018,32 @@ void Sys_WaitOnThread(void *thread)
 
 
 /* Mutex calls */
+#if SDL_MAJOR_VERSION >= 2
+void *Sys_CreateMutex(void)
+{
+	return (void *)SDL_CreateMutex();
+}
+
+qboolean Sys_TryLockMutex(void *mutex)
+{
+	return !SDL_TryLockMutex(mutex);
+}
+
+qboolean Sys_LockMutex(void *mutex)
+{
+	return !SDL_LockMutex(mutex);
+}
+
+qboolean Sys_UnlockMutex(void *mutex)
+{
+	return !SDL_UnlockMutex(mutex);
+}
+
+void Sys_DestroyMutex(void *mutex)
+{
+	SDL_DestroyMutex(mutex);
+}
+#else
 // SDL mutexes don't have try-locks for mutexes in the spec so we stick with 1-value semaphores
 void *Sys_CreateMutex(void)
 {
@@ -983,6 +1069,7 @@ void Sys_DestroyMutex(void *mutex)
 {
 	SDL_DestroySemaphore(mutex);
 }
+#endif
 
 /* Conditional wait calls */
 typedef struct condvar_s

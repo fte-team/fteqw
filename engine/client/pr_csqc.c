@@ -6731,6 +6731,47 @@ static void QCBUILTIN PF_resourcestatus(pubprogfuncs_t *prinst, struct globalvar
 	}
 }
 
+void J_Rumble(int joy, uint16_t amp_low, uint16_t amp_high, uint32_t duration);
+void J_RumbleTriggers(int joy, uint16_t left, uint16_t right, uint32_t duration);
+void J_SetLEDColor(int id, vec3_t color);
+void J_SetTriggerFX(int id, const void *data, int size);
+
+static void QCBUILTIN PF_cl_gp_rumble(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	int device = G_FLOAT(OFS_PARM0);
+	uint16_t amp_low = G_FLOAT(OFS_PARM1);
+	uint16_t amp_high = G_FLOAT(OFS_PARM2);
+	uint32_t duration = G_FLOAT(OFS_PARM3);
+	J_Rumble(device, amp_low, amp_high, duration);
+}
+
+static void QCBUILTIN PF_cl_gp_rumbletriggers(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	int device = G_FLOAT(OFS_PARM0);
+	uint16_t left = G_FLOAT(OFS_PARM1);
+	uint16_t right = G_FLOAT(OFS_PARM2);
+	uint32_t duration = G_FLOAT(OFS_PARM3);
+	J_RumbleTriggers(device, left, right, duration);
+}
+
+static void QCBUILTIN PF_cl_gp_setledcolor(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	int device = G_FLOAT(OFS_PARM0);
+	J_SetLEDColor(device, G_VECTOR(OFS_PARM1));
+}
+
+static void QCBUILTIN PF_cl_gp_settriggerfx(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	int device = G_FLOAT(OFS_PARM0);
+	int size = G_INT(OFS_PARM2);
+	void *fxptr = PR_GetReadQCPtr(prinst, G_INT(OFS_PARM1), size);
+
+	if (!fxptr)
+		PR_BIError(prinst, "PF_cl_gp_settriggerfx: invalid pointer/size\n");
+	else
+		J_SetTriggerFX(device, fxptr, size);
+}
+
 /*static void PF_cs_clipboard_got(void *ctx, const char *utf8)
 {
 	void *pr_globals;
@@ -7523,6 +7564,10 @@ static struct {
 	{"fremove",					PF_fremove,					652},
 	{"fexists",					PF_fexists,					653},
 	{"rmtree",					PF_rmtree,					654},
+	{"gp_rumble",					PF_cl_gp_rumble,				0}, // #0 void(float devid, float amp_low, float amp_high, float duration) gp_rumble
+	{"gp_rumbletriggers",				PF_cl_gp_rumbletriggers,			0}, // #0 void(float devid, float left, float right, float duration) gp_rumbletriggers
+	{"gp_setledcolor",				PF_cl_gp_setledcolor,				0}, // #0 void(float devid, float red, float green, float blue) gp_setledcolor
+	{"gp_settriggerfx",				PF_cl_gp_settriggerfx,				0}, // #0 void(float devid, const void *data, int size) gp_settriggerfx
 
 	{NULL}
 };

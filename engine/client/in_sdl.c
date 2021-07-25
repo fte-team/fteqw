@@ -58,19 +58,20 @@ void IN_DeactivateMouse(void)
 static struct sdlfinger_s
 {
 	qboolean active;
+	SDL_JoystickID jid;
 	SDL_TouchID tid;
 	SDL_FingerID fid;
 } sdlfinger[MAX_FINGERS];
 //sanitizes sdl fingers into touch events that our engine can eat.
 //we don't really deal with different devices, we just munge the lot into a single thing (allowing fingers to be tracked, at least if splitscreen isn't active).
-static uint32_t SDL_GiveFinger(SDL_TouchID tid, SDL_FingerID fid, qboolean fingerraised)
+static uint32_t SDL_GiveFinger(SDL_JoystickID jid, SDL_TouchID tid, SDL_FingerID fid, qboolean fingerraised)
 {
 	uint32_t f;
 	for (f = 0; f < countof(sdlfinger); f++)
 	{
 		if (sdlfinger[f].active)
 		{
-			if (sdlfinger[f].tid == tid && sdlfinger[f].fid == fid)
+			if (sdlfinger[f].jid == jid && sdlfinger[f].tid == tid && sdlfinger[f].fid == fid)
 			{
 				sdlfinger[f].active = !fingerraised;
 				return f;
@@ -82,6 +83,7 @@ static uint32_t SDL_GiveFinger(SDL_TouchID tid, SDL_FingerID fid, qboolean finge
 		if (!sdlfinger[f].active)
 		{
 			sdlfinger[f].active = !fingerraised;
+			sdlfinger[f].jid = jid;
 			sdlfinger[f].tid = tid;
 			sdlfinger[f].fid = fid;
 			return f;
@@ -102,9 +104,12 @@ static struct sdljoy_s
 	SDL_GameController *controller;
 	SDL_JoystickID id;
 	unsigned int qdevid;
+	unsigned int axistobuttonp;
+	unsigned int axistobuttonn;
 } sdljoy[MAX_JOYSTICKS]; 
+
 //the enumid is the value for the open function rather than the working id.
-static unsigned int J_AllocateDevID(void)
+static void J_AllocateDevID(struct sdljoy_s *joy)
 {
 	unsigned int id = 0, j;
 	for (j = 0; j < MAX_JOYSTICKS;)
@@ -116,7 +121,16 @@ static unsigned int J_AllocateDevID(void)
 		}
 	}
 
-	return id;
+	joy->qdevid = id;
+
+	if (joy->controller)
+	{
+		//enable some sensors if they're there. because we can.
+		if (SDL_GameControllerHasSensor(joy->controller, SDL_SENSOR_ACCEL))
+			SDL_GameControllerSetSensorEnabled(joy->controller, SDL_SENSOR_ACCEL, SDL_TRUE);
+		if (SDL_GameControllerHasSensor(joy->controller, SDL_SENSOR_GYRO))
+			SDL_GameControllerSetSensorEnabled(joy->controller, SDL_SENSOR_GYRO, SDL_TRUE);
+	}
 }
 static void J_ControllerAdded(int enumid)
 {
@@ -172,21 +186,46 @@ static struct sdljoy_s *J_DevId(SDL_JoystickID jid)
 }
 static void J_ControllerAxis(SDL_JoystickID jid, int axis, int value)
 {
-	static int axismap[] = {
-//			SDL_CONTROLLER_AXIS_LEFTX,	SDL_CONTROLLER_AXIS_LEFTY,		SDL_CONTROLLER_AXIS_RIGHTX,
-			GPAXIS_LT_RIGHT,			GPAXIS_LT_DOWN,					GPAXIS_RT_RIGHT,
-//			SDL_CONTROLLER_AXIS_RIGHTY,	SDL_CONTROLLER_AXIS_TRIGGERLEFT,SDL_CONTROLLER_AXIS_TRIGGERRIGHT,
-			GPAXIS_RT_DOWN,				GPAXIS_LT_TRIGGER,				GPAXIS_RT_TRIGGER};
+	static struct
+	{
+		int qaxis;
+		keynum_t pos, neg;
+	} axismap[] =
+	{
+		{/*SDL_CONTROLLER_AXIS_LEFTX*/			GPAXIS_LT_RIGHT,	K_GP_LEFT_THUMB_RIGHT,	K_GP_LEFT_THUMB_LEFT},
+		{/*SDL_CONTROLLER_AXIS_LEFTY*/			GPAXIS_LT_DOWN,		K_GP_LEFT_THUMB_DOWN,	K_GP_LEFT_THUMB_UP},
+		{/*SDL_CONTROLLER_AXIS_RIGHTX*/			GPAXIS_RT_RIGHT,	K_GP_RIGHT_THUMB_RIGHT,	K_GP_RIGHT_THUMB_LEFT},
+		{/*SDL_CONTROLLER_AXIS_RIGHTY*/			GPAXIS_RT_DOWN,		K_GP_RIGHT_THUMB_DOWN,	K_GP_RIGHT_THUMB_UP},
+		{/*SDL_CONTROLLER_AXIS_TRIGGERLEFT*/	GPAXIS_LT_TRIGGER,	K_GP_LEFT_TRIGGER,		0},
+		{/*SDL_CONTROLLER_AXIS_TRIGGERRIGHT*/	GPAXIS_RT_TRIGGER,	K_GP_RIGHT_TRIGGER,		0},
+	};
 
 	struct sdljoy_s *joy = J_DevId(jid);
-	if (joy && axis < sizeof(axismap)/sizeof(axismap[0]) && joy->qdevid != DEVID_UNSET) {
-		/* hack to allow for RTRIGGER and LTRIGGER */
-		if (axis == 4)
-			IN_KeyEvent(joy->qdevid, (value > 16382) ? 1 : 0, K_GP_LEFT_TRIGGER, 0);
-		else if (axis == 5)
-			IN_KeyEvent(joy->qdevid, (value > 16382) ? 1 : 0, K_GP_RIGHT_TRIGGER, 0);
-		else
-			IN_JoystickAxisEvent(joy->qdevid, axismap[axis], value / 32767.0);
+	if (joy && axis < sizeof(axismap)/sizeof(axismap[0]) && joy->qdevid != DEVID_UNSET)
+	{
+		if (value > 0x4000 && axismap[axis].pos)
+		{
+			IN_KeyEvent(joy->qdevid, true, axismap[axis].pos, 0);
+			joy->axistobuttonp |= 1u<<axis;
+		}
+		else if (joy->axistobuttonp & (1u<<axis))
+		{
+			IN_KeyEvent(joy->qdevid, false, axismap[axis].pos, 0);
+			joy->axistobuttonp &= ~(1u<<axis);
+		}
+
+		if (value < -0x4000 && axismap[axis].neg)
+		{
+			IN_KeyEvent(joy->qdevid, true, axismap[axis].neg, 0);
+			joy->axistobuttonn |= 1u<<axis;
+		}
+		else if (joy->axistobuttonn & (1u<<axis))
+		{
+			IN_KeyEvent(joy->qdevid, false, axismap[axis].neg, 0);
+			joy->axistobuttonn &= ~(1u<<axis);
+		}
+
+		IN_JoystickAxisEvent(joy->qdevid, axismap[axis].qaxis, value / 32767.0);
 	}
 }
 static void J_JoystickAxis(SDL_JoystickID jid, int axis, int value)
@@ -234,7 +273,7 @@ static void J_ControllerButton(SDL_JoystickID jid, int button, qboolean pressed)
 		{
 			if (!pressed)
 				return;
-			joy->qdevid = J_AllocateDevID();
+			J_AllocateDevID(joy);
 		}
 		IN_KeyEvent(joy->qdevid, pressed, buttonmap[button], 0);
 	}
@@ -300,11 +339,140 @@ static void J_JoystickButton(SDL_JoystickID jid, int button, qboolean pressed)
 		{
 			if (!pressed)
 				return;
-			joy->qdevid = J_AllocateDevID();
+			J_AllocateDevID(joy);
 		}
 		IN_KeyEvent(joy->qdevid, pressed, buttonmap[button], 0);
 	}
 }
+
+void J_Rumble(int id, uint16_t amp_low, uint16_t amp_high, int duration)
+{
+#if SDL_VERSION_ATLEAST(2,0,9)
+	if (duration > 10000)
+		duration = 10000;
+
+	for (int i = 0; i < MAX_JOYSTICKS; i++)
+	{
+		if (sdljoy[i].qdevid == id)
+		{
+			SDL_GameControllerRumble(SDL_GameControllerFromInstanceID(sdljoy[i].id), amp_low, amp_high, duration);
+			return;
+		}
+	}
+#else
+	Con_DPrintf(CON_WARNING "Rumble is requires at least SDL 2.0.9\n");
+#endif
+}
+
+void J_RumbleTriggers(int id, uint16_t left, uint16_t right, uint32_t duration)
+{
+#if SDL_VERSION_ATLEAST(2,0,14)
+	if (duration > 10000)
+		duration = 10000;
+
+	for (int i = 0; i < MAX_JOYSTICKS; i++)
+	{
+		if (sdljoy[i].qdevid == id)
+		{
+			SDL_GameControllerRumbleTriggers(SDL_GameControllerFromInstanceID(sdljoy[i].id), left, right, duration);
+			return;
+		}
+	}
+#else
+	Con_DPrintf(CON_WARNING "Trigger rumble is requires at least SDL 2.0.14\n");
+#endif
+}
+
+void J_SetLEDColor(int id, vec3_t color)
+{
+#if SDL_VERSION_ATLEAST(2,0,14)
+	printf("got color %f %f %f\n", color[0], color[1], color[2]);
+
+	/* maybe we'll eventually get sRGB LEDs */
+	color[0] *= 255.0f;
+	color[1] *= 255.0f;
+	color[2] *= 255.0f;
+
+	for (int i = 0; i < MAX_JOYSTICKS; i++)
+	{
+		if (sdljoy[i].qdevid == id)
+		{
+			SDL_GameControllerSetLED(SDL_GameControllerFromInstanceID(sdljoy[i].id), (uint8_t)color[0], (uint8_t)color[1], (uint8_t)color[2]);
+			return;
+		}
+	}
+#else
+	Con_DPrintf(CON_WARNING "Trigger rumble is requires at least SDL 2.0.14\n");
+#endif
+}
+
+void J_SetTriggerFX(int id, const void *data, int size)
+{
+#if SDL_VERSION_ATLEAST(2,0,15)
+	for (int i = 0; i < MAX_JOYSTICKS; i++)
+	{
+		if (sdljoy[i].qdevid == id)
+		{
+			SDL_GameControllerSendEffect(SDL_GameControllerFromInstanceID(sdljoy[i].id), &data, size);
+			return;
+		}
+	}
+#else
+	Con_DPrintf(CON_WARNING "Trigger FX is requires at least SDL 2.0.15\n");
+#endif
+}
+
+#if SDL_VERSION_ATLEAST(2,0,14)
+static void J_ControllerTouchPad(SDL_JoystickID jid, int pad, int finger, int fingerstate, float x, float y, float pressure)
+{
+#if 1
+	//FIXME: forgets which seat its meant to be controlling.
+	uint32_t thefinger = SDL_GiveFinger(jid, pad, finger, fingerstate<0);
+#else
+	//FIXME: conflicts with regular mice (very problematic when using absolute coords)
+	uint32_t thefinger;
+	struct sdljoy_s *joy = J_DevId(jid);
+	if (!joy)
+		return;
+	if (joy->qdevid == DEVID_UNSET)
+	{
+		if (fingerstate!=1)
+			return;
+		J_AllocateDevID(joy);
+	}
+	thefinger = joy->qdevid;
+#endif
+	x *= vid.pixelwidth;
+	y *= vid.pixelheight;
+	IN_MouseMove(thefinger, true, x, y, 0, pressure);
+	if (finger)
+		IN_KeyEvent(thefinger, finger>0, K_MOUSE1, 0);
+}
+static void J_ControllerSensor(SDL_JoystickID jid, SDL_SensorType sensor, float *data)
+{
+	struct sdljoy_s *joy = J_DevId(jid);
+	if (!joy)
+		return;
+	//don't assign an id here. wait for a button.
+	if (joy->qdevid == DEVID_UNSET)
+		return;
+
+	safeswitch(sensor)
+	{
+	case SDL_SENSOR_ACCEL:
+		IN_Accelerometer(joy->qdevid, data[0], data[1], data[2]);
+		break;
+	case SDL_SENSOR_GYRO:
+		IN_Gyroscope(joy->qdevid, data[0], data[1], data[2]);
+		break;
+	case SDL_SENSOR_INVALID:
+	case SDL_SENSOR_UNKNOWN:
+	safedefault:
+		break;
+	}
+}
+#endif
+
 static void J_Kill(SDL_JoystickID jid, qboolean verbose)
 {
 	int i;
@@ -432,7 +600,7 @@ unsigned int MySDL_MapKey(SDL_Keycode sdlkey)
 	case SDLK_x:
 	case SDLK_y:
 	case SDLK_z:
-							return sdlkey;
+		return sdlkey;
 	case SDLK_CAPSLOCK:		return K_CAPSLOCK;
 	case SDLK_F1:			return K_F1;
 	case SDLK_F2:			return K_F2;
@@ -915,14 +1083,14 @@ void Sys_SendKeyEvents(void)
 		case SDL_FINGERDOWN:
 		case SDL_FINGERUP:
 			{
-				uint32_t thefinger = SDL_GiveFinger(event.tfinger.touchId, event.tfinger.fingerId, event.type==SDL_FINGERUP);
+				uint32_t thefinger = SDL_GiveFinger(-1, event.tfinger.touchId, event.tfinger.fingerId, event.type==SDL_FINGERUP);
 				IN_MouseMove(thefinger, true, event.tfinger.x * vid.pixelwidth, event.tfinger.y * vid.pixelheight, 0, event.tfinger.pressure);
 				IN_KeyEvent(thefinger, event.type==SDL_FINGERDOWN, K_MOUSE1, 0);
 			}
 			break;
 		case SDL_FINGERMOTION:
 			{
-				uint32_t thefinger = SDL_GiveFinger(event.tfinger.touchId, event.tfinger.fingerId, false);
+				uint32_t thefinger = SDL_GiveFinger(-1, event.tfinger.touchId, event.tfinger.fingerId, false);
 				IN_MouseMove(thefinger, true, event.tfinger.x * vid.pixelwidth, event.tfinger.y * vid.pixelheight, 0, event.tfinger.pressure);
 			}
 			break;
@@ -1026,6 +1194,20 @@ void Sys_SendKeyEvents(void)
 			break;
 //		case SDL_CONTROLLERDEVICEREMAPPED:
 //			break;
+#if SDL_VERSION_ATLEAST(2,0,14)
+		case SDL_CONTROLLERTOUCHPADDOWN:
+			J_ControllerTouchPad(event.cdevice.which, event.ctouchpad.touchpad, event.ctouchpad.finger, 1, event.ctouchpad.x, event.ctouchpad.y, event.ctouchpad.pressure);
+			break;
+		case SDL_CONTROLLERTOUCHPADMOTION:
+			J_ControllerTouchPad(event.cdevice.which, event.ctouchpad.touchpad, event.ctouchpad.finger, 0, event.ctouchpad.x, event.ctouchpad.y, event.ctouchpad.pressure);
+			break;
+		case SDL_CONTROLLERTOUCHPADUP:
+			J_ControllerTouchPad(event.cdevice.which, event.ctouchpad.touchpad, event.ctouchpad.finger, -1, event.ctouchpad.x, event.ctouchpad.y, event.ctouchpad.pressure);
+			break;
+		case SDL_CONTROLLERSENSORUPDATE:
+			J_ControllerSensor(event.csensor.which, event.csensor.sensor, event.csensor.data);
+			break;
+#endif
 #endif
 		}
 	}

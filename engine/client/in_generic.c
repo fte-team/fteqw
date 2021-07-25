@@ -77,7 +77,7 @@ static cvar_t	joy_advaxis[6] =
 {
 #define ADVAXISDESC (const char *)"Provides a way to remap each joystick/controller axis.\nShould be set to one of: moveforward, moveback, lookup, lookdown, turnleft, turnright, moveleft, moveright, moveup, movedown, rollleft, rollright"
 	CVARCD("joyadvaxisx", "moveright", joyaxiscallback, ADVAXISDESC),	//left rightwards axis
-	CVARCD("joyadvaxisy", "moveforward", joyaxiscallback, ADVAXISDESC),	//left downwards axis
+	CVARCD("joyadvaxisy", "moveback", joyaxiscallback, ADVAXISDESC),	//left downwards axis
 	CVARCD("joyadvaxisz", "", joyaxiscallback, ADVAXISDESC),			//typically left trigger (use it as a button)
 	CVARCD("joyadvaxisr", "turnright", joyaxiscallback, ADVAXISDESC),	//right rightwards axis
 	CVARCD("joyadvaxisu", "lookup", joyaxiscallback, ADVAXISDESC),		//right downwards axis
@@ -990,7 +990,7 @@ void IN_MoveJoystick(struct joy_s *joy, float *movements, int pnum, float framet
 
 	//angle changes
 	cl.playerview[pnum].viewanglechange[PITCH] += joy_anglesens[0].value * jlook[0];
-	cl.playerview[pnum].viewanglechange[YAW] += joy_anglesens[1].value * jlook[1];
+	cl.playerview[pnum].viewanglechange[YAW] -= joy_anglesens[1].value * jlook[1];
 	cl.playerview[pnum].viewanglechange[ROLL] += joy_anglesens[2].value * jlook[2];
 
 	if (in_mlook.state[pnum] & 1)

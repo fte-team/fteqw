@@ -386,8 +386,6 @@ void J_RumbleTriggers(int id, uint16_t left, uint16_t right, uint32_t duration)
 void J_SetLEDColor(int id, vec3_t color)
 {
 #if SDL_VERSION_ATLEAST(2,0,14)
-	printf("got color %f %f %f\n", color[0], color[1], color[2]);
-
 	/* maybe we'll eventually get sRGB LEDs */
 	color[0] *= 255.0f;
 	color[1] *= 255.0f;

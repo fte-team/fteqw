@@ -968,7 +968,7 @@ static void OpenAL_ChannelUpdate(soundcardinfo_t *sc, channel_t *chan, chanupdat
 		}
 
 		pitch = (float)chan->rate/(1<<PITCHSHIFT);
-		pitch = bound(0.5, pitch, 2.0);	//openal documents a limit on the allowed range of pitches. clamp to avoid error spam. openal-soft doesn't enforce anything other than it >=0
+		pitch = max(0.01, pitch); // OpenAL will clamp inside the implementation if need be, only min is important
 		palSourcef(src, AL_PITCH, pitch);
 
 #ifdef USEEFX

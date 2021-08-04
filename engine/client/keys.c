@@ -947,14 +947,14 @@ void Key_DefaultLinkClicked(console_t *con, char *text, char *info)
 		else
 		{
 			char cmdprefix[6];
-			if (i == 0)
+//			if (i == 0)
 				*cmdprefix = 0;
-			else
-				snprintf(cmdprefix, sizeof(cmdprefix), "%i ", i+1);
+//			else
+//				snprintf(cmdprefix, sizeof(cmdprefix), "%i ", i+1);
 
 			//hey look! its you!
 
-			if (cl.playerview[i].spectator || cls.demoplayback)
+			if (i || cl.playerview[i].spectator || cls.demoplayback)
 			{
 				//need join option here or something
 			}

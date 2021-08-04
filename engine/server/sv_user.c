@@ -363,7 +363,10 @@ void SV_New_f (void)
 		splitnum = 0;
 		for (split = host_client, splitnum = 0; split; split = split->controlled)
 			splitnum++;
-		ClientReliableWrite_Byte (host_client, (host_client->spectator?128:0) | splitnum); //read each player's userinfo to see if its a spectator or not. this hint is merely a cheat.
+		if (fteext2 & PEXT2_VRINPUTS)
+			ClientReliableWrite_Byte (host_client, splitnum);
+		else
+			ClientReliableWrite_Byte (host_client, (host_client->spectator?128:0) | splitnum); //read each player's userinfo to see if its a spectator or not. this hint is merely a cheat.
 		for (split = host_client; split; split = split->controlled)
 		{
 			playernum = split - svs.clients;// NUM_FOR_EDICT(svprogfuncs, split->edict)-1;
@@ -9458,6 +9461,13 @@ void SV_ClientThink (void)
 		sv_player->xv->movement[0] = cmd.forwardmove;
 		sv_player->xv->movement[1] = cmd.sidemove;
 		sv_player->xv->movement[2] = cmd.upmove;
+
+		if (!sv_player->v->fixangle)
+		{
+			sv_player->v->v_angle[0] = SHORT2ANGLE(cmd.angles[0]);
+			sv_player->v->v_angle[1] = SHORT2ANGLE(cmd.angles[1]);
+			sv_player->v->v_angle[2] = SHORT2ANGLE(cmd.angles[2]);
+		}
 	}
 
 	SV_SetSSQCInputs(&cmd);

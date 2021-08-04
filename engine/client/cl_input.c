@@ -1800,7 +1800,7 @@ void CL_UpdateSeats(void)
 
 			//some userinfos should always have a value
 			if (!*InfoBuf_ValueForKey(info, "name"))	//$name-2
-				InfoBuf_SetKey(info, "name", va("%s-%i\n", InfoBuf_ValueForKey(&cls.userinfo[0], "name"), cl.splitclients+1));
+				InfoBuf_SetKey(info, "name", va("%s-%i", InfoBuf_ValueForKey(&cls.userinfo[0], "name"), cl.splitclients+1));
 			if (cls.protocol != CP_QUAKE2)
 			{
 				if (!*InfoBuf_ValueForKey(info, "team"))	//put players on the same team by default. this avoids team damage in coop, and if you're playing on the same computer then you probably want to be on the same team anyway.

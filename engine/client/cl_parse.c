@@ -3381,7 +3381,9 @@ static void CLQW_ParseServerData (void)
 
 		/*parsing here is slightly different to allow us 255 max players instead of 127*/
 		cl.splitclients = (qbyte)MSG_ReadByte();
-		if (cl.splitclients & 128)
+		if (cls.fteprotocolextensions2 & PEXT2_VRINPUTS)
+			;
+		else if (cl.splitclients & 128)
 		{
 //			spec = true;
 			cl.splitclients &= ~128;

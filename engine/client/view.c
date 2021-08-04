@@ -2458,6 +2458,7 @@ void V_RenderView (qboolean no2d)
 {
 	int seatnum;
 	int maxseats = cl.splitclients;
+	int pl;
 
 	Surf_LessenStains();
 
@@ -2466,13 +2467,16 @@ void V_RenderView (qboolean no2d)
 
 	if (cl.intermissionmode != IM_NONE)
 		maxseats = 1;
+	else if (cl_forceseat.ival && cl_splitscreen.ival >= 4)
+		maxseats = 1;
 
 	R_PushDlights ();
 
 	r_secondaryview = 0;
 	for (seatnum = 0; seatnum < cl.splitclients && seatnum < maxseats; seatnum++)
 	{
-		V_ClearRefdef(&cl.playerview[seatnum]);
+		pl = (maxseats==1&&cl_forceseat.ival>=1)?(cl_forceseat.ival-1)%cl.splitclients:seatnum;
+		V_ClearRefdef(&cl.playerview[pl]);
 		if (no2d)
 			r_refdef.drawcrosshair = r_refdef.drawsbar = 0;
 		if (seatnum)

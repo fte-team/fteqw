@@ -270,11 +270,6 @@ void Draw_FunStringWidthFont(struct font_s *font, float x, float y, const void *
 }
 #ifdef QUAKEHUD
 
-static qboolean largegame = false;
-
-
-
-
 
 
 #ifdef Q2CLIENT
@@ -3311,7 +3306,7 @@ ping time frags name
 },{														\
 	if (!s->spectator)									\
 	{													\
-		if (largegame)									\
+		if (skip==8)									\
 			Sbar_FillPC(x, y+1, 40, 3, top);			\
 		else											\
 			Sbar_FillPC(x, y, 40, 4, top);				\
@@ -3365,11 +3360,11 @@ void Sbar_DeathmatchOverlay (playerview_t *pv, int start)
 	int namesize = (cl.teamplay ? 12*8 : 16*8);
 	float backalpha;
 
+	int pages;
+	int linesperpage, firstline, lastline;
+
 	if (!pv)
 		return;
-
-	if (largegame)
-		skip = 8;
 
 // request new ping times every two second
 	if (realtime - cl.last_ping_request > 2	&& cls.demoplayback != DPB_EZTV)
@@ -3431,7 +3426,16 @@ void Sbar_DeathmatchOverlay (playerview_t *pv, int start)
 		y += 8;
 	}
 
-	y += gr.y;
+	start = y;
+	y+=8;
+	linesperpage = floor(((gr.height-10.)-y)/skip);
+	while (scoreboardlines > linesperpage && skip > 8)
+	{	//won't fit, shrink the gaps.
+		skip--;
+		linesperpage = floor(((vid.height-10.)-y)/skip);
+	}
+	linesperpage = max(linesperpage,1);
+	pages = max(1, (scoreboardlines+linesperpage-1)/linesperpage);
 
 	showcolumns = 0;
 
@@ -3476,7 +3480,7 @@ void Sbar_DeathmatchOverlay (playerview_t *pv, int start)
 #undef COLUMN
 
 	rank_width -= namesize;
-	if (rank_width < 320)
+	if (rank_width < 320 && pages <= 1)
 	{
 		namesize += 320-rank_width;
 		if (namesize > 32*8)
@@ -3484,33 +3488,44 @@ void Sbar_DeathmatchOverlay (playerview_t *pv, int start)
 	}
 	rank_width += namesize;
 
-	startx = (gr.width-rank_width)/2;
-	startx += gr.x;
-
-	if (scr_scoreboard_newstyle.ival)
+	startx = (gr.width-rank_width*pages)/2;
+	if (startx < 0)
 	{
-		// Electro's scoreboard eyecandy: Draw top border
-		R2D_ImagePaletteColour (0, scr_scoreboard_fillalpha.value);
-		R2D_FillBlock(startx - 3, y - 1, rank_width - 1, 1);
-
-		// Electro's scoreboard eyecandy: Draw the title row background
-		R2D_ImagePaletteColour (1, scr_scoreboard_fillalpha.value);
-		R2D_FillBlock(startx - 2, y, rank_width - 3, 9);
-
-		R2D_ImageColours(1, 1, 1, 1);
+		startx = fmod(realtime*128, rank_width*pages) - (gr.width/2);
+		startx = -bound(0, startx, (rank_width*pages-gr.width));
 	}
+	startx += gr.x;
+	for (firstline = 0; firstline < scoreboardlines; firstline += linesperpage, startx += rank_width)
+	{
+		if (startx+rank_width < gr.x || startx > gr.x+gr.width)
+			continue;
+		lastline = min(firstline + linesperpage, scoreboardlines);
+		y = start + gr.y;
 
-	x = startx;
+		if (scr_scoreboard_newstyle.ival)
+		{
+			// Electro's scoreboard eyecandy: Draw top border
+			R2D_ImagePaletteColour (0, scr_scoreboard_fillalpha.value);
+			R2D_FillBlock(startx - 3, y - 1, rank_width - 1, 1);
+
+			// Electro's scoreboard eyecandy: Draw the title row background
+			R2D_ImagePaletteColour (1, scr_scoreboard_fillalpha.value);
+			R2D_FillBlock(startx - 2, y, rank_width - 3, 9);
+
+			R2D_ImageColours(1, 1, 1, 1);
+		}
+
+		x = startx;
 #define COLUMN(title, width, code, fill) if (width && (showcolumns & (1<<COLUMN##title))) {Draw_FunString(x, y, #title); x += width+8;}
 	ALLCOLUMNS
 #undef COLUMN
 
 
-	y += 8;
+		y += 8;
 
-	if (scr_scoreboard_titleseperator.ival && !scr_scoreboard_newstyle.ival)
-	{
-		x = startx;
+		if (scr_scoreboard_titleseperator.ival && !scr_scoreboard_newstyle.ival)
+		{
+			x = startx;
 #define COLUMN(title, width, code, fill) \
 if (showcolumns & (1<<COLUMN##title)) \
 { \
@@ -3520,132 +3535,130 @@ if (showcolumns & (1<<COLUMN##title)) \
 	Draw_FunString(x+i, y, "^Ue01f"); \
 	x += width+8; \
 }
-		ALLCOLUMNS
+			ALLCOLUMNS
 #undef COLUMN
-		y += 8;
-	}
-
-	if (scr_scoreboard_newstyle.ival)
-	{
-		// Electro's scoreboard eyecandy: Draw top border (under header)
-		R2D_ImagePaletteColour (0, scr_scoreboard_fillalpha.value);
-		R2D_FillBlock (startx - 3, y + 1, rank_width - 1, 1);
-		// Electro's scoreboard eyecandy: Don't go over the black border, move the rest down
-		y += 2;
-		// Electro's scoreboard eyecandy: Draw left border
-		R2D_FillBlock (startx - 3, y - 10, 1, 9);
-		// Electro's scoreboard eyecandy: Draw right border
-		R2D_FillBlock (startx - 3 + rank_width - 2, y - 10, 1, 9);
-	}
-
-	y -= skip;
-
-	//drawfills (these are split out to aid batching)
-	for (i = 0; i < scoreboardlines; i++)
-	{
-		char	team[5];
-		unsigned int		top, bottom;
-
-		// TODO: Sort players so that the leading teams are drawn first
-		k = fragsort[i];
-		s = &cl.players[k];
-		if (!s->name[0])
-			continue;
-
-		y += skip;
-		if (y > vid.height-10)
-			break;
-		isme =	(pv->cam_state == CAM_FREECAM && k == pv->playernum) ||
-				(pv->cam_state != CAM_FREECAM && k == pv->cam_spec_track);
-
-		// Electro's scoreboard eyecandy: Moved this up here for usage with the row background color
-		top = Sbar_TopColour(s);
-		bottom = Sbar_BottomColour(s);
+			y += 8;
+		}
 
 		if (scr_scoreboard_newstyle.ival)
 		{
-			backalpha = scr_scoreboard_backgroundalpha.value*scr_scoreboard_fillalpha.value;
-			if (isme)
-				backalpha *= 1.7;
-
-			// Electro's scoreboard eyecandy: Render the main background transparencies behind players row
-			// TODO: Alpha values on the background
-			if ((cl.teamplay) && (!s->spectator))
-			{
-				int background_color;
-				// Electro's scoreboard eyecandy: red vs blue are common teams, force the colours
-				Q_strncpyz (team, InfoBuf_ValueForKey(&s->userinfo, "team"), sizeof(team));
-
-				if (S_Voip_Speaking(k))
-					background_color = 0x00ff00;
-				else if (!(strcmp("red", team)))
-					background_color = 4; // forced red
-				else if (!(strcmp("blue", team)))
-					background_color = 13; // forced blue
-				else
-					background_color = bottom;
-
-				Sbar_FillPCDark (startx - 2, y, rank_width - 3, skip, background_color, backalpha);
-			}
-			else if (S_Voip_Speaking(k))
-				Sbar_FillPCDark (startx - 2, y, rank_width - 3, skip, 0x00ff00, backalpha);
-			else
-			{
-				R2D_ImagePaletteColour (2, backalpha);
-				R2D_FillBlock (startx - 2, y, rank_width - 3, skip);
-			}
-
+			// Electro's scoreboard eyecandy: Draw top border (under header)
 			R2D_ImagePaletteColour (0, scr_scoreboard_fillalpha.value);
-			R2D_FillBlock (startx - 3, y, 1, skip); // Electro - Border - Left
-			R2D_FillBlock (startx - 3 + rank_width - 2, y, 1, skip); // Electro - Border - Right
+			R2D_FillBlock (startx - 3, y + 1, rank_width - 1, 1);
+			// Electro's scoreboard eyecandy: Don't go over the black border, move the rest down
+			y += 2;
+			// Electro's scoreboard eyecandy: Draw left border
+			R2D_FillBlock (startx - 3, y - 10, 1, 9);
+			// Electro's scoreboard eyecandy: Draw right border
+			R2D_FillBlock (startx - 3 + rank_width - 2, y - 10, 1, 9);
 		}
 
-		x = startx;
+		y -= skip;
+
+		//drawfills (these are split out to aid batching)
+		for (i = firstline; i < lastline; i++)
+		{
+			char	team[5];
+			unsigned int		top, bottom;
+
+			// TODO: Sort players so that the leading teams are drawn first
+			k = fragsort[i];
+			s = &cl.players[k];
+			if (!s->name[0])
+				continue;
+
+			y += skip;
+			if (y > vid.height-10)
+				break;
+			isme =	(pv->cam_state == CAM_FREECAM && k == pv->playernum) ||
+					(pv->cam_state != CAM_FREECAM && k == pv->cam_spec_track);
+
+			// Electro's scoreboard eyecandy: Moved this up here for usage with the row background color
+			top = Sbar_TopColour(s);
+			bottom = Sbar_BottomColour(s);
+
+			if (scr_scoreboard_newstyle.ival)
+			{
+				backalpha = scr_scoreboard_backgroundalpha.value*scr_scoreboard_fillalpha.value;
+				if (isme)
+					backalpha *= 1.7;
+
+				// Electro's scoreboard eyecandy: Render the main background transparencies behind players row
+				// TODO: Alpha values on the background
+				if ((cl.teamplay) && (!s->spectator))
+				{
+					int background_color;
+					// Electro's scoreboard eyecandy: red vs blue are common teams, force the colours
+					Q_strncpyz (team, InfoBuf_ValueForKey(&s->userinfo, "team"), sizeof(team));
+
+					if (S_Voip_Speaking(k))
+						background_color = 0x00ff00;
+					else if (!(strcmp("red", team)))
+						background_color = 4; // forced red
+					else if (!(strcmp("blue", team)))
+						background_color = 13; // forced blue
+					else
+						background_color = bottom;
+
+					Sbar_FillPCDark (startx - 2, y, rank_width - 3, skip, background_color, backalpha);
+				}
+				else if (S_Voip_Speaking(k))
+					Sbar_FillPCDark (startx - 2, y, rank_width - 3, skip, 0x00ff00, backalpha);
+				else
+				{
+					R2D_ImagePaletteColour (2, backalpha);
+					R2D_FillBlock (startx - 2, y, rank_width - 3, skip);
+				}
+
+				R2D_ImagePaletteColour (0, scr_scoreboard_fillalpha.value);
+				R2D_FillBlock (startx - 3, y, 1, skip); // Electro - Border - Left
+				R2D_FillBlock (startx - 3 + rank_width - 2, y, 1, skip); // Electro - Border - Right
+			}
+
+			x = startx;
 #define COLUMN(title, width, code, fills) \
 if (showcolumns & (1<<COLUMN##title)) \
 { \
 	fills \
 	x += width+8; \
 }
-		ALLCOLUMNS
+			ALLCOLUMNS
 #undef COLUMN
-	}
-	if (scr_scoreboard_newstyle.ival)
-	{
-		R2D_ImagePaletteColour (0, scr_scoreboard_fillalpha.value);
-		R2D_FillBlock (startx - 3, y + skip, rank_width - 1, 1); // Electro - Border - Bottom
-	}
-	R2D_ImageColours(1.0, 1.0, 1.0, 1.0);
-	y -= i * skip;
+		}
+		if (scr_scoreboard_newstyle.ival)
+		{
+			R2D_ImagePaletteColour (0, scr_scoreboard_fillalpha.value);
+			R2D_FillBlock (startx - 3, y + skip, rank_width - 1, 1); // Electro - Border - Bottom
+		}
+		R2D_ImageColours(1.0, 1.0, 1.0, 1.0);
+		y -= (i-firstline) * skip;
 
-	//text parts
-	for (i = 0; i < scoreboardlines; i++)
-	{
-		// TODO: Sort players so that the leading teams are drawn first
-		k = fragsort[i];
-		s = &cl.players[k];
-		if (!s->name[0])
-			continue;
+		//text parts
+		for (i = firstline; i < lastline; i++)
+		{
+			// TODO: Sort players so that the leading teams are drawn first
+			k = fragsort[i];
+			s = &cl.players[k];
+			if (!s->name[0])
+				continue;
 
-		y += skip;
-		if (y > vid.height-10)
-			break;
-		isme =	(pv->cam_state == CAM_FREECAM && k == pv->playernum) ||
-				(pv->cam_state != CAM_FREECAM && k == pv->cam_spec_track);
+			y += skip;
+			if (y > vid.height-10)
+				break;
+			isme =	(pv->cam_state == CAM_FREECAM && k == pv->playernum) ||
+					(pv->cam_state != CAM_FREECAM && k == pv->cam_spec_track);
 
-		x = startx;
+			x = startx;
 #define COLUMN(title, width, code, fills) \
 if (showcolumns & (1<<COLUMN##title)) \
 { \
 	code \
 	x += width+8; \
 }
-		ALLCOLUMNS
+			ALLCOLUMNS
 #undef COLUMN
+		}
 	}
-
-	if (y >= vid.height-10) // we ran over the screen size, squish
-		largegame = true;
 }
 
 /*

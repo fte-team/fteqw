@@ -10324,10 +10324,10 @@ void SV_SetSSQCInputs(usercmd_t *ucmd)
 	if (pr_global_ptrs->input_angles)
 	{
 		if (sv_player->v->fixangle)
-		{
-			(pr_global_struct->input_angles)[0] = sv_player->v->v_angle[0];
-			(pr_global_struct->input_angles)[1] = sv_player->v->v_angle[1];
-			(pr_global_struct->input_angles)[2] = sv_player->v->v_angle[2];
+		{	//hate this, but somehow still pending
+			(pr_global_struct->input_angles)[0] = sv_player->v->angles[0];
+			(pr_global_struct->input_angles)[1] = sv_player->v->angles[1];
+			(pr_global_struct->input_angles)[2] = sv_player->v->angles[2];
 		}
 		else
 		{
@@ -10441,12 +10441,6 @@ qboolean SV_RunFullQCMovement(client_t *client, usercmd_t *ucmd)
 		}
 #endif
 
-		if (!sv_player->v->fixangle)
-		{
-			sv_player->v->v_angle[0] = SHORT2ANGLE(ucmd->angles[0]);
-			sv_player->v->v_angle[1] = SHORT2ANGLE(ucmd->angles[1]);
-			sv_player->v->v_angle[2] = SHORT2ANGLE(ucmd->angles[2]);
-		}
 		VectorCopy(sv_player->v->v_angle, startangle);
 
 #ifdef HEXEN2

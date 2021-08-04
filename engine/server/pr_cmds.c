@@ -4205,14 +4205,11 @@ static void QCBUILTIN PF_sv_getlight (pubprogfuncs_t *prinst, struct globalvars_
 	vec3_t diffuse, ambient, dir;
 	model_t *wm = sv.world.worldmodel;
 
-	if (wm && wm->loadstate == MLS_LOADED && wm->funcs.LightPointValues)
+	if (wm && wm->loadstate == MLS_LOADED && wm->funcs.LightPointValues && wm->lightmaps.maxstyle<cl_max_lightstyles)
 	{
-		if (cl_max_lightstyles < wm->lightmaps.maxstyle)	//client's light info might not be set up yet. this sucks.
-		{
-			wm->funcs.LightPointValues(wm, point, diffuse, ambient, dir);
-			VectorMA(ambient, 0.5, diffuse, G_VECTOR(OFS_RETURN));
-			return;
-		}
+		wm->funcs.LightPointValues(wm, point, diffuse, ambient, dir);
+		VectorMA(ambient, 0.5, diffuse, G_VECTOR(OFS_RETURN));
+		return;
 	}
 #endif
 

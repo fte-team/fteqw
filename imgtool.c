@@ -396,6 +396,31 @@ qbyte GetPaletteIndexNoFB(int red, int green, int blue)
 		{
 			bestdist = dist;
 			best = i;
+			if (!dist)
+				break;
+		}
+	}
+	return best;
+}
+qbyte GetPaletteIndexRange(int first, int stop, int red, int green, int blue)
+{
+	int i;
+	int best=0;
+	int bestdist=INT_MAX;
+	int dist;
+	for (i = first; i < stop; i++)
+	{
+		const int diff[3] = {
+			host_basepal[i*3+0]-red,
+			host_basepal[i*3+1]-green,
+			host_basepal[i*3+2]-blue};
+		dist = DotProduct(diff,diff);
+		if (dist < bestdist)
+		{
+			bestdist = dist;
+			best = i;
+			if (!dist)
+				break;
 		}
 	}
 	return best;
@@ -1235,7 +1260,7 @@ static struct pendingtextureinfo *ImgTool_DecodeMiptex(struct opts_s *args, mipt
 	struct pendingtextureinfo *out = Z_Malloc(sizeof(*out));
 	qbyte *newdata = NULL;
 	int neww=0, newh=0, sz;
-	unsigned int bw,bh,bb,bd;
+	unsigned int bw,bh,bb,bd, i;
 	out->type = PTI_2D;
 
 	out->encoding = PTI_INVALID;
@@ -1390,6 +1415,15 @@ static struct pendingtextureinfo *ImgTool_DecodeMiptex(struct opts_s *args, mipt
 	if (*mip->name == '*')
 		*mip->name = '#';	//convert from * to #, so its a valid file name.
 
+	for (i = 0; i < out->mipcount; i++)
+	{
+		if (out->mip[i].needfree)
+			continue;
+		if (out->mip[i].data < (void*)mip ||
+			(char*)out->mip[i].data+out->mip[i].datasize > (char*)mip+size)
+			return NULL;
+	}
+
 	if (args)
 	{
 		if (args->defaultext && !strcasecmp(args->defaultext, "mip"))
@@ -1494,7 +1528,7 @@ static void ImgTool_Enumerate(struct opts_s *args, const char *inname, void(*cal
 						printf("\t%16.16s: missized qpic (%u %u, %u bytes)\n", e->name, w, h, (unsigned int)sz);
 					if (in)
 					{
-						printf("\n");
+//						printf("\n");
 						in->type = PTI_2D;
 						in->mipcount = 1;
 						in->mip[0].width = w;
@@ -1511,9 +1545,25 @@ static void ImgTool_Enumerate(struct opts_s *args, const char *inname, void(*cal
 			case TYP_MIPTEX:
 				{
 					miptex_t *mip = (miptex_t *)(indata+e->offset);
-					in = ImgTool_DecodeMiptex(NULL, mip, min(e->size, e->dsize));
 
-					callback(e->name, in);
+					if (!strcasecmp(e->name, "CONCHARS") && e->size==128*128)
+					{	//special hack for conchars, which is listed as a miptex for some reason, with no qpic header (it not being a qpic lump)
+						in = Z_Malloc(sizeof(*in));
+						in->encoding = TF_H2_TRANS8_0;
+						in->mip[0].data = indata+e->offset+8;
+						in->mip[0].datasize = 128*128;
+						in->type = PTI_2D;
+						in->mipcount = 1;
+						in->mip[0].width = 128;
+						in->mip[0].height = 128;
+						in->mip[0].depth = 1;
+						in->mip[0].needfree = false;
+					}
+					else
+						in = ImgTool_DecodeMiptex(NULL, mip, min(e->size, e->dsize));
+
+					if (in)
+						callback(e->name, in);
 /*
 					//mip name SHOULD match entry name... but gah!
 					if (strcasecmp(e->name, mip->name))
@@ -1524,7 +1574,7 @@ static void ImgTool_Enumerate(struct opts_s *args, const char *inname, void(*cal
 
 					if (in->encoding != PTI_P8)
 						printf(" (%s %u*%u)", Image_FormatName(in->encoding), in->mip[0].width, in->mip[0].height);*/
-					printf("\n");
+//					printf("\n");
 					ImgTool_FreeMips(in);
 				}
 				break;
@@ -1891,7 +1941,7 @@ static void ImgTool_WadExtract(struct opts_s *args, const char *wadname)
 				{
 					miptex_t *mip = (miptex_t *)(indata+e->offset);
 
-					if (!strcmp(e->name, "CONCHARS") && e->size==128*128)
+					if (!strcasecmp(e->name, "CONCHARS") && e->size==128*128)
 					{	//special hack for conchars, which is listed as a miptex for some reason, with no qpic header (it not being a qpic lump)
 						struct pendingtextureinfo *out = Z_Malloc(sizeof(*out));
 						out->encoding = TF_H2_TRANS8_0;
@@ -2314,7 +2364,7 @@ static void ImgTool_WadConvert(struct opts_s *args, const char *destpath, const 
 		wad2.offset = 0;
 		VFS_WRITE(f, &wad2, 12);
 
-		if (wadtype == 1)
+		if (wadtype == 1 && !qpics)
 		{	//WAD2 texture files generally have a palette lump.
 			if (wad2.num == maxentries)
 			{
@@ -2394,16 +2444,28 @@ static void ImgTool_WadConvert(struct opts_s *args, const char *destpath, const 
 
 				if (qpics)
 				{
+					qboolean mippixelformats[PTI_MAX];
+					memset(mippixelformats, 0, sizeof(mippixelformats));
+
 					if (!strcasecmp(entry->name, "CONCHARS") && in->mip[0].width==128&&in->mip[0].height==128)
+					{
+						mippixelformats[TF_H2_TRANS8_0] = true;
+
 						entry->type = TYP_MIPTEX;	//yes, weird. match vanilla quake. explicitly avoid qpic to avoid corruption in the first 8 bytes (due to the engine's early endian swapping)
-													//FIXME: encoding should be pti_trans8_0...
+												//FIXME: encoding should be pti_trans8_0...
+					}
 					else
 					{
+						mippixelformats[TF_TRANS8] = true;
 						entry->type = TYP_QPIC;
 						//qpics need a header
 						VFS_WRITE(f, &in->mip[0].width, sizeof(int));
 						VFS_WRITE(f, &in->mip[0].height, sizeof(int));
 					}
+					if (!mippixelformats[in->encoding])
+						Image_ChangeFormat(in, mippixelformats, PTI_INVALID, entry->name);
+					if (!mippixelformats[in->encoding])
+						continue;
 					//and now the 8bit pixel data itself
 					VFS_WRITE(f, in->mip[0].data, in->mip[0].datasize);
 				}

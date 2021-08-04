@@ -318,7 +318,7 @@ void MSG_WriteBigCoord (sizebuf_t *sb, float f);
 void MSG_WriteAngle (sizebuf_t *sb, float f);
 void MSG_WriteAngle8 (sizebuf_t *sb, float f);
 void MSG_WriteAngle16 (sizebuf_t *sb, float f);
-void MSGFTE_WriteDeltaUsercmd (sizebuf_t *buf, const struct usercmd_s *from, const struct usercmd_s *cmd);
+void MSGFTE_WriteDeltaUsercmd (sizebuf_t *buf, const short baseanges[3], const struct usercmd_s *from, const struct usercmd_s *cmd);
 void MSGQW_WriteDeltaUsercmd (sizebuf_t *sb, const struct usercmd_s *from, const struct usercmd_s *cmd);
 void MSGCL_WriteDeltaUsercmd (sizebuf_t *sb, const struct usercmd_s *from, const struct usercmd_s *cmd);
 void MSG_WriteDir (sizebuf_t *sb, float *dir);

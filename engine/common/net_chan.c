@@ -243,7 +243,13 @@ unsigned int Net_PextMask(unsigned int protover, qboolean fornq)
 	}
 	else if (protover == PROTOCOL_VERSION_EZQUAKE1)
 	{
-		mask = EZPEXT1_FLOATENTCOORDS|EZPEXT1_SETANGLEREASON;
+		mask = EZPEXT1_FLOATENTCOORDS;//|EZPEXT1_SETANGLEREASON;
+
+		if (fornq)
+		{
+			mask &= ~EZPEXT1_FLOATENTCOORDS;	//keep things simple. interactions are not defined.
+			mask &= ~EZPEXT1_SETANGLEREASON;	//potentially breaks too many nq mods. don't encourage it.
+		}
 	}
 
 	return mask;

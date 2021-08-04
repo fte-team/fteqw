@@ -360,6 +360,9 @@ typedef struct
 	unsigned short		resendstats[32];//the number of each entity that was sent in this frame
 	unsigned int		numresendstats;	//the bits of each entity that were sent in this frame
 
+	short				baseangles[MAX_SPLITS][3];
+	unsigned int		baseanglelocked[MAX_SPLITS];
+
 	//antilag
 	//these are to recalculate the player's origin without old knockbacks nor teleporters, to give more accurate weapon start positions (post-command).
 	vec3_t				pmorigin;
@@ -502,6 +505,8 @@ typedef struct client_s
 	infosync_t		infosync;			// information about the infos that the client still doesn't know (server and multiple clients).
 	char			*transfer;
 
+	unsigned int	baseanglelock;		// lock the player angles to base (until baseangle sequence is acked)
+	short			baseangles[3];		// incoming angle inputs are relative to this value.
 	usercmd_t		lastcmd;			// for filling in big drops and partial predictions
 	double			localtime;			// of last message
 	qboolean jump_held;
@@ -1197,7 +1202,7 @@ void SV_DoDirectConnect(svconnectinfo_t *fte_restrict info);
 int SV_ModelIndex (const char *name);
 
 void SV_WriteClientdataToMessage (client_t *client, sizebuf_t *msg);
-void SVQW_WriteDelta (entity_state_t *from, entity_state_t *to, sizebuf_t *msg, qboolean force, unsigned int protext);
+void SVQW_WriteDelta (entity_state_t *from, entity_state_t *to, sizebuf_t *msg, qboolean force, unsigned int protext, unsigned int ezext);
 
 client_t *SV_AddSplit(client_t *controller, char *info, int id);
 void SV_SpawnParmsToQC(client_t *client);
@@ -1412,7 +1417,7 @@ qboolean PR_ShouldTogglePause(client_t *initiator, qboolean pausedornot);
 // sv_ents.c
 //
 void SV_WriteEntitiesToClient (client_t *client, sizebuf_t *msg, qboolean ignorepvs);
-void SVFTE_EmitBaseline(entity_state_t *to, qboolean numberisimportant, sizebuf_t *msg, unsigned int pext2);
+void SVFTE_EmitBaseline(entity_state_t *to, qboolean numberisimportant, sizebuf_t *msg, unsigned int pext2, unsigned int ezext);
 void SVQ3Q1_BuildEntityPacket(client_t *client, packet_entities_t *pack);
 void SV_Snapshot_BuildStateQ1(entity_state_t *state, edict_t *ent, client_t *client, packet_entities_t *pack);
 int SV_HullNumForPlayer(int h2hull, float *mins, float *maxs);

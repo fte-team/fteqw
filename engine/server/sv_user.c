@@ -245,7 +245,7 @@ void SV_New_f (void)
 	int			playernum;
 	int splitnum;
 	client_t *split;
-	unsigned int fteext1, fteext2;	//reported to client
+	unsigned int fteext1, fteext2, ezext1;	//reported to client
 
 	host_client->prespawn_stage = PRESPAWN_INVALID;
 	host_client->prespawn_idx = 0;
@@ -305,16 +305,19 @@ void SV_New_f (void)
 
 	fteext1 = host_client->fteprotocolextensions;
 	fteext2 = host_client->fteprotocolextensions2;
+	ezext1 = host_client->ezprotocolextensions1;
 	switch(svs.netprim.coordtype)
 	{
 	case COORDTYPE_FLOAT_32:
 		fteext1 |= PEXT_FLOATCOORDS;
+		ezext1 &= ~EZPEXT1_FLOATENTCOORDS; //redundant.
 		if (!(host_client->fteprotocolextensions & PEXT_FLOATCOORDS))
 		{
-			SV_ClientPrintf(host_client, 2, "\n\n\n\nPlease set cl_nopext to 0 and then reconnect.\nIf that doesn't work, please update your engine\n");
-			Con_Printf("%s does not support bigcoords\n", host_client->name);
-			host_client->drop = true;
-			return;
+			SV_ClientPrintf(host_client, 2, "\nForcing bigcoords.\nIf this doesn't work, please update your engine\n");
+			host_client->fteprotocolextensions |= PEXT_FLOATCOORDS;
+//			Con_Printf("%s does not support bigcoords\n", host_client->name);
+//			host_client->drop = true;
+//			return;
 		}
 		break;
 	case COORDTYPE_FIXED_13_3:
@@ -341,6 +344,11 @@ void SV_New_f (void)
 	{
 		ClientReliableWrite_Long (host_client, PROTOCOL_VERSION_FTE2);
 		ClientReliableWrite_Long (host_client, fteext2);
+	}
+	if (ezext1)//let the client know
+	{
+		ClientReliableWrite_Long (host_client, PROTOCOL_VERSION_EZQUAKE1);
+		ClientReliableWrite_Long (host_client, ezext1);
 	}
 	ClientReliableWrite_Long (host_client, ISQ2CLIENT(host_client)?PROTOCOL_VERSION_Q2:PROTOCOL_VERSION_QW);
 	ClientReliableWrite_Long (host_client, svs.spawncount);
@@ -1577,7 +1585,7 @@ void SV_SendClientPrespawnInfo(client_t *client)
 			if (client->fteprotocolextensions2 & PEXT2_REPLACEMENTDELTAS)
 			{
 				MSG_WriteByte(&client->netchan.message, svcfte_spawnstatic2);
-				SVFTE_EmitBaseline(state, false, &client->netchan.message, client->fteprotocolextensions2);
+				SVFTE_EmitBaseline(state, false, &client->netchan.message, client->fteprotocolextensions2, client->ezprotocolextensions1);
 				continue;
 			}
 			if (client->fteprotocolextensions & PEXT_SPAWNSTATIC2)
@@ -1586,7 +1594,7 @@ void SV_SendClientPrespawnInfo(client_t *client)
 				if (state->hexen2flags || state->trans || state->modelindex >= 256 || state->frame > 255 || state->scale || state->abslight)
 				{
 					MSG_WriteByte(&client->netchan.message, svcfte_spawnstatic2);
-					SVQW_WriteDelta(&nullentitystate, state, &client->netchan.message, true, client->fteprotocolextensions);
+					SVQW_WriteDelta(&nullentitystate, state, &client->netchan.message, true, client->fteprotocolextensions, client->ezprotocolextensions1);
 					continue;
 				}
 			}
@@ -1705,12 +1713,12 @@ void SV_SendClientPrespawnInfo(client_t *client)
 			else if (client->fteprotocolextensions2 & PEXT2_REPLACEMENTDELTAS)
 			{
 				MSG_WriteByte(&client->netchan.message, svcfte_spawnbaseline2);
-				SVFTE_EmitBaseline(state, true, &client->netchan.message, client->fteprotocolextensions2);
+				SVFTE_EmitBaseline(state, true, &client->netchan.message, client->fteprotocolextensions2, client->ezprotocolextensions1);
 			}
 			else if (client->fteprotocolextensions & PEXT_SPAWNSTATIC2)
 			{
 				MSG_WriteByte(&client->netchan.message, svcfte_spawnbaseline2);
-				SVQW_WriteDelta(&nullentitystate, state, &client->netchan.message, true, client->fteprotocolextensions);
+				SVQW_WriteDelta(&nullentitystate, state, &client->netchan.message, true, client->fteprotocolextensions, client->ezprotocolextensions1);
 			}
 			else if (ISDPCLIENT(client) && (state->modelindex > 255 || state->frame > 255))
 			{
@@ -5373,14 +5381,14 @@ static void Cmd_AddSeat_f(void)
 		int num = atoi(Cmd_Argv(1));
 		int count;
 
-		if (!num || host_client->joinobservelockeduntil > realtime)
+		if (num<=0 || host_client->joinobservelockeduntil > realtime)
 			return;
 		if (host_client->netchan.remote_address.type != NA_LOOPBACK)
 			host_client->joinobservelockeduntil = realtime + 2;
 
 		for (count = 1, prev = host_client, cl = host_client->controlled; cl; cl = cl->controlled)
 		{
-			if (count > num)
+			if (count >= num)
 			{
 				for(; cl; cl = prev->controlled)
 				{
@@ -5404,8 +5412,8 @@ static void Cmd_AddSeat_f(void)
 			count++;
 		}
 
-		if (!changed && count <= num)
-			changed = !!SV_AddSplit(host_client, Cmd_Argv(2), num);
+		if (!changed && count+1 == num && Cmd_Argc()>2)
+			changed = !!SV_AddSplit(host_client, Cmd_Argv(2), num-1);
 	}
 	else
 	{
@@ -7939,7 +7947,7 @@ static double SVFTE_ExecuteClientMove(client_t *controller)
 	for (seat = 0; seat < seats; seat++)
 	{
 		if (!split)
-		{	//err, they sent too many seats... assume we kicked one.
+		{	//err, they sent too many seats... assume we kicked one. swallow the extra data.
 			for (frame = 0; frame < frames; frame++)
 				MSGFTE_ReadDeltaUsercmd(&nullcmd, &old);
 			continue;
@@ -7960,6 +7968,9 @@ static double SVFTE_ExecuteClientMove(client_t *controller)
 		{
 			MSGFTE_ReadDeltaUsercmd(&old, &split->lastcmd);
 			old = split->lastcmd;
+			split->lastcmd.angles[0] += split->baseangles[0];
+			split->lastcmd.angles[1] += split->baseangles[1];
+			split->lastcmd.angles[2] += split->baseangles[2];
 
 			if (split->penalties & BAN_CRIPPLED)
 			{
@@ -7970,8 +7981,10 @@ static double SVFTE_ExecuteClientMove(client_t *controller)
 
 			if (split->state == cs_spawned)
 			{
+				//handle impulse here, doing it later might mean it got skipped entirely (nq physics often skips frames).
 				if (split->lastcmd.impulse)
 					split->edict->v->impulse = split->lastcmd.impulse;
+
 				if (split->isindependant)
 				{	//this protocol uses bigger timestamps instead of msecs
 					unsigned int curtime = sv.time*1000;
@@ -8053,14 +8066,14 @@ void SV_ExecuteClientMessage (client_t *cl)
 // calc ping time
 	frame = &cl->frameunion.frames[cl->netchan.incoming_acknowledged & UPDATE_MASK];
 
-	if (cl->lastsequence_acknowledged + UPDATE_BACKUP > cl->netchan.incoming_acknowledged)
+	if (cl->lastsequence_acknowledged + UPDATE_BACKUP > cl->netchan.incoming_acknowledged && cl->netchan.incoming_sequence-cl->netchan.incoming_acknowledged<UPDATE_BACKUP)
 	{
 		/*note that if there is packetloss, we can change a single frame's ping_time multiple times
 		  this means that the 'ping' is more latency than ping times*/
 		if (frame->ping_time == -1 || !sv_ping_ignorepl.ival)
 			frame->ping_time = realtime - frame->senttime;	//no more phenomanally low pings please
 
-		if (cl->spectator)
+		if (cl->spectator || sv_minping.value<=0)
 			cl->delay = 0;
 		else
 		{
@@ -8070,7 +8083,7 @@ void SV_ExecuteClientMessage (client_t *cl)
 				//FIXME: we should use actual arrival times instead, so we don't get so much noise and seesawing.
 				diff = bound(-25, diff, 25);	//don't swing wildly
 				cl->delay -= 0.001*(diff/25);	//scale towards the ideal value
-				cl->delay = bound(0, cl->delay, 1);	//but make sure things don't go crazy
+				cl->delay = bound(0, cl->delay, UPDATE_BACKUP/77.0);	//but make sure things don't go crazy
 			}
 		}
 		if (cl->penalties & BAN_LAGGED)
@@ -8455,13 +8468,8 @@ void SVQ2_ExecuteClientMessage (client_t *cl)
 		if (c == -1)
 			break;
 
-		switch ((enum clcq2_ops_e)c)
+		safeswitch ((enum clcq2_ops_e)c)
 		{
-		default:
-			Con_Printf ("SVQ2_ReadClientMessage: unknown command char %i\n", c);
-			SV_DropClient (cl);
-			return;
-
 		case clcq2_nop:
 			break;
 
@@ -8581,6 +8589,14 @@ void SVQ2_ExecuteClientMessage (client_t *cl)
 			SV_VoiceReadPacket();
 			break;
 #endif
+
+		case clcq2_bad:
+		case clcr1q2_setting:
+		case clcr1q2_multimoves:
+		safedefault:
+			Con_Printf ("SVQ2_ReadClientMessage: unknown command char %i\n", c);
+			SV_DropClient (cl);
+			return;
 		}
 	}
 }
@@ -8824,13 +8840,8 @@ void SVNQ_ExecuteClientMessage (client_t *cl)
 		if (c == -1)
 			break;
 
-		switch (c)
+		safeswitch (c)
 		{
-		default:
-			Con_Printf ("SVNQ_ReadClientMessage: unknown command char %i\n", c);
-			SV_DropClient (cl);
-			return;
-
 		case clc_disconnect:
 			host_client = cl;
 			sv_player = cl->edict;
@@ -8856,16 +8867,16 @@ void SVNQ_ExecuteClientMessage (client_t *cl)
 					host_client->last_sequence += 0x10000;	//wrapped
 				host_client->last_sequence = (host_client->last_sequence&0xffff0000) | seq;
 
-				if (cl->lastsequence_acknowledged)
+				if (cl->lastsequence_acknowledged>0 && cl->netchan.incoming_sequence-cl->lastsequence_acknowledged<UPDATE_BACKUP)
 				{
-					frame = &host_client->frameunion.frames[cl->netchan.incoming_acknowledged & UPDATE_MASK];
+					frame = &host_client->frameunion.frames[cl->lastsequence_acknowledged & UPDATE_MASK];
 					if (frame->ping_time == -1)
-						frame->ping_time = (realtime - frame->senttime) - delay;
+						frame->ping_time = (realtime - frame->senttime);
 				}
 				else
 				{
 					frame = &host_client->frameunion.frames[cl->netchan.incoming_acknowledged & UPDATE_MASK];
-					frame->ping_time = (sv.time - cl->lastcmd.servertime/1000.0) - delay;
+					frame->ping_time = (sv.time - cl->lastcmd.servertime/1000.0);
 				}
 				frame->move_msecs = cl->lastcmd.servertime - oldservertime;
 				if (frame->ping_time*1000 > sv_minping.value+1)
@@ -8880,6 +8891,7 @@ void SVNQ_ExecuteClientMessage (client_t *cl)
 					if (host_client->delay > 1)
 						host_client->delay = 1;
 				}
+				frame->ping_time -= delay;
 			}
 			break;
 		case clc_move:	//bytes: 16(nq), 19(proquake/fitz), 56(dp7)
@@ -8887,7 +8899,7 @@ void SVNQ_ExecuteClientMessage (client_t *cl)
 				return;	//shouldn't be sending moves at this point. typically they're stale, left from the previous map. this results in crashes if the protocol is different.
 
 			forceangle16 = false;
-			switch(cl->protocol)
+			safeswitch(cl->protocol)
 			{
 			case SCP_FITZ666:
 				forceangle16 = true;
@@ -8913,6 +8925,7 @@ void SVNQ_ExecuteClientMessage (client_t *cl)
 			case SCP_QUAKE3:
 			case SCP_DARKPLACES6:
 			case SCP_DARKPLACES7:
+			safedefault:
 				break;
 			}
 				
@@ -8968,6 +8981,11 @@ void SVNQ_ExecuteClientMessage (client_t *cl)
 			SV_VoiceReadPacket();
 			break;
 #endif
+
+		safedefault:
+			Con_Printf ("SVNQ_ReadClientMessage: unknown command char %i\n", c);
+			SV_DropClient (cl);
+			return;
 		}
 	}
 }

@@ -1276,16 +1276,18 @@ static qboolean CLFTE_SendVRCmd (sizebuf_t *buf, unsigned int seats)
 		cl.numackframes = 0;
 	}
 
-	from = &nullcmd;
 	for (seat = 0; seat < seats; seat++)
+	{
+		from = &nullcmd;
 		for (frame = last-count; frame < last; frame++)
 		{
 			to = &cl.outframes[frame&UPDATE_MASK].cmd[seat];
-			MSGFTE_WriteDeltaUsercmd (buf, from, to);
+			MSGFTE_WriteDeltaUsercmd (buf, cl.playerview[seat].baseangles, from, to);
 			if (to->impulse && (int)(last-frame)>=cl_c2sImpulseBackup.ival)
 				dontdrop = true;
 			from = to;
 		}
+	}
 	return dontdrop;
 }
 
@@ -1788,9 +1790,7 @@ void CL_UpdateSeats(void)
 {
 	if (!cls.netchan.message.cursize && cl.allocated_client_slots > 1 && cls.state == ca_active && cl.splitclients && (cls.fteprotocolextensions & PEXT_SPLITSCREEN) && cl.worldmodel)
 	{
-		int targ = cl_splitscreen.ival+1;
-		if (targ > MAX_SPLITS)
-			targ = MAX_SPLITS;
+		int targ = bound(1, cl_splitscreen.ival+1, MAX_SPLITS);
 		if (cl.splitclients < targ)
 		{
 			char *ver;
@@ -1823,7 +1823,7 @@ void CL_UpdateSeats(void)
 			InfoBuf_SetStarKey(info, "*ver", ver);
 			InfoBuf_ToString(info, infostr, sizeof(infostr), NULL, NULL, NULL, &cls.userinfosync, info);
 
-			CL_SendClientCommand(true, "addseat %i %s", cl.splitclients, COM_QuotedString(infostr, buffer, sizeof(buffer), false));
+			CL_SendClientCommand(true, "addseat %i %s", cl.splitclients+1, COM_QuotedString(infostr, buffer, sizeof(buffer), false));
 		}
 		else if (cl.splitclients > targ && targ >= 1)
 			CL_SendClientCommand(true, "addseat %i", targ);

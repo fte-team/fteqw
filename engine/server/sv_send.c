@@ -1644,36 +1644,63 @@ void SV_SendFixAngle(client_t *client, sizebuf_t *msg, int fixtype, qboolean rol
 		else
 			fixtype = FIXANGLE_FIXED;
 	}
-	if (fixtype == FIXANGLE_DELTA && !(controller->fteprotocolextensions2 & PEXT2_SETANGLEDELTA))
-		fixtype = FIXANGLE_FIXED;	//sorry, can't do it.
+	else
+		roll = true;
 
-	if (client->lockanglesseq>=controller->netchan.incoming_acknowledged && controller->netchan.message.cursize < controller->netchan.message.maxsize/2)
-		msg = NULL;	//try to keep them vaugely reliable, where feasable.
-	if (!msg)
-		msg = ClientReliable_StartWrite(client, 10);
-	else if (client->seat)
+	if (controller->fteprotocolextensions2 & PEXT2_VRINPUTS)
 	{
-		MSG_WriteByte(msg, svcfte_choosesplitclient);
-		MSG_WriteByte(msg, client->seat);
-	}
-	if (fixtype == FIXANGLE_DELTA && (controller->fteprotocolextensions2 & PEXT2_SETANGLEDELTA))
-	{
-		MSG_WriteByte (msg, svcfte_setangledelta);
-		for (i=0 ; i < 3 ; i++)
+		if (fixtype == FIXANGLE_DELTA)
 		{
-			int newa = ang[i] - SHORT2ANGLE(client->lastcmd.angles[i]);
-			MSG_WriteAngle16 (msg, newa);
-			client->lastcmd.angles[i] = ANGLE2SHORT(ang[i]);
+			//fiddle with the base angle, server will see future moves with that change already applied.
+			vec3_t diff;
+			for (i = 0; i < 3; i++)
+				diff[i] = ANGLE2SHORT(ang[i]) - client->lastcmd.angles[i];
+			if (!roll)
+				diff[2] = 0;
+			VectorAdd(client->baseangles, diff, client->baseangles);
+		}
+		else
+		{
+			client->baseangles[0] = ANGLE2SHORT(ang[0]);
+			client->baseangles[1] = ANGLE2SHORT(ang[1]);
+			client->baseangles[2] = ANGLE2SHORT(ang[2]);
+			client->baseanglelock++;
 		}
 	}
 	else
 	{
-		MSG_WriteByte (msg, svc_setangle);
-		if (client->ezprotocolextensions1 & EZPEXT1_SETANGLEREASON)
-			MSG_WriteByte (msg, (fixtype == FIXANGLE_DELTA)?2:0);	//shitty backwards incompatible protocol extension that breaks from writebytes.
-		for (i=0 ; i < 3 ; i++)
-			MSG_WriteAngle (msg, (i==2&&!roll)?0:ang[i]);
+		if (fixtype == FIXANGLE_DELTA && !(controller->fteprotocolextensions2 & PEXT2_SETANGLEDELTA))
+			fixtype = FIXANGLE_FIXED;	//sorry, can't do it.
+
+		if (client->lockanglesseq>=controller->netchan.incoming_acknowledged && controller->netchan.message.cursize < controller->netchan.message.maxsize/2)
+			msg = NULL;	//try to keep them vaugely reliable, where feasable.
+		if (!msg)
+			msg = ClientReliable_StartWrite(client, 10);
+		else if (client->seat)
+		{
+			MSG_WriteByte(msg, svcfte_choosesplitclient);
+			MSG_WriteByte(msg, client->seat);
+		}
+		if (fixtype == FIXANGLE_DELTA && (controller->fteprotocolextensions2 & PEXT2_SETANGLEDELTA))
+		{
+			MSG_WriteByte (msg, svcfte_setangledelta);
+			for (i=0 ; i < 3 ; i++)
+			{
+				int newa = ang[i] - SHORT2ANGLE(client->lastcmd.angles[i]);
+				MSG_WriteAngle16 (msg, newa);
+				client->lastcmd.angles[i] = ANGLE2SHORT(ang[i]);
+			}
+		}
+		else
+		{
+			MSG_WriteByte (msg, svc_setangle);
+			if (client->ezprotocolextensions1 & EZPEXT1_SETANGLEREASON)
+				MSG_WriteByte (msg, (fixtype == FIXANGLE_DELTA)?2:0);	//shitty backwards incompatible protocol extension that breaks from writebytes.
+			for (i=0 ; i < 3 ; i++)
+				MSG_WriteAngle (msg, (i==2&&!roll)?0:ang[i]);
+		}
 	}
+	ClientReliable_FinishWrite(client);
 	client->lockanglesseq = controller->netchan.outgoing_sequence+1;	//so that spammed fixangles use absolute values, locking the camera in place.
 }
 

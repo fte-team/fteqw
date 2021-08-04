@@ -1623,7 +1623,7 @@ qboolean SVC_GetChallenge (qboolean respond_dp)
 			over+=sizeof(lng);
 		}
 		//tell the client what mvdsv/ezquake extensions we support
-		mask = Net_PextMask(PROTOCOL_VERSION_EZQUAKE1, false);
+		mask = Net_PextMask(PROTOCOL_VERSION_EZQUAKE1, false)&EZPEXT1_SERVERADVERTISE;
 		if (mask)
 		{
 			lng = LittleLong(PROTOCOL_VERSION_EZQUAKE1);
@@ -2002,6 +2002,10 @@ void SV_ClientProtocolExtensionsChanged(client_t *client)
 	client->ezprotocolextensions1  &= Net_PextMask(PROTOCOL_VERSION_EZQUAKE1, ISNQCLIENT(client)) & EZPEXT1_SERVERADVERTISE;
 	client->zquake_extensions &= SERVER_SUPPORTED_Z_EXTENSIONS;
 
+	//older versions of fte didn't understand any interactions between ez's limited float support and replacement deltas. so only activate both when vrinputs is also supported.
+	if ((client->ezprotocolextensions1 & EZPEXT1_FLOATENTCOORDS) && (client->fteprotocolextensions2 & PEXT2_REPLACEMENTDELTAS) && !(client->fteprotocolextensions2 & PEXT2_VRINPUTS))
+		client->ezprotocolextensions1 &= ~EZPEXT1_FLOATENTCOORDS;
+
 	//some gamecode can't cope with some extensions for some reasons... and I'm too lazy to fix the code to cope.
 	if (svs.gametype == GT_HALFLIFE)
 		client->fteprotocolextensions2 &= ~PEXT2_REPLACEMENTDELTAS;	//baseline issues
@@ -2357,9 +2361,11 @@ client_t *SV_AddSplit(client_t *controller, char *info, int id)
 	cl->spectator = asspec;
 	cl->netchan.remote_address = controller->netchan.remote_address;
 	cl->netchan.message.prim = controller->netchan.message.prim;
+	cl->netchan.netprim = controller->netchan.netprim;
 	cl->zquake_extensions = controller->zquake_extensions;
 	cl->fteprotocolextensions = controller->fteprotocolextensions;
 	cl->fteprotocolextensions2 = controller->fteprotocolextensions2;
+	cl->ezprotocolextensions1 = controller->ezprotocolextensions1;
 	cl->penalties = controller->penalties;
 	cl->protocol = controller->protocol;
 	cl->maxmodels = controller->maxmodels;

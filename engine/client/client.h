@@ -664,6 +664,7 @@ struct playerview_s
 	vec3_t		aimangles;			//angles actually being sent to the server (different due to in_vraim)
 	vec3_t		viewangles;			//current angles
 	vec3_t		viewanglechange;	//angles set by input code this frame
+	short		baseangles[3];		//networked angles are relative to this value
 	vec3_t		intermissionangles;	//absolute angles for intermission
 	vec3_t		gravitydir;
 

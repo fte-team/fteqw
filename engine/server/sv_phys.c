@@ -670,7 +670,6 @@ typedef struct
 	wedict_t	*ent;
 	vec3_t	origin;
 	vec3_t	angles;
-//	float	deltayaw;
 } pushed_t;
 static pushed_t	pushed[1024], *pushed_p;
 
@@ -690,6 +689,9 @@ static qboolean WPhys_PushAngles (world_t *w, wedict_t *pusher, vec3_t move, vec
 	//float oldsolid;
 	pushed_t	*p;
 	vec3_t		org, org2, move2, forward, right, up;
+	short yawchange;
+
+	yawchange = (amove[PITCH]||amove[ROLL])?0:ANGLE2SHORT(amove[YAW]);
 
 	pushed_p = pushed;
 
@@ -768,6 +770,8 @@ static qboolean WPhys_PushAngles (world_t *w, wedict_t *pusher, vec3_t move, vec
 			// try moving the contacted entity
 			VectorAdd (check->v->origin, move, check->v->origin);
 			VectorAdd (check->v->angles, amove, check->v->angles);
+			if (check->entnum>0&&(check->entnum)<=sv.allocated_client_slots)
+				svs.clients[check->entnum-1].baseangles[YAW] += yawchange;
 
 			// figure movement due to the pusher's amove
 			VectorSubtract (check->v->origin, pusher->v->origin, org);
@@ -868,6 +872,9 @@ static qboolean WPhys_PushAngles (world_t *w, wedict_t *pusher, vec3_t move, vec
 			VectorCopy (p->origin, p->ent->v->origin);
 			VectorCopy (p->angles, p->ent->v->angles);
 			World_LinkEdict (w, p->ent, false);
+
+			if (p->ent->entnum>0&&(p->ent->entnum)<=sv.allocated_client_slots)
+				svs.clients[p->ent->entnum-1].baseangles[YAW] -= yawchange;
 		}
 		return false;
 	}

@@ -621,13 +621,26 @@ void CLFTE_ReadDelta(unsigned int entnum, entity_state_t *news, entity_state_t *
 			news->frame = MSG_ReadByte();
 	}
 
-	if (bits & UF_ORIGINXY)
+	if (cls.ezprotocolextensions1 & EZPEXT1_FLOATENTCOORDS)
 	{
-		news->origin[0] = MSG_ReadCoord();
-		news->origin[1] = MSG_ReadCoord();
+		if (bits & UF_ORIGINXY)
+		{
+			news->origin[0] = MSG_ReadFloat();
+			news->origin[1] = MSG_ReadFloat();
+		}
+		if (bits & UF_ORIGINZ)
+			news->origin[2] = MSG_ReadFloat();
 	}
-	if (bits & UF_ORIGINZ)
-		news->origin[2] = MSG_ReadCoord();
+	else
+	{
+		if (bits & UF_ORIGINXY)
+		{
+			news->origin[0] = MSG_ReadCoord();
+			news->origin[1] = MSG_ReadCoord();
+		}
+		if (bits & UF_ORIGINZ)
+			news->origin[2] = MSG_ReadCoord();
+	}
 
 	if ((bits & UF_PREDINFO) && !(cls.fteprotocolextensions2 & PEXT2_PREDINFO))
 	{

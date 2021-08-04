@@ -1456,7 +1456,7 @@ static int CL_Record_ParticlesStaticsBaselines(sizebuf_t *buf, int seq)
 		if (cls.fteprotocolextensions2 & PEXT2_REPLACEMENTDELTAS)
 		{
 			MSG_WriteByte(buf, svcfte_spawnstatic2);
-			SVFTE_EmitBaseline(es, false, buf, cls.fteprotocolextensions2);
+			SVFTE_EmitBaseline(es, false, buf, cls.fteprotocolextensions2, cls.ezprotocolextensions1);
 		}
 		//else if (cls.fteprotocolextensions & PEXT_SPAWNSTATIC2) //qw deltas
 		else
@@ -1516,7 +1516,7 @@ static int CL_Record_ParticlesStaticsBaselines(sizebuf_t *buf, int seq)
 			if (cls.fteprotocolextensions2 & PEXT2_REPLACEMENTDELTAS)
 			{
 				MSG_WriteByte(buf, svcfte_spawnbaseline2);
-				SVFTE_EmitBaseline(es, true, buf, cls.fteprotocolextensions2);
+				SVFTE_EmitBaseline(es, true, buf, cls.fteprotocolextensions2, cls.ezprotocolextensions1);
 			}
 			//else if (cls.fteprotocolextensions & PEXT_SPAWNSTATIC2) //qw deltas
 			else

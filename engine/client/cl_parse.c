@@ -6929,6 +6929,55 @@ static void CL_ParsePortalState(void)
 	}
 }
 
+static void CL_ParseBaseAngle(int seat)
+{
+	int i;
+	short diff[3];
+	short newbase[3];
+	vec3_t newang;
+
+	inframe_t *inf = &cl.inframes[cls.netchan.incoming_sequence&UPDATE_MASK];
+	qbyte fl = MSG_ReadByte();	//pitch yaw roll lock
+	for (i=0 ; i<3 ; i++)
+	{
+		if (fl & (1u<<i))
+			newbase[i] = MSG_ReadShort();
+		else
+			newbase[i] = 0;
+
+		diff[i] = newbase[i]-cl.playerview[seat].baseangles[i];
+		cl.playerview[seat].baseangles[i] = newbase[i];
+
+		if (fl & 8)	//locking the view
+			newang[i] = SHORT2ANGLE(newbase[i]);
+		else	//free-look
+			newang[i] = cl.playerview[seat].viewangles[i] + SHORT2ANGLE(diff[i]);
+	}
+
+	if (cl.ackedmovesequence)
+	{
+		//tweak all unacked input frames to the new base. the server will do similar on receipt of them.
+		i = min(64, cl.movesequence-cl.ackedmovesequence);
+		for (i = cl.movesequence-i; i < cl.movesequence; i++)
+		{
+			cl.outframes[i & UPDATE_MASK].cmd[seat].angles[0] += diff[0];
+			cl.outframes[i & UPDATE_MASK].cmd[seat].angles[1] += diff[1];
+			cl.outframes[i & UPDATE_MASK].cmd[seat].angles[2] += diff[2];
+		}
+	}
+
+	if (!CSQC_Parse_SetAngles(seat, newang, false))
+	{
+		if (fl & 8)
+		{
+			inf->packet_entities.fixangles[seat] = true;
+			VectorCopy (newang, inf->packet_entities.fixedangles[seat]);
+		}
+		VectorCopy (newang, cl.playerview[seat].viewangles);
+	}
+	VectorCopy (newang, cl.playerview[seat].intermissionangles);
+}
+
 #define SHOWNET(x) if(cl_shownet.value>=2)Con_Printf ("%3i:%s\n", msg_readcount-1, x);
 #define SHOWNET2(x, y) if(cl_shownet.value>=2)Con_Printf ("%3i:%3i:%s\n", msg_readcount-1, y, x);
 /*
@@ -7130,6 +7179,9 @@ void CLQW_ParseServerMessage (void)
 			cl.playerview[destsplit].viewentity=MSGCL_ReadEntity();
 			break;
 #endif
+		case svcfte_setanglebase:
+			CL_ParseBaseAngle(destsplit);
+			break;
 		case svcfte_setangledelta:
 			for (i=0 ; i<3 ; i++)
 				ang[i] = cl.playerview[destsplit].viewangles[i] + MSG_ReadAngle16 ();
@@ -8385,6 +8437,10 @@ void CLNQ_ParseServerMessage (void)
 			CL_SetStatNumeric (destsplit, i, f, f);
 			}
 			break;
+
+		case svcfte_setanglebase:
+			CL_ParseBaseAngle(destsplit);
+			break;
 		case svcfte_setangledelta:
 			for (i=0 ; i<3 ; i++)
 				ang[i] = cl.playerview[destsplit].viewangles[i] + MSG_ReadAngle16 ();
@@ -8396,6 +8452,8 @@ void CLNQ_ParseServerMessage (void)
 		case svc_setangle:
 			{
 				inframe_t *inf = &cl.inframes[cls.netchan.incoming_sequence&UPDATE_MASK];
+				if (cls.ezprotocolextensions1 & EZPEXT1_SETANGLEREASON)
+					MSG_ReadByte();	//0=unknown, 1=tele, 2=spawn
 				for (i=0 ; i<3 ; i++)
 					ang[i] = MSG_ReadAngle();
 				if (!CSQC_Parse_SetAngles(destsplit, ang, false))

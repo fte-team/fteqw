@@ -89,7 +89,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 //EzQuake/Mvdsv extensions. (use ezquake name, to avoid confusion about .mvd format and its protocol differences)
 #define EZPEXT1_FLOATENTCOORDS		0x00000001	//quirky - doesn't apply to broadcasts, just players+ents. this gives more precision, but will bug out if you try using it to increase map bounds in ways that may not be immediately apparent. iiuc this was added instead of fixing some inconsistent rounding...
 #define EZPEXT1_SETANGLEREASON		0x00000002	//specifies the reason for an svc_setangles call. the mvdsv implementation will fuck over any mods that writebyte them. we'd need to modify our preparse stuff to work around the issue.
-#define EZPEXT1_SERVERADVERTISE		0
+#define EZPEXT1_SERVERADVERTISE		EZPEXT1_FLOATENTCOORDS/* - implemented, but interactions with replacementdeltas is not defined*/ /*EZPEXT1_SETANGLEREASON - potentially causes compat issues with mods that stuffcmd it (common in nq)*/
 #define EZPEXT1_CLIENTADVERTISE		EZPEXT1_FLOATENTCOORDS			//might as well ask for it, as a way around mvdsv's writecoord/PM_NudgePosition rounding difference bug.
 #define EZPEXT1_CLIENTSUPPORT		(EZPEXT1_FLOATENTCOORDS|EZPEXT1_SETANGLEREASON)	//ones we can support in demos. warning if other bits.
 
@@ -330,6 +330,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define svcfte_cgamepacket_sized	90	//svcfte_cgamepacket with an extra short size right after the svc.
 #define	svcfte_temp_entity_sized	91	//svc_temp_entity with an extra short size right after the svc (high bit means nq, unset means qw).
 #define svcfte_csqcentities_sized	92	//entity lump for csqc (with size info)
+#define svcfte_setanglebase			93	//updates the base angle (and optionally locks the view, otherwise nudging it without race conditions.)
 
 //fitz svcs
 #define svcfitz_skybox				37

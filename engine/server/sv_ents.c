@@ -649,7 +649,7 @@ Writes part of a packetentities message.
 Can delta from either a baseline or a previous packet_entity
 ==================
 */
-void SVQW_WriteDelta (entity_state_t *from, entity_state_t *to, sizebuf_t *msg, qboolean force, unsigned int protext)
+void SVQW_WriteDelta (entity_state_t *from, entity_state_t *to, sizebuf_t *msg, qboolean force, unsigned int protext, unsigned int ezext)
 {
 #ifdef PROTOCOLEXTENSIONS
 	int evenmorebits=0;
@@ -659,19 +659,23 @@ void SVQW_WriteDelta (entity_state_t *from, entity_state_t *to, sizebuf_t *msg, 
 	int fromeffects;
 	coorddata coordd[3];
 	coorddata angled[3];
+	qbyte coordtype = msg->prim.coordtype;
 
 	if (from == &((edict_t*)NULL)->baseline)
 		from = &nullentitystate;
 
+	if (ezext&EZPEXT1_FLOATENTCOORDS)
+		coordtype = COORDTYPE_FLOAT_32;
+
 // send an update
 	bits = 0;
 
-	if (msg->prim.coordtype != COORDTYPE_FLOAT_32)
+	if (coordtype != COORDTYPE_FLOAT_32)
 	{
 		for (i=0 ; i<3 ; i++)
 		{
-			coordd[i] = MSG_ToCoord(to->origin[i], msg->prim.coordtype);
-			if (MSG_ToCoord(from->origin[i], msg->prim.coordtype).b4 != coordd[i].b4)
+			coordd[i] = MSG_ToCoord(to->origin[i], coordtype);
+			if (MSG_ToCoord(from->origin[i], coordtype).b4 != coordd[i].b4)
 				bits |= U_ORIGIN1<<i;
 			else
 				to->origin[i] = from->origin[i];
@@ -681,7 +685,7 @@ void SVQW_WriteDelta (entity_state_t *from, entity_state_t *to, sizebuf_t *msg, 
 	{
 		for (i=0 ; i<3 ; i++)
 		{
-			coordd[i] = MSG_ToCoord(to->origin[i], msg->prim.coordtype);
+			coordd[i] = MSG_ToCoord(to->origin[i], coordtype);
 			if (to->origin[i] != from->origin[i])
 				bits |= U_ORIGIN1<<i;
 		}
@@ -845,15 +849,15 @@ void SVQW_WriteDelta (entity_state_t *from, entity_state_t *to, sizebuf_t *msg, 
 	if (bits & U_EFFECTS)
 		MSG_WriteByte (msg, to->effects&0x00ff);
 	if (bits & U_ORIGIN1)
-		SZ_Write(msg, &coordd[0], msg->prim.coordtype&0xf);
+		SZ_Write(msg, &coordd[0], (coordtype&0xf));
 	if (bits & U_ANGLE1)
 		SZ_Write(msg, &angled[0], msg->prim.anglesize);
 	if (bits & U_ORIGIN2)
-		SZ_Write(msg, &coordd[1], msg->prim.coordtype&0xf);
+		SZ_Write(msg, &coordd[1], (coordtype&0xf));
 	if (bits & U_ANGLE2)
 		SZ_Write(msg, &angled[1], msg->prim.anglesize);
 	if (bits & U_ORIGIN3)
-		SZ_Write(msg, &coordd[2], msg->prim.coordtype&0xf);
+		SZ_Write(msg, &coordd[2], (coordtype&0xf));
 	if (bits & U_ANGLE3)
 		SZ_Write(msg, &angled[2], msg->prim.anglesize);
 
@@ -1030,7 +1034,7 @@ static unsigned int SVFTE_DeltaCalcBits(entity_state_t *from, qbyte *frombonedat
 	return bits;
 }
 
-static void SVFTE_WriteUpdate(unsigned int bits, entity_state_t *state, sizebuf_t *msg, unsigned int pext2, qbyte *boneptr)
+static void SVFTE_WriteUpdate(unsigned int bits, entity_state_t *state, sizebuf_t *msg, unsigned int pext2, unsigned int ezext1, qbyte *boneptr)
 {
 	unsigned int predbits = 0;
 	if (bits & UF_MOVETYPE)
@@ -1102,13 +1106,27 @@ static void SVFTE_WriteUpdate(unsigned int bits, entity_state_t *state, sizebuf_
 		else
 			MSG_WriteByte(msg, state->frame);
 	}
-	if (bits & UF_ORIGINXY)
+
+	if (ezext1 & EZPEXT1_FLOATENTCOORDS)
 	{
-		MSG_WriteCoord(msg, state->origin[0]);
-		MSG_WriteCoord(msg, state->origin[1]);
+		if (bits & UF_ORIGINXY)
+		{
+			MSG_WriteFloat(msg, state->origin[0]);
+			MSG_WriteFloat(msg, state->origin[1]);
+		}
+		if (bits & UF_ORIGINZ)
+			MSG_WriteFloat(msg, state->origin[2]);
 	}
-	if (bits & UF_ORIGINZ)
-		MSG_WriteCoord(msg, state->origin[2]);
+	else
+	{
+		if (bits & UF_ORIGINXY)
+		{
+			MSG_WriteCoord(msg, state->origin[0]);
+			MSG_WriteCoord(msg, state->origin[1]);
+		}
+		if (bits & UF_ORIGINZ)
+			MSG_WriteCoord(msg, state->origin[2]);
+	}
 
 	if ((bits & UF_PREDINFO) && !(pext2 & PEXT2_PREDINFO))
 	{	/*if we have pred info, use more precise angles*/
@@ -1327,13 +1345,13 @@ static void SVFTE_WriteUpdate(unsigned int bits, entity_state_t *state, sizebuf_
 }
 
 /*dump out the delta from baseline (used for baselines and statics, so has no svc)*/
-void SVFTE_EmitBaseline(entity_state_t *to, qboolean numberisimportant, sizebuf_t *msg, unsigned int pext2)
+void SVFTE_EmitBaseline(entity_state_t *to, qboolean numberisimportant, sizebuf_t *msg, unsigned int pext2, unsigned int ezext)
 {
 	unsigned int bits;
 	if (numberisimportant)
 		MSG_WriteEntity(msg, to->number);
 	bits = UF_RESET | SVFTE_DeltaCalcBits(&nullentitystate, NULL, to, NULL);
-	SVFTE_WriteUpdate(bits, to, msg, pext2, NULL);
+	SVFTE_WriteUpdate(bits, to, msg, pext2, ezext, NULL);
 }
 
 /*SVFTE_EmitPacketEntities
@@ -1508,6 +1526,43 @@ qboolean SVFTE_EmitPacketEntities(client_t *client, packet_entities_t *to, sizeb
 	outno = 0;
 	outmax = frame->maxresend;
 
+
+	if (client->fteprotocolextensions2 & PEXT2_VRINPUTS)
+	{
+		client_frame_t *ackedframe = &client->frameunion.frames[client->delta_sequence & UPDATE_MASK];
+		client_t *seat;
+
+		for (i = 0, seat = client; i < MAX_SPLITS && seat; i++, seat = seat->controlled)
+		{
+			if (ackedframe->baseanglelocked[i] != seat->baseanglelock ||
+					ackedframe->baseangles[i][0] != seat->baseangles[0] ||
+					ackedframe->baseangles[i][1] != seat->baseangles[1] ||
+					ackedframe->baseangles[i][2] != seat->baseangles[2])
+			{	//change the base angle, and force the client to it.
+				//sent every frame its valid for, because we really don't want packetloss here.
+				int fl = 0, j;
+				for (j = 0; j < 3; j++)
+					if (seat->baseangles[j])
+						fl |= (1u<<j);
+				if (ackedframe->baseanglelocked[i] != seat->baseanglelock)
+					fl |= 8;
+
+				if (seat->seat)
+				{
+					MSG_WriteByte (msg, svcfte_choosesplitclient);
+					MSG_WriteByte (msg, seat->seat);
+				}
+				MSG_WriteByte (msg, svcfte_setanglebase);
+				MSG_WriteByte(msg, fl);
+				for (j = 0; j < 3; j++)
+					if (fl&(1u<<j))
+						MSG_WriteShort(msg, seat->baseangles[j]);
+			}
+			VectorCopy(seat->baseangles, frame->baseangles[i]);
+			frame->baseanglelocked[i] = seat->baseanglelock;
+		}
+	}
+
 	if (msg->cursize + 52 <= msg->maxsize)
 	{
 		/*start writing the packet*/
@@ -1579,7 +1634,7 @@ qboolean SVFTE_EmitPacketEntities(client_t *client, packet_entities_t *to, sizeb
 					resend[outno].bits = bits;
 
 				SV_EmitDeltaEntIndex(msg, j, false, true);
-				SVFTE_WriteUpdate(bits, &client->sentents.entities[j], msg, client->fteprotocolextensions2, client->sentents.bonedata);
+				SVFTE_WriteUpdate(bits, &client->sentents.entities[j], msg, client->fteprotocolextensions2, client->ezprotocolextensions1, client->sentents.bonedata);
 			}
 
 			client->pendingdeltabits[j] = 0;
@@ -1675,7 +1730,7 @@ void SVQW_EmitPacketEntities (client_t *client, packet_entities_t *to, sizebuf_t
 		{	// delta update from old position
 //Con_Printf ("delta %i\n", newnum);
 #ifdef PROTOCOLEXTENSIONS
-			SVQW_WriteDelta (&from->entities[oldindex], &to->entities[newindex], msg, false, client->fteprotocolextensions);
+			SVQW_WriteDelta (&from->entities[oldindex], &to->entities[newindex], msg, false, client->fteprotocolextensions, client->ezprotocolextensions1);
 #else
 			SVQW_WriteDelta (&from->entities[oldindex], &to->entities[newindex], msg, false);
 #endif
@@ -1692,7 +1747,7 @@ void SVQW_EmitPacketEntities (client_t *client, packet_entities_t *to, sizebuf_t
 				ent = NULL;
 //Con_Printf ("baseline %i\n", newnum);
 #ifdef PROTOCOLEXTENSIONS
-			SVQW_WriteDelta (&ent->baseline, &to->entities[newindex], msg, true, client->fteprotocolextensions);
+			SVQW_WriteDelta (&ent->baseline, &to->entities[newindex], msg, true, client->fteprotocolextensions, client->ezprotocolextensions1);
 #else
 			SVQW_WriteDelta (&ent->baseline, &to->entities[newindex], msg, true);
 #endif
@@ -2127,8 +2182,9 @@ typedef struct {
 	qboolean isself;
 	qboolean onground;
 	qboolean solid;
-	int fteext;
-	int zext;
+	unsigned int fteext1;
+	unsigned int ezext1;
+	unsigned int zext;
 	int hull;
 	client_t *cl;
 } clstate_t;
@@ -2188,29 +2244,29 @@ void SV_WritePlayerToClient(sizebuf_t *msg, clstate_t *ent)
 		if (ent->spectator == 2 && ent->weaponframe)	//it's not us, but we are spectating, so we need the correct weaponframe
 			pflags |= PF_WEAPONFRAME;
 
-		if (!ent->isself || (ent->fteext & PEXT_SPLITSCREEN))
+		if (!ent->isself || (ent->fteext1 & PEXT_SPLITSCREEN))
 		{
 #ifdef PEXT_SCALE	//this is graphics, not physics
-			if (ent->fteext & PEXT_SCALE)
+			if (ent->fteext1 & PEXT_SCALE)
 			{
 				if (ent->scale && ent->scale != 1) pflags |= PF_SCALE;
 			}
 #endif
 #ifdef PEXT_TRANS
-			if (ent->fteext & PEXT_TRANS)
+			if (ent->fteext1 & PEXT_TRANS)
 			{
 				if (ent->transparency) pflags |= PF_TRANS;
 			}
 #endif
 #ifdef PEXT_FATNESS
-			if (ent->fteext & PEXT_FATNESS)
+			if (ent->fteext1 & PEXT_FATNESS)
 			{
 				if (ent->fatness) pflags |= PF_FATNESS;
 			}
 #endif
 		}
 #ifdef PEXT_HULLSIZE
-		if (ent->fteext & PEXT_HULLSIZE)
+		if (ent->fteext1 & PEXT_HULLSIZE)
 		{
 			hullnumber = SV_HullNumForPlayer(ent->hull, ent->mins, ent->maxs);
 			if (hullnumber != 1)
@@ -2273,7 +2329,7 @@ void SV_WritePlayerToClient(sizebuf_t *msg, clstate_t *ent)
 		MSG_WriteByte (msg, svc_playerinfo);
 		MSG_WriteByte (msg, ent->playernum);
 
-		if (ent->fteext & (PEXT_HULLSIZE|PEXT_TRANS|PEXT_SCALE|PEXT_FATNESS))
+		if (ent->fteext1 & (PEXT_HULLSIZE|PEXT_TRANS|PEXT_SCALE|PEXT_FATNESS))
 		{
 			if (pflags & 0xff0000)
 				pflags |= PF_EXTRA_PFS;
@@ -2286,7 +2342,12 @@ void SV_WritePlayerToClient(sizebuf_t *msg, clstate_t *ent)
 		//we need to tell the client that it's moved, as it's own origin might not be natural
 
 		for (i=0 ; i<3 ; i++)
-			MSG_WriteCoord (msg, ent->origin[i]);
+		{
+			if (ent->ezext1 & EZPEXT1_FLOATENTCOORDS)
+				MSG_WriteFloat (msg, ent->origin[i]);
+			else
+				MSG_WriteCoord (msg, ent->origin[i]);
+		}
 
 		MSG_WriteByte (msg, ent->frame);
 
@@ -2803,7 +2864,8 @@ void SV_WritePlayersToClient (client_t *client, client_frame_t *frame, edict_t *
 			clst.localtime = cl->localtime;
 			clst.health = ent->v->health;
 			clst.spectator = 0;
-			clst.fteext = client->fteprotocolextensions;
+			clst.fteext1 = client->fteprotocolextensions;
+			clst.ezext1 = client->ezprotocolextensions1;
 			clst.zext = client->zquake_extensions;
 			clst.cl = cl;
 
@@ -4227,7 +4289,7 @@ void SV_CleanupEnts(void)
 		//FIXME: check if Version exists and do it earlier.
 		if ((int)ent->xv->Version != sv.csqcentversion[ent->entnum])
 		{
-			ent->xv->SendFlags = SENDFLAGS_USABLE;
+			ent->xv->SendFlags = -1;
 			sv.csqcentversion[ent->entnum] = (int)ent->xv->Version;
 		}
 #endif

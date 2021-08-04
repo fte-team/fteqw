@@ -1242,14 +1242,14 @@ static void PM_NudgePosition (void)
 	{
 		for (i=0 ; i<3 ; i++)
 		{
-			if (pmove.velocity[i])
+			/*if (pmove.velocity[i])
 			{	//round in the direction of velocity, which means we're less likely to get stuck.
 				if (pmove.velocity[i] >= 0)
 					nudged[i] = (qintptr_t)(base[i]*8+0.5f) / 8.0;
 				else
 					nudged[i] = (qintptr_t)(base[i]*8-0.5f) / 8.0;
 			}
-			else
+			else*/
 			{
 				if (base[i] >= 0)
 					nudged[i] = (qintptr_t)(base[i]*8+0.5f) / 8.0;

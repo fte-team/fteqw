@@ -1381,11 +1381,12 @@ static  void MSG_WriteVR(int i, sizebuf_t *buf, const usercmd_t *from, const use
 		MSG_WriteFloat(buf, cmd->vr[i].velocity[2]);
 	}
 }
-void MSGFTE_WriteDeltaUsercmd (sizebuf_t *buf, const usercmd_t *from, const usercmd_t *cmd)
+void MSGFTE_WriteDeltaUsercmd (sizebuf_t *buf, const short baseangles[3], const usercmd_t *from, const usercmd_t *cmd)
 {
 	unsigned int		bits = 0;
 	int i;
 	short d;
+
 //
 // send the movement message
 //
@@ -1440,15 +1441,16 @@ void MSGFTE_WriteDeltaUsercmd (sizebuf_t *buf, const usercmd_t *from, const user
 	if (MSG_CompareVR(VRDEV_LEFT, from, cmd))
 		bits |= UC_VR_LEFT;
 
-	//NOTE: WriteUInt64 actually uses some utf-8-like length coding, so its not quite as bloated as it looks.
+	//NOTE: WriteUInt64 actually uses some length coding, so its not quite as bloated as it looks.
 	MSG_WriteUInt64(buf, bits);
+
 	MSG_WriteUInt64(buf, cmd->servertime-from->servertime);
 	for (i = 0; i < 3; i++)
 	{
 		if (bits & (UC_ANGLE1<<i))
 		{
 			if (bits & UC_ABSANG)
-				MSG_WriteShort(buf, cmd->angles[i]);
+				MSG_WriteShort(buf, cmd->angles[i]-baseangles[i]);
 			else
 				MSG_WriteChar(buf, cmd->angles[i]-from->angles[i]);
 		}
@@ -1539,7 +1541,9 @@ static void MSG_ReadVR(int i, usercmd_t *cmd)
 void MSGFTE_ReadDeltaUsercmd (const usercmd_t *from, usercmd_t *cmd)
 {
 	int i;
-	unsigned int bits = MSG_ReadUInt64();
+	unsigned int bits;
+
+	bits = MSG_ReadUInt64();
 
 	if (bits & UC_UNSUPPORTED)
 	{

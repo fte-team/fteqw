@@ -6112,6 +6112,17 @@ void QCBUILTIN PF_anglemod (pubprogfuncs_t *prinst, struct globalvars_s *pr_glob
 
 	G_FLOAT(OFS_RETURN) = v;
 }
+void QCBUILTIN PF_anglesub (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	float v = G_FLOAT(OFS_PARM0) - G_FLOAT(OFS_PARM1);
+
+	while (v > 180)
+		v = v - 360;
+	while (v < -180)
+		v = v + 360;
+
+	G_FLOAT(OFS_RETURN) = v;
+}
 
 //void(vector dir) vectorvectors
 //Writes new values for v_forward, v_up, and v_right based on the given forward vector

@@ -6945,6 +6945,7 @@ static struct {
 	{"checkextension",			PF_checkextension,	99},		// #99 float(string extname) checkextension (EXT_CSQC)
 	{"checkbuiltin",			PF_checkbuiltin,	0},
 	{"anglemod",				PF_anglemod,		102},
+	{"anglesub",				PF_anglesub,		0},
 
 //110
 	{"fopen",					PF_fopen,	110},				// #110 float(string strname, float accessmode) fopen (FRIK_FILE)

@@ -11085,6 +11085,7 @@ static BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"checkbuiltin",	PF_checkbuiltin,	0,		0,		0,		0,	D("float(__variant funcref)", "Checks to see if the specified builtin is supported/mapped. This is intended as a way to check for #0 functions, allowing for simple single-builtin functions. Warning, if two different engines map different builtins to the same number, then this function will not tell you which will be called, only that it won't crash (the exception being #0, which are remapped as available).")},
 	{"builtin_find",	PF_builtinsupported,100,	100,	0,		100,	D("float(string builtinname)", "Looks to see if the named builtin is valid, and returns the builtin number it exists at.")},	// #100	//per builtin system.
 	{"anglemod",		PF_anglemod,		0,		0,		0,		102,	"float(float value)"},
+	{"anglesub",		PF_anglesub,		0,		0,		0,		0,		D("float(float newangle, float oldangle)","Returns newangle-oldangle, except returning the shortest route around a circle so yields a result between -180 and +180.")},
 	{"qsg_cvar_string",	PF_cvar_string,		0,		0,		0,		103,	D("DEP string(string cvarname)","An old/legacy equivelent of more recent/common builtins in order to read a cvar's string value."), true},
 
 //TEI_SHOWLMP2

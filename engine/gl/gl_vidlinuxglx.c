@@ -1107,7 +1107,7 @@ static void XRandR_SelectMode(const char *devicename, int *x, int *y, int *width
 		XRRCrtcInfo *c;
 		xrandr.crtcmode = XRandR_FindBestMode(*width, *height, rate);
 		c = xrandr.crtcinfo;
-		if (!*width || !*height || c->mode == xrandr.crtcmode->id)
+		if (!*width || !*height || (xrandr.crtcmode&&c->mode == xrandr.crtcmode->id))
 		{
 			fullscreenflags |= FULLSCREEN_DESKTOP;
 			Con_Printf("XRRSetCrtcConfig not needed\n");

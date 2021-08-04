@@ -3746,13 +3746,13 @@ static size_t PM_AddFilePackage(const char *packagename, struct gamepacks *gp, s
 	if (found < numgp)
 	{
 		gp[found].path = NULL;
-		gp[found].url = p->mirror[0];
+		gp[found].url = p->mirror[0];	//FIXME: random mirror.
 		for (dep = p->deps; dep; dep = dep->next)
 		{
 			if (dep->dtype == DEP_CACHEFILE)
 				gp[found].path = Z_StrDupf("downloads/%s", dep->name);
 		}
-		if (gp[found].path && gp[found].url)
+		if (gp[found].path)
 		{
 			gp[found].subpath = p->packprefix;
 			found++;
@@ -4538,6 +4538,11 @@ void PM_Command_f(void)
 				}
 				if (p->description)
 					Con_Printf("%s\n", p->description);
+				for (dep = p->deps; dep; dep = dep->next)
+				{
+					if (dep->dtype == DEP_MAP)
+						Con_Printf("	^mmap: ^[[%s]\\map\\%s^]\n", dep->name, dep->name);
+				}
 
 				if (p->flags & DPF_MARKED)
 				{

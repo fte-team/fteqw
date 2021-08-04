@@ -3781,7 +3781,10 @@ void COM_Gamedir (const char *dir, const struct gamepacks *packagespaths)
 			char quot[MAX_QPATH];
 			char quot2[MAX_OSPATH];
 			char quot3[MAX_OSPATH];
-			Cmd_TokenizeString(va("package %s prefix %s %s", COM_QuotedString(packagespaths->path, quot, sizeof(quot), false), COM_QuotedString(packagespaths->subpath?packagespaths->subpath:"", quot3, sizeof(quot3), false), COM_QuotedString(packagespaths->url, quot2, sizeof(quot2), false)), false, false);
+			if (packagespaths->url)
+				Cmd_TokenizeString(va("package %s prefix %s %s", COM_QuotedString(packagespaths->path, quot, sizeof(quot), false), COM_QuotedString(packagespaths->subpath?packagespaths->subpath:"", quot3, sizeof(quot3), false), COM_QuotedString(packagespaths->url, quot2, sizeof(quot2), false)), false, false);
+			else
+				Cmd_TokenizeString(va("package %s prefix %s", COM_QuotedString(packagespaths->path, quot, sizeof(quot), false), COM_QuotedString(packagespaths->subpath?packagespaths->subpath:"", quot3, sizeof(quot3), false)), false, false);
 			FS_Manifest_ParseTokens(man);
 			packagespaths++;
 		}

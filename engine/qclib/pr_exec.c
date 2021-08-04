@@ -26,14 +26,14 @@
 	#if (_MSC_VER >= 1400)
 		//with MSVC 8, use MS extensions
 		#define snprintf linuxlike_snprintf_vc8
-		int VARGS linuxlike_snprintf_vc8(char *buffer, int size, const char *format, ...) LIKEPRINTF(3);
-		#define vsnprintf(a, b, c, d) vsnprintf_s(a, b, _TRUNCATE, c, d)
+		void VARGS linuxlike_snprintf_vc8(char *buffer, int size, const char *format, ...) LIKEPRINTF(3);
+		#define vsnprintf(a, b, c, d) (void)(vsnprintf_s(a, b, _TRUNCATE, c, d))
 	#else
 		//msvc crap
 		#define snprintf linuxlike_snprintf
-		int VARGS linuxlike_snprintf(char *buffer, int size, const char *format, ...) LIKEPRINTF(3);
+		void VARGS linuxlike_snprintf(char *buffer, int size, const char *format, ...) LIKEPRINTF(3);
 		#define vsnprintf linuxlike_vsnprintf
-		int VARGS linuxlike_vsnprintf(char *buffer, int size, const char *format, va_list argptr);
+		void VARGS linuxlike_vsnprintf(char *buffer, int size, const char *format, va_list argptr);
 	#endif
 #endif
 

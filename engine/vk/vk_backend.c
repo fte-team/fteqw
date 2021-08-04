@@ -57,7 +57,7 @@ static void R_DrawPortal(batch_t *batch, batch_t **blist, batch_t *depthmasklist
 extern texid_t r_whiteimage, missing_texture_gloss, missing_texture_normal;
 extern texid_t r_blackimage, r_blackcubeimage, r_whitecubeimage;
 
-static void BE_RotateForEntity (const entity_t *e, const model_t *mod);
+static void BE_RotateForEntity (const entity_t *fte_restrict e, const model_t *fte_restrict mod);
 void VKBE_SetupLightCBuffer(dlight_t *l, vec3_t colour);
 
 #ifdef VK_EXT_debug_utils

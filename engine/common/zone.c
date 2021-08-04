@@ -222,6 +222,23 @@ char	*Z_StrDupf(const char *format, ...)
 	char		*string;
 	int n;
 
+#if defined(_MSC_VER) || defined(_WIN32)
+	int try;
+	//msvc is shitty shit shit and doesn't even do c99. sadly mingw uses the same libraries.
+	try = 256;
+	for(;;)
+	{
+		string = Z_Malloc(try+1);
+		va_start (argptr, format);
+		n = _vsnprintf (string,try, format,argptr);
+		va_end (argptr);
+		if (n >= 0 && n < try)
+			break;
+		Z_Free(string);
+		try *= 2;
+	}
+	string[n] = 0;
+#else
 	va_start (argptr, format);
 	n = vsnprintf (NULL,0, format,argptr);
 	va_end (argptr);
@@ -233,6 +250,7 @@ char	*Z_StrDupf(const char *format, ...)
 	vsnprintf (string,n+1, format,argptr);
 	va_end (argptr);
 	string[n] = 0;
+#endif
 
 	return string;
 }

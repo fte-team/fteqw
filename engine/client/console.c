@@ -3143,7 +3143,7 @@ void Con_DrawConsole (int lines, qboolean noback)
 							for (i = 0; i < countof(buttons); i++)
 							{
 								if (i == countof(buttons)-1)
-									tw = ~0u;
+									tw = FLT_MAX;
 								else if (i == countof(buttons)-2)
 								{
 									tw = 8+8;

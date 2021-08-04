@@ -6,6 +6,8 @@
 #only the following 3 are supported
 #linux->win32 (FTE_TARGET=win32) RPM Package: "mingw32-gcc", DEB Package: "mingw32"
 #linux->win64 (FTE_TARGET=win64) RPM Package: "mingw32-gcc", DEB Package: "mingw32"
+#linux->win32 (FTE_TARGET=msvc32 MSVCPATH=? WINDOWSSDKDIR=?) invokes via wine.
+#linux->win64 (FTE_TARGET=msvc64 MSVCPATH=? WINDOWSSDKDIR=?) invokes via wine.
 #linux->linux 32 (FTE_TARGET=linux32)
 #linux->linux 64 (FTE_TARGET=linux64)
 #linux->linux x32 (FTE_TARGET=linux_x32)
@@ -35,6 +37,8 @@ COMPILE_SYS:=$(shell uname -o 2>&1)
 
 #canonicalize the source path. except emscripten warns about that like crazy. *sigh*
 ifeq ($(FTE_TARGET),web)
+    BASE_DIR:=.
+else ifeq ($(findstring msvc,$(FTE_TARGET)),msvc)
     BASE_DIR:=.
 else ifeq ($(FTE_TARGET),droid)
 	#android tools suck, but plugins need to find the engine directory.
@@ -110,7 +114,7 @@ ifneq (,$(BRANDING))
     -include game_$(BRANDING).mak
 endif
 FTE_CONFIG?=fteqw
-ifneq ($(FTE_TARGET),vc)
+ifneq ($(findstring msvc,$(FTE_TARGET)),msvc)
 ifeq (,$(FTE_CONFIG_EXTRA))
     export FTE_CONFIG_EXTRA := $(shell $(CC) -xc -E -P -DFTE_TARGET_$(FTE_TARGET) -DCOMPILE_OPTS common/config_$(FTE_CONFIG).h)
 endif
@@ -574,7 +578,7 @@ DO_ECHO=@
 DO_CC=$(DO_ECHO) $(CC) $(LTO_CC) $(ALL_CFLAGS) -o $@ -c $<
 DO_CXX=$(DO_ECHO) $(CXX) $(LTO_CC) $(ALL_CXXFLAGS) -o $@ -c $<
 
-ifeq ($(FTE_TARGET),vc)
+ifeq ($(findstring msvc,$(FTE_TARGET)),msvc)
 	BASELDFLAGS=
 endif
 ifeq ($(FTE_TARGET),cyg)
@@ -620,11 +624,11 @@ VISIBILITY_FLAGS?=
 XLDFLAGS=-L$(ARCHLIBS) $(IMAGELDFLAGS)
 
 #hack some other arguments based upon the toolchain
-ifeq ($(FTE_TARGET),vc)
-	WARNINGFLAGS=-W3 -D_CRT_SECURE_NO_WARNINGS
+ifeq ($(findstring msvc,$(FTE_TARGET)),msvc)
+	WARNINGFLAGS?=-W3 -D_CRT_SECURE_NO_WARNINGS
 	GNUC_FUNCS=
 else
-	WARNINGFLAGS=-Wall -Wno-pointer-sign -Wno-unknown-pragmas -Wno-format-zero-length -Wno-strict-aliasing #-Wcast-align
+	WARNINGFLAGS?=-Wall -Wno-pointer-sign -Wno-unknown-pragmas -Wno-format-zero-length -Wno-strict-aliasing #-Wcast-align
 #	GNUC_FUNCS= -Dstrnicmp=strncasecmp -Dstricmp=strcasecmp
 endif
 
@@ -643,9 +647,15 @@ RELEASE_CFLAGS?=$(CPUOPTIMIZATIONS)
 #however, its use resulted in the player getting stuck etc, so be warned if you try re-enabling it.
 #
 
-ifeq ($(FTE_TARGET),vc)
+ifeq ($(findstring msvc,$(FTE_TARGET)),msvc)
 	#msvc doesn't do -dumpmachine.
 	#we might as well get it to reuse the mingw libraries, if only because that makes those libraries easier to compile...
+	ifeq ($(FTE_TARGET),msvc32)
+		BITS?=32
+	else ifeq ($(FTE_TARGET),msvc64)
+		BITS?=64
+	endif
+	BITS?=32
 	ifeq ($(BITS),64)
 		ARCH?=x86_64-w64-mingw32
 	else
@@ -1245,78 +1255,99 @@ ifeq (win_SDL,$(findstring win,$(FTE_TARGET))$(findstring _SDL,$(FTE_TARGET)))
 endif
 
 #FTE_TARGET=vc (Visual C)
-ifeq ($(FTE_TARGET),vc)
-	DEBUG_CFLAGS=
-	MSVCDIR=Microsoft Visual Studio 10.0
-
-	ifeq ($(WINRT),1)
-		WINDOWSSDKDIR=C:/Program Files (x86)/Windows Kits/8.1
-
-		ifeq ($(BITS),64)
-			WINDRES=x86_64-w64-mingw32-windres
-			MSVCPATH=C:/Program Files (x86)/$(MSVCDIR)/VC/BIN/amd64/
-
-
-		else
-			WINDRES=i686-w64-mingw32-windres
-			MSVCPATH=C:/Program Files (x86)/$(MSVCDIR)/VC/BIN/
-
-			SDKINC=-I"$(WINDOWSSDKDIR)\Include\shared" -I"$(WINDOWSSDKDIR)\Include\um"
-			MSVCINC=-I"C:\Program Files (x86)\$(MSVCDIR)\VC\INCLUDE"
-#-I"C:\Program Files (x86)\$(MSVCDIR)\VC\ATLMFC\INCLUDE" 
-# -I"C:\Program Files (x86)\$(MSVCDIR)\VC\PlatformSDK\include" -I"C:\Program Files (x86)\$(MSVCDIR)\SDK\v2.0\include"
-
-			MSVCLIB=/LIBPATH:"C:\Program Files (x86)\$(MSVCDIR)\VC\ATLMFC\LIB" /LIBPATH:"C:\Program Files (x86)\$(MSVCDIR)\VC\LIB" /LIBPATH:"$(WINDOWSSDKDIR)/lib/winv6.3/um/x86" /LIBPATH:"C:\Program Files (x86)\$(MSVCDIR)\SDK\v2.0\LIB"
-			JPEGLIB=libs/jpeg.lib
-		endif
+ifeq ($(findstring msvc,$(FTE_TARGET)),msvc)
+	#assumptions...
+	ifneq ($(shell uname -o 2>&1 | grep Cygwin),)
+		#we're on cygwin
+		MSVCPATH?=C:/Program Files (x86)/Microsoft Visual Studio 8/VC/
+		WINDOWSSDKDIR?=C:/Program Files/Microsoft SDKs/Windows/v7.1/
+		FIXPATH=`cygpath -m "$(1)"`
+		INVOKE="$(1)"
 	else
-		WINDOWSSDKDIR=C:/Program Files/Microsoft SDKs/Windows/v7.1
-
-		ifeq ($(BITS),64)
-			WINDRES=x86_64-w64-mingw32-windres
-
-			MSVCPATH=C:/Program Files (x86)/$(MSVCDIR)/VC/BIN/amd64/
-
-			MSVCINC=-I"C:\Program Files (x86)\$(MSVCDIR)\VC\ATLMFC\INCLUDE" -I"C:\Program Files (x86)\$(MSVCDIR)\VC\INCLUDE" -I"$(WINDOWSSDKDIR)/Include" -I"C:\Program Files (x86)\$(MSVCDIR)\VC\PlatformSDK\include" -I"C:\Program Files (x86)\$(MSVCDIR)\SDK\v2.0\include"
-			MSVCLIB=/LIBPATH:"C:\Program Files (x86)\$(MSVCPATH)\VC\ATLMFC\LIB\amd64" /LIBPATH:"C:\Program Files (x86)\$(MSVCDIR)\VC\LIB\amd64" /LIBPATH:"$(WINDOWSSDKDIR)\lib\amd64" /LIBPATH:"C:\Program Files (x86)\$(MSVCDIR)\SDK\v2.0\LIB\AMD64" /LIBPATH:"$(WINDOWSSDKDIR)\lib\x64" 
-			JPEGLIB=libs/libjpeg$(BITS).lib
-		else
-			WINDRES=i686-w64-mingw32-windres
-			MSVCPATH=C:/Program Files (x86)/$(MSVCDIR)/VC/BIN/
-
-			MSVCINC=-I"C:\Program Files (x86)\$(MSVCDIR)\VC\ATLMFC\INCLUDE" -I"C:\Program Files (x86)\$(MSVCDIR)\VC\INCLUDE" -I"$(WINDOWSSDKDIR)/Include" -I"C:\Program Files (x86)\$(MSVCDIR)\VC\PlatformSDK\include" -I"C:\Program Files (x86)\$(MSVCDIR)\SDK\v2.0\include"
-			MSVCLIB=/LIBPATH:"C:\Program Files (x86)\$(MSVCDIR)\VC\ATLMFC\LIB" /LIBPATH:"C:\Program Files (x86)\$(MSVCDIR)\VC\LIB" /LIBPATH:"$(WINDOWSSDKDIR)\lib" /LIBPATH:"C:\Program Files (x86)\$(MSVCDIR)\SDK\v2.0\LIB"
-			JPEGLIB=libs/jpeg.lib
-		endif
+		#we're PROBABLY on linux (invoke it via wine)
+		#MSVCPATH=/mnt/win/Program Files (x86)/Microsoft Visual Studio 10.0/VC/
+		MSVCPATH?=/mnt/win/Program Files (x86)/Microsoft Visual Studio 8/VC/
+		WINDOWSSDKDIR?=/mnt/win/Program Files/Microsoft SDKs/Windows/v7.1/
+		#functions to handle wine (or cygwin)
+		FIXPATH=`winepath -w "$(1)"`
+		INVOKE=WINEDEBUG=-all WINEPATH="$(WINEPATH)" wine "$(1)"
 	endif
+
+	#our msvc library naming still assumes 32bit and thus no postfix for that target (microsoft usually reuse '32' for 64bit libraries too...).
+	ifeq ($(BITS),32)
+		LIBBITS=
+	else
+		LIBBITS=$(BITS)
+	endif
+
+	#evil lameness.
+	LIBS_DIR=./libs/
+
+	ifeq ($(BITS),64)
+		MSVC_ARCH=amd64/
+		WINSDK_ARCH=x64/
+		WINEPATH=
+	else
+		MSVC_ARCH=
+		WINSDK_ARCH=
+		WINEPATH=$(MSVCPATH)../Common7/IDE/
+	endif
+
+	LIBOPUS_STATIC=
+
+    #-I"$(MSVCPATH)/ATLMFC/INCLUDE"
+	MSVCINC+=-I"$(shell winepath -w "$(MSVCPATH)INCLUDE")"
+	MSVCINC+=-I"$(shell winepath -w "$(WINDOWSSDKDIR)/Include")"
+	#-I"$(MSVCPATH)PlatformSDK/include"
+	#-I"$(MSVCPATH)../SDK/v2.0/include"
+
+	MSVCLIB+=/libpath:"$(call FIXPATH,$(MSVCPATH)lib/$(MSVC_ARCH))"
+	MSVCLIB+=/libpath:"$(call FIXPATH,$(WINDOWSSDKDIR)Lib/$(WINSDK_ARCH))"
+	MSVCLIB+=/libpath:"$(call FIXPATH,$(LIBS_DIR))"
+
+	ARCHLIBS:=$(call FIXPATH,$(ARCHLIBS))
+
+	MSVCINC:=$(MSVCINC)
+	DO_WINDRES=$(DO_ECHO) $(WINDRES) /nologo $(BRANDFLAGS) $(MSVCINC) -I$(call FIXPATH,$(CLIENT_DIR)) -fo $(call FIXPATH,$@) $(call FIXPATH,$<)
+	WINDRES=$(call INVOKE,$(WINDOWSSDKDIR)Bin/$(WINSDK_ARCH)RC.exe)
+	LINK:=$(call INVOKE,$(MSVCPATH)/bin/$(MSVC_ARCH)link.exe)
+	CC:=$(call INVOKE,$(MSVCPATH)/bin/$(MSVC_ARCH)cl.exe) $(MSVCINC) -DMSVCLIBSPATH=libs/
+	CXX=$(CC)
+
+	#library stuff... we'll be breaking attempts to statically link because deps are too painful otherwise.
+	BASELDFLAGS=
+	CLIENTLIBFLAGS=
+	SERVERLIBFLAGS=
+	CLIENTLDDEPS=
+	SERVERLDDEPS=
+
+	#override various flags that expected gcc.
+	DEBUG_CFLAGS = -Od $(CPUOPTIMIZATIONS) /fp:fast
+	RELEASE_CFLAGS = -O2 -Gy -GS- $(CPUOPTIMIZATIONS) /fp:fast
+	RELEASE_LDFLAGS = /LTCG
+
+	#we need some command tweaks.
+	DO_CC=$(DO_ECHO) $(CC) /nologo $(ALL_CFLAGS) -Fo"$(call FIXPATH,$@)" -c "$(call FIXPATH,$<)"
+	DO_CXX=$(DO_ECHO) $(CXX) /nologo $(ALL_CFLAGS) -Fo"$(call FIXPATH,$@)" -c "$(call FIXPATH,$<)"
+	DO_LD=$(DO_ECHO) PATH="$(MSVCPATH)/Common7/IDE:$(PATH)" $(LINK) /nologo /out:"$(call FIXPATH,$@)" /nodefaultlib:libc.lib /LARGEADDRESSAWARE /nodefaultlib:MSVCRT $(MSVCLIB) $(SDKLIB) /manifest:no /OPT:REF  wsock32.lib user32.lib kernel32.lib advapi32.lib winmm.lib libs/zlib$(LIBBITS).lib shell32.lib
 	STRIP=@echo SKIP: strip
 	EXEPOSTFIX=.exe
 
-	CC=PATH="C:\Program Files (x86)\$(MSVCDIR)\Common7\IDE" "$(MSVCPATH)cl" $(SDKINC) $(MSVCINC) -D_CRT_SECURE_NO_WARNINGS
-	CXX=PATH="C:\Program Files (x86)\$(MSVCDIR)\Common7\IDE" "$(MSVCPATH)cl" $(SDKINC) $(MSVCINC) -D_CRT_SECURE_NO_WARNINGS
-	DEBUG_CFLAGS ?= -Od $(CPUOPTIMIZATIONS) /fp:fast
-	PROFILE_CFLAGS = -O2 -Ot -Ox -GL $(CPUOPTIMISATIONS) /fp:fast
-	PROFILE_LDFLAGS = /LTCG:PGINSTRUMENT
-	RELEASE_CFLAGS = -O2 -Ot -Ox -GL -GS- -Gr $(CPUOPTIMIZATIONS) /fp:fast
-	RELEASE_LDFLAGS = /LTCG
-# /LTCG:PGOPTIMIZE
+	#gotta work around a whole load of paths.
+	BASE_CFLAGS:=$(WARNINGFLAGS) $(GNUC_FUNCS) -I$(call FIXPATH,$(CLIENT_DIR)) -I$(call FIXPATH,$(SERVER_DIR)) -I$(call FIXPATH,$(COMMON_DIR)) -I$(call FIXPATH,$(GL_DIR)) -I$(call FIXPATH,$(D3D_DIR)) -I$(call FIXPATH,$(PROGS_DIR)) -I. -I$(LIBS_DIR) -I$(LIBS_DIR)/dxsdk9/include -I$(LIBS_DIR)/dxsdk7/include $(SDL_INCLUDES) $(BOTLIB_CFLAGS) $(SVNREVISION)
 
-	DO_CC=$(DO_ECHO) $(CC) /nologo $(ALL_CFLAGS) -Fo$(shell cygpath -m $@) -c $(shell cygpath -m $<)
-	DO_CXX=$(DO_ECHO) $(CXX) /nologo $(ALL_CFLAGS) -Fo$(shell cygpath -m $@) -c $(shell cygpath -m $<)
-	DO_LD=$(DO_ECHO) PATH="C:\Program Files (x86)\$(MSVCDIR)\Common7\IDE" "$(MSVCPATH)link" /nologo /out:"$(shell cygpath -m $@)" /nodefaultlib:libc.lib /LARGEADDRESSAWARE /nodefaultlib:MSVCRT $(MSVCLIB) $(SDKLIB) /manifest:no /OPT:REF  wsock32.lib user32.lib kernel32.lib advapi32.lib winmm.lib libs/zlib$(BITS).lib shell32.lib
-	PRECOMPHEADERS = 
+
+	#this stuff isn't supported.
+	PRECOMPHEADERS=
 	DEPCC=
 	DEPCXX=
 
-	LIBS_DIR=./libs/
-
-	BASE_CFLAGS:=$(WARNINGFLAGS) $(GNUC_FUNCS) -I$(shell cygpath -m $(CLIENT_DIR)) -I$(shell cygpath -m $(SERVER_DIR)) -I$(shell cygpath -m $(COMMON_DIR)) -I$(shell cygpath -m $(GL_DIR)) -I$(shell cygpath -m $(D3D_DIR)) -I$(shell cygpath -m $(PROGS_DIR)) -I. -I$(LIBS_DIR) -I$(LIBS_DIR)/dxsdk9/include -I$(LIBS_DIR)/dxsdk7/include $(SDL_INCLUDES) $(BOTLIB_CFLAGS) $(SVNREVISION)
-
+	#dedicated server stuff
 	SV_CFLAGS=$(SERVER_ONLY_CFLAGS) $(W32_CFLAGS) -DMULTITHREAD -DMSVCLIBPATH=libs/
 	SV_EXE_NAME=../$(EXE_NAME)-sv$(BITS)$(EXEPOSTFIX)
 	SV_DIR=sv_vc$(BITS)
 	SV_OBJS=$(COMMON_OBJS) $(SERVER_OBJS) $(BOTLIB_OBJS) $(PROGS_OBJS) $(WINDOWSSERVERONLY_OBJS) fs_win32.o resources.o
-	SV_LDFLAGS=/subsystem:console
+	SV_LDFLAGS=ole32.lib /subsystem:console
 
 	GL_EXE_NAME=../$(EXE_NAME)-gl$(BITS)$(EXEPOSTFIX)
 	GLCL_EXE_NAME=../$(EXE_NAME)-mingl$(BITS)
@@ -1330,6 +1361,14 @@ ifeq ($(FTE_TARGET),vc)
 	MINGL_DIR=mingl_vc$(BITS)
 	MINGL_EXE_NAME=../$(EXE_NAME)-mingl$(BITS)$(EXEPOSTFIX)
 
+	VKCL_OBJS=$(VKQUAKE_OBJS) $(D3DGL_OBJS) $(BOTLIB_OBJS) gl_bloom.o gl_vidnt.o $(WINDOWS_OBJS)
+	VK_EXE_NAME=../$(EXE_NAME)-vk$(BITS)$(EXEPOSTFIX)
+	VKCL_EXE_NAME=../$(EXE_NAME)-vkcl$(BITS)$(EXEPOSTFIX)
+	VK_CFLAGS=$(VKCFLAGS) $(CLIENTLIBFLAGS) $(DX7SDK) -DMULTITHREAD -DMSVCLIBPATH=libs/
+	VK_LDFLAGS=$(JPEGLIB) libs/libpng$(BITS).lib uuid.lib gdi32.lib ole32.lib /subsystem:windows
+	VKB_DIR=vk_vc$(BITS)
+	VKCL_DIR=vkcl_vc$(BITS)
+
 	D3DCL_OBJS=$(D3DQUAKE_OBJS) $(D3DGL_OBJS) $(BOTLIB_OBJS) $(WINDOWS_OBJS)
 	D3D_EXE_NAME=../$(EXE_NAME)-d3d$(BITS)$(EXEPOSTFIX)
 	D3DCL_EXE_NAME=../$(EXE_NAME)-d3dcl$(BITS)$(EXEPOSTFIX)
@@ -1337,12 +1376,15 @@ ifeq ($(FTE_TARGET),vc)
 	D3D_CFLAGS=$(D3DCFLAGS) $(W32_CFLAGS) $(DX7SDK) -DMULTITHREAD -DMSVCLIBPATH=libs/
 	D3DB_DIR=d3d_vc$(BITS)
 	D3DCL_DIR=d3dcl_vc$(BITS)
-	
+
+	#merged client stuff
+	MCL_OBJS=$(D3DGL_OBJS) $(GLQUAKE_OBJS) $(SOFTWARE_OBJS) $(D3DQUAKE_OBJS) $(BOTLIB_OBJS) gl_vidnt.o gl_videgl.o $(WINDOWS_OBJS)
 	M_EXE_NAME=../$(EXE_NAME)$(BITS)$(EXEPOSTFIX)
-	MCL_OBJS=$(GL_OBJS) $(D3DGL_OBJS) $(D3DQUAKE_OBJS) $(GLQUAKE_OBJS) gl_vidnt.o $(BOTLIB_OBJS) $(WINDOWS_OBJS)
-	M_CFLAGS=$(D3DCFLAGS) $(GLCFLAGS) $(W32_CFLAGS) $(D3DCFLAGS) -DMULTITHREAD -DMSVCLIBPATH=libs/
+	MCL_EXE_NAME=../$(EXE_NAME)cl$(BITS)$(EXEPOSTFIX)
+	M_CFLAGS=$(GLCFLAGS) $(W32_CFLAGS) $(D3DCFLAGS) $(DX7SDK) $(VKCFLAGS) -DMULTITHREAD $(CLIENTLIBFLAGS)
 	MB_DIR=m_vc$(BITS)
-	M_LDFLAGS=$(GLLDFLAGS) $(JPEGLIB) libs/libpng$(BITS).lib uuid.lib gdi32.lib ole32.lib /subsystem:windows
+	MCL_DIR=mcl_vc$(BITS)
+	M_LDFLAGS=$(GLLDFLAGS) $(JPEGLIB) libs/libpng$(LIBBITS).lib uuid.lib gdi32.lib ole32.lib /subsystem:windows
 endif
 
 #FTE_TARGET=win32 | FTE_TARGET=win64 (MinGW32 | MinGW64)
@@ -1787,7 +1829,11 @@ SV_DIR?=sv_sdl
 DEPCC?=$(CC)
 DEPCXX?=$(CXX)
 ARCH:=$(ARCH)
-BASELDFLAGS:=-L$(ARCHLIBS) $(BASELDFLAGS)
+ifeq ($(findstring msvc,$(FTE_TARGET)),msvc)
+	BASELDFLAGS:=/libpath:"$(ARCHLIBS)" $(BASELDFLAGS)
+else
+	BASELDFLAGS:=-L$(ARCHLIBS) $(BASELDFLAGS)
+endif
 
 default: help
 -include Makefile_private
@@ -1829,14 +1875,16 @@ endif
 
 VPATH = $(BASE_DIR) : $(CLIENT_DIR) : $(GL_DIR) : $(SW_DIR) : $(COMMON_DIR) : $(SERVER_DIR) : $(HTTP_DIR) : $(BASE_DIR)/irc : $(BASE_DIR)/email : $(QUX_DIR) : $(PROGS_DIR) : $(NACL_DIR) : $(D3D_DIR) : $(VK_DIR) : $(BOTLIB_DIR) : $(BASE_DIR)/web
 
+DO_WINDRES?=$(DO_ECHO) $(WINDRES) $(BRANDFLAGS) -I$(CLIENT_DIR) -O coff $< $@
+
 # This is for linking the FTE icon to the MinGW target
 $(OUT_DIR)/resources.o : winquake.rc
-	@$(WINDRES) $(BRANDFLAGS) -I$(CLIENT_DIR) -O coff $< $@
+	$(DO_WINDRES)
 $(OUT_DIR)/fteqcc.o : fteqcc.rc
-	@$(WINDRES) $(BRANDFLAGS) -I$(PROGS_DIR)  -O coff $< $@
+	$(DO_WINDRES)
 #npAPI stuff requires some extra resources
 $(OUT_DIR)/npplug.o : ftequake/npplug.rc
-	@$(WINDRES) $(BRANDFLAGS) -I$(CLIENT_DIR) -O coff $< $@
+	$(DO_WINDRES)
 
 
 #$(OUT_DIR)/%.d: %.c
@@ -2203,8 +2251,12 @@ nacl-dbg:
 #################################################
 #webgl helpers
 
+ifneq ($(shell which emcc 2> /dev/null),)
+EMCC?=emcc
+else
 #EMCC?=/opt/emsdk_portable/emscripten/master/emcc
 EMCC?=emcc.bat --em-config $(shell cygpath -m $(USERPROFILE))/.emscripten
+endif
 ifeq ($(EMSDK),)
 	#just adds some extra paths (WINDOWS HOST ONLY)
 	#assumes you installed the emscripten 1.22.0 sdk to EMSCRIPTENROOT
@@ -2263,32 +2315,25 @@ else
 endif
 
 droid-rel:
-	$(MAKE) FTE_TARGET=droid droid/build.xml droid/ftekeystore
-	$(foreach a, $(DROID_ARCH), $(MAKE) FTE_TARGET=droid m-rel plugins-rel DROID_ARCH=$a NATIVE_PLUGINS="$(NATIVE_PLUGINS)"; )
-	-rm -rf droid/libs
+	@$(MAKE) FTE_TARGET=droid droid/build.xml droid/ftekeystore
+	@$(foreach a, $(DROID_ARCH), $(MAKE) FTE_TARGET=droid m-rel plugins-rel DROID_ARCH=$a NATIVE_PLUGINS="$(NATIVE_PLUGINS)"; )
+	@-rm -rf droid/libs
 	@$(foreach a, $(DROID_ARCH), mkdir -p droid/libs/$a; )
 	-@$(foreach a, $(DROID_ARCH), cp $(RELEASE_DIR)/m_droid-$a/*.so droid/libs/$a/; )
 
-	@cd droid && $(ANT) release
+	@cd droid && $(ANT) -q release
 ifneq ($(DROID_PACKSU),)
-		@echo
 		@echo Adding custom data files - non-compressed
-		@echo
 		zip droid/bin/FTEDroid-release-unsigned.apk -0 -j $(DROID_PACKSU)
 endif
 ifneq ($(DROID_PACKSC),)
-		@echo
 		@echo Adding custom data files - compressed
-		@echo
 		zip droid/bin/FTEDroid-release-unsigned.apk -9 -j $(DROID_PACKSC)
 endif
-	@echo
-	@echo
 	@echo Signing package... I hope you remember your password.
-	@echo
 	@$(JAVATOOL)jarsigner $(JARSIGNARGS) -digestalg SHA1 -sigalg MD5withRSA -keystore droid/ftekeystore droid/bin/FTEDroid-release-unsigned.apk autogen
-	-rm -f $(RELEASE_DIR)/FTEDroid.apk
-	$(ANDROID_ZIPALIGN) 4 droid/bin/FTEDroid-release-unsigned.apk $(NATIVE_RELEASE_DIR)/FTEDroid.apk
+	@-rm -f $(RELEASE_DIR)/FTEDroid.apk
+	@$(ANDROID_ZIPALIGN) 4 droid/bin/FTEDroid-release-unsigned.apk $(NATIVE_RELEASE_DIR)/FTEDroid.apk
 
 droid-opt:
 	$(MAKE) FTE_TARGET=droid droid/build.xml droid/ftekeystore

@@ -922,7 +922,7 @@ msurface_t *Mod_GetSurfaceNearPoint(model_t *model, pvec3_t point)
 	int i;
 
 	pvec3_t cpoint = {0,0,0};
-	float bestdist = 0x7fffffff, dist;
+	float bestdist = FLT_MAX, dist;
 	msurface_t *bestsurf = NULL;
 
 	if (model->fromgame == fg_quake || model->fromgame == fg_quake2)
@@ -1003,13 +1003,13 @@ void QCBUILTIN PF_getsurfaceclippedpoint(pubprogfuncs_t *prinst, struct globalva
 	{
 		//all polies, we can skip parts. special case.
 		surf = model->surfaces + model->firstmodelsurface + surfnum;
-		getsurface_clippointpoly(model, surf, point, result, 0x7fffffff);
+		getsurface_clippointpoly(model, surf, point, result, FLT_MAX);
 	}
 	else
 	{
 		//if performance is needed, I suppose we could try walking bsp nodes a bit
 		surf = model->surfaces + model->firstmodelsurface + surfnum;
-		getsurface_clippointtri(model, surf, point, result, 0x7fffffff);
+		getsurface_clippointtri(model, surf, point, result, FLT_MAX);
 	}
 }
 

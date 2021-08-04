@@ -969,7 +969,7 @@ void Log_MapNowCompleted(void)
 		m = Z_Malloc(sizeof(*m)+strlen(packagename)+strlen(sv.world.worldmodel->name)+2);
 		sprintf(m->name, "%s/%s", packagename, sv.world.worldmodel->name);
 
-		m->fulltime = m->besttime = INFINITY;
+		m->fulltime = m->besttime = FLT_MAX;
 		m->bestkills = m->bestsecrets = 0;
 		m->next = maplog_enties;
 		maplog_enties = m;

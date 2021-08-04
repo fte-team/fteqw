@@ -1173,7 +1173,7 @@ static void BIH_RecursiveTest (struct bihtrace_s *fte_restrict tr, const struct 
 			min = node->bihnode.cmin[1] - tr->expand[axis];
 			max = node->bihnode.cmax[1] + tr->expand[axis];
 			if (min <= tr->startpos[axis] && tr->startpos[axis] <= max)
-				return BIH_RecursiveTest(tr, node+node->bihnode.firstchild+1);
+				BIH_RecursiveTest(tr, node+node->bihnode.firstchild+1);
 		}
 		return;
 #endif
@@ -1199,7 +1199,7 @@ static void BIH_RecursiveTest (struct bihtrace_s *fte_restrict tr, const struct 
 			min = node->bvhnode.cmin - tr->expand[axis];
 			max = node->bvhnode.max[axis] + tr->expand[axis];
 			if (min <= tr->startpos[axis] && tr->startpos[axis] <= max)
-				return CM_RecursiveBIHTest(tr, node+node->bvhnode.firstchild+1);
+				CM_RecursiveBIHTest(tr, node+node->bvhnode.firstchild+1);
 		}
 		return;
 #endif
@@ -1467,6 +1467,7 @@ restart:
 #endif
 	}
 	FTE_UNREACHABLE;
+	return 0;
 }
 static unsigned int BIH_PointContents(struct model_s *mod, const vec3_t axis[3], const vec3_t p)
 {

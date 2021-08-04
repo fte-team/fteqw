@@ -82,6 +82,17 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 		#define quintptr_t unsigned qintptr_t
 		#define quint64_t unsigned qint64_t
 	#endif
+
+	#ifndef uint32_t
+		#define int16_t		qint16_t
+		#define uint16_t	quint16_t
+		#define int32_t		qint32_t
+		#define uint32_t	quint32_t
+		#define int64_t		qint64_t
+		#define uint64_t	quint64_t
+		#define intptr_t	qintptr_t
+		#define uintptr_t	quintptr_t
+	#endif
 #endif
 
 #ifndef FTE_WORDSIZE
@@ -384,9 +395,9 @@ int wildcmp(const char *wild, const char *string);	//1 if match
 #define Q_strcmp(s1, s2) strcmp((s1), (s2))
 #define Q_strncmp(s1, s2, n) strncmp((s1), (s2), (n))
 
-void VARGS Q_snprintfz (char *dest, size_t size, const char *fmt, ...) LIKEPRINTF(3);
-void VARGS Q_vsnprintfz (char *dest, size_t size, const char *fmt, va_list args);
-int VARGS Com_sprintf(char *buffer, int size, const char *format, ...) LIKEPRINTF(3);
+qboolean VARGS Q_snprintfz (char *dest, size_t size, const char *fmt, ...) LIKEPRINTF(3);	//true means truncated (will also warn in debug builds).
+qboolean VARGS Q_vsnprintfz (char *dest, size_t size, const char *fmt, va_list args);		//true means truncated (will also warn in debug builds).
+void VARGS Com_sprintf(char *buffer, int size, const char *format, ...) LIKEPRINTF(3);
 
 #define Q_strncpyS(d, s, n) do{const char *____in=(s);char *____out=(d);int ____i; for (____i=0;*(____in); ____i++){if (____i == (n))break;*____out++ = *____in++;}if (____i < (n))*____out='\0';}while(0)	//only use this when it should be used. If undiciided, use N
 #define Q_strncpyN(d, s, n) do{if (n < 0)Sys_Error("Bad length in strncpyz");Q_strncpyS((d), (s), (n));((char *)(d))[n] = '\0';}while(0)	//this'll stop me doing buffer overflows. (guarenteed to overflow if you tried the wrong size.)

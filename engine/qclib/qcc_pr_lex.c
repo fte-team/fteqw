@@ -2157,7 +2157,7 @@ static void QCC_PR_LexNumber (void)
 			if (islong)
 			{
 				pr_immediate_type = (isunsigned)?type_uint64:type_int64;
-				pr_immediate._int64 = num;
+				pr_immediate.i64 = num;
 			}
 			else
 			{
@@ -3985,8 +3985,8 @@ void QCC_PR_ParsePrintDef (int type, QCC_def_t *def)
 				case ev_double:	QC_snprintfz(vlbuffer, sizeof(vlbuffer), " = %g", ev->_double);	break;
 				case ev_integer:QC_snprintfz(vlbuffer, sizeof(vlbuffer), " = %i", ev->_int);	break;
 				case ev_uint:	QC_snprintfz(vlbuffer, sizeof(vlbuffer), " = %u", ev->_uint);	break;
-				case ev_int64:	QC_snprintfz(vlbuffer, sizeof(vlbuffer), " = %i", (int)ev->_int64);	break;
-				case ev_uint64:	QC_snprintfz(vlbuffer, sizeof(vlbuffer), " = %u", (unsigned)ev->_uint64);	break;
+				case ev_int64:	QC_snprintfz(vlbuffer, sizeof(vlbuffer), " = %"pPRIi64, ev->i64);	break;
+				case ev_uint64:	QC_snprintfz(vlbuffer, sizeof(vlbuffer), " = %"pPRIu64, ev->u64);	break;
 				default:		*vlbuffer = 0;													break;
 				}
 			}

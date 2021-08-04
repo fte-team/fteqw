@@ -32,8 +32,8 @@ typedef float pvec_t;
 typedef int pint_t;
 typedef unsigned int puint_t;
 #ifdef _MSC_VER
-	typedef __int64 pint64_t QC_ALIGN(4);
-	typedef unsigned __int64 puint64_t QC_ALIGN(4);
+	typedef QC_ALIGN(4) __int64 pint64_t;
+	typedef QC_ALIGN(4) unsigned __int64 puint64_t;
 
 	#define pPRId "d"
 	#define pPRIi "i"
@@ -58,7 +58,7 @@ typedef unsigned int puint_t;
 #define QCVM_32
 #endif
 
-typedef double pdouble_t QC_ALIGN(4);	//the qcvm uses vectors and stuff, so any 64bit types are only 4-byte aligned. we don't do atomics so this is fine so long as the compiler handles it for us.
+typedef QC_ALIGN(4) double pdouble_t;	//the qcvm uses vectors and stuff, so any 64bit types are only 4-byte aligned. we don't do atomics so this is fine so long as the compiler handles it for us.
 typedef unsigned int pbool;
 typedef pvec_t pvec3_t[3];
 typedef pint_t progsnum_t;

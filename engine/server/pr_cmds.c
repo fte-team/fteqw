@@ -1658,7 +1658,7 @@ static void PR_FallbackSpawn_Misc_Model(pubprogfuncs_t *progfuncs, edict_t *self
 		progfuncs->SetStringField(progfuncs, self, &self->v->model, "*null", true);
 
 	if (self->v->angles[1] < 0)	//mimic AD. shame there's no avelocity clientside.
-		self->v->angles[1] = (rand()*(360.0f/RAND_MAX));
+		self->v->angles[1] = (rand()*(360.0/RAND_MAX));
 
 	//make sure the model is precached, to avoid errors.
 	pr_globals = PR_globals(progfuncs, PR_CURRENT);
@@ -8755,7 +8755,7 @@ static void QCBUILTIN PF_h2starteffect(pubprogfuncs_t *prinst, struct globalvars
 
 		/*convert it to the requested chunk type*/
 		efnum = ce_chunk_1 + type - 1;
-		if (efnum < ce_chunk_1 && efnum > ce_chunk_24)
+		if (efnum < ce_chunk_1 || efnum > ce_chunk_24)
 			efnum = ce_chunk;
 
 		if (h2customtents[efnum] != -1)

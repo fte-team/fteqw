@@ -32,6 +32,7 @@
 extern progfuncs_t *qccprogfuncs;
 
 #if defined(_MSC_VER) && _MSC_VER < 1900
+	#define strtoll _strtoi64
 	#define strtoull _strtoui64
 	#ifndef PRIxPTR
 		#define PRIxPTR "Ix"
@@ -343,8 +344,8 @@ typedef union QCC_eval_s
 	func_t				function;
 	pint_t				_int;
 	puint_t				_uint;
-	pint64_t			_int64;
-	puint64_t			_uint64;
+	pint64_t			i64;
+	puint64_t			u64;
 //	union QCC_eval_s		*ptr;
 } QCC_eval_t;
 

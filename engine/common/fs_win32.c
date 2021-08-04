@@ -592,7 +592,7 @@ static void QDECL VFSW32_BuildHash(searchpathfuncs_t *handle, int hashdepth, voi
 	wp->hashdepth = hashdepth;
 	Sys_EnumerateFiles(wp->rootpath, "*", VFSW32_RebuildFSHash, AddFileHash, handle);
 }
-static unsigned int QDECL VFSW32_CreateLoc(searchpathfuncs_t *handle, flocation_t *loc, const char *filename)
+static qboolean QDECL VFSW32_CreateLoc(searchpathfuncs_t *handle, flocation_t *loc, const char *filename)
 {
 	vfsw32path_t *wp = (void*)handle;
 	char *ofs;
@@ -601,7 +601,7 @@ static unsigned int QDECL VFSW32_CreateLoc(searchpathfuncs_t *handle, flocation_
 	loc->offset = 0;
 	loc->fhandle = handle;
 	loc->rawname[sizeof(loc->rawname)-1] = 0;
-	if ((unsigned int)snprintf (loc->rawname, sizeof(loc->rawname), "%s/%s", wp->rootpath, filename) > sizeof(loc->rawname)-1)
+	if (Q_snprintfz (loc->rawname, sizeof(loc->rawname), "%s/%s", wp->rootpath, filename))
 		return FF_NOTFOUND;
 	for (ofs = loc->rawname+1 ; *ofs ; ofs++)
 	{
@@ -639,7 +639,7 @@ static unsigned int QDECL VFSW32_FLocate(searchpathfuncs_t *handle, flocation_t 
 */
 
 // check a file in the directory tree
-	if ((unsigned int)snprintf (netpath, sizeof(netpath), "%s/%s", wp->rootpath, filename) > sizeof(loc->rawname)-1)
+	if (Q_snprintfz (netpath, sizeof(netpath), "%s/%s", wp->rootpath, filename))
 		return FF_NOTFOUND;
 
 	if (!WinNT)

@@ -462,7 +462,7 @@ static void QDECL Q1QVMPF_ClearEdict(pubprogfuncs_t *pf, edict_t *e)
 	Q1QVMED_ClearEdict(e, true);
 }
 
-static void QDECL Q1QVMPF_EntRemove(pubprogfuncs_t *pf, edict_t *e, qboolean instant)
+static void QDECL Q1QVMPF_EntRemove(pubprogfuncs_t *pf, edict_t *e, pbool instant)
 {
 	if (!ED_CanFree(e))
 		return;

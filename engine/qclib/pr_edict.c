@@ -611,10 +611,10 @@ char *PR_ValueString (progfuncs_t *progfuncs, etype_t type, eval_t *val, pbool v
 		QC_snprintfz (line, sizeof(line), "%"pPRIu, val->_uint);
 		break;
 	case ev_int64:
-		QC_snprintfz (line, sizeof(line), "%"pPRIi64, val->_int64);
+		QC_snprintfz (line, sizeof(line), "%"pPRIi64, val->i64);
 		break;
 	case ev_uint64:
-		QC_snprintfz (line, sizeof(line), "%"pPRIu64, val->_uint64);
+		QC_snprintfz (line, sizeof(line), "%"pPRIu64, val->u64);
 		break;
 	case ev_vector:
 		QC_snprintfz (line, sizeof(line), "'%g %g %g'", val->_vector[0], val->_vector[1], val->_vector[2]);
@@ -765,10 +765,10 @@ char *PDECL PR_UglyValueString (pubprogfuncs_t *ppf, etype_t type, eval_t *val)
 		sprintf (line, "%"pPRIu, val->_uint);
 		break;
 	case ev_int64:
-		sprintf (line, "%"pPRIi64, val->_int64);
+		sprintf (line, "%"pPRIi64, val->i64);
 		break;
 	case ev_uint64:
-		sprintf (line, "%"pPRIu64, val->_int64);
+		sprintf (line, "%"pPRIu64, val->u64);
 		break;
 	case ev_vector:
 		if (val->_vector[0] == (int)val->_vector[0] && val->_vector[1] == (int)val->_vector[1] && val->_vector[2] == (int)val->_vector[2])
@@ -846,10 +846,10 @@ char *PR_UglyOldValueString (progfuncs_t *progfuncs, etype_t type, eval_t *val)
 		QC_snprintfz (line, sizeof(line), "%"pPRIu, val->_uint);
 		break;
 	case ev_int64:
-		QC_snprintfz (line, sizeof(line), "%"pPRIi64, val->_int64);
+		QC_snprintfz (line, sizeof(line), "%"pPRIi64, val->i64);
 		break;
 	case ev_uint64:
-		QC_snprintfz (line, sizeof(line), "%"pPRIu64, val->_uint64);
+		QC_snprintfz (line, sizeof(line), "%"pPRIu64, val->u64);
 		break;
 	case ev_vector:
 		if (val->_vector[0] == (int)val->_vector[0] && val->_vector[1] == (int)val->_vector[1] && val->_vector[2] == (int)val->_vector[2])
@@ -1244,10 +1244,10 @@ pbool	PDECL ED_ParseEval (pubprogfuncs_t *ppf, eval_t *eval, int type, const cha
 		eval->_uint = strtoul (s, NULL, 0);
 		break;
 	case ev_int64:
-		eval->_int64 = strtoll (s, NULL, 0);
+		eval->i64 = strtoll (s, NULL, 0);
 		break;
 	case ev_uint64:
-		eval->_uint64 = strtoull (s, NULL, 0);
+		eval->u64 = strtoull (s, NULL, 0);
 		break;
 
 	case ev_vector:
@@ -1382,7 +1382,7 @@ pbool	ED_ParseEpair (progfuncs_t *progfuncs, size_t qcptr, unsigned int fldofs, 
 		i = strtoll(s, &s, 0);
 		while(*s == ' ' || *s == '\t')
 			s++;
-		eval->_int64 = i;
+		eval->i64 = i;
 		if (*s)
 			return false;	//some kind of junk in there.
 		break;
@@ -1392,7 +1392,7 @@ pbool	ED_ParseEpair (progfuncs_t *progfuncs, size_t qcptr, unsigned int fldofs, 
 		u = strtoull(s, &s, 0);
 		while(*s == ' ' || *s == '\t')
 			s++;
-		eval->_uint64 = u;
+		eval->u64 = u;
 		if (*s)
 			return false;	//some kind of junk in there.
 		break;

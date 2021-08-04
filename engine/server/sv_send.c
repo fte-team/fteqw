@@ -2226,8 +2226,8 @@ void SV_UpdateQCStats(edict_t	*ent, int *statsi, char const** statss, float *sta
 			break;
 		case ev_int64:
 		case ev_uint64:	//split over 2 stats.
-			statsi[qcstats[i].statnum] = eval->_uint64&0xffffffff;
-			statsi[qcstats[i].statnum+1] = eval->_uint64>>32;
+			statsi[qcstats[i].statnum] = eval->u64&0xffffffff;
+			statsi[qcstats[i].statnum+1] = eval->u64>>32;
 			break;
 		case ev_entity:
 			statsi[qcstats[i].statnum] = NUM_FOR_EDICT(svprogfuncs, PROG_TO_EDICT(svprogfuncs, eval->edict));

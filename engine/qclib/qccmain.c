@@ -756,10 +756,10 @@ static void QCC_DumpAutoCvars (const char *outputname)
 					snprintf(line, sizeof(line), "set %s\t%"pPRIu"%s%s\n",			n, val->_uint,										desc?"\t//":"", desc?desc:"");
 					break;
 				case ev_int64:
-					snprintf(line, sizeof(line), "set %s\t%"pPRIi64"%s%s\n",		n, val->_int64,										desc?"\t//":"", desc?desc:"");
+					snprintf(line, sizeof(line), "set %s\t%"pPRIi64"%s%s\n",		n, val->i64,										desc?"\t//":"", desc?desc:"");
 					break;
 				case ev_uint64:
-					snprintf(line, sizeof(line), "set %s\t%"pPRIu64"%s%s\n",		n, val->_uint64,									desc?"\t//":"", desc?desc:"");
+					snprintf(line, sizeof(line), "set %s\t%"pPRIu64"%s%s\n",		n, val->u64,										desc?"\t//":"", desc?desc:"");
 					break;
 				case ev_string:
 					snprintf(line, sizeof(line), "set %s\t\"%s\"%s%s\n",			n, strings + val->_int,								desc?"\t//":"", desc?desc:"");

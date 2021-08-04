@@ -341,29 +341,37 @@ void QDECL Q_strncpyz(char *d, const char *s, int n)
 	}
 	*d='\0';
 }
-void VARGS Q_vsnprintfz (char *dest, size_t size, const char *fmt, va_list argptr)
+
+qboolean VARGS Q_vsnprintfz (char *dest, size_t size, const char *fmt, va_list argptr)
 {
+	size_t ret;
 #ifdef _WIN32
-#undef _vsnprintf
-	_vsnprintf (dest, size, fmt, argptr);
-#define _vsnprintf unsafe_vsnprintf
+	//doesn't null terminate.
+	//returns -1 on truncation
+	ret = _vsnprintf (dest, size, fmt, argptr);
+	dest[size-1] = 0;	//shitty paranoia
 #else
-	#ifdef _DEBUG
-		if ((size_t)vsnprintf (dest, size, fmt, argptr) > size-1)
-			Sys_Error("Q_vsnprintfz: truncation");
-	#else
-		vsnprintf (dest, size, fmt, argptr);
-	#endif
+	//always null terminates.
+	//returns length regardless of truncation.
+	ret = vsnprintf (dest, size, fmt, argptr);
 #endif
-	dest[size-1] = 0;
+#ifdef _DEBUG
+	if (ret>=size)
+		Sys_Error("Q_vsnprintfz: Truncation\n");
+#endif
+	//if ret is -1 (windows oversize, or general error) then it'll be treated as unsigned so really long. this makes the following check quite simple.
+	return ret>=size;
 }
-void VARGS Q_snprintfz (char *dest, size_t size, const char *fmt, ...)
+
+qboolean VARGS Q_snprintfz (char *dest, size_t size, const char *fmt, ...)
 {
 	va_list		argptr;
+	qboolean ret;
 
 	va_start (argptr, fmt);
-	Q_vsnprintfz(dest, size, fmt, argptr);
+	ret = Q_vsnprintfz(dest, size, fmt, argptr);
 	va_end (argptr);
+	return ret;
 }
 
 //palette data is used in lmps, as well as written into pcxes or wads, probably some other things.

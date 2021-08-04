@@ -106,9 +106,9 @@ qboolean Sys_GetDesktopParameters(int *width, int *height, int *bpp, int *refres
 	#define FTE_Atomic32_Inc(ptr) __sync_add_and_fetch(ptr, 1)	//returns the AFTER the operation.
 	#define FTE_Atomic32_Dec(ptr) __sync_add_and_fetch(ptr, 1)	//returns the AFTER the operation.
 #elif defined(_WIN32)
-	#define qatomic32_t LONG
-	#define FTE_Atomic32_Inc(ptr) InterlockedIncrement(ptr)
-	#define FTE_Atomic32_Dec(ptr) InterlockedDecrement(ptr)
+	#define qatomic32_t long
+	#define FTE_Atomic32_Inc(ptr) _InterlockedIncrement(ptr)
+	#define FTE_Atomic32_Dec(ptr) _InterlockedDecrement(ptr)
 #else
 	#define qatomic32_t qint32_t
 	#define FTE_Atomic32_Inc(ptr) FTE_Atomic32Mutex_Add(ptr, 1)

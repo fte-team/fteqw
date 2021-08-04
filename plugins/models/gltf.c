@@ -459,7 +459,6 @@ static qboolean JSON_Equals(json_t *t, const char *child, const char *expected)
 		return !strncmp(t->bodystart, expected, t->bodyend-t->bodystart);
 	return false;
 }
-#include <inttypes.h>
 static quintptr_t JSON_GetUInteger(json_t *t, const char *child, unsigned int fallback)
 {
 	if (child)

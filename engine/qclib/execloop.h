@@ -419,9 +419,9 @@ reeval:
 		break;
 	case OP_STOREP_I64:		// 64bit
 		i = OPB->_int + OPC->_int*sizeof(ptr->_int);
-		errorif (QCPOINTERWRITEFAIL(i, sizeof(ptr->_int64)))
+		errorif (QCPOINTERWRITEFAIL(i, sizeof(ptr->i64)))
 		{
-			if (!(ptr=PR_GetWriteTempStringPtr(progfuncs, OPB->_int, OPC->_int*sizeof(ptr->_int), sizeof(ptr->_int64))))
+			if (!(ptr=PR_GetWriteTempStringPtr(progfuncs, OPB->_int, OPC->_int*sizeof(ptr->_int), sizeof(ptr->i64))))
 			{
 				if (i == -1)
 					break;
@@ -433,7 +433,7 @@ reeval:
 		}
 		else
 			ptr = QCPOINTERM(i);
-		ptr->_int64 = OPA->_int64;
+		ptr->i64 = OPA->i64;
 		break;
 	case OP_STOREP_V:
 		i = OPB->_int + (OPC->_int*sizeof(ptr->_int));
@@ -568,7 +568,7 @@ reeval:
 		}
 
 		ptr = (eval_t *)(((int *)edvars(ed)) + i);
-		ptr->_int64 = OPC->_int64;
+		ptr->i64 = OPC->i64;
 		break;
 	case OP_STOREF_V:
 		errorif ((unsigned)OPA->edict >= (unsigned)num_edicts)
@@ -746,7 +746,7 @@ reeval:
 				break;
 			}
 			ptr = (eval_t *)(((int *)edvars(ed)) + i);
-			OPC->_int64 = ptr->_int64;
+			OPC->i64 = ptr->i64;
 		}
 		break;
 	case OP_LOAD_V:
@@ -1064,7 +1064,7 @@ reeval:
 			QCFAULT(&progfuncs->funcs, "bad array read in %s (index %i)", PR_StringToNative(&progfuncs->funcs, prinst.pr_xfunction->s_name), OPB->_int);
 		}
 		else
-			OPC->_int64 = ((eval_t *)&glob[i])->_int64;
+			OPC->i64 = ((eval_t *)&glob[i])->i64;
 		break;
 	case OP_LOADA_V:
 		i = st->a + OPB->_int;
@@ -1156,7 +1156,7 @@ reeval:
 			{
 				if (i == -1)
 				{
-					OPC->_int64 = 0;
+					OPC->i64 = 0;
 					break;
 				}
 				QCFAULT(&progfuncs->funcs, "bad pointer read in %s (from %#x)", PR_StringToNative(&progfuncs->funcs, prinst.pr_xfunction->s_name), i);
@@ -1164,7 +1164,7 @@ reeval:
 		}
 		else
 			ptr = QCPOINTERM(i);
-		OPC->_int64 = ptr->_int64;
+		OPC->i64 = ptr->i64;
 		break;
 
 	case OP_LOADP_V:
@@ -1625,33 +1625,33 @@ reeval:
 
 
 	//[u]int64+double opcodes
-	case OP_ADD_I64:		OPC->_int64  = OPA->_int64  + OPB->_int64;   break;
-	case OP_SUB_I64:		OPC->_int64  = OPA->_int64  -  OPB->_int64;  break;
-	case OP_MUL_I64:		OPC->_int64  = OPA->_int64  *  OPB->_int64;  break;
-	case OP_DIV_I64:		OPC->_int64  = OPA->_int64  /  OPB->_int64;  break;
-	case OP_BITAND_I64:		OPC->_int64  = OPA->_int64  &  OPB->_int64;  break;
-	case OP_BITOR_I64:		OPC->_int64  = OPA->_int64  |  OPB->_int64;  break;
-	case OP_BITXOR_I64:		OPC->_int64  = OPA->_int64  ^  OPB->_int64;  break;
-	case OP_LSHIFT_I64I:	OPC->_int64  = OPA->_int64  << OPB->_int;    break;
-	case OP_RSHIFT_I64I:	OPC->_int64  = OPA->_int64  >> OPB->_int;    break;
-	case OP_LT_I64:			OPC->_int    = OPA->_int64  <  OPB->_int64;  break;
-	case OP_LE_I64:			OPC->_int    = OPA->_int64  <= OPB->_int64;  break;
-	case OP_EQ_I64:			OPC->_int    = OPA->_int64  == OPB->_int64;  break;
-	case OP_NE_I64:			OPC->_int    = OPA->_int64  != OPB->_int64;  break;
-	case OP_LT_U64:			OPC->_int    = OPA->_uint64 <  OPB->_uint64; break;
-	case OP_LE_U64:			OPC->_int    = OPA->_uint64 <= OPB->_uint64; break;
-	case OP_DIV_U64:		OPC->_uint64 = OPA->_uint64 /  OPB->_uint64; break;
-	case OP_RSHIFT_U64I:	OPC->_uint64 = OPA->_uint64 >> OPB->_int;    break;
-	case OP_STORE_I64:		OPB->_int64  = OPA->_int64;	 break;
-	case OP_CONV_UI64:		OPC->_int64  = OPA->_uint;   break;
-	case OP_CONV_II64:		OPC->_int64  = OPA->_int;    break;
-	case OP_CONV_I64I:		OPC->_int    = OPA->_int64;  break;
+	case OP_ADD_I64:		OPC->i64     = OPA->i64  + OPB->i64;   break;
+	case OP_SUB_I64:		OPC->i64     = OPA->i64  -  OPB->i64;  break;
+	case OP_MUL_I64:		OPC->i64     = OPA->i64  *  OPB->i64;  break;
+	case OP_DIV_I64:		OPC->i64     = OPA->i64  /  OPB->i64;  break;
+	case OP_BITAND_I64:		OPC->i64     = OPA->i64  &  OPB->i64;  break;
+	case OP_BITOR_I64:		OPC->i64     = OPA->i64  |  OPB->i64;  break;
+	case OP_BITXOR_I64:		OPC->i64     = OPA->i64  ^  OPB->i64;  break;
+	case OP_LSHIFT_I64I:	OPC->i64     = OPA->i64  << OPB->_int; break;
+	case OP_RSHIFT_I64I:	OPC->i64     = OPA->i64  >> OPB->_int; break;
+	case OP_LT_I64:			OPC->_int    = OPA->i64  <  OPB->i64;  break;
+	case OP_LE_I64:			OPC->_int    = OPA->i64  <= OPB->i64;  break;
+	case OP_EQ_I64:			OPC->_int    = OPA->i64  == OPB->i64;  break;
+	case OP_NE_I64:			OPC->_int    = OPA->i64  != OPB->i64;  break;
+	case OP_LT_U64:			OPC->_int    = OPA->u64 <  OPB->u64;   break;
+	case OP_LE_U64:			OPC->_int    = OPA->u64 <= OPB->u64;   break;
+	case OP_DIV_U64:		OPC->u64     = OPA->u64 /  OPB->u64;   break;
+	case OP_RSHIFT_U64I:	OPC->u64     = OPA->u64 >> OPB->_int;  break;
+	case OP_STORE_I64:		OPB->i64     = OPA->i64;	 break;
+	case OP_CONV_UI64:		OPC->i64     = OPA->_uint;   break;
+	case OP_CONV_II64:		OPC->i64     = OPA->_int;    break;
+	case OP_CONV_I64I:		OPC->_int    = OPA->i64;     break;
 	case OP_CONV_FD:		OPC->_double = OPA->_float;  break;
 	case OP_CONV_DF:		OPC->_float  = OPA->_double; break;
-	case OP_CONV_I64F:		OPC->_float  = OPA->_int64;  break;
-	case OP_CONV_FI64:		OPC->_int64  = OPA->_float;  break;
-	case OP_CONV_I64D:		OPC->_double = OPA->_int64;  break;
-	case OP_CONV_DI64:		OPC->_int64  = OPA->_double; break;
+	case OP_CONV_I64F:		OPC->_float  = OPA->i64;     break;
+	case OP_CONV_FI64:		OPC->i64     = OPA->_float;  break;
+	case OP_CONV_I64D:		OPC->_double = OPA->i64;     break;
+	case OP_CONV_DI64:		OPC->i64     = OPA->_double; break;
 	case OP_ADD_D:			OPC->_double = OPA->_double +  OPB->_double; break;
 	case OP_SUB_D:			OPC->_double = OPA->_double -  OPB->_double; break;
 	case OP_MUL_D:			OPC->_double = OPA->_double *  OPB->_double; break;
@@ -1667,7 +1667,9 @@ reeval:
 	case OP_UNUSED:
 	case OP_POP:
 
+#ifdef __GNUC__
 	case OP_NUMREALOPS ... OP_NUMOPS:
+#endif
 
 	safedefault:
 		if (op & OP_BIT_BREAKPOINT)	//break point!

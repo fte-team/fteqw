@@ -181,30 +181,54 @@ void QDECL Q_strncpyz(char *d, const char *s, int n)
 	*d='\0';
 }
 
-//windows/linux have inconsistant snprintf
-//this is an attempt to get them consistant and safe
-//size is the total size of the buffer
-void VARGS Q_vsnprintfz (char *dest, size_t size, const char *fmt, va_list argptr)
+//returns true on truncation
+qboolean VARGS Q_vsnprintfz (char *dest, size_t size, const char *fmt, va_list argptr)
 {
-#ifdef _DEBUG
-	if ((size_t)vsnprintf (dest, size, fmt, argptr) > size-1)
-		Sys_Error("Q_vsnprintfz: truncation");
+	size_t ret;
+#ifdef _WIN32
+	//doesn't null terminate.
+	//returns -1 on truncation
+	ret = _vsnprintf (dest, size, fmt, argptr);
+	dest[size-1] = 0;	//shitty paranoia
 #else
-	vsnprintf (dest, size, fmt, argptr);
+	//always null terminates.
+	//returns length regardless of truncation.
+	ret = vsnprintf (dest, size, fmt, argptr);
 #endif
-	dest[size-1] = 0;
+#ifdef _DEBUG
+	if (ret>=size)
+		Sys_Error("Q_vsnprintfz: Truncation\n");
+#endif
+	//if ret is -1 (windows oversize, or general error) then it'll be treated as unsigned so really long. this makes the following check quite simple.
+	return ret>=size;
 }
 
 //windows/linux have inconsistant snprintf
 //this is an attempt to get them consistant and safe
 //size is the total size of the buffer
-void VARGS Q_snprintfz (char *dest, size_t size, const char *fmt, ...)
+qboolean VARGS Q_snprintfz (char *dest, size_t size, const char *fmt, ...)
 {
 	va_list		argptr;
+	size_t ret;
 
 	va_start (argptr, fmt);
-	Q_vsnprintfz(dest, size, fmt, argptr);
+#ifdef _WIN32
+	//doesn't null terminate.
+	//returns -1 on truncation
+	ret = _vsnprintf (dest, size, fmt, argptr);
+	dest[size-1] = 0;	//shitty paranoia
+#else
+	//always null terminates.
+	//returns length regardless of truncation.
+	ret = vsnprintf (dest, size, fmt, argptr);
+#endif
 	va_end (argptr);
+#ifdef _DEBUG
+	if (ret>=size)
+		Sys_Error("Q_vsnprintfz: Truncation\n");
+#endif
+	//if ret is -1 (windows oversize, or general error) then it'll be treated as unsigned so really long. this makes the following check quite simple.
+	return ret>=size;
 }
 
 
@@ -420,16 +444,13 @@ char *Q_strcasestr(const char *haystack, const char *needle)
 	return NULL;	//didn't find it
 }
 
-int VARGS Com_sprintf(char *buffer, int size, const char *format, ...)
+void VARGS Com_sprintf(char *buffer, int size, const char *format, ...)
 {
-	int ret;
 	va_list		argptr;
 
 	va_start (argptr, format);
-	ret = vsnprintf (buffer, size, format, argptr);
+	Q_vsnprintfz (buffer, size, format, argptr);
 	va_end (argptr);
-
-	return ret;
 }
 void	QDECL Com_Error( int level, const char *error, ... )
 {
@@ -8054,7 +8075,7 @@ int VARGS linuxlike_snprintf(char *buffer, int size, const char *format, ...)
 	va_list		argptr;
 
 	if (size <= 0)
-		return 0;
+		return !buffer?-1:0;
 	size--;
 
 	va_start (argptr, format);
@@ -8067,12 +8088,12 @@ int VARGS linuxlike_snprintf(char *buffer, int size, const char *format, ...)
 }
 
 int VARGS linuxlike_vsnprintf(char *buffer, int size, const char *format, va_list argptr)
-{
+{	//_vsnprintf truncates WITHOUT NULL, and returns -1
 #undef _vsnprintf
 	int ret;
 
 	if (size <= 0)
-		return 0;
+		return !buffer?-1:0;
 	size--;
 
 	ret = _vsnprintf (buffer,size, format,argptr);
@@ -8083,7 +8104,7 @@ int VARGS linuxlike_vsnprintf(char *buffer, int size, const char *format, va_lis
 }
 #else
 int VARGS linuxlike_snprintf_vc8(char *buffer, int size, const char *format, ...)
-{
+{	//vsnprintf_s safely truncates with null, but returns -1 on truncation rather than untruncated full length
 	int ret;
 	va_list		argptr;
 

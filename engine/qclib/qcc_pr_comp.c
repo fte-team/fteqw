@@ -1841,7 +1841,7 @@ static pbool QCC_Eval_Truth(const QCC_eval_t *eval, QCC_type_t *type, pbool assu
 		break;
 	case ev_int64:
 	case ev_uint64:
-		istrue = (eval->_int64 != 0);
+		istrue = (eval->i64 != 0);
 		break;
 	case ev_string:
 		if (flag_ifstring)
@@ -2551,12 +2551,12 @@ const char *QCC_VarAtOffset(QCC_sref_t ref)
 				QC_snprintfz(message, sizeof(message), "%#"pPRIx"u", val->_uint);
 				return message;
 			case ev_int64:
-				//QC_snprintfz(message, sizeof(message), "%"pPRIu64"ill", val->_int64);
-				QC_snprintfz(message, sizeof(message), "%#"pPRIx64"ill", val->_int64);
+				//QC_snprintfz(message, sizeof(message), "%"pPRIu64"ill", val->i64);
+				QC_snprintfz(message, sizeof(message), "%#"pPRIx64"ill", val->i64);
 				return message;
 			case ev_uint64:
-				//QC_snprintfz(message, sizeof(message), "%"pPRIu64"ull", val->_uint64);
-				QC_snprintfz(message, sizeof(message), "%#"pPRIx64"ull", val->_uint64);
+				//QC_snprintfz(message, sizeof(message), "%"pPRIu64"ull", val->u64);
+				QC_snprintfz(message, sizeof(message), "%#"pPRIx64"ull", val->u64);
 				return message;
 			case ev_entity:
 				QC_snprintfz(message, sizeof(message), "%"pPRIi"e", val->_int);
@@ -3118,55 +3118,55 @@ QCC_sref_t QCC_PR_StatementFlags ( QCC_opcode_t *op, QCC_sref_t var_a, QCC_sref_
 
 				case OP_ADD_I64:
 					QCC_FreeTemp(var_a); QCC_FreeTemp(var_b);
-					return QCC_MakeInt64Const(eval_a->_int64 + eval_b->_int64);
+					return QCC_MakeInt64Const(eval_a->i64 + eval_b->i64);
 				case OP_SUB_I64:
 					QCC_FreeTemp(var_a); QCC_FreeTemp(var_b);
-					return QCC_MakeInt64Const(eval_a->_int64 - eval_b->_int64);
+					return QCC_MakeInt64Const(eval_a->i64 - eval_b->i64);
 				case OP_MUL_I64:
 					QCC_FreeTemp(var_a); QCC_FreeTemp(var_b);
-					return QCC_MakeInt64Const(eval_a->_int64 * eval_b->_int64);
+					return QCC_MakeInt64Const(eval_a->i64 * eval_b->i64);
 				case OP_DIV_I64:
 					QCC_FreeTemp(var_a); QCC_FreeTemp(var_b);
-					return QCC_MakeInt64Const(eval_a->_int64 / eval_b->_int64);
+					return QCC_MakeInt64Const(eval_a->i64 / eval_b->i64);
 				case OP_LSHIFT_I64I:
 					QCC_FreeTemp(var_a); QCC_FreeTemp(var_b);
-					return QCC_MakeInt64Const(eval_a->_int64 << eval_b->_int);
+					return QCC_MakeInt64Const(eval_a->i64 << eval_b->_int);
 				case OP_RSHIFT_I64I:
 					QCC_FreeTemp(var_a); QCC_FreeTemp(var_b);
-					return QCC_MakeInt64Const(eval_a->_int64 >> eval_b->_int);
+					return QCC_MakeInt64Const(eval_a->i64 >> eval_b->_int);
 				case OP_BITAND_I64:
 					QCC_FreeTemp(var_a); QCC_FreeTemp(var_b);
-					return QCC_MakeInt64Const(eval_a->_int64 & eval_b->_int64);
+					return QCC_MakeInt64Const(eval_a->i64 & eval_b->i64);
 				case OP_BITOR_I64:
 					QCC_FreeTemp(var_a); QCC_FreeTemp(var_b);
-					return QCC_MakeInt64Const(eval_a->_int64 | eval_b->_int64);
+					return QCC_MakeInt64Const(eval_a->i64 | eval_b->i64);
 				case OP_BITXOR_I64:
 					QCC_FreeTemp(var_a); QCC_FreeTemp(var_b);
-					return QCC_MakeInt64Const(eval_a->_int64 ^ eval_b->_int64);
+					return QCC_MakeInt64Const(eval_a->i64 ^ eval_b->i64);
 				case OP_LE_I64:
 					QCC_FreeTemp(var_a); QCC_FreeTemp(var_b);
-					return QCC_MakeIntConst(eval_a->_int64 <= eval_b->_int64);
+					return QCC_MakeIntConst(eval_a->i64 <= eval_b->i64);
 				case OP_LT_I64:
 					QCC_FreeTemp(var_a); QCC_FreeTemp(var_b);
-					return QCC_MakeIntConst(eval_a->_int64 < eval_b->_int64);
+					return QCC_MakeIntConst(eval_a->i64 < eval_b->i64);
 				case OP_EQ_I64:
 					QCC_FreeTemp(var_a); QCC_FreeTemp(var_b);
-					return QCC_MakeIntConst(eval_a->_int64 == eval_b->_int64);
+					return QCC_MakeIntConst(eval_a->i64 == eval_b->i64);
 				case OP_NE_I64:
 					QCC_FreeTemp(var_a); QCC_FreeTemp(var_b);
-					return QCC_MakeIntConst(eval_a->_int64 != eval_b->_int64);
+					return QCC_MakeIntConst(eval_a->i64 != eval_b->i64);
 				case OP_LT_U64:
 					QCC_FreeTemp(var_a); QCC_FreeTemp(var_b);
-					return QCC_MakeIntConst(eval_a->_uint64 < eval_b->_uint64);
+					return QCC_MakeIntConst(eval_a->u64 < eval_b->u64);
 				case OP_LE_U64:
 					QCC_FreeTemp(var_a); QCC_FreeTemp(var_b);
-					return QCC_MakeIntConst(eval_a->_uint64 <= eval_b->_uint64);
+					return QCC_MakeIntConst(eval_a->u64 <= eval_b->u64);
 				case OP_DIV_U64:
 					QCC_FreeTemp(var_a); QCC_FreeTemp(var_b);
-					return QCC_MakeUInt64Const(eval_a->_uint64 / eval_b->_uint64);
+					return QCC_MakeUInt64Const(eval_a->u64 / eval_b->u64);
 				case OP_RSHIFT_U64I:
 					QCC_FreeTemp(var_a); QCC_FreeTemp(var_b);
-					return QCC_MakeUInt64Const(eval_a->_uint64 >> eval_b->_int);
+					return QCC_MakeUInt64Const(eval_a->u64 >> eval_b->_int);
 
 				case OP_ADD_D:
 					QCC_FreeTemp(var_a); QCC_FreeTemp(var_b);
@@ -3289,9 +3289,9 @@ QCC_sref_t QCC_PR_StatementFlags ( QCC_opcode_t *op, QCC_sref_t var_a, QCC_sref_
 					QCC_FreeTemp(var_a);
 					optres_constantarithmatic++;
 					{
-						double d = eval_a->_int64;
-						if ((pint64_t)d != eval_a->_int64)
-							QCC_PR_ParseWarning(WARN_OVERFLOW, "Numerical truncation of %#"pPRIx64" to %#"pPRIx64".", eval_a->_int64, (pint64_t)d);
+						double d = eval_a->i64;
+						if ((pint64_t)d != eval_a->i64)
+							QCC_PR_ParseWarning(WARN_OVERFLOW, "Numerical truncation of %#"pPRIx64" to %#"pPRIx64".", eval_a->i64, (pint64_t)d);
 						return QCC_MakeDoubleConst(d);
 					}
 				case OP_CONV_FI64:
@@ -3304,9 +3304,9 @@ QCC_sref_t QCC_PR_StatementFlags ( QCC_opcode_t *op, QCC_sref_t var_a, QCC_sref_
 					QCC_FreeTemp(var_a);
 					optres_constantarithmatic++;
 					{
-						float d = eval_a->_int64;
-						if ((pint64_t)d != eval_a->_int64)
-							QCC_PR_ParseWarning(WARN_OVERFLOW, "Numerical truncation of %#"pPRIx64" to %#"pPRIx64".", eval_a->_int64, (pint64_t)d);
+						float d = eval_a->i64;
+						if ((pint64_t)d != eval_a->i64)
+							QCC_PR_ParseWarning(WARN_OVERFLOW, "Numerical truncation of %#"pPRIx64" to %#"pPRIx64".", eval_a->i64, (pint64_t)d);
 						return QCC_MakeFloatConst(d);
 					}
 				case OP_CONV_II64:
@@ -3331,9 +3331,9 @@ QCC_sref_t QCC_PR_StatementFlags ( QCC_opcode_t *op, QCC_sref_t var_a, QCC_sref_
 					QCC_FreeTemp(var_a);
 					optres_constantarithmatic++;
 					{
-						pint_t d = eval_a->_int64;
-						if ((pint64_t)d != eval_a->_int64)
-							QCC_PR_ParseWarning(WARN_OVERFLOW, "Numerical truncation of %#"pPRIx64" to %#"pPRIx".", eval_a->_int64, (pint_t)d);
+						pint_t d = eval_a->i64;
+						if ((pint64_t)d != eval_a->i64)
+							QCC_PR_ParseWarning(WARN_OVERFLOW, "Numerical truncation of %#"pPRIx64" to %#"pPRIx".", eval_a->i64, (pint_t)d);
 						return QCC_MakeIntConst(d);
 					}
 
@@ -5517,11 +5517,11 @@ static QCC_sref_t	QCC_PR_ParseImmediate (void)
 		QCC_PR_Lex ();
 		return cn;
 	case ev_int64:
-		cn = QCC_MakeInt64Const(pr_immediate._int64);
+		cn = QCC_MakeInt64Const(pr_immediate.i64);
 		QCC_PR_Lex ();
 		return cn;
 	case ev_uint64:
-		cn = QCC_MakeUInt64Const(pr_immediate._uint64);
+		cn = QCC_MakeUInt64Const(pr_immediate.u64);
 		QCC_PR_Lex ();
 		return cn;
 
@@ -8130,7 +8130,7 @@ static QCC_sref_t QCC_Make64bitConst(QCC_type_t *type, puint64_t value)	//all va
 	while (cn)
 	{
 		if (cn->type->size == type->size)
-			if (((QCC_eval_t*)cn->symboldata)->_uint64 == value)
+			if (((QCC_eval_t*)cn->symboldata)->u64 == value)
 				return QCC_MakeSRefForce(cn, 0, type);
 		cn = Hash_GetNextKey(&floatconstdefstable, key, cn);
 	}
@@ -8153,7 +8153,7 @@ static QCC_sref_t QCC_Make64bitConst(QCC_type_t *type, puint64_t value)	//all va
 	cn->symbolsize = cn->type->size;
 	cn->symboldata = (QCC_eval_basic_t*)(cn+1);
 
-	((QCC_eval_t*)cn->symboldata)->_uint64 = value;
+	((QCC_eval_t*)cn->symboldata)->u64 = value;
 
 	Hash_AddKey(&floatconstdefstable, key, cn, qccHunkAlloc(sizeof(bucket_t)));
 
@@ -8229,14 +8229,14 @@ QCC_sref_t QCC_MakeInt64Const(longlong llvalue)
 {
 	pint64_t value = llvalue;
 	if (value != llvalue)
-		QCC_PR_ParseWarning(WARN_OVERFLOW, "Constant int operand %llu will be truncated to %"PRIi64, llvalue, value);
+		QCC_PR_ParseWarning(WARN_OVERFLOW, "Constant int operand %llu will be truncated to %"pPRIi64, llvalue, value);
 	return QCC_Make64bitConst(type_int64, value);
 }
 QCC_sref_t QCC_MakeUInt64Const(unsigned longlong llvalue)
 {
 	puint64_t value = llvalue;
 	if (value != llvalue)
-		QCC_PR_ParseWarning(WARN_OVERFLOW, "Constant int operand %llu will be truncated to %"PRIu64, llvalue, value);
+		QCC_PR_ParseWarning(WARN_OVERFLOW, "Constant int operand %llu will be truncated to %"pPRIu64, llvalue, value);
 	return QCC_Make64bitConst(type_uint64, value);
 }
 QCC_sref_t QCC_MakeDoubleConst(double value)
@@ -12654,9 +12654,9 @@ int QCC_PR_IntConstExpr(void)
 		case ev_uint:
 			return ev->_uint;
 		case ev_int64:
-			return ev->_int64;
+			return ev->i64;
 		case ev_uint64:
-			return ev->_uint64;
+			return ev->u64;
 		default:
 			QCC_PR_ParseError(ERR_NOTACONSTANT, "Value is not an integer constant");
 		}
@@ -17569,9 +17569,9 @@ QCC_type_t *QCC_PR_ParseEnum(pbool flags)
 					else if (sref.cast->type == ev_uint)
 						next_f = next_i = eval->_uint;
 					else if (sref.cast->type == ev_int64)
-						next_f = (longlong)(next_i = eval->_int64);
+						next_f = (longlong)(next_i = eval->i64);
 					else if (sref.cast->type == ev_uint64)
-						next_f = next_i = eval->_uint64;
+						next_f = next_i = eval->u64;
 				}
 				else if (sref.sym)
 					QCC_PR_ParseError(ERR_NOTANUMBER, "enum - %s is not a compile-time constant", sref.sym->name);

@@ -1871,7 +1871,7 @@ void SV_MVD_SendInitialGamestate(mvddest_t *dest)
 		for (j = 0; j < MAX_CL_STATS; j++)
 		{
 			demo.statsi[i][j] = 0x7fffffff;
-			demo.statsf[i][j] = -0x7fffffff;
+			demo.statsf[i][j] = -FLT_MAX;
 		}
 		demo.playerreset[i] = true;
 	}

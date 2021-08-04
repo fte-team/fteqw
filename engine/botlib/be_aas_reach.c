@@ -1053,6 +1053,9 @@ int AAS_Reachability_EqualFloorHeight(int area1num, int area2num)
 // Returns:					-
 // Changes Globals:		-
 //===========================================================================
+#ifdef _MSC_VER
+#pragma optimize("", off)	//work around msvc ICE
+#endif
 int AAS_Reachability_Step_Barrier_WaterJump_WalkOffLedge(int area1num, int area2num)
 {
 	int i, j, k, l, edge1num, edge2num, areas[10], numareas;
@@ -1595,6 +1598,9 @@ int AAS_Reachability_Step_Barrier_WaterJump_WalkOffLedge(int area1num, int area2
 	} //end if
 	return qfalse;
 } //end of the function AAS_Reachability_Step_Barrier_WaterJump_WalkOffLedge
+#ifdef _MSC_VER
+#pragma optimize("", on)	//work around msvc ICE
+#endif
 //===========================================================================
 // returns the distance between the two vectors
 //

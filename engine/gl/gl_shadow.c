@@ -2718,6 +2718,10 @@ qboolean Sh_GenerateShadowMap(dlight_t *l, int lighttype)
 	return true;
 }
 
+#ifdef _MSC_VER
+#define round(a) floor((a)+0.5)
+#endif
+
 void Sh_OrthoAlignToFrustum(dlight_t *dl, int smsize)
 {
 	vec3_t neworg;

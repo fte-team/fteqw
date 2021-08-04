@@ -132,19 +132,19 @@ static void sha2trunc_init (void *context)
   hd->count = 0;
 }
 
-static inline u64
+fte_inlinestatic u64
 ROTR (u64 x, u64 n)
 {
   return ((x >> n) | (x << (64 - n)));
 }
 
-static inline u64
+fte_inlinestatic u64
 Ch (u64 x, u64 y, u64 z)
 {
   return ((x & y) ^ ( ~x & z));
 }
 
-static inline u64
+fte_inlinestatic u64
 Maj (u64 x, u64 y, u64 z)
 {
   return ((x & y) ^ (x & z) ^ (y & z));
@@ -156,13 +156,13 @@ Maj (u64 x, u64 y, u64 z)
 #define S0(x) (ROTR((x),7) ^ ROTR((x),18) ^ ((x)>>3))
 #define S1(x) (ROTR((x),17) ^ ROTR((x),19) ^ ((x)>>10))
 
-static inline u64
+fte_inlinestatic u64
 Sum0 (u64 x)
 {
   return (ROTR (x, 2) ^ ROTR (x, 13) ^ ROTR (x, 22));
 }
 
-static inline u64
+fte_inlinestatic u64
 Sum1 (u64 x)
 {
   return (ROTR (x, 6) ^ ROTR (x, 11) ^ ROTR (x, 25));
@@ -171,13 +171,13 @@ Sum1 (u64 x)
 #define S0(x) (ROTR((x),1) ^ ROTR((x),8) ^ ((x)>>7))
 #define S1(x) (ROTR((x),19) ^ ROTR((x),61) ^ ((x)>>6))
 
-static inline u64
+fte_inlinestatic u64
 Sum0 (u64 x)
 {
   return (ROTR (x, 28) ^ ROTR (x, 34) ^ ROTR (x, 39));
 }
 
-static inline u64
+fte_inlinestatic u64
 Sum1 (u64 x)
 {
   return (ROTR (x, 14) ^ ROTR (x, 18) ^ ROTR (x, 41));

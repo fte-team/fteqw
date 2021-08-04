@@ -2900,7 +2900,7 @@ void Surf_GenBrushBatches(batch_t **batches, entity_t *ent)
 				if (!(cl_dlights[k].flags & LFLAG_LIGHTMAP))
 					continue;
 
-				model->funcs.MarkLights (&cl_dlights[k], 1<<k, model->rootnode);
+				model->funcs.MarkLights (&cl_dlights[k], (dlightbitmask_t)1<<k, model->rootnode);
 			}
 		}
 

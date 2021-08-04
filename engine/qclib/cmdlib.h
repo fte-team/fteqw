@@ -83,6 +83,7 @@ static void VARGS QC_snprintfz (char *dest, size_t size, const char *fmt, ...) L
 	//make sure its terminated.
 	dest[size-1] = 0;
 }
+#define snprintf QC_snprintfz
 #else
 	#define QC_vsnprintf vsnprintf
 	#define QC_snprintfz snprintf

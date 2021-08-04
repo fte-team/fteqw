@@ -2112,7 +2112,7 @@ static void Q1BSP_ClustersInSphere_Union(mleaf_t *firstleaf, const vec3_t center
 		continue;
 	}
 }
-static qbyte *Q1BSP_ClustersInSphere(model_t *mod, const vec3_t center, float radius, pvsbuffer_t *fte_restrict pvsbuffer, const qbyte *unionwith)
+static qbyte *Q1BSP_ClustersInSphere(model_t *mod, const vec3_t center, float radius, pvsbuffer_t *fte_restrict pvsbuffer, const qbyte *fte_restrict unionwith)
 {
 	if (!mod)
 		Sys_Error ("Mod_PointInLeaf: bad model");

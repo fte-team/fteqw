@@ -913,7 +913,6 @@ static qintptr_t UI_SystemCalls(void *offset, quintptr_t mask, qintptr_t fn, con
 {
 	static int overstrikemode;
 	int ret=0;
-	char adrbuf[MAX_ADR_SIZE];
 
 	//Remember to range check pointers.
 	//The QVM must not be allowed to write to anything outside it's memory.
@@ -1454,6 +1453,7 @@ static qintptr_t UI_SystemCalls(void *offset, quintptr_t mask, qintptr_t fn, con
 		{
 			char *buf = VM_POINTER(arg[2]);
 			char *adr;
+			char adrbuf[MAX_ADR_SIZE];
 			serverinfo_t *info = Master_InfoForNum(VM_LONG(arg[1]));
 			if (info)
 			{

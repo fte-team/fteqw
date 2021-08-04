@@ -296,8 +296,8 @@ typedef union eval_s
 	func_t			function;	//module=0xff000000, func=0x00ffffff
 	pint_t			_int;
 	puint_t			_uint;
-	pint64_t		_int64;
-	puint64_t		_uint64;
+	pint64_t		i64;
+	puint64_t		u64;
 	pdouble_t		_double;
 	pint_t			edict;
 	pvec_t			prog;	//so it can easily be changed

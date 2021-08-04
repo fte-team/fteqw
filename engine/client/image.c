@@ -1331,6 +1331,7 @@ qboolean WriteTGA(const char *filename, enum fs_relative fsroot, const qbyte *ft
 	#define png_const_bytep png_bytep
 	#define png_const_unknown_chunkp png_unknown_chunkp
 	#define png_const_textp png_textp
+	#define png_const_colorp png_colorp
 #endif
 #if PNG_LIBPNG_VER < 10600
 	#define png_inforp png_infop
@@ -8838,9 +8839,11 @@ static void Image_Tr_PalettedtoRGBX8(struct pendingtextureinfo *mips, int alphap
 }
 
 //may operate in place
-static void Image_Tr_RGBX8toPaletted(struct pendingtextureinfo *mips, int dummy)
+static void Image_Tr_RGBX8toPaletted(struct pendingtextureinfo *mips, int args)
 {
 	unsigned int mip;
+	int first=args&0xffff;
+	int stop=(args>>16)&0xffff;
 	for (mip = 0; mip < mips->mipcount; mip++)
 	{
 		qbyte *in = mips->mip[mip].data;
@@ -8855,7 +8858,7 @@ static void Image_Tr_RGBX8toPaletted(struct pendingtextureinfo *mips, int dummy)
 		mips->mip[mip].datasize = p*sizeof(*out);
 
 		for(; p-->0; in += 4)
-			*out++ = GetPaletteIndexNoFB(in[0], in[1], in[2]);
+			*out++ = GetPaletteIndexRange(first, stop, in[0], in[1], in[2]);
 	}
 }
 
@@ -12221,7 +12224,9 @@ static struct
 	{PTI_RGBA32F,	PTI_RGB32F,		Image_Tr_DropBytes, (16<<16)|12, true},
 
 	{PTI_RG8,		PTI_RGBX8,		Image_Tr_RG8ToRGXX8},
-	{PTI_RGBX8,		PTI_P8,			Image_Tr_RGBX8toPaletted},
+	{PTI_RGBX8,		PTI_P8,			Image_Tr_RGBX8toPaletted, 0},
+	{PTI_RGBX8,		TF_H2_TRANS8_0,	Image_Tr_RGBX8toPaletted, 1|(255<<16)},
+	{PTI_RGBX8,		TF_TRANS8,		Image_Tr_RGBX8toPaletted, 0|(254<<16)},
 	{PTI_P8,		PTI_RGBX8,		Image_Tr_PalettedtoRGBX8, -1},
 	{TF_SOLID8,		PTI_RGBX8,		Image_Tr_PalettedtoRGBX8, -1},
 	{TF_H2_TRANS8_0,PTI_RGBA8,		Image_Tr_PalettedtoRGBX8, 0},
@@ -12899,7 +12904,7 @@ static qboolean Image_GenMip0(struct pendingtextureinfo *mips, unsigned int flag
 
 	if (flags & IF_NOALPHA)
 	{
-		switch(mips->encoding)
+		safeswitch(mips->encoding)
 		{
 		case PTI_RGBA8:
 			mips->encoding = PTI_RGBX8;
@@ -13063,7 +13068,9 @@ static qboolean Image_GenMip0(struct pendingtextureinfo *mips, unsigned int flag
 		case PTI_DEPTH24_8:
 			break;
 		case PTI_EMULATED:
-		case PTI_MAX: break;	//stfu
+		case PTI_MAX:
+		safedefault:
+			break;	//stfu
 		}
 		//FIXME: fill alpha channel with 255?
 	}

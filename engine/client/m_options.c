@@ -3386,6 +3386,7 @@ static void M_ModelViewerDraw(int x, int y, struct menucustom_s *c, struct emenu
 
 	modelview_t *mods = c->dptr;
 	skinfile_t *skin;
+	texnums_t *texnums;
 
 	if (R2D_Flush)
 		R2D_Flush();
@@ -3756,7 +3757,7 @@ static void M_ModelViewerDraw(int x, int y, struct menucustom_s *c, struct emenu
 		}
 		else
 		{
-			shader = Mod_ShaderForSkin(ent.model, mods->surfaceidx, mods->skingroup);
+			shader = Mod_ShaderForSkin(ent.model, mods->surfaceidx, mods->skingroup, r_refdef.time, &texnums);
 			Draw_FunString(0, y, va("Skin %i: \"%s\", material \"%s\"", mods->skingroup, fname, shader?shader->name:"NO SHADER"));
 		}
 		y+=8;
@@ -3904,7 +3905,7 @@ static void M_ModelViewerDraw(int x, int y, struct menucustom_s *c, struct emenu
 		{
 			if (!mods->shadertext)
 			{
-				char *body = Shader_GetShaderBody(Mod_ShaderForSkin(ent.model, mods->surfaceidx, mods->skingroup), mods->shaderfile, sizeof(mods->shaderfile));
+				char *body = Shader_GetShaderBody(Mod_ShaderForSkin(ent.model, mods->surfaceidx, mods->skingroup, r_refdef.time, &texnums), mods->shaderfile, sizeof(mods->shaderfile));
 				if (!body)
 				{
 					Draw_FunString(0, y, "Shader info not available");
@@ -3922,11 +3923,11 @@ static void M_ModelViewerDraw(int x, int y, struct menucustom_s *c, struct emenu
 		break;
 	case MV_TEXTURE:
 		{
-			shader_t *shader = Mod_ShaderForSkin(ent.model, mods->surfaceidx, mods->skingroup);
+			shader_t *shader = Mod_ShaderForSkin(ent.model, mods->surfaceidx, mods->skingroup, r_refdef.time, &texnums);
 			if (shader)
 			{
 				char *t;
-				texnums_t *skin = shader->defaulttextures;
+				texnums_t *skin = (texnums&&TEXVALID(texnums->base))?texnums:shader->defaulttextures;
 				shader = R_RegisterShader("modelviewertexturepreview", SUF_2D, "{\nprogram default2d\n{\nmap $diffuse\n}\n}\n");
 
 				switch(mods->textype)
@@ -3983,10 +3984,54 @@ static void M_ModelViewerDraw(int x, int y, struct menucustom_s *c, struct emenu
 
 					w = (float)vid.width / shader->defaulttextures->base->width;
 					h = (float)(vid.height-y) / shader->defaulttextures->base->height;
-					h = min(min(w,h), 1);
+					h = min(w,h);
 					w = h*shader->defaulttextures->base->width;
 					h = h*shader->defaulttextures->base->height;
 					R2D_Image(0, y, w, h, 0, 0, 1, 1, shader);
+
+
+					{
+						shader_t *s = R_RegisterShader("hitbox_nodepth", SUF_NONE,
+							"{\n"
+								"polygonoffset\n"
+								"{\n"
+									"map $whiteimage\n"
+									"blendfunc gl_src_alpha gl_one\n"
+									"rgbgen vertex\n"
+									"alphagen vertex\n"
+									"nodepthtest\n"
+								"}\n"
+							"}\n");
+						int oldtris = cl_numstris;
+						int oldidx = cl_numstrisidx;
+						int oldvert = cl_numstrisvert;
+						mesh_t mesh;
+						memset(&mesh, 0, sizeof(mesh));
+
+						AngleVectors(vec3_origin, ent.axis[0], ent.axis[1], ent.axis[2]);
+						VectorInverse(ent.axis[1]);
+						VectorScale(ent.axis[0], w, ent.axis[0]);
+						VectorScale(ent.axis[1], h, ent.axis[1]);
+						VectorSet(ent.origin, 0, y, 0);
+						ent.scale = 1;
+
+						Mod_AddSingleSurface(&ent, mods->surfaceidx, s, 2);
+
+						mesh.xyz_array = cl_strisvertv + oldvert;
+						mesh.st_array = cl_strisvertt + oldvert;
+						mesh.colors4f_array[0] = cl_strisvertc + oldvert;
+						mesh.indexes = cl_strisidx + oldidx;
+						mesh.numindexes = cl_numstrisidx - oldidx;
+						mesh.numvertexes = cl_numstrisvert-oldvert;
+
+						cl_numstris = oldtris;
+						cl_numstrisidx = oldidx;
+						cl_numstrisvert = oldvert;
+
+						if (R2D_Flush)
+							R2D_Flush();
+						BE_DrawMesh_Single(s, &mesh, NULL, BEF_LINES);
+					}
 				}
 				else
 					Draw_FunString(0, y, va("%s: <NO TEXTURE>", t));

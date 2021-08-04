@@ -266,7 +266,7 @@ void Mod_DestroyMesh(galiasinfo_t *galias);
 void Alias_FlushCache(void);
 void Alias_Shutdown(void);
 void Alias_Register(void);
-shader_t *Mod_ShaderForSkin(model_t *model, int surfaceidx, int num);
+shader_t *Mod_ShaderForSkin(model_t *model, int surfaceidx, int num, float time, texnums_t **out_texnums);
 const char *Mod_SkinNameForNum(model_t *model, int surfaceidx, int num);
 const char *Mod_SurfaceNameForNum(model_t *model, int num);
 const char *Mod_FrameNameForNum(model_t *model, int surfaceidx, int num);

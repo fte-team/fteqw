@@ -2110,7 +2110,10 @@ qboolean Alias_GAliasBuildMesh(mesh_t *mesh, vbo_t **vbop, galiasinfo_t *inf, in
 
 #ifndef SERVERONLY
 //used by the modelviewer.
-void Mod_AddSingleSurface(entity_t *ent, int surfaceidx, shader_t *shader, qboolean normals)
+//mode 0: wireframe
+//mode 1: normal pegs
+//mode 2: 2d projection.
+void Mod_AddSingleSurface(entity_t *ent, int surfaceidx, shader_t *shader, int mode)
 {
 	scenetris_t *t;
 	vecV_t *posedata = NULL;
@@ -2165,8 +2168,65 @@ void Mod_AddSingleSurface(entity_t *ent, int surfaceidx, shader_t *shader, qbool
 
 				m = b->mesh[meshidx];
 
+				if (mode == 2 && m->st_array)
+				{	//2d wireframe (using texture coords instead of modelspace)
+					if (cl_numstris == cl_maxstris)
+					{
+						cl_maxstris+=8;
+						cl_stris = BZ_Realloc(cl_stris, sizeof(*cl_stris)*cl_maxstris);
+					}
+					t = &cl_stris[cl_numstris++];
+					t->shader = shader;
+					t->flags = BEF_LINES;
+					t->firstidx = cl_numstrisidx;
+					t->firstvert = cl_numstrisvert;
+					if (t->flags&BEF_LINES)
+						t->numidx = m->numindexes*2;
+					else
+						t->numidx = m->numindexes;
+					t->numvert = m->numvertexes;
+
+					if (cl_numstrisidx+t->numidx > cl_maxstrisidx)
+					{
+						cl_maxstrisidx=cl_numstrisidx+t->numidx;
+						cl_strisidx = BZ_Realloc(cl_strisidx, sizeof(*cl_strisidx)*cl_maxstrisidx);
+					}
+					if (cl_numstrisvert+m->numvertexes > cl_maxstrisvert)
+						cl_stris_ExpandVerts(cl_numstrisvert+m->numvertexes);
+					for (i = 0; i < m->numvertexes; i++)
+					{
+						VectorMA(vec3_origin,	m->st_array[i][0],	ent->axis[0], tmp);
+						VectorMA(tmp,			m->st_array[i][1],	ent->axis[1], tmp);
+						VectorMA(tmp,			0,					ent->axis[2], tmp);
+						VectorMA(ent->origin,	ent->scale,			tmp,		  cl_strisvertv[t->firstvert+i]);
+
+						Vector2Set(cl_strisvertt[t->firstvert+i], 0.5, 0.5);
+						Vector4Set(cl_strisvertc[t->firstvert+i], 1, 1, 1, 0.1);
+					}
+					if (t->flags&BEF_LINES)
+					{
+						for (i = 0; i < m->numindexes; i+=3)
+						{
+							cl_strisidx[cl_numstrisidx++] = m->indexes[i+0];
+							cl_strisidx[cl_numstrisidx++] = m->indexes[i+1];
+							cl_strisidx[cl_numstrisidx++] = m->indexes[i+1];
+							cl_strisidx[cl_numstrisidx++] = m->indexes[i+2];
+							cl_strisidx[cl_numstrisidx++] = m->indexes[i+2];
+							cl_strisidx[cl_numstrisidx++] = m->indexes[i+0];
+						}
+					}
+					else
+					{
+						for (i = 0; i < m->numindexes; i++)
+							cl_strisidx[cl_numstrisidx+i] = m->indexes[i];
+						cl_numstrisidx += m->numindexes;
+					}
+					cl_numstrisvert += m->numvertexes;
+					continue;
+				}
+
 				posedata = m->xyz_array;
-				normdata = normals?m->normals_array:NULL;
+				normdata = (mode==1)?m->normals_array:NULL;
 #ifdef SKELETALMODELS
 				if (m->numbones)
 				{	//intended shader might have caused it to use skeletal stuff.
@@ -2199,7 +2259,7 @@ void Mod_AddSingleSurface(entity_t *ent, int surfaceidx, shader_t *shader, qbool
 						posedata = m->xyz_array;
 				}
 				if (normdata)
-				{
+				{	//show small pegs at each vertex
 					if (cl_numstris == cl_maxstris)
 					{
 						cl_maxstris+=8;
@@ -2242,8 +2302,8 @@ void Mod_AddSingleSurface(entity_t *ent, int surfaceidx, shader_t *shader, qbool
 					cl_numstrisidx += i*2;
 					cl_numstrisvert += i*2;
 				}
-				if (!normals)
-				{
+				else if (mode == 0)
+				{	//regular wireframe
 					if (cl_numstris == cl_maxstris)
 					{
 						cl_maxstris+=8;
@@ -5541,10 +5601,13 @@ qboolean Mod_FrameInfoForNum(model_t *model, int surfaceidx, int num, char **nam
 }
 
 #ifndef SERVERONLY
-shader_t *Mod_ShaderForSkin(model_t *model, int surfaceidx, int num)
+shader_t *Mod_ShaderForSkin(model_t *model, int surfaceidx, int num, float time, texnums_t **out_texnums)
 {
 	galiasinfo_t *inf;
 	galiasskin_t *skin;
+	skinframe_t *skinframe;
+
+	*out_texnums = NULL;
 
 	if (!model || model->loadstate != MLS_LOADED)
 	{
@@ -5572,7 +5635,12 @@ shader_t *Mod_ShaderForSkin(model_t *model, int surfaceidx, int num)
 		if (!inf || num >= inf->numskins)
 			return NULL;
 		skin = inf->ofsskins;
-		return skin[num].frame[0].shader;
+		skin += num;
+		skinframe = skin->frame;
+		if (skin->numframes)
+			skinframe += (int)(time*skin->skinspeed)%skin->numframes;
+		*out_texnums = &skinframe->texnums;
+		return skinframe->shader;
 	default:
 		return NULL;
 	}

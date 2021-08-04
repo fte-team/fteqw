@@ -1895,11 +1895,9 @@ void SV_WriteClientdataToMessage (client_t *client, sizebuf_t *msg)
 
 // stuff the sigil bits into the high bits of items for sbar, or else
 // mix in items2
-//	val = GetEdictFieldValue(ent, "items2", &items2cache);
-
-//	if (val)
-//		items = (int)ent->v->items | ((int)val->_float << 23);
-//	else
+	if (sv.haveitems2)
+		items = (int)ent->v->items | ((int)ent->xv->items2 << 23);
+	else
 		items = (int)ent->v->items | ((int)pr_global_struct->serverflags << 28);
 
 

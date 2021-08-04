@@ -5004,22 +5004,22 @@ void INS_EnumerateDevices(void *ctx, void(*callback)(void *ctx, const char *type
 }
 
 /* doubt this will ever happen to begin with */
-void J_Rumble(int id, uint16_t amp_low, uint16_t amp_high, int duration)
+void INS_Rumble(int id, quint16_t amp_low, quint16_t amp_high, quint32_t duration)
 {
 	//Con_DPrintf(CON_WARNING "Rumble is unavailable on this platform\n");
 }
 
-void J_RumbleTriggers(int id, uint16_t left, uint16_t right, uint32_t duration)
+void INS_RumbleTriggers(int id, quint16_t left, quint16_t right, quint32_t duration)
 {
 	//Con_DPrintf(CON_WARNING "Trigger rumble is unavailable on this platform\n");
 }
 
-void J_SetLEDColor(int id, vec3_t color)
+void INS_SetLEDColor(int id, vec3_t color)
 {
 	//Con_DPrintf(CON_WARNING "Game-Pad LED colors are unavailable on this platform\n");
 }
 
-void J_SetTriggerFX(int id, const void *data, int size)
+void INS_SetTriggerFX(int id, const void *data, size_t size)
 {
 	//Con_DPrintf(CON_WARNING "Trigger FX are unavailable on this platform\n");
 }

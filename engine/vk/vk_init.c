@@ -7,6 +7,8 @@
 
 #include "vr.h"
 
+#define VK_API_MAX_VERSION VK_API_VERSION_1_0
+
 extern qboolean vid_isfullscreen;
 
 cvar_t vk_stagingbuffers						= CVARFD ("vk_stagingbuffers",			"", CVAR_RENDERERLATCH, "Configures which dynamic buffers are copied into gpu memory for rendering, instead of reading from shared memory. Empty for default settings.\nAccepted chars are u(niform), e(lements), v(ertex), 0(none).");
@@ -4535,15 +4537,14 @@ qboolean VK_EnumerateDevices (void *usercontext, void(*callback)(void *context, 
 	#undef VKFunc
 #endif
 
-#define ENGINEVERSION 1
 	memset(&app, 0, sizeof(app));
 	app.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
 	app.pNext = NULL;
-	app.pApplicationName = NULL;
-	app.applicationVersion = 0;
-	app.pEngineName = FULLENGINENAME;
-	app.engineVersion = ENGINEVERSION;
-	app.apiVersion = VK_MAKE_VERSION(1, 0, 2);
+	app.pApplicationName = FULLENGINENAME;
+	app.applicationVersion = revision_number(false);
+	app.pEngineName = "FTE Quake";
+	app.engineVersion = VK_MAKE_VERSION(FTE_VER_MAJOR, FTE_VER_MINOR, 0);
+	app.apiVersion = VK_API_MAX_VERSION;
 
 	memset(&inst_info, 0, sizeof(inst_info));
 	inst_info.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
@@ -4723,11 +4724,11 @@ qboolean VK_Init(rendererstate_t *info, const char **sysextnames, qboolean (*cre
 	memset(&app, 0, sizeof(app));
 	app.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
 	app.pNext = NULL;
-	app.pApplicationName = NULL;
-	app.applicationVersion = 0;
-	app.pEngineName = FULLENGINENAME;
-	app.engineVersion = ENGINEVERSION;
-	app.apiVersion = VK_MAKE_VERSION(1, 0, 2);
+	app.pApplicationName = FULLENGINENAME;
+	app.applicationVersion = revision_number(false);
+	app.pEngineName = "FTE Quake";
+	app.engineVersion = VK_MAKE_VERSION(FTE_VER_MAJOR, FTE_VER_MINOR, 0);
+	app.apiVersion = VK_API_MAX_VERSION;
 
 	memset(&inst_info, 0, sizeof(inst_info));
 	inst_info.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;

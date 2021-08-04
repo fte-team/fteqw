@@ -22,7 +22,7 @@ static void *GLVID_getsdlglfunction(char *functionname)
 
 static void IN_GamePadButtonEvent(unsigned int joydevid, int button, int ispressed, int isstandardmapping)
 {
-	int standardmapping[] =
+	static const int standardmapping[] =
 	{	//the order of these keys is different from that of xinput
 		//however, the quake button codes should be the same. I really ought to define some K_ aliases for them.
 		K_GP_A,
@@ -35,8 +35,8 @@ static void IN_GamePadButtonEvent(unsigned int joydevid, int button, int ispress
 		K_GP_RIGHT_TRIGGER,
 		K_GP_BACK,
 		K_GP_START,
-		K_GP_LEFT_THUMB,
-		K_GP_RIGHT_THUMB,
+		K_GP_LEFT_STICK,
+		K_GP_RIGHT_STICK,
 		K_GP_DPAD_UP,
 		K_GP_DPAD_DOWN,
 		K_GP_DPAD_LEFT,
@@ -98,7 +98,7 @@ static void VID_Resized(int width, int height)
 }
 static unsigned int domkeytoquake(unsigned int code)
 {
-	unsigned char tab[256] =
+	static const unsigned short tab[256] =
 	{
 		/*  0*/ 0,0,0,0,0,0,0,0,                K_BACKSPACE,K_TAB,0,0,0,K_ENTER,0,0,
 		/* 16*/ K_SHIFT,K_CTRL,K_ALT,K_PAUSE,K_CAPSLOCK,0,0,0,0,0,0,K_ESCAPE,0,0,0,0,
@@ -133,7 +133,7 @@ static unsigned int domkeytoquake(unsigned int code)
 }
 static unsigned int domkeytoshift(unsigned int code)
 {
-	unsigned char tab[256] =
+	static const unsigned short tab[256] =
 	{
 		/*  0*/ 0,0,0,0,0,0,0,0,                K_BACKSPACE,K_TAB,0,0,0,K_ENTER,0,0,
 		/* 16*/ K_SHIFT,K_CTRL,K_ALT,K_PAUSE,K_CAPSLOCK,0,0,0,0,0,0,K_ESCAPE,0,0,0,0,
@@ -393,5 +393,18 @@ void INS_EnumerateDevices(void *ctx, void(*callback)(void *ctx, const char *type
 		Q_snprintfz(foobar, sizeof(foobar), "kb%i", (int)i);
 		callback(ctx, "keyboard", foobar, &keyboardid[i]);
 	}
+}
+
+void INS_Rumble(int joy, quint16_t amp_low, quint16_t amp_high, quint32_t duration)
+{
+}
+void INS_RumbleTriggers(int joy, quint16_t left, quint16_t right, quint32_t duration)
+{
+}
+void INS_SetLEDColor(int id, vec3_t color)
+{
+}
+void INS_SetTriggerFX(int id, const void *data, size_t size)
+{
 }
 

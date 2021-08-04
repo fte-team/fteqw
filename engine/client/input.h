@@ -64,6 +64,11 @@ void INS_Commands (void);	//final chance to call IN_MouseMove/IN_KeyEvent each f
 void INS_EnumerateDevices(void *ctx, void(*callback)(void *ctx, const char *type, const char *devicename, unsigned int *qdevid));
 void INS_SetupControllerAudioDevices(qboolean enabled);	//creates audio devices for each controller (where controllers have their own audio devices)
 
+void INS_Rumble(int joy, quint16_t amp_low, quint16_t amp_high, quint32_t duration);
+void INS_RumbleTriggers(int joy, quint16_t left, quint16_t right, quint32_t duration);
+void INS_SetLEDColor(int id, vec3_t color);
+void INS_SetTriggerFX(int id, const void *data, size_t size);
+
 #define DEVID_UNSET ~0u
 
 extern cvar_t	cl_splitscreen;

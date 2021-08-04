@@ -230,7 +230,7 @@ static void J_ControllerAxis(SDL_JoystickID jid, int axis, int value)
 }
 static void J_JoystickAxis(SDL_JoystickID jid, int axis, int value)
 {
-	static int axismap[] = {0,1,3,4,2,5};
+	static const int axismap[] = {0,1,3,4,2,5};
 
 	struct sdljoy_s *joy = J_DevId(jid);
 	if (joy && axis < sizeof(axismap)/sizeof(axismap[0]) && joy->qdevid != DEVID_UNSET)
@@ -241,7 +241,7 @@ static void J_ControllerButton(SDL_JoystickID jid, int button, qboolean pressed)
 {
 	//controllers have reliable button maps.
 	//but that doesn't meant that fte has specific k_ names for those buttons, but the mapping should be reliable, at least until they get mapped to proper k_ values.
-	static int buttonmap[] =
+	static const int buttonmap[] =
 	{
 		K_GP_A,
 		K_GP_B,
@@ -281,7 +281,7 @@ static void J_ControllerButton(SDL_JoystickID jid, int button, qboolean pressed)
 static void J_JoystickButton(SDL_JoystickID jid, int button, qboolean pressed)
 {
 	//generic joysticks have no specific mappings. they're really random like that.
-	static int buttonmap[] = {
+	static const int buttonmap[] = {
 		K_JOY1,
 		K_JOY2,
 		K_JOY3,
@@ -345,7 +345,7 @@ static void J_JoystickButton(SDL_JoystickID jid, int button, qboolean pressed)
 	}
 }
 
-void J_Rumble(int id, uint16_t amp_low, uint16_t amp_high, int duration)
+void INS_Rumble(int id, quint16_t amp_low, quint16_t amp_high, quint32_t duration)
 {
 #if SDL_VERSION_ATLEAST(2,0,9)
 	int i;
@@ -365,7 +365,7 @@ void J_Rumble(int id, uint16_t amp_low, uint16_t amp_high, int duration)
 #endif
 }
 
-void J_RumbleTriggers(int id, uint16_t left, uint16_t right, uint32_t duration)
+void INS_RumbleTriggers(int id, quint16_t left, quint16_t right, quint32_t duration)
 {
 #if SDL_VERSION_ATLEAST(2,0,14)
 	int i;
@@ -385,7 +385,7 @@ void J_RumbleTriggers(int id, uint16_t left, uint16_t right, uint32_t duration)
 #endif
 }
 
-void J_SetLEDColor(int id, vec3_t color)
+void INS_SetLEDColor(int id, vec3_t color)
 {
 #if SDL_VERSION_ATLEAST(2,0,14)
 	int i;
@@ -407,7 +407,7 @@ void J_SetLEDColor(int id, vec3_t color)
 #endif
 }
 
-void J_SetTriggerFX(int id, const void *data, int size)
+void INS_SetTriggerFX(int id, const void *data, size_t size)
 {
 #if SDL_VERSION_ATLEAST(2,0,15)
 	for (int i = 0; i < MAX_JOYSTICKS; i++)

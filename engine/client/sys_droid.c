@@ -86,6 +86,18 @@ void INS_ReInit(void)
 void INS_Shutdown(void)
 {
 }
+void INS_Rumble(int joy, uint16_t amp_low, uint16_t amp_high, uint32_t duration)
+{
+}
+void INS_RumbleTriggers(int joy, uint16_t left, uint16_t right, uint32_t duration)
+{
+}
+void INS_SetLEDColor(int id, vec3_t color)
+{
+}
+void INS_SetTriggerFX(int id, const void *data, size_t size)
+{
+}
 void Sys_Vibrate(float count)
 {
 //	if (count < 0)
@@ -202,8 +214,8 @@ static int mapkey(int androidkey)
 	case AKEYCODE_BUTTON_R1:			return K_GP_RIGHT_SHOULDER;
 	case AKEYCODE_BUTTON_L2:			return K_GP_LEFT_TRIGGER;
 	case AKEYCODE_BUTTON_R2:			return K_GP_RIGHT_TRIGGER;
-	case AKEYCODE_BUTTON_THUMBL:		return K_GP_LEFT_THUMB;
-	case AKEYCODE_BUTTON_THUMBR:		return K_GP_RIGHT_THUMB;
+	case AKEYCODE_BUTTON_THUMBL:		return K_GP_LEFT_STICK;
+	case AKEYCODE_BUTTON_THUMBR:		return K_GP_RIGHT_STICK;
 	case AKEYCODE_BUTTON_START:			return K_GP_START;
 	case AKEYCODE_BUTTON_SELECT:		return K_GP_BACK;
 	case AKEYCODE_BUTTON_MODE:			return K_GP_GUIDE;

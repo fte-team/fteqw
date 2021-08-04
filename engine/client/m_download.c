@@ -3671,7 +3671,7 @@ static qboolean PM_SignatureOkay(package_t *p)
 	//metadata doesn't specify all file names for zips.
 	if (p->extract == EXTRACT_ZIP)
 		return false;
-	if (!p->gamedir || !*p->gamedir)
+	if (!*p->gamedir)
 		return false;
 
 	for (dep = p->deps; dep; dep = dep->next)
@@ -3911,7 +3911,7 @@ static void PM_StartADownload(void)
 			{
 				p->download = HTTP_CL_Get(mirror, NULL, PM_Download_PreliminaryGot);
 				if (!p->download)
-					Con_Printf("Unable to download %s\n", p->name);
+					Con_Printf("Unable to download %s (%s)\n", p->name, mirror);
 			}
 			else
 			{
@@ -4833,12 +4833,12 @@ void PM_AddManifestPackages(ftemanifest_t *man)
 {
 	package_t *p, *m;
 	size_t i;
-	const char *path;
+	const char *path, *url;
 
-	char buffer[MAX_OSPATH], *url;
+	char buffer[MAX_OSPATH];
 	int idx;
 	struct manpack_s *pack;
-	const char *baseurl = man->updateurl;
+	const char *baseurl = man->updateurl;	//this is a url for updated versions of the fmf itself.
 
 	for (p = availablepackages; p; p = p->next)
 		p->flags &= ~DPF_MANIMARKED;
@@ -4891,46 +4891,46 @@ void PM_AddManifestPackages(ftemanifest_t *man)
 
 		p->extract = EXTRACT_COPY;
 		for (i = 0; i < countof(pack->mirrors) && i < countof(p->mirror); i++)
-			if (pack->mirrors[i])
+		{
+			url = pack->mirrors[i];
+			if (!url)
+				continue;
+			if (!strncmp(url, "gz:", 3))
 			{
-				if (pack->mirrors[i])
-				{
-					url = pack->mirrors[i];
-					if (!strncmp(url, "gz:", 3))
-					{
-						url+=3;
-						p->extract = EXTRACT_GZ;
-					}
-					else if (!strncmp(url, "xz:", 3))
-					{
-						url+=3;
-						p->extract = EXTRACT_XZ;
-					}
-					else if (!strncmp(url, "unzip:", 6))
-					{
-						char *comma;
-						url+=6;
-						comma = strchr(url, ',');
-						if (comma)
-						{
-							p->extract = EXTRACT_EXPLICITZIP;
-							*comma = 0;
-							PM_AddDep(p, DEP_EXTRACTNAME, url);
-							*comma = ',';
-							url = comma+1;
-						}
-						else
-							p->extract = EXTRACT_ZIP;
-					}
-					/*else if (!strncmp(url, "prompt:", 7))
-					{
-						url+=7;
-						fspdl_extracttype = X_COPY;
-					}*/
-
-					p->mirror[i] = Z_StrDup(FS_RelativeURL(baseurl, url, buffer, sizeof(buffer)));
-				}
+				url+=3;
+				p->extract = EXTRACT_GZ;
 			}
+			else if (!strncmp(url, "xz:", 3))
+			{
+				url+=3;
+				p->extract = EXTRACT_XZ;
+			}
+			else if (!strncmp(url, "unzip:", 6))
+			{
+				char *comma;
+				url+=6;
+				comma = strchr(url, ',');
+				if (comma)
+				{
+					p->extract = EXTRACT_EXPLICITZIP;
+					*comma = 0;
+					PM_AddDep(p, DEP_EXTRACTNAME, url);
+					*comma = ',';
+					url = comma+1;
+				}
+				else
+					p->extract = EXTRACT_ZIP;
+			}
+			/*else if (!strncmp(url, "prompt:", 7))
+			{
+				url+=7;
+				fspdl_extracttype = X_COPY;
+			}*/
+
+			url = FS_RelativeURL(baseurl, url, buffer, sizeof(buffer));
+			if (url && *url)
+				p->mirror[i] = Z_StrDup(url);
+		}
 		PM_AddDep(p, DEP_FILE, path);
 
 		m = PM_InsertPackage(p);

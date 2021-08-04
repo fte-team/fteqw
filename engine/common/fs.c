@@ -2853,6 +2853,9 @@ void COM_FlushTempoaryPacks(void)	//flush all temporary packages
 
 	COM_AssertMainThread("COM_FlushTempoaryPacks");
 
+	if (!com_searchpaths || !fs_thread_mutex)
+		return;	//we already shut down...
+
 	COM_WorkerLock();	//make sure no workers are poking files...
 	Sys_LockMutex(fs_thread_mutex);
 

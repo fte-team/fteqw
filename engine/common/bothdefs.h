@@ -809,7 +809,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 //safeswitch(foo){safedefault: break;}
 //switch, but errors for any omitted enum values despite the presence of a default case.
 //(gcc will generally give warnings without the default, but sometimes you don't have control over the source of your enumeration values)
-#if (__GNUC__ >= 4)
+//note: android's gcc seems to screw up the pop, instead leaving the warnings enabled, which gets horrendously spammy.
+#if (__GNUC__ >= 4) && !defined(ANDROID)
 	#define safeswitch	\
 		_Pragma("GCC diagnostic push")	\
 		_Pragma("GCC diagnostic error \"-Wswitch-enum\"") \

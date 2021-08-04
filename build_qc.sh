@@ -5,8 +5,15 @@
 BUILDFOLDER=~/htdocs
 BUILDLOGFOLDER=$BUILDFOLDER/build_logs
 
+
+if [ "$FTEQCC" == "" ]; then
+	QSS=~/htdocs/qss/quakespasm-spiked-linux64
+	FTEQW=~/htdocs/linux_amd64/fteqw64
+	FTEQCC=~/htdocs/linux_amd64/fteqcc64
+fi
+
 #this really should use the native cpu type... until then we use 32bit in case anyone's still using a 32bit kernel.
-if [ "FTEQW" != "" ]; then
+if [ "$FTEQW" != "" ]; then
     echo "--- QC builds ---"
 	echo "Making fteextensions.qc"
 

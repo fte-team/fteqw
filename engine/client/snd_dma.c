@@ -164,7 +164,7 @@ static void QDECL S_Voip_Play_Callback(cvar_t *var, char *oldval);
 cvar_t snd_voip_capturedevice	= CVARF("cl_voip_capturedevice", "", CVAR_ARCHIVE);
 cvar_t snd_voip_capturedevice_opts	= CVARFD("_cl_voip_capturedevice_opts", "", CVAR_NOSET, "The possible audio capture devices, in \"value\" \"description\" pairs, for gamecode to read.");
 int voipbutton;	//+voip, no longer part of cl_voip_send to avoid it getting saved
-cvar_t snd_voip_send			= CVARFD("cl_voip_send", "0", CVAR_ARCHIVE, "Sends voice-over-ip data to the server whenever it is set.\n0: only send voice if +voip is pressed.\n1: voice activation.\n2: constantly send.\n+4: Do not send to game, only to rtp sessions.");
+cvar_t snd_voip_send			= CVARFD("cl_voip_send", "0", CVAR_ARCHIVE|CVAR_NOTFROMSERVER, "Sends voice-over-ip data to the server whenever it is set.\n0: only send voice if +voip is pressed.\n1: voice activation.\n2: constantly send.\n+4: Do not send to game, only to rtp sessions.");
 cvar_t snd_voip_test			= CVARD("cl_voip_test", "0", "If 1, enables you to hear your own voice directly, bypassing the server and thus without networking latency, but is fine for checking audio levels. Note that sv_voip_echo can be set if you want to include latency and packetloss considerations, but setting that cvar requires server admin access and is thus much harder to use.");
 cvar_t snd_voip_vad_threshhold	= CVARFD("cl_voip_vad_threshhold", "15", CVAR_ARCHIVE, "This is the threshhold for voice-activation-detection when sending voip data");
 cvar_t snd_voip_vad_delay		= CVARD("cl_voip_vad_delay", "0.3", "Keeps sending voice data for this many seconds after voice activation would normally stop");
@@ -1670,6 +1670,8 @@ void S_Voip_Ignore(unsigned int slot, qboolean ignore)
 }
 static void S_Voip_Enable_f(void)
 {
+	if (Cmd_IsInsecure())
+		return;
 	voipbutton = true;
 }
 static void S_Voip_Disable_f(void)
@@ -2645,8 +2647,7 @@ channel_t *SND_PickChannel(soundcardinfo_t *sc, int entnum, int entchannel)
 	if (oldest == -1)
 		return NULL;
 
-	//if (sc->channel[oldest].sfx)
-		sc->channel[oldest].sfx = NULL;
+	sc->channel[oldest].sfx = NULL;
 
 	if (sc->total_chans <= oldest)
 		sc->total_chans = oldest+1;

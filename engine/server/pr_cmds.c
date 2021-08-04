@@ -12485,17 +12485,12 @@ static void PR_DumpPlatform_SymbolType(vfsfile_t *f, const struct symtable_s *sy
 	int symstart = 0;
 	const char *colon;
 
-	//we need to skip over any #defines prefixed to the type string
-	while(symtype[symstart] == '#')
+	//skip over any "typedef struct {...;};\n" or "#define foo bar\n" blocks in there
+	while ((colon = strstr(symtype+symstart, "\n")))
 	{
-		while (symtype[symstart] && symtype[symstart] != '\n')
-			symstart++;
-		if (symtype[symstart])
-			symstart++;	//skip over the \n
+		symstart = (colon+1) - symtype;
+		continue;
 	}
-	//skip over any "typedef struct {...;};\n" blocks in there
-	while ((colon = strstr(symtype+symstart, ";\n")))
-		symstart = colon+2 - symtype;
 
 	//write those prefixes we tried to skip...
 	VFS_WRITE(f, symtype, symstart);

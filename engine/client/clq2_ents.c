@@ -1612,7 +1612,6 @@ void CLQ2_ParseFrame (int extrabits)
 	//in splitscreen we may have multiple player states, one per player.
 	if (cls.protocol_q2 != PROTOCOL_VERSION_R1Q2 && cls.protocol_q2 != PROTOCOL_VERSION_Q2PRO)
 	{
-		cl.splitclients = 0;
 		for (cl.splitclients = 0; ; )
 		{
 			cmd = MSG_ReadByte ();

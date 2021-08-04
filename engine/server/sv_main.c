@@ -5514,6 +5514,23 @@ void SV_InitLocal (void)
 	extern	cvar_t	pm_flyfriction;
 	extern	cvar_t	pm_edgefriction;
 
+#ifdef VM_Q1	//cvars for pimping ourselves to ktx...
+	static cvar_t qws_name		= CVARF("qws_name",		DISTRIBUTION,			CVAR_NOSET );
+	static cvar_t qws_fullname	= CVARF("qws_fullname", FULLENGINENAME,			CVAR_NOSET );
+	static cvar_t qws_version	= CVARF("qws_version",	STRINGIFY(FTE_VER_MAJOR)"."STRINGIFY(FTE_VER_MINOR),CVAR_NOSET );
+	static cvar_t qws_buildnum	= CVARF("qws_buildnum",	STRINGIFY(SVNREVISION),	CVAR_NOSET );
+	static cvar_t qws_platform	= CVARF("qws_platform",	PLATFORM "-" ARCH_CPU_POSTFIX,				CVAR_NOSET );
+	static cvar_t qws_builddate	= CVARF("qws_builddate",STRINGIFY(SVNDATE),		CVAR_NOSET );
+	static cvar_t qws_homepage	= CVARF("qws_homepage",	"https://sourceforge.net/projects/fteqw/",		CVAR_NOSET );
+	Cvar_Register(&qws_name,		"Server Info");
+	Cvar_Register(&qws_fullname,	"Server Info");
+	Cvar_Register(&qws_version,		"Server Info");
+	Cvar_Register(&qws_buildnum,	"Server Info");
+	Cvar_Register(&qws_platform,	"Server Info");
+	Cvar_Register(&qws_builddate,	"Server Info");
+	Cvar_Register(&qws_homepage,	"Server Info");
+#endif
+
 	SV_InitOperatorCommands	();
 	SV_UserInit ();
 

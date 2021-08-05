@@ -300,7 +300,7 @@ static unsigned int QDECL FSSTDIO_CreateLoc(searchpathfuncs_t *handle, flocation
 	loc->len = 0;
 	loc->offset = 0;
 	loc->fhandle = handle;
-	if ((unsigned int)snprintf(loc->rawname, sizeof(loc->rawname), "%s/%s", sp->rootpath, filename) > sizeof(loc->rawname)-1)
+	if (Q_snprintfz(loc->rawname, sizeof(loc->rawname), "%s/%s", sp->rootpath, filename))
 		return FF_NOTFOUND;	//too long...
 
 	for (ofs = loc->rawname+1 ; *ofs ; ofs++)
@@ -333,7 +333,7 @@ static unsigned int QDECL FSSTDIO_FLocate(searchpathfuncs_t *handle, flocation_t
 */
 
 // check a file in the directory tree
-	if ((unsigned int)snprintf (netpath, sizeof(netpath), "%s/%s", sp->rootpath, filename) > sizeof(netpath)-1)
+	if (Q_snprintfz (netpath, sizeof(netpath), "%s/%s", sp->rootpath, filename))
 		return FF_NOTFOUND;
 
 #if 0//def ANDROID

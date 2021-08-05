@@ -206,6 +206,7 @@ qboolean VARGS Q_vsnprintfz (char *dest, size_t size, const char *fmt, va_list a
 //windows/linux have inconsistant snprintf
 //this is an attempt to get them consistant and safe
 //size is the total size of the buffer
+//returns true on overflow (will be truncated).
 qboolean VARGS Q_snprintfz (char *dest, size_t size, const char *fmt, ...)
 {
 	va_list		argptr;

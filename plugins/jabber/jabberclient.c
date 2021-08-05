@@ -1118,11 +1118,11 @@ static int sasl_digestmd5_challenge(struct sasl_ctx_s *ctx, char *in, int inlen,
 
 	if (!*realm)
 		Q_strlcpy(realm, ctx->domain, sizeof(realm));
-	if (Q_snprintf(digesturi, sizeof(digesturi), "xmpp/%s", realm) >= sizeof(digesturi))
+	if (Q_snprintfz(digesturi, sizeof(digesturi), "xmpp/%s", realm))
 		return -1;
 
 
-	if (Q_snprintf(X, sizeof(X), "%s:%s:", username, realm) >= sizeof(X))
+	if (Q_snprintfz(X, sizeof(X), "%s:%s:", username, realm))
 		return -1;
 	if (ctx->password_hash_size == 16 && !strcmp(X, ctx->password_validity))
 		memcpy(Y, ctx->password_hash, 16);	//use the hashed password, instead of the (missing) plain one
@@ -1130,7 +1130,7 @@ static int sasl_digestmd5_challenge(struct sasl_ctx_s *ctx, char *in, int inlen,
 	{
 		Q_strlcpy(ctx->password_validity, X, sizeof(ctx->password_validity));
 
-		if (Q_snprintf(X, sizeof(X), "%s:%s:%s", username, realm, ctx->password_plain) < sizeof(X))
+		if (Q_snprintfz(X, sizeof(X), "%s:%s:%s", username, realm, ctx->password_plain))
 			return -1;
 		MD5_ToBinary(X, strlen(X), Y, sizeof(Y));
 
@@ -1143,19 +1143,19 @@ static int sasl_digestmd5_challenge(struct sasl_ctx_s *ctx, char *in, int inlen,
 	memcpy(A1, Y, 16);
 	if (*authzid)
 	{
-		if (Q_snprintf(A1+16, sizeof(A1)-16, ":%s:%s:%s", nonce, cnonce, authzid) >= sizeof(A1)-16)
+		if (Q_snprintfz(A1+16, sizeof(A1)-16, ":%s:%s:%s", nonce, cnonce, authzid))
 			return -1;
 	}
 	else
 	{
-		if (Q_snprintf(A1+16, sizeof(A1)-16, ":%s:%s", nonce, cnonce) >= sizeof(A1)-16)
+		if (Q_snprintfz(A1+16, sizeof(A1)-16, ":%s:%s", nonce, cnonce))
 			return -1;
 	}
-	if (Q_snprintf(A2, sizeof(A2), "%s:%s", "AUTHENTICATE", digesturi) >= sizeof(A2))
+	if (Q_snprintfz(A2, sizeof(A2), "%s:%s", "AUTHENTICATE", digesturi))
 		return -1;
 	MD5_ToHex(A1, strlen(A1+16)+16, HA1, sizeof(HA1));
 	MD5_ToHex(A2, strlen(A2), HA2, sizeof(HA2));
-	if (Q_snprintf(KD, sizeof(KD), "%s:%s:%s:%s:%s:%s", HA1, nonce, nc, cnonce, qop, HA2) >= sizeof(KD))
+	if (Q_snprintfz(KD, sizeof(KD), "%s:%s:%s:%s:%s:%s", HA1, nonce, nc, cnonce, qop, HA2))
 		return -1;
 	MD5_ToHex(KD, strlen(KD), Z, sizeof(Z));
 
@@ -2625,7 +2625,7 @@ qboolean JCL_Reconnect(jclient_t *jcl)
 		//jcl->tlsconnect requires an explicit hostname, so should not be able to take this path.
 		char srv[256];
 		char srvserver[256];
-		if (Q_snprintf(srv, sizeof(srv), "_xmpp-client._tcp.%s", jcl->domain) < sizeof(srv) && NET_DNSLookup_SRV(srv, srvserver, sizeof(srvserver)))
+		if (!Q_snprintfz(srv, sizeof(srv), "_xmpp-client._tcp.%s", jcl->domain) && NET_DNSLookup_SRV(srv, srvserver, sizeof(srvserver)))
 		{
 			Con_DPrintf("XMPP: Trying to connect to %s (%s)\n", jcl->domain, srvserver);
 			jcl->socket = netfuncs->TCPConnect(srvserver, jcl->serverport);	//port is should already be part of the srvserver name
@@ -5494,8 +5494,8 @@ int JCL_ClientFrame(jclient_t *jcl, char **error)
 	unparsable = true;
 	if (!strcmp(tree->name, "features"))
 	{
-		if (Q_snprintf(jcl->barejid, sizeof(jcl->barejid), "%s@%s", jcl->username, jcl->domain) >= sizeof(jcl->barejid) ||
-			Q_snprintf(jcl->fulljid, sizeof(jcl->fulljid), "%s@%s/%s", jcl->username, jcl->domain, jcl->resource) >= sizeof(jcl->fulljid))
+		if (Q_snprintfz(jcl->barejid, sizeof(jcl->barejid), "%s@%s", jcl->username, jcl->domain) ||
+			Q_snprintfz(jcl->fulljid, sizeof(jcl->fulljid), "%s@%s/%s", jcl->username, jcl->domain, jcl->resource))
 		{
 			XML_Destroy(tree);
 			return JCL_KILL;
@@ -7204,7 +7204,7 @@ void JCL_Command(int accid, char *console)
 			char roomserverhandle[512];
 			buddy_t *b;
 			bresource_t *r;
-			if (Q_snprintf(roomserverhandle, sizeof(roomserverhandle), "%s@%s/%s", arg[1], arg[2], arg[3]) < sizeof(roomserverhandle) && JCL_FindBuddy(jcl, roomserverhandle, &b, &r, false))
+			if (!Q_snprintfz(roomserverhandle, sizeof(roomserverhandle), "%s@%s/%s", arg[1], arg[2], arg[3]) && JCL_FindBuddy(jcl, roomserverhandle, &b, &r, false))
 			{
 				JCL_AddClientMessagef(jcl, "<presence to='%s' type='unavailable'/>", roomserverhandle);
 				JCL_ForgetBuddy(jcl, b, NULL);

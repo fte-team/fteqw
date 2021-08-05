@@ -104,27 +104,56 @@ char *Plug_Info_ValueForKey (const char *s, const char *key, char *out, size_t o
 	return oout;
 }
 
-#if defined(_MSC_VER) && _MSC_VER < 1900
-int Q_vsnprintf(char *buffer, size_t maxlen, const char *format, va_list argptr)
-{
-	int r = _vsnprintf (buffer, maxlen-1, format, argptr);
-	buffer[maxlen-1] = 0;	//make sure its null terminated
-	if (r < 0)	//work around dodgy return value. we can't use this to check required length but can check for truncation
-		r = maxlen;
-	return r;
-}
-int Q_snprintf(char *buffer, size_t maxlen, const char *format, ...)
-{
-	int p;
-	va_list		argptr;
 
-	va_start (argptr, format);
-	p = Q_vsnprintf (buffer, maxlen, format,argptr);
-	va_end (argptr);
-
-	return p;
-}
+//returns true on truncation
+qboolean VARGS Q_vsnprintfz (char *dest, size_t size, const char *fmt, va_list argptr)
+{
+	size_t ret;
+#ifdef _WIN32
+	//doesn't null terminate.
+	//returns -1 on truncation
+	ret = _vsnprintf (dest, size, fmt, argptr);
+	dest[size-1] = 0;	//shitty paranoia
+#else
+	//always null terminates.
+	//returns length regardless of truncation.
+	ret = vsnprintf (dest, size, fmt, argptr);
 #endif
+#ifdef _DEBUG
+	if (ret>=size)
+		plugfuncs->Error("Q_vsnprintfz: Truncation\n");
+#endif
+	//if ret is -1 (windows oversize, or general error) then it'll be treated as unsigned so really long. this makes the following check quite simple.
+	return ret>=size;
+}
+//windows/linux have inconsistant snprintf
+//this is an attempt to get them consistant and safe
+//size is the total size of the buffer
+//returns true on overflow (will be truncated).
+qboolean VARGS Q_snprintfz (char *dest, size_t size, const char *fmt, ...)
+{
+	va_list		argptr;
+	size_t ret;
+
+	va_start (argptr, fmt);
+#ifdef _WIN32
+	//doesn't null terminate.
+	//returns -1 on truncation
+	ret = _vsnprintf (dest, size, fmt, argptr);
+	dest[size-1] = 0;	//shitty paranoia
+#else
+	//always null terminates.
+	//returns length regardless of truncation.
+	ret = vsnprintf (dest, size, fmt, argptr);
+#endif
+	va_end (argptr);
+#ifdef _DEBUG
+	if (ret>=size)
+		plugfuncs->Error("Q_vsnprintfz: Truncation\n");
+#endif
+	//if ret is -1 (windows oversize, or general error) then it'll be treated as unsigned so really long. this makes the following check quite simple.
+	return ret>=size;
+}
 
 char	*va(const char *format, ...)	//Identical in function to the one in Quake, though I can assure you that I wrote it...
 {					//It's not exactly hard, just easy to use, so gets duplicated lots.
@@ -132,7 +161,7 @@ char	*va(const char *format, ...)	//Identical in function to the one in Quake, t
 	static char		string[1024];
 		
 	va_start (argptr, format);
-	Q_vsnprintf (string, sizeof(string), format,argptr);
+	Q_vsnprintfz (string, sizeof(string), format,argptr);
 	va_end (argptr);
 
 	return string;	
@@ -195,7 +224,7 @@ void Con_Printf(const char *format, ...)
 	static char		string[1024];
 		
 	va_start (argptr, format);
-	Q_vsnprintf (string, sizeof(string), format,argptr);
+	Q_vsnprintfz (string, sizeof(string), format,argptr);
 	va_end (argptr);
 
 	plugfuncs->Print(string);
@@ -209,7 +238,7 @@ void Con_DPrintf(const char *format, ...)
 		return;
 		
 	va_start (argptr, format);
-	Q_vsnprintf (string, sizeof(string), format,argptr);
+	Q_vsnprintfz (string, sizeof(string), format,argptr);
 	va_end (argptr);
 
 	plugfuncs->Print(string);
@@ -220,7 +249,7 @@ void Sys_Errorf(const char *format, ...)
 	static char		string[1024];
 		
 	va_start (argptr, format);
-	Q_vsnprintf (string, sizeof(string), format,argptr);
+	Q_vsnprintfz (string, sizeof(string), format,argptr);
 	va_end (argptr);
 
 	plugfuncs->Error(string);

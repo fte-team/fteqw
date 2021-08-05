@@ -3449,6 +3449,7 @@ static void Mod_LoadMiptex(model_t *loadmodel, texture_t *tx, miptex_t *mt, size
 			else if (extsize <= 16) continue;										//too small for an altformat lump
 			else if (newdata != PTI_INVALID)	continue;							//only accept the first accepted format (allowing for eg astc+bc1 fallbacks)
 			else if (!strncmp(extfmt, "RGBA", 4))	newfmt = PTI_RGBA8;				//32bpp, we don't normally need this alpha precision (padding can be handy though, for the lazy).
+			else if (!strncmp(extfmt, "RGBX", 4))	newfmt = PTI_RGBX8;				//32bpp, we don't normally need this alpha precision (padding can be handy though, for the lazy).
 			else if (!strncmp(extfmt, "RGB", 4))	newfmt = PTI_RGB8;				//24bpp
 			else if (!strncmp(extfmt, "565", 4))	newfmt = PTI_RGB565;			//16bpp
 			else if (!strncmp(extfmt, "4444", 4))	newfmt = PTI_RGBA4444;			//16bpp

@@ -30,7 +30,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 	#endif
 #endif
 
-
+#define VK_NO_STDINT_H //we're handling this. please don't cause conflicts. grr.
 #if __STDC_VERSION__ >= 199901L || defined(__GNUC__)
 	//C99 has a stdint header which hopefully contains an intptr_t
 	//its optional... but if its not in there then its unlikely you'll actually be able to get the engine to a stage where it *can* load anything
@@ -44,6 +44,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 	#define qint64_t int64_t
 	#define quint64_t uint64_t
 #else
+	#define qint8_t signed char	//be explicit with this one.
+	#define quint8_t unsigned char
 	#define qint16_t short
 	#define quint16_t unsigned short
 	#define qint32_t int
@@ -84,6 +86,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 	#endif
 
 	#ifndef uint32_t
+		#define int8_t		qint8_t
+		#define uint8_t		quint8_t
 		#define int16_t		qint16_t
 		#define uint16_t	quint16_t
 		#define int32_t		qint32_t

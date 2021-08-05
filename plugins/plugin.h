@@ -361,13 +361,11 @@ extern plugcvarfuncs_t *cvarfuncs;
 void Q_strlncpy(char *d, const char *s, int sizeofd, int lenofs);
 void Q_strlcpy(char *d, const char *s, int n);
 void Q_strlcat(char *d, const char *s, int n);
-#if defined(_MSC_VER) && _MSC_VER < 2015
-	int Q_snprintf(char *buffer, size_t maxlen, const char *format, ...) LIKEPRINTF(3);
-	int Q_vsnprintf(char *buffer, size_t maxlen, const char *format, va_list vargs);
-#else
-	#define Q_snprintf snprintf
-	#define Q_vsnprintf vsnprintf
-#endif
+
+qboolean VARGS Q_vsnprintfz (char *dest, size_t size, const char *fmt, va_list argptr);
+qboolean VARGS Q_snprintfz (char *dest, size_t size, const char *fmt, ...) LIKEPRINTF(3);
+#define Q_snprintf (void)Q_snprintfz
+#define Q_vsnprintf (void)Q_vsnprintfz
 
 char	*va(const char *format, ...);
 qboolean Plug_Init(void);

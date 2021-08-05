@@ -342,7 +342,7 @@ void XMPP_FT_SendFile(jclient_t *jcl, const char *console, const char *to, const
 	ft->transmitting = true;
 	ft->blocksize = 4096;
 	Q_strlcpy(ft->fname, fname, sizeof(ft->fname));
-	if (Q_snprintf(ft->sid, sizeof(ft->sid), "%x%s", rand(), ft->fname) >= sizeof(ft->sid))
+	if (Q_snprintfz(ft->sid, sizeof(ft->sid), "%x%s", rand(), ft->fname))
 		/*doesn't matter so long as its unique*/;
 	Q_strlcpy(ft->md5hash, "", sizeof(ft->md5hash));
 	ft->size = filefuncs->Open(ft->fname, &ft->file, 1);

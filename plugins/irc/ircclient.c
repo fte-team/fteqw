@@ -2119,7 +2119,7 @@ static int IRC_ClientFrame(ircclient_t *irc)
 			*exc = '\0';
 
 			//a link to interact with the sender
-			if (Q_snprintf(link, sizeof(link), "^["COLOURGREEN"%s\\act\\user\\who\\%s^]", prefix, prefix) >= sizeof(link))
+			if (Q_snprintfz(link, sizeof(link), "^["COLOURGREEN"%s\\act\\user\\who\\%s^]", prefix, prefix))
 				Q_snprintf(link, sizeof(link), "%s", prefix);
 
 			if (!strncmp(col, "\001", 1))

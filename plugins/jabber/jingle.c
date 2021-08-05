@@ -72,7 +72,7 @@ static struct c2c_s *JCL_JingleAddContentToSession(jclient_t *jcl, struct c2c_s 
 	//for msn, live.com has one, messanger.live.com has one, but messenger.live.com does NOT. seriously, the typo has more services.  wtf microsoft?
 	//google doesn't provide a stun srv entry
 	//facebook doesn't provide a stun srv entry
-	if (Q_snprintf(stunhost, sizeof(stunhost), "_stun._udp.%s", jcl->domain) < sizeof(stunhost) && NET_DNSLookup_SRV(stunhost, stunhost, sizeof(stunhost)))
+	if (!Q_snprintfz(stunhost, sizeof(stunhost), "_stun._udp.%s", jcl->domain) && NET_DNSLookup_SRV(stunhost, stunhost, sizeof(stunhost)))
 		piceapi->ICE_Set(ice, "stunip", stunhost);
 	else
 	{

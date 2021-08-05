@@ -277,8 +277,8 @@ static int QDECL FSSTDIO_RebuildFSHash(const char *filename, qofs_t filesize, ti
 	{	//this is actually a directory
 
 		char childpath[256];
-		Q_snprintfz(childpath, sizeof(childpath), "%s*", filename);
-		Sys_EnumerateFiles(sp->rootpath, childpath, FSSTDIO_RebuildFSHash, data, spath);
+		if (!Q_snprintfz(childpath, sizeof(childpath), "%s*", filename))
+			Sys_EnumerateFiles(sp->rootpath, childpath, FSSTDIO_RebuildFSHash, data, spath);
 		return true;
 	}
 	AddFileHash(sp->depth, filename, NULL, sp);
@@ -427,9 +427,9 @@ static qboolean	 QDECL FSSTDIO_RenameFile(searchpathfuncs_t *handle, const char 
 	char newsyspath[MAX_OSPATH];
 	if (fs_readonly)
 		return false;
-	if ((unsigned int)snprintf (oldsyspath, sizeof(oldsyspath), "%s/%s", sp->rootpath, oldname) > sizeof(oldsyspath)-1)
+	if (Q_snprintfz (oldsyspath, sizeof(oldsyspath), "%s/%s", sp->rootpath, oldname))
 		return false;	//too long
-	if ((unsigned int)snprintf (newsyspath, sizeof(newsyspath), "%s/%s", sp->rootpath, newname) > sizeof(newsyspath)-1)
+	if (Q_snprintfz (newsyspath, sizeof(newsyspath), "%s/%s", sp->rootpath, newname))
 		return false;	//too long
 	return Sys_Rename(oldsyspath, newsyspath);
 }
@@ -439,7 +439,7 @@ static qboolean QDECL FSSTDIO_RemoveFile(searchpathfuncs_t *handle, const char *
 	char syspath[MAX_OSPATH];
 	if (fs_readonly)
 		return false;
-	if ((unsigned int)snprintf (syspath, sizeof(syspath), "%s/%s", sp->rootpath, filename) > sizeof(syspath)-1)
+	if (Q_snprintfz (syspath, sizeof(syspath), "%s/%s", sp->rootpath, filename))
 		return false;	//too long
 	if (*filename && filename[strlen(filename)-1] == '/')
 		return Sys_rmdir(syspath);

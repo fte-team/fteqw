@@ -123,6 +123,7 @@ static void J_AllocateDevID(struct sdljoy_s *joy)
 
 	joy->qdevid = id;
 
+#if SDL_VERSION_ATLEAST(2,0,14)
 	if (joy->controller)
 	{
 		//enable some sensors if they're there. because we can.
@@ -131,6 +132,7 @@ static void J_AllocateDevID(struct sdljoy_s *joy)
 		if (SDL_GameControllerHasSensor(joy->controller, SDL_SENSOR_GYRO))
 			SDL_GameControllerSetSensorEnabled(joy->controller, SDL_SENSOR_GYRO, SDL_TRUE);
 	}
+#endif
 }
 static void J_ControllerAdded(int enumid)
 {

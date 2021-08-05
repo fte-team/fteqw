@@ -8370,7 +8370,7 @@ static QCC_sref_t QCC_MakeStringConstInternal(const char *value, size_t length, 
 		char buf[64];
 		QC_snprintfz(buf, sizeof(buf), "dotranslate_%i", ++dotranslate_count);
 		cn = (void *)qccHunkAlloc (sizeof(QCC_def_t)+sizeof(string_t) + strlen(buf)+1);
-		cn->name = (char*)((QCC_eval_t*)(cn+1)+1);
+		cn->name = (char*)((string_t*)(cn+1)+1);
 		strcpy(cn->name, buf);
 		cn->used = true;	//
 		cn->referenced = true;

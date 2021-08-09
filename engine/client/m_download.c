@@ -5094,6 +5094,7 @@ typedef struct {
 	int downloadablessequence;
 	char titletext[128];
 	char applymessage[128];	//so we can change its text to give it focus
+	const void *expandedpackage;	//which package we're currently viewing maps for.
 	qboolean populated;
 } dlmenu_t;
 
@@ -5101,6 +5102,7 @@ static void MD_Draw (int x, int y, struct menucustom_s *c, struct emenu_s *m)
 {
 	package_t *p;
 	char *n;
+	struct packagedep_s *dep;
 
 	if (y + 8 < 0 || y >= vid.height)	//small optimisation.
 		return;
@@ -5113,6 +5115,23 @@ static void MD_Draw (int x, int y, struct menucustom_s *c, struct emenu_s *m)
 		if (p->alternative && (p->flags & DPF_HIDDEN))
 			p = p->alternative;
 
+		for (dep = p->deps; dep; dep = dep->next)
+			if (dep->dtype == DEP_MAP)
+				break;
+
+		if (dep)
+		{	//map packages are not marked, but cached on demand.
+			if (p->flags & DPF_PRESENT)
+			{
+				if (p->flags & DPF_PURGE)
+					Draw_FunStringWidth (x, y, "DEL", 48, 2, false);	//purge
+				else
+					Draw_FunStringWidth (x, y, "^&03  ", 48, 2, false);	//cyan
+			}
+			else
+				Draw_FunStringWidth (x, y, "^&06  ", 48, 2, false);	//orange
+		}
+		else
 #ifdef WEBCLIENT
 		if (p->download)
 			Draw_FunStringWidth (x, y, va("%i%%", (int)p->download->qdownload.percent), 48, 2, false);
@@ -5199,7 +5218,7 @@ static void MD_Draw (int x, int y, struct menucustom_s *c, struct emenu_s *m)
 					if ((p->flags & DPF_PURGE) || PM_PurgeOnDisable(p))
 						Draw_FunStringWidth (x, y, "DEL", 48, 2, false);
 					else
-						Draw_FunStringWidth (x, y, "REM", 48, 2, false);
+						Draw_FunStringWidth (x, y, "DIS", 48, 2, false);
 				}
 			}
 		}
@@ -5233,15 +5252,41 @@ static qboolean MD_Key (struct menucustom_s *c, struct emenu_s *m, int key, unsi
 	qboolean ctrl = keydown[K_LCTRL] || keydown[K_RCTRL];
 	package_t *p, *p2;
 	struct packagedep_s *dep, *dep2;
+	dlmenu_t *info = m->data;
 	if (c->dint != downloadablessequence)
 		return false;	//probably stale
 	p = c->dptr;
 	if (key == 'c' && ctrl)
 		Sys_SaveClipboard(CBT_CLIPBOARD, p->website);
-	else if (key == K_ENTER || key == K_KP_ENTER || key == K_GP_START || key == K_MOUSE1)
+	else if (key == K_DEL || key == K_KP_DEL || key == K_BACKSPACE)
+	{
+		if (!(p->flags & DPF_MARKED))
+			p->flags |= DPF_PURGE;	//purge it when its already not marked (ie: when pressed twice)
+		PM_UnmarkPackage(p, DPF_MARKED);	//deactivate it
+	}
+	else if (key == K_ENTER || key == K_KP_ENTER || key == K_GP_START || key == K_MOUSE1 || key == K_GP_A)
 	{
 		if (p->alternative && (p->flags & DPF_HIDDEN))
 			p = p->alternative;
+
+		if (info->expandedpackage == p)
+		{	//close this submenu thing...
+			info->expandedpackage = NULL;
+			//remove the following map items.
+			downloadablessequence++;
+			return true;
+		}
+
+		for (dep = p->deps; dep; dep = dep->next)
+		{
+			if (dep->dtype == DEP_MAP)
+			{
+				info->expandedpackage = p;
+				downloadablessequence++;
+				//add the map items after (and shift everything)
+				return true;
+			}
+		}
 
 		if (p->flags & DPF_ENABLED)
 		{
@@ -5337,6 +5382,66 @@ static qboolean MD_Key (struct menucustom_s *c, struct emenu_s *m, int key, unsi
 #endif
 		return true;
 	}
+
+	return false;
+}
+
+static void MD_MapDraw (int x, int y, struct menucustom_s *c, struct emenu_s *m)
+{
+	const package_t *p = c->dptr;
+	struct packagedep_s *map = c->dptr2;
+	struct packagedep_s *dep;
+	float besttime, fulltime, bestkills, bestsecrets;
+	char *package = NULL;
+	const char *ext;
+
+	if (y + 8 < 0 || y >= vid.height)	//small optimisation.
+		return;
+
+	if (c->dint != downloadablessequence)
+		return;	//probably stale
+
+
+	for (dep = p->deps; dep; dep = dep->next)
+	{
+		if (dep->dtype == DEP_CACHEFILE)
+		{
+			package = va("downloads/%s", dep->name);
+			break;
+		}
+		else if (dep->dtype == DEP_FILE && !package)
+			package = dep->name;
+	}
+	ext = COM_GetFileExtension(map->name, NULL);
+	if (package && Log_CheckMapCompletion(package, va("maps/%s%s", map->name, *ext?"":".bsp"), &besttime, &fulltime, &bestkills, &bestsecrets))
+	{
+		if (besttime != fulltime)
+			Draw_FunStringU8(CON_WHITEMASK, x+48+8*4, y, va("^m%s^m (%g %g in %.1f secs, fastest in %.1f)", map->name, bestkills,bestsecrets,fulltime, besttime));
+		else
+			Draw_FunStringU8(CON_WHITEMASK, x+48+8*4, y, va("^m%s^m (%g %g in %.1f secs)", map->name, bestkills,bestsecrets,fulltime));
+	}
+	else
+		Draw_FunStringU8(CON_WHITEMASK, x+48+8*4, y, map->name);
+}
+static qboolean MD_MapKey (struct menucustom_s *c, struct emenu_s *m, int key, unsigned int unicode)
+{
+	const package_t *p = c->dptr;
+	struct packagedep_s *map = c->dptr2;
+	struct packagedep_s *dep;
+
+	if (c->dint != downloadablessequence)
+		return false;	//probably stale
+
+	if (key == K_ENTER || key == K_KP_ENTER || key == K_GP_START || key == K_MOUSE1 || key == K_GP_A)
+		for (dep = p->deps; dep; dep = dep->next)
+		{
+			if (dep == map)
+			{
+				char quoted[MAX_QPATH*2];
+				Cbuf_AddText(va("map %s\n", COM_QuotedString(va("%s:%s", p->name, map->name), quoted, sizeof(quoted), false)), RESTRICT_LOCAL);
+				return true;
+			}
+		}
 
 	return false;
 }
@@ -5512,7 +5617,25 @@ static qboolean MD_RevertUpdates (union menuoption_s *mo,struct emenu_s *m,int k
 	return false;
 }
 
-static int MD_AddItemsToDownloadMenu(emenu_t *m, int y, const char *pathprefix)
+static int MD_AddMapItems(emenu_t *m, package_t *p, int y)
+{
+	struct packagedep_s *dep;
+	menucustom_t *c;
+	for (dep = p->deps; dep; dep = dep->next)
+	{
+		if (dep->dtype != DEP_MAP)
+			continue;
+		c = MC_AddCustom(m, 0, y, p, downloadablessequence, NULL);
+		c->dptr2 = dep;
+		c->draw = MD_MapDraw;
+		c->key = MD_MapKey;
+		c->common.width = 320-16;
+		c->common.height = 8;
+		y += 8;
+	}
+	return y;
+}
+static int MD_AddItemsToDownloadMenu(emenu_t *m, int y, const char *pathprefix, void *selpackage)
 {
 	char path[MAX_QPATH];
 	package_t *p;
@@ -5521,6 +5644,7 @@ static int MD_AddItemsToDownloadMenu(emenu_t *m, int y, const char *pathprefix)
 	menuoption_t *mo;
 	int prefixlen = strlen(pathprefix);
 	struct packagedep_s *dep;
+	dlmenu_t *info = m->data;
 
 	//add all packages in this dir
 	for (p = availablepackages; p; p = p->next)
@@ -5594,7 +5718,13 @@ static int MD_AddItemsToDownloadMenu(emenu_t *m, int y, const char *pathprefix)
 			c->common.height = 8;
 			y += 8;
 
-			if (!m->selecteditem)
+			if (info->expandedpackage == p)
+			{
+				m->selecteditem = (menuoption_t*)c;
+
+				y = MD_AddMapItems(m, p, y);
+			}
+			if (!m->selecteditem || p == selpackage)
 				m->selecteditem = (menuoption_t*)c;
 		}
 	}
@@ -5627,7 +5757,7 @@ static int MD_AddItemsToDownloadMenu(emenu_t *m, int y, const char *pathprefix)
 				MC_AddBufferedText(m, 48, 320-16, y, path+prefixlen, false, true);
 				y += 8;
 				Q_strncatz(path, "/", sizeof(path));
-				y = MD_AddItemsToDownloadMenu(m, y, path);
+				y = MD_AddItemsToDownloadMenu(m, y, path, selpackage);
 			}
 		}
 	}
@@ -5649,6 +5779,8 @@ static void MD_Download_UpdateStatus(struct emenu_s *m)
 	menucustom_t *c;
 	qboolean sources;
 #endif
+	float framefrac = 0;
+	void *oldpackage = NULL;
 
 	if (info->downloadablessequence != downloadablessequence || !info->populated)
 	{
@@ -5656,6 +5788,10 @@ static void MD_Download_UpdateStatus(struct emenu_s *m)
 		{
 			menuoption_t *op = m->options;
 			m->options = op->common.next;
+			if (op->common.type == mt_frameend)
+				framefrac = op->frame.frac;
+			else if (m->selecteditem == op && op->common.type == mt_custom)
+				oldpackage = op->custom.dptr;
 			if (op->common.iszone)
 				Z_Free(op);
 		}
@@ -5784,11 +5920,11 @@ static void MD_Download_UpdateStatus(struct emenu_s *m)
 #endif
 		y+=4;	//small gap
 		MC_AddBufferedText(m, 48, 320-16, y, "Packages", false, true), y += 8;
-		MD_AddItemsToDownloadMenu(m, y, info->pathprefix);
+		MD_AddItemsToDownloadMenu(m, y, info->pathprefix, oldpackage);
 		if (!m->selecteditem)
 			m->selecteditem = (menuoption_t*)d;
 		m->cursoritem = (menuoption_t*)MC_AddWhiteText(m, 40, 0, m->selecteditem->common.posy, NULL, false);
-		MC_AddFrameEnd(m, 48);
+		MC_AddFrameEnd(m, 48)->frac = framefrac;
 	}
 
 	si = m->mouseitem;

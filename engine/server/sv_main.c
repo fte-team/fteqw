@@ -618,7 +618,7 @@ void SV_DropClient (client_t *drop)
 	}
 	*drop->uploadfn = 0;
 
-#ifndef SERVERONLY
+#ifdef HAVE_CLIENT
 	if (drop->netchan.remote_address.type == NA_LOOPBACK)
 	{
 		if (drop->protocol != SCP_BAD)
@@ -627,6 +627,7 @@ void SV_DropClient (client_t *drop)
 #pragma warningmsg("This means that we may not see the reason we kicked ourselves.")
 #endif
 		drop->state = cs_free;	//don't do zombie stuff
+		cls.state = ca_disconnected;
 		CL_BeginServerReconnect();
 	}
 	else

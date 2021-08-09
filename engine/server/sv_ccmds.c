@@ -493,6 +493,14 @@ static void SV_Map_c(int argn, const char *partial, struct xcommandargcompletion
 		COM_EnumerateFiles(va("maps/%s*.cm", partial), CompleteMapList, ctx);
 		COM_EnumerateFiles(va("maps/%s*.hmp", partial), CompleteMapList, ctx);
 
+		COM_EnumerateFiles(va("maps/%s*/*.bsp", partial), CompleteMapList, ctx);
+		COM_EnumerateFiles(va("maps/%s*/*.bsp.gz", partial), CompleteMapListExt, ctx);
+		COM_EnumerateFiles(va("maps/%s*/*.bsp.xz", partial), CompleteMapListExt, ctx);
+		COM_EnumerateFiles(va("maps/%s*/*.map", partial), CompleteMapListExt, ctx);
+		COM_EnumerateFiles(va("maps/%s*/*.map.gz", partial), CompleteMapListExt, ctx);
+		COM_EnumerateFiles(va("maps/%s*/*.cm", partial), CompleteMapList, ctx);
+		COM_EnumerateFiles(va("maps/%s*/*.hmp", partial), CompleteMapList, ctx);
+
 #ifdef PACKAGEMANAGER
 		PM_EnumerateMaps(partial, ctx);
 #endif
@@ -552,7 +560,7 @@ void SV_Map_f (void)
 	char	level[MAX_QPATH];
 	char	spot[MAX_QPATH];
 	char	expanded[MAX_QPATH+64];
-	char	*nextserver;
+	char	*nextserver = NULL;
 	qboolean preserveplayers= false;
 	qboolean isrestart		= false;	//don't hurt settings
 #ifdef SAVEDGAMES
@@ -569,8 +577,6 @@ void SV_Map_f (void)
 	qboolean mapeditor		= false;
 	int i;
 	char *startspot;
-
-	nextserver = 0;
 
 #ifndef SERVERONLY
 	if (!Renderer_Started() && !isDedicated)
@@ -632,7 +638,13 @@ void SV_Map_f (void)
 			if (sep)
 			{
 				*sep++ = 0;
-				PM_LoadMap(mangled, sep);
+				if (Cmd_FromGamecode())
+				{
+					Con_TPrintf ("switching packages via %s command is blocked from gamecode, just in case.\n", Cmd_Argv(0));
+					sv.mapchangelocked = false;
+				}
+				else
+					PM_LoadMap(mangled, sep);
 				return;
 			}
 		}

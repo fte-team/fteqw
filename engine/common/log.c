@@ -890,8 +890,10 @@ static void Log_MapsRead(void)
 }
 struct maplog_entry *Log_FindMap(const char *purepackage, const char *mapname)
 {
-	const char *name = va("%s/%s", purepackage, mapname);
+	char name[MAX_OSPATH];
 	struct maplog_entry *m;
+	if (Q_snprintfz(name, sizeof(name), "%s/%s", purepackage, mapname))
+		return NULL;
 	Log_MapsRead();
 	for (m = maplog_enties; m; m = m->next)
 	{

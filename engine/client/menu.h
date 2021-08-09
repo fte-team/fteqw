@@ -240,6 +240,7 @@ typedef struct {
 typedef struct menucustom_s {
 	menucommon_t common;
 	void *dptr;
+	void *dptr2;
 	int dint;
 	void (*draw) (int x, int y, struct menucustom_s *, struct emenu_s *);
 	qboolean (*key) (struct menucustom_s *, struct emenu_s *, int key, unsigned int unicode);

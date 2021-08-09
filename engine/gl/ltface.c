@@ -23,6 +23,7 @@ struct relight_ctx_s
 	qboolean parsed;	//ents have been parsed okay.
 	qboolean loaded;	//needed models are all loaded.
 
+	double starttime;
 	float minlight;
 	qboolean skiplit;	//lux only
 	qboolean shadows;
@@ -139,6 +140,7 @@ struct relight_ctx_s *LightStartup(struct relight_ctx_s *ctx, model_t *model, qb
 	}
 	if (ctx->nummodels < countof(ctx->models))
 		ctx->models[ctx->nummodels++] = model;
+	ctx->starttime = Sys_DoubleTime();
 	return ctx;
 }
 void LightReloadEntities(struct relight_ctx_s *ctx, const char *entstring, qboolean ignorestyles)
@@ -1132,17 +1134,16 @@ void RelightTerminate(model_t *mod)
 
 qboolean RelightSetup (model_t *model, size_t lightsamples, qboolean generatelit)
 {
+	qboolean ret = false;
 	Sys_LockMutex(com_resourcemutex);	//models can be loaded on different threads, so no race conditions please.
 	if (!lightcontext)
 	{
 		lightcontext = LightStartup(NULL, model, true, !generatelit);
 		lightcontext->lightmapsamples = lightsamples;
-		Sys_UnlockMutex(com_resourcemutex);
-		return true;
+		ret = true;
 	}
 	Sys_UnlockMutex(com_resourcemutex);
-
-	return false;
+	return ret;
 }
 
 const char *RelightGetProgress(float *progress)
@@ -1231,9 +1232,9 @@ void RelightThink (void)
 #endif
 		if (lightcontext->nextface >= lightmodel->numsurfaces)
 		{
-			Con_Printf("Finished lighting %s\n", lightmodel->name);
-
+			double starttime = lightcontext->starttime;
 			RelightTerminate(lightmodel);
+			Con_Printf("Finished lighting %s, took %.1f seconds\n", lightmodel->name, Sys_DoubleTime()-starttime);
 		}
 	}
 }

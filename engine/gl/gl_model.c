@@ -1950,7 +1950,7 @@ void Mod_LoadLighting (model_t *loadmodel, bspx_header_t *bspx, qbyte *mod_base,
 			if (lumdata)
 			{
 				for (i = 0; i < samples; i++)
-					ergb[i] = 15<<27 | lumdata[i]<<18 | lumdata[i]<<9 << lumdata[i]<<0;
+					ergb[i] = (17u<<27) | (lumdata[i]<<18) | (lumdata[i]<<9) | (lumdata[i]<<0);
 				lumdata = NULL;
 			}
 		}

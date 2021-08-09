@@ -3853,7 +3853,7 @@ static void *Q1MDL_LoadSkins_GL (galiasinfo_t *galias, dmdl_t *pq1inmodel, model
 			case TF_H2_TRANS8_0:
 				frames[0].defaultshader =
 					"{\n"
-//						"program defaultskin#MASK=0.5#MASKLT\n"
+						"glslprogram defaultskin#MASK=0.5#MASKLT\n"
 						"{\n"
 							"map $diffuse\n"
 							"blendfunc gl_src_alpha gl_one_minus_src_alpha\n"

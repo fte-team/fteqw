@@ -99,7 +99,7 @@ extern cvar_t cl_cursorsize;
 extern cvar_t cl_cursorbias;
 extern cvar_t m_preset_chosen;
 extern menu_t *topmenu;
-menuoption_t *M_NextSelectableItem(emenu_t *m, menuoption_t *old);
+menuoption_t *M_NextSelectableItem(emenu_t *m, menuoption_t *old, qboolean wrap);
 
 #ifdef HEXEN2
 //this function is so fucked up.
@@ -1028,7 +1028,7 @@ menuoption_t *MC_AddCursorSmall(emenu_t *menu, menuresel_t *reselection, int x, 
 
 	if (menu->reselection)
 	{
-		menuoption_t *sel, *firstsel = M_NextSelectableItem(menu, NULL);
+		menuoption_t *sel, *firstsel = M_NextSelectableItem(menu, NULL, false);
 		for (sel = firstsel; sel; )
 		{
 			if (sel->common.posx == menu->reselection->x && sel->common.posy == menu->reselection->y)
@@ -1037,7 +1037,7 @@ menuoption_t *MC_AddCursorSmall(emenu_t *menu, menuresel_t *reselection, int x, 
 				n->common.posy = sel->common.posy;
 				break;
 			}
-			sel = M_NextSelectableItem(menu, sel);
+			sel = M_NextSelectableItem(menu, sel, false);
 			if (sel == firstsel)
 				break;
 		}
@@ -1100,7 +1100,7 @@ menupicture_t *MC_AddCursor(emenu_t *menu, menuresel_t *reselection, int x, int 
 
 	if (menu->reselection)
 	{
-		menuoption_t *sel, *firstsel = M_NextSelectableItem(menu, NULL);
+		menuoption_t *sel, *firstsel = M_NextSelectableItem(menu, NULL, false);
 		for (sel = firstsel; sel; )
 		{
 			if (sel->common.posx == menu->reselection->x && sel->common.posy == menu->reselection->y)
@@ -1109,7 +1109,7 @@ menupicture_t *MC_AddCursor(emenu_t *menu, menuresel_t *reselection, int x, int 
 				n->common.posy = sel->common.posy;
 				break;
 			}
-			sel = M_NextSelectableItem(menu, sel);
+			sel = M_NextSelectableItem(menu, sel, false);
 			if (sel == firstsel)
 				break;
 		}
@@ -1894,7 +1894,7 @@ static menuoption_t *M_NextItem(emenu_t *m, menuoption_t *old)
 	}
 	return op;
 }
-menuoption_t *M_NextSelectableItem(emenu_t *m, menuoption_t *old)
+menuoption_t *M_NextSelectableItem(emenu_t *m, menuoption_t *old, qboolean wrap)
 {
 	menuoption_t *op;
 
@@ -1911,6 +1911,8 @@ menuoption_t *M_NextSelectableItem(emenu_t *m, menuoption_t *old)
 		if (!op)
 			op = m->options;
 
+		if (op == m->options && !wrap)
+			return NULL;
 		op = M_NextItem(m, op);
 		if (!op)
 			op = m->options;
@@ -1928,7 +1930,7 @@ menuoption_t *M_NextSelectableItem(emenu_t *m, menuoption_t *old)
 	}
 }
 
-menuoption_t *M_PrevSelectableItem(emenu_t *m, menuoption_t *old)
+menuoption_t *M_PrevSelectableItem(emenu_t *m, menuoption_t *old, qboolean wrap)
 {
 	menuoption_t *op;
 
@@ -1947,7 +1949,11 @@ menuoption_t *M_PrevSelectableItem(emenu_t *m, menuoption_t *old)
 
 		op = op->common.next;
 		if (!op)
+		{
+			if (!wrap)
+				return NULL;
 			op = m->options;
+		}
 
 		if (op == old)
 			return old;	//whoops.
@@ -2031,27 +2037,38 @@ void M_Complex_Key(emenu_t *currentmenu, int key, int unicode)
 	case K_KP_DOWNARROW:
 	case K_GP_DPAD_DOWN:
 	godown:
-		currentmenu->selecteditem = M_NextSelectableItem(currentmenu, currentmenu->selecteditem);
+		currentmenu->selecteditem = M_NextSelectableItem(currentmenu, currentmenu->selecteditem, true);
+		goto gone;
 
-		if (currentmenu->selecteditem)
-		{
-#ifdef HEXEN2
-			if (M_GameType() == MGT_HEXEN2)
-				S_LocalSound ("raven/menu1.wav");
-			else
-#endif
-				S_LocalSound ("misc/menu1.wav");
-
-			if (currentmenu->cursoritem)
-				currentmenu->cursoritem->common.posy = currentmenu->selecteditem->common.posy;
-		}
-		break;
 	case K_UPARROW:
 	case K_KP_UPARROW:
 	case K_GP_DPAD_UP:
 	goup:
-		currentmenu->selecteditem = M_PrevSelectableItem(currentmenu, currentmenu->selecteditem);
+		currentmenu->selecteditem = M_PrevSelectableItem(currentmenu, currentmenu->selecteditem, true);
+		goto gone;
 
+	case K_PGDN:
+		for (key = 0; key < 10; key++)
+		{
+			menuoption_t *op = M_NextSelectableItem(currentmenu, currentmenu->selecteditem, false);
+			if (op)
+				currentmenu->selecteditem = op;
+			else
+				break;
+		}
+		goto gone;
+	case K_PGUP:
+		for (key = 0; key < 10; key++)
+		{
+			menuoption_t *op = M_PrevSelectableItem(currentmenu, currentmenu->selecteditem, false);
+			if (op)
+				currentmenu->selecteditem = op;
+			else
+				break;
+		}
+		goto gone;
+
+	gone:
 		if (currentmenu->selecteditem)
 		{
 #ifdef HEXEN2

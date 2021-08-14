@@ -4543,79 +4543,6 @@ static qboolean Mod_LoadLeafs (model_t *loadmodel, qbyte *mod_base, lump_t *l, i
 
 
 
-//these are used to boost other info sizes
-static int numsuplementryplanes;
-static int numsuplementryclipnodes;
-static void *suplementryclipnodes;
-static void *suplementryplanes;
-static void *crouchhullfile;
-
-static void Mod_LoadCrouchHull(model_t *loadmodel)
-{
-	int i, h;
-	int numsm;
-	char crouchhullname[MAX_QPATH];
-	int *data;
-	int hulls;
-
-//	dclipnode_t *cn;
-
-	memset(loadmodel->hulls, 0, sizeof(loadmodel->hulls));	//ensure all the sizes are 0 (this is how we check for the existance of a hull
-
-	numsuplementryplanes = numsuplementryclipnodes = 0;
-
-	//find a name for a ccn and try to load it.
-	strcpy(crouchhullname, loadmodel->name);
-	COM_StripExtension(loadmodel->name, crouchhullname, sizeof(crouchhullname));
-	COM_DefaultExtension(crouchhullname, ".crh",sizeof(crouchhullname));	//crouch hull
-
-	FS_LoadFile(crouchhullname, &crouchhullfile);
-	if (!crouchhullfile)
-		return;
-
-	data = crouchhullfile;
-
-	if (LittleLong(*data++) != ('S') + ('C'<<8) + ('N'<<16) + ('P'<<24))	//make sure it's the right version
-		return;
-
-	if (LittleLong(*data) == 2)
-	{
-		data++;
-		hulls = LittleLong(*data++);
-	}
-	else
-		return;
-
-	if (hulls > MAX_MAP_HULLSM - MAX_MAP_HULLSDQ1)
-	{
-		return;
-	}
-
-	numsm = LittleLong(*data++);
-	if (numsm != loadmodel->numsubmodels)	//not compatible
-		return;
-
-	numsuplementryplanes = LittleLong(*data++);
-	numsuplementryclipnodes = LittleLong(*data++);
-
-	for (h = 0; h < hulls; h++)
-	{
-		for (i = 0; i < 3; i++)
-			loadmodel->hulls[3+h].clip_mins[i] = LittleLong(*data++);
-		for (i = 0; i < 3; i++)
-			loadmodel->hulls[3+h].clip_maxs[i] = LittleLong(*data++);
-
-		for (i = 0; i < numsm; i++)	//load headnode references
-		{
-			loadmodel->submodels[i].headnode[3+h] = LittleLong(*data)+1;
-			data++;
-		}
-	}
-
-	suplementryplanes = data;
-	suplementryclipnodes = (qbyte*)data + sizeof(dplane_t)*numsuplementryplanes;
-}
-
 /*
 =================
 Mod_LoadClipnodes
@@ -4651,10 +4578,10 @@ static qboolean Mod_LoadClipnodes (model_t *loadmodel, qbyte *mod_base, lump_t *
 			return false;
 		}
 	}
-	out = ZG_Malloc(&loadmodel->memgroup, (count+numsuplementryclipnodes)*sizeof(*out));//space for both
+	out = ZG_Malloc(&loadmodel->memgroup, count*sizeof(*out));//space for both
 
 	loadmodel->clipnodes = out;
-	loadmodel->numclipnodes = count+numsuplementryclipnodes;
+	loadmodel->numclipnodes = count;
 
 
 	if (hexen2map)
@@ -4842,31 +4769,6 @@ static qboolean Mod_LoadClipnodes (model_t *loadmodel, qbyte *mod_base, lump_t *
 		}
 	}
 
-	if (numsuplementryclipnodes)	//now load the crouch ones.
-	{
-/*This looks buggy*/
-		for (i = 3; i < MAX_MAP_HULLSM; i++)
-		{
-			hull = &loadmodel->hulls[i];
-			hull->planes = suplementryplanes;
-			hull->clipnodes = out-1;
-			hull->firstclipnode = 0;
-			hull->lastclipnode = numsuplementryclipnodes;
-			hull->available = true;
-		}
-
-		ins = suplementryclipnodes;
-
-		for (i=0 ; i<numsuplementryclipnodes ; i++, out++, ins++)
-		{
-			out->planenum = LittleLong(ins->planenum);
-			out->children[0] = LittleShort(ins->children[0]);
-			out->children[0] += out->children[0]>=0?1:0;
-			out->children[1] = LittleShort(ins->children[1]);
-			out->children[1] += out->children[1]>=0?1:0;
-		}
-	}
-
 	return true;
 }
 
@@ -4929,10 +4831,10 @@ static qboolean Mod_LoadPlanes (model_t *loadmodel, qbyte *mod_base, lump_t *l)
 		Con_Printf (CON_ERROR "MOD_LoadBmodel: funny lump size in %s\n",loadmodel->name);
 		return false;
 	}
-	out = ZG_Malloc(&loadmodel->memgroup, (count+numsuplementryplanes)*2*sizeof(*out));
+	out = ZG_Malloc(&loadmodel->memgroup, count*2*sizeof(*out));
 	
 	loadmodel->planes = out;
-	loadmodel->numplanes = count+numsuplementryplanes;
+	loadmodel->numplanes = count;
 
 	for ( i=0 ; i<count ; i++, in++, out++)
 	{
@@ -4947,26 +4849,6 @@ static qboolean Mod_LoadPlanes (model_t *loadmodel, qbyte *mod_base, lump_t *l)
 		out->dist = LittleFloat (in->dist);
 		out->type = LittleLong (in->type);
 		out->signbits = bits;
-	}
-
-	if (numsuplementryplanes)
-	{
-		in = suplementryplanes;
-		suplementryplanes = out;
-		for ( i=0 ; i<numsuplementryplanes ; i++, in++, out++)
-		{
-			bits = 0;
-			for (j=0 ; j<3 ; j++)
-			{
-				out->normal[j] = LittleFloat (in->normal[j]);
-				if (out->normal[j] < 0)
-					bits |= 1<<j;
-			}
-
-			out->dist = LittleFloat (in->dist);
-			out->type = LittleLong (in->type);
-			out->signbits = bits;
-		}
 	}
 
 	return true;
@@ -5400,8 +5282,6 @@ static qboolean QDECL Mod_LoadBrushModel (model_t *mod, void *buffer, size_t fsi
 		
 	noerrors = true;
 
-	crouchhullfile = NULL;
-
 	Mod_FindVisPatch(&vispatch, mod, header.lumps[LUMP_LEAFS].filelen);
 
 // load into heap
@@ -5421,11 +5301,6 @@ static qboolean QDECL Mod_LoadBrushModel (model_t *mod, void *buffer, size_t fsi
 	}
 	TRACE(("Loading Submodels\n"));
 	noerrors = noerrors && Mod_LoadSubmodels (mod, mod_base, &header.lumps[LUMP_MODELS], &hexen2map);
-	if (noerrors)
-	{
-		TRACE(("Loading CH\n"));
-		Mod_LoadCrouchHull(mod);
-	}
 	TRACE(("Loading Planes\n"));
 	noerrors = noerrors && Mod_LoadPlanes (mod, mod_base, &header.lumps[LUMP_PLANES]);
 	TRACE(("Loading Entities\n"));
@@ -5461,12 +5336,6 @@ static qboolean QDECL Mod_LoadBrushModel (model_t *mod, void *buffer, size_t fsi
 	TRACE(("sorting shaders\n"));
 	if (!isDedicated && noerrors)
 		Mod_SortShaders(mod);
-
-	if (crouchhullfile)
-	{
-		FS_FreeFile(crouchhullfile);
-		crouchhullfile=NULL;
-	}
 
 	BZ_Free(vispatch.fileptr);
 

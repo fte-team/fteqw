@@ -2362,6 +2362,7 @@ client_t *SV_AddSplit(client_t *controller, char *info, int id)
 	cl->spectator = asspec;
 	cl->netchan.remote_address = controller->netchan.remote_address;
 	cl->netchan.message.prim = controller->netchan.message.prim;
+	cl->backbuf.prim = controller->backbuf.prim;
 	cl->netchan.netprim = controller->netchan.netprim;
 	cl->zquake_extensions = controller->zquake_extensions;
 	cl->fteprotocolextensions = controller->fteprotocolextensions;
@@ -2968,8 +2969,9 @@ void SV_DoDirectConnect(svconnectinfo_t *fte_restrict info)
 	else
 		newcl->datagram.maxsize = MAX_DATAGRAM;
 
-	newcl->netchan.netprim = svs.netprim;
-	newcl->datagram.prim = svs.netprim;
+	newcl->netchan.netprim =
+	newcl->datagram.prim =
+	newcl->backbuf.prim =
 	newcl->netchan.message.prim = svs.netprim;
 
 	SV_ClientProtocolExtensionsChanged(newcl);

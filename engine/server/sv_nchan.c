@@ -33,6 +33,7 @@ void ClientReliableCheckBlock(client_t *cl, int maxsize)
 		if (!cl->num_backbuf)
 		{
 			memset(&cl->backbuf, 0, sizeof(cl->backbuf));
+			cl->backbuf.prim = cl->netchan.message.prim;
 			cl->backbuf.allowoverflow = true;
 			cl->backbuf.data = cl->backbuf_data[0];
 			cl->backbuf.maxsize = min(cl->netchan.message.maxsize, sizeof(cl->backbuf_data[0]));
@@ -52,6 +53,7 @@ void ClientReliableCheckBlock(client_t *cl, int maxsize)
 				return;
 			}
 			memset(&cl->backbuf, 0, sizeof(cl->backbuf));
+			cl->backbuf.prim = cl->netchan.message.prim;
 			cl->backbuf.allowoverflow = true;
 			cl->backbuf.data = cl->backbuf_data[cl->num_backbuf];
 			cl->backbuf.maxsize = min(cl->netchan.message.maxsize, sizeof(cl->backbuf_data[cl->num_backbuf]));

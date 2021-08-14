@@ -748,7 +748,8 @@ void SV_SetupNetworkBuffers(qboolean bigcoords)
 
 		//make sure those are kept up to date too.
 		svs.clients[i].datagram.prim =
-		svs.clients[i].netchan.message.prim = svs.clients[i].netchan.netprim;
+		svs.clients[i].netchan.message.prim =
+		svs.clients[i].backbuf.prim = svs.clients[i].netchan.netprim;
 	}
 
 	//

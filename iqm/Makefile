@@ -1,3 +1,6 @@
+#Note: This makefile builds the iqm tool without any fte dependancies
+#      This means no .mdl export nor extended model format support (read: no gltf/glb import)
+
 CXXFLAGS= -O3 -fomit-frame-pointer
 override CXXFLAGS+= -Wall -fsigned-char
 

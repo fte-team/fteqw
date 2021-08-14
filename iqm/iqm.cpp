@@ -1,7 +1,14 @@
-#define FTEPLUGIN
-#define GLQUAKE	//this is shit, but ensures index sizes come out the right size
-#include "../plugins/plugin.h"
-#include "com_mesh.h"
+#ifdef IQMTOOL
+	//building as part of fte. we can pull in fte components for extra features.
+	#define FTEPLUGIN
+	#define GLQUAKE	//this is shit, but ensures index sizes come out the right size
+	#include "../plugins/plugin.h"
+	#include "com_mesh.h"
+
+	#define IQMTOOL_MDLEXPORT
+#else
+	//building standalone. any fte modules cannot be used.
+#endif
 
 #include "util.h"
 
@@ -3875,6 +3882,7 @@ bool loadfbx(const char *filename, const filespec &spec)
 	return true;
 }
 
+#ifdef FTEPLUGIN
 namespace fte
 {
 	static vector<cvar_t*> cvars;
@@ -4321,6 +4329,7 @@ namespace fte
 		return ret;
 	}
 }
+#endif
 
 void genhitboxes(vector<hitbox> &hitboxes)
 {
@@ -4849,7 +4858,7 @@ bool writeiqm(const char *filename)
 	return true;
 }
 
-
+#ifdef IQMTOOL_MDLEXPORT
 static uchar qmdl_bestnorm(Vec3 &v)
 {
 	#define NUMVERTEXNORMALS	162
@@ -5323,6 +5332,18 @@ static bool writemd16(const char *filename)
 {
 	return writemdl(filename, true);
 }
+#else
+static bool writeqmdl(const char *filename)
+{
+	fatal("(q1)mdl output disabled at compile time");
+	return false;
+}
+static bool writemd16(const char *filename)
+{
+	fatal("md16 output disabled at compile time");
+	return false;
+}
+#endif
 
 static bool writemd3(const char *filename)
 {
@@ -5851,7 +5872,14 @@ int main(int argc, char **argv)
 		{
 			if(argv[i][1] == '-')
 			{
-				if(!strcasecmp(&argv[i][2], "set")) { if(i + 2 < argc) fte::Cvar_Create(argv[i+1], argv[i+2], 0, NULL, "cmdline");i+=2;}
+				if(!strcasecmp(&argv[i][2], "set"))
+				{
+#ifdef FTEPLUGIN
+					if(i + 2 < argc)
+						fte::Cvar_Create(argv[i+1], argv[i+2], 0, NULL, "cmdline");
+#endif
+					i+=2;
+				}
 				else if(!strcasecmp(&argv[i][2], "cmd")) { if(i + 1 < argc) parsecommands(argv[++i], outfiles, infiles, hitboxes); }
 				else if(!strcasecmp(&argv[i][2], "noext")) noext = true;
 				else if(!strcasecmp(&argv[i][2], "fps")) { if(i + 1 < argc) inspec.fps = atof(argv[++i]); }
@@ -5975,11 +6003,19 @@ int main(int argc, char **argv)
 		}
 		else if(!strcasecmp(type, ".glb"))
 		{
+#ifdef FTEPLUGIN
 			if(!fte::loadglb(infile, inspec)) fatal("failed reading: %s", infile);
+#else
+			fatal("GLTF/GLB support was disabled at compile time");
+#endif
 		}
 		else if(!strcasecmp(type, ".gltf"))
 		{
+#ifdef FTEPLUGIN
 			if(!fte::loadgltf(infile, inspec)) fatal("failed reading: %s", infile);
+#else
+			fatal("GLTF/GLB support was disabled at compile time");
+#endif
 		}
 		else fatal("unknown file type: %s", type);	 
 	}

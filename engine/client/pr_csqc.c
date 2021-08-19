@@ -248,6 +248,7 @@ static void CSQC_FindGlobals(qboolean nofuncs)
 		csqcg.input_head_status = csqcg.input_left_status = csqcg.input_right_status = NULL;
 		csqcg.input_head_angles = csqcg.input_left_angles = csqcg.input_right_angles = NULL;
 		csqcg.input_head_origin = csqcg.input_left_origin = csqcg.input_right_origin = NULL;
+		csqcg.input_head_weapon = csqcg.input_left_weapon = csqcg.input_right_weapon = NULL;
 	}
 	else if (csqcg.CSQC_UpdateView || csqcg.CSQC_UpdateViewLoading)
 	{	//full csqc AND simplecsqc's entry points at the same time are a bad idea that just result in confusion.
@@ -3871,6 +3872,8 @@ static void cs_set_input_state (usercmd_t *cmd)
 		csqcg.input_head_avelocity[1] = SHORT2ANGLE(cmd->vr[VRDEV_HEAD].avelocity[1]);
 		csqcg.input_head_avelocity[2] = SHORT2ANGLE(cmd->vr[VRDEV_HEAD].avelocity[2]);
 	}
+	if (csqcg.input_head_weapon)
+		*csqcg.input_head_weapon = cmd->vr[VRDEV_HEAD].weapon;
 
 	if (csqcg.input_left_status)
 		*csqcg.input_left_status = cmd->vr[VRDEV_LEFT].status;
@@ -3971,6 +3974,8 @@ static void cs_get_input_state (usercmd_t *cmd)
 		cmd->vr[VRDEV_HEAD].avelocity[1] = ANGLE2SHORT(csqcg.input_head_avelocity[1]);
 		cmd->vr[VRDEV_HEAD].avelocity[2] = ANGLE2SHORT(csqcg.input_head_avelocity[2]);
 	}
+	if (csqcg.input_head_weapon)
+		cmd->vr[VRDEV_HEAD].weapon = *csqcg.input_head_weapon;
 
 	if (csqcg.input_left_status)
 		cmd->vr[VRDEV_LEFT].status = *csqcg.input_left_status;
@@ -3990,6 +3995,8 @@ static void cs_get_input_state (usercmd_t *cmd)
 		cmd->vr[VRDEV_LEFT].avelocity[1] = ANGLE2SHORT(csqcg.input_left_avelocity[1]);
 		cmd->vr[VRDEV_LEFT].avelocity[2] = ANGLE2SHORT(csqcg.input_left_avelocity[2]);
 	}
+	if (csqcg.input_left_weapon)
+		cmd->vr[VRDEV_LEFT].weapon = *csqcg.input_left_weapon;
 
 	if (csqcg.input_right_status)
 		cmd->vr[VRDEV_RIGHT].status = *csqcg.input_right_status;
@@ -4009,6 +4016,8 @@ static void cs_get_input_state (usercmd_t *cmd)
 		cmd->vr[VRDEV_RIGHT].avelocity[1] = ANGLE2SHORT(csqcg.input_right_avelocity[1]);
 		cmd->vr[VRDEV_RIGHT].avelocity[2] = ANGLE2SHORT(csqcg.input_right_avelocity[2]);
 	}
+	if (csqcg.input_right_weapon)
+		cmd->vr[VRDEV_RIGHT].weapon = *csqcg.input_right_weapon;
 }
 
 //sets implicit pause (only works when singleplayer)

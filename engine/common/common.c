@@ -1353,6 +1353,13 @@ void MSGQ2_WriteDeltaUsercmd (sizebuf_t *buf, const usercmd_t *from, const userc
 //#define	UC_UNUSED		(1<<31)
 #define UC_UNSUPPORTED (~(UC_ANGLE1 | UC_ANGLE2 | UC_ANGLE3 | UC_FORWARD | UC_RIGHT | UC_BUTTONS | UC_IMPULSE | UC_UP | UC_ABSANG | UC_BIGMOVES | UC_WEAPON | UC_CURSORFLDS | UC_LIGHTLEV | UC_VR_HEAD | UC_VR_RIGHT | UC_VR_LEFT))
 
+#define UC_VR_STATUS		(1<<0)
+#define UC_VR_ANG			(1<<1)
+#define UC_VR_AVEL			(1<<2)
+#define UC_VR_ORG			(1<<3)
+#define UC_VR_VEL			(1<<4)
+#define UC_VR_WEAPON		(1<<5)
+
 #ifdef HAVE_CLIENT
 fte_inlinestatic qboolean MSG_CompareVR(int i, const usercmd_t *from, const usercmd_t *cmd)
 {
@@ -1366,42 +1373,49 @@ fte_inlinestatic qboolean MSG_CompareVR(int i, const usercmd_t *from, const user
 }
 static  void MSG_WriteVR(int i, sizebuf_t *buf, const usercmd_t *from, const usercmd_t *cmd)
 {
-	quint64_t status = cmd->vr[i].status;
-	status <<= 4;
+	unsigned int bits = 0;
+	if (cmd->vr[i].status != from->vr[i].status)
+		bits |= UC_VR_STATUS;
 	if (cmd->vr[i].angles[0] != from->vr[i].angles[0] || cmd->vr[i].angles[1] != from->vr[i].angles[1] || cmd->vr[i].angles[2] != from->vr[i].angles[2])
-		status |= VRSTATUS_ANG;
+		bits |= UC_VR_ANG;
 	if (cmd->vr[i].avelocity[0] != from->vr[i].avelocity[0] || cmd->vr[i].avelocity[1] != from->vr[i].avelocity[1] || cmd->vr[i].avelocity[2] != from->vr[i].avelocity[2])
-		status |= VRSTATUS_AVEL;
+		bits |= UC_VR_AVEL;
 	if (cmd->vr[i].origin[0] != from->vr[i].origin[0] || cmd->vr[i].origin[1] != from->vr[i].origin[1] || cmd->vr[i].origin[2] != from->vr[i].origin[2])
-		status |= VRSTATUS_ORG;
+		bits |= UC_VR_ORG;
 	if (cmd->vr[i].velocity[0] != from->vr[i].velocity[0] || cmd->vr[i].velocity[1] != from->vr[i].velocity[1] || cmd->vr[i].velocity[2] != from->vr[i].velocity[2])
-		status |= VRSTATUS_VEL;
+		bits |= UC_VR_VEL;
+	if (cmd->vr[i].weapon != from->vr[i].weapon)
+		bits |= UC_VR_WEAPON;
 
-	MSG_WriteUInt64(buf,status);
-	if (status & VRSTATUS_ANG)
+	MSG_WriteUInt64(buf, bits);
+	if (bits & UC_VR_STATUS)
+		MSG_WriteUInt64(buf, cmd->vr[i].status);
+	if (bits & UC_VR_ANG)
 	{
 		MSG_WriteShort(buf, cmd->vr[i].angles[0]);
 		MSG_WriteShort(buf, cmd->vr[i].angles[1]);
 		MSG_WriteShort(buf, cmd->vr[i].angles[2]);
 	}
-	if (status & VRSTATUS_AVEL)
+	if (bits & UC_VR_AVEL)
 	{
 		MSG_WriteShort(buf, cmd->vr[i].avelocity[0]);
 		MSG_WriteShort(buf, cmd->vr[i].avelocity[1]);
 		MSG_WriteShort(buf, cmd->vr[i].avelocity[2]);
 	}
-	if (status & VRSTATUS_ORG)
+	if (bits & UC_VR_ORG)
 	{
 		MSG_WriteFloat(buf, cmd->vr[i].origin[0]);
 		MSG_WriteFloat(buf, cmd->vr[i].origin[1]);
 		MSG_WriteFloat(buf, cmd->vr[i].origin[2]);
 	}
-	if (status & VRSTATUS_VEL)
+	if (bits & UC_VR_VEL)
 	{
 		MSG_WriteFloat(buf, cmd->vr[i].velocity[0]);
 		MSG_WriteFloat(buf, cmd->vr[i].velocity[1]);
 		MSG_WriteFloat(buf, cmd->vr[i].velocity[2]);
 	}
+	if (bits & UC_VR_WEAPON)
+		MSG_WriteUInt64(buf, cmd->vr[i].weapon);
 }
 void MSGFTE_WriteDeltaUsercmd (sizebuf_t *buf, const short baseangles[3], const usercmd_t *from, const usercmd_t *cmd)
 {
@@ -1533,32 +1547,35 @@ void MSGFTE_WriteDeltaUsercmd (sizebuf_t *buf, const short baseangles[3], const 
 #ifdef HAVE_SERVER
 static void MSG_ReadVR(int i, usercmd_t *cmd)
 {
-	quint64_t status = MSG_ReadUInt64();
-	cmd->vr[i].status = status>>4;
-	if (status & VRSTATUS_ANG)
+	quint64_t bits = MSG_ReadUInt64();
+	if (bits & UC_VR_STATUS)
+		cmd->vr[i].status = MSG_ReadUInt64();
+	if (bits & UC_VR_ANG)
 	{
 		cmd->vr[i].angles[0] = MSG_ReadShort();
 		cmd->vr[i].angles[1] = MSG_ReadShort();
 		cmd->vr[i].angles[2] = MSG_ReadShort();
 	}
-	if (status & VRSTATUS_AVEL)
+	if (bits & UC_VR_AVEL)
 	{
 		cmd->vr[i].avelocity[0] = MSG_ReadShort();
 		cmd->vr[i].avelocity[1] = MSG_ReadShort();
 		cmd->vr[i].avelocity[2] = MSG_ReadShort();
 	}
-	if (status & VRSTATUS_ORG)
+	if (bits & UC_VR_ORG)
 	{
 		cmd->vr[i].origin[0] = MSG_ReadFloat();
 		cmd->vr[i].origin[1] = MSG_ReadFloat();
 		cmd->vr[i].origin[2] = MSG_ReadFloat();
 	}
-	if (status & VRSTATUS_VEL)
+	if (bits & UC_VR_VEL)
 	{
 		cmd->vr[i].velocity[0] = MSG_ReadFloat();
 		cmd->vr[i].velocity[1] = MSG_ReadFloat();
 		cmd->vr[i].velocity[2] = MSG_ReadFloat();
 	}
+	if (bits & UC_VR_WEAPON)
+		cmd->vr[i].weapon = MSG_ReadUInt64();
 }
 void MSGFTE_ReadDeltaUsercmd (const usercmd_t *from, usercmd_t *cmd)
 {

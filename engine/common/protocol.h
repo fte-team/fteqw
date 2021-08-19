@@ -1210,6 +1210,7 @@ struct vrdevinfo_s
 	short			avelocity[3];
 	vec3_t			origin;
 	vec3_t			velocity;
+	unsigned int	weapon;
 #define VRDEV_LEFT	0
 #define VRDEV_RIGHT	1
 #define VRDEV_HEAD	2

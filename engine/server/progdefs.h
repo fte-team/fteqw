@@ -122,16 +122,19 @@ typedef struct nqglobalvars_s
 	pvec3_t *input_head_angles;
 	pvec3_t *input_head_velocity;
 	pvec3_t *input_head_avelocity;
+	puint_t *input_head_weapon;
 	puint_t *input_left_status;
 	pvec3_t *input_left_origin;
 	pvec3_t *input_left_angles;
 	pvec3_t *input_left_velocity;
 	pvec3_t *input_left_avelocity;
+	puint_t *input_left_weapon;
 	puint_t *input_right_status;
 	pvec3_t *input_right_origin;
 	pvec3_t *input_right_angles;
 	pvec3_t *input_right_velocity;
 	pvec3_t *input_right_avelocity;
+	puint_t *input_right_weapon;
 
 	pvec3_t *global_gravitydir;
 	pvec_t *spawnparamglobals[NUM_SPAWN_PARMS];

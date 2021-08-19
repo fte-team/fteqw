@@ -8253,12 +8253,12 @@ void SV_ExecuteClientMessage (client_t *cl)
 						//store the info for the physics code to pick up the next time it ticks.
 						//yeah, nq sucks.
 						split->isindependant = false;
-						if (!split->edict->v->fixangle)
+						/*if (!split->edict->v->fixangle)
 						{
 							split->edict->v->v_angle[0] = newcmd.angles[0]* (360.0/65536);
 							split->edict->v->v_angle[1] = newcmd.angles[1]* (360.0/65536);
 							split->edict->v->v_angle[2] = newcmd.angles[2]* (360.0/65536);
-						}
+						}*/
 
 						if (newcmd.impulse)// && SV_FilterImpulse(newcmd.impulse, host_client->trustlevel))
 							split->edict->v->impulse = newcmd.impulse;
@@ -8750,9 +8750,9 @@ void SVNQ_ReadClientMove (qboolean forceangle16)
 		}
 	}
 
-	host_client->edict->v->v_angle[0] = SHORT2ANGLE(cmd.angles[0]);
+	/*host_client->edict->v->v_angle[0] = SHORT2ANGLE(cmd.angles[0]);
 	host_client->edict->v->v_angle[1] = SHORT2ANGLE(cmd.angles[1]);
-	host_client->edict->v->v_angle[2] = SHORT2ANGLE(cmd.angles[2]);
+	host_client->edict->v->v_angle[2] = SHORT2ANGLE(cmd.angles[2]);*/
 
 	if (SV_RunFullQCMovement(host_client, &cmd))
 	{	//mod provides its own movement logic. this forces independance.

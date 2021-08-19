@@ -1133,16 +1133,19 @@ enum
 	globalvector(input_head_angles)			/*filled by getinputstate, for vr*/ \
 	globalvector(input_head_velocity)		/*filled by getinputstate, for vr*/ \
 	globalvector(input_head_avelocity)		/*filled by getinputstate, for vr*/ \
+	globaluint  (input_head_weapon)			/*filled by getinputstate, for vr*/ \
 	globaluint  (input_left_status)			/*filled by getinputstate, for vr*/ \
 	globalvector(input_left_origin)			/*filled by getinputstate, for vr*/ \
 	globalvector(input_left_angles)			/*filled by getinputstate, for vr*/ \
 	globalvector(input_left_velocity)		/*filled by getinputstate, for vr*/ \
 	globalvector(input_left_avelocity)		/*filled by getinputstate, for vr*/ \
+	globaluint  (input_left_weapon)			/*filled by getinputstate, for vr*/ \
 	globaluint  (input_right_status)		/*filled by getinputstate, for vr*/ \
 	globalvector(input_right_origin)		/*filled by getinputstate, for vr*/ \
 	globalvector(input_right_angles)		/*filled by getinputstate, for vr*/ \
 	globalvector(input_right_velocity)		/*filled by getinputstate, for vr*/ \
 	globalvector(input_right_avelocity)		/*filled by getinputstate, for vr*/ \
+	globaluint  (input_right_weapon)		/*filled by getinputstate, for vr*/ \
 	\
 	globalvector(global_gravitydir)			/*vector	used when .gravitydir is 0 0 0 */ \
 	globalfloat (dimension_default)			/*float		default value for dimension_hit+dimension_solid*/ \

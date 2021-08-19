@@ -957,16 +957,19 @@ void PR_LoadGlabalStruct(qboolean muted)
 	globalvec		(false, input_head_angles)	\
 	globalvec		(false, input_head_velocity)	\
 	globalvec		(false, input_head_avelocity)	\
+	globaluint		(false, input_head_weapon)	\
 	globaluint		(false, input_left_status)	\
 	globalvec		(false, input_left_origin)	\
 	globalvec		(false, input_left_angles)	\
 	globalvec		(false, input_left_velocity)	\
 	globalvec		(false, input_left_avelocity)	\
+	globaluint		(false, input_left_weapon)	\
 	globaluint		(false, input_right_status)	\
 	globalvec		(false, input_right_origin)	\
 	globalvec		(false, input_right_angles)	\
 	globalvec		(false, input_right_velocity)	\
 	globalvec		(false, input_right_avelocity)	\
+	globaluint		(false, input_right_weapon)	\
 	globalfloat		(false, input_servertime)	\
 	\
 	globalint		(false, serverid)	\
@@ -10323,18 +10326,9 @@ void SV_SetSSQCInputs(usercmd_t *ucmd)
 #define ANGLE2SHORT(x) (x) * (65536/360.0)
 	if (pr_global_ptrs->input_angles)
 	{
-		if (sv_player->v->fixangle)
-		{	//hate this, but somehow still pending
-			(pr_global_struct->input_angles)[0] = sv_player->v->angles[0];
-			(pr_global_struct->input_angles)[1] = sv_player->v->angles[1];
-			(pr_global_struct->input_angles)[2] = sv_player->v->angles[2];
-		}
-		else
-		{
-			(pr_global_struct->input_angles)[0] = SHORT2ANGLE(ucmd->angles[0]);
-			(pr_global_struct->input_angles)[1] = SHORT2ANGLE(ucmd->angles[1]);
-			(pr_global_struct->input_angles)[2] = SHORT2ANGLE(ucmd->angles[2]);
-		}
+		(pr_global_struct->input_angles)[0] = SHORT2ANGLE(ucmd->angles[0]);
+		(pr_global_struct->input_angles)[1] = SHORT2ANGLE(ucmd->angles[1]);
+		(pr_global_struct->input_angles)[2] = SHORT2ANGLE(ucmd->angles[2]);
 	}
 
 	if (pr_global_ptrs->input_movevalues)
@@ -10381,6 +10375,8 @@ void SV_SetSSQCInputs(usercmd_t *ucmd)
 		(pr_global_struct->input_head_avelocity)[1] = SHORT2ANGLE(ucmd->vr[VRDEV_HEAD].avelocity[1]);
 		(pr_global_struct->input_head_avelocity)[2] = SHORT2ANGLE(ucmd->vr[VRDEV_HEAD].avelocity[2]);
 	}
+	if (pr_global_ptrs->input_head_weapon)
+		pr_global_struct->input_head_weapon = ucmd->vr[VRDEV_HEAD].weapon;
 
 	if (pr_global_ptrs->input_left_status)
 		pr_global_struct->input_left_status = ucmd->vr[VRDEV_LEFT].status;
@@ -10400,6 +10396,8 @@ void SV_SetSSQCInputs(usercmd_t *ucmd)
 		(pr_global_struct->input_left_avelocity)[1] = SHORT2ANGLE(ucmd->vr[VRDEV_LEFT].avelocity[1]);
 		(pr_global_struct->input_left_avelocity)[2] = SHORT2ANGLE(ucmd->vr[VRDEV_LEFT].avelocity[2]);
 	}
+	if (pr_global_ptrs->input_left_weapon)
+		pr_global_struct->input_left_weapon = ucmd->vr[VRDEV_LEFT].weapon;
 
 	if (pr_global_ptrs->input_right_status)
 		pr_global_struct->input_right_status = ucmd->vr[VRDEV_RIGHT].status;
@@ -10419,6 +10417,8 @@ void SV_SetSSQCInputs(usercmd_t *ucmd)
 		(pr_global_struct->input_right_avelocity)[1] = SHORT2ANGLE(ucmd->vr[VRDEV_RIGHT].avelocity[1]);
 		(pr_global_struct->input_right_avelocity)[2] = SHORT2ANGLE(ucmd->vr[VRDEV_RIGHT].avelocity[2]);
 	}
+	if (pr_global_ptrs->input_right_weapon)
+		pr_global_struct->input_right_weapon = ucmd->vr[VRDEV_RIGHT].weapon;
 }
 
 //EXT_CSQC_1 (called when a movement command is received. runs full acceleration + movement)
@@ -10441,6 +10441,18 @@ qboolean SV_RunFullQCMovement(client_t *client, usercmd_t *ucmd)
 		}
 #endif
 
+		if (host_client->state && host_client->protocol != SCP_BAD)
+		{
+			if (!sv_player->v->fixangle)
+			{
+				sv_player->v->v_angle[0] = SHORT2ANGLE(ucmd->angles[0]);
+				sv_player->v->v_angle[1] = SHORT2ANGLE(ucmd->angles[1]);
+				sv_player->v->v_angle[2] = SHORT2ANGLE(ucmd->angles[2]);
+			}
+			sv_player->xv->movement[0] = ucmd->forwardmove;
+			sv_player->xv->movement[1] = ucmd->sidemove;
+			sv_player->xv->movement[2] = ucmd->upmove;
+		}
 		VectorCopy(sv_player->v->v_angle, startangle);
 
 #ifdef HEXEN2
@@ -10456,13 +10468,6 @@ qboolean SV_RunFullQCMovement(client_t *client, usercmd_t *ucmd)
 		{
 			sv_player->v->impulse = 0;
 			sv_player->v->button0 = 0;
-		}
-
-		if (host_client->state && host_client->protocol != SCP_BAD)
-		{
-			sv_player->xv->movement[0] = ucmd->forwardmove;
-			sv_player->xv->movement[1] = ucmd->sidemove;
-			sv_player->xv->movement[2] = ucmd->upmove;
 		}
 
 		WPhys_CheckVelocity(&sv.world, (wedict_t*)sv_player);

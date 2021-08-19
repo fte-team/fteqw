@@ -198,7 +198,7 @@ static qboolean Con_FakeSubPrint(const char *subname, const char *text)
 typedef struct ircclient_s {
 	struct ircclient_s *next;
 
-	char id[16];	//used for console prints, so we can match up consoles and clients.
+	char id[64];	//used for console prints, so we can match up consoles and clients.
 
 	char server[64];
 	int port;

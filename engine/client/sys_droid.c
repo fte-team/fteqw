@@ -1018,6 +1018,10 @@ qboolean Sys_GetFreeDiskSpace(const char *path, quint64_t *freespace)
 void Sys_SendKeyEvents(void)
 {
 }
+char *Sys_URIScheme_NeedsRegistering(void)
+{	//android does its mime/etc registrations via android xml junk. dynamically registering stuff isn't supported, so pretend that its already registered to avoid annoying prompts.
+	return NULL;
+}
 void Sys_Init(void)
 {
 	Cvar_Register(&sys_keepscreenon, "android stuff");

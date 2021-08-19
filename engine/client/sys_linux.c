@@ -289,10 +289,84 @@ void Sys_Quit (void)
 	exit(0);
 }
 
+char *Sys_URIScheme_NeedsRegistering(void)
+{
+	qboolean found;
+	qofs_t insize;
+	char *in;
+	char confbase[MAX_OSPATH];
+
+	char scheme[64];
+	const char *schemes = fs_manifest->schemes;
+
+	schemes=COM_ParseOut(schemes, scheme, sizeof(scheme));
+	if (!schemes)
+		return NULL;
+
+	{	//user
+		const char *config = getenv("XDG_CONFIG_HOME");
+		const char *home = getenv("HOME");
+		if (config && *config)
+			Q_strncpyz(confbase, config, sizeof(confbase));
+		else
+		{
+			if (home && *home)
+				Q_snprintfz(confbase, sizeof(confbase), "%s/.config", home);
+			else
+				return NULL;	//can't register anyway, just pretend its registered.
+		}
+	}
+
+	//check if the scheme is registered or not.
+	in = FS_MallocFile(va("%s/mimeapps.list", confbase), FS_SYSTEM, &insize);
+	if (in)
+	{
+		do
+		{
+			qboolean inadded = false;
+			char *l = in;
+			const char *schemeline = va("x-scheme-handler/%s=fte-%s.desktop;", scheme, fs_manifest->installation);
+			size_t schemelinelen = strlen(schemeline);
+			found = false;
+			while(*l)
+			{
+				char *le;
+				while(*l == ' ' || *l == '\n')
+					l++;
+				le = strchr(l, '\n');
+				if (le)
+					le = le+1;
+				else
+					le = l + strlen(l);
+				if (!strncmp(l, "[Added Associations]", 20))
+					inadded = true;
+				else if (!strncmp(l, "[", 1))
+					inadded = false;
+				else if (inadded && !strncmp(l, schemeline, schemelinelen))
+				{
+					found = true;
+					break;
+				}
+				l = le;
+			}
+		} while(found && (schemes=COM_ParseOut(schemes, scheme, sizeof(scheme))));
+		Z_Free(in);
+	}
+	else
+		found = false;
+
+	if (found)
+		return NULL;
+	return Z_StrDup(scheme);
+}
 static void Sys_Register_File_Associations_f(void)
 {
+	const char *s;
 	char xdgbase[MAX_OSPATH];
 	char confbase[MAX_OSPATH];
+
+	char scheme[MAX_OSPATH];
+	const char *schemes = fs_manifest->schemes;
 
 	if (1)
 	{	//user
@@ -357,41 +431,66 @@ static void Sys_Register_File_Associations_f(void)
 
 	//we need to create some .desktop file first, so stuff knows how to start us up.
 	{
+		vfsfile_t *f;
 		char iconsyspath[MAX_OSPATH];
 		char *exe = realpath(host_parms.argv[0], NULL);
 		char *basedir = realpath(com_gamepath, NULL);
 		const char *iconname = fs_manifest->installation;
-		const char *desktopfile = 
-			"[Desktop Entry]\n"
-			"Type=Application\n"
-			"Encoding=UTF-8\n"
-			"Name=%s\n"
-			"Comment=Awesome First Person Shooter\n"	//again should be a manicfest item
-			"Exec=\"%s\" %%u\n"	//FIXME: FS_GetManifestArgs! etc!
-			"Path=%s\n"
-			"Icon=%s\n"
-			"Terminal=false\n"
-			"Categories=Game;\n"
-			"MimeType=" "application/x-quakeworlddemo;" "x-scheme-handler/qw;\n"
-			;
+
+		if (!exe)
+		{
+			int i;
+			if (strchr(host_parms.argv[0], '/') && (i=readlink("/proc/self/exe", iconsyspath, sizeof(iconsyspath)-1))>0)
+			{	//if they used a relative path to invoke the binary, replace it with an absolute one.
+				iconsyspath[i] = 0;
+				exe = strdup(iconsyspath);
+			}
+			else	//no absolute path. assume it was loaded from the (default) path.
+				exe = strdup(host_parms.argv[0]);
+		}
+
 		if (!strcmp(iconname, "afterquake") || !strcmp(iconname, "nq"))	//hacks so that we don't need to create icons.
 			iconname = "quake";
 
 		if (FS_NativePath("icon.png", FS_PUBBASEGAMEONLY, iconsyspath, sizeof(iconsyspath)))
 			iconname = iconsyspath;
 
-		desktopfile = va(desktopfile,
+		s = va("%s/applications/fte-%s.desktop", xdgbase, fs_manifest->installation);
+		FS_CreatePath(s, FS_SYSTEM);
+		f = FS_OpenVFS(s, "wb", FS_SYSTEM);
+		if (f)
+		{
+			VFS_PRINTF(f,
+				"[Desktop Entry]\n"
+				"Type=Application\n"
+				"Encoding=UTF-8\n"
+				"Name=%s\n"
+				"Comment=Awesome First Person Shooter\n"	//again should be a manicfest item
+				"Exec=\"%s\" %%u %s\n"
+				"Path=%s\n"
+				"Icon=%s\n"
+				"Terminal=false\n"
+				"Categories=Game;\n"
+				"MimeType=" "application/x-quakeworlddemo;",
 					fs_manifest->formalname?fs_manifest->formalname:fs_manifest->installation,
-					exe, basedir, iconname);
+					exe, FS_GetManifestArgs(), basedir, iconname);
+
+			for (s = schemes; (s=COM_ParseOut(s,scheme,sizeof(scheme)));)
+				VFS_PRINTF(f, "x-scheme-handler/%s;", scheme);
+			VFS_PRINTF(f, "\n");
+
+			VFS_CLOSE(f);
+		}
+
 		free(exe);
 		free(basedir);
-		FS_WriteFile(va("%s/applications/fte-%s.desktop", xdgbase, fs_manifest->installation), desktopfile, strlen(desktopfile), FS_SYSTEM);
 
 		//FIXME: read icon.png and write it to ~/.local/share/icons/hicolor/WxH/apps/foo.png
 	}
 
 	//we need to set some default applications.
 	//write out a new file and rename the new over the top of the old
+	for (s = schemes; (s=COM_ParseOut(s,scheme,sizeof(scheme)));)
 	{
 		char *foundassoc = NULL;
 		vfsfile_t *out = FS_OpenVFS(va("%s/.mimeapps.list.new", confbase), "wb", FS_SYSTEM);
@@ -403,6 +502,8 @@ static void Sys_Register_File_Associations_f(void)
 			{
 				qboolean inadded = false;
 				char *l = in;
+				const char *schemeline = va("x-scheme-handler/%s=", scheme);
+				size_t schemelinelen = strlen(schemeline);
 				while(*l)
 				{
 					char *le;
@@ -421,10 +522,10 @@ static void Sys_Register_File_Associations_f(void)
 					}
 					else if (!strncmp(l, "[", 1))
 						inadded = false;
-					else if (inadded && !strncmp(l, "x-scheme-handler/qw=", 20))
+					else if (inadded && !strncmp(l, schemeline, schemelinelen))
 					{
 						foundassoc = l;
-						insize -= strlen(le);
+						insize -= le-l;
 						memmove(l, le, strlen(le));	//remove the line
 					}
 					l = le;
@@ -432,7 +533,7 @@ static void Sys_Register_File_Associations_f(void)
 				if (foundassoc)
 				{	//if we found it, or somewhere to insert it, then insert it.
 					VFS_WRITE(out, in, foundassoc-in);
-					VFS_PRINTF(out, "x-scheme-handler/qw=fte-%s.desktop;\n", fs_manifest->installation);
+					VFS_PRINTF(out, "x-scheme-handler/%s=fte-%s.desktop;\n", scheme, fs_manifest->installation);
 					VFS_WRITE(out, foundassoc, insize - (foundassoc-in));
 				}
 				else
@@ -442,7 +543,7 @@ static void Sys_Register_File_Associations_f(void)
 			if (!foundassoc)
 			{	//if file not found, or no appropriate section, just concat it on the end.
 				VFS_PRINTF(out, "[Added Associations]\n");
-				VFS_PRINTF(out, "x-scheme-handler/qw=fte-%s.desktop;\n", fs_manifest->installation);
+				VFS_PRINTF(out, "x-scheme-handler/%s=fte-%s.desktop;\n", scheme, fs_manifest->installation);
 			}
 			VFS_FLUSH(out);
 			VFS_CLOSE(out);

@@ -725,6 +725,11 @@ int	Sys_FileTime (char *path)
 	return -1;
 }
 
+char *Sys_URIScheme_NeedsRegistering(void)
+{   //no support.
+    return NULL;
+}
+
 void Sys_Init(void)
 {
 	SDL_Init(SDL_INIT_TIMER | SDL_INIT_VIDEO | SDL_INIT_NOPARACHUTE);

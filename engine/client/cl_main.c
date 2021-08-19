@@ -123,6 +123,7 @@ cvar_t cl_demospeed = CVARF("cl_demospeed", "1", 0);
 cvar_t	cl_demoreel = CVARFD("cl_demoreel", "0", CVAR_SAVE, "When enabled, the engine will begin playing a demo loop on startup.");
 
 cvar_t cl_loopbackprotocol = CVARD("cl_loopbackprotocol", "qw", "Which protocol to use for single-player/the internal client. Should be one of: qw, qwid, nqid, nq, fitz, bjp3, dp6, dp7, auto. If 'auto', will use qw protocols for qw mods, and nq protocols for nq mods.");
+static cvar_t cl_verify_urischeme = CVARAFD("cl_verify_urischeme", "0", "cl_verify_qwprotocol"/*ezquake, inappropriate for misc schemes*/, CVAR_NOSAVE/*checked at startup, so its only really default.cfg that sets it*/, "0: Do nothing.\n1: Check whether our protocol scheme is registered and prompt the user to register associations.\n2: Always re-register on every startup, without prompting. Sledgehammer style.");
 
 
 cvar_t	cl_threadedphysics = CVARD("cl_threadedphysics", "0", "When set, client input frames are generated and sent on a worker thread");
@@ -5006,6 +5007,8 @@ void CL_Init (void)
 #ifndef SERVERONLY
 	Cvar_Register (&cl_loopbackprotocol,				cl_controlgroup);
 #endif
+	Cvar_Register (&cl_verify_urischeme,			cl_controlgroup);
+
 	Cvar_Register (&cl_countpendingpl,				cl_controlgroup);
 	Cvar_Register (&cl_threadedphysics,				cl_controlgroup);
 	hud_tracking_show = Cvar_Get("hud_tracking_show", "1", 0, "statusbar");
@@ -6003,18 +6006,62 @@ qboolean Host_RunFile(const char *fname, int nlen, vfsfile_t *file)
 	else
 #endif
 	{
-		if (nlen >= 5 && !strncmp(fname, "qw://", 5))
+		const char *schemeend = strstr(fname, "://");
+
+		if (schemeend)
 		{	//this is also implemented by ezquake, so be careful here...
-			//"qw://[stream@]host[:port]/COMMAND" join, spectate, qtvplay
+			//examples:
+			//	"quake2://broker:port"
+			//	"quake2:rtc://broker:port/game"
+			//	"qw://[stream@]host[:port]/COMMAND" join, spectate, qtvplay
+			//we'll chop off any non-auth prefix, its just so we can handle multiple protocols via a single uri scheme.
 			char *t, *cmd;
 			const char *url;
 			char buffer[8192];
-			t = Z_Malloc(nlen+1);
-			memcpy(t, fname, nlen);
-			t[nlen] = 0;
-			url = t+5;
+			const char *schemestart = strchr(fname, ':');
+			int schemelen, urilen;
 
-			for (cmd = t+5; *cmd; cmd++)
+			//if its one of our explicit protocols then use the url as-is
+			const char *netschemes[] = {"udp", "udp4", "udp6", "ipx", "tcp", "tcp4", "tcp6", "spx", "ws", "wss", "tls", "dtls", "ice", "rtc", "ices", "rtcs", "irc", "udg", "unix"};
+			int i;
+			size_t slen;
+
+			if (!schemestart || schemestart==schemeend)
+				schemestart = fname;
+			else
+				schemestart++;
+			schemelen = schemeend-schemestart;
+			urilen = nlen-(schemestart-fname);
+
+			for (i = 0; i < countof(netschemes); i++)
+			{
+				slen = strlen(netschemes[i]);
+				if (schemelen == slen && !strncmp(schemestart, netschemes[i], slen))
+				{
+					char quoted[8192];
+					char *t = Z_Malloc(urilen+1);
+					memcpy(t, schemestart, urilen);
+					t[urilen] = 0;
+
+					Cbuf_AddText(va("connect %s\n", COM_QuotedString(t, quoted, sizeof(quoted), false)), RESTRICT_LOCAL);
+
+					if(file)
+						VFS_CLOSE(file);
+					Z_Free(t);
+					return true;
+				}
+			}
+
+			schemelen++;
+			if (!strncmp(schemestart+schemelen, "//", schemelen))
+				schemelen+=2;
+
+			t = Z_Malloc(urilen+1);
+			memcpy(t, schemestart, urilen);
+			t[urilen] = 0;
+			url = t+schemelen;
+
+			for (cmd = t+schemelen; *cmd; cmd++)
 			{
 				if (*cmd == '/')
 				{
@@ -6042,25 +6089,6 @@ qboolean Host_RunFile(const char *fname, int nlen, vfsfile_t *file)
 				VFS_CLOSE(file);
 			Z_Free(t);
 			return true;
-		}
-
-		{
-			const char *netschemes[] = {"udp://", "udp4//", "udp6//", "ipx://", "tcp://", "tcp4//", "tcp6//", "spx://", "ws://", "wss://", "tls://", "dtls://", "ice://", "rtc://", "ices://", "rtcs://", "irc://", "udg://", "unix://"};
-			int i;
-			size_t slen;
-			for (i = 0; i < countof(netschemes); i++)
-			{
-				slen = strlen(netschemes[i]);
-				if (nlen >= slen && !strncmp(fname, netschemes[i], slen))
-				{
-					char quoted[8192];
-					char *t = Z_Malloc(nlen+1);
-					memcpy(t, fname, nlen);
-					t[nlen] = 0;
-					Cbuf_AddText(va("connect %s\n", COM_QuotedString(t, quoted, sizeof(quoted), false)), RESTRICT_LOCAL);
-					Z_Free(t);
-				}
-			}
 		}
 	}
 
@@ -6762,7 +6790,11 @@ void CL_ExecInitialConfigs(char *resetcommand)
 	Ruleset_Scan();
 }
 
-
+static void Host_URIPrompt(void *ctx, promptbutton_t btn)
+{
+	if (btn == PROMPT_YES)
+		Cbuf_AddText ("\nsys_register_file_associations\n", RESTRICT_LOCAL);
+}
 
 void Host_FinishLoading(void)
 {
@@ -6846,6 +6878,22 @@ void Host_FinishLoading(void)
 	}
 	else	//3 flags for a renderer restart
 		Renderer_Start();
+
+
+	if (fs_manifest->schemes && Cmd_IsCommand("sys_register_file_associations"))
+	{
+		if (cl_verify_urischeme.ival >= 2)
+			Cbuf_AddText ("\nsys_register_file_associations\n", RESTRICT_LOCAL);
+		else if (cl_verify_urischeme.ival)
+		{
+			char *scheme = Sys_URIScheme_NeedsRegistering();
+			if (scheme)
+			{
+				Menu_Prompt(Host_URIPrompt, NULL, va("The URI scheme %s:// is not configured.\nRegister now?", scheme), "Register", NULL, "No");
+				Z_Free(scheme);
+			}
+		}
+	}
 }
 
 /*

@@ -1511,10 +1511,13 @@ void Sys_MakeCodeWriteable (void *startaddr, unsigned long length)
 }
 #endif
 
-void Sys_DoFileAssociations(int elevated);
+void Sys_DoFileAssociations(int elevated, const char *scheme);
 void Sys_Register_File_Associations_f(void)
 {
-	Sys_DoFileAssociations(0);
+	if (!Q_strcasecmp(Cmd_Argv(1), "quiet"))
+		Sys_DoFileAssociations(2, fs_manifest->schemes);	//current user only.
+	else
+		Sys_DoFileAssociations(0, fs_manifest->schemes);	//user+machine(with elevation on failure)
 }
 
 static void QDECL Sys_Priority_Changed(cvar_t *var, char *oldval)
@@ -1559,7 +1562,7 @@ void Sys_Init (void)
 #ifndef SERVERONLY
 	Cvar_Register(&sys_disableWinKeys, "System vars");
 	Cvar_Register(&sys_disableTaskSwitch, "System vars");
-	Cmd_AddCommandD("sys_register_file_associations", Sys_Register_File_Associations_f, "Register FTE as the system handler for .bsp .mvd .qwd .dem files. Also register the qw:// URL protocol. This command will probably trigger a UAC prompt in Windows Vista and up. Deny it for current-user-only asociations (will also prevent listing in windows' 'default programs' ui due to microsoft bugs/limitations).");
+	Cmd_AddCommandD("sys_register_file_associations", Sys_Register_File_Associations_f, "Register FTE as the system handler for .bsp .mvd .qwd .dem files. Also register the URL protocol. This command will probably trigger a UAC prompt in Windows Vista and up. Deny it for current-user-only asociations (will also prevent listing in windows' 'default programs' ui due to microsoft bugs/limitations).");
 
 #ifdef QUAKESPYAPI
 #ifndef CLIENTONLY
@@ -2884,6 +2887,47 @@ void Win7_TaskListInit(void)
 }
 #endif
 
+//using this like posix' access function, but with much more code, microsoftisms, and no errno codes/info
+//no, I don't really have a clue why it needs to be so long.
+//#include <svrapi.h>
+#ifndef ACCESS_READ	
+#define         ACCESS_READ     0x1
+#define         ACCESS_WRITE    0x2
+#endif
+static BOOL microsoft_accessW(LPWSTR pszFolder, DWORD dwAccessDesired)
+{
+	HANDLE			hToken;
+	PRIVILEGE_SET	PrivilegeSet;
+	DWORD			dwPrivSetSize;
+	DWORD			dwAccessGranted;
+	BOOL			fAccessGranted = FALSE;
+	GENERIC_MAPPING	GenericMapping;
+	SECURITY_INFORMATION si = (SECURITY_INFORMATION)( OWNER_SECURITY_INFORMATION|GROUP_SECURITY_INFORMATION|DACL_SECURITY_INFORMATION);
+	PSECURITY_DESCRIPTOR psdSD = NULL;
+	DWORD			dwNeeded;
+	GetFileSecurityW(pszFolder,si,NULL,0,&dwNeeded);
+	psdSD = malloc(dwNeeded);
+	GetFileSecurityW(pszFolder,si,psdSD,dwNeeded,&dwNeeded);
+	ImpersonateSelf(SecurityImpersonation);
+	OpenThreadToken(GetCurrentThread(), TOKEN_ALL_ACCESS, TRUE, &hToken);
+	memset(&GenericMapping, 0xff, sizeof(GENERIC_MAPPING));
+	GenericMapping.GenericRead = ACCESS_READ;
+	GenericMapping.GenericWrite = ACCESS_WRITE;
+	GenericMapping.GenericExecute = 0;
+	GenericMapping.GenericAll = ACCESS_READ | ACCESS_WRITE;
+	MapGenericMask(&dwAccessDesired, &GenericMapping);
+	dwPrivSetSize = sizeof(PRIVILEGE_SET);
+	AccessCheck(psdSD, hToken, dwAccessDesired, &GenericMapping, &PrivilegeSet, &dwPrivSetSize, &dwAccessGranted, &fAccessGranted);
+	free(psdSD);
+	return fAccessGranted;
+}
+static BOOL microsoft_accessU(LPCSTR pszFolder, DWORD dwAccessDesired)
+{
+	wchar_t			wpath[MAX_OSPATH];
+	return microsoft_accessW(widen(wpath, sizeof(wpath), pszFolder), dwAccessDesired);
+}
+
+
 #ifndef SVNREVISION
 	#if 0	//1 to debug engine update in msvc.
 		#define SVNREVISION 1
@@ -3085,10 +3129,68 @@ typedef struct qIApplicationAssociationRegistrationUI
 	} *lpVtbl;
 } qIApplicationAssociationRegistrationUI;
 
-void Sys_DoFileAssociations(int elevated)
+char *Sys_URIScheme_NeedsRegistering(void)
+{   //just disables the prompts.
+	HKEY root;
+	char buffer[2048];
+	char scheme[64];
+	const char *s, *schemes = fs_manifest->schemes;
+	char *exec, *me;
+	size_t i;
+	wchar_t enginebinaryw[MAX_OSPATH];
+	char enginebinary[MAX_OSPATH*4];
+
+	for (s = schemes; (s=COM_ParseOut(s, scheme, sizeof(scheme))); )
+	{
+		root = HKEY_CURRENT_USER;
+		if (!MyRegGetStringValue(root, va("Software\\Classes\\%s", scheme), "", buffer, sizeof(buffer)))
+		{
+			root = HKEY_LOCAL_MACHINE;
+			if (!MyRegGetStringValue(root, va("Software\\Classes\\%s", scheme), "", buffer, sizeof(buffer)))
+				break;
+		}
+
+		//the scheme exists at least...
+		if (!MyRegGetStringValue(root, va("Software\\Classes\\%s\\shell\\open\\command", scheme), "", buffer, sizeof(buffer)))
+			break; //erk, missing.
+		COM_Parse(buffer);
+		if (!microsoft_accessU(com_token, ACCESS_READ))
+			break;	//can't read it? doesn't exist?
+		exec = COM_SkipPath(com_token);
+		for (i = 0; exec[i]; i++)
+			if (exec[i] == '_' || exec[i] == '.' || (exec[i] >= '0' && exec[i] <= '9'))
+			{	//anything that looks like a revision number
+				exec[i] = 0;
+				break;
+			}
+
+		GetModuleFileNameW(NULL, enginebinaryw, countof(enginebinaryw)-1);
+		narrowen(enginebinary, sizeof(enginebinary), enginebinaryw);
+		me = COM_SkipPath(enginebinary);
+		for (i = 0; me[i]; i++)
+			if (me[i] == '_' || me[i] == '.' || (me[i] >= '0' && me[i] <= '9'))
+			{	//anything that looks like a revision number
+				me[i] = 0;
+				break;
+			}
+		if (Q_strcasecmp(exec, me))
+			break;	//looks like its set to something else.
+	}
+
+	if (s)
+		return Z_StrDup(scheme);
+    return NULL;
+}
+void Sys_DoFileAssociations(int elevated, const char *schemes)
 {
+	//elevated:
+	//	0: console command
+	//	1: running as an elevated/admin process
+	//	2: register as current user only (do not show associations prompt).
 	char command[1024];
-	qboolean ok = true;	
+	char scheme[64];
+	const char *s;
+	qboolean ok = true;
 	HKEY root;
 
 	//I'd do everything in current_user if I could, but windows sucks too much for that.
@@ -3101,12 +3203,13 @@ void Sys_DoFileAssociations(int elevated)
 	//on xp, we use ONLY current user. no 'registered applications' means no 'registered applications bug', which means no need to use hklm at all.
 	//in vista/7, we have to create stuff in local_machine. in which case we might as well put ALL associations in there. the ui stuff will allow user-specific settings, so this is not an issue other than the fact that it triggers uac.
 	//in 8, we cannot programatically force ownership of our associations, so we might as well just use the ui method even for vista+7 instead of the ruder version.
+	//in win10, the 'ui' stuff is just a quick popup to tell the user to configure defaults themselves. hopefully we can fall back on the regular associations for when the user didn't override anyting.
 	if (qwinvermaj < 6)
 		elevated = 2;
 
-	root = elevated == 2?HKEY_CURRENT_USER:HKEY_LOCAL_MACHINE;
+	root = (elevated>=2)?HKEY_CURRENT_USER:HKEY_LOCAL_MACHINE;
 
-	#define ASSOC_VERSION 2
+//	#define ASSOC_VERSION 2
 #define ASSOCV "1"
 
 	//register the basic demo class
@@ -3116,6 +3219,13 @@ void Sys_DoFileAssociations(int elevated)
 	ok = ok & MyRegSetValue(root, "Software\\Classes\\"DISTRIBUTION"_DemoFile."ASSOCV"\\DefaultIcon", "", REG_SZ, command, strlen(command));
 	Q_snprintfz(command, sizeof(command), "\"%s\" \"%%1\"", com_argv[0]);
 	ok = ok & MyRegSetValue(root, "Software\\Classes\\"DISTRIBUTION"_DemoFile."ASSOCV"\\shell\\open\\command", "", REG_SZ, command, strlen(command));
+	if (ok)
+	{	//and now the extensions themselves...
+		MyRegSetValue(root, "Software\\Classes\\.qtv", "", REG_SZ, DISTRIBUTION"_DemoFile."ASSOCV, strlen(DISTRIBUTION"_DemoFile."ASSOCV));
+		MyRegSetValue(root, "Software\\Classes\\.mvd", "", REG_SZ, DISTRIBUTION"_DemoFile."ASSOCV, strlen(DISTRIBUTION"_DemoFile."ASSOCV));
+		MyRegSetValue(root, "Software\\Classes\\.qwd", "", REG_SZ, DISTRIBUTION"_DemoFile."ASSOCV, strlen(DISTRIBUTION"_DemoFile."ASSOCV));
+		MyRegSetValue(root, "Software\\Classes\\.dem", "", REG_SZ, DISTRIBUTION"_DemoFile."ASSOCV, strlen(DISTRIBUTION"_DemoFile."ASSOCV));
+	}
 
 	//register the basic map class. yeah, the command is the same as for demos. but the description is different!
 	Q_snprintfz(command, sizeof(command), "Quake Map");
@@ -3124,8 +3234,13 @@ void Sys_DoFileAssociations(int elevated)
 	ok = ok & MyRegSetValue(root, "Software\\Classes\\"DISTRIBUTION"_BSPFile."ASSOCV"\\DefaultIcon", "", REG_SZ, command, strlen(command));
 	Q_snprintfz(command, sizeof(command), "\"%s\" \"%%1\"", com_argv[0]);
 	ok = ok & MyRegSetValue(root, "Software\\Classes\\"DISTRIBUTION"_BSPFile."ASSOCV"\\shell\\open\\command", "", REG_SZ, command, strlen(command));
+	if (ok)
+	{	//and now the extensions themselves...
+		MyRegSetValue(root, "Software\\Classes\\.bsp", "", REG_SZ, DISTRIBUTION"_BSPFile."ASSOCV, strlen(DISTRIBUTION"_BSPFile."ASSOCV));
+		MyRegSetValue(root, "Software\\Classes\\.map", "", REG_SZ, DISTRIBUTION"_BSPFile."ASSOCV, strlen(DISTRIBUTION"_BSPFile."ASSOCV));
+	}
 
-	//register the basic protocol class
+	//register the basic uri scheme class
 	Q_snprintfz(command, sizeof(command), "QuakeWorld Server");
 	ok = ok & MyRegSetValue(root, "Software\\Classes\\"DISTRIBUTION"_Server."ASSOCV"", "", REG_SZ, command, strlen(command));
 	ok = ok & MyRegSetValue(root, "Software\\Classes\\"DISTRIBUTION"_Server."ASSOCV"", "URL Protocol", REG_SZ, "", strlen(""));
@@ -3133,8 +3248,22 @@ void Sys_DoFileAssociations(int elevated)
 	ok = ok & MyRegSetValue(root, "Software\\Classes\\"DISTRIBUTION"_Server."ASSOCV"\\DefaultIcon", "", REG_SZ, command, strlen(command));
 	Q_snprintfz(command, sizeof(command), "\"%s\" \"%%1\"", com_argv[0]);
 	ok = ok & MyRegSetValue(root, "Software\\Classes\\"DISTRIBUTION"_Server."ASSOCV"\\shell\\open\\command", "", REG_SZ, command, strlen(command));
+	if (ok)
+	{	//and now the schemes themselves... (doesn't really use the same scheme stuff)
+		for (s = schemes; (s=COM_ParseOut(s, scheme, sizeof(scheme))); )
+		{
+			Q_snprintfz(command, sizeof(command), "QuakeWorld Server");
+			MyRegSetValue(root, va("Software\\Classes\\%s", scheme), "", REG_SZ, command, strlen(command));
+			MyRegSetValue(root, va("Software\\Classes\\%s", scheme), "URL Protocol", REG_SZ, "", strlen(""));
+			Q_snprintfz(command, sizeof(command), "\"%s\",0", com_argv[0]);
+			MyRegSetValue(root, va("Software\\Classes\\%s\\DefaultIcon", scheme), "", REG_SZ, command, strlen(command));
+			Q_snprintfz(command, sizeof(command), "\"%s\" \"%%1\"", com_argv[0]);
+			MyRegSetValue(root, va("Software\\Classes\\%s\\shell\\open\\command", scheme), "", REG_SZ, command, strlen(command));
+		}
+	}
 
-	//try to get ourselves listed in windows' 'default programs' ui.
+
+	//now try to get ourselves listed in windows' 'default programs' ui.
 	Q_snprintfz(command, sizeof(command), "%s", FULLENGINENAME);
 	ok = ok & MyRegSetValue(root, "Software\\"FULLENGINENAME"\\Capabilities", "ApplicationName", REG_SZ, command, strlen(command));
 	Q_snprintfz(command, sizeof(command), "%s", FULLENGINENAME" is an awesome hybrid game engine able to run multiple Quake-compatible/derived games.");
@@ -3154,52 +3283,33 @@ void Sys_DoFileAssociations(int elevated)
 //	ok = ok & MyRegSetValue(root, "Software\\"FULLENGINENAME"\\Capabilities\\FileAssociations", ".fmf", REG_SZ, DISTRIBUTION"_ManifestFile", strlen(DISTRIBUTION"_ManifestFile"));
 //	ok = ok & MyRegSetValue(root, "Software\\"FULLENGINENAME"\\Capabilities\\MIMEAssociations", "application/x-ftemanifest", REG_SZ, DISTRIBUTION"_ManifestFile", strlen(DISTRIBUTION"_ManifestFile"));
 
-	Q_snprintfz(command, sizeof(command), DISTRIBUTION"_Server.1");
-	ok = ok & MyRegSetValue(root, "Software\\"FULLENGINENAME"\\Capabilities\\UrlAssociations", "qw", REG_SZ, command, strlen(command));
+	Q_snprintfz(command, sizeof(command), DISTRIBUTION"_Server."ASSOCV);
+	for (s = schemes; (s=COM_ParseOut(s, scheme, sizeof(scheme))); )
+	{
+		ok = ok & MyRegSetValue(root, "Software\\"FULLENGINENAME "\\Capabilities\\UrlAssociations", scheme, REG_SZ, command, strlen(command));
+	}
 	
 	Q_snprintfz(command, sizeof(command), "Software\\"FULLENGINENAME"\\Capabilities");
 	ok = ok & MyRegSetValue(root, "Software\\RegisteredApplications", FULLENGINENAME, REG_SZ, command, strlen(command));
 
+	//also try to add it to current user.
+	if (root==HKEY_LOCAL_MACHINE)
+		Sys_DoFileAssociations(2, schemes);
+
+	//let the shell know that file associations changed (otherwise we might have to wait for a reboot)
 	SHChangeNotify(SHCNE_ASSOCCHANGED, SHCNF_IDLIST, NULL, NULL);
 
-	if (!ok && elevated < 2)
+	if (!ok && root==HKEY_LOCAL_MACHINE)
 	{
-		HINSTANCE ch = ShellExecute(mainwindow, "runas", com_argv[0], va("-register_types %i", elevated+1), NULL, SW_SHOWNORMAL);
-		if ((qintptr_t)ch <= 32)
-			Sys_DoFileAssociations(2);
+		ShellExecute(mainwindow, "runas", com_argv[0], va("-register_types \"%s\"", schemes), NULL, SW_SHOWNORMAL);
 		return;
 	}
 
-	if (ok)
+	if (ok && root==HKEY_LOCAL_MACHINE)
 	{
-//		char buf[1];
 		//attempt to display the vista+ prompt (only way possible in win8, apparently)
+		//note that in win10 this will supposedly just show a notification popup with the user required to configure it manually via control panel.
 		qIApplicationAssociationRegistrationUI *aarui = NULL;
-
-		//needs to be done anyway to ensure that its listed, and so that we get the association if nothing else has it.
-		//however, the popup for when you start new programs is very annoying, so lets try to avoid that. our file associations are somewhat explicit anyway.
-		//note that you'll probably still get the clumsy prompt if you try to run fte as a different user. really depends if you gave it local machine write access.
-//		if (!aarui || elevated==2 || !MyRegGetStringValue(root, "Software\\Classes\\.qtv", "", buf, sizeof(buf)))
-			MyRegSetValue(root, "Software\\Classes\\.qtv", "", REG_SZ, DISTRIBUTION"_DemoFile."ASSOCV, strlen(DISTRIBUTION"_DemoFile.1"));
-//		if (!aarui || elevated==2 || !MyRegGetStringValue(root, "Software\\Classes\\.mvd", "", buf, sizeof(buf)))
-			MyRegSetValue(root, "Software\\Classes\\.mvd", "", REG_SZ, DISTRIBUTION"_DemoFile."ASSOCV, strlen(DISTRIBUTION"_DemoFile.1"));
-//		if (!aarui || elevated==2 || !MyRegGetStringValue(root, "Software\\Classes\\.qwd", "", buf, sizeof(buf)))
-			MyRegSetValue(root, "Software\\Classes\\.qwd", "", REG_SZ, DISTRIBUTION"_DemoFile."ASSOCV, strlen(DISTRIBUTION"_DemoFile.1"));
-//		if (!aarui || elevated==2 || !MyRegGetStringValue(root, "Software\\Classes\\.dem", "", buf, sizeof(buf)))
-			MyRegSetValue(root, "Software\\Classes\\.dem", "", REG_SZ, DISTRIBUTION"_DemoFile."ASSOCV, strlen(DISTRIBUTION"_DemoFile.1"));
-//		if (!aarui || elevated==2 || !MyRegGetStringValue(root, "Software\\Classes\\.bsp", "", buf, sizeof(buf)))
-			MyRegSetValue(root, "Software\\Classes\\.bsp", "", REG_SZ, DISTRIBUTION"_BSPFile."ASSOCV, strlen(DISTRIBUTION"_BSPFile.1"));
-		//legacy url associations are a bit more explicit
-//		if (!aarui || elevated==2 || !MyRegGetStringValue(HKEY_CURRENT_USER, "Software\\Classes\\qw", "", buf, sizeof(buf)))
-		{
-			Q_snprintfz(command, sizeof(command), "QuakeWorld Server");
-			MyRegSetValue(root, "Software\\Classes\\qw", "", REG_SZ, command, strlen(command));
-			MyRegSetValue(root, "Software\\Classes\\qw", "URL Protocol", REG_SZ, "", strlen(""));
-			Q_snprintfz(command, sizeof(command), "\"%s\",0", com_argv[0]);
-			MyRegSetValue(root, "Software\\Classes\\qw\\DefaultIcon", "", REG_SZ, command, strlen(command));
-			Q_snprintfz(command, sizeof(command), "\"%s\" \"%%1\"", com_argv[0]);
-			MyRegSetValue(root, "Software\\Classes\\qw\\shell\\open\\command", "", REG_SZ, command, strlen(command));
-		}
 
 		CoInitialize(NULL);
 		if (FAILED(CoCreateInstance(&qCLSID_ApplicationAssociationRegistrationUI, 0, CLSCTX_INPROC_SERVER, &qIID_IApplicationAssociationRegistrationUI, (LPVOID*)&aarui)))
@@ -3308,46 +3418,6 @@ int MessageBoxU(HWND hWnd, char *lpText, char *lpCaption, UINT uType)
 }
 
 #ifdef WEBCLIENT
-//using this like posix' access function, but with much more code, microsoftisms, and no errno codes/info
-//no, I don't really have a clue why it needs to be so long.
-//#include <svrapi.h>
-#ifndef ACCESS_READ	
-#define         ACCESS_READ     0x1
-#define         ACCESS_WRITE    0x2
-#endif
-static BOOL microsoft_accessW(LPWSTR pszFolder, DWORD dwAccessDesired)
-{
-	HANDLE			hToken;
-	PRIVILEGE_SET	PrivilegeSet;
-	DWORD			dwPrivSetSize;
-	DWORD			dwAccessGranted;
-	BOOL			fAccessGranted = FALSE;
-	GENERIC_MAPPING	GenericMapping;
-	SECURITY_INFORMATION si = (SECURITY_INFORMATION)( OWNER_SECURITY_INFORMATION|GROUP_SECURITY_INFORMATION|DACL_SECURITY_INFORMATION);
-	PSECURITY_DESCRIPTOR psdSD = NULL;
-	DWORD			dwNeeded;
-	GetFileSecurityW(pszFolder,si,NULL,0,&dwNeeded);
-	psdSD = malloc(dwNeeded);
-	GetFileSecurityW(pszFolder,si,psdSD,dwNeeded,&dwNeeded);
-	ImpersonateSelf(SecurityImpersonation);
-	OpenThreadToken(GetCurrentThread(), TOKEN_ALL_ACCESS, TRUE, &hToken);
-	memset(&GenericMapping, 0xff, sizeof(GENERIC_MAPPING));
-	GenericMapping.GenericRead = ACCESS_READ;
-	GenericMapping.GenericWrite = ACCESS_WRITE;
-	GenericMapping.GenericExecute = 0;
-	GenericMapping.GenericAll = ACCESS_READ | ACCESS_WRITE;
-	MapGenericMask(&dwAccessDesired, &GenericMapping);
-	dwPrivSetSize = sizeof(PRIVILEGE_SET);
-	AccessCheck(psdSD, hToken, dwAccessDesired, &GenericMapping, &PrivilegeSet, &dwPrivSetSize, &dwAccessGranted, &fAccessGranted);
-	free(psdSD);
-	return fAccessGranted;
-}
-static BOOL microsoft_accessU(LPCSTR pszFolder, DWORD dwAccessDesired)
-{
-	wchar_t			wpath[MAX_OSPATH];
-	return microsoft_accessW(widen(wpath, sizeof(wpath), pszFolder), dwAccessDesired);
-}
-
 #ifndef GWLP_WNDPROC
 #define GWLP_WNDPROC GWL_WNDPROC
 #define SetWindowLongPtr SetWindowLong
@@ -4112,9 +4182,10 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 				isPlugin = 0;
 		}
 
-		if (COM_CheckParm("-register_types"))
+		c = COM_CheckParm("-register_types");
+		if (c)
 		{
-			Sys_DoFileAssociations(1);
+			Sys_DoFileAssociations(1, (c+1 < com_argc)?com_argv[c+1]:NULL);
 			return true;
 		}
 		/*

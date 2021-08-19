@@ -57,6 +57,7 @@ typedef struct svm_server_s {
 	bucket_t bucket;	//for faster address lookups.
 	struct svm_game_s *game;
 	struct svm_server_s *next;
+	char rules[1024];
 } svm_server_t;
 
 typedef struct svm_game_s {
@@ -66,6 +67,7 @@ typedef struct svm_game_s {
 	size_t numservers;
 	qboolean persistent;
 	char *aliases;	//list of terminated names, terminated with a double-null
+	char *scheme;
 	char name[1];	//eg: Quake
 } svm_game_t;
 
@@ -604,6 +606,31 @@ vfsfile_t *SVM_Generate_Gamelist(const char **mimetype, const char *query)
 	*mimetype = "text/html";
 	return f;
 }
+struct rulelist_s
+{
+	unsigned int lines;
+	unsigned int blobofs;
+	char *line[64];
+	char blob[8192];
+};
+static void SVM_GatherServerRule(void *ctx, const char *key, const char *val)
+{
+	struct rulelist_s *rules = ctx;
+	char niceval[256];
+	if (rules->lines == countof(rules->line))
+		return;	//overflow
+	QuakeCharsToHTML(niceval, sizeof(niceval), val, false);
+	if (!Q_snprintfz(rules->blob+rules->blobofs, sizeof(rules->blob)-rules->blobofs, "<tr><td>%s</td><td>%s</td></tr>\n", key, niceval))
+	{
+		rules->line[rules->lines++] = rules->blob+rules->blobofs;
+		rules->blobofs += strlen(rules->blob+rules->blobofs)+1;
+	}
+}
+static int QDECL SVM_SortServerRule(const void *r1, const void *r2)
+{
+	return Q_strcasecmp(*(char*const*const)r1, *(char*const*const)r2);
+}
+
 vfsfile_t *SVM_Generate_Serverinfo(const char **mimetype, const char *serveraddr, const char *query)
 {
 	vfsfile_t *f = VFSPIPE_Open(1, false);
@@ -611,13 +638,12 @@ vfsfile_t *SVM_Generate_Serverinfo(const char **mimetype, const char *serveraddr
 	char hostname[1024];
 	svm_server_t *server;
 	netadr_t adr[64];
-	int count;
+	size_t count, u;
+	const char *url;
 
 	VFS_PRINTF(f, "%s", master_css);
 	VFS_PRINTF(f, "<h1>Single Server Info</h1>\n");
 
-	VFS_PRINTF(f, "<table border=1>\n");
-	VFS_PRINTF(f, "<tr><th>Game</th><th>Address</th><th>Hostname</th><th>Mod dir</th><th>Mapname</th><th>Players</th></tr>\n");
 	//FIXME: block dns lookups here?
 	count = NET_StringToAdr2(serveraddr, 0, adr, countof(adr), NULL);
 	while(count-->0)
@@ -625,13 +651,45 @@ vfsfile_t *SVM_Generate_Serverinfo(const char **mimetype, const char *serveraddr
 		server = SVM_GetServer(&adr[count]);
 		if (server)
 		{
+			VFS_PRINTF(f, "<table border=1>\n");
+			VFS_PRINTF(f, "<tr><th>Game</th><th>Address</th><th>Hostname</th><th>Mod dir</th><th>Mapname</th><th>Players</th></tr>\n");
 			QuakeCharsToHTML(hostname, sizeof(hostname), server->hostname, false);
-			VFS_PRINTF(f, "<tr><td>%s</td><td>%s</td><td>%s%s</td><td>%s</td><td>%s</td><td>%u/%u</td></tr>\n", server->game?server->game->name:"Unknown", NET_AdrToString(tmpbuf, sizeof(tmpbuf), &server->adr), (server->needpass&1)?"&#x1F512;":"", hostname, server->gamedir, server->mapname, server->clients, server->maxclients);
+
+			url = NET_AdrToString(tmpbuf, sizeof(tmpbuf), &server->adr);
+			if (server->game->scheme && !server->brokerid)
+				url = va("<a href=\"%s://%s\">%s</a>", server->game->scheme, url, url);
+
+			VFS_PRINTF(f, "<tr><td>%s</td><td>%s</td><td>%s%s</td><td>%s</td><td>%s</td><td>%u/%u</td></tr>\n", server->game?server->game->name:"Unknown", url, (server->needpass&1)?"&#x1F512;":"", hostname, server->gamedir, server->mapname, server->clients, server->maxclients);
+			VFS_PRINTF(f, "</table>\n");
+			VFS_PRINTF(f, "<br/>\n");
+
+			if (*server->rules)
+			{
+				struct rulelist_s rules;
+				rules.lines = rules.blobofs = 0;
+				Info_Enumerate(server->rules, &rules, SVM_GatherServerRule);
+				qsort(rules.line, rules.lines, sizeof(rules.line[0]), SVM_SortServerRule);
+
+				//VFS_PRINTF(f, "<table border=0>\n");
+				//	VFS_PRINTF(f, "<td></td><td>");
+					VFS_PRINTF(f, "<table border=1>\n");
+						VFS_PRINTF(f, "</th><th>Rule</th><th>Value</th></tr>\n");
+						for (u = 0; u < rules.lines; u++)
+							VFS_PUTS(f, rules.line[u]);
+					VFS_PRINTF(f, "</table>");
+				//	VFS_PRINTF(f, "</td>");
+				//VFS_PRINTF(f, "</table>\n");
+				VFS_PRINTF(f, "<br/>\n");
+			}
 		}
 		else
+		{
+			VFS_PRINTF(f, "<table border=1>\n");
+			VFS_PRINTF(f, "<tr><th>Game</th><th>Address</th><th>Hostname</th><th>Mod dir</th><th>Mapname</th><th>Players</th></tr>\n");
 			VFS_PRINTF(f, "<tr><td>?</td><td>%s</td><td>?</td><td>?</td><td>?</td><td>?/?</td></tr>\n", NET_AdrToString(tmpbuf, sizeof(tmpbuf), &adr[count]));
+			VFS_PRINTF(f, "</table>\n");
+		}
 	}
-	VFS_PRINTF(f, "</table>\n");
 
 	*mimetype = "text/html";
 	return f;
@@ -642,7 +700,7 @@ vfsfile_t *SVM_Generate_Serverlist(const char **mimetype, const char *masteraddr
 	vfsfile_t *f = VFSPIPE_Open(1, false);
 	char tmpbuf[256];
 	char hostname[1024];
-	const char *url;
+	const char *url, *infourl;
 	svm_game_t *game;
 	svm_server_t *server;
 	unsigned clients=0,bots=0,specs=0;
@@ -684,11 +742,14 @@ vfsfile_t *SVM_Generate_Serverlist(const char **mimetype, const char *masteraddr
 			{
 				url = tmpbuf;
 				Q_snprintfz(tmpbuf, sizeof(tmpbuf), "rtc://%s/%s", masteraddr, server->brokerid);
+				infourl = tmpbuf;
 			}
 			else
-				url = NET_AdrToString(tmpbuf, sizeof(tmpbuf), &server->adr);
+			{
+				infourl = url = NET_AdrToString(tmpbuf, sizeof(tmpbuf), &server->adr);
+			}
 			QuakeCharsToHTML(hostname, sizeof(hostname), server->hostname, false);
-			VFS_PRINTF(f, "<tr><td>%s</td><td>%s%s%s</td><td>%s</td><td>%s</td><td>%u", url, (server->needpass&1)?"&#x1F512;":"", (server->coop&1)?"&#x1F6B8;":"", hostname, server->gamedir, server->mapname, server->clients);
+			VFS_PRINTF(f, "<tr><td><a href=\"/server/%s\">%s</a></td><td>%s%s%s</td><td>%s</td><td>%s</td><td>%u", infourl, url, (server->needpass&1)?"&#x1F512;":"", (server->coop&1)?"&#x1F6B8;":"", hostname, server->gamedir, server->mapname, server->clients);
 			if (server->bots)
 				VFS_PRINTF(f, "+%ub", server->bots);
 			VFS_PRINTF(f, "/%u", server->maxclients);
@@ -1192,6 +1253,7 @@ static void SVM_ProcessUDPPacket(void)
 		SVM_GenChallenge(ourchallenge, sizeof(ourchallenge), &net_from);
 		if (!strcmp(chal, ourchallenge))
 		{
+
 			bots = atoi(Info_ValueForKey(s, "bots"));
 			clients = atoi(Info_ValueForKey(s, "clients"));
 			clients = max(0, clients-bots);
@@ -1204,6 +1266,7 @@ static void SVM_ProcessUDPPacket(void)
 			srv = SVM_Heartbeat(game, &net_from, clients,bots,specs, svm.time + sv_heartbeattimeout.ival);
 			if (srv)
 			{
+				Q_strncpyz(srv->rules, s, sizeof(srv->rules));
 				if (developer.ival)
 					Info_Print(s, "\t");
 				if (game)
@@ -1380,6 +1443,7 @@ static void SVM_ProcessUDPPacket(void)
 		srv = SVM_Heartbeat(game, &net_from, clients,bots,specs, svm.time + sv_heartbeattimeout.ival);
 		if (srv)
 		{
+			Q_strncpyz(srv->rules, s, sizeof(srv->rules));
 			if (developer.ival)
 				Info_Print(s, "\t");
 			srv->protover = 3;//atoi(Info_ValueForKey(s, "protocol"));
@@ -1606,6 +1670,13 @@ static qboolean SVM_FoundManifest(void *usr, ftemanifest_t *man)
 		g = COM_Parse(g);
 		game = SVM_FindGame(com_token, 2);
 #endif
+		if (!game)
+			return false;
+		if (man->schemes && !game->scheme)
+		{
+			COM_Parse(man->schemes);
+			game->scheme = Z_StrDup(com_token);
+		}
 		while (*g)
 		{
 			g = COM_Parse(g);

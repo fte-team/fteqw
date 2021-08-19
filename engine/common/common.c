@@ -7746,7 +7746,7 @@ void Info_SetValueForKey (char *s, const char *key, const char *value, int maxsi
 	Info_SetValueForStarKey (s, key, value, maxsize);
 }
 
-static void Info_Enumerate (const char *s, void *ctx, void(*cb)(void *ctx, const char *key, const char *value))
+void Info_Enumerate (const char *s, void *ctx, void(*cb)(void *ctx, const char *key, const char *value))
 {
 	char	key[1024];
 	char	value[1024];

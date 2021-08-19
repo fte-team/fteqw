@@ -764,6 +764,8 @@ typedef struct
 	char *rtcbroker;	//the broker to use for webrtc connections.
 	char *basedir;		//this is where we expect to find the data.
 	char *iconname;		//path we can find the icon (relative to the fmf's location)
+
+	char *schemes;		//protocol scheme used to connect to a server running this game, use com_parse.
 	struct
 	{
 		enum
@@ -854,9 +856,9 @@ void Info_RemovePrefixedKeys (char *start, char prefix);
 void Info_RemoveKey (char *s, const char *key);
 char *Info_KeyForNumber (const char *s, int num);
 void Info_Print (const char *s, const char *lineprefix);
+void Info_Enumerate (const char *s, void *ctx, void(*cb)(void *ctx, const char *key, const char *value));
 /*
 void Info_RemoveNonStarKeys (char *start);
-void Info_Enumerate (const char *s, void *ctx, void(*cb)(void *ctx, const char *key, const char *value));
 void Info_WriteToFile(vfsfile_t *f, char *info, char *commandname, int cvarflags);
 */
 

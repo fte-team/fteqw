@@ -155,6 +155,11 @@ void Sys_BrowserRedirect_f(void)
 	emscriptenfte_window_location(Cmd_Argv(1));
 }
 
+char *Sys_URIScheme_NeedsRegistering(void)
+{	//just disables the prompts that we can't honour anyway.
+	return NULL;
+}
+
 void Sys_Init(void)
 {
 	extern cvar_t vid_width, vid_height, vid_fullscreen;

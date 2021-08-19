@@ -49,6 +49,7 @@ void VARGS Sys_Printf (char *fmt, ...) LIKEPRINTF(1);
 void Sys_Warn (char *fmt, ...) LIKEPRINTF(1);
 //like Sys_Printf. dunno why there needs to be two of em.
 
+char *Sys_URIScheme_NeedsRegistering(void);	//returns the name of one of the current manifests uri schemes that isn't registered (but should be registerable).
 void Sys_Quit (void);
 void Sys_RecentServer(char *command, char *target, char *title, char *desc);
 qboolean Sys_RunInstaller(void);

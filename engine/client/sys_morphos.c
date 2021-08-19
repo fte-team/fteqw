@@ -371,6 +371,10 @@ int main(int argc, char **argv)
 	}
 }
 
+char *Sys_URIScheme_NeedsRegistering(void)
+{	//no support, report something that'll disable annoying prompts.
+    return NULL;
+}
 void Sys_Init()
 {
 }

@@ -178,7 +178,7 @@ struct {
 		texid_t fogtexture;
 		texid_t normalisationcubemap;
 		float fogfar;
-		float depthrange;
+		int usingweaponviewmatrix;
 
 		batch_t **mbatches;	//model batches (ie: not world)
 	};
@@ -417,7 +417,7 @@ void GL_ForceDepthWritable(void)
 
 void GL_SetShaderState2D(qboolean is2d)
 {
-	shaderstate.depthrange = 0;	//force projection matrix info to get reset
+	shaderstate.usingweaponviewmatrix = -1;	//force projection matrix info to get reset
 	shaderstate.updatetime = realtime;
 	shaderstate.force2d = is2d;
 	if (is2d)
@@ -1102,7 +1102,7 @@ qboolean GLBE_BeginShadowMap(int id, int w, int h, uploadfmt_t encoding, int *re
 	/*set framebuffer*/
 	*restorefbo = GLBE_BeginRenderBuffer_DepthOnly(shaderstate.curshadowmap);
 
-	shaderstate.depthrange = 0;		//make sure the projection matrix is updated.
+	shaderstate.usingweaponviewmatrix = -1;		//make sure the projection matrix is updated.
 
 	while(shaderstate.lastpasstmus>0)
 	{
@@ -1128,7 +1128,7 @@ qboolean GLBE_BeginShadowMap(int id, int w, int h, uploadfmt_t encoding, int *re
 void GLBE_EndShadowMap(int restorefbo)
 {
 	GLBE_FBO_Pop(restorefbo);
-	shaderstate.depthrange = 0;		//make sure the projection matrix is updated.
+	shaderstate.usingweaponviewmatrix = -1;		//make sure the projection matrix is updated.
 }
 #endif
 
@@ -4141,7 +4141,7 @@ void GLBE_SelectMode(backendmode_t mode)
 
 void GLBE_SelectEntity(entity_t *ent)
 {
-	float nd;
+	unsigned int fl;
 	shaderstate.curentity = ent;
 	currententity = ent;
 	R_RotateForEntity(shaderstate.modelmatrix, shaderstate.modelviewmatrix, shaderstate.curentity, shaderstate.curentity->model);
@@ -4149,18 +4149,28 @@ void GLBE_SelectEntity(entity_t *ent)
 	if (qglLoadMatrixf)
 		qglLoadMatrixf(shaderstate.modelviewmatrix);
 
-	if (shaderstate.curentity->flags & RF_DEPTHHACK)
-		nd = 0.3;
-	else
-		nd = 1;
-	if (shaderstate.depthrange != nd)
-	{
-		shaderstate.depthrange = nd;
 
-		if (nd < 1)
+	fl = shaderstate.curentity->flags&(RF_DEPTHHACK|RF_XFLIP);
+	if (shaderstate.usingweaponviewmatrix != fl)
+	{
+		if ((shaderstate.usingweaponviewmatrix & RF_XFLIP) && shaderstate.usingweaponviewmatrix != -1)
+			r_refdef.flipcull ^= SHADER_CULL_FLIP;
+		shaderstate.usingweaponviewmatrix = fl;
+
+		if (fl)
 			memcpy(shaderstate.projectionmatrix, r_refdef.m_projection_view, sizeof(shaderstate.projectionmatrix));
 		else
 			memcpy(shaderstate.projectionmatrix, r_refdef.m_projection_std, sizeof(shaderstate.projectionmatrix));
+
+		if (fl&RF_XFLIP)
+		{
+			shaderstate.projectionmatrix[0] *= -1;
+			shaderstate.projectionmatrix[4] *= -1;
+			shaderstate.projectionmatrix[8] *= -1;
+			shaderstate.projectionmatrix[12] *= -1;
+			r_refdef.flipcull ^= SHADER_CULL_FLIP;
+		}
+
 		if (qglLoadMatrixf)
 		{
 			qglMatrixMode(GL_PROJECTION);
@@ -6278,7 +6288,7 @@ void GLBE_DrawWorld (batch_t **worldbatches)
 	RSpeedLocals();
 	shaderstate.mbatches = batches;
 
-	shaderstate.depthrange = 0;
+	shaderstate.usingweaponviewmatrix = -1;
 
 	TRACE(("GLBE_DrawWorld: %p\n", worldbatches));
 
@@ -6470,7 +6480,7 @@ void GLBE_DrawWorld (batch_t **worldbatches)
 
 	GLBE_SelectEntity(&r_worldentity);
 //	shaderstate.curtime = shaderstate.updatetime = realtime;
-	shaderstate.depthrange = 0;
+	shaderstate.usingweaponviewmatrix = -1;
 
 	shaderstate.identitylighting = 1;
 

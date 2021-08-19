@@ -5504,6 +5504,10 @@ void CL_LinkViewModel(void)
 		ent.framestate.g[FS_REG].lerpweight[1] = cl.lerpfrac;
 
 		ent.flags |= RF_WEAPONMODEL|RF_DEPTHHACK|RF_NOSHADOW;
+		if (pv->handedness == 1)
+			ent.flags |= RF_XFLIP;
+		else if (pv->handedness == 2)
+			return;
 
 		V_AddEntity (&ent);
 		return;

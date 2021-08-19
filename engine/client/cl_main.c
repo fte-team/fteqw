@@ -159,6 +159,9 @@ cvar_t	w_switch	= CVARF("w_switch",		"",			CVAR_ARCHIVE | CVAR_USERINFO);
 #ifdef HEXEN2
 cvar_t	cl_playerclass=CVARF("cl_playerclass","",		CVAR_ARCHIVE | CVAR_USERINFO);
 #endif
+#ifdef Q2CLIENT
+static cvar_t	hand		= CVARFD("hand",		"",			CVAR_ARCHIVE | CVAR_USERINFO, "For gamecode to know which hand to fire from.\n0: Right\n1: Left\n2: Chest");
+#endif
 cvar_t	cl_nofake	= CVARD("cl_nofake",		"2", "value 0: permits \\r chars in chat messages\nvalue 1: blocks all \\r chars\nvalue 2: allows \\r chars, but only from teammates");
 cvar_t	cl_chatsound	= CVAR("cl_chatsound","1");
 cvar_t	cl_enemychatsound	= CVAR("cl_enemychatsound", "misc/talk.wav");
@@ -600,6 +603,13 @@ void CL_SendConnectPacket (netadr_t *to, int mtu,
 #ifdef Q2CLIENT
 	if (connectinfo.protocol == CP_QUAKE2)
 	{
+		if (!(scr_fov.flags & CVAR_USERINFO))
+		{	//q2 does server-controlled fov, so make sure the cvar is flagged properly.
+			//FIXME: this hack needs better support, for dynamically switching between protocols without spamming too many cvars for other games.
+			scr_fov.flags |= CVAR_USERINFO;
+			Cvar_Set(&scr_fov, scr_fov.string);	//make sure the userinfo is set properly.
+		}
+
 		fteprotextsupported1 = ftepext1 & (PEXT_MODELDBL|PEXT_SOUNDDBL|PEXT_SPLITSCREEN);
 		fteprotextsupported2 = 0;
 		ezprotextsupported1 = 0;
@@ -4977,6 +4987,9 @@ void CL_Init (void)
 	Cvar_Register (&rate,						cl_controlgroup);
 	Cvar_Register (&drate,						cl_controlgroup);
 	Cvar_Register (&msg,						cl_controlgroup);
+#ifdef Q2CLIENT
+	Cvar_Register (&hand,						cl_controlgroup);
+#endif
 	Cvar_Register (&noaim,						cl_controlgroup);
 	Cvar_Register (&b_switch,					cl_controlgroup);
 	Cvar_Register (&w_switch,					cl_controlgroup);

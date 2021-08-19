@@ -2496,7 +2496,8 @@ void CLQ2_CalcViewValues (int seat)
 //	AngleVectors (r_refdef.viewangles, v_forward, v_right, v_up);
 
 	// interpolate field of view
-	r_refdef.fov_x = ops->fov + lerp * (ps->fov - ops->fov);
+	pv->forcefov = ops->fov + lerp * (ps->fov - ops->fov);
+	pv->handedness = atoi(InfoBuf_ValueForKey(&cls.userinfo[seat], "hand"));
 
 	//do interpolate blend alpha, but only if the rgb didn't change
 	// don't interpolate blend color

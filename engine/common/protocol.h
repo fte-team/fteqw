@@ -1389,6 +1389,7 @@ typedef struct q1usercmd_s
 #define RF_FORCECOLOURMOD		(1u<<22)	//forces BEF_FORCECOLOURMOD
 #define RF_WEAPONMODELNOBOB		(1u<<23)
 #define RF_FIRSTPERSON			(1u<<24)	//only draw through eyes
+#define	RF_XFLIP				(1u<<25)	//flip horizontally (for q2's left-handed weapons)
 
 // player_state_t->refdef flags
 #define	RDF_UNDERWATER			(1u<<0)		// warp the screen as apropriate (fov trick)

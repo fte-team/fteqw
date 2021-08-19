@@ -137,8 +137,10 @@ void MSetup_Removed(emenu_t *menu)
 	char bot[64], top[64];
 	setupmenu_t *info = menu->data;
 
-	Cvar_Set(&name, info->nameedit->text);
-	Cvar_Set(&team, info->teamedit->text);
+	if (info->nameedit)
+		Cvar_Set(&name, info->nameedit->text);
+	if (info->teamedit)
+		Cvar_Set(&team, info->teamedit->text);
 	if (info->skinedit)
 		Cvar_Set(&skin, info->skinedit->text);
 #ifdef HEXEN2

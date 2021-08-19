@@ -711,6 +711,8 @@ struct playerview_s
 	} prop;
 
 #ifdef Q2CLIENT
+	float forcefov;
+	int handedness;	//0=right,1=left,2=center/hidden
 	vec3_t predicted_origin;
 	vec3_t predicted_angles;
 	vec3_t prediction_error;

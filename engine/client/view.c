@@ -1327,6 +1327,10 @@ void V_ApplyAFov(playerview_t *pv)
 	if (!r_refdef.fov_x || !r_refdef.fov_y)
 	{
 		float afov = r_refdef.afov;
+#ifdef Q2CLIENT
+		if (pv->forcefov>0)
+			afov = pv->forcefov;
+#endif
 		if (!afov)	//make sure its sensible.
 		{
 			afov = scr_fov.value;

@@ -337,6 +337,7 @@ void Huff_EmitByte(int ch, qbyte *buffer, int *count);
 #define CCREQ_SERVER_INFO	0x02
 #define CCREQ_PLAYER_INFO	0x03
 #define CCREQ_RULE_INFO		0x04
+#define CCREQ_PROQUAKE_RCON	0x05
 
 #define CCREP_ACCEPT		0x81
 #define CCREP_REJECT		0x82

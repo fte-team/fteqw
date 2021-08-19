@@ -3129,6 +3129,7 @@ qboolean SV_FindRemotePackage(const char *package, char *url, size_t urlsize)
 	line[sep-package+1] = 0;
 	package = sep+1;
 
+	/*compat with xonotic*/
 	Q_strncatz(line, "curl_urls.txt", sizeof(line));
 	f = FS_OpenVFS(line, "rb", FS_ROOT);	//this is for server admins to deal with. urls are too unreliable for paks.
 	if (f)

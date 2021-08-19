@@ -168,10 +168,10 @@ typedef enum {
 	 * remapping keys for that too */
 
 	/* Section dedicated to SDL controller definitions */
-	K_GP_A,
-	K_GP_B,
-	K_GP_X,
-	K_GP_Y,
+	K_GP_DIAMOND_DOWN,
+	K_GP_DIAMOND_RIGHT,
+	K_GP_DIAMOND_LEFT,
+	K_GP_DIAMOND_UP,
 	K_GP_BACK,
 	K_GP_GUIDE,
 	K_GP_START,
@@ -240,7 +240,19 @@ typedef enum {
 	K_MM_TRACK_PREV,
 	K_MM_TRACK_STOP,
 	K_MM_TRACK_PLAYPAUSE,
-	K_MAX
+	K_MAX,
+
+	//360 buttons
+	K_GP_A = K_GP_DIAMOND_DOWN,
+	K_GP_B = K_GP_DIAMOND_RIGHT,
+	K_GP_X = K_GP_DIAMOND_LEFT,
+	K_GP_Y = K_GP_DIAMOND_UP,
+
+	//ps buttons
+	K_GP_PS_CROSS		= K_GP_DIAMOND_DOWN,
+	K_GP_PS_CIRCLE		= K_GP_DIAMOND_RIGHT,
+	K_GP_PS_SQUARE		= K_GP_DIAMOND_LEFT,
+	K_GP_PS_TRIANGLE	= K_GP_DIAMOND_UP,
 } keynum_t;
 
 #define KEY_MODIFIER_SHIFT		(1<<0)

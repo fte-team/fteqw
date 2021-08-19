@@ -143,7 +143,7 @@ extern int			total_loading_size, current_loading_size, loading_stage;
 // info mirrors
 //
 cvar_t	password	= CVARAF("password",	"",	"pq_password", CVAR_USERINFO | CVAR_NOUNSAFEEXPAND); //this is parhaps slightly dodgy... added pq_password alias because baker seems to be using this for user accounts.
-cvar_t	spectator	= CVARF("spectator",	"",			CVAR_USERINFO);
+static cvar_t	spectator	= CVARF("spectator",	"",			CVAR_USERINFO);
 cvar_t	name		= CVARFC("name",		"Player",	CVAR_ARCHIVE | CVAR_USERINFO, Name_Callback);
 cvar_t	team		= CVARF("team",			"",			CVAR_ARCHIVE | CVAR_USERINFO);
 cvar_t	skin		= CVARAF("skin",		"",			"_cl_playerskin", CVAR_ARCHIVE | CVAR_USERINFO);
@@ -151,11 +151,11 @@ cvar_t	model		= CVARAF("model",		"",			"_cl_playermodel", CVAR_ARCHIVE | CVAR_US
 cvar_t	topcolor	= CVARF("topcolor",		"",			CVAR_ARCHIVE | CVAR_USERINFO);
 cvar_t	bottomcolor	= CVARF("bottomcolor",	"",			CVAR_ARCHIVE | CVAR_USERINFO);
 cvar_t	rate		= CVARFD("rate",		"30000"/*"6480"*/,		CVAR_ARCHIVE | CVAR_USERINFO, "A rough measure of the bandwidth to try to use while playing. Too high a value may result in 'buffer bloat'.");
-cvar_t	drate		= CVARFD("drate",		"3000000",	CVAR_ARCHIVE | CVAR_USERINFO, "A rough measure of the bandwidth to try to use while downloading (in bytes per second).");		// :)
-cvar_t	noaim		= CVARF("noaim",		"",			CVAR_ARCHIVE | CVAR_USERINFO);
+static cvar_t	drate		= CVARFD("drate",		"3000000",	CVAR_ARCHIVE | CVAR_USERINFO, "A rough measure of the bandwidth to try to use while downloading (in bytes per second).");		// :)
+static cvar_t	noaim		= CVARF("noaim",		"",			CVAR_ARCHIVE | CVAR_USERINFO);
 cvar_t	msg			= CVARFD("msg",			"1",		CVAR_ARCHIVE | CVAR_USERINFO, "Filter console prints/messages. Only functions on QuakeWorld servers. 0=pickup messages. 1=death messages. 2=critical messages. 3=chat.");
-cvar_t	b_switch	= CVARF("b_switch",		"",			CVAR_ARCHIVE | CVAR_USERINFO);
-cvar_t	w_switch	= CVARF("w_switch",		"",			CVAR_ARCHIVE | CVAR_USERINFO);
+static cvar_t	b_switch	= CVARF("b_switch",		"",			CVAR_ARCHIVE | CVAR_USERINFO);
+static cvar_t	w_switch	= CVARF("w_switch",		"",			CVAR_ARCHIVE | CVAR_USERINFO);
 #ifdef HEXEN2
 cvar_t	cl_playerclass=CVARF("cl_playerclass","",		CVAR_ARCHIVE | CVAR_USERINFO);
 #endif
@@ -354,7 +354,7 @@ void CL_UpdateWindowTitle(void)
 			switch (cls.state)
 			{
 			default:
-#ifndef CLIENTONLY
+#ifdef HAVE_SERVER
 				if (sv.state)
 					Q_snprintfz(title, sizeof(title), "%s: %s", fs_gamename.string, svs.name);
 				else
@@ -452,7 +452,7 @@ void CL_Quit_f (void)
 	TP_ExecTrigger("f_quit", true);
 	Cbuf_Execute();
 /*
-#ifndef CLIENTONLY
+#ifdef HAVE_SERVER
 	if (!isDedicated)
 #endif
 	{
@@ -1329,7 +1329,7 @@ void CL_BeginServerConnect(const char *host, int port, qboolean noproxy)
 
 void CL_BeginServerReconnect(void)
 {
-#ifndef CLIENTONLY
+#ifdef HAVE_SERVER
 	if (isDedicated)
 	{
 		Con_TPrintf ("Connect ignored - dedicated. set a renderer first\n");
@@ -1409,7 +1409,7 @@ void CL_Connect_f (void)
 	server = Cmd_Argv (1);
 	server = strcpy(alloca(strlen(server)+1), server);
 
-#ifndef CLIENTONLY
+#ifdef HAVE_SERVER
 	if (sv.state == ss_clustermode)
 		CL_Disconnect (NULL);
 	else
@@ -1445,7 +1445,7 @@ static void CL_ConnectBestRoute_f (void)
 	else
 		Con_TPrintf ("Routing table favours chaining through %i proxies (%ims vs %ims)\n", proxies, chainedcost, directcost);
 
-#ifndef CLIENTONLY
+#ifdef HAVE_SERVER
 	if (sv.state == ss_clustermode)
 		CL_Disconnect (NULL);
 	else
@@ -1773,7 +1773,7 @@ void CL_ClearState (qboolean gamestart)
 	extern cvar_t cfg_save_auto;
 	int			i, j;
 	downloadlist_t *pendingdownloads, *faileddownloads;
-#ifndef CLIENTONLY
+#ifdef HAVE_SERVER
 #define serverrunning (sv.state != ss_dead)
 #define tolocalserver NET_IsLoopBackAddress(&cls.netchan.remote_address)
 #else
@@ -1797,7 +1797,7 @@ void CL_ClearState (qboolean gamestart)
 	Con_DPrintf ("Clearing memory\n");
 	if (!serverrunning || !tolocalserver)
 	{
-#ifndef CLIENTONLY
+#ifdef HAVE_SERVER
 		if (serverrunning && sv.state != ss_clustermode)
 			SV_UnspawnServer();
 #endif
@@ -1913,7 +1913,7 @@ void CL_ClearState (qboolean gamestart)
 	cl.gamespeed = 1;
 	cl.protocol_qw = PROTOCOL_VERSION_QW;	//until we get an svc_serverdata
 	cl.allocated_client_slots = QWMAX_CLIENTS;
-#ifndef CLIENTONLY
+#ifdef HAVE_SERVER
 	//FIXME: we should just set it to 0 to make sure its set up properly elsewhere.
 	if (sv.state)
 		cl.allocated_client_slots = sv.allocated_client_slots;
@@ -2043,7 +2043,7 @@ void CL_Disconnect (const char *reason)
 		cls.demoplayback = DPB_NONE;
 		cls.demorecording = cls.timedemo = false;
 
-#ifndef CLIENTONLY
+#ifdef HAVE_SERVER
 	//running a server, and it's our own
 		if (serverrunning && !tolocalserver && sv.state != ss_clustermode)
 			SV_UnspawnServer();
@@ -2077,7 +2077,7 @@ void CL_Disconnect (const char *reason)
 
 	CL_FlushClientCommands();
 
-#ifndef CLIENTONLY
+#ifdef HAVE_SERVER
 	if (!isDedicated)
 #endif
 	{
@@ -2111,7 +2111,7 @@ void CL_Disconnect (const char *reason)
 
 void CL_Disconnect_f (void)
 {
-#ifndef CLIENTONLY
+#ifdef HAVE_SERVER
 	if (sv.state)
 		SV_UnspawnServer();
 #endif
@@ -2140,7 +2140,7 @@ void CL_User_f (void)
 	int		i;
 	qboolean found = false;
 
-#ifndef CLIENTONLY
+#ifdef HAVE_SERVER
 	if (sv.state)
 	{
 		SV_User_f();
@@ -2360,7 +2360,7 @@ void CL_CheckServerInfo(void)
 #ifdef QUAKESTATS
 	int oldstate;
 #endif
-#ifndef CLIENTONLY
+#ifdef HAVE_SERVER
 	extern cvar_t sv_cheats;
 #endif
 	int oldteamplay = cl.teamplay;
@@ -2413,7 +2413,7 @@ void CL_CheckServerInfo(void)
 	if (spectating || cls.demoplayback || !stricmp(s, "on"))
 		cls.allow_cheats = true;
 
-#ifndef CLIENTONLY
+#ifdef HAVE_SERVER
 	//allow cheats in single player regardless of sv_cheats.
 	//(also directly read the sv_cheats cvar to avoid issues with nq protocols that don't support serverinfo.
 	if (sv.state == ss_active && (sv.allocated_client_slots == 1 || sv_cheats.ival))
@@ -3725,7 +3725,7 @@ client_connect:	//fixme: make function
 		{
 			Con_TPrintf ("connection\n");
 
-#ifndef CLIENTONLY
+#ifdef HAVE_SERVER
 			if (sv.state && sv.state != ss_clustermode)
 				SV_UnspawnServer();
 #endif
@@ -3735,7 +3735,7 @@ client_connect:	//fixme: make function
 		{
 			if (!NET_CompareAdr(&cls.netchan.remote_address, &net_from))
 			{
-#ifndef CLIENTONLY
+#ifdef HAVE_SERVER
 				if (sv.state != ss_clustermode)
 #endif
 					CL_Disconnect (NULL);
@@ -4149,7 +4149,7 @@ void CL_ReadPackets (void)
 	if (cls.state >= ca_connected
 	 && realtime - cls.netchan.last_received > cl_timeout.value && !cls.demoplayback)
 	{
-#ifndef CLIENTONLY
+#ifdef HAVE_SERVER
 		/*don't timeout when we're the actual server*/
 		if (!sv.state)
 #endif
@@ -4500,7 +4500,7 @@ void CL_Windows_f (void)
 }
 #endif
 
-#ifndef CLIENTONLY
+#ifdef HAVE_SERVER
 void CL_ServerInfo_f(void)
 {
 	if (!sv.state && cls.state && Cmd_Argc() < 2)
@@ -5018,7 +5018,7 @@ void CL_Init (void)
 	Cvar_Register (&cl_splitscreen,					cl_controlgroup);
 
 #ifndef SERVERONLY
-	Cvar_Register (&cl_loopbackprotocol,				cl_controlgroup);
+	Cvar_Register (&cl_loopbackprotocol,			cl_controlgroup);
 #endif
 	Cvar_Register (&cl_verify_urischeme,			cl_controlgroup);
 
@@ -5182,10 +5182,10 @@ void CL_Init (void)
 	Cmd_AddCommandAD ("me", CL_SayMe_f, Key_EmojiCompletion_c, NULL);
 	Cmd_AddCommandAD ("sayone", CL_Say_f, Key_EmojiCompletion_c, NULL);
 	Cmd_AddCommandAD ("say_team", CL_SayTeam_f, Key_EmojiCompletion_c, NULL);
-#ifdef CLIENTONLY
-	Cmd_AddCommand ("serverinfo", NULL);
-#else
+#ifdef HAVE_SERVER
 	Cmd_AddCommand ("serverinfo", CL_ServerInfo_f);
+#else
+	Cmd_AddCommand ("serverinfo", NULL);
 #endif
 
 	Cmd_AddCommandD ("fog", CL_Fog_f, "fog <density> <red> <green> <blue> <alpha> <depthbias>");
@@ -6210,7 +6210,7 @@ double Host_Frame (double time)
 #endif
 		if ((realtime - oldrealtime) < idlesec)
 		{
-#ifndef CLIENTONLY
+#ifdef HAVE_SERVER
 			if (sv.state)
 			{
 				RSpeedRemark();
@@ -6245,7 +6245,7 @@ double Host_Frame (double time)
 	RelightThink();	//think even on idle (which means small walls and a fast cpu can get more surfaces done.
 #endif
 
-#ifndef CLIENTONLY
+#ifdef HAVE_SERVER
 	if (sv.state && cls.state != ca_active)
 	{
 		maxfpsignoreserver = false;
@@ -6332,7 +6332,7 @@ double Host_Frame (double time)
 	// process console commands from said click/button events
 	Cbuf_Execute ();
 
-#ifndef CLIENTONLY
+#ifdef HAVE_SERVER
 	if (isDedicated)	//someone changed it.
 	{
 		if (sv.state)
@@ -6405,7 +6405,7 @@ double Host_Frame (double time)
 	if (host_speeds.ival)
 		time0 = Sys_DoubleTime ();
 
-#ifndef CLIENTONLY
+#ifdef HAVE_SERVER
 	if (sv.state)
 	{
 		float ohft = host_frametime;
@@ -6728,7 +6728,7 @@ void CL_ExecInitialConfigs(char *resetcommand)
 	Cbuf_AddText("cl_warncmd 0\n", RESTRICT_LOCAL);
 	Cbuf_AddText("cvar_purgedefaults\n", RESTRICT_LOCAL);	//reset cvar defaults to their engine-specified values. the tail end of 'exec default.cfg' will update non-cheat defaults to mod-specified values.
 	Cbuf_AddText("cvarreset *\n", RESTRICT_LOCAL);			//reset all cvars to their current (engine) defaults
-#ifndef CLIENTONLY
+#ifdef HAVE_SERVER
 	Cbuf_AddText(va("sv_gamedir \"%s\"\n", FS_GetGamedir(true)), RESTRICT_LOCAL);
 #endif
 	Cbuf_AddText(resetcommand, RESTRICT_LOCAL);
@@ -6793,7 +6793,7 @@ void CL_ExecInitialConfigs(char *resetcommand)
 	//the configs should be fully loaded.
 	//so convert the backwards compable commandline parameters in cvar sets.
 	CL_ArgumentOverrides();
-#ifndef CLIENTONLY
+#ifdef HAVE_SERVER
 	SV_ArgumentOverrides();
 #endif
 
@@ -6840,7 +6840,7 @@ void Host_FinishLoading(void)
 		Cbuf_Execute ();
 
 		CL_ArgumentOverrides();
-	#ifndef CLIENTONLY
+	#ifdef HAVE_SERVER
 		SV_ArgumentOverrides();
 	#endif
 
@@ -6984,7 +6984,7 @@ void Host_Init (quakeparms_t *parms)
 #if defined(CSQC_DAT) || defined(MENU_DAT)
 	PF_Common_RegisterCvars();
 #endif
-#ifndef CLIENTONLY
+#ifdef HAVE_SERVER
 	SV_Init(parms);
 #endif
 
@@ -7088,7 +7088,7 @@ void Host_Shutdown(void)
 	Mod_Shutdown(true);
 	Wads_Flush();
 	Con_History_Save();	//do this outside of the console code so that the filesystem is still running at this point but still allowing the filesystem to make console prints (you might not see them, but they should be visible to sys_printf still, for debugging).
-#ifndef CLIENTONLY
+#ifdef HAVE_SERVER
 	SV_Shutdown();
 #else
 	Log_ShutDown();
@@ -7127,14 +7127,14 @@ void Host_Shutdown(void)
 	COM_BiDi_Shutdown();
 	Memory_DeInit();
 
-#ifndef CLIENTONLY
+#ifdef HAVE_SERVER
 	SV_WipeServerState();
 	memset(&svs, 0, sizeof(svs));
 #endif
 	Sys_Shutdown();
 }
 
-#ifdef CLIENTONLY
+#ifndef HAVE_SERVER
 void SV_EndRedirect (void)
 {
 }

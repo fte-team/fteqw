@@ -303,10 +303,10 @@ keyname_t keynames[] =
 	{"GP_UNKNOWN",		K_GP_UNKNOWN},
 
 	//names for playstation controllers
-	{"GP_CROSS",		K_GP_A},
-	{"GP_CIRCLE",		K_GP_B},
-	{"GP_SQUARE",		K_GP_X},
-	{"GP_TRIANGLE",		K_GP_Y},
+	{"GP_CROSS",		K_GP_PS_CROSS},
+	{"GP_CIRCLE",		K_GP_PS_CIRCLE},
+	{"GP_SQUARE",		K_GP_PS_SQUARE},
+	{"GP_TRIANGLE",		K_GP_PS_TRIANGLE},
 	{"GP_MIC",		K_GP_MISC1},
 
 	//axis->button emulation

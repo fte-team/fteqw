@@ -601,6 +601,8 @@ static int te_515sevilhackworkaround;
 #define	svcdp_showlmp			35		// [string] slotname [string] lmpfilename [short] x [short] y
 #define	svcdp_hidelmp			36		// [string] slotname
 
+#define svcrm_acheesement		52	// [string] codename
+
 //#define	TE_RAILTRAIL_NEH		15 // [vector] origin [coord] red [coord] green [coord] blue	(fixme: ignored)
 #define	TE_EXPLOSION3_NEH		16 // [vector] origin [coord] red [coord] green [coord] blue	(fixme: ignored)
 #define TE_LIGHTNING4_NEH		17 // [string] model [entity] entity [vector] start [vector] end
@@ -1138,6 +1140,10 @@ void NPP_NQWriteByte(int dest, qbyte data)	//replacement write func (nq to qw)
 			data = svcqw_updatestatlong;	//ho hum... let it through (should check size later.)
 			protocollen = 6;
 			break;
+		case svcrm_acheesement:
+			ignoreprotocol = true;
+			nullterms = 1;
+			break;
 		case svc_stufftext:
 		case svc_centerprint:
 			nullterms = 1;
@@ -1395,6 +1401,7 @@ void NPP_NQWriteByte(int dest, qbyte data)	//replacement write func (nq to qw)
 				break;
 			}
 			break;
+		case svcrm_acheesement:
 		case svc_updatename:
 		case svc_stufftext:
 		case svc_centerprint:
@@ -1412,6 +1419,7 @@ void NPP_NQWriteByte(int dest, qbyte data)	//replacement write func (nq to qw)
 		case svc_updatename:
 			if (bufferlen < 2)
 				break;	//don't truncate the name if the mod is sending the slot number
+		case svcrm_acheesement:
 		case svc_stufftext:
 		case svc_centerprint:
 		case svc_cutscene:

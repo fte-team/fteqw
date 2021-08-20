@@ -584,7 +584,7 @@ static void WPhys_AddGravity (world_t *w, wedict_t *ent, const float *gravitydir
 {
 	float scale = ent->xv->gravity;
 	if (!scale)
-		scale = 1.0;
+		scale = (ent->v->movetype == MOVETYPE_BOUNCEMISSILE)?0.5:1.0;
 
 	VectorMA(ent->v->velocity, scale * movevars.gravity * host_frametime, gravitydir, ent->v->velocity);
 }
@@ -1367,7 +1367,7 @@ static void WPhys_Physics_Toss (world_t *w, wedict_t *ent)
 	if (ent->v->movetype != MOVETYPE_FLY
 		&& ent->v->movetype != MOVETYPE_FLY_WORLDONLY
 		&& ent->v->movetype != MOVETYPE_FLYMISSILE
-		&& ent->v->movetype != MOVETYPE_BOUNCEMISSILE
+		&& (ent->v->movetype != MOVETYPE_BOUNCEMISSILE || w->remasterlogic/*gib*/)
 		&& ent->v->movetype != MOVETYPE_H2SWIM)
 		WPhys_AddGravity (w, ent, gravitydir);
 
@@ -1421,7 +1421,7 @@ static void WPhys_Physics_Toss (world_t *w, wedict_t *ent)
 //		else if (progstype == PROG_H2 && ent->v->solid == SOLID_PHASEH2 && ((int)((wedict_t*)trace.ent)->v->flags & (FL_MONSTER|FL_CLIENT)))
 //			backoff = 0;
 		else
-			backoff = 2;
+			backoff = w->remasterlogic?1.5/*gib...*/:2;
 	}
 	else
 		backoff = 1;

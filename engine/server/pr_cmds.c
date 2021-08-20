@@ -1303,6 +1303,13 @@ static progsnum_t AddProgs(const char *name)
 			buttonfields[i].offset = -1;
 	}
 
+	if (num == 0)
+		if (PR_FindGlobal(svprogfuncs, "MOVETYPE_GIB", 0, NULL) ||
+			PR_FindGlobal(svprogfuncs, "SVC_ACHIEVEMENT", 0, NULL) ||
+			PR_FindGlobal(svprogfuncs, "finaleFinished", 0, NULL))
+			sv.world.remasterlogic = true;
+
+
 	if ((f = PR_FindFunction (svprogfuncs, "VersionChat", num )))
 	{
 		pr_globals = PR_globals(svprogfuncs, num);
@@ -2306,6 +2313,16 @@ void Q_InitProgs(enum initprogs_e flags)
 #endif
 
 	World_RBE_Start(&sv.world);
+
+	if (sv.world.remasterlogic)
+	{
+		PR_EnableEBFSBuiltin("bprints", 23);
+		PR_EnableEBFSBuiltin("sprints", 24);
+		PR_EnableEBFSBuiltin("centerprints", 73);
+		PR_EnableEBFSBuiltin("finaleFinished", 79);
+		PR_EnableEBFSBuiltin("localsound_remaster", 80);
+		Con_Printf(CON_WARNING "Remastered quakec detected (this is not fool-proof), compat workarounds have been enabled\n");
+	}
 }
 
 qboolean PR_QCChat(char *text, int say_type)
@@ -10705,6 +10722,26 @@ static void QCBUILTIN PF_setpause(pubprogfuncs_t *prinst, struct globalvars_s *p
 	}
 }
 
+/*builtins to work around the remastered edition of quake.*/
+void PF_finaleFinished(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{	//undocumented. just stub it for now. this will probably break coop games that killed shub.
+	G_FLOAT(OFS_RETURN) = false;
+}
+void PF_localsound_remaster(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{	//undocumented. just stub it.
+}
+void PF_centerprints(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{	//TODO: send the strings to the client for localisation+reordering
+	PF_centerprint(prinst, pr_globals);
+}
+void PF_sprints(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{	//TODO: send the strings to the client for localisation+reordering.
+	PF_sprint(prinst, pr_globals);
+}
+void PF_bprints(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{	//TODO: send the strings to the client for localisation+reordering
+	PF_bprint(prinst, pr_globals);
+}
 
 #define STUB ,NULL,true
 #if defined(DEBUG) || defined(_DEBUG)
@@ -10858,8 +10895,11 @@ static BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	//both bprint and sprint accept different arguments in QW vs NQ/H2
 	{"bprint",			PF_bprint,			23,		0,		23,		0,	D("void(string s, optional string s2, optional string s3, optional string s4, optional string s5, optional string s6, optional string s7, optional string s8)", "NQ: Concatenates all arguments, and prints the messsage on the console of all connected clients.")},
 	{"bprint",			PF_bprint,			0,		23,		0,		0,	D("void(float msglvl, string s, optional string s2, optional string s3, optional string s4, optional string s5, optional string s6, optional string s7)", "QW: Concatenates all string arguments, and prints the messsage on the console of only all clients who's 'msg' infokey is set lower or equal to the supplied 'msglvl' argument.")},
+	{"bprints",			PF_bprints,			0,		0,		0,		0,	D("void(string s, optional string s0, optional string s1, optional string s2, optional string s3, optional string s4, optional string s5, optional string s6)", "Remaster: Sends the strings to all clients, which will order them according to {#}. Also substitutes localised strings for $NAME strings.")},
 	{"sprint",			PF_sprint,			24,		0,		24,		0,	D("void(entity client, string s, optional string s2, optional string s3, optional string s4, optional string s5, optional string s6, optional string s7)", "NQ: Concatenates all string arguments, and prints the messsage on the named client's console")},
 	{"sprint",			PF_sprint,			0,		24,		0,		0,	D("void(entity client, float msglvl, string s, optional string s2, optional string s3, optional string s4, optional string s5, optional string s6)", "QW: Concatenates all string arguments, and prints the messsage on the named client's console, but only if that client's 'msg' infokey is set lower or equal to the supplied 'msglvl' argument.")},
+	{"sprints",			PF_sprints,			0,		0,		0,		0,	D("void(entity client, string s, optional string s0, optional string s1, optional string s2, optional string s3, optional string s4, optional string s5)", "Remaster: Sends the strings to the client, which will order according to {#}. Also substitutes localised strings for $NAME strings.")},
+
 #ifdef HAVE_LEGACY
 	//these have subtly different behaviour, and are implemented using different internal builtins, which is a bit weird in the extensions file. documentation is documentation.
 	{"dprint",			PF_dprint,			25,		0,		25,		0,	D("void(string s, ...)", "NQ: Prints the given message on the server's console, but only if the developer cvar is set. Arguments will be concatenated into a single message.")},
@@ -10943,6 +10983,7 @@ static BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 
 	{"cvar_set",		PF_cvar_set,		72,		72,		72,		0,	D("void(string cvarname, string valuetoset)", "Instantly sets a cvar to the given string value. Warning: the resulting string includes apostrophies surrounding the result. You may wish to use sprintf instead.")},	//72
 	{"centerprint",		PF_centerprint,		73,		73,		73,		0,	"void(entity ent, string text, optional string text2, optional string text3, optional string text4, optional string text5, optional string text6, optional string text7)"},	//73
+	{"centerprints",	PF_centerprints,	0,		0,		0,		0,	D("void(entity ent, string text, optional string s0, optional string s1, optional string s2, optional string s3, optional string s4, optional string s5)", "Remaster: Sends the strings to the client, which will order according to {#}. Also substitutes localised strings for $NAME strings.")},
 
 	{"ambientsound",	PF_ambientsound,	74,		74,		74,		0,	"void (vector pos, string samp, float vol, float atten)"},	//74
 
@@ -10952,6 +10993,8 @@ static BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 
 	{"setspawnparms",	PF_setspawnparms,	78,		78,		78,		0,	"void(entity player)"},	//78
 	{"logfrag",			PF_logfrag,			0,		79,		0,		79,	"void(entity killer, entity killee)"},	//79
+	{"finaleFinished",	PF_finaleFinished,	0,		0,		0,		0,	D("DEP float()", "Behaviour is undocumented.")},
+	{"localsound_remaster",PF_localsound_remaster,0,0,		0,		0,	D("DEP void()", "Behaviour is undocumented.")},
 
 // Tomaz - QuakeC String Manipulation Begin
 	{"tq_zone",			PF_strzone,			0,		0,		0,		79, D("DEP string(string s)",NULL), true},	//79

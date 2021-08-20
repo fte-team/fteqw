@@ -239,7 +239,7 @@ cvar_t r_telealpha							= CVARF  ("r_telealpha", "",
 cvar_t r_waterwarp							= CVARFD ("r_waterwarp", "1",
 												CVAR_ARCHIVE, "Enables fullscreen warp, preferably via glsl. -1 specifies to force the fov warp fallback instead which can give a smidge more performance.");
 
-cvar_t r_replacemodels						= CVARFD ("r_replacemodels", IFMINIMAL("","md3 md2"),
+cvar_t r_replacemodels						= CVARFD ("r_replacemodels", IFMINIMAL("","md3 md2 md5mesh"),
 												CVAR_ARCHIVE, "A list of filename extensions to attempt to use instead of mdl.");
 
 cvar_t r_lightmap_nearest					= CVARFD ("gl_lightmap_nearest", "0", CVAR_ARCHIVE, "Use nearest sampling for lightmaps. This will give a more blocky look. Meaningless when gl_lightmap_average is enabled.");

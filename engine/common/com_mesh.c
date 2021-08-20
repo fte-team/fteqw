@@ -29,6 +29,9 @@ cvar_t mod_nomipmap							= CVARD ("mod_nomipmap", "0", "Disables the use of mip
 #ifdef MODELFMT_OBJ
 cvar_t mod_obj_orientation					= CVARD("mod_obj_orientation", "1", "Controls how the model's axis are interpreted.\n0: x=forward, z=up (Quake)\n1: x=forward, y=up\n2: z=forward, y=up");
 #endif
+#ifdef MD5MODELS
+cvar_t mod_md5_singleanimation				= CVARD("mod_md5_singleanimation", "1", "When loading an md5mesh file, also attempt to load an .md5anim file, and unpack it into individual poses. Use 0 for mods that will be precaching their own md5anims for use with skeletal objects.");
+#endif
 static void QDECL r_meshpitch_callback(cvar_t *var, char *oldvalue)
 {
 	if (!strcmp(var->string, "-1") || !strcmp(var->string, "1"))
@@ -8720,6 +8723,9 @@ static qboolean Mod_ParseMD5Anim(model_t *mod, char *buffer, galiasinfo_t *proto
 
 	*poseofs = posedata = ZG_Malloc(&mod->memgroup, sizeof(float)*12*numjoints*numframes);
 
+	if (!prototype->baseframeofs)
+		 prototype->baseframeofs = posedata;
+
 	if (prototype->numbones)
 	{
 		if (prototype->numbones != numjoints)
@@ -8813,7 +8819,9 @@ static qboolean Mod_ParseMD5Anim(model_t *mod, char *buffer, galiasinfo_t *proto
 	for (i = 0; i < numframes; i++)
 	{
 		EXPECT("frame");
-		EXPECT(va("%i", i));
+		buffer = COM_ParseOut(buffer, token, sizeof(token));
+		if (atoi(token) != i)
+			MD5ERROR1PARAM("MD5ANIM: expected frame %i", i);
 		EXPECT("{");
 		for (j = 0; j < numanimatedparts; j++)
 		{
@@ -8861,11 +8869,13 @@ static qboolean Mod_ParseMD5Anim(model_t *mod, char *buffer, galiasinfo_t *proto
 	BZ_Free(boneflags);
 	BZ_Free(baseframe);
 
+	memset(&grp, 0, sizeof(grp));
 	Q_strncpyz(grp.name, "", sizeof(grp.name));
 	grp.skeltype = SKEL_RELATIVE;
 	grp.numposes = numframes;
 	grp.rate = framespersecond;
 	grp.loop = true;
+	grp.boneofs = *poseofs;
 
 	*gat = grp;
 	return true;
@@ -8965,6 +8975,8 @@ static galiasinfo_t *Mod_ParseMD5MeshModel(model_t *mod, char *buffer, char *mod
 			pose->numposes = 1;
 			pose->boneofs = posedata;
 
+			root->baseframeofs = posedata;
+
 			Q_strncpyz(pose->name, "base", sizeof(pose->name));
 
 			EXPECT("{");
@@ -9045,6 +9057,7 @@ static galiasinfo_t *Mod_ParseMD5MeshModel(model_t *mod, char *buffer, char *mod
 			}
 			Mod_DefaultMesh(inf, COM_SkipPath(mod->name), 0);
 
+			inf->shares_bones = 0;
 			inf->ofsbones = bones;
 			inf->numbones = numjoints;
 			inf->numanimations = 1;
@@ -9238,6 +9251,8 @@ static galiasinfo_t *Mod_ParseMD5MeshModel(model_t *mod, char *buffer, char *mod
 static qboolean QDECL Mod_LoadMD5MeshModel(model_t *mod, void *buffer, size_t fsize)
 {
 	galiasinfo_t *root;
+	char animname[MAX_QPATH];
+	void *animfile;
 
 	root = Mod_ParseMD5MeshModel(mod, buffer, mod->name);
 	if (root == NULL)
@@ -9245,6 +9260,45 @@ static qboolean QDECL Mod_LoadMD5MeshModel(model_t *mod, void *buffer, size_t fs
 		return false;
 	}
 
+	if (mod_md5_singleanimation.ival && root->numanimations==1 && root->ofsanimations[0].skeltype==SKEL_ABSOLUTE)	//make sure there's only the base pose...
+	{
+		COM_StripAllExtensions(mod->name, animname, sizeof(animname));
+		Q_strncatz(animname, ".md5anim", sizeof(animname));
+		animfile = FS_LoadMallocFile(animname, NULL);
+		if (animfile)	//FIXME: make non fatal somehow..
+		{
+			galiasinfo_t *surf;
+			void *np = NULL;
+			galiasanimation_t ng;
+			if (Mod_ParseMD5Anim(mod, animfile, root, &np, &ng) && ng.numposes>0)
+			{
+				galiasanimation_t *a;
+				int i;
+				root->numanimations = ng.numposes;
+				root->ofsanimations = ZG_Malloc(&mod->memgroup, ng.numposes*sizeof(*root->ofsanimations));
+
+				//pull out each frame individually
+				for (i = 0; i < ng.numposes; i++)
+				{
+					a = &root->ofsanimations[i];
+					a->skeltype = ng.skeltype;
+					a->loop = false;
+					a->numposes = 1;
+					a->rate = 10;
+					a->boneofs = (float*)np + i*12*root->numbones;
+					Q_snprintfz(a->name, sizeof(a->name), "%s_%i", animname, i);
+				}
+
+				for(surf = root;(surf = surf->nextsurf);)
+				{
+					surf->ofsanimations = root->ofsanimations;
+					surf->numanimations = root->numanimations;
+				}
+			}
+
+			Z_Free(animfile);
+		}
+	}
 
 	mod->flags = Mod_ReadFlagsFromMD1(mod->name, 0);	//file replacement - inherit flags from any defunc mdl files.
 
@@ -9835,6 +9889,7 @@ void Alias_Register(void)
 	Mod_RegisterModelFormatMagic(NULL, "Inter-Quake Model (iqm)",			('I'<<0)+('N'<<8)+('T'<<16)+('E'<<24),	Mod_LoadInterQuakeModel);
 #endif
 #ifdef MD5MODELS
+	Cvar_Register(&mod_md5_singleanimation, NULL);
 	Mod_RegisterModelFormatText(NULL, "MD5 Mesh/Anim (md5mesh)",			"MD5Version",							Mod_LoadMD5MeshModel);
 	Mod_RegisterModelFormatText(NULL, "External Anim",						"EXTERNALANIM",							Mod_LoadCompositeAnim);
 #endif

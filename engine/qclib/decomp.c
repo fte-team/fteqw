@@ -1978,7 +1978,7 @@ void DecompileDecompileStatement(dfunction_t * df, dstatement_t * s, int *indent
 		}
 
 	}
-	else if (pr_opcodes[s->op].flags & OPF_STOREPTR)
+	else if (pr_opcodes[s->op].flags & (OPF_STOREPTR|OPF_STOREPTROFS))
 	{
 		arg1 = DecompileGet(df, s->a, typ2);
 		//FIXME: we need to deal with ref types and other crazyness, so we know whether we need to add * or *& or if we can skip that completely

@@ -300,7 +300,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 	#undef PLUGINS		//pointless
 	#undef VM_Q1		//no dlls
 	#undef MAP_PROC		//meh
-	#undef HALFLIFEMODELS	//blurgh
+	#define HALFLIFEMODELS	//blurgh
 	#undef SUPPORT_ICE	//requires udp, so not usable. webrtc could be used instead, but that logic is out of our hands.
 	#undef HAVE_MIXER	//depend upon openal instead.
 

@@ -143,7 +143,7 @@ extern int			total_loading_size, current_loading_size, loading_stage;
 // info mirrors
 //
 cvar_t	password	= CVARAF("password",	"",	"pq_password", CVAR_USERINFO | CVAR_NOUNSAFEEXPAND); //this is parhaps slightly dodgy... added pq_password alias because baker seems to be using this for user accounts.
-static cvar_t	spectator	= CVARF("spectator",	"",			CVAR_USERINFO);
+cvar_t	spectator	= CVARF("spectator",	"",			CVAR_USERINFO);
 cvar_t	name		= CVARFC("name",		"Player",	CVAR_ARCHIVE | CVAR_USERINFO, Name_Callback);
 cvar_t	team		= CVARF("team",			"",			CVAR_ARCHIVE | CVAR_USERINFO);
 cvar_t	skin		= CVARAF("skin",		"",			"_cl_playerskin", CVAR_ARCHIVE | CVAR_USERINFO);

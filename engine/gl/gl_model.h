@@ -875,6 +875,7 @@ typedef struct {
 
 typedef enum {mod_brush, mod_sprite, mod_alias, mod_dummy, mod_halflife, mod_heightmap} modtype_t;
 typedef enum {fg_quake, fg_quake2, fg_quake3, fg_halflife, fg_new, fg_doom, fg_doom3} fromgame_t;	//useful when we have very similar model types. (eg quake/halflife bsps)
+typedef enum {sb_none, sb_quake64, sb_long1, sb_long2} subbsp_t; // used to denote bsp specifics for load processing only (no runtime changes)
 
 #define	MF_ROCKET				(1u<<0)			// leave a trail
 #define	MF_GRENADE				(1u<<1)			// leave a trail

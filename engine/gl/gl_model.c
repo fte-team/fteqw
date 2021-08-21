@@ -701,6 +701,7 @@ void Mod_Init (qboolean initial)
 		Mod_RegisterModelFormatMagic(NULL, "Half-Life Map (bsp)",			BSPVERSIONHL,							Mod_LoadBrushModel);
 		Mod_RegisterModelFormatMagic(NULL, "Quake1 Map (bsp)",				BSPVERSION,								Mod_LoadBrushModel);
 		Mod_RegisterModelFormatMagic(NULL, "Quake1 Prerelease Map (bsp)",	BSPVERSIONPREREL,						Mod_LoadBrushModel);
+		Mod_RegisterModelFormatMagic(NULL, "Quake 64 Remastered Map (bsp)", BSPVERSIONQ64,							Mod_LoadBrushModel);
 #endif
 	}
 }
@@ -1584,7 +1585,7 @@ typedef struct
 Mod_LoadLighting
 =================
 */
-void Mod_LoadLighting (model_t *loadmodel, bspx_header_t *bspx, qbyte *mod_base, lump_t *l, qboolean interleaveddeluxe, lightmapoverrides_t *overrides)
+void Mod_LoadLighting (model_t *loadmodel, bspx_header_t *bspx, qbyte *mod_base, lump_t *l, qboolean interleaveddeluxe, lightmapoverrides_t *overrides, subbsp_t subbsp)
 {
 	qboolean luxtmp = true;
 	qboolean exptmp = true;
@@ -1619,6 +1620,24 @@ void Mod_LoadLighting (model_t *loadmodel, bspx_header_t *bspx, qbyte *mod_base,
 		litdata = mod_base + l->fileofs;
 		samples = l->filelen/3;
 	}
+	else if (subbsp == sb_quake64)
+	{
+		qbyte *q64l = mod_base + l->fileofs;
+		qbyte* newl;
+		int i;
+
+		samples = l->filelen / 2;
+		litdata = ZG_Malloc(&loadmodel->memgroup, samples * 3);
+		littmp = false;
+
+		// q64 lightmap format: byte 0 RRRR RGGG byte 1 GGBB BBBA
+		for (i = 0, newl = litdata; i < samples; ++i, q64l += 2, newl += 3)
+		{
+			newl[0] = (q64l[0] & 0xF8) | ((q64l[0] & 0xF8) >> 5);
+			newl[1] = ((q64l[0] & 0x07) << 5) | ((q64l[1] & 0xC0) >> 3) | (q64l[0] & 0x07);
+			newl[2] = ((q64l[1] & 0x3E) << 2) | ((q64l[1] & 0x3E) >> 3);
+		}
+	} 
 	else
 	{
 		lumdata = mod_base + l->fileofs;
@@ -3216,12 +3235,12 @@ void Mod_SetParent (mnode_t *node, mnode_t *parent)
 Mod_LoadEdges
 =================
 */
-qboolean Mod_LoadEdges (model_t *loadmodel, qbyte *mod_base, lump_t *l, qboolean lm)
+qboolean Mod_LoadEdges (model_t *loadmodel, qbyte *mod_base, lump_t *l, subbsp_t subbsp)
 {
 	medge_t *out;
 	int 	i, count;
 	
-	if (lm)
+	if (subbsp == sb_long1 || subbsp == sb_long2)
 	{
 		dledge_t *in = (void *)(mod_base + l->fileofs);
 		count = l->filelen / sizeof(*in);
@@ -3270,12 +3289,12 @@ qboolean Mod_LoadEdges (model_t *loadmodel, qbyte *mod_base, lump_t *l, qboolean
 Mod_LoadMarksurfaces
 =================
 */
-qboolean Mod_LoadMarksurfaces (model_t *loadmodel, qbyte *mod_base, lump_t *l, qboolean lm)
+qboolean Mod_LoadMarksurfaces (model_t *loadmodel, qbyte *mod_base, lump_t *l, subbsp_t subbsp)
 {	
 	int		i, j, count;
 	msurface_t **out;
 
-	if (lm)
+	if (subbsp == sb_long1 || subbsp == sb_long2)
 	{
 		int		*inl;
 		inl = (void *)(mod_base + l->fileofs);
@@ -3382,7 +3401,7 @@ static void Mod_LoadVisibility (model_t *loadmodel, qbyte *mod_base, lump_t *l, 
 }
 
 #ifndef SERVERONLY
-static void Mod_LoadMiptex(model_t *loadmodel, texture_t *tx, miptex_t *mt, size_t miptexsize)
+static void Mod_LoadMiptex(model_t *loadmodel, texture_t *tx, miptex_t *mt, int mtsize, qbyte *ptr, size_t miptexsize)
 {
 	unsigned int legacysize =
 		(mt->width>>0)*(mt->height>>0) +
@@ -3405,22 +3424,22 @@ static void Mod_LoadMiptex(model_t *loadmodel, texture_t *tx, miptex_t *mt, size
 	//if the gpu doesn't support npot, or its too big, or can't use the pixelformat then the engine will simply have to fall back on the paletted data. lets hope it was present.
 	size_t extofs;
 	if (!mt->offsets[0])
-		extofs = sizeof(miptex_t);
-	else if (mt->offsets[0] == sizeof(miptex_t) &&
+		extofs = mtsize;
+	else if (mt->offsets[0] == mtsize &&
 			 mt->offsets[1] == mt->offsets[0]+(mt->width>>0)*(mt->height>>0) &&
 			 mt->offsets[2] == mt->offsets[1]+(mt->width>>1)*(mt->height>>1) &&
 			 mt->offsets[3] == mt->offsets[2]+(mt->width>>2)*(mt->height>>2))
 	{
 		extofs = mt->offsets[3]+(mt->width>>3)*(mt->height>>3);
-		if (loadmodel->fromgame == fg_halflife && *(short*)((qbyte *)mt + mt->offsets[3] + (mt->width>>3)*(mt->height>>3)) == 256)
+		if (loadmodel->fromgame == fg_halflife && *(short*)(ptr + mt->offsets[3] + (mt->width>>3)*(mt->height>>3)) == 256)
 		{
-			pal = (qbyte*)mt + extofs+2;
+			pal = ptr + extofs+2;
 			extofs += 2+256*3;
 		}
 	}
 	else
 		extofs = miptexsize;	//the numbers don't match what we expect... something weird is going on here... don't misinterpret it.
-	if (extofs+4 <= miptexsize && ((qbyte*)mt)[extofs+0] == 0 && ((qbyte*)mt)[extofs+1]==0xfb && ((qbyte*)mt)[extofs+2]==0x2b && ((qbyte*)mt)[extofs+3]==0xaf)
+	if (extofs+4 <= miptexsize && ptr[extofs+0] == 0 && ptr[extofs+1]==0xfb && ptr[extofs+2]==0x2b && ptr[extofs+3]==0xaf)
 	{
 		unsigned int extsize;
 		extofs += 4;
@@ -3429,7 +3448,7 @@ static void Mod_LoadMiptex(model_t *loadmodel, texture_t *tx, miptex_t *mt, size
 			size_t sz, w, h;
 			unsigned int bb,bw,bh,bd;
 			int mip;
-			qbyte *extdata = (void*)((qbyte*)mt+extofs);
+			qbyte *extdata = (void*)(ptr+extofs);
 			char *extfmt = (char*)(extdata+4);
 			extsize = (extdata[0]<<0)|(extdata[1]<<8)|(extdata[2]<<16)|(extdata[3]<<24);
 			if (extsize<8 || extofs+extsize>miptexsize) break;	//not a valid entry... something weird is happening here
@@ -3581,7 +3600,7 @@ static void Mod_LoadMiptex(model_t *loadmodel, texture_t *tx, miptex_t *mt, size
 	for (m = 0; m < 4; m++)
 	{
 		if (mt->offsets[m])
-			memcpy(tx->srcdata+legacysize, (qbyte *)mt + mt->offsets[m], (mt->width>>m)*(mt->height>>m));
+			memcpy(tx->srcdata+legacysize, ptr + mt->offsets[m], (mt->width>>m)*(mt->height>>m));
 		else
 			memset(tx->srcdata+legacysize, 0, (mt->width>>m)*(mt->height>>m));
 		legacysize += (mt->width>>m)*(mt->height>>m);
@@ -3594,16 +3613,16 @@ static void Mod_LoadMiptex(model_t *loadmodel, texture_t *tx, miptex_t *mt, size
 Mod_LoadTextures
 =================
 */
-static qboolean Mod_LoadTextures (model_t *loadmodel, qbyte *mod_base, lump_t *l)
+static qboolean Mod_LoadTextures (model_t *loadmodel, qbyte *mod_base, lump_t *l, subbsp_t subbsp)
 {
 	int		i, j, num, max, altmax;
-	miptex_t	*mt;
 	texture_t	*tx, *tx2;
 	texture_t	*anims[10];
 	texture_t	*altanims[10];
 	dmiptexlump_t *m;
 	unsigned int *sizes;
 	unsigned int e, o;
+	int mtsize;
 
 TRACE(("dbg: Mod_LoadTextures: inittexturedescs\n"));
 
@@ -3632,8 +3651,15 @@ TRACE(("dbg: Mod_LoadTextures: inittexturedescs\n"));
 	loadmodel->textures = ZG_Malloc(&loadmodel->memgroup, m->nummiptex * sizeof(*loadmodel->textures));
 	sizes = alloca(sizeof(*sizes)*m->nummiptex);
 
+	mtsize = subbsp == sb_quake64 ? sizeof(q64miptex_t) : sizeof(miptex_t);
+
 	for (i=m->nummiptex, e = l->filelen; i-->0; )
 	{
+		qbyte* ptr;
+		miptex_t* mt;
+		miptex_t tmp;
+		int scale;
+
 		o = LittleLong(m->dataofs[i]);
 		if (o >= l->filelen)	//e1m2, this happens
 		{
@@ -3645,20 +3671,36 @@ TRACE(("dbg: Mod_LoadTextures: inittexturedescs\n"));
 		}
 		if (o >= e)
 			e = l->filelen; //something doesn't make sense. try to avoid making too many assumptions.
-		mt = (miptex_t *)((qbyte *)m + o);
 
-	TRACE(("dbg: Mod_LoadTextures: texture %s\n", mt->name));
+		ptr = (qbyte*)m + o;
+
+		if (subbsp == sb_quake64)
+		{
+			q64miptex_t *q64mt = (q64miptex_t*)ptr;
+			memcpy(tmp.name, q64mt->name, sizeof(tmp.name));
+			mt = &tmp;
+			mt->width = LittleLong(q64mt->width);
+			mt->height = LittleLong(q64mt->height);
+			for (j = 0; j < MIPLEVELS; j++)
+				mt->offsets[j] = LittleLong(q64mt->offsets[j]);
+			scale = LittleLong (q64mt->scale);
+		} 
+		else 
+		{
+			mt = (miptex_t*)ptr;
+			mt->width = LittleLong(mt->width);
+			mt->height = LittleLong(mt->height);
+			for (j = 0; j < MIPLEVELS; j++)
+				mt->offsets[j] = LittleLong(mt->offsets[j]);
+		}
+
+		TRACE(("dbg: Mod_LoadTextures: texture %s\n", mt->name));
 
 		if (!*mt->name)	//I HATE MAPPERS!
 		{
 			Q_snprintfz(mt->name, sizeof(mt->name), "unnamed%i", i);
 			Con_DPrintf(CON_WARNING "warning: unnamed texture in %s, renaming to %s\n", loadmodel->name, mt->name);
 		}
-
-		mt->width = LittleLong (mt->width);
-		mt->height = LittleLong (mt->height);
-		for (j=0 ; j<MIPLEVELS ; j++)
-			mt->offsets[j] = LittleLong (mt->offsets[j]);
 
 		if ( (mt->width & 15) || (mt->height & 15) )
 			Con_DPrintf (CON_WARNING "Warning: Texture %s is not 16 aligned", mt->name);
@@ -3670,9 +3712,14 @@ TRACE(("dbg: Mod_LoadTextures: inittexturedescs\n"));
 		Q_strncpyz(tx->name, mt->name, min(sizeof(mt->name)+1, sizeof(tx->name)));
 		tx->vwidth = mt->width;
 		tx->vheight = mt->height;
+		if (subbsp == sb_quake64)
+		{
+			tx->vwidth <<= scale;
+			tx->vheight <<= scale;
+		}
 
 #ifndef SERVERONLY
-		Mod_LoadMiptex(loadmodel, tx, mt, e-o);
+		Mod_LoadMiptex(loadmodel, tx, mt, mtsize, ptr, e-o);
 #else
 		(void)e;
 #endif
@@ -3684,6 +3731,8 @@ TRACE(("dbg: Mod_LoadTextures: inittexturedescs\n"));
 //
 	for (i=0 ; i<m->nummiptex ; i++)
 	{
+		qboolean animvalid = true;
+
 		tx = loadmodel->textures[i];
 		if (!tx || tx->name[0] != '+')
 			continue;
@@ -3714,8 +3763,8 @@ TRACE(("dbg: Mod_LoadTextures: inittexturedescs\n"));
 		}
 		else
 		{
-			Con_Printf (CON_ERROR "Bad animating texture %s\n", tx->name);
-			return false;
+			Con_Printf (CON_WARNING "Bad animating texture name %s\n", tx->name);
+			continue;
 		}
 
 		for (j=i+1 ; j<m->nummiptex ; j++)
@@ -3745,42 +3794,54 @@ TRACE(("dbg: Mod_LoadTextures: inittexturedescs\n"));
 			}
 			else
 			{
-				Con_Printf (CON_ERROR "Bad animating texture %s\n", tx->name);
-				return false;
+				continue;
 			}
 		}
 
 #define	ANIM_CYCLE	2
-	// link them all together
-		for (j=0 ; j<max ; j++)
+		// validate
+		for (j = 0; j < max; j++)
 		{
-			tx2 = anims[j];
-			if (!tx2)
+			if (!anims[j])
 			{
-				Con_Printf (CON_ERROR "Missing frame %i of %s\n",j, tx->name);
-				return false;
+				Con_Printf(CON_WARNING "Missing frame %i of %s\n", j, tx->name);
+				animvalid = false;
+				break;
 			}
-			tx2->anim_total = max * ANIM_CYCLE;
-			tx2->anim_min = j * ANIM_CYCLE;
-			tx2->anim_max = (j+1) * ANIM_CYCLE;
-			tx2->anim_next = anims[ (j+1)%max ];
-			if (altmax)
-				tx2->alternate_anims = altanims[0];
 		}
-		for (j=0 ; j<altmax ; j++)
+		for (j = 0; j < altmax && animvalid; j++)
 		{
-			tx2 = altanims[j];
-			if (!tx2)
+			if (!altanims[j])
 			{
-				Con_Printf (CON_ERROR "Missing frame %i of %s\n",j, tx->name);
-				return false;
+				Con_Printf(CON_WARNING "Missing alt frame %i of %s\n", j, tx->name);
+				animvalid = false;
+				break;
 			}
-			tx2->anim_total = altmax * ANIM_CYCLE;
-			tx2->anim_min = j * ANIM_CYCLE;
-			tx2->anim_max = (j+1) * ANIM_CYCLE;
-			tx2->anim_next = altanims[ (j+1)%altmax ];
-			if (max)
-				tx2->alternate_anims = anims[0];
+		}
+
+		// link them all together
+		if (animvalid)
+		{
+			for (j = 0; j < max; j++)
+			{
+				tx2 = anims[j];
+				tx2->anim_total = max * ANIM_CYCLE;
+				tx2->anim_min = j * ANIM_CYCLE;
+				tx2->anim_max = (j + 1) * ANIM_CYCLE;
+				tx2->anim_next = anims[(j + 1) % max];
+				if (altmax)
+					tx2->alternate_anims = altanims[0];
+			}
+			for (j = 0; j < altmax; j++)
+			{
+				tx2 = altanims[j];
+				tx2->anim_total = altmax * ANIM_CYCLE;
+				tx2->anim_min = j * ANIM_CYCLE;
+				tx2->anim_max = (j + 1) * ANIM_CYCLE;
+				tx2->anim_next = altanims[(j + 1) % altmax];
+				if (max)
+					tx2->alternate_anims = anims[0];
+			}
 		}
 	}
 
@@ -4015,7 +4076,7 @@ void CalcSurfaceExtents (model_t *mod, msurface_t *s);
 Mod_LoadFaces
 =================
 */
-static qboolean Mod_LoadFaces (model_t *loadmodel, bspx_header_t *bspx, qbyte *mod_base, lump_t *l, lump_t *lightlump, qboolean lm)
+static qboolean Mod_LoadFaces (model_t *loadmodel, bspx_header_t *bspx, qbyte *mod_base, lump_t *l, lump_t *lightlump, subbsp_t subbsp)
 {
 	dsface_t		*ins;
 	dlface_t		*inl;
@@ -4042,7 +4103,7 @@ static qboolean Mod_LoadFaces (model_t *loadmodel, bspx_header_t *bspx, qbyte *m
 			lmscale >>= 1;
 	}
 
-	if (lm)
+	if (subbsp == sb_long1 || subbsp == sb_long2)
 	{
 		ins = NULL;
 		inl = (void *)(mod_base + l->fileofs);
@@ -4070,7 +4131,7 @@ static qboolean Mod_LoadFaces (model_t *loadmodel, bspx_header_t *bspx, qbyte *m
 	loadmodel->surfaces = out;
 	loadmodel->numsurfaces = count;
 
-	Mod_LoadLighting (loadmodel, bspx, mod_base, lightlump, false, &overrides);
+	Mod_LoadLighting (loadmodel, bspx, mod_base, lightlump, false, &overrides, subbsp);
 
 	switch(loadmodel->lightmaps.fmt)
 	{
@@ -4090,7 +4151,7 @@ static qboolean Mod_LoadFaces (model_t *loadmodel, bspx_header_t *bspx, qbyte *m
 
 	for ( surfnum=0 ; surfnum<count ; surfnum++, out++)
 	{
-		if (lm)
+		if (subbsp == sb_long1 || subbsp == sb_long2)
 		{
 			planenum = LittleLong(inl->planenum);
 			side = LittleLong(inl->side);
@@ -4112,6 +4173,10 @@ static qboolean Mod_LoadFaces (model_t *loadmodel, bspx_header_t *bspx, qbyte *m
 			for (i=0 ; i<countof(out->styles) ; i++)
 				out->styles[i] = (i >= countof(ins->styles) || (lightstyleindex_t)ins->styles[i]>=INVALID_LIGHTSTYLE || ins->styles[i]==255)?INVALID_LIGHTSTYLE:ins->styles[i];
 			lofs = LittleLong(ins->lightofs);
+			if (subbsp == sb_quake64)
+			{
+				lofs >>= 1;
+			}
 			ins++;
 		}
 //		(*meshlist)[surfnum].vbofirstvert = out->firstedge;
@@ -4207,12 +4272,12 @@ static qboolean Mod_LoadFaces (model_t *loadmodel, bspx_header_t *bspx, qbyte *m
 Mod_LoadNodes
 =================
 */
-static qboolean Mod_LoadNodes (model_t *loadmodel, qbyte *mod_base, lump_t *l, int lm)
+static qboolean Mod_LoadNodes (model_t *loadmodel, qbyte *mod_base, lump_t *l, subbsp_t subbsp)
 {
 	int			i, j, count, p;
 	mnode_t 	*out;
 
-	if (lm == 2)
+	if (subbsp == sb_long2)
 	{
 		dl2node_t		*in;
 		in = (void *)(mod_base + l->fileofs);
@@ -4251,7 +4316,7 @@ static qboolean Mod_LoadNodes (model_t *loadmodel, qbyte *mod_base, lump_t *l, i
 			}
 		}
 	}
-	else if (lm)
+	else if (subbsp == sb_long1)
 	{
 		dl1node_t		*in;
 		in = (void *)(mod_base + l->fileofs);
@@ -4349,7 +4414,7 @@ static qboolean Mod_LoadNodes (model_t *loadmodel, qbyte *mod_base, lump_t *l, i
 Mod_LoadLeafs
 =================
 */
-static qboolean Mod_LoadLeafs (model_t *loadmodel, qbyte *mod_base, lump_t *l, int lm, qboolean isnotmap, qbyte *ptr, size_t len)
+static qboolean Mod_LoadLeafs (model_t *loadmodel, qbyte *mod_base, lump_t *l, subbsp_t subbsp, qboolean isnotmap, qbyte *ptr, size_t len)
 {
 	mleaf_t 	*out;
 	int			i, j, count, p;
@@ -4360,7 +4425,7 @@ static qboolean Mod_LoadLeafs (model_t *loadmodel, qbyte *mod_base, lump_t *l, i
 		len = l->filelen;
 	}
 
-	if (lm==2)
+	if (subbsp == sb_long2)
 	{
 		dl2leaf_t 	*in;
 		in = (void *)ptr;
@@ -4419,7 +4484,7 @@ static qboolean Mod_LoadLeafs (model_t *loadmodel, qbyte *mod_base, lump_t *l, i
 			}
 		}
 	}
-	else if (lm)
+	else if (subbsp == sb_long1)
 	{
 		dl1leaf_t 	*in;
 		in = (void *)(ptr);
@@ -4548,7 +4613,7 @@ static qboolean Mod_LoadLeafs (model_t *loadmodel, qbyte *mod_base, lump_t *l, i
 Mod_LoadClipnodes
 =================
 */
-static qboolean Mod_LoadClipnodes (model_t *loadmodel, qbyte *mod_base, lump_t *l, qboolean lm, qboolean hexen2map)
+static qboolean Mod_LoadClipnodes (model_t *loadmodel, qbyte *mod_base, lump_t *l, subbsp_t subbsp, qboolean hexen2map)
 {
 	dsclipnode_t *ins;
 	dlclipnode_t *inl;
@@ -4556,7 +4621,7 @@ static qboolean Mod_LoadClipnodes (model_t *loadmodel, qbyte *mod_base, lump_t *
 	int			i, count;
 	hull_t		*hull;
 
-	if (lm)
+	if (subbsp == sb_long1 || subbsp == sb_long2)
 	{
 		ins = NULL;
 		inl = (void *)(mod_base + l->fileofs);
@@ -4744,7 +4809,7 @@ static qboolean Mod_LoadClipnodes (model_t *loadmodel, qbyte *mod_base, lump_t *
 		hull->available = false;
 	}
 
-	if (lm)
+	if (subbsp == sb_long1 || subbsp == sb_long2)
 	{
 		for (i=0 ; i<count ; i++, out++, inl++)
 		{
@@ -5153,7 +5218,6 @@ static qboolean QDECL Mod_LoadBrushModel (model_t *mod, void *buffer, size_t fsi
 	model_t *submod;
 	unsigned int chksum;
 	qboolean noerrors;
-	int longm = false;
 	char loadname[32];
 	qbyte *mod_base = buffer;
 	qboolean hexen2map = false;
@@ -5161,6 +5225,7 @@ static qboolean QDECL Mod_LoadBrushModel (model_t *mod, void *buffer, size_t fsi
 	qboolean using_rbe = true;
 	qboolean misaligned = false;
 	bspx_header_t *bspx;
+	subbsp_t subbsp = sb_none;
 
 	COM_FileBase (mod->name, loadname, sizeof(loadname));
 	mod->type = mod_brush;
@@ -5192,18 +5257,20 @@ static qboolean QDECL Mod_LoadBrushModel (model_t *mod, void *buffer, size_t fsi
 
 	switch(header.version)
 	{
+	case BSPVERSIONQ64:
+		subbsp = sb_quake64;
 	case BSPVERSION:
 	case BSPVERSIONPREREL:
 		mod->fromgame = fg_quake;
 		mod->engineflags |= MDLF_NEEDOVERBRIGHT;
 		break;
 	case BSPVERSION_LONG1:
-		longm = true;
+		subbsp = sb_long1;
 		mod->fromgame = fg_quake;
 		mod->engineflags |= MDLF_NEEDOVERBRIGHT;
 		break;
 	case BSPVERSION_LONG2:
-		longm = 2;
+		subbsp = sb_long2;
 		mod->fromgame = fg_quake;
 		mod->engineflags |= MDLF_NEEDOVERBRIGHT;
 		break;
@@ -5290,14 +5357,14 @@ static qboolean QDECL Mod_LoadBrushModel (model_t *mod, void *buffer, size_t fsi
 		TRACE(("Loading verts\n"));
 		noerrors = noerrors && Mod_LoadVertexes (mod, mod_base, &header.lumps[LUMP_VERTEXES]);
 		TRACE(("Loading edges\n"));
-		noerrors = noerrors && Mod_LoadEdges (mod, mod_base, &header.lumps[LUMP_EDGES], longm);
+		noerrors = noerrors && Mod_LoadEdges (mod, mod_base, &header.lumps[LUMP_EDGES], subbsp);
 		TRACE(("Loading Surfedges\n"));
 		noerrors = noerrors && Mod_LoadSurfedges (mod, mod_base, &header.lumps[LUMP_SURFEDGES]);
 	}
 	if (!isDedicated)
 	{
 		TRACE(("Loading Textures\n"));
-		noerrors = noerrors && Mod_LoadTextures (mod, mod_base, &header.lumps[LUMP_TEXTURES]);
+		noerrors = noerrors && Mod_LoadTextures (mod, mod_base, &header.lumps[LUMP_TEXTURES], subbsp);
 	}
 	TRACE(("Loading Submodels\n"));
 	noerrors = noerrors && Mod_LoadSubmodels (mod, mod_base, &header.lumps[LUMP_MODELS], &hexen2map);
@@ -5310,23 +5377,23 @@ static qboolean QDECL Mod_LoadBrushModel (model_t *mod, void *buffer, size_t fsi
 		TRACE(("Loading Texinfo\n"));
 		noerrors = noerrors && Mod_LoadTexinfo (mod, mod_base, &header.lumps[LUMP_TEXINFO]);
 		TRACE(("Loading Faces\n"));
-		noerrors = noerrors && Mod_LoadFaces (mod, bspx, mod_base, &header.lumps[LUMP_FACES], &header.lumps[LUMP_LIGHTING], longm);
+		noerrors = noerrors && Mod_LoadFaces (mod, bspx, mod_base, &header.lumps[LUMP_FACES], &header.lumps[LUMP_LIGHTING], subbsp);
 	}
 	if (!isDedicated)
 	{
 		TRACE(("Loading MarkSurfaces\n"));
-		noerrors = noerrors && Mod_LoadMarksurfaces (mod, mod_base, &header.lumps[LUMP_MARKSURFACES], longm);	
+		noerrors = noerrors && Mod_LoadMarksurfaces (mod, mod_base, &header.lumps[LUMP_MARKSURFACES], subbsp);
 	}
 	if (noerrors)
 	{
 		TRACE(("Loading Vis\n"));
 		Mod_LoadVisibility (mod, mod_base, &header.lumps[LUMP_VISIBILITY], vispatch.visptr, vispatch.vislen);
 	}
-	noerrors = noerrors && Mod_LoadLeafs (mod, mod_base, &header.lumps[LUMP_LEAFS], longm, isnotmap, vispatch.leafptr, vispatch.leaflen);
+	noerrors = noerrors && Mod_LoadLeafs (mod, mod_base, &header.lumps[LUMP_LEAFS], subbsp, isnotmap, vispatch.leafptr, vispatch.leaflen);
 	TRACE(("Loading Nodes\n"));
-	noerrors = noerrors && Mod_LoadNodes (mod, mod_base, &header.lumps[LUMP_NODES], longm);
+	noerrors = noerrors && Mod_LoadNodes (mod, mod_base, &header.lumps[LUMP_NODES], subbsp);
 	TRACE(("Loading Clipnodes\n"));
-	noerrors = noerrors && Mod_LoadClipnodes (mod, mod_base, &header.lumps[LUMP_CLIPNODES], longm, hexen2map);
+	noerrors = noerrors && Mod_LoadClipnodes (mod, mod_base, &header.lumps[LUMP_CLIPNODES], subbsp, hexen2map);
 	if (noerrors)
 	{
 		TRACE(("Loading hull 0\n"));

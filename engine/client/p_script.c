@@ -4173,6 +4173,35 @@ static trailstate_t *P_NewTrailstate(trailstate_t **key)
 	return ts;
 }
 
+static trailstate_t* P_FetchTrailstate(trailstate_t** tsk)
+{
+	trailstate_t* ts;
+
+	// trailstate allocation/deallocation
+	if (tsk)
+	{
+		if (*tsk == NULL)
+		{
+			ts = P_NewTrailstate(tsk);
+			*tsk = ts;
+		}
+		else
+		{
+			ts = *tsk;
+
+			if (ts->key != tsk) // trailstate was overwritten
+			{
+				ts = P_NewTrailstate(tsk); // so get a new one
+				*tsk = ts;
+			}
+		}
+	}
+	else
+		ts = NULL;
+
+	return ts;
+}
+
 #define NUMVERTEXNORMALS	162
 static float	r_avertexnormals[NUMVERTEXNORMALS][3] = {
 #include "anorms.h"
@@ -4665,28 +4694,7 @@ static int PScript_RunParticleEffectState (vec3_t org, vec3_t dir, float count, 
 	if (ptype->flags & PT_NOSTATE)
 		tsk = NULL;
 
-	// trailstate allocation/deallocation
-	if (tsk)
-	{
-		// if *tsk = NULL get a new one
-		if (*tsk == NULL)
-		{
-			ts = P_NewTrailstate(tsk);
-			*tsk = ts;
-		}
-		else
-		{
-			ts = *tsk;
-
-			if (ts->key != tsk) // trailstate was overwritten
-			{
-				ts = P_NewTrailstate(tsk); // so get a new one
-				*tsk = ts;
-			}
-		}
-	}
-	else
-		ts = NULL;
+	ts = P_FetchTrailstate(tsk);
 
 	// get msvc to shut up
 	j = k = l = 0;
@@ -4830,7 +4838,7 @@ static int PScript_RunParticleEffectState (vec3_t org, vec3_t dir, float count, 
 		if (ptype->flags & PT_INVFRAMETIME)
 			pcount /= host_frametime;
 		if (ts)
-			pcount += ts->state2.emittime;
+			pcount += ts->effect.emittime;
 
 		pcount *= r_part_density.value;
 
@@ -4889,10 +4897,10 @@ static int PScript_RunParticleEffectState (vec3_t org, vec3_t dir, float count, 
 		// time limit (for completeness)
 		if (ptype->spawntime && ts)
 		{
-			if (ts->state1.statetime > particletime)
+			if (ts->effect.statetime > particletime)
 				return 0; // timelimit still in effect
 
-			ts->state1.statetime = particletime + ptype->spawntime; // record old time
+			ts->effect.statetime = particletime + ptype->spawntime; // record old time
 		}
 
 		// random chance for point effects
@@ -5233,7 +5241,7 @@ static int PScript_RunParticleEffectState (vec3_t org, vec3_t dir, float count, 
 
 		// save off emit times in trailstate
 		if (ts)
-			ts->state2.emittime = pcount - i;
+			ts->effect.emittime = pcount - i;
 
 		// maintain run list
 		if (!(ptype->state & PS_INRUNLIST) && (ptype->particles || ptype->clippeddecals))
@@ -5256,22 +5264,7 @@ skip:
 		if (ts)
 		{
 			tsk = &(ts->assoc);
-			// if *tsk = NULL get a new one
-			if (*tsk == NULL)
-			{
-				ts = P_NewTrailstate(tsk);
-				*tsk = ts;
-			}
-			else
-			{
-				ts = *tsk;
-
-				if (ts->key != tsk) // trailstate was overwritten
-				{
-					ts = P_NewTrailstate(tsk); // so get a new one
-					*tsk = ts;
-				}
-			}
+			ts = P_FetchTrailstate(tsk);
 		}
 
 		ptype = &part_type[ptype->assoc];
@@ -5557,7 +5550,7 @@ static void PScript_RunParticleEffectPalette (const char *nameprefix, vec3_t org
 	}
 }
 
-static void P_ParticleTrailSpawn (vec3_t startpos, vec3_t end, part_type_t *ptype, float timeinterval, trailstate_t **tsk, int dlkey, vec3_t dlaxis[3])
+static void P_ParticleTrailSpawn (vec3_t startpos, vec3_t end, part_type_t *ptype, float timeinterval, trailstate_t** tsk, int dlkey, vec3_t dlaxis[3])
 {
 	vec3_t	vec, vstep, right, up, start;
 	float	len;
@@ -5581,28 +5574,7 @@ static void P_ParticleTrailSpawn (vec3_t startpos, vec3_t end, part_type_t *ptyp
 	if (ptype->flags & PT_NOSTATE)
 		tsk = NULL;
 
-	// trailstate allocation/deallocation
-	if (tsk)
-	{
-		// if *tsk = NULL get a new one
-		if (*tsk == NULL)
-		{
-			ts = P_NewTrailstate(tsk);
-			*tsk = ts;
-		}
-		else
-		{
-			ts = *tsk;
-
-			if (ts->key != tsk) // trailstate was overwritten
-			{
-				ts = P_NewTrailstate(tsk); // so get a new one
-				*tsk = ts;
-			}
-		}
-	}
-	else
-		ts = NULL;
+	ts = P_FetchTrailstate(tsk);
 
 	PScript_EffectSpawned(ptype, start, dlaxis, dlkey, 1);
 
@@ -5628,10 +5600,10 @@ static void P_ParticleTrailSpawn (vec3_t startpos, vec3_t end, part_type_t *ptyp
 	// time limit for trails
 	if (ptype->spawntime && ts)
 	{
-		if (ts->state1.statetime > particletime)
+		if (ts->effect.statetime > particletime)
 			return; // timelimit still in effect
 
-		ts->state1.statetime = particletime + ptype->spawntime; // record old time
+		ts->effect.statetime = particletime + ptype->spawntime; // record old time
 		ts = NULL; // clear trailstate so we don't save length/lastseg
 	}
 
@@ -5674,8 +5646,8 @@ static void P_ParticleTrailSpawn (vec3_t startpos, vec3_t end, part_type_t *ptyp
 	// store last stop here for lack of a better solution besides vectors
 	if (ts)
 	{
-		ts->state2.laststop = stop = ts->state2.laststop + len;	//when to stop
-		len = ts->state1.lastdist;
+		ts->trail.laststop = stop = ts->trail.laststop + len;	//when to stop
+		len = ts->trail.lastdist;
 	}
 	else
 	{
@@ -6016,7 +5988,7 @@ static void P_ParticleTrailSpawn (vec3_t startpos, vec3_t end, part_type_t *ptyp
 
 	if (ts)
 	{
-		ts->state1.lastdist = len;
+		ts->trail.lastdist = len;
 
 		// update beamseg list
 		if (ptype->looks.type == PT_BEAM||ptype->looks.type == PT_VBEAM)
@@ -6083,10 +6055,17 @@ static int PScript_ParticleTrail (vec3_t startpos, vec3_t end, int type, float t
 {
 	part_type_t *ptype = &part_type[type];
 
-	// TODO: fallback particle system won't have a decent trailstate which will mess up
-	// high fps trails
 	if (type >= FALLBACKBIAS && fallback)
-		return fallback->ParticleTrail(startpos, end, type-FALLBACKBIAS, timeinterval, dlkey, axis, NULL);
+	{
+		// this will cause problems if dealing with fallbacks that actually 
+		// allocate their own trail state, but for now this should suffice
+		//
+		// also reusing fallback space for emit/trail info will cause some
+		// issues with entities in action during particle reconfiguration 
+		// but that shouldn't be happening too often
+		trailstate_t* ts = P_FetchTrailstate(tsk);
+		return fallback->ParticleTrail(startpos, end, type - FALLBACKBIAS, timeinterval, dlkey, axis, &(ts->fallback));
+	}
 
 	if (type < 0 || type >= numparticletypes)
 		return 1;	//bad value

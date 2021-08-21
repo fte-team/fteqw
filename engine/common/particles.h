@@ -173,13 +173,16 @@ typedef struct trailstate_s {
 	struct trailstate_s *assoc; // assoc linked trail
 	struct beamseg_s *lastbeam; // last beam pointer (flagged with BS_LASTSEG)
 	union {
-		float lastdist;			// last distance used with particle effect
-		float statetime;		// time to emit effect again (used by spawntime field)
-	} state1;
-	union {
-		float laststop;			// last stopping point for particle effect
-		float emittime;			// used by r_effect emitters
-	} state2;
+		struct {
+			float lastdist;			// last distance used with particle effect
+			float laststop;			// last stopping point for particle effect
+		} trail;
+		struct {
+			float statetime;		// time to emit effect again (used by spawntime field)
+			float emittime;			// used by r_effect emitters
+		} effect;
+		struct trailstate_s* fallback;
+	};
 } trailstate_t;
 
 #define PARTICLE_Z_CLIP	8.0

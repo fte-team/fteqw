@@ -4330,11 +4330,10 @@ static int Mod_ReadFlagsFromMD1(char *name, int md3version)
 	COM_StripExtension(name, fname, sizeof(fname));
 	COM_DefaultExtension(fname, ".mdl", sizeof(fname));
 
-	if (strcmp(name, fname))	//md3 renamed as mdl
+	if (!strcmp(name, fname))	//md3 renamed as mdl
 	{
 		COM_StripExtension(name, fname, sizeof(fname));	//seeing as the md3 is named over the mdl,
 		COM_DefaultExtension(fname, ".md1", sizeof(fname));//read from a file with md1 (one, not an ell)
-		return 0;
 	}
 
 	pinmodel = (dmdl_t *)FS_LoadMallocFile(fname, &fsize);
@@ -9028,8 +9027,9 @@ static galiasinfo_t *Mod_ParseMD5MeshModel(model_t *mod, char *buffer, char *mod
 			int *numweightslist = NULL;
 
 			galisskeletaltransforms_t *trans;
-#ifndef SERVERONLY
+#ifdef HAVE_CLIENT
 			float *stcoord = NULL;
+			unsigned int numskins;
 #endif
 			index_t *indexes = NULL;
 			float w;
@@ -9064,7 +9064,7 @@ static galiasinfo_t *Mod_ParseMD5MeshModel(model_t *mod, char *buffer, char *mod
 			inf->ofsanimations = pose;
 			inf->baseframeofs = pose->boneofs;
 
-#ifndef SERVERONLY
+#ifdef HAVE_CLIENT
 			skin = ZG_Malloc(&mod->memgroup, sizeof(*skin));
 			frames = ZG_Malloc(&mod->memgroup, sizeof(*frames));
 			inf->numskins = 1;
@@ -9072,6 +9072,7 @@ static galiasinfo_t *Mod_ParseMD5MeshModel(model_t *mod, char *buffer, char *mod
 			skin->numframes = 1;
 			skin->skinspeed = 1;
 			skin->frame = frames;
+			numskins = 0;
 #endif
 			EXPECT("{");
 			for(;;)
@@ -9083,9 +9084,45 @@ static galiasinfo_t *Mod_ParseMD5MeshModel(model_t *mod, char *buffer, char *mod
 				if (!strcmp(token, "shader"))
 				{
 					buffer = COM_ParseOut(buffer, token, sizeof(token));
-#ifndef SERVERONLY
-					//FIXME: we probably want to support multiple skins some time
-					Q_strncpyz(frames[0].shadername, token, sizeof(frames[0].shadername));
+#ifdef HAVE_CLIENT
+					if (!strchr(token, '/'))
+					{	//hack to try to deal with the rerelease using md5s for things that don't actually support skins properly.
+						char texbase[MAX_QPATH];
+						char texname[MAX_QPATH];
+						Q_strncpyz(texbase, mod->name, sizeof(frames[0].shadername));
+						*COM_SkipPath(texbase) = 0;
+						Q_strncatz(texbase, token, sizeof(texbase));
+						for (numskins = 0; ; numskins++)
+						{
+							Q_snprintfz(texname, sizeof(texname), "%s_%02d_%02d.lmp", texbase, numskins, 0);
+							if (!COM_FCheckExists(texname))
+								break;
+						}
+						if (numskins)
+						{
+							skin = ZG_Malloc(&mod->memgroup, sizeof(*skin)*numskins);
+							inf->numskins = numskins;
+							inf->ofsskins = skin;
+							for (num = 0; num < numskins; num++, skin++)
+							{
+								skin->skinspeed = 5;	//match bsp anim speed.
+								for (skin->numframes = 1; ; skin->numframes++)
+								{
+									Q_snprintfz(texname, sizeof(texname), "%s_%02d_%02d.lmp", texbase, num, skin->numframes);
+									if (!COM_FCheckExists(texname))
+										break;
+								}
+
+								frames = ZG_Malloc(&mod->memgroup, sizeof(*frames)*skin->numframes);
+								skin->frame = frames;
+								for (vnum = 0; vnum < skin->numframes; vnum++)
+									Q_snprintfz(frames[vnum].shadername, sizeof(frames[vnum].shadername), "%s_%02d_%02d.lmp", texbase, num, vnum);
+							}
+						}
+					}
+					if (!numskins)
+						//FIXME: we probably want to support multiple skins some time
+						Q_strncpyz(frames[0].shadername, token, sizeof(frames[0].shadername));
 #endif
 				}
 				else if (!strcmp(token, "numverts"))
@@ -9099,7 +9136,7 @@ static galiasinfo_t *Mod_ParseMD5MeshModel(model_t *mod, char *buffer, char *mod
 
 					firstweightlist = Z_Malloc(sizeof(*firstweightlist) * numverts);
 					numweightslist = Z_Malloc(sizeof(*numweightslist) * numverts);
-#ifndef SERVERONLY
+#ifdef HAVE_CLIENT
 					stcoord = ZG_Malloc(&mod->memgroup, sizeof(float)*2*numverts);
 					inf->ofs_st_array = (vec2_t*)stcoord;
 					inf->numverts = numverts;
@@ -9115,13 +9152,13 @@ static galiasinfo_t *Mod_ParseMD5MeshModel(model_t *mod, char *buffer, char *mod
 
 					EXPECT("(");
 					buffer = COM_ParseOut(buffer, token, sizeof(token));
-#ifndef SERVERONLY
+#ifdef HAVE_CLIENT
 					if (!stcoord)
 						MD5ERROR0PARAM("MD5MESH: vertex out of range");
 					stcoord[num*2+0] = atof(token);
 #endif
 					buffer = COM_ParseOut(buffer, token, sizeof(token));
-#ifndef SERVERONLY
+#ifdef HAVE_CLIENT
 					stcoord[num*2+1] = atof(token);
 #endif
 					EXPECT(")");

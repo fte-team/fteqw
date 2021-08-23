@@ -2778,6 +2778,49 @@ void Key_WriteBindings (vfsfile_t *f)
 	}
 }
 
+void Key_EnsureBinds(void)
+{
+	int		i, m;
+	if (cls.demoplayback)
+		return;
+	for (i=0 ; i<=K_AUX16 ; i++)
+	{
+		for (m = 0; m < KEY_MODIFIERSTATES; m++)
+		{
+			if (keybindings[i][m])
+				return;
+		}
+	}
+
+	Key_SetBinding ('`',  ~0, "toggleconsole", RESTRICT_LOCAL);
+	Key_SetBinding ('w',  ~0, "+forward", RESTRICT_LOCAL);
+	Key_SetBinding ('s',  ~0, "+back", RESTRICT_LOCAL);
+	Key_SetBinding ('a',  ~0, "+moveleft", RESTRICT_LOCAL);
+	Key_SetBinding ('d',  ~0, "+moveright", RESTRICT_LOCAL);
+	Key_SetBinding (K_MOUSE1, ~0, "+attack", RESTRICT_LOCAL);
+	Key_SetBinding (K_MOUSE2, ~0, "+jump", RESTRICT_LOCAL);
+	Key_SetBinding (K_SPACE,  ~0, "+jump", RESTRICT_LOCAL);
+	Key_SetBinding ('c',  ~0, "+movedown", RESTRICT_LOCAL);
+	Key_SetBinding ('v',  ~0, "+voip", RESTRICT_LOCAL);
+	Key_SetBinding ('t',  ~0, "messagemode2", RESTRICT_LOCAL);
+	Key_SetBinding ('y',  ~0, "messagemode", RESTRICT_LOCAL);
+	Key_SetBinding (K_TAB,  ~0, "+showscores", RESTRICT_LOCAL);
+
+	Key_SetBinding (K_MWHEELUP,  ~0, "impulse 12", RESTRICT_LOCAL);
+	Key_SetBinding (K_MWHEELDOWN,  ~0, "impulse 10", RESTRICT_LOCAL);
+
+	Key_SetBinding ('1',  ~0, "impulse 1", RESTRICT_LOCAL);
+	Key_SetBinding ('2',  ~0, "impulse 2", RESTRICT_LOCAL);
+	Key_SetBinding ('3',  ~0, "impulse 3", RESTRICT_LOCAL);
+	Key_SetBinding ('4',  ~0, "impulse 4", RESTRICT_LOCAL);
+	Key_SetBinding ('5',  ~0, "impulse 5", RESTRICT_LOCAL);
+	Key_SetBinding ('6',  ~0, "impulse 6", RESTRICT_LOCAL);
+	Key_SetBinding ('7',  ~0, "impulse 7", RESTRICT_LOCAL);
+	Key_SetBinding ('8',  ~0, "impulse 8", RESTRICT_LOCAL);
+	Key_SetBinding (K_RSHIFT,  ~0, "+speed", RESTRICT_LOCAL);
+
+	Menu_Prompt(NULL, NULL, "Configuration missing...\nSetting up some automatic binds..", NULL, NULL, "Okay");
+}
 
 /*
 ===================

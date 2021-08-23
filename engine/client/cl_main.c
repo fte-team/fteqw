@@ -425,6 +425,8 @@ void CL_MakeActive(char *gamename)
 	else
 		TP_ExecTrigger("f_spawn", false);
 
+	Key_EnsureBinds();
+
 #ifdef __GLIBC__
 	malloc_trim(0);
 #endif

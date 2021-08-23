@@ -6008,16 +6008,22 @@ qboolean Host_RunFile(const char *fname, int nlen, vfsfile_t *file)
 		fname = utf8;
 		nlen = strlen(fname);
 	}
-	else
-#elif !defined(FTE_TARGET_WEB)
+#elif defined(FTE_TARGET_WEB)
+	if (nlen >= 8 && !strncmp(fname, "file:///", 8))
+	{	//just here so we don't get confused by the arbitrary scheme check below.
+	}
+#else
 	//unix file urls are fairly consistant - must be an absolute path.
 	if (nlen >= 8 && !strncmp(fname, "file:///", 8))
 	{
 		fname += 7;
 		nlen -= 7;
 	}
-	else
 #endif
+	else if((nlen >= 7 && !strncmp(fname, "http://", 7)) ||
+			(nlen >= 8 && !strncmp(fname, "https://", 8)))
+		;	//don't interpret these as our custom uri schemes
+	else
 	{
 		const char *schemeend = strstr(fname, "://");
 

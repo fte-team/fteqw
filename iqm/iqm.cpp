@@ -140,6 +140,7 @@ struct filespec
 	int endframe;
 	meshprop meshprops;
 	const char *materialprefix;
+	const char *materialsuffix;
 	bool ignoresurfname;
 	Quat rotate;
 	float scale;
@@ -160,6 +161,7 @@ struct filespec
 		endframe = -1;
 		meshprops = meshprop();
 		materialprefix = NULL;
+		materialsuffix = NULL;
 		ignoresurfname = false;
 		rotate = Quat(0, 0, 0, 1);
 		scale = 1;
@@ -1195,7 +1197,7 @@ void makemeshes(const filespec &spec)
 		{
 			emesh &em = emeshes[j];
 			if(em.used) continue;
-			if(strcmp(em.name, em1.name) || strcmp(em.material, em1.material) || memcmp(&em.explicits, &em1.explicits, sizeof(em.explicits))) continue;
+			if(strcmp(em.name?em.name:"", em1.name?em1.name:"") || strcmp(em.material, em1.material) || memcmp(&em.explicits, &em1.explicits, sizeof(em.explicits))) continue;
 			int lasttri = emeshes.inrange(j+1) ? emeshes[j+1].firsttri : etriangles.length();
 			for(int k = em.firsttri; k < lasttri; k++)
 			{
@@ -1213,10 +1215,10 @@ void makemeshes(const filespec &spec)
 		if(tinfo.empty()) continue;
 
 		mesh &m = meshes.add();
-		if (spec.materialprefix)
+		if (spec.materialprefix || spec.materialsuffix)
 		{
 			char material[512];
-			formatstring(material, "%s%s", spec.materialprefix, em1.material);
+			formatstring(material, "%s%s%s", spec.materialprefix?spec.materialprefix:"", em1.material, spec.materialsuffix?spec.materialsuffix:"");
 			m.material = sharestring(material);
 		}
 		else
@@ -2135,10 +2137,10 @@ bool loadmd5mesh(const char *filename, const filespec &spec)
 	delete f;
 
 	buildmd5verts();
+	makerelativebasepose();
 	makeanims(spec);
 	smoothverts();
 	makemeshes(spec);
-	makerelativebasepose();
 
 	return true;
 }
@@ -5364,6 +5366,7 @@ static void help(bool exitstatus, bool fullhelp)
 "./iqmtool [options] output.iqm mesh.fbx anim1.fbx ... animN.fbx\n"
 "./iqmtool [options] output.iqm mesh.obj\n"
 "./iqmtool [options] output.iqm source.gltf\n"
+"./iqmtool [options] output.iqm --kex sources.md5\n"
 "\n"
 "Basic commandline options:\n"
 "   --help              Show full help.\n"
@@ -5387,8 +5390,10 @@ static void help(bool exitstatus, bool fullhelp)
 "   --meshtrans X,Y,Z   Translates a mesh by X,Y,Z (floats).\n"
 "                       This does not affect the skeleton.\n"
 "   -j\n"
-"   --forcejoints       Forces the exporting of joint information in animation"
+"   --forcejoints       Forces the exporting of joint information in animation\n"
 "                       files without meshes.\n"
+"   --kex               Applies a set of fixups to work around the quirks in\n"
+"                       the quake rerelease's md5 files.\n"
 "\n"
 "Legacy commandline options that affect the following animation file:\n"
 "\n"
@@ -5449,6 +5454,7 @@ static void help(bool exitstatus, bool fullhelp)
 "   nomesh 1            Skips importing of meshes, getting animations only.\n"
 "   noanim 1            Skips importing of animations, for mesh import only.\n"
 "   materialprefix PRE  Prefixes material names with the specified string.\n"
+"   materialsuffix EXT     Forces the material's extension as specified.\n"
 "   ignoresurfname 1    Ignores source surface names.\n"
 "   start FRAME         The Imported animation starts on this frame...\n"
 "   end FRAME           ... and ends on this one.\n"
@@ -5635,6 +5641,8 @@ bool parseanimfield(const char *tok, char **line, filespec &spec, bool defaults)
 		spec.noanim = !!strtoul(mystrtok(line), NULL, 0);
 	else if (!strcasecmp(tok, "materialprefix"))
 		spec.materialprefix = newstring(mystrtok(line));
+	else if (!strcasecmp(tok, "materialsuffix"))
+		spec.materialsuffix = newstring(mystrtok(line));
 	else if (!strcasecmp(tok, "ignoresurfname"))
 		spec.ignoresurfname = atoi(mystrtok(line));
 	else if(!strcasecmp(tok, "start"))
@@ -5895,6 +5903,9 @@ int main(int argc, char **argv)
 				else if(!strcasecmp(&argv[i][2], "ignoresurfname")) inspec.ignoresurfname = true;
 				else if(!strcasecmp(&argv[i][2], "help")) help(EXIT_SUCCESS,true);
 				else if(!strcasecmp(&argv[i][2], "forcejoints")) forcejoints = true;
+				else if(!strcasecmp(&argv[i][2], "materialprefix")) { if(i + 1 < argc) inspec.materialprefix = argv[++i]; }
+				else if(!strcasecmp(&argv[i][2], "materialsuffix")) { if(i + 1 < argc) inspec.materialsuffix = argv[++i]; }
+				else if(!strcasecmp(&argv[i][2], "kex")) inspec.materialprefix = "progs/", inspec.materialsuffix = "_00_00.lmp", inspec.flags |= IQM_UNPACK;
 				else if(!strcasecmp(&argv[i][2], "meshtrans"))
 				{
 					if(i + 1 < argc) switch(sscanf(argv[++i], "%lf , %lf , %lf", &gmeshtrans.x, &gmeshtrans.y, &gmeshtrans.z))
@@ -5984,6 +5995,14 @@ int main(int argc, char **argv)
 		else if(!strcasecmp(type, ".md5anim"))
 		{
 			if(!loadmd5anim(infile, inspec)) fatal("failed reading: %s", infile);
+		}
+		else if(!strcasecmp(type, ".md5"))
+		{
+			char tmp[MAXSTRLEN];
+			formatstring(tmp, "%smesh", infile);
+			if(!loadmd5mesh(tmp, inspec)) fatal("failed reading: %s", tmp);
+			formatstring(tmp, "%sanim", infile);
+			if(!loadmd5anim(tmp, inspec)) fatal("failed reading: %s", tmp);
 		}
 		else if(!strcasecmp(type, ".iqe"))
 		{

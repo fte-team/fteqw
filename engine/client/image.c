@@ -7574,18 +7574,29 @@ qbyte *ReadRawImageFile(qbyte *buf, int len, int *width, int *height, uploadfmt_
 		int i;
 		if (w >= 3 && h	>= 4 && w*h+sizeof(int)*2 == len)
 		{	//quake lmp
-			qboolean foundalpha = false;
-			qbyte *in = buf+sizeof(int)*2;
-			data = BZ_Malloc(w * h * sizeof(int));
-			for (i = 0; i < w * h; i++)
+			if (force_rgba8)
 			{
-				if (in[i] == 255)
-					foundalpha = true;
-				((unsigned int*)data)[i] = d_8to24rgbtable[in[i]];
+				qboolean foundalpha = false;
+				qbyte *in = buf+sizeof(int)*2;
+				data = BZ_Malloc(w * h * sizeof(int));
+				for (i = 0; i < w * h; i++)
+				{
+					if (in[i] == 255)
+						foundalpha = true;
+					((unsigned int*)data)[i] = d_8to24rgbtable[in[i]];
+				}
+				*width = w;
+				*height = h;
+				*format = foundalpha?PTI_RGBA8:PTI_RGBX8;
 			}
-			*width = w;
-			*height = h;
-			*format = foundalpha?PTI_RGBA8:PTI_RGBX8;
+			else
+			{
+				data = BZ_Malloc(w * h);
+				memcpy(data, buf+8, w*h);
+				*width = w;
+				*height = h;
+				*format = TF_TRANS8;
+			}
 			return data;
 		}
 		else if (w >= 3 && h >= 4 && w*h+sizeof(int)*2+768+2 == len)
@@ -12224,9 +12235,9 @@ static struct
 	{PTI_RGBA32F,	PTI_RGB32F,		Image_Tr_DropBytes, (16<<16)|12, true},
 
 	{PTI_RG8,		PTI_RGBX8,		Image_Tr_RG8ToRGXX8},
-	{PTI_RGBX8,		PTI_P8,			Image_Tr_RGBX8toPaletted, 0},
-	{PTI_RGBX8,		TF_H2_TRANS8_0,	Image_Tr_RGBX8toPaletted, 1|(255<<16)},
-	{PTI_RGBX8,		TF_TRANS8,		Image_Tr_RGBX8toPaletted, 0|(254<<16)},
+	{PTI_RGBX8,		PTI_P8,			Image_Tr_RGBX8toPaletted, 0|(256<<16)},
+	{PTI_RGBX8,		TF_H2_TRANS8_0,	Image_Tr_RGBX8toPaletted, 1|(256<<16)},
+	{PTI_RGBX8,		TF_TRANS8,		Image_Tr_RGBX8toPaletted, 0|(255<<16)},
 	{PTI_P8,		PTI_RGBX8,		Image_Tr_PalettedtoRGBX8, -1},
 	{TF_SOLID8,		PTI_RGBX8,		Image_Tr_PalettedtoRGBX8, -1},
 	{TF_H2_TRANS8_0,PTI_RGBA8,		Image_Tr_PalettedtoRGBX8, 0},

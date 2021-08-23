@@ -5260,6 +5260,9 @@ static qboolean QDECL Mod_LoadBrushModel (model_t *mod, void *buffer, size_t fsi
 	{
 	case BSPVERSIONQ64:
 		subbsp = sb_quake64;
+		mod->fromgame = fg_quake;
+		mod->engineflags |= MDLF_NEEDOVERBRIGHT;
+		break;
 	case BSPVERSION:
 	case BSPVERSIONPREREL:
 		mod->fromgame = fg_quake;

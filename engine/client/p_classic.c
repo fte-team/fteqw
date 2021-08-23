@@ -265,7 +265,7 @@ static void PClassic_RunParticleEffect4 (vec3_t org, float radius, int color, in
 }
 
 //this function is used as a fallback in case a trail effect is unknown.
-static void PClassic_ParticleTrailIndex (vec3_t start, vec3_t end, int type, float timestep, int color, int crnd, trailstate_t **tsk)
+static void PClassic_ParticleTrailIndex (vec3_t start, vec3_t end, int type, float timestep, int color, int crnd, trailkey_t *tk)
 {
 }
 
@@ -328,11 +328,11 @@ static void PClassic_ShutdownParticles(void)
 	particles = NULL;
 }
 
-// a classic trailstate is really just a float stored in a pointer variable...
-// assuming float alignment/size is more strict than pointer
-static float Classic_GetLeftover(trailstate_t **tsk)
+// a classic trailstate key is really just a float
+// assuming float alignment/size is more strict than our key type 
+static float Classic_GetLeftover(trailkey_t *tk)
 {
-	float *f = (float *)tsk;
+	float *f = (float *)tk;
 
 	if (!f)
 		return 0;
@@ -340,18 +340,18 @@ static float Classic_GetLeftover(trailstate_t **tsk)
 	return *f;
 }
 
-static void Classic_SetLeftover(trailstate_t **tsk, float leftover)
+static void Classic_SetLeftover(trailkey_t *tk, float leftover)
 {
-	float *f = (float *)tsk;
+	float *f = (float *)tk;
 
 	if (f)
 		*f = leftover;
 }
 
 //called when an entity is removed from the world, taking its trailstate with it.
-static void PClassic_DelinkTrailstate(trailstate_t **tsk)
+static void PClassic_DelinkTrailstate(trailkey_t *tk)
 {
-	*tsk = NULL;
+	*tk = 0;
 }
 
 //wipes all the particles ready for the next map.
@@ -907,7 +907,7 @@ static void Classic_BrightField (vec3_t org)
 
 //svc_tempentity support: this is the function that handles 'special' point effects.
 //use the trail state so fast/slow frames keep the correct particle counts on certain every-frame effects
-static int PClassic_RunParticleEffectState (vec3_t org, vec3_t dir, float count, int typenum, trailstate_t **tsk)
+static int PClassic_RunParticleEffectState (vec3_t org, vec3_t dir, float count, int typenum, trailkey_t *tk)
 {
 	switch(typenum&0xff)
 	{
@@ -1125,15 +1125,15 @@ int PClassic_PointFile(int c, vec3_t point)
 }
 
 //builds a trail from here to there. The trail state can be used to remember how far you got last frame.
-static int PClassic_ParticleTrail (vec3_t startpos, vec3_t end, int type, float timestep, int dlkey, vec3_t dlaxis[3], trailstate_t **tsk)
+static int PClassic_ParticleTrail (vec3_t startpos, vec3_t end, int type, float timestep, int dlkey, vec3_t dlaxis[3], trailkey_t *tk)
 {
 	float leftover;
 
 	if (type == P_INVALID)
 		return 1;
 
-	leftover = Classic_ParticleTrail(startpos, end, Classic_GetLeftover(tsk), type);
-	Classic_SetLeftover(tsk, leftover);
+	leftover = Classic_ParticleTrail(startpos, end, Classic_GetLeftover(tk), type);
+	Classic_SetLeftover(tk, leftover);
 	return 0;
 }
 

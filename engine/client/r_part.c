@@ -958,7 +958,7 @@ float CL_TraceLine (vec3_t start, vec3_t end, vec3_t impact, vec3_t normal, int 
 }
 
 //handy utility...
-void P_EmitEffect (vec3_t pos, vec3_t orientation[3], unsigned int modeleflags, int type, trailstate_t **tsk)
+void P_EmitEffect (vec3_t pos, vec3_t orientation[3], unsigned int modeleflags, int type, trailkey_t *tk)
 {
 	float count;
 	if (cl.paused)
@@ -968,16 +968,16 @@ void P_EmitEffect (vec3_t pos, vec3_t orientation[3], unsigned int modeleflags, 
 	if (orientation)
 	{
 		if (modeleflags & MDLF_EMITFORWARDS)
-			pe->RunParticleEffectState(pos, orientation[0], count, type, tsk);
+			pe->RunParticleEffectState(pos, orientation[0], count, type, tk);
 		else
 		{
 			vec3_t down;
 			VectorNegate(orientation[2], down);
-			pe->RunParticleEffectState(pos, down, count, type, tsk);
+			pe->RunParticleEffectState(pos, down, count, type, tk);
 		}
 	}
 	else
-		pe->RunParticleEffectState(pos, NULL, count, type, tsk);
+		pe->RunParticleEffectState(pos, NULL, count, type, tk);
 }
 
 

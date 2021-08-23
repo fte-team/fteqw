@@ -419,7 +419,7 @@ typedef struct csqcedict_s
 	/*the above is shared with ssqc*/
 
 	//add whatever you wish here
-	trailstate_t *trailstate;
+	trailkey_t trailstate;
 	int		skinobject;
 } csqcedict_t;
 

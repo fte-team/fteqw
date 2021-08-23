@@ -208,8 +208,8 @@ struct beam_s {
 	vec3_t	start, end;
 	vec3_t	offset;	//when attached, this is the offset from the owning entity. probably only z is meaningful.
 //	int		particlecolour;	//some effects have specific colours. which is weird.
-	trailstate_t *trailstate;
-	trailstate_t *emitstate;
+	trailkey_t trailstate;
+	trailkey_t emitstate;
 };
 
 beam_t		*cl_beams;
@@ -237,7 +237,7 @@ typedef struct
 	model_t	*model;
 	int skinnum;
 	int		traileffect;
-	trailstate_t *trailstate;
+	trailkey_t trailstate;
 } explosion_t;
 
 static explosion_t	*cl_explosions;
@@ -2326,7 +2326,7 @@ void CL_ParseTrailParticles(void)
 	int entityindex;
 	int effectindex;
 	vec3_t start, end;
-	trailstate_t **ts;
+	trailkey_t *tk;
 
 	entityindex = MSGCL_ReadEntity();
 	effectindex = (unsigned short)MSG_ReadShort();
@@ -2341,12 +2341,12 @@ void CL_ParseTrailParticles(void)
 	effectindex = CL_TranslateParticleFromServer(effectindex);
 
 	if (entityindex>0 && (unsigned int)entityindex < cl.maxlerpents)
-		ts = &cl.lerpents[entityindex].trailstate;
+		tk = &cl.lerpents[entityindex].trailstate;
 	else
-		ts = NULL;
+		tk = NULL;
 
-	if (P_ParticleTrail(start, end, effectindex, 1, entityindex, NULL, ts))
-		P_ParticleTrail(start, end, rt_blood, 1, entityindex, NULL, ts);
+	if (P_ParticleTrail(start, end, effectindex, 1, entityindex, NULL, tk))
+		P_ParticleTrail(start, end, rt_blood, 1, entityindex, NULL, tk);
 }
 
 void CL_ParsePointParticles(qboolean compact)

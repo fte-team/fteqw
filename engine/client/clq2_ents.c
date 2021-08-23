@@ -89,8 +89,8 @@ typedef struct q2centity_s
 
 	int			serverframe;		// if not current, this ent isn't in the frame
 
-	trailstate_t *trailstate;
-	trailstate_t *emitstate;
+	trailkey_t trailstate;
+	trailkey_t emitstate;
 //	float		trailcount;			// for diminishing grenade trails
 	vec3_t		lerp_origin;		// for trails (variable hz)
 

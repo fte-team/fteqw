@@ -584,8 +584,8 @@ typedef struct downloadlist_s {
 
 typedef struct {
 	//current persistant state
-	trailstate_t *trailstate;	//when to next throw out a trail
-	trailstate_t *emitstate;    //when to next emit
+	trailkey_t trailstate;	//when to next throw out a trail
+	trailkey_t emitstate;    //when to next emit
 
 	//current origin
 	vec3_t origin;	//current render position
@@ -1084,7 +1084,7 @@ typedef struct
 {
 	entity_t		ent;
 	entity_state_t	state;
-	trailstate_t   *emit;
+	trailkey_t      emit;
 	int	mdlidx;	/*negative are csqc indexes*/
 } static_entity_t;
 

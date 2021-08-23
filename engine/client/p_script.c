@@ -110,7 +110,7 @@ typedef struct particle_s
 	float		angle;
 	union {
 		float nextemit;
-		trailstate_t *trailstate;
+		trailkey_t trailstate;
 	} state;
 // drivers never touch the following fields
 	float		rotationspeed;
@@ -146,6 +146,22 @@ typedef struct beamseg_s
 	float texture_s;
 } beamseg_t;
 
+typedef struct trailstate_s {
+	trailkey_t key;  // key to check if ts has been overwriten
+	trailkey_t assoc; // assoc linked trail
+	struct beamseg_s* lastbeam; // last beam pointer (flagged with BS_LASTSEG)
+	union {
+		struct {
+			float lastdist;			// last distance used with particle effect
+			float laststop;			// last stopping point for particle effect
+		} trail;
+		struct {
+			float statetime;		// time to emit effect again (used by spawntime field)
+			float emittime;			// used by r_effect emitters
+		} effect;
+		trailkey_t fallbackkey; // passed to fallback system
+	};
+} trailstate_t;
 
 
 typedef struct skytris_s {
@@ -4123,33 +4139,27 @@ static void P_CleanTrailstate(trailstate_t *ts)
 	memset(ts, 0, sizeof(trailstate_t));
 }
 
-static void PScript_DelinkTrailstate(trailstate_t **tsk)
+static void PScript_DelinkTrailstate(trailkey_t *tk)
 {
+	trailkey_t key;
 	trailstate_t *ts;
-	trailstate_t *assoc;
 
-	if (*tsk == NULL)
-		return; // not linked to a trailstate
+	key = *tk;
+	*tk = 0;
 
-	ts = *tsk; // store old pointer
-	*tsk = NULL; // clear pointer
-
-	if (ts->key != tsk)
-		return; // prevent overwrite
-
-	assoc = ts->assoc; // store assoc
-	P_CleanTrailstate(ts); // clean directly linked trailstate
-
-	// clean trailstates assoc linked
-	while (assoc)
+	while (key && key <= r_numtrailstates)
 	{
-		ts = assoc->assoc;
-		P_CleanTrailstate(assoc);
-		assoc = ts;
+		ts = trailstates + (key - 1);
+
+		if (ts->key != key)
+			break; // prevent overwrite
+
+		key = ts->assoc; // next to clean
+		P_CleanTrailstate(ts);
 	}
 }
 
-static trailstate_t *P_NewTrailstate(trailstate_t **key)
+static trailstate_t *P_NewTrailstate()
 {
 	trailstate_t *ts;
 
@@ -4157,42 +4167,34 @@ static trailstate_t *P_NewTrailstate(trailstate_t **key)
 	if (ts_cycle >= r_numtrailstates)
 		ts_cycle = 0;
 
-	// get trailstate
 	ts = trailstates + ts_cycle;
-
-	// clear trailstate
 	P_CleanTrailstate(ts);
-
-	// set key
-	ts->key = key;
-
-	// advance index cycle
 	ts_cycle++;
+	ts->key = ts_cycle; // key is 1 above index, allows 0 to be invalid
 
-	// return clean trailstate
 	return ts;
 }
 
-static trailstate_t* P_FetchTrailstate(trailstate_t** tsk)
+static trailstate_t* P_FetchTrailstate(trailkey_t* tk)
 {
 	trailstate_t* ts;
 
 	// trailstate allocation/deallocation
-	if (tsk)
+	if (tk)
 	{
-		if (*tsk == NULL)
+		trailkey_t key = *tk;
+		if (key == 0 || key > r_numtrailstates)
 		{
-			ts = P_NewTrailstate(tsk);
-			*tsk = ts;
+			ts = P_NewTrailstate();
+			*tk = ts->key;
 		}
 		else
 		{
-			ts = *tsk;
-
-			if (ts->key != tsk) // trailstate was overwritten
+			ts = trailstates + (key - 1);
+			if (ts->key != key) // trailstate was overwritten
 			{
-				ts = P_NewTrailstate(tsk); // so get a new one
-				*tsk = ts;
+				ts = P_NewTrailstate(); // so get a new one
+				*tk = ts->key;
 			}
 		}
 	}
@@ -4658,7 +4660,7 @@ static void PScript_AddDecals(void *vctx, vec3_t *fte_restrict points, size_t nu
 	}
 }
 
-static int PScript_RunParticleEffectState (vec3_t org, vec3_t dir, float count, int typenum, trailstate_t **tsk)
+static int PScript_RunParticleEffectState (vec3_t org, vec3_t dir, float count, int typenum, trailkey_t *tk)
 {
 	part_type_t *ptype = &part_type[typenum];
 	int i, j, k, l, spawnspc;
@@ -4692,9 +4694,9 @@ static int PScript_RunParticleEffectState (vec3_t org, vec3_t dir, float count, 
 
 	// eliminate trailstate if flag set
 	if (ptype->flags & PT_NOSTATE)
-		tsk = NULL;
+		tk = NULL;
 
-	ts = P_FetchTrailstate(tsk);
+	ts = P_FetchTrailstate(tk);
 
 	// get msvc to shut up
 	j = k = l = 0;
@@ -5263,8 +5265,8 @@ skip:
 		// new trailstate
 		if (ts)
 		{
-			tsk = &(ts->assoc);
-			ts = P_FetchTrailstate(tsk);
+			tk = &(ts->assoc);
+			ts = P_FetchTrailstate(tk);
 		}
 
 		ptype = &part_type[ptype->assoc];
@@ -5550,7 +5552,7 @@ static void PScript_RunParticleEffectPalette (const char *nameprefix, vec3_t org
 	}
 }
 
-static void P_ParticleTrailSpawn (vec3_t startpos, vec3_t end, part_type_t *ptype, float timeinterval, trailstate_t** tsk, int dlkey, vec3_t dlaxis[3])
+static void P_ParticleTrailSpawn (vec3_t startpos, vec3_t end, part_type_t *ptype, float timeinterval, trailkey_t* tk, int dlkey, vec3_t dlaxis[3])
 {
 	vec3_t	vec, vstep, right, up, start;
 	float	len;
@@ -5572,9 +5574,9 @@ static void P_ParticleTrailSpawn (vec3_t startpos, vec3_t end, part_type_t *ptyp
 
 	// eliminate trailstate if flag set
 	if (ptype->flags & PT_NOSTATE)
-		tsk = NULL;
+		tk = NULL;
 
-	ts = P_FetchTrailstate(tsk);
+	ts = P_FetchTrailstate(tk);
 
 	PScript_EffectSpawned(ptype, start, dlaxis, dlkey, 1);
 
@@ -6051,7 +6053,7 @@ static void P_ParticleTrailSpawn (vec3_t startpos, vec3_t end, part_type_t *ptyp
 	return;
 }
 
-static int PScript_ParticleTrail (vec3_t startpos, vec3_t end, int type, float timeinterval, int dlkey, vec3_t axis[3], trailstate_t **tsk)
+static int PScript_ParticleTrail (vec3_t startpos, vec3_t end, int type, float timeinterval, int dlkey, vec3_t axis[3], trailkey_t *tk)
 {
 	part_type_t *ptype = &part_type[type];
 
@@ -6063,8 +6065,8 @@ static int PScript_ParticleTrail (vec3_t startpos, vec3_t end, int type, float t
 		// also reusing fallback space for emit/trail info will cause some
 		// issues with entities in action during particle reconfiguration 
 		// but that shouldn't be happening too often
-		trailstate_t* ts = P_FetchTrailstate(tsk);
-		return fallback->ParticleTrail(startpos, end, type - FALLBACKBIAS, timeinterval, dlkey, axis, &(ts->fallback));
+		trailstate_t* ts = P_FetchTrailstate(tk);
+		return fallback->ParticleTrail(startpos, end, type - FALLBACKBIAS, timeinterval, dlkey, axis, &(ts->fallbackkey));
 	}
 
 	if (type < 0 || type >= numparticletypes)
@@ -6083,11 +6085,11 @@ static int PScript_ParticleTrail (vec3_t startpos, vec3_t end, int type, float t
 			ptype = &part_type[ptype->inwater];
 	}
 
-	P_ParticleTrailSpawn (startpos, end, ptype, timeinterval, tsk, dlkey, axis);
+	P_ParticleTrailSpawn (startpos, end, ptype, timeinterval, tk, dlkey, axis);
 	return 0;
 }
 
-static void PScript_ParticleTrailIndex (vec3_t start, vec3_t end, int type, float timeinterval, int color, int crnd, trailstate_t **tsk)
+static void PScript_ParticleTrailIndex (vec3_t start, vec3_t end, int type, float timeinterval, int color, int crnd, trailkey_t *tk)
 {
 	if (type == P_INVALID)
 		type = pe_defaulttrail;
@@ -6095,7 +6097,7 @@ static void PScript_ParticleTrailIndex (vec3_t start, vec3_t end, int type, floa
 	{
 		part_type[type].colorindex = color;
 		part_type[type].colorrand = crnd;
-		P_ParticleTrail(start, end, type, timeinterval, 0, NULL, tsk);
+		P_ParticleTrail(start, end, type, timeinterval, 0, NULL, tk);
 	}
 }
 

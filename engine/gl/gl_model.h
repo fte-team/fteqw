@@ -31,6 +31,7 @@ struct model_s;
 struct world_s;
 struct dlight_s;
 typedef struct builddata_s builddata_t;
+typedef struct bspx_header_s bspx_header_t;
 
 typedef enum {
 	SHADER_SORT_NONE,
@@ -1107,6 +1108,19 @@ typedef struct model_s
 //============================================================================
 #endif	// __MODEL__
 
+
+
+typedef struct
+{
+	unsigned int *offsets;
+	unsigned short *extents;
+	unsigned char *styles8;
+	unsigned short *styles16;
+	unsigned int stylesperface;
+	unsigned char *shifts;
+	unsigned char defaultshift;
+} lightmapoverrides_t;
+void Mod_LoadLighting (struct model_s *loadmodel, bspx_header_t *bspx, qbyte *mod_base, lump_t *l, qboolean interleaveddeluxe, lightmapoverrides_t *overrides, subbsp_t subbsp);
 
 float RadiusFromBounds (const vec3_t mins, const vec3_t maxs);
 

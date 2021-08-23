@@ -1524,7 +1524,7 @@ static void CalcSurfaceExtents (msurface_t *s)
 Mod_LoadFaces
 =================
 */
-#ifndef SERVERONLY
+#ifdef HAVE_CLIENT
 static qboolean CModQ2_LoadFaces (model_t *mod, qbyte *mod_base, lump_t *l, lump_t *lightlump, qboolean lightofsisdouble, bspx_header_t *bspx)
 {
 	dsface_t		*in;
@@ -1551,7 +1551,7 @@ static qboolean CModQ2_LoadFaces (model_t *mod, qbyte *mod_base, lump_t *l, lump
 	mod->surfaces = out;
 	mod->numsurfaces = count;
 
-	Mod_LoadLighting(mod, bspx, mod_base, lightlump, lightofsisdouble, &overrides);
+	Mod_LoadLighting(mod, bspx, mod_base, lightlump, lightofsisdouble, &overrides, sb_none);
 	if (overrides.offsets)
 		lmshift = overrides.defaultshift;
 	else

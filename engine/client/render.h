@@ -554,19 +554,6 @@ void	*Mod_Extradata (struct model_s *mod);	// handles caching
 void	Mod_TouchModel (const char *name);
 void Mod_RebuildLightmaps (void);
 
-typedef struct
-{
-	unsigned int *offsets;
-	unsigned short *extents;
-	unsigned char *styles8;
-	unsigned short *styles16;
-	unsigned int stylesperface;
-	unsigned char *shifts;
-	unsigned char defaultshift;
-} lightmapoverrides_t;
-typedef struct bspx_header_s bspx_header_t;
-void Mod_LoadLighting (struct model_s *loadmodel, bspx_header_t *bspx, qbyte *mod_base, lump_t *l, qboolean interleaveddeluxe, lightmapoverrides_t *overrides);
-
 struct mleaf_s *Mod_PointInLeaf (struct model_s *model, float *p);
 
 void Mod_NowLoadExternal(struct model_s *loadmodel);

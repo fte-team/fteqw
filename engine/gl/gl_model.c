@@ -3722,6 +3722,7 @@ TRACE(("dbg: Mod_LoadTextures: inittexturedescs\n"));
 		Mod_LoadMiptex(loadmodel, tx, mt, mtsize, ptr, e-o);
 #else
 		(void)e;
+		(void)mtsize;
 #endif
 
 		e = o;

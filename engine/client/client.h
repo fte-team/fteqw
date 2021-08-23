@@ -331,6 +331,7 @@ typedef struct dlight_s
 #endif
 	float	corona;
 	float	coronascale;
+	float	fade[2];
 
 	unsigned int flags;
 	char	cubemapname[MAX_QPATH];

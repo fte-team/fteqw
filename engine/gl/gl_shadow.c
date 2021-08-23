@@ -4100,6 +4100,20 @@ void Sh_DrawLights(qbyte *vis)
 			colour[1] *= r_lightstylescale.value;
 			colour[2] *= r_lightstylescale.value;
 		}
+		if (dl->fade[1])
+		{
+			vec3_t dir;
+			float dist;
+			VectorSubtract(dl->origin, r_origin, dir);
+			dist = VectorLength(dir);
+			if (dist > dl->fade[1])
+				continue;
+			if (dist > dl->fade[0])
+			{
+				dist = (dist-dl->fade[0]) / (dl->fade[1]-dl->fade[0]);
+				VectorScale(colour, dist, colour);
+			}
+		}
 		colour[0] *= r_refdef.hdr_value;
 		colour[1] *= r_refdef.hdr_value;
 		colour[2] *= r_refdef.hdr_value;

@@ -798,6 +798,8 @@ qboolean R_ImportRTLights(const char *entlump)
 	qboolean okay = false;
 	infobuf_t targets;
 	const char *lmp;
+	qboolean rerelease = false;
+	float fade[2];
 	memset(&targets, 0, sizeof(targets));
 
 	//a quick note about tenebrae:
@@ -846,7 +848,11 @@ qboolean R_ImportRTLights(const char *entlump)
 			if (nest!=1)
 				continue;
 			if (key[0] == '_')
+			{
+				if (!strcmp(key+1, "shadowlight"))
+					rerelease = true;
 				memmove(key, key+1, strlen(key));
+			}
 			while (key[strlen(key)-1] == ' ') // remove trailing spaces
 				key[strlen(key)-1] = 0;
 			lmp = COM_ParseOut(lmp, value, sizeof(value));
@@ -884,6 +890,7 @@ qboolean R_ImportRTLights(const char *entlump)
 		style = 0;
 		skin = 0;
 		pflags = 0;
+		fade[0] = fade[1] = 0;
 		VectorSet(colourscales, r_editlights_import_ambient.value, r_editlights_import_diffuse.value, r_editlights_import_specular.value);
 		//effects = 0;
 		islight = false;
@@ -918,171 +925,204 @@ qboolean R_ImportRTLights(const char *entlump)
 				break; // error
 			Q_strncpyz(value, com_token, sizeof(value));
 
-			// now that we have the key pair worked out...
-			if (!strcmp("light", key))
+			if (rerelease)
 			{
-				n = sscanf(value, "%f %f %f %f", &vec[0], &vec[1], &vec[2], &vec[3]);
-				if (n == 1)
+				if (!strcmp("color", key))
+					sscanf(value, "%f %f %f", &light[0], &light[1], &light[2]);
+				else if (!strcmp("shadowlightcull", key))
+					;//sscanf(value, "%f %f %f", &color[0], &color[1], &color[2]);
+				else if (!strcmp("shadowlightresolution", key))
+					;//sscanf(value, "%f %f %f", &color[0], &color[1], &color[2]);
+				else if (!strcmp("shadowlightradius", key))
+					light[3] = atof(value);
+				else if (!strcmp("shadowlightstartfadedistance", key))
+					fade[0] = atof(value);
+				else if (!strcmp("shadowlightendfadedistance", key))
+					fade[1] = atof(value);
+				else if (!strcmp("shadowlightintensity", key))
 				{
-					// quake
-					light[0] = vec[0] * (1.0f / 256.0f);
-					light[1] = vec[0] * (1.0f / 256.0f);
-					light[2] = vec[0] * (1.0f / 256.0f);
-					light[3] = vec[0];
+					colourscales[0] *= atof(value);
+					colourscales[1] *= atof(value);
+					colourscales[2] *= atof(value);
 				}
-				else if (n == 4)
-				{
-					// halflife
-					light[0] = vec[0] * (1.0f / 255.0f);
-					light[1] = vec[1] * (1.0f / 255.0f);
-					light[2] = vec[2] * (1.0f / 255.0f);
-					light[3] = vec[3];
-				}
+				else if (!strcmp("shadowlight", key))
+					islight = atoi(value);
+				else if (!strcmp("shadowlightstyle", key))
+					style = atoi(value);
+				else if (!strcmp("shadowlightconeangle", key))
+					angles[1] = atof(value)*2;
+				else if (!strcmp("origin", key))
+					sscanf(value, "%f %f %f", &origin[0], &origin[1], &origin[2]);
+				else if (!strcmp("target", key))
+					Q_strncpyz(target, value, sizeof(target));
 			}
-			else if (!strcmp("delay", key))
-				type = atoi(value);
-			else if (!strcmp("origin", key))
-				sscanf(value, "%f %f %f", &origin[0], &origin[1], &origin[2]);
-			else if (!strcmp("angle", key))	//orientation for cubemaps (or angle of spot lights)
-				angles[0] = 0, angles[1] = atof(value), angles[2] = 0;
-			else if (!strcmp("mangle", key))	//orientation for cubemaps (or angle of spot lights)
+			else
 			{
-				sscanf(value, "%f %f %f", &mangle[1], &mangle[0], &mangle[2]);	//FIXME: order is fucked.
-				mangle[0] = 360-mangle[0];	//FIXME: pitch is fucked too.
-			}
-			//_softangle -- the inner cone angle of a spotlight.
-			else if (!strcmp("angles", key))	//richer cubemap orientation.
-				sscanf(value, "%f %f %f", &angles[0], &angles[1], &angles[2]);
-			else if (!strcmp("color", key))
-				sscanf(value, "%f %f %f", &color[0], &color[1], &color[2]);
-			else if (!strcmp("wait", key))
-				fadescale = atof(value);
-			else if (!strcmp("target", key))
-				Q_strncpyz(target, value, sizeof(target));
-			else if (!strcmp("classname", key))
-			{
-				if (!strncmp(value, "light", 5))
+				// now that we have the key pair worked out...
+				if (!strcmp("light", key))
 				{
-					islight = true;
-					if (!strcmp(value, "light_fluoro"))
+					n = sscanf(value, "%f %f %f %f", &vec[0], &vec[1], &vec[2], &vec[3]);
+					if (n == 1)
 					{
-						originhack[0] = 0;
-						originhack[1] = 0;
-						originhack[2] = 0;
-						overridecolor[0] = 1;
-						overridecolor[1] = 1;
-						overridecolor[2] = 1;
+						// quake
+						light[0] = vec[0] * (1.0f / 256.0f);
+						light[1] = vec[0] * (1.0f / 256.0f);
+						light[2] = vec[0] * (1.0f / 256.0f);
+						light[3] = vec[0];
 					}
-					if (!strcmp(value, "light_fluorospark"))
+					else if (n == 4)
 					{
-						originhack[0] = 0;
-						originhack[1] = 0;
-						originhack[2] = 0;
-						overridecolor[0] = 1;
-						overridecolor[1] = 1;
-						overridecolor[2] = 1;
-					}
-					if (!strcmp(value, "light_globe"))
-					{
-						originhack[0] = 0;
-						originhack[1] = 0;
-						originhack[2] = 0;
-						overridecolor[0] = 1;
-						overridecolor[1] = 0.8;
-						overridecolor[2] = 0.4;
-					}
-					if (!strcmp(value, "light_flame_large_yellow"))
-					{
-						originhack[0] = 0;
-						originhack[1] = 0;
-						originhack[2] = 0;
-						overridecolor[0] = 1;
-						overridecolor[1] = 0.5;
-						overridecolor[2] = 0.1;
-					}
-					if (!strcmp(value, "light_flame_small_yellow"))
-					{
-						originhack[0] = 0;
-						originhack[1] = 0;
-						originhack[2] = 0;
-						overridecolor[0] = 1;
-						overridecolor[1] = 0.5;
-						overridecolor[2] = 0.1;
-					}
-					if (!strcmp(value, "light_torch_small_white"))
-					{
-						originhack[0] = 0;
-						originhack[1] = 0;
-						originhack[2] = 0;
-						overridecolor[0] = 1;
-						overridecolor[1] = 0.5;
-						overridecolor[2] = 0.1;
-					}
-					if (!strcmp(value, "light_torch_small_walltorch"))
-					{
-						originhack[0] = 0;
-						originhack[1] = 0;
-						originhack[2] = 0;
-						overridecolor[0] = 1;
-						overridecolor[1] = 0.5;
-						overridecolor[2] = 0.1;
+						// halflife
+						light[0] = vec[0] * (1.0f / 255.0f);
+						light[1] = vec[1] * (1.0f / 255.0f);
+						light[2] = vec[2] * (1.0f / 255.0f);
+						light[3] = vec[3];
 					}
 				}
-			}
-			else if (!strcmp("style", key))
-				style = atoi(value);
-			else if (!strcmp("skin", key))
-				skin = (int)atof(value);
-			else if (!strcmp("pflags", key))
-				pflags = (int)atof(value);
-			//else if (!strcmp("effects", key))
-				//effects = (int)atof(value);
+				else if (!strcmp("delay", key))
+					type = atoi(value);
+				else if (!strcmp("origin", key))
+					sscanf(value, "%f %f %f", &origin[0], &origin[1], &origin[2]);
+				else if (!strcmp("angle", key))	//orientation for cubemaps (or angle of spot lights)
+					angles[0] = 0, angles[1] = atof(value), angles[2] = 0;
+				else if (!strcmp("mangle", key))	//orientation for cubemaps (or angle of spot lights)
+				{
+					sscanf(value, "%f %f %f", &mangle[1], &mangle[0], &mangle[2]);	//FIXME: order is fucked.
+					mangle[0] = 360-mangle[0];	//FIXME: pitch is fucked too.
+				}
+				//_softangle -- the inner cone angle of a spotlight.
+				else if (!strcmp("angles", key))	//richer cubemap orientation.
+					sscanf(value, "%f %f %f", &angles[0], &angles[1], &angles[2]);
+				else if (!strcmp("color", key))
+					sscanf(value, "%f %f %f", &color[0], &color[1], &color[2]);
+				else if (!strcmp("wait", key))
+					fadescale = atof(value);
+				else if (!strcmp("target", key))
+					Q_strncpyz(target, value, sizeof(target));
+				else if (!strcmp("classname", key))
+				{
+					if (!strncmp(value, "light", 5))
+					{
+						islight = true;
+						if (!strcmp(value, "light_fluoro"))
+						{
+							originhack[0] = 0;
+							originhack[1] = 0;
+							originhack[2] = 0;
+							overridecolor[0] = 1;
+							overridecolor[1] = 1;
+							overridecolor[2] = 1;
+						}
+						if (!strcmp(value, "light_fluorospark"))
+						{
+							originhack[0] = 0;
+							originhack[1] = 0;
+							originhack[2] = 0;
+							overridecolor[0] = 1;
+							overridecolor[1] = 1;
+							overridecolor[2] = 1;
+						}
+						if (!strcmp(value, "light_globe"))
+						{
+							originhack[0] = 0;
+							originhack[1] = 0;
+							originhack[2] = 0;
+							overridecolor[0] = 1;
+							overridecolor[1] = 0.8;
+							overridecolor[2] = 0.4;
+						}
+						if (!strcmp(value, "light_flame_large_yellow"))
+						{
+							originhack[0] = 0;
+							originhack[1] = 0;
+							originhack[2] = 0;
+							overridecolor[0] = 1;
+							overridecolor[1] = 0.5;
+							overridecolor[2] = 0.1;
+						}
+						if (!strcmp(value, "light_flame_small_yellow"))
+						{
+							originhack[0] = 0;
+							originhack[1] = 0;
+							originhack[2] = 0;
+							overridecolor[0] = 1;
+							overridecolor[1] = 0.5;
+							overridecolor[2] = 0.1;
+						}
+						if (!strcmp(value, "light_torch_small_white"))
+						{
+							originhack[0] = 0;
+							originhack[1] = 0;
+							originhack[2] = 0;
+							overridecolor[0] = 1;
+							overridecolor[1] = 0.5;
+							overridecolor[2] = 0.1;
+						}
+						if (!strcmp(value, "light_torch_small_walltorch"))
+						{
+							originhack[0] = 0;
+							originhack[1] = 0;
+							originhack[2] = 0;
+							overridecolor[0] = 1;
+							overridecolor[1] = 0.5;
+							overridecolor[2] = 0.1;
+						}
+					}
+				}
+				else if (!strcmp("style", key))
+					style = atoi(value);
+				else if (!strcmp("skin", key))
+					skin = (int)atof(value);
+				else if (!strcmp("pflags", key))
+					pflags = (int)atof(value);
+				//else if (!strcmp("effects", key))
+					//effects = (int)atof(value);
 
-			else if (!strcmp("scale", key))
-				lightscale = atof(value);
-			else if (!strcmp("fade", key))
-				fadescale = atof(value);
+				else if (!strcmp("scale", key))
+					lightscale = atof(value);
+				else if (!strcmp("fade", key))
+					fadescale = atof(value);
 
 #ifdef MAP_PROC
-			else if (!strcmp("nodynamicshadows", key))	//doom3
-				;
-			else if (!strcmp("noshadows", key))	//doom3
-			{
-				if (atof(value))
-					pflags |= PFLAGS_NOSHADOW;
-			}
-			else if (!strcmp("nospecular", key))//doom3
-			{
-				if (atof(value))
-					colourscales[2] = 0;
-			}
-			else if (!strcmp("nodiffuse", key))	//doom3
-			{
-				if (atof(value))
-					colourscales[1] = 0;
-			}
-#endif
-
-			else if (!strcmp("light_radius", key))
-			{
-				light[0] = 1;
-				light[1] = 1;
-				light[2] = 1;
-				light[3] = atof(value);
-			}
-			else if (entnum == 0 && !strcmp("noautolight", key))
-			{
-				//tenebrae compat. don't generate rtlights automagically if the world entity specifies this.
-				if (atoi(value))
+				else if (!strcmp("nodynamicshadows", key))	//doom3
+					;
+				else if (!strcmp("noshadows", key))	//doom3
 				{
-					okay = true;
-					return okay;
+					if (atof(value))
+						pflags |= PFLAGS_NOSHADOW;
 				}
-			}
-			else if (entnum == 0 && !strcmp("lightmapbright", key))
-			{
-				//tenebrae compat. this overrides r_shadow_realtime_world_lightmap
-				r_shadow_realtime_world_lightmaps.value = atof(value);
+				else if (!strcmp("nospecular", key))//doom3
+				{
+					if (atof(value))
+						colourscales[2] = 0;
+				}
+				else if (!strcmp("nodiffuse", key))	//doom3
+				{
+					if (atof(value))
+						colourscales[1] = 0;
+				}
+#endif
+				else if (!strcmp("light_radius", key))
+				{
+					light[0] = 1;
+					light[1] = 1;
+					light[2] = 1;
+					light[3] = atof(value);
+				}
+				else if (entnum == 0 && !strcmp("noautolight", key))
+				{
+					//tenebrae compat. don't generate rtlights automagically if the world entity specifies this.
+					if (atoi(value))
+					{
+						okay = true;
+						return okay;
+					}
+				}
+				else if (entnum == 0 && !strcmp("lightmapbright", key))
+				{
+					//tenebrae compat. this overrides r_shadow_realtime_world_lightmap
+					r_shadow_realtime_world_lightmaps.value = atof(value);
+				}
 			}
 		}
 		if (!islight)
@@ -1163,6 +1203,8 @@ qboolean R_ImportRTLights(const char *entlump)
 			dl->flags |= (pflags & PFLAGS_CORONA)?LFLAG_FLASHBLEND:0;
 			dl->flags |= (pflags & PFLAGS_NOSHADOW)?LFLAG_NOSHADOWS:0;
 			dl->style = style;
+			dl->fade[0] = fade[0];
+			dl->fade[1] = fade[1];
 			VectorCopy(colourscales, dl->lightcolourscales);
 
 			//handle spotlights.
@@ -1230,6 +1272,7 @@ qboolean R_LoadRTLights(void)
 	float corona;
 	float ambientscale, diffusescale, specularscale;
 	vec3_t angles;
+	float fade[2];
 
 	//delete all old lights, even dynamic ones
 	rtlights_first = RTL_FIRST;
@@ -1329,7 +1372,7 @@ qboolean R_LoadRTLights(void)
 		file = COM_Parse(file);
 		flags |= file?atoi(com_token):LFLAG_REALTIMEMODE;
 
-		nearclip = fov = avel[0] = avel[1] = avel[2] = 0;
+		nearclip = fov = avel[0] = avel[1] = avel[2] = fade[0] = fade[1] = 0;
 		*customstyle = 0;
 		while(file)
 		{
@@ -1342,6 +1385,10 @@ qboolean R_LoadRTLights(void)
 				avel[2] = file?atof(com_token+5):0;
 			else if (!strncmp(com_token, "fov=", 4))
 				fov = file?atof(com_token+4):0;
+			else if (!strncmp(com_token, "fademin=", 8))
+				fade[0] = file?atof(com_token+8):0;
+			else if (!strncmp(com_token, "fademax=", 8))
+				fade[1] = file?atof(com_token+4):0;
 			else if (!strncmp(com_token, "nearclip=", 9))
 				nearclip = file?atof(com_token+9):0;
 			else if (!strncmp(com_token, "nostencil=", 10))
@@ -1374,6 +1421,8 @@ qboolean R_LoadRTLights(void)
 			dl->lightcolourscales[0] = ambientscale;
 			dl->lightcolourscales[1] = diffusescale;
 			dl->lightcolourscales[2] = specularscale;
+			dl->fade[0] = fade[0];
+			dl->fade[1] = fade[1];
 			AngleVectorsFLU(angles, dl->axis[0], dl->axis[1], dl->axis[2]);
 			VectorCopy(avel, dl->rotation);
 
@@ -1460,6 +1509,8 @@ static void R_SaveRTLights_f(void)
 			VFS_PRINTF(f, " nearclip=%g", light->nearclip); //aka: distance into a wall, for lights that are meant to appear to come from a texture
 		if (light->customstyle)
 			VFS_PRINTF(f, " \"stylestring=%s\"", light->customstyle); //aka: outer cone
+		if (light->fade[1]>0)
+			VFS_PRINTF(f, " \"fademin=%g\" \"fademax=%g\"", light->fade[0], light->fade[1]);
 
 		VFS_PUTS(f, "\n");
 	}

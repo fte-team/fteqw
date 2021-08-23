@@ -4691,7 +4691,7 @@ static void QCBUILTIN PF_checkextension (pubprogfuncs_t *prinst, struct globalva
 		{
 			if (QSG_Extensions[i].extensioncheck)
 			{
-				extcheck_t ctx = {cls.fteprotocolextensions, cls.fteprotocolextensions2};
+				extcheck_t ctx = {prinst->parms->user, cls.fteprotocolextensions, cls.fteprotocolextensions2};
 				G_FLOAT(OFS_RETURN) = QSG_Extensions[i].extensioncheck(&ctx);
 			}
 			else
@@ -8552,7 +8552,7 @@ void PR_CSExtensionList_f(void)
 	int j;
 	const char *extname;
 
-	extcheck_t extcheck = {cls.fteprotocolextensions, cls.fteprotocolextensions2};
+	extcheck_t extcheck = {&csqc_world, cls.fteprotocolextensions, cls.fteprotocolextensions2};
 
 
 #define SHOW_ACTIVEEXT 1

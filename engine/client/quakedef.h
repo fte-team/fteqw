@@ -326,6 +326,7 @@ extern	cvar_t		com_protocolversion;
 extern	cvar_t		com_nogamedirnativecode;
 extern	cvar_t		com_parseutf8;
 #ifdef HAVE_LEGACY
+extern	cvar_t		scr_usekfont;
 extern	cvar_t		ezcompat_markup;
 #endif
 extern	cvar_t		sys_ticrate;

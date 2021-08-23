@@ -216,7 +216,8 @@ mpic_t *QBigFontWorks(void)
 		if (p && R_GetShaderSizes(p, NULL, NULL, true))
 			return p;
 	}
-	return NULL;
+
+	return (mpic_t*)font_menu;
 }
 void Draw_BigFontString(int x, int y, const char *text)
 {
@@ -226,6 +227,11 @@ void Draw_BigFontString(int x, int y, const char *text)
 	if (!p)
 	{
 		Draw_AltFunString(x, y + (20-8)/2, text);
+		return;
+	}
+	if (p == (mpic_t*)font_menu)
+	{
+		Draw_FunStringWidthFont(font_menu, x, y, text, vid.width-x, false, false);
 		return;
 	}
 

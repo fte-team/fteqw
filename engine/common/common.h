@@ -975,6 +975,7 @@ struct po_s *PO_Create(void);
 void PO_Merge(struct po_s *po, vfsfile_t *file);
 const char *PO_GetText(struct po_s *po, const char *msg);
 void PO_Close(struct po_s *po);
+void TL_Reformat(char *out, size_t outsize, size_t numargs, const char **arg);
 
 //
 // log.c

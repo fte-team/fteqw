@@ -2313,16 +2313,6 @@ void Q_InitProgs(enum initprogs_e flags)
 #endif
 
 	World_RBE_Start(&sv.world);
-
-	if (sv.world.remasterlogic)
-	{
-		PR_EnableEBFSBuiltin("bprints", 23);
-		PR_EnableEBFSBuiltin("sprints", 24);
-		PR_EnableEBFSBuiltin("centerprints", 73);
-		PR_EnableEBFSBuiltin("finaleFinished", 79);
-		PR_EnableEBFSBuiltin("localsound_remaster", 80);
-		Con_Printf(CON_WARNING "Remastered quakec detected (this is not fool-proof), compat workarounds have been enabled\n");
-	}
 }
 
 qboolean PR_QCChat(char *text, int say_type)
@@ -7237,13 +7227,13 @@ static void QCBUILTIN PF_checkextension (pubprogfuncs_t *prinst, struct globalva
 			if (ext->extensioncheck && clnum >= 1 && clnum <= sv.allocated_client_slots)
 			{
 				client_t *cl = &svs.clients[clnum-1];
-				extcheck_t check = {cl->fteprotocolextensions, cl->fteprotocolextensions2};
+				extcheck_t check = {prinst->parms->user, cl->fteprotocolextensions, cl->fteprotocolextensions2};
 				if (!ext->extensioncheck(&check))
 					return;	//blocked by some setting somewhere, somehow.
 			}
 			else if (ext->extensioncheck)
 			{
-				extcheck_t check = {Net_PextMask(PROTOCOL_VERSION_FTE1, false), Net_PextMask(PROTOCOL_VERSION_FTE2, false)};
+				extcheck_t check = {prinst->parms->user, Net_PextMask(PROTOCOL_VERSION_FTE1, false), Net_PextMask(PROTOCOL_VERSION_FTE2, false)};
 				if (!ext->extensioncheck(&check))
 					return;	//blocked by some setting somewhere, somehow.
 			}
@@ -10732,15 +10722,100 @@ void PF_localsound_remaster(pubprogfuncs_t *prinst, struct globalvars_s *pr_glob
 }
 void PF_centerprints(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {	//TODO: send the strings to the client for localisation+reordering
-	PF_centerprint(prinst, pr_globals);
+	const char *arg[8];
+	int args;
+	char s[1024];
+	int			entnum;
+
+	entnum = G_EDICTNUM(prinst, OFS_PARM0);
+	for (args = 0; args+1 < prinst->callargc; args++)
+		arg[args] = PR_GetStringOfs(prinst, OFS_PARM1+args*(OFS_PARM1-OFS_PARM0));
+	TL_Reformat(s, sizeof(s), args, arg);
+
+	PF_centerprint_Internal(entnum, false, s);
 }
 void PF_sprints(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
-{	//TODO: send the strings to the client for localisation+reordering.
-	PF_sprint(prinst, pr_globals);
+{
+	const char *arg[8];
+	int args;
+	char s[1024];
+	client_t	*client;
+	int			entnum;
+	int			level;
+
+#ifdef SERVER_DEMO_PLAYBACK
+	if (sv.demofile)
+		return;
+#endif
+
+	entnum = G_EDICTNUM(prinst, OFS_PARM0);
+
+	if (progstype == PROG_NQ || progstype == PROG_H2)
+	{
+		level = PRINT_HIGH;
+		for (args = 0; args+1 < prinst->callargc; args++)
+			arg[args] = PR_GetStringOfs(prinst, OFS_PARM1+args*(OFS_PARM1-OFS_PARM0));
+	}
+	else
+	{
+		level = G_FLOAT(OFS_PARM1);
+		for (args = 0; args+2 < prinst->callargc; args++)
+			arg[args] = PR_GetStringOfs(prinst, OFS_PARM2+args*(OFS_PARM1-OFS_PARM0));
+	}
+	TL_Reformat(s, sizeof(s), args, arg);
+
+	if (entnum < 1 || entnum > sv.allocated_client_slots)
+	{
+		Con_TPrintf ("tried to sprint to a non-client\n");
+		return;
+	}
+
+	client = &svs.clients[entnum-1];
+
+	SV_ClientPrintf (client, level, "%s", s);
+
+	if (sv_specprint.ival & SPECPRINT_SPRINT)
+	{
+		client_t *spec;
+		unsigned int i;
+		for (i = 0, spec = svs.clients; i < sv.allocated_client_slots; i++, spec++)
+		{
+			if (spec->state != cs_spawned || !spec->spectator)
+				continue;
+			if (spec->spec_track == entnum && (spec->spec_print & SPECPRINT_SPRINT))
+			{
+				if (level < spec->messagelevel)
+					continue;
+				if (spec->controller)
+					SV_PrintToClient(spec->controller, level, s);
+				else
+					SV_PrintToClient(spec, level, s);
+			}
+		}
+	}
 }
 void PF_bprints(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {	//TODO: send the strings to the client for localisation+reordering
-	PF_bprint(prinst, pr_globals);
+	const char *arg[8];
+	int args;
+	char formatted[1024];
+	int level;
+
+	if (progstype == PROG_QW)
+	{
+		level = G_FLOAT(OFS_PARM0);
+		for (args = 0; args+1 < prinst->callargc; args++)
+			arg[args] = PR_GetStringOfs(prinst, OFS_PARM1+args*(OFS_PARM1-OFS_PARM0));
+	}
+	else
+	{
+		level = PRINT_HIGH;
+		for (args = 0; args < prinst->callargc; args++)
+			arg[args] = PR_GetStringOfs(prinst, OFS_PARM0+args*(OFS_PARM1-OFS_PARM0));
+	}
+
+	TL_Reformat(formatted, sizeof(formatted), args, arg);
+	SV_BroadcastPrintf (level, "%s", formatted);
 }
 
 #define STUB ,NULL,true
@@ -12113,6 +12188,20 @@ void PR_ResetBuiltins(progstype_t type)	//fix all nulls to PF_FIXME and add any 
 				Con_Printf("Be aware that MVDSV does not follow standards. Please encourage mod developers to not require pr_imitatemvdsv to be set.\n");
 		}
 	}
+
+#ifdef HAVE_LEGACY
+	//when this cvar is set, we're assumed to be running a rerelease-compatible mod.
+	//obviously this might still break mods that don't include their own quake.rc (most of them), but hey... compat, right?
+	if (scr_usekfont.ival)
+	{
+		PR_EnableEBFSBuiltin("bprints", 23);
+		PR_EnableEBFSBuiltin("sprints", 24);
+		PR_EnableEBFSBuiltin("centerprints", 73);
+
+		PR_EnableEBFSBuiltin("finaleFinished", 79);
+		PR_EnableEBFSBuiltin("localsound_remaster", 80);
+	}
+#endif
 }
 
 void PR_SVExtensionList_f(void)
@@ -12126,7 +12215,7 @@ void PR_SVExtensionList_f(void)
 	int num;
 	char biissues[8192];
 
-	extcheck_t extcheck = {Net_PextMask(PROTOCOL_VERSION_FTE1, false), Net_PextMask(PROTOCOL_VERSION_FTE2, false)};
+	extcheck_t extcheck = {&sv.world, Net_PextMask(PROTOCOL_VERSION_FTE1, false), Net_PextMask(PROTOCOL_VERSION_FTE2, false)};
 
 #define SHOW_ACTIVEEXT 1
 #define SHOW_ACTIVEBI 2

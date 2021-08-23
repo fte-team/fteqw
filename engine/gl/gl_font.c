@@ -34,6 +34,7 @@ float Font_DrawScaleChar(float px, float py, unsigned int charflags, unsigned in
 
 void Font_EndString(struct font_s *font);
 int Font_LineBreaks(conchar_t *start, conchar_t *end, int maxpixelwidth, int maxlines, conchar_t **starts, conchar_t **ends);
+struct font_s *font_menu;
 struct font_s *font_default;
 struct font_s *font_console;
 struct font_s *font_tiny;
@@ -228,6 +229,7 @@ enum fontfmt_e
 	FMT_WINDOWS1252,//variation of latin-1 with extra glyphs
 	FMT_KOI8U,		//image is 16*16 koi8-u codepage.
 	FMT_HORIZONTAL,	//unicode, charcount=width/(height-2). single strip of chars, like halflife.
+	FMT_RERELEASE,	//fonts/foo.kfont specifies a texture and a series of glyph positions within it.
 };
 
 typedef struct fontface_s
@@ -1023,6 +1025,7 @@ static struct charcache_s *Font_TryLoadGlyphRaster(font_t *f, fontface_t *qface,
 	{
 	safedefault:
 	case FMT_AUTO:		//shouldn't happen.
+	case FMT_RERELEASE:	//shouldn't happen.
 	case FMT_ISO88591:	//all identity.
 	case FMT_HORIZONTAL: //erk...
 		c1tab = NULL;
@@ -1608,6 +1611,85 @@ qboolean Font_LoadHorizontalFont(struct font_s *f, int fheight, const char *font
 		return true;
 	}
 	return false;
+}
+
+qboolean Font_LoadKexFont(struct font_s *f, int fheight, const char *fontfilename)
+{
+	vfsfile_t *kfont = FS_OpenVFS(va("fonts/%s.kfont", fontfilename), "rb", FS_GAME);
+	char line[256];
+	char val[256], *s;
+	struct charcache_s *c;
+	fontface_t *qface;
+	if (!kfont)
+		return false;
+	while(VFS_GETS(kfont, line, sizeof(line)))
+	{
+		s = COM_ParseOut(line, val, sizeof(val));
+		if (!s)
+			continue;
+		if (!strcmp(val, "texture") && (s=COM_ParseOut(s, val, sizeof(val))))
+		{
+			TEXDOWAIT(f->singletexture);
+			if (!TEXLOADED(f->singletexture))
+				f->singletexture = Image_GetTexture(val, NULL, IF_NOWORKER|IF_EXACTEXTENSION|IF_UIPIC|(r_font_linear.ival?IF_LINEAR:IF_NEAREST|IF_NOPURGE)|IF_NOPICMIP|IF_NOMIPMAP|IF_NOGAMMA|IF_NOPURGE, NULL, NULL, 0, 0, PTI_INVALID);
+		}
+		else if (*val >= '0' && *val <='9')
+		{
+			unsigned int codepoint = atoi(val);
+			unsigned int x, y, w, h;//, u;
+			if (!TEXLOADED(f->singletexture))
+				break;
+
+			s=COM_ParseOut(s, val, sizeof(val));
+			x = atoi(val);
+			s=COM_ParseOut(s, val, sizeof(val));
+			y = atoi(val);
+			s=COM_ParseOut(s, val, sizeof(val));
+			w = atoi(val);
+			s=COM_ParseOut(s, val, sizeof(val));
+			h = atoi(val);
+			s=COM_ParseOut(s, val, sizeof(val));
+			//u = atoi(val);
+			if (!s)
+				continue;	//something truncated.
+			if (codepoint >= FONT_MAXCHARS || h<=0)
+				continue;	//out of range.
+			c = Font_GetCharStore(f, codepoint);
+			if (codepoint != ' ')
+			{
+				y+=2;
+				h-=4;
+			}
+			c->advance = max(1,(f->charheight * w)/h);
+
+			c->bmw = (w * PLANEWIDTH) / f->singletexture->width;
+			c->bmh = (h * PLANEHEIGHT) / f->singletexture->height;
+			c->bmx = (x * PLANEWIDTH) / f->singletexture->width;
+			c->bmy = (y * PLANEHEIGHT) / f->singletexture->height;
+			c->left = 0;
+			c->nextchar = 0;	//these chars are not linked in
+			c->texplane = BITMAPPLANE;
+		}
+	}
+
+
+	VFS_CLOSE(kfont);
+	if (!TEXLOADED(f->singletexture))
+		return false;
+
+	/*success!*/
+	qface = Z_Malloc(sizeof(*qface));
+	qface->flink = &faces;
+	qface->fnext = *qface->flink;
+	*qface->flink = qface;
+	if (qface->fnext)
+		qface->fnext->flink = &qface->fnext;
+	qface->refs++;
+	Q_snprintfz(qface->name, sizeof(qface->name), "fonts/%s.kfont", fontfilename);
+
+	f->face[f->faces++] = qface;
+
+	return true;
 }
 
 #ifdef AVAIL_FREETYPE
@@ -2196,6 +2278,8 @@ struct font_s *Font_LoadFont(const char *fontfilename, float vheight, float scal
 					fmt = FMT_KOI8U;
 				else if (*t == 'h')
 					fmt = FMT_HORIZONTAL;
+				else if (*t == 'r')
+					fmt = FMT_RERELEASE;
 			}
 			if (!strncmp(parms, "aspect=", 7))
 			{
@@ -2388,6 +2472,8 @@ struct font_s *Font_LoadFont(const char *fontfilename, float vheight, float scal
 			if (end)
 				*end = 0;
 
+			if (fmt == FMT_RERELEASE)
+				success = Font_LoadKexFont(f, height, start);
 			if (fmt == FMT_HORIZONTAL)
 				success = Font_LoadHorizontalFont(f, height, start);
 #ifdef AVAIL_FREETYPE
@@ -2673,6 +2759,8 @@ float Font_CharScaleHeight(void)
 int Font_TabWidth(int x)
 {
 	int tabwidth = Font_CharWidth(CON_WHITEMASK, ' ');
+	if (!tabwidth)
+		tabwidth = curfont->charheight;
 	tabwidth *= 8;
 
 	x++;

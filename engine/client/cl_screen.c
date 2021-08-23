@@ -403,8 +403,13 @@ for a few moments
 */
 void SCR_CenterPrint (int pnum, const char *str, qboolean skipgamecode)
 {
+	unsigned int pfl = 0;
 	size_t i;
 	cprint_t *p;
+#ifdef HAVE_LEGACY
+	if (scr_usekfont.ival)
+		pfl |= PFS_FORCEUTF8;
+#endif
 	if (!str)
 	{
 		if (cl.intermissionmode == IM_NONE)
@@ -545,7 +550,7 @@ void SCR_CenterPrint (int pnum, const char *str, qboolean skipgamecode)
 
 	for (;;)
 	{
-		p->charcount = COM_ParseFunString(CON_WHITEMASK, str, p->string, p->stringbytes, false) - p->string;
+		p->charcount = COM_ParseFunString(CON_WHITEMASK, str, p->string, p->stringbytes, pfl) - p->string;
 
 		if ((p->charcount+1)*sizeof(*p->string) < p->stringbytes)
 			break;

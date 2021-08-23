@@ -92,6 +92,7 @@ cvar_t	host_mapname			= CVARAFD("mapname", "", "host_mapname", 0, "Cvar that hol
 #ifdef HAVE_LEGACY
 cvar_t	ezcompat_markup			= CVARD("ezcompat_markup", "1", "Attempt compatibility with ezquake's text markup.0: disabled.\n1: Handle markup ampersand markup.\n2: Handle chevron markup (only in echo commands, for config compat, because its just too unreliable otherwise).");
 cvar_t	pm_noround				= CVARD("pm_noround", "0", "Disables player prediction snapping, in a way that cannot be reliably predicted but may be needed to avoid map bugs.");
+cvar_t	scr_usekfont			= CVARD("scr_usekfont"/*kex*/, "0", "Exists for compat with the quake rerelease, changing the behaviour of QC's sprint/bprint/centerprint builtins.");
 #endif
 
 qboolean	com_modified;	// set true if using non-id files
@@ -6358,6 +6359,7 @@ void COM_Init (void)
 	Cvar_Register (&com_nogamedirnativecode, "Gamecode");
 	Cvar_Register (&com_parseutf8, "Internationalisation");
 #ifdef HAVE_LEGACY
+	Cvar_Register (&scr_usekfont, NULL);
 	Cvar_Register (&ezcompat_markup, NULL);
 	Cvar_Register (&pm_noround, NULL);
 #endif

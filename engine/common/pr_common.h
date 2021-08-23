@@ -46,6 +46,7 @@ struct wedict_s
 //thus this system requires various builtins to exist at specific numbers.
 //this competes against checkbuiltin(funcreference).
 typedef struct {
+	world_t *world;
 	unsigned int pext1, pext2;
 } extcheck_t;
 typedef struct qc_extension_s {

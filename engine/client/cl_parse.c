@@ -6348,7 +6348,10 @@ static void CL_PrintStandardMessage(char *msgtext, int printlevel)
 
 	// print final chunk
 	Q_strncatz(fullmessage, msgtext, sizeof(fullmessage));
-	Con_Printf("%s", fullmessage);
+	if (scr_usekfont.ival)
+		Con_PrintFlags(fullmessage, PFS_FORCEUTF8, 0);
+	else
+		Con_Printf("%s", fullmessage);
 }
 
 static char printtext[4096];

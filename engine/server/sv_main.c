@@ -5726,11 +5726,12 @@ void SV_InitLocal (void)
 }
 
 #define iswhite(c) ((c) == ' ' || (unsigned char)(c) == (unsigned char)INVIS_CHAR1 || (unsigned char)(c) == (unsigned char)INVIS_CHAR2 || (unsigned char)(c) == (unsigned char)INVIS_CHAR3)
-#define isinvalid(c) ((c) == ':' || (c) == '\\' || (c) == '\r' || (c) == '\n' || (unsigned char)(c) == (unsigned char)0xff || (c) == '\"')
-//colon is so clients can't get confused while parsing chats
-//255 is so fuhquake/ezquake don't end up with nameless players
+#define isinvalid(c) ((c) == ':' || (c) == '\\' || (c) == '$' || (c) == '\r' || (c) == '\n' || (unsigned char)(c) == (unsigned char)0xff || (c) == '\"')
+//colon is so clients can't get confused while parsing chats (eg frag messages)
+//255 is so fuhquake/ezquake don't end up with nameless players (and general MSG_ReadString bugs)
 //" is so mods that use player names in tokenizing/frik_files don't mess up. mods are still expected to be able to cope with space.
 //\ is blocked because it messes up our ^[NAME\player\NUM^] links, and because vanilla would hate it.
+//$ is blocked because of potential internationalisation escapes.
 
 //is allowed to shorten, out must be as long as in and min of "unnamed"+1
 void SV_FixupName(const char *in, char *out, unsigned int outlen)

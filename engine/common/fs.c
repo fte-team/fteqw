@@ -3820,7 +3820,9 @@ void COM_Gamedir (const char *dir, const struct gamepacks *packagespaths)
 /*quake requires a few settings for compatibility*/
 #define QRPCOMPAT "set cl_cursor_scale 0.2\nset cl_cursor_bias_x 7.5\nset cl_cursor_bias_y 0.8\n"
 #define QUAKESPASMSUCKS "set mod_h2holey_bugged 1\n"
-#define QCFG "//schemes quake qw\n" "set v_gammainverted 1\nset con_stayhidden 0\nset com_parseutf8 0\nset allow_download_pakcontents 1\nset allow_download_refpackages 0\nset r_meshpitch -1\nr_sprite_backfacing 1\nset sv_bigcoords \"\"\nmap_autoopenportals 1\n"  "sv_port "STRINGIFY(PORT_QWSERVER)" "STRINGIFY(PORT_NQSERVER)"\n" ZFIXHACK EZQUAKECOMPETITIVE QRPCOMPAT QUAKESPASMSUCKS
+#define QUAKEOVERRIDES "set v_gammainverted 1\nset con_stayhidden 0\nset allow_download_pakcontents 1\nset allow_download_refpackages 0\nset r_meshpitch -1\nr_sprite_backfacing 1\nset sv_bigcoords \"\"\nmap_autoopenportals 1\n"  "sv_port "STRINGIFY(PORT_QWSERVER)" "STRINGIFY(PORT_NQSERVER)"\n" ZFIXHACK EZQUAKECOMPETITIVE QUAKESPASMSUCKS
+#define QCFG "//schemes quake qw\n"   QUAKEOVERRIDES "set com_parseutf8 0\n" QRPCOMPAT
+#define KEXCFG "//schemes quake_r2\n" QUAKEOVERRIDES "set com_parseutf8 1\nset campaign 0\n"
 /*NetQuake reconfiguration, to make certain people feel more at home...*/
 #define NQCFG "//disablehomedir 1\n//mainconfig ftenq\n" QCFG "cfg_save_auto 1\nset sv_nqplayerphysics 1\nset cl_loopbackprotocol auto\ncl_sbar 1\nset plug_sbar 0\nset sv_port "STRINGIFY(PORT_NQSERVER)"\ncl_defaultport "STRINGIFY(PORT_NQSERVER)"\nset m_preset_chosen 1\nset vid_wait 1\nset cl_demoreel 1\n"
 #define SPASMCFG NQCFG "fps_preset builtin_spasm\nset cl_demoreel 0\ncl_sbar 2\nset gl_load24bit 1\n"
@@ -3895,6 +3897,8 @@ static const gamemode_info_t gamemode_info[] = {
 //for quake, we also allow extracting all files from paks. some people think it loads faster that way or something.
 #ifdef HAVE_LEGACY
 	//cmdline switch exename    protocol name(dpmaster)  identifying file				exec     dir1       dir2    dir3       dir(fte)     full name
+	//use rerelease behaviours if we seem to be running from that dir.
+	{"-quake_rerel",NULL,		"FTE-QuakeRerelease",	{"QuakeEX.kpf"},				KEXCFG,	{"id1",							"*fte"},	"RerelQuake",						UPDATEURL(Q1)},
 	//standard quake
 	{"-quake",		"q1",		QUAKEPROT,				{"id1/pak0.pak","id1/quake.rc"},QCFG,	{"id1",		"qw",				"*fte"},	"Quake",							UPDATEURL(Q1)},
 	//alternative name, because fmf file install names are messy when a single name is used for registry install path.
@@ -4467,6 +4471,19 @@ static void FS_ReloadPackFilesFlags(unsigned int reloadflags)
 	com_purepaths = NULL;
 	com_base_searchpaths = NULL;
 	gameonly_gamedir = gameonly_homedir = NULL;
+
+#if defined(HAVE_LEGACY) && defined(PACKAGE_PK3)
+	{
+		searchpathfuncs_t *pak;
+		vfsfile_t *vfs;
+		char pakname[MAX_OSPATH];
+		Q_snprintfz(pakname, sizeof(pakname), "%sQuakeEX.kpf", com_gamepath);
+		vfs = VFSOS_Open(pakname, "rb");
+		pak = FSZIP_LoadArchive(vfs, NULL, pakname, pakname, "");
+		if (pak)	//logically should have SPF_EXPLICIT set, but that would give it a worse gamedir depth
+			FS_AddPathHandle(&oldpaths, "", pakname, pak, "", SPF_COPYPROTECTED, reloadflags);
+	}
+#endif
 
 	i = COM_CheckParm ("-basepack");
 	while (i && i < com_argc-1)

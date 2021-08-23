@@ -3558,10 +3558,19 @@ static void *X11VID_CreateCursor(const qbyte *imagedata, int width, int height, 
 	{
 		int nw,nh;
 		qbyte *nd;
-		nw = width * scale;
-		nh = height * scale;
-		if (nw <= 0 || nh <= 0 || nw > 128 || nh > 128) //don't go crazy.
-			return NULL;
+		for(;;)
+		{
+			nw = width * scale;
+			nh = height * scale;
+			if (nw <= 0 || nh <= 0 || nw > 128 || nh > 128) //don't go crazy.
+				return NULL;
+			if (nw < 8)
+				scale = 8/width;
+			else if (nh < 8)
+				scale = 8/height;
+			else
+				break;
+		}
 		nd = Image_ResampleTexture(format, imagedata, width, height, NULL, nw, nh);
 		if (!nd)
 			return NULL;	//resampling of that format didn't work for some reason...

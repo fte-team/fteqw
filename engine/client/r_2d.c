@@ -1231,6 +1231,8 @@ void R2D_Font_Changed(void)
 #endif
 	}
 
+	font_menu = Font_LoadFont("qfont?fmt=r", 20, 1, r_font_postprocess_outline.ival);
+
 	font_default = Font_LoadFont(gl_font.string, 8, 1, r_font_postprocess_outline.ival);
 	if (!font_default && *gl_font.string)
 		font_default = Font_LoadFont("", 8, 1, r_font_postprocess_outline.ival);

@@ -1332,6 +1332,7 @@ static void WPhys_Physics_Toss (world_t *w, wedict_t *ent)
 
 	int fl;
 	const float *gravitydir;
+	int movetype;
 
 	WPhys_CheckVelocity (w, ent);
 
@@ -1364,11 +1365,12 @@ static void WPhys_Physics_Toss (world_t *w, wedict_t *ent)
 	}
 
 // add gravity
-	if (ent->v->movetype != MOVETYPE_FLY
-		&& ent->v->movetype != MOVETYPE_FLY_WORLDONLY
-		&& ent->v->movetype != MOVETYPE_FLYMISSILE
-		&& (ent->v->movetype != MOVETYPE_BOUNCEMISSILE || w->remasterlogic/*gib*/)
-		&& ent->v->movetype != MOVETYPE_H2SWIM)
+	movetype = ent->v->movetype;
+	if (movetype != MOVETYPE_FLY
+		&& movetype != MOVETYPE_FLY_WORLDONLY
+		&& movetype != MOVETYPE_FLYMISSILE
+		&& (movetype != MOVETYPE_BOUNCEMISSILE || w->remasterlogic/*gib*/)
+		&& movetype != MOVETYPE_H2SWIM)
 		WPhys_AddGravity (w, ent, gravitydir);
 
 // move angles
@@ -1407,14 +1409,17 @@ static void WPhys_Physics_Toss (world_t *w, wedict_t *ent)
 
 	VectorCopy(trace.endpos, move);
 
-	if (ent->v->movetype == MOVETYPE_BOUNCE)
+	movetype = ent->v->movetype;
+	if (movetype == MOVETYPE_BOUNCEMISSILE && w->remasterlogic)
+		movetype = MOVETYPE_BOUNCE;	//'gib'...
+	if (movetype == MOVETYPE_BOUNCE)
 	{
 		if (ent->xv->bouncefactor)
 			backoff = 1 + ent->xv->bouncefactor;
 		else
 			backoff = 1.5;
 	}
-	else if (ent->v->movetype == MOVETYPE_BOUNCEMISSILE)
+	else if (movetype == MOVETYPE_BOUNCEMISSILE)
 	{
 		if (ent->xv->bouncefactor)
 			backoff = 1 + ent->xv->bouncefactor;
@@ -1431,7 +1436,7 @@ static void WPhys_Physics_Toss (world_t *w, wedict_t *ent)
 
 
 // stop if on ground
-	if ((-DotProduct(gravitydir, trace.plane.normal) > 0.7) && (ent->v->movetype != MOVETYPE_BOUNCEMISSILE))
+	if ((-DotProduct(gravitydir, trace.plane.normal) > 0.7) && (movetype != MOVETYPE_BOUNCEMISSILE))
 	{
 		float bouncespeed;
 		float bouncestop = ent->xv->bouncestop;
@@ -1443,7 +1448,7 @@ static void WPhys_Physics_Toss (world_t *w, wedict_t *ent)
 			bouncespeed = DotProduct(trace.plane.normal, ent->v->velocity);
 		else
 			bouncespeed = -DotProduct(gravitydir, ent->v->velocity);
-		if (bouncespeed < bouncestop || ent->v->movetype != MOVETYPE_BOUNCE )
+		if (bouncespeed < bouncestop || movetype != MOVETYPE_BOUNCE )
 		{
 			ent->v->flags = (int)ent->v->flags | FL_ONGROUND;
 			ent->v->groundentity = EDICT_TO_PROG(w->progs, trace.ent);

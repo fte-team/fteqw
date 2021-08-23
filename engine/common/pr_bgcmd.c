@@ -7590,6 +7590,9 @@ static qboolean check_pext2_infoblobs		(extcheck_t *extcheck) {return !!(extchec
 //static qboolean check_pext2_stunaware		(extcheck_t *extcheck) {return !!(extcheck->pext2 & PEXT2_STUNAWARE);}
 static qboolean check_pext2_vrinputs		(extcheck_t *extcheck) {return !!(extcheck->pext2 & PEXT2_VRINPUTS);}
 
+//rerelease stomped on things. make sure our earlier extension reports correctly.
+static qboolean check_bouncemissile		(extcheck_t *extcheck) {return !extcheck->world->remasterlogic/*became 'movetype_gib'*/;}
+
 #define NOBI NULL, 0,{NULL},
 qc_extension_t QSG_Extensions[] = {
 	//these don't have well-defined names...
@@ -7635,7 +7638,7 @@ qc_extension_t QSG_Extensions[] = {
 	{"DP_LIGHTSTYLE_STATICVALUE"},
 	{"DP_LITSUPPORT"},
 	{"DP_MONSTERWALK",					NULL,	0,{NULL}, "MOVETYPE_WALK is valid on non-player entities. Note that only players receive acceleration etc in line with none/bounce/fly/noclip movetypes on the player, thus you will have to provide your own accelerations (incluing gravity) yourself."},
-	{"DP_MOVETYPEBOUNCEMISSILE"},		//I added the code for hexen2 support.
+	{"DP_MOVETYPEBOUNCEMISSILE",		check_bouncemissile},		//I added the code for hexen2 support.
 	{"DP_MOVETYPEFOLLOW"},
 	{"DP_QC_ASINACOSATANATAN2TAN",		NULL,	5,{"asin", "acos", "atan", "atan2", "tan"}},
 	{"DP_QC_CHANGEPITCH",				NULL,	1,{"changepitch"}},

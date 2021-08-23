@@ -15,9 +15,15 @@ int com_language;
 char sys_language[64] = "";
 static char langpath[MAX_OSPATH] = "";
 struct language_s languages[MAX_LANGUAGES];
+static struct po_s *com_translations;
 
 static void QDECL TL_LanguageChanged(struct cvar_s *var, char *oldvalue)
 {
+	if (com_translations)
+	{
+		PO_Close(com_translations);
+		com_translations = NULL;
+	}
 	com_language = TL_FindLanguage(var->string);
 }
 
@@ -494,4 +500,148 @@ const char *PO_GetText(struct po_s *po, const char *msg)
 	if (line)
 		return line->translated;
 	return msg;
+}
+
+
+static void PO_Merge_Rerelease(struct po_s *po, const char *fmt)
+{
+	//FOO <plat,plat> = "CString"
+	char line[32768];
+	char key[256];
+	char val[32768];
+	char *s;
+	vfsfile_t *file = NULL;
+
+	if (!file && *language.string)	//use system locale names
+		file = FS_OpenVFS(va(fmt, language.string), "rb", FS_GAME);
+	if (!file)	//make a guess
+	{
+		s = NULL;
+		if (language.string[0] && language.string[1] && (!language.string[2] || language.string[2] == '-' || language.string[2] == '_'))
+		{	//try to map the user's formal locale to the rerelease's arbitrary names (at least from the perspective of anyone who doesn't speak english).
+			if (!strncmp(language.string, "fr", 2))
+				s = "french";
+			else if (!strncmp(language.string, "de", 2))
+				s = "german";
+			else if (!strncmp(language.string, "it", 2))
+				s = "italian";
+			else if (!strncmp(language.string, "ru", 2))
+				s = "russian";
+			else if (!strncmp(language.string, "es", 2))
+				s = "spanish";
+		}
+		if (s)
+			file = FS_OpenVFS(va(fmt, s), "rb", FS_GAME);
+	}
+	if (!file)	//fall back on misnamed american, for lack of a better default.
+		file = FS_OpenVFS(va(fmt, "english"), "rb", FS_GAME);
+	if (file)
+	{
+		*key = '$';
+		while(VFS_GETS(file, line, sizeof(line)))
+		{
+			s = COM_ParseOut(line, key+1, sizeof(key)-1);
+			s = COM_ParseOut(s, val, sizeof(val));
+			if (strcmp(val,"="))
+				continue;
+			s = COM_ParseCString(s, val, sizeof(val), NULL);
+			if (!s)
+				continue;
+			PO_AddText(po, key, val);
+		}
+		VFS_CLOSE(file);
+	}
+}
+
+void TL_Reformat(char *out, size_t outsize, size_t numargs, const char **arg)
+{
+	const char *fmt;
+	const char *a;
+	size_t alen;
+
+	for (alen = 0; alen < numargs; alen++)
+	{
+		if (*arg[alen] == '$')
+		{
+			if (!com_translations)
+			{
+				char lang[64], *h;
+				vfsfile_t *f = NULL;
+				com_translations = PO_Create();
+				PO_Merge_Rerelease(com_translations, "localization/loc_%s.txt");
+
+				Q_strncpyz(lang, language.string, sizeof(lang));
+				while ((h = strchr(lang, '-')))
+					*h = '_';	//standardise it
+				if (*lang)
+					f = FS_OpenVFS(va("localisation/%s.po", lang), "rb", FS_GAME);	//long/specific form
+				if (!f)
+				{
+					if ((h = strchr(lang, '_')))
+					{
+						*h = 0;
+						if (*lang)
+							f = FS_OpenVFS(va("localisation/%s.po", lang), "rb", FS_GAME);	//short/general form
+					}
+				}
+				if (f)
+					PO_Merge(com_translations, f);
+			}
+			arg[alen] = PO_GetText(com_translations, arg[alen]);
+		}
+	}
+
+	fmt = (numargs>0&&arg[0])?arg[0]:"";
+
+	outsize--;
+	while (outsize > 0)
+	{
+		if (!*fmt)
+			break;
+		else if (*fmt == '{')
+		{
+			unsigned int index = strtoul(fmt+1, (char**)&fmt, 10)+1;
+			int size = 0;
+			if (*fmt == ',')
+				size = strtol(fmt+1, (char**)&fmt, 10);
+			if (*fmt == ':')
+			{	//formatting, which we don't support because its all strings.
+				fmt = fmt+1;
+				while (*fmt && *fmt != '}')
+					fmt++;
+			}
+			if (*fmt == '}')
+				fmt++;
+			else
+				break;	//some formatting error
+
+			if (index >= numargs || !arg[index])
+				a = "";
+			else
+				a = arg[index];
+
+			alen = strlen(a);
+			if (alen > outsize)
+				alen = outsize;
+			if (size > 0)
+			{	//right aligned
+				if (alen > size)
+					alen = size;
+				memcpy(out, a, alen);
+			}
+			else if (size < 0)
+			{	//left aligned
+				if (alen > -size)
+					alen = -size;
+				memcpy(out, a, alen);
+			}
+			else //no alignment, no padding.
+				memcpy(out, a, alen);
+			out += alen;
+			outsize -= alen;
+		}
+		else
+			*out++ = *fmt++, outsize--;
+	}
+	*out = 0;
 }

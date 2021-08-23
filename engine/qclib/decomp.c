@@ -3242,6 +3242,7 @@ void DecompileProgsDat(char *name, void *buf, size_t bufsize)
 	type_void = QCC_PR_NewType("void", ev_void, true);
 	type_string = QCC_PR_NewType("string", ev_string, true);
 	type_float = QCC_PR_NewType("float", ev_float, true);
+	type_bfloat = type_float;//QCC_PR_NewType("float", ev_float, true);
 	type_vector = QCC_PR_NewType("vector", ev_vector, true);
 	type_entity = QCC_PR_NewType("entity", ev_entity, true);
 	type_field = QCC_PR_NewType("__field", ev_field, false);
@@ -3249,6 +3250,7 @@ void DecompileProgsDat(char *name, void *buf, size_t bufsize)
 	type_function->aux_type = type_void;
 	type_pointer = QCC_PR_NewType("__pointer", ev_pointer, false);
 	type_integer = QCC_PR_NewType("__integer", ev_integer, true);
+	type_bint = type_integer;
 	type_variant = QCC_PR_NewType("variant", ev_variant, true);
 	type_variant = QCC_PR_NewType("__variant", ev_variant, true);
 

@@ -4110,7 +4110,7 @@ void Sh_DrawLights(qbyte *vis)
 				continue;
 			if (dist > dl->fade[0])
 			{
-				dist = (dist-dl->fade[0]) / (dl->fade[1]-dl->fade[0]);
+				dist = 1-((dist-dl->fade[0]) / (dl->fade[1]-dl->fade[0]));
 				VectorScale(colour, dist, colour);
 			}
 		}

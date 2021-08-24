@@ -1182,7 +1182,9 @@ qboolean R_ImportRTLights(const char *entlump)
 			break;
 		}
 		
-		if (radius < 50)	//some mappers insist on many tiny lights. such lights can usually get away with no shadows..
+		if (rerelease)
+			r_shadow_realtime_world_lightmaps.value = 1;
+		else if (radius < 50)	//some mappers insist on many tiny lights. such lights can usually get away with no shadows..
 			pflags |= PFLAGS_NOSHADOW;
 
 		VectorAdd(origin, originhack, origin);
@@ -1767,6 +1769,7 @@ void R_EditLights_DrawInfo(void)
 				"    Specular : %.2f\n"
 				"  NormalMode : %s\n"
 				"RealTimeMode : %s\n"
+				"    FadeDist : %.0f-%.0f\n"
 				"        Spin : %.0f %.0f %.0f\n"
 				"        Cone : %.0f\n"
 				"    Nearclip : %.0f\n"
@@ -1780,6 +1783,7 @@ void R_EditLights_DrawInfo(void)
 				,((dl->flags&LFLAG_NOSHADOWS)?"no":"yes"), dl->cubemapname, dl->coronascale
 				,dl->lightcolourscales[0], dl->lightcolourscales[1], dl->lightcolourscales[2]
 				,((dl->flags&LFLAG_NORMALMODE)?"yes":"no"), ((dl->flags&LFLAG_REALTIMEMODE)?"yes":"no")
+				,dl->fade[0], dl->fade[1]
 				,dl->rotation[0],dl->rotation[1],dl->rotation[2], dl->fov, dl->nearclip
 				//,((dl->flags&LFLAG_SHADOWMAP)?"no":"yes"),((dl->flags&LFLAG_CREPUSCULAR)?"yes":"no"),((dl->flags&LFLAG_ORTHO)?"yes":"no")
 				);
@@ -1789,7 +1793,7 @@ void R_EditLights_DrawInfo(void)
 	R2D_ImageColours(0,0,0,.35);
 	R2D_FillBlock(x-4, y, 320+4, 16*8+4);
 	R2D_ImageColours(1,1,1,1);
-	R_DrawTextField(x, y, 320, 16*8, s, CON_WHITEMASK, CPRINT_LALIGN|CPRINT_TALIGN|CPRINT_NOWRAP, font_default, fontscale);
+	R_DrawTextField(x, y, 320, 19*8, s, CON_WHITEMASK, CPRINT_LALIGN|CPRINT_TALIGN|CPRINT_NOWRAP, font_default, fontscale);
 }
 void R_EditLights_DrawLights(void)
 {

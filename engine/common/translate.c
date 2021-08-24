@@ -553,45 +553,46 @@ static void PO_Merge_Rerelease(struct po_s *po, const char *fmt)
 	}
 }
 
+const char *TL_Translate(const char *src)
+{
+	if (*src == '$')
+	{
+		if (!com_translations)
+		{
+			char lang[64], *h;
+			vfsfile_t *f = NULL;
+			com_translations = PO_Create();
+			PO_Merge_Rerelease(com_translations, "localization/loc_%s.txt");
+
+			Q_strncpyz(lang, language.string, sizeof(lang));
+			while ((h = strchr(lang, '-')))
+				*h = '_';	//standardise it
+			if (*lang)
+				f = FS_OpenVFS(va("localisation/%s.po", lang), "rb", FS_GAME);	//long/specific form
+			if (!f)
+			{
+				if ((h = strchr(lang, '_')))
+				{
+					*h = 0;
+					if (*lang)
+						f = FS_OpenVFS(va("localisation/%s.po", lang), "rb", FS_GAME);	//short/general form
+				}
+			}
+			if (f)
+				PO_Merge(com_translations, f);
+		}
+		src = PO_GetText(com_translations, src);
+	}
+	return src;
+}
 void TL_Reformat(char *out, size_t outsize, size_t numargs, const char **arg)
 {
 	const char *fmt;
 	const char *a;
 	size_t alen;
 
-	for (alen = 0; alen < numargs; alen++)
-	{
-		if (*arg[alen] == '$')
-		{
-			if (!com_translations)
-			{
-				char lang[64], *h;
-				vfsfile_t *f = NULL;
-				com_translations = PO_Create();
-				PO_Merge_Rerelease(com_translations, "localization/loc_%s.txt");
-
-				Q_strncpyz(lang, language.string, sizeof(lang));
-				while ((h = strchr(lang, '-')))
-					*h = '_';	//standardise it
-				if (*lang)
-					f = FS_OpenVFS(va("localisation/%s.po", lang), "rb", FS_GAME);	//long/specific form
-				if (!f)
-				{
-					if ((h = strchr(lang, '_')))
-					{
-						*h = 0;
-						if (*lang)
-							f = FS_OpenVFS(va("localisation/%s.po", lang), "rb", FS_GAME);	//short/general form
-					}
-				}
-				if (f)
-					PO_Merge(com_translations, f);
-			}
-			arg[alen] = PO_GetText(com_translations, arg[alen]);
-		}
-	}
-
 	fmt = (numargs>0&&arg[0])?arg[0]:"";
+	fmt = TL_Translate(fmt);
 
 	outsize--;
 	while (outsize > 0)
@@ -618,7 +619,7 @@ void TL_Reformat(char *out, size_t outsize, size_t numargs, const char **arg)
 			if (index >= numargs || !arg[index])
 				a = "";
 			else
-				a = arg[index];
+				a = TL_Translate(arg[index]);
 
 			alen = strlen(a);
 			if (alen > outsize)

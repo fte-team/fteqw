@@ -1858,7 +1858,7 @@ void R_GAlias_GenerateBatches(entity_t *e, batch_t **batches)
 				if (sort < SHADER_SORT_NEAREST)
 					sort = SHADER_SORT_NEAREST;
 			}
-			if (e->flags & RF_NOSHADOW)
+			if ((e->flags & RF_NOSHADOW) || (clmodel->engineflags & MDLF_NOSHADOWS))
 				b->flags |= BEF_NOSHADOWS;
 			b->vbo = NULL;
 			b->next = batches[sort];

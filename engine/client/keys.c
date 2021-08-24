@@ -2781,8 +2781,6 @@ void Key_WriteBindings (vfsfile_t *f)
 void Key_EnsureBinds(void)
 {
 	int		i, m;
-	if (cls.demoplayback)
-		return;
 	for (i=0 ; i<=K_AUX16 ; i++)
 	{
 		for (m = 0; m < KEY_MODIFIERSTATES; m++)
@@ -2818,8 +2816,6 @@ void Key_EnsureBinds(void)
 	Key_SetBinding ('7',  ~0, "impulse 7", RESTRICT_LOCAL);
 	Key_SetBinding ('8',  ~0, "impulse 8", RESTRICT_LOCAL);
 	Key_SetBinding (K_RSHIFT,  ~0, "+speed", RESTRICT_LOCAL);
-
-	Menu_Prompt(NULL, NULL, "Configuration missing...\nSetting up some automatic binds..", NULL, NULL, "Okay");
 }
 
 /*

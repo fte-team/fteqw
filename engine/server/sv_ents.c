@@ -3496,7 +3496,21 @@ void SV_Snapshot_BuildStateQ1(entity_state_t *state, edict_t *ent, client_t *cli
 			state->modelindex = sv_playermodel;
 	}
 
-	if (progstype != PROG_QW)
+	if (sv.world.remasterlogic)
+	{
+		if (state->effects & (REEF_QUADLIGHT|REEF_PENTLIGHT|REEF_CANDLELIGHT))
+		{	//remap these flags to something new.
+			unsigned int old = state->effects;
+			state->effects &= ~(REEF_QUADLIGHT|REEF_PENTLIGHT|REEF_CANDLELIGHT);
+			if (old & REEF_QUADLIGHT)
+				state->effects |= EF_BLUE;
+			if (old & REEF_PENTLIGHT)
+				state->effects |= EF_RED;
+			if (old & REEF_CANDLELIGHT)
+				state->effects |= 0;
+		}
+	}
+	else if (progstype != PROG_QW)
 	{
 		if (progstype == PROG_TENEBRAE)
 		{

@@ -108,7 +108,7 @@ typedef struct q2trace_s
 #define	FL_PARTIALGROUND		(1<<10)	// not all corners are valid
 #define	FL_WATERJUMP			(1<<11)	// player jumping out of water
 #define	FL_JUMPRELEASED			(1<<12)
-#define FLRM_ISBOT				(1<<13)
+//#define FLRE_ISBOT			(1<<13)
 #define FL_FINDABLE_NONSOLID	(1<<14)	//a cpqwsv feature
 #define FL_MOVECHAIN_ANGLE		(1<<15) // hexen2 - when in a move chain, will update the angle
 #define FLQW_LAGGEDMOVE			(1<<16)

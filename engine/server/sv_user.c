@@ -8299,7 +8299,6 @@ void SV_ExecuteClientMessage (client_t *cl)
 				}
 
 				split->lastcmd = newcmd;
-				split->lastcmd.buttons = 0; // avoid multiple fires on lag
 			}
 			split = split->controlled;	//so the next splitscreen client gets the next packet.
 			host_client = cl;

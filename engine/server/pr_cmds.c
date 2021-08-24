@@ -10714,8 +10714,14 @@ static void QCBUILTIN PF_setpause(pubprogfuncs_t *prinst, struct globalvars_s *p
 
 /*builtins to work around the remastered edition of quake.*/
 void PF_finaleFinished(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
-{	//undocumented. just stub it for now. this will probably break coop games that killed shub.
+{	//undocumented. implement some quicky hack that just waits till some user has tried attacking. should probably be at least half players or something. silly afkers.
+	unsigned int i;
 	G_FLOAT(OFS_RETURN) = false;
+	for (i = 0; i < svs.allocated_client_slots; i++)
+	{
+		if (svs.clients[i].lastcmd.buttons & 1)
+			G_FLOAT(OFS_RETURN) = true;
+	}
 }
 void PF_localsound_remaster(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {	//undocumented. just stub it.

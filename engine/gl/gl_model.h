@@ -208,9 +208,12 @@ m*_t structures are in-memory
 #define	EF_DIMLIGHT 			(1<<3)
 #define	QWEF_FLAG1	 			(1<<4)	//only applies to qw player entities
 #define	NQEF_NODRAW				(1<<4)	//so packet entities are free to get this instead
+#define REEF_QUADLIGHT			(1<<4)
 #define	QWEF_FLAG2	 			(1<<5)	//only applies to qw player entities
 #define	NQEF_ADDITIVE			(1<<5)	//so packet entities are free to get this instead
+#define REEF_PENTLIGHT			(1<<5)
 #define	EF_BLUE					(1<<6)
+#define REEF_CANDLELIGHT		(1<<6)
 #define	EF_RED					(1<<7)
 #define	H2EF_NODRAW				(1<<7)	//this is going to get complicated... emulated server side.
 #define	DPEF_NOGUNBOB			(1<<8)	//viewmodel attachment does not bob. only applies to viewmodelforclient/RF_WEAPONMODEL
@@ -1102,7 +1105,7 @@ typedef struct model_s
 #define MDLF_BOLT            0x0100 // doesn't produce shadows
 #define	MDLF_NOTREPLACEMENTS 0x0200 // can be considered a cheat, disable texture replacements
 #define MDLF_EZQUAKEFBCHEAT  0x0400 // this is a blatent cheat, one that can disadvantage us fairly significantly if we don't support it.
-//#define MDLF_HASBRUSHES		 0x0800 // q1bsp has brush info for more precise traceboxes
+#define MDLF_NOSHADOWS		 0x0800 // do not cast shadows from this entity, ever.
 #define MDLF_RECALCULATERAIN 0x1000 // particles changed, recalculate any sky polys
 
 //============================================================================

@@ -43,6 +43,9 @@ cvar_t temp_lit2support						= CVARD("temp_mod_lit2support", "0", "Set to 1 to e
 #ifdef SPRMODELS
 cvar_t r_sprite_backfacing					= CVARD	("r_sprite_backfacing", "0", "Make oriented sprites face backwards relative to their orientation, for compat with q1.");
 #endif
+#ifdef RTLIGHTS
+cvar_t r_noEntityCastShadowList				= CVARD ("r_noEntityCastShadowList", "progs/missile.mdl,progs/flame.mdl,progs/flame2.mdl,progs/lavaball.mdl,progs/grenade.mdl,progs/spike.mdl,progs/s_spike.mdl,progs/laser.mdl,progs/lspike.mdl,progs/candle.mdl", "Models in this list will not cast shadows.");
+#endif
 #ifdef SERVERONLY
 cvar_t gl_overbright, gl_specular, gl_load24bit, r_replacemodels, gl_miptexLevel, r_fb_bmodels;	//all of these can/should default to 0
 cvar_t r_noframegrouplerp					= CVARF  ("r_noframegrouplerp", "0", CVAR_ARCHIVE);
@@ -643,6 +646,9 @@ void Mod_Init (qboolean initial)
 		Cvar_Register(&temp_lit2support, NULL);
 		Cvar_Register (&r_meshpitch, "Gamecode");
 		Cvar_Register (&r_meshroll, "Gamecode");
+#ifdef RTLIGHTS
+		Cvar_Register(&r_noEntityCastShadowList, "Graphical Nicaties");
+#endif
 		Cmd_AddCommandD("sv_saveentfile", Mod_SaveEntFile_f, "Dumps a copy of the map's entities to disk, so that it can be edited and used as a replacement for slightly customised maps.");
 		Cmd_AddCommandD("mod_showent", Mod_ShowEnt_f, "Allows you to quickly search through a map's entities.");
 		Cmd_AddCommand("version_modelformats", Mod_PrintFormats_f);
@@ -1352,6 +1358,17 @@ model_t *Mod_LoadModel (model_t *mod, enum mlverbosity_e verbose)
 {
 	if (mod->loadstate == MLS_NOTLOADED && *mod->name != '*')
 	{
+#ifdef RTLIGHTS
+		char *s = strstr(r_noEntityCastShadowList.string, mod->publicname);
+		COM_AssertMainThread("Mod_LoadModel");
+		if (s)
+		{
+			size_t l = strlen(mod->publicname);
+			if ((s == r_noEntityCastShadowList.string || s[-1]==',') && (s[l] == 0 || s[l] == ','))
+				mod->engineflags |= MDLF_NOSHADOWS;
+		}
+#endif
+
 		mod->loadstate = MLS_LOADING;
 		if (verbose == MLV_ERROR || verbose == MLV_WARNSYNC)
 			COM_InsertWork(WG_LOADER, Mod_LoadModelWorker, mod, NULL, verbose, 0);

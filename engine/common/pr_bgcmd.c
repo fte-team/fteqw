@@ -7591,7 +7591,8 @@ static qboolean check_pext2_infoblobs		(extcheck_t *extcheck) {return !!(extchec
 static qboolean check_pext2_vrinputs		(extcheck_t *extcheck) {return !!(extcheck->pext2 & PEXT2_VRINPUTS);}
 
 //rerelease stomped on things. make sure our earlier extension reports correctly.
-static qboolean check_bouncemissile		(extcheck_t *extcheck) {return !extcheck->world->remasterlogic/*became 'movetype_gib'*/;}
+static qboolean check_notrerelease		(extcheck_t *extcheck) {return !extcheck->world->remasterlogic;}
+//static qboolean check_rerelease			(extcheck_t *extcheck) {return !!extcheck->world->remasterlogic;}
 
 #define NOBI NULL, 0,{NULL},
 qc_extension_t QSG_Extensions[] = {
@@ -7609,15 +7610,15 @@ qc_extension_t QSG_Extensions[] = {
 	{"DP_CON_SETA",						NULL,	0,{NULL}, "The 'seta' console command exists, like the 'set' command, but also marks the cvar for archiving, allowing it to be written into the user's config. Use this command in your default.cfg file."},
 #endif
 	{"DP_CSQC_ROTATEMOVES"},
-	{"DP_EF_ADDITIVE"},
+	{"DP_EF_ADDITIVE",					check_notrerelease},
 	{"DP_ENT_ALPHA",					check_pext_trans},			//transparent entites
-	{"DP_EF_BLUE"},						//hah!! This is QuakeWorld!!!
+	{"DP_EF_BLUE",						check_notrerelease},						//hah!! This is QuakeWorld!!!
 	{"DP_EF_FULLBRIGHT"},				//Rerouted to hexen2 support.
 	{"DP_EF_NODEPTHTEST"},				//for cheats
-	{"DP_EF_NODRAW"},					//implemented by sending it with no modelindex
+	{"DP_EF_NODRAW",					check_notrerelease},					//implemented by sending it with no modelindex
 	{"DP_EF_NOGUNBOB"},					//nogunbob. sane people should use csqc instead.
 	{"DP_EF_NOSHADOW"},
-	{"DP_EF_RED"},
+	{"DP_EF_RED",						check_notrerelease},
 	{"DP_ENT_COLORMOD",					check_pext_colourmod},
 	{"DP_ENT_CUSTOMCOLORMAP"},
 	{"DP_ENT_EXTERIORMODELTOCLIENT"},
@@ -7638,7 +7639,7 @@ qc_extension_t QSG_Extensions[] = {
 	{"DP_LIGHTSTYLE_STATICVALUE"},
 	{"DP_LITSUPPORT"},
 	{"DP_MONSTERWALK",					NULL,	0,{NULL}, "MOVETYPE_WALK is valid on non-player entities. Note that only players receive acceleration etc in line with none/bounce/fly/noclip movetypes on the player, thus you will have to provide your own accelerations (incluing gravity) yourself."},
-	{"DP_MOVETYPEBOUNCEMISSILE",		check_bouncemissile},		//I added the code for hexen2 support.
+	{"DP_MOVETYPEBOUNCEMISSILE",		check_notrerelease},		//I added the code for hexen2 support.
 	{"DP_MOVETYPEFOLLOW"},
 	{"DP_QC_ASINACOSATANATAN2TAN",		NULL,	5,{"asin", "acos", "atan", "atan2", "tan"}},
 	{"DP_QC_CHANGEPITCH",				NULL,	1,{"changepitch"}},

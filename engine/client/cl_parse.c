@@ -6348,9 +6348,11 @@ static void CL_PrintStandardMessage(char *msgtext, int printlevel)
 
 	// print final chunk
 	Q_strncatz(fullmessage, msgtext, sizeof(fullmessage));
+#ifdef HAVE_LEGACY
 	if (scr_usekfont.ival)
 		Con_PrintFlags(fullmessage, PFS_FORCEUTF8, 0);
 	else
+#endif
 		Con_Printf("%s", fullmessage);
 }
 
@@ -7438,7 +7440,7 @@ void CLQW_ParseServerMessage (void)
 				cl.completed_time = cl.gametime;
 			}
 			cl.intermissionmode = IM_NQFINALE;
-			SCR_CenterPrint (destsplit, MSG_ReadString (), false);
+			SCR_CenterPrint (destsplit, TL_Translate(MSG_ReadString ()), false);
 			break;
 
 		case svc_sellscreen:

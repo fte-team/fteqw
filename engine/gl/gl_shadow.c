@@ -3760,7 +3760,10 @@ void Sh_PreGenerateLights(void)
 		if (!okay && r_shadow_realtime_world.ival && r_shadow_realtime_world_lightmaps.value < 0.5)
 		{
 			r_shadow_realtime_world_lightmaps.value = 1;
-			Con_Printf(CON_WARNING "No lights detected in map.\n");
+			if (!r_shadow_realtime_world_importlightentitiesfrommap.ival)
+				Con_Printf(CON_WARNING "No lights detected in map.\n");
+			else
+				Con_DPrintf("No lights detected in map.\n");
 		}
 
 		for (i = 0; i < cl.num_statics; i++)

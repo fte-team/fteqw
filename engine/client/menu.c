@@ -1271,6 +1271,13 @@ void M_Menu_Quit_f (void)
 	}
 }
 
+#ifdef HAVE_LEGACY
+void M_Menu_Credits_f (void)
+{
+	Menu_Prompt (NULL, NULL, "That's all folks!\nTry a different mod now.", NULL, NULL, "Sure!");
+}
+#endif
+
 //=============================================================================
 /* Menu Subsystem */
 
@@ -1352,6 +1359,10 @@ void M_Init_Internal (void)
 	Cmd_AddCommand ("menu_teamplay_status_location_misc", M_Menu_Teamplay_Items_Status_Location_Misc_f);
 	Cmd_AddCommand ("menu_particles", M_Menu_Particles_f);
 	Cmd_AddCommand ("menu_network", M_Menu_Network_f);
+
+#ifdef HAVE_LEGACY
+	Cmd_AddCommand ("menu_credits", M_Menu_Credits_f);
+#endif
 
 #ifdef CL_MASTER
 	Cmd_AddCommand ("quickconnect", M_QuickConnect_f);

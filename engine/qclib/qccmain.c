@@ -1631,7 +1631,7 @@ static const char *QCC_FunctionForStatement(int st)
 		{
 			if (st < functions[i].code)
 				break;
-			ret = functions[i].filen;
+			ret = functions[i].name;
 		}
 	}
 	return ret;
@@ -3003,6 +3003,15 @@ static void QCC_MergeStatements16(dstatement16_t *in, unsigned int num)
 		out->c.cast = NULL;
 		out->c.ofs = in->c;
 		out->linenum = 0;
+		if (in->op < OP_NUMREALOPS)
+		{
+			if (!pr_opcodes[in->op].type_a)
+				out->a.ofs = (short)in->a;
+			if (!pr_opcodes[in->op].type_b)
+				out->b.ofs = (short)in->b;
+			if (!pr_opcodes[in->op].type_c)
+				out->c.ofs = (short)in->c;
+		}
 	}
 	
 	out->op = OP_DONE;

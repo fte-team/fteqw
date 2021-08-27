@@ -1048,7 +1048,7 @@ static void QCBUILTIN PF_cs_makestatic (pubprogfuncs_t *prinst, struct globalvar
 	{
 		entity_state_t *state = &cl_static_entities[cl.num_statics].state;
 		memset(state, 0, sizeof(*state));
-		cl_static_entities[cl.num_statics].emit = NULL;
+		cl_static_entities[cl.num_statics].emit = trailkey_null;
 		cl_static_entities[cl.num_statics].mdlidx = in->v->modelindex;
 		if (cl.worldmodel && cl.worldmodel->funcs.FindTouchedLeafs)
 			cl.worldmodel->funcs.FindTouchedLeafs(cl.worldmodel, &cl_static_entities[cl.num_statics].ent.pvscache, in->v->absmin, in->v->absmax);
@@ -3672,7 +3672,7 @@ void CSQC_ResetTrails(void)
 	for (i = 0; i < *prinst->parms->num_edicts; i++)
 	{
 		ent = (csqcedict_t*)EDICT_NUM_PB(prinst, i);
-		ent->trailstate = NULL;
+		ent->trailstate = trailkey_null;
 	}
 }
 

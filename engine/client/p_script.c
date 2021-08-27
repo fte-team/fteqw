@@ -4159,7 +4159,7 @@ static void PScript_DelinkTrailstate(trailkey_t *tk)
 	}
 }
 
-static trailstate_t *P_NewTrailstate()
+static trailstate_t *P_NewTrailstate(void)
 {
 	trailstate_t *ts;
 
@@ -4954,7 +4954,7 @@ static int PScript_RunParticleEffectState (vec3_t org, vec3_t dir, float count, 
 			p->rgba[3] += ptype->alpharand*frandom();
 			// p->color = 0;
 			if (ptype->emittime < 0)
-				p->state.trailstate = NULL;
+				p->state.trailstate = trailkey_null;
 			else
 				p->state.nextemit = particletime + ptype->emitstart - p->die;
 
@@ -5787,7 +5787,7 @@ static void P_ParticleTrailSpawn (vec3_t startpos, vec3_t end, part_type_t *ptyp
 
 		VectorClear (p->vel);
 		if (ptype->emittime < 0)
-			p->state.trailstate = NULL; // init trailstate
+			p->state.trailstate = trailkey_null; // init trailstate
 		else
 			p->state.nextemit = particletime + ptype->emitstart - p->die;
 

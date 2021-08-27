@@ -4774,7 +4774,7 @@ static void CL_ParseStaticProt (int baselinetype)
 	}
 
 	cl_static_entities[i].mdlidx = es.modelindex;
-	cl_static_entities[i].emit = NULL;
+	cl_static_entities[i].emit = trailkey_null;
 
 	cl_static_entities[i].state = es;
 	ent = &cl_static_entities[i].ent;

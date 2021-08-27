@@ -1065,8 +1065,8 @@ void CL_ParseStream (int type)
 				P_DelinkTrailstate(&b2->trailstate);
 				P_DelinkTrailstate(&b2->emitstate);
 				memcpy(b2, b, sizeof(*b2));
-				b2->trailstate = NULL;
-				b2->emitstate = NULL;
+				b2->trailstate = trailkey_null;
+				b2->emitstate = trailkey_null;
 				b2->alpha = 0.5;
 				b2->rflags = RF_TRANSLUCENT|RF_NOSHADOW;
 			}

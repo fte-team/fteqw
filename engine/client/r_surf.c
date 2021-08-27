@@ -4703,7 +4703,7 @@ TRACE(("dbg: Surf_NewMap: tp\n"));
 		}
 		if (cl.worldmodel && cl.worldmodel->loadstate == MLS_LOADED)
 			cl.worldmodel->funcs.FindTouchedLeafs(cl.worldmodel, &cl_static_entities[i].ent.pvscache, mins, maxs);
-		cl_static_entities[i].emit = NULL;
+		cl_static_entities[i].emit = trailkey_null;
 	}
 
 	CL_InitDlights();

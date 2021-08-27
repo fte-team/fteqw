@@ -167,6 +167,7 @@ extern int pt_q2[];
 #endif
 
 typedef quint32_t trailkey_t;
+#define trailkey_null 0
 
 #define PARTICLE_Z_CLIP	8.0
 

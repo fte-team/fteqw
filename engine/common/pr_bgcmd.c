@@ -7713,7 +7713,7 @@ qc_extension_t QSG_Extensions[] = {
 	{"DP_SV_POINTSOUND",				NULL,	1,{"pointsound"}},
 	{"DP_SV_PRECACHEANYTIME",			NULL,	0,{NULL}, "Specifies that the various precache builtins can be called at any time. WARNING: precaches are sent reliably while sound events, modelindexes, and particle events are not. This can mean sounds and particles might not work the first time around, or models may take a while to appear (after the reliables are received and the model is loaded from disk). Always attempt to precache a little in advance in order to reduce these issues (preferably at the start of the map...)"},
 	{"DP_SV_PRINT",						NULL,	1,{"print"}, "Says that the print builtin can be used from nqssqc (as well as just csqc), bypassing the developer cvar issues."},
-	{"DP_SV_ROTATINGBMODEL",			NOBI		"Engines that support this support avelocity on MOVETYPE_PUSH entities, pushing entities out of the way as needed."},
+	{"DP_SV_ROTATINGBMODEL",			check_notrerelease,0,{NULL},		"Engines that support this support avelocity on MOVETYPE_PUSH entities, pushing entities out of the way as needed."},
 	{"DP_SV_SETCOLOR",					NULL,	1,{"setcolor"}},
 	{"DP_SV_SPAWNFUNC_PREFIX"},
 	{"DP_SV_WRITEPICTURE",				NULL,	1,{"WritePicture"}},

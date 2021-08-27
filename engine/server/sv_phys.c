@@ -905,7 +905,7 @@ qboolean WPhys_Push (world_t *w, wedict_t *pusher, vec3_t move, vec3_t amove)
 	vec3_t		moved_from[PUSHABLE_LIMIT];
 	float oldsolid;
 
-	if (amove[0] || amove[1] || amove[2])
+	if ((amove[0] || amove[1] || amove[2]) && !w->remasterlogic)
 	{
 		return WPhys_PushAngles(w, pusher, move, amove);
 	}

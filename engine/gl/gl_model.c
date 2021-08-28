@@ -1094,6 +1094,7 @@ static void Mod_LoadModelWorker (void *ctx, void *data, size_t a, size_t b)
 	unsigned int magic, i;
 	size_t filesize;
 	char ext[8];
+	int basedepth;
 
 	if (!*mod->publicname)
 	{
@@ -1182,7 +1183,12 @@ static void Mod_LoadModelWorker (void *ctx, void *data, size_t a, size_t b)
 
 	// gl_load24bit 0 disables all replacements
 	if (!gl_load24bit.value)
+	{
 		replstr = "";
+		basedepth = FDEPTH_MISSING;
+	}
+	else
+		basedepth = COM_FDepthFile(mod->publicname, true);
 
 	COM_StripExtension(mod->publicname, mdlbase, sizeof(mdlbase));
 
@@ -1195,6 +1201,10 @@ static void Mod_LoadModelWorker (void *ctx, void *data, size_t a, size_t b)
 		{
 			char altname[MAX_QPATH];
 			Q_snprintfz(altname, sizeof(altname), "%s.%s", mdlbase, token);
+
+			if (COM_FDepthFile(altname, true) > basedepth)
+				continue;
+
 			TRACE(("Mod_LoadModel: Trying to load (replacement) model \"%s\"\n", altname));
 			buf = (unsigned *)FS_LoadMallocGroupFile(NULL, altname, &filesize, true);
 

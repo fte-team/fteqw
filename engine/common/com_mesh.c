@@ -9261,6 +9261,10 @@ static galiasinfo_t *Mod_ParseMD5MeshModel(model_t *mod, char *buffer, char *mod
 			Alias_BuildGPUWeights(mod, inf, vnum, trans, true);
 			Z_Free(trans);
 
+
+			for (i = 0; i < inf->numverts; i++)
+				AddPointToBounds(inf->ofs_skel_xyz[i], mod->mins, mod->maxs);
+
 			if (firstweightlist)
 				Z_Free(firstweightlist);
 			if (numweightslist)

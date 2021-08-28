@@ -27,7 +27,7 @@ static void QDECL TL_LanguageChanged(struct cvar_s *var, char *oldvalue)
 	com_language = TL_FindLanguage(var->string);
 }
 
-cvar_t language = CVARAFC("lang", sys_language, "prvm_language", CVAR_USERINFO, TL_LanguageChanged);
+cvar_t language = CVARAFC("lang", sys_language, "prvm_language", CVAR_USERINFO|CVAR_NORESET/*otherwise gamedir switches will be annoying*/, TL_LanguageChanged);
 
 void TranslateInit(void)
 {

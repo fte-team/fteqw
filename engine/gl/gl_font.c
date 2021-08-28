@@ -229,7 +229,6 @@ enum fontfmt_e
 	FMT_WINDOWS1252,//variation of latin-1 with extra glyphs
 	FMT_KOI8U,		//image is 16*16 koi8-u codepage.
 	FMT_HORIZONTAL,	//unicode, charcount=width/(height-2). single strip of chars, like halflife.
-	FMT_RERELEASE,	//fonts/foo.kfont specifies a texture and a series of glyph positions within it.
 };
 
 typedef struct fontface_s
@@ -1025,7 +1024,6 @@ static struct charcache_s *Font_TryLoadGlyphRaster(font_t *f, fontface_t *qface,
 	{
 	safedefault:
 	case FMT_AUTO:		//shouldn't happen.
-	case FMT_RERELEASE:	//shouldn't happen.
 	case FMT_ISO88591:	//all identity.
 	case FMT_HORIZONTAL: //erk...
 		c1tab = NULL;
@@ -2219,6 +2217,7 @@ struct font_s *Font_LoadFont(const char *fontfilename, float vheight, float scal
 	struct charcache_s *c;
 	float aspect = 1;
 	enum fontfmt_e fmt = FMT_AUTO;
+	qboolean explicit;
 
 	Q_strncpyz(facename, fontfilename, sizeof(facename));
 
@@ -2278,8 +2277,6 @@ struct font_s *Font_LoadFont(const char *fontfilename, float vheight, float scal
 					fmt = FMT_KOI8U;
 				else if (*t == 'h')
 					fmt = FMT_HORIZONTAL;
-				else if (*t == 'r')
-					fmt = FMT_RERELEASE;
 			}
 			if (!strncmp(parms, "aspect=", 7))
 			{
@@ -2462,6 +2459,7 @@ struct font_s *Font_LoadFont(const char *fontfilename, float vheight, float scal
 		}
 	}
 
+	explicit = false;	//singletexture is some weird custom layout and not to be trusted.
 	{
 		const char *start;
 		qboolean success;
@@ -2472,9 +2470,9 @@ struct font_s *Font_LoadFont(const char *fontfilename, float vheight, float scal
 			if (end)
 				*end = 0;
 
-			if (fmt == FMT_RERELEASE)
-				success = Font_LoadKexFont(f, height, start);
-			if (fmt == FMT_HORIZONTAL)
+			if (fmt == FMT_AUTO && *start && Font_LoadKexFont(f, height, start))
+				success = explicit = true;
+			else if (fmt == FMT_HORIZONTAL)
 				success = Font_LoadHorizontalFont(f, height, start);
 #ifdef AVAIL_FREETYPE
 			else if (fmt == FMT_AUTO && Font_LoadFreeTypeFont(f, height, start))
@@ -2507,7 +2505,7 @@ struct font_s *Font_LoadFont(const char *fontfilename, float vheight, float scal
 		Font_LoadFontLump(f, "conchars");
 
 	defaultplane = INVALIDPLANE;/*assume the bitmap plane - don't use the fallback as people don't think to use com_parseutf8*/
-	if (TEXLOADED(f->singletexture))
+	if (!explicit && TEXLOADED(f->singletexture))
 		defaultplane = BITMAPPLANE;
 	else if (TEXLOADED(fontplanes.defaultfont))
 		defaultplane = DEFAULTPLANE;

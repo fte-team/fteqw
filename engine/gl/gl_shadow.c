@@ -528,7 +528,9 @@ static void SHM_BeginShadowMesh(dlight_t *dl, int type)
 			sh_shmesh->litleaves = Z_Malloc(lb);
 		}
 	}
+#ifdef GLQUAKE
 	sh_shmesh->havefaceebo = false;
+#endif
 	sh_shmesh->maxverts = 0;
 	sh_shmesh->numverts = 0;
 	sh_shmesh->maxindicies = 0;
@@ -558,6 +560,7 @@ static void SHM_BeginShadowMesh(dlight_t *dl, int type)
 		sh_shmesh->batches[i].faceidxcount = 0;
 	}
 }
+#ifdef GLQUAKE
 static size_t SHM_GenWorldFaceIndexes(index_t **outindexes)
 {
 	size_t count = 0, b, m, i;
@@ -596,6 +599,7 @@ static size_t SHM_GenWorldFaceIndexes(index_t **outindexes)
 	}
 	return count;
 }
+#endif
 static struct shadowmesh_s *SHM_FinishShadowMesh(dlight_t *dl)
 {
 	if (sh_shmesh != &sh_tempshmesh || 1)
@@ -3048,7 +3052,8 @@ static void Sh_DrawEntLighting(dlight_t *light, vec3_t colour, qbyte *pvs)
 			if (shader->flags & (SHADER_NODLIGHT|SHADER_NODRAW|SHADER_SKY))
 				continue;
 			//FIXME: it should be worth building a dedicated ebo, for static ones
-			if (sm->batches[tno].faceidxcount && !(shader->flags & SHADER_NEEDSARRAYS) && sm->havefaceebo)
+#ifdef GLQUAKE
+			if (qrenderer == QR_OPENGL && sm->batches[tno].faceidxcount && !(shader->flags & SHADER_NEEDSARRAYS) && sm->havefaceebo)
 			{
 				mesh_t unimesh = {0};
 				mesh_t *unimeshptr = &unimesh;
@@ -3063,6 +3068,7 @@ static void Sh_DrawEntLighting(dlight_t *light, vec3_t colour, qbyte *pvs)
 				cl.worldmodel->shadowbatches[tno].vbo->indicies = oldidx;
 			}
 			else
+#endif
 				BE_DrawMesh_List(shader, sm->batches[tno].count, sm->batches[tno].s, cl.worldmodel->shadowbatches[tno].vbo, NULL, 0);
 			RQuantAdd(RQUANT_LITFACES, sm->batches[tno].count);
 		}

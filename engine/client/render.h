@@ -654,6 +654,7 @@ extern	cvar_t	r_shadow_realtime_dlight_ambient;
 extern	cvar_t	r_shadow_realtime_dlight_diffuse;
 extern	cvar_t	r_shadow_realtime_dlight_specular;
 extern	cvar_t	r_shadow_realtime_world, r_shadow_realtime_world_shadows, r_shadow_realtime_world_lightmaps, r_shadow_realtime_world_importlightentitiesfrommap;
+extern	float r_shadow_realtime_world_lightmaps_force;
 extern	cvar_t	r_shadow_shadowmapping;
 extern	cvar_t	r_mirroralpha;
 extern	cvar_t	r_wateralpha;

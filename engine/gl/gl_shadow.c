@@ -57,6 +57,7 @@ cvar_t r_shadow_scissor = CVARD("r_shadow_scissor", "1", "constrains stencil sha
 cvar_t r_shadow_realtime_world				= CVARFD ("r_shadow_realtime_world", "0", CVAR_ARCHIVE, "Enables the use of static/world realtime lights.");
 cvar_t r_shadow_realtime_world_shadows		= CVARF ("r_shadow_realtime_world_shadows", "1", CVAR_ARCHIVE);
 cvar_t r_shadow_realtime_world_lightmaps	= CVARFD ("r_shadow_realtime_world_lightmaps", "0", 0, "Specifies how much of the map's normal lightmap to retain when using world realtime lights. 0 completely replaces lighting.");
+float r_shadow_realtime_world_lightmaps_force;
 cvar_t r_shadow_realtime_world_importlightentitiesfrommap = CVARFD ("r_shadow_realtime_world_importlightentitiesfrommap", "0", CVAR_ARCHIVE, "Controls default loading of map-based realtime lights.\n0: Load explicit .rtlight files only.\n1: Load explicit lights then try fallback to parsing the entities lump.\n2: Load only the entities lump.");
 cvar_t r_shadow_realtime_dlight				= CVARAFD ("r_shadow_realtime_dlight", "1", "r_shadow_realtime_dynamic", CVAR_ARCHIVE, "Enables the use of dynamic realtime lights, allowing explosions to use bumpmaps etc properly.");
 cvar_t r_shadow_realtime_dlight_shadows		= CVARFD ("r_shadow_realtime_dlight_shadows", "1", CVAR_ARCHIVE, "Allows dynamic realtime lights to cast shadows as they move.");
@@ -103,6 +104,8 @@ void Sh_Shutdown(void)
 
 typedef struct {
 	unsigned int count;
+	unsigned int faceidxcount;
+	unsigned int faceidxfirst;
 	unsigned int max;
 	texture_t *tex;
 	vbo_t *vbo;
@@ -137,7 +140,8 @@ typedef struct shadowmesh_s
 	struct vk_shadowbuffer *vkbuffer;
 #endif
 #ifdef GLQUAKE
-	GLuint vebo[2];
+	GLuint vefbo[3];
+	qboolean havefaceebo;
 #endif
 #ifdef D3D9QUAKE
 	IDirect3DVertexBuffer9	*d3d9_vbuffer;
@@ -366,6 +370,7 @@ static void SHM_Shadow_Cache_Surface(msurface_t *surf)
 	}
 	sh_shmesh->batches[i].s[sh_shmesh->batches[i].count] = surf->mesh;
 	sh_shmesh->batches[i].count++;
+	sh_shmesh->batches[i].faceidxcount += surf->mesh->numindexes;
 }
 
 static void SHM_Shadow_Cache_Leaf(mleaf_t *leaf)
@@ -401,9 +406,11 @@ static void SH_FreeShadowMesh_(shadowmesh_t *sm)
 #ifdef GLQUAKE
 	case QR_OPENGL:
 		if (qglDeleteBuffersARB)
-			qglDeleteBuffersARB(2, sm->vebo);
-		sm->vebo[0] = 0;
-		sm->vebo[1] = 0;
+			qglDeleteBuffersARB(3, sm->vefbo);
+		sm->vefbo[0] = 0;
+		sm->vefbo[1] = 0;
+		sm->vefbo[2] = 0;
+		sm->havefaceebo = false;
 		break;
 #endif
 #ifdef VKQUAKE
@@ -521,6 +528,7 @@ static void SHM_BeginShadowMesh(dlight_t *dl, int type)
 			sh_shmesh->litleaves = Z_Malloc(lb);
 		}
 	}
+	sh_shmesh->havefaceebo = false;
 	sh_shmesh->maxverts = 0;
 	sh_shmesh->numverts = 0;
 	sh_shmesh->maxindicies = 0;
@@ -547,7 +555,46 @@ static void SHM_BeginShadowMesh(dlight_t *dl, int type)
 	for (i = 0; i < sh_shmesh->numbatches; i++)
 	{
 		sh_shmesh->batches[i].count = 0;
+		sh_shmesh->batches[i].faceidxcount = 0;
 	}
+}
+static size_t SHM_GenWorldFaceIndexes(index_t **outindexes)
+{
+	size_t count = 0, b, m, i;
+	index_t *out = *outindexes = NULL;
+	mesh_t *surf;
+	shadowmeshbatch_t *batch;
+	size_t tmp;
+
+	if (sh_shmesh == &sh_tempshmesh)
+	{
+		for (b = 0; b < sh_shmesh->numbatches; b++)
+			sh_shmesh->batches[b].faceidxcount = 0;
+
+		*outindexes = 0;
+		return 0;
+	}
+
+	for (b = 0; b < sh_shmesh->numbatches; b++)
+		count+= sh_shmesh->batches[b].faceidxcount;
+	out = *outindexes = (void*fte_restrict)BZ_Malloc(count * sizeof(*out));
+
+	for (b = 0, batch = sh_shmesh->batches; b < sh_shmesh->numbatches; b++, batch++)
+	{
+		batch->faceidxfirst = out-*outindexes;
+		for (m = 0; m < batch->count; m++)
+		{
+			surf = batch->s[m];
+			for (i = 0; i < surf->numindexes; i++)
+			{
+				tmp = surf->vbofirstvert + surf->indexes[i];
+				if (tmp > MAX_INDICIES)
+					Sys_Error("Too many indexes\n");
+				*out++ = surf->vbofirstvert + surf->indexes[i];
+			}
+		}
+	}
+	return count;
 }
 static struct shadowmesh_s *SHM_FinishShadowMesh(dlight_t *dl)
 {
@@ -564,15 +611,28 @@ static struct shadowmesh_s *SHM_FinishShadowMesh(dlight_t *dl)
 		case QR_OPENGL:
 			if (!qglGenBuffersARB)
 				return sh_shmesh;
-			if (!sh_shmesh->vebo[0])
-				qglGenBuffersARB(2, sh_shmesh->vebo);
+			{	//generate a per-face buffer.
+				index_t *faceindexes;
+				size_t faceindexcount = SHM_GenWorldFaceIndexes(&faceindexes);
 
-			GL_DeselectVAO();
-			GL_SelectVBO(sh_shmesh->vebo[0]);
-			qglBufferDataARB(GL_ARRAY_BUFFER_ARB, sizeof(*sh_shmesh->verts) * sh_shmesh->numverts, sh_shmesh->verts, GL_STATIC_DRAW_ARB);
+				if (!sh_shmesh->vefbo[0])
+					qglGenBuffersARB(3, sh_shmesh->vefbo);
 
-			GL_SelectEBO(sh_shmesh->vebo[1]);
-			qglBufferDataARB(GL_ELEMENT_ARRAY_BUFFER_ARB, sizeof(*sh_shmesh->indicies) * sh_shmesh->numindicies, sh_shmesh->indicies, GL_STATIC_DRAW_ARB);
+				GL_DeselectVAO();
+				GL_SelectVBO(sh_shmesh->vefbo[0]);
+				qglBufferDataARB(GL_ARRAY_BUFFER_ARB, sizeof(*sh_shmesh->verts) * sh_shmesh->numverts, sh_shmesh->verts, GL_STATIC_DRAW_ARB);
+
+				if (faceindexes)
+				{
+					GL_SelectEBO(sh_shmesh->vefbo[2]);
+					qglBufferDataARB(GL_ELEMENT_ARRAY_BUFFER_ARB, sizeof(*faceindexes) * faceindexcount, faceindexes, GL_STATIC_DRAW_ARB);
+					BZ_Free(faceindexes);
+					sh_shmesh->havefaceebo = true;
+				}
+
+				GL_SelectEBO(sh_shmesh->vefbo[1]);
+				qglBufferDataARB(GL_ELEMENT_ARRAY_BUFFER_ARB, sizeof(*sh_shmesh->indicies) * sh_shmesh->numindicies, sh_shmesh->indicies, GL_STATIC_DRAW_ARB);
+			}
 			break;
 #endif
 #ifdef VKQUAKE
@@ -2349,7 +2409,7 @@ static void Sh_GenShadowFace(dlight_t *l, vec3_t axis[3], int lighttype, shadowm
 			qglEnable(GL_DEPTH_CLAMP_ARB);
 		GL_CullFace(SHADER_CULL_FRONT);
 		if (smesh)
-			GLBE_RenderShadowBuffer(smesh->numverts, smesh->vebo[0], smesh->verts, smesh->numindicies, smesh->vebo[1], smesh->indicies);
+			GLBE_RenderShadowBuffer(smesh->numverts, smesh->vefbo[0], smesh->verts, smesh->numindicies, smesh->vefbo[1], smesh->indicies);
 		break;
 #endif
 #ifdef VKQUAKE
@@ -2988,7 +3048,22 @@ static void Sh_DrawEntLighting(dlight_t *light, vec3_t colour, qbyte *pvs)
 			if (shader->flags & (SHADER_NODLIGHT|SHADER_NODRAW|SHADER_SKY))
 				continue;
 			//FIXME: it should be worth building a dedicated ebo, for static ones
-			BE_DrawMesh_List(shader, sm->batches[tno].count, sm->batches[tno].s, cl.worldmodel->shadowbatches[tno].vbo, NULL, 0);
+			if (sm->batches[tno].faceidxcount && !(shader->flags & SHADER_NEEDSARRAYS) && sm->havefaceebo)
+			{
+				mesh_t unimesh = {0};
+				mesh_t *unimeshptr = &unimesh;
+				vboarray_t oldidx = cl.worldmodel->shadowbatches[tno].vbo->indicies;
+				unimesh.numindexes = sm->batches[tno].faceidxcount;
+				unimesh.numvertexes = cl.worldmodel->shadowbatches[tno].vbo->vertcount;
+				unimesh.vbofirstelement = sm->batches[tno].faceidxfirst;
+				cl.worldmodel->shadowbatches[tno].vbo->indicies.gl.vbo = sm->vefbo[2];
+				cl.worldmodel->shadowbatches[tno].vbo->indicies.gl.addr = NULL;
+
+				BE_DrawMesh_List(shader, 1, &unimeshptr, cl.worldmodel->shadowbatches[tno].vbo, NULL, 0);
+				cl.worldmodel->shadowbatches[tno].vbo->indicies = oldidx;
+			}
+			else
+				BE_DrawMesh_List(shader, sm->batches[tno].count, sm->batches[tno].s, cl.worldmodel->shadowbatches[tno].vbo, NULL, 0);
 			RQuantAdd(RQUANT_LITFACES, sm->batches[tno].count);
 		}
 
@@ -3182,7 +3257,7 @@ static void Sh_DrawStencilLightShadows(dlight_t *dl, qbyte *lvis, qbyte *vvis, q
 #endif
 #ifdef GLQUAKE
 		case QR_OPENGL:
-			GLBE_RenderShadowBuffer(sm->numverts, sm->vebo[0], sm->verts, sm->numindicies, sm->vebo[1], sm->indicies);
+			GLBE_RenderShadowBuffer(sm->numverts, sm->vefbo[0], sm->verts, sm->numindicies, sm->vefbo[1], sm->indicies);
 			break;
 #endif
 #ifdef VKQUAKE
@@ -3747,6 +3822,7 @@ void Sh_PreGenerateLights(void)
 	if ((r_shadow_realtime_dlight.ival || r_shadow_realtime_world.ival) && rtlights_max == RTL_FIRST)
 	{
 		qboolean okay = false;
+		r_shadow_realtime_world_lightmaps_force = -1;
 		if (!okay && r_shadow_realtime_world_importlightentitiesfrommap.ival <= 1)
 			okay |= R_LoadRTLights();
 		if (!okay)
@@ -3755,8 +3831,8 @@ void Sh_PreGenerateLights(void)
 				R_StaticEntityToRTLight(i);
 			okay |= rtlights_max != RTL_FIRST;
 		}
-		if (!okay && r_shadow_realtime_world_importlightentitiesfrommap.ival >= 1)
-			okay |= R_ImportRTLights(Mod_GetEntitiesString(cl.worldmodel));
+		if (!okay)
+			okay |= R_ImportRTLights(Mod_GetEntitiesString(cl.worldmodel), r_shadow_realtime_world_importlightentitiesfrommap.ival);
 		if (!okay && r_shadow_realtime_world.ival && r_shadow_realtime_world_lightmaps.value < 0.5)
 		{
 			r_shadow_realtime_world_lightmaps.value = 1;
@@ -3771,6 +3847,9 @@ void Sh_PreGenerateLights(void)
 			R_StaticEntityToRTLight(i);
 		}
 	}
+
+	if (r_shadow_realtime_world_lightmaps_force >= 0)
+		r_shadow_realtime_world_lightmaps.value = r_shadow_realtime_world_lightmaps_force;
 
 	ignoreflags = (r_shadow_realtime_world.ival?LFLAG_REALTIMEMODE:0)
 			| (r_shadow_realtime_dlight.ival?LFLAG_NORMALMODE:0);

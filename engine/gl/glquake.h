@@ -392,7 +392,7 @@ void GLR_MarkQ2Lights (dlight_t *light, int bit, mnode_t *node);
 #endif
 void GLQ3_LightGrid(model_t *mod, const vec3_t point, vec3_t res_diffuse, vec3_t res_ambient, vec3_t res_dir);
 qboolean R_LoadRTLights(void);
-qboolean R_ImportRTLights(const char *entlump);
+qboolean R_ImportRTLights(const char *entlump, int importmode);
 
 //doom
 #ifdef MAP_DOOM

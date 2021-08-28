@@ -784,7 +784,7 @@ static int r_editlights_selected = -1;				//the light closest to the cursor
 static vec3_t r_editlights_cursor;					//the position of the crosshair/cursor (new lights will be spawned here)
 static dlight_t r_editlights_copybuffer;			//written by r_editlights_copyinfo, read by r_editlights_pasteinfo. FIXME: use system clipboard?
 
-qboolean R_ImportRTLights(const char *entlump)
+qboolean R_ImportRTLights(const char *entlump, int importmode)
 {
 	typedef enum lighttype_e {LIGHTTYPE_MINUSX, LIGHTTYPE_RECIPX, LIGHTTYPE_RECIPXX, LIGHTTYPE_INFINITE, LIGHTTYPE_LOCALMIN, LIGHTTYPE_RECIPXX2, LIGHTTYPE_SUN} lighttype_t;
 
@@ -869,6 +869,9 @@ qboolean R_ImportRTLights(const char *entlump)
 		if (*targetname && (origin[0] || origin[1] || origin[2]))
 			InfoBuf_SetStarKey(&targets, targetname, va("%f %f %f", origin[0], origin[1], origin[2]));
 	}
+
+	if (!importmode && !rerelease)
+		return false;	//don't make it up from legacy ents.
 
 	for (entnum = 0; ;entnum++)
 	{
@@ -1121,7 +1124,7 @@ qboolean R_ImportRTLights(const char *entlump)
 				else if (entnum == 0 && !strcmp("lightmapbright", key))
 				{
 					//tenebrae compat. this overrides r_shadow_realtime_world_lightmap
-					r_shadow_realtime_world_lightmaps.value = atof(value);
+					r_shadow_realtime_world_lightmaps_force = atof(value);
 				}
 			}
 		}
@@ -1183,7 +1186,7 @@ qboolean R_ImportRTLights(const char *entlump)
 		}
 		
 		if (rerelease)
-			r_shadow_realtime_world_lightmaps.value = 1;
+			r_shadow_realtime_world_lightmaps_force = 1;
 		else if (radius < 50)	//some mappers insist on many tiny lights. such lights can usually get away with no shadows..
 			pflags |= PFLAGS_NOSHADOW;
 
@@ -1573,8 +1576,9 @@ static void R_ReloadRTLights_f(void)
 	}
 	rtlights_first = RTL_FIRST;
 	rtlights_max = RTL_FIRST;
+	r_shadow_realtime_world_lightmaps_force = -1;
 	if (!strcmp(Cmd_Argv(1), "bsp"))
-		R_ImportRTLights(Mod_GetEntitiesString(cl.worldmodel));
+		R_ImportRTLights(Mod_GetEntitiesString(cl.worldmodel), 1);
 	else if (!strcmp(Cmd_Argv(1), "rtlights"))
 		R_LoadRTLights();
 	else if (!strcmp(Cmd_Argv(1), "statics"))
@@ -1595,8 +1599,13 @@ static void R_ReloadRTLights_f(void)
 				R_StaticEntityToRTLight(i);
 		//otherwise try to import.
 		if (rtlights_first == rtlights_max)
-			R_ImportRTLights(Mod_GetEntitiesString(cl.worldmodel));
+			R_ImportRTLights(Mod_GetEntitiesString(cl.worldmodel), r_shadow_realtime_world_importlightentitiesfrommap.ival);
 	}
+
+	if (r_shadow_realtime_world_lightmaps_force >= 0)
+		r_shadow_realtime_world_lightmaps.value = r_shadow_realtime_world_lightmaps_force;
+	else
+		r_shadow_realtime_world_lightmaps.value = atof(r_shadow_realtime_world_lightmaps.string);
 }
 
 //-1 for arg error

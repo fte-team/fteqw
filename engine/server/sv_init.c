@@ -359,8 +359,8 @@ void SV_SaveSpawnparmsClient(client_t *client, float *transferparms)
 		char buffer[65536*4];
 		size_t bufsize = 0;
 		char *buf;
-		for (j=0 ; j<NUM_SPAWN_PARMS ; j++)
-			client->spawn_parms[j] = 0;
+//		for (j=0 ; j<NUM_SPAWN_PARMS ; j++)
+//			client->spawn_parms[j] = 0;
 
 		buf = svprogfuncs->saveent(svprogfuncs, buffer, &bufsize, sizeof(buffer), client->edict);
 
@@ -1656,12 +1656,12 @@ MSV_OpenUserDatabase();
 #ifdef SAVEDGAMES
 		SV_FlushLevelCache();	//to make sure it's caught
 #endif
-		for (i=0 ; i<sv.allocated_client_slots ; i++)
+		/*for (i=0 ; i<sv.allocated_client_slots ; i++)
 		{
 			if (svs.clients[i].spawninfo)
 				Z_Free(svs.clients[i].spawninfo);
 			svs.clients[i].spawninfo = NULL;
-		}
+		}*/
 	}
 
 	if (svprogfuncs && startspot)

@@ -384,7 +384,6 @@ void SV_FlushLevelCache(void)
 		Z_Free(svs.levcache);
 		svs.levcache = cache;
 	}
-
 }
 
 void LoadModelsAndSounds(vfsfile_t *f)
@@ -427,6 +426,24 @@ void LoadModelsAndSounds(vfsfile_t *f)
 	}
 	for (; i < MAX_PRECACHE_SOUNDS; i++)
 		sv.strings.sound_precache[i] = NULL;
+}
+
+static void PDECL SV_SaveMemoryReset (pubprogfuncs_t *progfuncs, void *ctx)
+{
+	size_t i;
+	//model names are pointers to vm-accessible memory. as that memory is going away, we need to destroy and recreate, which requires preserving them.
+	for (i = 1; i < MAX_PRECACHE_MODELS; i++)
+	{
+		if (!sv.strings.model_precache[i])
+			break;
+		sv.strings.model_precache[i] = PR_AddString(svprogfuncs, sv.strings.model_precache[i], 0, false);
+	}
+	for (i = 1; i < MAX_PRECACHE_SOUNDS; i++)
+	{
+		if (!sv.strings.sound_precache[i])
+			break;
+		sv.strings.sound_precache[i] = PR_AddString(svprogfuncs, sv.strings.sound_precache[i], 0, false);
+	}
 }
 
 /*ignoreplayers - says to not tell gamecode (a loadgame rather than a level change)*/
@@ -800,7 +817,7 @@ qboolean SV_LoadLevelCache(const char *savename, const char *level, const char *
 	memset(file, 0, filelen+1);
 	VFS_READ(f, file, filelen);
 	file[filelen]='\0';
-	sv.world.edict_size=svprogfuncs->load_ents(svprogfuncs, file, NULL, NULL, SV_ExtendedSaveData);
+	sv.world.edict_size=svprogfuncs->load_ents(svprogfuncs, file, NULL, SV_SaveMemoryReset, NULL, SV_ExtendedSaveData);
 	BZ_Free(file);
 
 	progstype = pt;
@@ -2006,7 +2023,7 @@ static qboolean SV_Loadgame_Legacy(const char *savename, const char *filename, v
 	strcpy(file, "loadgame");
 	clnum=VFS_READ(f, file+8, filelen);
 	file[filelen+8]='\0';
-	sv.world.edict_size=svprogfuncs->load_ents(svprogfuncs, file, &loadinfo, NULL, SV_ExtendedSaveData);
+	sv.world.edict_size=svprogfuncs->load_ents(svprogfuncs, file, &loadinfo, SV_SaveMemoryReset, NULL, SV_ExtendedSaveData);
 	BZ_Free(file);
 
 	PR_LoadGlabalStruct(false);

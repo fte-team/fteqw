@@ -2024,7 +2024,7 @@ char *PDECL PR_SaveEnts(pubprogfuncs_t *ppf, char *buf, size_t *bufofs, size_t b
 int header_crc;
 
 //if 'general' block is found, this is a compleate state, otherwise, we should spawn entities like
-int PDECL PR_LoadEnts(pubprogfuncs_t *ppf, const char *file, void *ctx, void (PDECL *entspawned) (pubprogfuncs_t *progfuncs, struct edict_s *ed, void *ctx, const char *entstart, const char *entend), pbool(PDECL *extendedterm)(pubprogfuncs_t *progfuncs, void *ctx, const char **extline))
+int PDECL PR_LoadEnts(pubprogfuncs_t *ppf, const char *file, void *ctx, void (PDECL *memoryreset) (pubprogfuncs_t *progfuncs, void *ctx), void (PDECL *entspawned) (pubprogfuncs_t *progfuncs, struct edict_s *ed, void *ctx, const char *entstart, const char *entend), pbool(PDECL *extendedterm)(pubprogfuncs_t *progfuncs, void *ctx, const char **extline))
 {
 	progfuncs_t *progfuncs = (progfuncs_t*)ppf;
 	const char *datastart;
@@ -2209,6 +2209,8 @@ int PDECL PR_LoadEnts(pubprogfuncs_t *ppf, const char *file, void *ctx, void (PD
 			if (entsize == 0 && resethunk)	//by the time we parse some globals, we MUST have loaded all progs
 			{
 				entsize = PR_InitEnts(&progfuncs->funcs, prinst.maxedicts);
+				if (memoryreset)
+					memoryreset(&progfuncs->funcs, ctx);
 //				sv_num_edicts = numents;
 
 				for (num = 0; num < numents; num++)

@@ -522,6 +522,7 @@ static edict_t *QDECL Q1QVMPF_EntAlloc(pubprogfuncs_t *pf, pbool object, size_t 
 }
 
 static int QDECL Q1QVMPF_LoadEnts(pubprogfuncs_t *pf, const char *mapstring, void *ctx,
+								  void (PDECL *memoryreset) (pubprogfuncs_t *progfuncs, void *ctx),
 								  void (PDECL *ent_callback) (pubprogfuncs_t *progfuncs, struct edict_s *ed, void *ctx, const char *entstart, const char *entend),
 								  pbool (PDECL *ext_callback)(pubprogfuncs_t *pf, void *ctx, const char **str))
 {

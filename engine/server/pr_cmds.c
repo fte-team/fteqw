@@ -1427,7 +1427,7 @@ static void PR_ApplyCompilation_f (void)
 	PR_RegisterFields();
 	sv.world.edict_size=PR_InitEnts(svprogfuncs, sv.world.max_edicts);
 
-	sv.world.edict_size=svprogfuncs->load_ents(svprogfuncs, s, NULL, NULL, NULL);
+	sv.world.edict_size=svprogfuncs->load_ents(svprogfuncs, s, NULL, NULL, NULL, NULL);
 
 
 	PR_LoadGlabalStruct(false);
@@ -1920,7 +1920,7 @@ void PR_SpawnInitialEntities(const char *file)
 	ctx.fulldata = PR_FindGlobal(svprogfuncs, "__fullspawndata", PR_ANY, NULL);
 
 	if (svprogfuncs)
-		sv.world.edict_size = PR_LoadEnts(svprogfuncs, file, &ctx, PR_DoSpawnInitialEntity, NULL);
+		sv.world.edict_size = PR_LoadEnts(svprogfuncs, file, &ctx, NULL, PR_DoSpawnInitialEntity, NULL);
 	else
 		sv.world.edict_size = 0;
 }

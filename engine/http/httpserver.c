@@ -587,11 +587,21 @@ const char *HTTP_RunClient (HTTP_active_connections_t *cl)
 			}
 			else
 			{
+				const char *mimeline;
+				if (strstr(resource, ".htm"))
+					mimeline = "Content-Type: text/html\r\n";
+				else if (strstr(resource, ".wasm"))
+					mimeline = "Content-Type: application/wasm\r\n";
+				else if (strstr(resource, ".js"))
+					mimeline = "Content-Type: text/javascript\r\n";
+				else
+					mimeline = NULL;
+
 				//fixme: add connection: keep-alive or whatever so that ie3 is happy...
 				if (HTTPmarkup>=3)
-					sprintf(resource, "HTTP/1.1 200 OK\r\n"		"%s%s"		"Connection: %s\r\n"	"Content-Length: %i\r\n"	"Server: "FULLENGINENAME"/0\r\n"	"\r\n", strstr(resource, ".htm")?"Content-Type: text/html\r\n":"", gzipped?"Content-Encoding: gzip\r\nCache-Control: public, max-age=86400\r\n":"", cl->closeaftertransaction?"close":"keep-alive", (int)VFS_GETLEN(cl->file));
+					sprintf(resource, "HTTP/1.1 200 OK\r\n"		"%s%s"		"Connection: %s\r\n"	"Content-Length: %i\r\n"	"Server: "FULLENGINENAME"/0\r\n"	"\r\n", mimeline, gzipped?"Content-Encoding: gzip\r\nCache-Control: public, max-age=86400\r\n":"", cl->closeaftertransaction?"close":"keep-alive", (int)VFS_GETLEN(cl->file));
 				else if (HTTPmarkup==2)
-					sprintf(resource, "HTTP/1.0 200 OK\r\n"		"%s%s"		"Connection: %s\r\n"	"Content-Length: %i\r\n"	"Server: "FULLENGINENAME"/0\r\n"	"\r\n", strstr(resource, ".htm")?"Content-Type: text/html\r\n":"", gzipped?"Content-Encoding: gzip\r\nCache-Control: public, max-age=86400\r\n":"", cl->closeaftertransaction?"close":"keep-alive", (int)VFS_GETLEN(cl->file));
+					sprintf(resource, "HTTP/1.0 200 OK\r\n"		"%s%s"		"Connection: %s\r\n"	"Content-Length: %i\r\n"	"Server: "FULLENGINENAME"/0\r\n"	"\r\n", mimeline, gzipped?"Content-Encoding: gzip\r\nCache-Control: public, max-age=86400\r\n":"", cl->closeaftertransaction?"close":"keep-alive", (int)VFS_GETLEN(cl->file));
 				else if (HTTPmarkup)
 					sprintf(resource, "HTTP/0.9 200 OK\r\n\r\n");
 				else

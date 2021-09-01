@@ -4539,28 +4539,32 @@ qboolean FTENET_TCP_HTTPResponse(ftenet_tcp_stream_t *st, httparg_t arg[WCATTR_C
 			char etag[64];
 			if (!filetype)
 			{
-				char ext[64];
+				const char *ext;
 				int i;
 				static const char *mimes[] =
 				{
-					"html", "text/html",
-					"htm", "text/html",
-					"png", "image/png",
-					"jpeg", "image/jpeg",
-					"jpg", "image/jpeg",
-					"ico", "image/vnd.microsoft.icon",
-					"pk3", "application/zip",
-					"fmf", "application/x-ftemanifest",
-					"qtv", "application/x-qtv",
+					".html",	"text/html",
+					".htm",		"text/html",
+					".png",		"image/png",
+					".jpeg",	"image/jpeg",
+					".jpg",		"image/jpeg",
+					".ico",		"image/vnd.microsoft.icon",
+					".pk3",		"application/zip",
+					".fmf",		"application/x-ftemanifest",
+					".qtv",		"application/x-qtv",
+					".wasm",	"application/wasm",
+					".js",		"text/javascript",
 
-					"mvd", "application/x-multiviewdemo",
-					"mvd.gz", "application/x-multiviewdemo",
-					"qwd", "application/x-multiviewdemo",
-					"qwd.gz", "application/x-multiviewdemo",
-					"dem", "application/x-multiviewdemo",
-					"dem.gz", "application/x-multiviewdemo",
+					".mvd",		"application/x-multiviewdemo",
+					".mvd.gz",	"application/x-multiviewdemo",
+					".qwd",		"application/x-multiviewdemo",
+					".qwd.gz",	"application/x-multiviewdemo",
+					".dem",		"application/x-multiviewdemo",
+					".dem.gz",	"application/x-multiviewdemo",
 				};
-				COM_FileExtension (name, ext, sizeof(ext));
+				ext = COM_GetFileExtension(name, NULL);
+				if (!strcmp(ext, ".gz")||!strcmp(ext, ".xz"))
+					ext = COM_GetFileExtension(name, ext);
 				for (i = 0; i < countof(mimes); i+=2)
 				{
 					if (!Q_strcasecmp(ext, mimes[i]))

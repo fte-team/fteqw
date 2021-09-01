@@ -1983,6 +1983,7 @@ void Q_InitProgs(enum initprogs_e flags)
 
 
 		//hexen2 - maplist contains a list of maps that we need to use an alternate progs.dat for.
+		d1 = COM_FDepthFile(addons, true);
 		d2 = COM_FDepthFile("maplist.txt", true);
 		if (d2 <= d1)//Use it if the maplist.txt file is within a more or equal important gamedir.
 		{

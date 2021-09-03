@@ -147,5 +147,28 @@ struct iqmext_fte_events
 	unsigned int evcode;
 	unsigned int evdata_str;
 };
+
+
+//skin lump is made of 3 parts
+struct iqmext_fte_skin
+{
+	unsigned int nummeshskins;
+	unsigned int numskinframes;
+	//unsigned int numskins[nummeshes];
+	//iqmext_fte_skin_skinframe[numskinframes];
+	//iqmext_fte_skin_meshskin mesh0[numskins[0]];
+	//iqmext_fte_skin_meshskin mesh1[numskins[1]]; etc
+};
+struct iqmext_fte_skin_skinframe
+{	//as many as needed
+	unsigned int material_idx;
+	unsigned int shadertext_idx;
+};
+struct iqmext_fte_skin_meshskin
+{
+	unsigned int firstframe;	//index into skinframes
+	unsigned int countframes;	//skinframes
+	float interval;
+};
 #endif
 

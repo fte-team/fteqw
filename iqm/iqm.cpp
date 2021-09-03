@@ -17,6 +17,7 @@
 bool noext = false;
 bool verbose = false;
 bool quiet = false;
+bool stripbones = false; //strip all bone+anim info.
 
 struct ejoint
 {
@@ -32,7 +33,7 @@ struct ejoint
 struct triangle { uint vert[3]; triangle() {} triangle(uint v0, uint v1, uint v2) { vert[0] = v0; vert[1] = v1; vert[2] = v2; } };
 vector<triangle> triangles, neighbors;
 
-struct mesh { uint name, material; uint firstvert, numverts; uint firsttri, numtris; mesh() : name(0), material(0), firstvert(0), numverts(0), firsttri(0), numtris(0) {} };
+struct mesh { uint name, material, numskins; uint firstvert, numverts; uint firsttri, numtris; mesh() : name(0), material(0), firstvert(0), numverts(0), firsttri(0), numtris(0) {} };
 vector<mesh> meshes;
 
 struct meshprop
@@ -58,6 +59,9 @@ struct event_fte
 	uint evdata_idx;
 };
 vector<event_fte> events_fte;
+
+vector<iqmext_fte_skin_meshskin> meshskins;
+vector<iqmext_fte_skin_skinframe> skinframes;
 
 struct anim { uint name; uint firstframe, numframes; float fps; uint flags; anim() : name(0), firstframe(0), numframes(0), fps(0), flags(0) {} };
 vector<anim> anims;
@@ -1127,8 +1131,8 @@ void printlastmesh(void)
 		return;
 	mesh &m = meshes[meshes.length()-1];
 	meshprop &fm = meshes_fte[meshes.length()-1];
-	printf("    %smesh %i:\tname=\"%s\",\tmat=\"%s\",\ttri=%i, vert=%i\n", fm.contents?"c":"r", meshes.length()-1,
-		&stringdata[m.name], &stringdata[m.material], m.numtris, m.numverts);
+	printf("    %smesh %i:\tname=\"%s\",\tmat=\"%s\",\ttri=%i, vert=%i, skins=%i\n", fm.contents?"c":"r", meshes.length()-1,
+		&stringdata[m.name], &stringdata[m.material], m.numtris, m.numverts, m.numskins);
 
 	if (verbose)
 	{
@@ -1232,6 +1236,41 @@ void makemeshes(const filespec &spec)
 		maketriangles(tinfo, mmap);
 		m.numtris = triangles.length() - m.firsttri;
 		m.numverts = numfverts+vmap.length() - m.firstvert;
+		m.numskins = 0;	//we have a default material, so no worries.
+
+		if (spec.materialsuffix && !strncmp(spec.materialsuffix, "_00_00", 6))
+		{	//for qex... populate our skins info
+			for (int s = 0; ; s++)
+			{
+				char matname[512];
+				formatstring(matname, "%s%s_%02d_%02d%s", spec.materialprefix?spec.materialprefix:"", em1.material, s, 0, spec.materialsuffix+6);
+				FILE *f = fopen(matname, "rb");
+				if (f)
+				{
+					fclose(f);	//don't really care.
+					auto &skin = meshskins.add();
+					m.numskins++;
+					skin.firstframe = skinframes.length();
+					skin.countframes = 1;
+					skin.interval = 0.2;
+
+					auto &skinframe = skinframes.add();
+					skinframe.material_idx = sharestring(matname);
+					skinframe.shadertext_idx = 0;
+					for (skin.countframes = 1; ; skin.countframes++)
+					{
+						formatstring(matname, "%s%s_%02d_%02d%s", spec.materialprefix?spec.materialprefix:"", em1.material, s, skin.countframes, spec.materialsuffix+6);
+						f = fopen(matname, "rb");
+						if (!f)
+							break;
+						fclose(f);
+						auto &skinframe = skinframes.add();
+						skinframe.material_idx = sharestring(matname);
+					}
+				}
+				else break;
+			}
+		}
 
 		meshprop &mf = meshes_fte.add();
 		mf = em1.explicits;
@@ -1272,7 +1311,7 @@ void makemeshes(const filespec &spec)
 		calctangents(priortris);
 		setupvertexarray<IQM_TANGENT>(etangents, IQM_TANGENT, IQM_FLOAT, 4, priorverts);
 	}
-	if(eblends.length())
+	if(eblends.length() && !stripbones)
 	{
 		if (ejoints.length() > 65535)
 			setupvertexarray<IQM_BLENDINDEXES>(eblends, IQM_BLENDINDEXES, IQM_UINT, 4, priorverts);
@@ -4718,6 +4757,17 @@ bool writeiqm(const char *filename)
 		}
 	}
 
+	iqmextension *ext_skins_fte = NULL;
+	if (meshskins.length())
+	{
+		ext_skins_fte = &extensions.add();
+		ext_skins_fte->name = sharestring("FTE_SKINS");
+		ext_skins_fte->num_data = sizeof(iqmext_fte_skin);
+		ext_skins_fte->num_data += meshes.length()*sizeof(uint);
+		ext_skins_fte->num_data += skinframes.length()*sizeof(iqmext_fte_skin_skinframe);
+		ext_skins_fte->num_data += meshskins.length()*sizeof(iqmext_fte_skin_meshskin);
+	}
+
 	if(stringdata.length()) hdr.ofs_text = hdr.filesize, hdr.num_text = stringdata.length(), hdr.filesize += hdr.num_text;
 	hdr.num_meshes = meshes.length(); if(meshes.length()) hdr.ofs_meshes = hdr.filesize; hdr.filesize += meshes.length() * sizeof(iqmmesh);
 	uint voffset = hdr.filesize + varrays.length() * sizeof(iqmvertexarray);
@@ -4738,6 +4788,7 @@ bool writeiqm(const char *filename)
 	if (extensions.length()) hdr.ofs_extensions = hdr.filesize, hdr.num_extensions = extensions.length(), hdr.filesize += sizeof(iqmextension) * hdr.num_extensions;
 	if (ext_meshes_fte) ext_meshes_fte->ofs_data = hdr.filesize, ext_meshes_fte->num_data = meshes_fte.length()*sizeof(iqmext_fte_mesh), hdr.filesize += ext_meshes_fte->num_data;
 	if (ext_events_fte) ext_events_fte->ofs_data = hdr.filesize, ext_events_fte->num_data = events_fte.length()*sizeof(iqmext_fte_events), hdr.filesize += ext_events_fte->num_data;
+	if (ext_skins_fte) ext_skins_fte->ofs_data = hdr.filesize, hdr.filesize += ext_skins_fte->num_data;
 
 	lilswap(&hdr.version, (sizeof(hdr) - sizeof(hdr.magic))/sizeof(uint));
 
@@ -4854,6 +4905,24 @@ bool writeiqm(const char *filename)
 		f->putlil(ev.timestamp);
 		f->putlil(ev.evcode);
 		f->putlil(ev.evdata_idx);
+	}
+
+	if (ext_skins_fte)
+	{
+		f->putlil(skinframes.length());
+		f->putlil(meshskins.length());
+		loopv(meshes) f->putlil(meshes[i].numskins);
+		loopv(skinframes)
+		{
+			f->putlil(skinframes[i].material_idx);
+			f->putlil(skinframes[i].shadertext_idx);
+		}
+		loopv(meshskins)
+		{
+			f->putlil(meshskins[i].firstframe);
+			f->putlil(meshskins[i].countframes);
+			f->putlil(meshskins[i].interval);
+		}
 	}
 
 	delete f;
@@ -5366,7 +5435,7 @@ static void help(bool exitstatus, bool fullhelp)
 "./iqmtool [options] output.iqm mesh.fbx anim1.fbx ... animN.fbx\n"
 "./iqmtool [options] output.iqm mesh.obj\n"
 "./iqmtool [options] output.iqm source.gltf\n"
-"./iqmtool [options] output.iqm --kex sources.md5\n"
+"./iqmtool [options] output.iqm --qex sources.md5\n"
 "\n"
 "Basic commandline options:\n"
 "   --help              Show full help.\n"
@@ -5392,7 +5461,7 @@ static void help(bool exitstatus, bool fullhelp)
 "   -j\n"
 "   --forcejoints       Forces the exporting of joint information in animation\n"
 "                       files without meshes.\n"
-"   --kex               Applies a set of fixups to work around the quirks in\n"
+"   --qex               Applies a set of fixups to work around the quirks in\n"
 "                       the quake rerelease's md5 files.\n"
 "\n"
 "Legacy commandline options that affect the following animation file:\n"
@@ -5516,7 +5585,6 @@ unsigned int parsebits(bitnames *names, char **line)
 		comma = strchr(value, ',');
 		if (comma)
 			*comma++ = 0;
-
 		char *end;
 		strtoul(value, &end, 0);
 		if (end && !*end)
@@ -5535,7 +5603,7 @@ unsigned int parsebits(bitnames *names, char **line)
 			}
 			for (i = 0; names[i].name; i++)
 			{
-				if (!*std || !strcasecmp(names[i].std, std))
+				if (!strcasecmp(names[i].std, std))
 				{
 					if (!strcasecmp(names[i].name, value))
 					{
@@ -5546,7 +5614,7 @@ unsigned int parsebits(bitnames *names, char **line)
 			}
 			if (!names[i].name)
 			{	//stuff with no specific standard, mostly for consistency
-				if (!*names[i].std)
+				for (i = 0; names[i].name; i++)
 				{
 					if (!strcasecmp(names[i].name, value))
 					{
@@ -5693,7 +5761,7 @@ bool parseanimfield(const char *tok, char **line, filespec &spec, bool defaults)
 	return true;
 }
 
-struct
+static struct
 {
 	const char *extname;
 	bool (*write)(const char *filename);
@@ -5706,6 +5774,45 @@ struct
 	{".mdl",	writeqmdl,		"output_qmdl"},
 	{".md16",	writemd16,		"output_md16"},
 	{".md3",	writemd3,		"output_md3"},
+};
+
+static bitnames modelflagnames[] = {
+	{"q1",	"rocket",		1u<<0},
+	{"q1",	"grenade",		1u<<1},
+	{"q1",	"gib",			1u<<2},
+	{"q1",	"rotate",		1u<<3},
+	{"q1",	"tracer1",		1u<<4},
+	{"q1",	"zomgib",		1u<<5},
+	{"q1",	"tracer2",		1u<<6},
+	{"q1",	"tracer3",		1u<<7},
+	{"q1",	"holey",		1u<<14},	//common extension
+
+	{"h2",	"spidergib",	1u<<0},		//conflicts with q1.
+	{"h2",	"grenade",		1u<<1},
+	{"h2",	"gib",			1u<<2},
+	{"h2",	"rotate",		1u<<3},
+	{"h2",	"tracer1",		1u<<4},
+	{"h2",	"zomgib",		1u<<5},
+	{"h2",	"tracer2",		1u<<6},
+	{"h2",	"tracer3",		1u<<7},
+	{"h2",	"fireball",		1u<<8},
+	{"h2",	"ice",			1u<<9},
+	{"h2",	"mipmap",		1u<<10},
+	{"h2",	"spit",			1u<<11},
+	{"h2",	"transparent",	1u<<12},
+	{"h2",	"spell",		1u<<13},
+	{"h2",	"holey",		1u<<14},
+	{"h2",	"specialtrans",	1u<<15},
+	{"h2",	"faceview",		1u<<16},
+	{"h2",	"vorpmissile",	1u<<17},
+	{"h2",	"setstaff",		1u<<18},
+	{"h2",	"magicmissle",	1u<<19},
+	{"h2",	"boneshard",	1u<<20},
+	{"h2",	"scarab",		1u<<21},
+	{"h2",	"acidball",		1u<<22},
+	{"h2",	"bloodshot",	1u<<23},
+
+	{NULL}
 };
 
 void parsecommands(char *filename, const char *outfiles[countof(outputtypes)], vector<filespec> &infiles, vector<hitbox> &hitboxes)
@@ -5753,20 +5860,9 @@ void parsecommands(char *filename, const char *outfiles[countof(outputtypes)], v
 		else if (!strcasecmp(tok, "exec"))
 			parsecommands(mystrtok(&line), outfiles, infiles, hitboxes);
 		else if (!strcasecmp(tok, "modelflags"))
-		{
-			bitnames modelflagnames[] = {
-				{"q1",	"rocket",	0x01},
-				{"q1",	"grenade",	0x02},
-				{"q1",	"gib",		0x04},
-				{"q1",	"rotate",	0x08},
-				{"q1",	"tracer1",	0x10},
-				{"q1",	"zomgib",	0x20},
-				{"q1",	"tracer2",	0x40},
-				{"q1",	"tracer3",	0x80},
-				{NULL}
-			};
 			modelflags = parsebits(modelflagnames, &line);
-		}
+		else if (!strcasecmp(tok, "static"))
+			stripbones = true;
 
 		else if (parseanimfield(tok, &line, defaultspec, true))
 			;
@@ -5905,7 +6001,9 @@ int main(int argc, char **argv)
 				else if(!strcasecmp(&argv[i][2], "forcejoints")) forcejoints = true;
 				else if(!strcasecmp(&argv[i][2], "materialprefix")) { if(i + 1 < argc) inspec.materialprefix = argv[++i]; }
 				else if(!strcasecmp(&argv[i][2], "materialsuffix")) { if(i + 1 < argc) inspec.materialsuffix = argv[++i]; }
-				else if(!strcasecmp(&argv[i][2], "kex")) inspec.materialprefix = "progs/", inspec.materialsuffix = "_00_00.lmp", inspec.flags |= IQM_UNPACK;
+				else if(!strcasecmp(&argv[i][2], "qex")) inspec.materialprefix = "progs/", inspec.materialsuffix = "_00_00.lmp", inspec.flags |= IQM_UNPACK;
+				else if(!strcasecmp(&argv[i][2], "modelflags")) { if(i + 1 < argc) { modelflags |= parsebits(modelflagnames, &argv[++i]); }}
+				else if(!strcasecmp(&argv[i][2], "static")) stripbones = true;
 				else if(!strcasecmp(&argv[i][2], "meshtrans"))
 				{
 					if(i + 1 < argc) switch(sscanf(argv[++i], "%lf , %lf , %lf", &gmeshtrans.x, &gmeshtrans.y, &gmeshtrans.z))
@@ -6049,6 +6147,17 @@ int main(int argc, char **argv)
 	else loopv(meshoverrides)
 		conoutf("warning: mesh \"%s\" overriden, but not present", meshoverrides[i].name);
 
+
+	if (stripbones)
+	{
+		if (!quiet)
+			conoutf("static bones");
+		joints.setsize(0);
+		poses.setsize(0);
+		frames.setsize(0);
+		anims.setsize(0);
+		bounds.setsize(0);
+	}
 
 	calcanimdata();
 

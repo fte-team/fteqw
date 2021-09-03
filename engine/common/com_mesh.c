@@ -7753,6 +7753,27 @@ struct iqmext_fte_event
 	unsigned int evcode;
 	unsigned int evdata_str;	//stringtable
 };
+//skin lump is made of 3 parts
+struct iqmext_fte_skin
+{
+	unsigned int numskinframes;
+	unsigned int nummeshskins;
+	//unsigned int numskins[nummeshes];
+	//iqmext_fte_skin_skinframe[numskinframes];
+	//iqmext_fte_skin_meshskin mesh0[numskins[0]];
+	//iqmext_fte_skin_meshskin mesh1[numskins[1]]; etc
+};
+struct iqmext_fte_skin_skinframe
+{	//as many as needed
+	unsigned int material_idx;
+	unsigned int shadertext_idx;
+};
+struct iqmext_fte_skin_meshskin
+{
+	unsigned int firstframe;	//index into skinframes
+	unsigned int countframes;	//skinframes
+	float interval;
+};
 /*struct iqmext_fte_shader
 {
 	unsigned int material;
@@ -8093,6 +8114,10 @@ static galiasinfo_t *Mod_ParseIQMMeshModel(model_t *mod, const char *buffer, siz
 	const struct iqmext_fte_event *fteevents;
 	const char *strings;
 
+	const unsigned int *fteskincount;
+	const struct iqmext_fte_skin_meshskin *fteskins;
+	const struct iqmext_fte_skin_skinframe *fteskinframes;
+
 	unsigned int i, j, t, numtris, numverts, firstvert, firsttri;
 	size_t extsize;
 
@@ -8119,8 +8144,6 @@ static galiasinfo_t *Mod_ParseIQMMeshModel(model_t *mod, const char *buffer, siz
 
 	galiasinfo_t *gai=NULL;
 #ifndef SERVERONLY
-	galiasskin_t *skin=NULL;
-	skinframe_t *skinframe=NULL;
 	int skinfiles;
 #endif
 	galiasanimation_t *fgroup=NULL;
@@ -8302,8 +8325,6 @@ static galiasinfo_t *Mod_ParseIQMMeshModel(model_t *mod, const char *buffer, siz
 			dalloc(orgbaf, h->num_vertexes);
 		else
 			orgbaf = NULL;
-		dalloc(skin, h->num_meshes*skinfiles);
-		dalloc(skinframe, h->num_meshes*skinfiles);
 #endif
 		dalloc(fgroup, numgroups);
 		dalloc(oposebase, 12*h->num_joints);
@@ -8483,6 +8504,17 @@ static galiasinfo_t *Mod_ParseIQMMeshModel(model_t *mod, const char *buffer, siz
 	if (!extsize || extsize != sizeof(*ftemesh)*h->num_meshes)
 		ftemesh = NULL;	//erk.
 
+	fteskincount = IQM_FindExtension(buffer, fsize, "FTE_SKINS", 0, &extsize);
+	if (extsize >= sizeof(unsigned int)*(2+h->num_meshes) && extsize == sizeof(struct iqmext_fte_skin) + sizeof(unsigned int)*h->num_meshes + LittleLong(fteskincount[0])*sizeof(*fteskinframes) + LittleLong(fteskincount[1])*sizeof(*fteskins))
+	{
+		unsigned int numskinframes = LittleLong(*fteskincount++);
+		/*unsigned int numskins = LittleLong(* */fteskincount++;
+
+		fteskinframes = (const struct iqmext_fte_skin_skinframe*)(fteskincount+h->num_meshes);
+		fteskins = (const struct iqmext_fte_skin_meshskin*)(fteskinframes+numskinframes);
+	}
+	else fteskincount = NULL, fteskins = NULL, fteskinframes = NULL;
+
 	for (i = 0; i < max(1, h->num_meshes); i++)
 	{
 		if (h->num_meshes)
@@ -8519,22 +8551,55 @@ static galiasinfo_t *Mod_ParseIQMMeshModel(model_t *mod, const char *buffer, siz
 		/*skins*/
 		if (h->num_meshes)
 		{
-			gai[i].numskins = skinfiles;
-			gai[i].ofsskins = skin;
+			galiasskin_t *skin;
+			skinframe_t *skinframe;
+			unsigned int iqmskins = fteskincount?LittleLong(*fteskincount++):0;
+			gai[i].numskins = max(iqmskins,skinfiles);
+			gai[i].ofsskins = skin = ZG_Malloc(&mod->memgroup, sizeof(*gai[i].ofsskins)*gai[i].numskins);
 
-			for (j = 0; j < skinfiles; j++)
+			for (j = 0; j < gai[i].numskins; j++, skin++)
 			{
+				const struct iqmext_fte_skin_skinframe *sf;
+				if (j < iqmskins)
+				{
+					sf = fteskinframes + LittleLong(fteskins->firstframe);
+					fteskins++;
+				}
+				else
+					sf = NULL;
+
 				skin->skinwidth = 1;
 				skin->skinheight = 1;
-				skin->skinspeed = 10; /*something to avoid div by 0*/
-				skin->numframes = 1;	//non-sequenced skins.
-				skin->frame = skinframe;
-				Q_strncpyz(skin->name, "", sizeof(skinframe->shadername));
-				skin++;
+				Q_snprintfz(gai[i].ofsskins[j].name, sizeof(gai[i].ofsskins[j].name), "%i", j);
+				if (sf)
+				{
+					skin->skinspeed = 1.0/LittleFloat(fteskins[-1].interval); /*something to avoid div by 0*/
+					skin->numframes = LittleLong(fteskins[-1].countframes);	//non-sequenced skins.
 
-				Q_strncpyz(skinframe->shadername, strings+mesh[i].material, sizeof(skinframe->shadername));
-				skinframe++;
+					if (!skin->numframes)
+						continue;
+
+					skin->frame = ZG_Malloc(&mod->memgroup, sizeof(*skin->frame)*skin->numframes);
+					for (t = 0; t < skin->numframes; t++, sf++)
+					{
+						Q_strncpyz(skin->frame[t].shadername, strings+sf->material_idx, sizeof(skin->frame[t].shadername));
+						if (sf->shadertext_idx && sf->shadertext_idx<h->num_text)
+						{
+							const char *stxt = strings+sf->shadertext_idx;
+							skin->frame[t].defaultshader = strcpy(ZG_Malloc(&mod->memgroup, strlen(stxt)+1), stxt);
+						}
+					}
+				}
+				else
+				{
+					skin->skinspeed = 10;	//something to avoid div by 0
+					skin->numframes = 1;	//non-sequenced skins.
+
+					skin->frame = skinframe = ZG_Malloc(&mod->memgroup, sizeof(*skin->frame)*skin->numframes);
+					Q_strncpyz(skinframe->shadername, strings+mesh[i].material, sizeof(skinframe->shadername));
+				}
 			}
+			gai[i].numskins = skin-gai[i].ofsskins;
 		}
 #endif
 

@@ -146,6 +146,51 @@ void QCC_Mkdir(const char *path)
 	//unsupported.
 }
 #endif
+
+static char qcc_tolower(char c)
+{
+	if (c >= 'A' && c <= 'Z')
+		return c-'A'+'a';
+	return c;
+}
+int qcc_wildcmp(const char *wild, const char *string)
+{
+	while (*string)
+	{
+		if (*wild == '*')
+		{
+			if (*string == '/' || *string == '\\')
+			{
+				//* terminates if we get a match on the char following it, or if its a \ or / char
+				wild++;
+				continue;
+			}
+			if (qcc_wildcmp(wild+1, string))
+				return true;
+			string++;
+		}
+		else if ((qcc_tolower(*wild) == qcc_tolower(*string)) || (*wild == '?'))
+		{
+			//this char matches
+			wild++;
+			string++;
+		}
+		else
+		{
+			//failure
+			return false;
+		}
+	}
+
+	while (*wild == '*')
+	{
+		wild++;
+	}
+	return !*wild;
+}
+
+
+
 static const char *extractonly;
 static pbool extractonlyfound;
 static void QCC_FileExtract(const char *name, const void *compdata, size_t compsize, int method, size_t plainsize)
@@ -161,7 +206,7 @@ static void QCC_FileExtract(const char *name, const void *compdata, size_t comps
 				return;
 		}
 		else
-			if (strcmp(name, extractonly))
+			if (!qcc_wildcmp(extractonly, name))
 				return;	//ignore it if its not the one we're going for.
 	}
 	extractonlyfound = true;

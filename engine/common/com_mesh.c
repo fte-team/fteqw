@@ -4285,8 +4285,26 @@ static qboolean QDECL Mod_LoadQ1Model (model_t *mod, void *buffer, size_t fsize)
 	Mod_CompileTriangleNeighbours(mod, galias);
 	Mod_BuildTextureVectors(galias);
 
+#if 0	//fast (somewhat inaccurate) way. some exporters will bias all geometry weirdly (often ensuring 0 0 0 is in the bounds, resulting in unfortunate biases.)
 	VectorCopy (pq1inmodel->scale_origin, mod->mins);
 	VectorMA (mod->mins, 255, pq1inmodel->scale, mod->maxs);
+#else
+	ClearBounds(mod->mins, mod->maxs);
+	for (i = 0; i < galias->numanimations; i++)
+	{
+		galiasanimation_t *a = galias->ofsanimations;
+		vecV_t *v;
+		size_t j, k;
+		for (j = 0; j < a->numposes; j++)
+		{
+			v = a->poseofs[j].ofsverts;
+			for (k = 0; k < galias->numverts; k++)
+				AddPointToBounds(v[k], mod->mins, mod->maxs);
+		}
+	}
+	if (mod->maxs[0] < mod->mins[0])	//no points? o.O
+		AddPointToBounds(vec3_origin, mod->mins, mod->maxs);
+#endif
 
 	mod->type = mod_alias;
 	Mod_ClampModelSize(mod);

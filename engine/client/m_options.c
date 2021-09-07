@@ -182,7 +182,7 @@ emenu_t *M_Options_Title(int *y, int infosize)
 }
 
 //these are awkward/strange
-qboolean M_Options_AlwaysRun (menucheck_t *option, struct emenu_s *menu, chk_set_t set)
+static qboolean M_Options_AlwaysRun (menucheck_t *option, struct emenu_s *menu, chk_set_t set)
 {
 	if (M_GameType() == MGT_QUAKE2)
 	{
@@ -213,7 +213,7 @@ qboolean M_Options_AlwaysRun (menucheck_t *option, struct emenu_s *menu, chk_set
 		}
 	}
 }
-qboolean M_Options_InvertMouse (menucheck_t *option, struct emenu_s *menu, chk_set_t set)
+static qboolean M_Options_InvertMouse (menucheck_t *option, struct emenu_s *menu, chk_set_t set)
 {
 	if (set == CHK_CHECKED)
 		return m_pitch.value < 0;
@@ -224,9 +224,23 @@ qboolean M_Options_InvertMouse (menucheck_t *option, struct emenu_s *menu, chk_s
 	}
 }
 
+static void M_Options_Predraw(emenu_t *menu)
+{
+	extern cvar_t m_preset_chosen;
+	menubutton_t *b;
+	b = M_FindButton(menu, "fps_preset\n");
+	b->text = (char*)(b+1) + (m_preset_chosen.ival?2:0);
+
+#ifdef PACKAGEMANAGER
+	b = M_FindButton(menu, "menu_download\n");
+	b->text = (char*)(b+1) + (PM_AreSourcesNew(false)?0:2);
+#endif
+}
+
 //options menu.
 void M_Menu_Options_f (void)
 {
+	extern cvar_t m_preset_chosen;
 	extern cvar_t crosshair, r_projection;
 	int y;
 
@@ -341,7 +355,7 @@ void M_Menu_Options_f (void)
 		MB_SPACING(4),
 		MB_CONSOLECMD("Controls", "menu_keys\n", "Modify keyboard and mouse inputs."),
 #ifdef PACKAGEMANAGER
-		MB_CONSOLECMD("Updates and Packages", "menu_download\n", "Configure additional content and plugins."),
+		MB_CONSOLECMD("^bUpdates and Packages", "menu_download\n", "Configure additional content and plugins."),
 #endif
 		MB_CONSOLECMD("Go to console", "toggleconsole\nplay misc/menu2.wav\n", "Open up the engine console."),
 		MB_COMBOCVAR("View Projection", r_projection, projections, projectionvalues, NULL),
@@ -364,7 +378,7 @@ void M_Menu_Options_f (void)
 		MB_SPACING(4),
 		// removed hud options (cl_sbar, cl_hudswap, old-style chat, old-style msg)
 		MB_CONSOLECMD("Audio Options", "menu_audio\n", "Set audio quality and speaker setup options."),
-		MB_CONSOLECMD("Graphics Presets", "fps_preset\n", "Choose a different graphical preset to use."),
+		MB_CONSOLECMD("^bGraphics Presets", "fps_preset\n", "Choose a different graphical preset to use."),
 		MB_CONSOLECMD("Video Options", "menu_video\n", "Set video resolution, color depth, refresh rate, and anti-aliasing options."),
 #ifdef TEXTEDITOR
 		//this option is a bit strange in q2.
@@ -378,6 +392,7 @@ void M_Menu_Options_f (void)
 	emenu_t *menu = M_Options_Title(&y, 0);
 	static menuresel_t resel;
 	int framey = y;
+	menubutton_t *o;
 
 	MC_AddFrameStart(menu, framey);
 	y = MC_AddBulk(menu, &resel, bulk, 16, 216, y);
@@ -404,6 +419,20 @@ void M_Menu_Options_f (void)
 	}
 #endif
 	MC_AddFrameEnd(menu, framey);
+
+	menu->predraw = M_Options_Predraw;
+	o = NULL;
+	if (!o && !m_preset_chosen.ival)
+		o = M_FindButton(menu, "fps_preset\n");
+#ifdef PACKAGEMANAGER
+	if (!o && PM_AreSourcesNew(false))
+		o = M_FindButton(menu, "menu_download\n");
+#endif
+	if (o)
+	{
+		menu->selecteditem = (menuoption_t*)o;
+		menu->cursoritem->common.posy = o->common.posy;
+	}
 }
 
 #ifndef __CYGWIN__

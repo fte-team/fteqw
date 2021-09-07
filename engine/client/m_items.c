@@ -2,6 +2,7 @@
 
 #include "quakedef.h"
 #include "shader.h"
+#include "fs.h"
 
 //draws the size specified, plus a little extra border (about 8 pixels in each direction, could be more though).
 //size is in vpixels.
@@ -221,6 +222,8 @@ mpic_t *QBigFontWorks(void)
 }
 void Draw_BigFontString(int x, int y, const char *text)
 {
+	conchar_t *w, buffer[256];
+	unsigned int codeflags, oldflags=CON_WHITEMASK, codepoint;
 	int sx, sy;
 	mpic_t *p;
 	p = QBigFontWorks();
@@ -240,32 +243,66 @@ void Draw_BigFontString(int x, int y, const char *text)
 		p->height = 20*8;
 	}
 
-	while(*text)
+	COM_ParseFunString(oldflags, text, buffer, sizeof(buffer), false);
+
+	for (w = buffer; *w; )
 	{
-		if (*text >= 'A' && *text <= 'Z')
+		w = Font_Decode(w, &codeflags, &codepoint);
+		if (codepoint >= 0xe020 && codepoint <= 0xe07f)
+			codepoint &= 0x00ff; //convert to quake glyph to unicode/ascii...
+
+		if (codeflags != oldflags)
 		{
-			sx = ((*text-'A')%8)*(p->width>>3);
-			sy = ((*text-'A')/8)*(p->height>>3);
+			vec4_t rgba;
+			unsigned int col;
+			oldflags = codeflags;
+
+			col = (codeflags&CON_FGMASK)>>CON_FGSHIFT;
+			rgba[0] = consolecolours[col].fr;
+			rgba[1] = consolecolours[col].fg;
+			rgba[2] = consolecolours[col].fb;
+			if(codeflags & CON_HALFALPHA)
+				rgba[3] = 0.5;
+			else
+				rgba[3] = 1;
+			if (vid.flags&VID_SRGBAWARE)
+			{
+				rgba[0] = M_SRGBToLinear(rgba[0], 1);
+				rgba[1] = M_SRGBToLinear(rgba[1], 1);
+				rgba[2] = M_SRGBToLinear(rgba[2], 1);
+			}
+			if (codeflags & CON_BLINKTEXT)
+			{
+				float a = (sin(realtime*3)+1)*0.3 + 0.4;
+				VectorScale(rgba, a, rgba);
+			}
+			R2D_ImageColours(rgba[0], rgba[1], rgba[2], rgba[3]);
 		}
-		else if (*text >= 'a' && *text <= 'z')
+
+		if (codepoint >= 'A' && codepoint <= 'Z')
 		{
-			sx = ((*text-'a'+26)%8)*(p->width>>3);
-			sy = ((*text-'a'+26)/8)*(p->height>>3);
+			sx = ((codepoint-'A')%8)*(p->width>>3);
+			sy = ((codepoint-'A')/8)*(p->height>>3);
 		}
-		else if (*text >= '0' && *text <= '1')
+		else if (codepoint >= 'a' && codepoint <= 'z')
 		{
-			sx = ((*text-'0'+26*2)%8)*(p->width>>3);
-			sy = ((*text-'0'+26*2)/8)*(p->height>>3);
+			sx = ((codepoint-'a'+26)%8)*(p->width>>3);
+			sy = ((codepoint-'a'+26)/8)*(p->height>>3);
 		}
-		else if (*text == ':')
+		else if (codepoint >= '0' && codepoint <= '1')
 		{
-			sx = ((*text-'0'+26*2+10)%8)*(p->width>>3);
-			sy = ((*text-'0'+26*2+10)/8)*(p->height>>3);
+			sx = ((codepoint-'0'+26*2)%8)*(p->width>>3);
+			sy = ((codepoint-'0'+26*2)/8)*(p->height>>3);
 		}
-		else if (*text == '/')
+		else if (codepoint == ':')
 		{
-			sx = ((*text-'0'+26*2+11)%8)*(p->width>>3);
-			sy = ((*text-'0'+26*2+11)/8)*(p->height>>3);
+			sx = ((codepoint-'0'+26*2+10)%8)*(p->width>>3);
+			sy = ((codepoint-'0'+26*2+10)/8)*(p->height>>3);
+		}
+		else if (codepoint == '/')
+		{
+			sx = ((codepoint-'0'+26*2+11)%8)*(p->width>>3);
+			sy = ((codepoint-'0'+26*2+11)/8)*(p->height>>3);
 		}
 		else// if (*text <= ' ')
 		{
@@ -275,8 +312,8 @@ void Draw_BigFontString(int x, int y, const char *text)
 		if(sx>=0)
 			R2D_SubPic(x, y, 20, 20, p, sx, sy, 20*8, 20*8);
 		x+=(p->width>>3);
-		text++;
 	}
+	R2D_ImageColours(1,1,1,1);
 }
 
 char *menudotstyle;
@@ -1888,6 +1925,19 @@ void M_MenuPop_f (void)
 	Menu_Unlink(topmenu, false);
 }
 
+menubutton_t *M_FindButton(emenu_t *menu, const char *command)
+{
+	menuoption_t *o;
+	for (o = menu->options; o; o = o->common.next)
+	{
+		if (( o->common.type == mt_button
+			||o->common.type == mt_qbuttonbigfont
+			||o->common.type == mt_hexen2buttonbigfont)
+			&& !strcmp(o->button.command, command))
+			return (menubutton_t*)o;
+	}
+	return NULL;
+}
 static menuoption_t *M_NextItem(emenu_t *m, menuoption_t *old)
 {
 	menuoption_t *op = m->options;
@@ -2239,9 +2289,9 @@ static int M_Main_AddExtraOptions(emenu_t *mainm, int y)
 	if (Cmd_Exists("menu_download"))
 	{
 #ifdef WEBCLIENT
-		MC_AddConsoleCommandQBigFont(mainm, 72, y,	"Updates       ", "menu_download\n");	y += 20;
+		MC_AddConsoleCommandQBigFont(mainm, 72, y,	"^bUpdates       ", "menu_download\n");	y += 20;
 #else
-		MC_AddConsoleCommandQBigFont(mainm, 72, y,	"Packages      ", "menu_download\n");	y += 20;
+		MC_AddConsoleCommandQBigFont(mainm, 72, y,	"^bPackages      ", "menu_download\n");	y += 20;
 #endif
 	}
 	if (Cmd_Exists("menu_mods"))
@@ -2251,6 +2301,32 @@ static int M_Main_AddExtraOptions(emenu_t *mainm, int y)
 	}
 
 	return y;
+}
+
+void MC_Main_Predraw(emenu_t *menu)
+{
+	extern cvar_t m_preset_chosen;
+	menubutton_t *b;
+
+	b = M_FindButton(menu, "menu_options\n");
+	if (b && b->text[0] && b->text[1])
+	{
+		qboolean flash =
+#ifdef PACKAGEMANAGER
+			PM_AreSourcesNew(false)||
+#endif
+			!m_preset_chosen.ival;
+		b->text = (char*)(b+1) + (flash?0:2);
+	}
+
+#ifdef PACKAGEMANAGER
+	b = M_FindButton(menu, "menu_download\n");
+	if (b && b->text[0] && b->text[1])
+	{
+		qboolean flash = PM_AreSourcesNew(false);
+		b->text = (char*)(b+1) + (flash?0:2);
+	}
+#endif
 }
 
 void M_Menu_Main_f (void)
@@ -2386,7 +2462,7 @@ void M_Menu_Main_f (void)
 			b->common.width = 12*20;
 			b->common.height = 20;
 			y += 20;
-			b=MC_AddConsoleCommandHexen2BigFont	(mainm, 80, y,	"Options", "menu_options\n");
+			b=MC_AddConsoleCommandHexen2BigFont	(mainm, 80, y,	"^bOptions", "menu_options\n");
 			b->common.width = 12*20;
 			b->common.height = 20;
 			y += 20;
@@ -2430,7 +2506,7 @@ void M_Menu_Main_f (void)
 			MC_AddConsoleCommandQBigFont	(mainm, 72, y,	"Single        ", "menu_single\n");		y += 20;
 #endif
 			MC_AddConsoleCommandQBigFont	(mainm, 72, y,	"Multiplayer   ", "menu_multi\n");		y += 20;
-			MC_AddConsoleCommandQBigFont	(mainm, 72, y,	"Options       ", "menu_options\n");	y += 20;
+			MC_AddConsoleCommandQBigFont	(mainm, 72, y,"^bOptions       ", "menu_options\n");	y += 20;
 			if (m_helpismedia.value)
 				{MC_AddConsoleCommandQBigFont(mainm, 72, y,	"Media         ", "menu_media\n");		y += 20;}
 			else
@@ -2442,7 +2518,7 @@ void M_Menu_Main_f (void)
 			MC_AddConsoleCommandQBigFont	(mainm, 72, y,	"Quit          ", "menu_quit\n");		y += 20;
 #endif
 
-			mainm->cursoritem = (menuoption_t *)MC_AddCursor(mainm, &resel, 54, 32);
+			mainm->cursoritem = (menuoption_t *)MC_AddCursor(mainm, &resel, 54, mainm->selecteditem->common.posy);
 		}
 	}
 	else
@@ -2496,7 +2572,7 @@ void M_Menu_Main_f (void)
 
 			M_Main_AddExtraOptions(mainm, 112+20);
 
-			mainm->cursoritem = (menuoption_t *)MC_AddCursor(mainm, &resel, 54, 32);
+			mainm->cursoritem = (menuoption_t *)MC_AddCursor(mainm, &resel, 54, mainm->selecteditem->common.posy);
 		}
 	}
 
@@ -2509,15 +2585,25 @@ void M_Menu_Main_f (void)
 		mainm->selecteditem = (menuoption_t *)
 		//skip menu_single if we don't seem to have any content.
 		MC_AddConsoleCommandQBigFont	(mainm, 72, y,	"Join server",	"menu_servers\n");	y += 20;
-		MC_AddConsoleCommandQBigFont	(mainm, 72, y,	"Options",		"menu_options\n");	y += 20;
+		MC_AddConsoleCommandQBigFont	(mainm, 72, y,	"^bOptions",		"menu_options\n");	y += 20;
 		y = M_Main_AddExtraOptions(mainm, y);
 		MC_AddConsoleCommandQBigFont	(mainm, 72, y,	"Quit",			"menu_quit\n");		y += 20;
 
-		mainm->cursoritem = (menuoption_t *)MC_AddCursor(mainm, &resel, 54, 36);
+		mainm->cursoritem = (menuoption_t *)MC_AddCursor(mainm, &resel, 54, mainm->selecteditem->common.posy);
 	}
 
-	if (!m_preset_chosen.ival)
-		M_Menu_Preset_f();
+	mainm->predraw = MC_Main_Predraw;	//disable flashes as appropriate.
+	//pick a better default option...
+	b = NULL;
+	if (!b && !m_preset_chosen.ival)
+		b = M_FindButton(mainm, "menu_options\n");
+	if (!b && PM_AreSourcesNew(false))
+		b = M_FindButton(mainm, "menu_download\n");
+	if (b)
+	{
+		mainm->selecteditem = (menuoption_t*)b;
+		mainm->cursoritem->common.posy = mainm->selecteditem->common.posy;
+	}
 }
 
 int MC_AddBulk(struct emenu_s *menu, menuresel_t *resel, menubulk_t *bulk, int xstart, int xtextend, int y)

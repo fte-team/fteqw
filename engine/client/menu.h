@@ -419,6 +419,7 @@ emenu_t *M_CreateMenu (int extrasize);
 void M_RemoveMenu (emenu_t *menu);
 void M_RemoveAllMenus (qboolean leaveprompts);
 void M_ReloadMenus(void);
+menubutton_t *M_FindButton(emenu_t *menu, const char *command);
 
 void M_Complex_Key(emenu_t *currentmenu, int key, int unicode);
 void M_Script_Init(void);

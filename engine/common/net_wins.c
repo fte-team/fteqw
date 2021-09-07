@@ -8564,6 +8564,10 @@ void NET_Init (void)
 	Cvar_Register(&net_hybriddualstack, "networking");
 	Cvar_Register(&net_fakeloss, "networking");
 
+#if defined(HAVE_SSL)
+	Cvar_Register(&tls_provider, "networking");
+	Cvar_Register(&tls_ignorecertificateerrors, "networking");
+#endif
 #if defined(TCPCONNECT) && (defined(HAVE_SERVER) || defined(HAVE_HTTPSV))
 #ifdef HAVE_SERVER
 	Cvar_Register(&net_enable_qizmo, "networking");
@@ -8573,8 +8577,6 @@ void NET_Init (void)
 #endif
 #if defined(HAVE_SSL)
 	Cvar_Register(&net_enable_tls, "networking");
-	Cvar_Register(&tls_ignorecertificateerrors, "networking");
-	Cvar_Register(&tls_provider, "networking");
 #endif
 #ifdef HAVE_HTTPSV
 	Cvar_Register(&net_enable_http, "networking");

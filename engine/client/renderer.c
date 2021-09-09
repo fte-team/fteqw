@@ -572,8 +572,6 @@ void GLRenderer_Init(void)
 
 	Cvar_Register (&gl_smoothcrosshair, GRAPHICALNICETIES);
 
-	Cvar_Register (&r_deluxemapping_cvar, GRAPHICALNICETIES);
-
 #ifdef R_XFLIP
 	Cvar_Register (&r_xflip, GLRENDEREROPTIONS);
 #endif
@@ -972,6 +970,7 @@ void Renderer_Init(void)
 	Cvar_Register (&gl_mipcap, GLRENDEREROPTIONS);
 	Cvar_Register (&gl_texture_lodbias, GLRENDEREROPTIONS);
 	Cvar_Register (&gl_texture_anisotropic_filtering, GLRENDEREROPTIONS);
+	Cvar_Register (&r_deluxemapping_cvar, GRAPHICALNICETIES);
 	Cvar_Register (&r_max_gpu_bones, GRAPHICALNICETIES);
 	Cvar_Register (&r_drawflat, GRAPHICALNICETIES);
 	Cvar_Register (&r_lightmap, GRAPHICALNICETIES);

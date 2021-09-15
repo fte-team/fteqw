@@ -948,7 +948,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define MAX_SSPARTICLESPRE 1024				// 14bit. precached particle effect names, for server-side pointparticles/trailparticles.
 #define MAX_VWEP_MODELS 32
 
-#define	MAX_CSMODELS		1024			// these live entirly clientside
+#define	MAX_CSMODELS		2048			// these live entirly clientside
 #define MAX_CSPARTICLESPRE	1024
 
 #define	SAVEGAME_COMMENT_LENGTH	39

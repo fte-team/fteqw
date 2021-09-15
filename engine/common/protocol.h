@@ -1227,6 +1227,7 @@ typedef struct usercmd_s
 	qbyte	lightlevel;
 	//end q2 compat
 
+	unsigned int	sequence;	// just for debugging prints
 	float	msec;		//replace msec, but with more precision
 	unsigned int buttons;	//replaces buttons, but with more bits.
 	unsigned int weapon;//q3 has a separate weapon field to supplement impulse.

@@ -2,7 +2,9 @@
 	if (!Module["arguments"])
 		Module['arguments'] = ['-nohome'];
 
-	var man = window.location.protocol+'//'+window.location.host+window.location.pathname + '.fmf';
+	if (typeof man == "undefined")
+		var man = window.location.protocol + "//" + window.location.host + window.location.pathname + ".fmf";
+
 	if (window.location.hash != "")
 		man = window.location.hash.substring(1);
 

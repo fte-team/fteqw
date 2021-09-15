@@ -7971,6 +7971,7 @@ static double SVFTE_ExecuteClientMove(client_t *controller)
 		for (frame = 0; frame < frames; frame++)
 		{
 			MSGFTE_ReadDeltaUsercmd(&old, &split->lastcmd);
+			split->lastcmd.sequence = controller->netchan.outgoing_sequence - (frames-frame-1);
 			old = split->lastcmd;
 			split->lastcmd.angles[0] += split->baseangles[0];
 			split->lastcmd.angles[1] += split->baseangles[1];
@@ -8194,6 +8195,9 @@ void SV_ExecuteClientMessage (client_t *cl)
 			}
 			MSGQW_ReadDeltaUsercmd (&oldest, &oldcmd, PROTOCOL_VERSION_QW);
 			MSGQW_ReadDeltaUsercmd (&oldcmd, &newcmd, PROTOCOL_VERSION_QW);
+			oldest.sequence = cl->netchan.incoming_sequence-2;
+			oldcmd.sequence = cl->netchan.incoming_sequence-1;
+			newcmd.sequence = cl->netchan.incoming_sequence;
 			if (!split)
 				break;		// either someone is trying to cheat, or they sent input commands for splitscreen clients they no longer own.
 
@@ -8629,6 +8633,8 @@ void SVNQ_ReadClientMove (qboolean forceangle16)
 		host_client->last_sequence = 0;
 
 	cmd = nullcmd;
+
+	cmd.sequence = host_client->last_sequence;
 
 	//read the time, woo... should be an ack of our serverside time.
 	cmd.fservertime = MSG_ReadFloat ();

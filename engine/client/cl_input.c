@@ -2576,6 +2576,7 @@ void CL_SendCmd (double frametime, qboolean mainloop)
 		//clear enough of the pending command for the next frame.
 		for (plnum = 0; plnum < cl.splitclients; plnum++)
 		{
+			cl_pendingcmd[plnum].sequence = cl.movesequence;
 			cl_pendingcmd[plnum].msec = 0;
 			cl_pendingcmd[plnum].impulse = 0;
 //			cl_pendingcmd[plnum].buttons = 0;

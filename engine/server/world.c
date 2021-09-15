@@ -2646,7 +2646,6 @@ qboolean SV_AntiKnockBack(world_t *w, client_t *client)
 		if (frame->sequence != seq)
 			continue;	//FIXME: lost
 
-		pmove.sequence = seq;
 		pmove.cmd = frame->cmd;
 
 //		pmove.angles;

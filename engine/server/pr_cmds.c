@@ -865,6 +865,7 @@ void PR_LoadGlabalStruct(qboolean muted)
 	static pvec_t zero_default;
 	static pvec_t input_buttons_default;
 	static pvec_t input_timelength_default;
+	static pvec_t input_sequence_default;
 	static pvec_t input_impulse_default;
 	static pvec3_t input_angles_default;
 	static pvec3_t input_movevalues_default;
@@ -940,7 +941,7 @@ void PR_LoadGlabalStruct(qboolean muted)
 	globalfloat		(false, dimension_send)	\
 	globalfloat		(false, dimension_default)	\
 	\
-	globalfloat		(false, clientcommandframe)	\
+	globalfloat		(false, input_sequence)	\
 	globalfloat		(false, input_timelength)	\
 	globalfloat		(false, input_impulse)	\
 	globalvec		(false, input_angles)	\
@@ -1042,6 +1043,7 @@ void PR_LoadGlabalStruct(qboolean muted)
 	ensureglobal(trace_bone_id, writeonly_int);
 	ensureglobal(trace_triangle_id, writeonly_int);
 
+	ensureglobal(input_sequence, input_sequence_default);
 	ensureglobal(input_timelength, input_timelength_default);
 	ensureglobal(input_impulse, input_impulse_default);
 	ensureglobal(input_angles, input_angles_default);
@@ -10158,11 +10160,6 @@ static void QCBUILTIN PF_runclientphys(pubprogfuncs_t *prinst, struct globalvars
 
 	VALGRIND_MAKE_MEM_UNDEFINED(&pmove, sizeof(pmove));
 
-	if (pr_global_ptrs->clientcommandframe)
-		pmove.sequence = *pr_global_ptrs->clientcommandframe;
-	else
-		pmove.sequence = 0;
-
 	if (ent->entnum >= 1 && ent->entnum <= sv.allocated_client_slots)
 		client = &svs.clients[ent->entnum-1];
 	else
@@ -10178,6 +10175,7 @@ static void QCBUILTIN PF_runclientphys(pubprogfuncs_t *prinst, struct globalvars
 		pmove.waterjumptime = ent->v->teleport_time;
 
 //set up the movement command
+	pmove.cmd.sequence = pr_global_struct->input_sequence;
 	msecs = pr_global_struct->input_timelength*1000 + 0.5f;
 	//precision inaccuracies. :(
 	pmove.cmd.angles[0] = ANGLE2SHORT((pr_global_struct->input_angles)[0]);
@@ -10326,6 +10324,8 @@ void SV_SetEntityButtons(edict_t *ent, unsigned int buttonbits)
 
 void SV_SetSSQCInputs(usercmd_t *ucmd)
 {
+	if (pr_global_ptrs->input_sequence)
+		pr_global_struct->input_sequence = ucmd->sequence;
 	if (pr_global_ptrs->input_timelength)
 		pr_global_struct->input_timelength = ucmd->msec/1000.0f * sv.gamespeed;
 	if (pr_global_ptrs->input_impulse)
@@ -12897,6 +12897,7 @@ void PR_DumpPlatform_f(void)
 		{"end_sys_fields",		"void", QW|NQ|CS|MENU},
 
 		{"time",				"float",	MENU,	D("The current local time. Increases while paused.")},
+		{"input_sequence",		"float",	QW|NQ|CS,	D("This is the client-generated input sequence number. 0 for unsequenced movements.")},
 		{"input_servertime",	"float",	QW|NQ|CS,	D("Server's timestamp of the client's interpolation state.")},
 //		{"input_clienttime",	"float",	QW|NQ|CS,	D("This is the timestamp that player prediction is simulating.")},
 		{"input_timelength",	"float",	QW|NQ},

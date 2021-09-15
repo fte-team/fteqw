@@ -54,8 +54,6 @@ typedef struct
 
 typedef struct
 {
-	int			sequence;	// just for debugging prints
-
 	// player state
 	vec3_t		origin;
 	vec3_t		safeorigin;	//valid when safeorigin_known. needed for extrasr4's ladders otherwise they bug out.

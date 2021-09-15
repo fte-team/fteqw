@@ -1116,6 +1116,7 @@ enum
 	globalfloat (pmove_waterjumptime)		/*deprecated. read/written by runplayerphysics*/ \
 	globalfloat (pmove_onground)			/*deprecated. read/written by runplayerphysics*/ \
 	\
+	globalfloat (input_sequence)			/*float		filled by getinputstate, read by runplayerphysics*/ \
 	globalfloat (input_timelength)			/*float		filled by getinputstate, read by runplayerphysics*/ \
 	globalvector(input_angles)				/*vector	filled by getinputstate, read by runplayerphysics*/ \
 	globalvector(input_movevalues)			/*vector	filled by getinputstate, read by runplayerphysics*/ \

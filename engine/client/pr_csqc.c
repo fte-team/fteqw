@@ -242,6 +242,7 @@ static void CSQC_FindGlobals(qboolean nofuncs)
 		csqcg.pmove_org = NULL;	//can't make aimbots if you don't know where you're aiming from.
 		csqcg.pmove_vel = NULL;	//no dead reckoning please
 		csqcg.pmove_mins = csqcg.pmove_maxs = csqcg.pmove_jump_held = csqcg.pmove_waterjumptime = csqcg.pmove_onground = NULL; //I just want to kill theses
+		csqcg.input_sequence = NULL;
 		csqcg.input_angles = csqcg.input_movevalues = csqcg.input_buttons = csqcg.input_impulse = csqcg.input_lightlevel = csqcg.input_servertime = NULL;
 		csqcg.input_weapon = NULL;
 		csqcg.input_clienttime = csqcg.input_cursor_screen = csqcg.input_cursor_trace_start = csqcg.input_cursor_trace_endpos = csqcg.input_cursor_entitynumber = NULL;
@@ -3813,6 +3814,8 @@ static void QCBUILTIN PF_cs_sendevent (pubprogfuncs_t *prinst, struct globalvars
 
 static void cs_set_input_state (usercmd_t *cmd)
 {
+	if (csqcg.input_sequence)
+		*csqcg.input_sequence = cmd->sequence;
 	if (csqcg.input_timelength)
 		*csqcg.input_timelength = cmd->msec/1000.0f * cl.gamespeed;
 	if (csqcg.input_angles)
@@ -3916,6 +3919,8 @@ static void cs_set_input_state (usercmd_t *cmd)
 
 static void cs_get_input_state (usercmd_t *cmd)
 {
+//	if (csqcg.input_sequence)
+//		cmd->sequence = *csqcg.input_sequence;
 	if (csqcg.input_timelength)
 		cmd->msec = *csqcg.input_timelength*1000;
 	if (csqcg.input_angles)
@@ -4140,7 +4145,6 @@ static void QCBUILTIN PF_cs_runplayerphysics (pubprogfuncs_t *prinst, struct glo
 	VALGRIND_MAKE_MEM_UNDEFINED(&pmove, sizeof(pmove));
 
 	//debugging field
-	pmove.sequence = *csqcg.clientcommandframe;
 
 	pmove.jump_msec = 0;//(cls.z_ext & Z_EXT_PM_TYPE) ? 0 : from->jump_msec;
 
@@ -4152,6 +4156,7 @@ static void QCBUILTIN PF_cs_runplayerphysics (pubprogfuncs_t *prinst, struct glo
 	pmove.cmd.angles[2] = ANGLE2SHORT(csqcg.input_angles[2]);
 	VectorCopy(csqcg.input_angles, pmove.angles);
 
+	pmove.cmd.sequence = *csqcg.clientcommandframe;
 	pmove.cmd.forwardmove = csqcg.input_movevalues[0];
 	pmove.cmd.sidemove = csqcg.input_movevalues[1];
 	pmove.cmd.upmove = csqcg.input_movevalues[2];

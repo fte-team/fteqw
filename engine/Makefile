@@ -2412,7 +2412,7 @@ libs-$(ARCH)/libvorbis.a: libs-$(ARCH)/libogg.a
 
 libs-$(ARCH)/libopus.a:
 	test -f opus-$(OPUSVER).tar.gz || wget https://archive.mozilla.org/pub/opus/opus-$(OPUSVER).tar.gz
-	-test -f libs-$(ARCH)/libopus.a || (mkdir -p libs-$(ARCH) && cd libs-$(ARCH) && tar -xvzf ../opus-$(OPUSVER).tar.gz && cd opus-$(OPUSVER) && CFLAGS="$(CFLAGS) -Os" $(TOOLOVERRIDES) ./configure $(CONFIGARGS) && $(TOOLOVERRIDES) $(MAKE) && cp .libs/libopus.a ../ && cp include/opus*.h ../)
+	-test -f libs-$(ARCH)/libopus.a || (mkdir -p libs-$(ARCH) && cd libs-$(ARCH) && tar -xvzf ../opus-$(OPUSVER).tar.gz && cd opus-$(OPUSVER) && CFLAGS="-D_FORTIFY_SOURCE=0 $(CFLAGS) -Os" $(TOOLOVERRIDES) ./configure $(CONFIGARGS) && $(TOOLOVERRIDES) $(MAKE) && cp .libs/libopus.a ../ && cp include/opus*.h ../)
 
 libs-$(ARCH)/libspeex.a:
 	test -f speex-$(SPEEXVER).tar.gz || wget http://downloads.us.xiph.org/releases/speex/speex-$(SPEEXVER).tar.gz

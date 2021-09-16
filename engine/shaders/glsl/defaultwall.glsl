@@ -283,9 +283,6 @@ void main ()
 //Read the base texture (with EIGHTBIT only alpha is needed)
 	vec4 col = texture2D(s_diffuse, tc);
 
-	if (bases.rgb == vec3(0.0,0.0,1.0))
-		bases.a = 0.0;
-
 #if defined(BUMP) && (defined(DELUXE) || defined(SPECULAR) || defined(REFLECTCUBEMASK))
 	vec3 norm = normalize(texture2D(s_normalmap, tc).rgb - 0.5);
 #elif defined(PBR) || defined(SPECULAR) || defined(DELUXE) || defined(REFLECTCUBEMASK)

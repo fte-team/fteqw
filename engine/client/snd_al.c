@@ -365,6 +365,8 @@ typedef struct
 	{
 		ALuint handle;
 		qbyte allocated;	//there is no guarenteed-unused handle (and I don't want to have to keep spamming alIsSource).
+		qbyte queuesize;
+		ALuint	queue[3];
 	} *source;
 	size_t max_sources;
 
@@ -644,6 +646,9 @@ static qboolean OpenAL_ReclaimASource(soundcardinfo_t *sc)
 			if (buf != AL_PLAYING)
 			{
 				palDeleteSources(1, &src);
+				if (oali->source[i].queuesize)
+					palDeleteBuffers(oali->source[i].queuesize, oali->source[i].queue);
+				oali->source[i].queuesize = 0;
 				oali->source[i].handle = 0;
 				oali->source[i].allocated = false;
 				success++;
@@ -658,6 +663,9 @@ static qboolean OpenAL_ReclaimASource(soundcardinfo_t *sc)
 			if (oali->source[i].allocated)
 			{
 				palDeleteSources(1, &oali->source[i].handle);
+				if (oali->source[i].queuesize)
+					palDeleteBuffers(oali->source[i].queuesize, oali->source[i].queue);
+				oali->source[i].queuesize = 0;
 				oali->source[i].handle = 0;
 				oali->source[i].allocated = false;
 				success++;
@@ -697,6 +705,7 @@ static void OpenAL_ChannelUpdate(soundcardinfo_t *sc, channel_t *chan, chanupdat
 	ALuint buf;
 	qboolean stream;
 	qboolean srcrel;
+	ALuint processed;
 
 	if (chnum >= oali->max_sources)
 		Z_ReallocElements((void**)&oali->source, &oali->max_sources, chnum+1+64, sizeof(*oali->source));
@@ -739,22 +748,28 @@ static void OpenAL_ChannelUpdate(soundcardinfo_t *sc, channel_t *chan, chanupdat
 	PrintALError("pre start sound");
 
 	if (schanged&CUR_SOUNDCHANGE)
-		palSourceStop(src);
-
-	//reclaim any queued buffers
-	palGetSourcei(src, AL_SOURCE_TYPE, &buf);
-	if (buf == AL_STREAMING)
 	{
-		for(;;)
+		palSourceStop(src);
+		palSourcei(src, AL_BUFFER, 0);
+		if (oali->source[chnum].queuesize)
+			palDeleteBuffers(oali->source[chnum].queuesize, oali->source[chnum].queue);
+		oali->source[chnum].queuesize = 0;
+
+	}
+	else if (oali->source[chnum].queuesize)
+	{
+		//reclaim any queued buffers
+		palGetSourcei(src, AL_BUFFERS_PROCESSED, &processed);
+		if (processed)
 		{
-			palGetSourcei(src, AL_BUFFERS_PROCESSED, &buf);
-			if (!buf)
-				break;
-			palSourceUnqueueBuffers(src, 1, &buf);
-			palDeleteBuffers(1, &buf);
+			palSourceUnqueueBuffers(src, processed, oali->source[chnum].queue);
+			palDeleteBuffers(processed, oali->source[chnum].queue);
+			oali->source[chnum].queuesize -= processed;
+			memmove(oali->source[chnum].queue, oali->source[chnum].queue+processed, oali->source[chnum].queuesize*sizeof(*oali->source[chnum].queue));
 		}
 	}
-	else if (!schanged && sfx)	//if we don't figure out when they've finished, they'll not get replaced properly.
+
+	if (!schanged && sfx)	//if we don't figure out when they've finished, they'll not get replaced properly.
 	{
 		palGetSourcei(src, AL_SOURCE_STATE, &buf);
 		if (buf != AL_PLAYING)
@@ -778,6 +793,9 @@ static void OpenAL_ChannelUpdate(soundcardinfo_t *sc, channel_t *chan, chanupdat
 			palSourceStop(src);
 #else
 		palDeleteSources(1, &src);
+		if (oali->source[chnum].queuesize)
+			palDeleteBuffers(oali->source[chnum].queuesize, oali->source[chnum].queue);
+		oali->source[chnum].queuesize = 0;
 		oali->source[chnum].handle = 0;
 		oali->source[chnum].allocated = false;
 #endif
@@ -793,7 +811,7 @@ static void OpenAL_ChannelUpdate(soundcardinfo_t *sc, channel_t *chan, chanupdat
 	//openal doesn't support loopstart (entire sample loops or not at all), so if we're meant to skip the first half then we need to stream it.
 	stream = sfx->decoder.decodedata || sfx->loopstart > 0;
 
-	if (schanged || stream)
+	if (schanged & CUR_SOUNDCHANGE || stream)
 	{
 		int sndnum = sfx-known_sfx;
 		int buf;
@@ -814,13 +832,12 @@ static void OpenAL_ChannelUpdate(soundcardinfo_t *sc, channel_t *chan, chanupdat
 				}
 				return;	//not available yet
 			}
+
 			if (stream)
 			{
-				ALuint queuedbufs;
 				int offset;
 				sfxcache_t sbuf, *sc;
-				palGetSourcei(src, AL_BUFFERS_QUEUED, &queuedbufs);
-				while (queuedbufs < 3)
+				while (oali->source[chnum].queuesize < countof(oali->source[chnum].queue))
 				{	//decode periodically instead of all at the start.
 					int tryduration = snd_speed*0.5;
 					ssamplepos_t pos = chan->pos>>PITCHSHIFT;
@@ -856,7 +873,10 @@ static void OpenAL_ChannelUpdate(soundcardinfo_t *sc, channel_t *chan, chanupdat
 							//build a buffer with it and queue it up.
 							//buffer will be purged later on when its unqueued
 							if (OpenAL_LoadCache(oali, &buf, &sbuf, max(1,cvolume)))
+							{
 								palSourceQueueBuffers(src, 1, &buf);
+								oali->source[chnum].queue[oali->source[chnum].queuesize++] = buf;
+							}
 						}
 						else
 						{	//decoder isn't ready yet, but didn't signal an error/eof. queue a little silence, because that's better than constant micro stutters
@@ -868,9 +888,11 @@ static void OpenAL_ChannelUpdate(soundcardinfo_t *sc, channel_t *chan, chanupdat
 							silence.length = 0.1 * silence.speed;
 							silence.soundoffset = 0;
 							if (OpenAL_LoadCache(oali, &buf, &silence, 1))
+							{
 								palSourceQueueBuffers(src, 1, &buf);
+								oali->source[chnum].queue[oali->source[chnum].queuesize++] = buf;
+							}
 						}
-						queuedbufs++;
 
 						//yay
 						chan->pos += sbuf.length<<PITCHSHIFT;
@@ -887,7 +909,7 @@ static void OpenAL_ChannelUpdate(soundcardinfo_t *sc, channel_t *chan, chanupdat
 							chan->pos = 0;
 						else //we don't want to play anything more.
 							break;
-						if (!queuedbufs)
+						if (!oali->source[chnum].queuesize)
 						{	//queue 0.1 secs if we're starting/resetting a new stream this is to try to cover up discontinuities caused by packetloss or whatever
 							sfxcache_t silence;
 							silence.speed = snd_speed;
@@ -897,12 +919,14 @@ static void OpenAL_ChannelUpdate(soundcardinfo_t *sc, channel_t *chan, chanupdat
 							silence.length = 0.1 * silence.speed;
 							silence.soundoffset = 0;
 							if (OpenAL_LoadCache(oali, &buf, &silence, 1))
+							{
 								palSourceQueueBuffers(src, 1, &buf);
-							queuedbufs++;
+								oali->source[chnum].queue[oali->source[chnum].queuesize++] = buf;
+							}
 						}
 					}
 				}
-				if (!queuedbufs)
+				if (!oali->source[chnum].queuesize)
 				{
 					palGetSourcei(src, AL_SOURCE_STATE, &buf);
 					if (buf != AL_PLAYING)
@@ -981,7 +1005,7 @@ static void OpenAL_ChannelUpdate(soundcardinfo_t *sc, channel_t *chan, chanupdat
 		}
 #endif
 
-		palSourcei(src, AL_LOOPING, (!stream && (chan->flags & CF_FORCELOOP))?AL_TRUE:AL_FALSE);
+		palSourcei(src, AL_LOOPING, (!stream && ((chan->flags & CF_FORCELOOP)||sfx->loopstart==0))?AL_TRUE:AL_FALSE);
 		if (srcrel)
 		{
 			palSourcei(src, AL_SOURCE_RELATIVE, AL_TRUE);
@@ -1059,7 +1083,7 @@ static void OpenAL_ChannelUpdate(soundcardinfo_t *sc, channel_t *chan, chanupdat
 			palSourcePlay(src);
 	}
 
-	PrintALError("post start sound");
+	PrintALError(sfx&&sfx->name?sfx->name:"post start sound");
 }
 
 /*

@@ -519,20 +519,21 @@ mergeInto(LibraryManager.library,
 	emscriptenfte_abortmainloop : function(fname)
 	{
 		fname = Pointer_stringify(fname);
+		FTEC.aborted = true;
 		throw 'oh noes! something bad happened in ' + fname + '!\n' + Module['stackTrace']();
 	},
 
 	emscriptenfte_setupmainloop : function(fnc)
 	{
 		Module['noExitRuntime'] = true;
+		FTEC.aborted = false;
 
 		//Module.abort = abort = function(msg) {};
-
-		Module["sched"] = function()
+		function step(timestamp)
 		{
 			var dovsync = false;
 			var vr = false;
-			if (ABORT)
+			if (FTE.aborted)
 				return;
 				
 			if (FTEC.vrDisplay)
@@ -554,15 +555,15 @@ mergeInto(LibraryManager.library,
 			if (dovsync)
 			{
 				if (FTEC.vrDisplay)
-					FTEC.vrDisplay.requestAnimationFrame(Module["sched"]);
+					FTEC.vrDisplay.requestAnimationFrame(step);
 				else
-					Browser.requestAnimationFrame(Module["sched"]);
+					Browser.requestAnimationFrame(step);
 			}
 			else
-				setTimeout(Module["sched"], 0);
+				setTimeout(step, 0);
 		};
 		//don't start it instantly, so we can distinguish between types of errors (emscripten sucks!).
-		setTimeout(Module["sched"], 1);
+		setTimeout(step, 1);
 	},
 
 	emscriptenfte_ticks_ms : function()
@@ -1124,7 +1125,7 @@ console.log("onerror: " + _url);
 		}
 	},
 
-	emscriptenfte_gl_loadtexturefile : function(texid, widthptr, heightptr, dataptr, datasize, fname)
+	emscriptenfte_gl_loadtexturefile : function(texid, widthptr, heightptr, dataptr, datasize, fname, dopremul, genmips)
 	{
 		function encode64(data) {
 			var BASE = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
@@ -1166,8 +1167,13 @@ console.log("onerror: " + _url);
 			}
 			var oldtex = GLctx.getParameter(GLctx.TEXTURE_BINDING_2D);	//blurgh, try to avoid breaking anything in this unexpected event.
 			GLctx.bindTexture(GLctx.TEXTURE_2D, gltex);
+			if (dopremul)
+				GLctx.pixelStorei(GLctx.UNPACK_PREMULTIPLY_ALPHA_WEBGL, true);
 			GLctx.texImage2D(GLctx.TEXTURE_2D, 0, GLctx.RGBA, GLctx.RGBA, GLctx.UNSIGNED_BYTE, img);
-			GLctx.generateMipmap(GLctx.TEXTURE_2D);
+			if (dopremul)
+				GLctx.pixelStorei(GLctx.UNPACK_PREMULTIPLY_ALPHA_WEBGL, false);
+			if (genmips)
+				GLctx.generateMipmap(GLctx.TEXTURE_2D);
 			GLctx.bindTexture(GLctx.TEXTURE_2D, oldtex);
 		};
 		img.crossorigin = true;

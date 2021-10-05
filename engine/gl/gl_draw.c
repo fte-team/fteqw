@@ -908,7 +908,7 @@ qboolean GL_LoadTextureMips(texid_t tex, const struct pendingtextureinfo *mips)
 #ifdef FTE_TARGET_WEB
 	if (encoding == PTI_WHOLEFILE)
 	{
-		emscriptenfte_gl_loadtexturefile(tex->num, &tex->width, &tex->height, mips->mip[0].data, mips->mip[0].datasize, tex->ident);
+		emscriptenfte_gl_loadtexturefile(tex->num, &tex->width, &tex->height, mips->mip[0].data, mips->mip[0].datasize, tex->ident, !!(tex->flags & IF_PREMULTIPLYALPHA), !(tex->flags & IF_NOMIPMAP));
 		return true;
 	}
 #endif

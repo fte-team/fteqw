@@ -12,7 +12,7 @@ mergeInto(LibraryManager.library,
 	//FIXME: split+merge by \n
 	emscriptenfte_print : function(msg)
 	{
-		FTEC.linebuffer += Pointer_stringify(msg);
+		FTEC.linebuffer += UTF8ToString(msg);
 		for(;;)
 		{
 			nl = FTEC.linebuffer.indexOf("\n");
@@ -24,14 +24,14 @@ mergeInto(LibraryManager.library,
 	},
 	emscriptenfte_alert : function(msg)
 	{
-		msg = Pointer_stringify(msg);
+		msg = UTF8ToString(msg);
 		console.log(msg);
 		alert(msg);
 	},
 	
 	emscriptenfte_window_location : function(msg)
 	{
-		msg = Pointer_stringify(msg);
+		msg = UTF8ToString(msg);
 		console.log("Redirecting page to " + msg);
 		window.location = msg;
 	},
@@ -96,7 +96,7 @@ mergeInto(LibraryManager.library,
 				writeStringToMemory(url, urlptr);
 				var mimeptr = _malloc(mime.length+1);
 				writeStringToMemory(mime, mimeptr);
-				Runtime.dynCall('viii', FTEC.evcb.loadfile, [urlptr, mimeptr, handle]);
+				{{{makeDynCall('viii')}}}(FTEC.evcb.loadfile, urlptr, mimeptr, handle);
 				_free(mimeptr);
 				_free(urlptr);
 				window.focus();
@@ -115,7 +115,7 @@ mergeInto(LibraryManager.library,
 				case 'resize':
 					if (FTEC.evcb.resize != 0)
 					{
-						Runtime.dynCall('vii', FTEC.evcb.resize, [Module['canvas'].width, Module['canvas'].height]);
+						{{{makeDynCall('vii')}}}(FTEC.evcb.resize, Module['canvas'].width, Module['canvas'].height);
 					}
 					break;
 				case 'mousemove':
@@ -133,12 +133,12 @@ mergeInto(LibraryManager.library,
 								event.movementX = event.webkitMovementX;
 								event.movementY = event.webkitMovementY;
 							}
-							Runtime.dynCall('viiffff', FTEC.evcb.mouse, [0, false, event.movementX, event.movementY, 0, 0]);
+							{{{makeDynCall('viiffff')}}}(FTEC.evcb.mouse, 0, false, event.movementX, event.movementY, 0, 0);
 						}
 						else
 						{
 							var rect = Module['canvas'].getBoundingClientRect();
-							Runtime.dynCall('viiffff', FTEC.evcb.mouse, [0, true, (event.clientX - rect.left)*(Module['canvas'].width/rect.width), (event.clientY - rect.top)*(Module['canvas'].height/rect.height), 0, 0]);
+							{{{makeDynCall('viiffff')}}}(FTEC.evcb.mouse, 0, true, (event.clientX - rect.left)*(Module['canvas'].width/rect.width), (event.clientY - rect.top)*(Module['canvas'].height/rect.height), 0, 0);
 						}
 					}
 					break;
@@ -149,7 +149,7 @@ mergeInto(LibraryManager.library,
 					//so lets spam requests for it
 					if (Browser.isFullScreen == 0)
 					if (FTEC.evcb.wantfullscreen != 0)
-					if (Runtime.dynCall('i', FTEC.evcb.wantfullscreen, []))
+					if ({{{makeDynCall('i')}}}(FTEC.evcb.wantfullscreen))
 					{
 						Browser.requestFullScreen(true, true);
 					}
@@ -168,7 +168,7 @@ mergeInto(LibraryManager.library,
 				case 'mouseup':
 					if (FTEC.evcb.button != 0)
 					{
-						Runtime.dynCall('viii', FTEC.evcb.button, [0, event.type=='mousedown', event.button]);
+						{{{makeDynCall('viii')}}}(FTEC.evcb.button, 0, event.type=='mousedown', event.button);
 						event.preventDefault();
 					}
 					break;
@@ -176,7 +176,7 @@ mergeInto(LibraryManager.library,
 				case 'wheel':
 					if (FTEC.evcb.button != 0)
 					{
-						Runtime.dynCall('viii', FTEC.evcb.button, [0, 2, event.deltaY]);
+						{{{makeDynCall('viii')}}}(FTEC.evcb.button, 0, 2, event.deltaY);
 						event.preventDefault();
 					}
 					break;
@@ -184,16 +184,16 @@ mergeInto(LibraryManager.library,
 					if (FTEC.evcb.button != 0)
 					{
 						for (var i = 0; i < 8; i++)	
-							Runtime.dynCall('viii', FTEC.evcb.button, [0, false, i]);
+							{{{makeDynCall('viii')}}}(FTEC.evcb.button, 0, false, i);
 					}
 					if (FTEC.pointerislocked == -1)
 						FTEC.pointerislocked = 0;
 					break;
 				case 'focus':
 				case 'blur':
-					Runtime.dynCall('iiiii', FTEC.evcb.key, [0, false, 16, 0]); //shift
-					Runtime.dynCall('iiiii', FTEC.evcb.key, [0, false, 17, 0]); //alt
-					Runtime.dynCall('iiiii', FTEC.evcb.key, [0, false, 18, 0]); //ctrl
+					{{{makeDynCall('iiiii')}}}(FTEC.evcb.key, 0, false, 16, 0); //shift
+					{{{makeDynCall('iiiii')}}}(FTEC.evcb.key, 0, false, 17, 0); //alt
+					{{{makeDynCall('iiiii')}}}(FTEC.evcb.key, 0, false, 18, 0); //ctrl
 					if (FTEC.pointerislocked == -1)
 						FTEC.pointerislocked = 0;
 					break;
@@ -202,8 +202,8 @@ mergeInto(LibraryManager.library,
 					{
 						if (event.charCode >= 122 && event.charCode <= 123)	//no f11/f12
 							break;
-						Runtime.dynCall('iiiii', FTEC.evcb.key, [0, 1, 0, event.charCode]);
-						Runtime.dynCall('iiiii', FTEC.evcb.key, [0, 0, 0, event.charCode]);
+						{{{makeDynCall('iiiii')}}}(FTEC.evcb.key, 0, 1, 0, event.charCode);
+						{{{makeDynCall('iiiii')}}}(FTEC.evcb.key, 0, 0, 0, event.charCode);
 						event.preventDefault();
 						event.stopPropagation();
 					}
@@ -214,7 +214,7 @@ mergeInto(LibraryManager.library,
 					//we don't steal that because its impossible to leave it again once used.
 					if (FTEC.evcb.key != 0 && event.keyCode != 122)
 					{
-						if (Runtime.dynCall('iiiii', FTEC.evcb.key, [0, event.type=='keydown', event.keyCode, 0]))
+						if ({{{makeDynCall('iiiii')}}}(FTEC.evcb.key, 0, event.type=='keydown', event.keyCode, 0))
 							event.preventDefault();
 					}
 					break;
@@ -228,13 +228,13 @@ mergeInto(LibraryManager.library,
 					{
 						var t = touches[i];
 						if (FTEC.evcb.mouse)
-							Runtime.dynCall('viiffff', FTEC.evcb.mouse, [t.identifier+1, true, t.pageX, t.pageY, 0, Math.sqrt(t.radiusX*t.radiusX+t.radiusY*t.radiusY)]);
+							{{{makeDynCall('viiffff')}}}(FTEC.evcb.mouse, t.identifier+1, true, t.pageX, t.pageY, 0, Math.sqrt(t.radiusX*t.radiusX+t.radiusY*t.radiusY));
 						if (FTEC.evcb.button)
 						{
 							if (event.type == 'touchstart')
-								Runtime.dynCall('viii', FTEC.evcb.button, [t.identifier+1, 1, 0]);
+								{{{makeDynCall('viii')}}}(FTEC.evcb.button, t.identifier+1, 1, 0);
 							else if (event.type != 'touchmove')
-								Runtime.dynCall('viii', FTEC.evcb.button, [t.identifier+1, 0, 0]);
+								{{{makeDynCall('viii')}}}(FTEC.evcb.button, t.identifier+1, 0, 0);
 						}
 					}
 					event.preventDefault();
@@ -271,10 +271,10 @@ mergeInto(LibraryManager.library,
 					delete FTEH.gamepads[gp.index];
 					if (FTEC.evcb.jaxis)	//try and clear out the axis when released.
 						for (var j = 0; j < 6; j+=1)
-							Runtime.dynCall('viifi', FTEC.evcb.jaxis, [gp.index, j, 0, true]);
+							{{{makeDynCall('viifi')}}}(FTEC.evcb.jaxis, gp.index, j, 0, true);
 					if (FTEC.evcb.jbutton)	//try and clear out the axis when released.
 						for (var j = 0; j < 32+4; j+=1)
-							Runtime.dynCall('viiii', FTEC.evcb.jbutton, [gp.index, j, 0, true]);
+							{{{makeDynCall('viiii')}}}(FTEC.evcb.jbutton, gp.index, j, 0, true);
 					console.log("Gamepad disconnected from index %d: %s", gp.index, gp.id);
 					break;
 				case 'pointerlockchange':
@@ -307,6 +307,9 @@ mergeInto(LibraryManager.library,
 						FTEC.usevr = false;
 					}
 					break;
+				case 'beforeunload':
+					event.preventDefault();
+					return 'quit this game like everything else?';
 				default:
 					console.log(event);
 					break;
@@ -392,11 +395,11 @@ mergeInto(LibraryManager.library,
 				if (b.lastframe != p)
 				{	//cache it to avoid spam
 					b.lastframe = p;
-					Runtime.dynCall('viiii', FTEC.evcb.jbutton, [gp.index, j, p, gp.mapping=="standard"]);
+					{{{makeDynCall('viiii')}}}(FTEC.evcb.jbutton, gp.index, j, p, gp.mapping=="standard");
 				}
 			}
 			for (var j = 0; j < gp.axes.length; j+=1)
-				Runtime.dynCall('viifi', FTEC.evcb.jaxis, [gp.index, j, gp.axes[j], gp.mapping=="standard"]);
+				{{{makeDynCall('viifi')}}}(FTEC.evcb.jaxis, gp.index, j, gp.axes[j], gp.mapping=="standard");
 		}
 	},
 	emscriptenfte_setupcanvas__deps: ['$FTEC', '$Browser', 'emscriptenfte_buf_createfromarraybuf'],
@@ -452,7 +455,7 @@ mergeInto(LibraryManager.library,
 				document.addEventListener(event, FTEC.handleevent, true);
 			});
 
-			var windowevents = ['message','vrdisplaypresentchange','vrdisplayactivate','vrdisplaydeactivate','gamepadconnected', 'gamepaddisconnected'];
+			var windowevents = ['message','vrdisplaypresentchange','vrdisplayactivate','vrdisplaydeactivate','gamepadconnected', 'gamepaddisconnected', 'beforeunload'];
 			windowevents.forEach(function(event)
 			{
 				window.addEventListener(event, FTEC.handleevent, true);
@@ -492,7 +495,7 @@ mergeInto(LibraryManager.library,
 				Browser.setCanvasSize(rect.width, rect.height, false);
 			}
 			if (FTEC.evcb.resize != 0)
-				Runtime.dynCall('vii', FTEC.evcb.resize, [Module['canvas'].width, Module['canvas'].height]);
+				{{{makeDynCall('vii')}}}(FTEC.evcb.resize, Module['canvas'].width, Module['canvas'].height);
 		};
 		window.onresize();
 
@@ -514,28 +517,28 @@ mergeInto(LibraryManager.library,
 	},
 	emscriptenfte_settitle : function(txt)
 	{
-		document.title = Pointer_stringify(txt);
+		document.title = UTF8ToString(txt);
 	},
 	emscriptenfte_abortmainloop : function(fname)
 	{
-		fname = Pointer_stringify(fname);
+		fname = UTF8ToString(fname);
 		FTEC.aborted = true;
 		throw 'oh noes! something bad happened in ' + fname + '!\n' + Module['stackTrace']();
 	},
 
+	emscriptenfte_setupmainloop__deps: ['$FTEC'],
 	emscriptenfte_setupmainloop : function(fnc)
 	{
 		Module['noExitRuntime'] = true;
 		FTEC.aborted = false;
 
-		//Module.abort = abort = function(msg) {};
 		function step(timestamp)
 		{
 			var dovsync = false;
 			var vr = false;
-			if (FTE.aborted)
+			if (FTEC.aborted)
 				return;
-				
+
 			if (FTEC.vrDisplay)
 			{
 				vr = FTEC.vrDisplay.isPresenting;
@@ -544,7 +547,7 @@ mergeInto(LibraryManager.library,
 			
 			try	//this try is needed to handle Host_EndGame properly.
 			{
-				dovsync = Runtime.dynCall('i', fnc, []);
+				dovsync = {{{makeDynCall('i')}}}(fnc);
 			}
 			catch(err)
 			{
@@ -555,13 +558,14 @@ mergeInto(LibraryManager.library,
 			if (dovsync)
 			{
 				if (FTEC.vrDisplay)
-					FTEC.vrDisplay.requestAnimationFrame(step);
+					FTEC.vrDisplay.requestAnimationFrame(Module["sched"]);
 				else
-					Browser.requestAnimationFrame(step);
+					Browser.requestAnimationFrame(Module["sched"]);
 			}
 			else
-				setTimeout(step, 0);
+				setTimeout(Module["sched"], 0);
 		};
+		Module["sched"] = step;
 		//don't start it instantly, so we can distinguish between types of errors (emscripten sucks!).
 		setTimeout(step, 1);
 	},
@@ -582,7 +586,7 @@ mergeInto(LibraryManager.library,
 	emscriptenfte_buf_open__deps : ['emscriptenfte_buf_create'],
 	emscriptenfte_buf_open : function(name, createifneeded)
 	{
-		name = Pointer_stringify(name);
+		name = UTF8ToString(name);
 		var f = FTEH.f[name];
 		var r = -1;
 		if (f == null)
@@ -642,8 +646,8 @@ mergeInto(LibraryManager.library,
 	},
 	emscriptenfte_buf_rename : function(oldname, newname)
 	{
-		oldname = Pointer_stringify(oldname);
-		newname = Pointer_stringify(newname);
+		oldname = UTF8ToString(oldname);
+		newname = UTF8ToString(newname);
 		var f = FTEH.f[oldname];
 		if (f == null)
 			return 0;
@@ -656,7 +660,7 @@ mergeInto(LibraryManager.library,
 	},
 	emscriptenfte_buf_delete : function(name)
 	{
-		name = Pointer_stringify(name);
+		name = UTF8ToString(name);
 		var f = FTEH.f[name];
 		if (f)
 		{
@@ -756,8 +760,8 @@ mergeInto(LibraryManager.library,
 	emscriptenfte_ws_connect__deps: ['emscriptenfte_handle_alloc'],
 	emscriptenfte_ws_connect : function(brokerurl, protocolname)
 	{
-		var _url = Pointer_stringify(brokerurl);
-		var _protocol = Pointer_stringify(protocolname);
+		var _url = UTF8ToString(brokerurl);
+		var _protocol = UTF8ToString(protocolname);
 		var s = {ws:null, inq:[], err:0, con:0};
 		try {
 			s.ws = new WebSocket(_url, _protocol);
@@ -864,7 +868,7 @@ console.log("emscriptenfte_rtc_create callback: " + evtype);
 				var stringlen = (stringdata.length*3)+1;
 				var dataptr = _malloc(stringlen);
 				stringToUTF8(stringdata, dataptr, stringlen);
-				Runtime.dynCall('viiii', callback, [ctxp,ctxi,evtype,dataptr]);
+				{{{makeDynCall('viiii')}}}(callback, ctxp,ctxi,evtype,dataptr);
 				_free(dataptr);
 			}
 		};
@@ -973,8 +977,8 @@ console.log(e);
 	emscriptenfte_rtc_offer : function(sockid, offer, offertype)
 	{
 		var s = FTEH.h[sockid];
-		offer = Pointer_stringify(offer);
-		offertype = Pointer_stringify(offertype);
+		offer = UTF8ToString(offer);
+		offertype = UTF8ToString(offertype);
 		if (s === undefined)
 			return -1;
 
@@ -1012,7 +1016,7 @@ console.log(e);
 	emscriptenfte_rtc_candidate : function(sockid, offer)
 	{
 		var s = FTEH.h[sockid];
-		offer = Pointer_stringify(offer);
+		offer = UTF8ToString(offer);
 		if (s === undefined)
 			return -1;
 
@@ -1028,7 +1032,7 @@ console.log(desc);
 
 	emscriptenfte_async_wget_data2 : function(url, ctx, onload, onerror, onprogress)
 	{
-		var _url = Pointer_stringify(url);
+		var _url = UTF8ToString(url);
 		console.log("Attempting download of " + _url);
 		var http = new XMLHttpRequest();
 		try
@@ -1038,7 +1042,7 @@ console.log(desc);
 		catch(e)
 		{
 			if (onerror)
-				Runtime.dynCall('vii', onerror, [ctx, 404]);
+				{{{makeDynCall('vii')}}}(onerror, ctx, 404);
 			return;
 		}
 		http.responseType = 'arraybuffer';
@@ -1049,12 +1053,12 @@ console.log("onload: " + _url + " status " + http.status);
 			if (http.status == 200)
 			{
 				if (onload)
-					Runtime.dynCall('vii', onload, [ctx, _emscriptenfte_buf_createfromarraybuf(http.response)]);
+					{{{makeDynCall('vii')}}}(onload, ctx, _emscriptenfte_buf_createfromarraybuf(http.response));
 			}
 			else
 			{
 				if (onerror)
-					Runtime.dynCall('vii', onerror, [ctx, http.status]);
+					{{{makeDynCall('vii')}}}(onerror, ctx, http.status);
 			}
 		};
 
@@ -1062,13 +1066,13 @@ console.log("onload: " + _url + " status " + http.status);
 		{
 console.log("onerror: " + _url);
 			if (onerror)
-				Runtime.dynCall('vii', onerror, [ctx, 0]);
+				{{{makeDynCall('vii')}}}(onerror, ctx, 0);
 		};
 
 		http.onprogress = function(e)
 		{
 			if (onprogress)
-				Runtime.dynCall('viii', onprogress, [ctx, e.loaded, e.total]);
+				{{{makeDynCall('viii')}}}(onprogress, ctx, e.loaded, e.total);
 		};
 
 		try	//ffs
@@ -1157,7 +1161,7 @@ console.log("onerror: " + _url);
 
 		var img = new Image();
 		var gltex = GL.textures[texid];
-		img.name = Pointer_stringify(fname);
+		img.name = UTF8ToString(fname);
 		img.onload = function()
 		{
 			if (img.width < 1 || img.height < 1)

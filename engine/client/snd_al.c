@@ -1083,7 +1083,7 @@ static void OpenAL_ChannelUpdate(soundcardinfo_t *sc, channel_t *chan, chanupdat
 			palSourcePlay(src);
 	}
 
-	PrintALError(sfx&&sfx->name?sfx->name:"post start sound");
+	PrintALError(sfx?sfx->name:"post start sound");
 }
 
 /*

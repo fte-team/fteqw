@@ -2258,6 +2258,9 @@ nacl-dbg:
 #################################################
 #webgl helpers
 
+ifeq ($(FTE_TARGET),web)
+$(OUT_DIR)/$(EXE_NAME): ftejslib.js
+endif
 ifneq ($(shell which emcc 2> /dev/null),)
 EMCC?=emcc
 else

@@ -2298,7 +2298,7 @@ vfsfile_t *QDECL FS_OpenVFS(const char *filename, const char *mode, enum fs_rela
 		{
 			if (gameonly_homedir)
 			{
-				if ((*mode == 'w')
+				if ((*mode == 'w' && gameonly_gamedir->handle->CreateFile)
 						? gameonly_homedir->handle->CreateFile(gameonly_homedir->handle, &loc, filename)
 						: gameonly_homedir->handle->FindFile  (gameonly_homedir->handle, &loc, filename, NULL))
 					vfs = gameonly_homedir->handle->OpenVFS   (gameonly_homedir->handle, &loc, mode);
@@ -2318,7 +2318,7 @@ vfsfile_t *QDECL FS_OpenVFS(const char *filename, const char *mode, enum fs_rela
 		{
 			if (gameonly_gamedir)
 			{
-				if ((*mode == 'w')
+				if ((*mode == 'w' && gameonly_gamedir->handle->CreateFile)
 						? gameonly_gamedir->handle->CreateFile(gameonly_gamedir->handle, &loc, filename)
 						: gameonly_gamedir->handle->FindFile  (gameonly_gamedir->handle, &loc, filename, NULL))
 					vfs = gameonly_gamedir->handle->OpenVFS   (gameonly_gamedir->handle, &loc, mode);

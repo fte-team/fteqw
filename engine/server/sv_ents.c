@@ -303,6 +303,7 @@ void SV_EmitCSQCUpdate(client_t *client, sizebuf_t *msg, qbyte svcnumber)
 	int entnum;
 	client_frame_t *frame = &client->frameunion.frames[currentsequence & UPDATE_MASK];
 	int lognum = frame->numresend;
+	quint64_t bits;
 
 	struct resendinfo_s *resend = frame->resend;
 	int maxlog = frame->maxresend;
@@ -385,11 +386,16 @@ void SV_EmitCSQCUpdate(client_t *client, sizebuf_t *msg, qbyte svcnumber)
 		if (!(client->pendingcsqcbits[entnum] & SENDFLAGS_PRESENT))
 			client->pendingcsqcbits[entnum] = SENDFLAGS_USABLE;	//this entity appears new. make sure its fully transmitted.
 
+		bits = client->pendingcsqcbits[entnum];
+		client->pendingcsqcbits[entnum] = 0;
+
 		csqcmsgbuffer.cursize = 0;
 		csqcmsgbuffer.currentbit = 0;
 		//Ask CSQC to write a buffer for it.
 		G_INT(OFS_PARM0) = viewerent;
-		G_FLOAT(OFS_PARM1) = (int)(client->pendingcsqcbits[entnum] & 0xffffff);
+		G_FLOAT(OFS_PARM1+0) = (int)((bits>>(SENDFLAGS_SHIFT+ 0)) & 0xffffff);	//each float can only hold 24 bits before it forgets its lower bits.
+		G_FLOAT(OFS_PARM1+1) = (int)((bits>>(SENDFLAGS_SHIFT+24)) & 0xffffff);
+		G_FLOAT(OFS_PARM1+2) = (int)((bits>>(SENDFLAGS_SHIFT+48)) & 0xffffff);
 
 		pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, ent);
 		PR_ExecuteProgram(svprogfuncs, ent->xv->SendEntity);
@@ -401,22 +407,27 @@ void SV_EmitCSQCUpdate(client_t *client, sizebuf_t *msg, qbyte svcnumber)
 				//warn when the message is larger than the user's max size..
 				if (csqcmsgbuffer.cursize+5 > msg->maxsize)
 					Con_ThrottlePrintf(&throttle, 0, "CSQC update of entity %i(%s) is larger than user %s's maximum datagram size (%u > %u).\n", entnum, PR_GetString(svprogfuncs, ent->v->classname), client->name, csqcmsgbuffer.cursize, msg->maxsize-5);
+
+				client->pendingcsqcbits[entnum] = bits;
 				if (csqcmsgbuffer.cursize < 32)
 					break;
-				continue;
+				continue;	//might be able to fit a different ent in there.
 			}
 
 			if (lognum > maxlog)
 			{
 				if (maxlog == client->max_net_ents)
+				{
+					client->pendingcsqcbits[entnum] = bits;
 					break;
+				}
 				SV_ExpandNackFrames(client, lognum+1, &frame);
 				resend = frame->resend;
 				maxlog = frame->maxresend;
 			}
 			resend[lognum].entnum = entnum;
 			resend[lognum].bits = 0;
-			resend[lognum].flags = SENDFLAGS_PRESENT|client->pendingcsqcbits[entnum];
+			resend[lognum].flags = SENDFLAGS_PRESENT|bits;
 			lognum++;
 
 			if (!writtenheader)
@@ -433,20 +444,26 @@ void SV_EmitCSQCUpdate(client_t *client, sizebuf_t *msg, qbyte svcnumber)
 			}
 			SZ_Write(msg, csqcmsgbuffer.data, csqcmsgbuffer.cursize);
 
-			client->pendingcsqcbits[entnum] = SENDFLAGS_PRESENT;
+			client->pendingcsqcbits[entnum] |= SENDFLAGS_PRESENT;
 //			Con_Printf("Sending update packet %i\n", ent->entnum);
 		}
-		else if ((client->pendingcsqcbits[entnum] & SENDFLAGS_PRESENT) && !((int)ent->xv->pvsflags & PVSF_NOREMOVE))
+		else if ((bits & SENDFLAGS_PRESENT) && !((int)ent->xv->pvsflags & PVSF_NOREMOVE))
 		{	//Don't want to send, but they have it already
 
 
 			if (msg->cursize + 5 >= msg->maxsize)
+			{
+				client->pendingcsqcbits[entnum] = bits;
 				break;	//we're overflowing, try removing next frame instead.
+			}
 
 			if (lognum > maxlog)
 			{
 				if (maxlog == client->max_net_ents)
+				{
+					client->pendingcsqcbits[entnum] = bits;
 					break;
+				}
 				SV_ExpandNackFrames(client, lognum+1, &frame);
 				resend = frame->resend;
 				maxlog = frame->maxresend;
@@ -465,7 +482,7 @@ void SV_EmitCSQCUpdate(client_t *client, sizebuf_t *msg, qbyte svcnumber)
 			SV_EmitDeltaEntIndex(msg, entnum, true, client->fteprotocolextensions2 & PEXT2_REPLACEMENTDELTAS);
 //				Con_Printf("Sending remove 2 packet\n");
 
-			client->pendingcsqcbits[entnum] = 0;
+//			client->pendingcsqcbits[entnum] = 0;
 		}
 	}
 
@@ -4279,7 +4296,7 @@ void SV_ProcessSendFlags(client_t *c)
 			continue;
 		if (ent->xv->SendFlags)
 		{
-			c->pendingcsqcbits[e] |= (int)ent->xv->SendFlags & SENDFLAGS_USABLE;
+			c->pendingcsqcbits[e] |= (qint64_t)ent->xv->SendFlags << SENDFLAGS_SHIFT;
 			h = e;
 		}
 	}

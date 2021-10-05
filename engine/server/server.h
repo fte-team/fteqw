@@ -352,7 +352,7 @@ typedef struct
 	{
 		unsigned int entnum;
 		unsigned int bits;	//delta (fte or dpp5+)
-		unsigned int flags;	//csqc
+		quint64_t flags;	//csqc
 	} *resend;
 	unsigned int		numresend;
 	unsigned int		maxresend;
@@ -589,12 +589,14 @@ typedef struct client_s
 	} frameunion;
 	packet_entities_t sentents;
 	unsigned int	*pendingdeltabits;
-	unsigned int	*pendingcsqcbits;
+	quint64_t		*pendingcsqcbits;
 	unsigned int	nextdeltaindex;			//splurged round-robin to deal with overflows
 	unsigned int	nextcsqcindex;			//splurged round-robin
-	#define SENDFLAGS_USABLE 0x3fffffffu	//this number of bits are actually safe in a float. not all together, but otherwise safe.
-	#define SENDFLAGS_PRESENT 0x80000000u	//this entity is present on that client
-	#define SENDFLAGS_REMOVED 0x40000000u	//to handle remove packetloss
+	#define SENDFLAGS_PRESENT 0x1u	//this entity is present on that client
+	#define SENDFLAGS_REMOVED 0x2u	//to handle remove packetloss
+	#define SENDFLAGS_RESERVED (SENDFLAGS_PRESENT|SENDFLAGS_REMOVED)
+	#define SENDFLAGS_SHIFT 2u
+	#define SENDFLAGS_USABLE (~(quint64_t)SENDFLAGS_RESERVED)	//this number of bits are actually safe in a float. not all together, but otherwise safe.
 
 #ifdef HAVE_LEGACY
 	char			*dlqueue;			//name\name delimited list of files to ask the client to download.

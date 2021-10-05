@@ -595,7 +595,7 @@ const char *HTTP_RunClient (HTTP_active_connections_t *cl)
 				else if (strstr(resource, ".js"))
 					mimeline = "Content-Type: text/javascript\r\n";
 				else
-					mimeline = NULL;
+					mimeline = "";
 
 				//fixme: add connection: keep-alive or whatever so that ie3 is happy...
 				if (HTTPmarkup>=3)

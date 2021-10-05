@@ -272,11 +272,11 @@ int SV_MVD_GotQTVRequest(vfsfile_t *clientstream, char *headerstart, char *heade
 		QTVAM_PLAIN,
 #ifdef TCPCONNECT
 //		QTVAM_CCITT,	//16bit = ddos it
-		QTVAM_MD4,		//fucked
+		QTVAM_MD4,		//fucked. required for eztv compat
 //		QTVAM_MD5,		//fucked, no hash implemented
 		QTVAM_SHA1,		//fucked too nowadays
-//		QTVAM_SHA2_256,	//no hash implemented
-//		QTVAM_SHA2_512,	//no hash implemented
+		QTVAM_SHA2_256,	//
+		QTVAM_SHA2_512,	//
 #endif
 	} authmethod = QTVAM_NONE;
 
@@ -360,6 +360,10 @@ int SV_MVD_GotQTVRequest(vfsfile_t *clientstream, char *headerstart, char *heade
 //					thisauth = QTVAM_MD5;
 				else if (!strcmp(com_token, "SHA1"))
 					thisauth = QTVAM_SHA1;
+				else if (!strcmp(com_token, "SHA2_256"))
+					thisauth = QTVAM_SHA2_256;
+				else if (!strcmp(com_token, "SHA2_512"))
+					thisauth = QTVAM_SHA2_512;
 #endif
 				else
 				{
@@ -412,6 +416,7 @@ int SV_MVD_GotQTVRequest(vfsfile_t *clientstream, char *headerstart, char *heade
 		p->hasauthed = true;	//no password, no need to auth.
 	else if (*password)
 	{
+		hashfunc_t *func = NULL;
 		if (!*p->challenge && authmethod>QTVAM_PLAIN)
 			e =	("QTVSV 1\n"
 				 "PERROR: Challenge wasn't given...\n\n");
@@ -445,6 +450,7 @@ int SV_MVD_GotQTVRequest(vfsfile_t *clientstream, char *headerstart, char *heade
 				p->hasauthed = !strcmp(password, hash);
 			}
 			break;
+#ifdef HAVE_LEGACY //to be disabled at some point.
 		case QTVAM_SHA1:
 			{
 				char hash[512];
@@ -454,14 +460,32 @@ int SV_MVD_GotQTVRequest(vfsfile_t *clientstream, char *headerstart, char *heade
 				CalcHash(&hash_sha1, (char*)digest, sizeof(digest), hash, strlen(hash));
 				Q_snprintfz(hash, sizeof(hash), "%08X%08X%08X%08X%08X", digest[0], digest[1], digest[2], digest[3], digest[4]);
 				p->hasauthed = !strcmp(password, hash);
+
+				if (!p->hasauthed)
+					func = &hash_sha1;
 			}
 			break;
-//		case QTVAM_MD5:
+#else
+		case QTVAM_SHA1:		func = &hash_sha1;		break;
+#endif
+		case QTVAM_SHA2_256:	func = &hash_sha256;	break;
+		case QTVAM_SHA2_512:	func = &hash_sha512;	break;
+//		case QTVAM_MD5:			func = &hash_md5;		break;
 #endif
 		default:
 			e = ("QTVSV 1\n"
 				 "PERROR: server bug detected.\n\n");
 			break;
+		}
+		if (func)
+		{
+			char hash[DIGEST_MAXSIZE*2+1];
+			qbyte digest[DIGEST_MAXSIZE];
+
+			Q_snprintfz(hash, sizeof(hash), "%s%s", p->challenge, qtv_password.string);
+			CalcHash(func, digest, sizeof(digest), hash, strlen(hash));
+			Base64_EncodeBlock(digest, func->digestsize, hash, sizeof(hash));
+			p->hasauthed = !strcmp(password, hash);
 		}
 		if (!p->hasauthed && !e)
 		{
@@ -506,6 +530,16 @@ int SV_MVD_GotQTVRequest(vfsfile_t *clientstream, char *headerstart, char *heade
 		case QTVAM_SHA1:
 			e =	("QTVSV 1\n"
 				"AUTH: SHA1\n"
+				"CHALLENGE: ");
+			goto hashedpassword;
+		case QTVAM_SHA2_256:
+			e =	("QTVSV 1\n"
+				"AUTH: SHA2_256\n"
+				"CHALLENGE: ");
+			goto hashedpassword;
+		case QTVAM_SHA2_512:
+			e =	("QTVSV 1\n"
+				"AUTH: SHA2_512\n"
 				"CHALLENGE: ");
 			goto hashedpassword;
 hashedpassword:

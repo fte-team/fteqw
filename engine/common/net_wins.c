@@ -4125,7 +4125,7 @@ typedef struct ftenet_tcp_connection_s {
 	ftenet_tcp_stream_t *tcpstreams;
 } ftenet_tcp_connection_t;
 
-void tobase64(unsigned char *out, int outlen, unsigned char *in, int inlen)
+void tobase64(unsigned char *out, int outlen, const unsigned char *in, int inlen)
 {
 	static unsigned char tab[64] =
 	{

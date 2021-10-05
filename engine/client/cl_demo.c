@@ -2551,258 +2551,9 @@ void CL_Demo_ClientCommand(char *commandtext)
 	}
 }
 
-static char qtvhostname[1024];
-static char qtvrequestbuffer[4096];
-static size_t qtvrequestsize;
-static char qtvrequestcmdbuffer[4096];
-static int qtvrequestcmdsize;
-static vfsfile_t *qtvrequest;
-
-void CL_QTVPoll (void)
-{
-	char *s, *e, *colon;
-	char *tail = NULL;
-	int len;
-	qboolean streamavailable = false;
-	qboolean saidheader = false;
-#ifndef NOBUILTINMENUS
-	emenu_t *sourcesmenu = NULL;
-#endif
-	int sourcenum = 0;
-
-	int streamid;
-	int numplayers = 0;
-	int numviewers = 0;
-	qboolean init_numplayers = false;
-	qboolean init_numviewers = false;
-	qboolean iseztv = false;
-	char srchost[256];
-	char auth[64];
-	char challenge[128];
-
-	if (!qtvrequest)
-		return;
-
-	if (qtvrequestcmdsize)
-	{
-		len = VFS_WRITE(qtvrequest, qtvrequestcmdbuffer, qtvrequestcmdsize);
-		if (len > 0)
-		{
-			memmove(qtvrequestcmdbuffer, qtvrequestcmdbuffer+len, qtvrequestcmdsize-len);
-			qtvrequestcmdsize -= len;
-		}
-	}
-
-	for(;;)
-	{
-		len = VFS_READ(qtvrequest, qtvrequestbuffer+qtvrequestsize, (sizeof(qtvrequestbuffer) - qtvrequestsize -1 > 0)?1:0);
-		if (len <= 0)
-			break;
-		qtvrequestsize += len;
-	}
-	qtvrequestbuffer[qtvrequestsize] = '\0';
-
-	if (qtvrequestsize >= sizeof(qtvrequestbuffer) - 1)
-	{
-		//flag it as an error if the response is larger than we can handle.
-		//this error gets ignored if the header is okay (any actual errors will get reported again by the demo code anyway), and only counts if the end of the reply header was not found.
-		len = -1;
-	}
-	if (!qtvrequestsize && len == 0)
-		return;
-
-	//make sure it's a compleate chunk.
-	for (s = qtvrequestbuffer; *s; s++)
-	{
-		if (s[0] == '\n' && s[1] == '\n')
-		{
-			tail = s+2;
-			break;
-		}
-		if (s[0] == '\r' && s[1] == '\n' && s[2] == '\r' && s[3] == '\n')
-		{
-			tail = s+4;
-			break;
-		}
-		if (s[0] == '\r' && s[1] == '\n' && s[2] == '\n')
-		{
-			tail = s+3;
-			break;
-		}
-		if (s[0] == '\n' && s[1] == '\r' && s[2] == '\n')
-		{
-			tail = s+3;
-			break;
-		}
-	}
-	if (!tail)
-	{
-		if (len < 0)
-		{
-			if (!qtvrequestsize)
-				Con_Printf("Connection to QTV server closed without any reply.\n");
-			else
-				Con_Printf("invalid QTV handshake\n");
-			SCR_SetLoadingStage(LS_NONE);
-			VFS_CLOSE(qtvrequest);
-			qtvrequest = NULL;
-			qtvrequestsize = 0;
-		}
-		return;
-	}
-	s[1] = '\0';	//make sure its null terminated before the data payload
-	s = qtvrequestbuffer;
-
-	*auth = *challenge = 0;
-	for (e = s; *e; )
-	{
-		if (*e == '\r')
-			*e = '\0';
-		else if (*e == '\n')
-		{
-			*e = '\0';
-			colon = strchr(s, ':');
-			if (colon)
-				*colon++ = '\0';
-			else
-				colon = "";
-
-			if (!strcmp(s, "PERROR"))
-			{	//permanent printable error
-				Con_Printf("QTV Error:\n%s\n", colon);
-			}
-			else if (!strcmp(s, "PRINT"))
-			{	//printable error
-				Con_Printf("QTV:\n%s\n", colon);
-			}
-			else if (!strcmp(s, "TERROR"))
-			{	//temporary printable error
-				Con_Printf("QTV Error:\n%s\n", colon);
-			}
-			else if (!strcmp(s, "ADEMO"))
-			{	//printable error
-				Con_Printf("Demo%s is available\n", colon);
-			}
-			else if (!strcmp(s, "AUTH"))
-			{
-				while (*colon && *(unsigned char*)colon <= ' ')
-					colon++;
-				Q_strncpyz(auth, colon, sizeof(auth));
-			}
-			else if (!strcmp(s, "CHALLENGE"))
-				Q_strncpyz(challenge, colon, sizeof(challenge));
-
-			//generic sourcelist responce
-			else if (!strcmp(s, "ASOURCE"))
-			{	//printable source
-				if (!saidheader)
-				{
-					saidheader=true;
-					Con_Printf("Available Sources:\n");
-				}
-				Con_Printf("%s\n", colon);
-				//we're too lazy to even try and parse this
-			}
-
-			else if (!strcmp(s, "BEGIN"))
-			{
-				while (*colon && *(unsigned char*)colon <= ' ')
-					colon++;
-				if (*colon)
-					Con_Printf("streaming \"%s\" from qtv\n", colon);
-				else
-					Con_Printf("qtv connection established to %s\n", qtvhostname);
-				streamavailable = true;
-			}
-
-			//eztv extensions to v1.0
-			else if (!strcmp(s, "QTV_EZQUAKE_EXT"))
-			{
-				iseztv = true;
-				Con_Printf("Warning: eztv extensions %s\n", colon);
-			}
-
-			//v1.1 sourcelist response includes SRCSRV, SRCHOST, SRCPLYRS, SRCVIEWS, SRCID
-			else if (!strcmp(s, "SRCSRV"))
-			{
-				//the proxy's source string (beware of file:blah without file:blah@blah)
-			}
-			else if (!strcmp(s, "SRCHOST"))
-			{
-				//the hostname from the server the stream came from
-				Q_strncpyz(srchost, colon, sizeof(srchost));
-			}
-			else if (!strcmp(s, "SRCPLYRS"))
-			{
-				//number of active players actually playing on that stream
-				numplayers = atoi(colon);
-				init_numplayers = true;
-			}
-			else if (!strcmp(s, "SRCVIEWS"))
-			{
-				//number of people watching this stream on the proxy itself
-				numviewers = atoi(colon);
-				init_numviewers = true;
-			}
-			else if (!strcmp(s, "SRCID"))
-			{
-				streamid = atoi(colon);
-
-#ifndef NOBUILTINMENUS
-				//now put it on a menu
-				if (!sourcesmenu)
-				{
-					sourcesmenu = M_CreateMenu(0);
-
-					MC_AddPicture(sourcesmenu, 16, 4, 32, 144, "gfx/qplaque.lmp");
-					MC_AddCenterPicture(sourcesmenu, 4, 24, "gfx/p_option.lmp");
-				}
-				if (init_numplayers == true && init_numviewers == true)
-					MC_AddConsoleCommand(sourcesmenu, 42, 170, (sourcenum++)*8 + 32, va("%s (p%i, v%i)", srchost, numplayers, numviewers), va("qtvplay %i@%s\n", streamid, qtvhostname));
-				//else
-				//	FIXME: add error message here
-#else
-				(void)init_numviewers;
-				(void)numviewers;
-				(void)init_numplayers;
-				(void)numplayers;
-				(void)streamid;
-				(void)sourcenum;
-#endif
-			}
-			//end of sourcelist entry
-
-			//from e to s, we have a line
-			s = e+1;
-		}
-		e++;
-	}
-
-	if (streamavailable)
-	{
-		CL_PlayDemoStream(qtvrequest, NULL, false, iseztv?DPB_EZTV:DPB_MVD, BUFFERTIME);
-		qtvrequest = NULL;
-		demo_resetcache(qtvrequestsize - (tail-qtvrequestbuffer), tail);
-		return;
-	}
-
-	if (!strcmp(auth, "NONE"))
-		;
-//	else if (!strcmp(auth, "PLAIN"))
-//	else if (!strcmp(auth, "MD4"))
-//	else if (!strcmp(auth, "SHA1"))
-	else if (*auth)
-		Con_Printf("Server requires unsupported auth method: %s\n", auth);
-
-	SCR_SetLoadingStage(LS_NONE);
-	VFS_CLOSE(qtvrequest);
-	qtvrequest = NULL;
-	qtvrequestsize = 0;
-}
-
 char *strchrrev(char *str, char chr)
 {
-	char *firstchar = str;
+	const char *firstchar = str;
 	for (str = str + strlen(str)-1; str>=firstchar; str--)
 		if (*str == chr)
 			return str;
@@ -2978,58 +2729,343 @@ void CL_ParseQTVDescriptor(vfsfile_t *f, const char *name)
 }
 
 #include "netinc.h"
-void CL_QTVPlay_f (void)
-{
-	qboolean raw=0;
-	char *connrequest;
-	vfsfile_t *newf;
-	char *host;
-	char msg[4096];
-	int msglen=0;
-	char *password;
 
-	if (Cmd_Argc() < 2)
+static struct pendingqtv_s
+{
+	struct pendingqtv_s *next;
+	qboolean raw;
+	char hostname[1024];
+	char password[1024];
+	char requestbuffer[4096];
+	size_t requestsize;
+	char requestcmdbuffer[4096];
+	int requestcmdsize;
+	vfsfile_t *stream;
+
+	char postauth[1];
+} *pendingqtv;
+
+void CL_QTVPoll (void)
+{
+	struct pendingqtv_s **link, *qtv;
+	for (link = &pendingqtv; (qtv = *link); link = &qtv->next)
 	{
-		Con_Printf("Usage: qtvplay [stream@][tls://]hostname[:port] [password]\n");
+		char *s, *e, *colon;
+		char *tail = NULL;
+		int len;
+		char *streamavailable = NULL;
+		qboolean saidheader = false;
+	#ifndef NOBUILTINMENUS
+		emenu_t *sourcesmenu = NULL;
+	#endif
+		int sourcenum = 0;
+
+		int numplayers = 0;
+		int numviewers = 0;
+		qboolean init_numplayers = false;
+		qboolean init_numviewers = false;
+		qboolean iseztv = false;
+		char srchost[256];
+		char auth[64];
+		char challenge[128];
+		hashfunc_t *hashfunc = NULL;
+
+		//try to finish sending
+		if (qtv->requestcmdsize)
+		{
+			len = VFS_WRITE(qtv->stream, qtv->requestcmdbuffer, qtv->requestcmdsize);
+			if (len > 0)
+			{
+				memmove(qtv->requestcmdbuffer, qtv->requestcmdbuffer+len, qtv->requestcmdsize-len);
+				qtv->requestcmdsize -= len;
+			}
+			if (len < 0)
+				goto fail;
+		}
+
+		for(;;)
+		{
+			len = VFS_READ(qtv->stream, qtv->requestbuffer+qtv->requestsize, (sizeof(qtv->requestbuffer) - qtv->requestsize -1 > 0)?1:0);
+			if (len <= 0)
+				break;
+			qtv->requestsize += len;
+		}
+		qtv->requestbuffer[qtv->requestsize] = '\0';
+
+		if (qtv->raw)
+		{
+			tail = qtv->requestbuffer;
+			streamavailable = "";
+		}
+		else
+		{
+			if (qtv->requestsize >= sizeof(qtv->requestbuffer) - 1)
+			{
+				//flag it as an error if the response is larger than we can handle.
+				//this error gets ignored if the header is okay (any actual errors will get reported again by the demo code anyway), and only counts if the end of the reply header was not found.
+				len = -1;
+			}
+			if (!qtv->requestsize && len == 0)
+				continue;	//still trying.
+
+			//make sure it's a compleate chunk.
+			for (s = qtv->requestbuffer; *s; s++)
+			{
+				if (s[0] == '\n' && s[1] == '\n')
+				{
+					tail = s+2;
+					break;
+				}
+				if (s[0] == '\r' && s[1] == '\n' && s[2] == '\r' && s[3] == '\n')
+				{
+					tail = s+4;
+					break;
+				}
+				if (s[0] == '\r' && s[1] == '\n' && s[2] == '\n')
+				{
+					tail = s+3;
+					break;
+				}
+				if (s[0] == '\n' && s[1] == '\r' && s[2] == '\n')
+				{
+					tail = s+3;
+					break;
+				}
+			}
+		}
+		if (!tail)
+		{
+			if (len < 0)
+			{
+				if (!qtv->requestsize)
+					Con_Printf("Connection to QTV server closed without any reply.\n");
+				else
+					Con_Printf("invalid QTV handshake\n");
+fail:
+				SCR_SetLoadingStage(LS_NONE);
+				if (qtv->stream)
+					VFS_CLOSE(qtv->stream);
+				qtv->stream = NULL;
+				qtv->requestsize = 0;
+				*link = qtv->next;
+				Z_Free(qtv);
+				return;
+			}
+			continue;
+		}
+		s = qtv->requestbuffer;
+
+		colon = "";
+		*auth = *challenge = 0;
+		for (e = s; e < tail; )
+		{
+			if (*e == '\r')
+				*e = '\0';
+			else if (*e == '\n')
+			{
+				*e = '\0';
+				colon = strchr(s, ':');
+				if (colon)
+				{
+					*colon++ = '\0';
+					if (*colon && *(unsigned char*)colon <= ' ')
+						colon++;
+				}
+				else
+					colon = "";
+
+				if (!strcmp(s, "PERROR"))
+				{	//permanent printable error
+					Con_Printf("QTV Error:\n%s\n", colon);
+				}
+				else if (!strcmp(s, "PRINT"))
+				{	//printable error
+					Con_Printf("QTV:\n%s\n", colon);
+				}
+				else if (!strcmp(s, "TERROR"))
+				{	//temporary printable error
+					Con_Printf("QTV Error:\n%s\n", colon);
+				}
+				else if (!strcmp(s, "ADEMO"))
+				{	//printable error
+					Con_Printf("Demo%s is available\n", colon);
+				}
+				else if (!strcmp(s, "AUTH"))
+				{
+					while (*colon && *(unsigned char*)colon <= ' ')
+						colon++;
+					Q_strncpyz(auth, colon, sizeof(auth));
+				}
+				else if (!strcmp(s, "CHALLENGE"))
+				{
+					while (*colon && *(unsigned char*)colon <= ' ')
+						colon++;
+					Q_strncpyz(challenge, colon, sizeof(challenge));
+				}
+				//generic sourcelist responce
+				else if (!strcmp(s, "ASOURCE"))
+				{	//printable source
+					if (!saidheader)
+					{
+						saidheader=true;
+						Con_Printf("Available Sources:\n");
+					}
+					Con_Printf("%s\n", colon);
+					//we're too lazy to even try and parse this
+				}
+
+				else if (!strcmp(s, "BEGIN"))
+				{
+					while (*colon && *(unsigned char*)colon <= ' ')
+						colon++;
+					streamavailable = colon;
+				}
+
+				//eztv extensions to v1.0
+				else if (!strcmp(s, "QTV_EZQUAKE_EXT"))
+				{
+					iseztv = true;
+					Con_Printf("Warning: eztv extensions %s\n", colon);
+				}
+
+				//v1.1 sourcelist response includes SRCSRV, SRCHOST, SRCPLYRS, SRCVIEWS, SRCID
+				else if (!strcmp(s, "SRCSRV"))
+				{
+					//the proxy's source string (beware of file:blah without file:blah@blah)
+				}
+				else if (!strcmp(s, "SRCHOST"))
+				{
+					//the hostname from the server the stream came from
+					Q_strncpyz(srchost, colon, sizeof(srchost));
+				}
+				else if (!strcmp(s, "SRCPLYRS"))
+				{
+					//number of active players actually playing on that stream
+					numplayers = atoi(colon);
+					init_numplayers = true;
+				}
+				else if (!strcmp(s, "SRCVIEWS"))
+				{
+					//number of people watching this stream on the proxy itself
+					numviewers = atoi(colon);
+					init_numviewers = true;
+				}
+				else if (!strcmp(s, "SRCID") && !streamavailable)
+				{
+					char *streamid = colon;
+
+#ifndef NOBUILTINMENUS
+					//now put it on a menu
+					if (!sourcesmenu)
+					{
+						sourcesmenu = M_CreateMenu(0);
+
+						MC_AddPicture(sourcesmenu, 16, 4, 32, 144, "gfx/qplaque.lmp");
+						MC_AddCenterPicture(sourcesmenu, 4, 24, "gfx/p_option.lmp");
+					}
+					if (init_numplayers == true && init_numviewers == true)
+						MC_AddConsoleCommand(sourcesmenu, 42, 170, (sourcenum++)*8 + 32, va("%s (p%i, v%i)", srchost, numplayers, numviewers), va("qtvplay %s@%s\n", streamid, qtv->hostname));
+					//else
+					//	FIXME: add error message here
+#else
+					(void)init_numviewers;
+					(void)numviewers;
+					(void)init_numplayers;
+					(void)numplayers;
+					(void)streamid;
+					(void)sourcenum;
+#endif
+				}
+				//end of sourcelist entry
+
+				//from e to s, we have a line
+				s = e+1;
+			}
+			e++;
+		}
+
+		if (streamavailable)
+		{
+			if (*streamavailable)
+				Con_Printf("streaming \"%s\" from qtv\n", streamavailable);
+			else
+				Con_Printf("qtv connection established to %s\n", qtv->hostname);
+			CL_PlayDemoStream(qtv->stream, NULL, false, iseztv?DPB_EZTV:DPB_MVD, BUFFERTIME);
+			qtv->stream = NULL;
+			demo_resetcache(qtv->requestsize - (tail-qtv->requestbuffer), tail);
+			*link = qtv->next;
+			Z_Free(qtv);
+			return;
+		}
+
+		//something failed. if its giving us an auth type then we should be authing before sending our request...
+
+		if (!strcmp(auth, "NONE"))
+			;
+	//	else if (!strcmp(auth, "PLAIN"))
+	//	else if (!strcmp(auth, "MD4"))
+		else if (!strcmp(auth, "SHA1"))
+			hashfunc = &hash_sha1;
+		else if (!strcmp(auth, "SHA2_256"))
+			hashfunc = &hash_sha256;
+		else if (!strcmp(auth, "SHA2_512"))
+			hashfunc = &hash_sha512;
+		else if (*auth)
+			Con_Printf("Server requires unsupported auth method: %s\n", auth);
+
+		qtv->requestsize -= tail-qtv->requestbuffer;
+		memmove(qtv->requestbuffer, tail, qtv->requestsize);
+		if (hashfunc && qtv->postauth)
+		{
+			if (*qtv->password)
+			{
+				char hash[DIGEST_MAXSIZE*2+1];
+				qbyte digest[DIGEST_MAXSIZE];
+
+				Q_snprintfz(hash, sizeof(hash), "%s%s", challenge, qtv->password);
+				CalcHash(hashfunc, digest, sizeof(digest), hash, strlen(hash));
+				Base64_EncodeBlock(digest, hashfunc->digestsize, hash, sizeof(hash));
+
+				Q_snprintfz(qtv->requestcmdbuffer, sizeof(qtv->requestcmdbuffer),
+					"QTV\n"
+					"VERSION: 1.1\n"
+					"AUTH: %s\n"
+					"PASSWORD: \"%s\"\n"
+					"%s\n",
+						auth, hash, qtv->postauth);
+				qtv->requestcmdsize = strlen(qtv->requestcmdbuffer);
+				continue;
+			}
+			else
+				Con_Printf("QTV server requires a password\n");
+		}
+
+		SCR_SetLoadingStage(LS_NONE);
+		VFS_CLOSE(qtv->stream);
+		qtv->stream = NULL;
+		qtv->requestsize = 0;
+		*link = qtv->next;
+		Z_Free(qtv);
 		return;
 	}
+}
+void CL_QTVPlay_Establish (const char *host, const char *password, const char *command)
+{
+	struct pendingqtv_s *qtv = Z_Malloc(sizeof(*qtv) + strlen(command));
+	char msg[4096];
+	int msglen=0;
 
-	connrequest = Cmd_Argv(1);
-
-	/*if (*connrequest == '#')
-	{
-		//#FILENAME is a local system path
-		CL_ParseQTVDescriptor(VFSOS_Open(connrequest+1, "rt"), connrequest+1);
-		return;
-	}*/
-	strcpy(cls.servername, "qtv:");
-	Q_strncpyz(cls.servername+4, connrequest, sizeof(cls.servername)-4);
-
-	SCR_SetLoadingStage(LS_CONNECTION);
-
-	host = connrequest;
-
-	connrequest = strchrrev(connrequest, '@');
-	if (connrequest)
-		host = connrequest+1;
-	Q_strncpyz(qtvhostname, host, sizeof(qtvhostname));
-	newf = FS_OpenTCP(qtvhostname, 27599, false);
-
-
-	if (!newf)
+//	SCR_SetLoadingStage(LS_CONNECTION);
+	qtv->stream = FS_OpenTCP(host, 27599, false);
+	if (!qtv->stream)
 	{
 		SCR_SetLoadingStage(LS_NONE);
 		Con_Printf("Couldn't connect to proxy\n");
+		Z_Free(qtv);
 		return;
 	}
 
-	host = Cmd_Argv(1);
-	if (connrequest)
-		*connrequest = '\0';
-	else
-		host = NULL;
-
-	password = Cmd_Argv(2);
+	Q_strncpyz(qtv->password, password, sizeof(qtv->password));
 
 	if (qtvcl_forceversion1.ival)
 	{
@@ -3045,23 +3081,31 @@ void CL_QTVPlay_f (void)
 	}
 	msglen += strlen(msg+msglen);
 
-	if (password)
+	if (*password)
 	{
-#if 0
-		//just send it directly, we can't handle the tripple handshake for the challenge info
-		Q_snprintfz(msg+msglen, sizeof(msg)-msglen,
-					"AUTH: PLAIN\n"
-					"PASSWORD: %s\n"
-					, password);
-#else
-		//report supported auth methods to the server. it'll pick one and send us a challenge.
-		Q_snprintfz(msg+msglen, sizeof(msg)-msglen,
-//					"AUTH: SHA1\n"
-//					"AUTH: MD4\n"
-//					"AUTH: CCITT\n"
-					"AUTH: PLAIN\n");
-#endif
+		if (qtv->raw)
+		{
+			//just send it directly, we can't handle any kind of response and that includes the tripple handshake for the challenge info
+			Q_snprintfz(msg+msglen, sizeof(msg)-msglen,
+						"AUTH: PLAIN\n"
+						"PASSWORD: %s\n"
+						, password);
+		}
+		else
+		{
+			//report supported auth methods to the server. it'll pick one and send us a challenge.
+			Q_snprintfz(msg+msglen, sizeof(msg)-msglen,
+						"AUTH: SHA2_512\n"
+						"AUTH: SHA2_256\n"
+						"AUTH: SHA1\n"
+//						"AUTH: MD4\n"
+//						"AUTH: CCITT\n"
+//						"AUTH: PLAIN\n"
+						);
+		}
 		msglen += strlen(msg+msglen);
+
+		strcpy(qtv->postauth, command);
 	}
 	else
 	{
@@ -3070,15 +3114,59 @@ void CL_QTVPlay_f (void)
 					"AUTH: NONE\n"
 					"");
 		msglen += strlen(msg+msglen);
+
+		Q_snprintfz(msg+msglen, sizeof(msg)-msglen, "%s", command);
+		msglen += strlen(msg+msglen);
+		*qtv->postauth = 0;
 	}
 
-	if (raw)
-	{
+	if (qtv->raw)
+	{	//peer must either disconnect instantly, or respond with an mvd file without extra headers.
 		Q_snprintfz(msg+msglen, sizeof(msg)-msglen,
 				"RAW: 1\n");
 		msglen += strlen(msg+msglen);
 	}
-	else if (host)
+
+	Q_snprintfz(msg+msglen, sizeof(msg)-msglen,
+				"\n");
+	msglen += strlen(msg+msglen);
+
+
+	memcpy(qtv->requestcmdbuffer, msg, msglen);
+	qtv->requestcmdsize = msglen;
+	qtv->requestsize = 0;
+
+	//and link it in.
+	qtv->next = pendingqtv;
+	pendingqtv = qtv;
+}
+
+void CL_QTVPlay_f (void)
+{
+	char *host;
+	const char *password;
+	char *streamid;
+	char msg[4096];
+	int msglen=0;
+
+	if (Cmd_Argc() < 2)
+	{
+		Con_Printf("Usage: qtvplay [stream@][tls://]hostname[:port] [password]\n");
+		return;
+	}
+
+	streamid = Cmd_Argv(1);
+	password = Cmd_Argv(2);
+	host = strchrrev(streamid, '@');
+	if (host)
+		*host++ = 0;
+	else
+	{
+		host = streamid;
+		streamid = NULL;
+	}
+
+	if (streamid)
 	{
 		if (qtvcl_eztvextensions.ival)
 		{
@@ -3093,95 +3181,27 @@ void CL_QTVPlay_f (void)
 		}
 
 		Q_snprintfz(msg+msglen, sizeof(msg)-msglen,
-			"SOURCE: %s\n", host);
+			"SOURCE: %s\n", streamid);
 		msglen += strlen(msg+msglen);
+
+		SCR_SetLoadingStage(LS_CONNECTION);
+		CL_QTVPlay_Establish(host, password, msg);
 	}
 	else
 	{
-		Q_snprintfz(msg+msglen, sizeof(msg)-msglen,
-				"SOURCELIST\n");
-		msglen += strlen(msg+msglen);
+		CL_QTVPlay_Establish(host, password, "SOURCELIST\n");
 	}
 
-	Q_snprintfz(msg+msglen, sizeof(msg)-msglen,
-				"\n");
-	msglen += strlen(msg+msglen);
-
-	if (raw)
-	{
-		VFS_WRITE(newf, msg, msglen);
-		CL_PlayDemoStream(qtvrequest, qtvhostname, false, DPB_MVD, BUFFERTIME);
-	}
-	else
-	{
-		if (qtvrequest)
-			VFS_CLOSE(qtvrequest);
-
-		memcpy(qtvrequestcmdbuffer, msg, msglen);
-		qtvrequestcmdsize = msglen;
-		qtvrequest = newf;
-		qtvrequestsize = 0;
-	}
 }
 
 void CL_QTVList_f (void)
 {
-	char *connrequest;
-	vfsfile_t *newf;
-	newf = FS_OpenTCP(qtvhostname, 27599, false);
-
-	if (!newf)
-	{
-		Con_Printf("Couldn't connect to proxy\n");
-		return;
-	}
-
-	if (qtvcl_forceversion1.ival)
-	{
-		connrequest =	"QTV\n"
-				"VERSION: 1.0\n";
-	}
-	else
-	{
-		connrequest =	"QTV\n"
-				"VERSION: 1.1\n";
-	}
-	VFS_WRITE(newf, connrequest, strlen(connrequest));
-	connrequest =	"SOURCELIST\n";
-	VFS_WRITE(newf, connrequest, strlen(connrequest));
-	connrequest =	"\n";
-	VFS_WRITE(newf, connrequest, strlen(connrequest));
-
-	if (qtvrequest)
-		VFS_CLOSE(qtvrequest);
-	qtvrequest = newf;
-	qtvrequestsize = 0;
+	CL_QTVPlay_Establish(Cmd_Argv(1), Cmd_Argv(2), "SOURCELIST\n");
 }
 
 void CL_QTVDemos_f (void)
 {
-	char *connrequest;
-	vfsfile_t *newf;
-	newf = FS_OpenTCP(Cmd_Argv(1), 27599, false);
-
-	if (!newf)
-	{
-		Con_Printf("Couldn't connect to proxy\n");
-		return;
-	}
-
-	connrequest =	"QTV\n"
-					"VERSION: 1\n";
-	VFS_WRITE(newf, connrequest, strlen(connrequest));
-	connrequest =	"DEMOLIST\n";
-	VFS_WRITE(newf, connrequest, strlen(connrequest));
-	connrequest =	"\n";
-	VFS_WRITE(newf, connrequest, strlen(connrequest));
-
-	if (qtvrequest)
-		VFS_CLOSE(qtvrequest);
-	qtvrequest = newf;
-	qtvrequestsize = 0;
+	CL_QTVPlay_Establish(Cmd_Argv(1), Cmd_Argv(2), "DEMOLIST\n");
 }
 
 /*

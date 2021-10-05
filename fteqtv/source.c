@@ -472,13 +472,13 @@ void Net_SendQTVConnectionRequest(sv_t *qtv, char *authmethod, char *challenge)
 				}
 				else if (challenge && strlen(challenge)>=8 && !strcmp(authmethod, "SHA1"))
 				{
-					unsigned int digest[5];
+					unsigned char digest[20];
 					str = "AUTH: SHA1\n";	Net_QueueUpstream(qtv, strlen(str), str);
 					str = "PASSWORD: \"";	Net_QueueUpstream(qtv, strlen(str), str);
 
 					snprintf(hash, sizeof(hash), "%s%s", challenge, qtv->connectpassword);
 					CalcHash(&hash_sha1, (unsigned char*)digest, sizeof(digest), hash, strlen(hash));
-					sprintf(hash, "%08X%08X%8X%08X%08X", digest[0], digest[1], digest[2], digest[3], digest[4]);
+					tobase64(hash, sizeof(hash), digest, hash_sha1.digestsize);
 
 					str = hash;				Net_QueueUpstream(qtv, strlen(str), str);
 					str = "\"\n";			Net_QueueUpstream(qtv, strlen(str), str);

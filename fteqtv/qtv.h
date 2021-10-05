@@ -1011,6 +1011,7 @@ void Fwd_SayToDownstream(sv_t *qtv, char *message);
 //httpsv.c
 void HTTPSV_GetMethod(cluster_t *cluster, oproxy_t *pend);
 void HTTPSV_PostMethod(cluster_t *cluster, oproxy_t *pend, char *postdata);
+void tobase64(unsigned char *out, int outlen, unsigned char *in, int inlen);
 
 //menu.c
 void Menu_Enter(cluster_t *cluster, viewer_t *viewer, int buttonnum);

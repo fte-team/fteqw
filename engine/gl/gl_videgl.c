@@ -19,6 +19,7 @@ extern cvar_t vid_vsync;
 EGLContext eglctx = EGL_NO_CONTEXT;
 EGLDisplay egldpy = EGL_NO_DISPLAY;
 EGLSurface eglsurf = EGL_NO_SURFACE;
+static const char *eglexts;
 
 static dllhandle_t *egllibrary;
 static dllhandle_t *eslibrary;
@@ -28,6 +29,7 @@ static EGLint		(EGLAPIENTRY *qeglGetError)(void);
 static EGLDisplay	(EGLAPIENTRY *qeglGetPlatformDisplay)(EGLenum platform, void *native_display, const EGLAttrib *attrib_list);
 static EGLDisplay	(EGLAPIENTRY *qeglGetDisplay)(EGLNativeDisplayType display_id);
 static EGLBoolean	(EGLAPIENTRY *qeglInitialize)(EGLDisplay dpy, EGLint *major, EGLint *minor);
+static const char *	(EGLAPIENTRY *qeglQueryString)(EGLDisplay dpy, EGLint name);
 static EGLBoolean	(EGLAPIENTRY *qeglTerminate)(EGLDisplay dpy);
 
 static EGLBoolean	(EGLAPIENTRY *qeglGetConfigs)(EGLDisplay dpy, EGLConfig *configs, EGLint config_size, EGLint *num_config);
@@ -55,6 +57,7 @@ static dllfunction_t qeglfuncs[] =
 	
 	{(void*)&qeglGetDisplay, "eglGetDisplay"},
 	{(void*)&qeglInitialize, "eglInitialize"},
+	{(void*)&qeglQueryString, "eglQueryString"},
 	{(void*)&qeglTerminate, "eglTerminate"},
 
 	{(void*)&qeglGetConfigs, "eglGetConfigs"},
@@ -123,6 +126,28 @@ static const char *EGL_GetErrorString(int error)
 	case EGL_BAD_PARAMETER:			return "BAD_PARAMETER";
 	case EGL_BAD_SURFACE:			return "BAD_SURFACE";
 	default:						return va("EGL:%#x", error);
+	}
+}
+
+static qboolean EGL_CheckExtension(const char *extname)
+{
+	const char *x = eglexts, *n;
+	size_t l;
+	if (!x)
+		return false;
+	l = strlen(extname);
+	for(;;)
+	{
+		n = strchr(x, ' ');
+		if (!n)
+		{
+			if (!strcmp(x, extname))
+				return true;
+			return false;
+		}
+		else if (n-x==l && !strncmp(x, extname, l))
+			return true;
+		x = n+1;
 	}
 }
 
@@ -216,6 +241,7 @@ void EGL_Shutdown(void)
 	eglctx = EGL_NO_CONTEXT;
 	egldpy = EGL_NO_DISPLAY;
 	eglsurf = EGL_NO_SURFACE;
+	eglexts = NULL;
 }
 
 /*static void EGL_ShowConfig(EGLDisplay egldpy, EGLConfig cfg)
@@ -309,11 +335,11 @@ qboolean EGL_InitDisplay (rendererstate_t *info, int eglplat, void *ndpy, EGLNat
 //		EGL_BUFFER_SIZE, info->bpp,
 //		EGL_SAMPLES, info->multisample,
 //		EGL_STENCIL_SIZE, 8,
-		EGL_ALPHA_MASK_SIZE, 0,
+//		EGL_ALPHA_MASK_SIZE, 0,
 		EGL_DEPTH_SIZE, info->depthbits?info->depthbits:16,
-		EGL_RED_SIZE, 1,
-		EGL_GREEN_SIZE, 1,
-		EGL_BLUE_SIZE, 1,
+		EGL_RED_SIZE, 4,
+		EGL_GREEN_SIZE, 4,
+		EGL_BLUE_SIZE, 4,
 		EGL_RENDERABLE_TYPE, EGL_OPENGL_ES2_BIT,
 		EGL_NONE
 	};
@@ -350,6 +376,8 @@ qboolean EGL_InitDisplay (rendererstate_t *info, int eglplat, void *ndpy, EGLNat
 		Con_Printf(CON_ERROR "EGL: can't initialize display!\n");
 		return false;
 	}
+
+	eglexts = qeglQueryString(egldpy, EGL_EXTENSIONS);
 
 /*
 	if (!qeglGetConfigs(egldpy, NULL, 0, &numconfigs) || !numconfigs)
@@ -392,13 +420,25 @@ qboolean EGL_InitWindow (rendererstate_t *info, int eglplat, void *nwindow, EGLN
 	}
 	else if (qeglCreatePlatformWindowSurface)
 	{
-		EGLAttrib wndattrib[] =
-		{
-//			EGL_GL_COLORSPACE_KHR, EGL_GL_COLORSPACE_SRGB_KHR,
+		EGLAttrib wndattrib[3*2];
+		size_t i = 0;
 
-			EGL_NONE,EGL_NONE
-		};
-		eglsurf = qeglCreatePlatformWindowSurface(egldpy, cfg, nwindow, info->srgb?wndattrib:NULL);
+		if (info->srgb)
+		{
+			wndattrib[i++] = EGL_GL_COLORSPACE_KHR;
+			wndattrib[i++] = EGL_GL_COLORSPACE_SRGB_KHR;
+		}
+		if (EGL_CheckExtension("EGL_EXT_present_opaque"))
+		{	//try to avoid nasty surprises.
+			#ifndef EGL_PRESENT_OPAQUE_EXT
+				#define EGL_PRESENT_OPAQUE_EXT                  0x31DF
+			#endif
+			wndattrib[i++] = EGL_PRESENT_OPAQUE_EXT;
+			wndattrib[i++] = EGL_TRUE;
+		}
+		wndattrib[i++] = EGL_NONE;
+		wndattrib[i++] = EGL_NONE;
+		eglsurf = qeglCreatePlatformWindowSurface(egldpy, cfg, nwindow, wndattrib);
 	}
 	else
 	{

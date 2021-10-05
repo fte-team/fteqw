@@ -599,6 +599,10 @@ void TL_Reformat(char *out, size_t outsize, size_t numargs, const char **arg)
 	{
 		if (!*fmt)
 			break;
+		else if (*fmt == '{' && fmt[1] == '{')
+			*out++ = '{', fmt+=2, outsize--;
+		else if (*fmt == '}' && fmt[1] == '}')
+			*out++ = '}', fmt+=2, outsize--;
 		else if (*fmt == '{')
 		{
 			unsigned int index = strtoul(fmt+1, (char**)&fmt, 10)+1;

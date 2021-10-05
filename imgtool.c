@@ -1473,8 +1473,9 @@ static void ImgTool_PrintInfo(const char *inname, struct pendingtextureinfo *in)
 			printf("%-20s(%s): \"%s\"%s %i*%i, %i mips\n", inname, Image_FormatName(in->encoding), mip->name, mip->offsets[0]?"":" (stripped)", mip->width, mip->height, in->mipcount);
 		else*/
 			printf("%-20s(%s): %s, %i*%i*%i, %i mips\n", inname, Image_FormatName(in->encoding), imagetypename[in->type], in->mip[0].width, in->mip[0].height, in->mip[0].depth, in->mipcount);
-		for (m = 0; m < in->mipcount; m++)
-			printf("\t%u: %i*%i*%i, %u\n", (unsigned)m, in->mip[m].width, in->mip[m].height, in->mip[m].depth, (unsigned)in->mip[m].datasize);
+		if (verbose)
+			for (m = 0; m < in->mipcount; m++)
+				printf("\t%u: %i*%i*%i, %u\n", (unsigned)m, in->mip[m].width, in->mip[m].height, in->mip[m].depth, (unsigned)in->mip[m].datasize);
 	}
 }
 static void ImgTool_Enumerate(struct opts_s *args, const char *inname, void(*callback)(const char *name, struct pendingtextureinfo *mips))
@@ -1617,7 +1618,7 @@ static void ImgTool_Enumerate(struct opts_s *args, const char *inname, void(*cal
 			{
 				char syn[MAX_QPATH];
 				sprintf(syn, "unnamed%u", (unsigned)i);
-				printf("\t%16.16s: <NO DATA>\n", syn);
+				printf("%-20s---<NO DATA>--- %d\n", syn, texlump->dataofs[i]);
 				continue;
 			}
 

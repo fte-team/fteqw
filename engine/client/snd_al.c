@@ -811,7 +811,7 @@ static void OpenAL_ChannelUpdate(soundcardinfo_t *sc, channel_t *chan, chanupdat
 	//openal doesn't support loopstart (entire sample loops or not at all), so if we're meant to skip the first half then we need to stream it.
 	stream = sfx->decoder.decodedata || sfx->loopstart > 0;
 
-	if (schanged & CUR_SOUNDCHANGE || stream)
+	if ((schanged&CUR_SOUNDCHANGE) || stream)
 	{
 		int sndnum = sfx-known_sfx;
 		int buf;

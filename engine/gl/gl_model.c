@@ -3192,6 +3192,12 @@ static void Mod_Batches_Build(model_t *mod, builddata_t *bd)
 		else
 			mesh = surf->mesh;
 
+		if (mesh->numindexes <= 0 || mesh->numvertexes < 1)
+		{
+			mesh->numindexes = 0;
+			mesh->numvertexes = 0;
+		}
+
 		numverts += mesh->numvertexes;
 		numindicies += mesh->numindexes;
 //		surf->lightmaptexturenum = -1;
@@ -4254,6 +4260,9 @@ static qboolean Mod_LoadFaces (model_t *loadmodel, bspx_header_t *bspx, qbyte *m
 
 		if (!out->texinfo->texture)
 			continue;
+
+		if (out->numedges < 3)
+			Con_Printf(CON_WARNING"%s: Face %i has only %i edge(s) - \"%s\".\n", loadmodel->name, surfnum, out->numedges, out->texinfo->texture->name);
 
 		
 	// set the drawing flags flag		

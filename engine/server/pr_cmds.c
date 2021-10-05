@@ -10936,7 +10936,7 @@ static BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"loadfromfile",	PF_Fixme,			0,		0,		0,		69,	D("void(string s)", "Reads a set of entities from the named file. This file should have the same format as a .ent file or a saved game. Entities will be spawned as required. If you need to see the entities that were created, you should use parseentitydata instead.")},
 	{"mod",				PF_Fixme,			0,		0,		0,		70,	"float(float val, float m)"},
 	{"cvar_string",		PF_Fixme,			0,		0,		0,		71,	D("string(string name)", "Returns the value of a cvar, as a string.")},
-	{"crash",			PF_Fixme,			0,		0,		0,		72,	D("void()", "Demonstrates that no program is bug free.")},
+	{"crash",			PF_Fixme,			0,		0,		0,		72,	D("FTEDEP(\"Call 'error' instead\") void()", "Demonstrates that no program is bug free.")},
 	{"stackdump",		PF_Fixme,			0,		0,		0,		73,	D("void()", "Prints out the QC's stack, for console-based error reports.")},
 	{"search_begin",	PF_Fixme,			0,		0,		0,		74,	"searchhandle(string pattern, enumflags:float{"
 																		"SB_CASEINSENSITIVE=1<<0,"

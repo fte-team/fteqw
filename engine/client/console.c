@@ -3134,7 +3134,7 @@ void Con_DrawConsole (int lines, qboolean noback)
 							#ifdef QUAKETC	//total conversions should have their own website.
 								ENGINEWEBSITE
 							#else			//otherwise use some more useful page, for quake mods.
-								"https://www.quakeworld.nu/wiki/Overview"
+								"cmd:home"
 							#endif
 								, NULL, NULL};
 							float tw;

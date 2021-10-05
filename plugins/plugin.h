@@ -357,7 +357,9 @@ extern plugcorefuncs_t *plugfuncs;
 extern plugcmdfuncs_t *cmdfuncs;
 extern plugcvarfuncs_t *cvarfuncs;
 
-#ifndef FTEENGINE
+#ifdef FTEENGINE
+extern plugcorefuncs_t plugcorefuncs;
+#else
 void Q_strlncpy(char *d, const char *s, int sizeofd, int lenofs);
 void Q_strlcpy(char *d, const char *s, int n);
 void Q_strlcat(char *d, const char *s, int n);

@@ -1328,19 +1328,45 @@ IF(FTE_PLUG_OPENXR)
 	ENDIF()
 ENDIF()
 
-#cef plugin
-#libcef itself can be obtained from http://opensource.spotify.com/cefbuilds/index.html (minimal builds, which still ends up with a 940mb libcef.so - yes, actual size)
-#(be sure to manually strip the binary of its debug info)
+##cef plugin
+##libcef itself can be obtained from https://cef-builds.spotifycdn.com/index.html#linux64 (minimal builds, which still ends up with a 1,162,752,744 byte libcef.so - yes, actual size)
+##(be sure to manually strip the binary of its debug info)
+##to get this cmake stuff to recognise the headers etc:
+##	cd $FTEQW-REPO && ln -s $FOO/cef_binary_$FOO+chromium-$FOO_linux64_minimal plugins/cef/cef_linux64
+##(note that other systems use other subdir names)
 SET(FTE_PLUG_CEF true CACHE BOOL "Compile libcef (webbrowser) plugin.")
+SET(CEF_PATH ${CEF_PATH} CACHE PATH "Base location of libcef for target platform.")
 IF(FTE_PLUG_CEF)
-	FIND_PATH (CEF_PATH include/cef_version.h /tmp/cef/cef_binary_81.3.1+gb2b49f1+chromium-81.0.4044.113_linux64_minimal)
+	IF(CEF_PATH MATCHES "")
+		UNSET(CEF_PATH CACHE)
+		IF(WIN32)
+			IF(CMAKE_HOST_SYSTEM_PROCESSOR MATCHES "AMD64")
+				FIND_PATH (CEF_PATH include/cef_version.h plugins/cef/cef_windows64)
+			ELSEIF(CMAKE_HOST_SYSTEM_PROCESSOR MATCHES "x86")
+				FIND_PATH (CEF_PATH include/cef_version.h plugins/cef/cef_windows32)
+			ELSEIF(CMAKE_HOST_SYSTEM_PROCESSOR MATCHES "ARM64")
+				FIND_PATH (CEF_PATH include/cef_version.h plugins/cef/cef_windowsarm64)
+			ENDIF()
+		ELSEIF("${CMAKE_SYSTEM}" MATCHES "Linux")
+			IF(CMAKE_HOST_SYSTEM_PROCESSOR MATCHES "x86_64")
+				FIND_PATH (CEF_PATH include/cef_version.h plugins/cef/cef_linux64)
+			ELSEIF(CMAKE_HOST_SYSTEM_PROCESSOR MATCHES "i686")
+				FIND_PATH (CEF_PATH include/cef_version.h plugins/cef/cef_linux32)
+			ENDIF()
+		ENDIF()
+	ENDIF()
 	#FIND_LIBRARY(CEF_LIBRARIES cef ${CEF_PATH}/Release)
 	IF (CEF_PATH)
+		##statically link only for release builds. debug builds probably don't want to have to wait for ages for the debugger to finish loading debug info unless we're actually using this stuff.
+		IF(CMAKE_BUILD_TYPE MATCHES "Release")
+			SET(CEF_LIBRARIES "${CMAKE_BINARY_DIR}/libcef.so")
+		ENDIF()
 		ADD_LIBRARY(plug_cef MODULE
 			plugins/plugin.c
 			plugins/cef/cef.c
 		)
-		TARGET_INCLUDE_DIRECTORIES(plug_cef PRIVATE ${CEF_PATH}/..)
+		TARGET_INCLUDE_DIRECTORIES(plug_cef PRIVATE ${CEF_PATH})
+		SET_TARGET_PROPERTIES(plug_cef PROPERTIES BUILD_RPATH_USE_ORIGIN true)
 		if (CEF_LIBRARIES)
 			SET_TARGET_PROPERTIES(plug_cef PROPERTIES COMPILE_DEFINITIONS "FTEPLUGIN;${FTE_LIB_DEFINES};${FTE_DEFINES};LIBCEF_STATIC")
 			TARGET_LINK_LIBRARIES(plug_cef ${SYS_LIBS} ${CEF_LIBRARIES} ${CMAKE_DL_LIBS})
@@ -1348,6 +1374,34 @@ IF(FTE_PLUG_CEF)
 			SET_TARGET_PROPERTIES(plug_cef PROPERTIES COMPILE_DEFINITIONS "FTEPLUGIN;${FTE_LIB_DEFINES};${FTE_DEFINES};LIBCEF_DYNAMIC")
 			TARGET_LINK_LIBRARIES(plug_cef ${SYS_LIBS} ${CMAKE_DL_LIBS})
 		ENDIF()
+
+		IF(NOT ${UNIX})
+			ADD_CUSTOM_COMMAND(
+				TARGET plug_cef PRE_LINK
+				COMMAND cp ${CEF_PATH}/Release/* ${CMAKE_BINARY_DIR}
+				COMMAND cp ${CEF_PATH}/Resources/* ${CMAKE_BINARY_DIR}
+				)
+		ELSE()
+			IF(CMAKE_BUILD_TYPE MATCHES "Release")
+				#sigh, cef ain't stripped properly on linux.
+				ADD_CUSTOM_COMMAND(
+					TARGET plug_cef PRE_LINK
+					COMMAND ln -f -s ${CEF_PATH}/Release/* ${CMAKE_BINARY_DIR}
+					COMMAND strip ${CMAKE_BINARY_DIR}/libcef.so -o libcef.so
+					COMMAND strip ${CMAKE_BINARY_DIR}/libEGL.so -o libEGL.so
+					COMMAND strip ${CMAKE_BINARY_DIR}/libGLESv2.so -o libGLESv2.so
+					COMMAND strip ${CMAKE_BINARY_DIR}/chrome-sandbox -o chrome-sandbox
+					COMMAND ln -f -s ${CEF_PATH}/Resources/* ${CMAKE_BINARY_DIR}
+					)
+			ELSE()
+				ADD_CUSTOM_COMMAND(
+					TARGET plug_cef PRE_LINK
+					COMMAND ln -f -s ${CEF_PATH}/Release/* ${CMAKE_BINARY_DIR}
+					COMMAND ln -f -s ${CEF_PATH}/Resources/* ${CMAKE_BINARY_DIR}
+					)
+			ENDIF()
+		ENDIF()
+
 		SET_TARGET_PROPERTIES(plug_cef PROPERTIES PREFIX "fteplug_")
 		SET_TARGET_PROPERTIES(plug_cef PROPERTIES OUTPUT_NAME "cef")
 		SET_TARGET_PROPERTIES(plug_cef PROPERTIES LINK_FLAGS "-Wl,--no-undefined")

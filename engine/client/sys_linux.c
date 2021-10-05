@@ -63,6 +63,10 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #include "quakedef.h"
 #include "netinc.h"
+#ifdef PLUGINS
+#define FTEENGINE
+#include "../plugins/plugin.h"
+#endif
 
 #undef malloc
 
@@ -559,6 +563,8 @@ void Sys_Init(void)
 }
 void Sys_Shutdown(void)
 {
+	Z_Free((char*)(host_parms.binarydir));
+	host_parms.binarydir = NULL;
 }
 
 void Sys_Error (const char *error, ...)
@@ -993,6 +999,8 @@ dllhandle_t *Sys_LoadLibrary(const char *name, dllfunction_t *funcs)
 		lib = dlopen (name, RTLD_LOCAL|RTLD_LAZY);
 	if (!lib && !strstr(name, ".so"))
 		lib = dlopen (va("%s.so", name), RTLD_LOCAL|RTLD_LAZY);
+	if (!lib && !strstr(name, ".so") && !strncmp(name, "./", 2) && host_parms.binarydir)
+		lib = dlopen (va("%s%s.so", host_parms.binarydir, name+2), RTLD_LOCAL|RTLD_LAZY);
 	if (!lib)
 	{
 		Con_DLPrintf(2,"%s\n", dlerror());
@@ -1256,6 +1264,55 @@ static void DoSign(const char *fname, int signtype)
 }
 //end meta helpers
 
+static char *Sys_GetBinary(void)
+{
+#ifdef __linux__
+	#define SYMLINK_TO_BINARY "/proc/self/exe"
+#elif defined(__bsd__)
+	#define SYMLINK_TO_BINARY "/proc/curproc/file"
+#endif
+
+#ifdef KERN_PROC_PATHNAME
+	//freebsd favours this over /proc, for good reason.
+	int id[] =
+	{
+		CTL_KERN, KERN_PROC, KERN_PROC_PATHNAME, -1
+	};
+	size_t sz=0;
+	if (sysctl(id, countof(id), NULL, &sz, NULL, 0) && sz > 0)
+	{
+		char *bindir = Z_Malloc(sz+1);
+		if (sysctl(id, countof(id), bindir, &sz, NULL, 0) && sz > 0)
+		{
+			bindir[sz] = 0;
+			return bindir;
+		}
+		Z_Free(bindir);
+	}
+#endif
+#ifdef SYMLINK_TO_BINARY
+	{
+		//attempt to figure out where the exe is located
+		size_t sz = 64;
+		for(sz = 64; ; sz += 64)
+		{
+			char *bindir = Z_Malloc(sz+1);
+			ssize_t i = readlink(SYMLINK_TO_BINARY, bindir, sz);
+			if (i > 0 && i < sz)
+			{
+				bindir[i] = 0;
+				return bindir;
+			}
+			Z_Free(bindir);
+			if (i == sz)
+				continue;	//continue
+			break;	//some other kind of screwup
+		}
+	}
+#endif
+	return NULL;
+}
+
 #ifdef _POSIX_C_SOURCE
 static void SigCont(int code)
 {
@@ -1270,8 +1327,6 @@ int main (int c, const char **v)
 	double time, oldtime, newtime;
 	quakeparms_t parms;
 	int i;
-
-	char bindir[1024];
 
 	signal(SIGFPE, SIG_IGN);
 	signal(SIGPIPE, SIG_IGN);
@@ -1289,6 +1344,9 @@ int main (int c, const char **v)
 #ifdef CONFIG_MANIFEST_TEXT
 	parms.manifest = CONFIG_MANIFEST_TEXT;
 #endif
+	parms.binarydir = Sys_GetBinary();
+	if (parms.binarydir)
+		*COM_SkipPath(parms.binarydir) = 0;
 	COM_InitArgv(parms.argc, parms.argv);
 
 #ifdef USE_LIBTOOL
@@ -1300,7 +1358,26 @@ int main (int c, const char **v)
 		uid_t ruid, euid, suid;
 		getresuid(&ruid, &euid, &suid);
 		if (!ruid || !euid || !suid)
-			printf("WARNING: you should NOT be running this as root!\n");
+			fprintf(stderr, "WARNING: you should NOT be running this as root!\n");
+	}
+#endif
+
+#ifdef PLUGINS
+	c = COM_CheckParm("--plugwrapper");
+	if (c)
+	{
+		int (QDECL *thefunc) (plugcorefuncs_t *corefuncs);
+		dllhandle_t *lib;
+		host_parms = parms;//not really initialising, but the filesystem needs it
+		lib = Sys_LoadLibrary(com_argv[c+1], NULL);
+		if (lib)
+		{
+			thefunc = Sys_GetAddressForName(lib, com_argv[c+2]);
+
+			if (thefunc)
+				return thefunc(&plugcorefuncs);
+		}
+		return 0;
 	}
 #endif
 
@@ -1361,27 +1438,6 @@ int main (int c, const char **v)
 	parms.basedir = "./";
 #endif
 
-	memset(bindir, 0, sizeof(bindir));	//readlink does NOT null terminate, apparently.
-#ifdef __linux__
-	//attempt to figure out where the exe is located
-	i = readlink("/proc/self/exe", bindir, sizeof(bindir)-1);
-	if (i > 0)
-	{
-		bindir[i] = 0;
-		*COM_SkipPath(bindir) = 0;
-		parms.binarydir = bindir;
-	}
-/*#elif defined(__bsd__)
-	//attempt to figure out where the exe is located
-	i = readlink("/proc/self/file", bindir, sizeof(bindir)-1);
-	if (i > 0)
-	{
-		bindir[i] = 0;
-		*COM_SkipPath(bindir) = 0;
-		parms.binarydir = bindir;
-	}
-*/
-#endif
 	TL_InitLanguages(parms.binarydir);
 
 	if (!isatty(STDIN_FILENO))

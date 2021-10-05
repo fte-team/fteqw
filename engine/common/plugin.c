@@ -1771,27 +1771,26 @@ void Plug_Shutdown(qboolean preliminary)
 
 
 
-
+plugcorefuncs_t plugcorefuncs =
+{
+	PlugBI_GetEngineInterface,
+	PlugBI_ExportFunction,
+	PlugBI_ExportInterface,
+	PlugBI_GetPluginName,
+	Plug_Con_Print,
+	Plug_Sys_Error,
+	Plug_Sys_Milliseconds,
+	Sys_LoadLibrary,
+	Sys_GetAddressForName,
+	Sys_CloseLibrary,
+};
 
 static void *QDECL PlugBI_GetEngineInterface(const char *interfacename, size_t structsize)
 {
 	if (!strcmp(interfacename, plugcorefuncs_name))
 	{
-		static plugcorefuncs_t funcs =
-		{
-			PlugBI_GetEngineInterface,
-			PlugBI_ExportFunction,
-			PlugBI_ExportInterface,
-			PlugBI_GetPluginName,
-			Plug_Con_Print,
-			Plug_Sys_Error,
-			Plug_Sys_Milliseconds,
-			Sys_LoadLibrary,
-			Sys_GetAddressForName,
-			Sys_CloseLibrary,
-		};
-		if (structsize == sizeof(funcs))
-			return &funcs;
+		if (structsize == sizeof(plugcorefuncs))
+			return &plugcorefuncs;
 	}
 	if (!strcmp(interfacename, plugcmdfuncs_name))
 	{

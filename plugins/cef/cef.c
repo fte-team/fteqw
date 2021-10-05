@@ -32,7 +32,7 @@ static plugclientfuncs_t *clientfuncs;
 #define cef_addref(ptr)		(ptr)->base.add_ref(&(ptr)->base)
 #define cef_release(ptr)	(((ptr)->base.release)(&(ptr)->base))
 
-#ifndef LIBCEF_STATIC
+#if !defined(LIBCEF_STATIC) && !defined(LIBCEF_DYNAMIC)
 	#define LIBCEF_DYNAMIC
 #endif
 #ifdef LIBCEF_DYNAMIC
@@ -96,89 +96,7 @@ static int						(*cef_string_multimap_value)(cef_string_multimap_t map, size_t i
 static void						(*cef_string_multimap_free)(cef_string_multimap_t map);
 static size_t					(*cef_string_list_size)(cef_string_list_t list);
 static int						(*cef_string_list_value)(cef_string_list_t list, size_t index, cef_string_t* value);
-
-#ifdef _WIN32
-//we can't use pSys_LoadLibrary, because plugin builtins do not work unless the engine's plugin system is fully initialised, which doesn't happen in the 'light weight' sub processes, so we'll just roll our own (consistent) version.
-dllhandle_t *Sys_LoadLibrary(const char *name, dllfunction_t *funcs)
-{
-	int i;
-	HMODULE lib;
-
-	lib = LoadLibrary(name);
-	if (!lib)
-	{
-		{	//.dll implies that it is a system dll, or something that is otherwise windows-specific already.
-			char libname[MAX_OSPATH];
-#ifdef _WIN64
-			Q_snprintf(libname, sizeof(libname), "%s_64", name);
-#elif defined(_WIN32)
-			Q_snprintf(libname, sizeof(libname), "%s_32", name);
-#else
-#error wut? not win32?
 #endif
-			lib = LoadLibrary(libname);
-		}
-		if (!lib)
-			return NULL;
-	}
-
-	if (funcs)
-	{
-		for (i = 0; funcs[i].name; i++)
-		{
-			*funcs[i].funcptr = GetProcAddress(lib, funcs[i].name);
-			if (!*funcs[i].funcptr)
-				break;
-		}
-		if (funcs[i].name)
-		{
-			Con_DPrintf("Missing export \"%s\" in \"%s\"\n", funcs[i].name, name);
-			FreeModule((dllhandle_t*)lib);
-			lib = NULL;
-		}
-	}
-
-	return (dllhandle_t*)lib;
-}
-#else
-#include <dlfcn.h>
-dllhandle_t *Sys_LoadLibrary(const char *name, dllfunction_t *funcs)
-{
-	int i;
-	dllhandle_t *lib;
-
-	lib = NULL;
-	if (!lib)
-		lib = dlopen (va("%s.so", name), RTLD_LAZY);
-	if (!lib && !strstr(name, ".so"))
-		lib = dlopen (va("./%s.so", name), RTLD_LAZY);
-	if (!lib)
-	{
-		Con_DPrintf("%s\n", dlerror());
-		return NULL;
-	}
-
-	if (funcs)
-	{
-		for (i = 0; funcs[i].name; i++)
-		{
-			*funcs[i].funcptr = dlsym(lib, funcs[i].name);
-			if (!*funcs[i].funcptr)
-				break;
-		}
-		if (funcs[i].name)
-		{
-			Con_DPrintf("Unable to find symbol \"%s\" in \"%s\"\n", funcs[i].name, name);
-//			Sys_CloseLibrary((dllhandle_t*)lib);
-			lib = NULL;
-		}
-	}
-
-	return (dllhandle_t*)lib;
-}
-#endif
-#endif
-
 
 static cvar_t	*cef_incognito;
 static cvar_t	*cef_allowplugins;
@@ -810,7 +728,7 @@ browser_subs(context_menu_handler);
 	nb->render_handler.on_popup_show = NULL;
 	nb->render_handler.on_popup_size = NULL;
 	nb->render_handler.on_paint = browser_on_paint;
-	nb->render_handler.on_cursor_change = NULL;
+//	nb->render_handler.on_cursor_change = NULL;
 	nb->render_handler.start_dragging = NULL;
 	nb->render_handler.update_drag_cursor = NULL;
 	nb->render_handler.on_scroll_offset_changed = NULL;
@@ -934,24 +852,28 @@ static void CEF_CALLBACK browser_process_handler_on_context_initialized(cef_brow
 }
 static void CEF_CALLBACK browser_process_handler_on_before_child_process_launch(cef_browser_process_handler_t* self, cef_command_line_t* command_line)
 {
-	char arg[2048];
+	char *arg = "--plugwrapper";
+	char *funcname = "CefSubprocessInit";
 	cef_string_t cefisannoying = {NULL};
-	Q_snprintf(arg, sizeof(arg), "--plugwrapper %s CefSubprocessInit", plugname);
 
 	cef_string_from_utf8(arg, strlen(arg), &cefisannoying);
 	command_line->append_argument(command_line, &cefisannoying);
-	cef_string_clear(&cefisannoying);
+	cef_string_from_utf8(plugname, strlen(plugname), &cefisannoying);
+	command_line->append_argument(command_line, &cefisannoying);
+	cef_string_from_utf8(funcname, strlen(funcname), &cefisannoying);
+	command_line->append_argument(command_line, &cefisannoying);
 
 //	MessageBoxW(NULL, command_line->GetCommandLineString().c_str(), L"CEF", 0); 
-
+	cef_string_clear(&cefisannoying);
 	cef_release(command_line);
 }
 
 static void CEF_CALLBACK render_process_handler_on_context_created(cef_render_process_handler_t* self, cef_browser_t* browser, cef_frame_t* frame, cef_v8context_t* context)
 {
-	cef_string_t key = makecefstring("fte_query");
 	cef_v8value_t *jswindow = context->get_global(context);
 
+//eg:	window.fte_query("getstats", function(req,res){console.log("health: "+JSON.parse(res)[0/*STAT_HEALTH*/]);});
+	cef_string_t key = makecefstring("fte_query");
 	jswindow->set_value_bykey(jswindow, &key, cef_v8value_create_function(&key, &v8handler_query), V8_PROPERTY_ATTRIBUTE_READONLY | V8_PROPERTY_ATTRIBUTE_DONTENUM | V8_PROPERTY_ATTRIBUTE_DONTDELETE);
 	cef_string_clear(&key);
 
@@ -1669,17 +1591,17 @@ static void *Cef_Create(const char *name, struct mediacallbacks_s *callbacks)
 //		settings.command_line_args_disabled = true;
 //		settings.persist_session_cookies = false;
 
-		{
+/*		{
 			char *s;
 			strcpy(utf8, FULLENGINENAME "/" STRINGIFY(FTE_VER_MAJOR) "." STRINGIFY(FTE_VER_MINOR));
 			while((s = strchr(utf8, ' ')))
 				*s = '_';
 			cef_string_from_utf8(utf8, strlen(utf8), &settings.product_version);
 		}
-
+*/
 		cefwasinitialised = !!cef_initialize(&mainargs, &settings, &app, NULL);
 		cef_string_clear(&settings.browser_subprocess_path);
-		cef_string_clear(&settings.product_version);
+//		cef_string_clear(&settings.product_version);
 		cef_string_clear(&settings.cache_path);
 		cef_string_clear(&settings.log_file);
 	}
@@ -1970,6 +1892,8 @@ static void VARGS Cef_ChangeStream (void *ctx, const char *streamname)
 			browser->thebrowser->go_back(browser->thebrowser);
 		else if (!strcmp(cmd, "forward"))
 			browser->thebrowser->go_forward(browser->thebrowser);
+		else if (!strcmp(cmd, "home"))
+			Cef_ChangeStream(ctx, "http://fte.triptohell.info");
 		else
 		{
 			frame = browser->thebrowser->get_focused_frame(browser->thebrowser);
@@ -2145,15 +2069,20 @@ static void SetupArgv(cef_main_args_t *a)
 }
 #endif
 
-//if we're a subprocess and somehow failed to add the --dllwrapper arg to the engine, then make sure we're not starting endless processes.
+//if we're a subprocess and somehow failed to add the --plugwrapper arg to the engine, then make sure we're not starting endless processes.
 static qboolean Cef_Init(qboolean engineprocess)
 {
+	static qboolean cefwasloaded = qfalse;
+
 #ifdef _WIN32
 	cef_main_args_t args = {GetModuleHandle(NULL)};
 #else
 	cef_main_args_t args;
 	SetupArgv(&args);
 #endif
+
+	if (cefwasloaded)
+		return qtrue;
 
 	{
 		int result;
@@ -2191,7 +2120,8 @@ static qboolean Cef_Init(qboolean engineprocess)
 			{(void **)&cef_string_list_value,				"cef_string_list_value"},
 			{NULL}
 		};
-		if (!Sys_LoadLibrary("libcef", ceffuncs))
+
+		if (plugfuncs && !plugfuncs->LoadDLL("./libcef", ceffuncs))
 		{
 			if (engineprocess)
 				Con_Printf("Unable to load libcef (version "CEF_VERSION")\n");
@@ -2201,7 +2131,7 @@ static qboolean Cef_Init(qboolean engineprocess)
 
 		if (engineprocess)
 		{
-			Con_Printf("libcef %i.%i: chrome %i.%i (%i)\n", cef_version_info(0), cef_version_info(1), cef_version_info(2), cef_version_info(3), cef_version_info(4));
+			Con_DPrintf("libcef %i.%i.%i.%i (chrome %i.%i.%i.%i)\n", cef_version_info(0), cef_version_info(1), cef_version_info(2), cef_version_info(3), cef_version_info(4), cef_version_info(5), cef_version_info(6), cef_version_info(7));
 
 			if (cef_version_info(0) != CEF_VERSION_MAJOR||
 				cef_version_info(1) != CEF_VERSION_MINOR||
@@ -2218,21 +2148,24 @@ static qboolean Cef_Init(qboolean engineprocess)
 			}
 		}
 
-
 		app_initialize();
-		result = cef_execute_process(&args, &app, 0);
-		if (result >= 0 || !engineprocess)
-		{	//result is meant to be the exit code that the child process is meant to exit with
-			//either way, we really don't want to return to the engine because that would run a second instance of it.
-			exit(result);
-			return qfalse;
+		if (!engineprocess)
+		{
+			result = cef_execute_process(&args, &app, 0);
+			if (result >= 0 || !engineprocess)
+			{	//result is meant to be the exit code that the child process is meant to exit with
+				//either way, we really don't want to return to the engine because that would run a second instance of it.
+				exit(result);
+				return qfalse;
+			}
 		}
 	}
-	return qtrue;
+	return cefwasloaded=qtrue;
 }
-//works with the --dllwrapper engine argument
-int NATIVEEXPORT CefSubprocessInit(void)
+//works with the --plugwrapper engine argument
+int NATIVEEXPORT CefSubprocessInit(plugcorefuncs_t *corefuncs)
 {
+	plugfuncs = corefuncs;
 	return Cef_Init(false);
 }
 
@@ -2242,7 +2175,7 @@ static qintptr_t Cef_ExecuteCommand(qintptr_t *args)
 	cmdfuncs->Argv(0, cmd, sizeof(cmd));
 	if (!strcmp(cmd, "cef"))
 	{
-		if (confuncs)
+		if (confuncs && Cef_Init(true))
 		{
 			static int sequence;
 			char f[128];
@@ -2270,12 +2203,21 @@ static qintptr_t Cef_ExecuteCommand(qintptr_t *args)
 	return false;
 }
 
+static qboolean QDECL Cef_PluginMayUnload(void)
+{
+	if (cefwasinitialised)
+		return false;	//cef is a piece of shite. we have to leave it running or the threads it spawns will crash+burn...
+	return true;
+}
+
 qboolean Plug_Init(void)
 {
 	fsfuncs = (plugfsfuncs_t*)plugfuncs->GetEngineInterface(plugfsfuncs_name, sizeof(*fsfuncs));					//for fte://data/ scheme
 	confuncs = (plugsubconsolefuncs_t*)plugfuncs->GetEngineInterface(plugsubconsolefuncs_name, sizeof(*confuncs));	//for cef command etc.
 	clientfuncs = (plugclientfuncs_t*)plugfuncs->GetEngineInterface(plugclientfuncs_name, sizeof(*clientfuncs));	//for weird people trying to use xml requests to query game status (for hud stuff)
 	if (!fsfuncs || !confuncs || !clientfuncs
+		|| !plugfuncs->GetPluginName(-1, plugname, sizeof(plugname))
+		|| !plugfuncs->ExportFunction("MayUnload", Cef_PluginMayUnload)
 		|| !plugfuncs->ExportFunction("Tick", Cef_Tick)
 		|| !plugfuncs->ExportFunction("Shutdown", Cef_Shutdown))
 	{

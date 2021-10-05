@@ -3313,6 +3313,7 @@ void SVC_DirectConnect(int expectedreliablesequence)
 				{"NEHAHRABJP2",		0},
 				{"NEHAHRABJP3",		1u<<SCP_BJP3},
 				{"DP7DP6",			(1u<<SCP_DARKPLACES7)|(1u<<SCP_DARKPLACES6)},	//stupid shitty buggy crappy client
+				{"DP8DP7",			/*(1u<<SCP_DARKPLACES8)|*/(1u<<SCP_DARKPLACES7)},	//stupid shitty buggy crappy client
 			};
 			int p;
 

@@ -759,8 +759,8 @@ void SVNQ_New_f (void)
 		}
 		else
 		{
-			MSG_WriteByte (&host_client->netchan.message, svc_stufftext);
-			MSG_WriteString (&host_client->netchan.message, "csqc_progcrc \"\"\n");
+//			MSG_WriteByte (&host_client->netchan.message, svc_stufftext);
+//			MSG_WriteString (&host_client->netchan.message, "csqc_progcrc \"\"\n");
 		}
 	}
 	else if (allow_download.value && (protext1||protext2))
@@ -2459,12 +2459,12 @@ void SV_DarkPlacesDownloadChunk(client_t *cl, sizebuf_t *msg)
 
 void SVDP_StartDownload_f(void)
 {
-	if (host_client->protocol != SCP_DARKPLACES7)
-		return;
+//	if (host_client->protocol != SCP_DARKPLACES7)
+//		return;
 	if (!host_client->download)
 		return;
 	host_client->downloadstarted = true;
-	host_client->downloadacked = true;
+	host_client->downloadacked = 0;
 }
 
 void SV_DarkPlacesDownloadAck(client_t *cl)
@@ -2504,7 +2504,7 @@ void SV_DarkPlacesDownloadAck(client_t *cl)
 			pos += csize;
 		}
 
-		s = va("\ncl_downloadfinished %u %i \"%s\"\n", (unsigned int)host_client->downloadsize, hashfunc_terminate_uint(hfunc, hctx), "");
+		s = va("\ncl_downloadfinished %u %i \"%s\"\n", (unsigned int)host_client->downloadsize, hashfunc_terminate_uint(hfunc, hctx), host_client->downloadfn);
 		ClientReliableWrite_Begin (cl, svc_stufftext, 2+strlen(s));
 		ClientReliableWrite_String(cl, s);
 
@@ -3659,11 +3659,11 @@ void SV_BeginDownload_f(void)
 	flocation_t loc;
 	int result;
 
-	if (ISNQCLIENT(host_client) && host_client->protocol != SCP_DARKPLACES7)
+	/*if (ISNQCLIENT(host_client) && host_client->protocol != SCP_DARKPLACES7)
 	{
 		SV_PrintToClient(host_client, PRINT_HIGH, "Your client isn't meant to support downloads\n");
 		return;
-	}
+	}*/
 
 /*
 	if (ISQWCLIENT(host_client) && !strcmp(name, "ezquake-security.dll"))
@@ -3767,17 +3767,17 @@ void SV_BeginDownload_f(void)
 		case DLERR_FILENOTFOUND:
 		default:
 			result = DLERR_FILENOTFOUND;
-			error = "Download could not be found\n";
+			error = "Download %s could not be found\n";
 			break;
 		case DLERR_UNKNOWN:
-			error = "Filesystem error\n";
+			error = "Download %s: Filesystem error\n";
 			break;
 		case DLERR_PERMISSIONS:
-			error = "Download permission denied\n";
+			error = "Download %s: Permission denied\n";
 			break;
 		case DLERR_REDIRECTFILE:
 			result = DLERR_PERMISSIONS;
-			error = "Client doesn't support file redirection\n";
+			error = "Client doesn't support file redirection for %s\n";
 			break;
 		case DLERR_REDIRECTPACK:
 			result = DLERR_PERMISSIONS;
@@ -3796,14 +3796,14 @@ void SV_BeginDownload_f(void)
 #endif
 		if (ISNQCLIENT(host_client))
 		{	//dp's download protocol
-			SV_PrintToClient(host_client, PRINT_HIGH, error);
+			SV_PrintToClient(host_client, PRINT_HIGH, va(error, name));
 
 			ClientReliableWrite_Begin (host_client, svc_stufftext, 2+12);
 			ClientReliableWrite_String (host_client, "\nstopdownload\n");
 		}
 		else
 		{
-			SV_PrintToClient(host_client, PRINT_HIGH, error);
+			SV_PrintToClient(host_client, PRINT_HIGH, va(error, name));
 
 			ClientReliableWrite_Begin (host_client, ISQ2CLIENT(host_client)?svcq2_download:svc_download, 4);
 			ClientReliableWrite_Short (host_client, -1);

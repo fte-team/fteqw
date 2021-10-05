@@ -1495,6 +1495,7 @@ void Q1BSP_LoadBrushes(model_t *model, bspx_header_t *bspx, void *mod_base)
 			{
 				VectorNegate(axis[pl], planes->normal);
 				planes->dist = -brush->absmins[pl];
+				CategorizePlane(planes);
 
 				sides->surface = NULL;
 				sides++->plane = planes++;

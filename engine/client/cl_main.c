@@ -425,8 +425,6 @@ void CL_MakeActive(char *gamename)
 	else
 		TP_ExecTrigger("f_spawn", false);
 
-	Key_EnsureBinds();
-
 #ifdef __GLIBC__
 	malloc_trim(0);
 #endif
@@ -6770,8 +6768,7 @@ void CL_ExecInitialConfigs(char *resetcommand)
 //		int cfg = COM_FDepthFile ("config.cfg", true);
 		int q3cfg = COM_FDepthFile ("q3config.cfg", true);
 	//	Cbuf_AddText ("bind ` toggleconsole\n", RESTRICT_LOCAL);	//in case default.cfg does not exist. :(
-		if (def!=FDEPTH_MISSING)
-			Cbuf_AddText ("exec default.cfg\n", RESTRICT_LOCAL);
+		Cbuf_AddText ("exec default.cfg\n", RESTRICT_LOCAL);
 		if (q3cfg <= def && q3cfg!=FDEPTH_MISSING)
 			Cbuf_AddText ("exec q3config.cfg\n", RESTRICT_LOCAL);
 		else //if (cfg <= def && cfg!=0x7fffffff)

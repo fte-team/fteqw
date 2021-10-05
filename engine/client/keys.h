@@ -321,7 +321,6 @@ void IN_WriteButtons(vfsfile_t *f, qboolean all);
 void Key_WriteBindings (struct vfsfile_s *f);
 void Key_SetBinding (int keynum, int modifier, const char *binding, int cmdlevel);
 void Key_ClearStates (void);
-void Key_EnsureBinds(void);
 qboolean Key_Centerprint(int key, int unicode, unsigned int devid);
 void Key_Unbindall_f (void);	//aka: Key_Shutdown
 void Key_ConsoleReplace(const char *instext);

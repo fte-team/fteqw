@@ -638,6 +638,69 @@ void Cmd_StuffCmds (void)
 	Z_Free (build);
 }
 
+#if defined(HAVE_LEGACY) && defined(HAVE_CLIENT)
+static const char *replacementq1binds =
+	"unbindall\n"
+
+	"bind		`			toggleconsole\n"
+	"bind		w			+forward\n"
+	"bind		s			+back\n"
+	"bind		a			+moveleft\n"
+	"bind		d			+moveright\n"
+	"bind		MOUSE1		+attack\n"
+	"bind		MOUSE2		+jump\n"
+	"bind		SPACE		+jump\n"
+	"bind		v			+voip\n"
+	"bind		t			messagemode2\n"
+	"bind		y			messagemode\n"
+	"bind		TAB			+showscores\n"
+
+	"bind		e			+moveup\n"
+	"bind		c			+movedown\n"
+
+	"bind		MWHEELUP	impulse 12\n"
+	"bind		MWHEELDOWN	impulse 10\n"
+
+	"bind		UPARROW		+forward\n"
+	"bind		DOWNARROW	+back\n"
+	"bind		LEFTARROW	+left\n"
+	"bind		RIGHTARROW	+right\n"
+
+	"bind		LCTRL		+attack\n"
+	"bind		RCTRL		+attack\n"
+	"bind		LALT		+strafe\n"
+	"bind		RALT		+strafe\n"
+	"bind		LSHIFT		+speed\n"
+	"bind		RSHIFT		+speed\n"
+
+	"bind		+			sizeup\n"
+	"bind		-			sizedown\n"
+
+	"bind		1			impulse 1\n"
+	"bind		2			impulse 2\n"
+	"bind		3			impulse 3\n"
+	"bind		4			impulse 4\n"
+	"bind		5			impulse 5\n"
+	"bind		6			impulse 6\n"
+	"bind		7			impulse 7\n"
+	"bind		8			impulse 8\n"
+//	"bind		9			impulse 9\n"
+//	"bind		0			impulse 10\n"
+
+//	"bind		F1	help\n"
+	"bind		F2	menu_save\n"
+	"bind		F3	menu_load\n"
+	"bind		F4	menu_options\n"
+	"bind		F5	menu_multiplayer\n"
+	"bind		F6	save quick\n"
+//	"bind		F7
+//	"bind		F8
+	"bind		F9	load quick\n"
+	"bind		F10	menu_quit\n"
+//	"bind		F11	+zoom\n"
+	"bind		F12	screenshot\n"
+	;
+#endif
 
 /*
 ===============
@@ -728,17 +791,38 @@ static void Cmd_Exec_f (void)
 		return;
 	}
 
-	if (!FS_FLocateFile(name, FSLF_IFFOUND|FSLF_IGNOREPURE, &loc) && !FS_FLocateFile(va("%s.cfg", name), FSLF_IFFOUND, &loc))
+	if (FS_FLocateFile(name, FSLF_IFFOUND|FSLF_IGNOREPURE, &loc) || FS_FLocateFile(va("%s.cfg", name), FSLF_IFFOUND, &loc))
+	{
+		file = FS_OpenReadLocation(name, &loc);
+		if (!file)
+		{
+			Con_TPrintf ("couldn't exec %s. check permissions.\n", name);
+			return;
+		}
+
+		l = VFS_GETLEN(file);
+		f = BZ_Malloc(l+1);
+		f[l] = 0;
+		VFS_READ(file, f, l);
+		VFS_CLOSE(file);
+
+		untrusted = !!(loc.search->flags&SPF_UNTRUSTED);
+	}
+#if defined(HAVE_LEGACY) && defined(HAVE_CLIENT)
+	else if (!strcmp(name, "default.cfg"))	//the q1 rerelease lacks a default.cfg (which I suppose is kinda handy, but oh well)
+	{
+		f = Z_StrDup(replacementq1binds);
+		untrusted = false;
+		l = 0;
+	}
+#endif
+	else
 	{
 		Con_TPrintf ("couldn't exec %s\n", name);
 		return;
 	}
-	file = FS_OpenReadLocation(name, &loc);
-	if (!file)
-	{
-		Con_TPrintf ("couldn't exec %s. check permissions.\n", name);
-		return;
-	}
+	level = ((Cmd_FromGamecode() || untrusted) ? RESTRICT_INSECURE : Cmd_ExecLevel);
+
 	if (cl_warncmd.ival || developer.ival || cvar_watched || dpcompat_console.ival)
 	{
 		if (loc.search)
@@ -746,15 +830,6 @@ static void Cmd_Exec_f (void)
 		else
 			Con_TPrintf ("execing %s\n", name);
 	}
-
-	l = VFS_GETLEN(file);
-	f = BZ_Malloc(l+1);
-	f[l] = 0;
-	VFS_READ(file, f, l);
-	VFS_CLOSE(file);
-
-	untrusted = !!(loc.search->flags&SPF_UNTRUSTED);
-	level = ((Cmd_FromGamecode() || untrusted) ? RESTRICT_INSECURE : Cmd_ExecLevel);
 
 	s = f;
 	if (s[0] == '\xef' && s[1] == '\xbb' && s[2] == '\xbf')
@@ -789,8 +864,10 @@ static void Cmd_Exec_f (void)
 
 	if (*loc.rawname)
 		COM_QuotedString(loc.rawname, buf, sizeof(buf), false);
-	else
+	else if (loc.search)
 		COM_QuotedString(va("%s/%s", loc.search->logicalpath, name), buf, sizeof(buf), false);
+	else
+		COM_QuotedString(name, buf, sizeof(buf), false);
 
 	if (cvar_watched)
 		Cbuf_InsertText (va("echo END %s", buf), level, true);
@@ -801,6 +878,11 @@ static void Cmd_Exec_f (void)
 			Cbuf_InsertText ("\ncvar_lockdefaults 1\n", level, false);
 		if (fs_manifest->defaultoverrides)
 			Cbuf_InsertText (fs_manifest->defaultoverrides, level, false);
+
+#if defined(HAVE_LEGACY) && defined(HAVE_CLIENT)
+		if (l == 1914 && Com_BlockChecksum(f, l) == 0x2d7b72b9)
+			s = (char*)replacementq1binds;
+#endif
 	}
 #ifndef QUAKETC
 	//hack to try to work around nquake's b0rkedness
@@ -852,9 +934,19 @@ static void Cmd_Exec_f (void)
 		#ifdef HAVE_CLIENT
 		if (!cl_warncmd.ival && foundone && (!strcmp(name, "quake.rc") || !strcmp(name, "default.cfg") || !strcmp(name, "autoexec.cfg")))
 		{
-			Menu_Prompt(NULL, NULL, va("WARNING: nquake %s file detected. The file has been ignored.", name), NULL, NULL, "Argh");
-			*s = 0;
-			foundone = 0;
+#if defined(HAVE_LEGACY) && defined(HAVE_CLIENT)
+			if (!strcmp(name, "default.cfg"))
+			{
+				s = (char*)replacementq1binds;
+				foundone = 0;
+			}
+			else
+#endif
+			{
+				Menu_Prompt(NULL, NULL, va("WARNING: nquake %s file detected. The file has been ignored.", name), NULL, NULL, "Argh");
+				*s = 0;
+				foundone = 0;
+			}
 		}
 		#endif
 

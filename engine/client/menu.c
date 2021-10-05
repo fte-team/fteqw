@@ -1418,6 +1418,9 @@ void M_DeInit_Internal (void)
 	Cmd_RemoveCommand ("menu_particles");
 	Cmd_RemoveCommand ("menu_network");
 
+#ifdef HAVE_LEGACY
+	Cmd_RemoveCommand ("menu_credits");
+#endif
 
 	Cmd_RemoveCommand ("menu_main");	//I've moved main to last because that way tab gives us main and not quit.
 	Cmd_RemoveCommand ("quickconnect");

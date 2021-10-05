@@ -925,7 +925,7 @@ static void QDECL QI_Tick(double realtime, double gametime)
 		if (!thedatabase && dlcontext == -1)
 		{
 			dlcontext = -2;
-			//if (filefuncs->Open(DATABASEURL, &dlcontext, 1) >= 0)
+			if (filefuncs->Open(DATABASEURL, &dlcontext, 1) >= 0)
 				return;
 		}
 		else

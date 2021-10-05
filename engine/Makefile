@@ -52,12 +52,18 @@ ifeq ($(SVNREVISION),)
     SVN_VERSION:=$(shell test -d $(BASE_DIR)/../.svn && svnversion $(BASE_DIR))
     SVN_DATE:=$(shell test -d $(BASE_DIR)/../.svn && cd $(BASE_DIR) && svn info --show-item last-changed-date --no-newline)
     ifeq (,$(SVN_VERSION))
-        #try to get git version info instead.
-        SVN_VERSION:=$(shell test -d $(BASE_DIR)/../.git && cd $(BASE_DIR) && git describe --long --always --dirty)
+		#grab the svn version from git-svn (assuming no other modifications). this fails when there's extra commits (probably a good thing).
+        SVN_VERSION=$(shell test -d $(BASE_DIR)/../.git && git svn find-rev `git rev-parse HEAD`)
+        SVN_DATE:=$(shell test -d $(BASE_DIR)/../.git && git log -1 --format=%cs $(BASE_DIR))
+    endif
+    ifeq (,$(SVN_VERSION))
+        #try to get git version info instead. this usually uses git-count-hash[-dirty] format
+        SVN_VERSION:=$(shell test -d $(BASE_DIR)/../.git && cd $(BASE_DIR) && echo $$((`git rev-list HEAD --count` + 29)))
+        GIT_VERSION:=$(shell test -d $(BASE_DIR)/../.git && cd $(BASE_DIR) && git describe --long --always --dirty)
         SVN_DATE:=$(shell test -d $(BASE_DIR)/../.git && git log -1 --format=%cs $(BASE_DIR))
         ifneq (,$(SVN_VERSION))
             #make sure its prefixed with something specific. we use versions for versioning, which will confuse the update mechanism if they're inconsistent - like random hashses that have no implied ordering...
-            SVN_VERSION:=git-$(SVN_VERSION)
+            SVN_VERSION:=git-$(SVN_VERSION)-$(GIT_VERSION)
         endif
     endif
 
@@ -69,7 +75,7 @@ ifneq (M,$(findstring M,$(SVN_VERSION)))
     SVNREVISION+=-DSVNDATE=$(SVN_DATE)
 endif
 endif
-MAKE:=$(MAKE) --no-print-directory SVNREVISION="$(SVNREVISION)"
+MAKE:=$(MAKE) --no-print-directory SVNREVISION="$(SVNREVISION)" SVN_VERSION="$(SVN_VERSION)"
 
 #WHOAMI:=$(shell whoami)
 

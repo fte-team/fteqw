@@ -112,6 +112,14 @@ PLUG_LDFLAGS:=-L../engine/libs-$(ARCH) $(PLUG_LDFLAGS)
 PLUG_CFLAGS:=-I../engine/libs-$(ARCH) $(PLUG_CFLAGS)
 PLUG_CXXFLAGS:=-I../engine/libs-$(ARCH) $(PLUG_CXXFLAGS)
 
+#$1 is the plugin name, $2 is its filename, $3 is title, $4 is description
+define EMBEDMETA
+	@echo "{\\n	package fteplug_$1\\n	ver \"${SVN_VERSION}\"\\n	category Plugins\\n	title \"$3\"\\n	gamedir \"\"\\n	desc \"$4\"\\n}" | zip -q -9 -fz- $2.metazip -
+	@cat $2.metazip >> $2
+	@zip -q -A $2
+	@rm $2.metazip
+endef
+
 #legacy build rule, now equivelent to all
 native: all
 
@@ -221,11 +229,13 @@ distclean:
 
 $(PLUG_PREFIX)ffmpeg$(PLUG_NATIVE_EXT): $(AV_DEP) $(AVPLUG_OBJS)
 	$(CC) $(BASE_CFLAGS) $(CFLAGS) -DFTEPLUGIN -s -o $@ -shared $(PLUG_CFLAGS) $(AV_CFLAGS) $(AVPLUG_OBJS) $(PLUG_DEFFILE) $(PLUG_LDFLAGS) $(AV_LDFLAGS)
+	$(call EMBEDMETA,ffmpeg,$@,FFMPEG Video Decoding Plugin,Provides support for more audio formats as well as video playback and better capture support.)
 
 
 else # NIX
 $(PLUG_PREFIX)ffmpeg$(PLUG_NATIVE_EXT):
 	$(CC) $(BASE_CFLAGS) $(CFLAGS) -DFTEPLUGIN -s -o $@ -shared $(PLUG_CFLAGS) $(AV_CFLAGS) $(AVPLUG_OBJS) $(PLUG_DEFFILE) $(PLUG_LDFLAGS) $(AV_LDFLAGS)
+	$(call EMBEDMETA,ffmpeg,$@,FFMPEG Video Decoding Plugin,Provides support for more audio formats as well as video playback and better capture support.)
 endif
 
 ######################################
@@ -252,6 +262,7 @@ $(ODE_LIB): $(OUT_DIR)/../ode-$(ODE_VER).tar.gz
 ODE_FILES=../engine/common/com_phys_ode.c ../engine/common/mathlib.c plugin.c $(ODE_LIB)
 $(PLUG_PREFIX)ode$(PLUG_NATIVE_EXT): $(ODE_FILES)
 	$(CC) -flto -s $(BASE_CFLAGS) $(CFLAGS) -Os -DFTEPLUGIN -DODE_STATIC -o $@ -shared $(PLUG_CFLAGS) -I$(ODE_BASE)ode-$(ODE_VER)/include $(ODE_FILES) $(PLUG_DEFFILE) $(PLUG_LDFLAGS) -static-libgcc `$(CC) -print-file-name=libstdc++.a` -lpthread
+	$(call EMBEDMETA,ode,$@,ODE Physics,Provides Rigid Body Physics behaviours.)
 #NATIVE_PLUGINS+=ode
 ######################################
 
@@ -297,6 +308,7 @@ $(BULLET_LIB): $(OUT_DIR)/../bullet3-$(BULLET_VER).tar.gz $(CMAKERULES)
 
 $(PLUG_PREFIX)bullet$(PLUG_NATIVE_EXT): bullet/bulletplug.cpp plugin.c $(BULLET_LIBS)
 	$(CXX) $(BASE_CXXFLAGS) $(CFLAGS) -DFTEPLUGIN -o $@ -shared $(PLUG_CFLAGS) $^ $(PLUG_DEFFILE) $(PLUG_LDFLAGS) $(BULLET_CFLAGS)
+	$(call EMBEDMETA,bullet,$@,Bullet Physics Plugin,Provides Rigid Body Physics.)
 #NATIVE_PLUGINS+=bullet
 ######################################
 
@@ -312,10 +324,10 @@ ifeq ($(FTE_TARGET),win64)
 	CEF_ARCH=windows64
 endif
 ifeq ($(FTE_TARGET),linux32)
-	#CEF_ARCH=linux32
+	CEF_ARCH=linux32
 endif
 ifeq ($(FTE_TARGET),linux64)
-	#CEF_ARCH=linux64
+	CEF_ARCH=linux64
 endif
 #ifeq ($(FTE_TARGET),macosx64)
 	#CEF_ARCH=macosx64
@@ -337,11 +349,12 @@ $(OUT_DIR)/cef_$(CEF_VER).zip: cef/$(CEF_NAME)/rel.zip
 CEF_SOURCES=cef/cef.c plugin.c
 $(PLUG_PREFIX)cef$(PLUG_NATIVE_EXT): $(CEF_SOURCES) $(OUT_DIR)/cef_$(CEF_VER).zip cef/$(CEF_NAME)/include/cef_version.h
 	$(CC) $(BASE_CFLAGS) $(CFLAGS) -DFTEPLUGIN -o $(PLUG_PREFIX)cef$(PLUG_NATIVE_EXT) -shared $(PLUG_CFLAGS) -Icef/$(CEF_NAME) $(CEF_SOURCES) $(PLUG_DEFFILE) $(PLUG_LDFLAGS) -Wl,-rpath,. $(PLUG_LDFLAGS_DL)
+	$(call EMBEDMETA,cef,$@,libcef Browser Plugin,This plugin provides support for an in-game web browser.)
 #NATIVE_PLUGINS+=cef
 else
 .PHONEY: $(PLUG_PREFIX)cef$(PLUG_NATIVE_EXT)
 $(PLUG_PREFIX)cef$(PLUG_NATIVE_EXT):
-	echo cef plugin not supported on this arch
+	echo cef plugin not supported on this arch - $(FTE_TARGET) - $(CEF_ARCH)
 endif
 ######################################
 
@@ -352,25 +365,30 @@ endif
 
 $(PLUG_PREFIX)mpq$(PLUG_NATIVE_EXT): mpq/fs_mpq.c mpq/blast.c plugin.c
 	$(CC) $(BASE_CFLAGS) $(CFLAGS) -DFTEPLUGIN -o $@ -shared $(PLUG_CFLAGS) -Impq $^ $(PLUG_DEFFILE) $(PLUG_LDFLAGS_ZLIB) $(PLUG_LDFLAGS)
+	$(call EMBEDMETA,mpq,$@)
 NATIVE_PLUGINS+=mpq
 
 $(PLUG_PREFIX)xmpp$(PLUG_NATIVE_EXT): jabber/jabberclient.c jabber/jingle.c jabber/sift.c jabber/xml.c plugin.c ../engine/common/sha1.c ../engine/common/sha2.c emailnot/md5.c
 	$(CC) $(BASE_CFLAGS) $(CFLAGS) -DFTEPLUGIN -o $@ -shared $(PLUG_CFLAGS) -Ijabber $^ $(PLUG_DEFFILE) $(PLUG_LDFLAGS) $(LIBRESOLV)
+	$(call EMBEDMETA,xmpp,$@)
 NATIVE_PLUGINS+=xmpp
 
 $(PLUG_PREFIX)qi$(PLUG_NATIVE_EXT): qi/qi.c jabber/xml.c plugin.c
 	$(CC) $(BASE_CFLAGS) $(CFLAGS) -DFTEPLUGIN -o $@ -shared $(PLUG_CFLAGS) -Ijabber $^ $(PLUG_DEFFILE) $(PLUG_LDFLAGS)
+	$(call EMBEDMETA,qi,$@)
 NATIVE_PLUGINS+=qi
 
 
 
 $(PLUG_PREFIX)irc$(PLUG_NATIVE_EXT): irc/ircclient.c plugin.c
 	$(CC) $(BASE_CFLAGS) $(CFLAGS) -DFTEPLUGIN -o $@ -shared $(PLUG_CFLAGS) -Iirc $^ $(PLUG_DEFFILE) $(PLUG_LDFLAGS)
+	$(call EMBEDMETA,irc,$@)
 NATIVE_PLUGINS+=irc
 
 #OpenXR plugin...
 $(PLUG_PREFIX)openxr$(PLUG_NATIVE_EXT): openxr.c plugin.c
 	$(CC) $(BASE_CFLAGS) $(CFLAGS) -DFTEPLUGIN -o $@ -shared $(PLUG_CFLAGS) $^ $(PLUG_DEFFILE) $(PLUG_LDFLAGS) -DXR_NO_PROTOTYPES `$(PKGCONFIG) --cflags openxr` -DGLQUAKE -DVKQUAKE -DD3D11QUAKE
+	$(call EMBEDMETA,openxr,$@)
 ifeq ($(shell $(PKGCONFIG) --exists openxr && echo 1),1)
 NATIVE_PLUGINS+=openxr
 endif
@@ -378,16 +396,19 @@ endif
 #for compat with ezquake
 $(PLUG_PREFIX)ezhud$(PLUG_NATIVE_EXT): ezhud/ezquakeisms.c ezhud/hud.c ezhud/hud_common.c ezhud/hud_editor.c plugin.c
 	$(CC) $(BASE_CFLAGS) $(CFLAGS) -DFTEPLUGIN -o $@ -shared $(PLUG_CFLAGS) -Iezhud $^ $(PLUG_DEFFILE) $(PLUG_LDFLAGS)
+	$(call EMBEDMETA,ezhud,$@,EzHud Plugin,Provides compat with ezquake's hud scripts.)
 NATIVE_PLUGINS+=ezhud
 
 #not really relevant now that gltf was made an internal plugin
 $(PLUG_PREFIX)models$(PLUG_NATIVE_EXT): models/gltf.c models/exportiqm.c models/models.c plugin.c
 	$(CC) $(BASE_CFLAGS) $(CFLAGS) -DFTEPLUGIN -o $@ -shared $(PLUG_CFLAGS) -Imodels $^ $(PLUG_DEFFILE) $(PLUG_LDFLAGS)
+	$(call EMBEDMETA,models,$@,Models Plugin,Kinda redundant now that the engine has gltf2 loading)
 #NATIVE_PLUGINS+=models
 
 #Openssl crypto plugin, to replace microsoft's shoddy dtls implementation. could also be useful on the BSDs, yay system components?
 $(PLUG_PREFIX)openssl$(PLUG_NATIVE_EXT): net_ssl_openssl.c plugin.c
 	$(CC) $(BASE_CFLAGS) $(CFLAGS) -DFTEPLUGIN -o $@ -shared $(PLUG_CFLAGS) $^ $(PLUG_DEFFILE) $(PLUG_LDFLAGS) `$(PKGCONFIG) --libs --cflags openssl`
+	$(call EMBEDMETA,openssl,$@,OpenSSL,Provides OpenSSL support for dtls/tls/https support. The crypto library that is actually used is controlled via the tls_provider cvar.)
 #ifeq ($(shell $(PKGCONFIG) --exists openssl && echo 1),1)
 #Disabled due to licensing issues #NATIVE_PLUGINS+=openssl
 #endif

@@ -131,7 +131,7 @@ typedef struct package_s {
 	char *mirror[MAXMIRRORS];	//FIXME: move to two types of dep...
 	char gamedir[16];
 	enum fs_relative fsroot;	//FS_BINARYPATH or FS_ROOT _ONLY_
-	char version[16];
+	char version[24];
 	char *arch;
 	char *qhash;
 	char *packprefix;	//extra weirdness to skip embedded gamedirs or force extra maps/ nesting
@@ -1241,7 +1241,7 @@ static const char *PM_ParsePackage(struct packagesourceinfo_s *source, const cha
 				Z_StrDupPtr(&p->signature, val);
 			else
 			{
-				Con_DPrintf("Unknown package property\n");
+				Con_DPrintf("Unknown package property \"%s\"\n", key);
 			}
 		}
 
@@ -1693,7 +1693,7 @@ static qboolean QDECL Host_StubClose (struct vfsfile_s *file)
 {
 	return true;
 }
-static char *PM_GetMetaTextFromFile(vfsfile_t *file, char *filename, char *qhash, size_t hashsize)	//seeks, but does not close.
+static char *PM_GetMetaTextFromFile(vfsfile_t *file, const char *filename, char *qhash, size_t hashsize)	//seeks, but does not close.
 {
 	qboolean (QDECL *OriginalClose) (struct vfsfile_s *file) = file->Close;	//evilness
 	searchpathfuncs_t *archive;
@@ -1707,6 +1707,8 @@ static char *PM_GetMetaTextFromFile(vfsfile_t *file, char *filename, char *qhash
 		flocation_t loc;
 		vfsfile_t *metafile = NULL;
 		if (archive->FindFile(archive, &loc, "fte.meta", NULL))
+			metafile = archive->OpenVFS(archive, &loc, "rb");
+		else if (archive->FindFile(archive, &loc, "-", NULL))	//lame.
 			metafile = archive->OpenVFS(archive, &loc, "rb");
 		if (metafile)
 		{
@@ -1800,23 +1802,32 @@ static qboolean PM_FileInstalled_Internal(const char *package, const char *categ
 	{
 		p = Z_Malloc(sizeof(*p));
 		p->priority = PM_DEFAULTPRIORITY;
-		p->fsroot = fsroot;
 		strcpy(p->version, "?" "?" "?" "?");
 	}
 
 	p->deps = Z_Malloc(sizeof(*p->deps) + strlen(filename));
 	p->deps->dtype = DEP_FILE;
 	strcpy(p->deps->name, filename);
+	p->fsroot = fsroot;
 
 	if (pkgflags&DPF_PLUGIN)
-		p->arch = Z_StrDup(THISARCH);
+	{
+		if (strcmp(p->version, STRINGIFY(SVNREVISION)))
+			enable = false;
+		if (!p->arch)
+			p->arch = Z_StrDup(THISARCH);
+		Z_Free(p->qhash);	//don't get confused.
+		p->qhash = NULL;
+	}
+	else
+		pkgflags |= DPF_FORGETONUNINSTALL;
 	if (!p->name || !*p->name)
 		p->name = Z_StrDup(package);
 	if (!p->title || !*p->title)
 		p->title = Z_StrDup(title);
 	if (!p->category || !*p->category)
 		p->category = Z_StrDup(category);
-	p->flags = pkgflags|DPF_NATIVE|DPF_FORGETONUNINSTALL;
+	p->flags = pkgflags|DPF_NATIVE;
 	if (enable)
 		p->flags |= DPF_USERMARKED|DPF_ENABLED;
 
@@ -1852,6 +1863,8 @@ static int QDECL PM_EnumeratedPlugin (const char *name, qofs_t size, time_t mtim
 	int len, l, a;
 	char *dot;
 	char *pkgname;
+	char *metainfo = NULL;
+	vfsfile_t *f;
 	if (!strncmp(name, PLUGINPREFIX, strlen(PLUGINPREFIX)))
 		Q_strncpyz(vmname, name+strlen(PLUGINPREFIX), sizeof(vmname));
 	else
@@ -1904,7 +1917,16 @@ static int QDECL PM_EnumeratedPlugin (const char *name, qofs_t size, time_t mtim
 		return true;	//don't include it if its a dupe anyway.
 	//FIXME: should be checking whether there's a package that provides the file...
 
-	return PM_FileInstalled_Internal(pkgname, "Plugins/", vmname, name, FS_BINARYPATH, DPF_PLUGIN, NULL,
+
+	f = FS_OpenVFS(name, "rb", FS_BINARYPATH);
+	if (f)
+	{
+		char qhash[16];
+		metainfo = PM_GetMetaTextFromFile(f, name, qhash, sizeof(qhash));
+		VFS_CLOSE(f);
+	}
+
+	return PM_FileInstalled_Internal(pkgname, "Plugins/", vmname, name, FS_BINARYPATH, DPF_PLUGIN|DPF_SIGNATUREACCEPTED, metainfo,
 #ifdef ENABLEPLUGINSBYDEFAULT
 			true
 #else
@@ -1956,10 +1978,13 @@ static void PM_PreparePackageList(void)
 		//make sure our sources are okay.
 		if (fs_manifest && fs_manifest->downloadsurl && *fs_manifest->downloadsurl)
 		{
+			unsigned int fl = SRCFL_MANIFEST;
+			char *s = fs_manifest->downloadsurl;
 			if (fs_manifest->security==MANIFEST_SECURITY_NOT)
-				PM_AddSubList(fs_manifest->downloadsurl, NULL, SRCFL_MANIFEST|SRCFL_DISABLED);	//don't trust it, don't even prompt.
-			else
-				PM_AddSubList(fs_manifest->downloadsurl, NULL, SRCFL_MANIFEST);	//enable it by default. functionality is kinda broken otherwise.
+				fl |= SRCFL_DISABLED;	//don't trust it, don't even prompt.
+
+			while ((s = COM_Parse(s)))
+				PM_AddSubList(com_token, NULL, SRCFL_MANIFEST);	//enable it by default. functionality is kinda broken otherwise.
 		}
 
 #ifdef PLUGINS
@@ -2682,16 +2707,24 @@ static void PM_ListDownloaded(struct dl_download *dl)
 static void PM_Plugin_Source_Finished(void *ctx, vfsfile_t *f)
 {
 	struct pm_source_s *src = ctx;
-	COM_AssertMainThread("PM_Plugin_Source_Finished");
-	if (!src->curdl)
+	size_t idx = src-pm_source;
+	if (idx < pm_numsources && ctx == &pm_source[idx])
 	{
-		struct dl_download dl;
-		dl.file = f;
-		dl.status = DL_FINISHED;
-		dl.user_num = src-pm_source;
-		dl.url = src->url;
-		src->curdl = &dl;
-		PM_ListDownloaded(&dl);
+		COM_AssertMainThread("PM_Plugin_Source_Finished");
+		if (!src->curdl)
+		{
+			struct dl_download dl;
+			dl.file = f;
+			dl.status = DL_FINISHED;
+			dl.user_num = src-pm_source;
+			dl.url = src->url;
+			src->curdl = &dl;
+			PM_ListDownloaded(&dl);
+		}
+	}
+	else
+	{
+		Con_Printf("PM_Plugin_Source_Finished: stale\n");
 	}
 	VFS_CLOSE(f);
 }

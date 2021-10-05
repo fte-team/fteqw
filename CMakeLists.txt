@@ -62,7 +62,8 @@ IF (EXISTS ${CMAKE_SOURCE_DIR}/.git)
 		ERROR_QUIET OUTPUT_STRIP_TRAILING_WHITESPACE
 	)
 	MESSAGE(STATUS "FTE GIT ${FTE_BRANCH} Revision git-${FTE_REVISON_GIT}, ${FTE_DATE}")
-	SET(FTE_REVISON SVNREVISION=git-${FTE_REVISON_GIT} SVNDATE=${FTE_DATE} FTE_BRANCH=${FTE_BRANCH})
+	SET(SVNREVISION git-${FTE_REVISON_GIT})
+	SET(FTE_REVISON SVNREVISION=${SVNREVISION} SVNDATE=${FTE_DATE} FTE_BRANCH=${FTE_BRANCH})
 ENDIF()
 
 #plugins need visibility hidden in order to avoid conflicts with function names that match the engine.
@@ -211,6 +212,21 @@ IF(CMAKE_BUILD_TYPE MATCHES "Debug")
 	set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -D_DEBUG")
 ENDIF()
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -D_FILE_OFFSET_BITS=64")
+
+FUNCTION(EMBED_PLUGIN_META PLUGNAME PLUGTITLE PLUGDESC)
+	SET_TARGET_PROPERTIES(plug_${PLUGNAME} PROPERTIES OUTPUT_NAME "${PLUGNAME}")
+	SET_TARGET_PROPERTIES(plug_${PLUGNAME} PROPERTIES PREFIX "fteplug_")
+	SET_TARGET_PROPERTIES(plug_${PLUGNAME} PROPERTIES LINK_FLAGS "-Wl,--no-undefined")
+	SET(INSTALLTARGS ${INSTALLTARGS} "plug_${PLUGNAME}")
+	#sadly we need to use a temp zip file, because otherwise zip insists on using zip64 extensions which breaks zip -A (as well as any attempts to read any files).
+	ADD_CUSTOM_COMMAND(
+		TARGET plug_${PLUGNAME} POST_BUILD
+		COMMAND echo "{\\n	package fteplug_${PLUGNAME}\\n	ver \"${SVNREVISION}\"\\n	category Plugins\\n	title \"${PLUGTITLE}\"\\n	gamedir \"\"\\n	desc \"${PLUGDESC}\"\\n}" | zip -q -9 -fz- $<TARGET_FILE:plug_${PLUGNAME}>.zip -
+		COMMAND cat $<TARGET_FILE:plug_${PLUGNAME}>.zip >> "$<TARGET_FILE:plug_${PLUGNAME}>"
+		COMMAND zip -A "$<TARGET_FILE:plug_${PLUGNAME}>"
+		COMMAND rm $<TARGET_FILE:plug_${PLUGNAME}>.zip
+		VERBATIM)
+ENDFUNCTION()
 
 IF(${ANDROID})
 #	FIND_PACKAGE(Freetype REQUIRED)
@@ -799,11 +815,9 @@ ELSE()
 			)
 			TARGET_INCLUDE_DIRECTORIES(plug_bullet PUBLIC ${BULLET_INCLUDE_DIRS})
 			SET_TARGET_PROPERTIES(plug_bullet PROPERTIES COMPILE_DEFINITIONS "FTEPLUGIN;${FTE_LIB_DEFINES}")
-			SET_TARGET_PROPERTIES(plug_bullet PROPERTIES OUTPUT_NAME "bullet")
-			SET_TARGET_PROPERTIES(plug_bullet PROPERTIES PREFIX "fteplug_")
-			SET_TARGET_PROPERTIES(plug_bullet PROPERTIES LINK_FLAGS "-Wl,--no-undefined")
 			TARGET_LINK_LIBRARIES(plug_bullet ${SYS_LIBS} ${BULLET_LIBRARIES})
-			SET(INSTALLTARGS ${INSTALLTARGS} plug_bullet)
+
+			EMBED_PLUGIN_META(bullet "Bullet Physics Plugin" "Provides Rigid Body Physics.")
 		ELSE()
 			MESSAGE(WARNING "bullet library not detected, skipping plugin")
 		ENDIF()
@@ -1051,10 +1065,9 @@ IF(0)
 		engine/sw/sw_spans.h
 	)
 	SET_TARGET_PROPERTIES(sw PROPERTIES COMPILE_DEFINITIONS "FTEPLUGIN;${FTE_LIB_DEFINES};SWQUAKE")
-	SET_TARGET_PROPERTIES(sw PROPERTIES PREFIX "fteplug_")
-	SET_TARGET_PROPERTIES(sw PROPERTIES LINK_FLAGS "-Wl,--no-undefined")
 	TARGET_LINK_LIBRARIES(sw ${SYS_LIBS})
-	SET(INSTALLTARGS ${INSTALLTARGS} sw)
+
+	EMBED_PLUGIN_META(sw "Software Renderer" "Provides software rendering. Slow.")
 ENDIF()
 
 #Quake Injector Alike plugin
@@ -1067,11 +1080,9 @@ IF(FTE_PLUG_QI)
 		plugins/jabber/xml.c
 	)
 	SET_TARGET_PROPERTIES(plug_qi PROPERTIES COMPILE_DEFINITIONS "FTEPLUGIN;${FTE_LIB_DEFINES}")
-	SET_TARGET_PROPERTIES(plug_qi PROPERTIES OUTPUT_NAME "qi")
-	SET_TARGET_PROPERTIES(plug_qi PROPERTIES PREFIX "fteplug_")
-	SET_TARGET_PROPERTIES(plug_qi PROPERTIES LINK_FLAGS "-Wl,--no-undefined")
 	TARGET_LINK_LIBRARIES(plug_qi ${SYS_LIBS})
-	SET(INSTALLTARGS ${INSTALLTARGS} plug_qi)
+
+	EMBED_PLUGIN_META(qi "Quaddicted Map Database" "Provides easy access to the quaddicted map database. Once installed you can use eg 'map qi_dopa:start' to begin playing dopa, or load it via the menus.")
 ENDIF()
 
 SET(FTE_PLUG_OPENSSL false CACHE BOOL "Compile OpenSSL (beware license).")
@@ -1094,11 +1105,9 @@ IF(FTE_PLUG_OPENSSL)
 			plugins/net_ssl_openssl.c
 		)
 		SET_TARGET_PROPERTIES(plug_openssl PROPERTIES COMPILE_DEFINITIONS "FTEPLUGIN;${FTE_LIB_DEFINES}")
-		SET_TARGET_PROPERTIES(plug_openssl PROPERTIES OUTPUT_NAME "openssl")
-		SET_TARGET_PROPERTIES(plug_openssl PROPERTIES PREFIX "fteplug_")
-		SET_TARGET_PROPERTIES(plug_openssl PROPERTIES LINK_FLAGS "-Wl,--no-undefined")
 		TARGET_LINK_LIBRARIES(plug_openssl ${SYS_LIBS} ${OPENSSL_LIBRARIES})
-		SET(INSTALLTARGS ${INSTALLTARGS} plug_openssl)
+
+		EMBED_PLUGIN_META(openssl "OpenSSL" "Provides OpenSSL support for dtls/tls/https support. The crypto library that is actually used is controlled via the tls_provider cvar.")
 	ENDIF()
 ENDIF()
 
@@ -1117,11 +1126,9 @@ IF(FTE_PLUG_ODE)
 		)
 		TARGET_INCLUDE_DIRECTORIES(plug_ode PUBLIC ${ODE_INCLUDE_DIRS})
 		SET_TARGET_PROPERTIES(plug_ode PROPERTIES COMPILE_DEFINITIONS "FTEPLUGIN;ODE_STATIC")
-		SET_TARGET_PROPERTIES(plug_ode PROPERTIES OUTPUT_NAME "ode")
-		SET_TARGET_PROPERTIES(plug_ode PROPERTIES PREFIX "fteplug_")
-		SET_TARGET_PROPERTIES(plug_ode PROPERTIES LINK_FLAGS "-Wl,--no-undefined")
 		TARGET_LINK_LIBRARIES(plug_ode ${SYS_LIBS} ${LIBODE_LIBRARY})
-		SET(INSTALLTARGS ${INSTALLTARGS} plug_ode)
+
+		EMBED_PLUGIN_META(ode "ODE Physics" "Provides Rigid Body Physics behaviours.")
 	ELSE()
 		MESSAGE(WARNING "ODE library not found, no ode plugin for you")
 	ENDIF()
@@ -1138,11 +1145,9 @@ IF(FTE_PLUG_EZHUD)
 		plugins/ezhud/hud_editor.c
 	)
 	SET_TARGET_PROPERTIES(plug_ezhud PROPERTIES COMPILE_DEFINITIONS "FTEPLUGIN;${FTE_LIB_DEFINES}")
-	SET_TARGET_PROPERTIES(plug_ezhud PROPERTIES OUTPUT_NAME "ezhud")
-	SET_TARGET_PROPERTIES(plug_ezhud PROPERTIES PREFIX "fteplug_")
-	SET_TARGET_PROPERTIES(plug_ezhud PROPERTIES LINK_FLAGS "-Wl,--no-undefined")
 	TARGET_LINK_LIBRARIES(plug_ezhud ${SYS_LIBS})
-	SET(INSTALLTARGS ${INSTALLTARGS} plug_ezhud)
+
+	EMBED_PLUGIN_META(ezhud "EzHud Plugin" "Provides compat with ezquake's hud scripts.")
 ENDIF()
 
 #NameMaker string generation plugin
@@ -1158,6 +1163,8 @@ IF(FTE_PLUG_NAMEMAKER)
 	SET_TARGET_PROPERTIES(plug_namemaker PROPERTIES LINK_FLAGS "-Wl,--no-undefined")
 	TARGET_LINK_LIBRARIES(plug_namemaker ${SYS_LIBS})
 	SET(INSTALLTARGS ${INSTALLTARGS} plug_namemaker)
+
+	EMBED_PLUGIN_META(namemaker "Name Maker Plugin" "Provides a lame UI for selecting arbitrary non-ascii glyphs as part of your nickname.")
 ENDIF()
 
 #Terrain Generation plugin
@@ -1168,11 +1175,9 @@ IF(FTE_PLUG_TERRAINGEN)
 		plugins/terrorgen/terragen.c
 	)
 	SET_TARGET_PROPERTIES(plug_terraingen PROPERTIES COMPILE_DEFINITIONS "FTEPLUGIN;${FTE_LIB_DEFINES}")
-	SET_TARGET_PROPERTIES(plug_terraingen PROPERTIES OUTPUT_NAME "terragen")
-	SET_TARGET_PROPERTIES(plug_terraingen PROPERTIES PREFIX "fteplug_")
-	SET_TARGET_PROPERTIES(plug_terraingen PROPERTIES LINK_FLAGS "-Wl,--no-undefined")
 	TARGET_LINK_LIBRARIES(plug_terraingen ${SYS_LIBS})
-	SET(INSTALLTARGS ${INSTALLTARGS} plug_terraingen)
+
+	EMBED_PLUGIN_META(terraingen "TerrainGen Plugin" "A lame example plugin for randomised terrain generation.")
 ENDIF()
 
 #IRC client plugin
@@ -1183,11 +1188,9 @@ IF(FTE_PLUG_IRC)
 		plugins/irc/ircclient.c
 	)
 	SET_TARGET_PROPERTIES(plug_irc PROPERTIES COMPILE_DEFINITIONS "FTEPLUGIN;${FTE_REVISON};${FTE_LIB_DEFINES}")
-	SET_TARGET_PROPERTIES(plug_irc PROPERTIES OUTPUT_NAME "irc")
-	SET_TARGET_PROPERTIES(plug_irc PROPERTIES PREFIX "fteplug_")
-	SET_TARGET_PROPERTIES(plug_irc PROPERTIES LINK_FLAGS "-Wl,--no-undefined")
 	TARGET_LINK_LIBRARIES(plug_irc ${SYS_LIBS})
-	SET(INSTALLTARGS ${INSTALLTARGS} plug_irc)
+
+	EMBED_PLUGIN_META(irc "IRC Plugin" "Allows you to chat on IRC without tabbing out.")
 ENDIF()
 
 #mpq package format plugin (blizzard games)
@@ -1199,11 +1202,9 @@ IF(FTE_PLUG_MPQ)
 		plugins/mpq/fs_mpq.c
 	)
 	SET_TARGET_PROPERTIES(plug_mpq PROPERTIES COMPILE_DEFINITIONS "FTEPLUGIN;${FTE_LIB_DEFINES}")
-	SET_TARGET_PROPERTIES(plug_mpq PROPERTIES OUTPUT_NAME "mpq")
-	SET_TARGET_PROPERTIES(plug_mpq PROPERTIES PREFIX "fteplug_")
-	SET_TARGET_PROPERTIES(plug_mpq PROPERTIES LINK_FLAGS "-Wl,--no-undefined")
 	TARGET_LINK_LIBRARIES(plug_mpq ${SYS_LIBS} ${ZLIB_LIBRARIES})
-	SET(INSTALLTARGS ${INSTALLTARGS} plug_mpq)
+
+	EMBED_PLUGIN_META(irc "MPQ Archive Plugin" "Adds support for reading .mpq files. Not very useful...")
 ENDIF()
 
 #model formats plugin
@@ -1216,11 +1217,9 @@ IF(FTE_PLUG_MODELS)
 		plugins/models/exportiqm.c
 	)
 	SET_TARGET_PROPERTIES(plug_models PROPERTIES COMPILE_DEFINITIONS "FTEPLUGIN;${FTE_LIB_DEFINES}")
-	SET_TARGET_PROPERTIES(plug_models PROPERTIES OUTPUT_NAME "models")
-	SET_TARGET_PROPERTIES(plug_models PROPERTIES PREFIX "fteplug_")
-	SET_TARGET_PROPERTIES(plug_models PROPERTIES LINK_FLAGS "-Wl,--no-undefined")
 	TARGET_LINK_LIBRARIES(plug_models ${SYS_LIBS})
-	SET(INSTALLTARGS ${INSTALLTARGS} plug_models)
+
+	EMBED_PLUGIN_META(models "Models Plugin" "Kinda redundant now that the engine has gltf2 loading.")
 ENDIF()
 
 SET(FTE_PLUG_X11SV false CACHE BOOL "Compile x11 server plugin.")
@@ -1235,11 +1234,9 @@ IF(FTE_PLUG_X11SV)
 		engine/qclib/hash.c
 	)
 	SET_TARGET_PROPERTIES(plug_x11sv PROPERTIES COMPILE_DEFINITIONS "FTEPLUGIN;${FTE_LIB_DEFINES}")
-	SET_TARGET_PROPERTIES(plug_x11sv PROPERTIES OUTPUT_NAME "x11sv")
-	SET_TARGET_PROPERTIES(plug_x11sv PROPERTIES PREFIX "fteplug_")
-	SET_TARGET_PROPERTIES(plug_x11sv PROPERTIES LINK_FLAGS "-Wl,--no-undefined")
 	TARGET_LINK_LIBRARIES(plug_x11sv ${SYS_LIBS})
-	SET(INSTALLTARGS ${INSTALLTARGS} plug_x11sv)
+
+	EMBED_PLUGIN_META(x11sv "X11 Server Plugin" "Provides a primitive X11 server in the form of a video decoder plugin.")
 ENDIF()
 
 #ffmpeg client plugin. no proper way to detect dependancies right now, so I've gotta try the manual way.
@@ -1262,12 +1259,10 @@ IF(FTE_PLUG_FFMPEG)
 			plugins/avplug/avencode.c
 		)
 		TARGET_INCLUDE_DIRECTORIES(plug_ffmpeg PUBLIC ${AVCODEC_INCLUDE_DIR} ${AVFORMAT_INCLUDE_DIR} ${AVUTIL_INCLUDE_DIR} ${AVSWSCALE_INCLUDE_DIR})
-		SET_TARGET_PROPERTIES(plug_ffmpeg PROPERTIES LINK_FLAGS "-Wl,--no-undefined")
 		TARGET_LINK_LIBRARIES(plug_ffmpeg ${SYS_LIBS} ${AVFORMAT_LIBRARY} ${AVCODEC_LIBRARY} ${AVUTIL_LIBRARY} ${AVSWSCALE_LIBRARY})
 		SET_TARGET_PROPERTIES(plug_ffmpeg PROPERTIES COMPILE_DEFINITIONS "FTEPLUGIN;${FTE_LIB_DEFINES}")
-		SET_TARGET_PROPERTIES(plug_ffmpeg PROPERTIES OUTPUT_NAME "ffmpeg")
-		SET_TARGET_PROPERTIES(plug_ffmpeg PROPERTIES PREFIX "fteplug_")
-		SET(INSTALLTARGS ${INSTALLTARGS} plug_ffmpeg)
+
+		EMBED_PLUGIN_META(ffmpeg "FFMPEG Video Decoding Plugin" "Provides support for more audio formats, as well as video playback and better capture support.")
 	ELSE()
 		MESSAGE(WARNING "ffmpeg library NOT available. Quake shouldn't be playing fmv anyway.")
 	ENDIF()
@@ -1285,12 +1280,10 @@ IF(FTE_PLUG_TIMIDITY)
 			plugins/timidity.c
 		)
 		TARGET_INCLUDE_DIRECTORIES(plug_timidity PUBLIC ${TIMIDITY_INCLUDE_DIR})
-		SET_TARGET_PROPERTIES(plug_timidity PROPERTIES LINK_FLAGS "-Wl,--no-undefined")
 		TARGET_LINK_LIBRARIES(plug_timidity ${SYS_LIBS} ${TIMIDITY_LIBRARY})
 		SET_TARGET_PROPERTIES(plug_timidity PROPERTIES COMPILE_DEFINITIONS "FTEPLUGIN;${FTE_LIB_DEFINES}")
-		SET_TARGET_PROPERTIES(plug_timidity PROPERTIES OUTPUT_NAME "timidity")
-		SET_TARGET_PROPERTIES(plug_timidity PROPERTIES PREFIX "fteplug_")
-		SET(INSTALLTARGS ${INSTALLTARGS} plug_timidity)
+
+		EMBED_PLUGIN_META(timidity "Timidity Plugin" "Provides support for playback of midi files.")
 	ELSE()
 		MESSAGE(WARNING "timidity library NOT available. We'll just stick to fake-cd music for hexen2.")
 	ENDIF()
@@ -1311,9 +1304,6 @@ IF(FTE_PLUG_OPENXR)
 			)
 			TARGET_INCLUDE_DIRECTORIES(plug_openxr PRIVATE ${OPENXR_INCLUDE_DIRS} )
 
-			SET_TARGET_PROPERTIES(plug_openxr PROPERTIES OUTPUT_NAME "openxr")
-			SET_TARGET_PROPERTIES(plug_openxr PROPERTIES PREFIX "fteplug_")
-			SET_TARGET_PROPERTIES(plug_openxr PROPERTIES LINK_FLAGS "-Wl,--no-undefined")
 			IF (1)	#dynamically link
 				SET_TARGET_PROPERTIES(plug_openxr PROPERTIES COMPILE_DEFINITIONS "FTEPLUGIN;${FTE_LIB_DEFINES};${FTE_DEFINES};XR_NO_PROTOTYPES")
 				TARGET_LINK_LIBRARIES(plug_openxr ${SYS_LIBS})
@@ -1321,7 +1311,8 @@ IF(FTE_PLUG_OPENXR)
 				SET_TARGET_PROPERTIES(plug_openxr PROPERTIES COMPILE_DEFINITIONS "FTEPLUGIN;${FTE_LIB_DEFINES};${FTE_DEFINES}")
 				TARGET_LINK_LIBRARIES(plug_openxr ${SYS_LIBS} ${OPENXR_LIBRARIES})
 			ENDIF()
-			SET(INSTALLTARGS ${INSTALLTARGS} plug_openxr)
+
+			EMBED_PLUGIN_META(openxr "OpenXR Plugin" "Provides support for Virtual Reality headsets and input devices.")
 		ELSE()
 			MESSAGE(WARNING "openxr library NOT available. Quake is already a reality anyway.")
 		ENDIF()
@@ -1402,9 +1393,7 @@ IF(FTE_PLUG_CEF)
 			ENDIF()
 		ENDIF()
 
-		SET_TARGET_PROPERTIES(plug_cef PROPERTIES PREFIX "fteplug_")
-		SET_TARGET_PROPERTIES(plug_cef PROPERTIES OUTPUT_NAME "cef")
-		SET_TARGET_PROPERTIES(plug_cef PROPERTIES LINK_FLAGS "-Wl,--no-undefined")
+		EMBED_PLUGIN_META(cef "libcef(Browser) Plugin" "This plugin provides support for an in-game web browser.")
 	ELSE()
 		MESSAGE(WARNING "libcef library NOT available. no web browser support on walls.")
 	ENDIF()
@@ -1425,14 +1414,12 @@ IF(FTE_PLUG_XMPP)
 		plugins/emailnot/md5.c
 	)
 	SET_TARGET_PROPERTIES(plug_xmpp PROPERTIES COMPILE_DEFINITIONS "FTEPLUGIN;${FTE_LIB_DEFINES}")
-	SET_TARGET_PROPERTIES(plug_xmpp PROPERTIES OUTPUT_NAME "xmpp")
-	SET_TARGET_PROPERTIES(plug_xmpp PROPERTIES PREFIX "fteplug_")
-	SET_TARGET_PROPERTIES(plug_xmpp PROPERTIES LINK_FLAGS "-Wl,--no-undefined")
 	IF(${WIN32})
 	ELSE()
 		TARGET_LINK_LIBRARIES(plug_xmpp ${SYS_LIBS} resolv)
 	ENDIF()
-	SET(INSTALLTARGS ${INSTALLTARGS} plug_xmpp)
+
+	EMBED_PLUGIN_META(xmpp "XMPP Plugin" "XMPP/Jabber instant messenger plugin for chatting without tabbing out.")
 ENDIF()
 ENDIF()	#android
 

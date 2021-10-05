@@ -654,8 +654,9 @@ static qboolean FS_Manifest_ParseTokens(ftemanifest_t *man)
 #ifdef PACKAGEMANAGER
 	else if (!Q_strcasecmp(cmd, "downloadsurl"))
 	{
-		Z_Free(man->downloadsurl);
-		man->downloadsurl = Z_StrDup(Cmd_Argv(1));
+		if (man->downloadsurl)
+			Z_StrCat(&man->downloadsurl, " ");
+		Z_StrCat(&man->downloadsurl, Cmd_Argv(1));
 	}
 	else if (!Q_strcasecmp(cmd, "install"))
 	{
@@ -7281,6 +7282,8 @@ void FS_RegisterDefaultFileSystems(void)
 	FS_RegisterFileSystemType(NULL, "apk", FSZIP_LoadArchive, false);	//android package
 	FS_RegisterFileSystemType(NULL, "zip", FSZIP_LoadArchive, false);	//regular zip file (don't automatically read from these, because it gets messy)
 	FS_RegisterFileSystemType(NULL, "exe", FSZIP_LoadArchive, false);	//for self-extracting zips.
+	FS_RegisterFileSystemType(NULL, "dll", FSZIP_LoadArchive, false);	//for plugin metas / self-extracting zips.
+	FS_RegisterFileSystemType(NULL, "so", FSZIP_LoadArchive, false);	//for plugin metas / self-extracting zips.
 #endif
 #ifdef PACKAGE_VPK
 	FS_RegisterFileSystemType(NULL, "vpk", FSVPK_LoadArchive, true);

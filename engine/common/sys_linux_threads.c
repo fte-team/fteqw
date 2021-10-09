@@ -93,7 +93,7 @@ void *Sys_CreateThread(char *name, int (*func)(void *), void *args, int priority
 		thread = NULL;
 	}
 	pthread_attr_destroy(&attr);
-#if defined(DEBUG) && defined(__USE_GNU) && defined(__GLIBC_PREREQ)
+#if defined(_DEBUG) && defined(__USE_GNU) && defined(__GLIBC_PREREQ)
 #if __GLIBC_PREREQ(2,12)
 	pthread_setname_np(*thread, name);
 #endif
@@ -123,7 +123,7 @@ void *Sys_CreateThread(char *name, int (*func)(void *), void *args, int priority
 	}
 	pthread_attr_destroy(&attr);
 
-#if defined(DEBUG) && defined(__USE_GNU) && defined(__GLIBC_PREREQ)
+#if defined(_DEBUG) && defined(__USE_GNU) && defined(__GLIBC_PREREQ)
 #if __GLIBC_PREREQ(2,12)
 	pthread_setname_np(*thread, name);
 #endif

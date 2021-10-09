@@ -2565,7 +2565,8 @@ void DL_Abort(qdownload_t *dl, enum qdlabort aborttype)
 				}
 			}
 #ifdef PACKAGEMANAGER
-			PM_FileInstalled(dl->localname, dl->fsroot, NULL, true);
+			if (!strncmp(dl->localname, "package/", 8) && dl->fsroot == FS_ROOT)
+				PM_FileInstalled(dl->localname+8, dl->fsroot, NULL, false);
 #endif
 		}
 		else

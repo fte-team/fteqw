@@ -1628,7 +1628,8 @@ TRACE(("dbg: R_ApplyRenderer: isDedicated = true\n"));
 			CL_Disconnect("Graphics rendering disabled");
 			sv.state = os;
 		}
-		Sys_InitTerminal();
+		if (!Sys_InitTerminal())
+			return false;
 		Con_PrintToSys();
 #endif
 	}

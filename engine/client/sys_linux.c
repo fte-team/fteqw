@@ -86,7 +86,7 @@ static void Sys_InitClock(void);
 
 qboolean Sys_InitTerminal (void)	//we either have one or we don't.
 {
-	return true;
+	return isatty(STDIN_FILENO);
 }
 void Sys_CloseTerminal (void)
 {

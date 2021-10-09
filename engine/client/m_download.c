@@ -1787,6 +1787,10 @@ void *PM_GeneratePackageFromMeta(vfsfile_t *file, char *fname, size_t fnamesize,
 static qboolean PM_FileInstalled_Internal(const char *package, const char *category, const char *title, const char *filename, enum fs_relative fsroot, unsigned pkgflags, void *metainfo, qboolean enable)
 {
 	package_t *p;
+	char *dlcache, *end;
+
+	if (!*filename)
+		return false;	//wtf?
 
 	if (metainfo)
 	{
@@ -1808,7 +1812,41 @@ static qboolean PM_FileInstalled_Internal(const char *package, const char *categ
 	p->deps = Z_Malloc(sizeof(*p->deps) + strlen(filename));
 	p->deps->dtype = DEP_FILE;
 	strcpy(p->deps->name, filename);
-	p->fsroot = fsroot;
+
+	dlcache = strstr(p->deps->name+1, "/dlcache/");
+	if (dlcache)
+	{
+		memmove(dlcache+1, dlcache+9, strlen(dlcache+9)+1);
+		dlcache = (char*)(COM_GetFileExtension(p->deps->name, NULL));
+		if (dlcache[0] == '.' && dlcache[1] && *COM_GetFileExtension(p->deps->name, dlcache))
+		{
+			unsigned int qhash = strtoul(dlcache+1, &end, 16);
+			if (!*end)	//reached the end of the name?...
+			{
+				p->qhash = Z_StrDupf("%#x", qhash);	//that looks like a qhash!
+				*dlcache = 0;	//strip it from the name.
+			}
+		 }
+	}
+
+	if (fsroot == FS_PUBGAMEONLY)
+	{
+		Q_strncpyz(p->gamedir, FS_GetGamedir(true), sizeof(p->gamedir));
+		p->fsroot = FS_ROOT;
+	}
+	else if (fsroot == FS_ROOT && pkgflags)
+	{
+		dlcache = strchr(p->deps->name+1, '/');
+		if (dlcache)
+		{
+			*dlcache++ = 0;
+			Q_strncpyz(p->gamedir, p->deps->name, sizeof(p->gamedir));
+			memmove(p->deps->name, dlcache, strlen(dlcache)+1);
+		}
+		p->fsroot = FS_ROOT;
+	}
+	else
+		p->fsroot = fsroot;
 
 	if (pkgflags&DPF_PLUGIN)
 	{

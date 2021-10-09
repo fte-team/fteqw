@@ -1087,6 +1087,8 @@ void Cvar_ForceCheatVars(qboolean semicheats, qboolean absolutecheats)
 	{
 		if (!(var->flags & (CVAR_CHEAT|CVAR_SEMICHEAT)))
 			continue;
+		if (var->flags & CVAR_SERVEROVERRIDE)	//server has control over it. don't force it away.
+			continue;
 
 		latch = var->latched_string;
 		var->latched_string = NULL;
@@ -1105,7 +1107,7 @@ void Cvar_ForceCheatVars(qboolean semicheats, qboolean absolutecheats)
 			else
 				Cvar_ForceSet(var, latch);
 		}
-		if (var->flags & CVAR_SEMICHEAT)
+		else if (var->flags & CVAR_SEMICHEAT)
 		{
 			if (var->flags & CVAR_RULESETLATCH)
 				;	//this is too problematic. the ruleset should cover it.

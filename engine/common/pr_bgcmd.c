@@ -7597,7 +7597,7 @@ static qboolean check_notrerelease		(extcheck_t *extcheck) {return !extcheck->wo
 #define NOBI NULL, 0,{NULL},
 qc_extension_t QSG_Extensions[] = {
 	//these don't have well-defined names...
-	{"??TOMAZ_STRINGS",					NULL,	6,{"tq_zone", "tq_unzone",  "tq_strcat", "tq_substring", "tq_stof", "tq_stov"}},
+	{"??TOMAZ_STRINGS",					check_notrerelease,	6,{"tq_zone", "tq_unzone",  "tq_strcat", "tq_substring", "tq_stof", "tq_stov"}},
 	{"??TOMAZ_FILE",					NULL,	4,{"tq_fopen", "tq_fclose", "tq_fgets", "tq_fputs"}},
 	{"??MVDSV_BUILTINS",				NULL,	21,{"executecommand", "mvdtokenize", "mvdargc", "mvdargv",
 												"teamfield", "substr", "mvdstrcat", "mvdstrlen", "str2byte",
@@ -7659,12 +7659,13 @@ qc_extension_t QSG_Extensions[] = {
 	{"DP_QC_FINDFLOAT",					NULL,	1,{"findfloat"}},
 	{"DP_QC_FS_SEARCH",					NULL,	4,{"search_begin", "search_end", "search_getsize", "search_getfilename"}},
 	{"DP_QC_FS_SEARCH_PACKFILE",		NULL,	4,{"search_begin", "search_end", "search_getsize", "search_getfilename"}},
+	{"DP_QC_GETLIGHT",					check_notrerelease,	1,{"getlight"}},
 	{"DP_QC_GETSURFACE",				NULL,	6,{"getsurfacenumpoints", "getsurfacepoint", "getsurfacenormal", "getsurfacetexture", "getsurfacenearpoint", "getsurfaceclippedpoint"}},
 	{"DP_QC_GETSURFACEPOINTATTRIBUTE",	NULL,	1,{"getsurfacepointattribute"}},
 	{"DP_QC_GETTAGINFO",				NULL,	2,{"gettagindex", "gettaginfo"}},
 	{"DP_QC_MINMAXBOUND",				NULL,	3,{"min", "max", "bound"}},
 	{"DP_QC_MULTIPLETEMPSTRINGS",		NULL,	0,{NULL}, "Superseded by DP_QC_UNLIMITEDTEMPSTRINGS. Functions that return a temporary string will not overwrite/destroy previous temporary strings until at least 16 strings are returned (or control returns to the engine)."},
-	{"DP_QC_RANDOMVEC",					NULL,	1,{"randomvec"}},
+	{"DP_QC_RANDOMVEC",					check_notrerelease,	1,{"randomvec"}},
 	{"DP_QC_RENDER_SCENE",				NULL,	0,{NULL}, "clearscene+addentity+setviewprop+renderscene+setmodel are available to menuqc. WARNING: DP advertises this extension without actually supporting it, FTE does actually support it."},
 	{"DP_QC_SINCOSSQRTPOW",				NULL,	4,{"sin", "cos", "sqrt", "pow"}},
 	{"DP_QC_SPRINTF",					NULL,	1,{"sprintf"}, "Provides the sprintf builtin, which allows for rich formatting along the lines of C's function with the same name. Not to be confused with QC's sprint builtin."},
@@ -7674,7 +7675,7 @@ qc_extension_t QSG_Extensions[] = {
 	{"DP_QC_STRINGCOLORFUNCTIONS",		NULL,	2,{"strlennocol", "strdecolorize"}},
 	{"DP_QC_STRREPLACE",				NULL,	2,{"strreplace", "strireplace"}},
 	{"DP_QC_TOKENIZEBYSEPARATOR",		NULL,	1,{"tokenizebyseparator"}},
-	{"DP_QC_TRACEBOX",					NULL,	1,{"tracebox"}},
+	{"DP_QC_TRACEBOX",					check_notrerelease,	1,{"tracebox"}},
 	{"DP_QC_TRACETOSS"},
 	{"DP_QC_TRACE_MOVETYPE_HITMODEL"},
 	{"DP_QC_TRACE_MOVETYPE_WORLDONLY"},
@@ -7739,7 +7740,7 @@ qc_extension_t QSG_Extensions[] = {
 	{"EXT_DIMENSION_VISIBILITY"},
 	{"EXT_DIMENSION_PHYSICS"},
 	{"EXT_DIMENSION_GHOST"},
-	{"FRIK_FILE",						NULL,	11,{"stof", "fopen","fclose","fgets","fputs","strlen","strcat","substring","stov","strzone","strunzone"}},
+	{"FRIK_FILE",						check_notrerelease,	11,{"stof", "fopen","fclose","fgets","fputs","strlen","strcat","substring","stov","strzone","strunzone"}},
 	{"FTE_CALLTIMEOFDAY",				NULL,	1,{"calltimeofday"}, "Replication of mvdsv functionality (call calltimeofday to cause 'timeofday' to be called, with arguments that can be saved off to a global). Generally strftime is simpler to use."},
 	{"FTE_CSQC_ALTCONSOLES",			NULL,	4,{"con_getset", "con_printf", "con_draw", "con_input"}, "The engine tracks multiple consoles. These may or may not be directly visible to the user."},
 	{"FTE_CSQC_BASEFRAME",				NULL,	0,{NULL}, "Specifies that .basebone, .baseframe2, .baselerpfrac, baseframe1time, etc exist in csqc. These fields affect all bones in the entity's model with a lower index than the .basebone field, allowing you to give separate control to the legs of a skeletal model, without affecting the torso animations."},
@@ -7831,7 +7832,7 @@ qc_extension_t QSG_Extensions[] = {
 	{"FTE_QC_FS_SEARCH_SIZEMTIME",		NULL,	2,{"search_getfilesize", "search_getfilemtime"}},
 	{"FTE_QC_HARDWARECURSORS",			NULL,	0,{NULL}, "setcursormode exists in both csqc+menuqc, and accepts additional arguments to specify a cursor image to use when this module has focus. If the image exceeds hardware limits (or hardware cursors are unsupported), it will be emulated using regular draws - this at least still avoids conflicting cursors as only one will ever be used, even if console+menu+csqc are all overlayed."},
 	{"FTE_QC_HASHTABLES",				NULL,	6,{"hash_createtab", "hash_destroytab", "hash_add", "hash_get", "hash_delete", "hash_getkey"}, "Provides efficient string-based lookups."},
-	{"FTE_QC_INFOKEY",					NULL,	2,{"infokey", "stof"}, "QuakeWorld's infokey builtin works, and reports at least name+topcolor+bottomcolor+ping(in ms)+ip(unmasked, but not always ipv4)+team(aka bottomcolor in nq). Does not require actual localinfo/serverinfo/userinfo, but they're _highly_ recommended to any engines with csqc"},
+	{"FTE_QC_INFOKEY",					check_notrerelease,	2,{"infokey", "stof"}, "QuakeWorld's infokey builtin works, and reports at least name+topcolor+bottomcolor+ping(in ms)+ip(unmasked, but not always ipv4)+team(aka bottomcolor in nq). Does not require actual localinfo/serverinfo/userinfo, but they're _highly_ recommended to any engines with csqc"},
 	{"FTE_QC_INTCONV",					NULL,	6,{"stoi", "itos", "stoh", "htos", "itof", "ftoi"}, "Provides string<>int conversions, including hex representations."},
 	{"FTE_QC_MATCHCLIENTNAME",			NULL,	1,{"matchclientname"}},
 	{"FTE_QC_MULTICAST",				NULL,	1,{"multicast"}, "QuakeWorld's multicast builtin works along with MSG_MULTICAST, but also with unicast support."},
@@ -7876,7 +7877,7 @@ qc_extension_t QSG_Extensions[] = {
 
 	//eperimental advanced strings functions.
 	//reuses the FRIK_FILE builtins (with substring extension)
-	{"FTE_STRINGS",						NULL,	17,{"stof", "strlen","strcat","substring","stov","strzone","strunzone",
+	{"FTE_STRINGS",						check_notrerelease,	17,{"stof", "strlen","strcat","substring","stov","strzone","strunzone",
 												   "strstrofs", "str2chr", "chr2str", "strconv", "infoadd", "infoget", "strncmp", "strcasecmp", "strncasecmp", "strpad"}, "Extra builtins (and additional behaviour) to make string manipulation easier"},
 	{"FTE_SV_POINTPARTICLES",			check_pext_pointparticle,	3,{"particleeffectnum", "pointparticles", "trailparticles"}, "Specifies that particleeffectnum, pointparticles, and trailparticles exist in ssqc as well as csqc. particleeffectnum acts as a precache, allowing ssqc values to be networked up with csqc for use. Use in combination with FTE_PART_SCRIPT+FTE_PART_NAMESPACES to use custom effects. This extension is functionally identical to the DP version, but avoids any misplaced assumptions about the format of the client's particle descriptions."},
 	{"FTE_SV_REENTER"},
@@ -7893,8 +7894,11 @@ qc_extension_t QSG_Extensions[] = {
 	{"NEH_CMD_PLAY2"},
 	{"NEH_RESTOREGAME"},
 	//{"PRYDON_CLIENTCURSOR",			check_pext2_prydoncursor},
+//	{"QEX_QC_DRAWING",					NULL,
+//	{"QEX_QC_FORMATTEDPRINTS",			check_rerelease,	3,{"centerprint_qex","sprint_qex","bprint_qex"}},
 	{"QSG_CVARSTRING",					NULL,	1,{"qsg_cvar_string"}},
-	{"QW_ENGINE",						NULL,	3,{"infokey", "stof", "logfrag"}},	//warning: interpretation of .skin on players can be dodgy, as can some other QW features that differ from NQ.
+//	{"QUAKE_EX",						check_rerelease},	//we arn't. there'll be lots of other conflicts, so just don't advertise it.
+	{"QW_ENGINE",						check_notrerelease,	3,{"infokey", "stof", "logfrag"}},	//warning: interpretation of .skin on players can be dodgy, as can some other QW features that differ from NQ.
 	{"QWE_MVD_RECORD",					NOBI	"You can use the easyrecord command to record MVD demos serverside."},	//Quakeworld extended get the credit for this one. (mvdsv)
 	{"TEI_MD3_MODEL"},
 	{"TEI_SHOWLMP2",					check_pext_showpic,	6,{"showpic", "hidepic", "movepic", "changepic", "showpicent", "hidepicent"}},	//telejano doesn't actually export the moveent/changeent (we don't want to either cos it would stop frik_file stuff being autoregistered)
@@ -7907,7 +7911,7 @@ qc_extension_t QSG_Extensions[] = {
 	{"ZQ_VWEP",							NULL,	1,{"precache_vwep_model"}},
 
 
-	{"ZQ_QC_STRINGS",					NULL,	7,{"stof", "strlen","strcat","substring","stov","strzone","strunzone"}, "The strings-only subset of FRIK_FILE is supported."}	//a trimmed down FRIK_FILE.
+	{"ZQ_QC_STRINGS",					check_notrerelease,	7,{"stof", "strlen","strcat","substring","stov","strzone","strunzone"}, "The strings-only subset of FRIK_FILE is supported."}	//a trimmed down FRIK_FILE.
 };
 unsigned int QSG_Extensions_count = sizeof(QSG_Extensions)/sizeof(QSG_Extensions[0]);
 #endif

@@ -192,6 +192,7 @@ struct pubprogfuncs_s
 	void	(PDECL *AbortStack)					(pubprogfuncs_t *prinst);	//annigilates the current stack, positioning on a return statement. It is expected that this is only used via a builtin!
 
 	pbool	(PDECL *GetBuiltinCallInfo)			(pubprogfuncs_t *prinst, int *builtinnum, char *function, size_t sizeoffunction);	//call to query the qc's name+index for the builtin
+	pbool	(PDECL *FindBuiltins)				(pubprogfuncs_t *progfuncs, progsnum_t prnum, int binum, pbool (PDECL *found) (pubprogfuncs_t *progfuncs, const char *name, void *ctx), void *ctx);	//calls the callback for each function reference that's mapped to the specified builtin number.
 
 	int (PDECL *RegisterFieldVar)				(pubprogfuncs_t *prinst, unsigned int type, const char *name, signed long requestedpos, signed long originalofs);
 

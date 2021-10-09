@@ -1222,6 +1222,20 @@ void PR_LoadGlabalStruct(qboolean muted)
 #endif
 }
 
+static pbool PR_CheckForQEx(pubprogfuncs_t *pf, const char *name, void *ctx)
+{	//if #90 == centerprint then its the october revision of the rerelease and thus incompatible with everything else.
+	//(fteextensions specifies it as #0:centerprint_qex instead of #90 so don't worry about that)
+	if (Q_strcasestr(name, "centerprint"))
+	{
+		sv.world.remasterlogic = true;
+		return true;
+	}
+
+	//something else... like tracebox.
+	sv.world.remasterlogic = false;
+	return false;	//stop now, so we can't unintentionally set remasterlogic to true. this allows smart mods to target both (favouring our own builtin mappings and effect flags etc).
+}
+
 static progsnum_t AddProgs(const char *name)
 {
 	float fl;
@@ -1292,6 +1306,9 @@ static progsnum_t AddProgs(const char *name)
 
 	if (!svs.numprogs)
 	{
+		if (progstype == PROG_NQ)
+			svprogfuncs->FindBuiltins (svprogfuncs, num, 90, PR_CheckForQEx, NULL);
+
 		PF_InitTempStrings(svprogfuncs);
 		PR_ResetBuiltins(progstype);
 	}
@@ -1304,13 +1321,6 @@ static progsnum_t AddProgs(const char *name)
 		else
 			buttonfields[i].offset = -1;
 	}
-
-	if (num == 0)
-		if (PR_FindGlobal(svprogfuncs, "MOVETYPE_GIB", 0, NULL) ||
-			PR_FindGlobal(svprogfuncs, "SVC_ACHIEVEMENT", 0, NULL) ||
-			PR_FindGlobal(svprogfuncs, "finaleFinished", 0, NULL))
-			sv.world.remasterlogic = true;
-
 
 	if ((f = PR_FindFunction (svprogfuncs, "VersionChat", num )))
 	{
@@ -10738,7 +10748,7 @@ static void QCBUILTIN PF_setpause(pubprogfuncs_t *prinst, struct globalvars_s *p
 }
 
 /*builtins to work around the remastered edition of quake.*/
-void PF_finaleFinished(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+static void QCBUILTIN PF_finaleFinished_qex(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {	//undocumented. implement some quicky hack that just waits till some user has tried attacking. should probably be at least half players or something. silly afkers.
 	unsigned int i;
 	G_FLOAT(OFS_RETURN) = false;
@@ -10748,10 +10758,10 @@ void PF_finaleFinished(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 			G_FLOAT(OFS_RETURN) = true;
 	}
 }
-void PF_localsound_remaster(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+static void QCBUILTIN PF_localsound_qex(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {	//undocumented. just stub it.
 }
-void PF_centerprints(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+static void QCBUILTIN PF_centerprint_qex(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {	//TODO: send the strings to the client for localisation+reordering
 	const char *arg[8];
 	int args;
@@ -10765,7 +10775,7 @@ void PF_centerprints(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 
 	PF_centerprint_Internal(entnum, false, s);
 }
-void PF_sprints(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+static void QCBUILTIN PF_sprint_qex(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	const char *arg[8];
 	int args;
@@ -10825,7 +10835,7 @@ void PF_sprints(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 		}
 	}
 }
-void PF_bprints(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+static void QCBUILTIN PF_bprint_qex(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {	//TODO: send the strings to the client for localisation+reordering
 	const char *arg[8];
 	int args;
@@ -11001,10 +11011,8 @@ static BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	//both bprint and sprint accept different arguments in QW vs NQ/H2
 	{"bprint",			PF_bprint,			23,		0,		23,		0,	D("void(string s, optional string s2, optional string s3, optional string s4, optional string s5, optional string s6, optional string s7, optional string s8)", "NQ: Concatenates all arguments, and prints the messsage on the console of all connected clients.")},
 	{"bprint",			PF_bprint,			0,		23,		0,		0,	D("void(float msglvl, string s, optional string s2, optional string s3, optional string s4, optional string s5, optional string s6, optional string s7)", "QW: Concatenates all string arguments, and prints the messsage on the console of only all clients who's 'msg' infokey is set lower or equal to the supplied 'msglvl' argument.")},
-	{"bprints",			PF_bprints,			0,		0,		0,		0,	D("void(string s, optional string s0, optional string s1, optional string s2, optional string s3, optional string s4, optional string s5, optional string s6)", "Remaster: Sends the strings to all clients, which will order them according to {#}. Also substitutes localised strings for $NAME strings.")},
 	{"sprint",			PF_sprint,			24,		0,		24,		0,	D("void(entity client, string s, optional string s2, optional string s3, optional string s4, optional string s5, optional string s6, optional string s7)", "NQ: Concatenates all string arguments, and prints the messsage on the named client's console")},
 	{"sprint",			PF_sprint,			0,		24,		0,		0,	D("void(entity client, float msglvl, string s, optional string s2, optional string s3, optional string s4, optional string s5, optional string s6)", "QW: Concatenates all string arguments, and prints the messsage on the named client's console, but only if that client's 'msg' infokey is set lower or equal to the supplied 'msglvl' argument.")},
-	{"sprints",			PF_sprints,			0,		0,		0,		0,	D("void(entity client, string s, optional string s0, optional string s1, optional string s2, optional string s3, optional string s4, optional string s5)", "Remaster: Sends the strings to the client, which will order according to {#}. Also substitutes localised strings for $NAME strings.")},
 
 #ifdef HAVE_LEGACY
 	//these have subtly different behaviour, and are implemented using different internal builtins, which is a bit weird in the extensions file. documentation is documentation.
@@ -11089,7 +11097,6 @@ static BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 
 	{"cvar_set",		PF_cvar_set,		72,		72,		72,		0,	D("void(string cvarname, string valuetoset)", "Instantly sets a cvar to the given string value. Warning: the resulting string includes apostrophies surrounding the result. You may wish to use sprintf instead.")},	//72
 	{"centerprint",		PF_centerprint,		73,		73,		73,		0,	"void(entity ent, string text, optional string text2, optional string text3, optional string text4, optional string text5, optional string text6, optional string text7)"},	//73
-	{"centerprints",	PF_centerprints,	0,		0,		0,		0,	D("void(entity ent, string text, optional string s0, optional string s1, optional string s2, optional string s3, optional string s4, optional string s5)", "Remaster: Sends the strings to the client, which will order according to {#}. Also substitutes localised strings for $NAME strings.")},
 
 	{"ambientsound",	PF_ambientsound,	74,		74,		74,		0,	"void (vector pos, string samp, float vol, float atten)"},	//74
 
@@ -11098,14 +11105,28 @@ static BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"precache_file2",	PF_precache_file,	77,		77,		0,		0,	"string(string str)"},	//77
 
 	{"setspawnparms",	PF_setspawnparms,	78,		78,		78,		0,	"void(entity player)"},	//78
-	{"logfrag",			PF_logfrag,			0,		79,		0,		79,	"void(entity killer, entity killee)"},	//79
-	{"finaleFinished",	PF_finaleFinished,	0,		0,		0,		0,	D("DEP float()", "Behaviour is undocumented.")},
-	{"localsound_remaster",PF_localsound_remaster,0,0,		0,		0,	D("DEP void()", "Behaviour is undocumented.")},
+
+//QuakeEx (aka: quake rerelease). These conflict with core extensions so we don't register them by default.
+	{"finaleFinished_qex",PF_finaleFinished_qex,0,	0,		0,0/*79*/,	D("DEP float()", "Behaviour is undocumented.")},
+	{"localsound_qex",	PF_localsound_qex,	0,		0,		0,0/*80*/,	D("DEP void(entity client, string sample)", "Behaviour is undocumented.")},
+	{"draw_point_qex",	PF_Fixme,			0,		0,		0,0/*81*/,	D("DEP void(vector point, float colormap, float lifetime, float depthtest)", "Behaviour is undocumented.")},
+	{"draw_line_qex",	PF_Fixme,			0,		0,		0,0/*82*/,	D("DEP void(vector start, vector end, float colormap, float lifetime, float depthtest)", "Behaviour is undocumented.")},
+	{"draw_arrow_qex",	PF_Fixme,			0,		0,		0,0/*83*/,	D("DEP void(vector start, vector end, float colormap, float size, float lifetime, float depthtest)", "Behaviour is undocumented.")},
+	{"draw_ray_qex",	PF_Fixme,			0,		0,		0,0/*84*/,	D("DEP void(vector start, vector direction, float length, float colormap, float size, float lifetime, float depthtest)", "Behaviour is undocumented.")},
+	{"draw_circle_qex",	PF_Fixme,			0,		0,		0,0/*85*/,	D("DEP void(vector origin, float radius, float colormap, float lifetime, float depthtest)", "Behaviour is undocumented.")},
+	{"draw_bounds_qex",	PF_Fixme,			0,		0,		0,0/*86*/,	D("DEP void(vector min, vector max, float colormap, float lifetime, float depthtest)", "Behaviour is undocumented.")},
+	{"draw_worldtext_qex",PF_Fixme,			0,		0,		0,0/*87*/,	D("DEP void(string s, vector origin, float size, float lifetime, float depthtest)", "Behaviour is undocumented.")},
+	{"draw_sphere_qex",	PF_Fixme,			0,		0,		0,0/*88*/,	D("DEP void(vector origin, float radius, float colormap, float lifetime, float depthtest)", "Behaviour is undocumented.")},
+	{"draw_cylinder_qex",PF_Fixme,			0,		0,		0,0/*89*/,	D("DEP void(vector origin, float halfHeight, float radius, float colormap, float lifetime, float depthtest)", "Behaviour is undocumented.")},
+	{"centerprint_qex",	PF_centerprint_qex,	0,		0,		0,0/*90*/,	D("void(entity ent, string text, optional string s0, optional string s1, optional string s2, optional string s3, optional string s4, optional string s5)", "Remaster: Sends the strings to the client, which will order according to {#}. Also substitutes localised strings for $NAME strings.")},
+	{"bprint_qex",		PF_bprint_qex,		0,		0,		0,0/*91*/,	D("void(string s, optional string s0, optional string s1, optional string s2, optional string s3, optional string s4, optional string s5, optional string s6)", "Remaster: Sends the strings to all clients, which will order them according to {#}. Also substitutes localised strings for $NAME strings.")},
+	{"sprint_qex",		PF_sprint_qex,		0,		0,		0,0/*92*/,	D("void(entity client, string s, optional string s0, optional string s1, optional string s2, optional string s3, optional string s4, optional string s5)", "Remaster: Sends the strings to the client, which will order according to {#}. Also substitutes localised strings for $NAME strings.")},
+//End QuakeEx, for now. :(
 
 // Tomaz - QuakeC String Manipulation Begin
 	{"tq_zone",			PF_strzone,			0,		0,		0,		79, D("DEP string(string s)",NULL), true},	//79
 	{"tq_unzone",		PF_strunzone,		0,		0,		0,		80, D("DEP void(string s)",NULL), true},	//80
-	{"tq_stof",			PF_stof,			0,		0,		0,		81, D("DEP float(string s)",NULL), true},	//81
+	{"tq_strlen",		PF_strlen,			0,		0,		0,		81, D("DEP float(string s)",NULL), true},	//81
 	{"tq_strcat",		PF_strcat,			0,		0,		0,		82, D("DEP string(string s1, optional string s2, optional string s3, optional string s4, optional string s5, optional string s6, optional string s7, optional string s8)",NULL), true},	//82
 	{"tq_substring",	PF_substring,		0,		0,		0,		83, D("DEP string(string str, float start, float len)",NULL), true},	//83
 	{"tq_stof",			PF_stof,			0,		0,		0,		84, D("DEP float(string s)",NULL), true},	//84
@@ -11119,6 +11140,7 @@ static BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"tq_fputs",		PF_fputs,			0,		0,		0,		89, D("DEP void(filestream fhandle, string s)",NULL), true},// (QSG_FILE)
 // Tomaz - QuakeC File System End
 
+	{"logfrag",			PF_logfrag,			0,		79,		0,		79,	"void(entity killer, entity killee)"},	//79
 	{"infokey",			PF_infokey_s,		0,		80,		0,		80,	D("string(entity e, string key)", "If e is world, returns the field 'key' from either the serverinfo or the localinfo. If e is a player, returns the value of 'key' from the player's userinfo string. There are a few special exceptions, like 'ip' which is not technically part of the userinfo.")},	//80
 	{"infokeyf",		PF_infokey_f,		0,		0,		0,		0,	D("float(entity e, string key)", "Identical to regular infokey, except returns a float.")},	//80
 	{"infokey_blob",	PF_infokey_blob,	0,		0,		0,		0,	D("int(entity e, string key, optional void *outbuf, int outbufsize)", "Retrieves a user's blob size, and optionally writes it to the specified buffer.")},
@@ -12065,6 +12087,7 @@ void PR_ResetBuiltins(progstype_t type)	//fix all nulls to PF_FIXME and add any 
 
 	int builtincount[sizeof(pr_builtin)/sizeof(pr_builtin[0])];
 
+	//map the core builtins for the relevant game type
 	if (type == PROG_QW)
 	{
 		for (i = 0; BuiltinList[i].name; i++)
@@ -12104,18 +12127,6 @@ void PR_ResetBuiltins(progstype_t type)	//fix all nulls to PF_FIXME and add any 
 		}
 	}
 
-	memset(builtincount, 0, sizeof(builtincount));
-
-	for (i = 0; i < pr_numbuiltins; i++)	//clean up nulls
-	{
-		if (!pr_builtin[i])
-		{
-			pr_builtin[i] = PF_Fixme;
-		}
-		else
-			builtincount[i]=100;
-	}
-
 #if defined(HAVE_LEGACY) && defined(NETPREPARSE)
 	if (type == PROG_PREREL)
 	{
@@ -12139,7 +12150,74 @@ void PR_ResetBuiltins(progstype_t type)	//fix all nulls to PF_FIXME and add any 
 	}
 #endif
 
-	if (!pr_compatabilitytest.value)
+	if (type == PROG_QW)
+	{
+		//this conflicts with dp's logarithm builtin.
+		PR_EnableEBFSBuiltin("precache_vwep_model",	532);
+
+		if (pr_imitatemvdsv.value>0)	//pretend to be mvdsv for a bit.
+		{
+			if (
+				PR_EnableEBFSBuiltin("executecommand",	83) != 83 ||
+				PR_EnableEBFSBuiltin("mvdtokenize",		84) != 84 ||
+				PR_EnableEBFSBuiltin("mvdargc",			85) != 85 ||
+				PR_EnableEBFSBuiltin("mvdargv",			86) != 86 ||
+				PR_EnableEBFSBuiltin("teamfield",		87) != 87 ||
+				PR_EnableEBFSBuiltin("substr",			88) != 88 ||
+				PR_EnableEBFSBuiltin("mvdstrcat",		89) != 89 ||
+				PR_EnableEBFSBuiltin("mvdstrlen",		90) != 90 ||
+				PR_EnableEBFSBuiltin("str2byte",		91) != 91 ||
+				PR_EnableEBFSBuiltin("str2short",		92) != 92 ||
+				PR_EnableEBFSBuiltin("mvdnewstr",		93) != 93 ||
+				PR_EnableEBFSBuiltin("mvdfreestr",		94) != 94 ||
+				PR_EnableEBFSBuiltin("conprint",		95) != 95 ||
+				PR_EnableEBFSBuiltin("readcmd",			96) != 96 ||
+				PR_EnableEBFSBuiltin("mvdstrcpy",		97) != 97 ||
+				PR_EnableEBFSBuiltin("strstr",			98) != 98 ||
+				PR_EnableEBFSBuiltin("mvdstrncpy",		99) != 99 ||
+				PR_EnableEBFSBuiltin("logtext",			100)!= 100 ||
+	//			PR_EnableEBFSBuiltin("redirectcmd",		101)!= 101 ||
+				PR_EnableEBFSBuiltin("mvdcalltimeofday",102)!= 102 ||
+				PR_EnableEBFSBuiltin("forcedemoframe",	103)!= 103)
+				Con_Printf("Failed to register all MVDSV builtins\n");
+			else
+				Con_Printf("Be aware that MVDSV does not follow standards. Please encourage mod developers to not require pr_imitatemvdsv to be set.\n");
+		}
+	}
+
+#ifdef HAVE_LEGACY
+	if (sv.world.remasterlogic)
+	{	//everyone needs their own set of incompatibile builtins... yay!...
+		PR_EnableEBFSBuiltin("finaleFinished",		79);//logfrag,	(tq_strzone)
+		PR_EnableEBFSBuiltin("localsound_qex",		80);//infokey,	(tq_strunzone)
+		PR_EnableEBFSBuiltin("draw_point_qex",		81);//stof,		(tq_strlen)
+		PR_EnableEBFSBuiltin("draw_line_qex",		82);//multicast,(tq_strcat)
+		PR_EnableEBFSBuiltin("draw_arrow_qex",		83);//			(tq_substring)
+		PR_EnableEBFSBuiltin("draw_ray_qex",		84);//			(tq_stof)
+		PR_EnableEBFSBuiltin("draw_circle_qex",		85);//			(tq_stov)
+		PR_EnableEBFSBuiltin("draw_bounds_qex",		86);//			(tq_fopen)
+		PR_EnableEBFSBuiltin("draw_worldtext_qex",	87);//			(tq_fclose)
+		PR_EnableEBFSBuiltin("draw_sphere_qex",		88);//			(tq_fgets)
+		PR_EnableEBFSBuiltin("draw_cylinder_qex",	89);//			(tq_fputs)
+		PR_EnableEBFSBuiltin("centerprint_qex",		90);//tracebox
+		PR_EnableEBFSBuiltin("bprint_qex",			91);//randomvec
+		PR_EnableEBFSBuiltin("sprint_qex",			92);//getlight
+
+		PR_EnableEBFSBuiltin("checkextension",		99);
+	}
+#endif
+
+	memset(builtincount, 0, sizeof(builtincount));
+	for (i = 0; i < pr_numbuiltins; i++)	//clean up nulls
+	{
+		if (!pr_builtin[i])
+		{
+			pr_builtin[i] = PF_Fixme;
+		}
+		else
+			builtincount[i]=100;
+	}
+	if (!pr_compatabilitytest.value && !sv.world.remasterlogic)
 	{
 		for (i = 0; BuiltinList[i].name; i++)
 		{
@@ -12185,55 +12263,6 @@ void PR_ResetBuiltins(progstype_t type)	//fix all nulls to PF_FIXME and add any 
 				Con_Printf("Failed to map builtin %s to %i specified in fte_bimap.dat\n", com_token, binum);
 		}
 	}
-
-	if (type == PROG_QW)
-	{
-		//this conflicts with dp's logarithm builtin.
-		PR_EnableEBFSBuiltin("precache_vwep_model",	532);
-
-		if (pr_imitatemvdsv.value>0)	//pretend to be mvdsv for a bit.
-		{
-			if (
-				PR_EnableEBFSBuiltin("executecommand",	83) != 83 ||
-				PR_EnableEBFSBuiltin("mvdtokenize",		84) != 84 ||
-				PR_EnableEBFSBuiltin("mvdargc",			85) != 85 ||
-				PR_EnableEBFSBuiltin("mvdargv",			86) != 86 ||
-				PR_EnableEBFSBuiltin("teamfield",		87) != 87 ||
-				PR_EnableEBFSBuiltin("substr",			88) != 88 ||
-				PR_EnableEBFSBuiltin("mvdstrcat",		89) != 89 ||
-				PR_EnableEBFSBuiltin("mvdstrlen",		90) != 90 ||
-				PR_EnableEBFSBuiltin("str2byte",		91) != 91 ||
-				PR_EnableEBFSBuiltin("str2short",		92) != 92 ||
-				PR_EnableEBFSBuiltin("mvdnewstr",		93) != 93 ||
-				PR_EnableEBFSBuiltin("mvdfreestr",		94) != 94 ||
-				PR_EnableEBFSBuiltin("conprint",		95) != 95 ||
-				PR_EnableEBFSBuiltin("readcmd",			96) != 96 ||
-				PR_EnableEBFSBuiltin("mvdstrcpy",		97) != 97 ||
-				PR_EnableEBFSBuiltin("strstr",			98) != 98 ||
-				PR_EnableEBFSBuiltin("mvdstrncpy",		99) != 99 ||
-				PR_EnableEBFSBuiltin("logtext",			100)!= 100 ||
-	//			PR_EnableEBFSBuiltin("redirectcmd",		101)!= 101 ||
-				PR_EnableEBFSBuiltin("mvdcalltimeofday",102)!= 102 ||
-				PR_EnableEBFSBuiltin("forcedemoframe",	103)!= 103)
-				Con_Printf("Failed to register all MVDSV builtins\n");
-			else
-				Con_Printf("Be aware that MVDSV does not follow standards. Please encourage mod developers to not require pr_imitatemvdsv to be set.\n");
-		}
-	}
-
-#ifdef HAVE_LEGACY
-	//when this cvar is set, we're assumed to be running a rerelease-compatible mod.
-	//obviously this might still break mods that don't include their own quake.rc (most of them), but hey... compat, right?
-	if (scr_usekfont.ival)
-	{
-		PR_EnableEBFSBuiltin("bprints", 23);
-		PR_EnableEBFSBuiltin("sprints", 24);
-		PR_EnableEBFSBuiltin("centerprints", 73);
-
-		PR_EnableEBFSBuiltin("finaleFinished", 79);
-		PR_EnableEBFSBuiltin("localsound_remaster", 80);
-	}
-#endif
 }
 
 void PR_SVExtensionList_f(void)
@@ -13026,7 +13055,9 @@ void PR_DumpPlatform_f(void)
 		{"SV_PlayerPhysics",		"DEP_CSQC void()", QW|NQ, "Compatibility method to tweak player input that does not reliably work with prediction (prediction WILL break). Mods that care about prediction should use SV_RunClientCommand instead. If pr_no_playerphysics is set to 1, this function will never be called, which will either fix prediction or completely break player movement depending on whether the feature was even useful."},
 		{"SV_PerformSave",			"void(float fd, float entcount, float playerslots)", QW|NQ, "Called by the engine as part of saved games. The QC is responsible for writing any data that will be required to restore the game. Save files are not limited to just text, you can use fwrite (and later fread) for binary data. Remember to close the passed file."},
 		{"SV_PerformLoad",			"void(float fd, float entcount, float playerslots)", QW|NQ, "Called by the engine to restore a saved game that was saved via SV_PerformSave, the server will have already started the game to its inital state (for precaches+makestatic calls), so entities+globals will have their post-spawn values (you will likely want to remove most of them, you can use the two extra args as helpers for that). You can use respawn_edict to un-remove specific entities, with parseentitydata or putentityfieldstring(findentityfield(NAME), ent, value) to assign to fields by name strings. Don't expect bprints/etc to work - players are likely in a pending state. Remember to close the passed file."},
+		{"RestoreGame",				"void()", QW|NQ, "Called for each reconnecting player as part of loading a saved game. Part of NEH_RESTOREGAME."},
 		{"EndFrame",				"void()", QW|NQ, "Called after non-player entities have been run at the end of the physics frame. Player physics is performed out of order and can/will still occur between EndFrame and BeginFrame."},
+		{"SetTransferParms",		"void()", QW|NQ, "Called as an alternative to SetChangeParms when a player is transferring to another server. Part of FTE_SV_CLUSTER."},
 		{"SV_CheckRejectConnection","string(string addr, string uinfo, string features) ", QW|NQ, "Called to give the mod a chance to ignore connection requests based upon client protocol support or other properties. Use infoget to read the uinfo and features arguments."},
 #ifdef HEXEN2
 		{"ClassChangeWeapon",		"void()", H2, "Hexen2 support. Called when cl_playerclass changes. Self is set to the player who is changing class."},
@@ -13081,6 +13112,7 @@ void PR_DumpPlatform_f(void)
 		{"m_keyup",					"__deprecated(\"Use Menu_InputEvent\") void(float scan, float chr)", MENU},
 		{"m_toggle",				"void(float wantmode)", MENU},
 		{"m_consolecommand",		"float(string cmd)", MENU},
+		{"m_gethostcachecategory",	"float(float idx)", MENU},
 
 		{"parm17, parm18, parm19, parm20, parm21, parm22, parm23, parm24, parm25, parm26, parm27, parm28, parm29, parm30, parm31, parm32", "float", QW|NQ, "Additional spawn parms, following the same parmN theme."},
 		{"parm33, parm34, parm35, parm36, parm37, parm38, parm39, parm40, parm41, parm42, parm43, parm44, parm45, parm46, parm47, parm48", "float", QW|NQ},

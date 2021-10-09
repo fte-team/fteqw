@@ -749,6 +749,34 @@ static void PDECL QC_FindPrefixedGlobals(pubprogfuncs_t *ppf, int pnum, char *pr
 		break;
 	}
 }
+static pbool	PDECL PR_FindBuiltins	(pubprogfuncs_t *ppf, progsnum_t prnum, int binum, pbool (PDECL *found) (pubprogfuncs_t *progfuncs, const char *name, void *ctx), void *ctx)	//calls the callback for each function reference that's mapped to the specified builtin number.
+{
+	progfuncs_t *progfuncs = (progfuncs_t*)ppf;
+	mfunction_t		*func;
+	unsigned int				i;
+
+	if ((unsigned)prnum > (unsigned)prinst.maxprogs)
+	{
+		externs->Printf("Progsnum %"pPRIi" out of bounds\n", prnum);
+		return false;
+	}
+
+	if (!pr_progstate[prnum].progs)
+		return false;
+
+	if (binum < 0)
+		return false;	//invalid
+	binum = -binum;
+
+	for (i=1 ; i<pr_progstate[prnum].progs->numfunctions ; i++)
+	{
+		func = &pr_progstate[prnum].functions[i];
+		if (func->first_statement == binum)
+			if (!found(ppf, PR_StringToNative(ppf, func->s_name), ctx))
+				return false;
+	}
+	return true;
+}
 
 eval_t *PDECL PR_FindGlobal(pubprogfuncs_t *ppf, const char *globname, progsnum_t pnum, etype_t *type)
 {
@@ -1624,6 +1652,7 @@ static pubprogfuncs_t deffuncs = {
 	PR_ResumeThread,
 	PR_AbortStack,
 	PR_GetBuiltinCallInfo,
+	PR_FindBuiltins,
 
 	QC_RegisterFieldVar,
 

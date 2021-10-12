@@ -598,7 +598,7 @@ static void QCBUILTIN PF_cs_remove (pubprogfuncs_t *prinst, struct globalvars_s 
 
 	if (!ed->entnum)
 	{
-		Con_Printf("Unable to remove the world. Try godmode.\n");
+		Con_Printf("Unable to remove the world.\n");
 		PR_StackTrace (prinst, false);
 		return;
 	}

@@ -4340,7 +4340,10 @@ static const char *Shader_Skip(const char *file, const char *shadername, const c
 
 		if (tok[0] == '{')
 		{
-			brace_count++;
+			if (r_forceprogramify.ival > 1 && brace_count == 2)
+				Con_Printf(CON_WARNING"%s: excess indentation depth while parsing shader \"%s\" (%s==%i)\n", file, shadername, r_forceprogramify.name, r_forceprogramify.ival);
+			else
+				brace_count++;
 		} else if (tok[0] == '}')
 		{
 			brace_count--;
@@ -4350,7 +4353,7 @@ static const char *Shader_Skip(const char *file, const char *shadername, const c
 	return ptr;
 }
 
-void Shader_Reset(shader_t *s)
+static void Shader_Reset(shader_t *s)
 {
 	extern cvar_t r_refractreflect_scale;
 	char name[MAX_QPATH];
@@ -4438,7 +4441,7 @@ void Shader_Shutdown (void)
 	shader_reload_needed = false;
 }
 
-void Shader_SetBlendmode (shaderpass_t *pass, shaderpass_t *lastpass)
+static void Shader_SetBlendmode (shaderpass_t *pass, shaderpass_t *lastpass)
 {
 	qboolean lightmapoverbright;
 	if (pass->texgen == T_GEN_DELUXMAP)
@@ -4493,7 +4496,7 @@ void Shader_SetBlendmode (shaderpass_t *pass, shaderpass_t *lastpass)
 		pass->blendmode = lightmapoverbright?PBM_OVERBRIGHT:PBM_MODULATE;
 }
 
-void Shader_FixupProgPasses(parsestate_t *ps, shaderpass_t *pass)
+static void Shader_FixupProgPasses(parsestate_t *ps, shaderpass_t *pass)
 {
 	shader_t *shader = ps->s;
 	int i;
@@ -4691,7 +4694,7 @@ static qboolean Shader_Conditional_Read(parsestate_t *ps, struct scondinfo_s *co
 	return true;
 }
 
-void Shader_Readpass (parsestate_t *ps)
+static void Shader_Readpass (parsestate_t *ps)
 {
 	shader_t *shader = ps->s;
 	const char *token;
@@ -4907,7 +4910,7 @@ static qboolean Shader_Parsetok(parsestate_t *ps, shaderkey_t *keys, const char 
 	return false;
 }
 
-void Shader_SetPassFlush (shaderpass_t *pass, shaderpass_t *pass2)
+static void Shader_SetPassFlush (shaderpass_t *pass, shaderpass_t *pass2)
 {
 	if (((pass->flags & SHADER_PASS_DETAIL) && !r_detailtextures.value) ||
 		((pass2->flags & SHADER_PASS_DETAIL) && !r_detailtextures.value) ||
@@ -4996,7 +4999,7 @@ void Shader_SetPassFlush (shaderpass_t *pass, shaderpass_t *pass2)
 	*/
 }
 
-const char *Shader_AlphaMaskProgArgs(shader_t *s)
+static const char *Shader_AlphaMaskProgArgs(shader_t *s)
 {
 	if (s->numpasses)
 	{
@@ -5018,7 +5021,7 @@ const char *Shader_AlphaMaskProgArgs(shader_t *s)
 	return "";
 }
 
-void Shader_Programify (parsestate_t *ps)
+static void Shader_Programify (parsestate_t *ps)
 {
 	shader_t *s = ps->s;
 	unsigned int reflectrefract = 0;
@@ -5198,7 +5201,7 @@ void Shader_Programify (parsestate_t *ps)
 	}
 }
 
-void Shader_Finish (parsestate_t *ps)
+static void Shader_Finish (parsestate_t *ps)
 {
 	shader_t *s = ps->s;
 	int i;
@@ -5798,7 +5801,7 @@ done:;
 	}
 }
 /*
-void Shader_UpdateRegistration (void)
+static void Shader_UpdateRegistration (void)
 {
 	int i, j, l;
 	shader_t *shader;

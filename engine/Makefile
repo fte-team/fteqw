@@ -2281,16 +2281,16 @@ endif
 web-rel:
 	@PATH="$(EMSCRIPTENPATH)" $(MAKE) gl-rel FTE_TARGET=web CC="$(EMCC)"
 	cp $(BASE_DIR)/web/fteshell.html $(RELEASE_DIR)/ftewebgl.html
-	@gzip -f $(RELEASE_DIR)/ftewebgl.html
-	@gzip -f $(RELEASE_DIR)/ftewebgl.js
-	@gzip -f $(RELEASE_DIR)/ftewebgl.wasm
+	@gzip -kf $(RELEASE_DIR)/ftewebgl.html
+	@gzip -kf $(RELEASE_DIR)/ftewebgl.js
+	@gzip -kf $(RELEASE_DIR)/ftewebgl.wasm
 
 web-dbg:
 	@PATH="$(EMSCRIPTENPATH)" $(MAKE) gl-dbg FTE_TARGET=web CC="$(EMCC)"
 	cp $(BASE_DIR)/web/fteshell.html $(DEBUG_DIR)/ftewebgl.html
-	@gzip -f $(DEBUG_DIR)/ftewebgl.html
-	@gzip -f $(DEBUG_DIR)/ftewebgl.js
-	@gzip -f $(DEBUG_DIR)/ftewebgl.wasm
+	@gzip -kf $(DEBUG_DIR)/ftewebgl.html
+	@gzip -kf $(DEBUG_DIR)/ftewebgl.js
+	@gzip -kf $(DEBUG_DIR)/ftewebgl.wasm
 
 #################################################
 #android

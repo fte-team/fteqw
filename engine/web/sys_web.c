@@ -57,6 +57,21 @@ void Sys_Printf (char *fmt, ...)
 	va_end (argptr);
 }
 
+#if 1
+//use Performance.now() instead of Date.now() - its likely to both provide higher precision and no NTP/etc issues.
+double Sys_DoubleTime (void)
+{
+	double t = emscriptenfte_uptime_ms()/1000;	//we need it as seconds...
+	static double old = -99999999;
+	if (t < old)
+		t = old;	//don't let t step backwards, ever. this shouldn't happen, but some CPUs don't keep their high-precision timers synced properly.
+	return old=t;
+}
+unsigned int Sys_Milliseconds(void)
+{
+	return Sys_DoubleTime() * (uint64_t)1000;
+}
+#else
 unsigned int Sys_Milliseconds(void)
 {
 	static int first = true;
@@ -83,6 +98,7 @@ double Sys_DoubleTime (void)
 {
 	return Sys_Milliseconds() / 1000.0;
 }
+#endif
 
 //create a directory
 void Sys_mkdir (const char *path)
@@ -196,12 +212,18 @@ void Sys_CloseTerminal (void)
 {
 }
 
-int Sys_MainLoop(void)
+int Sys_MainLoop(double newtime)
 {
 	extern cvar_t vid_vsync;
-	static float oldtime;
-	float newtime, time;
-	newtime = Sys_DoubleTime ();
+	static double oldtime;
+	double time;
+
+	if (newtime)
+		newtime /= 1000;	//use RAF's timing for slightly greater precision.
+	else
+		newtime = Sys_DoubleTime ();	//otherwise fall back on internally consistent timing...
+	if (newtime < oldtime)
+		newtime = oldtime;	//don't let ourselves go backwards...
 	if (!oldtime)
 		oldtime = newtime;
 	time = newtime - oldtime;

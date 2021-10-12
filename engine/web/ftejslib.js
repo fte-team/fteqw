@@ -156,7 +156,7 @@ mergeInto(LibraryManager.library,
 					if (FTEC.pointerwantlock != 0 && FTEC.pointerislocked == 0)
 					{
 						FTEC.pointerislocked = -1;  //don't repeat the request on every click. firefox has a fit at that, so require the mouse to leave the element or something before we retry.
-						Module['canvas'].requestPointerLock();
+						Module['canvas'].requestPointerLock({unadjustedMovement: true});
 					}
 
 					if (FTEC.usevr)
@@ -547,7 +547,7 @@ mergeInto(LibraryManager.library,
 			
 			try	//this try is needed to handle Host_EndGame properly.
 			{
-				dovsync = {{{makeDynCall('i')}}}(fnc);
+				dovsync = {{{makeDynCall('if')}}}(fnc,timestamp);
 			}
 			catch(err)
 			{
@@ -563,16 +563,20 @@ mergeInto(LibraryManager.library,
 					Browser.requestAnimationFrame(Module["sched"]);
 			}
 			else
-				setTimeout(Module["sched"], 0);
+				setTimeout(Module["sched"], 0, performance.now());
 		};
 		Module["sched"] = step;
 		//don't start it instantly, so we can distinguish between types of errors (emscripten sucks!).
-		setTimeout(step, 1);
+		setTimeout(step, 1, performance.now());
 	},
 
 	emscriptenfte_ticks_ms : function()
-	{
+	{	//milliseconds...
 		return Date.now();
+	},
+	emscriptenfte_uptime_ms : function()
+	{	//milliseconds...
+		return performance.now();
 	},
 
 	emscriptenfte_buf_create__deps : ['emscriptenfte_handle_alloc'],

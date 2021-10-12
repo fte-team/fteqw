@@ -31,7 +31,7 @@ void emscriptenfte_rtc_candidate(int sock, const char *offer);				//adds a remot
 //misc stuff for printf replacements
 void emscriptenfte_alert(const char *msg);
 void emscriptenfte_print(const char *msg);
-void emscriptenfte_setupmainloop(int(*mainloop)(void));
+void emscriptenfte_setupmainloop(int(*mainloop)(double timestamp));
 NORETURN void emscriptenfte_abortmainloop(const char *caller);
 
 //we're trying to avoid including libpng+libjpeg+libogg in javascript due to it being redundant bloat.
@@ -42,6 +42,7 @@ void emscriptenfte_al_loadaudiofile(int al_buf, void *data, int datasize);
 //avoid all of emscripten's sdl emulation.
 //this resolves input etc issues.
 unsigned long emscriptenfte_ticks_ms(void);
+double emscriptenfte_uptime_ms(void);
 void emscriptenfte_updatepointerlock(int wantpointerlock, int hidecursor);
 void emscriptenfte_polljoyevents(void);
 void emscriptenfte_settitle(const char *text);

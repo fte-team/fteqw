@@ -13,12 +13,7 @@ static struct dl_download *activedownloads;
 #if defined(FTE_TARGET_WEB)
 
 
-#define MYJS 1
-#if MYJS
 #include "web/ftejslib.h"
-#else
-#include <emscripten/emscripten.h>
-#endif
 
 vfsfile_t *FSWEB_OpenTempHandle(int f);
 
@@ -32,7 +27,6 @@ static void DL_OnLoad(void *c, int buf)
 	//also fires from 404s.
 	struct dl_download *dl = c;
 	vfsfile_t *tempfile = FSWEB_OpenTempHandle(buf);
-
 	//make sure the file is 'open'.
 	if (!dl->file)
 	{
@@ -76,26 +70,15 @@ static void DL_OnLoad(void *c, int buf)
 		VFS_CLOSE(tempfile);
 
 	dl->replycode = 200;
-#if !MYJS
-	dl->completed += datasize;
-#endif
 }
-#if MYJS
 static void DL_OnError(void *c, int ecode)
-#else
-static void DL_OnError(void *c)
-#endif
 {
 	struct dl_download *dl = c;
 	//fires from cross-domain blocks, tls errors, etc.
 	//anything which doesn't yield an http response (404 is NOT an error as far as js is aware).
 
-#if MYJS
 	dl->replycode = ecode;
-#else
-	dl->replycode = 404;	//we don't actually know. should we not do this?
-#endif
-	Con_Printf(CON_WARNING"dl error: %s\n", dl->url);
+	Con_Printf(CON_WARNING"dl error(%i): %s\n", ecode, dl->url);
 	dl->status = DL_FAILED;
 }
 static void DL_OnProgress(void *c, int position, int totalsize)
@@ -112,9 +95,8 @@ qboolean DL_Decide(struct dl_download *dl)
 	const char *url = dl->redir;
 	if (!*url)
 		url = dl->url;
-
 	if (dl->postdata)
-	{
+	{	//not supported...
 		DL_Cancel(dl);
 		return false;	//safe to destroy it now
 	}
@@ -129,19 +111,18 @@ qboolean DL_Decide(struct dl_download *dl)
 			return false;
 		}
 	}
-	else
+	else if (dl->status == DL_PENDING)
 	{
 		dl->status = DL_ACTIVE;
 		dl->abort = DL_Cancel;
 		dl->ctx = dl;
 
-#if MYJS
 		emscriptenfte_async_wget_data2(url, dl, DL_OnLoad, DL_OnError, DL_OnProgress);
-#else
-		//annoyingly, emscripten doesn't provide an onprogress callback, unlike firefox etc, so we can't actually tell how far its got.
-		//we'd need to provide our own js library to fix this. it can be done, I'm just lazy.
-		emscripten_async_wget_data(url, dl, DL_OnLoad, DL_OnError);
-#endif
+	}
+	else if (dl->status == DL_ACTIVE)
+	{	//canceled?
+		dl->status = DL_FAILED;
+		return false;
 	}
 
 	return true;

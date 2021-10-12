@@ -5579,6 +5579,7 @@ void GLBE_UpdateLightmaps(void)
 				else
 					qglTexImage2D(GL_TEXTURE_2D, 0, gl_config.formatinfo[lm->fmt].internalformat,	lm->width, lm->height, 0, gl_config.formatinfo[lm->fmt].format, gl_config.formatinfo[lm->fmt].type,	lm->lightmaps);
 
+#ifndef FTE_TARGET_WEB
 				if (gl_config.glversion >= (gl_config.gles?3.0:3.3))
 				{
 					qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_SWIZZLE_R, gl_config.formatinfo[lm->fmt].swizzle_r);
@@ -5586,6 +5587,7 @@ void GLBE_UpdateLightmaps(void)
 					qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_SWIZZLE_B, gl_config.formatinfo[lm->fmt].swizzle_b);
 					qglTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_SWIZZLE_A, gl_config.formatinfo[lm->fmt].swizzle_a);
 				}
+#endif
 
 				//for completeness.
 				lm->lightmap_texture->format = lm->fmt;

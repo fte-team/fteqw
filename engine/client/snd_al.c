@@ -35,7 +35,6 @@ We also have no doppler with WebAudio.
 	#define OPENAL_STATIC		//our javascript port doesn't support dynamic linking  (bss+data segments get too messy).
 	#define SDRVNAME "WebAudio"	//IE doesn't support webaudio, resulting in noticable error messages about no openal, which is technically incorrect. So lets be clear about this.
 	#define SDRVNAMEDESC "WebAudio:"
-	qboolean firefoxstaticsounds;	//FireFox bugs out with static sounds. they all end up full volume AND THIS IS REALLY LOUD AND REALLY ANNOYING.
 #else
 	#define SDRVNAME "OpenAL"
 	#define SDRVNAMEDESC "OAL:"
@@ -82,6 +81,7 @@ We also have no doppler with WebAudio.
 #define palGetSourcei			alGetSourcei
 #define palSourceQueueBuffers	alSourceQueueBuffers
 #define palSourceUnqueueBuffers	alSourceUnqueueBuffers
+#define	palIsExtensionPresent	alIsExtensionPresent
 
 
 #define palcOpenDevice			alcOpenDevice
@@ -91,7 +91,9 @@ We also have no doppler with WebAudio.
 #define palcMakeContextCurrent	alcMakeContextCurrent
 #define palcProcessContext		alcProcessContext
 #define palcGetString			alcGetString
+#define palcGetIntegerv			alcGetIntegerv
 #define palcIsExtensionPresent	alcIsExtensionPresent
+#define palcGetProcAddress		alcGetProcAddress
 
 #define palGetProcAddress alGetProcAddress
 
@@ -228,6 +230,8 @@ static ALC_API void            (ALC_APIENTRY *palcProcessContext)( ALCcontext *c
 
 static ALC_API const ALCchar * (ALC_APIENTRY *palcGetString)( ALCdevice *device, ALCenum param );
 static ALC_API ALCboolean      (ALC_APIENTRY *palcIsExtensionPresent)( ALCdevice *device, const ALCchar *extname );
+static ALC_API void*           (ALC_APIENTRY *palcGetProcAddress)(ALCdevice *device, const ALCchar *funcname);
+
 
 #define ALC_DEFAULT_DEVICE_SPECIFIER             0x1004
 #define ALC_DEVICE_SPECIFIER                     0x1005
@@ -319,6 +323,24 @@ static AL_API ALvoid (AL_APIENTRY *palEffectfv)(ALuint effect, ALenum param, con
 #define AL_FORMAT_MONO_FLOAT32                      0x10010
 #define AL_FORMAT_STEREO_FLOAT32                    0x10011
 
+//AL_SOFT_source_spatialize
+#define AL_SOURCE_SPATIALIZE_SOFT					0x1214
+
+//ALC_SOFT_HRTF
+#define	ALC_HRTF_SOFT								0x1992
+#define		ALC_DONT_CARE_SOFT						0x0002
+#define ALC_HRTF_STATUS_SOFT						0x1993
+#define		ALC_HRTF_DISABLED_SOFT					0x0000
+#define		ALC_HRTF_ENABLED_SOFT					0x0001
+#define		ALC_HRTF_DENIED_SOFT					0x0002
+#define		ALC_HRTF_REQUIRED_SOFT					0x0003
+#define		ALC_HRTF_HEADPHONES_DETECTED_SOFT		0x0004
+#define		ALC_HRTF_UNSUPPORTED_FORMAT_SOFT		0x0005
+#define	ALC_NUM_HRTF_SPECIFIERS_SOFT				0x1994
+#define	ALC_HRTF_SPECIFIER_SOFT						0x1995
+#define	ALC_HRTF_ID_SOFT							0x1996
+static const ALCchar *(*palcGetStringiSOFT)(ALCdevice *device, ALCenum paramName, ALCsizei index);
+
 #define SOUNDVARS SDRVNAME" variables"
 
 
@@ -337,6 +359,7 @@ static void S_Shutdown_f(void);
 */
 static cvar_t s_al_disable = CVARD("s_al_disable", "0", "0: OpenAL works (generally as the highest priority).\n1: OpenAL will be used only when a specific device is selected.\n2: Don't allow ANY use of OpenAl.\nWith OpenAL disabled, audio ouput will fall back to platform-specific output, avoiding miscilaneous third-party openal limitation bugs.");
 static cvar_t s_al_debug = CVARD("s_al_debug", "0", "Enables periodic checks for OpenAL errors.");
+static cvar_t s_al_hrtf = CVARD("s_al_hrtf", "", "Enables use of HRTF, and which HRTF table to use.\nempty: auto, depending on openal config to enable it.\n\0: force off.\n1: Use the default HRTF.");
 static cvar_t s_al_use_reverb = CVARD("s_al_use_reverb", "1", "Controls whether reverb effects will be used. Set to 0 to block them. Reverb requires gamecode to configure the reverb properties, other than underwater.");
 //static cvar_t s_al_max_distance = CVARFC("s_al_max_distance", "1000",0,OnChangeALSettings);
 static cvar_t s_al_speedofsound = CVARFCD("s_al_speedofsound", "343.3",0,OnChangeALSettings, "Configures the speed of sound, in game units per second. This affects doppler.");
@@ -379,6 +402,7 @@ typedef struct
 
 	ALCdevice *OpenAL_Device;
 	ALCcontext *OpenAL_Context;
+	qboolean can_source_spatialise;
 
 	int ListenEnt;			//listener's entity number, so we don't get weird sound displacements
 	ALfloat ListenPos[3];	//their origin.
@@ -585,6 +609,7 @@ static void QDECL OpenAL_CvarInit(void)
 {
 	Cvar_Register(&s_al_disable, SOUNDVARS);
 	Cvar_Register(&s_al_debug, SOUNDVARS);
+	Cvar_Register(&s_al_hrtf, SOUNDVARS);
 	Cvar_Register(&s_al_use_reverb, SOUNDVARS);
 //	Cvar_Register(&s_al_max_distance, SOUNDVARS);
 	Cvar_Register(&s_al_dopplerfactor, SOUNDVARS);
@@ -711,11 +736,6 @@ static void OpenAL_ChannelUpdate(soundcardinfo_t *sc, channel_t *chan, chanupdat
 		Z_ReallocElements((void**)&oali->source, &oali->max_sources, chnum+1+64, sizeof(*oali->source));
 
 	//alcMakeContextCurrent
-
-#ifdef FTE_TARGET_WEB
-	if (firefoxstaticsounds && chan->dist_mult >= 3.0 / snd_nominaldistance.value)
-		sfx = NULL;
-#endif
 
 	if (!oali->source[chnum].allocated)
 	{
@@ -984,6 +1004,9 @@ static void OpenAL_ChannelUpdate(soundcardinfo_t *sc, channel_t *chan, chanupdat
 #endif
 	}
 
+	if (oali->can_source_spatialise)	//force spacialisation as desired, if supported (this solves browsers forcing stereo on mono files which should mean static audio is full volume...)
+		palSourcei(src, AL_SOURCE_SPATIALIZE_SOFT, !srcrel);
+
 	if (schanged)
 	{
 		if (schanged == CUR_UPDATE && chan->pos)
@@ -1022,7 +1045,7 @@ static void OpenAL_ChannelUpdate(soundcardinfo_t *sc, channel_t *chan, chanupdat
 		//but openal clamps in an annoying order (probably to keep things signed in hardware) and webaudio refuses infinity, so we need to special case no attenuation to get around the issue
 		if (srcrel)
 		{
-#ifdef FTE_TARGET_WEB
+#if 0//def FTE_TARGET_WEB
 			switch(DM_INVERSE)	//emscripten omits it, and this is webaudio's default too.
 #else
 			switch((enum distancemodel_e)s_al_distancemodel.ival)
@@ -1045,7 +1068,7 @@ static void OpenAL_ChannelUpdate(soundcardinfo_t *sc, channel_t *chan, chanupdat
 		}
 		else
 		{
-#ifdef FTE_TARGET_WEB
+#if 0//def FTE_TARGET_WEB
 			switch(DM_LINEAR)	//emscripten hardcodes it in a buggy kind of way.
 #else
 			switch((enum distancemodel_e)s_al_distancemodel.ival)
@@ -1061,7 +1084,7 @@ static void OpenAL_ChannelUpdate(soundcardinfo_t *sc, channel_t *chan, chanupdat
 			case DM_LINEAR:	//linear, mimic quake.
 			case DM_LINEAR_CLAMPED: //linear clamped to further than ref distance
 				palSourcef(src, AL_ROLLOFF_FACTOR, 1);
-#ifdef FTE_TARGET_WEB
+#if 0//def FTE_TARGET_WEB
 				//chrome complains about 0.
 				//with the expontential model, 0 results in division by zero, but we're not using that model and the maths for the linear model is fine with it.
 				//the web audio spec says 'The default value is 1. A RangeError exception must be thrown if this is set to a non-negative value.'
@@ -1107,12 +1130,6 @@ static void S_Info (void)
 
 static qboolean OpenAL_InitLibrary(void)
 {
-#ifdef FTE_TARGET_WEB
-	firefoxstaticsounds = !!strstr(emscripten_run_script_string("navigator.userAgent"), "Firefox");
-	if (firefoxstaticsounds)
-		Con_DPrintf("Firefox detected - disabling static sounds to avoid SORRY, I CAN'T HEAR YOU\n");
-#endif
-
 #ifdef OPENAL_STATIC
 	if (s_al_disable.ival > 1)
 		return false;
@@ -1156,6 +1173,7 @@ static qboolean OpenAL_InitLibrary(void)
 		{(void*)&palcProcessContext, "alcProcessContext"},
 		{(void*)&palcGetString, "alcGetString"},
 		{(void*)&palcIsExtensionPresent, "alcIsExtensionPresent"},
+		{(void*)&palcGetProcAddress, "alcGetProcAddress"},
 		{NULL}
 	};
 
@@ -1214,7 +1232,58 @@ static qboolean OpenAL_Init(soundcardinfo_t *sc, const char *devname)
 		PrintALError("Could not init a sound device\n");
 	else
 	{
-		oali->OpenAL_Context = palcCreateContext(oali->OpenAL_Device, NULL);
+		size_t i = 0;
+		ALCint attrs[5];
+
+		palcGetStringiSOFT = (palcIsExtensionPresent(oali->OpenAL_Device, "ALC_SOFT_HRTF"))?palcGetProcAddress(oali->OpenAL_Device, "alcGetStringiSOFT"):NULL;
+		if (palcGetStringiSOFT)
+		{
+			if (!*s_al_hrtf.string)
+			{
+				attrs[i++] = ALC_HRTF_SOFT;
+				attrs[i++] = ALC_DONT_CARE_SOFT;
+			}
+			else if (!strcmp(s_al_hrtf.string, "0") || !strcmp(s_al_hrtf.string, "1"))
+			{	//explicitly switch it off or on(default)
+				attrs[i++] = ALC_HRTF_SOFT;
+				attrs[i++] = !strcmp(s_al_hrtf.string, "1");
+			}
+			else
+			{	//we want an explicit hrtf
+				ALCint hrtf_count = 0;
+				ALCint idx;
+				const ALCchar *hrtfname;
+				attrs[i++] = ALC_HRTF_SOFT;
+				attrs[i++] = true;
+
+				palcGetIntegerv(oali->OpenAL_Device, ALC_NUM_HRTF_SPECIFIERS_SOFT, 1, &hrtf_count);
+				for (idx = 0; idx < hrtf_count; idx++)
+				{
+					hrtfname = palcGetStringiSOFT(oali->OpenAL_Device, ALC_HRTF_SPECIFIER_SOFT, idx);
+					if (hrtfname && !strcmp(hrtfname, s_al_hrtf.string))
+						break;
+				}
+
+				if (idx < hrtf_count)
+				{
+					attrs[i++] = ALC_HRTF_ID_SOFT;
+					attrs[i++] = idx;
+				}
+				else if (hrtf_count)
+				{
+					Con_Printf("HRTF \"%s\" not known, available options are:\n", s_al_hrtf.string);
+					for (idx = 0; idx < hrtf_count; idx++)
+					{
+						hrtfname = palcGetStringiSOFT(oali->OpenAL_Device, ALC_HRTF_SPECIFIER_SOFT, idx);
+						if (hrtfname)
+							Con_Printf("\t\"%s\"\n", hrtfname);
+					}
+				}
+			}
+		}
+		attrs[i] = 0;	//EOL
+
+		oali->OpenAL_Context = palcCreateContext(oali->OpenAL_Device, attrs);
 		if (!oali->OpenAL_Context)
 			PrintALError("Could not init a sound context\n");
 		else
@@ -1234,6 +1303,23 @@ static qboolean OpenAL_Init(soundcardinfo_t *sc, const char *devname)
 #endif
 			palListenerfv(AL_ORIENTATION, oali->ListenOri);
 
+			oali->can_source_spatialise = palIsExtensionPresent("AL_SOFT_source_spatialize");
+
+			if (palcGetStringiSOFT)
+			{
+				ALCint stat;
+				palcGetIntegerv(oali->OpenAL_Device, ALC_HRTF_STATUS_SOFT, 1, &stat);
+				safeswitch(stat)
+				{
+				case ALC_HRTF_DISABLED_SOFT:			Con_Printf("AL_HRTF_STATUS: DISABLED.\n"); break;
+				case ALC_HRTF_ENABLED_SOFT:				Con_Printf("AL_HRTF_STATUS: ENABLED.\n"); break;
+				case ALC_HRTF_DENIED_SOFT:				Con_Printf("AL_HRTF_STATUS: DENIED.\n"); break;
+				case ALC_HRTF_REQUIRED_SOFT:			Con_Printf("AL_HRTF_STATUS: REQUIRED.\n"); break;
+				case ALC_HRTF_HEADPHONES_DETECTED_SOFT:	Con_Printf("AL_HRTF_STATUS: HEADPHONES_DETECTED.\n"); break;
+				case ALC_HRTF_UNSUPPORTED_FORMAT_SOFT:	Con_Printf("AL_HRTF_STATUS: UNSUPPORTED_FORMAT.\n"); break;
+				safedefault:							Con_Printf("AL_HRTF_STATUS: %#x.\n", stat); break;
+				}
+			}
 			return true;
 		}
 		palcCloseDevice(oali->OpenAL_Device);
@@ -1513,9 +1599,15 @@ static qboolean QDECL OpenAL_InitCard(soundcardinfo_t *sc, const char *devname)
 		return false;
 	oali = sc->handle;
 
+#ifdef FTE_TARGET_WEB
+	Con_DPrintf( "AL_VERSION: %s\n",palGetString(AL_VERSION));
+	Con_DPrintf( "AL_RENDERER: %s\n",palGetString(AL_RENDERER));
+	Con_DPrintf( "AL_VENDOR: %s\n",palGetString(AL_VENDOR));
+#else
 	Con_Printf( "AL_VERSION: %s\n",palGetString(AL_VERSION));
 	Con_Printf( "AL_RENDERER: %s\n",palGetString(AL_RENDERER));
 	Con_Printf( "AL_VENDOR: %s\n",palGetString(AL_VENDOR));
+#endif
 	Con_DPrintf("AL_EXTENSIONS: %s\n",palGetString(AL_EXTENSIONS));
 	Con_DPrintf("ALC_EXTENSIONS: %s\n",palcGetString(oali->OpenAL_Device,ALC_EXTENSIONS));
 

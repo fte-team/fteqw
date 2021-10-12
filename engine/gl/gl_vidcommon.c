@@ -1190,10 +1190,11 @@ static qboolean GL_CheckExtensions (void *(*getglfunction) (char *name))
 
 	if (gl_config.gles)
 	{	//gles has different TexImage2D arguments for specifying quality.
-		gl_config.arb_depth_texture = GL_CheckExtension("GL_OES_depth_texture");	//gles2
-		gl_config.arb_depth_texture |= GL_CheckExtension("GL_CHROMIUM_depth_texture");	//nacl
-		gl_config.arb_depth_texture |= GL_CheckExtension("GL_WEBGL_depth_texture");	//webgl. duh.
-		gl_config.arb_depth_texture |= GL_CheckExtension("GL_ANGLE_depth_texture");	//gah. should just use wildcards huh (no uploads)
+		gl_config.arb_depth_texture = gl_config.glversion >= 3.0
+									|| GL_CheckExtension("GL_OES_depth_texture")	//gles2
+									|| GL_CheckExtension("GL_CHROMIUM_depth_texture")	//nacl
+									|| GL_CheckExtension("GL_WEBGL_depth_texture")	//webgl. duh.
+									|| GL_CheckExtension("GL_ANGLE_depth_texture");	//gah. should just use wildcards huh (no uploads)
 		gl_config.arb_shadow = gl_config.glversion>=3.0;//||GL_CheckExtension("GL_EXT_shadow_samplers");
 	}
 	else

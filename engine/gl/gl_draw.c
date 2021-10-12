@@ -159,8 +159,8 @@ void GL_SetupFormats(void)
 		if (!gl_config.webgl_ie)
 		{	//these should work on all gles2+webgl1 devices, but microsoft doesn't give a shit.
 			glfmtc(PTI_RGB565,	(ver>=3)?GL_RGB565:0,			GL_RGB,					GL_RGB,					GL_UNSIGNED_SHORT_5_6_5,	tc_rgb);
-//			glfmtc(PTI_RGBA4444,(ver>=3)?GL_RGBA4:0,			GL_RGBA,				GL_RGBA,				GL_UNSIGNED_SHORT_4_4_4_4,	tc_rgba8);
-//			glfmtc(PTI_RGBA5551,(ver>=3)?GL_RGB555A1:0,			GL_RGBA,				GL_RGBA,				GL_UNSIGNED_SHORT_5_5_5_1,	tc_rgba1);
+			glfmtc(PTI_RGBA4444,(ver>=3)?GL_RGBA4:0,			GL_RGBA,				GL_RGBA,				GL_UNSIGNED_SHORT_4_4_4_4,	tc_rgba8);
+			glfmtc(PTI_RGBA5551,(ver>=3)?GL_RGB5_A1:0,			GL_RGBA,				GL_RGBA,				GL_UNSIGNED_SHORT_5_5_5_1,	tc_rgba1);
 		}
 		if (GL_CheckExtension("GL_OES_texture_half_float"))
 			glfmt(PTI_RGBA16F,	(ver>=3)?GL_RGBA16F:0,			GL_RGBA,				GL_RGBA,				GL_HALF_FLOAT_OES);	//not to be confused with GL_HALF_FLOAT[_ARB] which has a different value
@@ -226,7 +226,7 @@ void GL_SetupFormats(void)
 				glfmtc(PTI_BGRA8_SRGB,	GL_SRGB8_ALPHA8_EXT,GL_SRGB_ALPHA_EXT,		GL_BGRA_EXT,			GL_UNSIGNED_BYTE,	tc_srgba8);
 			}
 		}
-		else if (ver >= 3.3)
+		else if (ver >= 3.3 && !gl_config_gles)
 		{
 			glfmtsw(PTI_BGR8,		GL_RGB8,			GL_RGB,					GL_RGB,				GL_UNSIGNED_BYTE,	0,			GL_BLUE, GL_GREEN, GL_RED, GL_ONE);
 			glfmtsw(PTI_BGRX8,		GL_RGB8,			GL_RGB,					GL_RGBA,			GL_UNSIGNED_BYTE,	tc_rgb,		GL_BLUE, GL_GREEN, GL_RED, GL_ONE);

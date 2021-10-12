@@ -4030,7 +4030,15 @@ uploadfmt_t Surf_NameToFormat(const char *nam)
 	if (!Q_strcasecmp(nam, "argb1555"))
 		return PTI_ARGB1555;
 	if (!Q_strcasecmp(nam, "rgbx8") || !Q_strcasecmp(nam, "bgrx8") || !Q_strcasecmp(nam, "rgba8") || !Q_strcasecmp(nam, "bgra8"))
-		return PTI_BGRX8;	//most common formats...
+	{	//most common format(s) for lightmaps in various engines...
+		if (sh_config.texfmt[PTI_BGRX8])
+			return PTI_BGRX8;	//probably fastest
+		if (sh_config.texfmt[PTI_RGBX8])
+			return PTI_RGBX8;	//no bgr? odd...
+		if (sh_config.texfmt[PTI_BGRA8])
+			return PTI_BGRA8;	//no padded formats at all? erk!
+		return PTI_RGBA8;	//probably the slowest for pc hardware.
+	}
 	if (!Q_strcasecmp(nam, "rgb8") || !Q_strcasecmp(nam, "bgr8"))
 		return PTI_RGB8;	//generally not recommended (misaligned so the gpu has to compensate)
 	if (!Q_strcasecmp(nam, "l8"))

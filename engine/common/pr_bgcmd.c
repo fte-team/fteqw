@@ -7528,6 +7528,8 @@ void PR_ProgsAdded(pubprogfuncs_t *prinst, int newprogs, const char *modulename)
 		h = strchr(lang, '_');
 		if (h)
 			*h = 0;
+		else if (*lang)
+			*lang = 0;
 		else
 			break;
 	}

@@ -1109,7 +1109,7 @@ static qboolean CM_CreatePatchesForLeafs (model_t *loadmodel, cminfo_t *prv)
 
 	memset (checkout, -1, sizeof(int)*prv->numfaces);
 
-	for (i = 0; i < prv->numcmodels; i++)
+	for (i = prv->numcmodels; i-- > 0; )
 	{
 		prv->cmodels[i].firstpatch = prv->numpatches;
 		prv->cmodels[i].firstcmesh = prv->numcmeshes;

@@ -5668,6 +5668,10 @@ done:;
 		Shader_Programify(ps);
 	}
 
+	if(		s->numdeforms ||
+			s->sort == SHADER_SORT_PORTAL ||	//q3-style portals (needed for pvs info)
+			s->flags & (SHADER_HASREFLECT|SHADER_HASREFRACT)) //water effects (needed for pvs info)
+		s->flags |= SHADER_NEEDSARRAYS;
 	if (s->prog)
 	{
 		struct
@@ -5763,10 +5767,6 @@ done:;
 #endif
 		s->passes->numMergedPasses = s->numpasses;
 	}
-	else if(s->numdeforms ||
-			s->sort == SHADER_SORT_PORTAL ||	//q3-style portals (needed for pvs info)
-			s->flags & (SHADER_HASREFLECT|SHADER_HASREFRACT)) //water effects (needed for pvs info)
-		s->flags |= SHADER_NEEDSARRAYS;
 	else
 	{
 		for (i = 0; i < s->numpasses; i++)

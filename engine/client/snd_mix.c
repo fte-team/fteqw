@@ -394,6 +394,10 @@ void S_PaintChannels(soundcardinfo_t *sc, int endtime)
 							SND_PaintChannel32F_O8I1(ch, scache, count, rate);
 						break;
 #endif
+#ifdef FTE_TARGET_WEB
+					case QAF_BLOB:
+						break;
+#endif
 					}
 					ltime += count;
 					ch->pos += rate * count;

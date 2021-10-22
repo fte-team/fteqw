@@ -1843,6 +1843,7 @@ extern sounddriver_t Pulse_Output;
 sounddriver_t fte_weakstruct OSS_Output;
 #ifdef AVAIL_OPENAL
 extern sounddriver_t OPENAL_Output;
+extern sounddriver_t OPENAL_Output_Lame;
 #endif
 #ifdef __DJGPP__
 extern sounddriver_t SBLASTER_Output;
@@ -1915,6 +1916,9 @@ static sounddriver_t *outputdrivers[] =
 #endif
 	&SNDIO_AudioOutput,	//prefered on OpenBSD
 
+#ifdef AVAIL_OPENAL
+	&OPENAL_Output_Lame,//streaming quake's audio via openal instead of using openal properly. used in our browser port to work around issues with webaudio (at least in chromium).
+#endif
 #endif
 	NULL
 };

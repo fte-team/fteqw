@@ -390,7 +390,7 @@ struct soundcardinfo_s { //windows has one defined AFTER directsound
 	void (*Submit) (soundcardinfo_t *sc, int start, int end);		//if the ringbuffer is emulated, this is where you should push it to the device.
 	void (*Shutdown) (soundcardinfo_t *sc);							//kill the device
 	unsigned int (*GetDMAPos) (soundcardinfo_t *sc);				//get the current point that the hardware is reading from (the return value should not wrap, at least not very often)
-	void (*SetEnvironmentReverb) (soundcardinfo_t *sc, size_t reverb);	//if you have eax enabled, change the environment. fixme. generally this is a stub. optional.
+	void (*SetEnvironmentReverb) (soundcardinfo_t *sc, size_t reverb);	//if you have eax enabled, change the environment. generally this is a stub. optional.
 	void (*Restore) (soundcardinfo_t *sc);							//called before lock/unlock/lock/unlock/submit. optional
 	void (*ChannelUpdate) (soundcardinfo_t *sc, channel_t *channel, chanupdatereason_t schanged);	//properties of a sound effect changed. this is to notify hardware mixers. optional.
 	void (*ListenerUpdate) (soundcardinfo_t *sc, int entnum, vec3_t origin, vec3_t forward, vec3_t right, vec3_t up, vec3_t velocity);	//player moved or something. this is to notify hardware mixers. optional.

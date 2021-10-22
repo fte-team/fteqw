@@ -35,9 +35,14 @@ We also have no doppler with WebAudio.
 	#define OPENAL_STATIC		//our javascript port doesn't support dynamic linking  (bss+data segments get too messy).
 	#define SDRVNAME "WebAudio"	//IE doesn't support webaudio, resulting in noticable error messages about no openal, which is technically incorrect. So lets be clear about this.
 	#define SDRVNAMEDESC "WebAudio:"
+
+	#define QMIX_SDRVNAME "qmix"	//IE doesn't support webaudio, resulting in noticable error messages about no openal, which is technically incorrect. So lets be clear about this.
+	#define QMIX_SDRVNAMEDESC "QMIX:"
 #else
 	#define SDRVNAME "OpenAL"
 	#define SDRVNAMEDESC "OAL:"
+	#define QMIX_SDRVNAME "qmix"
+	#define QMIX_SDRVNAMEDESC "OALQ:"
 	#define USEEFX
 #endif
 #ifndef HAVE_MIXER
@@ -67,6 +72,7 @@ We also have no doppler with WebAudio.
 #define palGenBuffers			alGenBuffers
 #define palIsBuffer				alIsBuffer
 #define palBufferData			alBufferData
+#define palBufferiv				alBufferiv
 #define palDeleteBuffers		alDeleteBuffers
 #define palListenerfv			alListenerfv
 #define palSourcefv				alSourcefv
@@ -136,6 +142,7 @@ static AL_API void (AL_APIENTRY *palDopplerFactor)( ALfloat value );
 static AL_API void (AL_APIENTRY *palGenBuffers)( ALsizei n, ALuint* buffers );
 static AL_API ALboolean (AL_APIENTRY *palIsBuffer)( ALuint bid );
 static AL_API void (AL_APIENTRY *palBufferData)( ALuint bid, ALenum format, const ALvoid* data, ALsizei size, ALsizei freq );
+static AL_API void (AL_APIENTRY *palBufferiv)(ALuint buffer, ALenum param, const ALint *values);
 static AL_API void (AL_APIENTRY *palDeleteBuffers)( ALsizei n, const ALuint* buffers );
 
 static AL_API void (AL_APIENTRY *palListenerfv)( ALenum param, const ALfloat* values ); 
@@ -326,6 +333,9 @@ static AL_API ALvoid (AL_APIENTRY *palEffectfv)(ALuint effect, ALenum param, con
 //AL_SOFT_source_spatialize
 #define AL_SOURCE_SPATIALIZE_SOFT					0x1214
 
+//AL_SOFT_loop_points
+#define AL_LOOP_POINTS_SOFT							0x2015
+
 //ALC_SOFT_HRTF
 #define	ALC_HRTF_SOFT								0x1992
 #define		ALC_DONT_CARE_SOFT						0x0002
@@ -357,7 +367,11 @@ static void S_Info(void);
 
 static void S_Shutdown_f(void);
 */
+#ifdef FTE_TARGET_WEB
+static cvar_t s_al_disable = CVARD("s_al_disable", "1", "0: OpenAL works (generally as the highest priority).\n1: OpenAL will be used only when a specific device is selected.\n2: Don't allow ANY use of OpenAl.\nWith OpenAL disabled, audio ouput will fall back to platform-specific output, avoiding miscilaneous third-party openal limitation bugs.");
+#else
 static cvar_t s_al_disable = CVARD("s_al_disable", "0", "0: OpenAL works (generally as the highest priority).\n1: OpenAL will be used only when a specific device is selected.\n2: Don't allow ANY use of OpenAl.\nWith OpenAL disabled, audio ouput will fall back to platform-specific output, avoiding miscilaneous third-party openal limitation bugs.");
+#endif
 static cvar_t s_al_debug = CVARD("s_al_debug", "0", "Enables periodic checks for OpenAL errors.");
 static cvar_t s_al_hrtf = CVARD("s_al_hrtf", "", "Enables use of HRTF, and which HRTF table to use.\nempty: auto, depending on openal config to enable it.\n\0: force off.\n1: Use the default HRTF.");
 static cvar_t s_al_use_reverb = CVARD("s_al_use_reverb", "1", "Controls whether reverb effects will be used. Set to 0 to block them. Reverb requires gamecode to configure the reverb properties, other than underwater.");
@@ -387,6 +401,12 @@ typedef struct
 	struct
 	{
 		ALuint handle;
+		unsigned int queuesize;
+		ALuint queue[64];
+	} qmix;
+	struct
+	{
+		ALuint handle;
 		qbyte allocated;	//there is no guarenteed-unused handle (and I don't want to have to keep spamming alIsSource).
 		qbyte queuesize;
 		ALuint	queue[3];
@@ -403,11 +423,13 @@ typedef struct
 	ALCdevice *OpenAL_Device;
 	ALCcontext *OpenAL_Context;
 	qboolean can_source_spatialise;
+	qboolean can_looppoints;
 
 	int ListenEnt;			//listener's entity number, so we don't get weird sound displacements
 	ALfloat ListenPos[3];	//their origin.
 	ALfloat ListenVel[3];	// Velocity of the listener.
 	ALfloat ListenOri[6];	// Orientation of the listener. (first 3 elements are "at", second 3 are "up")
+	unsigned int listenerdirty;
 
 #ifdef MIXER_F32
 	qboolean canfloataudio;
@@ -455,7 +477,7 @@ static void PrintALError(char *string)
 	Con_Printf("OpenAL - %s: %x: %s\n",string,err,text);
 }
 
-static qboolean OpenAL_LoadCache(oalinfo_t *oali, unsigned int *bufptr, sfxcache_t *sc, float volume)
+static qboolean OpenAL_LoadCache(oalinfo_t *oali, unsigned int *bufptr, sfxcache_t *sc, float volume, int loopstart)
 {
 	unsigned int fmt;
 	unsigned int size;
@@ -599,6 +621,12 @@ static qboolean OpenAL_LoadCache(oalinfo_t *oali, unsigned int *bufptr, sfxcache
 		}
 	}
 
+	if (oali->can_looppoints && loopstart>0)
+	{
+		ALint points[2] = {loopstart, sc->length};
+		palBufferiv(*bufptr, AL_LOOP_POINTS_SOFT, points);
+	}
+
 	//FIXME: we need to handle oal-oom error codes
 
 	PrintALError("Buffer Data");
@@ -624,6 +652,7 @@ static void QDECL OpenAL_CvarInit(void)
 static void OpenAL_ListenerUpdate(soundcardinfo_t *sc, int entnum, vec3_t origin, vec3_t forward, vec3_t right, vec3_t up, vec3_t velocity)
 {
 	oalinfo_t *oali = sc->handle;
+	vec3_t vel;
 
 	if (snd_doppler.modified)
 	{
@@ -631,26 +660,46 @@ static void OpenAL_ListenerUpdate(soundcardinfo_t *sc, int entnum, vec3_t origin
 		OnChangeALSettings(NULL,NULL);
 	}
 
-	VectorScale(velocity, s_al_velocityscale.value/35.0, oali->ListenVel);
-	VectorCopy(origin, oali->ListenPos);
+	if (!VectorCompare(origin, oali->ListenPos))
+	{
+		VectorCopy(origin, oali->ListenPos);
+		oali->listenerdirty |= 1;
+	}
+
+	VectorScale(velocity, s_al_velocityscale.value/35.0, vel);
+	if (!VectorCompare(vel, oali->ListenVel))
+	{
+		VectorCopy(vel, oali->ListenVel);
+		oali->listenerdirty |= 2;
+	}
 
 	oali->ListenEnt = entnum;
-	oali->ListenOri[0] = forward[0];
-	oali->ListenOri[1] = forward[1];
-	oali->ListenOri[2] = forward[2];
-	oali->ListenOri[3] = up[0];
-	oali->ListenOri[4] = up[1];
-	oali->ListenOri[5] = up[2];
+	if (!VectorCompare(forward, oali->ListenOri) || !VectorCompare(up, oali->ListenOri+3))
+	{
+		oali->ListenOri[0] = forward[0];
+		oali->ListenOri[1] = forward[1];
+		oali->ListenOri[2] = forward[2];
+		oali->ListenOri[3] = up[0];
+		oali->ListenOri[4] = up[1];
+		oali->ListenOri[5] = up[2];
+		oali->listenerdirty |= 4;
+	}
 
 
 	if (!s_al_static_listener.value)
 	{
-		palListenerf(AL_GAIN, 1);
-		palListenerfv(AL_POSITION, oali->ListenPos);
+		//I'm using listenerdirty flags because emscripten's openal stuff seems to be wasting massive amounts of time on these.
+//		palListenerf(AL_GAIN, 1);
+		if (oali->listenerdirty & 1)
+			palListenerfv(AL_POSITION, oali->ListenPos);
 #ifndef FTE_TARGET_WEB	//webaudio sucks.
-		palListenerfv(AL_VELOCITY, oali->ListenVel);
+		if (oali->listenerdirty & 2)
+			palListenerfv(AL_VELOCITY, oali->ListenVel);
 #endif
-		palListenerfv(AL_ORIENTATION, oali->ListenOri);
+		if (oali->listenerdirty & 4)
+			palListenerfv(AL_ORIENTATION, oali->ListenOri);
+
+		oali->listenerdirty = 0;
 	}
 }
 
@@ -760,6 +809,7 @@ static void OpenAL_ChannelUpdate(soundcardinfo_t *sc, channel_t *chan, chanupdat
 		}
 		oali->source[chnum].handle = src;
 		oali->source[chnum].allocated = true;
+		oali->source[chnum].queuesize = 0;
 		schanged |= CUR_EVERYTHING;	//should normally be true anyway, but hey
 	}
 	else
@@ -829,7 +879,9 @@ static void OpenAL_ChannelUpdate(soundcardinfo_t *sc, channel_t *chan, chanupdat
 		cvolume *= mastervolume.value;
 
 	//openal doesn't support loopstart (entire sample loops or not at all), so if we're meant to skip the first half then we need to stream it.
-	stream = sfx->decoder.decodedata || sfx->loopstart > 0;
+	//FIXME: AL_SOFT_loop_points
+	stream = sfx->decoder.decodedata || (sfx->loopstart > 0 && !oali->can_looppoints);
+	srcrel = (chan->flags & CF_NOSPACIALISE) || (chan->entnum && chan->entnum == oali->ListenEnt) || !chan->dist_mult;
 
 	if ((schanged&CUR_SOUNDCHANGE) || stream)
 	{
@@ -892,7 +944,7 @@ static void OpenAL_ChannelUpdate(soundcardinfo_t *sc, channel_t *chan, chanupdat
 						{
 							//build a buffer with it and queue it up.
 							//buffer will be purged later on when its unqueued
-							if (OpenAL_LoadCache(oali, &buf, &sbuf, max(1,cvolume)))
+							if (OpenAL_LoadCache(oali, &buf, &sbuf, max(1,cvolume), 0))
 							{
 								palSourceQueueBuffers(src, 1, &buf);
 								oali->source[chnum].queue[oali->source[chnum].queuesize++] = buf;
@@ -907,7 +959,7 @@ static void OpenAL_ChannelUpdate(soundcardinfo_t *sc, channel_t *chan, chanupdat
 							silence.data = NULL;
 							silence.length = 0.1 * silence.speed;
 							silence.soundoffset = 0;
-							if (OpenAL_LoadCache(oali, &buf, &silence, 1))
+							if (OpenAL_LoadCache(oali, &buf, &silence, 1, 0))
 							{
 								palSourceQueueBuffers(src, 1, &buf);
 								oali->source[chnum].queue[oali->source[chnum].queuesize++] = buf;
@@ -938,10 +990,12 @@ static void OpenAL_ChannelUpdate(soundcardinfo_t *sc, channel_t *chan, chanupdat
 							silence.data = NULL;
 							silence.length = 0.1 * silence.speed;
 							silence.soundoffset = 0;
-							if (OpenAL_LoadCache(oali, &buf, &silence, 1))
+							if (OpenAL_LoadCache(oali, &buf, &silence, 1, 0))
 							{
 								palSourceQueueBuffers(src, 1, &buf);
 								oali->source[chnum].queue[oali->source[chnum].queuesize++] = buf;
+								if (oali->can_source_spatialise)	//force spacialisation as desired, if supported (this solves browsers forcing stereo on mono files which should mean static audio is full volume...)
+									palSourcei(src, AL_SOURCE_SPATIALIZE_SOFT, !srcrel);
 							}
 						}
 					}
@@ -965,7 +1019,7 @@ static void OpenAL_ChannelUpdate(soundcardinfo_t *sc, channel_t *chan, chanupdat
 			{	//unstreamed
 				if (!sfx->decoder.buf)
 					return;
-				oali->sounds[sndnum].allocated = OpenAL_LoadCache(oali, &buf, sfx->decoder.buf, 1);
+				oali->sounds[sndnum].allocated = OpenAL_LoadCache(oali, &buf, sfx->decoder.buf, 1, sfx->loopstart);
 				if (!oali->sounds[sndnum].allocated)
 					return;
 				oali->sounds[sndnum].buffer = buf;
@@ -985,10 +1039,11 @@ static void OpenAL_ChannelUpdate(soundcardinfo_t *sc, channel_t *chan, chanupdat
 			}
 #endif
 			palSourcei(src, AL_BUFFER, buf);
+			if (oali->can_source_spatialise)	//force spacialisation as desired, if supported (this solves browsers forcing stereo on mono files which should mean static audio is full volume...)
+				palSourcei(src, AL_SOURCE_SPATIALIZE_SOFT, !srcrel);
 		}
 	}
 	palSourcef(src, AL_GAIN, min(cvolume, 1));	//openal only supports a max volume of 1. anything above is an error and will be clamped.
-	srcrel = (chan->flags & CF_NOSPACIALISE) || (chan->entnum && chan->entnum == oali->ListenEnt) || !chan->dist_mult;
 	if (srcrel)
 	{
 		palSourcefv(src, AL_POSITION, vec3_origin);
@@ -1003,9 +1058,6 @@ static void OpenAL_ChannelUpdate(soundcardinfo_t *sc, channel_t *chan, chanupdat
 		palSourcefv(src, AL_VELOCITY, chan->velocity);
 #endif
 	}
-
-	if (oali->can_source_spatialise)	//force spacialisation as desired, if supported (this solves browsers forcing stereo on mono files which should mean static audio is full volume...)
-		palSourcei(src, AL_SOURCE_SPATIALIZE_SOFT, !srcrel);
 
 	if (schanged)
 	{
@@ -1028,7 +1080,7 @@ static void OpenAL_ChannelUpdate(soundcardinfo_t *sc, channel_t *chan, chanupdat
 		}
 #endif
 
-		palSourcei(src, AL_LOOPING, (!stream && ((chan->flags & CF_FORCELOOP)||sfx->loopstart==0))?AL_TRUE:AL_FALSE);
+		palSourcei(src, AL_LOOPING, (!stream && ((chan->flags & CF_FORCELOOP)||(sfx->loopstart>=0&&!stream)))?AL_TRUE:AL_FALSE);
 		if (srcrel)
 		{
 			palSourcei(src, AL_SOURCE_RELATIVE, AL_TRUE);
@@ -1148,6 +1200,7 @@ static qboolean OpenAL_InitLibrary(void)
 		{(void*)&palGenBuffers, "alGenBuffers"},
 		{(void*)&palIsBuffer, "alIsBuffer"},
 		{(void*)&palBufferData, "alBufferData"},
+		{(void*)&palBufferiv, "alBufferiv"},
 		{(void*)&palDeleteBuffers, "alDeleteBuffers"},
 		{(void*)&palListenerfv, "alListenerfv"},
 		{(void*)&palSourcefv, "alSourcefv"},
@@ -1199,7 +1252,7 @@ static qboolean OpenAL_InitLibrary(void)
 #endif
 }
 
-static qboolean OpenAL_Init(soundcardinfo_t *sc, const char *devname)
+static qboolean OpenAL_Init(soundcardinfo_t *sc, const char *devname, qboolean qmix)
 {
 	oalinfo_t *oali;
 
@@ -1217,12 +1270,15 @@ static qboolean OpenAL_Init(soundcardinfo_t *sc, const char *devname)
 
 	if (!devname || !*devname)
 	{
-		if (s_al_disable.ival)
+		if (s_al_disable.ival && !qmix)
 			return false;	//no default device
 		devname = palcGetString(NULL, ALC_DEFAULT_DEVICE_SPECIFIER);
 	}
 	Q_snprintfz(sc->name, sizeof(sc->name), "%s", devname);
-	Con_TPrintf("Initiating "SDRVNAME": %s.\n", devname);
+	if (qmix)
+		Con_TPrintf("Initiating "QMIX_SDRVNAME": %s.\n", devname);
+	else
+		Con_TPrintf("Initiating "SDRVNAME": %s.\n", devname);
 
 	oali = Z_Malloc(sizeof(oalinfo_t));
 	sc->handle = oali;
@@ -1235,7 +1291,7 @@ static qboolean OpenAL_Init(soundcardinfo_t *sc, const char *devname)
 		size_t i = 0;
 		ALCint attrs[5];
 
-		palcGetStringiSOFT = (palcIsExtensionPresent(oali->OpenAL_Device, "ALC_SOFT_HRTF"))?palcGetProcAddress(oali->OpenAL_Device, "alcGetStringiSOFT"):NULL;
+		palcGetStringiSOFT = (!qmix&&palcIsExtensionPresent(oali->OpenAL_Device, "ALC_SOFT_HRTF"))?palcGetProcAddress(oali->OpenAL_Device, "alcGetStringiSOFT"):NULL;
 		if (palcGetStringiSOFT)
 		{
 			if (!*s_al_hrtf.string)
@@ -1297,6 +1353,7 @@ static qboolean OpenAL_Init(soundcardinfo_t *sc, const char *devname)
 			memset(oali->source, 0, sizeof(*oali->source)*oali->max_sources);
 			PrintALError("alGensources for normal sources");
 
+			palListenerf(AL_GAIN, 1);
 			palListenerfv(AL_POSITION, oali->ListenPos);
 #ifndef FTE_TARGET_WEB	//webaudio sucks.
 			palListenerfv(AL_VELOCITY, oali->ListenVel);
@@ -1304,6 +1361,7 @@ static qboolean OpenAL_Init(soundcardinfo_t *sc, const char *devname)
 			palListenerfv(AL_ORIENTATION, oali->ListenOri);
 
 			oali->can_source_spatialise = palIsExtensionPresent("AL_SOFT_source_spatialize");
+			oali->can_looppoints = palIsExtensionPresent("AL_SOFT_loop_points");
 
 			if (palcGetStringiSOFT)
 			{
@@ -1576,85 +1634,98 @@ static ALuint OpenAL_LoadEffect(const struct reverbproperties_s *reverb)
 }
 #endif
 
-static qboolean QDECL OpenAL_InitCard(soundcardinfo_t *sc, const char *devname)
+#ifdef HAVE_MIXER
+#define CHUNKSAMPLES 1024
+static void *OAQM_LockBuffer (soundcardinfo_t *sc, unsigned int *sampidx)
 {
-	oalinfo_t *oali;
-
-	soundcardinfo_t *old;
-//	extern soundcardinfo_t *sndcardinfo;
-
-	//
-	for (old = sndcardinfo; old; old = old->next)
+	oalinfo_t *oali = sc->handle;
+	if (oali->qmix.queuesize==countof(oali->qmix.queue))
+		return NULL;	//not available yet.
+	return sc->sn.buffer;
+}
+static void OAQM_UnlockBuffer (soundcardinfo_t *sc, void *buffer)
+{
+}
+static void OAQM_Submit (soundcardinfo_t *sc, int start, int end)
+{
+	oalinfo_t *oali = sc->handle;
+	ALint buf;
+	int framesize = sc->sn.samplebytes*sc->sn.numchannels;
+	if (end==start)
+		return;
+	if (oali->qmix.queuesize == countof(oali->qmix.queue))
+		return;
+	palGenBuffers(1, &buf);
+	switch(sc->sn.sampleformat)
 	{
-		if (old->Shutdown == OpenAL_Shutdown)
-		{
-			//in theory, we could relax this by using alcMakeContextCurrent lots, but we'd also need to do something about the per-sound audio buffer handle hack
-			Con_Printf(CON_ERROR SDRVNAME ": only a single device may be active at once\n");
-			return false;
-		}
+	case QSF_F32:
+		palBufferData(buf, (sc->sn.numchannels>1)?AL_FORMAT_STEREO_FLOAT32:AL_FORMAT_MONO_FLOAT32, sc->sn.buffer, (end-start)*framesize, sc->sn.speed);
+		break;
+	case QSF_S16:
+		palBufferData(buf, (sc->sn.numchannels>1)?AL_FORMAT_STEREO16:AL_FORMAT_MONO16, sc->sn.buffer, (end-start)*framesize, sc->sn.speed);
+		break;
+	case QSF_U8:
+		palBufferData(buf, (sc->sn.numchannels>1)?AL_FORMAT_STEREO8:AL_FORMAT_MONO8, sc->sn.buffer, (end-start)*framesize, sc->sn.speed);
+		break;
+	default:
+		break;
+	}
+	palSourceQueueBuffers(oali->qmix.handle, 1, &buf);
+	oali->qmix.queue[oali->qmix.queuesize++] = buf;
+	sc->snd_completed += (end-start);
+
+	palGetSourcei(oali->qmix.handle, AL_SOURCE_STATE, &buf);
+	if (buf != AL_PLAYING)
+		palSourcePlay(oali->qmix.handle);
+}
+
+/*stub should not be called*/
+static unsigned int OAQM_GetDMAPos (soundcardinfo_t *sc)
+{
+	extern cvar_t _snd_mixahead;
+	oalinfo_t *oali = sc->handle;
+	ALint src = oali->qmix.handle;
+	ALint processed = 0;
+	unsigned int avail;
+	palGetSourcei(src, AL_BUFFERS_PROCESSED, &processed);
+	if (processed)
+	{
+		palSourceUnqueueBuffers(src, processed, oali->qmix.queue);
+		palDeleteBuffers(processed, oali->qmix.queue);
+		oali->qmix.queuesize -= processed;
+		memmove(oali->qmix.queue, oali->qmix.queue+processed, oali->qmix.queuesize*sizeof(*oali->qmix.queue));
 	}
 
+	avail = ((_snd_mixahead.value*sc->sn.speed)+CHUNKSAMPLES/2)/CHUNKSAMPLES;	//how many buffers we want to try using.
+	avail = bound(2, avail, countof(oali->qmix.queue));
+	if (oali->qmix.queuesize > avail)
+		avail = 0;
+	else
+		avail = avail-oali->qmix.queuesize;
+	avail *= CHUNKSAMPLES;
 
-	if (OpenAL_Init(sc, devname) == false)
-		return false;
-	oali = sc->handle;
+	sc->sn.samplepos = (sc->snd_completed+avail);
+	sc->sn.samplepos *= sc->sn.numchannels;
+	return sc->sn.samplepos;
+}
 
-#ifdef FTE_TARGET_WEB
-	Con_DPrintf( "AL_VERSION: %s\n",palGetString(AL_VERSION));
-	Con_DPrintf( "AL_RENDERER: %s\n",palGetString(AL_RENDERER));
-	Con_DPrintf( "AL_VENDOR: %s\n",palGetString(AL_VENDOR));
-#else
-	Con_Printf( "AL_VERSION: %s\n",palGetString(AL_VERSION));
-	Con_Printf( "AL_RENDERER: %s\n",palGetString(AL_RENDERER));
-	Con_Printf( "AL_VENDOR: %s\n",palGetString(AL_VENDOR));
-#endif
-	Con_DPrintf("AL_EXTENSIONS: %s\n",palGetString(AL_EXTENSIONS));
-	Con_DPrintf("ALC_EXTENSIONS: %s\n",palcGetString(oali->OpenAL_Device,ALC_EXTENSIONS));
+static qboolean QDECL OpenAL_Enumerate_QMix(void (QDECL *callback)(const char *driver, const char *devicecode, const char *readabledevice))
+{
+	const char *devnames;
+	if (!OpenAL_InitLibrary())
+		return true; //enumerate nothing if al is disabled
 
-	sc->Shutdown = OpenAL_Shutdown;
-#ifdef USEEFX
-	sc->SetEnvironmentReverb = OpenAL_SetReverb;
-#endif
-	sc->ChannelUpdate = OpenAL_ChannelUpdate;
-	sc->ListenerUpdate = OpenAL_ListenerUpdate;
-	sc->GetChannelPos = OpenAL_GetChannelPos;
-	//these are stubs for our software mixer, and are not used with hardware mixing.
-	sc->Lock = OpenAL_LockBuffer;
-	sc->Unlock = OpenAL_UnlockBuffer;
-	sc->Submit = OpenAL_Submit;
-	sc->GetDMAPos = OpenAL_GetDMAPos;
-
-#ifdef MIXER_F32
-	oali->canfloataudio = palIsExtensionPresent("AL_EXT_float32");
-#endif
-
-	sc->inactive_sound = true;
-	sc->selfpainting = true;
-	sc->sn.sampleformat = QSF_EXTERNALMIXER;
-
-	OnChangeALSettings(NULL, NULL);
-
-#ifdef USEEFX
-	PrintALError("preeffects");
-	palSource3i = palGetProcAddress("alSource3i");
-	palAuxiliaryEffectSloti = palGetProcAddress("alAuxiliaryEffectSloti");
-	palGenAuxiliaryEffectSlots = palGetProcAddress("alGenAuxiliaryEffectSlots");
-	palDeleteAuxiliaryEffectSlots = palGetProcAddress("alDeleteAuxiliaryEffectSlots");
-	palDeleteEffects = palGetProcAddress("alDeleteEffects");
-	palGenEffects = palGetProcAddress("alGenEffects");
-	palEffecti = palGetProcAddress("alEffecti");
-	palEffectiv = palGetProcAddress("alEffectiv");
-	palEffectf = palGetProcAddress("alEffectf");
-	palEffectfv = palGetProcAddress("alEffectfv");
-
-	if (palGenAuxiliaryEffectSlots && s_al_use_reverb.ival)
-		palGenAuxiliaryEffectSlots(1, &oali->effectslot);
-
-	oali->cureffect = ~0;
-	PrintALError("posteffects");
-#endif
+	devnames = palcGetString(NULL, ALC_ALL_DEVICES_SPECIFIER);
+	if (!devnames)
+		devnames = palcGetString(NULL, ALC_DEVICE_SPECIFIER);
+	while(*devnames)
+	{
+		callback(QMIX_SDRVNAME, devnames, va(QMIX_SDRVNAMEDESC"%s", devnames));
+		devnames += strlen(devnames)+1;
+	}
 	return true;
 }
+#endif
 
 static qboolean QDECL OpenAL_Enumerate(void (QDECL *callback)(const char *driver, const char *devicecode, const char *readabledevice))
 {
@@ -1673,6 +1744,127 @@ static qboolean QDECL OpenAL_Enumerate(void (QDECL *callback)(const char *driver
 	return true;
 }
 
+
+static qboolean QDECL OpenAL_InitCard2(soundcardinfo_t *sc, const char *devname, qboolean qmix)
+{
+	oalinfo_t *oali;
+
+	soundcardinfo_t *old;
+//	extern soundcardinfo_t *sndcardinfo;
+
+	//
+	for (old = sndcardinfo; old; old = old->next)
+	{
+		if (old->Shutdown == OpenAL_Shutdown)
+		{
+			//in theory, we could relax this by using alcMakeContextCurrent lots, but we'd also need to do something about the per-sound audio buffer handle hack
+			Con_Printf(CON_ERROR SDRVNAME ": only a single device may be active at once\n");
+			return false;
+		}
+	}
+
+
+	if (OpenAL_Init(sc, devname, qmix) == false)
+		return false;
+	oali = sc->handle;
+
+	Con_DPrintf( "AL_VERSION: %s\n",palGetString(AL_VERSION));
+	Con_DPrintf( "AL_RENDERER: %s\n",palGetString(AL_RENDERER));
+	Con_DPrintf( "AL_VENDOR: %s\n",palGetString(AL_VENDOR));
+	Con_DPrintf("AL_EXTENSIONS: %s\n",palGetString(AL_EXTENSIONS));
+	Con_DPrintf("ALC_EXTENSIONS: %s\n",palcGetString(oali->OpenAL_Device,ALC_EXTENSIONS));
+
+#ifdef MIXER_F32
+	oali->canfloataudio = palIsExtensionPresent("AL_EXT_float32");
+#endif
+
+	sc->inactive_sound = true;
+	sc->Shutdown = OpenAL_Shutdown;
+	if (qmix)
+	{
+		sc->Lock		= OAQM_LockBuffer;
+		sc->Unlock		= OAQM_UnlockBuffer;
+		sc->GetDMAPos	= OAQM_GetDMAPos;
+		sc->Submit		= OAQM_Submit;
+
+		sc->sn.numchannels = bound(1, sc->sn.numchannels, 2);
+		sc->sn.samples = CHUNKSAMPLES*sc->sn.numchannels;
+#ifdef MIXER_F32
+		if (sc->sn.samplebytes == 4 && oali->canfloataudio)
+		{
+			sc->sn.sampleformat = QSF_F32;
+			sc->sn.samplebytes = 4;
+		}
+		else
+#endif
+		if (sc->sn.samplebytes > 1)
+		{
+			sc->sn.sampleformat = QSF_S16;
+			sc->sn.samplebytes = 2;
+		}
+		else
+		{
+			sc->sn.sampleformat = QSF_U8;
+			sc->sn.samplebytes = 1;
+		}
+//		sc->sn.speed = 11025;
+		sc->sn.buffer = malloc(sc->sn.samples * sc->sn.samplebytes);
+		sc->samplequeue = -1;
+
+		oali->qmix.handle = 0;
+		oali->qmix.queuesize = 0;
+		palGenSources(1, &oali->qmix.handle);
+		palSourcef(oali->qmix.handle, AL_GAIN, 1);
+		palSourcei(oali->qmix.handle, AL_SOURCE_RELATIVE, AL_TRUE);
+		//palSourcePlay(oali->qmix.handle);
+	}
+	else
+	{
+#ifdef USEEFX
+		sc->SetEnvironmentReverb = OpenAL_SetReverb;
+#endif
+		sc->ChannelUpdate = OpenAL_ChannelUpdate;
+		sc->ListenerUpdate = OpenAL_ListenerUpdate;
+		sc->GetChannelPos = OpenAL_GetChannelPos;
+		//these are stubs for our software mixer, and are not used with hardware mixing.
+		sc->Lock = OpenAL_LockBuffer;
+		sc->Unlock = OpenAL_UnlockBuffer;
+		sc->Submit = OpenAL_Submit;
+		sc->GetDMAPos = OpenAL_GetDMAPos;
+
+		sc->selfpainting = true;
+		sc->sn.sampleformat = QSF_EXTERNALMIXER;
+
+		OnChangeALSettings(NULL, NULL);
+
+#ifdef USEEFX
+		PrintALError("preeffects");
+		palSource3i = palGetProcAddress("alSource3i");
+		palAuxiliaryEffectSloti = palGetProcAddress("alAuxiliaryEffectSloti");
+		palGenAuxiliaryEffectSlots = palGetProcAddress("alGenAuxiliaryEffectSlots");
+		palDeleteAuxiliaryEffectSlots = palGetProcAddress("alDeleteAuxiliaryEffectSlots");
+		palDeleteEffects = palGetProcAddress("alDeleteEffects");
+		palGenEffects = palGetProcAddress("alGenEffects");
+		palEffecti = palGetProcAddress("alEffecti");
+		palEffectiv = palGetProcAddress("alEffectiv");
+		palEffectf = palGetProcAddress("alEffectf");
+		palEffectfv = palGetProcAddress("alEffectfv");
+
+		if (palGenAuxiliaryEffectSlots && s_al_use_reverb.ival)
+			palGenAuxiliaryEffectSlots(1, &oali->effectslot);
+
+		oali->cureffect = ~0;
+		PrintALError("posteffects");
+#endif
+	}
+	return true;
+}
+
+static qboolean QDECL OpenAL_InitCard(soundcardinfo_t *sc, const char *devname)
+{
+	return OpenAL_InitCard2(sc, devname, false);
+}
+
 sounddriver_t OPENAL_Output =
 {
 	SDRVNAME,
@@ -1680,6 +1872,19 @@ sounddriver_t OPENAL_Output =
 	OpenAL_Enumerate,
 	OpenAL_CvarInit
 };
+#ifdef HAVE_MIXER
+static qboolean QDECL OpenAL_InitCard_QMix(soundcardinfo_t *sc, const char *devname)
+{
+	return OpenAL_InitCard2(sc, devname, true);
+}
+sounddriver_t OPENAL_Output_Lame =
+{
+	QMIX_SDRVNAME,
+	OpenAL_InitCard_QMix,
+	OpenAL_Enumerate_QMix,
+	NULL
+};
+#endif
 
 
 #if defined(VOICECHAT)

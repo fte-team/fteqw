@@ -302,7 +302,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 	#undef MAP_PROC		//meh
 	#define HALFLIFEMODELS	//blurgh
 	#undef SUPPORT_ICE	//requires udp, so not usable. webrtc could be used instead, but that logic is out of our hands.
-	#undef HAVE_MIXER	//depend upon openal instead.
+//	#undef HAVE_MIXER	//depend upon openal instead.
 
 	//extra features stripped to try to reduce memory footprints
 	#undef RUNTIMELIGHTING	//too slow anyway

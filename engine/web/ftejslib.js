@@ -82,7 +82,8 @@ mergeInto(LibraryManager.library,
 			loadfile:0,
 			jbutton:0,
 			jaxis:0,
-			wantfullscreen:0
+			wantfullscreen:0,
+			frame:0
 		},
 
 		loadurl : function(url, mime, arraybuf)
@@ -101,6 +102,26 @@ mergeInto(LibraryManager.library,
 				_free(urlptr);
 				window.focus();
 			}
+		},
+
+		step : function(timestamp)
+		{
+			var dovsync = false;
+			if (FTEC.aborted)
+				return;
+
+			try	//this try is needed to handle Host_EndGame properly.
+			{
+				dovsync = {{{makeDynCall('if')}}}(FTEC.evcb.frame,timestamp);
+			}
+			catch(err)
+			{
+				console.log(err);
+			}
+			if (dovsync)
+				Browser.requestAnimationFrame(FTEC.step);
+			else
+				setTimeout(FTEC.step, 0, performance.now());
 		},
 
 		handleevent : function(event)
@@ -158,12 +179,6 @@ mergeInto(LibraryManager.library,
 						FTEC.pointerislocked = -1;  //don't repeat the request on every click. firefox has a fit at that, so require the mouse to leave the element or something before we retry.
 						Module['canvas'].requestPointerLock({unadjustedMovement: true});
 					}
-
-					if (FTEC.usevr)
-						if (FTEC.vrDisplay)
-							if (!FTEC.vrDisplay.isPresenting)
-								FTEC.vrDisplay.requestPresent([{ source: Module['canvas'] }]).then(function (){console.log("zomg, presenting!");}, function (err){FTEC.usevr = false;console.log("cannot vrdisplay!");});
-
 					//fallthrough
 				case 'mouseup':
 					if (FTEC.evcb.button != 0)
@@ -286,27 +301,6 @@ mergeInto(LibraryManager.library,
 					console.log("Pointer lock now " + FTEC.pointerislocked);
 					break;
 					
-				case 'vrdisplaypresentchange':
-					console.log("vr present changed");
-					console.log(event);
-					break;
-				case 'vrdisplayactivate':
-					console.log("vr display active");
-					if (event.display == FTEC.vrDisplay)
-					{
-						FTEC.usevr = true;
-						if (!FTEC.vrDisplay.isPresenting)
-							FTEC.vrDisplay.requestPresent([{ source: Module['canvas'] }]).then(function (){console.log("zomg, presenting!");}, function (err){FTEC.usevr = false;console.log("cannot vrdisplay!");});
-					}
-					break;
-				case 'vrdisplaydeactivate':
-					console.log("vr display inactive");
-					if (event.display == FTEC.vrDisplay)
-					{
-						FTEC.vrDisplay.exitPresent()
-						FTEC.usevr = false;
-					}
-					break;
 				case 'beforeunload':
 					event.preventDefault();
 					return 'quit this game like everything else?';
@@ -314,37 +308,6 @@ mergeInto(LibraryManager.library,
 					console.log(event);
 					break;
 			}
-		}
-	},
-	emscriptenfte_getvrframedata : function()
-	{
-		if (!FTEC.vrDisplay)
-			return 0;
-		return FTEC.vrDisplay.isPresenting;
-//		FTEC.vrframeData
-	},
-	emscriptenfte_getvreyedata : function (eye, ptr_proj, ptr_view)
-	{
-		var pm;
-		var vm;
-		if (eye)
-		{
-			pm = FTEC.vrframeData.leftProjectionMatrix;
-			vm = FTEC.vrframeData.leftViewMatrix;
-		}
-		else
-		{
-			pm = FTEC.vrframeData.rightProjectionMatrix;
-			vm = FTEC.vrframeData.rightViewMatrix;
-		}
-		
-		var i;
-		ptr_proj /= 4;
-		ptr_view /= 4;
-		for (i = 0; i < 16; i++)
-		{
-			HEAPF32[ptr_proj + i] = pm[i];
-			HEAPF32[ptr_view + i] = vm[i];
 		}
 	},
 	emscriptenfte_updatepointerlock : function(wantlock, softcursor)
@@ -416,20 +379,6 @@ mergeInto(LibraryManager.library,
 		FTEC.evcb.jaxis = evjaxis;
 		FTEC.evcb.wantfullscreen = evwantfullscreen;
 
-		if (navigator.getVRDisplays)
-		{
-			FTEC.vrframeData = new VRFrameData();
-			navigator.getVRDisplays().then(function (displays)
-			{
-				if (displays.length > 0)
-				{
-					FTEC.vrDisplay = displays[0];
-//					if (vrDisplay.capabilities.canPresent)
-				}
-			})
-		}
-		
-
 		if ('GamepadEvent' in window)
 			FTEH.gamepads = [];	//don't bother ever trying to poll if we can use gamepad events. this will hopefully avoid weirdness.
 
@@ -455,7 +404,7 @@ mergeInto(LibraryManager.library,
 				document.addEventListener(event, FTEC.handleevent, true);
 			});
 
-			var windowevents = ['message','vrdisplaypresentchange','vrdisplayactivate','vrdisplaydeactivate','gamepadconnected', 'gamepaddisconnected', 'beforeunload'];
+			var windowevents = ['message','gamepadconnected', 'gamepaddisconnected', 'beforeunload'];
 			windowevents.forEach(function(event)
 			{
 				window.addEventListener(event, FTEC.handleevent, true);
@@ -532,42 +481,10 @@ mergeInto(LibraryManager.library,
 		Module['noExitRuntime'] = true;
 		FTEC.aborted = false;
 
-		function step(timestamp)
-		{
-			var dovsync = false;
-			var vr = false;
-			if (FTEC.aborted)
-				return;
-
-			if (FTEC.vrDisplay)
-			{
-				vr = FTEC.vrDisplay.isPresenting;
-				FTEC.vrDisplay.getFrameData(FTEC.vrframeData);
-			}
-			
-			try	//this try is needed to handle Host_EndGame properly.
-			{
-				dovsync = {{{makeDynCall('if')}}}(fnc,timestamp);
-			}
-			catch(err)
-			{
-				console.log(err);
-			}
-			if (vr)
-				FTEC.vrDisplay.submitFrame();
-			if (dovsync)
-			{
-				if (FTEC.vrDisplay)
-					FTEC.vrDisplay.requestAnimationFrame(Module["sched"]);
-				else
-					Browser.requestAnimationFrame(Module["sched"]);
-			}
-			else
-				setTimeout(Module["sched"], 0, performance.now());
-		};
-		Module["sched"] = step;
+		Module["sched"] = FTEC.step;
+		FTEC.evcb.frame = fnc
 		//don't start it instantly, so we can distinguish between types of errors (emscripten sucks!).
-		setTimeout(step, 1, performance.now());
+		setTimeout(FTEC.step, 1, performance.now());
 	},
 
 	emscriptenfte_ticks_ms : function()

@@ -1258,10 +1258,6 @@ static void V_CalcAFov(float afov, float *x, float *y, float w, float h)
 	extern cvar_t scr_fov_mode;
 	extern cvar_t r_stereo_separation;
 	int mode = scr_fov_mode.ival;
-#ifdef FTE_TARGET_WEB
-	if (r_refdef.stereomethod == STEREO_WEBVR)
-		w *= 0.5;
-#endif
 	if (r_refdef.stereomethod == STEREO_CROSSEYED && r_stereo_separation.value)
 		w *= 0.5;
 

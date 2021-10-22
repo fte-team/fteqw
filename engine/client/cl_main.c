@@ -6458,10 +6458,6 @@ double Host_Frame (double time)
 			extern cvar_t r_stereo_method;
 			r_refdef.warndraw = false;
 			r_refdef.stereomethod = r_stereo_method.ival;
-	#ifdef FTE_TARGET_WEB
-			if (emscriptenfte_getvrframedata())
-				r_refdef.stereomethod = STEREO_WEBVR;
-	#endif
 			{
 				RSpeedMark();
 				vid.ime_allow = false;

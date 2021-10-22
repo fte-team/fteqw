@@ -223,10 +223,6 @@ typedef enum {
 	STEREO_RED_GREEN,
 	STEREO_CROSSEYED,
 
-#ifdef FTE_TARGET_WEB
-	STEREO_WEBVR,
-#endif
-
 	//these are internal methods and do not form part of any public API
 	STEREO_LEFTONLY,
 	STEREO_RIGHTONLY

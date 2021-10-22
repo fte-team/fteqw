@@ -544,11 +544,7 @@ static void R_SetupGL (vec3_t eyeangorg[2], vec4_t fovoverrides, float projmatri
 			w = x2 - x;
 			h = y2 - y;
 
-/*			if (r_refdef.stereomethod == STEREO_CROSSEYED
-#ifdef FTE_TARGET_WEB
-				|| r_refdef.stereomethod == STEREO_WEBVR
-#endif
-				)
+/*			if (r_refdef.stereomethod == STEREO_CROSSEYED)
 			{
 				w /= 2;
 				if (i)
@@ -858,22 +854,6 @@ static void R_RenderScene (void)
 		R_SetupGL (NULL, NULL, NULL, NULL);
 		R_RenderScene_Internal();
 	}
-#ifdef FTE_TARGET_WEB
-	else if (r_refdef.stereomethod == STEREO_WEBVR)
-	{
-		float projmatrix[16], eyematrix[16];
-		GL_ForceDepthWritable();
-		qglClear (GL_DEPTH_BUFFER_BIT);
-		r_framecount++;
-
-		for (i = 0; i < stereoframes; i++)
-		{
-			emscriptenfte_getvreyedata(i, projmatrix, eyematrix);
-			R_SetupGL (eyematrix, NULL, projmatrix, NULL);
-			R_RenderScene_Internal();
-		}
-	}
-#endif
 	else for (i = 0; i < stereoframes; i++)
 	{
 		r_refdef.colourmask = 0u;
@@ -910,11 +890,6 @@ static void R_RenderScene (void)
 			else
 				r_refdef.colourmask = (SBITS_MASK_RED|SBITS_MASK_BLUE);
 			break;
-#ifdef FTE_TARGET_WEB
-		case STEREO_WEBVR:
-			stereooffset[i] = 0;	//webgl overrides our separation.
-			break;
-#endif
 		case STEREO_CROSSEYED:	//eyestrain
 			break;
 		case STEREO_LEFTONLY:

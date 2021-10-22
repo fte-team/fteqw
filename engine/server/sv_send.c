@@ -1206,13 +1206,13 @@ void SV_MulticastCB(vec3_t origin, multicast_t to, const char *reliableinfokey, 
 					pnum = NUM_FOR_EDICT(svprogfuncs, ent) - 1;
 					if (pnum < 0 || pnum >= sv.allocated_client_slots)
 					{
-						Con_Printf("SV_Multicast: not a client\n");
+						Con_Printf(CON_WARNING"SV_Multicast: entity %i is not a client (\"%s\")\n", pnum+1, PR_GetString(svprogfuncs, ent->v->classname));
 						return;
 					}
 				}
 				else
 				{
-					Con_Printf("SV_Multicast: unsupported unicast\n");
+					Con_Printf(CON_WARNING"SV_Multicast: unsupported unicast\n");
 					return;
 				}
 				msg = MVDWrite_Begin(dem_single, pnum, maxsize);

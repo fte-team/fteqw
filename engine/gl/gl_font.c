@@ -1629,7 +1629,10 @@ qboolean Font_LoadKexFont(struct font_s *f, int fheight, const char *fontfilenam
 		{
 			TEXDOWAIT(f->singletexture);
 			if (!TEXLOADED(f->singletexture))
-				f->singletexture = Image_GetTexture(val, NULL, IF_NOWORKER|IF_EXACTEXTENSION|IF_UIPIC|(r_font_linear.ival?IF_LINEAR:IF_NEAREST|IF_NOPURGE)|IF_NOPICMIP|IF_NOMIPMAP|IF_NOGAMMA|IF_NOPURGE, NULL, NULL, 0, 0, PTI_INVALID);
+			{	//noworker is needed because we need to know the size to make sense of char positions
+				//exactextension is needed to work around quakeex fuckups
+				f->singletexture = Image_GetTexture(val, NULL, IF_NOWORKER|IF_EXACTEXTENSION|IF_UIPIC|(r_font_linear.ival?IF_LINEAR:IF_NEAREST)|IF_NOPICMIP|IF_NOMIPMAP|IF_NOGAMMA|IF_NOPURGE, NULL, NULL, 0, 0, PTI_INVALID);
+			}
 		}
 		else if (*val >= '0' && *val <='9')
 		{

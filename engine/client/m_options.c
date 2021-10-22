@@ -2127,7 +2127,7 @@ static const char *mapoptions_q1[] =
 	NULL
 };
 
-#ifdef Q2CLIENT
+#if defined(Q2CLIENT) && defined(Q2SERVER)
 static const char *maplist_q2[] =
 {
 	"base1",

@@ -46,6 +46,8 @@ void(mitem_desktop desktop) M_Menu_Mods =
 				desc = "Dissolution of Eternity";
 			else if (lwr == "dopa")
 				desc = "Dimension of the Past";
+			else if (lwr == "mg1")
+				desc = "Dimensions of the Machine";
 			else if (lwr == "ad")
 				desc = "Arcane Dimensions";
 			else if (lwr == "quoth")

@@ -307,7 +307,8 @@ struct
 {
 	unsigned int startms;
 	netadr_t adr;
-	char brokername[64];
+	char adrstring[64];
+	const char *broker;
 } ui_pings[MAX_PINGREQUESTS];
 
 #define UITAGNUM 2452
@@ -1034,25 +1035,25 @@ static qintptr_t UI_SystemCalls(void *offset, quintptr_t mask, qintptr_t fn, con
 			{
 				int i;
 				for (i = 0; i < MAX_PINGREQUESTS; i++)
-					if (ui_pings[i].adr.type == NA_INVALID)
+					if (ui_pings[i].adr.type == NA_INVALID && ui_pings[i].adr.prot == NP_INVALID)
 					{
-						serverinfo_t *info;
 						const char *p = NULL;
 						COM_Parse(cmdtext + 5);
 						ui_pings[i].startms = Sys_Milliseconds();
-						if (NET_StringToAdr2(com_token, 0, &ui_pings[i].adr, 1, &p))
+						Q_strncpyz(ui_pings[i].adrstring, com_token, sizeof(ui_pings[i].adrstring));
+						if (NET_StringToAdr2(ui_pings[i].adrstring, 0, &ui_pings[i].adr, 1, &p))
 						{
-							if (p && *p=='/')
-								p++;
-							info = Master_InfoForServer(&ui_pings[i].adr, p);
+#ifdef HAVE_PACKET
+							serverinfo_t *info = Master_InfoForServer(&ui_pings[i].adr, p);
 							if (info)
 							{
 								info->special |= SS_KEEPINFO;
 								info->sends++;
 								Master_QueryServer(info);
 							}
+#endif
 						}
-						Q_strncpyz(ui_pings[i].brokername, p?p:"", sizeof(ui_pings[i].brokername));
+						ui_pings[i].broker = p;
 						break;
 					}
 			}
@@ -1323,14 +1324,14 @@ static qintptr_t UI_SystemCalls(void *offset, quintptr_t mask, qintptr_t fn, con
 		{
 			int i;
 			for (i = 0; i < MAX_PINGREQUESTS; i++)
-				if (ui_pings[i].adr.type != NA_INVALID)
+				if (ui_pings[i].adr.type != NA_INVALID || ui_pings[i].adr.prot != NP_INVALID)
 					VM_LONG(ret)++;
 		}
 		break;
 	case UI_LAN_CLEARPING:	//clear ping
 		//void (int pingnum)
 		if (VM_LONG(arg[0])>= 0 && VM_LONG(arg[0]) < MAX_PINGREQUESTS)
-			ui_pings[VM_LONG(arg[0])].adr.type = NA_INVALID;
+			ui_pings[VM_LONG(arg[0])].adr.type = NA_INVALID, ui_pings[VM_LONG(arg[0])].adr.prot = NP_INVALID;
 		break;
 	case UI_LAN_GETPING:
 		//void (int pingnum, char *buffer, int buflen, int *ping)
@@ -1346,11 +1347,12 @@ static qintptr_t UI_SystemCalls(void *offset, quintptr_t mask, qintptr_t fn, con
 			char *buf = VM_POINTER(arg[1]);
 			size_t bufsize = VM_LONG(arg[2]);
 			int *ping = VM_POINTER(arg[3]);
-			serverinfo_t *info = Master_InfoForServer(&ui_pings[i].adr, ui_pings[i].brokername);
-			if (info)
-				Master_ServerToString(buf, bufsize, info);
+			serverinfo_t *info;
+			if (ui_pings[i].adr.type != NA_INVALID || ui_pings[i].adr.prot != NP_INVALID)
+				info = Master_InfoForServer(&ui_pings[i].adr, ui_pings[i].broker);
 			else
-				NET_AdrToString(buf, bufsize, &ui_pings[i].adr);
+				info = NULL;
+			Q_strncpyz(buf, ui_pings[i].adrstring, bufsize);
 
 			if (info && /*(info->status & SRVSTATUS_ALIVE) &&*/ info->moreinfo)
 			{
@@ -1378,7 +1380,8 @@ static qintptr_t UI_SystemCalls(void *offset, quintptr_t mask, qintptr_t fn, con
 			char *buf = VM_POINTER(arg[1]);
 			size_t bufsize = VM_LONG(arg[2]);
 			char *adr;
-			serverinfo_t *info = Master_InfoForServer(&ui_pings[i].adr, ui_pings[i].brokername);
+			serverinfo_t *info = Master_InfoForServer(&ui_pings[i].adr, ui_pings[i].broker);
+
 			if (info && /*(info->status & SRVSTATUS_ALIVE) &&*/ info->moreinfo)
 			{
 				adr = info->moreinfo->info;
@@ -1455,6 +1458,7 @@ static qintptr_t UI_SystemCalls(void *offset, quintptr_t mask, qintptr_t fn, con
 			char *adr;
 			char adrbuf[MAX_ADR_SIZE];
 			serverinfo_t *info = Master_InfoForNum(VM_LONG(arg[1]));
+			strcpy(buf, "");
 			if (info)
 			{
 				adr = Master_ServerToString(adrbuf, sizeof(adrbuf), info);
@@ -1464,8 +1468,6 @@ static qintptr_t UI_SystemCalls(void *offset, quintptr_t mask, qintptr_t fn, con
 					VM_LONG(ret) = true;
 				}
 			}
-			else
-				strcpy(buf, "");
 		}
 		break;
 	case UI_LAN_LOADCACHEDSERVERS:
@@ -1747,10 +1749,19 @@ static void UI_DrawMenu(menu_t *m)
 	if (uivm)
 	{
 		if (qrenderer != QR_NONE && (ui_width != vid.width || ui_height != vid.height))
-		{
+		{	//should probably just rescale stuff instead.
+			qboolean hadfocus = keycatcher&2;
+			keycatcher &= ~2;
 			ui_width = vid.width;
 			ui_height = vid.height;
 			VM_Call(uivm, UI_INIT);
+			if (hadfocus)
+			{
+				if (cls.state)
+					VM_Call(uivm, UI_SET_ACTIVE_MENU, 2);
+				else
+					VM_Call(uivm, UI_SET_ACTIVE_MENU, 1);
+			}
 		}
 		VM_Call(uivm, UI_REFRESH, (int)(realtime * 1000));
 

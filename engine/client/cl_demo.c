@@ -3015,7 +3015,7 @@ fail:
 
 		qtv->requestsize -= tail-qtv->requestbuffer;
 		memmove(qtv->requestbuffer, tail, qtv->requestsize);
-		if (hashfunc && qtv->postauth)
+		if (hashfunc && *qtv->postauth)
 		{
 			if (*qtv->password)
 			{

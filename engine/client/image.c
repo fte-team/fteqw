@@ -13507,8 +13507,17 @@ struct pendingtextureinfo *Image_LoadMipsFromMemory(int flags, const char *iname
 		mips->mipcount = 1;
 		mips->encoding = PTI_WHOLEFILE;
 		mips->extrafree = NULL;
-		mips->mip[0].width = 1;
-		mips->mip[0].height = 1;
+		//evil ensues:
+		if (filesize >= 32 && !strncmp(filedata, "\x89PNG", 4) && !strncmp(filedata+12, "IHDR", 4))
+		{	//need to do this to get png sizes working right for the quake rerelease's content
+			mips->mip[0].width  = (filedata[0x13]<<0)|(filedata[0x12]<<8)|(filedata[0x11]<<16)|(filedata[0x10]<<24);
+			mips->mip[0].height = (filedata[0x17]<<0)|(filedata[0x16]<<8)|(filedata[0x15]<<16)|(filedata[0x14]<<24);
+		}
+		else
+		{
+			mips->mip[0].width  = 1;
+			mips->mip[0].height = 1;
+		}
 		mips->mip[0].depth = 1;
 		mips->mip[0].data = filedata;
 		mips->mip[0].datasize = filesize;

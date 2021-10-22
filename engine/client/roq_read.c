@@ -22,7 +22,7 @@
 
 #include "quakedef.h"
 
-#ifdef HAVE_MEDIA_DECODER
+#if defined(HAVE_MEDIA_DECODER) && defined(Q3CLIENT)
 
 
 static int VFS_GETC(vfsfile_t *fp)

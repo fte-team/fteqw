@@ -15,7 +15,11 @@ static cvar_t	sb_hidenetquake		= CVARF("sb_hidenetquake",	"0",	CVAR_ARCHIVE);
 static cvar_t	sb_hidequakeworld	= CVARF("sb_hidequakeworld","0",	CVAR_ARCHIVE);
 static cvar_t	sb_hideproxies		= CVARF("sb_hideproxies",	"1",	CVAR_ARCHIVE);
 
+#ifdef FTE_TARGET_WEB
+static cvar_t	sb_showping			= CVARF("sb_showping",		"0",	CVAR_ARCHIVE);	//not really much point showing pings.
+#else
 static cvar_t	sb_showping			= CVARF("sb_showping",		"1",	CVAR_ARCHIVE);
+#endif
 static cvar_t	sb_showaddress		= CVARF("sb_showaddress",	"0",	CVAR_ARCHIVE);
 static cvar_t	sb_showmap			= CVARF("sb_showmap",		"0",	CVAR_ARCHIVE);
 static cvar_t	sb_showgamedir		= CVARF("sb_showgamedir",	"0",	CVAR_ARCHIVE);
@@ -28,7 +32,21 @@ static cvar_t	sb_alpha	= CVARF("sb_alpha",	"0.7",	CVAR_ARCHIVE);
 vrect_t joinbutton, specbutton;
 static float refreshedtime;
 static int isrefreshing;
-static int serverpreview;
+static enum
+{
+	SVPV_NO,
+#ifdef HAVE_PACKET
+	SVPV_PLAYERS,
+#endif
+	SVPV_RULES,
+#ifdef HAVE_PACKET
+	SVPV_HELP,
+	SVPV_ROUTE,
+	SVPV_LAST=SVPV_ROUTE,
+#else
+	SVPV_LAST=SVPV_RULES,
+#endif
+} serverpreview;
 extern cvar_t slist_writeserverstxt;
 extern cvar_t slist_cacheinfo;
 
@@ -353,7 +371,7 @@ static qboolean SL_ServerKey (menucustom_t *ths, emenu_t *menu, int key, unsigne
 			return true;
 		}
 		if (oldselection == info->selectedpos)
-			serverpreview = true;
+			serverpreview = 1;
 		return true;
 	}
 
@@ -372,7 +390,7 @@ static qboolean SL_ServerKey (menucustom_t *ths, emenu_t *menu, int key, unsigne
 		server = Master_SortedServer(info->selectedpos);
 		if (server)
 		{
-			serverpreview = true;
+			serverpreview = 1;
 			selectedserver.inuse = true;
 			SListOptionChanged(server);
 		}
@@ -421,6 +439,7 @@ static void SL_PreDraw	(emenu_t *menu)
 qboolean NET_SendPollPacket(int len, void *data, netadr_t to);
 static void SL_PostDraw	(emenu_t *menu)
 {
+#ifdef HAVE_PACKET
 	static char *helpstrings[] =
 	{
 		"rmb: cancel",
@@ -434,16 +453,19 @@ static void SL_PostDraw	(emenu_t *menu)
 		"i: view serverinfo",
 		"k: toggle this info"
 	};
+	int skins = 0;
+#endif
 
 	char buf[64];
 	serverlist_t *info = (serverlist_t*)(menu + 1);
 	Master_CheckPollSockets();
 
-	if (serverpreview)
+	if (serverpreview != SVPV_NO)
 	{
 		serverinfo_t *server = selectedserver.inuse?Master_InfoForServer(&selectedserver.adr, selectedserver.brokerid):NULL;
 		int h = 0;
 		int w = 240;
+#ifdef HAVE_PACKET
 		if (server && selectedserver.refreshtime < realtime)
 		{
 			selectedserver.refreshtime = realtime + 4;
@@ -475,22 +497,12 @@ static void SL_PostDraw	(emenu_t *menu)
 #endif
 				Master_QueryServer(server);
 		}
+#endif
 		R2D_ImageColours(1,1,1,1);
 		if (server && server->moreinfo)
 		{
 			int lx, x, y, i;
-			int skins = 0;
-			if (serverpreview == 4)
-			{
-				//count the number of proxies the best route will need
-				serverinfo_t *prox;
-				for (h = 1, prox = server; prox; h++, prox = prox->prevpeer)
-					;
-				w += 120;
-			}
-			else if (serverpreview == 3)
-				h = countof(helpstrings);
-			else if (serverpreview == 2)
+			if (serverpreview == SVPV_RULES)
 			{
 				for (i = 0; ; i++)
 				{
@@ -503,7 +515,18 @@ static void SL_PostDraw	(emenu_t *menu)
 						break;
 				}
 			}
-			else
+#ifdef HAVE_PACKET
+			else if (serverpreview == SVPV_HELP)
+				h = countof(helpstrings);
+			else if (serverpreview == SVPV_ROUTE)
+			{
+				//count the number of proxies the best route will need
+				serverinfo_t *prox;
+				for (h = 1, prox = server; prox; h++, prox = prox->prevpeer)
+					;
+				w += 120;
+			}
+			else if (serverpreview == SVPV_PLAYERS)
 			{
 				h += server->moreinfo->numplayers+2;
 
@@ -517,6 +540,7 @@ static void SL_PostDraw	(emenu_t *menu)
 					}
 				}
 			}
+#endif
 			h += 4;
 			h *= 8;
 
@@ -536,27 +560,7 @@ static void SL_PostDraw	(emenu_t *menu)
 			Draw_FunStringWidth (x, y, "^Ue01d^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01f", w, 2, false);
 			y+=8;
 
-			if (serverpreview == 4)
-			{
-				serverinfo_t *prox;
-				for (prox = server; prox; prox = prox->prevpeer)
-				{
-					Draw_FunStringWidth (x, y, va("%i", prox->cost), 32-8, true, false);
-					Draw_FunStringWidth (x + 32, y, Master_ServerToString(buf, sizeof(buf), prox), w/2 - 8 - 32, true, false);
-					Draw_FunStringWidth (x + w/2, y, prox->name, w/2, false, false);
-					y += 8;
-				}
-			}
-			else if (serverpreview == 3)
-			{
-				x = lx;
-				for (i = 0; i < countof(helpstrings); i++)
-				{
-					Draw_FunStringWidth (x, y, helpstrings[i], w, false, false);
-					y += 8;
-				}
-			}
-			else if (serverpreview == 2)
+			if (serverpreview == SVPV_RULES)
 			{
 				for (i = 0; ; i++)
 				{
@@ -576,7 +580,28 @@ static void SL_PostDraw	(emenu_t *menu)
 						break;
 				}
 			}
-			else
+#ifdef HAVE_PACKET
+			else if (serverpreview == SVPV_HELP)
+			{
+				x = lx;
+				for (i = 0; i < countof(helpstrings); i++)
+				{
+					Draw_FunStringWidth (x, y, helpstrings[i], w, false, false);
+					y += 8;
+				}
+			}
+			else if (serverpreview == SVPV_ROUTE)
+			{
+				serverinfo_t *prox;
+				for (prox = server; prox; prox = prox->prevpeer)
+				{
+					Draw_FunStringWidth (x, y, va("%i", prox->cost), 32-8, true, false);
+					Draw_FunStringWidth (x + 32, y, Master_ServerToString(buf, sizeof(buf), prox), w/2 - 8 - 32, true, false);
+					Draw_FunStringWidth (x + w/2, y, prox->name, w/2, false, false);
+					y += 8;
+				}
+			}
+			else if (serverpreview == SVPV_PLAYERS)
 			{
 				int teamplay = atoi(Info_ValueForKey(server->moreinfo->info, "teamplay"));
 				x = lx;
@@ -643,6 +668,7 @@ static void SL_PostDraw	(emenu_t *menu)
 
 				Draw_FunStringWidth (lx, y, "^h(left/rightarrow for different info)", w, false, false);
 			}
+#endif
 		}
 		else
 		{
@@ -720,12 +746,16 @@ static void SL_PostDraw	(emenu_t *menu)
 		if (!Master_TotalCount())
 		{
 			Draw_FunStringWidth(0, vid.height/2 - 8, "No servers found", vid.width, 2, false);
+#ifdef HAVE_PACKET
 			Draw_FunStringWidth(0, vid.height/2 + 0, "Check internet connection", vid.width, 2, false);
+#endif
 		}
 		else if (!Master_NumAlive())
 		{
 			Draw_FunStringWidth(0, vid.height/2 - 8, "No servers responding", vid.width, 2, false);
+#ifdef HAVE_PACKET
 			Draw_FunStringWidth(0, vid.height/2 + 0, "Check udp internet connection", vid.width, 2, false);
+#endif
 		}
 		else
 		{
@@ -738,7 +768,7 @@ static qboolean SL_Key	(int key, emenu_t *menu)
 {
 	serverlist_t *info = (serverlist_t*)(menu + 1);
 
-	if (serverpreview)
+	if (serverpreview != SVPV_NO)
 	{
 		char buf[64];
 		serverinfo_t *server = selectedserver.inuse?Master_InfoForServer(&selectedserver.adr, selectedserver.brokerid):NULL;
@@ -746,7 +776,7 @@ static qboolean SL_Key	(int key, emenu_t *menu)
 
 		if (key == K_ESCAPE || key == K_GP_BACK || key == K_MOUSE2)
 		{
-			serverpreview = false;
+			serverpreview = SVPV_NO;
 			return true;
 		}
 		else if (key == K_MOUSE1)
@@ -754,51 +784,59 @@ static qboolean SL_Key	(int key, emenu_t *menu)
 			if (mousecursor_x >= joinbutton.x && mousecursor_x < joinbutton.x+joinbutton.width)
 				if (mousecursor_y >= joinbutton.y && mousecursor_y < joinbutton.y+joinbutton.height)
 				{
-					serverpreview = false;
+					serverpreview = SVPV_NO;
 					goto dojoin;
 				}
 			if (mousecursor_x >= specbutton.x && mousecursor_x < specbutton.x+joinbutton.width)
 				if (mousecursor_y >= specbutton.y && mousecursor_y < specbutton.y+joinbutton.height)
 				{
-					serverpreview = false;
+					serverpreview = SVPV_NO;
 					goto dospec;
 				}
 			return true;
 		}
+#ifdef HAVE_PACKET
 		else if (key == 'i')
 		{
-			serverpreview = ((serverpreview==2)?1:2);
+			serverpreview = ((serverpreview==SVPV_RULES)?1:SVPV_RULES);
 			return true;
 		}
 		else if (key == 'k')
 		{
-			serverpreview = ((serverpreview==3)?1:3);
+			serverpreview = ((serverpreview==SVPV_HELP)?1:SVPV_HELP);
 			return true;
 		}
+#endif
 		else if (key == K_LEFTARROW || key == K_KP_LEFTARROW || key == K_GP_DPAD_LEFT)
 		{
 			if (--serverpreview < 1)
-				serverpreview = 4;
+				serverpreview = SVPV_LAST;
 
-			if (serverpreview == 4 && server)
+#ifdef HAVE_PACKET
+			if (serverpreview == SVPV_ROUTE && server)
 				Master_FindRoute(server->adr);
+#endif
 			return true;
 		}
 		else if (key == K_RIGHTARROW || key == K_KP_RIGHTARROW || key == K_GP_DPAD_RIGHT)
 		{
-			if (++serverpreview > 4)
+			if (++serverpreview > SVPV_LAST)
 				serverpreview = 1;
 
-			if (serverpreview == 4 && server)
+#ifdef HAVE_PACKET
+			if (serverpreview == SVPV_ROUTE && server)
 				Master_FindRoute(server->adr);
+#endif
 			return true;
 		}
-		else if (key == 'b' && serverpreview != 4)
+#ifdef HAVE_PACKET
+		else if (key == 'b' && serverpreview != SVPV_ROUTE)
 		{
 			if (server)
 				Master_FindRoute(server->adr);
-			serverpreview = 4;
+			serverpreview = SVPV_ROUTE;
 		}
+#endif
 		else if (key == 'b' || key == 'o' || key == 'j' || key == K_ENTER || key == K_KP_ENTER || key == K_GP_START)	//join
 		{
 			if (key == 's' || key == 'o')
@@ -820,13 +858,15 @@ dojoin:
 
 			//output the server's address
 			Cbuf_AddText(va("%s", Master_ServerToString(buf, sizeof(buf), server)), RESTRICT_LOCAL);
-			if (serverpreview == 4 || key == 'b')
+#ifdef HAVE_PACKET
+			if (serverpreview == SVPV_ROUTE || key == 'b')
 			{	//and postfix it with routing info if we're going for a proxied route.
-				if (serverpreview != 4)
+				if (serverpreview != SVPV_ROUTE)
 					Master_FindRoute(server->adr);
 				for (server = server->prevpeer; server; server = server->prevpeer)
 					Cbuf_AddText(va("@%s", Master_ServerToString(buf, sizeof(buf), server)), RESTRICT_LOCAL);
 			}
+#endif
 			Cbuf_AddText("\n", RESTRICT_LOCAL);
 
 
@@ -908,8 +948,10 @@ dojoin:
 			selectedserver.inuse = true;
 			SListOptionChanged(server);
 
-			if (serverpreview == 4)
+#ifdef HAVE_PACKET
+			if (serverpreview == SVPV_ROUTE)
 				Master_FindRoute(server->adr);
+#endif
 		}
 	}
 
@@ -1140,7 +1182,7 @@ void M_Menu_ServerList2_f(void)
 		return;
 	}
 
-	serverpreview = false;	//in case it was lingering.
+	serverpreview = SVPV_NO;	//in case it was lingering.
 
 	Key_Dest_Remove(kdm_console);
 
@@ -1264,6 +1306,7 @@ void M_Menu_ServerList2_f(void)
 	CalcFilters(menu);
 }
 
+#ifdef HAVE_PACKET
 static float quickconnecttimeout;
 
 static void M_QuickConnect_PreDraw(emenu_t *menu)
@@ -1364,7 +1407,7 @@ void M_QuickConnect_f(void)
 	MC_AddCommand(menu, 64, 0, 128, "Refresh", SL_DoRefresh);
 	MC_AddCommand(menu, 64, 0, 136, "Cancel", M_QuickConnect_Cancel);
 }
-
+#endif
 
 
 

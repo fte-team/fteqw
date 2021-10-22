@@ -292,8 +292,11 @@ cvar_t vid_depthbits						= CVARFD ("vid_depthbits", "0",
 												CVAR_ARCHIVE | CVAR_VIDEOLATCH, "The number of depth bits to request from the renedering context. Try 24.");
 cvar_t vid_desktopsettings					= CVARFD ("vid_desktopsettings", "0",
 												CVAR_ARCHIVE | CVAR_VIDEOLATCH, "Ignore the values of vid_width and vid_height, and just use the same settings that are used for the desktop.");
-cvar_t vid_fullscreen						= CVARF ("vid_fullscreen", "2",
-												CVAR_ARCHIVE|CVAR_VIDEOLATCH);
+#ifdef FTE_TARGET_WEB
+cvar_t vid_fullscreen						= CVARF ("vid_fullscreen", "0",	CVAR_ARCHIVE|CVAR_VIDEOLATCH);
+#else
+cvar_t vid_fullscreen						= CVARFD ("vid_fullscreen", "2",	CVAR_ARCHIVE|CVAR_VIDEOLATCH, "Specifies whether the game should be fullscreen or not (requires vid_restart).\n0: Run in a resizable window, which can be manually maximized (with borders).\n1: Traditional fullscreen-exclusive video mode with mode switching and everything.\n2: Simply maximize the window and hide any borders without interfering with any other parts of the system.");
+#endif
 cvar_t vid_height							= CVARFD ("vid_height", "0",
 												CVAR_ARCHIVE | CVAR_VIDEOLATCH, "The screen height to attempt to use, in physical pixels. 0 means use desktop resolution.");
 cvar_t vid_multisample						= CVARAFD ("vid_multisample", "0", "vid_samples",

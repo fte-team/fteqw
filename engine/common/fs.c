@@ -1085,7 +1085,7 @@ static int QDECL COM_Dir_List(const char *name, qofs_t size, time_t mtime, void 
 			colour = "^4";	//disconnects
 		}
 #if !defined(NOBUILTINMENUS) && !defined(MINIMAL)
-		else if (!Q_strcasecmp(ext, "bsp") || !Q_strcasecmp(ext, "spr") || !Q_strcasecmp(ext, "mdl") || !Q_strcasecmp(ext, "md3") || !Q_strcasecmp(ext, "iqm") ||
+		else if (!Q_strcasecmp(ext, "bsp") || !Q_strcasecmp(ext, "spr") || !Q_strcasecmp(ext, "sp2") || !Q_strcasecmp(ext, "mdl") || !Q_strcasecmp(ext, "md3") || !Q_strcasecmp(ext, "iqm") ||
 				 !Q_strcasecmp(ext, "vvm") || !Q_strcasecmp(ext, "psk") || !Q_strcasecmp(ext, "dpm") || !Q_strcasecmp(ext, "zym") || !Q_strcasecmp(ext, "md5mesh") ||
 				 !Q_strcasecmp(ext, "mdx") || !Q_strcasecmp(ext, "md2") || !Q_strcasecmp(ext, "obj") || !Q_strcasecmp(ext, "mds") || !Q_strcasecmp(ext, "mdc") ||
 				 !Q_strcasecmp(ext, "md5anim") || !Q_strcasecmp(ext, "gltf") || !Q_strcasecmp(ext, "glb") || !Q_strcasecmp(ext, "ase") || !Q_strcasecmp(ext, "lwo"))
@@ -3816,6 +3816,12 @@ void COM_Gamedir (const char *dir, const struct gamepacks *packagespaths)
 	#define ZFIXHACK "set r_polygonoffset_submodel_offset 25\nset r_polygonoffset_submodel_factor 0.05\n"
 #endif
 
+#ifdef FTE_TARGET_WEB	//for stuff that doesn't work right...
+#define FORWEB(a,b) a
+#else
+#define FORWEB(a,b) b
+#endif
+
 /*ezquake cheats and compat*/
 #define EZQUAKECOMPETITIVE "set ruleset_allow_fbmodels 1\nset sv_demoExtensions \"\"\n"
 /*quake requires a few settings for compatibility*/
@@ -3843,7 +3849,7 @@ void COM_Gamedir (const char *dir, const struct gamepacks *packagespaths)
 /*yay q2!*/
 #define Q2CFG "//schemes quake2\n" "set v_gammainverted 1\nset com_parseutf8 0\ncom_nogamedirnativecode 0\nset sv_bigcoords 0\nsv_port "STRINGIFY(PORT_Q2SERVER)"\n"
 /*Q3's ui doesn't like empty model/headmodel/handicap cvars, even if the gamecode copes*/
-#define Q3CFG "//schemes quake3\n" "set v_gammainverted 0\nset snd_ignorecueloops 1\nsetfl g_gametype 0 s\nset gl_clear 8\nset com_parseutf8 0\ngl_overbright 2\nseta model sarge\nseta headmodel sarge\nseta handicap 100\ncom_nogamedirnativecode 0\nsv_port "STRINGIFY(PORT_Q3SERVER)"\n"
+#define Q3CFG "//schemes quake3\n" "set v_gammainverted 0\nset snd_ignorecueloops 1\nsetfl g_gametype 0 s\nset gl_clear 1\nset r_clearcolour 0 0 0\nset com_parseutf8 0\ngl_overbright "FORWEB("0","2")"\nseta model sarge\nseta headmodel sarge\nseta handicap 100\ncom_nogamedirnativecode 0\nsv_port "STRINGIFY(PORT_Q3SERVER)"\n"
 //#define RMQCFG "sv_bigcoords 1\n"
 
 #ifdef HAVE_SSL
@@ -3951,6 +3957,7 @@ static const gamemode_info_t gamemode_info[] = {
 
 #if defined(Q3CLIENT) || defined(Q3SERVER)
 	{"-quake3",		"q3",		"Quake3",				{"baseq3/pak0.pk3"},			Q3CFG,	{"baseq3",						"*fteq3"},	"Quake III Arena",					UPDATEURL(Q3)},
+	{"-quake3demo",	"q3demo",	"Quake3Demo",			{"demoq3/pak0.pk3"},			Q3CFG,	{"demoq3",						"*fteq3"},	"Quake III Arena Demo"},
 	//the rest are not supported in any real way. maps-only mostly, if that
 //	{"-quake4",		"q4",		"FTE-Quake4",			{"q4base/pak00.pk4"},			NULL,	{"q4base",						"*fteq4"},	"Quake 4"},
 //	{"-et",			NULL,		"FTE-EnemyTerritory",	{"etmain/pak0.pk3"},			NULL,	{"etmain",						"*fteet"},	"Wolfenstein - Enemy Territory"},

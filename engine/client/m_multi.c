@@ -29,11 +29,15 @@ void M_Menu_MultiPlayer_f (void)
 		MC_AddCenterPicture(menu, 4, 24, "pics/m_banner_multiplayer");
 
 		menu->selecteditem = (menuoption_t*)
-		MC_AddConsoleCommand	(menu, 64, 170, 40,	"Join network server", "menu_slist\n");
-		MC_AddConsoleCommand	(menu, 64, 170, 48,	"Quick Connect", "quickconnect qw\n");
-		MC_AddConsoleCommand	(menu, 64, 170, 56,	"Start network server", "menu_newmulti\n");
-		MC_AddConsoleCommand	(menu, 64, 170, 64,	"Player setup", "menu_setup\n");
-		MC_AddConsoleCommand	(menu, 64, 170, 72,	"Demos", "menu_demo\n");
+		MC_AddConsoleCommand	(menu, 64, 170, 40,	"Join network server",	"menu_slist\n");
+#ifdef HAVE_PACKET
+		MC_AddConsoleCommand	(menu, 64, 170, 48,	"Quick Connect",		"quickconnect qw\n");
+#endif
+#ifdef Q2SERVER
+		MC_AddConsoleCommand	(menu, 64, 170, 56,	"Start network server",	"menu_newmulti\n");
+#endif
+		MC_AddConsoleCommand	(menu, 64, 170, 64,	"Player setup",			"menu_setup\n");
+		MC_AddConsoleCommand	(menu, 64, 170, 72,	"Demos",				"menu_demo\n");
 
 		menu->cursoritem = (menuoption_t*)MC_AddWhiteText(menu, 48, 0, 40, NULL, false);
 		return;
@@ -65,7 +69,9 @@ void M_Menu_MultiPlayer_f (void)
 		mgt=32;
 		menu->selecteditem = (menuoption_t*)
 		MC_AddConsoleCommandQBigFont	(menu, 72, mgt,	"Server List ",	"menu_slist\n");mgt+=20;
+#ifdef HAVE_PACKET
 		MC_AddConsoleCommandQBigFont	(menu, 72, mgt,	"Quick Connect", "quickconnect qw\n");mgt+=20;
+#endif
 		MC_AddConsoleCommandQBigFont	(menu, 72, mgt,	"New Server  ",	"menu_newmulti\n");mgt+=20;
 		MC_AddConsoleCommandQBigFont	(menu, 72, mgt,	"Player Setup",	"menu_setup\n");mgt+=20;
 		MC_AddConsoleCommandQBigFont	(menu, 72, mgt,	"Demos       ",	"menu_demo\n");mgt+=20;
@@ -104,10 +110,12 @@ void M_Menu_MultiPlayer_f (void)
 		b->common.height = 20;
 		b->common.width = width;
 
+#ifdef HAVE_PACKET
 		b = MC_AddConsoleCommand(menu, 72, 320, 112, "", "quickconnect qw\n");
 		MC_AddWhiteText(menu, 72, 0, 112+20/2-6, "^aQuick Connect", false);
 		b->common.height = 20;
 		b->common.width = width;
+#endif
 	}
 
 	menu->cursoritem = (menuoption_t*)MC_AddCursor(menu, &resel, 54, 32);

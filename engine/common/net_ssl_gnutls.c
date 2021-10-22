@@ -985,10 +985,10 @@ static qboolean SSL_LoadPrivateCert(gnutls_certificate_credentials_t cred)
 		qgnutls_x509_privkey_init(&key);
 		ret = qgnutls_x509_privkey_generate(key, privalgo, qgnutls_sec_param_to_pk_bits(privalgo, GNUTLS_SEC_PARAM_HIGH), 0);
 		if (ret < 0)
-			Con_Printf("gnutls_x509_privkey_generate failed: %i\n", ret);
+			Con_Printf(CON_ERROR"gnutls_x509_privkey_generate failed: %i\n", ret);
 		ret = qgnutls_x509_privkey_export2(key, GNUTLS_X509_FMT_PEM, &priv);
 		if (ret < 0)
-			Con_Printf("gnutls_x509_privkey_export2 failed: %i\n", ret);
+			Con_Printf(CON_ERROR"gnutls_x509_privkey_export2 failed: %i\n", ret);
 
 		//stoopid browsers insisting that serial numbers are different even on throw-away self-signed certs.
 		//we should probably just go and make our own root ca/master. post it a cert and get a signed one (with sequential serial) back or something.
@@ -1005,9 +1005,9 @@ static qboolean SSL_LoadPrivateCert(gnutls_certificate_credentials_t cred)
 		else
 		{
 			if (qgnutls_x509_crt_set_dn(cert, va("CN=%s", hostname), &errstr) < 0)
-				Con_Printf("gnutls_x509_crt_set_dn failed: %s\n", errstr);
+				Con_Printf(CON_ERROR"gnutls_x509_crt_set_dn failed: %s\n", errstr);
 			if (qgnutls_x509_crt_set_issuer_dn(cert, va("CN=%s", hostname), &errstr) < 0)
-				Con_Printf("gnutls_x509_crt_set_issuer_dn failed: %s\n", errstr);
+				Con_Printf(CON_ERROR"gnutls_x509_crt_set_issuer_dn failed: %s\n", errstr);
 //			qgnutls_x509_crt_set_key_usage(cert, GNUTLS_KEY_KEY_ENCIPHERMENT|GNUTLS_KEY_DATA_ENCIPHERMENT|);
 		}
 		qgnutls_x509_crt_set_key(cert, key);
@@ -1019,14 +1019,14 @@ static qboolean SSL_LoadPrivateCert(gnutls_certificate_credentials_t cred)
 			qgnutls_privkey_import_x509(akey, key, GNUTLS_PRIVKEY_IMPORT_COPY);
 			ret = qgnutls_x509_crt_privkey_sign(cert, cert, akey, GNUTLS_DIG_SHA256, 0);
 			if (ret < 0)
-				Con_Printf("gnutls_x509_crt_privkey_sign failed: %i\n", ret);
+				Con_Printf(CON_ERROR"gnutls_x509_crt_privkey_sign failed: %i\n", ret);
 			qgnutls_privkey_deinit(akey);
 		}
 		ret = qgnutls_x509_crt_export2(cert, GNUTLS_X509_FMT_PEM, &pub);
 		qgnutls_x509_crt_deinit(cert);
 		qgnutls_x509_privkey_deinit(key);
 		if (ret < 0)
-			Con_Printf("gnutls_x509_crt_export2 failed: %i\n", ret);
+			Con_Printf(CON_ERROR"gnutls_x509_crt_export2 failed: %i\n", ret);
 
 		if (priv.size && pub.size)
 		{
@@ -1081,10 +1081,10 @@ static qboolean SSL_LoadPrivateCert(gnutls_certificate_credentials_t cred)
 	{	//submit them to gnutls
 		ret = qgnutls_certificate_set_x509_key_mem(cred, &pub, &priv, GNUTLS_X509_FMT_PEM);
 		if (ret < 0)
-			Con_Printf("gnutls_certificate_set_x509_key_mem failed: %i\n", ret);
+			Con_Printf(CON_ERROR"gnutls_certificate_set_x509_key_mem failed: %i\n", ret);
 	}
 	else
-		Con_Printf("Unable to read/generate cert ('-certhost HOSTNAME' commandline arguments to autogenerate one)\n");
+		Con_Printf(CON_ERROR"Unable to read/generate cert ('-certhost HOSTNAME' commandline arguments to autogenerate one)\n");
 
 	memset(priv.data, 0, priv.size);//just in case. FIXME: we didn't scrub the filesystem code. libc has its own caches etc. lets hope that noone comes up with some way to scrape memory remotely (although if they can inject code then we've lost either way so w/e)
 	if (priv.data)
@@ -1135,7 +1135,7 @@ qboolean SSL_InitGlobal(qboolean isserver)
 #ifdef GNUTLS_HAVE_SYSTEMTRUST
 		err = qgnutls_certificate_set_x509_system_trust (xcred[isserver]);
 		if (err <= 0)
-			Con_Printf("gnutls_certificate_set_x509_system_trust: error %i.\n", err);
+			Con_Printf(CON_ERROR"gnutls_certificate_set_x509_system_trust: error %i.\n", err);
 #else
 		qgnutls_certificate_set_x509_trust_file (xcred[isserver], CAFILE, GNUTLS_X509_FMT_PEM);
 #endif
@@ -1159,7 +1159,7 @@ qboolean SSL_InitGlobal(qboolean isserver)
 					ret = qgnutls_certificate_set_x509_key_file(xcred[isserver], certfile, keyfile, GNUTLS_X509_FMT_PEM);
 			if (ret < 0)
 			{
-				Con_Printf("No certificate or key was found in %s and %s\n", certfile, keyfile);
+				Con_Printf(CON_ERROR"No certificate or key was found in %s and %s\n", certfile, keyfile);
 				initstatus[isserver] = -1;
 			}
 #endif
@@ -1354,12 +1354,12 @@ static enum hashvalidation_e GNUTLS_VerifyHash(const qbyte *hashdata, size_t has
 	{
 		if (r == GNUTLS_E_PK_SIG_VERIFY_FAILED)
 		{
-			Con_Printf("GNUTLS_VerifyHash: GNUTLS_E_PK_SIG_VERIFY_FAILED!\n");
+			Con_Printf(CON_ERROR"GNUTLS_VerifyHash: GNUTLS_E_PK_SIG_VERIFY_FAILED!\n");
 			return VH_INCORRECT;
 		}
 		else if (r == GNUTLS_E_INSUFFICIENT_SECURITY)
 		{
-			Con_Printf("GNUTLS_VerifyHash: GNUTLS_E_INSUFFICIENT_SECURITY\n");
+			Con_Printf(CON_ERROR"GNUTLS_VerifyHash: GNUTLS_E_INSUFFICIENT_SECURITY\n");
 			return VH_AUTHORITY_UNKNOWN;	//should probably be incorrect or something, but oh well
 		}
 		return VH_INCORRECT;

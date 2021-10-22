@@ -125,7 +125,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 		//officially, emscripten supports longjmp.
 		//unofficially, this makes firefox crash with memory issues.
 		#define setjmp(x) (x=0,x)
-		#define longjmp(b,r) emscriptenfte_abortmainloop(__func__)
+		#define longjmp(b,r) emscriptenfte_abortmainloop(__func__, false)
 		typedef int jmp_buf;
 	#else
 		#include <setjmp.h>

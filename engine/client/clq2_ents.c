@@ -2179,7 +2179,7 @@ static void CLQ2_AddPacketEntities (q2frame_t *frame)
 			else
 */			// pmm
 
-				V_AddEntity (&ent);
+			V_AddEntity (&ent);
 		}
 		if (s1->u.q2.modelindex3)
 		{

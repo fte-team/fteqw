@@ -1364,7 +1364,7 @@ void M_Init_Internal (void)
 	Cmd_AddCommand ("menu_credits", M_Menu_Credits_f);
 #endif
 
-#ifdef CL_MASTER
+#if defined(CL_MASTER) && defined(HAVE_PACKET)
 	Cmd_AddCommand ("quickconnect", M_QuickConnect_f);
 #endif
 }

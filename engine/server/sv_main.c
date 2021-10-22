@@ -6291,6 +6291,11 @@ void SV_Init (quakeparms_t *parms)
 
 		// if a map wasn't specified on the command line, spawn start.map
 		//aliases require that we flush the cbuf in order to actually see the results.
+		if (sv.state == ss_dead && Cmd_AliasExist("dedicated_start", RESTRICT_LOCAL))
+		{
+			Cbuf_AddText("dedicated_start", RESTRICT_LOCAL);	//Q2 feature
+			Cbuf_Execute();
+		}
 		if (sv.state == ss_dead && Cmd_AliasExist("startmap_dm", RESTRICT_LOCAL))
 		{
 			Cbuf_AddText("startmap_dm", RESTRICT_LOCAL);	//DP extension

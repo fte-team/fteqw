@@ -2395,7 +2395,7 @@ void M_Menu_Main_f (void)
 
 			MC_AddPicture(mainm, 0, 4, 38, 166, "pics/m_main_plaque");
 			MC_AddPicture(mainm, 0, 173, 36, 42, "pics/m_main_logo");
-#ifndef CLIENTONLY
+#if defined(HAVE_SERVER) && defined(Q2SERVER)
 			MC_AddSelectablePicture(mainm, 68, 13, itemheight, "pics/m_main_game");
 #endif
 			MC_AddSelectablePicture(mainm, 68, 53, itemheight, "pics/m_main_multiplayer");
@@ -2403,7 +2403,7 @@ void M_Menu_Main_f (void)
 			MC_AddSelectablePicture(mainm, 68, 133, itemheight, "pics/m_main_video");
 			MC_AddSelectablePicture(mainm, 68, 173, itemheight, "pics/m_main_quit");
 
-#ifndef CLIENTONLY
+#if defined(HAVE_SERVER) && defined(Q2SERVER)
 			b = MC_AddConsoleCommand	(mainm, 68, 320, 13,	"", "menu_single\n");
 			b->common.tooltip = "Singleplayer.";
 			mainm->selecteditem = (menuoption_t *)b;
@@ -2412,9 +2412,8 @@ void M_Menu_Main_f (void)
 #endif
 			b = MC_AddConsoleCommand	(mainm, 68, 320, 53,	"", "menu_multi\n");
 			b->common.tooltip = "Multiplayer.";
-#ifdef CLIENTONLY
-			mainm->selecteditem = (menuoption_t *)b;
-#endif
+			if (!mainm->selecteditem)
+				mainm->selecteditem = (menuoption_t *)b;
 			b->common.width = 12*20;
 			b->common.height = itemheight;
 			b = MC_AddConsoleCommand	(mainm, 68, 320, 93,	"", "menu_options\n");

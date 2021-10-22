@@ -16,6 +16,8 @@ void emscriptenfte_buf_pushtolocalstore(int handle);			//make a copy in the brow
 unsigned int emscriptenfte_buf_getsize(int handle);			//get the size of the file buffer
 int emscriptenfte_buf_read(int handle, int offset, void *data, int len);//read data
 int emscriptenfte_buf_write(int handle, int offset, const void *data, int len);//write data. no access checks.
+void emscritenfte_buf_enumerate(void (*Sys_EnumeratedFile)(void *ctx, size_t fsize), void *ctx, size_t namesize);
+
 
 //websocket is implemented in javascript because there is no usable C api (emscripten's javascript implementation is shite and has fatal errors).
 int emscriptenfte_ws_connect(const char *url, const char *wsprotocol);	//open a websocket connection to a specific host
@@ -32,7 +34,7 @@ void emscriptenfte_rtc_candidate(int sock, const char *offer);				//adds a remot
 void emscriptenfte_alert(const char *msg);
 void emscriptenfte_print(const char *msg);
 void emscriptenfte_setupmainloop(int(*mainloop)(double timestamp));
-NORETURN void emscriptenfte_abortmainloop(const char *caller);
+NORETURN void emscriptenfte_abortmainloop(const char *caller, int fatal);
 
 //we're trying to avoid including libpng+libjpeg+libogg in javascript due to it being redundant bloat.
 //to use such textures/sounds, we can just 'directly' load them via webgl

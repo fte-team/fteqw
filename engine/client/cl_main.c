@@ -302,6 +302,7 @@ static struct
 	int					qport;
 	int					challenge;		//tracked as part of guesswork based upon what replies we get.
 	double				time;			//for connection retransmits
+	qboolean			clogged;		//ignore time...
 	int					defaultport;
 	int					tries;			//increased each try, every fourth trys nq connect packets.
 	unsigned char		guid[64];
@@ -1149,7 +1150,12 @@ void CL_CheckForResend (void)
 		return;	//don't send connect requests until we've actually initialised fully. this isn't a huge issue, but makes the startup prints a little more sane.
 
 	if (connectinfo.time && realtime - connectinfo.time < 5.0)
-		return;
+	{
+		if (!connectinfo.clogged)
+			return;
+	}
+	else
+		connectinfo.clogged = false;
 
 #ifdef HAVE_DTLS
 	if (connectinfo.numadr>0 && connectinfo.adr[0].prot == NP_DTLS)
@@ -1190,7 +1196,8 @@ void CL_CheckForResend (void)
 
 	if (!connectinfo.numadr)
 		return;	//nothing to do yet...
-	connectinfo.time = realtime+t2-t1;	// for retransmit requests
+	if (!connectinfo.clogged)
+		connectinfo.time = realtime+t2-t1;	// for retransmit requests
 
 	to = &connectinfo.adr[connectinfo.nextadr++%connectinfo.numadr];
 	if (!NET_IsClientLegal(to))
@@ -1202,17 +1209,20 @@ void CL_CheckForResend (void)
 		return;
 	}
 
+	if (!connectinfo.clogged)
+	{
 #ifdef Q3CLIENT
-	//Q3 clients send their cdkey to the q3 authorize server.
-	//they send this packet with the challenge.
-	//and the server will refuse the client if it hasn't sent it.
-	CLQ3_SendAuthPacket(to);
+		//Q3 clients send their cdkey to the q3 authorize server.
+		//they send this packet with the challenge.
+		//and the server will refuse the client if it hasn't sent it.
+		CLQ3_SendAuthPacket(to);
 #endif
 
-	if (connectinfo.istransfer || connectinfo.numadr>1)
-		Con_TPrintf ("Connecting to %s(%s)...\n", cls.servername, NET_AdrToString(data, sizeof(data), to));
-	else
-		Con_TPrintf ("Connecting to %s...\n", cls.servername);
+		if (connectinfo.istransfer || connectinfo.numadr>1)
+			Con_TPrintf ("Connecting to %s(%s)...\n", cls.servername, NET_AdrToString(data, sizeof(data), to));
+		else
+			Con_TPrintf ("Connecting to %s...\n", cls.servername);
+	}
 
 	if (connectinfo.tries == 0 && to == &connectinfo.adr[0])
 		if (!NET_EnsureRoute(cls.sockets, "conn", cls.servername, to))
@@ -1239,7 +1249,7 @@ void CL_CheckForResend (void)
 		switch(NET_SendPacket (cls.sockets, strlen(data), data, to))
 		{
 		case NETERR_CLOGGED:	//temporary failure
-			connectinfo.time = 0;
+			connectinfo.clogged = true;
 		case NETERR_SENT:		//yay, works!
 			break;
 		default:
@@ -1249,7 +1259,7 @@ void CL_CheckForResend (void)
 	}
 	/*NQ*/
 #ifdef NQPROT
-	if (contype & 2)
+	if ((contype & 2) && !connectinfo.clogged)
 	{
 		sizebuf_t sb;
 		memset(&sb, 0, sizeof(sb));
@@ -1418,7 +1428,7 @@ void CL_Connect_f (void)
 
 	CL_BeginServerConnect(server, 0, false);
 }
-#if defined(CL_MASTER)
+#if defined(CL_MASTER) && defined(HAVE_PACKET)
 static void CL_ConnectBestRoute_f (void)
 {
 	char	server[1024];
@@ -5091,7 +5101,7 @@ void CL_Init (void)
 	Cmd_AddCommand ("cl_status", CL_Status_f);
 	Cmd_AddCommandD ("quit", CL_Quit_f, "Use this command when you get angry. Does not save any cvars. Use cfg_save to save settings, or use the menu for a prompt.");
 
-#if defined(CL_MASTER)
+#if defined(CL_MASTER) && defined(HAVE_PACKET)
 	Cmd_AddCommandAD ("connectbr", CL_ConnectBestRoute_f, CL_Connect_c, "connect address:port\nConnect to a qw server using the best route we can detect.");
 #endif
 	Cmd_AddCommandAD("connect", CL_Connect_f, CL_Connect_c, "connect scheme://address:port\nConnect to a server. "

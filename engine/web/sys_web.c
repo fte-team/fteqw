@@ -1,6 +1,5 @@
 #include "quakedef.h"
 
-#include <SDL.h>
 #ifdef MULTITHREAD
 #include <SDL_thread.h>
 #endif
@@ -33,6 +32,7 @@ void Sys_Error (const char *error, ...)
 
 	Host_Shutdown ();
 	emscriptenfte_alert(string);
+	emscriptenfte_abortmainloop("Sys_Error", true);
 	exit (1);
 }
 
@@ -141,10 +141,51 @@ void Sys_Quit (void)
 	exit (0);
 }
 
+
+struct enumctx_s
+{
+	char name[MAX_OSPATH];
+	const char *gpath;
+	size_t gpathlen;
+	const char *match;
+	int (*callback)(const char *, qofs_t, time_t mtime, void *, searchpathfuncs_t *);
+	void *ctx;
+	searchpathfuncs_t *spath;
+	int ret;
+};
+static void Sys_EnumeratedFile(void *vctx, size_t fsize)
+{	//called for each enumerated file.
+	//we don't need the whole EnumerateFiles2 thing as our filesystem is flat, so */* isn't an issue for us (we don't expect a lot of different 'files' if only because they're a pain to download).
+	struct enumctx_s *ctx = vctx;
+	if (!ctx->ret)
+		return;	//we're meant to stop when if it returns false...
+	if (!strncmp(ctx->name, ctx->gpath, ctx->gpathlen))		//ignore any gamedir prefix
+		if (wildcmp(ctx->match, ctx->name+ctx->gpathlen))	//match it within the searched gamedir...
+			ctx->ret = ctx->callback(ctx->name+ctx->gpathlen, fsize, 0, ctx->ctx, ctx->spath);	//call the callback
+}
 int Sys_EnumerateFiles (const char *gpath, const char *match, int (*func)(const char *, qofs_t, time_t mtime, void *, searchpathfuncs_t *), void *parm, searchpathfuncs_t *spath)
 {
-	Con_DPrintf("Warning: Sys_EnumerateFiles not implemented\n");
-	return true;
+	struct enumctx_s ctx;
+	char tmp[MAX_OSPATH];
+	if (!gpath)
+		gpath = "";
+	ctx.gpathlen = strlen(gpath);
+	if (ctx.gpathlen && gpath[ctx.gpathlen-1] != '/')
+	{	//make sure gpath is /-terminated.
+		if (ctx.gpathlen >= sizeof(tmp)-1)
+			return false;	//just no...
+		Q_strncpyz(tmp, gpath, sizeof(tmp));
+		gpath = tmp;
+		tmp[ctx.gpathlen++] = '/';
+	}
+	ctx.gpath = gpath;
+	ctx.match = match;
+	ctx.callback = func;
+	ctx.ctx = parm;
+	ctx.spath = spath;
+	ctx.ret = true;
+	emscritenfte_buf_enumerate(Sys_EnumeratedFile, &ctx, sizeof(ctx.name));
+	return ctx.ret;
 }
 
 //blink window if possible (it's not)
@@ -400,46 +441,6 @@ void Sys_DestroyConditional(void *condv)
 
 void Sys_Sleep (double seconds)
 {
-	SDL_Delay(seconds * 1000);
+	//SDL_Delay(seconds * 1000);
 }
 
-//emscripten does not support the full set of sdl functions, so we stub the extras.
-int SDL_GetGammaRamp(Uint16 *redtable, Uint16 *greentable, Uint16 *bluetable)
-{
-	return -1;
-}
-int SDL_SetGammaRamp(const Uint16 *redtable, const Uint16 *greentable, const Uint16 *bluetable)
-{
-	return -1;
-}
-//SDL_GL_GetAttribute
-void SDL_UnloadObject(void *object)
-{
-}
-void *SDL_LoadObject(const char *sofile)
-{
-	return NULL;
-}
-void *SDL_LoadFunction(void *handle, const char *name)
-{
-	return NULL;
-}
-Uint8 SDL_GetAppState(void)
-{
-	return SDL_APPACTIVE;
-}
-#define socklen_t int
-/*
-int getsockname(int socket, struct sockaddr *address, socklen_t *address_len)
-{
-	return -1;
-}
-int getpeername(int socket, struct sockaddr *address, socklen_t *address_len)
-{
-	return -1;
-}
-ssize_t sendto(int socket, const void *message, size_t length, int flags, const struct sockaddr *dest_addr, socklen_t dest_len)
-{
-	return -1;
-}
-*/

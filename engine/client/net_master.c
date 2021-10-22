@@ -471,20 +471,21 @@ static void SV_Master_Worker_Resolved(void *ctx, void *data, size_t a, size_t b)
 				//fix up default ports if not specified
 				if (!na->port)
 				{
-					switch (master->protocol)
+					safeswitch (master->protocol)
 					{
 					case MP_UNSPECIFIED:
 #ifdef NQPROT
 					case MP_NETQUAKE:
 #endif
 					case MP_DPMASTER:	na->port = BigShort (27950);	break;
-#ifdef Q2SERVER
+#if defined(Q2CLIENT) || defined(Q2SERVER)
 					case MP_QUAKE2:		na->port = BigShort (27900);	break;	//FIXME: verify
 #endif
 #ifdef Q3SERVER
 					case MP_QUAKE3:		na->port = BigShort (27950);	break;
 #endif
 					case MP_QUAKEWORLD:	na->port = BigShort (27000);	break;
+					safedefault:		na->port = BigShort (27950);	break;
 					}
 				}
 
@@ -757,9 +758,7 @@ void SV_Master_Shutdown (void)
 cvar_t slist_cacheinfo = CVAR("slist_cacheinfo", "0");	//this proves dangerous, memory wise.
 cvar_t slist_writeserverstxt = CVAR("slist_writeservers", "1");
 
-void CL_MasterListParse(netadrtype_t adrtype, int type, qboolean slashpad);
-int CL_ReadServerInfo(char *msg, enum masterprotocol_e prototype, qboolean favorite);
-void MasterInfo_RemoveAllPlayers(void);
+static void MasterInfo_RemoveAllPlayers(void);
 
 master_t *master;
 player_t *mplayers;
@@ -804,9 +803,12 @@ int slist_customkeys;
 #define INVALID_SOCKET -1
 #endif
 
-
+#ifdef HAVE_IPV4
 #define POLLUDP4SOCKETS 64	//it's big so we can have lots of messages when behind a firewall. Basically if a firewall only allows replys, and only remembers 3 servers per socket, we need this big cos it can take a while for a packet to find a fast optimised route and we might be waiting for a few secs for a reply the first time around.
 int lastpollsockUDP4;
+#else
+#define POLLUDP4SOCKETS 0
+#endif
 
 #ifdef HAVE_IPV6
 #define POLLUDP6SOCKETS 4	//it's non-zero so we can have lots of messages when behind a firewall. Basically if a firewall only allows replys, and only remembers 3 servers per socket, we need this big cos it can take a while for a packet to find a fast optimised route and we might be waiting for a few secs for a reply the first time around.
@@ -826,6 +828,7 @@ int lastpollsockIPX;
 #define FIRSTUDP4SOCKET (FIRSTIPXSOCKET+POLLIPXSOCKETS)
 #define FIRSTUDP6SOCKET (FIRSTUDP4SOCKET+POLLUDP4SOCKETS)
 #define POLLTOTALSOCKETS (FIRSTUDP6SOCKET+POLLUDP6SOCKETS)
+#if POLLTOTALSOCKETS>0
 SOCKET pollsocketsList[POLLTOTALSOCKETS];
 char pollsocketsBCast[POLLTOTALSOCKETS];
 
@@ -834,6 +837,81 @@ void Master_SetupSockets(void)
 	int i;
 	for (i = 0; i < POLLTOTALSOCKETS; i++)
 		pollsocketsList[i] = INVALID_SOCKET;
+}
+
+static void CL_MasterListParse(netadrtype_t adrtype, int type, qboolean slashpad);
+static int CL_ReadServerInfo(char *msg, enum masterprotocol_e prototype, qboolean favorite);
+#else
+void Master_SetupSockets(void)
+{
+}
+void Master_CheckPollSockets(void)
+{
+}
+#endif
+
+
+unsigned int Master_TotalCount(void)
+{
+	unsigned int count=0;
+	serverinfo_t *info;
+
+	for (info = firstserver; info; info = info->next)
+	{
+		count++;
+	}
+	return count;
+}
+
+unsigned int Master_NumPolled(void)
+{
+	unsigned int count=0;
+	serverinfo_t *info;
+
+	for (info = firstserver; info; info = info->next)
+	{
+		if (!info->sends)
+			count++;
+	}
+	return count;
+}
+unsigned int Master_NumAlive(void)
+{
+	unsigned int count=0;
+	serverinfo_t *info;
+
+	for (info = firstserver; info; info = info->next)
+	{
+		if (info->status&SRVSTATUS_ALIVE)
+			count++;
+	}
+	return count;
+}
+
+//true if server is on a different master's list.
+serverinfo_t *Master_InfoForServer (netadr_t *addr, const char *brokerid)
+{
+	serverinfo_t *info;
+	if (!brokerid)
+		brokerid="";
+
+	for (info = firstserver; info; info = info->next)
+	{
+		if (!strcmp(info->brokerid, brokerid) && NET_CompareAdr(&info->adr, addr))
+			return info;
+	}
+	return NULL;
+}
+serverinfo_t *Master_InfoForNum (int num)
+{
+	serverinfo_t *info;
+
+	for (info = firstserver; info; info = info->next)
+	{
+		if (num-- <=0)
+			return info;
+	}
+	return NULL;
 }
 
 static void Master_HideServer(serverinfo_t *server)
@@ -932,7 +1010,7 @@ char	*Master_ServerToString (char *s, int len, serverinfo_t *a)
 			*s = 0;	//default broker... skip it for brevity.
 		else
 			NET_AdrToString(s, len, &a->adr);
-		Q_strncatz(s, "/", len);
+//		Q_strncatz(s, "/", len);
 		Q_strncatz(s, a->brokerid, len);
 		return s;
 	}
@@ -1460,6 +1538,7 @@ hostcachekey_t Master_KeyForName(const char *keyname)
 }
 
 
+#ifdef HAVE_PACKET
 static void Master_FloodRoute(serverinfo_t *node)
 {
 	unsigned int i;
@@ -1567,7 +1646,6 @@ int Master_FindBestRoute(char *server, char *out, size_t outsize, int *directcos
 
 	return ret;
 }
-
 
 
 
@@ -1731,7 +1809,22 @@ void Master_AddMaster (char *address, enum mastertype_e mastertype, enum masterp
 
 	COM_AddWork(WG_LOADER, CLMaster_AddMaster_Worker_Resolve, NULL, mast, 0, true/*Master_MasterProtocolIsEnabled(protocol)*/);
 }
+#else
+void Master_AddMaster (char *address, enum mastertype_e mastertype, enum masterprotocol_e protocol, char *description)
+{	//pretend it didn't resolve.
+}
+#endif
 
+static void MasterInfo_RemoveAllPlayers(void)
+{
+	player_t *p;
+	while(mplayers)
+	{
+		p = mplayers;
+		mplayers = p->next;
+		Z_Free(p);
+	}
+}
 void MasterInfo_Shutdown(void)
 {
 	master_t *mast;
@@ -1925,6 +2018,7 @@ qboolean Master_LoadMasterList (char *filename, qboolean withcomment, int defaul
 			Master_LoadMasterList(entry, false, servertype, protocoltype, depth);
 		else
 		{
+#if POLLTOTALSOCKETS>0
 			//favourites are added explicitly, with their name and stuff
 			if (favourite && servertype == MT_SINGLE)
 			{
@@ -1933,6 +2027,7 @@ qboolean Master_LoadMasterList (char *filename, qboolean withcomment, int defaul
 				else
 					Con_Printf("Failed to resolve address - \"%s\"\n", entry);
 			}
+#endif
 
 			switch (servertype)
 			{
@@ -1950,6 +2045,7 @@ qboolean Master_LoadMasterList (char *filename, qboolean withcomment, int defaul
 	return true;
 }
 
+#if POLLTOTALSOCKETS>0
 qboolean NET_SendPollPacket(int len, void *data, netadr_t to)
 {
 	unsigned long bcast;
@@ -2055,7 +2151,7 @@ qboolean NET_SendPollPacket(int len, void *data, netadr_t to)
 	return true;
 }
 
-int Master_CheckPollSockets(void)
+void Master_CheckPollSockets(void)
 {
 	int sock;
 	SOCKET usesocket;
@@ -2316,8 +2412,8 @@ int Master_CheckPollSockets(void)
 #endif
 		continue;
 	}
-	return 0;
 }
+#endif
 
 void Master_RemoveKeepInfo(serverinfo_t *sv)
 {
@@ -2373,10 +2469,11 @@ void SListOptionChanged(serverinfo_t *newserver)
 
 
 		selectedserver.refreshtime = realtime+4;
+#if POLLTOTALSOCKETS>0
 		newserver->sends++;
 		Master_QueryServer(newserver);
 
-#ifdef NQPROT
+#if defined(NQPROT)
 		selectedserver.lastplayer = 0;
 		*selectedserver.lastrule = 0;
 		if ((newserver->special&SS_PROTOCOLMASK) == SS_NETQUAKE)
@@ -2397,6 +2494,7 @@ void SListOptionChanged(serverinfo_t *newserver)
 			NET_SendPollPacket(net_message.cursize, net_message.data, newserver->adr);
 			SZ_Clear(&net_message);
 		}
+#endif
 #endif
 	}
 }
@@ -2499,9 +2597,7 @@ static void MasterInfo_ProcessHTTP(struct dl_download *dl)
 			infostring = NULL;
 		if (!strncmp(s, "ice:///", 7) || !strncmp(s, "ices:///", 8) || !strncmp(s, "rtc:///", 7) || !strncmp(s, "rtcs:///", 8))
 		{
-			brokerid = s+7;
-			while (*brokerid == '/')
-				brokerid++;
+			brokerid = s+((s[4]==':')?7:6);
 			adr = brokeradr;
 			if (!*brokerid)
 				continue;	//invalid...
@@ -2585,6 +2681,7 @@ static void MasterInfo_Request(master_t *mast)
 		}
 		break;
 #endif
+#if POLLTOTALSOCKETS>0
 	case MT_MASTERUDP:
 		switch(mast->protocoltype)
 		{
@@ -2676,6 +2773,7 @@ static void MasterInfo_Request(master_t *mast)
 			break;
 		}
 		break;
+#endif
 	}
 }
 
@@ -2799,6 +2897,7 @@ void MasterInfo_Refresh(qboolean doreset)
 	Master_SortServers();
 }
 
+#if POLLTOTALSOCKETS>0
 void Master_QueryServer(serverinfo_t *server)
 {
 	char	data[2048];
@@ -2967,79 +3066,6 @@ qboolean CL_QueryServers(void)
 	return false;
 }
 
-unsigned int Master_TotalCount(void)
-{
-	unsigned int count=0;
-	serverinfo_t *info;
-
-	for (info = firstserver; info; info = info->next)
-	{
-		count++;
-	}
-	return count;
-}
-
-unsigned int Master_NumPolled(void)
-{
-	unsigned int count=0;
-	serverinfo_t *info;
-
-	for (info = firstserver; info; info = info->next)
-	{
-		if (!info->sends)
-			count++;
-	}
-	return count;
-}
-unsigned int Master_NumAlive(void)
-{
-	unsigned int count=0;
-	serverinfo_t *info;
-
-	for (info = firstserver; info; info = info->next)
-	{
-		if (info->status&SRVSTATUS_ALIVE)
-			count++;
-	}
-	return count;
-}
-
-//true if server is on a different master's list.
-serverinfo_t *Master_InfoForServer (netadr_t *addr, const char *brokerid)
-{
-	serverinfo_t *info;
-	if (!brokerid)
-		brokerid="";
-
-	for (info = firstserver; info; info = info->next)
-	{
-		if (!strcmp(info->brokerid, brokerid) && NET_CompareAdr(&info->adr, addr))
-			return info;
-	}
-	return NULL;
-}
-serverinfo_t *Master_InfoForNum (int num)
-{
-	serverinfo_t *info;
-
-	for (info = firstserver; info; info = info->next)
-	{
-		if (num-- <=0)
-			return info;
-	}
-	return NULL;
-}
-
-void MasterInfo_RemoveAllPlayers(void)
-{
-	player_t *p;
-	while(mplayers)
-	{
-		p = mplayers;
-		mplayers = p->next;
-		Z_Free(p);
-	}
-}
 void MasterInfo_RemovePlayers(netadr_t *adr)
 {
 	player_t *p, *prev;
@@ -3079,7 +3105,7 @@ void MasterInfo_AddPlayer(netadr_t *serveradr, char *name, int ping, int frags, 
 }
 
 //we got told about a server, parse it's info
-int CL_ReadServerInfo(char *msg, enum masterprotocol_e prototype, qboolean favorite)
+static int CL_ReadServerInfo(char *msg, enum masterprotocol_e prototype, qboolean favorite)
 {
 	serverdetailedinfo_t details;
 
@@ -3604,7 +3630,54 @@ void CL_MasterListParse(netadrtype_t adrtype, int type, qboolean slashpad)
 
 	firstserver = last;
 }
+#else
+qboolean CL_QueryServers(void)
+{
+	master_t *mast;
 
+	Master_DetermineMasterTypes();
+
+	for (mast = master; mast; mast=mast->next)
+	{
+		switch (mast->protocoltype)
+		{
+		case MP_UNSPECIFIED:
+			continue;
+		case MP_DPMASTER:	//dpmaster allows the client to specify the protocol to query. this means it always matches the current game type, so don't bother allowing the user to disable it.
+			if (!sb_enabledarkplaces)
+				continue;
+			break;
+#ifdef NQPROT
+		case MP_NETQUAKE:
+			if (!sb_enablenetquake)
+				continue;
+			break;
+#endif
+		case MP_QUAKEWORLD:
+			if (!sb_enablequakeworld)
+				continue;
+			break;
+#ifdef Q2CLIENT
+		case MP_QUAKE2:
+			if (!sb_enablequake2)
+				continue;
+			break;
+#endif
+#ifdef Q3CLIENT
+		case MP_QUAKE3:
+			if (!sb_enablequake3)
+				continue;
+			break;
+#endif
+		}
+
+		if (mast->sends > 0)
+			MasterInfo_Request(mast);
+	}
+
+	return false;	//false to say 'done'.
+}
+#endif
 
 
 void CL_Connect_c(int argn, const char *partial, struct xcommandargcompletioncb_s *ctx)
@@ -3623,7 +3696,10 @@ void CL_Connect_c(int argn, const char *partial, struct xcommandargcompletioncb_
 			{
 				if (len && !Q_strncasecmp(partial, info->name, len))
 				{
-					ctx->cb(info->name, va("^[%s^], %i players, %i ping", info->name, info->players, info->ping), Master_ServerToString(buf, sizeof(buf), info), ctx);
+					if (info->ping == PING_UNKNOWN)
+						ctx->cb(info->name, va("^[%s^], %i players, unknown ping", info->name, info->players), Master_ServerToString(buf, sizeof(buf), info), ctx);
+					else
+						ctx->cb(info->name, va("^[%s^], %i players, %i ping", info->name, info->players, info->ping), Master_ServerToString(buf, sizeof(buf), info), ctx);
 					continue;
 				}
 
@@ -3633,7 +3709,10 @@ void CL_Connect_c(int argn, const char *partial, struct xcommandargcompletioncb_
 				{
 					if (info->players || (info->special & SS_FAVORITE) || NET_ClassifyAddress(&info->adr, NULL)<=ASCOPE_LAN || len == strlen(buf))
 					{
-						ctx->cb(buf, va("^[%s^], %i players, %i ping", info->name, info->players, info->ping), NULL, ctx);
+						if (info->ping == PING_UNKNOWN)
+							ctx->cb(buf, va("^[%s^], %i players, unknown ping", info->name, info->players), NULL, ctx);
+						else
+							ctx->cb(buf, va("^[%s^], %i players, %i ping", info->name, info->players, info->ping), NULL, ctx);
 						continue;
 					}
 				}
@@ -3652,11 +3731,15 @@ void CL_Connect_c(int argn, const char *partial, struct xcommandargcompletioncb_
 #if defined(CL_MASTER)
 static void NetQ3_LocalServers_f(void)
 {
-	netadr_t na;
 	MasterInfo_Refresh(true);
 
-	if (NET_StringToAdr("255.255.255.255", PORT_Q3SERVER, &na))
-		NET_SendPollPacket (14, va("%c%c%c%cgetstatus\n", 255, 255, 255, 255), na);
+#if POLLTOTALSOCKETS>0
+	{
+		netadr_t na;
+		if (NET_StringToAdr("255.255.255.255", PORT_Q3SERVER, &na))
+			NET_SendPollPacket (14, va("%c%c%c%cgetstatus\n", 255, 255, 255, 255), na);
+	}
+#endif
 }
 static void NetQ3_GlobalServers_Request(size_t masternum, int protocol, const char *keywords)
 {
@@ -3678,6 +3761,7 @@ static void NetQ3_GlobalServers_Request(size_t masternum, int protocol, const ch
 			dl->isquery = true;
 	}
 #endif
+#if POLLTOTALSOCKETS>0
 	if (masternum >= countof(net_masterlist))
 		return; //erk
 	if (net_masterlist[masternum].protocol == MP_QUAKE3)
@@ -3691,6 +3775,7 @@ static void NetQ3_GlobalServers_Request(size_t masternum, int protocol, const ch
 		for (i = 0; i < n; i++)
 			NET_SendPollPacket (strlen(str), str, adr[i]);
 	}
+#endif
 }
 static void NetQ3_GlobalServers_f(void)
 {

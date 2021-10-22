@@ -446,13 +446,14 @@ qboolean	NET_CompareAdr (netadr_t *a, netadr_t *b)
 
 	if (a->type != b->type)
 	{
-		int i;
 		if ((a->type == NA_INVALID || b->type == NA_INVALID) && (a->prot==NP_RTC_TCP||a->prot==NP_RTC_TLS)&&(b->prot==NP_RTC_TCP||b->prot==NP_RTC_TLS))
 			return true;	//broker stuff can be written as /foo which doesn't necessarily have all the info.
 		if (a->port != b->port)
 			return false;
+#if defined(HAVE_IPV4) && defined(HAVE_IPV6)
 		if (a->type == NA_IP && b->type == NA_IPV6)
 		{
+			int i;
 			for (i = 0; i < 10; i++)
 				if (b->address.ip6[i] != 0)
 					return false;	//only matches if they're 0s, otherwise its not an ipv4 address there
@@ -468,6 +469,7 @@ qboolean	NET_CompareAdr (netadr_t *a, netadr_t *b)
 		}
 		if (a->type == NA_IPV6 && b->type == NA_IP)
 		{
+			int i;
 			for (i = 0; i < 10; i++)
 				if (a->address.ip6[i] != 0)
 					return false;	//only matches if they're 0s, otherwise its not an ipv4 address there
@@ -483,6 +485,7 @@ qboolean	NET_CompareAdr (netadr_t *a, netadr_t *b)
 			}
 			return true;	//its an ipv4 address in there, the mask matched the whole way through
 		}
+#endif
 		return false;
 	}
 
@@ -492,7 +495,7 @@ qboolean	NET_CompareAdr (netadr_t *a, netadr_t *b)
 #ifdef HAVE_WEBSOCKCL
 	if (a->type == NA_WEBSOCKET)
 	{
-		if (!strcmp(a->address.websocketurl, a->address.websocketurl) && a->port == b->port)
+		if (!strcmp(a->address.websocketurl, b->address.websocketurl) && a->port == b->port)
 			return true;
 		return false;
 	}
@@ -565,11 +568,12 @@ qboolean	NET_CompareBaseAdr (netadr_t *a, netadr_t *b)
 
 	if (a->type != b->type)
 	{
-		int i;
 		if ((a->type == NA_INVALID || b->type == NA_INVALID) && (a->prot==NP_RTC_TCP||a->prot==NP_RTC_TLS)&&(b->prot==NP_RTC_TCP||b->prot==NP_RTC_TLS))
 			return true;	//broker stuff can be written as /foo which doesn't necessarily have all the info.
+#if defined(HAVE_IPV4) && defined(HAVE_IPV6)
 		if (a->type == NA_IP && b->type == NA_IPV6)
 		{
+			int i;
 			for (i = 0; i < 10; i++)
 				if (b->address.ip6[i] != 0)
 					return false;	//only matches if they're 0s, otherwise its not an ipv4 address there
@@ -585,6 +589,7 @@ qboolean	NET_CompareBaseAdr (netadr_t *a, netadr_t *b)
 		}
 		if (a->type == NA_IPV6 && b->type == NA_IP)
 		{
+			int i;
 			for (i = 0; i < 10; i++)
 				if (a->address.ip6[i] != 0)
 					return false;	//only matches if they're 0s, otherwise its not an ipv4 address there
@@ -600,6 +605,7 @@ qboolean	NET_CompareBaseAdr (netadr_t *a, netadr_t *b)
 			}
 			return true;	//its an ipv4 address in there, the mask matched the whole way through
 		}
+#endif
 		return false;
 	}
 
@@ -656,6 +662,9 @@ qboolean	NET_CompareBaseAdr (netadr_t *a, netadr_t *b)
 		return false;
 	}
 #endif
+
+	if (a->type == NA_INVALID && a->prot)
+		return true;	//mneh...
 
 	Sys_Error("NET_CompareBaseAdr: Bad address type");
 	return false;
@@ -781,16 +790,6 @@ char	*NET_AdrToString (char *s, int len, netadr_t *a)
 		{
 			char *url = a->address.websocketurl;
 			prot = "";
-			if (a->prot == NP_DTLS && !strncmp(url, "ws://", 5))
-			{
-				url+=5;
-				prot = "rtc://";
-			}
-			if (a->prot == NP_DTLS && !strncmp(url, "wss://", 6))
-			{
-				url+=6;
-				prot = "rtcs://";
-			}
 			if (a->port)
 				Q_snprintfz(s, len, "%s%s#%i", prot, url, ntohs(a->port));
 			else
@@ -999,7 +998,10 @@ char	*NET_AdrToString (char *s, int len, netadr_t *a)
 #endif
 
 	default:
-		snprintf (s, len, "invalid netadr_t type");
+		if (a->prot == NP_RTC_TCP || a->prot == NP_RTC_TLS)
+			Q_strncpyz(s, prot, len);
+		else
+			snprintf (s, len, "invalid netadr_t type");
 //		Sys_Error("NET_AdrToString: Bad netadr_t type");
 	}
 
@@ -1029,17 +1031,6 @@ char	*NET_BaseAdrToString (char *s, int len, netadr_t *a)
 	case NA_WEBSOCKET:	//ws / wss is part of the url
 		{
 			char *url = a->address.websocketurl;
-			prot = "";
-			if (a->prot == NP_DTLS && !strncmp(url, "ws://", 5))
-			{
-				url+=5;
-				prot = "rtc://";
-			}
-			if (a->prot == NP_DTLS && !strncmp(url, "wss://", 6))
-			{
-				url+=6;
-				prot = "rtcs://";
-			}
 			Q_snprintfz(s, len, "%s%s", prot, url);
 		}
 		break;
@@ -1144,7 +1135,10 @@ char	*NET_BaseAdrToString (char *s, int len, netadr_t *a)
 #endif
 
 	default:
-		Sys_Error("NET_BaseAdrToString: Bad netadr_t type");
+		if (a->prot == NP_RTC_TCP || a->prot == NP_RTC_TLS)
+			Q_strncpyz(s, prot, len);
+		else
+			Sys_Error("NET_BaseAdrToString: Bad netadr_t type");
 	}
 
 	return s;
@@ -1566,7 +1560,7 @@ size_t	NET_StringToAdr2 (const char *s, int defaultport, netadr_t *a, size_t num
 		{"tls://", NP_TLS_OR_INVALID, NA_INVALID},
 		{"dtls://", NP_DTLS_OR_INVALID, NA_INVALID},
 
-#ifdef SUPPORT_ICE
+#if defined(SUPPORT_ICE) || defined(HAVE_WEBSOCKCL)
 		{"ice://", NP_RTC_TCP, NA_INVALID},
 		{"rtc://", NP_RTC_TCP, NA_INVALID},
 		{"ices://", NP_RTC_TLS, NA_INVALID},
@@ -1612,45 +1606,52 @@ size_t	NET_StringToAdr2 (const char *s, int defaultport, netadr_t *a, size_t num
 #ifdef HAVE_WEBSOCKCL
 	//with websockets we can't really resolve anything. failure happens only when trying to connect.
 	//`connect /GAMENAME` is equivelent to `connect rtc://broker/GAMENAME`
-	if (!strncmp (s, "/", 1))
+	if (*s == '/')
 	{
-		char *prefix = "";
-		if (!fs_manifest->rtcbroker || !*fs_manifest->rtcbroker)
+		char *broker = fs_manifest->rtcbroker;
+		if (!broker || !*broker)
 		{	//FIXME: use referrer? or the website's host?
 			Con_DPrintf("No default rtc broker\n");
 			return 0;	//can't accept it
 		}
-		if (!strstr(fs_manifest->rtcbroker, "://"))
-			prefix = "ws://";
-		Q_snprintfz(a->address.websocketurl, sizeof(a->address.websocketurl), "%s%s%s", prefix, fs_manifest->rtcbroker, s);
+		a->prot = NP_RTC_TLS;
+		a->type = NA_INVALID;
+
+		if (pathstart)
+			*pathstart = s;
 		return 1;
 	}
 	else if (!strncmp (s, "rtc://", 6) || !strncmp (s, "rtcs://", 7) || !strncmp (s, "ice://", 6) || !strncmp (s, "ices://", 7))
 	{	//basically ICE using sdp-via-websockets to a named relay server.
-		const char *prot, *host, *path;
-		a->type = NA_WEBSOCKET;
-		a->prot = NP_DTLS;
-		if (!strncmp (s, "rtcs://", 7))
+		const char *path;
+		a->prot = NP_RTC_TLS;
+		if (s[4] == ':')
 		{
-			prot = "wss://";
-			path = s+7;
+			a->prot = NP_RTC_TLS;
+			s += 7;
 		}
 		else
 		{
-			prot = "ws://";
-			path = s+6;
+			a->prot = NP_RTC_TCP;
+			s += 6;
 		}
-		if (*path == '/')
+		path = strchr(path, '/');
+		if (path)
 		{
-			host = fs_manifest->rtcbroker;
-			if (!host || !*host)	//can't guess the host
-				return 0;
-			if (strstr(host, "://"))
-				prot = "";
+			if (s == path)	//no hostname specified = use default broker (resolving it later)
+				a->type = NA_INVALID;
+			else if (path-s < sizeof(a->address.websocketurl))
+			{
+				memcpy(a->address.websocketurl, s, path-s);
+				a->address.websocketurl[path-s] = 0;
+			}
+			else
+				return 0;	//too long
+			if (pathstart)
+				*pathstart = path;
 		}
 		else
-			host = "";
-		Q_snprintfz(a->address.websocketurl, sizeof(a->address.websocketurl), "%s%s%s", prot, host, path);
+			return 0;	//reject it when there's no path
 		return 1;
 	}
 	else if (!strncmp (s, "ws://", 5) || !strncmp (s, "wss://", 6))
@@ -1667,15 +1668,33 @@ size_t	NET_StringToAdr2 (const char *s, int defaultport, netadr_t *a, size_t num
 	{
 		/*code for convienience - no other protocols work anyway*/
 		static float warned;
-		if (warned < realtime)
-		{
-			Con_DPrintf("Note: Assuming ws:// prefix\n");
-			warned = realtime + 1;
-		}
+		int i;
+		for (i = 0; s[i] == ':' || s[i] == '[' || s[i] == ']' || s[i] == '.' || (s[i] >= '0' && s[i] <= '9'); i++)
+			;
 		a->type = NA_WEBSOCKET;
-		a->prot = NP_WS;
-		memcpy(a->address.websocketurl, "ws://", 5);
-		Q_strncpyz(a->address.websocketurl+5, s, sizeof(a->address.websocketurl)-5);
+		if (s[i])
+		{	//assume there's part of some domain name in there. FIXME: this may be a false positive in the case of hex ipv6 addresses.
+			if (warned < realtime)
+			{
+				Con_DPrintf("Note: Assuming wss:// prefix\n");
+				warned = realtime + 1;
+			}
+			a->prot = NP_WSS;
+			memcpy(a->address.websocketurl, "wss://", 6);
+			Q_strncpyz(a->address.websocketurl+6, s, sizeof(a->address.websocketurl)-6);
+		}
+		else
+		{	//looks like a straight ip address.
+			//assume most server-by-ip addresses will not have proper certificates set up with that specific ip address as an actual name, and fall back on unsecure rubbish instead.
+			if (warned < realtime)
+			{
+				Con_Printf("Note: Assuming ws:// prefix\n");
+				warned = realtime + 1;
+			}
+			a->prot = NP_WS;
+			memcpy(a->address.websocketurl, "ws://", 5);
+			Q_strncpyz(a->address.websocketurl+5, s, sizeof(a->address.websocketurl)-5);
+		}
 		return 1;
 	}
 #endif
@@ -1739,6 +1758,7 @@ size_t	NET_StringToAdr2 (const char *s, int defaultport, netadr_t *a, size_t num
 	}
 
 	path = strchr(s, '/');
+#if !defined(HAVE_WEBSOCKCL) && defined(SUPPORT_ICE)
 	if (path == s && fs_manifest->rtcbroker && *fs_manifest->rtcbroker)
 	{
 		s = fs_manifest->rtcbroker;
@@ -1758,7 +1778,9 @@ size_t	NET_StringToAdr2 (const char *s, int defaultport, netadr_t *a, size_t num
 			*pathstart = path;
 		result = NET_StringToSockaddr2 (s, PORT_ICEBROKER, afhint, sadr, NULL, asize, min(numaddresses, countof(sadr)));
 	}
-	else if (path && (path-s)<MAX_OSPATH)
+	else
+#endif
+	if (path && (path-s)<MAX_OSPATH)
 	{
 		char host[MAX_OSPATH];
 		if (pathstart)
@@ -2425,8 +2447,9 @@ vfsfile_t *FS_OpenSSL(const char *peername, vfsfile_t *source, qboolean isserver
 	else
 		*hostname = 0;
 
-	if (tls_provider.ival>0 && tls_provider.ival <= cryptolib_count && cryptolib[tls_provider.ival-1])
-		f = !cryptolib[tls_provider.ival-1]->OpenStream?NULL:cryptolib[tls_provider.ival-1]->OpenStream(hostname, source, isserver);
+	i = tls_provider.ival-1;
+	if (i>=0 && i < cryptolib_count && cryptolib[i])
+		f = !cryptolib[i]->OpenStream?NULL:cryptolib[i]->OpenStream(hostname, source, isserver);
 	else for (i = 0; !f && i < cryptolib_count; i++)
 	{
 		if (cryptolib[i] && cryptolib[i]->OpenStream)
@@ -2434,7 +2457,12 @@ vfsfile_t *FS_OpenSSL(const char *peername, vfsfile_t *source, qboolean isserver
 	}
 	if (!f)	//it all failed.
 	{
-		Con_Printf("%s: no tls provider available\n", peername);
+		if (isserver && i < cryptolib_count && cryptolib[i] && cryptolib[i]->OpenStream)
+		{
+			Con_Printf("%s: no tls provider available. You may need to create a public certificate\n", peername?peername:"<HOST>");
+		}
+		else
+			Con_Printf("%s: no tls provider available\n", peername);
 		VFS_CLOSE(source);
 	}
 	return f;
@@ -2631,6 +2659,7 @@ static ftenet_generic_connection_t *FTENET_TCP_EstablishConnection(ftenet_connec
 #endif
 #ifdef HAVE_WEBSOCKCL
 static ftenet_generic_connection_t *FTENET_WebSocket_EstablishConnection(ftenet_connections_t *col, const char *address, netadr_t adr);
+static ftenet_generic_connection_t *FTENET_WebRTC_EstablishConnection(ftenet_connections_t *col, const char *address, netadr_t adr);
 #endif
 #ifdef IRCCONNECT
 static ftenet_generic_connection_t *FTENET_IRCConnect_EstablishConnection(ftenet_connections_t *col, const char *address, netadr_t adr);
@@ -3128,7 +3157,6 @@ static qboolean FTENET_AddToCollection_Ptr(ftenet_connections_t *col, const char
 {
 	int count = 0;
 	int i;
-
 	if (!col)
 		return false;
 
@@ -3178,34 +3206,26 @@ qboolean FTENET_AddToCollection(ftenet_connections_t *col, const char *name, con
 	char address[countof(adr)][256];
 	unsigned int i, j;
 	qboolean success = false;
-
 	if (!col)
 		return false;
-
 	if (name && strchr(name, ':'))
 		return false;
-
 	for (i = 0; addresslist && *addresslist && i < countof(adr); i++)
 	{
 		addresslist = COM_ParseStringSet(addresslist, address[i], sizeof(address[i]));
 		//resolve the address to something sane so we can determine the address type and thus the connection type to use
 		if (!*address[i])
-			adr[i].type = NA_INVALID;
+			adr[i].type = NA_INVALID, adr[i].prot = NP_INVALID;
 		else //if (islisten)
 		{
 			if (!NET_PortToAdr(addrtype, addrprot, address[i], &adr[i]))
 				return false;
 		}
-/*		else
-		{
-			if (!NET_StringToAdr(address[i], 0, &adr[i]))
-				return false;
-		}
-*/
 #ifdef HAVE_WEBSOCKCL
 		if (adr[i].prot == NP_WS && adr[i].type == NA_WEBSOCKET)	establish[i] = FTENET_WebSocket_EstablishConnection; else
 		if (adr[i].prot == NP_WSS && adr[i].type == NA_WEBSOCKET)	establish[i] = FTENET_WebSocket_EstablishConnection; else
-		if (adr[i].prot == NP_DTLS && adr[i].type == NA_WEBSOCKET)	establish[i] = FTENET_WebSocket_EstablishConnection; else
+		if (adr[i].prot == NP_RTC_TCP)								establish[i] = FTENET_WebRTC_EstablishConnection; else
+		if (adr[i].prot == NP_RTC_TLS)								establish[i] = FTENET_WebRTC_EstablishConnection; else
 #endif
 #ifdef HAVE_NATPMP
 		if (adr[i].prot == NP_NATPMP&& adr[i].type == NA_IP)	establish[i] = FTENET_NATPMP_EstablishConnection; else
@@ -3249,7 +3269,6 @@ qboolean FTENET_AddToCollection(ftenet_connections_t *col, const char *name, con
 #endif
 			establish[i] = NULL;
 	}
-
 	if (i == 1)
 	{
 		success |= FTENET_AddToCollection_Ptr(col, name, establish[0], address[0], &adr[0]);
@@ -3259,13 +3278,9 @@ qboolean FTENET_AddToCollection(ftenet_connections_t *col, const char *name, con
 		success |= FTENET_AddToCollection_Ptr(col, name, NULL, NULL, NULL);
 
 	for (j = 0; j < i; j++)
-	{
 		success |= FTENET_AddToCollection_Ptr(col, va("%s:%i", name, j), establish[j], address[j], &adr[j]);
-	}
 	for (; j < countof(adr); j++)
-	{
 		success |= FTENET_AddToCollection_Ptr(col, va("%s:%i", name, j), NULL, NULL, NULL);
-	}
 	return success;
 }
 
@@ -6950,6 +6965,7 @@ typedef struct
 	qboolean failed;
 
 	int datasock;	//only if we're a client
+	double heartbeat;	//timestamp of next heartbeat.
 
 	size_t numclients;
 	struct
@@ -7002,6 +7018,42 @@ static neterr_t FTENET_WebSocket_SendPacket(ftenet_generic_connection_t *gcon, i
 	return NETERR_NOROUTE;
 }
 
+static void FTENET_WebRTC_Heartbeat(ftenet_websocket_connection_t *b)
+{
+#ifdef HAVE_SERVER
+	if (b->generic.islisten)
+	{
+		extern cvar_t maxclients;
+		char info[2048];
+		int i;
+		client_t *cl;
+		int numclients = 0;
+		for (i=0 ; i<svs.allocated_client_slots ; i++)
+		{
+			cl = &svs.clients[i];
+			if ((cl->state == cs_connected || cl->state == cs_spawned || cl->name[0]) && !cl->spectator)
+				numclients++;
+		}
+
+		info[0] = ICEMSG_SERVERINFO;
+		info[1] =
+		info[2] = 0xff;	//to the broker rather than any actual client
+		info[3] = 0;
+		Info_SetValueForKey(info+3, "protocol", com_protocolversion.string, sizeof(info)-3);
+		Info_SetValueForKey(info+3, "maxclients", maxclients.string, sizeof(info)-3);
+		Info_SetValueForKey(info+3, "clients", va("%i", numclients), sizeof(info)-3);
+		Info_SetValueForKey(info+3, "hostname", hostname.string, sizeof(info)-3);
+		Info_SetValueForKey(info+3, "modname", FS_GetGamedir(true), sizeof(info)-3);
+		Info_SetValueForKey(info+3, "mapname", InfoBuf_ValueForKey(&svs.info, "map"), sizeof(info)-3);
+		Info_SetValueForKey(info+3, "needpass", InfoBuf_ValueForKey(&svs.info, "needpass"), sizeof(info)-3);
+
+		if (emscriptenfte_ws_send(b->brokersock, info, 3+strlen(info+3)) < 0)
+			return;
+	}
+#endif
+	b->heartbeat = realtime+30;
+}
+
 //called from the javascript when there was some ice event. just forwards over the broker connection.
 static void FTENET_WebRTC_Callback(void *ctxp, int ctxi, int/*enum icemsgtype_s*/ evtype, const char *data)
 {
@@ -7013,14 +7065,17 @@ static void FTENET_WebRTC_Callback(void *ctxp, int ctxi, int/*enum icemsgtype_s*
 	*o++ = (ctxi>>8)&0xff;
 	memcpy(o, data, dl);
 	o+=dl;
-
-//	Con_Printf("To Broker: %i %i\n", evtype, ctxi);
+	//Con_Printf("To Broker: %i %i\n", evtype, ctxi);
 	emscriptenfte_ws_send(wcs->brokersock, net_message_buffer, o-net_message_buffer);
 }
 static qboolean FTENET_WebRTC_GetPacket(ftenet_generic_connection_t *gcon)
 {
 	ftenet_websocket_connection_t *wsc = (void*)gcon;
 	size_t i;
+
+	if (wsc->heartbeat < realtime)
+		FTENET_WebRTC_Heartbeat(wsc);
+
 	if (!wsc->generic.islisten)
 	{
 		if (wsc->datasock != INVALID_SOCKET && FTENET_WebSocket_GetPacket(gcon))
@@ -7051,7 +7106,7 @@ static qboolean FTENET_WebRTC_GetPacket(ftenet_generic_connection_t *gcon)
 		cmd = MSG_ReadByte();
 		cl = MSG_ReadShort();
 
-//Con_Printf("From Broker: %i %i\n", cmd, cl);
+		//Con_Printf("From Broker: %i %i\n", cmd, cl);
 
 		switch(cmd)
 		{
@@ -7107,9 +7162,12 @@ static qboolean FTENET_WebRTC_GetPacket(ftenet_generic_connection_t *gcon)
 				}
 				if (cl < wsc->numclients)
 				{
+					char id[256];
+					Q_snprintfz(id, sizeof(id), "/%i_%x", cl+1, rand());
 					if (wsc->clients[cl].datasock != INVALID_SOCKET)
 						emscriptenfte_ws_close(wsc->clients[cl].datasock);
 					memcpy(&wsc->clients[cl].remoteadr, &wsc->remoteadr, sizeof(netadr_t));
+					Q_strncatz(wsc->clients[cl].remoteadr.address.websocketurl, id, sizeof(wsc->clients[cl].remoteadr.address.websocketurl));
 					wsc->clients[cl].remoteadr.port = htons(cl+1);
 					wsc->clients[cl].datasock = emscriptenfte_rtc_create(false, wsc, cl, FTENET_WebRTC_Callback);
 				}
@@ -7188,7 +7246,7 @@ static neterr_t FTENET_WebRTC_SendPacket(ftenet_generic_connection_t *gcon, int 
 	return NETERR_NOROUTE;
 }
 
-int FTENET_WebRTC_GetAddresses(struct ftenet_generic_connection_s *con, unsigned int *adrflags, netadr_t *addresses, const char **adrparams, int maxaddresses)
+static int FTENET_WebRTC_GetAddresses(struct ftenet_generic_connection_s *con, unsigned int *adrflags, netadr_t *addresses, const char **adrparams, int maxaddresses)
 {
 	ftenet_websocket_connection_t *wsc = (void*)con;
 	if (maxaddresses)
@@ -7200,6 +7258,73 @@ int FTENET_WebRTC_GetAddresses(struct ftenet_generic_connection_s *con, unsigned
 	return 0;
 }
 
+static int FTENET_WebRTC_Establish(const char *address, const char *type)
+{
+	/*
+		rtc://broker/id
+		rtc:///id
+		/id
+	*/
+	const char *path, *host;
+	char *c;
+	int i;
+	char url[512];
+	char cleanaddress[512];
+
+	char *pre[] = {	"wss://",	"ices://",	"rtcs://",	"tls://",
+					"ws://",	"ice://",	"rtc://",	"tcp://"};
+
+	//try and clean up the prefix, if specified
+	for (i = countof(pre); i --> 0; )
+	{
+		if (!strncmp(address, pre[i], strlen(pre[i])))
+		{
+			address += strlen(pre[i]);
+			i -= i%(countof(pre)/2);
+			break;
+		}
+	}
+
+	host = address;
+	if (*address == '/')
+	{
+		path = address+1;
+
+		address = fs_manifest->rtcbroker;
+		for (i = countof(pre); i --> 0; )
+		{
+			if (!strncmp(address, pre[i], strlen(pre[i])))
+			{
+				address += strlen(pre[i]);
+				i -= i%(countof(pre)/2);
+				break;
+			}
+		}
+	}
+	else
+	{
+		path = strchr(address, '/');
+		if (!path)
+			path = "";
+	}
+
+	Q_strncpyz(cleanaddress, address, sizeof(cleanaddress));
+	c = strchr(cleanaddress, '/');
+	if (c) *c = 0;
+	COM_Parse(com_protocolname.string);
+	Q_snprintfz(url, sizeof(url), "%s%s/%s/%s", pre[i], cleanaddress, com_token, path);
+
+	return emscriptenfte_ws_connect(url, type);
+}
+
+static qboolean FTENET_WebRTC_ChangeLocalAddress(struct ftenet_generic_connection_s *con, const char *addressstring, netadr_t *adr)
+{
+	//ftenet_websocket_connection_t *wsc = (void*)con;
+	return true;	//pretend we changed it, because needed to change in the first place.
+	//doesn't match how its currently bound, so I guess we need to rebind then.
+//	return false;
+}
+
 static ftenet_generic_connection_t *FTENET_WebSocket_EstablishConnection(ftenet_connections_t *col, const char *address, netadr_t adr)
 {
 	qboolean isserver = col->islisten;
@@ -7209,25 +7334,17 @@ static ftenet_generic_connection_t *FTENET_WebSocket_EstablishConnection(ftenet_
 	int datasocket = INVALID_SOCKET;
 
 	newcon = Z_Malloc(sizeof(*newcon));
-	if (adr.prot == NP_DTLS)
-	{	//this requires that we create a broker connection
-		if (isserver)
-			brokersocket = emscriptenfte_ws_connect(adr.address.websocketurl, "rtc_host");
-		else
-			brokersocket = emscriptenfte_ws_connect(adr.address.websocketurl, "rtc_client");
 
-		newcon->generic.GetPacket = FTENET_WebRTC_GetPacket;
-		newcon->generic.SendPacket = FTENET_WebRTC_SendPacket;
-		newcon->generic.GetLocalAddresses = FTENET_WebRTC_GetAddresses;
+	if (isserver)
+	{
+		Con_Printf("Browsers are unable to host regular servers. Please use an rtc://broker:port/serverid scheme instead.\n");
+		datasocket = INVALID_SOCKET;
 	}
 	else
-	{
-		if (!isserver)
-			datasocket = emscriptenfte_ws_connect(adr.address.websocketurl, "fteqw");
+		datasocket = emscriptenfte_ws_connect(adr.address.websocketurl, "fteqw");
 
-		newcon->generic.GetPacket = FTENET_WebSocket_GetPacket;
-		newcon->generic.SendPacket = FTENET_WebSocket_SendPacket;
-	}
+	newcon->generic.GetPacket = FTENET_WebSocket_GetPacket;
+	newcon->generic.SendPacket = FTENET_WebSocket_SendPacket;
 	if (brokersocket == INVALID_SOCKET && datasocket == INVALID_SOCKET)
 	{
 		Con_Printf("Unable to create rtc/ws connection\n");
@@ -7245,6 +7362,58 @@ static ftenet_generic_connection_t *FTENET_WebSocket_EstablishConnection(ftenet_
 		newcon->generic.thesocket = INVALID_SOCKET;
 		newcon->brokersock = brokersocket;
 		newcon->datasock = datasocket;
+		newcon->heartbeat = realtime-1;
+
+		adr.port = 0;
+		newcon->remoteadr = adr;
+
+		return &newcon->generic;
+	}
+	return NULL;
+}
+
+static ftenet_generic_connection_t *FTENET_WebRTC_EstablishConnection(ftenet_connections_t *col, const char *address, netadr_t adr)
+{
+	qboolean isserver = col->islisten;
+	ftenet_websocket_connection_t *newcon;
+
+	int brokersocket = INVALID_SOCKET;
+	int datasocket = INVALID_SOCKET;
+
+	newcon = Z_Malloc(sizeof(*newcon));
+
+	if (adr.type == NA_INVALID)
+	{	//if its using our broker, flip it over to a real address type, if we can.
+		adr.type = NA_WEBSOCKET;
+		Q_strncpyz(adr.address.websocketurl, fs_manifest->rtcbroker, sizeof(adr.address.websocketurl));
+	}
+
+	brokersocket = FTENET_WebRTC_Establish(address, isserver?"rtc_host":"rtc_client");
+
+	newcon->generic.GetPacket = FTENET_WebRTC_GetPacket;
+	newcon->generic.SendPacket = FTENET_WebRTC_SendPacket;
+	newcon->generic.GetLocalAddresses = FTENET_WebRTC_GetAddresses;
+
+	newcon->generic.ChangeLocalAddress = FTENET_WebRTC_ChangeLocalAddress;
+
+	if (brokersocket == INVALID_SOCKET && datasocket == INVALID_SOCKET)
+	{
+		Con_Printf("Unable to create rtc/ws connection\n");
+		Z_Free(newcon);
+	}
+	else
+	{
+		Q_strncpyz(newcon->generic.name, "WebSocket", sizeof(newcon->generic.name));
+		newcon->generic.Close = FTENET_WebSocket_Close;
+
+		newcon->generic.islisten = isserver;
+		newcon->generic.addrtype[0] = NA_WEBSOCKET;
+		newcon->generic.addrtype[1] = NA_INVALID;
+
+		newcon->generic.thesocket = INVALID_SOCKET;
+		newcon->brokersock = brokersocket;
+		newcon->datasock = datasocket;
+		newcon->heartbeat = realtime-1;
 
 		adr.port = 0;
 		newcon->remoteadr = adr;
@@ -7785,13 +7954,13 @@ qboolean NET_EnsureRoute(ftenet_connections_t *collection, char *routename, char
 {
 	switch(adr->prot)
 	{
-	case NP_DTLS:
-		break;
 	case NP_DGRAM:
 		if (NET_SendPacketCol(collection, 0, NULL, adr) != NETERR_NOROUTE)
 			return true;
 		if (!FTENET_AddToCollection(collection, routename, "0", adr->type, adr->prot))
 			return false;
+		break;
+	case NP_DTLS:
 		break;
 	case NP_WS:
 	case NP_WSS:
@@ -7801,7 +7970,7 @@ qboolean NET_EnsureRoute(ftenet_connections_t *collection, char *routename, char
 			return false;
 		Con_Printf("Establishing connection to %s\n", host);
 		break;
-#ifdef SUPPORT_ICE
+#if defined(SUPPORT_ICE) || defined(FTE_TARGET_WEB)
 	case NP_RTC_TCP:
 	case NP_RTC_TLS:
 		if (!FTENET_AddToCollection(collection, routename, host, adr->type, adr->prot))
@@ -8082,6 +8251,7 @@ int TCP_OpenStream (netadr_t *remoteaddr)
 }
 
 #if defined(SV_MASTER) || defined(CL_MASTER)
+#ifdef HAVE_IPV4
 int UDP_OpenSocket (int port)
 {
 	SOCKET newsocket;
@@ -8126,6 +8296,11 @@ int UDP_OpenSocket (int port)
 
 	return newsocket;
 }
+void UDP_CloseSocket (int socket)
+{
+	closesocket(socket);
+}
+#endif
 
 #ifdef HAVE_IPV6
 int UDP6_OpenSocket (int port)
@@ -8192,18 +8367,15 @@ int maxport = port + 100;
 
 	return newsocket;
 }
-#endif
-
-void UDP_CloseSocket (int socket)
+void UDP6_CloseSocket (int socket)
 {
 	closesocket(socket);
 }
+#endif
 
+#ifdef HAVE_IPX
 int IPX_OpenSocket (int port)
 {
-#ifndef HAVE_IPX
-	return 0;
-#else
 	SOCKET					newsocket;
 	struct sockaddr_ipx	address;
 	u_long					_true = 1;
@@ -8239,15 +8411,13 @@ int IPX_OpenSocket (int port)
 	}
 
 	return newsocket;
-#endif
 }
 
 void IPX_CloseSocket (int socket)
 {
-#ifdef HAVE_IPX
 	closesocket(socket);
-#endif
 }
+#endif
 #endif
 
 #ifdef HAVE_EPOLL
@@ -9172,262 +9342,6 @@ vfsfile_t *FS_OpenTCP(const char *name, int defaultport, qboolean assumetls)
 	}
 	else
 		return NULL;
-}
-#elif 0 //defined(HAVE_WEBSOCKCL)
-This code is disabled.
-I cannot provide a reliable mechanism over chrome/nacls websockets at this time.
-Some module within the ppapi/nacl/chrome stack refuses to forward the data when stressed.
-All I can determine is that the connection has a gap.
-Hopefully this should be fixed by pepper_19.
-
-As far as Im aware, this and the relevent code in QTV should be functionally complete.
-
-typedef struct
-{
-	vfsfile_t funcs;
-
-	PP_Resource sock;
-
-	unsigned char readbuffer[65536];
-	int readbuffered;
-	qboolean havepacket;
-	struct PP_Var incomingpacket;
-	qboolean failed;
-} tcpfile_t;
-
-static void tcp_websocketgot(void *user_data, int32_t result)
-{
-	tcpfile_t *wsc = user_data;
-	if (result == PP_OK)
-	{
-		if (wsc->incomingpacket.type == PP_VARTYPE_UNDEFINED)
-		{
-			Con_Printf("ERROR: %s: var was not set by PPAPI. Data has been lost.\n", __func__);
-			wsc->failed = true;
-		}
-		wsc->havepacket = true;
-	}
-	else
-	{
-		Sys_Printf("%s: %i\n", __func__, result);
-		wsc->failed = true;
-	}
-}
-static void tcp_websocketconnected(void *user_data, int32_t result)
-{
-	tcpfile_t *wsc = user_data;
-	if (result == PP_OK)
-	{
-		int res;
-		//we got a successful connection, enable reception.
-		struct PP_CompletionCallback ccb = {tcp_websocketgot, wsc, PP_COMPLETIONCALLBACK_FLAG_NONE};
-		res = ppb_websocket_interface->ReceiveMessage(wsc->sock, &wsc->incomingpacket, ccb);
-		if (res != PP_OK_COMPLETIONPENDING)
-			tcp_websocketgot(wsc, res);
-	}
-	else
-	{
-		Sys_Printf("%s: %i\n", __func__, result);
-		//some sort of error connecting, make it timeout now
-		wsc->failed = true;
-	}
-}
-static void tcp_websocketclosed(void *user_data, int32_t result)
-{
-	tcpfile_t *wsc = user_data;
-	wsc->failed = true;
-	if (wsc->havepacket)
-	{
-		wsc->havepacket = false;
-		ppb_var_interface->Release(wsc->incomingpacket);
-	}
-	ppb_core->ReleaseResource(wsc->sock);
-	wsc->sock = 0;
-//	Z_Free(wsc);
-}
-
-void VFSTCP_Close (struct vfsfile_s *file)
-{
-	/*meant to free the memory too, in this case we get the callback to do it*/
-	tcpfile_t *wsc = (void*)file;
-
-	struct PP_CompletionCallback ccb = {tcp_websocketclosed, wsc, PP_COMPLETIONCALLBACK_FLAG_NONE};
-	ppb_websocket_interface->Close(wsc->sock, PP_WEBSOCKETSTATUSCODE_NORMAL_CLOSURE, PP_MakeUndefined(), ccb);
-}
-
-int VFSTCP_ReadBytes (struct vfsfile_s *file, void *buffer, int bytestoread)
-{
-	tcpfile_t *wsc = (void*)file;
-	int res;
-
-	if (wsc->havepacket && wsc->readbuffered < bytestoread + 1024)
-	{
-		if (wsc->incomingpacket.type == PP_VARTYPE_UNDEFINED)
-			Con_Printf("PPAPI bug: var is still undefined after being received\n");
-		else
-		{
-			int len = 0;
-			unsigned char *utf8 = (unsigned char *)ppb_var_interface->VarToUtf8(wsc->incomingpacket, &len);
-			unsigned char *out = (unsigned char *)wsc->readbuffer + wsc->readbuffered;
-
-			wsc->havepacket = false;
-
-			Con_Printf("Len: %i\n", len);
-			while(len && out < wsc->readbuffer + sizeof(wsc->readbuffer))
-			{
-				if ((*utf8 & 0xe0)==0xc0 && len > 1)
-				{
-					*out = ((utf8[0] & 0x1f)<<6) | ((utf8[1] & 0x3f)<<0);
-					utf8+=2;
-					len -= 2;
-				}
-				else if (*utf8 & 0x80)
-				{
-					*out = '?';
-					utf8++;
-					len -= 1;
-				}
-				else
-				{
-					*out = utf8[0];
-					utf8++;
-					len -= 1;
-				}
-				out++;
-			}
-			if (len)
-			{
-				Con_Printf("oh noes! buffer not big enough!\n");
-				wsc->failed = true;
-			}
-			Con_Printf("Old: %i\n", wsc->readbuffered);
-			wsc->readbuffered = out - wsc->readbuffer;
-			Con_Printf("New: %i\n", wsc->readbuffered);
-
-			ppb_var_interface->Release(wsc->incomingpacket);
-			wsc->incomingpacket = PP_MakeUndefined();
-		}
-		if (!wsc->failed)
-		{
-			//get the next one
-			struct PP_CompletionCallback ccb = {tcp_websocketgot, wsc, PP_COMPLETIONCALLBACK_FLAG_NONE};
-			res = ppb_websocket_interface->ReceiveMessage(wsc->sock, &wsc->incomingpacket, ccb);
-			if (res != PP_OK_COMPLETIONPENDING)
-				tcp_websocketgot(wsc, res);
-		}
-	}
-
-	if (wsc->readbuffered)
-	{
-//		Con_Printf("Reading %i bytes of %i\n", bytestoread, wsc->readbuffered);
-		if (bytestoread > wsc->readbuffered)
-			bytestoread = wsc->readbuffered;
-
-		memcpy(buffer, wsc->readbuffer, bytestoread);
-		memmove(wsc->readbuffer, wsc->readbuffer+bytestoread, wsc->readbuffered-bytestoread);
-		wsc->readbuffered -= bytestoread;
-	}
-	else if (wsc->failed)
-		bytestoread = -1;	/*signal eof*/
-	else
-		bytestoread = 0;
-	return bytestoread;
-}
-int VFSTCP_WriteBytes (struct vfsfile_s *file, const void *buffer, int bytestowrite)
-{
-	tcpfile_t *wsc = (void*)file;
-	int res;
-	int outchars = 0;
-	unsigned char outdata[bytestowrite*2+1];
-	unsigned char *out=outdata;
-	const unsigned char *in=buffer;
-	if (wsc->failed)
-		return 0;
-
-	for(res = 0; res < bytestowrite; res++)
-	{
-		/*FIXME: do we need this code?*/
-		if (!*in)
-		{
-			*out++ = 0xc0 | (0x100 >> 6);
-			*out++ = 0x80 | (0x100 & 0x3f);
-		}
-		else if (*in >= 0x80)
-		{
-			*out++ = 0xc0 | (*in >> 6);
-			*out++ = 0x80 | (*in & 0x3f);
-		}
-		else
-			*out++ = *in;
-		in++;
-		outchars++;
-	}
-	*out = 0;
-	struct PP_Var str = ppb_var_interface->VarFromUtf8(outdata, out - outdata);
-	res = ppb_websocket_interface->SendMessage(wsc->sock, str);
-//	Sys_Printf("FTENET_WebSocket_SendPacket: result %i\n", res);
-	ppb_var_interface->Release(str);
-
-	if (res == PP_OK)
-		return bytestowrite;
-	return 0;
-}
-
-qboolean VFSTCP_Seek (struct vfsfile_s *file, unsigned long pos)
-{
-	//no seeking allowed
-	tcpfile_t *wsc = (void*)file;
-	Con_Printf("tcp seek?\n");
-	wsc->failed = true;
-	return false;
-}
-unsigned long VFSTCP_Tell (struct vfsfile_s *file)
-{
-	//no telling allowed
-	tcpfile_t *wsc = (void*)file;
-	Con_Printf("tcp tell?\n");
-	wsc->failed = true;
-	return 0;
-}
-unsigned long VFSTCP_GetLen (struct vfsfile_s *file)
-{
-	return 0;
-}
-
-/*nacl websockets implementation...*/
-vfsfile_t *FS_OpenTCP(const char *name, int defaultport)
-{
-	tcpfile_t *newf;
-
-	netadr_t adr;
-
-	if (!ppb_websocket_interface)
-	{
-		return NULL;
-	}
-	if (!NET_StringToAdr(name, defaultport, &adr))
-		return NULL;	//couldn't resolve the name
-	newf = Z_Malloc(sizeof(*newf));
-	if (newf)
-	{
-		struct PP_CompletionCallback ccb = {tcp_websocketconnected, newf, PP_COMPLETIONCALLBACK_FLAG_NONE};
-		newf->sock = ppb_websocket_interface->Create(pp_instance);
-		struct PP_Var str = ppb_var_interface->VarFromUtf8(adr.address.websocketurl, strlen(adr.address.websocketurl));
-		ppb_websocket_interface->Connect(newf->sock, str, NULL, 0, ccb);
-		ppb_var_interface->Release(str);
-
-		newf->funcs.Close = VFSTCP_Close;
-		newf->funcs.Flush = NULL;
-		newf->funcs.GetLen = VFSTCP_GetLen;
-		newf->funcs.ReadBytes = VFSTCP_ReadBytes;
-		newf->funcs.Seek = VFSTCP_Seek;
-		newf->funcs.Tell = VFSTCP_Tell;
-		newf->funcs.WriteBytes = VFSTCP_WriteBytes;
-		newf->funcs.seekingisabadplan = true;
-
-		return &newf->funcs;
-	}
-	return NULL;
 }
 #else
 vfsfile_t *FS_OpenTCP(const char *name, int defaultport, qboolean assumetls)

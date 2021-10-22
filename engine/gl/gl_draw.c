@@ -152,9 +152,9 @@ void GL_SetupFormats(void)
 		//pre-3 gles doesn't support sized formats, and only a limited number of them too
 		glfmtc(PTI_RGB8,	(ver>=3)?GL_RGB8:0,				GL_RGB,					GL_RGB,					GL_UNSIGNED_BYTE,			tc_rgb);
 		glfmtc(PTI_RGBA8,	(ver>=3)?GL_RGBA8:0,			GL_RGBA,				GL_RGBA,				GL_UNSIGNED_BYTE,			tc_rgba8);
-		glfmt(PTI_L8A8,		(ver>=3)?GL_LUMINANCE8_ALPHA8:0,GL_LUMINANCE_ALPHA,		GL_LUMINANCE_ALPHA,		GL_UNSIGNED_BYTE);
-		glfmt(PTI_L8,		(ver>=3)?GL_LUMINANCE8:0,		GL_LUMINANCE,			GL_LUMINANCE,			GL_UNSIGNED_BYTE);
-//		glfmt(PTI_A8,		(ver>=3)?GL_LUMINANCE8:0,		GL_ALPHA,				GL_ALPHA,				GL_UNSIGNED_BYTE);
+		glfmt(PTI_L8A8,		0,								GL_LUMINANCE_ALPHA,		GL_LUMINANCE_ALPHA,		GL_UNSIGNED_BYTE);
+		glfmt(PTI_L8,		0,								GL_LUMINANCE,			GL_LUMINANCE,			GL_UNSIGNED_BYTE);
+//		glfmt(PTI_A8,		0,								GL_ALPHA,				GL_ALPHA,				GL_UNSIGNED_BYTE);
 
 		if (!gl_config.webgl_ie)
 		{	//these should work on all gles2+webgl1 devices, but microsoft doesn't give a shit.

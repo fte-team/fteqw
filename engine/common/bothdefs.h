@@ -70,7 +70,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 	#define NO_PNG
 	#define NO_JPEG
 	#define NO_OGG
-	#define NO_ZLIB
 	#ifndef NO_FREETYPE
 		#define NO_FREETYPE
 	#endif
@@ -289,10 +288,10 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 	#undef HAVE_PACKET	//no udp support
 
 	//try to trim the fat
-	#undef VOICECHAT	//too lazy to compile speex
+	#undef VOICECHAT	//too lazy to compile opus
 	#undef HLCLIENT		//dlls...
 	#undef HLSERVER		//dlls...
-	#undef CL_MASTER	//bah. use the site to specify the servers.
+//	#undef CL_MASTER	//bah. use the site to specify the servers.
 	#undef SV_MASTER	//yeah, because that makes sense in a browser
 	#undef RAGDOLL		//no ode
 	#undef TCPCONNECT	//err...
@@ -300,16 +299,16 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 	#undef PLUGINS		//pointless
 	#undef VM_Q1		//no dlls
 	#undef MAP_PROC		//meh
-	#define HALFLIFEMODELS	//blurgh
+//	#undef HALFLIFEMODELS	//blurgh
 	#undef SUPPORT_ICE	//requires udp, so not usable. webrtc could be used instead, but that logic is out of our hands.
 //	#undef HAVE_MIXER	//depend upon openal instead.
 
 	//extra features stripped to try to reduce memory footprints
-	#undef RUNTIMELIGHTING	//too slow anyway
-	#undef Q2CLIENT
+	#undef RUNTIMELIGHTING	//too slow anyway (kinda needs threads)
 	#undef Q2SERVER	//requires a dll anyway.
-//	#undef Q3CLIENT
-//	#undef Q3SERVER //trying to trim memory use
+//	#undef Q2CLIENT //match Q2SERVER (networking is a pain)
+//	#undef Q3CLIENT	//no bots, and networking is a pain
+//	#undef Q3SERVER //match Q3CLIENT
 //	#undef Q2BSPS	//emscripten can't cope with bss, leading to increased download time. too lazy to fix.
 //	#undef Q3BSPS	//emscripten can't cope with bss, leading to increased download time. too lazy to fix.
 	#undef TERRAIN
@@ -508,8 +507,10 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #endif
 #ifndef HAVE_PACKET
 	#undef SV_MASTER
-	#undef CL_MASTER
-	#undef SUPPORT_ICE
+	#ifndef FTE_TARGET_WEB
+		#undef CL_MASTER	//can use websockets to get a list of usable ws:// or rtc:// servers
+	#endif
+	#undef SUPPORT_ICE	//webrtc takes all control away from us, the implementation is completely different.
 #endif
 
 #ifdef SERVERONLY	//remove options that don't make sense on only a server
@@ -605,6 +606,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #ifndef PLATFORM
 	#if defined(FTE_TARGET_WEB)
 		#define PLATFORM		"Web"
+		#define ARCH_CPU_POSTFIX "web"
+		#define ARCH_DL_POSTFIX ".wasm"
 	#elif defined(NACL)
 		#define PLATFORM		"Nacl"
 	#elif defined(_WIN32_WCE)

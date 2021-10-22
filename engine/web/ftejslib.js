@@ -3,11 +3,11 @@ mergeInto(LibraryManager.library,
 {
 	//generic handles array
 	//yeah, I hope you don't use-after-free. hopefully that sort of thing will be detected on systems with easier non-mangled debuggers.
-	$FTEH__deps: [],
-	$FTEH: {
-		h: [],
-		f: {}
-	},
+//	$FTEH__deps: [],
+//	$FTEH: {
+//		h: [],
+//		f: {}
+//	},
 
 	//FIXME: split+merge by \n
 	emscriptenfte_print : function(msg)
@@ -36,7 +36,7 @@ mergeInto(LibraryManager.library,
 		window.location = msg;
 	},
 
-	emscriptenfte_handle_alloc__deps : ['$FTEH'],
+//	emscriptenfte_handle_alloc__deps : ['$FTEH'],
 	emscriptenfte_handle_alloc : function(h)
 	{
 		for (var i = 0; FTEH.h.length; i+=1)
@@ -168,12 +168,10 @@ mergeInto(LibraryManager.library,
 					//older browsers need fullscreen in order for requestPointerLock to work.
 					//newer browsers can still break pointer locks when alt-tabbing, even without breaking fullscreen.
 					//so lets spam requests for it
-					if (Browser.isFullScreen == 0)
-					if (FTEC.evcb.wantfullscreen != 0)
-					if ({{{makeDynCall('i')}}}(FTEC.evcb.wantfullscreen))
-					{
-						Browser.requestFullScreen(true, true);
-					}
+					if (!document.fullscreenElement)
+						if (FTEC.evcb.wantfullscreen != 0)
+							if ({{{makeDynCall('i')}}}(FTEC.evcb.wantfullscreen))
+								Module['canvas'].requestFullscreen();
 					if (FTEC.pointerwantlock != 0 && FTEC.pointerislocked == 0)
 					{
 						FTEC.pointerislocked = -1;  //don't repeat the request on every click. firefox has a fit at that, so require the mouse to leave the element or something before we retry.
@@ -468,11 +466,14 @@ mergeInto(LibraryManager.library,
 	{
 		document.title = UTF8ToString(txt);
 	},
-	emscriptenfte_abortmainloop : function(fname)
+	emscriptenfte_abortmainloop : function(fname, fatal)
 	{
 		fname = UTF8ToString(fname);
-		FTEC.aborted = true;
-		throw 'oh noes! something bad happened in ' + fname + '!\n' + Module['stackTrace']();
+		if (fatal)
+			FTEC.aborted = true;
+		if (Module['stackTrace'])
+			throw 'oh noes! something bad happened in ' + fname + '!\n' + Module['stackTrace']();
+		throw 'oh noes! something bad happened!\n';
 	},
 
 	emscriptenfte_setupmainloop__deps: ['$FTEC'],
@@ -482,7 +483,7 @@ mergeInto(LibraryManager.library,
 		FTEC.aborted = false;
 
 		Module["sched"] = FTEC.step;
-		FTEC.evcb.frame = fnc
+		FTEC.evcb.frame = fnc;
 		//don't start it instantly, so we can distinguish between types of errors (emscripten sucks!).
 		setTimeout(FTEC.step, 1, performance.now());
 	},
@@ -591,6 +592,16 @@ mergeInto(LibraryManager.library,
 			return 1;
 		}
 		return 0;
+	},
+	emscritenfte_buf_enumerate : function(cb, ctx, sz)
+	{
+		var n = Object.keys(FTEH.f);
+		var c = n.length, i;
+		for (i = 0; i < c; i++)
+		{
+			stringToUTF8(n[i], ctx, sz);
+			{{{makeDynCall('vii')}}}(cb, ctx, FTEH.f[n[i]].l);
+		}
 	},
 	emscriptenfte_buf_pushtolocalstore : function(handle)
 	{
@@ -903,12 +914,15 @@ console.log(e);
 		if (s === undefined)
 			return -1;
 
-		if (1)
-			desc = JSON.parse(offer);
-		else
-			desc = {sdp:offer, type:offertype};
+		try
+		{
+			if (1)
+				desc = JSON.parse(offer);
+			else
+				desc = {sdp:offer, type:offertype};
 
-		s.pc.setRemoteDescription(desc);
+			s.pc.setRemoteDescription(desc);
+		} catch(err) { console.log(err); }
 		
 		if (!s.isclient)
 		{	//server must give a response.
@@ -941,14 +955,17 @@ console.log(e);
 		if (s === undefined)
 			return -1;
 
-		var desc;
-		if (1)
-			desc = JSON.parse(offer);
-		else
-			desc = {candidate:offer, sdpMid:null, sdpMLineIndex:0};
+		try	//don't screw up if the peer is trying to screw with us.
+		{
+			var desc;
+			if (1)
+				desc = JSON.parse(offer);
+			else
+				desc = {candidate:offer, sdpMid:null, sdpMLineIndex:0};
 console.log("addIceCandidate:");
 console.log(desc);
-		s.pc.addIceCandidate(desc);
+			s.pc.addIceCandidate(desc);
+		} catch(err) { console.log(err); }
 	},
 
 	emscriptenfte_async_wget_data2 : function(url, ctx, onload, onerror, onprogress)
@@ -1105,3 +1122,4 @@ console.log("onerror: " + _url);
 		img.src = "data:image/png;base64," + encode64(HEAPU8.subarray(dataptr, dataptr+datasize));
 	}
 });
+

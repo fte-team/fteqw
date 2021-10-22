@@ -1,5 +1,5 @@
 #include "quakedef.h"
-#ifdef HAVE_MEDIA_DECODER
+#if defined(HAVE_MEDIA_DECODER) && defined(Q2CLIENT)
 
 typedef struct
 {

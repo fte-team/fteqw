@@ -795,7 +795,7 @@ vfsfile_t *SVM_Generate_Rawlist(const char **mimetype, const char *masteraddr, c
 	for (server = (game?game->firstserver:NULL); server; server = server->next)
 	{
 		if (server->brokerid)
-			VFS_PRINTF(f, "rtc://%s/%s \\maxclients\\%u\\clients\\%u\\bots\\%u\\hostname\\%s\\modname\\%s\\mapname\\%s\\needpass\\%i\n", masteraddr, server->brokerid, server->maxclients, server->clients, server->bots, server->hostname, server->gamedir, server->mapname, server->needpass);
+			VFS_PRINTF(f, "rtc://%s/%s \\maxclients\\%u\\clients\\%u\\bots\\%u\\hostname\\%s\\modname\\%s\\mapname\\%s\\needpass\\%i\n", masteraddr, server->brokerid, server->maxclients, server->clients, server->bots, *server->hostname?server->hostname:"unnamed", *server->gamedir?server->gamedir:"-", *server->mapname?server->mapname:"-", server->needpass);
 		else
 			VFS_PRINTF(f, "%s\n", NET_AdrToString(tmpbuf, sizeof(tmpbuf), &server->adr));
 	}
@@ -821,21 +821,21 @@ vfsfile_t *SVM_GenerateIndex(const char *requesthost, const char *fname, const c
 }
 
 static svm_game_t *SVM_GameFromBrokerID(const char **brokerid)
-{
+{	//broker id is /GAMENAME/SERVERNAME
 	size_t l;
 	char name[128];
 	const char *in = *brokerid;
 	if (*in == '/')
 		in++;
+	*brokerid = in;
 	for (l = 0; *in && *in != '/' && *in != '?' && *in != '#'; in++)
 		if (l < countof(name)-1)
 			name[l++] = *in;
 	name[l] = 0;
 	if (*in == '/')
-		in++;
+		*brokerid = ++in;
 	else
-		return NULL;	//only one? no game specified? get lost.
-	*brokerid = in;
+		Q_strncpyz(name, "unspecified", sizeof(name));
 	return SVM_FindGame(name, true);
 }
 static svm_server_t *SVM_FindBrokerHost(const char *brokerid)

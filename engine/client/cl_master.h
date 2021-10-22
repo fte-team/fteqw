@@ -224,7 +224,7 @@ extern qboolean sb_favouriteschanged;
 
 void Master_SetupSockets(void);
 qboolean CL_QueryServers(void);
-int Master_CheckPollSockets(void);
+void Master_CheckPollSockets(void);
 void MasterInfo_Shutdown(void);
 void MasterInfo_WriteServers(void);
 serverinfo_t *Master_InfoForServer (netadr_t *addr, const char *brokerid);

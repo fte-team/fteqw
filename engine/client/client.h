@@ -1707,12 +1707,13 @@ void CL_AddVWeapModel(entity_t *player, struct model_s *model);
 typedef struct cin_s cin_t;
 #ifdef HAVE_MEDIA_DECODER
 
-/*q2 cinematics*/
+#ifdef Q2CLIENT /*q2 cinematics*/
 struct cinematics_s;
 void CIN_StopCinematic (struct cinematics_s *cin);
 struct cinematics_s *CIN_PlayCinematic (char *arg);
 int CIN_RunCinematic (struct cinematics_s *cin, float playbacktime, qbyte **outdata, int *outwidth, int *outheight, qbyte **outpalette);
 void CIN_Rewind(struct cinematics_s *cin);
+#endif
 
 typedef enum
 {

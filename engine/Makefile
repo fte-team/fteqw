@@ -499,6 +499,11 @@ ifeq ($(FTE_TARGET),linux64)
 	STRIP=strip
 	BITS=64
 endif
+ifeq ($(FTE_TARGET),web)
+	CC=emcc
+	CXX=em++
+	AR=emar
+endif
 ifeq ($(FTE_TARGET),cygwin)
 	FTE_TARGET=cyg
 endif
@@ -1801,15 +1806,16 @@ ifeq ($(FTE_TARGET),web)
 	DEBUG_LDFLAGS=-O0 -g4 -s TOTAL_MEMORY=$(WEB_MEMORY) $(EMCC_LDFLAGS) -s SAFE_HEAP=1 -s ALIASING_FUNCTION_POINTERS=0 -s ASSERTIONS=2
 	CC=emcc
 	CXX=em++
-	#BASELDFLAGS=
+	AR=emar
+	BASELDFLAGS=-lz
 	PRECOMPHEADERS=
 
 	#mostly we inherit the sdl defaults. because we can, however emscripten does not support sdl cd code.
-	GLCL_OBJS=$(GL_OBJS) $(D3DGL_OBJS) $(GLQUAKE_OBJS) gl_vidweb.o cd_null.o
+	GLCL_OBJS=$(GL_OBJS) $(D3DGL_OBJS) $(BOTLIB_OBJS) $(GLQUAKE_OBJS) gl_vidweb.o cd_null.o
 	SDL_INCLUDES=
 
 	SV_DIR=sv_web
-	#SV_LDFLAGS=-lz
+	SV_LDFLAGS=
 	#SV_OBJS=$(COMMON_OBJS) $(SERVER_OBJS) $(PROGS_OBJS)
 	SV_EXE_NAME=../libftesv.js
 	SV_CFLAGS=$(SERVER_ONLY_CFLAGS)
@@ -1829,7 +1835,7 @@ ifeq ($(FTE_TARGET),web)
 	CLIENTLDDEPS=
 	SERVERLDDEPS=
 
-	BOTLIB_CFLAGS=
+	#BOTLIB_CFLAGS=
 	#generate deps properly
 	#DEPCC=
 	#DEPCXX=
@@ -2262,7 +2268,7 @@ nacl-dbg:
 #webgl helpers
 
 ifeq ($(FTE_TARGET),web)
-$(OUT_DIR)/$(EXE_NAME): ftejslib.js
+$(OUT_DIR)/$(EXE_NAME): web/ftejslib.js web/prejs.js
 endif
 ifneq ($(shell which emcc 2> /dev/null),)
 EMCC?=emcc
@@ -2406,9 +2412,15 @@ libs-$(ARCH)/libjpeg.a:
 	test -f jpegsrc.v$(JPEGVER).tar.gz || wget http://www.ijg.org/files/jpegsrc.v$(JPEGVER).tar.gz
 	-test -f libs-$(ARCH)/libjpeg.a || (mkdir -p libs-$(ARCH) && cd libs-$(ARCH) && tar -xvzf ../jpegsrc.v$(JPEGVER).tar.gz && cd jpeg-$(JPEGVER) && $(TOOLOVERRIDES) ./configure $(CONFIGARGS) && $(TOOLOVERRIDES) $(MAKE) && cp .libs/libjpeg.a ../ && $(TOOLOVERRIDES) $(AR) -s ../libjpeg.a && cp jconfig.h jerror.h jmorecfg.h jpeglib.h jversion.h ../ )
 
+ifeq ($(FTE_TARGET),web)
+libs-$(ARCH)/libz.a libs-$(ARCH)/libz.pc:
+	test -f zlib-$(ZLIBVER).tar.gz || wget http://zlib.net/zlib-$(ZLIBVER).tar.gz
+	-test -f libs-$(ARCH)/libz.a || (mkdir -p libs-$(ARCH) && cd libs-$(ARCH) && tar -xvzf ../zlib-$(ZLIBVER).tar.gz && cd zlib-$(ZLIBVER) && emconfigure ./configure --static && emmake $(MAKE) libz.a CC="$(CC) $(W32_CFLAGS) -fPIC" && cp libz.a ../ && $(TOOLOVERRIDES) $(AR) -s ../libz.a && cp zlib.h zconf.h zutil.h zlib.pc ../ )
+else
 libs-$(ARCH)/libz.a libs-$(ARCH)/libz.pc:
 	test -f zlib-$(ZLIBVER).tar.gz || wget http://zlib.net/zlib-$(ZLIBVER).tar.gz
 	-test -f libs-$(ARCH)/libz.a || (mkdir -p libs-$(ARCH) && cd libs-$(ARCH) && tar -xvzf ../zlib-$(ZLIBVER).tar.gz && cd zlib-$(ZLIBVER) && $(TOOLOVERRIDES) ./configure --static && $(TOOLOVERRIDES) $(MAKE) libz.a CC="$(CC) $(W32_CFLAGS) -fPIC" && cp libz.a ../ && $(TOOLOVERRIDES) $(AR) -s ../libz.a && cp zlib.h zconf.h zutil.h zlib.pc ../ )
+endif
 
 libs-$(ARCH)/libpng.a libs-$(ARCH)/libpng.pc: libs-$(ARCH)/libz.a libs-$(ARCH)/libz.pc
 	test -f libpng-$(PNGVER).tar.gz || wget http://prdownloads.sourceforge.net/libpng/libpng-$(PNGVER).tar.gz?download -O libpng-$(PNGVER).tar.gz
@@ -2442,7 +2454,11 @@ libs-$(ARCH)/libBulletDynamics.a:
 	test -f bullet3-$(BULLETVER).tar.gz || wget https://github.com/bulletphysics/bullet3/archive/$(BULLETVER).tar.gz -O bullet3-$(BULLETVER).tar.gz
 	-test -f libs-$(ARCH)/libBulletDynamics.a || (mkdir -p libs-$(ARCH) && cd libs-$(ARCH) && tar -xvzf ../bullet3-$(BULLETVER).tar.gz && cd bullet3-$(BULLETVER) && CFLAGS="$(CFLAGS) -Os" $(TOOLOVERRIDES) $(DO_CMAKE) . && $(TOOLOVERRIDES) $(MAKE) LinearMath BulletDynamics BulletCollision && cp src/LinearMath/libLinearMath.a src/BulletDynamics/libBulletDynamics.a src/BulletCollision/libBulletCollision.a src/btBulletCollisionCommon.h src/btBulletDynamicsCommon.h ..)
 
+ifeq ($(FTE_TARGET),web)
+makelibs: libs-$(ARCH)/libz.a $(MAKELIBS)
+else
 makelibs: libs-$(ARCH)/libjpeg.a libs-$(ARCH)/libz.a libs-$(ARCH)/libpng.a libs-$(ARCH)/libogg.a libs-$(ARCH)/libvorbis.a libs-$(ARCH)/libopus.a libs-$(ARCH)/libspeex.a libs-$(ARCH)/libspeexdsp.a libs-$(ARCH)/libfreetype.a $(MAKELIBS)
+endif
 
 HTTP_OBJECTS=http/httpserver.c http/iwebiface.c common/fs_stdio.c http/ftpserver.c
 $(RELEASE_DIR)/httpserver$(BITS)$(EXEPOSTFIX): $(HTTP_OBJECTS)

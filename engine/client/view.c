@@ -2067,6 +2067,7 @@ void R_DrawNameTags(void)
 		vec3_t org;
 		vec3_t screenspace;
 		vec3_t diff;
+		int scale=1;
 		if (!cls.allow_cheats)
 		{
 			vec2_t scale = {8,8};
@@ -2086,6 +2087,7 @@ void R_DrawNameTags(void)
 #ifdef CSQC_DAT
 			extern world_t csqc_world;
 			w = &csqc_world;
+			scale = -1;
 #endif
 		}
 		else if ((r_showfields.ival & 3) == 3)
@@ -2194,7 +2196,7 @@ void R_DrawNameTags(void)
 				{
 					int hitent;
 					vec3_t imp;
-					if (CL_TraceLine(r_refdef.vieworg, org, imp, NULL, &hitent)>=1 || hitent == i)
+					if (CL_TraceLine(r_refdef.vieworg, org, imp, NULL, &hitent)>=1 || hitent*scale == i)
 					{
 						best = i;
 						bestscore = score;

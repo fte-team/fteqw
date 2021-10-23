@@ -54,6 +54,9 @@ static int rand(void)
 #define R_PARTSET_BUILTINS
 #endif
 
+#include "pr_common.h"
+extern world_t csqc_world;
+
 struct
 {
 	char *name;
@@ -122,7 +125,7 @@ typedef struct clippeddecal_s
 	float		die;
 
 	int entity;		//>0 is a lerpentity, <0 is a csqc ent. 0 is world. woot.
-	model_t *model;	//just for paranoia
+//	model_t *model;	//just for paranoia
 
 	vec3_t		vertex[3];
 	vec2_t		texcoords[3];
@@ -4610,7 +4613,7 @@ static void PScript_AddDecals(void *vctx, vec3_t *fte_restrict points, size_t nu
 		points += 3;
 
 		d->entity = ctx->entity;
-		d->model = ctx->model;
+//		d->model = ctx->model;
 		d->die = ptype->randdie*frandom();
 
 		if (ptype->die)
@@ -4788,17 +4791,34 @@ static int PScript_RunParticleEffectState (vec3_t org, vec3_t dir, float count, 
 				VectorMA(org, -16, dir, ctx.tangent1);
 				CL_TraceLine(ctx.tangent2, ctx.tangent1, ctx.center, bestdir, &ctx.entity);
 			}
-			if (ctx.entity && (unsigned)ctx.entity < (unsigned)cl.maxlerpents)
+
+			if (ctx.entity)
 			{
-				lerpents_t *le = cl.lerpents+ctx.entity;
-				ctx.model = cl.model_precache[le->entstate->modelindex];
-				if (le->entstate)
-					VectorSubtract(ctx.center, le->origin, ctx.center);
+				if (ctx.entity>0 && (unsigned)ctx.entity < (unsigned)cl.maxlerpents)
+				{
+					lerpents_t *le = cl.lerpents+ctx.entity;
+					ctx.model = cl.model_precache[le->entstate->modelindex];
+					if (le->entstate)
+						VectorSubtract(ctx.center, le->origin, ctx.center);
+					else
+						ctx.entity = 0;
+				}
+				else if (ctx.entity<0 && (unsigned)-ctx.entity < (unsigned)csqc_world.num_edicts)
+				{
+					wedict_t *e = WEDICT_NUM_UB(csqc_world.progs, -ctx.entity);
+					if (e)
+					{
+						ctx.model = csqc_world.Get_CModel(&csqc_world, e->v->modelindex);
+						if (!ctx.model)
+							continue;
+						VectorSubtract(ctx.center, e->v->origin, ctx.center);
+					}
+					else
+						continue;
+				}
 				else
 					ctx.entity = 0;
 			}
-			else
-				ctx.entity = 0;
 
 			VectorNegate(dir, ctx.normal);
 			VectorNormalize(ctx.normal);
@@ -6624,6 +6644,21 @@ static void R_AddClippedDecal(scenetris_t *t, clippeddecal_t *d, plooks_t *type)
 		VectorAdd(d->vertex[0], le->origin, cl_strisvertv[cl_numstrisvert+0]);
 		VectorAdd(d->vertex[1], le->origin, cl_strisvertv[cl_numstrisvert+1]);
 		VectorAdd(d->vertex[2], le->origin, cl_strisvertv[cl_numstrisvert+2]);
+	}
+	else if (d->entity < 0)
+	{
+		wedict_t *e = WEDICT_NUM_UB(csqc_world.progs, -d->entity);
+		if (!e)
+			return;
+		if (e->ereftype!=ER_ENTITY ||	//kill decals attached to removed ents.
+			e->v->angles[0] || e->v->angles[1] || e->v->angles[2])	//FIXME: deal with rotated entities.
+		{
+			d->die = -1;
+			return;
+		}
+		VectorAdd(d->vertex[0], e->v->origin, cl_strisvertv[cl_numstrisvert+0]);
+		VectorAdd(d->vertex[1], e->v->origin, cl_strisvertv[cl_numstrisvert+1]);
+		VectorAdd(d->vertex[2], e->v->origin, cl_strisvertv[cl_numstrisvert+2]);
 	}
 	else
 	{

@@ -884,77 +884,99 @@ entity_t *TraceLineR (vec3_t start, vec3_t end, vec3_t impact, vec3_t normal)
 	return result;
 }
 
+#include "pr_common.h"
 //traces against networked entities only.
-//0 says hit nothing.
-//1 says hit world
-//>1 says hit some entity
 float CL_TraceLine (vec3_t start, vec3_t end, vec3_t impact, vec3_t normal, int *ent)
 {
 	trace_t		trace;
-	float bestfrac=1;
-	int i;
-	vec3_t ts, te;
-	physent_t *pe;
-	model_t *mod;
-	int result=0;
-	vec3_t axis[3];
-
-	memset (&trace, 0, sizeof(trace));
-
-	VectorCopy (end, impact);
-	if (normal)
-		VectorClear(normal);
-
-	for (i=0 ; i < pmove.numphysent ; i++)
+#ifdef CSQC_DAT
+	extern world_t csqc_world;
+	if (csqc_world.progs)
 	{
-		pe = &pmove.physents[i];
-		if (pe->nonsolid)
-			continue;
-		mod = pe->model;
-		if (mod && mod->loadstate == MLS_LOADED && mod->funcs.NativeTrace)
+		trace = World_Move(&csqc_world, start, vec3_origin, vec3_origin, end, MOVE_NOMONSTERS, csqc_world.edicts);
+		VectorCopy(trace.endpos, impact);
+		if (normal)
+			VectorCopy(trace.plane.normal, normal);
+		if (ent)
 		{
-			VectorSubtract(start, pe->origin, ts);
-			VectorSubtract(end, pe->origin, te);
-			if (pe->angles[0] || pe->angles[1] || pe->angles[2])
-			{
-				AngleVectors(pe->angles, axis[0], axis[1], axis[2]);
-				VectorNegate(axis[1], axis[1]);
-				mod->funcs.NativeTrace(mod, 0, PE_FRAMESTATE, axis, ts, te, vec3_origin, vec3_origin, false, MASK_WORLDSOLID, &trace);
-			}
+			if (trace.entnum)	//ssqc numbers...
+				*ent = trace.entnum; //aka: trace_networkentity
+			else if (trace.ent)	//csqc numbers are negative...
+				*ent = -((wedict_t*)trace.ent)->entnum;
+			//else makestatic, though those are assumed non-solid so won't be returned anyway.
 			else
-				mod->funcs.NativeTrace(mod, 0, PE_FRAMESTATE, NULL, ts, te, vec3_origin, vec3_origin, false, MASK_WORLDSOLID, &trace);
-			if (trace.fraction<1)
-			{
-				if (bestfrac > trace.fraction)
-				{
-					bestfrac = trace.fraction;
-					if (normal)
-						VectorCopy (trace.plane.normal, normal);
-					VectorAdd (pe->origin, trace.endpos, impact);
-					result = pe->info;
-				}
-			}
-			if (trace.startsolid)
-			{
-				if (normal)
-				{
-					VectorSubtract(start, end, normal);
-					VectorNormalize(normal);
-				}
-				VectorCopy (end, impact);
-
-				//hit nothing 
-				if (ent)
-					*ent = 0;
-				return 1;
-			}
-
+				*ent = 0;
 		}
+		return trace.fraction;
 	}
+	else
+#endif
+	{
+		float bestfrac=1;
+		int i;
+		vec3_t ts, te;
+		physent_t *pe;
+		model_t *mod;
+		int result=0;
+		vec3_t axis[3];
 
-	if (ent)
-		*ent = result;
-	return bestfrac;
+		memset (&trace, 0, sizeof(trace));
+
+		VectorCopy (end, impact);
+		if (normal)
+			VectorClear(normal);
+
+		for (i=0 ; i < pmove.numphysent ; i++)
+		{
+			pe = &pmove.physents[i];
+			if (pe->nonsolid)
+				continue;
+			mod = pe->model;
+			if (mod && mod->loadstate == MLS_LOADED && mod->funcs.NativeTrace)
+			{
+				VectorSubtract(start, pe->origin, ts);
+				VectorSubtract(end, pe->origin, te);
+				if (pe->angles[0] || pe->angles[1] || pe->angles[2])
+				{
+					AngleVectors(pe->angles, axis[0], axis[1], axis[2]);
+					VectorNegate(axis[1], axis[1]);
+					mod->funcs.NativeTrace(mod, 0, PE_FRAMESTATE, axis, ts, te, vec3_origin, vec3_origin, false, MASK_WORLDSOLID, &trace);
+				}
+				else
+					mod->funcs.NativeTrace(mod, 0, PE_FRAMESTATE, NULL, ts, te, vec3_origin, vec3_origin, false, MASK_WORLDSOLID, &trace);
+				if (trace.fraction<1)
+				{
+					if (bestfrac > trace.fraction)
+					{
+						bestfrac = trace.fraction;
+						if (normal)
+							VectorCopy (trace.plane.normal, normal);
+						VectorAdd (pe->origin, trace.endpos, impact);
+						result = pe->info;
+					}
+				}
+				if (trace.startsolid)
+				{
+					if (normal)
+					{
+						VectorSubtract(start, end, normal);
+						VectorNormalize(normal);
+					}
+					VectorCopy (end, impact);
+
+					//hit nothing
+					if (ent)
+						*ent = 0;
+					return 1;
+				}
+
+			}
+		}
+
+		if (ent)
+			*ent = result;
+		return bestfrac;
+	}
 }
 
 //handy utility...

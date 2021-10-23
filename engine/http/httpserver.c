@@ -194,6 +194,13 @@ qboolean HTTP_ServerInit(int epfd, int port)
 		setsockopt(httpserversocket, IPPROTO_IPV6, IPV6_V6ONLY, (char *)&v6only, sizeof(v6only));
 	}
 
+#ifdef SO_REUSEADDR
+	{	//bypass TIME_WAIT (this is supposed to still fail if another process still has it bound)
+		int reuse = true;
+		setsockopt(httpserversocket, SOL_SOCKET, SO_REUSEADDR, (char *)&reuse, sizeof(reuse));
+	}
+#endif
+
 	if (ioctlsocket (httpserversocket, FIONBIO, &_true) == -1)
 	{
 		IWebPrintf ("HTTP_ServerInit: ioctl FIONBIO: %s\n", strerror(neterrno()));

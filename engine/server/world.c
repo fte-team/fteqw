@@ -2671,7 +2671,7 @@ trace_t World_Move (world_t *w, vec3_t start, vec3_t mins, vec3_t maxs, vec3_t e
 
 	memset ( &clip, 0, sizeof ( moveclip_t ) );
 
-	if (passedict && passedict->xv->hull && !(type & MOVE_IGNOREHULL))
+	if (passedict->xv->hull && !(type & MOVE_IGNOREHULL))
 		hullnum = passedict->xv->hull;
 #ifdef CLIENTONLY
 	else
@@ -2800,7 +2800,7 @@ trace_t World_Move (world_t *w, vec3_t start, vec3_t mins, vec3_t maxs, vec3_t e
 	clip.mins = mins;
 	clip.maxs = maxs;
 	clip.type = type;
-	clip.passedict = passedict;
+	clip.passedict = (passedict!=w->edicts)?passedict:NULL;
 	clip.hullnum = 0;//hullnum; //BUG: hexen2's SV_ClipMoveToEntity's move_ent argument is set inconsistantly. This has the effect that the SOLID_BSP's .hull field is used instead of the SOLID_BBOX entity. We can't fix this because hexen2 depends upon it - this is the 'tibet5' bug.
 #ifdef Q2SERVER
 	clip.q2passedict = NULL;

@@ -1773,9 +1773,9 @@ typedef struct
 	vfsfile_t funcs;
 
 	char *data;
-	int maxlen;
-	unsigned int writepos;
-	unsigned int readpos;
+	size_t maxlen;
+	size_t writepos;
+	size_t readpos;
 	void *mutex;
 	int refs;
 	qboolean terminate;	//one end has closed, make the other report failures now that its no longer needed.
@@ -1842,6 +1842,8 @@ static int QDECL VFSPIPE_ReadBytes(vfsfile_t *f, void *buffer, int len)
 static int QDECL VFSPIPE_WriteBytes(vfsfile_t *f, const void *buffer, int len)
 {
 	vfspipe_t *p = (vfspipe_t*)f;
+	if (len < 0)
+		return -1;
 	Sys_LockMutex(p->mutex);
 	if (p->terminate)
 	{	//if we started with 2 refs, and we're down to one, and we're writing, then its the reader that closed. that means writing is redundant and we should signal an error.
@@ -1860,15 +1862,15 @@ static int QDECL VFSPIPE_WriteBytes(vfsfile_t *f, const void *buffer, int len)
 		p->maxlen = p->writepos + len;
 		if (p->maxlen < (p->writepos-p->readpos)*2)	//over-allocate a little
 			p->maxlen = (p->writepos-p->readpos)*2;
-		if (p->maxlen > 0x8000000)
+		if (p->maxlen > 0x8000000 && p->data)
 		{
-			p->maxlen = 0x8000000;
-			len = p->maxlen - p->writepos;
-			if (!len)
+			p->maxlen = max(p->writepos,0x8000000);
+			if (p->maxlen <= p->writepos)
 			{
 				Sys_UnlockMutex(p->mutex);
 				return -1;	//try and get the caller to stop
 			}
+			len = min(len, p->maxlen - p->writepos);
 		}
 		p->data = realloc(p->data, p->maxlen);
 	}

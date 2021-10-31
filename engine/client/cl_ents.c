@@ -4096,6 +4096,22 @@ void CL_LinkPacketEntities (void)
 #endif
 		}
 
+		if (r_torch.ival && state->number <= cl.allocated_client_slots)
+		{
+			dlight_t *dl;
+			dl = CL_NewDlight(state->number, ent->origin, 300, r_torch.ival, 0.9, 0.9, 0.6);
+			dl->flags |= LFLAG_SHADOWMAP|LFLAG_FLASHBLEND;
+			dl->fov = 90;
+			VectorCopy(le->angles, angles);
+			angles[0] *= 3;
+//			angles[1] += sin(realtime)*8;
+//			angles[0] += cos(realtime*1.13)*5;
+			AngleVectorsMesh(angles, dl->axis[0], dl->axis[1], dl->axis[2]);
+			VectorInverse(dl->axis[1]);
+
+			VectorMA(dl->origin, 16, dl->axis[0], dl->origin);
+		}
+
 		// if set to invisible, skip
 		if (state->modelindex<1 || (state->effects & NQEF_NODRAW))
 		{
@@ -4390,20 +4406,6 @@ void CL_LinkPacketEntities (void)
 
 		CLQ1_AddShadow(ent);
 		CLQ1_AddPowerupShell(ent, false, state->effects);
-
-		if (r_torch.ival && ent->keynum <= cl.allocated_client_slots)
-		{
-			dlight_t *dl;
-			dl = CL_NewDlight(ent->keynum, ent->origin, 300, r_torch.ival, 0.9, 0.9, 0.6);
-			dl->flags |= LFLAG_SHADOWMAP|LFLAG_FLASHBLEND;
-			dl->fov = 90;
-			angles[0] *= 3;
-//			angles[1] += sin(realtime)*8;
-//			angles[0] += cos(realtime*1.13)*5;
-			AngleVectors(angles, dl->axis[0], dl->axis[1], dl->axis[2]);
-
-			VectorMA(dl->origin, 16, dl->axis[0], dl->origin);
-		}
 
 		if (model2)
 			CL_AddVWeapModel (ent, model2);

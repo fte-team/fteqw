@@ -830,6 +830,7 @@ void PR_Deinit(void)
 		if (svprogfuncs->Shutdown)
 			svprogfuncs->Shutdown(svprogfuncs);
 		sv.world.progs = NULL;
+		memset(&gfuncs, 0, sizeof(gfuncs));
 		svprogfuncs=NULL;
 
 		for (i = 0; i < sv.maxlightstyles; i++)

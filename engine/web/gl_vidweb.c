@@ -219,12 +219,12 @@ static void DOM_ButtonEvent(unsigned int devid, int down, int button)
 		IN_KeyEvent(mouseid[devid], down, K_MOUSE1+button, 0);
 	}
 }
-void DOM_MouseMove(unsigned int devid, int abs, float x, float y, float z, float size)
+static void DOM_MouseMove(unsigned int devid, int abs, float x, float y, float z, float size)
 {
 	IN_MouseMove(mouseid[devid], abs, x, y, z, size);
 }
 
-void DOM_LoadFile(char *loc, char *mime, int handle)
+static void DOM_LoadFile(char *loc, char *mime, int handle)
 {
 	vfsfile_t *file = NULL;
 	if (handle != -1)
@@ -255,7 +255,11 @@ void DOM_LoadFile(char *loc, char *mime, int handle)
 			VFS_CLOSE(file);
 	}
 }
-int VID_ShouldSwitchToFullscreen(void)
+static void DOM_CbufAddText(const char *text)
+{
+	Cbuf_AddText(text, RESTRICT_LOCAL);
+}
+static int VID_ShouldSwitchToFullscreen(void)
 {	//if false, mouse grabs won't work and we'll be forced to touchscreen mode.
 	//we can only go fullscreen when the user clicks something.
 	//this means that the user will get pissed off at the fullscreen state changing when they first click on the menus after it loading up.
@@ -276,6 +280,7 @@ qboolean GLVID_Init (rendererstate_t *info, unsigned char *palette)
 		DOM_ButtonEvent,
 		DOM_KeyEvent,
 		DOM_LoadFile,
+		DOM_CbufAddText,
 		IN_GamePadButtonEvent,
 		IN_GamePadAxisEvent,
 		VID_ShouldSwitchToFullscreen
@@ -303,7 +308,7 @@ void GLVID_DeInit (void)
 {
 	vid.activeapp = false;
 
-	emscriptenfte_setupcanvas(-1, -1, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL);
+	emscriptenfte_setupcanvas(-1, -1, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL);
 
 	GL_ForgetPointers();
 }

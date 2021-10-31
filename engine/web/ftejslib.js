@@ -80,6 +80,7 @@ mergeInto(LibraryManager.library,
 			button:0,
 			key:0,
 			loadfile:0,
+			cbufaddtext:0,
 			jbutton:0,
 			jaxis:0,
 			wantfullscreen:0,
@@ -90,16 +91,31 @@ mergeInto(LibraryManager.library,
 		{
 			if (FTEC.evcb.loadfile != 0)
 			{
-				var handle = -1;
+				let handle = -1;
 				if (arraybuf !== undefined)
 					handle = _emscriptenfte_buf_createfromarraybuf(arraybuf);	
-				var urlptr = _malloc(url.length+1);
-				writeStringToMemory(url, urlptr);
-				var mimeptr = _malloc(mime.length+1);
-				writeStringToMemory(mime, mimeptr);
+				let blen = lengthBytesUTF8(url)+1;
+				let urlptr = _malloc(blen);
+				stringToUTF8(url, urlptr, blen);
+				blen = lengthBytesUTF8(mime)+1;
+				let mimeptr = _malloc(blen);
+				stringToUTF8(mime, mimeptr,blen);
 				{{{makeDynCall('viii')}}}(FTEC.evcb.loadfile, urlptr, mimeptr, handle);
 				_free(mimeptr);
 				_free(urlptr);
+				window.focus();
+			}
+		},
+		cbufadd : function(command)
+		{
+			if (FTEC.evcb.cbufaddtext != 0)
+			{
+				let handle = -1;
+				let blen = lengthBytesUTF8(command)+1;
+				let ptr = _malloc(blen);
+				stringToUTF8(command, ptr, blen);
+				{{{makeDynCall('vi')}}}(FTEC.evcb.cbufaddtext, ptr);
+				_free(ptr);
 				window.focus();
 			}
 		},
@@ -364,7 +380,7 @@ mergeInto(LibraryManager.library,
 		}
 	},
 	emscriptenfte_setupcanvas__deps: ['$FTEC', '$Browser', 'emscriptenfte_buf_createfromarraybuf'],
-	emscriptenfte_setupcanvas : function(nw,nh,evresize,evmouse,evmbutton,evkey,evfile,evjbutton,evjaxis,evwantfullscreen)
+	emscriptenfte_setupcanvas : function(nw,nh,evresize,evmouse,evmbutton,evkey,evfile,evcbufadd,evjbutton,evjaxis,evwantfullscreen)
 	{
 		try
 		{
@@ -373,6 +389,7 @@ mergeInto(LibraryManager.library,
 		FTEC.evcb.button = evmbutton;
 		FTEC.evcb.key = evkey;
 		FTEC.evcb.loadfile = evfile;
+		FTEC.evcb.cbufaddtext = evcbufadd;
 		FTEC.evcb.jbutton = evjbutton;
 		FTEC.evcb.jaxis = evjaxis;
 		FTEC.evcb.wantfullscreen = evwantfullscreen;

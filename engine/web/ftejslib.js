@@ -789,13 +789,11 @@ mergeInto(LibraryManager.library,
 		};
 		var dcconfig = {ordered: false, maxRetransmits: 0, reliable:false};
 
-console.log("emscriptenfte_rtc_create");
-
 		var s = {pc:null, ws:null, inq:[], err:0, con:0, isclient:clientside, callcb:
 			function(evtype,stringdata)
 			{	//private helper
 			
-console.log("emscriptenfte_rtc_create callback: " + evtype);
+//console.log("emscriptenfte_rtc_create callback: " + evtype);
 			
 				var stringlen = (stringdata.length*3)+1;
 				var dataptr = _malloc(stringlen);
@@ -823,15 +821,15 @@ console.log("emscriptenfte_rtc_create callback: " + evtype);
 		s.ws.binaryType = 'arraybuffer';
 		s.ws.onclose = function(event)
 			{
-console.log("webrtc datachannel closed:")
-console.log(event);
+//console.log("webrtc datachannel closed:")
+//console.log(event);
 				s.con = 0;
 				s.err = 1;
 			};
 		s.ws.onopen = function(event)
 			{
-console.log("webrtc datachannel opened:");
-console.log(event);
+//console.log("webrtc datachannel opened:");
+//console.log(event);
 				s.con = 1;
 			};
 		s.ws.onmessage = function(event)
@@ -844,8 +842,8 @@ console.log(event);
 			
 		s.pc.onicecandidate = function(e)
 			{
-console.log("onicecandidate: ");
-console.log(e);
+//console.log("onicecandidate: ");
+//console.log(e);
 				var desc;
 				if (1)
 					desc = JSON.stringify(e.candidate);
@@ -855,18 +853,18 @@ console.log(e);
 			};
 		s.pc.oniceconnectionstatechange = function(e)
 			{
-console.log("oniceconnectionstatechange: ");
-console.log(e);
+//console.log("oniceconnectionstatechange: ");
+//console.log(e);
 			};
 		s.pc.onaddstream = function(e)
 			{
-console.log("onaddstream: ");
-console.log(e);
+//console.log("onaddstream: ");
+//console.log(e);
 			};
 		s.pc.ondatachannel = function(e)
 			{
-console.log("ondatachannel: ");
-console.log(e);
+//console.log("ondatachannel: ");
+//console.log(e);
 
 			s.recvchan = e.channel;
 			s.recvchan.binaryType = 'arraybuffer';
@@ -875,8 +873,8 @@ console.log(e);
 			};
 		s.pc.onnegotiationneeded = function(e)
 			{
-console.log("onnegotiationneeded: ");
-console.log(e);
+//console.log("onnegotiationneeded: ");
+//console.log(e);
 			};
 
 		if (clientside)
@@ -885,8 +883,8 @@ console.log(e);
 				function(desc)
 				{
 					s.pc.setLocalDescription(desc);
-					console.log("gotlocaldescription: ");
-					console.log(desc);
+//					console.log("gotlocaldescription: ");
+//					console.log(desc);
 
 					if (1)
 						desc = JSON.stringify(desc);
@@ -897,8 +895,8 @@ console.log(e);
 				},
 				function(event)
 				{
-					console.log("createOffer error:");
-					console.log(event);
+//					console.log("createOffer error:");
+//					console.log(event);
 					s.err = 1;
 				}
 			);
@@ -930,8 +928,8 @@ console.log(e);
 				function(desc)
 				{
 					s.pc.setLocalDescription(desc);
-					console.log("gotlocaldescription: ");
-					console.log(desc);
+//					console.log("gotlocaldescription: ");
+//					console.log(desc);
 
 					if (1)
 						desc = JSON.stringify(desc);
@@ -942,7 +940,7 @@ console.log(e);
 				},
 				function(event)
 				{
-					console.log("createAnswer error:" + event.toString());
+//					console.log("createAnswer error:" + event.toString());
 					s.err = 1;
 				}
 			);
@@ -962,8 +960,8 @@ console.log(e);
 				desc = JSON.parse(offer);
 			else
 				desc = {candidate:offer, sdpMid:null, sdpMLineIndex:0};
-console.log("addIceCandidate:");
-console.log(desc);
+//console.log("addIceCandidate:");
+//console.log(desc);
 			s.pc.addIceCandidate(desc);
 		} catch(err) { console.log(err); }
 	},
@@ -971,7 +969,7 @@ console.log(desc);
 	emscriptenfte_async_wget_data2 : function(url, ctx, onload, onerror, onprogress)
 	{
 		var _url = UTF8ToString(url);
-		console.log("Attempting download of " + _url);
+//		console.log("Attempting download of " + _url);
 		var http = new XMLHttpRequest();
 		try
 		{
@@ -987,7 +985,7 @@ console.log(desc);
 
 		http.onload = function(e)
 		{
-console.log("onload: " + _url + " status " + http.status);
+//console.log("onload: " + _url + " status " + http.status);
 			if (http.status == 200)
 			{
 				if (onload)
@@ -1002,7 +1000,7 @@ console.log("onload: " + _url + " status " + http.status);
 
 		http.onerror = function(e)
 		{
-console.log("onerror: " + _url);
+//console.log("onerror: " + _url);
 			if (onerror)
 				{{{makeDynCall('vii')}}}(onerror, ctx, 0);
 		};

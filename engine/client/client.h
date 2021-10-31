@@ -576,6 +576,7 @@ typedef struct downloadlist_s {
 
 #define DLLF_BEGUN			(1u<<8)		//server has confirmed that the file exists, is readable, and we've opened a file. should not be set on new requests.
 #define DLLF_ALLOWWEB		(1u<<9)		//failed http downloads should retry but from the game server itself
+#define DLLF_TRYWEB			(1u<<10)	//should be trying to download it from a website...
 
 	enum dlfailreason_e failreason;
 	struct downloadlist_s *next;

@@ -548,8 +548,9 @@ qboolean CL_EnqueDownload(const char *filename, const char *localname, unsigned 
 	downloadlist_t *dl;
 	qboolean webdl = false;
 	char ext[8];
-	if (!strncmp(filename, "http://", 7) || !strncmp(filename, "https://", 8))
+	if ((flags & DLLF_TRYWEB) || !strncmp(filename, "http://", 7) || !strncmp(filename, "https://", 8))
 	{
+		flags |= DLLF_TRYWEB;
 		if (!localname)
 			return false;
 
@@ -715,7 +716,7 @@ static void CL_WebDownloadFinished(struct dl_download *dl)
 		else	//other stuff is PROBABLY 403forbidden, but lets blame the server's config if its a tls issue etc.
 			CL_DownloadFailed(dl->url, &dl->qdownload, DLFAIL_SERVERCVAR);
 		if (dl->qdownload.flags & DLLF_ALLOWWEB)	//re-enqueue it if allowed, but this time not from the web server.
-			CL_EnqueDownload(dl->qdownload.localname, dl->qdownload.localname, dl->qdownload.flags & ~DLLF_ALLOWWEB);
+			CL_EnqueDownload(dl->qdownload.localname, dl->qdownload.localname, dl->qdownload.flags & ~(DLLF_ALLOWWEB|DLLF_TRYWEB));
 	}
 	else if (dl->status == DL_FINISHED)
 	{
@@ -737,7 +738,7 @@ static void CL_SendDownloadStartRequest(char *filename, char *localname, unsigne
 		return;
 
 #ifdef WEBCLIENT
-	if (!strncmp(filename, "http://", 7) || !strncmp(filename, "https://", 8))
+	if (flags & DLLF_TRYWEB)
 	{
 		struct dl_download *wdl = HTTP_CL_Get(filename, localname, CL_WebDownloadFinished);
 		if (wdl)
@@ -977,12 +978,20 @@ qboolean	CL_CheckOrEnqueDownloadFile (const char *filename, const char *localnam
 
 	if (flags & DLLF_ALLOWWEB)
 	{
-		const char *sv_dlURL = InfoBuf_ValueForKey(&cl.serverinfo, "sv_dlURL");
-		flags &= ~DLLF_ALLOWWEB;
-		if (*sv_dlURL && (flags & DLLF_NONGAME) && !strncmp(filename, "package/", 8))
-		{
-			filename = va("%s/%s", cl_download_mapsrc.string, filename+8);
-			flags |= DLLF_ALLOWWEB;
+		extern cvar_t sv_dlURL;
+		const char *dlURL = InfoBuf_ValueForKey(&cl.serverinfo, "sv_dlURL");
+		if (!*dlURL)
+			dlURL = sv_dlURL.string;
+		flags &= ~(DLLF_TRYWEB|DLLF_ALLOWWEB);
+		if (*dlURL && (flags & DLLF_NONGAME) && !strncmp(filename, "package/", 8))
+		{	//filename is something like: package/GAMEDIR/foo.pk3
+			filename = va("%s/%s", dlURL, filename+8);
+			flags |= DLLF_TRYWEB|DLLF_ALLOWWEB;
+		}
+		else if (*dlURL)
+		{	//we don't really know which gamedir its meant to be for...
+			filename = va("%s/%s/%s", dlURL, FS_GetGamedir(true), filename);
+			flags |= DLLF_TRYWEB|DLLF_ALLOWWEB;
 		}
 		else if (*cl_download_mapsrc.string &&
 			!strcmp(filename, localname) &&
@@ -991,11 +1000,16 @@ qboolean	CL_CheckOrEnqueDownloadFile (const char *filename, const char *localnam
 		{
 			char base[MAX_QPATH];
 			COM_FileBase(filename, base, sizeof(base));
-			if (!strncmp(cl_download_mapsrc.string, "http://", 7) || !strncmp(cl_download_mapsrc.string, "https://", 8))
-				filename = va("%s%s.bsp", cl_download_mapsrc.string, base);
+#ifndef FTE_TARGET_WEB
+			if (strncmp(cl_download_mapsrc.string, "http://", 7) && !strncmp(cl_download_mapsrc.string, "https://", 8))
+			{
+				Con_Printf("%s: Scheme not specified.\n", cl_download_mapsrc.name);
+				filename = va("https://%s/%s", cl_download_mapsrc.string, filename+5);
+			}
 			else
-				filename = va("http://%s/%s.bsp", cl_download_mapsrc.string, base);
-			flags |= DLLF_ALLOWWEB;
+#endif
+				filename = va("%s%s", cl_download_mapsrc.string, filename+5);
+			flags |= DLLF_TRYWEB|DLLF_ALLOWWEB;
 		}
 	}
 
@@ -1190,9 +1204,9 @@ static void Model_CheckDownloads (void)
 				continue;
 			Q_snprintfz(picname, sizeof(picname), "pics/%s.pcx", cl.image_name[i]);
 			if (!strncmp(cl.image_name[i], "../", 3))	//some servers are just awkward.
-				CL_CheckOrEnqueDownloadFile(picname, picname+8, 0);
+				CL_CheckOrEnqueDownloadFile(picname, picname+8, DLLF_ALLOWWEB);
 			else
-				CL_CheckOrEnqueDownloadFile(picname, picname, 0);
+				CL_CheckOrEnqueDownloadFile(picname, picname, DLLF_ALLOWWEB);
 		}
 		if (!CLQ2_RegisterTEntModels())
 			return;
@@ -1213,7 +1227,7 @@ static void Model_CheckDownloads (void)
 			continue;
 #endif
 
-		CL_CheckOrEnqueDownloadFile(s, s, (i==1)?DLLF_REQUIRED|DLLF_ALLOWWEB:0);	//world is required to be loaded.
+		CL_CheckOrEnqueDownloadFile(s, s, ((i==1)?DLLF_REQUIRED:0)|DLLF_ALLOWWEB);	//world is required to be loaded.
 		CL_CheckModelResources(s);
 	}
 
@@ -1228,7 +1242,7 @@ static void Model_CheckDownloads (void)
 		if (!*s)
 			continue;
 
-		CL_CheckOrEnqueDownloadFile(s, s, 0);
+		CL_CheckOrEnqueDownloadFile(s, s, DLLF_ALLOWWEB);
 		CL_CheckModelResources(s);
 	}
 #endif
@@ -1576,7 +1590,7 @@ void Sound_CheckDownload(const char *s)
 		return;
 #endif
 	//download the one the server said.
-	CL_CheckOrEnqueDownloadFile(s, NULL, 0);
+	CL_CheckOrEnqueDownloadFile(s, NULL, DLLF_ALLOWWEB);
 }
 
 /*
@@ -1639,6 +1653,7 @@ void CL_RequestNextDownload (void)
 
 	/*request downloads only if we're at the point where we've received a complete list of them*/
 	if (cl.sendprespawn || cls.state == ca_active)
+	{
 		if (cl.downloadlist)
 		{
 			downloadlist_t *dl;
@@ -1663,7 +1678,7 @@ void CL_RequestNextDownload (void)
 			fl = dl->flags;
 
 			/*if we don't require downloads don't queue requests until we're actually on the server, slightly more deterministic*/
-			if (cls.state == ca_active || (requiredownloads.value && !cls.demoplayback) || (fl & DLLF_REQUIRED))
+			if (cls.state == ca_active || (requiredownloads.value && !(cls.demoplayback && !(fl&DLLF_TRYWEB))) || (fl & DLLF_REQUIRED))
 			{
 				if ((fl & DLLF_OVERWRITE) || !CL_CheckFile (dl->localname))
 				{
@@ -1682,6 +1697,9 @@ void CL_RequestNextDownload (void)
 				}
 			}
 		}
+		else if (cls.download && requiredownloads.value)
+			return;
+	}
 
 	if (cl.sendprespawn)
 	{	// get next signon phase
@@ -4402,7 +4420,7 @@ static void CL_ParseModellist (qboolean lots)
 	SCR_SetLoadingFile("loading data");
 
 	//we need to try to load it now if we can, so any embedded archive will be loaded *before* we start looking for other content...
-	cl.model_precache[1] = Mod_ForName (cl.model_name[1], MLV_WARNSYNC);
+	cl.model_precache[1] = Mod_ForName (cl.model_name[1], MLV_SILENT);
 	if (cl.model_precache[1] && cl.model_precache[1]->loadstate == MLS_LOADED)
 		FS_LoadMapPackFile(cl.model_precache[1]->name, cl.model_precache[1]->archive);
 
@@ -6788,7 +6806,7 @@ static void CL_ParsePrecache(void)
 		if (i >= 1 && i < MAX_PRECACHE_MODELS)
 		{
 			model_t *model;
-			CL_CheckOrEnqueDownloadFile(s, s, 0);
+			CL_CheckOrEnqueDownloadFile(s, s, DLLF_ALLOWWEB);
 			model = Mod_ForName(Mod_FixName(s, cl.model_name[1]), (i == 1)?MLV_ERROR:MLV_WARN);
 //			if (!model)
 //				Con_Printf("svc_precache: Mod_ForName(\"%s\") failed\n", s);
@@ -6807,7 +6825,7 @@ static void CL_ParsePrecache(void)
 		{
 			sfx_t *sfx;
 			if (S_HaveOutput())
-				CL_CheckOrEnqueDownloadFile(va("sound/%s", s), NULL, 0);
+				CL_CheckOrEnqueDownloadFile(va("sound/%s", s), NULL, DLLF_ALLOWWEB);
 			sfx = S_PrecacheSound (s);
 //			if (!sfx)
 //				Con_Printf("svc_precache: S_PrecacheSound(\"%s\") failed\n", s);

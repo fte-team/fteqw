@@ -2331,7 +2331,7 @@ void CL_PakDownloads(int mode)
 		}
 		else
 			Q_strncpyz(local, pname, sizeof(local));
-		CL_CheckOrEnqueDownloadFile(pname, local, DLLF_NONGAME);
+		CL_CheckOrEnqueDownloadFile(pname, local, DLLF_ALLOWWEB|DLLF_NONGAME);
 	}
 }
 
@@ -4223,7 +4223,7 @@ static void CL_Curl_f(void)
 	int usage = 0;
 	qboolean alreadyhave = false;
 	extern char *cl_dp_packagenames;
-	unsigned int dlflags = DLLF_VERBOSE;
+	unsigned int dlflags = DLLF_VERBOSE|DLLF_ALLOWWEB;
 	if (argc < 2)
 	{
 		Con_Printf("%s: No args\n", Cmd_Argv(0));

@@ -451,7 +451,7 @@ showhelp:
 			if ((listflags & CLF_FLAGMASK) && !(cmd->flags & cvarflags))
 				continue;
 
-			if ((listflags & CLF_CHANGEDONLY) && cmd->defaultstr && !strcmp(cmd->string, cmd->defaultstr))
+			if ((listflags & CLF_CHANGEDONLY) && ((cmd->flags & (CVAR_NOSET|CVAR_NOSAVE)) || (cmd->defaultstr && !strcmp(cmd->string, cmd->defaultstr))))
 				continue;
 
 			// print cvar list header

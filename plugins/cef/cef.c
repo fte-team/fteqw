@@ -21,8 +21,9 @@ static plugclientfuncs_t *clientfuncs;
 #endif
 #ifndef _WIN32
 #include <unistd.h>
-#include <sys/stat.h>
 #endif
+#include <sys/types.h>
+#include <sys/stat.h>
 
 #define EXPECTED_COMMIT_NUMBER  2179	//last version of libcef we tried building against...
 #if EXPECTED_COMMIT_NUMBER != EXPECTED_COMMIT_NUMBER
@@ -1648,10 +1649,10 @@ static void *Cef_Create(const char *name, struct mediacallbacks_s *callbacks)
 #ifdef _WIN32
 		window_info.style = WS_OVERLAPPEDWINDOW | WS_CLIPCHILDREN | WS_CLIPSIBLINGS | WS_VISIBLE;
 		window_info.parent_window = NULL;
-		window_info.x = CW_USEDEFAULT;
-		window_info.y = CW_USEDEFAULT;
-		window_info.width = CW_USEDEFAULT;
-		window_info.height = CW_USEDEFAULT;
+		window_info.bounds.x = CW_USEDEFAULT;
+		window_info.bounds.y = CW_USEDEFAULT;
+		window_info.bounds.width = CW_USEDEFAULT;
+		window_info.bounds.height = CW_USEDEFAULT;
 		window_info.window_name = makecefstring("CEF Dev Tools");
 #else
 		memset(&window_info.parent_window, 0, sizeof(window_info.parent_window));
@@ -1877,9 +1878,9 @@ static void VARGS Cef_ChangeStream (void *ctx, const char *streamname)
 	{
 		const char *cmd = streamname+4;
 		if (!strcmp(cmd, "focus"))
-			host->send_focus_event(host, true);
+			host->set_focus(host, true);
 		else if (!strcmp(cmd, "unfocus"))
-			host->send_focus_event(host, false);
+			host->set_focus(host, false);
 		else if (!strcmp(cmd, "refresh"))
 			browser->thebrowser->reload(browser->thebrowser);
 		else if (!strcmp(cmd, "transparent"))
@@ -2121,7 +2122,11 @@ static qboolean Cef_Init(qboolean engineprocess)
 			{NULL}
 		};
 
+#ifdef _WIN32
+		if (plugfuncs && !plugfuncs->LoadDLL("libcef", ceffuncs))
+#else
 		if (plugfuncs && !plugfuncs->LoadDLL("./libcef", ceffuncs))
+#endif
 		{
 			if (engineprocess)
 				Con_Printf("Unable to load libcef (version "CEF_VERSION")\n");

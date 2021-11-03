@@ -318,23 +318,23 @@ $(PLUG_PREFIX)bullet$(PLUG_NATIVE_EXT): bullet/bulletplug.cpp plugin.c $(BULLET_
 
 #WARNING: Changing CEF_VER requires updating downloadables.php etc
 ifeq ($(FTE_TARGET),win32)
-	CEF_ARCH=windows32
+    CEF_ARCH=windows32
 endif
 ifeq ($(FTE_TARGET),win64)
-	CEF_ARCH=windows64
+    CEF_ARCH=windows64
 endif
 ifeq ($(FTE_TARGET),linux32)
-	CEF_ARCH=linux32
+    CEF_ARCH=linux32
 endif
 ifeq ($(FTE_TARGET),linux64)
-	CEF_ARCH=linux64
+    CEF_ARCH=linux64
 endif
 #ifeq ($(FTE_TARGET),macosx64)
-	#CEF_ARCH=macosx64
+    #CEF_ARCH=macosx64
 #endif
-CEF_VER=3.3163.1666.g052c2d2
+CEF_VER=95.7.14+g9f72f35+chromium-95.0.4638.69
 CEF_NAME=cef_binary_$(CEF_VER)_$(CEF_ARCH)_minimal
-CEF_URL=http://opensource.spotify.com/cefbuilds/$(CEF_NAME).tar.bz2
+CEF_URL=https://cef-builds.spotifycdn.com/cef_binary_$(CEF_VER)_$(CEF_ARCH)_minimal.tar.bz2
 
 ifneq ($(CEF_ARCH),)
 cef/$(CEF_NAME)/include/cef_version.h:
@@ -354,7 +354,7 @@ $(PLUG_PREFIX)cef$(PLUG_NATIVE_EXT): $(CEF_SOURCES) $(OUT_DIR)/cef_$(CEF_VER).zi
 else
 .PHONEY: $(PLUG_PREFIX)cef$(PLUG_NATIVE_EXT)
 $(PLUG_PREFIX)cef$(PLUG_NATIVE_EXT):
-	echo cef plugin not supported on this arch - $(FTE_TARGET) - $(CEF_ARCH)
+	@echo cef plugin not supported on this arch - $(FTE_TARGET) - $(CEF_ARCH)
 endif
 ######################################
 

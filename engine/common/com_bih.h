@@ -71,6 +71,7 @@ enum bihtype_e
 	BIH_TRISOUP,
 #endif
 	BIH_TRIANGLE,
+	BIH_MODEL,
 };
 struct bihdata_s
 {
@@ -88,6 +89,14 @@ struct bihdata_s
 			index_t *indexes;	//might be better to just bake 3 indexes instead of using a pointer to them
 			vecV_t *xyz;
 		} tri;
+		struct {
+			model_t *model;
+			struct bihtransform_s
+			{
+				vec3_t axis[3];
+				vec3_t origin;
+			} *tr;
+		} mesh;
 	};
 };
 struct bihleaf_s

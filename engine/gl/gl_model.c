@@ -1063,6 +1063,10 @@ void Mod_ModelLoaded(void *ctx, void *data, size_t a, size_t b)
 		break;
 	}
 }
+void Mod_SubmodelLoaded(model_t *mod, int state)
+{
+	COM_AddWork(WG_MAIN, Mod_ModelLoaded, mod, NULL, MLS_LOADED, 0);
+}
 /*
 ==================
 Mod_LoadModel
@@ -3233,6 +3237,33 @@ void Mod_Batches_Build(model_t *mod, builddata_t *bd)
 
 	if (BE_GenBrushModelVBO)
 		BE_GenBrushModelVBO(mod);
+}
+
+shader_t *Mod_RegisterBasicShader(struct model_s *mod, const char *texname, unsigned int usageflags, const char *shadertext, uploadfmt_t pixelfmt, unsigned int width, unsigned int height, void *pixeldata, void *palettedata)
+{
+	shader_t *s;
+	unsigned int maps;
+	char mapbase[64];
+	if (shadertext)
+		s = R_RegisterShader(texname, usageflags, shadertext);
+	else if (mod->type == mod_brush)
+		s = R_RegisterCustom(mod, texname, usageflags, Shader_DefaultSkin, NULL);
+	else
+		s = R_RegisterCustom(mod, texname, usageflags, Shader_DefaultBSPLM, NULL);
+
+
+	maps = 0;
+	maps |= SHADER_HASPALETTED;
+	maps |= SHADER_HASDIFFUSE;
+	if (r_fb_bmodels.ival)
+		maps |= SHADER_HASFULLBRIGHT;
+	if (r_loadbumpmapping || s->defaulttextures->reflectcube)
+		maps |= SHADER_HASNORMALMAP;
+	if (gl_specular.ival)
+		maps |= SHADER_HASGLOSS;
+	COM_FileBase(mod->name, mapbase, sizeof(mapbase));
+	R_BuildLegacyTexnums(s, texname, mapbase, maps, 0, pixelfmt, width, height, pixeldata, palettedata);
+	return s;
 }
 #endif
 

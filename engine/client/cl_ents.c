@@ -2174,6 +2174,19 @@ entity_t *V_AddEntity(entity_t *in)
 
 	return ent;
 }
+entity_t *V_AddNewEntity(void)
+{
+	entity_t *ent;
+
+	if (cl_numvisedicts == cl_maxvisedicts)
+	{
+		cl_expandvisents = true;
+		return NULL;		// object list is full
+	}
+	ent = &cl_visedicts[cl_numvisedicts];
+	cl_numvisedicts++;
+	return ent;
+}
 /*
 void VQ2_AddLerpEntity(entity_t *in)	//a convienience function
 {

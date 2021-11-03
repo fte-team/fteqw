@@ -870,6 +870,35 @@ static void BIH_RecursiveTrace (struct bihtrace_s *fte_restrict tr, const struct
 		if (node->data.contents & tr->hitcontents)
 			BIH_ClipToTriangle(tr, &node->data);
 		return;
+	case BIH_MODEL:
+		{
+			trace_t sub;
+			vec3_t start_l;
+			vec3_t end_l;
+
+			VectorSubtract (tr->startpos, node->data.mesh.tr->origin, start_l);
+			VectorSubtract (tr->endpos, node->data.mesh.tr->origin, end_l);
+			node->data.mesh.model->funcs.NativeTrace(node->data.mesh.model, 0, NULLFRAMESTATE, node->data.mesh.tr->axis, start_l, end_l, tr->size.min, tr->size.max, tr->shape==shape_iscapsule, tr->hitcontents, &sub);
+
+			if (sub.truefraction < tr->trace.truefraction)
+			{
+				tr->trace.truefraction = sub.truefraction;
+				tr->trace.fraction = sub.fraction;
+				tr->trace.plane.dist = sub.plane.dist;
+				VectorCopy(sub.plane.normal, tr->trace.plane.normal);
+				tr->trace.surface = sub.surface;
+				tr->trace.contents = sub.contents;
+				tr->trace.startsolid |= sub.startsolid;
+				tr->trace.allsolid = sub.allsolid;
+				VectorAdd (sub.endpos, node->data.mesh.tr->origin, tr->trace.endpos);
+			}
+			else
+			{
+				tr->trace.startsolid |= sub.startsolid;
+				tr->trace.allsolid &= sub.allsolid;
+			}
+		}
+		return;
 	case BIH_GROUP:
 		{
 			int i;
@@ -1140,6 +1169,35 @@ static void BIH_RecursiveTest (struct bihtrace_s *fte_restrict tr, const struct 
 		if (node->data.contents & tr->hitcontents)
 			BIH_TestToTriangle(tr, &node->data);
 		return;
+	case BIH_MODEL:
+		{	//lame...
+			trace_t sub;
+			vec3_t start_l;
+			vec3_t end_l;
+
+			VectorSubtract (tr->startpos, node->data.mesh.tr->origin, start_l);
+			VectorSubtract (tr->endpos, node->data.mesh.tr->origin, end_l);
+			node->data.mesh.model->funcs.NativeTrace(node->data.mesh.model, 0, NULLFRAMESTATE, node->data.mesh.tr->axis, start_l, end_l, tr->size.min, tr->size.max, tr->shape==shape_iscapsule, tr->hitcontents, &sub);
+
+			if (sub.truefraction < tr->trace.truefraction)
+			{
+				tr->trace.truefraction = sub.truefraction;
+				tr->trace.fraction = sub.fraction;
+				tr->trace.plane.dist = sub.plane.dist;
+				VectorCopy(sub.plane.normal, tr->trace.plane.normal);
+				tr->trace.surface = sub.surface;
+				tr->trace.contents = sub.contents;
+				tr->trace.startsolid |= sub.startsolid;
+				tr->trace.allsolid = sub.allsolid;
+				VectorAdd (sub.endpos, node->data.mesh.tr->origin, tr->trace.endpos);
+			}
+			else
+			{
+				tr->trace.startsolid |= sub.startsolid;
+				tr->trace.allsolid &= sub.allsolid;
+			}
+		}
+		return;
 	case BIH_GROUP:
 		{
 			int i;
@@ -1403,6 +1461,12 @@ restart:
 #endif
 	case BIH_TRIANGLE:
 		return 0;
+	case BIH_MODEL:
+		{
+			vec3_t pos;
+			VectorSubtract (p, node->data.mesh.tr->origin, pos);
+			return node->data.mesh.model->funcs.PointContents(node->data.mesh.model, node->data.mesh.tr->axis, pos);
+		}
 	case BIH_GROUP:
 		{
 			int i;

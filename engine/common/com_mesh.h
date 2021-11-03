@@ -223,6 +223,7 @@ typedef struct galiasinfo_s
 } galiasinfo_t;
 
 struct terrainfuncs_s;
+struct bihleaf_s;
 typedef struct modplugfuncs_s
 {
 	int version;
@@ -252,6 +253,17 @@ typedef struct modplugfuncs_s
 	void (QDECL *NormaliseTextureVectors)(vec3_t *n, vec3_t *s, vec3_t *t, int v, qboolean calcnorms);
 
 	model_t *(QDECL *GetModel)(const char *identifier, enum mlverbosity_e verbosity);
+	model_t *(QDECL *BeginSubmodelLoad)(const char *identifier);
+	qboolean (*LoadEntities)(struct model_s *mod, const char *entdata, size_t entdatasize);
+	void (*LoadMapArchive)(struct model_s *mod, void *archivedata, size_t archivesize);
+	void (*BIH_Build) (struct model_s *mod, struct bihleaf_s *leafs, size_t numleafs);
+	void (*BIH_BuildAlias) (struct model_s *mod, galiasinfo_t *meshes);
+	size_t (*ClipPlaneToBrush)(vecV_t *points, size_t maxpoints, void *planes, size_t planestride, size_t numplanes, vec4_t face);
+	shader_t *(*RegisterBasicShader)(struct model_s *mod, const char *texname, unsigned int usageflags, const char *shadertext, uploadfmt_t pixelfmt, unsigned int width, unsigned int height, void *pixeldata, void *palettedata);
+	void (*Batches_Build)(struct model_s *mod, builddata_t *bd);
+	void (*RenderDynamicLightmaps) (struct msurface_s *surf);
+	entity_t *(*NewSceneEntity) (void);
+	void (*EndSubmodelLoad)(struct model_s *submod, int modelloadstate);
 #define plugmodfuncs_name "Models"
 } plugmodfuncs_t;
 #define MODPLUGFUNCS_VERSION 2

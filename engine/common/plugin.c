@@ -5,6 +5,7 @@
 #include "quakedef.h"
 #include "fs.h"
 #include "vr.h"
+#include "com_bih.h"
 #define FTEENGINE
 #include "../plugins/plugin.h"
 
@@ -2088,7 +2089,26 @@ static void *QDECL PlugBI_GetEngineInterface(const char *interfacename, size_t s
 #endif
 			Mod_AccumulateTextureVectors,
 			Mod_NormaliseTextureVectors,
-			Mod_ForName
+			Mod_ForName,
+
+			Mod_FindName,
+			Mod_LoadEntitiesBlob,
+			Mod_LoadMapArchive,
+			BIH_Build,
+			BIH_BuildAlias,
+			Fragment_ClipPlaneToBrush,
+#ifdef HAVE_CLIENT
+			Mod_RegisterBasicShader,
+			Mod_Batches_Build,
+			Surf_RenderDynamicLightmaps,
+			V_AddNewEntity,
+#else
+			NULL,
+			NULL,
+			NULL,
+			NULL,
+#endif
+			Mod_SubmodelLoaded,
 		};
 		if (structsize == sizeof(funcs))
 			return &funcs;

@@ -36,6 +36,7 @@ void V_UpdatePalette (qboolean force);
 void V_ClearCShifts (void);
 void V_ClearEntity(entity_t *e);
 entity_t *V_AddEntity(entity_t *in);
+entity_t *V_AddNewEntity(void);
 void VQ2_AddLerpEntity(entity_t *in);
 void V_AddAxisEntity(entity_t *in);
 void CLQ1_AddShadow(entity_t *ent);

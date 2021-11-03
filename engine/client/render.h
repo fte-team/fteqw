@@ -569,6 +569,7 @@ int Mod_RegisterModelFormatMagic(void *module, const char *formatname, qbyte *ma
 void Mod_UnRegisterModelFormat(void *module, int idx);
 void Mod_UnRegisterAllModelFormats(void *module);
 void Mod_ModelLoaded(void *ctx, void *data, size_t a, size_t b);
+void Mod_SubmodelLoaded(struct model_s *mod, int state);
 
 #ifdef RUNTIMELIGHTING
 struct relight_ctx_s;

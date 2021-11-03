@@ -105,7 +105,6 @@
 #define IMAGEFMT_BMP			//windows bmp. yuck. also includes .ico for the luls
 #define IMAGEFMT_PCX			//paletted junk. required for qw player skins, q2 and a few old skyboxes.
 #define IMAGEFMT_EXR			//openexr, via Industrial Light & Magic's rgba api, giving half-float data.
-//#define IMAGEFMT_VTF			//hl2 image format
 #define AVAIL_PNGLIB			//.png image format support (read+screenshots)
 #define AVAIL_JPEGLIB			//.jpeg image format support (read+screenshots)
 //#define AVAIL_STBI			//make use of Sean T. Barrett's lightweight public domain stb_image[_write] single-file-library, to avoid libpng/libjpeg dependancies.

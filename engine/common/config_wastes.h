@@ -133,7 +133,6 @@
 #undef IMAGEFMT_DDS
 #undef IMAGEFMT_PKM
 #undef IMAGEFMT_BLP
-#undef IMAGEFMT_VTF
 #undef NETPREPARSE	/* allows for running both nq+qw on the same server (if not, protocol used must match gamecode) */
 #undef USE_SQLITE	/* sql-database-as-file support */
 #undef QUAKESTATS	/* defines STAT_HEALTH etc. if omitted, you'll need to provide that functionality yourself */

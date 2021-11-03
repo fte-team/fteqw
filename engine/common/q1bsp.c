@@ -2610,7 +2610,7 @@ qboolean Mod_BSPXRW_Read(struct bspxrw *ctx, const char *fname)
 		ctx->lumpofs = 4;
 		ctx->corelumps = 0;
 		break;
-	case IDBSPHEADER:
+	case ('I'<<0)+('B'<<8)+('S'<<16)+('P'<<24):
 		i = LittleLong(*(int*)(ctx->origfile+4));
 		ctx->lumpofs = 8;
 		switch(i)

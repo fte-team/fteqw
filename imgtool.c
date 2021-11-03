@@ -1600,11 +1600,11 @@ static void ImgTool_Enumerate(struct opts_s *args, const char *inname, void(*cal
 		}
 	}
 	else if (fsize >= sizeof(dheader_t) && (
-		((indata[0])|(indata[1]<<8)|(indata[2]<<16)|(indata[3]<<24)) == BSPVERSION		||
-		((indata[0])|(indata[1]<<8)|(indata[2]<<16)|(indata[3]<<24)) == BSPVERSIONHL	||
-		((indata[0])|(indata[1]<<8)|(indata[2]<<16)|(indata[3]<<24)) == BSPVERSIONPREREL||
-		((indata[0])|(indata[1]<<8)|(indata[2]<<16)|(indata[3]<<24)) == BSPVERSION_LONG1||
-		((indata[0])|(indata[1]<<8)|(indata[2]<<16)|(indata[3]<<24)) == BSPVERSION_LONG2))
+		!memcmp(indata, BSPVERSION)		||
+		!memcmp(indata, BSPVERSIONHL)	||
+		!memcmp(indata, BSPVERSIONPREREL)||
+		!memcmp(indata, BSPVERSION_LONG1)||
+		!memcmp(indata, BSPVERSION_LONG2)))
 	{	//q1bsp
 		dheader_t *bsp = (dheader_t*)indata;
 		dmiptexlump_t *texlump = (dmiptexlump_t*)(indata + bsp->lumps[LUMP_TEXTURES].fileofs);
@@ -1635,7 +1635,7 @@ static void ImgTool_Enumerate(struct opts_s *args, const char *inname, void(*cal
 		}
 	}
 	else if (fsize >= sizeof(dmdl_t) && (
-		((indata[0])|(indata[1]<<8)|(indata[2]<<16)|(indata[3]<<24)) == IDPOLYHEADER && (((dmdl_t*)indata)->version == ALIAS_VERSION || ((dmdl_t*)indata)->version == 50)))
+		!memcmp(indata,IDPOLYHEADER) && (((dmdl_t*)indata)->version == ALIAS_VERSION || ((dmdl_t*)indata)->version == 50)))
 	{	//quake's mdl format. also hexen2's missionpack format.
 		int i, j, numframes;
 		char skinname[256];
@@ -2014,11 +2014,11 @@ static void ImgTool_WadExtract(struct opts_s *args, const char *wadname)
 		}
 	}
 	else if (fsize >= sizeof(dheader_t) && (
-		((indata[0])|(indata[1]<<8)|(indata[2]<<16)|(indata[3]<<24)) == BSPVERSION		||
-//		((indata[0])|(indata[1]<<8)|(indata[2]<<16)|(indata[3]<<24)) == BSPVERSIONHL	||
-		((indata[0])|(indata[1]<<8)|(indata[2]<<16)|(indata[3]<<24)) == BSPVERSIONPREREL||
-		((indata[0])|(indata[1]<<8)|(indata[2]<<16)|(indata[3]<<24)) == BSPVERSION_LONG1||
-		((indata[0])|(indata[1]<<8)|(indata[2]<<16)|(indata[3]<<24)) == BSPVERSION_LONG2))
+		!memcmp(indata, BSPVERSION)		||
+//		!memcmp(indata, BSPVERSIONHL)	||
+		!memcmp(indata, BSPVERSIONPREREL)||
+		!memcmp(indata, BSPVERSION_LONG1)||
+		!memcmp(indata, BSPVERSION_LONG2)))
 	{	//q1bsp
 		dheader_t *bsp = (dheader_t*)indata;
 		dmiptexlump_t *texlump = (dmiptexlump_t*)(indata + bsp->lumps[LUMP_TEXTURES].fileofs);
@@ -2039,7 +2039,7 @@ static void ImgTool_WadExtract(struct opts_s *args, const char *wadname)
 		}
 	}
 	else if (fsize >= sizeof(dmdl_t) && (
-		((indata[0])|(indata[1]<<8)|(indata[2]<<16)|(indata[3]<<24)) == IDPOLYHEADER && ((dmdl_t*)indata)->version == ALIAS_VERSION))
+		!memcmp(indata,IDPOLYHEADER) && ((dmdl_t*)indata)->version == ALIAS_VERSION))
 	{
 		char imgname[1024];
 		int i, j, numframes;

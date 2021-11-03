@@ -118,7 +118,7 @@ typedef struct {
 	spriteframetype_t	type;
 } dspriteframetype_t;
 
-#define IDSPRITEHEADER	(('P'<<24)+('S'<<16)+('D'<<8)+'I')
+#define IDSPRITEHEADER	"IDSP",4
 														// little-endian "IDSP"
 
 
@@ -129,7 +129,7 @@ typedef struct {
 
 
 #define MAX_SKINNAME 64
-#define IDSPRITE2HEADER	(('2'<<24)+('S'<<16)+('D'<<8)+'I')
+#define IDSPRITE2HEADER	"IDS2",4
 		// little-endian "IDS2"
 #define SPRITE2_VERSION	2
 

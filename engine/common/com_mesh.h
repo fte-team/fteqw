@@ -229,12 +229,11 @@ typedef struct modplugfuncs_s
 
 	//format handling
 	int (QDECL *RegisterModelFormatText)(const char *formatname, char *magictext, qboolean (QDECL *load) (struct model_s *mod, void *buffer, size_t fsize));
-	int (QDECL *RegisterModelFormatMagic)(const char *formatname, unsigned int magic, qboolean (QDECL *load) (struct model_s *mod, void *buffer, size_t fsize));
+	int (QDECL *RegisterModelFormatMagic)(const char *formatname, qbyte *magic,size_t magicsize, qboolean (QDECL *load) (struct model_s *mod, void *buffer, size_t fsize));
 	void (QDECL *UnRegisterModelFormat)(int idx);
 	void (QDECL *UnRegisterAllModelFormats)(void);
 
 	//util
-	void *(QDECL *ZG_Malloc)(zonegroup_t *ctx, size_t size);	//ctx=&mod->memgroup and the data will be freed when the model is freed.
 	void (QDECL *StripExtension) (const char *in, char *out, int outlen);
 
 	//matrix maths
@@ -255,7 +254,7 @@ typedef struct modplugfuncs_s
 	model_t *(QDECL *GetModel)(const char *identifier, enum mlverbosity_e verbosity);
 #define plugmodfuncs_name "Models"
 } plugmodfuncs_t;
-#define MODPLUGFUNCS_VERSION 1
+#define MODPLUGFUNCS_VERSION 2
 
 #ifdef SKELETALMODELS
 void Alias_TransformVerticies(float *bonepose, galisskeletaltransforms_t *weights, int numweights, vecV_t *xyzout, vec3_t *normout);

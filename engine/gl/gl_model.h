@@ -763,7 +763,7 @@ extern	dtrivertx_t	*poseverts[MAXALIASFRAMES];
 // LordHavoc: grabbed this from the Q2 utility source,
 // renamed a things to avoid conflicts
 
-#define MD2IDALIASHEADER		(('2'<<24)+('P'<<16)+('D'<<8)+'I')
+#define MD2IDALIASHEADER	"IDP2",4
 #define MD2ALIAS_VERSION	8
 #define	MD2MAX_SKINNAME		64	//part of the format
 

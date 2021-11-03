@@ -151,8 +151,8 @@ typedef struct {
 	aliasskintype_t	type;
 } daliasskintype_t;
 
-#define IDPOLYHEADER	(('O'<<24)+('P'<<16)+('D'<<8)+'I') /*little-endian "IDPO"*/
-#define RAPOLYHEADER	(('O'<<24)+('P'<<16)+('A'<<8)+'R') /*used by hexen2 mp*/
-#define MD3_IDENT		(('3'<<24)+('P'<<16)+('D'<<8)+'I') /*quake3, duh*/
+#define IDPOLYHEADER	"IDPO",4 /*little-endian "IDPO"*/
+#define RAPOLYHEADER	"RAPO",4 /*used by hexen2 mp*/
+#define MD3_IDENT		"IDP3",4 /*quake3, duh*/
 
 

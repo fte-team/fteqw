@@ -565,7 +565,7 @@ void GLR_LoadSkys (void);
 void R_BloomRegister(void);
 
 int Mod_RegisterModelFormatText(void *module, const char *formatname, char *magictext, qboolean (QDECL *load) (struct model_s *mod, void *buffer, size_t fsize));
-int Mod_RegisterModelFormatMagic(void *module, const char *formatname, unsigned int magic, qboolean (QDECL *load) (struct model_s *mod, void *buffer, size_t fsize));
+int Mod_RegisterModelFormatMagic(void *module, const char *formatname, qbyte *magic, size_t magicsize, qboolean (QDECL *load) (struct model_s *mod, void *buffer, size_t fsize));
 void Mod_UnRegisterModelFormat(void *module, int idx);
 void Mod_UnRegisterAllModelFormats(void *module);
 void Mod_ModelLoaded(void *ctx, void *data, size_t a, size_t b);

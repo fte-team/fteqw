@@ -1742,7 +1742,11 @@ qboolean Alias_GAliasBuildMesh(mesh_t *mesh, vbo_t **vbop, galiasinfo_t *inf, in
 			mesh->snormals_array = meshcache.anorms;
 			mesh->tnormals_array = meshcache.anormt;
 			if (vbop)
+			{
 				*vbop = meshcache.vbop;
+				meshcache.vbo.indicies = inf->vboindicies;
+				meshcache.vbo.indexcount = inf->numindexes;
+			}
 
 #ifndef SKELETALMODELS
 			return false;
@@ -4357,7 +4361,7 @@ static int Mod_ReadFlagsFromMD1(char *name, int md3version)
 	pinmodel = (dmdl_t *)FS_LoadMallocFile(fname, &fsize);
 	if (pinmodel)
 	{
-		if (fsize >= sizeof(dmdl_t) && LittleLong(pinmodel->ident) == IDPOLYHEADER)			
+		if (fsize >= sizeof(dmdl_t) && !memcmp(&pinmodel->ident, IDPOLYHEADER))
 			if (LittleLong(pinmodel->version) == ALIAS_VERSION)
 				result = LittleLong(pinmodel->flags);
 		BZ_Free(pinmodel);
@@ -4718,7 +4722,7 @@ typedef struct
    int offsetEnd;
 } dmdxheader_t;
 
-#define MDX_IDENT ('I'<<0)+('D'<<8)+('P'<<16)+('X'<<24)
+#define MDX_IDENT "IDPX",4
 #define MDX_VERSION 4
 
 #define Q2NUMVERTEXNORMALS	162
@@ -5931,7 +5935,7 @@ static galiasinfo_t *Mod_LoadQ3ModelLod(model_t *mod, int *surfcount, void *buff
 	surf = (md3Surface_t *)((qbyte *)header + LittleLong(header->ofsSurfaces));
 	for (s = 0; s < LittleLong(header->numSurfaces); s++, *surfcount+=1)
 	{
-		if (LittleLong(surf->ident) != MD3_IDENT)
+		if (memcmp(&surf->ident, MD3_IDENT))
 			Con_Printf(CON_WARNING "Warning: md3 sub-surface doesn't match ident\n");
 
 		if (!framegroups)
@@ -9982,7 +9986,7 @@ void Alias_Register(void)
 	Cvar_Register(&dpcompat_nofloodfill, NULL);
 #endif
 	Mod_RegisterModelFormatMagic(NULL, "Quake1 Model (mdl)",				IDPOLYHEADER,							Mod_LoadQ1Model);
-	Mod_RegisterModelFormatMagic(NULL, "QuakeForge 16bit Model",			(('6'<<24)+('1'<<16)+('D'<<8)+'M'),		Mod_LoadQ1Model);
+	Mod_RegisterModelFormatMagic(NULL, "QuakeForge 16bit Model",			"MD16",4,								Mod_LoadQ1Model);
 #ifdef HEXEN2
 	Mod_RegisterModelFormatMagic(NULL, "Hexen2 Model (mdl)",				RAPOLYHEADER,							Mod_LoadQ1Model);
 #endif
@@ -9997,20 +10001,20 @@ void Alias_Register(void)
 	Mod_RegisterModelFormatMagic(NULL, "Quake3 Model (md3)",				MD3_IDENT,								Mod_LoadQ3Model);
 #endif
 #ifdef HALFLIFEMODELS
-	Mod_RegisterModelFormatMagic(NULL, "Half-Life Model (mdl)",				(('T'<<24)+('S'<<16)+('D'<<8)+'I'),		Mod_LoadHLModel);
+	Mod_RegisterModelFormatMagic(NULL, "Half-Life Model (mdl)",				"IDST\x0a\0\0\0",8,						Mod_LoadHLModel);
 #endif
 
 #ifdef ZYMOTICMODELS
-	Mod_RegisterModelFormatMagic(NULL, "Zymotic Model (zym)",				(('O'<<24)+('M'<<16)+('Y'<<8)+'Z'),		Mod_LoadZymoticModel);
+	Mod_RegisterModelFormatMagic(NULL, "Zymotic Model (zym)",				"ZYMOTICMODEL",12,						Mod_LoadZymoticModel);
 #endif
 #ifdef DPMMODELS
-	Mod_RegisterModelFormatMagic(NULL, "DarkPlaces Model (dpm)",			(('K'<<24)+('R'<<16)+('A'<<8)+'D'),		Mod_LoadDarkPlacesModel);
+	Mod_RegisterModelFormatMagic(NULL, "DarkPlaces Model (dpm)",			"DARKPLACESMODEL\0",16,					Mod_LoadDarkPlacesModel);
 #endif
 #ifdef PSKMODELS
-	Mod_RegisterModelFormatMagic(NULL, "Unreal Interchange Model (psk)",	('A'<<0)+('C'<<8)+('T'<<16)+('R'<<24),	Mod_LoadPSKModel);
+	Mod_RegisterModelFormatMagic(NULL, "Unreal Interchange Model (psk)",	"ACTR",4,								Mod_LoadPSKModel);
 #endif
 #ifdef INTERQUAKEMODELS
-	Mod_RegisterModelFormatMagic(NULL, "Inter-Quake Model (iqm)",			('I'<<0)+('N'<<8)+('T'<<16)+('E'<<24),	Mod_LoadInterQuakeModel);
+	Mod_RegisterModelFormatMagic(NULL, "Inter-Quake Model (iqm)",			"INTERQUAKEMODEL\0",16,					Mod_LoadInterQuakeModel);
 #endif
 #ifdef MD5MODELS
 	Cvar_Register(&mod_md5_singleanimation, NULL);
@@ -10018,7 +10022,7 @@ void Alias_Register(void)
 	Mod_RegisterModelFormatText(NULL, "External Anim",						"EXTERNALANIM",							Mod_LoadCompositeAnim);
 #endif
 #ifdef MODELFMT_OBJ
-	Mod_RegisterModelFormatText(NULL, "Wavefront Object (obj)",						".obj",									Mod_LoadObjModel);
+	Mod_RegisterModelFormatText(NULL, "Wavefront Object (obj)",				".obj",									Mod_LoadObjModel);
 	Cvar_Register(&mod_obj_orientation, NULL);
 #endif
 

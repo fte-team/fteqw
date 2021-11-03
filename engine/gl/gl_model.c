@@ -704,14 +704,14 @@ void Mod_Init (qboolean initial)
 #endif
 #endif
 #ifdef RFBSPS
-		Mod_RegisterModelFormatMagic(NULL, "Raven Map (bsp)",				('R'<<0)+('B'<<8)+('S'<<16)+('P'<<24),	Mod_LoadQ2BrushModel);
-		Mod_RegisterModelFormatMagic(NULL, "QFusion Map (bsp)",				('F'<<0)+('B'<<8)+('S'<<16)+('P'<<24),	Mod_LoadQ2BrushModel);
+		Mod_RegisterModelFormatMagic(NULL, "Raven Map (bsp)",				"RBSP",4,	Mod_LoadQ2BrushModel);
+		Mod_RegisterModelFormatMagic(NULL, "QFusion Map (bsp)",				"FBSP",4,	Mod_LoadQ2BrushModel);
 #endif
 
 		//doom maps
 #ifdef MAP_DOOM
-		Mod_RegisterModelFormatMagic(NULL, "Doom IWad Map",					(('D'<<24)+('A'<<16)+('W'<<8)+'I'),		Mod_LoadDoomLevel);
-		Mod_RegisterModelFormatMagic(NULL, "Doom PWad Map",					(('D'<<24)+('A'<<16)+('W'<<8)+'P'),		Mod_LoadDoomLevel);
+		Mod_RegisterModelFormatMagic(NULL, "Doom IWad Map",					"IWAD",4,		Mod_LoadDoomLevel);
+		Mod_RegisterModelFormatMagic(NULL, "Doom PWad Map",					"PWAD",4,		Mod_LoadDoomLevel);
 #endif
 
 #ifdef MAP_PROC
@@ -893,7 +893,8 @@ static struct
 	void *module;
 	char *formatname;
 	char *ident;
-	unsigned int magic;
+	qbyte *magic;
+	size_t magicsize;
 	qboolean (QDECL *load) (model_t *mod, void *buffer, size_t buffersize);
 } modelloaders[64];
 
@@ -925,18 +926,19 @@ int Mod_RegisterModelFormatText(void *module, const char *formatname, char *magi
 
 	modelloaders[free].module = module;
 	modelloaders[free].formatname = Z_StrDup(formatname);
-	modelloaders[free].magic = 0;
+	modelloaders[free].magic = NULL;
+	modelloaders[free].magicsize = 0;
 	modelloaders[free].ident = Z_StrDup(magictext);
 	modelloaders[free].load = load;
 
 	return free+1;
 }
-int Mod_RegisterModelFormatMagic(void *module, const char *formatname, unsigned int magic, qboolean (QDECL *load) (model_t *mod, void *buffer, size_t fsize))
+int Mod_RegisterModelFormatMagic(void *module, const char *formatname, qbyte *magic, size_t magicsize, qboolean (QDECL *load) (model_t *mod, void *buffer, size_t fsize))
 {
 	int i, free = -1;
 	for (i = 0; i < sizeof(modelloaders)/sizeof(modelloaders[0]); i++)
 	{
-		if (modelloaders[i].magic && modelloaders[i].magic == magic)
+		if (modelloaders[i].magic && modelloaders[i].magicsize == magicsize && !memcmp(modelloaders[i].magic, magic, magicsize))
 		{
 			free = i;
 			break;	//extension match always replaces
@@ -952,6 +954,7 @@ int Mod_RegisterModelFormatMagic(void *module, const char *formatname, unsigned 
 		Z_Free(modelloaders[free].formatname);
 	modelloaders[free].formatname = Z_StrDup(formatname);
 	modelloaders[free].magic = magic;
+	modelloaders[free].magicsize = magicsize;
 	modelloaders[free].ident = NULL;
 	modelloaders[free].load = load;
 
@@ -1077,7 +1080,7 @@ static void Mod_LoadModelWorker (void *ctx, void *data, size_t a, size_t b)
 #ifdef DSPMODELS
 	qboolean doomsprite = false;
 #endif
-	unsigned int magic, i;
+	unsigned int i;
 	size_t filesize;
 	char ext[8];
 	int basedepth;
@@ -1267,10 +1270,6 @@ static void Mod_LoadModelWorker (void *ctx, void *data, size_t a, size_t b)
 
 		memset(&mod->funcs, 0, sizeof(mod->funcs));	//just in case...
 
-		if (filesize < 4)
-			magic = 0;
-		else
-			magic = LittleLong(*(unsigned *)buf);
 		//look for known extensions first, to try to avoid issues with specific formats
 		for(i = 0; i < countof(modelloaders); i++)
 		{
@@ -1282,7 +1281,7 @@ static void Mod_LoadModelWorker (void *ctx, void *data, size_t a, size_t b)
 		{
 			for(i = 0; i < countof(modelloaders); i++)
 			{
-				if (modelloaders[i].load && modelloaders[i].magic == magic && !modelloaders[i].ident)
+				if (modelloaders[i].load && modelloaders[i].magic && filesize >= modelloaders[i].magicsize && !memcmp(buf, modelloaders[i].magic, modelloaders[i].magicsize) && !modelloaders[i].ident)
 					break;
 			}
 		}
@@ -1312,7 +1311,7 @@ static void Mod_LoadModelWorker (void *ctx, void *data, size_t a, size_t b)
 			}
 			else
 			{
-				Con_Printf(CON_WARNING "Unrecognised model format 0x%x (%c%c%c%c)\n", magic, ((char*)buf)[0], ((char*)buf)[1], ((char*)buf)[2], ((char*)buf)[3]);
+				Con_Printf(CON_WARNING "Unrecognised model format %c%c%c%c\n", ((char*)buf)[0], ((char*)buf)[1], ((char*)buf)[2], ((char*)buf)[3]);
 				BZ_Free(buf);
 				continue;
 			}
@@ -5284,33 +5283,22 @@ static qboolean QDECL Mod_LoadBrushModel (model_t *mod, void *buffer, size_t fsi
 		isnotmap = true;
 #endif
 
-	switch(header.version)
-	{
-	case BSPVERSIONQ64:
-		subbsp = sb_quake64;
-		mod->fromgame = fg_quake;
+	mod->fromgame = fg_quake;
+	if (!memcmp(&header.version,  BSPVERSION))
 		mod->engineflags |= MDLF_NEEDOVERBRIGHT;
-		break;
-	case BSPVERSION:
-	case BSPVERSIONPREREL:
-		mod->fromgame = fg_quake;
+	else if (!memcmp(&header.version,  BSPVERSIONQ64))
+		mod->engineflags |= MDLF_NEEDOVERBRIGHT, subbsp = sb_quake64;
+	else if (!memcmp(&header.version,  BSPVERSIONPREREL))
 		mod->engineflags |= MDLF_NEEDOVERBRIGHT;
-		break;
-	case BSPVERSION_LONG1:
-		subbsp = sb_long1;
-		mod->fromgame = fg_quake;
-		mod->engineflags |= MDLF_NEEDOVERBRIGHT;
-		break;
-	case BSPVERSION_LONG2:
-		subbsp = sb_long2;
-		mod->fromgame = fg_quake;
-		mod->engineflags |= MDLF_NEEDOVERBRIGHT;
-		break;
-	case BSPVERSIONHL:	//halflife support
+	else if (!memcmp(&header.version,  BSPVERSION_LONG1))
+		mod->engineflags |= MDLF_NEEDOVERBRIGHT, subbsp = sb_long1;
+	else if (!memcmp(&header.version,  BSPVERSION_LONG2))
+		mod->engineflags |= MDLF_NEEDOVERBRIGHT, subbsp = sb_long2;
+	else if (!memcmp(&header.version,  BSPVERSIONHL))
 		mod->fromgame = fg_halflife;
-		break;
-	default:
-		Con_Printf (CON_ERROR "Mod_LoadBrushModel: %s has wrong version number (%i should be %i)\n", mod->name, i, BSPVERSION);
+	else
+	{
+		Con_Printf (CON_ERROR "Mod_LoadBrushModel: %s has wrong version number (%i)\n", mod->name, i);
 		return false;
 	}
 

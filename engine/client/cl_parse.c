@@ -1168,11 +1168,11 @@ static qboolean CL_CheckModelResources (char *name)
 	{
 		return false; // couldn't load it
 	}
-	if (LittleLong(*(unsigned *)file) == MD2IDALIASHEADER)
+	if (!memcmp(file, MD2IDALIASHEADER))
 		ret = CL_CheckMD2Skins(file);
-	else if (LittleLong(*(unsigned *)file) == BSPVERSIONHL)
+	else if (!memcmp(file, BSPVERSIONHL))
 		ret = CL_CheckHLBspWads(file);
-	else if (LittleLong(*(unsigned *)file) == IDBSPHEADER)
+	else if (!memcmp(file, IDBSPHEADER))
 		ret = CL_CheckQ2BspWals(file);
 	else
 		ret = false;

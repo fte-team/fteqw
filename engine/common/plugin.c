@@ -56,10 +56,10 @@ static int QDECL Plug_RegisterModelFormatText(const char *formatname, char *magi
 	void *module = currentplug;
 	return Mod_RegisterModelFormatText(module, formatname, magictext, load);
 }
-static int QDECL Plug_RegisterModelFormatMagic(const char *formatname, unsigned int magic, qboolean (QDECL *load) (struct model_s *mod, void *buffer, size_t fsize))
+static int QDECL Plug_RegisterModelFormatMagic(const char *formatname, qbyte *magic, size_t magicsize, qboolean (QDECL *load) (struct model_s *mod, void *buffer, size_t fsize))
 {
 	void *module = currentplug;
-	return Mod_RegisterModelFormatMagic(module, formatname, magic, load);
+	return Mod_RegisterModelFormatMagic(module, formatname, magic, magicsize, load);
 }
 static void QDECL Plug_UnRegisterModelFormat(int idx)
 {
@@ -1871,6 +1871,7 @@ static void *QDECL PlugBI_GetEngineInterface(const char *interfacename, size_t s
 			wildcmp,
 			COM_CleanUpPath,
 			Com_BlockChecksum,
+			FS_LoadMallocFile,
 		};
 		if (structsize == sizeof(funcs))
 			return &funcs;
@@ -2062,7 +2063,6 @@ static void *QDECL PlugBI_GetEngineInterface(const char *interfacename, size_t s
 			Plug_UnRegisterModelFormat,
 			Plug_UnRegisterAllModelFormats,
 
-			ZG_Malloc,
 			COM_StripExtension,
 
 			R_ConcatTransforms,

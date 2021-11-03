@@ -67,14 +67,13 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 //=============================================================================
 
-#define BSPVERSIONQTEST 23
-#define BSPVERSIONPREREL 28
-#define BSPVERSION	29
-//HalfLife support
-#define BSPVERSIONHL	30
-#define BSPVERSION_LONG1 (('B' << 24) | ('S' << 16) | ('P' << 8) | '2') /*RMQ support (2PSB). 32bits instead of shorts for all but bbox sizes*/
-#define BSPVERSION_LONG2 (('B' << 0) | ('S' << 8) | ('P' << 16) | ('2'<<24)) /*BSP2 support. 32bits instead of shorts for everything*/
-#define BSPVERSIONQ64 (('Q' << 24) | ('6' << 16) | ('4' << 8) | (' ' << 0)) /* Remastered BSP format used for Quake 64 addon */
+#define BSPVERSIONQTEST		"\x17\0\0\0",4	//qtest
+#define BSPVERSIONPREREL	"\x1C\0\0\0",4	//prerelease
+#define BSPVERSION			"\x1D\0\0\0",4	//vanilla
+#define BSPVERSIONHL		"\x1E\0\0\0",4	//HalfLife support
+#define BSPVERSION_LONG1	"2PSB",4 /*RMQ support (2PSB). 32bits instead of shorts for all but bbox sizes*/
+#define BSPVERSION_LONG2	"BSP2",4 /*BSP2 support. 32bits instead of shorts for everything*/
+#define BSPVERSIONQ64 		" 46Q",4 /* Remastered BSP format used for Quake 64 addon */
 
 typedef struct
 {
@@ -379,7 +378,7 @@ typedef struct q2miptex_s
 ==============================================================================
 */
 
-#define IDBSPHEADER	(('P'<<24)+('S'<<16)+('B'<<8)+'I')
+#define IDBSPHEADER	"IBSP",4
 		// little-endian "IBSP"
 
 #define BSPVERSION_Q2	38

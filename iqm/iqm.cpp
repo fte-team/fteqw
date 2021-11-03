@@ -4004,11 +4004,11 @@ namespace fte
 		{	//called explicitly because we're lame.
 			return 0;
 		};
-		cppmodfuncs.RegisterModelFormatMagic = [](const char *formatname, unsigned int magic, qboolean (QDECL *load) (struct model_s *mod, void *buffer, size_t fsize))
+		cppmodfuncs.RegisterModelFormatMagic = [](const char *formatname, qbyte *magic, size_t magicsize, qboolean (QDECL *load) (struct model_s *mod, void *buffer, size_t fsize))
 		{	//called explicitly because we're lame.
 			return 0;
 		};
-		cppmodfuncs.ZG_Malloc = [](zonegroup_t *ctx, size_t size)
+		cppplugfuncs.GMalloc = [](zonegroup_t *ctx, size_t size)
 		{
 			/*leak the memory, because we're lazy*/
 			void *ret = malloc(size);
@@ -4065,7 +4065,7 @@ namespace fte
 
 		cppmodfuncs.GetTexture = [](const char *identifier, const char *subpath, unsigned int flags, void *fallbackdata, void *fallbackpalette, int fallbackwidth, int fallbackheight, uploadfmt_t fallbackfmt)
 		{
-			image_t *img = (image_t*)cppmodfuncs.ZG_Malloc(NULL, sizeof(*img)+strlen(identifier)+1);
+			image_t *img = (image_t*)cppplugfuncs.GMalloc(NULL, sizeof(*img)+strlen(identifier)+1);
 			img->ident = (char*)(img+1);
 			strcpy(img->ident, identifier);
 			img->flags = flags;

@@ -1140,7 +1140,7 @@ static void *GLTF_AccessorToDataF(gltf_t *gltf, size_t outverts, unsigned int ou
 	if (ic > outcomponents)
 		ic = outcomponents;
 	if (!ret)
-		ret = modfuncs->ZG_Malloc(&gltf->mod->memgroup, sizeof(*ret) * outcomponents * outverts);
+		ret = plugfuncs->GMalloc(&gltf->mod->memgroup, sizeof(*ret) * outcomponents * outverts);
 	o = ret;
 	switch(a->componentType)
 	{
@@ -1296,7 +1296,7 @@ static void *GLTF_AccessorToDataF(gltf_t *gltf, size_t outverts, unsigned int ou
 }
 static void *GLTF_AccessorToDataUB(gltf_t *gltf, size_t outverts, unsigned int outcomponents, struct gltf_accessor *a)
 {	//only used for colour, with fallback to float, so only UNSIGNED_BYTE needs to work.
-	unsigned char *ret = modfuncs->ZG_Malloc(&gltf->mod->memgroup, sizeof(*ret) * outcomponents * outverts), *o;
+	unsigned char *ret = plugfuncs->GMalloc(&gltf->mod->memgroup, sizeof(*ret) * outcomponents * outverts), *o;
 	char *in = a->data;
 
 	size_t c, ic = a->type&0xff;
@@ -1343,7 +1343,7 @@ static void *GLTF_AccessorToDataUB(gltf_t *gltf, size_t outverts, unsigned int o
 static void *GLTF_AccessorToDataBone(gltf_t *gltf, size_t outverts, struct gltf_accessor *a)
 {	//input should only be ubytes||ushorts.
 	const unsigned int outcomponents = 4;
-	boneidx_t *ret = modfuncs->ZG_Malloc(&gltf->mod->memgroup, sizeof(*ret) * outcomponents * outverts), *o;
+	boneidx_t *ret = plugfuncs->GMalloc(&gltf->mod->memgroup, sizeof(*ret) * outcomponents * outverts), *o;
 	char *in = a->data;
 
 
@@ -2027,7 +2027,7 @@ static void GLTF_LoadMaterial(gltf_t *gltf, json_t *materialid, galiasskin_t *re
 
 	ret->numframes = 1;
 	ret->skinspeed = 0.1;
-	ret->frame = modfuncs->ZG_Malloc(&gltf->mod->memgroup, sizeof(*ret->frame));
+	ret->frame = plugfuncs->GMalloc(&gltf->mod->memgroup, sizeof(*ret->frame));
 
 	{
 		int skip;
@@ -2264,7 +2264,7 @@ static void GLTF_LoadMaterial(gltf_t *gltf, json_t *materialid, galiasskin_t *re
 	if (!ret->frame->texnums.base)
 		ret->frame->texnums.base = modfuncs->GetTexture("$whiteimage", NULL, IF_NOMIPMAP|IF_NOPICMIP|IF_NEAREST|IF_NOGAMMA, NULL, NULL, 0, 0, TF_INVALID);
 
-	ret->frame->defaultshader = memcpy(modfuncs->ZG_Malloc(&gltf->mod->memgroup, strlen(shader)+1), shader, strlen(shader)+1);
+	ret->frame->defaultshader = memcpy(plugfuncs->GMalloc(&gltf->mod->memgroup, strlen(shader)+1), shader, strlen(shader)+1);
 
 	Q_strlcpy(ret->name, ret->frame->shadername, sizeof(ret->name));
 }
@@ -2354,7 +2354,7 @@ static qboolean GLTF_ProcessMesh(gltf_t *gltf, json_t *meshid, int basebone, dou
 		if (!vpos.count)
 			continue;
 
-		surf = modfuncs->ZG_Malloc(&mod->memgroup, sizeof(*surf) + (morphtargets*sizeof(float)));
+		surf = plugfuncs->GMalloc(&mod->memgroup, sizeof(*surf) + (morphtargets*sizeof(float)));
 
 		surf->surfaceid = JSON_GetInteger(prim, "extras.fte.surfaceid", meshidx);
 		surf->contents = JSON_GetInteger(prim, "extras.fte.contents", FTECONTENTS_BODY);
@@ -2372,7 +2372,7 @@ static qboolean GLTF_ProcessMesh(gltf_t *gltf, json_t *meshid, int basebone, dou
 		if (idx.data)
 		{
 			surf->numindexes = idx.count;
-			surf->ofs_indexes = modfuncs->ZG_Malloc(&mod->memgroup, sizeof(*surf->ofs_indexes) * idx.count);
+			surf->ofs_indexes = plugfuncs->GMalloc(&mod->memgroup, sizeof(*surf->ofs_indexes) * idx.count);
 			if (idx.componentType == 5123)
 			{	//unsigned shorts
 				for (i = 0; i < idx.count; i++)
@@ -2394,7 +2394,7 @@ static qboolean GLTF_ProcessMesh(gltf_t *gltf, json_t *meshid, int basebone, dou
 		else
 		{
 			surf->numindexes = surf->numverts;
-			surf->ofs_indexes = modfuncs->ZG_Malloc(&mod->memgroup, sizeof(*surf->ofs_indexes) * surf->numverts);
+			surf->ofs_indexes = plugfuncs->GMalloc(&mod->memgroup, sizeof(*surf->ofs_indexes) * surf->numverts);
 			for (i = 0; i < surf->numverts; i++)
 				surf->ofs_indexes[i] = i;
 		}
@@ -2410,7 +2410,7 @@ static qboolean GLTF_ProcessMesh(gltf_t *gltf, json_t *meshid, int basebone, dou
 		surf->AnimateMorphs = GLTF_AnimateMorphs;
 		memcpy((float*)(surf+1), morphweights, sizeof(float)*morphtargets);
 		surf->nummorphs = morphtargets;
-		surf->ofs_skel_xyz = modfuncs->ZG_Malloc(&mod->memgroup, (sizeof(*surf->ofs_skel_xyz)+sizeof(*surf->ofs_skel_norm)+sizeof(*surf->ofs_skel_svect)+sizeof(*surf->ofs_skel_tvect)) * surf->numverts * (1+morphtargets));
+		surf->ofs_skel_xyz = plugfuncs->GMalloc(&mod->memgroup, (sizeof(*surf->ofs_skel_xyz)+sizeof(*surf->ofs_skel_norm)+sizeof(*surf->ofs_skel_svect)+sizeof(*surf->ofs_skel_tvect)) * surf->numverts * (1+morphtargets));
 		surf->ofs_skel_norm = (vec3_t*)(surf->ofs_skel_xyz+surf->numverts*(1+morphtargets));
 		surf->ofs_skel_svect = (vec3_t*)(surf->ofs_skel_norm+surf->numverts*(1+morphtargets));
 		surf->ofs_skel_tvect = (vec3_t*)(surf->ofs_skel_svect+surf->numverts*(1+morphtargets));
@@ -2437,7 +2437,7 @@ static qboolean GLTF_ProcessMesh(gltf_t *gltf, json_t *meshid, int basebone, dou
 			surf->ofs_rgbaf		= GLTF_AccessorToDataF(gltf, surf->numverts, countof(surf->ofs_rgbaf[0]),		&col0, NULL);
 		/*else
 		{
-			surf->ofs_rgbaub = modfuncs->ZG_Malloc(&gltf->mod->memgroup, sizeof(*surf->ofs_rgbaub) * surf->numverts);
+			surf->ofs_rgbaub = plugfuncs->GMalloc(&gltf->mod->memgroup, sizeof(*surf->ofs_rgbaub) * surf->numverts);
 			memset(surf->ofs_rgbaub, 0xff, sizeof(*surf->ofs_rgbaub) * surf->numverts);
 		}*/
 		if (sidx.data && swgt.data)
@@ -2456,8 +2456,8 @@ static qboolean GLTF_ProcessMesh(gltf_t *gltf, json_t *meshid, int basebone, dou
 		}
 		else
 		{
-			surf->ofs_skel_idx = modfuncs->ZG_Malloc(&gltf->mod->memgroup, sizeof(surf->ofs_skel_idx[0]) * surf->numverts);
-			surf->ofs_skel_weight = modfuncs->ZG_Malloc(&gltf->mod->memgroup, sizeof(surf->ofs_skel_weight[0]) * surf->numverts);
+			surf->ofs_skel_idx = plugfuncs->GMalloc(&gltf->mod->memgroup, sizeof(surf->ofs_skel_idx[0]) * surf->numverts);
+			surf->ofs_skel_weight = plugfuncs->GMalloc(&gltf->mod->memgroup, sizeof(surf->ofs_skel_weight[0]) * surf->numverts);
 			for (i = 0; i < surf->numverts; i++)
 			{
 				Vector4Set(surf->ofs_skel_idx[i], basebone, 0, 0, 0);
@@ -2493,7 +2493,7 @@ static qboolean GLTF_ProcessMesh(gltf_t *gltf, json_t *meshid, int basebone, dou
 		{
 			json_t *mapping, *var;
 			surf->numskins = 1+gltf->variations;
-			surf->ofsskins = modfuncs->ZG_Malloc(&gltf->mod->memgroup, sizeof(*surf->ofsskins)*surf->numskins);
+			surf->ofsskins = plugfuncs->GMalloc(&gltf->mod->memgroup, sizeof(*surf->ofsskins)*surf->numskins);
 			GLTF_LoadMaterial(gltf, JSON_FindChild(prim, "material"), surf->ofsskins, surf->ofs_rgbaub||surf->ofs_rgbaf);
 			for (i = 0; i < gltf->variations; i++)
 				surf->ofsskins[1+i] = surf->ofsskins[0];	//unspecified matches defaults...
@@ -2813,7 +2813,7 @@ struct gltf_animsampler
 static void GLTF_Animation_Persist(gltf_t *gltf, struct gltf_accessor *accessor)
 {
 	model_t *mod = gltf->mod;
-	qbyte *newdata = modfuncs->ZG_Malloc(&mod->memgroup, accessor->length);
+	qbyte *newdata = plugfuncs->GMalloc(&mod->memgroup, accessor->length);
 	memcpy(newdata, accessor->data, accessor->length);
 	accessor->data = newdata;
 }
@@ -3373,9 +3373,9 @@ static qboolean GLTF_LoadModel(struct model_s *mod, char *json, size_t jsonsize,
 
 		GLTF_RewriteBoneTree(&gltf);
 
-		gltfbone = modfuncs->ZG_Malloc(&mod->memgroup, sizeof(*gltfbone)*gltf.numbones);
-		bone = modfuncs->ZG_Malloc(&mod->memgroup, sizeof(*bone)*gltf.numbones);
-		baseframe = modfuncs->ZG_Malloc(&mod->memgroup, sizeof(float)*12*gltf.numbones);
+		gltfbone = plugfuncs->GMalloc(&mod->memgroup, sizeof(*gltfbone)*gltf.numbones);
+		bone = plugfuncs->GMalloc(&mod->memgroup, sizeof(*bone)*gltf.numbones);
+		baseframe = plugfuncs->GMalloc(&mod->memgroup, sizeof(float)*12*gltf.numbones);
 		for (j = 0; j < gltf.numbones; j++)
 		{
 			Q_strlcpy(bone[j].name, gltf.bones[j].name, sizeof(bone[j].name));
@@ -3404,7 +3404,7 @@ static qboolean GLTF_LoadModel(struct model_s *mod, char *json, size_t jsonsize,
 				mergeanims = alloca(sizeof(*mergeanims)*gltf.numbones);
 				memset(mergeanims, 0, sizeof(mergeanims)*gltf.numbones);
 			}
-			framegroups = modfuncs->ZG_Malloc(&mod->memgroup, sizeof(*framegroups)*numframegroups);
+			framegroups = plugfuncs->GMalloc(&mod->memgroup, sizeof(*framegroups)*numframegroups);
 			anim = JSON_FindChild(gltf.r, "animations")->child;
 			for (k = 0; k < numframegroups; k++, anim = anim->sibling)
 			{
@@ -3414,7 +3414,7 @@ static qboolean GLTF_LoadModel(struct model_s *mod, char *json, size_t jsonsize,
 				json_t *params = gltf.ver<=1?JSON_FindChild(anim, "parameters"):0;	//gltf1
 				float maxtime = 0;
 				unsigned maxposes = 0;
-				struct galiasanimation_gltf_s *a = modfuncs->ZG_Malloc(&mod->memgroup, sizeof(*a)+sizeof(a->bone[0])*(gltf.numbones-1));
+				struct galiasanimation_gltf_s *a = plugfuncs->GMalloc(&mod->memgroup, sizeof(*a)+sizeof(a->bone[0])*(gltf.numbones-1));
 				anim->used = true;
 
 				if (!JSON_ReadBody(JSON_FindChild(anim, "name"), fg->name, sizeof(fg->name)))
@@ -3663,7 +3663,7 @@ qboolean Plug_GLTF_Init(void)
 	if (modfuncs && filefuncs)
 	{
 		modfuncs->RegisterModelFormatText("glTF models (glTF)", ".gltf", Mod_LoadGLTFModel);
-		modfuncs->RegisterModelFormatMagic("glTF models (glb)", (('F'<<24)+('T'<<16)+('l'<<8)+'g'), Mod_LoadGLBModel);
+		modfuncs->RegisterModelFormatMagic("glTF models (glb)", "glTF",4, Mod_LoadGLBModel);
 		return true;
 	}
 	return false;

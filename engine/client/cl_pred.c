@@ -198,8 +198,9 @@ int		VARGS CLQ2_PMpointcontents (vec3_t point)
 	int			num;
 	model_t		*cmodel;
 	int			contents;
+	vec3_t		axis[3], relpos;
 
-	contents = CM_PointContents (cl.worldmodel, point);
+	contents = cl.worldmodel->funcs.PointContents(cl.worldmodel, NULL, point);
 
 	for (i=0 ; i<cl.q2frame.num_entities ; i++)
 	{
@@ -213,7 +214,10 @@ int		VARGS CLQ2_PMpointcontents (vec3_t point)
 		if (!cmodel)
 			continue;
 
-		contents |= CM_TransformedPointContents (cl.worldmodel, point, cmodel->hulls[0].firstclipnode, ent->origin, ent->angles);
+		AngleVectors (ent->angles, axis[0], axis[1], axis[2]);
+		VectorNegate(axis[1], axis[1]);
+		VectorSubtract(point, ent->origin, relpos);
+		contents |= cmodel->funcs.PointContents(cmodel, axis, relpos);
 	}
 
 	return contents;

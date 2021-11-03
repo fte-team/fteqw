@@ -1900,11 +1900,11 @@ void R_ReloadRenderer_f (void)
 	if (qrenderer == QR_NONE || qrenderer == QR_HEADLESS)
 		return;	//don't bother reloading the renderer if its not actually rendering anything anyway.
 
-#if !defined(CLIENTONLY) && (defined(Q2BSPS) || defined(Q3BSPS))
-	if (sv.state == ss_active && sv.world.worldmodel && sv.world.worldmodel->loadstate == MLS_LOADED)
+#if !defined(CLIENTONLY)
+	if (sv.state == ss_active && sv.world.worldmodel && sv.world.worldmodel->loadstate == MLS_LOADED && sv.world.worldmodel->funcs.SaveAreaPortalBlob)
 	{
 		void *t;
-		portalsize = CM_WritePortalState(sv.world.worldmodel, &t);
+		portalsize = sv.world.worldmodel->funcs.SaveAreaPortalBlob(sv.world.worldmodel, &t);
 		if (portalsize && (portalblob = BZ_Malloc(portalsize)))
 			memcpy(portalblob, t, portalsize);
 	}
@@ -1917,11 +1917,11 @@ void R_ReloadRenderer_f (void)
 	R_ApplyRenderer_Load(NULL);
 	Cvar_ApplyCallbacks(CVAR_RENDERERCALLBACK);
 
-#if !defined(CLIENTONLY) && (defined(Q2BSPS) || defined(Q3BSPS))
+#if !defined(CLIENTONLY)
 	if (portalblob)
 	{
-		if (sv.world.worldmodel && sv.world.worldmodel->loadstate == MLS_LOADED)
-			CM_ReadPortalState(sv.world.worldmodel, portalblob, portalsize);
+		if (sv.world.worldmodel && sv.world.worldmodel->loadstate == MLS_LOADED && sv.world.worldmodel->funcs.LoadAreaPortalBlob)
+			sv.world.worldmodel->funcs.LoadAreaPortalBlob(sv.world.worldmodel, portalblob, portalsize);
 		BZ_Free(portalblob);
 	}
 #endif
@@ -2166,11 +2166,11 @@ void R_RestartRenderer (rendererstate_t *newr)
 		return;
 	}
 
-#if !defined(CLIENTONLY) && (defined(Q2BSPS) || defined(Q3BSPS))
-	if (sv.state == ss_active && sv.world.worldmodel && sv.world.worldmodel->loadstate == MLS_LOADED)
+#ifdef HAVE_SERVER
+	if (sv.state == ss_active && sv.world.worldmodel && sv.world.worldmodel->loadstate == MLS_LOADED && sv.world.worldmodel->funcs.SaveAreaPortalBlob)
 	{
 		void *t;
-		portalsize = CM_WritePortalState(sv.world.worldmodel, &t);
+		portalsize = sv.world.worldmodel->funcs.SaveAreaPortalBlob(sv.world.worldmodel, &t);
 		if (portalsize && (portalblob = BZ_Malloc(portalsize)))
 			memcpy(portalblob, t, portalsize);
 	}
@@ -2264,11 +2264,11 @@ void R_RestartRenderer (rendererstate_t *newr)
 		}
 	}
 
-#if !defined(CLIENTONLY) && (defined(Q2BSPS) || defined(Q3BSPS))
+#ifdef HAVE_SERVER
 	if (portalblob)
 	{
-		if (sv.world.worldmodel && sv.world.worldmodel->loadstate == MLS_LOADED)
-			CM_ReadPortalState(sv.world.worldmodel, portalblob, portalsize);
+		if (sv.world.worldmodel && sv.world.worldmodel->loadstate == MLS_LOADED && sv.world.worldmodel->funcs.LoadAreaPortalBlob)
+			sv.world.worldmodel->funcs.LoadAreaPortalBlob(sv.world.worldmodel, portalblob, portalsize);
 		BZ_Free(portalblob);
 	}
 #endif
@@ -2652,218 +2652,10 @@ unsigned int	r_viewcontents;
 int r_viewarea;
 int		r_viewcluster, r_viewcluster2, r_oldviewcluster, r_oldviewcluster2;
 int r_visframecount;
-mleaf_t		*r_vischain;		// linked list of visible leafs
 static pvsbuffer_t	curframevis[R_MAX_RECURSE];
 
-/*
-===============
-R_MarkLeaves
-===============
-*/
-#ifdef Q3BSPS
-qbyte *R_MarkLeaves_Q3 (void)
-{
-	static qbyte	*cvis[R_MAX_RECURSE];
-	qbyte *vis;
-	int		i;
-
-	int cluster;
-	mleaf_t	*leaf;
-	mnode_t *node;
-	int portal = r_refdef.recurse;
-
-	if (!portal)
-	{
-		if (r_oldviewcluster == r_viewcluster && !r_novis.value && r_viewcluster != -1)
-			return cvis[portal];
-	}
-
-	// development aid to let you run around and see exactly where
-	// the pvs ends
-//		if (r_lockpvs->value)
-//			return;
-
-	r_vischain = NULL;
-	r_visframecount++;
-	r_oldviewcluster = r_viewcluster;
-
-	if (r_novis.ival || r_viewcluster == -1 || !cl.worldmodel->vis )
-	{
-		vis = NULL;
-		// mark everything
-		for (i=0,leaf=cl.worldmodel->leafs ; i<cl.worldmodel->numleafs ; i++, leaf++)
-		{
-//			if (!leaf->nummarksurfaces)
-//			{
-//				continue;
-//			}
-
-#if 1
-			for (node = (mnode_t*)leaf; node; node = node->parent)
-			{
-				if (node->visframe == r_visframecount)
-					break;
-				node->visframe = r_visframecount;
-			}
-#else
-			leaf->visframe = r_visframecount;
-			leaf->vischain = r_vischain;
-			r_vischain = leaf;
-#endif
-		}
-	}
-	else
-	{
-		vis = CM_ClusterPVS (cl.worldmodel, r_viewcluster, &curframevis[portal], PVM_FAST);
-		for (i=0,leaf=cl.worldmodel->leafs ; i<cl.worldmodel->numleafs ; i++, leaf++)
-		{
-			cluster = leaf->cluster;
-			if (cluster == -1)// || !leaf->nummarksurfaces)
-			{
-				continue;
-			}
-			if (vis[cluster>>3] & (1<<(cluster&7)))
-			{
-#if 1
-				for (node = (mnode_t*)leaf; node; node = node->parent)
-				{
-					if (node->visframe == r_visframecount)
-						break;
-					node->visframe = r_visframecount;
-				}
-#else
-				leaf->visframe = r_visframecount;
-				leaf->vischain = r_vischain;
-				r_vischain = leaf;
-#endif
-			}
-		}
-		cvis[portal] = vis;
-	}
-	return vis;
-}
-#endif
-
-#ifdef Q2BSPS
-qbyte *R_MarkLeaves_Q2 (void)
-{
-	static qbyte	*cvis[R_MAX_RECURSE];
-	mnode_t	*node;
-	int		i;
-
-	int cluster;
-	mleaf_t	*leaf;
-	qbyte *vis;
-
-	int portal = r_refdef.recurse;
-
-	if (r_refdef.forcevis)
-	{
-		vis = cvis[portal] = r_refdef.forcedvis;
-
-		r_oldviewcluster = -1;
-		r_oldviewcluster2 = -1;
-	}
-	else
-	{
-		vis = cvis[portal];
-		if (!portal)
-		{
-			if (r_oldviewcluster == r_viewcluster && r_oldviewcluster2 == r_viewcluster2)
-				return vis;
-
-			r_oldviewcluster = r_viewcluster;
-			r_oldviewcluster2 = r_viewcluster2;
-		}
-		else
-		{
-			r_oldviewcluster = -1;
-			r_oldviewcluster2 = -1;
-		}
-
-		if (r_novis.ival == 2)
-			return vis;
-
-		if (r_novis.ival || r_viewcluster == -1 || !cl.worldmodel->vis)
-		{
-			// mark everything
-			for (i=0 ; i<cl.worldmodel->numleafs ; i++)
-				cl.worldmodel->leafs[i].visframe = r_visframecount;
-			for (i=0 ; i<cl.worldmodel->numnodes ; i++)
-				cl.worldmodel->nodes[i].visframe = r_visframecount;
-			return vis;
-		}
-
-		if (r_viewcluster2 != r_viewcluster)	// may have to combine two clusters because of solid water boundaries
-		{
-			vis = CM_ClusterPVS (cl.worldmodel, r_viewcluster, &curframevis[portal], PVM_REPLACE);
-			vis = CM_ClusterPVS (cl.worldmodel, r_viewcluster2, &curframevis[portal], PVM_MERGE);
-		}
-		else
-			vis = CM_ClusterPVS (cl.worldmodel, r_viewcluster, &curframevis[portal], PVM_FAST);
-		cvis[portal] = vis;
-	}
-
-	r_visframecount++;
-
-	for (i=0,leaf=cl.worldmodel->leafs ; i<cl.worldmodel->numleafs ; i++, leaf++)
-	{
-		cluster = leaf->cluster;
-		if (cluster == -1)
-			continue;
-		if (vis[cluster>>3] & (1<<(cluster&7)))
-		{
-			node = (mnode_t *)leaf;
-			do
-			{
-				if (node->visframe == r_visframecount)
-					break;
-				node->visframe = r_visframecount;
-				node = node->parent;
-			} while (node);
-		}
-	}
-	return vis;
-}
-#endif
 
 #ifdef Q1BSPS
-#if 0
-qbyte *R_CalcVis_Q1 (void)
-{
-	unsigned int i;
-	static qbyte	*vis;
-	r_visframecount++;
-	if (r_oldviewleaf == r_viewleaf && r_oldviewleaf2 == r_viewleaf2)
-	{
-	}
-	else
-	{
-		r_oldviewleaf = r_viewleaf;
-		r_oldviewleaf2 = r_viewleaf2;
-
-		if (r_novis.ival&1)
-		{
-			vis = curframevis;
-			memset (vis, 0xff, (cl.worldmodel->numleafs+7)>>3);
-		}
-		else if (r_viewleaf2 && r_viewleaf2 != r_viewleaf)
-		{
-			int c;
-			Q1BSP_LeafPVS (cl.worldmodel, r_viewleaf2, curframevis, sizeof(curframevis));
-			vis = Q1BSP_LeafPVS (cl.worldmodel, r_viewleaf, NULL, sizeof(curframevis));
-			c = (cl.worldmodel->numclusters+31)/32;
-			for (i=0 ; i<c ; i++)
-				((int *)curframevis)[i] |= ((int *)vis)[i];
-			vis = curframevis;
-		}
-		else
-			vis = Q1BSP_LeafPVS (cl.worldmodel, r_viewleaf, curframevis, sizeof(curframevis));
-	}
-	return vis;
-}
-#endif
-
 qbyte *R_MarkLeaves_Q1 (qboolean getvisonly)
 {
 	static qbyte	*cvis[R_MAX_RECURSE];

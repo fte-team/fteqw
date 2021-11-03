@@ -574,7 +574,7 @@ qboolean SV_LoadLevelCache(const char *savename, const char *level, const char *
 				sv.strings.q2_extrasounds[i] = NULL;
 			}
 			//Read portal state
-			CM_ReadPortalState(sv.world.worldmodel, s, (file+filelen)-s);
+			sv.world.worldmodel->funcs.LoadAreaPortalBlob(sv.world.worldmodel, s, (file+filelen)-s);
 			FS_FreeFile(file);
 		}
 
@@ -1022,7 +1022,7 @@ void SV_SaveLevelCache(const char *savedir, qboolean dontharmgame)
 			}
 			VFS_WRITE(f, "", 1);
 
-			portalblobsize = CM_WritePortalState(sv.world.worldmodel, &portalblob);
+			portalblobsize = sv.world.worldmodel->funcs.SaveAreaPortalBlob(sv.world.worldmodel, &portalblob);
 			VFS_WRITE(f, portalblob, portalblobsize);
 
 			VFS_CLOSE(f);

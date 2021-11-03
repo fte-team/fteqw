@@ -178,7 +178,9 @@ extern struct model_s *mod_known; //for evil people that want to do evil indexin
 const char *Mod_GetEntitiesString(struct model_s *mod);
 void Mod_SetEntitiesStringLen(struct model_s *mod, const char *str, size_t strsize);
 void Mod_SetEntitiesString(struct model_s *mod, const char *str, qboolean docopy);
+qboolean Mod_LoadEntitiesBlob(struct model_s *mod, const char *entdata, size_t entdatasize);	//initial read, with .ent file replacement etc
 void Mod_ParseEntities(struct model_s *mod);
+void Mod_LoadMapArchive(struct model_s *mod, void *archivedata, size_t archivesize);
 extern void	Mod_ClearAll						(void);
 extern void Mod_Purge							(enum mod_purge_e type);
 extern qboolean Mod_PurgeModel					(struct model_s	*mod, enum mod_purge_e ptype);

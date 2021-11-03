@@ -1055,6 +1055,10 @@ void SV_SpawnServer (const char *server, const char *startspot, qboolean noents,
 	if (sv.world.worldmodel)
 		FS_LoadMapPackFile(sv.world.worldmodel->name, sv.world.worldmodel->archive);
 
+	//reset the map's areaportal state... it might be dirty from a restart or so.
+	if (sv.world.worldmodel->funcs.LoadAreaPortalBlob)
+		sv.world.worldmodel->funcs.LoadAreaPortalBlob(sv.world.worldmodel, NULL, 0);
+
 #ifndef SERVERONLY
 	current_loading_size+=10;
 //	SCR_BeginLoadingPlaque();
@@ -1158,7 +1162,7 @@ MSV_OpenUserDatabase();
 		newgametype = GT_QUAKE3;
 #endif
 #ifdef Q2SERVER
-	else if ((sv.world.worldmodel->fromgame == fg_quake2 || sv.world.worldmodel->fromgame == fg_quake3) && !*pr_ssqc_progs.string && SVQ2_InitGameProgs())	//these are the rules for running a q2 server
+	else if ((sv.world.worldmodel->fromgame == fg_quake2 || sv.world.worldmodel->fromgame == fg_quake3) && sv.world.worldmodel->funcs.AreasConnected && !*pr_ssqc_progs.string && SVQ2_InitGameProgs())	//these are the rules for running a q2 server
 		newgametype = GT_QUAKE2;	//we loaded the dll
 #endif
 #ifdef VM_LUA

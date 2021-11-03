@@ -8,7 +8,7 @@ of the License, or (at your option) any later version.
 
 This program is distributed in the hope that it will be useful,
 but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
 See the GNU General Public License for more details.
 
@@ -286,7 +286,18 @@ typedef struct {
 
 	int	(*ClusterForPoint)		(struct model_s *model, const vec3_t point, int *areaout);	//pvs index (leaf-1 for q1bsp). may be negative (ie: no pvs).
 	qbyte *(*ClusterPVS)		(struct model_s *model, int cluster, pvsbuffer_t *pvsbuffer, pvsmerge_t merge);
+	qbyte *(*ClusterPHS)		(struct model_s *model, int cluster, pvsbuffer_t *pvsbuffer);
 	qbyte *(*ClustersInSphere)	(struct model_s *model, const vec3_t point, float radius, pvsbuffer_t *pvsbuffer, const qbyte *fte_restrict unionwith);
+
+	size_t (*WriteAreaBits)		(struct model_s *model, qbyte *buffer, size_t maxbytes, int area, qboolean merge);	//writes a set of bits valid for a specific viewpoint's area.
+	qboolean (*AreasConnected)	(struct model_s *model, unsigned int area1, unsigned int area2);	//fails if there's no open doors
+	void (*SetAreaPortalState)	(struct model_s *model, unsigned int portal, unsigned int area1, unsigned int area2, qboolean open);	//a door moved...
+	size_t (*SaveAreaPortalBlob)(struct model_s *model, void **ptr);				//for vid_reload to not break portals. dupe the ptrbefore freeing the model.
+	size_t (*LoadAreaPortalBlob)(struct model_s *model, void *ptr, size_t size);	//for vid_reload to not break portals (has refcount info etc).
+
+	void (*PrepareFrame)		(struct model_s *model, refdef_t *refdef, int area, int clusters[2], pvsbuffer_t *vis, qbyte **entvis_out, qbyte **surfvis_out);
+	void (*GenerateShadowMesh)	(struct model_s *model, dlight_t *dl, const qbyte *lvis, qbyte *truevis, void(*callback)(struct msurface_s*));
+	void (*InfoForPoint)		(struct model_s *model, vec3_t pos, int *area, int *cluster, unsigned int *contentbits);
 } modelfuncs_t;
 
 
@@ -352,7 +363,7 @@ void GL_DeselectVAO(void);
 
 typedef struct texture_s
 {
-	char		name[64];
+	char		name[128];
 	unsigned	vwidth, vheight;	//used for lightmap coord generation
 
 	struct shader_s	*shader;
@@ -469,7 +480,7 @@ typedef struct msurface_s
 	int			shadowframe;
 #endif
 //	int			clipcount;
-	
+
 // legacy lighting info
 	dlightbitmask_t	dlightbits;
 	int			dlightframe;
@@ -505,7 +516,7 @@ typedef struct mnode_s
 	int			contents;		// 0, to differentiate from leafs
 	int			visframe;		// node needs to be traversed if current
 	int			shadowframe;
-	
+
 	float		minmaxs[6];		// for bounding box culling
 
 	struct mnode_s	*parent;
@@ -587,6 +598,7 @@ void Q1BSP_CheckHullNodes(hull_t *hull);
 void Q1BSP_SetModelFuncs(struct model_s *mod);
 void Q1BSP_LoadBrushes(struct model_s *model, bspx_header_t *bspx, void *mod_base);
 void Q1BSP_Init(void);
+void Q1BSP_GenerateShadowMesh(struct model_s *model, struct dlight_s *dl, const qbyte *lightvis, qbyte *litvis, void (*callback)(msurface_t *surf));
 
 void BSPX_LoadEnvmaps(struct model_s *mod, bspx_header_t *bspx, void *mod_base);
 void *BSPX_FindLump(bspx_header_t *bspxheader, void *mod_base, char *lumpname, int *lumpsize);
@@ -667,7 +679,7 @@ typedef struct
 	float				interval;
 	dtrivertx_t			bboxmin;
 	dtrivertx_t			bboxmax;
-	
+
 	vec3_t		scale;
 	vec3_t		scale_origin;
 
@@ -693,7 +705,7 @@ typedef struct
 typedef struct mtriangle_s {
 	int					xyz_index[3];
 	int					st_index[3];
-	
+
 	int	pad[2];
 } mtriangle_t;
 
@@ -769,7 +781,7 @@ typedef struct
 	short	t;
 } md2stvert_t;
 
-typedef struct 
+typedef struct
 {
 	short	index_xyz[3];
 	short	index_st[3];
@@ -827,7 +839,7 @@ typedef struct
 	int			ofs_st;			// qbyte offset from start for stverts
 	int			ofs_tris;		// offset for dtriangles
 	int			ofs_frames;		// offset for first frame
-	int			ofs_glcmds;	
+	int			ofs_glcmds;
 	int			ofs_end;		// end of file
 } md2_t;
 
@@ -953,7 +965,7 @@ typedef struct model_s
 
 	int			numframes;
 	synctype_t	synctype;
-	
+
 	int			flags;
 	int			engineflags;
 	int			particleeffect;
@@ -962,14 +974,14 @@ typedef struct model_s
 
 //
 // volume occupied by the model graphics
-//		
+//
 	vec3_t		mins, maxs;
 	float		radius;
 	float		clampscale;
 	float		maxlod;
 
 //
-// solid volume for clipping 
+// solid volume for clipping
 //
 	qboolean	clipbox;
 	vec3_t		clipmins, clipmaxs;
@@ -1160,14 +1172,14 @@ qboolean Heightmap_Edit(model_t *mod, int action, float *pos, float radius, floa
 
 
 #if defined(Q2BSPS) || defined(Q3BSPS)
-
-void CM_InitBoxHull (void);
+void CM_Init(void);
+struct model_s *CM_TempBoxModel(const vec3_t mins, const vec3_t maxs);
+#endif
+#if 0
 
 #ifdef __cplusplus
 //#pragma warningmsg ("                  c++ stinks")
 #else
-
-void CM_Init(void);
 
 qboolean	CM_SetAreaPortalState (struct model_s *mod, int portalnum, qboolean open);
 qboolean	CM_HeadnodeVisible (struct model_s *mod, int nodenum, const qbyte *visbits);
@@ -1185,7 +1197,6 @@ int		CM_PointContents (struct model_s *mod, const vec3_t p);
 int		CM_TransformedPointContents (struct model_s *mod, const vec3_t p, int headnode, const vec3_t origin, const vec3_t angles);
 int		CM_HeadnodeForBox (struct model_s *mod, const vec3_t mins, const vec3_t maxs);
 //struct trace_s	CM_TransformedBoxTrace (struct model_s *mod, vec3_t start, vec3_t end, vec3_t mins, vec3_t maxs, int brushmask, vec3_t origin, vec3_t angles);
-struct model_s *CM_TempBoxModel(const vec3_t mins, const vec3_t maxs);
 
 //for gamecode to control portals/areas
 void	CMQ2_SetAreaPortalState (model_t *mod, unsigned int portalnum, qboolean open);

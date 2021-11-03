@@ -27,7 +27,7 @@ extern int mod_numknown;
 #define VM_FROMSHANDLE(a) ((a&&(unsigned int)a<=r_numshaders)?r_shaders[a-1]:NULL)
 #define VM_TOSHANDLE(a) (a?a->id+1:0)
 
-extern model_t		box_model;
+static model_t		*box_model;
 
 typedef enum {
 	CG_PRINT,
@@ -696,7 +696,7 @@ static qintptr_t CG_SystemCalls(void *offset, quintptr_t mask, qintptr_t fn, con
 //				if (modhandle == MAX_PRECACHE_MODELS+1)
 //					mod = &capsule_model;
 //				else
-					mod = &box_model;
+					mod = box_model;
 			}
 			else
 				mod = cl.model_precache[modhandle+1];
@@ -721,7 +721,7 @@ static qintptr_t CG_SystemCalls(void *offset, quintptr_t mask, qintptr_t fn, con
 //				if (modhandle == MAX_PRECACHE_MODELS+1)
 //					mod = &capsule_model;
 //				else
-					mod = &box_model;
+					mod = box_model;
 			}
 			else
 				mod = cl.model_precache[modhandle+1];
@@ -773,7 +773,7 @@ static qintptr_t CG_SystemCalls(void *offset, quintptr_t mask, qintptr_t fn, con
 //				if (modhandle == MAX_PRECACHE_MODELS+1)
 //					mod = &capsule_model;
 //				else
-					mod = &box_model;
+					mod = box_model;
 			}
 			else
 				mod = cl.model_precache[modhandle+1];
@@ -836,7 +836,7 @@ static qintptr_t CG_SystemCalls(void *offset, quintptr_t mask, qintptr_t fn, con
 //				if (modhandle == MAX_PRECACHE_MODELS+1)
 //					mod = &capsule_model;
 //				else
-					mod = &box_model;
+					mod = box_model;
 			}
 			else
 				mod = cl.model_precache[modhandle+1];
@@ -848,7 +848,7 @@ static qintptr_t CG_SystemCalls(void *offset, quintptr_t mask, qintptr_t fn, con
 				if (mod->loadstate == MLS_LOADING)
 					COM_WorkerPartialSync(mod, &mod->loadstate, MLS_LOADING);
 				if (mod->loadstate != MLS_LOADED)
-					mod = &box_model;	//stop crashes, even if this is wrong.
+					mod = box_model;	//stop crashes, even if this is wrong.
 			}
 
 			if (!mins)
@@ -901,11 +901,11 @@ static qintptr_t CG_SystemCalls(void *offset, quintptr_t mask, qintptr_t fn, con
 		break;
 
 	case CG_CM_TEMPBOXMODEL:
-		CM_TempBoxModel(VM_POINTER(arg[0]), VM_POINTER(arg[1]));
+		box_model = CM_TempBoxModel(VM_POINTER(arg[0]), VM_POINTER(arg[1]));
 		VM_LONG(ret) = MAX_PRECACHE_MODELS;
 		break;
 	case CG_CM_TEMPCAPSULEMODEL:
-		CM_TempBoxModel(VM_POINTER(arg[0]), VM_POINTER(arg[1]));
+		box_model = CM_TempBoxModel(VM_POINTER(arg[0]), VM_POINTER(arg[1]));
 		VM_LONG(ret) = MAX_PRECACHE_MODELS+1;
 		break;
 
@@ -1358,6 +1358,8 @@ void CG_Start (void)
 
 	Z_FreeTags(CGTAGNUM);
 	SCR_BeginLoadingPlaque();
+
+	box_model = CM_TempBoxModel(vec3_origin, vec3_origin);
 
 	cgvm = VM_Create("cgame", com_nogamedirnativecode.ival?NULL:CG_SystemCallsNative, "vm/cgame", CG_SystemCallsVM);
 	if (cgvm)

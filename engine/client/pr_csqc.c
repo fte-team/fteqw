@@ -5386,31 +5386,12 @@ static void QCBUILTIN PF_cs_addprogs (pubprogfuncs_t *prinst, struct globalvars_
 
 static void QCBUILTIN PF_cs_OpenPortal (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-/*
-#ifdef Q2BSPS
-	if (csqc_world.worldmodel->fromgame == fg_quake2)
-	{
-		int portal;
-		int state	= G_FLOAT(OFS_PARM1)!=0;
-		if (G_INT(OFS_PARM1) >= MAX_EDICTS)
-			portal = G_FLOAT(OFS_PARM0);	//old legacy crap.
-		else
-			portal = G_WEDICT(prinst, OFS_PARM0)->xv->style;	//read the func_areaportal's style field.
-		CMQ2_SetAreaPortalState(csqc_world.worldmodel, portal, state);
-	}
-#endif
-*/
-#ifdef Q3BSPS
-	if (csqc_world.worldmodel->fromgame == fg_quake3)
-	{
-		int state	= G_FLOAT(OFS_PARM1)!=0;
-		wedict_t *portal = G_WEDICT(prinst, OFS_PARM0);
-		int area1 = portal->pvsinfo.areanum, area2 = portal->pvsinfo.areanum2;
-		if (area1 == area2 || area1<0 || area2<0)
-			return;
-		CMQ3_SetAreaPortalState(csqc_world.worldmodel, portal->pvsinfo.areanum, portal->pvsinfo.areanum2, state);
-	}
-#endif
+	int state	= G_FLOAT(OFS_PARM1)!=0;
+	wedict_t *ent = G_WEDICT(prinst, OFS_PARM0);
+	int portal = ent->xv->style;
+	int area1 = ent->pvsinfo.areanum, area2 = ent->pvsinfo.areanum2;
+	if (csqc_world.worldmodel->funcs.SetAreaPortalState)
+		csqc_world.worldmodel->funcs.SetAreaPortalState(csqc_world.worldmodel, portal, area1, area2, state);
 }
 
 static void QCBUILTIN PF_cs_droptofloor (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)

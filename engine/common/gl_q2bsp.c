@@ -63,7 +63,35 @@ static qboolean CM_NativeTrace(model_t *model, int forcehullnum, const framestat
 static unsigned int CM_NativeContents(struct model_s *model, int hulloverride, const framestate_t *framestate, const vec3_t axis[3], const vec3_t p, const vec3_t mins, const vec3_t maxs);
 static unsigned int Q2BSP_PointContents(model_t *mod, const vec3_t axis[3], const vec3_t p);
 static int CM_PointCluster (model_t *mod, const vec3_t p, int *area);
+static void CM_InfoForPoint (struct model_s *mod, vec3_t pos, int *area, int *cluster, unsigned int *contentbits);
 struct cminfo_s;
+
+
+void CM_Init(void);
+
+static qboolean	CM_HeadnodeVisible (struct model_s *mod, int nodenum, const qbyte *visbits);
+static qboolean	VARGS CM_AreasConnected (struct model_s *mod, unsigned int area1, unsigned int area2);
+static size_t	CM_WriteAreaBits (struct model_s *mod, qbyte *buffer, size_t buffersize, int area, qboolean merge);
+static qbyte	*CM_ClusterPVS (struct model_s *mod, int cluster, pvsbuffer_t *buffer, pvsmerge_t merge);
+static qbyte	*CM_ClusterPHS (struct model_s *mod, int cluster, pvsbuffer_t *buffer);
+
+//for gamecode to control portals/areas
+static void	CM_SetAreaPortalState (model_t *mod, unsigned int portalnum, unsigned int area1, unsigned int area2, qboolean open);
+
+//for saved games to write the raw state.
+static size_t	CM_SaveAreaPortalBlob (model_t *mod, void **data);
+static size_t	CM_LoadAreaPortalBlob (model_t *mod, void *ptr, size_t ptrsize);
+
+static unsigned int Q23BSP_FatPVS(model_t *mod, const vec3_t org, pvsbuffer_t *buffer, qboolean merge);
+static qboolean Q23BSP_EdictInFatPVS(model_t *mod, const struct pvscache_s *ent, const qbyte *pvs, const int *areas);
+static void Q23BSP_FindTouchedLeafs(model_t *mod, struct pvscache_s *ent, const float *mins, const float *maxs);
+
+#ifdef HAVE_CLIENT
+static void CM_PrepareFrame(model_t *mod, refdef_t *refdef, int area, int viewclusters[2], pvsbuffer_t *vis, qbyte **entvis_out, qbyte **surfvis_out);
+extern void Q2BSP_GenerateShadowMesh(model_t *mod, dlight_t *dl, const qbyte *lightvis, qbyte *litvis, void(*callback)(msurface_t*));
+extern void Q3BSP_GenerateShadowMesh(model_t *mod, dlight_t *dl, const qbyte *lightvis, qbyte *litvis, void(*callback)(msurface_t*));
+#endif
+
 #endif
 
 float RadiusFromBounds (const vec3_t mins, const vec3_t maxs)
@@ -369,7 +397,7 @@ cvar_t		r_subdivisions		= CVAR("r_subdivisions", "2");
 
 static int		CM_NumInlineModels (model_t *model);
 static cmodel_t	*CM_InlineModel (model_t *model, char *name);
-void	CM_InitBoxHull (void);
+static void	CM_InitBoxHull (void);
 static void CM_FinalizeBrush(q2cbrush_t *brush);
 static void	FloodAreaConnections (cminfo_t	*prv);
 
@@ -4459,6 +4487,7 @@ static cmodel_t *CM_LoadMap (model_t *mod, qbyte *filein, size_t filelen, qboole
 	{
 		prv->cmodels = ZG_Malloc(&mod->memgroup, 1 * sizeof(*prv->cmodels));
 		mod->leafs = ZG_Malloc(&mod->memgroup, 1 * sizeof(*mod->leafs));
+		mod->funcs.AreasConnected		= CM_AreasConnected;
 		prv->numcmodels = 1;
 		prv->numareas = 1;
 		mod->checksum = mod->checksum2 = 0;
@@ -4685,24 +4714,36 @@ static cmodel_t *CM_LoadMap (model_t *mod, qbyte *filein, size_t filelen, qboole
 			return NULL;
 		}
 
-#ifndef CLIENTONLY
-		mod->funcs.FatPVS					= Q23BSP_FatPVS;
-		mod->funcs.EdictInFatPVS			= Q23BSP_EdictInFatPVS;
+#ifdef HAVE_SERVER
+		mod->funcs.FatPVS				= Q23BSP_FatPVS;
+		mod->funcs.EdictInFatPVS		= Q23BSP_EdictInFatPVS;
 		mod->funcs.FindTouchedLeafs		= Q23BSP_FindTouchedLeafs;
 #endif
-		mod->funcs.ClusterPVS				= CM_ClusterPVS;
+		mod->funcs.ClusterPVS			= CM_ClusterPVS;
+		mod->funcs.ClusterPHS			= CM_ClusterPHS;
 		mod->funcs.ClusterForPoint		= CM_PointCluster;
 
-#ifndef SERVERONLY
+#ifdef HAVE_CLIENT
 		mod->funcs.LightPointValues		= GLQ3_LightGrid;
-		mod->funcs.StainNode				= GLR_Q2BSP_StainNode;
-		mod->funcs.MarkLights				= Q2BSP_MarkLights;
+		mod->funcs.StainNode			= GLR_Q2BSP_StainNode;
+		mod->funcs.MarkLights			= Q2BSP_MarkLights;
+		mod->funcs.PrepareFrame			= CM_PrepareFrame;
+#ifdef RTLIGHTS
+		mod->funcs.GenerateShadowMesh	= Q3BSP_GenerateShadowMesh;
 #endif
-		mod->funcs.PointContents			= Q2BSP_PointContents;
+#endif
+		mod->funcs.PointContents		= Q2BSP_PointContents;
 		mod->funcs.NativeTrace			= CM_NativeTrace;
-		mod->funcs.NativeContents			= CM_NativeContents;
+		mod->funcs.NativeContents		= CM_NativeContents;
 
-#ifndef SERVERONLY
+		mod->funcs.InfoForPoint			= CM_InfoForPoint;
+		mod->funcs.AreasConnected		= CM_AreasConnected;
+		mod->funcs.SetAreaPortalState	= CM_SetAreaPortalState;
+		mod->funcs.WriteAreaBits		= CM_WriteAreaBits;
+		mod->funcs.LoadAreaPortalBlob	= CM_LoadAreaPortalBlob;
+		mod->funcs.SaveAreaPortalBlob	= CM_SaveAreaPortalBlob;
+
+#ifdef HAVE_CLIENT
 		//light grid info
 		if (mod->lightgrid)
 		{
@@ -4770,10 +4811,34 @@ static cmodel_t *CM_LoadMap (model_t *mod, qbyte *filein, size_t filelen, qboole
 		}
 		BSPX_Setup(mod, mod_base, filelen, header.lumps, i);
 
-#ifndef SERVERONLY
+#ifdef HAVE_CLIENT
 		if (CM_GetQ2Palette())
 			memcpy(d_q28to24table, host_basepal, 768);
 #endif
+
+
+#ifdef HAVE_SERVER
+		mod->funcs.FatPVS				= Q23BSP_FatPVS;
+		mod->funcs.EdictInFatPVS		= Q23BSP_EdictInFatPVS;
+		mod->funcs.FindTouchedLeafs		= Q23BSP_FindTouchedLeafs;
+#endif
+		mod->funcs.LightPointValues		= NULL;
+		mod->funcs.StainNode			= NULL;
+		mod->funcs.MarkLights			= NULL;
+		mod->funcs.ClusterPVS			= CM_ClusterPVS;
+		mod->funcs.ClusterPHS			= CM_ClusterPHS;
+		mod->funcs.ClusterForPoint		= CM_PointCluster;
+		mod->funcs.PointContents		= Q2BSP_PointContents;
+		mod->funcs.NativeTrace			= CM_NativeTrace;
+		mod->funcs.NativeContents		= CM_NativeContents;
+
+		mod->funcs.InfoForPoint			= CM_InfoForPoint;
+		mod->funcs.AreasConnected		= CM_AreasConnected;
+		mod->funcs.SetAreaPortalState	= CM_SetAreaPortalState;
+		mod->funcs.WriteAreaBits		= CM_WriteAreaBits;
+		mod->funcs.LoadAreaPortalBlob	= CM_LoadAreaPortalBlob;
+		mod->funcs.SaveAreaPortalBlob	= CM_SaveAreaPortalBlob;
+		mod->funcs.PrepareFrame			= NULL;
 
 		switch(qrenderer)
 		{
@@ -4791,23 +4856,8 @@ static cmodel_t *CM_LoadMap (model_t *mod, qbyte *filein, size_t filelen, qboole
 			noerrors = noerrors && CModQ2_LoadAreaPortals	(mod, mod_base, &header.lumps[Q2LUMP_AREAPORTALS]);
 			if (noerrors)
 				Mod_LoadEntities							(mod, mod_base, &header.lumps[Q2LUMP_ENTITIES]);
-
-#ifndef CLIENTONLY
-			mod->funcs.FatPVS				= Q23BSP_FatPVS;
-			mod->funcs.EdictInFatPVS		= Q23BSP_EdictInFatPVS;
-			mod->funcs.FindTouchedLeafs		= Q23BSP_FindTouchedLeafs;
-#endif
-			mod->funcs.LightPointValues		= NULL;
-			mod->funcs.StainNode			= NULL;
-			mod->funcs.MarkLights			= NULL;
-			mod->funcs.ClusterPVS			= CM_ClusterPVS;
-			mod->funcs.ClusterForPoint		= CM_PointCluster;
-			mod->funcs.PointContents		= Q2BSP_PointContents;
-			mod->funcs.NativeTrace			= CM_NativeTrace;
-			mod->funcs.NativeContents		= CM_NativeContents;
-
 			break;
-#ifndef SERVERONLY
+#ifdef HAVE_CLIENT
 		default:
 			{
 				// load into heap
@@ -4837,19 +4887,13 @@ static cmodel_t *CM_LoadMap (model_t *mod, qbyte *filein, size_t filelen, qboole
 				{
 					return NULL;
 				}
-#ifndef CLIENTONLY
-				mod->funcs.FatPVS				= Q23BSP_FatPVS;
-				mod->funcs.EdictInFatPVS		= Q23BSP_EdictInFatPVS;
-				mod->funcs.FindTouchedLeafs		= Q23BSP_FindTouchedLeafs;
-#endif
 				mod->funcs.LightPointValues		= GLQ2BSP_LightPointValues;
 				mod->funcs.StainNode			= GLR_Q2BSP_StainNode;
 				mod->funcs.MarkLights			= Q2BSP_MarkLights;
-				mod->funcs.ClusterPVS			= CM_ClusterPVS;
-				mod->funcs.ClusterForPoint		= CM_PointCluster;
-				mod->funcs.PointContents		= Q2BSP_PointContents;
-				mod->funcs.NativeTrace			= CM_NativeTrace;
-				mod->funcs.NativeContents		= CM_NativeContents;
+				mod->funcs.PrepareFrame			= CM_PrepareFrame;
+#ifdef RTLIGHTS
+				mod->funcs.GenerateShadowMesh	= Q2BSP_GenerateShadowMesh;
+#endif
 			}
 			break;
 #endif
@@ -4893,7 +4937,7 @@ static cmodel_t *CM_LoadMap (model_t *mod, qbyte *filein, size_t filelen, qboole
 		builddata_t *bd = NULL;
 		if (buildmeshes)
 		{
-			bd = BZ_Malloc(sizeof(*bd) + facesize*mod->nummodelsurfaces);
+			bd = Z_Malloc(sizeof(*bd) + facesize*mod->nummodelsurfaces);
 			bd->buildfunc = buildmeshes;
 			memcpy(bd+1, facedata + mod->firstmodelsurface*facesize, facesize*mod->nummodelsurfaces);
 		}
@@ -4956,7 +5000,7 @@ static cmodel_t *CM_LoadMap (model_t *mod, qbyte *filein, size_t filelen, qboole
 			builddata_t *bd = NULL;
 			if (buildmeshes)
 			{
-				bd = BZ_Malloc(sizeof(*bd) + facesize*mod->nummodelsurfaces);
+				bd = Z_Malloc(sizeof(*bd) + facesize*mod->nummodelsurfaces);
 				bd->buildfunc = buildmeshes;
 				memcpy(bd+1, facedata + mod->firstmodelsurface*facesize, facesize*mod->nummodelsurfaces);
 			}
@@ -4996,40 +5040,27 @@ static cmodel_t	*CM_InlineModel (model_t *model, char *name)
 	return &prv->cmodels[num];
 }
 
-int		CM_ClusterBytes (model_t *model)
-{
-#ifdef Q3BSPS
-	if (model->fromgame == fg_quake3)
-	{
-		cminfo_t	*prv = (cminfo_t*)model->meshinfo;
-		return prv->q3pvs->rowsize ? prv->q3pvs->rowsize : model->pvsbytes;
-	}
-	else
-#endif
-		return model->pvsbytes;
-}
-
 static int		CM_NumInlineModels (model_t *model)
 {
 	cminfo_t	*prv = (cminfo_t*)model->meshinfo;
 	return prv->numcmodels;
 }
 
-int		CM_LeafContents (model_t *model, int leafnum)
+static int		CM_LeafContents (model_t *model, int leafnum)
 {
 	if (leafnum < 0 || leafnum >= model->numleafs)
 		Host_Error ("CM_LeafContents: bad number");
 	return model->leafs[leafnum].contents;
 }
 
-int		CM_LeafCluster (model_t *model, int leafnum)
+static int		CM_LeafCluster (model_t *model, int leafnum)
 {
 	if (leafnum < 0 || leafnum >= model->numleafs)
 		Host_Error ("CM_LeafCluster: bad number");
 	return model->leafs[leafnum].cluster;
 }
 
-int		CM_LeafArea (model_t *model, int leafnum)
+static int		CM_LeafArea (model_t *model, int leafnum)
 {
 	if (leafnum < 0 || leafnum >= model->numleafs)
 		Host_Error ("CM_LeafArea: bad number");
@@ -5040,10 +5071,10 @@ int		CM_LeafArea (model_t *model, int leafnum)
 
 #define PlaneDiff(point,plane) (((plane)->type < 3 ? (point)[(plane)->type] : DotProduct((point), (plane)->normal)) - (plane)->dist)
 
-mplane_t		box_planes[6];
-model_t			box_model;
-q2cbrush_t		box_brush;
-q2cbrushside_t	box_sides[6];
+static mplane_t			box_planes[6];
+static model_t			box_model;
+static q2cbrush_t		box_brush;
+static q2cbrushside_t	box_sides[6];
 static qboolean BM_NativeTrace(model_t *model, int forcehullnum, const framestate_t *framestate, const vec3_t axis[3], const vec3_t start, const vec3_t end, const vec3_t mins, const vec3_t maxs, qboolean capsule, unsigned int contents, trace_t *trace);
 static unsigned int BM_NativeContents(struct model_s *model, int hulloverride, const framestate_t *framestate, const vec3_t axis[3], const vec3_t p, const vec3_t mins, const vec3_t maxs)
 {
@@ -5065,25 +5096,12 @@ Set up the planes and nodes so that the six floats of a bounding box
 can just be stored out and get a proper clipping hull structure.
 ===================
 */
-void CM_InitBoxHull (void)
+static void CM_InitBoxHull (void)
 {
 	int			i;
 	mplane_t	*p;
 	q2cbrushside_t	*s;
 
-/*
-#ifndef CLIENTONLY
-	box_model.funcs.FatPVS				= Q2BSP_FatPVS;
-	box_model.funcs.EdictInFatPVS		= Q2BSP_EdictInFatPVS;
-	box_model.funcs.FindTouchedLeafs	= Q23BSP_FindTouchedLeafs;
-#endif
-
-#ifndef SERVERONLY
-	box_model.funcs.MarkLights			= Q2BSP_MarkLights;
-#endif
-	box_model.funcs.ClusterPVS			= CM_ClusterPVS;
-	box_model.funcs.ClusterForPoint		= CM_PointCluster;
-*/
 	box_model.funcs.NativeContents		= BM_NativeContents;
 	box_model.funcs.NativeTrace			= BM_NativeTrace;
 
@@ -5167,7 +5185,7 @@ static int CM_PointLeafnum_r (model_t *mod, const vec3_t p, int num)
 	return -1 - num;
 }
 
-int CM_PointLeafnum (model_t *mod, const vec3_t p)
+static int CM_PointLeafnum (model_t *mod, const vec3_t p)
 {
 	if (!mod || mod->loadstate != MLS_LOADED)
 		return 0;		// sound may call this without map loaded
@@ -5186,6 +5204,15 @@ static int CM_PointCluster (model_t *mod, const vec3_t p, int *area)
 	return CM_LeafCluster(mod, leaf);
 }
 
+static void CM_InfoForPoint (struct model_s *mod, vec3_t pos, int *area, int *cluster, unsigned int *contentbits)
+{
+	int leaf = CM_PointLeafnum_r (mod, pos, 0);
+
+	*area = CM_LeafArea(mod, leaf);
+	*cluster = CM_LeafCluster(mod, leaf);
+	*contentbits = CM_LeafContents(mod, leaf);
+}
+
 /*
 =============
 CM_BoxLeafnums
@@ -5193,10 +5220,10 @@ CM_BoxLeafnums
 Fills in a list of all the leafs touched
 =============
 */
-int		leaf_count, leaf_maxcount;
-int		*leaf_list;
-const float	*leaf_mins, *leaf_maxs;
-int		leaf_topnode;
+static int		leaf_count, leaf_maxcount;
+static int		*leaf_list;
+static const float	*leaf_mins, *leaf_maxs;
+static int		leaf_topnode;
 
 static void CM_BoxLeafnums_r (model_t *mod, int nodenum)
 {
@@ -5254,7 +5281,7 @@ static int	CM_BoxLeafnums_headnode (model_t *mod, const vec3_t mins, const vec3_
 	return leaf_count;
 }
 
-int	CM_BoxLeafnums (model_t *mod, const vec3_t mins, const vec3_t maxs, int *list, int listsize, int *topnode)
+static int	CM_BoxLeafnums (model_t *mod, const vec3_t mins, const vec3_t maxs, int *list, int listsize, int *topnode)
 {
 	return CM_BoxLeafnums_headnode (mod, mins, maxs, list,
 		listsize, mod->hulls[0].firstclipnode, topnode);
@@ -5268,7 +5295,7 @@ CM_PointContents
 
 ==================
 */
-int CM_PointContents (model_t *mod, const vec3_t p)
+static int CM_PointContents (model_t *mod, const vec3_t p)
 {
 	cminfo_t		*prv = (cminfo_t*)mod->meshinfo;
 	int				i, j, contents;
@@ -5321,7 +5348,7 @@ int CM_PointContents (model_t *mod, const vec3_t p)
 	return contents;
 }
 
-unsigned int CM_NativeContents(struct model_s *model, int hulloverride, const framestate_t *framestate, const vec3_t axis[3], const vec3_t p, const vec3_t mins, const vec3_t maxs)
+static unsigned int CM_NativeContents(struct model_s *model, int hulloverride, const framestate_t *framestate, const vec3_t axis[3], const vec3_t p, const vec3_t mins, const vec3_t maxs)
 {
 	cminfo_t	*prv = (cminfo_t*)model->meshinfo;
 	int	contents;
@@ -5376,38 +5403,6 @@ unsigned int CM_NativeContents(struct model_s *model, int hulloverride, const fr
 
 	return contents;
 }
-
-/*
-==================
-CM_TransformedPointContents
-
-Handles offseting and rotation of the end points for moving and
-rotating entities
-==================
-*/
-int	CM_TransformedPointContents (model_t *mod, const vec3_t p, int headnode, const vec3_t origin, const vec3_t angles)
-{
-	vec3_t		p_l;
-	vec3_t		temp;
-	vec3_t		forward, right, up;
-
-	// subtract origin offset
-	VectorSubtract (p, origin, p_l);
-
-	// rotate start and end into the models frame of reference
-	if (angles[0] || angles[1] || angles[2])
-	{
-		AngleVectors (angles, forward, right, up);
-
-		VectorCopy (p_l, temp);
-		p_l[0] = DotProduct (temp, forward);
-		p_l[1] = -DotProduct (temp, right);
-		p_l[2] = DotProduct (temp, up);
-	}
-
-	return CM_PointContents(mod, p);
-}
-
 
 /*
 ===============================================================================
@@ -6798,7 +6793,7 @@ static pvsbuffer_t	phsrow;
 
 
 
-qbyte	*CM_ClusterPVS (model_t *mod, int cluster, pvsbuffer_t *buffer, pvsmerge_t merge)
+static qbyte	*CM_ClusterPVS (model_t *mod, int cluster, pvsbuffer_t *buffer, pvsmerge_t merge)
 {
 	cminfo_t	*prv = (cminfo_t*)mod->meshinfo;
 	if (!buffer)
@@ -6839,8 +6834,7 @@ qbyte	*CM_ClusterPVS (model_t *mod, int cluster, pvsbuffer_t *buffer, pvsmerge_t
 	}
 }
 
-#ifdef HAVE_SERVER
-qbyte	*CM_ClusterPHS (model_t *mod, int cluster, pvsbuffer_t *buffer)
+static qbyte	*CM_ClusterPHS (model_t *mod, int cluster, pvsbuffer_t *buffer)
 {
 	cminfo_t	*prv = (cminfo_t*)mod->meshinfo;
 
@@ -6872,7 +6866,6 @@ qbyte	*CM_ClusterPHS (model_t *mod, int cluster, pvsbuffer_t *buffer)
 		CM_DecompressVis (mod, ((qbyte*)prv->q2vis) + prv->q2vis->bitofs[cluster][DVIS_PHS], buffer->buffer, false);
 	return buffer->buffer;
 }
-#endif
 
 static unsigned int  SV_Q2BSP_FatPVS (model_t *mod, const vec3_t org, pvsbuffer_t *result, qboolean merge)
 {
@@ -6907,7 +6900,7 @@ static unsigned int  SV_Q2BSP_FatPVS (model_t *mod, const vec3_t org, pvsbuffer_
 	{
 		i = 0;
 		if (!merge)
-			mod->funcs.ClusterPVS(mod, leafs[i++], result, PVM_REPLACE);
+			CM_ClusterPVS(mod, leafs[i++], result, PVM_REPLACE);
 		// or in all the other leaf bits
 		for ( ; i<count ; i++)
 		{
@@ -6916,14 +6909,14 @@ static unsigned int  SV_Q2BSP_FatPVS (model_t *mod, const vec3_t org, pvsbuffer_
 					break;
 			if (j != i)
 				continue;		// already have the cluster we want
-			mod->funcs.ClusterPVS(mod, leafs[i], result, PVM_MERGE);
+			CM_ClusterPVS(mod, leafs[i], result, PVM_MERGE);
 		}
 	}
 	return mod->pvsbytes;
 }
 
 static int		clientarea;
-unsigned int Q23BSP_FatPVS(model_t *mod, const vec3_t org, pvsbuffer_t *fte_restrict buffer, qboolean merge)
+static unsigned int Q23BSP_FatPVS(model_t *mod, const vec3_t org, pvsbuffer_t *fte_restrict buffer, qboolean merge)
 {//fixme: this doesn't add areas
 	int		leafnum;
 	leafnum = CM_PointLeafnum (mod, org);
@@ -6932,7 +6925,7 @@ unsigned int Q23BSP_FatPVS(model_t *mod, const vec3_t org, pvsbuffer_t *fte_rest
 	return SV_Q2BSP_FatPVS (mod, org, buffer, merge);
 }
 
-qboolean Q23BSP_EdictInFatPVS(model_t *mod, const pvscache_t *ent, const qbyte *pvs, const int *areas)
+static qboolean Q23BSP_EdictInFatPVS(model_t *mod, const pvscache_t *ent, const qbyte *pvs, const int *areas)
 {
 	int i,l;
 	int nullarea = (mod->fromgame == fg_quake2)?0:-1;
@@ -6974,6 +6967,74 @@ qboolean Q23BSP_EdictInFatPVS(model_t *mod, const pvscache_t *ent, const qbyte *
 			return false;		// not visible
 	}
 	return true;
+}
+
+static void Q23BSP_FindTouchedLeafs(model_t *model, struct pvscache_s *ent, const float *mins, const float *maxs)
+{
+#define MAX_TOTAL_ENT_LEAFS		128
+	int			leafs[MAX_TOTAL_ENT_LEAFS];
+	int			clusters[MAX_TOTAL_ENT_LEAFS];
+	int num_leafs;
+	int			topnode;
+	int i, j;
+	int			area;
+	int nullarea = (model->fromgame == fg_quake2)?0:-1;
+
+	//ent->num_leafs == q2's ent->num_clusters
+	ent->num_leafs = 0;
+	ent->areanum = nullarea;
+	ent->areanum2 = nullarea;
+
+	if (!mins || !maxs)
+		return;
+
+	//get all leafs, including solids
+	num_leafs = CM_BoxLeafnums (model, mins, maxs,
+		leafs, MAX_TOTAL_ENT_LEAFS, &topnode);
+
+	// set areas
+	for (i=0 ; i<num_leafs ; i++)
+	{
+		clusters[i] = CM_LeafCluster (model, leafs[i]);
+		area = CM_LeafArea (model, leafs[i]);
+		if (area != nullarea)
+		{	// doors may legally straggle two areas,
+			// but nothing should ever need more than that
+			if (ent->areanum != nullarea && ent->areanum != area)
+				ent->areanum2 = area;
+			else
+				ent->areanum = area;
+		}
+	}
+
+	if (num_leafs >= MAX_TOTAL_ENT_LEAFS)
+	{	// assume we missed some leafs, and mark by headnode
+		ent->num_leafs = -1;
+		ent->headnode = topnode;
+	}
+	else
+	{
+		ent->num_leafs = 0;
+		for (i=0 ; i<num_leafs ; i++)
+		{
+			if (clusters[i] == -1)
+				continue;		// not a visible leaf
+			for (j=0 ; j<i ; j++)
+				if (clusters[j] == clusters[i])
+					break;
+			if (j == i)
+			{
+				if (ent->num_leafs == MAX_ENT_LEAFS)
+				{	// assume we missed some leafs, and mark by headnode
+					ent->num_leafs = -1;
+					ent->headnode = topnode;
+					break;
+				}
+
+				ent->leafnums[ent->num_leafs++] = clusters[i];
+			}
+		}
+	}
 }
 
 /*
@@ -7052,54 +7113,48 @@ static void	FloodAreaConnections (cminfo_t	*prv)
 	}
 }
 
-#ifdef Q2BSPS
-void	CMQ2_SetAreaPortalState (model_t *mod, unsigned int portalnum, qboolean open)
-{
-	cminfo_t	*prv;
-	if (!mod)
-		return;
-	prv = (cminfo_t*)mod->meshinfo;
-	if (prv->mapisq3)
-		return;
-	if (portalnum > prv->numq2areaportals)
-		Host_Error ("areaportal > numareaportals");
-
-	if (prv->q2portalopen[portalnum] == open)
-		return;
-	prv->q2portalopen[portalnum] = open;
-	FloodAreaConnections (prv);
-
-	return;
-}
-#endif
-
-#ifdef Q3BSPS
-void	CMQ3_SetAreaPortalState (model_t *mod, unsigned int area1, unsigned int area2, qboolean open)
+static void	CM_SetAreaPortalState (model_t *mod, unsigned int portalnum, unsigned int area1, unsigned int area2, qboolean open)
 {
 	cminfo_t	*prv = (cminfo_t*)mod->meshinfo;
-	if (!prv->mapisq3)
-		return;
-//		Host_Error ("CMQ3_SetAreaPortalState on non-q3 map");
-
-	if (area1 >= prv->numareas || area2 >= prv->numareas)
-		Host_Error ("CMQ3_SetAreaPortalState: area > numareas");
-
-	if (open)
+	switch(prv->mapisq3)
 	{
-		prv->q3areas[area1].numareaportals[area2]++;
-		prv->q3areas[area2].numareaportals[area1]++;
-	}
-	else
-	{
-		prv->q3areas[area1].numareaportals[area2]--;
-		prv->q3areas[area2].numareaportals[area1]--;
-	}
+#ifdef Q3BSPS
+	case true:
+		if (area1 >= prv->numareas || area2 >= prv->numareas || area1==area2)
+			return;
 
-	FloodAreaConnections(prv);
-}
+		if (open)
+		{
+			prv->q3areas[area1].numareaportals[area2]++;
+			prv->q3areas[area2].numareaportals[area1]++;
+		}
+		else
+		{
+			if (!prv->q3areas[area1].numareaportals[area2])
+			{
+				Con_Printf(CON_WARNING"CM_SetAreaPortalState: Areaportal closed more than opened...\n");
+				return;
+			}
+			prv->q3areas[area1].numareaportals[area2]--;
+			prv->q3areas[area2].numareaportals[area1]--;
+		}
+		break;
 #endif
+#ifdef Q2BSPS
+	case false:
+		if (portalnum > prv->numq2areaportals)
+			return;
 
-qboolean	VARGS CM_AreasConnected (model_t *mod, unsigned int area1, unsigned int area2)
+		if (prv->q2portalopen[portalnum] == open)
+			return;
+		prv->q2portalopen[portalnum] = open;
+		break;
+#endif
+	}
+	FloodAreaConnections (prv);
+}
+
+static qboolean	VARGS CM_AreasConnected (model_t *mod, unsigned int area1, unsigned int area2)
 {
 	cminfo_t	*prv = (cminfo_t*)mod->meshinfo;
 
@@ -7127,7 +7182,7 @@ that area in the same flood as the area parameter
 This is used by the client refreshes to cull visibility
 =================
 */
-int CM_WriteAreaBits (model_t *mod, qbyte *buffer, int area, qboolean merge)
+static size_t CM_WriteAreaBits (model_t *mod, qbyte *buffer, size_t buffersize, int area, qboolean merge)
 {
 	cminfo_t	*prv = (cminfo_t*)mod->meshinfo;
 	int		i;
@@ -7135,6 +7190,8 @@ int CM_WriteAreaBits (model_t *mod, qbyte *buffer, int area, qboolean merge)
 	int		bytes;
 
 	bytes = (prv->numareas+7)>>3;
+	if (bytes > buffersize)
+		bytes = buffersize;
 
 	if (map_noareas.value || (area < 0 && !merge))
 	{	// for debugging, send everything
@@ -7164,7 +7221,7 @@ CM_WritePortalState
 Returns a size+pointer to the data that needs to be written into a saved game. 
 ===================
 */
-size_t CM_WritePortalState (model_t *mod, void **data)
+static size_t CM_SaveAreaPortalBlob (model_t *mod, void **data)
 {
 	cminfo_t	*prv = (cminfo_t*)mod->meshinfo;
 
@@ -7198,7 +7255,7 @@ Reads the portal state from a savegame file
 and recalculates the area connections
 ===================
 */
-qofs_t	CM_ReadPortalState (model_t *mod, qbyte *ptr, qofs_t ptrsize)
+static size_t	CM_LoadAreaPortalBlob (model_t *mod, void *ptr, size_t ptrsize)
 {
 	cminfo_t	*prv = (cminfo_t*)mod->meshinfo;
 
@@ -7246,7 +7303,7 @@ Returns true if any leaf under headnode has a cluster that
 is potentially visible
 =============
 */
-qboolean CM_HeadnodeVisible (model_t *mod, int nodenum, const qbyte *visbits)
+static qboolean CM_HeadnodeVisible (model_t *mod, int nodenum, const qbyte *visbits)
 {
 	int		leafnum;
 	int		cluster;
@@ -7269,7 +7326,7 @@ qboolean CM_HeadnodeVisible (model_t *mod, int nodenum, const qbyte *visbits)
 	return CM_HeadnodeVisible(mod, node->childnum[1], visbits);
 }
 
-unsigned int Q2BSP_PointContents(model_t *mod, const vec3_t axis[3], const vec3_t p)
+static unsigned int Q2BSP_PointContents(model_t *mod, const vec3_t axis[3], const vec3_t p)
 {
 	int pc;
 	pc = CM_PointContents (mod, p);
@@ -7278,6 +7335,415 @@ unsigned int Q2BSP_PointContents(model_t *mod, const vec3_t axis[3], const vec3_
 
 
 
+#ifdef HAVE_CLIENT
+static qbyte *frustumvis;
+static vec3_t modelorg;
+/*
+===============
+R_MarkLeaves
+===============
+*/
+#ifdef Q3BSPS
+qbyte *R_MarkLeaves_Q3 (void)
+{
+	static pvsbuffer_t	curframevis[R_MAX_RECURSE];
+	static qbyte	*cvis[R_MAX_RECURSE];
+	qbyte *vis;
+	int		i;
+
+	int cluster;
+	mleaf_t	*leaf;
+	mnode_t *node;
+	int portal = r_refdef.recurse;
+
+	if (!portal)
+	{
+		if (r_oldviewcluster == r_viewcluster && !r_novis.value && r_viewcluster != -1)
+			return cvis[portal];
+	}
+
+	// development aid to let you run around and see exactly where
+	// the pvs ends
+//		if (r_lockpvs->value)
+//			return;
+
+	r_visframecount++;
+	r_oldviewcluster = r_viewcluster;
+
+	if (r_novis.ival || r_viewcluster == -1 || !cl.worldmodel->vis )
+	{
+		vis = NULL;
+		// mark everything
+		for (i=0,leaf=cl.worldmodel->leafs ; i<cl.worldmodel->numleafs ; i++, leaf++)
+		{
+//			if (!leaf->nummarksurfaces)
+//			{
+//				continue;
+//			}
+
+#if 1
+			for (node = (mnode_t*)leaf; node; node = node->parent)
+			{
+				if (node->visframe == r_visframecount)
+					break;
+				node->visframe = r_visframecount;
+			}
+#else
+			leaf->visframe = r_visframecount;
+			leaf->vischain = r_vischain;
+			r_vischain = leaf;
+#endif
+		}
+	}
+	else
+	{
+		vis = CM_ClusterPVS (cl.worldmodel, r_viewcluster, &curframevis[portal], PVM_FAST);
+		for (i=0,leaf=cl.worldmodel->leafs ; i<cl.worldmodel->numleafs ; i++, leaf++)
+		{
+			cluster = leaf->cluster;
+			if (cluster == -1)// || !leaf->nummarksurfaces)
+			{
+				continue;
+			}
+			if (vis[cluster>>3] & (1<<(cluster&7)))
+			{
+#if 1
+				for (node = (mnode_t*)leaf; node; node = node->parent)
+				{
+					if (node->visframe == r_visframecount)
+						break;
+					node->visframe = r_visframecount;
+				}
+#else
+				leaf->visframe = r_visframecount;
+				leaf->vischain = r_vischain;
+				r_vischain = leaf;
+#endif
+			}
+		}
+		cvis[portal] = vis;
+	}
+	return vis;
+}
+
+static void Surf_RecursiveQ3WorldNode (mnode_t *node, unsigned int clipflags)
+{
+	int			c, side, clipped;
+	mplane_t	*plane, *clipplane;
+	msurface_t	*surf, **mark;
+	mleaf_t		*pleaf;
+	double		dot;
+
+start:
+
+	if (node->visframe != r_visframecount)
+		return;
+
+	for (c = 0, clipplane = r_refdef.frustum; c < r_refdef.frustum_numworldplanes; c++, clipplane++)
+	{
+		if (!(clipflags & (1 << c)))
+			continue;	// don't need to clip against it
+
+		clipped = BOX_ON_PLANE_SIDE (node->minmaxs, node->minmaxs + 3, clipplane);
+		if (clipped == 2)
+			return;
+		else if (clipped == 1)
+			clipflags -= (1<<c);	// node is entirely on screen
+	}
+
+// if a leaf node, draw stuff
+	if (node->contents != -1)
+	{
+		pleaf = (mleaf_t *)node;
+
+		if (! (r_refdef.areabits[pleaf->area>>3] & (1<<(pleaf->area&7)) ) )
+			return;		// not visible
+
+		c = pleaf->cluster;
+		if (c >= 0)
+			frustumvis[c>>3] |= 1<<(c&7);
+
+		mark = pleaf->firstmarksurface;
+		for (c = pleaf->nummarksurfaces; c; c--)
+		{
+			surf = *mark++;
+			if (surf->visframe == r_framecount)
+				continue;
+			surf->visframe = r_framecount;
+
+//			if (((dot < 0) ^ !!(surf->flags & SURF_PLANEBACK)))
+//				continue;		// wrong side
+
+			surf->sbatch->mesh[surf->sbatch->meshes++] = surf->mesh;
+		}
+		return;
+	}
+
+// node is just a decision point, so go down the apropriate sides
+
+// find which side of the node we are on
+	plane = node->plane;
+
+	switch (plane->type)
+	{
+	case PLANE_X:
+		dot = modelorg[0] - plane->dist;
+		break;
+	case PLANE_Y:
+		dot = modelorg[1] - plane->dist;
+		break;
+	case PLANE_Z:
+		dot = modelorg[2] - plane->dist;
+		break;
+	default:
+		dot = DotProduct (modelorg, plane->normal) - plane->dist;
+		break;
+	}
+
+	if (dot >= 0)
+		side = 0;
+	else
+		side = 1;
+
+// recurse down the children, front side first
+	Surf_RecursiveQ3WorldNode (node->children[side], clipflags);
+
+// q3 nodes contain no drawables
+
+// recurse down the back side
+	//GLR_RecursiveWorldNode (node->children[!side], clipflags);
+	node = node->children[!side];
+	goto start;
+}
+#endif
+
+#ifdef Q2BSPS
+qbyte *R_MarkLeaves_Q2 (void)
+{
+	static pvsbuffer_t	curframevis[R_MAX_RECURSE];
+	static qbyte	*cvis[R_MAX_RECURSE];
+	mnode_t	*node;
+	int		i;
+
+	int cluster;
+	mleaf_t	*leaf;
+	qbyte *vis;
+
+	int portal = r_refdef.recurse;
+
+	if (r_refdef.forcevis)
+	{
+		vis = cvis[portal] = r_refdef.forcedvis;
+
+		r_oldviewcluster = -1;
+		r_oldviewcluster2 = -1;
+	}
+	else
+	{
+		vis = cvis[portal];
+		if (!portal)
+		{
+			if (r_oldviewcluster == r_viewcluster && r_oldviewcluster2 == r_viewcluster2)
+				return vis;
+
+			r_oldviewcluster = r_viewcluster;
+			r_oldviewcluster2 = r_viewcluster2;
+		}
+		else
+		{
+			r_oldviewcluster = -1;
+			r_oldviewcluster2 = -1;
+		}
+
+		if (r_novis.ival == 2)
+			return vis;
+
+		if (r_novis.ival || r_viewcluster == -1 || !cl.worldmodel->vis)
+		{
+			// mark everything
+			for (i=0 ; i<cl.worldmodel->numleafs ; i++)
+				cl.worldmodel->leafs[i].visframe = r_visframecount;
+			for (i=0 ; i<cl.worldmodel->numnodes ; i++)
+				cl.worldmodel->nodes[i].visframe = r_visframecount;
+			return vis;
+		}
+
+		if (r_viewcluster2 != r_viewcluster)	// may have to combine two clusters because of solid water boundaries
+		{
+			vis = CM_ClusterPVS (cl.worldmodel, r_viewcluster, &curframevis[portal], PVM_REPLACE);
+			vis = CM_ClusterPVS (cl.worldmodel, r_viewcluster2, &curframevis[portal], PVM_MERGE);
+		}
+		else
+			vis = CM_ClusterPVS (cl.worldmodel, r_viewcluster, &curframevis[portal], PVM_FAST);
+		cvis[portal] = vis;
+	}
+
+	r_visframecount++;
+
+	for (i=0,leaf=cl.worldmodel->leafs ; i<cl.worldmodel->numleafs ; i++, leaf++)
+	{
+		cluster = leaf->cluster;
+		if (cluster == -1)
+			continue;
+		if (vis[cluster>>3] & (1<<(cluster&7)))
+		{
+			node = (mnode_t *)leaf;
+			do
+			{
+				if (node->visframe == r_visframecount)
+					break;
+				node->visframe = r_visframecount;
+				node = node->parent;
+			} while (node);
+		}
+	}
+	return vis;
+}
+static void Surf_RecursiveQ2WorldNode (mnode_t *node)
+{
+	int			c, side;
+	mplane_t	*plane;
+	msurface_t	*surf, **mark;
+	mleaf_t		*pleaf;
+	double		dot;
+
+	int sidebit;
+
+	if (node->contents == Q2CONTENTS_SOLID)
+		return;		// solid
+
+	if (node->visframe != r_visframecount)
+		return;
+	if (R_CullBox (node->minmaxs, node->minmaxs+3))
+		return;
+
+// if a leaf node, draw stuff
+	if (node->contents != -1)
+	{
+		pleaf = (mleaf_t *)node;
+
+		// check for door connected areas
+		if (! (r_refdef.areabits[pleaf->area>>3] & (1<<(pleaf->area&7)) ) )
+			return;		// not visible
+
+		c = pleaf->cluster;
+		if (c >= 0)
+			frustumvis[c>>3] |= 1<<(c&7);
+
+		mark = pleaf->firstmarksurface;
+		c = pleaf->nummarksurfaces;
+
+		if (c)
+		{
+			do
+			{
+				(*mark)->visframe = r_framecount;
+				mark++;
+			} while (--c);
+		}
+		return;
+	}
+
+// node is just a decision point, so go down the apropriate sides
+
+// find which side of the node we are on
+	plane = node->plane;
+
+	switch (plane->type)
+	{
+	case PLANE_X:
+		dot = modelorg[0] - plane->dist;
+		break;
+	case PLANE_Y:
+		dot = modelorg[1] - plane->dist;
+		break;
+	case PLANE_Z:
+		dot = modelorg[2] - plane->dist;
+		break;
+	default:
+		dot = DotProduct (modelorg, plane->normal) - plane->dist;
+		break;
+	}
+
+	if (dot >= 0)
+	{
+		side = 0;
+		sidebit = 0;
+	}
+	else
+	{
+		side = 1;
+		sidebit = SURF_PLANEBACK;
+	}
+
+// recurse down the children, front side first
+	Surf_RecursiveQ2WorldNode (node->children[side]);
+
+	// draw stuff
+	for ( c = node->numsurfaces, surf = currentmodel->surfaces + node->firstsurface; c ; c--, surf++)
+	{
+		if (surf->visframe != r_framecount)
+			continue;
+
+		if ( (surf->flags & SURF_PLANEBACK) != sidebit )
+			continue;		// wrong side
+
+		surf->visframe = 0;//r_framecount+1;//-1;
+
+		Surf_RenderDynamicLightmaps (surf);
+
+		surf->sbatch->mesh[surf->sbatch->meshes++] = surf->mesh;
+	}
+
+
+// recurse down the back side
+	Surf_RecursiveQ2WorldNode (node->children[!side]);
+}
+#endif
+
+
+static void CM_PrepareFrame(model_t *mod, refdef_t *refdef, int area, int viewclusters[2], pvsbuffer_t *vis, qbyte **entvis_out, qbyte **surfvis_out)
+{
+	qbyte *surfvis, *entvis;
+//	qbyte *frustumvis;
+
+	if (vis->buffersize < mod->pvsbytes)
+		vis->buffer = BZ_Realloc(vis->buffer, vis->buffersize=mod->pvsbytes);
+	frustumvis = vis->buffer;
+	memset(frustumvis, 0, mod->pvsbytes);
+
+	if (!r_refdef.areabitsknown)
+	{	//generate the info each frame, as the gamecode didn't tell us what to use.
+		CM_WriteAreaBits(mod, r_refdef.areabits, sizeof(r_refdef.areabits), r_viewarea, false);
+		r_refdef.areabitsknown = true;
+	}
+
+	VectorCopy (r_refdef.vieworg, modelorg);
+
+#ifdef Q3BSPS
+	if (currentmodel->fromgame == fg_quake3)
+	{
+		entvis = surfvis = R_MarkLeaves_Q3 ();
+		Surf_RecursiveQ3WorldNode (currentmodel->nodes, (1<<r_refdef.frustum_numworldplanes)-1);
+	}
+	else
+#endif
+#ifdef Q2BSPS
+	if (currentmodel->fromgame == fg_quake2)
+	{
+		entvis = surfvis = R_MarkLeaves_Q2 ();
+		Surf_RecursiveQ2WorldNode (currentmodel->nodes);
+	}
+	else
+#endif
+	{
+		entvis = surfvis = NULL;
+	}
+
+	*surfvis_out = frustumvis;
+	*entvis_out = entvis;
+}
+#endif
 
 
 

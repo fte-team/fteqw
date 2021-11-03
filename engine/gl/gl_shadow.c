@@ -40,7 +40,7 @@ static void SHM_Shutdown(void);
 
 #define SHADOWMAP_SIZE 512
 
-#define PROJECTION_DISTANCE (float)(dl->radius*2)//0x7fffffff
+#define PROJECTION_DISTANCE (float)(sh_shmesh->radius*2)//0x7fffffff
 
 #ifdef BEF_PUSHDEPTH
 extern qboolean r_pushdepth;
@@ -113,6 +113,8 @@ typedef struct {
 } shadowmeshbatch_t;
 typedef struct shadowmesh_s
 {
+	vec3_t	origin;
+	float	radius;
 	enum
 	{
 		SMT_STENCILVOLUME,	//build edges mesh (and surface list)
@@ -536,6 +538,8 @@ static void SHM_BeginShadowMesh(dlight_t *dl, int type)
 	sh_shmesh->maxindicies = 0;
 	sh_shmesh->numindicies = 0;
 	sh_shmesh->type = type;
+	VectorCopy(dl->origin, sh_shmesh->origin);
+	sh_shmesh->radius = dl->radius;
 
 	if (!cl.worldmodel->numshadowbatches)
 	{
@@ -689,6 +693,7 @@ static struct {
 } *edge;
 static int firstedge;
 static int maxedge;
+static void (*genshadowmapcallback) (msurface_t *mesh);
 
 static void SHM_RecursiveWorldNodeQ1_r (dlight_t *dl, mnode_t *node)
 {
@@ -697,7 +702,6 @@ static void SHM_RecursiveWorldNodeQ1_r (dlight_t *dl, mnode_t *node)
 	msurface_t	*surf, **mark;
 	mleaf_t		*pleaf;
 	double		dot;
-	int v;
 
 	float		l, maxdist;
 	int			j, s, t;
@@ -822,61 +826,7 @@ static void SHM_RecursiveWorldNodeQ1_r (dlight_t *dl, mnode_t *node)
 				t = (l - t)*surf->texinfo->vecscale[1];
 				// compare to minimum light
 				if ((s*s+t*t+dot*dot) < maxdist)
-				{
-					SHM_Shadow_Cache_Surface(surf);
-					if (sh_shmesh->type == SMT_SHADOWMAP)
-					{
-						SHM_MeshFrontOnly(surf->mesh->numvertexes, surf->mesh->xyz_array, surf->mesh->numindexes, surf->mesh->indexes);
-						continue;
-					}
-					if (sh_shmesh->type != SMT_STENCILVOLUME)
-						continue;
-
-					//build a list of the edges that are to be drawn.
-					for (v = 0; v < surf->numedges; v++)
-					{
-						int e, delta;
-						e = cl.worldmodel->surfedges[surf->firstedge+v];
-						//negative edge means backwards edge.
-						if (e < 0)
-						{
-							e=-e;
-							delta = -1;
-						}
-						else
-						{
-							delta = 1;
-						}
-
-						if (!edge[e].count)
-						{
-							if (firstedge)
-								edge[firstedge].prev = e;
-							edge[e].next = firstedge;
-							edge[e].prev = 0;
-							firstedge = e;
-							edge[e].count = delta;
-						}
-						else
-						{
-							edge[e].count += delta;
-
-							if (!edge[e].count)	//unlink
-							{
-								if (edge[e].next)
-								{
-									edge[edge[e].next].prev = edge[e].prev;
-								}
-								if (edge[e].prev)
-									edge[edge[e].prev].next = edge[e].next;
-								else
-									firstedge = edge[e].next;
-							}
-						}
-					}
-
-					SHM_TriangleFan(surf->mesh->numvertexes, surf->mesh->xyz_array, dl->origin, PROJECTION_DISTANCE);
-				}
+					genshadowmapcallback(surf);
 			}
 		}
 	}
@@ -938,15 +888,50 @@ static void SHM_OrthoWorldLeafsQ1 (dlight_t *dl)
 				if (dot < 0)
 				{
 					SHM_Shadow_Cache_Surface(surf);
-
 				}
-//				else
-//				SHM_MeshBackOnly(surf->mesh->numvertexes, surf->mesh->xyz_array, surf->mesh->numindexes, surf->mesh->indexes);
-					SHM_MeshFrontOnly(surf->mesh->numvertexes, surf->mesh->xyz_array, surf->mesh->numindexes, surf->mesh->indexes);
+				SHM_MeshFrontOnly(surf->mesh->numvertexes, surf->mesh->xyz_array, surf->mesh->numindexes, surf->mesh->indexes);
 			}
 		}
 
 next:;
+	}
+}
+
+static void SHM_MarkLeavesQ1(dlight_t *dl, const qbyte *lvis)
+{
+	mnode_t *node;
+	int i;
+	sh_shadowframe++;
+
+	if (!lvis)
+		return;
+
+	//variation on mark leaves
+	for (i=0 ; i<cl.worldmodel->numclusters ; i++)
+	{
+		if (lvis[i>>3] & (1<<(i&7)))
+		{
+			node = (mnode_t *)&cl.worldmodel->leafs[i+1];
+			do
+			{
+				if (node->shadowframe == sh_shadowframe)
+					break;
+				node->shadowframe = sh_shadowframe;
+				node = node->parent;
+			} while (node);
+		}
+	}
+}
+
+void Q1BSP_GenerateShadowMesh(model_t *model, dlight_t *dl, const qbyte *lightvis, qbyte *litvis, void (*callback)(msurface_t *surf))
+{
+	genshadowmapcallback = callback;
+	if (sh_shmesh->type == SMT_ORTHO)
+		SHM_OrthoWorldLeafsQ1(dl);
+	else
+	{
+		SHM_MarkLeavesQ1(dl, lightvis);
+		SHM_RecursiveWorldNodeQ1_r(dl, cl.worldmodel->nodes);
 	}
 }
 
@@ -1256,33 +1241,12 @@ static void SHM_MarkLeavesQ2(dlight_t *dl, unsigned char *lvis)
 		}
 	}
 }
-#endif
-
-static void SHM_MarkLeavesQ1(dlight_t *dl, unsigned char *lvis)
+void Q2BSP_GenerateShadowMesh(model_t *model, dlight_t *dl, qbyte *lvis, int type)
 {
-	mnode_t *node;
-	int i;
-	sh_shadowframe++;
-
-	if (!lvis)
-		return;
-
-	//variation on mark leaves
-	for (i=0 ; i<cl.worldmodel->numclusters ; i++)
-	{
-		if (lvis[i>>3] & (1<<(i&7)))
-		{
-			node = (mnode_t *)&cl.worldmodel->leafs[i+1];
-			do
-			{
-				if (node->shadowframe == sh_shadowframe)
-					break;
-				node->shadowframe = sh_shadowframe;
-				node = node->parent;
-			} while (node);
-		}
-	}
+	SHM_MarkLeavesQ2(dl, lvis);
+	SHM_RecursiveWorldNodeQ2_r(dl, model->nodes);
 }
+#endif
 
 #ifdef Q3BSPS
 static void SHM_RecursiveWorldNodeQ3_r (dlight_t *dl, mnode_t *node)
@@ -1626,7 +1590,77 @@ static void SHM_ComposeVolume_BruteForce(dlight_t *dl)
 		}
 	}
 }
+
+void Q3BSP_GenerateShadowMesh(model_t *model, dlight_t *dl, const qbyte *lightvis, qbyte *litvis, void (*callback)(msurface_t *surf))
+{
+	/*q3 doesn't have edge info*/
+	if (sh_shmesh->type == SMT_ORTHO)
+		SHM_OrthoWorldLeafsQ3(dl);
+	else
+	{
+		sh_shadowframe++;
+		SHM_RecursiveWorldNodeQ3_r(dl, model->nodes);
+	}
+	if (sh_shmesh->type == SMT_STENCILVOLUME)
+		SHM_ComposeVolume_BruteForce(dl);
+}
 #endif
+
+static void SHM_Shadow_Surface_Shadowmap (msurface_t *surf)
+{
+	SHM_Shadow_Cache_Surface(surf);
+	SHM_MeshFrontOnly(surf->mesh->numvertexes, surf->mesh->xyz_array, surf->mesh->numindexes, surf->mesh->indexes);
+}
+static void SHM_Shadow_Surface_StencilVolume (msurface_t *surf)
+{
+	int v;
+	SHM_Shadow_Cache_Surface(surf);
+
+	//build a list of the edges that are to be drawn.
+	for (v = 0; v < surf->numedges; v++)
+	{
+		int e, delta;
+		e = cl.worldmodel->surfedges[surf->firstedge+v];
+		//negative edge means backwards edge.
+		if (e < 0)
+		{
+			e=-e;
+			delta = -1;
+		}
+		else
+		{
+			delta = 1;
+		}
+
+		if (!edge[e].count)
+		{
+			if (firstedge)
+				edge[firstedge].prev = e;
+			edge[e].next = firstedge;
+			edge[e].prev = 0;
+			firstedge = e;
+			edge[e].count = delta;
+		}
+		else
+		{
+			edge[e].count += delta;
+
+			if (!edge[e].count)	//unlink
+			{
+				if (edge[e].next)
+				{
+					edge[edge[e].next].prev = edge[e].prev;
+				}
+				if (edge[e].prev)
+					edge[edge[e].prev].next = edge[e].next;
+				else
+					firstedge = edge[e].next;
+			}
+		}
+	}
+
+	SHM_TriangleFan(surf->mesh->numvertexes, surf->mesh->xyz_array, sh_shmesh->origin, PROJECTION_DISTANCE);
+}
 
 static struct shadowmesh_s *SHM_BuildShadowMesh(dlight_t *dl, unsigned char *lvis, int type)
 {
@@ -1662,58 +1696,37 @@ static struct shadowmesh_s *SHM_BuildShadowMesh(dlight_t *dl, unsigned char *lvi
 		edge = Z_Malloc(sizeof(*edge) * maxedge);
 	}
 
-	if (cl.worldmodel->type == mod_brush)
+	SHM_BeginShadowMesh(dl, type);
+	if (cl.worldmodel->funcs.GenerateShadowMesh)
+	{
+		switch(type)
+		{
+		case SMT_SHADOWMAP:
+			cl.worldmodel->funcs.GenerateShadowMesh(cl.worldmodel, dl, lvis, sh_shmesh->litleaves, SHM_Shadow_Surface_Shadowmap);
+			break;
+		case SMT_STENCILVOLUME:
+			cl.worldmodel->funcs.GenerateShadowMesh(cl.worldmodel, dl, lvis, sh_shmesh->litleaves, SHM_Shadow_Surface_StencilVolume);
+			break;
+		default:
+			cl.worldmodel->funcs.GenerateShadowMesh(cl.worldmodel, dl, lvis, sh_shmesh->litleaves, SHM_Shadow_Cache_Surface);
+			break;
+		}
+	}
+	else if (cl.worldmodel->type == mod_brush)
 	{
 		switch(cl.worldmodel->fromgame)
 		{
 		case fg_quake:
 		case fg_halflife:
-			/*if (!dl->die)
-			{
-				SHM_BeginShadowMesh(dl, true);
-				SHM_MarkLeavesQ1(dl, lvis);
-				SHM_RecursiveWorldNodeQ1_r(dl, cl.worldmodel->nodes);
-				if (!surfonly)
-					SHM_ComposeVolume_BruteForce(dl);
-			}
-			else*/
-			{
-				SHM_BeginShadowMesh(dl, type);
-
-				if (type == SMT_ORTHO)
-					SHM_OrthoWorldLeafsQ1(dl);
-				else
-				{
-					SHM_MarkLeavesQ1(dl, lvis);
-					SHM_RecursiveWorldNodeQ1_r(dl, cl.worldmodel->nodes);
-				}
-			}
-			break;
-#ifdef Q2BSPS
-		case fg_quake2:
-			SHM_BeginShadowMesh(dl, type);
-			SHM_MarkLeavesQ2(dl, lvis);
-			SHM_RecursiveWorldNodeQ2_r(dl, cl.worldmodel->nodes);
-			break;
-#endif
-#ifdef Q3BSPS
-		case fg_quake3:
-			/*q3 doesn't have edge info*/
-			SHM_BeginShadowMesh(dl, type);
-
 			if (type == SMT_ORTHO)
-				SHM_OrthoWorldLeafsQ3(dl);
+				SHM_OrthoWorldLeafsQ1(dl);
 			else
 			{
-				sh_shadowframe++;
-				SHM_RecursiveWorldNodeQ3_r(dl, cl.worldmodel->nodes);
+				SHM_MarkLeavesQ1(dl, lvis);
+				SHM_RecursiveWorldNodeQ1_r(dl, cl.worldmodel->nodes);
 			}
-			if (type == SMT_STENCILVOLUME)
-				SHM_ComposeVolume_BruteForce(dl);
 			break;
-#endif
 		default:
-			SHM_BeginShadowMesh(dl, type);
 			sh_shadowframe++;
 
 			{

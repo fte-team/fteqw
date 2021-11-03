@@ -2301,6 +2301,14 @@ void SV_Begin_Core(client_t *split)
 							split->edict->v->maxs[0] = 16;
 							split->edict->v->maxs[1] = 16;
 							split->edict->v->maxs[2] = 32;
+							split->edict->v->view_ofs[2] = DEFAULT_VIEWHEIGHT;
+							if (sv.world.worldmodel->fromgame == fg_quake3)
+								split->edict->v->view_ofs[2] = 26;	//q3 defaults to slightly higher view heights (though same player size as quake).
+							if (sv.world.worldmodel->hulls[1].clip_maxs[2]-sv.world.worldmodel->hulls[1].clip_mins[2]>0)
+							{
+								VectorCopy(sv.world.worldmodel->hulls[1].clip_mins, split->edict->v->mins);
+								VectorCopy(sv.world.worldmodel->hulls[1].clip_maxs, split->edict->v->maxs);
+							}
 							split->edict->v->movetype = MOVETYPE_NOCLIP;
 						}
 						VectorCopy(split->edict->v->origin, split->edict->v->oldorigin);	//make sure oldorigin isn't 0 0 0 or anything too clumsy like that. stuck somewhere killable is better than stuck outside the map.

@@ -475,23 +475,17 @@ Also checks portalareas so that doors block sight
 */
 static qboolean VARGS PFQ2_inPVS (vec3_t p1, vec3_t p2)
 {
-	int		leafnum;
 	int		cluster;
 	int		area1, area2;
 	qbyte	*mask;
 
-	//FIXME: requires q2/q3 bsp
-	leafnum = CM_PointLeafnum (sv.world.worldmodel, p1);
-	cluster = CM_LeafCluster (sv.world.worldmodel, leafnum);
-	area1 = CM_LeafArea (sv.world.worldmodel, leafnum);
-	mask = CM_ClusterPVS (sv.world.worldmodel, cluster, NULL, PVM_FAST);
+	cluster = sv.world.worldmodel->funcs.ClusterForPoint(sv.world.worldmodel, p1, &area1);
+	mask = sv.world.worldmodel->funcs.ClusterPVS (sv.world.worldmodel, cluster, NULL, PVM_FAST);
 
-	leafnum = CM_PointLeafnum (sv.world.worldmodel, p2);
-	cluster = CM_LeafCluster (sv.world.worldmodel, leafnum);
-	area2 = CM_LeafArea (sv.world.worldmodel, leafnum);
+	cluster = sv.world.worldmodel->funcs.ClusterForPoint(sv.world.worldmodel, p2, &area2);
 	if ( mask && (!(mask[cluster>>3] & (1<<(cluster&7)) ) ) )
 		return false;
-	if (!CM_AreasConnected (sv.world.worldmodel, area1, area2))
+	if (!sv.world.worldmodel->funcs.AreasConnected (sv.world.worldmodel, area1, area2))
 		return false;		// a door blocks sight
 	return true;
 }
@@ -506,23 +500,17 @@ Also checks portalareas so that doors block sound
 */
 static qboolean VARGS PFQ2_inPHS (vec3_t p1, vec3_t p2)
 {
-	int		leafnum;
 	int		cluster;
 	int		area1, area2;
 	qbyte	*mask;
 
-	//FIXME: requires q2/q3 bsp
-	leafnum = CM_PointLeafnum (sv.world.worldmodel, p1);
-	cluster = CM_LeafCluster (sv.world.worldmodel, leafnum);
-	area1 = CM_LeafArea (sv.world.worldmodel, leafnum);
-	mask = CM_ClusterPHS (sv.world.worldmodel, cluster, NULL);
+	cluster = sv.world.worldmodel->funcs.ClusterForPoint(sv.world.worldmodel, p1, &area1);
+	mask = sv.world.worldmodel->funcs.ClusterPHS (sv.world.worldmodel, cluster, NULL);
 
-	leafnum = CM_PointLeafnum (sv.world.worldmodel, p2);
-	cluster = CM_LeafCluster (sv.world.worldmodel, leafnum);
-	area2 = CM_LeafArea (sv.world.worldmodel, leafnum);
+	cluster = sv.world.worldmodel->funcs.ClusterForPoint(sv.world.worldmodel, p2, &area2);
 	if ( mask && (!(mask[cluster>>3] & (1<<(cluster&7)) ) ) )
 		return false;		// more than one bounce away
-	if (!CM_AreasConnected (sv.world.worldmodel, area1, area2))
+	if (!sv.world.worldmodel->funcs.AreasConnected (sv.world.worldmodel, area1, area2))
 		return false;		// a door blocks hearing
 
 	return true;
@@ -531,7 +519,7 @@ static qboolean VARGS PFQ2_inPHS (vec3_t p1, vec3_t p2)
 qboolean VARGS PFQ2_AreasConnected(unsigned int area1, unsigned int area2)
 {
 	//FIXME: requires q2/q3 bsp
-	return CM_AreasConnected(sv.world.worldmodel, area1, area2);
+	return sv.world.worldmodel->funcs.AreasConnected(sv.world.worldmodel, area1, area2);
 }
 
 
@@ -823,7 +811,8 @@ void SVQ2_InitWorld(void)
 
 static void QDECL PFQ2_SetAreaPortalState(unsigned int p, qboolean s)
 {
-	CMQ2_SetAreaPortalState(sv.world.worldmodel, p, s);
+	if (sv.world.worldmodel->funcs.SetAreaPortalState)
+		sv.world.worldmodel->funcs.SetAreaPortalState(sv.world.worldmodel, p, -1, -1, s);
 }
 
 static void *VARGS ZQ2_TagMalloc(int size, int tag)

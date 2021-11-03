@@ -522,7 +522,7 @@ void SV_MulticastProtExt(vec3_t origin, multicast_t to, int dimension_mask, int 
 {
 	client_t	*client;
 	qbyte		*mask;
-	int			cluster;
+	int			cluster, area1, area2;
 	int			j;
 	qboolean	reliable;
 	client_t	*oneclient = NULL, *split;
@@ -569,204 +569,10 @@ void SV_MulticastProtExt(vec3_t origin, multicast_t to, int dimension_mask, int 
 		}
 	}
 
-#if defined(Q2BSPS) || defined(Q3BSPS)
-	//in theory, this q2/q3 path is only still different thanks to areas, but it also supports q2 gamecode properly.
-	if (sv.world.worldmodel->fromgame == fg_quake2 || sv.world.worldmodel->fromgame == fg_quake3)
-	{
-		int			area1, area2, leafnum;
-
-		reliable = false;
-
-		if (to != MULTICAST_ALL_R && to != MULTICAST_ALL)
-		{
-			leafnum = CM_PointLeafnum (sv.world.worldmodel, origin);
-			area1 = CM_LeafArea (sv.world.worldmodel, leafnum);
-		}
-		else
-		{
-			leafnum = 0;	// just to avoid compiler warnings
-			area1 = 0;
-		}
-
-		switch (to)
-		{
-		case MULTICAST_ALL_R:
-			reliable = true;	// intentional fallthrough
-		case MULTICAST_ALL:
-			leafnum = 0;
-			mask = NULL;
-			break;
-
-		case MULTICAST_PHS_R:
-			reliable = true;	// intentional fallthrough
-		case MULTICAST_PHS:
-			leafnum = CM_PointLeafnum (sv.world.worldmodel, origin);
-			cluster = CM_LeafCluster (sv.world.worldmodel, leafnum);
-			mask = sv_nopvs.ival?NULL:CM_ClusterPHS (sv.world.worldmodel, cluster, NULL);
-			break;
-
-		case MULTICAST_PVS_R:
-			reliable = true;	// intentional fallthrough
-		case MULTICAST_PVS:
-			leafnum = CM_PointLeafnum (sv.world.worldmodel, origin);
-			cluster = CM_LeafCluster (sv.world.worldmodel, leafnum);
-			mask = sv_nopvs.ival?NULL:CM_ClusterPVS (sv.world.worldmodel, cluster, NULL, PVM_FAST);
-			break;
-
-		case MULTICAST_ONE_R_NOSPECS:
-		case MULTICAST_ONE_R_SPECS:
-			reliable = true;
-		case MULTICAST_ONE_NOSPECS:
-		case MULTICAST_ONE_SPECS:
-			if (svprogfuncs)
-			{
-				edict_t *ent = PROG_TO_EDICT(svprogfuncs, pr_global_struct->msg_entity);
-				oneclient = svs.clients + NUM_FOR_EDICT(svprogfuncs, ent) - 1;
-			}
-			else
-				oneclient = NULL;	//unsupported in this game mode
-			mask = NULL;
-			andspecs = (to==MULTICAST_ONE_R_SPECS||to==MULTICAST_ONE_SPECS);
-			break;
-
-		default:
-			mask = NULL;
-			SV_Error ("SV_Multicast: bad to:%i", to);
-		}
-
-		// send the data to all relevent clients
-		for (j = 0; j < svs.allocated_client_slots; j++)
-		{
-			client = &svs.clients[j];
-			if (client->state != cs_spawned)
-				continue;
-
-			if (client->controller)
-				continue;	//FIXME: send if at least one of the players is near enough.
-
-			for (split = client, seat = 0; split; split = split->controlled, seat++)
-			{
-				if (client->protocol == SCP_QUAKEWORLD)
-				{
-					if (client->fteprotocolextensions & without)
-					{
-			//			Con_Printf ("Version supressed multicast - without pext\n");
-						continue;
-					}
-					if (!(~client->fteprotocolextensions & ~with))
-					{
-			//			Con_Printf ("Version supressed multicast - with pext\n");
-						continue;
-					}
-				}
-
-				if (oneclient)
-				{
-					if (oneclient != split)
-					{
-						if (andspecs && split->spectator && split->spec_track >= 0 && oneclient == &svs.clients[split->spec_track])
-							;
-						else
-							continue;
-					}
-				}
-				else if (mask)
-				{
-					if (split->penalties & BAN_BLIND)
-						continue;
-	#ifdef Q2SERVER
-					if (ge)
-						leafnum = CM_PointLeafnum (sv.world.worldmodel, split->q2edict->s.origin);
-					else
-	#endif
-					{
-						if (svprogfuncs)
-						{
-							if (!((int)split->edict->xv->dimension_see & dimension_mask))
-								continue;
-						}
-						leafnum = CM_PointLeafnum (sv.world.worldmodel, split->edict->v->origin);
-					}
-					cluster = CM_LeafCluster (sv.world.worldmodel, leafnum);
-					area2 = CM_LeafArea (sv.world.worldmodel, leafnum);
-					if (!CM_AreasConnected (sv.world.worldmodel, area1, area2))
-						continue;
-					if ( mask && (!(mask[cluster>>3] & (1<<(cluster&7)) ) ) )
-						continue;
-				}
-				break;
-			}
-			if (!split)
-				continue;
-
-			switch (client->protocol)
-			{
-			case SCP_BAD:
-				continue;	//a bot.
-
-			default:
-				SV_Error("Multicast: Client is using a bad protocl");
-
-			case SCP_QUAKE3:
-				Con_Printf("Skipping multicast for q3 client\n");
-				break;
-#ifdef NQPROT
-			case SCP_NETQUAKE:
-			case SCP_BJP3:
-			case SCP_FITZ666:
-			case SCP_DARKPLACES6:
-			case SCP_DARKPLACES7:
-				if (reliable)
-				{
-					ClientReliableCheckBlock(client, sv.nqmulticast.cursize);
-					ClientReliableWrite_SZ(client, sv.nqmulticast.data, sv.nqmulticast.cursize);
-				}
-				else
-					SZ_Write (&client->datagram, sv.nqmulticast.data, sv.nqmulticast.cursize);
-				break;
-#endif
-#ifdef Q2SERVER
-			case SCP_QUAKE2:
-				if (reliable)
-				{
-					ClientReliableCheckBlock(client, sv.q2multicast.cursize);
-					ClientReliableWrite_SZ(client, sv.q2multicast.data, sv.q2multicast.cursize);
-				}
-				else
-					SZ_Write (&client->datagram, sv.q2multicast.data, sv.q2multicast.cursize);
-				break;
-#endif
-			case SCP_QUAKEWORLD:
-				if (reliable)
-				{
-					if (oneclient && seat)
-					{
-						ClientReliableCheckBlock(client, 2+sv.multicast.cursize);
-						ClientReliableWrite_Byte(client, svcfte_choosesplitclient);
-						ClientReliableWrite_Byte(client, seat);
-					}
-					else
-						ClientReliableCheckBlock(client, sv.multicast.cursize);
-
-					ClientReliableWrite_SZ(client, sv.multicast.data, sv.multicast.cursize);
-				}
-				else
-				{
-					if (oneclient && seat)
-					{
-						MSG_WriteByte (&client->datagram, svcfte_choosesplitclient);
-						MSG_WriteByte (&client->datagram, seat);
-					}
-					SZ_Write (&client->datagram, sv.multicast.data, sv.multicast.cursize);
-				}
-				break;
-			}
-		}
-	}
-	else
-#endif
 	{
 		reliable = false;
+		area1=-1;
+		area2=-1;
 
 		switch (to)
 		{
@@ -779,13 +585,13 @@ void SV_MulticastProtExt(vec3_t origin, multicast_t to, int dimension_mask, int 
 		case MULTICAST_PHS_R:
 			reliable = true;	// intentional fallthrough
 		case MULTICAST_PHS:
-			if (!sv.world.worldmodel->phs)	/*broadcast if no pvs*/
+			if (!sv.world.worldmodel->phs || sv_nopvs.ival)	/*broadcast if no pvs*/
 				mask = NULL;
 			else
 			{
-				cluster = sv.world.worldmodel->funcs.ClusterForPoint(sv.world.worldmodel, origin, NULL);
+				cluster = sv.world.worldmodel->funcs.ClusterForPoint(sv.world.worldmodel, origin, &area1);
 				if (cluster >= 0)
-					mask = sv.world.worldmodel->phs + cluster*sv.world.worldmodel->pvsbytes;
+					mask = sv.world.worldmodel->funcs.ClusterPHS(sv.world.worldmodel, cluster, NULL);
 				else
 					mask = NULL;
 			}
@@ -794,11 +600,16 @@ void SV_MulticastProtExt(vec3_t origin, multicast_t to, int dimension_mask, int 
 		case MULTICAST_PVS_R:
 			reliable = true;	// intentional fallthrough
 		case MULTICAST_PVS:
-			cluster = sv.world.worldmodel->funcs.ClusterForPoint(sv.world.worldmodel, origin, NULL);
-			if (cluster >= 0)
-				mask = sv.world.worldmodel->funcs.ClusterPVS(sv.world.worldmodel, cluster, NULL, PVM_FAST);
-			else
+			if (sv_nopvs.ival)
 				mask = NULL;
+			else
+			{
+				cluster = sv.world.worldmodel->funcs.ClusterForPoint(sv.world.worldmodel, origin, &area1);
+				if (cluster >= 0)
+					mask = sv.world.worldmodel->funcs.ClusterPVS(sv.world.worldmodel, cluster, NULL, PVM_FAST);
+				else
+					mask = NULL;
+			}
 			break;
 
 		case MULTICAST_ONE_R_NOSPECS:
@@ -860,10 +671,21 @@ void SV_MulticastProtExt(vec3_t origin, multicast_t to, int dimension_mask, int 
 							continue;
 					}
 				}
-				else if (svprogfuncs)
+				else
 				{
-					if (!((int)split->edict->xv->dimension_see & dimension_mask))
-						continue;
+					vec3_t pos;
+					if (svprogfuncs)
+					{
+						if (!((int)split->edict->xv->dimension_see & dimension_mask))
+							continue;
+						VectorAdd(split->edict->v->origin, split->edict->v->view_ofs, pos);
+					}
+#ifdef Q2SERVER
+					else if (ge)
+						VectorCopy(split->q2edict->s.origin, pos);
+#endif
+					else
+						continue;	//no idea where the player is...
 
 					if (!mask)	//no pvs? broadcast.
 						break;
@@ -871,20 +693,17 @@ void SV_MulticastProtExt(vec3_t origin, multicast_t to, int dimension_mask, int 
 					if (to == MULTICAST_PHS_R || to == MULTICAST_PHS)
 					{	//always in range if within 1024 units (consistent with quakeworld).
 						vec3_t delta;
-						VectorSubtract(origin, split->edict->v->origin, delta);
+						VectorSubtract(origin, pos, delta);
 						if (DotProduct(delta, delta) <= 1024*1024)
 							break;
 					}
 
+					cluster = sv.world.worldmodel->funcs.ClusterForPoint (sv.world.worldmodel, pos, &area2);
+					if (cluster>= 0 && (!(mask[cluster>>3] & (1<<(cluster&7)) ) ||
+						(sv.world.worldmodel->funcs.AreasConnected && !sv.world.worldmodel->funcs.AreasConnected (sv.world.worldmodel, area1, area2))))
 					{
-						vec3_t pos;
-						VectorAdd(split->edict->v->origin, split->edict->v->view_ofs, pos);
-						cluster = sv.world.worldmodel->funcs.ClusterForPoint (sv.world.worldmodel, pos, NULL);
-						if (cluster>= 0 && !(mask[cluster>>3] & (1<<(cluster&7)) ) )
-						{
-			//				Con_Printf ("PVS supressed multicast\n");
-							continue;
-						}
+		//				Con_Printf ("PVS supressed multicast\n");
+						continue;
 					}
 				}
 				break;

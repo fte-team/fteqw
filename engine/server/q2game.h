@@ -105,7 +105,7 @@ Q2SOLID_BSP			// bsp clip, touch on edge
 	struct link_s	*prev, *next;
 } link_t;*/
 
-#define	MAX_ENT_CLUSTERS	16
+#define	Q2MAX_ENT_CLUSTERS	16
 
 
 //typedef struct edict_s edict_t;
@@ -160,7 +160,7 @@ struct q2edict_s
 	link_t		area;				// linked to a division node or leaf
 	
 	int			num_clusters;		// if -1, use headnode instead
-	int			clusternums[MAX_ENT_CLUSTERS];
+	int			clusternums[Q2MAX_ENT_CLUSTERS];
 	int			headnode;			// unused if num_clusters != -1
 	int			areanum, areanum2;
 

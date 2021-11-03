@@ -35,9 +35,12 @@ void ClearBounds (vec3_t mins, vec3_t maxs);
 struct builddata_s
 {
 	void (*buildfunc)(model_t *mod, msurface_t *surf, struct builddata_s *bd);
+	qboolean paintlightmaps;
 	void *facedata;
 };
 void ModBrush_LoadGLStuff(void *ctx, void *data, size_t a, size_t b);	//data === builddata_t
+void Mod_Batches_Build(model_t *mod, builddata_t *bd);
+shader_t *Mod_RegisterBasicShader(struct model_s *mod, const char *texname, unsigned int usageflags, const char *shadertext, uploadfmt_t pixelfmt, unsigned int width, unsigned int height, void *pixeldata, void *palettedata);
 
 #ifdef GLQUAKE
 	#if defined(ANDROID) /*FIXME: actually just to use standard GLES headers instead of full GL*/

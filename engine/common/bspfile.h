@@ -931,11 +931,9 @@ typedef struct
 #define	MAX_ENT_LEAFS	32
 typedef struct pvscache_s
 {
-	int				num_leafs;
+	int				num_leafs;	//negative generally means resort-to-headnode.
 	unsigned int	leafnums[MAX_ENT_LEAFS];
-#if defined(Q2BSPS) || defined(Q3BSPS) || defined(TERRAIN)
-	int				areanum;	//q2bsp
-	int				areanum2;	//q2bsp
-	int				headnode;	//q2bsp
-#endif
+	int				areanum;
+	int				areanum2;
+	int				headnode;
 } pvscache_t;

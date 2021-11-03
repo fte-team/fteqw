@@ -5,10 +5,6 @@
 
 #ifdef Q3SERVER
 
-#ifndef MAX_ENT_CLUSTERS
-#define	MAX_ENT_CLUSTERS	16
-#endif
-
 #define USEBOTLIB
 
 #ifdef USEBOTLIB
@@ -135,11 +131,8 @@ typedef struct {
 	link_t area;
 #endif
 	qboolean linked;
-	int areanum;
-	int areanum2;
-	int headnode;
-	int num_clusters;
-	int clusternums[MAX_ENT_CLUSTERS];
+
+	pvscache_t pvscache;
 } q3serverEntity_t;
 q3serverEntity_t *q3_sentities;
 
@@ -211,12 +204,7 @@ static void Q3G_LinkEntity(q3sharedEntity_t *ent)
 	areanode_t	*node;
 #endif
 	q3serverEntity_t	*sent;
-	int			leafs[MAX_TOTAL_ENT_LEAFS];
-	int			clusters[MAX_TOTAL_ENT_LEAFS];
-	int			num_leafs;
 	int			i, j, k;
-	int			area;
-	int			topnode;
 	const float		*origin;
 	const float		*angles;
 
@@ -291,83 +279,8 @@ static void Q3G_LinkEntity(q3sharedEntity_t *ent)
 	ent->r.absmax[2] += 1;
 
 // link to PVS leafs
-	sent->num_clusters = 0;
-	sent->areanum = -1;
-	sent->areanum2 = -1;
-
-	//get all leafs, including solids
-	if (sv.world.worldmodel->type == mod_heightmap)
-	{
-		sent->areanum = 0;
-		num_leafs = 1;
-		sent->num_clusters = -1;
-		sent->headnode = 0;
-		clusters[0] = 0;
-		topnode = 0;
-	}
-	else
-	{
-		num_leafs = CM_BoxLeafnums(sv.world.worldmodel, ent->r.absmin, ent->r.absmax,
-			leafs, MAX_TOTAL_ENT_LEAFS, &topnode);
-
-		if(!num_leafs)
-			return;
-
-		// set areas
-		for(i=0; i<num_leafs; i++)
-		{
-			clusters[i] = CM_LeafCluster(sv.world.worldmodel, leafs[i]);
-			area = CM_LeafArea(sv.world.worldmodel, leafs[i]);
-			if(area >= 0)
-			{
-				// doors may legally straggle two areas,
-				// but nothing should ever need more than that
-				if(sent->areanum >= 0 && sent->areanum != area)
-				{
-					if(sent->areanum2 >= 0 && sent->areanum2 != area && sv.state == ss_loading)
-						Con_DPrintf("Object touching 3 areas at %f %f %f\n", ent->r.absmin[0], ent->r.absmin[1], ent->r.absmin[2]);
-
-					sent->areanum2 = area;
-				}
-				else
-					sent->areanum = area;
-			}
-		}
-	}
-
-	if(num_leafs >= MAX_TOTAL_ENT_LEAFS)
-	{
-		// assume we missed some leafs, and mark by headnode
-		sent->num_clusters = -1;
-		sent->headnode = topnode;
-	}
-	else
-	{
-		sent->num_clusters = 0;
-		for(i=0; i<num_leafs; i++)
-		{
-			if(clusters[i] == -1)
-				continue;		// not a visible leaf
-
-			for(j=0 ; j<i ; j++)
-			{
-				if(clusters[j] == clusters[i])
-					break;
-			}
-			if(j == i)
-			{
-				if(sent->num_clusters == MAX_ENT_CLUSTERS)
-				{
-					// assume we missed some leafs, and mark by headnode
-					sent->num_clusters = -1;
-					sent->headnode = topnode;
-					break;
-				}
-
-				sent->clusternums[sent->num_clusters++] = clusters[i];
-			}
-		}
-	}
+	sv.world.worldmodel->funcs.FindTouchedLeafs(sv.world.worldmodel, &sent->pvscache, ent->r.absmin, ent->r.absmax);
+	//FIXME: return if no leafs
 
 	ent->r.linkcount++;
 	ent->r.linked = true;
@@ -856,9 +769,9 @@ static int SVQ3_BotGetSnapshotEntity(int client, int entnum)
 static void SVQ3_Adjust_Area_Portal_State(q3sharedEntity_t *ge, qboolean open)
 {
 	q3serverEntity_t *se = SENTITY_FOR_GENTITY(ge);
-	if (se->areanum == -1 || se->areanum2 == -1) //not linked properly.
+	if (se->pvscache.areanum == -1 || se->pvscache.areanum2 == -1) //not linked properly.
 		return;
-	CMQ3_SetAreaPortalState(sv.world.worldmodel, se->areanum, se->areanum2, open);
+	sv.world.worldmodel->funcs.SetAreaPortalState(sv.world.worldmodel, -1, se->pvscache.areanum, se->pvscache.areanum2, open);
 }
 
 static qboolean SV_InPVS(vec3_t p1, vec3_t p2)
@@ -871,37 +784,18 @@ static qboolean SV_InPVS(vec3_t p1, vec3_t p2)
 		return true;	//no pvs info, assume everything is visible
 	else
 	{
-#if 1
-		int l1 = CM_PointLeafnum(worldmodel, p1);
-		int l2 = CM_PointLeafnum(worldmodel, p2);
-		int c1 = CM_LeafCluster(worldmodel, l1);
-		int c2 = CM_LeafCluster(worldmodel, l2);
+		int a1, c1 = worldmodel->funcs.ClusterForPoint(worldmodel, p1, &a1);
+		int a2, c2 = worldmodel->funcs.ClusterForPoint(worldmodel, p2, &a2);
 		qbyte *pvs;
 		if (c1 < 0 || c2 < 0)
 			return (c1<0);	//outside can see in, inside cannot (normally) see out.
-		pvs = CM_ClusterPVS(worldmodel, c1, NULL, PVM_FAST);
+		pvs = worldmodel->funcs.ClusterPVS(worldmodel, c1, NULL, PVM_FAST);
 		if (pvs[c2>>3] & (1<<(c2&7)))
 		{
-			int a1 = CM_LeafArea(worldmodel, l1);
-			int a2 = CM_LeafArea(worldmodel, l2);
-			if (CM_AreasConnected(worldmodel, a1, a2))
+			if (worldmodel->funcs.AreasConnected(worldmodel, a1, a2))
 				return true;
 		}
 		return false;
-#else
-		const qbyte *mask;
-		int c1 = worldmodel->funcs.ClusterForPoint(worldmodel, p1);
-		int c2 = worldmodel->funcs.ClusterForPoint(worldmodel, p2);
-		if (c1 < 0 || c2 < 0)
-			return true;	//one is outside of the world, so can see inside.
-		mask = worldmodel->funcs.ClusterPVS(worldmodel, c1, NULL, PVM_FAST);
-		if (mask[c2>>3] & (1<<(c2&7)))
-		{
-			//FIXME: check areas/portals too
-			return true;	//visible
-		}
-		return false;	//nope. :(
-#endif
 	}
 }
 
@@ -2015,8 +1909,6 @@ qboolean SVQ3_InitGame(qboolean restart)
 	mapentspointer = Mod_GetEntitiesString(sv.world.worldmodel);
 	VM_Call(q3gamevm, GAME_INIT, (intptr_t)(sv.time*1000), (int)rand(), restart);
 
-	CM_InitBoxHull();
-
 	if (!restart)
 	{
 		SVQ3_CreateBaseline();
@@ -2312,9 +2204,6 @@ static int VARGS SVQ3_QsortEntityStates( const void *arg1, const void *arg2 )
 static qboolean SVQ3_EntityIsVisible(q3client_frame_t *snap, q3sharedEntity_t *ent)
 {
 	q3serverEntity_t *sent;
-	int i;
-	int l;
-
 	if (!ent->r.linked)
 	{
 		return false; // not active entity
@@ -2367,56 +2256,17 @@ static qboolean SVQ3_EntityIsVisible(q3client_frame_t *snap, q3sharedEntity_t *e
 	sent = SENTITY_FOR_GENTITY( ent );
 
 	// check area
-	if (sent->areanum < 0 || !(snap->areabits[sent->areanum >> 3] & (1 << (sent->areanum & 7))))
+	if (sent->pvscache.areanum < 0 || !(snap->areabits[sent->pvscache.areanum >> 3] & (1 << (sent->pvscache.areanum & 7))))
 	{
 		// doors can legally straddle two areas, so
 		// we may need to check another one
-		if (sent->areanum2 < 0 || !(snap->areabits[sent->areanum2 >> 3] & (1 << (sent->areanum2 & 7))))
+		if (sent->pvscache.areanum2 < 0 || !(snap->areabits[sent->pvscache.areanum2 >> 3] & (1 << (sent->pvscache.areanum2 & 7))))
 		{
 			return false;		// blocked by a door
 		}
 	}
 
-/*
-	// check area
-	if( !CM_AreasConnected( clientarea, sent->areanum ) )
-	{
-		// doors can legally straddle two areas, so
-		// we may need to check another one
-		if( !CM_AreasConnected( clientarea, sent->areanum2 ) )
-		{
-			return false;		// blocked by a door
-		}
-	}
-*/
-
-
-	if (sent->num_clusters == -1)
-	{
-		// too many leafs for individual check, go by headnode
-		if (!CM_HeadnodeVisible(sv.world.worldmodel, sent->headnode, bitvector))
-		{
-			return false;
-		}
-	}
-	else
-	{
-		// check individual leafs
-		for (i=0; i < sent->num_clusters; i++)
-		{
-			l = sent->clusternums[i];
-			if (bitvector[l >> 3] & (1 << (l & 7)))
-			{
-				break;
-			}
-		}
-		if (i == sent->num_clusters)
-		{
-			return false;		// not visible
-		}
-	}
-
-	return true;
+	return sv.world.worldmodel->funcs.EdictInFatPVS(sv.world.worldmodel, &sent->pvscache, bitvector, NULL/*using the snapshots areabits rather than the bsp's*/);
 }
 
 #ifdef Q3OVERQW
@@ -2530,9 +2380,7 @@ void SVQ3_BuildClientSnapshot( client_t *client )
 	VectorCopy( ps->origin, org );
 	org[2] += ps->viewheight;
 
-	clientarea = CM_PointLeafnum(sv.world.worldmodel, org);
-	bitvector = sv.world.worldmodel->funcs.ClusterPVS(sv.world.worldmodel, CM_LeafCluster(sv.world.worldmodel, clientarea), &pvsbuffer, PVM_REPLACE);
-	clientarea = CM_LeafArea(sv.world.worldmodel, clientarea);
+	bitvector = sv.world.worldmodel->funcs.ClusterPVS(sv.world.worldmodel, sv.world.worldmodel->funcs.ClusterForPoint(sv.world.worldmodel, org, &clientarea), &pvsbuffer, PVM_REPLACE);
 /*
 	if (client->areanum != clientarea)
 	{
@@ -2542,7 +2390,7 @@ void SVQ3_BuildClientSnapshot( client_t *client )
 */
 
 	// calculate the visible areas
-	snap->areabytes = CM_WriteAreaBits(sv.world.worldmodel, snap->areabits, clientarea, false);
+	snap->areabytes = sv.world.worldmodel->funcs.WriteAreaBits(sv.world.worldmodel, snap->areabits, sizeof(snap->areabits), clientarea, false);
 
 	// grab the current playerState_t
 	memcpy(&snap->ps, ps, sizeof(snap->ps));
@@ -2565,13 +2413,10 @@ void SVQ3_BuildClientSnapshot( client_t *client )
 			if(!SVQ3_EntityIsVisible(snap, ent))
 				continue;
 
-			// merge PVS if portal
-			portalarea = CM_PointLeafnum(sv.world.worldmodel, ent->s.origin2);
 			//merge pvs bits so we can see other ents through it
-			sv.world.worldmodel->funcs.ClusterPVS(sv.world.worldmodel, CM_LeafCluster(sv.world.worldmodel, portalarea), &pvsbuffer, PVM_MERGE);
-			//and merge areas, so we can see the world too (client will calc its own pvs)
-			portalarea = CM_LeafArea(sv.world.worldmodel, portalarea);
-			CM_WriteAreaBits(sv.world.worldmodel, snap->areabits, portalarea, true);
+			sv.world.worldmodel->funcs.ClusterPVS(sv.world.worldmodel, sv.world.worldmodel->funcs.ClusterForPoint(sv.world.worldmodel, ent->s.origin2, &portalarea), &pvsbuffer, PVM_MERGE);
+			//and areabits too
+			sv.world.worldmodel->funcs.WriteAreaBits(sv.world.worldmodel, snap->areabits, snap->areabytes, portalarea, true);
 		}
 
 		// add all visible entities

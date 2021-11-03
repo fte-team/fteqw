@@ -6902,57 +6902,56 @@ void CL_DumpPacket(void)
 static void CL_ParsePortalState(void)
 {
 	int mode = MSG_ReadByte();
-	int a1, a2;
+	int p = -1, a1 = -1, a2 = -1, state = -1;
+#define PS_NEW			(1<<7)
+#define PS_AREANUMS		(1<<6)	//q3 style
+#define PS_PORTALNUM	(1<<5)	//q2 style
+#define PS_LARGE		(1<<1)
+#define PS_OPEN			(1<<0)
 
-	switch(mode&0xc0)
+	if (mode & PS_NEW)
 	{
-	case 0x80:
-		if (mode&2)
-			a1 = MSG_ReadShort();
-		else
-			a1 = MSG_ReadByte();
-		if (cl.worldmodel && cl.worldmodel->loadstate==MLS_LOADED && cl.worldmodel->fromgame == fg_quake2)
-		{
-#ifdef Q2BSPS
-			CMQ2_SetAreaPortalState(cl.worldmodel, a1, !!(mode&1));
-#else
-			(void)a1;
-#endif
-		}
-		break;
-	case 0xc0:
-		if (mode&2)
-		{
-			a1 = MSG_ReadShort();
-			a2 = MSG_ReadShort();
-		}
-		else
-		{
-			a1 = MSG_ReadByte();
-			a2 = MSG_ReadByte();
-		}
-		if (cl.worldmodel && cl.worldmodel->loadstate==MLS_LOADED && cl.worldmodel->fromgame == fg_quake3)
-		{
-#ifdef Q3BSPS
-			CMQ3_SetAreaPortalState(cl.worldmodel, a1, a2, !!(mode&1));
-#else
-			(void)a1;
-			(void)a2;
-#endif
-		}
-		break;
+		state = mode&1;
+		if (!(mode & PS_AREANUMS) && !(mode & PS_PORTALNUM))
+			mode |= PS_PORTALNUM;	//legacy crap
 
-	default:
-		//to be phased out.
-		mode |= MSG_ReadByte()<<8;
-		if (cl.worldmodel && cl.worldmodel->loadstate==MLS_LOADED && cl.worldmodel->fromgame == fg_quake2)
-		{
-#ifdef Q2BSPS
-			CMQ2_SetAreaPortalState(cl.worldmodel, mode & 0x7fff, !!(mode&0x8000));
-#endif
+		if (mode & PS_PORTALNUM)
+		{	//q2 style
+			if (mode&PS_LARGE)
+				p = MSG_ReadShort();
+			else
+				p = MSG_ReadByte();
 		}
-		break;
+		if (mode & PS_AREANUMS)
+		{	//q3 style
+			if (mode&PS_LARGE)
+			{
+				a1 = MSG_ReadShort();
+				a2 = MSG_ReadShort();
+			}
+			else
+			{
+				a1 = MSG_ReadByte();
+				a2 = MSG_ReadByte();
+			}
+		}
 	}
+	else
+	{	//legacy crap
+		Con_Printf(CON_WARNING"svc_setportalstate: legacy mode\n");
+		mode |= MSG_ReadByte()<<8;
+		p = (mode & 0x7fff);
+		state = !!(mode & 0x8000);
+	}
+
+#ifdef HAVE_SERVER
+	//reduce race conditions when we're both client+server.
+	if (sv.active)
+		return;
+#endif
+
+	if (cl.worldmodel && cl.worldmodel->loadstate==MLS_LOADED && cl.worldmodel->funcs.SetAreaPortalState)
+		cl.worldmodel->funcs.SetAreaPortalState(cl.worldmodel, p, a1, a2, state);
 }
 
 static void CL_ParseBaseAngle(int seat)

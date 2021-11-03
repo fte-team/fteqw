@@ -92,8 +92,8 @@ void R_SetSky(const char *sky)
 		memset(&tex, 0, sizeof(tex));
 
 		tex.base = R_LoadHiResTexture(sky, "env:gfx/env", IF_LOADNOW|IF_NOMIPMAP);
-		if (tex.reflectcube && tex.reflectcube->status == TEX_LOADING)
-			COM_WorkerPartialSync(tex.reflectcube, &tex.reflectcube->status, TEX_LOADING);
+		if (tex.base && tex.base->status == TEX_LOADING)
+			COM_WorkerPartialSync(tex.base, &tex.base->status, TEX_LOADING);
 		if (tex.base->width && TEXLOADED(tex.base))
 		{
 			forcedsky = R_RegisterShader(shadername, 0,

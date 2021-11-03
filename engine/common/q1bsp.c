@@ -2004,35 +2004,10 @@ static qbyte *Q1BSP_ClusterPVS (model_t *model, int cluster, pvsbuffer_t *buffer
 	return Q1BSP_DecompressVis (model->leafs[cluster].compressed_vis, model, buffer->buffer, buffer->buffersize, merge==PVM_MERGE);
 }
 
-/*static qbyte *Q1BSP_ClusterPHS (model_t *model, int cluster, pvsbuffer_t *buffer, pvsmerge_t merge)
+static qbyte *Q1BSP_ClusterPHS (model_t *model, int cluster, pvsbuffer_t *buffer)
 {
-	if (cluster == -1 || !model->phs)
-	{
-		if (merge == PVM_FAST)
-		{
-			if (mod_novis.buffersize < model->pvsbytes)
-			{
-				mod_novis.buffer = BZ_Realloc(mod_novis.buffer, mod_novis.buffersize=model->pvsbytes);
-				memset(mod_novis.buffer, 0xff, mod_novis.buffersize);
-			}
-			return mod_novis.buffer;
-		}
-		if (buffer->buffersize < model->pvsbytes)
-			buffer->buffer = BZ_Realloc(buffer->buffer, buffer->buffersize=model->pvsbytes);
-		memset(buffer->buffer, 0xff, model->pvsbytes);
-		return buffer->buffer;
-	}
-
-	if (merge == PVM_FAST)
-		return model->pvs + cluster * model->pvsbytes;
-
-	if (!buffer)
-		buffer = &mod_tempvis;
-	if (buffer->buffersize < model->pvsbytes)
-		buffer->buffer = BZ_Realloc(buffer->buffer, buffer->buffersize=model->pvsbytes);
-	memcpy(buffer->buffer, model->pvs + cluster * model->pvsbytes, model->pvsbytes);
-	return buffer->buffer;
-}*/
+	return model->phs + cluster*model->pvsbytes;
+}
 
 //returns the leaf number, which is used as a bit index into the pvs.
 static int Q1BSP_LeafnumForPoint (model_t *model, vec3_t p)
@@ -2043,7 +2018,7 @@ static int Q1BSP_LeafnumForPoint (model_t *model, vec3_t p)
 
 	if (!model)
 	{
-		Sys_Error ("Mod_PointInLeaf: bad model");
+		Sys_Error ("Q1BSP_LeafnumForPoint: bad model");
 	}
 	if (!model->nodes)
 		return 0;
@@ -2116,7 +2091,7 @@ static void Q1BSP_ClustersInSphere_Union(mleaf_t *firstleaf, const vec3_t center
 static qbyte *Q1BSP_ClustersInSphere(model_t *mod, const vec3_t center, float radius, pvsbuffer_t *fte_restrict pvsbuffer, const qbyte *fte_restrict unionwith)
 {
 	if (!mod)
-		Sys_Error ("Mod_PointInLeaf: bad model");
+		Sys_Error ("Q1BSP_ClustersInSphere: bad model");
 	if (!mod->nodes)
 		return NULL;
 
@@ -2137,7 +2112,7 @@ static int Q1BSP_ClusterForPoint (model_t *model, const vec3_t p, int *area)
 
 	if (!model)
 	{
-		Sys_Error ("Mod_PointInLeaf: bad model");
+		Sys_Error ("Q1BSP_ClusterForPoint: bad model");
 	}
 	if (area)
 		*area = 0;	//no areas with q1bsp.
@@ -2161,6 +2136,37 @@ static int Q1BSP_ClusterForPoint (model_t *model, const vec3_t p, int *area)
 }
 
 
+static void Q1BSP_InfoForPoint (struct model_s *mod, vec3_t pos, int *area, int *cluster, unsigned int *contentbits)
+{
+	mnode_t		*node;
+	float		d;
+	mplane_t	*plane;
+
+	*area = 0;	//no areas with q1bsp.
+	*cluster = -1;
+	*contentbits = FTECONTENTS_SOLID;
+	if (!mod->nodes)
+		return;
+
+	node = mod->nodes;
+	while (1)
+	{
+		if (node->contents < 0)
+		{
+			*cluster = ((mleaf_t *)node - mod->leafs) - 1;
+			*contentbits = Q1BSP_TranslateContents(((mleaf_t *)node)->contents);
+			return;	//we're done
+		}
+		plane = node->plane;
+		d = DotProduct (pos,plane->normal) - plane->dist;
+		if (d > 0)
+			node = node->children[0];
+		else
+			node = node->children[1];
+	}
+}
+
+
 /*
 PVS type stuff
 
@@ -2178,7 +2184,7 @@ void Q1BSP_Init(void)
 //fills in bspfuncs_t
 void Q1BSP_SetModelFuncs(model_t *mod)
 {
-#ifndef CLIENTONLY
+#ifdef HAVE_SERVER
 	mod->funcs.FatPVS				= Q1BSP_FatPVS;
 #endif
 	mod->funcs.EdictInFatPVS		= Q1BSP_EdictInFatPVS;
@@ -2187,15 +2193,20 @@ void Q1BSP_SetModelFuncs(model_t *mod)
 	mod->funcs.ClustersInSphere		= Q1BSP_ClustersInSphere;
 	mod->funcs.ClusterForPoint		= Q1BSP_ClusterForPoint;
 	mod->funcs.ClusterPVS			= Q1BSP_ClusterPVS;
-//	mod->funcs.ClusterPHS			= Q1BSP_ClusterPHS;
+	mod->funcs.ClusterPHS			= Q1BSP_ClusterPHS;
 	mod->funcs.NativeTrace			= Q1BSP_Trace;
 	mod->funcs.PointContents		= Q1BSP_PointContents;
 
-#ifndef SERVERONLY
+#ifdef HAVE_CLIENT
 	mod->funcs.LightPointValues		= GLQ1BSP_LightPointValues;
 	mod->funcs.MarkLights			= Q1BSP_MarkLights;
 	mod->funcs.StainNode			= Q1BSP_StainNode;
+#ifdef RTLIGHTS
+	mod->funcs.GenerateShadowMesh	= Q1BSP_GenerateShadowMesh;
 #endif
+#endif
+
+	mod->funcs.InfoForPoint			= Q1BSP_InfoForPoint;
 }
 #endif
 
@@ -2288,16 +2299,7 @@ bspx_header_t *BSPX_Setup(model_t *mod, char *filebase, size_t filelen, lump_t *
 
 	if (offs < filelen && mod && !mod->archive && mod_loadmappackages.ival)
 	{	//we have some sort of trailing junk... is it a zip?...
-		vfsfile_t *f = VFSPIPE_Open(1,true);
-		if (f)
-		{
-			VFS_WRITE(f, filebase+offs, filelen-offs);
-			mod->archive = FSZIP_LoadArchive(f, NULL, mod->name, mod->name, NULL);
-			if (mod->archive)
-				FS_LoadMapPackFile(mod->name, mod->archive);	//give it to the filesystem to use.
-			else
-				VFS_CLOSE(f);	//give up.
-		}
+		Mod_LoadMapArchive(mod, filebase+offs, filelen-offs);
 	}
 
 	return h;

@@ -484,6 +484,24 @@ void Mod_ParseEntities(model_t *mod)
 	mod->numentityinfo = c;
 }
 
+
+void Mod_LoadMapArchive(model_t *mod, void *archivedata, size_t archivesize)
+{
+	if (archivesize && mod && !mod->archive && mod_loadmappackages.ival)
+	{
+		vfsfile_t *f = VFSPIPE_Open(1,true);
+		if (f)
+		{
+			VFS_WRITE(f, archivedata, archivesize);
+			mod->archive = FSZIP_LoadArchive(f, NULL, mod->name, mod->name, NULL);
+			if (mod->archive)
+				FS_LoadMapPackFile(mod->name, mod->archive);	//give it to the filesystem to use.
+			else
+				VFS_CLOSE(f);	//give up.
+		}
+	}
+}
+
 /*
 ===================
 Mod_ClearAll
@@ -763,50 +781,6 @@ void *Mod_Extradata (model_t *mod)
 	return mod->meshinfo;
 }
 
-/*
-===============
-Mod_PointInLeaf
-===============
-*/
-mleaf_t *Mod_PointInLeaf (model_t *model, vec3_t p)
-{
-	mnode_t		*node;
-	float		d;
-	mplane_t	*plane;
-	
-	if (!model)
-	{		
-		Sys_Error ("Mod_PointInLeaf: bad model");
-	}
-	if (!model->nodes)
-		return NULL;
-#if defined(Q2BSPS) || defined(Q3BSPS)
-	if (model->fromgame == fg_quake2 || model->fromgame == fg_quake3)
-	{
-		return model->leafs + CM_PointLeafnum(model, p);
-	}
-#endif
-	if (model->fromgame == fg_doom)
-	{
-		return NULL;
-	}
-
-	node = model->nodes;
-	while (1)
-	{
-		if (node->contents < 0)
-			return (mleaf_t *)node;
-		plane = node->plane;
-		d = DotProduct (p,plane->normal) - plane->dist;
-		if (d > 0)
-			node = node->children[0];
-		else
-			node = node->children[1];
-	}
-	
-	return NULL;	// never reached
-}
-
 const char *Mod_FixName(const char *modname, const char *worldname)
 {
 	if (*modname == '*' && worldname && *worldname)
@@ -866,9 +840,21 @@ model_t *Mod_FindName (const char *name)
 		{
 #endif
 			if (mod_numknown == MAX_MOD_KNOWN)
+			{
+#ifdef LOADERTHREAD
+				Sys_UnlockMutex(com_resourcemutex);
+#endif
 				Sys_Error ("mod_numknown == MAX_MOD_KNOWN");
+				return NULL;
+			}
 			if (strlen(name) >= sizeof(mod->publicname))
+			{
+#ifdef LOADERTHREAD
+				Sys_UnlockMutex(com_resourcemutex);
+#endif
 				Sys_Error ("model name is too long: %s", name);
+				return NULL;
+			}
 			memset(mod, 0, sizeof(model_t));	//clear the old model as the renderers use the same globals
 			Q_strncpyz (mod->publicname, name, sizeof(mod->publicname));
 			Q_strncpyz (mod->name, name, sizeof(mod->name));
@@ -1485,7 +1471,7 @@ static void Mod_FinishTexture(model_t *mod, texture_t *tx, const char *loadname,
 	const char *origname = NULL;
 	const char *shadername = tx->name;
 
-	if (!safetoloadfromwads)
+	if (!safetoloadfromwads || !tx->shader)
 	{
 		//remap to avoid bugging out on textures with the same name and different images (vanilla content sucks)
 		shadername = Mod_RemapBuggyTexture(shadername, tx->srcdata, tx->srcwidth*tx->srcheight);
@@ -2273,7 +2259,7 @@ static void Mod_SaveEntFile_f(void)
 Mod_LoadEntities
 =================
 */
-void Mod_LoadEntities (model_t *loadmodel, qbyte *mod_base, lump_t *l)
+qboolean Mod_LoadEntitiesBlob(struct model_s *mod, const char *entdata, size_t entdatasize)
 {
 	char fname[MAX_QPATH];
 	size_t sz;
@@ -2282,15 +2268,15 @@ void Mod_LoadEntities (model_t *loadmodel, qbyte *mod_base, lump_t *l)
 	char *ents = NULL, *k;
 	int t;
 
-	Mod_SetEntitiesString(loadmodel, NULL, false);
-	if (!l->filelen)
-		return;
+	Mod_SetEntitiesString(mod, NULL, false);
+	if (!entdatasize)
+		return false;
 
 	if (mod_loadentfiles.value && !ents && *mod_loadentfiles_dir.string)
 	{
-		if (!strncmp(loadmodel->name, "maps/", 5))
+		if (!strncmp(mod->name, "maps/", 5))
 		{
-			Q_snprintfz(fname, sizeof(fname), "maps/%s/%s", mod_loadentfiles_dir.string, loadmodel->name+5);
+			Q_snprintfz(fname, sizeof(fname), "maps/%s/%s", mod_loadentfiles_dir.string, mod->name+5);
 			COM_StripExtension(fname, fname, sizeof(fname));
 			Q_strncatz(fname, ".ent", sizeof(fname));
 			ents = FS_LoadMallocFile(fname, &sz);
@@ -2298,26 +2284,27 @@ void Mod_LoadEntities (model_t *loadmodel, qbyte *mod_base, lump_t *l)
 	}
 	if (mod_loadentfiles.value && !ents)
 	{
-		COM_StripExtension(loadmodel->name, fname, sizeof(fname));
+		COM_StripExtension(mod->name, fname, sizeof(fname));
 		Q_strncatz(fname, ".ent", sizeof(fname));
 		ents = FS_LoadMallocFile(fname, &sz);
 	}
 	if (mod_loadentfiles.value && !ents)
 	{	//tenebrae compat
-		COM_StripExtension(loadmodel->name, fname, sizeof(fname));
+		COM_StripExtension(mod->name, fname, sizeof(fname));
 		Q_strncatz(fname, ".edo", sizeof(fname));
 		ents = FS_LoadMallocFile(fname, &sz);
 	}
 	if (!ents)
 	{
-		ents = Z_Malloc(l->filelen + 1);	
-		memcpy (ents, mod_base + l->fileofs, l->filelen);
-		ents[l->filelen] = 0;
+		ents = Z_Malloc(entdatasize + 1);
+		memcpy (ents, entdata, entdatasize);
+		ents[entdatasize] = 0;
+		mod->entitiescrc = 0;
 	}
 	else
-		loadmodel->entitiescrc = CalcHashInt(&hash_crc16, ents, strlen(ents));
+		mod->entitiescrc = CalcHashInt(&hash_crc16, ents, strlen(ents));
 
-	Mod_SetEntitiesString(loadmodel, ents, false);
+	Mod_SetEntitiesString(mod, ents, false);
 
 	while(ents && *ents)
 	{
@@ -2333,23 +2320,27 @@ void Mod_LoadEntities (model_t *loadmodel, qbyte *mod_base, lump_t *l)
 				if (!strncmp(keyname, "_texpart_", 9) || !strncmp(keyname, "texpart_", 8))
 				{
 					k = keyname + ((*keyname=='_')?9:8);
-					for (t = 0; t < loadmodel->numtextures; t++)
+					for (t = 0; t < mod->numtextures; t++)
 					{
-						if (!strcmp(k, loadmodel->textures[t]->name))
+						if (!strcmp(k, mod->textures[t]->name))
 						{
-							loadmodel->textures[t]->partname = ZG_Malloc(&loadmodel->memgroup, strlen(value)+1);
-							strcpy(loadmodel->textures[t]->partname, value);
+							mod->textures[t]->partname = ZG_Malloc(&mod->memgroup, strlen(value)+1);
+							strcpy(mod->textures[t]->partname, value);
 							break;
 						}
 					}
-					if (t == loadmodel->numtextures)
-						Con_Printf("\"%s\" is not valid for %s\n", keyname, loadmodel->name);
+					if (t == mod->numtextures)
+						Con_Printf("\"%s\" is not valid for %s\n", keyname, mod->name);
 				}
 			}
 		}
 	}
+	return true;
 }
-
+void Mod_LoadEntities (model_t *loadmodel, qbyte *mod_base, lump_t *l)
+{
+	Mod_LoadEntitiesBlob(loadmodel, mod_base+l->fileofs, l->filelen);
+}
 
 /*
 =================
@@ -3157,7 +3148,7 @@ static void Mod_Batches_AllocLightmaps(model_t *mod)
 
 extern void Surf_CreateSurfaceLightmap (msurface_t *surf, int shift);
 //if build is NULL, uses q1/q2 surf generation, and allocates lightmaps
-static void Mod_Batches_Build(model_t *mod, builddata_t *bd)
+void Mod_Batches_Build(model_t *mod, builddata_t *bd)
 {
 	int i;
 	int numverts = 0, numindicies=0;
@@ -3232,13 +3223,14 @@ static void Mod_Batches_Build(model_t *mod, builddata_t *bd)
 		Mod_Batches_BuildModelMeshes(mod, numverts, numindicies, ModQ1_Batches_BuildQ1Q2Poly, bd, merge);
 	}
 #endif
-#if defined(Q3BSPS)
 	if (bd)
 	{
-		Mod_Batches_SplitLightmaps(mod, merge);
+		if (bd->paintlightmaps)
+			Mod_Batches_AllocLightmaps(mod);
+		else
+			Mod_Batches_SplitLightmaps(mod, merge);
 		Mod_Batches_BuildModelMeshes(mod, numverts, numindicies, bd->buildfunc, bd, merge);
 	}
-#endif
 
 	if (BE_GenBrushModelVBO)
 		BE_GenBrushModelVBO(mod);

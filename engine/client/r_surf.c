@@ -51,8 +51,6 @@ lightmapinfo_t **lightmap;
 int numlightmaps;
 extern const float rgb9e5tab[32];
 
-extern mleaf_t		*r_vischain;		// linked list of visible leafs
-
 extern cvar_t r_stains;
 extern cvar_t r_loadlits;
 extern cvar_t r_stainfadetime;
@@ -2151,7 +2149,7 @@ static qbyte *Surf_MaskVis(qbyte *src, qbyte *dest)
 	if (cl.worldmodel->leafs[i].ma
 }
 */
-qbyte *frustumvis;
+static qbyte *q1frustumvis;
 
 #ifdef Q1BSPS
 /*
@@ -2193,7 +2191,7 @@ start:
 		pleaf = (mleaf_t *)node;
 
 		c = (pleaf - cl.worldmodel->leafs)-1;
-		frustumvis[c>>3] |= 1<<(c&7);
+		q1frustumvis[c>>3] |= 1<<(c&7);
 
 		mark = pleaf->firstmarksurface;
 		c = pleaf->nummarksurfaces;
@@ -2338,289 +2336,6 @@ static void Surf_OrthoRecursiveWorldNode (mnode_t *node, unsigned int clipflags)
 }
 #endif
 
-#ifdef Q2BSPS
-static void Surf_RecursiveQ2WorldNode (mnode_t *node)
-{
-	int			c, side;
-	mplane_t	*plane;
-	msurface_t	*surf, **mark;
-	mleaf_t		*pleaf;
-	double		dot;
-
-	int sidebit;
-
-	if (node->contents == Q2CONTENTS_SOLID)
-		return;		// solid
-
-	if (node->visframe != r_visframecount)
-		return;
-	if (R_CullBox (node->minmaxs, node->minmaxs+3))
-		return;
-
-// if a leaf node, draw stuff
-	if (node->contents != -1)
-	{
-		pleaf = (mleaf_t *)node;
-
-		// check for door connected areas
-		if (! (r_refdef.areabits[pleaf->area>>3] & (1<<(pleaf->area&7)) ) )
-			return;		// not visible
-
-		c = pleaf->cluster;
-		if (c >= 0)
-			frustumvis[c>>3] |= 1<<(c&7);
-
-		mark = pleaf->firstmarksurface;
-		c = pleaf->nummarksurfaces;
-
-		if (c)
-		{
-			do
-			{
-				(*mark)->visframe = r_framecount;
-				mark++;
-			} while (--c);
-		}
-		return;
-	}
-
-// node is just a decision point, so go down the apropriate sides
-
-// find which side of the node we are on
-	plane = node->plane;
-
-	switch (plane->type)
-	{
-	case PLANE_X:
-		dot = modelorg[0] - plane->dist;
-		break;
-	case PLANE_Y:
-		dot = modelorg[1] - plane->dist;
-		break;
-	case PLANE_Z:
-		dot = modelorg[2] - plane->dist;
-		break;
-	default:
-		dot = DotProduct (modelorg, plane->normal) - plane->dist;
-		break;
-	}
-
-	if (dot >= 0)
-	{
-		side = 0;
-		sidebit = 0;
-	}
-	else
-	{
-		side = 1;
-		sidebit = SURF_PLANEBACK;
-	}
-
-// recurse down the children, front side first
-	Surf_RecursiveQ2WorldNode (node->children[side]);
-
-	// draw stuff
-	for ( c = node->numsurfaces, surf = currentmodel->surfaces + node->firstsurface; c ; c--, surf++)
-	{
-		if (surf->visframe != r_framecount)
-			continue;
-
-		if ( (surf->flags & SURF_PLANEBACK) != sidebit )
-			continue;		// wrong side
-
-		surf->visframe = 0;//r_framecount+1;//-1;
-
-		Surf_RenderDynamicLightmaps (surf);
-
-		surf->sbatch->mesh[surf->sbatch->meshes++] = surf->mesh;
-	}
-
-
-// recurse down the back side
-	Surf_RecursiveQ2WorldNode (node->children[!side]);
-}
-#endif
-
-#ifdef Q3BSPS
-#if 0
-static void Surf_LeafWorldNode (void)
-{
-	int			i;
-	int			clipflags;
-	msurface_t	**mark, *surf;
-	mleaf_t		*pleaf;
-
-
-	int clipped;
-	mplane_t *clipplane;
-
-
-	for (pleaf = r_vischain; pleaf; pleaf = pleaf->vischain)
-	{
-		// check for door connected areas
-//		if (areabits)
-		{
-//			if (!(areabits[pleaf->area>>3] & (1<<(pleaf->area&7))))
-//			{
-//				continue;		// not visible
-//			}
-		}
-
-		clipflags = 15;		// 1 | 2 | 4 | 8
-//		if (!r_nocull->value)
-		{
-
-			for (i=0,clipplane=frustum ; i<FRUSTUMPLANES ; i++,clipplane++)
-			{
-				clipped = BoxOnPlaneSide (pleaf->minmaxs, pleaf->minmaxs+3, clipplane);
-				if (clipped == 2)
-				{
-					break;
-				}
-				else if (clipped == 1)
-				{
-					clipflags &= ~(1<<i);	// node is entirely on screen
-				}
-			}
-
-			if (i != FRUSTUMPLANES)
-			{
-				continue;
-			}
-		}
-
-		i = pleaf->nummarksurfaces;
-		mark = pleaf->firstmarksurface;
-
-		do
-		{
-			surf = *mark++;
-			if (surf->visframe != r_framecount)	//sufraces exist in multiple leafs.
-			{
-				surf->visframe = r_framecount;
-				if (surf->mark)
-					*surf->mark = surf;
-			}
-		} while (--i);
-
-//		c_world_leafs++;
-	}
-
-
-
-	{
-		int j;
-		texture_t *tex;
-		for (i = 0; i < cl.worldmodel->numtextures; i++)
-		{
-			tex = cl.worldmodel->textures[i];
-			if (!tex)
-				continue;
-			for (j = 0; j < tex->vbo.meshcount; j++)
-			{
-				surf = tex->vbo.meshlist[j];
-				if (surf)
-				{
-					tex->vbo.meshlist[j] = NULL;
-					surf->sbatch->mesh[surf->sbatch->meshes++] = surf->mesh;
-				}
-			}
-		}
-	}
-}
-#endif
-
-static void Surf_RecursiveQ3WorldNode (mnode_t *node, unsigned int clipflags)
-{
-	int			c, side, clipped;
-	mplane_t	*plane, *clipplane;
-	msurface_t	*surf, **mark;
-	mleaf_t		*pleaf;
-	double		dot;
-
-start:
-
-	if (node->visframe != r_visframecount)
-		return;
-
-	for (c = 0, clipplane = r_refdef.frustum; c < r_refdef.frustum_numworldplanes; c++, clipplane++)
-	{
-		if (!(clipflags & (1 << c)))
-			continue;	// don't need to clip against it
-
-		clipped = BOX_ON_PLANE_SIDE (node->minmaxs, node->minmaxs + 3, clipplane);
-		if (clipped == 2)
-			return;
-		else if (clipped == 1)
-			clipflags -= (1<<c);	// node is entirely on screen
-	}
-
-// if a leaf node, draw stuff
-	if (node->contents != -1)
-	{
-		pleaf = (mleaf_t *)node;
-
-		if (! (r_refdef.areabits[pleaf->area>>3] & (1<<(pleaf->area&7)) ) )
-			return;		// not visible
-
-		c = pleaf->cluster;
-		if (c >= 0)
-			frustumvis[c>>3] |= 1<<(c&7);
-
-		mark = pleaf->firstmarksurface;
-		for (c = pleaf->nummarksurfaces; c; c--)
-		{
-			surf = *mark++;
-			if (surf->visframe == r_framecount)
-				continue;
-			surf->visframe = r_framecount;
-
-//			if (((dot < 0) ^ !!(surf->flags & SURF_PLANEBACK)))
-//				continue;		// wrong side
-
-			surf->sbatch->mesh[surf->sbatch->meshes++] = surf->mesh;
-		}
-		return;
-	}
-
-// node is just a decision point, so go down the apropriate sides
-
-// find which side of the node we are on
-	plane = node->plane;
-
-	switch (plane->type)
-	{
-	case PLANE_X:
-		dot = modelorg[0] - plane->dist;
-		break;
-	case PLANE_Y:
-		dot = modelorg[1] - plane->dist;
-		break;
-	case PLANE_Z:
-		dot = modelorg[2] - plane->dist;
-		break;
-	default:
-		dot = DotProduct (modelorg, plane->normal) - plane->dist;
-		break;
-	}
-
-	if (dot >= 0)
-		side = 0;
-	else
-		side = 1;
-
-// recurse down the children, front side first
-	Surf_RecursiveQ3WorldNode (node->children[side], clipflags);
-
-// q3 nodes contain no drawables
-
-// recurse down the back side
-	//GLR_RecursiveWorldNode (node->children[!side], clipflags);
-	node = node->children[!side];
-	goto start;
-}
-#endif
-
 static void Surf_PushChains(batch_t **batches)
 {
 	batch_t *batch;
@@ -2695,8 +2410,7 @@ static void Surf_PopChains(batch_t **batches)
 //most of this is a direct copy from gl
 void Surf_SetupFrame(void)
 {
-	mleaf_t	*leaf;
-	vec3_t	temp, pvsorg;
+	vec3_t	pvsorg;
 	int viewcontents;
 
 	if (!cl.worldmodel || cl.worldmodel->loadstate!=MLS_LOADED)
@@ -2720,91 +2434,34 @@ void Surf_SetupFrame(void)
 	if (r_refdef.flags & RDF_NOWORLDMODEL)
 	{
 	}
-	else if (!cl.worldmodel || cl.worldmodel->loadstate != MLS_LOADED || cl.worldmodel->fromgame == fg_doom3 )
+	else if (cl.worldmodel && cl.worldmodel->loadstate == MLS_LOADED && cl.worldmodel->funcs.InfoForPoint)
 	{
-		r_viewcluster = -1;
-		r_viewcluster2 = -1;
-	}
-#if defined(Q2BSPS) || defined(Q3BSPS)
-	else if (cl.worldmodel->fromgame == fg_quake2 || cl.worldmodel->fromgame == fg_quake3)
-	{
-		leaf = Mod_PointInLeaf (cl.worldmodel, pvsorg);
-		r_viewarea = leaf->area;
-		viewcontents = cl.worldmodel->funcs.PointContents(cl.worldmodel, NULL, pvsorg);
-		r_viewcluster = r_viewcluster2 = leaf->cluster;
-
+		vec3_t	temp;
+		unsigned int cont2;
+		int area2;
+		cl.worldmodel->funcs.InfoForPoint (cl.worldmodel, pvsorg, &r_viewarea, &r_viewcluster, &viewcontents);
 		// check above and below so crossing solid water doesn't draw wrong
-		if (!leaf->contents)
+		if (!viewcontents)
 		{	// look down a bit
-			vec3_t	temp;
-
 			VectorCopy (pvsorg, temp);
 			temp[2] -= 16;
-			leaf = Mod_PointInLeaf (cl.worldmodel, temp);
-			if ( !(leaf->contents & Q2CONTENTS_SOLID) &&
-				(leaf->cluster != r_viewcluster2) )
-				r_viewcluster2 = leaf->cluster;
+			cl.worldmodel->funcs.InfoForPoint (cl.worldmodel, temp, &area2, &r_viewcluster2, &cont2);
+			if (cont2 & FTECONTENTS_SOLID)
+				r_viewcluster2 = r_viewcluster;
 		}
 		else
 		{	// look up a bit
-			vec3_t	temp;
-
 			VectorCopy (pvsorg, temp);
 			temp[2] += 16;
-			leaf = Mod_PointInLeaf (cl.worldmodel, temp);
-			if ( !(leaf->contents & Q2CONTENTS_SOLID) &&
-				(leaf->cluster != r_viewcluster2) )
-				r_viewcluster2 = leaf->cluster;
+			cl.worldmodel->funcs.InfoForPoint (cl.worldmodel, temp, &area2, &r_viewcluster2, &cont2);
+			if (cont2 & FTECONTENTS_SOLID)
+				r_viewcluster2 = r_viewcluster;
 		}
 	}
-#endif
 	else
 	{
-		leaf = Mod_PointInLeaf (cl.worldmodel, pvsorg);
-		r_viewcluster = (leaf - cl.worldmodel->leafs)-1;
+		r_viewcluster = -1;
 		r_viewcluster2 = -1;
-		if (leaf)
-		{
-			switch(leaf->contents)
-			{
-			case Q1CONTENTS_WATER:
-				viewcontents |= FTECONTENTS_WATER;
-				break;
-			case Q1CONTENTS_LAVA:
-				viewcontents |= FTECONTENTS_LAVA;
-				break;
-			case Q1CONTENTS_SLIME:
-				viewcontents |= FTECONTENTS_SLIME;
-				break;
-			case Q1CONTENTS_SKY:
-				viewcontents |= FTECONTENTS_SKY;
-				break;
-			case Q1CONTENTS_SOLID:
-				viewcontents |= FTECONTENTS_SOLID;
-				break;
-			case Q1CONTENTS_LADDER:
-				viewcontents |= FTECONTENTS_LADDER;
-				break;
-			}
-
-			if (leaf->contents == Q1CONTENTS_EMPTY)
-			{	//look down a bit
-				VectorCopy (pvsorg, temp);
-				temp[2] -= 16;
-				leaf = Mod_PointInLeaf (cl.worldmodel, temp);
-				if (leaf->contents <= Q1CONTENTS_WATER && leaf->contents >= Q1CONTENTS_LAVA)
-					r_viewcluster2 = (leaf - cl.worldmodel->leafs)-1;
-			}
-			else if (leaf->contents <= Q1CONTENTS_WATER && leaf->contents >= Q1CONTENTS_LAVA)
-			{	//in water, look up a bit.
-
-				VectorCopy (pvsorg, temp);
-				temp[2] += 16;
-				leaf = Mod_PointInLeaf (cl.worldmodel, temp);
-				if (leaf->contents == Q1CONTENTS_EMPTY)
-					r_viewcluster2 = (leaf - cl.worldmodel->leafs)-1;
-			}
-		}
 	}
 
 #ifdef TERRAIN
@@ -3778,57 +3435,16 @@ void Surf_DrawWorld (void)
 
 		Surf_PushChains(currentmodel->batches);
 
-		if (currentmodel->type != mod_brush)
+		if (currentmodel->funcs.PrepareFrame)
 		{
-			frustumvis = NULL;
+			int clusters[2] = {r_viewcluster, r_viewcluster2};
+			currentmodel->funcs.PrepareFrame(currentmodel, &r_refdef, r_viewarea, clusters, &surf_frustumvis[r_refdef.recurse], &entvis, &surfvis);
+		}
+		else if (currentmodel->type != mod_brush)
 			entvis = surfvis = NULL;
-		}
-#if defined(Q2BSPS) || defined(Q3BSPS)
-		else if (currentmodel->fromgame == fg_quake2 || currentmodel->fromgame == fg_quake3)
-		{
-			pvsbuffer_t *vis = &surf_frustumvis[r_refdef.recurse];
-			if (vis->buffersize < currentmodel->pvsbytes)
-				vis->buffer = BZ_Realloc(vis->buffer, vis->buffersize=currentmodel->pvsbytes);
-			frustumvis = vis->buffer;
-			memset(frustumvis, 0, currentmodel->pvsbytes);
-
-			if (!r_refdef.areabitsknown)
-			{	//generate the info each frame, as the gamecode didn't tell us what to use.
-				int leafnum = CM_PointLeafnum (currentmodel, r_refdef.vieworg);
-				int clientarea = CM_LeafArea (currentmodel, leafnum);
-				CM_WriteAreaBits(currentmodel, r_refdef.areabits, clientarea, false);
-				r_refdef.areabitsknown = true;
-			}
-#ifdef Q3BSPS
-			if (currentmodel->fromgame == fg_quake3)
-			{
-				entvis = surfvis = R_MarkLeaves_Q3 ();
-				Surf_RecursiveQ3WorldNode (currentmodel->nodes, (1<<r_refdef.frustum_numworldplanes)-1);
-				//Surf_LeafWorldNode ();
-			}
-			else
-#endif
-#ifdef Q2BSPS
-			if (currentmodel->fromgame == fg_quake2)
-			{
-				entvis = surfvis = R_MarkLeaves_Q2 ();
-				VectorCopy (r_refdef.vieworg, modelorg);
-				Surf_RecursiveQ2WorldNode (currentmodel->nodes);
-			}
-			else
-#endif
-			{
-				entvis = surfvis = NULL;
-			}
-
-			surfvis = frustumvis;
-		}
-#endif
 #ifdef MAP_PROC
 		else if (currentmodel->fromgame == fg_doom3)
-		{
 			entvis = surfvis = D3_CalcVis(currentmodel, r_origin);
-		}
 #endif
 #ifdef MAP_DOOM
 		else if (currentmodel->fromgame == fg_doom)
@@ -3838,37 +3454,28 @@ void Surf_DrawWorld (void)
 		}
 #endif
 #ifdef Q1BSPS
-		else if (1)
+		else if (currentmodel->fromgame == fg_quake || currentmodel->fromgame == fg_halflife)
 		{
-			//extern cvar_t temp1;
-//			if (0)//temp1.value)
-//				entvis = surfvis = R_MarkLeafSurfaces_Q1();
-//			else
-			{
-				pvsbuffer_t *vis = &surf_frustumvis[r_refdef.recurse];
+			pvsbuffer_t *vis = &surf_frustumvis[r_refdef.recurse];
 
-				entvis = R_MarkLeaves_Q1 (false);
-				if (!(r_novis.ival & 2))
-					VectorCopy (r_origin, modelorg);
+			entvis = R_MarkLeaves_Q1 (false);
+			if (!(r_novis.ival & 2))
+				VectorCopy (r_origin, modelorg);
 
-				if (vis->buffersize < currentmodel->pvsbytes)
-					vis->buffer = BZ_Realloc(vis->buffer, vis->buffersize=currentmodel->pvsbytes);
-				frustumvis = vis->buffer;
-				memset(frustumvis, 0, currentmodel->pvsbytes);
+			if (vis->buffersize < currentmodel->pvsbytes)
+				vis->buffer = BZ_Realloc(vis->buffer, vis->buffersize=currentmodel->pvsbytes);
+			q1frustumvis = vis->buffer;
+			memset(q1frustumvis, 0, currentmodel->pvsbytes);
 
-				if (r_refdef.useperspective)
-					Surf_RecursiveWorldNode (currentmodel->nodes, 0x1f);
-				else
-					Surf_OrthoRecursiveWorldNode (currentmodel->nodes, 0x1f);
-				surfvis = frustumvis;
-			}
+			if (r_refdef.useperspective)
+				Surf_RecursiveWorldNode (currentmodel->nodes, 0x1f);
+			else
+				Surf_OrthoRecursiveWorldNode (currentmodel->nodes, 0x1f);
+			surfvis = q1frustumvis;
 		}
 #endif
 		else
-		{
-			frustumvis = NULL;
 			entvis = surfvis = NULL;
-		}
 
 		RSpeedEnd(RSPEED_WORLDNODE);
 

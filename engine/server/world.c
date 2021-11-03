@@ -729,12 +729,6 @@ void VARGS WorldQ2_UnlinkEdict(world_t *w, q2edict_t *ent)
 void VARGS WorldQ2_LinkEdict(world_t *w, q2edict_t *ent)
 {
 	areanode_t	*node;
-	int			leafs[128];
-	int			clusters[countof(leafs)];
-	int			num_leafs;
-	int			i, j;
-	int			area;
-	int			topnode;
 
 	if (ent->area.prev)
 		WorldQ2_UnlinkEdict (w, ent);	// unlink from old position
@@ -822,56 +816,18 @@ void VARGS WorldQ2_LinkEdict(world_t *w, q2edict_t *ent)
 	ent->absmax[2] += 1;
 
 // link to PVS leafs
-	ent->num_clusters = 0;
-	ent->areanum = 0;
-	ent->areanum2 = 0;
-
-	//get all leafs, including solids
-	num_leafs = CM_BoxLeafnums (w->worldmodel, ent->absmin, ent->absmax,
-		leafs, countof(leafs), &topnode);
-
-	// set areas
-	for (i=0 ; i<num_leafs ; i++)
 	{
-		clusters[i] = CM_LeafCluster (w->worldmodel, leafs[i]);
-		area = CM_LeafArea (w->worldmodel, leafs[i]);
-		if (area)
-		{	// doors may legally straggle two areas,
-			// but nothing should evern need more than that
-			if (ent->areanum && ent->areanum != area)
-				ent->areanum2 = area;
-			else
-				ent->areanum = area;
-		}
-	}
+		pvscache_t cache;
+		w->worldmodel->funcs.FindTouchedLeafs(w->worldmodel, &cache, ent->absmin, ent->absmax);
 
-	if (num_leafs >= countof(leafs))
-	{	// assume we missed some leafs, and mark by headnode
-		ent->num_clusters = -1;
-		ent->headnode = topnode;
-	}
-	else
-	{
-		ent->num_clusters = 0;
-		for (i=0 ; i<num_leafs ; i++)
-		{
-			if (clusters[i] == -1)
-				continue;		// not a visible leaf
-			for (j=0 ; j<i ; j++)
-				if (clusters[j] == clusters[i])
-					break;
-			if (j == i)
-			{
-				if (ent->num_clusters == MAX_ENT_CLUSTERS)
-				{	// assume we missed some leafs, and mark by headnode
-					ent->num_clusters = -1;
-					ent->headnode = topnode;
-					break;
-				}
-
-				ent->clusternums[ent->num_clusters++] = clusters[i];
-			}
-		}
+		//evilness: copy into the q2 state (we don't have anywhere else to store it, and there's a chance that the gamecode will care).
+		ent->num_clusters = cache.num_leafs;
+		if (ent->num_clusters > (int)countof(ent->clusternums))
+			ent->num_clusters = (int)countof(ent->clusternums);
+		memcpy(ent->clusternums, cache.leafnums, min(sizeof(ent->clusternums), sizeof(cache.leafnums)));
+		ent->headnode = cache.headnode;
+		ent->areanum = cache.areanum;
+		ent->areanum2 = cache.areanum2;
 	}
 
 	// if first time, make sure old_origin is valid
@@ -901,254 +857,10 @@ void VARGS WorldQ2_LinkEdict(world_t *w, q2edict_t *ent)
 	// link it in	
 	InsertLinkBefore (&ent->area, &node->edicts);
 }
-
-void WorldQ2_Q1BSP_LinkEdict(world_t *w, q2edict_t *ent)
-{
-	areanode_t	*node;
-	int			i, j, k;
-
-	if (ent->area.prev)
-		WorldQ2_UnlinkEdict (w, ent);	// unlink from old position
-		
-	if (ent == ge->edicts)
-		return;		// don't add the world
-
-	if (!ent->inuse)
-		return;
-
-	// set the size
-	VectorSubtract (ent->maxs, ent->mins, ent->size);
-	
-	// encode the size into the entity_state for client prediction
-	if (ent->solid == Q2SOLID_BBOX && !(ent->svflags & SVF_DEADMONSTER))
-	{	// assume that x/y are equal and symetric
-		i = ent->maxs[0]/8;
-		if (i<1)
-			i = 1;
-		if (i>31)
-			i = 31;
-
-		// z is not symetric
-		j = (-ent->mins[2])/8;
-		if (j<1)
-			j = 1;
-		if (j>31)
-			j = 31;
-
-		// and z maxs can be negative...
-		k = (ent->maxs[2]+32)/8;
-		if (k<1)
-			k = 1;
-		if (k>63)
-			k = 63;
-
-		ent->s.solid = (k<<10) | (j<<5) | i;
-	}
-	else if (ent->solid == Q2SOLID_BSP)
-	{
-		ent->s.solid = 31;		// a solid_bbox will never create this value
-	}
-	else
-		ent->s.solid = 0;
-
-	// set the abs box
-	if (ent->solid == Q2SOLID_BSP && 
-	(ent->s.angles[0] || ent->s.angles[1] || ent->s.angles[2]) )
-	{	// expand for rotation
-		float		max, v;
-		int			i;
-
-		max = 0;
-		for (i=0 ; i<3 ; i++)
-		{
-			v =fabs( ent->mins[i]);
-			if (v > max)
-				max = v;
-			v =fabs( ent->maxs[i]);
-			if (v > max)
-				max = v;
-		}
-		for (i=0 ; i<3 ; i++)
-		{
-			ent->absmin[i] = ent->s.origin[i] - max;
-			ent->absmax[i] = ent->s.origin[i] + max;
-		}
-	}
-	else
-	{	// normal
-		VectorAdd (ent->s.origin, ent->mins, ent->absmin);	
-		VectorAdd (ent->s.origin, ent->maxs, ent->absmax);
-	}
-
-	// because movement is clipped an epsilon away from an actual edge,
-	// we must fully check even when bounding boxes don't quite touch
-	ent->absmin[0] -= 1;
-	ent->absmin[1] -= 1;
-	ent->absmin[2] -= 1;
-	ent->absmax[0] += 1;
-	ent->absmax[1] += 1;
-	ent->absmax[2] += 1;
-
-// link to PVS leafs
-	ent->num_clusters = 0;
-	ent->areanum = 0;
-	ent->areanum2 = 0;
-
-
-	ent->areanum = 1;
-/*
-	//get all leafs, including solids
-	num_leafs = CM_BoxLeafnums (ent->absmin, ent->absmax,
-		leafs, MAX_TOTAL_ENT_LEAFS, &topnode);
-
-	// set areas
-	for (i=0 ; i<num_leafs ; i++)
-	{
-		clusters[i] = CM_LeafCluster (leafs[i]);
-		area = CM_LeafArea (leafs[i]);
-		if (area)
-		{	// doors may legally straggle two areas,
-			// but nothing should evern need more than that
-			if (ent->areanum && ent->areanum != area)
-			{
-				ent->areanum2 = area;
-			}
-			else
-				ent->areanum = area;
-		}
-	}
-
-	if (num_leafs >= MAX_TOTAL_ENT_LEAFS)
-	{	// assume we missed some leafs, and mark by headnode
-		ent->num_clusters = -1;
-		ent->headnode = topnode;
-	}
-	else
-	{
-		ent->num_clusters = 0;
-		for (i=0 ; i<num_leafs ; i++)
-		{
-			if (clusters[i] == -1)
-				continue;		// not a visible leaf
-			for (j=0 ; j<i ; j++)
-				if (clusters[j] == clusters[i])
-					break;
-			if (j == i)
-			{
-				if (ent->num_clusters == MAX_ENT_CLUSTERS)
-				{	// assume we missed some leafs, and mark by headnode
-					ent->num_clusters = -1;
-					ent->headnode = topnode;
-					break;
-				}
-
-				ent->clusternums[ent->num_clusters++] = clusters[i];
-			}
-		}
-	}
-	*/
-
-	// if first time, make sure old_origin is valid
-	if (!ent->linkcount)
-	{
-		VectorCopy (ent->s.origin, ent->s.old_origin);
-	}
-	ent->linkcount++;
-
-	if (ent->solid == Q2SOLID_NOT)
-		return;
-
-// find the first node that the ent's box crosses
-	node = w->areanodes;
-	while (1)
-	{
-		if (node->axis == -1)
-			break;
-		if (ent->absmin[node->axis] > node->dist)
-			node = node->children[0];
-		else if (ent->absmax[node->axis] < node->dist)
-			node = node->children[1];
-		else
-			break;		// crosses the node
-	}
-
-	// link it in
-	InsertLinkBefore (&ent->area, &node->edicts);
-}
 #endif
 
 
 
-
-#if defined(Q2BSPS) || defined(Q3BSPS)
-void Q23BSP_FindTouchedLeafs(model_t *model, struct pvscache_s *ent, const float *mins, const float *maxs)
-{
-#define MAX_TOTAL_ENT_LEAFS		128
-	int			leafs[MAX_TOTAL_ENT_LEAFS];
-	int			clusters[MAX_TOTAL_ENT_LEAFS];
-	int num_leafs;
-	int			topnode;
-	int i, j;
-	int			area;
-	int nullarea = (model->fromgame == fg_quake2)?0:-1;
-
-	//ent->num_leafs == q2's ent->num_clusters
-	ent->num_leafs = 0;
-	ent->areanum = nullarea;
-	ent->areanum2 = nullarea;
-
-	if (!mins || !maxs)
-		return;
-
-	//get all leafs, including solids
-	num_leafs = CM_BoxLeafnums (model, mins, maxs,
-		leafs, MAX_TOTAL_ENT_LEAFS, &topnode);
-
-	// set areas
-	for (i=0 ; i<num_leafs ; i++)
-	{
-		clusters[i] = CM_LeafCluster (model, leafs[i]);
-		area = CM_LeafArea (model, leafs[i]);
-		if (area != nullarea)
-		{	// doors may legally straggle two areas,
-			// but nothing should ever need more than that
-			if (ent->areanum != nullarea && ent->areanum != area)
-				ent->areanum2 = area;
-			else
-				ent->areanum = area;
-		}
-	}
-
-	if (num_leafs >= MAX_TOTAL_ENT_LEAFS)
-	{	// assume we missed some leafs, and mark by headnode
-		ent->num_leafs = -1;
-		ent->headnode = topnode;
-	}
-	else
-	{
-		ent->num_leafs = 0;
-		for (i=0 ; i<num_leafs ; i++)
-		{
-			if (clusters[i] == -1)
-				continue;		// not a visible leaf
-			for (j=0 ; j<i ; j++)
-				if (clusters[j] == clusters[i])
-					break;
-			if (j == i)
-			{
-				if (ent->num_leafs == MAX_ENT_LEAFS)
-				{	// assume we missed some leafs, and mark by headnode
-					ent->num_leafs = -1;
-					ent->headnode = topnode;
-					break;
-				}
-
-				ent->leafnums[ent->num_leafs++] = clusters[i];
-			}
-		}
-	}
-}
-#endif
 
 /*
 ===============================================================================
@@ -1905,9 +1617,13 @@ static void World_ClipToEverything (world_t *w, moveclip_t *clip)
 			trace = World_ClipMoveToEntity (w, touch, touch->v->origin, touch->v->angles, clip->start, clip->mins2, clip->maxs2, clip->end, clip->hullnum, clip->type & MOVE_HITMODEL, clip->capsule, clip->hitcontentsmask);
 		else
 			trace = World_ClipMoveToEntity (w, touch, touch->v->origin, touch->v->angles, clip->start, clip->mins, clip->maxs, clip->end, clip->hullnum, clip->type & MOVE_HITMODEL, clip->capsule, clip->hitcontentsmask);
-		if (trace.allsolid || trace.startsolid ||
-				trace.fraction < clip->trace.fraction)
+
+		if (trace.fraction < clip->trace.fraction)
 		{
+			//trace traveled less, but don't forget if we started in a solid.
+			trace.startsolid |= clip->trace.startsolid;
+			trace.allsolid |= clip->trace.allsolid;
+
 			if (clip->type & MOVE_ENTCHAIN)
 			{
 				touch->v->chain = EDICT_TO_PROG(w->progs, clip->trace.ent?clip->trace.ent:w->edicts);
@@ -1915,8 +1631,22 @@ static void World_ClipToEverything (world_t *w, moveclip_t *clip)
 			}
 			else
 			{
-				trace.ent = touch;
+				if (clip->trace.startsolid && !trace.startsolid)
+					trace.ent = clip->trace.ent;	//something else hit earlier, that one gets the trace entity, but not the fraction. yeah, combining traces like this was always going to be weird.
+				else
+					trace.ent = touch;
 				clip->trace = trace;
+			}
+		}
+		else if (trace.startsolid || trace.allsolid)
+		{
+			//even if the trace traveled less, we still care if it was in a solid.
+			clip->trace.startsolid |= trace.startsolid;
+			clip->trace.allsolid |= trace.allsolid;
+			clip->trace.contents |= trace.contents;
+			if (!clip->trace.ent || trace.fraction == clip->trace.fraction)	//xonotic requires that second test (DP has no check at all, which would end up reporting mismatched fraction/ent results, so yuck).
+			{
+				clip->trace.ent = touch;
 			}
 		}
 	}
@@ -2519,7 +2249,7 @@ static void World_ClipToNetwork (world_t *w, moveclip_t *clip)
 			continue;
 
 		//lets say that ssqc ents are in dimension 0x1, as far as the csqc can see.
-		if (!((int)clip->passedict->xv->dimension_hit & 1))
+		if (clip->passedict && !((int)clip->passedict->xv->dimension_hit & 1))
 			continue;
 
 		framestate.g[FS_REG].frame[0] = touch->frame;

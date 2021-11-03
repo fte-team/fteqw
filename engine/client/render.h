@@ -550,8 +550,6 @@ void	*Mod_Extradata (struct model_s *mod);	// handles caching
 void	Mod_TouchModel (const char *name);
 void Mod_RebuildLightmaps (void);
 
-struct mleaf_s *Mod_PointInLeaf (struct model_s *model, float *p);
-
 void Mod_NowLoadExternal(struct model_s *loadmodel);
 void GLR_LoadSkys (void);
 void R_BloomRegister(void);

@@ -3019,7 +3019,6 @@ void Terr_DrawInBounds(struct tdibctx *ctx, int x, int y, int w, int h)
 
 void Terr_DrawTerrainModel (batch_t **batches, entity_t *e)
 {
-	extern qbyte *frustumvis;
 	model_t *m = e->model;
 	heightmap_t *hm = m->terrain;
 	batch_t *b;
@@ -3115,7 +3114,7 @@ void Terr_DrawTerrainModel (batch_t **batches, entity_t *e)
 	tdibctx.vx = (r_refdef.vieworg[0] + CHUNKBIAS*hm->sectionsize) / hm->sectionsize;
 	tdibctx.vy = (r_refdef.vieworg[1] + CHUNKBIAS*hm->sectionsize) / hm->sectionsize;
 	tdibctx.wmodel = e->model;
-	tdibctx.pvs = (e->model == cl.worldmodel)?frustumvis:NULL;
+	tdibctx.pvs = (e->model == cl.worldmodel)?r_refdef.scenevis:NULL;
 validatelinks(&hm->recycle);
 	Terr_DrawInBounds(&tdibctx, bounds[0], bounds[2], bounds[1]-bounds[0], bounds[3]-bounds[2]);
 

@@ -7682,73 +7682,35 @@ static void QCBUILTIN PF_redirectcmd (pubprogfuncs_t *prinst, struct globalvars_
 
 static void QCBUILTIN PF_OpenPortal	(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-#ifdef Q2BSPS
-	if (sv.world.worldmodel->fromgame == fg_quake2)
+	int i;
+	int state	= G_FLOAT(OFS_PARM1)!=0;
+	client_t *client;
+	edict_t *ent = G_EDICT(prinst, OFS_PARM0);
+	int portal = G_EDICT(prinst, OFS_PARM0)->xv->style;	//read the func_areaportal's style field (q2ism).
+	int area1 = ent->pvsinfo.areanum, area2 = ent->pvsinfo.areanum2;
+	for (client = svs.clients, i = 0; i < sv.allocated_client_slots; i++, client++)
 	{
-		int i, portal;
-		int state	= G_FLOAT(OFS_PARM1)!=0;
-		client_t *client;
-		if (G_INT(OFS_PARM1) >= MAX_EDICTS)
-			portal = G_FLOAT(OFS_PARM0);	//old legacy crap.
-		else
-			portal = G_EDICT(prinst, OFS_PARM0)->xv->style;	//read the func_areaportal's style field.
-		for (client = svs.clients, i = 0; i < sv.allocated_client_slots; i++, client++)
+		if (client->state >= cs_connected)
 		{
-			if (client->state >= cs_connected)
+			ClientReliableWrite_Begin(client, svc_setportalstate, 4);
+			if (portal > 0xff || area1 > 0xff || area2 > 0xff)
 			{
-				ClientReliableWrite_Begin(client, svc_setportalstate, 4);
-				if (portal >= 0x80)
-				{	//new pathway, to be enabled at some point
-					if (portal > 0xff)
-					{
-						ClientReliableWrite_Byte(client, 0x80 | 2 | state);
-						ClientReliableWrite_Short(client, portal);
-					}
-					else
-					{
-						ClientReliableWrite_Byte(client, 0x80 | 0 | state);
-						ClientReliableWrite_Byte(client, portal);
-					}
-				}
-				else
-					ClientReliableWrite_Short(client, portal | (state<<15));
+				ClientReliableWrite_Byte(client, 0xe0 | 2 | state);
+				ClientReliableWrite_Short(client, portal);
+				ClientReliableWrite_Short(client, area1);
+				ClientReliableWrite_Short(client, area2);
+			}
+			else
+			{
+				ClientReliableWrite_Byte(client, 0xe0 | 0 | state);
+				ClientReliableWrite_Byte(client, portal);
+				ClientReliableWrite_Byte(client, area1);
+				ClientReliableWrite_Byte(client, area2);
 			}
 		}
-		CMQ2_SetAreaPortalState(sv.world.worldmodel, portal, state);
 	}
-#endif
-#ifdef Q3BSPS
-	if (sv.world.worldmodel->fromgame == fg_quake3)
-	{
-		int i;
-		int state	= G_FLOAT(OFS_PARM1)!=0;
-		client_t *client;
-		edict_t *portal = G_EDICT(prinst, OFS_PARM0);
-		int area1 = portal->pvsinfo.areanum, area2 = portal->pvsinfo.areanum2;
-		if (area1 == area2 || area1<0 || area2<0)
-			return;
-		for (client = svs.clients, i = 0; i < sv.allocated_client_slots; i++, client++)
-		{
-			if (client->state >= cs_connected)
-			{
-				ClientReliableWrite_Begin(client, svc_setportalstate, 6);
-				if (area1 > 0xff || area2 > 0xff)
-				{
-					ClientReliableWrite_Byte(client, 0xc0 | 2 | state);
-					ClientReliableWrite_Short(client, area1);
-					ClientReliableWrite_Short(client, area2);
-				}
-				else
-				{
-					ClientReliableWrite_Byte(client, 0xc0 | 0 | state);
-					ClientReliableWrite_Byte(client, area1);
-					ClientReliableWrite_Byte(client, area2);
-				}
-			}
-		}
-		CMQ3_SetAreaPortalState(sv.world.worldmodel, portal->pvsinfo.areanum, portal->pvsinfo.areanum2, state);
-	}
-#endif
+	if (sv.world.worldmodel->funcs.SetAreaPortalState)
+		sv.world.worldmodel->funcs.SetAreaPortalState(sv.world.worldmodel, portal, area1, area2, state);
 }
 
 //EXTENSION: KRIMZON_SV_PARSECLIENTCOMMAND

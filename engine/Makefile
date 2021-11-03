@@ -918,7 +918,6 @@ COMMON_OBJS = \
 	fs_stdio.o		\
 	fs_pak.o		\
 	fs_zip.o		\
-	fs_vpk.o		\
 	fs_dzip.o		\
 	fs_xz.o		\
 	m_download.o	\

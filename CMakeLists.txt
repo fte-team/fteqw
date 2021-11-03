@@ -528,7 +528,6 @@ SET(FTE_COMMON_FILES
 	engine/common/fs_stdio.c
 	engine/common/fs_xz.c
 	engine/common/fs_zip.c
-	engine/common/fs_vpk.c
 	engine/common/gl_q2bsp.c
 	engine/common/huff.c
 	engine/common/log.c

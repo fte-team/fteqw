@@ -167,7 +167,6 @@
 //#define IPLOG
 //#define MVD_RECORDING
 //#define PACKAGEMANAGER
-//#define PACKAGE_VPK
 //#define SAVEDGAMES
 //#define AVAIL_BOTLIB
 //#define AVAIL_BZLIB

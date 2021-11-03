@@ -54,7 +54,6 @@
 #define PACKAGE_PK3				//aka zips. we support utf8,zip64,spans,weakcrypto,(deflate),(bzip2),symlinks. we do not support strongcrypto nor any of the other compression schemes.
 //#define PACKAGE_Q1PAK			//also q2
 //#define PACKAGE_DOOMWAD		//doom wad support (generates various file names, and adds support for doom's audio, sprites, etc)
-//#define PACKAGE_VPK			//hl2 packages
 //#define AVAIL_XZDEC			//.xz decompression
 #define AVAIL_GZDEC				//.gz decompression
 #define AVAIL_ZLIB				//whether pk3s can be compressed or not.

@@ -330,6 +330,11 @@ typedef struct	//for plugins that need to read/write files...
 	F(vfsfile_t*,OpenVFS,		(const char *filename, const char *mode, enum fs_relative relativeto));		//opens a direct vfs file, without any access checks, and so can be used in threaded plugins
 	F(qboolean,	NativePath,		(const char *name, enum fs_relative relativeto, char *out, int outlen));
 	F(void,		EnumerateFiles,	(const char *match, int (QDECL *callback)(const char *fname, qofs_t fsize, time_t mtime, void *ctx, struct searchpathfuncs_s *package), void *ctx));
+
+	//helpers
+	F(int,		WildCmp,		(const char *wild, const char *string));
+	F(void,		CleanUpPath,	(char *str));
+	F(unsigned int,BlockChecksum,(const void *buffer, int length));	//mostly for pack hashes.
 #define plugfsfuncs_name "Filesystem"
 } plugfsfuncs_t;
 

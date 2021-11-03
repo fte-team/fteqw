@@ -1858,6 +1858,10 @@ static void *QDECL PlugBI_GetEngineInterface(const char *interfacename, size_t s
 			FS_OpenVFS,
 			FS_NativePath,
 			COM_EnumerateFiles,
+
+			wildcmp,
+			COM_CleanUpPath,
+			Com_BlockChecksum,
 		};
 		if (structsize == sizeof(funcs))
 			return &funcs;

@@ -105,6 +105,7 @@ void FS_UnRegisterFileSystemModule(void *module)
 		{
 			if (searchpathformats[i].module == module)
 			{
+				searchpathformats[i].extension = NULL;
 				searchpathformats[i].OpenNew = NULL;
 				searchpathformats[i].module = NULL;
 				found = true;
@@ -7291,9 +7292,6 @@ void FS_RegisterDefaultFileSystems(void)
 	FS_RegisterFileSystemType(NULL, "exe", FSZIP_LoadArchive, false);	//for self-extracting zips.
 	FS_RegisterFileSystemType(NULL, "dll", FSZIP_LoadArchive, false);	//for plugin metas / self-extracting zips.
 	FS_RegisterFileSystemType(NULL, "so", FSZIP_LoadArchive, false);	//for plugin metas / self-extracting zips.
-#endif
-#ifdef PACKAGE_VPK
-	FS_RegisterFileSystemType(NULL, "vpk", FSVPK_LoadArchive, true);
 #endif
 #ifdef PACKAGE_DOOMWAD
 	FS_RegisterFileSystemType(NULL, "wad", FSDWD_LoadArchive, true);

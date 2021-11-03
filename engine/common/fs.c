@@ -16,7 +16,7 @@ void FS_BeginManifestUpdates(void);
 static void QDECL fs_game_callback(cvar_t *var, char *oldvalue);
 static void COM_InitHomedir(ftemanifest_t *man);
 hashtable_t filesystemhash;
-static qboolean com_fschanged = true;
+static qboolean com_fschanged = true, com_fsneedreload;
 qboolean com_installer = false;
 qboolean fs_readonly;
 int waitingformanifest;
@@ -38,6 +38,7 @@ static int fs_referencetype;
 int fs_finds;
 void COM_CheckRegistered (void);
 void Mods_FlushModList(void);
+static void FS_ReloadPackFilesFlags(unsigned int reloadflags);
 static qboolean Sys_SteamHasFile(char *basepath, int basepathlen, char *steamdir, char *fname);
 searchpathfuncs_t *FS_OpenPackByExtension(vfsfile_t *f, searchpathfuncs_t *parent, const char *filename, const char *pakname);
 
@@ -80,6 +81,7 @@ int FS_RegisterFileSystemType(void *module, const char *extension, searchpathfun
 	searchpathformats[i].OpenNew = OpenNew;
 	searchpathformats[i].loadscan = loadscan;
 	com_fschanged = true;
+	com_fsneedreload = true;
 
 	return i+1;
 }
@@ -92,6 +94,7 @@ void FS_UnRegisterFileSystemType(int idx)
 	searchpathformats[idx-1].OpenNew = NULL;
 	searchpathformats[idx-1].module = NULL;
 	com_fschanged = true;
+	com_fsneedreload = true;
 
 	//FS_Restart will be needed
 }
@@ -1384,7 +1387,9 @@ static void FS_RebuildFSHash(qboolean domutex)
 	COM_AssertMainThread("FS_RebuildFSHash");
 	if (domutex && !Sys_LockMutex(fs_thread_mutex))
 		return;	//amg!
-	
+
+	if (com_fsneedreload)
+		FS_ReloadPackFilesFlags(~0);
 
 	if (!filesystemhash.numbuckets)
 	{
@@ -1416,6 +1421,7 @@ static void FS_RebuildFSHash(qboolean domutex)
 	}
 
 	com_fschanged = false;
+	com_fsneedreload = false;
 
 	if (domutex)
 		Sys_UnlockMutex(fs_thread_mutex);

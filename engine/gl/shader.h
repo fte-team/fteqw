@@ -710,6 +710,24 @@ struct shader_s
 */
 };
 
+struct shaderparsestate_s;
+struct sbuiltin_s
+{
+	int qrtype;
+	int apiver;
+	char name[MAX_QPATH];
+	char *body;
+};
+typedef struct
+{
+	const char *loadername;
+	qboolean (*ReadMaterial)(struct shaderparsestate_s *ps, const char *filename, void (*LoadMaterialString)(struct shaderparsestate_s *ps, const char *script));
+
+	struct sbuiltin_s *builtinshaders;
+#define plugmaterialloaderfuncs_name "MaterialLoader"
+} plugmaterialloaderfuncs_t;
+qboolean Material_RegisterLoader(void *module, plugmaterialloaderfuncs_t *loader);
+
 extern unsigned int r_numshaders;
 extern unsigned int r_maxshaders;
 extern shader_t	**r_shaders;

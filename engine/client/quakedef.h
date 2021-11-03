@@ -364,7 +364,7 @@ extern cvar_t worker_flush;
 qboolean COM_DoWork(int thread, qboolean leavelocked);
 #define COM_MainThreadWork() while (COM_DoWork(0, false) && worker_flush.ival) /*called each frame to do any gl uploads or whatever*/
 #define COM_MainThreadFlush() while (COM_DoWork(0, false))	/*make sure the main thread has done ALL work pending*/
-typedef enum
+typedef enum wgroup_e
 {
 	WG_MAIN		= 0,
 	WG_LOADER	= 1,

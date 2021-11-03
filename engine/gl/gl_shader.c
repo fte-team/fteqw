@@ -297,6 +297,43 @@ static qboolean Shader_LocateSource(const char *name, const char **buf, size_t *
 static void Shader_ReadShader(parsestate_t *ps, const char *shadersource, shadercachefile_t *sourcefile);
 static qboolean Shader_ParseShader(parsestate_t *ps, const char *parsename);
 
+
+static struct
+{
+	void *module;
+	plugmaterialloaderfuncs_t *funcs;
+} *materialloader;
+static size_t		materialloader_count;
+qboolean Material_RegisterLoader(void *module, plugmaterialloaderfuncs_t *driver)
+{
+	int i;
+	if (!driver)
+	{
+		for (i = 0; i < materialloader_count; )
+		{
+			if (materialloader[i].module == module)
+			{
+				memmove(&materialloader[i], &materialloader[i+1], materialloader_count-(i+1));
+				materialloader_count--;
+			}
+			else
+				i++;
+		}
+		return true;
+	}
+	else
+	{
+		void *n = BZ_Malloc(sizeof(*materialloader)*(materialloader_count+1));
+		memcpy(n, materialloader, sizeof(*materialloader)*materialloader_count);
+		Z_Free(materialloader);
+		materialloader = n;
+		materialloader[materialloader_count].module = module;
+		materialloader[materialloader_count].funcs = driver;
+		materialloader_count++;
+		return true;
+	}
+}
+
 //===========================================================================
 
 static qboolean Shader_EvaluateCondition(shader_t *shader, const char **ptr)
@@ -2048,13 +2085,7 @@ typedef struct sgeneric_s
 	qboolean failed;
 } sgeneric_t;
 static sgeneric_t *sgenerics;
-struct sbuiltin_s
-{
-	int qrtype;
-	int apiver;
-	char name[MAX_QPATH];
-	char *body;
-} sbuiltins[] =
+static struct sbuiltin_s sbuiltins[] =
 {
 #include "r_bishaders.h"
 	{QR_NONE}
@@ -2155,23 +2186,35 @@ static void Shader_LoadGeneric(sgeneric_t *g, int qrtype)
 	else
 	{
 		int ver;
-		for (i = 0; *sbuiltins[i].name; i++)
+		const struct sbuiltin_s *progs;
+		unsigned int l;
+		for (l = 0; l <= materialloader_count; l++)
 		{
-			if (sbuiltins[i].qrtype == qrtype && !strcmp(sbuiltins[i].name, basicname))
-			{
-				ver = sbuiltins[i].apiver;
+			if (l == materialloader_count)
+				progs = sbuiltins;
+			else if (materialloader[l].funcs && materialloader[l].funcs->builtinshaders)
+				progs = materialloader[l].funcs->builtinshaders;
+			else
+				continue;
 
-				if (ver < sh_config.minver || ver > sh_config.maxver)
-					if (!(qrenderer==QR_OPENGL&&ver==110))
+			for (i = 0; *progs[i].name; i++)
+			{
+				if (progs[i].qrtype == qrtype && !strcmp(progs[i].name, basicname))
+				{
+					ver = progs[i].apiver;
+
+					if (ver < sh_config.minver || ver > sh_config.maxver)
+						if (!(qrenderer==QR_OPENGL&&ver==110))
+							continue;
+
+					TRACE(("Loading Embedded %s\n", g->name));
+					g->failed = !Shader_LoadPermutations(g->name, &g->prog, progs[i].body, qrtype, ver, blobname);
+
+					if (g->failed)
 						continue;
 
-				TRACE(("Loading Embedded %s\n", g->name));
-				g->failed = !Shader_LoadPermutations(g->name, &g->prog, sbuiltins[i].body, qrtype, ver, blobname);
-
-				if (g->failed)
-					continue;
-
-				return;
+					return;
+				}
 			}
 		}
 		TRACE(("Program unloadable %s\n", g->name));
@@ -2487,6 +2530,17 @@ static void Shader_HLSL11ProgramName (parsestate_t *ps, const char **ptr)
 	shader_t *shader = ps->s;
 	shaderpass_t *pass = ps->pass;
 	Shader_SLProgramName(shader,pass,ptr,QR_DIRECT3D11);
+}
+
+static void Shaderpass_BlendFunc (parsestate_t *ps, const char **ptr);
+static void Shader_ProgBlendFunc (parsestate_t *ps, const char **ptr)
+{
+	if (ps->s->prog)
+	{
+		ps->pass = ps->s->passes;
+		Shaderpass_BlendFunc(ps, ptr);
+		ps->pass = NULL;
+	}
 }
 
 static void Shader_ReflectCube(parsestate_t *ps, const char **ptr)
@@ -2847,7 +2901,7 @@ static shaderkey_t shaderkeys[] =
 	{"glslprogram",			Shader_GLSLProgramName,		"fte"},	//for renderers that accept embedded glsl
 	{"hlslprogram",			Shader_HLSL9ProgramName,	"fte"},	//for d3d with embedded hlsl
 	{"hlsl11program",		Shader_HLSL11ProgramName,	"fte"},	//for d3d with embedded hlsl
-//	{"progblendfunc",		Shader_ProgBlendFunc,		"fte"},	//specifies the blend mode (actually just overrides the first subpasses' blendmode.
+	{"progblendfunc",		Shader_ProgBlendFunc,		"fte"},	//specifies the blend mode (actually just overrides the first subpasses' blendmode.
 //	{"progmap",				Shader_ProgMap,				"fte"},	//avoids needing extra subpasses (actually just inserts an extra pass).
 
 	//dp compat
@@ -4353,8 +4407,9 @@ static const char *Shader_Skip(const char *file, const char *shadername, const c
 	return ptr;
 }
 
-static void Shader_Reset(shader_t *s)
+static void Shader_Reset(parsestate_t *ps)
 {
+	shader_t *s = ps->s;
 	extern cvar_t r_refractreflect_scale;
 	char name[MAX_QPATH];
 	int id = s->id;
@@ -4393,7 +4448,7 @@ static void Shader_Reset(shader_t *s)
 
 static void Shader_Regenerate(parsestate_t *ps, const char *shortname)
 {
-	Shader_Reset(ps->s);
+	Shader_Reset(ps);
 
 	if (!strcmp(shortname, "textures/common/clip") || !strcmp(shortname, "textures/common/nodraw") || !strcmp(shortname, "common/nodraw"))
 		Shader_DefaultScript(ps, shortname,
@@ -7279,6 +7334,12 @@ static void Shader_ReadShader(parsestate_t *ps, const char *shadersource, shader
 	}
 }
 
+static void Shader_LoadMaterialString(parsestate_t *ps, const char *shadertext)
+{	//callback for our external material loaders.
+	Shader_Reset(ps);
+	Shader_ReadShader(ps, shadertext, NULL);
+}
+
 static qboolean Shader_ParseShader(parsestate_t *ps, const char *parsename)
 {
 	size_t offset = 0, length;
@@ -7294,8 +7355,15 @@ static qboolean Shader_ParseShader(parsestate_t *ps, const char *parsename)
 		if (!strcmp(token, ".mat") || !*token)
 		{
 			char shaderfile[MAX_QPATH];
+			size_t i;
 			if (!*token)
 			{
+				for (i = 0; i < materialloader_count; i++)
+				{
+					if (materialloader[i].funcs->ReadMaterial(ps, parsename, Shader_LoadMaterialString))
+						return true;
+				}
+
 				Q_snprintfz(shaderfile, sizeof(shaderfile), "%s.mat", parsename);
 				file = COM_LoadTempMoreFile(shaderfile, &length);
 			}
@@ -7303,7 +7371,7 @@ static qboolean Shader_ParseShader(parsestate_t *ps, const char *parsename)
 				file = COM_LoadTempMoreFile(parsename, &length);
 			if (file)
 			{
-				Shader_Reset(ps->s);
+				Shader_Reset(ps);
 				token = COM_ParseExt (&file, true, false);	//we need to skip over the leading {.
 				if (*token != '{')
 					token = COM_ParseExt (&file, true, false);	//try again, in case we found some legacy name.
@@ -7331,7 +7399,7 @@ static qboolean Shader_ParseShader(parsestate_t *ps, const char *parsename)
 				return false;
 			}
 
-			Shader_Reset(ps->s);
+			Shader_Reset(ps);
 
 			Shader_ReadShader(ps, file, sourcefile);
 

@@ -149,12 +149,16 @@ qboolean Sys_ConditionSignal(void *condv);		//lock first
 qboolean Sys_ConditionBroadcast(void *condv);	//lock first
 void Sys_DestroyConditional(void *condv);
 
+enum wgroup_e;
 typedef struct
 {
 	void *(QDECL *CreateMutex)(void);
 	qboolean (QDECL *LockMutex)(void *mutex);
 	qboolean (QDECL *UnlockMutex)(void *mutex);
 	void (QDECL *DestroyMutex)(void *mutex);
+
+	void (*AddWork)(enum wgroup_e thread, void(*func)(void *ctx, void *data, size_t a, size_t b), void *ctx, void *data, size_t a, size_t b);	//low priority
+	void (*WaitForCompletion)(void *priorityctx, int *address, int sleepwhilevalue);
 #define plugthreadfuncs_name "Threading"
 } plugthreadfuncs_t;
 

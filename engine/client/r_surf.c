@@ -2675,6 +2675,7 @@ struct webostate_s
 	void *ebomem;
 	size_t idxcount;
 	int numbatches;
+	qbyte areamask[MAX_Q2MAP_AREAS/8];
 	int lightstylevalues[MAX_NET_LIGHTSTYLES];	//when using workers that only reprocessing lighting at 10fps, things get too ugly when things go out of sync
 
 //TODO	qbyte *bakedsubmodels;	//flags saying whether each submodel was baked or not. baked submodels need to be untinted uncaled unrotated at origin etc
@@ -3018,7 +3019,7 @@ static void Surf_SimpleWorld_Q3BSP(struct webostate_s *es, qbyte *pvs)
 		c = leaf->cluster;
 		if (c < 0 || !leaf->parent)
 			continue;	//o.O
-		if ((pvs[c>>3] & (1u<<(c&7))) && leaf->nummarksurfaces)
+		if ((pvs[c>>3] & (1u<<(c&7))) && leaf->nummarksurfaces && (((unsigned)leaf->area>=MAX_Q2MAP_AREAS)||es->areamask[leaf->area>>3]&1<<(leaf->area&7)))
 		{
 			mark = leaf->firstmarksurface;
 			end = mark+leaf->nummarksurfaces;
@@ -3217,6 +3218,12 @@ void Surf_DrawWorld (void)
 		return;
 	}
 
+	if (!r_refdef.areabitsknown && cl.worldmodel->funcs.WriteAreaBits)
+	{	//generate the info each frame, as the gamecode didn't tell us what to use.
+		cl.worldmodel->funcs.WriteAreaBits(cl.worldmodel, r_refdef.areabits, sizeof(r_refdef.areabits), r_viewarea, false);
+		r_refdef.areabitsknown = true;
+	}
+
 	currentmodel = cl.worldmodel;
 	currententity = &r_worldentity;
 
@@ -3279,9 +3286,17 @@ void Surf_DrawWorld (void)
 
 				if (webostate->cluster[0] == r_viewcluster && webostate->cluster[1] == r_viewcluster2)
 				{
-					best = webostate;
-					bestdist = 0;
-					break;
+					if (!r_refdef.areabitsknown || !memcmp(webostate->areamask, r_refdef.areabits, MAX_MAP_AREA_BYTES))
+					{
+						best = webostate;
+						bestdist = 0;
+						break;
+					}
+					else if (bestdist)
+					{
+						best = webostate;
+						bestdist = 0;
+					}
 				}
 				else
 				{
@@ -3308,30 +3323,36 @@ void Surf_DrawWorld (void)
 					qboolean gennew = false;
 					if (!webostate)
 						gennew = true;	//generate an initial one, if we can.
-					if (!gennew && webostate && currentmodel->fromgame != fg_quake3)
+					else
 					{
-						int i = cl_max_lightstyles;
-						for (i = 0; i < cl_max_lightstyles; i++)
+						if (!gennew && currentmodel->fromgame != fg_quake3)
 						{
-							if (webostate->lightstylevalues[i] != d_lightstylevalue[i])
-							{	//a lightstyle changed. something needs to be rebuilt. FIXME: should probably have a bitmask for whether the lightstyle is relevant...
-								gennew = true;
-								break;
+							int i = cl_max_lightstyles;
+							for (i = 0; i < cl_max_lightstyles; i++)
+							{
+								if (webostate->lightstylevalues[i] != d_lightstylevalue[i])
+								{	//a lightstyle changed. something needs to be rebuilt. FIXME: should probably have a bitmask for whether the lightstyle is relevant...
+									gennew = true;
+									break;
+								}
 							}
 						}
-					}
 
-					if (!gennew && webostate && (webostate->cluster[0] != r_viewcluster || webostate->cluster[1] != r_viewcluster2))
-					{
-						if (webostate->pvs.buffersize != currentmodel->pvsbytes || r_viewcluster2 != -1)
-							gennew = true;	//o.O
-						else if (memcmp(webostate->pvs.buffer, webostate->wmodel->funcs.ClusterPVS(webostate->wmodel, r_viewcluster, NULL, PVM_FAST), currentmodel->pvsbytes))
+						if (!gennew && r_refdef.areabitsknown && memcmp(webostate->areamask, r_refdef.areabits, MAX_MAP_AREA_BYTES))
 							gennew = true;
-						else
-						{	//okay, so the pvs didn't change despite the clusters changing. this happens when using unvised maps or lots of func_detail
-							//just hack the cluster numbers so we don't have to do the memcmp above repeatedly for no reason.
-							webostate->cluster[0] = r_viewcluster;
-							webostate->cluster[1] = r_viewcluster2;
+
+						if (!gennew && (webostate->cluster[0] != r_viewcluster || webostate->cluster[1] != r_viewcluster2))
+						{
+							if (webostate->pvs.buffersize != currentmodel->pvsbytes || r_viewcluster2 != -1)
+								gennew = true;	//o.O
+							else if (memcmp(webostate->pvs.buffer, webostate->wmodel->funcs.ClusterPVS(webostate->wmodel, r_viewcluster, NULL, PVM_FAST), currentmodel->pvsbytes))
+								gennew = true;
+							else
+							{	//okay, so the pvs didn't change despite the clusters changing. this happens when using unvised maps or lots of func_detail
+								//just hack the cluster numbers so we don't have to do the memcmp above repeatedly for no reason.
+								webostate->cluster[0] = r_viewcluster;
+								webostate->cluster[1] = r_viewcluster2;
+							}
 						}
 					}
 
@@ -3384,6 +3405,7 @@ void Surf_DrawWorld (void)
 						webogenerating->cluster[1] = r_viewcluster2;
 						webogenerating->pvs.buffer = (qbyte*)(webogenerating+1) + sizeof(webogenerating->batches[0])*(currentmodel->numbatches-1);
 						webogenerating->pvs.buffersize = currentmodel->pvsbytes;
+						memcpy(webogenerating->areamask, r_refdef.areabits, MAX_MAP_AREA_BYTES);
 						for (i = 0; i < cl_max_lightstyles; i++)
 							webogenerating->lightstylevalues[i] = d_lightstylevalue[i];
 						Q_strncpyz(webogenerating->dbgid, "webostate", sizeof(webogenerating->dbgid));
@@ -3394,9 +3416,9 @@ void Surf_DrawWorld (void)
 #endif
 
 			//if they teleported, don't show something ugly - like obvious wallhacks.
-			if (webogenerating && bestdist > 16 && cl.splitclients<=1)
+			if (webogenerating && bestdist > 16 && cl.splitclients<=1 && webostate && (webostate->cluster[0] != r_viewcluster || webostate->cluster[1] != r_viewcluster2))
 			{
-				Con_DPrintf("Blocking for scenecache generation\n");
+				Con_DLPrintf(2, "Blocking for scenecache generation\n");
 				webostate = webogenerating;
 				COM_WorkerPartialSync(webogenerating, &webogeneratingstate, true);
 			}

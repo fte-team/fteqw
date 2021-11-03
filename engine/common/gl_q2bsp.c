@@ -7712,12 +7712,6 @@ static void CM_PrepareFrame(model_t *mod, refdef_t *refdef, int area, int viewcl
 	frustumvis = vis->buffer;
 	memset(frustumvis, 0, mod->pvsbytes);
 
-	if (!r_refdef.areabitsknown)
-	{	//generate the info each frame, as the gamecode didn't tell us what to use.
-		CM_WriteAreaBits(mod, r_refdef.areabits, sizeof(r_refdef.areabits), r_viewarea, false);
-		r_refdef.areabitsknown = true;
-	}
-
 	VectorCopy (r_refdef.vieworg, modelorg);
 
 #ifdef Q3BSPS

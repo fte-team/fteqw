@@ -500,6 +500,16 @@ void Image_ChangeFormat(struct pendingtextureinfo *mips, qboolean *allowedformat
 void Image_Premultiply(struct pendingtextureinfo *mips);
 void *Image_FlipImage(const void *inbuffer, void *outbuffer, int *inoutwidth, int *inoutheight, int pixelbytes, qboolean flipx, qboolean flipy, qboolean flipd);
 
+typedef struct
+{
+	const char *loadername;
+	size_t pendingtextureinfosize;
+	qboolean canloadcubemaps;
+	struct pendingtextureinfo *(*ReadImageFile)(unsigned int imgflags, const char *fname, qbyte *filedata, size_t filesize);
+#define plugimageloaderfuncs_name "ImageLoader"
+} plugimageloaderfuncs_t;
+qboolean Image_RegisterLoader(void *module, plugimageloaderfuncs_t *loader);
+
 #ifdef D3D8QUAKE
 void		D3D8_Set2D (void);
 void		D3D8_UpdateFiltering	(image_t *imagelist, int filtermip[3], int filterpic[3], int mipcap[2], float anis);

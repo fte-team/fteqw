@@ -197,6 +197,15 @@ typedef struct	//core stuff
 	F(dllhandle_t*,LoadDLL,			(const char *modulename, struct dllfunction_s *funcs));
 	F(void*,	GetDLLSymbol,		(dllhandle_t *handle, const char *symbolname));
 	F(void,		CloseDLL,			(dllhandle_t *handle));	//not guarenteed to actually do anything, of course.
+
+	//general memory (mallocs and frees over dll boundaries is not usable on windows)
+	F(void*,	Malloc,				(size_t size));
+	F(void*,	Realloc,			(void *memptr, size_t size));   //doesn't zero-fill, so faster (when memptr is NULL).
+	F(void,		Free,				(void *memptr));
+
+	//for lazy mallocs
+	F(void*,	GMalloc,			(struct zonegroup_s *ctx, size_t size));
+	F(void,		GFreeAll,			(struct zonegroup_s *ctx));
 #define plugcorefuncs_name "Core"
 } plugcorefuncs_t;
 
@@ -253,6 +262,13 @@ typedef struct
 	F(void,		RawAudio,			(int sourceid, void *data, int speed, int samples, int channels, int width, float volume));
 #define plugaudiofuncs_name "Audio"
 } plugaudiofuncs_t;
+
+typedef struct
+{
+	F(void,		BlockSizeForEncoding,(uploadfmt_t encoding, unsigned int *blockbytes, unsigned int *blockwidth, unsigned int *blockheight, unsigned int *blockdepth));
+	F(const char *,FormatName,		(uploadfmt_t encoding));
+#define plugimagefuncs_name "Image"
+} plugimagefuncs_t;
 
 typedef struct	//q1 client/network info
 {

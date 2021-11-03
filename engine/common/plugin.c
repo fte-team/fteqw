@@ -406,6 +406,8 @@ static qboolean QDECL PlugBI_ExportInterface(const char *name, void *interfacept
 #ifdef HAVE_CLIENT
 	if (!strcmp(name, plugvrfuncs_name))
 		return R_RegisterVRDriver(currentplug, interfaceptr);
+	if (!strcmp(name, plugimageloaderfuncs_name))
+		return Image_RegisterLoader(currentplug, interfaceptr);
 #endif
 #ifdef PACKAGEMANAGER
 	if (!strcmp(name, plugupdatesourcefuncs_name))
@@ -1533,6 +1535,7 @@ void Plug_Close(plugin_t *plug)
 #endif
 #ifdef HAVE_CLIENT
 	S_UnregisterSoundInputModule(plug);
+	Image_RegisterLoader(plug, NULL);
 #endif
 	NET_RegisterCrypto(plug, NULL);
 #ifdef PACKAGEMANAGER
@@ -1783,6 +1786,12 @@ plugcorefuncs_t plugcorefuncs =
 	Sys_LoadLibrary,
 	Sys_GetAddressForName,
 	Sys_CloseLibrary,
+
+	Z_Malloc,
+	BZ_Realloc,
+	Z_Free,
+	ZG_Malloc,
+	ZG_FreeGroup,
 };
 
 static void *QDECL PlugBI_GetEngineInterface(const char *interfacename, size_t structsize)
@@ -1985,6 +1994,16 @@ static void *QDECL PlugBI_GetEngineInterface(const char *interfacename, size_t s
 		{
 			Plug_LocalSound,
 			Plug_S_RawAudio,
+		};
+		if (structsize == sizeof(funcs))
+			return &funcs;
+	}
+	if (!strcmp(interfacename, plugimagefuncs_name))
+	{
+		static plugimagefuncs_t funcs =
+		{
+			Image_BlockSizeForEncoding,
+			Image_FormatName,
 		};
 		if (structsize == sizeof(funcs))
 			return &funcs;

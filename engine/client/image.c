@@ -230,6 +230,44 @@ static float HalfToFloat(unsigned short val);
 static unsigned short FloatToHalf(float val);
 
 
+
+static struct
+{
+	void *module;
+	plugimageloaderfuncs_t *funcs;
+} *imageloader;
+static size_t		imageloader_count;
+qboolean Image_RegisterLoader(void *module, plugimageloaderfuncs_t *driver)
+{
+	int i;
+	if (!driver)
+	{
+		for (i = 0; i < imageloader_count; )
+		{
+			if (imageloader[i].module == module)
+			{
+				memmove(&imageloader[i], &imageloader[i+1], imageloader_count-(i+1));
+				imageloader_count--;
+			}
+			else
+				i++;
+		}
+		return true;
+	}
+	else
+	{
+		void *n = BZ_Malloc(sizeof(*imageloader)*(imageloader_count+1));
+		memcpy(n, imageloader, sizeof(*imageloader)*imageloader_count);
+		Z_Free(imageloader);
+		imageloader = n;
+		imageloader[imageloader_count].module = module;
+		imageloader[imageloader_count].funcs = driver;
+		imageloader_count++;
+		return true;
+	}
+}
+
+
 #if defined(AVAIL_JPEGLIB) || defined(AVAIL_PNGLIB)
 static void GenerateXMPData(char *blob, size_t blobsize, int width, int height, unsigned int metainfo)
 {	//XMP is a general thing that applies to multiple formats - or at least png+jpeg.
@@ -7251,6 +7289,7 @@ void Image_PrintInputFormatVersions(void)
 //if force_rgba8 then it guarentees rgba8 or rgbx8, otherwise can return l8, etc
 qbyte *ReadRawImageFile(qbyte *buf, int len, int *width, int *height, uploadfmt_t *format, qboolean force_rgba8, const char *fname)
 {
+	size_t l, i;
 	qbyte *data;
 	*format = PTI_RGBX8;
 #ifdef IMAGEFMT_TGA
@@ -7343,6 +7382,58 @@ qbyte *ReadRawImageFile(qbyte *buf, int len, int *width, int *height, uploadfmt_
 		}
 	}
 #endif
+
+	for (l = 0; l < imageloader_count; l++)
+	{
+		struct pendingtextureinfo *mips = imageloader[l].funcs->ReadImageFile(0, fname, buf, len);
+		if (mips)
+		{
+			if (mips->extrafree != buf)
+				Sys_Error("Image loader did weird extrafree things.");
+			mips->extrafree = NULL;
+
+			//free any excess mips
+			while (mips->mipcount > 1)
+				if (mips->mip[--mips->mipcount].needfree)
+					BZ_Free(mips->mip[mips->mipcount].data);
+
+			if (mips->mipcount > 0 && mips->type == PTI_2D)
+			{
+				if (force_rgba8)
+				{
+					qboolean rgbx8only[PTI_MAX] = {0};
+					rgbx8only[PTI_RGBX8] = true;
+					rgbx8only[PTI_RGBA8] = true;
+					Image_ChangeFormat(mips, rgbx8only, mips->encoding, fname);
+				}
+
+				if (mips->mip[0].needfree)
+				{
+					data = mips->mip[0].data;
+					mips->mip[0].data = NULL;
+					mips->mip[0].needfree = false;
+				}
+				else
+				{
+					data = BZ_Malloc(mips->mip[0].datasize);
+					memcpy(data, mips->mip[0].data, mips->mip[0].datasize);
+				}
+				*width = mips->mip[0].width;
+				*height = mips->mip[0].height;
+				*format = mips->encoding;
+			}
+			for (i = 0; i < mips->mipcount; i++)
+				if (mips->mip[i].needfree)
+					BZ_Free(mips->mip[i].data);
+
+			if (mips->extrafree && mips->extrafree)
+				BZ_Free(mips->extrafree);
+			BZ_Free(mips);
+
+			if (data)
+				return data;
+		}
+	}
 
 #ifdef IMAGEFMT_LMP
 	if (len >= 8)	//.lmp has no magic id. guess at it.
@@ -13154,6 +13245,7 @@ struct pendingtextureinfo *Image_LoadMipsFromMemory(int flags, const char *iname
 	qbyte *rgbadata;
 
 	int imgwidth, imgheight;
+	size_t l;
 
 	struct pendingtextureinfo *mips = NULL;
 
@@ -13174,6 +13266,8 @@ struct pendingtextureinfo *Image_LoadMipsFromMemory(int flags, const char *iname
 	if (!mips && filedata[0] == 'B' && filedata[1] == 'L' && filedata[2] == 'P' && filedata[3] == '2') 
 		mips = Image_ReadBLPFile(flags, fname, filedata, filesize);
 #endif
+	for (l = 0; !mips && l < imageloader_count; l++)
+		mips = imageloader[l].funcs->ReadImageFile(flags, fname, filedata, filesize);
 #ifdef IMAGEFMT_ASTC
 	if (!mips && filesize>= 16 && filedata[0] == 0x13 && filedata[1] == 0xab && filedata[2] == 0xa1 && filedata[3] == 0x5c)
 		mips = Image_ReadASTCFile(flags, fname, filedata, filesize);
@@ -13692,6 +13786,8 @@ qboolean Image_LocateHighResTexture(image_t *tex, flocation_t *bestloc, char *be
 						continue;
 
 					s = COM_SkipPath(nicename);
+					if (!*s)
+						continue;
 					n = basename;
 					while (*s && (*s != '.'||exactext) && n < basename+sizeof(basename)-5)
 						*n++ = *s++;
@@ -13837,7 +13933,7 @@ static void Image_LoadHiResTextureWorker(void *ctx, void *data, size_t a, size_t
 	unsigned int locflags = 0;
 
 	vfsfile_t *f;
-	size_t fsize;
+	size_t fsize, l;
 	char *buf;
 
 	int i, j;
@@ -13919,6 +14015,12 @@ static void Image_LoadHiResTextureWorker(void *ctx, void *data, size_t a, size_t
 					if (!mips)
 						mips = Image_ReadDDSFile(tex->flags, altname, buf, fsize);
 #endif
+					for (l = 0; !mips && l < imageloader_count; l++)
+					{
+						if (!imageloader[l].funcs->canloadcubemaps)
+							continue;
+						mips = imageloader[l].funcs->ReadImageFile(tex->flags, altname, buf, fsize);
+					}
 					if (!mips)
 						BZ_Free(buf);
 				}

@@ -1780,6 +1780,7 @@ static qboolean QDECL OpenAL_InitCard2(soundcardinfo_t *sc, const char *devname,
 
 	sc->inactive_sound = true;
 	sc->Shutdown = OpenAL_Shutdown;
+#ifdef HAVE_MIXER
 	if (qmix)
 	{
 		sc->Lock		= OAQM_LockBuffer;
@@ -1819,6 +1820,7 @@ static qboolean QDECL OpenAL_InitCard2(soundcardinfo_t *sc, const char *devname,
 		//palSourcePlay(oali->qmix.handle);
 	}
 	else
+#endif
 	{
 #ifdef USEEFX
 		sc->SetEnvironmentReverb = OpenAL_SetReverb;

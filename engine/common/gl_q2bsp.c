@@ -7150,6 +7150,7 @@ static void	CM_SetAreaPortalState (model_t *mod, unsigned int portalnum, unsigne
 		prv->q2portalopen[portalnum] = open;
 		break;
 #endif
+	default: break;
 	}
 	FloodAreaConnections (prv);
 }

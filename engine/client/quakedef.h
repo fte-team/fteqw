@@ -364,12 +364,6 @@ extern cvar_t worker_flush;
 qboolean COM_DoWork(int thread, qboolean leavelocked);
 #define COM_MainThreadWork() while (COM_DoWork(0, false) && worker_flush.ival) /*called each frame to do any gl uploads or whatever*/
 #define COM_MainThreadFlush() while (COM_DoWork(0, false))	/*make sure the main thread has done ALL work pending*/
-typedef enum wgroup_e
-{
-	WG_MAIN		= 0,
-	WG_LOADER	= 1,
-	WG_COUNT	= 2 //main and loaders
-} wgroup_t;
 void COM_AddWork(wgroup_t thread, void(*func)(void *ctx, void *data, size_t a, size_t b), void *ctx, void *data, size_t a, size_t b);	//low priority
 void COM_InsertWork(wgroup_t tg, void(*func)(void *ctx, void *data, size_t a, size_t b), void *ctx, void *data, size_t a, size_t b);	//high priority
 qboolean COM_HasWork(void);

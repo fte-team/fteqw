@@ -1333,7 +1333,10 @@ void M_Menu_Preset_f (void)
 	emenu_t *menu;
 	int y;
 	menuoption_t *presetoption[7];
-	extern cvar_t r_nolerp, r_bloom, sv_nqplayerphysics, r_shadow_realtime_world_importlightentitiesfrommap;
+	extern cvar_t r_nolerp, sv_nqplayerphysics;
+#if defined(RTLIGHTS) && (defined(GLQUAKE) || defined(VKQUAKE))
+	extern cvar_t r_bloom, r_shadow_realtime_world_importlightentitiesfrommap;
+#endif
 
 	static const char *deluxeopts[] = {
 		"Off",

@@ -586,6 +586,14 @@ const char *RelightGetProgress(float *progress);	//reports filename and progress
 void RelightTerminate(struct model_s *mod);	//NULL acts as a wildcard
 #endif
 
+struct builddata_s
+{
+	void (*buildfunc)(struct model_s *mod, struct msurface_s *surf, struct builddata_s *bd);
+	qboolean paintlightmaps;
+	void *facedata;
+};
+void Mod_Batches_Build(struct model_s *mod, struct builddata_s *bd);
+shader_t *Mod_RegisterBasicShader(struct model_s *mod, const char *texname, unsigned int usageflags, const char *shadertext, uploadfmt_t pixelfmt, unsigned int width, unsigned int height, void *pixeldata, void *palettedata);
 
 extern struct model_s		*currentmodel;
 

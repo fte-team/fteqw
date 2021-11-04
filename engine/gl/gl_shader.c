@@ -6366,6 +6366,36 @@ void QDECL R_BuildLegacyTexnums(shader_t *shader, const char *fallbackname, cons
 	}
 }
 
+shader_t *Mod_RegisterBasicShader(struct model_s *mod, const char *texname, unsigned int usageflags, const char *shadertext, uploadfmt_t pixelfmt, unsigned int width, unsigned int height, void *pixeldata, void *palettedata)
+{
+	extern cvar_t r_fb_bmodels, r_fb_models;
+	extern cvar_t gl_specular;
+	shader_t *s;
+	unsigned int maps;
+	char mapbase[64];
+	if (shadertext)
+		s = R_RegisterShader(texname, usageflags, shadertext);
+	else if (mod->type == mod_brush)
+		s = R_RegisterCustom(mod, texname, usageflags, Shader_DefaultSkin, NULL);
+	else
+		s = R_RegisterCustom(mod, texname, usageflags, Shader_DefaultBSPLM, NULL);
+
+	maps = 0;
+	maps |= SHADER_HASPALETTED;
+	maps |= SHADER_HASDIFFUSE;
+	if (mod->type == mod_alias)
+		maps |= SHADER_HASTOPBOTTOM;
+	if ((mod->type == mod_brush)?r_fb_bmodels.ival:r_fb_models.ival)
+		maps |= SHADER_HASFULLBRIGHT;
+	if (r_loadbumpmapping || s->defaulttextures->reflectcube)
+		maps |= SHADER_HASNORMALMAP;
+	if (gl_specular.ival)
+		maps |= SHADER_HASGLOSS;
+	COM_FileBase(mod->name, mapbase, sizeof(mapbase));
+	R_BuildLegacyTexnums(s, texname, mapbase, maps, 0, pixelfmt, width, height, pixeldata, palettedata);
+	return s;
+}
+
 void Shader_DefaultScript(parsestate_t *ps, const char *shortname, const void *args)
 {
 	const char *f = args;

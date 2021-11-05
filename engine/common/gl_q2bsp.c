@@ -5204,6 +5204,7 @@ static int CM_PointCluster (model_t *mod, const vec3_t p, int *area)
 	return CM_LeafCluster(mod, leaf);
 }
 
+static int CM_PointContents (model_t *mod, const vec3_t p);
 static void CM_InfoForPoint (struct model_s *mod, vec3_t pos, int *area, int *cluster, unsigned int *contentbits)
 {
 	int leaf = CM_PointLeafnum_r (mod, pos, 0);
@@ -5211,6 +5212,10 @@ static void CM_InfoForPoint (struct model_s *mod, vec3_t pos, int *area, int *cl
 	*area = CM_LeafArea(mod, leaf);
 	*cluster = CM_LeafCluster(mod, leaf);
 	*contentbits = CM_LeafContents(mod, leaf);
+
+	//q3 needs to use brush contents (its leafs no longer need to strictly follow brushes)
+	if (mod->fromgame != fg_quake2)
+		*contentbits = CM_PointContents (mod, pos);
 }
 
 /*

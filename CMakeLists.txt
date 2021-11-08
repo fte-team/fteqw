@@ -1206,6 +1206,20 @@ IF(FTE_PLUG_MPQ)
 	EMBED_PLUGIN_META(irc "MPQ Archive Plugin" "Adds support for reading .mpq files. Not very useful...")
 ENDIF()
 
+#vpk package format plugin (halflife2)
+SET(FTE_PLUG_HL2 false CACHE BOOL "Compile support for hl2 file formats.")
+IF(FTE_PLUG_HL2)
+	ADD_LIBRARY(plug_hl2 MODULE
+		plugins/plugin.c
+		plugins/hl2/hl2.c
+		plugins/hl2/fs_vpk.c
+	)
+	SET_TARGET_PROPERTIES(plug_hl2 PROPERTIES COMPILE_DEFINITIONS "FTEPLUGIN;MULTITHREAD;${FTE_LIB_DEFINES}")
+	TARGET_LINK_LIBRARIES(plug_hl2 ${SYS_LIBS} ${ZLIB_LIBRARIES})
+
+	EMBED_PLUGIN_META(hl2 "HalfLife2 Formats Plugin" "Adds support for reading various file formats used by HalfLife2. Requires mod support to be useful.")
+ENDIF()
+
 #model formats plugin
 SET(FTE_PLUG_MODELS true CACHE BOOL "Compile models formats plugin.")
 IF(FTE_PLUG_MODELS)

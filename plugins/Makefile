@@ -413,6 +413,12 @@ $(PLUG_PREFIX)openssl$(PLUG_NATIVE_EXT): net_ssl_openssl.c plugin.c
 #Disabled due to licensing issues #NATIVE_PLUGINS+=openssl
 #endif
 
+#####################
+#for compat with half-life 2's file formats
+$(PLUG_PREFIX)hl2$(PLUG_NATIVE_EXT): hl2/fs_vpk.c hl2/hl2.c plugin.c
+	$(CC) $(BASE_CFLAGS) $(CFLAGS) -DFTEPLUGIN -DMULTITHREAD -o $@ -shared $(PLUG_CFLAGS) $^ $(PLUG_DEFFILE) $(PLUG_LDFLAGS)
+#NATIVE_PLUGINS+=hl2
+
 
 
 

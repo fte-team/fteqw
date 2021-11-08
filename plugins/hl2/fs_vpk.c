@@ -1,7 +1,18 @@
-#include "quakedef.h"
-#include "fs.h"
+#include "../plugin.h"
+#include "../../engine/common/fs.h"
 
-#ifdef PACKAGE_VPK
+plugfsfuncs_t *filefuncs;
+
+static plugthreadfuncs_t *threading;
+#define Sys_CreateMutex() (threading?threading->CreateMutex():NULL)
+#define Sys_LockMutex(m) (threading?threading->LockMutex(m):true)
+#define Sys_UnlockMutex if(threading)threading->UnlockMutex
+#define Sys_DestroyMutex if(threading)threading->DestroyMutex
+#define Z_Malloc(x) calloc(x,1)
+#define BZ_Malloc malloc
+#define Z_Free free
+
+
 
 //
 // in memory
@@ -122,9 +133,18 @@ static unsigned int QDECL FSVPK_FLocate(searchpathfuncs_t *handle, flocation_t *
 	}
 	else
 	{
+		char fname[MAX_QPATH];
+		for (i = 0; i < MAX_QPATH-1 && filename[i]; i++)
+		{
+			if (filename[i] >= 'A' && filename[i] <= 'Z')
+				fname[i] = filename[i] - 'A' + 'a';
+			else
+				fname[i] = filename[i];
+		}
+		fname[i] = 0;
 		for (i=0 ; i<pak->numfiles ; i++)	//look for the file
 		{
-			if (!Q_strcasecmp (pak->files[i].name, filename))
+			if (!strcmp (pak->files[i].name, fname))
 			{
 				pf = &pak->files[i];
 				break;
@@ -155,7 +175,7 @@ static int QDECL FSVPK_EnumerateFiles (searchpathfuncs_t *handle, const char *ma
 
 	for (num = 0; num<(int)pak->numfiles; num++)
 	{
-		if (wildcmp(match, pak->files[num].name))
+		if (filefuncs->WildCmp(match, pak->files[num].name))
 		{
 			file = &pak->files[num];
 			//FIXME: time 0? maybe use the pak's mtime?
@@ -173,7 +193,7 @@ static int QDECL FSVPK_GeneratePureCRC(searchpathfuncs_t *handle, int seed, int 
 {
 	vpk_t *pak = (void*)handle;
 
-	return Com_BlockChecksum(pak->treedata, pak->treesize);
+	return filefuncs->BlockChecksum(pak->treedata, pak->treesize);
 }
 
 typedef struct {
@@ -241,7 +261,7 @@ static int QDECL VFSVPK_ReadBytes (struct vfsfile_s *vfs, void *buffer, int byte
 }
 static int QDECL VFSVPK_WriteBytes (struct vfsfile_s *vfs, const void *buffer, int bytestoread)
 {	//not supported.
-	Sys_Error("Cannot write to vpk files\n");
+	plugfuncs->Error("Cannot write to vpk files\n");
 	return 0;
 }
 static qboolean QDECL VFSVPK_Seek (struct vfsfile_s *vfs, qofs_t pos)
@@ -306,7 +326,7 @@ static vfsfile_t *QDECL FSVPK_OpenVFS(searchpathfuncs_t *handle, flocation_t *lo
 #ifdef _DEBUG
 	{
 		mvpkfile_t *pf = loc->fhandle;
-		Q_strncpyz(vfs->funcs.dbgname, pf->name, sizeof(vfs->funcs.dbgname));
+		Q_strlcpy(vfs->funcs.dbgname, pf->name, sizeof(vfs->funcs.dbgname));
 	}
 #endif
 	vfs->funcs.Close = VFSVPK_Close;
@@ -383,7 +403,7 @@ static unsigned int FSVPK_WalkTree(vpk_t *vpk, const char *start, const char *en
 				{
 					unsigned int frag = (file->archiveindex[0]<<0)|(file->archiveindex[1]<<8);
 					Q_snprintfz(vpk->files[files].name, sizeof(vpk->files[files].name), "%s%s%s%s%s", path, *path?"/":"", name, *ext?".":"", ext);
-					COM_CleanUpPath(vpk->files[files].name);	//just in case...
+					filefuncs->CleanUpPath(vpk->files[files].name);	//just in case...
 					vpk->files[files].file = file;
 
 					if (vpk->numfragments < frag+1)
@@ -406,7 +426,7 @@ Loads the header and directory, adding the files at the beginning
 of the list so they override previous pack files.
 =================
 */
-searchpathfuncs_t *QDECL FSVPK_LoadArchive (vfsfile_t *file, searchpathfuncs_t *parent, const char *filename, const char *desc, const char *prefix)
+static searchpathfuncs_t *QDECL FSVPK_LoadArchive (vfsfile_t *file, searchpathfuncs_t *parent, const char *filename, const char *desc, const char *prefix)
 {
 	dvpkheader_t	header;
 	int				i;
@@ -471,7 +491,7 @@ searchpathfuncs_t *QDECL FSVPK_LoadArchive (vfsfile_t *file, searchpathfuncs_t *
 
 	vpk->mutex = Sys_CreateMutex();
 
-	Con_TPrintf ("Added vpkfile %s (%i files)\n", desc, numpackfiles);
+	Con_Printf ("Added vpkfile %s (%i files)\n", desc, numpackfiles);
 
 	vpk->pub.fsver			= FSVER;
 	vpk->pub.GetPathDetails = FSVPK_GetPathDetails;
@@ -488,7 +508,7 @@ searchpathfuncs_t *QDECL FSVPK_LoadArchive (vfsfile_t *file, searchpathfuncs_t *
 	{
 		flocation_t loc;
 		char fragname[MAX_OSPATH], *ext;
-		Q_strncpyz(fragname, filename, sizeof(fragname));
+		Q_strlcpy(fragname, filename, sizeof(fragname));
 		ext = strrchr(fragname, '.');
 		if (!ext)
 			ext = fragname + strlen(fragname);
@@ -511,4 +531,26 @@ searchpathfuncs_t *QDECL FSVPK_LoadArchive (vfsfile_t *file, searchpathfuncs_t *
 	}
 	return &vpk->pub;
 }
-#endif
+
+qboolean VPK_Init(void)
+{
+	threading = plugfuncs->GetEngineInterface(plugthreadfuncs_name, sizeof(*threading));
+	if (!threading)
+		return false;
+	filefuncs = plugfuncs->GetEngineInterface(plugfsfuncs_name, sizeof(*filefuncs));
+	if (!filefuncs)
+		return false;
+
+	//we can't cope with being closed randomly. files cannot be orphaned safely.
+	//so ask the engine to ensure we don't get closed before everything else is.
+	plugfuncs->ExportFunction("MayShutdown", NULL);
+
+	if (!plugfuncs->ExportFunction("FS_RegisterArchiveType_vpk", FSVPK_LoadArchive))
+	{
+		Con_Printf("hl2: Engine doesn't support filesystem plugins\n");
+		return false;
+	}
+
+	return true;
+}
+

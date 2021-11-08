@@ -8,9 +8,6 @@ static plugthreadfuncs_t *threading;
 #define Sys_LockMutex(m) (threading?threading->LockMutex(m):true)
 #define Sys_UnlockMutex if(threading)threading->UnlockMutex
 #define Sys_DestroyMutex if(threading)threading->DestroyMutex
-#define Z_Malloc(x) calloc(x,1)
-#define BZ_Malloc malloc
-#define Z_Free free
 
 
 
@@ -104,9 +101,9 @@ static void QDECL FSVPK_ClosePath(searchpathfuncs_t *handle)
 			pak->fragments[i]->pub.ClosePath(&pak->fragments[i]->pub);
 		pak->fragments[i] = NULL;
 	}
-	Z_Free(pak->fragments);
-	Z_Free(pak->treedata);
-	Z_Free(pak);
+	plugfuncs->Free(pak->fragments);
+	plugfuncs->Free(pak->treedata);
+	plugfuncs->Free(pak);
 }
 static void QDECL FSVPK_BuildHash(searchpathfuncs_t *handle, int depth, void (QDECL *AddFileHash)(int depth, const char *fname, fsbucket_t *filehandle, void *pathhandle))
 {
@@ -287,7 +284,7 @@ static qboolean QDECL VFSVPK_Close(vfsfile_t *vfs)
 {
 	vfsvpk_t *vfsp = (void*)vfs;
 	FSVPK_ClosePath(&vfsp->parentpak->pub);	//tell the parent that we don't need it open any more (reference counts)
-	Z_Free(vfsp);	//free ourselves.
+	plugfuncs->Free(vfsp);	//free ourselves.
 	return true;
 }
 static vfsfile_t *QDECL FSVPK_OpenVFS(searchpathfuncs_t *handle, flocation_t *loc, const char *mode)
@@ -305,12 +302,12 @@ static vfsfile_t *QDECL FSVPK_OpenVFS(searchpathfuncs_t *handle, flocation_t *lo
 		return NULL;
 	pack = pack->fragments[frag];
 
-	vfs = Z_Malloc(sizeof(vfsvpk_t));
+	vfs = plugfuncs->Malloc(sizeof(vfsvpk_t));
 
 	vfs->parentpak = pack;
 	if (!Sys_LockMutex(pack->mutex))
 	{
-		Z_Free(vfs);
+		plugfuncs->Free(vfs);
 		return NULL;
 	}
 	vfs->parentpak->references++;
@@ -470,12 +467,12 @@ static searchpathfuncs_t *QDECL FSVPK_LoadArchive (vfsfile_t *file, searchpathfu
 		return NULL;
 	}
 
-	tree = BZ_Malloc(header.tablesize);
+	tree = plugfuncs->Malloc(header.tablesize);
 	read = VFS_READ(packhandle, tree, header.tablesize);
 
 	numpackfiles = FSVPK_WalkTree(NULL, tree, tree+read);
 
-	vpk = (vpk_t*)Z_Malloc (sizeof (*vpk) + sizeof(*vpk->files)*(numpackfiles-1));
+	vpk = (vpk_t*)plugfuncs->Malloc (sizeof (*vpk) + sizeof(*vpk->files)*(numpackfiles-1));
 	vpk->treedata = tree;
 	vpk->treesize = read;
 	vpk->numfiles = numpackfiles;
@@ -503,7 +500,7 @@ static searchpathfuncs_t *QDECL FSVPK_LoadArchive (vfsfile_t *file, searchpathfu
 	vpk->pub.GeneratePureCRC = FSVPK_GeneratePureCRC;
 	vpk->pub.OpenVFS = FSVPK_OpenVFS;
 
-	vpk->fragments = Z_Malloc(vpk->numfragments*sizeof(*vpk->fragments));
+	vpk->fragments = plugfuncs->Malloc(vpk->numfragments*sizeof(*vpk->fragments));
 	for(frag = 0; frag < vpk->numfragments; frag++)
 	{
 		flocation_t loc;
@@ -521,7 +518,7 @@ static searchpathfuncs_t *QDECL FSVPK_LoadArchive (vfsfile_t *file, searchpathfu
 		if (!packhandle)
 			continue;
 
-		vpk->fragments[frag] = f = (vpk_t*)Z_Malloc(sizeof(*f));
+		vpk->fragments[frag] = f = (vpk_t*)plugfuncs->Malloc(sizeof(*f));
 //		Q_strncpyz(f->descname, splitname, sizeof(f->descname));
 		f->handle = packhandle;
 //		f->rawsize = VFS_GETLEN(f->raw);

@@ -1214,6 +1214,7 @@ IF(FTE_PLUG_HL2)
 		plugins/hl2/hl2.c
 		plugins/hl2/fs_vpk.c
 		plugins/hl2/img_vtf.c
+		plugins/hl2/mod_hl2.c
 	)
 	SET_TARGET_PROPERTIES(plug_hl2 PROPERTIES COMPILE_DEFINITIONS "FTEPLUGIN;MULTITHREAD;${FTE_LIB_DEFINES}")
 	TARGET_LINK_LIBRARIES(plug_hl2 ${SYS_LIBS} ${ZLIB_LIBRARIES})

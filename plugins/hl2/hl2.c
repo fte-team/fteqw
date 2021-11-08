@@ -3,6 +3,7 @@ qboolean VPK_Init(void);
 qboolean VTF_Init(void);
 qboolean MDL_Init(void);
 qboolean VMT_Init(void);
+qboolean VBSP_Init(void);
 
 qboolean Plug_Init(void)
 {
@@ -11,6 +12,7 @@ qboolean Plug_Init(void)
 	VTF_Init();
 	VMT_Init();
 	MDL_Init();
+	VBSP_Init();
 	return true;
 }
 

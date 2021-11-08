@@ -802,7 +802,7 @@ static void HTTP_ClientEPolled(struct epollctx_s *pubctx, unsigned int ev)
 			break;
 		}
 		ev.data.ptr = &cl->pub;
-		epoll_ctl(cl->epfd, EPOLL_CTL_ADD, cl->datasock, &ev);
+		epoll_ctl(cl->epfd, EPOLL_CTL_MOD, cl->datasock, &ev);
 	}
 }
 #endif

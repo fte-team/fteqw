@@ -327,14 +327,14 @@ static void Shader_GenerateFromVMT(parsestate_t *ps, vmtstate_t *st, const char 
 	Q_strlcatfz(script, &offset, sizeof(script), "\n");
 	if (!Q_strcasecmp(st->type, "WorldVertexTransition"))
 	{	//attempt to do terrain blending
-		Q_strlcpy(st->type, "vmt_transition#TWOWAY", sizeof(st->type));
+		Q_strlcpy(st->type, "vmt/transition#TWOWAY", sizeof(st->type));
 		Q_strlcatfz(script, &offset, sizeof(script),	"\tprogram \"%s%s\"\n", st->type, progargs);
 		Q_strlcatfz(script, &offset, sizeof(script),	"\tdiffusemap \"%s%s.vtf\"\n", strcmp(st->tex[0].name, "materials/")?"materials/":"", st->tex[0].name);
 		Q_strlcatfz(script, &offset, sizeof(script),	"\tuppermap \"%s%s.vtf\"\n", strcmp(st->tex[1].name, "materials/")?"materials/":"", st->tex[1].name);
 	}
 	else if (!Q_strcasecmp(st->type, "Decal"))
 	{
-		Q_strlcpy(st->type, "vmt_vertexlit", sizeof(st->type));
+		Q_strlcpy(st->type, "vmt/vertexlit", sizeof(st->type));
 		Q_strlcatfz(script, &offset, sizeof(script),	"\tprogram \"%s%s\"\n", st->type, progargs);
 		Q_strlcatfz(script, &offset, sizeof(script),	"\tdiffusemap \"%s%s.vtf\"\n", strcmp(st->tex[0].name, "materials/")?"materials/":"", st->tex[0].name);
 		Q_strlcatfz(script, &offset, sizeof(script),	"\tpolygonOffset 1\n");
@@ -343,7 +343,7 @@ static void Shader_GenerateFromVMT(parsestate_t *ps, vmtstate_t *st, const char 
 	{
 		Q_strlcatfz(script, &offset, sizeof(script),
 			"\t{\n"
-				"\t\tprogram \"vmt_vertexlit%s\"\n"
+				"\t\tprogram \"vmt/vertexlit%s\"\n"
 				"\t\tblendFunc gl_dst_color gl_one_minus_src_alpha\n"
 			"\t}\n", progargs);
 		Q_strlcatfz(script, &offset, sizeof(script),	"\tdiffusemap \"%s%s.vtf\"\n", strcmp(st->tex[0].name, "materials/")?"materials/":"", st->tex[0].name);
@@ -353,7 +353,7 @@ static void Shader_GenerateFromVMT(parsestate_t *ps, vmtstate_t *st, const char 
 	{
 		Q_strlcatfz(script, &offset, sizeof(script),
 			"\t{\n"
-				"\t\tprogram \"vmt_water%s\"\n"
+				"\t\tprogram \"vmt/water%s\"\n"
 				"\t\tmap $refraction\n"
 				"\t\tmap $reflection\n"
 			"\t}\n", progargs);
@@ -364,7 +364,7 @@ static void Shader_GenerateFromVMT(parsestate_t *ps, vmtstate_t *st, const char 
 	{
 		Q_strlcatfz(script, &offset, sizeof(script),
 			"\t{\n"
-				"\t\tprogram \"vmt_refract%s\"\n"
+				"\t\tprogram \"vmt/refract%s\"\n"
 				"\t\tmap $refraction\n"
 			"\t}\n", progargs);
 		Q_strlcatfz(script, &offset, sizeof(script),	"\tdiffusemap \"%s%s.vtf\"\n", strcmp(st->tex[0].name, "materials/")?"materials/":"", st->tex[0].name);
@@ -375,16 +375,16 @@ static void Shader_GenerateFromVMT(parsestate_t *ps, vmtstate_t *st, const char 
 		if (*st->envmap && st->envfrombase)
 		{
 			if (st->halflambert)
-				Q_strlcpy(st->type, "vmt_vertexlit#ENVFROMBASE#HALFLAMBERT", sizeof(st->type));
+				Q_strlcpy(st->type, "vmt/vertexlit#ENVFROMBASE#HALFLAMBERT", sizeof(st->type));
 			else
-				Q_strlcpy(st->type, "vmt_vertexlit#ENVFROMBASE", sizeof(st->type));
+				Q_strlcpy(st->type, "vmt/vertexlit#ENVFROMBASE", sizeof(st->type));
 		}
 		else
 		{
 			if (st->halflambert)
-				Q_strlcpy(st->type, "vmt_vertexlit#HALFLAMBERT", sizeof(st->type));
+				Q_strlcpy(st->type, "vmt/vertexlit#HALFLAMBERT", sizeof(st->type));
 			else
-				Q_strlcpy(st->type, "vmt_vertexlit", sizeof(st->type));
+				Q_strlcpy(st->type, "vmt/vertexlit", sizeof(st->type));
 		}
 
 		Q_strlcatfz(script, &offset, sizeof(script),	"\tprogram \"%s%s\"\n", st->type, progargs);
@@ -397,11 +397,11 @@ static void Shader_GenerateFromVMT(parsestate_t *ps, vmtstate_t *st, const char 
 	{
 		/* reflectmask from diffuse map alpha */
 		if (*st->envmap && st->envfrombase)
-			Q_strlcpy(st->type, "vmt_lightmapped#ENVFROMBASE", sizeof(st->type));
+			Q_strlcpy(st->type, "vmt/lightmapped#ENVFROMBASE", sizeof(st->type));
 		else if (*st->envmap && *st->envmapmask) /* dedicated reflectmask */
-			Q_strlcpy(st->type, "vmt_lightmapped#ENVFROMMASK", sizeof(st->type));
+			Q_strlcpy(st->type, "vmt/lightmapped#ENVFROMMASK", sizeof(st->type));
 		else /* take from normalmap */
-			Q_strlcpy(st->type, "vmt_lightmapped", sizeof(st->type));
+			Q_strlcpy(st->type, "vmt/lightmapped", sizeof(st->type));
 
 		Q_strlcatfz(script, &offset, sizeof(script),	"\tprogram \"%s%s\"\n", st->type, progargs);
 		Q_strlcatfz(script, &offset, sizeof(script),	"\tdiffusemap \"%s%s.vtf\"\n", strcmp(st->tex[0].name, "materials/")?"materials/":"", st->tex[0].name);
@@ -420,7 +420,7 @@ static void Shader_GenerateFromVMT(parsestate_t *ps, vmtstate_t *st, const char 
 		else
 		{
 			/* the default should just be unlit, let's not make any assumptions - eukara*/
-			Q_strlcpy(st->type, "vmt_unlit", sizeof(st->type));
+			Q_strlcpy(st->type, "vmt/unlit", sizeof(st->type));
 			Q_strlcatfz(script, &offset, sizeof(script),	"\tprogram \"%s%s\"\n", st->type, progargs);
 			Q_strlcatfz(script, &offset, sizeof(script),	"\tdiffusemap \"%s%s.vtf\"\n", strcmp(st->tex[0].name, "materials/")?"materials/":"", st->tex[0].name);
 		}
@@ -517,10 +517,17 @@ static qboolean Shader_LoadVMT(parsestate_t *ps, const char *filename, void (*Lo
 	return true;
 }
 
+static struct sbuiltin_s vmtprograms[] =
+{
+#include "mat_vmt_progs.h"
+	{QR_NONE}
+};
 static plugmaterialloaderfuncs_t vmtfuncs =
 {
 	"HL2 VMT",
 	Shader_LoadVMT,
+
+	vmtprograms,
 };
 
 qboolean VMT_Init(void)

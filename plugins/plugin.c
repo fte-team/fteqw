@@ -124,7 +124,7 @@ qboolean VARGS Q_vsnprintfz (char *dest, size_t size, const char *fmt, va_list a
 		plugfuncs->Error("Q_vsnprintfz: Truncation\n");
 #endif
 	//if ret is -1 (windows oversize, or general error) then it'll be treated as unsigned so really long. this makes the following check quite simple.
-	return ret>=size;
+	return (ret>=size) ? qtrue : qfalse;
 }
 //windows/linux have inconsistant snprintf
 //this is an attempt to get them consistant and safe
@@ -152,7 +152,7 @@ qboolean VARGS Q_snprintfz (char *dest, size_t size, const char *fmt, ...)
 		plugfuncs->Error("Q_vsnprintfz: Truncation\n");
 #endif
 	//if ret is -1 (windows oversize, or general error) then it'll be treated as unsigned so really long. this makes the following check quite simple.
-	return ret>=size;
+	return (ret>=size) ? qtrue : qfalse;
 }
 
 char	*va(const char *format, ...)	//Identical in function to the one in Quake, though I can assure you that I wrote it...

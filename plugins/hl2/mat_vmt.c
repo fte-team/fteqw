@@ -519,6 +519,18 @@ static qboolean Shader_LoadVMT(parsestate_t *ps, const char *filename, void (*Lo
 
 static struct sbuiltin_s vmtprograms[] =
 {
+//we don't know what renderer the engine will need...
+#ifdef FTEPLUGIN
+	#ifndef GLQUAKE
+		#define GLQUAKE
+	#endif
+	#ifndef VKQUAKE
+		#define VKQUAKE
+	#endif
+	#ifndef D3DQUAKE
+		#define D3DQUAKE
+	#endif
+#endif
 #include "mat_vmt_progs.h"
 	{QR_NONE}
 };

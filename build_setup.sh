@@ -37,26 +37,26 @@ TARGETS_LINUX="qcc-rel rel dbg plugins-rel plugins-dbg" #gl-rel vk-rel
 TARGETS_WINDOWS="sv-rel m-rel qcc-rel qccgui-scintilla qccgui-dbg m-dbg sv-dbg plugins-dbg plugins-rel" #gl-rel vk-rel mingl-rel d3d-rel 
 
 
-PLUGINS_DROID="qi ezhud irc"
-PLUGINS_LINUXx86="openxr ode qi ezhud xmpp irc"
-PLUGINS_LINUXx64="openxr ode qi ezhud xmpp irc"
-PLUGINS_LINUXx32="qi ezhud xmpp irc"
-PLUGINS_LINUXarmhf="qi ezhud xmpp irc"
+PLUGINS_DROID="qi ezhud irc hl2"
+PLUGINS_LINUXx86="openxr ode qi ezhud xmpp irc hl2"
+PLUGINS_LINUXx64="openxr ode qi ezhud xmpp irc hl2"
+PLUGINS_LINUXx32="qi ezhud xmpp irc hl2"
+PLUGINS_LINUXarmhf="qi ezhud xmpp irc hl2"
 if [ "$(uname -m)" != "x86_64" ]; then
-	PLUGINS_LINUXx86="openxr ode qi ezhud xmpp irc"
+	PLUGINS_LINUXx86="openxr ode qi ezhud xmpp irc hl2"
 fi
 if [ "$(uname -m)" == "x86_64" ]; then
-	PLUGINS_LINUX64="openxr ode qi ezhud xmpp irc"
+	PLUGINS_LINUX64="openxr ode qi ezhud xmpp irc hl2"
 fi
 #windows is always cross compiled, so we don't have issues with non-native ffmpeg
 #windows doesn't cross compile, so no system dependancy issues
 #skip some dependancies if we're running on cygwin, ode is buggy.
 if [ "$(uname -s)" == "Linux" ]; then
-	PLUGINS_WIN32="ode qi ezhud xmpp irc"
-	PLUGINS_WIN64="ode qi ezhud xmpp irc"
+	PLUGINS_WIN32="ode qi ezhud xmpp irc hl2"
+	PLUGINS_WIN64="ode qi ezhud xmpp irc hl2"
 else
-	PLUGINS_WIN32="qi ezhud xmpp irc"
-	PLUGINS_WIN64="qi ezhud xmpp irc"
+	PLUGINS_WIN32="qi ezhud xmpp irc hl2"
+	PLUGINS_WIN64="qi ezhud xmpp irc hl2"
 fi
 
 echo

@@ -20,11 +20,11 @@ BUILD_WIN32=y
 BUILD_WIN64=y
 BUILD_ANDROID=y
 BUILD_WEB=y
-PLUGINS_LINUXx86="qi ezhud xmpp irc"
-PLUGINS_LINUXx64="qi ezhud xmpp irc"
-PLUGINS_LINUXx32="qi ezhud xmpp irc"
-PLUGINS_WIN32="ffmpeg ode qi ezhud xmpp irc"
-PLUGINS_WIN64="ffmpeg ode qi ezhud xmpp irc"
+PLUGINS_LINUXx86="qi ezhud xmpp irc hl2"
+PLUGINS_LINUXx64="qi ezhud xmpp irc hl2"
+PLUGINS_LINUXx32="qi ezhud xmpp irc hl2"
+PLUGINS_WIN32="ffmpeg ode qi ezhud xmpp irc hl2"
+PLUGINS_WIN64="ffmpeg ode qi ezhud xmpp irc hl2"
 THREADS="-j 4"
 
 TARGETS_LINUX="qcc-rel rel dbg vk-rel plugins-rel plugins-dbg"

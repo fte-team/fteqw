@@ -43,8 +43,12 @@ static const texid_t r_nulltex = NULL;
 //desktop-gl will generally cope with ints, but expect a performance hit from that with old gpus (so we don't bother)
 //vulkan+dx10 can cope with ints, but might be 24bit
 //either way, all renderers in the same build need to use the same thing.
-#if (defined(GLQUAKE) && defined(HAVE_LEGACY)) || defined(MINIMAL) || defined(D3D8QUAKE) || defined(D3D9QUAKE) || defined(ANDROID) || defined(FTE_TARGET_WEB)
-	#define sizeof_index_t 2
+#ifndef sizeof_index_t
+	#ifdef VERTEXINDEXBYTES	//maybe set in config_*.h
+		#define sizeof_index_t VERTEXINDEXBYTES
+	#elif (defined(GLQUAKE) && defined(HAVE_LEGACY)) || defined(MINIMAL) || defined(D3D8QUAKE) || defined(D3D9QUAKE) || defined(ANDROID) || defined(FTE_TARGET_WEB)
+		#define sizeof_index_t 2
+	#endif
 #endif
 #if sizeof_index_t == 2
 	#define GL_INDEX_TYPE GL_UNSIGNED_SHORT
@@ -54,6 +58,8 @@ static const texid_t r_nulltex = NULL;
 	typedef unsigned short index_t;
 	#define MAX_INDICIES 0xffffu
 #else
+	#undef sizeof_index_t
+	#define sizeof_index_t 4
 	#define GL_INDEX_TYPE GL_UNSIGNED_INT
 	#define D3DFMT_QINDEX D3DFMT_INDEX32
 	#define DXGI_FORMAT_INDEX_UINT DXGI_FORMAT_R32_UINT

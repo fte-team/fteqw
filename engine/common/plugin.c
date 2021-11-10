@@ -2138,6 +2138,7 @@ static void *QDECL PlugBI_GetEngineInterface(const char *interfacename, size_t s
 		return menu_world.progs;
 	}
 #endif
+	Con_DPrintf("Plugin %s requested interface %s#%x, but its unavailable.\n", currentplug?currentplug->filename:"UNKNOWN", interfacename, (unsigned int)structsize);
 	return NULL;
 }
 

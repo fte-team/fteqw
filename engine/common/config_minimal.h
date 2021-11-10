@@ -47,6 +47,7 @@
 #define AVAIL_DINPUT
 //#define SIDEVIEWS   4			//enable secondary/reverse views.
 //#define MAX_SPLITS 4u
+#define	VERTEXINDEXBYTES	2	//16bit indexes work everywhere but may break some file types, 32bit indexes are optional in gles<=2 and d3d<=9 and take more memory/copying but allow for bigger batches/models. Plugins need to be compiled the same way so this is no longer set per-renderer.
 //#define TEXTEDITOR			//my funky text editor! its awesome!
 //#define PLUGINS				//support for external plugins (like huds or fancy menus or whatever)
 //#define USE_SQLITE			//sql-database-as-file support

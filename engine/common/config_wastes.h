@@ -105,6 +105,7 @@
 #undef MAP_PROC
 #undef Q2BSPS
 #define RFBSPS
+#define	VERTEXINDEXBYTES	2	//16bit indexes work everywhere but may break some file types, 32bit indexes are optional in gles<=2 and d3d<=9 and take more memory/copying but allow for bigger batches/models. Plugins need to be compiled the same way so this is no longer set per-renderer.
 #undef SPRMODELS
 #undef SP2MODELS
 #undef DSPMODELS

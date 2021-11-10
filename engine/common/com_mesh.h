@@ -264,7 +264,11 @@ typedef struct modplugfuncs_s
 	void (*RenderDynamicLightmaps) (struct msurface_s *surf);
 	entity_t *(*NewSceneEntity) (void);
 	void (*EndSubmodelLoad)(struct model_s *submod, int modelloadstate);
-#define plugmodfuncs_name "Models"
+#if sizeof_index_t==2
+	#define plugmodfuncs_name "Models"
+#else
+	#define plugmodfuncs_name "Models_IDX" STRINGIFY(sizeof_index_t)
+#endif
 } plugmodfuncs_t;
 #define MODPLUGFUNCS_VERSION 2
 

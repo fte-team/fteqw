@@ -157,6 +157,7 @@
 #undef HAVE_SPEECHTOTEXT	//windows speech-to-text thing
 
 //FIXME: Stuff that Spike has added that Eukara needs to decide whether to keep or not.
+#define	VERTEXINDEXBYTES	2	//16bit indexes work everywhere but may break some file types, 32bit indexes are optional in gles<=2 and d3d<=9 and take more memory/copying but allow for bigger batches/models. Plugins need to be compiled the same way so this is no longer set per-renderer.
 #define HAVE_OPUS
 //#define HAVE_SPEEX
 //#define IMAGEFMT_HDR

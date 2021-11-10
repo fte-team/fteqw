@@ -31,6 +31,7 @@ STRIP?=strip
 
 STRIPFLAGS=--strip-unneeded --remove-section=.comment
 
+VISIBILITY_FLAGS=-fvisibility=hidden	#just assume this for sanities sake. disable only for compilers that error.
 CPUOPTIMIZATIONS=-Os
 
 COMPILE_SYS:=$(shell uname -o 2>&1)
@@ -591,6 +592,7 @@ DO_CXX=$(DO_ECHO) $(CXX) $(LTO_CC) $(ALL_CXXFLAGS) -o $@ -c $<
 
 ifeq ($(findstring msvc,$(FTE_TARGET)),msvc)
 	BASELDFLAGS=
+	VISIBILITY_FLAGS=
 endif
 ifeq ($(FTE_TARGET),cyg)
 	BASELDFLAGS=-lm
@@ -601,18 +603,9 @@ endif
 ifeq ($(FTE_TARGET),morphos)
 	BASELDFLAGS=-lm
 endif
+
 ifneq (,$(findstring bsd,$(FTE_TARGET)))
 	BASELDFLAGS=-lm
-	VISIBILITY_FLAGS=-fvisibility=hidden
-endif
-ifneq (,$(findstring linux,$(FTE_TARGET)))
-	VISIBILITY_FLAGS=-fvisibility=hidden
-endif
-ifneq (,$(findstring droid,$(FTE_TARGET)))
-	VISIBILITY_FLAGS=-fvisibility=hidden
-endif
-ifneq (,$(findstring macos,$(FTE_TARGET)))
-	VISIBILITY_FLAGS=-fvisibility=hidden
 endif
 BASELDFLAGS ?= -lm -ldl -lpthread
 
@@ -629,7 +622,6 @@ ifeq (win,$(findstring cyg,$(FTE_TARGET))$(findstring win,$(FTE_TARGET)))
 endif
 
 OGGVORBISLDFLAGS ?= -lvorbisfile -lvorbis -logg
-VISIBILITY_FLAGS?=
 
 #BASELDFLAGS=-lm  -lz
 XLDFLAGS=-L$(ARCHLIBS) $(IMAGELDFLAGS)
@@ -651,7 +643,7 @@ CLIENT_ONLY_CFLAGS=-DCLIENTONLY
 SERVER_ONLY_CFLAGS=-DSERVERONLY
 JOINT_CFLAGS=
 DEBUG_CFLAGS?=-ggdb -g
-DEBUG_CFLAGS+=-DDEBUG
+DEBUG_CFLAGS+=-DDEBUG -D_DEBUG
 RELEASE_CFLAGS?=$(CPUOPTIMIZATIONS)
 #
 #note: RELEASE_CFLAGS used to contain -ffast-math

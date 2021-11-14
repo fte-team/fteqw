@@ -786,7 +786,7 @@ int VARGS Sys_DebugLog(char *file, char *fmt, ...)
 
 qboolean Sys_InitTerminal(void)
 {
-	return true;
+    return false;	//Sys_ConsoleInput cannot work, so return false here.
 }
 char *Sys_ConsoleInput(void)
 {

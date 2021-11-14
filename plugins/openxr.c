@@ -240,6 +240,7 @@ static struct
 	XrFrameState framestate;
 	qboolean needrender;	//we MUST call xrBegin before the next xrWait
 	int srgb;	//<0 = gamma-only. 0 = no srgb at all, >0 full srgb, including textures and stuff
+	int colourformat;
 
 	unsigned int numactions;
 	struct
@@ -1346,6 +1347,7 @@ static qboolean XR_Begin(void)
 		for (u = 0; u < swapfmts; u++) switch(fmts[u])
 		{
 		case VK_FORMAT_R16G16B16A16_SFLOAT:		Con_DPrintf("OpenXr fmt%u: %s\n", u, "VK_FORMAT_R16G16B16A16_SFLOAT");	if (xr.srgb) fmttouse = fmts[u],u=swapfmts; break;
+		case VK_FORMAT_A2B10G10R10_UNORM_PACK32:Con_DPrintf("OpenXr fmt%u: %s\n", u, "VK_FORMAT_A2B10G10R10_UNORM_PACK32");	if (!xr.srgb) fmttouse = fmts[u],u=swapfmts; break;
 		case VK_FORMAT_B8G8R8A8_UNORM:			Con_DPrintf("OpenXr fmt%u: %s\n", u, "VK_FORMAT_B8G8R8A8_UNORM");		if (!xr.srgb) fmttouse = fmts[u],u=swapfmts; break;
 		case VK_FORMAT_R8G8B8A8_UNORM:			Con_DPrintf("OpenXr fmt%u: %s\n", u, "VK_FORMAT_R8G8B8A8_UNORM");		if (!xr.srgb) fmttouse = fmts[u],u=swapfmts; break;
 		case VK_FORMAT_B8G8R8A8_SRGB:			Con_DPrintf("OpenXr fmt%u: %s\n", u, "VK_FORMAT_B8G8R8A8_SRGB");		if (xr.srgb) fmttouse = fmts[u],u=swapfmts; break;
@@ -1382,6 +1384,7 @@ static qboolean XR_Begin(void)
 			Con_Printf("fmt%u: %u / %x\n", u, (unsigned)fmts[u], (unsigned)fmts[u]);
 	}
 
+	xr.colourformat = fmttouse;
 	for (u = 0; u < xr.viewcount; u++)
 	{
 		XrSwapchainCreateInfo swapinfo = {XR_TYPE_SWAPCHAIN_CREATE_INFO};
@@ -1462,6 +1465,7 @@ static qboolean XR_Begin(void)
 				for (i = 0; i < xr.eye[u].numswapimages; i++)
 				{
 					xr.eye[u].swapimages[i].vkimage = &vkimg[i];
+					vkimg[i].vkformat = fmttouse;
 					vkimg[i].image = xrimg[i].image;
 					//vkimg[i].mem.* = 0;
 					vkimg[i].view = VK_NULL_HANDLE;

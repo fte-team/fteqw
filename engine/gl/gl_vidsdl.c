@@ -24,6 +24,8 @@
 	SDL_Surface *sdlsurf;
 #endif
 
+#include "vr.h"
+
 extern cvar_t		vid_vsync;
 extern cvar_t vid_hardwaregamma;
 extern cvar_t gl_lateswap;
@@ -318,12 +320,20 @@ static qboolean SDLVID_Init (rendererstate_t *info, unsigned char *palette, r_qr
 	SDL_SetVideoMode(0, 0, 0, 0);	//to get around some SDL bugs
 #endif
 
-#ifdef OPENGL_SDL
-	if (qrenderer == QR_OPENGL)
-	{
 #if SDL_MAJOR_VERSION >= 2
+	switch(qrenderer)
+	{
+	default:
+		return false;
+#ifdef OPENGL_SDL
+	case QR_OPENGL:
+		if (info->vr)
+			Con_Printf(CON_ERROR"%s support is not available with SDL-OpenGL\n", info->vr->description);
+		info->vr = NULL;
+
+	#if SDL_MAJOR_VERSION >= 2
 		SDL_GL_LoadLibrary(NULL);
-#endif
+	#endif
 
 		if (info->bpp >= 32)
 		{
@@ -347,7 +357,7 @@ static qboolean SDLVID_Init (rendererstate_t *info, unsigned char *palette, r_qr
 		if (info->stereo)
 			SDL_GL_SetAttribute(SDL_GL_STEREO, 1);
 
-#if SDL_MAJOR_VERSION >= 2
+	#if SDL_MAJOR_VERSION >= 2
 		if (info->srgb)
 			SDL_GL_SetAttribute(SDL_GL_FRAMEBUFFER_SRGB_CAPABLE, 1);
 
@@ -379,27 +389,18 @@ static qboolean SDLVID_Init (rendererstate_t *info, unsigned char *palette, r_qr
 			SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_COMPATIBILITY);
 		else
 			SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
-#endif
+	#endif
 		if (info->multisample)
 		{
 			SDL_GL_SetAttribute(SDL_GL_MULTISAMPLESAMPLES, info->multisample);
 			SDL_GL_SetAttribute(SDL_GL_MULTISAMPLEBUFFERS, 1);
 		}
-	}
-#endif
 
-#if SDL_MAJOR_VERSION >= 2
-	switch(qrenderer)
-	{
-	default:
-		break;
-#ifdef OPENGL_SDL
-	case QR_OPENGL:
 		flags |= SDL_WINDOW_OPENGL;
 		break;
 #endif
 #ifdef VULKAN_SDL
-	case QR_VULKAN:
+	case QR_VULKAN:		
 		flags |= SDL_WINDOW_VULKAN;
 		break;
 #endif
@@ -591,6 +592,7 @@ void GLVID_DeInit (void)
 #endif
 #ifdef VULKAN_SDL
 	case QR_VULKAN:
+		VK_Shutdown();
 		break;
 #endif
 	default:

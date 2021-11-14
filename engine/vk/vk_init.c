@@ -1177,6 +1177,35 @@ static void VK_DestroySampler_FrameEnd(void *w)
 	VK_DestroySampler(*(VkSampler*)w);
 }
 
+void VK_CreateSamplerInfo(VkSamplerCreateInfo *info, vk_image_t *img)
+{
+	unsigned int flags = IF_RENDERTARGET;
+	struct vksamplers_s *ref;
+
+	if (img->sampler)
+		VK_DestroySampler(img->sampler);
+
+
+	for (ref = vk.samplers; ref; ref = ref->next)
+		if (ref->flags == flags)
+			if (!memcmp(&ref->props, info, sizeof(*info)))
+				break;
+
+	if (!ref)
+	{
+		ref = Z_Malloc(sizeof(*ref));
+		ref->flags = flags;
+		ref->props = *info;
+		ref->next = vk.samplers;
+		ref->link = &vk.samplers;
+		if (vk.samplers)
+			vk.samplers->link = &ref->next;
+		vk.samplers = ref;
+		VkAssert(vkCreateSampler(vk.device, &ref->props, NULL, &ref->samp));
+	}
+	ref->usages++;
+	img->sampler = ref->samp;
+}
 void VK_CreateSampler(unsigned int flags, vk_image_t *img)
 {
 	struct vksamplers_s *ref;
@@ -2726,6 +2755,7 @@ void VK_R_RenderEye(texid_t image, vec4_t fovoverride, vec3_t eyeangorg[2])
 	VK_SetupViewPortProjection(false);
 
 	rt = &postproc[postproc_buf++%countof(postproc)];
+	rt->rpassflags |= RP_VR;
 	VKBE_RT_Gen(rt, image?image->vkimage:NULL, 320, 200, false, RT_IMAGEFLAGS);
 	VKBE_RT_Begin(rt);
 
@@ -2763,6 +2793,7 @@ void VK_R_RenderEye(texid_t image, vec4_t fovoverride, vec3_t eyeangorg[2])
 	vk.rendertarg->depthcleared = false;
 
 	VKBE_RT_End(rt);
+	rt->rpassflags &= ~RP_VR;
 }
 
 void	VK_R_RenderView				(void)
@@ -3995,7 +4026,12 @@ VkRenderPass VK_GetRenderPass(int pass)
 
 	if (color_reference.attachment != ~(uint32_t)0)
 	{
-		attachments[color_reference.attachment].format = (pass&RP_FP16)?VK_FORMAT_R16G16B16A16_SFLOAT:vk.backbufformat;
+		if (pass&RP_FP16)
+			attachments[color_reference.attachment].format = VK_FORMAT_R16G16B16A16_SFLOAT;
+		else if (pass&RP_VR)
+			attachments[color_reference.attachment].format = vk.backbufformat;	//FIXME
+		else
+			attachments[color_reference.attachment].format = vk.backbufformat;
 		attachments[color_reference.attachment].samples = (pass & RP_MULTISAMPLE)?vk.multisamplebits:VK_SAMPLE_COUNT_1_BIT;
 //		attachments[color_reference.attachment].loadOp = pass?VK_ATTACHMENT_LOAD_OP_LOAD:VK_ATTACHMENT_LOAD_OP_DONT_CARE;
 		attachments[color_reference.attachment].storeOp = VK_ATTACHMENT_STORE_OP_STORE;
@@ -5367,6 +5403,7 @@ void VK_Shutdown(void)
 			Z_Free(ptr);
 		}
 		vkDestroyPipelineCache(vk.device, vk.pipelinecache, vkallocationcb);
+		vk.pipelinecache = VK_NULL_HANDLE;
 	}
 
 	while(vk.mempools)

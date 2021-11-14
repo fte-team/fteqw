@@ -1538,6 +1538,7 @@ void Plug_Close(plugin_t *plug)
 #endif
 #ifdef HAVE_CLIENT
 	S_UnregisterSoundInputModule(plug);
+	R_RegisterVRDriver(plug, NULL);
 	Image_RegisterLoader(plug, NULL);
 	Material_RegisterLoader(plug, NULL);
 #endif

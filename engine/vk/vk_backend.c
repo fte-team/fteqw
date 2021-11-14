@@ -8,6 +8,7 @@
 
 //FIXME: instead of switching rendertargets and back, we should be using an alternative queue.
 
+#define PERMUTATION_BEM_VR (1u<<11)
 #define PERMUTATION_BEM_FP16 (1u<<12)
 #define PERMUTATION_BEM_MULTISAMPLE (1u<<13)
 #define PERMUTATION_BEM_DEPTHONLY (1u<<14)
@@ -2501,6 +2502,8 @@ static void BE_CreatePipeline(program_t *p, unsigned int shaderflags, unsigned i
 		i |= RP_MULTISAMPLE;
 	if (permu&PERMUTATION_BEM_FP16)
 		i |= RP_FP16;
+	if (permu&PERMUTATION_BEM_VR)
+		i |= RP_VR;
 	pipeCreateInfo.renderPass			= VK_GetRenderPass(i);
 	pipeCreateInfo.subpass				= 0;
 	pipeCreateInfo.basePipelineHandle	= VK_NULL_HANDLE;
@@ -3217,6 +3220,8 @@ void VKBE_SelectMode(backendmode_t mode)
 		shaderstate.modepermutation |= PERMUTATION_BEM_MULTISAMPLE;
 	if (vk.rendertarg->rpassflags & RP_FP16)
 		shaderstate.modepermutation |= PERMUTATION_BEM_FP16;
+	if (vk.rendertarg->rpassflags & RP_VR)
+		shaderstate.modepermutation |= PERMUTATION_BEM_VR;
 
 	switch(mode)
 	{
@@ -4170,7 +4175,7 @@ void VKBE_RT_Gen(struct vk_rendertarg *targ, vk_image_t *colour, uint32_t width,
 		}
 	}
 
-	if (targ->framebuffer)
+	if (targ->framebuffer || targ->externalimage)
 	{	//schedule the old one to be destroyed at the end of the current frame. DIE OLD ONE, DIE!
 		purge = VK_AtFrameEnd(VKBE_RT_Purge, NULL, sizeof(*purge));
 		purge->framebuffer = targ->framebuffer; 
@@ -4201,10 +4206,22 @@ void VKBE_RT_Gen(struct vk_rendertarg *targ, vk_image_t *colour, uint32_t width,
 		targ->restartinfo.renderPass = VK_NULL_HANDLE;
 		return;	//destroyed
 	}
-	targ->restartinfo.renderPass = VK_GetRenderPass(RP_FULLCLEAR|targ->rpassflags);
+	if (targ->externalimage)
+	{
+		VkFormat old = vk.backbufformat;
+		colour_imginfo.format = vk.backbufformat = colour->vkformat;
+		targ->rpassflags |= RP_VR;
+		targ->restartinfo.renderPass = VK_GetRenderPass(RP_FULLCLEAR|targ->rpassflags);
 
-	//colour buffer is always 1 sample. if multisampling then we have a hidden 'mscolour' image that is paired with the depth, resolvnig to the 'colour' image.
-	colour_imginfo.format = (targ->rpassflags&RP_FP16)?VK_FORMAT_R16G16B16A16_SFLOAT:vk.backbufformat;
+		vk.backbufformat = old;
+	}
+	else
+	{
+		targ->rpassflags &= ~RP_VR;
+		targ->restartinfo.renderPass = VK_GetRenderPass(RP_FULLCLEAR|targ->rpassflags);
+
+		colour_imginfo.format = (targ->rpassflags&RP_FP16)?VK_FORMAT_R16G16B16A16_SFLOAT:vk.backbufformat;
+	}
 	colour_imginfo.flags = 0;
 	colour_imginfo.imageType = VK_IMAGE_TYPE_2D;
 	colour_imginfo.extent.width = width;
@@ -4212,6 +4229,7 @@ void VKBE_RT_Gen(struct vk_rendertarg *targ, vk_image_t *colour, uint32_t width,
 	colour_imginfo.extent.depth = 1;
 	colour_imginfo.mipLevels = 1;
 	colour_imginfo.arrayLayers = 1;
+	//colour buffer is always 1 sample. if multisampling then we have a hidden 'mscolour' image that is paired with the depth, resolving to the 'colour' image.
 	colour_imginfo.samples = VK_SAMPLE_COUNT_1_BIT;
 	colour_imginfo.tiling = VK_IMAGE_TILING_OPTIMAL;
 	colour_imginfo.usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT|VK_IMAGE_USAGE_SAMPLED_BIT;
@@ -4220,7 +4238,9 @@ void VKBE_RT_Gen(struct vk_rendertarg *targ, vk_image_t *colour, uint32_t width,
 	colour_imginfo.pQueueFamilyIndices = NULL;
 	colour_imginfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
 	if (targ->externalimage)
+	{
 		targ->colour.image = colour->image;
+	}
 	else
 	{
 		VkAssert(vkCreateImage(vk.device, &colour_imginfo, vkallocationcb, &targ->colour.image));
@@ -4296,10 +4316,10 @@ void VKBE_RT_Gen(struct vk_rendertarg *targ, vk_image_t *colour, uint32_t width,
 		lmsampinfo.unnormalizedCoordinates = VK_FALSE;
 
 		lmsampinfo.compareEnable = VK_FALSE;
-		VkAssert(vkCreateSampler(vk.device, &lmsampinfo, NULL, &targ->colour.sampler));
+		VK_CreateSamplerInfo(&lmsampinfo, &targ->colour);
 
 		lmsampinfo.compareEnable = VK_TRUE;
-		VkAssert(vkCreateSampler(vk.device, &lmsampinfo, NULL, &targ->depth.sampler));
+		VK_CreateSamplerInfo(&lmsampinfo, &targ->depth);
 	}
 
 	targ->colour.layout = VK_IMAGE_LAYOUT_UNDEFINED;
@@ -5710,7 +5730,7 @@ void VKBE_BeginShadowmapFace(void)
 	vkCmdSetScissor(vk.rendertarg->cbuf, 0, 1, &wrekt);
 
 	//shadowmaps never multisample...
-	shaderstate.modepermutation &= ~(PERMUTATION_BEM_MULTISAMPLE|PERMUTATION_BEM_FP16);
+	shaderstate.modepermutation &= ~(PERMUTATION_BEM_MULTISAMPLE|PERMUTATION_BEM_FP16|PERMUTATION_BEM_VR);
 }
 #endif
 

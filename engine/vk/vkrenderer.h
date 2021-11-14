@@ -219,6 +219,7 @@ typedef struct vk_image_s
 	VkSampler sampler;
 	VkImageLayout layout;
 
+	VkFormat vkformat;
 	uint32_t width;
 	uint32_t height;
 	uint32_t layers;
@@ -383,7 +384,8 @@ extern struct vulkaninfo_s
 #define RP_MULTISAMPLE	(1u<<2)
 #define RP_PRESENTABLE	(1u<<3)
 #define RP_FP16			(1u<<4)
-	VkRenderPass renderpass[1u<<5];
+#define RP_VR			(1u<<5)	//potentially a different colour format.
+	VkRenderPass renderpass[1u<<6];
 	VkSwapchainKHR swapchain;
 	uint32_t bufferidx;
 
@@ -517,6 +519,7 @@ struct stagingbuf
 vk_image_t VK_CreateTexture2DArray(uint32_t width, uint32_t height, uint32_t layers, uint32_t mips, uploadfmt_t encoding, unsigned int type, qboolean rendertarget, const char *debugname);
 void set_image_layout(VkCommandBuffer cmd, VkImage image, VkImageAspectFlags aspectMask, VkImageLayout old_image_layout, VkAccessFlags srcaccess, VkPipelineStageFlagBits srcstagemask, VkImageLayout new_image_layout, VkAccessFlags dstaccess, VkPipelineStageFlagBits dststagemask);
 void VK_CreateSampler(unsigned int flags, vk_image_t *img);
+void VK_CreateSamplerInfo(VkSamplerCreateInfo *info, vk_image_t *img);
 void *VKBE_CreateStagingBuffer(struct stagingbuf *n, size_t size, VkBufferUsageFlags usage);
 VkBuffer VKBE_FinishStaging(struct stagingbuf *n, vk_poolmem_t *memptr);
 void *VK_FencedBegin(void (*passed)(void *work), size_t worksize);

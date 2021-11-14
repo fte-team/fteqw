@@ -1113,16 +1113,27 @@ qboolean R_RegisterRenderer(void *module, rendererinfo_t *ri)
 }
 
 static plugvrfuncs_t *vrfuncs;
+static void *vrmodule;
 qboolean R_RegisterVRDriver(void *module, plugvrfuncs_t *vr)
 {
-	if (!vrfuncs)
+	if (!vr)
 	{
-		vrfuncs = vr;
-		return true;
+		if (vrmodule == module)
+		{
+			vrfuncs = NULL;
+			vrmodule = NULL;
+		}
+		return false;
 	}
 
-	Sys_Printf("unable to register renderer %s\n", vr->description);
-	return false;
+	if (vrfuncs && vrfuncs!=vr)
+	{
+		Con_Printf("unable to register renderer %s (%s already registered)\n", vr->description, vrfuncs->description);
+		return false;
+	}
+	vrfuncs = vr;
+	vrmodule = module;
+	return true;
 }
 
 

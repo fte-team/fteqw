@@ -3240,7 +3240,7 @@ void Surf_DrawWorld (void)
 		{	//when empty, pick a suitable default.
 			//at what point is it a win? should we consider batch counts? probability of offscreen-only surfaces?
 			if (cl.worldmodel->fromgame == fg_quake || cl.worldmodel->fromgame == fg_halflife)
-				sc = cl.worldmodel->numleafs > 6000 && r_waterstyle.ival<=1 && r_telestyle.ival<=1 && r_slimestyle.ival<=1 && r_lavastyle.ival<=1 && Media_Capturing()<2;
+				sc = ((r_novis.ival==1)||(cl.worldmodel->numleafs > 6000)) && r_waterstyle.ival<=1 && r_telestyle.ival<=1 && r_slimestyle.ival<=1 && r_lavastyle.ival<=1 && Media_Capturing()<2;
 		}
 		if (sc != r_temporalscenecache.ival)
 		{
@@ -3286,6 +3286,7 @@ void Surf_DrawWorld (void)
 
 				if (webostate->cluster[0] == r_viewcluster && webostate->cluster[1] == r_viewcluster2)
 				{
+					VectorCopy(r_refdef.vieworg, webostate->lastpos);
 					if (!r_refdef.areabitsknown || !memcmp(webostate->areamask, r_refdef.areabits, MAX_MAP_AREA_BYTES))
 					{
 						best = webostate;
@@ -3343,7 +3344,7 @@ void Surf_DrawWorld (void)
 
 						if (!gennew && (webostate->cluster[0] != r_viewcluster || webostate->cluster[1] != r_viewcluster2))
 						{
-							if (webostate->pvs.buffersize != currentmodel->pvsbytes || r_viewcluster2 != -1)
+							if (webostate->pvs.buffersize != currentmodel->pvsbytes || r_viewcluster2 < 0)
 								gennew = true;	//o.O
 							else if (memcmp(webostate->pvs.buffer, webostate->wmodel->funcs.ClusterPVS(webostate->wmodel, r_viewcluster, NULL, PVM_FAST), currentmodel->pvsbytes))
 								gennew = true;
@@ -3416,11 +3417,22 @@ void Surf_DrawWorld (void)
 #endif
 
 			//if they teleported, don't show something ugly - like obvious wallhacks.
-			if (webogenerating && bestdist > 16 && cl.splitclients<=1 && webostate && (webostate->cluster[0] != r_viewcluster || webostate->cluster[1] != r_viewcluster2))
+			if (webogenerating && !r_novis.ival && cl.splitclients<=1 && webostate && (webostate->cluster[0] != r_viewcluster || webostate->cluster[1] != r_viewcluster2))
 			{
-				Con_DLPrintf(2, "Blocking for scenecache generation\n");
-				webostate = webogenerating;
-				COM_WorkerPartialSync(webogenerating, &webogeneratingstate, true);
+				if (bestdist > 32 && memcmp(webostate->pvs.buffer, webogenerating->wmodel->funcs.ClusterPVS(webogenerating->wmodel, webogenerating->cluster[0], NULL, PVM_FAST), webostate->pvs.buffersize))
+				{
+					/*if (es->cluster[1] != -1 && es->cluster[0] != es->cluster[1])
+					{	//view is near to a water boundary. this implies the water crosses the near clip plane. we need both leafs.
+						pvs = es->wmodel->funcs.ClusterPVS(es->wmodel, es->cluster[0], &es->pvs, PVM_REPLACE);
+						pvs = es->wmodel->funcs.ClusterPVS(es->wmodel, es->cluster[1], &es->pvs, PVM_MERGE);
+					}
+					else*/
+//						pvs = webogenerating->wmodel->funcs.ClusterPVS(webogenerating->wmodel, webogenerating->cluster[0], NULL, PVM_FAST);
+
+					Con_DLPrintf(2, "Blocking for scenecache generation (distance = %g)\n", bestdist);
+					webostate = webogenerating;
+					COM_WorkerPartialSync(webogenerating, &webogeneratingstate, true);
+				}
 			}
 
 			if (webostate)
@@ -3429,7 +3441,8 @@ void Surf_DrawWorld (void)
 
 				webostate->lastvalid = cls.framecount;
 
-				VectorCopy(r_refdef.vieworg, webostate->lastpos);
+				if (webostate->cluster[0] == r_viewcluster && webostate->cluster[1] == r_viewcluster2)
+					VectorCopy(r_refdef.vieworg, webostate->lastpos);
 
 				r_dynamic.ival = -1;	//don't waste time on dlighting models.
 

@@ -126,6 +126,7 @@ typedef struct
 #ifdef Q3CLIENT
 #define CF_CLI_NODUPES		4096	// block multiple identical sounds being started on the same entity within rapid succession (regardless of channel). required by quake3.
 #endif
+#define CF_CLI_STATIC		8192	//started via ambientsound/svc_spawnstaticsound
 #define CF_NETWORKED (CF_NOSPACIALISE|CF_NOREVERB|CF_FORCELOOP|CF_FOLLOW|CF_NOREPLACE)
 
 typedef struct
@@ -281,9 +282,6 @@ void SNDVC_MicInput(qbyte *buffer, int samples, int freq, int width);
 // User-setable variables
 // ====================================================================
 
-#define	MAX_DYNAMIC_CHANNELS	64	/*playing sounds (identical ones merge)*/
-
-
 #define NUM_MUSICS				1
 
 #define AMBIENT_FIRST 0
@@ -291,7 +289,6 @@ void SNDVC_MicInput(qbyte *buffer, int samples, int freq, int width);
 #define MUSIC_FIRST AMBIENT_STOP
 #define MUSIC_STOP (MUSIC_FIRST + NUM_MUSICS)
 #define DYNAMIC_FIRST MUSIC_STOP
-#define DYNAMIC_STOP (DYNAMIC_FIRST + MAX_DYNAMIC_CHANNELS)
 
 //
 // Fake dma is a synchronous faking of the DMA progress used for

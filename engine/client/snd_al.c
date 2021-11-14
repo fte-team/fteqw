@@ -732,19 +732,32 @@ static qboolean OpenAL_ReclaimASource(soundcardinfo_t *sc)
 
 	if (!success)
 	{
-		for (i = DYNAMIC_STOP; i < sc->total_chans; i++)
-		{	//FIXME: prioritize the furthest
+		int furthest=-1;
+		float dist, bdist=-1;
+		vec3_t d;
+		for (i = DYNAMIC_FIRST; i < sc->total_chans; i++)
+		{
 			if (oali->source[i].allocated)
 			{
-				palDeleteSources(1, &oali->source[i].handle);
-				if (oali->source[i].queuesize)
-					palDeleteBuffers(oali->source[i].queuesize, oali->source[i].queue);
-				oali->source[i].queuesize = 0;
-				oali->source[i].handle = 0;
-				oali->source[i].allocated = false;
-				success++;
-				break;
+				VectorSubtract(sc->channel[i].origin, oali->ListenPos, d);
+				dist = DotProduct(d,d);
+				if (dist > bdist)
+				{
+					bdist = dist;
+					furthest = i;
+				}
 			}
+		}
+		if (furthest >= 0)
+		{
+			i = furthest;
+			palDeleteSources(1, &oali->source[i].handle);
+			if (oali->source[i].queuesize)
+				palDeleteBuffers(oali->source[i].queuesize, oali->source[i].queue);
+			oali->source[i].queuesize = 0;
+			oali->source[i].handle = 0;
+			oali->source[i].allocated = false;
+			success++;
 		}
 	}
 

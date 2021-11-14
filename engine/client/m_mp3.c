@@ -3860,7 +3860,7 @@ void Media_InitFakeSoundDevice (int speed, int channels, int samplebits)
 
 	sc->sn.buffer = (unsigned char *) BZ_Malloc(sc->sn.samples*sc->sn.numchannels*sc->sn.samplebytes);
 
-	Z_ReallocElements((void**)&sc->channel, &sc->max_chans, MAX_DYNAMIC_CHANNELS+NUM_AMBIENTS+NUM_MUSICS, sizeof(*sc->channel));
+	Z_ReallocElements((void**)&sc->channel, &sc->max_chans, NUM_AMBIENTS+NUM_MUSICS, sizeof(*sc->channel));
 
 	sc->Lock		= MSD_Lock;
 	sc->Unlock		= MSD_Unlock;

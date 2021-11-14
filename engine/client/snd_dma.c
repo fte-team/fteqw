@@ -2014,7 +2014,7 @@ static soundcardinfo_t *SNDDMA_Init(char *driver, char *device, int seat)
 				if (sc->seat == -1 && sc->ListenerUpdate)
 					sc->seat = 0;	//hardware rendering won't cope with seat=-1
 
-				Z_ReallocElements((void**)&sc->channel, &sc->max_chans, MAX_DYNAMIC_CHANNELS+NUM_AMBIENTS+NUM_MUSICS, sizeof(*sc->channel));
+				Z_ReallocElements((void**)&sc->channel, &sc->max_chans, NUM_AMBIENTS+NUM_MUSICS, sizeof(*sc->channel));
 				return sc;
 			}
 		}
@@ -2616,13 +2616,11 @@ SND_PickChannel
 channel_t *SND_PickChannel(soundcardinfo_t *sc, int entnum, int entchannel)
 {
 	int ch_idx;
-	int oldestpos;
 	int oldest;
 
-// Check for replacement sound, or find the best one to replace
+// Check for replacement sound, or an idle channel
 	oldest = -1;
-	oldestpos = -1;
-	for (ch_idx=DYNAMIC_FIRST; ch_idx < DYNAMIC_STOP ; ch_idx++)
+	for (ch_idx=DYNAMIC_FIRST; ch_idx < sc->max_chans ; ch_idx++)
 	{
 		if (entchannel != 0		// channel 0 never overrides
 		&& sc->channel[ch_idx].entnum == entnum
@@ -2632,24 +2630,15 @@ channel_t *SND_PickChannel(soundcardinfo_t *sc, int entnum, int entchannel)
 			break;
 		}
 
-		// don't let monster sounds override player sounds
-		if (sc->seat != -1 && sc->channel[ch_idx].entnum == listener[sc->seat].entnum && entnum != listener[sc->seat].entnum && sc->channel[ch_idx].sfx)
-			continue;
-
 		if (!sc->channel[ch_idx].sfx)
-		{
-			oldestpos = 0x7fffffff;
 			oldest = ch_idx;
-		}
-		else if (sc->channel[ch_idx].pos > oldestpos)
-		{
-			oldestpos = sc->channel[ch_idx].pos;
-			oldest = ch_idx;
-		}
 	}
 
 	if (oldest == -1)
-		return NULL;
+	{
+		oldest = sc->max_chans;
+		Z_ReallocElements((void**)&sc->channel, &sc->max_chans, oldest+1, sizeof(*sc->channel));
+	}
 
 	sc->channel[oldest].sfx = NULL;
 
@@ -2977,7 +2966,7 @@ static void S_UpdateSoundCard(soundcardinfo_t *sc, qboolean updateonly, channel_
 // if an identical sound has also been started this frame, offset the pos
 // a bit to keep it from just making the first one louder
 		check = &sc->channel[DYNAMIC_FIRST];
-		for (ch_idx=DYNAMIC_FIRST; ch_idx < DYNAMIC_STOP; ch_idx++, check++)
+		for (ch_idx=DYNAMIC_FIRST; ch_idx < sc->total_chans; ch_idx++, check++)
 		{
 			if (check == target_chan)
 				continue;
@@ -3298,7 +3287,7 @@ void S_StopAllSounds(qboolean clear)
 			}
 		}
 
-		sc->total_chans = MAX_DYNAMIC_CHANNELS + NUM_AMBIENTS + NUM_MUSICS;	// no statics
+		sc->total_chans = NUM_AMBIENTS + NUM_MUSICS;	// no statics
 		Z_ReallocElements((void**)&sc->channel, &sc->max_chans, sc->total_chans, sizeof(*sc->channel));
 
 		memcpy(musics, &sc->channel[MUSIC_FIRST], sizeof(musics));
@@ -3380,7 +3369,7 @@ void S_StaticSound (sfx_t *sfx, vec3_t origin, float vol, float attenuation)
 		ss->master_vol = vol*255;
 		ss->dist_mult = attenuation / snd_nominaldistance.value;
 		ss->pos = 0;
-		ss->flags = CF_FORCELOOP;
+		ss->flags = CF_FORCELOOP|CF_CLI_STATIC;
 
 		SND_Spatialize (scard, ss);
 
@@ -3707,7 +3696,7 @@ static void S_Q2_AddEntitySounds(soundcardinfo_t *sc)
 
 		if (sc->ChannelUpdate)
 		{
-			for (c = NULL, j=DYNAMIC_FIRST; j < DYNAMIC_STOP ; j++)
+			for (c = NULL, j=DYNAMIC_FIRST; j < sc->total_chans ; j++)
 			{
 				if (sc->channel[j].entnum == entnums[count] && !sc->channel[j].entchannel && (sc->channel[j].flags & CF_CLI_AUTOSOUND))
 				{
@@ -3718,7 +3707,7 @@ static void S_Q2_AddEntitySounds(soundcardinfo_t *sc)
 		}
 		else
 		{
-			for (c = NULL, j=DYNAMIC_FIRST; j < DYNAMIC_STOP ; j++)
+			for (c = NULL, j=DYNAMIC_FIRST; j < sc->total_chans ; j++)
 			{
 				if (sc->channel[j].sfx == sfx && (sc->channel[j].flags & CF_CLI_AUTOSOUND))
 				{
@@ -3838,7 +3827,7 @@ static void S_UpdateCard(soundcardinfo_t *sc)
 	// try to combine static sounds with a previous channel of the same
 	// sound effect so we don't mix five torches every frame
 
-		if (i >= DYNAMIC_STOP)
+		if (ch->flags & CF_CLI_STATIC)
 		{
 		// see if it can just use the last one
 			if (combine && combine->sfx == ch->sfx)

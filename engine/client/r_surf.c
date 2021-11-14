@@ -3419,17 +3419,13 @@ void Surf_DrawWorld (void)
 			//if they teleported, don't show something ugly - like obvious wallhacks.
 			if (webogenerating && !r_novis.ival && cl.splitclients<=1 && webostate && (webostate->cluster[0] != r_viewcluster || webostate->cluster[1] != r_viewcluster2))
 			{
-				if (bestdist > 32 && memcmp(webostate->pvs.buffer, webogenerating->wmodel->funcs.ClusterPVS(webogenerating->wmodel, webogenerating->cluster[0], NULL, PVM_FAST), webostate->pvs.buffersize))
+				vec3_t m;
+				float d;
+				VectorSubtract(webostate->lastpos, r_refdef.vieworg, m);
+				d = sqrt(DotProduct(m,m));
+				if (d > 40 && memcmp(webostate->pvs.buffer, webogenerating->wmodel->funcs.ClusterPVS(webogenerating->wmodel, webogenerating->cluster[0], NULL, PVM_FAST), webostate->pvs.buffersize))
 				{
-					/*if (es->cluster[1] != -1 && es->cluster[0] != es->cluster[1])
-					{	//view is near to a water boundary. this implies the water crosses the near clip plane. we need both leafs.
-						pvs = es->wmodel->funcs.ClusterPVS(es->wmodel, es->cluster[0], &es->pvs, PVM_REPLACE);
-						pvs = es->wmodel->funcs.ClusterPVS(es->wmodel, es->cluster[1], &es->pvs, PVM_MERGE);
-					}
-					else*/
-//						pvs = webogenerating->wmodel->funcs.ClusterPVS(webogenerating->wmodel, webogenerating->cluster[0], NULL, PVM_FAST);
-
-					Con_DLPrintf(2, "Blocking for scenecache generation (distance = %g)\n", bestdist);
+					Con_DLPrintf(2, "Blocking for scenecache generation (distance = %g)\n", d);
 					webostate = webogenerating;
 					COM_WorkerPartialSync(webogenerating, &webogeneratingstate, true);
 				}

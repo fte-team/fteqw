@@ -2022,17 +2022,17 @@ void Mod_LoadLighting (model_t *loadmodel, bspx_header_t *bspx, qbyte *mod_base,
 	if (overrides && !overrides->shifts)
 	{
 		int size;
-		overrides->shifts = BSPX_FindLump(bspx, mod_base, "LMSHIFT", &size);
-		if (size != loadmodel->numsurfaces)
-			overrides->shifts = NULL;
-
 		//if we have shifts, then we probably also have legacy data in the surfaces that we want to override
 		if (!overrides->offsets)
 		{
 			int size;
 			overrides->offsets = BSPX_FindLump(bspx, mod_base, "LMOFFSET", &size);
 			if (size != loadmodel->numsurfaces * sizeof(int))
+			{
+				if (size)
+					Con_Printf(CON_ERROR"BSPX LMOFFSET lump is wrong size, expected %u entries, found %u\n", loadmodel->numsurfaces, size/(unsigned int)sizeof(int));
 				overrides->offsets = NULL;
+			}
 		}
 		if (!overrides->styles8 && !overrides->styles16)
 		{	//16bit per-face lightmap styles index
@@ -2040,7 +2040,11 @@ void Mod_LoadLighting (model_t *loadmodel, bspx_header_t *bspx, qbyte *mod_base,
 			overrides->styles16 = BSPX_FindLump(bspx, mod_base, "LMSTYLE16", &size);
 			overrides->stylesperface = size / (sizeof(*overrides->styles16)*loadmodel->numsurfaces); //rounding issues will be caught on the next line...
 			if (!overrides->stylesperface || size != loadmodel->numsurfaces * sizeof(*overrides->styles16)*overrides->stylesperface)
+			{
+				if (size)
+					Con_Printf(CON_ERROR"BSPX LMSTYLE16 lump is wrong size, expected %u*%u entries, found %u\n", loadmodel->numsurfaces, overrides->stylesperface, size/(unsigned int)sizeof(*overrides->styles16));
 				overrides->styles16 = NULL;
+			}
 			else if (overrides->stylesperface > MAXCPULIGHTMAPS)
 				Con_Printf(CON_WARNING "LMSTYLE16 lump provides %i styles, only the first %i will be used.\n", overrides->stylesperface, MAXCPULIGHTMAPS);
 		}
@@ -2050,9 +2054,26 @@ void Mod_LoadLighting (model_t *loadmodel, bspx_header_t *bspx, qbyte *mod_base,
 			overrides->styles8 = BSPX_FindLump(bspx, mod_base, "LMSTYLE", &size);
 			overrides->stylesperface = size / (sizeof(*overrides->styles8)*loadmodel->numsurfaces); //rounding issues will be caught on the next line...
 			if (!overrides->stylesperface || size != loadmodel->numsurfaces * sizeof(*overrides->styles8)*overrides->stylesperface)
+			{
+				if (size)
+					Con_Printf(CON_ERROR"BSPX LMSTYLE16 lump is wrong size, expected %u*%u entries, found %u\n", loadmodel->numsurfaces, overrides->stylesperface, size/(unsigned int)sizeof(*overrides->styles8));
 				overrides->styles8 = NULL;
+			}
 			else if (overrides->stylesperface > MAXCPULIGHTMAPS)
 				Con_Printf(CON_WARNING "LMSTYLE lump provides %i styles, only the first %i will be used.\n", overrides->stylesperface, MAXCPULIGHTMAPS);
+		}
+
+		overrides->shifts = BSPX_FindLump(bspx, mod_base, "LMSHIFT", &size);
+		if (size != loadmodel->numsurfaces)
+		{
+			if (size)
+			{	//ericw-tools is screwing up again. don't leave things screwed.
+				Con_Printf(CON_ERROR"BSPX LMSHIFT lump is wrong size, expected %u entries, found %u\n", loadmodel->numsurfaces, size);
+				overrides->styles16 = NULL;
+				overrides->styles8 = NULL;
+				overrides->offsets = NULL;
+			}
+			overrides->shifts = NULL;
 		}
 	}
 

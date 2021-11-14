@@ -5374,6 +5374,9 @@ static void CL_ProcessUserInfo (int slot, player_info_t *player)
 	int i;
 	char *col;
 	int ospec = player->spectator;
+
+	if (cls.protocol == CP_NETQUAKE)
+		player->userid = slot;
 	Q_strncpyz (player->name, InfoBuf_ValueForKey (&player->userinfo, "name"), sizeof(player->name));
 	Q_strncpyz (player->team, InfoBuf_ValueForKey (&player->userinfo, "team"), sizeof(player->team));
 
@@ -5443,7 +5446,7 @@ static void CL_ProcessUserInfo (int slot, player_info_t *player)
 #ifdef QWSKINS
 	else if (cl.teamplay && cl.playerview[0].spectator && slot == Cam_TrackNum(&cl.playerview[0]))	//skin forcing cares about the team of the guy we're tracking.
 		Skin_FlushPlayers();
-	else if (cls.state == ca_active)
+	else if (cls.state >= ca_onserver)
 		Skin_Find (player);
 
 	CL_NewTranslation (slot);

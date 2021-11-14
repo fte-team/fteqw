@@ -973,7 +973,7 @@ void CLFTE_ParseEntities(void)
 		if (!cl.validsequence)
 			cl.ackframes[cl.numackframes++] = -1;
 		else
-			cl.ackframes[cl.numackframes++] = cls.netchan.incoming_sequence;
+			cl.ackframes[cl.numackframes++] = cls.netchan.incoming_unreliable;
 
 		{
 			extern vec3_t demoangles;

@@ -1609,12 +1609,18 @@ void Q3BSP_GenerateShadowMesh(model_t *model, dlight_t *dl, const qbyte *lightvi
 static void SHM_Shadow_Surface_Shadowmap (msurface_t *surf)
 {
 	SHM_Shadow_Cache_Surface(surf);
+	if (surf->texinfo->texture->shader->flags & SHADER_NOSHADOWS)
+		return;
 	SHM_MeshFrontOnly(surf->mesh->numvertexes, surf->mesh->xyz_array, surf->mesh->numindexes, surf->mesh->indexes);
 }
 static void SHM_Shadow_Surface_StencilVolume (msurface_t *surf)
 {
 	int v;
 	SHM_Shadow_Cache_Surface(surf);
+	if (surf->texinfo->texture->shader->flags & SHADER_NOSHADOWS)
+		return;
+	if (!surf->mesh->istrifan)
+		return;
 
 	//build a list of the edges that are to be drawn.
 	for (v = 0; v < surf->numedges; v++)

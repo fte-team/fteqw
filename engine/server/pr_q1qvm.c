@@ -210,6 +210,8 @@ typedef enum
 	GAME_PAUSED_TIC,		//(int milliseconds)
 
 	GAME_CLEAR_EDICT,		//v15 (sets self.fields to safe values after they're cleared)
+
+	GAME_EDICT_CSQCSEND=200,	//fte entrypoint, called when using SendEntity.
 } q1qvmgameExport_t;
 
 
@@ -1872,6 +1874,29 @@ static qintptr_t QVM_pointerstat (void *offset, quintptr_t mask, const qintptr_t
 	return 0;
 }
 
+//void(entity e, vector flags, entity target) setsendneeded
+static qintptr_t QVM_SetSendNeeded(void *offset, quintptr_t mask, const qintptr_t *arg)
+{
+	unsigned int subject = VM_LONG(arg[0]);
+	quint64_t fl = arg[1];
+	unsigned int to = VM_LONG(arg[2]);
+	if (!to)
+	{	//broadcast
+		for (to = 0; to < sv.allocated_client_slots; to++)
+			if (svs.clients[to].pendingcsqcbits && subject < svs.clients[to].max_net_ents)
+				svs.clients[to].pendingcsqcbits[subject] |= fl;
+	}
+	else
+	{
+		to--;
+		if (to >= sv.allocated_client_slots || !svs.clients[to].pendingcsqcbits || subject >= svs.clients[to].max_net_ents)
+			;	//some kind of error.
+		else
+			svs.clients[to].pendingcsqcbits[subject] |= fl;
+	}
+	return 0;
+}
+
 static qintptr_t QVM_VisibleTo (void *offset, quintptr_t mask, const qintptr_t *arg)
 {
 	unsigned int a0 = VM_LONG(arg[0]);
@@ -2014,6 +2039,7 @@ struct
 	{"pointparticles",		QVM_pointparticles},
 	{"clientstat",			QVM_clientstat},	//csqc extension
 	{"pointerstat",			QVM_pointerstat},	//csqc extension
+	{"setsendneeded",		QVM_SetSendNeeded},		//csqc extension
 	{"VisibleTo",			QVM_VisibleTo},		//alternative to mvdsv's visclients hack
 
 	//sql?
@@ -2620,6 +2646,11 @@ void Q1QVM_StartFrame(qboolean botsarespecialsnowflakes)
 	if (botsarespecialsnowflakes && qvm_api_version < 15)
 		return; //this stupidity brought to you with api 15!
 	VM_Call(q1qvm, GAME_START_FRAME, (qintptr_t)(sv.time*1000), botsarespecialsnowflakes, 0, 0);
+}
+
+void Q1QVM_SendEntity(quint64_t sendflags)
+{
+	VM_Call(q1qvm, GAME_EDICT_CSQCSEND, sendflags, 0, 0, 0);
 }
 
 void Q1QVM_Blocked(void)

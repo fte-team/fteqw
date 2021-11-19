@@ -391,14 +391,25 @@ void SV_EmitCSQCUpdate(client_t *client, sizebuf_t *msg, qbyte svcnumber)
 
 		csqcmsgbuffer.cursize = 0;
 		csqcmsgbuffer.currentbit = 0;
-		//Ask CSQC to write a buffer for it.
-		G_INT(OFS_PARM0) = viewerent;
-		G_FLOAT(OFS_PARM1+0) = (int)((bits>>(SENDFLAGS_SHIFT+ 0)) & 0xffffff);	//each float can only hold 24 bits before it forgets its lower bits.
-		G_FLOAT(OFS_PARM1+1) = (int)((bits>>(SENDFLAGS_SHIFT+24)) & 0xffffff);
-		G_FLOAT(OFS_PARM1+2) = (int)((bits>>(SENDFLAGS_SHIFT+48)) & 0xffffff);
 
 		pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, ent);
-		PR_ExecuteProgram(svprogfuncs, ent->xv->SendEntity);
+#ifdef VM_Q1
+		if (svs.gametype == GT_Q1QVM)
+		{
+			pr_global_struct->other = viewerent;
+			Q1QVM_SendEntity(bits);
+		}
+		else
+#endif
+		{
+			//Ask CSQC to write a buffer for it.
+			G_INT(OFS_PARM0) = viewerent;
+			G_FLOAT(OFS_PARM1+0) = (int)((bits>>(SENDFLAGS_SHIFT+ 0)) & 0xffffff);	//each float can only hold 24 bits before it forgets its lower bits.
+			G_FLOAT(OFS_PARM1+1) = (int)((bits>>(SENDFLAGS_SHIFT+24)) & 0xffffff);
+			G_FLOAT(OFS_PARM1+2) = (int)((bits>>(SENDFLAGS_SHIFT+48)) & 0xffffff);
+			PR_ExecuteProgram(svprogfuncs, ent->xv->SendEntity);
+		}
+
 		if (G_INT(OFS_RETURN))	//0 means not to tell the client about it.
 		{
 			//FIXME: don't overflow MAX_DATAGRAM... unless its too big anyway...

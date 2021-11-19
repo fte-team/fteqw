@@ -4204,7 +4204,13 @@ static void QCBUILTIN PF_cvar (pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 	str = PR_GetStringOfs(prinst, OFS_PARM0);
 
 	if (!strcmp(str, "pr_checkextension"))	//no console changing
-		G_FLOAT(OFS_RETURN) = PR_EnableEBFSBuiltin("checkextension", 0);
+	{
+		cvar_t *var = Cvar_FindVar(str);
+		if (var && !var->ival)
+			G_FLOAT(OFS_RETURN) = false;
+		else
+			G_FLOAT(OFS_RETURN) = PR_EnableEBFSBuiltin("checkextension", 0);
+	}
 	else if (!strcmp(str, "pr_builtin_find"))
 		G_FLOAT(OFS_RETURN) = PR_EnableEBFSBuiltin("builtin_find", 0);
 	else if (!strcmp(str, "pr_map_builtin"))
@@ -10124,13 +10130,13 @@ static void QCBUILTIN PF_setsendneeded(pubprogfuncs_t *prinst, struct globalvars
 	if (!to)
 	{	//broadcast
 		for (to = 0; to < sv.allocated_client_slots; to++)
-			if (svs.clients[to].pendingcsqcbits)
+			if (svs.clients[to].pendingcsqcbits && subject < svs.clients[to].max_net_ents)
 				svs.clients[to].pendingcsqcbits[subject] |= fl;
 	}
 	else
 	{
 		to--;
-		if (to >= sv.allocated_client_slots || !svs.clients[to].pendingcsqcbits)
+		if (to >= sv.allocated_client_slots || !svs.clients[to].pendingcsqcbits || subject >= svs.clients[to].max_net_ents)
 			return;	//some kind of error.
 		else
 			svs.clients[to].pendingcsqcbits[subject] |= fl;

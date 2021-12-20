@@ -2692,9 +2692,11 @@ void SV_DoDirectConnect(svconnectinfo_t *fte_restrict info)
 
 	if (newcl)
 	{	//client is reprising a loaded slot.
-		SV_BroadcastTPrintf(PRINT_HIGH, "%s reprises %s\n", name, newcl->name);
 		if (cl->istobeloaded)
+		{
+			SV_BroadcastTPrintf(PRINT_HIGH, "%s reprises %s\n", name, newcl->name);
 			Con_DPrintf("%s:Using loadzombie\n", svs.name);
+		}
 		else
 			Con_DPrintf("%s:Using parmzombie\n", svs.name);
 		preserveparms = true;
@@ -3088,13 +3090,13 @@ void SV_DoDirectConnect(svconnectinfo_t *fte_restrict info)
 	SV_AcceptMessage (newcl);
 
 	newcl->state = cs_free;
-	if (ISNQCLIENT(newcl))
+	if (redirect || preserveparms)
+	{
+	}
+	else if (ISNQCLIENT(newcl))
 	{
 		//FIXME: we should delay this until we actually have a name, because right now they'll be called unnamed or unconnected or something
 		SV_BroadcastPrintf(PRINT_LOW, "New client connected\n");
-	}
-	else if (redirect)
-	{
 	}
 	else if (newcl->spectator)
 	{

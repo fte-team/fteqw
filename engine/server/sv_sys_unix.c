@@ -68,6 +68,10 @@ static qboolean noconinput = false;
 
 static struct termios orig, changes;
 
+#ifdef SUBSERVERS
+jmp_buf sys_sv_serverforked;
+#endif
+
 /*
 ===============================================================================
 
@@ -1082,6 +1086,11 @@ int main(int argc, char *argv[])
 
 // run one frame immediately for first heartbeat
 	maxsleep = SV_Frame();
+
+#ifdef SUBSERVERS
+	if (setjmp(sys_sv_serverforked))
+		noconinput = true;
+#endif
 
 //
 // main loop

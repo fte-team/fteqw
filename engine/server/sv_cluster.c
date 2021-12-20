@@ -40,6 +40,8 @@
 #include "sv_sql.h"
 #endif
 
+#define S_COLOR_SUBSERVER S_COLOR_MAGENTA
+
 typedef struct pubsubserver_s
 {
 	vfsfile_t *stream;
@@ -610,7 +612,7 @@ void MSV_Status(void)
 	clusterplayer_t *pl;
 	for (s = subservers; s; s = s->next)
 	{
-		Con_Printf("^[%i: %s\\ssv\\%u^]", s->id, s->name, s->id);
+		Con_Printf("^["S_COLOR_SUBSERVER"%i: %s\\ssv\\%u^]", s->id, s->name, s->id);
 		if (s->addrv4.type != NA_INVALID)
 			Con_Printf(" %s", NET_AdrToString(bufmem, sizeof(bufmem), &s->addrv4));
 		if (s->addrv6.type != NA_INVALID)
@@ -850,12 +852,12 @@ static void MSV_PrintFromSubServer(pubsubserver_t *s, const char *newtext)
 	while((nl = strchr(s->printtext, '\n')))
 	{	//FIXME: handle overflows.
 		*nl++ = 0;
-		Con_Printf("^[^6%i(%s)\\ssv\\%u^]: %s\n", s->id, s->name, s->id, s->printtext);
+		Con_Printf("^["S_COLOR_SUBSERVER"%i(%s)\\ssv\\%u^]: %s\n", s->id, s->name, s->id, s->printtext);
 		memmove(s->printtext, nl, strlen(nl)+1);
 	}
 	if (strlen(s->printtext) > sizeof(s->printtext)/2)
 	{
-		Con_Printf("^[^6%i(%s)\\ssv\\%u^]: %s\n", s->id, s->name, s->id, s->printtext);
+		Con_Printf("^["S_COLOR_SUBSERVER"%i(%s)\\ssv\\%u^]: %s\n", s->id, s->name, s->id, s->printtext);
 		*s->printtext = 0;
 	}
 }
@@ -1123,9 +1125,9 @@ void MSV_ReadFromSubServer(pubsubserver_t *s)
 			}
 			MSV_SubConsole_Update(s);
 			if (s->started)
-				Con_DPrintf("^[^6[%i:%s: map changed]\\ssv\\%u\\tip\\Click for server's console^]\n", s->id, s->name, s->id);
+				Con_DPrintf("^["S_COLOR_SUBSERVER"[%i:%s: map changed]\\ssv\\%u\\tip\\Click for server's console^]\n", s->id, s->name, s->id);
 			else
-				Con_Printf("^[^6[%i:%s: new node initialised]\\ssv\\%u\\tip\\Click for server's console^]\n", s->id, s->name, s->id);
+				Con_Printf("^["S_COLOR_SUBSERVER"[%i:%s: new node initialised]\\ssv\\%u\\tip\\Click for server's console^]\n", s->id, s->name, s->id);
 			s->started = true;
 		}
 		break;

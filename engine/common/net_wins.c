@@ -4002,7 +4002,10 @@ ftenet_generic_connection_t *FTENET_Datagram_EstablishConnection(ftenet_connecti
 		{
 			SockadrToNetadr(&qs, temp, &adr);
 			NET_AdrToString(addrstr, sizeof(addrstr), &adr);
-			Con_Printf(CON_ERROR "Unable to bind to port %i, bound to %s instead\n", port, addrstr);
+			if (SSV_IsSubServer())
+				Con_DLPrintf(2, CON_ERROR "Unable to bind to port %i, bound to %s instead\n", port, addrstr);
+			else
+				Con_Printf(CON_ERROR "Unable to bind to port %i, bound to %s instead\n", port, addrstr);
 		}
 		break;
 	}
@@ -8422,6 +8425,7 @@ void IPX_CloseSocket (int socket)
 
 #ifdef HAVE_EPOLL
 static qboolean stdin_ready;
+static qboolean stdin_epolling;
 static void StdIn_Now_Ready (struct epollctx_s *ctx, unsigned int events)
 {
 	stdin_ready = true;
@@ -8430,13 +8434,14 @@ qboolean NET_Sleep(float seconds, qboolean stdinissocket)
 {
 	int waitms;
 	struct epoll_event waitevents[256];
-	static int stdinadded = false;
 	int n, i;
-	if (stdinadded != stdinissocket)
+	if (epoll_fd < 0)
+		return false; // o.O
+	if (stdin_epolling != stdinissocket)
 	{
 		static epollctx_t stdinctx = {StdIn_Now_Ready};
 		struct epoll_event event = {EPOLLIN, {&stdinctx}};
-		stdinadded = stdinissocket;
+		stdin_epolling = stdinissocket;
 		if (stdinissocket)
 			epoll_ctl(epoll_fd, EPOLL_CTL_ADD, STDIN_FILENO, &event);
 		else
@@ -8453,7 +8458,7 @@ qboolean NET_Sleep(float seconds, qboolean stdinissocket)
 		case EINTR:
 			break;
 		default:
-			Con_Printf("EPoll error: %i\n", err);
+			Con_Printf("EPoll error: %s\n", strerror(err));
 			break;
 		}
 	}
@@ -8983,6 +8988,12 @@ void NET_CloseServer(void)
 void NET_InitServer(void)
 {
 	qboolean singleplayer = (sv.allocated_client_slots == 1) && !isDedicated;
+
+#ifdef HAVE_EPOLL
+	if (epoll_fd < 0)
+		epoll_fd = epoll_create1(EPOLL_CLOEXEC);
+#endif
+
 	if ((sv_listen_nq.value || sv_listen_dp.value || sv_listen_qw.value
 #ifdef QWOVERQ3
 		|| sv_listen_q3.ival
@@ -9068,6 +9079,7 @@ void	NET_Shutdown (void)
 #ifdef HAVE_EPOLL
 	close(epoll_fd);
 	epoll_fd = -1;
+	stdin_epolling = false;
 #endif
 
 

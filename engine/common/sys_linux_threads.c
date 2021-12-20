@@ -339,11 +339,12 @@ static qboolean QDECL Sys_MSV_Close (struct vfsfile_s *file)
 #ifdef SQL
 #include "sv_sql.h"
 #endif
+#include "netinc.h"
 
 vfsfile_t *Sys_ForkServer(void)
 {
 #ifdef SERVERONLY
-//	extern  jmp_buf 	host_abort;
+	extern  jmp_buf 	sys_sv_serverforked;
 		
 	int toslave[2];
 	int tomaster[2];
@@ -377,17 +378,15 @@ vfsfile_t *Sys_ForkServer(void)
 		close(toslave[0]);
 		dup2(tomaster[1], STDOUT_FILENO);
 
-		isClusterSlave = true;
+		SSV_SetupControlPipe(Sys_GetStdInOutStream());
 
 		FS_UnloadPackFiles();	//these handles got wiped. make sure they're all properly wiped before loading new handles.
-		NET_Shutdown();
-
+		NET_Shutdown();			//make sure we close any of the parent's network fds ...
 		FS_ReloadPackFiles();
 
-		return NULL;	//lets hope the caller can cope.
 		//jump out into the main work loop
-//		longjmp(host_abort, 1);
-//		exit(0);	//err...
+		longjmp(sys_sv_serverforked, 1);
+		exit(0);	//err...
 	}
 	else
 	{	//this is the parent

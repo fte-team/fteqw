@@ -45,6 +45,16 @@ extern cvar_t vid_conautoscale;
 extern qboolean		scr_con_forcedraw;
 extern qboolean		depthcleared;
 
+vrui_t vrui;
+
+void VRUI_SnapAngle(void)
+{
+//	VectorCopy(cl.playerview[0].viewangles, vrui.angles);
+	vrui.angles[0] = 0;
+	vrui.angles[1] = cl.playerview[0].aimangles[1];
+	vrui.angles[2] = 0;
+}
+
 /*
 ==================
 SCR_UpdateScreen
@@ -184,7 +194,7 @@ qboolean GLSCR_UpdateScreen (void)
 #endif
 		else
 		{
-			if (r_worldentity.model && cls.state == ca_active)
+			if ((r_worldentity.model && cls.state == ca_active) || vid.vr || vrui.enabled)
 				V_RenderView (nohud);
 			else
 				noworld = true;
@@ -218,7 +228,9 @@ qboolean GLSCR_UpdateScreen (void)
 			nohud = true;
 		}
 
-		SCR_DrawTwoDimensional(nohud);
+		r_refdef.playerview = &cl.playerview[0];
+		if (!vrui.enabled)
+			SCR_DrawTwoDimensional(nohud);
 
 		V_UpdatePalette (false);
 		R2D_BrightenScreen();

@@ -1464,7 +1464,7 @@ static void WL_SwapBuffers(void)
 	}
 
 	//if the game wants absolute mouse positions...
-	wantabs = !vid.activeapp || Key_MouseShouldBeFree() || !in_windowed_mouse.value;
+	wantabs = !vid.activeapp || (!vrui.enabled && Key_MouseShouldBeFree()) || !in_windowed_mouse.value;
 	//and force it on if we're lacking one of the plethora of extensions that were needed to get the damn thing actually usable.
 	wantabs |= !w.relative_pointer || !w.pointer_constraints;
 	if (!wantabs && w.cursorfocus && !w.locked_pointer && w.pointer_constraints)

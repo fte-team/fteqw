@@ -35,6 +35,14 @@ extern	cvar_t		scr_viewsize;
 
 qboolean SCR_RSShot (void);
 
+typedef struct
+{
+	qboolean enabled;
+	vec3_t angles;
+} vrui_t;
+extern vrui_t vrui;
+void VRUI_SnapAngle(void);
+
 //void SCR_DrawConsole (qboolean noback);
 //void SCR_SetUpToDrawConsole (void);
 

@@ -7004,6 +7004,9 @@ static void CL_ParseBaseAngle(int seat)
 		VectorCopy (newang, cl.playerview[seat].viewangles);
 	}
 	VectorCopy (newang, cl.playerview[seat].intermissionangles);
+
+	if (fl & 8)
+		VRUI_SnapAngle();
 }
 
 #define SHOWNET(x) if(cl_shownet.value>=2)Con_Printf ("%3i:%s\n", msg_readcount-1, x);
@@ -8491,6 +8494,7 @@ void CLNQ_ParseServerMessage (void)
 					VectorCopy (ang, inf->packet_entities.fixedangles[destsplit]);
 				}
 				VectorCopy (cl.playerview[destsplit].viewangles, cl.playerview[destsplit].intermissionangles);
+				VRUI_SnapAngle();
 			}
 			break;
 

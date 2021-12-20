@@ -71,6 +71,7 @@ cvar_t	cl_nolerp	= CVARD("cl_nolerp", "0", "Disables interpolation. If set, miss
 cvar_t	cl_nolerp_netquake = CVARD("cl_nolerp_netquake", "0", "Disables interpolation when connected to an NQ server. Does affect players, even the local player. You probably don't want to set this.");
 cvar_t	cl_fullpitch_nq = CVARAFD("cl_fullpitch", "0", "pq_fullpitch", CVAR_SEMICHEAT, "When set, attempts to unlimit the default view pitch. Note that some servers will screw over your angles if you use this, resulting in terrible gameplay, while some may merely clamp your angle serverside. This is also considered a cheat in quakeworld, ^1so this will not function there^7. For the equivelent in quakeworld, use serverinfo minpitch+maxpitch instead, which applies to all players fairly.");
 #endif
+static cvar_t	cl_forcevrui = CVARD("cl_forcevrui", "0", "Force the use of VR UIs, even with no VR headset active.");
 cvar_t	*hud_tracking_show;
 cvar_t	*hud_miniscores_show;
 extern cvar_t net_compress;
@@ -4921,6 +4922,7 @@ void CL_Init (void)
 	Cvar_Register (&cl_idlefps, cl_screengroup);
 	Cvar_Register (&cl_yieldcpu, cl_screengroup);
 	Cvar_Register (&cl_timeout, cl_controlgroup);
+	Cvar_Register (&cl_forcevrui, cl_controlgroup);
 	Cvar_Register (&lookspring, cl_inputgroup);
 	Cvar_Register (&lookstrafe, cl_inputgroup);
 	Cvar_Register (&sensitivity, cl_inputgroup);
@@ -6471,6 +6473,7 @@ double Host_Frame (double time)
 			{
 				RSpeedMark();
 				vid.ime_allow = false;
+				vrui.enabled = cl_forcevrui.ival;
 				if (SCR_UpdateScreen())
 					fps_count++;
 				if (R2D_Flush)

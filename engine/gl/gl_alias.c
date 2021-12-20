@@ -2954,6 +2954,8 @@ void BE_GenModelBatches(batch_t **batches, const dlight_t *dl, unsigned int bemo
 			case mod_brush:
 				if (r_drawentities.ival == 2 && cls.allow_cheats)	//2 is considered a cheat, because it can be used as a wallhack (whereas mdls are not normally considered as occluding).
 					continue;
+				if (emodel->lightmaps.maxstyle >= cl_max_lightstyles)
+					continue;
 				Surf_GenBrushBatches(batches, ent);
 				break;
 			case mod_alias:

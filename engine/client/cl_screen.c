@@ -576,6 +576,7 @@ void SCR_CenterPrint (int pnum, const char *str, qboolean skipgamecode)
 
 	p->time_off = scr_centertime.value;
 	p->time_start = cl.time;
+	VRUI_SnapAngle();
 }
 
 void VARGS Stats_Message(char *msg, ...)
@@ -996,6 +997,9 @@ void SCR_DrawCursor(void)
 		}
 	}
 
+	if (vrui.enabled && kcurs->handle)
+		kcurs->dirty = true;
+
 	if (kcurs->dirty)
 	{
 		if (kcurs->scale <= 0 || !*kcurs->name)
@@ -1007,7 +1011,7 @@ void SCR_DrawCursor(void)
 
 		kcurs->dirty = false;
 		oldcurs = kcurs->handle;
-		if (rf->VID_CreateCursor && strcmp(kcurs->name, "none"))
+		if (rf->VID_CreateCursor && !vrui.enabled && strcmp(kcurs->name, "none"))
 		{
 			image_t dummytex;
 			flocation_t loc;
@@ -2374,7 +2378,10 @@ void SCR_DrawConsole (qboolean noback)
 		if (!Key_Dest_Has(kdm_console|kdm_menu))
 			Con_DrawNotify ();      // only draw notify in game
 	}
-	Con_DrawConsole (scr_con_current, noback);
+	if (vrui.enabled)	//make the console all-or-nothing when its a vr ui.
+		Con_DrawConsole (scr_con_target?vid.height:0, noback);
+	else
+		Con_DrawConsole (scr_con_current, noback);
 	if (scr_con_current || Key_Dest_Has(kdm_cwindows))
 		clearconsole = 0;
 }
@@ -3290,8 +3297,6 @@ void SCR_DrawTwoDimensional(qboolean nohud)
 {
 	qboolean consolefocused = !!Key_Dest_Has(kdm_console|kdm_cwindows);
 	RSpeedMark();
-
-	r_refdef.playerview = &cl.playerview[0];
 
 	R2D_ImageColours(1, 1, 1, 1);
 

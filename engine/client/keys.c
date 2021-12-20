@@ -1868,6 +1868,15 @@ qboolean Key_Console (console_t *con, int key, unsigned int unicode)
 			return true;
 	}
 
+	if (key == K_GP_BACK)
+	{
+		Key_Dest_Remove(kdm_console);
+		Key_Dest_Remove(kdm_cwindows);
+		if (!cls.state && !Key_Dest_Has(~kdm_game))
+			M_ToggleMenu_f ();
+		return true;
+	}
+
 	if ((key == K_MOUSE1 || key == K_MOUSE2))
 	{
 		int olddown[2] = {con->mousedown[0],con->mousedown[1]};

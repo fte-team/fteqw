@@ -4340,7 +4340,7 @@ static void Mods_Draw(int x, int y, struct menucustom_s *c, struct emenu_s *m)
 static qboolean Mods_Key(struct menucustom_s *c, struct emenu_s *m, int key, unsigned int unicode)
 {
 	int gameidx = c->dint;
-	if (key == K_MOUSE1 || key == K_ENTER || key == K_GP_A)
+	if (key == K_MOUSE1 || key == K_ENTER || key == K_GP_A || key == K_GP_START)
 	{
 		qboolean wasgameless = !*FS_GetGamedir(false);
 		if (!Mods_GetMod(c->dint))

@@ -2464,18 +2464,20 @@ void V_RenderView (qboolean no2d)
 
 	Surf_LessenStains();
 
-	if (cls.state != ca_active)
-		return;
+//	if (cls.state != ca_active)
+//		return;
 
 	if (cl.intermissionmode != IM_NONE)
 		maxseats = 1;
 	else if (cl_forceseat.ival && cl_splitscreen.ival >= 4)
 		maxseats = 1;
+	else
+		maxseats = max(1, cl.splitclients);
 
 	R_PushDlights ();
 
 	r_secondaryview = 0;
-	for (seatnum = 0; seatnum < cl.splitclients && seatnum < maxseats; seatnum++)
+	for (seatnum = 0; seatnum < maxseats; seatnum++)
 	{
 		pl = (maxseats==1&&cl_forceseat.ival>=1)?(cl_forceseat.ival-1)%cl.splitclients:seatnum;
 		V_ClearRefdef(&cl.playerview[pl]);
@@ -2512,18 +2514,21 @@ void V_RenderView (qboolean no2d)
 		SCR_VRectForPlayer(&r_refdef.grect, seatnum, maxseats);
 		V_RenderPlayerViews(r_refdef.playerview);
 
-#ifdef PLUGINS
-		Plug_SBar (r_refdef.playerview);
-#else
-		if (Sbar_ShouldDraw(r_refdef.playerview))
+		if (!vrui.enabled)
 		{
-			SCR_TileClear (sb_lines);
-			Sbar_Draw (r_refdef.playerview);
-			Sbar_DrawScoreboard (r_refdef.playerview);
-		}
-		else
-			SCR_TileClear (0);
+#ifdef PLUGINS
+			Plug_SBar (r_refdef.playerview);
+#else
+			if (Sbar_ShouldDraw(r_refdef.playerview))
+			{
+				SCR_TileClear (sb_lines);
+				Sbar_Draw (r_refdef.playerview);
+				Sbar_DrawScoreboard (r_refdef.playerview);
+			}
+			else
+				SCR_TileClear (0);
 #endif
+		}
 	}
 	if (seatnum > 1)
 	{

@@ -492,7 +492,7 @@ void IN_Commands(void)
 				ptr[ev->devid].delta[1] += ev->mouse.y;
 
 				//if we're emulating a cursor, make sure that's updated too.
-				if (touchcursor < 0 && Key_MouseShouldBeFree())
+				if (touchcursor < 0 && !vrui.enabled && Key_MouseShouldBeFree())
 				{
 					mousecursor_x += ev->mouse.x;
 					mousecursor_y += ev->mouse.y;
@@ -521,6 +521,7 @@ void IN_Commands(void)
 		case IEV_MOUSEABS:
 //Con_Printf("IEV_MOUSEABS %i: %f %f\n", ev->devid, ev->mouse.x, ev->mouse.y);
 			/*mouse cursors only really work with one pointer*/
+			if (!vrui.enabled)
 			if (ev->devid == touchcursor || (touchcursor < 0 && ev->devid < MAXPOINTERS && (ptr[ev->devid].oldpos[0] != ev->mouse.x || ptr[ev->devid].oldpos[1] != ev->mouse.y)))
 			{
 				float fl;
@@ -657,7 +658,7 @@ void IN_MoveMouse(struct mouse_s *mouse, float *movements, int pnum, float frame
 	mousemove_x += mx;
 	mousemove_y += my;
 
-	if (Key_MouseShouldBeFree())
+	if (!vrui.enabled && Key_MouseShouldBeFree())
 		mx=my=0;
 
 	if (mouse->type == M_TOUCH)

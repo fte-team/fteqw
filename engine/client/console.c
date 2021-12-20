@@ -637,6 +637,7 @@ void Con_ToggleConsole_Force(void)
 		{
 			con_curwindow = con;
 			Key_Dest_Add(kdm_cwindows);
+			VRUI_SnapAngle();
 		}
 	}
 	else
@@ -644,7 +645,10 @@ void Con_ToggleConsole_Force(void)
 		if (Key_Dest_Has(kdm_console))
 			Key_Dest_Remove(kdm_console);
 		else
+		{
 			Key_Dest_Add(kdm_console);
+			VRUI_SnapAngle();
+		}
 	}
 }
 void Con_ToggleConsole_f (void)
@@ -983,6 +987,8 @@ void Con_PrintCon (console_t *con, const char *txt, unsigned int parseflags)
 				con->current->flags |= CONL_CENTERED;
 			if (parseflags & PFS_NONOTIFY)
 				con->current->flags |= CONL_NONOTIFY;
+			else if (!Key_Dest_Has(~kdm_game) && (con->flags & CONF_NOTIFY))
+				VRUI_SnapAngle();
 
 #if defined(HAVE_SPEECHTOTEXT)
 			if (con->current)
@@ -2906,12 +2912,15 @@ static void Con_DrawMouseOver(console_t *mouseconsole)
 					}
 					else
 						shader = NULL;
-					key = Info_ValueForKey(info, "modelviewer");
-					if (*key)
+					if (!vrui.enabled)
 					{
-						model = Mod_ForName(key, MLV_WARN);
-						if (model->loadstate != MLS_LOADED)
-							model = NULL;
+						key = Info_ValueForKey(info, "modelviewer");
+						if (*key)
+						{
+							model = Mod_ForName(key, MLV_WARN);
+							if (model->loadstate != MLS_LOADED)
+								model = NULL;
+						}
 					}
 
 					key = Info_ValueForKey(info, "playaudio");

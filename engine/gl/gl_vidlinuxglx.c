@@ -2764,7 +2764,7 @@ static void UpdateGrabs(void)
 	if (!vid.activeapp)
 		wantmgrabs = false;
 	allownullcursor = wantmgrabs;	//this says whether we can possibly want it. if false then we disallow the null cursor. Yes, this might break mods that do their own sw cursors. such mods are flawed in other ways too.
-	if (Key_MouseShouldBeFree())
+	if (!vrui.enabled && Key_MouseShouldBeFree())
 		wantmgrabs = false;
 //	if (modeswitchpending)
 //		wantmgrabs = false;

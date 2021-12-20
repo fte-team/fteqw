@@ -709,7 +709,7 @@ void INS_UpdateGrabs(int fullscreen, int activeapp)
 		grabmouse = false;
 	else if (fullscreen || in_simulatemultitouch.ival || in_windowed_mouse.value)
 	{
-		if (!Key_MouseShouldBeFree())
+		if (vrui.enabled || !Key_MouseShouldBeFree())
 			grabmouse = true;
 		else
 			grabmouse = false;

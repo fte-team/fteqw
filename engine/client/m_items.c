@@ -408,6 +408,12 @@ static qboolean M_MouseMoved(emenu_t *menu)
 					if (menu->mouseitem != option)
 					{
 						menu->mouseitem = option;
+						if (vrui.enabled)
+						{
+							menu->selecteditem = option;
+							if (menu->cursoritem)
+								menu->cursoritem->common.posy = menu->selecteditem->common.posy;
+						}
 						menu->tooltiptime = realtime + 1;
 						MenuTooltipChange(menu, menu->mouseitem->common.tooltip);
 					}
@@ -1774,7 +1780,7 @@ static void M_Draw (menu_t *menu)
 		menu_mousedown = false;
 		return;
 	}
-	if ((!menu_script || scr_con_current))
+	if (!vrui.enabled && (!menu_script || scr_con_current))
 	{
 		if (m->nobacktint || (m->selecteditem && m->selecteditem->common.type == mt_slider && (m->selecteditem->slider.var == &v_gamma || m->selecteditem->slider.var == &v_contrast)))
 			/*no menu tint if we're trying to adjust gamma*/;

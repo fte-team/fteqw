@@ -2264,6 +2264,8 @@ void CL_SendCmd (double frametime, qboolean mainloop)
 
 				CL_FinishMove(cmd, plnum);
 
+				VectorCopy(pv->aimangles, pv->simangles);
+
 				Cam_FinishMove(pv, cmd);
 
 #ifdef CSQC_DAT

@@ -120,11 +120,15 @@ void Menu_Push(menu_t *menu, qboolean prompt)
 	}
 	if (menu == promptmenu)
 	{
+		if (!Key_Dest_Has(kdm_prompt))
+			VRUI_SnapAngle();
 		Key_Dest_Add(kdm_prompt);
 		Menu_UpdateFocus();
 	}
 	if (menu == topmenu)
 	{
+		if (!Key_Dest_Has(kdm_menu))
+			VRUI_SnapAngle();
 		Key_Dest_Add(kdm_menu);
 		Menu_UpdateFocus();
 	}

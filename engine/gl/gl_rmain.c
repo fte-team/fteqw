@@ -715,6 +715,75 @@ static void R_RenderScene_Internal(void)
 	cl_numvisedicts = tmpvisents;
 
 	depthcleared = false;	//whatever is in the depth buffer is no longer useful.
+
+	if (vrui.enabled)
+	{
+		vec3_t uifwd, uiright, uiup;
+		vec3_t diff;
+		float d;
+		vec3_t ctrlang, ctrlorg, aimdir;
+
+//		extern usercmd_t cl_pendingcmd[MAX_SPLITS];
+		AngleVectors(vrui.angles, uifwd, uiright, uiup);
+
+		VectorAngles(uiright, uifwd, r_worldentity.angles, false);
+		AngleVectors(r_worldentity.angles, r_worldentity.axis[0], r_worldentity.axis[1], r_worldentity.axis[2]);
+		VectorNegate(r_worldentity.axis[1], r_worldentity.axis[1]);
+		r_worldentity.scale = 1;//0.2;
+		VectorMA(r_refdef.vieworg, Cvar_Get("2dz", "256", 0, "")->value*r_worldentity.scale, r_worldentity.axis[2], r_worldentity.origin);
+		VectorMA(r_worldentity.origin, -(int)(vid.width/2)*r_worldentity.scale, r_worldentity.axis[0], r_worldentity.origin);
+		VectorMA(r_worldentity.origin, -(int)(vid.height/2)*r_worldentity.scale, r_worldentity.axis[1], r_worldentity.origin);
+		GL_SetShaderState2D(true);
+
+		VectorCopy(r_refdef.viewangles, ctrlang);
+		if (r_refdef.playerview->vrdev[VRDEV_RIGHT].status&VRSTATUS_ANG)
+		{
+			ctrlang[0] = SHORT2ANGLE(r_refdef.playerview->vrdev[VRDEV_RIGHT].angles[0]);
+			ctrlang[1] = SHORT2ANGLE(r_refdef.playerview->vrdev[VRDEV_RIGHT].angles[1]);
+			ctrlang[2] = SHORT2ANGLE(r_refdef.playerview->vrdev[VRDEV_RIGHT].angles[2]);
+		}
+		else
+			VectorCopy(r_refdef.viewangles, ctrlang);
+		if (r_refdef.playerview->vrdev[VRDEV_RIGHT].status&VRSTATUS_ORG)
+			VectorCopy(r_refdef.playerview->vrdev[VRDEV_RIGHT].origin, ctrlorg);
+		else
+			VectorCopy(r_refdef.vieworg, ctrlorg);
+
+		AngleVectors(ctrlang, aimdir, NULL, NULL);
+		VectorSubtract(r_worldentity.origin, ctrlorg, diff);
+		//d = DotProduct(diff, vpn); //figure out how far we need to move it to get an impact.
+		d = DotProduct(diff, r_worldentity.axis[2]);
+		d /= DotProduct(aimdir, r_worldentity.axis[2]);	//compensate for the length.
+		VectorMA(ctrlorg, d, aimdir, diff);	//calc the impact point...
+		VectorSubtract(diff, r_worldentity.origin, diff);
+		mousecursor_x = DotProduct(diff, r_worldentity.axis[0]);
+		mousecursor_y = DotProduct(diff, r_worldentity.axis[1]);
+		mousecursor_x = bound(0, mousecursor_x, vid.width-1);
+		mousecursor_y = bound(0, mousecursor_y, vid.height-1);
+
+#ifdef PLUGINS
+		Plug_SBar (r_refdef.playerview);
+#else
+		if (Sbar_ShouldDraw(r_refdef.playerview))
+		{
+			SCR_TileClear (sb_lines);
+			Sbar_Draw (r_refdef.playerview);
+			Sbar_DrawScoreboard (r_refdef.playerview);
+		}
+		else
+			SCR_TileClear (0);
+#endif
+
+		SCR_DrawTwoDimensional(true);
+
+		VectorClear(r_worldentity.origin);
+		VectorClear(r_worldentity.angles);
+		VectorSet(r_worldentity.axis[0], 1,0,0);
+		VectorSet(r_worldentity.axis[1], 0,1,0);
+		VectorSet(r_worldentity.axis[2], 0,0,1);
+		r_worldentity.scale = 1;
+		GL_SetShaderState2D(false);
+	}
 }
 static void R_RenderEyeScene (texid_t rendertarget, vec4_t fovoverride, vec3_t eyeangorg[2])
 {
@@ -729,6 +798,7 @@ static void R_RenderEyeScene (texid_t rendertarget, vec4_t fovoverride, vec3_t e
 	if ((size_t)(refdef.playerview-cl.playerview) < MAX_SPLITS)
 		CL_ClampPitch (refdef.playerview-cl.playerview, 0);
 
+	vrui.enabled = true;
 	if (rendertarget)
 	{
 		r = GLBE_FBO_Update(&fbo_vr, FBO_RB_DEPTH, &rendertarget, 1, r_nulltex,  rendertarget->width, rendertarget->height, 0);
@@ -741,44 +811,6 @@ static void R_RenderEyeScene (texid_t rendertarget, vec4_t fovoverride, vec3_t e
 
 	R_SetupGL (eyeangorg, fovoverride, NULL, rendertarget);
 	R_RenderScene_Internal();
-
-	/*//if (eyematrix)
-	{
-		vec3_t newa, newo;
-		matrix3x4 headmatrix;	//position of the head in local space
-		//eyematrix	//position of the eye in head space...
-		matrix3x4 headeyematrix;
-		matrix3x4 correctionmatrix;	//to nudge the 2d stuff into view
-		matrix3x4 viewmatrix;	//final transform
-		extern usercmd_t cl_pendingcmd[MAX_SPLITS];
-		newa[0] = SHORT2ANGLE(cl_pendingcmd[0].vr[VRDEV_HEAD].angles[0]);
-		newa[1] = SHORT2ANGLE(cl_pendingcmd[0].vr[VRDEV_HEAD].angles[1]);
-		newa[2] = SHORT2ANGLE(cl_pendingcmd[0].vr[VRDEV_HEAD].angles[2]);
-		Matrix3x4_RM_FromAngles(newa, cl_pendingcmd[0].vr[VRDEV_HEAD].origin, headmatrix[0]);
-
-		newa[0] = Cvar_Get("2dpitch", "-90", 0, "")->value;
-		newa[1] = Cvar_Get("2dyaw", "0", 0, "")->value;
-		newa[2] = Cvar_Get("2droll", "90", 0, "")->value;
-		//why /4, not /2? wtf?
-		newo[0] = vid.width/4 + Cvar_Get("2dfwd", "0", 0, "")->value;
-		newo[1] = vid.height/4 + Cvar_Get("2dleft", "0", 0, "")->value;
-		newo[2] = Cvar_Get("2dup", "-256", 0, "")->value;
-		Matrix3x4_RM_FromAngles(newa, newo, correctionmatrix[0]);
-
-		Matrix3x4_Multiply(headmatrix[0], eyematrix[0], headeyematrix[0]);
-		Matrix3x4_Multiply(headeyematrix[0], correctionmatrix[0], viewmatrix[0]);
-		Matrix3x4_RM_ToVectors(viewmatrix[0], vpn, vright, vup, r_origin);
-		VectorNegate(vright, vright);
-
-		Matrix4x4_CM_ModelViewMatrixFromAxis(r_refdef.m_view, vpn, vright, vup, r_origin);
-		GL_SetShaderState2D(true);
-
-		Menu_Draw();
-		SCR_DrawConsole(false);
-		if (R2D_Flush)
-			R2D_Flush();
-		GL_SetShaderState2D(false);
-	}*/
 
 	if (rendertarget)
 	{
@@ -1982,7 +2014,9 @@ void GLR_RenderView (void)
 	if (!(r_refdef.flags & RDF_NOWORLDMODEL))
 	{
 		//FIXME: fbo stuff
-		if (!r_worldentity.model || r_worldentity.model->loadstate != MLS_LOADED || !cl.worldmodel)
+		if (!r_worldentity.model || !cl.worldmodel)
+			r_refdef.flags |= RDF_NOWORLDMODEL;
+		else if (r_worldentity.model->loadstate != MLS_LOADED || !cl.worldmodel)
 		{
 			GL_Set2D (false);
 			R2D_ImageColours(0, 0, 0, 1);

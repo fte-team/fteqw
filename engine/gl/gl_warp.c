@@ -313,6 +313,7 @@ qboolean R_DrawSkyroom(shader_t *skyshader)
 	r_refdef.flags &= ~RDF_SKIPSKY;
 	r_refdef.forcedvis = NULL;
 	r_refdef.areabitsknown = false;	//recalculate areas clientside.
+	r_refdef.sceneareas = NULL;
 
 	if (cl.fog[FOGTYPE_SKYROOM].density)
 	{

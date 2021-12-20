@@ -55,11 +55,15 @@ static pluginputfuncs_t *inputfuncs;
 
 //and finally include openxr stuff now that its hopefully not going to fail about missing typedefs.
 #include <openxr/openxr_platform.h>
+#if XR_CURRENT_API_VERSION < XR_MAKE_VERSION(1, 0, 16)
+#define XR_ERROR_RUNTIME_UNAVAILABLE -51	//available starting 1.0.16
+#endif
 
 #ifdef XR_NO_PROTOTYPES
 #define XRFUNCS		\
 		XRFUNC(xrGetInstanceProcAddr)	\
 		XRFUNC(xrResultToString)	\
+		XRFUNC(xrEnumerateApiLayerProperties) \
 		XRFUNC(xrEnumerateInstanceExtensionProperties)	\
 		XRFUNC(xrCreateInstance)	\
 		XRFUNC(xrGetInstanceProperties)	\
@@ -108,6 +112,13 @@ XRFUNCS
 #undef XRFUNC
 #endif
 
+#ifdef XR_EXT_hand_tracking
+static PFN_xrCreateHandTrackerEXT	xrCreateHandTrackerEXT;
+static PFN_xrLocateHandJointsEXT	xrLocateHandJointsEXT;
+static PFN_xrDestroyHandTrackerEXT	xrDestroyHandTrackerEXT;
+#endif
+
+
 #ifdef SVNREVISION
 	#define APPLICATIONVERSION atoi(STRINGIFY(SVNREVISION))
 	#define ENGINEVERSION atoi(STRINGIFY(SVNREVISION))
@@ -122,6 +133,9 @@ static cvar_t *xr_formfactor;
 static cvar_t *xr_viewconfig;
 static cvar_t *xr_metresize;
 static cvar_t *xr_skipregularview;
+static cvar_t *xr_fingertracking;
+
+static void XR_SetupInputs_Instance(void);
 
 #define METRES_TO_QUAKE(x) ((x)*xr_metresize->value)
 #define QUAKE_TO_METRES(x) ((x)/xr_metresize->value)
@@ -224,6 +238,8 @@ static struct
 //session state
 	XrSession session;		//driver context
 	XrSessionState state;
+	qboolean beginning;
+	qboolean ending;
 	XrSpace space;
 	struct
 	{	//basically just swapchain state.
@@ -255,6 +271,17 @@ static struct
 		XrSpace		space;	//for poses.
 		qboolean	held;	//for buttons.
 	} actions[256];
+	qboolean inputsdirty;	//mostly for printing them.
+
+#ifdef XR_EXT_hand_tracking
+	struct
+	{
+		XrHandTrackerEXT handle;
+		qboolean active;
+		XrHandJointLocationEXT jointloc[XR_HAND_JOINT_COUNT_EXT];
+		XrHandJointVelocityEXT jointvel[XR_HAND_JOINT_COUNT_EXT];
+	} hand[2];
+#endif
 } xr;
 
 static qboolean QDECL XR_PluginMayUnload(void)
@@ -284,11 +311,23 @@ static void XR_SessionEnded(void)
 		}
 	}
 
+#ifdef XR_EXT_hand_tracking
+	for (u = 0; u < countof(xr.hand); u++)
+	{
+		if (xr.hand[u].handle)
+			xrDestroyHandTrackerEXT(xr.hand[u].handle);
+		xr.hand[u].handle = XR_NULL_HANDLE;
+		xr.hand[u].active = false;
+	}
+#endif
+
 	if (xr.session)
 	{
 		xrDestroySession(xr.session);
 		xr.session = XR_NULL_HANDLE;
 	}
+	xr.state = XR_SESSION_STATE_UNKNOWN;
+	xr.beginning = false;
 }
 static void XR_Shutdown(void)
 {	//called on any kind of failure
@@ -314,72 +353,96 @@ static const char *XR_StringForResult(XrResult res)
 	switch(res)
 	{
 	case XR_SUCCESS: return "XR_SUCCESS";
-    case XR_TIMEOUT_EXPIRED: return "XR_TIMEOUT_EXPIRED";
-    case XR_SESSION_LOSS_PENDING: return "XR_SESSION_LOSS_PENDING";
-    case XR_EVENT_UNAVAILABLE: return "XR_EVENT_UNAVAILABLE";
-    case XR_SPACE_BOUNDS_UNAVAILABLE: return "XR_SPACE_BOUNDS_UNAVAILABLE";
-    case XR_SESSION_NOT_FOCUSED: return "XR_SESSION_NOT_FOCUSED";
-    case XR_FRAME_DISCARDED: return "XR_FRAME_DISCARDED";
-    case XR_ERROR_VALIDATION_FAILURE: return "XR_ERROR_VALIDATION_FAILURE";
-    case XR_ERROR_RUNTIME_FAILURE: return "XR_ERROR_RUNTIME_FAILURE";
-    case XR_ERROR_OUT_OF_MEMORY: return "XR_ERROR_OUT_OF_MEMORY";
-    case XR_ERROR_API_VERSION_UNSUPPORTED: return "XR_ERROR_API_VERSION_UNSUPPORTED";
-    case XR_ERROR_INITIALIZATION_FAILED: return "XR_ERROR_INITIALIZATION_FAILED";
-    case XR_ERROR_FUNCTION_UNSUPPORTED: return "XR_ERROR_FUNCTION_UNSUPPORTED";
-    case XR_ERROR_FEATURE_UNSUPPORTED: return "XR_ERROR_FEATURE_UNSUPPORTED";
-    case XR_ERROR_EXTENSION_NOT_PRESENT: return "XR_ERROR_EXTENSION_NOT_PRESENT";
-    case XR_ERROR_LIMIT_REACHED: return "XR_ERROR_LIMIT_REACHED";
-    case XR_ERROR_SIZE_INSUFFICIENT: return "XR_ERROR_SIZE_INSUFFICIENT";
-    case XR_ERROR_HANDLE_INVALID: return "XR_ERROR_HANDLE_INVALID";
-    case XR_ERROR_INSTANCE_LOST: return "XR_ERROR_INSTANCE_LOST";
-    case XR_ERROR_SESSION_RUNNING: return "XR_ERROR_SESSION_RUNNING";
-    case XR_ERROR_SESSION_NOT_RUNNING: return "XR_ERROR_SESSION_NOT_RUNNING";
-    case XR_ERROR_SESSION_LOST: return "XR_ERROR_SESSION_LOST";
-    case XR_ERROR_SYSTEM_INVALID: return "XR_ERROR_SYSTEM_INVALID";
-    case XR_ERROR_PATH_INVALID: return "XR_ERROR_PATH_INVALID";
-    case XR_ERROR_PATH_COUNT_EXCEEDED: return "XR_ERROR_PATH_COUNT_EXCEEDED";
-    case XR_ERROR_PATH_FORMAT_INVALID: return "XR_ERROR_PATH_FORMAT_INVALID";
-    case XR_ERROR_PATH_UNSUPPORTED: return "XR_ERROR_PATH_UNSUPPORTED";
-    case XR_ERROR_LAYER_INVALID: return "XR_ERROR_LAYER_INVALID";
-    case XR_ERROR_LAYER_LIMIT_EXCEEDED: return "XR_ERROR_LAYER_LIMIT_EXCEEDED";
-    case XR_ERROR_SWAPCHAIN_RECT_INVALID: return "XR_ERROR_SWAPCHAIN_RECT_INVALID";
-    case XR_ERROR_SWAPCHAIN_FORMAT_UNSUPPORTED: return "XR_ERROR_SWAPCHAIN_FORMAT_UNSUPPORTED";
-    case XR_ERROR_ACTION_TYPE_MISMATCH: return "XR_ERROR_ACTION_TYPE_MISMATCH";
-    case XR_ERROR_SESSION_NOT_READY: return "XR_ERROR_SESSION_NOT_READY";
-    case XR_ERROR_SESSION_NOT_STOPPING: return "XR_ERROR_SESSION_NOT_STOPPING";
-    case XR_ERROR_TIME_INVALID: return "XR_ERROR_TIME_INVALID";
-    case XR_ERROR_REFERENCE_SPACE_UNSUPPORTED: return "XR_ERROR_REFERENCE_SPACE_UNSUPPORTED";
-    case XR_ERROR_FILE_ACCESS_ERROR: return "XR_ERROR_FILE_ACCESS_ERROR";
-    case XR_ERROR_FILE_CONTENTS_INVALID: return "XR_ERROR_FILE_CONTENTS_INVALID";
-    case XR_ERROR_FORM_FACTOR_UNSUPPORTED: return "XR_ERROR_FORM_FACTOR_UNSUPPORTED";
-    case XR_ERROR_FORM_FACTOR_UNAVAILABLE: return "XR_ERROR_FORM_FACTOR_UNAVAILABLE";
-    case XR_ERROR_API_LAYER_NOT_PRESENT: return "XR_ERROR_API_LAYER_NOT_PRESENT";
-    case XR_ERROR_CALL_ORDER_INVALID: return "XR_ERROR_CALL_ORDER_INVALID";
-    case XR_ERROR_GRAPHICS_DEVICE_INVALID: return "XR_ERROR_GRAPHICS_DEVICE_INVALID";
-    case XR_ERROR_POSE_INVALID: return "XR_ERROR_POSE_INVALID";
-    case XR_ERROR_INDEX_OUT_OF_RANGE: return "XR_ERROR_INDEX_OUT_OF_RANGE";
-    case XR_ERROR_VIEW_CONFIGURATION_TYPE_UNSUPPORTED: return "XR_ERROR_VIEW_CONFIGURATION_TYPE_UNSUPPORTED";
-    case XR_ERROR_ENVIRONMENT_BLEND_MODE_UNSUPPORTED: return "XR_ERROR_ENVIRONMENT_BLEND_MODE_UNSUPPORTED";
-    case XR_ERROR_NAME_DUPLICATED: return "XR_ERROR_NAME_DUPLICATED";
-    case XR_ERROR_NAME_INVALID: return "XR_ERROR_NAME_INVALID";
-    case XR_ERROR_ACTIONSET_NOT_ATTACHED: return "XR_ERROR_ACTIONSET_NOT_ATTACHED";
-    case XR_ERROR_ACTIONSETS_ALREADY_ATTACHED: return "XR_ERROR_ACTIONSETS_ALREADY_ATTACHED";
-    case XR_ERROR_LOCALIZED_NAME_DUPLICATED: return "XR_ERROR_LOCALIZED_NAME_DUPLICATED";
-    case XR_ERROR_LOCALIZED_NAME_INVALID: return "XR_ERROR_LOCALIZED_NAME_INVALID";
-    default:
+	case XR_TIMEOUT_EXPIRED: return "XR_TIMEOUT_EXPIRED";
+	case XR_SESSION_LOSS_PENDING: return "XR_SESSION_LOSS_PENDING";
+	case XR_EVENT_UNAVAILABLE: return "XR_EVENT_UNAVAILABLE";
+	case XR_SPACE_BOUNDS_UNAVAILABLE: return "XR_SPACE_BOUNDS_UNAVAILABLE";
+	case XR_SESSION_NOT_FOCUSED: return "XR_SESSION_NOT_FOCUSED";
+	case XR_FRAME_DISCARDED: return "XR_FRAME_DISCARDED";
+	case XR_ERROR_VALIDATION_FAILURE: return "XR_ERROR_VALIDATION_FAILURE";
+	case XR_ERROR_RUNTIME_FAILURE: return "XR_ERROR_RUNTIME_FAILURE";
+	case XR_ERROR_OUT_OF_MEMORY: return "XR_ERROR_OUT_OF_MEMORY";
+	case XR_ERROR_API_VERSION_UNSUPPORTED: return "XR_ERROR_API_VERSION_UNSUPPORTED";
+	case XR_ERROR_INITIALIZATION_FAILED: return "XR_ERROR_INITIALIZATION_FAILED";
+	case XR_ERROR_FUNCTION_UNSUPPORTED: return "XR_ERROR_FUNCTION_UNSUPPORTED";
+	case XR_ERROR_FEATURE_UNSUPPORTED: return "XR_ERROR_FEATURE_UNSUPPORTED";
+	case XR_ERROR_EXTENSION_NOT_PRESENT: return "XR_ERROR_EXTENSION_NOT_PRESENT";
+	case XR_ERROR_LIMIT_REACHED: return "XR_ERROR_LIMIT_REACHED";
+	case XR_ERROR_SIZE_INSUFFICIENT: return "XR_ERROR_SIZE_INSUFFICIENT";
+	case XR_ERROR_HANDLE_INVALID: return "XR_ERROR_HANDLE_INVALID";
+	case XR_ERROR_INSTANCE_LOST: return "XR_ERROR_INSTANCE_LOST";
+	case XR_ERROR_SESSION_RUNNING: return "XR_ERROR_SESSION_RUNNING";
+	case XR_ERROR_SESSION_NOT_RUNNING: return "XR_ERROR_SESSION_NOT_RUNNING";
+	case XR_ERROR_SESSION_LOST: return "XR_ERROR_SESSION_LOST";
+	case XR_ERROR_SYSTEM_INVALID: return "XR_ERROR_SYSTEM_INVALID";
+	case XR_ERROR_PATH_INVALID: return "XR_ERROR_PATH_INVALID";
+	case XR_ERROR_PATH_COUNT_EXCEEDED: return "XR_ERROR_PATH_COUNT_EXCEEDED";
+	case XR_ERROR_PATH_FORMAT_INVALID: return "XR_ERROR_PATH_FORMAT_INVALID";
+	case XR_ERROR_PATH_UNSUPPORTED: return "XR_ERROR_PATH_UNSUPPORTED";
+	case XR_ERROR_LAYER_INVALID: return "XR_ERROR_LAYER_INVALID";
+	case XR_ERROR_LAYER_LIMIT_EXCEEDED: return "XR_ERROR_LAYER_LIMIT_EXCEEDED";
+	case XR_ERROR_SWAPCHAIN_RECT_INVALID: return "XR_ERROR_SWAPCHAIN_RECT_INVALID";
+	case XR_ERROR_SWAPCHAIN_FORMAT_UNSUPPORTED: return "XR_ERROR_SWAPCHAIN_FORMAT_UNSUPPORTED";
+	case XR_ERROR_ACTION_TYPE_MISMATCH: return "XR_ERROR_ACTION_TYPE_MISMATCH";
+	case XR_ERROR_SESSION_NOT_READY: return "XR_ERROR_SESSION_NOT_READY";
+	case XR_ERROR_SESSION_NOT_STOPPING: return "XR_ERROR_SESSION_NOT_STOPPING";
+	case XR_ERROR_TIME_INVALID: return "XR_ERROR_TIME_INVALID";
+	case XR_ERROR_REFERENCE_SPACE_UNSUPPORTED: return "XR_ERROR_REFERENCE_SPACE_UNSUPPORTED";
+	case XR_ERROR_FILE_ACCESS_ERROR: return "XR_ERROR_FILE_ACCESS_ERROR";
+	case XR_ERROR_FILE_CONTENTS_INVALID: return "XR_ERROR_FILE_CONTENTS_INVALID";
+	case XR_ERROR_FORM_FACTOR_UNSUPPORTED: return "XR_ERROR_FORM_FACTOR_UNSUPPORTED";
+	case XR_ERROR_FORM_FACTOR_UNAVAILABLE: return "XR_ERROR_FORM_FACTOR_UNAVAILABLE";
+	case XR_ERROR_API_LAYER_NOT_PRESENT: return "XR_ERROR_API_LAYER_NOT_PRESENT";
+	case XR_ERROR_CALL_ORDER_INVALID: return "XR_ERROR_CALL_ORDER_INVALID";
+	case XR_ERROR_GRAPHICS_DEVICE_INVALID: return "XR_ERROR_GRAPHICS_DEVICE_INVALID";
+	case XR_ERROR_POSE_INVALID: return "XR_ERROR_POSE_INVALID";
+	case XR_ERROR_INDEX_OUT_OF_RANGE: return "XR_ERROR_INDEX_OUT_OF_RANGE";
+	case XR_ERROR_VIEW_CONFIGURATION_TYPE_UNSUPPORTED: return "XR_ERROR_VIEW_CONFIGURATION_TYPE_UNSUPPORTED";
+	case XR_ERROR_ENVIRONMENT_BLEND_MODE_UNSUPPORTED: return "XR_ERROR_ENVIRONMENT_BLEND_MODE_UNSUPPORTED";
+	case XR_ERROR_NAME_DUPLICATED: return "XR_ERROR_NAME_DUPLICATED";
+	case XR_ERROR_NAME_INVALID: return "XR_ERROR_NAME_INVALID";
+	case XR_ERROR_ACTIONSET_NOT_ATTACHED: return "XR_ERROR_ACTIONSET_NOT_ATTACHED";
+	case XR_ERROR_ACTIONSETS_ALREADY_ATTACHED: return "XR_ERROR_ACTIONSETS_ALREADY_ATTACHED";
+	case XR_ERROR_LOCALIZED_NAME_DUPLICATED: return "XR_ERROR_LOCALIZED_NAME_DUPLICATED";
+	case XR_ERROR_LOCALIZED_NAME_INVALID: return "XR_ERROR_LOCALIZED_NAME_INVALID";
+//	case XR_ERROR_RUNTIME_UNAVAILABLE: return "XR_ERROR_RUNTIME_UNAVAILABLE";
+	default:
 		return va("XrResult %i", res);
-    }
+	}
 #endif
+}
+
+
+static XrBool32 XRAPI_CALL XR_DebugPrint(XrDebugUtilsMessageSeverityFlagsEXT messageSeverity, XrDebugUtilsMessageTypeFlagsEXT messageTypes, const XrDebugUtilsMessengerCallbackDataEXT *callbackData, void *userData)
+{
+	char *sev;
+	switch(messageSeverity)
+	{
+	case 1/*XR_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT*/:		sev = "^8";			break;
+	case 16/*XR_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT*/:		sev = "";			break;
+	case 256/*XR_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT*/:	sev = CON_WARNING;	break;
+	default:
+	case 4096/*XR_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT*/:		sev = CON_ERROR;	break;
+	}
+
+	Con_Printf("%s%s: %s\n", sev, callbackData->functionName, callbackData->message);
+	return XR_FALSE;
 }
 
 static qboolean XR_PreInit(vrsetup_t *qreqs)
 {
 	XrResult res;
-	const char *ext;
+	const char *xrexts[8], *ext;
+	const char *xrlayers[8];
+	uint32_t numext = 0, numlayers = 0;
+	qboolean havedebugutils = false;
+#ifdef XR_EXT_hand_tracking
+	qboolean havehandtrack = false;
+#endif
 
 	XR_Shutdown();	//just in case...
 
-	if (qreqs->structsize != sizeof(*qreqs))
+	if (qreqs->structsize != sizeof(*qreqs) || xr_enable->ival < 0)
 		return false;	//nope, get lost.
 	if (!strncasecmp(xr_formfactor->string, "none", 4))
 		qreqs->vrplatform = VR_HEADLESS;
@@ -425,38 +488,93 @@ static qboolean XR_PreInit(vrsetup_t *qreqs)
 	}
 
 	xr.instance = XR_NULL_HANDLE;
+
+	if (xr_debug->ival)
+	{
+		uint32_t count, u;
+		struct XrApiLayerProperties *props;
+		if (XR_SUCCEEDED(xrEnumerateApiLayerProperties(0, &count, NULL)))
+		{
+			props = calloc(count, sizeof(*props));
+			for (u = 0; u < count; u++)
+				props[u].type = XR_TYPE_API_LAYER_PROPERTIES;
+			xrEnumerateApiLayerProperties(count, &count, props);
+			for (u = 0; u < count; u++)
+				Con_Printf("OpenXR Layer %s: %s\n", props[u].layerName, props[u].description);
+
+			if (xr_debug->ival>1)
+			{
+				for (u = 0; u < count; u++)
+					if (!strcmp(props[u].layerName, "XR_APILAYER_LUNARG_core_validation"))
+					{
+						xrlayers[numlayers++] = "XR_APILAYER_LUNARG_core_validation";
+						break;
+					}
+				if (u==count)
+					Con_Printf("OpenXR: Validation layers not found\n");
+			}
+			free(props);
+		}
+	}
+
 	{
 		unsigned int exts = 0, u=0;
 		XrExtensionProperties *extlist;
 		res = xrEnumerateInstanceExtensionProperties(NULL, 0, &exts, NULL);
-		if (XR_SUCCEEDED(res))
+		if (res == XR_ERROR_RUNTIME_UNAVAILABLE || res == XR_ERROR_INSTANCE_LOST)
+		{
+			Con_Printf(CON_WARNING"OpenXR: no runtime installed\n");
+			return false;
+		}
+		else if (XR_SUCCEEDED(res))
 		{
 			extlist = calloc(exts, sizeof(*extlist));
 			for (u = 0; u < exts; u++)
 				extlist[u].type = XR_TYPE_EXTENSION_PROPERTIES;
 			xrEnumerateInstanceExtensionProperties(NULL, exts, &exts, extlist);
 
+			//print a list of them all, if we can.
 			if (xr_debug->ival)
 			{
-				Con_Printf("OpenXR:\n");
+				Con_DPrintf("OpenXR:\n");
 				for (u = 0; u < exts; u++)
-					Con_Printf("\t%s\n", extlist[u].extensionName);
+					Con_DPrintf("\t%s\n", extlist[u].extensionName);
 			}
 
+			//make sure we have an appropriate extension for the API we're using.
+			if (ext)
+			{
+				for (u = 0; u < exts; u++)
+					if (!strcmp(extlist[u].extensionName, ext))
+						break;
+				if (u == exts)
+				{
+					Con_Printf(CON_ERROR"OpenXR: instance driver does not support required %s\n", ext);
+					free(extlist);
+					return false;	//would just give an error on xrCreateInstance anyway.
+				}
+
+				xrexts[numext++] = ext;
+			}
+
+			//look for some interesting extensions
 			for (u = 0; u < exts; u++)
-				if (!strcmp(extlist[u].extensionName, ext))
-					break;
+			{
+				if (!strcmp(extlist[u].extensionName, XR_EXT_DEBUG_UTILS_EXTENSION_NAME) && !havedebugutils && xr_debug->ival)
+					havedebugutils = true, xrexts[numext++] = XR_EXT_DEBUG_UTILS_EXTENSION_NAME;
+
+#ifdef XR_EXT_hand_tracking
+				if (!strcmp(extlist[u].extensionName, XR_EXT_HAND_TRACKING_EXTENSION_NAME) && !havehandtrack && xr_fingertracking->ival)
+					havehandtrack = true, xrexts[numext++] = XR_EXT_HAND_TRACKING_EXTENSION_NAME;
+#endif
+			}
+
 			free(extlist);
 		}
 		else
 		{
 			Con_Printf(CON_ERROR"OpenXR: xrEnumerateInstanceExtensionProperties failed (%s)\n", XR_StringForResult(res));
 			return false;
-		}
-		if (u == exts)
-		{
-			Con_Printf(CON_ERROR"OpenXR: instance driver does not support required %s\n", ext);
-			return false;	//would just give an error on xrCreateInstance anyway.
 		}
 	}
 
@@ -469,16 +587,35 @@ static qboolean XR_PreInit(vrsetup_t *qreqs)
 		Q_strlcpy(createinfo.applicationInfo.engineName, "FTEQW", sizeof(createinfo.applicationInfo.engineName));
 		createinfo.applicationInfo.engineVersion = ENGINEVERSION;
 		createinfo.applicationInfo.apiVersion = XR_CURRENT_API_VERSION;
-		createinfo.enabledApiLayerCount = 0;
-		createinfo.enabledApiLayerNames = NULL;
-		createinfo.enabledExtensionCount = ext?1:0;
-		createinfo.enabledExtensionNames = &ext;
+		createinfo.enabledApiLayerCount = numlayers;
+		createinfo.enabledApiLayerNames = xrlayers;
+		createinfo.enabledExtensionCount = numext;
+		createinfo.enabledExtensionNames = xrexts;
 		res = xrCreateInstance(&createinfo, &xr.instance);
+	}
+	if (res == XR_ERROR_RUNTIME_UNAVAILABLE || res == XR_ERROR_INSTANCE_LOST)
+	{
+		Con_Printf(CON_WARNING"OpenXR: no runtime installed\n");
+		return false;
 	}
 	if (XR_FAILED(res) || !xr.instance)
 	{
 		Con_Printf(CON_ERROR"OpenXR Runtime: xrCreateInstance failed (%s)\n", XR_StringForResult(res));
 		return false;
+	}
+
+	if (havedebugutils)
+	{
+		XrDebugUtilsMessengerEXT messenger1 = XR_NULL_HANDLE;
+		XrDebugUtilsMessengerCreateInfoEXT cb = {XR_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT};
+		PFN_xrCreateDebugUtilsMessengerEXT xrCreateDebugUtilsMessengerEXT;
+		cb.messageSeverities = XR_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT | XR_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT | XR_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT | XR_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT;
+		cb.messageTypes = XR_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT |  XR_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT | XR_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT | XR_DEBUG_UTILS_MESSAGE_TYPE_CONFORMANCE_BIT_EXT;
+		cb.userCallback = XR_DebugPrint;
+		cb.userData = NULL;
+
+		if (!XR_FAILED(xrGetInstanceProcAddr(xr.instance, "xrCreateDebugUtilsMessengerEXT", (PFN_xrVoidFunction*) &xrCreateDebugUtilsMessengerEXT)))
+			xrCreateDebugUtilsMessengerEXT(xr.instance, &cb, &messenger1);
 	}
 
 	if (xr_debug->ival)
@@ -511,14 +648,42 @@ static qboolean XR_PreInit(vrsetup_t *qreqs)
 			return false;
 	}
 
-	if (xr_debug->ival)
 	{
 		XrSystemProperties props = {XR_TYPE_SYSTEM_PROPERTIES};
-		if (XR_SUCCEEDED(xrGetSystemProperties(xr.instance, xr.systemid, &props)))
-		{
-			Con_Printf("OpenXR System: %s\n", props.systemName);
+#ifdef XR_EXT_hand_tracking
+		XrSystemHandTrackingPropertiesEXT handtrackprops = {XR_TYPE_SYSTEM_HAND_TRACKING_PROPERTIES_EXT};
+		if (havehandtrack)
+		{	//instance might support it, but the specific hardware we're trying to use might not, in which case don't try using it after all.
+			handtrackprops.next = props.next;
+			props.next = &handtrackprops;
 		}
+#endif
+		if (qreqs->vrplatform != VR_HEADLESS)
+			if (XR_SUCCEEDED(xrGetSystemProperties(xr.instance, xr.systemid, &props)))
+			{
+				if (xr_debug->ival)
+					Con_Printf("OpenXR System: %s\n", props.systemName);
+			}
+
+#ifdef XR_EXT_hand_tracking
+		havehandtrack = handtrackprops.supportsHandTracking;
+#endif
 	}
+
+#ifdef XR_EXT_hand_tracking
+	if (havehandtrack)
+	{
+		xrGetInstanceProcAddr(xr.instance, "xrCreateHandTrackerEXT", (PFN_xrVoidFunction*) &xrCreateHandTrackerEXT);
+		xrGetInstanceProcAddr(xr.instance, "xrLocateHandJointsEXT", (PFN_xrVoidFunction*) &xrLocateHandJointsEXT);
+		xrGetInstanceProcAddr(xr.instance, "xrDestroyHandTrackerEXT", (PFN_xrVoidFunction*) &xrDestroyHandTrackerEXT);
+	}
+	else
+	{
+		xrCreateHandTrackerEXT = NULL;
+		xrLocateHandJointsEXT = NULL;
+		xrDestroyHandTrackerEXT = NULL;
+	}
+#endif
 
 	switch(qreqs->vrplatform)
 	{
@@ -655,10 +820,18 @@ static qboolean XR_PreInit(vrsetup_t *qreqs)
 		}
 	}
 
+	if (qreqs->vrplatform == VR_HEADLESS)
+		return true;
+
 	res = xrEnumerateViewConfigurationViews(xr.instance, xr.systemid, xr.viewtype, 0, &xr.viewcount, NULL);
 	if (xr.viewcount > MAX_VIEW_COUNT)
 		xr.viewcount = MAX_VIEW_COUNT;	//oh noes! evile!
 	xr.views = calloc(1,sizeof(*xr.views)*xr.viewcount);
+	{
+		uint32_t u;
+		for (u = 0; u < xr.viewcount; u++)
+			xr.views[u].type = XR_TYPE_VIEW_CONFIGURATION_VIEW;
+	}
 	res = xrEnumerateViewConfigurationViews(xr.instance, xr.systemid, xr.viewtype, xr.viewcount, &xr.viewcount, xr.views);
 
 	//caller now knows what device/contextversion/etc to init with
@@ -751,6 +924,9 @@ static qboolean XR_Init(vrsetup_t *qreqs, rendererstate_t *info)
 		break;
 #endif
 	}
+
+
+	XR_SetupInputs_Instance();
 	return true;
 }
 
@@ -949,7 +1125,7 @@ static int QDECL XR_BindProfileFile(const char *fname, qofs_t fsize, time_t mtim
 		free(buf);
 		VFS_CLOSE(f);
 	}
-	return false;
+	return true;
 }
 
 static const struct
@@ -973,25 +1149,25 @@ static const struct
 
 /*	{"valve_index",		"/interaction_profiles/valve/index_controller    /user/hand/left/ /user/hand/right/\n"
 			//"unbound		\"Unused Button\"		button		input/system/click\n"
-    		//"unbound		\"Unused Button\"		button		input/system/touch\n"
-    		//"unbound		\"Unused Button\"		button		input/a/click\n"
-    		//"unbound		\"Unused Button\"		button		input/a/touch\n"
-    		//"unbound		\"Unused Button\"		button		input/b/click\n"
-    		//"unbound		\"Unused Button\"		button		input/b/touch\n"
-    		//"unbound		\"Unused Button\"		float		input/squeeze/value\n"
-    		//"unbound		\"Unused Button\"		button		input/squeeze/force\n"
-    		//"unbound		\"Unused Button\"		button		input/trigger/click\n"
-    		//"unbound		\"Unused Button\"		float		input/trigger/value\n"
-    		//"unbound		\"Unused Button\"		button		input/trigger/touch\n"
-    		//"unbound		\"Unused Button\"		vector2f	input/thumbstick\n"
-    		//"unbound		\"Unused Button\"		button		input/thumbstick/click\n"
-    		//"unbound		\"Unused Button\"		button		input/thumbstick/touch\n"
-    		//"unbound		\"Unused Button\"		vector2f	input/trackpad\n"
-    		//"unbound		\"Unused Button\"		button		input/trackpad/force\n"
-    		//"unbound		\"Unused Button\"		button		input/trackpad/touch\n"
-    		//"unbound		\"Unused Button\"		pose		input/grip/pose\n"
-    		//"unbound		\"Unused Button\"		pose		input/aim/pose\n"
-    		//"unbound		\"Unused Button\"		vibration	output/haptic\n"
+			//"unbound		\"Unused Button\"		button		input/system/touch\n"
+			//"unbound		\"Unused Button\"		button		input/a/click\n"
+			//"unbound		\"Unused Button\"		button		input/a/touch\n"
+			//"unbound		\"Unused Button\"		button		input/b/click\n"
+			//"unbound		\"Unused Button\"		button		input/b/touch\n"
+			//"unbound		\"Unused Button\"		float		input/squeeze/value\n"
+			//"unbound		\"Unused Button\"		button		input/squeeze/force\n"
+			//"unbound		\"Unused Button\"		button		input/trigger/click\n"
+			//"unbound		\"Unused Button\"		float		input/trigger/value\n"
+			//"unbound		\"Unused Button\"		button		input/trigger/touch\n"
+			//"unbound		\"Unused Button\"		vector2f	input/thumbstick\n"
+			//"unbound		\"Unused Button\"		button		input/thumbstick/click\n"
+			//"unbound		\"Unused Button\"		button		input/thumbstick/touch\n"
+			//"unbound		\"Unused Button\"		vector2f	input/trackpad\n"
+			//"unbound		\"Unused Button\"		button		input/trackpad/force\n"
+			//"unbound		\"Unused Button\"		button		input/trackpad/touch\n"
+			//"unbound		\"Unused Button\"		pose		input/grip/pose\n"
+			//"unbound		\"Unused Button\"		pose		input/aim/pose\n"
+			//"unbound		\"Unused Button\"		vibration	output/haptic\n"
 	},
 */
 /*	{"htc_vive",		"/interaction_profiles/htc/vive_controller    /user/hand/left/ /user/hand/right/\n"
@@ -1045,7 +1221,7 @@ static const struct
 	},
 };
 
-static void XR_SetupInputs(void)
+static void XR_SetupInputs_Instance(void)
 {
 	unsigned int h;
 	XrResult res;
@@ -1071,8 +1247,11 @@ static void XR_SetupInputs(void)
 		for (h = 0; h < countof(xr_knownprofiles); h++)
 			XR_BindProfileStr(xr_knownprofiles[h].name, xr_knownprofiles[h].script);
 	}
-
-//begin session specific. stuff
+}
+static void XR_SetupInputs_Session(void)
+{
+	unsigned int h;
+	XrResult res;
 
 	//create action space stuff.
 	for (h = 0; h < xr.numactions; h++)
@@ -1107,7 +1286,25 @@ static void XR_SetupInputs(void)
 			Con_Printf("openxr: xrAttachSessionActionSets failed - %s\n", XR_StringForResult(res));
 	}
 
-#if 1
+#ifdef XR_EXT_hand_tracking
+	//create some hand trackers... try to create one for each hand...
+	//(note: this is more a finger-joint tracker than a hand tracker, though limited controllers generally mean its good only for fingers)
+	if (xrCreateHandTrackerEXT)
+	for (h = 0; h < 2; h++)
+	{
+		XrHandTrackerCreateInfoEXT info = {XR_TYPE_HAND_TRACKER_CREATE_INFO_EXT};
+		info.hand = h?XR_HAND_RIGHT_EXT:XR_HAND_LEFT_EXT;
+		info.handJointSet = XR_HAND_JOINT_SET_DEFAULT_EXT;
+		res = xrCreateHandTrackerEXT(xr.session, &info, &xr.hand[h].handle);
+		if (XR_FAILED(res))
+			Con_Printf("openxr: xrCreateHandTrackerEXT failed - %s\n", XR_StringForResult(res));
+	}
+#endif
+}
+
+static void XR_PrintInputs(void)
+{
+	XrResult res;
 	if (xr_debug->ival)
 	{
 		XrInteractionProfileState profile = {XR_TYPE_INTERACTION_PROFILE_STATE};
@@ -1167,8 +1364,8 @@ static void XR_SetupInputs(void)
 				Con_Printf("\t%s: error %s\n", xr.actions[u].actname, XR_StringForResult(res));
 		}
 	}
-#endif
 }
+
 static void XR_UpdateInputs(XrTime time)
 {
 	XrResult res;
@@ -1297,6 +1494,10 @@ static qboolean XR_Begin(void)
 	XrResult res;
 	uint32_t swapfmts;
 	int64_t *fmts, fmttouse=0;
+
+	xr.beginning = false;
+	xr.ending = false;
+
 	{
 		XrSessionCreateInfo sessioninfo = {XR_TYPE_SESSION_CREATE_INFO};
 		sessioninfo.next = xr.bindinginfo;
@@ -1322,7 +1523,9 @@ static qboolean XR_Begin(void)
 	xrEnumerateSwapchainFormats(xr.session, 0, &swapfmts, NULL);
 	fmts = alloca(sizeof(*fmts)*swapfmts);
 	res = xrEnumerateSwapchainFormats(xr.session, swapfmts, &swapfmts, fmts);
-	if (!swapfmts)
+	if (xr.renderer == QR_HEADLESS)
+		;
+	else if (!swapfmts)
 		Con_Printf("OpenXR: No swapchain formats to use (%s)\n", XR_StringForResult(res));
 #ifdef XR_USE_GRAPHICS_API_OPENGL
 	else if (xr.renderer == QR_OPENGL)
@@ -1497,6 +1700,7 @@ static qboolean XR_Begin(void)
 				xr.eye[u].swapimages = calloc(xr.eye[u].numswapimages, sizeof(*xr.eye[u].swapimages));
 				for (i = 0; i < xr.eye[u].numswapimages; i++)
 				{
+					xr.eye[u].swapimages[i].format = swapinfo.format;
 					xr.eye[u].swapimages[i].num = xrimg[i].image;
 					xr.eye[u].swapimages[i].width = swapinfo.width;
 					xr.eye[u].swapimages[i].height = swapinfo.height;
@@ -1511,7 +1715,7 @@ static qboolean XR_Begin(void)
 	if (XR_FAILED(res))
 		return false;
 
-	XR_SetupInputs();
+	XR_SetupInputs_Session();
 
 	return true;
 }
@@ -1522,6 +1726,8 @@ static void XR_ProcessEvents(void)
 	XrResult res;
 	for (;;)
 	{
+		ev.type = XR_TYPE_EVENT_DATA_BUFFER;
+		ev.next = NULL;
 		res = xrPollEvent(xr.instance, &ev);
 		if (res == XR_EVENT_UNAVAILABLE || XR_FAILED(res))
 			return;	//nothing interesting here folks
@@ -1531,29 +1737,28 @@ static void XR_ProcessEvents(void)
 		default:	//no idea wtf that is
 			Con_Printf("openxr event %u\n", ev.type);
 			break;
+
+		case XR_TYPE_EVENT_DATA_INSTANCE_LOSS_PENDING:
+			XR_Shutdown();	//we're meant to try restarting, but that's a hassle. FIXME: expect the user to do a vid_restart.
+			return;
+
+		case XR_TYPE_EVENT_DATA_REFERENCE_SPACE_CHANGE_PENDING:
+			break;
+		case XR_TYPE_EVENT_DATA_EVENTS_LOST:
+			{
+				XrEventDataEventsLost *s = (XrEventDataEventsLost*)&ev;
+				Con_Printf(CON_ERROR"OpenXR: Lost %u events!\n", s->lostEventCount);
+			}
+			break;
+		case XR_TYPE_EVENT_DATA_INTERACTION_PROFILE_CHANGED:
+			xr.inputsdirty = true;
+			break;
+
 		case XR_TYPE_EVENT_DATA_SESSION_STATE_CHANGED:
 			{
 				XrEventDataSessionStateChanged *s = (XrEventDataSessionStateChanged*)&ev;
-				switch(s->state)
-				{
-				default:
-					break;	//urgh
-				case XR_SESSION_STATE_READY:
-					{
-						XrSessionBeginInfo info = {XR_TYPE_SESSION_BEGIN_INFO};
-						info.primaryViewConfigurationType = xr.viewtype;
-						res = xrBeginSession(xr.session, &info);
-						if (XR_FAILED(res))
-							Con_Printf("Unable to begin session: %s\n", XR_StringForResult(res));
-					}
-					break;
-				case XR_SESSION_STATE_STOPPING:
-					res = xrEndSession(xr.session);
-					if (XR_FAILED(res))
-						Con_Printf("Unable to end session: %s\n", XR_StringForResult(res));
-					break;
-				}
 				xr.state = s->state;
+				return;	//make sure the outer loop actually sees each state change.
 			}
 			break;
 		}
@@ -1572,28 +1777,73 @@ static qboolean XR_SyncFrame(double *frametime)
 		return true;
 	}
 
+	if (!xr.session)
+	{
+		if (xr_enable->ival && !XR_Begin())
+		{
+			XR_Shutdown();
+			return false;
+		}
+	}
+	else
+	{
+		if (!xr_enable->ival && !xr.ending)
+		{	//user doesn't want a session apparently. try and end the current session cleanly.
+			res = xrRequestExitSession(xr.session);
+			if (XR_FAILED(res))
+				Con_Printf("openxr: Unable to request session end: %s\n", XR_StringForResult(res));
+			xr.ending = true;
+		}
+	}
+
 	XR_ProcessEvents();
 
 	memset(&xr.framestate, 0, sizeof(xr.framestate));
 	xr.framestate.type = XR_TYPE_FRAME_STATE;
-	switch(xr.state)
+	safeswitch(xr.state)
 	{
-	case XR_SESSION_STATE_READY:
-	case XR_SESSION_STATE_FOCUSED:
-	case XR_SESSION_STATE_SYNCHRONIZED:
-	case XR_SESSION_STATE_VISIBLE:
-		xr.framestate.shouldRender = !!xr.session;
+	case XR_SESSION_STATE_IDLE:		//not allowed to progress till the user puts it on their head/etc
+		xr.beginning = false;
 		break;
-	default:
-		xr.framestate.shouldRender = false;
+	case XR_SESSION_STATE_READY:
+		if (!xr.beginning)
+		{
+			XrSessionBeginInfo info = {XR_TYPE_SESSION_BEGIN_INFO};
+			info.primaryViewConfigurationType = xr.viewtype;
+			res = xrBeginSession(xr.session, &info);
+			if (XR_FAILED(res))
+				Con_Printf("Unable to begin session: %s\n", XR_StringForResult(res));
+			xr.beginning = true;	//begin our xr loop... (and/or stop the spam just above)
+		}
+		break;
+	case XR_SESSION_STATE_SYNCHRONIZED:	//no rendering or input yet
+	case XR_SESSION_STATE_VISIBLE:		//now generating video frames, but no input yet
+	case XR_SESSION_STATE_FOCUSED:		//we have inputs! (and still generating video frames)
+		break;
+	case XR_SESSION_STATE_STOPPING:		//going back to idle (user took it off their head). we'll go back to rendering to our window again.
+		xrEndSession(xr.session);
+		xr.beginning = false;
+		break;
+	case XR_SESSION_STATE_LOSS_PENDING:	//terminate for now. recreate later if you want.
+		XR_SessionEnded();	//destroys the session but not the instance, so it can be started up again if desired.
+		xr.beginning = false;
+		break;
+	case XR_SESSION_STATE_EXITING:		//terminate with prejudice.
+		XR_SessionEnded();
+		xr.beginning = false;
+		if (!xr.ending)
+			XR_Shutdown();	//this doesn't look like one we requested... don't let it start back up again.
+		break;
+	case XR_SESSION_STATE_UNKNOWN:
+	case XR_SESSION_STATE_MAX_ENUM:
+	safedefault:
+		xr.beginning = false;	//some weird error.
 		break;
 	}
 
-	if (xr.framestate.shouldRender)
+	if (xr.beginning)
 	{
 		XrTime time;
-		memset(&xr.framestate, 0, sizeof(xr.framestate));
-		xr.framestate.type = XR_TYPE_FRAME_STATE;
 		res = xrWaitFrame(xr.session, NULL, &xr.framestate);
 		if (XR_FAILED(res))
 		{
@@ -1631,39 +1881,77 @@ static qboolean XR_Render(void(*rendereye)(texid_t tex, vec4_t fovoverride, vec3
 	if (!xr.instance)
 		return false;	//err... noooes!
 
-	if (!xr.session)
+	if (!xr.session || !xr.beginning)
+		return false;
+
+	if (xr.inputsdirty)
 	{
-		if (!xr_enable->ival)
-			return false;
-		if (!XR_Begin())
-		{	//something catasrophic went wrong. don't spam begins.
-			XR_Shutdown();
+		xr.inputsdirty = false;
+		XR_PrintInputs();
+	}
+#ifdef XR_EXT_hand_tracking
+	for (u = 0; u < 2; u++)
+	{
+		vec3_t ang, org;
+		unsigned int j;
+		static const char *jointnames[] = {
+			"PALM",
+			"WRIST",
+			"THUMB_METACARPAL",
+			"THUMB_PROXIMAL",
+			"THUMB_DISTAL",
+			"THUMB_TIP",
+			"INDEX_METACARPAL",
+			"INDEX_PROXIMAL",
+			"INDEX_INTERMEDIATE",
+			"INDEX_DISTAL",
+			"INDEX_TIP",
+			"MIDDLE_METACARPAL",
+			"MIDDLE_PROXIMAL",
+			"MIDDLE_INTERMEDIATE",
+			"MIDDLE_DISTAL",
+			"MIDDLE_TIP",
+			"RING_METACARPAL",
+			"RING_PROXIMAL",
+			"RING_INTERMEDIATE",
+			"RING_DISTAL",
+			"RING_TIP",
+			"LITTLE_METACARPAL",
+			"LITTLE_PROXIMAL",
+			"LITTLE_INTERMEDIATE",
+			"LITTLE_DISTAL",
+			"LITTLE_TIP",
+		};
+		XrHandJointsLocateInfoEXT info = {XR_TYPE_HAND_JOINTS_LOCATE_INFO_EXT};
+		XrHandJointLocationsEXT loc = {XR_TYPE_HAND_JOINT_LOCATIONS_EXT};
+		XrHandJointVelocitiesEXT vel = {XR_TYPE_HAND_JOINT_VELOCITIES_EXT};
+		loc.next = &vel;
+		loc.jointCount = countof(xr.hand[u].jointloc);
+		loc.jointLocations = xr.hand[u].jointloc;
+
+		vel.next = &vel;
+		vel.jointCount = countof(xr.hand[u].jointvel);
+		vel.jointVelocities = xr.hand[u].jointvel;
+
+		if (xr.hand[u].handle)
+			xrLocateHandJointsEXT(xr.hand[u].handle, &info, &loc);
+		xr.hand[u].active = loc.isActive;
+
+		if (!xr.hand[u].active || !xr_debug->ival)
+			continue;
+		for (j = 0; j < countof(jointnames); j++)
+		{
+			if (!xr.hand[u].jointloc[j].locationFlags && !xr.hand[u].jointvel[j].velocityFlags)
+				continue;
+			XR_PoseToAngOrg(&xr.hand[u].jointloc[j].pose, ang, org);
+
+			Con_Printf("%s %s: (%g %g %g) [%g %g %g] %g (%g %g %g) [%g %g %g]\n", u?"Right":"Left", jointnames[j],
+				ang[0],ang[1],ang[2],org[0],org[1],org[2], xr.hand[u].jointloc[j].radius,
+				xr.hand[u].jointvel[j].angularVelocity.x,xr.hand[u].jointvel[j].angularVelocity.y,xr.hand[u].jointvel[j].angularVelocity.z,
+				xr.hand[u].jointvel[j].linearVelocity.x,xr.hand[u].jointvel[j].linearVelocity.y,xr.hand[u].jointvel[j].linearVelocity.z);
 		}
-		return false;
 	}
-
-	if (!xr_enable->ival)
-	{
-		res = xrRequestExitSession(xr.session);
-		if (XR_FAILED(res))
-			Con_Printf("openxr: Unable to request session end: %s\n", XR_StringForResult(res));
-
-		XR_ProcessEvents();
-	}
-
-	switch(xr.state)
-	{
-	case XR_SESSION_STATE_EXITING:
-		XR_SessionEnded();	//destroys the session but not the instance, so it can be started up again if desired.
-		return false;
-	case XR_SESSION_STATE_FOCUSED:
-	case XR_SESSION_STATE_SYNCHRONIZED:
-	case XR_SESSION_STATE_VISIBLE:
-	case XR_SESSION_STATE_READY:
-		break;
-	default:
-		return false;	//not ready.
-	}
+#endif
 
 	if (!xr.needrender)
 		return false;	//xrWaitFrame not called?
@@ -1803,15 +2091,15 @@ qboolean Plug_Init(void)
 			#undef XRFUNC
 			{NULL}};
 #ifdef _WIN32
-	#define XR_LOADER_LIBNAME "openxr_loader"
+	#define XR_LOADER_LIBNAME "openxr_loader"ARCH_DL_POSTFIX
 #else
-	#define XR_LOADER_LIBNAME "libopenxr_loader"
+	#define XR_LOADER_LIBNAME "libopenxr_loader"ARCH_DL_POSTFIX".1"
 #endif
 		if (!lib)
 			lib = plugfuncs->LoadDLL(XR_LOADER_LIBNAME, funcs);
 		if (!lib)
 		{
-			Con_Printf(CON_ERROR"OpenXR: Unable to load "XR_LOADER_LIBNAME ARCH_DL_POSTFIX"\n");
+			Con_Printf(CON_ERROR"OpenXR: Unable to load "XR_LOADER_LIBNAME"\n");
 			return false;
 		}
 	}
@@ -1827,7 +2115,8 @@ qboolean Plug_Init(void)
 		xr_formfactor		= cvarfuncs->GetNVFDG("xr_formfactor",		"head",			CVAR_ARCHIVE,	"Controls which VR system to try to use. Valid options are head, or hand",			"OpenXR configuration");
 		xr_viewconfig		= cvarfuncs->GetNVFDG("xr_viewconfig",		"",				CVAR_ARCHIVE,	"Controls the type of view we aim for. Valid options are mono, stereo, or quad",	"OpenXR configuration");
 		xr_metresize		= cvarfuncs->GetNVFDG("xr_metresize",		"26.24671916",	CVAR_ARCHIVE,	"Size of a metre in game units",													"OpenXR configuration");
-		xr_skipregularview	= cvarfuncs->GetNVFDG("xr_skipregularview", "0",			CVAR_ARCHIVE,	"Skip rendering the regular view when OpenXR is active.",							"OpenXR configuration");
+		xr_skipregularview	= cvarfuncs->GetNVFDG("xr_skipregularview", "1",			CVAR_ARCHIVE,	"Skip rendering the regular view when OpenXR is active.",							"OpenXR configuration");
+		xr_fingertracking	= cvarfuncs->GetNVFDG("xr_fingertracking",	"0",			0,	"Attempt to track individual finger joints.",													"OpenXR configuration");
 		return true;
 	}
 	return false;

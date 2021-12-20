@@ -610,23 +610,11 @@ static void R_SetupGL (vec3_t eyeangorg[2], vec4_t fovoverrides, float projmatri
 
 			if (r_refdef.useperspective)
 			{
-				int stencilshadows = Sh_StencilShadowsActive();
-
-				if ((!stencilshadows || !gl_stencilbits) && r_refdef.maxdist)//gl_nv_range_clamp)
-				{
-			//		yfov = 2*atan((float)r_refdef.vrect.height/r_refdef.vrect.width)*180/M_PI;
-			//		yfov = (2.0 * tan (scr_fov.value/360*M_PI)) / screenaspect;
-			//		yfov = 2*atan((float)r_refdef.vrect.height/r_refdef.vrect.width)*(scr_fov.value*2)/M_PI;
-			//		MYgluPerspective (yfov,  screenaspect,  4,  4096);
-
-					Matrix4x4_CM_Projection_Offset(r_refdef.m_projection_std, fov_l, fov_r, fov_d, fov_u, r_refdef.mindist, r_refdef.maxdist, false);
-					Matrix4x4_CM_Projection_Far(r_refdef.m_projection_view, fovv_x, fovv_y, r_refdef.mindist, r_refdef.maxdist, false);
-				}
-				else
-				{
-					Matrix4x4_CM_Projection_Inf(r_refdef.m_projection_std, fov_x, fov_y, r_refdef.mindist, false);
-					Matrix4x4_CM_Projection_Inf(r_refdef.m_projection_view, fovv_x, fovv_y, r_refdef.mindist, false);
-				}
+				float maxdist = r_refdef.maxdist;
+				if (gl_stencilbits && Sh_StencilShadowsActive())
+					maxdist = 0;	//if we're using stencil shadows then force the maxdist to infinite to ensure the shadow volume is sealed.
+				Matrix4x4_CM_Projection_Offset(r_refdef.m_projection_std, fov_l, fov_r, fov_d, fov_u, r_refdef.mindist, maxdist, false);
+				Matrix4x4_CM_Projection_Offset(r_refdef.m_projection_view, -fovv_x/2, fovv_x/2, -fovv_y/2, fovv_y/2, r_refdef.mindist, maxdist, false);
 
 				r_refdef.m_projection_std[8] += r_refdef.projectionoffset[0];
 				r_refdef.m_projection_std[9] += r_refdef.projectionoffset[1];

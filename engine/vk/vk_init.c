@@ -2210,25 +2210,44 @@ void	VK_R_DeInit					(void)
 	Image_Shutdown();
 }
 
-void VK_SetupViewPortProjection(qboolean flipy)
+void VK_SetupViewPortProjection(qboolean flipy, vec3_t *eyeangorg, float *fovoverrides)
 {
 	float fov_x, fov_y;
 	float fovv_x, fovv_y;
 
-	AngleVectors (r_refdef.viewangles, vpn, vright, vup);
-	VectorCopy (r_refdef.vieworg, r_origin);
+	float fov_l, fov_r, fov_d, fov_u;
 
-	fov_x = r_refdef.fov_x;//+sin(cl.time)*5;
-	fov_y = r_refdef.fov_y;//-sin(cl.time+1)*5;
-	fovv_x = r_refdef.fovv_x;
-	fovv_y = r_refdef.fovv_y;
-
-	if ((r_refdef.flags & RDF_UNDERWATER) && !(r_refdef.flags & RDF_WATERWARP))
+	if (eyeangorg)
 	{
-		fov_x *= 1 + (((sin(cl.time * 4.7) + 1) * 0.015) * r_waterwarp.value);
-		fov_y *= 1 + (((sin(cl.time * 3.0) + 1) * 0.015) * r_waterwarp.value);
-		fovv_x *= 1 + (((sin(cl.time * 4.7) + 1) * 0.015) * r_waterwarp.value);
-		fovv_y *= 1 + (((sin(cl.time * 3.0) + 1) * 0.015) * r_waterwarp.value);
+		extern cvar_t in_vraim;
+		matrix3x4 basematrix;
+		matrix3x4 eyematrix;
+		matrix3x4 viewmatrix;
+		vec3_t newa;
+
+		Matrix3x4_RM_FromAngles(eyeangorg[0], eyeangorg[1], eyematrix[0]);
+		if (r_refdef.base_known)
+		{	//mod is specifying its own base ang+org.
+			Matrix3x4_RM_FromAngles(r_refdef.base_angles, r_refdef.base_origin, basematrix[0]);
+		}
+		else
+		{	//mod provides no info.
+			//client will fiddle with input_angles
+			newa[0] = newa[2] = 0;	//ignore player pitch+roll. sorry. apply the eye's transform on top.
+			newa[1] = r_refdef.viewangles[1];
+			if (in_vraim.ival)
+				newa[1] -= SHORT2ANGLE(r_refdef.playerview->vrdev[VRDEV_HEAD].angles[YAW]);
+			Matrix3x4_RM_FromAngles(newa, r_refdef.vieworg, basematrix[0]);
+		}
+		Matrix3x4_Multiply(eyematrix[0], basematrix[0], viewmatrix[0]);
+		Matrix3x4_RM_ToVectors(viewmatrix[0], vpn, vright, vup, r_origin);
+		VectorNegate(vright, vright);
+
+	}
+	else
+	{
+		AngleVectors (r_refdef.viewangles, vpn, vright, vup);
+		VectorCopy (r_refdef.vieworg, r_origin);
 	}
 
 //	screenaspect = (float)r_refdef.vrect.width/r_refdef.vrect.height;
@@ -2247,16 +2266,43 @@ void VK_SetupViewPortProjection(qboolean flipy)
 		Matrix4x4_CM_ModelViewMatrixFromAxis(r_refdef.m_view, vpn, vright, vup, r_refdef.vieworg);
 		r_refdef.flipcull = 0;
 	}
-	if (r_refdef.maxdist)
+
+	fov_x = r_refdef.fov_x;//+sin(cl.time)*5;
+	fov_y = r_refdef.fov_y;//-sin(cl.time+1)*5;
+	fovv_x = r_refdef.fovv_x;
+	fovv_y = r_refdef.fovv_y;
+	if ((r_refdef.flags & RDF_UNDERWATER) && !(r_refdef.flags & RDF_WATERWARP))
 	{
-		Matrix4x4_CM_Projection_Far(r_refdef.m_projection_std, fov_x, fov_y, r_refdef.mindist, r_refdef.maxdist, false);
-		Matrix4x4_CM_Projection_Far(r_refdef.m_projection_view, fovv_x, fovv_y, r_refdef.mindist, r_refdef.maxdist, false);
+		fov_x *= 1 + (((sin(cl.time * 4.7) + 1) * 0.015) * r_waterwarp.value);
+		fov_y *= 1 + (((sin(cl.time * 3.0) + 1) * 0.015) * r_waterwarp.value);
+		fovv_x *= 1 + (((sin(cl.time * 4.7) + 1) * 0.015) * r_waterwarp.value);
+		fovv_y *= 1 + (((sin(cl.time * 3.0) + 1) * 0.015) * r_waterwarp.value);
+	}
+	if (fovoverrides)
+	{
+		fov_l = fovoverrides[0];
+		fov_r = fovoverrides[1];
+		fov_d = fovoverrides[2];
+		fov_u = fovoverrides[3];
+
+		fov_x = fov_r-fov_l;
+		fov_y = fov_u-fov_d;
+
+		fovv_x = fov_x;
+		fovv_y = fov_y;
+		r_refdef.flipcull = ((fov_u < fov_d)^(fov_r < fov_l))?SHADER_CULL_FLIP:0;
 	}
 	else
 	{
-		Matrix4x4_CM_Projection_Inf(r_refdef.m_projection_std, fov_x, fov_y, r_refdef.mindist, false);
-		Matrix4x4_CM_Projection_Inf(r_refdef.m_projection_view, fovv_x, fovv_y, r_refdef.mindist, false);
+		fov_l = -fov_x / 2;
+		fov_r = fov_x / 2;
+		fov_d = -fov_y / 2;
+		fov_u = fov_y / 2;
 	}
+
+	Matrix4x4_CM_Projection_Offset(r_refdef.m_projection_std, fov_l, fov_r, fov_d, fov_u, r_refdef.mindist, r_refdef.maxdist, false);
+	Matrix4x4_CM_Projection_Offset(r_refdef.m_projection_view, -fovv_x/2, fovv_x/2, -fovv_y/2, fovv_y/2, r_refdef.mindist, r_refdef.maxdist, false);
+
 	r_refdef.m_projection_view[2+4*0] *= 0.333;
 	r_refdef.m_projection_view[2+4*1] *= 0.333;
 	r_refdef.m_projection_view[2+4*2] *= 0.333;
@@ -2666,7 +2712,7 @@ static qboolean VK_R_RenderScene_Cubemap(struct vk_rendertarg *fb)
 		r_refdef.viewangles[2] = saveang[2]+ang[i][2];
 
 
-		VK_SetupViewPortProjection(true);
+		VK_SetupViewPortProjection(true, NULL, NULL);
 
 		/*if (!vk.rendertarg->depthcleared)
 		{
@@ -2752,7 +2798,7 @@ void VK_R_RenderEye(texid_t image, vec4_t fovoverride, vec3_t eyeangorg[2])
 {
 	struct vk_rendertarg *rt;
 
-	VK_SetupViewPortProjection(false);
+	VK_SetupViewPortProjection(false, eyeangorg, fovoverride);
 
 	rt = &postproc[postproc_buf++%countof(postproc)];
 	rt->rpassflags |= RP_VR;
@@ -2933,7 +2979,7 @@ void	VK_R_RenderView				(void)
 	}
 	else
 	{
-		VK_SetupViewPortProjection(false);
+		VK_SetupViewPortProjection(false, NULL, NULL);
 
 		if (rt != rtscreen)
 			VKBE_RT_Begin(rt);

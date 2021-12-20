@@ -3530,6 +3530,8 @@ void Surf_DrawWorld (void)
 		/*FIXME: move this away*/
 		if (cl.worldmodel->fromgame == fg_quake || cl.worldmodel->fromgame == fg_halflife)
 			Surf_LessenStains();
+
+		r_refdef.sceneareas = NULL;
 	}
 }
 

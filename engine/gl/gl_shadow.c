@@ -1827,37 +1827,7 @@ static qboolean Sh_VisOverlaps(qbyte *v1, qbyte *v2)
 	return false;
 }
 
-#if 1
 #define Sh_LeafInView Sh_VisOverlaps
-#else
-static qboolean Sh_LeafInView(qbyte *lightvis, qbyte *vvis)
-{
-	int i;
-	int m = (cl.worldmodel->numvisleafs);
-	mleaf_t *wl = cl.worldmodel->leafs;
-	unsigned char lv;
-
-	/*we can potentially walk off the end of the leafs, but lightvis shouldn't be set for those*/
-
-
-	for (i = 0; i < m; i += 1<<3)
-	{
-		lv = lightvis[i>>3];// & vvis[i>>3];
-		if (!lv)
-			continue;
-		if ((lv&0x01) && wl[i+0].visframe == r_visframecount) return true;
-		if ((lv&0x02) && wl[i+1].visframe == r_visframecount) return true;
-		if ((lv&0x04) && wl[i+2].visframe == r_visframecount) return true;
-		if ((lv&0x08) && wl[i+3].visframe == r_visframecount) return true;
-		if ((lv&0x10) && wl[i+4].visframe == r_visframecount) return true;
-		if ((lv&0x20) && wl[i+5].visframe == r_visframecount) return true;
-		if ((lv&0x40) && wl[i+6].visframe == r_visframecount) return true;
-		if ((lv&0x80) && wl[i+7].visframe == r_visframecount) return true;
-	}
-
-	return false;
-}
-#endif
 
 
 /*

@@ -174,7 +174,7 @@ size_t Fragment_ClipPlaneToBrush(vecV_t *points, size_t maxpoints, void *planes,
 	return numverts;
 }
 
-#ifndef SERVERONLY
+#ifdef HAVE_CLIENT
 
 #define MAXFRAGMENTTRIS 256
 vec3_t decalfragmentverts[MAXFRAGMENTTRIS*3];
@@ -1642,7 +1642,7 @@ Physics functions (common)
 
 Rendering functions (Client only)
 */
-#ifndef SERVERONLY
+#ifdef HAVE_CLIENT
 
 extern int	r_dlightframecount;
 
@@ -1749,6 +1749,327 @@ static void Q1BSP_StainNode (mnode_t *node, float *parms)
 	Q1BSP_StainNode (node->children[0], parms);
 	Q1BSP_StainNode (node->children[1], parms);
 }
+
+
+static qbyte *q1frustumvis;	//temp use
+static int q1_visframecount;//temp use
+static int q1_framecount;	//temp use
+struct q1bspprv_s
+{
+	int visframecount;
+	int framecount;
+	int oldviewclusters[2];
+};
+#define BACKFACE_EPSILON	0.01
+static void Q1BSP_RecursiveWorldNode (mnode_t *node, unsigned int clipflags)
+{
+	int			c, side, clipped;
+	mplane_t	*plane, *clipplane;
+	msurface_t	*surf, **mark;
+	mleaf_t		*pleaf;
+	double		dot;
+
+start:
+
+	if (node->contents == Q1CONTENTS_SOLID)
+		return;		// solid
+
+	if (node->visframe != q1_visframecount)
+		return;
+
+	for (c = 0, clipplane = r_refdef.frustum; c < r_refdef.frustum_numworldplanes; c++, clipplane++)
+	{
+		if (!(clipflags & (1 << c)))
+			continue;	// don't need to clip against it
+
+		clipped = BOX_ON_PLANE_SIDE (node->minmaxs, node->minmaxs + 3, clipplane);
+		if (clipped == 2)
+			return;
+		else if (clipped == 1)
+			clipflags -= (1<<c);	// node is entirely on screen
+	}
+
+// if a leaf node, draw stuff
+	if (node->contents < 0)
+	{
+		pleaf = (mleaf_t *)node;
+
+		c = (pleaf - cl.worldmodel->leafs)-1;
+		q1frustumvis[c>>3] |= 1<<(c&7);
+
+		mark = pleaf->firstmarksurface;
+		c = pleaf->nummarksurfaces;
+
+		if (c)
+		{
+			do
+			{
+				(*mark++)->visframe = q1_framecount;
+			} while (--c);
+		}
+		return;
+	}
+
+// node is just a decision point, so go down the apropriate sides
+
+// find which side of the node we are on
+	plane = node->plane;
+
+	switch (plane->type)
+	{
+	case PLANE_X:
+		dot = r_origin[0] - plane->dist;
+		break;
+	case PLANE_Y:
+		dot = r_origin[1] - plane->dist;
+		break;
+	case PLANE_Z:
+		dot = r_origin[2] - plane->dist;
+		break;
+	default:
+		dot = DotProduct (r_origin, plane->normal) - plane->dist;
+		break;
+	}
+
+	if (dot >= 0)
+		side = 0;
+	else
+		side = 1;
+
+// recurse down the children, front side first
+	Q1BSP_RecursiveWorldNode (node->children[side], clipflags);
+
+// draw stuff
+	c = node->numsurfaces;
+
+	if (c)
+	{
+		surf = cl.worldmodel->surfaces + node->firstsurface;
+
+		if (dot < 0 -BACKFACE_EPSILON)
+			side = SURF_PLANEBACK;
+		else if (dot > BACKFACE_EPSILON)
+			side = 0;
+		{
+			for ( ; c ; c--, surf++)
+			{
+				if (surf->visframe != q1_framecount)
+					continue;
+
+				if (((dot < 0) ^ !!(surf->flags & SURF_PLANEBACK)))
+					continue;		// wrong side
+
+				Surf_RenderDynamicLightmaps (surf);
+				surf->sbatch->mesh[surf->sbatch->meshes++] = surf->mesh;
+			}
+		}
+	}
+
+// recurse down the back side
+	//GLR_RecursiveWorldNode (node->children[!side], clipflags);
+	node = node->children[!side];
+	goto start;
+}
+
+static void Q1BSP_OrthoRecursiveWorldNode (mnode_t *node, unsigned int clipflags)
+{
+	//when rendering as ortho the front and back sides are technically equal. the only culling comes from frustum culling.
+
+	int			c, clipped;
+	mplane_t	*clipplane;
+	msurface_t	*surf, **mark;
+	mleaf_t		*pleaf;
+
+	if (node->contents == Q1CONTENTS_SOLID)
+		return;		// solid
+
+	if (node->visframe != q1_visframecount)
+		return;
+
+	for (c = 0, clipplane = r_refdef.frustum; c < r_refdef.frustum_numworldplanes; c++, clipplane++)
+	{
+		if (!(clipflags & (1 << c)))
+			continue;	// don't need to clip against it
+
+		clipped = BOX_ON_PLANE_SIDE (node->minmaxs, node->minmaxs + 3, clipplane);
+		if (clipped == 2)
+			return;
+		else if (clipped == 1)
+			clipflags -= (1<<c);	// node is entirely on screen
+	}
+
+// if a leaf node, draw stuff
+	if (node->contents < 0)
+	{
+		pleaf = (mleaf_t *)node;
+
+		mark = pleaf->firstmarksurface;
+		c = pleaf->nummarksurfaces;
+
+		if (c)
+		{
+			do
+			{
+				(*mark++)->visframe = q1_framecount;
+			} while (--c);
+		}
+		return;
+	}
+
+// recurse down the children
+	Q1BSP_OrthoRecursiveWorldNode (node->children[0], clipflags);
+	Q1BSP_OrthoRecursiveWorldNode (node->children[1], clipflags);
+
+// draw stuff
+	c = node->numsurfaces;
+
+	if (c)
+	{
+		surf = cl.worldmodel->surfaces + node->firstsurface;
+
+		for ( ; c ; c--, surf++)
+		{
+			if (surf->visframe != q1_framecount)
+				continue;
+
+			Surf_RenderDynamicLightmaps (surf);
+			surf->sbatch->mesh[surf->sbatch->meshes++] = surf->mesh;
+		}
+	}
+	return;
+}
+
+static qbyte *Q1BSP_MarkLeaves (model_t *model, int clusters[2])
+{
+	static qbyte	*cvis;
+	qbyte *vis;
+	mnode_t	*node;
+	int		i;
+	int portal = r_refdef.recurse;
+	static pvsbuffer_t pvsbuf;
+	struct q1bspprv_s *prv = model->meshinfo;
+
+	q1_framecount = ++prv->framecount;
+
+	//for portals to work, we need two sets of any pvs caches
+	//this means lights can still check pvs at the end of the frame despite recursing in the mean time
+	//however, we still need to invalidate the cache because we only have one 'visframe' field in nodes.
+
+	if (r_refdef.forcevis)
+	{
+		vis = r_refdef.forcedvis;
+
+		prv->oldviewclusters[0] = -1;
+		prv->oldviewclusters[1] = -2;
+		cvis = NULL;
+	}
+	else
+	{
+		if (!portal)
+		{
+			if (((prv->oldviewclusters[0] == clusters[0] && prv->oldviewclusters[1] == clusters[1]) && !r_novis.ival) || r_novis.ival & 2)
+				if (cvis)
+				{
+					q1_visframecount = prv->visframecount;
+					return cvis;
+				}
+
+			prv->oldviewclusters[0] = clusters[0];
+			prv->oldviewclusters[1] = clusters[1];
+		}
+		else
+		{
+			prv->oldviewclusters[0] = -1;
+			prv->oldviewclusters[1] = -2;
+			cvis = NULL;
+		}
+
+		if (r_novis.ival)
+		{
+			if (pvsbuf.buffersize < model->pvsbytes)
+				pvsbuf.buffer = BZ_Realloc(pvsbuf.buffer, pvsbuf.buffersize=model->pvsbytes);
+			vis = cvis = pvsbuf.buffer;
+			memset (pvsbuf.buffer, 0xff, pvsbuf.buffersize);
+
+			prv->oldviewclusters[0] = -1;
+			prv->oldviewclusters[1] = -2;
+		}
+		else
+		{
+			if (clusters[1] >= 0 && clusters[1] != clusters[0])
+			{
+				vis = cvis = model->funcs.ClusterPVS(model, clusters[0], &pvsbuf, PVM_REPLACE);
+				vis = cvis = model->funcs.ClusterPVS(model, clusters[1], &pvsbuf, PVM_MERGE);
+			}
+			else
+				vis = cvis = model->funcs.ClusterPVS(model, clusters[0], &pvsbuf, PVM_FAST);
+		}
+	}
+
+	prv->visframecount++;
+	q1_visframecount = prv->visframecount;
+
+	if (clusters[0] < 0)
+	{
+		//to improve spectating, when the camera is in a wall, we ignore any sky leafs.
+		//this prevents seeing the upwards-facing sky surfaces within the sky volumes.
+		//this will not affect inwards facing sky, so sky will basically appear as though it is identical to solid brushes.
+		for (i=0 ; i<model->numclusters ; i++)
+		{
+			if (vis[i>>3] & (1<<(i&7)))
+			{
+				if (model->leafs[i+1].contents == Q1CONTENTS_SKY)
+					continue;
+				node = (mnode_t *)&model->leafs[i+1];
+				do
+				{
+					if (node->visframe == q1_visframecount)
+						break;
+					node->visframe = q1_visframecount;
+					node = node->parent;
+				} while (node);
+			}
+		}
+	}
+	else
+	{
+		for (i=0 ; i<model->numclusters ; i++)
+		{
+			if (vis[i>>3] & (1<<(i&7)))
+			{
+				node = (mnode_t *)&model->leafs[i+1];
+				do
+				{
+					if (node->visframe == q1_visframecount)
+						break;
+					node->visframe = q1_visframecount;
+					node = node->parent;
+				} while (node);
+			}
+		}
+	}
+	return vis;
+}
+
+static void Q1BSP_PrepareFrame(model_t *model, refdef_t *refdef, int area, int clusters[2], pvsbuffer_t *vis, qbyte **entvis_out, qbyte **surfvis_out)
+{
+	*entvis_out = Q1BSP_MarkLeaves (model, clusters);
+
+	if (vis->buffersize < model->pvsbytes)
+		vis->buffer = BZ_Realloc(vis->buffer, vis->buffersize=model->pvsbytes);
+	q1frustumvis = vis->buffer;
+	memset(q1frustumvis, 0, model->pvsbytes);
+
+	if (model != cl.worldmodel)
+		; //global abuse...
+	else if (r_refdef.useperspective)
+		Q1BSP_RecursiveWorldNode (model->nodes, 0x1f);
+	else
+		Q1BSP_OrthoRecursiveWorldNode (model->nodes, 0x1f);
+	*surfvis_out = q1frustumvis;
+}
+
+
 #endif
 /*
 Rendering functions (Client only)
@@ -1757,7 +2078,7 @@ Rendering functions (Client only)
 
 Server only functions
 */
-#ifndef CLIENTONLY
+#ifdef HAVE_SERVER
 static qbyte *Q1BSP_ClusterPVS (model_t *model, int cluster, pvsbuffer_t *buffer, pvsmerge_t merge);
 
 //does the recursive work of Q1BSP_FatPVS
@@ -2197,6 +2518,7 @@ void Q1BSP_SetModelFuncs(model_t *mod)
 	mod->funcs.NativeTrace			= Q1BSP_Trace;
 	mod->funcs.PointContents		= Q1BSP_PointContents;
 
+	mod->funcs.InfoForPoint			= Q1BSP_InfoForPoint;
 #ifdef HAVE_CLIENT
 	mod->funcs.LightPointValues		= GLQ1BSP_LightPointValues;
 	mod->funcs.MarkLights			= Q1BSP_MarkLights;
@@ -2204,9 +2526,14 @@ void Q1BSP_SetModelFuncs(model_t *mod)
 #ifdef RTLIGHTS
 	mod->funcs.GenerateShadowMesh	= Q1BSP_GenerateShadowMesh;
 #endif
-#endif
+	mod->funcs.PrepareFrame			= Q1BSP_PrepareFrame;
 
-	mod->funcs.InfoForPoint			= Q1BSP_InfoForPoint;
+	{
+		struct q1bspprv_s *prv = mod->meshinfo = ZG_Malloc(&mod->memgroup, sizeof(struct q1bspprv_s));
+		prv->oldviewclusters[0] = -2;	//make sure its reset properly.
+		prv->oldviewclusters[1] = -3;
+	}
+#endif
 }
 #endif
 
@@ -2305,7 +2632,7 @@ bspx_header_t *BSPX_Setup(model_t *mod, char *filebase, size_t filelen, lump_t *
 	return h;
 }
 
-#ifdef SERVERONLY
+#ifndef HAVE_CLIENT
 void BSPX_LoadEnvmaps(model_t *mod, bspx_header_t *bspx, void *mod_base)
 {
 }

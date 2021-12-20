@@ -3689,7 +3689,7 @@ static void VBSP_MarkShadows(model_t *model, dlight_t *dl, const qbyte *lvis)
 		}
 	}*/
 }
-void VBSP_GenerateShadowMesh(model_t *model, dlight_t *dl, const qbyte *lightvis, qbyte *litvis, void (*callback)(msurface_t *surf))
+static void VBSP_GenerateShadowMesh(model_t *model, dlight_t *dl, const qbyte *lightvis, qbyte *litvis, void (*callback)(msurface_t *surf))
 {
 	vbspinfo_t *prv = model->meshinfo;
 	dispinfo_t *disp;

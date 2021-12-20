@@ -728,7 +728,7 @@ void R_PushDlights (void)
 	int		i;
 	dlight_t	*l;
 
-	r_dlightframecount = r_framecount + 1;	// because the count hasn't
+	r_dlightframecount++;	// because the count hasn't
 											//  advanced yet for this frame
 
 #ifdef RTLIGHTS

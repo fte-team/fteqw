@@ -1211,13 +1211,8 @@ static shader_t *GL_ChooseSkin(galiasinfo_t *inf, model_t *model, int surfnum, e
 		skins += e->skinnum;
 	else
 	{
-		if (developer.ival)
-		{
-			static int lastframe;
-			if (lastframe != r_framecount && lastframe != r_framecount-1)	//patented anti-spam technology!... actually, I wonder if it would actually be eligable for a patent.
-				Con_DPrintf("Skin number out of range (%u >= %u - %s)\n", e->skinnum, inf->numskins, model->name);
-			lastframe = r_framecount;
-		}
+		static float timer;
+		Con_ThrottlePrintf(&timer, 1, "Skin number out of range (%u >= %u - %s)\n", e->skinnum, inf->numskins, model->name);
 		if (!inf->numskins)
 			return NULL;
 	}

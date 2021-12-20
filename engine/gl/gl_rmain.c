@@ -34,9 +34,6 @@ void R_RenderBrushPoly (msurface_t *fa);
 
 extern int		gl_stencilbits;
 
-extern int			r_visframecount;	// bumped when going to a new PVS
-extern int			r_framecount;		// used for dlight push checking
-
 //mplane_t	frustum[4];
 
 //
@@ -831,7 +828,6 @@ static void R_RenderScene (void)
 		stereoframes = 2;
 	}
 
-	r_framecount++;
 	if (vid.vr && !r_refdef.recurse && vid.vr->Render(R_RenderEyeScene))
 		;	//we drew something VR-ey
 	else if (stereomode == STEREO_OFF)
@@ -897,7 +893,6 @@ static void R_RenderScene (void)
 			qglClear (GL_DEPTH_BUFFER_BIT);
 			depthcleared = true;
 		}
-		r_framecount++;	//view position changes, if only slightly. which means we need to rebuild vis info. :(
 
 		eyeangorg[0][0] = 0;
 		eyeangorg[0][1] = r_stereo_convergence.value * (i?0.5:-0.5);
@@ -1867,8 +1862,6 @@ qboolean R_RenderScene_Cubemap(void)
 			GL_MTBind(0, GL_TEXTURE_CUBE_MAP_ARB, scenepp_postproc_cube);
 			qglCopyTexSubImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X_ARB + i, 0, 0, 0, 0, vid.fbpheight - (prect.y + cmapsize), cmapsize, cmapsize);
 		}
-
-		r_framecount++;
 	}
 
 	if (usefbo)

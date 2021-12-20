@@ -7344,6 +7344,8 @@ static unsigned int Q2BSP_PointContents(model_t *mod, const vec3_t axis[3], cons
 #ifdef HAVE_CLIENT
 static qbyte *frustumvis;
 static vec3_t modelorg;
+static unsigned int scenesequence;
+static unsigned int vissequence;
 /*
 ===============
 R_MarkLeaves
@@ -7373,7 +7375,7 @@ qbyte *R_MarkLeaves_Q3 (void)
 //		if (r_lockpvs->value)
 //			return;
 
-	r_visframecount++;
+	vissequence++;
 	r_oldviewcluster = r_viewcluster;
 
 	if (r_novis.ival || r_viewcluster == -1 || !cl.worldmodel->vis )
@@ -7390,12 +7392,12 @@ qbyte *R_MarkLeaves_Q3 (void)
 #if 1
 			for (node = (mnode_t*)leaf; node; node = node->parent)
 			{
-				if (node->visframe == r_visframecount)
+				if (node->visframe == vissequence)
 					break;
-				node->visframe = r_visframecount;
+				node->visframe = vissequence;
 			}
 #else
-			leaf->visframe = r_visframecount;
+			leaf->visframe = vissequence;
 			leaf->vischain = r_vischain;
 			r_vischain = leaf;
 #endif
@@ -7416,12 +7418,12 @@ qbyte *R_MarkLeaves_Q3 (void)
 #if 1
 				for (node = (mnode_t*)leaf; node; node = node->parent)
 				{
-					if (node->visframe == r_visframecount)
+					if (node->visframe == vissequence)
 						break;
-					node->visframe = r_visframecount;
+					node->visframe = vissequence;
 				}
 #else
-				leaf->visframe = r_visframecount;
+				leaf->visframe = vissequence;
 				leaf->vischain = r_vischain;
 				r_vischain = leaf;
 #endif
@@ -7442,7 +7444,7 @@ static void Surf_RecursiveQ3WorldNode (mnode_t *node, unsigned int clipflags)
 
 start:
 
-	if (node->visframe != r_visframecount)
+	if (node->visframe != vissequence)
 		return;
 
 	for (c = 0, clipplane = r_refdef.frustum; c < r_refdef.frustum_numworldplanes; c++, clipplane++)
@@ -7473,9 +7475,9 @@ start:
 		for (c = pleaf->nummarksurfaces; c; c--)
 		{
 			surf = *mark++;
-			if (surf->visframe == r_framecount)
+			if (surf->visframe == scenesequence)
 				continue;
-			surf->visframe = r_framecount;
+			surf->visframe = scenesequence;
 
 //			if (((dot < 0) ^ !!(surf->flags & SURF_PLANEBACK)))
 //				continue;		// wrong side
@@ -7568,9 +7570,9 @@ qbyte *R_MarkLeaves_Q2 (void)
 		{
 			// mark everything
 			for (i=0 ; i<cl.worldmodel->numleafs ; i++)
-				cl.worldmodel->leafs[i].visframe = r_visframecount;
+				cl.worldmodel->leafs[i].visframe = vissequence;
 			for (i=0 ; i<cl.worldmodel->numnodes ; i++)
-				cl.worldmodel->nodes[i].visframe = r_visframecount;
+				cl.worldmodel->nodes[i].visframe = vissequence;
 			return vis;
 		}
 
@@ -7584,7 +7586,7 @@ qbyte *R_MarkLeaves_Q2 (void)
 		cvis[portal] = vis;
 	}
 
-	r_visframecount++;
+	vissequence++;
 
 	for (i=0,leaf=cl.worldmodel->leafs ; i<cl.worldmodel->numleafs ; i++, leaf++)
 	{
@@ -7596,9 +7598,9 @@ qbyte *R_MarkLeaves_Q2 (void)
 			node = (mnode_t *)leaf;
 			do
 			{
-				if (node->visframe == r_visframecount)
+				if (node->visframe == vissequence)
 					break;
-				node->visframe = r_visframecount;
+				node->visframe = vissequence;
 				node = node->parent;
 			} while (node);
 		}
@@ -7618,7 +7620,7 @@ static void Surf_RecursiveQ2WorldNode (mnode_t *node)
 	if (node->contents == Q2CONTENTS_SOLID)
 		return;		// solid
 
-	if (node->visframe != r_visframecount)
+	if (node->visframe != vissequence)
 		return;
 	if (R_CullBox (node->minmaxs, node->minmaxs+3))
 		return;
@@ -7643,7 +7645,7 @@ static void Surf_RecursiveQ2WorldNode (mnode_t *node)
 		{
 			do
 			{
-				(*mark)->visframe = r_framecount;
+				(*mark)->visframe = scenesequence;
 				mark++;
 			} while (--c);
 		}
@@ -7688,13 +7690,13 @@ static void Surf_RecursiveQ2WorldNode (mnode_t *node)
 	// draw stuff
 	for ( c = node->numsurfaces, surf = currentmodel->surfaces + node->firstsurface; c ; c--, surf++)
 	{
-		if (surf->visframe != r_framecount)
+		if (surf->visframe != scenesequence)
 			continue;
 
 		if ( (surf->flags & SURF_PLANEBACK) != sidebit )
 			continue;		// wrong side
 
-		surf->visframe = 0;//r_framecount+1;//-1;
+		surf->visframe = 0;//scenesequence+1;//-1;
 
 		Surf_RenderDynamicLightmaps (surf);
 
@@ -7720,6 +7722,7 @@ static void CM_PrepareFrame(model_t *mod, refdef_t *refdef, int area, int viewcl
 
 	VectorCopy (r_refdef.vieworg, modelorg);
 
+	scenesequence++;
 #ifdef Q3BSPS
 	if (currentmodel->fromgame == fg_quake3)
 	{

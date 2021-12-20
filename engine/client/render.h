@@ -27,8 +27,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define	TOP_RANGE		(TOP_DEFAULT<<4)
 #define	BOTTOM_RANGE	(BOTTOM_DEFAULT<<4)
 
-extern int		r_framecount;
-
 struct msurface_s;
 struct batch_s;
 struct model_s;
@@ -615,7 +613,6 @@ void Media_VideoRestarted(void);
 void MYgluPerspective(double fovx, double fovy, double zNear, double zFar);
 
 void	R_PushDlights				(void);
-qbyte *R_MarkLeaves_Q1 (qboolean getvisonly);
 qbyte *R_CalcVis_Q1 (void);
 qbyte *R_MarkLeaves_Q2 (void);
 qbyte *R_MarkLeaves_Q3 (void);

@@ -327,10 +327,6 @@ static qboolean SDLVID_Init (rendererstate_t *info, unsigned char *palette, r_qr
 		return false;
 #ifdef OPENGL_SDL
 	case QR_OPENGL:
-		if (info->vr)
-			Con_Printf(CON_ERROR"%s support is not available with SDL-OpenGL\n", info->vr->description);
-		info->vr = NULL;
-
 	#if SDL_MAJOR_VERSION >= 2
 		SDL_GL_LoadLibrary(NULL);
 	#endif
@@ -481,6 +477,33 @@ static qboolean SDLVID_Init (rendererstate_t *info, unsigned char *palette, r_qr
 	if (qrenderer == QR_OPENGL)
 	{
 		int srgb;
+
+		vrsetup_t setup = {sizeof(setup)};
+		SDL_SysWMinfo wminfo;
+		SDL_VERSION(&wminfo.version);
+		SDL_GetWindowWMInfo(sdlwindow, &wminfo);
+		switch(wminfo.subsystem)
+		{
+#if defined(SDL_VIDEO_DRIVER_WINDOWS)
+		case SDL_SYSWM_WINDOWS:
+			setup.vrplatform = VR_WIN_WGL;
+			break;
+#endif
+#if defined(SDL_VIDEO_DRIVER_X11)
+		case SDL_SYSWM_X11:
+			setup.vrplatform = VR_X11_GLX;
+			break;
+#endif
+//		case SDL_SYSWM_WAYLAND:
+//			setup.vrplatform = VR_EGL;
+//			break;
+		default:
+			setup.vrplatform = VR_HEADLESS; //unsupported platform...
+			break;
+		}
+		if (info->vr && !info->vr->Prepare(&setup))
+			info->vr = NULL;
+
 		sdlcontext = SDL_GL_CreateContext(sdlwindow);
 		if (!sdlcontext)
 		{
@@ -500,6 +523,37 @@ static qboolean SDLVID_Init (rendererstate_t *info, unsigned char *palette, r_qr
 		SDL_GL_GetAttribute(SDL_GL_FRAMEBUFFER_SRGB_CAPABLE, &srgb);
 		if (srgb)
 			vid.flags |= VID_SRGB_CAPABLE;
+
+		//now fill it in properly, now that we have a context.
+		switch(wminfo.subsystem)
+		{
+#if defined(SDL_VIDEO_DRIVER_WINDOWS)
+		case SDL_SYSWM_WINDOWS:
+			setup.wgl.hdc = wminfo.info.win.hdc;
+			setup.wgl.hglrc = SDL_GL_GetCurrentContext();
+			break;
+#endif
+#if defined(SDL_VIDEO_DRIVER_X11)
+		case SDL_SYSWM_X11:
+			setup.x11_glx.display = wminfo.info.x11.display;
+			setup.x11_glx.drawable = wminfo.info.x11.window;
+			setup.x11_glx.visualid = 0;//???
+			setup.x11_glx.glxfbconfig = 0;//???
+			setup.x11_glx.glxcontext = SDL_GL_GetCurrentContext();
+			break;
+#endif
+		default:
+			setup.vrplatform = VR_HEADLESS; //unsupported platform...
+			break;
+		}
+
+		if (info->vr && !info->vr->Init(&setup, info))
+		{
+			info->vr->Shutdown();
+			vid.vr = NULL;
+		}
+		else
+			vid.vr = info->vr;
 	}
 #endif
 

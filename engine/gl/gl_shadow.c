@@ -1277,7 +1277,7 @@ static void SHM_RecursiveWorldNodeQ3_r (dlight_t *dl, mnode_t *node)
 
 			//FIXME: radius check
 			SHM_Shadow_Cache_Surface(surf);
-			if (sh_shmesh->type == SMT_SHADOWMAP)
+			if (sh_shmesh->type == SMT_SHADOWMAP && !(surf->texinfo->texture->shader->flags & SHADER_NOSHADOWS))
 				SHM_MeshFrontOnly(surf->mesh->numvertexes, surf->mesh->xyz_array, surf->mesh->numindexes, surf->mesh->indexes);
 		}
 		return;
@@ -1482,7 +1482,7 @@ static void SHM_ComposeVolume_BruteForce(dlight_t *dl)
 		sms = &sh_shmesh->batches[tno];
 		if (!sms->count)
 			continue;
-		if ((cl.worldmodel->shadowbatches[tno].tex->shader->flags & (SHADER_BLEND|SHADER_NODRAW)))
+		if ((cl.worldmodel->shadowbatches[tno].tex->shader->flags & (SHADER_BLEND|SHADER_NODRAW|SHADER_NOSHADOWS)))
 			continue;
 
 		for (sno = 0; sno < sms->count; sno++)

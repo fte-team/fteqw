@@ -4691,6 +4691,11 @@ static qboolean Mod_LoadClipnodes (model_t *loadmodel, qbyte *mod_base, lump_t *
 			Con_Printf (CON_ERROR "MOD_LoadBmodel: funny lump size in %s\n",loadmodel->name);
 			return false;
 		}
+		if (count > (1u<<16))
+		{
+			Con_Printf (CON_ERROR "%s: clipnode count exceeds 16bit limit (%u). Try bsp2.\n", loadmodel->name, count);
+			return false;
+		}
 	}
 	out = ZG_Malloc(&loadmodel->memgroup, count*sizeof(*out));//space for both
 

@@ -610,6 +610,8 @@ static void SV_Master_Add(int type, char *stringadr)
 	{
 		if (net_masterlist[i].protocol != type)
 			continue;
+		if (net_masterlist[i].cv.flags & CVAR_NOSAVE)
+			continue;	//ignore our extras
 		if (!*net_masterlist[i].cv.string)
 			break;
 	}
@@ -625,6 +627,19 @@ static void SV_Master_Add(int type, char *stringadr)
 	svs.last_heartbeat = -99999;
 }
 
+static void SV_Master_ClearType(int type)
+{
+	int i;
+	for (i = 0; net_masterlist[i].cv.name; i++)
+	{
+		if (net_masterlist[i].protocol == type)
+		{
+			if (net_masterlist[i].cv.flags & CVAR_NOSAVE)
+				continue;	//ignore our extras
+			Cvar_Set(&net_masterlist[i].cv, "");
+		}
+	}
+}
 static void SV_Master_ClearAll(void)
 {
 	int i;
@@ -646,17 +661,22 @@ static void SV_SetMaster_f (void)
 {
 	int		i;
 
-	SV_Master_ClearAll();
-
 	if (!strcmp(Cmd_Argv(1), "none"))
 	{
+		Cvar_Set(&sv_public, "0");	//go private.
+
+		SV_Master_ClearAll();
 		if (cl_warncmd.ival)
 			Con_Printf ("Entering no-master mode\n");
 		return;
 	}
 	if (!strcmp(Cmd_Argv(1), "clear"))
+	{
+		SV_Master_ClearType(MP_QUAKEWORLD);
 		return;
+	}
 
+	Cvar_Set(&sv_public, "1");	//go public.
 	if (!strcmp(Cmd_Argv(1), "default"))
 	{
 		for (i = 0; net_masterlist[i].cv.name; i++)
@@ -664,8 +684,7 @@ static void SV_SetMaster_f (void)
 		return;
 	}
 
-	Cvar_Set(&sv_public, "1");	//go public.
-
+	SV_Master_ClearType(MP_QUAKEWORLD);
 	for (i=1 ; i<Cmd_Argc() ; i++)
 	{
 		SV_Master_Add(MP_QUAKEWORLD, Cmd_Argv(i));

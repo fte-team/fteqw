@@ -1651,6 +1651,41 @@ static void XR_UpdateInputs(XrTime time)
 	}
 }
 
+static int64_t XR_CheckSwapFormats(int64_t *tryformat, int64_t *fmts, size_t fmtcount)
+{
+	size_t i, j;
+	for (j = 0; j < fmtcount; j++)
+	{	//the openxr driver lists is supposed to list formats in the order that it favours, so favour those.
+		for (i = 0; tryformat[i]; i++)
+		{	//now make sure its one that we allow. (steamvr lists ones that are NOT renderable - even though they should be)
+			if (tryformat[i] == fmts[j])
+				return fmts[j];
+		}
+	}
+	return 0;
+}
+static int64_t XR_FindSwapFormat(int64_t **tryformats, int64_t *fmts, size_t fmtcount)
+{
+	int64_t fmt;
+	/*try to use a format that matches the user's choice*/
+	if (xr.srgb == 2)
+		fmt = XR_CheckSwapFormats(tryformats[0], fmts, fmtcount);
+	else if (xr.srgb)
+		fmt = XR_CheckSwapFormats(tryformats[1], fmts, fmtcount);
+	else
+		fmt = XR_CheckSwapFormats(tryformats[2], fmts, fmtcount);
+
+	/*try others out of desperation*/
+	if (!fmt)
+		fmt = XR_CheckSwapFormats(tryformats[1], fmts, fmtcount);
+	if (!fmt)
+		fmt = XR_CheckSwapFormats(tryformats[0], fmts, fmtcount);
+	if (!fmt)
+		fmt = XR_CheckSwapFormats(tryformats[2], fmts, fmtcount);
+	if (!fmt)
+		fmt = tryformats[1][0];	//fall back on the first srgb format we know of, in the hope that the driver just failed to list it.
+	return fmt;
+}
 static qboolean XR_Begin(void)
 {
 	uint32_t u;
@@ -1694,54 +1729,31 @@ static qboolean XR_Begin(void)
 #ifdef XR_USE_GRAPHICS_API_OPENGL
 	else if (xr.renderer == QR_OPENGL)
 	{
-		fmttouse = fmts[0];	//favour the first... its probably a bad choice though...
-		for (u = 0; u < swapfmts; u++) switch(fmts[u])
-		{
-		case GL_RGBA16F:			Con_DPrintf("OpenXr fmt%u: %s\n", u, "GL_RGBA16F");		if (xr.srgb) fmttouse = fmts[u],u=swapfmts; break;
-		case GL_RGB10_A2:			Con_DPrintf("OpenXr fmt%u: %s\n", u, "GL_RGB10_A2");	if (!xr.srgb) fmttouse = fmts[u],u=swapfmts; break;
-		case GL_RGBA8:				Con_DPrintf("OpenXr fmt%u: %s\n", u, "GL_RGBA8");		if (!xr.srgb) fmttouse = fmts[u],u=swapfmts; break;
-		case GL_SRGB8_ALPHA8_EXT:	Con_DPrintf("OpenXr fmt%u: %s\n", u, "GL_SRGB8_ALPHA8");if (xr.srgb) fmttouse = fmts[u],u=swapfmts; break;
-		default:
-			Con_DPrintf("OpenXr fmt%u: %x\n", u, (unsigned)fmts[u]);
-			break;
-		}
+		static int64_t hdrformats[] = {GL_RGBA16F,GL_RGBA32F, 0};
+		static int64_t srgbformats[] = {GL_SRGB8_ALPHA8_EXT, GL_SRGB8_EXT, 0};
+		static int64_t rgbformats[] = {GL_RGB10_A2, GL_RGBA8, /*broken on steamvr - GL_RGBA16_EXT,*/ GL_RGB8, 0};
+		static int64_t *formats[] = {hdrformats, srgbformats, rgbformats};
+		fmttouse = XR_FindSwapFormat(formats, fmts, swapfmts);
 	}
 #endif
 #ifdef XR_USE_GRAPHICS_API_VULKAN
 	else if (xr.renderer == QR_VULKAN)
 	{
-		fmttouse = fmts[0];	//favour the first... its probably a bad choice though...
-		for (u = 0; u < swapfmts; u++) switch(fmts[u])
-		{
-		case VK_FORMAT_R16G16B16A16_SFLOAT:		Con_DPrintf("OpenXr fmt%u: %s\n", u, "VK_FORMAT_R16G16B16A16_SFLOAT");	if (xr.srgb) fmttouse = fmts[u],u=swapfmts; break;
-		case VK_FORMAT_A2B10G10R10_UNORM_PACK32:Con_DPrintf("OpenXr fmt%u: %s\n", u, "VK_FORMAT_A2B10G10R10_UNORM_PACK32");	if (!xr.srgb) fmttouse = fmts[u],u=swapfmts; break;
-		case VK_FORMAT_B8G8R8A8_UNORM:			Con_DPrintf("OpenXr fmt%u: %s\n", u, "VK_FORMAT_B8G8R8A8_UNORM");		if (!xr.srgb) fmttouse = fmts[u],u=swapfmts; break;
-		case VK_FORMAT_R8G8B8A8_UNORM:			Con_DPrintf("OpenXr fmt%u: %s\n", u, "VK_FORMAT_R8G8B8A8_UNORM");		if (!xr.srgb) fmttouse = fmts[u],u=swapfmts; break;
-		case VK_FORMAT_B8G8R8A8_SRGB:			Con_DPrintf("OpenXr fmt%u: %s\n", u, "VK_FORMAT_B8G8R8A8_SRGB");		if (xr.srgb) fmttouse = fmts[u],u=swapfmts; break;
-		case VK_FORMAT_R8G8B8A8_SRGB:			Con_DPrintf("OpenXr fmt%u: %s\n", u, "VK_FORMAT_R8G8B8A8_SRGB");		if (xr.srgb) fmttouse = fmts[u],u=swapfmts; break;
-		default:
-			Con_DPrintf("OpenXr fmt%u: %u\n", u, (unsigned)fmts[u]);
-			break;
-		}
+		static int64_t hdrformats[] = {VK_FORMAT_R16G16B16A16_SFLOAT,VK_FORMAT_R32G32B32A32_SFLOAT, VK_FORMAT_R16G16B16_SFLOAT,VK_FORMAT_R32G32B32_SFLOAT, 0};
+		static int64_t srgbformats[] = {VK_FORMAT_R8G8B8A8_SRGB, VK_FORMAT_B8G8R8A8_SRGB, VK_FORMAT_R8G8B8_SRGB, VK_FORMAT_B8G8R8_SRGB, 0};
+		static int64_t rgbformats[] = {VK_FORMAT_R8G8B8A8_UNORM, VK_FORMAT_B8G8R8A8_UNORM, VK_FORMAT_R8G8B8_UNORM, VK_FORMAT_B8G8R8_UNORM, 0};
+		static int64_t *formats[] = {hdrformats, srgbformats, rgbformats};
+		fmttouse = XR_FindSwapFormat(formats, fmts, swapfmts);
 	}
 #endif
 #ifdef XR_USE_GRAPHICS_API_D3D11
 	else if (xr.renderer == QR_DIRECT3D11)
 	{
-		fmttouse = fmts[0];	//favour the first... its probably a bad choice though...
-		for (u = 0; u < swapfmts; u++) switch(fmts[u])
-		{
-		case DXGI_FORMAT_R16G16B16A16_FLOAT:	Con_DPrintf("OpenXr fmt%u: %s\n", u, "DXGI_FORMAT_R16G16B16A16_FLOAT");		if (xr.srgb) fmttouse = fmts[u],u=swapfmts; break;
-		case DXGI_FORMAT_B8G8R8A8_UNORM:		Con_DPrintf("OpenXr fmt%u: %s\n", u, "DXGI_FORMAT_B8G8R8A8_UNORM");			if (!xr.srgb) fmttouse = fmts[u],u=swapfmts; break;
-		case DXGI_FORMAT_B8G8R8X8_UNORM:		Con_DPrintf("OpenXr fmt%u: %s\n", u, "DXGI_FORMAT_B8G8R8X8_UNORM");			if (!xr.srgb) fmttouse = fmts[u],u=swapfmts; break;
-		case DXGI_FORMAT_R8G8B8A8_UNORM:		Con_DPrintf("OpenXr fmt%u: %s\n", u, "DXGI_FORMAT_R8G8B8A8_UNORM");			if (!xr.srgb) fmttouse = fmts[u],u=swapfmts; break;
-		case DXGI_FORMAT_B8G8R8A8_UNORM_SRGB:	Con_DPrintf("OpenXr fmt%u: %s\n", u, "DXGI_FORMAT_B8G8R8A8_UNORM_SRGB");	if (xr.srgb) fmttouse = fmts[u],u=swapfmts; break;
-		case DXGI_FORMAT_B8G8R8X8_UNORM_SRGB:	Con_DPrintf("OpenXr fmt%u: %s\n", u, "DXGI_FORMAT_B8G8R8X8_UNORM_SRGB");	if (xr.srgb) fmttouse = fmts[u],u=swapfmts; break;
-		case DXGI_FORMAT_R8G8B8A8_UNORM_SRGB:	Con_DPrintf("OpenXr fmt%u: %s\n", u, "DXGI_FORMAT_R8G8B8A8_UNORM_SRGB");	if (xr.srgb) fmttouse = fmts[u],u=swapfmts; break;
-		default:
-			Con_DPrintf("OpenXr fmt%u: %x\n", u, (unsigned)fmts[u]);
-			break;
-		}
+		static int64_t hdrformats[] = {DXGI_FORMAT_R16G16B16A16_FLOAT, 0};
+		static int64_t srgbformats[] = {DXGI_FORMAT_R8G8B8A8_UNORM_SRGB, DXGI_FORMAT_B8G8R8A8_UNORM_SRGB, DXGI_FORMAT_B8G8R8X8_UNORM_SRGB, 0};
+		static int64_t rgbformats[] = {DXGI_FORMAT_R8G8B8A8_UNORM, DXGI_FORMAT_B8G8R8A8_UNORM, DXGI_FORMAT_B8G8R8X8_UNORM, 0};
+		static int64_t *formats[] = {hdrformats, srgbformats, rgbformats};
+		fmttouse = XR_FindSwapFormat(formats, fmts, swapfmts);
 	}
 #endif
 	else

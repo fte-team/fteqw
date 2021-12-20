@@ -7016,7 +7016,6 @@ static void CL_ParseBaseAngle(int seat)
 CL_ParseServerMessage
 =====================
 */
-int	received_framecount;
 void CLQW_ParseServerMessage (void)
 {
 	int			cmd;
@@ -7030,7 +7029,6 @@ void CLQW_ParseServerMessage (void)
 	extern vec3_t demoangles;
 	unsigned int cmdstart;
 
-	received_framecount = host_framecount;
 	cl.last_servermessage = realtime;
 	CL_ClearProjectiles ();
 
@@ -7700,7 +7698,6 @@ void CLQ2_ParseServerMessage (void)
 //	int				j;
 	int startpos = msg_readcount;
 
-	received_framecount = host_framecount;
 	cl.last_servermessage = realtime;
 	CL_ClearProjectiles ();
 
@@ -8092,7 +8089,6 @@ void CLNQ_ParseServerMessage (void)
 	int			i, j;
 	vec3_t		ang;
 
-//	received_framecount = host_framecount;
 //	cl.last_servermessage = realtime;
 	CL_ClearProjectiles ();
 
@@ -8299,7 +8295,6 @@ void CLNQ_ParseServerMessage (void)
 			cls.netchan.incoming_sequence = cls.netchan.outgoing_sequence-1;
 			cl.validsequence = cls.netchan.incoming_sequence;
 
-			received_framecount = host_framecount;
 			cl.last_servermessage = realtime;
 
 			cl.oldgametime = cl.gametime;

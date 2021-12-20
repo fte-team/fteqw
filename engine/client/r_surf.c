@@ -3947,9 +3947,6 @@ void Surf_BuildLightmaps (void)
 		lightmap[numlightmaps] = NULL;
 	}
 
-	r_oldviewcluster = -1;
-	r_oldviewcluster2 = -1;
-
 	//FIXME: unload stuff that's no longer relevant somehow.
 	for (i = 0; i < mod_numknown; i++)
 	{
@@ -4004,9 +4001,7 @@ void Surf_NewMap (void)
 	Surf_DeInit();
 
 	r_viewcluster = -1;
-	r_oldviewcluster = -5;
 	r_viewcluster2 = -1;
-	r_oldviewcluster2 = -4;
 #ifdef BEF_PUSHDEPTH
 	r_pushdepth = false;
 	for (s = r_polygonoffset_submodel_maps.string; s && *s; )
@@ -4095,9 +4090,7 @@ void Surf_PreNewMap(void)
 	r_loadbumpmapping |= r_shadow_realtime_world.ival || r_shadow_realtime_dlight.ival;
 #endif
 	r_viewcluster = -1;
-	r_oldviewcluster = -1;
 	r_viewcluster2 = -1;
-	r_oldviewcluster2 = -1;
 
 	Shader_DoReload();
 }

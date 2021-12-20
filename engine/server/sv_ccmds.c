@@ -2121,10 +2121,10 @@ static void SV_Status_f (void)
 		if (net_enable_rtcbroker.ival)
 			Con_Printf(" RTC");
 		if (net_enable_websockets.ival)
-			Con_Printf(" WS");
+			Con_Printf(" WebSocket");
 #endif
 		if (net_enable_qizmo.ival)
-			Con_Printf(" QZ");
+			Con_Printf(" Qizmo");
 		if (net_enable_qtv.ival)
 			Con_Printf(" QTV");
 #endif

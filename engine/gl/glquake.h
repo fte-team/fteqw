@@ -297,7 +297,7 @@ extern	vec3_t	r_origin;
 extern	refdef_t	r_refdef;
 extern	unsigned int r_viewcontents;
 extern	int r_viewarea;
-extern	int		r_viewcluster, r_viewcluster2, r_oldviewcluster, r_oldviewcluster2;	//q2
+extern	int		r_viewcluster, r_viewcluster2;
 extern	texture_t	*r_notexture_mip;
 
 extern	texid_t	netgraphtexture;	// netgraph texture

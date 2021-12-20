@@ -613,9 +613,6 @@ void Media_VideoRestarted(void);
 void MYgluPerspective(double fovx, double fovy, double zNear, double zFar);
 
 void	R_PushDlights				(void);
-qbyte *R_CalcVis_Q1 (void);
-qbyte *R_MarkLeaves_Q2 (void);
-qbyte *R_MarkLeaves_Q3 (void);
 void R_SetFrustum (float projmat[16], float viewmat[16]);
 void R_SetRenderer(rendererinfo_t *ri);
 qboolean R_RegisterRenderer(void *module, rendererinfo_t *ri);

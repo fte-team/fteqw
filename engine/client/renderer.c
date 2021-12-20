@@ -2661,7 +2661,7 @@ unsigned int	r_viewcontents;
 //mleaf_t		*r_viewleaf, *r_oldviewleaf;
 //mleaf_t		*r_viewleaf2, *r_oldviewleaf2;
 int r_viewarea;
-int		r_viewcluster, r_viewcluster2, r_oldviewcluster, r_oldviewcluster2;
+int		r_viewcluster, r_viewcluster2;
 
 
 /*

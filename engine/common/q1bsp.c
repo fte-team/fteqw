@@ -2530,8 +2530,8 @@ void Q1BSP_SetModelFuncs(model_t *mod)
 
 	{
 		struct q1bspprv_s *prv = mod->meshinfo = ZG_Malloc(&mod->memgroup, sizeof(struct q1bspprv_s));
-		prv->oldviewclusters[0] = -2;	//make sure its reset properly.
-		prv->oldviewclusters[1] = -3;
+		prv->oldviewclusters[0] = -1;	//make sure its reset properly.
+		prv->oldviewclusters[1] = -1;
 	}
 #endif
 }

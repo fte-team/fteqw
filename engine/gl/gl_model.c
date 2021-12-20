@@ -1012,11 +1012,7 @@ void Mod_ModelLoaded(void *ctx, void *data, size_t a, size_t b)
 #endif
 #ifndef SERVERONLY
 	if (mod->type == mod_brush)
-	{
 		Surf_BuildModelLightmaps(mod);
-		r_oldviewcluster = -1;	//just in case.
-		r_oldviewcluster2 = -2;
-	}
 	if (mod->type == mod_sprite)
 	{
 		Mod_LoadSpriteShaders(mod);

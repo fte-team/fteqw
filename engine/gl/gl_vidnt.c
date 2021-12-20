@@ -922,7 +922,9 @@ static qboolean Win32NVVK_AttachVulkan (rendererstate_t *info)
 	qglSignalVkSemaphoreNV	= getglfunc("glSignalVkSemaphoreNV");
 	qglSignalVkFenceNV		= getglfunc("glSignalVkFenceNV");
 
-	vkGetInstanceProcAddr = nvvkGetInstanceProcAddr;
+	vkGetInstanceProcAddr = nvvkGetInstanceProcAddr(NULL, "vkGetInstanceProcAddr");
+	if (!vkGetInstanceProcAddr)
+		vkGetInstanceProcAddr = nvvkGetInstanceProcAddr;
 //	qwglMakeCurrent(maindc, NULL);
 	return VK_Init(info, NULL, Win32NVVK_CreateSurface, Win32NVVK_Present);
 }

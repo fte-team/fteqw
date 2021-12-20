@@ -4640,7 +4640,7 @@ qboolean VK_EnumerateDevices (void *usercontext, void(*callback)(void *context, 
 
 	//third set of functions...
 #ifdef VK_NO_PROTOTYPES
-	vk_GetInstanceProcAddr = (PFN_vkGetInstanceProcAddr)vk_GetInstanceProcAddr(vk_instance, "vkGetInstanceProcAddr");
+	//vk_GetInstanceProcAddr = (PFN_vkGetInstanceProcAddr)vk_GetInstanceProcAddr(vk_instance, "vkGetInstanceProcAddr");
 	#define VKFunc(n) vk_##n = (PFN_vk##n)vk_GetInstanceProcAddr(vk_instance, "vk"#n);
 		VKFunc(DestroyInstance)
 		VKFunc(EnumeratePhysicalDevices)
@@ -4849,7 +4849,7 @@ qboolean VK_Init(rendererstate_t *info, const char **sysextnames, qboolean (*cre
 
 	//third set of functions...
 #ifdef VK_NO_PROTOTYPES
-	vkGetInstanceProcAddr = (PFN_vkGetInstanceProcAddr)vkGetInstanceProcAddr(vk.instance, "vkGetInstanceProcAddr");
+	//vkGetInstanceProcAddr = (PFN_vkGetInstanceProcAddr)vkGetInstanceProcAddr(vk.instance, "vkGetInstanceProcAddr");
 #define VKFunc(n) vk##n = (PFN_vk##n)vkGetInstanceProcAddr(vk.instance, "vk"#n);
 	VKInst2Funcs
 #undef VKFunc

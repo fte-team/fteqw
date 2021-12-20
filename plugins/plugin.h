@@ -306,7 +306,13 @@ typedef struct	//for menu-like stuff
 	F(const char*,GetKeyBind,		(int bindmap, int keynum, int modifier));
 	F(void,		SetKeyBind,			(int bindmap, int keycode, int modifier, const char *newbinding));
 
-	F(qboolean,	SetHandPosition,	(const char *devname, vec3_t org, vec3_t ang, vec3_t vel, vec3_t avel));	//for VR.
+	unsigned int (*GetKeyDest)		(void);
+	void (*KeyEvent)				(unsigned int devid, int down, int keycode, int unicode);
+	void (*MouseMove)				(unsigned int devid, int abs, float x, float y, float z, float size);
+	void (*JoystickAxisEvent)		(unsigned int devid, int axis, float value);
+	void (*Accelerometer)			(unsigned int devid, float x, float y, float z);
+	void (*Gyroscope)				(unsigned int devid, float pitch, float yaw, float roll);
+	qboolean (*SetHandPosition)		(const char *devname, vec3_t org, vec3_t ang, vec3_t vel, vec3_t avel);	//for VR.
 #define pluginputfuncs_name "Input"
 } pluginputfuncs_t;
 

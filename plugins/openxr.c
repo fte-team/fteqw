@@ -81,6 +81,7 @@ static pluginputfuncs_t *inputfuncs;
 		XRFUNC(xrAttachSessionActionSets)	\
 		XRFUNC(xrSyncActions)	\
 		XRFUNC(xrGetActionStatePose)	\
+		XRFUNC(xrApplyHapticFeedback)	\
 		XRFUNC(xrLocateSpace)	\
 		XRFUNC(xrGetActionStateBoolean)	\
 		XRFUNC(xrGetActionStateFloat)	\
@@ -140,6 +141,9 @@ static void XR_SetupInputs_Instance(void);
 #define METRES_TO_QUAKE(x) ((x)*xr_metresize->value)
 #define QUAKE_TO_METRES(x) ((x)/xr_metresize->value)
 
+#define SECONDS_TO_NANOSECONDS(x) ((x)*1000000000)
+#define NANOSECONDS_TO_SECONDS(x) ((x)/1000000000.0)
+
 static void XR_PoseToAngOrg(const XrPosef *pose, vec3_t ang, vec3_t org)
 {
 	XrQuaternionf q = pose->orientation;
@@ -163,63 +167,13 @@ static void XR_PoseToAngOrg(const XrPosef *pose, vec3_t ang, vec3_t org)
 #endif
 }
 
-#define VectorAngles VectorAnglesPluginsSuck
-static void VectorAngles(const float *forward, const float *up, float *result, qboolean meshpitch)	//up may be NULL
+enum actset_e
 {
-	float	yaw, pitch, roll;
-
-	if (forward[1] == 0 && forward[0] == 0)
-	{
-		if (forward[2] > 0)
-		{
-			pitch = -M_PI * 0.5;
-			yaw = up ? atan2(-up[1], -up[0]) : 0;
-		}
-		else
-		{
-			pitch = M_PI * 0.5;
-			yaw = up ? atan2(up[1], up[0]) : 0;
-		}
-		roll = 0;
-	}
-	else
-	{
-		yaw = atan2(forward[1], forward[0]);
-		pitch = -atan2(forward[2], sqrt (forward[0]*forward[0] + forward[1]*forward[1]));
-
-		if (up)
-		{
-			vec_t cp = cos(pitch), sp = sin(pitch);
-			vec_t cy = cos(yaw), sy = sin(yaw);
-			vec3_t tleft, tup;
-			tleft[0] = -sy;
-			tleft[1] = cy;
-			tleft[2] = 0;
-			tup[0] = sp*cy;
-			tup[1] = sp*sy;
-			tup[2] = cp;
-			roll = -atan2(DotProduct(up, tleft), DotProduct(up, tup));
-		}
-		else
-			roll = 0;
-	}
-
-	pitch *= 180 / M_PI;
-	yaw *= 180 / M_PI;
-	roll *= 180 / M_PI;
-//	if (meshpitch)
-//		pitch *= r_meshpitch.value;
-	if (pitch < 0)
-		pitch += 360;
-	if (yaw < 0)
-		yaw += 360;
-	if (roll < 0)
-		roll += 360;
-
-	result[0] = pitch;
-	result[1] = yaw;
-	result[2] = roll;
-}
+	AS_COMMON,
+	AS_MENU,
+	AS_GAME,
+	MAX_ACTIONSETS
+};
 
 static struct
 {
@@ -249,7 +203,7 @@ static struct
 		image_t *swapimages;
 	} eye[MAX_VIEW_COUNT];	//note that eye is a vauge term.
 
-	XrActiveActionSet actionset;
+	XrActiveActionSet actionset[MAX_ACTIONSETS];
 
 	qboolean timeknown;
 	XrTime time;
@@ -259,8 +213,10 @@ static struct
 	int colourformat;
 
 	unsigned int numactions;
+	unsigned int maxactions;
 	struct
 	{
+		enum actset_e set;
 		XrActionType acttype;
 		const char *actname;		//doubles up as command names for buttons
 		const char *actdescription;	//user-visible string (exposed via openxr runtime somehow)
@@ -270,7 +226,7 @@ static struct
 		XrPath		path;	//for querying.
 		XrSpace		space;	//for poses.
 		qboolean	held;	//for buttons.
-	} actions[256];
+	} *actions;
 	qboolean inputsdirty;	//mostly for printing them.
 
 #ifdef XR_EXT_hand_tracking
@@ -930,7 +886,37 @@ static qboolean XR_Init(vrsetup_t *qreqs, rendererstate_t *info)
 	return true;
 }
 
-static XrAction XR_DefineAction(XrActionType type, const char *name, const char *description, const char *root)
+static qboolean XR_HapticCommand_f(qboolean isinsecure)
+{
+	size_t u;
+	char actionname[XR_MAX_ACTION_NAME_SIZE];
+	cmdfuncs->Argv(0, actionname, sizeof(actionname));
+	for (u = 0; u < xr.numactions; u++)
+	{
+		if (!strcasecmp(xr.actions[u].actname, actionname) && xr.actions[u].acttype == XR_ACTION_TYPE_VIBRATION_OUTPUT)
+		{
+			if (xr.session)
+			{
+				XrHapticActionInfo info = {XR_TYPE_HAPTIC_ACTION_INFO};
+				XrHapticVibration haptic = {XR_TYPE_HAPTIC_VIBRATION};
+				info.action = xr.actions[u].action;
+				info.subactionPath = XR_NULL_PATH;
+
+				cmdfuncs->Argv(1, actionname, sizeof(actionname));
+				haptic.duration = *actionname?SECONDS_TO_NANOSECONDS(atof(actionname)):XR_MIN_HAPTIC_DURATION;
+				cmdfuncs->Argv(2, actionname, sizeof(actionname));
+				haptic.amplitude = *actionname?atof(actionname):0;
+				cmdfuncs->Argv(3, actionname, sizeof(actionname));
+				haptic.frequency = *actionname?atof(actionname):XR_FREQUENCY_UNSPECIFIED;
+				xrApplyHapticFeedback(xr.session, &info, (XrHapticBaseHeader*)&haptic);
+			}
+			return true;
+		}
+	}
+	return false;
+}
+
+static XrAction XR_DefineAction(enum actset_e set, XrActionType type, const char *name, const char *description, const char *root)
 {
 	XrActionCreateInfo info = {XR_TYPE_ACTION_CREATE_INFO};
 	XrResult res;
@@ -941,18 +927,31 @@ static XrAction XR_DefineAction(XrActionType type, const char *name, const char 
 	int dconflicts = 0;
 	for (u = 0; u < xr.numactions; u++)
 	{
-		if (xr.actions[u].acttype == type && !strcmp(xr.actions[u].actname, name) /*&& !strcmp(xr.actions[u].actdescription, description)*/ && !strcmp(xr.actions[u].subactionpath?xr.actions[u].subactionpath:"", root?root:""))
+		if (xr.actions[u].set != set)
+			continue;
+		if ((xr.actions[u].acttype == type || !type) && !strcmp(xr.actions[u].actname, name) /*&& !strcmp(xr.actions[u].actdescription, description)*/ && !strcmp(xr.actions[u].subactionpath?xr.actions[u].subactionpath:"", root?root:""))
 		{	//looks like a dupe...
 			return xr.actions[u].action;
 		}
 		if (!strcasecmp(xr.actions[u].actname, name))
 			nconflicts++;	//arse balls knob cock
-		if (!strcasecmp(xr.actions[u].actdescription, description))
+		if (description && !strcasecmp(xr.actions[u].actdescription, description))
 			dconflicts++;	//arse balls knob cock
 	}
-	if (xr.numactions == countof(xr.actions))
-		return XR_NULL_HANDLE;	//nope, list full. sorry.
+	if (!description)
+		return XR_NULL_HANDLE;	//none found
+	if (u == xr.maxactions)
+	{
+		size_t nm = (xr.maxactions+1)*2;
+		void *n = plugfuncs->Realloc(xr.actions, sizeof(*xr.actions) * nm);
+		if (!n)
+			return XR_NULL_HANDLE;	//erk!
+		xr.actions = n;
+		xr.maxactions = nm;
+	}
 
+	memset(&xr.actions[u], 0, sizeof(xr.actions[u]));
+	xr.actions[u].set = set;
 	xr.actions[u].acttype = type;
 	xr.actions[u].actname = strdup(name);
 	xr.actions[u].actdescription = strdup(description);
@@ -974,15 +973,28 @@ static XrAction XR_DefineAction(XrActionType type, const char *name, const char 
 		info.subactionPaths = &xr.actions[u].path;
 	}
 	info.actionType = xr.actions[u].acttype;
-	if (*xr.actions[u].actname == '+')
-		Q_strlcpy(info.actionName, xr.actions[u].actname+1, sizeof(info.actionName));
-	else
-		Q_strlcpy(info.actionName, xr.actions[u].actname, sizeof(info.actionName));
-	while ((ffs=strchr(info.actionName, ' ')))	*ffs = '_';	//convert spaces to underscores.
+	Q_strlcpy(info.actionName, xr.actions[u].actname, sizeof(info.actionName));
+	for (ffs = info.actionName; *ffs; ffs++)
+	{
+		if (*ffs >= 'A' && *ffs < 'Z')
+			*ffs += 'a'-'A';	//must be lower-case
+		else if (*ffs >= 'a' && *ffs <= 'z')
+			;	//allowed
+		else if (*ffs >= '0' && *ffs <= '9')
+			;	//allowed
+		else if (*ffs == '.' || *ffs == '-' || *ffs == '_')
+			;	//allowed
+		// '/' is not allowed as it must be a single segment.
+		else
+			*ffs = '_';	//everything else is blocked
+	}
 	Q_strlcpy(info.localizedActionName, xr.actions[u].actdescription, sizeof(info.localizedActionName));
-	res = xrCreateAction(xr.actionset.actionSet, &info, &xr.actions[u].action);
+	res = xrCreateAction(xr.actionset[set].actionSet, &info, &xr.actions[u].action);
 	if (XR_FAILED(res))
 		Con_Printf("openxr: Unable to create action %s [%s] - %s\n", info.actionName, info.localizedActionName, XR_StringForResult(res));
+
+	if (info.actionType == XR_ACTION_TYPE_VIBRATION_OUTPUT)
+		cmdfuncs->AddCommand(xr.actions[u].actname);
 
 	return xr.actions[u].action;
 }
@@ -1025,8 +1037,8 @@ static int XR_BindProfileStr(const char *fname, const char *file)
 {
 	XrAction act;
 	XrResult res;
-	XrPath path;
-	char line[1024];
+	XrPath profilepath = XR_NULL_PATH;
+	char line[1024], *linestart;
 	char name[1024];
 	char type[256];
 	char desc[1024];
@@ -1034,82 +1046,157 @@ static int XR_BindProfileStr(const char *fname, const char *file)
 	char root[1024];
 	unsigned int p;
 	char prefix[2][1024];
+	enum actset_e set;
 
-	//first line is eg: /interaction_profiles/khr/simple_controller
+	XrInteractionProfileSuggestedBinding suggestedbindings = {XR_TYPE_INTERACTION_PROFILE_SUGGESTED_BINDING};
+	unsigned int acts = 0;
+	XrActionSuggestedBinding bindings[256];
+	unsigned int totalacts = 0;
+
 	while (XR_ReadLine(&file, line, sizeof(line)))
 	{
-		cmdfuncs->TokenizeString(line);
-		if (cmdfuncs->Argc())
-			break;
-	}
-	cmdfuncs->Argv(0, name, sizeof(name));
-	for (p = 0; p < countof(prefix); p++)
-		cmdfuncs->Argv(p+1, prefix[p], sizeof(prefix[p]));
-	if (*name && XR_SUCCEEDED(xrStringToPath(xr.instance, name, &path)))
-	{	//okay, it accepted that path at least...
-		XrInteractionProfileSuggestedBinding suggestedbindings = {XR_TYPE_INTERACTION_PROFILE_SUGGESTED_BINDING};
-		unsigned int acts = 0;
-		XrActionSuggestedBinding bindings[256];
+		set = AS_COMMON;
+		linestart = line;
+		while (*linestart == ' ' || *linestart == '\t')
+			linestart++;
 
-		while (XR_ReadLine(&file, line, sizeof(line)))
+		if (!strncasecmp(linestart, "menu:", 5))
 		{
-			cmdfuncs->TokenizeString(line);
-			if (cmdfuncs->Argc())
+			set = AS_MENU;
+			linestart+=5;
+		}
+		else if (!strncasecmp(linestart, "game:", 5))
+		{
+			set = AS_GAME;
+			linestart+=5;
+		}
+		else if (!strncasecmp(linestart, "common:", 7))
+		{	//the default, but nice to be able to be explicit (especially if you want a colon in the action name).
+			set = AS_COMMON;
+			linestart+=7;
+		}
+
+		cmdfuncs->TokenizeString(linestart);
+		if (cmdfuncs->Argc())
+		{
+			cmdfuncs->Argv(0, name, sizeof(name));
+
+			if (!strcasecmp(name, "dev"))
 			{
-				cmdfuncs->Argv(0, name, sizeof(name));
+				cmdfuncs->Argv(1, root, sizeof(root));
+				continue;
+			}
+			else if (!strcasecmp(name, "profile"))
+			{
+				if (acts)
+				{
+					suggestedbindings.interactionProfile = profilepath;
+					suggestedbindings.countSuggestedBindings = acts;
+					suggestedbindings.suggestedBindings = bindings;
+					res = xrSuggestInteractionProfileBindings(xr.instance, &suggestedbindings);
+					if (XR_FAILED(res))
+						Con_Printf(CON_ERROR"%s: xrSuggestInteractionProfileBindings failed - %s\n", fname, XR_StringForResult(res));
+					totalacts += acts;
+					acts = 0;
+				}
+
+				cmdfuncs->Argv(1, name, sizeof(name));
+				for (p = 0; p < countof(prefix); p++)
+					cmdfuncs->Argv(2+p, prefix[p], sizeof(prefix[p]));
+				*root = 0;
+				if (XR_FAILED(xrStringToPath(xr.instance, name, &profilepath)))
+					profilepath = XR_NULL_PATH;
+				continue;
+			}
+			else if (!strcasecmp(name, "action"))
+			{
+				cmdfuncs->Argv(1, name, sizeof(name));
+				cmdfuncs->Argv(2, desc, sizeof(desc));
+				cmdfuncs->Argv(3, type, sizeof(type));
+				cmdfuncs->Argv(4, bind, sizeof(bind));
+			}
+			else if (cmdfuncs->Argc() == 2)
+			{
+				*desc = 0;
+				*type = 0;
+				cmdfuncs->Argv(1, bind, sizeof(desc));
+			}
+			else
+			{
+				if (cmdfuncs->Argc() < 4)
+				{
+					Con_Printf("Unknown action command \"%s\"\n", name);
+					continue;
+				}
 				cmdfuncs->Argv(1, desc, sizeof(desc));
 				cmdfuncs->Argv(2, type, sizeof(type));
 				cmdfuncs->Argv(3, bind, sizeof(bind));
-				cmdfuncs->Argv(4, root, sizeof(root));
+				if (cmdfuncs->Argc() >= 5)
+					Con_Printf("%s: %s: Extra tokens found\n", fname, name);
+			}
 
-				if (*type)
+			if (*type)
+			{
+				XrActionType xrtype;
+				if (!strcasecmp(type, "button"))
+					xrtype = XR_ACTION_TYPE_BOOLEAN_INPUT;
+				else if (!strcasecmp(type, "float"))
+					xrtype = XR_ACTION_TYPE_FLOAT_INPUT;
+				else if (!strcasecmp(type, "vector2f"))
+					xrtype = XR_ACTION_TYPE_VECTOR2F_INPUT;
+				else if (!strcasecmp(type, "pose"))
+					xrtype = XR_ACTION_TYPE_POSE_INPUT;
+				else if (!strcasecmp(type, "vibration") || !strcasecmp(type, "haptic"))
+					xrtype = XR_ACTION_TYPE_VIBRATION_OUTPUT;
+				else
+					continue;
+
+				//define our action...
+				act = XR_DefineAction(set, xrtype, name, desc, root);
+			}
+			else
+			{
+				act = XR_DefineAction(set, (XrActionType)0, name, NULL, root);
+				if(act==XR_NULL_HANDLE)
+					Con_Printf("Action %s not defined yet\n", name);
+			}
+
+			//and add it to the profile we're building.
+			if (act != XR_NULL_HANDLE && *bind && profilepath!=XR_NULL_PATH)
+			{
+				if (*bind == '/')
 				{
-					XrActionType xrtype;
-					if (!strcasecmp(type, "button"))
-						xrtype = XR_ACTION_TYPE_BOOLEAN_INPUT;
-					else if (!strcasecmp(type, "float"))
-						xrtype = XR_ACTION_TYPE_FLOAT_INPUT;
-					else if (!strcasecmp(type, "vector2f"))
-						xrtype = XR_ACTION_TYPE_VECTOR2F_INPUT;
-					else if (!strcasecmp(type, "pose"))
-						xrtype = XR_ACTION_TYPE_POSE_INPUT;
-					else if (!strcasecmp(type, "vibration"))
-						xrtype = XR_ACTION_TYPE_VIBRATION_OUTPUT;
-					else
-						continue;
-
-					act = XR_DefineAction(xrtype, name, desc, root);
-					if (act != XR_NULL_HANDLE && *bind)
-					{
-						if (*bind == '/')
-						{
-							res = xrStringToPath(xr.instance, bind, &bindings[acts].binding);
-							if (XR_SUCCEEDED(res))
-								bindings[acts++].action = act;
-						}
-						else for (p = 0; p < countof(prefix) && *prefix[p]=='/'; p++)
-						{
-							res = xrStringToPath(xr.instance, va("%s%s", prefix[p], bind), &bindings[acts].binding);
-							if (XR_SUCCEEDED(res))
-								bindings[acts++].action = act;
-						}
-					}
+					res = xrStringToPath(xr.instance, bind, &bindings[acts].binding);
+					if (XR_SUCCEEDED(res) && acts < countof(bindings))
+						bindings[acts++].action = act;
+				}
+				else if (*root == '/')
+				{
+					res = xrStringToPath(xr.instance, va("%s/%s", root, bind), &bindings[acts].binding);
+					if (XR_SUCCEEDED(res) && acts < countof(bindings))
+						bindings[acts++].action = act;
+				}
+				else for (p = 0; p < countof(prefix) && *prefix[p]=='/'; p++)
+				{
+					res = xrStringToPath(xr.instance, va("%s%s", prefix[p], bind), &bindings[acts].binding);
+					if (XR_SUCCEEDED(res) && acts < countof(bindings))
+						bindings[acts++].action = act;
 				}
 			}
 		}
-
-		if (acts)
-		{
-			suggestedbindings.interactionProfile = path;
-			suggestedbindings.countSuggestedBindings = acts;
-			suggestedbindings.suggestedBindings = bindings;
-			res = xrSuggestInteractionProfileBindings(xr.instance, &suggestedbindings);
-			if (XR_FAILED(res))
-				Con_Printf("%s: xrSuggestInteractionProfileBindings failed - %s\n", fname, XR_StringForResult(res));
-			return acts;
-		}
 	}
-	return 0;
+
+	if (acts)
+	{
+		suggestedbindings.interactionProfile = profilepath;
+		suggestedbindings.countSuggestedBindings = acts;
+		suggestedbindings.suggestedBindings = bindings;
+		res = xrSuggestInteractionProfileBindings(xr.instance, &suggestedbindings);
+		if (XR_FAILED(res))
+			Con_Printf(CON_ERROR"%s: xrSuggestInteractionProfileBindings failed - %s\n", fname, XR_StringForResult(res));
+		totalacts += acts;
+	}
+	return totalacts;
 }
 
 static int QDECL XR_BindProfileFile(const char *fname, qofs_t fsize, time_t mtime, void *ctx, struct searchpathfuncs_s *package)
@@ -1135,19 +1222,24 @@ static const struct
 } xr_knownprofiles[] =
 {
 	//FIXME: set up some proper bindings!
-	{"khr_simple",		"/interaction_profiles/khr/simple_controller    /user/hand/left/ /user/hand/right/\n"
-			"+attack_left	\"Left Attack\"			button		input/select/click	/user/hand/left\n"
-			"+attack_right	\"Right Attack\"		button		input/select/click	/user/hand/right\n"
-			"+menu_left		\"Left Menu\"			button		input/menu/click	/user/hand/left\n"
-			"+menu_right	\"Right Menu\"			button		input/menu/click	/user/hand/right\n"
-			"left_aim		\"Left Aim Pose\"		pose		input/grip/pose		/user/hand/left\n"
-			"right_aim		\"Right Aim Pose\"		pose		input/grip/pose		/user/hand/right\n"
-//			"grip_pose		\"Grip Pose\"			pose		input/grip/pose\n"
-//			"aim_pose		\"Aim Pose\"			pose		input/aim/pose\n"
-			"vibrate		\"A Vibrator\"			vibration	output/haptic\n"
+	{"khr_simple",		"profile /interaction_profiles/khr/simple_controller    /user/hand/left/ /user/hand/right/\n"
+			"dev /user/hand/left\n"
+				"+attack_left			\"Left Attack\"		button	input/select/click\n"
+				"+menu_left				\"Left Menu\"		button	input/menu/click\n"
+				"#POSE_LEFT				\"Left Aim Pose\"	pose	input/aim/pose\n"
+				//"left_grip			\"Left Grip Pose\"	pose	input/grip/pose\n"
+				"haptic_left			\"Left Haptic\"		haptic	output/haptic\n"
+			"dev /user/hand/right\n"
+				"menu: #GP_START		\"Menu Enter\"		button	input/select/click\n"
+				"menu: #GP_BACK			\"Menu Escape\"		button	input/menu/click\n"
+				"game: +attack_right	\"Right Attack\"	button	input/select/click\n"
+				"game: +menu_right		\"Right Menu\"		button	input/menu/click\n"
+				"#POSE_RIGHT			\"Right Aim Pose\"	pose	input/aim/pose\n"
+				//"right_grip			\"Right Grip Pose\"	pose	input/grip/pose\n"
+				"haptic_right			\"Right Haptic\"	haptic	output/haptic\n"
 	},
 
-/*	{"valve_index",		"/interaction_profiles/valve/index_controller    /user/hand/left/ /user/hand/right/\n"
+/*	{"valve_index",		"profile /interaction_profiles/valve/index_controller    /user/hand/left/ /user/hand/right/\n"
 			//"unbound		\"Unused Button\"		button		input/system/click\n"
 			//"unbound		\"Unused Button\"		button		input/system/touch\n"
 			//"unbound		\"Unused Button\"		button		input/a/click\n"
@@ -1167,10 +1259,10 @@ static const struct
 			//"unbound		\"Unused Button\"		button		input/trackpad/touch\n"
 			//"unbound		\"Unused Button\"		pose		input/grip/pose\n"
 			//"unbound		\"Unused Button\"		pose		input/aim/pose\n"
-			//"unbound		\"Unused Button\"		vibration	output/haptic\n"
+			//"unbound		\"Unused Button\"		haptic		output/haptic\n"
 	},
 */
-/*	{"htc_vive",		"/interaction_profiles/htc/vive_controller    /user/hand/left/ /user/hand/right/\n"
+/*	{"htc_vive",		"profile /interaction_profiles/htc/vive_controller    /user/hand/left/ /user/hand/right/\n"
 			//"unbound		\"Unused Button\"		button		input/system/click\n"
 			//"unbound		\"Unused Button\"		button		input/squeeze/click\n"
 			//"unbound		\"Unused Button\"		button		input/menu/click\n"
@@ -1181,10 +1273,10 @@ static const struct
 			//"unbound		\"Unused Button\"		button		input/trackpad/touch\n"
 			//"unbound		\"Unused Button\"		pose		input/grip/pose\n"
 			//"unbound		\"Unused Button\"		pose		input/aim/pose\n"
-			//"unbound		\"Unused Button\"		vibration	output/haptic\n"
+			//"unbound		\"Unused Button\"		haptic		output/haptic\n"
 			);
 */
-/*	{"htc_vive_pro",	"/interaction_profiles/htc/vive_pro    /user/head/\n"
+/*	{"htc_vive_pro",	"profile /interaction_profiles/htc/vive_pro    /user/head/\n"
 			//"unbound		\"Unused Button\"		button		input/system/click\n"
 			//"unbound		\"Unused Button\"		button		input/volume_up/click\n"
 			//"unbound		\"Unused Button\"		button		input/volume_down/click\n"
@@ -1192,32 +1284,32 @@ static const struct
 			);
 */
 
-		//FIXME: map to quake's keys.
-	{"gamepad", "/interaction_profiles/microsoft/xbox_controller    /user/gamepad/\n"
-			"togglemenu		Menu					button		input/menu/click\n"
-			//"unbound		\"Unused Button\"		button		input/view/click\n"
-			//"unbound		\"Unused Button\"		button		input/a/click\n"
-			//"unbound		\"Unused Button\"		button		input/b/click\n"
-			//"unbound		\"Unused Button\"		button		input/x/click\n"
-			//"unbound		\"Unused Button\"		button		input/y/click\n"
-			"+back			\"Move Backwards\"		button		input/dpad_down/click\n"
-			"+moveright		\"Move Right\"			button		input/dpad_right/click\n"
-			"+forward		\"Move Forward\"		button		input/dpad_up/click\n"
-			"+moveleft		\"Move Left\"			button		input/dpad_left/click\n"
-			"+jump			\"Jump\"				button		input/shoulder_left/click\n"
-			"+attack		\"Attack\"				button		input/shoulder_right/click\n"
-			//"unbound		\"Unused Button\"		button		input/thumbstick_left/click\n"
-			//"unbound		\"Unused Button\"		button		input/thumbstick_right/click\n"
-			//"unbound		\"Unused Axis\"			float		input/trigger_left/click\n"
-			//"unbound		\"Unused Axis\"			float		input/trigger_right/click\n"
-			//"unbound		\"Unused Axis\"			float		input/thumbstick_left/x\n"
-			//"unbound		\"Unused Axis\"			float		input/thumbstick_left/y\n"
-			//"unbound		\"Unused Axis\"			float		input/thumbstick_right/x\n"
-			//"unbound		\"Unused Axis\"			float		input/thumbstick_right/y\n"
-			//"unbound		\"Unused Vibrator\"		vibration	output/haptic_left\n"
-			//"unbound		\"Unused Vibrator\"		vibration	output/haptic_left_trigger\n"
-			//"unbound		\"Unused Vibrator\"		vibration	output/haptic_right\n"
-			//"unbound		\"Unused Vibrator\"		vibration	output/haptic_right_trigger\n"
+	//just map everything to quake's various buttons so that mods with proper gamepad mapping will work here too.
+	{"gamepad", "profile /interaction_profiles/microsoft/xbox_controller    /user/gamepad/\n"
+			"#GP_START				\"Start\"				button		input/menu/click\n"
+			"#GP_BACK				\"Back\"				button		input/view/click\n"
+			"#GP_A					\"A Button\"			button		input/a/click\n"
+			"#GP_B					\"B Button\"			button		input/b/click\n"
+			"#GP_X					\"X Button\"			button		input/x/click\n"
+			"#GP_Y					\"Y Button\"			button		input/y/click\n"
+			"#GP_DPAD_DOWN			\"Move Backwards\"		button		input/dpad_down/click\n"
+			"#GP_DPAD_RIGHT			\"Move Right\"			button		input/dpad_right/click\n"
+			"#GP_DPAD_UP			\"Move Forward\"		button		input/dpad_up/click\n"
+			"#GP_DPAD_LEFT			\"Move Left\"			button		input/dpad_left/click\n"
+			"#GP_LSHOULDER			\"Jump\"				button		input/shoulder_left/click\n"
+			"#GP_RSHOULDER			\"Attack\"				button		input/shoulder_right/click\n"
+			"#GP_LTHUMB				\"Left Thumb\"			button		input/thumbstick_left/click\n"
+			"#GP_RTHUMB				\"Right Thumb\"			button		input/thumbstick_right/click\n"
+			"#GP_AXIS_LTRIGGER		\"Left Trigger\"		float		input/trigger_left/value\n"
+			"#GP_AXIS_RTRIGGER		\"Right Trigger\"		float		input/trigger_right/value\n"
+			"#GP_AXIS_LEFT_X		\"Left Thumbstick X\"	float		input/thumbstick_left/x\n"
+			"#GP_AXIS_LEFT_Y		\"Left Thumbstick y\"	float		input/thumbstick_left/y\n"
+			"#GP_AXIS_RIGHT_X		\"Right Thumbstick X\"	float		input/thumbstick_right/x\n"
+			"#GP_AXIS_RIGHT_X		\"Right Thumbstick Y\"	float		input/thumbstick_right/y\n"
+			"haptic_gp_left			\"Left Haptic (Main)\"		haptic	output/haptic_left\n"
+			"haptic_gp_left_trigger	\"Left-Trigger Haptic\"		haptic	output/haptic_left_trigger\n"
+			"haptic_gp_right		\"Right Haptic (Main)\"		haptic	output/haptic_right\n"
+			"haptic_gp_right_trigger \"Right-Trigger Haptic\"	haptic	output/haptic_right_trigger\n"
 	},
 };
 
@@ -1225,16 +1317,19 @@ static void XR_SetupInputs_Instance(void)
 {
 	unsigned int h;
 	XrResult res;
+	int set;
+	char *actionsetNames[] = {"genericactions", "menuactions", "gameactions"};
+	char *actionsetNamesText[] = {"Generic Actions", "Menu Actions", "Game Actions"};
 
-//begin instance-level init
+	for (set = 0; set < MAX_ACTIONSETS; set++)
 	{
 		XrActionSetCreateInfo info = {XR_TYPE_ACTION_SET_CREATE_INFO};
-		Q_strlcpy(info.actionSetName, "actions", sizeof(info.actionSetName));
-		Q_strlcpy(info.localizedActionSetName, FULLENGINENAME" Actions", sizeof(info.localizedActionSetName));
+		Q_strlcpy(info.actionSetName, actionsetNames[set], sizeof(info.actionSetName));
+		Q_strlcpy(info.localizedActionSetName, actionsetNamesText[set], sizeof(info.localizedActionSetName));
 		info.priority = 0;
 
-		xr.actionset.subactionPath = XR_NULL_PATH;
-		res = xrCreateActionSet(xr.instance, &info, &xr.actionset.actionSet);
+		xr.actionset[set].subactionPath = XR_NULL_PATH;
+		res = xrCreateActionSet(xr.instance, &info, &xr.actionset[set].actionSet);
 		if (XR_FAILED(res))
 			Con_Printf("openxr: Unable to create actionset - %s\n", XR_StringForResult(res));
 	}
@@ -1279,8 +1374,12 @@ static void XR_SetupInputs_Session(void)
 	//and attach it.
 	{
 		XrSessionActionSetsAttachInfo info = {XR_TYPE_SESSION_ACTION_SETS_ATTACH_INFO};
-		info.countActionSets = 1;
-		info.actionSets = &xr.actionset.actionSet;
+		XrActionSet sets[MAX_ACTIONSETS];
+		unsigned int set;
+		for (set = 0; set < MAX_ACTIONSETS; set++)
+			if (xr.actionset[set].actionSet)
+				sets[info.countActionSets++] = xr.actionset[set].actionSet;
+		info.actionSets = sets;
 		res = xrAttachSessionActionSets(xr.session, &info);
 		if (XR_FAILED(res))
 			Con_Printf("openxr: xrAttachSessionActionSets failed - %s\n", XR_StringForResult(res));
@@ -1305,76 +1404,83 @@ static void XR_SetupInputs_Session(void)
 static void XR_PrintInputs(void)
 {
 	XrResult res;
-	if (xr_debug->ival)
+	XrInteractionProfileState profile = {XR_TYPE_INTERACTION_PROFILE_STATE};
+	XrPath path;
+	unsigned int u;
+	static const char *paths[] = {"/user/hand/left", "/user/hand/right", "/user/head", "/user/gamepad"};
+	Con_Printf("OpenXR Interaction Profiles:\n");
+	for (u = 0; u < countof(paths); u++)
 	{
-		XrInteractionProfileState profile = {XR_TYPE_INTERACTION_PROFILE_STATE};
-		XrPath path;
-		unsigned int u;
-		static const char *paths[] = {"/user/hand/left", "/user/hand/right", "/user/head", "/user/gamepad", "/user/treadmill", "/user/"};
-		Con_Printf("OpenXR Interaction Profiles:\n");
-		for (u = 0; u < countof(paths); u++)
+		xrStringToPath(xr.instance, paths[u], &path);
+		res = xrGetCurrentInteractionProfile(xr.session, path, &profile);
+		if (XR_SUCCEEDED(res))
 		{
-			xrStringToPath(xr.instance, paths[u], &path);
-			res = xrGetCurrentInteractionProfile(xr.session, path, &profile);
-			if (XR_SUCCEEDED(res))
-			{
-				char buf[256];
-				uint32_t len = sizeof(buf);
-				if (!profile.interactionProfile)
-					Con_Printf("\t%s: "S_COLOR_GRAY"no profile/device\n", paths[u]);
-				else
-				{
-					res = xrPathToString(xr.instance, profile.interactionProfile, sizeof(buf), &len, buf);
-					Con_Printf("\t%s: "S_COLOR_GREEN"%s\n", paths[u], buf);
-				}
-			}
-		}
-
-
-		Con_Printf("Bound actions:\n");
-		for (u = 0; u < xr.numactions; u++)
-		{
-			XrBoundSourcesForActionEnumerateInfo info = {XR_TYPE_BOUND_SOURCES_FOR_ACTION_ENUMERATE_INFO};
-			uint32_t inputs, i, bufsize;
-			XrPath input[20];
-			info.action = xr.actions[u].action;
-			res = xrEnumerateBoundSourcesForAction(xr.session, &info, countof(input), &inputs, input);
-			if (XR_SUCCEEDED(res))
-			{
-				Con_Printf("\t%s:\n", xr.actions[u].actname);
-				if (!inputs)
-					Con_Printf(S_COLOR_GRAY"\t(unbound)\n");
-				else for (i = 0; i < inputs; i++)
-				{
-					char buffer[8192];
-					XrInputSourceLocalizedNameGetInfo info = {XR_TYPE_INPUT_SOURCE_LOCALIZED_NAME_GET_INFO};
-					info.sourcePath = input[i];
-					info.whichComponents =	XR_INPUT_SOURCE_LOCALIZED_NAME_USER_PATH_BIT|	//'left hand'
-											XR_INPUT_SOURCE_LOCALIZED_NAME_INTERACTION_PROFILE_BIT|	//'foo controller'
-											XR_INPUT_SOURCE_LOCALIZED_NAME_COMPONENT_BIT;	//'trigger'
-					res = xrGetInputSourceLocalizedName(xr.session, &info, sizeof(buffer), &bufsize, buffer);
-					if (XR_FAILED(res))
-						Q_snprintf(buffer, sizeof(buffer), "error %i", res);
-					Con_Printf(S_COLOR_GREEN"\t\t%s\n", buffer);
-				}
-			}
-			else if (res == XR_ERROR_HANDLE_INVALID)	//monado reports this for unimplemented things.
-				Con_Printf("\t%s: error XR_ERROR_HANDLE_INVALID (not implemented?)\n", xr.actions[u].actname);
+			char buf[256];
+			uint32_t len = sizeof(buf);
+			if (!profile.interactionProfile)
+				Con_Printf("\t%s: "S_COLOR_GRAY"no profile/device\n", paths[u]);
 			else
-				Con_Printf("\t%s: error %s\n", xr.actions[u].actname, XR_StringForResult(res));
+			{
+				res = xrPathToString(xr.instance, profile.interactionProfile, sizeof(buf), &len, buf);
+				Con_Printf("\t%s: "S_COLOR_GREEN"%s\n", paths[u], buf);
+			}
 		}
+	}
+
+
+	Con_Printf("Bound actions:\n");
+	for (u = 0; u < xr.numactions; u++)
+	{
+		XrBoundSourcesForActionEnumerateInfo info = {XR_TYPE_BOUND_SOURCES_FOR_ACTION_ENUMERATE_INFO};
+		uint32_t inputs, i, bufsize;
+		XrPath input[20];
+		info.action = xr.actions[u].action;
+		res = xrEnumerateBoundSourcesForAction(xr.session, &info, countof(input), &inputs, input);
+		if (XR_SUCCEEDED(res))
+		{
+			Con_Printf("\t%s "S_COLOR_GRAY"(%s)"S_COLOR_WHITE":\n", xr.actions[u].actname, xr.actions[u].actdescription);
+			if (!inputs)
+				Con_Printf(S_COLOR_GRAY"\t\t(unbound)\n");
+			else for (i = 0; i < inputs; i++)
+			{
+				char buffer[8192];
+				XrInputSourceLocalizedNameGetInfo info = {XR_TYPE_INPUT_SOURCE_LOCALIZED_NAME_GET_INFO};
+				info.sourcePath = input[i];
+				info.whichComponents =	XR_INPUT_SOURCE_LOCALIZED_NAME_USER_PATH_BIT|	//'left hand'
+										XR_INPUT_SOURCE_LOCALIZED_NAME_INTERACTION_PROFILE_BIT|	//'foo controller'
+										XR_INPUT_SOURCE_LOCALIZED_NAME_COMPONENT_BIT;	//'trigger'
+				res = xrGetInputSourceLocalizedName(xr.session, &info, sizeof(buffer), &bufsize, buffer);
+				if (XR_FAILED(res))
+					Q_snprintf(buffer, sizeof(buffer), S_COLOR_RED"error %i", res);
+				else
+					Con_Printf(S_COLOR_GREEN"\t\t%s\n", buffer);
+			}
+		}
+		else if (res == XR_ERROR_HANDLE_INVALID)	//monado reports this for unimplemented things.
+			Con_Printf(S_COLOR_RED"\t%s: error XR_ERROR_HANDLE_INVALID (not implemented?)\n", xr.actions[u].actname);
+		else
+			Con_Printf(S_COLOR_RED"\t%s: error %s\n", xr.actions[u].actname, XR_StringForResult(res));
 	}
 }
 
 static void XR_UpdateInputs(XrTime time)
 {
 	XrResult res;
-	unsigned int h;
+	size_t h;
+	qboolean activesets[MAX_ACTIONSETS] = {true};
+
+	if (inputfuncs->GetKeyDest() & ~kdm_game)
+		activesets[AS_MENU] = true;	//used while looking at the menuqc/emenus/console/etc.
+	else
+		activesets[AS_GAME] = true;	//used while the game has focus.
 
 	{
 		XrActionsSyncInfo syncinfo = {XR_TYPE_ACTIONS_SYNC_INFO};
-		syncinfo.countActiveActionSets = 1;
-		syncinfo.activeActionSets = &xr.actionset;
+		XrActiveActionSet sets[MAX_ACTIONSETS];
+		for (h = 0; h < MAX_ACTIONSETS; h++)
+			if (activesets[h])
+				sets[syncinfo.countActiveActionSets++] = xr.actionset[h];
+		syncinfo.activeActionSets = sets;
 		res = xrSyncActions(xr.session, &syncinfo);
 		if (res == XR_SESSION_NOT_FOCUSED)
 			;	//handle it anyway, giving us a chance to disable various inputs.
@@ -1386,7 +1492,7 @@ static void XR_UpdateInputs(XrTime time)
 	{
 		if (xr.actions[h].action == XR_NULL_HANDLE)	//failed to init
 			continue;
-		switch(xr.actions[h].acttype)
+		safeswitch(xr.actions[h].acttype)
 		{
 		case XR_ACTION_TYPE_POSE_INPUT:
 			{
@@ -1395,32 +1501,53 @@ static void XR_UpdateInputs(XrTime time)
 				info.action = xr.actions[h].action;
 				info.subactionPath = xr.actions[h].path;
 
-				res = xrGetActionStatePose(xr.session, &info, &pose);
-				if (pose.isActive)
+				if (XR_FAILED(xrGetActionStatePose(xr.session, &info, &pose)))
+					break;
+				if (pose.isActive && activesets[xr.actions[h].set])
 				{	//its mapped to something, woo.
 					XrSpaceVelocity vel = {XR_TYPE_SPACE_VELOCITY};
 					XrSpaceLocation loc = {XR_TYPE_SPACE_LOCATION, &vel};
-					vec3_t transform[4], angles, lvel, avel;
+					vec3_t angles, org, lvel, avel;
 					res = xrLocateSpace(xr.actions[h].space, xr.space, time, &loc);
-//					XR_PoseToTransform(&loc.pose, transform);
-					XR_PoseToAngOrg(&loc.pose, angles, transform[3]);
+					XR_PoseToAngOrg(&loc.pose, angles, org);
 
-//					VectorAngles(transform[0], transform[2], angles, false);
 					VectorSet(lvel, vel.linearVelocity.x, vel.linearVelocity.y, vel.linearVelocity.z);
 					VectorSet(avel, vel.angularVelocity.x, vel.angularVelocity.y, vel.angularVelocity.z);
-					if (!inputfuncs->SetHandPosition(xr.actions[h].actname,
-							(loc.locationFlags&XR_SPACE_LOCATION_POSITION_VALID_BIT)?transform[3]:NULL,
-							(loc.locationFlags&XR_SPACE_LOCATION_ORIENTATION_VALID_BIT)?angles:NULL,
-							(vel.velocityFlags&XR_SPACE_VELOCITY_LINEAR_VALID_BIT)?lvel:NULL,
-							(vel.velocityFlags&XR_SPACE_VELOCITY_ANGULAR_VALID_BIT)?avel:NULL))
+					if (!strncasecmp(xr.actions[h].actname, "#POSE_", 6))
+					{
+						if (inputfuncs->SetHandPosition(xr.actions[h].actname+6,
+								(loc.locationFlags&XR_SPACE_LOCATION_POSITION_VALID_BIT)?org:NULL,
+								(loc.locationFlags&XR_SPACE_LOCATION_ORIENTATION_VALID_BIT)?angles:NULL,
+								(vel.velocityFlags&XR_SPACE_VELOCITY_LINEAR_VALID_BIT)?lvel:NULL,
+								(vel.velocityFlags&XR_SPACE_VELOCITY_ANGULAR_VALID_BIT)?avel:NULL))
+							;
+						else
+							Con_Printf("Pose \"%s\" for action \"%s\" is not a known pose name\n", xr.actions[h].actname+1, xr.actions[h].actdescription);
+					}
+					else
 					{	//custom poses that mods might want to handle themselves...
-						vec3_t angles;
 						char cmd[256];
-						VectorAngles(transform[0], transform[2], angles, false);
-
-						Q_snprintf(cmd, sizeof(cmd), "%s %g %g %g %g %g %g %g %g %g %g %g %g\n", xr.actions[h].actname,
-											 angles[0], angles[1], angles[2], transform[3][0], transform[3][1], transform[3][2],
+						unsigned int status = 0;
+						status |= (loc.locationFlags&XR_SPACE_LOCATION_POSITION_VALID_BIT)?VRSTATUS_ORG:0;
+						status |= (loc.locationFlags&XR_SPACE_LOCATION_ORIENTATION_VALID_BIT)?VRSTATUS_ANG:0;
+						status |= (vel.velocityFlags&XR_SPACE_VELOCITY_LINEAR_VALID_BIT)?VRSTATUS_VEL:0;
+						status |= (vel.velocityFlags&XR_SPACE_VELOCITY_ANGULAR_VALID_BIT)?VRSTATUS_AVEL:0;
+						if (status & (VRSTATUS_VEL|VRSTATUS_AVEL))
+						{
+							Q_snprintf(cmd, sizeof(cmd), "%s %u %g %g %g %g %g %g %g %g %g %g %g %g\n", xr.actions[h].actname, status,
+											 angles[0], angles[1], angles[2], org[0], org[1], org[2],
 											 vel.angularVelocity.x, vel.angularVelocity.y, vel.angularVelocity.z, vel.linearVelocity.x, vel.linearVelocity.y, vel.linearVelocity.z);
+						}
+						else if (status & VRSTATUS_ORG)
+						{
+							Q_snprintf(cmd, sizeof(cmd), "%s %u %g %g %g %g %g %g\n", xr.actions[h].actname, status,
+											 angles[0], angles[1], angles[2], org[0], org[1], org[2]);
+						}
+						else
+						{
+							Q_snprintf(cmd, sizeof(cmd), "%s %u %g %g %g\n", xr.actions[h].actname, status,
+											 angles[0], angles[1], angles[2]);
+						}
 						cmdfuncs->AddText(cmd, false);
 					}
 				}
@@ -1432,12 +1559,23 @@ static void XR_UpdateInputs(XrTime time)
 				XrActionStateGetInfo info = {XR_TYPE_ACTION_STATE_GET_INFO};
 				info.action = xr.actions[h].action;
 				info.subactionPath = xr.actions[h].path;
-				xrGetActionStateBoolean(xr.session, &info, &state);
+				if (XR_FAILED(xrGetActionStateBoolean(xr.session, &info, &state)))
+					break;
 				if (!state.isActive) state.currentState = XR_FALSE;
 				if ((!!state.currentState) != xr.actions[h].held)
 				{
 					xr.actions[h].held = !!state.currentState;
-					if (xr.actions[h].held || *xr.actions[h].actname == '+')
+					if (xr.actions[h].held && !activesets[xr.actions[h].set])
+						break;	//don't fire the down event when this action's set isn't meant to be active...
+					if (*xr.actions[h].actname == '#')
+					{
+						int k = inputfuncs->GetKeyCode(xr.actions[h].actname+1, NULL);
+						if (k >= 0)
+							inputfuncs->KeyEvent(0, xr.actions[h].held, k, 0);
+						else
+							Con_Printf("Key \"%s\" for action \"%s\" is not a known key code\n", xr.actions[h].actname+1, xr.actions[h].actdescription);
+					}
+					else if (xr.actions[h].held || *xr.actions[h].actname == '+')
 					{
 						char cmd[256];
 						Q_strlcpy(cmd, xr.actions[h].actname, sizeof(cmd));
@@ -1455,13 +1593,36 @@ static void XR_UpdateInputs(XrTime time)
 				XrActionStateGetInfo info = {XR_TYPE_ACTION_STATE_GET_INFO};
 				info.action = xr.actions[h].action;
 				info.subactionPath = xr.actions[h].path;
-				xrGetActionStateFloat(xr.session, &info, &state);
+				if (XR_FAILED(xrGetActionStateFloat(xr.session, &info, &state)))
+					break;
 
-				if (!state.isActive) state.currentState = 0.0f;
+				if (state.isActive && activesets[xr.actions[h].set])
 				{
 					char cmd[256];
-					Q_snprintf(cmd, sizeof(cmd), "%s %g\n", xr.actions[h].actname, state.currentState);
-					cmdfuncs->AddText(cmd, false);
+					if (!strncasecmp(xr.actions[h].actname, "#GP_AXIS_", 9))
+					{
+						int axis = -1;
+						if (!strcasecmp(xr.actions[h].actname+9, "LTRIGGER"))
+							axis = GPAXIS_LT_TRIGGER;
+						else if (!strcasecmp(xr.actions[h].actname+9, "RTRIGGER"))
+							axis = GPAXIS_RT_TRIGGER;
+						else if (!strcasecmp(xr.actions[h].actname+9, "LEFT_X"))
+							axis = GPAXIS_LT_RIGHT;
+						else if (!strcasecmp(xr.actions[h].actname+9, "LEFT_Y"))
+							axis = GPAXIS_LT_DOWN;
+						else if (!strcasecmp(xr.actions[h].actname+9, "RIGHT_X"))
+							axis = GPAXIS_RT_RIGHT;
+						else if (!strcasecmp(xr.actions[h].actname+9, "RIGHT_Y"))
+							axis = GPAXIS_RT_DOWN;
+						else
+							Con_Printf("Unknown gamepad axis: \"%s\"\n", xr.actions[h].actname+1);
+						inputfuncs->JoystickAxisEvent(0, axis, state.currentState);
+					}
+					else
+					{
+						Q_snprintf(cmd, sizeof(cmd), "%s %g\n", xr.actions[h].actname, state.currentState);
+						cmdfuncs->AddText(cmd, false);
+					}
 				}
 			}
 			break;
@@ -1471,9 +1632,10 @@ static void XR_UpdateInputs(XrTime time)
 				XrActionStateGetInfo info = {XR_TYPE_ACTION_STATE_GET_INFO};
 				info.action = xr.actions[h].action;
 				info.subactionPath = xr.actions[h].path;
-				xrGetActionStateVector2f(xr.session, &info, &state);
+				if (XR_FAILED(xrGetActionStateVector2f(xr.session, &info, &state)))
+					break;
 
-				if (!state.isActive) state.currentState.x = state.currentState.y = 0.0f;
+				if (state.isActive && activesets[xr.actions[h].set])
 				{
 					char cmd[256];
 					Q_snprintf(cmd, sizeof(cmd), "%s %g %g\n", xr.actions[h].actname, state.currentState.x, state.currentState.y);
@@ -1481,8 +1643,9 @@ static void XR_UpdateInputs(XrTime time)
 				}
 			}
 			break;
-		case XR_ACTION_TYPE_VIBRATION_OUTPUT:
-		default:
+		case XR_ACTION_TYPE_VIBRATION_OUTPUT:	//output only, nothing to read.
+		case XR_ACTION_TYPE_MAX_ENUM: //not a real value
+		safedefault:
 			break;
 		}
 	}
@@ -1497,6 +1660,7 @@ static qboolean XR_Begin(void)
 
 	xr.beginning = false;
 	xr.ending = false;
+	xr.inputsdirty = true;
 
 	{
 		XrSessionCreateInfo sessioninfo = {XR_TYPE_SESSION_CREATE_INFO};
@@ -1855,7 +2019,7 @@ static qboolean XR_SyncFrame(double *frametime)
 		{
 			if (time < xr.time)	//make sure time doesn't go backward...
 				time = xr.time;
-			*frametime = (time-xr.time)/1000000000.0;
+			*frametime = NANOSECONDS_TO_SECONDS(time-xr.time);
 		}
 		xr.time = time;
 		xr.timeknown = true;
@@ -1884,10 +2048,11 @@ static qboolean XR_Render(void(*rendereye)(texid_t tex, vec4_t fovoverride, vec3
 	if (!xr.session || !xr.beginning)
 		return false;
 
-	if (xr.inputsdirty)
+	if (xr.inputsdirty && xr.state==XR_SESSION_STATE_FOCUSED)
 	{
 		xr.inputsdirty = false;
-		XR_PrintInputs();
+		if (xr_debug->ival)
+			XR_PrintInputs();
 	}
 #ifdef XR_EXT_hand_tracking
 	for (u = 0; u < 2; u++)
@@ -2038,7 +2203,7 @@ static qboolean XR_Render(void(*rendereye)(texid_t tex, vec4_t fovoverride, vec3
 			fovoverride[2] = eyeview[u].fov.angleDown * (180/M_PI);
 			fovoverride[3] = eyeview[u].fov.angleUp * (180/M_PI);
 
-			waitinfo.timeout = 100000;
+			waitinfo.timeout = SECONDS_TO_NANOSECONDS(0.1);
 			res = xrWaitSwapchainImage(xr.eye[u].swapchain, &waitinfo);
 			if (XR_FAILED(res))
 				Con_Printf("xrWaitSwapchainImage: %s\n", XR_StringForResult(res));
@@ -2108,6 +2273,7 @@ qboolean Plug_Init(void)
 	fsfuncs = plugfuncs->GetEngineInterface(plugfsfuncs_name, sizeof(*fsfuncs));
 	inputfuncs = plugfuncs->GetEngineInterface(pluginputfuncs_name, sizeof(*inputfuncs));
 	plugfuncs->ExportFunction("MayUnload", XR_PluginMayUnload);
+	plugfuncs->ExportFunction("ExecuteCommand", XR_HapticCommand_f);
 	if (plugfuncs->ExportInterface(plugvrfuncs_name, &openxr, sizeof(openxr)))
 	{
 		xr_enable			= cvarfuncs->GetNVFDG("xr_enable",			"1",			0,				"Controls whether to use openxr rendering or not.",									"OpenXR configuration");

@@ -1972,6 +1972,12 @@ static void *QDECL PlugBI_GetEngineInterface(const char *interfacename, size_t s
 			Plug_Key_GetKeyBind,
 			Plug_Key_SetKeyBind,
 
+			IN_GetKeyDest,
+			IN_KeyEvent,
+			IN_MouseMove,
+			IN_JoystickAxisEvent,
+			IN_Accelerometer,
+			IN_Gyroscope,
 			IN_SetHandPosition,
 		};
 		if (structsize == sizeof(funcs))

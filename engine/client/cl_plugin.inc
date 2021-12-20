@@ -98,6 +98,11 @@ void QDECL Plug_Key_SetKeyBind(int bindmap, int keycode, int modifier, const cha
 	Key_SetBinding (keycode, modifier, newbinding, RESTRICT_LOCAL);
 }
 
+static unsigned int IN_GetKeyDest(void)
+{
+	return key_dest_mask;
+}
+
 /*
 
 static void QDECL Plug_SCR_CenterPrint(int seat, const char *text)

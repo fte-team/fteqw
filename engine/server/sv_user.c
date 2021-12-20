@@ -4680,7 +4680,7 @@ void SV_SetInfo_f (void)
 	}
 
 #ifdef VM_Q1
-	if (Q1QVM_UserInfoChanged(sv_player))
+	if (Q1QVM_UserInfoChanged(sv_player, false))
 		return;
 #endif
 
@@ -4760,6 +4760,11 @@ void SV_SetInfo_f (void)
 			PR_ClientUserInfoChanged(key, oldval, InfoBuf_ValueForKey(&host_client->userinfo, key));
 		}
 	}
+
+#ifdef VM_Q1
+	Q1QVM_UserInfoChanged(sv_player, true);
+#endif
+
 	Z_Free(key);
 	Z_Free(val);
 }

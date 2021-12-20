@@ -47,11 +47,11 @@ oh, wait, ktx no longer supports those properly.
 13: 2009/june gamecode no longer aware of edict_t data (just 'qc' fields).
 14: 2017/march gamedata_t.maxentities added
 15: 2017/june for-64bit string indirection changes. added GAME_CLEAR_EDICT.
-16: wasted_edict_t_size is finally 0
+16: wasted_edict_t_size is finally 0, mod is responsible for querying all strings.
 */
-#define	GAME_API_VERSION		15
+#define	GAME_API_VERSION		16
 #define	GAME_API_VERSION_MIN	8
-#define MAX_Q1QVM_EDICTS	768 //according to ktx at api version 12 (fte's protocols go to 2048)
+#define MAX_Q1QVM_EDICTS	768 //according to ktx at api version 12 (fte's protocols go to 2048). removed in v14.
 #define MAPNAME_LEN 64
 
 void PR_SV_FillWorldGlobals(world_t *w);
@@ -448,7 +448,10 @@ static void Q1QVMED_ClearEdict (edict_t *e, qboolean wipe)
 {
 	int num = e->entnum;
 	if (wipe)
+	{
 		memset (e->v, 0, sv.world.edict_size - wasted_edict_t_size);
+		memset (e->xv, 0, sizeof(*e->xv));
+	}
 	if (qvm_api_version >= 15)
 	{
 		int oself = pr_global_struct->self;
@@ -515,8 +518,9 @@ static edict_t *QDECL Q1QVMPF_EntAlloc(pubprogfuncs_t *pf, pbool object, size_t 
 	sv.world.num_edicts++;
 	e = (edict_t*)Q1QVMPF_EdictNum(pf, i);
 
-// new ents come ready wiped
-//	Q1QVMED_ClearEdict (e, false);
+// new ents come ready wiped (unless 15 in which case we need to give the gamecode a chance to set safe defaults)
+	if (qvm_api_version >= 15)
+		Q1QVMED_ClearEdict (e, false);
 
 	ED_Spawned((struct edict_s *) e, false);
 
@@ -1901,16 +1905,16 @@ static qintptr_t QVM_VisibleTo (void *offset, quintptr_t mask, const qintptr_t *
 {
 	unsigned int a0 = VM_LONG(arg[0]);
 	unsigned int a1 = VM_LONG(arg[1]);
-	if (a0 < sv.world.num_edicts || a1 < sv.world.num_edicts)
+	if (a0 < sv.world.num_edicts && a1 < sv.world.num_edicts)
 	{
 		pvscache_t *viewer = &q1qvmprogfuncs.edicttable[a0]->pvsinfo;
 		pvscache_t *viewee = &q1qvmprogfuncs.edicttable[a1]->pvsinfo;
 		if (viewer->num_leafs && viewee->num_leafs)
 		{
 			unsigned int i;
+			int areas[] = {2,viewer->areanum, viewer->areanum2};
 			for (i = 0; i < viewer->num_leafs; i++)
 			{
-				int areas[] = {2,viewer->areanum, viewer->areanum2};
 				qbyte *pvs = sv.world.worldmodel->funcs.ClusterPVS(sv.world.worldmodel, viewer->leafnums[i], NULL, PVM_FAST);
 				if (sv.world.worldmodel->funcs.EdictInFatPVS(sv.world.worldmodel, viewee, pvs, areas))
 					return true;	//viewer can see viewee
@@ -2331,9 +2335,15 @@ qboolean PR_LoadQ1QVM(void)
 		return false;
 	}
 
-	//in version 13, the actual edict_t struct is gone, and there's a pointer to it in its place (which is unusable, and changes depending on modes).
-	if (qvm_api_version)
+	if (qvm_api_version >= 16)
+	{	//version 16 finally removed the last remnant of the server's state from the qvm.
+		wasted_edict_t_size = 0;
+	}
+	else if (qvm_api_version >= 13)
+	{
+		//in version 13, the actual edict_t struct is gone, and there's a pointer to it in its place (which is unusable, and changes depending on modes).
 		wasted_edict_t_size = (VM_NonNative(q1qvm)?sizeof(int):sizeof(void*));
+	}
 	else
 	{
 		//fte/qclib has split edict_t and entvars_t.
@@ -2488,8 +2498,8 @@ qboolean PR_LoadQ1QVM(void)
 		}
 		pr_global_struct->self = 0;
 
-
-		Q1QVMPF_SetStringGlobal(sv.world.progs, &gvars->mapname, svs.name, MAPNAME_LEN);
+		if (qvm_api_version == 15)
+			Q1QVMPF_SetStringGlobal(sv.world.progs, &gvars->mapname, svs.name, MAPNAME_LEN);
 	}
 	else
 	{
@@ -2508,7 +2518,12 @@ qboolean PR_LoadQ1QVM(void)
 
 void Q1QVM_ClientConnect(client_t *cl)
 {
-	if (qvm_api_version >= 15 && !VM_NonNative(q1qvm))
+	if (qvm_api_version >= 16)
+	{
+		Q_strncpyz(cl->namebuf, cl->name, sizeof(cl->namebuf));
+		cl->name = cl->namebuf;
+	}
+	else if (qvm_api_version >= 15 && !VM_NonNative(q1qvm))
 	{
 		Q_strncpyz(cl->namebuf, cl->name, sizeof(cl->namebuf));
 		Q1QVMPF_SetStringField(sv.world.progs, cl->edict, &cl->edict->v->netname, cl->namebuf, true);
@@ -2593,14 +2608,14 @@ qboolean Q1QVM_ClientSay(edict_t *player, qboolean team)
 	return washandled;
 }
 
-qboolean Q1QVM_UserInfoChanged(edict_t *player)
+qboolean Q1QVM_UserInfoChanged(edict_t *player, qboolean after)
 {	//mod will use G_CMD_ARGV to get argv1+argv2 to read the info that is changing.
 	if (!q1qvm)
 		return false;
 
 	pr_global_struct->time = sv.world.physicstime;
 	pr_global_struct->self = Q1QVMPF_EdictToProgs(svprogfuncs, player);
-	return VM_Call(q1qvm, GAME_CLIENT_USERINFO_CHANGED, 0, 0, 0);
+	return VM_Call(q1qvm, GAME_CLIENT_USERINFO_CHANGED, after, 0, 0);
 }
 
 void Q1QVM_PlayerPreThink(void)

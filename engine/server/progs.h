@@ -149,7 +149,7 @@ qboolean PR_LoadQ1QVM(void);
 void Q1QVM_ClientConnect(struct client_s *cl);
 qboolean Q1QVM_GameConsoleCommand(void);
 qboolean Q1QVM_ClientSay(edict_t *player, qboolean team);
-qboolean Q1QVM_UserInfoChanged(edict_t *player);
+qboolean Q1QVM_UserInfoChanged(edict_t *player, qboolean after);
 void Q1QVM_PlayerPreThink(void);
 void Q1QVM_RunPlayerThink(void);
 void Q1QVM_PostThink(void);

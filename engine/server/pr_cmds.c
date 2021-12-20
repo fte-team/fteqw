@@ -6342,6 +6342,8 @@ char *PF_infokey_Internal (int entnum, const char *key)
 	{
 		if (pr_imitatemvdsv.value && !strcmp(key, "*version"))
 			value = "2.40";
+		else if (!strcmp(key, "modelname"))	//for compat with mvdsv.
+			value = sv.modelname;
 		else
 		{
 			if ((value = InfoBuf_ValueForKey(&svs.info, key)) == NULL || !*value)

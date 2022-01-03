@@ -2709,6 +2709,37 @@ static void Mod_UpdateBatchShader_Q1 (struct batch_s *batch)
 
 	batch->shader = base->shader;
 }
+
+// copy of Q1s, but with a different framerate
+static void Mod_UpdateBatchShader_HL (struct batch_s *batch)
+{
+	texture_t *base = batch->texture;
+	unsigned int	relative;
+	int				count;
+
+	if (batch->ent->framestate.g[FS_REG].frame[0])
+	{
+		if (base->alternate_anims)
+			base = base->alternate_anims;
+	}
+
+	if (base->anim_total)
+	{
+		relative = (unsigned int)(cl.time*20) % base->anim_total;
+
+		count = 0;
+		while (base->anim_min > relative || base->anim_max <= relative)
+		{
+			base = base->anim_next;
+			if (!base)
+				Sys_Error ("R_TextureAnimation: broken cycle");
+			if (++count > 100)
+				Sys_Error ("R_TextureAnimation: infinite cycle");
+		}
+	}
+
+	batch->shader = base->shader;
+}
 #endif
 
 #ifdef Q2BSPS
@@ -2882,8 +2913,10 @@ static int Mod_Batches_Generate(model_t *mod)
 #endif
 #ifdef Q1BSPS
 				case fg_quake:
-				case fg_halflife:
 					batch->buildmeshes = Mod_UpdateBatchShader_Q1;
+					break;
+				case fg_halflife:
+					batch->buildmeshes = Mod_UpdateBatchShader_HL;
 					break;
 #endif
 				default:

@@ -224,7 +224,8 @@ typedef struct
 	char	name[32];
 	float	timing;
 	int		loop;
-	int		unknown1[2];
+	int		action;
+	int		actionweight;
 	int		num_events;
 	int		ofs_events;
 	int		numframes;
@@ -330,8 +331,9 @@ void *Mod_GetHalfLifeModelData(model_t *mod);
 //reflectioney things, including bone data
 int HLMDL_BoneForName(model_t *mod, const char *name);
 int HLMDL_FrameForName(model_t *mod, const char *name);
+int HLMDL_FrameForAction(model_t *mod, int actionid);
 const char *HLMDL_FrameNameForNum(model_t *model, int surfaceidx, int num);
-qboolean HLMDL_FrameInfoForNum(model_t *model, int surfaceidx, int num, char **name, int *numframes, float *duration, qboolean *loop);
+qboolean HLMDL_FrameInfoForNum(model_t *model, int surfaceidx, int num, char **name, int *numframes, float *duration, qboolean *loop, int *act);
 qboolean HLMDL_GetModelEvent(model_t *model, int animation, int eventidx, float *timestamp, int *eventcode, char **eventdata);
 int HLMDL_GetNumBones(model_t *mod, qboolean tagstoo);
 int HLMDL_GetBoneParent(model_t *mod, int bonenum);

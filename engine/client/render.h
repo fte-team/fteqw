@@ -555,6 +555,7 @@ void Mod_Shutdown (qboolean final);
 int Mod_TagNumForName(struct model_s *model, const char *name);
 int Mod_SkinNumForName(struct model_s *model, int surfaceidx, const char *name);
 int Mod_FrameNumForName(struct model_s *model, int surfaceidx, const char *name);
+int Mod_FrameNumForAction(struct model_s *model, int surfaceidx, int actionid);
 float Mod_GetFrameDuration(struct model_s *model, int surfaceidx, int frameno);
 
 void Mod_ResortShaders(void);

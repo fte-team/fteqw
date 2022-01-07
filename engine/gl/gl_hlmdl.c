@@ -612,6 +612,38 @@ int HLMDL_FrameForName(model_t *mod, const char *name)
 	return -1;
 }
 
+int HLMDL_FrameForAction(model_t *mod, int actionid)
+{
+	int i;
+	hlmdl_header_t *h;
+	hlmdl_sequencelist_t *seqs;
+	hlmodel_t *mc;
+	int weight = 0;
+	if (!mod || mod->type != mod_halflife)
+		return -1;	//halflife models only, please
+
+	mc = Mod_Extradata(mod);
+
+	h = mc->header;
+	seqs = (hlmdl_sequencelist_t*)((char*)h+h->seqindex);
+
+	//figure out the total weight.
+	for (i = 0; i < h->numseq; i++)
+		if (seqs[i].action == actionid)
+			weight += seqs[i].actionweight;
+	//pick a random number between 0 and the total weight...
+	weight *= frandom();
+	//now figure out which sequence that gives us.
+	for (i = 0; i < h->numseq; i++)
+		if (seqs[i].action == actionid)
+		{
+			if (weight <= seqs[i].actionweight)
+				return i;
+			weight -= seqs[i].actionweight;
+		}
+	return -1;	//failed...
+}
+
 qboolean HLMDL_GetModelEvent(model_t *model, int animation, int eventidx, float *timestamp, int *eventcode, char **eventdata)
 {
 	hlmodel_t *mc = Mod_Extradata(model);
@@ -1146,7 +1178,7 @@ const char *HLMDL_FrameNameForNum(model_t *mod, int surfaceidx, int seqnum)
 										 ((unsigned int)seqnum>=model->header->numseq?0:seqnum);
 	return sequence->name;
 }
-qboolean HLMDL_FrameInfoForNum(model_t *mod, int surfaceidx, int seqnum, char **name, int *numframes, float *duration, qboolean *loop)
+qboolean HLMDL_FrameInfoForNum(model_t *mod, int surfaceidx, int seqnum, char **name, int *numframes, float *duration, qboolean *loop, int *act)
 {
 	hlmodel_t *model = Mod_Extradata(mod);
 	hlmdl_sequencelist_t	*sequence = (hlmdl_sequencelist_t *) ((qbyte *) model->header + model->header->seqindex) +
@@ -1156,6 +1188,7 @@ qboolean HLMDL_FrameInfoForNum(model_t *mod, int surfaceidx, int seqnum, char **
 	*numframes = sequence->numframes;
 	*duration = (sequence->numframes-1)/sequence->timing;
 	*loop = sequence->loop;
+	*act = sequence->action;
 	return true;
 }
 

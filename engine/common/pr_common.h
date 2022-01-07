@@ -315,6 +315,7 @@ void QCBUILTIN PF_setattachment(pubprogfuncs_t *prinst, struct globalvars_s *pr_
 	void QCBUILTIN PF_frametoname (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 	void QCBUILTIN PF_skintoname (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 	void QCBUILTIN PF_frameforname (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+	void QCBUILTIN PF_frameforaction (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 	void QCBUILTIN PF_frameduration (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 	void QCBUILTIN PF_modelframecount (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 	void QCBUILTIN PF_skinforname (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);

@@ -903,7 +903,8 @@ void skel_generateragdoll_f(void)
 		int numframes;
 		float duration;
 		qboolean loop;
-		if (!Mod_FrameInfoForNum(mod, 0, i, &fname, &numframes, &duration, &loop))
+		int act;
+		if (!Mod_FrameInfoForNum(mod, 0, i, &fname, &numframes, &duration, &loop, &act))
 			break;
 		VFS_PUTS(f, va("//%i %s (%i frames) (%f secs)%s", i, fname, numframes, duration, loop?" (loop)":""));
 	}
@@ -2669,7 +2670,7 @@ void QCBUILTIN PF_gettagindex (pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 void QCBUILTIN PF_frametoname (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	world_t *w = prinst->parms->user;
-	unsigned int modelindex = G_FLOAT(OFS_PARM0);
+	int modelindex = G_FLOAT(OFS_PARM0);
 	unsigned int skinnum = G_FLOAT(OFS_PARM1);
 	int surfaceidx = 0;
 	model_t *mod = w->Get_CModel(w, modelindex);
@@ -2684,7 +2685,7 @@ void QCBUILTIN PF_frametoname (pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 void QCBUILTIN PF_frameforname (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	world_t *w = prinst->parms->user;
-	unsigned int modelindex = G_FLOAT(OFS_PARM0);
+	int modelindex = G_FLOAT(OFS_PARM0);
 	int surfaceidx = 0;
 	const char *str = PF_VarString(prinst, 1, pr_globals);
 	model_t *mod = w->Get_CModel(w, modelindex);
@@ -2694,10 +2695,23 @@ void QCBUILTIN PF_frameforname (pubprogfuncs_t *prinst, struct globalvars_s *pr_
 	else
 		G_FLOAT(OFS_RETURN) = -1;
 }
+void QCBUILTIN PF_frameforaction (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	world_t *w = prinst->parms->user;
+	int modelindex = G_FLOAT(OFS_PARM0);
+	int surfaceidx = 0;
+	int actionid = G_INT(OFS_PARM1);
+	model_t *mod = w->Get_CModel(w, modelindex);
+
+	if (mod)
+		G_FLOAT(OFS_RETURN) = Mod_FrameNumForAction(mod, surfaceidx, actionid);
+	else
+		G_FLOAT(OFS_RETURN) = -1;
+}
 void QCBUILTIN PF_frameduration (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	world_t *w = prinst->parms->user;
-	unsigned int modelindex = G_FLOAT(OFS_PARM0);
+	int modelindex = G_FLOAT(OFS_PARM0);
 	unsigned int framenum = G_FLOAT(OFS_PARM1);
 	int surfaceidx = 0;
 	model_t *mod = w->Get_CModel(w, modelindex);
@@ -2723,7 +2737,7 @@ void QCBUILTIN PF_modelframecount (pubprogfuncs_t *prinst, struct globalvars_s *
 void QCBUILTIN PF_processmodelevents (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	world_t *w = prinst->parms->user;
-	unsigned int modelindex = G_FLOAT(OFS_PARM0);
+	int modelindex = G_FLOAT(OFS_PARM0);
 	unsigned int frame = G_FLOAT(OFS_PARM1);
 	float basetime = G_FLOAT(OFS_PARM2);
 	float targettime = G_FLOAT(OFS_PARM3);
@@ -2786,8 +2800,9 @@ void QCBUILTIN PF_processmodelevents (pubprogfuncs_t *prinst, struct globalvars_
 			char *data;
 			float loopduration;
 			qboolean looping;
+			int act;
 
-			if (Mod_FrameInfoForNum(mod, 0, frame, &data, &code, &loopduration, &looping))
+			if (Mod_FrameInfoForNum(mod, 0, frame, &data, &code, &loopduration, &looping, &act))
 			{
 				if (looping && loopduration)
 					starttime = loopduration*(unsigned int)(basetime/loopduration);
@@ -2891,8 +2906,9 @@ void QCBUILTIN PF_getnextmodelevent (pubprogfuncs_t *prinst, struct globalvars_s
 			char *data;
 			float loopduration;
 			qboolean looping;
+			int act;
 
-			if (!Mod_FrameInfoForNum(mod, 0, frame, &data, &code, &loopduration, &looping))
+			if (!Mod_FrameInfoForNum(mod, 0, frame, &data, &code, &loopduration, &looping, &act))
 				return; //invalid frame
 
 			if (looping && loopduration)

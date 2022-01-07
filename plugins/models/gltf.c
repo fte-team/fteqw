@@ -3428,6 +3428,8 @@ static qboolean GLTF_LoadModel(struct model_s *mod, char *json, size_t jsonsize,
 				}
 				fg->loop = !!mod_gltf_loop->ival;
 				fg->skeltype = SKEL_RELATIVE;
+				fg->action = -1;
+				fg->actionweight = 0;
 				for(chan = JSON_FindIndexedChild(anim, "channels", 0); chan; chan = chan->sibling)
 				{
 					struct gltf_animsampler s;

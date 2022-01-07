@@ -2883,6 +2883,8 @@ typedef struct
 	unsigned int posecount;
 	float fps;
 	qboolean loop;
+	int action;
+	int actionweight;
 	char name[MAX_QPATH];
 } frameinfo_t;
 static frameinfo_t *ParseFrameInfo(char *modelname, int *numgroups)
@@ -2923,11 +2925,25 @@ static frameinfo_t *ParseFrameInfo(char *modelname, int *numgroups)
 			frames[count].loop = true;
 		else
 			frames[count].loop = !!atoi(tok);
+
+		frames[count].action = -1;
+		frames[count].actionweight = 0;
+		Q_snprintfz(frames[count].name, sizeof(frames[count].name), "groupified_%d_anim", count);	//to match DP. frameforname cares.
+
 		line = COM_ParseType(line, tok, sizeof(tok), &ttype);
 		if (ttype != TTP_EOF)
+		{
 			Q_strncpyz(frames[count].name, tok, sizeof(frames[count].name));
-		else
-			Q_snprintfz(frames[count].name, sizeof(frames[count].name), "groupified_%d_anim", count);	//to match DP. frameforname cares.
+			line = COM_ParseType(line, tok, sizeof(tok), &ttype);
+		}
+		if (ttype != TTP_EOF)
+		{
+			frames[count].action = atoi(tok);
+			line = COM_ParseType(line, tok, sizeof(tok), &ttype);
+		}
+		if (ttype != TTP_EOF)
+			frames[count].actionweight = atoi(tok);
+
 		if (frames[count].posecount>0 && frames[count].fps)
 			count++;
 
@@ -3509,6 +3525,8 @@ static void *Q1MDL_LoadFrameGroup (galiasinfo_t *galias, dmdl_t *pq1inmodel, mod
 
 	for (i = 0; i < pq1inmodel->numframes; i++)
 	{
+		frame->action = -1;
+		frame->actionweight = 0;
 		switch(LittleLong(pframetype->type))
 		{
 		case ALIAS_SINGLE:
@@ -3979,6 +3997,8 @@ static void Mesh_HandleFramegroupsFile(model_t *mod, galiasinfo_t *galias)
 			o->numposes = p;
 			o->rate = framegroups[a].fps;
 			o->loop = framegroups[a].loop;
+			o->action = -1;
+			o->actionweight = 0;
 			Q_strncpyz(o->name, framegroups[a].name, sizeof(o->name));
 		}
 		galias->numanimations = numanims;
@@ -4981,6 +5001,8 @@ static qboolean QDECL Mod_LoadKingpinModel (model_t *mod, void *buffer, size_t f
 		{
 			poutframe->poseofs = pose;
 			poutframe->numposes = 1;
+			poutframe->action = -1;
+			poutframe->actionweight = 0;
 			galias->numanimations++;
 
 #ifndef SERVERONLY
@@ -5490,6 +5512,47 @@ int Mod_FrameNumForName(model_t *model, int surfaceidx, const char *name)
 	return -1;
 }
 
+int Mod_FrameNumForAction(model_t *model, int surfaceidx, int actionid)
+{
+	galiasanimation_t *group;
+	galiasinfo_t *inf;
+	int i;
+	float weight;
+
+	if (!model)
+		return -1;
+#ifdef HALFLIFEMODELS
+	if (model->type == mod_halflife)
+		return HLMDL_FrameForAction(model, actionid);
+#endif
+	if (model->type != mod_alias)
+		return -1;
+
+	inf = Mod_Extradata(model);
+
+	while(surfaceidx-->0 && inf)
+		inf = inf->nextsurf;
+	if (inf)
+	{
+		for (i = 0, weight = 0, group = inf->ofsanimations; i < inf->numanimations; i++, group++)
+		{
+			if (group->action == actionid)
+				weight += group->actionweight;
+		}
+		weight *= frandom();
+		for (i = 0, group = inf->ofsanimations; i < inf->numanimations; i++, group++)
+		{
+			if (group->action == actionid)
+			{
+				if (weight <= group->actionweight)
+					return i;
+				weight -= group->actionweight;
+			}
+		}
+	}
+	return -1;
+}
+
 
 qboolean Mod_GetModelEvent(model_t *model, int animation, int eventidx, float *timestamp, int *eventcode, char **eventdata)
 {
@@ -5586,7 +5649,7 @@ const char *Mod_FrameNameForNum(model_t *model, int surfaceidx, int num)
 	return NULL;
 }
 
-qboolean Mod_FrameInfoForNum(model_t *model, int surfaceidx, int num, char **name, int *numframes, float *duration, qboolean *loop)
+qboolean Mod_FrameInfoForNum(model_t *model, int surfaceidx, int num, char **name, int *numframes, float *duration, qboolean *loop, int *act)
 {
 	galiasanimation_t *group;
 	galiasinfo_t *inf;
@@ -5615,11 +5678,12 @@ qboolean Mod_FrameInfoForNum(model_t *model, int surfaceidx, int num, char **nam
 		*numframes = group[num].numposes;
 		*loop = group[num].loop;
 		*duration = group->numposes/group->rate;
+		*act = group[num].action;
 		return true;
 	}
 #ifdef HALFLIFEMODELS
 	if (model->type == mod_halflife)
-		return HLMDL_FrameInfoForNum(model, surfaceidx, num, name, numframes, duration, loop);
+		return HLMDL_FrameInfoForNum(model, surfaceidx, num, name, numframes, duration, loop, act);
 #endif
 	return false;
 }
@@ -5766,7 +5830,8 @@ float Mod_GetFrameDuration(model_t *model, int surfaceidx, int frameno)
 		float duration;
 		char *name;
 		qboolean loop;
-		HLMDL_FrameInfoForNum(model, surfaceidx, frameno, &name, &unused, &duration, &loop);
+		int act;
+		HLMDL_FrameInfoForNum(model, surfaceidx, frameno, &name, &unused, &duration, &loop, &act);
 		return duration;
 	}
 #endif
@@ -6020,6 +6085,8 @@ static galiasinfo_t *Mod_LoadQ3ModelLod(model_t *mod, int *surfcount, void *buff
 				group->poseofs = pose + first;
 				group->loop = framegroups[i].loop;
 				group->events = NULL;
+				group->action = -1;
+				group->actionweight = 0;
 				group++;
 			}
 		}
@@ -6033,6 +6100,8 @@ static galiasinfo_t *Mod_LoadQ3ModelLod(model_t *mod, int *surfcount, void *buff
 				group->poseofs = pose + i;
 				group->loop = false;
 				group->events = NULL;
+				group->action = -1;
+				group->actionweight = 0;
 				group++;
 			}
 		}
@@ -6523,6 +6592,8 @@ static qboolean QDECL Mod_LoadZymoticModel(model_t *mod, void *buffer, size_t fs
 		grp->loop = !(BigLong(inscene->flags) & ZYMSCENEFLAG_NOLOOP);
 		grp->numposes = BigLong(inscene->length);
 		grp->boneofs = matrix + BigLong(inscene->start)*12*root->numbones;
+		grp->action = -1;
+		grp->actionweight = 0;
 	}
 
 	if (inscene != (zymscene_t*)((char*)header + header->lump_scenes.start+header->lump_scenes.length))
@@ -7083,6 +7154,8 @@ static qboolean QDECL Mod_LoadPSKModel(model_t *mod, void *buffer, size_t fsize)
 				group[j].loop = frameinfo[j].loop;
 				group[j].rate = frameinfo[j].fps;
 				group[j].skeltype = SKEL_RELATIVE;
+				group[j].action = -1;
+				group[j].actionweight = 0;
 			}
 			num_animinfo = numgroups;
 		}
@@ -7107,6 +7180,8 @@ static qboolean QDECL Mod_LoadPSKModel(model_t *mod, void *buffer, size_t fsize)
 					group[iframe].loop = true;
 					group[iframe].rate = animinfo[j].fps;
 					group[iframe].skeltype = SKEL_RELATIVE;
+					group[iframe].action = -1;
+					group[iframe].actionweight = 0;
 					iframe++;
 				}
 			}
@@ -7126,6 +7201,8 @@ static qboolean QDECL Mod_LoadPSKModel(model_t *mod, void *buffer, size_t fsize)
 				group[i].loop = true;
 				group[i].rate = animinfo[i].fps;
 				group[i].skeltype = SKEL_RELATIVE;
+				group[i].action = -1;
+				group[i].actionweight = 0;
 			}
 		}
 		for (j = 0; j < num_animkeys; j += num_boneinfo)
@@ -7153,6 +7230,8 @@ static qboolean QDECL Mod_LoadPSKModel(model_t *mod, void *buffer, size_t fsize)
 		group->loop = true;
 		group->rate = 10;
 		group->skeltype = SKEL_ABSOLUTE;
+		group->action = -1;
+		group->actionweight = 0;
 	}
 
 
@@ -7451,6 +7530,8 @@ static qboolean QDECL Mod_LoadDarkPlacesModel(model_t *mod, void *buffer, size_t
 			outgroups[i].numposes = 1;
 			outgroups[i].skeltype = SKEL_RELATIVE;
 			outgroups[i].boneofs = outposedata;
+			outgroups[i].action = -1;
+			outgroups[i].actionweight = 0;
 
 			inposedata = (float*)((char*)buffer + inframes[i].ofs_bonepositions);
 			for (j = 0; j < header->num_bones*12; j++)
@@ -7488,6 +7569,8 @@ static qboolean QDECL Mod_LoadDarkPlacesModel(model_t *mod, void *buffer, size_t
 			outgroups[i].loop = framegroups[i].loop;
 			outgroups[i].rate = framegroups[i].fps;
 			outgroups[i].events = NULL;
+			outgroups[i].action = -1;
+			outgroups[i].actionweight = 0;
 			Q_strncpyz(outgroups[i].name, framegroups[i].name, sizeof(outgroups[i].name));
 		}
 	}
@@ -8290,6 +8373,8 @@ static galiasinfo_t *Mod_ParseIQMMeshModel(model_t *mod, const char *buffer, siz
 			framegroups[i].posecount = LittleLong(anim[i].num_frames);
 			framegroups[i].fps = LittleFloat(anim[i].framerate);
 			framegroups[i].loop = !!(LittleLong(anim[i].flags) & IQM_LOOP);
+			framegroups[i].action = -1;
+			framegroups[i].actionweight = 0;
 			Q_strncpyz(framegroups[i].name, strings+anim[i].name, sizeof(fgroup[i].name));
 		}
 	}
@@ -8303,6 +8388,8 @@ static galiasinfo_t *Mod_ParseIQMMeshModel(model_t *mod, const char *buffer, siz
 		framegroups->posecount = 1;
 		framegroups->fps = 10;
 		framegroups->loop = 1;
+		framegroups->action = -1;
+		framegroups->actionweight = 0;
 		strcpy(framegroups->name, "base");
 	}
 
@@ -8473,6 +8560,9 @@ static galiasinfo_t *Mod_ParseIQMMeshModel(model_t *mod, const char *buffer, siz
 	
 		if (fgroup[i].rate <= 0)
 			fgroup[i].rate = 10;
+
+		fgroup[i].action = framegroups[i].action;
+		fgroup[i].actionweight = framegroups[i].actionweight;
 	}
 	free(framegroups);
 

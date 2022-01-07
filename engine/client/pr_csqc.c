@@ -7054,8 +7054,9 @@ static struct {
 //	{"skel_postmul_bones",		PF_skel_postmul_bones,	0},//void(float skel, float startbone, float endbone, vector org) skel_mul_bone = #273; // (FTE_CSQC_SKELETONOBJECTS) (reads v_forward etc)
 	{"skel_copybones",			PF_skel_copybones,		274},//void(float skeldst, float skelsrc, float startbone, float entbone) skel_copybones = #274; // (FTE_CSQC_SKELETONOBJECTS)
 	{"skel_delete",				PF_skel_delete,			275},//void(float skel) skel_delete = #275; // (FTE_CSQC_SKELETONOBJECTS)
-	{"frameforname",			PF_frameforname,		276},//void(float modidx, string framename) frameforname = #276 (FTE_CSQC_SKELETONOBJECTS)
-	{"frameduration",			PF_frameduration,		277},//void(float modidx, float framenum) frameduration = #277 (FTE_CSQC_SKELETONOBJECTS)
+	{"frameforname",			PF_frameforname,		276},//float(float modidx, string framename) frameforname = #276 (FTE_CSQC_SKELETONOBJECTS)
+	{"frameduration",			PF_frameduration,		277},//float(float modidx, float framenum) frameduration = #277 (FTE_CSQC_SKELETONOBJECTS)
+	{"frameforaction",			PF_frameforaction,		0},//float(float modidx, string actionid) frameforaction = #0
 	{"processmodelevents",		PF_processmodelevents,	0},
 	{"getnextmodelevent",		PF_getnextmodelevent,	0},
 	{"getmodeleventidx",		PF_getmodeleventidx,	0},

@@ -3836,7 +3836,7 @@ void COM_Gamedir (const char *dir, const struct gamepacks *packagespaths)
 #define QUAKESPASMSUCKS "set mod_h2holey_bugged 1\n"
 #define QUAKEOVERRIDES "set v_gammainverted 1\nset con_stayhidden 0\nset allow_download_pakcontents 1\nset allow_download_refpackages 0\nset r_meshpitch -1\nr_sprite_backfacing 1\nset sv_bigcoords \"\"\nmap_autoopenportals 1\n"  "sv_port "STRINGIFY(PORT_QWSERVER)" "STRINGIFY(PORT_NQSERVER)"\n" ZFIXHACK EZQUAKECOMPETITIVE QUAKESPASMSUCKS
 #define QCFG "//schemes quake qw\n"   QUAKEOVERRIDES "set com_parseutf8 0\n" QRPCOMPAT
-#define KEXCFG "//schemes quake_r2\n" QUAKEOVERRIDES "set com_parseutf8 1\nset campaign 0\n"
+#define KEXCFG "//schemes quake_r2\n" QUAKEOVERRIDES "set com_parseutf8 1\nset campaign 0\nset net_enable_dtls 1\nset sv_mintic 0.016666667\nset sv_maxtic $sv_mintic\nset cl_netfps 60\n"
 /*NetQuake reconfiguration, to make certain people feel more at home...*/
 #define NQCFG "//disablehomedir 1\n//mainconfig ftenq\n" QCFG "cfg_save_auto 1\nset sv_nqplayerphysics 1\nset cl_loopbackprotocol auto\ncl_sbar 1\nset plug_sbar 0\nset sv_port "STRINGIFY(PORT_NQSERVER)"\ncl_defaultport "STRINGIFY(PORT_NQSERVER)"\nset m_preset_chosen 1\nset vid_wait 1\nset cl_demoreel 1\n"
 #define SPASMCFG NQCFG "fps_preset builtin_spasm\nset cl_demoreel 0\ncl_sbar 2\nset gl_load24bit 1\n"
@@ -3912,7 +3912,7 @@ static const gamemode_info_t gamemode_info[] = {
 #ifdef HAVE_LEGACY
 	//cmdline switch exename    protocol name(dpmaster)  identifying file				exec     dir1       dir2    dir3       dir(fte)     full name
 	//use rerelease behaviours if we seem to be running from that dir.
-	{"-quake_rerel",NULL,		"FTE-QuakeRerelease",	{"QuakeEX.kpf"},				KEXCFG,	{"id1",							"*fte"},	"RerelQuake",						UPDATEURL(Q1)},
+	{"-quake_rerel",NULL,		"FTE-QuakeRerelease",	{"QuakeEX.kpf"},				KEXCFG,	{"id1",							"*fte"},	"Quake Re-Release",					UPDATEURL(Q1)},
 	//standard quake
 	{"-quake",		"q1",		QUAKEPROT,				{"id1/pak0.pak","id1/quake.rc"},QCFG,	{"id1",		"qw",				"*fte"},	"Quake",							UPDATEURL(Q1)},
 	//alternative name, because fmf file install names are messy when a single name is used for registry install path.

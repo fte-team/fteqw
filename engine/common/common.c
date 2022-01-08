@@ -6552,55 +6552,97 @@ unsigned int COM_RemapMapChecksum(model_t *model, unsigned int checksum)
 	static const struct {
 		const char *name;
 		unsigned int gpl2;
-		unsigned int id11;
+//		unsigned int id11;
 		unsigned int id12;
 	} sums[] =
 	{
-		{"maps/start.bsp",	0xDC03BAF3,	0x2A9A3763,	0x1D69847B},
+		{"maps/start.bsp",	0xDC03BAF3,	/*0x2A9A3763,*/	0x1D69847B},
 
-		{"maps/e1m1.bsp",	0xB7B19924,	0x1F392B02,	0xAD07D882},
-		{"maps/e1m2.bsp",	0x80CD279B,	0x5D140D24,	0x67100127},
-		{"maps/e1m3.bsp",	0x1F632D93,	0x3C20FA2E,	0x3546324A},
-		{"maps/e1m4.bsp",	0xB75BC1B8,	0xE5A522CE,	0xEDDA0675},
-		{"maps/e1m5.bsp",	0x65DEA50B,	0x6EA3A1CB,	0xA82C1C8A},
-		{"maps/e1m6.bsp",	0x3C76263E,	0x4DC4FFC4,	0x2C0028E3},
-		{"maps/e1m7.bsp",	0x51FAD6A8,	0xACBF5564,	0x97D6FB1A},
-		{"maps/e1m8.bsp",	0x57A436A8,	0xF63C8EE5,	0x04B6E741},
+		{"maps/e1m1.bsp",	0xB7B19924,	/*0x1F392B02,*/	0xAD07D882},
+		{"maps/e1m2.bsp",	0x80CD279B,	/*0x5D140D24,*/	0x67100127},
+		{"maps/e1m3.bsp",	0x1F632D93,	/*0x3C20FA2E,*/	0x3546324A},
+		{"maps/e1m4.bsp",	0xB75BC1B8,	/*0xE5A522CE,*/	0xEDDA0675},
+		{"maps/e1m5.bsp",	0x65DEA50B,	/*0x6EA3A1CB,*/	0xA82C1C8A},
+		{"maps/e1m6.bsp",	0x3C76263E,	/*0x4DC4FFC4,*/	0x2C0028E3},
+		{"maps/e1m7.bsp",	0x51FAD6A8,	/*0xACBF5564,*/	0x97D6FB1A},
+		{"maps/e1m8.bsp",	0x57A436A8,	/*0xF63C8EE5,*/	0x04B6E741},
 
-		{"maps/e2m1.bsp",	0x992B120D,	0xD0732BA6,	0xDCF57032},
-		{"maps/e2m2.bsp",	0xA23126C5,	0xEACA9423,	0xAF961D4D},
-		{"maps/e2m3.bsp",	0x0956602E,	0x47B46758,	0xFC992551},
-		{"maps/e2m4.bsp",	0xA4CDDCC6,	0x9EDD4CE8,	0xC3169BC9},
-		{"maps/e3m5.bsp",	0xDC98420F,	0xAC371E07,	0x917A0631},
-		{"maps/e2m6.bsp",	0x3E1AA34D,	0x22CD3B7B,	0x91A33B81},
-		{"maps/e2m7.bsp",	0xA1A37724,	0x6C1F85F2,	0x7A3FE018},
+		{"maps/e2m1.bsp",	0x992B120D,	/*0xD0732BA6,*/	0xDCF57032},
+		{"maps/e2m2.bsp",	0xA23126C5,	/*0xEACA9423,*/	0xAF961D4D},
+		{"maps/e2m3.bsp",	0x0956602E,	/*0x47B46758,*/	0xFC992551},
+		{"maps/e2m4.bsp",	0xA4CDDCC6,	/*0x9EDD4CE8,*/	0xC3169BC9},
+		{"maps/e3m5.bsp",	0xDC98420F,	/*0xAC371E07,*/	0x917A0631},
+		{"maps/e2m6.bsp",	0x3E1AA34D,	/*0x22CD3B7B,*/	0x91A33B81},
+		{"maps/e2m7.bsp",	0xA1A37724,	/*0x6C1F85F2,*/	0x7A3FE018},
 
-		{"maps/e3m1.bsp",	0xBD5A7A83,	0xE4BE9A0B,	0x90B20D21},
-		{"maps/e3m2.bsp",	0xE4043D8E,	0x2B1EC056,	0x9C6C7538},
-		{"maps/e3m3.bsp",	0xEE12BAC9,	0xDFCFCB78,	0xC3D05D18},
-		{"maps/e3m4.bsp",	0xF33D954A,	0x42003651,	0xB1790CB8},
-		{"maps/e3m5.bsp",	0xDC98420F,	0xAC371E07,	0x917A0631},
-		{"maps/e3m6.bsp",	0x9CC8F9BC,	0x6139434A,	0x2DC17DF8},
-		{"maps/e3m7.bsp",	0x2E8DE70A,	0xA5CF7110,	0x1039C1B1},
+		{"maps/e3m1.bsp",	0xBD5A7A83,	/*0xE4BE9A0B,*/	0x90B20D21},
+		{"maps/e3m2.bsp",	0xE4043D8E,	/*0x2B1EC056,*/	0x9C6C7538},
+		{"maps/e3m3.bsp",	0xEE12BAC9,	/*0xDFCFCB78,*/	0xC3D05D18},
+		{"maps/e3m4.bsp",	0xF33D954A,	/*0x42003651,*/	0xB1790CB8},
+		{"maps/e3m5.bsp",	0xDC98420F,	/*0xAC371E07,*/	0x917A0631},
+		{"maps/e3m6.bsp",	0x9CC8F9BC,	/*0x6139434A,*/	0x2DC17DF8},
+		{"maps/e3m7.bsp",	0x2E8DE70A,	/*0xA5CF7110,*/	0x1039C1B1},
 
-		{"maps/e4m1.bsp",	0x5C4CDD45,	0x4AC23D4C,	0xBBF06350},
-		{"maps/e4m2.bsp",	0xAC84C40A,	0x057FACCC,	0xFFF8CB18},
-		{"maps/e4m3.bsp",	0xB6A519E2,	0x74E93DDD,	0x59BEF08C},
-		{"maps/e4m4.bsp",	0x3233C45C,	0xE9A7693C,	0x2D3B183F},
-		{"maps/e4m5.bsp",	0xE5D3E4DD,	0x17315A00,	0x699CE7F4},
-		{"maps/e4m6.bsp",	0x5A7B37C0,	0x6636A6B8,	0x0620FF98},
-		{"maps/e4m7.bsp",	0xE9497085,	0xDD1C14E2,	0x9DEC01AC},
-		{"maps/e4m8.bsp",	0x325A2B54,	0x3F6274D5,	0x3CB46C57},
+		{"maps/e4m1.bsp",	0x5C4CDD45,	/*0x4AC23D4C,*/	0xBBF06350},
+		{"maps/e4m2.bsp",	0xAC84C40A,	/*0x057FACCC,*/	0xFFF8CB18},
+		{"maps/e4m3.bsp",	0xB6A519E2,	/*0x74E93DDD,*/	0x59BEF08C},
+		{"maps/e4m4.bsp",	0x3233C45C,	/*0xE9A7693C,*/	0x2D3B183F},
+		{"maps/e4m5.bsp",	0xE5D3E4DD,	/*0x17315A00,*/	0x699CE7F4},
+		{"maps/e4m6.bsp",	0x5A7B37C0,	/*0x6636A6B8,*/	0x0620FF98},
+		{"maps/e4m7.bsp",	0xE9497085,	/*0xDD1C14E2,*/	0x9DEC01AC},
+		{"maps/e4m8.bsp",	0x325A2B54,	/*0x3F6274D5,*/	0x3CB46C57},
 
-		{"maps/dm1.bsp",	0x7D37618E,	0xA3B80B3A,	0xC5C7DAB3},	//you should be able to use aquashark's untextured maps.
-		{"maps/dm2.bsp",	0x7B337440,	0x1763B3DA,	0x65F63634},
-		{"maps/dm3.bsp",	0x912781AE,	0x7AC99CDE,	0x15E20DF8},
-		{"maps/dm4.bsp",	0xC374DF89,	0x13799D1F,	0x9C6FE4BF},
-		{"maps/dm5.bsp",	0x77CA7CE5,	0x2DB66BBC,	0xB02D48FD},
-		{"maps/dm6.bsp",	0x200C8B5D,	0x0EBB386D,	0x5208DA2B},
+		{"maps/dm1.bsp",	0x7D37618E,	/*0xA3B80B3A,*/	0xC5C7DAB3},	//you should be able to use aquashark's untextured maps.
+		{"maps/dm2.bsp",	0x7B337440,	/*0x1763B3DA,*/	0x65F63634},
+		{"maps/dm3.bsp",	0x912781AE,	/*0x7AC99CDE,*/	0x15E20DF8},
+		{"maps/dm4.bsp",	0xC374DF89,	/*0x13799D1F,*/	0x9C6FE4BF},
+		{"maps/dm5.bsp",	0x77CA7CE5,	/*0x2DB66BBC,*/	0xB02D48FD},
+		{"maps/dm6.bsp",	0x200C8B5D,	/*0x0EBB386D,*/	0x5208DA2B},
 
-		{"maps/end.bsp",	0xF89B12AE,	0xA66198D8,	0xBBD4B4A5},	//unmodified gpl version (with the extra room)
-		{"maps/end.bsp",	0x924F4D33,	0xA66198D8,	0xBBD4B4A5} 	//aquashark's gpl version (with the extra room removed)
+		{"maps/end.bsp",	0xF89B12AE,	/*0xA66198D8,*/	0xBBD4B4A5},	//unmodified gpl version (with the extra room)
+		{"maps/end.bsp",	0x924F4D33,	/*0xA66198D8,*/	0xBBD4B4A5}, 	//aquashark's gpl version (with the extra room removed)
+
+		//re-release maps. they are not 100% identical,
+		//but they're generally close enough and its confusing to get kicked for having the official maps.
+		//expect minor prediction issues in a few places.
+		{"maps/start.bsp",	0x49A92170,	/*0x2A9A3763,*/	0x1D69847B},
+		{"maps/e1m1.bsp",	0xA1937AD5,	/*0x1F392B02,*/	0xAD07D882},
+		{"maps/e1m2.bsp",	0x65BC436B,	/*0x5D140D24,*/	0x67100127},
+		{"maps/e1m3.bsp",	0x7A4FE4F2,	/*0x3C20FA2E,*/	0x3546324A},
+		{"maps/e1m4.bsp",	0xEC07DCB0,	/*0xE5A522CE,*/	0xEDDA0675},
+//buggy	{"maps/e1m5.bsp",	0xAD138551,	/*0x6EA3A1CB,*/	0xA82C1C8A},
+		{"maps/e1m6.bsp",	0xA732C2E4,	/*0x4DC4FFC4,*/	0x2C0028E3},
+		{"maps/e1m7.bsp",	0x9318DDF3,	/*0xACBF5564,*/	0x97D6FB1A},
+		{"maps/e1m8.bsp",	0x0E858BF7,	/*0xF63C8EE5,*/	0x04B6E741},
+		{"maps/e2m1.bsp",	0xCB350590,	/*0xD0732BA6,*/	0xDCF57032},
+		{"maps/e2m2.bsp",	0x045DC982,	/*0xEACA9423,*/	0xAF961D4D},
+		{"maps/e2m3.bsp",	0x4E14A67D,	/*0x47B46758,*/	0xFC992551},
+		{"maps/e2m4.bsp",	0x5366D18C,	/*0x9EDD4CE8,*/	0xC3169BC9},
+		{"maps/e3m5.bsp",	0x94086C83,	/*0xAC371E07,*/	0x917A0631},
+//start	{"maps/e2m6.bsp",	0x460E3FE2,	/*0x22CD3B7B,*/	0x91A33B81},
+		{"maps/e2m7.bsp",	0xB7477F61,	/*0x6C1F85F2,*/	0x7A3FE018},
+		{"maps/e3m1.bsp",	0xBC433495,	/*0xE4BE9A0B,*/	0x90B20D21},
+		{"maps/e3m2.bsp",	0x63E72C4D,	/*0x2B1EC056,*/	0x9C6C7538},
+		{"maps/e3m3.bsp",	0x8DD3DF69,	/*0xDFCFCB78,*/	0xC3D05D18},
+		{"maps/e3m4.bsp",	0xD41DD779,	/*0x42003651,*/	0xB1790CB8},
+		{"maps/e3m5.bsp",	0x1EAA53D8,	/*0xAC371E07,*/	0x917A0631},
+		{"maps/e3m6.bsp",	0xEFB7B728,	/*0x6139434A,*/	0x2DC17DF8},
+		{"maps/e3m7.bsp",	0x7A46C0EA,	/*0xA5CF7110,*/	0x1039C1B1},
+		{"maps/e4m1.bsp",	0x9AF0885B,	/*0x4AC23D4C,*/	0xBBF06350},
+		{"maps/e4m2.bsp",	0x8E947D06,	/*0x057FACCC,*/	0xFFF8CB18},
+		{"maps/e4m3.bsp",	0x134BCDEE,	/*0x74E93DDD,*/	0x59BEF08C},
+		{"maps/e4m4.bsp",	0xBDB41FF0,	/*0xE9A7693C,*/	0x2D3B183F},
+		{"maps/e4m5.bsp",	0xC1F0D4C6,	/*0x17315A00,*/	0x699CE7F4},
+		{"maps/e4m6.bsp",	0x286A9410,	/*0x6636A6B8,*/	0x0620FF98},
+		{"maps/e4m7.bsp",	0xB769356B,	/*0xDD1C14E2,*/	0x9DEC01AC},
+//		{"maps/e4m8.bsp",	0xA62A7AEB,	/*0x3F6274D5,*/	0x3CB46C57},
+//		{"maps/dm1.bsp",	0x6E4C13E6,	/*0xA3B80B3A,*/	0xC5C7DAB3},
+		{"maps/dm2.bsp",	0x725B277D,	/*0x1763B3DA,*/	0x65F63634},
+		{"maps/dm3.bsp",	0xB1DD97B1,	/*0x7AC99CDE,*/	0x15E20DF8},
+		{"maps/dm4.bsp",	0x76A592A0,	/*0x13799D1F,*/	0x9C6FE4BF},
+		{"maps/dm5.bsp",	0xD651996F,	/*0x2DB66BBC,*/	0xB02D48FD},
+		{"maps/dm6.bsp",	0x33F7D9C9,	/*0x0EBB386D,*/	0x5208DA2B},
+//		{"maps/end.bsp",	0x3C87824B,	/*0xA66198D8,*/	0xBBD4B4A5},
 	};
 	unsigned int i;
 	for (i = 0; i < sizeof(sums)/sizeof(sums[0]); i++)

@@ -168,6 +168,7 @@ typedef enum
 	G_SETPAUSE,
 	G_SETUSERINFO,
 	G_MOVETOGOAL,
+	G_VISIBLETO,
 
 
 	G_MAX
@@ -1723,6 +1724,44 @@ static qintptr_t QVM_SetPause (void *offset, quintptr_t mask, const qintptr_t *a
 	sv.pausedstart = Sys_DoubleTime();
 	return !!(sv.paused&PAUSE_EXPLICIT);
 }
+
+static qintptr_t QVM_VisibleTo (void *offset, quintptr_t mask, const qintptr_t *arg)
+{
+	unsigned int viewernum = VM_LONG(arg[0]);
+	unsigned int first = VM_LONG(arg[1]);
+	unsigned int count = VM_LONG(arg[2]);
+	qbyte		 *results = VM_POINTER(arg[3]);
+	unsigned int i, e, last = first + count;
+	unsigned int ret = 0;
+	if (viewernum < sv.world.num_edicts && !VM_OOB(arg[3], count) && first < last && last <= sv.world.num_edicts)
+	{
+		pvscache_t *viewer = &q1qvmprogfuncs.edicttable[viewernum]->pvsinfo;
+		pvscache_t *viewee;
+		edict_t *ed;
+		int areas[] = {2,viewer->areanum, viewer->areanum2};
+		memset(results, 0, count);	//assume the worst...
+		for (e = first; e < last; e++)
+		{
+			ed = q1qvmprogfuncs.edicttable[e];
+			if (ED_ISFREE(ed))
+				continue;	//free ents can't be visible (should not be linked, but oh well)
+			if (e >= 1 && e <= sv.allocated_client_slots && svs.clients[e - 1].state != cs_spawned)
+				continue;	//player ents are weird, skip them for mods that do weird stuff.
+			viewee = &ed->pvsinfo;
+			for (i = 0; i < viewer->num_leafs; i++)
+			{
+				qbyte *pvs = sv.world.worldmodel->funcs.ClusterPVS(sv.world.worldmodel, viewer->leafnums[i], NULL, PVM_FAST);
+				if (sv.world.worldmodel->funcs.EdictInFatPVS(sv.world.worldmodel, viewee, pvs, areas))
+				{	//one of the viewer's clusters can see the viewee.
+					results[e - first] = true;
+					ret+=1;
+					break;
+				}
+			}
+		}
+	}
+	return ret;
+}
 static qintptr_t QVM_NotYetImplemented (void *offset, quintptr_t mask, const qintptr_t *arg)
 {
 	SV_Error("Q1QVM: Trap not implemented\n");
@@ -1900,7 +1939,7 @@ static qintptr_t QVM_SetSendNeeded(void *offset, quintptr_t mask, const qintptr_
 	return 0;
 }
 
-static qintptr_t QVM_VisibleTo (void *offset, quintptr_t mask, const qintptr_t *arg)
+static qintptr_t QVM_VisibleTo_FTE (void *offset, quintptr_t mask, const qintptr_t *arg)
 {
 	unsigned int a0 = VM_LONG(arg[0]);
 	unsigned int a1 = VM_LONG(arg[1]);
@@ -2022,7 +2061,8 @@ traps_t bitraps[G_MAX] =
 	QVM_Precache_VWep_Model,
 	QVM_SetPause,
 	QVM_SetUserInfo,
-	QVM_MoveToGoal
+	QVM_MoveToGoal,
+	QVM_VisibleTo,
 };
 
 struct
@@ -2043,7 +2083,7 @@ struct
 	{"clientstat",			QVM_clientstat},	//csqc extension
 	{"pointerstat",			QVM_pointerstat},	//csqc extension
 	{"setsendneeded",		QVM_SetSendNeeded},		//csqc extension
-	{"VisibleTo",			QVM_VisibleTo},		//alternative to mvdsv's visclients hack
+	{"VisibleTo",			QVM_VisibleTo_FTE},		//alternative to mvdsv's visclients hack. redundant now. FIXME: Remove.
 
 	//sql?
 	//model querying?

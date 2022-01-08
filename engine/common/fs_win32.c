@@ -366,7 +366,7 @@ vfsfile_t *QDECL VFSW32_OpenTemp(void)
 		file = Z_Malloc(sizeof(vfsw32file_t) + strlen(osname)+1);
 		strcpy((char*)(file+1), osname);
 #ifdef _DEBUG
-		narrowen(file->funcs.dbgname, sizeof(file->funcs.dbgname), osname);
+		Q_strncpyz(file->funcs.dbgname, osname, sizeof(file->funcs.dbgname));
 #endif
 		file->funcs.Close = VFSW32_CloseTemp;	//gotta delete it after close. hopefully we won't crash too often...
 	}

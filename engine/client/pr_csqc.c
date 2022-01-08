@@ -9308,7 +9308,10 @@ qboolean CSQC_ParseGamePacket(int seat, qboolean sized)
 		if (!csqcprogs || !parsefnc)
 		{
 			int next = MSG_ReadByte();
-			Host_EndGame("CSQC not running or is unable to parse events (lead byte %i).\n", next);
+			if (!csqcprogs)
+				Host_EndGame("This server requires CSQC support, but \"csprogsvers/%x.dat\" wasn't loaded.\n", csprogs_checksum);
+			else
+				Host_EndGame("Loaded CSQC module is unable to parse events (lead byte %i).\n", next);
 			return false;
 		}
 		csqc_mayread = true;

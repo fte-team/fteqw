@@ -7665,6 +7665,7 @@ qc_extension_t QSG_Extensions[] = {
 	{"DP_QC_GETSURFACE",				NULL,	6,{"getsurfacenumpoints", "getsurfacepoint", "getsurfacenormal", "getsurfacetexture", "getsurfacenearpoint", "getsurfaceclippedpoint"}},
 	{"DP_QC_GETSURFACEPOINTATTRIBUTE",	NULL,	1,{"getsurfacepointattribute"}},
 	{"DP_QC_GETTAGINFO",				NULL,	2,{"gettagindex", "gettaginfo"}},
+	{"DP_QC_I18N",						NULL,	0,{NULL}, "Specifies that the engine uses $MODULE.dat.$LANG.po files that translates the dotranslate_* globals on load - these are usually created via the _(\"foo\") qcc intrinsic."},
 	{"DP_QC_MINMAXBOUND",				NULL,	3,{"min", "max", "bound"}},
 	{"DP_QC_MULTIPLETEMPSTRINGS",		NULL,	0,{NULL}, "Superseded by DP_QC_UNLIMITEDTEMPSTRINGS. Functions that return a temporary string will not overwrite/destroy previous temporary strings until at least 16 strings are returned (or control returns to the engine)."},
 	{"DP_QC_RANDOMVEC",					check_notrerelease,	1,{"randomvec"}},

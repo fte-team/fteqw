@@ -2136,7 +2136,7 @@ static int syscallqvm (void *offset, quintptr_t mask, int fn, const int *arg)
 	{
 		qintptr_t args[13];
 		int i;
-		for (i = 0; i < 13; i++)
+		for (i = 0; i < countof(args); i++)
 			args[i] = arg[i];
 		if (fn >= countof(traps))
 			return QVM_NotYetImplemented(offset, mask, args);
@@ -2419,11 +2419,11 @@ qboolean PR_LoadQ1QVM(void)
 
 //WARNING: global is not remapped yet...
 //This code is written evilly, but works well enough
-#define globalint(required, name) pr_global_ptrs->name = Q1QVMPF_PointerToNative(&q1qvmprogfuncs, (qintptr_t)&gvars->name)	//the logic of this is somewhat crazy
-#define globalfloat(required, name) pr_global_ptrs->name = Q1QVMPF_PointerToNative(&q1qvmprogfuncs, (qintptr_t)&gvars->name)
-#define globalstring(required, name) pr_global_ptrs->name = Q1QVMPF_PointerToNative(&q1qvmprogfuncs, (qintptr_t)&gvars->name)
-#define globalvec(required, name) pr_global_ptrs->name = Q1QVMPF_PointerToNative(&q1qvmprogfuncs, (qintptr_t)&gvars->name)
-#define globalfunc(required, name) pr_global_ptrs->name = Q1QVMPF_PointerToNative(&q1qvmprogfuncs, (qintptr_t)&gvars->name)
+#define globalint(required, name) pr_global_ptrs->name = Q1QVMPF_PointerToNative(&q1qvmprogfuncs, (qintptr_t)&gvars->name - (qintptr_t)q1qvmprogfuncs.stringtable)	//the logic of this is somewhat crazy
+#define globalfloat(required, name) pr_global_ptrs->name = Q1QVMPF_PointerToNative(&q1qvmprogfuncs, (qintptr_t)&gvars->name - (qintptr_t)q1qvmprogfuncs.stringtable)
+#define globalstring(required, name) pr_global_ptrs->name = Q1QVMPF_PointerToNative(&q1qvmprogfuncs, (qintptr_t)&gvars->name - (qintptr_t)q1qvmprogfuncs.stringtable)
+#define globalvec(required, name) pr_global_ptrs->name = Q1QVMPF_PointerToNative(&q1qvmprogfuncs, (qintptr_t)&gvars->name - (qintptr_t)q1qvmprogfuncs.stringtable)
+#define globalfunc(required, name) pr_global_ptrs->name = Q1QVMPF_PointerToNative(&q1qvmprogfuncs, (qintptr_t)&gvars->name - (qintptr_t)q1qvmprogfuncs.stringtable)
 #define globalnull(required, name) pr_global_ptrs->name = NULL
 	globalint		(true, self);	//we need the qw ones, but any in standard quake and not quakeworld, we don't really care about.
 	globalint		(true, other);
@@ -2492,7 +2492,7 @@ qboolean PR_LoadQ1QVM(void)
 
 	dimensionsend = dimensiondefault = 255;
 	for (i = 0; i < 16; i++)
-		pr_global_ptrs->spawnparamglobals[i] = (float*)((char*)VM_MemoryBase(q1qvm)+(qintptr_t)(&gvars->parm1 + i));
+		pr_global_ptrs->spawnparamglobals[i] = (float*)(&gvars->parm1 + i);
 	for (; i < NUM_SPAWN_PARMS; i++)
 		pr_global_ptrs->spawnparamglobals[i] = NULL;
 	pr_global_ptrs->parm_string = NULL;

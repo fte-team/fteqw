@@ -1654,8 +1654,7 @@ static qintptr_t QVM_strftime (void *offset, quintptr_t mask, const qintptr_t *a
 	time(&curtime);
 	curtime += VM_LONG(arg[3]);
 	local = localtime(&curtime);
-	strftime(out, VM_LONG(arg[1]), fmt, local);
-	return 0;
+	return strftime(out, VM_LONG(arg[1]), fmt, local);
 }
 static qintptr_t QVM_Cmd_ArgS (void *offset, quintptr_t mask, const qintptr_t *arg)
 {

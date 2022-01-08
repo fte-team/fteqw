@@ -5129,32 +5129,77 @@ qboolean Sys_FindGameData(const char *poshname, const char *gamename, char *base
 #if defined(__linux__) || defined(__unix__) || defined(__apple__)
 #include <sys/stat.h>
 
+static qboolean Sys_SteamLibraryHasFile(char *basepath, int basepathlen, char *librarypath, char *steamdir, char *fname)	//returns the base system path
+{
+	Q_snprintfz(basepath, basepathlen, "%s/steamapps/common/%s", librarypath, steamdir);
+	if (0==access(va("%s/%s", basepath, fname), R_OK))
+		return true;
+	return false;
+}
+static qboolean Sys_SteamParseLibraries(char *basepath, int basepathlen, char *libraryfile, char *steamdir, char *fname)	//returns the base system path
+{
+	qboolean success = false;
+	char key[1024], *end;
+	char value[1024];
+	char *lib = libraryfile;
+	int depth = 0;
+	if (!libraryfile)
+		return false;
+	lib = COM_ParseCString(lib, key, sizeof(key), NULL);
+	lib = COM_ParseCString(lib, value, sizeof(value), NULL);
+	if (!strcmp(key, "libraryfolders") && !strcmp(value, "{"))
+	{
+		depth=1;
+		while(lib && !success)
+		{
+			lib = COM_ParseCString(lib, key, sizeof(key), NULL);
+			if (!strcmp(key, "}"))
+			{
+				if (!--depth)
+					break;
+				continue;
+			}
+			lib = COM_ParseCString(lib, value, sizeof(value), NULL);
+
+			if (!strcmp(value, "{"))
+				depth++;
+			else if (depth == 1 && *key)
+			{	//older format...
+				strtoul(key, &end, 10);
+				if (!*end)
+				{
+					//okay, its strictly base10
+					if (Sys_SteamLibraryHasFile(basepath, basepathlen, value, steamdir,fname))
+						success = true;
+				}
+			}
+			else if (depth == 2 && !strcmp(key, "path"))
+			{	//newer format...
+				if (Sys_SteamLibraryHasFile(basepath, basepathlen, value, steamdir,fname))
+					success = true;
+			}
+		}
+	}
+	FS_FreeFile(libraryfile);
+	return success;
+}
 static qboolean Sys_SteamHasFile(char *basepath, int basepathlen, char *steamdir, char *fname)	//returns the base system path
 {
 	/*
 	Find where Valve's Steam distribution platform is installed.
 	Then take a look at that location for the relevent installed app.
 	*/
-	//FIXME: we ought to parse steamapps/libraryfolders.vdf (json) and read the "1" etc for games installed on different drives. default drive only for now.
-	FILE *f;
 
 	char *userhome = getenv("HOME");
 	if (userhome && *userhome)
 	{
-		Q_snprintfz(basepath, basepathlen, "%s/.steam/steam/steamapps/common/%s", userhome, steamdir);
-		if ((f = fopen(va("%s/%s", basepath, fname), "rb")))
-		{
-			fclose(f);
+		Q_snprintfz(basepath, basepathlen, "%s/.steam/steam/steamapps/libraryfolders.vdf", userhome);
+		if (Sys_SteamParseLibraries(basepath, basepathlen, FS_MallocFile(basepath, FS_SYSTEM, NULL), steamdir, fname))
 			return true;
-		}
 
-		//steam apparently used to be more standard, or something? FIXME: yet still not xdg? no idea.
-		Q_snprintfz(basepath, basepathlen, "%s/.local/share/Steam/SteamApps/common/%s", userhome, steamdir);
-		if ((f = fopen(va("%s/%s", basepath, fname), "rb")))
-		{
-			fclose(f);
+		Q_snprintfz(basepath, basepathlen, "%s/.local/share/Steam/SteamApps/libraryfolders.vdf", userhome);
+		if (Sys_SteamParseLibraries(basepath, basepathlen, FS_MallocFile(basepath, FS_SYSTEM, NULL), steamdir, fname))
 			return true;
-		}
 	}
 	return false;
 }

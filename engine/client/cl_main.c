@@ -1200,7 +1200,7 @@ void CL_CheckForResend (void)
 	if (!connectinfo.clogged)
 		connectinfo.time = realtime+t2-t1;	// for retransmit requests
 
-	to = &connectinfo.adr[connectinfo.nextadr++%connectinfo.numadr];
+	to = &connectinfo.adr[connectinfo.nextadr%connectinfo.numadr];
 	if (!NET_IsClientLegal(to))
 	{
 		Cvar_Set(&cl_disconnectreason, va("Illegal server address"));
@@ -1225,7 +1225,7 @@ void CL_CheckForResend (void)
 			Con_TPrintf ("Connecting to %s...\n", cls.servername);
 	}
 
-	if (connectinfo.tries == 0 && to == &connectinfo.adr[0])
+	if (connectinfo.tries == 0 && connectinfo.nextadr < connectinfo.numadr)
 		if (!NET_EnsureRoute(cls.sockets, "conn", cls.servername, to))
 		{
 			Cvar_Set(&cl_disconnectreason, va("Unable to establish connection to %s\n", cls.servername));
@@ -1235,8 +1235,10 @@ void CL_CheckForResend (void)
 			return;
 		}
 
+	if (to->prot == NP_DGRAM)
+		connectinfo.nextadr++;	//cycle hosts with each ping (if we got multiple).
+
 	contype |= 1; /*always try qw type connections*/
-//	if ((connect_tries&3)==3) || (connect_defaultport==26000))
 #ifdef VM_UI
 	if (!UI_IsRunning())	//don't try to connect to nq servers when running a q3ui. I was getting annoying error messages from q3 servers due to this.
 #endif
@@ -1304,10 +1306,15 @@ void CL_CheckForResend (void)
 
 	if (!keeptrying)
 	{
-		Cvar_Set(&cl_disconnectreason, va("No route to \"%s\", giving up\n", cls.servername));
-		Con_TPrintf ("No route to host, giving up\n");
-		connectinfo.trying = false;
-		SCR_EndLoadingPlaque();
+		if (to->prot != NP_DGRAM && connectinfo.nextadr+1 < connectinfo.numadr)
+			connectinfo.nextadr++;	//cycle hosts with each ping (if we got multiple).
+		else
+		{
+			Cvar_Set(&cl_disconnectreason, va("No route to \"%s\", giving up\n", cls.servername));
+			Con_TPrintf ("No route to host, giving up\n");
+			connectinfo.trying = false;
+			SCR_EndLoadingPlaque();
+		}
 	}
 }
 
@@ -1324,8 +1331,8 @@ void CL_BeginServerConnect(const char *host, int port, qboolean noproxy)
 	if (!port)
 		port = cl_defaultport.value;
 #ifdef HAVE_DTLS
-	if (connectinfo.numadr)
-		NET_DTLS_Disconnect(cls.sockets, &connectinfo.adr[0]);
+	while (connectinfo.numadr)
+		NET_DTLS_Disconnect(cls.sockets, &connectinfo.adr[--connectinfo.numadr]);
 #endif
 	memset(&connectinfo, 0, sizeof(connectinfo));
 	if (*cl_disconnectreason.string)
@@ -1358,6 +1365,7 @@ void CL_BeginServerReconnect(void)
 	connectinfo.istransfer = false;
 	connectinfo.time = 0;
 	connectinfo.tries = 0;	//re-ensure routes.
+	connectinfo.nextadr = 0; //should at least be consistent, other than packetloss. yay. :\
 
 	NET_InitClient(false);
 }

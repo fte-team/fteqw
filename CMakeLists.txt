@@ -294,6 +294,13 @@ ELSEIF(${UNIX} AND NOT FTE_USE_SDL)	#linux(ish)
 	IF(NOT GNUTLS_FOUND)
 		MESSAGE(WARNING "gnutls library NOT available. HTTPS/DTLS will not be available.")
 		SET(FTE_LIB_DEFINES ${FTE_LIB_DEFINES};NO_GNUTLS)
+	ELSE()
+		SET(GNUTLS_STATIC false CACHE BOOL "Link gnutls statically.") #usually as an .so though. :/
+		IF(GNUTLS_STATIC)
+			SET(FTE_LIB_DEFINES ${FTE_LIB_DEFINES};GNUTLS_STATIC)
+			SET(FTE_LIBS ${FTE_LIBS} ${GNUTLS_LIBRARY})
+			SET(FTESV_LIBS ${FTESV_LIBS} ${GNUTLS_LIBRARY})
+		ENDIF()
 	ENDIF()
 
 	#linux-only packages
@@ -1207,7 +1214,7 @@ IF(FTE_PLUG_MPQ)
 ENDIF()
 
 #vpk package format plugin (halflife2)
-SET(FTE_PLUG_HL2 false CACHE BOOL "Compile support for hl2 file formats.")
+SET(FTE_PLUG_HL2 true CACHE BOOL "Compile support for hl2 file formats.")
 IF(FTE_PLUG_HL2)
 	ADD_LIBRARY(plug_hl2 MODULE
 		plugins/plugin.c

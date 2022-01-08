@@ -141,6 +141,8 @@ typedef int (VARGS gnutls_certificate_verify_function)(gnutls_session_t session)
 
 static int (VARGS *qgnutls_bye)(gnutls_session_t session, gnutls_close_request_t how);
 static void (VARGS *qgnutls_perror)(int error);
+static gnutls_alert_description_t (VARGS *qgnutls_alert_get)(gnutls_session_t session);
+static const char *(VARGS *qgnutls_alert_get_name)(gnutls_alert_description_t alert);
 static int (VARGS *qgnutls_handshake)(gnutls_session_t session);
 static void (VARGS *qgnutls_transport_set_ptr)(gnutls_session_t session, gnutls_transport_ptr_t ptr);
 static void (VARGS *qgnutls_transport_set_push_function)(gnutls_session_t session, gnutls_push_func push_func);
@@ -190,6 +192,9 @@ static int (VARGS *qgnutls_dtls_cookie_verify)(gnutls_datum_t * key, void *clien
 static int (VARGS *qgnutls_dtls_cookie_send)(gnutls_datum_t * key, void *client_data, size_t client_data_size, gnutls_dtls_prestate_st * prestate, gnutls_transport_ptr_t ptr, gnutls_push_func push_func);
 static void (VARGS *qgnutls_dtls_prestate_set)(gnutls_session_t session, gnutls_dtls_prestate_st * prestate);
 static void (VARGS *qgnutls_dtls_set_mtu)(gnutls_session_t session, unsigned int mtu);
+
+//static int		(VARGS *qgnutls_psk_allocate_client_credentials)(gnutls_psk_client_credentials_t *sc);
+//static int		(VARGS *qgnutls_psk_set_client_credentials)(gnutls_psk_client_credentials_t res, const char *username, const gnutls_datum_t * key, gnutls_psk_key_flags flags);
 #endif
 
 static unsigned int	(VARGS *qgnutls_sec_param_to_pk_bits)(gnutls_pk_algorithm_t algo, gnutls_sec_param_t param);
@@ -231,7 +236,8 @@ static qboolean Init_GNUTLS(void)
 #ifdef GNUTLS_HAVE_VERIFY3
 	#define GNUTLS_VERIFYFUNCS \
 		GNUTLS_FUNC(gnutls_certificate_verify_peers3) \
-		GNUTLS_FUNC(gnutls_certificate_verification_status_print)
+		GNUTLS_FUNC(gnutls_certificate_verification_status_print)	\
+		GNUTLS_FUNC(gnutls_certificate_get_peers)
 #else
 	#define GNUTLS_VERIFYFUNCS \
 		GNUTLS_FUNC(gnutls_certificate_verify_peers2) \
@@ -249,6 +255,8 @@ static qboolean Init_GNUTLS(void)
 		GNUTLS_FUNC(gnutls_dtls_cookie_send) \
 		GNUTLS_FUNC(gnutls_dtls_prestate_set) \
 		GNUTLS_FUNC(gnutls_dtls_set_mtu)
+//		GNUTLS_FUNC(gnutls_psk_allocate_client_credentials)
+//		GNUTLS_FUNC(gnutls_psk_set_client_credentials)
 #else
 	#define GNUTLS_DTLS_STUFF
 #endif
@@ -303,7 +311,8 @@ static qboolean Init_GNUTLS(void)
 	GNUTLS_FUNC(gnutls_certificate_set_x509_key_file)	\
 	GNUTLS_VERIFYFUNCS	\
 	GNUTLS_FUNC(gnutls_certificate_type_get)	\
-	GNUTLS_FUNC(gnutls_free)	\
+	GNUTLS_FUNCPTR(gnutls_malloc)	\
+	GNUTLS_FUNCPTR(gnutls_free)	\
 	GNUTLS_FUNC(gnutls_server_name_set)	\
 	GNUTLS_DTLS_STUFF	\
 	GNUTLS_X509_STUFF
@@ -318,6 +327,8 @@ static qboolean Init_GNUTLS(void)
 //#undef GNUTLS_FUNC
 		{(void**)&qgnutls_bye, "gnutls_bye"},
 		{(void**)&qgnutls_perror, "gnutls_perror"},
+		{(void**)&qgnutls_alert_get, "gnutls_alert_get"},
+		{(void**)&qgnutls_alert_get_name, "gnutls_alert_get_name"},
 		{(void**)&qgnutls_handshake, "gnutls_handshake"},
 		{(void**)&qgnutls_transport_set_ptr, "gnutls_transport_set_ptr"},
 		{(void**)&qgnutls_transport_set_push_function, "gnutls_transport_set_push_function"},
@@ -367,6 +378,8 @@ static qboolean Init_GNUTLS(void)
 		{(void**)&qgnutls_dtls_cookie_send, "gnutls_dtls_cookie_send"},
 		{(void**)&qgnutls_dtls_prestate_set, "gnutls_dtls_prestate_set"},
 		{(void**)&qgnutls_dtls_set_mtu, "gnutls_dtls_set_mtu"},
+//		{(void**)&qgnutls_psk_allocate_client_credentials, "gnutls_psk_allocate_client_credentials"},
+//		{(void**)&qgnutls_psk_set_client_credentials, "gnutls_psk_set_client_credentials"},
 #endif
 
 		{(void**)&qgnutls_sec_param_to_pk_bits, "gnutls_sec_param_to_pk_bits"},
@@ -413,8 +426,10 @@ static qboolean Init_GNUTLS(void)
 		return false;
 #else
 	#define GNUTLS_FUNC(name) q##name = name;
+	#define GNUTLS_FUNCPTR(name) q##name = &name;
 			GNUTLS_FUNCS
 	#undef GNUTLS_FUNC
+	#undef GNUTLS_FUNCPTR
 #endif
 	return true;
 }
@@ -673,7 +688,10 @@ static int SSL_DoHandshake(gnutlsfile_t *file)
 		if (developer.ival)
 		{
 			if (err == GNUTLS_E_FATAL_ALERT_RECEIVED)
-				;	//peer doesn't like us.
+			{	//peer doesn't like us.
+				gnutls_alert_description_t desc = qgnutls_alert_get(file->session);
+				Con_Printf(CON_ERROR"GNU%sTLS: %s: %s(%i)\n", file->datagram?"D":"", file->certname, qgnutls_alert_get_name(desc), desc);
+			}
 			else
 				//we didn't like the peer.
 				qgnutls_perror (err);
@@ -683,6 +701,7 @@ static int SSL_DoHandshake(gnutlsfile_t *file)
 
 		switch(err)
 		{
+		case GNUTLS_E_INSUFFICIENT_CREDENTIALS:
 		case GNUTLS_E_CERTIFICATE_ERROR:		err = VFS_ERROR_UNTRUSTED;		break;
 		case GNUTLS_E_PREMATURE_TERMINATION:	err = VFS_ERROR_EOF;			break;
 		case GNUTLS_E_PUSH_ERROR:				err = file->pusherror;			break;
@@ -838,6 +857,9 @@ static ssize_t DTLS_Push(gnutls_transport_ptr_t p, const void *data, size_t size
 	neterr_t ne = file->cbpush(file->cbctx, data, size);
 
 //	Sys_Printf("DTLS_Push: %u, err=%i\n", (unsigned)size, (int)ne);
+
+	if (!file->session)
+		return ne?-1:size;
 
 	switch(ne)
 	{
@@ -1180,6 +1202,15 @@ qboolean SSL_InitGlobal(qboolean isserver)
 		return false;
 	return true;
 }
+#if 0
+static int GetPSKForUser(gnutls_session_t sess, const char *username, gnutls_datum_t * key)
+{
+Con_Printf("GetPSKForUser: %s\n", username);
+	key->size = 0;
+	key->data = key->size?gnutls_malloc(key->size):0;
+	return -1;
+}
+#endif
 static qboolean SSL_InitConnection(gnutlsfile_t *newf, qboolean isserver, qboolean datagram)
 {
 	// Initialize TLS session
@@ -1187,28 +1218,42 @@ static qboolean SSL_InitConnection(gnutlsfile_t *newf, qboolean isserver, qboole
 
 	if (!isserver)
 		qgnutls_server_name_set(newf->session, GNUTLS_NAME_DNS, newf->certname, strlen(newf->certname));
-	/*else
-	{
-		size_t size = sizeof(newf->certname);
-		unsigned int type = GNUTLS_NAME_DNS;
-		int err;
-		err=qgnutls_server_name_get(newf->session, newf->certname, &size, &type, 0);
-		if (err!=GNUTLS_E_SUCCESS)
-			*newf->certname = 0;
-	}*/
-
 	qgnutls_session_set_ptr(newf->session, newf);
 
 #ifdef USE_ANON
 	//qgnutls_kx_set_priority (newf->session, kx_prio);
 	qgnutls_credentials_set (newf->session, GNUTLS_CRD_ANON, anoncred[isserver]);
 #else
-//#if GNUTLS_VERSION_MAJOR >= 3
-	//gnutls_priority_set_direct();
-//#else
-	//qgnutls_certificate_type_set_priority (newf->session, cert_type_priority);
-//#endif
-	qgnutls_credentials_set (newf->session, GNUTLS_CRD_CERTIFICATE, xcred[isserver]);
+#if 0//def HAVE_DTLS
+	if (datagram)
+	{	//use some arbitrary PSK for dtls clients.
+		if (isserver)
+		{
+			gnutls_psk_server_credentials_t pskcred;
+			qgnutls_psk_allocate_server_credentials(&pskcred);
+			qgnutls_psk_set_server_credentials_function(pskcred, GetPSKForUser);
+			qgnutls_psk_set_server_credentials_hint(pskcred, "id-quake-ex-dtls");
+			qgnutls_credentials_set(newf->session, GNUTLS_CRD_PSK, pskcred);
+		}
+		else
+		{
+#ifdef HAVE_CLIENT
+			extern cvar_t name;
+			const char *namestr = name.string;
+#else
+			const char *namestr = "Anonymous";
+#endif
+			gnutls_psk_client_credentials_t pskcred;
+			const gnutls_datum_t key = { (void *) "deadbeef", 0 };
+			qgnutls_psk_allocate_client_credentials(&pskcred);
+			qgnutls_psk_set_client_credentials(pskcred, namestr, &key, GNUTLS_PSK_KEY_HEX);
+
+			qgnutls_credentials_set(newf->session, GNUTLS_CRD_PSK, pskcred);
+		}
+	}
+	else
+#endif
+		qgnutls_credentials_set (newf->session, GNUTLS_CRD_CERTIFICATE, xcred[isserver]);
 #endif
 	// Use default priorities
 	qgnutls_set_default_priority (newf->session);
@@ -1222,9 +1267,6 @@ static qboolean SSL_InitConnection(gnutlsfile_t *newf, qboolean isserver, qboole
 	if (datagram)
 		qgnutls_transport_set_pull_timeout_function(newf->session, DTLS_Pull_Timeout);
 #endif
-
-//	if (isserver)	//don't bother to auth any client certs
-//		qgnutls_certificate_server_set_request(newf->session, GNUTLS_CERT_IGNORE);
 
 	newf->handshaking = true;
 
@@ -1406,8 +1448,6 @@ static neterr_t GNUDTLS_Transmit(void *ctx, const qbyte *data, size_t datasize)
 {
 	int ret;
 	gnutlsfile_t *f = (gnutlsfile_t *)ctx;
-//	Sys_Printf("DTLS_Transmit: %u\n", datasize);
-//	Sys_Printf("%su\n", data);
 
 	if (f->challenging)
 		return NETERR_CLOGGED;
@@ -1425,7 +1465,6 @@ static neterr_t GNUDTLS_Transmit(void *ctx, const qbyte *data, size_t datasize)
 	{
 		if (ret == GNUTLS_E_LARGE_PACKET)
 			return NETERR_MTU;
-//Sys_Error("qgnutls_record_send returned %i\n", ret);
 
 		if (qgnutls_error_is_fatal(ret))
 			return NETERR_DISCONNECTED;
@@ -1436,14 +1475,12 @@ static neterr_t GNUDTLS_Transmit(void *ctx, const qbyte *data, size_t datasize)
 
 static neterr_t GNUDTLS_Received(void *ctx, sizebuf_t *message)
 {
-	int cli_addr = 0xdeadbeef;
 	int ret;
 	gnutlsfile_t *f = (gnutlsfile_t *)ctx;
 
-//Sys_Printf("DTLS_Received: %u\n", datasize);
-
 	if (f->challenging)
 	{
+		int cli_addr = 0xdeadbeef;	//FIXME: replace with client's IP:port.
 		memset(&f->prestate, 0, sizeof(f->prestate));
 		ret = qgnutls_dtls_cookie_verify(&cookie_key,
 				&cli_addr, sizeof(cli_addr),
@@ -1452,21 +1489,17 @@ static neterr_t GNUDTLS_Received(void *ctx, sizebuf_t *message)
 
 		if (ret < 0)
 		{
-//Sys_Printf("Sending cookie\n");
 			qgnutls_dtls_cookie_send(&cookie_key,
 					&cli_addr, sizeof(cli_addr),
 					&f->prestate,
 					(gnutls_transport_ptr_t)f, DTLS_Push);
 			return NETERR_CLOGGED;
 		}
-//Sys_Printf("Got correct cookie\n");
 		f->challenging = false;
 
 		qgnutls_dtls_prestate_set(f->session, &f->prestate);
 		qgnutls_dtls_set_mtu(f->session, 1440);
 
-//		qgnutls_transport_set_push_function(f->session, DTLS_Push);
-//		qgnutls_transport_set_pull_function(f->session, DTLS_Pull);
 		f->handshaking = true;
 	}
 
@@ -1508,6 +1541,59 @@ static neterr_t GNUDTLS_Received(void *ctx, sizebuf_t *message)
 	return NETERR_SENT;
 }
 
+static qboolean GNUDTLS_CheckConnection(void *cbctx, void *peeraddr, size_t peeraddrsize, void *indata, size_t insize, neterr_t(*push)(void *cbctx, const qbyte *data, size_t datasize), void (*EstablishTrueContext)(void **cbctx, void *state))
+{	//called when we got a possibly-dtls packet out of the blue.
+	gnutlsfile_t *f;
+	int ret;
+	gnutls_dtls_prestate_st prestate;
+
+	memset(&prestate, 0, sizeof(prestate));
+	ret = qgnutls_dtls_cookie_verify(&cookie_key,
+			peeraddr, peeraddrsize,
+			indata, insize,
+			&prestate);
+
+	if (ret == GNUTLS_E_BAD_COOKIE)
+	{	//some sort of handshake with a bad/unknown cookie. send them a real one.
+		gnutlsfile_t f;
+		f.cbctx = cbctx;
+		f.cbpush = push;
+		f.session = NULL;
+
+		qgnutls_dtls_cookie_send(&cookie_key,
+				peeraddr, peeraddrsize,
+				&prestate,
+				(gnutls_transport_ptr_t)&f, DTLS_Push);
+		return true;
+	}
+	else if (ret < 0)
+		return false;	//dunno... might still be dtls but doesn't seem to be needed... oh well...
+
+	//allocate our context
+	f = GNUDTLS_CreateContext(NULL, cbctx, push, true);
+	if (!f)
+	{
+		Con_Printf("GNUDTLS_CreateContext: failed\n");
+		return false;
+	}
+
+	//tell caller that this is an actual valid connection
+	EstablishTrueContext(&f->cbctx, f);
+	if (!f->cbctx)
+		return true;
+
+	//we're done with the challenge stuff
+	f->challenging = false;
+
+	//and this is the result...
+	qgnutls_dtls_prestate_set(f->session, &prestate);
+	qgnutls_dtls_set_mtu(f->session, 1440);
+
+	//still need to do the whole certificate thing though.
+	f->handshaking = true;
+	return true;
+}
+
 static neterr_t GNUDTLS_Timeouts(void *ctx)
 {
 	gnutlsfile_t *f = (gnutlsfile_t *)ctx;
@@ -1532,6 +1618,7 @@ static neterr_t GNUDTLS_Timeouts(void *ctx)
 static const dtlsfuncs_t dtlsfuncs_gnutls =
 {
 	GNUDTLS_CreateContext,
+	GNUDTLS_CheckConnection,
 	GNUDTLS_DestroyContext,
 	GNUDTLS_Transmit,
 	GNUDTLS_Received,

@@ -349,6 +349,7 @@ struct dtlsfuncs_s;
 typedef struct dtlsfuncs_s
 {
 	void *(*CreateContext)(const char *remotehost, void *cbctx, neterr_t(*push)(void *cbctx, const qbyte *data, size_t datasize), qboolean isserver);	//if remotehost is null then their certificate will not be validated.
+	qboolean (*CheckConnection)(void *cbctx, void *peeraddr, size_t peeraddrsize, void *indata, size_t insize, neterr_t(*push)(void *cbctx, const qbyte *data, size_t datasize), void (*EstablishTrueContext)(void **cbctx, void *state));
 	void (*DestroyContext)(void *ctx);
 	neterr_t (*Transmit)(void *ctx, const qbyte *data, size_t datasize);
 	neterr_t (*Received)(void *ctx, sizebuf_t *message);	//operates in-place...

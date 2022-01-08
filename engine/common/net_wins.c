@@ -3025,10 +3025,10 @@ qboolean NET_DTLS_Create(ftenet_connections_t *col, netadr_t *to)
 		peer->timeout = realtime+timeout.value;
 		if (peer->dtlsstate)
 		{
-			if (peer->next)
-				peer->next->link = &peer->next;
 			peer->link = &col->dtls;
 			peer->next = col->dtls;
+			if (peer->next)
+				peer->next->link = &peer->next;
 			col->dtls = peer;
 		}
 		else
@@ -3039,10 +3039,54 @@ qboolean NET_DTLS_Create(ftenet_connections_t *col, netadr_t *to)
 	}
 	return peer!=NULL;
 }
+#ifdef HAVE_SERVER
+static void FTENET_DTLS_Established(void **ctx, void *state)
+{
+	ftenet_connections_t *col;
+	struct dtlspeer_s *peer = Z_Malloc(sizeof(*peer));
+	memcpy(peer, *ctx, sizeof(*peer));
+	*ctx = peer;
+	col = peer->col;
+
+	peer->dtlsstate = state;
+
+	peer->timeout = realtime+timeout.value;
+	peer->link = &col->dtls;
+	peer->next = col->dtls;
+	if (peer->next)
+		peer->next->link = &peer->next;
+	col->dtls = peer;
+}
+qboolean NET_DTLS_CheckInbound(ftenet_connections_t *col)
+{
+	extern cvar_t timeout, net_enable_dtls;
+	struct dtlspeer_s *peer;
+	netadr_t *from = &net_from;
+	if (from->prot != NP_DGRAM || !net_enable_dtls.ival || !col->dtlsfuncs)
+		return false;
+	for (peer = col->dtls; peer; peer = peer->next)
+	{
+		if (NET_CompareAdr(&peer->addr, from))
+			break;
+	}
+	if (!peer)
+	{
+		if (col->dtlsfuncs->CheckConnection)
+		{
+			struct dtlspeer_s peer;
+			//fill it with preliminary info
+			peer.addr = *from;
+			peer.col = col;
+			peer.funcs = col->dtlsfuncs;
+			return col->dtlsfuncs->CheckConnection(&peer, from, sizeof(*from), net_message.data, net_message.cursize, FTENET_DTLS_DoSendPacket, FTENET_DTLS_Established);
+		}
+	}
+	return false;
+}
+#endif
 static void NET_DTLS_DisconnectPeer(ftenet_connections_t *col, struct dtlspeer_s *peer)
 {
 //	Sys_Printf("Destroy %p\n", peer->dtlsstate);
-
 	if (peer->next)
 		peer->next->link = peer->link;
 	*peer->link = peer->next;
@@ -3095,8 +3139,8 @@ qboolean NET_DTLS_Decode(ftenet_connections_t *col)
 			switch(peer->funcs->Received(peer->dtlsstate, &net_message))
 			{
 			case NETERR_DISCONNECTED:
-				Sys_Printf("disconnected %p\n", peer->dtlsstate);
 				NET_DTLS_DisconnectPeer(col, peer);
+				net_message.cursize = 0;
 				break;
 			case NETERR_NOROUTE:
 				return false;	//not a valid dtls packet.
@@ -7964,6 +8008,14 @@ qboolean NET_EnsureRoute(ftenet_connections_t *collection, char *routename, char
 			return false;
 		break;
 	case NP_DTLS:
+		adr->prot = NP_DGRAM;
+		NET_EnsureRoute(collection, routename, host, adr);
+		if (NET_DTLS_Create(collection, adr))
+		{
+			adr->prot = NP_DTLS;
+			return true;
+		}
+		adr->prot = NP_DTLS;
 		break;
 	case NP_WS:
 	case NP_WSS:
@@ -8038,7 +8090,7 @@ static enum addressscope_e NET_ClassifyAddressipv4(int ip, const char **outdesc)
 	else if ((ip&BigLong(0xffc00000)) == BigLong(0x64400000))	//100.64.x.x/10
 		scope = ASCOPE_LAN, desc = localtext("CGNAT");
 	else if (ip == BigLong(0x00000000))	//0.0.0.0/32
-		scope = ASCOPE_LAN, desc = "any";
+		scope = ASCOPE_HOST, desc = "any";
 
 	*outdesc = desc;
 	return scope;
@@ -8066,7 +8118,7 @@ enum addressscope_e NET_ClassifyAddress(netadr_t *adr, const char **outdesc)
 		else if (memcmp(adr->address.ip6, "\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\1", 16) == 0)	//::1
 			scope = ASCOPE_HOST, desc = "localhost";
 		else if (memcmp(adr->address.ip6, "\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0", 16) == 0)	//::
-			scope = ASCOPE_NET, desc = "any";
+			scope = ASCOPE_HOST, desc = "any";
 		else if (memcmp(adr->address.ip6, "\0\0\0\0\0\0\0\0\0\0\xff\xff", 12) == 0)	//::ffff:x.y.z.w
 		{
 			scope = NET_ClassifyAddressipv4(*(int*)(adr->address.ip6+12), &desc);
@@ -8687,6 +8739,11 @@ qboolean NET_WasSpecialPacket(ftenet_connections_t *collection)
 
 #if defined(SUPPORT_ICE) || defined(MASTERONLY)
 	if (ICE_WasStun(collection))
+		return true;
+#endif
+
+#if defined(HAVE_DTLS) && defined(HAVE_SERVER)
+	if (collection->islisten && NET_DTLS_CheckInbound(collection))
 		return true;
 #endif
 

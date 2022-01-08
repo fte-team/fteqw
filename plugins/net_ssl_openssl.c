@@ -125,7 +125,7 @@ static int QDECL OSSL_FRead (struct vfsfile_s *file, void *buffer, int bytestore
 			case BIO_RR_ACCEPT:
 			case BIO_RR_CONNECT:
 				return -1;	//should never happen
-			};
+			}
 		}
 		if (BIO_should_retry(o->bio))
 			return 0;
@@ -665,11 +665,16 @@ static neterr_t OSSL_Received(void *ctx, sizebuf_t *message)
 	ossldtls_t *o = (ossldtls_t*)ctx;
 	int r;
 
-	o->pending = message->data;
-	o->pendingsize = message->cursize;
-	r = BIO_read(o->bio, message->data, message->maxsize);
-	o->pending = NULL;
-	o->pendingsize = 0;
+	if (!message)
+		r = 0;
+	else
+	{
+		o->pending = message->data;
+		o->pendingsize = message->cursize;
+		r = BIO_read(o->bio, message->data, message->maxsize);
+		o->pending = NULL;
+		o->pendingsize = 0;
+	}
 
 	if (r > 0)
 	{
@@ -704,6 +709,7 @@ static neterr_t OSSL_Timeouts(void *ctx)
 static dtlsfuncs_t ossl_dtlsfuncs =
 {
 	OSSL_CreateContext,
+	NULL,
 	OSSL_DestroyContext,
 	OSSL_Transmit,
 	OSSL_Received,

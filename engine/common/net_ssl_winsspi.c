@@ -1231,6 +1231,7 @@ static neterr_t SSPI_DTLS_Timeouts(void *ctx)
 static const dtlsfuncs_t dtlsfuncs_schannel =
 {
 	SSPI_DTLS_CreateContext,
+	NULL,
 	SSPI_DTLS_DestroyContext,
 	SSPI_DTLS_Transmit,
 	SSPI_DTLS_Received,

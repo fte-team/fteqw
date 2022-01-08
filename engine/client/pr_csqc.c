@@ -7056,7 +7056,7 @@ static struct {
 	{"skel_delete",				PF_skel_delete,			275},//void(float skel) skel_delete = #275; // (FTE_CSQC_SKELETONOBJECTS)
 	{"frameforname",			PF_frameforname,		276},//float(float modidx, string framename) frameforname = #276 (FTE_CSQC_SKELETONOBJECTS)
 	{"frameduration",			PF_frameduration,		277},//float(float modidx, float framenum) frameduration = #277 (FTE_CSQC_SKELETONOBJECTS)
-	{"frameforaction",			PF_frameforaction,		0},//float(float modidx, string actionid) frameforaction = #0
+	{"frameforaction",			PF_frameforaction,		0},//float(float modidx, int actionid) frameforaction = #0
 	{"processmodelevents",		PF_processmodelevents,	0},
 	{"getnextmodelevent",		PF_getnextmodelevent,	0},
 	{"getmodeleventidx",		PF_getmodeleventidx,	0},

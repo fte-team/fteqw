@@ -1322,29 +1322,6 @@ void CL_UpdatePrydonCursor(usercmd_t *from, int pnum)
 			from->cursor_screen[1] = 1;
 	}
 
-	/*
-	if (cl.cmd.cursor_screen[0] < -1)
-	{
-		cl.viewangles[YAW] -= m_yaw.value * (cl.cmd.cursor_screen[0] - -1) * vid.realwidth * sensitivity.value * cl.viewzoom;
-		cl.cmd.cursor_screen[0] = -1;
-	}
-	if (cl.cmd.cursor_screen[0] > 1)
-	{
-		cl.viewangles[YAW] -= m_yaw.value * (cl.cmd.cursor_screen[0] - 1) * vid.realwidth * sensitivity.value * cl.viewzoom;
-		cl.cmd.cursor_screen[0] = 1;
-	}
-	if (cl.cmd.cursor_screen[1] < -1)
-	{
-		cl.viewangles[PITCH] += m_pitch.value * (cl.cmd.cursor_screen[1] - -1) * vid.realheight * sensitivity.value * cl.viewzoom;
-		cl.cmd.cursor_screen[1] = -1;
-	}
-	if (cl.cmd.cursor_screen[1] > 1)
-	{
-		cl.viewangles[PITCH] += m_pitch.value * (cl.cmd.cursor_screen[1] - 1) * vid.realheight * sensitivity.value * cl.viewzoom;
-		cl.cmd.cursor_screen[1] = 1;
-	}
-	*/
-
 	VectorClear(from->cursor_start);
 	temp[0] = (from->cursor_screen[0]+1)/2;
 	temp[1] = (-from->cursor_screen[1]+1)/2;

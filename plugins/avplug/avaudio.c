@@ -525,9 +525,18 @@ static void AVLogCallback(void *avcl, int level, const char *fmt, va_list vl)
 {	//needs to be reenterant
 #ifdef _DEBUG
 	char		string[1024];
+	if (level >= AV_LOG_INFO)
+		return;	//don't care if its just going to be spam.
 	Q_vsnprintf (string, sizeof(string), fmt, vl);
-	if (pdeveloper && pdeveloper->ival)
-		Con_Printf("%s", string);
+	if (level >= AV_LOG_WARNING)
+	{
+		if (pdeveloper && pdeveloper->ival)
+			Con_Printf("ffmpeg: %s", string);
+	}
+	else if (level >= AV_LOG_ERROR)
+		Con_Printf(CON_WARNING"ffmpeg: %s", string);
+	else
+		Con_Printf(CON_ERROR"ffmpeg: %s", string);
 #endif
 }
 

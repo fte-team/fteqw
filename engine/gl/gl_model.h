@@ -909,7 +909,7 @@ typedef enum {sb_none, sb_quake64, sb_long1, sb_long2} subbsp_t; // used to deno
 #define  MFH2_SPIT				(1u<<11)		// Black transparent trail with negative light
 #define  MFH2_TRANSPARENT		(1u<<12)		// Transparent sprite
 #define  MFH2_SPELL				(1u<<13)		// Vertical spray of particles
-#define  MFH2_HOLEY				(1u<<14)		// Solid model with color 0
+#define  MFH2_HOLEY				(1u<<14)		// Solid model with color 0 cut out
 #define  MFH2_SPECIAL_TRANS		(1u<<15)		// Translucency through the particle table
 #define  MFH2_FACE_VIEW			(1u<<16)		// Poly Model always faces you
 #define  MFH2_VORP_MISSILE		(1u<<17)		// leave a trail at top and bottom of model

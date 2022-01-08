@@ -40,6 +40,7 @@ cvar_t mod_litsprites_force					= CVARD("mod_litsprites_force", "0", "If set to 
 cvar_t mod_loadmappackages					= CVARD ("mod_loadmappackages", "1", "Load additional content embedded within bsp files.");
 cvar_t mod_lightscale_broken				= CVARFD("mod_lightscale_broken", "0", CVAR_RENDERERLATCH, "When active, replicates a bug from vanilla - the radius of r_dynamic lights is scaled by per-surface texture scale rather than using actual distance.");
 cvar_t temp_lit2support						= CVARD("temp_mod_lit2support", "0", "Set to 1 to enable lit2 support. This cvar will be removed once the format is finalised.");
+cvar_t mod_lightpoint_distance				= CVARD("mod_lightpoint_distance", "8192", "This is the maximum distance to trace when searching for a ground surface for lighting info on map formats without light more fancy lighting info. Use 2048 for full compat with Quake.");
 #ifdef SPRMODELS
 cvar_t r_sprite_backfacing					= CVARD	("r_sprite_backfacing", "0", "Make oriented sprites face backwards relative to their orientation, for compat with q1.");
 #endif
@@ -661,6 +662,7 @@ void Mod_Init (qboolean initial)
 		Cvar_Register(&mod_loadentfiles_dir, NULL);
 		Cvar_Register(&mod_loadmappackages, NULL);
 		Cvar_Register(&mod_lightscale_broken, NULL);
+		Cvar_Register(&mod_lightpoint_distance, NULL);
 		Cvar_Register(&temp_lit2support, NULL);
 		Cvar_Register (&r_meshpitch, "Gamecode");
 		Cvar_Register (&r_meshroll, "Gamecode");

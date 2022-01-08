@@ -26,6 +26,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 extern cvar_t r_shadow_realtime_world, r_shadow_realtime_world_lightmaps;
 extern cvar_t r_hdr_irisadaptation, r_hdr_irisadaptation_multiplier, r_hdr_irisadaptation_minvalue, r_hdr_irisadaptation_maxvalue, r_hdr_irisadaptation_fade_down, r_hdr_irisadaptation_fade_up;
+extern cvar_t mod_lightpoint_distance;
 
 int	r_dlightframecount;
 int		d_lightstylevalue[MAX_NET_LIGHTSTYLES];	// 8.8 fraction of base light value
@@ -2671,7 +2672,7 @@ int R_LightPoint (vec3_t p)
 
 	end[0] = p[0];
 	end[1] = p[1];
-	end[2] = p[2] - 2048;
+	end[2] = p[2] - mod_lightpoint_distance.value;
 
 	r = GLRecursiveLightPoint (cl.worldmodel->rootnode, p, end);
 	
@@ -2942,7 +2943,7 @@ void GLQ1BSP_LightPointValues(model_t *model, const vec3_t point, vec3_t res_dif
 
 	end[0] = point[0];
 	end[1] = point[1];
-	end[2] = point[2] - 2048;
+	end[2] = point[2] - mod_lightpoint_distance.value;
 
 	r = GLRecursiveLightPoint3C(model, model->rootnode, point, end);
 	if (r == NULL)

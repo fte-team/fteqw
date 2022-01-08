@@ -698,6 +698,7 @@ typedef struct client_s
 	enum serverprotocols_e protocol;
 	unsigned int	supportedprotocols;
 	qboolean proquake_angles_hack;	//expect 16bit client->server angles .
+	qboolean qex_input_hack;	//qex sends strange clc inputs and needs workarounds for its prediction.
 
 	unsigned int lastruncmd;	//for non-qw physics. timestamp they were last run, so switching between physics modes isn't a (significant) cheat
 //speed cheat testing
@@ -1183,6 +1184,7 @@ typedef struct
 	enum serverprotocols_e protocol;		//protocol used to talk to this client.
 #ifdef NQPROT
 	qboolean proquakeanglehack;				//specifies that the client will expect proquake angles if we give a proquake CCREP_ACCEPT response.
+	qboolean isqex;							//yay quirks...
 	unsigned int expectedreliablesequence;	//required for nq connection cookies (like tcp's syn cookies).
 	unsigned int supportedprotocols;		//1<<SCP_* bitmask
 #endif

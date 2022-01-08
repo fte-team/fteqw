@@ -129,7 +129,7 @@ cvar_t sv_public			= CVARD("sv_public", "0", "-1: Fully blocks all inbound conne
 cvar_t sv_guidhash			= CVARD("sv_guidkey", "", "If set, clients will calculate their GUID values against this string instead of the server's IP address. This allows consistency between multiple servers (for stats tracking), but do NOT treat the client's GUID as something that is secure.");
 cvar_t sv_serverip			= CVARD("sv_serverip", "", "Set this cvar to the server's public ip address if the server is behind a firewall and cannot detect its own public address. Providing a port is required if the firewall/nat remaps it, but is otherwise optional.");
 cvar_t sv_listen_qw			= CVARAFD("sv_listen_qw", "1", "sv_listen", 0, "Specifies whether normal clients are allowed to connect.");
-cvar_t sv_listen_nq			= CVARD("sv_listen_nq", "2", "Allow new (net)quake clients to connect to the server.\n0 = don't let them in.\n1 = allow them in (WARNING: this allows 'qsmurf' DOS attacks).\n2 = accept (net)quake clients by emulating a challenge (as secure as QW/Q2 but does not fully conform to the NQ protocol).");
+cvar_t sv_listen_nq			= CVARD("sv_listen_nq", "2", "Allow new (net)quake clients to connect to the server.\n0 = don't let them in.\n1 = allow them in (WARNING: this allows 'qsmurf' DOS attacks).\n2 = accept (net)quake clients by emulating a challenge (as secure as QW/Q2 but does not fully conform to the NQ protocol).\nYou may also need to set net_enable_dtls if you wish for the rerelease's client to connect.");
 cvar_t sv_listen_dp			= CVARD("sv_listen_dp", "0", "Allows the server to respond with the DP-specific handshake protocol.\nWarning: this can potentially get confused with quake2, and results in race conditions with both vanilla netquake and quakeworld protocols.\nOn the plus side, DP clients can usually be identified correctly, enabling a model+sound limit boost.");
 #ifdef QWOVERQ3
 cvar_t sv_listen_q3			= CVAR("sv_listen_q3", "0");
@@ -2111,6 +2111,13 @@ void SV_ClientProtocolExtensionsChanged(client_t *client)
 
 		client->datagram.maxsize = sizeof(host_client->datagram_buf);
 	}
+	else if (client->qex_input_hack)
+	{
+		client->max_net_clients = NQMAX_CLIENTS;
+		client->datagram.maxsize = sizeof(host_client->datagram_buf);
+		client->max_net_ents = bound(512, pr_maxedicts.ival, 32768);
+		client->max_net_staticents = 4096;
+	}
 	else
 	{
 		client->max_net_clients = NQMAX_CLIENTS;
@@ -2564,6 +2571,7 @@ void SV_DoDirectConnect(svconnectinfo_t *fte_restrict info)
 	}
 	newcl->supportedprotocols = info->supportedprotocols;
 	newcl->proquake_angles_hack = info->proquakeanglehack;
+	newcl->qex_input_hack = info->isqex;
 #endif
 
 	newcl->userid = ++nextuserid;
@@ -3202,6 +3210,7 @@ void SVC_DirectConnect(int expectedreliablesequence)
 #ifdef NQPROT
 	extern cvar_t sv_protocol_nq;
 	info.proquakeanglehack = false;
+	info.isqex = false;
 	info.supportedprotocols = 0;
 	info.expectedreliablesequence = expectedreliablesequence;
 #endif
@@ -3376,7 +3385,7 @@ void SVC_DirectConnect(int expectedreliablesequence)
 		if (version >= 31 && version <= 34)
 			info.protocol = SCP_QUAKE2;
 #ifdef NQPROT
-		else if (version == 3)
+		else if (version == NQ_NETCHAN_VERSION)
 		{
 			info.protocol = SCP_NETQUAKE; //because we can
 			switch(atoi(Info_ValueForKey(Cmd_Argv(4), "mod")))
@@ -3393,6 +3402,11 @@ void SVC_DirectConnect(int expectedreliablesequence)
 				info.proquakeanglehack = true;
 				break;
 			}
+		}
+		else if (version == NQ_NETCHAN_VERSION_QEX)
+		{	//rerelease...
+			info.protocol = SCP_NETQUAKE;
+			info.isqex = true;
 		}
 #endif
 		else if (version == PROTOCOL_VERSION_QW)
@@ -4193,7 +4207,7 @@ qboolean SVNQ_ConnectionlessPacket(void)
 	sizebuf_t sb;
 	int header;
 	int length;
-	int active, i;
+	int active, i, protver;
 	int mod, modver, flags;
 	unsigned int passwd;
 	char *str;
@@ -4302,12 +4316,15 @@ qboolean SVNQ_ConnectionlessPacket(void)
 	switch(MSG_ReadByte())
 	{
 	case CCREQ_CONNECT:
+		str = MSG_ReadString();
+		protver = MSG_ReadByte();
+
 		if (sv_showconnectionlessmessages.ival)
-			Con_Printf("%s: CCREQ_CONNECT\n", NET_AdrToString (com_token, sizeof(com_token), &net_from));
+			Con_Printf("%s: CCREQ_CONNECT (\"%s\" %i)\n", NET_AdrToString (com_token, sizeof(com_token), &net_from), str, protver);
 
 		sb.maxsize = sizeof(buffer);
 		sb.data = buffer;
-		if (strcmp(MSG_ReadString(), NQ_NETCHAN_GAMENAME))
+		if (strcmp(str, NQ_NETCHAN_GAMENAME))
 		{
 			SZ_Clear(&sb);
 			MSG_WriteLong(&sb, 0);
@@ -4317,7 +4334,7 @@ qboolean SVNQ_ConnectionlessPacket(void)
 			NET_SendPacket(svs.sockets, sb.cursize, sb.data, &net_from);
 			return false;	//not our game.
 		}
-		if (MSG_ReadByte() != NQ_NETCHAN_VERSION)
+		if (protver != NQ_NETCHAN_VERSION && protver != NQ_NETCHAN_VERSION_QEX)
 		{
 			SZ_Clear(&sb);
 			MSG_WriteLong(&sb, 0);
@@ -4340,6 +4357,7 @@ qboolean SVNQ_ConnectionlessPacket(void)
 			return false;	//not our version...
 		}
 
+		//proquake's extensions
 		mod = MSG_ReadByte();
 		modver = MSG_ReadByte();
 		flags = MSG_ReadByte();
@@ -4364,7 +4382,7 @@ qboolean SVNQ_ConnectionlessPacket(void)
 				NET_SendPacket(svs.sockets, sb.cursize, sb.data, &net_from);
 				return false;	//not our version...
 			}
-			if (sv_listen_nq.ival == 2)
+			if (sv_listen_nq.ival == 2 && net_from.prot == NP_DGRAM)
 			{
 				SZ_Clear(&sb);
 				MSG_WriteLong(&sb, 0);
@@ -4390,7 +4408,7 @@ qboolean SVNQ_ConnectionlessPacket(void)
 			}
 			else
 			{
-				str = va("connect %i %i %i \"\\name\\unconnected\\mod\\%i\\modver\\%i\\flags\\%i\\password\\%i\"", NQ_NETCHAN_VERSION, 0, SV_NewChallenge(), mod, modver, flags, passwd);
+				str = va("connect %i %i %i \"\\name\\unconnected\\mod\\%i\\modver\\%i\\flags\\%i\\password\\%i\"", protver, 0, SV_NewChallenge(), mod, modver, flags, passwd);
 				Cmd_TokenizeString (str, false, false);
 
 				SVC_DirectConnect(0);

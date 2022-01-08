@@ -828,6 +828,59 @@ void SVNQ_New_f (void)
 		MSG_WriteByte (&host_client->netchan.message, 0);
 	}
 
+	if (host_client->qex_input_hack)
+	{
+		extern cvar_t sv_friction, sv_stopspeed, sv_maxvelocity, sv_accelerate, sv_gravity;
+		enum
+		{
+		QEX_GV_DEATHMATCH		= 1<<0,
+		QEX_GV_IDEALPITCHSCALE	= 1<<1,
+		QEX_GV_FRICTION			= 1<<2,
+		QEX_GV_EDGEFRICTION		= 1<<3,
+		QEX_GV_STOPSPEED		= 1<<4,
+		QEX_GV_MAXVELOCITY		= 1<<5,
+		QEX_GV_GRAVITY			= 1<<6,
+		QEX_GV_NOSTEP			= 1<<7,
+		QEX_GV_MAXSPEED			= 1<<8,
+		QEX_GV_ACCELERATE		= 1<<9,
+		QEX_GV_CONTROLLERONLY	= 1<<10,
+		QEX_GV_TIMELIMIT		= 1<<11,
+		QEX_GV_FRAGLIMIT		= 1<<12,
+
+		QEX_GV_ALL				=(1<<13)-1
+		} bits = QEX_GV_ALL;
+
+		bits = QEX_GV_ALL;
+		MSG_WriteByte (&host_client->netchan.message, svcqex_servervars);
+		MSG_WriteULEB128 (&host_client->netchan.message, bits);
+		if (bits & QEX_GV_DEATHMATCH)
+			MSG_WriteByte (&host_client->netchan.message, deathmatch.ival);
+		if (bits & QEX_GV_IDEALPITCHSCALE)
+			MSG_WriteFloat (&host_client->netchan.message, 0);
+		if (bits & QEX_GV_FRICTION)
+			MSG_WriteFloat (&host_client->netchan.message, sv_friction.value);
+		if (bits & QEX_GV_EDGEFRICTION)
+			MSG_WriteFloat (&host_client->netchan.message, *pm_edgefriction.string?pm_edgefriction.value:2);
+		if (bits & QEX_GV_STOPSPEED)
+			MSG_WriteFloat (&host_client->netchan.message, sv_stopspeed.value);
+		if (bits & QEX_GV_MAXVELOCITY)
+			MSG_WriteFloat (&host_client->netchan.message, sv_maxvelocity.value);
+		if (bits & QEX_GV_GRAVITY)
+			MSG_WriteFloat (&host_client->netchan.message, sv_gravity.value);
+		if (bits & QEX_GV_NOSTEP)
+			MSG_WriteByte (&host_client->netchan.message, false);
+		if (bits & QEX_GV_MAXSPEED)
+			MSG_WriteFloat (&host_client->netchan.message, sv_maxspeed.value);
+		if (bits & QEX_GV_ACCELERATE)
+			MSG_WriteFloat (&host_client->netchan.message, sv_accelerate.value);
+		if (bits & QEX_GV_CONTROLLERONLY)
+			MSG_WriteByte (&host_client->netchan.message, 0);
+		if (bits & QEX_GV_TIMELIMIT)
+			MSG_WriteFloat (&host_client->netchan.message, timelimit.value);
+		if (bits & QEX_GV_FRAGLIMIT)
+			MSG_WriteFloat (&host_client->netchan.message, fraglimit.value);
+	}
+
 // set view
 	MSG_WriteByte (&host_client->netchan.message, svc_setview);
 	MSG_WriteEntity (&host_client->netchan.message, (host_client - svs.clients)+1);//NUM_FOR_EDICT(svprogfuncs, host_client->edict));
@@ -1875,7 +1928,7 @@ void SVQW_PreSpawn_f (void)
 		{
 			char *msg;
 			SV_ClientTPrintf (host_client, PRINT_HIGH,
-				"Map model file does not match (%s), %i != %i/%i.\nYou may need a new version of the map, or the proper install files.\n",
+				"Map model file does not match (%s), %#X != %#X/%#X.\nYou may need a new version of the map, or the proper install files.\n",
 				sv.modelname, check, sv.world.worldmodel->checksum, sv.world.worldmodel->checksum2);
 
 
@@ -8156,6 +8209,12 @@ void SV_ExecuteClientMessage (client_t *cl)
 			SV_DropClient (cl);
 			return;
 		}
+		if (cl->state < cs_connected)
+		{	//something went badly... just give up instead of crashing.
+			host_client = NULL;
+			sv_player = NULL;
+			return;
+		}
 
 		c = MSG_ReadByte ();
 		if (c == -1)
@@ -8351,7 +8410,6 @@ void SV_ExecuteClientMessage (client_t *cl)
 #ifdef NETPREPARSE
 			NPP_Flush();	//flush it just in case there was an error and we stopped preparsing. This is only really needed while debugging.
 #endif
-
 			host_client = cl;
 			sv_player = cl->edict;
 			break;
@@ -8622,7 +8680,7 @@ void SVQ2_ExecuteClientMessage (client_t *cl)
 }
 #endif
 #ifdef NQPROT
-void SVNQ_ReadClientMove (qboolean forceangle16)
+void SVNQ_ReadClientMove (qboolean forceangle16, qboolean quakeex)
 {
 	int		i;
 	client_frame_t	*frame;
@@ -8633,7 +8691,9 @@ void SVNQ_ReadClientMove (qboolean forceangle16)
 
 	frame = &host_client->frameunion.frames[host_client->netchan.incoming_acknowledged & UPDATE_MASK];
 
-	if (host_client->protocol == SCP_DARKPLACES7)
+	if (quakeex)
+		;
+	else if (host_client->protocol == SCP_DARKPLACES7)
 		host_client->last_sequence = MSG_ReadLong ();
 	else if (host_client->fteprotocolextensions2 & PEXT2_PREDINFO)
 	{
@@ -8658,6 +8718,13 @@ void SVNQ_ReadClientMove (qboolean forceangle16)
 	if (cmd.fservertime < sv.time - 2)	//if you do lag more than this, you won't get your free time.
 		cmd.fservertime = sv.time - 2;
 	cmd.servertime = cmd.fservertime*1000;
+
+	if (quakeex)
+	{	//I'm guessing this has something to do with splitscreen.
+		if (MSG_ReadByte() != 1)
+			msg_badread = true;
+	}
+
 
 	//read angles
 	for (i=0 ; i<3 ; i++)
@@ -8806,7 +8873,8 @@ void SVNQ_ReadClientMove (qboolean forceangle16)
 		}
 		else
 		{
-			host_client->last_sequence = 0;	//let the client know that prediction is fucked, by not acking any input frames.
+			if (!host_client->qex_input_hack)
+				host_client->last_sequence = 0;	//let the client know that prediction is fucked, by not acking any input frames.
 			if (cmd.impulse)
 				host_client->edict->v->impulse = cmd.impulse;
 			host_client->isindependant = false;
@@ -8821,6 +8889,7 @@ void SVNQ_ExecuteClientMessage (client_t *cl)
 	char	*s;
 //	client_frame_t	*frame;
 	qboolean forceangle16;
+	qboolean qex = false;
 
 	cl->netchan.outgoing_sequence++;
 	cl->netchan.incoming_acknowledged = cl->netchan.outgoing_sequence-1;
@@ -8951,7 +9020,7 @@ void SVNQ_ExecuteClientMessage (client_t *cl)
 				break;
 			}
 				
-			SVNQ_ReadClientMove (forceangle16);
+			SVNQ_ReadClientMove (forceangle16, qex);
 //			cmd = host_client->lastcmd;
 //			SV_ClientThink();
 			break;
@@ -9004,6 +9073,18 @@ void SVNQ_ExecuteClientMessage (client_t *cl)
 			break;
 #endif
 
+		case clc_delta://clcqex_sequence:
+			host_client->last_sequence = MSG_ReadULEB128();
+			qex = true;
+			break;
+
+		case clc_tmove://clcqex_auth
+			//This allows for the client's positions to be slightly wrong, with the client being authoritive instead of the server (within tolerances anyway).
+			host_client->last_sequence = MSG_ReadULEB128();
+			/*host_client->edict->v->origin[0] =*/ MSG_ReadFloat();
+			/*host_client->edict->v->origin[1] =*/ MSG_ReadFloat();
+			/*host_client->edict->v->origin[2] =*/ MSG_ReadFloat();
+			break;
 		safedefault:
 			Con_Printf ("SVNQ_ReadClientMessage: unknown command char %i\n", c);
 			SV_DropClient (cl);

@@ -918,6 +918,39 @@ void MSG_WriteLong (sizebuf_t *sb, int c)
 	buf[2] = (c>>16)&0xff;
 	buf[3] = (c>>24)&0xff;
 }
+void MSG_WriteULEB128 (sizebuf_t *sb, quint64_t c)
+{
+	qbyte b;
+	for(;;)
+	{
+		b = c&0x7f;
+		c>>=7;
+		if (!c)
+			break;
+		MSG_WriteByte(sb, b|0x80);
+	}
+	MSG_WriteByte(sb, b);
+}
+/*void MSG_WriteSLEB128 (sizebuf_t *sb, qint64_t c)
+{
+	qbyte b;
+	for(;;)
+	{
+		b = c&0x7f;
+		c>>=7;
+		if ((c==0 && (b&64)==0) || (c==-1 && (b&64)!=0))
+			break;
+		MSG_WriteByte(sb, b|0x80);
+	}
+	MSG_WriteByte(sb, b);
+}*/
+void MSG_WriteSignedQEX (sizebuf_t *sb, qint64_t c)
+{
+	if (c < 0)
+		MSG_WriteULEB128(sb, ((quint64_t)(-1-c)<<1)|1);
+	else
+		MSG_WriteULEB128(sb, c<<1);
+}
 void MSG_WriteUInt64 (sizebuf_t *sb, quint64_t c)
 {	//0* 10*,*, 110*,*,* etc, up to 0xff followed by 8 continuation bytes
 	qbyte *buf;
@@ -1984,6 +2017,20 @@ int MSG_ReadLong (void)
 	msg_readcount += 4;
 
 	return c;
+}
+quint64_t MSG_ReadULEB128 (void)
+{
+	quint64_t r = 0;
+	qbyte b, o=0;
+	while (!msg_badread)
+	{
+		b = MSG_ReadByte();
+		r |= (b&0x7f)<<o;
+		o+=7;
+		if (!(b & 0x80))
+			break;
+	}
+	return r;
 }
 quint64_t MSG_ReadUInt64 (void)
 {	//0* 10*,*, 110*,*,* etc, up to 0xff followed by 8 continuation bytes

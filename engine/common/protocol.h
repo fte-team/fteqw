@@ -344,6 +344,15 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define svcneh_skyboxsize			50  // [coord] size (default is 4096)
 #define svcneh_fog					51	// [byte] enable <optional past this point, only included if enable is true> [float] density [byte] red [byte] green [byte] blue
 
+//QuakeEx(aka: rerelease) svcs.
+//	these are not really documented anywhere. we're trying to stick with protocol 15 (because that's the only documented protocol it supports properly thanks to demos)
+//	however we still need some special case svcs
+//  (there's also some problematic c2s differences too)
+#define svcqex_updateping			46
+#define svcqex_servervars			50	// [leb128] changedvalues, [???] value...
+#define svcqex_seq					51	// [leb128] input sequence ack
+#define svcqex_achievement			52	// [string] codename
+
 //DP extended svcs
 #define svcdp_downloaddata			50
 #define svcdp_updatestatbyte		51

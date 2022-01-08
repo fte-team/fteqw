@@ -331,6 +331,7 @@ void Huff_EmitByte(int ch, qbyte *buffer, int *count);
 
 #define NQ_NETCHAN_GAMENAME	"QUAKE"
 #define NQ_NETCHAN_VERSION	3
+#define NQ_NETCHAN_VERSION_QEX	4	//the rerelease's id, used for nqish-over dtls.
 
 
 #define CCREQ_CONNECT		0x01

@@ -1691,6 +1691,11 @@ void SV_WriteClientdataToMessage (client_t *client, sizebuf_t *msg)
 
 		if (client->fteprotocolextensions2 & PEXT2_PREDINFO)
 			MSG_WriteShort(msg, client->last_sequence);
+		else if (client->qex_input_hack && client->last_sequence)
+		{
+			MSG_WriteByte(msg, svcqex_seq);
+			MSG_WriteULEB128(msg, client->last_sequence);
+		}
 
 //		Con_Printf("%f\n", sv.world.physicstime);
 	}
@@ -2887,6 +2892,17 @@ void SV_UpdateToReliableMessages (void)
 	float curspeed;
 	int curfrags;
 
+	static double pingtimer, lasttime;
+	double t = Sys_DoubleTime();
+	qboolean sendpings = false;
+	pingtimer -= (t-lasttime);
+	lasttime = t;
+	if (pingtimer < 0)
+	{	//update about once every 5 secs.
+		sendpings = true;
+		pingtimer = 5;
+	}
+
 // check for changes to be sent over the reliable streams to all clients
 	for (i=0, host_client = svs.clients ; i<svs.allocated_client_slots ; i++, host_client++)
 	{
@@ -3032,6 +3048,23 @@ void SV_UpdateToReliableMessages (void)
 				host_client->sendinfo = false;
 				SV_FullClientUpdate (host_client, NULL);
 			}
+
+			if (host_client->qex_input_hack && sendpings)
+			{
+				sizebuf_t *m;
+				for (j=0, client = svs.clients ; j<svs.allocated_client_slots && j < host_client->max_net_clients; j++, client++)
+				{
+					if (client->state != cs_spawned)
+						continue;
+
+					m = ClientReliable_StartWrite(host_client, 64);
+					MSG_WriteByte(m, svcqex_updateping);
+					MSG_WriteByte(m, j);
+					MSG_WriteSignedQEX(m, SV_CalcPing(client, false));
+					ClientReliable_FinishWrite(host_client);
+				}
+			}
+
 			if (host_client->old_frags != curfrags)
 			{
 				for (j=0, client = svs.clients ; j<sv.allocated_client_slots ; j++, client++)

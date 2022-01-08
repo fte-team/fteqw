@@ -1241,8 +1241,15 @@ void MSV_PollSlaves(void)
 		}
 		if (error)
 		{
+			error = isClusterSlave;
 			SSV_SetupControlPipe(NULL);
 			inbuffersize = 0;
+
+			if (error)
+			{
+				SV_FinalMessage("Cluster shut down\n");
+				Cmd_ExecuteString("quit\n", RESTRICT_LOCAL);
+			}
 		}
 	}
 	else if (msv_loop_to_ss)

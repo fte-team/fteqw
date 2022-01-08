@@ -474,7 +474,16 @@ static int QDECL Sys_MSV_ReadBytes (struct vfsfile_s *file, void *buffer, int by
 	DWORD avail;
 	//trying to do this stuff without blocking is a real pain.
 	if (!PeekNamedPipe(s->inpipe, NULL, 0, NULL, &avail, NULL))
+	{
+		/*switch(GetLastError())
+		{
+		case ERROR_BROKEN_PIPE:
+		case ERROR_PIPE_NOT_CONNECTED:
+		case ERROR_INVALID_HANDLE:
+			break;
+		}*/
 		return -1;	//EOF
+	}
 	if (avail)
 	{
 		if (avail > bytestoread)
@@ -551,12 +560,20 @@ vfsfile_t *Sys_ForkServer(void)
 	return &ctx->pub;
 }
 
-void Sys_InstructMaster(sizebuf_t *cmd)
+vfsfile_t *Sys_GetStdInOutStream(void)
 {
-	//FIXME: this is blocking. this is bad if the target is also blocking while trying to write to us.
-	HANDLE output = GetStdHandle(STD_OUTPUT_HANDLE);
-	DWORD written = 0;
-	WriteFile(output, cmd->data, cmd->cursize, &written, NULL);
+	winsubserver_t *ctx = Z_Malloc(sizeof(*ctx));
+	ctx->inpipe = GetStdHandle(STD_INPUT_HANDLE);
+	ctx->outpipe = GetStdHandle(STD_OUTPUT_HANDLE);
+
+	//cause some errors if something else uses them (also avoid problems when closing).
+	SetStdHandle(STD_INPUT_HANDLE, NULL);
+	SetStdHandle(STD_OUTPUT_HANDLE, NULL);
+
+	ctx->pub.ReadBytes = Sys_MSV_ReadBytes;
+	ctx->pub.WriteBytes = Sys_MSV_WriteBytes;
+	ctx->pub.Close = Sys_MSV_Close;
+	return &ctx->pub;
 }
 
 #endif

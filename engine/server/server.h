@@ -1240,7 +1240,6 @@ void SSV_SavePlayerStats(client_t *cl, int reason);	//initial, periodic (in case
 void SSV_RequestShutdown(void); //asks the cluster to not send us new players
 
 vfsfile_t *Sys_ForkServer(void);
-void Sys_InstructMaster(sizebuf_t *cmd);	//first two bytes will always be the length of the data
 vfsfile_t *Sys_GetStdInOutStream(void);		//obtains a bi-directional pipe for reading/writing via stdin/stdout. make sure the system code won't be using it.
 
 qboolean MSV_NewNetworkedNode(vfsfile_t *stream, qbyte *reqstart, qbyte *buffered, size_t buffersize, const char *remoteaddr);	//call to register a pipe to a newly discovered node.

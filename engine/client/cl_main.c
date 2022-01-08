@@ -3224,7 +3224,7 @@ void CL_ConnectionlessPacket (void)
 			{
 				if (CL_IsPendingServerAddress(&net_from))
 				{
-					if (!NET_EnsureRoute(cls.sockets, "redir", cls.servername, &net_from))
+					if (!NET_EnsureRoute(cls.sockets, "redir", cls.servername, &adr))
 						Con_Printf ("Unable to redirect to %s\n", data);
 					else
 					{

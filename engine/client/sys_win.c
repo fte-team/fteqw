@@ -2176,50 +2176,7 @@ char *Sys_ConsoleInput (void)
 
 #ifdef SUBSERVERS
 	if (SSV_IsSubServer())
-	{
-		DWORD avail;
-		static char	text[1024];
-		static int textpos = 0;
-
-		HANDLE input = GetStdHandle(STD_INPUT_HANDLE);
-		for (;;)
-		{
-			if (!PeekNamedPipe(input, NULL, 0, NULL, &avail, NULL))
-			{
-				SV_FinalMessage("Cluster shut down\n");
-				Cmd_ExecuteString("quit force", RESTRICT_LOCAL);
-			}
-			else if (avail)
-			{
-				if (avail > sizeof(text)-1-textpos)
-					avail = sizeof(text)-1-textpos;
-				if (ReadFile(input, text+textpos, avail, &avail, NULL))
-				{
-					textpos += avail;
-					while(textpos >= 2)
-					{
-						unsigned short len = text[0] | (text[1]<<8);
-						if (textpos >= len && len >= 2)
-						{
-							memcpy(net_message.data, text+2, len-2);
-							net_message.cursize = len-2;
-							MSG_BeginReading (msg_nullnetprim);
-
-							SSV_ReadFromControlServer();
-							
-							memmove(text, text+len, textpos - len);
-							textpos -= len;
-						}
-						else
-							break;
-					}
-				}
-			}
-			else
-				break;
-		}
 		return NULL;
-	}
 #endif
 
 
@@ -2380,8 +2337,11 @@ qboolean Sys_InitTerminal (void)
 		houtput = GetStdHandle (STD_OUTPUT_HANDLE);
 	}
 
-	GetConsoleMode(hinput, &m);
-	SetConsoleMode(hinput, m | 0x40 | 0x80);
+	if (hinput)
+	{
+		GetConsoleMode(hinput, &m);
+		SetConsoleMode(hinput, m | 0x40 | 0x80);
+	}
 
 	return true;
 }
@@ -4322,8 +4282,9 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 		{
 			isDedicated = isClusterSlave = true;
 #ifdef _DEBUG
-			MessageBox(0, "New cluster slave starting\nAttach to process now, if desired.", "FTEQW", 0);
+			MessageBox(0, "New cluster slave starting\nAttach to process now, if desired.", "FTEQW Debug Build", 0);
 #endif
+			SSV_SetupControlPipe(Sys_GetStdInOutStream());
 		}
 	#endif
 #endif

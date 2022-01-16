@@ -1302,6 +1302,21 @@ static int GetPSKForServer(gnutls_session_t sess, char **username, gnutls_datum_
 
 	if ((!*dtls_psk_hint.string&&*dtls_psk_user.string) || (*dtls_psk_hint.string&&!strcmp(svhint, dtls_psk_hint.string)))
 	{	//okay, hints match (or ours is unset), report our user as appropriate.
+#ifndef NOLEGACY
+		if (*svhint)
+		{
+			//Try to avoid crashing QE servers by recognising its hint and blocking it when the hashes of the user+key are wrong.
+			if (CalcHashInt(&hash_sha1, svhint, strlen(svhint)) == 0xb6c27b61)
+			{
+				if (strcmp(svhint, dtls_psk_user.string) || CalcHashInt(&hash_sha1, dtls_psk_key.string, strlen(dtls_psk_key.string)) != 0x3dd348e4)
+				{
+					Con_Printf(CON_WARNING	"Possible QEx Server, please set your ^[%s\\type\\%s^] and ^[%s\\type\\%s^] cvars correctly, their current values are likely to crash the server.\n", dtls_psk_user.name,dtls_psk_user.name, dtls_psk_key.name,dtls_psk_key.name);
+					return 0; //don't report anything.
+				}
+			}
+		}
+#endif
+
 		*username = strcpy((*qgnutls_malloc)(strlen(dtls_psk_user.string)+1), dtls_psk_user.string);
 
 		key->size = (strlen(dtls_psk_key.string)+1)/2;

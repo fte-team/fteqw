@@ -680,11 +680,31 @@ unsigned int OSSL_CL_Validate_PSK(SSL *ssl, const char *hint, char *identity, un
 {	//if our hint cvar matches, then report our user+key cvars to the server
 	if ((!*hint && *pdtls_psk_user->string && !*pdtls_psk_hint->string) || (*hint && !strcmp(hint, pdtls_psk_hint->string)))
 	{
-		//FIXME: avoid crashing QE
+#ifndef NOLEGACY
+		if (*hint)
+		{
+			//Try to avoid crashing QE servers by recognising its hint and blocking it when the hashes of the user+key are wrong.
+			quint32_t digest[SHA_DIGEST_LENGTH/4];
+
+			SHA1(hint, strlen(hint), (qbyte*)digest);
+			if ((digest[0]^digest[1]^digest[2]^digest[3]^digest[4]) == 0xb6c27b61)
+			{
+				SHA1(pdtls_psk_key->string, strlen(pdtls_psk_key->string), (qbyte*)digest);
+				if (strcmp(hint, pdtls_psk_user->string) || (digest[0]^digest[1]^digest[2]^digest[3]^digest[4]) != 0x3dd348e4)
+				{
+					Con_Printf(CON_WARNING	"Possible QEx Server, please set your ^[%s\\type\\%s^] and ^[%s\\type\\%s^] cvars correctly, their current values are likely to crash the server.\n", pdtls_psk_user->name,pdtls_psk_user->name, pdtls_psk_key->name,pdtls_psk_key->name);
+					return 0; //don't report anything.
+				}
+			}
+		}
+#endif
 
 		Q_strlcpy(identity, pdtls_psk_user->string, max_identity_len);
 		return Base16_DecodeBlock_(pdtls_psk_key->string, psk, max_psk_len);
 	}
+	else if (*hint)
+		Con_Printf(CON_WARNING	"Unable to supply PSK response to server (hint is \"%s\").\n"
+								"Please set ^[%s\\type\\%s^], ^[%s\\type\\%s^], and ^[%s\\type\\%s^] cvars to match the server.\n", hint, pdtls_psk_hint->name,pdtls_psk_hint->name, pdtls_psk_user->name,pdtls_psk_user->name, pdtls_psk_key->name,pdtls_psk_key->name);
 	return 0;	//we don't know what to report.
 }
 
@@ -733,7 +753,7 @@ static void *OSSL_CreateContext(const char *remotehost, void *cbctx, neterr_t(*p
 		}
 		else
 		{
-			if (*pdtls_psk_user->string)
+//			if (*pdtls_psk_user->string)
 				SSL_CTX_set_psk_client_callback(n->ctx, OSSL_CL_Validate_PSK);
 		}
 
@@ -859,7 +879,7 @@ static neterr_t OSSL_Transmit(void *ctx, const qbyte *data, size_t datasize)
 		}
 		if (BIO_should_retry(o->bio))
 			return 0;
-		return NETERR_NOROUTE;	//eof or something
+		return NETERR_DISCONNECTED;	//eof or something
 	}
 	return NETERR_SENT;
 }
@@ -900,7 +920,7 @@ static neterr_t OSSL_Received(void *ctx, sizebuf_t *message)
 		}
 		if (BIO_should_retry(o->bio))
 			return 0;
-		return NETERR_NOROUTE;	//eof or something
+		return NETERR_DISCONNECTED;	//eof or something
 	}
 	return NETERR_NOROUTE;
 }

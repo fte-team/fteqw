@@ -38,6 +38,7 @@ extern int qccpersisthunk;
 
 pbool QCC_PR_SimpleGetToken (void);
 void QCC_PR_LexWhitespace (pbool inhibitpreprocessor);
+static char *QCC_PR_String (char *string);
 
 void *FS_ReadToMem(char *fname, size_t *len);
 void FS_CloseFromMem(void *mem);
@@ -663,13 +664,14 @@ static void QCC_DumpFields (const char *outputname)
 		{
 			d = &fields[i];
 			snprintf(line, sizeof(line), "%5i : (%s) %s\n", d->ofs, basictypenames[d->type], strings + d->s_name);
+			SafeWrite(h, line, strlen(line));
 		}
 
 		SafeClose(h);
 	}
 }
 
-static void QCC_DumpSymbols (const char *outputname)
+static void QCC_DumpSymbolNames (const char *outputname)
 {
 	char line[1024];
 	QCC_def_t *def;
@@ -692,6 +694,60 @@ static void QCC_DumpSymbols (const char *outputname)
 		SafeClose(h);
 	}
 }
+/*static void QCC_DumpSymbolInfo (const char *outputname)
+{
+	char line[1024];
+	char tname[512];
+	QCC_def_t *def;
+	int h;
+
+	snprintf(line, sizeof(line), "%s.sym", outputname);
+	h = SafeOpenWrite (line, 2*1024*1024);
+	if (h >= 0)
+	{
+		for (def = pr.def_head.next ; def ; def = def->next)
+		{
+//			if ((def->scope && !def->isstatic) || !strcmp(def->name, "IMMEDIATE"))
+//				continue;
+//			if (def->symbolheader != def && def->symbolheader->type != def->type)
+//				continue;	//try to exclude vector components.
+
+			if (def->arraysize)
+				snprintf(line, sizeof(line), "%s%i: %s[%i] %s = ", def->used?"":"(unused)", def->ofs, TypeName(def->type, tname, sizeof(tname)), def->arraysize, def->name);
+			else
+				snprintf(line, sizeof(line), "%s%i: %s %s = ", def->used?"":"(unused)", def->ofs, TypeName(def->type, tname, sizeof(tname)), def->name);
+			SafeWrite(h, line, strlen(line));
+
+			switch(def->type->type)
+			{
+			case ev_vector:
+				snprintf(line, sizeof(line), "%g %g %g\n", def->symboldata[0]._float, def->symboldata[1]._float, def->symboldata[2]._float);
+				break;
+			case ev_float:
+				snprintf(line, sizeof(line), "%g\n", def->symboldata[0]._float);
+				break;
+			case ev_double:
+				snprintf(line, sizeof(line), "%g\n", def->symboldata[0]._float);
+				break;
+			case ev_string:
+				snprintf(line, sizeof(line), "%+i, %s\n", def->symboldata[0].string, QCC_PR_String(strings + def->symboldata[0].string));
+				break;
+			case ev_function:
+				snprintf(line, sizeof(line), "%+i, %s\n", def->symboldata[0]._int, functions[def->symboldata[0]._int].name);
+				break;
+			case ev_int64:
+			case ev_uint64:
+				snprintf(line, sizeof(line), "%i\n", def->symboldata[0]._int);
+				break;
+			default:
+				snprintf(line, sizeof(line), "%i\n", def->symboldata[0]._int);
+				break;
+			}
+			SafeWrite(h, line, strlen(line));
+		}
+		SafeClose(h);
+	}
+}*/
 
 /*
 static void QCC_PrintGlobals (void)
@@ -1267,7 +1323,7 @@ static void QCC_DetermineNeededSymbols(QCC_def_t *endsyssym)
 		{
 			if (sym->constant && sym->type->type == ev_field)
 			{
-				sym->symbolheader->used = true;
+				sym->used = true;
 				sym->referenced = true;
 			}
 		}
@@ -1278,13 +1334,13 @@ static void QCC_DetermineNeededSymbols(QCC_def_t *endsyssym)
 	{
 		if ((sym = statements[i].a.sym))
 			if (sym->symbolheader)
-				sym->symbolheader->used = true;
+				sym->used = true;
 		if ((sym = statements[i].b.sym))
 			if (sym->symbolheader)
-				sym->symbolheader->used = true;
+				sym->used = true;
 		if ((sym = statements[i].c.sym))
 			if (sym->symbolheader)
-				sym->symbolheader->used = true;
+				sym->used = true;
 	}
 }
 
@@ -1308,6 +1364,7 @@ static void QCC_FinaliseDef(QCC_def_t *def)
 
 	if (def->symbolheader != def)
 	{
+		def->symbolheader->used |= def->used;
 		QCC_FinaliseDef(def->symbolheader);
 		def->referenced = true;
 	}
@@ -1392,13 +1449,20 @@ static void QCC_FinaliseDef(QCC_def_t *def)
 
 	if (!def->symbolheader->used)
 	{
+		if (def->symboldata != qcc_pr_globals+def->ofs && def->symbolheader != def && def->symbolheader->symboldata == qcc_pr_globals + def->symbolheader->ofs)
+		{
+			def->ofs += def->symbolheader->ofs;
+			def->symboldata = qcc_pr_globals + def->ofs;
+		}
 		if (verbose >= VERBOSE_DEBUG)
 			externs->Printf("not needed: %s\n", def->name);
 		return;
 	}
 
-	else if (def->symbolheader != def)
+	else if (def->symbolheader != def && def->symbolheader->symboldata == qcc_pr_globals + def->symbolheader->ofs)
+	{
 		def->ofs += def->symbolheader->ofs;
+	}
 	else
 	{
 /*		globalspertype[def->type->type].size += def->symbolsize;
@@ -1407,7 +1471,12 @@ static void QCC_FinaliseDef(QCC_def_t *def)
 		globalspertype[def->type->type].consts += def->constant;
 */
 		if (def->ofs)
-			QCC_Error(ERR_INTERNAL, "root symbol %s has an offset", def->name);
+		{
+			if (def->symbolheader == def)
+				QCC_Error(ERR_INTERNAL, "root symbol %s has an offset", def->name);
+			else
+				def->ofs = 0;
+		}
 
 		if (def->arraylengthprefix)
 		{
@@ -1459,7 +1528,7 @@ static void QCC_FinaliseDef(QCC_def_t *def)
 	sr.sym = def;
 	sr.ofs = 0;
 	sr.cast = def->type;
-	v = &sr.sym->symboldata[sr.ofs];
+	v = (QCC_eval_t*)&sr.sym->symboldata[sr.ofs];
 	if (v && def->type->type == ev_float)
 		externs->Printf("Finalise %s(%f) @ %i+%i\n", def->name, v->_float, def->ofs, ssize);
 	else if (v && def->type->type == ev_vector)
@@ -2491,7 +2560,8 @@ strofs = (strofs+3)&~3;
 		QCC_DumpFields(destfile);
 
 	if (flag_dumpsymbols)
-		QCC_DumpSymbols(destfile);
+		QCC_DumpSymbolNames(destfile);
+//	QCC_DumpSymbolInfo(destfile);
 	if (flag_dumpautocvars)
 		QCC_DumpAutoCvars(destfile);
 	if (flag_dumplocalisation)

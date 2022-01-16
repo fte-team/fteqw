@@ -16766,6 +16766,7 @@ static QCC_def_t *QCC_PR_DummyFieldDef(QCC_type_t *type, QCC_function_t *scope, 
 
 		if ((type)->type == ev_struct||(type)->type == ev_union)
 		{
+			int memberalen;
 			int partnum;
 			QCC_type_t *parttype;
 			isunion = ((type)->type == ev_union);
@@ -16774,6 +16775,9 @@ static QCC_def_t *QCC_PR_DummyFieldDef(QCC_type_t *type, QCC_function_t *scope, 
 				parttype = type->params[partnum].type;
 				while(parttype->type == ev_accessor)
 					parttype = parttype->parentclass;
+
+				memberalen = type->params[partnum].arraysize;
+
 				switch (parttype->type)
 				{
 				case ev_union:
@@ -16781,7 +16785,7 @@ static QCC_def_t *QCC_PR_DummyFieldDef(QCC_type_t *type, QCC_function_t *scope, 
 					if (!*type->params[partnum].paramname)
 					{	//recursively generate new fields
 						QC_snprintfz(newname, sizeof(newname), "%s%s", type->params[partnum].paramname, array);
-						def = QCC_PR_DummyFieldDef(parttype, scope, 1, fieldofs, saved);
+						def = QCC_PR_DummyFieldDef(parttype, scope, memberalen, fieldofs, saved);
 						break;
 					}
 					//fallthrough. any named structs will become global structs that contain field references. hopefully.
@@ -16811,15 +16815,15 @@ static QCC_def_t *QCC_PR_DummyFieldDef(QCC_type_t *type, QCC_function_t *scope, 
 					ftype->aux_type = parttype;
 					if (parttype->type == ev_vector)
 						ftype->size = parttype->size;	//vector fields create a _y and _z too, so we need this still.
-					def = QCC_PR_GetDef(NULL, newname, scope, false, 0, saved);
+					def = QCC_PR_GetDef(NULL, newname, scope, false, memberalen, saved);
 					if (!def)
 					{
-						def = QCC_PR_GetDef(ftype, newname, scope, true, 0, saved);
+						def = QCC_PR_GetDef(ftype, newname, scope, true, memberalen, saved);
 						if (parttype->type == ev_function)
 							def->initialized = true;
-						for (o = 0; o < parttype->size; o++)
+						for (o = 0; o < parttype->size*(memberalen?memberalen:1); o++)
 							def->symboldata[o]._int = *fieldofs + o;
-						*fieldofs += parttype->size;
+						*fieldofs += parttype->size*(memberalen?memberalen:1);
 					}
 					else
 					{

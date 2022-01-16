@@ -154,6 +154,7 @@ extern cvar_t net_ice_exchangeprivateips;
 #if defined(HAVE_DTLS) && defined(HAVE_SERVER)
 static void QDECL NET_Enable_DTLS_Changed(struct cvar_s *var, char *oldvalue)
 {
+	var->ival = var->value;
 	//set up the default value
 	if (!*var->string)
 		var->ival = 0;	//FIXME: change to 1 then 2 when better tested.
@@ -250,6 +251,10 @@ static void NET_TLS_Provider_Changed(struct cvar_s *var, char *oldvalue)
 				Con_Printf(" %s", cryptolib[i]->drivername);
 		Con_Printf("\n");
 	}
+
+#if defined(HAVE_DTLS) && defined(HAVE_SERVER)
+	Cvar_ForceCallback(&net_enable_dtls);
+#endif
 }
 #endif
 qboolean NET_RegisterCrypto(void *module, ftecrypto_t *driver)
@@ -2973,13 +2978,24 @@ const dtlsfuncs_t *DTLS_InitServer(void)
 {
 	const dtlsfuncs_t *f = NULL;
 	int i;
+	const char *provname;
 	if (tls_provider.ival>0 && tls_provider.ival <= cryptolib_count && cryptolib[tls_provider.ival-1])
+	{
 		f = !cryptolib[tls_provider.ival-1]->DTLS_InitServer?NULL:cryptolib[tls_provider.ival-1]->DTLS_InitServer();
+		provname = cryptolib[tls_provider.ival-1]->drivername;
+	}
 	else for (i = 0; !f && i < cryptolib_count; i++)
 	{
 		if (cryptolib[i] && cryptolib[i]->DTLS_InitServer)
+		{
 			f = cryptolib[i]->DTLS_InitServer();
+			provname = cryptolib[i]->drivername;
+			if (!f)
+				Con_Printf("DTLS provider %s failed\n", cryptolib[i]->drivername);
+		}
 	}
+	if (f)
+		Con_DPrintf("Using DTLS provider %s\n", provname);
 	return f;
 }
 const dtlsfuncs_t *DTLS_InitClient(void)

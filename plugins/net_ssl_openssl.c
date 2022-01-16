@@ -770,18 +770,16 @@ static void *OSSL_CreateContext(const char *remotehost, void *cbctx, neterr_t(*p
 	return NULL;
 }
 
-static char dtlscookiekey[16];
+static qbyte dtlscookiekey[16];
 static int OSSL_GenCookie(SSL *ssl, unsigned char *cookie, unsigned int *cookie_len)
 {
 	ossldtls_t *f = SSL_get_app_data(ssl);
+	qbyte *blurgh = alloca(sizeof(dtlscookiekey) + f->peeraddrsize);
 
-	SHA_CTX ctx;
+	memcpy(blurgh, dtlscookiekey, sizeof(dtlscookiekey));
+	memcpy(blurgh+sizeof(dtlscookiekey), f->peeraddr, f->peeraddrsize);
 
-	SHA1_Init(&ctx);
-	SHA1_Update(&ctx, dtlscookiekey, sizeof(dtlscookiekey));
-	SHA1_Update(&ctx, "somethinghashy", 15);
-	SHA1_Update(&ctx, f->peeraddr, f->peeraddrsize);
-	SHA1_Final(cookie, &ctx);
+	SHA1(blurgh, sizeof(dtlscookiekey) + f->peeraddrsize, cookie);
 	*cookie_len = SHA_DIGEST_LENGTH;
 
 	return 1;
@@ -949,7 +947,8 @@ static qboolean OSSL_Init(void)
 	static qboolean init_success;
 	if (inited)
 		return init_success;
-#ifdef LOADERTHREAD
+	inited = true;
+#if 0//def LOADERTHREAD
 	Sys_LockMutex(com_resourcemutex);
 	if (inited)	//now check again, just in case
 	{
@@ -960,7 +959,6 @@ static qboolean OSSL_Init(void)
 
 	SSL_library_init();
     SSL_load_error_strings();
-    ERR_load_BIO_strings();
 //	OPENSSL_config(NULL);
 	ERR_print_errors_cb(OSSL_PrintError_CB, NULL);
 
@@ -997,8 +995,7 @@ static qboolean OSSL_Init(void)
 
 	ossl_fte_certctx = SSL_get_ex_new_index(0, "ossl_fte_certctx", NULL, NULL, NULL);
 
-	inited = true;
-#ifdef LOADERTHREAD
+#if 0//def LOADERTHREAD
 	Sys_UnlockMutex(com_resourcemutex);
 #endif
 	return init_success;
@@ -1056,5 +1053,8 @@ qboolean Plug_Init(void)
 	pdtls_psk_user = cvarfuncs->GetNVFDG("dtls_psk_user", "", 0, NULL, "DTLS stuff");
 	pdtls_psk_key  = cvarfuncs->GetNVFDG("dtls_psk_key",  "", 0, NULL, "DTLS stuff");
 	netfuncs->RandomBytes(dtlscookiekey, sizeof(dtlscookiekey));	//something random so people can't guess cookies for arbitrary victim IPs.
+
+	OSSL_Init();	//shoving this here solves threading issues (eg two loader threads racing to open an https image url)
+
 	return plugfuncs->ExportInterface("Crypto", &crypto_openssl, sizeof(crypto_openssl)); //export a named interface struct to the engine
 }

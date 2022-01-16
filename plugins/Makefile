@@ -405,13 +405,42 @@ $(PLUG_PREFIX)models$(PLUG_NATIVE_EXT): models/gltf.c models/exportiqm.c models/
 	$(call EMBEDMETA,models,$@,Models Plugin,Kinda redundant now that the engine has gltf2 loading)
 #NATIVE_PLUGINS+=models
 
+#####################
 #Openssl crypto plugin, to replace microsoft's shoddy dtls implementation. could also be useful on the BSDs, yay system components?
+
+ifeq ($(FTE_TARGET),win32)
+    OSSL_ARCH=mingw32
+endif
+ifeq ($(FTE_TARGET),win64)
+    OSSL_ARCH=mingw64
+endif
+#statically link openssl on the above systems (instead of depending on system libs)
+ifneq ($(OSSL_ARCH),)
+OSSL_VERSION=3.0.1
+ARCHLIBS=../engine/libs-$(ARCH)
+#../engine/libs-$(ARCH)/openssl-$(OSSL_VERSION).tar.gz:
+../engine/openssl-$(OSSL_VERSION).tar.gz:
+	wget -O $@ -N https://github.com/openssl/openssl/archive/refs/tags/openssl-$(OSSL_VERSION).tar.gz
+$(ARCHLIBS)/openssl-openssl-$(OSSL_VERSION)/libssl.a: ../engine/openssl-$(OSSL_VERSION).tar.gz
+	(cd $(ARCHLIBS) && tar xvfz ../openssl-$(OSSL_VERSION).tar.gz)
+	(cd $(ARCHLIBS)/openssl-openssl-$(OSSL_VERSION) && CFLAGS=-Os ./Configure --release no-filenames no-legacy no-shared no-stdio no-asm $(OSSL_ARCH) --cross-compile-prefix=$(ARCH)- && $(MAKE))
+net_ssl_openssl.c: $(ARCHLIBS)/openssl-openssl-$(OSSL_VERSION)/libssl.a $(ARCHLIBS)/openssl-openssl-$(OSSL_VERSION)/libcrypt.a
+
+#we should be using openssl's no-sock option, but that also disables core dtls functionality (despite us using our own BIOs).
+OPENSSL_LDCFLAGS=-I$(ARCHLIBS)/openssl-openssl-$(OSSL_VERSION)/include -L$(ARCHLIBS)/openssl-openssl-$(OSSL_VERSION) -lssl -lcrypto -lws2_32
+OPENSSL_AVAILABLE=1
+endif
+
+OPENSSL_LDCFLAGS?=`$(PKGCONFIG) --libs --cflags openssl`
+OPENSSL_AVAILABLE?=$(shell $(OPENSSLPKGPATH) $(PKGCONFIG) --atleast-version=3.0.0 openssl && echo 1)
 $(PLUG_PREFIX)openssl$(PLUG_NATIVE_EXT): net_ssl_openssl.c plugin.c
-	$(CC) $(BASE_CFLAGS) $(CFLAGS) -DFTEPLUGIN -o $@ -shared $(PLUG_CFLAGS) $^ $(PLUG_DEFFILE) $(PLUG_LDFLAGS) `$(PKGCONFIG) --libs --cflags openssl`
+	$(CC) -s $(BASE_CFLAGS) $(CFLAGS) -DFTEPLUGIN -o $@ -shared $(PLUG_CFLAGS) $^ $(PLUG_DEFFILE) $(PLUG_LDFLAGS) $(OPENSSL_LDCFLAGS)
 	$(call EMBEDMETA,openssl,$@,OpenSSL,Provides OpenSSL support for dtls/tls/https support. The crypto library that is actually used is controlled via the tls_provider cvar.)
-#ifeq ($(shell $(PKGCONFIG) --exists openssl && echo 1),1)
-#Disabled due to licensing issues #NATIVE_PLUGINS+=openssl
-#endif
+#OpenSSL 3.0.0 is apache2 and thus GPL3-compatible, earlier versions are NOT GPL-compatible at all, so only enable it if its okay.
+#(you can still force it, but don't distribute)
+ifeq ($(OPENSSL_AVAILABLE),1)
+NATIVE_PLUGINS+=openssl
+endif
 
 #####################
 #for compat with half-life 2's file formats

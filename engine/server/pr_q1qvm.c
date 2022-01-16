@@ -1789,23 +1789,27 @@ svextqcfields
 }
 static qintptr_t QVM_SetExtField (void *offset, quintptr_t mask, const qintptr_t *arg)
 {
-	edict_t *e = VM_POINTER(arg[0]);
+	unsigned int entnum = ((char*)VM_POINTER(arg[0]) - (char*)evars)/sv.world.edict_size;
 	int i = QVM_FindExtField(VM_POINTER(arg[1]));
 	int value = VM_LONG(arg[2]);
 
-	if (i < 0)
-		return 0;
-	((int*)e->xv)[i] = value;
-	return value;
+	if (i >= 0 && entnum < q1qvmprogfuncs.edicttable_length && q1qvmprogfuncs.edicttable[entnum])
+	{
+		((int*)q1qvmprogfuncs.edicttable[entnum]->xv)[i] = value;
+		return value;
+	}
+	return 0;
 }
 static qintptr_t QVM_GetExtField (void *offset, quintptr_t mask, const qintptr_t *arg)
 {
-	edict_t *e = VM_POINTER(arg[0]);
+	unsigned int entnum = ((char*)VM_POINTER(arg[0]) - (char*)evars)/sv.world.edict_size;
 	int i = QVM_FindExtField(VM_POINTER(arg[1]));
 
-	if (i < 0)
-		return 0;
-	return ((int*)e->xv)[i];
+	if (i >= 0 && entnum < q1qvmprogfuncs.edicttable_length && q1qvmprogfuncs.edicttable[entnum])
+	{
+		return ((int*)q1qvmprogfuncs.edicttable[entnum]->xv)[i];
+	}
+	return 0;
 }
 
 #ifdef WEBCLIENT

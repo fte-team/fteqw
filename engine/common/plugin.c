@@ -1896,6 +1896,14 @@ static void *QDECL PlugBI_GetEngineInterface(const char *interfacename, size_t s
 			Plug_Net_Close,
 			Plug_Net_SetTLSClient,
 			Plug_Net_GetTLSBinding,
+
+			Sys_RandomBytes,
+			TLS_GetKnownCertificate,
+#ifdef HAVE_CLIENT
+			CertLog_ConnectOkay,
+#else
+			NULL,
+#endif
 		};
 		if (structsize == sizeof(funcs))
 			return &funcs;

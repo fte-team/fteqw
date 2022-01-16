@@ -1,7 +1,10 @@
 #include "plugin.h"
 #include "netinc.h"
 
-plugfsfuncs_t *fsfuncs;
+static plugfsfuncs_t *fsfuncs;
+static plugnetfuncs_t *netfuncs;
+
+static cvar_t *pdtls_psk_hint, *pdtls_psk_user, *pdtls_psk_key;
 
 #undef SHA1
 #undef HMAC
@@ -230,7 +233,7 @@ static int OSSL_Verify_Peer(int preverify_ok, X509_STORE_CTX *x509_ctx)
 		if (err == X509_V_ERR_CERT_HAS_EXPIRED || err == X509_V_ERR_DEPTH_ZERO_SELF_SIGNED_CERT)
 		{
 			size_t knownsize;
-			qbyte *knowndata = TLS_GetKnownCertificate(uctx->peername, &knownsize);
+			qbyte *knowndata = netfuncs->TLS_GetKnownCertificate(uctx->peername, &knownsize);
 			if (knowndata)
 			{	//check
 				size_t blobsize;
@@ -274,7 +277,7 @@ static int OSSL_Verify_Peer(int preverify_ok, X509_STORE_CTX *x509_ctx)
 					probs |= CERTLOG_UNKNOWN;
 					break;
 				}
-				if (CertLog_ConnectOkay(uctx->peername, blob, blobsize, probs))
+				if (netfuncs->CertLog_ConnectOkay && netfuncs->CertLog_ConnectOkay(uctx->peername, blob, blobsize, probs))
 					return 1; //ignore the errors...
 			}
 #endif
@@ -399,12 +402,74 @@ static void OSSL_OpenPubKey(void)
 	BIO_free(bio);
 }
 
+static char *OSSL_SetCertificateName(char *out, const char *hostname)
+{	//glorified strcpy...
+	int i;
+	if (hostname)
+	{
+		const char *host = strstr(hostname, "://");
+		if (host)
+			hostname = host+3;
+		//any dtls:// prefix will have been stripped now.
+		if (*hostname == '[')
+		{	//eg: [::1]:foo - skip the lead [ and strip the ] and any trailing data (hopefully just a :port or nothing)
+			hostname++;
+			host = strchr(hostname, ']');
+			if (host)
+			{
+				memcpy(out, hostname, host-hostname);
+				out[host-hostname] = 0;
+				hostname = out;
+			}
+		}
+		else
+		{	//eg: 127.0.0.1:port - strip the port number if specified.
+			host = strchr(hostname, ':');
+			if (host)
+			{
+				memcpy(out, hostname, host-hostname);
+				out[host-hostname] = 0;
+				hostname = out;
+			}
+		}
+		for (i = 0; hostname[i]; i++)
+		{
+			if (hostname[i] >= 'a' && hostname[i] <= 'z')
+				;
+			else if (hostname[i] >= 'A' && hostname[i] <= 'Z')
+				;
+			else if (hostname[i] >= '0' && hostname[i] <= '9')
+				;
+			else if (hostname[i] == '-' || hostname[i] == '.')
+				;
+			else
+			{
+				hostname = NULL;	//something invalid. bum.
+				break;
+			}
+		}
+		//we should have a cleaned up host name now, ready for (ab)use in certificates.
+	}
+
+	if (!hostname)
+		*out = 0;
+	else if (hostname == out)
+		;
+	else
+		memcpy(out, hostname, strlen(hostname)+1);
+
+	return out;
+}
+
 static vfsfile_t *OSSL_OpenVFS(const char *hostname, vfsfile_t *source, qboolean isserver)
 {
 	BIO *sink;
 	osslvfs_t *n;
 	if (!OSSL_Init())
 		return NULL;	//FAIL!
+
+	if (!hostname)
+		hostname = "";
 
 	n = calloc(sizeof(*n) + strlen(hostname)+1, 1);
 
@@ -417,7 +482,7 @@ static vfsfile_t *OSSL_OpenVFS(const char *hostname, vfsfile_t *source, qboolean
 	n->funcs.Flush = NULL;
 	n->funcs.seekstyle = SS_UNSEEKABLE;
 
-	n->cert.peername = strcpy((char*)(n+1), hostname);
+	n->cert.peername = OSSL_SetCertificateName((char*)(n+1), hostname);
 	n->cert.dtls = false;
 
 	ERR_print_errors_cb(OSSL_PrintError_CB, NULL);
@@ -489,6 +554,9 @@ typedef struct {
 //	BIO *sink;
 	qbyte *pending;
 	size_t pendingsize;
+
+	void	*peeraddr;
+	size_t	peeraddrsize;
 } ossldtls_t;
 static int OSSL_Bio_DWrite(BIO *h, const char *buf, int size)
 {
@@ -539,11 +607,15 @@ static long OSSL_Bio_DCtrl(BIO *h, int cmd, long arg1, void *arg2)
 		return 1;
 
 
+	case BIO_CTRL_DGRAM_GET_PEER:
+		return 0;
+
 	case BIO_CTRL_DGRAM_SET_NEXT_TIMEOUT:	//we're non-blocking, so this doesn't affect us.
 	case BIO_CTRL_DGRAM_GET_MTU_OVERHEAD:
 	case BIO_CTRL_WPENDING:
 	case BIO_CTRL_DGRAM_QUERY_MTU:
 	case BIO_CTRL_DGRAM_SET_MTU:
+	case BIO_CTRL_DGRAM_GET_FALLBACK_MTU:
 		return 0;
 
 
@@ -576,17 +648,61 @@ static int OSSL_Bio_DDestroy(BIO *h)
 	return 1;
 }
 
+static int dehex(int i)
+{
+	if      (i >= '0' && i <= '9')
+		return (i-'0');
+	else if (i >= 'A' && i <= 'F')
+		return (i-'A'+10);
+	else
+		return (i-'a'+10);
+}
+static size_t Base16_DecodeBlock_(const char *in, qbyte *out, size_t outsize)
+{
+	qbyte *start = out;
+	if (!out)
+		return ((strlen(in)+1)/2) + 1;
+
+	for (; ishexcode(in[0]) && ishexcode(in[1]) && outsize > 0; outsize--, in+=2)
+		*out++ = (dehex(in[0])<<4) | dehex(in[1]);
+	return out-start;
+}
+
+static unsigned int OSSL_SV_Validate_PSK(SSL *ssl, const char *identity, unsigned char *psk, unsigned int max_psk_len)
+{
+	if (!strcmp(identity, pdtls_psk_user->string))
+	{	//Yay! We know this one!
+		return Base16_DecodeBlock_(pdtls_psk_key->string, psk, max_psk_len);
+	}
+	return 0;	//0 for error, or something.
+}
+unsigned int OSSL_CL_Validate_PSK(SSL *ssl, const char *hint, char *identity, unsigned int max_identity_len, unsigned char *psk, unsigned int max_psk_len)
+{	//if our hint cvar matches, then report our user+key cvars to the server
+	if ((!*hint && *pdtls_psk_user->string && !*pdtls_psk_hint->string) || (*hint && !strcmp(hint, pdtls_psk_hint->string)))
+	{
+		//FIXME: avoid crashing QE
+
+		Q_strlcpy(identity, pdtls_psk_user->string, max_identity_len);
+		return Base16_DecodeBlock_(pdtls_psk_key->string, psk, max_psk_len);
+	}
+	return 0;	//we don't know what to report.
+}
+
 static void *OSSL_CreateContext(const char *remotehost, void *cbctx, neterr_t(*push)(void *cbctx, const qbyte *data, size_t datasize), qboolean isserver)
 {	//if remotehost is null then their certificate will not be validated.
-	ossldtls_t *n = calloc(sizeof(*n) + strlen(remotehost)+1, 1);
+	ossldtls_t *n;
 	BIO *sink;
+
+	if (!remotehost)
+		remotehost = "";
+	n = calloc(sizeof(*n) + strlen(remotehost)+1, 1);
 
 	n->cbctx = cbctx;
 	n->push = push;
 
 	n->ctx = SSL_CTX_new(isserver?DTLS_server_method():DTLS_client_method());
 
-	n->cert.peername = strcpy((char*)(n+1), remotehost);
+	n->cert.peername = OSSL_SetCertificateName((char*)(n+1), remotehost);
 	n->cert.dtls = true;
 
 	if (n->ctx)
@@ -598,6 +714,28 @@ static void *OSSL_CreateContext(const char *remotehost, void *cbctx, neterr_t(*p
 		SSL_CTX_set_verify(n->ctx, SSL_VERIFY_PEER, OSSL_Verify_Peer);
 		SSL_CTX_set_verify_depth(n->ctx, 5);
 		SSL_CTX_set_options(n->ctx, SSL_OP_NO_COMPRESSION);	//compression allows guessing the contents of the stream somehow.
+
+		if (isserver)
+		{
+			if (*pdtls_psk_user->string)
+			{
+				if (*pdtls_psk_user->string)
+					SSL_CTX_use_psk_identity_hint(n->ctx, pdtls_psk_hint->string);
+				SSL_CTX_set_psk_server_callback(n->ctx, OSSL_SV_Validate_PSK);
+			}
+
+			if (vhost.servercert && vhost.privatekey)
+			{
+				SSL_CTX_use_certificate(n->ctx, vhost.servercert);
+				SSL_CTX_use_PrivateKey(n->ctx, vhost.privatekey);
+				assert(1==SSL_CTX_check_private_key(n->ctx));
+			}
+		}
+		else
+		{
+			if (*pdtls_psk_user->string)
+				SSL_CTX_set_psk_client_callback(n->ctx, OSSL_CL_Validate_PSK);
+		}
 
 		//SSL_CTX_use_certificate_file
 		//FIXME: SSL_CTX_use_certificate_file aka SSL_CTX_use_certificate(PEM_read_bio_X509)
@@ -619,8 +757,10 @@ static void *OSSL_CreateContext(const char *remotehost, void *cbctx, neterr_t(*p
 			}
 
 			BIO_get_ssl(n->bio, &n->ssl);
+			SSL_set_app_data(n->ssl, n);
 			SSL_set_ex_data(n->ssl, ossl_fte_certctx, &n->cert);
-			SSL_set_tlsext_host_name(n->ssl, remotehost);	//let the server know which cert to send
+			if (*n->cert.peername)
+				SSL_set_tlsext_host_name(n->ssl, n->cert.peername);	//let the server know which cert to send
 			BIO_do_connect(n->bio);
 			ERR_print_errors_cb(OSSL_PrintError_CB, NULL);
 			return n;
@@ -628,6 +768,71 @@ static void *OSSL_CreateContext(const char *remotehost, void *cbctx, neterr_t(*p
 	}
 
 	return NULL;
+}
+
+static char dtlscookiekey[16];
+static int OSSL_GenCookie(SSL *ssl, unsigned char *cookie, unsigned int *cookie_len)
+{
+	ossldtls_t *f = SSL_get_app_data(ssl);
+
+	SHA_CTX ctx;
+
+	SHA1_Init(&ctx);
+	SHA1_Update(&ctx, dtlscookiekey, sizeof(dtlscookiekey));
+	SHA1_Update(&ctx, "somethinghashy", 15);
+	SHA1_Update(&ctx, f->peeraddr, f->peeraddrsize);
+	SHA1_Final(cookie, &ctx);
+	*cookie_len = SHA_DIGEST_LENGTH;
+
+	return 1;
+}
+static int OSSL_VerifyCookie(SSL *ssl, const unsigned char *cookie, unsigned int cookie_len)
+{
+	unsigned char match[DTLS1_COOKIE_LENGTH];
+	unsigned int matchsize;
+	if (OSSL_GenCookie(ssl, match, &matchsize))
+		if (cookie_len == matchsize && !memcmp(cookie, match, matchsize))
+			return 1;
+	return 0;	//not valid.
+}
+qboolean OSSL_CheckConnection(void *cbctx, void *peeraddr, size_t peeraddrsize, void *indata, size_t insize, neterr_t(*push)(void *cbctx, const qbyte *data, size_t datasize), void (*EstablishTrueContext)(void **cbctx, void *state))
+{
+	int ret;
+	static ossldtls_t *pending;
+	BIO_ADDR *bioaddr = BIO_ADDR_new();
+
+	if (!pending)
+	{
+		pending = OSSL_CreateContext("localhost", cbctx, push, true);
+
+		SSL_CTX_set_cookie_generate_cb(pending->ctx, OSSL_GenCookie);
+		SSL_CTX_set_cookie_verify_cb(pending->ctx, OSSL_VerifyCookie);
+	}
+
+	SSL_set_app_data(pending->ssl, pending);
+
+	//make sure its kept current...
+	pending->cbctx = cbctx;
+	pending->push = push;
+
+	pending->pending = indata;
+	pending->pendingsize = insize;
+	ret = DTLSv1_listen(pending->ssl, bioaddr);
+
+	BIO_ADDR_free(bioaddr);
+
+	if (ret >= 1)
+	{
+		pending->pending = NULL;
+		pending->pendingsize = 0;
+
+		EstablishTrueContext(&pending->cbctx, pending);
+		pending = NULL;	//returned to called. next request gets a new one.
+		return true;
+	}
+	//0 = nonfatal
+	//-1 = fatal
+	return false;
 }
 static void OSSL_DestroyContext(void *ctx)
 {
@@ -709,7 +914,7 @@ static neterr_t OSSL_Timeouts(void *ctx)
 static dtlsfuncs_t ossl_dtlsfuncs =
 {
 	OSSL_CreateContext,
-	NULL,
+	OSSL_CheckConnection,
 	OSSL_DestroyContext,
 	OSSL_Transmit,
 	OSSL_Received,
@@ -841,12 +1046,15 @@ static ftecrypto_t crypto_openssl =
 	NULL,
 };
 
-void *TLS_GetKnownCertificate(const char *certname, size_t *size){return NULL;}
-qboolean CertLog_ConnectOkay(const char *hostname, void *cert, size_t certsize, unsigned int certlogproblems){return false;}
 qboolean Plug_Init(void)
 {
 	fsfuncs = plugfuncs->GetEngineInterface(plugfsfuncs_name, sizeof(*fsfuncs));
-	if (!fsfuncs)
+	netfuncs = plugfuncs->GetEngineInterface(plugnetfuncs_name, sizeof(*netfuncs));
+	if (!fsfuncs || !netfuncs)
 		return false;
+	pdtls_psk_hint = cvarfuncs->GetNVFDG("dtls_psk_hint", "", 0, NULL, "DTLS stuff");
+	pdtls_psk_user = cvarfuncs->GetNVFDG("dtls_psk_user", "", 0, NULL, "DTLS stuff");
+	pdtls_psk_key  = cvarfuncs->GetNVFDG("dtls_psk_key",  "", 0, NULL, "DTLS stuff");
+	netfuncs->RandomBytes(dtlscookiekey, sizeof(dtlscookiekey));	//something random so people can't guess cookies for arbitrary victim IPs.
 	return plugfuncs->ExportInterface("Crypto", &crypto_openssl, sizeof(crypto_openssl)); //export a named interface struct to the engine
 }

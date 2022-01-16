@@ -1164,6 +1164,7 @@ void CL_CheckForResend (void)
 		switch(NET_SendPacket (cls.sockets, 0, NULL, &connectinfo.adr[0]))
 		{
 		case NETERR_CLOGGED:	//temporary failure
+			connectinfo.clogged = true;
 			return;
 		default:
 			break;
@@ -1195,7 +1196,7 @@ void CL_CheckForResend (void)
 
 	Cvar_ForceSet(&cl_servername, cls.servername);
 
-	if (!connectinfo.numadr)
+	if (!connectinfo.numadr || !cls.sockets)
 		return;	//nothing to do yet...
 	if (!connectinfo.clogged)
 		connectinfo.time = realtime+t2-t1;	// for retransmit requests
@@ -1220,7 +1221,7 @@ void CL_CheckForResend (void)
 #endif
 
 		if (connectinfo.istransfer || connectinfo.numadr>1)
-			Con_TPrintf ("Connecting to %s(%s)...\n", cls.servername, NET_AdrToString(data, sizeof(data), to));
+			Con_TPrintf ("Connecting to %s" S_COLOR_GRAY "(%s)" S_COLOR_WHITE "...\n", cls.servername, NET_AdrToString(data, sizeof(data), to));
 		else
 			Con_TPrintf ("Connecting to %s...\n", cls.servername);
 	}
@@ -1365,7 +1366,7 @@ void CL_BeginServerReconnect(void)
 	connectinfo.istransfer = false;
 	connectinfo.time = 0;
 	connectinfo.tries = 0;	//re-ensure routes.
-	connectinfo.nextadr = 0; //should at least be consistent, other than packetloss. yay. :\
+	connectinfo.nextadr = 0; //should at least be consistent, other than packetloss. yay.
 
 	NET_InitClient(false);
 }
@@ -3689,7 +3690,7 @@ void CL_ConnectionlessPacket (void)
 			if (!CL_IsPendingServerAddress(&net_from))
 				return;
 
-			if (NET_DTLS_Create(cls.sockets, &net_from))
+			if (NET_DTLS_Create(cls.sockets, &net_from, cls.servername))
 			{
 				connectinfo.dtlsupgrade = DTLS_ACTIVE;
 				connectinfo.numadr = 1;	//fixate on this resolved address.

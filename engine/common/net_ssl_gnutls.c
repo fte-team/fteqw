@@ -154,6 +154,8 @@ static int (VARGS *qgnutls_credentials_set)(gnutls_session_t, gnutls_credentials
 static int (VARGS *qgnutls_init)(gnutls_session_t * session, gnutls_connection_end_t con_end);
 static void (VARGS *qgnutls_deinit)(gnutls_session_t session);
 static int (VARGS *qgnutls_set_default_priority)(gnutls_session_t session);
+static int (VARGS *qgnutls_set_default_priority_append)(gnutls_session_t session, const char *add_prio, const char **err_pos, unsigned flags);
+
 static int (VARGS *qgnutls_certificate_allocate_credentials)(gnutls_certificate_credentials_t *sc);
 static int (VARGS *qgnutls_anon_allocate_client_credentials)(gnutls_anon_client_credentials_t *sc);
 static int (VARGS *qgnutls_global_init)(void);
@@ -193,8 +195,12 @@ static int (VARGS *qgnutls_dtls_cookie_send)(gnutls_datum_t * key, void *client_
 static void (VARGS *qgnutls_dtls_prestate_set)(gnutls_session_t session, gnutls_dtls_prestate_st * prestate);
 static void (VARGS *qgnutls_dtls_set_mtu)(gnutls_session_t session, unsigned int mtu);
 
-//static int		(VARGS *qgnutls_psk_allocate_client_credentials)(gnutls_psk_client_credentials_t *sc);
-//static int		(VARGS *qgnutls_psk_set_client_credentials)(gnutls_psk_client_credentials_t res, const char *username, const gnutls_datum_t * key, gnutls_psk_key_flags flags);
+static int		(VARGS *qgnutls_psk_allocate_server_credentials)(gnutls_psk_server_credentials_t *sc);
+static void		(VARGS *qgnutls_psk_set_server_credentials_function)(gnutls_psk_server_credentials_t cred, gnutls_psk_server_credentials_function *func);
+static int		(VARGS *qgnutls_psk_set_server_credentials_hint)(gnutls_psk_server_credentials_t res, const char *hint);
+static const char *(VARGS *qgnutls_psk_client_get_hint)(gnutls_session_t session);
+static int		(VARGS *qgnutls_psk_allocate_client_credentials)(gnutls_psk_client_credentials_t *sc);
+static void		(VARGS *qgnutls_psk_set_client_credentials_function)(gnutls_psk_client_credentials_t cred, gnutls_psk_client_credentials_function *func);
 #endif
 
 static unsigned int	(VARGS *qgnutls_sec_param_to_pk_bits)(gnutls_pk_algorithm_t algo, gnutls_sec_param_t param);
@@ -254,9 +260,12 @@ static qboolean Init_GNUTLS(void)
 		GNUTLS_FUNC(gnutls_dtls_cookie_verify) \
 		GNUTLS_FUNC(gnutls_dtls_cookie_send) \
 		GNUTLS_FUNC(gnutls_dtls_prestate_set) \
-		GNUTLS_FUNC(gnutls_dtls_set_mtu)
-//		GNUTLS_FUNC(gnutls_psk_allocate_client_credentials)
-//		GNUTLS_FUNC(gnutls_psk_set_client_credentials)
+		GNUTLS_FUNC(gnutls_dtls_set_mtu) \
+		GNUTLS_FUNC(gnutls_psk_allocate_server_credentials) \
+		GNUTLS_FUNC(gnutls_psk_set_server_credentials_function) \
+		GNUTLS_FUNC(gnutls_psk_set_server_credentials_hint) \
+		GNUTLS_FUNC(gnutls_psk_allocate_client_credentials) \
+		GNUTLS_FUNC(gnutls_psk_set_client_credentials_function)
 #else
 	#define GNUTLS_DTLS_STUFF
 #endif
@@ -288,6 +297,8 @@ static qboolean Init_GNUTLS(void)
 
 #define GNUTLS_FUNCS \
 	GNUTLS_FUNC(gnutls_bye)	\
+	GNUTLS_FUNC(gnutls_alert_get) \
+	GNUTLS_FUNC(gnutls_alert_get_name) \
 	GNUTLS_FUNC(gnutls_perror)	\
 	GNUTLS_FUNC(gnutls_handshake)	\
 	GNUTLS_FUNC(gnutls_transport_set_ptr)	\
@@ -340,6 +351,7 @@ static qboolean Init_GNUTLS(void)
 		{(void**)&qgnutls_init, "gnutls_init"},
 		{(void**)&qgnutls_deinit, "gnutls_deinit"},
 		{(void**)&qgnutls_set_default_priority, "gnutls_set_default_priority"},
+		{(void**)&qgnutls_set_default_priority_append, "gnutls_set_default_priority_append"},
 		{(void**)&qgnutls_certificate_allocate_credentials, "gnutls_certificate_allocate_credentials"},
 		{(void**)&qgnutls_anon_allocate_client_credentials, "gnutls_anon_allocate_client_credentials"},
 		{(void**)&qgnutls_global_init, "gnutls_global_init"},
@@ -378,8 +390,13 @@ static qboolean Init_GNUTLS(void)
 		{(void**)&qgnutls_dtls_cookie_send, "gnutls_dtls_cookie_send"},
 		{(void**)&qgnutls_dtls_prestate_set, "gnutls_dtls_prestate_set"},
 		{(void**)&qgnutls_dtls_set_mtu, "gnutls_dtls_set_mtu"},
-//		{(void**)&qgnutls_psk_allocate_client_credentials, "gnutls_psk_allocate_client_credentials"},
-//		{(void**)&qgnutls_psk_set_client_credentials, "gnutls_psk_set_client_credentials"},
+
+		{(void**)&qgnutls_psk_allocate_server_credentials, "gnutls_psk_allocate_server_credentials"},
+		{(void**)&qgnutls_psk_set_server_credentials_function, "gnutls_psk_set_server_credentials_function"},
+		{(void**)&qgnutls_psk_set_server_credentials_hint, "gnutls_psk_set_server_credentials_hint"},
+		{(void**)&qgnutls_psk_client_get_hint, "gnutls_psk_client_get_hint"},
+		{(void**)&qgnutls_psk_allocate_client_credentials, "gnutls_psk_allocate_client_credentials"},
+		{(void**)&qgnutls_psk_set_client_credentials_function, "gnutls_psk_set_client_credentials_function"},
 #endif
 
 		{(void**)&qgnutls_sec_param_to_pk_bits, "gnutls_sec_param_to_pk_bits"},
@@ -458,6 +475,65 @@ typedef struct
 #endif
 //	int mtu;
 } gnutlsfile_t;
+
+static void SSL_SetCertificateName(gnutlsfile_t *f, const char *hostname)
+{
+	int i;
+	if (hostname)
+	{
+		const char *host = strstr(hostname, "://");
+		if (host)
+			hostname = host+3;
+		//any dtls:// prefix will have been stripped now.
+		if (*hostname == '[')
+		{	//eg: [::1]:foo - skip the lead [ and strip the ] and any trailing data (hopefully just a :port or nothing)
+			hostname++;
+			host = strchr(hostname, ']');
+			if (host && host-hostname < sizeof(f->certname))
+			{
+				memcpy(f->certname, hostname, host-hostname);
+				f->certname[host-hostname] = 0;
+				hostname = f->certname;
+			}
+		}
+		else
+		{	//eg: 127.0.0.1:port - strip the port number if specified.
+			host = strchr(hostname, ':');
+			if (host && host-hostname < sizeof(f->certname))
+			{
+				memcpy(f->certname, hostname, host-hostname);
+				f->certname[host-hostname] = 0;
+				hostname = f->certname;
+			}
+		}
+		for (i = 0; hostname[i]; i++)
+		{
+			if (hostname[i] >= 'a' && hostname[i] <= 'z')
+				;
+			else if (hostname[i] >= 'A' && hostname[i] <= 'Z')
+				;
+			else if (hostname[i] >= '0' && hostname[i] <= '9')
+				;
+			else if (hostname[i] == '-' || hostname[i] == '.')
+				;
+			else
+			{
+				hostname = NULL;	//something invalid. bum.
+				break;
+			}
+		}
+		//we should have a cleaned up host name now, ready for (ab)use in certificates.
+	}
+
+	if (!hostname)
+		*f->certname = 0;
+	else if (hostname == f->certname)
+		;
+	else if (strlen(hostname) >= sizeof(f->certname))
+		*f->certname = 0;
+	else
+		memcpy(f->certname, hostname, strlen(hostname)+1);
+}
 
 #define CAFILE "/etc/ssl/certs/ca-certificates.crt"
 
@@ -703,6 +779,7 @@ static int SSL_DoHandshake(gnutlsfile_t *file)
 		{
 		case GNUTLS_E_INSUFFICIENT_CREDENTIALS:
 		case GNUTLS_E_CERTIFICATE_ERROR:		err = VFS_ERROR_UNTRUSTED;		break;
+		case GNUTLS_E_SESSION_EOF:
 		case GNUTLS_E_PREMATURE_TERMINATION:	err = VFS_ERROR_EOF;			break;
 		case GNUTLS_E_PUSH_ERROR:				err = file->pusherror;			break;
 		case GNUTLS_E_PULL_ERROR:				err = file->pullerror;			break;
@@ -920,6 +997,7 @@ static int DTLS_Pull_Timeout(gnutls_transport_ptr_t p, unsigned int timeout)
 static gnutls_anon_client_credentials_t anoncred[2];
 #else
 static gnutls_certificate_credentials_t xcred[2];
+static qboolean	servercertfail;
 #endif
 #ifdef HAVE_DTLS
 static gnutls_datum_t cookie_key;
@@ -987,7 +1065,7 @@ static qboolean SSL_LoadPrivateCert(gnutls_certificate_credentials_t cred)
 	memset(&priv, 0, sizeof(priv));
 	memset(&pub, 0, sizeof(pub));
 
-	if ((!privf || !pubf) && hostname)
+	if ((!privf || !pubf))// && hostname)
 	{	//not found? generate a new one.
 		//FIXME: how to deal with race conditions with multiple servers on the same host?
 		//delay till the first connection? we at least write both files at the sameish time.
@@ -1170,7 +1248,7 @@ qboolean SSL_InitGlobal(qboolean isserver)
 		{
 #if 1
 			if (!SSL_LoadPrivateCert(xcred[isserver]))
-				initstatus[isserver] = -1;
+				servercertfail = true;
 #else
 			int ret = -1;
 			char keyfile[MAX_OSPATH];
@@ -1202,12 +1280,39 @@ qboolean SSL_InitGlobal(qboolean isserver)
 		return false;
 	return true;
 }
-#if 0
+#ifdef HAVE_DTLS
 static int GetPSKForUser(gnutls_session_t sess, const char *username, gnutls_datum_t * key)
-{
-Con_Printf("GetPSKForUser: %s\n", username);
-	key->size = 0;
-	key->data = key->size?gnutls_malloc(key->size):0;
+{	//serverside. name must match what we expect (this isn't very secure), and we return the key we require for that user name.
+	if (!strcmp(username, dtls_psk_user.string))
+	{
+		key->size = (strlen(dtls_psk_key.string)+1)/2;
+		key->data = (*qgnutls_malloc)(key->size);
+		key->size = Base16_DecodeBlock(dtls_psk_key.string, key->data, key->size);
+		return 0;
+	}
+	return -1;
+}
+static int GetPSKForServer(gnutls_session_t sess, char **username, gnutls_datum_t *key)
+{	//clientside. return the appropriate username for the hint, along with the matching key.
+	//this could be made more fancy with a database, but we'll keep it simple with cvars.
+	const char *svhint = qgnutls_psk_client_get_hint(sess);
+
+	if (!svhint)
+		svhint = "";
+
+	if ((!*dtls_psk_hint.string&&*dtls_psk_user.string) || (*dtls_psk_hint.string&&!strcmp(svhint, dtls_psk_hint.string)))
+	{	//okay, hints match (or ours is unset), report our user as appropriate.
+		*username = strcpy((*qgnutls_malloc)(strlen(dtls_psk_user.string)+1), dtls_psk_user.string);
+
+		key->size = (strlen(dtls_psk_key.string)+1)/2;
+		key->data = (*qgnutls_malloc)(key->size);
+		key->size = Base16_DecodeBlock(dtls_psk_key.string, key->data, key->size);
+		return 0;
+	}
+	else if (!*dtls_psk_user.string && !*dtls_psk_hint.string)
+		Con_Printf(CON_ERROR"Server requires a Pre-Shared Key (hint: \"%s\"). Please set %s, %s, and %s accordingly.\n", svhint, dtls_psk_hint.name, dtls_psk_user.name, dtls_psk_key.name);
+	else
+		Con_Printf(CON_ERROR"Server requires different Pre-Shared Key credentials (hint: \"%s\", expected \"%s\"). Please set %s, %s, and %s accordingly.\n", svhint, dtls_psk_hint.string, dtls_psk_hint.name, dtls_psk_user.name, dtls_psk_key.name);
 	return -1;
 }
 #endif
@@ -1224,39 +1329,36 @@ static qboolean SSL_InitConnection(gnutlsfile_t *newf, qboolean isserver, qboole
 	//qgnutls_kx_set_priority (newf->session, kx_prio);
 	qgnutls_credentials_set (newf->session, GNUTLS_CRD_ANON, anoncred[isserver]);
 #else
-#if 0//def HAVE_DTLS
-	if (datagram)
-	{	//use some arbitrary PSK for dtls clients.
-		if (isserver)
-		{
-			gnutls_psk_server_credentials_t pskcred;
-			qgnutls_psk_allocate_server_credentials(&pskcred);
-			qgnutls_psk_set_server_credentials_function(pskcred, GetPSKForUser);
-			qgnutls_psk_set_server_credentials_hint(pskcred, "id-quake-ex-dtls");
-			qgnutls_credentials_set(newf->session, GNUTLS_CRD_PSK, pskcred);
-		}
-		else
-		{
-#ifdef HAVE_CLIENT
-			extern cvar_t name;
-			const char *namestr = name.string;
-#else
-			const char *namestr = "Anonymous";
-#endif
-			gnutls_psk_client_credentials_t pskcred;
-			const gnutls_datum_t key = { (void *) "deadbeef", 0 };
-			qgnutls_psk_allocate_client_credentials(&pskcred);
-			qgnutls_psk_set_client_credentials(pskcred, namestr, &key, GNUTLS_PSK_KEY_HEX);
+#ifdef HAVE_DTLS
+	if (datagram && !isserver)
+	{	//do psk as needed. we can still do the cert stuff if the server isn't doing psk.
+		gnutls_psk_client_credentials_t pskcred;
+		qgnutls_psk_allocate_client_credentials(&pskcred);
+		qgnutls_psk_set_client_credentials_function(pskcred, GetPSKForServer);
 
-			qgnutls_credentials_set(newf->session, GNUTLS_CRD_PSK, pskcred);
-		}
+		qgnutls_set_default_priority_append (newf->session, "+ECDHE-PSK:+DHE-PSK:+PSK", NULL, 0);
+		qgnutls_credentials_set(newf->session, GNUTLS_CRD_PSK, pskcred);
+	}
+	else if (datagram && isserver && (*dtls_psk_user.string || servercertfail))
+	{	//offer some arbitrary PSK for dtls clients.
+		gnutls_psk_server_credentials_t pskcred;
+		qgnutls_psk_allocate_server_credentials(&pskcred);
+		qgnutls_psk_set_server_credentials_function(pskcred, GetPSKForUser);
+		if (*dtls_psk_hint.string)
+			qgnutls_psk_set_server_credentials_hint(pskcred, dtls_psk_hint.string);
+
+		qgnutls_set_default_priority_append (newf->session, ("-KX-ALL:+ECDHE-PSK:+DHE-PSK:+PSK")+(servercertfail?0:8), NULL, 0);
+		qgnutls_credentials_set(newf->session, GNUTLS_CRD_PSK, pskcred);
 	}
 	else
 #endif
-		qgnutls_credentials_set (newf->session, GNUTLS_CRD_CERTIFICATE, xcred[isserver]);
+	{
+		// Use default priorities for regular tls sessions
+		qgnutls_set_default_priority (newf->session);
+	}
 #endif
-	// Use default priorities
-	qgnutls_set_default_priority (newf->session);
+	if (xcred[isserver])
+		qgnutls_credentials_set (newf->session, GNUTLS_CRD_CERTIFICATE, xcred[isserver]);
 
 	// tell gnutls how to send/receive data
 	qgnutls_transport_set_ptr (newf->session, newf);
@@ -1297,10 +1399,7 @@ static vfsfile_t *GNUTLS_OpenVFS(const char *hostname, vfsfile_t *source, qboole
 	newf->funcs.Tell = SSL_Tell;
 	newf->funcs.seekstyle = SS_UNSEEKABLE;
 
-	if (hostname)
-		Q_strncpyz(newf->certname, hostname, sizeof(newf->certname));
-	else
-		Q_strncpyz(newf->certname, "", sizeof(newf->certname));
+	SSL_SetCertificateName(newf, hostname);
 
 	if (!SSL_InitConnection(newf, isserver, false))
 	{
@@ -1433,7 +1532,7 @@ static void *GNUDTLS_CreateContext(const char *remotehost, void *cbctx, neterr_t
 
 //	Sys_Printf("DTLS_CreateContext: server=%i\n", isserver);
 
-	Q_strncpyz(newf->certname, remotehost?remotehost:"", sizeof(newf->certname));
+	SSL_SetCertificateName(newf, remotehost);
 
 	if (!SSL_InitConnection(newf, isserver, true))
 	{
@@ -1587,7 +1686,7 @@ static qboolean GNUDTLS_CheckConnection(void *cbctx, void *peeraddr, size_t peer
 
 	//and this is the result...
 	qgnutls_dtls_prestate_set(f->session, &prestate);
-	qgnutls_dtls_set_mtu(f->session, 1440);
+	qgnutls_dtls_set_mtu(f->session, 1400);
 
 	//still need to do the whole certificate thing though.
 	f->handshaking = true;
@@ -1628,6 +1727,8 @@ static const dtlsfuncs_t *GNUDTLS_InitServer(void)
 {
 	if (!SSL_InitGlobal(true))
 		return NULL;	//unable to init a server certificate. don't allow dtls to init.
+	if (servercertfail && !*dtls_psk_user.string)
+		return NULL;
 	return &dtlsfuncs_gnutls;
 }
 static const dtlsfuncs_t *GNUDTLS_InitClient(void)

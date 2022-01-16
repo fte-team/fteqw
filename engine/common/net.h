@@ -187,10 +187,11 @@ enum certprops_e
 size_t NET_GetConnectionCertificate(struct ftenet_connections_s *col, netadr_t *a, enum certprops_e prop, char *out, size_t outsize);
 
 #ifdef HAVE_DTLS
-qboolean NET_DTLS_Create(struct ftenet_connections_s *col, netadr_t *to);
+qboolean NET_DTLS_Create(struct ftenet_connections_s *col, netadr_t *to, const char *hostname);
 qboolean NET_DTLS_Decode(struct ftenet_connections_s *col);
 qboolean NET_DTLS_Disconnect(struct ftenet_connections_s *col, netadr_t *to);
 void NET_DTLS_Timeouts(struct ftenet_connections_s *col);
+extern cvar_t dtls_psk_hint, dtls_psk_user, dtls_psk_key;
 #endif
 extern cvar_t timeout;
 extern cvar_t tls_ignorecertificateerrors;	//evil evil evil.

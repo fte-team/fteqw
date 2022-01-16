@@ -165,12 +165,17 @@ static void QDECL NET_Enable_DTLS_Changed(struct cvar_s *var, char *oldvalue)
 		if (!svs.sockets->dtlsfuncs)
 		{
 			if (var->ival >= 2)
-				Con_Printf("%sUnable to set %s to \"%s\", no DTLS certificate available.\n", (var->ival >= 2)?CON_ERROR:CON_WARNING, var->name, var->string);
+				Con_Printf("%sUnable to set %s to \"%s\", no DTLS provider available.\n", (var->ival >= 2)?CON_ERROR:CON_WARNING, var->name, var->string);
 			var->ival = 0;	//disable the cvar (internally) if we don't have a usable certificate. this allows us to default the cvar to enabled without it breaking otherwise.
 		}
 	}
 }
 cvar_t net_enable_dtls		= CVARAFCD("net_enable_dtls", "", "sv_listen_dtls", 0, NET_Enable_DTLS_Changed, "Controls serverside dtls support.\n0: dtls blocked, not advertised.\n1: clientside choice.\n2: used where possible (recommended setting).\n3: disallow non-dtls clients (sv_port_tcp should be eg tls://[::]:27500 to also disallow unencrypted tcp connections).");
+#endif
+#if defined(HAVE_DTLS)
+cvar_t dtls_psk_hint		= CVARFD("dtls_psk_hint", "", CVAR_NOUNSAFEEXPAND, "For DTLS-PSK handshakes. This specifies the public server identity.");
+cvar_t dtls_psk_user		= CVARFD("dtls_psk_user", "", CVAR_NOUNSAFEEXPAND, "For DTLS-PSK handshakes. This specifies the username to use when the client+server's hints match.");
+cvar_t dtls_psk_key			= CVARFD("dtls_psk_key",  "", CVAR_NOUNSAFEEXPAND, "For DTLS-PSK handshakes. This specifies the hexadecimal key which must match between client+server. Will only be used when client+server's hint settings match.");
 #endif
 
 #ifdef HAVE_CLIENT
@@ -2997,7 +3002,7 @@ static neterr_t FTENET_DTLS_DoSendPacket(void *cbctx, const qbyte *data, size_t 
 	struct dtlspeer_s *peer = cbctx;
 	return NET_SendPacketCol(peer->col, length, data, &peer->addr);
 }
-qboolean NET_DTLS_Create(ftenet_connections_t *col, netadr_t *to)
+qboolean NET_DTLS_Create(ftenet_connections_t *col, netadr_t *to, const char *hostname)
 {
 	extern cvar_t timeout;
 	struct dtlspeer_s *peer;
@@ -3010,7 +3015,6 @@ qboolean NET_DTLS_Create(ftenet_connections_t *col, netadr_t *to)
 	}
 	if (!peer)
 	{
-		char hostname[256];
 		peer = Z_Malloc(sizeof(*peer));
 		peer->addr = *to;
 		peer->col = col;
@@ -3020,7 +3024,7 @@ qboolean NET_DTLS_Create(ftenet_connections_t *col, netadr_t *to)
 		else
 			peer->funcs = DTLS_InitClient();
 		if (peer->funcs)
-			peer->dtlsstate = peer->funcs->CreateContext(NET_BaseAdrToString(hostname, sizeof(hostname), to), peer, FTENET_DTLS_DoSendPacket, col->islisten);
+			peer->dtlsstate = peer->funcs->CreateContext(hostname, peer, FTENET_DTLS_DoSendPacket, col->islisten);
 
 		peer->timeout = realtime+timeout.value;
 		if (peer->dtlsstate)
@@ -8009,14 +8013,14 @@ qboolean NET_EnsureRoute(ftenet_connections_t *collection, char *routename, char
 		break;
 	case NP_DTLS:
 		adr->prot = NP_DGRAM;
-		NET_EnsureRoute(collection, routename, host, adr);
-		if (NET_DTLS_Create(collection, adr))
-		{
-			adr->prot = NP_DTLS;
-			return true;
-		}
+		if (NET_EnsureRoute(collection, routename, host, adr))
+			if (NET_DTLS_Create(collection, adr, host))
+			{
+				adr->prot = NP_DTLS;
+				return true;
+			}
 		adr->prot = NP_DTLS;
-		break;
+		return false;
 	case NP_WS:
 	case NP_WSS:
 	case NP_TLS:
@@ -9033,6 +9037,11 @@ void SVNET_RegisterCvars(void)
 
 #if defined(HAVE_DTLS) && defined(HAVE_SERVER)
 	Cvar_Register (&net_enable_dtls,			"networking");
+#endif
+#ifdef HAVE_DTLS
+	Cvar_Register (&dtls_psk_hint,			"networking");
+	Cvar_Register (&dtls_psk_user,			"networking");
+	Cvar_Register (&dtls_psk_key,			"networking");
 #endif
 }
 

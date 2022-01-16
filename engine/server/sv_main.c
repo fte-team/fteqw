@@ -217,7 +217,6 @@ char cvargroup_servercontrol[] = "server control variables";
 
 vfsfile_t	*sv_fraglogfile;
 
-void SV_AcceptClient (netadr_t *adr, int userid, char *userinfo);
 void PRH2_SetPlayerClass(client_t *cl, int classnum, qboolean fromqc);
 void SV_DeDupeName(const char *val, client_t *cl, char *newname, size_t newnamesize);
 
@@ -3424,12 +3423,16 @@ void SVC_DirectConnect(int expectedreliablesequence)
 
 		// note an extra qbyte is needed to replace spectator key
 		Q_strncpyz (info.userinfo, Cmd_Argv(4), sizeof(info.userinfo)-1);
-		if (info.protocol == SCP_NETQUAKE)
+		if (info.protocol >= SCP_NETQUAKE)
+		{
 			Info_RemoveKey(info.userinfo, "mod");	//its served its purpose.
+			Info_RemoveKey(info.userinfo, "modver");	//its served its purpose.
+			Info_RemoveKey(info.userinfo, "flags");	//its served its purpose.
+		}
 	}
 
 #ifdef HAVE_DTLS
-	if (net_enable_dtls.ival > 2 && (net_from.prot == NP_DGRAM || net_from.prot == NP_STREAM || net_from.prot == NP_WS))
+	if (net_enable_dtls.ival > 2 && (net_from.prot == NP_DGRAM || net_from.prot == NP_STREAM || net_from.prot == NP_WS) && net_from.type != NA_LOOPBACK)
 	{
 		SV_RejectMessage (info.protocol, "This server requires the use of DTLS/TLS/WSS.\n");
 		return;
@@ -4118,7 +4121,7 @@ qboolean SV_ConnectionlessPacket (void)
 				else
 				{
 					//NET_DTLS_Disconnect(svs.sockets, &net_from);
-					if (NET_DTLS_Create(svs.sockets, &net_from))
+					if (NET_DTLS_Create(svs.sockets, &net_from, NULL))
 						Netchan_OutOfBandPrint(NS_SERVER, &net_from, "dtlsopened");
 				}
 			}

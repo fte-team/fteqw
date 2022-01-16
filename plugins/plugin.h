@@ -374,6 +374,12 @@ typedef struct	//for when you need basic socket access, hopefully rare...
 	F(void,		Close,			(qhandle_t socket));
 	F(int,		SetTLSClient,	(qhandle_t sock, const char *certhostname));		//adds a tls layer to the socket (and specifies the peer's required hostname)
 	F(int,		GetTLSBinding,	(qhandle_t sock, char *outdata, int *datalen));	//to avoid MITM attacks with compromised cert authorities
+
+	//for (d)tls plugins to use.
+	F(qboolean,	RandomBytes,				(qbyte *string, int len));
+	F(void *,	TLS_GetKnownCertificate,	(const char *certname, size_t *size));
+	F(qboolean,	CertLog_ConnectOkay,		(const char *hostname, void *cert, size_t certsize, unsigned int certlogproblems));
+
 	#define N_WOULDBLOCK -1
 	#define N_FATALERROR -2
 	#define NET_CLIENTPORT -1

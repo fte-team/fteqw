@@ -363,49 +363,65 @@ endif
 
 #small plugins with simpler build rules...
 
+######################################
+#Mostly for a joke.
 $(PLUG_PREFIX)mpq$(PLUG_NATIVE_EXT): mpq/fs_mpq.c mpq/blast.c plugin.c
 	$(CC) $(BASE_CFLAGS) $(CFLAGS) -DFTEPLUGIN -o $@ -shared $(PLUG_CFLAGS) -Impq $^ $(PLUG_DEFFILE) $(PLUG_LDFLAGS_ZLIB) $(PLUG_LDFLAGS)
-	$(call EMBEDMETA,mpq,$@)
-NATIVE_PLUGINS+=mpq
+	$(call EMBEDMETA,mpq,$@,MPQ Archives,Provides support for Blizzard's .mpq archive format used in eg Diablo 2)
+#NATIVE_PLUGINS+=mpq
+######################################
 
+######################################
+# XMPP aka Jabber chat-protocol support. requires manual account configuration.
 $(PLUG_PREFIX)xmpp$(PLUG_NATIVE_EXT): jabber/jabberclient.c jabber/jingle.c jabber/sift.c jabber/xml.c plugin.c ../engine/common/sha1.c ../engine/common/sha2.c emailnot/md5.c
 	$(CC) $(BASE_CFLAGS) $(CFLAGS) -DFTEPLUGIN -o $@ -shared $(PLUG_CFLAGS) -Ijabber $^ $(PLUG_DEFFILE) $(PLUG_LDFLAGS) $(LIBRESOLV)
-	$(call EMBEDMETA,xmpp,$@)
+	$(call EMBEDMETA,xmpp,$@,XMPP Chat,A slightly more modern alternative to IRC. Requires manual account configuration.)
 NATIVE_PLUGINS+=xmpp
+######################################
 
+######################################
+# Quake Injector plugin.
 $(PLUG_PREFIX)qi$(PLUG_NATIVE_EXT): qi/qi.c jabber/xml.c plugin.c
 	$(CC) $(BASE_CFLAGS) $(CFLAGS) -DFTEPLUGIN -o $@ -shared $(PLUG_CFLAGS) -Ijabber $^ $(PLUG_DEFFILE) $(PLUG_LDFLAGS)
-	$(call EMBEDMETA,qi,$@)
+	$(call EMBEDMETA,qi,$@,Quake-Injector Plugin,Provides easy access to the Quaddicted mod database.)
 NATIVE_PLUGINS+=qi
+######################################
 
-
-
+######################################
+# Internet Relay Chat (IRC) plugin.
 $(PLUG_PREFIX)irc$(PLUG_NATIVE_EXT): irc/ircclient.c plugin.c
 	$(CC) $(BASE_CFLAGS) $(CFLAGS) -DFTEPLUGIN -o $@ -shared $(PLUG_CFLAGS) -Iirc $^ $(PLUG_DEFFILE) $(PLUG_LDFLAGS)
-	$(call EMBEDMETA,irc,$@)
+	$(call EMBEDMETA,irc,$@,IRC Chat,Internet Relay Chat plugin - requires extra server/nick/channel configuration)
 NATIVE_PLUGINS+=irc
+######################################
 
-#OpenXR plugin...
+######################################
+#OpenXR plugin, for use with VR headsets.
 $(PLUG_PREFIX)openxr$(PLUG_NATIVE_EXT): openxr.c plugin.c
 	$(CC) $(BASE_CFLAGS) $(CFLAGS) -DFTEPLUGIN -o $@ -shared $(PLUG_CFLAGS) $^ $(PLUG_DEFFILE) $(PLUG_LDFLAGS) -DXR_NO_PROTOTYPES `$(PKGCONFIG) --cflags openxr` -DGLQUAKE -DVKQUAKE -DD3D11QUAKE
-	$(call EMBEDMETA,openxr,$@)
+	$(call EMBEDMETA,openxr,$@,OpenXR Support,Enables the use of Virtual Reality headsets and inputs.)
 ifeq ($(shell $(PKGCONFIG) --exists openxr && echo 1),1)
 NATIVE_PLUGINS+=openxr
 endif
+######################################
 
+######################################
 #for compat with ezquake
 $(PLUG_PREFIX)ezhud$(PLUG_NATIVE_EXT): ezhud/ezquakeisms.c ezhud/hud.c ezhud/hud_common.c ezhud/hud_editor.c plugin.c
 	$(CC) $(BASE_CFLAGS) $(CFLAGS) -DFTEPLUGIN -o $@ -shared $(PLUG_CFLAGS) -Iezhud $^ $(PLUG_DEFFILE) $(PLUG_LDFLAGS)
 	$(call EMBEDMETA,ezhud,$@,EzHud Plugin,Provides compat with ezquake's hud scripts.)
 NATIVE_PLUGINS+=ezhud
+######################################
 
+######################################
 #not really relevant now that gltf was made an internal plugin
 $(PLUG_PREFIX)models$(PLUG_NATIVE_EXT): models/gltf.c models/exportiqm.c models/models.c plugin.c
 	$(CC) $(BASE_CFLAGS) $(CFLAGS) -DFTEPLUGIN -o $@ -shared $(PLUG_CFLAGS) -Imodels $^ $(PLUG_DEFFILE) $(PLUG_LDFLAGS)
 	$(call EMBEDMETA,models,$@,Models Plugin,Kinda redundant now that the engine has gltf2 loading)
 #NATIVE_PLUGINS+=models
+######################################
 
-#####################
+######################################
 #Openssl crypto plugin, to replace microsoft's shoddy dtls implementation. could also be useful on the BSDs, yay system components?
 
 ifeq ($(FTE_TARGET),win32)
@@ -441,14 +457,15 @@ $(PLUG_PREFIX)openssl$(PLUG_NATIVE_EXT): net_ssl_openssl.c plugin.c
 ifeq ($(OPENSSL_AVAILABLE),1)
 NATIVE_PLUGINS+=openssl
 endif
+######################################
 
-#####################
+######################################
 #for compat with half-life 2's file formats
 $(PLUG_PREFIX)hl2$(PLUG_NATIVE_EXT): hl2/fs_vpk.c hl2/img_vtf.c hl2/mod_hl2.c hl2/mat_vmt.c hl2/mod_vbsp.c hl2/hl2.c plugin.c
 	$(CC) $(BASE_CFLAGS) $(CFLAGS) -DFTEPLUGIN -DMULTITHREAD -o $@ -shared $(PLUG_CFLAGS) $^ $(PLUG_DEFFILE) $(PLUG_LDFLAGS)
 	$(call EMBEDMETA,hl2,$@,HL2 Formats,Provides support for various formats used by Valve's Source engine.)
 NATIVE_PLUGINS+=hl2
-
+######################################
 
 
 

@@ -348,7 +348,10 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 //	these are not really documented anywhere. we're trying to stick with protocol 15 (because that's the only documented protocol it supports properly thanks to demos)
 //	however we still need some special case svcs
 //  (there's also some problematic c2s differences too)
-#define svcqex_updateping			46
+#define svcqex_updateping			46	// [byte] slot, [signed_qe] ping
+#define svcqex_updatesocial			47	// [byte] slot, 8 bytes of unknown
+#define svcqex_updateplinfo			48	// [byte] slot, [leb128] health, [leb128] armour
+#define svcqex_print				49	// identical to svc_print, except not broken by qex.
 #define svcqex_servervars			50	// [leb128] changedvalues, [???] value...
 #define svcqex_seq					51	// [leb128] input sequence ack
 #define svcqex_achievement			52	// [string] codename
@@ -791,6 +794,10 @@ enum {
 #define FITZSU_UNUSED30		(1<<30)
 #define SU_EXTEND3		(1<<31) // another byte to follow, future expansion
 
+//builds on top of fitz
+#define	QEX_SU_FLOATCOORDS	(1<<8)
+#define QEX_SU_ENTFLAGS		(1<<26)	// ULEB128 copy of the player's .flags field
+
 // first extend byte
 #define DPSU_PUNCHVEC1		(1<<16)
 #define DPSU_PUNCHVEC2		(1<<17)
@@ -852,11 +859,23 @@ enum {
 #define DPU_UNUSED30		(1<<30) // future expansion
 #define DPU_EXTEND3		(1<<31) // another byte to follow, future expansion
 
-#define FITZU_ALPHA (1<<16)
-#define FITZU_FRAME2 (1<<17)
-#define FITZU_MODEL2 (1<<18)
-#define FITZU_LERPFINISH (1<<19)
-#define RMQU_SCALE (1<<20) 
+#define FITZU_ALPHA			(1<<16)
+#define FITZU_FRAME2		(1<<17)
+#define FITZU_MODEL2		(1<<18)
+#define FITZU_LERPFINISH	(1<<19)
+#define RMQU_SCALE			(1<<20)
+
+#define QE_U_FLOATCOORDS	(1<<21)	//set on the local player entity, to boost precision for prediction.
+#define QE_U_SOLIDTYPE		(1<<22)	//for prediction I suppose.
+//#define QE_U_EXTEND		(1<<23)
+#define QE_U_ENTFLAGS		(1<<24)	//not sure why this needs to be networked, oh well. redundant with clientdata
+#define QE_U_HEALTH			(1<<25)	//not sure why this needs to be networked, oh well.
+#define QE_U_UNKNOWN26		(1<<26)	//seems to be some sort of nodraw flag (presumably for solid bmodels that need a modelindex for collisions).
+#define QE_U_UNUSED27		(1<<27)
+#define QE_U_UNUSED28		(1<<28)
+#define QE_U_UNUSED29		(1<<29)
+#define QE_U_UNUSED30		(1<<30)
+#define QE_U_UNUSED31		(1u<<31)
 
 #endif
 
@@ -903,6 +922,22 @@ enum {
 
 #define Q2UX_UNUSED		(Q2UX_UNUSED1|Q2UX_UNUSED2|Q2UX_UNUSED3|Q2UX_UNUSED4)
 
+//QuakeEx-specific stuff
+//gamevar info
+#define QEX_GV_DEATHMATCH		(1<<0)
+#define QEX_GV_IDEALPITCHSCALE	(1<<1)
+#define QEX_GV_FRICTION			(1<<2)
+#define QEX_GV_EDGEFRICTION		(1<<3)
+#define QEX_GV_STOPSPEED		(1<<4)
+#define QEX_GV_MAXVELOCITY		(1<<5)
+#define QEX_GV_GRAVITY			(1<<6)
+#define QEX_GV_NOSTEP			(1<<7)
+#define QEX_GV_MAXSPEED			(1<<8)
+#define QEX_GV_ACCELERATE		(1<<9)
+#define QEX_GV_CONTROLLERONLY	(1<<10)
+#define QEX_GV_TIMELIMIT		(1<<11)
+#define QEX_GV_FRAGLIMIT		(1<<12)
+#define QEX_GV_ALL				((1<<13)-1)
 
 //==============================================
 //obsolete demo players info
@@ -954,6 +989,12 @@ enum {
 #define FITZ_B_LARGEFRAME	(1<<1)
 #define FITZ_B_ALPHA		(1<<2)
 #define RMQFITZ_B_SCALE		(1<<3)
+
+#define QEX_B_SOLID			(1<<3)
+#define QEX_B_UNKNOWN4		(1<<4)
+#define QEX_B_UNKNOWN5		(1<<5)
+#define QEX_B_UNKNOWN6		(1<<6)
+#define QEX_B_UNKNOWN7		(1<<7)
 
 #define	DEFAULT_VIEWHEIGHT	22
 

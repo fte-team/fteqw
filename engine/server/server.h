@@ -698,7 +698,7 @@ typedef struct client_s
 	enum serverprotocols_e protocol;
 	unsigned int	supportedprotocols;
 	qboolean proquake_angles_hack;	//expect 16bit client->server angles .
-	qboolean qex_input_hack;	//qex sends strange clc inputs and needs workarounds for its prediction.
+	qboolean qex;	//qex sends strange clc inputs and needs workarounds for its prediction. it also favours fitzquake's protocol but violates parts of it.
 
 	unsigned int lastruncmd;	//for non-qw physics. timestamp they were last run, so switching between physics modes isn't a (significant) cheat
 //speed cheat testing

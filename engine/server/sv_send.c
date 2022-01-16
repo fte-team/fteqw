@@ -184,7 +184,10 @@ void SV_PrintToClient(client_t *cl, int level, const char *string)
 	case SCP_BJP3:
 	case SCP_FITZ666:
 #ifdef NQPROT
-		ClientReliableWrite_Begin (cl, svc_print, strlen(string)+3);
+		if (cl->qex && cl->protocol != SCP_NETQUAKE)
+			ClientReliableWrite_Begin (cl, svcqex_print, strlen(string)+3);	//urgh!
+		else
+			ClientReliableWrite_Begin (cl, svc_print, strlen(string)+3);
 		if (level == PRINT_CHAT)
 			ClientReliableWrite_Byte (cl, 1);
 		ClientReliableWrite_String (cl, string);
@@ -1594,7 +1597,13 @@ void SV_WriteCenterPrint(client_t *cl, char *s)
 	}
 	else
 	{
-		ClientReliableWrite_Begin (cl, svc_centerprint, 2 + strlen(s));
+		if (cl->qex && cl->protocol != SCP_NETQUAKE)
+		{
+			ClientReliableWrite_Begin (cl, svc_centerprint, 4 + strlen(s));
+			ClientReliableWrite_Short (cl, 1);
+		}
+		else
+			ClientReliableWrite_Begin (cl, svc_centerprint, 2 + strlen(s));
 	}
 	ClientReliableWrite_String (cl, s);
 
@@ -1691,7 +1700,7 @@ void SV_WriteClientdataToMessage (client_t *client, sizebuf_t *msg)
 
 		if (client->fteprotocolextensions2 & PEXT2_PREDINFO)
 			MSG_WriteShort(msg, client->last_sequence);
-		else if (client->qex_input_hack && client->last_sequence)
+		else if (client->qex && client->last_sequence)
 		{
 			MSG_WriteByte(msg, svcqex_seq);
 			MSG_WriteULEB128(msg, client->last_sequence);
@@ -1779,6 +1788,14 @@ void SV_WriteClientdataToMessage (client_t *client, sizebuf_t *msg)
 				bits |= FITZSU_WEAPONFRAME2;
 			if (ent->xv->alpha && ent->xv->alpha < 1)
 				bits |= FITZSU_WEAPONALPHA;
+
+			if (client->qex)
+			{
+				if (ent->v->flags)
+					bits |= QEX_SU_ENTFLAGS;
+				if (bits & (SU_VELOCITY1|SU_VELOCITY2|SU_VELOCITY3))
+					bits |= QEX_SU_FLOATCOORDS;
+			}
 		}
 	}
 
@@ -1818,8 +1835,10 @@ void SV_WriteClientdataToMessage (client_t *client, sizebuf_t *msg)
 //			Msg_WriteCoord(msg, ent->xv->punchvector);
 		if (bits & (SU_VELOCITY1<<i))
 		{
-			if (client->protocol == SCP_DARKPLACES6 || client->protocol == SCP_DARKPLACES7)
-				MSG_WriteCoord(msg, ent->v->velocity[i]);
+			if (client->qex && (bits & QEX_SU_ENTFLAGS))
+				MSG_WriteFloat(msg, ent->v->velocity[i]);
+			else if (client->protocol == SCP_DARKPLACES6 || client->protocol == SCP_DARKPLACES7)
+				MSG_WriteFloat(msg, ent->v->velocity[i]);
 			else
 				MSG_WriteChar (msg, bound(-128, ent->v->velocity[i]/16, 127));
 		}
@@ -1898,6 +1917,11 @@ void SV_WriteClientdataToMessage (client_t *client, sizebuf_t *msg)
 		if (bits & FITZSU_CELLS2)		MSG_WriteByte (msg, (int)ent->v->ammo_cells >> 8);
 		if (bits & FITZSU_WEAPONFRAME2)	MSG_WriteByte (msg, (int)ent->v->weaponframe >> 8);
 		if (bits & FITZSU_WEAPONALPHA)	MSG_WriteByte (msg, ent->xv->alpha*255);
+
+		if (client->qex)
+		{
+			if (bits & QEX_SU_ENTFLAGS)	MSG_WriteULEB128 (msg, ent->v->flags);
+		}
 	}
 #endif
 }
@@ -3049,7 +3073,7 @@ void SV_UpdateToReliableMessages (void)
 				SV_FullClientUpdate (host_client, NULL);
 			}
 
-			if (host_client->qex_input_hack && sendpings)
+			if (host_client->qex && sendpings)
 			{
 				sizebuf_t *m;
 				for (j=0, client = svs.clients ; j<svs.allocated_client_slots && j < host_client->max_net_clients; j++, client++)
@@ -3062,6 +3086,16 @@ void SV_UpdateToReliableMessages (void)
 					MSG_WriteByte(m, j);
 					MSG_WriteSignedQEX(m, SV_CalcPing(client, false));
 					ClientReliable_FinishWrite(host_client);
+
+					if (coop.ival)
+					{
+						m = ClientReliable_StartWrite(host_client, 64);
+						MSG_WriteByte(m, svcqex_updateplinfo);
+						MSG_WriteByte(m, j);
+						MSG_WriteSignedQEX(m, client->edict->v->health);
+						MSG_WriteSignedQEX(m, client->edict->v->armorvalue);
+						ClientReliable_FinishWrite(host_client);
+					}
 				}
 			}
 

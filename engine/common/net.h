@@ -328,6 +328,7 @@ void Huff_EmitByte(int ch, qbyte *buffer, int *count);
 #define NETFLAG_NAK			0x00040000
 #define NETFLAG_EOM			0x00080000
 #define NETFLAG_UNRELIABLE	0x00100000
+#define NETFLAG_ZLIB		0x00200000	//QEx - payload contains the real (full) packet
 #define NETFLAG_CTL			0x80000000
 
 #define NQ_NETCHAN_GAMENAME	"QUAKE"

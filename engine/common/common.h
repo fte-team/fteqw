@@ -356,6 +356,7 @@ qint64_t MSG_ReadInt64 (void);
 quint64_t MSG_ReadUInt64 (void);
 qint64_t MSG_ReadSLEB128 (void);
 quint64_t MSG_ReadULEB128 (void);
+qint64_t MSG_ReadSignedQEX (void);
 struct client_s;
 unsigned int MSGSV_ReadEntity (struct client_s *fromclient);
 unsigned int MSGCL_ReadEntity (void);
@@ -1002,11 +1003,11 @@ qboolean IPLog_Merge_File(const char *fname);
 #endif
 enum certlog_problem_e
 {
-	CERTLOG_WRONGHOST,
-	CERTLOG_EXPIRED,
-	CERTLOG_MISSINGCA,
+	CERTLOG_WRONGHOST	=1<<0,
+	CERTLOG_EXPIRED		=1<<1,
+	CERTLOG_MISSINGCA	=1<<2,
 
-	CERTLOG_UNKNOWN,
+	CERTLOG_UNKNOWN		=1<<3,
 };
 qboolean CertLog_ConnectOkay(const char *hostname, void *cert, size_t certsize, unsigned int certlogproblems);
 

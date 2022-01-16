@@ -1362,6 +1362,12 @@ void CLNQ_SendMove (usercmd_t *cmd, int pnum, sizebuf_t *buf)
 		return;
 	}
 
+	if (cls.qex)
+	{
+		MSG_WriteByte (buf, clc_delta);
+		MSG_WriteULEB128(buf, cl.movesequence);
+	}
+
 	MSG_WriteByte (buf, clc_move);
 
 	if (cls.protocol_nq >= CPNQ_DP7)
@@ -1375,6 +1381,9 @@ void CLNQ_SendMove (usercmd_t *cmd, int pnum, sizebuf_t *buf)
 		MSG_WriteShort(buf, cl.movesequence&0xffff);
 
 	MSG_WriteFloat (buf, cmd->fservertime);	// use latest time. because ping reports!
+
+	if (cls.qex)
+		MSG_WriteByte(buf, 4);
 
 	for (i=0 ; i<3 ; i++)
 	{

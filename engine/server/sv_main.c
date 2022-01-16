@@ -446,17 +446,35 @@ void SV_FinalMessage (char *message)
 	buf.data = bufdata;
 	buf.maxsize = sizeof(bufdata);
 
-	SZ_Clear (&buf);
-	MSG_WriteByte (&buf, svc_print);
-	MSG_WriteByte (&buf, PRINT_HIGH);
-	MSG_WriteString (&buf, message);
-	MSG_WriteByte (&buf, svc_disconnect);
-
 	for (i=0, cl = svs.clients ; i<svs.allocated_client_slots ; i++, cl++)
 		if (cl->state >= cs_spawned && !cl->controlled)
-			if (ISNQCLIENT(cl) || ISQWCLIENT(cl))
-				Netchan_Transmit (&cl->netchan, buf.cursize
-						, buf.data, 10000);
+		{
+			if (ISQWCLIENT(cl))
+			{
+				SZ_Clear (&buf);
+				MSG_WriteByte (&buf, svc_print);
+				MSG_WriteByte (&buf, PRINT_HIGH);
+				MSG_WriteString (&buf, message);
+				MSG_WriteByte (&buf, svc_disconnect);
+			}
+#ifdef NQPROT
+			else if (ISNQCLIENT(cl))
+			{
+				SZ_Clear (&buf);
+				if (cl->qex && cl->protocol != SCP_NETQUAKE)
+					MSG_WriteByte (&buf, svcqex_print);	//urgh, ffs.
+				else
+					MSG_WriteByte (&buf, svc_print);
+				MSG_WriteString (&buf, message);
+				MSG_WriteByte (&buf, svc_disconnect);
+			}
+#endif
+			else
+				continue;
+
+			Netchan_Transmit (&cl->netchan, buf.cursize
+					, buf.data, 10000);
+		}
 }
 
 
@@ -1883,13 +1901,18 @@ void SV_AcceptMessage(client_t *newcl)
 			SZ_Clear(&sb);
 			MSG_WriteLong(&sb, 0);
 			MSG_WriteByte(&sb, CCREP_ACCEPT);
-			NET_LocalAddressForRemote(svs.sockets, &net_from, &localaddr, 0);
-			MSG_WriteLong(&sb, ShortSwap(localaddr.port));
-			if (newcl->proquake_angles_hack)
+			if (newcl->qex)
+				;	//skip any port info (as well as any proquake ident stuff.
+			else
 			{
-				MSG_WriteByte(&sb, MOD_PROQUAKE);
-				MSG_WriteByte(&sb, MOD_PROQUAKE_VERSION);
-				MSG_WriteByte(&sb, 0/*flags*/);
+				NET_LocalAddressForRemote(svs.sockets, &net_from, &localaddr, 0);
+				MSG_WriteLong(&sb, ShortSwap(localaddr.port));
+				if (newcl->proquake_angles_hack)
+				{
+					MSG_WriteByte(&sb, MOD_PROQUAKE);
+					MSG_WriteByte(&sb, MOD_PROQUAKE_VERSION);
+					MSG_WriteByte(&sb, 0/*flags*/);
+				}
 			}
 			*(int*)sb.data = BigLong(NETFLAG_CTL|sb.cursize);
 			NET_SendPacket(svs.sockets, sb.cursize, sb.data, &net_from);
@@ -2110,7 +2133,7 @@ void SV_ClientProtocolExtensionsChanged(client_t *client)
 
 		client->datagram.maxsize = sizeof(host_client->datagram_buf);
 	}
-	else if (client->qex_input_hack)
+	else if (client->qex)
 	{
 		client->max_net_clients = NQMAX_CLIENTS;
 		client->datagram.maxsize = sizeof(host_client->datagram_buf);
@@ -2570,7 +2593,7 @@ void SV_DoDirectConnect(svconnectinfo_t *fte_restrict info)
 	}
 	newcl->supportedprotocols = info->supportedprotocols;
 	newcl->proquake_angles_hack = info->proquakeanglehack;
-	newcl->qex_input_hack = info->isqex;
+	newcl->qex = info->isqex;
 #endif
 
 	newcl->userid = ++nextuserid;
@@ -3404,7 +3427,7 @@ void SVC_DirectConnect(int expectedreliablesequence)
 		}
 		else if (version == NQ_NETCHAN_VERSION_QEX)
 		{	//rerelease...
-			info.protocol = SCP_NETQUAKE;
+			info.protocol = SCP_FITZ666;//NETQUAKE;
 			info.isqex = true;
 		}
 #endif
@@ -4031,7 +4054,7 @@ qboolean SV_ConnectionlessPacket (void)
 	c = Cmd_Argv(0);
 
 	if (sv_showconnectionlessmessages.ival)
-		Con_Printf("%s: %s\n", NET_AdrToString (adr, sizeof(adr), &net_from), s);
+		Con_Printf(S_COLOR_GRAY"%s: %s\n", NET_AdrToString (adr, sizeof(adr), &net_from), s);
 
 	if (!strcmp(c, "ping") || ( c[0] == A2A_PING && (c[1] == 0 || c[1] == '\n')) )
 	{	//only continue respond to these if we're actually public. qwfwd likes spamming us endlessly even if we stop heartbeating (which leaves us discoverable to others, too).
@@ -4253,7 +4276,7 @@ qboolean SVNQ_ConnectionlessPacket(void)
 						if (msg_readcount+17 <= net_message.cursize && !strncmp("challengeconnect ", &net_message.data[msg_readcount], 17))
 						{
 							if (sv_showconnectionlessmessages.ival)
-								Con_Printf("%s: CCREQ_CONNECT_COOKIE\n", NET_AdrToString (com_token, sizeof(com_token), &net_from));
+								Con_Printf(S_COLOR_GRAY"%s: CCREQ_CONNECT_COOKIE\n", NET_AdrToString (com_token, sizeof(com_token), &net_from));
 							Cmd_TokenizeString(MSG_ReadStringLine(), false, false);
 							/*okay, so this is a reliable packet from a client, containing a 'cmd challengeconnect $challenge' response*/
 							str = va("connect %i %i %s \"\\name\\unconnected\\mod\\%s\\modver\\%s\\flags\\%s\\password\\%s\"", NQ_NETCHAN_VERSION, 0, Cmd_Argv(1), Cmd_Argv(2), Cmd_Argv(3), Cmd_Argv(4), Cmd_Argv(5));
@@ -4323,7 +4346,7 @@ qboolean SVNQ_ConnectionlessPacket(void)
 		protver = MSG_ReadByte();
 
 		if (sv_showconnectionlessmessages.ival)
-			Con_Printf("%s: CCREQ_CONNECT (\"%s\" %i)\n", NET_AdrToString (com_token, sizeof(com_token), &net_from), str, protver);
+			Con_Printf(S_COLOR_GRAY"%s: CCREQ_CONNECT (\"%s\" %i)\n", NET_AdrToString (com_token, sizeof(com_token), &net_from), str, protver);
 
 		sb.maxsize = sizeof(buffer);
 		sb.data = buffer;
@@ -4420,7 +4443,7 @@ qboolean SVNQ_ConnectionlessPacket(void)
 		return true;
 	case CCREQ_SERVER_INFO:
 		if (sv_showconnectionlessmessages.ival)
-			Con_Printf("%s: CCREQ_SERVER_INFO\n", NET_AdrToString (com_token, sizeof(com_token), &net_from));
+			Con_Printf(S_COLOR_GRAY"%s: CCREQ_SERVER_INFO\n", NET_AdrToString (com_token, sizeof(com_token), &net_from));
 		if (sv_public.ival < 0)
 			return false;
 		if (SV_BannedReason (&net_from))
@@ -4452,7 +4475,7 @@ qboolean SVNQ_ConnectionlessPacket(void)
 		return true;
 	case CCREQ_PLAYER_INFO:
 		if (sv_showconnectionlessmessages.ival)
-			Con_Printf("%s: CCREQ_PLAYER_INFO\n", NET_AdrToString (com_token, sizeof(com_token), &net_from));
+			Con_Printf(S_COLOR_GRAY"%s: CCREQ_PLAYER_INFO\n", NET_AdrToString (com_token, sizeof(com_token), &net_from));
 		if (sv_public.ival < 0)
 			return false;
 		if (SV_BannedReason (&net_from))
@@ -4486,7 +4509,7 @@ qboolean SVNQ_ConnectionlessPacket(void)
 		return true;
 	case CCREQ_RULE_INFO:
 		if (sv_showconnectionlessmessages.ival)
-			Con_Printf("%s: CCREQ_RULE_INFO\n", NET_AdrToString (com_token, sizeof(com_token), &net_from));
+			Con_Printf(S_COLOR_GRAY"%s: CCREQ_RULE_INFO\n", NET_AdrToString (com_token, sizeof(com_token), &net_from));
 		if (sv_public.ival < 0)
 			return false;
 		if (SV_BannedReason (&net_from))
@@ -4781,7 +4804,7 @@ dominping:
 
 	// packet is not from a known client
 	if (sv_showconnectionlessmessages.ival)
-		Con_Printf ("%s:sequenced packet without connection\n", NET_AdrToString (com_token, sizeof(com_token), &net_from));	//hack: com_token cos we need some random temp buffer.
+		Con_Printf (S_COLOR_GRAY "%s:sequenced packet without connection\n", NET_AdrToString (com_token, sizeof(com_token), &net_from));	//hack: com_token cos we need some random temp buffer.
 }
 
 /*

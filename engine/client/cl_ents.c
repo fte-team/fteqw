@@ -1774,6 +1774,7 @@ void CLNQ_ParseEntity(unsigned int bits)
 	packet_entities_t	*pack;
 
 	qboolean isnehahra = CPNQ_IS_BJP||(cls.protocol_nq == CPNQ_NEHAHRA);
+	qboolean floatcoords;
 
 	if (cls.signon == 4 - 1)
 	{	// first update is the final signon stage
@@ -1837,6 +1838,8 @@ void CLNQ_ParseEntity(unsigned int bits)
 
 	state->dpflags = 0;
 
+	floatcoords = cls.qex && (bits & QE_U_FLOATCOORDS);
+
 	if (bits & NQU_MODEL)
 	{
 		if (CPNQ_IS_BJP)
@@ -1855,20 +1858,34 @@ void CLNQ_ParseEntity(unsigned int bits)
 		state->skinnum = MSG_ReadByte();
 
 	if (bits & NQU_EFFECTS)
-		state->effects = MSG_ReadByte();
+	{
+		i = MSG_ReadByte();
+		if (cls.qex)
+		{
+			unsigned fixed = i & ~(REEF_QUADLIGHT|REEF_PENTLIGHT|REEF_CANDLELIGHT);
+			if (i & REEF_QUADLIGHT)
+				fixed |= EF_BLUE;
+			if (i & REEF_PENTLIGHT)
+				fixed |= EF_RED;
+			if (i & REEF_CANDLELIGHT)
+				fixed |= 0;	//tiny light
+			i = fixed;
+		}
+		state->effects = i;
+	}
 
 	if (bits & NQU_ORIGIN1)
-		state->origin[0] = MSG_ReadCoord ();
+		state->origin[0] = floatcoords?MSG_ReadFloat():MSG_ReadCoord ();
 	if (bits & NQU_ANGLE1)
 		state->angles[0] = MSG_ReadAngle();
 
 	if (bits & NQU_ORIGIN2)
-		state->origin[1] = MSG_ReadCoord ();
+		state->origin[1] = floatcoords?MSG_ReadFloat():MSG_ReadCoord ();
 	if (bits & NQU_ANGLE2)
 		state->angles[1] = MSG_ReadAngle();
 
 	if (bits & NQU_ORIGIN3)
-		state->origin[2] = MSG_ReadCoord ();
+		state->origin[2] = floatcoords?MSG_ReadFloat():MSG_ReadCoord ();
 	if (bits & NQU_ANGLE3)
 		state->angles[2] = MSG_ReadAngle();
 
@@ -1907,6 +1924,20 @@ void CLNQ_ParseEntity(unsigned int bits)
 
 		if (bits & FITZU_LERPFINISH)
 			MSG_ReadByte();
+
+		if (cls.qex)
+		{
+			if (bits & QE_U_SOLIDTYPE)	/*state->solidsize =*/ MSG_ReadByte();		//needed for correct prediction
+			if (bits & QE_U_ENTFLAGS)	/*state->entflags = */ MSG_ReadULEB128();	//for onground/etc state
+			if (bits & QE_U_HEALTH)		/*state->health =*/ MSG_ReadSignedQEX();	//health... not really sure why, I suppose it changes player physics (they should have sent movetype instead though).
+			if (bits & QE_U_UNKNOWN26)	/*unknown =*/MSG_ReadByte();
+			if (bits & QE_U_UNUSED27)	Con_Printf(CON_WARNING"QE_U_UNUSED27: %u\n", MSG_ReadByte());
+
+			if (bits & QE_U_UNUSED28)	Con_Printf(CON_WARNING"QE_U_UNUSED28: %u\n", MSG_ReadByte());
+			if (bits & QE_U_UNUSED29)	Con_Printf(CON_WARNING"QE_U_UNUSED29: %u\n", MSG_ReadByte());
+			if (bits & QE_U_UNUSED30)	Con_Printf(CON_WARNING"QE_U_UNUSED30: %u\n", MSG_ReadByte());
+			if (bits & QE_U_UNUSED31)	Con_Printf(CON_WARNING"QE_U_UNUSED31: %u\n", MSG_ReadByte());
+		}
 	}
 	else
 	{	//dp tends to leak stuff, so parse as quakedp if the normal protocol doesn't define it as something better.

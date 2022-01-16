@@ -185,6 +185,9 @@ cvar_t  cl_gunanglex			= CVAR("cl_gunanglex", "0");
 cvar_t  cl_gunangley			= CVAR("cl_gunangley", "0");
 cvar_t  cl_gunanglez			= CVAR("cl_gunanglez", "0");
 
+#ifdef HAVE_DTLS
+extern cvar_t net_enable_dtls;
+#endif
 cvar_t	cl_proxyaddr			= CVAR("cl_proxyaddr", "");
 cvar_t	cl_sendguid				= CVARD("cl_sendguid", "", "Send a randomly generated 'globally unique' id to servers, which can be used by servers for score rankings and stuff. Different servers will see different guids. Delete the 'qkey' file in order to appear as a different user.\nIf set to 2, all servers will see the same guid. Be warned that this can show other people the guid that you're using.");
 cvar_t	cl_downloads			= CVARAFD("cl_downloads", "1", /*q3*/"cl_allowDownload", CVAR_NOTFROMSERVER, "Allows you to block all automatic downloads.");
@@ -286,11 +289,11 @@ static struct
 	netadr_t			adr[8];			//addresses that we're trying to transfer to, one entry per dns result, eg both ::1 AND 127.0.0.1
 #ifdef HAVE_DTLS
 	enum
-	{
+	{	//not relevant when given a direct dtls address.
 		DTLS_DISABLE,
 		DTLS_TRY,
 		DTLS_REQUIRE,
-		DTLS_ACTIVE
+		DTLS_ACTIVE,
 	} dtlsupgrade;
 #endif
 	int					mtu;
@@ -304,6 +307,12 @@ static struct
 	int					challenge;		//tracked as part of guesswork based upon what replies we get.
 	double				time;			//for connection retransmits
 	qboolean			clogged;		//ignore time...
+	enum coninfomode_e
+	{
+		CIM_DEFAULT,	//sends both a qw getchallenge and nq connect (also with postfixed getchallenge so modified servers can force getchallenge)
+		CIM_NQONLY,		//disables getchallenge (so fte servers treat us as an nq server). should not be used for dpp7 servers.
+		CIM_QEONLY,		//forces dtls and uses a different nq netchan version
+	}					mode;
 	int					defaultport;
 	int					tries;			//increased each try, every fourth trys nq connect packets.
 	unsigned char		guid[64];
@@ -799,13 +808,14 @@ static void CL_ResolvedServer(void *vctx, void *data, size_t a, size_t b)
 #ifdef HAVE_DTLS
 	for (i = 0; i < ctx->found; i++)
 	{
-		if (connectinfo.dtlsupgrade == DTLS_ACTIVE)
+		if (connectinfo.dtlsupgrade == DTLS_ACTIVE || connectinfo.mode==CIM_QEONLY)
 		{	//if we've already established a dtls connection, stick with it
 			if (ctx->adr[i].prot == NP_DGRAM)
 				ctx->adr[i].prot = NP_DTLS;
 		}
 		else if (connectinfo.adr[i].prot == NP_DTLS)
 		{	//dtls connections start out with regular udp, and upgrade to dtls once its established that the server supports it.
+			//FIXME: remove this block once our new netcode is better established.
 			connectinfo.dtlsupgrade = DTLS_REQUIRE;
 			ctx->adr[i].prot = NP_DGRAM;
 		}
@@ -966,6 +976,12 @@ void CL_CheckForResend (void)
 				connectinfo.protocol = CP_NETQUAKE;
 				connectinfo.subprotocol = CPNQ_FITZ666;
 			}
+			else if (!strcmp(lbp, "qe")||!strcmp(lbp, "qex")||!strcmp(lbp, "kex"))
+			{	//quake-ex has special quirks that cannot be defined by protocol numbers alone.
+				connectinfo.protocol = CP_NETQUAKE;
+				connectinfo.subprotocol = CPNQ_FITZ666;
+				connectinfo.mode = CIM_QEONLY;
+			}
 			else if (!strcmp(lbp, "bjp1") || !strcmp(lbp, "bjp2") || //placeholders only
 					 !strcmp(lbp, "bjp3") || !strcmp(lbp, "bjp"))
 			{
@@ -1094,7 +1110,14 @@ void CL_CheckForResend (void)
 			net_message.cursize = 0;
 			MSG_BeginReading(net_message.prim);
 
-			if (connectinfo.subprotocol == CPNQ_ID && !proquakeangles)
+			if (connectinfo.mode == CIM_QEONLY)
+			{
+				net_from = connectinfo.adr[connectinfo.nextadr];
+				Cmd_TokenizeString (va("connect %i %i %i \"\\name\\unconnected\"", NQ_NETCHAN_VERSION_QEX, 0, SV_NewChallenge()), false, false);
+
+				SVC_DirectConnect(0);
+			}
+			else if (connectinfo.subprotocol == CPNQ_ID && !proquakeangles)
 			{
 				net_from = connectinfo.adr[connectinfo.nextadr];
 				Cmd_TokenizeString (va("connect %i %i %i \"\\name\\unconnected\"", NQ_NETCHAN_VERSION, 0, SV_NewChallenge()), false, false);
@@ -1239,11 +1262,16 @@ void CL_CheckForResend (void)
 	if (to->prot == NP_DGRAM)
 		connectinfo.nextadr++;	//cycle hosts with each ping (if we got multiple).
 
-	contype |= 1; /*always try qw type connections*/
+	if (connectinfo.mode==CIM_QEONLY || connectinfo.mode==CIM_NQONLY)
+		contype |= 2;
+	else
+	{
+		contype |= 1; /*always try qw type connections*/
 #ifdef VM_UI
-	if (!UI_IsRunning())	//don't try to connect to nq servers when running a q3ui. I was getting annoying error messages from q3 servers due to this.
+		if (!UI_IsRunning())	//don't try to connect to nq servers when running a q3ui. I was getting annoying error messages from q3 servers due to this.
 #endif
-		contype |= 2; /*try nq connections periodically (or if its the default nq port)*/
+			contype |= 2; /*try nq connections periodically (or if its the default nq port)*/
+	}
 
 	/*DP, QW, Q2, Q3*/
 	/*NOTE: ioq3 has <challenge> <gamename> args. yes, a challenge to get a challenge.*/
@@ -1273,22 +1301,27 @@ void CL_CheckForResend (void)
 		MSG_WriteLong(&sb, LongSwap(NETFLAG_CTL | (strlen(NQ_NETCHAN_GAMENAME)+7)));
 		MSG_WriteByte(&sb, CCREQ_CONNECT);
 		MSG_WriteString(&sb, NQ_NETCHAN_GAMENAME);
-		MSG_WriteByte(&sb, NQ_NETCHAN_VERSION);
+		if (connectinfo.mode==CIM_QEONLY)
+			MSG_WriteByte(&sb, NQ_NETCHAN_VERSION_QEX);
+		else
+		{
+			MSG_WriteByte(&sb, NQ_NETCHAN_VERSION);
 
-		/*NQ engines have a few extra bits on the end*/
-		/*proquake servers wait for us to send them a packet before anything happens,
-		  which means it corrects for our public port if our nat uses different public ports for different remote ports
-		  thus all nq engines claim to be proquake
-		*/
+			/*NQ engines have a few extra bits on the end*/
+			/*proquake servers wait for us to send them a packet before anything happens,
+			  which means it corrects for our public port if our nat uses different public ports for different remote ports
+			  thus all nq engines claim to be proquake
+			*/
 
-		MSG_WriteByte(&sb, 1); /*'mod'*/
-		MSG_WriteByte(&sb, 34); /*'mod' version*/
-		MSG_WriteByte(&sb, 0); /*flags*/
-		MSG_WriteLong(&sb, strtoul(password.string, NULL, 0)); /*password*/
+			MSG_WriteByte(&sb, 1); /*'mod'*/
+			MSG_WriteByte(&sb, 34); /*'mod' version*/
+			MSG_WriteByte(&sb, 0); /*flags*/
+			MSG_WriteLong(&sb, strtoul(password.string, NULL, 0)); /*password*/
 
-		/*FTE servers will detect this string and treat it as a qw challenge instead (if it allows qw clients), so protocol choice is deterministic*/
-		if (contype & 1)
-			MSG_WriteString(&sb, "getchallenge");
+			/*FTE servers will detect this string and treat it as a qw challenge instead (if it allows qw clients), so protocol choice is deterministic*/
+			if (contype & 1)
+				MSG_WriteString(&sb, "getchallenge");
+		}
 
 		*(int*)sb.data = LongSwap(NETFLAG_CTL | sb.cursize);
 		switch(NET_SendPacket (cls.sockets, sb.cursize, sb.data, to))
@@ -1308,7 +1341,10 @@ void CL_CheckForResend (void)
 	if (!keeptrying)
 	{
 		if (to->prot != NP_DGRAM && connectinfo.nextadr+1 < connectinfo.numadr)
-			connectinfo.nextadr++;	//cycle hosts with each ping (if we got multiple).
+		{
+			connectinfo.nextadr++;	//cycle hosts with each connection failure (if we got multiple addresses).
+			connectinfo.tries = 0;
+		}
 		else
 		{
 			Cvar_Set(&cl_disconnectreason, va("No route to \"%s\", giving up\n", cls.servername));
@@ -1319,7 +1355,7 @@ void CL_CheckForResend (void)
 	}
 }
 
-void CL_BeginServerConnect(const char *host, int port, qboolean noproxy)
+static void CL_BeginServerConnect(const char *host, int port, qboolean noproxy, enum coninfomode_e mode)
 {
 	if (!strncmp(host, "localhost", 9))
 		noproxy = true;	//FIXME: resolve the address here or something so that we don't end up using a proxy for lan addresses.
@@ -1341,6 +1377,16 @@ void CL_BeginServerConnect(const char *host, int port, qboolean noproxy)
 	connectinfo.trying = true;
 	connectinfo.defaultport = port;
 	connectinfo.protocol = CP_UNKNOWN;
+	connectinfo.mode = mode;
+
+#ifdef HAVE_DTLS
+	if (net_enable_dtls.ival >= 3)
+		connectinfo.dtlsupgrade = DTLS_REQUIRE;
+	else if (net_enable_dtls.ival >= 2)
+		connectinfo.dtlsupgrade = DTLS_TRY;
+	else
+		connectinfo.dtlsupgrade = DTLS_DISABLE;
+#endif
 
 	SCR_SetLoadingStage(LS_CONNECTION);
 	CL_CheckForResend();
@@ -1436,7 +1482,7 @@ void CL_Connect_f (void)
 #endif
 		CL_Disconnect_f ();
 
-	CL_BeginServerConnect(server, 0, false);
+	CL_BeginServerConnect(server, 0, false, CIM_DEFAULT);
 }
 #if defined(CL_MASTER) && defined(HAVE_PACKET)
 static void CL_ConnectBestRoute_f (void)
@@ -1471,7 +1517,7 @@ static void CL_ConnectBestRoute_f (void)
 	else
 #endif
 		CL_Disconnect_f ();
-	CL_BeginServerConnect(server, 0, true);
+	CL_BeginServerConnect(server, 0, true, CIM_DEFAULT);
 }
 #endif
 
@@ -1500,7 +1546,7 @@ static void CL_Join_f (void)
 
 	Cvar_Set(&spectator, "0");
 
-	CL_BeginServerConnect(server, 0, false);
+	CL_BeginServerConnect(server, 0, false, CIM_DEFAULT);
 }
 
 void CL_Observe_f (void)
@@ -1528,13 +1574,14 @@ void CL_Observe_f (void)
 
 	Cvar_Set(&spectator, "1");
 
-	CL_BeginServerConnect(server, 0, false);
+	CL_BeginServerConnect(server, 0, false, CIM_DEFAULT);
 }
 
 #ifdef NQPROT
 void CLNQ_Connect_f (void)
 {
 	char	*server;
+	enum coninfomode_e mode;
 
 	if (Cmd_Argc() != 2)
 	{
@@ -1542,12 +1589,17 @@ void CLNQ_Connect_f (void)
 		return;
 	}
 
+	if (!strcmp(Cmd_Argv(0), "connectqe"))
+		mode = CIM_QEONLY;
+	else
+		mode = CIM_NQONLY;
+
 	server = Cmd_Argv (1);
 	server = strcpy(alloca(strlen(server)+1), server);
 
 	CL_Disconnect_f ();
 
-	CL_BeginServerConnect(server, 26000, true);
+	CL_BeginServerConnect(server, 26000, true, mode);
 }
 #endif
  
@@ -3218,7 +3270,7 @@ void CL_ConnectionlessPacket (void)
 	}
 
 	if (cls.demoplayback == DPB_NONE && net_from.type != NA_LOOPBACK)
-		Con_Printf ("%s: ", NET_AdrToString (adr, sizeof(adr), &net_from));
+		Con_Printf (S_COLOR_GRAY"%s: ", NET_AdrToString (adr, sizeof(adr), &net_from));
 //	Con_DPrintf ("%s", net_message.data + 4);
 
 	if (c == 'f')	//using 'f' as a prefix so that I don't need lots of hacks
@@ -3228,13 +3280,13 @@ void CL_ConnectionlessPacket (void)
 		{
 			netadr_t adr;
 			char *data = MSG_ReadStringLine();
-			Con_TPrintf ("redirect to %s\n", data);
+			Con_TPrintf (S_COLOR_GRAY"redirect to %s\n", data);
 			if (NET_StringToAdr(data, PORT_DEFAULTSERVER, &adr))
 			{
 				if (CL_IsPendingServerAddress(&net_from))
 				{
 					if (!NET_EnsureRoute(cls.sockets, "redir", cls.servername, &adr))
-						Con_Printf ("Unable to redirect to %s\n", data);
+						Con_Printf (CON_ERROR"Unable to redirect to %s\n", data);
 					else
 					{
 						connectinfo.istransfer = true;
@@ -3310,12 +3362,12 @@ void CL_ConnectionlessPacket (void)
 		}
 #endif
 
-		Con_TPrintf ("challenge\n");
+		Con_TPrintf (S_COLOR_GRAY"challenge\n");
 
 		if (!CL_IsPendingServerAddress(&net_from))
 		{
 			if (net_from.prot != NP_RTC_TCP && net_from.prot != NP_RTC_TLS)
-				Con_Printf("Challenge from wrong server, ignoring\n");
+				Con_Printf(CON_WARNING"Challenge from wrong server, ignoring\n");
 			return;
 		}
 		connectinfo.numadr = 1;
@@ -3557,7 +3609,7 @@ void CL_ConnectionlessPacket (void)
 
 		if (!strcmp(s, "print"))
 		{
-			Con_TPrintf ("print\n");
+			Con_TPrintf (S_COLOR_GRAY"print\n");
 
 			s = MSG_ReadString ();
 			if (connectinfo.trying && CL_IsPendingServerBaseAddress(&net_from) == false)
@@ -3602,7 +3654,7 @@ void CL_ConnectionlessPacket (void)
 		if (!strcmp(com_token, "ccept"))
 		{
 			/*this is a DP server... but we don't know which version nor nq protocol*/
-			Con_Printf ("accept\n");
+			Con_Printf (S_COLOR_GRAY"accept\n");
 			if (cls.state == ca_connected)
 				return;	//we're already connected. don't do it again!
 
@@ -3638,7 +3690,7 @@ void CL_ConnectionlessPacket (void)
 	{
 		if (!strncmp(net_message.data+4, "infoResponse\n", 13))
 		{
-			Con_TPrintf ("infoResponse\n");
+			Con_TPrintf (S_COLOR_GRAY"infoResponse\n");
 			Info_Print(net_message.data+17, "");
 			return;
 		}
@@ -3648,7 +3700,7 @@ void CL_ConnectionlessPacket (void)
 		if (!strncmp(net_message.data+4, "getserversResponse", 18))
 		{
 			qbyte *b = net_message.data+4+18;
-			Con_TPrintf ("getserversResponse\n");
+			Con_TPrintf (S_COLOR_GRAY"getserversResponse\n");
 			while (b+7 <= net_message.data+net_message.cursize)
 			{
 				if (*b == '\\')
@@ -3686,7 +3738,7 @@ void CL_ConnectionlessPacket (void)
 		else if (!strcmp(com_token, "tlsopened"))
 		{	//server is letting us know that its now listening for a dtls handshake.
 #ifdef HAVE_DTLS
-			Con_Printf ("dtlsopened\n");
+			Con_Printf (S_COLOR_GRAY"dtlsopened\n");
 			if (!CL_IsPendingServerAddress(&net_from))
 				return;
 
@@ -3715,7 +3767,7 @@ void CL_ConnectionlessPacket (void)
 		}
 		else
 		{
-			Con_Printf ("d\n");
+			Con_Printf ("disconnect\n");
 			if (cls.demoplayback != DPB_NONE)
 			{
 				Con_Printf("Disconnect\n");
@@ -3743,7 +3795,7 @@ client_connect:	//fixme: make function
 		}
 		if (net_from.type != NA_LOOPBACK)
 		{
-			Con_TPrintf ("connection\n");
+			Con_TPrintf (S_COLOR_GRAY"connection\n");
 
 #ifdef HAVE_SERVER
 			if (sv.state && sv.state != ss_clustermode)
@@ -3883,7 +3935,7 @@ client_connect:	//fixme: make function
 	{
 		if (!strncmp(net_message.data+4, "print\n", 6))
 		{	//quake2+quake3 send rejects this way
-			Con_TPrintf ("print\n");
+			Con_TPrintf (S_COLOR_GRAY"print\n");
 			Con_Printf ("%s", net_message.data+10);
 
 			if (connectinfo.trying && CL_IsPendingServerBaseAddress(&net_from) == false)
@@ -3893,7 +3945,7 @@ client_connect:	//fixme: make function
 	}
 	if (c == A2C_PRINT)
 	{	//closest quakeworld has to a reject message
-		Con_TPrintf ("print\n");
+		Con_TPrintf (S_COLOR_GRAY"print\n");
 
 		s = MSG_ReadString ();
 		Con_Printf ("%s", s);
@@ -3929,6 +3981,9 @@ void CLNQ_ConnectionlessPacket(void)
 	int length;
 	unsigned short port;
 
+	if (net_message.cursize < 5)
+		return;	//not enough size to be meaningful (qe does not include a port number)
+
 	MSG_BeginReading (msg_nullnetprim);
 	length = LongSwap(MSG_ReadLong ());
 	if (!(length & NETFLAG_CTL))
@@ -3947,30 +4002,40 @@ void CLNQ_ConnectionlessPacket(void)
 				Con_TPrintf ("Dup connect received.  Ignored.\n");
 			return;
 		}
-		port = htons((unsigned short)MSG_ReadLong());
-		//this is the port that we're meant to respond to.
 
-		if (port)
+		if (length == 5 && net_from.prot == NP_DTLS)
 		{
-			char buf[256];
-			net_from.port = port;
-			Con_DPrintf("redirecting to port %s\n", NET_AdrToString(buf, sizeof(buf), &net_from));
+			cls.proquake_angles_hack = false;
+			cls.protocol_nq = CPNQ_ID;
+			Con_DPrintf("QuakeEx server...\n");
 		}
-
-		cls.proquake_angles_hack = false;
-		cls.protocol_nq = CPNQ_ID;
-		if (MSG_ReadByte() == 1)	//a proquake server adds a little extra info
+		else
 		{
-			int ver = MSG_ReadByte();
-			Con_DPrintf("ProQuake server %i.%i\n", ver/10, ver%10);
+			port = htons((unsigned short)MSG_ReadLong());
+			//this is the port that we're meant to respond to.
 
-//			if (ver >= 34)
-			cls.proquake_angles_hack = true;
-			if (MSG_ReadByte() == 1)
+			if (port)
 			{
-				//its a 'pure' server.
-				Con_Printf("pure ProQuake server\n");
-				return;
+				char buf[256];
+				net_from.port = port;
+				Con_DPrintf("redirecting to port %s\n", NET_AdrToString(buf, sizeof(buf), &net_from));
+			}
+
+			cls.proquake_angles_hack = false;
+			cls.protocol_nq = CPNQ_ID;
+			if (MSG_ReadByte() == 1)	//a proquake server adds a little extra info
+			{
+				int ver = MSG_ReadByte();
+				Con_DPrintf("ProQuake server %i.%i\n", ver/10, ver%10);
+
+//				if (ver >= 34)
+				cls.proquake_angles_hack = true;
+				if (MSG_ReadByte() == 1)
+				{
+					//its a 'pure' server.
+					Con_Printf("pure ProQuake server\n");
+					return;
+				}
 			}
 		}
 
@@ -3985,7 +4050,11 @@ void CLNQ_ConnectionlessPacket(void)
 		cls.netchan.compresstable = NULL;
 		cls.protocol = CP_NETQUAKE;
 		cls.state = ca_connected;
-		Con_TPrintf ("Connected.\n");
+
+		if (cls.netchan.remote_address.prot == NP_DTLS || cls.netchan.remote_address.prot == NP_TLS || cls.netchan.remote_address.prot == NP_WSS)
+			Con_TPrintf ("Connected (^[^2encrypted\\tip\\Any passwords will be sent securely, but may still be logged^]).\n");
+		else
+			Con_TPrintf ("Connected (^[^1plain-text\\tip\\"CON_WARNING"Do not type passwords as they can potentially be seen by network sniffers^]).\n");
 
 		total_loading_size = 100;
 		current_loading_size = 0;
@@ -3995,9 +4064,14 @@ void CLNQ_ConnectionlessPacket(void)
 		allowremotecmd = false; // localid required now for remote cmds
 #endif
 
-		//send a dummy packet.
-		//this makes our local nat think we initialised the conversation, so that we can receive the.
-		Netchan_Transmit(&cls.netchan, 1, "\x01", 2500);
+		if (length == 5)
+			cls.qex = (connectinfo.mode==CIM_QEONLY);
+		else
+		{
+			//send a dummy packet.
+			//this makes our local nat think we initialised the conversation, so that we can receive the.
+			Netchan_Transmit(&cls.netchan, 1, "\x01", 2500);
+		}
 		return;
 
 	case CCREP_REJECT:
@@ -4056,16 +4130,6 @@ void CL_ReadPacket(void)
 		return;
 	}
 
-	if (net_message.cursize < 6 && (cls.demoplayback != DPB_MVD && cls.demoplayback != DPB_EZTV)) //MVDs don't have the whole sequence header thing going on
-	{
-		char adr[MAX_ADR_SIZE];
-		if (net_message.cursize == 1 && net_message.data[0] == A2A_ACK)
-			Con_TPrintf ("%s: Ack (Pong)\n", NET_AdrToString(adr, sizeof(adr), &net_from));
-		else
-			Con_TPrintf ("%s: Runt packet\n", NET_AdrToString(adr, sizeof(adr), &net_from));
-		return;
-	}
-
 	if (cls.state == ca_disconnected)
 	{	//connect to nq servers, but don't get confused with sequenced packets.
 		if (NET_WasSpecialPacket(cls.sockets))
@@ -4074,6 +4138,16 @@ void CL_ReadPacket(void)
 		CLNQ_ConnectionlessPacket ();
 #endif
 		return;	//ignore it. We arn't connected.
+	}
+
+	if (net_message.cursize < 6 && (cls.demoplayback != DPB_MVD && cls.demoplayback != DPB_EZTV)) //MVDs don't have the whole sequence header thing going on
+	{
+		char adr[MAX_ADR_SIZE];
+		if (net_message.cursize == 1 && net_message.data[0] == A2A_ACK)
+			Con_TPrintf ("%s: Ack (Pong)\n", NET_AdrToString(adr, sizeof(adr), &net_from));
+		else
+			Con_TPrintf ("%s: Runt packet\n", NET_AdrToString(adr, sizeof(adr), &net_from));
+		return;
 	}
 
 	//
@@ -4098,11 +4172,17 @@ void CL_ReadPacket(void)
 	{
 	case CP_NETQUAKE:
 #ifdef NQPROT
-		if(NQNetChan_Process(&cls.netchan))
+		switch(NQNetChan_Process(&cls.netchan))
 		{
+		case NQNC_IGNORED:
+			break;
+		case NQNC_ACK:
+		case NQNC_RELIABLE:
+		case NQNC_UNRELIABLE:
 			MSG_ChangePrimitives(cls.netchan.netprim);
 			CL_WriteDemoMessage (&net_message, msg_readcount);
 			CLNQ_ParseServerMessage ();
+			break;
 		}
 #endif
 		break;
@@ -5148,13 +5228,14 @@ void CL_Init (void)
 		);
 	Cmd_AddCommandD ("cl_transfer", CL_Transfer_f, "Connect to a different server, disconnecting from the current server only when the new server replies.");
 #ifdef TCPCONNECT
-	Cmd_AddCommandAD ("tcpconnect", CL_TCPConnect_f, CL_Connect_c, "Connect to a server using the tcp:// prefix");
+	Cmd_AddCommandAD ("connecttcp", CL_TCPConnect_f, CL_Connect_c, "Connect to a server using the tcp:// prefix");
 #endif
 #ifdef IRCCONNECT
-	Cmd_AddCommand ("ircconnect", CL_IRCConnect_f);
+	Cmd_AddCommand ("connectirc", CL_IRCConnect_f);
 #endif
 #ifdef NQPROT
-	Cmd_AddCommandD ("nqconnect", CLNQ_Connect_f, "Connects to the specified server, defaulting to port "STRINGIFY(PORT_NQSERVER)". Otherwise identical to the connect command.");
+	Cmd_AddCommandD ("connectnq", CLNQ_Connect_f, "Connects to the specified server, defaulting to port "STRINGIFY(PORT_NQSERVER)". Also disables QW/Q2/Q3/DP handshakes preventing them from being favoured, so should only be used when you actually want NQ protocols specifically.");
+	Cmd_AddCommandD ("connectqe", CLNQ_Connect_f, "Connects to the specified server, defaulting to port "STRINGIFY(PORT_NQSERVER)". Also forces the use of DTLS and QE-specific handshakes. You will also need to ensure the dtls_psk_* cvars are set properly or the server will refuse the connection.");
 #endif
 	Cmd_AddCommand ("reconnect", CL_Reconnect_f);
 	Cmd_AddCommandAD ("join", CL_Join_f, CL_Connect_c, "Switches away from spectator mode, optionally connecting to a different server.");

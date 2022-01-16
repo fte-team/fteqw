@@ -2032,6 +2032,14 @@ quint64_t MSG_ReadULEB128 (void)
 	}
 	return r;
 }
+qint64_t MSG_ReadSignedQEX (void)
+{	//this is not signed leb128 (which would normally just sign-extend)
+	quint64_t c = MSG_ReadULEB128();
+	if (c&1)
+		return -1-(qint64_t)(c>>1);
+	else
+		return (qint64_t)(c>>1);
+}
 quint64_t MSG_ReadUInt64 (void)
 {	//0* 10*,*, 110*,*,* etc, up to 0xff followed by 8 continuation bytes
 	qbyte l=0x80, v, b = 0;

@@ -443,6 +443,7 @@ qboolean ServerPaused(void);
 #endif
 
 #ifdef NQPROT
+size_t ZLib_DecompressBuffer(qbyte *in, size_t insize, qbyte *out, size_t maxoutsize);
 enum nqnc_packettype_e NQNetChan_Process(netchan_t *chan)
 {
 	int header;
@@ -453,12 +454,44 @@ enum nqnc_packettype_e NQNetChan_Process(netchan_t *chan)
 	MSG_BeginReading (chan->netprim);
 
 	header = LongSwap(MSG_ReadLong());
-	if (net_message.cursize != (header & NETFLAG_LENGTH_MASK))
-		return NQNC_IGNORED;	//size was wrong, couldn't have been ours.
 
 	if (header & NETFLAG_CTL)
 		return NQNC_IGNORED;	//huh?
 
+#ifdef HAVE_CLIENT
+	if (header & NETFLAG_ZLIB)
+	{	//note: qex gets the size header wrong here.
+		qbyte *tmp;
+		if (net_message.cursize <= PACKET_HEADER || net_message.cursize != PACKET_HEADER+(header & NETFLAG_LENGTH_MASK))
+			return NQNC_IGNORED;	//huh?
+		/*redundantsequence =*/ MSG_ReadLong();	//wasting 4 bytes...
+#ifdef AVAIL_ZLIB
+		tmp = alloca(0xffff);
+		//note: its zlib rather than raw deflate (wasting a further 6 bytes...).
+		net_message.cursize = ZLib_DecompressBuffer(net_message.data+8, net_message.cursize-8, tmp, 0xffff);
+		if (net_message.cursize < PACKET_HEADER)
+#endif
+		{
+			if (chan->sock == NS_CLIENT)
+			{	//clients can just throw an error. the server will appear dead if we try to just ignore it.
+				Host_EndGame("QuakeEx netchan decompression error");
+				return NQNC_IGNORED;
+			}
+			else
+			{	//inject a disconnect request. clients shouldn't be sending this anyway.
+				net_message.data[8] = clc_disconnect;
+				net_message.cursize = 9;
+				return NQNC_RELIABLE;
+			}
+		}
+		memcpy(net_message.data, tmp, net_message.cursize);
+
+		MSG_BeginReading (chan->netprim);
+		header = LongSwap(MSG_ReadLong());	//re-read the now-decompressed copy of the header for the real flags
+	}
+#endif
+	if (net_message.cursize != (header & NETFLAG_LENGTH_MASK))
+		return NQNC_IGNORED;	//size was wrong, couldn't have been ours.
 	sequence = LongSwap(MSG_ReadLong());
 
 	if (header & NETFLAG_ACK)

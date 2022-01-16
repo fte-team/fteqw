@@ -3374,13 +3374,13 @@ void Sbar_DeathmatchOverlay (playerview_t *pv, int start)
 			cl.last_ping_request = realtime;
 			CL_SendClientCommand(true, "pings");
 		}
-		else if (cls.protocol == CP_NETQUAKE)
+		else if (cls.protocol == CP_NETQUAKE && !cls.qex)
 		{
 			cl.last_ping_request = realtime;
 			CL_SendClientCommand(true, "ping");
 		}
 	}
-	if (cls.protocol == CP_NETQUAKE)
+	if (cls.protocol == CP_NETQUAKE && !cls.qex)
 	{
 		if (cl.nqplayernamechanged && cl.nqplayernamechanged < realtime)
 		{

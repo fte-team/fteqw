@@ -293,6 +293,52 @@ vfsfile_t *FS_DecompressGZip(vfsfile_t *infile, vfsfile_t *outfile)
 
 
 
+size_t ZLib_DecompressBuffer(qbyte *in, size_t insize, qbyte *out, size_t maxoutsize)
+{
+	int ret;
+
+	z_stream strm = {
+		in,
+		insize,
+		0,
+
+		out,
+		maxoutsize,
+		0,
+
+		NULL,
+		NULL,
+
+		NULL,
+		NULL,
+		NULL,
+
+		Z_UNKNOWN,
+		0,
+		0
+	};
+
+	qinflateInit2(&strm, MAX_WBITS);
+
+	while ((ret=qinflate(&strm, Z_SYNC_FLUSH)) != Z_STREAM_END)
+	{
+		if (strm.avail_in == 0 || strm.avail_out == 0)
+		{
+			if (strm.avail_in == 0)
+				break;	//reached the end of the input
+			//output not big enough, but max size is fixed.
+			break;
+		}
+
+		//doh, it terminated for no reason
+		if (ret != Z_STREAM_END)
+			break;
+	}
+	qinflateEnd(&strm);
+
+	return strm.total_out;
+}
+
 
 
 

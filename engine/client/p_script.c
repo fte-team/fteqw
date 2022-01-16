@@ -6090,7 +6090,7 @@ static int PScript_ParticleTrail (vec3_t startpos, vec3_t end, int type, float t
 		// issues with entities in action during particle reconfiguration 
 		// but that shouldn't be happening too often
 		trailstate_t* ts = P_FetchTrailstate(tk);
-		return fallback->ParticleTrail(startpos, end, type - FALLBACKBIAS, timeinterval, dlkey, axis, &(ts->fallbackkey));
+		return fallback->ParticleTrail(startpos, end, type - FALLBACKBIAS, timeinterval, dlkey, axis, ts?&(ts->fallbackkey):NULL);
 	}
 
 	if (type < 0 || type >= numparticletypes)

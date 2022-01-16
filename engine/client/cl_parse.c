@@ -201,13 +201,13 @@ static const char *svc_nqstrings[] =
 	"nqsvc_time",			// [float] server time
 	"nqsvc_print",			// [string] null terminated string
 	"nqsvc_stufftext",		// [string] stuffed into client's console buffer
-						// the string should be \n terminated
+							// the string should be \n terminated
 	"nqsvc_setangle",		// [vec3] set the view angle to this absolute value
 
 	"nqsvc_serverinfo",		// [long] version
-						// [string] signon string
-						// [string]..[0]model cache [string]...[0]sounds cache
-						// [string]..[0]item cache
+							// [string] signon string
+							// [string]..[0]model cache [string]...[0]sounds cache
+							// [string]..[0]item cache
 	"nqsvc_lightstyle",		// [qbyte] [string]
 	"nqsvc_updatename",		// [qbyte] [string]
 	"nqsvc_updatefrags",	// [qbyte] [short]
@@ -218,10 +218,10 @@ static const char *svc_nqstrings[] =
 	"nqsvc_damage",			// [qbyte] impact [qbyte] blood [vec3] from
 
 	"nqsvc_spawnstatic",
-	"nqsvcfte_spawnstatic2(21)",
+	"ftenq_spawnstatic2(21)",
 	"nqsvc_spawnbaseline",
 
-	"nqsvc_temp_entity",		// <variable>
+	"nqsvc_temp_entity",	// <variable>
 	"nqsvc_setpause",
 	"nqsvc_signonnum",
 	"nqsvc_centerprint",
@@ -230,42 +230,42 @@ static const char *svc_nqstrings[] =
 	"nqsvc_spawnstaticsound",
 	"nqsvc_intermission",
 	"nqsvc_finale",			// [string] music [string] text
-	"nqsvc_cdtrack",			// [qbyte] track [qbyte] looptrack
+	"nqsvc_cdtrack",		// [qbyte] track [qbyte] looptrack
 	"nqsvc_sellscreen",
 	"nqsvc_cutscene",	//34
 
 	"NEW PROTOCOL",	//35
 	"NEW PROTOCOL",	//36
-	"fitzsvc_skybox",	//37
+	"fitz_skybox",	//37
 	"NEW PROTOCOL",	//38
 	"NEW PROTOCOL",	//39
-	"fitzsvc_bf",		//40
-	"fitzsvc_fog",	//41
-	"fitzsvc_spawnbaseline2",	//42
-	"fitzsvc_spawnstatic2",	//43
-	"fitzsvc_spawnstaticsound2",	//44
+	"fitz_bf",		//40
+	"fitz_fog",	//41
+	"fitz_spawnbaseline2",	//42
+	"fitz_spawnstatic2",	//43
+	"fitz_spawnstaticsound2",	//44
 	"NEW PROTOCOL",	//45
-	"NEW PROTOCOL",	//46
-	"NEW PROTOCOL",	//47
-	"NEW PROTOCOL",	//48
-	"NEW PROTOCOL",	//49
-	"dpsvc_downloaddata",		//50
-	"dpsvc_updatestatubyte",	//51
-	"dpsvc_effect",				//52
-	"dpsvc_effect2",			//53
-	"dp6svc_precache/dp5svc_sound2",	//54
-	"dpsvc_spawnbaseline2",		//55
-	"dpsvc_spawnstatic2",	//56 obsolete
-	"dpsvc_entities",		//57
-	"dpsvc_csqcentities",			//58
-	"dpsvc_spawnstaticsound2",	//59
-	"dpsvc_trailparticles",	//60
-	"dpsvc_pointparticles",	//61
-	"dpsvc_pointparticles1",	//62
+	"qex_updateping",	//46
+	"qex_updatesocial",	//47
+	"qex_updateplinfo",	//48
+	"qex_print",	//49
+	"dp_downloaddata / neh_skyboxsize / qex_servervars",		//50
+	"dp_updatestatubyte / neh_fog / qex_seq",	//51
+	"dp_effect / qex_achievement",				//52
+	"dp_effect2",			//53
+	"dp6_precache / dp5_sound2",	//54
+	"dp_spawnbaseline2",		//55
+	"dp_spawnstatic2",	//56 obsolete
+	"dp_entities",		//57
+	"dp_csqcentities",			//58
+	"dp_spawnstaticsound2",	//59
+	"dp_trailparticles",	//60
+	"dp_pointparticles",	//61
+	"dp_pointparticles1",	//62
 	"NEW PROTOCOL(63)",	//63
 	"NEW PROTOCOL(64)",	//64
 	"NEW PROTOCOL(65)",	//65
-	"ftenqsvc_spawnbaseline2",	//66
+	"ftenq_spawnbaseline2",	//66
 	"NEW PROTOCOL(67)",	//67
 	"NEW PROTOCOL(68)",	//68
 	"NEW PROTOCOL(69)",	//69
@@ -277,21 +277,21 @@ static const char *svc_nqstrings[] =
 	"NEW PROTOCOL(75)",	//75
 	"NEW PROTOCOL(76)",	//76
 	"NEW PROTOCOL(77)",	//77
-	"nqsvcfte_updatestatstring",	//78
-	"nqsvcfte_updatestatfloat",	//79
+	"ftenq_updatestatstring",	//78
+	"ftenq_updatestatfloat",	//79
 	"NEW PROTOCOL(80)",	//80
 	"NEW PROTOCOL(81)",	//81
 	"NEW PROTOCOL(82)",	//82
-	"nqsvcfte_cgamepacket",	//83
-	"nqsvcfte_voicechat",	//84
-	"nqsvcfte_setangledelta",	//85
-	"nqsvcfte_updateentities",	//86
+	"ftenq_cgamepacket",	//83
+	"ftenq_voicechat",	//84
+	"ftenq_setangledelta",	//85
+	"ftenq_updateentities",	//86
 	"NEW PROTOCOL(87)",	//87
 	"NEW PROTOCOL(88)",	//88
-	"svcfte_setinfoblob",			//89
-	"svcfte_cgamepacket_sized",		//90
-	"svcfte_temp_entity_sized",		//91
-	"svcfte_csqcentities_sized",	//92
+	"ftenq_setinfoblob",			//89
+	"ftenq_cgamepacket_sized",		//90
+	"ftenq_temp_entity_sized",		//91
+	"ftenq_csqcentities_sized",	//92
 };
 #endif
 
@@ -3712,6 +3712,7 @@ static void CLQ2_ParseServerData (void)
 void CL_ParseEstablished(void)
 {
 #ifdef NQPROT
+	cls.qex = false;
 	Z_Free(cl_dp_packagenames);
 	cl_dp_packagenames = NULL;
 	cl_dp_serverextension_download = false;
@@ -3880,7 +3881,7 @@ void CL_KeepaliveMessage(void){}
 static void CLNQ_ParseServerData(void)		//Doesn't change gamedir - use with caution.
 {
 	int	nummodels, numsounds;
-	char	*str;
+	char	*str = NULL;
 	int gametype;
 	Con_DPrintf ("Serverdata packet %s.\n", cls.demoplayback?"read":"received");
 	SCR_SetLoadingStage(LS_CLIENT);
@@ -3892,9 +3893,19 @@ static void CLNQ_ParseServerData(void)		//Doesn't change gamedir - use with caut
 
 	CLNQ_ParseProtoVersion();
 
-	if (cls.fteprotocolextensions2 & PEXT2_PREDINFO)
+	if (cls.qex)
 	{
+		cl.allocated_client_slots = MSG_ReadByte();
 		str = MSG_ReadString();
+	}
+	else
+	{
+		if (cls.fteprotocolextensions2 & PEXT2_PREDINFO)
+			str = MSG_ReadString();
+		cl.allocated_client_slots = MSG_ReadByte();
+	}
+	if (str)
+	{
 #ifndef CLIENTONLY
 		if (!sv.state)
 #endif
@@ -3906,8 +3917,6 @@ static void CLNQ_ParseServerData(void)		//Doesn't change gamedir - use with caut
 #endif
 		}
 	}
-
-	cl.allocated_client_slots = MSG_ReadByte();
 	if (cl.allocated_client_slots > MAX_CLIENTS)
 	{
 		cl.allocated_client_slots = MAX_CLIENTS;
@@ -3915,6 +3924,7 @@ static void CLNQ_ParseServerData(void)		//Doesn't change gamedir - use with caut
 	}
 
 	cl.splitclients = 1;
+
 
 	gametype = MSG_ReadByte ();
 
@@ -4063,6 +4073,55 @@ static void CLNQ_ParseServerData(void)		//Doesn't change gamedir - use with caut
 	CSQC_Shutdown();
 #endif
 }
+static void CLQEX_ParseServerVars(void)
+{
+	unsigned int bits = MSG_ReadULEB128();
+
+	if (bits & QEX_GV_DEATHMATCH)
+		cl.deathmatch = MSG_ReadByte ();
+	if (bits & QEX_GV_IDEALPITCHSCALE)
+		MSG_ReadFloat ();
+	if (bits & QEX_GV_FRICTION)
+		movevars.friction = MSG_ReadFloat ();
+	if (bits & QEX_GV_EDGEFRICTION)
+		movevars.edgefriction = MSG_ReadFloat ();
+	if (bits & QEX_GV_STOPSPEED)
+		movevars.stopspeed = MSG_ReadFloat ();
+	if (bits & QEX_GV_MAXVELOCITY)
+		/*movevars.maxvelocity =*/ MSG_ReadFloat ();
+	if (bits & QEX_GV_GRAVITY)
+		movevars.gravity = MSG_ReadFloat ();
+	if (bits & QEX_GV_NOSTEP)
+		/*movevars.nostep =*/ MSG_ReadByte ();
+	if (bits & QEX_GV_MAXSPEED)
+		movevars.maxspeed = MSG_ReadFloat ();
+	if (bits & QEX_GV_ACCELERATE)
+		movevars.accelerate = MSG_ReadFloat ();
+	if (bits & QEX_GV_CONTROLLERONLY)
+		/*cl.blockmouse =*/ MSG_ReadByte ();
+	if (bits & QEX_GV_TIMELIMIT)
+		InfoBuf_SetStarKey(&cl.serverinfo, "timelimit", va("%g", MSG_ReadFloat ()));
+	if (bits & QEX_GV_FRAGLIMIT)
+		InfoBuf_SetStarKey(&cl.serverinfo, "fraglimit", va("%g", MSG_ReadFloat ()));
+}
+static char *CLQEX_ReadStrings(void)
+{
+	unsigned short count = MSG_ReadShort(), a;
+	const char *arg[8];
+	static char formatted[8192];
+	if (count > countof(arg))
+		Host_EndGame ("CLQEX_ReadStrings: too many strings (%u>%u)", count, (unsigned)countof(arg));
+	for (a = 0; a < count; a++)
+	{
+		char *s = alloca(8192);
+		arg[a] = s;
+		MSG_ReadStringBuffer(s, 8192);
+	}
+
+	TL_Reformat(formatted, sizeof(formatted), count, arg);
+	return formatted;
+}
+
 static void CLNQ_SendInitialUserInfo(void *ctx, const char *key, const char *value)
 {
 	InfoSync_Add(&cls.userinfosync, ctx, key);
@@ -4153,7 +4212,7 @@ static void CLNQ_ParseClientdata (void)
 
 		if (bits & (SU_VELOCITY1<<i))
 		{
-			if (CPNQ_IS_DP)
+			if (CPNQ_IS_DP || (cls.qex && (bits & QEX_SU_FLOATCOORDS)))
 				pl->velocity[i] = MSG_ReadFloat();
 			else
 				pl->velocity[i] = MSG_ReadChar()*16;
@@ -4233,6 +4292,11 @@ static void CLNQ_ParseClientdata (void)
 				weaponframe |= MSG_ReadByte() << 8;
 			if (bits & FITZSU_WEAPONALPHA)
 				MSG_ReadByte();
+
+			if (cls.qex)
+			{
+				if (bits & QEX_SU_ENTFLAGS)	/*entflags =*/ MSG_ReadULEB128();
+			}
 		}
 
 		CL_SetStatInt(0, STAT_WEAPONFRAME, weaponframe);
@@ -4705,7 +4769,21 @@ static void CL_ParseBaseline (entity_state_t *es, int baselinetype2)
 	}
 
 	es->trans = (bits & FITZ_B_ALPHA) ? MSG_ReadByte() : 255;
-	es->scale = (bits & RMQFITZ_B_SCALE) ? MSG_ReadByte() : 16;
+	if (cls.qex)
+	{
+		if (bits & QEX_B_SOLID)
+			/*es->solidtype =*/ MSG_ReadByte();
+		if (bits & QEX_B_UNKNOWN4)
+			Con_Printf(CON_WARNING"QEX_B_UNKNOWN4: %x\n", MSG_ReadByte());
+		if (bits & QEX_B_UNKNOWN5)
+			Con_Printf(CON_WARNING"QEX_B_UNKNOWN5: %x\n", MSG_ReadByte());
+		if (bits & QEX_B_UNKNOWN6)
+			Con_DPrintf(CON_WARNING"QEX_B_UNKNOWN6: %x\n", MSG_ReadByte());
+		if (bits & QEX_B_UNKNOWN7)
+			Con_Printf(CON_WARNING"QEX_B_UNKNOWN7: %x\n", MSG_ReadByte());
+	}
+	else
+		es->scale = (bits & RMQFITZ_B_SCALE) ? MSG_ReadByte() : 16;
 }
 static void CL_ParseBaselineDelta (void)
 {
@@ -7972,7 +8050,7 @@ static qboolean CLNQ_ParseNQPrints(char *s)
 {
 	int i;
 	char *start = s;
-	if (!strcmp(s, "Client ping times:\n"))
+	if (!strcmp(s, "Client ping times:\n") && !cls.qex)
 	{
 		cl.nqparseprint = CLNQPP_PINGS;
 		return true;
@@ -8020,7 +8098,7 @@ static qboolean CLNQ_ParseNQPrints(char *s)
 		s = start;
 	}
 
-	if (!strncmp(s, "host:    ", 9))
+	if (!strncmp(s, "host:    ", 9) && !cls.qex)
 	{
 		cl.nqparseprint = CLNQPP_STATUS;
 		return cls.nqexpectingstatusresponse;
@@ -8134,6 +8212,7 @@ void CLNQ_ParseServerMessage (void)
 		switch (cmd)
 		{
 		default:
+		badsvc:
 			CL_DumpPacket();
 			Host_EndGame ("CLNQ_ParseServerMessage: Illegible server message (%i@%i)", cmd, msg_readcount-1);
 			return;
@@ -8143,7 +8222,13 @@ void CLNQ_ParseServerMessage (void)
 			break;
 
 		case svc_print:
-			s = MSG_ReadString ();
+			if(cls.qex && cls.protocol_nq != CPNQ_ID)
+				s = CLQEX_ReadStrings();
+			else
+			{
+		svcprint:
+				s = MSG_ReadString ();
+			}
 
 			if (*s == 1 || *s == 2)
 			{
@@ -8161,7 +8246,10 @@ void CLNQ_ParseServerMessage (void)
 			return;
 
 		case svc_centerprint:
-			s = MSG_ReadString ();
+			if (cls.qex && cls.protocol_nq != CPNQ_ID)
+				s = CLQEX_ReadStrings();
+			else
+				s = MSG_ReadString ();
 
 #ifdef PLUGINS
 			if (Plug_CenterPrintMessage(s, destsplit))
@@ -8188,6 +8276,14 @@ void CLNQ_ParseServerMessage (void)
 			break;
 
 		case svcdp_precache:
+		//also svcqex_levelcompleted
+			if (cls.qex)
+			{	//svcqex_levelcompleted
+				//not really sure why this even exists.
+				MSG_ReadSkip(10);
+				MSG_ReadString();
+				break;
+			}
 			CL_ParsePrecache();
 			break;
 
@@ -8431,6 +8527,14 @@ void CLNQ_ParseServerMessage (void)
 			break;
 		case svcdp_updatestatbyte:
 		//case svcneh_fog:
+		//also svcqex_seq
+			if (cls.qex)
+			{	//svcqex_seq
+				unsigned seq = MSG_ReadULEB128();
+				if (!cls.demoplayback && 0)
+					CL_AckedInputFrame(cls.netchan.incoming_sequence, seq, true);
+				break;
+			}
 			if (CPNQ_IS_BJP || cls.protocol_nq == CPNQ_NEHAHRA)
 			{
 				CL_ResetFog(FOGTYPE_AIR);
@@ -8599,9 +8703,28 @@ void CLNQ_ParseServerMessage (void)
 
 
 		case svcnq_effect:
+		//also svcqex_achievement
+			if (cls.qex)
+			{	//svcqex_achievement
+				MSG_ReadString();
+				break;
+			}
 			CL_ParseEffect(false);
 			break;
 		case svcnq_effect2:
+		//also svcqex_chat
+			if (cls.qex)
+			{	//svcqex_chat
+				//in qex this text is in some small special chat box. which disappears quickly rendering its contents kinda unreadable. and its messagemode stuff seems broken too, so whatever. and it seems to have newline issues.
+				//FIXME: figure out the player index so we can kickban/mute/etc them.
+				qbyte plcolour = MSG_ReadByte();
+				qbyte chatcolour = MSG_ReadByte();
+				char *pcols[] = {S_COLOR_WHITE,S_COLOR_RED,S_COLOR_YELLOW, S_COLOR_CYAN};
+				char *ccols[] = {S_COLOR_WHITE,S_COLOR_CYAN};
+				Con_Printf("^[%s%s"/*"\\player\\%i"*/"^]: ", pcols[plcolour%countof(pcols)], MSG_ReadString());
+				Con_Printf("%s%s\n", ccols[chatcolour%countof(ccols)], MSG_ReadString());
+				break;
+			}
 			CL_ParseEffect(true);
 			break;
 
@@ -8638,7 +8761,11 @@ void CLNQ_ParseServerMessage (void)
 #endif
 
 		case svcdp_downloaddata:
-			CLDP_ParseDownloadData();
+		//also svcqex_servervars:
+			if (cls.qex)
+				CLQEX_ParseServerVars();
+			else
+				CLDP_ParseDownloadData();
 			break;
 
 		case svcdp_trailparticles:
@@ -8650,6 +8777,49 @@ void CLNQ_ParseServerMessage (void)
 		case svcdp_pointparticles1:
 			CL_ParsePointParticles(true);
 			break;
+
+		case svcqex_updateping:
+			if (cls.qex)
+			{	//svcqex_updateping
+				int ping;
+				i = MSG_ReadByte();
+				ping = MSG_ReadSignedQEX();
+				if (i < MAX_CLIENTS)
+					cl.players[i].ping = ping;
+				break;
+			}
+			goto badsvc;
+		case svcqex_updatesocial:
+			if (cls.qex)
+			{	//svcqex_updatesocial
+				//both ints are -1 for lan/direct clients, and 0 for the host. I guess this is for chatting to people via steam.
+				/*slot =*/ MSG_ReadByte();
+				/*??? =*/ MSG_ReadLong();
+				/*??? =*/ MSG_ReadLong();
+				break;
+			}
+			goto badsvc;
+
+		case svcqex_updateplinfo:
+			if (cls.qex)
+			{	//svcqex_updateplinfo
+				unsigned int slot = MSG_ReadByte();
+				int health = MSG_ReadSignedQEX();
+				int armour = MSG_ReadSignedQEX();
+				if (slot < MAX_CLIENTS)
+				{
+					InfoBuf_SetValueForKey(&cl.players[slot].userinfo, "health", va("%i", health));
+					InfoBuf_SetValueForKey(&cl.players[slot].userinfo, "health", va("%i", armour));
+				}
+				break;
+			}
+			goto badsvc;
+		case svcqex_print:
+			if (cls.qex)
+			{	//svcqex_'raw'print
+				goto svcprint;
+			}
+			goto badsvc;
 		}
 
 	}

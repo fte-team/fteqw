@@ -474,6 +474,9 @@ typedef struct
 	#define CPNQ_IS_DP (cls.protocol_nq >= CPNQ_DP5)
 	#define CPNQ_IS_BJP (cls.protocol_nq >= CPNQ_BJP1 && cls.protocol_nq <= CPNQ_BJP3)
 	qboolean proquake_angles_hack;	//angles are always 16bit
+#ifdef NQPROT
+	qboolean qex;	//we're connected to a QuakeEx server, which means lots of special workarounds that are not controlled via the actual protocol version.
+#endif
 
 	int protocol_q2;
 
@@ -1144,7 +1147,6 @@ void CL_SaveInfo(vfsfile_t *f);
 void CL_SetInfo (int pnum, const char *key, const char *value);
 void CL_SetInfoBlob (int pnum, const char *key, const char *value, size_t valuesize);
 
-void CL_BeginServerConnect(const char *host, int port, qboolean noproxy);
 char *CL_TryingToConnect(void);
 
 void CL_ExecInitialConfigs(char *defaultexec);

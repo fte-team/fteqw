@@ -3042,6 +3042,23 @@ int glowsize=0, glowcolour=0, colourmod=0;
 
 		if (baseline->dpflags & RENDER_STEP)
 			bits |= FITZU_LERPFINISH;
+
+
+		if (host_client->qex)
+		{
+			if (host_client->edict == ed)
+			{	//only send some bloated things to yourself.
+				bits |= QE_U_FLOATCOORDS;	//when predicting, you'll need more precision to avoid errors
+
+				if (ed->v->flags)
+					bits |= QE_U_ENTFLAGS;
+			}
+			if (ed->v->solid)
+				bits |= QE_U_SOLIDTYPE;
+			if (ed->v->health)
+				bits |= QE_U_HEALTH;
+			//bits |= QE_U_UNKNOWN26;
+		}
 	}
 	else if (host_client->protocol == SCP_BJP3)
 	{
@@ -3126,12 +3143,24 @@ int glowsize=0, glowcolour=0, colourmod=0;
 	if (bits & NQU_COLORMAP)	MSG_WriteByte (msg, ent->colormap & 0xff);
 	if (bits & NQU_SKIN)		MSG_WriteByte (msg, ent->skinnum & 0xff);
 	if (bits & NQU_EFFECTS)		MSG_WriteByte (msg, eff & 0x00ff);
-	if (bits & NQU_ORIGIN1)		MSG_WriteCoord (msg, ent->origin[0]);
-	if (bits & NQU_ANGLE1)		MSG_WriteAngle(msg, ent->angles[0]);
-	if (bits & NQU_ORIGIN2)		MSG_WriteCoord (msg, ent->origin[1]);
-	if (bits & NQU_ANGLE2)		MSG_WriteAngle(msg, ent->angles[1]);
-	if (bits & NQU_ORIGIN3)		MSG_WriteCoord (msg, ent->origin[2]);
-	if (bits & NQU_ANGLE3)		MSG_WriteAngle(msg, ent->angles[2]);
+	if (host_client->qex && (bits & QE_U_FLOATCOORDS))
+	{
+		if (bits & NQU_ORIGIN1)		MSG_WriteFloat (msg, ent->origin[0]);
+		if (bits & NQU_ANGLE1)		MSG_WriteAngle (msg, ent->angles[0]);
+		if (bits & NQU_ORIGIN2)		MSG_WriteFloat (msg, ent->origin[1]);
+		if (bits & NQU_ANGLE2)		MSG_WriteAngle (msg, ent->angles[1]);
+		if (bits & NQU_ORIGIN3)		MSG_WriteFloat (msg, ent->origin[2]);
+		if (bits & NQU_ANGLE3)		MSG_WriteAngle (msg, ent->angles[2]);
+	}
+	else
+	{
+		if (bits & NQU_ORIGIN1)		MSG_WriteCoord (msg, ent->origin[0]);
+		if (bits & NQU_ANGLE1)		MSG_WriteAngle (msg, ent->angles[0]);
+		if (bits & NQU_ORIGIN2)		MSG_WriteCoord (msg, ent->origin[1]);
+		if (bits & NQU_ANGLE2)		MSG_WriteAngle (msg, ent->angles[1]);
+		if (bits & NQU_ORIGIN3)		MSG_WriteCoord (msg, ent->origin[2]);
+		if (bits & NQU_ANGLE3)		MSG_WriteAngle (msg, ent->angles[2]);
+	}
 
 	if (host_client->protocol == SCP_FITZ666)
 	{
@@ -3140,6 +3169,14 @@ int glowsize=0, glowcolour=0, colourmod=0;
 		if (bits & FITZU_FRAME2)	MSG_WriteByte(msg, ent->frame>>8);
 		if (bits & FITZU_MODEL2)	MSG_WriteByte(msg, ent->modelindex>>8);
 		if (bits & FITZU_LERPFINISH)MSG_WriteByte(msg, bound(0, (int)((ed->v->nextthink - sv.world.physicstime) * 255), 255));
+
+		if (host_client->qex)
+		{
+			if (bits & QE_U_SOLIDTYPE)	MSG_WriteByte(msg, ed->v->solid);
+			if (bits & QE_U_ENTFLAGS)	MSG_WriteULEB128(msg, ed->v->flags);
+			if (bits & QE_U_HEALTH)		MSG_WriteSignedQEX(msg, ed->v->health);
+			if (bits & QE_U_UNKNOWN26)	MSG_WriteByte(msg, 0);
+		}
 	}
 	else if (host_client->protocol == SCP_BJP3)
 	{

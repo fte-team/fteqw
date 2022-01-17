@@ -5655,7 +5655,7 @@ void Mod_LoadDoomSprite (model_t *mod)
 
 //we need to override the rtlight shader for sprites so they get lit properly ignoring n+s+t dirs
 //so lets split the shader into parts to avoid too many dupes
-#define SPRITE_SHADER_MAIN									\
+#define SPRITE_SHADER_MAIN(extra)			\
 			"{\n"											\
 				"if gl_blendsprites\n"						\
 					"program defaultsprite\n"				\
@@ -5675,9 +5675,12 @@ void Mod_LoadDoomSprite (model_t *mod)
 					"rgbgen vertex\n"						\
 					"alphagen vertex\n"						\
 				"}\n"										\
-				"surfaceparm noshadows\n"
-#define SPRITE_SHADER_UNLIT	"surfaceparm nodlight\n"
-#define SPRITE_SHADER_LIT								\
+				"surfaceparm noshadows\n"					\
+				extra										\
+			"}\n"
+#define SPRITE_SHADER_UNLIT	SPRITE_SHADER_MAIN(			\
+				"surfaceparm nodlight\n")
+#define SPRITE_SHADER_LIT	SPRITE_SHADER_MAIN(			\
 				"sort seethrough\n"						\
 				"bemode rtlight\n"						\
 				"{\n"									\
@@ -5686,8 +5689,7 @@ void Mod_LoadDoomSprite (model_t *mod)
 						"map $diffuse\n"				\
 						"blendfunc add\n"				\
 					"}\n"								\
-				"}\n"
-#define SPRITE_SHADER_FOOTER "}\n"
+				"}\n")
 
 void Mod_LoadSpriteFrameShader(model_t *spr, int frame, int subframe, mspriteframe_t *frameinfo)
 {
@@ -5733,9 +5735,10 @@ void Mod_LoadSpriteFrameShader(model_t *spr, int frame, int subframe, mspritefra
 #endif
 
 	if (litsprite)	// a ! in the filename makes it non-fullbright (and can also be lit by rtlights too).
-		shadertext = SPRITE_SHADER_MAIN SPRITE_SHADER_LIT SPRITE_SHADER_FOOTER;
+		shadertext = SPRITE_SHADER_LIT;
 	else
-		shadertext = SPRITE_SHADER_MAIN SPRITE_SHADER_UNLIT SPRITE_SHADER_FOOTER;
+		shadertext = SPRITE_SHADER_UNLIT;
+	frameinfo->lit = litsprite;
 	frameinfo->shader = R_RegisterShader(name, SUF_NONE, shadertext);
 	frameinfo->shader->defaulttextures->base = frameinfo->image;
 	frameinfo->shader->width = frameinfo->right-frameinfo->left;

@@ -2733,6 +2733,12 @@ static void R_Sprite_GenerateTrisoup(entity_t *e, int bemode)
 	}
 
 	VectorScale(e->shaderRGBAf, lightmap, rgba[0]);
+	if (frame && frame->lit && !(r_refdef.flags & RDF_NOWORLDMODEL) && cl.worldmodel && cl.worldmodel->funcs.LightPointValues)
+	{
+		R_CalcModelLighting(e, e->model);
+		VectorMul(rgba[0], e->light_avg, rgba[0]);
+		VectorMA(rgba[0], 0.5, e->light_range, rgba[0]);
+	}
 	rgba[0][3] = e->shaderRGBAf[3];
 	Vector4Copy(rgba[0], rgba[1]);
 	Vector4Copy(rgba[0], rgba[2]);

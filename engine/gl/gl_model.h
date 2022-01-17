@@ -627,6 +627,7 @@ typedef struct mspriteframe_s
 {
 	float	up, down, left, right;
 	qboolean xmirror;
+	qboolean lit;
 	shader_t *shader;
 	image_t *image;
 } mspriteframe_t;

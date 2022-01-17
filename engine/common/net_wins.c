@@ -151,7 +151,8 @@ cvar_t	net_enable_websockets	= CVARD("net_enable_websockets",	"1", "If enabled, 
 #endif
 #endif
 extern cvar_t net_ice_exchangeprivateips;
-#if defined(HAVE_DTLS) && defined(HAVE_SERVER)
+#if defined(HAVE_DTLS)
+#if defined(HAVE_SERVER)
 static void QDECL NET_Enable_DTLS_Changed(struct cvar_s *var, char *oldvalue)
 {
 	var->ival = var->value;
@@ -173,7 +174,6 @@ static void QDECL NET_Enable_DTLS_Changed(struct cvar_s *var, char *oldvalue)
 }
 cvar_t net_enable_dtls		= CVARAFCD("net_enable_dtls", "", "sv_listen_dtls", 0, NET_Enable_DTLS_Changed, "Controls serverside dtls support.\n0: dtls blocked, not advertised.\n1: clientside choice.\n2: used where possible (recommended setting).\n3: disallow non-dtls clients (sv_port_tcp should be eg tls://[::]:27500 to also disallow unencrypted tcp connections).");
 #endif
-#if defined(HAVE_DTLS)
 cvar_t dtls_psk_hint		= CVARFD("dtls_psk_hint", "", CVAR_NOUNSAFEEXPAND, "For DTLS-PSK handshakes. This specifies the public server identity.");
 cvar_t dtls_psk_user		= CVARFD("dtls_psk_user", "", CVAR_NOUNSAFEEXPAND, "For DTLS-PSK handshakes. This specifies the username to use when the client+server's hints match.");
 cvar_t dtls_psk_key			= CVARFD("dtls_psk_key",  "", CVAR_NOUNSAFEEXPAND, "For DTLS-PSK handshakes. This specifies the hexadecimal key which must match between client+server. Will only be used when client+server's hint settings match.");
@@ -8028,6 +8028,7 @@ qboolean NET_EnsureRoute(ftenet_connections_t *collection, char *routename, char
 			return false;
 		break;
 	case NP_DTLS:
+#ifdef HAVE_DTLS
 		adr->prot = NP_DGRAM;
 		if (NET_EnsureRoute(collection, routename, host, adr))
 			if (NET_DTLS_Create(collection, adr, host))
@@ -8036,6 +8037,7 @@ qboolean NET_EnsureRoute(ftenet_connections_t *collection, char *routename, char
 				return true;
 			}
 		adr->prot = NP_DTLS;
+#endif
 		return false;
 	case NP_WS:
 	case NP_WSS:

@@ -350,6 +350,15 @@ char soundlist_name[] =
 	{ 's'^0xff, 'o'^0xff, 'u'^0xff, 'n'^0xff, 'd'^0xff, 'l'^0xff, 'i'^0xff, 's'^0xff, 't'^0xff,
 		' '^0xff, '%'^0xff, 'i'^0xff, ' '^0xff, '%'^0xff, 'i'^0xff, 0 };
 
+vrui_t vrui;
+void VRUI_SnapAngle(void)
+{
+//	VectorCopy(cl.playerview[0].viewangles, vrui.angles);
+	vrui.angles[0] = 0;
+	vrui.angles[1] = cl.playerview[0].aimangles[1];
+	vrui.angles[2] = 0;
+}
+
 void CL_UpdateWindowTitle(void)
 {
 	if (VID_SetWindowCaption)

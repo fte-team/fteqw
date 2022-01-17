@@ -4769,6 +4769,7 @@ static void CL_ParseBaseline (entity_state_t *es, int baselinetype2)
 	}
 
 	es->trans = (bits & FITZ_B_ALPHA) ? MSG_ReadByte() : 255;
+#ifdef NQPROT
 	if (cls.qex)
 	{
 		if (bits & QEX_B_SOLID)
@@ -4783,6 +4784,7 @@ static void CL_ParseBaseline (entity_state_t *es, int baselinetype2)
 			Con_Printf(CON_WARNING"QEX_B_UNKNOWN7: %x\n", MSG_ReadByte());
 	}
 	else
+#endif
 		es->scale = (bits & RMQFITZ_B_SCALE) ? MSG_ReadByte() : 16;
 }
 static void CL_ParseBaselineDelta (void)

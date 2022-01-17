@@ -1898,8 +1898,12 @@ static void *QDECL PlugBI_GetEngineInterface(const char *interfacename, size_t s
 			Plug_Net_GetTLSBinding,
 
 			Sys_RandomBytes,
+#ifdef HAVE_DTLS
 			TLS_GetKnownCertificate,
-#ifdef HAVE_CLIENT
+#else
+			NULL,
+#endif
+#if defined(HAVE_DTLS) && defined(HAVE_CLIENT)
 			CertLog_ConnectOkay,
 #else
 			NULL,

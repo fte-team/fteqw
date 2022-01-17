@@ -45,16 +45,6 @@ extern cvar_t vid_conautoscale;
 extern qboolean		scr_con_forcedraw;
 extern qboolean		depthcleared;
 
-vrui_t vrui;
-
-void VRUI_SnapAngle(void)
-{
-//	VectorCopy(cl.playerview[0].viewangles, vrui.angles);
-	vrui.angles[0] = 0;
-	vrui.angles[1] = cl.playerview[0].aimangles[1];
-	vrui.angles[2] = 0;
-}
-
 /*
 ==================
 SCR_UpdateScreen

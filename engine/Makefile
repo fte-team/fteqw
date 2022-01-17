@@ -685,7 +685,7 @@ endif
 PKGCONFIG?=$(ARCH)-pkg-config
 ifeq ($(shell which $(PKGCONFIG) 2> /dev/null),)
 	FFS:=$(shell echo $(PKGCONFIG) not found 1>&2 )
-	PKGCONFIG=/bin/true #don't end up using eg /usr/include when cross-compiling. makelibs is a valid workaround.
+	PKGCONFIG=/bin/false #don't end up using eg /usr/include when cross-compiling. makelibs is a valid workaround.
 endif
 #try to statically link
 ifeq ($(COMPILE_SYS),Darwin)

@@ -632,7 +632,7 @@ static void IPLog_Merge_f(void)
 }
 #endif
 
-#ifdef HAVE_CLIENT	//requires UI prompts
+#if defined(HAVE_DTLS) && defined(HAVE_CLIENT)	//requires UI prompts
 struct certlog_s
 {
 	link_t l;
@@ -1075,7 +1075,7 @@ void Log_Init(void)
 	if (COM_CheckParm("-condebug"))
 		Cvar_ForceSet(&log_enable[LOG_CONSOLE], "1");
 
-#ifdef HAVE_CLIENT
+#if defined(HAVE_DTLS) && defined(HAVE_CLIENT)
 	ClearLink(&certlog);
 	Cmd_AddCommand("dtls_untrustall", CertLog_UntrustAll_f);
 	Cmd_AddCommand("dtls_importtrust", CertLog_Import_f);

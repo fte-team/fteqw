@@ -425,7 +425,7 @@ $(PLUG_PREFIX)models$(PLUG_NATIVE_EXT): models/gltf.c models/exportiqm.c models/
 #Openssl crypto plugin, to replace microsoft's shoddy dtls implementation. could also be useful on the BSDs, yay system components?
 
 ifeq ($(FTE_TARGET),win32)
-    OSSL_ARCH=mingw32
+    OSSL_ARCH=mingw
 endif
 ifeq ($(FTE_TARGET),win64)
     OSSL_ARCH=mingw64
@@ -437,10 +437,10 @@ ARCHLIBS=../engine/libs-$(ARCH)
 #../engine/libs-$(ARCH)/openssl-$(OSSL_VERSION).tar.gz:
 ../engine/openssl-$(OSSL_VERSION).tar.gz:
 	wget -O $@ -N https://github.com/openssl/openssl/archive/refs/tags/openssl-$(OSSL_VERSION).tar.gz
-$(ARCHLIBS)/openssl-openssl-$(OSSL_VERSION)/libssl.a: ../engine/openssl-$(OSSL_VERSION).tar.gz
+$(ARCHLIBS)/openssl-openssl-$(OSSL_VERSION)/libssl.a $(ARCHLIBS)/openssl-openssl-$(OSSL_VERSION)/libcrypto.a: ../engine/openssl-$(OSSL_VERSION).tar.gz
 	(cd $(ARCHLIBS) && tar xvfz ../openssl-$(OSSL_VERSION).tar.gz)
 	(cd $(ARCHLIBS)/openssl-openssl-$(OSSL_VERSION) && CFLAGS=-Os ./Configure --release no-filenames no-legacy no-shared no-stdio no-asm $(OSSL_ARCH) --cross-compile-prefix=$(ARCH)- && $(MAKE))
-net_ssl_openssl.c: $(ARCHLIBS)/openssl-openssl-$(OSSL_VERSION)/libssl.a $(ARCHLIBS)/openssl-openssl-$(OSSL_VERSION)/libcrypt.a
+$(PLUG_PREFIX)openssl$(PLUG_NATIVE_EXT): $(ARCHLIBS)/openssl-openssl-$(OSSL_VERSION)/libssl.a $(ARCHLIBS)/openssl-openssl-$(OSSL_VERSION)/libcrypto.a
 
 #we should be using openssl's no-sock option, but that also disables core dtls functionality (despite us using our own BIOs).
 OPENSSL_LDCFLAGS=-I$(ARCHLIBS)/openssl-openssl-$(OSSL_VERSION)/include -L$(ARCHLIBS)/openssl-openssl-$(OSSL_VERSION) -lssl -lcrypto -lws2_32

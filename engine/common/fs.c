@@ -1199,6 +1199,93 @@ static void COM_Locate_f (void)
 		Con_Printf("Not found\n");
 }
 
+static void COM_CalcHash_Thread(void *ctx, void *fname, size_t a, size_t b)
+{
+	int h;
+	struct
+	{
+		const char *name;
+		hashfunc_t *hash;
+		void *ctx;
+	} hashes[] =
+	{
+//		{"crc16", &hash_crc16},
+		{"sha1", &hash_sha1},
+#if defined(HAVE_SERVER) || defined(HAVE_CLIENT)
+//		{"sha224", &hash_sha224},
+		{"sha256", &hash_sha256},
+//		{"sha384", &hash_sha384},
+//		{"sha512", &hash_sha512},
+#endif
+	};
+	qbyte digest[DIGEST_MAXSIZE];
+	qbyte digesttext[DIGEST_MAXSIZE*2+1];
+	qbyte block[65536];
+	int csize;
+	quint64_t fsize = 0;
+	quint64_t tsize = 0;
+	unsigned int pct, opct=~0;
+	vfsfile_t *f = FS_OpenVFS(fname, "rb", FS_GAME);
+
+	if (f)
+	{
+		tsize = VFS_GETLEN(f);
+		Con_Printf("%s: Processing...\r", (char*)fname);
+
+		for (h = 0; h < countof(hashes); h++)
+		{
+			hashes[h].ctx = Z_Malloc(hashes[h].hash->contextsize);
+			hashes[h].hash->init(hashes[h].ctx);
+		}
+
+		for(;;)
+		{
+			csize = VFS_READ(f, block, sizeof(block));
+			if (csize <= 0)
+				break;
+			fsize += csize;
+			for (h = 0; h < countof(hashes); h++)
+			{
+				hashes[h].hash->process(hashes[h].ctx, block, csize);
+			}
+			pct = (100*fsize)/tsize;
+			if (pct != opct)
+			{
+				Con_Printf("%s: %i%%...\r", (char*)fname, pct);
+				opct = pct;
+			}
+		}
+
+		VFS_CLOSE(f);
+
+		Con_Printf("%s: ", (char*)fname);
+		if (fsize > 1024*1024*1024*(quint64_t)16)
+			Con_Printf("%g GB\n", fsize/(1024.0*1024*1024));
+		else if (fsize > 1024*1024*16)
+			Con_Printf("%g MB\n", fsize/(1024.0*1024));
+		else if (fsize > 1024*16)
+			Con_Printf("%g KB\n", fsize/(1024.0));
+		else
+			Con_Printf("%u bytes\n", (unsigned)fsize);
+		for (h = 0; h < countof(hashes); h++)
+		{
+			hashes[h].hash->terminate(digest, hashes[h].ctx);
+			Z_Free(hashes[h].ctx);
+
+			digesttext[Base16_EncodeBlock(digest, hashes[h].hash->digestsize, digesttext, sizeof(digesttext)-1)] = 0;
+			Con_Printf("  %s: %s\n", hashes[h].name, digesttext);
+		}
+	}
+	Z_Free(fname);
+}
+static void COM_CalcHash_f(void)
+{
+	if (Cmd_Argc() != 2)
+		Con_Printf("%s <FILENAME>: computes various hashes of the specified file\n", Cmd_Argv(0));
+	else
+		COM_AddWork(WG_LOADER, COM_CalcHash_Thread, NULL, Z_StrDup(Cmd_Argv(1)), 0, 0);
+}
+
 /*
 ============
 COM_WriteFile
@@ -7268,6 +7355,8 @@ void COM_InitFilesystem (void)
 	Cmd_AddCommandD("path", COM_Path_f,			"prints a list of current search paths.");
 	Cmd_AddCommandAD("flocate", COM_Locate_f,	FS_ArbitraryFile_c, "Searches for a named file, and displays where it can be found in the OS's filesystem");	//prints the pak or whatever where this file can be found.
 	Cmd_AddCommandAD("which", COM_Locate_f,	FS_ArbitraryFile_c, "Searches for a named file, and displays where it can be found in the OS's filesystem");	//prints the pak or whatever where this file can be found.
+
+	Cmd_AddCommandAD("fs_hash", COM_CalcHash_f,	FS_ArbitraryFile_c, "Computes a hash of the specified file.");
 
 
 //

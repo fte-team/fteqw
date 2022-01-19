@@ -95,6 +95,15 @@ define(`WINPLUG',`category	"Plugins"
 		FILE(fteplug_$1_x64.REVISION.dll)
 		URL(win64/fteplug_$1_x64.dll)
 	}')dnl
+define(`WIN64PLUG',`category	"Plugins"
+	ver			"REVISION"
+	gamedir		""
+	license		"GPLv2"
+	{
+		arch		"win_x64"
+		FILE(fteplug_$1_x64.REVISION.dll)
+		URL(win64/fteplug_$1_x64.dll)
+	}')dnl
 define(`LINPLUG',`{
 		arch		"linux_amd64"
 		FILE(fteplug_$1_amd64.REVISION,.so)
@@ -132,6 +141,7 @@ TEST()dnl
 	title			"IRC Plugin"
 	replace			"IRC Plugin"
 	desc			"Allows you to converse on IRC servers in-game."
+	desc			"Requires manual configuration."
 TEST()dnl
 }
 {
@@ -140,6 +150,28 @@ TEST()dnl
 	LINPLUG(xmpp)
 	title			"XMPP Plugin"
 	desc			"Allows you to converse on XMPP servers. This also includes a method for NAT holepunching between contacts."
+	desc			"Requires manual configuration."
+TEST()dnl
+}
+{
+	package "fteplug_openssl"
+	WINPLUG(openssl)
+	license			"GPLv3"	//Apache2+GPLv2=GPLv3
+	title			"OpenSSL Plugin"
+	author			"Spike"
+	desc			"Provides TLS and DTLS support, instead of using Microsoft's probably-outdated libraries."
+	desc			"Required for fully functional DTLS support on windows."
+	desc			"Connecting to QEx servers requires additional setup."
+TEST()dnl
+}
+{
+	package "fteplug_hl2"
+	WINPLUG(hl2)
+	LINPLUG(hl2)
+	title			"HalfLife2 Formats Plugin"
+	desc			"Provides support for HalfLife2 bsp and texture formats."
+	desc			"Some related games may work, but this is not guarenteed."
+	desc			"Requires mod support for full functionality."
 TEST()dnl
 }
 HIDE(`

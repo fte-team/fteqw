@@ -241,6 +241,7 @@ static struct pm_source_s
 	#define SRCFL_ENABLED	(1u<<6)	//source was explicitly enabled.
 	#define SRCFL_PROMPTED	(1u<<7)	//source was explicitly enabled.
 	#define SRCFL_ONCE		(1u<<8)	//autoupdates are disabled, but the user is viewing packages anyway. enabled via a prompt.
+	#define SRCFL_UNSAFE	(1u<<9)	//ignore signing requirements.
 	unsigned int flags;
 	struct dl_download *curdl;	//the download context
 
@@ -532,6 +533,10 @@ static void PM_ValidatePackage(package_t *p)
 			if (!(p->flags & (DPF_NATIVE|DPF_CACHED)))
 				Con_Printf("WARNING: %s (%s) no longer exists\n", p->name, n);
 		}
+
+		//if no files were present, unmark it.
+		if (!(p->flags & (DPF_NATIVE|DPF_CACHED)))
+			p->flags &= ~DPF_ENABLED;
 	}
 	else
 	{
@@ -981,6 +986,7 @@ static void PM_AddSubListModule(void *module, plugupdatesourcefuncs_t *funcs, co
 				Z_Free(pm_source[i].prefix);
 				pm_source[i].prefix = Z_StrDup(prefix);
 			}
+			pm_source[i].flags |= flags & SRCFL_UNSAFE;
 			break;
 		}
 	}
@@ -1395,7 +1401,7 @@ static qboolean PM_ParsePackageList(const char *f, unsigned int parseflags, cons
 	if (!f)
 		return forcewrite;
 
-	source.validated = (parseflags & DPF_ENABLED)?VH_CORRECT/*FIXME*/:VH_UNSUPPORTED;
+	source.validated = (parseflags & (DPF_ENABLED|DPF_SIGNATUREACCEPTED))?VH_CORRECT/*FIXME*/:VH_UNSUPPORTED;
 	Q_strncpyz(source.gamedir, FS_GetGamedir(false), sizeof(source.gamedir));
 
 	if (url)
@@ -2004,6 +2010,7 @@ static void PM_PreparePackageList(void)
 	//figure out what we've previously installed.
 	if (fs_manifest && !loadedinstalled)
 	{
+		int parm;
 		qofs_t sz = 0;
 		char *f = FS_MallocFile(INSTALLEDFILES, FS_ROOT, &sz);
 		loadedinstalled = true;
@@ -2013,8 +2020,20 @@ static void PM_PreparePackageList(void)
 				PM_WriteInstalledPackages();
 			BZ_Free(f);
 		}
-		//make sure our sources are okay.
-		if (fs_manifest && fs_manifest->downloadsurl && *fs_manifest->downloadsurl)
+
+		parm = COM_CheckParm ("-updatesrc");
+		if (parm)
+		{
+			unsigned int fl = SRCFL_USER;
+			if (COM_CheckParm ("-unsafe"))
+				fl |= SRCFL_UNSAFE;
+			do
+			{
+				PM_AddSubList(com_argv[parm+1], NULL, fl);	//enable it by default. functionality is kinda broken otherwise.
+				parm = COM_CheckNextParm ("-updatesrc", parm);
+			} while (parm && parm < com_argc-1);
+		}
+		else if (fs_manifest && fs_manifest->downloadsurl && *fs_manifest->downloadsurl)
 		{
 			unsigned int fl = SRCFL_MANIFEST;
 			char *s = fs_manifest->downloadsurl;
@@ -2022,7 +2041,7 @@ static void PM_PreparePackageList(void)
 				fl |= SRCFL_DISABLED;	//don't trust it, don't even prompt.
 
 			while ((s = COM_Parse(s)))
-				PM_AddSubList(com_token, NULL, SRCFL_MANIFEST);	//enable it by default. functionality is kinda broken otherwise.
+				PM_AddSubList(com_token, NULL, fl);	//enable it by default. functionality is kinda broken otherwise.
 		}
 
 #ifdef PLUGINS
@@ -2160,7 +2179,7 @@ static package_t *PM_FindExactPackage(const char *packagename, const char *arch,
 				if (*version == '<' && strcmp(p->version, version+1)>=0)
 					continue;
 			}
-			if (!r || strcmp(r->version, p->version)>0)
+			if (!r || strcmp(p->version, r->version)>0)
 				r = p;
 		}
 	}
@@ -2662,7 +2681,10 @@ static void PM_ListDownloaded(struct dl_download *dl)
 	if (f)
 	{
 		pm_source[listidx].status = SRCSTAT_OBTAINED;
-		PM_ParsePackageList(f, 0, dl->url, pm_source[listidx].prefix);
+		if (pm_source[listidx].flags & SRCFL_UNSAFE)
+			PM_ParsePackageList(f, DPF_SIGNATUREACCEPTED, dl->url, pm_source[listidx].prefix);
+		else
+			PM_ParsePackageList(f, 0, dl->url, pm_source[listidx].prefix);
 		PM_ResortPackages();
 	}
 	else if (dl->replycode == HTTP_DNSFAILURE)
@@ -3669,7 +3691,7 @@ static void QDECL HashFile_Flush (struct vfsfile_s *file)
 }
 static qboolean QDECL HashFile_Close (struct vfsfile_s *file)
 {
-	qbyte digest[256];
+	qbyte digest[DIGEST_MAXSIZE];
 	hashfile_t *f = (hashfile_t*)file;
 	if (!VFS_CLOSE(f->f))
 		f->fail = true;	//something went wrong.
@@ -3685,14 +3707,23 @@ static qboolean QDECL HashFile_Close (struct vfsfile_s *file)
 	}
 	else if (memcmp(digest, f->need, f->hashfunc->digestsize))
 	{
-		qbyte base64[512];
+		qbyte base64[(DIGEST_MAXSIZE*2)+16];
 		Con_Printf("Invalid hash for downloaded file %s, try again later?\n", f->fname);
 
-		Base64_EncodeBlock(digest, f->hashfunc->digestsize, base64, sizeof(base64)-1);
-		base64[sizeof(base64)-1] = 0;
-		Con_Printf("%s vs", base64);
-		Base64_EncodeBlock(f->need, f->hashfunc->digestsize, base64, sizeof(base64)-1);
-		Con_Printf("%s\n", base64);
+		if (f->hashfunc == &hash_sha1)
+		{
+			base64[Base16_EncodeBlock(digest, f->hashfunc->digestsize, base64, sizeof(base64)-1)] = 0;
+			Con_Printf("%s vs ", base64);
+			base64[Base16_EncodeBlock(f->need, f->hashfunc->digestsize, base64, sizeof(base64)-1)] = 0;
+			Con_Printf("%s\n", base64);
+		}
+		else
+		{
+			base64[Base64_EncodeBlock(digest, f->hashfunc->digestsize, base64, sizeof(base64)-1)] = 0;
+			Con_Printf("%s vs ", base64);
+			base64[Base64_EncodeBlock(f->need, f->hashfunc->digestsize, base64, sizeof(base64)-1)] = 0;
+			Con_Printf("%s\n", base64);
+		}
 		f->fail = true;
 	}
 

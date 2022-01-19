@@ -154,7 +154,9 @@ static int (VARGS *qgnutls_credentials_set)(gnutls_session_t, gnutls_credentials
 static int (VARGS *qgnutls_init)(gnutls_session_t * session, gnutls_connection_end_t con_end);
 static void (VARGS *qgnutls_deinit)(gnutls_session_t session);
 static int (VARGS *qgnutls_set_default_priority)(gnutls_session_t session);
+#ifdef HAVE_DTLS
 static int (VARGS *qgnutls_set_default_priority_append)(gnutls_session_t session, const char *add_prio, const char **err_pos, unsigned flags);
+#endif
 
 static int (VARGS *qgnutls_certificate_allocate_credentials)(gnutls_certificate_credentials_t *sc);
 static int (VARGS *qgnutls_anon_allocate_client_credentials)(gnutls_anon_client_credentials_t *sc);
@@ -231,6 +233,13 @@ static int		(VARGS *qgnutls_pubkey_verify_hash2)(gnutls_pubkey_t key, gnutls_sig
 static int		(VARGS *qgnutls_certificate_set_x509_key_mem)(gnutls_certificate_credentials_t res, const gnutls_datum_t * cert, const gnutls_datum_t * key, gnutls_x509_crt_fmt_t type);
 static int		(VARGS *qgnutls_certificate_get_x509_key)(gnutls_certificate_credentials_t res, unsigned index, gnutls_x509_privkey_t *key);
 static void		(VARGS *qgnutls_certificate_free_credentials)(gnutls_certificate_credentials_t sc);
+
+#ifdef GNUTLS_DYNAMIC
+static int VARGS fallback_gnutls_set_default_priority_append(gnutls_session_t session, const char *add_prio, const char **err_pos, unsigned flags)
+{
+	return qgnutls_set_default_priority(session);
+}
+#endif
 
 static qboolean Init_GNUTLS(void)
 {
@@ -351,7 +360,6 @@ static qboolean Init_GNUTLS(void)
 		{(void**)&qgnutls_init, "gnutls_init"},
 		{(void**)&qgnutls_deinit, "gnutls_deinit"},
 		{(void**)&qgnutls_set_default_priority, "gnutls_set_default_priority"},
-		{(void**)&qgnutls_set_default_priority_append, "gnutls_set_default_priority_append"},
 		{(void**)&qgnutls_certificate_allocate_credentials, "gnutls_certificate_allocate_credentials"},
 		{(void**)&qgnutls_anon_allocate_client_credentials, "gnutls_anon_allocate_client_credentials"},
 		{(void**)&qgnutls_global_init, "gnutls_global_init"},
@@ -441,6 +449,10 @@ static qboolean Init_GNUTLS(void)
 #endif
 	if (!hmod)
 		return false;
+
+	qgnutls_set_default_priority_append = Sys_GetAddressForName(hmod, "gnutls_set_default_priority_append");
+	if (!qgnutls_set_default_priority_append)
+		qgnutls_set_default_priority_append = fallback_gnutls_set_default_priority_append;
 #else
 	#define GNUTLS_FUNC(name) q##name = name;
 	#define GNUTLS_FUNCPTR(name) q##name = &name;

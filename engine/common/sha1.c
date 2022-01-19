@@ -23,7 +23,7 @@ This file came to FTE via EzQuake.
 typedef struct
 {
     unsigned int state[5];
-    size_t count[2];
+    unsigned int count[2];
     unsigned char buffer[64];
 } SHA1_CTX;
 #define SHA1_DIGEST_SIZE 20

@@ -889,6 +889,12 @@ static void QDECL QI_Tick(double realtime, double gametime)
 				if (dlcontext == -1)
 				{	
 					QI_RefreshMapList(false);
+
+					if (packagemanager)
+					{
+						VFS_CLOSE(packagemanager);
+						packagemanager = NULL;
+					}
 					return;
 				}
 				archive = false;

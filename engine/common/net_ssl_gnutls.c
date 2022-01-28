@@ -234,7 +234,7 @@ static int		(VARGS *qgnutls_certificate_set_x509_key_mem)(gnutls_certificate_cre
 static int		(VARGS *qgnutls_certificate_get_x509_key)(gnutls_certificate_credentials_t res, unsigned index, gnutls_x509_privkey_t *key);
 static void		(VARGS *qgnutls_certificate_free_credentials)(gnutls_certificate_credentials_t sc);
 
-#ifdef GNUTLS_DYNAMIC
+#if defined(GNUTLS_DYNAMIC) && defined(HAVE_DTLS)
 static int VARGS fallback_gnutls_set_default_priority_append(gnutls_session_t session, const char *add_prio, const char **err_pos, unsigned flags)
 {
 	return qgnutls_set_default_priority(session);
@@ -450,9 +450,11 @@ static qboolean Init_GNUTLS(void)
 	if (!hmod)
 		return false;
 
+#ifdef HAVE_DTLS
 	qgnutls_set_default_priority_append = Sys_GetAddressForName(hmod, "gnutls_set_default_priority_append");
 	if (!qgnutls_set_default_priority_append)
 		qgnutls_set_default_priority_append = fallback_gnutls_set_default_priority_append;
+#endif
 #else
 	#define GNUTLS_FUNC(name) q##name = name;
 	#define GNUTLS_FUNCPTR(name) q##name = &name;
@@ -760,6 +762,7 @@ static int QDECL SSL_CheckCert(gnutls_session_t session)
 	return GNUTLS_E_CERTIFICATE_ERROR;
 }
 
+#ifdef HAVE_DTLS
 static int QDECL SSL_CheckFingerprint(gnutls_session_t session)
 {	//actual certificate doesn't matter so long as it matches the hash we expect.
 	gnutlsfile_t *file = qgnutls_session_get_ptr (session);
@@ -786,6 +789,7 @@ VFS_CLOSE(f);
 	Con_DPrintf(CON_ERROR "%s: rejecting certificate\n", file->certname);
 	return GNUTLS_E_CERTIFICATE_ERROR;
 }
+#endif
 
 //return 1 to read data.
 //-1 for error

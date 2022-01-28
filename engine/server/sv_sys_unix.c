@@ -1203,8 +1203,8 @@ static int Sys_EnumerateFiles2 (const char *truepath, int apathofs, const char *
 				}
 				else if (lstat(file, &st) == 0)
 					;//okay, so bad symlink, just mute it
-				else
-					fprintf(stderr, "Stat failed for \"%s\"\n", file);
+//				else
+//					fprintf(stderr, "Stat failed for \"%s\"\n", file);
 			}
 		}
 	} while(1);

@@ -124,6 +124,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 	#undef HUFFNETWORK
 	#undef SUPPORT_ICE
 	#undef WEBCLIENT
+	#undef MULTITHREAD
 	#undef LOADERTHREAD
 	#undef PACKAGEMANAGER
 	#undef PACKAGE_PK3
@@ -133,6 +134,9 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 	#undef PACKAGE_DZIP
 	#undef AVAIL_XZDEC
 	#undef AVAIL_GZDEC
+	#undef SUBSERVERS
+	#undef HAVE_LEGACY
+	#undef IPLOG
 #else
 	#if defined(SERVERONLY) && defined(CLIENTONLY)
 		#undef CLIENTONLY	//impossible build. assume the config had CLIENTONLY and they tried building a dedicated server
@@ -425,7 +429,9 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 	//FIXME: HAVE_WINSSPI does not work as a server.
 	//FIXME: advertising dtls without a valid certificate will probably bug out if a client tries to auto-upgrade.
 	//FIXME: we don't cache server certs
-	#define HAVE_DTLS
+	#ifndef MASTERONLY
+		#define HAVE_DTLS
+	#endif
 #endif
 
 #if defined(USE_SQLITE) || defined(USE_MYSQL)

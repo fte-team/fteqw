@@ -776,8 +776,8 @@ static int Sys_EnumerateFiles2 (const char *truepath, int apathofs, const char *
 						return false;
 					}
 				}
-				else
-					Con_DPrintf("Stat failed for \"%s\"\n", file);	//can happen with dead symlinks
+//				else
+//					Con_DPrintf("Stat failed for \"%s\"\n", file);	//can happen with dead symlinks
 			}
 		}
 	} while(1);

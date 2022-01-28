@@ -1131,7 +1131,7 @@ void MSG_WriteAngle (sizebuf_t *sb, float f)
 		Sys_Error("MSG_WriteAngle: undefined network primitive size");
 }
 
-
+#if defined(HAVE_CLIENT) || defined(HAVE_SERVER)
 int MSG_ReadSize16 (sizebuf_t *sb)
 {
 	unsigned short ssolid = MSG_ReadShort();
@@ -1196,7 +1196,6 @@ int COM_EncodeSize(vec3_t mins, vec3_t maxs)
 	return solid;
 }
 
-#if defined(HAVE_CLIENT) || defined(HAVE_SERVER)
 void MSG_WriteEntity(sizebuf_t *sb, unsigned int entnum)
 {
 	if (entnum > MAX_EDICTS)
@@ -6476,6 +6475,7 @@ char	*VARGS va(const char *format, ...)
 	return string[bufnum];
 }
 
+#if defined(HAVE_CLIENT) || defined(HAVE_SERVER)
 #ifdef NQPROT
 //for compat with dpp7 protocols, or dp gamecode that neglects to properly precache particles.
 void COM_Effectinfo_Enumerate(int (*cb)(const char *pname))
@@ -6662,6 +6662,7 @@ unsigned int COM_RemapMapChecksum(model_t *model, unsigned int checksum)
 #endif
 	return checksum;
 }
+#endif
 
 static char Base64_Encode(int byt)
 {

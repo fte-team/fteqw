@@ -227,7 +227,7 @@ void Con_Log (const char *s)
 }
 
 
-#ifndef CLIENTONLY
+#ifdef HAVE_SERVER
 //still to add stuff at:
 //connects
 //disconnects

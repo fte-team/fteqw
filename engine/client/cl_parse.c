@@ -4107,18 +4107,21 @@ static void CLQEX_ParseServerVars(void)
 static char *CLQEX_ReadStrings(void)
 {
 	unsigned short count = MSG_ReadShort(), a;
-	const char *arg[8];
+	const char *arg[256];
 	static char formatted[8192];
-	if (count > countof(arg))
-		Host_EndGame ("CLQEX_ReadStrings: too many strings (%u>%u)", count, (unsigned)countof(arg));
-	for (a = 0; a < count; a++)
+	char inputs[65536];
+	size_t ofs = 0;
+	for (a = 0; a < count && a < countof(arg); )
 	{
-		char *s = alloca(8192);
-		arg[a] = s;
-		MSG_ReadStringBuffer(s, 8192);
+		arg[a++] = MSG_ReadStringBuffer(inputs+ofs, sizeof(inputs)-1);
+		ofs += strlen(inputs+ofs)+1;
+		if (ofs >= sizeof(inputs))
+			break;
 	}
+	for (; a < count; a++)
+		MSG_ReadString(); //don't lose space, though we can't buffer it.
 
-	TL_Reformat(formatted, sizeof(formatted), count, arg);
+	TL_Reformat(formatted, sizeof(formatted), a, arg);
 	return formatted;
 }
 

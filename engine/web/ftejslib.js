@@ -774,6 +774,8 @@ mergeInto(LibraryManager.library,
 			return -1;
 		if (s.con == 0)
 			return 0; //not connected yet
+		if (len == 0)
+			return 0; //...
 		s.ws.send(HEAPU8.subarray(data, data+len));
 		return len;
 	},
@@ -838,60 +840,35 @@ mergeInto(LibraryManager.library,
 		s.ws.binaryType = 'arraybuffer';
 		s.ws.onclose = function(event)
 			{
-//console.log("webrtc datachannel closed:")
-//console.log(event);
 				s.con = 0;
 				s.err = 1;
 			};
 		s.ws.onopen = function(event)
 			{
-//console.log("webrtc datachannel opened:");
-//console.log(event);
 				s.con = 1;
 			};
 		s.ws.onmessage = function(event)
 			{
-//console.log("webrtc datachannel message:");
-//console.log(event);
 				assert(typeof event.data !== 'string' && event.data.byteLength);
 				s.inq.push(new Uint8Array(event.data));
 			};
 			
 		s.pc.onicecandidate = function(e)
 			{
-//console.log("onicecandidate: ");
-//console.log(e);
 				var desc;
 				if (1)
 					desc = JSON.stringify(e.candidate);
 				else
 					desc = e.candidate.candidate;
+				if (desc == null)
+					return;	//no more...
 				s.callcb(4, desc);
-			};
-		s.pc.oniceconnectionstatechange = function(e)
-			{
-//console.log("oniceconnectionstatechange: ");
-//console.log(e);
-			};
-		s.pc.onaddstream = function(e)
-			{
-//console.log("onaddstream: ");
-//console.log(e);
 			};
 		s.pc.ondatachannel = function(e)
 			{
-//console.log("ondatachannel: ");
-//console.log(e);
-
-			s.recvchan = e.channel;
-			s.recvchan.binaryType = 'arraybuffer';
-			s.recvchan.onmessage = s.ws.onmessage;
-
-			};
-		s.pc.onnegotiationneeded = function(e)
-			{
-//console.log("onnegotiationneeded: ");
-//console.log(e);
+				s.recvchan = e.channel;
+				s.recvchan.binaryType = 'arraybuffer';
+				s.recvchan.onmessage = s.ws.onmessage;
 			};
 
 		if (clientside)
@@ -900,8 +877,6 @@ mergeInto(LibraryManager.library,
 				function(desc)
 				{
 					s.pc.setLocalDescription(desc);
-//					console.log("gotlocaldescription: ");
-//					console.log(desc);
 
 					if (1)
 						desc = JSON.stringify(desc);
@@ -912,8 +887,6 @@ mergeInto(LibraryManager.library,
 				},
 				function(event)
 				{
-//					console.log("createOffer error:");
-//					console.log(event);
 					s.err = 1;
 				}
 			);
@@ -945,8 +918,6 @@ mergeInto(LibraryManager.library,
 				function(desc)
 				{
 					s.pc.setLocalDescription(desc);
-//					console.log("gotlocaldescription: ");
-//					console.log(desc);
 
 					if (1)
 						desc = JSON.stringify(desc);
@@ -957,7 +928,6 @@ mergeInto(LibraryManager.library,
 				},
 				function(event)
 				{
-//					console.log("createAnswer error:" + event.toString());
 					s.err = 1;
 				}
 			);
@@ -977,8 +947,6 @@ mergeInto(LibraryManager.library,
 				desc = JSON.parse(offer);
 			else
 				desc = {candidate:offer, sdpMid:null, sdpMLineIndex:0};
-//console.log("addIceCandidate:");
-//console.log(desc);
 			s.pc.addIceCandidate(desc);
 		} catch(err) { console.log(err); }
 	},

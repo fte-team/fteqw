@@ -167,7 +167,7 @@ static ssize_t (VARGS *qgnutls_record_recv)(gnutls_session_t session, void *data
 static void (VARGS *qgnutls_certificate_set_verify_function)(gnutls_certificate_credentials_t cred, gnutls_certificate_verify_function *func);
 static void *(VARGS *qgnutls_session_get_ptr)(gnutls_session_t session);
 static void (VARGS *qgnutls_session_set_ptr)(gnutls_session_t session, void *ptr);
-int (VARGS *qgnutls_session_channel_binding)(gnutls_session_t session, gnutls_channel_binding_t cbtype, gnutls_datum_t * cb);
+static int (VARGS *qgnutls_session_channel_binding)(gnutls_session_t session, gnutls_channel_binding_t cbtype, gnutls_datum_t * cb);
 #ifdef GNUTLS_HAVE_SYSTEMTRUST
 static int (VARGS *qgnutls_certificate_set_x509_system_trust)(gnutls_certificate_credentials_t cred);
 #else
@@ -477,6 +477,10 @@ typedef struct
 	int pullerror;	//adding these two because actual networking errors are not getting represented properly, at least with regard to timeouts.
 	int pusherror;
 
+	gnutls_certificate_credentials_t certcred;
+	hashfunc_t *peerhashfunc;
+	qbyte peerdigest[DIGEST_MAXSIZE];
+
 	qboolean challenging;	//not sure this is actually needed, but hey.
 	void *cbctx;
 	neterr_t(*cbpush)(void *cbctx, const qbyte *data, size_t datasize);
@@ -571,6 +575,8 @@ static qboolean QDECL SSL_CloseFile(vfsfile_t *vfs)
 		VFS_CLOSE(file->stream);
 		file->stream = NULL;
 	}
+	if (file->certcred)
+		qgnutls_certificate_free_credentials(file->certcred);
 	Z_Free(vfs);
 	return true;
 }
@@ -750,6 +756,33 @@ static int QDECL SSL_CheckCert(gnutls_session_t session)
 	}
 #endif
 
+	Con_DPrintf(CON_ERROR "%s: rejecting certificate\n", file->certname);
+	return GNUTLS_E_CERTIFICATE_ERROR;
+}
+
+static int QDECL SSL_CheckFingerprint(gnutls_session_t session)
+{	//actual certificate doesn't matter so long as it matches the hash we expect.
+	gnutlsfile_t *file = qgnutls_session_get_ptr (session);
+	unsigned int certcount, j;
+	const gnutls_datum_t *const certlist = qgnutls_certificate_get_peers(session, &certcount);
+	if (certlist && certcount)
+	{
+		qbyte digest[DIGEST_MAXSIZE];
+		void *ctx = alloca(file->peerhashfunc->contextsize);
+
+		file->peerhashfunc->init(ctx);
+		for (j = 0; j < certcount; j++)
+			file->peerhashfunc->process(ctx, certlist[j].data, certlist[j].size);
+		file->peerhashfunc->terminate(digest, ctx);
+
+{
+vfsfile_t *f = FS_OpenVFS("/tmp/cert", "wb", FS_SYSTEM);
+VFS_WRITE(f, certlist[0].data, certlist[0].size);
+VFS_CLOSE(f);
+}
+		if (!memcmp(digest, file->peerdigest, file->peerhashfunc->digestsize))
+			return 0;
+	}
 	Con_DPrintf(CON_ERROR "%s: rejecting certificate\n", file->certname);
 	return GNUTLS_E_CERTIFICATE_ERROR;
 }
@@ -1352,40 +1385,48 @@ static qboolean SSL_InitConnection(gnutlsfile_t *newf, qboolean isserver, qboole
 		qgnutls_server_name_set(newf->session, GNUTLS_NAME_DNS, newf->certname, strlen(newf->certname));
 	qgnutls_session_set_ptr(newf->session, newf);
 
-#ifdef USE_ANON
-	//qgnutls_kx_set_priority (newf->session, kx_prio);
-	qgnutls_credentials_set (newf->session, GNUTLS_CRD_ANON, anoncred[isserver]);
-#else
-#ifdef HAVE_DTLS
-	if (datagram && !isserver)
-	{	//do psk as needed. we can still do the cert stuff if the server isn't doing psk.
-		gnutls_psk_client_credentials_t pskcred;
-		qgnutls_psk_allocate_client_credentials(&pskcred);
-		qgnutls_psk_set_client_credentials_function(pskcred, GetPSKForServer);
-
-		qgnutls_set_default_priority_append (newf->session, "+ECDHE-PSK:+DHE-PSK:+PSK", NULL, 0);
-		qgnutls_credentials_set(newf->session, GNUTLS_CRD_PSK, pskcred);
-	}
-	else if (datagram && isserver && (*dtls_psk_user.string || servercertfail))
-	{	//offer some arbitrary PSK for dtls clients.
-		gnutls_psk_server_credentials_t pskcred;
-		qgnutls_psk_allocate_server_credentials(&pskcred);
-		qgnutls_psk_set_server_credentials_function(pskcred, GetPSKForUser);
-		if (*dtls_psk_hint.string)
-			qgnutls_psk_set_server_credentials_hint(pskcred, dtls_psk_hint.string);
-
-		qgnutls_set_default_priority_append (newf->session, ("-KX-ALL:+ECDHE-PSK:+DHE-PSK:+PSK")+(servercertfail?0:8), NULL, 0);
-		qgnutls_credentials_set(newf->session, GNUTLS_CRD_PSK, pskcred);
-	}
-	else
-#endif
+	if (newf->certcred)
 	{
-		// Use default priorities for regular tls sessions
+		qgnutls_credentials_set (newf->session, GNUTLS_CRD_CERTIFICATE, newf->certcred);
 		qgnutls_set_default_priority (newf->session);
 	}
+	else
+	{
+#ifdef USE_ANON
+		//qgnutls_kx_set_priority (newf->session, kx_prio);
+		qgnutls_credentials_set (newf->session, GNUTLS_CRD_ANON, anoncred[isserver]);
+#else
+#ifdef HAVE_DTLS
+		if (datagram && !isserver)
+		{	//do psk as needed. we can still do the cert stuff if the server isn't doing psk.
+			gnutls_psk_client_credentials_t pskcred;
+			qgnutls_psk_allocate_client_credentials(&pskcred);
+			qgnutls_psk_set_client_credentials_function(pskcred, GetPSKForServer);
+
+			qgnutls_set_default_priority_append (newf->session, "+ECDHE-PSK:+DHE-PSK:+PSK", NULL, 0);
+			qgnutls_credentials_set(newf->session, GNUTLS_CRD_PSK, pskcred);
+		}
+		else if (datagram && isserver && (*dtls_psk_user.string || servercertfail))
+		{	//offer some arbitrary PSK for dtls clients.
+			gnutls_psk_server_credentials_t pskcred;
+			qgnutls_psk_allocate_server_credentials(&pskcred);
+			qgnutls_psk_set_server_credentials_function(pskcred, GetPSKForUser);
+			if (*dtls_psk_hint.string)
+				qgnutls_psk_set_server_credentials_hint(pskcred, dtls_psk_hint.string);
+
+			qgnutls_set_default_priority_append (newf->session, ("-KX-ALL:+ECDHE-PSK:+DHE-PSK:+PSK")+(servercertfail?0:8), NULL, 0);
+			qgnutls_credentials_set(newf->session, GNUTLS_CRD_PSK, pskcred);
+		}
+		else
 #endif
-	if (xcred[isserver])
-		qgnutls_credentials_set (newf->session, GNUTLS_CRD_CERTIFICATE, xcred[isserver]);
+		{
+			// Use default priorities for regular tls sessions
+			qgnutls_set_default_priority (newf->session);
+		}
+#endif
+		if (xcred[isserver])
+			qgnutls_credentials_set (newf->session, GNUTLS_CRD_CERTIFICATE, xcred[isserver]);
+	}
 
 	// tell gnutls how to send/receive data
 	qgnutls_transport_set_ptr (newf->session, newf);
@@ -1542,7 +1583,7 @@ static void GNUDTLS_DestroyContext(void *ctx)
 {
 	SSL_Close(ctx);
 }
-static void *GNUDTLS_CreateContext(const char *remotehost, void *cbctx, neterr_t(*push)(void *cbctx, const qbyte *data, size_t datasize), qboolean isserver)
+static void *GNUDTLS_CreateContext(const dtlscred_t *credinfo, void *cbctx, neterr_t(*push)(void *cbctx, const qbyte *data, size_t datasize), qboolean isserver)
 {
 	gnutlsfile_t *newf;
 
@@ -1559,7 +1600,19 @@ static void *GNUDTLS_CreateContext(const char *remotehost, void *cbctx, neterr_t
 
 //	Sys_Printf("DTLS_CreateContext: server=%i\n", isserver);
 
-	SSL_SetCertificateName(newf, remotehost);
+	if (credinfo && credinfo->local.cert && credinfo->local.key && credinfo->peer.hash)
+	{
+		gnutls_datum_t	pub = {credinfo->local.cert, credinfo->local.certsize},
+						priv = {credinfo->local.key, credinfo->local.keysize};
+		qgnutls_certificate_allocate_credentials (&newf->certcred);
+		qgnutls_certificate_set_x509_key_mem(newf->certcred, &pub, &priv, GNUTLS_X509_FMT_DER);
+
+		newf->peerhashfunc = credinfo->peer.hash;
+		memcpy(newf->peerdigest, credinfo->peer.digest, newf->peerhashfunc->digestsize);
+		qgnutls_certificate_set_verify_function (newf->certcred, SSL_CheckFingerprint);
+	}
+
+	SSL_SetCertificateName(newf, credinfo?credinfo->peer.name:NULL);
 
 	if (!SSL_InitConnection(newf, isserver, true))
 	{
@@ -1613,7 +1666,7 @@ static neterr_t GNUDTLS_Received(void *ctx, sizebuf_t *message)
 				message->data, message->cursize,
 				&f->prestate);
 
-		if (ret < 0)
+		if (ret == GNUTLS_E_BAD_COOKIE)
 		{
 			qgnutls_dtls_cookie_send(&cookie_key,
 					&cli_addr, sizeof(cli_addr),
@@ -1621,6 +1674,8 @@ static neterr_t GNUDTLS_Received(void *ctx, sizebuf_t *message)
 					(gnutls_transport_ptr_t)f, DTLS_Push);
 			return NETERR_CLOGGED;
 		}
+		else if (ret < 0)
+			return NETERR_NOROUTE;
 		f->challenging = false;
 
 		qgnutls_dtls_prestate_set(f->session, &f->prestate);
@@ -1741,6 +1796,80 @@ static neterr_t GNUDTLS_Timeouts(void *ctx)
 	return NETERR_SENT;
 }
 
+static qboolean GNUDTLS_GenTempCertificate(const char *subject, struct dtlslocalcred_s *qcred)
+{
+	gnutls_datum_t priv = {NULL}, pub = {NULL};
+	gnutls_x509_privkey_t key;
+	gnutls_x509_crt_t cert;
+	char serial[64];
+	char randomsub[32+1];
+	const char *errstr;
+	gnutls_pk_algorithm_t privalgo = GNUTLS_PK_RSA;
+	int ret;
+
+	qgnutls_x509_privkey_init(&key);
+	ret = qgnutls_x509_privkey_generate(key, privalgo, qgnutls_sec_param_to_pk_bits(privalgo, GNUTLS_SEC_PARAM_HIGH), 0);
+	if (ret < 0)
+		Con_Printf(CON_ERROR"gnutls_x509_privkey_generate failed: %i\n", ret);
+	ret = qgnutls_x509_privkey_export2(key, GNUTLS_X509_FMT_DER, &priv);
+	if (ret < 0)
+		Con_Printf(CON_ERROR"gnutls_x509_privkey_export2 failed: %i\n", ret);
+
+	//stoopid browsers insisting that serial numbers are different even on throw-away self-signed certs.
+	//we should probably just go and make our own root ca/master. post it a cert and get a signed one (with sequential serial) back or something.
+	//we'll probably want something like that for client certs anyway, for stat tracking.
+	Q_snprintfz(serial, sizeof(serial), "%u", (unsigned)time(NULL));
+
+	qgnutls_x509_crt_init(&cert);
+	qgnutls_x509_crt_set_version(cert, 1);
+	qgnutls_x509_crt_set_activation_time(cert, time(NULL)-1);
+	qgnutls_x509_crt_set_expiration_time(cert, time(NULL)+(time_t)10*365*24*60*60);
+	qgnutls_x509_crt_set_serial(cert, serial, strlen(serial));
+//	qgnutls_x509_crt_set_key_usage(cert, GNUTLS_KEY_DIGITAL_SIGNATURE);
+	if (!subject)
+	{
+		qbyte tmp[16];
+		Sys_RandomBytes(tmp, sizeof(tmp));
+		randomsub[Base16_EncodeBlock(tmp, sizeof(tmp), randomsub, sizeof(randomsub))] = 0;
+		subject = randomsub;
+	}
+
+	if (qgnutls_x509_crt_set_dn(cert, va("CN=%s", subject), &errstr) < 0)
+		Con_Printf(CON_ERROR"gnutls_x509_crt_set_dn failed: %s\n", errstr);
+	if (qgnutls_x509_crt_set_issuer_dn(cert, va("CN=%s", subject), &errstr) < 0)
+		Con_Printf(CON_ERROR"gnutls_x509_crt_set_issuer_dn failed: %s\n", errstr);
+//	qgnutls_x509_crt_set_key_usage(cert, GNUTLS_KEY_KEY_ENCIPHERMENT|GNUTLS_KEY_DATA_ENCIPHERMENT|);
+
+	qgnutls_x509_crt_set_key(cert, key);
+
+	/*sign it with our private key*/
+	{
+		gnutls_privkey_t akey;
+		qgnutls_privkey_init(&akey);
+		qgnutls_privkey_import_x509(akey, key, GNUTLS_PRIVKEY_IMPORT_COPY);
+		ret = qgnutls_x509_crt_privkey_sign(cert, cert, akey, GNUTLS_DIG_SHA256, 0);
+		if (ret < 0)
+			Con_Printf(CON_ERROR"gnutls_x509_crt_privkey_sign failed: %i\n", ret);
+		qgnutls_privkey_deinit(akey);
+	}
+	ret = qgnutls_x509_crt_export2(cert, GNUTLS_X509_FMT_DER, &pub);
+	qgnutls_x509_crt_deinit(cert);
+	qgnutls_x509_privkey_deinit(key);
+	if (ret < 0)
+		Con_Printf(CON_ERROR"gnutls_x509_crt_export2 failed: %i\n", ret);
+
+	//okay, we have them in memory, make sure the rest of the engine can play with it.
+	qcred->certsize = pub.size;
+	memcpy(qcred->cert = Z_Malloc(pub.size), pub.data, pub.size);
+
+	qcred->keysize = priv.size;
+	memcpy(qcred->key = Z_Malloc(priv.size), priv.data, priv.size);
+
+	(*qgnutls_free)(priv.data);
+	(*qgnutls_free)(pub.data);
+
+	return true;
+}
 static const dtlsfuncs_t dtlsfuncs_gnutls =
 {
 	GNUDTLS_CreateContext,
@@ -1749,6 +1878,8 @@ static const dtlsfuncs_t dtlsfuncs_gnutls =
 	GNUDTLS_Transmit,
 	GNUDTLS_Received,
 	GNUDTLS_Timeouts,
+	NULL,
+	GNUDTLS_GenTempCertificate
 };
 static const dtlsfuncs_t *GNUDTLS_InitServer(void)
 {
@@ -1760,6 +1891,8 @@ static const dtlsfuncs_t *GNUDTLS_InitServer(void)
 }
 static const dtlsfuncs_t *GNUDTLS_InitClient(void)
 {
+	if (!SSL_InitGlobal(false))
+		return NULL;
 	return &dtlsfuncs_gnutls;
 }
 #else

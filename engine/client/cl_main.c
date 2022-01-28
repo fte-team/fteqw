@@ -1188,7 +1188,7 @@ void CL_CheckForResend (void)
 			return;
 	}
 	else
-		connectinfo.clogged = false;
+		connectinfo.clogged = false; //do the prints and everything.
 
 #ifdef HAVE_DTLS
 	if (connectinfo.numadr>0 && connectinfo.adr[0].prot == NP_DTLS)
@@ -1257,6 +1257,9 @@ void CL_CheckForResend (void)
 		else
 			Con_TPrintf ("Connecting to %s...\n", cls.servername);
 	}
+
+	if (connectinfo.clogged)
+		connectinfo.clogged = false;
 
 	if (connectinfo.tries == 0 && connectinfo.nextadr < connectinfo.numadr)
 		if (!NET_EnsureRoute(cls.sockets, "conn", cls.servername, to))
@@ -1415,6 +1418,14 @@ void CL_BeginServerReconnect(void)
 		NET_DTLS_Disconnect(cls.sockets, &connectinfo.adr[0]);
 	connectinfo.dtlsupgrade = 0;
 #endif
+#ifdef SUPPORT_ICE
+	while (connectinfo.numadr)	//remove any ICE addresses. probably we'll end up with no addresses left leaving us free to re-resolve giving us the original(ish) rtc connection.
+	{
+		if (connectinfo.adr[connectinfo.numadr-1].type != NA_ICE)
+			break;
+		connectinfo.numadr--;
+	}
+#endif
 	if (*cl_disconnectreason.string)
 		Cvar_Set(&cl_disconnectreason, "");
 	connectinfo.trying = true;
@@ -1426,6 +1437,13 @@ void CL_BeginServerReconnect(void)
 	NET_InitClient(false);
 }
 
+void CL_Transfer(netadr_t *adr)
+{
+	connectinfo.adr[0] = *adr;
+	connectinfo.numadr = 1;
+	connectinfo.istransfer = true;
+	CL_CheckForResend();
+}
 void CL_Transfer_f(void)
 {
 	char oldguid[64];
@@ -3677,7 +3695,6 @@ void CL_ConnectionlessPacket (void)
 			Validation_Apply_Ruleset();
 			Netchan_Setup(NS_CLIENT, &cls.netchan, &net_from, connectinfo.qport);
 			CL_ParseEstablished();
-			Con_DPrintf ("CL_EstablishConnection: connected to %s\n", cls.servername);
 
 			cls.netchan.isnqprotocol = true;
 			cls.protocol = CP_NETQUAKE;
@@ -3747,11 +3764,14 @@ void CL_ConnectionlessPacket (void)
 		else if (!strcmp(com_token, "tlsopened"))
 		{	//server is letting us know that its now listening for a dtls handshake.
 #ifdef HAVE_DTLS
+			dtlscred_t cred;
 			Con_Printf (S_COLOR_GRAY"dtlsopened\n");
 			if (!CL_IsPendingServerAddress(&net_from))
 				return;
 
-			if (NET_DTLS_Create(cls.sockets, &net_from, cls.servername))
+			memset(&cred, 0, sizeof(cred));
+			cred.peer.name = cls.servername;
+			if (NET_DTLS_Create(cls.sockets, &net_from, &cred))
 			{
 				connectinfo.dtlsupgrade = DTLS_ACTIVE;
 				connectinfo.numadr = 1;	//fixate on this resolved address.
@@ -3863,21 +3883,6 @@ client_connect:	//fixme: make function
 #endif
 			CL_SendClientCommand(true, "new");
 		cls.state = ca_connected;
-		if (cls.netchan.remote_address.type != NA_LOOPBACK)
-		{
-			switch(cls.protocol)
-			{
-			case CP_QUAKEWORLD:	Con_DPrintf("QW ");	break;
-			case CP_NETQUAKE:	Con_Printf ("NQ ");	break;
-			case CP_QUAKE2:		Con_Printf ("Q2 ");	break;
-			case CP_QUAKE3:		Con_Printf ("Q3 ");	break;
-			default: break;
-			}
-			if (cls.netchan.remote_address.prot == NP_DTLS || cls.netchan.remote_address.prot == NP_TLS || cls.netchan.remote_address.prot == NP_WSS)
-				Con_TPrintf ("Connected (^[^2encrypted\\tip\\Any passwords will be sent securely, but may still be logged^]).\n");
-			else
-				Con_TPrintf ("Connected (^[^1plain-text\\tip\\"CON_WARNING"Do not type passwords as they can potentially be seen by network sniffers^]).\n");
-		}
 #ifdef QUAKESPYAPI
 		allowremotecmd = false; // localid required now for remote cmds
 #endif
@@ -4060,11 +4065,6 @@ void CLNQ_ConnectionlessPacket(void)
 		cls.protocol = CP_NETQUAKE;
 		cls.state = ca_connected;
 
-		if (cls.netchan.remote_address.prot == NP_DTLS || cls.netchan.remote_address.prot == NP_TLS || cls.netchan.remote_address.prot == NP_WSS)
-			Con_TPrintf ("Connected (^[^2encrypted\\tip\\Any passwords will be sent securely, but may still be logged^]).\n");
-		else
-			Con_TPrintf ("Connected (^[^1plain-text\\tip\\"CON_WARNING"Do not type passwords as they can potentially be seen by network sniffers^]).\n");
-
 		total_loading_size = 100;
 		current_loading_size = 0;
 		SCR_SetLoadingStage(LS_CLIENT);
@@ -4155,7 +4155,7 @@ void CL_ReadPacket(void)
 		if (net_message.cursize == 1 && net_message.data[0] == A2A_ACK)
 			Con_TPrintf ("%s: Ack (Pong)\n", NET_AdrToString(adr, sizeof(adr), &net_from));
 		else
-			Con_TPrintf ("%s: Runt packet\n", NET_AdrToString(adr, sizeof(adr), &net_from));
+			Con_TPrintf ("%s: Runt packet (%i bytes)\n", NET_AdrToString(adr, sizeof(adr), &net_from), net_message.cursize);
 		return;
 	}
 

@@ -266,8 +266,9 @@ enum iceproto_e
 };
 enum icemode_e
 {
-	ICEM_RAW,	//not actually interactive beyond a simple handshake.
-	ICEM_ICE		//rfc5245. meant to be able to holepunch, but not implemented properly yet.
+	ICEM_RAW,		//not actually interactive beyond a simple handshake.
+	ICEM_ICE,		//rfc5245. meant to be able to holepunch, but not implemented properly yet.
+	ICEM_WEBRTC,	//IP+UDP+ICE+DTLS+SCTP... no more layers? :o
 };
 enum icestate_e
 {
@@ -346,15 +347,33 @@ enum hashvalidation_e
 };
 struct dtlsfuncs_s;
 #ifdef HAVE_DTLS
+typedef struct dtlscred_s
+{
+	struct dtlslocalcred_s
+	{
+		void *cert;
+		size_t certsize;
+		void *key;
+		size_t keysize;
+	} local;
+	struct dtlspeercred_s
+	{
+		const char *name;	//cert must match this if specified
+
+		hashfunc_t *hash;	//if set peer's cert MUST match the specified digest (with this hash function)
+		qbyte digest[DIGEST_MAXSIZE];
+	} peer;
+} dtlscred_t;
 typedef struct dtlsfuncs_s
 {
-	void *(*CreateContext)(const char *remotehost, void *cbctx, neterr_t(*push)(void *cbctx, const qbyte *data, size_t datasize), qboolean isserver);	//if remotehost is null then their certificate will not be validated.
+	void *(*CreateContext)(const dtlscred_t *credinfo, void *cbctx, neterr_t(*push)(void *cbctx, const qbyte *data, size_t datasize), qboolean isserver);	//the certificate to advertise.
 	qboolean (*CheckConnection)(void *cbctx, void *peeraddr, size_t peeraddrsize, void *indata, size_t insize, neterr_t(*push)(void *cbctx, const qbyte *data, size_t datasize), void (*EstablishTrueContext)(void **cbctx, void *state));
 	void (*DestroyContext)(void *ctx);
 	neterr_t (*Transmit)(void *ctx, const qbyte *data, size_t datasize);
 	neterr_t (*Received)(void *ctx, sizebuf_t *message);	//operates in-place...
 	neterr_t (*Timeouts)(void *ctx);
 	void (*GetPeerCertificate)(void *ctx);
+	qboolean (*GenTempCertificate)(const char *subject, struct dtlslocalcred_s *cred);
 } dtlsfuncs_t;
 const dtlsfuncs_t *DTLS_InitServer(void);
 const dtlsfuncs_t *DTLS_InitClient(void);
@@ -428,6 +447,7 @@ enum icemsgtype_s
 	ICEMSG_ACCEPT=5,	//go go go (response from offer)
 	ICEMSG_SERVERINFO=6,//server->broker (for advertising the server properly)
 	ICEMSG_SERVERUPDATE=7,//broker->browser (for querying available server lists)
+	ICEMSG_NAMEINUSE=8,	//requested resource is unavailable.
 };
 
 enum websocketpackettype_e

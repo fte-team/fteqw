@@ -47,6 +47,9 @@ typedef enum {
 #ifdef HAVE_WEBSOCKCL
 	NA_WEBSOCKET,
 #endif
+#ifdef SUPPORT_ICE
+	NA_ICE
+#endif
 } netadrtype_t;
 typedef enum {
 	NP_DGRAM,
@@ -79,6 +82,9 @@ typedef struct netadr_s
 			char user[32];
 			char channel[12];
 		} irc;
+#endif
+#ifdef SUPPORT_ICE
+		char icename[16];
 #endif
 #ifdef HAVE_WEBSOCKCL
 		char websocketurl[64];
@@ -187,11 +193,16 @@ enum certprops_e
 size_t NET_GetConnectionCertificate(struct ftenet_connections_s *col, netadr_t *a, enum certprops_e prop, char *out, size_t outsize);
 
 #ifdef HAVE_DTLS
-qboolean NET_DTLS_Create(struct ftenet_connections_s *col, netadr_t *to, const char *hostname);
+struct dtlscred_s;
+struct dtlsfuncs_s;
+qboolean NET_DTLS_Create(struct ftenet_connections_s *col, netadr_t *to, const struct dtlscred_s *cred);
 qboolean NET_DTLS_Decode(struct ftenet_connections_s *col);
 qboolean NET_DTLS_Disconnect(struct ftenet_connections_s *col, netadr_t *to);
 void NET_DTLS_Timeouts(struct ftenet_connections_s *col);
 extern cvar_t dtls_psk_hint, dtls_psk_user, dtls_psk_key;
+#endif
+#ifdef SUPPORT_ICE
+neterr_t ICE_SendPacket(struct ftenet_connections_s *col, size_t length, const void *data, netadr_t *to);
 #endif
 extern cvar_t timeout;
 extern cvar_t tls_ignorecertificateerrors;	//evil evil evil.

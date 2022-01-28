@@ -13,7 +13,7 @@ static cvar_t *pdtls_psk_hint, *pdtls_psk_user, *pdtls_psk_key;
 #include "openssl/err.h"
 #include "openssl/conf.h"
 
-#define assert(c) {if (!(c)) Con_Printf("assert failed: "STRINGIFY(c)"\n");}
+#define assert(c) do{if (!(c)) Con_Printf("assert failed: "STRINGIFY(c)"\n");}while(0)
 
 static qboolean OSSL_Init(void);
 static int ossl_fte_certctx;
@@ -21,6 +21,9 @@ struct fte_certctx_s
 {
 	const char *peername;
 	qboolean dtls;
+
+	hashfunc_t *hash;	//if set peer's cert MUST match the specified digest (with this hash function)
+	qbyte digest[DIGEST_MAXSIZE];
 };
 
 static struct
@@ -221,6 +224,27 @@ static int OSSL_Verify_Peer(int preverify_ok, X509_STORE_CTX *x509_ctx)
 	SSL *ssl = X509_STORE_CTX_get_ex_data(x509_ctx, SSL_get_ex_data_X509_STORE_CTX_idx());
 	struct fte_certctx_s *uctx = SSL_get_ex_data(ssl, ossl_fte_certctx);
 
+	if (uctx->hash)
+	{	//our special 'must-match-digest' mode without any other kind of trust.
+		X509* cert = X509_STORE_CTX_get_current_cert(x509_ctx);
+		size_t blobsize;
+		qbyte *blob;
+		qbyte *end;
+		qbyte digest[DIGEST_MAXSIZE];
+		void *hctx = alloca(uctx->hash->contextsize);
+		blobsize = i2d_X509(cert, NULL);
+		blob = alloca(blobsize);
+		end = blob;
+		i2d_X509(cert, &end);
+
+		uctx->hash->init(hctx);
+		uctx->hash->process(hctx, blob, blobsize);
+		uctx->hash->terminate(digest, hctx);
+
+		//return 1 for success
+		return !memcmp(digest, uctx->digest, uctx->hash->digestsize);
+	}
+
 	if(preverify_ok == 0)
 	{
 		int depth = X509_STORE_CTX_get_error_depth(x509_ctx);
@@ -279,6 +303,7 @@ static int OSSL_Verify_Peer(int preverify_ok, X509_STORE_CTX *x509_ctx)
 				}
 				if (netfuncs->CertLog_ConnectOkay && netfuncs->CertLog_ConnectOkay(uctx->peername, blob, blobsize, probs))
 					return 1; //ignore the errors...
+				return 0;	//allow it.
 			}
 #endif
 		}
@@ -708,10 +733,11 @@ unsigned int OSSL_CL_Validate_PSK(SSL *ssl, const char *hint, char *identity, un
 	return 0;	//we don't know what to report.
 }
 
-static void *OSSL_CreateContext(const char *remotehost, void *cbctx, neterr_t(*push)(void *cbctx, const qbyte *data, size_t datasize), qboolean isserver)
+static void *OSSL_CreateContext(const dtlscred_t *cred, void *cbctx, neterr_t(*push)(void *cbctx, const qbyte *data, size_t datasize), qboolean isserver)
 {	//if remotehost is null then their certificate will not be validated.
 	ossldtls_t *n;
 	BIO *sink;
+	const char *remotehost = cred?cred->peer.name:NULL;
 
 	if (!remotehost)
 		remotehost = "";
@@ -724,6 +750,8 @@ static void *OSSL_CreateContext(const char *remotehost, void *cbctx, neterr_t(*p
 
 	n->cert.peername = OSSL_SetCertificateName((char*)(n+1), remotehost);
 	n->cert.dtls = true;
+	n->cert.hash = cred->peer.hash;
+	memcpy(n->cert.digest, cred->peer.digest, sizeof(cred->peer.digest));
 
 	if (n->ctx)
 	{
@@ -731,11 +759,25 @@ static void *OSSL_CreateContext(const char *remotehost, void *cbctx, neterr_t(*p
 
 		SSL_CTX_set_session_cache_mode(n->ctx, SSL_SESS_CACHE_OFF);
 
-		SSL_CTX_set_verify(n->ctx, SSL_VERIFY_PEER, OSSL_Verify_Peer);
+		SSL_CTX_set_verify(n->ctx, SSL_VERIFY_PEER|(cred->peer.hash?SSL_VERIFY_FAIL_IF_NO_PEER_CERT:0), OSSL_Verify_Peer);
 		SSL_CTX_set_verify_depth(n->ctx, 5);
-		SSL_CTX_set_options(n->ctx, SSL_OP_NO_COMPRESSION);	//compression allows guessing the contents of the stream somehow.
+		SSL_CTX_set_options(n->ctx, SSL_OP_NO_COMPRESSION|	//compression allows guessing the contents of the stream somehow.
+									SSL_OP_NO_RENEGOTIATION);
 
-		if (isserver)
+		if (cred->local.certsize||cred->local.keysize)
+		{
+			X509 *cert = NULL;
+			EVP_PKEY *key = NULL;
+			const unsigned char *ffs;
+			ffs = cred->local.cert;
+			d2i_X509(&cert, &ffs, cred->local.certsize);
+			SSL_CTX_use_certificate(n->ctx, cert);
+
+			ffs = cred->local.key;
+			d2i_PrivateKey(EVP_PKEY_RSA, &key, &ffs, cred->local.keysize);
+			SSL_CTX_use_PrivateKey(n->ctx, key);
+		}
+		else if (isserver)
 		{
 			if (*pdtls_psk_user->string)
 			{
@@ -821,7 +863,7 @@ qboolean OSSL_CheckConnection(void *cbctx, void *peeraddr, size_t peeraddrsize, 
 
 	if (!pending)
 	{
-		pending = OSSL_CreateContext("localhost", cbctx, push, true);
+		pending = OSSL_CreateContext(NULL, cbctx, push, true);
 
 		SSL_CTX_set_cookie_generate_cb(pending->ctx, OSSL_GenCookie);
 		SSL_CTX_set_cookie_verify_cb(pending->ctx, OSSL_VerifyCookie);
@@ -929,6 +971,50 @@ static neterr_t OSSL_Timeouts(void *ctx)
 	return OSSL_Received(ctx, NULL);
 }
 
+qboolean OSSL_GenTempCertificate(const char *subject, struct dtlslocalcred_s *cred)
+{
+	EVP_PKEY*pkey = EVP_PKEY_new();
+	RSA		*rsa = RSA_new();
+	BIGNUM	*pkexponent = BN_new();
+	qbyte *ffs;
+	//The pseudo-random number generator must be seeded prior to calling RSA_generate_key_ex().
+	BN_set_word(pkexponent, RSA_F4);
+	RSA_generate_key_ex(rsa, 2048, pkexponent, NULL);
+	BN_free(pkexponent);
+
+	EVP_PKEY_assign_RSA(pkey, rsa);
+
+	cred->keysize = i2d_PrivateKey(pkey, NULL);
+	cred->key = ffs = plugfuncs->Malloc(cred->keysize);
+	cred->keysize = i2d_PrivateKey(pkey, &ffs);
+
+	{
+		X509 *x509 = X509_new();
+		ASN1_INTEGER_set(X509_get_serialNumber(x509), 1);
+		X509_gmtime_adj(X509_get_notBefore(x509), 0);
+		X509_gmtime_adj(X509_get_notAfter(x509), 365*24*60*60);	//lots of validity
+		X509_set_pubkey(x509, pkey);
+
+		{
+			X509_NAME	*name = X509_get_subject_name(x509);
+			X509_NAME_add_entry_by_txt(name, "CN", MBSTRING_ASC, (subject?subject:"localhost"), -1, -1, 0);
+			X509_set_issuer_name(x509, name);
+		}
+
+		X509_sign(x509, pkey, EVP_sha1());
+
+		cred->certsize = i2d_X509(x509, NULL);
+		cred->cert = ffs = plugfuncs->Malloc(cred->certsize);
+		cred->certsize = i2d_X509(x509, &ffs);
+
+		X509_free(x509);
+	}
+
+	EVP_PKEY_free(pkey);	//also frees the rsa pointer.
+
+	return true;
+}
+
 static dtlsfuncs_t ossl_dtlsfuncs =
 {
 	OSSL_CreateContext,
@@ -936,7 +1022,9 @@ static dtlsfuncs_t ossl_dtlsfuncs =
 	OSSL_DestroyContext,
 	OSSL_Transmit,
 	OSSL_Received,
-	OSSL_Timeouts
+	OSSL_Timeouts,
+	NULL,
+	OSSL_GenTempCertificate,
 };
 static const dtlsfuncs_t *OSSL_InitClient(void)
 {

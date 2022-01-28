@@ -8,6 +8,14 @@ typedef struct
 	unsigned int magiccookie;
 	unsigned int transactid[3];
 } stunhdr_t;
+//class
+#define STUN_REQUEST	0x0000
+#define STUN_REPLY		0x0100
+#define STUN_ERROR		0x0110
+#define STUN_INDICATION	0x0010
+//
+#define STUN_BINDING	0x0001
+
 typedef struct
 {
 	unsigned short attrtype;
@@ -64,7 +72,11 @@ struct icestate_s
 	struct icestate_s *next;
 	void *module;
 
-	netadr_t chosenpeer;
+	netadr_t qadr;			//address reported to the rest of the engine (packets from our peer get remapped to this)
+	netadr_t chosenpeer;	//address we're sending our data to.
+
+	void *dtlsstate;
+	struct sctp_s *sctp;	//ffs! extra processing needed.
 
 	netadr_t pubstunserver;
 	unsigned int stunretry;	//once a second, extended to once a minite on reply
@@ -98,7 +110,14 @@ struct icestate_s
 	unsigned int tielow;
 	int foundation;
 
-	ftenet_connections_t *connections;
+	qboolean blockcandidates;		//don't send candidates yet.
+	const dtlsfuncs_t *dtlsfuncs;
+	qboolean dtlspassive;	//true=server, false=client (separate from ice controller and whether we're hosting. yay...)
+	dtlscred_t cred;	//credentials info for dtls (both peer and local info)
+	quint16_t mysctpport;
+	quint16_t peersctpport;
+
+	ftenet_connections_t *connections;	//used only for PRIVATE sockets.
 
 	struct icecodecslot_s
 	{
@@ -107,6 +126,48 @@ struct icestate_s
 		char *name;
 	} codecslot[34];		//96-127. don't really need to care about other ones.
 };
+
+typedef struct sctp_s
+{
+	quint16_t myport, peerport;
+	qboolean peerhasfwdtsn;
+	double nextreinit;
+	void *cookie;	//sent part of the handshake (might need resending).
+	size_t cookiesize;
+	struct
+	{
+		quint32_t verifycode;
+		qboolean writable;
+		quint32_t tsn;	//Transmit Sequence Number
+
+		quint32_t ctsn;	//acked tsn
+		quint32_t losttsn; //total gap size...
+	} o;
+	struct
+	{
+		quint32_t verifycode;
+		int ackneeded;
+		quint32_t ctsn;
+		quint32_t htsn;	//so we don't have to walk so many packets to count gaps.
+#define SCTP_RCVSIZE 2048	//cannot be bigger than 65536
+		qbyte received[SCTP_RCVSIZE/8];
+
+		struct
+		{
+			quint32_t	firsttns; //so we only ack fragments that were complete.
+			quint32_t	tsn; //if a continuation doesn't match, we drop it.
+			quint32_t	ppid;
+			quint16_t	sid;
+			quint16_t	seq;
+			size_t		size;
+			qboolean	toobig;
+			qbyte		buf[65536];
+		} r;
+	} i;
+	unsigned short qstreamid;	//in network endian.
+} sctp_t;
+static neterr_t SCTP_Transmit(sctp_t *sctp, struct icestate_s *peer, const void *data, size_t length);
+
 static struct icestate_s *icelist;
 
 static struct icecodecslot_s *ICE_GetCodecSlot(struct icestate_s *ice, int slot)
@@ -258,13 +319,20 @@ static ftenet_connections_t *ICE_PickConnection(struct icestate_s *con)
 	}
 	return NULL;
 }
+static neterr_t ICE_Transmit(void *cbctx, const qbyte *data, size_t datasize)
+{
+	struct icestate_s *ice = cbctx;
+	return NET_SendPacket(ICE_PickConnection(ice), datasize, data, &ice->chosenpeer);
+}
+
 static struct icestate_s *QDECL ICE_Create(void *module, const char *conname, const char *peername, enum icemode_e mode, enum iceproto_e proto)
 {
 	ftenet_connections_t *collection;
 	struct icestate_s *con;
+	static unsigned int icenum;
 
 	//only allow modes that we actually support.
-	if (mode != ICEM_RAW && mode != ICEM_ICE)
+	if (mode != ICEM_RAW && mode != ICEM_ICE && mode != ICEM_WEBRTC)
 		return NULL;
 
 	//only allow protocols that we actually support.
@@ -317,7 +385,7 @@ static struct icestate_s *QDECL ICE_Create(void *module, const char *conname, co
 	
 	con = Z_Malloc(sizeof(*con));
 	con->conname = Z_StrDup(conname);
-	con->friendlyname = Z_StrDup(peername);
+	con->friendlyname = peername?Z_StrDup(peername):Z_StrDupf("%i", icenum++);
 	con->proto = proto;
 	con->rpwd = Z_StrDup("");
 	con->rufrag = Z_StrDup("");
@@ -326,6 +394,28 @@ static struct icestate_s *QDECL ICE_Create(void *module, const char *conname, co
 	Q_strncpyz(con->originaddress, "127.0.0.1", sizeof(con->originaddress));
 
 	con->mode = mode;
+	con->blockcandidates = true;	//until offers/answers are sent.
+	con->dtlspassive = (proto == ICEP_QWSERVER);	//note: may change later.
+
+	if (mode == ICEM_WEBRTC)
+	{	//dtls+sctp is a mandatory part of our connection, sadly.
+		if (!con->dtlsfuncs)
+		{
+			if (con->dtlspassive)
+				con->dtlsfuncs = DTLS_InitServer();
+			else
+				con->dtlsfuncs = DTLS_InitClient();	//credentials are a bit different, though fingerprints make it somewhat irrelevant.
+		}
+		if (con->dtlsfuncs && con->dtlsfuncs->GenTempCertificate && !con->cred.local.certsize)
+			con->dtlsfuncs->GenTempCertificate(NULL, &con->cred.local);
+
+		con->mysctpport = 27500;
+	}
+
+	con->qadr.type = NA_ICE;
+	con->qadr.prot = NP_DGRAM;
+	con->qadr.port = con->mysctpport;
+	Q_strncpyz(con->qadr.address.icename, con->friendlyname, sizeof(con->qadr.address.icename));
 
 	con->next = icelist;
 	icelist = con;
@@ -538,27 +628,30 @@ static void ICE_ToStunServer(struct icestate_s *con)
 	NET_SendPacket(collection, buf.cursize, data, &con->pubstunserver);
 }
 
+int ParsePartialIP(const char *s, netadr_t *a);
 static void QDECL ICE_AddRCandidateInfo(struct icestate_s *con, struct icecandinfo_s *n)
 {
 	struct icecandidate_s *o;
 	qboolean isnew;
 	netadr_t peer;
+	int peerbits;
 	//I don't give a damn about rtpc.
 	if (n->component != 1)
 		return;
 	if (n->transport != 0)
 		return;	//only UDP is supported.
 
-	if (!NET_StringToAdr(n->addr, n->port, &peer))
-		return;
-
-	if (peer.type == NA_IP)
+	//don't use the regular string->addr, because browsers seem to shove internal gibberish names in there that waste time to resolve. hostnames don't really make sense here anyway.
+	peerbits = ParsePartialIP(n->addr, &peer);
+	peer.prot = NP_DGRAM;
+	peer.port = n->port;
+	if (peer.type == NA_IP && peerbits == 32)
 	{
 		//ignore invalid addresses
 		if (!peer.address.ip[0] && !peer.address.ip[1] && !peer.address.ip[2] && !peer.address.ip[3])
 			return;
 	}
-	else if (peer.type == NA_IPV6)
+	else if (peer.type == NA_IPV6 && peerbits == 128)
 	{
 		//ignore invalid addresses
 		int i;
@@ -568,6 +661,8 @@ static void QDECL ICE_AddRCandidateInfo(struct icestate_s *con, struct icecandin
 		if (i == countof(peer.address.ip6))
 			return; //all clear. in6_addr_any
 	}
+	else
+		return;	//bad address type, or partial.
 
 	if (*n->candidateid)
 	{
@@ -624,6 +719,13 @@ static void ICE_ParseSDPLine(struct icestate_s *con, const char *value)
 		ICE_Set(con, "rpwd", value+10);
 	else if (!strncmp(value, "a=ice-ufrag:", 12))
 		ICE_Set(con, "rufrag", value+12);
+	else if (!strncmp(value, "a=setup:", 8))
+	{	//this is their state, so we want the opposite.
+		if (!strncmp(value+8, "passive", 7))
+			con->dtlspassive = false;
+		else if (!strncmp(value+8, "active", 6))
+			con->dtlspassive = true;
+	}
 	else if (!strncmp(value, "a=rtpmap:", 9))
 	{
 		char name[64];
@@ -639,6 +741,60 @@ static void ICE_ParseSDPLine(struct icestate_s *con, const char *value)
 			*sl = '@';
 		ICE_Set(con, va("codec%i", codec), name);
 	}
+	else if (!strncmp(value, "a=fingerprint:", 14))
+	{
+		char name[64];
+		value = COM_ParseOut(value+14, name, sizeof(name));
+		if (!strcasecmp(name, "sha-1"))
+			con->cred.peer.hash = &hash_sha1;
+		else if (!strcasecmp(name, "sha-2224"))
+			con->cred.peer.hash = &hash_sha224;
+		else if (!strcasecmp(name, "sha-256"))
+			con->cred.peer.hash = &hash_sha256;
+		else if (!strcasecmp(name, "sha-384"))
+			con->cred.peer.hash = &hash_sha384;
+		else if (!strcasecmp(name, "sha-512"))
+			con->cred.peer.hash = &hash_sha512;
+		else
+			con->cred.peer.hash = NULL; //hash not recognised
+		if (con->cred.peer.hash)
+		{
+			int b, o, v;
+			while (*value == ' ')
+				value++;
+			for (b = 0; b < con->cred.peer.hash->digestsize; )
+			{
+				v = *value;
+				if      (v >= '0' && v <= '9')
+					o = (v-'0');
+				else if (v >= 'A' && v <= 'F')
+					o = (v-'A'+10);
+				else if (v >= 'a' && v <= 'f')
+					o = (v-'a'+10);
+				else
+					break;
+				o <<= 4;
+				v = *++value;
+				if      (v >= '0' && v <= '9')
+					o |= (v-'0');
+				else if (v >= 'A' && v <= 'F')
+					o |= (v-'A'+10);
+				else if (v >= 'a' && v <= 'f')
+					o |= (v-'a'+10);
+				else
+					break;
+				con->cred.peer.digest[b++] = o;
+				v = *++value;
+				if (v != ':')
+					break;
+				value++;
+			}
+			if (b != con->cred.peer.hash->digestsize)
+				con->cred.peer.hash = NULL; //bad!
+		}
+	}
+	else if (!strncmp(value, "a=sctp-port:", 12))
+		con->peersctpport = atoi(value+12);
 	else if (!strncmp(value, "a=candidate:", 12))
 	{
 		struct icecandinfo_s n;
@@ -651,7 +807,7 @@ static void ICE_ParseSDPLine(struct icestate_s *con, const char *value)
 		n.component = strtoul(value, (char**)&value, 0);
 
 		if(*value == ' ')value++;
-		if (!strncmp(value, "UDP ", 4))
+		if (!strncasecmp(value, "UDP ", 4))
 		{
 			n.transport = 0;
 			value += 3;
@@ -714,6 +870,7 @@ static void ICE_ParseSDPLine(struct icestate_s *con, const char *value)
 	}
 }
 
+void CL_Transfer(netadr_t *adr);
 static qboolean QDECL ICE_Set(struct icestate_s *con, const char *prop, const char *value)
 {
 	if (!strcmp(prop, "state"))
@@ -732,7 +889,7 @@ static qboolean QDECL ICE_Set(struct icestate_s *con, const char *prop, const ch
 			Con_Printf("ICE_Set invalid state %s\n", value);
 			con->state = ICE_INACTIVE;
 		}
-		con->timeout = Sys_Milliseconds();
+		con->timeout = Sys_Milliseconds() + 30;
 
 		con->retries = 0;
 
@@ -741,6 +898,25 @@ static qboolean QDECL ICE_Set(struct icestate_s *con, const char *prop, const ch
 			if (!cls.sockets)
 				NET_InitClient(false);
 #endif
+
+		if (con->state >= ICE_CONNECTING)
+		{
+			if (con->mode == ICEM_WEBRTC)
+			{
+				if (!con->dtlsstate && con->dtlsfuncs)
+				{
+					con->dtlsstate = con->dtlsfuncs->CreateContext(&con->cred, con, ICE_Transmit, con->dtlspassive);
+				}
+				if (!con->sctp)
+				{
+					con->sctp = Z_Malloc(sizeof(*con->sctp));
+					con->sctp->myport = htons(con->mysctpport);
+					con->sctp->peerport = htons(con->peersctpport);
+					Sys_RandomBytes((void*)&con->sctp->o.verifycode, sizeof(con->sctp->o.verifycode));
+					Sys_RandomBytes((void*)&con->sctp->i.verifycode, sizeof(con->sctp->i.verifycode));
+				}
+			}
+		}
 
 		if (oldstate != con->state && con->state == ICE_CONNECTED)
 		{
@@ -752,11 +928,7 @@ static qboolean QDECL ICE_Set(struct icestate_s *con, const char *prop, const ch
 			}
 #ifndef SERVERONLY
 			else if (con->proto == ICEP_QWCLIENT)
-			{
-				//FIXME: should make a proper connection type for this so we can switch to other candidates if one route goes down
-//				Con_Printf("Try typing connect %s\n", NET_AdrToString(msg, sizeof(msg), &con->chosenpeer));
-				Cbuf_AddText(va("\ncl_transfer \"%s\"\n", NET_AdrToString(msg, sizeof(msg), &con->chosenpeer)), RESTRICT_LOCAL);
-			}
+				CL_Transfer(&con->qadr);	//okay, the client should be using this ice connection now.
 #endif
 #ifndef CLIENTONLY
 			else if (con->proto == ICEP_QWSERVER)
@@ -766,7 +938,7 @@ static qboolean QDECL ICE_Set(struct icestate_s *con, const char *prop, const ch
 			}
 #endif
 			if (con->state == ICE_CONNECTED)
-				Con_Printf("%s connection established (peer %s).\n", con->proto == ICEP_VOICE?"voice":"data", NET_AdrToString(msg, sizeof(msg), &con->chosenpeer));
+				Con_Printf(S_COLOR_GRAY "%s connection established (peer %s).\n", con->proto == ICEP_VOICE?"voice":"data", NET_AdrToString(msg, sizeof(msg), &con->chosenpeer));
 		}
 
 #if !defined(SERVERONLY) && defined(VOICECHAT)
@@ -818,7 +990,7 @@ static qboolean QDECL ICE_Set(struct icestate_s *con, const char *prop, const ch
 			if (!NET_StringToAdr(con->stunserver, con->stunport, &con->pubstunserver))
 				return false;
 	}
-	else if (!strcmp(prop, "sdp"))
+	else if (!strcmp(prop, "sdp") || !strcmp(prop, "sdpoffer") || !strcmp(prop, "sdpanswer"))
 	{
 		char line[8192];
 		const char *eol;
@@ -832,10 +1004,12 @@ static qboolean QDECL ICE_Set(struct icestate_s *con, const char *prop, const ch
 			{
 				memcpy(line, value, eol-value);
 				line[eol-value] = 0;
+				if (eol>value && line[eol-value-1] == '\r')
+					line[eol-value-1] = 0;
 				ICE_ParseSDPLine(con, line);
 			}
 
-			if (eol)
+			if (eol && *eol)
 				eol++;
 		}
 	}
@@ -923,7 +1097,7 @@ static qboolean QDECL ICE_Get(struct icestate_s *con, const char *prop, char *va
 			}
 		}
 	}
-	else if (!strcmp(prop, "sdp"))
+	else if (!strcmp(prop, "sdp") || !strcmp(prop, "sdpoffer") || !strcmp(prop, "sdpanswer"))
 	{
 		struct icecandidate_s *can;
 		netadr_t sender;
@@ -942,22 +1116,48 @@ static qboolean QDECL ICE_Get(struct icestate_s *con, const char *prop, char *va
 				sender = *addr;
 		}
 
-		Q_strncpyz(value, "v=0\n", valuelen);
-		Q_strncatz(value, va("o=%s %u %u IN IP4 %s\n", "-", con->originid, con->originversion, con->originaddress), valuelen);	//originator
-		Q_strncatz(value, va("s=%s\n", con->conname), valuelen);
-		Q_strncatz(value, va("c=IN %s %s\n", sender.type==NA_IPV6?"IP6":"IP4", NET_BaseAdrToString(tmpstr, sizeof(tmpstr), &sender)), valuelen);
-		Q_strncatz(value, "t=0 0\n", valuelen);
+		Q_strncpyz(value, "v=0\n", valuelen);	//version...
+		Q_strncatz(value, va("o=%s %u %u IN IP4 %s\n", "-", con->originid, con->originversion, con->originaddress), valuelen);	//originator. usually just dummy info.
+		Q_strncatz(value, va("s=%s\n", con->conname), valuelen);	//session name.
+		Q_strncatz(value, "t=0 0\n", valuelen);	//start+end times...
+		Q_strncatz(value, va("a=ice-options:trickle\n"), valuelen);
+
+		if ((con->proto == ICEP_QWSERVER || con->proto == ICEP_QWCLIENT) && con->mode == ICEM_WEBRTC)
+		{
+#ifdef HAVE_DTLS
+			if (con->cred.local.certsize)
+			{
+				qbyte fingerprint[DIGEST_MAXSIZE];
+				int b;
+				CalcHash(&hash_sha256, fingerprint, sizeof(fingerprint), con->cred.local.cert, con->cred.local.certsize);
+				Q_strncatz(value, "a=fingerprint:sha-256", valuelen);
+				for (b = 0; b < hash_sha256.digestsize; b++)
+					Q_strncatz(value, va(b?":%02X":" %02X", fingerprint[b]), valuelen);
+				Q_strncatz(value, "\n", valuelen);
+			}
+			Q_strncatz(value, "m=application 9 UDP/DTLS/SCTP webrtc-datachannel\n", valuelen);
+#endif
+		}
+//		Q_strncatz(value, va("c=IN %s %s\n", sender.type==NA_IPV6?"IP6":"IP4", NET_BaseAdrToString(tmpstr, sizeof(tmpstr), &sender)), valuelen);
+		Q_strncatz(value, "c=IN IP4 0.0.0.0\n", valuelen);
 		Q_strncatz(value, va("a=ice-pwd:%s\n", con->lpwd), valuelen);
 		Q_strncatz(value, va("a=ice-ufrag:%s\n", con->lufrag), valuelen);
 
-//		if (net_enable_dtls.ival)
-//			Q_strncatz(value, va("a=fingerprint:SHA-1 XX:XX:XX:XX:XX:XX:XX:XX:XX:XX:XX:XX:XX:XX:XX:XX:XX:XX:XX:XX\n", con->fingerprint), valuelen);
-		if (con->proto == ICEP_QWSERVER || con->proto == ICEP_QWCLIENT)
+		if (con->dtlsfuncs)
 		{
-#ifdef HAVE_DTLS
-//			Q_strncatz(value, "m=application 9 DTLS/SCTP 5000\n", valuelen);
-#endif
+			if (!strcmp(prop, "sdpanswer"))
+			{	//answerer decides.
+				if (con->dtlspassive)
+					Q_strncatz(value, va("a=setup:passive\n"), valuelen);
+				else
+					Q_strncatz(value, va("a=setup:active\n"), valuelen);
+			}
+			else if (!strcmp(prop, "sdpoffer"))
+				Q_strncatz(value, va("a=setup:actpass\n"), valuelen);	//don't care if we're active or passive
 		}
+
+		if (con->mysctpport)
+			Q_strncatz(value, va("a=sctp-port:%i\n", con->mysctpport), valuelen);	//stupid hardcoded thing.
 
 		/*fixme: merge the codecs into a single media line*/
 		for (i = 0; i < countof(con->codecslot); i++)
@@ -994,13 +1194,16 @@ static qboolean QDECL ICE_Get(struct icestate_s *con, const char *prop, char *va
 	return true;
 }
 
-static void ICE_Debug(struct icestate_s *con)
+static void ICE_Debug(struct icestate_s *con, qboolean islisten)
 {
 	struct icecandidate_s *can;
 	char buf[65536];
 	ICE_Get(con, "state", buf, sizeof(buf));
 	Con_Printf("ICE \"%s\" (%s):\n", con->friendlyname, buf);
-	ICE_Get(con, "sdp", buf, sizeof(buf));
+	if (islisten)
+		ICE_Get(con, "sdpanswer", buf, sizeof(buf));
+	else
+		ICE_Get(con, "sdpoffer", buf, sizeof(buf));
 	Con_Printf(S_COLOR_YELLOW "%s\n", buf);
 
 	Con_Printf("local:\n");
@@ -1128,6 +1331,10 @@ static void ICE_Destroy(struct icestate_s *con)
 {
 	if (con->connections)
 		FTENET_CloseCollection(con->connections);
+	if (con->cred.local.cert)
+		Z_Free(con->cred.local.cert);
+	if (con->cred.local.key)
+		Z_Free(con->cred.local.key);
 	//has already been unlinked
 	Z_Free(con);
 }
@@ -1153,6 +1360,7 @@ void ICE_Tick(void)
 				ICE_Set(con, "state", STRINGIFY(ICE_CONNECTED));
 			}
 			break;
+		case ICEM_WEBRTC:
 		case ICEM_ICE:
 			if (con->state == ICE_CONNECTING || con->state == ICE_FAILED)
 			{
@@ -1196,9 +1404,12 @@ void ICE_Tick(void)
 			}
 			else if (con->state == ICE_CONNECTED)
 			{
-				//keepalive
-				//if (timeout)
-				//	con->state = ICE_CONNECTING;
+				if (con->sctp)
+					SCTP_Transmit(con->sctp, con, NULL,0);	//try to keep it ticking...
+				if (con->dtlsfuncs)
+					con->dtlsfuncs->Timeouts(con->dtlsstate);
+
+				//FIXME: We should be sending a stun binding indication every 15 secs with a fingerprint attribute
 			}
 			break;
 		}
@@ -1252,9 +1463,698 @@ icefuncs_t iceapi =
 };
 #endif
 
+
+
+#if defined(SUPPORT_ICE)
+//========================================
+//WebRTC's interpretation of SCTP. its annoying, but hey its only 28 wasted bytes... along with the dtls overhead too. most of this is redundant.
+//we only send unreliably.
+
+struct sctp_header_s
+{
+	quint16_t srcport;
+	quint16_t dstport;
+	quint32_t verifycode;
+	quint32_t crc;
+};
+struct sctp_chunk_s
+{
+	qbyte type;
+#define SCTP_TYPE_DATA 0
+#define SCTP_TYPE_INIT 1
+#define SCTP_TYPE_INITACK 2
+#define SCTP_TYPE_SACK 3
+#define SCTP_TYPE_PING 4
+#define SCTP_TYPE_PONG 5
+#define SCTP_TYPE_ABORT 6
+#define SCTP_TYPE_SHUTDOWN 7
+#define SCTP_TYPE_SHUTDOWNACK 8
+#define SCTP_TYPE_ERROR 9
+#define SCTP_TYPE_COOKIEECHO 10
+#define SCTP_TYPE_COOKIEACK 11
+#define SCTP_TYPE_SHUTDOWNDONE 14
+#define SCTP_TYPE_FORWARDTSN 192
+	qbyte flags;
+	quint16_t length;
+	//value...
+};
+struct sctp_chunk_data_s
+{
+	struct sctp_chunk_s chunk;
+	quint32_t tsn;
+	quint16_t sid;
+	quint16_t seq;
+	quint32_t ppid;
+#define SCTP_PPID_DCEP 50 //datachannel establishment protocol
+#define SCTP_PPID_DATA 53 //our binary quake data.
+};
+struct sctp_chunk_init_s
+{
+	struct sctp_chunk_s chunk;
+	quint32_t verifycode;
+	quint32_t arwc;
+	quint16_t numoutstreams;
+	quint16_t numinstreams;
+	quint32_t tsn;
+};
+struct sctp_chunk_sack_s
+{
+	struct sctp_chunk_s chunk;
+	quint32_t tsn;
+	quint32_t arwc;
+	quint16_t gaps;
+	quint16_t dupes;
+	/*struct {
+		quint16_t first;
+		quint16_t last;
+	} gapblocks[];	//actually received rather than gaps, but same meaning.
+	quint32_t dupe_tsns[];*/
+};
+struct sctp_chunk_fwdtsn_s
+{
+	struct sctp_chunk_s chunk;
+	quint32_t tsn;
+	struct
+	{
+		quint16_t sid;
+		quint16_t seq;
+	} streams[1];//...
+};
+
+static neterr_t SCTP_PeerSendPacket(struct icestate_s *peer, int length, const void *data)
+{	//sends to the dtls layer (which will send to the generic ice dispatcher that'll send to the dgram stuff... layers on layers.
+	if (length<=12)
+		return NETERR_DISCONNECTED;
+	if (peer)
+		return peer->dtlsfuncs->Transmit(peer->dtlsstate, data, length);
+	else
+		return NETERR_NOROUTE;
+}
+
+static quint32_t SCTP_Checksum(const struct sctp_header_s *h, size_t size)
+{
+    int k;
+    const qbyte *buf = (const qbyte*)h;
+    size_t ofs;
+    uint32_t crc = 0xFFFFFFFF;
+
+	for (ofs = 0; ofs < size; ofs++)
+    {
+		if (ofs >= 8 && ofs < 8+4)
+			;	//the header's crc should be read as 0.
+		else
+			crc ^= buf[ofs];
+        for (k = 0; k < 8; k++)	            //CRC-32C polynomial 0x1EDC6F41 in reversed bit order.
+            crc = crc & 1 ? (crc >> 1) ^ 0x82f63b78 : crc >> 1;
+    }
+    return ~crc;
+}
+
+static neterr_t SCTP_Transmit(sctp_t *sctp, struct icestate_s *peer, const void *data, size_t length)
+{
+	qbyte pkt[65536];
+	size_t pktlen = 0;
+	struct sctp_header_s *h = (void*)pkt;
+	struct sctp_chunk_data_s *d;
+	struct sctp_chunk_fwdtsn_s *fwd;
+	if (length > sizeof(pkt))
+		return NETERR_MTU;
+
+	h->dstport = sctp->peerport;
+	h->srcport = sctp->myport;
+	h->verifycode = sctp->o.verifycode;
+	pktlen += sizeof(*h);
+
+	if (!sctp->o.writable)
+	{
+		double time = Sys_DoubleTime();
+		if (time > sctp->nextreinit)
+		{
+			sctp->nextreinit = time + 0.5;
+			if (!sctp->cookie)
+			{
+				struct sctp_chunk_init_s *init = (struct sctp_chunk_init_s*)&pkt[pktlen];
+				struct {
+					quint16_t ptype;
+					quint16_t plen;
+				} *ftsn = (void*)(init+1);
+				h->verifycode = 0;
+				init->chunk.type = SCTP_TYPE_INIT;
+				init->chunk.flags = 0;
+				init->chunk.length = BigShort(sizeof(*init)+sizeof(*ftsn));
+				init->verifycode = sctp->i.verifycode;
+				init->arwc = BigLong(65535);
+				init->numoutstreams = BigShort(2);
+				init->numinstreams = BigShort(2);
+				init->tsn = sctp->o.tsn;
+				ftsn->ptype = BigShort(49152);
+				ftsn->plen = BigShort(sizeof(*ftsn));
+				pktlen += sizeof(*init) + sizeof(*ftsn);
+
+				h->crc = SCTP_Checksum(h, pktlen);
+				return SCTP_PeerSendPacket(peer, pktlen, h);
+			}
+			else
+			{
+				struct sctp_chunk_s *cookie = (struct sctp_chunk_s*)&pkt[pktlen];
+
+				if (pktlen + sizeof(*cookie) + sctp->cookiesize > sizeof(pkt))
+					return NETERR_DISCONNECTED;
+				cookie->type = SCTP_TYPE_COOKIEECHO;
+				cookie->flags = 0;
+				cookie->length = BigShort(sizeof(*cookie)+sctp->cookiesize);
+				memcpy(cookie+1, sctp->cookie, sctp->cookiesize);
+				pktlen += sizeof(*cookie) + sctp->cookiesize;
+
+				h->crc = SCTP_Checksum(h, pktlen);
+				return SCTP_PeerSendPacket(peer, pktlen, h);
+			}
+		}
+
+		return NETERR_CLOGGED;	//nope, not ready yet
+	}
+
+	if (sctp->peerhasfwdtsn && sctp->o.ctsn < sctp->o.tsn && sctp->o.losttsn)
+	{
+		fwd = (struct sctp_chunk_fwdtsn_s*)&pkt[pktlen];
+		fwd->chunk.type = SCTP_TYPE_FORWARDTSN;
+		fwd->chunk.flags = 0;
+		fwd->chunk.length = BigShort(sizeof(*fwd));
+		fwd->tsn = BigLong(sctp->o.tsn-1);
+		fwd->streams[0].sid = sctp->qstreamid;
+		fwd->streams[0].seq = BigShort(0);
+		pktlen += sizeof(*fwd);
+	}
+
+	if (sctp->i.ackneeded >= 2)
+	{
+		struct sctp_chunk_sack_s *rsack;
+		struct sctp_chunk_sack_gap_s {
+			uint16_t first;
+			uint16_t last;
+		} *rgap;
+		quint32_t otsn;
+
+		rsack = (struct sctp_chunk_sack_s*)&pkt[pktlen];
+		rsack->chunk.type = SCTP_TYPE_SACK;
+		rsack->chunk.flags = 0;
+		rsack->chunk.length = BigShort(sizeof(*rsack));
+		rsack->tsn = BigLong(sctp->i.ctsn);
+		rsack->arwc = BigLong(65535);
+		rsack->gaps = 0;
+		rsack->dupes = BigShort(0);
+		pktlen += sizeof(*rsack);
+
+		rgap = (struct sctp_chunk_sack_gap_s*)&pkt[pktlen];
+		for (otsn = 0; otsn < sctp->i.htsn; otsn++)
+		{
+			quint32_t tsn = sctp->i.ctsn+otsn;
+			if (!(sctp->i.received[(tsn>>3)%sizeof(sctp->i.received)] & 1<<(tsn&7)))
+				continue;	//missing, don't report it in the 'gaps'... yeah, backwards naming.
+			if (rsack->gaps && rgap[-1].last == otsn-1)
+				rgap[-1].last = otsn;	//merge into the last one.
+			else
+			{
+				rgap->first = otsn;	//these values are Offset from the Cumulative TSN, to save storage.
+				rgap->last = otsn;
+				rgap++;
+				rsack->gaps++;
+				pktlen += sizeof(*rgap);
+				if (pktlen >= 500)
+					break;	//might need fragmentation... just stop here.
+			}
+		}
+		for (otsn = 0, rgap = (struct sctp_chunk_sack_gap_s*)&pkt[pktlen]; otsn < rsack->gaps; otsn++)
+		{
+			rgap[otsn].first = BigShort(rgap[otsn].first);
+			rgap[otsn].last = BigShort(rgap[otsn].last);
+		}
+		rsack->gaps = BigShort(rsack->gaps);
+
+		sctp->i.ackneeded = 0;
+	}
+
+	if (pktlen + sizeof(*d) + length >= 500 && length && pktlen != sizeof(*h))
+	{	//probably going to result in fragmentation issues. send separate packets.
+		h->crc = SCTP_Checksum(h, pktlen);
+		SCTP_PeerSendPacket(peer, pktlen, h);
+
+		//reset to the header
+		pktlen = sizeof(*h);
+	}
+
+	if (length)
+	{
+		d = (void*)&pkt[pktlen];
+		d->chunk.type = SCTP_TYPE_DATA;
+		d->chunk.flags = 3|4;
+		d->chunk.length = BigShort(sizeof(*d) + length);
+		d->tsn = BigLong(sctp->o.tsn++);
+		d->sid = sctp->qstreamid;
+		d->seq = BigShort(0); //not needed for unordered
+		d->ppid = BigLong(SCTP_PPID_DATA);
+		memcpy(d+1, data, length);
+		pktlen += sizeof(*d) + length;
+
+		//chrome insists on pointless padding at the end. its annoying.
+		while(pktlen&3)
+			pkt[pktlen++]=0;
+	}
+	if (pktlen == sizeof(*h))
+		return NETERR_SENT; //nothing to send...
+
+	h->crc = SCTP_Checksum(h, pktlen);
+	return SCTP_PeerSendPacket(peer, pktlen, h);
+}
+
+static void SCTP_DecodeDCEP(sctp_t *sctp, struct icestate_s *peer, qbyte *resp)
+{	//send an ack...
+	size_t pktlen = 0;
+	struct sctp_header_s *h = (void*)resp;
+	struct sctp_chunk_data_s *d;
+	char *data = "\02";
+	size_t length = 1; //*sigh*...
+
+	struct
+	{
+		qbyte type;
+		qbyte chantype;
+		quint16_t priority;
+		quint32_t relparam;
+		quint16_t labellen;
+		quint16_t protocollen;
+	} *dcep = (void*)sctp->i.r.buf;
+
+	if (dcep->type == 3)
+	{
+		char *label = (qbyte*)(dcep+1);
+		char *prot = label + strlen(label)+1;
+
+		sctp->qstreamid = sctp->i.r.sid;
+		Con_DPrintf("New SCTP Channel: \"%s\" (%s)\n", label, prot);
+
+		h->dstport = sctp->peerport;
+		h->srcport = sctp->myport;
+		h->verifycode = sctp->o.verifycode;
+		pktlen += sizeof(*h);
+
+		pktlen = (pktlen+3)&~3;	//pad.
+		d = (void*)&resp[pktlen];
+		d->chunk.type = SCTP_TYPE_DATA;
+		d->chunk.flags = 3;
+		d->chunk.length = BigShort(sizeof(*d) + length);
+		d->tsn = BigLong(sctp->o.tsn++);
+		d->sid = sctp->qstreamid;
+		d->seq = BigShort(0); //not needed for unordered
+		d->ppid = BigLong(SCTP_PPID_DCEP);
+		memcpy(d+1, data, length);
+		pktlen += sizeof(*d) + length;
+
+		h->crc = SCTP_Checksum(h, pktlen);
+		SCTP_PeerSendPacket(peer, pktlen, h);
+	}
+}
+
+struct sctp_errorcause_s
+{
+	quint16_t cause;
+	quint16_t length;
+};
+static void SCTP_ErrorChunk(const char *errortype, struct sctp_errorcause_s *s, size_t totallen)
+{
+	quint16_t cc, cl;
+	while(totallen > 0)
+	{
+		if (totallen < sizeof(*s))
+			return;	//that's an error in its own right
+		cc = BigShort(s->cause);
+		cl = BigShort(s->length);
+		if (totallen < cl)
+			return;	//err..
+
+		switch(cc)
+		{
+		case 1:		Con_Printf("%s: Invalid Stream Identifier\n",	errortype);	break;
+        case 2:		Con_Printf("%s: Missing Mandatory Parameter\n", errortype);	break;
+        case 3:		Con_Printf("%s: Stale Cookie Error\n",			errortype);	break;
+        case 4:		Con_Printf("%s: Out of Resource\n",				errortype);	break;
+        case 5:		Con_Printf("%s: Unresolvable Address\n",		errortype);	break;
+        case 6:		Con_Printf("%s: Unrecognized Chunk Type\n",		errortype);	break;
+        case 7:		Con_Printf("%s: Invalid Mandatory Parameter\n", errortype);	break;
+        case 8:		Con_Printf("%s: Unrecognized Parameters\n",		errortype);	break;
+        case 9:		Con_Printf("%s: No User Data\n",				errortype);	break;
+        case 10:	Con_Printf("%s: Cookie Received While Shutting Down\n",				errortype);	break;
+        case 11:	Con_Printf("%s: Restart of an Association with New Addresses\n",	errortype);	break;
+        case 12:	Con_Printf("%s: User Initiated Abort\n",		errortype);	break;
+        case 13:	Con_Printf("%s: Protocol Violation [%s]\n",		errortype, (char*)(s+1));	break;
+        default:	Con_Printf("%s: Unknown Reason\n",				errortype);	break;
+		}
+
+		totallen -= cl;
+		totallen &= ~3;
+		s = (struct sctp_errorcause_s*)((qbyte*)s + ((cl+3)&~3));
+	}
+}
+
+static void SCTP_Decode(sctp_t *sctp, struct icestate_s *peer)
+{
+	qbyte resp[4096];
+	qboolean finished = false;
+
+	qbyte *msg = net_message.data;
+	qbyte *msgend = net_message.data+net_message.cursize;
+	struct sctp_header_s *h = (struct sctp_header_s*)msg;
+	struct sctp_chunk_s *c = (struct sctp_chunk_s*)(h+1);
+	quint16_t clen;
+	if ((qbyte*)c+1 > msgend)
+		return;	//runt
+	if (h->dstport != sctp->myport)
+		return;	//not for us...
+	if (h->srcport != sctp->peerport)
+		return; //not from them... we could check for a INIT but its over dtls anyway so why give a damn.
+	if (h->verifycode != ((c->type == SCTP_TYPE_INIT)?0:sctp->i.verifycode))
+		return;	//wrong cookie... (be prepared to parse dupe inits if our ack got lost...
+	if (h->crc != SCTP_Checksum(h, net_message.cursize))
+		return;	//crc wrong. assume corruption.
+	if (net_message.cursize&3)
+	{
+		Con_DPrintf("SCTP: packet not padded\n");
+		return;	//mimic chrome, despite it being pointless.
+	}
+
+	while ((qbyte*)(c+1) <= msgend)
+	{
+		clen = BigShort(c->length);
+		if ((qbyte*)c + clen > msgend)
+			break;	//corrupt
+		safeswitch(c->type)
+		{
+		case SCTP_TYPE_DATA:
+			if (clen >= sizeof(struct sctp_chunk_data_s))
+			{
+				struct sctp_chunk_data_s *dc = (void*)c;
+				quint32_t tsn = BigLong(dc->tsn), u;
+				qint32_t adv = tsn - sctp->i.ctsn;
+				sctp->i.ackneeded++;
+				if (adv >= SCTP_RCVSIZE)
+					Con_DPrintf("SCTP: Future Packet\n");/*too far in the future. we can't track such things*/
+				else if (adv <= 0)
+					Con_DPrintf("SCTP: PreCumulative\n");/*already acked this*/
+				else if (sctp->i.received[(tsn>>3)%sizeof(sctp->i.received)] & 1<<(tsn&7))
+					Con_DPrintf("SCTP: Dupe\n");/*already processed it*/
+				else
+				{
+					qboolean err = false;
+
+					if (c->flags & 2)
+					{	//beginning...
+						sctp->i.r.firsttns = tsn;
+						sctp->i.r.tsn = tsn;
+						sctp->i.r.size = 0;
+						sctp->i.r.ppid = dc->ppid;
+						sctp->i.r.sid = dc->sid;
+						sctp->i.r.seq = dc->seq;
+						sctp->i.r.toobig = false;
+						if (finished)
+							Con_Printf("SCTP: Multiple data chunks\n");
+						finished = false;
+					}
+					else
+					{
+						if (sctp->i.r.tsn != tsn || sctp->i.r.ppid != dc->ppid)
+							err = true;
+					}
+					if (err)
+						;	//don't corrupt anything in case we get a quick resend that fixes it.
+					else
+					{
+						size_t dlen = clen-sizeof(*dc);
+						if (adv > sctp->i.htsn)	//weird maths in case it wraps.
+							sctp->i.htsn = adv;
+						sctp->i.r.tsn++;
+						if (sctp->i.r.size + clen-sizeof(*dc) > sizeof(sctp->i.r.buf))
+						{
+							Con_DPrintf("SCTP: Oversized\n");
+							sctp->i.r.toobig = true;	//reassembled packet was too large, just corrupt it.
+						}
+						else
+						{
+							memcpy(sctp->i.r.buf+sctp->i.r.size, dc+1, dlen);	//include the dc header
+							sctp->i.r.size += dlen;
+						}
+						if (c->flags & 1)	//an ending. we have the complete packet now.
+						{
+							for (u = sctp->i.r.tsn - sctp->i.r.firsttns; u --> 0; )
+							{
+								tsn = sctp->i.r.firsttns + u;
+								sctp->i.received[(tsn>>3)%sizeof(sctp->i.received)] |= 1<<(tsn&7);
+							}
+							if (sctp->i.r.toobig)
+								;/*ignore it when it cannot be handled*/
+							else if (sctp->i.r.ppid == BigLong(SCTP_PPID_DATA))
+								finished = true; //FIXME: handle multiple small packets
+							else if (sctp->i.r.ppid == BigLong(SCTP_PPID_DCEP))
+								SCTP_DecodeDCEP(sctp, peer, resp);
+						}
+					}
+
+					//FIXME: we don't handle reordering properly at all.
+
+//					if (c->flags & 4)
+//						Con_Printf("\tUnordered\n");
+//					Con_Printf("\tStream Id %i\n", BigShort(dc->sid));
+//					Con_Printf("\tStream Seq %i\n", BigShort(dc->seq));
+//					Con_Printf("\tPPID %i\n", BigLong(dc->ppid));
+
+					while(sctp->i.htsn)
+					{
+						tsn = sctp->i.ctsn+1;
+						if (!(sctp->i.received[(tsn>>3)%sizeof(sctp->i.received)] & 1<<(tsn&7)))
+							break;
+						//advance our cumulative ack.
+						sctp->i.received[(tsn>>3)%sizeof(sctp->i.received)] &= ~(1<<(tsn&7));
+						sctp->i.ctsn = tsn;
+						sctp->i.htsn--;
+					}
+				}
+			}
+			break;
+		case SCTP_TYPE_INIT:
+		case SCTP_TYPE_INITACK:
+			if (clen >= sizeof(struct sctp_chunk_init_s))
+			{
+				qboolean isack = c->type==SCTP_TYPE_INITACK;
+				struct sctp_chunk_init_s *init = (void*)c;
+				struct {
+						quint16_t ptype;
+						quint16_t plen;
+				} *p = (void*)(init+1);
+
+				sctp->i.ctsn = BigLong(init->tsn)-1;
+				sctp->i.htsn = 0;
+				sctp->o.verifycode = init->verifycode;
+				(void)BigLong(init->arwc);
+				(void)BigShort(init->numoutstreams);
+				(void)BigShort(init->numinstreams);
+
+				while ((qbyte*)p+sizeof(*p) <= (qbyte*)c+clen)
+				{
+					unsigned short ptype = BigShort(p->ptype);
+					unsigned short plen = BigShort(p->plen);
+					switch(ptype)
+					{
+					case 7:	//init cookie
+						if (sctp->cookie)
+							Z_Free(sctp->cookie);
+						sctp->cookiesize = plen - sizeof(*p);
+						sctp->cookie = Z_Malloc(sctp->cookiesize);
+						memcpy(sctp->cookie, p+1, sctp->cookiesize);
+						break;
+					case 32776:	//ASCONF
+						break;
+					case 49152:
+						sctp->peerhasfwdtsn = true;
+						break;
+					default:
+						Con_DPrintf("SCTP: Found unknown init parameter %i||%#x\n", ptype, ptype);
+						break;
+					}
+					p = (void*)((qbyte*)p + ((plen+3)&~3));
+				}
+
+				if (isack)
+				{
+					sctp->nextreinit = 0;
+					if (sctp->cookie)
+						SCTP_Transmit(sctp, peer, NULL, 0);	//make sure we send acks occasionally even if we have nothing else to say.
+				}
+				else
+				{
+					struct sctp_header_s *rh = (void*)resp;
+					struct sctp_chunk_init_s *rinit = (void*)(rh+1);
+					struct {
+						quint16_t ptype;
+						quint16_t plen;
+						struct {
+							qbyte data[16];
+						} cookie;
+					} *rinitcookie = (void*)(rinit+1);
+					struct {
+						quint16_t ptype;
+						quint16_t plen;
+					} *rftsn = (void*)(rinitcookie+1);
+					qbyte *end = sctp->peerhasfwdtsn?(void*)(rftsn+1):(void*)(rinitcookie+1);
+
+					rh->srcport = sctp->myport;
+					rh->dstport = sctp->peerport;
+					rh->verifycode = sctp->o.verifycode;
+					rh->crc = 0;
+					*rinit = *init;
+					rinit->chunk.type = SCTP_TYPE_INITACK;
+					rinit->chunk.flags = 0;
+					rinit->chunk.length = BigShort(end-(qbyte*)rinit);
+					rinit->verifycode = sctp->i.verifycode;
+					rinit->arwc = BigLong(65536);
+					rinit->numoutstreams = init->numoutstreams;
+					rinit->numinstreams = init->numinstreams;
+					rinit->tsn = BigLong(sctp->o.tsn);
+					rinitcookie->ptype = BigShort(7);
+					rinitcookie->plen = BigShort(sizeof(*rinitcookie));
+					memcpy(&rinitcookie->cookie, "deadbeefdeadbeef", sizeof(rinitcookie->cookie));	//frankly the contents of the cookie are irrelevant to anything. we've already verified the peer's ice pwd/ufrag stuff as well as their dtls certs etc.
+					rftsn->ptype = BigShort(49152);
+					rftsn->plen = BigShort(sizeof(*rftsn));
+
+					//complete. calc the proper crc and send it off.
+					rh->crc = SCTP_Checksum(rh, end-resp);
+					SCTP_PeerSendPacket(peer, end-resp, rh);
+				}
+			}
+			break;
+		case SCTP_TYPE_SACK:
+			if (clen >= sizeof(struct sctp_chunk_sack_s))
+			{
+				struct sctp_chunk_sack_s *sack = (void*)c;
+				quint32_t tsn = BigLong(sack->tsn);
+				sctp->o.ctsn = tsn;
+
+				sctp->o.losttsn = BigShort(sack->gaps);	//if there's a gap then they're telling us they got a later one.
+
+				//Con_Printf(CON_ERROR"Sack %#x (%i in flight)\n"
+				//			"\tgaps: %i, dupes %i\n",
+				//			tsn, sctp->o.tsn-tsn,
+				//			BigShort(sack->gaps), BigShort(sack->dupes));
+			}
+			break;
+		case SCTP_TYPE_PING:
+			if (clen >= sizeof(struct sctp_chunk_s))
+			{
+				struct sctp_chunk_s *ping = (void*)c;
+				struct sctp_header_s *pongh = Z_Malloc(sizeof(*pongh) + clen);
+
+				pongh->srcport = sctp->myport;
+				pongh->dstport = sctp->peerport;
+				pongh->verifycode = sctp->o.verifycode;
+				pongh->crc = 0;
+				memcpy(pongh+1, ping, clen);
+				((struct sctp_chunk_s*)(pongh+1))->type = SCTP_TYPE_PONG;
+
+				//complete. calc the proper crc and send it off.
+				pongh->crc = SCTP_Checksum(pongh, sizeof(*pongh) + clen);
+				SCTP_PeerSendPacket(peer, sizeof(*pongh) + clen, pongh);
+				Z_Free(pongh);
+			}
+			break;
+//		case SCTP_TYPE_PONG:	//we don't send pings
+		case SCTP_TYPE_ABORT:
+			ICE_Set(peer, "state", STRINGIFY(ICE_FAILED));
+			SCTP_ErrorChunk("Abort", (struct sctp_errorcause_s*)(c+1), clen-sizeof(*c));
+			break;
+		case SCTP_TYPE_SHUTDOWN:	//FIXME. we should send an ack...
+			ICE_Set(peer, "state", STRINGIFY(ICE_FAILED));
+			Con_DPrintf(CON_ERROR"SCTP: Shutdown\n");
+			break;
+//		case SCTP_TYPE_SHUTDOWNACK:	//we don't send shutdowns, cos we're lame like that...
+		case SCTP_TYPE_ERROR:
+			//not fatal...
+			SCTP_ErrorChunk("Error", (struct sctp_errorcause_s*)(c+1), clen-sizeof(*c));
+			break;
+		case SCTP_TYPE_COOKIEECHO:
+			if (clen >= sizeof(struct sctp_chunk_s))
+			{
+				struct sctp_header_s *rh = (void*)resp;
+				struct sctp_chunk_s *rack = (void*)(rh+1);
+				qbyte *end = (void*)(rack+1);
+
+				rh->srcport = sctp->myport;
+				rh->dstport = sctp->peerport;
+				rh->verifycode = sctp->o.verifycode;
+				rh->crc = 0;
+				rack->type = SCTP_TYPE_COOKIEACK;
+				rack->flags = 0;
+				rack->length = BigShort(sizeof(*rack));
+
+				//complete. calc the proper crc and send it off.
+				rh->crc = SCTP_Checksum(rh, end-resp);
+				SCTP_PeerSendPacket(peer, end-resp, rh);
+
+				sctp->o.writable = true;	//channel SHOULD now be open for data.
+			}
+			break;
+		case SCTP_TYPE_COOKIEACK:
+			sctp->o.writable = true;	//we know the other end is now open.
+			break;
+		case SCTP_TYPE_FORWARDTSN:
+			if (clen >= sizeof(struct sctp_chunk_fwdtsn_s))
+			{
+				struct sctp_chunk_fwdtsn_s *fwd = (void*)c;
+				quint32_t tsn = BigLong(fwd->tsn), count;
+				count = tsn - sctp->i.ctsn;
+				if ((int)count < 0)
+					break;	//overflow? don't go backwards.
+				if (count > 1024)
+					count = 1024; //don't advance too much in one go. we'd block and its probably an error anyway.
+				while(count --> 0)
+				{
+					tsn = ++sctp->i.ctsn;
+					sctp->i.received[(tsn>>3)%sizeof(sctp->i.received)] &= ~(1<<(tsn&7));
+					if (sctp->i.htsn)
+						sctp->i.htsn--;
+				}
+			}
+			break;
+//		case SCTP_TYPE_SHUTDOWNDONE:
+		safedefault:
+			//no idea what this chunk is, just ignore it...
+			Con_DPrintf("SCTP: Unsupported chunk %i\n", c->type);
+			break;
+		}
+		c = (struct sctp_chunk_s*)((qbyte*)c + ((clen+3)&~3));	//next chunk is 4-byte aligned.
+	}
+
+	if (sctp->i.ackneeded >= 5)
+		SCTP_Transmit(sctp, peer, NULL, 0);	//make sure we send acks occasionally even if we have nothing else to say.
+
+	//if we read something, spew it out and return to caller.
+	if (finished)
+	{
+		memmove(net_message.data, sctp->i.r.buf, sctp->i.r.size);
+		net_message.cursize = sctp->i.r.size;
+	}
+	else
+		net_message.cursize = 0;	//nothing to read.
+}
+
+//========================================
+#endif
+
 #if defined(SUPPORT_ICE) || defined(MASTERONLY)
 qboolean ICE_WasStun(ftenet_connections_t *col)
 {
+#ifdef SUPPORT_ICE
+	if (net_from.type == NA_ICE)
+		return false;	//this stuff over an ICE connection doesn't make sense.
+#endif
+
 #if defined(HAVE_CLIENT) && defined(VOICECHAT)
 	if (col == cls.sockets)
 	{
@@ -1263,12 +2163,12 @@ qboolean ICE_WasStun(ftenet_connections_t *col)
 	}
 #endif
 
-	if ((net_from.type == NA_IP || net_from.type == NA_IPV6) && net_message.cursize >= 20)
+	if ((net_from.type == NA_IP || net_from.type == NA_IPV6) && net_message.cursize >= 20 && *net_message.data<2)
 	{
 		stunhdr_t *stun = (stunhdr_t*)net_message.data;
 		int stunlen = BigShort(stun->msglen);
 #ifdef SUPPORT_ICE
-		if ((stun->msgtype == BigShort(0x0101) || stun->msgtype == BigShort(0x0111)) && net_message.cursize == stunlen + sizeof(*stun))
+		if ((stun->msgtype == BigShort(STUN_BINDING|STUN_REPLY) || stun->msgtype == BigShort(STUN_BINDING|STUN_ERROR)) && net_message.cursize == stunlen + sizeof(*stun))
 		{
 			//binding reply (or error)
 			netadr_t adr = net_from;
@@ -1326,7 +2226,7 @@ qboolean ICE_WasStun(ftenet_connections_t *col)
 						{
 							char str[256];
 							struct icecandidate_s *rc;
-							if (con->mode != ICEM_ICE)
+							if (con->mode == ICEM_RAW)
 								continue;
 
 							if (NET_CompareAdr(&net_from, &con->pubstunserver))
@@ -1411,14 +2311,14 @@ qboolean ICE_WasStun(ftenet_connections_t *col)
 			}
 			return true;
 		}
-		else if (stun->msgtype == BigShort(0x0011) && net_message.cursize == stunlen + sizeof(*stun) && stun->magiccookie == BigLong(0x2112a442))
+		else if (stun->msgtype == BigShort(STUN_BINDING|STUN_INDICATION))// && net_message.cursize == stunlen + sizeof(*stun) && stun->magiccookie == BigLong(0x2112a442))
 		{
-			//binding indication. used as an rtp keepalive.
+			//binding indication. used as an rtp keepalive. should have a fingerprint
 			return true;
 		}
 		else
 #endif
-			if (stun->msgtype == BigShort(0x0001) && net_message.cursize == stunlen + sizeof(*stun) && stun->magiccookie == BigLong(0x2112a442))
+			if (stun->msgtype == BigShort(STUN_BINDING|STUN_REQUEST) && net_message.cursize == stunlen + sizeof(*stun) && stun->magiccookie == BigLong(0x2112a442))
 		{
 			char username[256];
 			char integrity[20];
@@ -1447,7 +2347,7 @@ qboolean ICE_WasStun(ftenet_connections_t *col)
 				if (alen+sizeof(*attr) > stunlen)
 					return false;
 				switch((unsigned short)BigShort(attr->attrtype))
-				{
+				{				case 0xc057: /*'network cost'*/ break;
 				default:
 					//unknown attributes < 0x8000 are 'mandatory to parse', and such packets must be dropped in their entirety.
 					//other ones are okay.
@@ -1512,6 +2412,11 @@ qboolean ICE_WasStun(ftenet_connections_t *col)
 					Con_DPrintf("Received STUN request from unknown user \"%s\"\n", username);
 					return true;
 				}
+				/*else if (con->chosenpeer.type != NA_INVALID)
+				{	//got one.
+					if (!NET_CompareAdr(&net_from, &con->chosenpeer))
+						return true;	//FIXME: we're too stupid to handle switching. pretend to be dead.
+				}*/
 				else if (con->state == ICE_INACTIVE)
 					return true;	//bad timing
 				else
@@ -1586,7 +2491,7 @@ qboolean ICE_WasStun(ftenet_connections_t *col)
 						//this is problematic, however, as we don't actually know the real priority that the peer thinks we'll nominate it with.
 
 						if (con->chosenpeer.type != NA_INVALID && !NET_CompareAdr(&net_from, &con->chosenpeer))
-							Con_DPrintf("ICE: Duplicate use-candidate\n");
+							Con_DPrintf(CON_WARNING"ICE: Alternative use-candidate\n");
 						con->chosenpeer = net_from;
 						Con_DPrintf("ICE: use-candidate: %s\n", NET_AdrToString(data, sizeof(data), &net_from));
 
@@ -1636,7 +2541,7 @@ qboolean ICE_WasStun(ftenet_connections_t *col)
 
 //Con_DPrintf("STUN from %s\n", NET_AdrToString(data, sizeof(data), &net_from));
 
-			MSG_WriteShort(&buf, BigShort(error?0x0111:0x0101));
+			MSG_WriteShort(&buf, BigShort(error?(STUN_BINDING|STUN_ERROR):(STUN_BINDING|STUN_REPLY)));
 			MSG_WriteShort(&buf, BigShort(0));	//fill in later
 			MSG_WriteLong(&buf, stun->magiccookie);
 			MSG_WriteLong(&buf, stun->transactid[0]);
@@ -1711,8 +2616,74 @@ qboolean ICE_WasStun(ftenet_connections_t *col)
 			return true;
 		}
 	}
+
+
+#ifdef SUPPORT_ICE
+	{
+		struct icestate_s *con;
+		struct icecandidate_s *rc;
+		for (con = icelist; con; con = con->next)
+		{
+			for (rc = con->rc; rc; rc = rc->next)
+			{
+				if (NET_CompareAdr(&net_from, &rc->peer))
+				{
+				//	if (rc->reachable)
+					{	//found it. fix up its source address to our ICE connection (so we don't have path-switching issues) and keep chugging along.
+
+						con->timeout = Sys_Milliseconds() + 32;	//not dead yet...
+
+						if (con->dtlsstate)
+						{
+							switch(con->dtlsfuncs->Received(con->dtlsstate, &net_message))
+							{
+							case NETERR_SENT:
+								break;	//
+							case NETERR_NOROUTE:
+								return false;	//not a dtls packet at all. don't de-ICE it when we're meant to be using ICE.
+							case NETERR_DISCONNECTED:	//dtls failure. ICE failed.
+								iceapi.ICE_Set(con, "state", STRINGIFY(ICE_FAILED));
+								return true;
+							default: //some kind of failure decoding the dtls packet. drop it.
+								return true;
+							}
+						}
+						net_from = con->qadr;
+						if (con->sctp)
+							SCTP_Decode(con->sctp, con);
+						if (net_message.cursize)
+							col->ReadGamePacket();
+						return true;
+					}
+				}
+			}
+		}
+	}
+#endif
 	return false;
 }
+#ifdef SUPPORT_ICE
+neterr_t ICE_SendPacket(ftenet_connections_t *col, size_t length, const void *data, netadr_t *to)
+{
+	struct icestate_s *con;
+	for (con = icelist; con; con = con->next)
+	{
+		if (NET_CompareAdr(to, &con->qadr))
+		{
+			if (con->sctp)
+				return SCTP_Transmit(con->sctp, con, data, length);
+			if (con->dtlsstate)
+				return SCTP_PeerSendPacket(con, length, data);
+			if (con->chosenpeer.type != NA_INVALID)
+				return NET_SendPacket(col, length, data, &con->chosenpeer);
+			if (con->state < ICE_CONNECTING)
+				return NETERR_DISCONNECTED;
+			return NETERR_CLOGGED;	//still pending
+		}
+	}
+	return NETERR_DISCONNECTED;
+}
+#endif
 #endif
 
 
@@ -1740,6 +2711,8 @@ typedef struct {
 	qbyte out[8192];
 	size_t outsize;
 	int error;	//outgoing data is corrupt. kill it.
+
+
 
 	//client state...
 	struct icestate_s *ice;
@@ -1862,13 +2835,33 @@ static void FTENET_ICE_Heartbeat(ftenet_ice_connection_t *b)
 	}
 #endif
 }
+static void FTENET_ICE_SendOffer(ftenet_ice_connection_t *b, int cl, struct icestate_s *ice, const char *type)
+{
+	char buf[8192];
+	//okay, now send the sdp to our peer.
+	if (iceapi.ICE_Get(ice, type, buf, sizeof(buf)))
+	{
+		char json[8192+256];
+		if (ice->mode == ICEM_WEBRTC)
+		{
+			Q_strncpyz(json, va("{\"type\":\"%s\",\"sdp\":\"", type+3), sizeof(json));
+			COM_QuotedString(buf, json+strlen(json), sizeof(json)-strlen(json)-2, true);
+			Q_strncatz(json, "\"}", sizeof(json));
+			FTENET_ICE_SplurgeCmd(b, ICEMSG_OFFER, cl, json);
+		}
+		else
+			FTENET_ICE_SplurgeCmd(b, ICEMSG_OFFER, cl, buf);
+
+		ice->blockcandidates = false;
+	}
+}
 static void FTENET_ICE_Establish(ftenet_ice_connection_t *b, int cl, struct icestate_s **ret)
 {	//sends offer
-	char buf[8192];
+	char buf[256];
 	struct icestate_s *ice;
 	if (*ret)
 		iceapi.ICE_Close(*ret);
-	ice = *ret = iceapi.ICE_Create(b, NULL, "", ICEM_ICE, b->generic.islisten?ICEP_QWSERVER:ICEP_QWCLIENT);
+	ice = *ret = iceapi.ICE_Create(b, NULL, b->generic.islisten?NULL:va("/%s", b->gamename), ICEM_WEBRTC, b->generic.islisten?ICEP_QWSERVER:ICEP_QWCLIENT);
 	if (!*ret)
 		return;	//some kind of error?!?
 	iceapi.ICE_Set(ice, "controller", b->generic.islisten?"0":"1");
@@ -1877,15 +2870,27 @@ static void FTENET_ICE_Establish(ftenet_ice_connection_t *b, int cl, struct ices
 	iceapi.ICE_Set(ice, "stunport", buf);
 	iceapi.ICE_Set(ice, "stunip", b->brokername);
 
-	//okay, now send the sdp to our peer.
-	if (iceapi.ICE_Get(ice, "sdp", buf, sizeof(buf)))
-		FTENET_ICE_SplurgeCmd(b, ICEMSG_OFFER, cl, buf);
+	if (!b->generic.islisten)
+		FTENET_ICE_SendOffer(b, cl, ice, "sdpoffer");
 }
 static void FTENET_ICE_Refresh(ftenet_ice_connection_t *b, int cl, struct icestate_s *ice)
 {	//sends offer
 	char buf[8192];
+	if (ice->blockcandidates)
+		return;	//don't send candidates before the offers...
 	while (ice && iceapi.ICE_GetLCandidateSDP(ice, buf, sizeof(buf)))
-		FTENET_ICE_SplurgeCmd(b, ICEMSG_CANDIDATE, cl, buf);
+	{
+		char json[8192+256];
+		if (ice->mode == ICEM_WEBRTC)
+		{
+			Q_strncpyz(json, "{\"candidate\":\"", sizeof(json));
+			COM_QuotedString(buf+2, json+strlen(json), sizeof(json)-strlen(json)-2, true);
+			Q_strncatz(json, "\",\"sdpMid\":\"0\",\"sdpMLineIndex\":0}", sizeof(json));
+			FTENET_ICE_SplurgeCmd(b, ICEMSG_CANDIDATE, cl, json);
+		}
+		else
+			FTENET_ICE_SplurgeCmd(b, ICEMSG_CANDIDATE, cl, buf);
+	}
 }
 static qboolean FTENET_ICE_GetPacket(ftenet_generic_connection_t *gcon)
 {
@@ -1893,14 +2898,7 @@ static qboolean FTENET_ICE_GetPacket(ftenet_generic_connection_t *gcon)
 	int ctrl, len, cmd, cl, ofs;
 	char *data, n;
 
-#ifdef HAVE_CLIENT
-	//there's no point in hanging on to the ICE connection if we're not going to do anything with it now that we're connected.
-	//(shutting off the tcp connection will notify the server to shut down too)
-	if (!b->generic.islisten && !CL_TryingToConnect())
-		b->error = true;
-	else
-#endif
-		 if (!b->broker)
+	if (!b->broker)
 	{
 		const char *s;
 		if (b->timeout > realtime)
@@ -2068,13 +3066,17 @@ handleerror:
 //					Con_Printf("Broker closing connection: %s\n", data);
 				}
 				break;
+			case ICEMSG_NAMEINUSE:
+				Con_Printf("Unable to listen on /%s - name already taken\n", b->gamename);
+				b->error = true;	//try again later.
+				break;
 			case ICEMSG_GREETING:	//reports the trailing url we're 'listening' on. anyone else using that url will connect to us.
 				data = strchr(data, '/');
 				if (data++)
 					Q_strncpyz(b->gamename, data, sizeof(b->gamename));
 				Con_Printf("Publicly listening on /%s\n", b->gamename);
 				break;
-			case ICEMSG_NEWPEER:	//connection established with a new peer
+			case ICEMSG_NEWPEER:	//relay connection established with a new peer
 				//note that the server ought to wait for an offer from the client before replying with any ice state, but it doesn't really matter for our use-case.
 				if (b->generic.islisten)
 				{
@@ -2094,26 +3096,47 @@ handleerror:
 				}
 				break;
 			case ICEMSG_OFFER:	//we received an offer from a client
+				if (!strncmp(data, "{\"type\":\"offer\",\"sdp\":\"", 23))
+				{
+					data += 22;
+					COM_ParseCString(data, com_token, sizeof(com_token), NULL);
+					data = com_token;
+				}
+				else if (!strncmp(data, "{\"type\":\"answer\",\"sdp\":\"", 24))
+				{
+					data += 23;
+					COM_ParseCString(data, com_token, sizeof(com_token), NULL);
+					data = com_token;
+				}
 				if (b->generic.islisten)
 				{
-//					Con_Printf("Client offered: %s\n", data);
+					Con_Printf("Client offered: %s\n", data);
 					if (cl >= 0 && cl < b->numclients && b->clients[cl].ice)
 					{
-						iceapi.ICE_Set(b->clients[cl].ice, "sdp", data);
+						iceapi.ICE_Set(b->clients[cl].ice, "sdpoffer", data);
 						iceapi.ICE_Set(b->clients[cl].ice, "state", STRINGIFY(ICE_CONNECTING));
+
+						FTENET_ICE_SendOffer(b, cl, b->clients[cl].ice, "sdpanswer");
 					}
 				}
 				else
 				{
-//					Con_Printf("Server offered: %s\n", data);
 					if (b->ice)
 					{
-						iceapi.ICE_Set(b->ice, "sdp", data);
+						iceapi.ICE_Set(b->ice, "sdpanswer", data);
 						iceapi.ICE_Set(b->ice, "state", STRINGIFY(ICE_CONNECTING));
 					}
 				}
 				break;
 			case ICEMSG_CANDIDATE:
+				if (!strncmp(data, "{\"candidate\":\"", 14))
+				{
+					data += 13;
+					com_token[0]='a';
+					com_token[1]='=';
+					COM_ParseCString(data, com_token+2, sizeof(com_token)-2, NULL);
+					data = com_token;
+				}
 //				Con_Printf("Candidate update: %s\n", data);
 				if (b->generic.islisten)
 				{
@@ -2150,13 +3173,17 @@ static void FTENET_ICE_PrintStatus(ftenet_generic_connection_t *gcon)
 	size_t c;
 
 	if (b->ice)
-		ICE_Debug(b->ice);
+		ICE_Debug(b->ice, b->generic.islisten);
 	if (b->numclients)
 	{
-		Con_Printf("%u clients\n", (unsigned)b->numclients);
+		size_t activeice = 0;
 		for (c = 0; c < b->numclients; c++)
 			if (b->clients[c].ice)
-				ICE_Debug(b->clients[c].ice);
+			{
+				activeice++;
+				ICE_Debug(b->clients[c].ice, b->generic.islisten);
+			}
+		Con_Printf("%u ICE connections\n", (unsigned)activeice);
 	}
 }
 static int FTENET_ICE_GetLocalAddresses(struct ftenet_generic_connection_s *gcon, unsigned int *adrflags, netadr_t *addresses, const char **adrparms, int maxaddresses)
@@ -2236,6 +3263,7 @@ ftenet_generic_connection_t *FTENET_ICE_EstablishConnection(ftenet_connections_t
 	newcon->timeout = realtime;
 	newcon->heartbeat = realtime;
 	newcon->nextping = realtime;
+	newcon->generic.owner = col;
 	newcon->generic.thesocket = INVALID_SOCKET;
 
 	newcon->generic.addrtype[0] = NA_INVALID;

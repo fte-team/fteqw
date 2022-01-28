@@ -835,6 +835,7 @@ static qboolean SL_Key	(int key, emenu_t *menu)
 			if (server)
 				Master_FindRoute(server->adr);
 			serverpreview = SVPV_ROUTE;
+			return true;
 		}
 #endif
 		else if (key == 'b' || key == 'o' || key == 'j' || key == K_ENTER || key == K_KP_ENTER || key == K_GP_START)	//join

@@ -3144,6 +3144,10 @@ void SV_Voice_UnmuteAll_f(void)
 {
 	host_client->voice_active = true;
 }
+#else
+void SV_Voice_UnmuteAll_f(void)
+{	//no-op
+}
 #endif
 
 qboolean SV_FindRemotePackage(const char *package, char *url, size_t urlsize)
@@ -6385,8 +6389,8 @@ ucmd_t ucmds[] =
 	{"voicetarg",	SV_Voice_Target_f},
 	{"vignore",		SV_Voice_Ignore_f},	/*ignore/mute specific player*/
 	{"muteall",		SV_Voice_MuteAll_f},	/*disables*/
-	{"unmuteall",	SV_Voice_UnmuteAll_f}, /*reenables*/
 #endif
+	{"unmuteall",	SV_Voice_UnmuteAll_f}, /*reenables*/
 
 	{NULL, NULL}
 };

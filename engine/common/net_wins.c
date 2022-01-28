@@ -556,6 +556,15 @@ qboolean	NET_CompareAdr (netadr_t *a, netadr_t *b)
 	}
 #endif
 
+#ifdef SUPPORT_ICE
+	if (a->type == NA_ICE)
+	{
+		if (!strcmp(a->address.icename, b->address.icename))
+			return true;
+		return false;
+	}
+#endif
+
 	if (a->type == NA_INVALID && a->prot)
 		return true;	//mneh...
 
@@ -668,6 +677,15 @@ qboolean	NET_CompareBaseAdr (netadr_t *a, netadr_t *b)
 	if (a->type == NA_UNIX)
 	{
 		if (a->address.un.len == b->address.un.len && !memcmp(a->address.un.path, b->address.un.path, a->address.un.len))
+			return true;
+		return false;
+	}
+#endif
+
+#ifdef SUPPORT_ICE
+	if (a->type == NA_ICE)
+	{
+		if (!strcmp(a->address.icename, b->address.icename))
 			return true;
 		return false;
 	}
@@ -1007,6 +1025,12 @@ char	*NET_AdrToString (char *s, int len, netadr_t *a)
 		break;
 #endif
 
+#ifdef SUPPORT_ICE
+	case NA_ICE:
+		snprintf (s, len, "%s[%s]", prot, a->address.icename);
+		break;
+#endif
+
 	default:
 		if (a->prot == NP_RTC_TCP || a->prot == NP_RTC_TLS)
 			Q_strncpyz(s, prot, len);
@@ -1142,6 +1166,12 @@ char	*NET_BaseAdrToString (char *s, int len, netadr_t *a)
 	case NA_UNIX:
 		//no ports, so no base paths.
 		return NET_AdrToString(s, len, a);
+#endif
+
+#ifdef SUPPORT_ICE
+	case NA_ICE:
+		snprintf (s, len, "%s[%s]", prot, a->address.icename);
+		break;
 #endif
 
 	default:
@@ -1899,6 +1929,9 @@ void NET_IntegerToMask (netadr_t *a, netadr_t *amask, int bits)
 #ifdef IRCCONNECT
 	case NA_IRC:
 #endif
+#ifdef SUPPORT_ICE
+	case NA_ICE:
+#endif
 		break;
 
 	}
@@ -1916,29 +1949,37 @@ int ParsePartialIP(const char *s, netadr_t *a)
 
 	memset (a, 0, sizeof(*a));
 
+	//if its ::ffff:a.b.c.d then parse it as ipv4 by just skipping the prefix.
+	//we ought to leave it as ipv6, but any printing will show it as ipv4 anyway.
+	if (!strncasecmp(s, "::ffff:", 7) && strchr(s+7, '.') && !strchr(s+7, ':'))
+		s += 7;
+
 	//multiple colons == ipv6
+	//single colon = ipv4:port
 	colon = strchr(s, ':');
 	if (colon && strchr(colon+1, ':'))
 	{
 		qbyte *address = a->address.ip6;
 		unsigned long tmp;
+		int gapstart = -1;	//in bytes...
 		bits = 0;
-		//FIXME: check for ::ffff:a.b.c.d
-		//FIXME: check for xx::xx
 
-		if (s[0] == ':' && s[1] == ':' && !s[2])
-		{
-			s+=2;
-			bits = 1;
-		}
-		else while(*s)
+		while(*s)
 		{
 			tmp = strtoul(s, &colon, 16);
-			if (tmp > 0xffff)
-				return 0;	//invalid
-			*address++ = (tmp>>8)&0xff;
-			*address++ = (tmp>>0)&0xff;
-			bits += 16;
+			if (colon == s)
+			{
+				if (bits)
+					return 0;
+			}
+			else
+			{
+				if (tmp > 0xffff)
+					return 0;	//invalid
+				*address++ = (tmp>>8)&0xff;
+				*address++ = (tmp>>0)&0xff;
+				bits += 16;
+			}
 
 			if (bits == 128)
 			{
@@ -1948,16 +1989,35 @@ int ParsePartialIP(const char *s, netadr_t *a)
 			}
 
 
-			//double-colon ends it here. we can't parse xx::xx
+			//double-colon is a gap (or partial end).
 			//hopefully the last 64 bits or whatever will be irrelevant anyway, so such addresses won't be common
-			if (colon[0] == ':' && colon[1] == ':' && !colon[2])
-				break;
-			if (*colon == ':')
+			if (colon[0] == ':' && colon[1] == ':')
+			{
+				if (gapstart >= 0)
+					return 0; //only one gap...
+				if (!colon[2])
+					break;	//nothing after. its partial.
+				gapstart = bits/8;
+				colon+=2;
+			}
+			else if (*colon == ':' && bits)
 				colon++;
+			else if (*colon)
+				return 0; //gibberish here...
 			else
-				return 0; //don't allow it if it just ended without a double-colon.
+				break;	//end of address... anything more is a partial.
 			s = colon;
 		}
+		if (gapstart >= 0)
+		{
+			int tailsize = (bits/8)-gapstart;	//bits to move to the end
+			int gapsize = 16 - gapstart - tailsize;
+			memmove(a->address.ip6+gapstart+gapsize, a->address.ip6+gapstart, tailsize);	//move the bits we found to the end
+			memset(a->address.ip6+gapstart, 0, gapsize);	//and make sure the gap is cleared
+			bits = 128;	//found it all, or something.
+		}
+		if (!bits)
+			bits = 1;	//FIXME: return of 0 is an error, but :: is 0-length... lie.
 		a->type = NA_IPV6;
 		a->port = 0;
 	}
@@ -3018,7 +3078,7 @@ static neterr_t FTENET_DTLS_DoSendPacket(void *cbctx, const qbyte *data, size_t 
 	struct dtlspeer_s *peer = cbctx;
 	return NET_SendPacketCol(peer->col, length, data, &peer->addr);
 }
-qboolean NET_DTLS_Create(ftenet_connections_t *col, netadr_t *to, const char *hostname)
+qboolean NET_DTLS_Create(ftenet_connections_t *col, netadr_t *to, const dtlscred_t *cred)
 {
 	extern cvar_t timeout;
 	struct dtlspeer_s *peer;
@@ -3040,7 +3100,7 @@ qboolean NET_DTLS_Create(ftenet_connections_t *col, netadr_t *to, const char *ho
 		else
 			peer->funcs = DTLS_InitClient();
 		if (peer->funcs)
-			peer->dtlsstate = peer->funcs->CreateContext(hostname, peer, FTENET_DTLS_DoSendPacket, col->islisten);
+			peer->dtlsstate = peer->funcs->CreateContext(cred, peer, FTENET_DTLS_DoSendPacket, col->islisten);
 
 		peer->timeout = realtime+timeout.value;
 		if (peer->dtlsstate)
@@ -3171,6 +3231,7 @@ qboolean NET_DTLS_Decode(ftenet_connections_t *col)
 				break;
 			case NETERR_SENT:
 				//we decoded it properly
+				net_from.prot = NP_DTLS;
 				break;
 			}
 			net_from.prot = NP_DTLS;
@@ -3231,7 +3292,7 @@ static qboolean FTENET_AddToCollection_Ptr(ftenet_connections_t *col, const char
 			if (col->conn[i])
 			if (*col->conn[i]->name && !strcmp(col->conn[i]->name, name))
 			{
-				if (adr && adr->type != NA_INVALID && col->islisten)
+				if (adr && (adr->type != NA_INVALID||adr->prot != NP_INVALID) && col->islisten)
 				if (col->conn[i]->ChangeLocalAddress)
 				{
 					if (col->conn[i]->ChangeLocalAddress(col->conn[i], address, adr))
@@ -5179,6 +5240,10 @@ qboolean FTENET_TCP_ParseHTTPRequest(ftenet_tcp_connection_t *con, ftenet_tcp_st
 					{
 						if (o != st && o->clienttype == TCPC_WEBRTC_HOST && !strcmp(st->webrtc.resource, o->webrtc.resource))
 						{
+							net_message_buffer[0] = ICEMSG_NAMEINUSE;
+							strcpy(net_message_buffer+1, st->webrtc.resource);
+							FTENET_TCP_WebSocket_Splurge(st, WS_PACKETTYPE_BINARYFRAME, net_message_buffer, strlen(net_message_buffer));
+
 							*st->webrtc.resource = 0; //don't trigger shutdown broadcasts to valid clients.
 							return false;	//conflict! can't have two servers listening on the same url
 						}
@@ -7862,6 +7927,11 @@ void NET_ReadPackets (ftenet_connections_t *collection)
 	while ((p = collection->delayed_packets) && (int)(Sys_Milliseconds()-p->sendtime) > 0)
 	{
 		collection->delayed_packets = p->next;
+#ifdef SUPPORT_ICE
+		if (p->dest.type == NA_ICE)
+			NET_SendPacketCol (collection, p->cursize, p->data, &p->dest);
+		else
+#endif
 #ifdef HAVE_DTLS
 		if (p->dest.prot == NP_DTLS)
 			FTENET_DTLS_SendPacket(collection, p->cursize, p->data, &p->dest);
@@ -8010,6 +8080,10 @@ neterr_t NET_SendPacket (ftenet_connections_t *collection, int length, const voi
 	}
 #endif
 
+#ifdef SUPPORT_ICE
+	if (to->type == NA_ICE)
+		return ICE_SendPacket(collection, length, data, to);
+#endif
 #ifdef HAVE_DTLS
 	if (to->prot == NP_DTLS)
 		return FTENET_DTLS_SendPacket(collection, length, data, to);
@@ -8031,11 +8105,16 @@ qboolean NET_EnsureRoute(ftenet_connections_t *collection, char *routename, char
 #ifdef HAVE_DTLS
 		adr->prot = NP_DGRAM;
 		if (NET_EnsureRoute(collection, routename, host, adr))
-			if (NET_DTLS_Create(collection, adr, host))
+		{
+			dtlscred_t cred;
+			memset(&cred, 0, sizeof(cred));
+			cred.peer.name = host;
+			if (NET_DTLS_Create(collection, adr, &cred))
 			{
 				adr->prot = NP_DTLS;
 				return true;
 			}
+		}
 		adr->prot = NP_DTLS;
 #endif
 		return false;

@@ -3720,6 +3720,29 @@ void CL_ParseEstablished(void)
 	cl_dp_csqc_progscrc = 0;
 	cl_dp_csqc_progssize = 0;
 #endif
+
+	if (cls.netchan.remote_address.type != NA_LOOPBACK)
+	{
+		const char *security;
+		switch(cls.protocol)
+		{
+		case CP_QUAKEWORLD:	Con_DPrintf(S_COLOR_GRAY"QW ");	break;
+		case CP_NETQUAKE:	Con_Printf (S_COLOR_GRAY"NQ ");	break;
+		case CP_QUAKE2:		Con_Printf (S_COLOR_GRAY"Q2 ");	break;
+		case CP_QUAKE3:		Con_Printf (S_COLOR_GRAY"Q3 ");	break;
+		default: break;
+		}
+		if (
+#ifdef SUPPORT_ICE
+				(cls.netchan.remote_address.type == NA_ICE && cls.netchan.remote_address.port) ||
+#endif
+				cls.netchan.remote_address.prot == NP_DTLS || cls.netchan.remote_address.prot == NP_TLS || cls.netchan.remote_address.prot == NP_WSS)
+			security = "^["S_COLOR_GREEN"encrypted\\tip\\Any passwords will be sent securely, but will still be readable by the server admin^]";
+		else
+			security = "^["S_COLOR_RED"plain-text\\tip\\"CON_WARNING"Do not type passwords as they can potentially be seen by network sniffers^]";
+
+		Con_TPrintf ("Connected to ^["S_COLOR_BLUE"%s\\type\\connect %s^] (%s).\n", cls.servername, cls.servername, security);
+	}
 }
 
 #ifdef NQPROT
@@ -4376,7 +4399,7 @@ static void CL_ParseSoundlist (qboolean lots)
 	{
 		if (cls.demoplayback != DPB_EZTV)
 		{
-			if (CL_RemoveClientCommands("soundlist"))
+			if (CL_RemoveClientCommands("soundlist") && !(cls.fteprotocolextensions2 & PEXT2_REPLACEMENTDELTAS))
 				Con_DPrintf("Multiple soundlists\n");
 //			CL_SendClientCommand("soundlist %i %i", cl.servercount, n);
 			CL_SendClientCommand(true, soundlist_name, cl.servercount, (numsounds&0xff00) + n);
@@ -4476,7 +4499,7 @@ static void CL_ParseModellist (qboolean lots)
 	{
 		if (cls.demoplayback != DPB_EZTV)
 		{
-			if (CL_RemoveClientCommands("modellist"))
+			if (CL_RemoveClientCommands("modellist") && !(cls.fteprotocolextensions2 & PEXT2_REPLACEMENTDELTAS))
 				Con_DPrintf("Multiple modellists\n");
 //			CL_SendClientCommand("modellist %i %i", cl.servercount, n);
 			CL_SendClientCommand(true, modellist_name, cl.servercount, (nummodels&0xff00) + n);

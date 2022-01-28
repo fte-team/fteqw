@@ -1006,14 +1006,14 @@ void IN_MoveJoystick(struct joy_s *joy, float *movements, int pnum, float framet
 	movements[2] += joy_movesens[2].value * mag*cl_upspeed.value * jstrafe[2];
 }
 
-void IN_Move (float *movements, int pnum, float frametime)
+void IN_Move (float *nudgemovements, float *absmovements, int pnum, float frametime)
 {
 	int i;
 	for (i = 0; i < MAXPOINTERS; i++)
-		IN_MoveMouse(&ptr[i], movements, pnum, frametime);
+		IN_MoveMouse(&ptr[i], nudgemovements, pnum, frametime);
 
 	for (i = 0; i < MAXJOYSTICKS; i++)
-		IN_MoveJoystick(&joy[i], movements, pnum, frametime);
+		IN_MoveJoystick(&joy[i], absmovements, pnum, frametime);
 }
 
 void IN_JoystickAxisEvent(unsigned int devid, int axis, float value)

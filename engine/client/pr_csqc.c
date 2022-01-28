@@ -59,8 +59,6 @@ static csqctreadstate_t *csqcthreads;
 qboolean csqc_resortfrags;
 world_t csqc_world;
 
-float csqc_starttime;	//reset on each csqc reload to restore lost precision of cltime on each map restart.
-
 int	csqc_playerseat;	//can be negative.
 static playerview_t *csqc_playerview;
 qboolean csqc_dp_lastwas3d;	//to emulate DP correctly, we need to track whether drawpic/drawfill or clearscene was called last. blame 515.
@@ -311,7 +309,7 @@ static void CSQC_FindGlobals(qboolean nofuncs)
 	if (csqcg.time)
 		*csqcg.time = cl.servertime;
 	if (csqcg.cltime)
-		*csqcg.cltime = realtime-csqc_starttime;
+		*csqcg.cltime = realtime-cl.mapstarttime;
 
 	if (!csqcg.global_gravitydir)
 		csqcg.global_gravitydir = defaultgravity;
@@ -8257,7 +8255,7 @@ qboolean CSQC_Init (qboolean anycsqc, const char *csprogsname, unsigned int chec
 		int csaddonnum = -1;
 		in_sensitivityscale = 1;
 		csqcmapentitydataloaded = true;
-		csqc_starttime = realtime;
+		cl.mapstarttime = realtime;
 		csqcprogs = InitProgs(&csqcprogparms);
 		csqc_world.progs = csqcprogs;
 		csqc_world.usesolidcorpse = true;
@@ -8904,7 +8902,7 @@ qboolean CSQC_DrawView(void)
 		CL_PredictMove ();
 
 	if (csqcg.cltime)
-		*csqcg.cltime = realtime-csqc_starttime;
+		*csqcg.cltime = realtime-cl.mapstarttime;
 	if (csqcg.time)
 		*csqcg.time = cl.servertime;
 	if (csqcg.clientcommandframe)
@@ -8993,7 +8991,7 @@ qboolean CSQC_DrawHud(playerview_t *pv)
 		if (csqcg.frametime)
 			*csqcg.frametime = host_frametime;
 		if (csqcg.cltime)
-			*csqcg.cltime = realtime-csqc_starttime;
+			*csqcg.cltime = realtime-cl.mapstarttime;
 
 		G_FLOAT(OFS_PARM0+0) = r_refdef.grect.width;
 		G_FLOAT(OFS_PARM0+1) = r_refdef.grect.height;
@@ -9037,7 +9035,7 @@ qboolean CSQC_DrawScores(playerview_t *pv)
 		if (csqcg.frametime)
 			*csqcg.frametime = host_frametime;
 		if (csqcg.cltime)
-			*csqcg.cltime = realtime-csqc_starttime;
+			*csqcg.cltime = realtime-cl.mapstarttime;
 
 		G_FLOAT(OFS_PARM0+0) = r_refdef.grect.width;
 		G_FLOAT(OFS_PARM0+1) = r_refdef.grect.height;
@@ -9493,7 +9491,7 @@ void CSQC_Input_Frame(int seat, usercmd_t *cmd)
 	if (csqcg.time)
 		*csqcg.time = cl.servertime;
 	if (csqcg.cltime)
-		*csqcg.cltime = realtime-csqc_starttime;
+		*csqcg.cltime = realtime-cl.mapstarttime;
 
 	if (csqcg.clientcommandframe)
 		*csqcg.clientcommandframe = cl.movesequence;
@@ -9607,7 +9605,7 @@ void CSQC_ParseEntities(qboolean sized)
 	if (csqcg.time)		//estimated server time
 		*csqcg.time = cl.servertime;
 	if (csqcg.cltime)	//smooth client time.
-		*csqcg.cltime = realtime-csqc_starttime;
+		*csqcg.cltime = realtime-cl.mapstarttime;
 
 	if (csqcg.servertime)
 		*csqcg.servertime = cl.gametime;

@@ -32,7 +32,7 @@ void IN_Commands (void);
 qboolean IN_MouseDevIsTouch(unsigned int devid);	//check if a mouse devid is a touch screen, and thus if we should check the cursor and simulate a ui event or not
 int IN_TranslateMButtonPress(unsigned int devid);	//allow the touchscreen code to swallow mouse1 as a begin-looking event
 
-void IN_Move (float *movements, int pnum, float frametime);
+void IN_Move (float *nudgemovements, float *absmovements, int pnum, float frametime);
 // add additional movement on top of the keyboard move cmd
 
 extern cvar_t in_xflip;

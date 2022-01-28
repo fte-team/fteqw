@@ -911,34 +911,24 @@ CL_BaseMove
 Send the intended movement message to the server
 ================
 */
-void CL_BaseMove (usercmd_t *cmd, int pnum, float priortime, float extratime)
+static void CL_BaseMove (vec3_t moves, int pnum)
 {
-	float nscale = extratime?extratime / (extratime+priortime):0;
-	float oscale = 1 - nscale;
-
-	cmd->fservertime = cl.time;
-	cmd->servertime = cl.time*1000;
-
+	float scale;
 //
 // adjust for speed key
 //
-	if ((in_speed.state[pnum] & 1) ^ cl_run.ival)
-		nscale *= cl_movespeedkey.value;
+	scale = ((in_speed.state[pnum] & 1) ^ cl_run.ival)?cl_movespeedkey.value:1;
 
-	if (in_strafe.state[pnum] & 1)
-		cmd->sidemove = cmd->sidemove*oscale + nscale*cl_sidespeed.value * (CL_KeyState (&in_right, pnum, true) - CL_KeyState (&in_left, pnum, true)) * (in_xflip.ival?-1:1);
-	cmd->sidemove = cmd->sidemove*oscale + nscale*cl_sidespeed.value * (CL_KeyState (&in_moveright, pnum, true) - CL_KeyState (&in_moveleft, pnum, true)) * (in_xflip.ival?-1:1);
-
-	cmd->upmove = cmd->upmove*oscale + nscale*cl_upspeed.value * (CL_KeyState (&in_up, pnum, true) - CL_KeyState (&in_down, pnum, true));
-
+	moves[0] = 0;
 	if (! (in_klook.state[pnum] & 1) )
-	{	
-		cmd->forwardmove = cmd->forwardmove*oscale + nscale*(cl_forwardspeed.value * CL_KeyState (&in_forward, pnum, true) - 
-								(*cl_backspeed.string?cl_backspeed.value:cl_forwardspeed.value) * CL_KeyState (&in_back, pnum, true));
+	{
+		moves[0] += scale*(cl_forwardspeed.value * CL_KeyState (&in_forward, pnum, true) -
+					(*cl_backspeed.string?cl_backspeed.value:cl_forwardspeed.value) * CL_KeyState (&in_back, pnum, true));
 	}
-
-	if (!priortime)	//only gather buttons if we've not had any this frame. this avoids jump feeling weird with prediction. FIXME: should probably still allow +attack to reduce latency
-		CL_GatherButtons(cmd, pnum);
+	moves[1] = scale*cl_sidespeed.value * (CL_KeyState (&in_moveright, pnum, true) - CL_KeyState (&in_moveleft, pnum, true)) * (in_xflip.ival?-1:1);
+	if (in_strafe.state[pnum] & 1)
+		moves[1] += scale*cl_sidespeed.value * (CL_KeyState (&in_right, pnum, true) - CL_KeyState (&in_left, pnum, true)) * (in_xflip.ival?-1:1);
+	moves[2] = scale*cl_upspeed.value * (CL_KeyState (&in_up, pnum, true) - CL_KeyState (&in_down, pnum, true));
 }
 
 void CL_ClampPitch (int pnum, float frametime)
@@ -1212,6 +1202,53 @@ static void CL_FinishMove (usercmd_t *cmd, int pnum)
 	}
 	else
 		cmd->impulse = 0;
+}
+
+
+static void CL_AccumlateInput(int plnum, float frametime/*extra contribution*/, float framemsecs/*total accumulated*/)
+{
+	usercmd_t *cmd = &cl_pendingcmd[plnum];
+	int i;
+	static vec3_t mousemovements[MAX_SPLITS];
+	vec3_t newmoves;
+
+	float nscale = framemsecs?framemsecs / (framemsecs+cmd->msec):0;
+	float oscale = 1 - nscale;
+
+	CL_BaseMove (newmoves, plnum);
+
+	CL_AdjustAngles (plnum, frametime);
+	if (!cmd->msec)
+		VectorClear(mousemovements[plnum]);
+	IN_Move (mousemovements[plnum], newmoves, plnum, frametime);
+	CL_ClampPitch(plnum, frametime);
+
+	for (i=0 ; i<3 ; i++)
+		cmd->angles[i] = ((int)(cl.playerview[plnum].viewangles[i]*65536.0/360)&65535);
+
+	cmd->fservertime = cl.servertime;
+	cmd->servertime = cl.time*1000;
+#ifdef CSQC_DAT
+	cmd->fclienttime = realtime - cl.mapstarttime;
+#endif
+
+	cmd->forwardmove = bound(-32768, cmd->forwardmove*oscale + newmoves[0]*nscale + mousemovements[plnum][0], 32767);
+	cmd->sidemove = bound(-32768, cmd->sidemove*oscale + newmoves[1]*nscale + mousemovements[plnum][1], 32767);
+	cmd->upmove = bound(-32768, cmd->upmove*oscale + newmoves[2]*nscale + mousemovements[plnum][2], 32767);
+
+	if (!cmd->msec && framemsecs)
+	{
+		CL_GatherButtons(cmd, plnum);	//buttons are from the initial state. don't blend them.
+
+		CL_FinishMove(cmd, plnum);
+		Cbuf_Waited();	//its okay to stop waiting now
+	}
+	cmd->msec = framemsecs;
+
+	// if we are spectator, try autocam
+//	if (cl.spectator)
+	Cam_Track(&cl.playerview[plnum], &cl_pendingcmd[plnum]);
+	Cam_FinishMove(&cl.playerview[plnum], &cl_pendingcmd[plnum]);
 }
 
 
@@ -2220,39 +2257,12 @@ void CL_SendCmd (double frametime, qboolean mainloop)
 			}
 			for (plnum = 0; plnum < cl.splitclients; plnum++)
 			{
-				vec3_t mousemovements;
 				playerview_t *pv = &cl.playerview[plnum];
 				cmd = &cl.outframes[i].cmd[plnum];
 
-				memset(cmd, 0, sizeof(*cmd));
-				msecs += frametime*1000;
-				if (msecs > 50)
-					msecs = 50;
-				cmd->msec = msecs;
-				msecs -= cmd->msec;
-				cl_pendingcmd[plnum].msec = 0;
-
-				CL_AdjustAngles (plnum, frametime);
-				// get basic movement from keyboard
-				CL_BaseMove (cmd, plnum, 0, 1);
-
-				// allow mice or other external controllers to add to the move
-				VectorClear(mousemovements);
-				IN_Move (mousemovements, plnum, frametime);
-				cl_pendingcmd[plnum].forwardmove += mousemovements[0];
-				cl_pendingcmd[plnum].sidemove += mousemovements[1];
-				cl_pendingcmd[plnum].upmove += mousemovements[2];
-				CL_ClampPitch(plnum, frametime);
-
-				// if we are spectator, try autocam
-				if (pv->spectator)
-					Cam_Track(pv, cmd);
-
-				CL_FinishMove(cmd, plnum);
-
-				VectorCopy(pv->aimangles, pv->simangles);
-
-				Cam_FinishMove(pv, cmd);
+				CL_AccumlateInput(plnum, frametime, frametime*1000);
+				*cmd = cl_pendingcmd[plnum];
+				memset(&cl_pendingcmd[plnum], 0, sizeof(*cmd));	//reset the pending for the next frame.
 
 #ifdef CSQC_DAT
 				CSQC_Input_Frame(plnum, cmd);
@@ -2279,7 +2289,7 @@ void CL_SendCmd (double frametime, qboolean mainloop)
 			cls.netchan.outgoing_sequence = cl.movesequence;
 		}
 
-		IN_Move (NULL, 0, frametime);
+		IN_Move (NULL, NULL, 0, frametime);
 
 		Cbuf_Waited();	//its okay to stop waiting now
 		return; // sendcmds come from the demo
@@ -2392,32 +2402,7 @@ void CL_SendCmd (double frametime, qboolean mainloop)
 	if (!CLHL_BuildUserInput(msecstouse, &cl_pendingcmd[0]))
 #endif
 	for (plnum = 0; plnum < (cl.splitclients?cl.splitclients:1); plnum++)
-	{
-		vec3_t mousemovements;
-		CL_AdjustAngles (plnum, frametime);
-		VectorClear(mousemovements);
-		IN_Move (mousemovements, plnum, frametime);
-		CL_ClampPitch(plnum, frametime);
-		cl_pendingcmd[plnum].forwardmove += mousemovements[0];	//FIXME: this will get nuked by CL_BaseMove.
-		cl_pendingcmd[plnum].sidemove += mousemovements[1];
-		cl_pendingcmd[plnum].upmove += mousemovements[2];
-
-		for (i=0 ; i<3 ; i++)
-			cl_pendingcmd[plnum].angles[i] = ((int)(cl.playerview[plnum].viewangles[i]*65536.0/360)&65535);
-
-		CL_BaseMove (&cl_pendingcmd[plnum], plnum, cl_pendingcmd[plnum].msec, framemsecs);
-		if (!cl_pendingcmd[plnum].msec && framemsecs)
-		{
-			CL_FinishMove(&cl_pendingcmd[plnum], plnum);
-			Cbuf_Waited();	//its okay to stop waiting now
-		}
-		cl_pendingcmd[plnum].msec = framemsecs;
-
-		// if we are spectator, try autocam
-	//	if (cl.spectator)
-		Cam_Track(&cl.playerview[plnum], &cl_pendingcmd[plnum]);
-		Cam_FinishMove(&cl.playerview[plnum], &cl_pendingcmd[plnum]);
-	}
+		CL_AccumlateInput(plnum, frametime, framemsecs);
 
 	//the main loop isn't allowed to send
 	if (runningindepphys && mainloop)

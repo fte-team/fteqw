@@ -1284,8 +1284,8 @@ typedef struct usercmd_s
 	unsigned int buttons;	//replaces buttons, but with more bits.
 	unsigned int weapon;//q3 has a separate weapon field to supplement impulse.
 	unsigned int servertime;	//q3 networks the time in order to calculate msecs
-	float	fservertime;//used as part of nq msec calcs
-	float	fclienttime;//not used?
+	double	fservertime;//used as part of nq msec calcs
+	double	fclienttime;//not used?
 
 	//prydon cursor crap
 	vec2_t	cursor_screen;

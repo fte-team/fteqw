@@ -857,6 +857,7 @@ typedef struct
 								// is rendering at.  always <= realtime
 	double		lasttime;		//cl.time from last frame.
 	double		lastlinktime;	//cl.time from last frame.
+	double		mapstarttime;	//for computing csqc's cltime.
 
 	float servertime;	//current server time, bound between gametime and gametimemark
 	float mtime;		//server time as on the server when we last received a packet. not allowed to decrease.
@@ -1265,7 +1266,6 @@ void CL_ReadPacket(void);
 
 int  CL_ReadFromServer (void);
 void CL_WriteToServer (usercmd_t *cmd);
-void CL_BaseMove (usercmd_t *cmd, int pnum, float priortime, float extratime);
 
 int Master_FindBestRoute(char *server, char *out, size_t outsize, int *directcost, int *chainedcost);
 

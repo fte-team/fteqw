@@ -2009,6 +2009,7 @@ void CL_ClearState (qboolean gamestart)
 	CL_ResetFog(FOGTYPE_WATER);
 	CL_ResetFog(FOGTYPE_SKYROOM);
 
+	cl.mapstarttime = realtime;
 	cl.gamespeed = 1;
 	cl.protocol_qw = PROTOCOL_VERSION_QW;	//until we get an svc_serverdata
 	cl.allocated_client_slots = QWMAX_CLIENTS;

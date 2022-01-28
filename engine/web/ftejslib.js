@@ -187,11 +187,27 @@ mergeInto(LibraryManager.library,
 					if (!document.fullscreenElement)
 						if (FTEC.evcb.wantfullscreen != 0)
 							if ({{{makeDynCall('i')}}}(FTEC.evcb.wantfullscreen))
-								Module['canvas'].requestFullscreen();
+							{
+								try
+								{
+									Module['canvas'].requestFullscreen();
+								}
+								catch(e)
+								{
+									console.log("requestFullscreen:");
+									console.log(e);
+								}
+							}
 					if (FTEC.pointerwantlock != 0 && FTEC.pointerislocked == 0)
 					{
 						FTEC.pointerislocked = -1;  //don't repeat the request on every click. firefox has a fit at that, so require the mouse to leave the element or something before we retry.
-						Module['canvas'].requestPointerLock({unadjustedMovement: true});
+						Module['canvas'].requestPointerLock({unadjustedMovement: true}).catch(()=>{
+							Module['canvas'].requestPointerLock().then(()=>{
+								console.log("Your shitty browser doesn't support disabling mouse acceleration.");
+							}).catch(()=>{
+								FTEC.pointerislocked = 0;	//failure. no real idea why. try again next frame though...
+							});
+						});
 					}
 					//fallthrough
 				case 'mouseup':
@@ -306,6 +322,7 @@ mergeInto(LibraryManager.library,
 							{{{makeDynCall('viiii')}}}(FTEC.evcb.jbutton, gp.index, j, 0, true);
 					console.log("Gamepad disconnected from index %d: %s", gp.index, gp.id);
 					break;
+				case 'pointerlockerror':
 				case 'pointerlockchange':
 				case 'mozpointerlockchange':
 				case 'webkitpointerlockchange':
@@ -405,7 +422,7 @@ mergeInto(LibraryManager.library,
 						'touchstart', 'touchend', 'touchcancel', 'touchleave', 'touchmove',
 						'dragenter', 'dragover', 'drop',
 						'message', 'resize',
-						'pointerlockchange', 'mozpointerlockchange', 'webkitpointerlockchange',
+						'pointerlockerror', 'pointerlockchange', 'mozpointerlockchange', 'webkitpointerlockchange',
 						'focus', 'blur'];   //try to fix alt-tab
 			events.forEach(function(event)
 			{
@@ -413,7 +430,7 @@ mergeInto(LibraryManager.library,
 			});
 
 			var docevents = ['keypress', 'keydown', 'keyup',
-							'pointerlockchange', 'mozpointerlockchange', 'webkitpointerlockchange'];
+							'pointerlockerror', 'pointerlockchange', 'mozpointerlockchange', 'webkitpointerlockchange'];
 			docevents.forEach(function(event)
 			{
 				document.addEventListener(event, FTEC.handleevent, true);

@@ -796,7 +796,8 @@ qboolean Netchan_Process (netchan_t *chan, netmsg_t *msg)
 
 	// read the qport if we are a server
 	if (!chan->isclient)
-		ReadShort (msg);
+		if (chan->qport != ReadShort (msg))
+			return false;
 
 	reliable_message = sequence >> 31;
 	reliable_ack = sequence_ack >> 31;

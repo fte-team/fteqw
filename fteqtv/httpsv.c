@@ -1059,11 +1059,22 @@ void HTTPSV_GetMethod(cluster_t *cluster, oproxy_t *pend)
 	{
 		if (HTTPSV_GetHeaderField((char*)pend->inbuffer, "Upgrade", upgrade, sizeof(upgrade)) && !stricmp(upgrade, "websocket"))
 		{
+			char wsprot[64];
 			char ver[64];
 			char key[64];
 			HTTPSV_GetHeaderField((char*)pend->inbuffer, "Sec-WebSocket-Key", key, sizeof(key));
 
-			if (HTTPSV_GetHeaderField((char*)pend->inbuffer, "Sec-WebSocket-Version", ver, sizeof(ver)) && atoi(ver) != 13)
+			HTTPSV_GetHeaderField((char*)pend->inbuffer, "Sec-WebSocket-Protocol", wsprot, sizeof(wsprot));
+
+			if (strcmp(wsprot, "quake") && strcmp(wsprot, "fteqw"))
+			{
+		#define dest pend
+				HTTPSV_SendHTTPHeader(cluster, pend, "404", "text/html", true);
+				HTTPSV_SendHTMLHeader(cluster, pend, "Websocket SubProtocol not recognised", "");
+				HTMLPRINT("<h1>Websocket SubProtocol not recognised</h1>");
+				HTTPSV_SendHTMLFooter(cluster, pend);
+			}
+			else if (HTTPSV_GetHeaderField((char*)pend->inbuffer, "Sec-WebSocket-Version", ver, sizeof(ver)) && atoi(ver) != 13)
 			{
 				s =	"HTTP/1.1 426 Upgrade Required\r\n"
 					"Sec-WebSocket-Version: 13\r\n"
@@ -1086,11 +1097,13 @@ void HTTPSV_GetMethod(cluster_t *cluster, oproxy_t *pend)
 							"Connection: Upgrade\r\n"
 							"Access-Control-Allow-Origin: *\r\n"	//allow cross-origin requests. this means you can use any domain to play on any public server.
 							"Sec-WebSocket-Accept: %s\r\n"
-//							"Sec-WebSocket-Protocol: FTEQTVWebSocket\r\n"
-							"\r\n", acceptkey);
+							"Sec-WebSocket-Protocol: %s\r\n"
+							"\r\n", acceptkey, wsprot);
 				//send the websocket handshake response.
 				Net_ProxySend(cluster, pend, padkey, strlen(padkey));
 				pend->websocket.websocket = true;
+
+				pend->droptime = cluster->curtime + 20*1000;
 
 				printf("websocket upgrade\n");
 			}

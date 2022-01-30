@@ -930,6 +930,7 @@ static qboolean QDECL ICE_Set(struct icestate_s *con, const char *prop, const ch
 					con->sctp = Z_Malloc(sizeof(*con->sctp));
 					con->sctp->myport = htons(con->mysctpport);
 					con->sctp->peerport = htons(con->peersctpport);
+					con->sctp->o.tsn = rand() ^ (rand()<<16);
 					Sys_RandomBytes((void*)&con->sctp->o.verifycode, sizeof(con->sctp->o.verifycode));
 					Sys_RandomBytes((void*)&con->sctp->i.verifycode, sizeof(con->sctp->i.verifycode));
 				}
@@ -1130,7 +1131,10 @@ static qboolean QDECL ICE_Get(struct icestate_s *con, const char *prop, char *va
 			const char *params[countof(addr)];
 
 			if (!NET_EnumerateAddresses(ICE_PickConnection(con), gcon, flags, addr, params, countof(addr)))
+			{
 				sender.type = NA_INVALID;
+				sender.port = 0;
+			}
 			else
 				sender = *addr;
 		}
@@ -1588,11 +1592,11 @@ struct sctp_chunk_fwdtsn_s
 {
 	struct sctp_chunk_s chunk;
 	quint32_t tsn;
-	struct
+	/*struct
 	{
 		quint16_t sid;
 		quint16_t seq;
-	} streams[1];//...
+	} streams[];*/
 };
 
 static neterr_t SCTP_PeerSendPacket(struct icestate_s *peer, int length, const void *data)
@@ -1638,6 +1642,18 @@ static neterr_t SCTP_Transmit(sctp_t *sctp, struct icestate_s *peer, const void 
 	h->srcport = sctp->myport;
 	h->verifycode = sctp->o.verifycode;
 	pktlen += sizeof(*h);
+
+	//advance our ctsn if we're received the relevant packets
+	while(sctp->i.htsn)
+	{
+		quint32_t tsn = sctp->i.ctsn+1;
+		if (!(sctp->i.received[(tsn>>3)%sizeof(sctp->i.received)] & 1<<(tsn&7)))
+			break;
+		//advance our cumulative ack.
+		sctp->i.received[(tsn>>3)%sizeof(sctp->i.received)] &= ~(1<<(tsn&7));
+		sctp->i.ctsn = tsn;
+		sctp->i.htsn--;
+	}
 
 	if (!sctp->o.writable)
 	{
@@ -1688,15 +1704,17 @@ static neterr_t SCTP_Transmit(sctp_t *sctp, struct icestate_s *peer, const void 
 		return NETERR_CLOGGED;	//nope, not ready yet
 	}
 
-	if (sctp->peerhasfwdtsn && sctp->o.ctsn < sctp->o.tsn && sctp->o.losttsn)
-	{
+	if (sctp->peerhasfwdtsn && (int)(sctp->o.ctsn-sctp->o.tsn) < -5 && sctp->o.losttsn)
+	{	
 		fwd = (struct sctp_chunk_fwdtsn_s*)&pkt[pktlen];
 		fwd->chunk.type = SCTP_TYPE_FORWARDTSN;
 		fwd->chunk.flags = 0;
 		fwd->chunk.length = BigShort(sizeof(*fwd));
 		fwd->tsn = BigLong(sctp->o.tsn-1);
-		fwd->streams[0].sid = sctp->qstreamid;
-		fwd->streams[0].seq = BigShort(0);
+
+		//we only send unordered unreliables, so this stream stuff here is irrelevant.
+//		fwd->streams[0].sid = sctp->qstreamid;
+//		fwd->streams[0].seq = BigShort(0);
 		pktlen += sizeof(*fwd);
 	}
 
@@ -1870,10 +1888,9 @@ static void SCTP_ErrorChunk(const char *errortype, struct sctp_errorcause_s *s, 
 	}
 }
 
-static void SCTP_Decode(sctp_t *sctp, struct icestate_s *peer)
+static void SCTP_Decode(sctp_t *sctp, struct icestate_s *peer, ftenet_connections_t *col)
 {
 	qbyte resp[4096];
-	qboolean finished = false;
 
 	qbyte *msg = net_message.data;
 	qbyte *msgend = net_message.data+net_message.cursize;
@@ -1915,7 +1932,7 @@ static void SCTP_Decode(sctp_t *sctp, struct icestate_s *peer)
 				else if (adv <= 0)
 					Con_DPrintf("SCTP: PreCumulative\n");/*already acked this*/
 				else if (sctp->i.received[(tsn>>3)%sizeof(sctp->i.received)] & 1<<(tsn&7))
-					Con_DPrintf("SCTP: Dupe\n");/*already processed it*/
+					Con_DPrintf("SCTP: Dupe\n");/*already processed it. FIXME: Make a list for the next SACK*/
 				else
 				{
 					qboolean err = false;
@@ -1929,9 +1946,6 @@ static void SCTP_Decode(sctp_t *sctp, struct icestate_s *peer)
 						sctp->i.r.sid = dc->sid;
 						sctp->i.r.seq = dc->seq;
 						sctp->i.r.toobig = false;
-						if (finished)
-							Con_Printf("SCTP: Multiple data chunks\n");
-						finished = false;
 					}
 					else
 					{
@@ -1966,7 +1980,16 @@ static void SCTP_Decode(sctp_t *sctp, struct icestate_s *peer)
 							if (sctp->i.r.toobig)
 								;/*ignore it when it cannot be handled*/
 							else if (sctp->i.r.ppid == BigLong(SCTP_PPID_DATA))
-								finished = true; //FIXME: handle multiple small packets
+							{
+								memmove(net_message.data, sctp->i.r.buf, sctp->i.r.size);
+								net_message.cursize = sctp->i.r.size;
+								col->ReadGamePacket();
+								if (net_message.cursize != sctp->i.r.size)
+								{
+									net_message.cursize = 0;
+									return;	//something weird happened...
+								}
+							}
 							else if (sctp->i.r.ppid == BigLong(SCTP_PPID_DCEP))
 								SCTP_DecodeDCEP(sctp, peer, resp);
 						}
@@ -1979,17 +2002,6 @@ static void SCTP_Decode(sctp_t *sctp, struct icestate_s *peer)
 //					Con_Printf("\tStream Id %i\n", BigShort(dc->sid));
 //					Con_Printf("\tStream Seq %i\n", BigShort(dc->seq));
 //					Con_Printf("\tPPID %i\n", BigLong(dc->ppid));
-
-					while(sctp->i.htsn)
-					{
-						tsn = sctp->i.ctsn+1;
-						if (!(sctp->i.received[(tsn>>3)%sizeof(sctp->i.received)] & 1<<(tsn&7)))
-							break;
-						//advance our cumulative ack.
-						sctp->i.received[(tsn>>3)%sizeof(sctp->i.received)] &= ~(1<<(tsn&7));
-						sctp->i.ctsn = tsn;
-						sctp->i.htsn--;
-					}
 				}
 			}
 			break;
@@ -2173,6 +2185,7 @@ static void SCTP_Decode(sctp_t *sctp, struct icestate_s *peer)
 					sctp->i.received[(tsn>>3)%sizeof(sctp->i.received)] &= ~(1<<(tsn&7));
 					if (sctp->i.htsn)
 						sctp->i.htsn--;
+					sctp->i.ackneeded++;	//flag for a sack if we actually completed something here.
 				}
 			}
 			break;
@@ -2188,14 +2201,8 @@ static void SCTP_Decode(sctp_t *sctp, struct icestate_s *peer)
 	if (sctp->i.ackneeded >= 5)
 		SCTP_Transmit(sctp, peer, NULL, 0);	//make sure we send acks occasionally even if we have nothing else to say.
 
-	//if we read something, spew it out and return to caller.
-	if (finished)
-	{
-		memmove(net_message.data, sctp->i.r.buf, sctp->i.r.size);
-		net_message.cursize = sctp->i.r.size;
-	}
-	else
-		net_message.cursize = 0;	//nothing to read.
+	//we already made sense of it all.
+	net_message.cursize = 0;
 }
 
 //========================================
@@ -2709,7 +2716,7 @@ qboolean ICE_WasStun(ftenet_connections_t *col)
 						net_from = con->qadr;
 #ifdef HAVE_DTLS
 						if (con->sctp)
-							SCTP_Decode(con->sctp, con);
+							SCTP_Decode(con->sctp, con, col);
 #endif
 						if (net_message.cursize)
 							col->ReadGamePacket();

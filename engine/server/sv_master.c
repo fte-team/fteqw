@@ -1001,13 +1001,16 @@ void SVM_GenChallenge(char *out, size_t outsize, netadr_t *foradr)
 	char digest[256];
 	void *ctx = alloca(hash_sha1.contextsize);
 
-	if (!*randumb)
+	while (!*randumb)
 	{
-		int i;
-		srand(time(NULL));	//lame
-		for (i = 0; i < sizeof(randumb)-1; i++)
-			while (!randumb[i])
-				randumb[i] = rand();
+		if (!Sys_RandomBytes(randumb, sizeof(randumb)))
+		{
+			int i;
+			srand(time(NULL));	//lame
+			for (i = 0; i < sizeof(randumb)-1; i++)
+				while (!randumb[i])
+					randumb[i] = rand();
+		}
 	}
 	NET_AdrToString(adr, sizeof(adr), foradr);
 

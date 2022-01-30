@@ -1091,15 +1091,20 @@ IF(FTE_PLUG_QI)
 	EMBED_PLUGIN_META(qi "Quaddicted Map Database" "Provides easy access to the quaddicted map database. Once installed you can use eg 'map qi_dopa:start' to begin playing dopa, or load it via the menus.")
 ENDIF()
 
-SET(FTE_PLUG_OPENSSL false CACHE BOOL "Compile OpenSSL (beware license).")
+SET(FTE_PLUG_OPENSSL false CACHE BOOL "Compile OpenSSL.")
 IF(FTE_PLUG_OPENSSL)
 	#the openssl license is incompatible with the GPL, so while we have code to use it distributing the binaries built with it is not a (legal) option.
 	#note that openssl 3.0.0 upwards are apache-2 licensed, which IS gpl-3 compatible (though not gpl-2). debian has not caught up with that yet, however.
 	FIND_PACKAGE(OpenSSL)
+	IF(OPENSSL_VERSION_MAJOR LESS 3)
+		SET(FTE_PRIVATE_USE_ONLY false CACHE BOOL "Ignore license violations.")
+	ENDIF()
 	IF(NOT OPENSSL_FOUND)
 		MESSAGE(WARNING "openssl library NOT available. you'll have to use some other library.")
+	ELSEIF(OPENSSL_VERSION_MAJOR LESS 3 AND NOT FTE_PRIVATE_USE_ONLY)
+		MESSAGE(WARNING "openssl v3 required for GPL compliance. Enable FTE_PRIVATE_USE_ONLY to compile openssl plugin.")
 	ELSE()
-		IF(OPENSSL_VERSION_MAJOR LESS 3 AND NOT FTE_PRIVATE_USE_ONLY)
+		IF(OPENSSL_VERSION_MAJOR LESS 3)
 			MESSAGE(WARNING "openssl library version is not 3 or above. You may not distribute plugin binaries due to license conflict.")
 		ELSE()
 			MESSAGE(WARNING "Using openssl. Resulting plugin must be licensed as GPLv3.")
@@ -1116,6 +1121,25 @@ IF(FTE_PLUG_OPENSSL)
 		EMBED_PLUGIN_META(openssl "OpenSSL" "Provides OpenSSL support for dtls/tls/https support. The crypto library that is actually used is controlled via the tls_provider cvar.")
 	ENDIF()
 ENDIF()
+
+#SET(FTE_PLUG_GNUTLS true CACHE BOOL "Compile GnuTLS Library.")
+#IF(FTE_PLUG_GNUTLS)
+#	FIND_PACKAGE(GnuTLS)
+#	IF(NOT GNUTLS_FOUND)
+#		MESSAGE(WARNING "openssl library NOT available. you'll have to use some other library.")
+#	ELSE()
+#		SET(FTE_LIB_DEFINES ${FTE_LIB_DEFINES})
+#
+#		ADD_LIBRARY(plug_gnutls MODULE
+#			plugins/plugin.c
+#			engine/common/net_ssl_gnutls.c
+#		)
+#		SET_TARGET_PROPERTIES(plug_gnutls PROPERTIES COMPILE_DEFINITIONS "FTEPLUGIN;${FTE_LIB_DEFINES}")
+#		TARGET_LINK_LIBRARIES(plug_gnutls ${SYS_LIBS} ${GNUTLS_LIBRARIES})
+#
+#		EMBED_PLUGIN_META(gnutls "GnuTLS" "Provides GnuTLS support for dtls/tls/https support. The crypto library that is actually used is controlled via the tls_provider cvar.")
+#	ENDIF()
+#ENDIF()
 
 #ODE Physics library plugin
 SET(FTE_PLUG_ODE true CACHE BOOL "Compile ODE rigid body physics plugin.")

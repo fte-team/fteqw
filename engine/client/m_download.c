@@ -311,6 +311,10 @@ static void PM_FreePackage(package_t *p)
 	Z_Free(p->previewimage);
 	Z_Free(p->qhash);
 	Z_Free(p->arch);
+	Z_Free(p->packprefix);
+	Z_Free(p->filesha1);
+	Z_Free(p->filesha512);
+	Z_Free(p->signature);
 	Z_Free(p);
 }
 

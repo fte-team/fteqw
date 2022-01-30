@@ -9240,7 +9240,8 @@ void	NET_Shutdown (void)
 
 
 #ifdef HAVE_EPOLL
-	close(epoll_fd);
+	if (epoll_fd >= 0)
+		close(epoll_fd);
 	epoll_fd = -1;
 	stdin_epolling = false;
 #endif

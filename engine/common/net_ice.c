@@ -407,7 +407,11 @@ static struct icestate_s *QDECL ICE_Create(void *module, const char *conname, co
 				con->dtlsfuncs = DTLS_InitClient();	//credentials are a bit different, though fingerprints make it somewhat irrelevant.
 		}
 		if (con->dtlsfuncs && con->dtlsfuncs->GenTempCertificate && !con->cred.local.certsize)
+		{
+			Con_DPrintf("Generating dtls certificate...\n");
 			con->dtlsfuncs->GenTempCertificate(NULL, &con->cred.local);
+			Con_DPrintf("Done\n");
+		}
 
 		con->mysctpport = 27500;
 	}
@@ -931,9 +935,9 @@ static qboolean QDECL ICE_Set(struct icestate_s *con, const char *prop, const ch
 				CL_Transfer(&con->qadr);	//okay, the client should be using this ice connection now.
 #endif
 #ifndef CLIENTONLY
-			else if (con->proto == ICEP_QWSERVER)
+			else if (con->proto == ICEP_QWSERVER && con->mode != ICEM_WEBRTC)
 			{
-				net_from = con->chosenpeer;
+				net_from = con->qadr;
 				SVC_GetChallenge(false);
 			}
 #endif
@@ -1329,12 +1333,40 @@ void QDECL ICE_AddLCandidateConn(ftenet_connections_t *col, netadr_t *addr, int 
 
 static void ICE_Destroy(struct icestate_s *con)
 {
+	struct icecandidate_s *c;
+
+	if (con->sctp)
+	{
+		Z_Free(con->sctp->cookie);
+		Z_Free(con->sctp);
+	}
+	if (con->dtlsstate)
+		con->dtlsfuncs->DestroyContext(con->dtlsstate);
 	if (con->connections)
 		FTENET_CloseCollection(con->connections);
 	if (con->cred.local.cert)
 		Z_Free(con->cred.local.cert);
 	if (con->cred.local.key)
-		Z_Free(con->cred.local.key);
+		Z_Free(con->cred.local.key);		
+	while(con->rc)
+	{
+		c = con->rc;
+		con->rc = c->next;
+		Z_Free(c);
+	}
+	while(con->lc)
+	{
+		c = con->lc;
+		con->lc = c->next;
+		Z_Free(c);
+	}
+	Z_Free(con->stunserver);
+	Z_Free(con->lufrag);
+	Z_Free(con->lpwd);
+	Z_Free(con->rufrag);
+	Z_Free(con->rpwd);
+	Z_Free(con->friendlyname);
+	Z_Free(con->conname);
 	//has already been unlinked
 	Z_Free(con);
 }
@@ -1406,7 +1438,7 @@ void ICE_Tick(void)
 			{
 				if (con->sctp)
 					SCTP_Transmit(con->sctp, con, NULL,0);	//try to keep it ticking...
-				if (con->dtlsfuncs)
+				if (con->dtlsstate)
 					con->dtlsfuncs->Timeouts(con->dtlsstate);
 
 				//FIXME: We should be sending a stun binding indication every 15 secs with a fingerprint attribute
@@ -2154,6 +2186,8 @@ qboolean ICE_WasStun(ftenet_connections_t *col)
 	if (net_from.type == NA_ICE)
 		return false;	//this stuff over an ICE connection doesn't make sense.
 #endif
+	if (net_from.prot != NP_DGRAM)
+		return false;
 
 #if defined(HAVE_CLIENT) && defined(VOICECHAT)
 	if (col == cls.sockets)
@@ -3110,7 +3144,6 @@ handleerror:
 				}
 				if (b->generic.islisten)
 				{
-					Con_Printf("Client offered: %s\n", data);
 					if (cl >= 0 && cl < b->numclients && b->clients[cl].ice)
 					{
 						iceapi.ICE_Set(b->clients[cl].ice, "sdpoffer", data);

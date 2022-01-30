@@ -264,14 +264,16 @@ static int OSSL_Verify_Peer(int preverify_ok, X509_STORE_CTX *x509_ctx)
 				qbyte *blob;
 				qbyte *end;
 				blobsize = i2d_X509(cert, NULL);
-				if (blobsize != knownsize)
-					return 0;	//fail if the size doesn't match.
-				blob = alloca(blobsize);
-				end = blob;
-				i2d_X509(cert, &end);
-				if (memcmp(blob, knowndata, blobsize))
-					return 0;
-				return 1;	//exact match to a known cert. yay. allow it.
+				if (blobsize == knownsize)
+				{	//sizes must match.
+					blob = alloca(blobsize);
+					end = blob;
+					i2d_X509(cert, &end);
+					if (!memcmp(blob, knowndata, blobsize))
+						preverify_ok = 1;	//exact match to a known cert. yay. allow it.
+				}
+				plugfuncs->Free(knowndata);
+				return preverify_ok;
 			}
 
 #ifdef HAVE_CLIENT
@@ -1048,14 +1050,16 @@ static const dtlsfuncs_t *OSSL_InitServer(void)
 
 
 
-
+static struct
+{
+	qboolean inited;
+	qboolean init_success;
+} ossl;
 static qboolean OSSL_Init(void)
 {
-	static qboolean inited;
-	static qboolean init_success;
-	if (inited)
-		return init_success;
-	inited = true;
+	if (ossl.inited)
+		return ossl.init_success;
+	ossl.inited = true;
 #if 0//def LOADERTHREAD
 	Sys_LockMutex(com_resourcemutex);
 	if (inited)	//now check again, just in case
@@ -1084,7 +1088,7 @@ static qboolean OSSL_Init(void)
 		BIO_meth_set_create(biometh_vfs, OSSL_Bio_FCreate);
 		BIO_meth_set_destroy(biometh_vfs, OSSL_Bio_FDestroy);
 		BIO_meth_set_callback_ctrl(biometh_vfs, OSSL_Bio_FOtherCtrl);
-		init_success |= 1;
+		ossl.init_success |= 1;
 	}
 
 	biometh_dtls = BIO_meth_new(BIO_get_new_index()|BIO_TYPE_SOURCE_SINK|BIO_TYPE_DESCRIPTOR, "fte_dtls");
@@ -1098,7 +1102,7 @@ static qboolean OSSL_Init(void)
 		BIO_meth_set_create(biometh_dtls, OSSL_Bio_DCreate);
 		BIO_meth_set_destroy(biometh_dtls, OSSL_Bio_DDestroy);
 		BIO_meth_set_callback_ctrl(biometh_dtls, OSSL_Bio_DOtherCtrl);
-		init_success |= 2;
+		ossl.init_success |= 2;
 	}
 
 	ossl_fte_certctx = SSL_get_ex_new_index(0, "ossl_fte_certctx", NULL, NULL, NULL);
@@ -1106,7 +1110,7 @@ static qboolean OSSL_Init(void)
 #if 0//def LOADERTHREAD
 	Sys_UnlockMutex(com_resourcemutex);
 #endif
-	return init_success;
+	return ossl.init_success;
 }
 
 static enum hashvalidation_e OSSL_VerifyHash(const qbyte *hashdata, size_t hashsize, const qbyte *pubkeydata, size_t pubkeysize, const qbyte *signdata, size_t signsize)
@@ -1151,12 +1155,32 @@ static ftecrypto_t crypto_openssl =
 	NULL,
 };
 
+static void OSSL_PluginShutdown(void)
+{
+	ossl.inited = false;
+	ossl.init_success = false;
+
+	X509_free(vhost.servercert);
+	EVP_PKEY_free(vhost.privatekey);
+	BIO_meth_free(biometh_vfs);
+	BIO_meth_free(biometh_dtls);
+}
+static qboolean OSSL_PluginMayShutdown(void)
+{
+	//the engine has a habit of holding on to handles without any refcounts, so don't allow it to die early.
+	return false;
+}
+
 qboolean Plug_Init(void)
 {
 	fsfuncs = plugfuncs->GetEngineInterface(plugfsfuncs_name, sizeof(*fsfuncs));
 	netfuncs = plugfuncs->GetEngineInterface(plugnetfuncs_name, sizeof(*netfuncs));
 	if (!fsfuncs || !netfuncs)
 		return false;
+
+	plugfuncs->ExportFunction("Shutdown", OSSL_PluginShutdown);
+	plugfuncs->ExportFunction("MayUnload", OSSL_PluginMayShutdown);
+
 	pdtls_psk_hint = cvarfuncs->GetNVFDG("dtls_psk_hint", "", 0, NULL, "DTLS stuff");
 	pdtls_psk_user = cvarfuncs->GetNVFDG("dtls_psk_user", "", 0, NULL, "DTLS stuff");
 	pdtls_psk_key  = cvarfuncs->GetNVFDG("dtls_psk_key",  "", 0, NULL, "DTLS stuff");

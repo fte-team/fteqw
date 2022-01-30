@@ -872,7 +872,10 @@ qboolean R_ImportRTLights(const char *entlump, int importmode)
 	}
 
 	if (!importmode && !rerelease)
+	{
+		InfoBuf_Clear(&targets, true);
 		return false;	//don't make it up from legacy ents.
+	}
 
 	for (entnum = 0; ;entnum++)
 	{
@@ -1119,6 +1122,7 @@ qboolean R_ImportRTLights(const char *entlump, int importmode)
 					if (atoi(value))
 					{
 						okay = true;
+						InfoBuf_Clear(&targets, true);
 						return okay;
 					}
 				}

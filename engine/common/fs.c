@@ -223,6 +223,7 @@ void FS_Manifest_Free(ftemanifest_t *man)
 	Z_Free(man->downloadsurl);
 	Z_Free(man->installupd);
 #endif
+	Z_Free(man->mainconfig);
 	Z_Free(man->schemes);
 	Z_Free(man->protocolname);
 	Z_Free(man->eula);

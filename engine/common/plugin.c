@@ -190,6 +190,9 @@ static plugin_t *Plug_Load(const char *file)
 			return newplug;
 	}
 
+	if (COM_CheckParm("-noplugins"))
+		return NULL;
+
 	newplug = Z_Malloc(sizeof(plugin_t)+strlen(temp)+1);
 	newplug->name = (char*)(newplug+1);
 	strcpy(newplug->name, temp);

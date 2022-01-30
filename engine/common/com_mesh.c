@@ -6172,7 +6172,10 @@ static galiasinfo_t *Mod_LoadQ3ModelLod(model_t *mod, int *surfcount, void *buff
 				if (i >= LittleLong(surf->numShaders))
 					Q_strncpyz(frames->shadername, "", sizeof(frames->shadername));	//this shouldn't be possible
 				else
+				{
 					Q_strncpyz(frames->shadername, inshader->name, sizeof(frames->shadername));
+					Q_strncpyz(skin->name, inshader->name, sizeof(frames->shadername));
+				}
 
 				inshader++;
 				skin++;

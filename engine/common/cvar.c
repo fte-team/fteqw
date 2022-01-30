@@ -1714,6 +1714,11 @@ void Cvar_Shutdown(void)
 			}
 			Z_Free(var->latched_string);
 			Z_Free(var->string);
+
+			AHash_RemoveDataInsensitive(&cvar_hash, var->name, var);
+			if (var->name2)
+				AHash_RemoveDataInsensitive(&cvar_hash, var->name2, var);
+
 			if (var->flags & CVAR_POINTER)
 				Z_Free(var);
 			else

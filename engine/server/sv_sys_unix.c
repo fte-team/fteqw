@@ -54,13 +54,19 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "netinc.h"
 #endif
 
+#ifdef HAVE_GNUTLS
+qboolean SSL_InitGlobal(qboolean isserver);
+void GnuTLS_Shutdown(void);
+#endif
+
 
 // callbacks
 void Sys_Linebuffer_Callback (struct cvar_s *var, char *oldvalue);
 
 cvar_t sys_nostdout = CVAR("sys_nostdout","0");
 cvar_t sys_extrasleep = CVAR("sys_extrasleep","0");
-cvar_t sys_colorconsole = CVAR("sys_colorconsole", "1");
+cvar_t sys_colorconsole = CVARD("sys_colorconsole", "1", "Parse colour escapes, with ansi colours on stdout.");
+cvar_t sys_timestamps = CVARD("sys_timestamps", "0", "Show timesamps on stdout prints.");
 cvar_t sys_linebuffer = CVARC("sys_linebuffer", "1", Sys_Linebuffer_Callback);
 
 static qboolean	stdin_ready;
@@ -429,6 +435,7 @@ void Sys_Printf (char *fmt, ...)
 			conchar_t *e, *c;
 			conchar_t ctext[MAXPRINTMSG];
 			unsigned int codeflags, codepoint;
+			static qboolean wasnl = false;
 			e = COM_ParseFunString(CON_WHITEMASK, msg, ctext, sizeof(ctext), false);
 			for (c = ctext; c < e; )
 			{
@@ -439,7 +446,17 @@ void Sys_Printf (char *fmt, ...)
 				if ((codeflags&CON_RICHFORECOLOUR) || (codepoint == '\n' && (codeflags&CON_NONCLEARBG)))
 					codeflags = CON_WHITEMASK;	//make sure we don't get annoying backgrounds on other lines.
 				ApplyColour(codeflags);
+
+				if (wasnl && sys_timestamps.ival)
+				{
+					char buffer[64];
+					time_t unixtime = time(NULL);
+					strftime(buffer, sizeof(buffer), "%Y-%m-%d %H:%M:%S ", localtime(&unixtime));
+					for (w = 0; w < buffer[w]; w++)
+						putc(buffer[w], stdout);
+				}
 				w = codepoint;
+				wasnl = (w == '\n');
 				if (w >= 0xe000 && w < 0xe100)
 				{
 					/*not all quake chars are ascii compatible, so map those control chars to safe ones so we don't mess up anyone's xterm*/
@@ -567,6 +584,12 @@ Sys_Quit
 */
 void Sys_Quit (void)
 {
+#ifdef HAVE_SERVER
+	SV_Shutdown();
+#endif
+#ifdef HAVE_GNUTLS
+	GnuTLS_Shutdown();
+#endif
 	if (!noconinput)
 	{
 		tcsetattr(STDIN_FILENO, TCSADRAIN, &orig);
@@ -742,6 +765,7 @@ void Sys_Init (void)
 	Cvar_Register (&sys_extrasleep,	"System configuration");
 
 	Cvar_Register (&sys_colorconsole, "System configuration");
+	Cvar_Register (&sys_timestamps, "System configuration");
 	Cvar_Register (&sys_linebuffer, "System configuration");
 }
 
@@ -830,9 +854,6 @@ static void Friendly_Crash_Handler(int sig, siginfo_t *info, void *vcontext)
 }
 #endif
 
-#ifdef HAVE_GNUTLS
-qboolean SSL_InitGlobal(qboolean isserver);
-#endif
 #ifdef SQL
 #include "sv_sql.h"
 #endif

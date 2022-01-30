@@ -35,6 +35,7 @@ void QDECL Name_Callback(struct cvar_s *var, char *oldvalue);
 #else
 #define Name_Callback NULL
 #endif
+void GnuTLS_Shutdown(void);
 
 static void CL_ForceStopDownload (qboolean finish);
 
@@ -7222,6 +7223,10 @@ void Host_Shutdown(void)
 	P_ShutdownParticleSystem();
 	Cvar_Shutdown();
 	Validation_FlushFileList();
+
+#ifdef HAVE_GNUTLS
+	GnuTLS_Shutdown();
+#endif
 
 	Cmd_Shutdown();
 #ifdef PACKAGEMANAGER

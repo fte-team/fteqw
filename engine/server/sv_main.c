@@ -278,6 +278,10 @@ void SV_Shutdown (void)
 		Z_Free(lp);
 	}
 
+#ifdef WEBCLIENT
+	HTTP_CL_Terminate();
+#endif
+
 #ifdef HEXEN2
 	T_FreeStrings();
 #endif

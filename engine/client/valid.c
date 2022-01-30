@@ -913,9 +913,18 @@ void Ruleset_Shutdown(void)
 			rs->rules--;
 			Z_Free(rs->rule[rs->rules].rulename);
 			Z_Free(rs->rule[rs->rules].rulevalue);
+			Z_Free(rs->rule[rs->rules].rulecond);
 		}
-
 		Z_Free(rs->rule);
+
+		while (rs->filehashes)
+		{
+			rs->filehashes--;
+			Z_Free(rs->filehash[rs->filehashes].filename);
+			Z_Free(rs->filehash[rs->filehashes].hash);
+		}
+		Z_Free(rs->filehash);
+
 		Z_Free(rs);
 	}
 }

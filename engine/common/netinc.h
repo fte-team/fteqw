@@ -268,7 +268,7 @@ enum icemode_e
 {
 	ICEM_RAW,		//not actually interactive beyond a simple handshake.
 	ICEM_ICE,		//rfc5245. meant to be able to holepunch, but not implemented properly yet.
-	ICEM_WEBRTC,	//IP+UDP+ICE+DTLS+SCTP... no more layers? :o
+	ICEM_WEBRTC,	//IP+UDP+((ICE/STUN/SDP)+(DTLS+SCTP))... no more layers? :o
 };
 enum icestate_e
 {

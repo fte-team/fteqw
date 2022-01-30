@@ -75,9 +75,6 @@ struct icestate_s
 	netadr_t qadr;			//address reported to the rest of the engine (packets from our peer get remapped to this)
 	netadr_t chosenpeer;	//address we're sending our data to.
 
-	void *dtlsstate;
-	struct sctp_s *sctp;	//ffs! extra processing needed.
-
 	netadr_t pubstunserver;
 	unsigned int stunretry;	//once a second, extended to once a minite on reply
 	char *stunserver;//where to get our public ip from.
@@ -111,11 +108,16 @@ struct icestate_s
 	int foundation;
 
 	qboolean blockcandidates;		//don't send candidates yet.
+#ifdef HAVE_DTLS
+	void *dtlsstate;
+	struct sctp_s *sctp;	//ffs! extra processing needed.
+
 	const dtlsfuncs_t *dtlsfuncs;
 	qboolean dtlspassive;	//true=server, false=client (separate from ice controller and whether we're hosting. yay...)
 	dtlscred_t cred;	//credentials info for dtls (both peer and local info)
 	quint16_t mysctpport;
 	quint16_t peersctpport;
+#endif
 
 	ftenet_connections_t *connections;	//used only for PRIVATE sockets.
 
@@ -166,7 +168,9 @@ typedef struct sctp_s
 	} i;
 	unsigned short qstreamid;	//in network endian.
 } sctp_t;
+#ifdef HAVE_DTLS
 static neterr_t SCTP_Transmit(sctp_t *sctp, struct icestate_s *peer, const void *data, size_t length);
+#endif
 
 static struct icestate_s *icelist;
 
@@ -334,6 +338,10 @@ static struct icestate_s *QDECL ICE_Create(void *module, const char *conname, co
 	//only allow modes that we actually support.
 	if (mode != ICEM_RAW && mode != ICEM_ICE && mode != ICEM_WEBRTC)
 		return NULL;
+#ifndef HAVE_DTLS
+	if (mode == ICEM_WEBRTC)
+		return NULL;
+#endif
 
 	//only allow protocols that we actually support.
 	switch(proto)
@@ -395,6 +403,8 @@ static struct icestate_s *QDECL ICE_Create(void *module, const char *conname, co
 
 	con->mode = mode;
 	con->blockcandidates = true;	//until offers/answers are sent.
+
+#ifdef HAVE_DTLS
 	con->dtlspassive = (proto == ICEP_QWSERVER);	//note: may change later.
 
 	if (mode == ICEM_WEBRTC)
@@ -416,9 +426,10 @@ static struct icestate_s *QDECL ICE_Create(void *module, const char *conname, co
 		con->mysctpport = 27500;
 	}
 
+	con->qadr.port = con->mysctpport;
+#endif
 	con->qadr.type = NA_ICE;
 	con->qadr.prot = NP_DGRAM;
-	con->qadr.port = con->mysctpport;
 	Q_strncpyz(con->qadr.address.icename, con->friendlyname, sizeof(con->qadr.address.icename));
 
 	con->next = icelist;
@@ -723,27 +734,13 @@ static void ICE_ParseSDPLine(struct icestate_s *con, const char *value)
 		ICE_Set(con, "rpwd", value+10);
 	else if (!strncmp(value, "a=ice-ufrag:", 12))
 		ICE_Set(con, "rufrag", value+12);
+#ifdef HAVE_DTLS
 	else if (!strncmp(value, "a=setup:", 8))
 	{	//this is their state, so we want the opposite.
 		if (!strncmp(value+8, "passive", 7))
 			con->dtlspassive = false;
 		else if (!strncmp(value+8, "active", 6))
 			con->dtlspassive = true;
-	}
-	else if (!strncmp(value, "a=rtpmap:", 9))
-	{
-		char name[64];
-		int codec;
-		char *sl;
-		value += 9;
-		codec = strtoul(value, (char**)&value, 0);
-		if (*value == ' ') value++;
-
-		COM_ParseOut(value, name, sizeof(name));
-		sl = strchr(name, '/');
-		if (sl)
-			*sl = '@';
-		ICE_Set(con, va("codec%i", codec), name);
 	}
 	else if (!strncmp(value, "a=fingerprint:", 14))
 	{
@@ -799,6 +796,22 @@ static void ICE_ParseSDPLine(struct icestate_s *con, const char *value)
 	}
 	else if (!strncmp(value, "a=sctp-port:", 12))
 		con->peersctpport = atoi(value+12);
+#endif
+	else if (!strncmp(value, "a=rtpmap:", 9))
+	{
+		char name[64];
+		int codec;
+		char *sl;
+		value += 9;
+		codec = strtoul(value, (char**)&value, 0);
+		if (*value == ' ') value++;
+
+		COM_ParseOut(value, name, sizeof(name));
+		sl = strchr(name, '/');
+		if (sl)
+			*sl = '@';
+		ICE_Set(con, va("codec%i", codec), name);
+	}
 	else if (!strncmp(value, "a=candidate:", 12))
 	{
 		struct icecandinfo_s n;
@@ -905,6 +918,7 @@ static qboolean QDECL ICE_Set(struct icestate_s *con, const char *prop, const ch
 
 		if (con->state >= ICE_CONNECTING)
 		{
+#ifdef HAVE_DTLS
 			if (con->mode == ICEM_WEBRTC)
 			{
 				if (!con->dtlsstate && con->dtlsfuncs)
@@ -920,6 +934,7 @@ static qboolean QDECL ICE_Set(struct icestate_s *con, const char *prop, const ch
 					Sys_RandomBytes((void*)&con->sctp->i.verifycode, sizeof(con->sctp->i.verifycode));
 				}
 			}
+#endif
 		}
 
 		if (oldstate != con->state && con->state == ICE_CONNECTED)
@@ -1147,6 +1162,7 @@ static qboolean QDECL ICE_Get(struct icestate_s *con, const char *prop, char *va
 		Q_strncatz(value, va("a=ice-pwd:%s\n", con->lpwd), valuelen);
 		Q_strncatz(value, va("a=ice-ufrag:%s\n", con->lufrag), valuelen);
 
+#ifdef HAVE_DTLS
 		if (con->dtlsfuncs)
 		{
 			if (!strcmp(prop, "sdpanswer"))
@@ -1162,6 +1178,7 @@ static qboolean QDECL ICE_Get(struct icestate_s *con, const char *prop, char *va
 
 		if (con->mysctpport)
 			Q_strncatz(value, va("a=sctp-port:%i\n", con->mysctpport), valuelen);	//stupid hardcoded thing.
+#endif
 
 		/*fixme: merge the codecs into a single media line*/
 		for (i = 0; i < countof(con->codecslot); i++)
@@ -1335,6 +1352,7 @@ static void ICE_Destroy(struct icestate_s *con)
 {
 	struct icecandidate_s *c;
 
+#ifdef HAVE_DTLS
 	if (con->sctp)
 	{
 		Z_Free(con->sctp->cookie);
@@ -1342,12 +1360,13 @@ static void ICE_Destroy(struct icestate_s *con)
 	}
 	if (con->dtlsstate)
 		con->dtlsfuncs->DestroyContext(con->dtlsstate);
-	if (con->connections)
-		FTENET_CloseCollection(con->connections);
 	if (con->cred.local.cert)
 		Z_Free(con->cred.local.cert);
 	if (con->cred.local.key)
-		Z_Free(con->cred.local.key);		
+		Z_Free(con->cred.local.key);
+#endif
+	if (con->connections)
+		FTENET_CloseCollection(con->connections);
 	while(con->rc)
 	{
 		c = con->rc;
@@ -1436,10 +1455,12 @@ void ICE_Tick(void)
 			}
 			else if (con->state == ICE_CONNECTED)
 			{
+#ifdef HAVE_DTLS
 				if (con->sctp)
 					SCTP_Transmit(con->sctp, con, NULL,0);	//try to keep it ticking...
 				if (con->dtlsstate)
 					con->dtlsfuncs->Timeouts(con->dtlsstate);
+#endif
 
 				//FIXME: We should be sending a stun binding indication every 15 secs with a fingerprint attribute
 			}
@@ -1497,10 +1518,11 @@ icefuncs_t iceapi =
 
 
 
-#if defined(SUPPORT_ICE)
+#if defined(SUPPORT_ICE) && defined(HAVE_DTLS)
 //========================================
 //WebRTC's interpretation of SCTP. its annoying, but hey its only 28 wasted bytes... along with the dtls overhead too. most of this is redundant.
 //we only send unreliably.
+//there's no point in this code without full webrtc code.
 
 struct sctp_header_s
 {
@@ -2667,6 +2689,7 @@ qboolean ICE_WasStun(ftenet_connections_t *col)
 
 						con->timeout = Sys_Milliseconds() + 32;	//not dead yet...
 
+#ifdef HAVE_DTLS
 						if (con->dtlsstate)
 						{
 							switch(con->dtlsfuncs->Received(con->dtlsstate, &net_message))
@@ -2682,9 +2705,12 @@ qboolean ICE_WasStun(ftenet_connections_t *col)
 								return true;
 							}
 						}
+#endif
 						net_from = con->qadr;
+#ifdef HAVE_DTLS
 						if (con->sctp)
 							SCTP_Decode(con->sctp, con);
+#endif
 						if (net_message.cursize)
 							col->ReadGamePacket();
 						return true;
@@ -2704,12 +2730,14 @@ neterr_t ICE_SendPacket(ftenet_connections_t *col, size_t length, const void *da
 	{
 		if (NET_CompareAdr(to, &con->qadr))
 		{
+#ifdef HAVE_DTLS
 			if (con->sctp)
 				return SCTP_Transmit(con->sctp, con, data, length);
 			if (con->dtlsstate)
 				return SCTP_PeerSendPacket(con, length, data);
+#endif
 			if (con->chosenpeer.type != NA_INVALID)
-				return NET_SendPacket(col, length, data, &con->chosenpeer);
+				return ICE_Transmit(con, data, length);
 			if (con->state < ICE_CONNECTING)
 				return NETERR_DISCONNECTED;
 			return NETERR_CLOGGED;	//still pending

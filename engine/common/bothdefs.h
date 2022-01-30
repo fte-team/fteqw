@@ -425,7 +425,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #if defined(HAVE_GNUTLS) || defined(HAVE_WINSSPI)
 	#define HAVE_SSL
 #endif
-#if defined(HAVE_GNUTLS) || defined(HAVE_WINSSPI)
+#if defined(HAVE_GNUTLS) || defined(HAVE_WINSSPI) || defined(HAVE_PLUGINS)
 	//FIXME: HAVE_WINSSPI does not work as a server.
 	//FIXME: advertising dtls without a valid certificate will probably bug out if a client tries to auto-upgrade.
 	//FIXME: we don't cache server certs

@@ -346,7 +346,6 @@ enum hashvalidation_e
 	VH_CORRECT				//all is well.
 };
 struct dtlsfuncs_s;
-#ifdef HAVE_DTLS
 typedef struct dtlscred_s
 {
 	struct dtlslocalcred_s
@@ -375,6 +374,7 @@ typedef struct dtlsfuncs_s
 	void (*GetPeerCertificate)(void *ctx);
 	qboolean (*GenTempCertificate)(const char *subject, struct dtlslocalcred_s *cred);
 } dtlsfuncs_t;
+#ifdef HAVE_DTLS
 const dtlsfuncs_t *DTLS_InitServer(void);
 const dtlsfuncs_t *DTLS_InitClient(void);
 #endif

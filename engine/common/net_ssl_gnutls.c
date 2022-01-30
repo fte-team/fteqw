@@ -436,7 +436,7 @@ static qboolean QDECL SSL_CloseFile(vfsfile_t *vfs)
 static int SSL_CheckUserTrust(gnutls_session_t session, gnutlsfile_t *file, int gcertcode)
 {
 	int ret = gcertcode?GNUTLS_E_CERTIFICATE_ERROR:GNUTLS_E_SUCCESS;
-#ifdef HAVE_CLIENT
+#if defined(HAVE_CLIENT) && defined(HAVE_DTLS)
 	unsigned int ferrcode;
 	//when using dtls, we expect self-signed certs and persistent trust.
 	if (file->datagram)

@@ -127,7 +127,7 @@ qofs_t PR_ReadBytesString(char *str)
 	double d = strtod(str, &str);
 	if (d < 0)
 	{
-#if defined(_WIN64) && !defined(WINRT)
+#if (defined(_WIN64) && !defined(WINRT)) || (defined(__linux__)&&defined(__LP64__))
 		return 0x80000000;	//use of virtual address space rather than physical memory means we can just go crazy and use the max of 2gb.
 #elif defined(FTE_TARGET_WEB)
 		return 8*1024*1024;

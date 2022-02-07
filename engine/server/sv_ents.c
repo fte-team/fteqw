@@ -3727,7 +3727,7 @@ void SV_Snapshot_BuildQ1(client_t *client, packet_entities_t *pack, pvscamera_t 
 #define DEPTHOPTIMISE
 #ifdef DEPTHOPTIMISE
 	vec3_t org;
-	static float distances[32768];
+	float *distances = NULL;
 	float dist;
 #endif
 	globalvars_t *pr_globals = PR_globals(svprogfuncs, PR_CURRENT);
@@ -3735,6 +3735,22 @@ void SV_Snapshot_BuildQ1(client_t *client, packet_entities_t *pack, pvscamera_t 
 	int limit;
 	int c, maxc = cameras?cameras->numents:0;
 	client_t *seat;
+
+	limit = sv.world.num_edicts;
+	if (client->max_net_ents < limit)
+	{
+		limit = client->max_net_ents;
+		if (!(client->plimitwarned & PLIMIT_ENTITIES))
+		{
+			client->plimitwarned |= PLIMIT_ENTITIES;
+			SV_ClientPrintf(client, PRINT_HIGH, "WARNING: Your client's network protocol only supports %i entities. Please upgrade or enable extensions.\n", client->max_net_ents);
+		}
+	}
+
+#ifdef DEPTHOPTIMISE
+	if (clent && ISQWCLIENT(client) && client->max_net_ents<=512)	//the vanilla QW client is shite and only supports 64 visible ents at a time... it can get cpu-heavy though, so don't waste time with other clients.
+		distances = alloca(sizeof(*distances)*limit);
+#endif
 
 	//this entity is watching from outside themselves. The client is tricked into thinking that they themselves are in the view ent, and a new dummy ent (the old them) must be spawned.
 	if (clent && ISQWCLIENT(client))
@@ -3746,7 +3762,8 @@ void SV_Snapshot_BuildQ1(client_t *client, packet_entities_t *pack, pvscamera_t 
 				continue;
 //FIXME: this hack needs cleaning up
 #ifdef DEPTHOPTIMISE
-			distances[pack->num_entities] = 0;
+			if (distances)
+				distances[pack->num_entities] = 0;
 #endif
 			state = &pack->entities[pack->num_entities];
 			pack->num_entities++;
@@ -3788,17 +3805,6 @@ void SV_Snapshot_BuildQ1(client_t *client, packet_entities_t *pack, pvscamera_t 
 		e = min(sv.allocated_client_slots+1, client->max_net_clients);
 	else
 		e = 1;
-
-	limit = sv.world.num_edicts;
-	if (client->max_net_ents < limit)
-	{
-		limit = client->max_net_ents;
-		if (!(client->plimitwarned & PLIMIT_ENTITIES))
-		{
-			client->plimitwarned |= PLIMIT_ENTITIES;
-			SV_ClientPrintf(client, PRINT_HIGH, "WARNING: Your client's network protocol only supports %i entities. Please upgrade or enable extensions.\n", client->max_net_ents);
-		}
-	}
 
 	if (client->penalties & BAN_BLIND)
 	{
@@ -3991,7 +3997,7 @@ void SV_Snapshot_BuildQ1(client_t *client, packet_entities_t *pack, pvscamera_t 
 		if (ent->v->modelindex >= client->maxmodels)
 			continue;
 #ifdef DEPTHOPTIMISE
-		if (clent)
+		if (distances)
 		{
 			//find distance based upon absolute mins/maxs so bsps are treated fairly.
 			//org = clentorg + -0.5*(max+min)

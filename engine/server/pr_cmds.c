@@ -73,7 +73,7 @@ cvar_t	pr_ssqc_memsize = CVARD("pr_ssqc_memsize", "-1", "The ammount of memory a
 cvar_t	pr_imitatemvdsv = CVARFD("pr_imitatemvdsv", "0", CVAR_MAPLATCH, "Enables mvdsv-specific builtins, and fakes identifiers so that mods made for mvdsv can run properly and with the full feature set.");
 
 /*other stuff*/
-cvar_t	pr_maxedicts = CVARAFD("pr_maxedicts", "32768", "max_edicts", CVAR_MAPLATCH, "Maximum number of entities spawnable on the map at once. Low values will crash the server on some maps/mods. High values will result in excessive memory useage (see pr_ssqc_memsize). Illegible server messages may occur with old/other clients above 32k. FTE's network protocols have a maximum at a little over 4 million. Please don't ever make a mod that actually uses that many...");
+cvar_t	pr_maxedicts = CVARAFD("pr_maxedicts", "131072", "max_edicts", CVAR_MAPLATCH, "Maximum number of entities spawnable on the map at once. Low values will crash the server on some maps/mods. High values will result in excessive memory useage (see pr_ssqc_memsize). Illegible server messages may occur with old/other clients above 32k. FTE's network protocols have a maximum at a little over 4 million. Please don't ever make a mod that actually uses that many...");
 
 #ifndef HAVE_LEGACY
 cvar_t	pr_no_playerphysics = CVARFD("pr_no_playerphysics", "1", CVAR_MAPLATCH, "Prevents support of the 'SV_PlayerPhysics' QC function. This allows servers to prevent needless breakage of player prediction.");

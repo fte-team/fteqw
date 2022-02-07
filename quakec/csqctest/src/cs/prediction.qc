@@ -133,11 +133,8 @@ void(entity ent, float endframe) Pred_RunMovement =
 		return;
 	}
 
-#ifdef WORKINDP
-	//DP handily corrupts this for us, so waste some more cpu cycles to compensate
-	if (isdp)
-		Pred_ResetPlayerPrediction();
-#endif
+	//rewind to our last-known-good position
+	Pred_ResetPlayerPrediction(ent);
 
 	if (getstatf(STAT_HEALTH) <= 0)
 	{
@@ -160,7 +157,9 @@ void(entity ent, float endframe) Pred_RunMovement =
 		return;
 	}
 
-	while(pmoveframe < endframe)
+	if (getinputstate(pmoveframe-1))
+		self.pmove_flags = PMF_JUMP_HELD;
+	while(pmoveframe <= endframe)
 	{
 		if (!getinputstate(pmoveframe))
 		{

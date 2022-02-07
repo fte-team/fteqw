@@ -3,16 +3,12 @@
 //#define QWSSQC
 #define SSQC
 optsall.qc
-#if defined(QSS) && !defined(QWSSQC)
-qsextensions.qc
-#endif
-fteextensions.qc
+ssqc_api.qc
 
 ss/defs.qc
 common/econstants.qc
 common/classes.qc
 
-common/pmovedefs.qc
 common/pmove.qc
 
 ss/subs.qc

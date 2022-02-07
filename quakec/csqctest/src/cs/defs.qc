@@ -39,7 +39,7 @@ enum {
 #define SVE_INVIS 128
 #define SVE_GOD 64
 #define SVE_QUAD 32
-#define SVE_NOPRED 16
+#define SVE_MOVETYPE 16
 #define SVE_WEAPONSMASK 15
 
 .float removetime;

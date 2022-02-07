@@ -474,6 +474,7 @@ float(entity to, float fl) SendPlayer =
 {
 	float ef;
 	float f;
+	float mt;
 
 //encode the current weapon in the lower 4 bits.
 	for (f = 1, ef = 0; ef < 16; ef=ef+1,f*=2)
@@ -488,9 +489,12 @@ float(entity to, float fl) SendPlayer =
 		ef |= 64;
 	if (self.items & IT_QUAD)
 		ef |= 32;
-//and the final bit takes an indication to switch of prediction.
-	if (self.movetype != MOVETYPE_WALK)
-		ef |= 16;	//tells the csqc to stop trying to predict (I can't be bothered to send the real movetype)
+//and the final bit takes an indication to switch off prediction.
+	mt = self.movetype;
+	if (self.pmove_flags&1)
+		mt |= 128;
+	if (mt != MOVETYPE_WALK)
+		ef |= 16;
 
 
 	WriteByte(MSG_ENTITY, CLASS_PLAYER);
@@ -504,6 +508,8 @@ float(entity to, float fl) SendPlayer =
 	WriteShort(MSG_ENTITY, self.velocity_y);
 	WriteShort(MSG_ENTITY, self.velocity_z);
 	WriteByte(MSG_ENTITY, ef);
+	if (ef & 16)
+		WriteByte(MSG_ENTITY, mt);
 	return TRUE;
 };
 
@@ -903,8 +909,8 @@ void() WaterMove =
 		self.dmgtime = 0;
 	}
 	
-	if (! (self.flags & FL_WATERJUMP) )
-		self.velocity = self.velocity - 0.8*self.waterlevel*frametime*self.velocity;
+//	if (! (self.flags & FL_WATERJUMP) )
+//		self.velocity = self.velocity - 0.8*self.waterlevel*frametime*self.velocity;
 };
 
 void() CheckWaterJump =

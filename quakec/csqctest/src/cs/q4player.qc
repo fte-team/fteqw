@@ -83,13 +83,13 @@ void() Q4PM_Draw =
 
 	if (!self.skeletonindex)
 	{
-		self.skeletonindex = skel_create(self.modelindex);
+		self.skeletonindex = skel_create(self.modelindex, FALSE);
 		if (!self.skeletonindex)
 			return;
 	}
 
 	ideal = anglequadrant();
-	aimang_x = self.angles_y;
+	aimang_y = self.angles_y;
 	aimang_z = self.angles_x*-3;
 
 	self.angles_x = 0;
@@ -103,12 +103,12 @@ void() Q4PM_Draw =
 	fw = (move * v_forward)/(320);
 	rt = (move * v_right)/(320);
 
-	aimang_x -= self.angles_y;
-	aimang_y = 0;
-	if (aimang_x > 180)
-		aimang_x -= 360;
-	if (aimang_x < -180)
-		aimang_x += 360;
+	aimang_y -= self.angles_y;
+	aimang_x = 0;
+	if (aimang_y > 180)
+		aimang_y -= 360;
+	if (aimang_y < -180)
+		aimang_y += 360;
 	makevectors(aimang*0.333);
 
 	if (fw*fw > 0)
@@ -136,7 +136,6 @@ void() Q4PM_Draw =
 	if (move_x == 0 && move_y == 0)
 		self.aweight[ANIM_IDLE] += frametime*4;
 	self.atime[ANIM_IDLE] += frametime;
-	
 
 	tweight = self.aweight[ANIM_FORWARD]+self.aweight[ANIM_BACK]+self.aweight[ANIM_LEFT]+self.aweight[ANIM_RIGHT]+self.aweight[ANIM_IDLE];
 	if (tweight > 1)
@@ -154,7 +153,7 @@ void() Q4PM_Draw =
 		self.atime[ANIM_IDLE] += frametime;
 	}
 
-	self.origin_z += self.mins_z;
+	self.origin_z -= 24;//self.mins_z;
 	setmodel(self, self.model);
 	for (i = 0; i < ANIM_MAX; i++)
 	{
@@ -173,6 +172,11 @@ void() Q4PM_Draw =
 	//obliterate the bone movement, so that it doesn't move forwards.
 	skel_get_bonerel(self.skeletonindex, 1);
 	skel_set_bone(self.skeletonindex, 1, '0 0 0', v_forward*(64/72), v_right*(64/72), v_up*(64/72));
+
+	self.renderflags = 0;
+	addentity(self);
+
+	self.origin = self.lastorg;
 };
 
 float(string skinname) Q4PM_SetModel =
@@ -181,7 +185,10 @@ float(string skinname) Q4PM_SetModel =
 
 	//check to see if it exists
 	if not (whichpack(mname))
+	{
+print(sprintf("File %s doesn't exist\n", mname));
 		return false;
+	}
 
 	anim[ANIM_IDLE]    = getmodelindex("models/characters/player/idle.md5anim");
 	anim[ANIM_FORWARD] = getmodelindex("models/characters/player/run.md5anim");

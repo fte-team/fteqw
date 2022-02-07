@@ -81,23 +81,23 @@ void(vector org, vector vec) LaunchLaser =
 
 	vec = normalize(vec);
 	
-	newmis = spawn();
-	newmis.owner = self;
-	newmis.movetype = MOVETYPE_FLY;
-	newmis.solid = SOLID_BBOX;
-	newmis.effects = EF_DIMLIGHT;
+	entity mis = spawn();
+	mis.owner = self;
+	mis.movetype = MOVETYPE_FLY;
+	mis.solid = SOLID_BBOX;
+	mis.effects = EF_DIMLIGHT;
 
-	setmodel (newmis, "progs/laser.mdl");
-	setsize (newmis, '0 0 0', '0 0 0');		
+	setmodel (mis, "progs/laser.mdl");
+	setsize (mis, '0 0 0', '0 0 0');		
 
-	setorigin (newmis, org);
+	setorigin (mis, org);
 
-	newmis.velocity = vec * 600;
-	newmis.angles = vectoangles(newmis.velocity);
+	mis.velocity = vec * 600;
+	mis.angles = vectoangles(mis.velocity);
 
-	newmis.nextthink = time + 5;
-	newmis.think = SUB_Remove;
-	newmis.touch = Laser_Touch;
+	mis.nextthink = time + 5;
+	mis.think = SUB_Remove;
+	mis.touch = Laser_Touch;
 };
 
 

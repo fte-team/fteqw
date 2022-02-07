@@ -806,7 +806,7 @@ nonstatic float(string modname) Anim_ReadAnimationFile =
 		file = fopen(str, FILE_READ);
 		if (file < 0)
 		{
-			print("fopen ", modname, " failed\n");
+			print(sprintf("fopen %S failed\n", str));
 			return -1;
 		}
 

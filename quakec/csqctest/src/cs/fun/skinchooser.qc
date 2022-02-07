@@ -44,7 +44,9 @@ static void() FindPlayerSkins =
 
 	if (c_skinlist >= 0)
 		search_end(c_skinlist);
-	c_skinlist = search_begin(strcat("models/players/", str, "/upper_*.skin"), true, true);
+	c_skinlist = -1;
+	if (str != "")
+		c_skinlist = search_begin(strcat("models/players/", str, "/upper_*.skin"), true, true);
 
 	if (c_skinlist < 0)
 	{

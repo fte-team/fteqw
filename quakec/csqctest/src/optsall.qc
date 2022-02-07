@@ -1,6 +1,8 @@
-//#define WORKINDP	//use workarounds for DP.
+//which engines do we want to support?
+#define FTE
 #define QSS
-//#define FTEDEPENDANT	//explicitly depend upon FTE-only extensions (mostly prototype EXT_CSQC_1 features).
+//#define DP
+
 #define OWNPLAYERPHYSICS	//run our own prediction code, instead of the engine-supplied default
 
 #define AUTOCVAR
@@ -16,20 +18,16 @@
 #undef MD3PMODELS
 #endif
 
-#ifdef WORKINDP
-# warning "WORKINDP defined: Mod will only work properly in DP"
-# ifdef FTEDEPENDANT
-#  undef FTEDEPENDANT
-# endif
+#ifdef DP
+	#define WORKINDP	//do various workarounds for DP. don't use any opcode extensions
+#elifdef QSS
+	#pragma TARGET QSS	//FTE also supports this.
+	#define NOT_DP		//mute deprecation warnings about DP, we don't care.
+#else
+	#pragma TARGET FTE	//neither of the other engines are targetted, go crazy with it.
+	#define NOT_QSS		//mute deprecation warnings about QSS, we don't care.
+	#define NOT_DP		//mute deprecation warnings about DP, we don't care.
 #endif
-
-#ifdef FTEDEPENDANT
-# warning "FTEDEPENDANT defined: Mod will only work properly in FTE"
-# pragma TARGET FTE
-#endif
-
-
-
 
 
 

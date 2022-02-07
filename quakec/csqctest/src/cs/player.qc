@@ -48,7 +48,7 @@ static float() Player_Interpolate =
 #ifdef Q4PMODELS
 	case MF_QUAKE4:
 		Q4PM_Draw();
-		break;
+		return PREDRAW_NEXT;
 #endif
 #ifdef HLPMODELS
 	case MF_HLPM:
@@ -410,6 +410,24 @@ float(float isnew) RefreshPlayer =
 #endif
 			if (self.modelstyle == MF_BAD)
 				Player_SetQ1Model();
+
+			switch(self.modelstyle)
+			{
+			case MF_BAD:	dprint(sprintf("%S: player model not known\n", newskin)); break;
+#ifdef MD3PMODELS
+			case MF_QUAKE3:	dprint(sprintf("%S: quake3 player model loaded\n", newskin)); break;
+#endif
+#ifdef Q4PMODELS
+			case MF_QUAKE4:	dprint(sprintf("%S: quake4 player model loaded\n", newskin)); break;
+#endif
+#ifdef HLPMODELS
+			case MF_HLPM:	dprint(sprintf("%S: halflife player model loaded\n", newskin)); break;
+#endif
+#ifdef XM
+			case MF_XM:	dprint(sprintf("%S: xonotic player model loaded\n", newskin)); break;
+#endif
+			case MF_QUAKE:	dprint(sprintf("%S: quake player model loaded\n", newskin)); break;
+		}
 		}
 	}
 
@@ -450,6 +468,12 @@ nonstatic void(float isnew) ParsePlayer =
 	self.colormap = self.entnum;
 
 	self.sveffects = readbyte();
+	if (self.sveffects & SVE_MOVETYPE)
+		self.movetype = readbyte();
+	else
+		self.movetype = MOVETYPE_WALK;
+	self.pmove_flags = (self.movetype&~63)>>6;
+	self.movetype &= 63;
 
 	RefreshPlayer(isnew);
 };

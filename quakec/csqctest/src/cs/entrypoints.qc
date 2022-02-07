@@ -215,13 +215,6 @@ void(entity ve) DoThatViewModelThing =
 	ve.angles = '0 0 0';
 };
 
-void() drawloadingscreen =
-{
-//work in progress here
-//	drawfill('0 0', '320 240', '1 1 1', 1);
-//	drawstring('0 0', "loading screen", '1 1', '1 1 1', 1);
-};
-
 void(float apilevel, string enginename, float engineversion) CSQC_Init =
 {
 	__using renderflags;
@@ -237,8 +230,6 @@ void(float apilevel, string enginename, float engineversion) CSQC_Init =
 
 	viewentity = spawn();
 	viewentity.renderflags = RF_VIEWMODEL|RF_DEPTHHACK;
-
-	drawloadingscreen ();
 
 	regcommands();
 
@@ -460,3 +451,13 @@ void(float width, float height, float do2d) CSQC_UpdateView =
 	}
 };
 
+void(float vwidth, float vheight, float notmenu) CSQC_UpdateViewLoading =
+{
+print("in CSQC_UpdateViewLoading\n");
+	drawfill([0,0],[vwidth,vheight], [0,1,0],1, 0);
+
+	const vector tsize = '24 24';
+	string text = "CSQCTest is Loading!\nPlease wait...";
+	vector pos = ([vwidth,vheight]-[8,stringwidth(text,TRUE,tsize)])*0.5;
+	drawstring(pos, text, tsize, '1 1 1',1,0);
+};

@@ -9,11 +9,11 @@ enum
 };
 
 
-void(float action, vector pos, float radius, float quant) terrain_edit = #278;
 
 float(float keyc, float unic) editor_terrain_key =
 {
 	vector v, o;
+	__using terrain_edit;
 	if (keyc == '[')
 	{
 		v = (vector)getviewprop(VF_ANGLES);

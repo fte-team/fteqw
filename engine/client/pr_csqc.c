@@ -226,6 +226,11 @@ static void CSQC_FindGlobals(qboolean nofuncs)
 #define ensurevector(name)	if (!csqcg.name) csqcg.name = junk._vector;
 #define ensureentity(name)	if (!csqcg.name) csqcg.name = &junk.edict;
 
+#define ensureprivfloat(name)	if (!csqcg.name) {static pvec_t f; csqcg.name = &f;}
+#define ensureprivint(name)		if (!csqcg.name) {static pint_t i; csqcg.name = &i;}
+#define ensureprivvector(name)	if (!csqcg.name) {static pvec3_t v; csqcg.name = v;}
+#define ensurepriventity(name)	if (!csqcg.name) {static pint_t e; csqcg.name = &e;}
+
 	if (csqc_nogameaccess)
 	{
 		csqcg.CSQC_UpdateView = 0;	//would fail
@@ -305,6 +310,12 @@ static void CSQC_FindGlobals(qboolean nofuncs)
 	ensurefloat(trace_networkentity);
 	ensureentity(trace_ent);
 
+	ensureprivfloat(clientcommandframe);
+	ensureprivfloat(input_timelength);
+	ensureprivvector(input_angles);
+	ensureprivvector(input_movevalues);
+	ensureprivfloat(input_buttons);
+//	ensureprivfloat(input_impulse);
 
 	if (csqcg.time)
 		*csqcg.time = cl.servertime;
@@ -8846,7 +8857,7 @@ qboolean CSQC_DrawView(void)
 	if (!csqcg.CSQC_UpdateView || !csqcprogs)
 		return false;
 
-	if (cls.state < ca_active && !CSQC_UnconnectedOkay(false))
+	if (cls.state < ca_active && !CSQC_UnconnectedOkay(false) && !CSQC_UseGamecodeLoadingScreen())
 		return false;
 
 	r_secondaryview = 0;
@@ -8971,6 +8982,8 @@ qboolean CSQC_DrawView(void)
 #endif
 
 	{
+		extern qboolean	scr_drawloading;
+		extern int		loading_stage;
 		void *pr_globals = PR_globals(csqcprogs, PR_CURRENT);
 		if (csqc_isdarkplaces)
 		{	//fucked for compatibility.
@@ -8984,7 +8997,7 @@ qboolean CSQC_DrawView(void)
 		}
 		G_FLOAT(OFS_PARM2) = !Key_Dest_Has(kdm_menu|kdm_cwindows) && !r_refdef.eyeoffset[0] && !r_refdef.eyeoffset[1];
 
-		if (csqcg.CSQC_UpdateViewLoading && cls.state && cls.state < ca_active)
+		if (csqcg.CSQC_UpdateViewLoading && ((cls.state && cls.state < ca_active) || scr_drawloading || loading_stage))
 			PR_ExecuteProgram(csqcprogs, csqcg.CSQC_UpdateViewLoading);
 		else
 			PR_ExecuteProgram(csqcprogs, csqcg.CSQC_UpdateView);

@@ -315,7 +315,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 //	#undef Q3SERVER //match Q3CLIENT
 //	#undef Q2BSPS	//emscripten can't cope with bss, leading to increased download time. too lazy to fix.
 //	#undef Q3BSPS	//emscripten can't cope with bss, leading to increased download time. too lazy to fix.
-	#undef TERRAIN
+//	#undef TERRAIN
 //	#undef PSET_SCRIPT	//bss+size
 	#define GLSLONLY	//pointless having the junk
 	#define GLESONLY	//should reduce the conditions a little

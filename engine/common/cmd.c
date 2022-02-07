@@ -3794,16 +3794,21 @@ static void Cmd_set_f(void)
 	char name[256];
 	const char *desc = NULL;
 
-	if (Cmd_Argc()<3)
-	{
-		Con_TPrintf("%s %s <equation>\n", Cmd_Argv(0), *Cmd_Argv(1)?Cmd_Argv(1):"<var>");
-		return;
-	}
-
 	if (!strcmp(Cmd_Argv(0), "set_calc") || !strcmp(Cmd_Argv(0), "seta_calc"))
 		docalc = true;
 	else
 		docalc = false;
+
+	if (Cmd_Argc()<3)
+	{
+		if (docalc)
+			Con_TPrintf("%s %s <equation>\n", Cmd_Argv(0), *Cmd_Argv(1)?Cmd_Argv(1):"<var>");
+		else if (!strcmp(Cmd_Argv(0), "setfl"))
+			Con_TPrintf("%s %s <value> <a|u|s>\n", Cmd_Argv(0), *Cmd_Argv(1)?Cmd_Argv(1):"<var>");
+		else
+			Con_TPrintf("%s %s <value>\n", Cmd_Argv(0), *Cmd_Argv(1)?Cmd_Argv(1):"<var>");
+		return;
+	}
 
 	if (!strncmp(Cmd_Argv(0), "seta", 4) && !Cmd_FromGamecode())
 		forceflags |= CVAR_ARCHIVE;

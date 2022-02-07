@@ -69,6 +69,7 @@ mergeInto(LibraryManager.library,
 		ctxwarned:0,
 		pointerislocked:0,
 		pointerwantlock:0,
+		clipboard:"",
 		linebuffer:'',
 		localstorefailure:false,
 		w: -1,
@@ -1120,6 +1121,52 @@ mergeInto(LibraryManager.library,
 		};
 		img.crossorigin = true;
 		img.src = "data:image/png;base64," + encode64(HEAPU8.subarray(dataptr, dataptr+datasize));
+	},
+
+	Sys_Clipboard_PasteText: function(cbt, callback, ctx)
+	{
+		if (cbt != 0)
+			return;	//don't do selections.
+
+		let docallback = function(text)
+		{
+			FTEC.clipboard = text;
+			try{
+				let stringlen = (text.length*3)+1;
+				let dataptr = _malloc(stringlen);
+				stringToUTF8(text, dataptr, stringlen);
+				{{{makeDynCall('vii')}}}(callback, ctx, dataptr);
+				_free(dataptr);
+			}catch(e){
+			}
+		};
+
+		//try pasting. if it fails then use our internal string.
+		try
+		{
+			navigator.clipboard.readText()
+				.then(docallback)
+				.catch((e)=>{docallback(FTEC.clipboard)});
+		}
+		catch(e)
+		{	//clipboard API not supported at all.
+			console.log(e);	//happens in firefox. lets print it so we know WHY its failing.
+			docallback(FTEC.clipboard);	
+		}
+	},
+	Sys_SaveClipboard: function(cbt, text)
+	{
+		if (cbt != 0)
+			return;	//don't do selections.
+
+		FTEC.clipboard = UTF8ToString(text);
+
+		try
+		{
+			//try and copy it to the system clipboard too.
+			navigator.clipboard.writeText(FTEC.clipboard);
+		}
+		catch {}
 	}
 });
 

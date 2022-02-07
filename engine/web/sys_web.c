@@ -314,8 +314,7 @@ qboolean Sys_RunInstaller(void)
 }
 #endif
 
-#define SYS_CLIPBOARD_SIZE  256
-static char *clipboard_buffer;
+/*static char *clipboard_buffer;
 void Sys_Clipboard_PasteText(clipboardtype_t cbt, void (*callback)(void *cb, const char *utf8), void *ctx)
 {
 	callback(ctx, clipboard_buffer);
@@ -324,7 +323,7 @@ void Sys_SaveClipboard(clipboardtype_t cbt, const char *text)
 {
 	free(clipboard_buffer);
 	clipboard_buffer = strdup(text);
-}
+}*/
 
 #ifdef MULTITHREAD
 /* Thread creation calls */

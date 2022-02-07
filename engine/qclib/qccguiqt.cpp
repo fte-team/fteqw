@@ -1679,7 +1679,9 @@ public:
 			gb->setLayout(layout);
 			rightlayout->addWidget(gb);
 
-			rightlayout->addWidget(new QTextEdit());
+			auto argbox = new QTextEdit();
+			argbox->setText(parameters);
+			rightlayout->addWidget(argbox);
 		}
 		toplayout->addLayout(leftlayout);
 		toplayout->addLayout(rightlayout);
@@ -1880,7 +1882,7 @@ private:
 			debugrebuild->setShortcuts(QKeySequence::listFromString("F7"));
 			connect(debugrebuild, &QAction::triggered, [=]()
 				{
-					RunCompiler("", false);
+					RunCompiler(parameters, false);
 				});
 			auto debugsetnext = new QAction(tr("Set Next Statement"), this);
 			debugMenu->addAction(debugsetnext);
@@ -2303,13 +2305,23 @@ int main(int argc, char* argv[])
 	{
 		size_t argl = 1;
 		for (int i = 1; i < argc; i++)
-			argl += strlen(argv[i])+1;
+			argl += strlen(argv[i])+3;
 		cmdlineargs = (char*)malloc(argl);
 		argl = 0;
 		for (int i = 1; i < argc; i++)
 		{
-			memcpy(cmdlineargs+argl, argv[i], strlen(argv[i]));
-			argl += strlen(argv[i]);
+			if (strchr(argv[i], ' '))
+			{
+				cmdlineargs[argl++] = '\"';
+				memcpy(cmdlineargs+argl, argv[i], strlen(argv[i]));
+				argl += strlen(argv[i]);
+				cmdlineargs[argl++] = '\"';
+			}
+			else
+			{
+				memcpy(cmdlineargs+argl, argv[i], strlen(argv[i]));
+				argl += strlen(argv[i]);
+			}
 			cmdlineargs[argl++] = ' ';
 		}
 		cmdlineargs[argl] = 0;

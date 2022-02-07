@@ -220,6 +220,7 @@ QCC_sref_t	QCC_PR_ParseArrayPointer (QCC_sref_t d, pbool allowarrayassign, pbool
 QCC_sref_t	QCC_LoadFromArray(QCC_sref_t base, QCC_sref_t index, QCC_type_t *t, pbool preserve);
 void		 QCC_PR_ParseInitializerDef(QCC_def_t *def, unsigned int flags);
 
+static pbool QCC_RefNeedsCalls(QCC_ref_t *ref);
 QCC_ref_t *QCC_DefToRef(QCC_ref_t *ref, QCC_sref_t def);	//ref is a buffer to write into, to avoid excessive allocs
 QCC_sref_t	QCC_RefToDef(QCC_ref_t *ref, pbool freetemps);
 QCC_ref_t *QCC_PR_RefExpression (QCC_ref_t *retbuf, int priority, int exprflags);
@@ -6207,17 +6208,17 @@ static void QCC_VerifyArgs_setviewprop (const char *funcname, QCC_ref_t **arglis
 	{
 		if (argtypes[i].n == vf)
 		{
-			if (argcount >= 2 && argtypes[i].t1 != arglist[1]->cast->type)
+			if (argcount >= 2 && argtypes[i].t1 != ((arglist[1]->cast->type==ev_boolean)?arglist[1]->cast->parentclass->type:arglist[1]->cast->type))
 			{
 				QCC_PR_ParseWarning(WARN_ARGUMENTCHECK, "%s(%s, ...): expected %s, got %s", funcname, argtypes[i].name, basictypenames[argtypes[i].t1], TypeName(arglist[1]->cast, temp, sizeof(temp)));
 				return;
 			}
-			if (argcount >= 3 && argtypes[i].t2 != arglist[2]->cast->type)
+			if (argcount >= 3 && argtypes[i].t2 != ((arglist[2]->cast->type==ev_boolean)?arglist[2]->cast->parentclass->type:arglist[2]->cast->type))
 			{
 				QCC_PR_ParseWarning(WARN_ARGUMENTCHECK, "%s(%s, X, ...): expected %s, got %s", funcname, argtypes[i].name, basictypenames[argtypes[i].t2], TypeName(arglist[2]->cast, temp, sizeof(temp)));
 				return;
 			}
-			if (argcount >= 4 && argtypes[i].t3 != arglist[3]->cast->type)
+			if (argcount >= 4 && argtypes[i].t3 != ((arglist[3]->cast->type==ev_boolean)?arglist[3]->cast->parentclass->type:arglist[3]->cast->type))
 			{
 				QCC_PR_ParseWarning(WARN_ARGUMENTCHECK, "%s(%s, X, Y, ...): expected %s, got %s", funcname, argtypes[i].name, basictypenames[argtypes[i].t3], TypeName(arglist[3]->cast, temp, sizeof(temp)));
 				return;
@@ -7953,12 +7954,13 @@ static QCC_sref_t QCC_PR_ParseFunctionCall (QCC_ref_t *funcref)	//warning, the f
 				}
 			}
 
-			if (p)
+			if (p && typecmp(e->cast, p))
 			{
-				if (typecmp(e->cast, p))
-				{
-					e = QCC_PR_BuildRef(&parambuf[arg], REF_GLOBAL, QCC_EvaluateCast(QCC_RefToDef(e, true), p, true), nullsref, p, true);
-				}
+				e = QCC_PR_BuildRef(&parambuf[arg], REF_GLOBAL, QCC_EvaluateCast(QCC_RefToDef(e, true), p, true), nullsref, p, true);
+			}
+			else if (QCC_RefNeedsCalls(e))
+			{
+				e = QCC_PR_BuildRef(&parambuf[arg], REF_GLOBAL, QCC_RefToDef(e, true), nullsref, p, true);
 			}
 			param[arg] = e;
 
@@ -11381,6 +11383,33 @@ QCC_sref_t QCC_LoadFromArray(QCC_sref_t base, QCC_sref_t index, QCC_type_t *t, p
 	return base;
 }
 
+static pbool QCC_RefNeedsCalls(QCC_ref_t *ref)
+{
+	if (ref->type == REF_ACCESSOR)
+		return true;
+	if (ref->type == REF_ARRAY)
+	{
+		if (ref->index.cast)
+		{
+			int accel;
+			if (QCC_SRef_EvalConst(ref->index))
+				return false;	//can short it.
+
+			if (ref->index.cast->type != ev_float || ref->cast->type != ref->base.cast->type)
+				accel = 2;
+			else
+				accel = 1;
+			if (accel == 2 && !QCC_OPCodeValid(&pr_opcodes[OP_LOADA_F]))
+				accel = QCC_OPCodeValid(&pr_opcodes[OP_GLOAD_F])&&!ref->base.sym->temp?3:1;
+			if (accel == 1 && (!ref->base.sym->arraylengthprefix || !QCC_OPCodeValid(&pr_opcodes[OP_FETCH_GBL_F])))
+				accel = QCC_OPCodeValid(&pr_opcodes[OP_LOADA_F])?2:0;
+
+			return !accel;	//if we've no acceleration, we need a call.
+		}
+	}
+	return false;
+}
+
 //reads a ref as required
 //the result sref should ALWAYS be freed, even if freetemps is set.
 QCC_sref_t QCC_RefToDef(QCC_ref_t *ref, pbool freetemps)
@@ -12771,7 +12800,7 @@ QCC_statement_t *QCC_Generate_OP_IF(QCC_sref_t e, pbool preserve)
 		break;
 	}
 
-	QCC_FreeTemp(QCC_PR_StatementFlags (&pr_opcodes[op], e, nullsref, &st, flags|STFL_DISCARDRESULT));
+	QCC_FreeTemp(QCC_PR_StatementFlags (&pr_opcodes[op], e, nullsref, &st, flags));
 	return st;
 }
 QCC_statement_t *QCC_Generate_OP_IFNOT(QCC_sref_t e, pbool preserve)
@@ -12844,7 +12873,7 @@ QCC_statement_t *QCC_Generate_OP_IFNOT(QCC_sref_t e, pbool preserve)
 		break;
 	}
 
-	QCC_FreeTemp(QCC_PR_StatementFlags (&pr_opcodes[op], e, nullsref, &st, flags|STFL_DISCARDRESULT));
+	QCC_FreeTemp(QCC_PR_StatementFlags (&pr_opcodes[op], e, nullsref, &st, flags));
 	return st;
 }
 
@@ -17239,7 +17268,7 @@ QCC_sref_t QCC_PR_ParseInitializerType_Internal(int arraysize, QCC_def_t *basede
 
 				if (!basedef && def.sym->temp)
 				{	//skip the store-to-temp
-					QCC_FreeTemp(def);
+//					QCC_FreeTemp(def);
 					tmp.cast = def.cast;
 					return tmp;
 				}

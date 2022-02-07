@@ -11636,7 +11636,7 @@ static BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"gp_rumble",	PF_Fixme,	0,		0,		0,		0,		D("void(float devid, float amp_low, float amp_high, float duration)", "Sends a single rumble event to the game-pad specified in devid. Every time you call this, the previous effect is cancelled out.")},
 	{"gp_rumbletriggers",	PF_Fixme,	0,		0,		0,		0,		D("void(float devid, float left, float right, float duration)", "Makes the analog triggers rumble of the specified game-pad, like gp_rumble() one call cancels out the previous one on the device.")},
 	{"gp_setledcolor",	PF_Fixme,	0,		0,		0,		0,		D("void(float devid, vector color)", "Updates the game-pad LED color.")},
-	{"gp_settriggerfx",	PF_Fixme,	0,		0,		0,		0,		D("void(float devid, const void *data, int size)", "Sends a specific effect packet to the controller. On the PlayStation 5's DualSense that can adjust the tension on the analog triggers.")},
+	{"gp_settriggerfx",	PF_Fixme,	0,		0,		0,		0,		D("void(float devid, /*const*/ void *data, int size)", "Sends a specific effect packet to the controller. On the PlayStation 5's DualSense that can adjust the tension on the analog triggers.")},
 //END EXT_CSQC
 
 	{"memalloc",		PF_memalloc,		0,		0,		0,		384,	D("__variant*(int size)", "Allocate an arbitary block of memory")},

@@ -39,7 +39,6 @@ cvar_t mod_warnmodels						= CVARD("mod_warnmodels", "1", "Warn if any models fa
 cvar_t mod_litsprites_force					= CVARD("mod_litsprites_force", "0", "If set to 1, sprites will be lit according to world lighting (including rtlights), like Tenebrae. Ideally use EF_ADDITIVE or EF_FULLBRIGHT to make emissive sprites instead.");
 cvar_t mod_loadmappackages					= CVARD ("mod_loadmappackages", "1", "Load additional content embedded within bsp files.");
 cvar_t mod_lightscale_broken				= CVARFD("mod_lightscale_broken", "0", CVAR_RENDERERLATCH, "When active, replicates a bug from vanilla - the radius of r_dynamic lights is scaled by per-surface texture scale rather than using actual distance.");
-cvar_t temp_lit2support						= CVARD("temp_mod_lit2support", "0", "Set to 1 to enable lit2 support. This cvar will be removed once the format is finalised.");
 cvar_t mod_lightpoint_distance				= CVARD("mod_lightpoint_distance", "8192", "This is the maximum distance to trace when searching for a ground surface for lighting info on map formats without light more fancy lighting info. Use 2048 for full compat with Quake.");
 #ifdef SPRMODELS
 cvar_t r_sprite_backfacing					= CVARD	("r_sprite_backfacing", "0", "Make oriented sprites face backwards relative to their orientation, for compat with q1.");
@@ -663,7 +662,6 @@ void Mod_Init (qboolean initial)
 		Cvar_Register(&mod_loadmappackages, NULL);
 		Cvar_Register(&mod_lightscale_broken, NULL);
 		Cvar_Register(&mod_lightpoint_distance, NULL);
-		Cvar_Register(&temp_lit2support, NULL);
 		Cvar_Register (&r_meshpitch, "Gamecode");
 		Cvar_Register (&r_meshroll, "Gamecode");
 #ifdef RTLIGHTS
@@ -1706,13 +1704,12 @@ void Mod_LoadLighting (model_t *loadmodel, bspx_header_t *bspx, qbyte *mod_base,
 		struct
 		{
 			char *pattern;
-			int type;
 		} litnames[] = {
-			{"%s.lit2",2},
-			{"%s.hdr",1},
-			{"%s.lit",0},
-			{"lits/%s.lit2",2},
-			{"lits/%s.lit",0},
+			{"%s.hdr"},
+			{"%s.lit"},
+#ifdef HAVE_LEGACY
+			{"lits/%s.lit"},
+#endif
 		};
 		char litbasep[MAX_QPATH];
 		char litbase[MAX_QPATH];
@@ -1728,8 +1725,6 @@ void Mod_LoadLighting (model_t *loadmodel, bspx_header_t *bspx, qbyte *mod_base,
 		COM_FileBase(loadmodel->name, litbase, sizeof(litbase));
 		for (i = 0; i < countof(litnames); i++)
 		{
-			if (!temp_lit2support.ival && litnames[i].type==2)
-				continue;
 			if (strchr(litnames[i].pattern, '/'))
 				Q_snprintfz(litname, sizeof(litname), litnames[i].pattern, litbase);
 			else
@@ -1788,12 +1783,7 @@ void Mod_LoadLighting (model_t *loadmodel, bspx_header_t *bspx, qbyte *mod_base,
 				unsigned short *extents = (unsigned short*)(offsets+ql2->numsurfs);
 				unsigned char *styles = (unsigned char*)(extents+ql2->numsurfs*2);
 				unsigned char *shifts = (unsigned char*)(styles+ql2->numsurfs*4);
-				if (!temp_lit2support.ival)
-				{
-					litdata = NULL;
-					Con_Printf("lit2 support is disabled, pending format finalisation (%s).\n", litname);
-				}
-				else if (loadmodel->numsurfaces != ql2->numsurfs)
+				if (loadmodel->numsurfaces != ql2->numsurfs)
 				{
 					litdata = NULL;
 					Con_Printf("lit \"%s\" doesn't match level. Ignored.\n", litname);
@@ -1805,6 +1795,8 @@ void Mod_LoadLighting (model_t *loadmodel, bspx_header_t *bspx, qbyte *mod_base,
 				}
 				else
 				{
+					Con_Printf("%s: lit2 support is unstandardised and may change in future.\n", litname);
+
 					inhibitvalidation = true;
 
 					//surface code needs to know the overrides.

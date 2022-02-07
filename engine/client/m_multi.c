@@ -569,6 +569,7 @@ static const char *numplayeroptions[] = {
 qboolean MultiBeginGame (union menuoption_s *option,struct emenu_s *menu, int key)
 {
 	newmultimenu_t *info = menu->data;
+	char quoted[1024];
 	if (key != K_ENTER && key != K_KP_ENTER && key != K_GP_START && key != K_MOUSE1)
 		return false;
 
@@ -579,7 +580,7 @@ qboolean MultiBeginGame (union menuoption_s *option,struct emenu_s *menu, int ke
 	Cbuf_AddText(va("maxclients \"%s\"\n", numplayeroptions[info->numplayers->selectedoption]), RESTRICT_LOCAL);
 	if (info->rundedicated->value)
 		Cbuf_AddText("setrenderer dedicated\n", RESTRICT_LOCAL);
-	Cbuf_AddText(va("hostname \"%s\"\n", info->hostnameedit->text), RESTRICT_LOCAL);
+	Cbuf_AddText(va("hostname %s\n", COM_QuotedString(info->hostnameedit->text, quoted, sizeof(quoted), false)), RESTRICT_LOCAL);
 	Cbuf_AddText(va("deathmatch %i\n", info->deathmatch->selectedoption), RESTRICT_LOCAL);
 	if (!info->deathmatch->selectedoption)
 		Cbuf_AddText("coop 1\n", RESTRICT_LOCAL);
@@ -589,7 +590,30 @@ qboolean MultiBeginGame (union menuoption_s *option,struct emenu_s *menu, int ke
 	Cbuf_AddText(va("skill %i\n", info->skill->selectedoption), RESTRICT_LOCAL);
 	Cbuf_AddText(va("timelimit %i\n", info->timelimit->selectedoption*5), RESTRICT_LOCAL);
 	Cbuf_AddText(va("fraglimit %i\n", info->fraglimit->selectedoption*10), RESTRICT_LOCAL);
-	Cbuf_AddText(va("sv_public %i\n", info->publicgame->selectedoption-1), RESTRICT_LOCAL);
+
+	if (info->publicgame->selectedoption-1 == 2)
+	{
+		const char *hostname = info->hostnameedit->text;
+		const char *shn;
+		for (shn = hostname; *shn; shn++)
+		{
+			if (*shn >= 'a' && *shn <= 'z')
+				continue;
+			if (*shn >= 'A' && *shn <= 'Z')
+				continue;
+			if (*shn >= '0' && *shn <= '9')
+				continue;
+			if (*shn == '-' || *shn <= '_')
+				continue;
+			break;
+		}
+		if (*shn || !*hostname || !strcasecmp(hostname, "player") || !strcasecmp(hostname, "unnamed"))	//not simple enough...
+			Cbuf_AddText(va("sv_public \"/\"\n"), RESTRICT_LOCAL);
+		else
+			Cbuf_AddText(va("sv_public \"/%s\"\n", info->hostnameedit->text), RESTRICT_LOCAL);
+	}
+	else
+		Cbuf_AddText(va("sv_public %i\n", info->publicgame->selectedoption-1), RESTRICT_LOCAL);
 	Cbuf_AddText(va("map \"%s\"\n", info->mapnameedit->text), RESTRICT_LOCAL);
 
 	if (info->rundedicated->value)
@@ -657,7 +681,7 @@ void M_Menu_GameOptions_f (void)
 		NULL
 	};
 	static const char *publicoptions[] = {
-		"Disabled",
+		"Splitscreen Only",
 		"Private/LAN",
 		"Public (Manual)",
 		"Public (Holepunch)",

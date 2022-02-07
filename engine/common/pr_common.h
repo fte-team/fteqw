@@ -584,6 +584,7 @@ const void *PR_GetReadQCPtr(pubprogfuncs_t *prinst, int qcptr, int qcsize);
 void *PR_GetWriteQCPtr(pubprogfuncs_t *prinst, int qcptr, int qcsize);
 
 uploadfmt_t PR_TranslateTextureFormat(int qcformat);
+int PR_UnTranslateTextureFormat(uploadfmt_t fteformat);
 
 //FIXME
 pbool PR_RunWarning (pubprogfuncs_t *ppf, char *error, ...);

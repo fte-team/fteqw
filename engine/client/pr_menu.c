@@ -939,6 +939,7 @@ void QCBUILTIN PF_CL_readimage (pubprogfuncs_t *prinst, struct globalvars_s *pr_
 				G_INT(OFS_RETURN) = (char*)ptr - prinst->stringtable;
 				G_INT(OFS_PARM1) = imagewidth;	//out width
 				G_INT(OFS_PARM2) = imageheight;	//out height
+				G_INT(OFS_PARM3) = PR_UnTranslateTextureFormat(format);	//out format...
 			}
 			BZ_Free(imagedata);
 		}

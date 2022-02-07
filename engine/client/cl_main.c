@@ -3584,16 +3584,20 @@ void CL_ConnectionlessPacket (void)
 		{
 			//c2s getchallenge
 			//s2c c%u\0DTLS=$candtls
-			//c2s dtlsconnect %u  <<YOU ARE HERE>>
+			//<<YOU ARE HERE>>
+			//c2s dtlsconnect %u
 			//s2c dtlsopened
 			//c2s DTLS(getchallenge)
 			//DTLS(etc)
+
+			//NOTE: the dtlsconnect/dtlsopened parts are redundant and the non-dtls parts are entirely optional (and should be skipped the client requries/knows the server supports dtls)
+			//the challenge response includes server capabilities, so we still need the getchallenge/response part of the handshake despite dtls making the actual challenge part redundant.
 
 			//getchallenge has to be done twice, with the outer one only reporting whether dtls can/should be used.
 			//this means the actual connect packet is already over dtls, which protects the user's userinfo.
 			//FIXME: do rcon via dtls too, but requires tracking pending rcon packets until the handshake completes.
 
-			//server says it can do tls.
+			//server says it can do dtls, but will still need to ask it to allocate extra resources for us.
 
 			char *pkt;
 			//qwfwd proxy routing
@@ -4030,7 +4034,7 @@ void CLNQ_ConnectionlessPacket(void)
 			port = htons((unsigned short)MSG_ReadLong());
 			//this is the port that we're meant to respond to.
 
-			if (port)
+			if (port && !msg_badread)
 			{
 				char buf[256];
 				net_from.port = port;

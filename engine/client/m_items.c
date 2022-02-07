@@ -764,6 +764,9 @@ static void MenuDrawItems(int xpos, int ypos, menuoption_t *option, emenu_t *men
 				int x = xpos+option->common.posx;
 				int y = ypos+option->common.posy;
 
+				if (!option->edit.slim)
+					y += (16-8)/2;	//fat ones are twice the height on account of the text box's borders.
+
 				Draw_FunStringWidth(x, y, option->edit.caption, option->edit.captionwidth, true, !menu->cursoritem && menu->selecteditem == option);
 				x += option->edit.captionwidth + 3*8;
 				if (option->edit.slim)
@@ -2708,14 +2711,13 @@ int MC_AddBulk(struct emenu_s *menu, menuresel_t *resel, menubulk_t *bulk, int x
 			{
 			default:
 			case 0:
-				y += 4;
 				control = (union menuoption_s *)MC_AddEditCvar(menu, xleft, xtextend, y, bulk->text, bulk->cvarname, false);
-				spacing += 4;
 				break;
 			case 1:
 				control = (union menuoption_s *)MC_AddEditCvar(menu, xleft, xtextend, y, bulk->text, bulk->cvarname, true);
 				break;
 			}
+			spacing = control->common.height;
 			break;
 		default:
 			Con_Printf(CON_ERROR "Invalid type in bulk menu!\n");

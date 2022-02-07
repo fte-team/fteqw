@@ -2367,7 +2367,36 @@ uploadfmt_t PR_TranslateTextureFormat(int qcformat)
 	case 13: return PTI_RG8;
 	case 14: return PTI_RGB32F;
 
-	default:return PTI_INVALID;
+	default:
+		qcformat = -qcformat;
+		if (qcformat < PTI_MAX)
+			return qcformat;
+		return PTI_INVALID;
+	}
+}
+int PR_UnTranslateTextureFormat(uploadfmt_t pixelformat)
+{
+	switch(pixelformat)
+	{
+	case PTI_RGBA8:		return 1;
+	case PTI_RGBA16F:	return 2;
+	case PTI_RGBA32F:	return 3;
+
+	case PTI_DEPTH16:	return 4;
+	case PTI_DEPTH24:	return 5;
+	case PTI_DEPTH32:	return 6;
+
+	case PTI_R8:		return 7;
+	case PTI_R16F:		return 8;
+	case PTI_R32F:		return 9;
+
+	case PTI_A2BGR10:	return 10;
+	case PTI_RGB565:	return 11;
+	case PTI_RGBA4444:	return 12;
+	case PTI_RG8:		return 13;
+	case PTI_RGB32F:	return 14;
+
+	default:return -pixelformat;
 	}
 }
 void QCBUILTIN PF_R_SetViewFlag(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)

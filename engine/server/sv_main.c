@@ -4129,7 +4129,7 @@ qboolean SV_ConnectionlessPacket (void)
 		}
 	}
 	else if (!strcmp(c,"dtlsconnect"))
-	{
+	{	//NOTE: redundant. if the server has dtls enabled then it'll respond to dtls hellos with its own stateless cookies
 #ifdef HAVE_DTLS
 		if (net_from.prot == NP_DGRAM && (net_enable_dtls.ival /*|| !*net_enable_dtls.ival*/))
 		{

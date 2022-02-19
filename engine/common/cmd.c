@@ -2622,10 +2622,16 @@ static void Cmd_List_f (void)
 {
 	cmd_function_t	*cmd;
 	int num=0;
+	const char *search = (Cmd_Argc()>1)?Cmd_Argv(1):NULL;
 	for (cmd=cmd_functions ; cmd ; cmd=cmd->next)
 	{
 		if ((cmd->restriction?cmd->restriction:rcon_level.ival) > Cmd_ExecLevel)
 			continue;
+
+		if (search)
+			if (!wildcmp(search, cmd->name))
+				continue;	//nope, no match
+
 		if (!num)
 			Con_TPrintf("Command list:\n");
 		Con_Printf("(%2i) %s\n", (int)(cmd->restriction?cmd->restriction:rcon_level.ival), cmd->name);

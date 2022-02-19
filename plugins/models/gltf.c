@@ -82,7 +82,12 @@ typedef struct json_s
 	struct json_s *parent;
 	struct json_s *child;
 	struct json_s *sibling;
-	struct json_s **childlink;
+	union
+	{
+		struct json_s **childlink;
+		struct json_s **array;
+	};
+	size_t arraymax;	//note that child+siblings are kinda updated with arrays too, just not orphaned cleanly...
 	qboolean used;	//set to say when something actually read/walked it, so we can flag unsupported things gracefully
 	char name[1];
 } json_t;
@@ -93,16 +98,26 @@ static void JSON_Orphan(json_t *t)
 	if (t->parent)
 	{
 		json_t *p = t->parent, **l = &p->child;
-		while (*l)
+		if (p->arraymax)
 		{
-			if (*l == t)
+			size_t idx = atoi(t->name);
+			if (idx <= p->arraymax)
+				p->array[idx] = NULL;
+			//FIXME: sibling links are screwed. be careful iterrating after a removal.
+		}
+		else
+		{
+			while (*l)
 			{
-				*l = t->sibling;
-				if (*l)
-					p->childlink = l;
-				break;
+				if (*l == t)
+				{
+					*l = t->sibling;
+					if (*l)
+						p->childlink = l;
+					break;
+				}
+				l = &(*l)->sibling;
 			}
-			l = &(*l)->sibling;
 		}
 		t->parent = NULL;
 		t->sibling = NULL;
@@ -112,15 +127,26 @@ static void JSON_Destroy(json_t *t)
 {
 	if (t)
 	{
-		while(t->child)
-			JSON_Destroy(t->child);
+		if (t->arraymax)
+		{
+			size_t idx;
+			for (idx = 0; idx < t->arraymax; idx++)
+				if (t->array[idx])
+					JSON_Destroy(t->array[idx]);
+			free(t->array);
+		}
+		else
+		{
+			while(t->child)
+				JSON_Destroy(t->child);
+		}
 		JSON_Orphan(t);
 		free(t);
 	}
 }
 
 //node creation
-static json_t *JSON_CreateNode(json_t *parent, const char *namestart, const char *nameend, const char *bodystart, const char *bodyend)
+static json_t *JSON_CreateNode(json_t *parent, const char *namestart, const char *nameend, const char *bodystart, const char *bodyend, qboolean array)
 {
 	json_t *j;
 	qboolean dupbody = false;
@@ -139,12 +165,39 @@ static json_t *JSON_CreateNode(json_t *parent, const char *namestart, const char
 
 	j->child = NULL;
 	j->sibling = NULL;
-	j->childlink = &j->child;
+	j->arraymax = 0;
+	if (array)
+	{	//pre-initialise the array a bit.
+		j->arraymax = 32;
+		j->array = calloc(j->arraymax, sizeof(*j->array));
+	}
+	else
+		j->childlink = &j->child;
 	j->parent = parent;
 	if (parent)
 	{
-		*parent->childlink = j;
-		parent->childlink = &j->sibling;
+		if (parent->arraymax)
+		{
+			size_t idx = atoi(j->name);
+			if (idx >= parent->arraymax)
+			{
+				size_t oldmax = parent->arraymax;
+				parent->arraymax = max(idx+1, parent->arraymax*2);
+				parent->array = realloc(parent->array, sizeof(*parent->array)*parent->arraymax);
+				while (oldmax < parent->arraymax)
+					parent->array[oldmax++] = NULL;	//make sure there's no gaps.
+			}
+			parent->array[idx] = j;
+			if (!idx)
+				parent->child = j;
+			else if (parent->array[idx-1])
+				parent->array[idx-1]->sibling = j;
+		}
+		else
+		{
+			*parent->childlink = j;
+			parent->childlink = &j->sibling;
+		}
 		j->used = false;
 	}
 	else
@@ -343,7 +396,7 @@ static json_t *JSON_Parse(json_t *t, const char *namestart, const char *nameend,
 			*jsonpos+=1;
 			JSON_SkipWhite(json, jsonpos, jsonlen);
 
-			t = JSON_CreateNode(t, namestart, nameend, NULL, NULL);
+			t = JSON_CreateNode(t, namestart, nameend, NULL, NULL, false);
 
 			while (*jsonpos < jsonlen && json[*jsonpos] == '\"')
 			{
@@ -381,7 +434,7 @@ static json_t *JSON_Parse(json_t *t, const char *namestart, const char *nameend,
 			*jsonpos+=1;
 			JSON_SkipWhite(json, jsonpos, jsonlen);
 
-			t = JSON_CreateNode(t, namestart, nameend, NULL, NULL);
+			t = JSON_CreateNode(t, namestart, nameend, NULL, NULL, true);
 
 			for(;;)
 			{
@@ -409,7 +462,7 @@ static json_t *JSON_Parse(json_t *t, const char *namestart, const char *nameend,
 		else
 		{
 			if (JSON_ParseString(json, jsonpos, jsonlen, &childstart, &childend))
-				return JSON_CreateNode(t, namestart, nameend, childstart, childend);
+				return JSON_CreateNode(t, namestart, nameend, childstart, childend, false);
 		}
 	}
 	return NULL;
@@ -426,17 +479,31 @@ static json_t *JSON_FindChild(json_t *t, const char *child)
 			nl = dot-child;
 		else
 			nl = strlen(child);
-		for (t = t->child; t; t = t->sibling)
+		if (t->arraymax)
 		{
-			if (!strncmp(t->name, child, nl) && (t->name[nl] == '.' || !t->name[nl]))
+			size_t idx = atoi(child);
+			if (idx < t->arraymax)
 			{
-				child+=nl;
-				t->used = true;
-				if (*child == '.')
-					return JSON_FindChild(t, child+1);
-				if (!*child)
-					return t;
-				break;
+				t = t->array[idx];
+				if (t)
+					goto found;
+			}
+		}
+		else
+		{
+			for (t = t->child; t; t = t->sibling)
+			{
+				if (!strncmp(t->name, child, nl) && (t->name[nl] == '.' || !t->name[nl]))
+				{
+found:
+					child+=nl;
+					t->used = true;
+					if (*child == '.')
+						return JSON_FindChild(t, child+1);
+					if (!*child)
+						return t;
+					break;
+				}
 			}
 		}
 	}

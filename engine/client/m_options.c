@@ -1025,7 +1025,7 @@ const char *presetexec[] =
 	"r_part_classic_expgrav 10;"	//gives a slightly more dynamic feel to them
 	"r_part_classic_opaque 0;"
 	"gl_load24bit 1;"
-	"r_replacemodels \"md3 md2\";"
+	"r_replacemodels \"md3 md2 md5mesh\";"
 	"r_coronas 1;"
 	"r_dynamic 1;"
 	"r_softwarebanding 0;"

@@ -752,8 +752,16 @@ static void *OSSL_CreateContext(const dtlscred_t *cred, void *cbctx, neterr_t(*p
 
 	n->cert.peername = OSSL_SetCertificateName((char*)(n+1), remotehost);
 	n->cert.dtls = true;
-	n->cert.hash = cred->peer.hash;
-	memcpy(n->cert.digest, cred->peer.digest, sizeof(cred->peer.digest));
+	if (cred)
+	{
+		n->cert.hash = cred->peer.hash;
+		memcpy(n->cert.digest, cred->peer.digest, sizeof(cred->peer.digest));
+	}
+	else
+	{
+		n->cert.hash = NULL;
+		memset(n->cert.digest, 0, sizeof(n->cert.digest));
+	}
 
 	if (n->ctx)
 	{
@@ -761,12 +769,12 @@ static void *OSSL_CreateContext(const dtlscred_t *cred, void *cbctx, neterr_t(*p
 
 		SSL_CTX_set_session_cache_mode(n->ctx, SSL_SESS_CACHE_OFF);
 
-		SSL_CTX_set_verify(n->ctx, SSL_VERIFY_PEER|(cred->peer.hash?SSL_VERIFY_FAIL_IF_NO_PEER_CERT:0), OSSL_Verify_Peer);
+		SSL_CTX_set_verify(n->ctx, SSL_VERIFY_PEER|(n->cert.hash?SSL_VERIFY_FAIL_IF_NO_PEER_CERT:0), OSSL_Verify_Peer);
 		SSL_CTX_set_verify_depth(n->ctx, 5);
 		SSL_CTX_set_options(n->ctx, SSL_OP_NO_COMPRESSION|	//compression allows guessing the contents of the stream somehow.
 									SSL_OP_NO_RENEGOTIATION);
 
-		if (cred->local.certsize||cred->local.keysize)
+		if (cred && (cred->local.certsize||cred->local.keysize))
 		{
 			X509 *cert = NULL;
 			EVP_PKEY *key = NULL;

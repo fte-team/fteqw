@@ -1191,7 +1191,10 @@ qboolean R_ImportRTLights(const char *entlump, int importmode)
 		}
 		
 		if (rerelease)
-			r_shadow_realtime_world_lightmaps_force = 1;
+		{
+			if (r_shadow_realtime_world_lightmaps_force < 0)
+				r_shadow_realtime_world_lightmaps_force = 1;
+		}
 		else if (radius < 50)	//some mappers insist on many tiny lights. such lights can usually get away with no shadows..
 			pflags |= PFLAGS_NOSHADOW;
 
@@ -1209,7 +1212,7 @@ qboolean R_ImportRTLights(const char *entlump, int importmode)
 			dl->radius = radius;
 			VectorCopy(color, dl->color);
 			dl->flags = 0;
-			dl->flags |= LFLAG_REALTIMEMODE;
+			dl->flags |= rerelease?LFLAG_REALTIMEMODE|LFLAG_NORMALMODE:LFLAG_REALTIMEMODE;
 			dl->flags |= (pflags & PFLAGS_CORONA)?LFLAG_FLASHBLEND:0;
 			dl->flags |= (pflags & PFLAGS_NOSHADOW)?LFLAG_NOSHADOWS:0;
 			dl->style = style;

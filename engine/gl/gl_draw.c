@@ -748,8 +748,9 @@ static void GL_Texturemode_Apply(GLenum targ, unsigned int flags)
 	qglTexParameteri(targ, GL_TEXTURE_MAG_FILTER, mag);
 	if (gl_anisotropy_factor)	//0 means driver doesn't support
 	{
-		//only use anisotrophy when using linear any linear, because of drivers that forces linear sampling when anis is active (annoyingly this is allowed by the spec).
-		//(also protects r_softwarebanding)
+		//only use anisotrophy when using linear any linear, because of drivers that forces linear sampling when anis is active (annoyingly this is allowed by the spec - even for the mag filter).
+		//WARNING: older intel drivers can be expected to glitch with anisotropic lego mode.
+		//  Note that we do not check mag filters here - 'gl_texturemode nll' will have crunch anistrophy, unfortunately swbanding requires nnn right now (and should be picking mips based on surface distance rather than pixel coverage instead).
 		if (min == GL_LINEAR_MIPMAP_LINEAR || min == GL_LINEAR_MIPMAP_NEAREST)
 			qglTexParameterf(targ, GL_TEXTURE_MAX_ANISOTROPY_EXT, gl_anisotropy_factor);
 		else

@@ -3994,14 +3994,6 @@ void Sh_CheckSettings(void)
 		//both shadow methods available.
 	}
 
-	r_dynamic.ival = r_dynamic.value;
-	if (canshadowless && r_dynamic.value && !r_shadow_realtime_dlight.ival && (r_temporalscenecache.ival))// || (cl.worldmodel && cl.worldmodel->fromgame == fg_quake3)))
-	{
-		r_shadow_realtime_dlight.ival = 1;
-		r_shadow_realtime_dlight_shadows.ival = 0;
-		r_dynamic.ival = 0;
-	}
-
 	cansmap = cansmap && (r_shadows.ival==2);
 	if (r_fakeshadows != cansmap)
 	{
@@ -4097,13 +4089,12 @@ void Sh_DrawLights(qbyte *vis)
 	if (r_lightprepass)
 		return;
 
-	if (!r_shadow_realtime_world.ival && !r_shadow_realtime_dlight.ival)
-	{
-		return;
-	}
-
 	ignoreflags = (r_shadow_realtime_world.ival?LFLAG_REALTIMEMODE:0)
 				| (r_shadow_realtime_dlight.ival?LFLAG_NORMALMODE:0);
+	if (r_dynamic.ival == -1 && r_dynamic.value > 0)
+		ignoreflags |= LFLAG_LIGHTMAP;	//if we're using scenecache then we cannot use lightmap hacks for dlights, so draw them via rtlight code instead.
+	if (!ignoreflags)
+		return;
 
 //	if (r_refdef.recurse)
 	for (dl = cl_dlights+rtlights_first, i=rtlights_first; i<rtlights_max; i++, dl++)
@@ -4227,7 +4218,9 @@ void Sh_DrawLights(qbyte *vis)
 		}
 		else if (dl->flags & LFLAG_CREPUSCULAR)
 			Sh_DrawCrepuscularLight(dl, colour);
-		else if (((i >= RTL_FIRST)?!r_shadow_realtime_world_shadows.ival:!r_shadow_realtime_dlight_shadows.ival) || dl->flags & LFLAG_NOSHADOWS)
+		else if (dl->flags & LFLAG_NOSHADOWS ||
+			((i >= RTL_FIRST)?!r_shadow_realtime_world_shadows.ival:!r_shadow_realtime_dlight_shadows.ival) || //force shadowless when configured that way...
+			ignoreflags==LFLAG_LIGHTMAP)	//scenecache fallback...
 		{
 			Sh_DrawShadowlessLight(dl, colour, axis, vis);
 		}

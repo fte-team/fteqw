@@ -2972,6 +2972,8 @@ void Surf_DrawWorld (void)
 	currentmodel = cl.worldmodel;
 	currententity = &r_worldentity;
 
+	r_dynamic.ival = r_dynamic.value;
+
 	{
 #ifdef THREADEDWORLD
 		int sc = r_temporalscenecache.ival;
@@ -3010,9 +3012,7 @@ void Surf_DrawWorld (void)
 		}
 
 		if (!r_temporalscenecache.ival)
-		{
-			r_dynamic.ival = r_dynamic.value;
-		}
+			;
 		else if (!r_refdef.recurse && currentmodel->type == mod_brush)
 		{
 			struct webostate_s *webostate, *best = NULL, *kill, **link;
@@ -3214,6 +3214,8 @@ void Surf_DrawWorld (void)
 		}
 #endif
 
+		if (r_shadow_realtime_dlight.ival || currentmodel->type != mod_brush || !(currentmodel->fromgame == fg_quake || currentmodel->fromgame == fg_halflife) || !currentmodel->funcs.MarkLights)
+			r_dynamic.ival = -1;
 
 		Surf_PushChains(currentmodel->batches);
 

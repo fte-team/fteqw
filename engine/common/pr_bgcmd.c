@@ -685,6 +685,256 @@ void VARGS PR_CB_Free(void *mem)
 	BZ_Free(mem);
 }
 
+////////////////////////////////////////////////////
+//JSON stuff.
+typedef struct qcjson_s
+{
+	int type;
+	string_t name;
+	union
+	{
+		struct
+		{
+			int childptr;
+			unsigned int count;	//for arrays and objects.
+		};
+		double num;			//for number types.
+		string_t strofs;	//for strings.
+	} u;
+} qcjson_t;
+static qcjson_t json_null = {json_type_null};	//dummy safe node that we poke on bad inputs.
+#define JSONFromQC(qcptr) ((unsigned int)qcptr >= prinst->stringtablesize-sizeof(qcjson_t))?PR_BIError (prinst, "PR_JSONFromQC: bad pointer"),&json_null:qcptr?(qcjson_t*)((char*)prinst->stringtable + qcptr):&json_null
+#define RETURN_JSON(r) G_INT(OFS_RETURN) = (const char*)r - prinst->stringtable
+
+#define JSON_PERSIST_STRINGDATA	//slower but safer
+static void PR_JSON_Count(json_t *r, size_t *nodes, size_t *strings)	//counts the nodes and bytes for string data.
+{
+	*nodes+=1;
+	if (*r->name)
+		*strings += strlen(r->name)+1;
+	safeswitch(r->type)
+	{
+	case json_type_object:
+	case json_type_array:
+		for(r = r->child; r; r = r->sibling)
+			PR_JSON_Count(r, nodes, strings);
+		break;
+	case json_type_string:
+#ifndef JSON_PERSIST_STRINGDATA
+		*strings += JSON_ReadBody(r, NULL, 0)+1;
+		break;
+#endif
+	case json_type_true:
+	case json_type_false:
+	case json_type_null:
+	case json_type_number:
+	safedefault:
+		break;
+	}
+}
+static void PR_JSON_Linearise(pubprogfuncs_t *prinst, json_t *r, qcjson_t *out, qcjson_t **nodes, char **strings)
+{
+	json_t *c;
+	size_t children = 0;
+	out->type = r->type;
+
+	//give it a name
+	if (*r->name)
+	{
+		out->name = *strings - prinst->stringtable;
+		memcpy(*strings, r->name, strlen(r->name)+1);
+		*strings += strlen(r->name)+1;
+	}
+
+	//make sure its values are valid.
+	safeswitch(out->type)
+	{
+	case json_type_string:
+#ifdef JSON_PERSIST_STRINGDATA
+		{	//allocate a tempstring for each, so that they last beyond node destruction.
+			size_t sz = JSON_ReadBody(r, NULL, 0);
+			char *tmp = alloca(sz+1);
+			JSON_ReadBody(r, tmp, sz+1);
+			out->u.strofs = PR_TempString(prinst, tmp);
+		}
+#else
+		out->u.strofs = *strings - prinst->stringtable;
+		JSON_ReadBody(r, *strings, prinst->stringtablesize - out->u.strofs-1);
+		*strings += strlen(*strings)+1;
+#endif
+		break;
+	case json_type_object:
+	case json_type_array:
+		out->u.childptr = (char*)*nodes - prinst->stringtable;
+		for(c = r->child; c; c = c->sibling)
+			children++;
+		out->u.count = children;
+		out = *nodes;
+		*nodes+=children;
+		for(c = r->child; c; c = c->sibling, out++)
+			PR_JSON_Linearise(prinst, c, out, nodes, strings);
+		break;
+	case json_type_false:
+	case json_type_null:
+		out->u.num = false;
+		break;
+	case json_type_true:
+		out->u.num = true;
+		break;
+	case json_type_number:
+	safedefault:
+		out->u.num = JSON_ReadFloat(r, 0);
+		break;
+	}
+}
+void QCBUILTIN PF_json_parse(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	json_t *inroot = JSON_Parse(PR_GetStringOfs(prinst, OFS_PARM0));
+	qcjson_t *outroot, *outnodes;
+	char *outstrings;
+	size_t n = 0, s = 0;
+	if (inroot)
+	{
+		//linearise the json nodes for easy access (just use qc pointers instead of needing lots of separate handles)
+		PR_JSON_Count(inroot, &n, &s);
+		outnodes = prinst->AddressableAlloc(prinst, sizeof(*outroot)*n + s);
+		outstrings = (char*)(outnodes + n);
+
+		outroot = outnodes++;
+		PR_JSON_Linearise(prinst, inroot, outroot, &outnodes, &outstrings);
+
+		JSON_Destroy(inroot);	//our input string becomes irrelevant at this point
+
+		RETURN_JSON(outroot);
+	}
+	else
+		G_INT(OFS_RETURN) = 0;
+}
+
+void QCBUILTIN PF_json_get_value_type(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	qcjson_t *handle = JSONFromQC(G_INT(OFS_PARM0));
+	G_INT(OFS_RETURN) = handle->type;
+}
+void QCBUILTIN PF_json_get_name(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	qcjson_t *handle = JSONFromQC(G_INT(OFS_PARM0));
+	G_INT(OFS_RETURN) = handle->name;
+}
+void QCBUILTIN PF_json_get_integer(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	qcjson_t *handle = JSONFromQC(G_INT(OFS_PARM0));
+	switch (handle->type)
+	{
+	case json_type_number:
+	case json_type_true:
+	case json_type_false:
+		G_INT(OFS_RETURN) = handle->u.num;
+		break;
+	case json_type_string:
+		G_INT(OFS_RETURN) = atoi(PR_GetString(prinst, handle->u.strofs));
+		break;
+	default:
+		G_INT(OFS_RETURN) = 0;
+		break;
+	}
+}
+void QCBUILTIN PF_json_get_float(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	qcjson_t *handle = JSONFromQC(G_INT(OFS_PARM0));
+	switch (handle->type)
+	{
+	case json_type_number:
+	case json_type_true:
+	case json_type_false:
+		G_FLOAT(OFS_RETURN) = handle->u.num;
+		break;
+	case json_type_string:
+		G_FLOAT(OFS_RETURN) = atof(PR_GetString(prinst, handle->u.strofs));
+		break;
+	default:
+		G_FLOAT(OFS_RETURN) = 0;
+		break;
+	}
+}
+void QCBUILTIN PF_json_get_string(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	qcjson_t *handle = JSONFromQC(G_INT(OFS_PARM0));
+	if (handle->type != json_type_string)
+		G_INT(OFS_RETURN) = 0;
+	else
+		G_INT(OFS_RETURN) = handle->u.strofs;
+}
+void QCBUILTIN PF_json_get_child_at_index(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	qcjson_t *handle = JSONFromQC(G_INT(OFS_PARM0));
+	size_t idx = G_INT(OFS_PARM1);
+	G_INT(OFS_RETURN) = 0;	//assume the worst
+	switch(handle->type)
+	{
+	case json_type_array:
+	case json_type_object:
+		if (idx < handle->u.count)
+			G_INT(OFS_RETURN) = handle->u.childptr + idx*sizeof(*handle);	//don't really need to validate this here.
+		break;
+	default:
+		break;
+	}
+}
+void QCBUILTIN PF_json_get_length(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	qcjson_t *handle = JSONFromQC(G_INT(OFS_PARM0));
+	switch (handle->type)
+	{
+	case json_type_object:
+	case json_type_array:
+		G_INT(OFS_RETURN) = handle->u.count;
+		break;
+	default:
+		G_INT(OFS_RETURN) = 0;
+		break;
+	}
+}
+void QCBUILTIN PF_json_find_object_child(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	qcjson_t *parent = JSONFromQC(G_INT(OFS_PARM0));
+	const char *childname = PR_GetStringOfs(prinst, OFS_PARM1);
+	unsigned int idx;
+	G_INT(OFS_RETURN) = 0;	//assume the worst
+	switch (parent->type)
+	{
+	case json_type_object:
+	case json_type_array:
+		for (idx = 0; idx < parent->u.count; idx++)
+		{
+			qcjson_t *childnode = JSONFromQC(parent->u.childptr + idx*sizeof(*childnode));
+			if (!strcmp(childname, PR_GetString(prinst, childnode->name)))
+			{
+				RETURN_JSON(childnode);
+				break;
+			}
+		}
+		break;
+	default:
+		break;
+	}
+}
+
+#ifdef FTE_TARGET_WEB
+#include <emscripten.h>
+#endif
+void QCBUILTIN PF_js_run_script(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+#ifdef FTE_TARGET_WEB
+	const char *jscript = PR_GetStringOfs(prinst, OFS_PARM0);
+	const char *ret;
+	ret = emscripten_run_script_string(jscript);
+	if (ret)
+		G_INT(OFS_RETURN) = PR_TempString(prinst, ret);
+	else
+#endif
+		G_INT(OFS_RETURN) = 0;
+}
 
 ////////////////////////////////////////////////////
 //model functions

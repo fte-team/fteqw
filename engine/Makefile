@@ -901,6 +901,7 @@ COMMON_OBJS = \
 	com_bih.o	\
 	com_mesh.o	\
 	common.o 		\
+	json.o		\
 	cvar.o 		\
 	cmd.o 		\
 	crc.o 		\
@@ -2456,7 +2457,7 @@ $(RELEASE_DIR)/httpserver$(BITS)$(EXEPOSTFIX): $(HTTP_OBJECTS)
 	$(CC) -o $@ -Icommon -Iclient -Iqclib -Igl -Iserver -DWEBSERVER -DWEBSVONLY -Dstricmp=strcasecmp -Dstrnicmp=strncasecmp -DNO_PNG $(HTTP_OBJECTS)
 httpserver: $(RELEASE_DIR)/httpserver$(BITS)$(EXEPOSTFIX)
 
-IQM_OBJECTS=../iqm/iqm.cpp ../imgtool.c client/image.c ../plugins/models/gltf.c
+IQM_OBJECTS=../iqm/iqm.cpp ../imgtool.c client/image.c common/json.c ../plugins/models/gltf.c
 $(RELEASE_DIR)/iqmtool$(BITS)$(EXEPOSTFIX): $(IQM_OBJECTS)
 ifeq (win,$(findstring win,$(FTE_TARGET)))
 	$(CC) -o $@ $(IQM_OBJECTS) -Icommon -Iclient -Iqclib -Igl -Iserver $(ALL_CFLAGS) $(CLIENTLIBFLAGS) -DIQMTOOL $(BASELDFLAGS) $(CLIENTLDDEPS) --static -static-libgcc -static-libstdc++ -lstdc++ -lm -Os

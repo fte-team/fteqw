@@ -11367,6 +11367,23 @@ static BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"sqlreadblob",		PF_sqlreadblob,		0,		0,		0,		0,		"int(float serveridx, float queryidx, float row, float column, __variant *ptr, int maxsize)"},
 	{"sqlescapeblob",	PF_sqlescapeblob,	0,		0,		0,		0,		"string(float serveridx, __variant *ptr, int maxsize)"},
 
+	//basic API is from Joshua Ashton, though uses FTE's json parser instead.
+	{"json_parse",		PF_json_parse,		0,		0,		0,		0,		D("typedef struct json_s *json_t;\n"
+																			  "accessor jsonnode : json_t;\n"
+																			  "jsonnode(string)", "Parses the given JSON string.")},
+	{"json_free",		PF_memfree,			0,		0,		0,		0,		D("void(jsonnode)", "Frees a json tree and all of its children. Must only be called on the root node.")},
+	{"json_get_value_type",PF_json_get_value_type,0,0,		0,		0,		D("enum json_type_e : int\n{\n\tJSON_TYPE_STRING,\n\tJSON_TYPE_NUMBER,\n\tJSON_TYPE_OBJECT,\n\tJSON_TYPE_ARRAY,\n\tJSON_TYPE_TRUE,\n\tJSON_TYPE_FALSE,\n\tJSON_TYPE_NULL\n};\n"
+																			  "json_type_e(jsonnode node)", "Get type of a JSON value.")},
+	{"json_get_integer",PF_json_get_integer,0,		0,		0,		0,		D("int(jsonnode node)", "Get an integer from a json node.")},
+	{"json_get_float",	PF_json_get_float,	0,		0,		0,		0,		D("float(jsonnode node)", "Get a float from a json node.")},
+	{"json_get_string",	PF_json_get_string,	0,		0,		0,		0,		D("string(jsonnode node)", "Get a string from a value. Returns a null string if its not a string type.")},
+	{"json_find_object_child",PF_json_find_object_child,0,0,0,		0,		D("jsonnode(jsonnode node, string)", "Find a child of a json object by name. Returns NULL if the handle couldn't be found.")},
+	{"json_get_length",	PF_json_get_length,	0,		0,		0,		0,		D("int(jsonnode node)", "Get the length of a json array or object. Returns 0 if its not an array.")},
+	{"json_get_child_at_index",PF_json_get_child_at_index,0,0,0,	0,		D("jsonnode(jsonnode node, int childindex)", "Get the nth child of a json array or object. Returns NULL if the index is out of range.")},
+	{"json_get_name",	PF_json_get_name,	0,		0,		0,		0,		D("string(jsonnode node)", "Gets the object's name (useful if you're using json_get_child_at_index to walk an object's children for whatever reason).")},
+
+	{"js_run_script",	PF_js_run_script,	0,		0,		0,		0,		D("string(string javascript)", "Runs the provided javascript snippet. This builtin functions only in emscripten builds, returning a null string on other systems (or if the script evaluates to null).")},
+
 	{"stoi",			PF_stoi,			0,		0,		0,		259,	D("int(string)", "Converts the given string into a true integer. Base 8, 10, or 16 is determined based upon the format of the string.")},
 	{"itos",			PF_itos,			0,		0,		0,		260,	D("string(int)", "Converts the passed true integer into a base10 string.")},
 	{"stoh",			PF_stoh,			0,		0,		0,		261,	D("int(string)", "Reads a base-16 string (with or without 0x prefix) as an integer. Bugs out if given a base 8 or base 10 string. :P")},
@@ -14262,6 +14279,18 @@ void PR_DumpPlatform_f(void)
 			"\tinline set string = {fputs(this,value);};\n"
 		"};\n");
 	VFS_PRINTF(f, "#endif\n");
+
+	VFS_PRINTF(f,
+		"accessor jsonnode : json_t\n{\n"
+			"\tinline get json_type_e type = json_get_value_type;\n"
+			"\tinline get string s = json_get_string;\n"
+			"\tinline get float f = json_get_float;\n"
+			"\tinline get __int i = json_get_integer;\n"
+			"\tinline get __int length = json_get_length;\n"
+			"\tinline get jsonnode a[__int key] = json_get_child_at_index;\n"	//FIXME: remove this name when fteqcc can cope with dupes, for array[idx]
+			"\tinline get jsonnode[string key] = json_find_object_child;\n"
+			"\tinline get string name = json_get_name;\n"
+		"};\n");
 
 	VFS_PRINTF(f, "#undef DEP_CSQC\n");
 	VFS_PRINTF(f, "#undef FTEDEP\n");

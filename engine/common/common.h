@@ -1042,3 +1042,51 @@ typedef struct
 	char str[128];
 } date_t;
 void COM_TimeOfDay(date_t *date);
+
+//json.c
+typedef struct json_s
+{
+	enum
+	{
+		json_type_string,
+		json_type_number,
+		json_type_object,
+		json_type_array,
+		json_type_true,
+		json_type_false,
+		json_type_null
+	} type;
+	const char *bodystart;
+	const char *bodyend;
+
+	struct json_s *parent;
+	struct json_s *child;
+	struct json_s *sibling;
+	union
+	{
+		struct json_s **childlink;
+		struct json_s **array;
+	};
+	size_t arraymax;	//note that child+siblings are kinda updated with arrays too, just not orphaned cleanly...
+	qboolean used;	//set to say when something actually read/walked it, so we can flag unsupported things gracefully
+	char name[1];
+} json_t;
+//main functions
+json_t *JSON_Parse(const char *json);	//simple parsing. returns NULL if there's any kind of parsing error.
+void JSON_Destroy(json_t *t);			//call this on the root once you're done
+json_t *JSON_FindChild(json_t *t, const char *child);	//find a named child in an object (or an array, if you're lazy)
+json_t *JSON_GetIndexed(json_t *t, unsigned int idx);	//find an indexed child in an array (or object, though slower)
+double JSON_ReadFloat(json_t *t, double fallback);		//read a numeric value.
+size_t JSON_ReadBody(json_t *t, char *out, size_t outsize);	//read a string value.
+//exotic fancy functions
+json_t *JSON_ParseNode(json_t *t, const char *namestart, const char *nameend, const char *json, int *jsonpos, int jsonlen); //fancy parsing.
+//helpers
+json_t *JSON_FindIndexedChild(json_t *t, const char *child, unsigned int idx);		//just a helper.
+qboolean JSON_Equals(json_t *t, const char *child, const char *expected);			//compares a bit faster.
+quintptr_t JSON_GetUInteger(json_t *t, const char *child, unsigned int fallback);	//grabs a child node's uint value
+qintptr_t JSON_GetInteger(json_t *t, const char *child, int fallback);				//grabs a child node's int value
+qintptr_t JSON_GetIndexedInteger(json_t *t, unsigned int idx, int fallback);		//grabs an int from an array
+double JSON_GetFloat(json_t *t, const char *child, double fallback);				//grabs a child node's numeric value
+double JSON_GetIndexedFloat(json_t *t, unsigned int idx, double fallback);			//grabs a numeric value from an array
+const char *JSON_GetString(json_t *t, const char *child, char *buffer, size_t buffersize, const char *fallback); //grabs a child node's string value. do your own damn indexing for an array.
+//there's no write logic. Its probably easier to just snprintf it or something anyway.

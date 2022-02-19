@@ -527,6 +527,7 @@ SET(FTE_COMMON_FILES
 	engine/common/com_mesh.c
 	engine/common/com_bih.c
 	engine/common/common.c
+	engine/common/json.c
 	engine/common/crc.c
 	engine/common/cvar.c
 	engine/common/fs.c
@@ -883,6 +884,7 @@ ELSE()
 		ADD_EXECUTABLE(iqmtool
 			iqm/iqm.cpp
 			plugins/models/gltf.c
+			engine/common/json.c
 			engine/client/image.c
 			imgtool.c
 			iqm/iqm.h
@@ -1262,6 +1264,7 @@ IF(FTE_PLUG_MODELS)
 		plugins/plugin.c
 		plugins/models/models.c
 		plugins/models/gltf.c
+		engine/common/json.c
 		plugins/models/exportiqm.c
 	)
 	SET_TARGET_PROPERTIES(plug_models PROPERTIES COMPILE_DEFINITIONS "FTEPLUGIN;${FTE_LIB_DEFINES}")

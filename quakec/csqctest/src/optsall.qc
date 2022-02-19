@@ -29,6 +29,9 @@
 	#define NOT_DP		//mute deprecation warnings about DP, we don't care.
 #endif
 
+//just mute engine-dependancy deprecation warnings for now.
+#define NOT_QSS
+#define NOT_DP
 
 
 

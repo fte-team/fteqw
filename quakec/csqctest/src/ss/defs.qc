@@ -509,3 +509,8 @@ float isdp;
 #define sprint(pl,...) sprint(pl, PRINT_HIGH, __VA_ARGS__)
 #define bprint(...) bprint(PRINT_HIGH, __VA_ARGS__)
 #endif
+
+#define DIMENSION_NOCSQC	1
+#define DIMENSION_HASCSQC	2
+#define DIMENSION_DEFAULT	255
+

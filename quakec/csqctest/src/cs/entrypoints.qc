@@ -453,8 +453,7 @@ void(float width, float height, float do2d) CSQC_UpdateView =
 
 void(float vwidth, float vheight, float notmenu) CSQC_UpdateViewLoading =
 {
-print("in CSQC_UpdateViewLoading\n");
-	drawfill([0,0],[vwidth,vheight], [0,1,0],1, 0);
+	drawfill([0,0],[vwidth,vheight], [0,0,0],1, 0);
 
 	const vector tsize = '24 24';
 	string text = "CSQCTest is Loading!\nPlease wait...";

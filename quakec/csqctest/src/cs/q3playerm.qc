@@ -1158,7 +1158,7 @@ nonstatic vector(string skinname) Anim_GetHeadOffset =
 
 
 
-float(float channel, string soundname, vector pos, float vol, float attenuation, float flags) CSQC_ServerSound =
+static float(float channel, string soundname, vector pos, float vol, float attenuation, float flags) ServerSoundStartRequest =
 {	//the server started a sound on an entity that the csqc has control over.
 	if (!self.headent)
 	{
@@ -1244,11 +1244,17 @@ float(float channel, string soundname, vector pos, float vol, float attenuation,
 	return false;
 };
 
+//version that breaks when the ent is not necessarily known to us, called only when 'self' is a known CSQC entity.
+float(float channel, string soundname, vector org, float vol, float attenuation, float flags) CSQC_ServerSound =
+{
+	return ServerSoundStartRequest(channel, soundname, org, vol, attenuation, flags);
+}
+//version that lets the qc handle any ent fixups.
 float(float sventnum, float channel, string soundname, float vol, float att, vector org, float pitchmod, float flags) CSQC_Event_Sound =
 {
 	self = findfloat(world, entnum, sventnum);
 	if (self)
-		return CSQC_ServerSound(channel, soundname, org, vol, att, flags);
+		return ServerSoundStartRequest(channel, soundname, org, vol, att, flags);
 	return false;
 };
 #endif

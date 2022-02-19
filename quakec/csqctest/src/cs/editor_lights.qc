@@ -9,7 +9,7 @@ static string editvalue;
 static entity tempent;
 void() editor_lights_add =
 {
-	__using(dynamiclight_get);
+	__using dynamiclight_get;
 
 	float l;
 	if (!tempent)
@@ -47,7 +47,7 @@ static string fldname[8] = {
 };
 static string(float fld, float foredit) readfield =
 {
-	__using(dynamiclight_get);
+	__using dynamiclight_get;
 
 	switch(fld)
 	{

@@ -21,7 +21,8 @@ Any fields that are read need to be the same between csqc and ssqc code somehow.
 #define movevars_accelerate 10
 #define movevars_stopspeed 100
 #define movevars_maxspeed 320
-#define movevars_jumpheight 270
+#define movevars_maxairspeed 30
+#define movevars_jumpspeed 270
 #define movevars_watersinkspeed 60
 
 .float pmove_flags;
@@ -30,6 +31,7 @@ Any fields that are read need to be the same between csqc and ssqc code somehow.
 .float gravity;
 #endif
 .entity groundentity;
+static vector groundnormal;
 
 enumflags
 {
@@ -194,8 +196,12 @@ void() PMove_InAirAccelerate =
 		{
 			if (!(self.pmove_flags & PMF_JUMP_HELD))
 			{
-				self.velocity_z += movevars_jumpheight;
-				self.pmove_flags |= PMF_ONGROUND;
+				//make sure we get at least jumpspeed upwards from the ground plane by clamping it first.
+				if (self.velocity*groundnormal < 0)
+					self.velocity = self.velocity - groundnormal*(self.velocity*groundnormal);
+				self.velocity_z += movevars_jumpspeed;
+				self.pmove_flags &~= PMF_ONGROUND;
+				self.pmove_flags |= PMF_JUMP_HELD;
 			}
 		}
 	}
@@ -208,8 +214,8 @@ void() PMove_InAirAccelerate =
 	else
 	{
 		//there's no friction in air...
-		if (desiredspeed > 30)
-			desiredspeed = 30;
+		if (desiredspeed > movevars_maxairspeed)
+			desiredspeed = movevars_maxairspeed;
 		PMove_Accelerate(desireddir, desiredspeed, movevars_accelerate);
 
 #ifdef HAVE_DOTGRAVITY
@@ -249,6 +255,7 @@ void() PMove_Categorise =
 	{
 		//don't know, maybe we are, maybe we're not
 		tracebox(self.origin, self.mins, self.maxs, self.origin-'0 0 1', false, self);
+		groundnormal = trace_plane_normal;
 		if (trace_fraction == 1 || trace_plane_normal_z < 0.7)
 		{
 			self.pmove_flags &= ~PMF_ONGROUND;
@@ -321,6 +328,17 @@ static void Pmove_Nudge(void)
 	self.origin = org;
 };
 
+#ifdef SSQC
+//small hack to make sure our cvars are actually stored as serverinfo (we then access them via serverkey for consistency between ssqc+csqc, safe in the knowledge that they'll be networked for us)
+__accumulate void() worldspawn =
+{
+	if (autocvar(test_qwphys, "0") != serverkey("test_qwphys"))
+		localcmd(sprintf("setfl test_qwphys %S s\n", autocvar(test_qwphys, "0")));
+	if (autocvar(test_autobunny, "0") != serverkey("test_autobunny"))
+		localcmd(sprintf("setfl test_autobunny %S s\n", autocvar(test_autobunny, "0")));
+};
+#endif
+
 void(entity ent) PMove =
 {
 	if (stof(serverkey("test_qwphys")) && checkbuiltin(runstandardplayerphysics))
@@ -334,7 +352,7 @@ void(entity ent) PMove =
 
 	Pmove_Nudge();
 
-	if (!(input_buttons & PMF_JUMP_HELD))
+	if (!(input_buttons & 2) || serverkey("test_autobunny"))
 		self.pmove_flags &= ~PMF_JUMP_HELD;
 
 	PMove_Categorise();
@@ -376,10 +394,6 @@ void(entity ent) PMove =
 		self.flags |= FL_ONGROUND;
 	else
 		self.flags &= ~FL_ONGROUND;
-
-#ifdef CSQC
-cprint(sprintf("onground: %g", self.pmove_flags & PMF_ONGROUND));
-#endif
 };
 
 #endif

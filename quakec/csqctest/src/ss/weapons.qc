@@ -389,13 +389,15 @@ void()	s_explode1	= {self.think = s_explode1; makevolcano(); self.frame += 0.5; 
 
 void() BecomeExplosion =
 {
+	__using dimension_seen, dimension_send;	//okay for this purpose...
+
 	self.movetype = MOVETYPE_NONE;
 	self.velocity = '0 0 0';
 	self.touch = SUB_Null;
 	self.solid = SOLID_NOT;
 
-	self.dimension_seen = 2;
-	dimension_send = 2;
+	self.dimension_seen = DIMENSION_NOCSQC;
+	dimension_send = DIMENSION_NOCSQC;
 
 #if 1
 	WriteByte (MSG_BROADCAST, SVC_TEMPENTITY);
@@ -408,8 +410,8 @@ void() BecomeExplosion =
 #endif
 
 	sound (self, CHAN_WEAPON, "weapons/r_exp3.wav", 1, ATTN_NORM);
-	self.dimension_seen = 3;
-	dimension_send = 3;
+	self.dimension_seen = DIMENSION_DEFAULT;
+	dimension_send = DIMENSION_DEFAULT;
 
 	setmodel (self, "progs/s_explod.spr");
 	s_explode1 ();
@@ -1142,6 +1144,56 @@ void() CheatCommand =
 
 	self.weapon = IT_ROCKET_LAUNCHER;
 	self.impulse = 0;
+	W_SetCurrentAmmo ();
+};
+
+void() GiveCommand_f =
+{
+	if (deathmatch || coop)
+		return;
+
+	switch(argv(1))
+	{
+	case "1": self.items |= IT_AXE; break;		//not sure why you'd need this, but oh well.
+	case "2": self.items |= IT_SHOTGUN; break;	//not sure why you'd need this, but oh well.
+	case "3": self.items |= IT_SUPER_SHOTGUN; break;
+	case "4": self.items |= IT_NAILGUN; break;
+	case "5": self.items |= IT_SUPER_NAILGUN; break;
+	case "6": self.items |= IT_GRENADE_LAUNCHER; break;
+	case "7": self.items |= IT_ROCKET_LAUNCHER; break;
+	case "8": self.items |= IT_LIGHTNING; break;
+	case "s": self.ammo_shells = stof(argv(2)); break;
+	case "n": self.ammo_nails = stof(argv(2)); break;
+	case "r": self.ammo_rockets = stof(argv(2)); break;
+	case "c": self.ammo_cells = stof(argv(2)); break;
+	case "h": self.health = stof(argv(2)); break;
+	case "a":
+		self.armorvalue = stof(argv(2));
+		if (self.armorvalue < 1)
+		{	//remove the armour type if they no longer have any.
+			self.armortype = 0;
+			self.items &= ~(IT_ARMOR1|IT_ARMOR2|IT_ARMOR3);
+		}
+		else if (self.armorvalue > 150 && self.armortype < 0.8)
+		{	//prmote to red if its too high for yellow...
+			self.armortype = 0.8;
+			self.items = (self.items & ~(IT_ARMOR1|IT_ARMOR2|IT_ARMOR3)) | IT_ARMOR3;
+		}
+		else if (self.armorvalue > 100 && self.armortype < 0.6)
+		{	//promote to yellow if its too high for green...
+			self.armortype = 0.6;
+			self.items = (self.items & ~(IT_ARMOR1|IT_ARMOR2|IT_ARMOR3)) | IT_ARMOR2;
+		}
+		else if (self.armortype < 0.3)
+		{	//make sure we have at least green armour...
+			self.armortype = 0.3;
+			self.items = (self.items & ~(IT_ARMOR1|IT_ARMOR2|IT_ARMOR3)) | IT_ARMOR1;
+		}
+		break;
+	default:
+		sprint(self, "Item \"", argv(1), "\" not understood\n");
+		break;
+	}
 	W_SetCurrentAmmo ();
 };
 

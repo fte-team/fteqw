@@ -1211,15 +1211,16 @@ void() ClientConnect =
 	if (intermission_running)
 		ExitIntermission ();
 
+	__using dimension_see;	//csqc support checks are safe. just mute the splitscreen/mvd warnings.
 	self.usingcsqc = stof(infokey(self, INFOKEY_P_CSQCACTIVE));
 	if (self.usingcsqc)
 	{
-		self.dimension_see = 1;
+		self.dimension_see = DIMENSION_HASCSQC;
 		sprint(self, "Welcome to csqctest!\n");
 	}
 	else
 	{
-		self.dimension_see = 3;
+		self.dimension_see = DIMENSION_NOCSQC;
 
 		bprint(self.netname);
 		bprint(" is not using csqc!\n");
@@ -1565,5 +1566,27 @@ void() SV_RunClientCommand =
 #else
 	runstandardplayerphysics(self);
 #endif
+};
+
+void(string cmd) SV_ParseClientCommand =
+{
+	tokenize(cmd);
+	switch(argv(0))
+	{
+	case "give":	//we have our own additions/behaviours.
+		GiveCommand_f();
+		break;
+
+	//case "god":
+	//case "noclip":
+	//case "fly":
+	//case "setpos":
+	//case "notarget":
+	//case "spiderpig":
+	//case "6dof":
+	default:	//fallback. let the engine handle it.
+		clientcommand(self, cmd);
+		break;
+	}
 };
 

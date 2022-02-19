@@ -8447,6 +8447,19 @@ void SV_ExecuteClientMessage (client_t *cl)
 	sv_player = NULL;
 }
 #ifdef Q2SERVER
+static void SVQ2_ClientThink(q2edict_t *ed, usercmd_t *cmd)
+{
+	q2usercmd_t q2;
+	q2.msec = cmd->msec;
+	q2.buttons = cmd->buttons;
+	VectorCopy(cmd->angles, q2.angles);
+	q2.forwardmove = cmd->forwardmove;
+	q2.sidemove = cmd->sidemove;
+	q2.upmove = cmd->upmove;
+	q2.impulse = cmd->impulse;
+	q2.lightlevel = cmd->lightlevel;
+	ge->ClientThink (ed, &q2);
+}
 void SVQ2_ExecuteClientMessage (client_t *cl)
 {
 	int		c;
@@ -8603,15 +8616,15 @@ void SVQ2_ExecuteClientMessage (client_t *cl)
 					{
 						while (net_drop > 2)
 						{
-							ge->ClientThink (split->q2edict, (q2usercmd_t*)&split->lastcmd);
+							SVQ2_ClientThink (split->q2edict, &split->lastcmd);
 							net_drop--;
 						}
 						if (net_drop > 1)
-							ge->ClientThink (split->q2edict, (q2usercmd_t*)&oldest);
+							SVQ2_ClientThink (split->q2edict, &oldest);
 						if (net_drop > 0)
-							ge->ClientThink (split->q2edict, (q2usercmd_t*)&oldcmd);
+							SVQ2_ClientThink (split->q2edict, &oldcmd);
 					}
-					ge->ClientThink (split->q2edict, (q2usercmd_t*)&newcmd);
+					SVQ2_ClientThink (split->q2edict, &newcmd);
 				}
 
 				split->lastcmd = newcmd;

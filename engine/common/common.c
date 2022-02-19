@@ -2412,13 +2412,12 @@ void MSGQ2_ReadDeltaUsercmd (const usercmd_t *from, usercmd_t *move)
 		else
 			move->buttons = MSG_ReadByte ();
 	}
-	move->buttons_compat = move->buttons & 0xff;
 
 	if (bits & Q2CM_IMPULSE)
 		move->impulse = MSG_ReadByte ();
 
 // read time to run command
-	move->msec_compat = move->msec = MSG_ReadByte ();
+	move->msec = MSG_ReadByte ();
 
 	move->lightlevel = MSG_ReadByte ();
 }

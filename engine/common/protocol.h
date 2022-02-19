@@ -1270,14 +1270,10 @@ struct vrdevinfo_s
 };
 typedef struct usercmd_s
 {
-	//the first members of this structure MUST match the q2 version
-	qbyte	msec_compat;
-	qbyte	buttons_compat;
 	short	angles[3];
-	short	forwardmove, sidemove, upmove;
-	qbyte	impulse;
-	qbyte	lightlevel;
-	//end q2 compat
+	signed int		forwardmove,sidemove,upmove;
+	unsigned int	impulse;
+	unsigned int	lightlevel;
 
 	unsigned int	sequence;	// just for debugging prints
 	float	msec;		//replace msec, but with more precision

@@ -4162,13 +4162,14 @@ namespace fte
 	{	//import from fte's structs and convert to iqmtool's c++isms
 		if (mod->type != mod_alias)
 			return false;	//err...
-		galiasinfo_t *surf = (galiasinfo_t*)mod->meshinfo;
+		galiasinfo_t *root = (galiasinfo_t*)mod->meshinfo, *surf=root;
 		if (surf)
 		{
 			resetimporter(spec);
 
 			if (surf->baseframeofs)
 			{
+				int b2;
 				for (int b = 0; b < surf->numbones; b++)
 				{
 					transform p(ftetransform(surf->ofsbones[b].inverse, true));
@@ -4177,6 +4178,17 @@ namespace fte
 					ejoint &j = ejoints.add();
 					j.name = surf->ofsbones[b].name;
 					j.parent = surf->ofsbones[b].parent;
+
+					for (b2 = 0; b2 < b; b2++)
+					{
+						if (!strcmp(surf->ofsbones[b2].name, surf->ofsbones[b].name))
+						{
+							defformatstring(newname, "b#%i %s", b, j.name);
+							conoutf("warning: Bones %i and %i are both called %s", b2, b, j.name);
+							j.name = getnamekey(newname);
+							break;
+						}
+					}
 
 					//and the base pose
 					eposes.add(p);
@@ -4189,6 +4201,9 @@ namespace fte
 					auto &anim = surf->ofsanimations[animidx];
 					int firstframe = eframes.length();
 					vector<float[12]> bonebuf;
+
+					if (!anim.numposes)	//drop any animations that don't have any poses defined...
+						continue;
 
 					for (int f = 0; f < anim.numposes; f++)
 					{
@@ -4205,7 +4220,7 @@ namespace fte
 						if (sk == SKEL_RELATIVE)
 							;
 						else
-							printf("Unusable skeletal type for import - %i\n", (int)sk);
+							conoutf("warning: Unusable skeletal type for import - %i", (int)sk);
 
 						eframes.add(eposes.length());
 						for (int b = 0; b < surf->numbones; b++, bonedata += 12)
@@ -4215,6 +4230,7 @@ namespace fte
 
 					eanim &a = eanims.add();
 					if(spec.name) a.name = getnamekey(spec.name);
+					else if (*anim.name) a.name = getnamekey(anim.name);
 					else
 					{
 						string name;
@@ -4234,8 +4250,11 @@ namespace fte
 
 			for(; surf; surf = surf->nextsurf)
 			{
-				if (surf->shares_bones != 0)
+				if (surf->shares_bones != root->shares_bones)
+				{
+					conoutf("warning: Ignoring surface %s as it has a different rig", surf->surfacename);
 					continue;
+				}
 
 				if (surf->numindexes)
 				{
@@ -4260,7 +4279,7 @@ namespace fte
 //						if (surf->ofs_skel_tvect)
 //							ebitangents.add(Vec3(surf->ofs_skel_tvect[v][0], surf->ofs_skel_tvect[v][1], surf->ofs_skel_tvect[v][2]));
 
-						if (surf->shares_bones == 0 && surf->ofs_skel_weight && surf->ofs_skel_idx)
+						if (surf->shares_bones == root->shares_bones && surf->ofs_skel_weight && surf->ofs_skel_idx)
 						{
 							blendcombo b = {};
 							//Vec3 newpos(0,0,0);
@@ -4296,7 +4315,7 @@ namespace fte
 						materialname = surf->surfacename;
 
 					if (surf->nummorphs)
-						printf("Morph targets on input surface \"%s\" \"%s\" cannot be supported\n", surf->surfacename, materialname);
+						conoutf("warning: Morph targets on input surface \"%s\" \"%s\" cannot be supported", surf->surfacename, materialname);
 
 					emesh mesh(surf->surfacename, materialname, etriangles.length());
 

@@ -75,7 +75,7 @@ typedef struct galiasbone_s galiasbone_t;
 #ifdef SKELETALMODELS
 struct galiasbone_s
 {
-	char name[32];
+	char name[64];
 	int parent;
 //	float radius;
 	float inverse[12];

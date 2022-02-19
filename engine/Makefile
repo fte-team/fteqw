@@ -476,6 +476,14 @@ ifeq ($(FTE_TARGET),linux_arm64)
 	BITS=arm64
 	USE_SPEEX=0 #fails to compile due to neon asm, I'm just going to disable it (will still soft-link).
 endif
+ifeq ($(FTE_TARGET),linux_aarch64)
+	FTE_TARGET=linux
+	CC=aarch64-linux-gnu-gcc
+	CXX=aarch64-linux-gnu-g++
+	STRIP=aarch64-linux-gnu-strip
+	BITS=aarch64
+	USE_SPEEX=0 #fails to compile due to neon asm, I'm just going to disable it (will still soft-link).
+endif
 ifeq ($(FTE_TARGET),linux_x32)
 	#DO NOT CONFUSE WITH linux_x86. this target is amd64-with-32bit-pointers
 	#note: the x32 abi is still not finished or something.

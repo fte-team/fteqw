@@ -81,6 +81,7 @@ do
 		BUILD_LINUXx86="n"
 		BUILD_LINUXx64="n"
 		BUILD_LINUXarmhf="n"
+		BUILD_LINUXaarch64="n"
 		BUILD_WIN32="n"
 		BUILD_WIN64="n"
 		BUILD_ANDROID="n"
@@ -90,6 +91,7 @@ do
 		BUILD_LINUXx86="n"
 		BUILD_LINUXx64="n"
 		BUILD_LINUXarmhf="n"
+		BUILD_LINUXaarch64="n"
 		BUILD_WIN32="n"
 		BUILD_WIN64="n"
 		BUILD_ANDROID="y"
@@ -215,6 +217,9 @@ if [ "$BUILD_LINUXarmhf" != "n" ]; then
 	#debian/ubuntu's armhf targets armv7. we instead target armv6, because that means we work on rpi too (but still with hard-float). It should be compatible although we likely need more ops.
 	NATIVE_PLUGINS="$PLUGINS_LINUXarmhf" build "Linux ARMhf" linux_armhf FTE_TARGET=linux_armhf CPUOPTIMIZATIONS=-fno-finite-math-only $TARGETS_LINUX
 fi
+if [ "$BUILD_LINUXaarch64" != "n" ]; then
+	NATIVE_PLUGINS="$PLUGINS_LINUXaarch64" build "Linux aarch64" linux_aarch64 FTE_TARGET=linux_aarch64 CPUOPTIMIZATIONS=-fno-finite-math-only $TARGETS_LINUX
+fi
 if [ "$BUILD_CYGWIN" != "n" ]; then
 	NATIVE_PLUGINS="qi ezhud" build "Cygwin" cygwin qcc-rel rel dbg plugins-rel plugins-dbg
 fi
@@ -335,6 +340,9 @@ if [ "$BUILD_LINUXx32" != "n" ]; then
 fi
 if [ "$BUILD_LINUXarmhf" != "n" ]; then
 	cp $BUILDFOLDER/linux_armhf/fteqccarmhf $QCCBUILDFOLDER/linuxarmhf-fteqcc
+fi
+if [ "$BUILD_LINUXaarch64" != "n" ]; then
+	cp $BUILDFOLDER/linux_armhf/fteqccaarch64 $QCCBUILDFOLDER/linuxaarch64-fteqcc
 fi
 if [ "$BUILD_WIN32" != "n" ]; then
 	cp $BUILDFOLDER/win32/fteqcc.exe $QCCBUILDFOLDER/win32-fteqcc.exe

@@ -42,6 +42,7 @@ PLUGINS_LINUXx86="openxr ode qi ezhud xmpp irc hl2"
 PLUGINS_LINUXx64="openxr ode qi ezhud xmpp irc hl2"
 PLUGINS_LINUXx32="qi ezhud xmpp irc hl2"
 PLUGINS_LINUXarmhf="qi ezhud xmpp irc hl2"
+PLUGINS_LINUXaarch64="qi ezhud xmpp irc hl2"
 if [ "$(uname -m)" != "x86_64" ]; then
 	PLUGINS_LINUXx86="openxr ode qi ezhud xmpp irc hl2"
 fi
@@ -194,6 +195,7 @@ BUILD_LINUXx86=${BUILD_LINUXx86:-y}
 BUILD_LINUXx64=${BUILD_LINUXx64:-y}
 BUILD_LINUXx32=${BUILD_LINUXx32:-n}
 BUILD_LINUXarmhf=${BUILD_LINUXarmhf:-n}
+BUILD_LINUXaarch64=${BUILD_LINUXaarch64:-n}
 BUILD_CYGWIN=${BUILD_CYGWIN:-n}
 BUILD_WIN32=${BUILD_WIN32:-y}
 BUILD_WIN64=${BUILD_WIN64:-y}
@@ -226,6 +228,7 @@ if [ "$UID" != "0" ]; then
 	echo "BUILD_LINUXx64=\"$BUILD_LINUXx64\""		>>$FTECONFIG
 	echo "BUILD_LINUXx32=\"$BUILD_LINUXx32\""		>>$FTECONFIG
 	echo "BUILD_LINUXarmhf=\"$BUILD_LINUXarmhf\""		>>$FTECONFIG
+	echo "BUILD_LINUXaarch64=\"$BUILD_LINUXaarch64\""		>>$FTECONFIG
 	echo "BUILD_CYGWIN=\"$BUILD_CYGWIN\""			>>$FTECONFIG
 	echo "BUILD_WIN32=\"$BUILD_WIN32\""			>>$FTECONFIG
 	echo "BUILD_WIN64=\"$BUILD_WIN64\""			>>$FTECONFIG
@@ -245,6 +248,7 @@ if [ "$UID" != "0" ]; then
 	echo "PLUGINS_LINUXx64=\"$PLUGINS_LINUXx64\""		>>$FTECONFIG
 	echo "PLUGINS_LINUXx32=\"$PLUGINS_LINUXx32\""		>>$FTECONFIG
 	echo "PLUGINS_LINUXarmhf=\"$PLUGINS_LINUXarmhf\""	>>$FTECONFIG
+	echo "PLUGINS_LINUXaarch64=\"$PLUGINS_LINUXaarch64\""	>>$FTECONFIG
 	echo "PLUGINS_DROID=\"$PLUGINS_DROID\""	>>$FTECONFIG
 fi
 
@@ -478,6 +482,10 @@ if [ $UID -ne 0 ] && [ $REBUILD_TOOLCHAINS == "y" ]; then
 	if [ "$BUILD_LINUXarmhf" == "y" ]; then
 		echo "Making libraries (linux armhf)..."
 		make FTE_TARGET=linuxarmhf makelibs CPUOPTIMISATIONS=-fno-finite-math-only 2>&1 >>/dev/null
+	fi
+	if [ "$BUILD_LINUXaarch64" == "y" ]; then
+		echo "Making libraries (linux aarch64)..."
+		make FTE_TARGET=linuxaarch64 makelibs CPUOPTIMISATIONS=-fno-finite-math-only 2>&1 >>/dev/null
 	fi
 	if [ "$BUILD_WIN32" == "y" ]; then
 		echo "Making libraries (win32)..."

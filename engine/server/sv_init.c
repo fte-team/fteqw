@@ -23,6 +23,10 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #ifdef SQL
 #include "sv_sql.h"
 #endif
+#ifdef __GLIBC__
+#include <malloc.h>	//for malloc_trim
+#endif
+
 #ifndef CLIENTONLY
 extern int			total_loading_size, current_loading_size, loading_stage;
 char *T_GetString(int num);
@@ -1778,6 +1782,11 @@ MSV_OpenUserDatabase();
 	sv.starttime = Sys_DoubleTime() - sv.time;
 #ifdef SAVEDGAMES
 	sv.autosave_time = sv.time + sv_autosave.value*60;
+#endif
+
+#ifdef __GLIBC__
+	if (isDedicated)
+		malloc_trim(0);
 #endif
 }
 

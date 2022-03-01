@@ -1357,49 +1357,35 @@ static const qbyte *builtinemojidata =
 static void Key_LoadEmojiList(void)
 {
 	qbyte line[1024];
-	char nam[64];
-	char rep[64];
 	vfsfile_t *f;
-	char *json = FS_MallocFile("emoji.json", FS_GAME, NULL);	//https://unicodey.com/emoji-data/emoji.json
+	char *json = FS_MallocFile("data-by-emoji.json", FS_GAME, NULL);	//https://unpkg.com/unicode-emoji-json/data-by-emoji.json
 
 	emojidata = Z_StrDup(builtinemojidata);
 	if (json)
 	{
-		char *unified;
-		for (unified = json; (unified = strstr(unified, ",\"unified\":\"")); )
+		//eg: {	"utf8":{"slug":"text_for_emoji"}, ... } (there's a few other keys*/
+		json_t *root = JSON_Parse(json);
+		json_t *def;
+		char nam[64];
+		for (def = (root?root->child:NULL); def; def = def->sibling)
 		{
-			int i = 0;
-			char *t;
-			char *sn;
-			unsigned int u;
-			unified += 12;
-			t = unified;
-			//do
-			//{
-				u = strtol(t, &t, 16);
-				i += utf8_encode(rep+i, u, countof(rep)-i);
-			//} while (i < countof(rep) && *t++ == '-');
-			if (*t!='\"')
-				continue;
-			rep[i] = 0;
-
-			sn = strstr(unified, "\"short_names\":[");
-			if (sn)
+			int e;
+			const char *o;
+			utf8_decode(&e, def->name, &o);
+			if (*o)
+				continue;	//we can only cope with single codepoints.
+			if (JSON_GetString(def, "slug", nam+1, sizeof(nam)-2, NULL))
 			{
-				sn += 15;
-				while (sn && *sn == '\"')
-				{
-					sn = COM_ParseTokenOut(sn, NULL, nam+1, sizeof(nam)-1, NULL);
-					nam[0] = ':';
-					Q_strncatz(nam, ":", sizeof(nam));
-					line[0] = strlen(nam);
-					line[1] = strlen(rep);
-					strcpy(line+2, nam);
-					strcpy(line+2+line[0], rep);
-					Z_StrCat((char**)&emojidata, line);
-				}
+				nam[0] = ':';
+				Q_strncatz(nam, ":", sizeof(nam));
+				line[0] = strlen(nam);
+				line[1] = strlen(def->name);
+				strcpy(line+2, nam);
+				strcpy(line+2+line[0], def->name);
+				Z_StrCat((char**)&emojidata, line);
 			}
 		}
+		JSON_Destroy(root);
 		FS_FreeFile(json);
 	}
 

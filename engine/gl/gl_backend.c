@@ -1062,7 +1062,7 @@ qboolean GLBE_BeginShadowMap(int id, int w, int h, uploadfmt_t encoding, int *re
 		texid_t tex;
 		if (shadowmap[id])
 			Image_DestroyTexture(shadowmap[id]);
-		tex = shadowmap[id] = Image_CreateTexture(va("***shadowmap2d%i***", id), NULL, IF_NOPURGE);
+		tex = shadowmap[id] = Image_CreateTexture(va("***shadowmap2d%i***", id), NULL, IF_NOPURGE|IF_CLAMP|IF_NOMIPMAP|IF_RENDERTARGET);
 		tex->width = w;
 		tex->height = h;
 		tex->format = encoding;

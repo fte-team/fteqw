@@ -2885,7 +2885,11 @@ static void CLDP_ParseDownloadData(void)
 	if (dl->file)
 	{
 		if (start > dl->completedbytes)
-			;	//this protocol cannot deal with gaps. we might as well wait until its repeated later.
+		{	//this protocol cannot deal with gaps. we might as well wait until its repeated later.
+			//don't ack values ahead of what we completed, we won't get good results if we do that. servers are dumb.
+			start = dl->completedbytes;
+			size = 0;
+		}
 		else if (start+size < dl->completedbytes)
 			;	//already completed this data
 		else
@@ -2897,7 +2901,7 @@ static void CLDP_ParseDownloadData(void)
 			dl->ratebytes += size-offset;	//for download rate calcs
 		}
 
-		dl->percent = (start+size) / (float)dl->size * 100;
+		dl->percent = (dl->completedbytes) / (float)dl->size * 100;
 	}
 
 	//we need to ack in order.
@@ -2992,15 +2996,16 @@ static void CLDP_ParseDownloadBegin(char *s)
 			chunk = sizeof(buffer);
 		VFS_WRITE(dl->file, buffer, chunk);
 	}
+	VFS_SEEK(dl->file, 0);
 }
 
 static void CLDP_ParseDownloadFinished(char *s)
 {
 	qdownload_t *dl = cls.download;
-	unsigned short runningcrc = 0;
+	unsigned int runningcrc = 0;
 	const hashfunc_t *hfunc = &hash_crc16;
 	char buffer[8192];
-	int size, pos, chunk;
+	qofs_t size, pos, chunk;
 	if (!dl || !dl->file)
 		return;
 
@@ -3011,16 +3016,15 @@ static void CLDP_ParseDownloadFinished(char *s)
 	dl->file = FS_OpenVFS (dl->tempname+dl->prefixbytes, "rb", dl->fsroot);
 	if (dl->file)
 	{
-		char *hashctx = alloca(hfunc->digestsize);
+		void *hashctx = alloca(hfunc->contextsize);
 		size = dl->size;
-		hfunc->init(&hashctx);
-		for (pos = 0, chunk = 1; chunk; pos += chunk)
+		hfunc->init(hashctx);
+		for (pos = 0; pos < size; pos += chunk)
 		{
-			chunk = size - pos;
-			if (chunk > sizeof(buffer))
-				chunk = sizeof(buffer);
-			VFS_READ(dl->file, buffer, chunk);
-			hfunc->process(&hashctx, buffer, chunk);
+			chunk = min(sizeof(buffer), size - pos);
+			if (chunk != VFS_READ(dl->file, buffer, chunk))
+				break;
+			hfunc->process(hashctx, buffer, chunk);
 		}
 		VFS_CLOSE (dl->file);
 		dl->file = NULL;
@@ -3034,7 +3038,6 @@ static void CLDP_ParseDownloadFinished(char *s)
 		return;
 	}
 
-	Cmd_TokenizeString(s, false, false);
 	if (size != atoi(Cmd_Argv(1)))
 	{
 		Con_Printf("Download failed: wrong file size\n");
@@ -6916,7 +6919,7 @@ static void CL_ParsePrecache(void)
 		{
 			model_t *model;
 			CL_CheckOrEnqueDownloadFile(s, s, DLLF_ALLOWWEB);
-			model = Mod_ForName(Mod_FixName(s, cl.model_name[1]), (i == 1)?MLV_ERROR:MLV_WARN);
+			model = Mod_ForName(Mod_FixName(s, cl.model_name[1]), (i == 1&&!cl.sendprespawn)?MLV_ERROR:MLV_WARN);
 //			if (!model)
 //				Con_Printf("svc_precache: Mod_ForName(\"%s\") failed\n", s);
 			cl.model_precache[i] = model;

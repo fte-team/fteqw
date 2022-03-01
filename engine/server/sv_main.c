@@ -90,17 +90,17 @@ cvar_t	allow_download_sounds		= CVARD("allow_download_sounds", "1", "0 blocks do
 cvar_t	allow_download_particles	= CVARD("allow_download_particles", "1", "0 blocks downloading of any file in the particles/ directory");
 cvar_t	allow_download_demos		= CVARD("allow_download_demos", "1", "0 blocks downloading of any file in the demos/ directory");
 cvar_t	allow_download_maps			= CVARD("allow_download_maps", "1", "0 blocks downloading of any file in the maps/ directory");
-cvar_t	allow_download_logs			= CVARD("allow_download_logs", "0", "1 permits downloading files with the extension .log\n"CON_ERROR"THIS IS DANGEROUS AS IT POTENTIALLY ALLOWS PEOPLE TO SEE PASSWORDS OR OTHER PRIVATE INFORMATION.\nNote that it can be switch on/off via rcon.");
-cvar_t	allow_download_anymap		= CVARD("allow_download_pakmaps", "0", "If 1, permits downloading of maps from within packages. This is normally disabled in order to prevent copyrighted content from being downloaded.");
-cvar_t	allow_download_pakcontents	= CVARD("allow_download_pakcontents", "0", "controls whether clients connected to this server are allowed to download files from within packages.\nDoes NOT implicitly allow downloading bsps, set allow_download_pakmaps to enable that.\nWhile treating each file contained within packages is often undesirable, this is often needed for compatibility with legacy clients (despite it potentially allowing copyright violations).");
-cvar_t	allow_download_root			= CVARD("allow_download_root", "0", "If set, enables downloading from the root of the gamedir (not the basedir). This setting has a lower priority than extension-based checks.");
+cvar_t	allow_download_logs			= CVARFD("allow_download_logs", "0", CVAR_WARNONCHANGE, "1 permits downloading files with the extension .log\n"CON_ERROR"THIS IS DANGEROUS AS IT POTENTIALLY ALLOWS PEOPLE TO SEE PASSWORDS OR OTHER PRIVATE INFORMATION.\nNote that it can be switch on/off via rcon.");
+cvar_t	allow_download_anymap		= CVARFD("allow_download_pakmaps", "0", CVAR_WARNONCHANGE, "0: clients may not download map files within the server's packages.\n1: clients may download such files so long as the package is not deemed copyrighted, for compat with old clients that do not support package downloads.\n2: client may download such files regardless of copyright state (WARNING! Should never be used!).");
+cvar_t	allow_download_pakcontents	= CVARFD("allow_download_pakcontents", "0", CVAR_WARNONCHANGE, "0: clients may not download non-map files within the server's packages.\n1: clients may download such files so long as the package is not deemed copyrighted, for compat with old clients that do not support package downloads.\n2: client may download such files regardless of copyright state (WARNING! ONLY for consistency with vanilla QuakeWorld!).");
+cvar_t	allow_download_root			= CVARFD("allow_download_root", "0", CVAR_WARNONCHANGE, "If set, enables downloading from the root of the gamedir (not the basedir). This setting has a lower priority than extension-based checks.");
 cvar_t	allow_download_textures		= CVARD("allow_download_textures", "1", "0 blocks downloading of any file in the textures/ directory");
 cvar_t	allow_download_packages		= CVARD("allow_download_packages", "1", "if 1, permits downloading files (from root directory or elsewhere) with known package extensions (eg: pak+pk3). Packages with a name starting 'pak' are covered by allow_download_copyrighted as well.");
 cvar_t	allow_download_refpackages	= CVARD("allow_download_refpackages", "1", "If set to 1, packages that contain files needed during spawn functions will be become 'referenced' and automatically downloaded to clients.\nThis cvar should probably not be set if you have large packages that provide replacement pickup models on public servers.\nThe path command will show a '(ref)' tag next to packages which clients will automatically attempt to download.");
 cvar_t	allow_download_wads			= CVARD("allow_download_wads", "1", "0 blocks downloading of any file in the wads/ directory, or is in the root directory with the extension .wad");
-cvar_t	allow_download_configs		= CVARD("allow_download_configs", "0", "1 allows downloading of config files, either with the extension .cfg or in the subdir configs/.\n"CON_ERROR"THIS IS DANGEROUS AS IT CAN ALLOW PEOPLE TO READ YOUR RCON PASSWORD ETC.");
+cvar_t	allow_download_configs		= CVARFD("allow_download_configs", "0", CVAR_WARNONCHANGE, "1 allows downloading of config files, either with the extension .cfg or in the subdir configs/.\n"CON_ERROR"THIS IS DANGEROUS AS IT CAN ALLOW PEOPLE TO READ YOUR RCON PASSWORD ETC.");
 cvar_t	allow_download_locs			= CVARD("allow_download_locs", "1", "0 blocks downloading of any file in the locs/ directory");
-cvar_t	allow_download_copyrighted	= CVARD("allow_download_copyrighted", "0", "0 blocks download of packages that are considered copyrighted. Specifically, this means packages with a leading 'pak' prefix on the filename.\nIf you take your copyrights seriously, you should also set allow_download_pakmaps 0 and allow_download_pakcontents 0.");
+cvar_t	allow_download_copyrighted	= CVARFD("allow_download_copyrighted", "0", CVAR_WARNONCHANGE, "0 blocks download of packages that are considered copyrighted. Specifically, this means packages with a leading 'pak' prefix on the filename.\nIf you take your copyrights seriously, you should also set allow_download_pakmaps 0 and allow_download_pakcontents 0.");
 cvar_t	allow_download_other		= CVARD("allow_download_other", "0", "0 blocks downloading of any file that was not covered by any of the directory download blocks.");
 
 extern cvar_t sv_allow_splitscreen;
@@ -6210,7 +6210,9 @@ void SV_ExecInitialConfigs(char *defaultexec)
 
 	Cbuf_AddText(va("sv_gamedir \"%s\"\n", FS_GetGamedir(true)), RESTRICT_LOCAL);
 
+	Cbuf_AddText("cl_warncmd 0\n", RESTRICT_LOCAL);
 	Cbuf_AddText(defaultexec, RESTRICT_LOCAL);
+	Cbuf_AddText("cl_warncmd 1\n", RESTRICT_LOCAL);
 	Cbuf_AddText("\n", RESTRICT_LOCAL);
 	//make sure +set args override fmf/engine defaults (redundant when there's no map/etc command in configs)
 	COM_ParsePlusSets(true);

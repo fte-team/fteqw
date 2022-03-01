@@ -4538,7 +4538,29 @@ void CL_DownloadSize_f(void)
 
 		dl = CL_DownloadFailed(rname, NULL, DLFAIL_REDIRECTED);
 		Con_DPrintf("Download of \"%s\" redirected to \"%s\".\n", rname, redirection);
-		CL_CheckOrEnqueDownloadFile(redirection, NULL, dl->flags);
+
+		if (!strncmp(redirection, "package/", 8))
+		{	//redirected to a package, make sure we cache it in the proper place.
+			char pkn[MAX_QPATH], pkh[32];
+			char localname[MAX_QPATH];
+			char *spn = cl.serverpacknames, *sph = cl.serverpackhashes;
+			*pkh = 0;
+			while(spn && sph)
+			{
+				spn=COM_ParseOut(spn, pkn, sizeof(pkn));
+				sph=COM_ParseOut(sph, pkh, sizeof(pkh));
+				if (!spn || !sph)
+					break;
+				if (!strcmp(pkn, redirection+8))
+					break;
+				*pkh = 0;
+			}
+			if (*pkh)
+				if (FS_GenCachedPakName(redirection+8, pkh, localname, sizeof(localname)))
+					CL_CheckOrEnqueDownloadFile(redirection+8, localname, DLLF_NONGAME);
+		}
+		else
+			CL_CheckOrEnqueDownloadFile(redirection, NULL, dl->flags);
 	}
 	else
 	{

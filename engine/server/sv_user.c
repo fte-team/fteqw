@@ -737,9 +737,6 @@ void SVNQ_New_f (void)
 		if (!*csprogsname && *InfoBuf_ValueForKey(&svs.info, "*csprogs"))
 			csprogsname = "csprogs.dat";
 
-		MSG_WriteByte (&host_client->netchan.message, svc_stufftext);
-		MSG_WriteString (&host_client->netchan.message, "cl_serverextension_download 1\n");
-
 		f = *csprogsname?COM_LoadTempFile(csprogsname, 0, &sz):NULL;
 		if (f)
 		{
@@ -758,12 +755,6 @@ void SVNQ_New_f (void)
 //			MSG_WriteByte (&host_client->netchan.message, svc_stufftext);
 //			MSG_WriteString (&host_client->netchan.message, "csqc_progcrc \"\"\n");
 		}
-	}
-	else if (allow_download.value && (protext1||protext2))
-	{	//technically this is a DP extension, but is separate from actual protocols and shouldn't harm anything.
-		//it is annoying to have prints about unknown commands however, hence the above pext checks (which are unfortunate).
-		MSG_WriteByte (&host_client->netchan.message, svc_stufftext);
-		MSG_WriteString (&host_client->netchan.message, "cl_serverextension_download 1\n");
 	}
 
 	if (sv.state == ss_cinematic)
@@ -823,6 +814,13 @@ void SVNQ_New_f (void)
 		for (i = 1; sv.strings.sound_precache[i] ; i++)
 			MSG_WriteString (&host_client->netchan.message, sv.strings.sound_precache[i]);
 		MSG_WriteByte (&host_client->netchan.message, 0);
+	}
+
+	if (allow_download.value && (protext1||protext2||ISDPCLIENT(host_client)))
+	{	//technically this is a DP extension, but is separate from actual protocols and shouldn't harm anything.
+		//it is annoying to have prints about unknown commands however, hence the above pext checks (which are unfortunate).
+		MSG_WriteByte (&host_client->netchan.message, svc_stufftext);
+		MSG_WriteString (&host_client->netchan.message, "cl_serverextension_download 1\n");
 	}
 
 	if (host_client->qex)
@@ -2515,17 +2513,7 @@ void SV_DarkPlacesDownloadAck(client_t *cl)
 	if (!cl->download)
 		return;
 
-	if (start != cl->downloadacked)
-	{
-		//packetloss
-		VFS_SEEK(cl->download, cl->downloadacked);
-	}
-	else if (size != 0)
-	{
-		cl->downloadacked += size;	//successful packet
-		cl->downloadcount = cl->downloadacked;
-	}
-	else
+	if (start == cl->downloadsize && !size)
 	{
 		char *s;
 		const hashfunc_t *hfunc = &hash_crc16;
@@ -2539,7 +2527,8 @@ void SV_DarkPlacesDownloadAck(client_t *cl)
 			csize = sizeof(chunk);
 			if (pos + csize > host_client->downloadsize)
 				csize = host_client->downloadsize - pos;
-			VFS_READ(host_client->download, chunk, csize);
+			if (csize != VFS_READ(host_client->download, chunk, csize))
+				break;
 			hfunc->process(hctx, chunk, csize);
 			pos += csize;
 		}
@@ -2553,6 +2542,14 @@ void SV_DarkPlacesDownloadAck(client_t *cl)
 		host_client->download = NULL;
 		host_client->downloadsize = 0;
 	}
+	else if (start != cl->downloadacked || !size)
+	{
+		//packetloss
+		VFS_SEEK(cl->download, cl->downloadacked);
+		cl->downloadcount = cl->downloadacked;
+	}
+	else
+		cl->downloadacked = start+size;	//successful packet
 }
 #endif
 
@@ -3167,7 +3164,7 @@ qboolean SV_FindRemotePackage(const char *package, char *url, size_t urlsize)
 	//filter out the gamedir, so different gamedirs can have different sets of urls.
 	//(useful for eg pakN.pak, if it were not blocked elsewhere)
 	char *sep = strchr(package, '/');
-	if (!sep || sep-package>=strlen(line))
+	if (!sep || sep-package>=sizeof(line))
 		return false;
 	memcpy(line, package, sep-package+1);
 	line[sep-package+1] = 0;
@@ -3340,8 +3337,8 @@ qboolean SV_AllowDownload (const char *name)
 
 static int SV_LocateDownload(const char *name, flocation_t *loc, char **replacementname, qboolean redirectpaks)
 {
-	extern	cvar_t	allow_download_anymap, allow_download_pakcontents;
-	qboolean protectedpak;
+	extern	cvar_t	allow_download_anymap, allow_download_pakcontents, allow_download_copyrighted, allow_download_packages;
+	qboolean copyprotected;
 	qboolean found;
 	static char tmpname[MAX_QPATH];
 
@@ -3466,59 +3463,47 @@ static int SV_LocateDownload(const char *name, flocation_t *loc, char **replacem
 
 	if (found)
 	{
-		protectedpak = loc->search && (loc->search->flags & SPF_COPYPROTECTED);
-
-		// special check for maps, if it came from a pak file, don't allow download
-		if (protectedpak)
-		{
-			if (!allow_download_anymap.value && !Q_strncasecmp(name, "maps/", 5))
-			{
-				Sys_Printf ("%s denied download of %s - it is in a pak\n", host_client->name, name);
-				return DLERR_PERMISSIONS;
-			}
-		}
+		const char *pakname = FS_GetPackageDownloadFilename(loc);
+		qboolean ispak = loc->search && !(loc->search->flags & SPF_ISDIR);
+		copyprotected = loc->search && (loc->search->flags & SPF_COPYPROTECTED);
 
 		if (replacementname)
-		{
-#if 1
-			const char *pakname = FS_GetPackageDownloadFilename(loc);
-			if (pakname && strchr(pakname, '/'))
+		{	//if we're able to redirect it then do so.
+			if (ispak && pakname && strchr(pakname, '/'))
 			{
-				extern cvar_t allow_download_packages,allow_download_copyrighted;	//non authoritive, but should normally match.
-				if (allow_download_packages.ival && !(loc->search && (loc->search->flags&SPF_BASEPATH)))
+				if (allow_download_packages.ival && !(loc->search && (loc->search->flags&SPF_TEMPORARY)))
 				{
-					if (allow_download_copyrighted.ival || !protectedpak)
-					{
+					if (allow_download_copyrighted.ival || !copyprotected)
+					{	//this path is non authoritive, but we shouldn't be pushing people to download files they're not going to be allowed to download.
 						Q_snprintfz(tmpname, sizeof(tmpname), "package/%s", pakname);
 						*replacementname = tmpname;
 						return DLERR_REDIRECTPACK;	//redirect
 					}
 				}
 			}
-#else
-			char *pakname = FS_WhichPackForLocation(loc, false);
-			if (pakname && SV_AllowDownload(pakname))
-			{
-				//return loc of the pak instead.
-				if (FS_FLocateFile(name, FSLF_IFFOUND, loc))
-				{
-					//its inside a pak file, return the name of this file instead
-					*replacementname = pakname;
-					return DLERR_REDIRECTPACK;	//redirect
-				}
-				else
-					Con_Printf("Failed to read %s\n", pakname);
-			}
-#endif
 		}
 
-		if (protectedpak)
-		{	//if its in a pak file, don't allow downloads if we don't allow the contents of paks to be sent.
-			if (!allow_download_pakcontents.value)
+		if (ispak)
+		{
+			int pakcontents = (!Q_strncasecmp(name, "maps/", 5)?allow_download_anymap.ival:allow_download_pakcontents.ival);
+			if (pakcontents == 2)
+			{	//qw-like allow-and-ignore-copyrights, skip the following cases...
+			}
+			else if (copyprotected)
 			{
+				Sys_Printf ("%s denied download of %s - it is in a copyrighted pak\n", host_client->name, name);
+				return DLERR_PERMISSIONS;
+			}
+			else if (!pakcontents)
+			{	//block it if its entirely disabllowed
 				Sys_Printf ("%s denied download of %s - it is in a pak\n", host_client->name, name);
 				return DLERR_PERMISSIONS;
 			}
+		}
+		else if (copyprotected)
+		{	//not really sure how we can get here, but oh well.
+			Sys_Printf ("%s denied download of %s - it is copyrighted\n", host_client->name, name);
+			return DLERR_PERMISSIONS;
 		}
 
 		if (replacementname && *replacementname)

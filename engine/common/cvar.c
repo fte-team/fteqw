@@ -901,6 +901,13 @@ static cvar_t *Cvar_SetCore (cvar_t *var, const char *value, qboolean force)
 		latch = "variable %s is a cheat variable - latched\n";
 #endif
 
+	if ((var->flags & CVAR_WARNONCHANGE) && cl_warncmd.ival)
+	{
+		if (var->defaultstr && strcmp(var->defaultstr, value))	//warn if its different from the default
+			if (!var->enginevalue || strcmp(var->enginevalue, value))	//unless it matches the ENGINE's default, in which case its probably still okay.
+				Con_Printf (CON_WARNING"WARNING: %s has been set to \"%s\". This is NOT recommended!\n", var->name, value);
+	}
+
 	if (latch)
 	{
 		if (cl_warncmd.value)

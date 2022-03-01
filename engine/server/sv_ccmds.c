@@ -2244,7 +2244,7 @@ static void SV_Status_f (void)
 #define C_RATE		COLUMN(4, "rate", Con_Printf("%4i ", cl->frameunion.frames?(int)(1/cl->netchan.frame_rate):0))
 #define C_PING		COLUMN(5, "ping", Con_Printf("%4i ", (int)SV_CalcPing (cl, false)))
 #define C_DROP		COLUMN(6, "drop", Con_Printf("%4.1f ", 100.0*cl->netchan.drop_count / cl->netchan.incoming_sequence))
-#define C_DLP		COLUMN(7, "dl ", if (!cl->download)Con_Printf("    ");else Con_Printf("%3g ", (cl->downloadcount*100.0)/cl->downloadsize))
+#define C_DLP		COLUMN(7, "dl ", if (!cl->download)Con_Printf("    ");else Con_Printf("%3.0f ", (cl->downloadcount*100.0)/cl->downloadsize))
 #define C_DLS		COLUMN(8, "dls", if (!cl->download)Con_Printf("    ");else Con_Printf("%3u ", (unsigned int)(cl->downloadsize/1024)))
 #define C_PROT		COLUMN(9, "prot ", Con_Printf("%-6.6s", p))
 #define C_ADDRESS2	COLUMN(10, "address        ", Con_Printf("%s", s))
@@ -3336,9 +3336,6 @@ void SV_InitOperatorCommands (void)
 	Cmd_AddCommand("sv_meminfo", SV_MemInfo_f);
 
 //	Cmd_AddCommand ("reallyevilhack", SV_ReallyEvilHack_f);
-
-	if (isDedicated)
-		cl_warncmd.value = 1;
 }
 
 #endif

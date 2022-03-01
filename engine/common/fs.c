@@ -979,9 +979,17 @@ COM_Path_f
 */
 static void COM_PathLine(searchpath_t *s)
 {
-	Con_Printf(U8("%s")"  %s%s%s%s%s%s%s\n", s->logicalpath,
+	char *col = "";
+	if (s->flags&SPF_ISDIR)
+		col = S_COLOR_GREEN;
+	else if (s->flags&SPF_COPYPROTECTED)
+		col = S_COLOR_BLUE;
+	else
+		col = S_COLOR_CYAN;
+	Con_Printf(" %s" U8("%s")"  %s%s%s%s%s%s%s%s\n", col, s->logicalpath,
 		(s->flags & SPF_REFERENCED)?"^[(ref)\\tip\\Referenced\\desc\\Package will auto-download to clients^]":"",
 		(s->flags & SPF_TEMPORARY)?"^[(temp)\\tip\\Temporary\\desc\\Flushed on map change^]":"",
+		(s->flags & SPF_SERVER)?"^[(srv)\\tip\\Server-Specified\\desc\\Loaded to match the server, closed on disconnect^]":"",
 		(s->flags & SPF_COPYPROTECTED)?"^[(c)\\tip\\Copyrighted\\desc\\Copy-Protected and is not downloadable^]":"",
 		(s->flags & SPF_EXPLICIT)?"^[(e)\\tip\\Explicit\\desc\\Loaded explicitly by the gamedir^]":"",
 		(s->flags & SPF_UNTRUSTED)?"^[(u)\\tip\\Untrusted\\desc\\Configs and scripts will not be given access to passwords^]":"",
@@ -1011,8 +1019,6 @@ static void COM_Path_f (void)
 		return;
 	}
 
-	Con_TPrintf ("Current search path:\n");
-
 	if (com_purepaths || fs_puremode)
 	{
 		Con_Printf ("Pure paths:\n");
@@ -1020,20 +1026,52 @@ static void COM_Path_f (void)
 		{
 			COM_PathLine(s);
 		}
-		Con_Printf ("----------\n");
 		if (fs_puremode == 2)
 			Con_Printf ("Inactive paths:\n");
 		else
 			Con_Printf ("Impure paths:\n");
 	}
+	else
+		Con_TPrintf ("Current search path:\n");
 
 
 	for (s=com_searchpaths ; s ; s=s->next)
 	{
 		if (s == com_base_searchpaths)
-			Con_Printf ("----------\n");
+			Con_Printf (" ----------\n");
 
 		COM_PathLine(s);
+	}
+
+
+
+	if (fs_purenames && fs_purecrcs)
+	{
+		char crctok[64];
+		char nametok[MAX_QPATH];
+
+		int crc;
+		char *pc = fs_purecrcs;
+		char *pn = fs_purenames;
+		for (;;)
+		{
+			pc = COM_ParseOut(pc, crctok, sizeof(crctok));
+			pn = COM_ParseOut(pn, nametok, sizeof(nametok));
+			if (!pc || !pn)
+				break;
+			crc = strtoul(crctok, NULL, 0);
+
+			for (s=com_searchpaths ; s ; s=s->next)
+			{
+				if (s && s->crc_check == crc)
+					break;
+			}
+			if (!s)
+			{
+				COM_DefaultExtension(nametok, ".pk3", sizeof(nametok));
+				Con_Printf(CON_WARNING "MISSING: " U8("%s")"  (%x)\n", nametok, crc);
+			}
+		}
 	}
 }
 
@@ -3549,9 +3587,9 @@ static searchpath_t *FS_AddPathHandle(searchpath_t **oldpaths, const char *purep
 
 	//temp packages also do not nest
 	if (!(flags & SPF_TEMPORARY))
-		FS_AddDataFiles(oldpaths, purepath, logicalpath, search, flags&(SPF_COPYPROTECTED|SPF_UNTRUSTED|SPF_TEMPORARY|SPF_PRIVATE|SPF_QSHACK), loadstuff);
+		FS_AddDataFiles(oldpaths, purepath, logicalpath, search, flags&(SPF_COPYPROTECTED|SPF_UNTRUSTED|SPF_TEMPORARY|SPF_SERVER|SPF_PRIVATE|SPF_QSHACK), loadstuff);
 
-	if (flags & SPF_TEMPORARY)
+	if (flags & (SPF_TEMPORARY|SPF_SERVER))
 	{
 		//add at end. pureness will reorder if needed.
 		link = &com_searchpaths;
@@ -3658,7 +3696,7 @@ static searchpath_t *FS_AddSingleGameDirectory (searchpath_t **oldpaths, const c
 	if (!handle)
 		handle = VFSOS_OpenPath(NULL, NULL, dir, dir, "");
 
-	return FS_AddPathHandle(oldpaths, puredir, dir, handle, "", flags|keptflags, loadstuff);
+	return FS_AddPathHandle(oldpaths, puredir, dir, handle, "", flags|keptflags|SPF_ISDIR, loadstuff);
 }
 static void FS_AddGameDirectory (searchpath_t **oldpaths, const char *puredir, unsigned int loadstuff, unsigned int flags)
 {
@@ -3922,7 +3960,7 @@ void COM_Gamedir (const char *dir, const struct gamepacks *packagespaths)
 /*quake requires a few settings for compatibility*/
 #define QRPCOMPAT "set cl_cursor_scale 0.2\nset cl_cursor_bias_x 7.5\nset cl_cursor_bias_y 0.8\n"
 #define QUAKESPASMSUCKS "set mod_h2holey_bugged 1\n"
-#define QUAKEOVERRIDES "set v_gammainverted 1\nset con_stayhidden 0\nset allow_download_pakcontents 1\nset allow_download_refpackages 0\nset r_meshpitch -1\nr_sprite_backfacing 1\nset sv_bigcoords \"\"\nmap_autoopenportals 1\n"  "sv_port "STRINGIFY(PORT_QWSERVER)" "STRINGIFY(PORT_NQSERVER)"\n" ZFIXHACK EZQUAKECOMPETITIVE QUAKESPASMSUCKS
+#define QUAKEOVERRIDES "set v_gammainverted 1\nset con_stayhidden 0\nset allow_download_pakcontents 2\nset allow_download_refpackages 0\nset r_meshpitch -1\nr_sprite_backfacing 1\nset sv_bigcoords \"\"\nmap_autoopenportals 1\n"  "sv_port "STRINGIFY(PORT_QWSERVER)" "STRINGIFY(PORT_NQSERVER)"\n" ZFIXHACK EZQUAKECOMPETITIVE QUAKESPASMSUCKS
 #define QCFG "//schemes quake qw\n"   QUAKEOVERRIDES "set com_parseutf8 0\n" QRPCOMPAT
 #define KEXCFG "//schemes quake_r2\n" QUAKEOVERRIDES "set com_parseutf8 1\nset campaign 0\nset net_enable_dtls 1\nset sv_mintic 0.016666667\nset sv_maxtic $sv_mintic\nset cl_netfps 60\n"
 /*NetQuake reconfiguration, to make certain people feel more at home...*/
@@ -4804,7 +4842,7 @@ static void FS_ReloadPackFilesFlags(unsigned int reloadflags)
 					handle = FS_GetOldPath(&oldpaths, local, &keptflags);
 					if (handle)
 					{
-						sp = FS_AddPathHandle(&oldpaths, pname, local, handle, "", SPF_COPYPROTECTED|SPF_UNTRUSTED|SPF_TEMPORARY|keptflags, (unsigned int)-1);
+						sp = FS_AddPathHandle(&oldpaths, pname, local, handle, "", SPF_COPYPROTECTED|SPF_UNTRUSTED|SPF_SERVER|keptflags, (unsigned int)-1);
 						if (!sp)
 							continue;	//some kind of error...
 						if (sp->handle->GeneratePureCRC)
@@ -4842,7 +4880,7 @@ static void FS_ReloadPackFilesFlags(unsigned int reloadflags)
 							handle = searchpathformats[i].OpenNew (vfs, NULL, local, local, "");
 							if (!handle)
 								break;
-							sp = FS_AddPathHandle(&oldpaths, pname, local, handle, "", SPF_COPYPROTECTED|SPF_UNTRUSTED|SPF_TEMPORARY, (unsigned int)-1);
+							sp = FS_AddPathHandle(&oldpaths, pname, local, handle, "", SPF_COPYPROTECTED|SPF_UNTRUSTED|SPF_SERVER, (unsigned int)-1);
 							if (sp->handle->GeneratePureCRC)
 							{
 								sp->crc_check = sp->handle->GeneratePureCRC(sp->handle, fs_pureseed, 0);

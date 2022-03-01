@@ -140,6 +140,7 @@ typedef struct cvar_group_s
 
 #define CVAR_WATCHED		(1<<22)	//report any attempts to change this cvar.
 #define CVAR_VIDEOLATCH		(1<<23)
+#define CVAR_WARNONCHANGE	(1<<24)	//print a warning when changed to a value other than its default.
 
 #define CVAR_LASTFLAG CVAR_VIDEOLATCH
 

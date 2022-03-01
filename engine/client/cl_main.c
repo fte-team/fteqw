@@ -6211,7 +6211,7 @@ qboolean Host_RunFile(const char *fname, int nlen, vfsfile_t *file)
 			}
 
 			schemelen++;
-			if (!strncmp(schemestart+schemelen, "//", schemelen))
+			if (!strncmp(schemestart+schemelen, "//", 2))
 				schemelen+=2;
 
 			t = Z_Malloc(urilen+1);

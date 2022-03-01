@@ -2638,6 +2638,7 @@ static void R_Sprite_GenerateTrisoup(entity_t *e, int bemode)
 		genframe.down = genframe.left = -1;
 		genframe.up = genframe.right = 1;
 		genframe.xmirror = false;
+		genframe.lit = false;
 		sprtype = SPR_VP_PARALLEL;
 		frame = &genframe;
 	}

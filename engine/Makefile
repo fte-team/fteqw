@@ -2472,8 +2472,8 @@ ifeq (win,$(findstring win,$(FTE_TARGET)))
 else
 	$(CC) -o $@ $(IQM_OBJECTS) -Icommon -Iclient -Iqclib -Igl -Iserver $(ALL_CFLAGS) -DIQMTOOL -lstdc++ -lm -ldl -Os
 endif
-iqm-rel: $(RELEASE_DIR)/iqmtool$(BITS)$(EXEPOSTFIX)
-iqmtool-rel: $(RELEASE_DIR)/iqmtool$(BITS)$(EXEPOSTFIX)
+iqm-rel: reldir $(RELEASE_DIR)/iqmtool$(BITS)$(EXEPOSTFIX)
+iqmtool-rel: reldir $(RELEASE_DIR)/iqmtool$(BITS)$(EXEPOSTFIX)
 iqm: iqm-rel
 iqmtool: iqmtool-rel
 

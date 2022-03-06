@@ -14,13 +14,13 @@ UPGRADE_OBJS= \
 
 default: all
 
-all: iqm.exe #upgrade.exe
+all: iqmtool.exe #upgrade.exe
 
 clean:
-	-$(RM) $(IQM_OBJS) $(UPGRADE_OBJS) iqm.exe upgrade.exe
+	-$(RM) $(IQM_OBJS) $(UPGRADE_OBJS) iqmtool.exe upgrade.exe
 
-iqm.exe: $(IQM_OBJS)
-	$(CXX) $(CXXFLAGS) -o iqm.exe $(IQM_OBJS) $(LIBS)
+iqmtool.exe: $(IQM_OBJS)
+	$(CXX) $(CXXFLAGS) -o iqmtool.exe $(IQM_OBJS) $(LIBS)
 upgrade.exe: $(UPGRADE_OBJS)
 	$(CXX) $(CXXFLAGS) -o upgrade.exe $(UPGRADE_OBJS) $(LIBS)
 

@@ -11,13 +11,13 @@ UPGRADE_OBJS= \
 
 default: all
 
-all: iqm #upgrade
+all: iqmtool #upgrade
 
 clean:
-	-$(RM) $(IQM_OBJS) $(UPGRADE_OBJS) iqm upgrade
+	-$(RM) $(IQM_OBJS) $(UPGRADE_OBJS) iqmtool upgrade
 
-iqm: $(IQM_OBJS)
-	$(CXX) $(CXXFLAGS) -o iqm $(IQM_OBJS)
+iqmtool: $(IQM_OBJS)
+	$(CXX) $(CXXFLAGS) -o iqmtool $(IQM_OBJS)
 upgrade: $(UPGRADE_OBJS)
 	$(CXX) $(CXXFLAGS) -o upgrade $(UPGRADE_OBJS)
 

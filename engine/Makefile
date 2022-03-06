@@ -2517,7 +2517,7 @@ qtv-rel:
 	@$(MAKE) $(RELEASE_DIR)/qtv$(BITS)$(EXEPOSTFIX) VPATH="$(BASE_DIR)/../fteqtv:$(VPATH)"
 qtv: qtv-rel
 
-utils: httpserver iqm imgtool master qtv-rel
+utils: httpserver iqmtool imgtool master qtv-rel
 
 prefix ?= /usr/local
 exec_prefix ?= $(prefix)

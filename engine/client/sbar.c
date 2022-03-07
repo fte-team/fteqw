@@ -2953,7 +2953,7 @@ void Sbar_Draw (playerview_t *pv)
 				{
 					if (!cls.deathmatch)
 					{
-						if (cl_sbar.value)
+						if (cl_sbar.value || (scr_viewsize.value<100))
 							Sbar_DrawPic (0, 0, 320, 24, sb_scorebar);
 						Sbar_CoopScoreboard ();
 					}

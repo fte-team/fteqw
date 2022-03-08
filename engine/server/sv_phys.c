@@ -2561,11 +2561,7 @@ qboolean SV_Physics (void)
 				break;
 			}
 			if (!host_frametime || (host_frametime < mintic && realtime))
-			{
-	//			sv.time+=host_frametime;
-				host_frametime = trueframetime;
-				return false;	//don't bother with the whole server thing for a bit longer
-			}
+				break;
 			if (host_frametime > maxtic)
 				host_frametime = maxtic;
 			sv.world.physicstime += host_frametime;

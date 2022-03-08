@@ -1189,7 +1189,7 @@ MSV_OpenUserDatabase();
 			SVHL_ShutdownGame();
 #endif
 #ifdef Q3SERVER
-		if (newgametype != GT_QUAKE3)
+		if (newgametype != GT_QUAKE3 && q3)
 			q3->sv.ShutdownGame(false);
 #endif
 #ifdef Q2SERVER

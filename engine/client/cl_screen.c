@@ -2499,7 +2499,7 @@ void *SCR_ScreenShot_Capture(int fbwidth, int fbheight, int *stride, enum upload
 	R2D_FillBlock(0, 0, vid.fbvwidth, vid.fbvheight);
 
 #ifdef VM_CG
-	if (!okay && q3->cg.Redraw(cl.time))
+	if (!okay && q3 && q3->cg.Redraw(cl.time))
 		okay = true;
 #endif
 #ifdef CSQC_DAT

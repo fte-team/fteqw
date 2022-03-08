@@ -114,6 +114,10 @@ void QDECL Plug_Input_ClearKeyStates(void)
 {
 	Key_ClearStates();
 }
+void QDECL Plug_Input_SetSensitivityScale(float scale)
+{
+	in_sensitivityscale = scale;
+}
 unsigned int QDECL Plug_Input_GetMoveCount(void)
 {
 	return cl.movesequence;
@@ -205,12 +209,15 @@ static qhandle_t QDECL Plug_Draw_LoadImagePic(const char *name)
 {
 	return Plug_Draw_LoadImage(name, 0, NULL);
 }
-
 static shader_t *Plug_Draw_ShaderFromId(qhandle_t id)
 {
 	if (--id >= r_numshaders)
 		return NULL;
 	return r_shaders[id];
+}
+static void Plug_Draw_UnloadImage(qhandle_t id)
+{
+	R_UnloadShader(Plug_Draw_ShaderFromId(id));
 }
 
 static int QDECL Plug_Draw_ImageSize(qhandle_t image, float *w, float *h)
@@ -367,6 +374,14 @@ static void QDECL Plug_Draw_RedrawScreen(void)
 	SCR_UpdateScreen();
 }
 
+static void QDECL Plug_Media_SetState(cin_t *cin, int state)
+{
+	Media_SetState(cin, state);
+}
+static int QDECL Plug_Media_GetState(cin_t *cin)
+{
+	return Media_GetState(cin);
+}
 
 static qhandle_t Plug_Scene_ModelToId(model_t *mod)
 {
@@ -523,6 +538,13 @@ static void QDECL Plug_LocalSound(const char *soundname, int channel, float volu
 }
 
 
+static void QDECL Plug_CL_SetLoadscreenState(qboolean state)
+{
+	if (state)
+		SCR_BeginLoadingPlaque();
+	else
+		SCR_EndLoadingPlaque();
+}
 
 static int QDECL Plug_CL_GetStats(int pnum, unsigned int *stats, int maxstats)
 {

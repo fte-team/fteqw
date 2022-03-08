@@ -665,7 +665,7 @@ int UI_Cin_Play(const char *name, int x, int y, int w, int h, unsigned int flags
 {
 	int idx;
 	qhandle_t mediashader;
-	//cin_t *cin;
+	cin_t *cin;
 	for (idx = 0; ; idx++)
 	{
 		if (idx == countof(uicinematics))
@@ -675,13 +675,20 @@ int UI_Cin_Play(const char *name, int x, int y, int w, int h, unsigned int flags
 		break;	//this slot is usable
 	}
 
-	/*mediashader = R_RegisterCustom(name, SUF_NONE, Shader_DefaultCinematic, va("video/%s", name));
+	mediashader = drawfuncs->LoadImageShader(name, va(
+			"{\n"
+				"program default2d\n"
+				"{\n"
+					"videomap \"video/%s\"\n"
+					"blendfunc gl_one gl_one_minus_src_alpha\n"
+				"}\n"
+			"}\n", name));
 	if (!mediashader)
 		return -1;	//wtf?
-	cin = R_ShaderGetCinematic(mediashader);
+	cin = drawfuncs->media.GetCinematic(drawfuncs->ShaderFromId(mediashader));
 	if (cin)
-		Media_SetState(cin, CINSTATE_PLAY);
-	else*/
+		drawfuncs->media.SetState(cin, CINSTATE_PLAY);
+	else
 		return -1;	//FAIL!
 
 	uicinematics[idx].x = x;
@@ -719,22 +726,22 @@ int UI_Cin_Run(int idx)
 	if (idx >= 0 && idx < countof(uicinematics))
 	{
 		shader_t *shader = drawfuncs->ShaderFromId(uicinematics[idx].shaderhandle);
-		cin_t *cin = R_ShaderGetCinematic(shader);
+		cin_t *cin = drawfuncs->media.GetCinematic(shader);
 		if (cin)
 		{
-			switch(Media_GetState(cin))
+			switch((cinstates_t)drawfuncs->media.GetState(cin))
 			{
 			case CINSTATE_INVALID:	ret = FMV_IDLE;	break;
 			case CINSTATE_PLAY:		ret = FMV_PLAY; break;
 			case CINSTATE_LOOP:		ret = FMV_PLAY; break;
 			case CINSTATE_PAUSE:	ret = FMV_PLAY; break;
 			case CINSTATE_ENDED:
-				Media_SetState(cin, CINSTATE_FLUSHED);
+				drawfuncs->media.SetState(cin, CINSTATE_FLUSHED);
 				ret = FMV_EOF;
 				break;
 			case CINSTATE_FLUSHED:
 				//FIXME: roq decoder has no reset method!
-				Media_Send_Reset(cin);
+				drawfuncs->media.Reset(cin);
 				ret = FMV_LOOPED;
 				break;
 			}

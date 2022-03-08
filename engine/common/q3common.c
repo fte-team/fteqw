@@ -206,7 +206,6 @@ void VM_fcloseall (int owner)
 typedef struct {
 	char *initialbuffer;
 	char *buffer;
-	char *dir;
 	int found;
 	int bufferleft;
 	int skip;
@@ -243,6 +242,8 @@ static int QDECL IfFound(const char *match, qofs_t size, time_t modtime, void *a
 
 static int QDECL VMEnumMods(const char *match, qofs_t size, time_t modtime, void *args, searchpathfuncs_t *spath)
 {
+	const int continuesearch = true;
+	const int abortsearch = false;
 	char *check;
 	char desc[1024];
 	int newlen;
@@ -253,19 +254,19 @@ static int QDECL VMEnumMods(const char *match, qofs_t size, time_t modtime, void
 	newlen = strlen(match)+1;
 
 	if (newlen <= 2)
-		return true;
+		return continuesearch;
 
 	//make sure match is a directory
 	if (match[newlen-2] != '/')
-		return true;
+		return continuesearch;
 
 	if (!Q_strcasecmp(match, "baseq3/"))
-		return true;	//we don't want baseq3. FIXME: should be any basedir, rather than hardcoded.
+		return continuesearch;	//we don't want baseq3. FIXME: should be any basedir, rather than hardcoded.
 
 	foundone = false;
-	Sys_EnumerateFiles(va("%s%s/", ((vmsearch_t *)args)->dir, match), "*.pk3", IfFound, &foundone, spath);
+	fsfuncs->EnumerateFiles(FS_ROOT, va("%s/*.pk3", match), IfFound, &foundone);
 	if (foundone == false)
-		return true;	//we only count directories with a pk3 file
+		return continuesearch;	//we only count directories with a pk3 file
 
 	Q_strncpyz(desc, match, sizeof(desc));
 	f = fsfuncs->OpenVFS(va("%sdescription.txt", match), "rb", FS_ROOT);
@@ -286,13 +287,13 @@ static int QDECL VMEnumMods(const char *match, qofs_t size, time_t modtime, void
 	desclen = strlen(desc)+1;
 
 	if (newlen+desclen+5 > ((vmsearch_t *)args)->bufferleft)
-		return false;	//too many files for the buffer
+		return abortsearch;	//too many files for the buffer
 
 	check = ((vmsearch_t *)args)->initialbuffer;
 	while(check < ((vmsearch_t *)args)->buffer)
 	{
 		if (!Q_strcasecmp(check, match))
-			return true;	//we found this one already
+			return continuesearch;	//we found this one already
 		check += strlen(check)+1;
 		check += strlen(check)+1;
 	}
@@ -308,7 +309,7 @@ static int QDECL VMEnumMods(const char *match, qofs_t size, time_t modtime, void
 	((vmsearch_t *)args)->bufferleft-=desclen;
 
 	((vmsearch_t *)args)->found++;
-	return true;
+	return continuesearch;
 }
 
 int VM_GetFileList(const char *path, const char *ext, char *output, int buffersize)
@@ -320,18 +321,13 @@ int VM_GetFileList(const char *path, const char *ext, char *output, int buffersi
 	vms.found=0;
 	if (!strcmp(path, "$modlist"))
 	{
-		cvar_t *fs_basedir = cvarfuncs->GetNVFDG("fs_basedir", NULL, 0, NULL, NULL);
-		cvar_t *fs_homedir = cvarfuncs->GetNVFDG("fs_homedir", NULL, 0, NULL, NULL);
 		vms.skip=0;
-		if (fs_basedir && *fs_basedir->string)
-			Sys_EnumerateFiles((vms.dir=fs_basedir->string), "*", VMEnumMods, &vms, NULL);
-		if (fs_homedir && *fs_homedir->string)
-			Sys_EnumerateFiles((vms.dir=fs_homedir->string), "*", VMEnumMods, &vms, NULL);
+		fsfuncs->EnumerateFiles(FS_ROOT, "*", VMEnumMods, &vms);
 	}
 	else if (*(char *)ext == '.' || *(char *)ext == '/')
-		fsfuncs->EnumerateFiles(va("%s/*%s", path, ext), VMEnum, &vms);
+		fsfuncs->EnumerateFiles(FS_GAME, va("%s/*%s", path, ext), VMEnum, &vms);
 	else
-		fsfuncs->EnumerateFiles(va("%s/*.%s", path, ext), VMEnum, &vms);
+		fsfuncs->EnumerateFiles(FS_GAME, va("%s/*.%s", path, ext), VMEnum, &vms);
 	return vms.found;
 }
 

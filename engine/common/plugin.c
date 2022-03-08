@@ -1156,6 +1156,28 @@ static void QDECL Plug_Net_Close(qhandle_t handle)
 	Plug_Net_Close_Internal(handle);
 }
 
+void QDECL Plug_FS_EnumerateFiles(enum fs_relative fsroot, const char *match, int (QDECL *callback)(const char *fname, qofs_t fsize, time_t mtime, void *ctx, struct searchpathfuncs_s *package), void *ctx)
+{
+	if (fsroot == FS_GAME)
+		COM_EnumerateFiles(match, callback, ctx);
+	else
+	{
+		char base[MAX_OSPATH];
+		if (fsroot == FS_ROOT)
+		{
+			extern qboolean com_homepathenabled;
+			if (com_homepathenabled)
+				Sys_EnumerateFiles(com_homepath, match, callback, ctx, NULL);
+			Sys_EnumerateFiles(com_gamepath, match, callback, ctx, NULL);
+		}
+		else
+		{
+			FS_NativePath("", fsroot, base, sizeof(base));
+			Sys_EnumerateFiles(base, match, callback, ctx, NULL);
+		}
+	}
+}
+
 #if defined(HAVE_SERVER) && defined(HAVE_CLIENT)
 static qboolean QDECL Plug_MapLog_Query(const char *packagename, const char *mapname, float *vals)
 {
@@ -1887,7 +1909,7 @@ static void *QDECL PlugBI_GetEngineInterface(const char *interfacename, size_t s
 
 			FS_Rename,
 			FS_Remove,
-			COM_EnumerateFiles,
+			Plug_FS_EnumerateFiles,
 
 			wildcmp,
 			COM_GetFileExtension,
@@ -2007,7 +2029,7 @@ static void *QDECL PlugBI_GetEngineInterface(const char *interfacename, size_t s
 			Plug_Draw_LoadImageShader,
 			Plug_Draw_LoadImagePic,
 			Plug_Draw_ShaderFromId,
-			NULL,//Plug_Draw_UnloadImage,
+			Plug_Draw_UnloadImage,
 			Plug_Draw_Image,
 			Plug_Draw_Image2dQuad,
 			Plug_Draw_ImageSize,
@@ -2024,6 +2046,19 @@ static void *QDECL PlugBI_GetEngineInterface(const char *interfacename, size_t s
 			Plug_Draw_RedrawScreen,
 
 			Plug_LocalSound,
+
+			{
+				R_ShaderGetCinematic,
+				Plug_Media_SetState,
+				Plug_Media_GetState,
+				Media_Send_Reset,
+				Media_Send_Command,
+				Media_Send_GetProperty,
+				Media_Send_MouseMove,
+				Media_Send_Resize,
+				Media_Send_GetSize,
+				Media_Send_KeyEvent,
+			},
 		};
 		if (structsize == sizeof(funcs))
 			return &funcs;
@@ -2086,6 +2121,7 @@ static void *QDECL PlugBI_GetEngineInterface(const char *interfacename, size_t s
 #endif
 
 			Plug_CL_ClearState,
+			Plug_CL_SetLoadscreenState,
 			Plug_CL_UpdateGameTime,
 		};
 		if (structsize == sizeof(funcs))
@@ -2110,6 +2146,7 @@ static void *QDECL PlugBI_GetEngineInterface(const char *interfacename, size_t s
 
 			Plug_Input_IsKeyDown,
 			Plug_Input_ClearKeyStates,
+			Plug_Input_SetSensitivityScale,
 			Plug_Input_GetMoveCount,
 			Plug_Input_GetMoveEntry,
 

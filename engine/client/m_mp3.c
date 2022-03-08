@@ -2752,7 +2752,7 @@ texid_tf Media_UpdateForShader(cin_t *cin)
 }
 #endif
 
-void Media_Send_KeyEvent(cin_t *cin, int button, int unicode, int event)
+void QDECL Media_Send_KeyEvent(cin_t *cin, int button, int unicode, int event)
 {
 	if (!cin)
 		cin = R_ShaderGetCinematic(videoshader);
@@ -2776,7 +2776,7 @@ void Media_Send_KeyEvent(cin_t *cin, int button, int unicode, int event)
 	else if ((button == K_RIGHTARROW || button == K_KP_RIGHTARROW || button == K_GP_DPAD_RIGHT) && !event)
 		cin->filmstarttime -= (cin->playstate == CINSTATE_PAUSE)?-10:10;
 }
-void Media_Send_MouseMove(cin_t *cin, float x, float y)
+void QDECL Media_Send_MouseMove(cin_t *cin, float x, float y)
 {
 	if (!cin)
 		cin = R_ShaderGetCinematic(videoshader);
@@ -2784,7 +2784,7 @@ void Media_Send_MouseMove(cin_t *cin, float x, float y)
 		return;
 	cin->cursormove(cin, x, y);
 }
-void Media_Send_Resize(cin_t *cin, int x, int y)
+void QDECL Media_Send_Resize(cin_t *cin, int x, int y)
 {
 	if (!cin)
 		cin = R_ShaderGetCinematic(videoshader);
@@ -2792,7 +2792,7 @@ void Media_Send_Resize(cin_t *cin, int x, int y)
 		return;
 	cin->setsize(cin, x, y);
 }
-void Media_Send_GetSize(cin_t *cin, int *x, int *y, float *aspect)
+void QDECL Media_Send_GetSize(cin_t *cin, int *x, int *y, float *aspect)
 {
 	*x = 0;
 	*y = 0;
@@ -2803,7 +2803,7 @@ void Media_Send_GetSize(cin_t *cin, int *x, int *y, float *aspect)
 		return;
 	cin->getsize(cin, x, y, aspect);
 }
-void Media_Send_Reset(cin_t *cin)
+void QDECL Media_Send_Reset(cin_t *cin)
 {
 	if (!cin)
 		return;
@@ -2814,7 +2814,7 @@ void Media_Send_Reset(cin_t *cin)
 	if (cin->rewind)
 		cin->rewind(cin);
 }
-void Media_Send_Command(cin_t *cin, const char *command)
+void QDECL Media_Send_Command(cin_t *cin, const char *command)
 {
 	if (!cin)
 		cin = R_ShaderGetCinematic(videoshader);
@@ -2823,7 +2823,7 @@ void Media_Send_Command(cin_t *cin, const char *command)
 	else if (cin && !strcmp(command, "cmd:rewind"))
 		Media_Send_Reset(cin);
 }
-const char *Media_Send_GetProperty(cin_t *cin, const char *key)
+const char *QDECL Media_Send_GetProperty(cin_t *cin, const char *key)
 {
 	if (!cin)
 		cin = R_ShaderGetCinematic(videoshader);

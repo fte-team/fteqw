@@ -1136,7 +1136,7 @@ static qintptr_t CG_SystemCalls(void *offset, quintptr_t mask, qintptr_t fn, con
 		break;
 	case CG_SETUSERCMDVALUE:	//weaponselect, zoomsensitivity.
 		ccs.selected_weapon = VM_LONG(arg[0]);
-		in_sensitivityscale = VM_FLOAT(arg[1]);
+		inputfuncs->SetSensitivityScale(VM_FLOAT(arg[1]));
 		break;
 
 	case CG_GETSERVERCOMMAND:
@@ -1360,25 +1360,19 @@ qboolean CG_VideoRestarted(void)
 
 void CG_Start (void)
 {
-	SCR_SetLoadingStage(0);
 	CG_Stop();
-
-	SCR_BeginLoadingPlaque();
 
 	box_model = worldfuncs->TempBoxModel(vec3_origin, vec3_origin);	//just in case.
 
+	clientfuncs->SetLoadingState(true);
 	cgvm = vmfuncs->Create("cgame", cvarfuncs->GetFloat("com_gamedirnativecode")?CG_SystemCallsNative:NULL, "vm/cgame", CG_SystemCallsVM);
+	clientfuncs->SetLoadingState(false);
 	if (cgvm)
 	{	//hu... cgame doesn't appear to have a query version call!
-		SCR_EndLoadingPlaque();
-
 		vmfuncs->Call(cgvm, CG_INIT, ccs.serverMessageNum, ccs.lastServerCommandNum, ccs.playernum);
 	}
 	else
-	{
-		SCR_EndLoadingPlaque();
 		plugfuncs->EndGame("Failed to initialise cgame module\n");
-	}
 }
 
 qboolean CG_ConsoleCommand(void)

@@ -6367,7 +6367,11 @@ qboolean FS_ChangeGame(ftemanifest_t *man, qboolean allowreloadconfigs, qboolean
 				Cbuf_AddText ("vid_reload\n", RESTRICT_LOCAL);
 				vidrestart = false;
 			}
+
+			if (Cmd_Exists("ui_restart"))	//if we're running a q3 ui, restart it now...
+				Cbuf_InsertText("ui_restart\n", RESTRICT_LOCAL, false);
 #endif
+
 			if (fs_loadedcommand)
 			{
 				Cbuf_AddText(fs_loadedcommand, RESTRICT_INSECURE);

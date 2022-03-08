@@ -311,6 +311,7 @@ typedef struct	//q1 client/network info
 	F(void,		GetPredInfo,		(int seat, vec3_t outvel));
 
 	F(void,		ClearClientState,	(void));	//called at the start of map changes.
+	F(void,		SetLoadingState,	(qboolean newstate));	//Change the client's loading screen state.
 	F(void,		UpdateGameTime,		(double));	//tells the client an updated snapshot time for interpolation/timedrift.
 #define plugclientfuncs_name "Client"
 } plugclientfuncs_t;
@@ -334,6 +335,7 @@ typedef struct	//for menu-like stuff
 
 	F(qboolean,		IsKeyDown,			(int keycode));
 	F(void,			ClearKeyStates,		(void));	//forget any keys that are still held.
+	F(void,			SetSensitivityScale,(float newsensitivityscale));	//this is a temporary sensitivity thing.
 	F(unsigned int,	GetMoveCount,		(void));
 	F(usercmd_t*,	GetMoveEntry,		(unsigned int move));	//GetMoveEntry(GetMoveCount()) gives you the partial entry. forgotten entries return NULL.
 
@@ -405,6 +407,23 @@ typedef struct	//for huds and menus alike
 	F(void,		RedrawScreen,	(void));	//redraws the entire screen and presents it. for loading screen type things.
 
 	F(void,		LocalSound,		(const char *soundname, int channel, float volume));
+
+	struct
+	{
+		//basic media poking
+		F(struct cin_s *,	GetCinematic,	(struct shader_s *s));
+		F(void,				SetState,		(struct cin_s *cin, int newstate));
+		F(int,				GetState,		(struct cin_s *cin));
+		F(void,				Reset,			(struct cin_s *cin));
+
+		//complex media poking (web browser stuff)
+		F(void,				Command,		(struct cin_s *cin, const char *command));
+		F(const char *,		GetProperty,	(struct cin_s *cin, const char *key));
+		F(void,				MouseMove,		(struct cin_s *cin, float x, float y));
+		F(void,				Resize,			(struct cin_s *cin, int x, int y));
+		F(void,				GetSize,		(struct cin_s *cin, int *x, int *y, float *aspect));
+		F(void,				KeyEvent,		(struct cin_s *cin, int button, int unicode, int event));
+	} media;
 #define plug2dfuncs_name "2D"
 } plug2dfuncs_t;
 
@@ -507,7 +526,7 @@ typedef struct	//for plugins that need to read/write files...
 	F(qboolean, Rename,			(const char *oldf, const char *newf, enum fs_relative relativeto));
 	F(qboolean,	Remove,			(const char *fname, enum fs_relative relativeto));
 
-	F(void,		EnumerateFiles,	(const char *match, int (QDECL *callback)(const char *fname, qofs_t fsize, time_t mtime, void *ctx, struct searchpathfuncs_s *package), void *ctx));
+	F(void,		EnumerateFiles,	(enum fs_relative fsroot, const char *match, int (QDECL *callback)(const char *fname, qofs_t fsize, time_t mtime, void *ctx, struct searchpathfuncs_s *package), void *ctx));
 
 	//helpers
 	F(int,		WildCmp,		(const char *wild, const char *string));

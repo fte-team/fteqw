@@ -8186,7 +8186,7 @@ void Shader_NeedReload(qboolean rescanfs)
 	shader_reload_needed = true;
 }
 
-cin_t *R_ShaderGetCinematic(shader_t *s)
+cin_t *QDECL R_ShaderGetCinematic(shader_t *s)
 {
 #ifdef HAVE_MEDIA_DECODER
 	int j;

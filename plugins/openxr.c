@@ -1335,7 +1335,7 @@ static void XR_SetupInputs_Instance(void)
 
 	h = 0;
 	if (fsfuncs)
-		fsfuncs->EnumerateFiles("oxr_*.binds", XR_BindProfileFile, &h);
+		fsfuncs->EnumerateFiles(FS_GAME, "oxr_*.binds", XR_BindProfileFile, &h);
 	if (!h)	//no user bindings defined, use fallbacks. probably this needs to be per-mod.
 	{
 		for (h = 0; h < countof(xr_knownprofiles); h++)

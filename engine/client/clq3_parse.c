@@ -9,33 +9,18 @@
 
 #ifndef STATIC_Q3
 void Cvar_ForceCheatVars(qboolean semicheats, qboolean absolutecheats){}	//locks/unlocks cheat cvars depending on weather we are allowed them.
-//int Cvar_ApplyLatches(int latchflag){return 0;}
 
-unsigned int utf8_decode(int *error, const void *in, char const**out){return 0;}
-
-void Con_PrintFlags(const char *txt, unsigned int setflags, unsigned int clearflags){}
 void Con_ClearNotify (void){}
 
 unsigned int key_dest_mask;
-float in_sensitivityscale;
 void Sys_Clipboard_PasteText(clipboardtype_t clipboardtype, void (*callback)(void *cb, const char *utf8), void *ctx){};	//calls the callback once the text is available (maybe instantly). utf8 arg may be NULL if the clipboard was unavailable.
-void SCR_SetLoadingStage(int stage){}
-void SCR_BeginLoadingPlaque					(void){}
-void SCR_EndLoadingPlaque					(void){}
+unsigned int utf8_decode(int *error, const void *in, char const**out){return 0;}
 
-void Shader_DefaultCinematic	(struct shaderparsestate_s *ps, const char *shortname, const void *args){}
-shader_t *R_RegisterCustom (model_t *mod, const char *name, unsigned int usageflags, shader_gen_t *defaultgen, const void *args){return NULL;}
-cin_t *R_ShaderGetCinematic(shader_t *s){return NULL;}
-void Media_SetState(cin_t *cin, cinstates_t newstate){}
-void R_UnloadShader(shader_t *shader){}
-cinstates_t Media_GetState(cin_t *cin){return 0;}
-void Media_Send_Reset(cin_t *cin){}
 char *CL_TryingToConnect(void){return NULL;}
 
 downloadlist_t *CL_DownloadFailed(const char *name, qdownload_t *qdl, enum dlfailreason_e failreason){return NULL;}
 qboolean DL_Begun(qdownload_t *dl){return 0;}
 void CL_DownloadFinished(qdownload_t *dl){}
-int Sys_EnumerateFiles (const char *gpath, const char *match, int (QDECL *func)(const char *fname, qofs_t fsize, time_t modtime, void *parm, searchpathfuncs_t *spath), void *parm, searchpathfuncs_t *spath){return 0;}
 #endif
 
 //urm, yeah, this is more than just parse.
@@ -632,7 +617,7 @@ void CLQ3_ParseGameState(sizebuf_t *msg)
 	if (!ccs.worldmodel)
 		plugfuncs->EndGame("CGame didn't set a map.\n");
 
-	SCR_EndLoadingPlaque();
+	clientfuncs->SetLoadingState(false);
 
 	ccs.state = ca_active;
 

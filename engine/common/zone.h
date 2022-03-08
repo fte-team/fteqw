@@ -133,7 +133,8 @@ typedef struct zonegroup_s
 } zonegroup_t;
 void *QDECL ZG_Malloc(zonegroup_t *ctx, size_t size);
 void *ZG_MallocNamed(zonegroup_t *ctx, size_t size, char *file, int line);
-void ZG_FreeGroup(zonegroup_t *ctx);
+void QDECL ZG_Free(zonegroup_t *ctx, void *ptr);
+void QDECL ZG_FreeGroup(zonegroup_t *ctx);
 
 #ifdef USE_MSVCRT_DEBUG
 #define BZ_Malloc(size) BZ_MallocNamed(size, __FILE__, __LINE__)

@@ -1253,7 +1253,8 @@ void CL_CheckForResend (void)
 	if (!connectinfo.clogged)
 	{
 #ifdef Q3CLIENT
-		q3->cl.SendAuthPacket(cls.sockets, to);
+		if (q3)
+			q3->cl.SendAuthPacket(cls.sockets, to);
 #endif
 
 		if (connectinfo.istransfer || connectinfo.numadr>1)
@@ -1284,7 +1285,7 @@ void CL_CheckForResend (void)
 	{
 		contype |= 1; /*always try qw type connections*/
 #ifdef VM_UI
-		if (!q3->ui.IsRunning())	//don't try to connect to nq servers when running a q3ui. I was getting annoying error messages from q3 servers due to this.
+		if (!(q3&&q3->ui.IsRunning()))	//don't try to connect to nq servers when running a q3ui. I was getting annoying error messages from q3 servers due to this.
 #endif
 			contype |= 2; /*try nq connections periodically (or if its the default nq port)*/
 	}

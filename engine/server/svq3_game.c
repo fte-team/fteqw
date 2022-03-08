@@ -1607,7 +1607,8 @@ static qintptr_t EXPORT_FN Q3G_SystemCallsNative(qintptr_t arg, ...)
 void SVQ3_ShutdownGame(qboolean restarting)
 {
 	int i;
-	CG_Stop();
+	if (!restarting)
+		CG_Stop();
 	if (!q3gamevm)
 		return;
 
@@ -1622,10 +1623,7 @@ void SVQ3_ShutdownGame(qboolean restarting)
 		plugfuncs->GFreeAll(&botlibhunkmem);
 		VM_fcloseall(Z_TAG_BOTLIB);
 #endif
-	}
 
-	if (!restarting)
-	{
 		for (i = 0; i < countof(svq3_configstrings); i++)
 		{
 			if (svq3_configstrings[i])

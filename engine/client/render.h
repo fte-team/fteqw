@@ -35,7 +35,7 @@ struct texture_s;
 
 static const texid_t r_nulltex = NULL;
 
-//GLES2 requires GL_UNSIGNED_SHORT
+//GLES2 requires GL_UNSIGNED_SHORT (gles3 or GL_OES_element_index_uint relax this requirement)
 //geforce4 only does shorts. gffx can do ints, but with a performance hit (like most things on that gpu)
 //ati is generally more capable, but generally also has a smaller market share
 //desktop-gl will generally cope with ints, but expect a performance hit from that with old gpus (so we don't bother)
@@ -265,6 +265,9 @@ typedef struct refdef_s
 
 	qboolean	base_known;			/*otherwise we do some fallback behaviour (ie: viewangles.0y0 and forcing input_angles)*/
 	vec3_t		base_angles, base_origin; /*for vr output, overrides per-eye viewangles according to that eye's matrix.*/
+
+	vec3_t		weaponmatrix[4];		/*forward/left/up/origin*/
+	vec3_t		weaponmatrix_bob[4];	/*forward/left/up/origin*/
 
 	float		fov_x, fov_y, afov;
 	float		fovv_x, fovv_y;	//viewmodel fovs

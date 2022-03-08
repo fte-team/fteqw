@@ -2395,9 +2395,10 @@ static void CLQ2_AddViewWeapon (int seat, q2player_state_t *ps, q2player_state_t
 		return;
 
 	//generate root matrix..
-	VectorCopy(pv->simorg, pv->vw_origin);
-	AngleVectors(pv->simangles, pv->vw_axis[0], pv->vw_axis[1], pv->vw_axis[2]);
-	VectorInverse(pv->vw_axis[1]);
+	VectorCopy(pv->simorg, r_refdef.weaponmatrix[3]);
+	AngleVectors(pv->simangles, r_refdef.weaponmatrix[0], r_refdef.weaponmatrix[1], r_refdef.weaponmatrix[2]);
+	VectorInverse(r_refdef.weaponmatrix[1]);
+	memcpy(r_refdef.weaponmatrix_bob, r_refdef.weaponmatrix, sizeof(r_refdef.weaponmatrix_bob));
 
 	pv->vm.oldmodel = cl.model_precache[ps->gunindex];
 	if (!pv->vm.oldmodel)

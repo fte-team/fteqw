@@ -1893,6 +1893,7 @@ qboolean SVQ3_InitGame(server_static_t *server_state_static, server_t *server_st
 	int i;
 	char ssqcprogs[MAX_QPATH];
 
+	memset(sv3.models, 0, sizeof(sv3.models));
 	sv3.server_state_static = server_state_static;
 	sv3.server_state = server_state;
 	sv3.world = &server_state->world;

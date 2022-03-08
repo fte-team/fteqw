@@ -758,8 +758,6 @@ struct playerview_s
 	vec4_t		screentint;
 	vec4_t		bordertint;	//won't contain v_cshift values, only powerup+contents+damage+bf flashes
 
-	vec3_t		vw_axis[3];	//weapons should be positioned relative to this
-	vec3_t		vw_origin;	//weapons should be positioned relative to this
 //	entity_t	viewent;	// is this not utterly redundant yet?
 	struct
 	{

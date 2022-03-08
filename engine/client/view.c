@@ -1063,16 +1063,17 @@ void V_CalcGunPositionAngle (playerview_t *pv, float bob)
 	vw_angles[PITCH] = r_refdef.viewangles[PITCH];
 	vw_angles[ROLL] = r_refdef.viewangles[ROLL];
 
-	AngleVectors(vw_angles, pv->vw_axis[0], pv->vw_axis[1], pv->vw_axis[2]);
-	VectorInverse(pv->vw_axis[1]);
+
+	AngleVectors(vw_angles, r_refdef.weaponmatrix[0], r_refdef.weaponmatrix[1], r_refdef.weaponmatrix[2]);
+	VectorInverse(r_refdef.weaponmatrix[1]);
 
 
-	VectorCopy (r_refdef.vieworg, pv->vw_origin);
+	VectorCopy (r_refdef.vieworg, r_refdef.weaponmatrix[3]);
 	for (i=0 ; i<3 ; i++)
 	{
-		pv->vw_origin[i] += pv->vw_axis[0][i]*bob*0.4;
-//		pv->vw_origin[i] += pv->vw_axis[1][i]*sin(cl.time*5.5342452354235)*0.1;
-//		pv->vw_origin[i] += pv->vw_axis[2][i]*bob*0.8;
+		r_refdef.weaponmatrix[3][i] += r_refdef.weaponmatrix[0][i]*bob*0.4;
+//		r_refdef.weaponmatrix[3][i] += r_refdef.weaponmatrix[1][i]*sin(cl.time*5.5342452354235)*0.1;
+//		r_refdef.weaponmatrix[3][i] += r_refdef.weaponmatrix[2][i]*bob*0.8;
 	}
 
 	VectorMA(pv->simvel, -DotProduct(pv->simvel, pv->gravitydir), pv->gravitydir, xyvel);
@@ -1082,29 +1083,31 @@ void V_CalcGunPositionAngle (playerview_t *pv, float bob)
 	//FIXME: cl_followmodel should lag the viewmodel's position relative to the view
 	//FIXME: cl_leanmodel should lag the viewmodel's angles relative to the view
 
-	if (cl_bobmodel.value)
-	{	//bobmodel causes the viewmodel to bob relative to the view.
-		float s = pv->bobtime * cl_bobmodel_speed.value, v;
-		v = xyspeed * 0.01 * cl_bobmodel_side.value * /*cl_viewmodel_scale.value * */sin(s);
-		VectorMA(pv->vw_origin, v, pv->vw_axis[1], pv->vw_origin);
-		v = xyspeed * 0.01 * cl_bobmodel_up.value * /*cl_viewmodel_scale.value * */cos(2*s);
-		VectorMA(pv->vw_origin, v, pv->vw_axis[2], pv->vw_origin);
-	}
-
-
 // fudge position around to keep amount of weapon visible
 // roughly equal with different FOV
 //FIXME: should use y fov, not viewsize.
 	if (r_refdef.drawsbar && v_viewmodel_quake.ival)	//no sbar = no viewsize cvar.
 	{
 		if (scr_viewsize.value == 110)
-			pv->vw_origin[2] += 1;
+			r_refdef.weaponmatrix[3][2] += 1;
 		else if (scr_viewsize.value == 100)
-			pv->vw_origin[2] += 2;
+			r_refdef.weaponmatrix[3][2] += 2;
 		else if (scr_viewsize.value == 90)
-			pv->vw_origin[2] += 1;
+			r_refdef.weaponmatrix[3][2] += 1;
 		else if (scr_viewsize.value == 80)
-			pv->vw_origin[2] += 0.5;
+			r_refdef.weaponmatrix[3][2] += 0.5;
+	}
+
+
+
+	memcpy(r_refdef.weaponmatrix_bob, r_refdef.weaponmatrix, sizeof(r_refdef.weaponmatrix_bob));
+	if (cl_bobmodel.value)
+	{	//bobmodel causes the viewmodel to bob relative to the view.
+		float s = pv->bobtime * cl_bobmodel_speed.value, v;
+		v = xyspeed * 0.01 * cl_bobmodel_side.value * /*cl_viewmodel_scale.value * */sin(s);
+		VectorMA(r_refdef.weaponmatrix_bob[3], v, r_refdef.weaponmatrix[1], r_refdef.weaponmatrix_bob[3]);
+		v = xyspeed * 0.01 * cl_bobmodel_up.value * /*cl_viewmodel_scale.value * */cos(2*s);
+		VectorMA(r_refdef.weaponmatrix_bob[3], v, r_refdef.weaponmatrix[2], r_refdef.weaponmatrix_bob[3]);
 	}
 }
 

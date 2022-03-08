@@ -604,7 +604,7 @@ void VQ3_RenderView(const q3refdef_t *ref)
 	VectorCopy(ref->vieworg, scene.viewaxisorg[3]);
 	scene.time = ref->time/1000.0f;
 
-	if (ref->rdflags & 1/*RDF_NOWORLDMODEL*/)
+	if (ref->rdflags & 1/*Q3RDF_NOWORLDMODEL*/)
 		scene.flags |= RDF_NOWORLDMODEL;
 
 	scenefuncs->RenderScene(&scene, sizeof(ref->areamask), ref->areamask);

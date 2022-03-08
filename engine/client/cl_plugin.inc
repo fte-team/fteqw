@@ -449,6 +449,17 @@ static void Plug_Scene_RenderScene(plugrefdef_t *in, size_t areabytes, const qby
 	VectorCopy(in->viewaxisorg[1], r_refdef.viewaxis[1]);
 	VectorCopy(in->viewaxisorg[2], r_refdef.viewaxis[2]);
 	VectorCopy(in->viewaxisorg[3], r_refdef.vieworg);
+
+	VectorSet(r_refdef.weaponmatrix[0], 1,0,0);
+	VectorSet(r_refdef.weaponmatrix[1], 0,1,0);
+	VectorSet(r_refdef.weaponmatrix[2], 0,0,1);
+	VectorSet(r_refdef.weaponmatrix[3], 0,0,0);
+
+	VectorSet(r_refdef.weaponmatrix_bob[0], 1,0,0);
+	VectorSet(r_refdef.weaponmatrix_bob[1], 0,1,0);
+	VectorSet(r_refdef.weaponmatrix_bob[2], 0,0,1);
+	VectorSet(r_refdef.weaponmatrix_bob[3], 0,0,0);
+
 	VectorAngles(r_refdef.viewaxis[0], r_refdef.viewaxis[2], r_refdef.viewangles, false);	//do we actually still need this?
 	r_refdef.flags = in->flags;
 	r_refdef.fov_x = in->fov[0];

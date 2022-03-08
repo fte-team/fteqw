@@ -870,12 +870,14 @@ static qintptr_t CG_SystemCalls(void *offset, quintptr_t mask, qintptr_t fn, con
 		}
 		break;
 
-	case CG_R_LOADWORLDMAP:	//FTE can't distinguish. :/
-		Con_DPrintf("CG_R_LOADWORLDMAP: not implemented\n");
-		break;				//So long as noone has one collision model with a different rendering one, we'll be fine
+	case CG_R_LOADWORLDMAP:
+		{	//rendering
+			scenefuncs->NewMap(worldfuncs->LoadModel(VM_POINTER(arg[0]), MLV_SILENTSYNC));
+		}
+		break;
 
 	case CG_CM_LOADMAP:
-		{
+		{	//collisions
 			int i;
 			char *mapname = VM_POINTER(arg[0]);
 			ccs.worldmodel = ccs.model_precache[0] = worldfuncs->LoadModel(mapname, MLV_SILENTSYNC);

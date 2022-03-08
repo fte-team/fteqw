@@ -624,13 +624,13 @@ void CLQ3_ParseGameState(sizebuf_t *msg)
 		return;
 	}
 
+	scenefuncs->NewMap(NULL);
+
 	CG_Restart();
 	UI_Restart_f();
 
 	if (!ccs.worldmodel)
 		plugfuncs->EndGame("CGame didn't set a map.\n");
-
-	scenefuncs->NewMap (ccs.worldmodel);
 
 	SCR_EndLoadingPlaque();
 

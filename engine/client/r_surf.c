@@ -3985,7 +3985,7 @@ void Surf_NewMap (model_t *worldmodel)
 
 	//evil haxx
 	r_dynamic.ival = r_dynamic.value;
-	if (r_dynamic.ival > 0 && cl.worldmodel->fromgame == fg_quake3) //quake3 has no lightmaps, disable r_dynamic
+	if (r_dynamic.ival > 0 && (!cl.worldmodel || cl.worldmodel->fromgame == fg_quake3)) //quake3 has no lightmaps, disable r_dynamic
 		r_dynamic.ival = 0;
 
 	memset (&r_worldentity, 0, sizeof(r_worldentity));

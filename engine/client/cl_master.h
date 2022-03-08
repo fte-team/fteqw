@@ -239,8 +239,8 @@ void MasterInfo_WriteServers(void);
 char *Master_ServerToString (char *s, int len, serverinfo_t *a);	//like NET_AdrToString, but handles more complex addresses.
 
 hostcachekey_t Master_KeyForName(const char *keyname);
-float Master_ReadKeyFloat(serverinfo_t *server, hostcachekey_t keynum);
-char *Master_ReadKeyString(serverinfo_t *server, hostcachekey_t keynum);
+float Master_ReadKeyFloat(serverinfo_t *server, unsigned int keynum);
+char *Master_ReadKeyString(serverinfo_t *server, unsigned int keynum);
 
 int Master_SortServers(void);
 void Master_SetSortField(hostcachekey_t field, qboolean descending);

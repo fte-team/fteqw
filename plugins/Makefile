@@ -356,6 +356,51 @@ else
 $(PLUG_PREFIX)cef$(PLUG_NATIVE_EXT):
 	@echo cef plugin not supported on this arch - $(FTE_TARGET) - $(CEF_ARCH)
 endif
+
+######################################
+#quake3
+
+BOTLIBFILES=../engine/botlib/be_aas_bspq3.c		\
+			../engine/botlib/be_aas_cluster.c	\
+			../engine/botlib/be_aas_debug.c		\
+			../engine/botlib/be_aas_entity.c	\
+			../engine/botlib/be_aas_file.c		\
+			../engine/botlib/be_aas_main.c		\
+			../engine/botlib/be_aas_move.c		\
+			../engine/botlib/be_aas_optimize.c	\
+			../engine/botlib/be_aas_reach.c		\
+			../engine/botlib/be_aas_routealt.c	\
+			../engine/botlib/be_aas_route.c		\
+			../engine/botlib/be_aas_sample.c	\
+			../engine/botlib/be_ai_char.c		\
+			../engine/botlib/be_ai_chat.c		\
+			../engine/botlib/be_ai_gen.c	\
+			../engine/botlib/be_ai_goal.c	\
+			../engine/botlib/be_ai_move.c	\
+			../engine/botlib/be_ai_weap.c	\
+			../engine/botlib/be_ai_weight.c	\
+			../engine/botlib/be_ea.c		\
+			../engine/botlib/be_interface.c	\
+			../engine/botlib/l_crc.c		\
+			../engine/botlib/l_libvar.c		\
+			../engine/botlib/l_log.c		\
+			../engine/botlib/l_memory.c		\
+			../engine/botlib/l_precomp.c	\
+			../engine/botlib/l_script.c		\
+			../engine/botlib/l_struct.c		\
+			../engine/botlib/standalone.c
+QUAKE3FILES=$(BOTLIBFILES)	\
+			plugin.c		\
+			../engine/client/cl_cg.c		\
+			../engine/client/cl_ui.c		\
+			../engine/client/clq3_parse.c	\
+			../engine/server/svq3_game.c	\
+			../engine/common/q3common.c
+$(PLUG_PREFIX)quake3$(PLUG_NATIVE_EXT): ${QUAKE3FILES}
+	$(CC) $(BASE_CFLAGS) $(CFLAGS) -DFTEPLUGIN -DBOTLIB -DBOTLIB_STATIC -o $@ -shared $(PLUG_CFLAGS) $^ $(PLUG_DEFFILE) $(PLUG_LDFLAGS_ZLIB) $(PLUG_LDFLAGS)
+	$(call EMBEDMETA,quake3,$@,Quake3 Compat,Quake3 Gamecode Compatibility)
+NATIVE_PLUGINS+=quake3
+
 ######################################
 
 #for custom/private plugins...

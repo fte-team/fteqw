@@ -223,10 +223,6 @@ void R2D_Shutdown(void)
 
 	Z_Free(atlas.data);
 	memset(&atlas, 0, sizeof(atlas));
-
-#ifdef PLUGINS
-	Plug_FreeAllImages();
-#endif
 }
 
 /*
@@ -459,10 +455,6 @@ void R2D_Init(void)
 
 	Cvar_ForceCallback(&crosshair);
 	Cvar_ForceCallback(&crosshaircolor);
-
-#ifdef PLUGINS
-	Plug_DrawReloadImages();
-#endif
 
 	R2D_Font_Changed();
 

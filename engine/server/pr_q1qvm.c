@@ -1305,66 +1305,166 @@ static qintptr_t QVM_TraceBox (void *offset, quintptr_t mask, const qintptr_t *a
 	WrapQCBuiltin(PF_svtraceline, offset, mask, arg, "vvinvv");
 	return 0;
 }
+
+
+
+typedef struct {
+	vfsfile_t *file;
+} vm_fopen_files_t;
+static vm_fopen_files_t vm_fopen_files[64];
+
 static qintptr_t QVM_FS_OpenFile (void *offset, quintptr_t mask, const qintptr_t *arg)
 {
-//0 = name
-//1 = &handle
-//2 = mode
-//ret = filesize or -1
-
-//	Con_Printf("G_FSOpenFile: %s (mode %i)\n", VM_POINTER(arg[0]), arg[2]);
-	int mode;
-	switch((q1qvmfsMode_t)arg[2])
-	{
-	default:
+	const char *name = VM_POINTER(arg[0]);
+	int *handle = VM_POINTER(arg[1]);
+	int fmode = VM_LONG(arg[2]);
+	int fnum;
+	static struct {
+		const char *mode;
+		enum fs_relative root;
+	} mode[] = {
+		/*FS_READ_BIN*/{"rb",FS_GAME},
+		/*FS_READ_TXT*/{"rt",FS_GAME},
+		/*FS_WRITE_BIN*/{"wb",FS_GAMEONLY},
+		/*FS_WRITE_TXT*/{"wt",FS_GAMEONLY},
+		/*FS_APPEND_BIN*/{"ab",FS_GAMEONLY},
+		/*FS_APPEND_TXT*/{"at",FS_GAMEONLY},
+	};
+	if (fmode < 0 || fmode >= countof(mode))
 		return -1;
-	case FS_READ_BIN:
-	case FS_READ_TXT:
-		mode = VM_FS_READ;
-		break;
-	case FS_WRITE_BIN:
-	case FS_WRITE_TXT:
-		mode = VM_FS_WRITE;
-		break;
-	case FS_APPEND_BIN:
-	case FS_APPEND_TXT:
-		mode = VM_FS_APPEND;
-		break;
-	}
-	return VM_fopen(VM_POINTER(arg[0]), VM_POINTER(arg[1]), mode, VMFSID_Q1QVM);
+	for (fnum = 0; fnum < countof(vm_fopen_files); fnum++)
+		if (!vm_fopen_files[fnum].file)
+			break;
+	if (fnum == countof(vm_fopen_files))	//too many already open
+		return -1;
+
+	vm_fopen_files[fnum].file = FS_OpenVFS(name, mode[fmode].mode, mode[fmode].root);
+	if (!vm_fopen_files[fnum].file)
+		return -1;
+	*handle = fnum+1;
+	return VFS_GETLEN(vm_fopen_files[fnum].file);
 }
 static qintptr_t QVM_FS_CloseFile (void *offset, quintptr_t mask, const qintptr_t *arg)
 {
-	VM_fclose(arg[0], VMFSID_Q1QVM);
-	return 0;
+	int fnum = VM_LONG(arg[0])-1;
+	if (fnum >= 0 && fnum < countof(vm_fopen_files) && vm_fopen_files[fnum].file)
+	{
+		VFS_CLOSE(vm_fopen_files[fnum].file);
+		vm_fopen_files[fnum].file = NULL;
+		return 0;
+	}
+	return -1;
+}
+static void QVM_FS_CloseFileAll (void)
+{
+	size_t fnum;
+	for (fnum = 0; fnum < countof(vm_fopen_files); fnum++)
+		if (vm_fopen_files[fnum].file)
+		{
+			VFS_CLOSE(vm_fopen_files[fnum].file);
+			vm_fopen_files[fnum].file = NULL;
+		}
 }
 static qintptr_t QVM_FS_ReadFile (void *offset, quintptr_t mask, const qintptr_t *arg)
 {
-	if (VM_OOB(arg[0], arg[1]))
+	void *dest = VM_POINTER(arg[0]);
+	int size = VM_LONG(arg[1]);
+	int fnum = VM_LONG(arg[2])-1;
+	if (VM_OOB(arg[0], size))
 		return 0;
-	return VM_FRead(VM_POINTER(arg[0]), VM_LONG(arg[1]), VM_LONG(arg[2]), VMFSID_Q1QVM);
+	if (fnum >= 0 && fnum < countof(vm_fopen_files) && vm_fopen_files[fnum].file && vm_fopen_files[fnum].file->ReadBytes)
+		return VFS_READ(vm_fopen_files[fnum].file, dest, size);
+	return 0;
 }
 static qintptr_t QVM_FS_WriteFile (void *offset, quintptr_t mask, const qintptr_t *arg)
 {
-	if (VM_OOB(arg[0], arg[1]))
+	void *dest = VM_POINTER(arg[0]);
+	int size = VM_LONG(arg[1]);
+	int fnum = VM_LONG(arg[2])-1;
+	if (VM_OOB(arg[0], size))
 		return 0;
-	return VM_FWrite(VM_POINTER(arg[0]), VM_LONG(arg[1]), VM_LONG(arg[2]), VMFSID_Q1QVM);
+	if (fnum >= 0 && fnum < countof(vm_fopen_files) && vm_fopen_files[fnum].file && vm_fopen_files[fnum].file->ReadBytes)
+		return VFS_WRITE(vm_fopen_files[fnum].file, dest, size);
+	return 0;
 }
 static qintptr_t QVM_FS_SeekFile (void *offset, quintptr_t mask, const qintptr_t *arg)
 {
-	//fixme: what should the return value be?
-	VM_FSeek(VM_LONG(arg[0]), VM_LONG(arg[1]), VM_LONG(arg[2]), VMFSID_Q1QVM);
+	int fnum = VM_LONG(arg[0])-1;
+	quintptr_t foffset = arg[1];
+	int seektype = VM_LONG(arg[2]);
+	if (fnum >= 0 && fnum < countof(vm_fopen_files) && vm_fopen_files[fnum].file && vm_fopen_files[fnum].file->seekstyle != SS_UNSEEKABLE)
+	{
+		if (seektype == 0)	//cur
+			foffset += VFS_TELL(vm_fopen_files[fnum].file);
+		else if (seektype == 2)	//end
+			foffset = VFS_GETLEN(vm_fopen_files[fnum].file) + (qintptr_t)foffset;
+		return VFS_SEEK(vm_fopen_files[fnum].file, foffset);
+	}
 	return 0;
 }
 static qintptr_t QVM_FS_TellFile (void *offset, quintptr_t mask, const qintptr_t *arg)
 {
-	return VM_FTell(VM_LONG(arg[0]), VMFSID_Q1QVM);
+	int fnum = VM_LONG(arg[0])-1;
+	if (fnum >= 0 && fnum < countof(vm_fopen_files) && vm_fopen_files[fnum].file)
+	{
+		return VFS_TELL(vm_fopen_files[fnum].file);
+	}
+	return -1;
+}
+
+
+
+
+//filesystem searches result in a tightly-packed blob of null-terminated filenames (along with a count for how many entries)
+typedef struct {
+	char *initialbuffer;
+	char *buffer;
+	int found;
+	int bufferleft;
+	int skip;
+} vmsearch_t;
+static int QDECL VMEnum(const char *match, qofs_t size, time_t mtime, void *args, searchpathfuncs_t *spath)
+{
+	char *check;
+	int newlen;
+	match += ((vmsearch_t *)args)->skip;
+	newlen = strlen(match)+1;
+	if (newlen > ((vmsearch_t *)args)->bufferleft)
+		return false;	//too many files for the buffer
+
+	check = ((vmsearch_t *)args)->initialbuffer;
+	while(check < ((vmsearch_t *)args)->buffer)
+	{
+		if (!Q_strcasecmp(check, match))
+			return true;	//we found this one already
+		check += strlen(check)+1;
+	}
+
+	memcpy(((vmsearch_t *)args)->buffer, match, newlen);
+	((vmsearch_t *)args)->buffer+=newlen;
+	((vmsearch_t *)args)->bufferleft-=newlen;
+	((vmsearch_t *)args)->found++;
+	return true;
 }
 static qintptr_t QVM_FS_GetFileList (void *offset, quintptr_t mask, const qintptr_t *arg)
 {
-	if (VM_OOB(arg[2], arg[3]))
+	vmsearch_t vms;
+	const char *path = VM_POINTER(arg[0]);
+	const char *ext = VM_POINTER(arg[1]);
+	char *output = VM_POINTER(arg[2]);
+	size_t buffersize = VM_LONG(arg[3]);
+	if (VM_OOB(arg[2], buffersize))
 		return 0;
-	return VM_GetFileList(VM_POINTER(arg[0]), VM_POINTER(arg[1]), VM_POINTER(arg[2]), VM_LONG(arg[3]));
+
+	vms.initialbuffer = vms.buffer = output;
+	vms.skip = strlen(path)+1;
+	vms.bufferleft = buffersize;
+	vms.found=0;
+	if (*(const char *)ext == '.' || *(const char *)ext == '/')
+		COM_EnumerateFiles(va("%s/*%s", path, ext), VMEnum, &vms);
+	else
+		COM_EnumerateFiles(va("%s/*.%s", path, ext), VMEnum, &vms);
+	return vms.found;
 }
 static qintptr_t QVM_CVar_Set_Float (void *offset, quintptr_t mask, const qintptr_t *arg)
 {
@@ -2189,7 +2289,7 @@ void Q1QVM_Shutdown(qboolean notifygame)
 			VM_Call(q1qvm, GAME_SHUTDOWN, 0, 0, 0);
 		VM_Destroy(q1qvm);
 		q1qvm = NULL;
-		VM_fcloseall(VMFSID_Q1QVM);
+		QVM_FS_CloseFileAll();
 		if (svprogfuncs == &q1qvmprogfuncs)
 			sv.world.progs = svprogfuncs = NULL;
 		Z_FreeTags(VMFSID_Q1QVM);
@@ -2269,12 +2369,12 @@ qboolean PR_LoadQ1QVM(void)
 
 	Q1QVM_Shutdown(true);
 
-	q1qvm = VM_Create(fname, com_nogamedirnativecode.ival?NULL:syscallnative, fname, syscallqvm);
+	q1qvm = VM_Create(fname, com_gamedirnativecode.ival?syscallnative:NULL, fname, syscallqvm);
 	if (!q1qvm)
 		q1qvm = VM_Create(fname, syscallnative, fname, NULL);
 	if (!q1qvm)
 	{
-		if (com_nogamedirnativecode.ival && COM_FCheckExists(va("%s"ARCH_DL_POSTFIX, fname)))
+		if (!com_gamedirnativecode.ival && COM_FCheckExists(va("%s"ARCH_DL_POSTFIX, fname)))
 			Con_Printf(CON_WARNING"%s"ARCH_DL_POSTFIX" exists, but is blocked from loading due to known bugs in other engines. If this is from a safe source then either ^aset com_nogamedirnativecode 0^a or rename to eg %s%s_%s"ARCH_DL_POSTFIX"\n", fname, ((host_parms.binarydir && *host_parms.binarydir)?host_parms.binarydir:host_parms.basedir), fname, FS_GetGamedir(false));
 		if (svprogfuncs == &q1qvmprogfuncs)
 			sv.world.progs = svprogfuncs = NULL;

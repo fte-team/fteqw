@@ -12,88 +12,6 @@
 
 #ifdef HAVE_GNUTLS
 
-#if defined(_WIN32) && !defined(MINGW) && 0
-
-#define GNUTLS_VERSION "2.12.23"
-#define GNUTLS_SOPREFIX ""
-#define GNUTLS_SONUM 26
-
-#ifdef _MSC_VER
-#if SIZE_MAX == ULONG_MAX
-#define ssize_t long
-#else
-#define ssize_t int
-#endif
-#endif
-
-//lets rip stuff out of the header and supply a seperate dll.
-//gnutls is huge.
-//also this helps get around the whole msvc/mingw thing.
-
-struct DSTRUCT;
-typedef struct DSTRUCT* gnutls_certificate_credentials_t;
-typedef gnutls_certificate_credentials_t gnutls_certificate_client_credentials_t;
-typedef struct DSTRUCT* gnutls_anon_client_credentials_t;
-struct gnutls_session_int;
-typedef struct gnutls_session_int* gnutls_session_t;
-typedef void * gnutls_transport_ptr_t;
-struct gnutls_x509_crt_int;
-typedef struct gnutls_x509_crt_int *gnutls_x509_crt_t;
-typedef struct
-{
-	unsigned char *data;
-	unsigned int size;
-} gnutls_datum_t;
-
-typedef enum gnutls_kx_algorithm { GNUTLS_KX_RSA=1, GNUTLS_KX_DHE_DSS,
-	GNUTLS_KX_DHE_RSA, GNUTLS_KX_ANON_DH, GNUTLS_KX_SRP,
-	GNUTLS_KX_RSA_EXPORT, GNUTLS_KX_SRP_RSA, GNUTLS_KX_SRP_DSS
-} gnutls_kx_algorithm;
-typedef enum {
-	GNUTLS_CRT_UNKNOWN = 0,
-	GNUTLS_CRT_X509 = 1,
-	GNUTLS_CRT_OPENPGP = 2,
-	GNUTLS_CRT_RAW = 3
-} gnutls_certificate_type_t;
-typedef enum {
-	GNUTLS_X509_FMT_DER = 0,
-	GNUTLS_X509_FMT_PEM = 1
-} gnutls_x509_crt_fmt_t;
-typedef enum
-{
-	GNUTLS_CERT_INVALID = 1<<1,
-	GNUTLS_CERT_REVOKED = 1<<5,
-	GNUTLS_CERT_SIGNER_NOT_FOUND = 1<<6,
-	GNUTLS_CERT_SIGNER_NOT_CA = 1<<7,
-	GNUTLS_CERT_INSECURE_ALGORITHM = 1<<8,
-	GNUTLS_CERT_NOT_ACTIVATED = 1<<9,
-	GNUTLS_CERT_EXPIRED = 1<<10,
-	GNUTLS_CERT_SIGNATURE_FAILURE = 1<<11,
-	GNUTLS_CERT_REVOCATION_DATA_SUPERSEDED = 1<<12,
-	GNUTLS_CERT_UNEXPECTED_OWNER = 1<<14,
-	GNUTLS_CERT_REVOCATION_DATA_ISSUED_IN_FUTURE = 1<<15,
-	GNUTLS_CERT_SIGNER_CONSTRAINTS_FAILURE = 1<<16,
-	GNUTLS_CERT_MISMATCH = 1<<17,
-} gnutls_certificate_status_t;
-typedef enum gnutls_connection_end { GNUTLS_SERVER=1, GNUTLS_CLIENT } gnutls_connection_end_t;
-typedef enum gnutls_credentials_type { GNUTLS_CRD_CERTIFICATE=1, GNUTLS_CRD_ANON, GNUTLS_CRD_SRP } gnutls_credentials_type_t;
-typedef enum gnutls_close_request { GNUTLS_SHUT_RDWR=0, GNUTLS_SHUT_WR=1 } gnutls_close_request_t;
-typedef ssize_t (*gnutls_pull_func) (gnutls_transport_ptr_t, void *, size_t);
-typedef ssize_t (*gnutls_push_func) (gnutls_transport_ptr_t, const void *, size_t);
-
-#define GNUTLS_E_AGAIN -28
-#define GNUTLS_E_CERTIFICATE_ERROR -43
-#define GNUTLS_E_INTERRUPTED -52
-#define GNUTLS_E_PREMATURE_TERMINATION -110
-
-typedef enum
-{
-	GNUTLS_NAME_DNS = 1
-} gnutls_server_name_type_t;
-
-typedef int (VARGS gnutls_certificate_verify_function)(gnutls_session_t session);
-
-#else
 	#include <gnutls/gnutls.h>
 	#if GNUTLS_VERSION_MAJOR >= 3
 		#include <gnutls/abstract.h>
@@ -128,7 +46,6 @@ typedef int (VARGS gnutls_certificate_verify_function)(gnutls_session_t session)
 		#ifndef GNUTLS_SOPREFIX
 			#define GNUTLS_SOPREFIX
 		#endif
-#endif
 
 #if GNUTLS_VERSION_MAJOR >= 3
 #if GNUTLS_VERSION_MAJOR >= 3

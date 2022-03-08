@@ -628,7 +628,8 @@ void SV_UnspawnServer (void)	//terminate the running server.
 		}
 		PR_Deinit();
 #ifdef Q3SERVER
-		SVQ3_ShutdownGame(false);
+		if (q3)
+			q3->sv.ShutdownGame(false);
 #endif
 #ifdef Q2SERVER
 		SVQ2_ShutdownGameProgs();
@@ -927,14 +928,11 @@ void SV_SpawnServer (const char *server, const char *startspot, qboolean noents,
 //	if (0)
 //	cls.state = ca_connected;
 	Surf_PreNewMap();
-#ifdef VM_CG
-	CG_Stop();
-#endif
 #endif
 
 #ifdef Q3SERVER
 	if (svs.gametype == GT_QUAKE3)
-		SVQ3_ShutdownGame(false);	//botlib kinda mandates this. :(
+		q3->sv.ShutdownGame(false);	//botlib kinda mandates this. :(
 #endif
 
 	Mod_ClearAll ();
@@ -994,7 +992,6 @@ void SV_SpawnServer (const char *server, const char *startspot, qboolean noents,
 		CL_CheckServerInfo();
 #endif
 
-	sv.restarting = false;
 	sv.state = ss_loading;
 #if defined(Q2BSPS)
 	if (usecinematic)
@@ -1162,7 +1159,7 @@ MSV_OpenUserDatabase();
 		newgametype = GT_HALFLIFE;
 #endif
 #ifdef Q3SERVER
-	else if (SVQ3_InitGame(false))
+	else if (q3 && q3->sv.InitGame(&svs, &sv, false))
 		newgametype = GT_QUAKE3;
 #endif
 #ifdef Q2SERVER
@@ -1193,7 +1190,7 @@ MSV_OpenUserDatabase();
 #endif
 #ifdef Q3SERVER
 		if (newgametype != GT_QUAKE3)
-			SVQ3_ShutdownGame(false);
+			q3->sv.ShutdownGame(false);
 #endif
 #ifdef Q2SERVER
 		if (newgametype != GT_QUAKE2)	//we don't want the q2 stuff anymore.
@@ -1403,6 +1400,7 @@ MSV_OpenUserDatabase();
 #endif
 #ifdef Q3SERVER
 	case GT_QUAKE3:
+		Cvar_LockFromServer(&maxclients, maxclients.string);
 		SV_UpdateMaxPlayers(playerslots?playerslots:max(8,maxclients.ival));
 		break;
 #endif
@@ -1764,7 +1762,7 @@ MSV_OpenUserDatabase();
 #ifdef Q3SERVER
 	if (svs.gametype == GT_QUAKE3)
 	{
-		SVQ3_NewMapConnects();
+		q3->sv.NewMapConnects();
 	}
 #endif
 
@@ -1782,6 +1780,11 @@ MSV_OpenUserDatabase();
 	sv.starttime = Sys_DoubleTime() - sv.time;
 #ifdef SAVEDGAMES
 	sv.autosave_time = sv.time + sv_autosave.value*60;
+#endif
+
+#ifdef HAVE_CLIENT
+	//there's a whole load of ugly debug crap there. make sure it stays hidden.
+	Con_ClearNotify();
 #endif
 
 #ifdef __GLIBC__

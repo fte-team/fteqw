@@ -2587,7 +2587,7 @@ void M_Menu_Main_f (void)
 	if (!mainm)
 	{
 		mainm = M_CreateMenu(0);
-		MC_AddRedText(mainm, 16, 170, 0,				"MAIN MENU", false);
+		MC_AddRedText(mainm, 72, 320, 0,				"Main Menu", false);
 
 		y = 36;
 		mainm->selecteditem = (menuoption_t *)

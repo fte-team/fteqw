@@ -1120,10 +1120,10 @@ static void SVM_ProcessUDPPacket(void)
 
 	svm.time = Sys_DoubleTime();
 
-	MSG_BeginReading(msg_nullnetprim);
+	MSG_BeginReading(&net_message, msg_nullnetprim);
 	if (MSG_ReadLong() != -1 || msg_badread)
 	{	//go back to start...
-		MSG_BeginReading(msg_nullnetprim);
+		MSG_BeginReading(&net_message, msg_nullnetprim);
 	}
 	line = MSG_ReadStringLine();
 	s = COM_Parse(line);

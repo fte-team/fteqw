@@ -3872,7 +3872,7 @@ void CL_Say (qboolean team, char *extra)
 
 #ifdef Q3CLIENT
 	if (cls.protocol == CP_QUAKE3)
-		CLQ3_SendClientCommand("%s %s%s", team ? "say_team" : "say", extra?extra:"", sendtext);
+		q3->cl.SendClientCommand("%s %s%s", team ? "say_team" : "say", extra?extra:"", sendtext);
 	else
 #endif
 	{

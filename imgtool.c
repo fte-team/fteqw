@@ -184,7 +184,7 @@ char *COM_SkipPath (const char *pathname)
 #ifdef __unix__
 #include <sys/stat.h>
 #endif
-qbyte *FS_LoadMallocFile (const char *path, size_t *fsize)
+void *FS_LoadMallocFile (const char *path, size_t *fsize)
 {
 	qbyte *data = NULL;
 	FILE *f;

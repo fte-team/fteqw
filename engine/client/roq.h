@@ -39,9 +39,10 @@ typedef struct roq_info_s {
 } roq_info;
 
 /* -------------------------------------------------------------------------- */
-void roq_init(void);
-void roq_cleanup(void);
+//void roq_init(void);
+//void roq_cleanup(void);
 roq_info *roq_open(char *fname);
+void roq_rewind(roq_info *ri);
 void roq_close(roq_info *ri);
 int roq_read_frame(roq_info *ri);
 int roq_read_audio(roq_info *ri);

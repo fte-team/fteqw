@@ -606,7 +606,7 @@ void SV_DropClient (client_t *drop)
 		break;
 	case GT_QUAKE3:
 #ifdef Q3SERVER
-		SVQ3_DropClient(drop);
+		q3->sv.DropClient(drop);
 #endif
 		break;
 	case GT_HALFLIFE:
@@ -657,9 +657,10 @@ void SV_DropClient (client_t *drop)
 	}
 	else
 #endif
-	if (drop->state == cs_spawned || drop->istobeloaded)
+	if (drop->protocol == SCP_BAD)
+		drop->state = cs_free;	//skip zombie state for bots.
+	else if (drop->state == cs_spawned || drop->istobeloaded)
 	{
-		drop->istobeloaded = false;
 		drop->state = cs_zombie;		// become free in a few seconds
 		drop->connection_started = realtime;	// for zombie timeout
 	}
@@ -2170,7 +2171,7 @@ void SV_ClientProtocolExtensionsChanged(client_t *client)
 	case SCP_QUAKE3:
 		if (client->frameunion.q3frames)
 			Z_Free(client->frameunion.q3frames);
-		client->frameunion.q3frames = Z_Malloc(Q3UPDATE_BACKUP*sizeof(*client->frameunion.q3frames));
+		client->frameunion.q3frames = NULL;//Z_Malloc(Q3UPDATE_BACKUP*sizeof(*client->frameunion.q3frames));
 		break;
 #endif
 
@@ -4040,7 +4041,7 @@ qboolean SV_ConnectionlessPacket (void)
 	char	*c;
 	char	adr[MAX_ADR_SIZE];
 
-	MSG_BeginReading (svs.netprim);
+	MSG_BeginReading (&net_message, svs.netprim);
 
 	if (net_message.cursize >= MAX_QWMSGLEN)	//add a null term in message space
 	{
@@ -4096,7 +4097,7 @@ qboolean SV_ConnectionlessPacket (void)
 #ifdef Q3SERVER
 		if (svs.gametype == GT_QUAKE3)
 		{
-			SVQ3_DirectConnect();
+			q3->sv.DirectConnect(&net_from, &net_message);
 			return true;
 		}
 
@@ -4251,7 +4252,7 @@ qboolean SVNQ_ConnectionlessPacket(void)
 	if (!sv_listen_nq.value || SSV_IsSubServer())
 		return false;
 
-	MSG_BeginReading(svs.netprim);
+	MSG_BeginReading(&net_message, svs.netprim);
 	header = LongSwap(MSG_ReadLong());
 	if (!(header & NETFLAG_CTL))
 	{
@@ -4664,7 +4665,7 @@ void SV_ReadPacket(void)
 #ifdef Q3SERVER
 	if (svs.gametype == GT_QUAKE3)
 	{
-		if (SVQ3_HandleClient())
+		if (q3->sv.HandleClient(&net_from, &net_message))
 			inboundsequence++;
 		else if (NET_WasSpecialPacket(svs.sockets))
 			return;
@@ -4674,7 +4675,7 @@ void SV_ReadPacket(void)
 
 	// read the qport out of the message so we can fix up
 	// stupid address translating routers
-	MSG_BeginReading (svs.netprim);
+	MSG_BeginReading (&net_message, svs.netprim);
 	MSG_ReadLong ();		// sequence number
 	MSG_ReadLong ();		// sequence number
 	qport = MSG_ReadShort () & 0xffff;
@@ -4789,7 +4790,7 @@ dominping:
 		return;
 
 #ifdef QWOVERQ3
-	if (sv_listen_q3.ival && SVQ3_HandleClient())
+	if (sv_listen_q3.ival && q3->sv.HandleClient())
 	{
 		received++;
 		continue;
@@ -4905,7 +4906,6 @@ qboolean SV_ReadPackets (float *delay)
 #ifdef HAVE_DTLS
 	NET_DTLS_Timeouts(svs.sockets);
 #endif
-
 
 	if (inboundsequence == oldinboundsequence)
 		return false;	//nothing new.
@@ -5527,7 +5527,8 @@ static void SV_InfoChanged(void *context, const char *key)
 	size_t i;
 
 #ifdef Q3SERVER
-	SVQ3_ServerinfoChanged(key);
+	if (q3)
+		q3->sv.ServerinfoChanged(key);
 #endif
 
 	if (context != &svs.info && *key == '_')

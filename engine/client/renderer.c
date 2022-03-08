@@ -378,7 +378,7 @@ cvar_t r_deluxemapping_cvar					= CVARAFD ("r_deluxemapping", "1", "r_glsl_delux
 cvar_t mod_loadsurfenvmaps					= CVARD ("r_loadsurfenvmaps", "1", "Load local reflection environment-maps, where available. These are normally defined via env_cubemap entities dotted around the place.");
 qboolean r_deluxemapping;
 cvar_t r_shaderblobs						= CVARD ("r_shaderblobs", "0", "If enabled, can massively accelerate vid restarts / loading (especially with the d3d renderer). Can cause issues when upgrading engine versions, so this is disabled by default.");
-cvar_t gl_compress							= CVARFD ("gl_compress", "0", CVAR_ARCHIVE, "Enable automatic texture compression even for textures which are not pre-compressed.");
+cvar_t gl_compress							= CVARAFD ("gl_compress", "0", "r_ext_compressed_textures"/*q3*/, CVAR_ARCHIVE, "Enable automatic texture compression even for textures which are not pre-compressed.");
 cvar_t gl_conback							= CVARFCD ("gl_conback", "",
 												CVAR_RENDERERCALLBACK, R2D_Conback_Callback, "Specifies which conback shader/image to use. The Quake fallback is gfx/conback.lmp");
 //cvar_t gl_detail							= CVARF ("gl_detail", "0",
@@ -440,7 +440,7 @@ cvar_t gl_specular_fallbackexp				= CVARF  ("gl_specular_fallbackexp", "1", CVAR
 cvar_t gl_texture_anisotropic_filtering		= CVARAFCD("gl_texture_anisotropy", "4",
 												"gl_texture_anisotropic_filtering"/*old*/, CVAR_ARCHIVE | CVAR_RENDERERCALLBACK,
 												Image_TextureMode_Callback, "Allows for higher quality textures on surfaces that slope away from the camera (like the floor). Set to 16 or something. Only supported with trilinear filtering.");
-cvar_t gl_texturemode						= CVARFCD("gl_texturemode", "GL_LINEAR_MIPMAP_LINEAR",
+cvar_t gl_texturemode						= CVARAFCD("gl_texturemode", "GL_LINEAR_MIPMAP_LINEAR", "r_texturemode"/*q3*/,
 												CVAR_ARCHIVE | CVAR_RENDERERCALLBACK | CVAR_SAVE, Image_TextureMode_Callback,
 												"Specifies how world/model textures appear. Typically 3 letters eg "S_COLOR_GREEN"nll"S_COLOR_WHITE" or "S_COLOR_GREEN"lll"S_COLOR_WHITE".\nFirst letter can be l(inear) or n(earest) and says how to upscale low-res textures (n for the classic look - often favoured for embedded textures, l for blurry - best for high-res textures).\nThe middle letter can be set to '.' to disable mipmaps, or n for ugly banding with distance, or l for smooth mipmap transitions.\nThe third letter says what to do when the texture is too high resolution, and should generally be set to 'l' to reduce sparkles including when aiming for the classic lego look.");
 cvar_t gl_texture_lodbias					= CVARAFCD("d_lodbias", "0", "gl_texture_lodbias",
@@ -1775,15 +1775,17 @@ TRACE(("dbg: R_ApplyRenderer: starting on client state\n"));
 	if (!isDedicated)
 		S_DoRestart(true);
 
+#ifdef VM_UI
+	if (q3)
+		q3->ui.Reset();
+#endif
+
 #ifdef Q3SERVER
 	if (svs.gametype == GT_QUAKE3)
 	{
 		cl.worldmodel = NULL;
-		CG_Stop();
-		memset(cl.model_precache, 0, sizeof(cl.model_precache));
-		CG_Start();
-		if (cl.worldmodel)
-			Surf_NewMap();
+		if (q3)
+			q3->cg.VideoRestarted();
 	}
 	else
 #endif
@@ -1847,9 +1849,7 @@ TRACE(("dbg: R_ApplyRenderer: done the models\n"));
 //				Con_Printf ("You may need to download or purchase a client pack in order to play on this server.\n\n");
 
 				CL_Disconnect ("Worldmodel missing after video reload");
-#ifdef VM_UI
-				UI_Reset();
-#endif
+
 				if (newr)
 					memcpy(&currentrendererstate, newr, sizeof(currentrendererstate));
 				return true;
@@ -1862,18 +1862,12 @@ TRACE(("dbg: R_ApplyRenderer: checking any wad textures\n"));
 			cl_static_entities[i].ent.model = NULL;
 
 TRACE(("dbg: R_ApplyRenderer: Surf_NewMap\n"));
-		Surf_NewMap();
+		Surf_NewMap(cl.worldmodel);
 TRACE(("dbg: R_ApplyRenderer: efrags\n"));
 
 //		Skin_FlushAll();
 		Skin_FlushPlayers();
 
-	}
-	else
-	{
-#ifdef VM_UI
-		UI_Reset();
-#endif
 	}
 
 #ifdef SKELETALOBJECTS

@@ -789,7 +789,7 @@ void P_Shutdown(void)
 //0 says hit nothing.
 //1 says hit world
 //>1 says hit some entity
-entity_t *TraceLineR (vec3_t start, vec3_t end, vec3_t impact, vec3_t normal)
+entity_t *TraceLineR (vec3_t start, vec3_t end, vec3_t impact, vec3_t normal, qboolean bsponly)
 {
 	trace_t		trace;
 	float len, bestlen;
@@ -827,9 +827,11 @@ entity_t *TraceLineR (vec3_t start, vec3_t end, vec3_t impact, vec3_t normal)
 			pe = &r_worldentity;
 		else
 			pe = &cl_visedicts[i];
-		if (pe->rtype != RT_MODEL || pe->shaderRGBAf[3] < 1 || (pe->flags & (RF_ADDITIVE|RF_NODEPTHTEST|RF_TRANSLUCENT|RF_EXTERNALMODEL)))
+		if (pe->rtype != RT_MODEL || !pe->model || (pe->shaderRGBAf[3] < 1&&(pe->flags&RF_TRANSLUCENT)) || (pe->flags & (RF_ADDITIVE|RF_NODEPTHTEST|RF_TRANSLUCENT|RF_EXTERNALMODEL)))
 			continue;
-		if (pe->model && pe->model->funcs.NativeTrace && pe->model->loadstate == MLS_LOADED)
+		if (bsponly && pe->model->type != mod_brush)
+			continue;
+		if (pe->model->funcs.NativeTrace && pe->model->loadstate == MLS_LOADED)
 		{
 			//try to trivially reject the mesh.
 			float ext = 0;

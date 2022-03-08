@@ -608,7 +608,7 @@ static void R_SetupGL (vec3_t eyeangorg[2], vec4_t fovoverrides, float projmatri
 			if (r_refdef.useperspective)
 			{
 				float maxdist = r_refdef.maxdist;
-				if (gl_stencilbits && Sh_StencilShadowsActive())
+				if (sh_config.stencilbits && Sh_StencilShadowsActive())
 					maxdist = 0;	//if we're using stencil shadows then force the maxdist to infinite to ensure the shadow volume is sealed.
 				Matrix4x4_CM_Projection_Offset(r_refdef.m_projection_std, fov_l, fov_r, fov_d, fov_u, r_refdef.mindist, maxdist, false);
 				Matrix4x4_CM_Projection_Offset(r_refdef.m_projection_view, -fovv_x/2, fovv_x/2, -fovv_y/2, fovv_y/2, r_refdef.mindist, maxdist, false);

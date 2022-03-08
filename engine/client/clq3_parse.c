@@ -1,6 +1,42 @@
-#include "quakedef.h"
+#include "q3common.h"
 #include "shader.h"
 
+
+
+#include "glquake.h"
+#include "shader.h"
+#include "cl_master.h"
+
+#ifndef STATIC_Q3
+void Cvar_ForceCheatVars(qboolean semicheats, qboolean absolutecheats){}	//locks/unlocks cheat cvars depending on weather we are allowed them.
+//int Cvar_ApplyLatches(int latchflag){return 0;}
+
+unsigned int utf8_decode(int *error, const void *in, char const**out){return 0;}
+
+void Con_PrintFlags(const char *txt, unsigned int setflags, unsigned int clearflags){}
+void Con_ClearNotify (void){}
+
+unsigned int key_dest_mask;
+float in_sensitivityscale;
+void Sys_Clipboard_PasteText(clipboardtype_t clipboardtype, void (*callback)(void *cb, const char *utf8), void *ctx){};	//calls the callback once the text is available (maybe instantly). utf8 arg may be NULL if the clipboard was unavailable.
+void SCR_SetLoadingStage(int stage){}
+void SCR_BeginLoadingPlaque					(void){}
+void SCR_EndLoadingPlaque					(void){}
+
+void Shader_DefaultCinematic	(struct shaderparsestate_s *ps, const char *shortname, const void *args){}
+shader_t *R_RegisterCustom (model_t *mod, const char *name, unsigned int usageflags, shader_gen_t *defaultgen, const void *args){return NULL;}
+cin_t *R_ShaderGetCinematic(shader_t *s){return NULL;}
+void Media_SetState(cin_t *cin, cinstates_t newstate){}
+void R_UnloadShader(shader_t *shader){}
+cinstates_t Media_GetState(cin_t *cin){return 0;}
+void Media_Send_Reset(cin_t *cin){}
+char *CL_TryingToConnect(void){return NULL;}
+
+downloadlist_t *CL_DownloadFailed(const char *name, qdownload_t *qdl, enum dlfailreason_e failreason){return NULL;}
+qboolean DL_Begun(qdownload_t *dl){return 0;}
+void CL_DownloadFinished(qdownload_t *dl){}
+int Sys_EnumerateFiles (const char *gpath, const char *match, int (QDECL *func)(const char *fname, qofs_t fsize, time_t modtime, void *parm, searchpathfuncs_t *spath), void *parm, searchpathfuncs_t *spath){return 0;}
+#endif
 
 //urm, yeah, this is more than just parse.
 
@@ -8,11 +44,12 @@
 
 #include "clq3defs.h"
 
-#define SHOWSTRING(s) if(cl_shownet.value==2)Con_Printf ("%s\n", s);
-#define SHOWNET(x) if(cl_shownet.value==2)Con_Printf ("%3i:%s\n", msg_readcount-1, x);
-#define SHOWNET2(x, y) if(cl_shownet.value==2)Con_Printf ("%3i:%3i:%s\n", msg_readcount-1, y, x);
+#define SHOWSTRING(s) if(cl_shownet_ptr->value==2)Con_Printf ("%s\n", s);
+#define SHOWNET(x) if(cl_shownet_ptr->value==2)Con_Printf ("%3i:%s\n", msg->currentbit-8, x);
+#define SHOWNET2(x, y) if(cl_shownet_ptr->value==2)Con_Printf ("%3i:%3i:%s\n", msg->currentbit-8, y, x);
 
 void MSG_WriteBits(sizebuf_t *msg, int value, int bits);
+static qboolean CLQ3_Netchan_Process(sizebuf_t *msg);
 
 
 ClientConnectionState_t ccs;
@@ -26,7 +63,7 @@ qboolean CG_FillQ3Snapshot(int snapnum, snapshot_t *snapshot)
 
 	if (snapnum > ccs.serverMessageNum)
 	{
-		Host_EndGame("CG_FillQ3Snapshot: snapshotNumber > cl.snap.serverMessageNum");
+		plugfuncs->EndGame("CG_FillQ3Snapshot: snapshotNumber > cl.snap.serverMessageNum");
 	}
 
 	if (ccs.serverMessageNum - snapnum >= Q3UPDATE_BACKUP)
@@ -70,10 +107,10 @@ void CLQ3_ParseServerCommand(void)
 	int		number;
 	char	*string;
 
-	number = MSG_ReadLong();
-	SHOWNET(va("%i", number));
+	number = msgfuncs->ReadLong();
+//	SHOWNET(va("%i", number));
 
-	string = MSG_ReadString();
+	string = msgfuncs->ReadString();
 	SHOWSTRING(string);
 
 	if( number <= ccs.lastServerCommandNum )
@@ -158,16 +195,11 @@ static void CLQ3_ParsePacketEntities( clientSnap_t *oldframe, clientSnap_t *newf
 
 	while( 1 )
 	{
-		newnum = MSG_ReadBits( GENTITYNUM_BITS );
-		if( newnum < 0 || newnum >= MAX_GENTITIES )
-		{
-			Host_EndGame("CLQ3_ParsePacketEntities: bad number %i", newnum);
-		}
-
-		if( msg_readcount > net_message.cursize )
-		{
-			Host_EndGame("CLQ3_ParsePacketEntities: end of message");
-		}
+		newnum = msgfuncs->ReadBits( GENTITYNUM_BITS );
+		if (newnum < 0)
+			plugfuncs->EndGame("CLQ3_ParsePacketEntities: end of message");
+		else if (newnum >= MAX_GENTITIES )
+			plugfuncs->EndGame("CLQ3_ParsePacketEntities: bad number %i", newnum);
 
 		// end of packetentities
 		if( newnum == ENTITYNUM_NONE )
@@ -252,26 +284,23 @@ void CLQ3_ParseSnapshot(void)
 	clientSnap_t	snap, *oldsnap;
 	int				delta;
 	int				len;
-	int				i;
-	outframe_t		*frame;
+//	int				i;
+//	outframe_t		*frame;
 //	usercmd_t		*ucmd;
 //	int				commandTime;
 
 	memset(&snap, 0, sizeof(snap));
 	snap.serverMessageNum = ccs.serverMessageNum;
 	snap.serverCommandNum = ccs.lastServerCommandNum;
-	snap.serverTime = MSG_ReadLong();
+	snap.serverTime = msgfuncs->ReadLong();
 
 	//so we can delta to it properly.
-	cl.oldgametime = cl.gametime;
-	cl.oldgametimemark = cl.gametimemark;
-	cl.gametime = snap.serverTime / 1000.0f;
-	cl.gametimemark = Sys_DoubleTime();
+	clientfuncs->UpdateGameTime(snap.serverTime / 1000.0f);
 
 	// If the frame is delta compressed from data that we
 	// no longer have available, we must suck up the rest of
 	// the frame, but not use it, then ask for a non-compressed message
-	delta = MSG_ReadByte();
+	delta = msgfuncs->ReadByte();
 	if(delta)
 	{
 		snap.deltaFrame = ccs.serverMessageNum - delta;
@@ -306,11 +335,11 @@ void CLQ3_ParseSnapshot(void)
 	}
 
 	// read snapFlags
-	snap.snapFlags = MSG_ReadByte();
+	snap.snapFlags = msgfuncs->ReadByte();
 
 	// read areabits
-	len = MSG_ReadByte();
-	MSG_ReadData(snap.areabits, len );
+	len = msgfuncs->ReadByte();
+	msgfuncs->ReadData(snap.areabits, len );
 
 	// read playerinfo
 	SHOWSTRING("playerstate");
@@ -330,15 +359,15 @@ void CLQ3_ParseSnapshot(void)
 	// Find last usercmd server has processed and calculate snap.ping
 
 	snap.ping = 3;
-	for (i=cls.netchan.outgoing_sequence-1 ; i>cls.netchan.outgoing_sequence-Q3CMD_BACKUP ; i--)
+/*	for (i=ccs.netchan.outgoing_sequence-1 ; i>ccs.netchan.outgoing_sequence-Q3CMD_BACKUP ; i--)
 	{
 		frame = &cl.outframes[i & Q3CMD_MASK];
 		if (frame->server_message_num == snap.deltaFrame)
 		{
-			snap.ping = Sys_Milliseconds() - frame->client_time;
+			snap.ping = plugfuncs->GetMilliseconds() - frame->client_time;
 			break;
 		}
-	}
+	}*/
 
 	memcpy(&ccs.snap, &snap, sizeof(snap));
 	memcpy(&ccs.snapshots[ccs.serverMessageNum & Q3UPDATE_MASK], &snap, sizeof(snap));
@@ -349,37 +378,37 @@ void CLQ3_ParseSnapshot(void)
 #define MAXCHUNKSIZE 65536
 void CLQ3_ParseDownload(void)
 {
-	qdownload_t *dl = cls.download;
+	qdownload_t *dl = ccs.download;
 	unsigned int chunknum;
 	unsigned int chunksize;
 	unsigned char chunkdata[MAXCHUNKSIZE];
 	int i;
 	char *s;
 
-	chunknum = (unsigned short) MSG_ReadShort();
+	chunknum = (unsigned short) msgfuncs->ReadShort();
 	chunknum |= ccs.downloadchunknum&~0xffff;		//add the chunk number, truncated by the network protocol.
 
 	if (!chunknum)
 	{
-		dl->size = (unsigned int)MSG_ReadLong();
-		Cvar_SetValue( Cvar_Get("cl_downloadSize", "0", 0, "Download stuff"), dl->size );
+		dl->size = (unsigned int)msgfuncs->ReadLong();
+		cvarfuncs->SetFloat( cvarfuncs->GetNVFDG("cl_downloadSize", "0", 0, NULL, "Q3 Compat")->name, dl->size );	//so the gamecode knows download progress.
 	}
 
 	if (dl->size == (unsigned int)-1)
 	{	//the only downloads we should be getting is pk3s.
 		//if they're advertised-but-failing then its probably due to permissions rather than file-not-found
-		s = MSG_ReadString();
+		s = msgfuncs->ReadString();
 		CL_DownloadFailed(dl->remotename, dl, DLFAIL_SERVERCVAR);
-		Host_EndGame("%s", s);
+		plugfuncs->EndGame("%s", s);
 		return;
 	}
 
-	chunksize = (unsigned short)MSG_ReadShort();
+	chunksize = (unsigned short)msgfuncs->ReadShort();
 	if (chunksize > MAXCHUNKSIZE)
-		Host_EndGame("Server sent a download chunk of size %i (it's too damn big!)\n", chunksize);
+		plugfuncs->EndGame("Server sent a download chunk of size %i (it's too damn big!)\n", chunksize);
 
 	for (i = 0; i < chunksize; i++)
-		chunkdata[i] = MSG_ReadByte();
+		chunkdata[i] = msgfuncs->ReadByte();
 
 	if (ccs.downloadchunknum != chunknum)	//the q3 client is rather lame.
 	{										//ccs.downloadchunknum holds the chunk number.
@@ -410,9 +439,7 @@ void CLQ3_ParseDownload(void)
 	{
 		CL_DownloadFinished(dl);
 
-		FS_ReloadPackFiles();
-
-		cl.servercount = -1;	//make sure the server resends us that vital gamestate.
+		ccs.servercount = -1;	//make sure the server resends us that vital gamestate.
 		ccs.downloadchunknum = -1;
 		return;
 	}
@@ -437,45 +464,45 @@ static qboolean CLQ3_SendDownloads(char *rc, char *rn)
 		qdownload_t *dl;
 		char localname[MAX_QPATH];
 		char tempname[MAX_QPATH];
+		char filename[MAX_QPATH];
 		char crc[64];
 		vfsfile_t *f;
-		extern cvar_t cl_downloads;
-		rc = COM_ParseOut(rc, crc, sizeof(crc));
-		rn = COM_Parse(rn);
-		if (!*com_token)
+		rc = cmdfuncs->ParseToken(rc, crc, sizeof(crc), NULL);
+		rn = cmdfuncs->ParseToken(rn, filename, sizeof(filename), NULL);
+		if (!*filename)
 			break;
 
-		if (!strchr(com_token, '/'))	//don't let some muppet tell us to download quake3.exe
+		if (!strchr(filename, '/'))	//don't let some muppet tell us to download quake3.exe
 			break;
 
 		//as much as I'd like to use COM_FCheckExists, this stuf is relative to root, not the gamedir.
-		f = FS_OpenVFS(va("%s.pk3", com_token), "rb", FS_ROOT);
+		f = fsfuncs->OpenVFS(va("%s.pk3", filename), "rb", FS_ROOT);
 		if (f)
 		{
 			VFS_CLOSE(f);
 			continue;
 		}
-		if (!FS_GenCachedPakName(va("%s.pk3", com_token), crc, localname, sizeof(localname)))
+		if (!fsfuncs->GenCachedPakName(va("%s.pk3", filename), crc, localname, sizeof(localname)))
 			continue;
-		f = FS_OpenVFS(localname, "rb", FS_ROOT);
+		f = fsfuncs->OpenVFS(localname, "rb", FS_ROOT);
 		if (f)
 		{
 			VFS_CLOSE(f);
 			continue;
 		}
 
-		if (!FS_GenCachedPakName(va("%s.tmp", com_token), crc, tempname, sizeof(tempname)))
+		if (!fsfuncs->GenCachedPakName(va("%s.tmp", filename), crc, tempname, sizeof(tempname)))
 			continue;
 
-		if (!cl_downloads.ival)
+		if (!cvarfuncs->GetFloat("cl_downloads"))
 		{
-			Con_Printf(CON_WARNING "Need to download %s.pk3, but downloads are disabled\n", com_token);
+			Con_Printf(CON_WARNING "Need to download %s.pk3, but downloads are disabled\n", filename);
 			continue;
 		}
 
 		//fixme: request to download it
-		Con_Printf("Sending request to download %s.pk3\n", com_token);
-		CLQ3_SendClientCommand("download %s.pk3", com_token);
+		Con_Printf("Sending request to download %s.pk3\n", filename);
+		CLQ3_SendClientCommand("download %s.pk3", filename);
 		ccs.downloadchunknum = 0;
 		dl = Z_Malloc(sizeof(*dl));
 		//q3's downloads are relative to root, but they do at least force a pk3 extension.
@@ -484,84 +511,73 @@ static qboolean CLQ3_SendDownloads(char *rc, char *rn)
 		dl->prefixbytes = 8;
 		dl->fsroot = FS_ROOT;
 
-		Q_snprintfz(dl->remotename, sizeof(dl->remotename), "%s.pk3", com_token);
+		Q_snprintfz(dl->remotename, sizeof(dl->remotename), "%s.pk3", filename);
 		dl->method = DL_Q3;
 		dl->percent = 0;
-		cls.download = dl;
+		ccs.download = dl;
 		return true;
 	}
 	return false;
 }
 
-qboolean CLQ3_SystemInfoChanged(char *str)
+qboolean CLQ3_SystemInfoChanged(const char *str)
 {
 	qboolean usingpure, usingcheats;
 	char *value;
 	char *pc, *pn;
 	char *rc, *rn;
 
-	Con_Printf("Server's sv_pure: \"%s\"\n", Info_ValueForKey(str, "sv_pure"));
-	usingpure = atoi(Info_ValueForKey(str, "sv_pure"));
-	usingcheats = atoi(Info_ValueForKey(str, "sv_cheats"));
+	Con_Printf("Server's sv_pure: \"%s\"\n", worldfuncs->GetInfoKey(str, "sv_pure"));
+	usingpure = atoi(worldfuncs->GetInfoKey(str, "sv_pure"));
+	usingcheats = atoi(worldfuncs->GetInfoKey(str, "sv_cheats"));
 	Cvar_ForceCheatVars(usingpure||usingcheats, usingcheats);
 
-//		if (atoi(value))
-//			Host_EndGame("Unable to connect to Q3 Pure Servers\n");
-	value = Info_ValueForKey(str, "fs_game");
+//	if (atoi(value))
+//		Host_EndGame("Unable to connect to Q3 Pure Servers\n");
+	value = worldfuncs->GetInfoKey(str, "fs_game");
 
-#ifndef CLIENTONLY
-	if (!sv.state)
-#endif
+	if (!*value)
 	{
-		COM_FlushTempoaryPacks();
-		if (!*value)
-			value = "baseq3";
-		COM_Gamedir(value, NULL);
-#ifndef CLIENTONLY
-		InfoBuf_SetStarKey (&svs.info, "*gamedir", value);
-#endif
+		value = "baseq3";
 	}
 
-	rc = Info_ValueForKey(str, "sv_referencedPaks");	//the ones that we should download.
-	rn = Info_ValueForKey(str, "sv_referencedPakNames");
+	rc = worldfuncs->GetInfoKey(str, "sv_referencedPaks");	//the ones that we should download.
+	rn = worldfuncs->GetInfoKey(str, "sv_referencedPakNames");
 	if (CLQ3_SendDownloads(rc, rn))
 		return false;
 
-	pc = Info_ValueForKey(str, "sv_paks");		//the ones that we are allowed to use (in order!)
-	pn = Info_ValueForKey(str, "sv_pakNames");
-	FS_PureMode(usingpure?2:0, pn, pc, rn, rc, ccs.fs_key);
+	pc = worldfuncs->GetInfoKey(str, "sv_paks");		//the ones that we are allowed to use (in order!)
+	pn = worldfuncs->GetInfoKey(str, "sv_pakNames");
+	fsfuncs->PureMode(value, usingpure?2:0, pn, pc, rn, rc, ccs.fs_key);
 
 	return true;	//yay, we're in
 }
 
-void CLQ3_ParseGameState(void)
+void CLQ3_ParseGameState(sizebuf_t *msg)
 {
 	int		c;
 	int		index;
 	char	*configString;
-	cvar_t *cl_paused;
 
 //
 // wipe the client_state_t struct
 //
-	CL_ClearState(true);
+	clientfuncs->ClearClientState();
+	CG_ClearGameState();
 	ccs.firstParseEntity = 0;
 	memset(ccs.parseEntities, 0, sizeof(ccs.parseEntities));
 	memset(ccs.baselines, 0, sizeof(ccs.baselines));
 
-
-	cl.minpitch = -90;
-	cl.maxpitch = 90;
-
-	ccs.lastServerCommandNum = MSG_ReadLong();
+	ccs.lastServerCommandNum = msgfuncs->ReadLong();
 
 	for(;;)
 	{
-		c = MSG_ReadByte();
+		c = msgfuncs->ReadByte();
 
-		if(msg_badread)
+		if(c < 0)
 		{
-			Host_EndGame("CLQ3_ParseGameState: read past end of server message");
+			plugfuncs->EndGame("CLQ3_ParseGameState: read past end of server message");
+			break;
 		}
 
 		if(c == svcq3_eom)
@@ -574,33 +590,33 @@ void CLQ3_ParseGameState(void)
 		switch(c)
 		{
 		default:
-			Host_EndGame("CLQ3_ParseGameState: bad command byte %i", c);
+			plugfuncs->EndGame("CLQ3_ParseGameState: bad command byte %i", c);
 			break;
 
 		case svcq3_configstring:
-			index = MSG_ReadBits(16);
+			index = msgfuncs->ReadBits(16);
 			if (index < 0 || index >= MAX_Q3_CONFIGSTRINGS)
 			{
-				Host_EndGame("CLQ3_ParseGameState: configString index %i out of range", index);
+				plugfuncs->EndGame("CLQ3_ParseGameState: configString index %i out of range", index);
 			}
-			configString = MSG_ReadString();
+			configString = msgfuncs->ReadString();
 
 			CG_InsertIntoGameState(index, configString);
 			break;
 
 		case svcq3_baseline:
-			index = MSG_ReadBits(GENTITYNUM_BITS);
+			index = msgfuncs->ReadBits(GENTITYNUM_BITS);
 			if (index < 0 || index >= MAX_GENTITIES)
 			{
-				Host_EndGame("CLQ3_ParseGameState: baseline index %i out of range", index);
+				plugfuncs->EndGame("CLQ3_ParseGameState: baseline index %i out of range", index);
 			}
 			MSG_Q3_ReadDeltaEntity(NULL, &ccs.baselines[index], index);
 			break;
 		}
 	}
 
-	cl.playerview[0].playernum = MSG_ReadLong();
-	ccs.fs_key = MSG_ReadLong();
+	ccs.playernum = msgfuncs->ReadLong();
+	ccs.fs_key = msgfuncs->ReadLong();
 
 	if (!CLQ3_SystemInfoChanged(CG_GetConfigString(CFGSTR_SYSINFO)))
 	{
@@ -608,56 +624,48 @@ void CLQ3_ParseGameState(void)
 		return;
 	}
 
-	CG_Restart_f();
+	CG_Restart();
 	UI_Restart_f();
 
-	if (!cl.worldmodel)
-		Host_EndGame("CGame didn't set a map.\n");
+	if (!ccs.worldmodel)
+		plugfuncs->EndGame("CGame didn't set a map.\n");
 
-	cl.model_precaches_added = false;
-	Surf_NewMap ();
+	scenefuncs->NewMap (ccs.worldmodel);
 
 	SCR_EndLoadingPlaque();
 
-	CL_MakeActive("Quake3Arena");
-
-	cl.splitclients = 1;
+	ccs.state = ca_active;
 
 	{
 		char buffer[2048];
-		strcpy(buffer, va("cp %i ", cl.servercount));
-		FSQ3_GenerateClientPacksList(buffer, sizeof(buffer), ccs.fs_key);
+		strcpy(buffer, va("cp %i ", ccs.servercount));
+		fsfuncs->GenerateClientPacksList(buffer, sizeof(buffer), ccs.fs_key);
 		CLQ3_SendClientCommand("%s", buffer); // warning: format not a string literal and no format arguments
 	}
 
 	// load cgame, etc
 //	CL_ChangeLevel();
 
-	cl_paused = Cvar_FindVar("cl_paused");
-	if (cl_paused && cl_paused->ival)
-		Cvar_ForceSet(cl_paused, "0");
-
+	cvarfuncs->ForceSetString("cl_paused", "0");
 }
 
-void CLQ3_ParseServerMessage (void)
+int CLQ3_ParseServerMessage (sizebuf_t *msg)
 {
 	int cmd;
-	if (!CLQ3_Netchan_Process())
-		return;	//was a fragment.
+	if (!CLQ3_Netchan_Process(msg))
+		return ccs.state;	//was a fragment.
 
-	if (cl_shownet.value == 1)
-		Con_Printf ("%i ",net_message.cursize);
-	else if (cl_shownet.value == 2)
+	if (cl_shownet_ptr->value == 1)
+		Con_Printf ("%i ", msg->cursize);
+	else if (cl_shownet_ptr->value == 2)
 		Con_Printf ("------------------\n");
 
-	net_message.packing = SZ_RAWBYTES;
-	MSG_BeginReading(msg_nullnetprim);
-	ccs.serverMessageNum = MSG_ReadLong();
-	net_message.packing = SZ_HUFFMAN;	//the rest is huffman compressed.
-	net_message.currentbit = msg_readcount*8;
+	msgfuncs->BeginReading(msg, msg_nullnetprim);
+	ccs.serverMessageNum = msgfuncs->ReadLong();
+	msg->packing = SZ_HUFFMAN;	//the rest is huffman compressed.
 
 	// read last client command number server received
-	ccs.lastClientCommandNum = MSG_ReadLong();
+	ccs.lastClientCommandNum = msgfuncs->ReadLong();
 	if( ccs.lastClientCommandNum <= ccs.numClientCommands - Q3TEXTCMD_BACKUP )
 	{
 		ccs.lastClientCommandNum = ccs.numClientCommands - Q3TEXTCMD_BACKUP + 1;
@@ -672,11 +680,11 @@ void CLQ3_ParseServerMessage (void)
 //
 	for(;;)
 	{
-		cmd = MSG_ReadByte();
+		cmd = msgfuncs->ReadByte();
 
-		if(msg_badread)	//hm, we have an eom, so only stop when the message is bad.
+		if(cmd < 0)	//hm, we have an eom, so only stop when the message is bad.
 		{
-			Host_EndGame("CLQ3_ParseServerMessage: read past end of server message");
+			plugfuncs->EndGame("CLQ3_ParseServerMessage: read past end of server message");
 			break;
 		}
 
@@ -692,12 +700,12 @@ void CLQ3_ParseServerMessage (void)
 		switch(cmd)
 		{
 		default:
-			Host_EndGame("CLQ3_ParseServerMessage: Illegible server message");
+			plugfuncs->EndGame("CLQ3_ParseServerMessage: Illegible server message");
 			break;
 		case svcq3_nop:
 			break;
 		case svcq3_gamestate:
-			CLQ3_ParseGameState();
+			CLQ3_ParseGameState(msg);
 			break;
 		case svcq3_serverCommand:
 			CLQ3_ParseServerCommand();
@@ -710,71 +718,58 @@ void CLQ3_ParseServerMessage (void)
 			break;
 		}
 	}
+	return ccs.state;
 }
 
 
 
 
-qboolean CLQ3_Netchan_Process(void)
+static qboolean CLQ3_Netchan_Process(sizebuf_t *msg)
 {
-#ifndef Q3_NOENCRYPT
-	int		sequence;
-	int		lastClientCommandNum;
-	qbyte	bitmask;
-	qbyte	c;
-	int		i, j;
-	char	*string;
-	int		bit;
-	int		readcount;
-#endif
-
-	if(!Netchan_ProcessQ3(&cls.netchan))
+	if(Netchan_ProcessQ3(&ccs.netchan, msg))
 	{
-		return false;
-	}
-
 #ifndef Q3_NOENCRYPT
-	// archive buffer state
-	bit = net_message.currentbit;
-	readcount = msg_readcount;
-	net_message.packing = SZ_HUFFMAN;
-	net_message.currentbit = 32;
+		int		sequence;
+		int		lastClientCommandNum;
+		qbyte	bitmask;
+		qbyte	c;
+		int		i, j;
+		char	*string;
+		int		readcount;
 
-	lastClientCommandNum = MSG_ReadLong();
-	sequence = LittleLong(*(int *)net_message.data);
+		msgfuncs->BeginReading(msg, msg_nullnetprim);
+		sequence = msgfuncs->ReadLong();
+		msg->packing = SZ_HUFFMAN;
+		readcount = msg->currentbit>>3;
+		lastClientCommandNum = msgfuncs->ReadLong();
 
-	// restore buffer state
-	net_message.currentbit = bit;
-	msg_readcount = readcount;
+		// calculate bitmask
+		bitmask = (sequence ^ ccs.challenge) & 0xff;
+		string = ccs.clientCommands[lastClientCommandNum & Q3TEXTCMD_MASK];
 
-	// calculate bitmask
-	bitmask = (sequence ^ cls.challenge) & 0xff;
-	string = ccs.clientCommands[lastClientCommandNum & Q3TEXTCMD_MASK];
-
-	// decrypt the packet
-	for(i=msg_readcount+4,j=0 ; i<net_message.cursize ; i++,j++)
-	{
-		if(!string[j])
+		// decrypt the packet
+		for(i=readcount+4,j=0 ; i<msg->cursize ; i++,j++)
 		{
-			j = 0; // another way around
+			if(!string[j])
+				j = 0; // another way around
+			c = string[j];
+			if(c > 127 || c == '%')
+				c = '.';
+			bitmask ^= c << ((i-readcount) & 1);
+			msg->data[i] ^= bitmask;
 		}
-		c = string[j];
-		if(c > 127 || c == '%')
-		{
-			c = '.';
-		}
-		bitmask ^= c << ((i-msg_readcount) & 1);
-		net_message.data[i] ^= bitmask;
-	}
+		msg->packing = SZ_RAWBITS;	//first bit was plain...
 #endif
-
-	return true;
+		return true;	//all good
+	}
+	return false;	//its bad dude, bad.
 }
 
-void CL_Netchan_Transmit( int length, const qbyte *data )
+void CL_Netchan_Transmit(struct ftenet_connections_s *socket, int length, const qbyte *data )
 {
-#define msg net_message
 #ifndef Q3_NOENCRYPT
+	sizebuf_t msg;
+	char msgdata[MAX_OVERALLMSGLEN];
 	int			serverid;
 	int			lastSequence;
 	int			lastServerCommandNum;
@@ -782,47 +777,45 @@ void CL_Netchan_Transmit( int length, const qbyte *data )
 	qbyte		c;
 	int			i, j;
 	char		*string;
-#endif
-	net_message.cursize = 0;
-	SZ_Write(&msg, data, length);
 
-	if(msg.overflowed)
+	msgfuncs->BeginWriting(&msg, msg_nullnetprim, msgdata, sizeof(msgdata));
+	msgfuncs->WriteData(&msg, data, length);
+
+	if (msg.overflowed)
 	{
-		Host_EndGame("Client message overflowed");
+		plugfuncs->EndGame("Client message overflowed");
 	}
 
-#ifndef Q3_NOENCRYPT
-	msg_readcount = 0;
-	msg.currentbit = 0;
+	msgfuncs->BeginReading(&msg, msg_nullnetprim);
 	msg.packing = SZ_HUFFMAN;
 
-	serverid = MSG_ReadLong();
-	lastSequence = MSG_ReadLong();
-	lastServerCommandNum = MSG_ReadLong();
+	serverid = msgfuncs->ReadLong();
+	lastSequence = msgfuncs->ReadLong();
+	lastServerCommandNum = msgfuncs->ReadLong();
 
 	// calculate bitmask
-	bitmask = (lastSequence ^ serverid ^ cls.challenge) & 0xff;
+	bitmask = (lastSequence ^ serverid ^ ccs.challenge) & 0xff;
 	string = ccs.serverCommands[lastServerCommandNum & Q3TEXTCMD_MASK];
 
 	// encrypt the packet
-	for( i=12,j=0 ; i<msg.cursize ; i++,j++ )
+	for (i=12,j=0 ; i<msg.cursize ; i++,j++)
 	{
-		if( !string[j] )
+		if (!string[j])
 		{
 			j = 0; // another way around
 		}
 		c = string[j];
-		if( c > 127 || c == '%' )
+		if (c > 127 || c == '%')
 		{
 			c = '.';
 		}
 		bitmask ^= c << (i & 1);
 		msg.data[i] ^= bitmask;
 	}
+	data = msg.data;
+	length = msg.cursize;
 #endif
-
-	Netchan_TransmitQ3( &cls.netchan, msg.cursize, msg.data );
-#undef msg
+	Netchan_TransmitQ3(socket, &ccs.netchan, length, data);
 }
 
 
@@ -832,12 +825,12 @@ static void MSG_WriteDeltaKey( sizebuf_t *msg, int key, int from, int to, int bi
 {
 	if( from == to )
 	{
-		MSG_WriteBits( msg, 0, 1 );
+		msgfuncs->WriteBits( msg, 0, 1 );
 		return; // unchanged
 	}
 
-	MSG_WriteBits( msg, 1, 1 );
-	MSG_WriteBits( msg, to ^ key, bits );
+	msgfuncs->WriteBits( msg, 1, 1 );
+	msgfuncs->WriteBits( msg, to ^ key, bits );
 }
 
 void MSG_Q3_WriteDeltaUsercmd( sizebuf_t *msg, int key, const usercmd_t *from, const usercmd_t *to )
@@ -845,29 +838,27 @@ void MSG_Q3_WriteDeltaUsercmd( sizebuf_t *msg, int key, const usercmd_t *from, c
 	// figure out how to pack serverTime
 	if( to->servertime - from->servertime < 255 )
 	{
-		MSG_WriteBits(msg, 1, 1);
-		MSG_WriteBits(msg, to->servertime - from->servertime, 8);
+		msgfuncs->WriteBits(msg, 1, 1);
+		msgfuncs->WriteBits(msg, to->servertime - from->servertime, 8);
 	}
 	else
 	{
-		MSG_WriteBits( msg, 0, 1 );
-		MSG_WriteBits( msg, to->servertime, 32);
+		msgfuncs->WriteBits( msg, 0, 1 );
+		msgfuncs->WriteBits( msg, to->servertime, 32);
 	}
 
 	if( !memcmp( (qbyte *)from + 4, (qbyte *)to + 4, sizeof( usercmd_t ) - 4 ) )
 	{
-		MSG_WriteBits(msg, 0, 1);
+		msgfuncs->WriteBits(msg, 0, 1);
 		return; // nothing changed
 	}
-	MSG_WriteBits(msg, 1, 1);
-
 	key ^= to->servertime;
-
+	msgfuncs->WriteBits(msg, 1, 1);
 	MSG_WriteDeltaKey(msg, key, from->angles[0],		to->angles[0],		16);
 	MSG_WriteDeltaKey(msg, key, from->angles[1],		to->angles[1],		16);
 	MSG_WriteDeltaKey(msg, key, from->angles[2],		to->angles[2],		16);
 	MSG_WriteDeltaKey(msg, key, from->forwardmove,		to->forwardmove,	 8);
-	MSG_WriteDeltaKey(msg, key, from->sidemove,			to->sidemove,		 8 );
+	MSG_WriteDeltaKey(msg, key, from->sidemove,			to->sidemove,		 8);
 	MSG_WriteDeltaKey(msg, key, from->upmove,			to->upmove,			 8);
 	MSG_WriteDeltaKey(msg, key, from->buttons,			to->buttons,		16);
 	MSG_WriteDeltaKey(msg, key, from->weapon,			to->weapon,			 8);
@@ -889,27 +880,28 @@ void VARGS CLQ3_SendClientCommand(const char *fmt, ...)
 
 	// check if server will lose some of our clientCommands
 	if(ccs.numClientCommands - ccs.lastClientCommandNum >= Q3TEXTCMD_BACKUP)
-		Host_EndGame("Client command overflow");
+		plugfuncs->EndGame("Client command overflow");
 
 	Q_strncpyz(ccs.clientCommands[ccs.numClientCommands & Q3TEXTCMD_MASK], command, sizeof(ccs.clientCommands[0]));
 	Con_DPrintf("Sending %s\n", command);
 }
 
-void CLQ3_SendCmd(usercmd_t *cmd)
+void CLQ3_SendCmd(struct ftenet_connections_s *socket, usercmd_t *cmd, unsigned int movesequence, double gametime)
 {
 	char *string;
 	int i;
 	char data[MAX_OVERALLMSGLEN];
 	sizebuf_t msg;
-	outframe_t *frame, *oldframe;
+//	outframe_t *frame;
+	unsigned int oldsequence;
 	int cmdcount, key;
-	usercmd_t *to;
-	const usercmd_t *from;
-	extern cvar_t cl_nodelta, cl_c2sdupe;
+	const usercmd_t *to, *from;
+	static usercmd_t nullcmd;
 
 	//reuse the q1 array
-	cmd->servertime = cl.servertime*1000;
+	cmd->servertime = gametime*1000;
 	cmd->weapon = ccs.selected_weapon;
+
 
 	cmd->forwardmove *= 127/400.0f;
 	cmd->sidemove *= 127/400.0f;
@@ -935,59 +927,55 @@ void CLQ3_SendCmd(usercmd_t *cmd)
 	if (Key_Dest_Has(~kdm_game))
 		cmd->buttons |= 2;	//add in the 'at console' button
 
-	cl.outframes[cl.movesequence&Q3CMD_MASK].cmd[0] = *cmd;
-	cl.movesequence++;
-
 	//FIXME: q3 generates a new command every video frame, but a new packet at a more limited rate.
 	//FIXME: we should return here if its not yet time for a network frame.
 
-	frame = &cl.outframes[cls.netchan.outgoing_sequence & Q3CMD_MASK];
-	frame->cmd_sequence = cl.movesequence;
+/*	frame = &cl.outframes[ccs.netchan.outgoing_sequence & Q3CMD_MASK];
+	frame->cmd_sequence = movesequence;
 	frame->server_message_num = ccs.serverMessageNum;
-	frame->server_time = cl.gametime;
-	frame->client_time = Sys_DoubleTime()*1000;
-
+	frame->server_time = gametime;
+	frame->client_time = plugfuncs->GetMilliseconds();
+*/
 	memset(&msg, 0, sizeof(msg));
 	msg.maxsize = sizeof(data);
 	msg.data = data;
 	msg.packing = SZ_HUFFMAN;
 
-	MSG_WriteBits(&msg, cl.servercount, 32);
-	MSG_WriteBits(&msg, ccs.serverMessageNum, 32);
-	MSG_WriteBits(&msg, ccs.lastServerCommandNum, 32);
+	msgfuncs->WriteBits(&msg, ccs.servercount, 32);
+	msgfuncs->WriteBits(&msg, ccs.serverMessageNum, 32);
+	msgfuncs->WriteBits(&msg, ccs.lastServerCommandNum, 32);
 
 	// write clientCommands not acknowledged by server yet
 	for (i=ccs.lastClientCommandNum+1; i<=ccs.numClientCommands; i++)
 	{
-		MSG_WriteBits(&msg, clcq3_clientCommand, 8);
-		MSG_WriteBits(&msg, i, 32);
+		msgfuncs->WriteBits(&msg, clcq3_clientCommand, 8);
+		msgfuncs->WriteBits(&msg, i, 32);
 		string = ccs.clientCommands[i & Q3TEXTCMD_MASK];
 		while(*string)
-			MSG_WriteBits(&msg, *string++, 8);
-		MSG_WriteBits(&msg, 0, 8);
+			msgfuncs->WriteBits(&msg, *string++, 8);
+		msgfuncs->WriteBits(&msg, 0, 8);
 	}
 
-	i = cls.netchan.outgoing_sequence;
-	i -= bound(0, cl_c2sdupe.ival, 5); //extra age, if desired
+	i = ccs.netchan.outgoing_sequence;
+	i -= bound(0, cl_c2sdupe_ptr->ival, 5); //extra age, if desired
 	i--;
-	if (i < cls.netchan.outgoing_sequence-Q3CMD_MASK)
-		i = cls.netchan.outgoing_sequence-Q3CMD_MASK;
-	oldframe = &cl.outframes[i & Q3CMD_MASK];
-	cmdcount = cl.movesequence - oldframe->cmd_sequence;
+	if (i < ccs.netchan.outgoing_sequence-Q3CMD_MASK)
+		i = ccs.netchan.outgoing_sequence-Q3CMD_MASK;
+	oldsequence = movesequence-1;//cl.outframes[i & Q3CMD_MASK].cmd_sequence;
+	cmdcount = movesequence - oldsequence;
 	if (cmdcount > Q3CMD_MASK)
 		cmdcount = Q3CMD_MASK;
 
 	// begin a client move command, if any
 	if (cmdcount)
 	{
-		if(cl_nodelta.value || !ccs.snap.valid ||
-				ccs.snap.serverMessageNum != ccs.serverMessageNum)
-			MSG_WriteBits(&msg, clcq3_nodeltaMove, 8); // no compression
+		if(cl_nodelta_ptr->value || !ccs.snap.valid || ccs.snap.serverMessageNum != ccs.serverMessageNum)
+			msgfuncs->WriteBits(&msg, clcq3_nodeltaMove, 8); // no compression
 		else
-			MSG_WriteBits(&msg, clcq3_move, 8);
+			msgfuncs->WriteBits(&msg, clcq3_move, 8);
 
 		// write cmdcount
-		MSG_WriteBits(&msg, cmdcount, 8);
+		msgfuncs->WriteBits(&msg, cmdcount, 8);
 
 		// calculate key
 		string = ccs.serverCommands[ccs.lastServerCommandNum & Q3TEXTCMD_MASK];
@@ -996,22 +984,24 @@ void CLQ3_SendCmd(usercmd_t *cmd)
 		//note that q3 uses timestamps so sequences are not important
 		//we can also send dupes without issue.
 		from = &nullcmd;
-		for (i = cl.movesequence-cmdcount; i < cl.movesequence; i++)
+		for (i = movesequence-cmdcount; i < movesequence; i++)
 		{
-			to = &cl.outframes[i&Q3CMD_MASK].cmd[0];
+			to = inputfuncs->GetMoveEntry(i);
+			if (!to)
+				to = from;
 			MSG_Q3_WriteDeltaUsercmd( &msg, key, from, to );
 			from = to;
 		}
 	}
 
-	MSG_WriteBits(&msg, clcq3_eom, 8);
+	msgfuncs->WriteBits(&msg, clcq3_eom, 8);
 
-	CL_Netchan_Transmit( msg.cursize, msg.data );
-	while(cls.netchan.reliable_length)
-		Netchan_TransmitNextFragment(&cls.netchan);
+	CL_Netchan_Transmit(socket, msg.cursize, msg.data );
+	while(ccs.netchan.reliable_length)
+		Netchan_TransmitNextFragment(socket, &ccs.netchan);
 }
 
-void CLQ3_SendAuthPacket(netadr_t *gameserver)
+void CLQ3_SendAuthPacket(struct ftenet_connections_s *socket, netadr_t *gameserver)
 {
 #ifdef HAVE_PACKET
 	char data[2048];
@@ -1021,30 +1011,27 @@ void CLQ3_SendAuthPacket(netadr_t *gameserver)
 //this should be the right code, but it doesn't work.
 	if (gameserver->type == NA_IP)
 	{
-		char *key = Cvar_Get("cl_cdkey", "", 0, "Quake3 auth")->string;
+		char *key = cvarfuncs->GetNVFDG("cl_cdkey", "", CVAR_ARCHIVE, "Quake3 auth", "Q3 Compat")->string;
 		netadr_t authaddr;
 #define	Q3_AUTHORIZE_SERVER_NAME	"authorize.quake3arena.com:27952"
 		if (*key)
 		{
 			Con_Printf("Resolving %s\n", Q3_AUTHORIZE_SERVER_NAME);
-			if (NET_StringToAdr(Q3_AUTHORIZE_SERVER_NAME, 0, &authaddr))
+			if (masterfuncs->StringToAdr(Q3_AUTHORIZE_SERVER_NAME, 0, &authaddr, 1, NULL))
 			{
-				msg.data = data;
-				msg.cursize = 0;
-				msg.overflowed = msg.allowoverflow = 0;
-				msg.maxsize = sizeof(data);
-				MSG_WriteLong(&msg, -1);
-				MSG_WriteString(&msg, "getKeyAuthorize 0 ");
+				msgfuncs->BeginWriting(&msg, msg_nullnetprim, data, sizeof(data));
+				msgfuncs->WriteLong(&msg, -1);
+				msgfuncs->WriteString(&msg, "getKeyAuthorize 0 ");
 				msg.cursize--;
 				while(*key)
 				{
 					if ((*key >= 'a' && *key <= 'z') || (*key >= 'A' && *key <= 'Z') || (*key >= '0' && *key <= '9'))
-						MSG_WriteByte(&msg, *key);
+						msgfuncs->WriteByte(&msg, *key);
 					key++;
 				}
-				MSG_WriteByte(&msg, 0);
+				msgfuncs->WriteByte(&msg, 0);
 
-				NET_SendPacket (cls.sockets, msg.cursize, msg.data, &authaddr);
+				msgfuncs->SendPacket(socket, msg.cursize, msg.data, &authaddr);
 			}
 			else
 				Con_Printf("    failed\n");
@@ -1053,33 +1040,45 @@ void CLQ3_SendAuthPacket(netadr_t *gameserver)
 #endif
 }
 
-void CLQ3_SendConnectPacket(netadr_t *to, int challenge, int qport)
+void CLQ3_SendConnectPacket(struct ftenet_connections_s *socket, netadr_t *to, int challenge, int qport, infobuf_t *userinfo)
 {
 	char infostr[1024];
 	char data[2048];
 	sizebuf_t msg;
+	static const char *priorityq3[] = {"*", "name", NULL};
 	static const char *nonq3[] = {"challenge", "qport", "protocol", "ip", "chat", NULL};
+	int protocol = cvarfuncs->GetFloat("com_protocolversion");
 
 	memset(&ccs, 0, sizeof(ccs));
+	ccs.servercount = -1;
+	ccs.challenge = challenge;
+	Netchan_SetupQ3(NS_CLIENT, &ccs.netchan, to, qport);
 
-	InfoBuf_ToString(&cls.userinfo[0], infostr, sizeof(infostr), basicuserinfos, nonq3, NULL, &cls.userinfosync, &cls.userinfo[0]);
+	worldfuncs->IBufToInfo(userinfo, infostr, sizeof(infostr), priorityq3, nonq3, NULL, NULL,/*&cls.userinfosync,*/ userinfo);
 
-	cl.splitclients = 1;
-	msg.data = data;
-	msg.cursize = 0;
-	msg.overflowed = msg.allowoverflow = 0;
-	msg.maxsize = sizeof(data);
-	MSG_WriteLong(&msg, -1);
-	MSG_WriteString(&msg, va("connect \"\\challenge\\%i\\qport\\%i\\protocol\\%i%s\"", challenge, qport, PROTOCOL_VERSION_Q3, infostr));
+	msgfuncs->BeginWriting(&msg, msg_nullnetprim, data, sizeof(data));
+	msgfuncs->WriteLong(&msg, -1);
+	msgfuncs->WriteString(&msg, va("connect \"\\challenge\\%i\\qport\\%i\\protocol\\%i%s\"", challenge, qport, protocol, infostr));
 #ifdef HUFFNETWORK
-	Huff_EncryptPacket(&msg, 12);
-	if (!Huff_CompressionCRC(HUFFCRC_QUAKE3))
+	if (msgfuncs->Huff_EncryptPacket)
+		msgfuncs->Huff_EncryptPacket(&msg, 12);
+	if (!msgfuncs->Huff_CompressionCRC || !msgfuncs->Huff_CompressionCRC(HUFFCRC_QUAKE3))
 	{
 		Con_Printf("Huffman compression error\n");
 		return;
 	}
 #endif
-	NET_SendPacket (cls.sockets, msg.cursize, msg.data, to);
+	msgfuncs->SendPacket (socket, msg.cursize, msg.data, to);
+}
+
+void CLQ3_Established(void)
+{
+	ccs.state = ca_connected;
+}
+
+void CLQ3_Disconnect(struct ftenet_connections_s *socket)
+{
+	ccs.state = ca_disconnected;
 }
 #endif
 

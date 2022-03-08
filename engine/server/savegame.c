@@ -2114,7 +2114,7 @@ qboolean SV_Loadgame (const char *unsafe_savename)
 			best = p;
 		}
 	}
-	
+
 	Q_snprintfz (filename, sizeof(filename), savefiles[best].pattern, savename);
 	f = FS_OpenReadLocation(filename, &savefiles[best].loc);
 	if (!f)

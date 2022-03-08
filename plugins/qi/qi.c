@@ -961,30 +961,24 @@ static int QDECL QI_ConExecuteCommand(qboolean isinsecure)
 	return true;
 }
 
-static qboolean QI_ExecuteCommand(qboolean isinsecure)
+static void QI_ExecuteCommand_f(void)
 {
 	char cmd[256];
-	cmdfuncs->Argv(0, cmd, sizeof(cmd));
-	if (!strcmp(cmd, "qi") || !strcmp(cmd, "quaddicted"))
+	if (cmdfuncs->Argc() > 1)
 	{
-		if (cmdfuncs->Argc() > 1)
-		{
-			cmdfuncs->Args(cmd, sizeof(cmd));
-			QI_UpdateFilter(cmd);
-		}
-		else if (QI_SetupWindow(WINDOWNAME, false))
-		{
-			confuncs->SetActive(WINDOWNAME);
-			return true;
-		}
-
-		if (!thedatabase && dlcontext == -1)
-			filefuncs->Open(DATABASEURL, &dlcontext, 1);
-
-		QI_RefreshMapList(true);
-		return true;
+		cmdfuncs->Args(cmd, sizeof(cmd));
+		QI_UpdateFilter(cmd);
 	}
-	return false;
+	else if (QI_SetupWindow(WINDOWNAME, false))
+	{
+		confuncs->SetActive(WINDOWNAME);
+		return;
+	}
+
+	if (!thedatabase && dlcontext == -1)
+		filefuncs->Open(DATABASEURL, &dlcontext, 1);
+
+	QI_RefreshMapList(true);
 }
 
 void QI_GenPackages(const char *url, vfsfile_t *pipe)
@@ -1013,12 +1007,11 @@ qboolean Plug_Init(void)
 		plugfuncs->ExportFunction("UpdateVideo", QI_UpdateVideo);
 		if (plugfuncs->ExportFunction("Tick", QI_Tick) &&
 			plugfuncs->ExportFunction("Shutdown", QI_Shutdown) &&
-			plugfuncs->ExportFunction("ExecuteCommand", QI_ExecuteCommand) &&
 			plugfuncs->ExportFunction("ConExecuteCommand", QI_ConExecuteCommand) &&
 			plugfuncs->ExportFunction("ConsoleLink", QI_ConsoleLink))
 		{
-			cmdfuncs->AddCommand("qi");
-			cmdfuncs->AddCommand("quaddicted");
+			cmdfuncs->AddCommand("qi", QI_ExecuteCommand_f, "Select or install maps or mods from Quaddicted's database.");
+			cmdfuncs->AddCommand("quaddicted", QI_ExecuteCommand_f, "Select or install maps or mods from Quaddicted's database.");
 			return true;
 		}
 	}

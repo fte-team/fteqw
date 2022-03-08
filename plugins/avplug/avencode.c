@@ -782,66 +782,43 @@ static media_encoder_funcs_t encoderfuncs =
 };
 
 
-qboolean AVEnc_ExecuteCommand(qboolean isinsecure)
+static void AVEnc_Preset_Nvidia_f(void)
 {
-	char cmd[256];
-	cmdfuncs->Argv(0, cmd, sizeof(cmd));
-/*
-	if (!strcmp(cmd, ENCODERNAME"_configure"))
-	{
-menuclear
-menualias menucallback
+	cvarfuncs->SetString("capturedriver", ENCODERNAME);	//be sure to use our encoder
+	cvarfuncs->SetString(ENCODERNAME"_videocodec", "h264_nvenc");
+	cvarfuncs->SetString("capturerate", "60");	//we should be able to cope with it, and the default of 30 sucks
+	cvarfuncs->SetString("capturedemowidth", "1920");	//force a specific size, some codecs need multiples of 16 or whatever.
+	cvarfuncs->SetString("capturedemoheight", "1080");	//so this avoids issues with various video codecs.
 
-menubox 0 0 320 8
-menutext 0 0 "GO GO GO!!!" 		"radio21"
-menutext 0 8 "Fall back" 		"radio22"
-menutext 0 8 "Stick together" 		"radio23"
-menutext 0 16 "Get in position"		"radio24"
-menutext 0 24 "Storm the front"	 	"radio25"
-menutext 0 24 "Report in"	 	"radio26"
-menutext 0 24 "Cancel"	
-		return true;
-	}
-*/
-	if (!strcmp(cmd, ENCODERNAME"_nvidia"))
-	{
-		cvarfuncs->SetString("capturedriver", ENCODERNAME);	//be sure to use our encoder
-		cvarfuncs->SetString(ENCODERNAME"_videocodec", "h264_nvenc");
-		cvarfuncs->SetString("capturerate", "60");	//we should be able to cope with it, and the default of 30 sucks
-		cvarfuncs->SetString("capturedemowidth", "1920");	//force a specific size, some codecs need multiples of 16 or whatever.
-		cvarfuncs->SetString("capturedemoheight", "1080");	//so this avoids issues with various video codecs.
+	cvarfuncs->SetString("capturesound", "1");
+	cvarfuncs->SetString("capturesoundchannels", "2");
+	cvarfuncs->SetString("capturesoundbits", "16");
 
-		cvarfuncs->SetString("capturesound", "1");
-		cvarfuncs->SetString("capturesoundchannels", "2");
-		cvarfuncs->SetString("capturesoundbits", "16");
+	Con_Printf(ENCODERNAME": now configured for nvidia's hardware encoder\n");
+	Con_Printf(ENCODERNAME": use ^[/capture foo.mp4^] or ^[/capturedemo foo.mvd foo.mkv^] commands to begin capturing\n");
+}
+void AVEnc_Preset_Defaults_f(void)
+{	//most formats will end up using the x264 encoder or something
+	cvarfuncs->SetString(ENCODERNAME"_format_force", "");
+	cvarfuncs->SetString(ENCODERNAME"_videocodec", "");
+	cvarfuncs->SetString(ENCODERNAME"_videobitrate", "");
+	cvarfuncs->SetString(ENCODERNAME"_videoforcewidth", "");
+	cvarfuncs->SetString(ENCODERNAME"_videoforceheight", "");
+	cvarfuncs->SetString(ENCODERNAME"_videopreset", "veryfast");
+	cvarfuncs->SetString(ENCODERNAME"_video_crf", "");
+	cvarfuncs->SetString(ENCODERNAME"_audiocodec", "");
+	cvarfuncs->SetString(ENCODERNAME"_audiobitrate", "");
 
-		Con_Printf(ENCODERNAME": now configured for nvidia's hardware encoder\n");
-		Con_Printf(ENCODERNAME": use ^[/capture foo.mp4^] or ^[/capturedemo foo.mvd foo.mkv^] commands to begin capturing\n");
-	}
-	if (!strcmp(cmd, ENCODERNAME"_defaults"))
-	{	//most formats will end up using the x264 encoder or something
-		cvarfuncs->SetString(ENCODERNAME"_format_force", "");
-		cvarfuncs->SetString(ENCODERNAME"_videocodec", "");
-		cvarfuncs->SetString(ENCODERNAME"_videobitrate", "");
-		cvarfuncs->SetString(ENCODERNAME"_videoforcewidth", "");
-		cvarfuncs->SetString(ENCODERNAME"_videoforceheight", "");
-		cvarfuncs->SetString(ENCODERNAME"_videopreset", "veryfast");
-		cvarfuncs->SetString(ENCODERNAME"_video_crf", "");
-		cvarfuncs->SetString(ENCODERNAME"_audiocodec", "");
-		cvarfuncs->SetString(ENCODERNAME"_audiobitrate", "");
+	cvarfuncs->SetString("capturedriver", ENCODERNAME);
+	cvarfuncs->SetString("capturerate", "30");
+	cvarfuncs->SetString("capturedemowidth", "0");
+	cvarfuncs->SetString("capturedemoheight", "0");
+	cvarfuncs->SetString("capturesound", "1");
+	cvarfuncs->SetString("capturesoundchannels", "2");
+	cvarfuncs->SetString("capturesoundbits", "16");
 
-		cvarfuncs->SetString("capturedriver", ENCODERNAME);
-		cvarfuncs->SetString("capturerate", "30");
-		cvarfuncs->SetString("capturedemowidth", "0");
-		cvarfuncs->SetString("capturedemoheight", "0");
-		cvarfuncs->SetString("capturesound", "1");
-		cvarfuncs->SetString("capturesoundchannels", "2");
-		cvarfuncs->SetString("capturesoundbits", "16");
-
-		Con_Printf(ENCODERNAME": capture settings reset to "ENCODERNAME" defaults\n");
-		Con_Printf(ENCODERNAME": Note that some codecs may have restrictions on video sizes\n");
-	}
-	return false;
+	Con_Printf(ENCODERNAME": capture settings reset to "ENCODERNAME" defaults\n");
+	Con_Printf(ENCODERNAME": Note that some codecs may have restrictions on video sizes\n");
 }
 
 
@@ -864,12 +841,10 @@ qboolean AVEnc_Init(void)
 	ffmpeg_audiocodec		= cvarfuncs->GetNVFDG(ENCODERNAME"_audiocodec",			"",				0, "Forces which audio encoder to use. If blank, guesses based upon container defaults.", ENCODERNAME);
 	ffmpeg_audiobitrate		= cvarfuncs->GetNVFDG(ENCODERNAME"_audiobitrate",		"",				0, "Specifies the target audio bitrate", ENCODERNAME);
 
-	if (plugfuncs->ExportFunction("ExecuteCommand", AVEnc_ExecuteCommand))
-	{
-//		cmdfuncs->AddCommand(ENCODERNAME"_configure");
-		cmdfuncs->AddCommand(ENCODERNAME"_nvidia");
-		cmdfuncs->AddCommand(ENCODERNAME"_defaults");
-	}
+//	cmdfuncs->AddCommand(ENCODERNAME"_configure", AVEnc_LoadPreset_f);
+	cmdfuncs->AddCommand(ENCODERNAME"_nvidia", AVEnc_Preset_Nvidia_f, "Attempts to reconfigure video capture to use nvidia's hardware encoder.");
+	cmdfuncs->AddCommand(ENCODERNAME"_defaults", AVEnc_Preset_Defaults_f, "Reconfigures video capture to the "ENCODERNAME" plugin's default settings.");
+	//cmdfuncs->AddCommand(ENCODERNAME"_twitch", AVEnc_Preset_Twitch_f, "Reconfigures video capture to stream to twitch.");
 
 	return true;
 }

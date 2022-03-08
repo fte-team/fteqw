@@ -3424,7 +3424,7 @@ static qboolean Sh_DrawStencilLight(dlight_t *dl, vec3_t colour, vec3_t axis[3],
 				sfrontfail = GL_DECR_WRAP_EXT;
 			}
 		#else
-			sref = (1<<gl_stencilbits)-1; /*this is halved for two-sided stencil support, just in case there's no wrap support*/
+			sref = (1<<sh_config.stencilbits)-1; /*this is halved for two-sided stencil support, just in case there's no wrap support*/
 			sbackfail = GL_DECR;
 			sfrontfail = GL_INCR;
 			if (gl_config.ext_stencil_wrap)
@@ -3935,7 +3935,7 @@ void Sh_CheckSettings(void)
 			else if (!gl_config.arb_depth_texture)
 				Con_DPrintf("Shadowmapping unsupported: No arb_depth_texture\n");
 		}
-		if (gl_stencilbits)
+		if (sh_config.stencilbits)
 			canstencil = true;
 		break;
 #endif

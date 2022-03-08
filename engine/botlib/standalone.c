@@ -163,6 +163,11 @@ int Q_strncasecmp (const char *s1, const char *s2, int n)
 
 	return -1;
 }
+int Q_strcasecmp (const char *s1, const char *s2)
+{
+	return Q_strncasecmp (s1, s2, 0x7fffffff);
+}
+
 int QDECL Q_stricmp (const char *s1, const char *s2)
 {
 	return Q_strncasecmp (s1, s2, 0x7fffffff);
@@ -184,6 +189,7 @@ void QDECL Q_strncpyz(char *d, const char *s, int n)
 	*d='\0';
 }
 
+/*
 char	*QDECL va(char *format, ...)
 {
 #define VA_BUFFER_SIZE 1024
@@ -196,3 +202,4 @@ char	*QDECL va(char *format, ...)
 
 	return string;
 }
+*/

@@ -646,7 +646,7 @@ endif
 SDL_INCLUDES=
 #-I$(LIBS_DIR)/sdl/include -I/usr/include/SDL -I$(LIBS_DIR)/sdl/include/SDL
 BASE_INCLUDES=-I$(CLIENT_DIR) -I$(SERVER_DIR) -I$(COMMON_DIR) -I$(GL_DIR) -I$(D3D_DIR) -I$(PROGS_DIR) -I. 
-BASE_CFLAGS=$(WARNINGFLAGS) $(GNUC_FUNCS) $(BASE_INCLUDES) -I$(LIBS_DIR)/dxsdk9/include -I$(LIBS_DIR)/dxsdk7/include $(SDL_INCLUDES) $(BOTLIB_CFLAGS) $(SVNREVISION)
+BASE_CFLAGS=$(WARNINGFLAGS) $(GNUC_FUNCS) $(BASE_INCLUDES) -I$(LIBS_DIR)/dxsdk9/include -I$(LIBS_DIR)/dxsdk7/include $(SDL_INCLUDES) $(SVNREVISION)
 CLIENT_ONLY_CFLAGS=-DCLIENTONLY
 SERVER_ONLY_CFLAGS=-DSERVERONLY
 JOINT_CFLAGS=
@@ -737,10 +737,7 @@ CLIENT_OBJS = \
 	cl_cam.o	\
 	cl_screen.o	\
 	pr_clcmd.o	\
-	cl_ui.o	\
 	cl_ignore.o \
-	cl_cg.o \
-	clq3_parse.o	\
 	pr_csqc.o	\
 	console.o	\
 	image.o	\
@@ -874,7 +871,6 @@ SERVER_OBJS = 		\
 	savegame.o		\
 	svq2_ents.o 	\
 	svq2_game.o 	\
-	svq3_game.o	\
 	webgen.o		\
 	ftpserver.o		\
 	httpserver.o
@@ -937,7 +933,6 @@ COMMON_OBJS = \
 	r_d3.o	\
 	gl_q2bsp.o		\
 	glmod_doom.o 	\
-	q3common.o	\
 	world.o 		\
 	sv_phys.o 		\
 	sv_move.o 		\
@@ -952,6 +947,11 @@ COMMON_OBJS = \
 ifeq (1,$(USE_BOTLIB))
 	BOTLIB_CFLAGS=-I$(BOTLIB_DIR) -DBOTLIB -DBOTLIB_STATIC
 	BOTLIB_OBJS = 			\
+		clq3_parse.o	\
+		cl_ui.o	\
+		cl_cg.o \
+		svq3_game.o	\
+		q3common.o			\
 		be_aas_bspq3.o		\
 		be_aas_cluster.o	\
 		be_aas_debug.o		\
@@ -1062,7 +1062,7 @@ endif
 SDLCONFIG?=sdl-config
 FTE_FULLTARGET?=sdl$(FTE_TARGET)$(BITS)
 
-GLCL_OBJS=$(GL_OBJS) $(D3DGL_OBJS) $(GLQUAKE_OBJS) $(BOTLIB_OBJS) gl_vidsdl.o snd_sdl.o cd_sdl.o sys_sdl.o in_sdl.o
+GLCL_OBJS=$(GL_OBJS) $(D3DGL_OBJS) $(GLQUAKE_OBJS) gl_vidsdl.o snd_sdl.o cd_sdl.o sys_sdl.o in_sdl.o
 GL_EXE_NAME=../$(EXE_NAME)-gl$(FTE_FULLTARGET)
 GLCL_EXE_NAME=../$(EXE_NAME)cl-gl$(FTE_FULLTARGET)
 
@@ -1083,14 +1083,14 @@ GLB_DIR=gl_$(FTE_FULLTARGET)
 GLCL_DIR=glcl_$(FTE_FULLTARGET)
 SV_DIR?=sv_$(FTE_FULLTARGET)
 
-VKCL_OBJS=$(VKQUAKE_OBJS) $(D3DGL_OBJS) gl_bloom.o $(BOTLIB_OBJS) gl_vidsdl.o snd_sdl.o cd_sdl.o sys_sdl.o in_sdl.o
+VKCL_OBJS=$(VKQUAKE_OBJS) $(D3DGL_OBJS) gl_bloom.o gl_vidsdl.o snd_sdl.o cd_sdl.o sys_sdl.o in_sdl.o
 VK_CFLAGS=-DFTE_SDL $(VKCFLAGS) -DMULTITHREAD `$(SDLCONFIG) --cflags`
 VKB_DIR=vk_$(FTE_FULLTARGET)
 VKCL_DIR=vk_$(FTE_FULLTARGET)
 VK_EXE_NAME=../$(EXE_NAME)-vk$(FTE_FULLTARGET)
 VKCL_EXE_NAME=../$(EXE_NAME)-vkcl$(FTE_FULLTARGET)
 
-SV_OBJS=$(COMMON_OBJS) $(SERVER_OBJS) $(PROGS_OBJS) $(SERVERONLY_OBJS) $(BOTLIB_OBJS) 
+SV_OBJS=$(COMMON_OBJS) $(SERVER_OBJS) $(PROGS_OBJS) $(SERVERONLY_OBJS)
 SV_EXE_NAME=../$(EXE_NAME)-sv$(FTE_FULLTARGET)
 SV_CFLAGS=-DFTE_SDL -DMULTITHREAD `$(SDLCONFIG) --cflags` $(SERVER_ONLY_CFLAGS)
 
@@ -1101,7 +1101,7 @@ MB_DIR=m_$(FTE_FULLTARGET)
 MCL_DIR=mcl_$(FTE_FULLTARGET)
 M_EXE_NAME=../$(EXE_NAME)-$(FTE_FULLTARGET)
 MCL_EXE_NAME=../$(EXE_NAME)-cl$(FTE_FULLTARGET)
-MCL_OBJS=$(D3DGL_OBJS) $(GLQUAKE_OBJS) $(SOFTWARE_OBJS) $(BOTLIB_OBJS) gl_vidsdl.o snd_sdl.o cd_sdl.o sys_sdl.o in_sdl.o 
+MCL_OBJS=$(D3DGL_OBJS) $(GLQUAKE_OBJS) $(SOFTWARE_OBJS) gl_vidsdl.o snd_sdl.o cd_sdl.o sys_sdl.o in_sdl.o 
 M_CFLAGS=-DFTE_SDL $(VKCFLAGS) $(GLCFLAGS) -DMULTITHREAD `$(SDLCONFIG) --cflags`
 
 QCC_DIR=qcc$(BITS)
@@ -1170,7 +1170,7 @@ ifeq ($(FTE_TARGET),nacl)
 	GL_CFLAGS+=-I$(realpath $(NACL_SDK_ROOT)/include)
 	BASELDFLAGS+=-L$(realpath $(NACL_SDK_ROOT)/lib/$(NACLLIBS))
 
-	GLCL_OBJS=$(GL_OBJS) $(D3DGL_OBJS) $(GLQUAKE_OBJS) $(BOTLIB_OBJS) sys_ppapi.o cd_null.o gl_vidppapi.o fs_ppapi.o snd_ppapi.o 
+	GLCL_OBJS=$(GL_OBJS) $(D3DGL_OBJS) $(GLQUAKE_OBJS) sys_ppapi.o cd_null.o gl_vidppapi.o fs_ppapi.o snd_ppapi.o 
 
 	GL_LDFLAGS=$(GLLDFLAGS)
 	M_LDFLAGS=$(GLLDFLAGS)
@@ -1204,7 +1204,7 @@ ifeq (win_SDL,$(findstring win,$(FTE_TARGET))$(findstring _SDL,$(FTE_TARGET)))
 	ARCH_CFLAGS=`$(SDLCONFIG) --cflags`
 	
 	#the defaults for sdl come first
-	GLCL_OBJS=$(GL_OBJS) $(D3DGL_OBJS) $(GLQUAKE_OBJS) $(BOTLIB_OBJS) gl_vidsdl.o snd_sdl.o cd_sdl.o sys_sdl.o in_sdl.o snd_directx.o $(LTO_END) resources.o $(LTO_START)
+	GLCL_OBJS=$(GL_OBJS) $(D3DGL_OBJS) $(GLQUAKE_OBJS) gl_vidsdl.o snd_sdl.o cd_sdl.o sys_sdl.o in_sdl.o snd_directx.o $(LTO_END) resources.o $(LTO_START)
 	GL_EXE_NAME=../$(EXE_NAME)-sdl-gl$(BITS)$(EXEPOSTFIX)
 	GLCL_EXE_NAME=../$(EXE_NAME)-sdl-glcl$(BITS)$(EXEPOSTFIX)
 	ifdef windir
@@ -1226,7 +1226,7 @@ ifeq (win_SDL,$(findstring win,$(FTE_TARGET))$(findstring _SDL,$(FTE_TARGET)))
 	GLB_DIR=gl_mgw_sdl$(BITS)
 	GLCL_DIR=glcl_mgw_sdl$(BITS)
 	
-	SV_OBJS=$(COMMON_OBJS) $(SERVER_OBJS) $(PROGS_OBJS) $(WINDOWSSERVERONLY_OBJS) $(BOTLIB_OBJS) $(LTO_END) resources.o $(LTO_START)
+	SV_OBJS=$(COMMON_OBJS) $(SERVER_OBJS) $(PROGS_OBJS) $(WINDOWSSERVERONLY_OBJS) $(LTO_END) resources.o $(LTO_START)
 	SV_EXE_NAME=../$(EXE_NAME)-sdl-sv$(BITS)$(EXEPOSTFIX)
 	SV_CFLAGS=$(SERVER_ONLY_CFLAGS) -DFTE_SDL
 
@@ -1236,13 +1236,13 @@ ifeq (win_SDL,$(findstring win,$(FTE_TARGET))$(findstring _SDL,$(FTE_TARGET)))
 	MB_DIR=m_mgw_sdl$(BITS)
 	M_EXE_NAME=../$(EXE_NAME)-sdl$(BITS)$(EXEPOSTFIX)
 #with d3d...
-	#MCL_OBJS=$(D3DGL_OBJS) $(GLQUAKE_OBJS) $(SOFTWARE_OBJS) $(D3DQUAKE_OBJS) $(BOTLIB_OBJS) gl_vidsdl.o snd_sdl.o cd_sdl.o sys_sdl.o in_sdl.o snd_directx.o $(LTO_END) resources.o $(LTO_START)
+	#MCL_OBJS=$(D3DGL_OBJS) $(GLQUAKE_OBJS) $(SOFTWARE_OBJS) $(D3DQUAKE_OBJS) gl_vidsdl.o snd_sdl.o cd_sdl.o sys_sdl.o in_sdl.o snd_directx.o $(LTO_END) resources.o $(LTO_START)
 	#M_CFLAGS=$(D3DCFLAGS) $(VKCFLAGS) $(GLCFLAGS) -DFTE_SDL $(CLIENTLIBFLAGS) $(DX7SDK)
 #without d3d...
-	MCL_OBJS=$(D3DGL_OBJS) $(GLQUAKE_OBJS) $(SOFTWARE_OBJS) $(BOTLIB_OBJS) gl_vidsdl.o snd_sdl.o cd_sdl.o sys_sdl.o in_sdl.o snd_directx.o $(LTO_END) resources.o $(LTO_START)
+	MCL_OBJS=$(D3DGL_OBJS) $(GLQUAKE_OBJS) $(SOFTWARE_OBJS) gl_vidsdl.o snd_sdl.o cd_sdl.o sys_sdl.o in_sdl.o snd_directx.o $(LTO_END) resources.o $(LTO_START)
 	M_CFLAGS=$(VKCFLAGS) $(GLCFLAGS) -DFTE_SDL $(CLIENTLIBFLAGS) $(DX7SDK)
 
-	D3DCL_OBJS=$(D3DQUAKE_OBJS) $(BOTLIB_OBJS) snd_sdl.o cd_sdl.o sys_sdl.o in_sdl.o snd_directx.o $(D3DGL_OBJS) $(LTO_END) resources.o $(LTO_START)
+	D3DCL_OBJS=$(D3DQUAKE_OBJS) snd_sdl.o cd_sdl.o sys_sdl.o in_sdl.o snd_directx.o $(D3DGL_OBJS) $(LTO_END) resources.o $(LTO_START)
 	D3D_EXE_NAME=../$(EXE_NAME)-sdl-d3d$(BITS)$(EXEPOSTFIX)
 	D3DCL_EXE_NAME=../$(EXE_NAME)-sdl-d3dcl$(BITS)$(EXEPOSTFIX)
 	D3D_LDFLAGS=$(IMAGELDFLAGS) -lws2_32 -lmingw32 $(SDL_LDFLAGS) -mwindows -ldxguid -lwinmm -lole32
@@ -1251,7 +1251,7 @@ ifeq (win_SDL,$(findstring win,$(FTE_TARGET))$(findstring _SDL,$(FTE_TARGET)))
 	D3DCL_DIR=sdl_d3dcl_mgw$(BITS)
 
 
-	VKCL_OBJS=$(VKQUAKE_OBJS) $(BOTLIB_OBJS) gl_bloom.o gl_vidsdl.o snd_sdl.o cd_sdl.o sys_sdl.o in_sdl.o snd_directx.o $(D3DGL_OBJS) $(LTO_END) resources.o $(LTO_START)
+	VKCL_OBJS=$(VKQUAKE_OBJS) gl_bloom.o gl_vidsdl.o snd_sdl.o cd_sdl.o sys_sdl.o in_sdl.o snd_directx.o $(D3DGL_OBJS) $(LTO_END) resources.o $(LTO_START)
 	VK_EXE_NAME=../$(EXE_NAME)-sdl-vk$(BITS)$(EXEPOSTFIX)
 	VKCL_EXE_NAME=../$(EXE_NAME)-sdl-vkcl$(BITS)$(EXEPOSTFIX)
 	VK_CFLAGS=$(VKCFLAGS) -DFTE_SDL -DNO_XFLIP $(CLIENTLIBFLAGS) $(DX7SDK)
@@ -1358,7 +1358,7 @@ ifeq ($(findstring msvc,$(FTE_TARGET)),msvc)
 	SV_CFLAGS=$(SERVER_ONLY_CFLAGS) $(W32_CFLAGS) -DMULTITHREAD -DMSVCLIBPATH=libs/
 	SV_EXE_NAME=../$(EXE_NAME)-sv$(BITS)$(EXEPOSTFIX)
 	SV_DIR=sv_vc$(BITS)
-	SV_OBJS=$(COMMON_OBJS) $(SERVER_OBJS) $(BOTLIB_OBJS) $(PROGS_OBJS) $(WINDOWSSERVERONLY_OBJS) fs_win32.o resources.o
+	SV_OBJS=$(COMMON_OBJS) $(SERVER_OBJS) $(PROGS_OBJS) $(WINDOWSSERVERONLY_OBJS) fs_win32.o resources.o
 	SV_LDFLAGS=ole32.lib /subsystem:console
 
 	GL_EXE_NAME=../$(EXE_NAME)-gl$(BITS)$(EXEPOSTFIX)
@@ -1367,13 +1367,13 @@ ifeq ($(findstring msvc,$(FTE_TARGET)),msvc)
 	GLCL_DIR=glcl_vc$(BITS)
 	GL_LDFLAGS=$(GLLDFLAGS) $(JPEGLIB) libs/libpng$(BITS).lib uuid.lib gdi32.lib ole32.lib /subsystem:windows
 	GL_CFLAGS=$(GLCFLAGS) $(W32_CFLAGS) -DMULTITHREAD -DMSVCLIBPATH=libs/
-	GLCL_OBJS=$(D3DGL_OBJS) $(GLQUAKE_OBJS) $(BOTLIB_OBJS) gl_vidnt.o $(WINDOWS_OBJS)
+	GLCL_OBJS=$(D3DGL_OBJS) $(GLQUAKE_OBJS) gl_vidnt.o $(WINDOWS_OBJS)
 	GL_OBJS=
 
 	MINGL_DIR=mingl_vc$(BITS)
 	MINGL_EXE_NAME=../$(EXE_NAME)-mingl$(BITS)$(EXEPOSTFIX)
 
-	VKCL_OBJS=$(VKQUAKE_OBJS) $(D3DGL_OBJS) $(BOTLIB_OBJS) gl_bloom.o gl_vidnt.o $(WINDOWS_OBJS)
+	VKCL_OBJS=$(VKQUAKE_OBJS) $(D3DGL_OBJS) gl_bloom.o gl_vidnt.o $(WINDOWS_OBJS)
 	VK_EXE_NAME=../$(EXE_NAME)-vk$(BITS)$(EXEPOSTFIX)
 	VKCL_EXE_NAME=../$(EXE_NAME)-vkcl$(BITS)$(EXEPOSTFIX)
 	VK_CFLAGS=$(VKCFLAGS) $(CLIENTLIBFLAGS) $(DX7SDK) -DMULTITHREAD -DMSVCLIBPATH=libs/
@@ -1381,7 +1381,7 @@ ifeq ($(findstring msvc,$(FTE_TARGET)),msvc)
 	VKB_DIR=vk_vc$(BITS)
 	VKCL_DIR=vkcl_vc$(BITS)
 
-	D3DCL_OBJS=$(D3DQUAKE_OBJS) $(D3DGL_OBJS) $(BOTLIB_OBJS) $(WINDOWS_OBJS)
+	D3DCL_OBJS=$(D3DQUAKE_OBJS) $(D3DGL_OBJS) $(WINDOWS_OBJS)
 	D3D_EXE_NAME=../$(EXE_NAME)-d3d$(BITS)$(EXEPOSTFIX)
 	D3DCL_EXE_NAME=../$(EXE_NAME)-d3dcl$(BITS)$(EXEPOSTFIX)
 	D3D_LDFLAGS=$(JPEGLIB) libs/libpng$(BITS).lib uuid.lib gdi32.lib ole32.lib /subsystem:windows
@@ -1390,7 +1390,7 @@ ifeq ($(findstring msvc,$(FTE_TARGET)),msvc)
 	D3DCL_DIR=d3dcl_vc$(BITS)
 
 	#merged client stuff
-	MCL_OBJS=$(D3DGL_OBJS) $(GLQUAKE_OBJS) $(SOFTWARE_OBJS) $(D3DQUAKE_OBJS) $(BOTLIB_OBJS) gl_vidnt.o gl_videgl.o $(WINDOWS_OBJS)
+	MCL_OBJS=$(D3DGL_OBJS) $(GLQUAKE_OBJS) $(SOFTWARE_OBJS) $(D3DQUAKE_OBJS) gl_vidnt.o gl_videgl.o $(WINDOWS_OBJS)
 	M_EXE_NAME=../$(EXE_NAME)$(BITS)$(EXEPOSTFIX)
 	MCL_EXE_NAME=../$(EXE_NAME)cl$(BITS)$(EXEPOSTFIX)
 	M_CFLAGS=$(GLCFLAGS) $(W32_CFLAGS) $(D3DCFLAGS) $(DX7SDK) $(VKCFLAGS) -DMULTITHREAD $(CLIENTLIBFLAGS)
@@ -1436,11 +1436,11 @@ ifeq (win,$(findstring win,$(FTE_TARGET))$(findstring _SDL,$(FTE_TARGET)))
 	SV_EXE_NAME=../$(EXE_NAME)sv$(BITS)$(EXEPOSTFIX)
 	SV_LDFLAGS=-lws2_32 -lwinmm -lole32
 	SV_DIR=sv_mingw$(BITS)
-	SV_OBJS=$(COMMON_OBJS) $(SERVER_OBJS) $(PROGS_OBJS) $(WINDOWSSERVERONLY_OBJS) $(BOTLIB_OBJS) fs_win32.o $(LTO_END) resources.o $(LTO_START)
+	SV_OBJS=$(COMMON_OBJS) $(SERVER_OBJS) $(PROGS_OBJS) $(WINDOWSSERVERONLY_OBJS) fs_win32.o $(LTO_END) resources.o $(LTO_START)
 	SV_CFLAGS=$(SERVER_ONLY_CFLAGS) $(W32_CFLAGS)
 
 
-	GLCL_OBJS=$(GL_OBJS) $(D3DGL_OBJS) $(GLQUAKE_OBJS) $(BOTLIB_OBJS) gl_vidnt.o $(WINDOWS_OBJS)
+	GLCL_OBJS=$(GL_OBJS) $(D3DGL_OBJS) $(GLQUAKE_OBJS) gl_vidnt.o $(WINDOWS_OBJS)
 	GL_EXE_NAME=../fteglqw$(BITS)$(EXEPOSTFIX)
 	GLCL_EXE_NAME=../fteglqwcl$(BITS)$(EXEPOSTFIX)
 	GL_LDFLAGS=$(GLLDFLAGS) $(IMAGELDFLAGS) -ldxguid -lws2_32 -lwinmm -lgdi32 -lole32 -Wl,--subsystem,windows
@@ -1454,7 +1454,7 @@ ifeq (win,$(findstring win,$(FTE_TARGET))$(findstring _SDL,$(FTE_TARGET)))
 	NPFTE_CFLAGS=$(NPFTECFLAGS) $(W32_CFLAGS) -DMULTITHREAD
 	NPFTEB_DIR=npfte_mgw$(BITS)
 
-	MCL_OBJS=$(D3DGL_OBJS) $(GLQUAKE_OBJS) $(SOFTWARE_OBJS) $(D3DQUAKE_OBJS) $(BOTLIB_OBJS) gl_vidnt.o gl_videgl.o $(WINDOWS_OBJS)
+	MCL_OBJS=$(D3DGL_OBJS) $(GLQUAKE_OBJS) $(SOFTWARE_OBJS) $(D3DQUAKE_OBJS) gl_vidnt.o gl_videgl.o $(WINDOWS_OBJS)
 	M_EXE_NAME=../$(EXE_NAME)$(BITS)$(EXEPOSTFIX)
 	MCL_EXE_NAME=../$(EXE_NAME)cl$(BITS)$(EXEPOSTFIX)
 	M_LDFLAGS=$(GLLDFLAGS) $(IMAGELDFLAGS) -ldxguid -lws2_32 -lwinmm -lgdi32 -lole32 -Wl,--subsystem,windows
@@ -1462,7 +1462,7 @@ ifeq (win,$(findstring win,$(FTE_TARGET))$(findstring _SDL,$(FTE_TARGET)))
 	MB_DIR=m_mgw$(BITS)
 	MCL_DIR=mcl_mgw$(BITS)
 
-	D3DCL_OBJS=$(D3DQUAKE_OBJS) $(D3DGL_OBJS) $(BOTLIB_OBJS) $(WINDOWS_OBJS)
+	D3DCL_OBJS=$(D3DQUAKE_OBJS) $(D3DGL_OBJS) $(WINDOWS_OBJS)
 	D3D_EXE_NAME=../fted3dqw$(BITS)$(EXEPOSTFIX)
 	D3DCL_EXE_NAME=../fted3dclqw$(BITS)$(EXEPOSTFIX)
 	D3D_LDFLAGS=$(IMAGELDFLAGS) -ldxguid -lws2_32 -lwinmm -lgdi32 -lole32 -Wl,--subsystem,windows
@@ -1470,7 +1470,7 @@ ifeq (win,$(findstring win,$(FTE_TARGET))$(findstring _SDL,$(FTE_TARGET)))
 	D3DB_DIR=d3d_mgw$(BITS)
 	D3DCL_DIR=d3dcl_mgw$(BITS)
 
-	VKCL_OBJS=$(GLQUAKE_OBJS) $(D3DGL_OBJS) $(BOTLIB_OBJS) $(WINDOWS_OBJS) gl_vidnt.o
+	VKCL_OBJS=$(GLQUAKE_OBJS) $(D3DGL_OBJS) $(WINDOWS_OBJS) gl_vidnt.o
 	VK_EXE_NAME=../ftevkqw$(BITS)$(EXEPOSTFIX)
 	VKCL_EXE_NAME=../ftevkclqw$(BITS)$(EXEPOSTFIX)
 	VK_LDFLAGS=$(IMAGELDFLAGS) -ldxguid -lws2_32 -lwinmm -lgdi32 -lole32 -Wl,--subsystem,windows
@@ -1508,7 +1508,7 @@ ifeq ($(FTE_TARGET),bsd)
 	SV_LDFLAGS=-lpthread
 	SV_CFLAGS=$(SERVER_ONLY_CFLAGS) -DMULTITHREAD
 
-	GLCL_OBJS=$(GL_OBJS) $(D3DGL_OBJS) $(GLQUAKE_OBJS) $(BOTLIB_OBJS) gl_vidlinuxglx.o snd_linux.o cd_null.o sys_linux.o sys_linux_threads.o
+	GLCL_OBJS=$(GL_OBJS) $(D3DGL_OBJS) $(GLQUAKE_OBJS) gl_vidlinuxglx.o snd_linux.o cd_null.o sys_linux.o sys_linux_threads.o
 	GL_EXE_NAME=../$(EXE_NAME)-gl
 	GLCL_EXE_NAME=../$(EXE_NAME)-glcl
 	GL_LDFLAGS= -L/usr/local/lib $(GLLDFLAGS) $(XLDFLAGS) -lpthread
@@ -1516,7 +1516,7 @@ ifeq ($(FTE_TARGET),bsd)
 	GLB_DIR=gl_bsd
 	GLCL_DIR=glcl_bsd
 
-	MCL_OBJS=$(D3DGL_OBJS) $(GLQUAKE_OBJS) $(SOFTWARE_OBJS) $(BOTLIB_OBJS) gl_vidlinuxglx.o snd_linux.o cd_null.o sys_linux.o sys_linux_threads.o
+	MCL_OBJS=$(D3DGL_OBJS) $(GLQUAKE_OBJS) $(SOFTWARE_OBJS) gl_vidlinuxglx.o snd_linux.o cd_null.o sys_linux.o sys_linux_threads.o
 	M_EXE_NAME=../$(EXE_NAME)
 	MCL_EXE_NAME=../$(EXE_NAME)-cl
 	M_LDFLAGS= -L/usr/local/lib -L/usr/X11R6/lib $(GLLDFLAGS) $(XLDFLAGS) -lpthread
@@ -1577,7 +1577,7 @@ ifneq (,$(findstring linux,$(FTE_TARGET)))
 	NPFTE_CFLAGS=$(NPFTECFLAGS) $(W32_CFLAGS) -DMULTITHREAD -fPIC -DDYNAMIC_LIBPNG -DDYNAMIC_LIBJPEG
 	NPFTEB_DIR=npfte_linux$(BITS)
 
-	GLCL_OBJS=$(GL_OBJS) $(D3DGL_OBJS) $(GLQUAKE_OBJS) $(BOTLIB_OBJS) gl_vidlinuxglx.o gl_vidwayland.o gl_videgl.o snd_pulse.o snd_alsa.o snd_linux.o snd_sdl.o cd_linux.o sys_linux.o sys_linux_threads.o
+	GLCL_OBJS=$(GL_OBJS) $(D3DGL_OBJS) $(GLQUAKE_OBJS) gl_vidlinuxglx.o gl_vidwayland.o gl_videgl.o snd_pulse.o snd_alsa.o snd_linux.o snd_sdl.o cd_linux.o sys_linux.o sys_linux_threads.o
 	GL_EXE_NAME=../$(EXE_NAME)-gl$(BITS)
 	GLCL_EXE_NAME=../$(EXE_NAME)-glcl$(BITS)
 	GL_LDFLAGS=$(GLLDFLAGS) $(XLDFLAGS)
@@ -1585,7 +1585,7 @@ ifneq (,$(findstring linux,$(FTE_TARGET)))
 	GLB_DIR=gl_linux$(BITS)
 	GLCL_DIR=glcl_linux$(BITS)
 
-	VKCL_OBJS=$(GL_OBJS) $(D3DGL_OBJS) $(GLQUAKE_OBJS) $(BOTLIB_OBJS) gl_vidlinuxglx.o gl_vidwayland.o gl_videgl.o snd_pulse.o snd_alsa.o snd_linux.o snd_sdl.o cd_linux.o sys_linux.o sys_linux_threads.o
+	VKCL_OBJS=$(GL_OBJS) $(D3DGL_OBJS) $(GLQUAKE_OBJS) gl_vidlinuxglx.o gl_vidwayland.o gl_videgl.o snd_pulse.o snd_alsa.o snd_linux.o snd_sdl.o cd_linux.o sys_linux.o sys_linux_threads.o
 	VK_EXE_NAME=../$(EXE_NAME)-vk$(BITS)
 	VKCL_EXE_NAME=../$(EXE_NAME)-vkcl$(BITS)
 	VK_LDFLAGS=$(GLLDFLAGS) $(XLDFLAGS)
@@ -1593,7 +1593,7 @@ ifneq (,$(findstring linux,$(FTE_TARGET)))
 	VKB_DIR=vk_linux$(BITS)
 	VKCL_DIR=vkcl_linux$(BITS)
 
-	MCL_OBJS=$(D3DGL_OBJS) $(GLQUAKE_OBJS) $(SOFTWARE_OBJS) $(BOTLIB_OBJS) gl_vidlinuxglx.o gl_vidwayland.o gl_videgl.o snd_linux.o snd_sdl.o snd_pulse.o snd_alsa.o cd_linux.o sys_linux.o sys_linux_threads.o
+	MCL_OBJS=$(D3DGL_OBJS) $(GLQUAKE_OBJS) $(SOFTWARE_OBJS) gl_vidlinuxglx.o gl_vidwayland.o gl_videgl.o snd_linux.o snd_sdl.o snd_pulse.o snd_alsa.o cd_linux.o sys_linux.o sys_linux_threads.o
 	M_EXE_NAME=../$(EXE_NAME)$(BITS)
 	MCL_EXE_NAME=../$(EXE_NAME)-cl$(BITS)
 	M_LDFLAGS=$(GL_LDFLAGS)
@@ -1648,7 +1648,7 @@ ifneq ($(shell echo $(FTE_TARGET)|grep macosx),)
 	endif
 
 	GL_LDFLAGS=-framework AGL -framework OpenGL -framework Cocoa -framework AudioUnit
-	GLCL_OBJS=$(GL_OBJS) $(D3DGL_OBJS) $(GLQUAKE_OBJS) $(BOTLIB_OBJS) gl_vidcocoa.mo gl_vidmacos.o sys_linux.o cd_null.o snd_macos.o sys_linux_threads.o
+	GLCL_OBJS=$(GL_OBJS) $(D3DGL_OBJS) $(GLQUAKE_OBJS) gl_vidcocoa.mo gl_vidmacos.o sys_linux.o cd_null.o snd_macos.o sys_linux_threads.o
 
 	GL_EXE_NAME=../$(EXE_NAME)-macosx-gl$(EXTENSION)$(BITS)
 	GLCL_EXE_NAME=../$(EXE_NAME)cl-macosx-gl$(EXTENSION)$(BITS)
@@ -1657,7 +1657,7 @@ ifneq ($(shell echo $(FTE_TARGET)|grep macosx),)
 	MINGL_EXE_NAME=../$(EXE_NAME)-macosx-mingl$(EXTENSION)$(BITS)
 	MINGL_DIR=mingl_macosx$(EXTENSION)$(BITS)
 	
-	SV_OBJS=$(COMMON_OBJS) $(SERVER_OBJS) $(PROGS_OBJS) $(BOTLIB_OBJS) $(SERVERONLY_OBJS)
+	SV_OBJS=$(COMMON_OBJS) $(SERVER_OBJS) $(PROGS_OBJS) $(SERVERONLY_OBJS)
 	SV_EXE_NAME=../$(EXE_NAME)-macosx-sv$(EXTENSION)$(BITS)
 	SV_CFLAGS=$(SERVER_ONLY_CFLAGS)
 	SV_LDFLAGS=-lz	
@@ -1674,7 +1674,7 @@ ifeq ($(FTE_TARGET),morphos)
 	SV_DIR=sv_morphos
 	SV_LDFLAGS=-ldl -lz
 
-	GLCL_OBJS=$(GL_OBJS) $(D3DGL_OBJS) $(GLQUAKE_OBJS) $(BOTLIB_OBJS) gl_vidmorphos.o in_morphos.o snd_morphos.o cd_null.o sys_morphos.o
+	GLCL_OBJS=$(GL_OBJS) $(D3DGL_OBJS) $(GLQUAKE_OBJS) gl_vidmorphos.o in_morphos.o snd_morphos.o cd_null.o sys_morphos.o
 	GL_EXE_NAME=../$(EXE_NAME)-morphos-gl
 	GLCL_EXE_NAME=../$(EXE_NAME)-morphos-glcl
 	GL_LDFLAGS=$(GLLDFLAGS) -ldl $(IMAGELDFLAGS) -lz
@@ -1682,7 +1682,7 @@ ifeq ($(FTE_TARGET),morphos)
 	GLB_DIR=gl_morphos
 	GLCL_DIR=glcl_morphos
 
-	MCL_OBJS=$(D3DGL_OBJS) $(GLQUAKE_OBJS) $(SOFTWARE_OBJS) $(BOTLIB_OBJS) gl_vidmorphos.o vid_morphos.o in_morphos.o snd_morphos.o cd_null.o sys_morphos.o
+	MCL_OBJS=$(D3DGL_OBJS) $(GLQUAKE_OBJS) $(SOFTWARE_OBJS) gl_vidmorphos.o vid_morphos.o in_morphos.o snd_morphos.o cd_null.o sys_morphos.o
 	M_EXE_NAME=../$(EXE_NAME)-morphos
 	MCL_EXE_NAME=../$(EXE_NAME)-morphos-cl
 	M_LDFLAGS=$(GLLDFLAGS)
@@ -1693,7 +1693,7 @@ ifeq ($(FTE_TARGET),morphos)
 	MINGL_EXE_NAME=../$(EXE_NAME)-morphos-mingl
 	MINGL_DIR=mingl_morphos
 	
-	SV_OBJS=$(COMMON_OBJS) $(SERVER_OBJS) $(PROGS_OBJS) $(SERVERONLY_OBJS) $(BOTLIB_OBJS)
+	SV_OBJS=$(COMMON_OBJS) $(SERVER_OBJS) $(PROGS_OBJS) $(SERVERONLY_OBJS)
 	SV_EXE_NAME=../$(EXE_NAME)-morphos-sv$(BITS)
 	SV_CFLAGS=$(SERVER_ONLY_CFLAGS)	
 endif
@@ -1719,7 +1719,7 @@ ifeq ($(FTE_TARGET),dos)
 	SV_EXE_NAME=../$(EXE_NAME)sv$(BITS)$(EXEPOSTFIX)
 	VK_EXE_NAME=../$(EXE_NAME)-vk$(BITS)$(EXEPOSTFIX)
 
-	VKCL_OBJS=$(GL_OBJS) $(D3DGL_OBJS) $(GLQUAKE_OBJS) $(BOTLIB_OBJS) cd_null.o sys_dos.o snd_sblaster.o
+	VKCL_OBJS=$(GL_OBJS) $(D3DGL_OBJS) $(GLQUAKE_OBJS) cd_null.o sys_dos.o snd_sblaster.o
 endif
 
 ifeq ($(FTE_TARGET),cyg)
@@ -1728,7 +1728,7 @@ ifeq ($(FTE_TARGET),cyg)
 	SV_CFLAGS=$(SERVER_ONLY_CFLAGS)
 
 	EXEPOSTFIX=.exe
-	GLCL_OBJS=$(GL_OBJS) $(D3DGL_OBJS) $(GLQUAKE_OBJS) $(BOTLIB_OBJS) gl_vidlinuxglx.o snd_linux.o cd_null.o sys_linux.o sys_linux_threads.o
+	GLCL_OBJS=$(GL_OBJS) $(D3DGL_OBJS) $(GLQUAKE_OBJS) gl_vidlinuxglx.o snd_linux.o cd_null.o sys_linux.o sys_linux_threads.o
 	GL_EXE_NAME=../$(EXE_NAME)-cyg-gl$(EXEPOSTFIX)
 	GLCL_EXE_NAME=../$(EXE_NAME)-cyg-glcl$(EXEPOSTFIX)
 	GL_LDFLAGS=$(GLLDFLAGS) $(XLDFLAGS) -lz -lltdl
@@ -1736,7 +1736,7 @@ ifeq ($(FTE_TARGET),cyg)
 	GLB_DIR=gl_cygwin
 	GLCL_DIR=glcl_cygwin
 
-	MCL_OBJS=$(D3DGL_OBJS) $(GLQUAKE_OBJS) $(SOFTWARE_OBJS) $(BOTLIB_OBJS) gl_vidlinuxglx.o snd_linux.o cd_null.o sys_linux.o sys_linux_threads.o
+	MCL_OBJS=$(D3DGL_OBJS) $(GLQUAKE_OBJS) $(SOFTWARE_OBJS) gl_vidlinuxglx.o snd_linux.o cd_null.o sys_linux.o sys_linux_threads.o
 	M_EXE_NAME=../$(EXE_NAME)-cyg$(EXEPOSTFIX)
 	MCL_EXE_NAME=../$(EXE_NAME)-cyg-cl$(EXEPOSTFIX)
 	M_LDFLAGS=$(GLLDFLAGS) $(XLDFLAGS) -lz -lltdl
@@ -1761,18 +1761,18 @@ ifeq ($(FTE_TARGET),droid)
 	SV_CFLAGS=$(SERVER_ONLY_CFLAGS) $(W32_CFLAGS)
 	SV_LDFLAGS=
 	SV_DIR=sv_droid-$(DROID_ARCH)
-	SV_OBJS=$(COMMON_OBJS) $(SERVER_OBJS) $(PROGS_OBJS) $(BOTLIB_OBJS) $(SYS_DROID_O)
+	SV_OBJS=$(COMMON_OBJS) $(SERVER_OBJS) $(PROGS_OBJS) $(SYS_DROID_O)
 	SV_EXE_NAME=libftedroid.so
 
 	GL_CFLAGS=$(GLCFLAGS)
 	GL_LDFLAGS=$(GLLDFLAGS) -landroid
-	GLCL_OBJS=$(GL_OBJS) $(D3DGL_OBJS) $(GLQUAKE_OBJS) $(BOTLIB_OBJS) $(GL_DROID_O) cd_null.o snd_droid.o
+	GLCL_OBJS=$(GL_OBJS) $(D3DGL_OBJS) $(GLQUAKE_OBJS) $(GL_DROID_O) cd_null.o snd_droid.o
 	GLB_DIR=gl_droid-$(DROID_ARCH)
 	GL_EXE_NAME=libftedroid.so	
 
 	M_CFLAGS=$(VKCFLAGS) $(GLCFLAGS) -DMULTITHREAD
 	M_LDFLAGS=$(GLLDFLAGS) -landroid -lEGL -lOpenSLES
-	MCL_OBJS=$(GL_OBJS) $(D3DGL_OBJS) $(GLQUAKE_OBJS) $(BOTLIB_OBJS) $(GL_DROID_O) cd_null.o snd_opensl.o
+	MCL_OBJS=$(GL_OBJS) $(D3DGL_OBJS) $(GLQUAKE_OBJS) $(GL_DROID_O) cd_null.o snd_opensl.o
 #snd_droid.o
 	MB_DIR=m_droid-$(DROID_ARCH)
 	M_EXE_NAME=libftedroid.so
@@ -1835,7 +1835,6 @@ ifeq ($(FTE_TARGET),web)
 	CLIENTLDDEPS=
 	SERVERLDDEPS=
 
-	#BOTLIB_CFLAGS=
 	#generate deps properly
 	#DEPCC=
 	#DEPCXX=

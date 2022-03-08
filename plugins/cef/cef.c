@@ -2174,38 +2174,31 @@ int NATIVEEXPORT CefSubprocessInit(plugcorefuncs_t *corefuncs)
 	return Cef_Init(false);
 }
 
-static qintptr_t Cef_ExecuteCommand(qintptr_t *args)
+void Cef_ExecuteCommand(void)
 {
-	char cmd[256];
-	cmdfuncs->Argv(0, cmd, sizeof(cmd));
-	if (!strcmp(cmd, "cef"))
+	if (confuncs && Cef_Init(true))
 	{
-		if (confuncs && Cef_Init(true))
-		{
-			static int sequence;
-			char f[128];
-			char videomap[8192];
-			Q_snprintf(f, sizeof(f), "libcef:%i", ++sequence);
-			newconsole = f;
-			strcpy(videomap, "cef:");
-			cmdfuncs->Argv(1, videomap+4, sizeof(videomap)-4);
-			if (!videomap[4])
-				strcpy(videomap, "cef:http://fte.triptohell.info");
-		
-			confuncs->SetConsoleString(f, "title", videomap+4);
-			confuncs->SetConsoleFloat(f, "iswindow", true);
-			confuncs->SetConsoleFloat(f, "forceutf8", true);
-			confuncs->SetConsoleFloat(f, "wnd_w", 640+16);
-			confuncs->SetConsoleFloat(f, "wnd_h", 480+16+8);
-			confuncs->SetConsoleString(f, "backvideomap", videomap);
-			confuncs->SetConsoleFloat(f, "linebuffered", 2);
-			confuncs->SetActive(f);
+		static int sequence;
+		char f[128];
+		char videomap[8192];
+		Q_snprintf(f, sizeof(f), "libcef:%i", ++sequence);
+		newconsole = f;
+		strcpy(videomap, "cef:");
+		cmdfuncs->Argv(1, videomap+4, sizeof(videomap)-4);
+		if (!videomap[4])
+			strcpy(videomap, "cef:http://fte.triptohell.info");
 
-			newconsole = NULL;
-		}
-		return true;
+		confuncs->SetConsoleString(f, "title", videomap+4);
+		confuncs->SetConsoleFloat(f, "iswindow", true);
+		confuncs->SetConsoleFloat(f, "forceutf8", true);
+		confuncs->SetConsoleFloat(f, "wnd_w", 640+16);
+		confuncs->SetConsoleFloat(f, "wnd_h", 480+16+8);
+		confuncs->SetConsoleString(f, "backvideomap", videomap);
+		confuncs->SetConsoleFloat(f, "linebuffered", 2);
+		confuncs->SetActive(f);
+
+		newconsole = NULL;
 	}
-	return false;
 }
 
 static qboolean QDECL Cef_PluginMayUnload(void)
@@ -2249,8 +2242,7 @@ qboolean Plug_Init(void)
 		return false;
 	}
 
-	if (plugfuncs->ExportFunction("ExecuteCommand", Cef_ExecuteCommand))
-		cmdfuncs->AddCommand("cef");
+	cmdfuncs->AddCommand("cef", Cef_ExecuteCommand, "Open a web page!");
 
 	cef_incognito = cvarfuncs->GetNVFDG("cef_incognito", "0", 0, NULL, "browser settings");
 	cef_allowplugins = cvarfuncs->GetNVFDG("cef_allowplugins", "0", 0, NULL, "browser settings");

@@ -255,6 +255,31 @@ void Sys_Errorf(const char *format, ...)
 	plugfuncs->Error(string);
 }
 
+
+qboolean ZF_ReallocElements(void **ptr, size_t *elements, size_t newelements, size_t elementsize)
+{
+	void *n;
+	size_t oldsize;
+	size_t newsize;
+
+	//protect against malicious overflows
+	if (newelements > SIZE_MAX / elementsize)
+		return false;
+
+	oldsize = *elements * elementsize;
+	newsize = newelements * elementsize;
+
+	n = plugfuncs->Realloc(*ptr, newsize);
+	if (!n)
+		return false;
+	if (newsize > oldsize)
+		memset((char*)n+oldsize, 0, newsize - oldsize);
+	*elements = newelements;
+	*ptr = n;
+	return true;
+}
+
+
 #ifdef __cplusplus
 extern "C"
 #endif

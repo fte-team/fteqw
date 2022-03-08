@@ -867,23 +867,21 @@ static struct {
 	{NULL}
 };
 
-qboolean JCL_ExecuteCommand(qboolean isinsecure)
+static void JCL_ExecuteCommand_f(void)
 {
+	qboolean isinsecure = cmdfuncs->IsInsecure();
 	char cmd[256];
 	cmdfuncs->Argv(0, cmd, sizeof(cmd));
 	if (!strcmp(cmd, COMMANDPREFIX) || !strcmp(cmd, COMMANDPREFIX2) || !strcmp(cmd, COMMANDPREFIX3))
 	{
 		if (!isinsecure || cmdfuncs->Argc() == 1)
 			JCL_Command(0, "");
-		return true;
 	}
-	if (!strncmp(cmd, COMMANDPREFIX, strlen(COMMANDPREFIX)))
+	else if (!strncmp(cmd, COMMANDPREFIX, strlen(COMMANDPREFIX)))
 	{
 		if (!isinsecure || cmdfuncs->Argc() == 1)
 			JCL_Command(atoi(cmd+strlen(COMMANDPREFIX)), "");
-		return true;
 	}
-	return false;
 }
 
 qboolean JCL_ConsoleLink(void);
@@ -903,6 +901,7 @@ static void QDECL JCL_UpdateVideo(int width, int height)
 
 qboolean Plug_Init(void)
 {
+	const char *cmddesc = "XMPP client - ^[/"COMMANDPREFIX" /help^] for help.";
 	jclient_needreadconfig = true;
 
 	confuncs = (plugsubconsolefuncs_t*)plugfuncs->GetEngineInterface(plugsubconsolefuncs_name, sizeof(*confuncs));
@@ -913,8 +912,7 @@ qboolean Plug_Init(void)
 
 	if (netfuncs && filefuncs &&
 		plugfuncs->ExportFunction("Tick", JCL_Frame) &&
-		plugfuncs->ExportFunction("Shutdown", JCL_Shutdown) &&
-		plugfuncs->ExportFunction("ExecuteCommand", JCL_ExecuteCommand))
+		plugfuncs->ExportFunction("Shutdown", JCL_Shutdown))
 	{
 		Con_Printf("XMPP Plugin Loaded. For help, use: ^[/"COMMANDPREFIX" /help^]\n");
 
@@ -931,26 +929,26 @@ qboolean Plug_Init(void)
 		else
 			Con_TrySubPrint = confuncs->SubPrint;
 
-		cmdfuncs->AddCommand(COMMANDPREFIX);
-		cmdfuncs->AddCommand(COMMANDPREFIX2);
-		cmdfuncs->AddCommand(COMMANDPREFIX3);
+		cmdfuncs->AddCommand(COMMANDPREFIX, JCL_ExecuteCommand_f, cmddesc);
+		cmdfuncs->AddCommand(COMMANDPREFIX2, JCL_ExecuteCommand_f, cmddesc);
+		cmdfuncs->AddCommand(COMMANDPREFIX3, JCL_ExecuteCommand_f, cmddesc);
 
-		cmdfuncs->AddCommand(COMMANDPREFIX"0");
-		cmdfuncs->AddCommand(COMMANDPREFIX"1");
-		cmdfuncs->AddCommand(COMMANDPREFIX"2");
-		cmdfuncs->AddCommand(COMMANDPREFIX"3");
-		cmdfuncs->AddCommand(COMMANDPREFIX"4");
-		cmdfuncs->AddCommand(COMMANDPREFIX"5");
-		cmdfuncs->AddCommand(COMMANDPREFIX"6");
-		cmdfuncs->AddCommand(COMMANDPREFIX"7");
+		cmdfuncs->AddCommand(COMMANDPREFIX"0", JCL_ExecuteCommand_f, cmddesc);
+		cmdfuncs->AddCommand(COMMANDPREFIX"1", JCL_ExecuteCommand_f, cmddesc);
+		cmdfuncs->AddCommand(COMMANDPREFIX"2", JCL_ExecuteCommand_f, cmddesc);
+		cmdfuncs->AddCommand(COMMANDPREFIX"3", JCL_ExecuteCommand_f, cmddesc);
+		cmdfuncs->AddCommand(COMMANDPREFIX"4", JCL_ExecuteCommand_f, cmddesc);
+		cmdfuncs->AddCommand(COMMANDPREFIX"5", JCL_ExecuteCommand_f, cmddesc);
+		cmdfuncs->AddCommand(COMMANDPREFIX"6", JCL_ExecuteCommand_f, cmddesc);
+		cmdfuncs->AddCommand(COMMANDPREFIX"7", JCL_ExecuteCommand_f, cmddesc);
 
 		//flags&1 == archive
-		cvarfuncs->Register("xmpp_nostatus",			"0", 0, "xmpp");
-		cvarfuncs->Register("xmpp_showstatusupdates",	"0", 0, "xmpp");
-		cvarfuncs->Register("xmpp_autoacceptjoins",		"0", 0, "xmpp");
-		cvarfuncs->Register("xmpp_autoacceptinvites",	"0", 0, "xmpp");
-		cvarfuncs->Register("xmpp_autoacceptvoice",		"0", 0, "xmpp");
-		cvarfuncs->Register("xmpp_debug",				"0", 0, "xmpp");
+		cvarfuncs->GetNVFDG("xmpp_nostatus",			"0", 0, NULL, "xmpp");
+		cvarfuncs->GetNVFDG("xmpp_showstatusupdates",	"0", 0, NULL, "xmpp");
+		cvarfuncs->GetNVFDG("xmpp_autoacceptjoins",		"0", 0, NULL, "xmpp");
+		cvarfuncs->GetNVFDG("xmpp_autoacceptinvites",	"0", 0, NULL, "xmpp");
+		cvarfuncs->GetNVFDG("xmpp_autoacceptvoice",		"0", 0, NULL, "xmpp");
+		cvarfuncs->GetNVFDG("xmpp_debug",				"0", 0, NULL, "xmpp");
 
 #ifdef JINGLE
 		piceapi = plugfuncs->GetEngineInterface(ICE_API_CURRENT, sizeof(*piceapi));

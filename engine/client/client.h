@@ -919,7 +919,6 @@ typedef struct
 	char				*particle_csname[MAX_CSPARTICLESPRE];
 	int					particle_csprecache[MAX_CSPARTICLESPRE];	//these are actually 1-based, so we can be lazy and do a simple negate.
 
-	qboolean			model_precaches_added;
 	qboolean			particle_ssprecaches;	//says to not try to do any dp-compat hacks.
 	qboolean			particle_csprecaches;	//says to not try to do any dp-compat hacks.
 
@@ -1117,8 +1116,9 @@ extern	qboolean	nomaster;
 //
 void CL_InitDlights(void);
 void CL_FreeDlights(void);
-dlight_t *CL_AllocDlight (int key);
-dlight_t *CL_AllocSlight (void);	//allocates a static light
+dlight_t *CL_AllocDlight (int key);	//allocates or reuses the light with the specified key index
+dlight_t *CL_AllocDlightOrg (int keyidx, vec3_t keyorg); //reuses the light at the specified origin...
+dlight_t *CL_AllocSlight (void);	//allocates a new static light
 dlight_t *CL_NewDlight (int key, const vec3_t origin, float radius, float time, float r, float g, float b);
 dlight_t *CL_NewDlightCube (int key, const vec3_t origin, vec3_t angles, float radius, float time, vec3_t colours);
 void CL_CloneDlight(dlight_t *dl, dlight_t *src);	//copies one light to another safely
@@ -1196,7 +1196,7 @@ extern char emodel_name[], pmodel_name[], prespawn_name[], modellist_name[], sou
 
 //CL_TraceLine traces against network(positive)+csqc(negative) ents. returns frac(1 on failure), and impact, normal, ent values
 float CL_TraceLine (vec3_t start, vec3_t end, vec3_t impact, vec3_t normal, int *ent);
-entity_t *TraceLineR (vec3_t start, vec3_t end, vec3_t impact, vec3_t normal);
+entity_t *TraceLineR (vec3_t start, vec3_t end, vec3_t impact, vec3_t normal, qboolean bsponly);
 
 //
 // cl_input
@@ -1444,25 +1444,6 @@ void CL_LinkPacketEntities (void);
 void CL_LinkProjectiles (void);
 void CL_ClearLerpEntsParticleState (void);
 qboolean CL_MayLerp(void);
-
-//
-//clq3_parse.c
-//
-#ifdef Q3CLIENT
-void VARGS CLQ3_SendClientCommand(const char *fmt, ...) LIKEPRINTF(1);
-void CLQ3_SendAuthPacket(netadr_t *gameserver);
-void CLQ3_SendConnectPacket(netadr_t *to, int challenge, int qport);
-void CLQ3_SendCmd(usercmd_t *cmd);
-qboolean CLQ3_Netchan_Process(void);
-void CLQ3_ParseServerMessage (void);
-struct snapshot_s;
-qboolean CG_FillQ3Snapshot(int snapnum, struct snapshot_s *snapshot);
-
-void CG_InsertIntoGameState(int num, char *str);
-void CG_Restart_f(void);
-
-char *CG_GetConfigString(int num);
-#endif
 
 //
 //pr_csqc.c

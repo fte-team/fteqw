@@ -292,7 +292,7 @@ static void SL_ServerDraw (int x, int y, menucustom_t *ths, emenu_t *menu)
 	servertypes_t stype;
 	char adr[MAX_ADR_SIZE];
 
-	if (sb_filtertext.modified != info->filtermodcount)
+	if (sb_filtertext.modifiedcount != info->filtermodcount)
 		CalcFilters(menu);
 
 	si = Master_SortedServer(thisone);
@@ -1097,7 +1097,7 @@ static qboolean SL_SliderKey (menucustom_t *ths, emenu_t *menu, int key, unsigne
 static void CalcFilters(emenu_t *menu)
 {
 	serverlist_t *info = (serverlist_t*)(menu + 1);
-	info->filtermodcount = sb_filtertext.modified;
+	info->filtermodcount = sb_filtertext.modifiedcount;
 
 	Master_ClearMasks();
 

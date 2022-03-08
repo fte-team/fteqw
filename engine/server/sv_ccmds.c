@@ -466,7 +466,7 @@ static int QDECL CompleteMapList (const char *name, qofs_t flags, time_t mtime, 
 	char stripped[64];
 	if (name[5] == 'b' && name[6] == '_')	//skip box models
 		return true;
-	
+
 	COM_StripExtension(name+5, stripped, sizeof(stripped));
 	ctx->cb(stripped, NULL, NULL, ctx);
 	return true;
@@ -530,6 +530,8 @@ variations:
 'changelevel' will not flush the level cache, for h2 compat (won't save current level state in such a situation, as nq would prefer not)
 'gamemap' will save the game to 'save0' after loading, for q2 compat
 'spmap' is for q3 and sets 'gametype' to '2', otherwise identical to 'map'. all other map commands will reset it to '0' if its '2' at the time.
+'spdevmap' forces sv_cheats 1, otherwise spmap
+'devmap' forces sv_cheats 1, otherwise map
 'map_restart' restarts the current map. Name is needed for q3 compat.
 'restart' is an alias for 'map_restart'. Exists for NQ compat, but as an alias for QW mods that tried to use it for mod-specific things.
 
@@ -572,16 +574,16 @@ void SV_Map_f (void)
 #ifdef Q3SERVER
 	qboolean q3singleplayer	= false;	//forces g_gametype to 2 (otherwise clears if it was 2).
 #endif
-
 	qboolean waschangelevel	= false;
 	qboolean mapeditor		= false;
 	int i;
 	char *startspot;
+	const char *cmd = Cmd_Argv(0);
 
 #ifndef SERVERONLY
 	if (!Renderer_Started() && !isDedicated)
 	{
-		Cbuf_AddText(va("wait;%s %s\n", Cmd_Argv(0), Cmd_Args()), Cmd_ExecLevel);
+		Cbuf_AddText(va("wait;%s %s\n", cmd, Cmd_Args()), Cmd_ExecLevel);
 		return;
 	}
 #endif
@@ -592,14 +594,18 @@ void SV_Map_f (void)
 		return;
 #endif
 
-	if (!Q_strcasecmp(Cmd_Argv(0), "map_restart"))
+	if (!Q_strcasecmp(cmd, "map_restart"))
 	{
 		const char *arg = Cmd_Argv(1);
 
 #ifdef Q3SERVER
-		if (sv.state==ss_active && svs.gametype==GT_QUAKE3)
-			if (SVQ3_RestartGamecode())
-				return;
+		Cvar_ApplyLatches(CVAR_MAPLATCH, false);
+		if (sv.state==ss_active && svs.gametype==GT_QUAKE3 && q3->sv.RestartGamecode())
+		{
+			sv.time = sv.world.physicstime;
+			sv.starttime = Sys_DoubleTime() - sv.time;
+			return;
+		}
 #endif
 
 #ifdef SAVEDGAMES
@@ -615,7 +621,8 @@ void SV_Map_f (void)
 				Con_DPrintf ("map_restart delay not implemented yet\n");
 		}
 		Q_strncpyz (level, ".", sizeof(level));
-		startspot = NULL;	//FIXME: startspot forgotten on restart
+		startspot = NULL;
+		isrestart = true;
 
 		//FIXME: if precaches+statics don't change, don't do the whole networking thing.
 	}
@@ -655,15 +662,15 @@ void SV_Map_f (void)
 	}
 
 #ifdef Q3SERVER
-	q3singleplayer = !strcmp(Cmd_Argv(0), "spmap");
+	q3singleplayer = !strncmp(cmd, "sp", 2);
 #endif
 	if ((svs.gametype == GT_PROGS || svs.gametype == GT_Q1QVM) && progstype == PROG_QW)
-		flushparms = !strcmp(Cmd_Argv(0), "spmap");	//quakeworld's map command preserves spawnparms.
+		flushparms = !strncmp(cmd, "sp", 2);	//quakeworld's map command preserves spawnparms. q3 doesn't do parms, so we might as well reuse sp[dev]map to flush in qw
 	else
-		flushparms = !strcmp(Cmd_Argv(0), "map") || !strcmp(Cmd_Argv(0), "spmap"); //[sp]map flushes in nq+h2+q2+etc
+		flushparms = !strcmp(cmd, "map") || !strncmp(cmd, "sp", 2); //[sp]map flushes in nq+h2+q2+etc
 #ifdef SAVEDGAMES
 	newunit = flushparms || (!strcmp(Cmd_Argv(0), "changelevel") && !startspot);
-	q2savetos0 = !strcmp(Cmd_Argv(0), "gamemap") && !isDedicated;	//q2
+	q2savetos0 = !strcmp(cmd, "gamemap") && !isDedicated;	//q2
 #endif
 	mapeditor = !strcmp(Cmd_Argv(0), "mapedit");
 
@@ -876,11 +883,14 @@ void SV_Map_f (void)
 
 #ifdef Q3SERVER
 	{
-		cvar_t *gametype;
+		cvar_t *var, *gametype;
 
 		Cvar_ApplyLatches(CVAR_MAPLATCH, false);
 
 		host_mapname.flags |= CVAR_SERVERINFO;
+
+		var = Cvar_Get("nextmap", "", 0, "Q3 compatibility");
+		Cvar_ForceSet(var, "map_restart 0");	//on every map change matches q3.
 
 		gametype = Cvar_Get("g_gametype", "", CVAR_MAPLATCH|CVAR_SERVERINFO, "Q3 compatability");
 //		gametype->callback = gtcallback;
@@ -1504,7 +1514,7 @@ static void SV_FilterIP_f (void)
 		if (i == countof(banflags))
 			Con_Printf("Unknown ban/penalty flag: %s. ignoring.\n", com_token);
 	}
-	//if no flags were specified, 
+	//if no flags were specified,
 	if (!proto.banflags)
 	{
 		if (!strcmp(Cmd_Argv(0), "ban"))
@@ -2241,18 +2251,22 @@ static void SV_Status_f (void)
 #define C_USERID	COLUMN(1, "userid", Con_Printf("%6i ", (int)cl->userid))
 #define C_ADDRESS	COLUMN(2, "address        ", Con_Printf("%-16.16s", s))
 #define C_NAME		COLUMN(3, "name           ", Con_Printf("%-16.16s", cl->name))
-#define C_RATE		COLUMN(4, "rate", Con_Printf("%4i ", cl->frameunion.frames?(int)(1/cl->netchan.frame_rate):0))
+#define C_RATE		COLUMN(4, "rate", Con_Printf("%4i ", (cl->frameunion.frames&&cl->netchan.frame_rate>0)?(int)(1/cl->netchan.frame_rate):0))
 #define C_PING		COLUMN(5, "ping", Con_Printf("%4i ", (int)SV_CalcPing (cl, false)))
 #define C_DROP		COLUMN(6, "drop", Con_Printf("%4.1f ", 100.0*cl->netchan.drop_count / cl->netchan.incoming_sequence))
-#define C_DLP		COLUMN(7, "dl ", if (!cl->download)Con_Printf("    ");else Con_Printf("%3.0f ", (cl->downloadcount*100.0)/cl->downloadsize))
+#define C_DLP		COLUMN(7, "dl ", if (!cl->download||!cl->downloadsize)Con_Printf("    ");else Con_Printf("%3.0f ", (cl->downloadcount*100.0)/cl->downloadsize))
 #define C_DLS		COLUMN(8, "dls", if (!cl->download)Con_Printf("    ");else Con_Printf("%3u ", (unsigned int)(cl->downloadsize/1024)))
-#define C_PROT		COLUMN(9, "prot ", Con_Printf("%-6.6s", p))
+#define C_PROT		COLUMN(9, "prot ", Con_Printf("%-6.5s", p))
+#define C_MODELSKIN	COLUMN(11, "model/skin     ", Con_Printf("%s", s))
 #define C_ADDRESS2	COLUMN(10, "address        ", Con_Printf("%s", s))
 
-		int columns = (1<<6)-1;
+		int columns = (1<<4)-1;
 
 		for (i=0,cl=svs.clients ; i<svs.allocated_client_slots ; i++,cl++)
 		{
+			if (!cl->state)
+				continue;
+
 			if (cl->netchan.drop_count)
 				columns |= 1<<6;
 			if (cl->download)
@@ -2260,11 +2274,17 @@ static void SV_Status_f (void)
 				columns |= 1<<7;
 				columns |= 1<<8;
 			}
-			if (cl->protocol != SCP_QUAKEWORLD || cl->spectator || !(cl->fteprotocolextensions2 & PEXT2_REPLACEMENTDELTAS))
+			if (cl->frameunion.frames&&cl->netchan.frame_rate>0)
+				columns |= 1<<4;
+			if (cl->netchan.remote_address.type > NA_LOOPBACK)
+				columns |= 1<<5;
+			if (cl->protocol != SCP_BAD && (cl->protocol >= SCP_NETQUAKE || cl->spectator || (cl->protocol == SCP_QUAKEWORLD && !(cl->fteprotocolextensions2 & PEXT2_REPLACEMENTDELTAS))))
 				columns |= 1<<9;
-			if (cl->netchan.remote_address.type == NA_IPV6)
-				columns = (columns & ~(1<<2)) | (1<<10);
+			if (cl->netchan.remote_address.type == NA_IPV6||cl->reversedns)
+				columns |= (1<<10);
 		}
+		if (columns&(1<<10))	//if address2, remove the limited length addresses.
+			columns &= ~(1<<2);
 
 #define COLUMN(f,t,v) if (columns&(1<<f)) Con_Printf(t" ");
 		COLUMNS
@@ -2299,12 +2319,9 @@ static void SV_Status_f (void)
 			else
 				s = NET_BaseAdrToString (adr, sizeof(adr), &cl->netchan.remote_address);
 
-			switch(cl->protocol)
+			safeswitch(cl->protocol)
 			{
-			default:
-			case SCP_BAD:
-				p = "";
-				break;
+			case SCP_BAD:			p = "none"; break;
 			case SCP_QUAKEWORLD:	p = (cl->fteprotocolextensions2 & PEXT2_REPLACEMENTDELTAS)?"fteqw":"qw"; break;
 			case SCP_QUAKE2:		p = "q2"; break;
 			case SCP_QUAKE3:		p = "q3"; break;
@@ -2313,6 +2330,9 @@ static void SV_Status_f (void)
 			case SCP_FITZ666:		p = (cl->fteprotocolextensions2 & PEXT2_REPLACEMENTDELTAS)?"ftenq":(cl->qex?"qe666":"fitz"); break;
 			case SCP_DARKPLACES6:	p = "dpp6"; break;
 			case SCP_DARKPLACES7:	p = "dpp7"; break;
+			safedefault:
+				p = "";
+				break;
 			}
 			if (cl->state == cs_connected && cl->protocol>=SCP_NETQUAKE)
 				p = "nq";	//not actually known yet.
@@ -2593,7 +2613,7 @@ void SV_User_f (void)
 	char buf[256];
 	extern cvar_t sv_userinfo_bytelimit, sv_userinfo_keylimit;
 	static const char *pext1names[32] = {	"setview",		"scale",	"lightstylecol",	"trans",		"view2",		"builletens",	"accuratetimings",	"sounddbl",
-											"fatness",		"hlbsp",	"bullet",			"hullsize",		"modeldbl",		"entitydbl",	"entitydbl2",		"floatcoords", 
+											"fatness",		"hlbsp",	"bullet",			"hullsize",		"modeldbl",		"entitydbl",	"entitydbl2",		"floatcoords",
 											"OLD vweap",	"q2bsp",	"q3bsp",			"colormod",		"splitscreen",	"hexen2",		"spawnstatic2",		"customtempeffects",
 											"packents",		"UNKNOWN",	"showpic",			"setattachment","UNKNOWN",		"chunkeddls",	"csqc",				"dpflags"};
 	static const char *pext2names[32] = {	"prydoncursor",	"voip",		"setangledelta",	"rplcdeltas",	"maxplayers",	"predinfo",		"sizeenc",			"infoblobs",
@@ -2607,16 +2627,16 @@ void SV_User_f (void)
 		return;
 	}
 
-	Con_Printf("Userinfo:\n");
 	while((cl = SV_GetClientForString(Cmd_Argv(1), &clnum)))
 	{
+		Con_Printf("Userinfo (%i):\n", cl->userid);
 		InfoBuf_Print (&cl->userinfo, "  ");
 		Con_Printf("[%u/%i, %u/%i]\n", (unsigned)cl->userinfo.totalsize, sv_userinfo_bytelimit.ival, (unsigned)cl->userinfo.numkeys, sv_userinfo_keylimit.ival);
 		switch(cl->protocol)
 		{
 		case SCP_BAD:
 			Con_Printf("protocol: bot/invalid\n");
-			break;
+			continue;
 		case SCP_QUAKEWORLD:	//branding is everything...
 			if (cl->fteprotocolextensions2 & PEXT2_REPLACEMENTDELTAS)
 				Con_Printf("protocol: fteqw-nack\n");
@@ -2846,10 +2866,7 @@ static void SV_Gamedir_f (void)
 		Con_TPrintf ("%s should be a single filename, not a path\n", Cmd_Argv(0));
 	}
 	else
-	{
 		COM_Gamedir (dir, NULL);
-		InfoBuf_SetValueForStarKey (&svs.info, "*gamedir", dir);
-	}
 	Z_Free(dir);
 }
 
@@ -3024,7 +3041,7 @@ static void SV_SetTimer_f(void)
 static void SV_SendGameCommand_f(void)
 {
 #ifdef Q3SERVER
-	if (SVQ3_ConsoleCommand())
+	if (q3->sv.PrefixedConsoleCommand())
 		return;
 #endif
 
@@ -3175,7 +3192,7 @@ void SV_MemInfo_f(void)
 			fr += sizeof(*cl->sentents.entities) * cl->sentents.max_entities;
 
 			csfr = sizeof(*cl->pendingcsqcbits) * cl->max_net_ents;
-	
+
 			Con_Printf("%"PRIuSIZE" minping=%i frame=%i, csqc=%i\n", sizeof(svs.clients[i]), sz, fr, csfr);
 		}
 	}

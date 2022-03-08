@@ -3317,7 +3317,7 @@ typedef struct
 	float dist;
 
 	char modelname[MAX_QPATH];
-	char forceshader[MAX_QPATH];
+	char skinname[MAX_QPATH];
 
 	char shaderfile[MAX_QPATH];
 	char *shadertext;
@@ -3528,7 +3528,18 @@ static void M_ModelViewerDraw(int x, int y, struct menucustom_s *c, struct emenu
 	ent.framestate.g[FS_REG].frame[0] = mods->framegroup;
 	ent.framestate.g[FS_REG].frametime[0] = ent.framestate.g[FS_REG].frametime[1] = realtime - mods->framechangetime;
 	ent.framestate.g[FS_REG].endbone = 0x7fffffff;
-	ent.customskin = Mod_RegisterSkinFile(va("%s_%i.skin", mods->modelname, ent.skinnum));
+	if (*mods->skinname)
+		ent.customskin = Mod_RegisterSkinFile(mods->skinname);	//explicit .skin file to use
+	else
+	{
+		ent.customskin = Mod_RegisterSkinFile(va("%s_%i.skin", mods->modelname, ent.skinnum));
+		if (ent.customskin == 0)
+		{
+			char haxxor[MAX_QPATH];
+			COM_StripExtension(mods->modelname, haxxor, sizeof(haxxor));
+			ent.customskin = Mod_RegisterSkinFile(va("%s_default.skin", haxxor));	//fall back to some default
+		}
+	}
 	skin = Mod_LookupSkin(ent.customskin);
 
 	ent.light_avg[0] = ent.light_avg[1] = ent.light_avg[2] = 0.66;
@@ -4242,7 +4253,7 @@ void M_Menu_ModelViewer_f(void)
 	mv->yaw = 180;// + crandom()*45;
 	mv->dist = 150;
 	Q_strncpyz(mv->modelname, Cmd_Argv(1), sizeof(mv->modelname));
-	Q_strncpyz(mv->forceshader, Cmd_Argv(2), sizeof(mv->forceshader));
+	Q_strncpyz(mv->skinname, Cmd_Argv(2), sizeof(mv->skinname));
 
 	mv->framechangetime = realtime;
 	mv->skinchangetime = realtime;

@@ -224,7 +224,7 @@ void Cmd_Args_Set(const char *newargs, size_t len);
 #define RESTRICT_MAX_USER	29
 #define RESTRICT_DEFAULT	20
 #define RESTRICT_MIN		1
-#define RESTRICT_TEAMPLAY	0
+#define RESTRICT_TEAMPLAY	0	//this is blocked from everything but aliases.
 
 #define RESTRICT_MAX RESTRICT_MAX_USER
 

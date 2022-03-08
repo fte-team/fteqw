@@ -37,25 +37,6 @@ char *VMQ3_StringFromHandle(int handle);
 int VMQ3_StringToHandle(char *str);
 void VMQ3_FlushStringHandles(void);
 
-#ifdef VM_UI
-qboolean UI_IsRunning(void);
-qboolean UI_Command(void);
-void UI_Init (void);
-void UI_Start (void);
-void UI_Stop (void);
-qboolean UI_OpenMenu(void);
-void UI_Restart_f(void);
-int UI_IsFullscreen(void);
-void UI_Reset(void);
-
-//sans botlib
-struct pc_token_s;
-int Script_LoadFile(char *filename);
-void Script_Free(int handle);
-int Script_Read(int handle, struct pc_token_s *token);
-void Script_Get_File_And_Line(int handle, char *filename, int *line);
-#endif
-
 #define VM_FS_READ 0
 #define VM_FS_WRITE 1
 #define VM_FS_APPEND 2
@@ -68,16 +49,6 @@ qofs_t VM_FTell (int fnum, int owner);
 void VM_fclose (int fnum, int owner);
 void VM_fcloseall (int owner);
 int VM_GetFileList(const char *path, const char *ext, char *output, int buffersize);
-
-#ifdef VM_CG
-void CG_Stop (void);
-void CG_Start (void);
-qboolean CG_VideoRestarted(void);
-int CG_Refresh(void);
-qboolean CG_Command(void);
-qboolean CG_KeyPress(int key, int unicode, int down);
-unsigned int CG_GatherLoopingSounds(vec3_t *positions, unsigned int *entnums, sfx_t **sounds, unsigned int max);
-#endif
 
 typedef struct {
 	int			handle;

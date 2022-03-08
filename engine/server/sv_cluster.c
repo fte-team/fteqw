@@ -130,7 +130,7 @@ static int MSV_SubServerRead(pubsubserver_t *ps)
 			net_message.cursize = len-2;
 			memmove(ps->inbuffer, ps->inbuffer+len, ps->inbuffersize - len);
 			ps->inbuffersize -= len;
-			MSG_BeginReading (msg_nullnetprim);
+			MSG_BeginReading (&net_message, msg_nullnetprim);
 
 			return len;
 		}
@@ -1233,7 +1233,7 @@ void MSV_PollSlaves(void)
 				memmove(inbuffer, inbuffer+size, inbuffersize-size);
 				inbuffersize -= size;
 
-				MSG_BeginReading (msg_nullnetprim);
+				MSG_BeginReading (&net_message, msg_nullnetprim);
 				SSV_ReadFromControlServer();
 			}
 			else
@@ -1259,7 +1259,7 @@ void MSV_PollSlaves(void)
 		{
 			VFS_READ(msv_loop_to_ss, net_message.data, size);
 			net_message.cursize = size-2;
-			MSG_BeginReading (msg_nullnetprim);
+			MSG_BeginReading (&net_message, msg_nullnetprim);
 			SSV_ReadFromControlServer();
 		}
 	}

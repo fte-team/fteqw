@@ -86,7 +86,7 @@ cvar_t	com_protocolname		= CVARAD("com_protocolname", NULL, "com_gamename", "The
 cvar_t	com_protocolversion		= CVARAD("com_protocolversion", "3", NULL, "The protocol version used for dpmaster queries.");	//3 by default, for compat with DP/NQ, even if our QW protocol uses different versions entirely. really it only matters for master servers.
 cvar_t	com_parseutf8			= CVARD("com_parseutf8", "1", "Interpret console messages/playernames/etc as UTF-8. Requires special fonts. -1=iso 8859-1. 0=quakeascii(chat uses high chars). 1=utf8, revert to ascii on decode errors. 2=utf8 ignoring errors");	//1 parse. 2 parse, but stop parsing that string if a char was malformed.
 cvar_t	com_highlightcolor		= CVARD("com_highlightcolor", STRINGIFY(COLOR_RED), "ANSI colour to be used for highlighted text, used when com_parseutf8 is active.");
-cvar_t	com_nogamedirnativecode	= CVARFD("com_nogamedirnativecode", "1", CVAR_NOTFROMSERVER, FULLENGINENAME" blocks all downloads of files with a .dll or .so extension, however other engines (eg: ezquake and fodquake) do not - this omission can be used to trigger delayed eremote exploits in any engine (including "DISTRIBUTION") which is later run from the same gamedir.\nQuake2, Quake3(when debugging), and KTX typically run native gamecode from within gamedirs, so if you wish to run any of these games you will need to ensure this cvar is changed to 0, as well as ensure that you don't run unsafe clients.");
+cvar_t	com_gamedirnativecode	= CVARFD("com_gamedirnativecode", "0", CVAR_NOTFROMSERVER, FULLENGINENAME" blocks all downloads of files with a .dll or .so extension, however other engines (eg: ezquake and fodquake) do not - this omission can be used to trigger delayed eremote exploits in any engine (including "DISTRIBUTION") which is later run from the same gamedir.\nQuake2, Quake3(when debugging), and KTX typically run native gamecode from within gamedirs, so if you wish to run any of these games you will need to ensure this cvar is changed to 1, as well as ensure that you don't run unsafe clients.");
 cvar_t	sys_platform			= CVAR("sys_platform", PLATFORM);
 cvar_t	host_mapname			= CVARAFD("mapname", "", "host_mapname", 0, "Cvar that holds the short name of the current map, for scripting type stuff");
 #ifdef HAVE_LEGACY
@@ -867,6 +867,147 @@ Handles qbyte ordering and avoids alignment errors
 //
 // writing functions
 //
+
+void MSG_BeginWriting (sizebuf_t *msg, struct netprim_s prim, void *bufferstorage, size_t buffersize)
+{
+	if (bufferstorage || buffersize)
+	{	//otherwise just clear it.
+		msg->data = bufferstorage;
+		msg->maxsize = buffersize;
+	}
+	msg->overflowed = false;
+	msg->cursize = 0;
+	msg->currentbit = 0;
+	msg->packing = SZ_RAWBYTES;
+	msg->prim = prim;
+	msg->allowoverflow = false;
+}
+
+static void MSG_WriteRawBytes(sizebuf_t *msg, int value, int bits)
+{
+	qbyte	*buf;
+
+	if (bits <= 8)
+	{
+		buf = SZ_GetSpace(msg, 1);
+		buf[0] = value;
+	}
+	else if (bits <= 16)
+	{
+		buf = SZ_GetSpace(msg, 2);
+		buf[0] = value & 0xFF;
+		buf[1] = value >> 8;
+	}
+	else //if (bits <= 32)
+	{
+		buf = SZ_GetSpace(msg, 4);
+		buf[0] = value & 0xFF;
+		buf[1] = (value >> 8) & 0xFF;
+		buf[2] = (value >> 16) & 0xFF;
+		buf[3] = value >> 24;
+	}
+}
+
+static void MSG_WriteRawBits(sizebuf_t *msg, int value, int bits)
+{
+	int i;
+	for (i=0; i<bits; )
+	{
+		if (!(msg->currentbit&7))
+		{	//we need another byte now...
+			msg->cursize++;
+			if (bits >= 8)
+			{	//splurge an entire byte
+				msg->data[msg->currentbit>>3] = (value>>i)&0xff;
+				i += 8;
+				msg->currentbit += 8;
+				continue;
+			}
+			//clear it for the following 8 bits to splurge
+			msg->data[msg->currentbit>>3] = 0;
+		}
+		msg->data[msg->currentbit>>3] |= ((value>>i)&1) << (msg->currentbit & 7);
+		msg->currentbit++;
+		i++;
+	}
+}
+
+#ifdef HUFFNETWORK
+static void MSG_WriteHuffBits(sizebuf_t *msg, int value, int bits)
+{
+	int		remaining;
+	int		i;
+
+	value &= 0xFFFFFFFFu >> (32 - bits);
+	remaining = bits & 7;
+
+	for( i=0; i<remaining ; i++ )
+	{
+		if( !(msg->currentbit & 7) )
+		{
+			msg->data[msg->currentbit >> 3] = 0;
+		}
+		msg->data[msg->currentbit >> 3] |= (value & 1) << (msg->currentbit & 7);
+		msg->currentbit++;
+		value >>= 1;
+	}
+	bits -= remaining;
+
+	if( bits > 0 )
+	{
+		for( i=0 ; i<(bits+7)>>3 ; i++ )
+		{
+			Huff_EmitByte( value & 255, msg->data, &msg->currentbit );
+			value >>= 8;
+		}
+	}
+
+	msg->cursize = (msg->currentbit >> 3) + 1;
+}
+#endif
+
+/*
+============
+MSG_WriteBits
+============
+*/
+void MSG_WriteBits(sizebuf_t *msg, int value, int bits)
+{
+	if( !bits || bits < -31 || bits > 32 )
+		Sys_Error("MSG_WriteBits: bad bits %i", bits);
+
+	if (bits < 0)
+	{	//negative means sign extension on reading
+		if (value & (1u<<(bits-1)))
+			value |= ~1u<<bits;	//sign extend, just in case it matters (rawbytes with bits < n*8)...
+		bits = -bits;
+	}
+
+	switch( msg->packing )
+	{
+	default:
+	case SZ_BAD:
+		Sys_Error("MSG_WriteBits: bad msg->packing %i", msg->packing );
+		break;
+	case SZ_RAWBYTES:
+		MSG_WriteRawBytes( msg, value, bits );
+		break;
+	case SZ_RAWBITS:
+		MSG_WriteRawBits( msg, value, bits );
+		break;
+#ifdef HUFFNETWORK
+	case SZ_HUFFMAN:
+		if( msg->maxsize - msg->cursize < 4 )
+		{
+			if (!msg->allowoverflow)
+			msg->overflowed = true;
+			return;
+		}
+		MSG_WriteHuffBits( msg, value, bits );
+		break;
+#endif
+	}
+}
 
 void MSG_WriteChar (sizebuf_t *sb, int c)
 {
@@ -1760,14 +1901,16 @@ void MSGCL_WriteDeltaUsercmd (sizebuf_t *buf, const usercmd_t *from, const userc
 int			msg_readcount;
 qboolean	msg_badread;
 struct netprim_s msg_nullnetprim;
+static sizebuf_t	*msg_readmsg;
 
-void MSG_BeginReading (struct netprim_s prim)
+void MSG_BeginReading (sizebuf_t *sb, struct netprim_s prim)
 {
+	msg_readmsg = sb;
 	msg_readcount = 0;
 	msg_badread = false;
-	net_message.currentbit = 0;
-	net_message.packing = SZ_RAWBYTES;
-	net_message.prim = prim;
+	sb->currentbit = 0;
+	sb->packing = SZ_RAWBYTES;
+	sb->prim = prim;
 }
 
 void MSG_ChangePrimitives(struct netprim_s prim)
@@ -1777,7 +1920,7 @@ void MSG_ChangePrimitives(struct netprim_s prim)
 
 int MSG_GetReadCount(void)
 {
-	return msg_readcount;
+	return msg_readmsg->currentbit>>3;
 }
 
 
@@ -1827,6 +1970,13 @@ static int MSG_ReadRawBits(sizebuf_t *msg, int bits)
 	int val;
 	int bitmask = 0;
 
+	if (msg->currentbit + bits > (msg->cursize<<3))
+	{
+		msg_badread = true;
+		msg->currentbit = msg->cursize<<3;
+		return -1;
+	}
+
 	for(i=0 ; i<bits ; i++)
 	{
 		val = msg->data[msg->currentbit >> 3] >> (msg->currentbit & 7);
@@ -1858,6 +2008,12 @@ static int MSG_ReadHuffBits(sizebuf_t *msg, int bits)
 		bitmask |= val << (i + remaining);
 	}
 
+	if (msg->currentbit > (msg->cursize<<3))
+	{
+		msg_badread = true;
+		msg->currentbit = msg->cursize<<3;
+		return -1;
+	}
 	msg_readcount = (msg->currentbit >> 3) + 1;
 
 	return bitmask;
@@ -1880,21 +2036,21 @@ int MSG_ReadBits(int bits)
 		extend = true;
 	}
 
-	switch(net_message.packing)
+	switch(msg_readmsg->packing)
 	{
 	default:
 	case SZ_BAD:
-		Sys_Error("MSG_ReadBits: bad net_message.packing");
+		Sys_Error("MSG_ReadBits: bad msg_readmsg->packing");
 		break;
 	case SZ_RAWBYTES:
-		bitmask = MSG_ReadRawBytes(&net_message, bits);
+		bitmask = MSG_ReadRawBytes(msg_readmsg, bits);
 		break;
 	case SZ_RAWBITS:
-		bitmask = MSG_ReadRawBits(&net_message, bits);
+		bitmask = MSG_ReadRawBits(msg_readmsg, bits);
 		break;
 #ifdef HUFFNETWORK
 	case SZ_HUFFMAN:
-		bitmask = MSG_ReadHuffBits(&net_message, bits);
+		bitmask = MSG_ReadHuffBits(msg_readmsg, bits);
 		break;
 #endif
 	}
@@ -1912,7 +2068,7 @@ int MSG_ReadBits(int bits)
 
 void MSG_ReadSkip(int bytes)
 {
-	if (net_message.packing!=SZ_RAWBYTES)
+	if (msg_readmsg->packing!=SZ_RAWBYTES)
 	{
 		while (bytes > 4)
 		{
@@ -1925,13 +2081,14 @@ void MSG_ReadSkip(int bytes)
 			bytes--;
 		}
 	}
-	if (msg_readcount+bytes > net_message.cursize)
+	if (msg_readcount+bytes > msg_readmsg->cursize)
 	{
-		msg_readcount = net_message.cursize;
+		msg_readcount = msg_readmsg->cursize;
 		msg_badread = true;
 		return;
 	}
 	msg_readcount += bytes;
+	msg_readmsg->currentbit = msg_readcount<<3;
 }
 
 
@@ -1940,17 +2097,19 @@ int MSG_ReadChar (void)
 {
 	int	c;
 
-	if (net_message.packing!=SZ_RAWBYTES)
-		return (signed char)MSG_ReadBits(8);
+	if (msg_readmsg->packing!=SZ_RAWBYTES)
+		return MSG_ReadBits(-8);
 
-	if (msg_readcount+1 > net_message.cursize)
+	msg_readcount = msg_readmsg->currentbit>>3;
+	if (msg_readcount+1 > msg_readmsg->cursize)
 	{
 		msg_badread = true;
 		return -1;
 	}
 
-	c = (signed char)net_message.data[msg_readcount];
+	c = (signed char)msg_readmsg->data[msg_readcount];
 	msg_readcount++;
+	msg_readmsg->currentbit = msg_readcount<<3;
 
 	return c;
 }
@@ -1959,17 +2118,19 @@ int MSG_ReadByte (void)
 {
 	unsigned char	c;
 
-	if (net_message.packing!=SZ_RAWBYTES)
-		return (unsigned char)MSG_ReadBits(8);
+	if (msg_readmsg->packing!=SZ_RAWBYTES)
+		return MSG_ReadBits(8);
 
-	if (msg_readcount+1 > net_message.cursize)
+	msg_readcount = msg_readmsg->currentbit>>3;
+	if (msg_readcount+1 > msg_readmsg->cursize)
 	{
 		msg_badread = true;
 		return -1;
 	}
 
-	c = (unsigned char)net_message.data[msg_readcount];
+	c = (unsigned char)msg_readmsg->data[msg_readcount];
 	msg_readcount++;
+	msg_readmsg->currentbit = msg_readcount<<3;
 
 	return c;
 }
@@ -1978,19 +2139,21 @@ int MSG_ReadShort (void)
 {
 	int	c;
 
-	if (net_message.packing!=SZ_RAWBYTES)
+	if (msg_readmsg->packing!=SZ_RAWBYTES)
 		return (short)MSG_ReadBits(16);
 
-	if (msg_readcount+2 > net_message.cursize)
+	msg_readcount = msg_readmsg->currentbit>>3;
+	if (msg_readcount+2 > msg_readmsg->cursize)
 	{
 		msg_badread = true;
 		return -1;
 	}
 
-	c = (short)(net_message.data[msg_readcount]
-	+ (net_message.data[msg_readcount+1]<<8));
+	c = (short)(msg_readmsg->data[msg_readcount]
+	+ (msg_readmsg->data[msg_readcount+1]<<8));
 
 	msg_readcount += 2;
+	msg_readmsg->currentbit = msg_readcount<<3;
 
 	return c;
 }
@@ -1999,21 +2162,23 @@ int MSG_ReadLong (void)
 {
 	int	c;
 
-	if (net_message.packing!=SZ_RAWBYTES)
+	if (msg_readmsg->packing!=SZ_RAWBYTES)
 		return (int)MSG_ReadBits(32);
 
-	if (msg_readcount+4 > net_message.cursize)
+	msg_readcount = msg_readmsg->currentbit>>3;
+	if (msg_readcount+4 > msg_readmsg->cursize)
 	{
 		msg_badread = true;
 		return -1;
 	}
 
-	c = net_message.data[msg_readcount]
-	+ (net_message.data[msg_readcount+1]<<8)
-	+ (net_message.data[msg_readcount+2]<<16)
-	+ (net_message.data[msg_readcount+3]<<24);
+	c = msg_readmsg->data[msg_readcount]
+	+ (msg_readmsg->data[msg_readcount+1]<<8)
+	+ (msg_readmsg->data[msg_readcount+2]<<16)
+	+ (msg_readmsg->data[msg_readcount+3]<<24);
 
 	msg_readcount += 4;
+	msg_readmsg->currentbit = msg_readcount<<3;
 
 	return c;
 }
@@ -2072,23 +2237,25 @@ float MSG_ReadFloat (void)
 		int	l;
 	} dat;
 
-	if (net_message.packing!=SZ_RAWBYTES)
+	if (msg_readmsg->packing!=SZ_RAWBYTES)
 	{
 		dat.l = MSG_ReadBits(32);
 		return dat.f;
 	}
 
-	if (msg_readcount+4 > net_message.cursize)
+	msg_readcount = msg_readmsg->currentbit>>3;
+	if (msg_readcount+4 > msg_readmsg->cursize)
 	{
 		msg_badread = true;
 		return -1;
 	}
 
-	dat.b[0] =	net_message.data[msg_readcount];
-	dat.b[1] =	net_message.data[msg_readcount+1];
-	dat.b[2] =	net_message.data[msg_readcount+2];
-	dat.b[3] =	net_message.data[msg_readcount+3];
+	dat.b[0] =	msg_readmsg->data[msg_readcount];
+	dat.b[1] =	msg_readmsg->data[msg_readcount+1];
+	dat.b[2] =	msg_readmsg->data[msg_readcount+2];
+	dat.b[3] =	msg_readmsg->data[msg_readcount+3];
 	msg_readcount += 4;
+	msg_readmsg->currentbit = msg_readcount<<3;
 
 	if (bigendian)
 		dat.l = LittleLong (dat.l);
@@ -2185,7 +2352,7 @@ char *MSG_ReadStringLine (void)
 float MSG_ReadCoord (void)
 {
 	coorddata c = {{0}};
-	unsigned char coordtype = net_message.prim.coordtype;
+	unsigned char coordtype = msg_readmsg->prim.coordtype;
 	if (coordtype == COORDTYPE_UNDEFINED)
 	{
 		static float throttle;
@@ -2265,7 +2432,7 @@ float MSG_ReadAngle16 (void)
 }
 float MSG_ReadAngle (void)
 {
-	int sz = net_message.prim.anglesize;
+	int sz = msg_readmsg->prim.anglesize;
 	if (!sz)
 	{
 		static float throttle;
@@ -2360,7 +2527,7 @@ void MSGQ2_ReadDeltaUsercmd (const usercmd_t *from, usercmd_t *move)
 
 	bits = MSG_ReadByte ();
 
-	if (net_message.prim.flags & NPQ2_R1Q2_UCMD)
+	if (msg_readmsg->prim.flags & NPQ2_R1Q2_UCMD)
 		buttons = MSG_ReadByte();
 
 // read current angles
@@ -2407,7 +2574,7 @@ void MSGQ2_ReadDeltaUsercmd (const usercmd_t *from, usercmd_t *move)
 // read buttons
 	if (bits & Q2CM_BUTTONS)
 	{
-		if (net_message.prim.flags & NPQ2_R1Q2_UCMD)
+		if (msg_readmsg->prim.flags & NPQ2_R1Q2_UCMD)
 			move->buttons = buttons & (1|2|128);	//only use the bits that are actually buttons, so gamecode can't get excited despite being crippled by this.
 		else
 			move->buttons = MSG_ReadByte ();
@@ -5601,13 +5768,13 @@ static void COM_Version_f (void)
 	#ifdef BOTLIB_STATIC
 		Con_Printf(" Quake3");
 	#else
-		Con_Printf(" Quake3^h(no-botlib)^h");
+		Con_Printf(" Quake3^h(dynamic)^h");
 	#endif
 #elif defined(Q3SERVER)
 	#ifdef BOTLIB_STATIC
 		Con_Printf(" Quake3(server)");
 	#else
-		Con_Printf(" Quake3(server,no-botlib)");
+		Con_Printf(" Quake3(server,dynamic)");
 	#endif
 #elif defined(Q3CLIENT)
 	Con_Printf(" Quake3(client)");
@@ -6409,7 +6576,7 @@ void COM_Init (void)
 	Cvar_Register (&gameversion, "Gamecode");
 	Cvar_Register (&gameversion_min, "Gamecode");
 	Cvar_Register (&gameversion_max, "Gamecode");
-	Cvar_Register (&com_nogamedirnativecode, "Gamecode");
+	Cvar_Register (&com_gamedirnativecode, "Gamecode");
 	Cvar_Register (&com_parseutf8, "Internationalisation");
 #ifdef HAVE_LEGACY
 	Cvar_Register (&scr_usekfont, NULL);

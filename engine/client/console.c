@@ -2749,25 +2749,22 @@ static void Con_DrawModelPreview(model_t *model, float x, float y, float w, floa
 	VectorScale(ent.axis[0], scale, ent.axis[0]);
 	VectorScale(ent.axis[1], scale, ent.axis[1]);
 	VectorScale(ent.axis[2], scale, ent.axis[2]);
-	/*if (strstr(model->name, "player"))
-	{
-		ent.bottomcolour	= genhsv(realtime*0.1 + 0, 1, 1);
-		ent.topcolour		= genhsv(realtime*0.1 + 0.5, 1, 1);
-	}
-	else*/
-	{
-		ent.topcolour = TOP_DEFAULT;
-		ent.bottomcolour = BOTTOM_DEFAULT;
-	}
+	ent.topcolour = TOP_DEFAULT;
+	ent.bottomcolour = BOTTOM_DEFAULT;
 //	ent.fatness = sin(realtime)*5;
 	ent.playerindex = -1;
 	ent.skinnum = 0;
 	ent.shaderTime = 0;//realtime;
 	ent.framestate.g[FS_REG].lerpweight[0] = 1;
-//				ent.framestate.g[FS_REG].frame[0] = animationnum;
 	ent.framestate.g[FS_REG].frametime[0] = ent.framestate.g[FS_REG].frametime[1] = realtime;
 	ent.framestate.g[FS_REG].endbone = 0x7fffffff;
-//				ent.customskin = Mod_RegisterSkinFile(va("%s_0.skin", mods->modelname));
+	ent.customskin = Mod_RegisterSkinFile(va("%s_0.skin", model->publicname));
+	if (ent.customskin == 0)
+	{
+		char haxxor[MAX_QPATH];
+		COM_StripExtension(model->publicname, haxxor, sizeof(haxxor));
+		ent.customskin = Mod_RegisterSkinFile(va("%s_default.skin", haxxor));
+	}
 
 	Vector4Set(ent.shaderRGBAf, 1,1,1,1);
 	VectorSet(ent.glowmod, 1,1,1);

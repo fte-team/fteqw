@@ -96,8 +96,6 @@ typedef struct {
 	q3entityShared_t	r;				// shared by both the server system and game - I *really* don't understand this, it looks like a bug.
 } q3sharedEntity_t;
 
-
-
 //===============================================================
 
 //
@@ -111,6 +109,7 @@ typedef enum {
 
 	G_ERROR,		// ( const char *string );
 	// abort the game
+
 
 	G_MILLISECONDS,	// ( void );
 	// get current time for profiling reasons
@@ -283,6 +282,7 @@ typedef enum {
 	BOTLIB_AAS_SWIMMING,
 	BOTLIB_AAS_PREDICT_CLIENT_MOVEMENT,
 
+
 	BOTLIB_EA_SAY = 400,
 	BOTLIB_EA_SAY_TEAM,
 	BOTLIB_EA_COMMAND,
@@ -373,7 +373,6 @@ typedef enum {
 	BOTLIB_AI_ALLOC_MOVE_STATE,
 	BOTLIB_AI_FREE_MOVE_STATE,
 	BOTLIB_AI_INIT_MOVE_STATE,
-
 	BOTLIB_AI_CHOOSE_BEST_FIGHT_WEAPON,
 	BOTLIB_AI_GET_WEAPON_INFO,
 	BOTLIB_AI_LOAD_WEAPON_WEIGHTS,
@@ -402,8 +401,8 @@ typedef enum {
 	BOTLIB_PC_READ_TOKEN,
 	BOTLIB_PC_SOURCE_FILE_AND_LINE,
 
-	G_DEFAULTCASEWARNINGDISABLE //note: not an allowed index, just exists to prevent clang from warning about the default case.
 
+	G_DEFAULTCASEWARNINGDISABLE //note: not an allowed index, just exists to prevent clang from warning about the default case.
 } q3ggameImport_t;
 
 

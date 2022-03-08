@@ -1354,13 +1354,13 @@ int Master_NumSorted(void)
 }
 
 
-float Master_ReadKeyFloat(serverinfo_t *server, hostcachekey_t keynum)
+float Master_ReadKeyFloat(serverinfo_t *server, unsigned int keynum)
 {
 	if (!server)
 		return -1;
 	else if (keynum < SLKEY_CUSTOM)
 	{
-		switch(keynum)
+		switch((hostcachekey_t)keynum)
 		{
 		case SLKEY_PING:
 			return server->ping;
@@ -1416,7 +1416,7 @@ void Master_DecodeColour(vec3_t ret, int col)
 		VectorSet(ret, ((col&0xff0000)>>16)/255.0, ((col&0x00ff00)>>8)/255.0, ((col&0x0000ff)>>0)/255.0);
 }
 
-char *Master_ReadKeyString(serverinfo_t *server, hostcachekey_t keynum)
+char *Master_ReadKeyString(serverinfo_t *server, unsigned int keynum)
 {
 	static char adr[MAX_ADR_SIZE];
 
@@ -1459,7 +1459,7 @@ char *Master_ReadKeyString(serverinfo_t *server, hostcachekey_t keynum)
 	}
 	else
 	{
-		switch(keynum)
+		switch((hostcachekey_t)keynum)
 		{
 		case SLKEY_MAP:
 			return server->map;
@@ -2225,10 +2225,10 @@ void Master_CheckPollSockets(void)
 			int c;
 			char *s;
 
-			MSG_BeginReading (msg_nullnetprim);
+			MSG_BeginReading (&net_message, msg_nullnetprim);
 			MSG_ReadLong ();        // skip the -1
 
-			c = msg_readcount;
+			c = net_message.currentbit;
 			s = MSG_ReadStringLine();	//peek for q2 messages.
 #ifdef Q2CLIENT
 			if (!strcmp(s, "print"))
@@ -2244,14 +2244,14 @@ void Master_CheckPollSockets(void)
 #ifdef HAVE_IPV6
 			if (!strncmp(s, "server6", 7))	//parse a bit more...
 			{
-				msg_readcount = c+7;
+				net_message.currentbit = (c+7)<<3;
 				CL_MasterListParse(NA_IPV6, SS_QUAKE2, false);
 				continue;
 			}
 #endif
 			if (!strncmp(s, "servers", 7))	//parse a bit more...
 			{
-				msg_readcount = c+7;
+				net_message.currentbit = (c+7)<<3;
 				CL_MasterListParse(NA_IP, SS_QUAKE2, false);
 				continue;
 			}
@@ -2267,20 +2267,20 @@ void Master_CheckPollSockets(void)
 #ifdef HAVE_IPV6
 			if (!strncmp(s, "getserversResponse6", 19) && (s[19] == '\\' || s[19] == '/'))	//parse a bit more...
 			{
-				msg_readcount = c+19-1;
+				net_message.currentbit = (c+19-1)<<3;
 				CL_MasterListParse(NA_IPV6, SS_DARKPLACES, true);
 				continue;
 			}
 #endif
 			if (!strncmp(s, "getserversExtResponse", 21) && (s[21] == '\\' || s[21] == '/'))	//parse a bit more...
 			{
-				msg_readcount = c+21-1;
+				net_message.currentbit = (c+21-1)<<3;
 				CL_MasterListParse(NA_IP, SS_DARKPLACES, true);
 				continue;
 			}
 			if (!strncmp(s, "getserversResponse", 18) && (s[18] == '\\' || s[18] == '/'))	//parse a bit more...
 			{
-				msg_readcount = c+18-1;
+				net_message.currentbit = (c+18-1)<<3;
 				CL_MasterListParse(NA_IP, SS_DARKPLACES, true);
 				continue;
 			}
@@ -2293,13 +2293,13 @@ void Master_CheckPollSockets(void)
 #ifdef HAVE_IPV6
 			if (!strncmp(s, "qw_slist6\\", 10))	//parse a bit more...
 			{
-				msg_readcount = c+9-1;
+				net_message.currentbit = (c+9-1)<<3;
 				CL_MasterListParse(NA_IPV6, SS_QUAKEWORLD, false);
 				continue;
 			}
 #endif
 
-			msg_readcount = c;
+			net_message.currentbit = c;
 
 			c = MSG_ReadByte ();
 
@@ -2325,7 +2325,7 @@ void Master_CheckPollSockets(void)
 			int control;
 			int ccrep;
 
-			MSG_BeginReading (msg_nullnetprim);
+			MSG_BeginReading (&net_message, msg_nullnetprim);
 			control = BigLong(*((int *)net_message.data));
 			MSG_ReadLong();
 			if (control == -1)
@@ -3578,7 +3578,7 @@ void CL_MasterListParse(netadrtype_t adrtype, int type, qboolean slashpad)
 
 	last = firstserver;
 
-	while(msg_readcount+1+2 < net_message.cursize)
+	while((net_message.currentbit>>3)+1+2 < net_message.cursize)
 	{
 		if (slashpad)
 		{

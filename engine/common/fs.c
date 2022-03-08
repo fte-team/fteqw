@@ -24,14 +24,13 @@ static unsigned int fs_restarts;
 void *fs_thread_mutex;
 float fs_accessed_time;	//timestamp of read (does not include flocates, which should normally happen via a cache).
 
-static cvar_t com_fs_cache			= CVARF("fs_cache", IFMINIMAL("2","1"), CVAR_ARCHIVE);
-static cvar_t fs_noreexec			= CVARD("fs_noreexec", "0", "Disables automatic re-execing configs on gamedir switches.\nThis means your cvar defaults etc may be from the wrong mod, and cfg_save will leave that stuff corrupted!");
-static cvar_t cfg_reload_on_gamedir = CVAR("cfg_reload_on_gamedir", "1");
-static cvar_t fs_game = CVARAFCD("fs_game"/*q3*/, "", "game"/*q2/qs*/, CVAR_NOSAVE|CVAR_NORESET, fs_game_callback, "Provided for Q2 compat.");
-#ifdef Q2SERVER
-static cvar_t fs_gamedir = CVARFD("fs_gamedir", "", CVAR_NOUNSAFEEXPAND|CVAR_NOSET|CVAR_NOSAVE, "Provided for Q2 compat.");
-static cvar_t fs_basedir = CVARFD("fs_basedir", "", CVAR_NOUNSAFEEXPAND|CVAR_NOSET|CVAR_NOSAVE, "Provided for Q2 compat.");
-#endif
+static cvar_t com_fs_cache			= CVARFD	("fs_cache", IFMINIMAL("2","1"), CVAR_ARCHIVE, "0: Do individual lookups.\n1: Scan all files for accelerated lookups. This provides a performance boost on windows and avoids case sensitivity issues on linux.\n2: like 1, but don't bother checking for external changes (avoiding the cost of rebuild the cache).");
+static cvar_t fs_noreexec			= CVARD		("fs_noreexec", "0", "Disables automatic re-execing configs on gamedir switches.\nThis means your cvar defaults etc may be from the wrong mod, and cfg_save will leave that stuff corrupted!");
+static cvar_t cfg_reload_on_gamedir = CVAR		("cfg_reload_on_gamedir", "1");
+static cvar_t fs_game				= CVARAFCD	("fs_game"/*q3*/, "", "game"/*q2/qs*/, CVAR_NOSAVE|CVAR_NORESET, fs_game_callback, "Provided for Q2 compat. Contains the subdir of the current mod.");
+static cvar_t fs_gamepath			= CVARAFD	("fs_gamepath"/*q3ish*/, "", "fs_gamedir"/*q2*/, CVAR_NOUNSAFEEXPAND|CVAR_NOSET|CVAR_NOSAVE, "Provided for Q2/Q3 compat. System path of the active gamedir.");
+static cvar_t fs_basepath			= CVARAFD	("fs_basepath"/*q3*/,    "", "fs_basedir"/*q2*/, CVAR_NOUNSAFEEXPAND|CVAR_NOSET|CVAR_NOSAVE, "Provided for Q2/Q3 compat. System path of the base directory.");
+static cvar_t fs_homepath			= CVARAFD	("fs_homepath"/*q3ish*/, "", "fs_homedir"/*q2ish*/, CVAR_NOUNSAFEEXPAND|CVAR_NOSET|CVAR_NOSAVE, "Provided for Q2/Q3 compat. System path of the base directory.");
 static cvar_t dpcompat_ignoremodificationtimes = CVARAFD("fs_packageprioritisation", "1", "dpcompat_ignoremodificationtimes", CVAR_NOUNSAFEEXPAND|CVAR_NOSAVE, "Favours the package that is:\n0: Most recently modified\n1: Is alphabetically last (favour z over a, 9 over 0).");
 int active_fs_cachetype;
 static int fs_referencetype;
@@ -2564,6 +2563,13 @@ qboolean FS_Rename2(const char *oldf, const char *newf, enum fs_relative oldrela
 }
 qboolean FS_Rename(const char *oldf, const char *newf, enum fs_relative relativeto)
 {
+	char cleanold[MAX_QPATH];
+	char cleannew[MAX_QPATH];
+	if (relativeto != FS_SYSTEM)
+	{
+		oldf = FS_GetCleanPath(oldf, false, cleanold, sizeof(cleanold));
+		newf = FS_GetCleanPath(newf, false, cleannew, sizeof(cleannew));
+	}
 	return FS_Rename2(oldf, newf, relativeto, relativeto);
 }
 qboolean FS_Remove(const char *fname, enum fs_relative relativeto)
@@ -2781,7 +2787,7 @@ qbyte *COM_LoadFile (const char *path, unsigned int locateflags, int usehunk, si
 	return buf;
 }
 
-qbyte *FS_LoadMallocFile (const char *path, size_t *fsize)
+void *FS_LoadMallocFile (const char *path, size_t *fsize)
 {
 	return COM_LoadFile (path, 0, 5, fsize);
 }
@@ -3872,27 +3878,14 @@ qboolean FS_PathURLCache(const char *url, char *path, size_t pathsize)
 	return true;
 }
 
-/*
-================
-COM_Gamedir
-
-Sets the gamedir and path to a different directory.
-================
-*/
-void COM_Gamedir (const char *dir, const struct gamepacks *packagespaths)
+static ftemanifest_t *FS_Manifest_ChangeGameDir(const char *newgamedir)
 {
 	ftemanifest_t *man;
-	if (!fs_manifest)
-		FS_ChangeGame(NULL, true, false);
 
-	//we do allow empty here, for base.
-	if (*dir && !FS_GamedirIsOkay(dir))
-	{
-		Con_Printf ("Gamedir should be a single filename, not \"%s\"\n", dir);
-		return;
-	}
+	if (*newgamedir && !FS_GamedirIsOkay(newgamedir))
+		return fs_manifest;
 
-	man = FS_Manifest_ReadMod(dir);
+	man = FS_Manifest_ReadMod(newgamedir);
 
 	if (!man)
 	{
@@ -3906,14 +3899,14 @@ void COM_Gamedir (const char *dir, const struct gamepacks *packagespaths)
 		if (!man)
 			man = FS_Manifest_Clone(fs_manifest);
 		FS_Manifest_PurgeGamedirs(man);
-		if (*dir)
+		if (*newgamedir)
 		{
 			char token[MAX_QPATH], quot[MAX_QPATH];
-			char *dup = Z_StrDup(dir);	//FIXME: is this really needed?
-			dir = dup;
-			while ((dir = COM_ParseStringSet(dir, token, sizeof(token))))
+			char *dup = Z_StrDup(newgamedir);	//FIXME: is this really needed?
+			newgamedir = dup;
+			while ((newgamedir = COM_ParseStringSet(newgamedir, token, sizeof(token))))
 			{
-				if (!strcmp(dir, ";"))
+				if (!strcmp(newgamedir, ";"))
 					continue;
 				if (!*token)
 					continue;
@@ -3923,20 +3916,52 @@ void COM_Gamedir (const char *dir, const struct gamepacks *packagespaths)
 			}
 			Z_Free(dup);
 		}
-		while(packagespaths && packagespaths->path)
-		{
-			char quot[MAX_QPATH];
-			char quot2[MAX_OSPATH];
-			char quot3[MAX_OSPATH];
-			if (packagespaths->url)
-				Cmd_TokenizeString(va("package %s prefix %s %s", COM_QuotedString(packagespaths->path, quot, sizeof(quot), false), COM_QuotedString(packagespaths->subpath?packagespaths->subpath:"", quot3, sizeof(quot3), false), COM_QuotedString(packagespaths->url, quot2, sizeof(quot2), false)), false, false);
-			else
-				Cmd_TokenizeString(va("package %s prefix %s", COM_QuotedString(packagespaths->path, quot, sizeof(quot), false), COM_QuotedString(packagespaths->subpath?packagespaths->subpath:"", quot3, sizeof(quot3), false)), false, false);
-			FS_Manifest_ParseTokens(man);
-			packagespaths++;
-		}
+	}
+	return man;
+}
+
+/*
+================
+COM_Gamedir
+
+Sets the gamedir and path to a different directory.
+================
+*/
+void COM_Gamedir (const char *dir, const struct gamepacks *packagespaths)
+{
+	ftemanifest_t *man;
+	COM_FlushTempoaryPacks();
+
+	if (!fs_manifest)
+		FS_ChangeGame(NULL, true, false);
+
+	//we do allow empty here, for base.
+	if (*dir && !FS_GamedirIsOkay(dir))
+	{
+		Con_Printf ("Gamedir should be a single filename, not \"%s\"\n", dir);
+		return;
+	}
+
+	man = FS_Manifest_ChangeGameDir(dir);
+	while(packagespaths && packagespaths->path)
+	{
+		char quot[MAX_QPATH];
+		char quot2[MAX_OSPATH];
+		char quot3[MAX_OSPATH];
+		if (packagespaths->url)
+			Cmd_TokenizeString(va("package %s prefix %s %s", COM_QuotedString(packagespaths->path, quot, sizeof(quot), false), COM_QuotedString(packagespaths->subpath?packagespaths->subpath:"", quot3, sizeof(quot3), false), COM_QuotedString(packagespaths->url, quot2, sizeof(quot2), false)), false, false);
+		else
+			Cmd_TokenizeString(va("package %s prefix %s", COM_QuotedString(packagespaths->path, quot, sizeof(quot), false), COM_QuotedString(packagespaths->subpath?packagespaths->subpath:"", quot3, sizeof(quot3), false)), false, false);
+		FS_Manifest_ParseTokens(man);
+		packagespaths++;
 	}
 	FS_ChangeGame(man, cfg_reload_on_gamedir.ival, false);
+
+#ifdef HAVE_SERVER
+	if (!*dir)
+		dir = FS_GetGamedir(true);
+	InfoBuf_SetStarKey (&svs.info, "*gamedir", dir);
+#endif
 }
 
 #if !defined(HAVE_LEGACY) || !defined(HAVE_CLIENT)
@@ -3980,15 +4005,17 @@ void COM_Gamedir (const char *dir, const struct gamepacks *packagespaths)
 /*set some stuff so our regular qw client appears more like hexen2. sv_mintic is required to 'fix' the ravenstaff so that its projectiles don't impact upon each other*/
 #define HEX2CFG "//schemes hexen2\n" "set v_gammainverted 1\nset com_parseutf8 -1\nset gl_font gfx/hexen2\nset in_builtinkeymap 0\nset_calc cl_playerclass int (random * 5) + 1\nset cl_forwardspeed 200\nset cl_backspeed 200\ncl_sidespeed 225\nset sv_maxspeed 640\ncl_run 0\nset watervis 1\nset r_lavaalpha 1\nset r_lavastyle -2\nset r_wateralpha 0.5\nset sv_pupglow 1\ngl_shaftlight 0.5\nsv_mintic 0.015\nset r_meshpitch -1\nset r_meshroll -1\nr_sprite_backfacing 1\nset mod_warnmodels 0\nset cl_model_bobbing 1\nsv_sound_watersplash \"misc/hith2o.wav\"\nsv_sound_land \"fx/thngland.wav\"\nset sv_walkpitch 0\n"
 /*yay q2!*/
-#define Q2CFG "//schemes quake2\n" "set v_gammainverted 1\nset com_parseutf8 0\ncom_nogamedirnativecode 0\nset sv_bigcoords 0\nsv_port "STRINGIFY(PORT_Q2SERVER)"\n"
+#define Q2CFG "//schemes quake2\n" "set v_gammainverted 1\nset com_parseutf8 0\ncom_gamedirnativecode 1\nset sv_bigcoords 0\nsv_port "STRINGIFY(PORT_Q2SERVER)"\ncl_defaultport "STRINGIFY(PORT_Q2SERVER)"\n"
 /*Q3's ui doesn't like empty model/headmodel/handicap cvars, even if the gamecode copes*/
-#define Q3CFG "//schemes quake3\n" "set v_gammainverted 0\nset snd_ignorecueloops 1\nsetfl g_gametype 0 s\nset gl_clear 1\nset r_clearcolour 0 0 0\nset com_parseutf8 0\ngl_overbright "FORWEB("0","2")"\nseta model sarge\nseta headmodel sarge\nseta handicap 100\ncom_nogamedirnativecode 0\nsv_port "STRINGIFY(PORT_Q3SERVER)"\n"
+#define Q3CFG "//schemes quake3\n" "set v_gammainverted 0\nset snd_ignorecueloops 1\nsetfl g_gametype 0 s\nset gl_clear 1\nset r_clearcolour 0 0 0\nset com_parseutf8 0\ngl_overbright "FORWEB("0","2")"\nseta model sarge\nseta headmodel sarge\nseta handicap 100\ncom_gamedirnativecode 1\nsv_port "STRINGIFY(PORT_Q3SERVER)"\ncl_defaultport "STRINGIFY(PORT_Q3SERVER)"\ncom_protocolversion 68\n"
 //#define RMQCFG "sv_bigcoords 1\n"
 
-#ifdef HAVE_SSL
-#define UPDATEURL(g)	"/downloadables.php?game=" #g
-#else
-#define UPDATEURL(g)	NULL
+#ifndef UPDATEURL
+	#ifdef HAVE_SSL
+		#define UPDATEURL(g)	"/downloadables.php?game=" #g
+	#else
+		#define UPDATEURL(g)	NULL
+	#endif
 #endif
 
 #define QUAKEPROT "FTE-Quake DarkPlaces-Quake"
@@ -4002,9 +4029,10 @@ typedef struct {
 	const char *customexec;
 
 	const char *dir[4];
-	const char *poshname;	//Full name for the game.
-	const char *downloadsurl;
-	const char *manifestfile;
+	const char *poshname;		//Full name for the game.
+	const char *downloadsurl;	//url to check for updates.
+	const char *needpackages;	//package name(s) that are considered mandatory for this game to work.
+	const char *manifestfile;	//contents of manifest file to use.
 } gamemode_info_t;
 static const gamemode_info_t gamemode_info[] = {
 #ifdef GAME_SHORTNAME
@@ -4027,7 +4055,7 @@ static const gamemode_info_t gamemode_info[] = {
 	#define GAME_MANIFESTUPDATE		NULL
 	#endif
 
-	{"-"GAME_SHORTNAME,		GAME_SHORTNAME,			GAME_PROTOCOL,					{GAME_IDENTIFYINGFILES}, GAME_DEFAULTCMDS, {GAME_BASEGAMES}, GAME_FULLNAME, GAME_MANIFESTUPDATE},
+	{"-"GAME_SHORTNAME,		GAME_SHORTNAME,			GAME_PROTOCOL,					{GAME_IDENTIFYINGFILES}, GAME_DEFAULTCMDS, {GAME_BASEGAMES}, GAME_FULLNAME, NULL/*updateurl*/, NULL/*needpackages*/, GAME_MANIFESTUPDATE},
 #endif
 //note that there is no basic 'fte' gamemode, this is because we aim for network compatability. Darkplaces-Quake is the closest we get.
 //this is to avoid having too many gamemodes anyway.
@@ -4089,8 +4117,8 @@ static const gamemode_info_t gamemode_info[] = {
 #endif
 
 #if defined(Q3CLIENT) || defined(Q3SERVER)
-	{"-quake3",		"q3",		"Quake3",				{"baseq3/pak0.pk3"},			Q3CFG,	{"baseq3",						"*fteq3"},	"Quake III Arena",					UPDATEURL(Q3)},
-	{"-quake3demo",	"q3demo",	"Quake3Demo",			{"demoq3/pak0.pk3"},			Q3CFG,	{"demoq3",						"*fteq3"},	"Quake III Arena Demo"},
+	{"-quake3",		"q3",		"Quake3",				{"baseq3/pak0.pk3"},			Q3CFG,	{"baseq3",						"*fteq3"},	"Quake III Arena",					UPDATEURL(Q3),		"quake3"},
+	{"-quake3demo",	"q3demo",	"Quake3Demo",			{"demoq3/pak0.pk3"},			Q3CFG,	{"demoq3",						"*fteq3"},	"Quake III Arena Demo",				NULL,				"quake3"},
 	//the rest are not supported in any real way. maps-only mostly, if that
 //	{"-quake4",		"q4",		"FTE-Quake4",			{"q4base/pak00.pk4"},			NULL,	{"q4base",						"*fteq4"},	"Quake 4"},
 //	{"-et",			NULL,		"FTE-EnemyTerritory",	{"etmain/pak0.pk3"},			NULL,	{"etmain",						"*fteet"},	"Wolfenstein - Enemy Territory"},
@@ -4419,8 +4447,9 @@ qboolean CL_ListFilesInPackage(searchpathfuncs_t *search, char *name, int (QDECL
 	return ret;
 }
 
-void FS_PureMode(int puremode, char *purenamelist, char *purecrclist, char *refnamelist, char *refcrclist, int pureseed)
+void FS_PureMode(const char *gamedir, int puremode, char *purenamelist, char *purecrclist, char *refnamelist, char *refcrclist, int pureseed)
 {
+	ftemanifest_t *man;
 	qboolean pureflush;
 
 #ifdef HAVE_SERVER
@@ -4451,7 +4480,12 @@ void FS_PureMode(int puremode, char *purenamelist, char *purecrclist, char *refn
 	fs_refnames = refnamelist?Z_StrDup(refnamelist):NULL;
 	fs_refcrcs = refcrclist?Z_StrDup(refcrclist):NULL;
 
-	FS_ChangeGame(fs_manifest, false, false);
+	if (gamedir)
+		man	= FS_Manifest_ChangeGameDir(gamedir);
+	else
+		man = fs_manifest;
+
+	FS_ChangeGame(man, false, false);
 
 	if (pureflush)
 	{
@@ -6146,7 +6180,13 @@ qboolean FS_ChangeGame(ftemanifest_t *man, qboolean allowreloadconfigs, qboolean
 						Cmd_TokenizeString(va("downloadsurl \"%s\"", gamemode_info[i].downloadsurl), false, false);
 					FS_Manifest_ParseTokens(man);
 				}
+				if (!man->installupd && gamemode_info[i].needpackages)
+				{
+					Cmd_TokenizeString(va("install \"%s\"", gamemode_info[i].needpackages), false, false);
+					FS_Manifest_ParseTokens(man);
+				}
 #endif
+
 				if (!man->protocolname)
 				{
 					Cmd_TokenizeString(va("protocolname \"%s\"", gamemode_info[i].protocolname), false, false);
@@ -6357,10 +6397,9 @@ qboolean FS_ChangeGame(ftemanifest_t *man, qboolean allowreloadconfigs, qboolean
 		Cvar_ForceSet(&fs_game, FS_GetGamedir(false));
 		fs_game.callback = callback;
 	}
-#ifdef Q2SERVER
-	Cvar_ForceSet(&fs_gamedir, va("%s%s", com_gamepath, FS_GetGamedir(false)));
-	Cvar_ForceSet(&fs_basedir, com_gamepath);
-#endif
+	Cvar_ForceSet(&fs_gamepath, va("%s%s", com_gamepath, FS_GetGamedir(false)));
+	Cvar_ForceSet(&fs_basepath, com_gamepath);
+	Cvar_ForceSet(&fs_homepath, com_gamepath);
 
 	Mods_FlushModList();
 
@@ -6624,7 +6663,8 @@ qboolean FS_FixupGamedirForExternalFile(char *input, char *filename, size_t fnam
 	return false;
 }
 
-
+void Cvar_GamedirChange(void);
+void		Plug_Shutdown(qboolean preliminary);
 
 /*mod listing management*/
 static struct modlist_s *modlist;
@@ -6831,7 +6871,7 @@ static void FS_ModInstallGot(struct dl_download *dl)
 		if (ctx->man && !strcmp(ctx->man->basedir, com_gamepath))
 		{
 			//should probably show just the hostname for brevity.
-			Menu_Prompt(FS_ModInstallConfirmed, ctx, va("Install %s from\n%s ?", ctx->man->formalname, ctx->url), "Install", NULL, "Cancel");
+			Menu_Prompt(FS_ModInstallConfirmed, ctx, va("Install %s from\n%s ?", ctx->man->formalname, ctx->url), "Install", NULL, "Cancel", true);
 			return;
 		}
 	}
@@ -6947,6 +6987,19 @@ static void FS_ChangeGame_f(void)
 	}
 	else
 	{
+		arg = Z_StrDup(arg);
+#ifdef HAVE_SERVER
+		if (sv.state)
+			SV_UnspawnServer();
+#endif
+#ifdef HAVE_CLIENT
+		CL_Disconnect (NULL);
+#endif
+#ifdef PLUGINS
+		Plug_Shutdown(true);
+#endif
+		Cvar_GamedirChange();
+
 		if (strrchr(arg, '/') && !strrchr(arg, '/')[1])
 		{	//ends in slash. a new basedir.
 			Q_strncpyz(com_gamepath, arg, sizeof(com_gamepath));
@@ -6961,15 +7014,27 @@ static void FS_ChangeGame_f(void)
 				{
 					Con_Printf("Switching to %s\n", gamemode_info[i].argname+1);
 					FS_ChangeGame(FS_GenerateLegacyManifest(i, NULL), true, true);
-					return;
+					break;
 				}
 			}
 
+			if (!gamemode_info[i].argname)
+			{
 #ifdef HAVE_CLIENT
-			if (!Host_RunFile(arg, strlen(arg), NULL))
-				Con_Printf("Game unknown\n");
+				if (!Host_RunFile(arg, strlen(arg), NULL))
+					Con_Printf("Game unknown\n");
 #endif
+			}
 		}
+		Z_Free((char*)arg);
+
+#ifdef PLUGINS
+		Plug_Initialise(true);
+#endif
+#if defined(HAVE_CLIENT) && defined(Q3CLIENT)
+		if (q3)
+			q3->ui.Start();
+#endif
 	}
 }
 
@@ -7421,10 +7486,9 @@ void COM_InitFilesystem (void)
 	Cvar_Register(&com_protocolname, "Server Info");
 	Cvar_Register(&com_protocolversion, "Server Info");
 	Cvar_Register(&fs_game, "Filesystem");
-#ifdef Q2SERVER
-	Cvar_Register(&fs_gamedir, "Filesystem");
-	Cvar_Register(&fs_basedir, "Filesystem");
-#endif
+	Cvar_Register(&fs_gamepath, "Filesystem");
+	Cvar_Register(&fs_basepath, "Filesystem");
+	Cvar_Register(&fs_homepath, "Filesystem");
 
 	COM_InitHomedir(NULL);
 

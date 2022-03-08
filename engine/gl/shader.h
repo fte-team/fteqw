@@ -846,6 +846,7 @@ typedef struct
 	qboolean can_mipbias;		//gl1.4+
 	qboolean can_genmips;		//gl3.0+
 	qboolean havecubemaps;	//since gl1.3, so pretty much everyone will have this... should probably only be set if we also have seamless or clamp-to-edge.
+	unsigned int stencilbits;
 
 	void	 (*pDeleteProg)		(program_t *prog);
 	qboolean (*pLoadBlob)		(program_t *prog, unsigned int permu, vfsfile_t *blobfile);

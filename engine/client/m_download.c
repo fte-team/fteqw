@@ -32,9 +32,9 @@ static char enginerevision[256] = STRINGIFY(SVNREVISION);
 
 
 #ifdef ENABLEPLUGINSBYDEFAULT
-cvar_t	pkg_autoupdate = CVARFD("pkg_autoupdate", "1", CVAR_NOTFROMSERVER|CVAR_NOSAVE|CVAR_NOSET, "Controls autoupdates, can only be changed via the downloads menu.\n0: off.\n1: enabled (stable only).\n2: enabled (unstable).\nNote that autoupdate will still prompt the user to actually apply the changes."); //read from the package list only.
+cvar_t	pkg_autoupdate = CVARFD("pkg_autoupdate", "1", CVAR_NOTFROMSERVER|CVAR_NOSAVE|CVAR_NOSET|CVAR_NORESET, "Controls autoupdates, can only be changed via the downloads menu.\n0: off.\n1: enabled (stable only).\n2: enabled (unstable).\nNote that autoupdate will still prompt the user to actually apply the changes."); //read from the package list only.
 #else
-cvar_t	pkg_autoupdate = CVARFD("pkg_autoupdate", "-1", CVAR_NOTFROMSERVER|CVAR_NOSAVE|CVAR_NOSET, "Controls autoupdates, can only be changed via the downloads menu.\n0: off.\n1: enabled (stable only).\n2: enabled (unstable).\nNote that autoupdate will still prompt the user to actually apply the changes."); //read from the package list only.
+cvar_t	pkg_autoupdate = CVARFD("pkg_autoupdate", "-1", CVAR_NOTFROMSERVER|CVAR_NOSAVE|CVAR_NOSET|CVAR_NORESET, "Controls autoupdates, can only be changed via the downloads menu.\n0: off.\n1: enabled (stable only).\n2: enabled (unstable).\nNote that autoupdate will still prompt the user to actually apply the changes."); //read from the package list only.
 #endif
 
 #define INSTALLEDFILES	"installed.lst"	//the file that resides in the quakedir (saying what's installed).
@@ -197,6 +197,8 @@ static int numpackages;
 static char *manifestpackages;	//metapackage named by the manicfest.
 static char *declinedpackages;	//metapackage named by the manicfest.
 static int domanifestinstall;	//SECURITY_MANIFEST_*
+
+static int pluginsadded;	//so we only show prompts for new externally-installed plugins once, instead of every time the file is reloaded.
 
 #ifdef WEBCLIENT
 static struct
@@ -1638,8 +1640,19 @@ static qboolean PM_ParsePackageList(const char *f, unsigned int parseflags, cons
 	return forcewrite;
 }
 
+static qboolean PM_NameIsInStrings(const char *strings, const char *match)
+{
+	char tok[1024];
+	while (strings && *strings)
+	{
+		strings = COM_ParseStringSetSep(strings, ';', tok, sizeof(tok));
+		if (!Q_strcasecmp(tok, match))	//okay its here.
+			return true;
+	}
+	return false;
+}
 #ifdef PLUGINS
-void PM_EnumeratePlugins(void (*callback)(const char *name))
+void PM_EnumeratePlugins(void (*callback)(const char *name, qboolean blocked))
 {
 	package_t *p;
 	struct packagedep_s *d;
@@ -1655,7 +1668,10 @@ void PM_EnumeratePlugins(void (*callback)(const char *name))
 				if (d->dtype == DEP_FILE)
 				{
 					if (!Q_strncasecmp(d->name, PLUGINPREFIX, strlen(PLUGINPREFIX)))
-						callback(d->name);
+					{
+						qboolean blocked = PM_NameIsInStrings(manifestpackages, va("!%s", p->name));
+						callback(d->name, blocked);
+					}
 				}
 			}
 		}
@@ -2050,20 +2066,10 @@ static void PM_PreparePackageList(void)
 
 #ifdef PLUGINS
 		{
-			int foundone = false;
 			char nat[MAX_OSPATH];
 			FS_NativePath("", FS_BINARYPATH, nat, sizeof(nat));
 			Con_DPrintf("Loading plugins from \"%s\"\n", nat);
-			Sys_EnumerateFiles(nat, PLUGINPREFIX"*" ARCH_DL_POSTFIX, PM_EnumeratedPlugin, &foundone, NULL);
-#ifndef ENABLEPLUGINSBYDEFAULT
-			if (foundone && !pluginpromptshown)
-			{
-				pluginpromptshown = true;
-#ifndef SERVERONLY
-				Menu_Prompt(PM_PluginDetected, NULL, "Plugin(s) appears to have\nbeen installed externally.\nUse the updates menu\nto enable them.", "View", "Disable", "Later...");
-#endif
-			}
-#endif
+			Sys_EnumerateFiles(nat, PLUGINPREFIX"*" ARCH_DL_POSTFIX, PM_EnumeratedPlugin, &pluginsadded, NULL);
 		}
 #endif
 	}
@@ -2462,18 +2468,6 @@ static qboolean PM_MarkPackage(package_t *package, unsigned int markflag)
 	return true;
 }
 
-static qboolean PM_NameIsInStrings(const char *strings, const char *match)
-{
-	char tok[1024];
-	while (strings && *strings)
-	{
-		strings = COM_ParseStringSetSep(strings, ';', tok, sizeof(tok));
-		if (!Q_strcasecmp(tok, match))	//okay its here.
-			return true;
-	}
-	return false;
-}
-
 //just flag stuff as needing updating
 unsigned int PM_MarkUpdates (void)
 {
@@ -2491,19 +2485,25 @@ unsigned int PM_MarkUpdates (void)
 		char *strings = manifestpackages;
 		while (strings && *strings)
 		{
-			strings = COM_ParseStringSetSep(strings, ';', tok, sizeof(tok));
-			if (PM_NameIsInStrings(declinedpackages, tok))
-				continue;
+			qboolean isunwanted = (*tok=='!');
+			strings = COM_ParseStringSetSep(strings, ';', tok+isunwanted, sizeof(tok));
 
 			p = PM_MarkedPackage(tok, DPF_MARKED);
 			if (!p)
 			{
+				if (PM_NameIsInStrings(declinedpackages, tok))
+					continue;
 				p = PM_FindPackage(tok);
 				if (p)
 				{
 					if (PM_MarkPackage(p, DPF_AUTOMARKED))
 						changecount++;
 				}
+			}
+			else if (isunwanted)
+			{
+				PM_UnmarkPackage(p, DPF_AUTOMARKED);	//try and unmark it.
+				changecount++;
 			}
 			else if (!(p->flags & DPF_ENABLED))
 				changecount++;
@@ -2685,6 +2685,7 @@ static void PM_ListDownloaded(struct dl_download *dl)
 	if (f)
 	{
 		pm_source[listidx].status = SRCSTAT_OBTAINED;
+		downloadablessequence++;
 		if (pm_source[listidx].flags & SRCFL_UNSAFE)
 			PM_ParsePackageList(f, DPF_SIGNATUREACCEPTED, dl->url, pm_source[listidx].prefix);
 		else
@@ -2837,7 +2838,7 @@ static void PM_UpdatePackageList(qboolean autoupdate, int retry)
 		else if (allowphonehome == -1)
 		{
 			if (retry)
-				Menu_Prompt(PM_AllowPackageListQuery_Callback, NULL, "Query updates list?\n", "Okay", NULL, "Nope");
+				Menu_Prompt(PM_AllowPackageListQuery_Callback, NULL, "Query updates list?\n", "Okay", NULL, "Nope", true);
 			return;
 		}
 	#else
@@ -2888,6 +2889,7 @@ static void PM_UpdatePackageList(qboolean autoupdate, int retry)
 			}
 		}
 	}
+#endif
 
 	if (autoupdate)
 	{
@@ -2902,7 +2904,6 @@ static void PM_UpdatePackageList(qboolean autoupdate, int retry)
 				PM_PrintChanges();
 		}
 	}
-#endif
 }
 
 qboolean PM_RegisterUpdateSource(void *module, plugupdatesourcefuncs_t *funcs)
@@ -3304,16 +3305,16 @@ static void PM_PackageEnabled(package_t *p)
 		}
 
 #ifndef HAVE_CLIENT
-#define Menu_Prompt(cb,ctx,msg,yes,no,cancel) Con_Printf(CON_WARNING msg "\n")
+#define Menu_Prompt(cb,ctx,msg,yes,no,cancel,highpri) Con_Printf(CON_WARNING msg "\n")
 #endif
 
 		if (FS_NativePath(ef->name, p->fsroot, native, sizeof(native)) && Sys_SetUpdatedBinary(native))
 		{
 			Q_strncpyz(enginerevision, p->version, sizeof(enginerevision));	//make sure 'revert' picks up the new binary...
-			Menu_Prompt(NULL, NULL, "Engine binary updated.\nRestart to use.", NULL, NULL, NULL);
+			Menu_Prompt(NULL, NULL, "Engine binary updated.\nRestart to use.", NULL, NULL, NULL, true);
 		}
 		else
-			Menu_Prompt(NULL, NULL, "Engine update failed.\nManual update required.", NULL, NULL, NULL);
+			Menu_Prompt(NULL, NULL, "Engine update failed.\nManual update required.", NULL, NULL, NULL, true);
 	}
 #endif
 }
@@ -4381,7 +4382,7 @@ static void PM_PromptApplyChanges(void)
 	//lock it down, so noone can make any changes while this prompt is still displayed
 	if (pkg_updating)
 	{
-		Menu_Prompt(PM_PromptApplyChanges_Callback, NULL, "An update is already in progress\nPlease wait\n", NULL, NULL, "Cancel");
+		Menu_Prompt(PM_PromptApplyChanges_Callback, NULL, "An update is already in progress\nPlease wait\n", NULL, NULL, "Cancel", true);
 		return;
 	}
 	pkg_updating = true;
@@ -4389,7 +4390,7 @@ static void PM_PromptApplyChanges(void)
 
 	strcpy(text, "Really decline the following\nrecommended packages?\n\n");
 	if (PM_DeclinedPackages(text+strlen(text), sizeof(text)-strlen(text)))
-		Menu_Prompt(PM_PromptApplyDecline_Callback, NULL, text, NULL, "Confirm", "Cancel");
+		Menu_Prompt(PM_PromptApplyDecline_Callback, NULL, text, NULL, "Confirm", "Cancel", true);
 	else
 	{
 		strcpy(text, "Apply the following changes?\n\n");
@@ -4401,7 +4402,7 @@ static void PM_PromptApplyChanges(void)
 #endif
 		}
 		else
-			Menu_Prompt(PM_PromptApplyChanges_Callback, NULL, text, "Apply", NULL, "Cancel");
+			Menu_Prompt(PM_PromptApplyChanges_Callback, NULL, text, "Apply", NULL, "Cancel", true);
 	}
 }
 #endif
@@ -4499,7 +4500,7 @@ void PM_Command_f(void)
 			else
 			{
 				#ifdef HAVE_CLIENT
-					Menu_Prompt(PM_AddSubList_Callback, Z_StrDup(Cmd_Argv(2)), va("Add updates source?\n%s", Cmd_Argv(2)), "Confirm", NULL, "Cancel");
+					Menu_Prompt(PM_AddSubList_Callback, Z_StrDup(Cmd_Argv(2)), va("Add updates source?\n%s", Cmd_Argv(2)), "Confirm", NULL, "Cancel", true);
 				#else
 					PM_AddSubList(Cmd_Argv(2), "", SRCFL_USER|SRCFL_ENABLED);
 					PM_WriteInstalledPackages();
@@ -5176,7 +5177,7 @@ qboolean PM_CanInstall(const char *packagename)
 {
 	return false;
 }
-void PM_EnumeratePlugins(void (*callback)(const char *name))
+void PM_EnumeratePlugins(void (*callback)(const char *name, qboolean blocked))
 {
 }
 void PM_ManifestPackage(const char *metaname, int security)
@@ -5215,6 +5216,15 @@ static void MD_Draw (int x, int y, struct menucustom_s *c, struct emenu_s *m)
 
 	if (c->dint != downloadablessequence)
 		return;	//probably stale
+
+	if (allowphonehome == -2)
+	{
+		allowphonehome = false;
+#ifdef HAVE_CLIENT
+		Menu_Prompt(PM_AllowPackageListQuery_Callback, NULL, "Query updates list?\n", "Okay", NULL, "Nope", true);
+#endif
+	}
+
 	p = c->dptr;
 	if (p)
 	{
@@ -5251,16 +5261,16 @@ static void MD_Draw (int x, int y, struct menucustom_s *c, struct emenu_s *m)
 				if (!(p->flags & DPF_ENABLED))
 				{	//DPF_MARKED|!DPF_ENABLED:
 					if (p->flags & DPF_PURGE)
-						Draw_FunStringWidth (x, y, "GET", 48, 2, false);
+						Draw_FunStringWidth (x, y, S_COLOR_GREEN"GET", 48, 2, false);
 					else if (p->flags & (DPF_PRESENT))
-						Draw_FunStringWidth (x, y, "USE", 48, 2, false);
+						Draw_FunStringWidth (x, y, S_COLOR_GREEN"USE", 48, 2, false);
 					else
-						Draw_FunStringWidth (x, y, "GET", 48, 2, false);
+						Draw_FunStringWidth (x, y, S_COLOR_GREEN"GET", 48, 2, false);
 				}
 				else
 				{	//DPF_MARKED|DPF_ENABLED:
 					if (p->flags & DPF_PURGE)
-						Draw_FunStringWidth (x, y, "GET", 48, 2, false);	//purge and reinstall.
+						Draw_FunStringWidth (x, y, S_COLOR_GREEN"GET", 48, 2, false);	//purge and reinstall.
 					else if (p->flags & DPF_CORRUPT)
 						Draw_FunStringWidth (x, y, "?""?""?", 48, 2, false);
 					else
@@ -5272,20 +5282,20 @@ static void MD_Draw (int x, int y, struct menucustom_s *c, struct emenu_s *m)
 				}
 			}
 			else if (p->flags & DPF_MARKED)
-			{
+			{	//auto-use options. draw with half alpha to darken them a little.
 				if (!(p->flags & DPF_ENABLED))
 				{	//DPF_MARKED|!DPF_ENABLED:
 					if (p->flags & DPF_PURGE)
-						Draw_FunStringWidth (x, y, "^hGET", 48, 2, false);
+						Draw_FunStringWidth (x, y, S_COLOR_GREEN"^hGET", 48, 2, false);
 					else if (p->flags & (DPF_PRESENT))
-						Draw_FunStringWidth (x, y, "^hUSE", 48, 2, false);
+						Draw_FunStringWidth (x, y, S_COLOR_GREEN"^hUSE", 48, 2, false);
 					else
-						Draw_FunStringWidth (x, y, "^hGET", 48, 2, false);
+						Draw_FunStringWidth (x, y, S_COLOR_GREEN"^hGET", 48, 2, false);
 				}
 				else
 				{	//DPF_MARKED|DPF_ENABLED:
 					if (p->flags & DPF_PURGE)
-						Draw_FunStringWidth (x, y, "^hGET", 48, 2, false);	//purge and reinstall.
+						Draw_FunStringWidth (x, y, S_COLOR_GREEN"^hGET", 48, 2, false);	//purge and reinstall.
 					else if (p->flags & DPF_CORRUPT)
 						Draw_FunStringWidth (x, y, "?""?""?", 48, 2, false);
 					else
@@ -5301,7 +5311,7 @@ static void MD_Draw (int x, int y, struct menucustom_s *c, struct emenu_s *m)
 				if (!(p->flags & DPF_ENABLED))
 				{	//!DPF_MARKED|!DPF_ENABLED:
 					if (p->flags & DPF_PURGE)
-						Draw_FunStringWidth (x, y, "DEL", 48, 2, false);	//purge
+						Draw_FunStringWidth (x, y, S_COLOR_RED"DEL", 48, 2, false);	//purge
 					else if (p->flags & DPF_HIDDEN)
 						Draw_FunStringWidth (x, y, "---", 48, 2, false);
 					else if (p->flags & DPF_CORRUPT)
@@ -5322,9 +5332,9 @@ static void MD_Draw (int x, int y, struct menucustom_s *c, struct emenu_s *m)
 				else
 				{	//!DPF_MARKED|DPF_ENABLED:
 					if ((p->flags & DPF_PURGE) || PM_PurgeOnDisable(p))
-						Draw_FunStringWidth (x, y, "DEL", 48, 2, false);
+						Draw_FunStringWidth (x, y, S_COLOR_RED"DEL", 48, 2, false);
 					else
-						Draw_FunStringWidth (x, y, "DIS", 48, 2, false);
+						Draw_FunStringWidth (x, y, S_COLOR_YELLOW"DIS", 48, 2, false);
 				}
 			}
 		}
@@ -6007,22 +6017,28 @@ static void MD_Download_UpdateStatus(struct emenu_s *m)
 		b->rightalign = false;
 		y+=8;
 #ifdef WEBCLIENT
-		b = MC_AddCommand(m, 48, 320-16, y, "Mark Updates", MD_MarkUpdatesButton);
-		b->rightalign = false;
-		b->common.tooltip = "Select any updated versions of packages that are already installed.";
-		y+=8;
+		if (pm_numsources)
+		{
+			b = MC_AddCommand(m, 48, 320-16, y, "Mark Updates", MD_MarkUpdatesButton);
+			b->rightalign = false;
+			b->common.tooltip = "Select any updated versions of packages that are already installed.";
+			y+=8;
+		}
 #endif
-		b = MC_AddCommand(m, 48, 320-16, y, "Revert Updates", MD_RevertUpdates);
+		b = MC_AddCommand(m, 48, 320-16, y, "Undo Changes", MD_RevertUpdates);
 		b->rightalign = false;
 		b->common.tooltip = "Reset selection to only those packages that are currently installed.";
 		y+=8;
 #ifdef WEBCLIENT
-		c = MC_AddCustom(m, 48, y, p, 0, NULL);
-		c->draw = MD_AutoUpdate_Draw;
-		c->key = MD_AutoUpdate_Key;
-		c->common.width = 320-48-16;
-		c->common.height = 8;
-		y += 8;
+		if (pm_numsources)
+		{
+			c = MC_AddCustom(m, 48, y, p, 0, NULL);
+			c->draw = MD_AutoUpdate_Draw;
+			c->key = MD_AutoUpdate_Key;
+			c->common.width = 320-48-16;
+			c->common.height = 8;
+			y += 8;
+		}
 #endif
 		y+=4;	//small gap
 		MC_AddBufferedText(m, 48, 320-16, y, "Packages", false, true), y += 8;
@@ -6148,7 +6164,7 @@ qboolean PM_AreSourcesNew(qboolean doprompt)
 				if (doprompt)
 				{
 					const char *msg = va("Enable update source\n\n^x66F%s", (pm_source[i].flags&SRCFL_MANIFEST)?PrettyHostFromURL(pm_source[i].url):pm_source[i].url);
-					Menu_Prompt(PM_ConfirmSource, Z_StrDup(pm_source[i].url), msg, "Enable", "Configure", "Later");
+					Menu_Prompt(PM_ConfirmSource, Z_StrDup(pm_source[i].url), msg, "Enable", "Configure", "Later", true);
 					pm_source[i].flags |= SRCFL_PROMPTED;
 				}
 				break;
@@ -6157,7 +6173,7 @@ qboolean PM_AreSourcesNew(qboolean doprompt)
 		/*if (!pluginpromptshown && i < pm_numsources)
 		{
 			pluginpromptshown = true;
-			Menu_Prompt(PM_AutoUpdateQuery, NULL, "Configure update sources now?", "View", NULL, "Later");
+			Menu_Prompt(PM_AutoUpdateQuery, NULL, "Configure update sources now?", "View", NULL, "Later", true);
 		}*/
 	}
 #endif

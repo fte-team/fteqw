@@ -62,7 +62,7 @@ typedef struct cvar_s
 	char			*string;
 	char			*latched_string;	// for CVAR_LATCHMASK vars
 	unsigned int	flags;
-	int				modified;	// increased each time the cvar is changed
+	qboolean		modified;
 	float			value;
 	struct cvar_s	*next;
 
@@ -73,11 +73,11 @@ typedef struct cvar_s
 	const char		*description;
 	char			*enginevalue;		//when changing manifest dir, the cvar will be reset to this value. never freed.
 	char			*defaultstr;		//this is the current mod's default value. set on first update.
-
+	qbyte			restriction;
 
 	int				ival;
 	vec4_t			vec4;	//0,0,0,1 if something didn't parse.
-	qbyte			restriction;
+	int				modifiedcount;
 
 #ifdef HLSERVER
 	struct hlcvar_s	*hlcvar;
@@ -206,7 +206,7 @@ char 	*Cvar_CompleteVariable (const char *partial);
 // attempts to match a partial variable name for command line completion
 // returns NULL if nothing fits
 
-qboolean Cvar_Command (int level);
+qboolean Cvar_Command (cvar_t *v, int level);
 // called by Cmd_ExecuteString when Cmd_Argv(0) doesn't match a known
 // command.  Returns true if the command was a variable reference that
 // was handled. (print or change)

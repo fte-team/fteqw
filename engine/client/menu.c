@@ -107,16 +107,12 @@ void Menu_Push(menu_t *menu, qboolean prompt)
 {
 	if (!Menu_IsLinked(menu))
 	{	//only link once.
-		if (prompt)
-		{
-			menu->prev = promptmenu;
-			promptmenu = menu;
-		}
-		else
-		{
-			menu->prev = topmenu;
-			topmenu = menu;
-		}
+		//annoying logic so that persistent menus always appear on top of other stuff.
+		menu_t **prev = prompt?&promptmenu:&topmenu;
+		while (menu->lowpriority && *prev && !(*prev)->lowpriority)
+			prev = &(*prev)->prev;
+		menu->prev = *prev;
+		*prev = menu;
 	}
 	if (menu == promptmenu)
 	{
@@ -383,7 +379,7 @@ void M_ToggleMenu_f (void)
 	}
 #endif
 #ifdef VM_UI
-	if (UI_OpenMenu())
+	if (q3 && q3->ui.OpenMenu())
 		return;
 #endif
 
@@ -410,6 +406,12 @@ void M_Restart_f(void)
 	}
 	else
 		M_Reinit();
+
+	//start up the ui now we have a renderer
+#ifdef VM_UI
+	if (q3)
+		q3->ui.Start();
+#endif
 }
 
 
@@ -594,7 +596,7 @@ static void Prompt_Release(struct menu_s *gm, qboolean forced)
 		callback(ctx, PROMPT_CANCEL);
 	Z_Free(m);
 }
-void Menu_Prompt (void (*callback)(void *, promptbutton_t), void *ctx, const char *messages, const char *optionyes, const char *optionno, const char *optioncancel)
+void Menu_Prompt (void (*callback)(void *, promptbutton_t), void *ctx, const char *messages, const char *optionyes, const char *optionno, const char *optioncancel, qboolean highpri)
 {
 	promptmenu_t *m;
 	char *t;
@@ -617,7 +619,8 @@ void Menu_Prompt (void (*callback)(void *, promptbutton_t), void *ctx, const cha
 	m->m.release = Prompt_Release;
 	m->mbutton = -1;
 	m->kbutton = -1;
-	Menu_Push(&m->m, true);
+	m->m.persist = true;
+	Menu_Push(&m->m, highpri);
 
 	m->callback = callback;
 	m->ctx = ctx;
@@ -1267,10 +1270,10 @@ void M_Menu_Quit_f (void)
 #endif
 		break;
 	case 2:
-		Menu_Prompt (M_Menu_DoQuitSave, NULL, "You have unsaved settings\nWould you like to\nsave them now?", "Yes", "No", "Cancel");
+		Menu_Prompt (M_Menu_DoQuitSave, NULL, "You have unsaved settings\nWould you like to\nsave them now?", "Yes", "No", "Cancel", true);
 		break;
 	case 1:
-		Menu_Prompt (M_Menu_DoQuit, NULL, quitMessage[rand()%countof(quitMessage)], "Quit", NULL, "Cancel");
+		Menu_Prompt (M_Menu_DoQuit, NULL, quitMessage[rand()%countof(quitMessage)], "Quit", NULL, "Cancel", true);
 		break;
 	}
 }
@@ -1278,7 +1281,7 @@ void M_Menu_Quit_f (void)
 #ifdef HAVE_LEGACY
 void M_Menu_Credits_f (void)
 {
-	Menu_Prompt (NULL, NULL, "That's all folks!\nTry a different mod now.", NULL, NULL, "Sure!");
+	Menu_Prompt (NULL, NULL, "That's all folks!\nTry a different mod now.", NULL, NULL, "Sure!", false);
 }
 #endif
 

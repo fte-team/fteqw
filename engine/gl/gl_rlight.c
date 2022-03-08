@@ -448,10 +448,6 @@ void R_RenderDlights (void)
 
 			switch(method)
 			{
-			case 2:
-				if (TraceLineR(r_refdef.vieworg, l->origin, waste1, waste2))
-					continue;
-				break;
 			case 0:
 				break;
 			case 3:
@@ -534,8 +530,9 @@ void R_RenderDlights (void)
 #endif
 				//other renderers fall through
 			default:
-			case 1:
-				if (CL_TraceLine(r_refdef.vieworg, l->origin, waste1, NULL, NULL) < 1)
+			case 1:	//bsp-only
+			case 2:	//non-bsp too
+				if (TraceLineR(r_refdef.vieworg, l->origin, waste1, waste2, method!=2))
 					continue;
 				break;
 			}

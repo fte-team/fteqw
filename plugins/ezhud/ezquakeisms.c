@@ -224,11 +224,13 @@ mpic_t *Draw_CachePicSafe(const char *name, qbool crash, qbool ignorewad)
 {
 	if (!*name)
 		return NULL;
-	return (mpic_t*)(qintptr_t)drawfuncs->LoadImage(name, false);
+	return (mpic_t*)(qintptr_t)drawfuncs->LoadImage(name);
 }
 mpic_t *Draw_CacheWadPic(const char *name)
 {
-	return (mpic_t*)(qintptr_t)drawfuncs->LoadImage(name, true);
+	char ftename[MAX_QPATH];
+	Q_snprintf(ftename, sizeof(ftename), "gfx/%s.lmp", name);
+	return (mpic_t*)(qintptr_t)drawfuncs->LoadImage(ftename);
 }
 
 mpic_t *SCR_LoadCursorImage(char *cursorimage)
@@ -506,40 +508,10 @@ void EZHud_UseNquake_f(void)
 	cmdfuncs->AddText(hudstr, true);
 }
 
-static struct
-{
-	xcommand_t cmd;
-	const char *name;
-} concmds[128];
-static int numconcmds;
 qboolean Cmd_AddCommand	(const char *funcname, xcommand_t function)
 {
-	if (numconcmds < sizeof(concmds)/sizeof(concmds[0]))
-	{
-		concmds[numconcmds].cmd = function;
-		concmds[numconcmds].name = funcname;
-		numconcmds++;
-		cmdfuncs->AddCommand(funcname);
-		return true;
-	}
-	Con_Printf("ezhud: too many console commands\n");
-	return false;
+	return cmdfuncs->AddCommand(funcname, function, NULL);
 };
-static qboolean QDECL EZHud_ExecuteCommand(qboolean isinsecure)
-{
-	char buffer[128];
-	int i;
-	cmdfuncs->Argv(0, buffer, sizeof(buffer));
-	for (i = 0; i < numconcmds; i++)
-	{
-		if (!strcmp(buffer, concmds[i].name))
-		{
-			concmds[i].cmd();
-			return 1;
-		}
-	}
-	return 0;
-}
 
 int IN_BestWeapon(void)
 {
@@ -743,8 +715,7 @@ qboolean Plug_Init(void)
 	if (cvarfuncs && drawfuncs && clientfuncs && filefuncs && inputfuncs &&
 		plugfuncs->ExportFunction("SbarBase", EZHud_Draw) &&
 		plugfuncs->ExportFunction("MenuEvent", EZHud_MenuEvent) &&
-		plugfuncs->ExportFunction("Tick", EZHud_Tick) &&
-		plugfuncs->ExportFunction("ExecuteCommand", EZHud_ExecuteCommand))
+		plugfuncs->ExportFunction("Tick", EZHud_Tick))
 	{
 		Cmd_AddCommand("ezhud_nquake", EZHud_UseNquake_f);
 		HUD_Init();

@@ -5426,7 +5426,7 @@ qboolean Mod_GetTag(model_t *model, int tagnum, framestate_t *fstate, float *res
 	return false;
 }
 
-int Mod_TagNumForName(model_t *model, const char *name)
+int Mod_TagNumForName(model_t *model, const char *name, int firsttag)
 {
 #ifdef SKELORTAGS
 	int i;
@@ -5457,7 +5457,7 @@ int Mod_TagNumForName(model_t *model, const char *name)
 		{
 			galiasbone_t *b;
 			b = inf->ofsbones;
-			for (i = 0; i < inf->numbones; i++)
+			for (i = firsttag; i < inf->numbones; i++)
 			{
 				if (!strcmp(b[i].name, name))
 					return i+1;
@@ -5468,7 +5468,7 @@ int Mod_TagNumForName(model_t *model, const char *name)
 		if (inf->numtags)
 		{
 			md3tag_t *t = inf->ofstags;
-			for (i = 0; i < inf->numtags; i++)
+			for (i = firsttag; i < inf->numtags; i++)
 			{
 				if (!strcmp(t[i].name, name))
 					return i+1;
@@ -6324,6 +6324,13 @@ static qboolean QDECL Mod_LoadQ3Model(model_t *mod, void *buffer, size_t fsize)
 	return true;
 }
 #endif
+
+
+
+
+
+
+
 
 
 
@@ -10114,6 +10121,8 @@ void Alias_Register(void)
 	Mod_RegisterModelFormatText(NULL, "MD5 Mesh/Anim (md5mesh)",			"MD5Version",							Mod_LoadMD5MeshModel);
 	Mod_RegisterModelFormatText(NULL, "External Anim",						"EXTERNALANIM",							Mod_LoadCompositeAnim);
 #endif
+
+
 #ifdef MODELFMT_OBJ
 	Mod_RegisterModelFormatText(NULL, "Wavefront Object (obj)",				".obj",									Mod_LoadObjModel);
 	Cvar_Register(&mod_obj_orientation, NULL);

@@ -380,7 +380,7 @@ static qboolean rag_dollline(dollcreatectx_t *ctx, int linenum)
 	//create a new body
 	else if (argc == 3 && !stricmp(cmd, "body"))
 	{
-		int boneidx = Mod_TagNumForName(d->model, Cmd_Argv(2))-1;
+		int boneidx = Mod_TagNumForName(d->model, Cmd_Argv(2), 0)-1;
 		ctx->joint = NULL;
 		ctx->body = NULL;
 		if (boneidx >= 0)
@@ -576,7 +576,7 @@ static qboolean rag_dollline(dollcreatectx_t *ctx, int linenum)
 		//the origin is specified in base-frame model space
 		//we need to make it relative to the joint's bodies
 		char *bone = val;
-		i = Mod_TagNumForName(d->model, bone)-1;
+		i = Mod_TagNumForName(d->model, bone, 0)-1;
 		if (argc > 2)
 		{
 			ctx->joint->offset[0] = atof(Cmd_Argv(2));
@@ -2256,7 +2256,7 @@ void QCBUILTIN PF_skel_find_bone (pubprogfuncs_t *prinst, struct globalvars_s *p
 	if (!skelobj)
 		G_FLOAT(OFS_RETURN) = 0;
 	else
-		G_FLOAT(OFS_RETURN) = Mod_TagNumForName(skelobj->model, bname);
+		G_FLOAT(OFS_RETURN) = Mod_TagNumForName(skelobj->model, bname, 0);
 }
 
 //vector(float skel, float bonenum) skel_get_bonerel (FTE_CSQC_SKELETONOBJECTS) (sets v_forward etc)
@@ -2661,7 +2661,7 @@ void QCBUILTIN PF_gettagindex (pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 	const char *tagname = PR_GetStringOfs(prinst, OFS_PARM1);
 	model_t *mod = *tagname?w->Get_CModel(w, ent->v->modelindex):NULL;
 	if (mod)
-		G_FLOAT(OFS_RETURN) = Mod_TagNumForName(mod, tagname);
+		G_FLOAT(OFS_RETURN) = Mod_TagNumForName(mod, tagname, 0);
 	else
 		G_FLOAT(OFS_RETURN) = 0;
 }

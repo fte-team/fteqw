@@ -85,6 +85,7 @@ void Mod_WipeSkin(skinid_t id, qboolean force)
 		return;
 	if (!force && --sk->refcount > 0)
 		return; //still in use.
+	registeredskins[id] = NULL;
 
 	for (i = 0; i < sk->nummappings; i++)
 	{
@@ -95,8 +96,7 @@ void Mod_WipeSkin(skinid_t id, qboolean force)
 		}
 		R_UnloadShader(sk->mappings[i].shader);
 	}
-	Z_Free(registeredskins[id]);
-	registeredskins[id] = NULL;
+	Z_Free(sk);
 }
 static void Mod_WipeAllSkins(qboolean final)
 {
@@ -275,6 +275,7 @@ skinid_t Mod_ReadSkinFile(const char *skinname, const char *skintext)
 	skin->q1upper = Q1UNSPECIFIED;
 #endif
 
+
 	while(skintext)
 	{
 		if (skin->nummappings == skin->maxmappings)
@@ -414,6 +415,7 @@ skinid_t Mod_ReadSkinFile(const char *skinname, const char *skintext)
 		if (!*skintext)
 			break;
 	}
+
 	registeredskins[id] = skin;
 
 #ifdef QWSKINS
@@ -1383,7 +1385,7 @@ qboolean R_CalcModelLighting(entity_t *e, model_t *clmodel)
 		return e->light_known-1;
 	}
 
-	if (!(r_refdef.flags & RDF_NOWORLDMODEL))
+	if (!(r_refdef.flags & RDF_NOWORLDMODEL) && cl.worldmodel)
 	{
 		if (e->flags & RF_WEAPONMODEL)
 		{
@@ -1479,6 +1481,17 @@ qboolean R_CalcModelLighting(entity_t *e, model_t *clmodel)
 	}
 	else
 	{
+#ifdef HEXEN2
+		if ((e->drawflags & MLS_MASK) == MLS_ADDLIGHT)
+		{
+			ambientlight[0] += e->abslight;
+			ambientlight[1] += e->abslight;
+			ambientlight[2] += e->abslight;
+			shadelight[0] += e->abslight;
+			shadelight[1] += e->abslight;
+			shadelight[2] += e->abslight;
+		}
+#endif
 		if (!r_vertexdlights.ival && r_dynamic.ival > 0)
 		{
 			float *org = e->origin;

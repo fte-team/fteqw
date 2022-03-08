@@ -392,7 +392,6 @@ extern qboolean gammaworks;	//if the gl drivers can set proper gamma.
 
 
 gl_config_t gl_config;
-int		gl_stencilbits;
 
 float		gldepthmin, gldepthmax;
 const char *gl_vendor;

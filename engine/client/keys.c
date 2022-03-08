@@ -50,7 +50,6 @@ qbyte	bindcmdlevel[K_MAX][KEY_MODIFIERSTATES];	//should be a struct, but not due
 qboolean	consolekeys[K_MAX];	// if true, can't be rebound while in console
 int		keyshift[K_MAX];		// key to map to if shift held down in console
 unsigned int	keydown[K_MAX];	//	bitmask, for each device (to block autorepeat binds per-seat).
-//unsigned int	key_modifier[K_MAX];
 
 #define MAX_INDEVS 8
 
@@ -273,6 +272,8 @@ keyname_t keynames[] =
 	{"PLUS",		'+'},	// because "shift++" is inferior to shift+plus
 	{"MINUS",		'-'},	// because "shift+-" is inferior to shift+minus
 
+	{"APOSTROPHE",	'\''},	//can mess up string parsing, unfortunately
+	{"QUOTES",		'\"'},	//can mess up string parsing, unfortunately
 	{"TILDE",		'~'},
 	{"BACKQUOTE",	'`'},
 	{"BACKSLASH",	'\\'},
@@ -2845,32 +2846,6 @@ void Key_Init (void)
 	consolekeys[K_MWHEELUP] = true;
 	consolekeys[K_MWHEELDOWN] = true;
 
-	for (i=0 ; i<K_MAX ; i++)
-		keyshift[i] = i;
-	for (i='a' ; i<='z' ; i++)
-		keyshift[i] = i - 'a' + 'A';
-	keyshift['1'] = '!';
-	keyshift['2'] = '@';
-	keyshift['3'] = '#';
-	keyshift['4'] = '$';
-	keyshift['5'] = '%';
-	keyshift['6'] = '^';
-	keyshift['7'] = '&';
-	keyshift['8'] = '*';
-	keyshift['9'] = '(';
-	keyshift['0'] = ')';
-	keyshift['-'] = '_';
-	keyshift['='] = '+';
-	keyshift[','] = '<';
-	keyshift['.'] = '>';
-	keyshift['/'] = '?';
-	keyshift[';'] = ':';
-	keyshift['\''] = '"';
-	keyshift['['] = '{';
-	keyshift[']'] = '}';
-	keyshift['`'] = '~';
-	keyshift['\\'] = '|';
-
 //
 // register our functions
 //
@@ -2969,7 +2944,7 @@ void Key_Event (unsigned int devid, int key, unsigned int unicode, qboolean down
 			return;
 #endif
 #ifdef VM_CG
-		if (CG_KeyPress(key, unicode, down))
+		if (q3 && q3->cg.KeyPressed(key, unicode, down))
 			return;
 #endif
 	}

@@ -57,7 +57,7 @@ cvar_t	cl_timeout = CVAR("cl_timeout", "60");
 
 cvar_t	cl_shownet = CVARD("cl_shownet","0", "Debugging var. 0 shows nothing. 1 shows incoming packet sizes. 2 shows individual messages. 3 shows entities too.");	// can be 0, 1, or 2
 
-cvar_t	cl_disconnectreason = CVARAFD("_cl_disconnectreason", "", "com_errorMessage", CVAR_NOSAVE, "This cvar contains the reason for the last disconnection, so that mod menus can know why things failed.");
+cvar_t	cl_disconnectreason = CVARAFD("_cl_disconnectreason", "", /*q3*/"com_errorMessage", CVAR_NOSAVE, "This cvar contains the reason for the last disconnection, so that mod menus can know why things failed.");
 
 cvar_t	cl_pure		= CVARD("cl_pure", "0", "0=standard quake rules.\n1=clients should prefer files within packages present on the server.\n2=clients should use *only* files within packages present on the server.\nDue to quake 1.01/1.06 differences, a setting of 2 is only reliable with total conversions.\nIf sv_pure is set, the client will prefer the highest value set.");
 cvar_t	cl_sbar		= CVARFC("cl_sbar", "0", CVAR_ARCHIVE, CL_Sbar_Callback);
@@ -695,7 +695,9 @@ void CL_SendConnectPacket (netadr_t *to, int mtu,
 #ifdef Q3CLIENT
 	if (connectinfo.protocol == CP_QUAKE3)
 	{	//q3 requires some very strange things.
-		CLQ3_SendConnectPacket(to, connectinfo.challenge, connectinfo.qport);
+		//cl.splitclients = 1;
+		if (q3)
+			q3->cl.SendConnectPacket(cls.sockets, to, connectinfo.challenge, connectinfo.qport, cls.userinfo);
 		return;
 	}
 #endif
@@ -1118,7 +1120,7 @@ void CL_CheckForResend (void)
 
 			net_message.packing = SZ_RAWBYTES;
 			net_message.cursize = 0;
-			MSG_BeginReading(net_message.prim);
+			MSG_BeginReading(&net_message, net_message.prim);
 
 			if (connectinfo.mode == CIM_QEONLY)
 			{
@@ -1247,10 +1249,7 @@ void CL_CheckForResend (void)
 	if (!connectinfo.clogged)
 	{
 #ifdef Q3CLIENT
-		//Q3 clients send their cdkey to the q3 authorize server.
-		//they send this packet with the challenge.
-		//and the server will refuse the client if it hasn't sent it.
-		CLQ3_SendAuthPacket(to);
+		q3->cl.SendAuthPacket(cls.sockets, to);
 #endif
 
 		if (connectinfo.istransfer || connectinfo.numadr>1)
@@ -1281,7 +1280,7 @@ void CL_CheckForResend (void)
 	{
 		contype |= 1; /*always try qw type connections*/
 #ifdef VM_UI
-		if (!UI_IsRunning())	//don't try to connect to nq servers when running a q3ui. I was getting annoying error messages from q3 servers due to this.
+		if (!q3->ui.IsRunning())	//don't try to connect to nq servers when running a q3ui. I was getting annoying error messages from q3 servers due to this.
 #endif
 			contype |= 2; /*try nq connections periodically (or if its the default nq port)*/
 	}
@@ -1823,6 +1822,7 @@ static void CL_ReconfigureCommands(int newgame)
 #endif
 	extern void CL_Say_f (void);
 	extern void CL_SayTeam_f (void);
+	extern void CL_Color_f (void);
 	static const struct
 	{
 		const char *name;
@@ -1834,8 +1834,9 @@ static void CL_ReconfigureCommands(int newgame)
 #define Q2 (1u<<CP_QUAKE2)
 #define Q3 (1u<<CP_QUAKE3)
 	{
-		{"sizeup",		SCR_SizeUp_f,	"Increase viewsize",	Q3},
-		{"sizedown",	SCR_SizeDown_f,	"Decrease viewsize",	Q3},
+		{"sizeup",		SCR_SizeUp_f,	"Increase viewsize",		Q3},
+		{"sizedown",	SCR_SizeDown_f,	"Decrease viewsize",		Q3},
+		{"color",		CL_Color_f,		"Change Player Colours",	Q3},
 #ifdef QUAKESTATS
 		{"weapon",		IN_Weapon,		"Configures weapon priorities for the next +attack as an alternative for the impulse command", ~Q1},
 		{"+fire",		IN_FireDown,	"'+fire 8 7' will fire lg if you have it and fall back on rl if you don't, and just fire your current weapon if neither are held. Releasing fire will then switch away to exploit a bug in most mods to deny your weapon upgrades to your killer.", ~Q1},
@@ -2089,7 +2090,8 @@ void CL_Disconnect (const char *reason)
 // stop sounds (especially looping!)
 	S_StopAllSounds (true);
 #ifdef VM_CG
-	CG_Stop();
+	if (q3)
+		q3->cl.Disconnect(cls.sockets);
 #endif
 #ifdef CSQC_DAT
 	CSQC_Shutdown();
@@ -2199,7 +2201,7 @@ void CL_Disconnect (const char *reason)
 
 	CL_ClearState(false);
 
-	FS_PureMode(0, NULL, NULL, NULL, NULL, 0);
+	FS_PureMode(NULL, 0, NULL, NULL, NULL, NULL, 0);
 
 	Alias_WipeStuffedAliases();
 
@@ -2440,7 +2442,7 @@ void CL_CheckServerPacks(void)
 	if (pure != oldpure || cl.serverpakschanged)
 	{
 		CL_PakDownloads((pure && !cl_download_packages.ival)?1:cl_download_packages.ival);
-		FS_PureMode(pure, cl.serverpacknames, cl.serverpackhashes, NULL, NULL, cls.challenge);
+		FS_PureMode(NULL, pure, cl.serverpacknames, cl.serverpackhashes, NULL, NULL, cls.challenge);
 
 		if (pure)
 		{
@@ -3226,7 +3228,7 @@ void CL_ConnectionlessPacket (void)
 	int		c;
 	char	adr[MAX_ADR_SIZE];
 
-	MSG_BeginReading (msg_nullnetprim);
+	MSG_BeginReading (&net_message, msg_nullnetprim);
 	MSG_ReadLong ();        // skip the -1
 
 	Cmd_TokenizeString(net_message.data+4, false, false);
@@ -3885,7 +3887,9 @@ client_connect:	//fixme: make function
 #endif
 		CL_ParseEstablished();
 #ifdef Q3CLIENT
-		if (cls.protocol != CP_QUAKE3)
+		if (cls.protocol == CP_QUAKE3)
+			q3->cl.Established();
+		else
 #endif
 			CL_SendClientCommand(true, "new");
 		cls.state = ca_connected;
@@ -4004,7 +4008,7 @@ void CLNQ_ConnectionlessPacket(void)
 	if (net_message.cursize < 5)
 		return;	//not enough size to be meaningful (qe does not include a port number)
 
-	MSG_BeginReading (msg_nullnetprim);
+	MSG_BeginReading (&net_message, msg_nullnetprim);
 	length = LongSwap(MSG_ReadLong ());
 	if (!(length & NETFLAG_CTL))
 		return;	//not an nq control packet.
@@ -4118,7 +4122,7 @@ void CL_ReadPacket(void)
 #ifdef NQPROT
 	if (cls.demoplayback == DPB_NETQUAKE)
 	{
-		MSG_BeginReading (cls.netchan.netprim);
+		MSG_BeginReading (&net_message, cls.netchan.netprim);
 		cls.netchan.last_received = realtime;
 		CLNQ_ParseServerMessage ();
 
@@ -4130,7 +4134,7 @@ void CL_ReadPacket(void)
 #ifdef Q2CLIENT
 	if (cls.demoplayback == DPB_QUAKE2)
 	{
-		MSG_BeginReading (cls.netchan.netprim);
+		MSG_BeginReading (&net_message, cls.netchan.netprim);
 		cls.netchan.last_received = realtime;
 		CLQ2_ParseServerMessage ();
 		return;
@@ -4212,13 +4216,21 @@ void CL_ReadPacket(void)
 #endif
 	case CP_QUAKE3:
 #ifdef Q3CLIENT
-		CLQ3_ParseServerMessage();
+		{
+			cactive_t newstate = q3->cl.ParseServerMessage(&net_message);
+			if (newstate != cls.state)
+			{
+				cls.state = newstate;
+				if (cls.state == ca_active)
+					CL_MakeActive("Quake3Arena");	//became active, can flush old stuff now.
+			}
+		}
 #endif
 		break;
 	case CP_QUAKEWORLD:
 		if (cls.demoplayback == DPB_MVD || cls.demoplayback == DPB_EZTV)
 		{
-			MSG_BeginReading(cls.netchan.netprim);
+			MSG_BeginReading(&net_message, cls.netchan.netprim);
 			cls.netchan.last_received = realtime;
 			cls.netchan.outgoing_sequence = cls.netchan.incoming_sequence;
 		}
@@ -5343,6 +5355,7 @@ void CL_Init (void)
 	Stats_Init();
 #endif
 	CL_ClearState(false);	//make sure the cl.* fields are set properly if there's no ssqc or whatever.
+	R_BumpLightstyles(1);
 }
 
 
@@ -5968,7 +5981,7 @@ done:
 		if (!(f->flags & HRF_ACTION))
 		{
 			Key_Dest_Remove(kdm_console);
-			Menu_Prompt(Host_RunFilePrompted, f, va("Exec %s?\n", COM_SkipPath(f->fname)), "Yes", NULL, "Cancel");
+			Menu_Prompt(Host_RunFilePrompted, f, va("Exec %s?\n", COM_SkipPath(f->fname)), "Yes", NULL, "Cancel", true);
 			return;
 		}
 		if (f->flags & HRF_OPENED)
@@ -6079,17 +6092,17 @@ done:
 		Key_Dest_Remove(kdm_console);
 		if (haschanged)
 		{
-			Menu_Prompt(Host_RunFilePrompted, f, va("File already exists.\nWhat would you like to do?\n%s\n", displayname), "Overwrite", "Run old", "Cancel");
+			Menu_Prompt(Host_RunFilePrompted, f, va("File already exists.\nWhat would you like to do?\n%s\n", displayname), "Overwrite", "Run old", "Cancel", true);
 			return;
 		}
 		else if (isnew)
 		{
-			Menu_Prompt(Host_RunFilePrompted, f, va("File appears new.\nWould you like to install\n%s\n", displayname), "Install!", "", "Cancel");
+			Menu_Prompt(Host_RunFilePrompted, f, va("File appears new.\nWould you like to install\n%s\n", displayname), "Install!", "", "Cancel", true);
 			return;
 		}
 		else
 		{
-			Menu_Prompt(NULL, NULL, va("File is already installed\n%s\n", displayname), NULL, NULL, "Cancel");
+			Menu_Prompt(NULL, NULL, va("File is already installed\n%s\n", displayname), NULL, NULL, "Cancel", true);
 			f->flags |= HRF_ABORT;
 		}
 	}
@@ -6721,11 +6734,6 @@ void CL_StartCinematicOrMenu(void)
 		Key_Dest_Remove(kdm_console);	//make sure console doesn't stay up weirdly.
 	}
 
-	//start up the ui now we have a renderer
-#ifdef VM_UI
-	UI_Start();
-#endif
-
 	Cbuf_AddText("menu_restart\n", RESTRICT_LOCAL);
 
 	Con_TPrintf ("^Ue080^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081 %s %sInitialized ^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue082\n", *fs_gamename.string?fs_gamename.string:"Nothing", com_installer?"Installer ":"");
@@ -7043,7 +7051,7 @@ void Host_FinishLoading(void)
 			char *scheme = Sys_URIScheme_NeedsRegistering();
 			if (scheme)
 			{
-				Menu_Prompt(Host_URIPrompt, NULL, va("The URI scheme %s:// is not configured.\nRegister now?", scheme), "Register", NULL, "No");
+				Menu_Prompt(Host_URIPrompt, NULL, va("The URI scheme %s:// is not configured.\nRegister now?", scheme), "Register", NULL, "No", true);
 				Z_Free(scheme);
 			}
 		}
@@ -7147,10 +7155,6 @@ void Host_Init (quakeparms_t *parms)
 	Editor_Init();
 #endif
 
-#ifdef VM_UI
-	UI_Init();
-#endif
-
 #ifdef CL_MASTER
 	Master_SetupSockets();
 #endif
@@ -7167,6 +7171,10 @@ void Host_Init (quakeparms_t *parms)
 	Cvar_ParseWatches();
 	host_initialized = true;
 	forcesaveprompt = false;
+
+#ifdef PLUGINS
+	Plug_Initialise(false);
+#endif
 
 	Sys_SendKeyEvents();
 
@@ -7207,10 +7215,6 @@ void Host_Shutdown(void)
 	CSQC_Shutdown();
 #endif
 
-#ifdef VM_UI
-	UI_Stop();
-#endif
-
 	S_Shutdown(true);
 	CDAudio_Shutdown ();
 	IN_Shutdown ();
@@ -7240,9 +7244,6 @@ void Host_Shutdown(void)
 	Stats_Clear();
 #endif
 	Ruleset_Shutdown();
-#ifdef Q3CLIENT
-	VMQ3_FlushStringHandles();
-#endif
 
 	COM_DestroyWorkerThread();
 

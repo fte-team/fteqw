@@ -318,7 +318,9 @@ float MSG_FromCoord(coorddata c, int bytes);
 coorddata MSG_ToCoord(float f, int bytes);
 coorddata MSG_ToAngle(float f, int bytes);
 
+void MSG_BeginWriting (sizebuf_t *msg, struct netprim_s prim, void *bufferstorage, size_t buffersize);
 void MSG_WriteChar (sizebuf_t *sb, int c);
+void MSG_WriteBits (sizebuf_t *msg, int value, int bits);
 void MSG_WriteByte (sizebuf_t *sb, int c);
 void MSG_WriteShort (sizebuf_t *sb, int c);
 void MSG_WriteLong (sizebuf_t *sb, int c);
@@ -344,7 +346,7 @@ extern	int			msg_readcount;
 extern	qboolean	msg_badread;		// set if a read goes beyond end of message
 extern struct netprim_s msg_nullnetprim;
 
-void MSG_BeginReading (struct netprim_s prim);
+void MSG_BeginReading (sizebuf_t *sb, struct netprim_s prim);
 void MSG_ChangePrimitives(struct netprim_s prim);
 int MSG_GetReadCount(void);
 int MSG_ReadChar (void);
@@ -452,7 +454,7 @@ char *COM_ParseType (const char *data, char *out, size_t outlen, com_tokentype_t
 char *COM_ParseStringSet (const char *data, char *out, size_t outlen);	//whitespace or semi-colon separators
 char *COM_ParseStringSetSep (const char *data, char sep, char *out, size_t outsize);	//single-char-separator, no whitespace
 char *COM_ParseCString (const char *data, char *out, size_t maxoutlen, size_t *writtenlen);
-char *COM_StringParse (const char *data, char *token, unsigned int tokenlen, qboolean expandmacros, qboolean qctokenize);
+char *COM_StringParse (const char *data, char *token, unsigned int tokenlen, qboolean expandmacros, qboolean qctokenize);	//fancy version used for console etc parsing
 #define COM_ParseToken(data,punct) COM_ParseTokenOut(data, punct, com_token, sizeof(com_token), &com_tokentype)
 char *COM_ParseTokenOut (const char *data, const char *punctuation, char *token, size_t tokenlen, com_tokentype_t *tokentype);	//note that line endings are a special type of token.
 char *COM_TrimString(char *str, char *buffer, int buffersize);
@@ -572,7 +574,7 @@ typedef struct searchpath_s
 	struct searchpath_s *next;
 	struct searchpath_s *nextpure;
 } searchpath_t;
-typedef struct {
+typedef struct flocation_s{
 	struct searchpath_s	*search;			//used to say which filesystem driver to open the file from
 	void			*fhandle;				//used by the filesystem driver as a simple reference to the file
 	char			rawname[MAX_OSPATH];	//blank means not readable directly
@@ -660,7 +662,7 @@ enum fs_relative{
 	//note that many of theses paths can map to multiple system locations. FS_NativePath can vary somewhat in terms of what it returns, generally favouring writable locations rather then the path that actually contains a file.
 	FS_BINARYPATH,	//where the 'exe' is located. we'll check here for dlls too.
 	FS_LIBRARYPATH,	//for system dlls and stuff
-	FS_ROOT,		//either homedir or basedir,
+	FS_ROOT,		//./ (effectively -homedir if enabled, otherwise effectively -basedir arg)
 	FS_SYSTEM,		//a system path. absolute paths are explicitly allowed and expected, but not required.
 
 	//after this point, all types must be relative to a gamedir
@@ -708,7 +710,7 @@ void MyRegDeleteKeyValue(void *base, const char *keyname, const char *valuename)
 void FS_UnloadPackFiles(void);
 void FS_ReloadPackFiles(void);
 char *FSQ3_GenerateClientPacksList(char *buffer, int maxlen, int basechecksum);
-void FS_PureMode(int mode, char *purenamelist, char *purecrclist, char *refnamelist, char *refcrclist, int seed);	//implies an fs_restart. ref package names are optional, for q3 where pure names don't contain usable paths
+void FS_PureMode(const char *gamedir, int mode, char *purenamelist, char *purecrclist, char *refnamelist, char *refcrclist, int seed);	//implies an fs_restart. ref package names are optional, for q3 where pure names don't contain usable paths
 int FS_PureOkay(void);
 
 //recursively tries to open files until it can get a zip.
@@ -828,7 +830,7 @@ int FS_GetManifestArgv(char **argv, int maxargs);
 
 struct zonegroup_s;
 void *FS_LoadMallocGroupFile(struct zonegroup_s *ctx, char *path, size_t *fsize, qboolean filters);
-qbyte *FS_LoadMallocFile (const char *path, size_t *fsize);
+void *FS_LoadMallocFile (const char *path, size_t *fsize);
 qbyte *FS_LoadMallocFileFlags (const char *path, unsigned int locateflags, size_t *fsize);
 qofs_t FS_LoadFile(const char *name, void **file);
 void FS_FreeFile(void *file);

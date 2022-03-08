@@ -2293,7 +2293,7 @@ void SCR_SetUpToDrawConsole (void)
 			scr_con_target = 0; // not looking at an normal console
 		}
 #ifdef VM_UI
-		else if (UI_OpenMenu())
+		else if (q3 && q3->ui.OpenMenu())
 			scr_con_current = scr_con_target = 0;	//force instantly hidden.
 #endif
 		else
@@ -2499,7 +2499,7 @@ void *SCR_ScreenShot_Capture(int fbwidth, int fbheight, int *stride, enum upload
 	R2D_FillBlock(0, 0, vid.fbvwidth, vid.fbvheight);
 
 #ifdef VM_CG
-	if (!okay && CG_Refresh())
+	if (!okay && q3->cg.Redraw(cl.time))
 		okay = true;
 #endif
 #ifdef CSQC_DAT

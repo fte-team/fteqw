@@ -1,10 +1,10 @@
-#include "quakedef.h"
+#include "q3common.h"
+#define net_message asrgsaerge
 
 //An implementation of a Q3 server...
 //requires qvm implementation and existing q3 client stuff (or at least the overlapping stuff in q3common.c).
 
 #ifdef Q3SERVER
-
 #define USEBOTLIB
 
 #ifdef USEBOTLIB
@@ -16,6 +16,8 @@
 #include "botlib.h"
 
 #define Z_TAG_BOTLIB 221726
+static zonegroup_t botlibmem;
+static zonegroup_t botlibhunkmem;
 
 static botlib_export_t *FTE_GetBotLibAPI(int apiVersion, botlib_import_t *import)
 {	//a stub that will prevent botlib from loading.
@@ -49,13 +51,19 @@ botlib_export_t *botlib;
 #include "clq3defs.h"
 #include "q3g_public.h"
 
-static vm_t *q3gamevm;
+#define svs (*sv3.server_state_static)
+#define sv (*sv3.server_state)
+
+vm_t *q3gamevm;
+#ifdef VM_CG
+extern vm_t *cgvm;
+#endif
 
 
 #define fs_key 0
 
-#define MAX_CONFIGSTRINGS 1024
-static char *svq3_configstrings[MAX_CONFIGSTRINGS];
+static qboolean q3_serverinfo_dirty; //signals that the serverinfo has changed. this involves networking so we use a flag to gather changes to splurge at once instead of many minor changes that each send out new config string updates
+static char *svq3_configstrings[MAX_Q3_CONFIGSTRINGS];
 
 static qboolean q3_serverinfo_dirty;
 static q3sharedEntity_t *q3_entarray;
@@ -68,7 +76,7 @@ static int q3_num_snapshot_entities;
 static int q3_next_snapshot_entities;
 static q3entityState_t *q3_snapshot_entities;
 static q3entityState_t *q3_baselines;
-extern cvar_t sv_pure;
+cvar_t *sv_maxclients;
 
 #define NUM_FOR_GENTITY(ge) (((char*)ge - (char*)q3_entarray) / sizeofq3gentity)
 #define NUM_FOR_SENTITY(se) (se - q3_sentities)
@@ -79,13 +87,14 @@ extern cvar_t sv_pure;
 
 static qboolean BoundsIntersect (vec3_t mins1, vec3_t maxs1, vec3_t mins2, vec3_t maxs2);
 
+static int SVQ3_AddBot(void);
 void SVQ3_CreateBaseline(void);
 void SVQ3_ClientThink(client_t *cl);
 #ifdef QWOVERQ3
 static void SVQ3Q1_ConvertEntStateQ1ToQ3(entity_state_t *q1, q3entityState_t *q3);
 #endif
 
-const char *mapentspointer;
+static const char *mapentspointer;
 
 #define	Q3SOLID_BMODEL	0xffffff
 
@@ -124,20 +133,38 @@ const char *mapentspointer;
 
 //these entities are private to the engine. gamecode shall not see this.
 typedef struct {
-#ifdef USEAREAGRID
 	areagridlink_t areas[16];
 	size_t areagridsequence;
-#else
-	link_t area;
-#endif
+
 	qboolean linked;
 
 	pvscache_t pvscache;
 } q3serverEntity_t;
-q3serverEntity_t *q3_sentities;
+static q3serverEntity_t *q3_sentities;
+
+// ClearLink is used for new headnodes
+static void W_ClearLink (link_t *l)
+{
+	l->prev = l->next = l;
+}
+
+static void W_RemoveLink (link_t *l)
+{
+	l->next->prev = l->prev;
+	l->prev->next = l->next;
+}
+
+static void W_InsertLinkBefore (link_t *l, link_t *before)
+{
+	l->next = before;
+	l->prev = before->prev;
+	l->prev->next = l;
+	l->next->prev = l;
+}
 
 static void Q3G_UnlinkEntity(q3sharedEntity_t *ent)
 {
+	int i;
 	q3serverEntity_t *sent;
 
 	ent->r.linked = false;
@@ -149,26 +176,25 @@ static void Q3G_UnlinkEntity(q3sharedEntity_t *ent)
 		return;		// not linked in anywhere
 	}
 
-#ifdef USEAREAGRID
-	{int i;
-		for (i = 0; i < countof(sent->areas); i++)
-		{
-			if (!sent->areas[i].ed)
-				break;
-			RemoveLink(&sent->areas[i].l);
-			sent->areas[i].ed = NULL;
-		}
+	for (i = 0; i < countof(sent->areas); i++)
+	{
+		if (!sent->areas[i].ed)
+			break;
+		W_RemoveLink(&sent->areas[i].l);
+		sent->areas[i].ed = NULL;
 	}
-#else
-	if (sent->area.prev == NULL || sent->area.next == NULL)
-		SV_Error("Null entity links in linked entity\n");
-
-	RemoveLink(&sent->area);
-	sent->area.prev = sent->area.next = NULL;
-#endif
 
 	sent->linked = false;
 }
+#define CALCAREAGRIDBOUNDS(min,max) \
+		ming[0] = floor(((min)[0]+sv3.gridbias[0]) / sv3.gridscale[0]);	\
+		ming[1] = floor(((min)[1]+sv3.gridbias[1]) / sv3.gridscale[1]);	\
+		maxg[0] = floor(((max)[0]+sv3.gridbias[0]) / sv3.gridscale[0]);	\
+		maxg[1] = floor(((max)[1]+sv3.gridbias[1]) / sv3.gridscale[1]);	\
+		ming[0] = bound(0, ming[0], sv3.gridsize[0]-1);	\
+		ming[1] = bound(0, ming[1], sv3.gridsize[1]-1);	\
+		maxg[0] = bound(ming[0], maxg[0], sv3.gridsize[0]-1)+1;	\
+		maxg[1] = bound(ming[1], maxg[1], sv3.gridsize[1]-1)+1;
 
 #define MAX_TOTAL_ENT_LEAFS		256
 
@@ -178,20 +204,18 @@ static model_t *Q3G_GetCModel(unsigned int modelindex)
 	//1 == *1
 	//this is not how quake's precaches normally work.
 	modelindex++;
-	if ((unsigned int)modelindex < MAX_PRECACHE_MODELS)
+	if ((unsigned int)modelindex < countof(sv3.models))
 	{
-		if (!sv.models[modelindex])
+		if (!sv3.models[modelindex])
 		{
 			if (modelindex == 1)
-				sv.models[modelindex] = sv.world.worldmodel;
+				sv3.models[modelindex] = sv3.world->worldmodel;
 			else
-				sv.models[modelindex] = Mod_ForName(Mod_FixName(va("*%i", modelindex-1), sv.modelname), MLV_WARN);
+				sv3.models[modelindex] = worldfuncs->LoadModel(worldfuncs->FixName(va("*%i", modelindex-1), sv.modelname), MLV_WARNSYNC);
 		}
 
-		if (sv.models[modelindex]->loadstate == MLS_LOADING)
-			COM_WorkerPartialSync(sv.models[modelindex], &sv.models[modelindex]->loadstate, MLS_LOADING);
-		if (sv.models[modelindex]->loadstate == MLS_LOADED)
-			return sv.models[modelindex];
+		if (sv3.models[modelindex]->loadstate == MLS_LOADED)
+			return sv3.models[modelindex];
 	}
 	return NULL;
 }
@@ -279,7 +303,7 @@ static void Q3G_LinkEntity(q3sharedEntity_t *ent)
 	ent->r.absmax[2] += 1;
 
 // link to PVS leafs
-	sv.world.worldmodel->funcs.FindTouchedLeafs(sv.world.worldmodel, &sent->pvscache, ent->r.absmin, ent->r.absmax);
+	sv3.world->worldmodel->funcs.FindTouchedLeafs(sv3.world->worldmodel, &sent->pvscache, ent->r.absmin, ent->r.absmax);
 	//FIXME: return if no leafs
 
 	ent->r.linkcount++;
@@ -287,12 +311,11 @@ static void Q3G_LinkEntity(q3sharedEntity_t *ent)
 	sent->linked = true;
 
 // find the first node that the ent's box crosses
-#ifdef USEAREAGRID
-	CALCAREAGRIDBOUNDS(&sv.world, ent->r.absmin, ent->r.absmax);
+	CALCAREAGRIDBOUNDS(ent->r.absmin, ent->r.absmax);
 	if ((maxg[0]-ming[0])*(maxg[1]-ming[1]) > countof(sent->areas))
 	{	//entity is too large to fit in our grid. shove it in the overflow
 		sent->areas[0].ed = sent;
-		InsertLinkBefore (&sent->areas[0].l, &sv.world.jumboarea.l);
+		W_InsertLinkBefore (&sent->areas[0].l, &sv3.jumboarea.l);
 	}
 	else
 	{
@@ -300,29 +323,53 @@ static void Q3G_LinkEntity(q3sharedEntity_t *ent)
 			for (    g[1] = ming[1]; g[1] < maxg[1]; g[1]++, ga++)
 			{
 				sent->areas[ga].ed = sent;
-				InsertLinkBefore (&sent->areas[ga].l, &sv.world.gridareas[g[0] + g[1]*sv.world.gridsize[0]].l);
+				W_InsertLinkBefore (&sent->areas[ga].l, &sv3.gridareas[g[0] + g[1]*sv3.gridsize[0]].l);
 			}
 	}
-#else
-	node = sv.world.areanodes;
-	while(1)
-	{
-		if(node->axis == -1)
-			break;
-
-		if(ent->r.absmin[node->axis] > node->dist)
-			node = node->children[0];
-		else if(ent->r.absmax[node->axis] < node->dist)
-			node = node->children[1];
-		else
-			break;		// crosses the node
-	}
-	// link it in
-	InsertLinkBefore((link_t *)&sent->area, &node->edicts);
-#endif
 }
 
-#ifdef USEAREAGRID
+static void SVQ3_ClearWorld(void)
+{
+	int numareas = 1;
+	int i;
+	vec3_t mins, maxs, size;
+	if (sv3.world->worldmodel)
+	{
+		VectorCopy(sv3.world->worldmodel->mins, mins);
+		VectorCopy(sv3.world->worldmodel->maxs, maxs);
+	}
+	else
+	{
+		VectorSet(mins, -4096, -4096, -4096);
+		VectorSet(maxs, 4096, 4096, 4096);
+	}
+	Vector2Set(sv3.gridsize, 128, 128);
+	for (i = 0; i < 2; i++)
+	{
+		size[i] = maxs[i] - mins[i];
+		size[i] /= sv3.gridsize[i];
+	//enforce a minimum grid size, so things don't end up getting added to every single node
+		if (size[i] < 128)
+		{
+			mins[i] -= (128-size[i])/2 * sv3.gridsize[i];
+			size[i] = 128;
+		}
+		sv3.gridscale[i] = size[i];
+		sv3.gridbias[i] = -mins[i];
+
+		numareas *= sv3.gridsize[i];
+	}
+
+	if (sv3.gridareas)
+		memset (sv3.gridareas, 0, sizeof(*sv3.gridareas)*numareas);
+	else
+		sv3.gridareas = Z_Malloc(sizeof(*sv3.gridareas)*numareas);
+
+	for (i = 0; i < numareas; i++)
+		W_ClearLink (&sv3.gridareas[i].l);
+	W_ClearLink (&sv3.jumboarea.l);
+}
+
 static int SVQ3_EntitiesInBoxNode(areagridlink_t *node, vec3_t mins, vec3_t maxs, int *list, int maxcount)
 {
 	link_t		*l, *next;
@@ -339,9 +386,9 @@ static int SVQ3_EntitiesInBoxNode(areagridlink_t *node, vec3_t mins, vec3_t maxs
 
 		next = l->next;
 		sent = ((areagridlink_t*)l)->ed;
-		if (sent->areagridsequence != areagridsequence)
+		if (sent->areagridsequence != sv3.areagridsequence)
 		{
-			sent->areagridsequence = areagridsequence;
+			sent->areagridsequence = sv3.areagridsequence;
 			gent = GENTITY_FOR_SENTITY(sent);
 
 			if (!BoundsIntersect(mins, maxs, gent->r.absmin, gent->r.absmax))
@@ -357,58 +404,14 @@ static int SVQ3_EntitiesInBox(vec3_t mins, vec3_t maxs, int *list, int maxcount)
 {
 	int ming[2], maxg[2], g[2], ga;
 	int linkcount = 0;
-	areagridsequence++;
-	linkcount += SVQ3_EntitiesInBoxNode(&sv.world.jumboarea, mins, maxs, list+linkcount, maxcount-linkcount);
-	CALCAREAGRIDBOUNDS(&sv.world, mins, maxs);
+	sv3.areagridsequence++;
+	linkcount += SVQ3_EntitiesInBoxNode(&sv3.jumboarea, mins, maxs, list+linkcount, maxcount-linkcount);
+	CALCAREAGRIDBOUNDS(mins, maxs);
 	for (ga = 0, g[0] = ming[0]; g[0] < maxg[0]; g[0]++)
 		for (    g[1] = ming[1]; g[1] < maxg[1]; g[1]++, ga++)
-			linkcount += SVQ3_EntitiesInBoxNode(&sv.world.gridareas[g[0] + g[1]*sv.world.gridsize[0]], mins, maxs, list+linkcount, maxcount-linkcount);
+			linkcount += SVQ3_EntitiesInBoxNode(&sv3.gridareas[g[0] + g[1]*sv3.gridsize[0]], mins, maxs, list+linkcount, maxcount-linkcount);
 	return linkcount;
 }
-#else
-static int SVQ3_EntitiesInBoxNode(areanode_t *node, vec3_t mins, vec3_t maxs, int *list, int maxcount)
-{
-	link_t		*l, *next;
-	q3serverEntity_t		*sent;
-	q3sharedEntity_t		*gent;
-
-	int linkcount = 0;
-
-	//work out who they are first.
-	for (l = node->edicts.next ; l != &node->edicts ; l = next)
-	{
-		if (maxcount == linkcount)
-			return linkcount;
-
-		next = l->next;
-		sent = Q3EDICT_FROM_AREA(l);
-		gent = GENTITY_FOR_SENTITY(sent);
-
-		if (!BoundsIntersect(mins, maxs, gent->r.absmin, gent->r.absmax))
-			continue;
-
-		list[linkcount++] = NUM_FOR_GENTITY(gent);
-	}
-
-	if (node->axis >= 0)
-	{
-
-		if ( maxs[node->axis] > node->dist )
-			linkcount += SVQ3_EntitiesInBoxNode(node->children[0], mins, maxs, list+linkcount, maxcount-linkcount);
-		if ( mins[node->axis] < node->dist )
-			linkcount += SVQ3_EntitiesInBoxNode(node->children[1], mins, maxs, list+linkcount, maxcount-linkcount);
-	}
-
-	return linkcount;
-}
-
-static int SVQ3_EntitiesInBox(vec3_t mins, vec3_t maxs, int *list, int maxcount)
-{
-	if (maxcount < 0)
-		return 0;
-	return SVQ3_EntitiesInBoxNode(sv.world.areanodes, mins, maxs, list, maxcount);
-}
-#endif
 
 #define	ENTITYNUM_NONE		(MAX_GENTITIES-1)
 #define	ENTITYNUM_WORLD		(MAX_GENTITIES-2)
@@ -427,7 +430,7 @@ static void SVQ3_Trace(q3trace_t *result, vec3_t start, vec3_t mins, vec3_t maxs
 	if (!maxs)
 		maxs = vec3_origin;
 
-	sv.world.worldmodel->funcs.NativeTrace(sv.world.worldmodel, 0, NULLFRAMESTATE, NULL, start, end, mins, maxs, capsule, contentmask, &tr);
+	sv3.world->worldmodel->funcs.NativeTrace(sv3.world->worldmodel, 0, NULLFRAMESTATE, NULL, start, end, mins, maxs, capsule, contentmask, &tr);
 	result->allsolid = tr.allsolid;
 	result->contents = tr.contents;
 	VectorCopy(tr.endpos, result->endpos);
@@ -439,6 +442,9 @@ static void SVQ3_Trace(q3trace_t *result, vec3_t start, vec3_t mins, vec3_t maxs
 		result->surfaceFlags = tr.surface->flags;
 	else
 		result->surfaceFlags = 0;
+
+	if (result->allsolid)
+		return;
 
 	for (i = 0; i < 3; i++)
 	{
@@ -465,7 +471,6 @@ static void SVQ3_Trace(q3trace_t *result, vec3_t start, vec3_t mins, vec3_t maxs
 	else
 		ourowner = -1;
 
-
 	for (i = SVQ3_EntitiesInBox(mmins, mmaxs, contactlist, sizeof(contactlist)/sizeof(contactlist[0]))-1; i >= 0; i--)
 	{
 		if (contactlist[i] == entnum)
@@ -490,19 +495,22 @@ static void SVQ3_Trace(q3trace_t *result, vec3_t start, vec3_t mins, vec3_t maxs
 			mod = Q3G_GetCModel(es->s.modelindex);
 			if (!mod)
 				continue;
-			World_TransformedTrace(mod, 0, 0, start, end, mins, maxs, capsule, &tr, es->r.currentOrigin, es->r.currentAngles, contentmask);
+			worldfuncs->TransformedTrace(mod, 0, 0, start, end, mins, maxs, capsule, &tr, es->r.currentOrigin, es->r.currentAngles, contentmask);
 		}
 		else
 		{
 			if (es->r.svFlags & SVF_CAPSULE)
-				mod = CM_TempBoxModel(es->r.mins, es->r.maxs);
+				mod = worldfuncs->TempBoxModel(es->r.mins, es->r.maxs);
 			else
-				mod = CM_TempBoxModel(es->r.mins, es->r.maxs);
-			World_TransformedTrace(mod, 0, 0, start, end, mins, maxs, capsule, &tr, es->r.currentOrigin, vec3_origin, contentmask);
+				mod = worldfuncs->TempBoxModel(es->r.mins, es->r.maxs);
+			worldfuncs->TransformedTrace(mod, 0, 0, start, end, mins, maxs, capsule, &tr, es->r.currentOrigin, vec3_origin, contentmask);
 		}
-		if (tr.fraction < result->fraction)
+		if (tr.allsolid)
+			tr.fraction = 0;
+
+/*		if (tr.fraction < result->fraction)
 		{
-			result->allsolid = tr.allsolid;
+			result->allsolid |= tr.allsolid;
 			result->contents = tr.contents;
 			VectorCopy(tr.endpos, result->endpos);
 			result->entityNum = contactlist[i];
@@ -513,6 +521,34 @@ static void SVQ3_Trace(q3trace_t *result, vec3_t start, vec3_t mins, vec3_t maxs
 //				result->surfaceFlags = tr.surface->flags;
 //			else
 				result->surfaceFlags = 0;
+		}
+		else if (tr.startsolid)
+		{
+			result->entityNum = contactlist[i];
+			result->startsolid = true;
+			if (tr.allsolid)
+				result->allsolid = true;
+		}
+*/
+
+		if ( tr.allsolid || tr.fraction < result->fraction ) {
+			result->allsolid |= tr.allsolid;
+			result->contents = tr.contents;
+			VectorCopy(tr.endpos, result->endpos);
+			result->entityNum = contactlist[i];
+			result->fraction = tr.fraction;
+			result->plane = tr.plane;
+			result->startsolid |= tr.startsolid;
+//			if (tr.surface)
+//				result->surfaceFlags = tr.surface->flags;
+//			else
+				result->surfaceFlags = 0;
+
+		} else if ( tr.startsolid ) {
+			result->startsolid = qtrue;
+		}
+		if ( result->allsolid ) {
+			return;
 		}
 	}
 }
@@ -528,10 +564,7 @@ static int SVQ3_PointContents(vec3_t pos, int entnum)
 
 	int cont;
 
-
-//	sv.worldmodel->funcs.Trace(sv.worldmodel, 0, 0, pos, pos, vec3_origin, vec3_origin, &tr);
-//	tr = CM_BoxTrace(sv.worldmodel, pos, pos, vec3_origin, vec3_origin, 0);
-	cont = sv.world.worldmodel->funcs.NativeContents (sv.world.worldmodel, 0, 0, NULL, pos, vec3_origin, vec3_origin);
+	cont = sv3.world->worldmodel->funcs.NativeContents (sv3.world->worldmodel, 0, 0, NULL, pos, vec3_origin, vec3_origin);
 
 	if ((unsigned)entnum >= MAX_GENTITIES)
 		ourowner = -1;
@@ -566,12 +599,12 @@ static int SVQ3_PointContents(vec3_t pos, int entnum)
 			mod = Q3G_GetCModel(es->s.modelindex);
 			if (!mod)
 				continue;
-			World_TransformedTrace(mod, 0, NULL, pos, pos, vec3_origin, vec3_origin, false, &tr, es->r.currentOrigin, es->r.currentAngles, 0xffffffff);
+			worldfuncs->TransformedTrace(mod, 0, NULL, pos, pos, vec3_origin, vec3_origin, false, &tr, es->r.currentOrigin, es->r.currentAngles, 0xffffffff);
 		}
 		else
 		{
-			mod = CM_TempBoxModel(es->r.mins, es->r.maxs);
-			World_TransformedTrace(mod, 0, NULL, pos, pos, vec3_origin, vec3_origin, false, &tr, es->r.currentOrigin, vec3_origin, 0xffffffff);
+			mod = worldfuncs->TempBoxModel(es->r.mins, es->r.maxs);
+			worldfuncs->TransformedTrace(mod, 0, NULL, pos, pos, vec3_origin, vec3_origin, false, &tr, es->r.currentOrigin, vec3_origin, 0xffffffff);
 		}
 
 		cont |= tr.contents;
@@ -593,13 +626,13 @@ static int SVQ3_Contact(vec3_t mins, vec3_t maxs, q3sharedEntity_t *ent, qboolea
 	else
 	{
 		ang = vec3_origin;
-		mod = CM_TempBoxModel(ent->r.mins, ent->r.maxs);
+		mod = worldfuncs->TempBoxModel(ent->r.mins, ent->r.maxs);
 	}
 
 	if (!mod || !mod->funcs.NativeTrace)
 		return false;
 
-	World_TransformedTrace(mod, 0, 0, vec3_origin, vec3_origin, mins, maxs, capsule, &tr, ent->r.currentOrigin, ang, 0xffffffff);
+	worldfuncs->TransformedTrace(mod, 0, 0, vec3_origin, vec3_origin, mins, maxs, capsule, &tr, ent->r.currentOrigin, ang, 0xffffffff);
 
 	if (tr.startsolid)
 		return true;
@@ -611,7 +644,7 @@ static void SVQ3_SetBrushModel(q3sharedEntity_t *ent, char *modelname)
 	int modelindex;
 	model_t *mod;
 	if (!modelname || *modelname != '*')
-		SV_Error("SVQ3_SetBrushModel: not an inline model");
+		plugfuncs->EndGame("SVQ3_SetBrushModel: not an inline model");
 	modelindex = atoi(modelname+1);
 	mod = Q3G_GetCModel(modelindex);
 	if (mod)
@@ -642,7 +675,7 @@ static qboolean SVQ3_GetUserCmd(int clientnumber, q3usercmd_t *ucmd)
 	usercmd_t *cmd;
 
 	if (clientnumber < 0 || clientnumber >= sv.allocated_client_slots)
-		SV_Error("SVQ3_GetUserCmd: Client out of range");
+		plugfuncs->EndGame("SVQ3_GetUserCmd: Client out of range");
 
 	cmd = &svs.clients[clientnumber].lastcmd;
 	ucmd->angles[0] = cmd->angles[0];
@@ -654,6 +687,7 @@ static qboolean SVQ3_GetUserCmd(int clientnumber, q3usercmd_t *ucmd)
 	ucmd->upmove = cmd->upmove;
 	ucmd->buttons = cmd->buttons;
 	ucmd->weapon = cmd->weapon;
+
 
 	return true;
 }
@@ -674,6 +708,8 @@ void SVQ3_SendServerCommand(client_t *cl, char *str)
 	}
 
 	cl->server_command_sequence++;
+	if (cl->protocol!=SCP_BAD && cl->server_command_sequence-cl->server_command_ack >= countof(cl->server_commands))
+		Con_Printf("%s: Reliable overflow %i-%i>%i\n", cl->name, cl->server_command_sequence,cl->server_command_ack, (int)countof(cl->server_commands));
 	Q_strncpyz(cl->server_commands[cl->server_command_sequence & Q3TEXTCMD_MASK], str, sizeof(cl->server_commands[0]));
 }
 
@@ -726,7 +762,7 @@ void SVQ3_SetConfigString(int num, char *string)
 	svq3_configstrings[num] = Z_Malloc(len+1);
 	strcpy(svq3_configstrings[num], string);
 
-	if (sv.state == ss_loading && !sv.restarting)
+	if (sv.state == ss_loading && !sv3.restarting)
 		return;	//don't spam these, the svcq3_gamestate will have a copy anyway and the gamecode can get confused.
 	SVQ3_SendConfigString(NULL, num, string);
 }
@@ -771,12 +807,12 @@ static void SVQ3_Adjust_Area_Portal_State(q3sharedEntity_t *ge, qboolean open)
 	q3serverEntity_t *se = SENTITY_FOR_GENTITY(ge);
 	if (se->pvscache.areanum == -1 || se->pvscache.areanum2 == -1) //not linked properly.
 		return;
-	sv.world.worldmodel->funcs.SetAreaPortalState(sv.world.worldmodel, -1, se->pvscache.areanum, se->pvscache.areanum2, open);
+	sv3.world->worldmodel->funcs.SetAreaPortalState(sv3.world->worldmodel, -1, se->pvscache.areanum, se->pvscache.areanum2, open);
 }
 
 static qboolean SV_InPVS(vec3_t p1, vec3_t p2)
 {
-	model_t *worldmodel = sv.world.worldmodel;
+	model_t *worldmodel = sv3.world->worldmodel;
 
 	if (!worldmodel || worldmodel->loadstate != MLS_LOADED)
 		return false;	//still loading, don't give bad results.
@@ -799,7 +835,7 @@ static qboolean SV_InPVS(vec3_t p1, vec3_t p2)
 	}
 }
 
-#define VALIDATEPOINTER(o,l) if ((int)o + l >= mask || VM_POINTER(o) < offset) SV_Error("Call to game trap %u passes invalid pointer\n", (unsigned int)fn);	//out of bounds.
+#define VALIDATEPOINTER(o,l) if ((int)o + l >= mask || VM_POINTER(o) < offset) plugfuncs->EndGame("Call to game trap %u passes invalid pointer\n", (unsigned int)fn);	//out of bounds.
 static qintptr_t Q3G_SystemCalls(void *offset, quintptr_t mask, qintptr_t fn, const qintptr_t *arg)
 {
 	int ret = 0;
@@ -809,10 +845,10 @@ static qintptr_t Q3G_SystemCalls(void *offset, quintptr_t mask, qintptr_t fn, co
 		Con_Printf("%s", (char*)VM_POINTER(arg[0]));
 		break;
 	case G_ERROR:		// ( const char *string );
-		SV_Error("Q3 Game error: %s", (char*)VM_POINTER(arg[0]));
+		plugfuncs->EndGame("Q3 Game error: %s", (char*)VM_POINTER(arg[0]));
 		break;
 	case G_MILLISECONDS:
-		return Sys_DoubleTime()*1000;
+		return plugfuncs->GetMilliseconds();
 
 	case G_CVAR_REGISTER:// ( vmCvar_t *vmCvar, const char *varName, const char *defaultValue, int flags );
 		if (arg[0])
@@ -823,27 +859,19 @@ static qintptr_t Q3G_SystemCalls(void *offset, quintptr_t mask, qintptr_t fn, co
 		return VMQ3_Cvar_Update(VM_POINTER(arg[0]));
 
 	case G_CVAR_SET:// ( const char *var_name, const char *value );
-		{
-			cvar_t *var;
-			var = Cvar_FindVar(VM_POINTER(arg[0]));
-			if (var)
-				Cvar_Set(var, VM_POINTER(arg[1]));	//set it
-			else
-				Cvar_Get(VM_POINTER(arg[0]), VM_POINTER(arg[1]), 0, "Q3-Game-Code created");	//create one
-		}
+		cvarfuncs->SetString(VM_POINTER(arg[0]), VM_POINTER(arg[1]));	//set it
 		break;
 	case G_CVAR_VARIABLE_INTEGER_VALUE:// ( const char *var_name );
 		{
 			cvar_t *var;
-			var = Cvar_Get(VM_POINTER(arg[0]), "0", 0, "Q3-Game-Code created");
+			var = cvarfuncs->GetNVFDG(VM_POINTER(arg[0]), "0", 0, NULL, "Q3-Game-Code created");
 			if (var)
-				return var->value;
+				return var->ival;
 		}
 		break;
 	case G_CVAR_VARIABLE_STRING_BUFFER:// ( const char *var_name, char *buffer, int bufsize );
 		{
-			cvar_t *var;
-			var = Cvar_FindVar(VM_POINTER(arg[0]));
+			cvar_t *var = cvarfuncs->GetNVFDG(VM_POINTER(arg[0]), NULL, 0, NULL, "Q3-Game-Code created");
 			if (!VM_LONG(arg[2]))
 				return 0;
 			else if (!var)
@@ -863,21 +891,21 @@ static qintptr_t Q3G_SystemCalls(void *offset, quintptr_t mask, qintptr_t fn, co
 	case G_BOT_FREE_CLIENT:
 	case G_DROP_CLIENT:
 		if ((unsigned)VM_LONG(arg[0]) < sv.allocated_client_slots)
-			SV_DropClient(&svs.clients[VM_LONG(arg[0])]);
+			worldfuncs->DropClient(&svs.clients[VM_LONG(arg[0])]);
 		break;
 
 	case G_BOT_ALLOCATE_CLIENT:
 		return SVQ3_AddBot();
 
 	case G_ARGC:		//8
-		return Cmd_Argc();
+		return cmdfuncs->Argc();
 	case G_ARGV:				//9
 		VALIDATEPOINTER(arg[1], arg[2]);
-		Q_strncpyz(VM_POINTER(arg[1]), Cmd_Argv(VM_LONG(arg[0])), VM_LONG(arg[2]));
+		cmdfuncs->Argv(VM_LONG(arg[0]), VM_POINTER(arg[1]), VM_LONG(arg[2]));
 		break;
 
 	case G_SEND_CONSOLE_COMMAND:
-		Cbuf_AddText(VM_POINTER(arg[1]), RESTRICT_SERVER);
+		cmdfuncs->AddText(VM_POINTER(arg[1]), false);
 		return 0;
 
 
@@ -896,6 +924,8 @@ static qintptr_t Q3G_SystemCalls(void *offset, quintptr_t mask, qintptr_t fn, co
 	case G_FS_WRITE:	//fwrite
 		ret = VM_FWrite(VM_POINTER(arg[0]), VM_LONG(arg[1]), VM_LONG(arg[2]), 0);
 		break;
+	case G_FS_SEEK:
+		return VM_FSeek(arg[0], arg[1], arg[2], 0);
 	case G_FS_FCLOSE_FILE:	//fclose
 		VM_fclose(VM_LONG(arg[0]), 0);
 		break;
@@ -907,9 +937,8 @@ static qintptr_t Q3G_SystemCalls(void *offset, quintptr_t mask, qintptr_t fn, co
 
 	case G_LOCATE_GAME_DATA:		// ( gentity_t *gEnts, int numGEntities, int sizeofGEntity_t,	15
 	//							playerState_t *clients, int sizeofGameClient );
-
 		if (VM_OOB(arg[0], arg[1]*arg[2]) || VM_OOB(arg[3], arg[4]*MAX_CLIENTS))
-			SV_Error("Gamedata is out of bounds\n");
+			plugfuncs->EndGame("Gamedata is out of bounds\n");
 		q3_entarray = VM_POINTER(arg[0]);
 		numq3entities = VM_LONG(arg[1]);
 		sizeofq3gentity = VM_LONG(arg[2]);
@@ -917,11 +946,10 @@ static qintptr_t Q3G_SystemCalls(void *offset, quintptr_t mask, qintptr_t fn, co
 		sizeofGameClient = VM_LONG(arg[4]);
 
 		if (numq3entities > MAX_GENTITIES)
-			SV_Error("Gamecode specifies too many entities");
+			plugfuncs->EndGame("Gamecode specifies too many entities");
 		break;
 
 	case G_SEND_SERVER_COMMAND:		// ( int clientNum, const char *fmt, ... );						17
-
 		Con_DPrintf("Game dispatching %s\n", (char*)VM_POINTER(arg[1]));
 		if (VM_LONG(arg[0]) == -1)
 		{	//broadcast
@@ -937,12 +965,10 @@ static qintptr_t Q3G_SystemCalls(void *offset, quintptr_t mask, qintptr_t fn, co
 		break;
 
 	case G_SET_CONFIGSTRING:	// ( int num, const char *string );									18
-		if (arg[0] < 0 || arg[0] >= MAX_CONFIGSTRINGS)
-			return 0;
 		SVQ3_SetConfigString(arg[0], VM_POINTER(arg[1]));
 		break;
 	case G_GET_CONFIGSTRING:	// ( int num, char *buffer, int bufferSize );						19
-		if (arg[0] < 0 || arg[0] >= MAX_CONFIGSTRINGS || !arg[2])
+		if (arg[0] < 0 || arg[0] >= MAX_Q3_CONFIGSTRINGS || !arg[2])
 			return 0;
 		VALIDATEPOINTER(arg[1], arg[2]);
 		if (svq3_configstrings[arg[0]])
@@ -957,7 +983,7 @@ static qintptr_t Q3G_SystemCalls(void *offset, quintptr_t mask, qintptr_t fn, co
 			int length = VM_LONG(arg[1]);
 			if (VM_OOB(arg[1], arg[2]))
 				return 0;
-			InfoBuf_ToString(&svs.info, dest, length, NULL, NULL, NULL, NULL, NULL);
+			worldfuncs->IBufToInfo(&svs.info, dest, length, NULL, NULL, NULL, NULL, NULL);
 		}
 		return true;
 	case G_GET_USERINFO://int num, char *buffer, int bufferSize										20
@@ -965,14 +991,14 @@ static qintptr_t Q3G_SystemCalls(void *offset, quintptr_t mask, qintptr_t fn, co
 			return 0;
 		if ((unsigned)VM_LONG(arg[0]) >= sv.allocated_client_slots)
 			return 0;
-		InfoBuf_ToString(&svs.clients[VM_LONG(arg[0])].userinfo, VM_POINTER(arg[1]), VM_LONG(arg[2]), NULL, NULL, NULL, NULL, NULL);
+		worldfuncs->IBufToInfo(&svs.clients[VM_LONG(arg[0])].userinfo, VM_POINTER(arg[1]), VM_LONG(arg[2]), NULL, NULL, NULL, NULL, NULL);
 		break;
 
 	case G_SET_USERINFO://int num, char *buffer										20
 		if (VM_OOB(arg[1], 1))
 			return 0;
-		InfoBuf_FromString(&svs.clients[VM_LONG(arg[0])].userinfo, VM_POINTER(arg[1]), false);
-		SV_ExtractFromUserinfo(&svs.clients[VM_LONG(arg[0])], false);
+		worldfuncs->IBufFromInfo(&svs.clients[VM_LONG(arg[0])].userinfo, VM_POINTER(arg[1]), false);
+		worldfuncs->ExtractFromUserinfo(&svs.clients[VM_LONG(arg[0])], false);
 		break;
 
 	case G_LINKENTITY:		// ( gentity_t *ent );													30
@@ -1016,7 +1042,7 @@ static qintptr_t Q3G_SystemCalls(void *offset, quintptr_t mask, qintptr_t fn, co
 		SVQ3_GetUserCmd(VM_LONG(arg[0]), VM_POINTER(arg[1]));
 		break;
 	case G_GET_ENTITY_TOKEN:	// qboolean ( char *buffer, int bufferSize )						37
-		mapentspointer = COM_ParseOut(mapentspointer, VM_POINTER(arg[0]), arg[1]);
+		mapentspointer = cmdfuncs->ParseToken(mapentspointer, VM_POINTER(arg[0]), arg[1], NULL);
 		return !!mapentspointer;
 
 	case G_REAL_TIME:																			//	41
@@ -1121,7 +1147,6 @@ static qintptr_t Q3G_SystemCalls(void *offset, quintptr_t mask, qintptr_t fn, co
 			SVQ3_ClientThink(&svs.clients[i]);
 		}
 		return 0;
-
 
 	case BOTLIB_AAS_ENABLE_ROUTING_AREA:
 		return botlib->aas.AAS_EnableRoutingArea(VM_LONG(arg[0]), VM_LONG(arg[1]));
@@ -1321,7 +1346,9 @@ static qintptr_t Q3G_SystemCalls(void *offset, quintptr_t mask, qintptr_t fn, co
 		botlib->ai.BotSetChatGender(arg[0], arg[1]);
 		return 0;
 	case BOTLIB_AI_SET_CHAT_NAME:
-		botlib->ai.BotSetChatName(arg[0], VM_POINTER(arg[1]), arg[2]);
+		botlib->ai.BotSetChatName(arg[0], VM_POINTER(arg[1]),
+			arg[2]
+			);
 		return 0;
 
 
@@ -1491,7 +1518,7 @@ static qintptr_t Q3G_SystemCalls(void *offset, quintptr_t mask, qintptr_t fn, co
   	case BOTLIB_PC_LOAD_SOURCE:
 		if (!botlib)
 		{
-			SV_Error("Botlib is not installed (trap BOTLIB_PC_LOAD_SOURCE)\n");
+			plugfuncs->EndGame("Botlib is not installed (trap BOTLIB_PC_LOAD_SOURCE)\n");
 		}
 		return botlib->PC_LoadSourceHandle(VM_POINTER(arg[0]));
 	case BOTLIB_PC_FREE_SOURCE:
@@ -1504,6 +1531,7 @@ static qintptr_t Q3G_SystemCalls(void *offset, quintptr_t mask, qintptr_t fn, co
 		return botlib->PC_SourceFileAndLine(VM_LONG(arg[0]), VM_POINTER(arg[1]), VM_POINTER(arg[2]));
 
 #endif
+
 
 	case G_IN_PVS:
 		return SV_InPVS(VM_POINTER(arg[0]), VM_POINTER(arg[1]));
@@ -1522,8 +1550,6 @@ static qintptr_t Q3G_SystemCalls(void *offset, quintptr_t mask, qintptr_t fn, co
 		VALIDATEPOINTER(arg[1], sizeof(vec3_t));
 		PerpendicularVector(VM_POINTER(arg[0]), VM_POINTER(arg[1]));
 		break;
-	case G_FS_SEEK:					Con_Printf("Q3Game: builtin %s is not implemented\n", "G_FS_SEEK");					return ret;
-		return VM_FSeek(arg[0], arg[1], arg[2], 0);
 
 	//case G_DEFAULTCASEWARNINGDISABLE: NOT A REAL VALUE
 //	notimplemented:
@@ -1581,6 +1607,7 @@ static qintptr_t EXPORT_FN Q3G_SystemCallsNative(qintptr_t arg, ...)
 void SVQ3_ShutdownGame(qboolean restarting)
 {
 	int i;
+	CG_Stop();
 	if (!q3gamevm)
 		return;
 
@@ -1590,11 +1617,16 @@ void SVQ3_ShutdownGame(qboolean restarting)
 		if (botlib)
 		{	//it crashes otherwise, probably due to our huck clearage
 			botlib->BotLibShutdown();
-			Z_FreeTags(Z_TAG_BOTLIB);
 		}
+		plugfuncs->GFreeAll(&botlibmem);
+		plugfuncs->GFreeAll(&botlibhunkmem);
+		VM_fcloseall(Z_TAG_BOTLIB);
 #endif
+	}
 
-		for (i = 0; i < MAX_CONFIGSTRINGS; i++)
+	if (!restarting)
+	{
+		for (i = 0; i < countof(svq3_configstrings); i++)
 		{
 			if (svq3_configstrings[i])
 			{
@@ -1602,17 +1634,19 @@ void SVQ3_ShutdownGame(qboolean restarting)
 				svq3_configstrings[i] = NULL;
 			}
 		}
-	
-		Z_Free(q3_sentities);
+
+		plugfuncs->Free(q3_sentities);
 		q3_sentities = NULL;
-		BZ_Free(q3_snapshot_entities);
+		plugfuncs->Free(q3_snapshot_entities);
 		q3_snapshot_entities = NULL;
 	}
 
-	VM_Destroy(q3gamevm);
+	vmfuncs->Destroy(q3gamevm);
 	q3gamevm = NULL;
 
-	Cvar_Set(Cvar_Get("sv_running", "0", 0, "Q3 compatability"), "0");
+	VM_fcloseall(0);
+
+	cvarfuncs->SetString("sv_running", "0");
 }
 
 #ifdef USEBOTLIB
@@ -1638,7 +1672,7 @@ static void *QDECL BL_Malloc(int size)
 	int *mem;
 	botlibmemoryavailable-=size;
 
-	mem = (int *)Z_TagMalloc(size+sizeof(int), Z_TAG_BOTLIB);
+	mem = plugfuncs->GMalloc(&botlibmem, sizeof(int)+size);
 	mem[0] = size;
 
 	return (void *)(mem + 1);
@@ -1647,11 +1681,11 @@ static void QDECL BL_Free(void *mem)
 {
 	int *memref = ((int *)mem) - 1;
 	botlibmemoryavailable+=memref[0];
-	Z_TagFree(memref);
+	plugfuncs->GFree(&botlibmem, memref);
 }
 static void *QDECL BL_HunkMalloc(int size)
 {
-	return BL_Malloc(size);//Hunk_AllocName(size, "botlib");
+	return plugfuncs->GMalloc(&botlibhunkmem, sizeof(int)+size);
 }
 
 static int QDECL BL_FOpenFile(const char *name, fileHandle_t *handle, fsMode_t mode)
@@ -1674,9 +1708,9 @@ static int QDECL BL_Seek(fileHandle_t f, long offset, int seektype)
 {	// on success, apparently returns 0
 	return VM_FSeek((int)f, offset, seektype, Z_TAG_BOTLIB)?0:-1;
 }
-static const char *QDECL BL_BSPEntityData(void)
+static char *QDECL BL_BSPEntityData(void)
 {
-	return Mod_GetEntitiesString(sv.world.worldmodel);
+	return (char*)worldfuncs->GetEntitiesString(sv3.world->worldmodel);
 }
 static void QDECL BL_Trace(bsp_trace_t *trace, vec3_t start, vec3_t mins, vec3_t maxs, vec3_t end, int passent, int contentmask)
 {
@@ -1745,7 +1779,10 @@ static void QDECL BL_BSPModelMinsMaxsOrigin(int modelnum, vec3_t angles, vec3_t 
 	if ((angles[0] || angles[1] || angles[2]))
 	{
 		// expand for rotation
-		max = RadiusFromBounds(mins, maxs);
+		vec3_t	corner;
+		for (i=0 ; i<3 ; i++)
+			corner[i] = fabs(mins[i]) > fabs(maxs[i]) ? fabs(mins[i]) : fabs(maxs[i]);
+		max = sqrt(DotProduct(corner,corner));
 		for (i = 0; i < 3; i++)
 		{
 			mins[i] = -max;
@@ -1761,8 +1798,8 @@ static void QDECL BL_BSPModelMinsMaxsOrigin(int modelnum, vec3_t angles, vec3_t 
 }
 static void QDECL BL_BotClientCommand(int clientnum, char *command)
 {
-	Cmd_TokenizeString(command, false, false);
-	VM_Call(q3gamevm, GAME_CLIENT_COMMAND, clientnum);
+	cmdfuncs->TokenizeString(command);
+	vmfuncs->Call(q3gamevm, GAME_CLIENT_COMMAND, clientnum);
 }
 
 static int QDECL BL_DebugLineCreate(void) {return 0;}
@@ -1773,18 +1810,21 @@ static void QDECL BL_DebugPolygonDelete(int id) {}
 
 void QDECL BL_Error(const char *msg)
 {
-	Sys_Error("%s", msg);
+	plugfuncs->Error("%s", msg);
 }
 #endif
 
-static void SV_InitBotLib(void)
+void SV_InitBotLib(void)
 {
-	cvar_t *bot_enable = Cvar_Get("bot_enable", "1", 0, "Q3 compatability");
+	cvar_t *bot_enable = cvarfuncs->GetNVFDG("bot_enable", "1", 0, "Controls whether bots may be used by the gamecode or not.", "Q3 compatability");
 
 #ifdef USEBOTLIB
 	botlib_import_t import;
+	if (!bot_enable)
+		return;	//o.O
 
-	Cvar_Set(Cvar_Get("sv_mapChecksum", "0", 0, "Q3 compatability"), va("%i", sv.world.worldmodel->checksum));
+	if (sv3.world && sv3.world->worldmodel)
+		cvarfuncs->SetString("sv_mapChecksum", va("%i", sv3.world->worldmodel->checksum));
 
 	memset(&import, 0, sizeof(import));
 	import.Print = BL_Print;
@@ -1813,7 +1853,6 @@ static void SV_InitBotLib(void)
 
 	import.Error = BL_Error;
 
-//	Z_FreeTags(Z_TAG_BOTLIB);
 	botlibmemoryavailable = 1024*1024*16;
 	if (bot_enable->value)
 		botlib = FTE_GetBotLibAPI(BOTLIB_API_VERSION, &import);
@@ -1822,12 +1861,12 @@ static void SV_InitBotLib(void)
 	if (!botlib)
 	{
 		bot_enable->flags |= CVAR_MAPLATCH;
-		Cvar_ForceSet(bot_enable, "0");
+		cvarfuncs->ForceSetString(bot_enable->name, "0");
 	}
 #else
 
 //make sure it's switched off.
-	Cvar_ForceSet(bot_enable, "0");
+	cvarfuncs->ForceSetString(bot_enable->name, "0");
 	bot_enable->flags |= CVAR_NOSET;
 #endif
 }
@@ -1837,56 +1876,60 @@ void SVQ3_ServerinfoChanged(const char *key)
 	q3_serverinfo_dirty = true;
 }
 static void SVQ3_UpdateServerinfo(void)
-{
+{	/*qw serverinfo settings are not normally visible in the q3 serverinfo, so strip them from the configstring*/
 	char buffer[8192];
-	/*update serverinfo - qw serverinfo settings are not normally visible in the q3 serverinfo, so strip them from the configstring*/
 	static const char *ignores[] = {"maxclients", "map", "sv_maxclients", "*z_ext", "*bspversion", "*gamedir", NULL};
-	extern cvar_t maxclients;
-	InfoBuf_ToString(&svs.info, buffer, sizeof(buffer), NULL, ignores, NULL, NULL, NULL);
+	worldfuncs->IBufToInfo(&svs.info, buffer, sizeof(buffer), NULL, ignores, NULL, NULL, NULL);
 	//add in maxclients.. the q3 version
-	Q_strncatz(buffer, va("\\sv_maxclients\\%s", maxclients.string), sizeof(buffer));
+	Q_strncatz(buffer, va("\\sv_maxclients\\%s", sv_maxclients->string), sizeof(buffer));
 	SVQ3_SetConfigString(0, buffer);
+
 
 	q3_serverinfo_dirty = false;
 }
 
-qboolean SVQ3_InitGame(qboolean restart)
+qboolean SVQ3_InitGame(server_static_t *server_state_static, server_t *server_state, qboolean restart)
 {
 	int i;
+	char ssqcprogs[MAX_QPATH];
 
-	if (sv.world.worldmodel->type == mod_heightmap)
+	sv3.server_state_static = server_state_static;
+	sv3.server_state = server_state;
+	sv3.world = &server_state->world;
+	if (sv3.world->worldmodel->type == mod_heightmap)
 	{
 	}
 	else
 	{
-		if (sv.world.worldmodel->fromgame == fg_quake || sv.world.worldmodel->fromgame == fg_halflife || sv.world.worldmodel->fromgame == fg_quake2)
+		if (sv3.world->worldmodel->fromgame == fg_quake || sv3.world->worldmodel->fromgame == fg_halflife || sv3.world->worldmodel->fromgame == fg_quake2)
 			return false;	//always fail on q1bsp
 	}
 
-	if (*pr_ssqc_progs.string)	//don't load q3 gamecode if we're explicitally told to load a progs.
+	cvarfuncs->GetString("pr_ssqc_progs", ssqcprogs, sizeof(ssqcprogs));
+	if (*ssqcprogs)	//don't load q3 gamecode if we're explicitally told to load a progs.
 		return false;
 
+	sv3.restarting = restart;
 
 	SVQ3_ShutdownGame(restart);
 
-	q3gamevm = VM_Create("qagame", com_nogamedirnativecode.ival?NULL:Q3G_SystemCallsNative, "vm/qagame", Q3G_SystemCallsVM);
+	sv_maxclients = cvarfuncs->GetNVFDG("sv_maxclients", "", 0, NULL, "Q3 Compat");
+
+	q3gamevm = vmfuncs->Create("qagame", cvarfuncs->GetFloat("com_gamedirnativecode")?Q3G_SystemCallsNative:NULL, "vm/qagame", Q3G_SystemCallsVM);
 
 	if (!q3gamevm)
 		return false;
 
 	//q3 needs mapname (while qw has map serverinfo)
-	{
-		cvar_t *mapname = Cvar_Get("mapname", "", CVAR_SERVERINFO, "Q3 compatability");
-		Cvar_Set(mapname, svs.name);
-	}
+	cvarfuncs->SetString("mapname", svs.name);
 
 	SV_InitBotLib();
 
-	World_ClearWorld(&sv.world, false);
+	SVQ3_ClearWorld();
 
 	q3_sentities = Z_Malloc(sizeof(q3serverEntity_t)*MAX_GENTITIES);
 
-	Cvar_Set(Cvar_Get("sv_running", "0", 0, "Q3 compatability"), "1");
+	cvarfuncs->SetString("sv_running", "1");	//so the ui knows
 
 	if (!restart)
 	{
@@ -1894,28 +1937,29 @@ qboolean SVQ3_InitGame(qboolean restart)
 		char sysinfo[8192];
 		/*update the system info*/
 		sysinfo[0] = '\0';
-		Info_SetValueForKey(sysinfo, "sv_serverid", va("%i", svs.spawncount), MAX_SERVERINFO_STRING);
+		worldfuncs->SetInfoKey(sysinfo, "sv_serverid", va("%i", svs.spawncount), MAX_SERVERINFO_STRING);
 
-		Info_SetValueForKey(sysinfo,			   "sv_paks", FS_GetPackHashes(buffer, sizeof(buffer), false       ), MAX_SERVERINFO_STRING);
-		Info_SetValueForKey(sysinfo,		   "sv_pakNames", FS_GetPackNames (buffer, sizeof(buffer), false, false), MAX_SERVERINFO_STRING);
-		Info_SetValueForKey(sysinfo,	 "sv_referencedPaks", FS_GetPackHashes(buffer, sizeof(buffer), true        ), MAX_SERVERINFO_STRING);
-		Info_SetValueForKey(sysinfo, "sv_referencedPakNames", FS_GetPackNames (buffer, sizeof(buffer), true, false ), MAX_SERVERINFO_STRING);
+		worldfuncs->SetInfoKey(sysinfo,			   "sv_paks", fsfuncs->GetPackHashes(buffer, sizeof(buffer), false       ), MAX_SERVERINFO_STRING);
+		worldfuncs->SetInfoKey(sysinfo,		   "sv_pakNames", fsfuncs->GetPackNames (buffer, sizeof(buffer), false, false), MAX_SERVERINFO_STRING);
+		worldfuncs->SetInfoKey(sysinfo,	 "sv_referencedPaks", fsfuncs->GetPackHashes(buffer, sizeof(buffer), true        ), MAX_SERVERINFO_STRING);
+		worldfuncs->SetInfoKey(sysinfo, "sv_referencedPakNames", fsfuncs->GetPackNames (buffer, sizeof(buffer), true, false ), MAX_SERVERINFO_STRING);
 
-		Info_SetValueForKey(sysinfo, "sv_pure", sv_pure.string, MAX_SERVERINFO_STRING);
+		cvarfuncs->GetString("sv_pure", buffer, sizeof(buffer));
+		worldfuncs->SetInfoKey(sysinfo, "sv_pure", buffer, MAX_SERVERINFO_STRING);
 		SVQ3_SetConfigString(1, sysinfo);
 		q3_serverinfo_dirty = true;
 	}
 
-	mapentspointer = Mod_GetEntitiesString(sv.world.worldmodel);
-	VM_Call(q3gamevm, GAME_INIT, (intptr_t)(sv.time*1000), (int)rand(), restart);
+	mapentspointer = worldfuncs->GetEntitiesString(sv3.world->worldmodel);
+	vmfuncs->Call(q3gamevm, GAME_INIT, (intptr_t)(sv3.world->physicstime*1000), (int)rand(), restart);
 
 	if (!restart)
-	{
+	{	//restart means same initial gamestate, meaning don't mess with baselines.
 		SVQ3_CreateBaseline();
 
 		q3_num_snapshot_entities = 32 * Q3UPDATE_BACKUP * 32;
 		if (q3_snapshot_entities)
-			BZ_Free(q3_snapshot_entities);
+			plugfuncs->Free(q3_snapshot_entities);
 		q3_next_snapshot_entities = 0;
 		q3_snapshot_entities = Z_Malloc(sizeof( q3entityState_t ) * q3_num_snapshot_entities);
 	}
@@ -1924,13 +1968,8 @@ qboolean SVQ3_InitGame(qboolean restart)
 	for (i = 0; i < 3; i++)
 	{
 		SVQ3_RunFrame();
-		sv.time += 0.1;
+		sv3.world->physicstime += 0.1;
 	}
-
-#ifdef HAVE_CLIENT
-	//there's a whole load of ugly debug crap there. make sure it stays hidden.
-	Con_ClearNotify();
-#endif
 
 	return true;
 }
@@ -1939,9 +1978,9 @@ void SVQ3_RunFrame(void)
 {
 #ifdef USEBOTLIB
 	if (botlib)
-		VM_Call(q3gamevm, BOTAI_START_FRAME, (int)(sv.time*1000));
+		vmfuncs->Call(q3gamevm, BOTAI_START_FRAME, (int)(sv3.world->physicstime*1000));
 #endif
-	VM_Call(q3gamevm, GAME_RUN_FRAME, (int)(sv.time*1000));
+	vmfuncs->Call(q3gamevm, GAME_RUN_FRAME, (int)(sv3.world->physicstime*1000));
 
 	if (q3_serverinfo_dirty)
 		SVQ3_UpdateServerinfo();
@@ -1949,39 +1988,39 @@ void SVQ3_RunFrame(void)
 
 void SVQ3_ClientCommand(client_t *cl)
 {
-	VM_Call(q3gamevm, GAME_CLIENT_COMMAND, (int)(cl-svs.clients));
+	vmfuncs->Call(q3gamevm, GAME_CLIENT_COMMAND, (int)(cl-svs.clients));
 }
 
 void SVQ3_ClientBegin(client_t *cl)
 {
-	VM_Call(q3gamevm, GAME_CLIENT_BEGIN, (int)(cl-svs.clients));
+	vmfuncs->Call(q3gamevm, GAME_CLIENT_BEGIN, (int)(cl-svs.clients));
 	sv.spawned_client_slots++;
 	cl->spawned = true;
 }
 
 void SVQ3_ClientThink(client_t *cl)
 {
-	VM_Call(q3gamevm, GAME_CLIENT_THINK, (int)(cl-svs.clients));
-}
-
-qboolean SVQ3_Command(void)
-{
-	if (!q3gamevm)
-		return false;
-
-	return VM_Call(q3gamevm, GAME_CONSOLE_COMMAND);
+	vmfuncs->Call(q3gamevm, GAME_CLIENT_THINK, (int)(cl-svs.clients));
 }
 
 qboolean SVQ3_ConsoleCommand(void)
 {
 	if (!q3gamevm)
 		return false;
-	Cmd_ShiftArgs(1, false);
-	VM_Call(q3gamevm, GAME_CONSOLE_COMMAND);
+
+	return vmfuncs->Call(q3gamevm, GAME_CONSOLE_COMMAND);
+}
+
+qboolean SVQ3_PrefixedConsoleCommand(void)
+{
+	if (!q3gamevm)
+		return false;
+	cmdfuncs->ShiftArgs(1);
+	vmfuncs->Call(q3gamevm, GAME_CONSOLE_COMMAND);
 	return true;
 }
 
-void SVQ3_Netchan_Transmit( client_t *client, int length, qbyte *data );
+static void SVQ3_Netchan_Transmit( client_t *client, int length, qbyte *data );
 
 void SVQ3_CreateBaseline(void)
 {
@@ -2095,7 +2134,7 @@ void SVQ3_EmitPacketEntities(client_t *client, q3client_frame_t *from, q3client_
 		}
 	}
 
-	MSG_WriteBits(msg, ENTITYNUM_NONE, GENTITYNUM_BITS); // end of packetentities
+	msgfuncs->WriteBits(msg, ENTITYNUM_NONE, GENTITYNUM_BITS); // end of packetentities
 }
 
 void SVQ3_WriteSnapshotToClient(client_t *client, sizebuf_t *msg)
@@ -2106,7 +2145,8 @@ void SVQ3_WriteSnapshotToClient(client_t *client, sizebuf_t *msg)
 	int				i;
 
 	// this is the frame we are transmitting
-	snap = &client->frameunion.q3frames[client->netchan.outgoing_sequence & Q3UPDATE_MASK];
+	snap = client->frameunion.q3frames;
+	snap += client->netchan.outgoing_sequence & Q3UPDATE_MASK;
 
 	if(client->state < cs_spawned)
 	{
@@ -2132,7 +2172,8 @@ void SVQ3_WriteSnapshotToClient(client_t *client, sizebuf_t *msg)
 	{
 		// we have a valid message to delta from
 		delta = client->netchan.outgoing_sequence - client->delta_sequence;
-		oldsnap = &client->frameunion.q3frames[client->delta_sequence & Q3UPDATE_MASK];
+		oldsnap = client->frameunion.q3frames;
+		oldsnap += client->delta_sequence & Q3UPDATE_MASK;
 
 		if(oldsnap->first_entity <= q3_next_snapshot_entities - q3_num_snapshot_entities)
 		{
@@ -2149,17 +2190,17 @@ void SVQ3_WriteSnapshotToClient(client_t *client, sizebuf_t *msg)
 //	}
 
 	// write snapshot header
-	MSG_WriteBits(msg, svcq3_snapshot, 8);
-	MSG_WriteBits(msg, snap->serverTime, 32);
-	MSG_WriteBits(msg, delta, 8); // what we are delta'ing from
+	msgfuncs->WriteBits(msg, svcq3_snapshot, 8);
+	msgfuncs->WriteBits(msg, snap->serverTime, 32);
+	msgfuncs->WriteBits(msg, delta, 8); // what we are delta'ing from
 
 	// write snapFlags
-	MSG_WriteBits(msg, snap->flags, 8);
+	msgfuncs->WriteBits(msg, snap->flags, 8);
 
 	// send over the areabits
-	MSG_WriteBits(msg, snap->areabytes, 8);
+	msgfuncs->WriteBits(msg, snap->areabytes, 8);
 	for (i = 0; i < snap->areabytes; i++)
-		MSG_WriteBits(msg, snap->areabits[i], 8);
+		msgfuncs->WriteBits(msg, snap->areabits[i], 8);
 
 	// delta encode the playerstate
 	MSGQ3_WriteDeltaPlayerstate(msg, oldsnap ? &oldsnap->ps : NULL, &snap->ps);
@@ -2195,7 +2236,7 @@ static int VARGS SVQ3_QsortEntityStates( const void *arg1, const void *arg2 )
 		return -1;
 	}
 
-	SV_Error("SV_QsortEntityStates: duplicated entity");
+	plugfuncs->EndGame("SV_QsortEntityStates: duplicated entity");
 
 	return 0;
 
@@ -2218,7 +2259,7 @@ static qboolean SVQ3_EntityIsVisible(q3client_frame_t *snap, q3sharedEntity_t *e
 	{
 		if (clientNum > 32)
 		{
-			SV_Error("SVF_CLIENTMASK: clientNum > 32" );
+			plugfuncs->EndGame("SVF_CLIENTMASK: clientNum > 32" );
 		}
 		if (ent->r.singleClient & (1 << (clientNum & 7)))
 		{
@@ -2266,7 +2307,7 @@ static qboolean SVQ3_EntityIsVisible(q3client_frame_t *snap, q3sharedEntity_t *e
 		}
 	}
 
-	return sv.world.worldmodel->funcs.EdictInFatPVS(sv.world.worldmodel, &sent->pvscache, bitvector, NULL/*using the snapshots areabits rather than the bsp's*/);
+	return sv3.world->worldmodel->funcs.EdictInFatPVS(sv3.world->worldmodel, &sent->pvscache, bitvector, NULL/*using the snapshots areabits rather than the bsp's*/);
 }
 
 #ifdef Q3OVERQW
@@ -2359,9 +2400,10 @@ void SVQ3_BuildClientSnapshot( client_t *client )
 	}
 
 	// this is the frame we are creating
-	snap = &client->frameunion.q3frames[client->netchan.outgoing_sequence & Q3UPDATE_MASK];
+	snap = client->frameunion.q3frames;
+	snap += client->netchan.outgoing_sequence & Q3UPDATE_MASK;
 
-	snap->serverTime = sv.restartedtime*1000 + sv.time*1000;//svs.levelTime; // save it for ping calc later
+	snap->serverTime = sv3.world->physicstime*1000; // save it for ping calc later
 	snap->flags = 0;
 
 	if( client->state < cs_spawned )
@@ -2380,17 +2422,10 @@ void SVQ3_BuildClientSnapshot( client_t *client )
 	VectorCopy( ps->origin, org );
 	org[2] += ps->viewheight;
 
-	bitvector = sv.world.worldmodel->funcs.ClusterPVS(sv.world.worldmodel, sv.world.worldmodel->funcs.ClusterForPoint(sv.world.worldmodel, org, &clientarea), &pvsbuffer, PVM_REPLACE);
-/*
-	if (client->areanum != clientarea)
-	{
-		Com_Printf( "%s entered area %i\n", client->name, clientarea);
-		client->areanum = clientarea;
-	}
-*/
+	bitvector = sv3.world->worldmodel->funcs.ClusterPVS(sv3.world->worldmodel, sv.world.worldmodel->funcs.ClusterForPoint(sv.world.worldmodel, org, &clientarea), &pvsbuffer, PVM_REPLACE);
 
 	// calculate the visible areas
-	snap->areabytes = sv.world.worldmodel->funcs.WriteAreaBits(sv.world.worldmodel, snap->areabits, sizeof(snap->areabits), clientarea, false);
+	snap->areabytes = sv3.world->worldmodel->funcs.WriteAreaBits(sv3.world->worldmodel, snap->areabits, sizeof(snap->areabits), clientarea, false);
 
 	// grab the current playerState_t
 	memcpy(&snap->ps, ps, sizeof(snap->ps));
@@ -2414,9 +2449,9 @@ void SVQ3_BuildClientSnapshot( client_t *client )
 				continue;
 
 			//merge pvs bits so we can see other ents through it
-			sv.world.worldmodel->funcs.ClusterPVS(sv.world.worldmodel, sv.world.worldmodel->funcs.ClusterForPoint(sv.world.worldmodel, ent->s.origin2, &portalarea), &pvsbuffer, PVM_MERGE);
+			sv3.world->worldmodel->funcs.ClusterPVS(sv3.world->worldmodel, sv3.world->worldmodel->funcs.ClusterForPoint(sv3.world->worldmodel, ent->s.origin2, &portalarea), &pvsbuffer, PVM_MERGE);
 			//and areabits too
-			sv.world.worldmodel->funcs.WriteAreaBits(sv.world.worldmodel, snap->areabits, snap->areabytes, portalarea, true);
+			sv3.world->worldmodel->funcs.WriteAreaBits(sv3.world->worldmodel, snap->areabits, snap->areabytes, portalarea, true);
 		}
 
 		// add all visible entities
@@ -2464,7 +2499,7 @@ void SVQ3_BuildClientSnapshot( client_t *client )
 
 	if( q3_next_snapshot_entities + snap->num_entities >= 0x7FFFFFFE )
 	{
-		SV_Error("q3_next_snapshot_entities wrapped");
+		plugfuncs->EndGame("q3_next_snapshot_entities wrapped");
 	}
 
 	// find duplicated entities
@@ -2637,12 +2672,12 @@ static void SVQ3_WriteServerCommandsToClient(client_t *client, sizebuf_t *msg)
 
 	for(i=client->server_command_ack+1; i<=client->server_command_sequence; i++)
 	{
-		MSG_WriteBits(msg, svcq3_serverCommand, 8);
-		MSG_WriteBits(msg, i, 32);
+		msgfuncs->WriteBits(msg, svcq3_serverCommand, 8);
+		msgfuncs->WriteBits(msg, i, 32);
 		str = client->server_commands[i & Q3TEXTCMD_MASK];
 		len = strlen(str);
 		for (j = 0; j <= len; j++)
-			MSG_WriteBits(msg, str[j], 8);
+			msgfuncs->WriteBits(msg, str[j], 8);
 	}
 }
 
@@ -2663,28 +2698,28 @@ void SVQ3_SendGameState(client_t *client)
 	msg.packing = SZ_HUFFMAN;
 
 	// write last clientCommand number we have processed
-	MSG_WriteBits(&msg, client->last_client_command_num, 32);
+	msgfuncs->WriteBits(&msg, client->last_client_command_num, 32);
 
 	SVQ3_WriteServerCommandsToClient(client, &msg);
 
-	MSG_WriteBits(&msg, svcq3_gamestate, 8 );
-	MSG_WriteBits(&msg, client->server_command_sequence, 32);
+	msgfuncs->WriteBits(&msg, svcq3_gamestate, 8 );
+	msgfuncs->WriteBits(&msg, client->server_command_sequence, 32);
 
 	switch (svs.gametype)
 	{
 	case GT_QUAKE3:
 		// write configstrings
-		for( i=0; i<MAX_CONFIGSTRINGS; i++ )
+		for( i=0; i<countof(svq3_configstrings); i++ )
 		{
 			configString = svq3_configstrings[i];
 			if( !configString )
 				continue;
 
-			MSG_WriteBits( &msg, svcq3_configstring, 8);
-			MSG_WriteBits( &msg, i, 16 );
+			msgfuncs->WriteBits( &msg, svcq3_configstring, 8);
+			msgfuncs->WriteBits( &msg, i, 16 );
 			for (j = 0; configString[j]; j++)
-				MSG_WriteBits(&msg, configString[j], 8);
-			MSG_WriteBits(&msg, 0, 8);
+				msgfuncs->WriteBits(&msg, configString[j], 8);
+			msgfuncs->WriteBits(&msg, 0, 8);
 		}
 
 		// write baselines
@@ -2693,7 +2728,7 @@ void SVQ3_SendGameState(client_t *client)
 			if (!q3_baselines[i].number)
 				continue;
 
-			MSG_WriteBits(&msg, svcq3_baseline, 8);
+			msgfuncs->WriteBits(&msg, svcq3_baseline, 8);
 			MSGQ3_WriteDeltaEntity( &msg, NULL, &q3_baselines[i], true );
 		}
 		break;
@@ -2702,7 +2737,7 @@ void SVQ3_SendGameState(client_t *client)
 	case GT_Q1QVM:
 		SVQ3Q1_SendGamestateConfigstrings(&msg);
 
-		for (i = sv.allocated_client_slots+1; i < sv.world.num_edicts; i++)
+		for (i = sv.allocated_client_slots+1; i < sv3.world->num_edicts; i++)
 		{
 			edict_t *e = EDICT_NUM(svprogfuncs, i);
 			if (e->baseline.modelindex)
@@ -2721,13 +2756,13 @@ void SVQ3_SendGameState(client_t *client)
 	}
 
 	// write svc_eom command
-	MSG_WriteBits(&msg, svcq3_eom, 8);
+	msgfuncs->WriteBits(&msg, svcq3_eom, 8);
 
-	MSG_WriteBits(&msg, client - svs.clients, 32);
-	MSG_WriteBits(&msg, fs_key, 32);
+	msgfuncs->WriteBits(&msg, client - svs.clients, 32);
+	msgfuncs->WriteBits(&msg, fs_key, 32);
 
 	// end of message marker
-	MSG_WriteBits(&msg, svcq3_eom, 8);
+	msgfuncs->WriteBits(&msg, svcq3_eom, 8);
 
 	// send the datagram
 	SVQ3_Netchan_Transmit(client, msg.cursize, msg.data);
@@ -2750,7 +2785,7 @@ void SVQ3_SendMessage(client_t *client)
 
 	SVQ3_BuildClientSnapshot(client);
 
-	MSG_WriteBits(&msg, client->last_client_command_num, 32);
+	msgfuncs->WriteBits(&msg, client->last_client_command_num, 32);
 
 	// write pending serverCommands
 	SVQ3_WriteServerCommandsToClient(client, &msg);
@@ -2762,7 +2797,7 @@ void SVQ3_SendMessage(client_t *client)
 	// SV_WriteDownloadToClient(client, &msg);
 
 	// end of message marker
-	MSG_WriteBits(&msg, svcq3_eom, 8);
+	msgfuncs->WriteBits(&msg, svcq3_eom, 8);
 
 	SVQ3_Netchan_Transmit(client, msg.cursize, msg.data);
 }
@@ -2772,7 +2807,6 @@ void SVQ3_SendMessage(client_t *client)
 
 client_t *SVQ3_FindEmptyPlayerSlot(void)
 {
-	extern cvar_t maxclients;
 	int pcount = 0;
 	int i;
 	for (i = 0; i < sv.allocated_client_slots; i++)
@@ -2781,7 +2815,7 @@ client_t *SVQ3_FindEmptyPlayerSlot(void)
 			pcount++;
 	}
 	//in q3, spectators are not special
-	if (pcount >= maxclients.value)
+	if (pcount >= sv_maxclients->value)
 		return NULL;
 	for (i = 0; i < sv.allocated_client_slots; i++)
 	{
@@ -2795,76 +2829,69 @@ client_t *SVQ3_FindExistingPlayerByIP(netadr_t *na, int qport)
 	int i;
 	for (i = 0; i < sv.allocated_client_slots; i++)
 	{
-		if (svs.clients[i].state && NET_CompareAdr(&svs.clients[i].netchan.remote_address, na))
+		if (svs.clients[i].state && msgfuncs->CompareAdr(&svs.clients[i].netchan.remote_address, na))
 			return &svs.clients[i];
 	}
 	return NULL;
 }
 
-qboolean Netchan_ProcessQ3 (netchan_t *chan);
-static qboolean SVQ3_Netchan_Process(client_t *client)
+static qboolean SVQ3_Netchan_Process(client_t *client, sizebuf_t *msg)
 {
-#ifndef Q3_NOENCRYPT
-	int		serverid;
-	int		lastSequence;
-	int		lastServerCommandNum;
-	qbyte	bitmask;
-	qbyte	c;
-	int		i, j;
-	char	*string;
-	int		bit;
-	int		readcount;
-#endif
-
-	if (!Netchan_ProcessQ3(&client->netchan))
+	if (Netchan_ProcessQ3(&client->netchan, msg))
 	{
-		return false;
+#ifndef Q3_NOENCRYPT
+		int		serverid;
+		int		lastSequence;
+		int		lastServerCommandNum;
+		qbyte	bitmask;
+		qbyte	c;
+		int		i, j;
+		char	*string;
+		int		bit;
+
+		// archive buffer state
+		bit = msg->currentbit;
+		msg->packing = SZ_HUFFMAN;
+
+		serverid = msgfuncs->ReadBits(32);
+		lastSequence = msgfuncs->ReadBits(32);
+		lastServerCommandNum = msgfuncs->ReadBits(32);
+
+		// restore buffer state
+		msg->currentbit = bit;
+		msg->packing = SZ_RAWBYTES;
+
+		// calculate bitmask
+		bitmask = (serverid ^ lastSequence ^ client->challenge) & 0xff;
+		string = client->server_commands[lastServerCommandNum & Q3TEXTCMD_MASK];
+
+		// decrypt the packet
+		for(i=msgfuncs->ReadCount()+12,j=0; i<msg->cursize; i++,j++)
+		{
+			if(!string[j])
+			{
+				j = 0; // another way around
+			}
+			c = string[j];
+			if(c > 127 || c == '%')
+			{
+				c = '.';
+			}
+			bitmask ^= c << (i & 1);
+			msg->data[i] ^= bitmask;
+		}
+#endif
+		return true;
 	}
 
-#ifndef Q3_NOENCRYPT
-	// archive buffer state
-	bit = net_message.currentbit;
-	readcount = msg_readcount;
-	net_message.packing = SZ_HUFFMAN;
-
-	serverid = MSG_ReadBits(32);
-	lastSequence = MSG_ReadBits(32);
-	lastServerCommandNum = MSG_ReadBits(32);
-
-	// restore buffer state
-	net_message.currentbit = bit;
-	msg_readcount = readcount;
-	net_message.packing = SZ_RAWBYTES;
-
-	// calculate bitmask
-	bitmask = (serverid ^ lastSequence ^ client->challenge) & 0xff;
-	string = client->server_commands[lastServerCommandNum & Q3TEXTCMD_MASK];
-
-	// decrypt the packet
-	for(i=msg_readcount+12,j=0; i<net_message.cursize; i++,j++)
-	{
-		if(!string[j])
-		{
-			j = 0; // another way around
-		}
-		c = string[j];
-		if(c > 127 || c == '%')
-		{
-			c = '.';
-		}
-		bitmask ^= c << (i & 1);
-		net_message.data[i] ^= bitmask;
-	}
-#endif
-
-	return true;
+	return false;
 }
 
-void SVQ3_Netchan_Transmit(client_t *client, int length, qbyte *data)
+static void SVQ3_Netchan_Transmit(client_t *client, int length, qbyte *data)
 {
+#ifndef Q3_NOENCRYPT
 	qbyte		buffer[MAX_OVERALLMSGLEN];
 	int			i;
-#ifndef Q3_NOENCRYPT
 	qbyte		bitmask;
 	qbyte		c;
 	int			j;
@@ -2881,24 +2908,18 @@ void SVQ3_Netchan_Transmit(client_t *client, int length, qbyte *data)
 	for(j=0 ; i<length ; i++, j++)
 	{
 		if(!string[j])
-		{
-			j = 0; // another way around
-		}
+			j = 0;	//restart
 		c = string[j];
 		if (c > 127 || c == '%')
-		{
 			c = '.';
-		}
 		bitmask ^= c << (i & 1);
 		buffer[i] = data[i]^bitmask;
 	}
-#else
-	for( i=0 ; i<length ; i++ )
-		buffer[i] = data[i];
+	data = buffer;
 #endif
 
 	// deliver the message
-	Netchan_TransmitQ3(&client->netchan, length, buffer);
+	Netchan_TransmitQ3(sv3.server_state_static->sockets, &client->netchan, length, data);
 }
 
 int StringKey(const char *string, int length);
@@ -2926,11 +2947,14 @@ void SVQ3_ParseUsercmd(client_t *client, qboolean delta)
 	}
 
 	// read number of usercmds in a packet
-	cmdCount = MSG_ReadBits(8);
-	if(cmdCount < 1)
-		SV_DropClient(client);
-	else if(cmdCount > MAX_PACKET_USERCMDS)
-		SV_DropClient(client);
+	cmdCount = msgfuncs->ReadBits(8);
+	if (cmdCount < 1 ||
+		cmdCount > MAX_PACKET_USERCMDS ||
+		svs.gametype != GT_QUAKE3)
+	{
+		worldfuncs->DropClient(client);
+		return;
+	}
 
 	if(client->state < cs_connected)
 		return; // was dropped
@@ -2952,24 +2976,13 @@ void SVQ3_ParseUsercmd(client_t *client, qboolean delta)
 	case cs_connected:
 		// transition from CS_PRIMED to CS_ACTIVE
 		memcpy(&client->lastcmd, &commands[cmdCount-1], sizeof(client->lastcmd));
-		if (svs.gametype == GT_QUAKE3)
-			SVQ3_ClientBegin(client);
-		else
-		{
-			sv_player = host_client->edict;
-			SV_Begin_Core(client);
-		}
+		SVQ3_ClientBegin(client);
 		client->state = cs_spawned;
 
 		client->lastcmd.servertime = sv.time*1000;
 		break;
 	case cs_spawned:
 		// run G_ClientThink() on each usercmd
-		if (svs.gametype != GT_QUAKE3)
-		{
-			sv_player = host_client->edict;
-			SV_PreRunCmd();
-		}
 		for(i=0,to=commands; i<cmdCount; i++, to++)
 		{
 			if(to->servertime <= client->lastcmd.servertime)
@@ -2983,31 +2996,8 @@ void SVQ3_ParseUsercmd(client_t *client, qboolean delta)
 			}
 
 			memcpy(&client->lastcmd, to, sizeof(client->lastcmd));
-			if (svs.gametype == GT_QUAKE3)
-				SVQ3_ClientThink(client);
-			else if (svs.gametype == GT_PROGS || svs.gametype == GT_Q1QVM)
-			{
-				usercmd_t temp;
-				temp = client->lastcmd;
-#ifdef warningmsg
-#pragma warningmsg("qwoverq3: you need to be aware of this if you're making a compatible cgame")
-#endif
-				//if you read the q3 code, you'll see that the speed value used is 64 for walking, and 127 for running (full speed).
-				//so we map full to full here.
-				temp.sidemove *= client->maxspeed/127.0f;
-				temp.forwardmove *= client->maxspeed/127.0f;
-				temp.upmove *= client->maxspeed/127.0f;
-				temp.msec = bound(0, to->servertime - temp.servertime, 255);
-
-				temp.buttons &= ~2;
-				if (temp.buttons & 64)
-					temp.buttons |= 2;
-				SV_RunCmd(&temp, false);
-				client->lastcmd.servertime = to->servertime;
-			}
+			SVQ3_ClientThink(client);
 		}
-		if (svs.gametype != GT_QUAKE3)
-			SV_PostRunCmd();
 		break;
 	default:
 		break; // outdated usercmd packet
@@ -3017,16 +3007,16 @@ void SVQ3_ParseUsercmd(client_t *client, qboolean delta)
 
 void SVQ3_UpdateUserinfo_f(client_t *cl)
 {
-	InfoBuf_FromString(&cl->userinfo, Cmd_Argv(1), false);
-	SV_ExtractFromUserinfo (cl, true);
+	worldfuncs->IBufFromInfo(&cl->userinfo, cmdfuncs->Argv(1, NULL, 0), false);
+	worldfuncs->ExtractFromUserinfo (cl, true);
 
 	if (svs.gametype == GT_QUAKE3 && cl->spawned)
-		VM_Call(q3gamevm, GAME_CLIENT_USERINFO_CHANGED, (int)(cl-svs.clients));
+		vmfuncs->Call(q3gamevm, GAME_CLIENT_USERINFO_CHANGED, (int)(cl-svs.clients));
 }
 
 static void SVQ3_Drop_f(client_t *cl)
 {
-	SV_DropClient(cl);
+	worldfuncs->DropClient(cl);
 }
 
 //part of the sv_pure mechanism. verifies the client's pack list and kicks if they're wrong.
@@ -3039,7 +3029,7 @@ static void SVQ3_Download_f(client_t *cl)
 {
 	//clients might end up waiting for the download which will never come.
 	//kick them so that doesn't happen. downloads are not supported at this time. not even reporting failure! :s
-	SV_DropClient(cl);
+	worldfuncs->DropClient(cl);
 //	short 0
 //	long -1
 }
@@ -3081,12 +3071,13 @@ void SVQ3_ParseClientCommand(client_t *client)
 	char *command;
 	const ucmd_t	*u;
 	char buffer[2048];
+	char arg0[256];
 	int i;
 
-	commandNum = MSG_ReadBits(32);
+	commandNum = msgfuncs->ReadBits(32);
 	for (i = 0; ; i++)
 	{
-		buffer[i] = MSG_ReadBits(8);
+		buffer[i] = msgfuncs->ReadBits(8);
 		if (!buffer[i])
 			break;
 	}
@@ -3104,19 +3095,20 @@ void SVQ3_ParseClientCommand(client_t *client)
 	if(commandNum > client->last_client_command_num)
 	{
 		Con_Printf("Client %s lost %i clientCommands\n", client->name, commandNum - client->last_client_command_num);
-		SV_DropClient(client);
+		worldfuncs->DropClient(client);
 		return;
 	}
 
 	// copy current command for netchan encryption
 	Q_strncpyz(client->last_client_command, command, sizeof(client->last_client_command));
 
-	Cmd_TokenizeString(command, false, false);
+	cmdfuncs->TokenizeString(command);
 
 	// check for server private commands first
+	cmdfuncs->Argv(0, arg0, sizeof(arg0));
 	for(u=ucmds; u->name; u++)
 	{
-		if(!stricmp(Cmd_Argv(0), u->name))
+		if(!Q_strcasecmp(arg0, u->name))
 		{
 			if(u->func)
 				u->func(client);
@@ -3129,29 +3121,27 @@ void SVQ3_ParseClientCommand(client_t *client)
 		SVQ3_ClientCommand(client);
 }
 
-void SVQ3_ParseClientMessage(client_t *client)
+void SVQ3_ParseClientMessage(client_t *client, sizebuf_t *msg)
 {
 	int serverid;	//sorta like the level number.
 	int c;
 
-	host_client = client;
-
 	// remaining data is compressed
-	net_message.packing = SZ_HUFFMAN;
-	net_message.currentbit = msg_readcount*8;
+	msg->packing = SZ_HUFFMAN;
+	msg->currentbit = msgfuncs->ReadCount()*8;
 
 	// read serverid
-	serverid = MSG_ReadBits(32);
+	serverid = msgfuncs->ReadBits(32);
 
 	// read last server message sequence client received
-	client->last_sequence = MSG_ReadBits(32);
+	client->last_sequence = msgfuncs->ReadBits(32);
 	if( client->last_sequence < 0 )
 	{
 		return; // this shouldn't happen
 	}
 
 	// read last server command number client received
-	client->server_command_ack = MSG_ReadBits(32);
+	client->server_command_ack = msgfuncs->ReadBits(32);
 	if( client->server_command_ack <= client->server_command_sequence - Q3TEXTCMD_BACKUP )
 		client->server_command_ack = client->server_command_sequence - Q3TEXTCMD_BACKUP + 1; //too old
 	else if( client->server_command_ack > client->server_command_sequence )
@@ -3185,14 +3175,13 @@ void SVQ3_ParseClientMessage(client_t *client)
 		if(client->state < cs_connected)
 			return; // parsed command caused client to disconnect
 
-		if(msg_readcount > net_message.cursize)
+		c = msgfuncs->ReadBits(8);
+		if (c < 0)
 		{
 			Con_Printf("corrupt packet from %s\n", client->name);
 			client->drop = true;
 			return;
 		}
-
-		c = MSG_ReadBits(8);
 		if (c == clcq3_eom)
 		{
 			break;
@@ -3218,22 +3207,21 @@ void SVQ3_ParseClientMessage(client_t *client)
 		}
 	}
 
-	if (msg_readcount != net_message.cursize)
+	if (msg->currentbit+8 < (msg->cursize<<3))
 	{
 		Con_Printf(CON_WARNING "WARNING: Junk at end of packet for client %s\n", client->name );
 	}
 };
-qboolean SVQ3_HandleClient(void)
+qboolean SVQ3_HandleClient(netadr_t *from, sizebuf_t *msg)
 {
 	int i;
 	int qport;
 
-	if (net_message.cursize<6)
-		return false;	//urm. :/
-
-	MSG_BeginReading(msg_nullnetprim);
-	MSG_ReadBits(32);
-	qport = (unsigned short)MSG_ReadBits(16);
+	msgfuncs->BeginReading(msg, msg_nullnetprim);
+	msgfuncs->ReadBits(32);
+	qport = msgfuncs->ReadBits(16);
+	if (qport < 0)
+		return false;
 
 	for (i = 0; i < sv.allocated_client_slots; i++)
 	{
@@ -3241,7 +3229,7 @@ qboolean SVQ3_HandleClient(void)
 			continue;
 		if (svs.clients[i].netchan.qport != qport)
 			continue;
-		if (!NET_CompareBaseAdr(&svs.clients[i].netchan.remote_address, &net_from))
+		if (!msgfuncs->CompareBaseAdr(&svs.clients[i].netchan.remote_address, from))
 			continue;
 		if (!ISQ3CLIENT(&svs.clients[i]))
 			continue;
@@ -3252,14 +3240,15 @@ qboolean SVQ3_HandleClient(void)
 	if (i == sv.allocated_client_slots)
 		return false;	//nope
 
-	if (!SVQ3_Netchan_Process(&svs.clients[i]))
+	if (!SVQ3_Netchan_Process(&svs.clients[i], msg))
 	{
 		return true; // wasn't accepted for some reason
 	}
 
-	SVQ3_ParseClientMessage(&svs.clients[i]);
+	SVQ3_ParseClientMessage(&svs.clients[i], msg);
 	return true;
 }
+
 
 //Q3 gamecode does map_restart weirdly.
 //it simply reloads the gamecode without changing any maps/models/sounds
@@ -3268,21 +3257,16 @@ qboolean SVQ3_HandleClient(void)
 qboolean SVQ3_RestartGamecode(void)
 {
 	int i;
-	extern cvar_t maxclients;
-	int newmaxclients = max(8,maxclients.ival);
+	int newmaxclients = max(8,sv_maxclients->ival);
 	if (sv.allocated_client_slots != newmaxclients)
 		return false;	//can't do it if maxclients needs to change.
 
-	Cvar_ApplyLatches(CVAR_MAPLATCH, false);
-
 	//reload the gamecode
 	sv.state = ss_loading;
-	sv.restarting = true;
-	if (!SVQ3_InitGame(true))
+	if (!SVQ3_InitGame(sv3.server_state_static, sv3.server_state, true))
 		return false;
 
 //	svs.spawncount++;	//so new snapshots get sent
-	sv.restartedtime = 0;
 
 	//and then reconnect the players as appropriate
 //	SVQ3_NewMapConnects();
@@ -3292,9 +3276,9 @@ qboolean SVQ3_RestartGamecode(void)
 		if (svs.clients[i].state < cs_connected)
 			continue;
 
-		if (VM_Call(q3gamevm, GAME_CLIENT_CONNECT, i, false, svs.clients[i].protocol == SCP_BAD))
+		if (vmfuncs->Call(q3gamevm, GAME_CLIENT_CONNECT, i, false, svs.clients[i].protocol == SCP_BAD))
 		{
-			SV_DropClient(&svs.clients[i]);
+			worldfuncs->DropClient(&svs.clients[i]);
 			continue;
 		}
 		if (svs.clients[i].spawned)
@@ -3304,18 +3288,18 @@ qboolean SVQ3_RestartGamecode(void)
 		 }
 	}
 
-	sv.starttime = Sys_DoubleTime() - sv.time;
+	sv.starttime = plugfuncs->GetSeconds() - sv.time;
 #ifdef SAVEDGAMES
-	sv.autosave_time = sv.time + sv_autosave.value*60;
+	sv.autosave_time = sv.time + cvarfuncs->GetFloat("sv_autosave")*60;
 #endif
 
 	//basically done
 	sv.state = ss_active;
-	sv.restarting = false;
+	sv3.restarting = false;
 
 	//and an extra physics frame for luck
 	sv.time+=0.1;
-	sv.world.physicstime=sv.time;
+	sv3.world->physicstime=sv.time;
 	SVQ3_RunFrame();
 
 	SVQ3_SendServerCommand(NULL, "map_restart");
@@ -3330,7 +3314,7 @@ void SVQ3_NewMapConnects(void)
 
 	/* Kick old bots in SP - eukara */
 	cvar_t *gametype;
-	gametype = Cvar_Get("g_gametype", "", CVAR_MAPLATCH|CVAR_SERVERINFO, "Q3 compatability");
+	gametype = cvarfuncs->GetNVFDG("g_gametype", "", CVAR_MAPLATCH|CVAR_SERVERINFO, NULL, "Q3 compatability");
 
 	for (i = 0; i < sv.allocated_client_slots; i++)
 	{
@@ -3340,10 +3324,10 @@ void SVQ3_NewMapConnects(void)
 		if (gametype->value == 2 && svs.clients[i].protocol == SCP_BAD)
 			ret = true;
 		else
-			ret = VM_Call(q3gamevm, GAME_CLIENT_CONNECT, i, false, svs.clients[i].protocol == SCP_BAD);
+			ret = vmfuncs->Call(q3gamevm, GAME_CLIENT_CONNECT, i, false, svs.clients[i].protocol == SCP_BAD);
 		if (ret)
 		{
-			SV_DropClient(&svs.clients[i]);
+			worldfuncs->DropClient(&svs.clients[i]);
 		}
 		else if (svs.clients[i].protocol == SCP_BAD)
 		{	//spawn bots now.
@@ -3353,7 +3337,7 @@ void SVQ3_NewMapConnects(void)
 	}
 }
 
-void SVQ3_DirectConnect(void)	//Actually connect the client, use up a slot, and let the gamecode know of it.
+void SVQ3_DirectConnect(netadr_t *from, sizebuf_t *msg)	//Actually connect the client, use up a slot, and let the gamecode know of it.
 {
 	//this is only called when running q3 gamecode
 	char *reason;
@@ -3364,31 +3348,26 @@ void SVQ3_DirectConnect(void)	//Actually connect the client, use up a slot, and 
 	int qport;
 	char adr[MAX_ADR_SIZE];
 
-	if (net_message.cursize < 13)
+	if (msg->cursize < 12)
 		return;
-#ifdef HUFFNETWORK
-	Huff_DecryptPacket(&net_message, 12);
-#endif
+	if (msgfuncs->Huff_DecryptPacket)
+		msgfuncs->Huff_DecryptPacket(msg, 12);
 
+	cmdfuncs->TokenizeString((char*)msg->data+4);
+	userinfo = cmdfuncs->Argv(1, NULL, 0);
+	qport = atoi(worldfuncs->GetInfoKey(userinfo, "qport"));
+	challenge = atoi(worldfuncs->GetInfoKey(userinfo, "challenge"));
 
-	Cmd_TokenizeString((char*)net_message.data+4, false, false);
-	userinfo = Cmd_Argv(1);
-	qport = atoi(Info_ValueForKey(userinfo, "qport"));
-	challenge = atoi(Info_ValueForKey(userinfo, "challenge"));
-
-	cl = SVQ3_FindExistingPlayerByIP(&net_from, qport);	//use a duplicate first.
+	cl = SVQ3_FindExistingPlayerByIP(from, qport);	//use a duplicate first.
 	if (!cl)
 		cl = SVQ3_FindEmptyPlayerSlot();
 
-#ifdef HUFFNETWORK
-	if (!Huff_CompressionCRC(HUFFCRC_QUAKE3))
+	if (!msgfuncs->Huff_CompressionCRC || !msgfuncs->Huff_CompressionCRC(HUFFCRC_QUAKE3))
 	{
 		reason = "Could not set up compression.";
 		userinfo = NULL;
 	}
-	else
-#endif
-		if (!cl)
+	else if (!cl)
 	{
 		reason = "Server is full.";
 		userinfo = NULL;
@@ -3396,26 +3375,26 @@ void SVQ3_DirectConnect(void)	//Actually connect the client, use up a slot, and 
 	else
 	{
 		if (cl->frameunion.q3frames)
-			BZ_Free(cl->frameunion.q3frames);
+			plugfuncs->Free(cl->frameunion.q3frames);
 		memset(cl, 0, sizeof(*cl));
-		challenge = atoi(Info_ValueForKey(userinfo, "challenge"));
+		challenge = atoi(worldfuncs->GetInfoKey(userinfo, "challenge"));
 
-		if (net_from.type != NA_LOOPBACK && !SV_ChallengePasses(challenge))
-			reason = "Invalid challenge";
+		if (from->type != NA_LOOPBACK && !worldfuncs->ChallengePasses(challenge))
+			reason = "Invalid challenge\n";
 		else
 		{
-			InfoBuf_FromString(&cl->userinfo, userinfo, false);
-			if (net_from.type == NA_LOOPBACK)
+			worldfuncs->IBufFromInfo(&cl->userinfo, userinfo, false);
+			if (from->type == NA_LOOPBACK)
 				reason = "localhost";	//Q3 uses this specific string for listen servers.
 			else
-				reason = NET_AdrToString(adr, sizeof(adr), &net_from);
-			InfoBuf_SetKey(&cl->userinfo, "ip", reason);	//q3 gamecode needs to know the client's ip (server's perception of the client, NOT QW client's perception of the server/proxy)
+				reason = masterfuncs->AdrToString(adr, sizeof(adr), from);
+			worldfuncs->SetIBufKey(&cl->userinfo, "ip", reason);	//q3 gamecode needs to know the client's ip (server's perception of the client, NOT QW client's perception of the server/proxy)
 
-			ret = VM_Call(q3gamevm, GAME_CLIENT_CONNECT, (int)(cl-svs.clients), true, false);
+			ret = vmfuncs->Call(q3gamevm, GAME_CLIENT_CONNECT, (int)(cl-svs.clients), true/*firsttime*/, false/*isbot*/);
 			if (!ret)
 				reason = NULL;
 			else
-				reason = (char*)VM_MemoryBase(q3gamevm)+ret;
+				reason = (char*)vmfuncs->MemoryBase(q3gamevm)+ret;
 		}
 	}
 
@@ -3423,7 +3402,7 @@ void SVQ3_DirectConnect(void)	//Actually connect the client, use up a slot, and 
 	{
 		Con_Printf("%s\n", reason);
 		reason = va("\377\377\377\377print\n%s", reason);
-		NET_SendPacket (svs.sockets, strlen(reason), reason, &net_from);
+		msgfuncs->SendPacket (svs.sockets, strlen(reason), reason, from);
 		return;
 	}
 
@@ -3431,8 +3410,8 @@ void SVQ3_DirectConnect(void)	//Actually connect the client, use up a slot, and 
 	cl->state = cs_connected;
 	cl->name = cl->namebuf;
 	cl->team = cl->teambuf;
-	SV_ExtractFromUserinfo(cl, true);
-	Netchan_Setup(NS_SERVER, &cl->netchan, &net_from, qport);
+	worldfuncs->ExtractFromUserinfo(cl, true);
+	Netchan_SetupQ3(NS_SERVER, &cl->netchan, from, qport);
 	cl->netchan.outgoing_sequence = 1;
 
 	cl->challenge = challenge;
@@ -3440,12 +3419,12 @@ void SVQ3_DirectConnect(void)	//Actually connect the client, use up a slot, and 
 
 	cl->gamestatesequence = -1;
 
-	NET_SendPacket (svs.sockets, 19, "\377\377\377\377connectResponse", &net_from);
+	msgfuncs->SendPacket (svs.sockets, 19, "\377\377\377\377connectResponse", from);
 
-	cl->frameunion.q3frames = BZ_Malloc(Q3UPDATE_BACKUP*sizeof(*cl->frameunion.q3frames));
+	cl->frameunion.q3frames = plugfuncs->Malloc(Q3UPDATE_BACKUP*sizeof(q3client_frame_t));
 }
 
-int SVQ3_AddBot(void)
+static int SVQ3_AddBot(void)
 {
 	client_t *cl;
 
@@ -3470,7 +3449,7 @@ int SVQ3_AddBot(void)
 void SVQ3_DropClient(client_t *cl)
 {
 	if (q3gamevm)
-		VM_Call(q3gamevm, GAME_CLIENT_DISCONNECT, (int)(cl-svs.clients));
+		vmfuncs->Call(q3gamevm, GAME_CLIENT_DISCONNECT, (int)(cl-svs.clients));
 }
 
 #endif

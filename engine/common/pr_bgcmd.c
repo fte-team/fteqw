@@ -1434,7 +1434,7 @@ void QCBUILTIN PF_setattachment(pubprogfuncs_t *prinst, struct globalvars_s *pr_
 		{
 			if (model && model->loadstate == MLS_LOADING)
 				COM_WorkerPartialSync(model, &model->loadstate, MLS_LOADING);
-			tagidx = Mod_TagNumForName(model, tagname);
+			tagidx = Mod_TagNumForName(model, tagname, 0);
 			if (tagidx == 0)
 				Con_DPrintf("setattachment(edict %i, edict %i, string \"%s\"): tried to find tag named \"%s\" on entity %i (model \"%s\") but could not find it\n", NUM_FOR_EDICT(prinst, e), NUM_FOR_EDICT(prinst, tagentity), tagname, tagname, NUM_FOR_EDICT(prinst, tagentity), model->name);
 		}

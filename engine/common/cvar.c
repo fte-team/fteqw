@@ -595,6 +595,40 @@ void Cvar_PurgeDefaults_f(void)
 	}
 }
 
+//we're changing games. reset everything to engine defaults and kill all user cvars
+static void Cvar_Free(cvar_t *tbf);
+void Cvar_GamedirChange(void)
+{
+	cvar_t	*var, **link;
+	cvar_group_t *grp;
+	for (grp = cvar_groups; grp; grp = grp->next)
+	{
+		for (link = &grp->cvars; (var=*link); )
+		{
+			if (var->flags & CVAR_NORESET)
+				;	//don't reset it (nor kill it).
+			else if (var->enginevalue)
+				Cvar_ForceSet(var, var->enginevalue);
+			else if (var->flags & CVAR_POINTER)
+			{
+				*link = var->next;
+				Z_Free(var->string);
+				if (var->defaultstr != var->enginevalue)
+					Cvar_DefaultFree(var->defaultstr);
+				if (var->latched_string)
+					Z_Free(var->latched_string);
+				if (var->name)
+					AHash_RemoveDataInsensitive(&cvar_hash, var->name, var);
+				if (var->name2)
+					AHash_RemoveDataInsensitive(&cvar_hash, var->name2, var);
+				Z_Free(var);
+				continue;
+			}
+			link = &(*link)->next;
+		}
+	}
+}
+
 void Cvar_ResetAll_f(void)
 {
 	cvar_group_t *grp;
@@ -992,7 +1026,8 @@ static cvar_t *Cvar_SetCore (cvar_t *var, const char *value, qboolean force)
 	{
 		if (strcmp(latch, value))
 		{
-			var->modified++;	//only modified if it changed.
+			var->modified=true;	//only modified if it changed.
+			var->modifiedcount++;
 			if (var->callback)
 				var->callback(var, latch);
 
@@ -1226,6 +1261,7 @@ static void Cvar_Free(cvar_t *tbf)
 			grp->cvars = tbf->next;
 			goto unlinked;
 		}
+		if (grp->cvars)
 		for (var=grp->cvars ; var->next ; var=var->next)
 		{
 			if (var->next == tbf)
@@ -1281,6 +1317,7 @@ qboolean Cvar_Register (cvar_t *variable, const char *groupname)
 			group = Cvar_GetGroup(groupname);
 
 			variable->modified = old->modified;
+			variable->modifiedcount = old->modifiedcount;
 			variable->flags |= (old->flags & CVAR_ARCHIVE);
 
 // link the variable in
@@ -1358,7 +1395,23 @@ cvar_t *Cvar_Get2(const char *name, const char *defaultvalue, int flags, const c
 	var = Cvar_FindVar(name);
 
 	if (var)
+	{
+#ifdef HAVE_CLIENT
+		if ((flags & CVAR_USERINFO) && !(var->flags & CVAR_USERINFO))
+		{
+			var->flags |= CVAR_USERINFO;
+			InfoBuf_SetKey(&cls.userinfo[0], var->name, var->string);
+		}
+#endif
+#ifdef HAVE_SERVER
+		if ((flags & CVAR_SERVERINFO) && !(var->flags & CVAR_SERVERINFO))
+		{
+			var->flags |= CVAR_SERVERINFO;
+			InfoBuf_SetKey (&svs.info, var->name, var->string);
+		}
+#endif
 		return var;
+	}
 	if (!description || !*description)
 		description = NULL;
 
@@ -1371,6 +1424,7 @@ cvar_t *Cvar_Get2(const char *name, const char *defaultvalue, int flags, const c
 	strcpy(var->name, name);
 	var->string = (char*)defaultvalue;
 	var->flags = flags|CVAR_POINTER|CVAR_USERCREATED;
+	var->modifiedcount = 1;	//this counter always starts at 1, for q3 compat
 	if (description)
 	{
 		char *desc = var->name+strlen(var->name)+1;
@@ -1419,19 +1473,17 @@ Cvar_Command
 Handles variable inspection and changing from the console
 ============
 */
-qboolean	Cvar_Command (int level)
+qboolean	Cvar_Command (cvar_t *v, int level)
 {
-	cvar_t			*v;
 	char *str;
 	char buffer[65536];
 	int olev;
 
 // check variables
-	v = Cvar_FindVar (Cmd_Argv(0));
 	if (!v)
 		return false;
 
-	if (!level || (v->restriction?v->restriction:rcon_level.ival) > level)
+	if (level==RESTRICT_TEAMPLAY || (v->restriction?v->restriction:rcon_level.ival) > level)
 	{
 		Con_TPrintf ("You do not have the priveledges for %s\n", v->name);
 		return true;

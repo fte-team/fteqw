@@ -9,6 +9,9 @@
 #define FTEENGINE
 #include "../plugins/plugin.h"
 
+struct q3gamecode_s *q3;
+static struct plugin_s *q3plug;
+
 #ifdef PLUGINS
 
 #ifdef MODELFMT_GLTF
@@ -21,6 +24,7 @@
 cvar_t plug_sbar = CVARD("plug_sbar", "3", "Controls whether plugins are allowed to draw the hud, rather than the engine (when allowed by csqc). This is typically used to permit the ezhud plugin without needing to bother unloading it.\n=0: never use hud plugins.\n&1: Use hud plugins in deathmatch.\n&2: Use hud plugins in singleplayer/coop.\n=3: Always use hud plugins (when loaded).");
 cvar_t plug_loaddefault = CVARD("plug_loaddefault", "1", "0: Load plugins only via explicit plug_load commands\n1: Load built-in plugins and those selected via the package manager\n2: Scan for misc plugins, loading all that can be found, but not built-ins.\n3: Scan for plugins, and then load any built-ins");
 
+qboolean Plug_Q3_Init(void);
 static struct
 {
 	const char *name;
@@ -35,6 +39,10 @@ static struct
 #endif
 #if defined(MODELFMT_GLTF)
 	{"GLTF", Plug_GLTF_Init},
+#endif
+
+#ifdef STATIC_Q3
+	{"Q3", Plug_Q3_Init},
 #endif
 	{NULL}
 };
@@ -87,7 +95,6 @@ typedef struct plugin_s {
 	dllhandle_t *lib;
 
 	void (QDECL *tick)(double realtime, double gametime);
-	qboolean (QDECL *executestring)(qboolean isinsecure);
 #ifndef SERVERONLY
 	qboolean (QDECL *consolelink)(void);
 	qboolean (QDECL *consolelinkmouseover)(float x, float y);
@@ -116,6 +123,7 @@ plugin_t *currentplug;
 
 #ifndef SERVERONLY
 #include "cl_plugin.inc"
+#include "cl_master.h"
 #else
 void Plug_Client_Init(void){}
 void Plug_Client_Close(plugin_t *plug) {}
@@ -275,9 +283,22 @@ static plugin_t *Plug_Load(const char *file)
 
 	return newplug;
 }
-static void Plug_Load_Update(const char *name)
+static void Plug_Load_Update(const char *name, qboolean blocked)
 {
-	Plug_Load(name);
+	if (blocked)
+	{	//plugins can be blocked by gametypes (to prevents conflicts)
+		plugin_t *plug;
+		for (plug = plugs; plug; plug = plug->next)
+		{
+			if (!strcmp(plug->name, name))
+			{
+				Plug_Close(plug);
+				return;
+			}
+		}
+	}
+	else
+		Plug_Load(name);
 }
 
 static int QDECL Plug_EnumeratedRoot (const char *name, qofs_t size, time_t mtime, void *param, searchpathfuncs_t *spath)
@@ -311,10 +332,6 @@ static void QDECL Plug_Con_Print(const char *text)
 {
 	Con_Printf("%s", text);
 }
-static void QDECL Plug_Sys_Error(const char *text)
-{
-	Sys_Error("%s", text);
-}
 static quintptr_t QDECL Plug_Sys_Milliseconds(void)
 {
 	return Sys_DoubleTime()*1000u;
@@ -322,10 +339,10 @@ static quintptr_t QDECL Plug_Sys_Milliseconds(void)
 
 qboolean VARGS PlugBI_ExportFunction(const char *name, funcptr_t function)
 {
+	if (!currentplug)
+		return false;
 	if (!strcmp(name, "Tick"))					//void(int realtime)
 		currentplug->tick = function;
-	else if (!strcmp(name, "ExecuteCommand"))	//bool(isinsecure)
-		currentplug->executestring = function;
 	else if (!strcmp(name, "Shutdown"))			//void()
 		currentplug->shutdown = function;
 	else if (!strcmp(name, "MayShutdown")||!strcmp(name, "MayUnload"))
@@ -407,6 +424,20 @@ static qboolean QDECL PlugBI_ExportInterface(const char *name, void *interfacept
 #endif
 	if (!strcmp(name, "Crypto"))
 		return NET_RegisterCrypto(currentplug, interfaceptr);
+#if defined(Q3SERVER)||defined(Q3CLIENT)
+	if (!strcmp(name, "Quake3Plugin") && sizeof(*q3) == structsize)
+	{
+		if (q3plug)
+		{
+			struct plugin_s *p = currentplug;
+			Plug_Close(q3plug);
+			currentplug = p;
+		}
+		q3 = interfaceptr;
+		q3plug = currentplug;
+		return true;
+	}
+#endif
 #ifdef HAVE_CLIENT
 	if (!strcmp(name, plugvrfuncs_name))
 		return R_RegisterVRDriver(currentplug, interfaceptr);
@@ -429,65 +460,14 @@ static cvar_t *QDECL Plug_Cvar_GetNVFDG(const char *name, const char *defaultval
 	return Cvar_Get2(name, defaultvalue, flags&1, description, groupname);
 }
 
-
-typedef struct {
-	//Make SURE that the engine has resolved all cvar pointers into globals before this happens.
-	plugin_t *plugin;
-	cvar_t *var;
-} plugincvararray_t;
-static int plugincvararraylen;
-static plugincvararray_t *plugincvararray;
-//qhandle_t Cvar_Register (char *name, char *defaultval, int flags, char *grouphint);
-static qhandle_t QDECL Plug_Cvar_Register(const char *name, const char *defaultvalue, int flags, const char *groupname)
-{
-	cvar_t *var;
-	int i;
-
-	var = Cvar_Get(name, defaultvalue, flags&1, groupname);
-
-	for (i = 0; i < plugincvararraylen; i++)
-	{
-		if (!plugincvararray[i].var)
-		{	//hmm... a gap...
-			plugincvararray[i].plugin = currentplug;
-			plugincvararray[i].var = var;
-			return i;
-		}
-	}
-
-	i = plugincvararraylen;
-	plugincvararraylen++;
-	plugincvararray = BZ_Realloc(plugincvararray, (plugincvararraylen)*sizeof(plugincvararray_t));
-	plugincvararray[i].plugin = currentplug;
-	plugincvararray[i].var = var;
-	return i;
-}
-//int Cvar_Update, (qhandle_t handle, int modificationcount, char *stringv, float *floatv));	//stringv is 256 chars long, don't expect this function to do anything if modification count is unchanged.
-static qboolean QDECL Plug_Cvar_Update(qhandle_t handle, int *modificationcount, char *outstringv, size_t stringsize, float *outfloatv)
-{
-	cvar_t *var;
-	if (handle < 0 || handle >= plugincvararraylen)
-		return false;
-	if (plugincvararray[handle].plugin != currentplug)
-		return false;	//I'm not letting you know what annother plugin has registered.
-
-	var = plugincvararray[handle].var;
-
-	//if (var->modified != *modificationcount)	//for future optimisation
-	{
-		//*modificationcount = var->modified;
-		Q_strncpyz(outstringv, var->string, stringsize);
-		*outfloatv = var->value;
-		return true;
-	}
-	return false;
-}
-
 static void QDECL Plug_Cmd_TokenizeString(const char *text)
 {
 	Cmd_TokenizeString(text, false, false);
 }
-
+static void QDECL Plug_Cmd_ShiftArgs(int args)
+{
+	Cmd_ShiftArgs(args, false);
+}
 //void Cmd_Args(char *buffer, int buffersize)
 static void QDECL Plug_Cmd_Args(char *buffer, int maxsize)
 {
@@ -502,7 +482,7 @@ static void QDECL Plug_Cmd_Args(char *buffer, int maxsize)
 		strcpy(buffer, args);
 }
 //void Cmd_Argv(int num, char *buffer, int buffersize)
-static void QDECL Plug_Cmd_Argv(int argn, char *outbuffer, size_t buffersize)
+static char *QDECL Plug_Cmd_Argv(int argn, char *outbuffer, size_t buffersize)
 {
 	char *args;
 	args = Cmd_Argv(argn);
@@ -514,6 +494,7 @@ static void QDECL Plug_Cmd_Argv(int argn, char *outbuffer, size_t buffersize)
 	}
 	else
 		strcpy(outbuffer, args);
+	return args;
 }
 //int Cmd_Argc(void)
 static int QDECL Plug_Cmd_Argc(void)
@@ -527,6 +508,13 @@ static void QDECL Plug_Cvar_SetString(const char *name, const char *value)
 	cvar_t *var = Cvar_Get(name, value, 0, "Plugin vars");
 	if (var)
 		Cvar_Set(var, value);
+}
+//void Cvar_SetString (char *name, char *value);
+static void QDECL Plug_Cvar_ForceSetString(const char *name, const char *value)
+{
+	cvar_t *var = Cvar_Get(name, value, 0, "Plugin vars");
+	if (var)
+		Cvar_ForceSet(var, value);
 }
 
 //void Cvar_SetFloat (char *name, float value);
@@ -573,6 +561,8 @@ static qboolean QDECL Plug_Cvar_GetString(const char *name, char *outbuffer, qui
 	else
 	{
 		var = Cvar_Get(name, "", 0, "Plugin vars");
+		if (!var)
+			return false;
 		if (strlen(var->name)+1 > sizeofbuffer)
 			return false;
 
@@ -592,10 +582,16 @@ static void QDECL Plug_Cmd_AddText(const char *text, qboolean insert)
 		Cbuf_AddText(text, level);
 }
 
+static qboolean QDECL Plug_Cmd_IsInsecure(void)
+{
+	return Cmd_IsInsecure();
+}
+
 static int plugincommandarraylen;
 typedef struct {
 	plugin_t *plugin;
 	char command[64];
+	xcommand_t func;
 } plugincommand_t;
 static plugincommand_t *plugincommandarray;
 void Plug_Command_f(void)
@@ -605,7 +601,7 @@ void Plug_Command_f(void)
 	plugin_t *oldplug = currentplug;
 	for (i = 0; i < plugincommandarraylen; i++)
 	{
-		if (!plugincommandarray[i].plugin)
+		if (!plugincommandarray[i].func)
 			continue;	//don't check commands who's owners died.
 
 		if (Q_strcasecmp(plugincommandarray[i].command, cmd))	//not the right command
@@ -613,17 +609,46 @@ void Plug_Command_f(void)
 
 		currentplug = plugincommandarray[i].plugin;
 
-		if (currentplug->executestring)
-			currentplug->executestring(Cmd_IsInsecure());
+		plugincommandarray[i].func();
 		break;
 	}
 
 	currentplug = oldplug;
 }
 
-static qboolean QDECL Plug_Cmd_AddCommand(const char *name)
+static qboolean QDECL Plug_Cmd_AddCommand(const char *name, xcommand_t func, const char *desc)
 {
 	int i;
+	if (!currentplug)
+		return false;
+	for (i = 0; i < plugincommandarraylen; i++)
+	{
+		if (!plugincommandarray[i].plugin)
+			break;
+		if (plugincommandarray[i].plugin == currentplug)
+		{
+			if (!strcmp(name, plugincommandarray[i].command))
+				return true;	//already registered
+		}
+	}
+	if (i == plugincommandarraylen)
+	{
+		plugincommandarraylen++;
+		plugincommandarray = BZ_Realloc(plugincommandarray, plugincommandarraylen*sizeof(plugincommand_t));
+	}
+
+	Q_strncpyz(plugincommandarray[i].command, name, sizeof(plugincommandarray[i].command));
+	if (!Cmd_AddCommandD(plugincommandarray[i].command, Plug_Command_f, desc))
+		return false;
+	plugincommandarray[i].plugin = currentplug;	//worked
+	plugincommandarray[i].func = func;	//worked
+	return true;
+}
+static qboolean QDECL Plug_Cmd_AddCommandOld(const char *name)
+{
+	int i;
+	if (!currentplug)
+		return false;
 	for (i = 0; i < plugincommandarraylen; i++)
 	{
 		if (!plugincommandarray[i].plugin)
@@ -644,6 +669,7 @@ static qboolean QDECL Plug_Cmd_AddCommand(const char *name)
 	if (!Cmd_AddCommand(plugincommandarray[i].command, Plug_Command_f))
 		return false;
 	plugincommandarray[i].plugin = currentplug;	//worked
+	plugincommandarray[i].func = NULL;	//worked
 	return true;
 }
 static void Plug_FreeConCommands(plugin_t *plug)
@@ -654,7 +680,9 @@ static void Plug_FreeConCommands(plugin_t *plug)
 		if (plugincommandarray[i].plugin == plug)
 		{
 			plugincommandarray[i].plugin = NULL;
+			plugincommandarray[i].func = NULL;
 			Cmd_RemoveCommand(plugincommandarray[i].command);
+			*plugincommandarray[i].command = 0;
 		}
 	}
 }
@@ -1198,11 +1226,11 @@ void Plug_Initialise(qboolean fromgamedir)
 	if (plug_loaddefault.ival & 1)
 	{
 		unsigned int u;
-		PM_EnumeratePlugins(Plug_Load_Update);
 		for (u = 0; staticplugins[u].name; u++)
 		{
 			Plug_Load(staticplugins[u].name);
 		}
+		PM_EnumeratePlugins(Plug_Load_Update);
 	}
 }
 
@@ -1239,27 +1267,6 @@ void Plug_ResChanged(void)
 	currentplug = oldplug;
 }
 #endif
-
-qboolean Plugin_ExecuteString(void)
-{
-	plugin_t *oldplug = currentplug;
-	if (Cmd_Argc()>0)
-	{
-		for (currentplug = plugs; currentplug; currentplug = currentplug->next)
-		{
-			if (currentplug->executestring)
-			{
-				if (currentplug->executestring(0))
-				{
-					currentplug = oldplug;
-					return true;
-				}
-			}
-		}
-	}
-	currentplug = oldplug;
-	return false;
-}
 
 #ifndef SERVERONLY
 qboolean Plug_ConsoleLinkMouseOver(float x, float y, char *text, char *info)
@@ -1552,6 +1559,12 @@ void Plug_Close(plugin_t *plug)
 	FS_UnRegisterFileSystemModule(plug);
 	Mod_UnRegisterAllModelFormats(plug);
 
+	if (q3plug == plug)
+	{
+		q3 = NULL;
+		q3plug = NULL;
+	}
+
 	//tell the plugin that everything is closed and that it should free up any lingering memory/stuff
 	//it is still allowed to create/have open files.
 	if (plug->shutdown)
@@ -1766,17 +1779,9 @@ void Plug_Shutdown(qboolean preliminary)
 		pluginstreamarray = NULL;
 		pluginstreamarraylen = 0;
 
-		plugincvararraylen = 0;
-		BZ_Free(plugincvararray);
-		plugincvararray = NULL;
-
 		plugincommandarraylen = 0;
 		BZ_Free(plugincommandarray);
 		plugincommandarray = NULL;
-
-#ifndef SERVERONLY
-		Plug_Client_Shutdown();
-#endif
 	}
 }
 
@@ -1789,8 +1794,10 @@ plugcorefuncs_t plugcorefuncs =
 	PlugBI_ExportInterface,
 	PlugBI_GetPluginName,
 	Plug_Con_Print,
-	Plug_Sys_Error,
+	Sys_Error,
+	Host_EndGame,
 	Plug_Sys_Milliseconds,
+	Sys_DoubleTime,
 	Sys_LoadLibrary,
 	Sys_GetAddressForName,
 	Sys_CloseLibrary,
@@ -1799,6 +1806,7 @@ plugcorefuncs_t plugcorefuncs =
 	BZ_Realloc,
 	Z_Free,
 	ZG_Malloc,
+	ZG_Free,
 	ZG_FreeGroup,
 };
 
@@ -1817,9 +1825,11 @@ static void *QDECL PlugBI_GetEngineInterface(const char *interfacename, size_t s
 			COM_ParseType,
 			COM_ParseTokenOut,
 			Plug_Cmd_TokenizeString,
+			Plug_Cmd_ShiftArgs,
 			Plug_Cmd_Args,
 			Plug_Cmd_Argv,
 			Plug_Cmd_Argc,
+			Plug_Cmd_IsInsecure,
 			Plug_Cmd_AddCommand,
 			Plug_Cmd_AddText,
 		};
@@ -1829,12 +1839,12 @@ static void *QDECL PlugBI_GetEngineInterface(const char *interfacename, size_t s
 			qboolean	(QDECL*AddCommand)			(const char *cmdname);
 			void		(QDECL*TokenizeString)		(const char *msg);
 			void		(QDECL*Args)				(char *buffer, int bufsize);
-			void		(QDECL*Argv)				(int argnum, char *buffer, size_t bufsize);
+			char *		(QDECL*Argv)				(int argnum, char *buffer, size_t bufsize);
 			int			(QDECL*Argc)				(void);
 			void		(QDECL*AddText)				(const char *text, qboolean insert);
 		} oldfuncs =
 		{
-			Plug_Cmd_AddCommand,
+			Plug_Cmd_AddCommandOld,
 			Plug_Cmd_TokenizeString,
 			Plug_Cmd_Args,
 			Plug_Cmd_Argv,
@@ -1854,9 +1864,8 @@ static void *QDECL PlugBI_GetEngineInterface(const char *interfacename, size_t s
 			Plug_Cvar_SetFloat,
 			Plug_Cvar_GetString,
 			Plug_Cvar_GetFloat,
-			Plug_Cvar_Register,
-			Plug_Cvar_Update,
 			Plug_Cvar_GetNVFDG,
+			Plug_Cvar_ForceSetString,
 		};
 		if (structsize == sizeof(funcs))
 			return &funcs;
@@ -1872,8 +1881,12 @@ static void *QDECL PlugBI_GetEngineInterface(const char *interfacename, size_t s
 			Plug_FS_Seek,
 			Plug_FS_GetLength,
 
+			FS_FLocateFile,
 			FS_OpenVFS,
 			FS_NativePath,
+
+			FS_Rename,
+			FS_Remove,
 			COM_EnumerateFiles,
 
 			wildcmp,
@@ -1882,6 +1895,50 @@ static void *QDECL PlugBI_GetEngineInterface(const char *interfacename, size_t s
 			COM_CleanUpPath,
 			Com_BlockChecksum,
 			FS_LoadMallocFile,
+
+			FS_GetPackHashes,
+			FS_GetPackNames,
+			FS_GenCachedPakName,
+#ifdef HAVE_CLIENT
+			FS_PureMode,
+#endif
+#ifdef Q3CLIENT
+			FSQ3_GenerateClientPacksList,
+#endif
+		};
+		if (structsize == sizeof(funcs))
+			return &funcs;
+	}
+	if (!strcmp(interfacename, plugmsgfuncs_name))
+	{
+		static plugmsgfuncs_t funcs =
+		{
+			MSG_BeginReading,
+			MSG_GetReadCount,
+			MSG_ReadBits,
+			MSG_ReadByte,
+			MSG_ReadShort,
+			MSG_ReadLong,
+			MSG_ReadData,
+			MSG_ReadString,
+
+			MSG_BeginWriting,
+			MSG_WriteBits,
+			MSG_WriteByte,
+			MSG_WriteShort,
+			MSG_WriteLong,
+			SZ_Write,
+			MSG_WriteString,
+
+			NET_CompareAdr,
+			NET_CompareBaseAdr,
+			NET_AdrToString,
+			NET_StringToAdr2,
+			NET_SendPacket,
+
+			Huff_CompressionCRC,
+			Huff_EncryptPacket,
+			Huff_DecryptPacket,
 		};
 		if (structsize == sizeof(funcs))
 			return &funcs;
@@ -1915,16 +1972,44 @@ static void *QDECL PlugBI_GetEngineInterface(const char *interfacename, size_t s
 		if (structsize == sizeof(funcs))
 			return &funcs;
 	}
+	if (!strcmp(interfacename, plugworldfuncs_name))
+	{
+		static plugworldfuncs_t funcs =
+		{
+			Mod_ForName,
+			Mod_FixName,
+			Mod_GetEntitiesString,
+
+			World_TransformedTrace,
+			CM_TempBoxModel,
+
+			InfoBuf_ToString,
+			InfoBuf_FromString,
+			InfoBuf_SetKey,
+			InfoBuf_ValueForKey,
+			Info_ValueForKey,
+			Info_SetValueForKey,
+
+			SV_DropClient,
+			SV_ExtractFromUserinfo,
+			SV_ChallengePasses,
+		};
+		if (structsize == sizeof(funcs))
+			return &funcs;
+	}
 #ifdef HAVE_CLIENT
 	if (!strcmp(interfacename, plug2dfuncs_name))
 	{
 		static plug2dfuncs_t funcs =
 		{
+			Plug_Draw_GetScreenSize,
 			Plug_Draw_LoadImageData,
 			Plug_Draw_LoadImageShader,
 			Plug_Draw_LoadImagePic,
-			Plug_Draw_UnloadImage,
+			Plug_Draw_ShaderFromId,
+			NULL,//Plug_Draw_UnloadImage,
 			Plug_Draw_Image,
+			Plug_Draw_Image2dQuad,
 			Plug_Draw_ImageSize,
 			Plug_Draw_Fill,
 			Plug_Draw_Line,
@@ -1936,7 +2021,37 @@ static void *QDECL PlugBI_GetEngineInterface(const char *interfacename, size_t s
 			Plug_Draw_ColourP,
 			Plug_Draw_Colour4f,
 
+			Plug_Draw_RedrawScreen,
+
 			Plug_LocalSound,
+		};
+		if (structsize == sizeof(funcs))
+			return &funcs;
+	}
+	if (!strcmp(interfacename, plug3dfuncs_name))
+	{
+		static plug3dfuncs_t funcs =
+		{
+			Mod_ForName,
+			Plug_Scene_ModelToId,
+			Plug_Scene_ModelFromId,
+			R_RemapShader,
+			Plug_Scene_ShaderForSkin,
+			Mod_RegisterSkinFile,
+			Mod_LookupSkin,
+			Mod_TagNumForName,
+			Mod_GetTag,
+			Mod_ClipDecal,
+
+			Surf_NewMap,
+			Plug_Scene_Clear,
+			V_AddAxisEntity,
+			Plug_Scene_AddPolydata,
+
+			CL_NewDlight,
+			CL_AllocDlightOrg,
+			R_CalcModelLighting,
+			Plug_Scene_RenderScene,
 		};
 		if (structsize == sizeof(funcs))
 			return &funcs;
@@ -1969,6 +2084,9 @@ static void *QDECL PlugBI_GetEngineInterface(const char *interfacename, size_t s
 			NULL,
 			NULL,
 #endif
+
+			Plug_CL_ClearState,
+			Plug_CL_UpdateGameTime,
 		};
 		if (structsize == sizeof(funcs))
 			return &funcs;
@@ -1980,6 +2098,9 @@ static void *QDECL PlugBI_GetEngineInterface(const char *interfacename, size_t s
 			Plug_SetMenuFocus,
 			Plug_HasMenuFocus,
 
+			Menu_Push,
+			Menu_Unlink,
+
 			//for menu input
 			Plug_Key_GetKeyCode,
 			Plug_Key_GetKeyName,
@@ -1987,12 +2108,18 @@ static void *QDECL PlugBI_GetEngineInterface(const char *interfacename, size_t s
 			Plug_Key_GetKeyBind,
 			Plug_Key_SetKeyBind,
 
+			Plug_Input_IsKeyDown,
+			Plug_Input_ClearKeyStates,
+			Plug_Input_GetMoveCount,
+			Plug_Input_GetMoveEntry,
+
 			IN_GetKeyDest,
 			IN_KeyEvent,
 			IN_MouseMove,
 			IN_JoystickAxisEvent,
 			IN_Accelerometer,
 			IN_Gyroscope,
+
 			IN_SetHandPosition,
 		};
 		if (structsize == sizeof(funcs))
@@ -2023,6 +2150,35 @@ static void *QDECL PlugBI_GetEngineInterface(const char *interfacename, size_t s
 		{
 			Plug_LocalSound,
 			Plug_S_RawAudio,
+
+			S_Spacialize,
+			S_UpdateReverb,
+			Plug_S_PrecacheSound,
+			S_StartSound,
+			S_GetChannelLevel,
+			S_Voip_ClientLoudness,
+			Media_NamedTrack
+		};
+		if (structsize == sizeof(funcs))
+			return &funcs;
+	}
+
+	if (!strcmp(interfacename, plugmasterfuncs_name))
+	{
+		static plugmasterfuncs_t funcs =
+		{
+			NET_StringToAdr2,
+			NET_AdrToString,
+			Master_InfoForServer,
+			CL_QueryServers,
+			Master_QueryServer,
+			Master_CheckPollSockets,
+			Master_TotalCount,
+			Master_InfoForNum,
+			Master_ReadKeyString,
+			Master_ReadKeyFloat,
+			MasterInfo_WriteServers,
+			Master_ServerToString,
 		};
 		if (structsize == sizeof(funcs))
 			return &funcs;
@@ -2078,6 +2234,21 @@ static void *QDECL PlugBI_GetEngineInterface(const char *interfacename, size_t s
 			COM_WorkerPartialSync,
 		};
 
+		if (structsize == sizeof(funcs))
+			return &funcs;
+	}
+#endif
+#ifdef VM_ANY
+	if (!strcmp(interfacename, plugq3vmfuncs_name))
+	{
+		static plugq3vmfuncs_t funcs =
+		{
+			VM_Create,
+			VM_NonNative,
+			VM_MemoryBase,
+			VM_Call,
+			VM_Destroy,
+		};
 		if (structsize == sizeof(funcs))
 			return &funcs;
 	}

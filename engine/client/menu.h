@@ -108,6 +108,7 @@ typedef struct menu_s {
 	qboolean (*joyaxis)	(struct menu_s *, unsigned int devid, int axis, float val);
 	void (*drawmenu)	(struct menu_s *);
 	struct key_cursor_s *cursor; //NULL for relative motion
+	qboolean lowpriority;	//appears underneath other menus.
 	qboolean isopaque;	//guarentees an opaque background
 	qboolean persist;	//try really hard to not kill this.
 } menu_t;
@@ -128,7 +129,7 @@ typedef enum
 	PROMPT_NO		= 1,
 	PROMPT_CANCEL	= -1,
 } promptbutton_t;
-void Menu_Prompt (void (*callback)(void *, promptbutton_t), void *ctx, const char *messages, const char *optionyes, const char *optionno, const char *optioncancel);
+void Menu_Prompt (void (*callback)(void *, promptbutton_t), void *ctx, const char *messages, const char *optionyes, const char *optionno, const char *optioncancel, qboolean highpri);
 
 #ifndef NOBUILTINMENUS
 

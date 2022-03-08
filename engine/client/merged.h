@@ -169,6 +169,7 @@ enum mod_purge_e
 enum mlverbosity_e
 {
 	MLV_SILENT,
+	MLV_SILENTSYNC,
 	MLV_WARN,
 	MLV_WARNSYNC,
 	MLV_ERROR
@@ -202,7 +203,7 @@ extern int Mod_GetFrameCount					(struct model_s *model);
 #undef FNC
 
 extern qboolean	Mod_GetTag						(struct model_s *model, int tagnum, framestate_t *framestate, float *transforms);
-extern int Mod_TagNumForName					(struct model_s *model, const char *name);
+extern int Mod_TagNumForName					(struct model_s *model, const char *name, int firsttag);
 
 void Mod_AddSingleSurface(struct entity_s *ent, int surfaceidx, shader_t *shader, int mode);
 int Mod_GetNumBones(struct model_s *model, qboolean allowtags);

@@ -451,7 +451,7 @@ enum nqnc_packettype_e NQNetChan_Process(netchan_t *chan)
 	int drop;
 
 	chan->bytesin += net_message.cursize;
-	MSG_BeginReading (chan->netprim);
+	MSG_BeginReading (&net_message, chan->netprim);
 
 	header = LongSwap(MSG_ReadLong());
 
@@ -486,7 +486,7 @@ enum nqnc_packettype_e NQNetChan_Process(netchan_t *chan)
 		}
 		memcpy(net_message.data, tmp, net_message.cursize);
 
-		MSG_BeginReading (chan->netprim);
+		MSG_BeginReading (&net_message, chan->netprim);
 		header = LongSwap(MSG_ReadLong());	//re-read the now-decompressed copy of the header for the real flags
 	}
 #endif
@@ -598,7 +598,7 @@ enum nqnc_packettype_e NQNetChan_Process(netchan_t *chan)
 				SZ_Clear(&net_message);
 				SZ_Write(&net_message, chan->in_fragment_buf, chan->in_fragment_length);
 				chan->in_fragment_length = 0;
-				MSG_BeginReading(chan->netprim);
+				MSG_BeginReading(&net_message, chan->netprim);
 
 				if (showpackets.value)
 					Con_Printf ("in  %s r=%i %i\n"
@@ -1001,7 +1001,7 @@ qboolean Netchan_Process (netchan_t *chan)
 	chan->bytesin += net_message.cursize;
 
 // get sequence numbers		
-	MSG_BeginReading (chan->netprim);
+	MSG_BeginReading (&net_message, chan->netprim);
 	sequence = MSG_ReadLong ();
 	sequence_ack = MSG_ReadLong ();
 

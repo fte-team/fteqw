@@ -818,28 +818,22 @@ extern qboolean QDECL Mod_LoadGLTFModel (struct model_s *mod, void *buffer, size
 extern qboolean QDECL Mod_LoadGLBModel (struct model_s *mod, void *buffer, size_t fsize);
 extern void Mod_ExportIQM(char *fname, int flags, galiasinfo_t *mesh);
 
-qboolean Mod_ExecuteCommand(qboolean isinsecure)
+#if !defined(SERVERONLY) && defined(SKELETALMODELS)
+static void Mod_ExportIQM_f(void)
 {
 	char tok[128];
-	cmdfuncs->Argv(0, tok, sizeof(tok));
-#if !defined(SERVERONLY) && defined(SKELETALMODELS)
-	if (!strcmp(tok, "exportiqm"))
+	model_t *mod;
+	cmdfuncs->Argv(1, tok, sizeof(tok));
+	mod = modfuncs->GetModel(tok, MLV_WARNSYNC);
+	if (!mod || mod->type != mod_alias || !mod->meshinfo)
+		Con_Printf("Couldn't load \"%s\"\n", tok);
+	else
 	{
-		model_t *mod;
-		cmdfuncs->Argv(1, tok, sizeof(tok));
-		mod = modfuncs->GetModel(tok, MLV_WARNSYNC);
-		if (!mod || mod->type != mod_alias || !mod->meshinfo)
-			Con_Printf("Couldn't load \"%s\"\n", tok);
-		else
-		{
-			cmdfuncs->Argv(2, tok, sizeof(tok));
-			Mod_ExportIQM(tok, mod->flags, mod->meshinfo);
-		}
-		return true;
+		cmdfuncs->Argv(2, tok, sizeof(tok));
+		Mod_ExportIQM(tok, mod->flags, mod->meshinfo);
 	}
-#endif
-	return false;
 }
+#endif
 
 qboolean Plug_Init(void)
 {
@@ -860,8 +854,9 @@ qboolean Plug_Init(void)
 		Plug_GLTF_Init();
 #endif
 
-		plugfuncs->ExportFunction("ExecuteCommand", Mod_ExecuteCommand);
-		cmdfuncs->AddCommand("exportiqm");
+#if !defined(SERVERONLY) && defined(SKELETALMODELS)
+		cmdfuncs->AddCommand("exportiqm", Mod_ExportIQM_f, NULL);
+#endif
 		return true;
 	}
 	return false;

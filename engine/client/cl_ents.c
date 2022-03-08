@@ -172,11 +172,11 @@ void CL_CloneDlight(dlight_t *dl, dlight_t *src)
 	dl->customstyle = src->customstyle?Z_StrDup(src->customstyle):NULL;
 	Z_Free(customstyle);
 }
-static void CL_ClearDlight(dlight_t *dl, int key)
+static void CL_ClearDlight(dlight_t *dl, int key, qboolean reused)
 {
 	void *sm = dl->worldshadowmesh;
 	unsigned int oq = dl->coronaocclusionquery;
-	unsigned int oqr = (dl->key == key)?dl->coronaocclusionresult:false;
+	unsigned int oqr = reused?dl->coronaocclusionresult:false;
 	Z_Free(dl->customstyle);
 	memset (dl, 0, sizeof(*dl));
 	dl->coronaocclusionquery = oq;
@@ -224,7 +224,7 @@ dlight_t *CL_AllocSlight(void)
 	}
 	dl = &cl_dlights[i];
 
-	CL_ClearDlight(dl, 0);
+	CL_ClearDlight(dl, 0, false);
 	dl->flags = LFLAG_REALTIMEMODE;
 	dl->corona = 0;
 	return dl;
@@ -249,7 +249,7 @@ dlight_t *CL_AllocDlight (int key)
 		{
 			if (dl->key == key)
 			{
-				CL_ClearDlight(dl, key);
+				CL_ClearDlight(dl, key, true);
 				return dl;
 			}
 		}
@@ -270,9 +270,47 @@ dlight_t *CL_AllocDlight (int key)
 	if (rtlights_first > dl - cl_dlights)
 		rtlights_first = dl - cl_dlights;
 
-	CL_ClearDlight(dl, key);
+	CL_ClearDlight(dl, key, false);
 	return dl;
 }
+
+dlight_t *CL_AllocDlightOrg (int keyidx, vec3_t keyorg)
+{
+	int		i;
+	dlight_t	*dl;
+
+// first look for an exact key match
+	dl = cl_dlights+rtlights_first;
+	for (i=rtlights_first ; i<RTL_FIRST ; i++, dl++)
+	{
+		if (dl->key == keyidx && VectorCompare(dl->origin, keyorg))
+		{
+			CL_ClearDlight(dl, keyidx, true);
+			VectorCopy(keyorg, dl->origin);
+			return dl;
+		}
+	}
+
+	//default to the first
+	dl = &cl_dlights[rtlights_first?rtlights_first-1:0];
+	//try and find one that is free
+	for (i=RTL_FIRST; i > rtlights_first && i > 0; )
+	{
+		i--;
+		if (!cl_dlights[i].radius)
+		{
+			dl = &cl_dlights[i];
+			break;
+		}
+	}
+	if (rtlights_first > dl - cl_dlights)
+		rtlights_first = dl - cl_dlights;
+
+	CL_ClearDlight(dl, keyidx, false);
+	VectorCopy(keyorg, dl->origin);
+	return dl;
+}
+
 
 /*
 ===============

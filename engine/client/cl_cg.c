@@ -1,6 +1,6 @@
-#include "quakedef.h"
+#include "q3common.h"
 //#include "cg_public.h"
-#ifdef VM_CG
+#if defined(VM_CG) && defined(HAVE_CLIENT)
 
 #include "shader.h"
 
@@ -11,23 +11,15 @@ typedef float m3by3_t[3][3];
 #endif
 
 #include "clq3defs.h"
+#include "com_mesh.h"
 
 //cl_ui.c
 void CG_Command_f(void);
 
 #define	CGAME_IMPORT_API_VERSION	4
 
-#define CGTAGNUM 5423
-
-extern model_t *mod_known;
-extern int mod_numknown;
-#define VM_FROMMHANDLE(a) ((a&&((unsigned int)a)<=mod_numknown)?mod_known+a-1:NULL)
-#define VM_TOMHANDLE(a) (a?a-mod_known+1:0)
-
-#define VM_FROMSHANDLE(a) ((a&&(unsigned int)a<=r_numshaders)?r_shaders[a-1]:NULL)
-#define VM_TOSHANDLE(a) (a?a->id+1:0)
-
 static model_t		*box_model;
+cvar_t *cl_shownet_ptr, *cl_c2sdupe_ptr, *cl_nodelta_ptr;
 
 typedef enum {
 	CG_PRINT,
@@ -136,10 +128,11 @@ typedef enum {
 	CG_TESTPRINTFLOAT,
 	CG_ACOS,
 
-	CG_FTE_FINDPARTICLEEFFECT = 200,
+
+	/*CG_FTE_FINDPARTICLEEFFECT = 200,
 	CG_FTE_SPAWNPARTICLEEFFECT,
 	CG_FTE_SPAWNPARTICLETRAIL,
-	CG_FTE_FREEPARTICLESTATE
+	CG_FTE_FREEPARTICLESTATE*/
 } cgameImport_t;
 
 /*
@@ -240,16 +233,19 @@ unsigned int Contents_From_Q3(unsigned int Q3)
 	return ret;
 }
 
-#define	MAX_GAMESTATE_CHARS	16000
-#define MAX_CONFIGSTRINGS 1024
 typedef struct {
-	int			stringOffsets[MAX_CONFIGSTRINGS];
-	char		stringData[MAX_GAMESTATE_CHARS];
+	int			stringOffsets[MAX_Q3_CONFIGSTRINGS];
+	char		stringData[MAX_Q3_GAMESTATE_CHARS];
 	int			dataCount;
 } gameState_t;
-gameState_t cggamestate;
+static gameState_t cggamestate;
 
-void CG_InsertIntoGameState(int num, char *str)
+void CG_ClearGameState(void)
+{
+	memset(&cggamestate, 0, sizeof(cggamestate));
+}
+
+void CG_InsertIntoGameState(int num, const char *str)
 {
 	if (num < 5)
 	{
@@ -259,24 +255,24 @@ void CG_InsertIntoGameState(int num, char *str)
 	if (num == CFGSTR_SYSINFO)
 	{
 		//check some things.
-		cl.servercount = atoi(Info_ValueForKey(str, "sv_serverid"));
+		ccs.servercount = atoi(worldfuncs->GetInfoKey(str, "sv_serverid"));
 	}
 
-	if (cggamestate.dataCount + strlen(str)+1 > MAX_GAMESTATE_CHARS)
+	if (cggamestate.dataCount + strlen(str)+1 > countof(cggamestate.stringData))
 	{
-		char oldstringData[MAX_GAMESTATE_CHARS];
+		char oldstringData[countof(cggamestate.stringData)];
 		int i;
 		char *oldstr;
 		//copy the old strings to a temporary buffer
-		memcpy(oldstringData, cggamestate.stringData, MAX_GAMESTATE_CHARS);
+		memcpy(oldstringData, cggamestate.stringData, countof(cggamestate.stringData));
 		cggamestate.dataCount = 0;
-		for (i = 0; i < MAX_CONFIGSTRINGS; i++)
+		for (i = 0; i < countof(cggamestate.stringOffsets); i++)
 		{
 			oldstr = oldstringData+cggamestate.stringOffsets[i];
 			if (*oldstr)
 			{
-				if (cggamestate.dataCount + strlen(oldstr)+1 > MAX_GAMESTATE_CHARS)
-					Host_EndGame("Too much configstring text\n");
+				if (cggamestate.dataCount + strlen(oldstr)+1 > countof(cggamestate.stringData))
+					plugfuncs->EndGame("Too much configstring text\n");
 
 				cggamestate.dataCount+=1;
 				strcpy(cggamestate.stringData+cggamestate.dataCount, oldstr);
@@ -300,9 +296,9 @@ void CG_InsertIntoGameState(int num, char *str)
 	cggamestate.dataCount += strlen(str);
 }
 
-char *CG_GetConfigString(int num)
+const char *CG_GetConfigString(int num)
 {
-	if ((unsigned)num >= MAX_CONFIGSTRINGS)
+	if ((unsigned)num >= countof(cggamestate.stringOffsets))
 		return "";
 	return cggamestate.stringData + cggamestate.stringOffsets[num];
 }
@@ -316,7 +312,7 @@ int CG_GetGameState(gameState_t *gs)
 static int CGQ3_GetCurrentCmdNumber(void)
 {	//Q3 sequences are 1-based, so 1<=idx<=latestsequence are valid
 	//FTE's sequences are 0-based, so 0<=idx<latestsequence are valid
-	return cl.movesequence-1;
+	return inputfuncs->GetMoveCount()-1;
 }
 static qboolean CGQ3_GetUserCmd(int cmdNumber, q3usercmd_t *ucmd)
 {
@@ -326,14 +322,14 @@ static qboolean CGQ3_GetUserCmd(int cmdNumber, q3usercmd_t *ucmd)
 	usercmd_t *cmd;
 
 	//q3 does not do partials.
-	if (cmdNumber >= cl.movesequence)
-		Host_EndGame("CLQ3_GetUserCmd: %i >= %i", cmdNumber, cl.movesequence);
+	if (cmdNumber < 0)
+		return false;	//grr, stoopid q3.
+	if (cmdNumber >= inputfuncs->GetMoveCount())
+		plugfuncs->EndGame("CLQ3_GetUserCmd: %i >= %i", cmdNumber, inputfuncs->GetMoveCount());
 
-	if (cl.movesequence - (cmdNumber+1) > Q3CMD_BACKUP)
+	cmd = inputfuncs->GetMoveEntry(cmdNumber);
+	if (!cmd)
 		return false;
-
-	//note: frames and commands are desynced in q3.
-	cmd = &cl.outframes[(cmdNumber) & Q3CMD_MASK].cmd[0];
 	ucmd->angles[0] = cmd->angles[0];
 	ucmd->angles[1] = cmd->angles[1];
 	ucmd->angles[2] = cmd->angles[2];
@@ -344,16 +340,19 @@ static qboolean CGQ3_GetUserCmd(int cmdNumber, q3usercmd_t *ucmd)
 	ucmd->buttons = cmd->buttons;
 	ucmd->weapon = cmd->weapon;
 
+
 	return true;
 }
 
-static vm_t *cgvm;
+vm_t *cgvm;
+static const char *mapentspointer;
 
 extern int keycatcher;
 
 qboolean CG_GetServerCommand(int cmdnum)
 {
 	static char bigconfigstring[65536];
+	char *arg0;
 
 	//quote from cgame code:
 	// get the gamestate from the client system, which will have the
@@ -362,31 +361,32 @@ qboolean CG_GetServerCommand(int cmdnum)
 	char *str = ccs.serverCommands[cmdnum & Q3TEXTCMD_MASK];
 
 	Con_DPrintf("Dispaching %s\n", str);
-	Cmd_TokenizeString(str, false, false);
+	cmdfuncs->TokenizeString(str);
+	arg0 = cmdfuncs->Argv(0, NULL, 0);
 
-	if (!strcmp(Cmd_Argv(0), "bcs0"))
+	if (!strcmp(arg0, "bcs0"))
 	{	//start
-		Q_snprintfz(bigconfigstring, sizeof(bigconfigstring), "cs %s \"%s", Cmd_Argv(1), Cmd_Argv(2));
+		Q_snprintfz(bigconfigstring, sizeof(bigconfigstring), "cs %s \"%s", cmdfuncs->Argv(1, NULL, 0), cmdfuncs->Argv(2, NULL, 0));
 		return false;
 	}
-	if (!strcmp(Cmd_Argv(0), "bcs1"))
+	if (!strcmp(arg0, "bcs1"))
 	{	//continuation
-		Q_strncatz(bigconfigstring, Cmd_Argv(2), sizeof(bigconfigstring));
+		Q_strncatz(bigconfigstring, cmdfuncs->Argv(2, NULL, 0), sizeof(bigconfigstring));
 		return false;
 	}
-	if (!strcmp(Cmd_Argv(0), "bcs2"))
+	if (!strcmp(arg0, "bcs2"))
 	{	//end
-		Q_strncatz(bigconfigstring, Cmd_Argv(2), sizeof(bigconfigstring));
+		Q_strncatz(bigconfigstring, cmdfuncs->Argv(2, NULL, 0), sizeof(bigconfigstring));
 		Q_strncatz(bigconfigstring, "\"", sizeof(bigconfigstring));
-		Cmd_TokenizeString(bigconfigstring, false, false);
+		cmdfuncs->TokenizeString(bigconfigstring);
 	}
 
-	if (!strcmp(Cmd_Argv(0), "cs"))
-		CG_InsertIntoGameState(atoi(Cmd_Argv(1)), Cmd_Argv(2));
-	else if (!strcmp(Cmd_Argv(0), "map_restart"))
+	if (!strcmp(arg0, "cs"))
+		CG_InsertIntoGameState(atoi(cmdfuncs->Argv(1, NULL, 0)), cmdfuncs->Argv(2, NULL, 0));
+	else if (!strcmp(arg0, "map_restart"))
 		Con_ClearNotify();
-	else if (!strcmp(Cmd_Argv(0), "disconnect"))
-		Host_EndGame("Server disconnected - %s", (Cmd_Argc()>1)?Cmd_Argv(1):"No reason given");
+	else if (!strcmp(arg0, "disconnect"))
+		plugfuncs->EndGame("Server disconnected - %s", (cmdfuncs->Argc()>1)?cmdfuncs->Argv(1, NULL, 0):"No reason given");
 	return true;
 }
 
@@ -478,7 +478,7 @@ int CG_MarkFragments( int numPoints, const vec3_t *points, const vec3_t projecti
 	ctx.frags = fragmentBuffer;
 	ctx.numfrags = 0;
 	ctx.maxfrags = maxFragments;
-	Mod_ClipDecal(cl.worldmodel, center, axis[0], axis[1], axis[2], radius, 0,0, CG_MarkFragments_Callback, &ctx);
+	scenefuncs->ClipDecal(ccs.worldmodel, center, axis[0], axis[1], axis[2], radius, 0,0, CG_MarkFragments_Callback, &ctx);
 	return ctx.numfrags;
 }
 
@@ -521,7 +521,7 @@ static void CG_StopLoopingSounds(unsigned int entnum)
 	loopers[i] = loopers[numloopers-1];
 	numloopers--;
 }
-static void CG_StartLoopingSounds(unsigned int entnum, float *origin, float *velocity, const char *soundname, qboolean persistent)
+static void CG_StartLoopingSounds(unsigned int entnum, float *origin, float *velocity, int range, const char *soundname, float volume, qboolean persistent)
 {
 	size_t i;
 	for (i = 0; i < numloopers; i++)
@@ -539,8 +539,10 @@ static void CG_StartLoopingSounds(unsigned int entnum, float *origin, float *vel
 	loopers[i].entnum = entnum;
 	VectorCopy(origin, loopers[i].origin);
 	//VectorCopy(velocity, loopers[i].velocity);
-	loopers[i].sfx = S_PrecacheSound(soundname);
+	loopers[i].sfx = audiofuncs->PrecacheSound(soundname);
 	loopers[i].ispersistent = persistent;
+//	loopers[i].range = range;
+//	loopers[i].volume = volume;
 }
 static void CG_MoveLoopingSound(unsigned int entnum, float *origin)
 {
@@ -575,9 +577,11 @@ static void CG_ClearLoopingSounds(qboolean clearall)
 	}
 }
 
-int VM_LerpTag(void *out, model_t *model, int f1, int f2, float l2, char *tagname);
 
-#define VALIDATEPOINTER(o,l) if ((int)o + l >= mask || VM_POINTER(o) < offset) Host_EndGame("Call to cgame trap %u passes invalid pointer\n", (unsigned int)fn);	//out of bounds.
+
+int VM_LerpTag(float *out, model_t *model, int f1, int f2, float l2, char *tagname);
+
+#define VALIDATEPOINTER(o,l) if ((int)o + l >= mask || VM_POINTER(o) < offset) plugfuncs->EndGame("Call to cgame trap %u passes invalid pointer\n", (unsigned int)fn);	//out of bounds.
 
 static qintptr_t CG_SystemCalls(void *offset, quintptr_t mask, qintptr_t fn, const qintptr_t *arg)
 {
@@ -593,25 +597,28 @@ static qintptr_t CG_SystemCalls(void *offset, quintptr_t mask, qintptr_t fn, con
 	//make sure that any called functions are also range checked.
 	//like reading from files copies names into alternate buffers, allowing stack screwups.
 //OutputDebugString(va("cl_cg: %i\n", fn));
-	switch(fn)
+	switch((cgameImport_t)fn)
 	{
 	case CG_PRINT:
-		Con_Printf("%s", (char*)VM_POINTER(arg[0]));
+		{
+			const char *text = VM_POINTER(arg[0]);
+				Con_Printf("%s", text);
+		}
 		break;
 	case CG_ERROR:
-		Host_EndGame("cgame: %s", (char*)VM_POINTER(arg[0]));
+		plugfuncs->EndGame("cgame: %s", (char*)VM_POINTER(arg[0]));
 		break;
 
 	case CG_ARGC:
-		VM_LONG(ret) = Cmd_Argc();
+		VM_LONG(ret) = cmdfuncs->Argc();
 		break;
 	case CG_ARGV:
 		VALIDATEPOINTER(arg[1], arg[2]);
-		Q_strncpyz(VM_POINTER(arg[1]), Cmd_Argv(VM_LONG(arg[0])), VM_LONG(arg[2]));
+		cmdfuncs->Argv(VM_LONG(arg[0]), VM_POINTER(arg[1]), VM_LONG(arg[2]));
 		break;
 	case CG_ARGS:
 		VALIDATEPOINTER(arg[0], arg[1]);
-		Q_strncpyz(VM_POINTER(arg[0]), Cmd_Args(), VM_LONG(arg[1]));
+		cmdfuncs->Args(VM_POINTER(arg[0]), VM_LONG(arg[1]));
 		break;
 	case CG_CVAR_REGISTER:
 		if (arg[0])
@@ -622,19 +629,11 @@ static qintptr_t CG_SystemCalls(void *offset, quintptr_t mask, qintptr_t fn, con
 		return VMQ3_Cvar_Update(VM_POINTER(arg[0]));
 
 	case CG_CVAR_SET:
-		{
-			cvar_t *var;
-			var = Cvar_FindVar(VM_POINTER(arg[0]));
-			if (var)
-				Cvar_Set(var, VM_POINTER(arg[1])?VM_POINTER(arg[1]):"");	//set it
-			else
-				Cvar_Get(VM_POINTER(arg[0]), VM_POINTER(arg[1]), 0, "Q3CG created");	//create one
-		}
+		cvarfuncs->SetString(VM_POINTER(arg[0]), VM_POINTER(arg[1])?VM_POINTER(arg[1]):"");
 		break;
 	case CG_CVAR_VARIABLESTRINGBUFFER:
 		{
-			cvar_t *var;
-			var = Cvar_FindVar(VM_POINTER(arg[0]));
+			cvar_t *var = cvarfuncs->GetNVFDG(VM_POINTER(arg[0]), NULL, 0, NULL, "Q3CG created");
 			if (!VM_LONG(arg[2]))
 				VM_LONG(ret) = 0;
 			else if (!var)
@@ -653,20 +652,18 @@ static qintptr_t CG_SystemCalls(void *offset, quintptr_t mask, qintptr_t fn, con
 
 	case CG_SENDCONSOLECOMMAND:
 		Con_DPrintf("CG_SENDCONSOLECOMMAND: %s", (char*)VM_POINTER(arg[0]));
-		Cbuf_AddText(VM_POINTER(arg[0]), RESTRICT_SERVER);
+		cmdfuncs->AddText(VM_POINTER(arg[0]), false);
 		break;
 	case CG_ADDCOMMAND:
-		Cmd_AddCommand(VM_POINTER(arg[0]), NULL);
+		cmdfuncs->AddCommand(VM_POINTER(arg[0]), NULL, NULL);
 		break;
 	case CG_SENDCLIENTCOMMAND:
 		Con_DPrintf("CG_SENDCLIENTCOMMAND: %s", (char*)VM_POINTER(arg[0]));
-		CL_SendClientCommand(true, "%s", (char*)VM_POINTER(arg[0]));
+		CLQ3_SendClientCommand("%s", (char*)VM_POINTER(arg[0]));
 		break;
 
 	case CG_UPDATESCREEN:	//force a buffer swap cos loading won't refresh it soon.
-		if (!Key_Dest_Has(kdm_console))
-			scr_con_current = 0;
-		SCR_UpdateScreen();
+		drawfuncs->RedrawScreen();
 		break;
 
 	case CG_FS_FOPENFILE: //fopen
@@ -682,6 +679,8 @@ static qintptr_t CG_SystemCalls(void *offset, quintptr_t mask, qintptr_t fn, con
 	case CG_FS_WRITE:	//fwrite
 		Con_DPrintf("CG_FS_WRITE: not implemented\n");
 		break;
+	case CG_FS_SEEK:
+		return VM_FSeek(arg[0], arg[1], arg[2], 1);
 	case CG_FS_FCLOSEFILE:	//fclose
 		VM_fclose(VM_LONG(arg[0]), 1);
 		break;
@@ -691,15 +690,15 @@ static qintptr_t CG_SystemCalls(void *offset, quintptr_t mask, qintptr_t fn, con
 			unsigned int pc;
 			unsigned int modhandle = VM_LONG(arg[1]);
 			model_t *mod;
-			if (modhandle >= MAX_PRECACHE_MODELS)
+			if (modhandle >= countof(ccs.model_precache))
 			{
-//				if (modhandle == MAX_PRECACHE_MODELS+1)
+//				if (modhandle == countof(ccs.model_precache)+1)
 //					mod = &capsule_model;
 //				else
 					mod = box_model;
 			}
 			else
-				mod = cl.model_precache[modhandle+1];
+				mod = ccs.model_precache[modhandle];
 			if (mod && mod->loadstate == MLS_LOADED)
 				pc = mod->funcs.NativeContents(mod, 0, 0, NULL, VM_POINTER(arg[0]), vec3_origin, vec3_origin);
 			else
@@ -716,15 +715,15 @@ static qintptr_t CG_SystemCalls(void *offset, quintptr_t mask, qintptr_t fn, con
 			float *origin = VM_POINTER(arg[2]);
 			float *angles = VM_POINTER(arg[3]);
 			model_t *mod;
-			if (modhandle >= MAX_PRECACHE_MODELS)
+			if (modhandle >= countof(ccs.model_precache))
 			{
-//				if (modhandle == MAX_PRECACHE_MODELS+1)
+//				if (modhandle == countof(ccs.model_precache)+1)
 //					mod = &capsule_model;
 //				else
 					mod = box_model;
 			}
 			else
-				mod = cl.model_precache[modhandle+1];
+				mod = ccs.model_precache[modhandle];
 
 			if (mod && mod->loadstate == MLS_LOADED)
 			{
@@ -768,15 +767,15 @@ static qintptr_t CG_SystemCalls(void *offset, quintptr_t mask, qintptr_t fn, con
 			float *origin		= VM_POINTER(arg[7]);
 			float *angles		= VM_POINTER(arg[8]);
 			model_t *mod;
-			if (modhandle >= MAX_PRECACHE_MODELS)
+			if (modhandle >= countof(ccs.model_precache))
 			{
-//				if (modhandle == MAX_PRECACHE_MODELS+1)
+//				if (modhandle == countof(ccs.model_precache)+1)
 //					mod = &capsule_model;
 //				else
 					mod = box_model;
 			}
 			else
-				mod = cl.model_precache[modhandle+1];
+				mod = ccs.model_precache[modhandle];
 
 			if (!mins)
 				mins = vec3_origin;
@@ -788,7 +787,7 @@ static qintptr_t CG_SystemCalls(void *offset, quintptr_t mask, qintptr_t fn, con
 				angles = vec3_origin;
 			if (mod && mod->loadstate == MLS_LOADED)
 #if !defined(CLIENTONLY) || defined(CSQC_DAT)
-				World_TransformedTrace(mod, 0, 0, start, end, mins, maxs, fn==CG_CM_TRANSFORMEDCAPSULETRACE, &tr, origin, angles, brushmask);
+				worldfuncs->TransformedTrace(mod, 0, 0, start, end, mins, maxs, fn==CG_CM_TRANSFORMEDCAPSULETRACE, &tr, origin, angles, brushmask);
 #else
 			{
 #ifdef warningmsg
@@ -828,27 +827,31 @@ static qintptr_t CG_SystemCalls(void *offset, quintptr_t mask, qintptr_t fn, con
 			float *end			= VM_POINTER(arg[2]);
 			float *mins			= VM_POINTER(arg[3]);
 			float *maxs			= VM_POINTER(arg[4]);
-			unsigned int modhandle		= VM_LONG(arg[5]);
-			int brushmask			= VM_LONG(arg[6]);
+			unsigned int modhandle	= VM_LONG(arg[5]);
+			unsigned int brushmask	= VM_LONG(arg[6]);
 			model_t *mod;
-			if (modhandle >= MAX_PRECACHE_MODELS)
+			if (modhandle >= countof(ccs.model_precache))
 			{
-//				if (modhandle == MAX_PRECACHE_MODELS+1)
+//				if (modhandle == countof(ccs.model_precache)+1)
 //					mod = &capsule_model;
 //				else
 					mod = box_model;
 			}
 			else
-				mod = cl.model_precache[modhandle+1];
+				mod = ccs.model_precache[modhandle];
 
 			if (mod->loadstate != MLS_LOADED)
 			{
 				if (mod->loadstate == MLS_NOTLOADED)
-					Mod_LoadModel(mod, MLV_SILENT);
+					scenefuncs->LoadModel(mod->publicname, MLV_SILENTSYNC);
 				if (mod->loadstate == MLS_LOADING)
 					COM_WorkerPartialSync(mod, &mod->loadstate, MLS_LOADING);
 				if (mod->loadstate != MLS_LOADED)
-					mod = box_model;	//stop crashes, even if this is wrong.
+				{
+					memset(results, 0, sizeof(*results));
+					results->fraction = 1;
+					break;
+				}
 			}
 
 			if (!mins)
@@ -875,45 +878,40 @@ static qintptr_t CG_SystemCalls(void *offset, quintptr_t mask, qintptr_t fn, con
 		{
 			int i;
 			char *mapname = VM_POINTER(arg[0]);
-			strcpy(cl.model_name[1], mapname);
-			cl.worldmodel = cl.model_precache[1] = Mod_ForName(Mod_FixName(mapname, mapname), MLV_SILENT);
-			if (cl.worldmodel->loadstate == MLS_LOADING)
-				COM_WorkerPartialSync(cl.worldmodel, &cl.worldmodel->loadstate, MLS_LOADING);
-			if (cl.worldmodel->loadstate != MLS_LOADED)
-				Host_EndGame("Couldn't load map %s", mapname);
+			ccs.worldmodel = ccs.model_precache[0] = worldfuncs->LoadModel(mapname, MLV_SILENTSYNC);
+			if (ccs.worldmodel->loadstate != MLS_LOADED)
+				plugfuncs->EndGame("Couldn't load map %s", mapname);
 
-			for (i=1 ; i<cl.model_precache[1]->numsubmodels ; i++)
-			{
-				strcpy(cl.model_name[1+i], va("*%i", i));
-				cl.model_precache[i+1] = Mod_ForName (Mod_FixName(cl.model_name[i+1], mapname), MLV_SILENT);
-			}
+
+			for (i=1 ; i<=ccs.worldmodel->numsubmodels && i < countof(ccs.model_precache); i++)
+				ccs.model_precache[i] = worldfuncs->LoadModel(worldfuncs->FixName(va("*%i", i), mapname), MLV_SILENTSYNC);
 		}
 
 		break;
 
 	case CG_CM_INLINEMODEL:
-		if ((unsigned int)VM_LONG(arg[0]) > (cl.worldmodel?cl.worldmodel->numsubmodels:0))
-			Host_EndGame("cgame asked for invalid model number\n");
+		if ((unsigned int)VM_LONG(arg[0]) > (ccs.worldmodel?ccs.worldmodel->numsubmodels:0))
+			plugfuncs->EndGame("cgame asked for invalid model number\n");
 		VM_LONG(ret) = VM_LONG(arg[0]);
 		break;
 	case CG_CM_NUMINLINEMODELS:
-		VM_LONG(ret) = cl.worldmodel?cl.worldmodel->numsubmodels:0;
+		VM_LONG(ret) = ccs.worldmodel?ccs.worldmodel->numsubmodels:0;
 		break;
 
 	case CG_CM_TEMPBOXMODEL:
-		box_model = CM_TempBoxModel(VM_POINTER(arg[0]), VM_POINTER(arg[1]));
-		VM_LONG(ret) = MAX_PRECACHE_MODELS;
+		box_model = worldfuncs->TempBoxModel(VM_POINTER(arg[0]), VM_POINTER(arg[1]));
+		VM_LONG(ret) = countof(ccs.model_precache);
 		break;
 	case CG_CM_TEMPCAPSULEMODEL:
-		box_model = CM_TempBoxModel(VM_POINTER(arg[0]), VM_POINTER(arg[1]));
-		VM_LONG(ret) = MAX_PRECACHE_MODELS+1;
+		box_model = worldfuncs->TempBoxModel(VM_POINTER(arg[0]), VM_POINTER(arg[1]));
+		VM_LONG(ret) = countof(ccs.model_precache)+1;
 		break;
 
 	case CG_R_MODELBOUNDS:
 		VALIDATEPOINTER(arg[1], sizeof(vec3_t));
 		VALIDATEPOINTER(arg[2], sizeof(vec3_t));
 		{
-			model_t *mod = VM_FROMMHANDLE(arg[0]);
+			model_t *mod = scenefuncs->ModelFromId(arg[0]);
 			if (mod)
 			{
 				if (mod->loadstate == MLS_LOADING)
@@ -929,42 +927,41 @@ static qintptr_t CG_SystemCalls(void *offset, quintptr_t mask, qintptr_t fn, con
 		{
 			char *name = VM_POINTER(arg[0]);
 			model_t *mod;
-			mod = Mod_ForName(Mod_FixName(name, cl.model_name[1]), MLV_SILENT);
-			if (mod->loadstate == MLS_LOADING)
-			{	//needed to ensure it really is missing
-				if (!COM_FCheckExists(mod->name))
-					COM_WorkerPartialSync(mod, &mod->loadstate, MLS_LOADING);
-			}
+			if (!name)
+				return 0;
+			mod = scenefuncs->LoadModel(worldfuncs->FixName(name, ccs.worldmodel->name), MLV_SILENTSYNC);
 			if (mod->loadstate == MLS_FAILED || mod->type == mod_dummy)
 				VM_LONG(ret) = 0;
 			else
-				VM_LONG(ret) = VM_TOMHANDLE(mod);
+				VM_LONG(ret) = scenefuncs->ModelToId(mod);
 		}
 		break;
 
 	case CG_R_REGISTERSKIN:
-		VM_LONG(ret) = Mod_RegisterSkinFile(VM_POINTER(arg[0]));
+		VM_LONG(ret) = scenefuncs->RegisterSkinFile(VM_POINTER(arg[0]));
 		break;
 
 	case CG_R_REGISTERSHADER:
 		if (!*(char*)VM_POINTER(arg[0]))
 			VM_LONG(ret) = 0;
 		else
-			VM_LONG(ret) = VM_TOSHANDLE(R_RegisterPic(VM_POINTER(arg[0]), NULL));
+			VM_LONG(ret) = drawfuncs->LoadImage(VM_POINTER(arg[0]));
 		break;
 	case CG_R_REGISTERSHADERNOMIP:
 		if (!*(char*)VM_POINTER(arg[0]))
 			VM_LONG(ret) = 0;
 		else
-			VM_LONG(ret) = VM_TOSHANDLE(R_RegisterPic(VM_POINTER(arg[0]), NULL));
+			VM_LONG(ret) = drawfuncs->LoadImage(VM_POINTER(arg[0]));
 		break;
 
 	case CG_R_CLEARSCENE:	//clear scene (not rtlights, only dynamic ones)
-		CL_ClearEntityLists();
-		rtlights_first = RTL_FIRST;
+		scenefuncs->ClearScene();
 		break;
 	case CG_R_ADDPOLYTOSCENE:
-		VQ3_AddPoly(VM_FROMSHANDLE(arg[0]), VM_LONG(arg[1]), VM_POINTER(arg[2]));
+		VQ3_AddPolys(drawfuncs->ShaderFromId(arg[0]), VM_LONG(arg[1]), VM_POINTER(arg[2]), 1);
+		break;
+	case CG_R_ADDPOLYSTOSCENE:
+		VQ3_AddPolys(drawfuncs->ShaderFromId(arg[0]), VM_LONG(arg[1]), VM_POINTER(arg[2]), VM_LONG(arg[3]));
 		break;
 	case CG_R_ADDREFENTITYTOSCENE:	//add ent to scene
 		VQ3_AddEntity(VM_POINTER(arg[0]));
@@ -972,12 +969,14 @@ static qintptr_t CG_SystemCalls(void *offset, quintptr_t mask, qintptr_t fn, con
 	case CG_R_ADDADDITIVELIGHTTOSCENE:
 	case CG_R_ADDLIGHTTOSCENE:	//add light to scene.
 		{
-			float *org = VM_POINTER(arg[0]);
-			CL_NewDlight(-1, org, VM_FLOAT(arg[1]), 0, VM_FLOAT(arg[2]), VM_FLOAT(arg[3]), VM_FLOAT(arg[4]));
+			dlight_t *dl = scenefuncs->AllocDlightOrg(-1, VM_POINTER(arg[0]));
+			dl->flags = LFLAG_NORMALMODE|LFLAG_REALTIMEMODE;
+			dl->radius = VM_FLOAT(arg[1]);
+			dl->die = ccs.time+0.1;
+			VectorSet(dl->color, VM_FLOAT(arg[2]), VM_FLOAT(arg[3]), VM_FLOAT(arg[4]));
 		}
 		break;
 	case CG_R_RENDERSCENE:	//render scene
-		R_PushDlights();
 		VQ3_RenderView(VM_POINTER(arg[0]));
 		break;
 
@@ -985,25 +984,25 @@ static qintptr_t CG_SystemCalls(void *offset, quintptr_t mask, qintptr_t fn, con
 		{
 			float *f = VM_POINTER(arg[0]);
 			if (f)
-				R2D_ImageColours(f[0], f[1], f[2], f[3]);
+				drawfuncs->Colour4f(f[0], f[1], f[2], f[3]);
 			else
-				R2D_ImageColours(1, 1, 1, 1);
+				drawfuncs->Colour4f(1, 1, 1, 1);
 		}
 		break;
 
 	case CG_R_DRAWSTRETCHPIC:
-		R2D_Image(VM_FLOAT(arg[0]), VM_FLOAT(arg[1]), VM_FLOAT(arg[2]), VM_FLOAT(arg[3]), VM_FLOAT(arg[4]), VM_FLOAT(arg[5]), VM_FLOAT(arg[6]), VM_FLOAT(arg[7]), VM_FROMSHANDLE(VM_LONG(arg[8])));
+		drawfuncs->Image(VM_FLOAT(arg[0]), VM_FLOAT(arg[1]), VM_FLOAT(arg[2]), VM_FLOAT(arg[3]), VM_FLOAT(arg[4]), VM_FLOAT(arg[5]), VM_FLOAT(arg[6]), VM_FLOAT(arg[7]), VM_LONG(arg[8]));
 		break;
 
 	case CG_R_LERPTAG:	//Lerp tag...
 		VALIDATEPOINTER(arg[0], sizeof(float)*12);
-		VM_LONG(ret) = VM_LerpTag(VM_POINTER(arg[0]), VM_FROMMHANDLE(arg[1]), VM_LONG(arg[2]), VM_LONG(arg[3]), VM_FLOAT(arg[4]), VM_POINTER(arg[5]));
+		VM_LONG(ret) = VM_LerpTag(VM_POINTER(arg[0]), scenefuncs->ModelFromId(arg[1]), VM_LONG(arg[2]), VM_LONG(arg[3]), VM_FLOAT(arg[4]), VM_POINTER(arg[5]));
 		break;
 
 	case CG_S_REGISTERSOUND:
 		{
 			sfx_t *sfx;
-			sfx = S_PrecacheSound(VM_POINTER(arg[0]));
+			sfx = audiofuncs->PrecacheSound(VM_POINTER(arg[0]));
 			if (sfx)
 				VM_LONG(ret) = VM_TOSTRCACHE(arg[0]);
 			else
@@ -1013,20 +1012,20 @@ static qintptr_t CG_SystemCalls(void *offset, quintptr_t mask, qintptr_t fn, con
 
 	case CG_S_STARTLOCALSOUND:
 		if (VM_LONG(arg[0]) != -1 && arg[0])
-			S_LocalSound(VM_FROMSTRCACHE(arg[0]));
+			audiofuncs->LocalSound(VM_FROMSTRCACHE(arg[0]), CHAN_AUTO, 1.0);
 		break;
 
 	case CG_S_STARTSOUND:// ( vec3_t origin, int entityNum, int entchannel, sfxHandle_t sfx )
-		S_StartSound(VM_LONG(arg[1])+1, VM_LONG(arg[2]), S_PrecacheSound(VM_FROMSTRCACHE(arg[3])), VM_POINTER(arg[0]), NULL, 1, 1, 0, 0, CF_CLI_NODUPES);
+		audiofuncs->StartSound(VM_LONG(arg[1])+1, VM_LONG(arg[2]), audiofuncs->PrecacheSound(VM_FROMSTRCACHE(arg[3])), VM_POINTER(arg[0]), NULL, 1, 1, 0, 0, CF_CLI_NODUPES);
 		break;
 
 	case CG_S_ADDLOOPINGSOUND:
 		//entnum, origin, velocity, sfx
-		CG_StartLoopingSounds(VM_LONG(arg[0])+1, VM_POINTER(arg[1]), VM_POINTER(arg[2]), VM_FROMSTRCACHE(arg[3]), false);
+		CG_StartLoopingSounds(VM_LONG(arg[0])+1, VM_POINTER(arg[1]), VM_POINTER(arg[2]), -1, VM_FROMSTRCACHE(arg[3]), 1, false);
 		break;
 	case CG_S_ADDREALLOOPINGSOUND:
 		//entnum, origin, velocity, sfx
-		CG_StartLoopingSounds(VM_LONG(arg[0])+1, VM_POINTER(arg[1]), VM_POINTER(arg[2]), VM_FROMSTRCACHE(arg[3]), true);
+		CG_StartLoopingSounds(VM_LONG(arg[0])+1, VM_POINTER(arg[1]), VM_POINTER(arg[2]), -1, VM_FROMSTRCACHE(arg[3]), 1, true);
 		break;
 	case CG_S_STOPLOOPINGSOUND:
 		//entnum
@@ -1042,33 +1041,19 @@ static qintptr_t CG_SystemCalls(void *offset, quintptr_t mask, qintptr_t fn, con
 		break;
 
 	case CG_S_STARTBACKGROUNDTRACK:
-		Media_NamedTrack(VM_POINTER(arg[0]), VM_POINTER(arg[1]));
+		audiofuncs->ChangeMusicTrack(VM_POINTER(arg[0]), VM_POINTER(arg[1]));
 		return 0;
 	case CG_S_STOPBACKGROUNDTRACK:
-		Media_NamedTrack(NULL, NULL);
+		audiofuncs->ChangeMusicTrack(NULL, NULL);
 		return 0;
 
 	case CG_S_RESPATIALIZE://void		trap_S_Respatialize( int entityNum, const vec3_t origin, vec3_t axis[3], int inwater );
-		{
-			int entnum = VM_LONG(arg[0])+1;
-			float *org = VM_POINTER(arg[1]);
-			vec3_t *axis = VM_POINTER(arg[2]);
-			int inwater = VM_LONG(arg[3]);
-
-			cl.playerview[0].audio.defaulted = false;
-			cl.playerview[0].audio.entnum = entnum;
-			VectorCopy(org, cl.playerview[0].audio.origin);
-			VectorCopy(axis[0], cl.playerview[0].audio.forward);
-			VectorCopy(axis[1], cl.playerview[0].audio.right);
-			VectorCopy(axis[2], cl.playerview[0].audio.up);
-			cl.playerview[0].audio.reverbtype = inwater?1:0;
-			VectorClear(cl.playerview[0].audio.velocity);
-		}
+		audiofuncs->Spacialize(0, VM_LONG(arg[0])+1, VM_POINTER(arg[1]), VM_POINTER(arg[2]), VM_LONG(arg[3])?1:0, vec3_origin);
 		break;
 
 	case CG_KEY_ISDOWN:
 		{
-			if (keydown[VM_LONG(arg[0])])
+			if (inputfuncs->IsKeyDown(VM_LONG(arg[0])))
 				VM_LONG(ret) = 1;
 			else
 				VM_LONG(ret) = 0;
@@ -1078,7 +1063,7 @@ static qintptr_t CG_SystemCalls(void *offset, quintptr_t mask, qintptr_t fn, con
 	case CG_KEY_GETKEY:
 		{
 			int ret[1];
-			M_FindKeysForCommand (0, 0, VM_POINTER(arg[0]), ret, NULL, countof(ret));
+			inputfuncs->FindKeysForCommand(0, VM_POINTER(arg[0]), ret, NULL, countof(ret));
 			return ret[0];
 		}
 		break;
@@ -1091,16 +1076,31 @@ static qintptr_t CG_SystemCalls(void *offset, quintptr_t mask, qintptr_t fn, con
 		break;
 
 	case CG_GETGLCONFIG:
-		VALIDATEPOINTER(arg[0], 11332);
+		{
+			float vsize[2];
+			q3glconfig_t *cfg;
+			VALIDATEPOINTER(arg[0], sizeof(q3glconfig_t));
+			drawfuncs->GetVideoSize(vsize, NULL);
+			cfg = VM_POINTER(arg[0]);
 
-		{	//FIXME: Clean this shit up
 			//do any needed work
-			unsigned char *glconfig = VM_POINTER(arg[0]);
-			memset(glconfig, 0, 11304);
-			*(int *)(glconfig+11304) = vid.width;
-			*(int *)(glconfig+11308) = vid.height;
-			*(float *)(glconfig+11312) = (float)vid.width/vid.height;
-			memset((glconfig+11316), 0, 11332-11316);
+			memset(cfg, 0, sizeof(*cfg));
+
+			Q_strncpyz(cfg->renderer_string, "", sizeof(cfg->renderer_string));
+			Q_strncpyz(cfg->vendor_string, "", sizeof(cfg->vendor_string));
+			Q_strncpyz(cfg->version_string, "", sizeof(cfg->version_string));
+			Q_strncpyz(cfg->extensions_string, "", sizeof(cfg->extensions_string));
+
+			cfg->colorBits = 32;
+			cfg->depthBits = 24;
+			cfg->stencilBits = 8;//sh_config.stencilbits;
+			cfg->textureCompression = true;//!!sh_config.hw_bc;
+			cfg->textureEnvAddAvailable = true;//sh_config.env_add;
+
+			//these are the only three that really matter.
+			cfg->vidWidth = vsize[0];
+			cfg->vidHeight = vsize[1];
+			cfg->windowAspect = (float)vsize[0]/vsize[1];
 		}
 		break;
 
@@ -1146,7 +1146,7 @@ static qintptr_t CG_SystemCalls(void *offset, quintptr_t mask, qintptr_t fn, con
 		break;
 
 	case CG_MILLISECONDS:
-		VM_LONG(ret) = Sys_Milliseconds();
+		VM_LONG(ret) = plugfuncs->GetMilliseconds();
 		break;
 	case CG_REAL_TIME:
 		VALIDATEPOINTER(arg[0], sizeof(q3time_t));
@@ -1227,13 +1227,18 @@ static qintptr_t CG_SystemCalls(void *offset, quintptr_t mask, qintptr_t fn, con
 		break;
 
 	case CG_R_REMAP_SHADER:
-		R_RemapShader(VM_POINTER(arg[0]), VM_POINTER(arg[1]), VM_FLOAT(arg[2]));
+		scenefuncs->RemapShader(VM_POINTER(arg[0]), VM_POINTER(arg[1]), VM_FLOAT(arg[2]));
 		break;
 
 	case CG_R_REGISTERFONT:
 		VALIDATEPOINTER(arg[2], sizeof(fontInfo_t));
 		UI_RegisterFont(VM_POINTER(arg[0]), VM_LONG(arg[1]), VM_POINTER(arg[2]));
 		break;
+
+	case CG_GET_ENTITY_TOKEN:
+		mapentspointer = cmdfuncs->ParseToken(mapentspointer, VM_POINTER(arg[0]), arg[1], NULL);
+		return !!mapentspointer;
+
 
 	case CG_CIN_PLAYCINEMATIC:
 		return UI_Cin_Play(VM_POINTER(arg[0]), VM_LONG(arg[1]), VM_LONG(arg[2]), VM_LONG(arg[3]), VM_LONG(arg[4]), VM_LONG(arg[5]));
@@ -1246,7 +1251,7 @@ static qintptr_t CG_SystemCalls(void *offset, quintptr_t mask, qintptr_t fn, con
 	case CG_CIN_SETEXTENTS:
 		return UI_Cin_SetExtents(VM_LONG(arg[0]), VM_LONG(arg[1]), VM_LONG(arg[2]), VM_LONG(arg[3]), VM_LONG(arg[4]));
 
-	case CG_FTE_FINDPARTICLEEFFECT:
+/*	case CG_FTE_FINDPARTICLEEFFECT:
 		return pe->FindParticleType(VM_POINTER(arg[0]));
 	case CG_FTE_SPAWNPARTICLEEFFECT:
 		return pe->RunParticleEffectState(VM_POINTER(arg[0]), VM_POINTER(arg[1]), VM_FLOAT(arg[2]), VM_LONG(arg[3]), VM_POINTER(arg[4]));
@@ -1255,7 +1260,14 @@ static qintptr_t CG_SystemCalls(void *offset, quintptr_t mask, qintptr_t fn, con
 	case CG_FTE_FREEPARTICLESTATE:
 		pe->DelinkTrailstate(VM_POINTER(arg[0]));
 		break;
-	default:
+*/
+	case CG_CM_LOADMODEL:
+	case CG_REMOVECOMMAND:
+	case CG_TESTPRINTINT:
+	case CG_TESTPRINTFLOAT:
+	case CG_R_INPVS:
+	case CG_R_LIGHTFORPOINT:
+//	default:
 		Con_Printf("Q3CG: Bad system trap: %i\n", (int)fn);
 	}
 
@@ -1308,18 +1320,14 @@ static qintptr_t EXPORT_FN CG_SystemCallsNative(qintptr_t arg, ...)
 	return CG_SystemCalls(NULL, ~(quintptr_t)0, arg, args);
 }
 
-int CG_Refresh(void)
+int CG_Refresh(double time)
 {
-	int time;
 	if (!cgvm)
 		return false;
 
-	r_refdef.skyroom_enabled = false;
-	time = cl.time*1000;
-	VM_Call(cgvm, CG_DRAW_ACTIVE_FRAME, time, 0, false);
-
-	R2D_ImageColours(1, 1, 1, 1);
-
+	ccs.time = time;
+	vmfuncs->Call(cgvm, CG_DRAW_ACTIVE_FRAME, (int)(ccs.time*1000), 0, false);
+	drawfuncs->Colour4f(1, 1, 1, 1);
 	return true;
 }
 
@@ -1330,10 +1338,11 @@ void CG_Stop (void)
 	Q3_SetKeyCatcher(Q3_GetKeyCatcher()&~2);
 	if (cgvm)
 	{
-		VM_Call(cgvm, CG_SHUTDOWN);
-		VM_Destroy(cgvm);
+		vmfuncs->Call(cgvm, CG_SHUTDOWN);
+		vmfuncs->Destroy(cgvm);
 		VM_fcloseall(1);
 		cgvm = NULL;
+
 	}
 }
 
@@ -1341,7 +1350,7 @@ qboolean CG_VideoRestarted(void)
 {
 	if (cgvm)
 	{
-		VM_Call(cgvm, CG_INIT, ccs.serverMessageNum, ccs.lastServerCommandNum, cl.playerview[0].playernum);
+		vmfuncs->Call(cgvm, CG_INIT, ccs.serverMessageNum, ccs.lastServerCommandNum, ccs.playernum);
 		return true;
 	}
 	return false;
@@ -1350,39 +1359,35 @@ qboolean CG_VideoRestarted(void)
 void CG_Start (void)
 {
 	SCR_SetLoadingStage(0);
-	if (cls.protocol != CP_QUAKE3)
-	{	//q3 clients only.
-		CG_Stop();
-		return;
-	}
+	CG_Stop();
 
-	Z_FreeTags(CGTAGNUM);
 	SCR_BeginLoadingPlaque();
 
-	box_model = CM_TempBoxModel(vec3_origin, vec3_origin);
+	box_model = worldfuncs->TempBoxModel(vec3_origin, vec3_origin);	//just in case.
 
-	cgvm = VM_Create("cgame", com_nogamedirnativecode.ival?NULL:CG_SystemCallsNative, "vm/cgame", CG_SystemCallsVM);
+	cgvm = vmfuncs->Create("cgame", cvarfuncs->GetFloat("com_gamedirnativecode")?CG_SystemCallsNative:NULL, "vm/cgame", CG_SystemCallsVM);
 	if (cgvm)
 	{	//hu... cgame doesn't appear to have a query version call!
 		SCR_EndLoadingPlaque();
-		VM_Call(cgvm, CG_INIT, ccs.serverMessageNum, ccs.lastServerCommandNum, cl.playerview[0].playernum);
+
+		vmfuncs->Call(cgvm, CG_INIT, ccs.serverMessageNum, ccs.lastServerCommandNum, ccs.playernum);
 	}
 	else
 	{
 		SCR_EndLoadingPlaque();
-		Host_EndGame("Failed to initialise cgame module\n");
+		plugfuncs->EndGame("Failed to initialise cgame module\n");
 	}
 }
 
-qboolean CG_Command(void)
+qboolean CG_ConsoleCommand(void)
 {
 	if (!cgvm)
 		return false;
-	Con_DPrintf("CG_Command: %s %s\n", Cmd_Argv(0), Cmd_Args());
-	return VM_Call(cgvm, CG_CONSOLE_COMMAND);
+//	Con_DPrintf("CG_Command: %s %s\n", cmdfuncs->Argv(0), cmdfuncs->Args());
+	return vmfuncs->Call(cgvm, CG_CONSOLE_COMMAND);
 }
 
-void CG_Command_f(void)
+/*void CG_Command_f(void)
 {
 	if (cgvm)
 	{
@@ -1392,12 +1397,12 @@ void CG_Command_f(void)
 			Cmd_ForwardToServer();
 		}
 	}
-}
+}*/
 
-qboolean CG_KeyPress(int key, int unicode, int down)
+qboolean CG_KeyPressed(int key, int unicode, int down)
 {
-	int catcher = Q3_GetKeyCatcher();
-	if (!cgvm || !(catcher&8))
+
+	if (!cgvm || !(Q3_GetKeyCatcher()&8))
 		return false;
 
 	/* if you change this here, it'll have to be changed in cl_cg.c too */
@@ -1451,18 +1456,13 @@ qboolean CG_KeyPress(int key, int unicode, int down)
 			break;
 	}
 
-	return VM_Call(cgvm, CG_KEY_EVENT, key, down);
+	return vmfuncs->Call(cgvm, CG_KEY_EVENT, key, down);
 }
 
-void CG_Restart_f(void)
+void CG_Restart(void)
 {
 	CG_Stop();
 	CG_Start();
-}
-
-void CG_Init(void)
-{
-	Cmd_AddCommand("cg_restart", CG_Restart_f);
 }
 
 #endif

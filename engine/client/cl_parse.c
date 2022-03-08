@@ -1492,8 +1492,7 @@ static int CL_LoadModels(int stage, qboolean dontactuallyload)
 		SCR_SetLoadingFile("newmap");
 //		if (!cl.worldmodel || cl.worldmodel->type == mod_dummy)
 //			Host_EndGame("No worldmodel was loaded\n");
-		cl.model_precaches_added = false;
-		Surf_NewMap ();
+		Surf_NewMap (cl.worldmodel);
 
 		pmove.physents[0].model = cl.worldmodel;
 
@@ -2642,7 +2641,7 @@ void DL_Abort(qdownload_t *dl, enum qdlabort aborttype)
 				break;
 #ifdef Q3CLIENT
 			case DL_Q3:
-				CLQ3_SendClientCommand("stopdl");
+				q3->cl.SendClientCommand("stopdl");
 				break;
 #endif
 			case DL_QW:
@@ -3329,13 +3328,7 @@ static void CLQW_ParseServerData (void)
 #ifndef CLIENTONLY
 	if (!sv.state)
 #endif
-	{
-		COM_FlushTempoaryPacks();
 		COM_Gamedir(str, NULL);
-#ifndef CLIENTONLY
-		InfoBuf_SetStarKey (&svs.info, "*gamedir", str);
-#endif
-	}
 
 	CL_ClearState (true);
 #ifdef QUAKEHUD
@@ -3541,9 +3534,6 @@ static void CLQW_ParseServerData (void)
 	S_Voip_MapChange();
 #endif
 
-#ifdef VM_CG
-	CG_Stop();
-#endif
 #ifdef CSQC_DAT
 	CSQC_Shutdown();	//revive it when we get the serverinfo saying the checksum.
 #endif
@@ -3935,13 +3925,7 @@ static void CLNQ_ParseServerData(void)		//Doesn't change gamedir - use with caut
 #ifndef CLIENTONLY
 		if (!sv.state)
 #endif
-		{
-			COM_FlushTempoaryPacks();
 			COM_Gamedir(str, NULL);
-#ifndef CLIENTONLY
-			InfoBuf_SetStarKey (&svs.info, "*gamedir", str);
-#endif
-		}
 	}
 	if (cl.allocated_client_slots > MAX_CLIENTS)
 	{
@@ -4189,9 +4173,6 @@ Con_DPrintf ("CL_SignonReply: %i\n", cls.signon);
 
 	case 3:
 		CL_SendClientCommand(true, "begin");
-#ifdef VM_CG
-		CG_Start();
-#endif
 		break;
 
 	case 4:
@@ -4838,10 +4819,6 @@ static void CLQ2_Precache_f (void)
 	cl.contentstage = 0;
 	cl.sendprespawn = true;
 	SCR_SetLoadingFile("loading data");
-
-#ifdef VM_CG
-	CG_Start();
-#endif
 }
 #endif
 
@@ -6924,8 +6901,6 @@ static void CL_ParsePrecache(void)
 //				Con_Printf("svc_precache: Mod_ForName(\"%s\") failed\n", s);
 			cl.model_precache[i] = model;
 			Q_strncpyz (cl.model_name[i], s, sizeof(cl.model_name[i]));
-
-			cl.model_precaches_added = true;
 		}
 		else
 			Con_Printf("svc_precache: model index %i outside range %i...%i\n", i, 1, MAX_PRECACHE_MODELS);

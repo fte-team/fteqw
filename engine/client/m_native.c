@@ -463,7 +463,7 @@ qboolean MN_Init(void)
 
 	while(COM_IteratePaths(&iterator, syspath, sizeof(syspath), gamepath, sizeof(gamepath)))
 	{
-		if (!com_nogamedirnativecode.ival)
+		if (com_gamedirnativecode.ival)
 			libmenu = Sys_LoadLibrary(va("%smenu_"ARCH_CPU_POSTFIX ARCH_DL_POSTFIX, syspath), funcs);
 		if (libmenu)
 			break;

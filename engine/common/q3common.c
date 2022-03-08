@@ -1,18 +1,26 @@
-#include "quakedef.h"
+#include "q3common.h"
+plug2dfuncs_t		*drawfuncs;
+plug3dfuncs_t		*scenefuncs;
+plugaudiofuncs_t	*audiofuncs;
+plugq3vmfuncs_t		*vmfuncs;
+plugfsfuncs_t		*fsfuncs;
+pluginputfuncs_t	*inputfuncs;
+plugclientfuncs_t	*clientfuncs;
+plugmsgfuncs_t		*msgfuncs;
+plugworldfuncs_t	*worldfuncs;
+plugmasterfuncs_t	*masterfuncs;
+
+double realtime;
+struct netprim_s msg_nullnetprim;
+
+//mostly for access to sv.state or svs.sockets
+q3serverstate_t sv3;
 
 //this file contains q3 netcode related things.
 //field info, netchan, and the WriteBits stuff (which should probably be moved to common.c with the others) 
 //also contains vm filesystem
 
-#if defined(HAVE_CLIENT) && defined(HAVE_SERVER)
-#define NET_SendPacket(c,s,d,t) NET_SendPacket(((c)!=NS_CLIENT)?svs.sockets:cls.sockets,s,d,t)
-#elif defined(HAVE_SERVER)
-#define NET_SendPacket(c,s,d,t) NET_SendPacket(svs.sockets,s,d,t)
-#else
-#define NET_SendPacket(c,s,d,t) NET_SendPacket(cls.sockets,s,d,t)
-#endif
-
-#define MAX_VM_FILES 8
+#define MAX_VM_FILES 64
 
 typedef struct {
 	char name[256];
@@ -27,7 +35,7 @@ qofs_t VM_fopen (const char *name, int *handle, int fmode, int owner)
 	int i;
 
 	if (!handle)
-		return !!FS_FLocateFile(name, FSLF_IFFOUND, NULL);
+		return !!fsfuncs->LocateFile(name, FSLF_IFFOUND, NULL);
 
 	*handle = 0;
 
@@ -50,14 +58,14 @@ qofs_t VM_fopen (const char *name, int *handle, int fmode, int owner)
 	switch (fmode)
 	{
 	case VM_FS_READ:
-		vm_fopen_files[i].file = FS_OpenVFS(name, "rb", FS_GAME);
+		vm_fopen_files[i].file = fsfuncs->OpenVFS(name, "rb", FS_GAME);
 		break;
 	case VM_FS_APPEND:
 	case VM_FS_APPEND_SYNC:
-		vm_fopen_files[i].file = FS_OpenVFS(name, "ab", FS_GAMEONLY);
+		vm_fopen_files[i].file = fsfuncs->OpenVFS(name, "ab", FS_GAMEONLY);
 		break;
 	case VM_FS_WRITE:
-		vm_fopen_files[i].file = FS_OpenVFS(name, "wb", FS_GAMEONLY);
+		vm_fopen_files[i].file = fsfuncs->OpenVFS(name, "wb", FS_GAMEONLY);
 		break;
 	default: //bad
 		return -1;
@@ -215,7 +223,7 @@ static int QDECL VMEnum(const char *match, qofs_t size, time_t mtime, void *args
 	check = ((vmsearch_t *)args)->initialbuffer;
 	while(check < ((vmsearch_t *)args)->buffer)
 	{
-		if (!stricmp(check, match))
+		if (!Q_strcasecmp(check, match))
 			return true;	//we found this one already
 		check += strlen(check)+1;
 	}
@@ -251,7 +259,7 @@ static int QDECL VMEnumMods(const char *match, qofs_t size, time_t modtime, void
 	if (match[newlen-2] != '/')
 		return true;
 
-	if (!stricmp(match, "baseq3/"))
+	if (!Q_strcasecmp(match, "baseq3/"))
 		return true;	//we don't want baseq3. FIXME: should be any basedir, rather than hardcoded.
 
 	foundone = false;
@@ -260,11 +268,19 @@ static int QDECL VMEnumMods(const char *match, qofs_t size, time_t modtime, void
 		return true;	//we only count directories with a pk3 file
 
 	Q_strncpyz(desc, match, sizeof(desc));
-	f = FS_OpenVFS(va("%sdescription.txt", match), "rb", FS_ROOT);
+	f = fsfuncs->OpenVFS(va("%sdescription.txt", match), "rb", FS_ROOT);
 	if (f)
 	{
-		VFS_GETS(f, desc, sizeof(desc));
+		char *e;
+		VFS_READ(f, desc, sizeof(desc)-1);
 		VFS_CLOSE(f);
+		desc[sizeof(desc)-1] = 0;
+		for (e = desc; *e; e++)
+			if (*e == '\n' || *e == '\r')
+			{
+				*e = 0;
+				break;
+			}
 	}
 
 	desclen = strlen(desc)+1;
@@ -275,7 +291,7 @@ static int QDECL VMEnumMods(const char *match, qofs_t size, time_t modtime, void
 	check = ((vmsearch_t *)args)->initialbuffer;
 	while(check < ((vmsearch_t *)args)->buffer)
 	{
-		if (!stricmp(check, match))
+		if (!Q_strcasecmp(check, match))
 			return true;	//we found this one already
 		check += strlen(check)+1;
 		check += strlen(check)+1;
@@ -304,15 +320,18 @@ int VM_GetFileList(const char *path, const char *ext, char *output, int buffersi
 	vms.found=0;
 	if (!strcmp(path, "$modlist"))
 	{
+		cvar_t *fs_basedir = cvarfuncs->GetNVFDG("fs_basedir", NULL, 0, NULL, NULL);
+		cvar_t *fs_homedir = cvarfuncs->GetNVFDG("fs_homedir", NULL, 0, NULL, NULL);
 		vms.skip=0;
-		Sys_EnumerateFiles((vms.dir=com_gamepath), "*", VMEnumMods, &vms, NULL);
-		if (*com_homepath)
-			Sys_EnumerateFiles((vms.dir=com_homepath), "*", VMEnumMods, &vms, NULL);
+		if (fs_basedir && *fs_basedir->string)
+			Sys_EnumerateFiles((vms.dir=fs_basedir->string), "*", VMEnumMods, &vms, NULL);
+		if (fs_homedir && *fs_homedir->string)
+			Sys_EnumerateFiles((vms.dir=fs_homedir->string), "*", VMEnumMods, &vms, NULL);
 	}
 	else if (*(char *)ext == '.' || *(char *)ext == '/')
-		COM_EnumerateFiles(va("%s/*%s", path, ext), VMEnum, &vms);
+		fsfuncs->EnumerateFiles(va("%s/*%s", path, ext), VMEnum, &vms);
 	else
-		COM_EnumerateFiles(va("%s/*.%s", path, ext), VMEnum, &vms);
+		fsfuncs->EnumerateFiles(va("%s/*.%s", path, ext), VMEnum, &vms);
 	return vms.found;
 }
 
@@ -339,23 +358,9 @@ int VMQ3_Cvar_Register(q3vmcvar_t *v, char *name, char *defval, int flags)
 
 	fteflags = flags & (CVAR_ARCHIVE | CVAR_USERINFO | CVAR_SERVERINFO);
 
-	c = Cvar_Get(name, defval, fteflags, "Q3VM cvars");
+	c = cvarfuncs->GetNVFDG(name, defval, fteflags, NULL, "Q3VM cvars");
 	if (!c)	//command name, etc
 		return 0;
-#ifndef SERVERONLY
-	if ((flags & CVAR_USERINFO) && !(c->flags & CVAR_USERINFO))
-	{
-		c->flags |= CVAR_USERINFO;
-		InfoBuf_SetKey(&cls.userinfo[0], c->name, c->string);
-	}
-#endif
-#ifndef CLIENTONLY
-	if ((flags & CVAR_SERVERINFO) && !(c->flags & CVAR_SERVERINFO))
-	{
-		c->flags |= CVAR_SERVERINFO;
-		InfoBuf_SetKey (&svs.info, c->name, c->string);
-	}
-#endif
 	for (i = 0; i < MAX_VMQ3_CVARS; i++)
 	{
 		if (!q3cvlist[i])
@@ -380,175 +385,24 @@ int VMQ3_Cvar_Update(q3vmcvar_t *v)
 {
 	cvar_t *c;
 	int i;
-	i = v->handle;
-	if (!i)
-		return 0;	//not initialised
-	i--;
+	if (!v)
+		return 0;	//ERROR!
+	i = v->handle-1;
 	if ((unsigned)i >= MAX_VMQ3_CVARS)
 		return 0;	//a hack attempt
 
 	c = q3cvlist[i];
 	if (!c)
 		return 0;	//that slot isn't active yet
+//	if (v->modificationCount == c->modifiedcount)
+//		return 1;	//no changes, don't waste time on an strcpy
 
 	v->integer = c->ival;
 	v->value = c->value;
-	v->modificationCount = c->modified;
+	v->modificationCount = c->modifiedcount;
 	Q_strncpyz(v->string, c->string, sizeof(v->string));
 
 	return 1;
-}
-
-
-/*
-============
-MSG_WriteRawBytes
-============
-*/
-static void MSG_WriteRawBytes( sizebuf_t *msg, int value, int bits )
-{
-	qbyte	*buf;
-
-	if( bits <= 8 )
-	{ 
-		buf = SZ_GetSpace( msg, 1 );
-		buf[0] = value;		
-	}
-	else if( bits <= 16 )
-	{
-		buf = SZ_GetSpace( msg, 2 );
-		buf[0] = value & 0xFF;
-		buf[1] = value >> 8;
-	}
-	else if( bits <= 32 )
-	{
-		buf = SZ_GetSpace( msg, 4 );
-		buf[0] = value & 0xFF;
-		buf[1] = (value >> 8) & 0xFF;
-		buf[2] = (value >> 16) & 0xFF;
-		buf[3] = value >> 24;
-	}
-}
-
-/*
-============
-MSG_WriteRawBits
-============
-*/
-static void MSG_WriteRawBits( sizebuf_t *msg, int value, int bits )
-{
-	// TODO
-}
-
-/*
-============
-MSG_WriteHuffBits
-============
-*/
-#ifdef HUFFNETWORK
-static void MSG_WriteHuffBits( sizebuf_t *msg, int value, int bits )
-{
-	int		remaining;
-	int		i;
-
-	value &= 0xFFFFFFFFU >> (32 - bits);
-	remaining = bits & 7;
-
-	for( i=0; i<remaining ; i++ )
-	{
-		if( !(msg->currentbit & 7) )
-		{
-			msg->data[msg->currentbit >> 3] = 0;
-		} 
-		msg->data[msg->currentbit >> 3] |= (value & 1) << (msg->currentbit & 7);
-		msg->currentbit++;
-		value >>= 1;
-	}
-	bits -= remaining;
-
-	if( bits > 0 )
-	{
-		for( i=0 ; i<(bits+7)>>3 ; i++ )
-		{
-			Huff_EmitByte( value & 255, msg->data, &msg->currentbit );
-			value >>= 8;
-		}
-	}
-
-	msg->cursize = (msg->currentbit >> 3) + 1;
-}
-#endif
-
-/*
-============
-MSG_WriteBits
-============
-*/
-void MSG_WriteBits(sizebuf_t *msg, int value, int bits)
-{
-#ifdef MSG_PROFILING
-	int	maxval;
-#endif // MSG_PROFILING
-
-	if( msg->maxsize - msg->cursize < 4 )
-	{
-		msg->overflowed = true;
-		return;
-	}
-
-	if( !bits || bits < -31 || bits > 32 )
-	{
-		Sys_Error("MSG_WriteBits: bad bits %i", bits);
-	}
-
-#ifdef MSG_PROFILING
-	msg_bitsWritten += bits;
-
-	if( bits != 32 )
-	{
-		if( bits > 0 )
-		{
-			maxval = (1 << bits) - 1;
-			if( value > maxval || maxval < 0 )
-			{
-				msg_overflows++;
-			}
-		}
-		else
-		{
-			maxval = (1 << (bits - 1)) - 1;
-			if( value > maxval || value < -maxval - 1 )
-			{
-				msg_overflows++;
-			}
-		}
-	}
-#endif // MSG_PROFILING
-
-	if( bits < 0 )
-	{
-		bits = -bits;
-	}
-
-	switch( msg->packing )
-	{
-	default:
-	case SZ_BAD:
-		Sys_Error("MSG_WriteBits: bad msg->packing %i", msg->packing );
-		break;
-	case SZ_RAWBYTES:
-		MSG_WriteRawBytes( msg, value, bits );
-		break;
-	case SZ_RAWBITS:
-		MSG_WriteRawBits( msg, value, bits );
-		break;
-#ifdef HUFFNETWORK
-	case SZ_HUFFMAN:
-		MSG_WriteHuffBits( msg, value, bits );
-		break;
-#endif
-	}
-
 }
 
 
@@ -567,7 +421,24 @@ void MSG_WriteBits(sizebuf_t *msg, int value, int bits)
 #define STUNDEMULTIPLEX_MASK	0x40000000	//stun requires that we set this bit to avoid surprises, and ignore packets without it.
 #define FRAGMENT_MASK			0x80000000
 #define FRAGMENTATION_TRESHOLD	(MAX_PACKETLEN-100)
-qboolean Netchan_ProcessQ3 (netchan_t *chan)
+void Netchan_SetupQ3(netsrc_t sock, netchan_t *chan, netadr_t *adr, int qport)
+{
+	memset (chan, 0, sizeof(*chan));
+
+	chan->sock = sock;
+	chan->remote_address = *adr;
+	chan->last_received = realtime;
+	chan->incoming_unreliable = -1;
+
+	chan->message.data = chan->message_buf;
+	chan->message.allowoverflow = true;
+	chan->message.maxsize = MAX_QWMSGLEN;
+
+	chan->qport = qport;
+
+	chan->qportsize = 2;
+}
+qboolean Netchan_ProcessQ3 (netchan_t *chan, sizebuf_t *msg)
 {
 //incoming_reliable_sequence is perhaps wrongly used...
 	int			sequence;
@@ -577,12 +448,12 @@ qboolean Netchan_ProcessQ3 (netchan_t *chan)
 	char		adr[MAX_ADR_SIZE];
 
 	// Get sequence number
-	MSG_BeginReading(msg_nullnetprim);
-	sequence = MSG_ReadBits(32);
+	msgfuncs->BeginReading(msg, msg_nullnetprim);
+	sequence = msgfuncs->ReadBits(32);
 
 	if (chan->pext_stunaware)
 	{
-		sequence = BigLong(sequence);
+		sequence = ((sequence&0xff000000)>>24)|((sequence&0x00ff0000)>>8)|((sequence&0x0000ff00)<<8)|((sequence&0x000000ff)<<24);	//reinterpret it as big-endian
 		if (sequence & STUNDEMULTIPLEX_MASK)
 			sequence-= STUNDEMULTIPLEX_MASK;
 		else
@@ -592,7 +463,7 @@ qboolean Netchan_ProcessQ3 (netchan_t *chan)
 	// Read the qport if we are a server
 	if (chan->sock == NS_SERVER)
 	{
-		MSG_ReadBits(16);
+		msgfuncs->ReadBits(16);
 	}
 
 	// Check if packet is a message fragment
@@ -601,8 +472,8 @@ qboolean Netchan_ProcessQ3 (netchan_t *chan)
 		sequence &= ~FRAGMENT_MASK;
 
 		fragment = true;
-		fragmentStart = MSG_ReadBits(16);
-		fragmentLength = MSG_ReadBits(16);
+		fragmentStart = msgfuncs->ReadBits(16);
+		fragmentLength = msgfuncs->ReadBits(16);
 	}
 	else
 	{
@@ -638,7 +509,7 @@ qboolean Netchan_ProcessQ3 (netchan_t *chan)
 
 	if (chan->drop_count > 0)// && (net_showdrop->integer || net_showpackets->integer))
 	{
-		Con_DPrintf("%s:Dropped %i packets at %i\n", NET_AdrToString(adr, sizeof(adr), &chan->remote_address), chan->drop_count, sequence);
+		Con_DPrintf("%s:Dropped %i packets at %i\n", masterfuncs->AdrToString(adr, sizeof(adr), &chan->remote_address), chan->drop_count, sequence);
 	}
 
 	if (!fragment)
@@ -660,13 +531,13 @@ qboolean Netchan_ProcessQ3 (netchan_t *chan)
 	{
 //		if(net_showdrop->integer || net_showpackets->integer)
 		{
-			Con_Printf("%s:Dropped a message fragment\n", NET_AdrToString(adr, sizeof(adr), &chan->remote_address));
+			Con_Printf("%s:Dropped a message fragment\n", masterfuncs->AdrToString(adr, sizeof(adr), &chan->remote_address));
 		}
 		return false;
 	}
 
 	// Check if fragmentLength is valid
-	if (fragmentLength < 0 || fragmentLength > FRAGMENTATION_TRESHOLD || msg_readcount + fragmentLength > net_message.cursize || chan->in_fragment_length + fragmentLength > sizeof(chan->in_fragment_buf))
+	if (fragmentLength < 0 || fragmentLength > FRAGMENTATION_TRESHOLD || msgfuncs->ReadCount() + fragmentLength > msg->cursize || chan->in_fragment_length + fragmentLength > sizeof(chan->in_fragment_buf))
 	{
 /*		if (net_showdrop->integer || net_showpackets->integer)
 		{
@@ -676,7 +547,7 @@ qboolean Netchan_ProcessQ3 (netchan_t *chan)
 	}
 
 	// Append to the incoming fragment buffer
-	memcpy( chan->in_fragment_buf + chan->in_fragment_length, net_message.data + msg_readcount, fragmentLength);
+	memcpy(chan->in_fragment_buf + chan->in_fragment_length, msg->data + msgfuncs->ReadCount(), fragmentLength);
 
 	chan->in_fragment_length += fragmentLength;
 	if (fragmentLength == FRAGMENTATION_TRESHOLD)
@@ -685,21 +556,21 @@ qboolean Netchan_ProcessQ3 (netchan_t *chan)
 	}
 
 	// Check if assembled message fits in buffer
-	if (chan->in_fragment_length > net_message.maxsize)
+	if (chan->in_fragment_length > msg->maxsize)
 	{
-		Con_Printf("%s:fragmentLength %i > net_message.maxsize\n", NET_AdrToString(adr, sizeof(adr), &chan->remote_address), chan->in_fragment_length);
+		Con_Printf("%s:fragmentLength %i > net_message.maxsize\n", masterfuncs->AdrToString(adr, sizeof(adr), &chan->remote_address), chan->in_fragment_length);
 		return false;
 	}
 
 	//
 	// Reconstruct message properly
 	//
-	SZ_Clear(&net_message);
-	MSG_WriteLong(&net_message, sequence);
-	SZ_Write(&net_message, chan->in_fragment_buf, chan->in_fragment_length);
+	msgfuncs->BeginWriting(msg, msg_nullnetprim, NULL, 0);
+	msgfuncs->WriteLong(msg, sequence);
+	msgfuncs->WriteData(msg, chan->in_fragment_buf, chan->in_fragment_length);
 
-	MSG_BeginReading(msg_nullnetprim);
-	MSG_ReadLong();
+	msgfuncs->BeginReading(msg, msg_nullnetprim);
+	msgfuncs->ReadLong();
 
 	// No more fragments
 	chan->in_fragment_length = 0;
@@ -716,7 +587,7 @@ qboolean Netchan_ProcessQ3 (netchan_t *chan)
 Netchan_TransmitNextFragment
 =================
 */
-void Netchan_TransmitNextFragment( netchan_t *chan )
+void Netchan_TransmitNextFragment(struct ftenet_connections_s *socket, netchan_t *chan )
 {
 	//'reliable' is badly named. it should be 'fragment' instead.
 	//but in the interests of a smaller netchan_t...
@@ -729,7 +600,7 @@ void Netchan_TransmitNextFragment( netchan_t *chan )
 	if (chan->pext_stunaware)
 	{
 		sequence+= STUNDEMULTIPLEX_MASK;
-		sequence = BigLong(sequence);
+		sequence = ((sequence&0xff000000)>>24)|((sequence&0x00ff0000)>>8)|((sequence&0x0000ff00)<<8)|((sequence&0x000000ff)<<24);	//reinterpret it as big-endian
 	}
 	
 	// Write the packet header
@@ -737,12 +608,12 @@ void Netchan_TransmitNextFragment( netchan_t *chan )
 	send.packing = SZ_RAWBYTES;
 	send.maxsize = sizeof(send_buf);
 	send.data = send_buf;
-	MSG_WriteLong( &send, sequence );
+	msgfuncs->WriteLong( &send, sequence );
 #ifndef SERVERONLY
 	// Send the qport if we are a client
 	if( chan->sock == NS_CLIENT )
 	{
-		MSG_WriteShort( &send, chan->qport);
+		msgfuncs->WriteShort( &send, chan->qport);
 	}
 #endif
 	fragmentLength = chan->reliable_length - chan->reliable_start;
@@ -752,14 +623,14 @@ void Netchan_TransmitNextFragment( netchan_t *chan )
 	}
 
 	// Write the fragment header
-	MSG_WriteShort( &send, chan->reliable_start );
-	MSG_WriteShort( &send, fragmentLength );
+	msgfuncs->WriteShort( &send, chan->reliable_start );
+	msgfuncs->WriteShort( &send, fragmentLength );
 
 	// Copy message fragment to the packet
-	SZ_Write( &send, chan->reliable_buf + chan->reliable_start, fragmentLength );
+	msgfuncs->WriteData(&send, chan->reliable_buf + chan->reliable_start, fragmentLength);
 
 	// Send the datagram
-	NET_SendPacket( chan->sock, send.cursize, send.data, &chan->remote_address );
+	msgfuncs->SendPacket(socket, send.cursize, send.data, &chan->remote_address);
 
 //	if( net_showpackets->integer )
 //	{
@@ -788,7 +659,7 @@ void Netchan_TransmitNextFragment( netchan_t *chan )
 Netchan_Transmit
 =================
 */
-void Netchan_TransmitQ3( netchan_t *chan, int length, const qbyte *data )
+void Netchan_TransmitQ3(struct ftenet_connections_s *socket, netchan_t *chan, int length, const qbyte *data )
 {
 	int i;
 	sizebuf_t	send;
@@ -799,22 +670,22 @@ void Netchan_TransmitQ3( netchan_t *chan, int length, const qbyte *data )
 	// Check for message overflow
 	if( length > MAX_OVERALLMSGLEN )
 	{
-		Con_Printf( "%s: outgoing message overflow\n", NET_AdrToString( adr, sizeof(adr), &chan->remote_address ) );
+		Con_Printf( "%s: outgoing message overflow\n", masterfuncs->AdrToString( adr, sizeof(adr), &chan->remote_address ) );
 		return;
 	}
 
 	if( length < 0 )
 	{
-		Sys_Error("Netchan_Transmit: length = %i", length);
+		plugfuncs->Error("Netchan_Transmit: length = %i", length);
 	}
 
 	// Don't send if there are still unsent fragments
 	if( chan->reliable_length )
 	{
-		Netchan_TransmitNextFragment( chan );
+		Netchan_TransmitNextFragment(socket, chan);
 		if( chan->reliable_length )
 		{
-			Con_DPrintf( "%s: unsent fragments\n", NET_AdrToString( adr, sizeof(adr), &chan->remote_address ) );
+			Con_DPrintf( "%s: unsent fragments\n", masterfuncs->AdrToString( adr, sizeof(adr), &chan->remote_address ) );
 			return;
 		}
 		/*drop the outgoing packet if we fragmented*/
@@ -828,7 +699,7 @@ void Netchan_TransmitQ3( netchan_t *chan, int length, const qbyte *data )
 		chan->reliable_length = length;
 		chan->reliable_start = 0;
 		memcpy( chan->reliable_buf, data, length );
-		Netchan_TransmitNextFragment( chan );
+		Netchan_TransmitNextFragment(socket, chan);
 		return;
 	}
 
@@ -836,27 +707,24 @@ void Netchan_TransmitQ3( netchan_t *chan, int length, const qbyte *data )
 	if (chan->pext_stunaware)
 	{
 		sequence+= STUNDEMULTIPLEX_MASK;
-		sequence = BigLong(sequence);
+		sequence = ((sequence&0xff000000)>>24)|((sequence&0x00ff0000)>>8)|((sequence&0x0000ff00)<<8)|((sequence&0x000000ff)<<24);	//reinterpret it as big-endian
 	}
 
 	// Write the packet header
-	memset(&send, 0, sizeof(send));
-	send.packing = SZ_RAWBYTES;
-	send.maxsize = sizeof(send_buf);
-	send.data = send_buf;
-	MSG_WriteLong( &send, chan->outgoing_sequence );
+	msgfuncs->BeginWriting(&send, msg_nullnetprim, send_buf, sizeof(send_buf));
+	msgfuncs->WriteLong(&send, chan->outgoing_sequence);
 #ifndef SERVERONLY
 	// Send the qport if we are a client
 	if( chan->sock == NS_CLIENT )
 	{
-		MSG_WriteShort( &send, chan->qport);
+		msgfuncs->WriteShort(&send, chan->qport);
 	}
 #endif
 	// Copy the message to the packet
-	SZ_Write( &send, data, length );
+	msgfuncs->WriteData(&send, data, length);
 
 	// Send the datagram
-	NET_SendPacket( chan->sock, send.cursize, send.data, &chan->remote_address );
+	msgfuncs->SendPacket( socket, send.cursize, send.data, &chan->remote_address );
 
 /*	if( net_showpackets->integer )
 	{
@@ -958,15 +826,15 @@ static const q3field_t esFieldTable[] = {
 	ES_FIELD( origin[1],			 0 ),
 	ES_FIELD( origin[2],			 0 ),
 	ES_FIELD( solid,				24 ),
-	ES_FIELD( powerups,				16 ),
-	ES_FIELD( modelindex,			 8 ),
+	ES_FIELD( powerups,				MAX_Q3_POWERUPS ),
+	ES_FIELD( modelindex,			MODELINDEX_BITS ),
 	ES_FIELD( otherEntityNum2,		10 ),
 	ES_FIELD( loopSound,			 8 ),
 	ES_FIELD( generic1,				 8 ),
 	ES_FIELD( origin2[2],			 0 ),
 	ES_FIELD( origin2[0],			 0 ),
 	ES_FIELD( origin2[1],			 0 ),
-	ES_FIELD( modelindex2,			 8 ),
+	ES_FIELD( modelindex2,			MODELINDEX_BITS ),
 	ES_FIELD( angles[0],			 0 ),
 	ES_FIELD( time,					32 ),
 	ES_FIELD( apos.trTime,			32 ),
@@ -1012,7 +880,7 @@ qboolean MSG_Q3_ReadDeltaEntity( const q3entityState_t *from, q3entityState_t *t
 
 	if( number < 0 || number >= MAX_GENTITIES )
 	{
-		Host_EndGame("MSG_ReadDeltaEntity: Bad delta entity number: %i\n", number);
+		plugfuncs->EndGame("MSG_ReadDeltaEntity: Bad delta entity number: %i\n", number);
 	}
 
 	if( !to )
@@ -1029,7 +897,7 @@ qboolean MSG_Q3_ReadDeltaEntity( const q3entityState_t *from, q3entityState_t *t
 	}
 #endif
 
-	if (MSG_ReadBits(1))
+	if (msgfuncs->ReadBits(1))
 	{ 
 		memset( to, 0, sizeof( *to ) );
 		to->number = ENTITYNUM_NONE;
@@ -1053,7 +921,7 @@ qboolean MSG_Q3_ReadDeltaEntity( const q3entityState_t *from, q3entityState_t *t
 	}
 	to->number = number;
 
-	if( !MSG_ReadBits( 1 ) )
+	if( !msgfuncs->ReadBits( 1 ) )
 	{
 		return true; // unchanged
 	}
@@ -1065,7 +933,7 @@ qboolean MSG_Q3_ReadDeltaEntity( const q3entityState_t *from, q3entityState_t *t
 	}
 #endif
 
-	maxFieldNum = MSG_ReadByte();
+	maxFieldNum = msgfuncs->ReadByte();
 
 #ifdef MSG_SHOWNET
 	if( dump )
@@ -1076,15 +944,15 @@ qboolean MSG_Q3_ReadDeltaEntity( const q3entityState_t *from, q3entityState_t *t
 
 	if( maxFieldNum > esTableSize )
 	{
-		Host_EndGame("MSG_ReadDeltaEntity: maxFieldNum > esTableSize");
+		plugfuncs->EndGame("MSG_ReadDeltaEntity: maxFieldNum > esTableSize");
 	}
 
 	for( i=0, field=esFieldTable ; i<maxFieldNum ; i++, field++ )
 	{
-		if( !MSG_ReadBits( 1 ) )
+		if( !msgfuncs->ReadBits( 1 ) )
 			continue; // field unchanged
 
-		if( !MSG_ReadBits( 1 ) )
+		if( !msgfuncs->ReadBits( 1 ) )
 		{
 			FIELD_INTEGER( to ) = 0;
 #ifdef MSG_SHOWNET
@@ -1098,7 +966,7 @@ qboolean MSG_Q3_ReadDeltaEntity( const q3entityState_t *from, q3entityState_t *t
 
 		if( field->bits )
 		{
-			to_integer = MSG_ReadBits( field->bits );
+			to_integer = msgfuncs->ReadBits( field->bits );
 			FIELD_INTEGER( to ) = to_integer;
 #ifdef MSG_SHOWNET
 			if( dump )
@@ -1110,9 +978,9 @@ qboolean MSG_Q3_ReadDeltaEntity( const q3entityState_t *from, q3entityState_t *t
 		}
 
 	
-		if( !MSG_ReadBits( 1 ) )
+		if( !msgfuncs->ReadBits( 1 ) )
 		{
-			to_integer = MSG_ReadBits( 13 ) - 0x1000;
+			to_integer = msgfuncs->ReadBits( 13 ) - 0x1000;
 			FIELD_FLOAT( to ) = (float)to_integer;
 #ifdef MSG_SHOWNET
 			if( dump )
@@ -1123,7 +991,7 @@ qboolean MSG_Q3_ReadDeltaEntity( const q3entityState_t *from, q3entityState_t *t
 		}
 		else
 		{
-			FIELD_INTEGER( to ) = MSG_ReadLong();
+			FIELD_INTEGER( to ) = msgfuncs->ReadLong();
 #ifdef MSG_SHOWNET
 			if( dump )
 			{
@@ -1169,14 +1037,14 @@ void MSGQ3_WriteDeltaEntity(sizebuf_t *msg, const q3entityState_t *from, const q
 	{
 		if(from)
 		{
-			MSG_WriteBits(msg, from->number, GENTITYNUM_BITS);
-			MSG_WriteBits(msg, 1, 1);
+			msgfuncs->WriteBits(msg, from->number, GENTITYNUM_BITS);
+			msgfuncs->WriteBits(msg, 1, 1);
 		}
 		return; // removed
 	}
 
 	if(to->number < 0 || to->number > MAX_GENTITIES)
-		SV_Error("MSG_WriteDeltaEntity: Bad entity number: %i", to->number);
+		plugfuncs->EndGame("MSG_WriteDeltaEntity: Bad entity number: %i", to->number);
 
 	if(!from)
 		from = &nullEntityState; // nodelta update
@@ -1196,16 +1064,16 @@ void MSGQ3_WriteDeltaEntity(sizebuf_t *msg, const q3entityState_t *from, const q
 		if(!force)
 			return; // don't emit any bits at all
 
-		MSG_WriteBits(msg, to->number, GENTITYNUM_BITS);
-		MSG_WriteBits(msg, 0, 1);
-		MSG_WriteBits(msg, 0, 1);
+		msgfuncs->WriteBits(msg, to->number, GENTITYNUM_BITS);
+		msgfuncs->WriteBits(msg, 0, 1);
+		msgfuncs->WriteBits(msg, 0, 1);
 		return; // unchanged
 	}
 
-	MSG_WriteBits(msg, to->number, GENTITYNUM_BITS);
-	MSG_WriteBits(msg, 0, 1);
-	MSG_WriteBits(msg, 1, 1);
-	MSG_WriteBits(msg, maxFieldNum, 8);
+	msgfuncs->WriteBits(msg, to->number, GENTITYNUM_BITS);
+	msgfuncs->WriteBits(msg, 0, 1);
+	msgfuncs->WriteBits(msg, 1, 1);
+	msgfuncs->WriteBits(msg, maxFieldNum, 8);
 
 	//
 	// write all modified fields
@@ -1216,21 +1084,21 @@ void MSGQ3_WriteDeltaEntity(sizebuf_t *msg, const q3entityState_t *from, const q
 		
 		if(FIELD_INTEGER(from) == to_value)
 		{
-			MSG_WriteBits( msg, 0, 1 );
+			msgfuncs->WriteBits( msg, 0, 1 );
 			continue; // field unchanged
 		}
-		MSG_WriteBits(msg, 1, 1);
+		msgfuncs->WriteBits(msg, 1, 1);
 
 		if(!to_value)
 		{
-			MSG_WriteBits(msg, 0, 1);
+			msgfuncs->WriteBits(msg, 0, 1);
 			continue; // field set to zero
 		}
-		MSG_WriteBits(msg, 1, 1);
+		msgfuncs->WriteBits(msg, 1, 1);
 
 		if(field->bits)
 		{
-			MSG_WriteBits(msg, to_value, field->bits);
+			msgfuncs->WriteBits(msg, to_value, field->bits);
 			continue; // integer value
 		}
 
@@ -1248,16 +1116,16 @@ void MSGQ3_WriteDeltaEntity(sizebuf_t *msg, const q3entityState_t *from, const q
 			&& to_integer + MAX_SNAPPED/2 >= 0
 			&& to_integer + MAX_SNAPPED/2 < MAX_SNAPPED)
 		{
-			MSG_WriteBits(msg, 0, 1 ); // pack in 13 bits
-			MSG_WriteBits(msg, to_integer + MAX_SNAPPED/2, SNAPPED_BITS);
+			msgfuncs->WriteBits(msg, 0, 1 ); // pack in 13 bits
+			msgfuncs->WriteBits(msg, to_integer + MAX_SNAPPED/2, SNAPPED_BITS);
 
 #ifdef MSG_PROFILING
 			msg_vectorsCompressed++;
 #endif // MSG_PROFILING
 
 		} else {
-			MSG_WriteBits(msg, 1, 1 ); // pack in 32 bits
-			MSG_WriteBits(msg, to_value, 32);
+			msgfuncs->WriteBits(msg, 1, 1 ); // pack in 32 bits
+			msgfuncs->WriteBits(msg, to_value, 32);
 		}
 	}
 }
@@ -1343,11 +1211,11 @@ void MSGQ3_WriteDeltaPlayerstate(sizebuf_t *msg, const q3playerState_t *from, co
 	float			to_float;
 	int				to_integer;
 	int				maxFieldNum;
-	int				statsMask;
-	int				persistantMask;
-	int				ammoMask;
-	int				powerupsMask;	
-	int				i;
+	unsigned int	statsMask;
+	unsigned int	persistantMask;
+	unsigned int	ammoMask;
+	unsigned int	powerupsMask;
+	int				i, j;
 
 	if(!to)
 	{
@@ -1371,7 +1239,7 @@ void MSGQ3_WriteDeltaPlayerstate(sizebuf_t *msg, const q3playerState_t *from, co
 		}
 	}
 
-	MSG_WriteBits(msg, maxFieldNum, 8);
+	msgfuncs->WriteBits(msg, maxFieldNum, 8);
 
 	//
 	// write all modified fields
@@ -1382,14 +1250,14 @@ void MSGQ3_WriteDeltaPlayerstate(sizebuf_t *msg, const q3playerState_t *from, co
 		
 		if( FIELD_INTEGER( from ) == to_value )
 		{
-			MSG_WriteBits( msg, 0, 1 );
+			msgfuncs->WriteBits( msg, 0, 1 );
 			continue; // field unchanged
 		}
-		MSG_WriteBits( msg, 1, 1 );
+		msgfuncs->WriteBits( msg, 1, 1 );
 
 		if( field->bits )
 		{
-			MSG_WriteBits( msg, to_value, field->bits ); 
+			msgfuncs->WriteBits( msg, to_value, field->bits );
 			continue; // integer value
 		}
 
@@ -1407,16 +1275,16 @@ void MSGQ3_WriteDeltaPlayerstate(sizebuf_t *msg, const q3playerState_t *from, co
 			&& to_integer + MAX_SNAPPED/2 >= 0
 			&& to_integer + MAX_SNAPPED/2 < MAX_SNAPPED )
 		{
-			MSG_WriteBits( msg, 0, 1 ); // pack in 13 bits
-			MSG_WriteBits( msg, to_integer + MAX_SNAPPED/2, SNAPPED_BITS );
+			msgfuncs->WriteBits( msg, 0, 1 ); // pack in 13 bits
+			msgfuncs->WriteBits( msg, to_integer + MAX_SNAPPED/2, SNAPPED_BITS );
 
 #ifdef MSG_PROFILING
 			msg_vectorsCompressed++;
 #endif // MSG_PROFILING
 
 		} else {
-			MSG_WriteBits(msg, 1, 1); // pack in 32 bits
-			MSG_WriteBits(msg, to_value, 32);
+			msgfuncs->WriteBits(msg, 1, 1); // pack in 32 bits
+			msgfuncs->WriteBits(msg, to_value, 32);
 		}
 	}
 
@@ -1427,91 +1295,95 @@ void MSGQ3_WriteDeltaPlayerstate(sizebuf_t *msg, const q3playerState_t *from, co
 	for(i=0; i<MAX_Q3_STATS; i++)
 	{
 		if(from->stats[i] != to->stats[i])
-			statsMask |= (1 << i);
+			statsMask |= (1u << i);
 	}
 
 	persistantMask = 0;
 	for(i=0 ; i<MAX_Q3_PERSISTANT ; i++)
 	{
 		if(from->persistant[i] != to->persistant[i])
-			persistantMask |= (1 << i);
+			persistantMask |= (1u << i);
 	}
 
 	ammoMask = 0;
 	for(i=0 ; i<MAX_Q3_WEAPONS ; i++ )
 	{
 		if(from->ammo[i] != to->ammo[i])
-			ammoMask |= (1 << i);
+			ammoMask |= (1u << i);
 	}
 
 	powerupsMask = 0;
 	for( i=0 ; i<MAX_Q3_POWERUPS ; i++ )
 	{
 		if(from->powerups[i] != to->powerups[i])
-			powerupsMask |= (1 << i);
+			powerupsMask |= (1u << i);
 	}
 
-	if(!statsMask && !persistantMask && !ammoMask && !powerupsMask)
+	if(statsMask || persistantMask
+			|| ammoMask
+			|| powerupsMask)
 	{
-		MSG_WriteBits(msg, 0, 1);
-		return; // no arrays modified
-	}
+		//
+		// write all modified arrays
+		//
+		msgfuncs->WriteBits(msg, 1, 1);
 
-	//
-	// write all modified arrays
-	//
-	MSG_WriteBits(msg, 1, 1);
-
-	// PS_STATS
-	if(statsMask)
-	{
-		MSG_WriteBits(msg, 1, 1);
-		MSG_WriteBits(msg, statsMask, 16);
-		for(i=0; i<MAX_Q3_STATS; i++)
-			if(statsMask & (1 << i))
-				MSG_WriteBits(msg, to->stats[i], -16);
-	}
-	else
-		MSG_WriteBits(msg, 0, 1); // unchanged
-
-	// PS_PERSISTANT
-	if(persistantMask)
-	{
-		MSG_WriteBits(msg, 1, 1);
-		MSG_WriteBits(msg, persistantMask, 16);
-		for(i=0; i<MAX_Q3_PERSISTANT; i++)
-			if(persistantMask & (1 << i))
-				MSG_WriteBits(msg, to->persistant[i], -16);
-	}
-	else
-		MSG_WriteBits(msg, 0, 1); // unchanged
-
-
-	// PS_AMMO
-	if( ammoMask )
-	{
-		MSG_WriteBits(msg, 1, 1);
-		MSG_WriteBits(msg, ammoMask, 16);
-		for(i=0; i<MAX_Q3_WEAPONS; i++)
-			if(ammoMask & (1 << i))
-				MSG_WriteBits(msg, to->ammo[i], 16);
-	}
-	else
-		MSG_WriteBits(msg, 0, 1); // unchanged
-
-	// PS_POWERUPS
-	if(powerupsMask)
-	{
-		MSG_WriteBits(msg, 1, 1);
-		MSG_WriteBits(msg, powerupsMask, 16);
-		for(i=0; i<MAX_Q3_POWERUPS; i++)
+		// PS_STATS
+		if (statsMask)
 		{
-			if(powerupsMask & (1 << i))
-				MSG_WriteBits(msg, to->powerups[i], 32); // WARNING: powerups use 32 bits, not 16
+			msgfuncs->WriteBits(msg, 1, 1);
+			msgfuncs->WriteBits(msg, statsMask, 16);
+			for(i=0; i<MAX_Q3_STATS; i++)
+				if(statsMask & (1 << i))
+					msgfuncs->WriteBits(msg, to->stats[i], -16);
 		}
+		else
+			msgfuncs->WriteBits(msg, 0, 1); // unchanged
+
+		// PS_PERSISTANT
+		if (persistantMask)
+		{
+			msgfuncs->WriteBits(msg, 1, 1);
+			msgfuncs->WriteBits(msg, persistantMask, 16);
+			for(i=0; i<MAX_Q3_PERSISTANT; i++)
+				if(persistantMask & (1 << i))
+					msgfuncs->WriteBits(msg, to->persistant[i], -16);
+		}
+		else
+			msgfuncs->WriteBits(msg, 0, 1); // unchanged
+
+		for (j = 0; j < MAX_Q3_WEAPONS/16; j++)
+		{
+			// PS_AMMO
+			if (ammoMask & (0xffffu<<j))
+			{
+				msgfuncs->WriteBits(msg, 1, 1);
+				msgfuncs->WriteBits(msg, ammoMask>>(j*16), 16);
+				for(i=0; i<16; i++)
+					if(ammoMask & ((quint64_t)1u << (j*16+i)))
+						msgfuncs->WriteBits(msg, to->ammo[j*16+i], 16);
+			}
+			else
+				msgfuncs->WriteBits(msg, 0, 1); // unchanged
+		}
+
+		// PS_POWERUPS
+		if(powerupsMask)
+		{
+			msgfuncs->WriteBits(msg, 1, 1);
+			msgfuncs->WriteBits(msg, powerupsMask, 16);
+			for(i=0; i<MAX_Q3_POWERUPS; i++)
+			{
+				if(powerupsMask & (1 << i))
+					msgfuncs->WriteBits(msg, to->powerups[i], 32); // WARNING: powerups use 32 bits, not 16
+			}
+		}
+		else
+			msgfuncs->WriteBits(msg, 0, 1); // unchanged
 	}
 	else
-		MSG_WriteBits( msg, 0, 1 ); // unchanged
+		msgfuncs->WriteBits(msg, 0, 1);
+
 }
 #endif
 
@@ -1520,13 +1392,13 @@ void MSG_Q3_ReadDeltaPlayerstate( const q3playerState_t *from, q3playerState_t *
 	const q3field_t	*field;
 	int				to_integer;
 	int				maxFieldNum;
-	int				bitmask;
+	unsigned int	bitmask;
 #ifdef MSG_SHOWNET
 	int				startbits;
 	qboolean		dump;
 	qboolean		moredump;
 #endif
-	int				i;
+	int				i, j;
 
 	if( !to )
 	{
@@ -1554,23 +1426,23 @@ void MSG_Q3_ReadDeltaPlayerstate( const q3playerState_t *from, q3playerState_t *
 		memcpy( to, from, sizeof( *to ) );
 	}
 
-	maxFieldNum = MSG_ReadByte();
+	maxFieldNum = msgfuncs->ReadByte();
 
 	if( maxFieldNum > psTableSize )
 	{
-		Host_EndGame( "MSG_ReadDeltaPlayerstate: maxFieldNum > psTableSize" );
+		plugfuncs->EndGame( "MSG_ReadDeltaPlayerstate: maxFieldNum > psTableSize" );
 	}
 
 	for( i=0, field=psFieldTable ; i<maxFieldNum ; i++, field++ )
 	{
-		if(!MSG_ReadBits(1))
+		if(!msgfuncs->ReadBits(1))
 		{
 			continue; // field unchanged
 		}
 
 		if( field->bits )
 		{
-			to_integer = MSG_ReadBits(field->bits);
+			to_integer = msgfuncs->ReadBits(field->bits);
 			FIELD_INTEGER( to ) = to_integer;
 #ifdef MSG_SHOWNET
 			if( dump )
@@ -1582,9 +1454,9 @@ void MSG_Q3_ReadDeltaPlayerstate( const q3playerState_t *from, q3playerState_t *
 		}
 
 	
-		if(!MSG_ReadBits(1))
+		if(!msgfuncs->ReadBits(1))
 		{
-			to_integer = MSG_ReadBits(13) - 0x1000;
+			to_integer = msgfuncs->ReadBits(13) - 0x1000;
 			FIELD_FLOAT( to ) = (float)to_integer;
 #ifdef MSG_SHOWNET
 			if( dump )
@@ -1595,7 +1467,7 @@ void MSG_Q3_ReadDeltaPlayerstate( const q3playerState_t *from, q3playerState_t *
 		}
 		else
 		{
-			FIELD_INTEGER( to ) = MSG_ReadLong();
+			FIELD_INTEGER( to ) = msgfuncs->ReadLong();
 #ifdef MSG_SHOWNET
 			if( dump )
 			{
@@ -1605,10 +1477,10 @@ void MSG_Q3_ReadDeltaPlayerstate( const q3playerState_t *from, q3playerState_t *
 		}
 	}
 
-	if( MSG_ReadBits(1) )
+	if( msgfuncs->ReadBits(1) )
 	{
 		// PS_STATS
-		if( MSG_ReadBits(1) )
+		if( msgfuncs->ReadBits(1) )
 		{ 
 #ifdef MSG_SHOWNET
 			if( moredump )
@@ -1616,18 +1488,18 @@ void MSG_Q3_ReadDeltaPlayerstate( const q3playerState_t *from, q3playerState_t *
 				Com_Printf( "PS_STATS " );
 			}
 #endif
-			bitmask = MSG_ReadBits(16);
+			bitmask = msgfuncs->ReadBits(16);
 			for( i=0 ; i<MAX_Q3_STATS ; i++ )
 			{
 				if( bitmask & (1 << i) )
 				{
-					to->stats[i] = (signed short)MSG_ReadBits(-16);
+					to->stats[i] = (signed short)msgfuncs->ReadBits(-16);
 				}
 			}
 		}
 
 		// PS_PERSISTANT
-		if( MSG_ReadBits(1 ) )
+		if( msgfuncs->ReadBits(1 ) )
 		{
 #ifdef MSG_SHOWNET
 			if( moredump )
@@ -1636,38 +1508,39 @@ void MSG_Q3_ReadDeltaPlayerstate( const q3playerState_t *from, q3playerState_t *
 			}
 #endif
 
-			bitmask = MSG_ReadBits(16);
+			bitmask = msgfuncs->ReadBits(16);
 			for( i=0 ; i<MAX_Q3_PERSISTANT ; i++ )
 			{
 				if( bitmask & (1 << i) )
 				{
-					to->persistant[i] = (signed short)MSG_ReadBits(-16);
+					to->persistant[i] = (signed short)msgfuncs->ReadBits(-16);
 				}
 			}
 		}
 
 		// PS_AMMO
-		if( MSG_ReadBits(1) )
+		for (j=0; j < MAX_Q3_WEAPONS/16; j++)
 		{
+			if( msgfuncs->ReadBits(1) )
+			{
 #ifdef MSG_SHOWNET
-			if( moredump )
-			{
-				Com_Printf( "PS_AMMO " );
-			}
-#endif
-
-			bitmask = MSG_ReadBits(16);
-			for( i=0 ; i<MAX_Q3_WEAPONS ; i++ )
-			{
-				if( bitmask & (1 << i) )
+				if( moredump )
 				{
-					to->ammo[i] = (signed short)MSG_ReadBits(16);
+					Com_Printf( "PS_AMMO " );
+				}
+#endif
+				bitmask = msgfuncs->ReadBits(16);
+				for( i=0 ; i<16 ; i++ )
+				{
+					if( bitmask & (1u << i) )
+					{
+						to->ammo[j*16+i] = (signed short)msgfuncs->ReadBits(16);
+					}
 				}
 			}
 		}
-
 		// PS_POWERUPS
-		if( MSG_ReadBits(1) )
+		if( msgfuncs->ReadBits(1) )
 		{
 #ifdef MSG_SHOWNET
 			if( moredump ) {
@@ -1675,16 +1548,18 @@ void MSG_Q3_ReadDeltaPlayerstate( const q3playerState_t *from, q3playerState_t *
 			}
 #endif
 
-			bitmask = MSG_ReadBits(16);
+			bitmask = msgfuncs->ReadBits(16);
 			for( i=0 ; i<MAX_Q3_POWERUPS ; i++ )
 			{
 				if( bitmask & (1 << i) )
 				{
-					to->powerups[i] = MSG_ReadLong();
+					to->powerups[i] = msgfuncs->ReadLong();
 				}
 			}
 		}
 	}
+
+
 
 #ifdef MSG_SHOWNET
 	if( dump )
@@ -1712,20 +1587,20 @@ int kbitmask[] = {
 
 static int MSG_ReadDeltaKey(int key, int from, int bits)
 {
-	if (MSG_ReadBits(1))
-		return MSG_ReadBits(bits) ^ (key & kbitmask[bits]);
+	if (msgfuncs->ReadBits(1))
+		return msgfuncs->ReadBits(bits) ^ (key & kbitmask[bits]);
 	else
 		return from;
 }
 void MSG_Q3_ReadDeltaUsercmd(int key, const usercmd_t *from, usercmd_t *to)
 {
-	if (MSG_ReadBits(1))
-		to->servertime = MSG_ReadBits(8) + from->servertime;
+	if (msgfuncs->ReadBits(1))
+		to->servertime = msgfuncs->ReadBits(8) + from->servertime;
 	else
-		to->servertime = MSG_ReadBits(32);
+		to->servertime = msgfuncs->ReadBits(32);
 	to->msec = 0;	//first of a packet should always be an absolute value, which makes the old value awkward.
 
-	if (!MSG_ReadBits(1))
+	if (!msgfuncs->ReadBits(1))
 	{
 		to->angles[0] = from->angles[0];
 		to->angles[1] = from->angles[1];
@@ -1748,11 +1623,12 @@ void MSG_Q3_ReadDeltaUsercmd(int key, const usercmd_t *from, usercmd_t *to)
 		to->upmove	= (signed char)(unsigned char)MSG_ReadDeltaKey(key, (unsigned char)(signed char)from->upmove,		8);
 		to->buttons		= MSG_ReadDeltaKey(key, from->buttons,		16);
 		to->weapon		= MSG_ReadDeltaKey(key, from->weapon,		8);
+
 	}
 }
 
 qint64_t Q3VM_GetRealtime(q3time_t *qtime)
-{      //this is useful mostly for saved games, or other weird stuff.
+{	//this is useful mostly for saved games, or other weird stuff.
 	time_t t = time(NULL);
 	if (qtime)
 	{
@@ -1773,4 +1649,103 @@ qint64_t Q3VM_GetRealtime(q3time_t *qtime)
 	}
 	return t;
 }
+
+
+
+
+
+static struct q3gamecode_s q3funcs =
+{
+	{
+		CLQ3_SendAuthPacket,
+		CLQ3_SendConnectPacket,
+		CLQ3_Established,
+		CLQ3_SendClientCommand,
+		CLQ3_SendCmd,
+		CLQ3_ParseServerMessage,
+		CLQ3_Disconnect,
+	},
+
+	{
+		CG_Restart,
+		CG_Refresh,
+		CG_ConsoleCommand,
+		CG_KeyPressed,
+		CG_GatherLoopingSounds,
+	},
+
+	{
+		UI_IsRunning,
+		UI_ConsoleCommand,
+		UI_Start,
+		UI_OpenMenu,
+		UI_Reset,
+	},
+
+	{
+		SVQ3_ShutdownGame,
+		SVQ3_InitGame,
+		SVQ3_ConsoleCommand,
+		SVQ3_PrefixedConsoleCommand,
+		SVQ3_HandleClient,
+		SVQ3_DirectConnect,
+		SVQ3_NewMapConnects,
+		SVQ3_DropClient,
+		SVQ3_RunFrame,
+		SVQ3_SendMessage,
+		SVQ3_RestartGamecode,
+		SVQ3_ServerinfoChanged,
+	},
+};
+
+void Q3_Frame(double enginetime, double gametime)
+{
+	realtime = enginetime;
+}
+
+void Q3_Shutdown(void)
+{
+	SVQ3_ShutdownGame(false);
+	CG_Stop();
+	UI_Stop();
+
+	VMQ3_FlushStringHandles();
+}
+
+#ifdef STATIC_Q3
+#define Plug_Init Plug_Q3_Init
+#endif
+
+qboolean Plug_Init(void)
+{
+	vmfuncs = plugfuncs->GetEngineInterface(plugq3vmfuncs_name, sizeof(*vmfuncs));
+	fsfuncs = plugfuncs->GetEngineInterface(plugfsfuncs_name, sizeof(*fsfuncs));
+	msgfuncs = plugfuncs->GetEngineInterface(plugmsgfuncs_name, sizeof(*msgfuncs));
+	worldfuncs = plugfuncs->GetEngineInterface(plugworldfuncs_name, sizeof(*worldfuncs));
+
+	if (!vmfuncs || !fsfuncs || !msgfuncs || !worldfuncs)
+	{
+		Con_Printf("Engine functionality missing, cannot enable q3 gamecode support.\n");
+		return false;
+	}
+
+	if (!plugfuncs->ExportFunction("Shutdown", Q3_Shutdown) ||
+		!plugfuncs->ExportInterface("Quake3Plugin", &q3funcs, sizeof(q3funcs)))
+	{
+		Con_Printf("Engine is already using a q3-derived gamecode plugin.\n");
+		return false;
+	}
+	plugfuncs->ExportFunction("Tick", Q3_Frame);
+
+	drawfuncs = plugfuncs->GetEngineInterface(plug2dfuncs_name, sizeof(*drawfuncs));
+	scenefuncs = plugfuncs->GetEngineInterface(plug3dfuncs_name, sizeof(*scenefuncs));
+	inputfuncs = plugfuncs->GetEngineInterface(pluginputfuncs_name, sizeof(*inputfuncs));
+	clientfuncs = plugfuncs->GetEngineInterface(plugclientfuncs_name, sizeof(*clientfuncs));
+	audiofuncs = plugfuncs->GetEngineInterface(plugaudiofuncs_name, sizeof(*audiofuncs));
+	masterfuncs = plugfuncs->GetEngineInterface(plugmasterfuncs_name, sizeof(*masterfuncs));
+	if (drawfuncs && scenefuncs && inputfuncs && audiofuncs && masterfuncs && clientfuncs)
+		UI_Init();
+	return true;
+}
+
 #endif

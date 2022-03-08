@@ -361,6 +361,12 @@ int i;
 	return ri;
 }
 
+//reset enough that we'll start decoding from the start next time we try to read a frame.
+void roq_rewind(roq_info *ri)
+{
+	ri->frame_num = 0;
+	ri->aud_pos = ri->vid_pos = ri->roq_start;
+}
 
 /* -------------------------------------------------------------------------- */
 void roq_close(roq_info *ri)

@@ -486,6 +486,7 @@ static void Huff_Init(huffman_t *huff)
 			Huff_addRef(&huff->decompressor,	(qbyte)i);
 		}
 	}
+	huff->built = true;
 }
 
 

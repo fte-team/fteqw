@@ -2181,6 +2181,12 @@ static void Media_Roq_Shutdown(struct cin_s *cin)
 	cin->roq.roqfilm=NULL;
 }
 
+static void Media_Roq_Rewind(struct cin_s *cin)
+{
+	roq_rewind(cin->roq.roqfilm);
+	cin->roq.nextframetime = 0;
+}
+
 static qboolean Media_Roq_DecodeFrame (cin_t *cin, qboolean nosound, qboolean forcevideo, double mediatime, void (QDECL *uploadtexture)(void *ctx, uploadfmt_t fmt, int width, int height, void *data, void *palette), void *ctx)
 {
 	qboolean doupdate = forcevideo;
@@ -2296,6 +2302,7 @@ static cin_t *Media_RoQ_TryLoad(char *name)
 	{
 		cin = Z_Malloc(sizeof(cin_t));
 		cin->decodeframe = Media_Roq_DecodeFrame;
+		cin->rewind = Media_Roq_Rewind;
 		cin->shutdown = Media_Roq_Shutdown;
 		cin->getsize = Media_Roq_GetSize;
 

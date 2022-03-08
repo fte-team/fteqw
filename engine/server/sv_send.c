@@ -3384,7 +3384,11 @@ void SV_SendClientMessages (void)
 				continue;
 			}
 
-			SVQ3_SendMessage(c);
+			if (c->lastoutgoingphysicstime == pt)
+				continue;
+			c->lastoutgoingphysicstime = pt;
+
+			q3->sv.SendMessage(c);
 		}
 		return;
 	}
@@ -3461,7 +3465,7 @@ void SV_SendClientMessages (void)
 #ifdef Q3SERVER
 		if (ISQ3CLIENT(c))
 		{	//q3 protocols bypass backbuffering and pretty much everything else
-			SVQ3_SendMessage(c);
+			q3->sv.SendMessage(c);
 			continue;
 		}
 #endif

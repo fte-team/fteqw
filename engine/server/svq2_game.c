@@ -92,13 +92,13 @@ void *SVQ2_GetGameAPI (void *parms)
 			}
 			else if (*gamename[o] == '/')
 			{	//system path. o.O
-				if (com_nogamedirnativecode.ival)	//just in case they match.
+				if (!com_gamedirnativecode.ival)	//just in case they match.
 					continue;
 				Q_snprintfz(name, sizeof(name), gamename[o], gamepath);
 			}
 			else
 			{	//gamedir paths as specified above.
-				if (com_nogamedirnativecode.ival)
+				if (!com_gamedirnativecode.ival)
 					continue;
 				Q_snprintfz(name, sizeof(name), "%s%s", syspath, gamename[o]);
 			}

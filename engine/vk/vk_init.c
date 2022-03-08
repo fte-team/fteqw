@@ -3497,7 +3497,7 @@ static void VK_PaintScreen(void)
 	if (topmenu && topmenu->isopaque)
 		nohud = true;
 #ifdef VM_CG
-	else if (CG_Refresh())
+	else if (q3->cg.Redraw(cl.time))
 		nohud = true;
 #endif
 #ifdef CSQC_DAT

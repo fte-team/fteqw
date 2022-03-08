@@ -104,7 +104,7 @@ extern int sv_max_staticentities;
 extern staticsound_state_t *sv_staticsounds;
 extern int sv_max_staticsounds;
 
-typedef struct
+typedef struct server_s
 {
 	qboolean	active;				// false when server is going down
 	server_state_t	state;			// precache commands are only valid during load
@@ -112,15 +112,14 @@ typedef struct
 	float		gamespeed;	//time progression multiplier, fixed per-level.
 	unsigned int csqcchecksum;
 	qboolean	mapchangelocked;
-	qboolean	restarting;
 
 #ifdef SAVEDGAMES
 	char		loadgame_on_restart[MAX_QPATH];	//saved game to load on map_restart
 	double		autosave_time;
 #endif
-	double		time;			//current map time
-	double		restartedtime;	//sv.time from last map restart
-	double		starttime;		//system time we changed map.
+	double		time;			//time passed since map (re)start
+	double		starttime;		//Sys_DoubleTime at the start of the map
+	double		restarttime;	//for delayed map restarts - map will restart once sv.time reaches this stamp
 	int framenum;
 	int logindatabase;
 
@@ -391,26 +390,6 @@ typedef struct	//merge?
 	float				ping_time;
 } q2client_frame_t;
 #endif
-#ifdef Q3SERVER
-#include "../client/clq3defs.h"
-typedef struct	//merge?
-{
-	int					flags;
-	int					areabytes;
-	qbyte				areabits[MAX_Q2MAP_AREAS/8];		// portalarea visibility bits
-	q3playerState_t		ps;
-	int					num_entities;
-	int					first_entity;		// into the circular sv_packet_entities[]
-	int					senttime;			// for ping calculations
-
-
-	int				serverMessageNum;
-	int				serverCommandNum;
-	int				serverTime;		// server time the message is valid for (in msec)
-	int				localTime;
-	int				deltaFrame;
-} q3client_frame_t;
-#endif
 
 #define MAX_BACK_BUFFERS 16
 
@@ -584,7 +563,7 @@ typedef struct client_s
 		q2client_frame_t	*q2frames;
 #endif
 #ifdef Q3SERVER
-		q3client_frame_t	*q3frames;
+		void	*q3frames;
 #endif
 	} frameunion;
 	packet_entities_t sentents;
@@ -624,7 +603,7 @@ typedef struct client_s
 	//quake3 does reliables only via this mechanism. basically just like q1's stuffcmds.
 	int server_command_ack;				//number known to have been received.
 	int server_command_sequence;		//number available.
-	char server_commands[64][1024];		//the commands, to deal with resends
+	char server_commands[256][1024];		//the commands, to deal with resends
 #endif
 
 	//true/false/persist
@@ -940,7 +919,7 @@ typedef struct svtcpstream_s {
 } svtcpstream_t;
 #endif
 
-typedef struct
+typedef struct server_static_s
 {
 	gametype_e	gametype;
 	int			spawncount;			// number of servers spawned since start,
@@ -1292,24 +1271,6 @@ void SVQ2_WriteFrameToClient (client_t *client, sizebuf_t *msg);
 void MSGQ2_WriteDeltaEntity (q2entity_state_t *from, q2entity_state_t *to, sizebuf_t *msg, qboolean force, qboolean newentity);
 void SVQ2_BuildBaselines(void);
 #endif
-
-//q3 stuff
-#ifdef Q3SERVER
-void SVQ3_ShutdownGame(qboolean restarting);
-qboolean SVQ3_InitGame(qboolean restarting);
-void SVQ3_ServerinfoChanged(const char *key);
-qboolean SVQ3_RestartGamecode(void);
-qboolean SVQ3_ConsoleCommand(void);
-qboolean SVQ3_HandleClient(void);
-void SVQ3_DirectConnect(void);
-void SVQ3_NewMapConnects(void);
-void SVQ3_DropClient(client_t *cl);
-int SVQ3_AddBot(void);
-void SVQ3_RunFrame(void);
-void SVQ3_SendMessage(client_t *client);
-qboolean SVQ3_Command(void);
-#endif
-
 
 //
 // sv_send.c

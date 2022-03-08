@@ -1056,6 +1056,7 @@ void Mod_ModelLoaded(void *ctx, void *data, size_t a, size_t b)
 			Con_Printf(CON_ERROR "Unable to load %s\n", mod->name);
 		break;
 	case MLV_SILENT:
+	case MLV_SILENTSYNC:
 		break;
 	}
 }
@@ -1369,18 +1370,16 @@ model_t *Mod_LoadModel (model_t *mod, enum mlverbosity_e verbose)
 			COM_InsertWork(WG_LOADER, Mod_LoadModelWorker, mod, NULL, verbose, 0);
 		else
 			COM_AddWork(WG_LOADER, Mod_LoadModelWorker, mod, NULL, verbose, 0);
-
-		//block until its loaded, if we care.
-		if (verbose == MLV_ERROR || verbose == MLV_WARNSYNC)
-			COM_WorkerPartialSync(mod, &mod->loadstate, MLS_LOADING);
 	}
+
+	//block until its loaded, if we care.
+	if (mod->loadstate == MLS_LOADING && (verbose == MLV_ERROR || verbose == MLV_WARNSYNC || verbose == MLV_SILENTSYNC))
+		COM_WorkerPartialSync(mod, &mod->loadstate, MLS_LOADING);
 
 	if (verbose == MLV_ERROR)
 	{
 		//someone already tried to load it without caring if it failed or not. make sure its loaded.
 		//fixme: this is a spinloop.
-		if (mod->loadstate == MLS_LOADING)
-			COM_WorkerPartialSync(mod, &mod->loadstate, MLS_LOADING);
 
 		if (mod->loadstate != MLS_LOADED)
 			Host_EndGame ("Mod_NumForName: %s not found or couldn't load", mod->name);

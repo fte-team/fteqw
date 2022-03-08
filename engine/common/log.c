@@ -848,7 +848,7 @@ qboolean CertLog_ConnectOkay(const char *hostname, void *cert, size_t certsize, 
 			text[len] = 0;
 
 			//FIXME: display some sort of fingerprint
-			Menu_Prompt(CertLog_Add_Prompted, ctx, text, accepttext, NULL, localtext("Disconnect"));
+			Menu_Prompt(CertLog_Add_Prompted, ctx, text, accepttext, NULL, localtext("Disconnect"), true);
 		}
 		return false;	//can't connect yet...
 	}

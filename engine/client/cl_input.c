@@ -1609,7 +1609,7 @@ void VARGS CL_SendSeatClientCommand(qboolean reliable, unsigned int seat, char *
 #ifdef Q3CLIENT
 	if (cls.protocol == CP_QUAKE3)
 	{
-		CLQ3_SendClientCommand("%s", string);
+		q3->cl.SendClientCommand("%s", string);
 		return;
 	}
 #endif
@@ -2135,7 +2135,7 @@ static void CL_SendUserinfoUpdate(void)
 		if (info == &cls.userinfo[0])
 		{
 			InfoBuf_ToString(info, userinfo, sizeof(userinfo), NULL, NULL, NULL, NULL, NULL);
-			CLQ3_SendClientCommand("userinfo \"%s\"", userinfo);
+			q3->cl.SendClientCommand("userinfo \"%s\"", userinfo);
 		}
 		return;
 	}
@@ -2527,7 +2527,11 @@ void CL_SendCmd (double frametime, qboolean mainloop)
 #ifdef Q3CLIENT
 		case CP_QUAKE3:
 			msecs -= (double)msecstouse;
-			CLQ3_SendCmd(&cl_pendingcmd[0]);
+			i = cl.movesequence&UPDATE_MASK;
+			memcpy(cl.outframes[i].cmd, cl_pendingcmd, sizeof(usercmd_t)*bound(1, cl.splitclients, MAX_SPLITS));
+			cl.outframes[i].cmd_sequence = cl.movesequence++;
+			q3->cl.SendCmd(cls.sockets, cl.outframes[i].cmd, cl.movesequence, cl.time);
+			cls.netchan.outgoing_sequence = cl.movesequence;
 			CL_ClearPendingCommands();
 
 			//don't bank too much, because that results in banking speedcheats

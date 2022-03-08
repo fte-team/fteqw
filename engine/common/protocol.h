@@ -1457,7 +1457,8 @@ typedef struct q1usercmd_s
 #define RDF_RENDERSCALE			(1u<<21)
 #define RDF_SCENEGAMMA			(1u<<22)
 #define RDF_DISABLEPARTICLES	(1u<<23)	//mostly for skyrooms
-#define RDF_SKIPSKY				(1u<<24)	//we have a skyroom, skip drawing sky chains for this scene.
+#define RDF_SKIPSKY				(1u<<24)	//we drew a skyroom, skip drawing sky chains for this scene.
+#define RDF_SKYROOMENABLED		(1u<<25)	//skyroom position is known, be prepared to draw the skyroom if its visible.
 
 #define RDF_ALLPOSTPROC			(RDF_BLOOM|RDF_FISHEYE|RDF_WATERWARP|RDF_CUSTOMPOSTPROC|RDF_ANTIALIAS|RDF_SCENEGAMMA)	//these flags require rendering to an fbo for the various different post-processing shaders.
 
@@ -1766,6 +1767,8 @@ typedef struct q1usercmd_s
 #define MLS_POWERMODE			2
 #define MLS_TORCH				3
 #define MLS_TOTALDARK			4
+#define MLS_UNUSED				4
+#define MLS_ADDLIGHT			6
 #define MLS_ABSLIGHT			(MLS_MASK)
 #define SCALE_TYPE_MASK			(SCALE_TYPE_UNIFORM|SCALE_TYPE_XYONLY|SCALE_TYPE_ZONLY)
 #define SCALE_TYPE_UNIFORM		0	// Scale X, Y, and Z

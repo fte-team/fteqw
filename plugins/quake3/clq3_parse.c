@@ -7,22 +7,6 @@
 #include "shader.h"
 #include "cl_master.h"
 
-#ifndef STATIC_Q3
-void Cvar_ForceCheatVars(qboolean semicheats, qboolean absolutecheats){}	//locks/unlocks cheat cvars depending on weather we are allowed them.
-
-void Con_ClearNotify (void){}
-
-unsigned int key_dest_mask;
-void Sys_Clipboard_PasteText(clipboardtype_t clipboardtype, void (*callback)(void *cb, const char *utf8), void *ctx){};	//calls the callback once the text is available (maybe instantly). utf8 arg may be NULL if the clipboard was unavailable.
-unsigned int utf8_decode(int *error, const void *in, char const**out){return 0;}
-
-char *CL_TryingToConnect(void){return NULL;}
-
-downloadlist_t *CL_DownloadFailed(const char *name, qdownload_t *qdl, enum dlfailreason_e failreason){return NULL;}
-qboolean DL_Begun(qdownload_t *dl){return 0;}
-void CL_DownloadFinished(qdownload_t *dl){}
-#endif
-
 //urm, yeah, this is more than just parse.
 
 #ifdef Q3CLIENT
@@ -383,7 +367,7 @@ void CLQ3_ParseDownload(void)
 	{	//the only downloads we should be getting is pk3s.
 		//if they're advertised-but-failing then its probably due to permissions rather than file-not-found
 		s = msgfuncs->ReadString();
-		CL_DownloadFailed(dl->remotename, dl, DLFAIL_SERVERCVAR);
+		clientfuncs->DownloadFailed(dl->remotename, dl, DLFAIL_SERVERCVAR);
 		plugfuncs->EndGame("%s", s);
 		return;
 	}
@@ -411,9 +395,9 @@ void CLQ3_ParseDownload(void)
 
 	if (!dl->file)
 	{
-		if (!DL_Begun(dl))
+		if (!clientfuncs->DownloadBegun(dl))
 		{
-			CL_DownloadFailed(dl->remotename, dl, DLFAIL_CLIENTFILE);
+			clientfuncs->DownloadFailed(dl->remotename, dl, DLFAIL_CLIENTFILE);
 			return;
 		}
 	}
@@ -422,7 +406,7 @@ void CLQ3_ParseDownload(void)
 
 	if (!chunksize)
 	{
-		CL_DownloadFinished(dl);
+		clientfuncs->DownloadFinished(dl);
 
 		ccs.servercount = -1;	//make sure the server resends us that vital gamestate.
 		ccs.downloadchunknum = -1;
@@ -515,7 +499,7 @@ qboolean CLQ3_SystemInfoChanged(const char *str)
 	Con_Printf("Server's sv_pure: \"%s\"\n", worldfuncs->GetInfoKey(str, "sv_pure"));
 	usingpure = atoi(worldfuncs->GetInfoKey(str, "sv_pure"));
 	usingcheats = atoi(worldfuncs->GetInfoKey(str, "sv_cheats"));
-	Cvar_ForceCheatVars(usingpure||usingcheats, usingcheats);
+	clientfuncs->ForceCheatVars(usingpure||usingcheats, usingcheats);
 
 //	if (atoi(value))
 //		Host_EndGame("Unable to connect to Q3 Pure Servers\n");
@@ -909,7 +893,7 @@ void CLQ3_SendCmd(struct ftenet_connections_s *socket, usercmd_t *cmd, unsigned 
 		cmd->upmove = 100;
 		cmd->buttons &= ~2;
 	}
-	if (Key_Dest_Has(~kdm_game))
+	if (inputfuncs->GetKeyDest() & ~kdm_game)
 		cmd->buttons |= 2;	//add in the 'at console' button
 
 	//FIXME: q3 generates a new command every video frame, but a new packet at a more limited rate.

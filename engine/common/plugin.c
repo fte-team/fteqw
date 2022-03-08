@@ -2120,9 +2120,15 @@ static void *QDECL PlugBI_GetEngineInterface(const char *interfacename, size_t s
 			NULL,
 #endif
 
+			Con_ClearNotify,
 			Plug_CL_ClearState,
 			Plug_CL_SetLoadscreenState,
 			Plug_CL_UpdateGameTime,
+
+			Cvar_ForceCheatVars,
+			DL_Begun,
+			CL_DownloadFinished,
+			CL_DownloadFailed,
 		};
 		if (structsize == sizeof(funcs))
 			return &funcs;
@@ -2149,6 +2155,11 @@ static void *QDECL PlugBI_GetEngineInterface(const char *interfacename, size_t s
 			Plug_Input_SetSensitivityScale,
 			Plug_Input_GetMoveCount,
 			Plug_Input_GetMoveEntry,
+
+			Sys_Clipboard_PasteText,
+			Sys_SaveClipboard,
+			utf8_decode,
+			utf8_encode,
 
 			IN_GetKeyDest,
 			IN_KeyEvent,

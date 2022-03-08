@@ -1115,6 +1115,7 @@ qboolean Cvar_ApplyLatchFlag(cvar_t *var, char *value, unsigned int newflag, uns
 	return result;
 }
 
+#ifdef HAVE_CLIENT
 void Cvar_ForceCheatVars(qboolean semicheats, qboolean absolutecheats)
 {	//this either unlatches if the cheat type is allowed, or enforces a default for full cheats and blank for semicheats.
 	//this is clientside only.
@@ -1167,7 +1168,10 @@ void Cvar_ForceCheatVars(qboolean semicheats, qboolean absolutecheats)
 				var->latched_string = latch;
 		}
 	}
+
+	Validation_Apply_Ruleset();
 }
+#endif
 
 int Cvar_ApplyLatches(int latchflag, qboolean clearflag)
 {

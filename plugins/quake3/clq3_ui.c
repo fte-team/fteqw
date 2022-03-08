@@ -835,7 +835,7 @@ static void UI_SimulateTextEntry(void *cb, const char *utf8)
 	int err;
 	while(*line)
 	{
-		unicode = utf8_decode(&err, line, &line);
+		unicode = inputfuncs->utf8_decode(&err, line, &line);
 		if (uivm)
 			vmfuncs->Call(uivm, UI_KEY_EVENT, unicode|1024, true);
 	}
@@ -1089,7 +1089,7 @@ static qintptr_t UI_SystemCalls(void *offset, quintptr_t mask, qintptr_t fn, con
 
 		//but do we really want to let mods read the system clipboard? I suppose it SHOULD be okay if the UI was manually installed by the user.
 		//side note: q3's text entry logic is kinda flawed.
-		Sys_Clipboard_PasteText(CBT_CLIPBOARD, UI_SimulateTextEntry, NULL);
+		inputfuncs->ClipboardGet(CBT_CLIPBOARD, UI_SimulateTextEntry, NULL);
 		break;
 
 	case UI_KEY_KEYNUMTOSTRINGBUF:
@@ -1124,7 +1124,7 @@ static qintptr_t UI_SystemCalls(void *offset, quintptr_t mask, qintptr_t fn, con
 		inputfuncs->ClearKeyStates();
 		break;
 	case UI_KEY_GETCATCHER:
-		if (Key_Dest_Has(kdm_console))
+		if (inputfuncs->GetKeyDest() & kdm_console)
 			VM_LONG(ret) = keycatcher | 1;
 		else
 			VM_LONG(ret) = keycatcher;
@@ -1185,10 +1185,11 @@ static qintptr_t UI_SystemCalls(void *offset, quintptr_t mask, qintptr_t fn, con
 			uiClientState_t *state = VM_POINTER(arg[0]);
 			state->connectPacketCount = 0;//clc.connectPacketCount;
 
+			cvarfuncs->GetString("cl_servername", state->servername, sizeof(state->servername));	//server we're connected to
 			switch(ccs.state)
 			{
 			case ca_disconnected:
-				if (CL_TryingToConnect())
+				if (*state->servername)
 					state->connState = Q3CA_CONNECTING;
 				else
 					state->connState = Q3CA_DISCONNECTED;
@@ -1206,7 +1207,6 @@ static qintptr_t UI_SystemCalls(void *offset, quintptr_t mask, qintptr_t fn, con
 				state->connState = Q3CA_ACTIVE;
 				break;
 			}
-			cvarfuncs->GetString("cl_servername", state->servername, sizeof(state->servername));	//error message from game server
 			Q_strncpyz(state->updateInfoString, "FTE!", sizeof(state->updateInfoString));	//warning/motd message from update server
 			cvarfuncs->GetString("com_errorMessage", state->messageString, sizeof(state->messageString));	//error message from game server
 			state->clientNum = ccs.playernum;

@@ -310,9 +310,15 @@ typedef struct	//q1 client/network info
 	F(float,	GetTrackerOwnFrags,	(int seat, char *text, size_t textsize));
 	F(void,		GetPredInfo,		(int seat, vec3_t outvel));
 
+	F(void,		ClearNotify,		(void));	//called for fast map restarts.
 	F(void,		ClearClientState,	(void));	//called at the start of map changes.
 	F(void,		SetLoadingState,	(qboolean newstate));	//Change the client's loading screen state.
 	F(void,		UpdateGameTime,		(double));	//tells the client an updated snapshot time for interpolation/timedrift.
+
+	void (*ForceCheatVars)			(qboolean semicheats, qboolean absolutecheats);
+	qboolean (*DownloadBegun)(qdownload_t *dl);
+	void (*DownloadFinished)(qdownload_t *dl);
+	downloadlist_t *(*DownloadFailed)(const char *name, qdownload_t *qdl, enum dlfailreason_e failreason);
 #define plugclientfuncs_name "Client"
 } plugclientfuncs_t;
 
@@ -338,6 +344,11 @@ typedef struct	//for menu-like stuff
 	F(void,			SetSensitivityScale,(float newsensitivityscale));	//this is a temporary sensitivity thing.
 	F(unsigned int,	GetMoveCount,		(void));
 	F(usercmd_t*,	GetMoveEntry,		(unsigned int move));	//GetMoveEntry(GetMoveCount()) gives you the partial entry. forgotten entries return NULL.
+
+	void (*ClipboardGet) (clipboardtype_t clipboardtype, void (*callback)(void *ctx, const char *utf8), void *ctx);
+	void (*ClipboardSet) (clipboardtype_t clipboardtype, const char *utf8);
+	unsigned int (*utf8_decode)(int *error, const void *in, char const**out);
+	unsigned int (*utf8_encode)(void *out, unsigned int unicode, int maxlen);
 
 	unsigned int (*GetKeyDest)		(void);
 	void (*KeyEvent)				(unsigned int devid, int down, int keycode, int unicode);

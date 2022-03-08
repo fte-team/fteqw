@@ -115,7 +115,7 @@ cvar_t	cl_predict_players_latency	= CVARD("cl_predict_players_latency", "1.0", "
 cvar_t	cl_predict_players_nudge	= CVARD("cl_predict_players_nudge", "0.02", "An extra nudge of time, to cover video latency.");
 cvar_t	cl_solid_players = CVARD("cl_solid_players", "1", "Consider other players as solid for player prediction.");
 cvar_t	cl_noblink = CVARD("cl_noblink", "0", "Disable the ^^b text blinking feature.");
-cvar_t	cl_servername = CVARD("cl_servername", "none", "The hostname of the last server you connected to");
+cvar_t	cl_servername = CVARFD("cl_servername", "", CVAR_NOSET, "The hostname of the last server you connected to");
 cvar_t	cl_serveraddress = CVARD("cl_serveraddress", "none", "The address of the last server you connected to");
 cvar_t	qtvcl_forceversion1 = CVAR("qtvcl_forceversion1", "0");
 cvar_t	qtvcl_eztvextensions = CVAR("qtvcl_eztvextensions", "0");
@@ -1181,7 +1181,11 @@ void CL_CheckForResend (void)
 #endif
 
 	if (!connectinfo.trying)
+	{
+		if (*cl_servername.string)
+			Cvar_ForceSet(&cl_servername, "");
 		return;
+	}
 	if (startuppending || r_blockvidrestart)
 		return;	//don't send connect requests until we've actually initialised fully. this isn't a huge issue, but makes the startup prints a little more sane.
 
@@ -2197,7 +2201,7 @@ void CL_Disconnect (const char *reason)
 	FTENET_AddToCollection(cls.sockets, "conn", NULL, NA_INVALID, NP_DGRAM);
 #endif
 
-	Cvar_ForceSet(&cl_servername, "none");
+	Cvar_ForceSet(&cl_servername, "");
 
 	CL_ClearState(false);
 
@@ -2672,7 +2676,6 @@ void CL_CheckServerInfo(void)
 	CL_CheckServerPacks();
 
 	Cvar_ForceCheatVars(cls.allow_semicheats, cls.allow_cheats);
-	Validation_Apply_Ruleset();
 
 	if (oldteamplay != cl.teamplay)
 		Skin_FlushPlayers();

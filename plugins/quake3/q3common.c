@@ -347,7 +347,7 @@ int VM_GetFileList(const char *path, const char *ext, char *output, int buffersi
 #include "clq3defs.h"	//okay, urr, this is bad for dedicated servers. urhum. Maybe they're not looking? It's only typedefs and one extern.
 
 #define MAX_VMQ3_CVARS 512	//can be blindly increased
-cvar_t *q3cvlist[MAX_VMQ3_CVARS];
+static cvar_t *q3cvlist[MAX_VMQ3_CVARS];
 int VMQ3_Cvar_Register(q3vmcvar_t *v, char *name, char *defval, int flags)
 {
 	int i;

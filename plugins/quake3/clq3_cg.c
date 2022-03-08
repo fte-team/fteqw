@@ -384,7 +384,7 @@ qboolean CG_GetServerCommand(int cmdnum)
 	if (!strcmp(arg0, "cs"))
 		CG_InsertIntoGameState(atoi(cmdfuncs->Argv(1, NULL, 0)), cmdfuncs->Argv(2, NULL, 0));
 	else if (!strcmp(arg0, "map_restart"))
-		Con_ClearNotify();
+		clientfuncs->ClearNotify();
 	else if (!strcmp(arg0, "disconnect"))
 		plugfuncs->EndGame("Server disconnected - %s", (cmdfuncs->Argc()>1)?cmdfuncs->Argv(1, NULL, 0):"No reason given");
 	return true;

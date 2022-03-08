@@ -134,8 +134,8 @@ endif
 ifeq (,$(findstring DNO_OPUS,$(FTE_CONFIG_EXTRA)))
     USE_OPUS=1
 endif
-ifeq (,$(findstring DNO_BOTLIB,$(FTE_CONFIG_EXTRA)))
-    USE_BOTLIB=1
+ifneq (,$(findstring DLINK_QUAKE3,$(FTE_CONFIG_EXTRA)))
+    LINK_QUAKE3=1
 endif
 ifeq (,$(findstring DNO_VORBISFILE,$(FTE_CONFIG_EXTRA)))
     USE_VORBISFILE=1
@@ -944,9 +944,9 @@ COMMON_OBJS = \
 	q1bsp.o		\
 	q2pmove.o
 
-ifeq (1,$(USE_BOTLIB))
-	BOTLIB_CFLAGS=-I$(BOTLIB_DIR) -DBOTLIB -DBOTLIB_STATIC
-	BOTLIB_OBJS = 			\
+ifeq (1,$(LINK_QUAKE3))
+	ALL_CFLAGS+=-I$(BOTLIB_DIR) -DBOTLIB -DBOTLIB_STATIC -DSTATIC_Q3
+	COMMON_OBJS += 			\
 		clq3_parse.o	\
 		cl_ui.o	\
 		cl_cg.o \
@@ -2534,4 +2534,5 @@ install: sv-rel gl-rel mingl-rel qcc-rel
 version:
 	@echo $(SVN_VERSION)
 	@echo $(SVN_DATE)
+	@echo $(FTE_CONFIG_EXTRA)
 

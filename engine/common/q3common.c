@@ -10,8 +10,10 @@ plugmsgfuncs_t		*msgfuncs;
 plugworldfuncs_t	*worldfuncs;
 plugmasterfuncs_t	*masterfuncs;
 
+#ifndef STATIC_Q3
 double realtime;
 struct netprim_s msg_nullnetprim;
+#endif
 
 //mostly for access to sv.state or svs.sockets
 q3serverstate_t sv3;
@@ -1694,10 +1696,12 @@ static struct q3gamecode_s q3funcs =
 	},
 };
 
+#ifndef STATIC_Q3
 void Q3_Frame(double enginetime, double gametime)
 {
 	realtime = enginetime;
 }
+#endif
 
 void Q3_Shutdown(void)
 {
@@ -1731,7 +1735,9 @@ qboolean Plug_Init(void)
 		Con_Printf("Engine is already using a q3-derived gamecode plugin.\n");
 		return false;
 	}
+#ifndef STATIC_Q3
 	plugfuncs->ExportFunction("Tick", Q3_Frame);
+#endif
 
 	drawfuncs = plugfuncs->GetEngineInterface(plug2dfuncs_name, sizeof(*drawfuncs));
 	scenefuncs = plugfuncs->GetEngineInterface(plug3dfuncs_name, sizeof(*scenefuncs));

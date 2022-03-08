@@ -1,3 +1,6 @@
+#ifndef FTEPLUGIN
+#define FTEPLUGIN
+#endif
 #include "../plugins/plugin.h"
 #include "clq3defs.h"
 

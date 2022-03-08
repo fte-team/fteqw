@@ -42,7 +42,7 @@ static struct
 #endif
 
 #ifdef STATIC_Q3
-	{"Q3", Plug_Q3_Init},
+	{"quake3", Plug_Q3_Init},
 #endif
 	{NULL}
 };

@@ -208,6 +208,7 @@
 #ifdef AVAIL_JPEGLIB
 -DLINK_JPEG
 #endif
+//-DLINK_QUAKE3	//ask the makefile to bake the quake3 plugin into the engine itself.
 
 //-DNO_OPUS
 //-DNO_SPEEX	//disable static speex

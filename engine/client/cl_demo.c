@@ -162,18 +162,18 @@ void CL_WriteDemoMessage (sizebuf_t *msg, int payloadoffset)
 		c = dem_read;
 		VFS_WRITE (cls.demooutfile, &c, sizeof(c));
 
-		if (*(int*)msg->data == -1)
+		if (*(int*)msg->data == -1 && payloadoffset==0)
 		{
 			//connectionless packet.
 			len = LittleLong (msg->cursize);
 			VFS_WRITE (cls.demooutfile, &len, 4);
-			VFS_WRITE (cls.demooutfile, msg->data + msg_readcount, msg->cursize - msg_readcount);
+			VFS_WRITE (cls.demooutfile, msg->data + payloadoffset, msg->cursize - payloadoffset);
 		}
 		else
 		{
 			//regenerate a legacy netchan. no fragmentation support, but whatever. this ain't udp.
 			//the length
-			len = LittleLong (msg->cursize - msg_readcount + 8);
+			len = LittleLong (msg->cursize - payloadoffset + 8);
 			VFS_WRITE (cls.demooutfile, &len, 4);
 			//hack the netchan here.
 			i = cls.netchan.incoming_sequence;
@@ -181,7 +181,7 @@ void CL_WriteDemoMessage (sizebuf_t *msg, int payloadoffset)
 			i = cls.netchan.incoming_acknowledged;
 			VFS_WRITE (cls.demooutfile, &i, 4);
 			//and the data
-			VFS_WRITE (cls.demooutfile, msg->data + msg_readcount, msg->cursize - msg_readcount);
+			VFS_WRITE (cls.demooutfile, msg->data + payloadoffset, msg->cursize - payloadoffset);
 		}
 		break;
 #ifdef Q2CLIENT
@@ -1008,11 +1008,10 @@ void CL_Stop_f (void)
 #endif
 	{
 		SZ_Clear (&net_message);
-		msg_readcount = 0;
 		MSG_WriteLong (&net_message, -1);	// -1 sequence means out of band
 		MSG_WriteByte (&net_message, svc_disconnect);
 		MSG_WriteString (&net_message, "EndOfDemo");
-		CL_WriteDemoMessage (&net_message, sizeof(int));
+		CL_WriteDemoMessage (&net_message, 0);
 	}
 
 // finish up
@@ -1750,7 +1749,8 @@ void CL_Record_f (void)
 
 	if (cls.state != ca_active)
 	{
-		Con_Printf ("You must be connected to record.\n");
+		Con_Printf ("You must either be connected to record, or specify a map name to load.\n");
+		Con_Printf ("%s: <demoname> <mapname>\n", Cmd_Argv(0));
 		return;
 	}
 
@@ -2107,6 +2107,8 @@ void CL_Record_f (void)
 		CL_Stop_f();
 		break;
 	}
+
+	cl.validsequence = 0; //ask for a sequence reset.
 
 	if (cls.fteprotocolextensions2 & PEXT2_REPLACEMENTDELTAS)
 		if (cl.numackframes < sizeof(cl.ackframes)/sizeof(cl.ackframes[0]))

@@ -1166,7 +1166,7 @@ static void CLQ2_ParsePacketEntities (q2frame_t *oldframe, q2frame_t *newframe)
 		if (newnum >= MAX_Q2EDICTS)
 			Host_EndGame ("CL_ParsePacketEntities: bad number:%i", newnum);
 
-		if (msg_readcount > net_message.cursize)
+		if (MSG_GetReadCount() > net_message.cursize)
 			Host_EndGame ("CL_ParsePacketEntities: end of message");
 
 		if (!newnum)
@@ -1483,7 +1483,7 @@ void CLR1Q2_ParsePlayerUpdate(void)
 			st = &clq2_parse_entities[(frame->parse_entities+pnum) & (MAX_PARSE_ENTITIES-1)];
 
 			//I don't like how r1q2 does its maxclients, so I'm just going to go on message size instead
-			if (msg_readcount == net_message.cursize)
+			if (MSG_GetReadCount() == net_message.cursize)
 				break;
 
 			//the local client(s) is not included, thanks to prediction covering that.
@@ -1503,11 +1503,11 @@ void CLR1Q2_ParsePlayerUpdate(void)
 		}
 
 		//just for sanity's sake
-		if (msg_readcount != net_message.cursize)
+		if (MSG_GetReadCount() != net_message.cursize)
 			msg_badread = true;
 	}
 	//this should be the only/last thing in these packets, because if it isn't then we're screwed when a packet got lost
-	msg_readcount = net_message.cursize;
+	net_message.currentbit = net_message.cursize<<3;
 }
 
 /*

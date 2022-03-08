@@ -1087,7 +1087,7 @@ qboolean Netchan_Process (netchan_t *chan)
 
 	if (offset)
 	{
-		int len = net_message.cursize - msg_readcount;
+		int len = net_message.cursize - MSG_GetReadCount();
 		qboolean more = false;
 		if (offset & 1)
 		{
@@ -1117,7 +1117,7 @@ qboolean Netchan_Process (netchan_t *chan)
 			return false; /*dropped one*/
 		}
 
-		memcpy(chan->in_fragment_buf + offset, net_message.data + msg_readcount, len);
+		memcpy(chan->in_fragment_buf + offset, net_message.data + MSG_GetReadCount(), len);
 		chan->in_fragment_length += len;
 
 		if (more)
@@ -1126,7 +1126,7 @@ qboolean Netchan_Process (netchan_t *chan)
 			return false;
 		}
 		memcpy(net_message.data, chan->in_fragment_buf, chan->in_fragment_length);
-		msg_readcount = 0;
+		net_message.currentbit = 0;
 		net_message.cursize = chan->in_fragment_length;
 
 		if (showpackets.value)
@@ -1194,7 +1194,7 @@ qboolean Netchan_Process (netchan_t *chan)
 	if (chan->compresstable)
 	{
 //		Huff_CompressPacket(&net_message, (chan->sock == NS_SERVER)?10:8);
-		Huff_DecompressPacket(chan->compresstable, &net_message, msg_readcount);
+		Huff_DecompressPacket(chan->compresstable, &net_message, MSG_GetReadCount());
 	}
 #endif
 

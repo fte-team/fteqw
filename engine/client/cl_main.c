@@ -3280,7 +3280,7 @@ void CL_ConnectionlessPacket (void)
 
 	if (c == A2C_PRINT)
 	{
-		if (!strncmp(net_message.data+msg_readcount, "\\chunk", 6))
+		if (!strncmp(net_message.data+MSG_GetReadCount(), "\\chunk", 6))
 		{
 			if (NET_CompareBaseAdr(&cls.netchan.remote_address, &net_from) == false)
 				if (cls.realserverip.type == NA_INVALID || NET_CompareBaseAdr(&cls.realserverip, &net_from) == false)
@@ -3292,7 +3292,7 @@ void CL_ConnectionlessPacket (void)
 
 			if (CL_ParseOOBDownload())
 			{
-				if (msg_readcount != net_message.cursize)
+				if (MSG_GetReadCount() != net_message.cursize)
 				{
 					Con_Printf ("junk on the end of the packet\n");
 					CL_Disconnect_f();
@@ -3634,13 +3634,13 @@ void CL_ConnectionlessPacket (void)
 	if (connectinfo.protocol == CP_QUAKE2)
 	{
 		char *nl;
-		msg_readcount--;
-		c = msg_readcount;
+		MSG_ReadSkip(-1);
+		c = MSG_GetReadCount();
 		s = MSG_ReadString ();
 		nl = strchr(s, '\n');
 		if (nl)
 		{
-			msg_readcount = c + nl-s + 1;
+			MSG_ReadSkip(c + nl-s + 1 - MSG_GetReadCount());
 			msg_badread = false;
 			*nl = '\0';
 		}
@@ -3678,7 +3678,7 @@ void CL_ConnectionlessPacket (void)
 		else
 		{
 			Con_TPrintf ("unknown connectionless packet for q2:  %s\n", s);
-			msg_readcount = c;
+			MSG_ReadSkip(c - MSG_GetReadCount());
 			c = MSG_ReadByte();
 		}
 	}
@@ -4202,7 +4202,7 @@ void CL_ReadPacket(void)
 		case NQNC_RELIABLE:
 		case NQNC_UNRELIABLE:
 			MSG_ChangePrimitives(cls.netchan.netprim);
-			CL_WriteDemoMessage (&net_message, msg_readcount);
+			CL_WriteDemoMessage (&net_message, MSG_GetReadCount());
 			CLNQ_ParseServerMessage ();
 			break;
 		}
@@ -4240,7 +4240,7 @@ void CL_ReadPacket(void)
 		else if (!Netchan_Process(&cls.netchan))
 			return;		// wasn't accepted for some reason
 
-		CL_WriteDemoMessage (&net_message, msg_readcount);
+		CL_WriteDemoMessage (&net_message, MSG_GetReadCount());
 
 		if (cls.netchan.incoming_sequence > cls.netchan.outgoing_sequence)
 		{	//server should not be responding to packets we have not sent yet

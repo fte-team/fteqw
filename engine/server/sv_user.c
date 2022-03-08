@@ -2778,7 +2778,7 @@ void SV_NextUpload (void)
 
 		// suck out rest of packet
 		size = MSG_ReadShort ();	MSG_ReadByte ();
-		msg_readcount += size;
+		MSG_ReadSkip(size);
 		return;
 	}
 
@@ -2802,8 +2802,8 @@ void SV_NextUpload (void)
 			OutofBandPrintf(&host_client->snap_from, "Server receiving %s from %d...\n", host_client->uploadfn, host_client->userid);
 	}
 
-	VFS_WRITE (host_client->upload, net_message.data + msg_readcount, size);
-	msg_readcount += size;
+	VFS_WRITE (host_client->upload, net_message.data + MSG_GetReadCount(), size);
+	MSG_ReadSkip(size);
 
 	if (percent != 100)
 	{
@@ -8869,6 +8869,7 @@ void SVNQ_ReadClientMove (qboolean forceangle16, qboolean quakeex)
 
 void SVNQ_ExecuteClientMessage (client_t *cl)
 {
+	extern cvar_t	sv_listen_dp;
 	int		c;
 	char	*s;
 //	client_frame_t	*frame;
@@ -8980,16 +8981,20 @@ void SVNQ_ExecuteClientMessage (client_t *cl)
 				break;
 			case SCP_NETQUAKE:
 			case SCP_BJP3:
-				//Hack to work around buggy DP clients that don't reset the proquake hack for the next server
-				//this ONLY works because the other clc commands are very unlikely to both be 3 bytes big and sent unreliably
-				//aka: DP ProQuake angles hack hack
-				//note that if a client then decides to use 16bit angles via this hack then it would be the 'fte dp proquake angles hack hack hack'....
-				if (!cl->fteprotocolextensions && !cl->fteprotocolextensions2)
-				if ((net_message.cursize-(msg_readcount-1) == 16 &&  cl->proquake_angles_hack) ||
-					(net_message.cursize-(msg_readcount-1) == 19 && !cl->proquake_angles_hack))
+				if (sv_listen_dp.ival)
 				{
-					cl->proquake_angles_hack ^= 1;
-					SV_ClientPrintf(cl, PRINT_HIGH, "Client sent "S_COLOR_RED"wrong"S_COLOR_WHITE" clc_move size, switching to %u-bit angles to try to compensate\n", cl->proquake_angles_hack?16:8);
+					unsigned int readcount = MSG_GetReadCount();
+					//Hack to work around buggy DP clients that don't reset the proquake hack for the next server
+					//this ONLY works because the other clc commands are very unlikely to both be 3 bytes big and sent unreliably
+					//aka: DP ProQuake angles hack hack
+					//note that if a client then decides to use 16bit angles via this hack then it would be the 'fte dp proquake angles hack hack hack'....
+					if (!cl->fteprotocolextensions && !cl->fteprotocolextensions2)
+					if ((net_message.cursize-(readcount-1) == 16 &&  cl->proquake_angles_hack) ||
+						(net_message.cursize-(readcount-1) == 19 && !cl->proquake_angles_hack))
+					{
+						cl->proquake_angles_hack ^= 1;
+						SV_ClientPrintf(cl, PRINT_HIGH, "Client sent "S_COLOR_RED"wrong"S_COLOR_WHITE" clc_move size, switching to %u-bit angles to try to compensate\n", cl->proquake_angles_hack?16:8);
+					}
 				}
 				forceangle16 = cl->proquake_angles_hack;
 				break;

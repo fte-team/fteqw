@@ -342,7 +342,6 @@ void MSGQW_WriteDeltaUsercmd (sizebuf_t *sb, const struct usercmd_s *from, const
 void MSGCL_WriteDeltaUsercmd (sizebuf_t *sb, const struct usercmd_s *from, const struct usercmd_s *cmd);
 void MSG_WriteDir (sizebuf_t *sb, float *dir);
 
-extern	int			msg_readcount;
 extern	qboolean	msg_badread;		// set if a read goes beyond end of message
 extern struct netprim_s msg_nullnetprim;
 

@@ -4268,6 +4268,7 @@ qboolean SVNQ_ConnectionlessPacket(void)
 			{
 				int numnops = 0;
 				int numnonnops = 0;
+				int c;
 				/*make it at least robust enough to ignore any other stringcmds*/
 				while(1)
 				{
@@ -4278,13 +4279,23 @@ qboolean SVNQ_ConnectionlessPacket(void)
 						continue;
 					case clc_stringcmd:
 						numnonnops++;
-						if (msg_readcount+17 <= net_message.cursize && !strncmp("challengeconnect ", &net_message.data[msg_readcount], 17))
+#define CCON "challengeconnect "
+						for(i = 0; ; i++)
+						{
+							if (!CCON[i])
+								c = -1;
+							else
+								c = MSG_ReadByte();
+							if (c != CCON[i])
+								break;
+						}
+						if (!CCON[i])
 						{
 							if (sv_showconnectionlessmessages.ival)
 								Con_Printf(S_COLOR_GRAY"%s: CCREQ_CONNECT_COOKIE\n", NET_AdrToString (com_token, sizeof(com_token), &net_from));
 							Cmd_TokenizeString(MSG_ReadStringLine(), false, false);
 							/*okay, so this is a reliable packet from a client, containing a 'cmd challengeconnect $challenge' response*/
-							str = va("connect %i %i %s \"\\name\\unconnected\\mod\\%s\\modver\\%s\\flags\\%s\\password\\%s\"", NQ_NETCHAN_VERSION, 0, Cmd_Argv(1), Cmd_Argv(2), Cmd_Argv(3), Cmd_Argv(4), Cmd_Argv(5));
+							str = va("connect %i %i %s \"\\name\\unconnected\\mod\\%s\\modver\\%s\\flags\\%s\\password\\%s\"", NQ_NETCHAN_VERSION, 0, Cmd_Argv(0), Cmd_Argv(1), Cmd_Argv(2), Cmd_Argv(3), Cmd_Argv(4));
 							Cmd_TokenizeString (str, false, false);
 
 							SVC_DirectConnect(sequence);
@@ -4292,7 +4303,7 @@ qboolean SVNQ_ConnectionlessPacket(void)
 							/*if there is anything else in the packet, we don't actually care. its reliable, so they'll resend*/
 							return true;
 						}
-						else
+						else if (c)	//handle any trailing stuff if we don't know what it was.
 							MSG_ReadString();
 						continue;
 					case -1:

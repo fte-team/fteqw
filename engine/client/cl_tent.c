@@ -1924,7 +1924,7 @@ void CL_ParseTEnt (void)
 void CL_ParseTEnt_Sized (void)
 {
 	unsigned short sz = MSG_ReadShort();
-	int start = msg_readcount;
+	int start = MSG_GetReadCount();
 
 	for(;;)
 	{
@@ -1940,25 +1940,24 @@ void CL_ParseTEnt_Sized (void)
 		CL_ParseTEnt();
 #endif
 
-		if (msg_readcount < start + sz)
+		if (MSG_GetReadCount() < start + sz)
 		{	//try to be more compatible with xonotic.
 			int next = MSG_ReadByte();
 			if (next == svc_temp_entity)
 				continue;
-			msg_readcount--;
 
-			Con_Printf("Sized temp_entity data too large (next byte %i, %i bytes unread)\n", next, (start+sz)-msg_readcount);
-			msg_readcount = start + sz;
+			Con_Printf("Sized temp_entity data too large (next byte %i, %i bytes unread)\n", next, (start+sz)-MSG_GetReadCount()-1);
+			MSG_ReadSkip(start+sz-MSG_GetReadCount());
 			return;
 		}
 		break;
 	}
 
 
-	if (msg_readcount != start + sz)
+	if (MSG_GetReadCount() != start + sz)
 	{
-		Con_Printf("Tempentity size did not match parsed size misread a gamecode packet (%i bytes too much)\n", msg_readcount - (start+sz));
-		msg_readcount = start + sz;
+		Con_Printf("Tempentity size did not match parsed size misread a gamecode packet (%i bytes too much)\n", MSG_GetReadCount() - (start+sz));
+		MSG_ReadSkip(start+sz-MSG_GetReadCount());
 	}
 }
 

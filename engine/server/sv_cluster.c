@@ -1187,7 +1187,7 @@ void MSV_ReadFromSubServer(pubsubserver_t *s)
 		}
 		break;
 	}
-	if (msg_readcount != net_message.cursize || msg_badread)
+	if (MSG_GetReadCount() != net_message.cursize || msg_badread)
 		Sys_Error("Master: Readcount isn't right (%i)\n", net_message.data[0]);
 }
 
@@ -1525,7 +1525,7 @@ void SSV_ReadFromControlServer(void)
 		break;
 	}
 
-	if (msg_readcount != net_message.cursize || msg_badread)
+	if (MSG_GetReadCount() != net_message.cursize || msg_badread)
 		Sys_Error("Subserver: Readcount isn't right (%i)\n", net_message.data[0]);
 }
 

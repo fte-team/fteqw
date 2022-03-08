@@ -759,48 +759,46 @@ SET(FTE_CLIENT_FILES
 	${FTE_VK_FILES}
 )
 
-SET(FTE_BOTLIB_FILES
-	engine/botlib/be_aas_bspq3.c
-	engine/botlib/be_aas_entity.c
-	engine/botlib/be_aas_move.c
-	engine/botlib/be_aas_routealt.c
-	engine/botlib/be_ai_char.c
-	engine/botlib/be_ai_goal.c
-	engine/botlib/be_ai_weight.c
-	engine/botlib/l_crc.c
-	engine/botlib/l_memory.c
-	engine/botlib/l_struct.c
-	engine/botlib/be_aas_cluster.c
-	engine/botlib/be_aas_file.c
-	engine/botlib/be_aas_optimize.c
-	engine/botlib/be_aas_route.c
-	engine/botlib/be_ai_chat.c
-	engine/botlib/be_ai_move.c
-	engine/botlib/be_ea.c
-	engine/botlib/l_libvar.c
-	engine/botlib/l_precomp.c
-	engine/botlib/be_aas_debug.c
-	engine/botlib/be_aas_main.c
-	engine/botlib/be_aas_reach.c
-	engine/botlib/be_aas_sample.c
-	engine/botlib/be_ai_gen.c
-	engine/botlib/be_ai_weap.c
-	engine/botlib/be_interface.c
-	engine/botlib/l_log.c
-	engine/botlib/l_script.c
-	engine/botlib/standalone.c
-)
 SET(FTE_Q3_FILES
-	${FTE_BOTLIB_FILES}
-	engine/client/cl_cg.c
-	engine/client/cl_ui.c
-	engine/client/clq3_parse.c
-	engine/server/svq3_game.c
-	engine/common/q3common.c
-	engine/common/q3common.h
+	plugins/quake3/botlib/be_aas_bspq3.c
+	plugins/quake3/botlib/be_aas_entity.c
+	plugins/quake3/botlib/be_aas_move.c
+	plugins/quake3/botlib/be_aas_routealt.c
+	plugins/quake3/botlib/be_ai_char.c
+	plugins/quake3/botlib/be_ai_goal.c
+	plugins/quake3/botlib/be_ai_weight.c
+	plugins/quake3/botlib/l_crc.c
+	plugins/quake3/botlib/l_memory.c
+	plugins/quake3/botlib/l_struct.c
+	plugins/quake3/botlib/be_aas_cluster.c
+	plugins/quake3/botlib/be_aas_file.c
+	plugins/quake3/botlib/be_aas_optimize.c
+	plugins/quake3/botlib/be_aas_route.c
+	plugins/quake3/botlib/be_ai_chat.c
+	plugins/quake3/botlib/be_ai_move.c
+	plugins/quake3/botlib/be_ea.c
+	plugins/quake3/botlib/l_libvar.c
+	plugins/quake3/botlib/l_precomp.c
+	plugins/quake3/botlib/be_aas_debug.c
+	plugins/quake3/botlib/be_aas_main.c
+	plugins/quake3/botlib/be_aas_reach.c
+	plugins/quake3/botlib/be_aas_sample.c
+	plugins/quake3/botlib/be_ai_gen.c
+	plugins/quake3/botlib/be_ai_weap.c
+	plugins/quake3/botlib/be_interface.c
+	plugins/quake3/botlib/l_log.c
+	plugins/quake3/botlib/l_script.c
+	plugins/quake3/botlib/standalone.c
 
-	engine/client/clq3defs.h
-	engine/server/q3g_public.h
+	plugins/quake3/clq3_cg.c
+	plugins/quake3/clq3_ui.c
+	plugins/quake3/clq3_parse.c
+	plugins/quake3/svq3_game.c
+	plugins/quake3/q3common.c
+	plugins/quake3/q3common.h
+
+	plugins/quake3/clq3defs.h
+	plugins/quake3/q3g_public.h
 )
 
 SET(FTE_PLUG_QUAKE3 true CACHE BOOL "Compile Quake3 plugin.")

@@ -360,42 +360,42 @@ endif
 ######################################
 #quake3
 
-BOTLIBFILES=../engine/botlib/be_aas_bspq3.c		\
-			../engine/botlib/be_aas_cluster.c	\
-			../engine/botlib/be_aas_debug.c		\
-			../engine/botlib/be_aas_entity.c	\
-			../engine/botlib/be_aas_file.c		\
-			../engine/botlib/be_aas_main.c		\
-			../engine/botlib/be_aas_move.c		\
-			../engine/botlib/be_aas_optimize.c	\
-			../engine/botlib/be_aas_reach.c		\
-			../engine/botlib/be_aas_routealt.c	\
-			../engine/botlib/be_aas_route.c		\
-			../engine/botlib/be_aas_sample.c	\
-			../engine/botlib/be_ai_char.c		\
-			../engine/botlib/be_ai_chat.c		\
-			../engine/botlib/be_ai_gen.c	\
-			../engine/botlib/be_ai_goal.c	\
-			../engine/botlib/be_ai_move.c	\
-			../engine/botlib/be_ai_weap.c	\
-			../engine/botlib/be_ai_weight.c	\
-			../engine/botlib/be_ea.c		\
-			../engine/botlib/be_interface.c	\
-			../engine/botlib/l_crc.c		\
-			../engine/botlib/l_libvar.c		\
-			../engine/botlib/l_log.c		\
-			../engine/botlib/l_memory.c		\
-			../engine/botlib/l_precomp.c	\
-			../engine/botlib/l_script.c		\
-			../engine/botlib/l_struct.c		\
-			../engine/botlib/standalone.c
+BOTLIBFILES=quake3/botlib/be_aas_bspq3.c		\
+			quake3/botlib/be_aas_cluster.c	\
+			quake3/botlib/be_aas_debug.c		\
+			quake3/botlib/be_aas_entity.c	\
+			quake3/botlib/be_aas_file.c		\
+			quake3/botlib/be_aas_main.c		\
+			quake3/botlib/be_aas_move.c		\
+			quake3/botlib/be_aas_optimize.c	\
+			quake3/botlib/be_aas_reach.c		\
+			quake3/botlib/be_aas_routealt.c	\
+			quake3/botlib/be_aas_route.c		\
+			quake3/botlib/be_aas_sample.c	\
+			quake3/botlib/be_ai_char.c		\
+			quake3/botlib/be_ai_chat.c		\
+			quake3/botlib/be_ai_gen.c	\
+			quake3/botlib/be_ai_goal.c	\
+			quake3/botlib/be_ai_move.c	\
+			quake3/botlib/be_ai_weap.c	\
+			quake3/botlib/be_ai_weight.c	\
+			quake3/botlib/be_ea.c		\
+			quake3/botlib/be_interface.c	\
+			quake3/botlib/l_crc.c		\
+			quake3/botlib/l_libvar.c		\
+			quake3/botlib/l_log.c		\
+			quake3/botlib/l_memory.c		\
+			quake3/botlib/l_precomp.c	\
+			quake3/botlib/l_script.c		\
+			quake3/botlib/l_struct.c		\
+			quake3/botlib/standalone.c
 QUAKE3FILES=$(BOTLIBFILES)	\
 			plugin.c		\
-			../engine/client/cl_cg.c		\
-			../engine/client/cl_ui.c		\
-			../engine/client/clq3_parse.c	\
-			../engine/server/svq3_game.c	\
-			../engine/common/q3common.c
+			quake3/clq3_cg.c		\
+			quake3/clq3_ui.c		\
+			quake3/clq3_parse.c	\
+			quake3/svq3_game.c	\
+			quake3/q3common.c
 $(PLUG_PREFIX)quake3$(PLUG_NATIVE_EXT): ${QUAKE3FILES}
 	$(CC) $(BASE_CFLAGS) $(CFLAGS) -DFTEPLUGIN -DBOTLIB -DBOTLIB_STATIC -o $@ -shared $(PLUG_CFLAGS) $^ $(PLUG_DEFFILE) $(PLUG_LDFLAGS_ZLIB) $(PLUG_LDFLAGS)
 	$(call EMBEDMETA,quake3,$@,Quake3 Compat,Quake3 Gamecode Compatibility)

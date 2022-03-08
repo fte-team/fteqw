@@ -13,7 +13,7 @@
 #define fileHandle_t int
 #define fsMode_t int
 #define pc_token_t void
-#include "botlib.h"
+#include "botlib/botlib.h"
 
 #define Z_TAG_BOTLIB 221726
 static zonegroup_t botlibmem;

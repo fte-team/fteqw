@@ -7,7 +7,7 @@
 
 static int keycatcher;
 
-#include "botlib.h"
+#include "botlib/botlib.h"
 void SV_InitBotLib(void);
 extern botlib_export_t *botlib;
 qboolean CG_GetLimboString(int index, char *outbuf);

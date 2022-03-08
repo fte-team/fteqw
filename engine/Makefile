@@ -570,7 +570,6 @@ HTTP_DIR=$(BASE_DIR)/http
 LIBS_DIR?=.
 PROGS_DIR=$(BASE_DIR)/qclib
 NACL_DIR=$(BASE_DIR)/nacl
-BOTLIB_DIR=$(BASE_DIR)/botlib
 
 ifeq ($(NOCOMPAT),1)
 	NCCFLAGS=-DNOLEGACY -DOMIT_QCC
@@ -712,6 +711,8 @@ ifeq ($(FTE_TARGET),SDL2)
 	OGGVORBISLDFLAGS:= libs-$(ARCH)/libvorbisfile.a libs-$(ARCH)/libvorbis.a libs-$(ARCH)/libogg.a
 	BASE_CFLAGS+=-DLIBJPEG_STATIC -DLIBJPEG_STATIC -DLIBPNG_STATIC -DOPUS_STATIC -DSPEEX_STATIC -DFREETYPE_STATIC -DLIBVORBISFILE_STATIC
 endif
+
+VPATH := $(BASE_DIR) : $(CLIENT_DIR) : $(GL_DIR) : $(SW_DIR) : $(COMMON_DIR) : $(SERVER_DIR) : $(HTTP_DIR) : $(QUX_DIR) : $(PROGS_DIR) : $(NACL_DIR) : $(D3D_DIR) : $(VK_DIR) : $(BASE_DIR)/web
 
 PROFILE_CFLAGS=-pg
 DX7SDK=-I./libs/dxsdk7/include/
@@ -945,13 +946,14 @@ COMMON_OBJS = \
 	q2pmove.o
 
 ifeq (1,$(LINK_QUAKE3))
-	ALL_CFLAGS+=-I$(BOTLIB_DIR) -DBOTLIB -DBOTLIB_STATIC -DSTATIC_Q3
-	COMMON_OBJS += 			\
+    VPATH := $(VPATH) : $(BASE_DIR)/../plugins/quake3 : $(BASE_DIR)/../plugins/quake3/botlib
+    ALL_CFLAGS+=-DBOTLIB -DBOTLIB_STATIC -DSTATIC_Q3
+    COMMON_OBJS += 			\
 		clq3_parse.o	\
-		cl_ui.o	\
-		cl_cg.o \
+		clq3_ui.o	\
+		clq3_cg.o 	\
 		svq3_game.o	\
-		q3common.o			\
+		q3common.o	\
 		be_aas_bspq3.o		\
 		be_aas_cluster.o	\
 		be_aas_debug.o		\
@@ -1887,8 +1889,6 @@ ifneq ($(OUT_DIR),)
 -include $(OUT_DIR)/*.o.d
 endif
 
-
-VPATH = $(BASE_DIR) : $(CLIENT_DIR) : $(GL_DIR) : $(SW_DIR) : $(COMMON_DIR) : $(SERVER_DIR) : $(HTTP_DIR) : $(BASE_DIR)/irc : $(BASE_DIR)/email : $(QUX_DIR) : $(PROGS_DIR) : $(NACL_DIR) : $(D3D_DIR) : $(VK_DIR) : $(BOTLIB_DIR) : $(BASE_DIR)/web
 
 DO_WINDRES?=$(DO_ECHO) $(WINDRES) $(BRANDFLAGS) -I$(CLIENT_DIR) -O coff $< $@
 

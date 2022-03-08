@@ -786,18 +786,7 @@ static qintptr_t CG_SystemCalls(void *offset, quintptr_t mask, qintptr_t fn, con
 			if (!angles)
 				angles = vec3_origin;
 			if (mod && mod->loadstate == MLS_LOADED)
-#if !defined(CLIENTONLY) || defined(CSQC_DAT)
 				worldfuncs->TransformedTrace(mod, 0, 0, start, end, mins, maxs, fn==CG_CM_TRANSFORMEDCAPSULETRACE, &tr, origin, angles, brushmask);
-#else
-			{
-#ifdef warningmsg
-#pragma warningmsg("FIXME: G3 CGame requires World_TransformedTrace!")
-#endif
-				memset(&tr, 0, sizeof(tr));
-				tr.allsolid = tr.startsolid = true;
-				tr.contents = 1;
-			}
-#endif
 			else
 			{
 				memset(&tr, 0, sizeof(tr));

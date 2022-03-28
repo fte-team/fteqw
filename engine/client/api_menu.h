@@ -1,6 +1,6 @@
  /*
  * Copyright (c) 2015-2018
- * Marco Hladik  All rights reserved.
+ * Marco Cawthorne  All rights reserved.
  * 
  * This is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by

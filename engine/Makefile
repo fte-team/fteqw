@@ -83,7 +83,7 @@ MAKE:=$(MAKE) --no-print-directory SVNREVISION="$(SVNREVISION)" SVN_VERSION="$(S
 
 #update these to download+build a different version. this assumes that the url+subdirs etc contain a consistant version everywhere.
 JPEGVER=9c
-ZLIBVER=1.2.11
+ZLIBVER=1.2.12
 PNGVER=1.6.37
 OGGVER=1.3.4
 VORBISVER=1.3.6

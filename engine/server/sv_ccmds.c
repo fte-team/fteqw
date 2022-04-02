@@ -3041,8 +3041,9 @@ static void SV_SetTimer_f(void)
 static void SV_SendGameCommand_f(void)
 {
 #ifdef Q3SERVER
-	if (q3->sv.PrefixedConsoleCommand())
-		return;
+	if (q3)
+		if (q3->sv.PrefixedConsoleCommand())
+			return;
 #endif
 
 #ifdef VM_Q1

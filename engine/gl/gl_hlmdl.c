@@ -1377,7 +1377,7 @@ unsigned int HLMDL_Contents	(model_t *model, int hulloverride, const framestate_
 
 
 #ifndef SERVERONLY
-void R_HL_BuildFrame(hlmodel_t *model, int bodypart, int bodyidx, int meshidx, struct hlmodelshaders_s *texinfo, mesh_t *outmesh)
+static void R_HL_BuildFrame(hlmodel_t *model, int bodypart, int bodyidx, int meshidx, struct hlmodelshaders_s *texinfo, mesh_t *outmesh, float fatness)
 {
 	int v;
 	int w = texinfo->defaulttex.base->width;
@@ -1420,6 +1420,10 @@ void R_HL_BuildFrame(hlmodel_t *model, int bodypart, int bodyidx, int meshidx, s
 
 			//FIXME: svector, tvector!
 		}
+
+		if (fatness)
+			for(v = 0; v < srcmesh->numvertexes; v++)
+				VectorMA(nxyz[v], fatness, nnorm[v], nxyz[v]);
 	}
 }
 
@@ -1437,7 +1441,7 @@ static void R_HL_BuildMeshes(batch_t *b)
 	float *bones;
 	int numbones;
 
-	if (b->shader->prog && (b->shader->prog->supportedpermutations & PERMUTATION_SKELETAL) && model->header->numbones < sh_config.max_gpu_bones)
+	if (b->shader->prog && (b->shader->prog->supportedpermutations & PERMUTATION_SKELETAL) && model->header->numbones < sh_config.max_gpu_bones && !b->ent->fatness)
 	{	//okay, we can use gpu gones. yay.
 		b->mesh = mptr;
 		*b->mesh = &model->mesh;
@@ -1540,7 +1544,7 @@ static void R_HL_BuildMeshes(batch_t *b)
 					skinidx += rent->skinnum * model->numskinrefs;
 				texinfo = &model->shaders[model->skinref[skinidx]];
 
-				R_HL_BuildFrame(model, body, bodyindex, m, texinfo, *b->mesh);
+				R_HL_BuildFrame(model, body, bodyindex, m, texinfo, *b->mesh, b->ent->fatness);
 			}
 		}
 	}

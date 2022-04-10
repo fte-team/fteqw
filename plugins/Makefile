@@ -248,7 +248,7 @@ ODE_ARCH=$(FTE_TARGET)
 ifeq ($(ODE_ARCH),)
   ODE_ARCH=unknown
 endif
-ODE_VER=0.14
+ODE_VER=0.16.2
 ODE_URL=https://bitbucket.org/odedevs/ode/downloads/ode-$(ODE_VER).tar.gz
 ODE_BASE=$(OUT_DIR)/../ode-$(ODE_VER)_$(ODE_ARCH)/
 ODE_LIB=$(ODE_BASE)ode-$(ODE_VER)/ode/src/.libs/libode.a

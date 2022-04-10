@@ -12,9 +12,9 @@
 #define BRANDING_ICON "wastes.ico"
 
 /* FS rebranding */
-#define GAME_SHORTNAME		"wastes"
+#define GAME_SHORTNAME		"TW"
 #define GAME_FULLNAME		FULLENGINENAME
-#define GAME_BASEGAMES		"logos","wastes"
+#define GAME_BASEGAMES		"platform","wastes"
 #define GAME_PROTOCOL		"The-Wastes"
 #define GAME_DEFAULTPORT	23000
 

@@ -1957,10 +1957,11 @@ static void *QDECL PlugBI_GetEngineInterface(const char *interfacename, size_t s
 			NET_AdrToString,
 			NET_StringToAdr2,
 			NET_SendPacket,
-
+#ifdef HUFFNETWORK
 			Huff_CompressionCRC,
 			Huff_EncryptPacket,
 			Huff_DecryptPacket,
+#endif
 		};
 		if (structsize == sizeof(funcs))
 			return &funcs;
@@ -2049,6 +2050,7 @@ static void *QDECL PlugBI_GetEngineInterface(const char *interfacename, size_t s
 
 			{
 				R_ShaderGetCinematic,
+#ifdef HAVE_MEDIA_DECODER
 				Plug_Media_SetState,
 				Plug_Media_GetState,
 				Media_Send_Reset,
@@ -2058,6 +2060,7 @@ static void *QDECL PlugBI_GetEngineInterface(const char *interfacename, size_t s
 				Media_Send_Resize,
 				Media_Send_GetSize,
 				Media_Send_KeyEvent,
+#endif
 			},
 		};
 		if (structsize == sizeof(funcs))

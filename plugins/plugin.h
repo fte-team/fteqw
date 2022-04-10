@@ -385,10 +385,11 @@ typedef struct
 	F(char*,	AdrToString,		(char *s, int len, netadr_t *a));
 	F(size_t,	StringToAdr,		(const char *s, int defaultport, netadr_t *a, size_t addrcount, const char **pathstart));
 	F(neterr_t,	SendPacket,			(struct ftenet_connections_s *col, int length, const void *data, netadr_t *to));
-
+#ifdef HUFFNETWORK
 	F(huffman_t*,Huff_CompressionCRC,	(int crc));
 	F(void,		Huff_EncryptPacket,		(sizebuf_t *msg, int offset));
 	F(void,		Huff_DecryptPacket,		(sizebuf_t *msg, int offset));
+#endif
 #define plugmsgfuncs_name "Messaging"
 } plugmsgfuncs_t;
 #endif

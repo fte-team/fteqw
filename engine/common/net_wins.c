@@ -150,7 +150,7 @@ cvar_t	net_enable_websockets	= CVARD("net_enable_websockets",	"1", "If enabled, 
 #endif
 #endif
 #endif
-extern cvar_t net_ice_exchangeprivateips;
+extern cvar_t net_ice_exchangeprivateips, net_ice_usewebrtc;
 #if defined(HAVE_DTLS)
 #if defined(HAVE_SERVER)
 static void QDECL NET_Enable_DTLS_Changed(struct cvar_s *var, char *oldvalue)
@@ -8943,6 +8943,7 @@ void NET_Init (void)
 
 #ifdef SUPPORT_ICE
 	Cvar_Register(&net_ice_exchangeprivateips, "networking");
+	Cvar_Register(&net_ice_usewebrtc, "networking");
 #endif
 
 #if defined(HAVE_CLIENT)||defined(HAVE_SERVER)

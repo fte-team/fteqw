@@ -4123,6 +4123,11 @@ void CL_ReadPacket(void)
 				return;
 #endif
 
+#if defined(SUPPORT_ICE)
+	if (ICE_WasStun(cls.sockets))
+		return;
+#endif
+
 #ifdef NQPROT
 	if (cls.demoplayback == DPB_NETQUAKE)
 	{

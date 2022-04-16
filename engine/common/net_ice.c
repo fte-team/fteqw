@@ -26,6 +26,7 @@ typedef struct
 #endif
 #ifdef SUPPORT_ICE
 cvar_t net_ice_exchangeprivateips = CVARFD("net_ice_exchangeprivateips", "", CVAR_NOTFROMSERVER, "Boolean. When set to 0, hides private IP addresses from your peers. Only addresses determined from the other side of your router will be shared. Setting it to 0 may be desirable but it can cause connections to fail when your router does not support hairpinning, whereas 1 fixes that at the cost of exposing private IP addresses.");
+cvar_t net_ice_usewebrtc = CVARFD("net_ice_usewebrtc", "", CVAR_NOTFROMSERVER, "Use webrtc's extra overheads rather than simple ICE. This makes packets larger and is slower to connect, but is compatible with the web port.");
 /*
 Interactive Connectivity Establishment (rfc 5245)
 find out your peer's potential ports.
@@ -2928,9 +2929,18 @@ static void FTENET_ICE_Establish(ftenet_ice_connection_t *b, int cl, struct ices
 {	//sends offer
 	char buf[256];
 	struct icestate_s *ice;
+	qboolean usewebrtc;
 	if (*ret)
 		iceapi.ICE_Close(*ret);
-	ice = *ret = iceapi.ICE_Create(b, NULL, b->generic.islisten?NULL:va("/%s", b->gamename), ICEM_WEBRTC, b->generic.islisten?ICEP_QWSERVER:ICEP_QWCLIENT);
+#ifndef HAVE_DTLS
+	usewebrtc = false;
+#else
+	if (!*net_ice_usewebrtc.string)
+		usewebrtc = b->generic.islisten; //its broken for clients right now, apparently. don't break browsers connecting to servers though.
+	else
+		usewebrtc = net_ice_usewebrtc.ival;
+#endif
+	ice = *ret = iceapi.ICE_Create(b, NULL, b->generic.islisten?NULL:va("/%s", b->gamename), usewebrtc?ICEM_WEBRTC:ICEM_ICE, b->generic.islisten?ICEP_QWSERVER:ICEP_QWCLIENT);
 	if (!*ret)
 		return;	//some kind of error?!?
 	iceapi.ICE_Set(ice, "controller", b->generic.islisten?"0":"1");

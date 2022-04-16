@@ -97,7 +97,7 @@
 #define HAVE_OPUS
 #define VOICECHAT
 #define AVAIL_DSOUND
-#define AVAIL_XAUDIO2
+#undef AVAIL_XAUDIO2
 #define AVAIL_WASAPI
 
 /* Model formats, IQM/VVM and HLMDL for legacy maps */

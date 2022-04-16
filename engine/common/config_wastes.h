@@ -51,13 +51,15 @@
 
 /* uncompressed textures */
 #define IMAGEFMT_BMP /* sprays */
-#define IMAGEFMT_TGA /* disable for RELEASE? */
+#define IMAGEFMT_TGA
 
 /* compressed textures */
 #define IMAGEFMT_KTX
 #define DECOMPRESS_ETC2
-#define DECOMPRESS_RGTC
 #define DECOMPRESS_S3TC
+#define DECOMPRESS_RGTC
+#define DECOMPRESS_BPTC
+#define DECOMPRESS_ASTC
 
 /* To be able to comm with Frag-Net.com */
 #define HAVE_PACKET
@@ -87,10 +89,16 @@
 #define TERRAIN
 
 /* audio */
-#define AVAIL_OPENAL
+#define USEEFX
+#undef AVAIL_OPENAL
+#define MIXER_F32
+#define HAVE_MIXER
 #define AVAIL_OGGVORBIS
 #define HAVE_OPUS
 #define VOICECHAT
+#define AVAIL_DSOUND
+#define AVAIL_XAUDIO2
+#define AVAIL_WASAPI
 
 /* Model formats, IQM/VVM and HLMDL for legacy maps */
 #define INTERQUAKEMODELS
@@ -121,8 +129,6 @@
 #undef D3D9QUAKE	/* MICROS~1 trash */
 #undef D3D11QUAKE	/* MICROS~1 trash */
 #undef D3D8QUAKE	/* MICROS~1 trash */
-#undef AVAIL_WASAPI	/* windows advanced sound api */
-#undef AVAIL_DSOUND	/* MICROS~1 trash */
 #undef BOTLIB_STATIC	/* q3 botlib */
 #undef AVAIL_XZDEC	/* .xz decompression */
 #undef HAVE_SPEEX	/* .xz decompression */
@@ -142,7 +148,7 @@
 #undef SVRANKING	/* legacy server-side ranking system */
 #undef USERBE 		/* required for physics */
 #undef RAGDOLL		/* ragdoll support. requires RBE support */
-#undef HUFFNETWORK	/* crappy network compression. probably needs reseeding */
+#define HUFFNETWORK	/* crappy network compression. probably needs reseeding */
 #undef SVCHAT		/* ancient lame builtin to support NPC-style chat.. */
 #undef VM_Q1		/* q1qvm implementation, to support ktx */
 #undef Q2SERVER		/* q2 server+gamecode */
@@ -163,7 +169,6 @@
 #undef SIDEVIEWS
 #undef MAX_SPLITS
 #undef SUBSERVERS		/* multi-map */
-#undef HAVE_MIXER		/* OpenAL only */
 #undef VM_LUA			/* lua game-logic */
 #undef HLCLIENT			/* regressed, unfinished*/
 #undef HLSERVER			/* regressed, unfinished */

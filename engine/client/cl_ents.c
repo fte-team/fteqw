@@ -1961,7 +1961,7 @@ void CLNQ_ParseEntity(unsigned int bits)
 			state->modelindex = (state->modelindex & 0xff) | (MSG_ReadByte() << 8);
 
 		if (bits & FITZU_LERPFINISH)
-			MSG_ReadByte();
+			state->lerpend = cl.gametime + MSG_ReadByte()/255.0f;
 
 		if (cls.qex)
 		{
@@ -3327,7 +3327,7 @@ static void CL_LerpNetFrameState(framestate_t *fs, lerpents_t *le)
 	fs->g[0].endbone = le->basebone;
 }
 
-static void CL_UpdateNetFrameLerpState(qboolean force, int curframe, int curbaseframe, int curbasebone, lerpents_t *le)
+static void CL_UpdateNetFrameLerpState(qboolean force, int curframe, int curbaseframe, int curbasebone, lerpents_t *le, float lerpend)
 {
 	int fst, frame;
 	if (curbasebone != le->basebone)
@@ -3344,7 +3344,10 @@ static void CL_UpdateNetFrameLerpState(qboolean force, int curframe, int curbase
 		frame = (fst==FST_BASE)?curbaseframe:curframe;
 		if (force || frame != le->newframe[fst])
 		{
-			le->framelerpdeltatime[fst] = bound(0, cl.servertime - le->newframestarttime[fst], cl_lerp_maxinterval.value);	//clamp to 10 tics per second
+			if (lerpend)
+				le->framelerpdeltatime[fst] = bound(0, lerpend - cl.servertime, cl_lerp_maxinterval.value);	//clamp to 10 tics per second
+			else
+				le->framelerpdeltatime[fst] = bound(0, cl.servertime - le->newframestarttime[fst], cl_lerp_maxinterval.value);	//clamp to 10 tics per second
 
 			if (!force)
 			{
@@ -3633,7 +3636,7 @@ static void CL_TransitionPacketEntities(int newsequence, packet_entities_t *newp
 					le->isnew = true;
 					VectorCopy(le->origin, le->lastorigin);
 				}
-				CL_UpdateNetFrameLerpState(sold == snew, snew->frame, snew->baseframe, snew->basebone, le);
+				CL_UpdateNetFrameLerpState(sold == snew, snew->frame, snew->baseframe, snew->basebone, le, snew->lerpend);
 
 
 				from = sold;	//eww
@@ -3703,7 +3706,10 @@ static void CL_TransitionPacketEntities(int newsequence, packet_entities_t *newp
 			VectorCopy(snew__origin, le->neworigin);
 			VectorCopy(snew->angles, le->newangle);
 
-			le->orglerpdeltatime = newpack->servertime - oldpack->servertime;
+			if (snew->lerpend)
+				le->orglerpdeltatime = bound(0.001, snew->lerpend - newpack->servertime, cl_lerp_maxinterval.value);
+			else
+				le->orglerpdeltatime = newpack->servertime - oldpack->servertime;
 			le->orglerpstarttime = oldpack->servertime;
 
 			le->isnew = true;
@@ -3731,6 +3737,8 @@ static void CL_TransitionPacketEntities(int newsequence, packet_entities_t *newp
 					VectorCopy(snew->angles, le->newangle);
 				}
 
+				if (snew->lerpend)
+					le->orglerpdeltatime = bound(0.001, snew->lerpend - le->orglerpstarttime, cl_lerp_maxinterval.value);
 				lfrac = (servertime - le->orglerpstarttime) / le->orglerpdeltatime;
 				lfrac = bound(0, lfrac, 1);
 				if (r_nolerp.ival)
@@ -3768,6 +3776,8 @@ static void CL_TransitionPacketEntities(int newsequence, packet_entities_t *newp
 					le->orglerpstarttime = servertime;
 				}
 
+				if (snew->lerpend)
+					le->orglerpdeltatime = bound(0.001, snew->lerpend - le->orglerpstarttime, cl_lerp_maxinterval.value);
 				lfrac = (servertime - le->orglerpstarttime) / le->orglerpdeltatime;
 				lfrac = bound(0, lfrac, 1);
 
@@ -3798,7 +3808,7 @@ static void CL_TransitionPacketEntities(int newsequence, packet_entities_t *newp
 		}
 #endif
 
-		CL_UpdateNetFrameLerpState(isnew, snew->frame, snew->baseframe, snew->basebone, le);
+		CL_UpdateNetFrameLerpState(isnew, snew->frame, snew->baseframe, snew->basebone, le, snew->lerpend);
 	}
 }
 
@@ -5302,7 +5312,7 @@ void CL_LinkPlayers (void)
 			continue;	// not present this frame
 		}
 
-		CL_UpdateNetFrameLerpState(false, state->frame, 0, 0, &cl.lerpplayers[j]);
+		CL_UpdateNetFrameLerpState(false, state->frame, 0, 0, &cl.lerpplayers[j], 0);
 		cl.lerpplayers[j].sequence = cl.lerpentssequence;
 
 #ifdef CSQC_DAT

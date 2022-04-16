@@ -6427,6 +6427,7 @@ ucmd_t nqucmds[] =
 	{"notarget",	Cmd_Notarget_f},
 	{"fly",			Cmd_Fly_f},
 	{"noclip",		Cmd_Noclip_f},
+	{"setpos",		Cmd_SetPos_f},
 
 	{"say",			SV_Say_f},
 	{"say_team",	SV_Say_Team_f},

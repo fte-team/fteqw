@@ -1216,6 +1216,8 @@ typedef struct entity_state_s
 
 	unsigned short light[4];
 
+	float lerpend;	//fitz rubbish
+
 	qbyte lightstyle;
 	qbyte lightpflags;
 	unsigned short tagindex;

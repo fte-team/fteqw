@@ -1677,7 +1677,7 @@ static neterr_t SCTP_Transmit(sctp_t *sctp, struct icestate_s *peer, const void 
 				init->arwc = BigLong(65535);
 				init->numoutstreams = BigShort(2);
 				init->numinstreams = BigShort(2);
-				init->tsn = sctp->o.tsn;
+				init->tsn = BigLong(sctp->o.tsn);
 				ftsn->ptype = BigShort(49152);
 				ftsn->plen = BigShort(sizeof(*ftsn));
 				pktlen += sizeof(*init) + sizeof(*ftsn);
@@ -2936,7 +2936,7 @@ static void FTENET_ICE_Establish(ftenet_ice_connection_t *b, int cl, struct ices
 	usewebrtc = false;
 #else
 	if (!*net_ice_usewebrtc.string)
-		usewebrtc = b->generic.islisten; //its broken for clients right now, apparently. don't break browsers connecting to servers though.
+		usewebrtc = b->generic.islisten;
 	else
 		usewebrtc = net_ice_usewebrtc.ival;
 #endif

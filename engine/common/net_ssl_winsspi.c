@@ -1106,9 +1106,10 @@ static int SSPI_GetChannelBinding(vfsfile_t *vf, qbyte *binddata, size_t *bindsi
 
 #include "netinc.h"
 #if defined(HAVE_DTLS)
-static void *SSPI_DTLS_CreateContext(const char *remotehost, void *cbctx, neterr_t(*push)(void *cbctx, const qbyte *data, size_t datasize), qboolean isserver)
+static void *SSPI_DTLS_CreateContext(const dtlscred_t *credinfo, void *cbctx, neterr_t(*push)(void *cbctx, const qbyte *data, size_t datasize), qboolean isserver)
 {
 	int i = 0;
+	const char *remotehost = credinfo->peer.name;
 	sslfile_t *ctx;
 	if (!SSL_Inited())
 		return NULL;

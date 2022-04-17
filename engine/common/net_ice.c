@@ -402,7 +402,6 @@ static struct icestate_s *QDECL ICE_Create(void *module, const char *conname, co
 	con->originversion = 1;
 	Q_strncpyz(con->originaddress, "127.0.0.1", sizeof(con->originaddress));
 
-	con->mode = mode;
 	con->blockcandidates = true;	//until offers/answers are sent.
 
 #ifdef HAVE_DTLS
@@ -423,6 +422,12 @@ static struct icestate_s *QDECL ICE_Create(void *module, const char *conname, co
 			con->dtlsfuncs->GenTempCertificate(NULL, &con->cred.local);
 			Con_DPrintf("Done\n");
 		}
+		else
+		{	//failure if we can't do the whole dtls thing.
+			con->dtlsfuncs = NULL;
+			Con_Printf(CON_WARNING"DTLS %s support unavailable, disabling encryption (and webrtc compat).\n", con->dtlspassive?"server":"client");
+			mode = ICEM_ICE;	//fall back on unencrypted (this doesn't depend on the peer, so while shitty it hopefully shouldn't be exploitable with a downgrade-attack)
+		}
 
 		con->mysctpport = 27500;
 	}
@@ -432,6 +437,8 @@ static struct icestate_s *QDECL ICE_Create(void *module, const char *conname, co
 	con->qadr.type = NA_ICE;
 	con->qadr.prot = NP_DGRAM;
 	Q_strncpyz(con->qadr.address.icename, con->friendlyname, sizeof(con->qadr.address.icename));
+
+	con->mode = mode;
 
 	con->next = icelist;
 	icelist = con;

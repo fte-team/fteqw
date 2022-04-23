@@ -560,11 +560,12 @@ static void Q3BSP_ClipDecalToNodes (fragmentdecal_t *dec, mnode_t *node)
 		{
 			surf = *msurf;
 
+#ifdef RTLIGHTS
 			//only check each surface once. it can appear in multiple leafs.
 			if (surf->shadowframe == sh_shadowframe)
 				continue;
 			surf->shadowframe = sh_shadowframe;
-
+#endif
 			Fragment_Mesh(dec, surf->mesh, surf->texinfo);
 		}
 		return;

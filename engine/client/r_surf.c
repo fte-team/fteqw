@@ -2999,8 +2999,9 @@ void Surf_DrawWorld (void)
 		{
 			r_dynamic.modified = false;
 			r_temporalscenecache.modified = false;
+#ifdef RTLIGHT
 			Sh_CheckSettings(); //fiddle with r_dynamic vs r_shadow_realtime_dlight.
-
+#endif
 			COM_WorkerPartialSync(webogenerating, &webogeneratingstate, true);
 			while (webostates)
 			{
@@ -3214,8 +3215,10 @@ void Surf_DrawWorld (void)
 		}
 #endif
 
+#ifdef RTLIGHT
 		if (r_shadow_realtime_dlight.ival || currentmodel->type != mod_brush || !(currentmodel->fromgame == fg_quake || currentmodel->fromgame == fg_halflife) || !currentmodel->funcs.MarkLights)
 			r_dynamic.ival = -1;
+#endif
 
 		Surf_PushChains(currentmodel->batches);
 

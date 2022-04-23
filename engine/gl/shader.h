@@ -1062,7 +1062,9 @@ void Sh_PreGenerateLights(void);
 //Draws lights, called from the backend
 void Sh_DrawLights(qbyte *vis);
 void Sh_GenerateFakeShadows(void);
+#ifdef RTLIGHTS
 void Sh_CheckSettings(void);
+#endif
 void SH_FreeShadowMesh(struct shadowmesh_s *sm);
 //frees all memory
 void Sh_Shutdown(void);

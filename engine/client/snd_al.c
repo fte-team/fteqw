@@ -1074,7 +1074,7 @@ static void OpenAL_ChannelUpdate(soundcardinfo_t *sc, channel_t *chan, chanupdat
 
 	if (schanged)
 	{
-		if (schanged == CUR_UPDATE && chan->pos)
+		if (schanged & CUR_OFFSET && chan->pos)
 		{	//complex update, but not restart. pos contains an offset, rather than an absolute time.
 			palSourcei(src, AL_SAMPLE_OFFSET, (chan->pos>>PITCHSHIFT));
 		}

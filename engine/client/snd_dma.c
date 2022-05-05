@@ -2900,6 +2900,9 @@ static void S_UpdateSoundCard(soundcardinfo_t *sc, qboolean updateonly, channel_
 		return;
 	}
 
+	if (timeoffset != 0.0)
+		chanupdatetype |= CUR_OFFSET;
+
 	if (!ratemul)	//rate of 0
 		ratemul = 1;
 	ratemul *= snd_playbackrate.value;
@@ -2913,6 +2916,7 @@ static void S_UpdateSoundCard(soundcardinfo_t *sc, qboolean updateonly, channel_
 // spatialize
 	if (target_chan->sfx != sfx)
 		chanupdatetype |= CUR_SOUNDCHANGE;
+
 	memset (target_chan, 0, sizeof(*target_chan));
 	if (!origin)
 	{

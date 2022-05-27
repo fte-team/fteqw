@@ -101,10 +101,14 @@
 #define TERRAIN
 
 /* audio */
-#define AVAIL_OPENAL
+#define AVAIL_DSOUND
+#undef AVAIL_OPENAL
 #define AVAIL_OGGVORBIS
 #define HAVE_OPUS
 #define VOICECHAT
+
+/* todo: make OpenAL only */
+#define HAVE_MIXER
 
 /* Model formats, IQM/VVM and HLMDL for legacy maps */
 #define INTERQUAKEMODELS
@@ -137,7 +141,7 @@
 #undef MENU_NATIVECODE	/* native menu replacing menuQC */
 #undef MVD_RECORDING	/* server can record MVDs. */
 #undef AVAIL_WASAPI	/* windows advanced sound api */
-#undef AVAIL_DSOUND	/* MICROS~1 trash */
+//#undef AVAIL_DSOUND	/* MICROS~1 trash */
 #undef BOTLIB_STATIC	/* q3 botlib */
 #undef AVAIL_XZDEC	/* .xz decompression */
 #undef HAVE_SPEEX	/* .xz decompression */
@@ -176,7 +180,6 @@
 #undef SIDEVIEWS
 #undef MAX_SPLITS
 #undef SUBSERVERS		/* multi-map */
-#undef HAVE_MIXER		/* OpenAL only */
 #undef VM_LUA			/* lua game-logic */
 #undef HLCLIENT			/* regressed, unfinished*/
 #undef HLSERVER			/* regressed, unfinished */

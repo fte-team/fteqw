@@ -7278,30 +7278,31 @@ static size_t	CM_LoadAreaPortalBlob (model_t *mod, void *ptr, size_t ptrsize)
 		switch(prv->mapisq3)
 		{
 #ifdef Q3BSPS
-		case 1:
-			if (ptrsize < sizeof(prv->q3areas))
-				Con_Printf("CM_ReadPortalState() expected %u, but only %u available\n",(unsigned int)sizeof(prv->q3areas),(unsigned int)ptrsize);
-			else
-			{
-				memcpy(prv->q3areas, ptr, sizeof(prv->q3areas));
-
-				FloodAreaConnections (prv);
-				return sizeof(prv->q3areas);
+		case 1:	//area*area refcounts. byte sizes don't tell us how many areas there were - would need sqrt(ptrsize/4) and I cba.
+			if (ptrsize != sizeof(prv->q3areas))
+			{	//don't bother trying to handle graceful expansion/truncation, just reset the entire thing.
+				size_t x,y;
+				if (ptrsize)
+					Con_Printf("CM_ReadPortalState() expected %u, but only %u available\n",(unsigned int)sizeof(prv->q3areas),(unsigned int)ptrsize);
+				for (x = 0; x < countof(prv->q3areas); x++)
+					for (y = 0; y < countof(prv->q3areas[x].numareaportals); y++)
+						prv->q3areas[x].numareaportals[y] = map_autoopenportals.ival;
 			}
-			break;
+			else
+				memcpy(prv->q3areas, ptr, ptrsize);
+			FloodAreaConnections (prv);
+			return sizeof(prv->q3areas);
 #endif
 #ifdef Q2BSPS
-		case 0:
-			if (ptrsize < sizeof(prv->q2portalopen))
+		case 0:	//per-portal booleans. we can just pad any missing portals.
+			if (ptrsize && ptrsize != sizeof(prv->q2portalopen))
 				Con_Printf("CM_ReadPortalState() expected %u, but only %u available\n",(unsigned int)sizeof(prv->q2portalopen),(unsigned int)ptrsize);
-			else
-			{
-				memcpy(prv->q2portalopen, ptr, sizeof(prv->q2portalopen));
-
-				FloodAreaConnections (prv);
-				return sizeof(prv->q2portalopen);
-			}
-			break;
+			if (ptrsize > sizeof(prv->q2portalopen))
+				ptrsize = sizeof(prv->q2portalopen);
+			memcpy(prv->q2portalopen, ptr, ptrsize);
+			memset(prv->q2portalopen+ptrsize, map_autoopenportals.ival, sizeof(prv->q2portalopen)-ptrsize);
+			FloodAreaConnections (prv);
+			return sizeof(prv->q2portalopen);
 #endif
 		default: break;
 		}

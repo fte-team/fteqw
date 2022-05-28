@@ -774,7 +774,7 @@ static qboolean SL_Key	(int key, emenu_t *menu)
 		serverinfo_t *server = selectedserver.inuse?Master_InfoForServer(&selectedserver.adr, selectedserver.brokerid):NULL;
 		qboolean ctrldown = keydown[K_LCTRL] || keydown[K_RCTRL];
 
-		if (key == K_ESCAPE || key == K_GP_BACK || key == K_MOUSE2)
+		if (key == K_ESCAPE || key == K_GP_BACK || key == K_MOUSE2 || key == K_MOUSE4)
 		{
 			serverpreview = SVPV_NO;
 			return true;

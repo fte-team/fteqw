@@ -68,6 +68,7 @@ void INS_Rumble(int joy, quint16_t amp_low, quint16_t amp_high, quint32_t durati
 void INS_RumbleTriggers(int joy, quint16_t left, quint16_t right, quint32_t duration);
 void INS_SetLEDColor(int id, vec3_t color);
 void INS_SetTriggerFX(int id, const void *data, size_t size);
+qboolean INS_KeyToLocalName(int qkey, char *buf, size_t bufsize);	//returns a name for the key, according to their keyboard layout AND system language(hopefully), or false on unsupported/error. result may change at any time (eg: tap alt+shift on windows)
 
 #define DEVID_UNSET ~0u
 

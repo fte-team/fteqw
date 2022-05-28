@@ -104,11 +104,11 @@ typedef enum {
 	K_KP_STAR,
 	K_KP_EQUALS,
 
-	K_MOUSE1,
-	K_MOUSE2,
-	K_MOUSE3,
-	K_MOUSE4,
-	K_MOUSE5,
+	K_MOUSE1,	//aka left
+	K_MOUSE2,	//aka right
+	K_MOUSE3,	//aka middle
+	K_MOUSE4,	//aka back
+	K_MOUSE5,	//aka forward
 
 	K_MWHEELDOWN,
 	K_MWHEELUP,
@@ -209,6 +209,10 @@ typedef enum {
 	K_MOUSE8,
 	K_MOUSE9,
 	K_MOUSE10,
+
+	/*FIXME*/
+#define K_MWHEELLEFT	K_MOUSE9
+#define K_MWHEELRIGHT	K_MOUSE10
 
 	/* spare joystick button presses */
 	K_JOY_UP,

@@ -196,6 +196,8 @@ keyname_t keynames[] =
 	{"MOUSE10",		K_MOUSE10},
 	{"MWHEELUP",	K_MWHEELUP},
 	{"MWHEELDOWN",	K_MWHEELDOWN},
+	{"MWHEELLEFT",	K_MWHEELLEFT},
+	{"MWHEELRIGHT",	K_MWHEELRIGHT},
 
 	{"LWIN",	K_LWIN},	//windows name
 	{"RWIN",	K_RWIN},	//windows name
@@ -2416,6 +2418,39 @@ static char *Key_KeynumToStringRaw (int keynum)
 const char *Key_KeynumToString (int keynum, int modifier)
 {
 	const char *r = Key_KeynumToStringRaw(keynum);
+	if (r[0] == '<' && r[1])
+		modifier = 0;	//would be too weird.
+	switch(modifier)
+	{
+	case KEY_MODIFIER_CTRL|KEY_MODIFIER_ALT|KEY_MODIFIER_SHIFT:
+		return va("Ctrl+Alt+Shift+%s", r);
+	case KEY_MODIFIER_ALT|KEY_MODIFIER_SHIFT:
+		return va("Alt+Shift+%s", r);
+	case KEY_MODIFIER_CTRL|KEY_MODIFIER_SHIFT:
+		return va("Ctrl+Shift+%s", r);
+	case KEY_MODIFIER_CTRL|KEY_MODIFIER_ALT:
+		return va("Ctrl+Alt+%s", r);
+	case KEY_MODIFIER_CTRL:
+		return va("Ctrl+%s", r);
+	case KEY_MODIFIER_ALT:
+		return va("Alt+%s", r);
+	case KEY_MODIFIER_SHIFT:
+		return va("Shift+%s", r);
+	default:
+		return r;	//no modifier or a bindmap
+	}
+}
+
+const char *Key_KeynumToLocalString (int keynum, int modifier)
+{
+	const char *r;
+#if defined(_WIN32)	|| (defined(__linux__)&&!defined(NO_X11)) //not defined in all targets yet...
+	static char tmp[64];
+	if (INS_KeyToLocalName(keynum, tmp, sizeof(tmp)))
+		r = tmp;
+	else
+#endif
+		r = Key_KeynumToStringRaw(keynum);
 	if (r[0] == '<' && r[1])
 		modifier = 0;	//would be too weird.
 	switch(modifier)

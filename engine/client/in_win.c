@@ -2413,6 +2413,28 @@ void INS_TranslateKeyEvent(WPARAM wParam, LPARAM lParam, qboolean down, int qdev
 	IN_KeyEvent(qdeviceid, down, qcode, unicode);
 }
 
+qboolean INS_KeyToLocalName(int qkey, char *buf, size_t bufsize)
+{
+	int i;
+	*buf = 0;	//assume failure
+	for (i = 0; i < countof(scantokey); i++)
+	{
+		if (!scantokey[i])
+			continue;	//not a vkey that quake understands
+		if (scantokey[i] == qkey)
+		{
+			wchar_t tmpbuf[64];
+			if (GetKeyNameTextW(i<<16, tmpbuf, sizeof(tmpbuf)))
+			{
+				narrowen(buf, bufsize, tmpbuf);	//yay for utf-8
+				return true;
+			}
+			break;
+		}
+	}
+	return false;
+}
+
 
 #ifndef APPCOMMAND_BROWSER_BACKWARD			//added in win2k (but was probably used before that too)
 #define APPCOMMAND_BROWSER_BACKWARD       1

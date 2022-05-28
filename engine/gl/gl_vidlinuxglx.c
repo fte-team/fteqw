@@ -218,6 +218,9 @@ static struct
 	int (*pXGrabServer)(Display *display);
 	int (*pXUngrabServer)(Display *display);
 
+	char *(*pXKeysymToString)(KeySym);
+	KeySym *(*pXGetKeyboardMapping)(Display *display, KeyCode first_keycode, int keycode_count, int *keysyms_per_keycode_return);
+
 #define XI_RESOURCENAME "FTEQW"
 #define XI_RESOURCECLASS "FTEQW"
 	char *(*pXSetLocaleModifiers)(char *modifier_list);
@@ -314,6 +317,9 @@ static qboolean x11_initlib(void)
 		{(void**)&x11.pXWarpPointer,		"XWarpPointer"},
 		{(void**)&x11.pXMatchVisualInfo,	"XMatchVisualInfo"},
 		{(void**)&x11.pXGetVisualInfo,		"XGetVisualInfo"},
+
+		{(void**)&x11.pXKeysymToString,		"XKeysymToString"},
+		{(void**)&x11.pXGetKeyboardMapping,	"XGetKeyboardMapping"},
 
 		{(void**)&x11.pXGrabServer,			"XGrabServer"},
 		{(void**)&x11.pXUngrabServer,		"XUngrabServer"},
@@ -2484,6 +2490,97 @@ static long X_InitUnicode(void)
 	return requiredevents;
 }
 
+#define XKEY_QUAKE_MAP()			\
+	XKQM(XK_KP_Page_Up,		K_KP_PGUP)		\
+	XKQM(XK_Page_Up,		K_PGUP)			\
+	XKQM(XK_KP_Page_Down,	K_KP_PGDN)		\
+	XKQM(XK_Page_Down,		K_PGDN)			\
+	XKQM(XK_KP_Home,		K_KP_HOME)		\
+	XKQM(XK_Home,			K_HOME)			\
+	XKQM(XK_KP_End,			K_KP_END)		\
+	XKQM(XK_End,			K_END)			\
+	XKQM(XK_KP_Left,		K_KP_LEFTARROW)	\
+	XKQM(XK_Left,			K_LEFTARROW)	\
+	XKQM(XK_KP_Right,		K_KP_RIGHTARROW)\
+	XKQM(XK_Right,			K_RIGHTARROW)	\
+	XKQM(XK_KP_Down,		K_KP_DOWNARROW)	\
+	XKQM(XK_Down,			K_DOWNARROW)	\
+	XKQM(XK_KP_Up,			K_KP_UPARROW)	\
+	XKQM(XK_Up,				K_UPARROW)		\
+	XKQM(XK_Escape,			K_ESCAPE)		\
+	XKQM(XK_KP_Enter,		K_KP_ENTER)		\
+	XKQM(XK_Return,			K_ENTER)		\
+	XKQM(XK_Num_Lock,		K_KP_NUMLOCK)	\
+	XKQM(XK_Caps_Lock,		K_CAPSLOCK)		\
+	XKQM(XK_Scroll_Lock,	K_SCRLCK)		\
+	XKQM(XK_Print,			K_PRINTSCREEN)	\
+	XKQM(XK_Super_L,		K_LWIN)			\
+	XKQM(XK_Super_R,		K_RWIN)			\
+	XKQM(XK_Tab,			K_TAB)			\
+	XKQM(XK_F1,				K_F1)			\
+	XKQM(XK_F2,				K_F2)			\
+	XKQM(XK_F3,				K_F3)			\
+	XKQM(XK_F4,				K_F4)			\
+	XKQM(XK_F5,				K_F5)			\
+	XKQM(XK_F6,				K_F6)			\
+	XKQM(XK_F7,				K_F7)			\
+	XKQM(XK_F8,				K_F8)			\
+	XKQM(XK_F9,				K_F9)			\
+	XKQM(XK_F10,			K_F10)			\
+	XKQM(XK_F11,			K_F11)			\
+	XKQM(XK_F12,			K_F12)			\
+	XKQM(XK_F13,			K_F13)			\
+	XKQM(XK_F14,			K_F14)			\
+	XKQM(XK_F15,			K_F15)			\
+	XKQM(XK_BackSpace,		K_BACKSPACE)	\
+	XKQM(XK_KP_Delete,		K_KP_DEL)		\
+	XKQM(XK_Delete,			K_DEL)			\
+	XKQM(XK_Pause,			K_PAUSE)		\
+	XKQM(XK_Shift_L,		K_LSHIFT)		\
+	XKQM(XK_Shift_R,		K_RSHIFT)		\
+	/*XKQM2(XK_Execute,		K_LCTRL)*/		\
+	XKQM(XK_Control_L,		K_LCTRL)		\
+	XKQM(XK_Control_R,		K_RCTRL)		\
+	XKQM(XK_Alt_L,			K_LALT)			\
+	/*XKQM2(XK_Meta_L,		K_LWIN)*/		\
+	XKQM(XK_Alt_R,			K_RALT)			\
+	/*XKQM2(XK_Meta_R,		K_RWIN)*/		\
+	XKQM(XK_Menu,			K_APP)			\
+	XKQM(XK_KP_Begin,		K_KP_5)			\
+	XKQM(XK_KP_Insert,		K_KP_INS)		\
+	XKQM(XK_Insert,			K_INS)			\
+	XKQM(XK_KP_Multiply,	K_KP_STAR)		\
+	XKQM(XK_KP_Add,			K_KP_PLUS)		\
+	XKQM(XK_KP_Subtract,	K_KP_MINUS)		\
+	XKQM(XK_KP_Divide,		K_KP_SLASH)
+
+
+qboolean INS_KeyToLocalName(int qkey, char *buf, size_t bufsize)
+{
+	char *s;
+	int xk;
+	*buf = 0;
+	if(vid_dpy)
+	{
+		switch(qkey)
+		{
+#define XKQM(x,q) case q: xk = x; break;
+XKEY_QUAKE_MAP()
+#undef XKQM
+		default:
+			if (qkey >= K_SPACE && qkey < 127)
+				xk = qkey;	//printable ascii is identity-mapped in both
+			else
+				return false;	//don't know how to map this. might not be a keyboard key.
+			break;
+		}
+		s = x11.pXKeysymToString(xk);
+		if (s)
+			Q_strncpyz(buf, s, bufsize);
+	}
+	return !!*buf;
+}
+
 static void X_KeyEvent(XKeyEvent *ev, qboolean pressed, qboolean filtered)
 {
 	int i;
@@ -2552,112 +2649,9 @@ static void X_KeyEvent(XKeyEvent *ev, qboolean pressed, qboolean filtered)
 
 	switch(keysym)
 	{
-		case XK_KP_Page_Up:		key = K_KP_PGUP; break;
-		case XK_Page_Up:		key = K_PGUP; break;
-
-		case XK_KP_Page_Down:	key = K_KP_PGDN; break;
-		case XK_Page_Down:		key = K_PGDN; break;
-
-		case XK_KP_Home:		key = K_KP_HOME; break;
-		case XK_Home:			key = K_HOME; break;
-
-		case XK_KP_End:			key = K_KP_END; break;
-		case XK_End:			key = K_END; break;
-
-		case XK_KP_Left:		key = K_KP_LEFTARROW; break;
-		case XK_Left:			key = K_LEFTARROW; break;
-
-		case XK_KP_Right:		key = K_KP_RIGHTARROW; break;
-		case XK_Right:			key = K_RIGHTARROW;		break;
-
-		case XK_KP_Down:		key = K_KP_DOWNARROW; break;
-		case XK_Down:			key = K_DOWNARROW; break;
-
-		case XK_KP_Up:			key = K_KP_UPARROW; break;
-		case XK_Up:				key = K_UPARROW;	 break;
-
-		case XK_Escape:			key = K_ESCAPE;		break;
-
-		case XK_KP_Enter:		key = K_KP_ENTER;	break;
-		case XK_Return:			key = K_ENTER;		 break;
-
-		case XK_Num_Lock:		key = K_KP_NUMLOCK;		break;
-		case XK_Caps_Lock:		key = K_CAPSLOCK;		break;
-		case XK_Scroll_Lock:	key = K_SCRLCK;			break;
-		case XK_Print:			key = K_PRINTSCREEN;	break;
-		case XK_Super_L:		key = K_LWIN;			break;
-		case XK_Super_R:		key = K_RWIN;			break;
-
-		case XK_Tab:			key = K_TAB;			 break;
-
-		case XK_F1:				key = K_F1;				break;
-		case XK_F2:				key = K_F2;				break;
-		case XK_F3:				key = K_F3;				break;
-		case XK_F4:				key = K_F4;				break;
-		case XK_F5:				key = K_F5;				break;
-		case XK_F6:				key = K_F6;				break;
-		case XK_F7:				key = K_F7;				break;
-		case XK_F8:				key = K_F8;				break;
-		case XK_F9:				key = K_F9;				break;
-		case XK_F10:			key = K_F10;			 break;
-		case XK_F11:			key = K_F11;			 break;
-		case XK_F12:			key = K_F12;			 break;
-		case XK_F13:			key = K_F13;			 break;
-		case XK_F14:			key = K_F14;			 break;
-		case XK_F15:			key = K_F15;			 break;
-
-		case XK_BackSpace:		key = K_BACKSPACE; break;
-
-		case XK_KP_Delete:		key = K_KP_DEL; break;
-		case XK_Delete:			key = K_DEL; break;
-
-		case XK_Pause:			key = K_PAUSE;		 break;
-
-		case XK_Shift_L:		key = K_LSHIFT;		break;
-		case XK_Shift_R:		key = K_RSHIFT;		break;
-
-		case XK_Execute:		key = K_LCTRL;		break;
-		case XK_Control_L:		key = K_LCTRL;		break;
-		case XK_Control_R:		key = K_RCTRL;		 break;
-
-		case XK_Alt_L:			key = K_LALT;			break;
-		case XK_Meta_L:			key = K_LALT;			break;
-		case XK_Alt_R:			key = K_RALT;			break;
-		case XK_Meta_R:			key = K_RALT;			break;
-		case XK_Menu:			key = K_APP;			break;
-
-		case XK_KP_Begin:		key = K_KP_5;	break;
-
-		case XK_KP_Insert:		key = K_KP_INS; break;
-		case XK_Insert:			key = K_INS; break;
-
-		case XK_KP_Multiply:	key = K_KP_STAR; break;
-		case XK_KP_Add:			key = K_KP_PLUS; break;
-		case XK_KP_Subtract:	key = K_KP_MINUS; break;
-		case XK_KP_Divide:		key = K_KP_SLASH; break;
-
-#if 0
-		case 0x021: key = '1';break;/* [!] */
-		case 0x040: key = '2';break;/* [@] */
-		case 0x023: key = '3';break;/* [#] */
-		case 0x024: key = '4';break;/* [$] */
-		case 0x025: key = '5';break;/* [%] */
-		case 0x05e: key = '6';break;/* [^] */
-		case 0x026: key = '7';break;/* [&] */
-		case 0x02a: key = '8';break;/* [*] */
-		case 0x028: key = '9';;break;/* [(] */
-		case 0x029: key = '0';break;/* [)] */
-		case 0x05f: key = '-';break;/* [_] */
-		case 0x02b: key = '=';break;/* [+] */
-		case 0x07c: key = '\'';break;/* [|] */
-		case 0x07d: key = '[';break;/* [}] */
-		case 0x07b: key = ']';break;/* [{] */
-		case 0x022: key = '\'';break;/* ["] */
-		case 0x03a: key = ';';break;/* [:] */
-		case 0x03f: key = '/';break;/* [?] */
-		case 0x03e: key = '.';break;/* [>] */
-		case 0x03c: key = ',';break;/* [<] */
-#endif
+#define XKQM(x,q) case x: key = q; break;
+XKEY_QUAKE_MAP()
+#undef XKQM
 
 		default:
 			key = keysym;
@@ -2853,13 +2847,15 @@ static void GetEvent(void)
 						case 3: button = K_MOUSE2; break;
 						case 4: button = K_MWHEELUP; break;	//so much for 'raw'.
 						case 5: button = K_MWHEELDOWN; break;
-						case 6: button = K_MOUSE4; break;
-						case 7: button = K_MOUSE5; break;
-						case 8: button = K_MOUSE6; break;
-						case 9: button = K_MOUSE7; break;
-						case 10: button = K_MOUSE8; break;
-						case 11: button = K_MOUSE9; break;
-						case 12: button = K_MOUSE10; break;
+						case 6: button = K_MWHEELLEFT; break;	//so much for 'raw'.
+						case 7: button = K_MWHEELRIGHT; break;
+						case 8: button = K_MOUSE4; break;
+						case 9: button = K_MOUSE5; break;
+						case 10: button = K_MOUSE6; break;
+						case 11: button = K_MOUSE7; break;
+						case 12: button = K_MOUSE8; break;
+						case 13: button = K_MOUSE9; break;
+						case 14: button = K_MOUSE10; break;
 						default:button = 0; break;
 						}
 						if (button)
@@ -3006,19 +3002,19 @@ static void GetEvent(void)
 		//note, the x11 protocol does not support more than 5 mouse buttons
 		//which is a bit of a shame, but hey.
 		else if (event.xbutton.button == 6)
-			b = x11violations?K_MOUSE4:-1;
+			b = x11violations?K_MWHEELLEFT:-1;
 		else if (event.xbutton.button == 7)
-			b = x11violations?K_MOUSE5:-1;
+			b = x11violations?K_MWHEELRIGHT:-1;
 		else if (event.xbutton.button == 8)
-			b = x11violations?K_MOUSE6:-1;
+			b = x11violations?K_MOUSE4:-1;
 		else if (event.xbutton.button == 9)
-			b = x11violations?K_MOUSE7:-1;
+			b = x11violations?K_MOUSE5:-1;
 		else if (event.xbutton.button == 10)
-			b = x11violations?K_MOUSE8:-1;
+			b = x11violations?K_MOUSE6:-1;
 		else if (event.xbutton.button == 11)
-			b = x11violations?K_MOUSE9:-1;
+			b = x11violations?K_MOUSE7:-1;
 		else if (event.xbutton.button == 12)
-			b = x11violations?K_MOUSE10:-1;
+			b = x11violations?K_MOUSE8:-1;
 
 		if (b>=0)
 			IN_KeyEvent(x11_mouseqdev, true, b, 0);
@@ -3051,19 +3047,19 @@ static void GetEvent(void)
 		//note, the x11 protocol does not support more than 5 mouse buttons
 		//which is a bit of a shame, but hey.
 		else if (event.xbutton.button == 6)
-			b = x11violations?K_MOUSE4:-1;
+			b = x11violations?K_MWHEELLEFT:-1;
 		else if (event.xbutton.button == 7)
-			b = x11violations?K_MOUSE5:-1;
+			b = x11violations?K_MWHEELRIGHT:-1;
 		else if (event.xbutton.button == 8)
-			b = x11violations?K_MOUSE6:-1;
+			b = x11violations?K_MOUSE4:-1;
 		else if (event.xbutton.button == 9)
-			b = x11violations?K_MOUSE7:-1;
+			b = x11violations?K_MOUSE5:-1;
 		else if (event.xbutton.button == 10)
-			b = x11violations?K_MOUSE8:-1;
+			b = x11violations?K_MOUSE6:-1;
 		else if (event.xbutton.button == 11)
-			b = x11violations?K_MOUSE9:-1;
+			b = x11violations?K_MOUSE7:-1;
 		else if (event.xbutton.button == 12)
-			b = x11violations?K_MOUSE10:-1;
+			b = x11violations?K_MOUSE8:-1;
 
 		if (b>=0)
 			IN_KeyEvent(x11_mouseqdev, false, b, 0);

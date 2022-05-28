@@ -487,7 +487,7 @@ static qboolean Prompt_MenuKeyEvent(struct menu_s *gm, qboolean isdown, unsigned
 		}
 		return true;
 	}
-	else if (key == K_ESCAPE || key == K_GP_BACK || key == K_MOUSE2)
+	else if (key == K_ESCAPE || key == K_GP_BACK || key == K_MOUSE2 || key == K_MOUSE4)
 		action = PROMPT_CANCEL;
 	else if (key == K_ENTER || key == K_KP_ENTER || key == K_MOUSE1 || key == K_GP_A)
 	{
@@ -1070,6 +1070,7 @@ qboolean M_Help_Key (int key, emenu_t *m)
 	case K_ESCAPE:
 	case K_GP_BACK:
 	case K_MOUSE2:
+	case K_MOUSE4:
 		M_RemoveMenu(m);
 		return true;
 

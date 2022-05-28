@@ -813,7 +813,7 @@ static void MenuDrawItems(int xpos, int ypos, menuoption_t *option, emenu_t *men
 							Draw_FunString (x + 8, y, "or");
 							x += 32;
 						}
-						keyname = Key_KeynumToString (keys[j], keymods[j]);
+						keyname = Key_KeynumToLocalString (keys[j], keymods[j]);
 						Draw_FunString (x, y, keyname);
 						x += strlen(keyname) * 8;
 					}
@@ -2085,7 +2085,8 @@ void M_Complex_Key(emenu_t *currentmenu, int key, int unicode)
 
 	switch(key)
 	{
-	case K_MOUSE2:
+	case K_MOUSE2:	//right
+	case K_MOUSE4:	//back
 	case K_ESCAPE:
 	case K_GP_BACK:
 		//remove
@@ -2190,7 +2191,6 @@ void M_Complex_Key(emenu_t *currentmenu, int key, int unicode)
 		}
 	case K_MOUSE1:
 	case K_MOUSE3:
-	case K_MOUSE4:
 	case K_MOUSE5:
 	case K_MOUSE6:
 	case K_MOUSE7:

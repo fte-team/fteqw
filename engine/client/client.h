@@ -1269,6 +1269,7 @@ int Master_FindBestRoute(char *server, char *out, size_t outsize, int *directcos
 
 float CL_KeyState (kbutton_t *key, int pnum, qboolean noslowstart);
 const char *Key_KeynumToString (int keynum, int modifier);
+const char *Key_KeynumToLocalString (int keynum, int modifier);
 int Key_StringToKeynum (const char *str, int *modifier);
 const char *Key_GetBinding(int keynum, int bindmap, int modifier);
 void Key_GetBindMap(int *bindmaps);

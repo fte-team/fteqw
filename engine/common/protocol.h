@@ -56,6 +56,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define PEXT_CHUNKEDDOWNLOADS	0x20000000	//alternate file download method. Hopefully it'll give quadroupled download speed, especially on higher pings.
 #define PEXT_CSQC				0x40000000	//csqc additions
 #define PEXT_DPFLAGS			0x80000000	//extra flags for viewmodel/externalmodel and possible other persistant style flags.
+#define PEXT_SERVERADVERTISE	~0u
 #define PEXT_CLIENTSUPPORT		(PEXT_SETVIEW|PEXT_SCALE|PEXT_LIGHTSTYLECOL|PEXT_TRANS|PEXT_VIEW2_|PEXT_ACCURATETIMINGS|PEXT_SOUNDDBL|PEXT_FATNESS|PEXT_HLBSP|PEXT_TE_BULLET|PEXT_HULLSIZE|PEXT_MODELDBL|PEXT_ENTITYDBL|PEXT_ENTITYDBL2|PEXT_FLOATCOORDS|PEXT_Q2BSP_|PEXT_Q3BSP_|PEXT_COLOURMOD|PEXT_SPLITSCREEN|PEXT_HEXEN2|PEXT_SPAWNSTATIC2|PEXT_CUSTOMTEMPEFFECTS|PEXT_256PACKETENTITIES|PEXT_SHOWPIC|PEXT_SETATTACHMENT|PEXT_CHUNKEDDOWNLOADS|PEXT_CSQC|PEXT_DPFLAGS)
 
 #ifdef CSQC_DAT
@@ -84,7 +85,9 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define PEXT2_INFOBLOBS				0x00000080	//serverinfo+userinfo lengths can be MUCH higher (protocol is unbounded, but expect low sanity limits on userinfo), and contain nulls etc.
 #define PEXT2_STUNAWARE				0x00000100	//changes the netchan to biased-bigendian (so lead two bits are 1 and not stun's 0, so we don't get confused)
 #define PEXT2_VRINPUTS				0x00000200	//clc_move changes, more buttons etc. vr stuff!
-#define PEXT2_CLIENTSUPPORT			(PEXT2_PRYDONCURSOR|PEXT2_VOICECHAT|PEXT2_SETANGLEDELTA|PEXT2_REPLACEMENTDELTAS|PEXT2_MAXPLAYERS|PEXT2_PREDINFO|PEXT2_NEWSIZEENCODING|PEXT2_INFOBLOBS|PEXT2_STUNAWARE|PEXT2_VRINPUTS)
+#define PEXT2_LERPTIME				0x00000400	//fitz-bloat parity. redefines UF_16BIT as UF_LERPEND in favour of length coding.
+#define PEXT2_SERVERADVERTISE		~0u
+#define PEXT2_CLIENTSUPPORT			(PEXT2_PRYDONCURSOR|PEXT2_VOICECHAT|PEXT2_SETANGLEDELTA|PEXT2_REPLACEMENTDELTAS|PEXT2_MAXPLAYERS|PEXT2_PREDINFO|PEXT2_NEWSIZEENCODING|PEXT2_INFOBLOBS|PEXT2_STUNAWARE|PEXT2_VRINPUTS|PEXT2_LERPTIME) //warn if we see bits not listed here.
 
 //EzQuake/Mvdsv extensions. (use ezquake name, to avoid confusion about .mvd format and its protocol differences)
 #define EZPEXT1_FLOATENTCOORDS		0x00000001	//quirky - doesn't apply to broadcasts, just players+ents. this gives more precision, but will bug out if you try using it to increase map bounds in ways that may not be immediately apparent. iiuc this was added instead of fixing some inconsistent rounding...
@@ -714,8 +717,8 @@ enum {
 #define UF_EXTEND1		(1u<<7)
 
 /*stuff which is common on ent spawning*/
-#define UF_RESET		(1u<<8)
-#define UF_16BIT		(1u<<9)	/*within this update, frame/skin/model is 16bit, not part of the deltaing itself*/
+#define UF_RESET		(1u<<8)	/*client will reset entire strict to its baseline*/
+#define UF_16BIT_LERPTIME	(1u<<9)	/*either included frame/skin/model is 16bit (not part of the deltaing itself), or there's nextthink info*/
 #define UF_MODEL		(1u<<10)
 #define UF_SKIN			(1u<<11)
 #define UF_COLORMAP		(1u<<12)
@@ -738,9 +741,9 @@ enum {
 #define UF_FATNESS		(1u<<26)
 #define UF_MODELINDEX2  (1u<<27)
 #define UF_GRAVITYDIR	(1u<<28)
-#define UF_EFFECTS2		(1u<<29)
-#define UF_UNUSED2		(1u<<30)
-#define UF_UNUSED1		(1u<<31)
+#define UF_EFFECTS2_OLD	(1u<<29) /*specified >8bit effects, replaced with variable length*/
+#define UF_UNUSED1		(1u<<30)
+#define UF_EXTEND4		(1u<<31)
 
 /*these flags are generally not deltaed as they're changing constantly*/
 #define UFP_FORWARD		(1u<<0)
@@ -753,7 +756,7 @@ enum {
 #define UFP_WEAPONFRAME_OLD	(1u<<7)	//no longer used. just a stat now that I rewrote stat deltas.
 #define UFP_VIEWANGLE	(1u<<7)
 
-#define UF_REMOVE   UF_16BIT	/*special flag, slightly more compact (we can reuse the 16bit flag as its not important)*/
+#define UF_SV_REMOVE   UF_16BIT_LERPTIME	/*special flag  - lerptime isn't delta tracked serverside (reset sent as required with other fields)*/
 
 
 
@@ -1220,7 +1223,7 @@ typedef struct entity_state_s
 
 	qbyte lightstyle;
 	qbyte lightpflags;
-	unsigned short tagindex;
+	unsigned short tagindex;	//~0 == weird portal thing.
 
 	unsigned int tagentity;
 

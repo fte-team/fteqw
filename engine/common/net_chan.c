@@ -90,6 +90,7 @@ cvar_t	net_mtu = CVARD("net_mtu", "1440", "Specifies a maximum udp payload size,
 cvar_t	net_compress = CVARD("net_compress", "0", "Enables huffman compression of network packets.");
 
 cvar_t	pext_vrinputs = CVARD("_pext_vrinputs", "0", "RENAME ME WHEN STABLE. Networks player inputs slightly differently, allowing for greater capabilities, particuarly vr controller info.");
+cvar_t	pext_lerptime = CVARD("_pext_lerptime", "0", "RENAME ME WHEN STABLE. Sends timing hints for interpolation.");
 cvar_t	pext_infoblobs = CVARD("_pext_infoblobs", "0", "RENAME ME WHEN STABLE. Enables the use of very large infokeys containing potentially invalid chars. Note that the userinfo is still limited by sv_userinfo_bytelimit and sv_userinfo_keylimit.");
 cvar_t	pext_replacementdeltas = CVARD("pext_replacementdeltas", "1", "Enables the use of alternative nack-based entity deltas");
 cvar_t	pext_predinfo = CVARD("pext_predinfo", "1", "Enables some extra things to support prediction over NQ protocols.");
@@ -225,6 +226,9 @@ unsigned int Net_PextMask(unsigned int protover, qboolean fornq)
 		if (pext_vrinputs.ival)
 			mask |= PEXT2_VRINPUTS;
 
+		if (pext_lerptime.ival)
+			mask |= PEXT2_LERPTIME;
+
 		if (MAX_CLIENTS != QWMAX_CLIENTS)
 			mask |= PEXT2_MAXPLAYERS;
 
@@ -236,7 +240,7 @@ unsigned int Net_PextMask(unsigned int protover, qboolean fornq)
 		if (fornq)
 		{
 			//only ones that are tested
-			mask &= PEXT2_PRYDONCURSOR | PEXT2_VOICECHAT | PEXT2_SETANGLEDELTA | PEXT2_REPLACEMENTDELTAS | PEXT2_MAXPLAYERS | PEXT2_PREDINFO | PEXT2_NEWSIZEENCODING | PEXT2_VRINPUTS;
+			mask &= PEXT2_PRYDONCURSOR | PEXT2_VOICECHAT | PEXT2_SETANGLEDELTA | PEXT2_REPLACEMENTDELTAS | PEXT2_MAXPLAYERS | PEXT2_PREDINFO | PEXT2_NEWSIZEENCODING | PEXT2_VRINPUTS | PEXT2_LERPTIME;
 		}
 //		else
 //			mask &= ~PEXT2_PREDINFO;
@@ -281,6 +285,7 @@ void Netchan_Init (void)
 	Cvar_Register (&pext_replacementdeltas, "Protocol Extensions");
 	Cvar_Register (&pext_infoblobs, "Protocol Extensions");
 	Cvar_Register (&pext_vrinputs, "Protocol Extensions");
+	Cvar_Register (&pext_lerptime, "Protocol Extensions");
 	Cvar_Register (&showpackets, "Networking");
 	Cvar_Register (&showdrop, "Networking");
 	Cvar_Register (&qport, "Networking");

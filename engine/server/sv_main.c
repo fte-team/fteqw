@@ -1626,7 +1626,7 @@ qboolean SVC_GetChallenge (qboolean respond_dp)
 	{
 		unsigned int mask;
 		//tell the client what fte extensions we support
-		mask = Net_PextMask(PROTOCOL_VERSION_FTE1, false);
+		mask = Net_PextMask(PROTOCOL_VERSION_FTE1, false)&PEXT_SERVERADVERTISE;
 		if (mask)
 		{
 			lng = LittleLong(PROTOCOL_VERSION_FTE1);
@@ -1638,7 +1638,7 @@ qboolean SVC_GetChallenge (qboolean respond_dp)
 			over+=sizeof(lng);
 		}
 		//tell the client what fte extensions we support
-		mask = Net_PextMask(PROTOCOL_VERSION_FTE2, false);
+		mask = Net_PextMask(PROTOCOL_VERSION_FTE2, false)&PEXT2_SERVERADVERTISE;
 		if (mask)
 		{
 			lng = LittleLong(PROTOCOL_VERSION_FTE2);
@@ -2029,8 +2029,8 @@ void SV_ClientProtocolExtensionsChanged(client_t *client)
 		}
 	}
 
-	client->fteprotocolextensions  &= Net_PextMask(PROTOCOL_VERSION_FTE1, ISNQCLIENT(client));
-	client->fteprotocolextensions2 &= Net_PextMask(PROTOCOL_VERSION_FTE2, ISNQCLIENT(client));
+	client->fteprotocolextensions  &= Net_PextMask(PROTOCOL_VERSION_FTE1, ISNQCLIENT(client)) & PEXT_SERVERADVERTISE;
+	client->fteprotocolextensions2 &= Net_PextMask(PROTOCOL_VERSION_FTE2, ISNQCLIENT(client)) & PEXT2_SERVERADVERTISE;
 	client->ezprotocolextensions1  &= Net_PextMask(PROTOCOL_VERSION_EZQUAKE1, ISNQCLIENT(client)) & EZPEXT1_SERVERADVERTISE;
 	client->zquake_extensions &= SERVER_SUPPORTED_Z_EXTENSIONS;
 
@@ -2217,7 +2217,7 @@ void SV_ClientProtocolExtensionsChanged(client_t *client)
 			}
 
 			//make sure the reset is sent.
-			client->pendingdeltabits[0] = UF_REMOVE;
+			client->pendingdeltabits[0] = UF_SV_REMOVE;
 		}
 		else if (ISNQCLIENT(client))
 		{

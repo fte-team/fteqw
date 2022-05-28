@@ -7290,7 +7290,7 @@ static void QCBUILTIN PF_checkextension (pubprogfuncs_t *prinst, struct globalva
 			}
 			else if (ext->extensioncheck)
 			{
-				extcheck_t check = {prinst->parms->user, Net_PextMask(PROTOCOL_VERSION_FTE1, false), Net_PextMask(PROTOCOL_VERSION_FTE2, false)};
+				extcheck_t check = {prinst->parms->user, Net_PextMask(PROTOCOL_VERSION_FTE1, false)&PEXT_SERVERADVERTISE, Net_PextMask(PROTOCOL_VERSION_FTE2, false)&PEXT2_SERVERADVERTISE};
 				if (!ext->extensioncheck(&check))
 					return;	//blocked by some setting somewhere, somehow.
 			}
@@ -12334,7 +12334,7 @@ void PR_SVExtensionList_f(void)
 	int num;
 	char biissues[8192];
 
-	extcheck_t extcheck = {&sv.world, Net_PextMask(PROTOCOL_VERSION_FTE1, false), Net_PextMask(PROTOCOL_VERSION_FTE2, false)};
+	extcheck_t extcheck = {&sv.world, Net_PextMask(PROTOCOL_VERSION_FTE1, false)&PEXT_SERVERADVERTISE, Net_PextMask(PROTOCOL_VERSION_FTE2, false)&PEXT2_SERVERADVERTISE};
 
 #define SHOW_ACTIVEEXT 1
 #define SHOW_ACTIVEBI 2

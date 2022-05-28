@@ -1069,7 +1069,7 @@ void SV_Map_f (void)
 		host_client->sentents.num_entities = 0;
 		host_client->ratetime = 0;
 		if (host_client->pendingdeltabits)
-			host_client->pendingdeltabits[0] = UF_REMOVE;
+			host_client->pendingdeltabits[0] = UF_SV_REMOVE;
 
 		if (flushparms)
 		{
@@ -2156,7 +2156,15 @@ static void SV_Status_f (void)
 	if (NET_GetRates(svs.sockets, &pi, &po, &bi, &bo))
 		Con_TPrintf("packets,bytes/sec: in: %g %g  out: %g %g\n", pi, bi, po, bo);	//not relevent as a limit.
 	Con_TPrintf("server uptime    : %s\n", ShowTime(realtime));
-	Con_TPrintf("public           : %s\n", sv_public.value?"yes":"no");
+	if (sv_public.ival < 0)
+		s = "hidden";
+	else if (sv_public.ival == 2)
+		s = "hole punching";
+	else if (sv_public.ival)
+		s = "direct";
+	else
+		s = "private";
+	Con_TPrintf("public           : %s\n", s);
 	switch(svs.gametype)
 	{
 #ifdef Q3SERVER

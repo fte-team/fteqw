@@ -6257,10 +6257,10 @@ void SV_Pext_f(void)
 		switch(strtoul(tag, NULL, 0))
 		{
 		case PROTOCOL_VERSION_FTE1:
-			host_client->fteprotocolextensions = strtoul(val, NULL, 0) & Net_PextMask(PROTOCOL_VERSION_FTE1, ISNQCLIENT(host_client));
+			host_client->fteprotocolextensions = strtoul(val, NULL, 0) & Net_PextMask(PROTOCOL_VERSION_FTE1, ISNQCLIENT(host_client)) & PEXT_SERVERADVERTISE;
 			break;
 		case PROTOCOL_VERSION_FTE2:
-			host_client->fteprotocolextensions2 = strtoul(val, NULL, 0) & Net_PextMask(PROTOCOL_VERSION_FTE2, ISNQCLIENT(host_client));
+			host_client->fteprotocolextensions2 = strtoul(val, NULL, 0) & Net_PextMask(PROTOCOL_VERSION_FTE2, ISNQCLIENT(host_client)) & PEXT2_SERVERADVERTISE;
 			break;
 		case PROTOCOL_VERSION_EZQUAKE1:
 			host_client->ezprotocolextensions1 = strtoul(val, NULL, 0) & Net_PextMask(PROTOCOL_VERSION_EZQUAKE1, ISNQCLIENT(host_client)) & EZPEXT1_SERVERADVERTISE;
@@ -7979,7 +7979,7 @@ static double SVFTE_ExecuteClientMove(client_t *controller)
 		{
 			unsigned int e;
 			if (controller->pendingdeltabits)
-				controller->pendingdeltabits[0] = UF_REMOVE;
+				controller->pendingdeltabits[0] = UF_SV_REMOVE;
 			if (host_client->pendingcsqcbits)
 				for (e = 1; e < host_client->max_net_ents; e++)
 					if (host_client->pendingcsqcbits[e] & SENDFLAGS_PRESENT)
@@ -8421,7 +8421,7 @@ void SV_ExecuteClientMessage (client_t *cl)
 			{
 				unsigned int e;
 				if (cl->pendingdeltabits)
-					cl->pendingdeltabits[0] = UF_REMOVE;
+					cl->pendingdeltabits[0] = UF_SV_REMOVE;
 				if (host_client->pendingcsqcbits)
 					for (e = 1; e < host_client->max_net_ents; e++)
 						if (host_client->pendingcsqcbits[e] & SENDFLAGS_PRESENT)
@@ -9046,7 +9046,7 @@ void SVNQ_ExecuteClientMessage (client_t *cl)
 			{
 				unsigned int e;
 				if (cl->pendingdeltabits)
-					cl->pendingdeltabits[0] = UF_REMOVE;
+					cl->pendingdeltabits[0] = UF_SV_REMOVE;
 				if (host_client->pendingcsqcbits)
 					for (e = 1; e < host_client->max_net_ents; e++)
 						if (host_client->pendingcsqcbits[e] & SENDFLAGS_PRESENT)

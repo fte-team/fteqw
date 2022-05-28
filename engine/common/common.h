@@ -383,7 +383,7 @@ void MSG_ReadSkip (int len);
 int MSG_ReadSize16 (sizebuf_t *sb);
 void MSG_WriteSize16 (sizebuf_t *sb, int sz);
 void COM_DecodeSize(int solid, float *mins, float *maxs);
-int COM_EncodeSize(float *mins, float *maxs);
+int COM_EncodeSize(const float *mins, const float *maxs);
 
 //============================================================================
 

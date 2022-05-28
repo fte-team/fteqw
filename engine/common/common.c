@@ -1304,7 +1304,7 @@ void MSG_WriteSize16 (sizebuf_t *sb, int sz)
 	else
 		MSG_WriteShort(sb, 0);
 }
-void COM_DecodeSize(int solid, vec3_t mins, vec3_t maxs)
+void COM_DecodeSize(int solid, float *mins, float *maxs)
 {
 #if 1
 	maxs[0] = maxs[1] = solid & 255;
@@ -1318,7 +1318,7 @@ void COM_DecodeSize(int solid, vec3_t mins, vec3_t maxs)
 	maxs[2] = 8*((solid>>10) & 63) - 32;
 #endif
 }
-int COM_EncodeSize(vec3_t mins, vec3_t maxs)
+int COM_EncodeSize(const float *mins, const float *maxs)
 {
 	int solid;
 #if 1

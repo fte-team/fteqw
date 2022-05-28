@@ -123,7 +123,7 @@ endif
 FTE_CONFIG?=fteqw
 ifneq ($(findstring msvc,$(FTE_TARGET)),msvc)
 ifeq (,$(FTE_CONFIG_EXTRA))
-    export FTE_CONFIG_EXTRA := $(shell $(CC) -xc -E -P -DFTE_TARGET_$(FTE_TARGET) -DCOMPILE_OPTS common/config_$(FTE_CONFIG).h)
+    export FTE_CONFIG_EXTRA := $(shell $(CC) -xc -E -P -DFTE_TARGET_$(FTE_TARGET) -DCOMPILE_OPTS $(CFLAGS) common/config_$(FTE_CONFIG).h)
 endif
 endif
 BRANDFLAGS+=-DCONFIG_FILE_NAME=config_$(FTE_CONFIG).h $(FTE_CONFIG_EXTRA)
@@ -156,8 +156,13 @@ ifneq (,$(findstring -Os,$(FTE_CONFIG_EXTRA)))
     CPUOPTIMIZATIONS+=-Os
     BRANDFLAGS:=$(filter-out -O%,$(BRANDFLAGS))
 endif
+ifneq (,$(findstring DLINK_ODE,$(FTE_CONFIG_EXTRA)))
+	#ode library will be statically linked.
+    LINK_ODE=1
+endif
 ifneq (,$(findstring DLINK_INTERNAL_BULLET,$(FTE_CONFIG_EXTRA)))
-    INTERNAL_BULLET=1	#bullet plugin will be built into the exe itself
+	#bullet plugin will be built into the exe itself
+    INTERNAL_BULLET=1
 endif
 
 ifeq ($(BITS),64)
@@ -1039,6 +1044,10 @@ endif
 ifeq (1,$(LINK_ZLIB))
     CLIENTLIBFLAGS+=-DZLIB_STATIC
     CLIENTLDDEPS+=-lz
+endif
+ifeq (1,$(LINK_ODE))
+    ALL_CFLAGS+=$(shell $(PKGCONFIG) ode --cflags --silence-errors) -DODE_STATIC
+    COMMONLDDEPS+=$(shell $(PKGCONFIG) ode --libs --silence-errors)
 endif
 ifeq (1,$(strip $(INTERNAL_BULLET)))
     COMMON_OBJS+=com_phys_bullet.o

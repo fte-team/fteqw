@@ -1,6 +1,9 @@
+#ifndef PR_COMMON_H
+#define PR_COMMON_H
 #ifdef __cplusplus
 extern "C" {
 #endif
+
 #include "progtype.h"
 #include "progslib.h"
 
@@ -1172,4 +1175,5 @@ enum
 
 #ifdef __cplusplus
 };
+#endif
 #endif

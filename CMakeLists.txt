@@ -855,6 +855,38 @@ ELSE()
 	ENDIF()
 ENDIF()
 
+#ODE Physics library plugin
+SET(FTE_PLUG_ODE true CACHE STRING "Compile ODE rigid body physics plugin.")
+SET_PROPERTY(CACHE FTE_PLUG_ODE PROPERTY STRINGS false true static)
+IF(FTE_PLUG_ODE)
+	FIND_PATH(LIBODE_INCLUDE_DIR ode/ode.h)
+	IF (LIBODE_INCLUDE_DIR)
+		FIND_LIBRARY(LIBODE_LIBRARY ode)
+	ENDIF()
+	IF (LIBODE_LIBRARY)
+		IF (FTE_PLUG_ODE STREQUAL "static")
+			#SET (FTE_COMMON_FILES ${FTE_COMMON_FILES} engine/common/com_phys_ode.c)
+			SET(FTE_LIB_DEFINES "${FTE_LIB_DEFINES};USE_INTERNAL_ODE;ODE_STATIC")
+			SET(FTE_LIBS ${FTE_LIBS} ${LIBODE_LIBRARY})
+			SET(FTESV_LIBS ${FTE_LIBS} ${LIBODE_LIBRARY})
+			SET(FTE_INCLUDES ${FTE_INCLUDES} ${ODE_INCLUDE_DIRS})
+		ELSE()
+			ADD_LIBRARY(plug_ode MODULE
+				plugins/plugin.c
+				engine/common/com_phys_ode.c
+				engine/common/mathlib.c
+			)
+			TARGET_INCLUDE_DIRECTORIES(plug_ode PUBLIC ${ODE_INCLUDE_DIRS})
+			SET_TARGET_PROPERTIES(plug_ode PROPERTIES COMPILE_DEFINITIONS "FTEPLUGIN;ODE_STATIC")
+			TARGET_LINK_LIBRARIES(plug_ode ${SYS_LIBS} ${LIBODE_LIBRARY})
+
+			EMBED_PLUGIN_META(ode "ODE Physics" "Provides Rigid Body Physics behaviours.")
+		ENDIF()
+	ELSE()
+		MESSAGE(WARNING "ODE library not found, no ode plugin for you")
+	ENDIF()
+ENDIF()
+
 IF(ANDROID)
 	#android sucks. everything is a library. so we build the engine as a shared library and completely ignore dedicated servers+tools
 	SET(FTE_ENGINE_FTEDROID true CACHE BOOL "Compile ftedroid engine shared library.")
@@ -865,6 +897,7 @@ IF(ANDROID)
 			${FTE_CLIENT_FILES}
 		)
 		SET_TARGET_PROPERTIES(ftedroid PROPERTIES COMPILE_DEFINITIONS "${FTE_LIB_DEFINES};${FTE_DEFINES};${FTE_REVISON}")
+		TARGET_INCLUDE_DIRECTORIES(ftedroid PUBLIC ${FTE_INCLUDES})
 		TARGET_LINK_LIBRARIES(ftedroid ${FTE_LIBS} )
 		SET(INSTALLTARGS ${INSTALLTARGS} ftedroid)
 	ENDIF()
@@ -879,6 +912,7 @@ ELSE()
 			${FTE_SERVER_FILES}
 		)
 		SET_TARGET_PROPERTIES(fteqw PROPERTIES COMPILE_DEFINITIONS "${FTE_LIB_DEFINES};${FTE_DEFINES};${FTE_REVISON}")
+		TARGET_INCLUDE_DIRECTORIES(fteqw PUBLIC ${FTE_INCLUDES})
 		TARGET_LINK_LIBRARIES(fteqw ${FTE_LIBS})
 		SET(INSTALLTARGS ${INSTALLTARGS} fteqw)
 	ENDIF()
@@ -891,6 +925,7 @@ ELSE()
 			${FTE_SERVER_FILES}
 		)
 		SET_TARGET_PROPERTIES(fteqw-sv PROPERTIES COMPILE_DEFINITIONS "SERVERONLY;${FTE_LIB_DEFINES};${FTESV_DEFINES};${FTE_REVISON}")
+		TARGET_INCLUDE_DIRECTORIES(fteqw-sv PUBLIC ${FTE_INCLUDES})
 		TARGET_LINK_LIBRARIES(fteqw-sv ${FTESV_LIBS})
 		SET(INSTALLTARGS ${INSTALLTARGS} fteqw-sv)
 	ENDIF()
@@ -903,6 +938,7 @@ ELSE()
 			${FTE_CLIENT_FILES}
 		)
 		SET_TARGET_PROPERTIES(fteqw-cl PROPERTIES COMPILE_DEFINITIONS "CLIENTONLY;${FTE_LIB_DEFINES};${FTE_DEFINES};${FTE_REVISON}")
+		TARGET_INCLUDE_DIRECTORIES(fteqw-cl PUBLIC ${FTE_INCLUDES})
 		TARGET_LINK_LIBRARIES(fteqw-cl ${FTE_LIBS})
 		SET(INSTALLTARGS ${INSTALLTARGS} fteqw-cl)
 	ENDIF()
@@ -1178,29 +1214,6 @@ ENDIF()
 #		EMBED_PLUGIN_META(gnutls "GnuTLS" "Provides GnuTLS support for dtls/tls/https support. The crypto library that is actually used is controlled via the tls_provider cvar.")
 #	ENDIF()
 #ENDIF()
-
-#ODE Physics library plugin
-SET(FTE_PLUG_ODE true CACHE BOOL "Compile ODE rigid body physics plugin.")
-IF(FTE_PLUG_ODE)
-	FIND_PATH(LIBODE_INCLUDE_DIR ode/ode.h)
-	IF (LIBODE_INCLUDE_DIR)
-		FIND_LIBRARY(LIBODE_LIBRARY ode)
-	ENDIF()
-	IF (LIBODE_LIBRARY)
-		ADD_LIBRARY(plug_ode MODULE
-			plugins/plugin.c
-			engine/common/com_phys_ode.c
-			engine/common/mathlib.c
-		)
-		TARGET_INCLUDE_DIRECTORIES(plug_ode PUBLIC ${ODE_INCLUDE_DIRS})
-		SET_TARGET_PROPERTIES(plug_ode PROPERTIES COMPILE_DEFINITIONS "FTEPLUGIN;ODE_STATIC")
-		TARGET_LINK_LIBRARIES(plug_ode ${SYS_LIBS} ${LIBODE_LIBRARY})
-
-		EMBED_PLUGIN_META(ode "ODE Physics" "Provides Rigid Body Physics behaviours.")
-	ELSE()
-		MESSAGE(WARNING "ODE library not found, no ode plugin for you")
-	ENDIF()
-ENDIF()
 
 #EzQuake Hud port plugin
 SET(FTE_PLUG_EZHUD true CACHE BOOL "Compile MoreQuakeWorld Hud plugin .")

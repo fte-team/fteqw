@@ -726,8 +726,15 @@ extern	cvar_t	gl_playermip;
 
 extern  cvar_t	r_lightmap_saturation;
 
+#ifdef FTEPLUGIN	//evil hack... boo hiss.
+extern cvar_t *cvar_r_meshpitch;
+extern cvar_t *cvar_r_meshroll;
+#define r_meshpitch (*cvar_r_meshpitch)
+#define r_meshroll (*cvar_r_meshroll)
+#else
 extern cvar_t r_meshpitch;
 extern cvar_t r_meshroll;	//gah!
+#endif
 extern cvar_t vid_hardwaregamma;
 
 enum {

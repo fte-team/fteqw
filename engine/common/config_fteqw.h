@@ -221,5 +221,9 @@
 //enable some staticaly linked libraries
 -DLINK_FREETYPE		//international text requires international fonts.
 
+#if defined(USE_INTERNAL_ODE) && !defined(ODE_DYNAMIC)
+-DLINK_ODE
+#endif
+
 //-Os		//optimise for size instead of speed. less cpu cache needed means that its sometimes faster anyway.
 #endif

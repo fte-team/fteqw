@@ -27,7 +27,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 //if we're not building as an fte-specific plugin, we must be being built as part of the fte engine itself.
 //(no, we don't want to act as a plugin for ezquake...)
 #ifndef FTEPLUGIN
-#define FTEENGINE
 #define FTEPLUGIN
 #define Plug_Init Plug_ODE_Init
 #endif
@@ -60,11 +59,11 @@ static int VectorCompare (const vec3_t v1, const vec3_t v2)
 	return 1;
 }
 
+cvar_t *cvar_r_meshpitch;
+cvar_t *cvar_r_meshroll;
 #endif
 
 static rbeplugfuncs_t *rbefuncs;
-cvar_t r_meshpitch;
-cvar_t r_meshroll;
 
 //============================================================================
 // physics engine support
@@ -88,6 +87,9 @@ cvar_t r_meshroll;
 #define dDOUBLE
 #include "ode/ode.h"
 #else
+#ifndef ODE_DYNAMIC
+#define ODE_DYNAMIC
+#endif
 #ifdef WINAPI
 // ODE does not use WINAPI
 #define ODE_API VARGS /*vargs because fte likes to be compiled fastcall (vargs is defined as cdecl...)*/
@@ -736,6 +738,11 @@ dGeomID         (ODE_API *dCreateTriMesh)(dSpaceID space, dTriMeshDataID Data, d
 //int             (ODE_API *dGeomTriMeshGetTriangleCount )(dGeomID g);
 //void            (ODE_API *dGeomTriMeshDataUpdate)(dTriMeshDataID g);
 
+typedef void dMessageFunction (int errnum, const char *msg, va_list ap);
+void (ODE_API  *dSetErrorHandler) (dMessageFunction *fn);
+void (ODE_API  *dSetDebugHandler) (dMessageFunction *fn);
+void (ODE_API  *dSetMessageHandler) (dMessageFunction *fn);
+
 static dllfunction_t odefuncs[] =
 {
 //	{"dGetConfiguration",							(void **) &dGetConfiguration},
@@ -1182,6 +1189,10 @@ static dllfunction_t odefuncs[] =
 //	{"dGeomTriMeshGetPoint",                        (void **) &dGeomTriMeshGetPoint},
 //	{"dGeomTriMeshGetTriangleCount",                (void **) &dGeomTriMeshGetTriangleCount},
 //	{"dGeomTriMeshDataUpdate",                      (void **) &dGeomTriMeshDataUpdate},
+
+	{(void **) &dSetErrorHandler,					"dSetErrorHandler"},
+	{(void **) &dSetDebugHandler,					"dSetDebugHandler"},
+	{(void **) &dSetMessageHandler,					"dSetMessageHandler"},
 	{NULL, NULL}
 };
 
@@ -1241,14 +1252,14 @@ static void World_ODE_RunCmd(world_t *world, rbecommandqueue_t *cmd);
 	#define vsnprintf(s,l,f,a) _vsnprintf(s,l,f,a);string[sizeof(string)-1] = 0;
 #endif
 
-void MyODEErrorHandler (int errnum, const char *msg, va_list ap)
+static void MyODEErrorHandler (int errnum, const char *msg, va_list ap)
 {
 	char		string[1024];
 	vsnprintf (string,sizeof(string), msg, ap);
 	string[sizeof(string)-1] = 0;
-	Sys_Errorf("ODE ERROR %i: %s", errnum, string);
+	Sys_Error("ODE ERROR %i: %s", errnum, string);
 }
-void MyODEMessageHandler (int errnum, const char *msg, va_list ap)
+static void MyODEMessageHandler (int errnum, const char *msg, va_list ap)
 {
 	char		string[1024];
 	vsnprintf (string,sizeof(string), msg, ap);
@@ -1299,7 +1310,7 @@ static qboolean World_ODE_Init(void)
 
 #ifdef ODE_DYNAMIC
 	// Load the DLL
-	ode_dll = pSys_LoadLibrary(dllname, odefuncs);
+	ode_dll = plugfuncs->LoadDLL(dllname, odefuncs);
 	if (ode_dll)
 #endif
 	{
@@ -1317,7 +1328,7 @@ static qboolean World_ODE_Init(void)
 # else
 			Con_Printf("ode library not compiled for double precision - incompatible!  Not using ODE physics.\n");
 # endif
-			pSys_CloseLibrary(ode_dll);
+			plugfuncs->CloseDLL(ode_dll);
 			ode_dll = NULL;
 		}
 #endif
@@ -1326,6 +1337,7 @@ static qboolean World_ODE_Init(void)
 #ifdef ODE_DYNAMIC
 	if (!ode_dll)
 	{
+		Con_Printf("ODE plugin failed: \"%s\" library missing.\n", dllname);
 		return false;
 	}
 #endif
@@ -1344,7 +1356,7 @@ static void World_ODE_Shutdown(void)
 	{
 		dCloseODE();
 #ifdef ODE_DYNAMIC
-		pSys_CloseLibrary(ode_dll);
+		plugfuncs->CloseDLL(ode_dll);
 		ode_dll = NULL;
 #endif
 	}
@@ -2265,7 +2277,7 @@ static void World_ODE_Frame_BodyFromEntity(world_t *world, wedict_t *ed)
 			dMassSetCylinderTotal(&mass, massval, axisindex+1, radius, length);
 			break;
 		default:
-			Sys_Errorf("World_ODE_BodyFromEntity: unrecognized solid value %i was accepted by filter\n", solid);
+			Sys_Error("World_ODE_BodyFromEntity: unrecognized solid value %i was accepted by filter\n", solid);
 		}
 		Matrix3x4_InvertTo4x4_Simple(ed->rbe.offsetmatrix, ed->rbe.offsetimatrix);
 		ed->rbe.massbuf = BZ_Malloc(sizeof(dMass));
@@ -2738,8 +2750,10 @@ static void QDECL World_ODE_Start(world_t *world)
 	memset(ctx, 0, sizeof(*ctx));
 	world->rbe = &ctx->pub;
 
+#ifndef FTEENGINE
 	r_meshpitch.value = cvarfuncs->GetFloat("r_meshpitch");
 	r_meshroll.value = cvarfuncs->GetFloat("r_meshroll");
+#endif
 
 	VectorAvg(world->worldmodel->mins, world->worldmodel->maxs, center);
 	VectorSubtract(world->worldmodel->maxs, center, extents);
@@ -2831,12 +2845,11 @@ static void QDECL Plug_ODE_Shutdown(void)
 
 qboolean Plug_Init(void)
 {
-#ifndef ODE_STATIC
-	CHECKBUILTIN(Sys_LoadLibrary);
-	CHECKBUILTIN(Sys_CloseLibrary);
-#endif
-
 	rbefuncs = plugfuncs->GetEngineInterface("RBE", sizeof(*rbefuncs));
+#ifndef FTEENGINE
+	cvar_r_meshpitch = cvarfuncs->GetNVFDG("r_meshpitch", "1", 0, NULL, NULL);
+	cvar_r_meshroll = cvarfuncs->GetNVFDG("r_meshroll", "1", 0, NULL, NULL);
+#endif
 	if (rbefuncs && (	rbefuncs->version < RBEPLUGFUNCS_VERSION ||
 						rbefuncs->wedictsize != sizeof(wedict_t)))
 		rbefuncs = NULL;
@@ -2845,13 +2858,6 @@ qboolean Plug_Init(void)
 		Con_Printf("ODE plugin failed: Engine is incompatible.\n");
 		return false;
 	}
-#ifndef ODE_STATIC
-	if (!BUILTINISVALID(Sys_LoadLibrary) || !BUILTINISVALID(Sys_CloseLibrary))
-	{
-		Con_Printf("ODE plugin failed: Engine too old.\n");
-		return false;
-	}
-#endif
 
 	if (!rbefuncs || !rbefuncs->RegisterPhysicsEngine)
 		Con_Printf("ODE plugin failed: Engine doesn't support physics engine plugins.\n");
@@ -2861,7 +2867,6 @@ qboolean Plug_Init(void)
 	{
 		if (!World_ODE_Init())
 		{
-			Con_Printf("ODE plugin failed: ODE library missing.\n");
 			rbefuncs->UnregisterPhysicsEngine("ODE");
 			return false;
 		}

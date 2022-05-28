@@ -3513,11 +3513,21 @@ static void QCBUILTIN PF_ReadInt64(pubprogfuncs_t *prinst, struct globalvars_s *
 {
 	if (!csqc_mayread)
 	{
-		CSQC_Abort("PF_ReadInt is not valid at this time");
+		CSQC_Abort("PF_ReadInt64 is not valid at this time");
 		G_INT(OFS_RETURN) = -1;
 		return;
 	}
 	G_INT64(OFS_RETURN) = MSG_ReadInt64();
+}
+static void QCBUILTIN PF_ReadUInt64(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	if (!csqc_mayread)
+	{
+		CSQC_Abort("PF_ReadUInt64 is not valid at this time");
+		G_INT(OFS_RETURN) = -1;
+		return;
+	}
+	G_INT64(OFS_RETURN) = MSG_ReadUInt64();
 }
 
 static void QCBUILTIN PF_ReadString(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
@@ -7282,6 +7292,7 @@ static struct {
 	{"readdouble",				PF_ReadDouble,					0},		// #367 __double() readdouble (EXT_CSQC)
 	{"readint",					PF_ReadInt,						0},		// #0 int() readint
 	{"readint64",				PF_ReadInt64,					0},		// #0 __int64() readint64
+	{"readuint64",				PF_ReadUInt64,					0},		// #0 __uint64() readuint64
 	{"readentitynum",			PF_ReadEntityNum,				368},	// #368 float() readentitynum (EXT_CSQC)
 
 //	{"readserverentitystate",	PF_ReadServerEntityState,		369},	// #369 void(float flags, float simtime) readserverentitystate (EXT_CSQC_1)

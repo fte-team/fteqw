@@ -5459,10 +5459,8 @@ void QCBUILTIN PF_WriteInt (pubprogfuncs_t *prinst, struct globalvars_s *pr_glob
 	}
 }
 
-void QCBUILTIN PF_WriteInt64 (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+static void PF_WriteUInt64_Val (int dest, puint64_t val)
 {
-	int dest = G_FLOAT(OFS_PARM0);
-	pint64_t val = G_INT64(OFS_PARM1);
 	if (dest == MSG_CSQC)
 	{	//csqc buffers are always written.
 		MSG_WriteInt64(&csqcmsgbuffer, val);
@@ -5481,15 +5479,31 @@ void QCBUILTIN PF_WriteInt64 (pubprogfuncs_t *prinst, struct globalvars_s *pr_gl
 		;
 	else if (progstype != PROG_QW)
 	{
-		NPP_NQWriteLong(dest, val&0xffffffff);
-		NPP_NQWriteLong(dest, (val>>32)&0xffffffff);
+		int b = 0;
+		quint64_t l = 128;
+		while (val > l-1u && b < 8)
+		{	//count the extra bytes we need
+			b++;
+			l <<= 7;	//each byte we add gains 8 bits, but we spend one on length.
+		}
+		NPP_NQWriteByte(dest, 0xffu<<(8-b) | (val >> (b*8)));
+		while(b --> 0)
+			NPP_NQWriteByte(dest, val >> (b*8));
 		return;
 	}
 #ifdef NQPROT
 	else
 	{
-		NPP_QWWriteLong(dest, val&0xffffffff);
-		NPP_QWWriteLong(dest, (val>>32)&0xffffffff);
+		int b = 0;
+		quint64_t l = 128;
+		while (val > l-1u && b < 8)
+		{	//count the extra bytes we need
+			b++;
+			l <<= 7;	//each byte we add gains 8 bits, but we spend one on length.
+		}
+		NPP_QWWriteByte(dest, 0xffu<<(8-b) | (val >> (b*8)));
+		while(b --> 0)
+			NPP_QWWriteByte(dest, val >> (b*8));
 		return;
 	}
 #endif
@@ -5506,10 +5520,26 @@ void QCBUILTIN PF_WriteInt64 (pubprogfuncs_t *prinst, struct globalvars_s *pr_gl
 	else
 	{
 		if (progstype != PROG_QW)
-			MSG_WriteInt64 (NQWriteDest(dest), val);
+			MSG_WriteUInt64 (NQWriteDest(dest), val);
 		else
-			MSG_WriteInt64 (QWWriteDest(dest), val);
+			MSG_WriteUInt64 (QWWriteDest(dest), val);
 	}
+}
+void QCBUILTIN PF_WriteUInt64 (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	int dest = G_FLOAT(OFS_PARM0);
+	puint64_t val = G_UINT64(OFS_PARM1);
+	PF_WriteUInt64_Val(dest, val);
+}
+void QCBUILTIN PF_WriteInt64 (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	int dest = G_FLOAT(OFS_PARM0);
+	pint64_t val = G_INT64(OFS_PARM1);
+	//move the sign bit into the low bit and avoid sign extension for more efficient length coding. otherwise just reuse our uint64 logic
+	if (val < 0)
+		PF_WriteUInt64_Val(dest, ((quint64_t)(-1-val)<<1)|1);
+	else
+		PF_WriteUInt64_Val(dest, val<<1);
 }
 
 void QCBUILTIN PF_WriteAngle (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
@@ -11489,7 +11519,8 @@ static BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"WriteFloat",		PF_WriteFloat,		0,		0,		0,		280,	D("void(float buf, float fl)", "Writes a full 32bit float without any data conversions at all, for full precision.")},//
 	{"WriteDouble",		PF_WriteDouble,		0,		0,		0,		0,		D("void(float buf, __double dbl)", "Writes a full 64bit double-precision float without any data conversions at all, for excessive precision.")},//
 	{"WriteInt",		PF_WriteInt,		0,		0,		0,		0,		D("void(float buf, int fl)", "Writes all 4 bytes of a 32bit integer without truncating to a float first before converting back to an int (unlike WriteLong does, but otherwise equivelent).")},//
-	{"WriteInt64",		PF_WriteInt64,		0,		0,		0,		0,		D("void(float buf, __int64 fl)", "Writes all 8 bytes of a 64bit integer.")},//
+	{"WriteInt64",		PF_WriteInt64,		0,		0,		0,		0,		D("void(float buf, __int64 fl)", "Writes all 8 bytes of a 64bit integer. This uses variable-length coding and will send only a single byte for any value between -64 and 63.")},//
+	{"WriteUInt64",		PF_WriteUInt64,		0,		0,		0,		0,		D("void(float buf, __uint64 fl)", "Writes all 8 bytes of a 64bit unsigned integer. Values between 0-127 will be sent in a single byte.")},//
 	{"skel_ragupdate",	PF_skel_ragedit,	0,		0,		0,		281,	D("float(entity skelent, string dollcmd, float animskel)", "Updates the skeletal object attached to the entity according to its origin and other properties.\nif animskel is non-zero, the ragdoll will animate towards the bone state in the animskel skeletal object, otherwise they will pick up the model's base pose which may not give nice results.\nIf dollcmd is not set, the ragdoll will update (this should be done each frame).\nIf the doll is updated without having a valid doll, the model's default .doll will be instanciated.\ncommands:\n doll foo.doll : sets up the entity to use the named doll file\n dollstring TEXT : uses the doll file directly embedded within qc, with that extra prefix.\n cleardoll : uninstanciates the doll without destroying the skeletal object.\n animate 0.5 : specifies the strength of the ragdoll as a whole \n animatebody somebody 0.5 : specifies the strength of the ragdoll on a specific body (0 will disable ragdoll animations on that body).\n enablejoint somejoint 1 : enables (or disables) a joint. Disabling joints will allow the doll to shatter.")}, // (FTE_CSQC_RAGDOLL)
 	{"skel_mmap",		PF_skel_mmap,		0,		0,		0,		282,	D("float*(float skel)", "Map the bones in VM memory. They can then be accessed via pointers. Each bone is 12 floats, the four vectors interleaved (sadly).")},// (FTE_QC_RAGDOLL)
 	{"skel_set_bone_world",PF_skel_set_bone_world,0,0,		0,		283,	D("void(entity ent, float bonenum, vector org, optional vector angorfwd, optional vector right, optional vector up)", "Sets the world position of a bone within the given entity's attached skeletal object. The world position is dependant upon the owning entity's position. If no orientation argument is specified, v_forward+v_right+v_up are used for the orientation instead. If 1 is specified, it is understood as angles. If 3 are specified, they are the forawrd/right/up vectors to use.")},
@@ -11630,9 +11661,10 @@ static BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"readangle",		PF_Fixme,	0,		0,		0,		365,	D("float()", "Reads a value matching the unspecified precision written ONLY by WriteAngle.")},// (EXT_CSQC)
 	{"readstring",		PF_Fixme,	0,		0,		0,		366,	D("string()", "Reads a null-terminated string.")},// (EXT_CSQC)
 	{"readfloat",		PF_Fixme,	0,		0,		0,		367,	D("float()", "Reads a float without any truncation nor conversions. Data MUST have originally been written with WriteFloat.")},// (EXT_CSQC)
-	{"readdouble",		PF_Fixme,	0,		0,		0,		0,		D("__double()", "Reads a double-precision float without any truncation nor conversions. Data MUST have originally been written with WriteDouble.")},// (EXT_CSQC)
+	{"readdouble",		PF_Fixme,	0,		0,		0,		0,		D("__double()", "Reads a double-precision float without any truncation nor conversions. Data MUST have originally been written with WriteDouble.")},
 	{"readint",			PF_Fixme,	0,		0,		0,		0,		D("int()", "Reads a 32bit int without any conversions to float, otherwise interchangable with readlong.")},// (EXT_CSQC)
-	{"readint64",		PF_Fixme,	0,		0,		0,		0,		D("__int64()", "Reads a 64bit int. Paired with WriteInt64.")},// (EXT_CSQC)
+	{"readint64",		PF_Fixme,	0,		0,		0,		0,		D("__int64()", "Reads a 64bit signed int. Paired with WriteInt64.")},
+	{"readuint64",		PF_Fixme,	0,		0,		0,		0,		D("__uint64()", "Reads a 64bit unsigned int. Paired with WriteUInt64.")},
 	{"readentitynum",	PF_Fixme,	0,		0,		0,		368,	D("float()", "Reads the serverside index of an entity, paired with WriteEntity. There may be nothing else known about the entity yet, so the result typically needs to be saved as-is and re-looked up each frame. This can be done via getentity(NUM, GE_*) for non-csqc ents, or findentity(world,entnum,NUM) - both of which can fail due to latency.")},// (EXT_CSQC)
 
 //	{"readserverentitystate",PF_Fixme,0,	0,		0,		369,	"void(float flags, float simtime)"},// (EXT_CSQC_1)

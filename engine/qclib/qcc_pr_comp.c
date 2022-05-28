@@ -2021,7 +2021,7 @@ static QCC_sref_t QCC_SupplyConversion(QCC_sref_t  var, etype_t wanted, pbool fa
 		{
 			if (flag_laxcasts)
 			{
-				QCC_PR_ParseWarning(WARN_LAXCAST, "Implicit type mismatch. Needed %s, got %s.", basictypenames[wanted], basictypenames[var.cast->type]);
+				QCC_PR_ParseWarning(WARN_LAXCAST, "Implicit type mismatch. Needed %s%s%s, got %s%s%s.", col_type,basictypenames[wanted],col_none, col_type,basictypenames[var.cast->type],col_none);
 				QCC_PR_ParsePrintSRef(WARN_LAXCAST, var);
 			}
 			else
@@ -17754,6 +17754,7 @@ QCC_type_t *QCC_PR_ParseEnum(pbool flags)
 
 void QCC_PR_ParseTypedef(void)
 {
+	QCC_type_t *old;
 	QCC_type_t *type = QCC_PR_ParseType(false, false);
 	if (!type)
 	{
@@ -17800,10 +17801,25 @@ void QCC_PR_ParseTypedef(void)
 		}
 		else
 		{
-			type = QCC_PR_DuplicateType(type, false);
-			type->name = name;
-			type->typedefed = true;
-			pHash_Add(&typedeftable, name, type, qccHunkAlloc(sizeof(bucket_t)));
+			old = QCC_TypeForName(name);
+			if (old)
+			{
+				if (typecmp(old, type))
+				{
+					char obuf[1024];
+					char nbuf[1024];
+					old->typedefed = false;
+					QCC_PR_ParseWarning(ERR_NOTATYPE, "Cannot redeclare typedef %s%s%s from %s%s%s to %s%s%s", col_type,name,col_none, col_type,TypeName(old, obuf, sizeof(obuf)),col_none, col_type,TypeName(type, nbuf, sizeof(nbuf)),col_none);
+					old->typedefed = true;
+				}
+			}
+			else
+			{
+				type = QCC_PR_DuplicateType(type, false);
+				type->name = name;
+				type->typedefed = true;
+				pHash_Add(&typedeftable, name, type, qccHunkAlloc(sizeof(bucket_t)));
+			}
 		}
 	} while(QCC_PR_CheckToken(","));
 	QCC_PR_Expect(";");

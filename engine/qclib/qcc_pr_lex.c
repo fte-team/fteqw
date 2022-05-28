@@ -4726,6 +4726,14 @@ static void Q_strlcat(char *dest, const char *src, int sizeofdest)
 char *TypeName(QCC_type_t *type, char *buffer, int buffersize)
 {
 	char *ret;
+	/*if (type->typedefed)
+	{
+		if (buffersize < 0)
+			return buffer;
+		*buffer = 0;
+		Q_strlcat(buffer, type->name, buffersize);
+		return buffer;
+	}*/
 
 	if (type->type == ev_void)
 	{
@@ -5599,7 +5607,12 @@ QCC_type_t *QCC_PR_ParseType (int newtype, pbool silentfail)
 				QCC_PR_ParseError(ERR_NOTANAME, "Accessor %s cannot be based upon %s", accessorname, parentname);
 		}
 		else if (type != newt->parentclass)
-			QCC_PR_ParseError(ERR_NOTANAME, "Accessor %s basic type mismatch", accessorname);
+		{
+			char bufe[256];
+			char bufn[256];
+			QCC_PR_ParseError(ERR_NOTANAME, "Accessor %s basic type mismatch (%s, expected %s)", accessorname,
+				TypeName(type, bufn, sizeof(bufn)), TypeName(newt->parentclass, bufe, sizeof(bufe)));
+		}
 
 		if (QCC_PR_CheckToken("{"))
 		{

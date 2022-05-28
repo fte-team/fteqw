@@ -1308,7 +1308,12 @@ static progsnum_t AddProgs(const char *name)
 	if (!svs.numprogs)
 	{
 		if (progstype == PROG_NQ)
-			svprogfuncs->FindBuiltins (svprogfuncs, num, 90, PR_CheckForQEx, NULL);
+		{
+			if (PR_FindFunction(svprogfuncs, "ex_centerprint", num) && !PR_FindFunction(svprogfuncs, "centerprint", num))
+				sv.world.remasterlogic = true;
+			else
+				svprogfuncs->FindBuiltins (svprogfuncs, num, 90, PR_CheckForQEx, NULL);	//older check
+		}
 
 		PF_InitTempStrings(svprogfuncs);
 		PR_ResetBuiltins(progstype);
@@ -10762,6 +10767,34 @@ static void QCBUILTIN PF_finaleFinished_qex(pubprogfuncs_t *prinst, struct globa
 static void QCBUILTIN PF_localsound_qex(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {	//undocumented. just stub it.
 }
+static void QCBUILTIN PF_CheckPlayerEXFlags_qex(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	int entnum = G_EDICTNUM(prinst, OFS_PARM0);
+	unsigned int flags = 0;
+
+	if (entnum >= 1 && entnum <= sv.allocated_client_slots)
+	{
+		client_t *pl = &svs.clients[entnum-1];
+		int ival;
+		char *value = InfoBuf_ValueForKey (&pl->userinfo, "w_switch");
+		if (!*value)
+			value = InfoBuf_ValueForKey (&pl->userinfo, "b_switch");
+		ival = atoi(value);
+
+		//if (!ival) ival = 8; //QW's logic...
+
+		/*this is ugly. QW has a 'w_switch' userinfo that says the user's best weapon. As a general rule, setting w_switch to 1(axe) will disable switching up on weapon grabs.
+		  QE does stuff differently though, so all we can really go by is w_switch 1 (vs >1).
+		  */
+		if (!ival)	//unspecified
+			flags |= 1/*PEF_CHANGEONLYNEW*/;
+		else if (ival == 1)	//user will not 'upgrade' past axe.
+			flags |= 2/*PEF_CHANGENEVER*/;
+		//else //
+	}
+
+	G_FLOAT(OFS_RETURN) = flags;
+}
 static void QCBUILTIN PF_centerprint_qex(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {	//TODO: send the strings to the client for localisation+reordering
 	const char *arg[8];
@@ -11107,21 +11140,25 @@ static BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 
 	{"setspawnparms",	PF_setspawnparms,	78,		78,		78,		0,	"void(entity player)"},	//78
 
-//QuakeEx (aka: quake rerelease). These conflict with core extensions so we don't register them by default.
-	{"finaleFinished_qex",PF_finaleFinished_qex,0,	0,		0,0/*79*/,	D("DEP float()", "Behaviour is undocumented.")},
-	{"localsound_qex",	PF_localsound_qex,	0,		0,		0,0/*80*/,	D("DEP void(entity client, string sample)", "Behaviour is undocumented.")},
-	{"draw_point_qex",	PF_Fixme,			0,		0,		0,0/*81*/,	D("DEP void(vector point, float colormap, float lifetime, float depthtest)", "Behaviour is undocumented.")},
-	{"draw_line_qex",	PF_Fixme,			0,		0,		0,0/*82*/,	D("DEP void(vector start, vector end, float colormap, float lifetime, float depthtest)", "Behaviour is undocumented.")},
-	{"draw_arrow_qex",	PF_Fixme,			0,		0,		0,0/*83*/,	D("DEP void(vector start, vector end, float colormap, float size, float lifetime, float depthtest)", "Behaviour is undocumented.")},
-	{"draw_ray_qex",	PF_Fixme,			0,		0,		0,0/*84*/,	D("DEP void(vector start, vector direction, float length, float colormap, float size, float lifetime, float depthtest)", "Behaviour is undocumented.")},
-	{"draw_circle_qex",	PF_Fixme,			0,		0,		0,0/*85*/,	D("DEP void(vector origin, float radius, float colormap, float lifetime, float depthtest)", "Behaviour is undocumented.")},
-	{"draw_bounds_qex",	PF_Fixme,			0,		0,		0,0/*86*/,	D("DEP void(vector min, vector max, float colormap, float lifetime, float depthtest)", "Behaviour is undocumented.")},
-	{"draw_worldtext_qex",PF_Fixme,			0,		0,		0,0/*87*/,	D("DEP void(string s, vector origin, float size, float lifetime, float depthtest)", "Behaviour is undocumented.")},
-	{"draw_sphere_qex",	PF_Fixme,			0,		0,		0,0/*88*/,	D("DEP void(vector origin, float radius, float colormap, float lifetime, float depthtest)", "Behaviour is undocumented.")},
-	{"draw_cylinder_qex",PF_Fixme,			0,		0,		0,0/*89*/,	D("DEP void(vector origin, float halfHeight, float radius, float colormap, float lifetime, float depthtest)", "Behaviour is undocumented.")},
-	{"centerprint_qex",	PF_centerprint_qex,	0,		0,		0,0/*90*/,	D("void(entity ent, string text, optional string s0, optional string s1, optional string s2, optional string s3, optional string s4, optional string s5)", "Remaster: Sends the strings to the client, which will order according to {#}. Also substitutes localised strings for $NAME strings.")},
-	{"bprint_qex",		PF_bprint_qex,		0,		0,		0,0/*91*/,	D("void(string s, optional string s0, optional string s1, optional string s2, optional string s3, optional string s4, optional string s5, optional string s6)", "Remaster: Sends the strings to all clients, which will order them according to {#}. Also substitutes localised strings for $NAME strings.")},
-	{"sprint_qex",		PF_sprint_qex,		0,		0,		0,0/*92*/,	D("void(entity client, string s, optional string s0, optional string s1, optional string s2, optional string s3, optional string s4, optional string s5)", "Remaster: Sends the strings to the client, which will order according to {#}. Also substitutes localised strings for $NAME strings.")},
+//QuakeEx (aka: quake rerelease). These conflict with core extensions so we don't register them by default (Update: they now link by name rather than number.
+	{"ex_finaleFinished",PF_finaleFinished_qex,0,	0,		0,0/*79*/,	D("float()", "Behaviour is undocumented.")},
+	{"ex_localsound",	PF_localsound_qex,	0,		0,		0,0/*80*/,	D("void(entity client, string sample)", "Behaviour is undocumented.")},
+	{"ex_draw_point",	PF_Fixme,			0,		0,		0,0/*81*/,	D("void(vector point, float colormap, float lifetime, float depthtest)", "Behaviour is undocumented.")},
+	{"ex_draw_line",	PF_Fixme,			0,		0,		0,0/*82*/,	D("void(vector start, vector end, float colormap, float lifetime, float depthtest)", "Behaviour is undocumented.")},
+	{"ex_draw_arrow",	PF_Fixme,			0,		0,		0,0/*83*/,	D("void(vector start, vector end, float colormap, float size, float lifetime, float depthtest)", "Behaviour is undocumented.")},
+	{"ex_draw_ray",		PF_Fixme,			0,		0,		0,0/*84*/,	D("void(vector start, vector direction, float length, float colormap, float size, float lifetime, float depthtest)", "Behaviour is undocumented.")},
+	{"ex_draw_circle",	PF_Fixme,			0,		0,		0,0/*85*/,	D("void(vector origin, float radius, float colormap, float lifetime, float depthtest)", "Behaviour is undocumented.")},
+	{"ex_draw_bounds",	PF_Fixme,			0,		0,		0,0/*86*/,	D("void(vector min, vector max, float colormap, float lifetime, float depthtest)", "Behaviour is undocumented.")},
+	{"ex_draw_worldtext",PF_Fixme,			0,		0,		0,0/*87*/,	D("void(string s, vector origin, float size, float lifetime, float depthtest)", "Behaviour is undocumented.")},
+	{"ex_draw_sphere",	PF_Fixme,			0,		0,		0,0/*88*/,	D("void(vector origin, float radius, float colormap, float lifetime, float depthtest)", "Behaviour is undocumented.")},
+	{"ex_draw_cylinder",PF_Fixme,			0,		0,		0,0/*89*/,	D("void(vector origin, float halfHeight, float radius, float colormap, float lifetime, float depthtest)", "Behaviour is undocumented.")},
+	{"ex_centerprint",	PF_centerprint_qex,	0,		0,		0,0/*90*/,	D("void(entity ent, string text, optional string s0, optional string s1, optional string s2, optional string s3, optional string s4, optional string s5)", "Remaster: Sends the strings to the client, which will order according to {#}. Also substitutes localised strings for $NAME strings.")},
+	{"ex_bprint",		PF_bprint_qex,		0,		0,		0,0/*91*/,	D("void(string s, optional string s0, optional string s1, optional string s2, optional string s3, optional string s4, optional string s5, optional string s6)", "Remaster: Sends the strings to all clients, which will order them according to {#}. Also substitutes localised strings for $NAME strings.")},
+	{"ex_sprint",		PF_sprint_qex,		0,		0,		0,0/*92*/,	D("void(entity client, string s, optional string s0, optional string s1, optional string s2, optional string s3, optional string s4, optional string s5)", "Remaster: Sends the strings to the client, which will order according to {#}. Also substitutes localised strings for $NAME strings.")},
+	{"ex_bot_movetopoint",PF_Fixme,			0,		0,		0,0,	D("float(entity bot, vector point)", "Behaviour is undocumented.")},
+	{"ex_bot_followentity",PF_Fixme,		0,		0,		0,0,	D("float(entity bot, entity goal)", "Behaviour is undocumented.")},
+	{"ex_CheckPlayerEXFlags",PF_CheckPlayerEXFlags_qex,0,0,	0,0,	D("float(entity playerEnt)", "Behaviour is undocumented.")},
+	{"ex_walkpathtogoal",PF_Fixme,			0,		0,		0,0,	D("float(float movedist, vector goal)", "Behaviour is undocumented.")},
 //End QuakeEx, for now. :(
 
 // Tomaz - QuakeC String Manipulation Begin
@@ -12206,23 +12243,23 @@ void PR_ResetBuiltins(progstype_t type)	//fix all nulls to PF_FIXME and add any 
 		}
 	}
 
-#ifdef HAVE_LEGACY
+#ifdef HAVE_LEGACY	//FIXME: this should no longer be needed, but there may be unmaintained mods...
 	if (sv.world.remasterlogic)
 	{	//everyone needs their own set of incompatibile builtins... yay!...
-		PR_EnableEBFSBuiltin("finaleFinished",		79);//logfrag,	(tq_strzone)
-		PR_EnableEBFSBuiltin("localsound_qex",		80);//infokey,	(tq_strunzone)
-		PR_EnableEBFSBuiltin("draw_point_qex",		81);//stof,		(tq_strlen)
-		PR_EnableEBFSBuiltin("draw_line_qex",		82);//multicast,(tq_strcat)
-		PR_EnableEBFSBuiltin("draw_arrow_qex",		83);//			(tq_substring)
-		PR_EnableEBFSBuiltin("draw_ray_qex",		84);//			(tq_stof)
-		PR_EnableEBFSBuiltin("draw_circle_qex",		85);//			(tq_stov)
-		PR_EnableEBFSBuiltin("draw_bounds_qex",		86);//			(tq_fopen)
-		PR_EnableEBFSBuiltin("draw_worldtext_qex",	87);//			(tq_fclose)
-		PR_EnableEBFSBuiltin("draw_sphere_qex",		88);//			(tq_fgets)
-		PR_EnableEBFSBuiltin("draw_cylinder_qex",	89);//			(tq_fputs)
-		PR_EnableEBFSBuiltin("centerprint_qex",		90);//tracebox
-		PR_EnableEBFSBuiltin("bprint_qex",			91);//randomvec
-		PR_EnableEBFSBuiltin("sprint_qex",			92);//getlight
+		PR_EnableEBFSBuiltin("ex_finaleFinished",	79);//logfrag,	(tq_strzone)
+		PR_EnableEBFSBuiltin("ex_localsound",		80);//infokey,	(tq_strunzone)
+		PR_EnableEBFSBuiltin("ex_draw_point",		81);//stof,		(tq_strlen)
+		PR_EnableEBFSBuiltin("ex_draw_line",		82);//multicast,(tq_strcat)
+		PR_EnableEBFSBuiltin("ex_draw_arrow",		83);//			(tq_substring)
+		PR_EnableEBFSBuiltin("ex_draw_ray",			84);//			(tq_stof)
+		PR_EnableEBFSBuiltin("ex_draw_circle",		85);//			(tq_stov)
+		PR_EnableEBFSBuiltin("ex_draw_bounds",		86);//			(tq_fopen)
+		PR_EnableEBFSBuiltin("ex_draw_worldtext",	87);//			(tq_fclose)
+		PR_EnableEBFSBuiltin("ex_draw_sphere",		88);//			(tq_fgets)
+		PR_EnableEBFSBuiltin("ex_draw_cylinder",	89);//			(tq_fputs)
+		PR_EnableEBFSBuiltin("ex_centerprint",		90);//tracebox
+		PR_EnableEBFSBuiltin("ex_bprint",			91);//randomvec
+		PR_EnableEBFSBuiltin("ex_sprint",			92);//getlight
 
 		PR_EnableEBFSBuiltin("checkextension",		99);
 	}

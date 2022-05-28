@@ -220,7 +220,9 @@ extern qbyte *mod_base;
 			dist = plane->dist - dist;						\
 			break;
 
-unsigned char d_q28to24table[1024];
+#ifdef HAVE_CLIENT
+static unsigned char q2_palette[256*3];
+#endif
 
 
 /*
@@ -1359,7 +1361,7 @@ static texture_t *Mod_LoadWall(model_t *loadmodel, char *mapname, char *texname,
 
 		tex->srcdata = out = BZ_Malloc(size);
 		tex->srcfmt = TF_MIP4_8PAL24_T255;
-		tex->palette = host_basepal;
+		tex->palette = q2_palette;
 		memcpy(out, (qbyte *)wal + wal->offsets[0], (wal->width>>0)*(wal->height>>0));
 		out += (wal->width>>0)*(wal->height>>0);
 		memcpy(out, (qbyte *)wal + wal->offsets[1], (wal->width>>1)*(wal->height>>1));
@@ -4031,7 +4033,7 @@ static int CM_GetQ2Palette (void)
 		Con_Printf (CON_WARNING "Couldn't find pics/colormap.pcx\n");
 		return -1;
 	}
-	if (!ReadPCXPalette(f, sz, d_q28to24table))
+	if (!ReadPCXPalette(f, sz, q2_palette))
 	{
 		Con_Printf (CON_WARNING "Couldn't read pics/colormap.pcx\n");
 		FS_FreeFile(f);
@@ -4040,14 +4042,14 @@ static int CM_GetQ2Palette (void)
 	FS_FreeFile(f);
 
 
-#if 1
+#if 0
 	{
 		float	inf;
 		qbyte	palette[768];
 		qbyte *pal;
 		int		i;
 
-		pal = d_q28to24table;
+		pal = q2_palette;
 
 		for (i=0 ; i<768 ; i++)
 		{
@@ -4059,7 +4061,7 @@ static int CM_GetQ2Palette (void)
 			palette[i] = inf;
 		}
 
-		memcpy (d_q28to24table, palette, sizeof(palette));
+		memcpy (q2_palette, palette, sizeof(palette));
 	}
 #endif
 	return 0;
@@ -4818,7 +4820,7 @@ static cmodel_t *CM_LoadMap (model_t *mod, qbyte *filein, size_t filelen, qboole
 
 #ifdef HAVE_CLIENT
 		if (CM_GetQ2Palette())
-			memcpy(d_q28to24table, host_basepal, 768);
+			memcpy(q2_palette, host_basepal, 768);
 #endif
 
 

@@ -1132,6 +1132,11 @@ static qboolean CL_CheckQ2BspWals(char *file)
 	if (lump.filelen != count*sizeof(*tinf))
 		return false;
 
+	//grab the appropriate palette, just in case... but only if this won't confuse anything.
+	if (CL_CheckDLFile("gfx/palette.lmp"))
+		if (!CL_CheckOrEnqueDownloadFile("pics/colormap.pcx", NULL, 0))
+			gotone = true;
+
 	tinf = (q2texinfo_t*)(file + lump.fileofs);
 	for (i = 0; i < count; i++)
 	{
@@ -1141,13 +1146,16 @@ static qboolean CL_CheckQ2BspWals(char *file)
 				break;
 
 		if (i == j)
-		{
+		{	//note: we do support formats other than .wal but we still need the .wal to figure out the correct scaling.
+			//we make a special exception for .tga-without-.wal because other q2 engines already expect that, with pre-scaled textures (and thus lightmaps too).
 			if (!CL_CheckDLFile(va("textures/%s.wal", tinf[i].texture)))
 				if (!CL_CheckDLFile(va("textures/%s.tga", tinf[i].texture)))
 					if (!CL_CheckOrEnqueDownloadFile(va("textures/%s.wal", tinf[i].texture), NULL, 0))
 						gotone = true;
 		}
 	}
+
+	//FIXME: parse entity lump for sky name.
 #endif
 	return gotone;
 }

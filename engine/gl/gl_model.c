@@ -1086,6 +1086,9 @@ static void Mod_LoadModelWorker (void *ctx, void *data, size_t a, size_t b)
 	char ext[8];
 	int basedepth;
 
+	//clear out any old state.
+	memset(&mod->loadstate+1, 0, sizeof(*mod) - (qintptr_t)(&((model_t*)NULL)->loadstate+1));
+
 	if (!*mod->publicname)
 	{
 		mod->type = mod_dummy;
@@ -1114,8 +1117,6 @@ static void Mod_LoadModelWorker (void *ctx, void *data, size_t a, size_t b)
 //
 // load the file
 //
-	mod->maxlod = 0;
-	mod->lightmaps.first = 0;
 	// set necessary engine flags for loading purposes
 	if (!strcmp(mod->publicname, "progs/player.mdl"))
 		mod->engineflags |= MDLF_PLAYER | MDLF_DOCRC;

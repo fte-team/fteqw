@@ -4263,9 +4263,20 @@ static qboolean X11VID_Init (rendererstate_t *info, unsigned char *palette, int 
 #ifdef VKQUAKE
 	case PSL_VULKAN:
 		visinfo = &vinfodef;
-		if (!x11.pXMatchVisualInfo(vid_dpy, scrnum, min(24,info->bpp?info->bpp:DefaultDepth(vid_dpy, scrnum)), TrueColor, visinfo))
+		//the idea of a x11 server supporting vulkan but greyscale/palette video is just comedic. there will be a truecolor visual option.
+		//WARNING: nvidia's vulkan drivers might fall back to 8bpc/24.8bpp here, then only allow a 30bit swapchain for that 8bpc surface. this will cause colour screwups. I'm going to call that a driver screwup if its choosing surface formats based on padded depth of the surface's window instead of x11's visuals or unpadded depth.
+		if (info->bpp>0 && !x11.pXMatchVisualInfo(vid_dpy, scrnum, info->bpp, TrueColor, visinfo))
 		{
-			Sys_Error("Couldn't choose visual for vulkan\n");
+			int defdepth = DefaultDepth(vid_dpy, scrnum);
+			if (info->bpp!=defdepth && !x11.pXMatchVisualInfo(vid_dpy, scrnum, defdepth, TrueColor, visinfo))
+			{
+				if (defdepth!=24 && info->bpp!=24 && !x11.pXMatchVisualInfo(vid_dpy, scrnum, 24, TrueColor, visinfo))
+				{
+					Con_Printf("Couldn't choose visual for vulkan (depth %i), try changing vid_bpp\n", info->bpp?info->bpp:DefaultDepth(vid_dpy, scrnum));
+					GLVID_Shutdown();
+					return false;
+				}
+			}
 		}
 		break;
 #endif

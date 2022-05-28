@@ -374,6 +374,7 @@ static void QDECL Plug_Draw_RedrawScreen(void)
 	SCR_UpdateScreen();
 }
 
+#ifdef HAVE_MEDIA_DECODER
 static void QDECL Plug_Media_SetState(cin_t *cin, int state)
 {
 	Media_SetState(cin, state);
@@ -382,6 +383,7 @@ static int QDECL Plug_Media_GetState(cin_t *cin)
 {
 	return Media_GetState(cin);
 }
+#endif
 
 static qhandle_t Plug_Scene_ModelToId(model_t *mod)
 {

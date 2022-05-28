@@ -3682,7 +3682,7 @@ static void S_Q2_AddEntitySounds(soundcardinfo_t *sc)
 	else
 #endif
 #ifdef VM_CG
-	if (cls.protocol == CP_QUAKE3)
+	if (cls.protocol == CP_QUAKE3 && q3)
 		count = q3->cg.GatherLoopingSounds(positions, entnums, sounds, countof(sounds));
 	else
 #endif

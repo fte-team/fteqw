@@ -1749,5 +1749,10 @@ qboolean Plug_Init(void)
 		UI_Init();
 	return true;
 }
-
+#else
+qboolean Plug_Init(void)
+{
+	Con_Printf("Quake3 plugin without any support...\n");
+	return false;
+}
 #endif

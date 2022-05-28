@@ -329,10 +329,7 @@ void VARGS SV_ClientPrintf (client_t *cl, int level, const char *fmt, ...)
 	}
 #endif
 
-	if (cl->controller)
-		SV_PrintToClient(cl->controller, level, string);
-	else
-		SV_PrintToClient(cl, level, string);
+	SV_PrintToClient(cl, level, string);
 }
 
 void VARGS SV_ClientTPrintf (client_t *cl, int level, translation_t stringnum, ...)
@@ -371,44 +368,41 @@ SV_BroadcastPrintf
 Sends text to all active clients
 =================
 */
-void VARGS SV_BroadcastPrintf (int level, const char *fmt, ...)
+void SV_BroadcastPrint (unsigned int flags, int level, const char *string)
 {
-	va_list		argptr;
-	char		string[1024];
 	client_t	*cl;
 	int			i;
 
-	va_start (argptr,fmt);
-	vsnprintf (string,sizeof(string)-1, fmt,argptr);
-	va_end (argptr);
-
-	if(strlen(string) >= sizeof(string))
-		Sys_Error("SV_BroadcastPrintf: Buffer stomped\n");
-
-	//pretend to print on the server, but not to the client's console
-	Sys_Printf ("%s", string);	// print to the system console
-	Log_String(LOG_CONSOLE, string);	//dump into log
-
-	for (i=0, cl = svs.clients ; i<svs.allocated_client_slots ; i++, cl++)
+	if (!(flags & BPRINT_IGNORECONSOLE))
 	{
-		if (level < cl->messagelevel)
-			continue;
-		if (!cl->state)
-			continue;
-		if (cl->protocol == SCP_BAD)
-			continue;
+		//pretend to print on the server, but not to the client's console
+		Sys_Printf ("%s", string);	// print to the system console
+		Log_String(LOG_CONSOLE, string);	//dump into log
+	}
 
-		if (cl == sv.skipbprintclient)	//silence bprints about the player in ClientConnect. NQ completely wipes the buffer after clientconnect, which is what traditionally hides it.
-			continue;
+	if (!(flags & BPRINT_IGNORECLIENTS))
+	{
+		for (i=0, cl = svs.clients ; i<svs.allocated_client_slots ; i++, cl++)
+		{
+			if (level < cl->messagelevel)
+				continue;
+			if (!cl->state)
+				continue;
+			if (cl->protocol == SCP_BAD)
+				continue;
 
-		if (cl->controller)
-			continue;
+			if (cl == sv.skipbprintclient)	//silence bprints about the player in ClientConnect. NQ completely wipes the buffer after clientconnect, which is what traditionally hides it.
+				continue;
 
-		SV_PrintToClient(cl, level, string);
+			if (cl->controller)
+				continue;
+
+			SV_PrintToClient(cl, level, string);
+		}
 	}
 
 #ifdef MVD_RECORDING
-	if (sv.mvdrecording)
+	if (sv.mvdrecording && !(flags&BPRINT_IGNOREINDEMO))
 	{
 		sizebuf_t *msg = MVDWrite_Begin (dem_all, 0, strlen(string)+3);
 		MSG_WriteByte (msg, svc_print);
@@ -416,6 +410,18 @@ void VARGS SV_BroadcastPrintf (int level, const char *fmt, ...)
 		MSG_WriteString (msg, string);
 	}
 #endif
+}
+
+void VARGS SV_BroadcastPrintf (int level, const char *fmt, ...)
+{
+	va_list		argptr;
+	char		string[1024];
+	va_start (argptr,fmt);
+	vsnprintf (string,sizeof(string)-1, fmt,argptr);
+	va_end (argptr);
+	if(strlen(string) >= sizeof(string))
+		Sys_Error("SV_BroadcastPrintf: Buffer stomped\n");
+	SV_BroadcastPrint(0, level, string);
 }
 
 
@@ -3510,6 +3516,8 @@ void SV_SendClientMessages (void)
 			SZ_Clear (&c->netchan.message);
 			SZ_Clear (&c->datagram);
 			c->num_backbuf = 0;
+			if (c->edict)
+				c->edict->v->fixangle = FIXANGLE_NO;
 			continue;
 		}
 

@@ -2179,7 +2179,7 @@ void R_DrawNameTags(void)
 		}
 		else
 #endif
-		if (w && w->progs)
+		if (w && w->progs && svs.gametype == GT_PROGS)
 		{
 			int best = 0;
 			float bestscore = 0, score = 0;

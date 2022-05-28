@@ -1691,7 +1691,7 @@ TRACE(("dbg: R_ApplyRenderer: clearing world\n"));
 
 		if (sv.world.worldmodel->loadstate != MLS_LOADED)
 			SV_UnspawnServer();
-		else if (svs.gametype == GT_PROGS)
+		else if (svs.gametype == GT_PROGS || svs.gametype == GT_Q1QVM)
 		{
 			for (i = 0; i < MAX_PRECACHE_MODELS; i++)
 			{

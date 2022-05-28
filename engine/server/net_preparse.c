@@ -1801,7 +1801,7 @@ void NPP_QWFlush(void)
 			int i;
 			for (i = 0, cl = svs.clients; i < sv.allocated_client_slots; i++, cl++)
 			{
-				if (cl->state == cs_spawned && !ISQWCLIENT(cl))
+				if (cl->state == cs_spawned && ISNQCLIENT(cl))
 				{
 					vec3_t org, ang;
 

@@ -1726,6 +1726,11 @@ MSV_OpenUserDatabase();
 			host_client = &svs.clients[i];
 			if (host_client->state == cs_connected && host_client->protocol == SCP_BAD)
 			{
+				if (svs.gametype == GT_Q1QVM)
+				{	//ktx expects its bots to drop for each map change.
+					SV_DropClient(host_client);
+					continue;
+				}
 				sv_player = host_client->edict;
 				SV_ExtractFromUserinfo(host_client, true);
 				SV_SpawnParmsToQC(host_client);

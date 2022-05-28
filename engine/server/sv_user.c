@@ -5975,6 +5975,10 @@ static void SVNQ_Begin_f (void)
 	SV_RunCmd (&host_client->lastcmd, false);
 	SV_PostRunCmd();
 	host_client->lastruncmd = sv.time*1000;
+
+#ifdef MVD_RECORDING
+	SV_MVD_AutoRecord();
+#endif
 }
 static void SVNQ_PreSpawn_f (void)
 {
@@ -6281,8 +6285,8 @@ void SV_Pext_f(void)
 
 
 
-void SV_MVDList_f (void);
-void SV_MVDInfo_f (void);
+void SV_UserMVDList_f (void);
+void SV_UserMVDInfo_f (void);
 typedef struct
 {
 	char	*name;
@@ -6335,7 +6339,7 @@ ucmd_t ucmds[] =
 	{"demolist",	SV_UserCmdMVDList_f},
 	{"dlist",		SV_UserCmdMVDList_f},	//apparently people are too lazy to type.
 									//mvdsv has 4 more variants, for 6 total doing the same thing.
-	{"demoinfo",	SV_MVDInfo_f},
+	{"demoinfo",	SV_UserMVDInfo_f},
 	{"dl",			SV_DemoDownload_f},
 #endif
 	{"stopdownload",SV_StopDownload_f},
@@ -7452,9 +7456,9 @@ void SV_RunCmd (usercmd_t *ucmd, qboolean recurse)
 			sv.world.physicstime = ptime;
 		}
 
-		if (host_client->state && host_client->protocol == SCP_BAD)
+		if (host_client->state && host_client->protocol == SCP_BAD && svs.gametype != GT_Q1QVM)
 		{
-			//botclients update their movement during prethink. make sure we use that stuff.
+			//botclients update their movement during prethink. make sure we use that stuff. ktx has a builtin.
 			ucmd->angles[0] = (int)(sv_player->v->v_angle[0] * (65535/360.0f));
 			ucmd->angles[1] = (int)(sv_player->v->v_angle[1] * (65535/360.0f));
 			ucmd->angles[2] = (int)(sv_player->v->v_angle[2] * (65535/360.0f));
@@ -7553,6 +7557,7 @@ if (sv_player->v->health > 0 && before && !after )
 #endif
 	pmove.world = NULL;
 
+	if (host_client->state && host_client->protocol != SCP_BAD)
 	{
 		vec3_t delta;
 		delta[0] = pmove.angles[0] - SHORT2ANGLE(pmove.cmd.angles[0]);

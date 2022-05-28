@@ -2611,7 +2611,7 @@ qboolean SV_Physics (void)
 			memset(&ucmd, 0, sizeof(ucmd));
 			for (i = 0; i < sv.allocated_client_slots; i++)
 			{
-				if (svs.clients[i].state > cs_zombie && svs.clients[i].protocol == SCP_BAD && svs.clients[i].msecs >= 1000/77)
+				if (svs.clients[i].state > cs_zombie && svs.clients[i].protocol == SCP_BAD && svs.clients[i].msecs >= 1000.0/77)
 				{	//then this is a bot
 					oldhost = host_client;
 					oldplayer = sv_player;

@@ -1699,6 +1699,10 @@ qboolean SV_MVD_Record (mvddest_t *dest)
 		demo.datagram.data = demo.datagram_data;
 		demo.datagram.prim = demo.recorder.netchan.netprim;
 
+		demo.recorder.netchan.message.maxsize = sizeof(demo.recorder.netchan.message_buf);
+		demo.recorder.netchan.message.data = demo.recorder.netchan.message_buf;
+		demo.recorder.netchan.message.prim = demo.recorder.netchan.netprim;
+
 		if (sv_demoExtensions.ival == 2 || !*sv_demoExtensions.string)
 		{	/*more limited subset supported by ezquake, but not fuhquake/fodquake. sorry.*/
 			demo.recorder.fteprotocolextensions = /*PEXT_CHUNKEDDOWNLOADS|*/PEXT_256PACKETENTITIES|/*PEXT_FLOATCOORDS|*/PEXT_MODELDBL|PEXT_ENTITYDBL|PEXT_ENTITYDBL2|PEXT_SPAWNSTATIC2;
@@ -1863,7 +1867,6 @@ void SV_MVD_SendInitialGamestate(mvddest_t *dest)
 
 	demo.recorder.prespawn_stage = PRESPAWN_SERVERINFO;
 	demo.recorder.prespawn_idx = 0;
-	demo.recorder.netchan.message = buf;
 	while (demo.recorder.prespawn_stage != PRESPAWN_COMPLETED)
 	{
 		if (demo.recorder.prespawn_stage == PRESPAWN_MAPCHECK)
@@ -1877,7 +1880,6 @@ void SV_MVD_SendInitialGamestate(mvddest_t *dest)
 		SV_SendClientPrespawnInfo(&demo.recorder);
 		SV_MVD_WriteReliables(false);
 	}
-	memset(&demo.recorder.netchan.message, 0, sizeof(demo.recorder.netchan.message));
 
 // send current status of all other players
 
@@ -3092,8 +3094,8 @@ void SV_MVDInfoRemove_f (void)
 
 }
 
-void SV_MVDInfo_f (void)
-{
+static void SV_MVDInfo_f (void)
+{	//callable by client, so be careful.
 	int len;
 	char buf[64];
 	vfsfile_t *f = NULL;
@@ -3138,7 +3140,7 @@ void SV_MVDInfo_f (void)
 	for(;;)
 	{
 		len = VFS_READ (f, buf, sizeof(buf)-1);
-		if (len < 0)
+		if (len <= 0)
 			break;
 		buf[len] = 0;
 		Con_Printf("%s", buf);
@@ -3146,7 +3148,12 @@ void SV_MVDInfo_f (void)
 
 	VFS_CLOSE(f);
 }
-
+void SV_UserMVDInfo_f (void)
+{
+	SV_BeginRedirect(RD_CLIENT, host_client->language);
+	SV_MVDInfo_f();
+	SV_EndRedirect();
+}
 
 
 

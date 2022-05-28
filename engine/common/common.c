@@ -1097,7 +1097,7 @@ void MSG_WriteUInt64 (sizebuf_t *sb, quint64_t c)
 	qbyte *buf;
 	int b = 0;
 	quint64_t l = 128;
-	while (c > l-1u)
+	while (c > l-1u && b < 8)
 	{	//count the extra bytes we need
 		b++;
 		l <<= 7;	//each byte we add gains 8 bits, but we spend one on length.

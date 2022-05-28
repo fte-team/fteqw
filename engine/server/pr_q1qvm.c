@@ -877,14 +877,32 @@ static qintptr_t QVM_SetModel (void *offset, quintptr_t mask, const qintptr_t *a
 }
 static qintptr_t QVM_BPrint (void *offset, quintptr_t mask, const qintptr_t *arg)
 {
-	SV_BroadcastPrintf(arg[0], "%s", (char*)VM_POINTER(arg[1]));
+	unsigned int flags = VM_LONG(arg[2]);
+	if (qvm_api_version < 13)
+		flags = 0;	//added mid-v12, resulting in undefined values with early-12 mods.
+	SV_BroadcastPrint(flags, arg[0], (char*)VM_POINTER(arg[1]));
 	return 0;
 }
 static qintptr_t QVM_SPrint (void *offset, quintptr_t mask, const qintptr_t *arg)
 {
-	if ((unsigned)VM_LONG(arg[0])-1u >= sv.allocated_client_slots)
+	unsigned int clnum = VM_LONG(arg[0])-1;
+	int level = VM_LONG(arg[1]);
+	const char *text = VM_POINTER(arg[2]);
+	unsigned int flags = VM_LONG(arg[3]);
+#define SPRINT_IGNOREINDEMO   (   1<<0) // do not put such message in mvd demo
+	client_t *cl = &svs.clients[clnum];
+	if (clnum >= sv.allocated_client_slots)
 		return 0;
-	SV_ClientPrintf(&svs.clients[VM_LONG(arg[0])-1], VM_LONG(arg[1]), "%s", (char*)VM_POINTER(arg[2]));
+	if (qvm_api_version < 13)
+		flags = 0;	//added mid-v12, resulting in undefined values with early-12 mods.
+
+	if (flags & SPRINT_IGNOREINDEMO)
+	{
+		if (level >= cl->messagelevel)
+			SV_PrintToClient(cl, level, text);
+	}
+	else
+		SV_ClientPrintf(cl, level, "%s", text);
 	return 0;
 }
 static qintptr_t QVM_CenterPrint (void *offset, quintptr_t mask, const qintptr_t *arg)
@@ -2375,7 +2393,7 @@ qboolean PR_LoadQ1QVM(void)
 	if (!q1qvm)
 	{
 		if (!com_gamedirnativecode.ival && COM_FCheckExists(va("%s"ARCH_DL_POSTFIX, fname)))
-			Con_Printf(CON_WARNING"%s"ARCH_DL_POSTFIX" exists, but is blocked from loading due to known bugs in other engines. If this is from a safe source then either ^aset com_nogamedirnativecode 0^a or rename to eg %s%s_%s"ARCH_DL_POSTFIX"\n", fname, ((host_parms.binarydir && *host_parms.binarydir)?host_parms.binarydir:host_parms.basedir), fname, FS_GetGamedir(false));
+			Con_Printf(CON_WARNING"%s"ARCH_DL_POSTFIX" exists, but is blocked from loading due to known bugs in other engines. If this is from a safe source then either ^aset com_gamedirnativecode 1^a or rename to eg %s%s_%s"ARCH_DL_POSTFIX"\n", fname, ((host_parms.binarydir && *host_parms.binarydir)?host_parms.binarydir:host_parms.basedir), fname, FS_GetGamedir(false));
 		if (svprogfuncs == &q1qvmprogfuncs)
 			sv.world.progs = svprogfuncs = NULL;
 		return false;

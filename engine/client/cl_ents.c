@@ -4251,7 +4251,7 @@ void CL_LinkPacketEntities (void)
 		if (cl.model_precache_vwep[0] && state->modelindex2 < MAX_VWEP_MODELS)
 		{
 			if (state->modelindex == cl_playerindex && cl.model_precache_vwep[0]->loadstate == MLS_LOADED &&
-				cl.model_precache_vwep[state->modelindex2] && cl.model_precache_vwep[state->modelindex2]->loadstate == MLS_LOADED)
+				state->modelindex2 && cl.model_precache_vwep[state->modelindex2] && cl.model_precache_vwep[state->modelindex2]->loadstate == MLS_LOADED)
 			{
 				model = cl.model_precache_vwep[0];
 				model2 = cl.model_precache_vwep[state->modelindex2];

@@ -1300,6 +1300,12 @@ void SV_StuffcmdToClient_Unreliable(client_t *cl, const char *string);
 void VARGS SV_ClientPrintf (client_t *cl, int level, const char *fmt, ...) LIKEPRINTF(3);
 void VARGS SV_ClientTPrintf (client_t *cl, int level, translation_t text, ...);
 void VARGS SV_BroadcastPrintf (int level, const char *fmt, ...) LIKEPRINTF(2);
+void SV_BroadcastPrint (unsigned int flags, int level, const char *text);
+	//flags exposed to ktx.
+	#define BPRINT_IGNOREINDEMO  (1<<0) // broad cast print will be not put in demo
+	#define BPRINT_IGNORECLIENTS (1<<1) // broad cast print will not be seen by clients, but may be seen in demo
+	//#define BPRINT_QTVONLY       (1<<2) // if broad cast print goes to demo, then it will be only qtv sream, but not file
+	#define BPRINT_IGNORECONSOLE (1<<3) // broad cast print will not be put in server console
 void VARGS SV_BroadcastTPrintf (int level, translation_t fmt, ...);
 void VARGS SV_BroadcastCommand (const char *fmt, ...) LIKEPRINTF(1);
 void SV_SendMessagesToAll (void);

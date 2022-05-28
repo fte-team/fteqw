@@ -7052,7 +7052,7 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 	pbool fl_acc;
 	unsigned int i;
 	WNDCLASS wndclass;
-	ACCEL acceleratorlist[] =
+	static ACCEL acceleratorlist[] =
 	{
 		{FCONTROL|FVIRTKEY, 'S', IDM_SAVE},
 		{FCONTROL|FVIRTKEY, 'F', IDM_FIND},

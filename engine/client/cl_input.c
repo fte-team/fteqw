@@ -767,7 +767,7 @@ cvar_t	cl_anglespeedkey = CVAR("cl_anglespeedkey","1.5");
 
 
 #define GATHERBIT(bname,bit)	if (bname.state[pnum] & 3)	{bits |=   (1u<<(bit));} bname.state[pnum]	&= ~2;
-#define UNUSEDBUTTON(bnum)		if (in_button[bnum].state[pnum] & 3)	{Con_Printf("+button%i is not supported on this protocol\n", pnum); } in_button[bnum].state[pnum]	&= ~3;
+#define UNUSEDBUTTON(bnum)		if (in_button[bnum].state[pnum] & 3)	{Con_Printf("+button%i is not supported on this protocol\n", bnum); } in_button[bnum].state[pnum]	&= ~3;
 void CL_GatherButtons (usercmd_t *cmd, int pnum)
 {
 	unsigned int bits = 0;

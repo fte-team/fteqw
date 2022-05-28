@@ -3305,6 +3305,7 @@ typedef struct
 	int skingroup;
 	int framegroup;
 	int boneidx;
+	int bonebias;	//shift the bones menu down to ensure the boneidx stays visible
 	int textype;
 	double framechangetime;
 	double skinchangetime;
@@ -3365,7 +3366,7 @@ static unsigned int genhsv(float h_, float s, float v)
 
 #include "com_mesh.h"
 #ifdef SKELETALMODELS
-static void M_BoneDisplayLame(entity_t *e, int *y, int depth, int parent, int first, int last, int sel)
+static int M_BoneDisplayLame(modelview_t *mods, entity_t *e, int topy, int y, int depth, int parent, int first, int last)
 {
 	int i;
 	for (i = first; i < last;  i++)
@@ -3378,20 +3379,34 @@ static void M_BoneDisplayLame(entity_t *e, int *y, int depth, int parent, int fi
 			if (!bname)
 				bname = "NULL";
 			memset(result, 0, sizeof(result));
-			if (Mod_GetTag(e->model, i+1, &e->framestate, result))
+			if (i == mods->boneidx)
 			{
-#if 0//def _DEBUG
-				Draw_FunString(depth*16, *y, va("%s%i: %s (%g %g %g)", (i==sel)?"^1":"", i+1, bname, result[3], result[7], result[11]));
-#else
-				Draw_FunString(depth*16, *y, va("%s%i: %s", (i==sel)?"^1":"", i+1, bname));
-#endif
+				if (y < 0)
+					mods->bonebias+=8;
+				else if (topy+y+8 >= vid.height)
+					mods->bonebias-=8;
 			}
-			else
-				Draw_FunString(depth*16, *y, va("%s%i: %s (err)", (i==sel)?"^1":"", i, bname));
-			*y += 8;
-			M_BoneDisplayLame(e, y, depth+1, i+1, i+1, last, sel);
+			if (y >= 0 && y+8 < vid.height)
+			{
+				if (Mod_GetTag(e->model, i+1, &e->framestate, result))
+				{
+					if (developer.ival)
+					{
+						float scale = sqrt(result[0]*result[0] + result[1]*result[1] + result[2]*result[2]);
+						float scale2 = sqrt(result[0]*result[0] + result[4]*result[4] + result[8]*result[8]);
+						Draw_FunString(depth*16, topy+y, va("%s%i: %s (%g %g %g, %g %g)", (i==mods->boneidx)?"^1":"", i+1, bname, result[3], result[7], result[11], scale, scale2));
+					}
+					else
+						Draw_FunString(depth*16, topy+y, va("%s%i: %s", (i==mods->boneidx)?"^1":"", i+1, bname));
+				}
+				else
+					Draw_FunString(depth*16, topy+y, va("%s%i: %s (err)", (i==mods->boneidx)?"^1":"", i, bname));
+			}
+			y += 8;
+			y += M_BoneDisplayLame(mods, e, topy, y, depth+1, i+1, i+1, last)-y;
 		}
 	}
+	return y;
 }
 #endif
 
@@ -3924,9 +3939,13 @@ static void M_ModelViewerDraw(int x, int y, struct menucustom_s *c, struct emenu
 			int bonecount = Mod_GetNumBones(ent.model, true);
 			if (bonecount)
 			{
+				if (mods->boneidx >= bonecount)
+					mods->boneidx = bonecount-1;
+				if (mods->boneidx < 0)
+					mods->boneidx = 0;
 				Draw_FunString(0, y, va("Bones: "));
 				y+=8;
-				M_BoneDisplayLame(&ent, &y, 0, 0, 0, bonecount, mods->boneidx);
+				M_BoneDisplayLame(mods, &ent, y, mods->bonebias, 0, 0, 0, bonecount);
 			}
 			else
 				R_DrawTextField(r_refdef.grect.x, r_refdef.grect.y+y, r_refdef.grect.width, r_refdef.grect.height-y, "No bones in model", CON_WHITEMASK, CPRINT_TALIGN|CPRINT_LALIGN, font_default, fs);

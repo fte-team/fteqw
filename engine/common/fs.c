@@ -3985,7 +3985,7 @@ void COM_Gamedir (const char *dir, const struct gamepacks *packagespaths)
 /*quake requires a few settings for compatibility*/
 #define QRPCOMPAT "set cl_cursor_scale 0.2\nset cl_cursor_bias_x 7.5\nset cl_cursor_bias_y 0.8\n"
 #define QUAKESPASMSUCKS "set mod_h2holey_bugged 1\n"
-#define QUAKEOVERRIDES "set v_gammainverted 1\nset con_stayhidden 0\nset allow_download_pakcontents 2\nset allow_download_refpackages 0\nset r_meshpitch -1\nr_sprite_backfacing 1\nset sv_bigcoords \"\"\nmap_autoopenportals 1\n"  "sv_port "STRINGIFY(PORT_QWSERVER)" "STRINGIFY(PORT_NQSERVER)"\n" ZFIXHACK EZQUAKECOMPETITIVE QUAKESPASMSUCKS
+#define QUAKEOVERRIDES "set v_gammainverted 1\nset cl_download_mapsrc \"https://maps.quakeworld.nu/all/\"\nset con_stayhidden 0\nset allow_download_pakcontents 2\nset allow_download_refpackages 0\nset r_meshpitch -1\nr_sprite_backfacing 1\nset sv_bigcoords \"\"\nmap_autoopenportals 1\n"  "sv_port "STRINGIFY(PORT_QWSERVER)" "STRINGIFY(PORT_NQSERVER)"\n" ZFIXHACK EZQUAKECOMPETITIVE QUAKESPASMSUCKS
 #define QCFG "//schemes quake qw\n"   QUAKEOVERRIDES "set com_parseutf8 0\n" QRPCOMPAT
 #define KEXCFG "//schemes quake_r2\n" QUAKEOVERRIDES "set com_parseutf8 1\nset campaign 0\nset net_enable_dtls 1\nset sv_mintic 0.016666667\nset sv_maxtic $sv_mintic\nset cl_netfps 60\n"
 /*NetQuake reconfiguration, to make certain people feel more at home...*/

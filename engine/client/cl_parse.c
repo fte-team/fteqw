@@ -7534,8 +7534,10 @@ void CLQW_ParseServerMessage (void)
 			if (cl.intermissionmode == IM_NONE)
 			{
 				TP_ExecTrigger ("f_mapend", false);
-				if (cl.playerview[destsplit].spectator)
+				if (cl.playerview[destsplit].spectator || cls.demoplayback)
 					TP_ExecTrigger ("f_specmapend", true);
+				else
+					TP_ExecTrigger ("f_playmapend", true);
 				cl.completed_time = cl.gametime;
 			}
 			cl.intermissionmode = IM_QWSCORES;
@@ -8649,6 +8651,10 @@ void CLNQ_ParseServerMessage (void)
 			if (cl.intermissionmode == IM_NONE)
 			{
 				TP_ExecTrigger ("f_mapend", false);
+				if (cl.playerview[destsplit].spectator || cls.demoplayback)
+					TP_ExecTrigger ("f_specmapend", true);
+				else
+					TP_ExecTrigger ("f_playmapend", true);
 				cl.completed_time = cl.gametime;
 			}
 			cl.intermissionmode = IM_NQSCORES;
@@ -8658,6 +8664,10 @@ void CLNQ_ParseServerMessage (void)
 			if (cl.intermissionmode == IM_NONE)
 			{
 				TP_ExecTrigger ("f_mapend", false);
+				if (cl.playerview[destsplit].spectator || cls.demoplayback)
+					TP_ExecTrigger ("f_specmapend", true);
+				else
+					TP_ExecTrigger ("f_playmapend", true);
 				cl.completed_time = cl.gametime;
 			}
 			cl.intermissionmode = IM_NQFINALE;
@@ -8668,6 +8678,10 @@ void CLNQ_ParseServerMessage (void)
 			if (cl.intermissionmode == IM_NONE)
 			{
 				TP_ExecTrigger ("f_mapend", false);
+				if (cl.playerview[destsplit].spectator || cls.demoplayback)
+					TP_ExecTrigger ("f_specmapend", true);
+				else
+					TP_ExecTrigger ("f_playmapend", true);
 				cl.completed_time = cl.gametime;
 			}
 			cl.intermissionmode = IM_NQCUTSCENE;

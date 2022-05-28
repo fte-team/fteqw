@@ -490,7 +490,14 @@ void SCR_CenterPrint (int pnum, const char *str, qboolean skipgamecode)
 		else if (str[1] == 'F')
 		{	//'F' is reserved for special handling via svc_finale
 			if (cl.intermissionmode == IM_NONE)
+			{
+				TP_ExecTrigger ("f_mapend", false);
+				if (cl.playerview[pnum].spectator || cls.demoplayback)
+					TP_ExecTrigger ("f_specmapend", true);
+				else
+					TP_ExecTrigger ("f_playmapend", true);
 				cl.completed_time = cl.time;
+			}
 			str+=2;
 			switch(*str++)
 			{

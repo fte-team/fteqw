@@ -1257,7 +1257,7 @@ static void MyODEErrorHandler (int errnum, const char *msg, va_list ap)
 	char		string[1024];
 	vsnprintf (string,sizeof(string), msg, ap);
 	string[sizeof(string)-1] = 0;
-	Sys_Error("ODE ERROR %i: %s", errnum, string);
+	Sys_Errorf("ODE ERROR %i: %s", errnum, string);
 }
 static void MyODEMessageHandler (int errnum, const char *msg, va_list ap)
 {
@@ -2277,7 +2277,7 @@ static void World_ODE_Frame_BodyFromEntity(world_t *world, wedict_t *ed)
 			dMassSetCylinderTotal(&mass, massval, axisindex+1, radius, length);
 			break;
 		default:
-			Sys_Error("World_ODE_BodyFromEntity: unrecognized solid value %i was accepted by filter\n", solid);
+			Sys_Errorf("World_ODE_BodyFromEntity: unrecognized solid value %i was accepted by filter\n", solid);
 		}
 		Matrix3x4_InvertTo4x4_Simple(ed->rbe.offsetmatrix, ed->rbe.offsetimatrix);
 		ed->rbe.massbuf = BZ_Malloc(sizeof(dMass));

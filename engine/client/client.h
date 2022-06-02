@@ -248,9 +248,6 @@ typedef struct
 
 typedef struct
 {
-	//this is the sequence we requested for this frame.
-	int			delta_sequence;		// sequence number to delta from, -1 = full update
-
 	// received from server
 	int			frameid;		//the sequence number of the frame, so we can easily detect which frames are valid without poking all in advance, etc
 	int			ackframe;		//the outgoing sequence this frame acked (for prediction backlerping).

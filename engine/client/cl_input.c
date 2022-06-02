@@ -2096,13 +2096,10 @@ qboolean CLQW_SendCmd (sizebuf_t *buf, qboolean actuallysend)
 	//delta_sequence is the _expected_ previous sequences, so is set before it arrives.
 	if (cl.validsequence && !cl_nodelta.ival && cls.state == ca_active)// && !cls.demorecording)
 	{
-		cl.inframes[cls.netchan.outgoing_sequence&UPDATE_MASK].delta_sequence = cl.validsequence;
 		MSG_WriteByte (buf, clc_delta);
 //		Con_Printf("%i\n", cl.validsequence);
 		MSG_WriteByte (buf, cl.validsequence&255);
 	}
-	else
-		cl.inframes[cls.netchan.outgoing_sequence&UPDATE_MASK].delta_sequence = -1;
 
 	if (cl.sendprespawn || !actuallysend)
 		buf->cursize = st;	//don't send movement commands while we're still supposedly downloading. mvdsv does not like that.

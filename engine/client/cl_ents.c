@@ -598,7 +598,8 @@ void FlushEntityPacket (void)
 
 	memset (&olde, 0, sizeof(olde));
 
-	cl.validsequence = 0;		// can't render a frame
+	if ((cl.validsequence&UPDATE_MASK) == (cls.netchan.incoming_sequence&UPDATE_MASK))
+		cl.validsequence = 0;		// last-known-good sequence is becoming invalid.
 	cl.inframes[cls.netchan.incoming_sequence&UPDATE_MASK].invalid = true;
 
 	// read it all, but ignore it
@@ -1316,36 +1317,18 @@ void CLQW_ParsePacketEntities (qboolean delta)
 		from = MSG_ReadByte ();
 
 //		Con_Printf("%i %i from %i\n", cls.netchan.outgoing_sequence, cls.netchan.incoming_sequence, from);
-
-		oldpacket = cl.inframes[newpacket].delta_sequence;
 		if (cls.demoplayback == DPB_MVD || cls.demoplayback == DPB_EZTV)
 			from = oldpacket = cls.netchan.incoming_sequence - 1;
+		oldpacket = cl.inframes[from & UPDATE_MASK].frameid;
 
-		if (cls.netchan.outgoing_sequence - cls.netchan.incoming_sequence >= UPDATE_BACKUP - 1) {
-			// there are no valid frames left, so drop it
-			FlushEntityPacket ();
-			cl.validsequence = 0;
-			return;
-		}
-
-		if ((from & UPDATE_MASK) != (oldpacket & UPDATE_MASK)) {
-			Con_DPrintf ("WARNING: from mismatch\n");
-//			FlushEntityPacket ();
-//			cl.validsequence = 0;
-//			return;
-		}
-
-		if (cls.netchan.outgoing_sequence - oldpacket >= UPDATE_BACKUP - 1)
+		if (cl.inframes[from&UPDATE_MASK].invalid ||	//old frame is unusable
+			cls.netchan.outgoing_sequence - oldpacket >= UPDATE_BACKUP - 1)	// we must have lost the sequence its trying to delta from (or just too old).
 		{
-			// we can't use this, it is too old
 			FlushEntityPacket ();
-			// don't clear cl.validsequence, so that frames can still be rendered;
-			// it is possible that a fresh packet will be received before
-			// (outgoing_sequence - incoming_sequence) exceeds UPDATE_BACKUP - 1
 			return;
 		}
 
-		oldp = &cl.inframes[oldpacket & UPDATE_MASK].packet_entities;
+		oldp = &cl.inframes[from & UPDATE_MASK].packet_entities;
 		full = false;
 	}
 	else
@@ -1428,7 +1411,7 @@ void CLQW_ParsePacketEntities (qboolean delta)
 				newp->entities = BZ_Realloc(newp->entities, sizeof(entity_state_t)*newp->max_entities);
 			}
 			if (oldindex >= oldp->max_entities)
-					Host_EndGame("Old packet entity too big\n");
+				Host_EndGame("Old packet entity too big\n");
 			newp->entities[newindex] = oldp->entities[oldindex];
 			newindex++;
 			oldindex++;

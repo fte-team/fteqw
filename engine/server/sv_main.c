@@ -90,7 +90,7 @@ cvar_t	allow_download_sounds		= CVARD("allow_download_sounds", "1", "0 blocks do
 cvar_t	allow_download_particles	= CVARD("allow_download_particles", "1", "0 blocks downloading of any file in the particles/ directory");
 cvar_t	allow_download_demos		= CVARD("allow_download_demos", "1", "0 blocks downloading of any file in the demos/ directory");
 cvar_t	allow_download_maps			= CVARD("allow_download_maps", "1", "0 blocks downloading of any file in the maps/ directory");
-cvar_t	allow_download_logs			= CVARFD("allow_download_logs", "0", CVAR_WARNONCHANGE, "1 permits downloading files with the extension .log\n"CON_ERROR"THIS IS DANGEROUS AS IT POTENTIALLY ALLOWS PEOPLE TO SEE PASSWORDS OR OTHER PRIVATE INFORMATION.\nNote that it can be switch on/off via rcon.");
+cvar_t	allow_download_logs			= CVARFD("allow_download_logs", "0", CVAR_NOSET/*cmdline-only*/|CVAR_WARNONCHANGE, "1 permits downloading files with the extension .log\n"CON_ERROR"THIS IS DANGEROUS AS IT POTENTIALLY ALLOWS PEOPLE TO SEE PASSWORDS OR OTHER PRIVATE INFORMATION.\nNote that it can be switch on/off via rcon.");
 cvar_t	allow_download_anymap		= CVARFD("allow_download_pakmaps", "0", CVAR_WARNONCHANGE, "0: clients may not download map files within the server's packages.\n1: clients may download such files so long as the package is not deemed copyrighted, for compat with old clients that do not support package downloads.\n2: client may download such files regardless of copyright state (WARNING! Should never be used!).");
 cvar_t	allow_download_pakcontents	= CVARFD("allow_download_pakcontents", "0", CVAR_WARNONCHANGE, "0: clients may not download non-map files within the server's packages.\n1: clients may download such files so long as the package is not deemed copyrighted, for compat with old clients that do not support package downloads.\n2: client may download such files regardless of copyright state (WARNING! ONLY for consistency with vanilla QuakeWorld!).");
 cvar_t	allow_download_root			= CVARFD("allow_download_root", "0", CVAR_WARNONCHANGE, "If set, enables downloading from the root of the gamedir (not the basedir). This setting has a lower priority than extension-based checks.");
@@ -5709,7 +5709,9 @@ void SV_InitLocal (void)
 	Cvar_Register (&allow_download_skins,	cvargroup_serverpermissions);
 	Cvar_Register (&allow_download_models,	cvargroup_serverpermissions);
 	Cvar_Register (&allow_download_sounds,	cvargroup_serverpermissions);
+	Cvar_Register (&allow_download_particles,	cvargroup_serverpermissions);
 	Cvar_Register (&allow_download_maps,	cvargroup_serverpermissions);
+	Cvar_Register (&allow_download_logs,	cvargroup_serverpermissions);
 	Cvar_Register (&allow_download_demos,	cvargroup_serverpermissions);
 	Cvar_Register (&allow_download_anymap,	cvargroup_serverpermissions);
 	Cvar_Register (&allow_download_pakcontents,	cvargroup_serverpermissions);

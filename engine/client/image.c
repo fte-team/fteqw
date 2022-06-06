@@ -5146,12 +5146,12 @@ qboolean Image_WriteKTXFile(const char *filename, enum fs_relative fsroot, struc
 		case PTI_ANY:
 			VFS_CLOSE(file);
 			return false;
-		case PTI_2D:
-		case PTI_2D_ARRAY:
-		case PTI_CUBE:
-		case PTI_CUBE_ARRAY:
+		case PTI_CUBE:	//special case, size is per-face
 			sz = (browbytes+padbytes) * brows;
 			break;
+		case PTI_2D:
+		case PTI_2D_ARRAY:
+		case PTI_CUBE_ARRAY:
 		case PTI_3D:
 			sz = (browbytes+padbytes) * brows * blayers;
 			break;

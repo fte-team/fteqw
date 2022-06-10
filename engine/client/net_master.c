@@ -942,7 +942,7 @@ static void Master_HideServer(serverinfo_t *server)
 		{
 			for (j = i; j < numvisibleservers-1; j++)
 				visibleservers[j] = visibleservers[j+1];
-			visibleservers--;
+			numvisibleservers--;
 		}
 		else
 			 i++;

@@ -933,6 +933,12 @@ static unsigned int tbl_sdltoquake[] =
 };
 #endif
 
+/* stubbed */
+qboolean INS_KeyToLocalName(int qkey, char *buf, size_t bufsize)
+{
+	return false;
+}
+
 static unsigned int tbl_sdltoquakemouse[] =
 {
 	K_MOUSE1,

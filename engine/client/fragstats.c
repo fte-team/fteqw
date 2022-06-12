@@ -81,6 +81,7 @@ typedef struct {
 
 static void TrackerCallback(struct cvar_s *var, char *oldvalue);
 static cvar_t r_tracker_frags = CVARD("r_tracker_frags", "0", "0: like vanilla quake\n1: shows only your kills/deaths\n2: shows all kills\n");
+static cvar_t r_tracker_flags = CVARD("r_tracker_flags", "1", "0: no flag events\n1: log everytime flag is taken, captured or dropped\n2: also log the number of times\n3: also log total\n");
 static cvar_t r_tracker_time = CVARCD("r_tracker_time", "4", TrackerCallback, "how long it takes for r_tracker messages to start fading\n");
 static cvar_t r_tracker_fadetime = CVARCD("r_tracker_fadetime", "1", TrackerCallback, "how long it takes for r_tracker messages to fully fade once they start fading\n");
 static cvar_t r_tracker_x = CVARCD("r_tracker_x", "0.5", TrackerCallback, "left position of the r_tracker messages, as a fraction of the screen's width, eg 0.5\n");
@@ -322,6 +323,56 @@ void Stats_FragMessage(int p1, int wid, int p2, qboolean teamkill)
 	Con_PrintCon(tracker, message, tracker->parseflags);
 }
 
+void Stats_FlagMessage(fragfilemsgtypes_t type, int is_self, int p1, int count, int total)
+{
+	char message[512];
+	console_t *tracker;
+
+	const char *c = S_COLOR_WHITE;
+	const char *fc = !stricmp(cl.players[p1].team, "red") ? S_COLOR_BLUE : S_COLOR_RED;
+	const char *fn = !stricmp(cl.players[p1].team, "red") ? "blue" : "red";
+	const char *action, *actions, *name;
+
+	if (!r_tracker_flags.ival || cls.demoseeking || p1 < 0)
+		return;
+
+	name = is_self ? "You've" : cl.players[p1].name;
+
+	switch (type)
+	{
+	case ff_flagcaps:
+		action = "captured";
+		actions = "captures";
+		break;
+	case ff_flagdrops:
+		action = "dropped";
+		actions = "drops";
+		break;
+	case ff_flagtouch:
+		action = "grabbed";
+		actions = "grabs";
+		break;
+	default:
+		return;
+	}
+
+	if (r_tracker_flags.ival == 1)
+		Q_snprintfz(message, sizeof(message), "%s%s %s the %s%s%s flag!\n", c, name, action, fc, fn, c);
+	else if (r_tracker_flags.ival == 2)
+		Q_snprintfz(message, sizeof(message), "%s%s %s the %s%s%s flag!\nflag %s: %d\n", c, name, action, fc, fn, c, actions, count);
+	else if (r_tracker_flags.ival >= 3)
+		Q_snprintfz(message, sizeof(message), "%s%s %s the %s%s%s flag!\nflag %s: %d (%d)\n", c, name, action, fc, fn, c, actions, count, total);
+
+	tracker = Con_FindConsole("tracker");
+	if (!tracker)
+	{
+		tracker = Con_Create("tracker", CONF_HIDDEN|CONF_NOTIFY|CONF_NOTIFY_BOTTOM);
+		Tracker_Update(tracker);
+	}
+
+	Con_PrintCon(tracker, message, tracker->parseflags);
+}
+
 void Stats_Evaluate(fragfilemsgtypes_t mt, int wid, int p1, int p2)
 {
 	qboolean u1;
@@ -424,30 +475,21 @@ void Stats_Evaluate(fragfilemsgtypes_t mt, int wid, int p1, int p2)
 		fragstats.clienttotals[p1].grabs++;
 		fragstats.totaltouches++;
 
-		if (u1 && p1 >= 0)
-		{
-			Stats_Message("You grabbed the flag\nflag grabs: %i (%i)\n", fragstats.clienttotals[p1].grabs, fragstats.totaltouches);
-		}
+		Stats_FlagMessage(ff_flagtouch, u1, p1, fragstats.clienttotals[p1].grabs, fragstats.totaltouches);
 		break;
 	case ff_flagcaps:
 		if (p1 >= 0)
 			fragstats.clienttotals[p1].caps++;
 		fragstats.totalcaps++;
 
-		if (u1 && p1 >= 0)
-		{
-			Stats_Message("You captured the flag\nflag captures: %i (%i)\n", fragstats.clienttotals[p1].caps, fragstats.totalcaps);
-		}
+		Stats_FlagMessage(ff_flagcaps, u1, p1, fragstats.clienttotals[p1].caps, fragstats.totalcaps);
 		break;
 	case ff_flagdrops:
 		if (p1 >= 0)
 			fragstats.clienttotals[p1].drops++;
 		fragstats.totaldrops++;
 
-		if (u1 && p1 >= 0)
-		{
-			Stats_Message("You dropped the flag\nflag drops: %i (%i)\n", fragstats.clienttotals[p1].drops, fragstats.totaldrops);
-		}
+		Stats_FlagMessage(ff_flagdrops, u1, p1, fragstats.clienttotals[p1].drops, fragstats.totaldrops);
 		break;
 
 	//p1 died, p2 killed
@@ -630,6 +672,7 @@ void Stats_Clear(void)
 void Stats_Init(void)
 {
 	Cvar_Register(&r_tracker_frags, NULL);
+	Cvar_Register(&r_tracker_flags, NULL);
 	Cvar_Register(&r_tracker_time, NULL);
 	Cvar_Register(&r_tracker_fadetime, NULL);
 	Cvar_Register(&r_tracker_x, NULL);

@@ -168,6 +168,7 @@ static struct {
 	func_t ParseClusterEvent;	//FTE_SV_CLUSTER
 	func_t ParseClientCommand;	//KRIMZON_SV_PARSECLIENTCOMMAND
 	func_t ParseConnectionlessPacket;	//FTE_QC_SENDPACKET
+	func_t SV_Shutdown;
 
 	func_t PausedTic;
 	func_t ShouldPause;
@@ -1117,6 +1118,7 @@ void PR_LoadGlabalStruct(qboolean muted)
 	gfuncs.ParseClusterEvent = PR_FindFunction(svprogfuncs, "SV_ParseClusterEvent", PR_ANY);
 	gfuncs.ParseClientCommand = PR_FindFunction(svprogfuncs, "SV_ParseClientCommand", PR_ANY);
 	gfuncs.ParseConnectionlessPacket = PR_FindFunction(svprogfuncs, "SV_ParseConnectionlessPacket", PR_ANY);
+	gfuncs.SV_Shutdown = PR_FindFunction(svprogfuncs, "SV_Shutdown", PR_ANY);
 
 	gfuncs.UserInfo_Changed = PR_FindFunction(svprogfuncs, "UserInfo_Changed", PR_ANY);
 	gfuncs.localinfoChanged = PR_FindFunction(svprogfuncs, "localinfoChanged", PR_ANY);
@@ -2624,6 +2626,24 @@ void PR_LocalInfoChanged(char *name, char *oldivalue, char *newvalue)
 		G_INT(OFS_PARM2) = PR_TempString(svprogfuncs, newvalue);
 
 		PR_ExecuteProgram (svprogfuncs, gfuncs.localinfoChanged);
+	}
+}
+void PR_PreShutdown(void)
+{
+	if (svprogfuncs && gfuncs.SV_Shutdown && sv.state)
+	{
+		func_t f = gfuncs.SV_Shutdown;
+		globalvars_t *pr_globals;
+		gfuncs.SV_Shutdown = 0;	//clear it early, to avoid (severe) recursion/whatever problems.
+		pr_globals = PR_globals(svprogfuncs, PR_CURRENT);
+
+		pr_global_struct->time = sv.world.physicstime;
+		pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, sv.world.edicts);
+
+		G_INT(OFS_PARM0) = 0;
+		G_INT(OFS_PARM1) = 0;
+		G_INT(OFS_PARM2) = 0;
+		PR_ExecuteProgram (svprogfuncs, f);
 	}
 }
 

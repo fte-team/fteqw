@@ -7969,6 +7969,7 @@ qc_extension_t QSG_Extensions[] = {
 	{"DP_SV_PRINT",						NULL,	1,{"print"}, "Says that the print builtin can be used from nqssqc (as well as just csqc), bypassing the developer cvar issues."},
 	{"DP_SV_ROTATINGBMODEL",			check_notrerelease,0,{NULL},		"Engines that support this support avelocity on MOVETYPE_PUSH entities, pushing entities out of the way as needed."},
 	{"DP_SV_SETCOLOR",					NULL,	1,{"setcolor"}},
+	{"DP_SV_SHUTDOWN"},
 	{"DP_SV_SPAWNFUNC_PREFIX"},
 	{"DP_SV_WRITEPICTURE",				NULL,	1,{"WritePicture"}},
 	{"DP_SV_WRITEUNTERMINATEDSTRING",	NULL,	1,{"WriteUnterminatedString"}},

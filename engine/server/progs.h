@@ -135,6 +135,7 @@ extern int pr_teamfield;
 qboolean PR_QCChat(char *text, int say_type);
 
 void PR_ClientUserInfoChanged(char *name, char *oldivalue, char *newvalue);
+void PR_PreShutdown(void);
 void PR_LocalInfoChanged(char *name, char *oldivalue, char *newvalue);
 void PF_InitTempStrings(pubprogfuncs_t *inst);
 

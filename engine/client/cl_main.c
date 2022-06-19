@@ -6894,6 +6894,10 @@ void CL_ExecInitialConfigs(char *resetcommand)
 	Cbuf_AddText("\n", RESTRICT_LOCAL);
 	COM_ParsePlusSets(true);
 
+#ifdef QUAKESTATS
+	Cbuf_AddText("register_bestweapon reset\n", RESTRICT_LOCAL);
+#endif
+
 	def = COM_FDepthFile("default.cfg", true);	//q2/q3/tc
 #ifdef QUAKETC
 	Cbuf_AddText ("exec default.cfg\n", RESTRICT_LOCAL);

@@ -289,60 +289,327 @@ static cvar_t	cl_weaponforgetorder = CVARD("cl_weaponforgetorder", "0", "The 'we
 cvar_t r_viewpreselgun = CVARD("r_viewpreselgun", "0", "HACK: Display the preselected weaponmodel, instead of the current weaponmodel.");
 static int preselectedweapons[MAX_SPLITS];
 static int preselectedweapon[MAX_SPLITS][32];
+static kbutton_t in_wwheel;
+static float wwheeldir[MAX_SPLITS][2];
+static size_t wwheelsel[MAX_SPLITS];
+static double wwheelseltime[MAX_SPLITS];
+
+static struct weaponinfo_s {
+	char shortname[32]; //must not look like an impulse.
+	int impulse; //primary key...
+	int items_mask;
+	int items_val;
+//	int weapon_val;	//unused...
+	int ammostat;
+	int ammomin;
+
+	char *icons[3]; //unselected,selected,ammo
+	char *viewmodel;
+} *weaponinfo;
+static size_t weaponinfo_count;
+
+static int IN_NameToWeaponIdx(const char *name)
+{
+	size_t i;
+	char *end;
+	i = strtoul(name, &end, 10);
+	if (i && !end)
+	{	//select by impulse when they specified something numeric.
+		for (i = 0; i < weaponinfo_count; i++)
+		{
+			if (weaponinfo[i].impulse == i)
+				return i;
+		}
+	}
+	else
+	{
+		for (i = 0; i < weaponinfo_count; i++)
+		{
+			if (!strcmp(name, weaponinfo[i].shortname))
+				return i;
+		}
+	}
+	return -1;
+}
+static int IN_RegisterWeapon(int impulse, const char *name, int items_mask, int items_val, int weapon_val, int ammostat, int ammomin, const char *viewmodel, const char *icon,const char *selicon, const char *ammoicon)
+{
+	size_t i;
+	char *end;
+	if (impulse <= 0 || impulse > 255)
+		return -1;	//no. just no...
+	if (strtol(name, &end, 10) != impulse)
+	{
+		if (!*end)
+			return -1;	//parsed as a number, which didn't match its impulse... don't break the impulse command.
+	}
+	//slots are unique/replaced by impulse
+	for (i = 0; i < weaponinfo_count; i++)
+	{
+		if (weaponinfo[i].impulse == impulse)
+			break;	//replace...
+	}
+	if (i == weaponinfo_count)
+		Z_ReallocElements((void**)&weaponinfo, &weaponinfo_count, i+1, sizeof(*weaponinfo));
+	weaponinfo[i].impulse = impulse;
+
+	Q_strncpyz(weaponinfo[i].shortname, name, sizeof(weaponinfo[i].shortname));
+	weaponinfo[i].items_mask = items_mask;
+	weaponinfo[i].items_val = items_val;
+//	weaponinfo[i].weapon_val;	//unused...
+	weaponinfo[i].ammostat = ammostat;
+	weaponinfo[i].ammomin = ammomin;
+
+#define Z_StrDupPtr2(v,s) do{Z_Free(*v),*(v) = (s&&*s)?strcpy(Z_Malloc(strlen(s)+1), s):NULL;}while(0)
+	Z_StrDupPtr2(&weaponinfo[i].viewmodel, viewmodel);
+	Z_StrDupPtr2(&weaponinfo[i].icons[0], icon);
+	Z_StrDupPtr2(&weaponinfo[i].icons[1], selicon);
+	Z_StrDupPtr2(&weaponinfo[i].icons[2], ammoicon);
+	return i;
+}
+static void IN_RegisterWeapon_Clear(void)
+{
+	while(weaponinfo_count)
+		Z_Free(weaponinfo[--weaponinfo_count].viewmodel);
+	Z_Free(weaponinfo);
+	weaponinfo = NULL;
+}
+void IN_RegisterWeapon_Reset(void)
+{
+	vfsfile_t *f;
+	IN_RegisterWeapon_Clear();
+
+	f = FS_OpenVFS("wwheel.txt", "rb", FS_GAME);
+	if (f)
+	{	//from the rerelease:
+		/*
+		slot N
+		{
+			impulse N
+			icon "gfx/weapons/ww_foo_1.lmp"
+			icon_sel "gfx/weapons/ww_foo_2.lmp"
+			ammoicon "FOO"
+			entvaroffs N
+			weaponnum N
+		}
+		*/
+		char line[1024];
+		char *v;
+		for(;;)
+		{
+			if (!VFS_GETS(f, line, sizeof(line)))
+				break;
+			v = COM_Parse(line);
+			if (!strcmp(com_token, "slot"))	//slot N... just assume they're ordered.
+			{
+				//v = COM_Parse(line);
+				//slot = com_token
+				if (!VFS_GETS(f, line, sizeof(line)))
+					break;
+				v = COM_Parse(line);
+				if (!strcmp(com_token, "{"))
+				{
+					int weaponbit=0;
+					int impulse=0;
+					int ammostat=-1;
+					int ammocount=0;
+					int field;
+					char *icon = NULL;
+					char *selicon = NULL;
+					char *ammoicon = NULL;
+					char *viewmodel = NULL;
+					char *name = NULL;
+
+					for (;;)
+					{
+						if (!VFS_GETS(f, line, sizeof(line)))
+							break;
+						v = COM_Parse(line);
+						if (!strcmp(com_token, "}"))
+						{	//end of this weapon.
+							IN_RegisterWeapon(impulse, name?name:va("%i", impulse), weaponbit,weaponbit, weaponbit, ammostat,ammocount, viewmodel, icon, selicon, ammoicon);
+							break;
+						}
+						else if (!strcmp(com_token, "impulse"))
+						{
+							v = COM_Parse(v);
+							impulse = atoi(com_token);
+						}
+						else if (!strcmp(com_token, "weaponnum"))
+						{
+							v = COM_Parse(v);
+							weaponbit = atoi(com_token);
+						}
+						else if (!strcmp(com_token, "icon"))
+						{
+							v = COM_Parse(v);
+							Z_StrDupPtr(&icon, com_token);
+						}
+						else if (!strcmp(com_token, "icon_sel"))
+						{
+							v = COM_Parse(v);
+							Z_StrDupPtr(&selicon, com_token);
+						}
+						else if (!strcmp(com_token, "ammoicon"))
+						{
+							v = COM_Parse(v);
+							if (strchr(com_token, '.') || strchr(com_token, '/'))
+								Z_StrDupPtr(&ammoicon, com_token);
+							else
+								Z_StrDupPtr(&ammoicon, va("gfx/%s", com_token));
+						}
+						else if (!strcmp(com_token, "entvaroffs"))
+						{	//this seems to be a host-only thing. the server can poke the qc's fields directly but other clients can't.
+							//remap known indexes to stats - this can only work for nq's system fields.
+							//note that rogue does some windowing thing so our client can only know either nails or lavanails, not both. either way those are NOT the normal stats and these weapons will appear to have infinite ammo as a result, sorry.
+							//they really should have used field names here, not numbers, but hey, not my spec... use our 'ammostat' instead for fancy mods.
+							v = COM_Parse(v);
+							field = atoi(com_token);
+							switch(field)
+							{
+							case 216:	ammostat = STAT_SHELLS, ammocount = 1;	break;
+							case 220:	ammostat = STAT_NAILS, ammocount = 1;	break;
+							case 224:	ammostat = STAT_ROCKETS, ammocount = 1;	break;
+							case 228:	ammostat = STAT_CELLS, ammocount = 1;	break;
+							default:	ammostat = -1, ammocount = 0;	break;
+							}
+						}
+						else if (!strcmp(com_token, "ammostat"))
+						{	//non-qe
+							v = COM_Parse(v);
+							ammostat = atoi(com_token);
+							if (ammocount <= 0)
+								ammocount = 1;
+						}
+						else if (!strcmp(com_token, "ammomin"))
+						{	//non-qe
+							v = COM_Parse(v);
+							ammocount = atoi(com_token);
+						}
+						else if (!strcmp(com_token, "viewmodel"))
+						{	//non-qe, so preselect can show the correct model before its actually changed.
+							v = COM_Parse(v);
+							Z_StrDupPtr(&viewmodel, com_token);
+						}
+						else if (!strcmp(com_token, "shortname"))
+						{	//non-qe, for `+fire nq`
+							v = COM_Parse(v);
+							Z_StrDupPtr(&name, com_token);
+						}
+						else if (*com_token)
+							Con_Printf("Unexpected line in wwheel.txt: %s\n", line);
+					}
+					Z_Free(icon);
+					Z_Free(selicon);
+					Z_Free(ammoicon);
+					Z_Free(viewmodel);
+					Z_Free(name);
+				}
+				else
+				{
+					Con_Printf("missing block, found: %s\n", line);
+					break;
+				}
+			}
+			else if (*com_token)
+				Con_Printf("Unexpected line in wwheel.txt: %s\n", line);
+		}
+		VFS_CLOSE(f);
+	}
+	else
+	{
+		IN_RegisterWeapon(2, "sg", IT_SHOTGUN,IT_SHOTGUN, IT_SHOTGUN, STAT_SHELLS,1, "progs/v_shot.mdl", NULL,NULL, "gfx/sb_shells");
+		IN_RegisterWeapon(3, "ssg", IT_SUPER_SHOTGUN,IT_SUPER_SHOTGUN, IT_SUPER_SHOTGUN, STAT_SHELLS,1, "progs/v_shot2.mdl", NULL,NULL, "gfx/sb_shells");
+		IN_RegisterWeapon(4, "ng", IT_NAILGUN,IT_NAILGUN, IT_NAILGUN, STAT_NAILS,1, "progs/v_nail.mdl", NULL,NULL, "gfx/sb_nails");
+		IN_RegisterWeapon(5, "sng", IT_SUPER_NAILGUN,IT_SUPER_NAILGUN, IT_SUPER_NAILGUN, STAT_NAILS,1, "progs/v_nail2.mdl", NULL,NULL, "gfx/sb_nails");
+		IN_RegisterWeapon(6, "gl", IT_GRENADE_LAUNCHER,IT_GRENADE_LAUNCHER, IT_GRENADE_LAUNCHER, STAT_ROCKETS,1, "progs/v_rock.mdl", NULL,NULL, "gfx/sb_rocket");
+		IN_RegisterWeapon(7, "rl", IT_ROCKET_LAUNCHER,IT_ROCKET_LAUNCHER, IT_ROCKET_LAUNCHER, STAT_ROCKETS,1, "progs/v_rock2.mdl", NULL,NULL, "gfx/sb_rocket");
+		IN_RegisterWeapon(8, "lg", IT_LIGHTNING,IT_LIGHTNING, IT_LIGHTNING, STAT_CELLS,1, "progs/v_light.mdl", NULL,NULL, "gfx/sb_cells");
+		IN_RegisterWeapon(1, "axe", IT_AXE,IT_AXE, IT_AXE, -1,0, "progs/v_axe.mdl", NULL, NULL, NULL);
+	}
+}
+static void IN_RegisterWeapon_f(void)
+{
+	if (Cmd_Argc() <= 2)
+	{
+		const char *arg = Cmd_Argv(1);
+		if (!strcmp(arg, "clear"))
+			IN_RegisterWeapon_Clear();
+		else if (!strcmp(arg, "reset") || !strcmp(arg, "quake"))	//'quake' for compat with dp.
+			IN_RegisterWeapon_Reset();
+		else
+			Con_Printf("Unknown arg %s\n", Cmd_Argv(1));
+	}
+	else
+	{
+		IN_RegisterWeapon(	atoi(Cmd_Argv(2)),	//impulse
+							Cmd_Argv(1),		//name
+							atoi(Cmd_Argv(3)),	//itemsmask
+							atoi(Cmd_Argv(3)),	//itemsval
+							atoi(Cmd_Argv(4)),	//weaponval
+							atoi(Cmd_Argv(5)),	//ammostat
+							atoi(Cmd_Argv(6)),	//ammomin
+							Cmd_Argv(7),		//viewmodel
+							Cmd_Argv(8),		//weaponicon
+							Cmd_Argv(9),		//weaponicon_sel
+							Cmd_Argv(10));		//ammoicon
+	}
+}
 
 //hacks, because we have to guess what the mod is doing. we'll probably get it wrong, which sucks.
-static qboolean IN_HaveWeapon(int pnum, int imp)
+static qboolean IN_HaveWeapon_Idx(int pnum, size_t widx)
 {
-	unsigned int items = cl.playerview[pnum].stats[STAT_ITEMS];
-	switch (imp)
-	{
-		case 1:	return (items & IT_AXE)?true:false;
-		case 2:	return (items & IT_SHOTGUN && cl.playerview[pnum].stats[STAT_SHELLS] >= 1)?true:false;
-		case 3:	return (items & IT_SUPER_SHOTGUN && cl.playerview[pnum].stats[STAT_SHELLS] >= 2)?true:false;
-		case 4:	return (items & IT_NAILGUN && cl.playerview[pnum].stats[STAT_NAILS] >= 1)?true:false;
-		case 5:	return (items & IT_SUPER_NAILGUN && cl.playerview[pnum].stats[STAT_NAILS] >= 2)?true:false;
-		case 6:	return (items & IT_GRENADE_LAUNCHER && cl.playerview[pnum].stats[STAT_ROCKETS] >= 1)?true:false;
-		case 7:	return (items & IT_ROCKET_LAUNCHER && cl.playerview[pnum].stats[STAT_ROCKETS] >= 1)?true:false;
-		case 8:	return (items & IT_LIGHTNING && cl.playerview[pnum].stats[STAT_CELLS] >= 1)?true:false;
-	}
+	if (widx < weaponinfo_count)
+		if ((cl.playerview[pnum].stats[STAT_ITEMS]&weaponinfo[widx].items_mask) == weaponinfo[widx].items_val)	//we have the weapon
+			if (weaponinfo[widx].ammostat < 0 || cl.playerview[pnum].stats[weaponinfo[widx].ammostat] >= weaponinfo[widx].ammomin)				//and we have enough ammo for it too.
+				return true;
 	return false;
+}
+static qboolean IN_HaveWeapon(int pnum, int impulse)
+{
+	size_t widx;
+	for (widx = 0; widx < weaponinfo_count; widx++)
+	{
+		if (weaponinfo[widx].impulse == impulse)
+			return IN_HaveWeapon_Idx(pnum, widx);
+	}
+	return false;	//we don't really know about it, but assume we can't because false negatives are better than false positives here.
+}
+static qboolean IN_HaveWeapon_Name(int pnum, char *name, int *impulse)
+{
+	int widx = IN_NameToWeaponIdx(name);
+	if (widx < 0)
+		return false;
+	if (!IN_HaveWeapon_Idx(pnum, widx))
+		return false;
+	*impulse = weaponinfo[widx].impulse;
+	return true;
 }
 static int IN_BestWeapon_Pre(unsigned int pnum);
 //if we're using weapon preselection, then we probably also want to show which weapon will be selected, instead of showing the shotgun the whole time.
 //this of course requires more hacks.
 const char *IN_GetPreselectedViewmodelName(unsigned int pnum)
 {
-	static const char *nametable[] =
-	{
-		NULL,	//can't cope with a 0
-		"progs/v_axe.mdl",
-		"progs/v_shot.mdl",
-		"progs/v_shot2.mdl",
-		"progs/v_nail.mdl",
-		"progs/v_nail2.mdl",
-		"progs/v_rock.mdl",
-		"progs/v_rock2.mdl",
-		"progs/v_light.mdl",
-	};
-
 	if (r_viewpreselgun.ival && cl_weaponpreselect.ival && pnum < countof(preselectedweapons) && preselectedweapons[pnum])
 	{
 		int best = IN_BestWeapon_Pre(pnum);
-		if (best < countof(nametable))
-			return nametable[best];
+		size_t widx;
+		for (widx = 0; widx < weaponinfo_count; widx++)
+		{
+			if (weaponinfo[widx].impulse == best)
+				return weaponinfo[widx].viewmodel;
+		}
 	}
 	return NULL;
 }
-//FIXME: make a script to decide if a weapon is held? call into the csqc?
+
 static int IN_BestWeapon_Args(unsigned int pnum, int firstarg, int argcount)
-{
+{	//returns impulses.
 	int i, imp;
 	unsigned int best = 0;
 
 	for (i = firstarg + argcount; --i >= firstarg; )
 	{
-		imp = Q_atoi(Cmd_Argv(i));
-		if (IN_HaveWeapon(pnum, imp))
+		if (IN_HaveWeapon_Name(pnum, Cmd_Argv(i), &imp))
 			best = imp;
 	}
 
@@ -365,12 +632,20 @@ static int IN_BestWeapon_Pre(unsigned int pnum)
 
 static void IN_DoPostSelect(void)
 {
+	int pnum = CL_TargettedSplit(false);
 	if (cl_weaponpreselect.ival)
 	{
-		int pnum = CL_TargettedSplit(false);
 		int best = IN_BestWeapon_Pre(pnum);
 		if (best)
 			CL_QueueImpulse(pnum, best);
+	}
+
+	if (in_wwheel.state[pnum]&1)
+	{
+		in_wwheel.state[pnum] = 0;
+		pnum = CL_TargettedSplit(false);
+		if (wwheelsel[pnum] < weaponinfo_count)
+			CL_QueueImpulse(pnum, weaponinfo[wwheelsel[pnum]].impulse);
 	}
 }
 //The weapon command autoselects a prioritised weapon like multi-arg impulse does.
@@ -381,9 +656,17 @@ void IN_Weapon (void)
 	int pnum = CL_TargettedSplit(false);
 	int mode, best, i;
 
+	preselectedweapons[pnum] = 0;
 	for (i = 1; i < Cmd_Argc() && i <= countof(preselectedweapon[pnum]); i++)
-		preselectedweapon[pnum][i-1] = atoi(Cmd_Argv(i));
-	preselectedweapons[pnum] = i-1;
+	{
+		best = IN_NameToWeaponIdx(Cmd_Argv(i));
+		if (best >= 0)
+			best = weaponinfo[best].impulse;	//a known weapon
+		else
+			best = atoi(Cmd_Argv(i));	//fall back
+		if (best > 0)
+			preselectedweapon[pnum][preselectedweapons[pnum]++] = best;
+	}
 
 	best = IN_BestWeapon_Pre(pnum);
 	if (best)
@@ -447,8 +730,7 @@ static void IN_DoWeaponHide(void)
 		while(l && *l)
 		{
 			l = COM_ParseOut(l, tok, sizeof(tok));
-			impulse = atoi(tok);
-			if (IN_HaveWeapon(pnum, impulse))
+			if (IN_HaveWeapon_Name(pnum, tok, &impulse))
 				best = impulse;
 		}
 		if (best)
@@ -475,6 +757,130 @@ void IN_FireUp(void)
 
 	if (KeyUp_Scan(&in_attack, k))
 		IN_DoWeaponHide();
+}
+
+qboolean IN_WeaponWheelAccumulate(int pnum, float x, float y) //either mouse or controller
+{
+	if (!(in_wwheel.state[pnum]&1) || !weaponinfo_count)
+		return false;
+
+	wwheeldir[pnum][0] += x;
+	wwheeldir[pnum][1] += y;
+	return true;
+}
+#include "shader.h"
+qboolean IN_DrawWeaponWheel(int pnum)
+{
+	int w;
+	float pos[2], centre[2];
+	const float radius = 64;
+	float d, a;
+	shader_t *s;
+	if (!(in_wwheel.state[pnum]&1) || !weaponinfo_count)
+		return false;
+	R2D_ImageColours(1,1,1,1);
+
+	centre[0] = cl.playerview[pnum].gamerect.x + cl.playerview[pnum].gamerect.width/2;
+	centre[1] = cl.playerview[pnum].gamerect.y + cl.playerview[pnum].gamerect.height/2;
+
+	d = DotProduct2(wwheeldir[pnum],wwheeldir[pnum]);
+	a = 32;
+	if (d > a*a && d)
+	{
+		wwheeldir[pnum][0] *= a/sqrt(d);
+		wwheeldir[pnum][1] *= a/sqrt(d);
+	}
+
+	a = atan2(wwheeldir[pnum][1], wwheeldir[pnum][0]);
+	w = (a/(2*M_PI)+1) * weaponinfo_count + 0.5;
+	w = w % weaponinfo_count;
+
+	if (w != wwheelsel[pnum])
+	{
+		wwheelseltime[pnum] = realtime;
+		wwheelsel[pnum] = w;
+	}
+
+	s = R2D_SafeCachePic("gfx/weaponwheel.lmp");
+	if (R_GetShaderSizes(s, NULL, NULL, false)>0)
+		R2D_Image(centre[0]-radius*2, centre[1]-radius*2, radius*4, radius*4, 0, 0, 1, 1, s);
+	for (w = 0; w < weaponinfo_count; w++)
+	{
+		pos[0] = centre[0] + cos((w*2*M_PI) / weaponinfo_count)*radius;
+		pos[1] = centre[1] + sin((w*2*M_PI) / weaponinfo_count)*radius;
+
+		if (weaponinfo[w].icons[0])
+		{	//draw a shadow
+			R2D_ImageColours(0,0,0,1);
+			R2D_Image(pos[0]-24+2, pos[1]-16+2, 48, 32, 0, 0, 1, 1, R2D_SafeCachePic(weaponinfo[w].icons[0]));
+		}
+
+		//and the real icon (dark if unavailable)
+		if (IN_HaveWeapon_Idx(pnum, w))
+			R2D_ImageColours(1,1,1,1);
+		else
+			R2D_ImageColours(0.2,0.2,0.2,1);
+		if (w == wwheelsel[pnum])
+			d = 1+sin((realtime - wwheelseltime[pnum])*10);	//make it bounce
+		else
+			d = 0;
+		if (cl.playerview[pnum].stats[STAT_ACTIVEWEAPON] == weaponinfo[w].items_val && weaponinfo[w].icons[1])
+			R2D_Image(pos[0]-24-d, pos[1]-16-d, 48, 32, 0, 0, 1, 1, R2D_SafeCachePic(weaponinfo[w].icons[1]));
+		else if (weaponinfo[w].icons[0])
+			R2D_Image(pos[0]-24-d, pos[1]-16-d, 48, 32, 0, 0, 1, 1, R2D_SafeCachePic(weaponinfo[w].icons[0]));
+		else
+			Draw_FunStringWidth(pos[0]-32-d, pos[1]-4-d, weaponinfo[w].shortname, 64, 2, cl.playerview[pnum].stats[STAT_ACTIVEWEAPON] == weaponinfo[w].items_val);
+	}
+	R2D_ImageColours(1,1,1,1);
+
+	w = wwheelsel[pnum];
+	if (weaponinfo[w].icons[2])
+		R2D_Image(centre[0]-12, centre[1]-12, 24, 24, 0, 0, 1, 1, R2D_SafeCachePic(weaponinfo[w].icons[2]));
+	Draw_FunStringWidth(centre[0]-32, centre[1] - 28, weaponinfo[w].shortname, 64, 2, false);
+	if (weaponinfo[w].ammostat >= 0)
+		Draw_FunStringWidth(centre[0]-32, centre[1] + 20, va("%s%d", (cl.playerview[pnum].stats[weaponinfo[w].ammostat]<20)?S_COLOR_RED:"", cl.playerview[pnum].stats[weaponinfo[w].ammostat]), 64, 2, false);
+
+	pos[0] = centre[0] + cos(a)*radius*0.6;
+	pos[1] = centre[1] + sin(a)*radius*0.6;
+	Draw_FunString(pos[0], pos[1], "X");
+	return true;
+}
+static void IN_WWheelDown (void)
+{
+#ifdef CSQC_DAT
+	int pnum = CL_TargettedSplit(false);
+	if (CSQC_ConsoleCommand(pnum, Cmd_Argv(0)))
+		return;
+#endif
+	if (!(in_wwheel.state[pnum]&1))
+	{
+		size_t w;
+		for (w = 0; w < weaponinfo_count; w++)
+		{
+			if (cl.playerview[pnum].stats[STAT_ACTIVEWEAPON] == weaponinfo[w].items_val)
+			{	//this is our active weapon. start with it highlighted.
+				wwheelseltime[pnum] = realtime;
+				wwheelsel[pnum] = w;
+
+				wwheeldir[pnum][0] = cos((wwheelsel[pnum]*2*M_PI) / weaponinfo_count)*16;
+				wwheeldir[pnum][1] = sin((wwheelsel[pnum]*2*M_PI) / weaponinfo_count)*16;
+				break;
+			}
+		}
+	}
+	KeyDown(&in_wwheel, NULL);
+}
+static void IN_WWheelUp (void)
+{
+	int pnum = CL_TargettedSplit(false);
+#ifdef CSQC_DAT
+	if (CSQC_ConsoleCommand(pnum, Cmd_Argv(0)))
+		return;
+#endif
+	if (!KeyUp(&in_wwheel))
+		return;
+	if (wwheelsel[pnum] < weaponinfo_count)
+		CL_QueueImpulse(pnum, weaponinfo[wwheelsel[pnum]].impulse);
 }
 #else
 #define IN_DoPostSelect()
@@ -2753,6 +3159,10 @@ void CL_InitInput (void)
 	Cmd_AddCommand ("-mlook",		IN_MLookUp);
 
 #ifdef QUAKESTATS
+	Cmd_AddCommand ("+weaponwheel",		IN_WWheelDown);
+	Cmd_AddCommand ("-weaponwheel",		IN_WWheelUp);
+	Cmd_AddCommandD ("register_bestweapon",		IN_RegisterWeapon_f, "Normally set via a mod's default.cfg file");
+	Cmd_AddCommandD ("bestweapon",		IN_Impulse, "Works like 'impulse', for compat with other engines.");
 	Cvar_Register (&cl_weaponhide, inputnetworkcvargroup);
 	Cvar_Register (&cl_weaponhide_preference, inputnetworkcvargroup);
 	Cvar_Register (&cl_weaponpreselect, inputnetworkcvargroup);

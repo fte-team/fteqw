@@ -469,12 +469,17 @@ void IN_Commands(void)
 			{
 				if (topmenu && topmenu->joyaxis && topmenu->joyaxis(topmenu, ev->devid, ev->joy.axis, ev->joy.value))
 					joy[ev->devid].axis[ev->joy.axis] = 0;
-				else
-#ifdef CSQC_DAT
-				if (CSQC_JoystickAxis(ev->joy.axis, ev->joy.value, ev->devid))
+#ifdef QUAKESTATS
+				else if (ev->joy.axis==GPAXIS_LT_RIGHT && IN_WeaponWheelAccumulate(ev->devid, ev->joy.value, 0))
 					joy[ev->devid].axis[ev->joy.axis] = 0;
-				else
+				else if (ev->joy.axis==GPAXIS_LT_DOWN && IN_WeaponWheelAccumulate(ev->devid, 0, ev->joy.value))
+					joy[ev->devid].axis[ev->joy.axis] = 0;
 #endif
+#ifdef CSQC_DAT
+				else if (CSQC_JoystickAxis(ev->joy.axis, ev->joy.value, ev->devid))
+					joy[ev->devid].axis[ev->joy.axis] = 0;
+#endif
+				else
 					joy[ev->devid].axis[ev->joy.axis] = ev->joy.value;
 			}
 			break;
@@ -768,7 +773,11 @@ void IN_MoveMouse(struct mouse_s *mouse, float *movements, int pnum, float frame
 #endif
 
 		//if game is not focused, kill any mouse look
-		if (Key_Dest_Has(~kdm_game))
+		if (
+#ifdef QUAKESTATS
+			IN_WeaponWheelAccumulate(pnum, mx, my) ||
+#endif
+			Key_Dest_Has(~kdm_game))
 		{
 			mx = 0;
 			my = 0;

@@ -897,6 +897,13 @@ void SCR_CheckDrawCenterString (void)
 		p = &scr_centerprint[pnum];
 		p->cursorchar = NULL;
 
+#ifdef QUAKESTATS
+		if (IN_DrawWeaponWheel(pnum))
+		{	//we won't draw the cprint, but it also won't fade while the wwheel is shown.
+			continue;
+		}
+#endif
+
 		if (p->time_off <= 0 && !(p->flags & CPRINT_PERSIST))
 			continue;	//'/P' prefix doesn't time out
 

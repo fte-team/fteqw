@@ -1215,6 +1215,8 @@ void CL_UpdateWindowTitle(void);
 
 #ifdef QUAKESTATS
 const char *IN_GetPreselectedViewmodelName(unsigned int pnum);
+qboolean IN_WeaponWheelAccumulate(int pnum, float x, float y);
+qboolean IN_DrawWeaponWheel(int pnum);
 #endif
 void CL_InitInput (void);
 void CL_SendCmd (double frametime, qboolean mainloop);

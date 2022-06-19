@@ -13733,9 +13733,9 @@ void PR_DumpPlatform_f(void)
 		{"FILE_READ",			"const float", ALL, D("The file may be read via fgets to read a single line at a time."), FRIK_FILE_READ},
 		{"FILE_APPEND",			"const float", ALL, D("Like FILE_WRITE, but writing starts at the end of the file."), FRIK_FILE_APPEND},
 		{"FILE_WRITE",			"const float", ALL, D("fputs will be used to write to the file."), FRIK_FILE_WRITE},
-		{"FILE_READNL",			"const float", QW|NQ|CS, D("Like FILE_READ, except newlines are not special. fgets reads the entire file into a tempstring."), FRIK_FILE_READNL},
-		{"FILE_MMAP_READ",		"const float", QW|NQ|CS, D("The file will be loaded into memory. fgets returns a pointer to the first byte (and will always return the same value for this file). Cast this to your datatype."), FRIK_FILE_MMAP_READ},
-		{"FILE_MMAP_RW",		"const float", QW|NQ|CS, D("Like FILE_MMAP_READ, except any changes to the data will be written back to disk once the file is closed."), FRIK_FILE_MMAP_RW},
+		{"FILE_READNL",			"const float", ALL, D("Like FILE_READ, except newlines are not special. fgets reads the entire file into a tempstring."), FRIK_FILE_READNL},
+		{"FILE_MMAP_READ",		"const float", ALL, D("The file will be loaded into memory. fgets returns a pointer to the first byte (and will always return the same value for this file). Cast this to your datatype."), FRIK_FILE_MMAP_READ},
+		{"FILE_MMAP_RW",		"const float", ALL, D("Like FILE_MMAP_READ, except any changes to the data will be written back to disk once the file is closed."), FRIK_FILE_MMAP_RW},
 
 		{"MASK_ENGINE",			"const float", CS, D("Valid as an argument for addentities. If specified, all non-csqc entities will be added to the scene."), MASK_DELTA},
 		{"MASK_VIEWMODEL",		"const float", CS, D("Valid as an argument for addentities. If specified, the regular engine viewmodel will be added to the scene."), MASK_STDVIEWMODEL},

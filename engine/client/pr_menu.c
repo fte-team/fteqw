@@ -2652,6 +2652,7 @@ static struct {
 	{"getresolution",			PF_cl_getresolution,		608},
 	{"keynumtostring",			PF_cl_keynumtostring,		609},
 	{"findkeysforcommand",		PF_cl_findkeysforcommand,	610},
+	{"findkeysforcommandex",	PF_cl_findkeysforcommandex,	0},
 	{"gethostcachevalue",		PF_cl_gethostcachevalue,	611},
 	{"gethostcachestring",		PF_cl_gethostcachestring,	612},
 	{"parseentitydata",			PF_parseentitydata,			613},

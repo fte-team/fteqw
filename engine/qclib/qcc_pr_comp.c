@@ -7063,12 +7063,12 @@ QCC_sref_t QCC_PR_GenerateFunctionCallRef (QCC_sref_t newself, QCC_sref_t func, 
 			case REF_ARRAY:
 				if (!arglist[i]->index.cast || QCC_SRef_EvalConst(arglist[i]->index))
 					break;	//no problem
-				if (QCC_OPCodeValid(&pr_opcodes[OP_LOADA_V]))
+				if (QCC_OPCodeValid(&pr_opcodes[OP_LOADA_F]))
 				{
 					copyop[2] = OP_LOADA_V;
-//					copyop[1] = OP_LOADA_I64;
+					copyop[1] = OP_LOADA_I64;
 					copyop[0] = OP_LOADA_F;
-					copyop_idx = -1;
+					copyop_idx = 0;	//offset the base ref
 					copyop_index = arglist[i]->index;
 					copyop_index = QCC_SupplyConversion(copyop_index, ev_integer, true);
 					sref = arglist[i]->base;
@@ -7206,30 +7206,30 @@ QCC_sref_t QCC_PR_GenerateFunctionCallRef (QCC_sref_t newself, QCC_sref_t func, 
 					{
 						if (ofs%3)
 							parm--;
-						if (parm+ofs/3>=MAX_PARMS)
+						if (parm>=MAX_PARMS)
 						{
-							fparm = extra_parms[parm+ofs/3 - MAX_PARMS];
+							fparm = extra_parms[parm - MAX_PARMS];
 							if (!fparm.cast)
 							{
 								char name[128];
-								QC_snprintfz(name, sizeof(name), "$parm%u", parm+ofs/3);
-								fparm = extra_parms[parm+ofs/3 - MAX_PARMS] = QCC_PR_GetSRef(type_vector, name, NULL, true, 0, GDF_STRIP);
+								QC_snprintfz(name, sizeof(name), "$parm%u", parm);
+								fparm = extra_parms[parm - MAX_PARMS] = QCC_PR_GetSRef(type_vector, name, NULL, true, 0, GDF_STRIP);
 							}
 							else
 								QCC_ForceUnFreeDef(fparm.sym);
 						}
 						else
 						{
-							fparm.sym = &def_parms[parm+ofs/3];
+							fparm.sym = &def_parms[parm];
 							fparm.cast = type_vector;
 							QCC_ForceUnFreeDef(fparm.sym);
 						}
-						fparm.ofs = ofs;
-//						if (!fparm.ofs)
-//						{
+						fparm.ofs = ofs%3;
+						if (!fparm.ofs)
+						{
 							args[parm].firststatement = numstatements;
 							args[parm].ref = fparm;
-//						}
+						}
 						parm++;
 
 						if (ofs+asz == arglist[i]->cast->size)
@@ -11292,6 +11292,13 @@ QCC_sref_t QCC_LoadFromArray(QCC_sref_t base, QCC_sref_t index, QCC_type_t *t, p
 						i+=3;
 						base.ofs += 3;
 						r.ofs+=3;
+					}
+					else if (t->size - i >= 2 && QCC_OPCodeValid(&pr_opcodes[OP_LOADA_I64]))
+					{
+						QCC_PR_SimpleStatement(&pr_opcodes[OP_LOADA_I64], base, index, r, false);
+						i+=2;
+						base.ofs += 2;
+						r.ofs+=2;
 					}
 					else
 					{
@@ -15702,6 +15709,11 @@ QCC_function_t *QCC_PR_ParseImmediateStatements (QCC_def_t *def, QCC_type_t *typ
 						QCC_FreeTemp(QCC_PR_Statement (&pr_opcodes[OP_STORE_V], extra_parms[p - MAX_PARMS], parm, NULL));
 						parm.ofs+=3;
 					}
+					else if (type->params[u].type->size-o*3 == 2 && QCC_OPCodeValid(&pr_opcodes[OP_STORE_I64]))
+					{
+						QCC_FreeTemp(QCC_PR_Statement (&pr_opcodes[OP_STORE_I64], extra_parms[p - MAX_PARMS], parm, NULL));
+						parm.ofs+=2;
+					}
 					else if (type->params[u].type->size-o*3 == 2)
 					{
 						QCC_sref_t t = extra_parms[p - MAX_PARMS];
@@ -17148,6 +17160,20 @@ finalnotconst:
 				i+=3;
 				def.ofs += 3;
 				rhs.ofs += 3;
+			}
+			else if (type->size - i >= 2)
+			{
+				rhs.cast = def.cast = type_vector;
+				if (type->size - i == 2)
+				{
+					QCC_FreeTemp(QCC_PR_StatementFlags(&pr_opcodes[OP_STORE_I64], nullsource?QCC_MakeVectorConst(0,0,0):rhs, def, NULL, STFL_PRESERVEB));
+					return ret;
+				}
+				else
+					QCC_FreeTemp(QCC_PR_StatementFlags(&pr_opcodes[OP_STORE_I64], nullsource?QCC_MakeVectorConst(0,0,0):rhs, def, NULL, STFL_PRESERVEA|STFL_PRESERVEB));
+				i+=2;
+				def.ofs += 2;
+				rhs.ofs += 2;
 			}
 			else
 			{

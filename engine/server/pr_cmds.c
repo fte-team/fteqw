@@ -4503,6 +4503,14 @@ static void QCBUILTIN PF_getsoundindex (pubprogfuncs_t *prinst, struct globalvar
 
 	G_FLOAT(OFS_RETURN) = PF_precache_sound_Internal(prinst, s, queryonly);
 }
+static void QCBUILTIN PF_soundnameforindex (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	int idx = G_FLOAT(OFS_PARM0);
+	if (idx >= 0 && idx < MAX_PRECACHE_SOUNDS && sv.strings.sound_precache)
+		RETURN_TSTRING(sv.strings.sound_precache[idx]);
+	else
+		G_INT(OFS_RETURN) = 0;
+}
 
 int PF_precache_model_Internal (pubprogfuncs_t *prinst, const char *s, qboolean queryonly)
 {
@@ -4593,6 +4601,14 @@ static void QCBUILTIN PF_getmodelindex (pubprogfuncs_t *prinst, struct globalvar
 	qboolean queryonly = (svprogfuncs->callargc >= 2)?G_FLOAT(OFS_PARM1):false;
 
 	G_FLOAT(OFS_RETURN) = PF_precache_model_Internal(prinst, s, queryonly);
+}
+static void QCBUILTIN PF_modelnameforindex (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	int idx = G_FLOAT(OFS_PARM0);
+	if (idx >= 0 && idx < MAX_PRECACHE_MODELS && sv.strings.model_precache)
+		RETURN_TSTRING(sv.strings.model_precache[idx]);
+	else
+		G_INT(OFS_RETURN) = 0;
 }
 #ifdef HAVE_LEGACY
 void QCBUILTIN PF_precache_vwep_model (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
@@ -11339,8 +11355,8 @@ static BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 //	{"findlist_radius",	PF_FindListRadius,	0,		0,		0,		0,		D("entity*(vector pos, float radius)", "Return a list of entities with the given string field set to the given value.")},
 //	{"traceboxptr",		PF_TraceBox,		0,		0,		0,		0,		D("typedef struct {\nfloat allsolid;\nfloat startsolid;\nfloat fraction;\nfloat truefraction;\nentity ent;\nvector endpos;\nvector plane_normal;\nfloat plane_dist;\nint surfaceflags;\nint contents;\n} trace_t;\nvoid(trace_t *trace, vector start, vector mins, vector maxs, vector end, float nomonsters, entity forent)", "Like regular tracebox, except doesn't doesn't use any evil globals.")},
 
-	{"getsoundindex",	PF_getsoundindex,	0,		0,		0,		0,		D("float(string soundname, float queryonly)", "Provides a way to query if a sound is already precached or not. The return value can also be checked for <=255 to see if it'll work over any network protocol. The sound index can also be used for writebyte hacks, but this is discouraged - use SOUNDFLAG_UNICAST instead.")},
 	{"getmodelindex",	PF_getmodelindex,	0,		0,		0,		200,	D("float(string modelname, optional float queryonly)", "Acts as an alternative to precache_model(foo);setmodel(bar, foo); return bar.modelindex;\nIf queryonly is set and the model was not previously precached, the builtin will return 0 without needlessly precaching the model.")},
+	{"getsoundindex",	PF_getsoundindex,	0,		0,		0,		0,		D("float(string soundname, optional float queryonly)", "Provides a way to query if a sound is already precached or not. The return value can also be checked for <=255 to see if it'll work over any network protocol. The sound index can also be used for writebyte hacks, but this is discouraged - use SOUNDFLAG_UNICAST instead.")},
 	{"externcall",		PF_externcall,		0,		0,		0,		201,	D("__variant(float prnum, string funcname, ...)", "Directly call a function in a different/same progs by its name.\nprnum=0 is the 'default' or 'main' progs.\nprnum=-1 means current progs.\nprnum=-2 will scan through the active progs and will use the first it finds.")},
 	{"addprogs",		PF_addprogs,		0,		0,		0,		202,	D("float(string progsname)", "Loads an additional .dat file into the current qcvm. The returned handle can be used with any of the externcall/externset/externvalue builtins.\nThere are cvars that allow progs to be loaded automatically.")},
 	{"externvalue",		PF_externvalue,		0,		0,		0,		203,	D("__variant(float prnum, string varname)", "Reads a global in the named progs by the name of that global.\nprnum=0 is the 'default' or 'main' progs.\nprnum=-1 means current progs.\nprnum=-2 will scan through the active progs and will use the first it finds.")},
@@ -11635,7 +11651,8 @@ static BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 
 //EXT_CSQC
 	{"setmodelindex",	PF_Fixme,	0,		0,		0,		333,	D("void(entity e, float mdlindex)", "Sets a model by precache index instead of by name. Otherwise identical to setmodel.")},//
-	{"modelnameforindex",PF_Fixme,	0,		0,		0,		334,	D("string(float mdlindex)", "Retrieves the name of the model based upon a precache index. This can be used to reduce csqc network traffic by enabling model matching.")},//
+	{"modelnameforindex",PF_modelnameforindex,0,0,	0,		334,	D("string(float mdlindex)", "Retrieves the name of the model based upon a precache index. This can be used to reduce csqc network traffic by enabling model matching (with getmodelindex).")},//
+	{"soundnameforindex",PF_soundnameforindex,0,0,	0,		0,		D("string(float sndindex)", "Retrieves the name of the sound based upon a precache index. This can be used to reduce csqc network traffic by enabling sound matching (with getsoundindex).")},//
 
 	{"particleeffectnum",PF_sv_particleeffectnum,0,0,0,		335,	D("float(string effectname)", "Precaches the named particle effect. If your effect name is of the form 'foo.bar' then particles/foo.cfg will be loaded by the client if foo.bar was not already defined.\nDifferent engines will have different particle systems, this specifies the QC API only.")},// (EXT_CSQC)
 	{"trailparticles",	PF_sv_trailparticles,0,0,	0,		336,	D("void(float effectnum, entity ent, vector start, vector end)", "Draws the given effect between the two named points. If ent is not world, distances will be cached in the entity in order to avoid framerate dependancies. The entity is not otherwise used.")},// (EXT_CSQC),

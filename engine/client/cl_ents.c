@@ -4434,10 +4434,7 @@ void CL_LinkPacketEntities (void)
 			ent->shaderRGBAf[1] = (state->colormod[1]*8.0f)/256;
 			ent->shaderRGBAf[2] = (state->colormod[2]*8.0f)/256;
 		}
-		if (state->colormod[0] == 32 && state->colormod[1] == 32 && state->colormod[2] == 32)
-			VectorSet(ent->glowmod, 1, 1, 1);
-		else
-			VectorScale(state->glowmod, 1/255.0, ent->glowmod);
+		VectorScale(state->glowmod, 8.0/256.0, ent->glowmod);
 
 #ifdef PEXT_FATNESS
 		//set trans

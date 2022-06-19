@@ -3270,6 +3270,30 @@ static void QCBUILTIN PF_cs_getmodelindex (pubprogfuncs_t *prinst, struct global
 
 	G_FLOAT(OFS_RETURN) = PF_cs_PrecacheModel_Internal(prinst, s, queryonly);
 }
+static void QCBUILTIN PF_cs_getsoundindex (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	const char	*s = PR_GetStringOfs(prinst, OFS_PARM0);
+	qboolean queryonly = (prinst->callargc >= 2)?G_FLOAT(OFS_PARM1):false;
+	int i;
+
+	G_FLOAT(OFS_RETURN) = 0;
+	//look for the server's names first...
+	for (i = 1; i < MAX_PRECACHE_SOUNDS; i++)
+	{
+		if (!*cl.sound_name[i])
+			break;
+		if (!strcmp(cl.sound_name[i], s))
+		{
+			G_FLOAT(OFS_RETURN) = i;
+			return;
+		}
+	}
+
+	//FIXME: we don't track clientside sound precaches (the sound system has its own, but can be flushed at any time forgetting/reordering them)
+	//can still make sure its cached though.
+	if (!queryonly)
+		S_PrecacheSound(s);
+}
 static void QCBUILTIN PF_cs_precachefile(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	const char *filename = PR_GetStringOfs(prinst, OFS_PARM0);
@@ -3288,10 +3312,22 @@ static void QCBUILTIN PF_cs_ModelnameForIndex(pubprogfuncs_t *prinst, struct glo
 {
 	int modelindex = G_FLOAT(OFS_PARM0);
 
-	if (modelindex < 0)
+	if (modelindex < 0 && (-modelindex) < MAX_CSMODELS)
 		G_INT(OFS_RETURN) = (int)PR_SetString(prinst, cl.model_csqcname[-modelindex]);
-	else
+	else if (modelindex >= 0 && modelindex < MAX_PRECACHE_MODELS)
 		G_INT(OFS_RETURN) = (int)PR_SetString(prinst, cl.model_name[modelindex]);
+	else
+		G_INT(OFS_RETURN) = 0;
+}
+static void QCBUILTIN PF_cs_SoundnameForIndex(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	int soundindex = G_FLOAT(OFS_PARM0);
+
+	//FIXME: no private indexes. still useful for sending sound names from the ssqc via indexes.
+	if (soundindex >= 0 && soundindex < MAX_PRECACHE_SOUNDS)
+		G_INT(OFS_RETURN) = (int)PR_SetString(prinst, cl.sound_name[soundindex]);
+	else
+		G_INT(OFS_RETURN) = 0;
 }
 
 static void QCBUILTIN PF_cs_spriteframe(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
@@ -7004,6 +7040,7 @@ static struct {
 
 //200
 	{"getmodelindex",			PF_cs_getmodelindex,	200},
+	{"getsoundindex",			PF_cs_getsoundindex,	0},
 	{"externcall",				PF_externcall,	201},
 	{"addprogs",				PF_cs_addprogs,	202},
 	{"externvalue",				PF_externvalue,	203},
@@ -7225,6 +7262,7 @@ static struct {
 	{"getplayerstat",			PF_cs_getplayerstat,			0},		// #0 __variant(float playernum, float statnum, float stattype) getplayerstat
 	{"setmodelindex",			PF_cs_SetModelIndex,			333},	// #333 void(entity e, float mdlindex) setmodelindex (EXT_CSQC)
 	{"modelnameforindex",		PF_cs_ModelnameForIndex,		334},	// #334 string(float mdlindex) modelnameforindex (EXT_CSQC)
+	{"soundnameforindex",		PF_cs_SoundnameForIndex,		0},
 
 	{"particleeffectnum",		PF_cs_particleeffectnum,		335},	// #335 float(string effectname) particleeffectnum (EXT_CSQC)
 	{"trailparticles",			PF_cs_trailparticles,			336},	// #336 void(float effectnum, entity ent, vector start, vector end) trailparticles (EXT_CSQC),

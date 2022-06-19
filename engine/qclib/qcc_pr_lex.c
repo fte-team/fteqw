@@ -1341,7 +1341,9 @@ static pbool QCC_PR_Precompiler(void)
 						{
 							if (!QC_strcasecmp(pr_opcodes[f].opname, qcc_token))
 							{
-								if (st)
+								if (f >= OP_NUMREALOPS)
+									QCC_PR_ParseWarning(WARN_BADPRAGMA, "opcode %s is internal", qcc_token);	//these will change with later opcodes, do not allow them to be written into the output.
+								else if (st)
 									pr_opcodes[f].flags |= OPF_VALID;
 								else
 									pr_opcodes[f].flags &= ~OPF_VALID;
@@ -4708,6 +4710,8 @@ QCC_type_t *QCC_PR_DuplicateType(QCC_type_t *in, pbool recurse)
 	out->num_parms = in->num_parms;
 	out->name = in->name;
 	out->parentclass = in->parentclass;
+	out->vargs = in->vargs;
+	out->vargcount = in->vargcount;
 
 	return out;
 }
@@ -4902,7 +4906,14 @@ QCC_type_t *QCC_PR_NextSubType(QCC_type_t *type, QCC_type_t *prev)
 
 QCC_type_t *QCC_TypeForName(const char *name)
 {
-	return pHash_Get(&typedeftable, name);
+	QCC_type_t *t = pHash_Get(&typedeftable, name);
+	while (t && t->scope)
+	{
+		if (t->scope == pr_scope)
+			break;	//its okay after all.
+		t = pHash_GetNext(&typedeftable, name, t);
+	}
+	return t;
 /*
 	int i;
 
@@ -6465,8 +6476,14 @@ QCC_type_t *QCC_PR_ParseType (int newtype, pbool silentfail)
 					bits = 16, isokay = true;
 				else if (!bits && QCC_PR_CheckKeyword(keyword_char, "char"))
 					bits = 8, isokay = true;
-				else if (!bits && QCC_PR_CheckKeyword(keyword_int, "_Bool"))	//c99
-					bits = 1, isokay = true;
+				else if (!bits && !issigned && !isunsigned && QCC_PR_CheckKeyword(true, "_Bool"))	//c99
+				{
+					if (keyword_int)
+						type = type_bint;
+					else
+						type = type_bfloat;
+					goto wasctype;
+				}
 
 				else if (!bits && !islong && QCC_PR_CheckKeyword(keyword_float, "float"))
 					bits = 32, isfloat = isokay = true;

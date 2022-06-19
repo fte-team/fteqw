@@ -3614,10 +3614,10 @@ static void	QCC_PR_BeginCompilation (void *memory, int memsize)
 	type_floatfunction = QCC_PR_NewType("__floatfunction", ev_function, false);
 	type_floatfunction->aux_type = type_float;
 
-	type_bfloat = QCC_PR_NewType("__bfloat", ev_boolean, false);
+	type_bfloat = QCC_PR_NewType("__bfloat", ev_boolean, true);
 	type_bfloat->parentclass = type_float;
-	type_bint = QCC_PR_NewType("__bint", ev_boolean, false);
-	type_bint->parentclass = type_integer;
+	type_bint = QCC_PR_NewType("__bint", ev_boolean, true);
+	type_bint->parentclass = type_uint;
 
 	//type_field->aux_type = type_float;
 

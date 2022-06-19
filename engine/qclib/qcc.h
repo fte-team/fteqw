@@ -394,6 +394,7 @@ typedef struct QCC_type_s
 
 	struct accessor_s *accessors;
 
+	struct QCC_function_s *scope;	//stoopid scoped typedefs...
 	struct QCC_type_s *ptrto;	//(cache) this points to a type that is a pointer back to this type. yeah, weird.
 	struct QCC_type_s *fldto;	//(cache) this points to a type that is a pointer back to this type. yeah, weird.
 } QCC_type_t;

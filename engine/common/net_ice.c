@@ -2989,7 +2989,7 @@ static qboolean FTENET_ICE_GetPacket(ftenet_generic_connection_t *gcon)
 		const char *s;
 		if (b->timeout > realtime)
 			return false;
-		b->generic.thesocket = TCP_OpenStream(&b->brokeradr);	//save this for select.
+		b->generic.thesocket = TCP_OpenStream(&b->brokeradr, b->brokername);	//save this for select.
 		b->broker = FS_WrapTCPSocket(b->generic.thesocket, true, b->brokername);
 
 #ifdef HAVE_SSL

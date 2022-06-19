@@ -1080,8 +1080,13 @@ void HTTPDL_Establish(struct dl_download *dl)
 		//fixme: support more than one address possibility?
 		//https uses a different default port
 		if (NET_StringToAdr2(con->server, https?443:80, &adr, 1, NULL))
-			con->sock = TCP_OpenStream(&adr);
+			con->sock = TCP_OpenStream(&adr, *dl->redir?dl->redir:dl->url);
 		con->stream = FS_WrapTCPSocket(con->sock, true, con->server);
+		if (!con->stream)
+		{
+			dl->status = DL_FAILED;
+			return;
+		}
 	}
 #ifdef HAVE_SSL
 	if (https)

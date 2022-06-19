@@ -6408,7 +6408,7 @@ ftenet_generic_connection_t *FTENET_TCP_EstablishConnection(ftenet_connections_t
 	}
 	else
 	{
-		newsocket = TCP_OpenStream(&adr);
+		newsocket = TCP_OpenStream(&adr, address);
 		if (newsocket == INVALID_SOCKET)
 		{
 			Z_Free(newcon);
@@ -8321,7 +8321,7 @@ void NET_PrintConnectionsStatus(ftenet_connections_t *collection)
 
 //=============================================================================
 
-int TCP_OpenStream (netadr_t *remoteaddr)
+int TCP_OpenStream (netadr_t *remoteaddr, const char *remotename)
 {
 #ifndef HAVE_TCP
 	return (int)INVALID_SOCKET;
@@ -8382,21 +8382,21 @@ int TCP_OpenStream (netadr_t *remoteaddr)
 		int err = neterrno();
 		if (err != NET_EWOULDBLOCK && err != NET_EINPROGRESS)
 		{
-			char buf[256];
-			NET_AdrToString(buf, sizeof(buf), remoteaddr);
 			if (err == NET_EADDRNOTAVAIL)
 			{
 				if (remoteaddr->port == 0 && (remoteaddr->type == NA_IP || remoteaddr->type == NA_IPV6))
-					Con_Printf ("TCP_OpenStream: no port specified (%s)\n", buf);
+					Con_Printf ("TCP_OpenStream: no port specified (%s)\n", remotename);
 				else
-					Con_Printf ("TCP_OpenStream: invalid address trying to connect to %s\n", buf);
+					Con_Printf ("TCP_OpenStream: invalid address trying to connect to %s\n", remotename);
 			}
 			else if (err == NET_ECONNREFUSED)
-				Con_Printf ("TCP_OpenStream: connection refused (%s)\n", buf);
+				Con_Printf ("TCP_OpenStream: connection refused (%s)\n", remotename);
 			else if (err == NET_EACCES)
-				Con_Printf ("TCP_OpenStream: access denied: check firewall (%s)\n", buf);
+				Con_Printf ("TCP_OpenStream: access denied: check firewall (%s)\n", remotename);
+			else if (err == NET_ENETUNREACH)
+				Con_Printf ("TCP_OpenStream: unreachable (%s)\n", remotename);
 			else
-				Con_Printf ("TCP_OpenStream: connect: error %i (%s)\n", err, buf);
+				Con_Printf ("TCP_OpenStream: connect: error %i (%s)\n", err, remotename);
 			closesocket(newsocket);
 			return (int)INVALID_SOCKET;
 		}
@@ -9510,7 +9510,7 @@ vfsfile_t *FS_OpenTCP(const char *name, int defaultport, qboolean assumetls)
 		if (wanttls)
 			return NULL;	//don't even make the connection if we can't satisfy it.
 #endif
-		f = FS_WrapTCPSocket(TCP_OpenStream(&adr), true, name);
+		f = FS_WrapTCPSocket(TCP_OpenStream(&adr, name), true, name);
 #ifdef HAVE_SSL
 		if (f && wanttls)
 			f = FS_OpenSSL(name, f, false);

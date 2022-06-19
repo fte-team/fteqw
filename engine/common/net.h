@@ -130,7 +130,7 @@ typedef enum
 
 extern	cvar_t	hostname;
 
-int TCP_OpenStream (netadr_t *remoteaddr);	//makes things easier
+int TCP_OpenStream (netadr_t *remoteaddr, const char *remotename);	//makes things easier. remotename is printable-only
 
 struct ftenet_connections_s;
 void		NET_Init (void);

@@ -297,9 +297,11 @@ typedef struct	//q1 client/network info
 	F(size_t,	GetLocalPlayerNumbers,(size_t firstseat, size_t numseats, int *playernums, int *spectracks));
 	F(void,		GetLocationName,	(const float *pos, char *outbuffer, size_t bufferlen));
 	F(qboolean,	GetLastInputFrame,	(int seat, usercmd_t *outcmd));
-	F(void,		GetServerInfo,		(char *info, size_t infolen));
-
+	F(void,		GetServerInfoRaw,	(char *info, size_t infolen));
+	F(size_t,	GetServerInfoBlob,	(const char *keyname, void *buf, size_t bufsize)); //pass null buf to query size, returns 0 if it would truncate. does not null terminate.
 	F(void,		SetUserInfo,		(int seat, const char *key, const char *value));
+	F(void,		SetUserInfoBlob,	(int seat, const char *key, const void *value, size_t size));
+	F(size_t,	GetUserInfoBlob,	(int seat, const char *key, void *buf, size_t bufsize)); //pass null buf to query size, returns 0 if it would truncate. does not null terminate.
 	//EBUILTIN(void, SCR_CenterPrint, (const char *s));
 
 	//FIXME: does this belong here?
@@ -319,7 +321,7 @@ typedef struct	//q1 client/network info
 	qboolean (*DownloadBegun)(qdownload_t *dl);
 	void (*DownloadFinished)(qdownload_t *dl);
 	downloadlist_t *(*DownloadFailed)(const char *name, qdownload_t *qdl, enum dlfailreason_e failreason);
-#define plugclientfuncs_name "Client"
+#define plugclientfuncs_name "Client2"
 } plugclientfuncs_t;
 
 struct menu_s;

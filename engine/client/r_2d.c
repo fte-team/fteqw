@@ -1253,7 +1253,7 @@ void R2D_Font_Changed(void)
 		mn_entry->Init(MI_RESOLUTION, vid.width, vid.height, vid.rotpixelwidth, vid.rotpixelheight);
 #endif
 #ifdef PLUGINS
-	Plug_ResChanged();
+	Plug_ResChanged(false);
 #endif
 }
 

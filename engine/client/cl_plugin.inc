@@ -627,7 +627,7 @@ static size_t QDECL Plug_GetLocalPlayerNumbers(size_t first, size_t count, int *
 	return count;
 }
 
-static void QDECL Plug_GetServerInfo(char *outptr, size_t outlen)
+static void QDECL Plug_GetServerInfoRaw(char *outptr, size_t outlen)
 {
 	extern float demtime;
 
@@ -664,10 +664,87 @@ static void QDECL Plug_GetServerInfo(char *outptr, size_t outlen)
 #endif
 		Q_strncatz(outptr, va("\\matchstart\\%f", cl.matchgametimestart), outlen);
 }
+static size_t QDECL Plug_GetServerInfoBlob(const char *key, void *outptr, size_t outsize)
+{
+	char tmp[32];
+	size_t blobsize;
+	const char *blob = InfoBuf_BlobForKey(&cl.serverinfo, key, &blobsize, NULL);
+	if (!blob)
+	{	//inescapable hacks
+		if (!strcmp(key, "matchstart"))
+			snprintf(tmp, sizeof(tmp), "%f", cl.playerview[0].statsf[STAT_MATCHSTARTTIME]?cl.playerview[0].statsf[STAT_MATCHSTARTTIME]/1000:cl.matchgametimestart), blob=tmp;
+		else if (!strcmp(key, "demotime"))
+		{
+			extern float demtime;
+			snprintf(tmp, sizeof(tmp), "%f", demtime-cls.demostarttime), blob=tmp;
+		}
+		else if (!strcmp(key, "demotype"))
+		{
+			switch(cls.demoplayback)
+			{
+			case DPB_NONE:
+				break;
+			case DPB_MVD:
+			case DPB_EZTV:
+				blob = "mvd";
+				break;
+			case DPB_QUAKEWORLD:
+				blob = "qw";
+				break;
+#ifdef NQPROT
+			case DPB_NETQUAKE:
+				blob = "nq";
+				break;
+#endif
+#ifdef Q2CLIENT
+			case DPB_QUAKE2:
+				blob = "q2";
+				break;
+#endif
+			}
+		}
+		else if (!strcmp(key, "intermission"))
+			snprintf(tmp, sizeof(tmp), "%i", cl.intermissionmode), blob=tmp;
+		if (blob)
+			blobsize = strlen(blob);
+	}
+	if (outptr)
+	{
+		if (blobsize > outsize)
+			return 0;	//error
+		memcpy(outptr, blob, blobsize);
+		return blobsize;
+	}
+	else
+		return blobsize;
+}
 
 static void QDECL Plug_SetUserInfo(int seat, const char *key, const char *value)
 {
 	CL_SetInfo(seat, key, value);
+}
+static void QDECL Plug_SetUserInfoBlob(int seat, const char *key, const void *value, size_t size)
+{
+	CL_SetInfoBlob(seat, key, value, size);
+}
+
+static size_t QDECL Plug_GetUserInfoBlob(int seat, const char *key, void *outptr, size_t outsize)
+{
+	size_t blobsize;
+	const char *blob;
+	if (seat >= countof(cls.userinfo))
+		blob = NULL, blobsize = 0;
+	else
+		blob = InfoBuf_BlobForKey(&cls.userinfo[seat], key, &blobsize, NULL);
+	if (outptr)
+	{
+		if (blobsize > outsize)
+			return 0;	//error
+		memcpy(outptr, blob, blobsize);
+		return blobsize;
+	}
+	else
+		return blobsize;
 }
 
 void QDECL Plug_CL_ClearState(void)

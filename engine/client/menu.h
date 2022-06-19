@@ -549,7 +549,7 @@ void		Plug_DrawReloadImages(void);
 void		Plug_Initialise(qboolean fromgamedir);
 void		Plug_Shutdown(qboolean preliminary);
 qboolean	Plug_Menu_Event(int eventtype, int keyparam, int unicodeparam);
-void		Plug_ResChanged(void);
+void		Plug_ResChanged(qboolean restarted);
 void		Plug_SBar(playerview_t *pv);
 qboolean	Plug_ServerMessage(char *buffer, int messagelevel);
 void		Plug_Tick(void);

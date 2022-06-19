@@ -1761,7 +1761,7 @@ TRACE(("dbg: R_ApplyRenderer: clearing world\n"));
 	}
 #endif
 #ifdef PLUGINS
-	Plug_ResChanged();
+	Plug_ResChanged(true);
 #endif
 	Cvar_ForceCallback(&r_particlesystem);
 #ifdef MENU_NATIVECODE

@@ -21,10 +21,14 @@ float alphamul;
 
 cvar_t *scr_newHud;
 
-static void QDECL EZHud_UpdateVideo(int width, int height)
+void HUD_InitSbarImages(void);
+static void QDECL EZHud_UpdateVideo(int width, int height, qboolean restarted)
 {
 	vid.width = width;
 	vid.height = height;
+
+	if (restarted)
+		HUD_InitSbarImages();
 }
 
 char *Cmd_Argv(int arg)
@@ -88,14 +92,14 @@ char *TP_LocationName (const vec3_t location)
 void Draw_SPic(float x, float y, mpic_t *pic, float scale)
 {
 	qhandle_t image = (intptr_t)pic;
-	float w, h;
+	float w=64, h=64;
 	drawfuncs->ImageSize(image, &w, &h);
 	drawfuncs->Image(x, y, w*scale, h*scale, 0, 0, 1, 1, image);
 }
 void Draw_SSubPic(float x, float y, mpic_t *pic, float s1, float t1, float s2, float t2, float scale)
 {
 	qhandle_t image = (intptr_t)pic;
-	float w, h;
+	float w=64, h=64;
 	drawfuncs->ImageSize(image, &w, &h);
 	drawfuncs->Image(x, y, (s2-s1)*scale, (t2-t1)*scale, s1/w, t1/h, s2/w, t2/h, image);
 }
@@ -125,7 +129,7 @@ void SCR_DrawWadString(float x, float y, float scale, char *str)
 void Draw_SAlphaSubPic2(float x, float y, mpic_t *pic, float s1, float t1, float s2, float t2, float sw, float sh, float alpha)
 {
 	qhandle_t image = (intptr_t)pic;
-	float w, h;
+	float w=64, h=64;
 	drawfuncs->ImageSize(image, &w, &h);
 	drawfuncs->Colour4f(1, 1, 1, alpha * alphamul);
 	drawfuncs->Image(x, y, (s2-s1)*sw, (t2-t1)*sh, s1/w, t1/h, s2/w, t2/h, image);
@@ -617,7 +621,7 @@ int EZHud_Draw(int seat, float viewx, float viewy, float viewwidth, float viewhe
 		clientfuncs->GetPlayerInfo(i, &cl.players[i]);
 
 	clientfuncs->GetLocalPlayerNumbers(cl.splitscreenview, 1, &cl.playernum, &cl.tracknum);
-	clientfuncs->GetServerInfo(cl.serverinfo, sizeof(serverinfo));
+	clientfuncs->GetServerInfoRaw(cl.serverinfo, sizeof(serverinfo));
 	cl.deathmatch = infofloat(cl.serverinfo, "deathmatch", 0);
 	cl.teamplay = infofloat(cl.serverinfo, "teamplay", 0);
 	cl.intermission = infofloat(cl.serverinfo, "intermission", 0);

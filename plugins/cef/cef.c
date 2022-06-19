@@ -358,7 +358,7 @@ static qboolean browser_handle_query(const char *req, char *buffer, size_t buffe
 	{
 		char serverinfo[4096];
 		char *e = buffer;
-		clientfuncs->GetServerInfo(serverinfo, sizeof(serverinfo));
+		clientfuncs->GetServerInfoRaw(serverinfo, sizeof(serverinfo));
 		e = Info_JSONify(serverinfo, e, buffer + buffersize - e-1);
 		if (e == buffer) e++;
 		*buffer = '{';

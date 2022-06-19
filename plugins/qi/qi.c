@@ -48,7 +48,7 @@ static struct
 	int width;
 	int height;
 } pvid;
-static void QDECL QI_UpdateVideo(int width, int height)
+static void QDECL QI_UpdateVideo(int width, int height, qboolean restarted)
 {
 	pvid.width = width;
 	pvid.height = height;

@@ -891,7 +891,7 @@ int JCL_ConExecuteCommand(qboolean isinsecure);
 void JCL_Frame(double realtime, double gametime);
 void JCL_Shutdown(void);
 
-static void QDECL JCL_UpdateVideo(int width, int height)
+static void QDECL JCL_UpdateVideo(int width, int height, qboolean restarted)
 {
 	pvid.width = width;
 	pvid.height = height;

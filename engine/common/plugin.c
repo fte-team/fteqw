@@ -108,7 +108,7 @@ typedef struct plugin_s {
 	int (QDECL *conexecutecommand)(qboolean isinsecure);
 	qboolean (QDECL *menufunction)(int eventtype, int keyparam, int unicodeparm, float mousecursor_x, float mousecursor_y, float vidwidth, float vidheight);
 	int (QDECL *sbarlevel[3])(int seat, float x, float y, float w, float h, unsigned int showscores);	//0 - main sbar, 1 - supplementry sbar sections (make sure these can be switched off), 2 - overlays (scoreboard). menus kill all.
-	void (QDECL *reschange)(int width, int height);
+	void (QDECL *reschange)(int width, int height, qboolean restarted);
 
 	//protocol-in-a-plugin
 	int (QDECL *connectionlessclientpacket)(const char *buffer, size_t size, netadr_t *from);
@@ -283,7 +283,7 @@ static plugin_t *Plug_Load(const char *file)
 
 #ifndef SERVERONLY
 	if (newplug->reschange)
-		newplug->reschange(vid.width, vid.height);
+		newplug->reschange(vid.width, vid.height, false);
 #endif
 
 	currentplug = NULL;
@@ -1285,13 +1285,13 @@ void Plug_Tick(void)
 }
 
 #ifndef SERVERONLY
-void Plug_ResChanged(void)
+void Plug_ResChanged(qboolean restarted)
 {
 	plugin_t *oldplug = currentplug;
 	for (currentplug = plugs; currentplug; currentplug = currentplug->next)
 	{
 		if (currentplug->reschange)
-			currentplug->reschange(vid.width, vid.height);
+			currentplug->reschange(vid.width, vid.height, restarted);
 	}
 	currentplug = oldplug;
 }
@@ -2111,8 +2111,11 @@ static void *QDECL PlugBI_GetEngineInterface(const char *interfacename, size_t s
 			Plug_GetLocalPlayerNumbers,
 			Plug_GetLocationName,
 			Plug_GetLastInputFrame,
-			Plug_GetServerInfo,
+			Plug_GetServerInfoRaw,
+			Plug_GetServerInfoBlob,
 			Plug_SetUserInfo,
+			Plug_SetUserInfoBlob,
+			Plug_GetUserInfoBlob,
 #if defined(HAVE_SERVER) && defined(HAVE_CLIENT)
 			Plug_MapLog_Query,
 #else

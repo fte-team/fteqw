@@ -7606,11 +7606,11 @@ void InfoBuf_Print(infobuf_t *info, const char *lineprefix)
 		val = info->keys[k].value;
 
 		if (info->keys[k].size != strlen(info->keys[k].value))
-			Con_Printf ("%s%-20s%s<BINARY %u BYTES>\n", lineprefix, key, partial, (unsigned int)info->keys[k].size);
+			Con_Printf ("%s"S_COLOR_GREEN"%-20s"S_COLOR_RED"%s<BINARY %u BYTES>\n", lineprefix, key, partial, (unsigned int)info->keys[k].size);
 		else if (info->keys[k].size > 64 || strchr(val, '\n') || strchr(val, '\r') || strchr(val, '\t'))
-			Con_Printf ("%s%-20s%s<%u BYTES>\n", lineprefix, key, partial, (unsigned int)info->keys[k].size);
+			Con_Printf ("%s"S_COLOR_GREEN"%-20s"S_COLOR_RED"%s<%u BYTES>\n", lineprefix, key, partial, (unsigned int)info->keys[k].size);
 		else
-			Con_Printf ("%s%-20s%s%s\n", lineprefix, key, partial, val);
+			Con_Printf ("%s"S_COLOR_GREEN"%-20s"S_COLOR_WHITE"%s%s\n", lineprefix, key, partial, val);
 	}
 }
 void InfoBuf_Enumerate (infobuf_t *info, void *ctx, void(*cb)(void *ctx, const char *key, const char *value))

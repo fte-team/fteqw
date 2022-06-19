@@ -58,7 +58,9 @@ extern cvar_t gl_conback;
 extern cvar_t gl_font, con_textfont;
 extern cvar_t r_font_postprocess_outline;
 extern cvar_t gl_screenangle;
+extern cvar_t vid_minsize;
 extern cvar_t vid_conautoscale;
+extern cvar_t vid_baseheight;
 extern cvar_t vid_conheight;
 extern cvar_t vid_conwidth;
 extern cvar_t con_textsize;
@@ -169,6 +171,8 @@ void R2D_Shutdown(void)
 	Cvar_Unhook(&gl_screenangle);
 	Cvar_Unhook(&vid_conheight);
 	Cvar_Unhook(&vid_conwidth);
+	Cvar_Unhook(&vid_baseheight);
+	Cvar_Unhook(&vid_minsize);
 
 	Cvar_Unhook(&crosshair);
 	Cvar_Unhook(&crosshairimage);
@@ -444,6 +448,8 @@ void R2D_Init(void)
 	Cvar_Hook(&gl_screenangle, R2D_ScreenAngle_Callback);
 	Cvar_Hook(&vid_conheight, R2D_Conheight_Callback);
 	Cvar_Hook(&vid_conwidth, R2D_Conwidth_Callback);
+	Cvar_Hook(&vid_baseheight, R2D_Conautoscale_Callback);
+	Cvar_Hook(&vid_minsize, R2D_Conautoscale_Callback);
 
 	Cvar_Hook(&crosshair, R2D_Crosshair_Callback);
 	Cvar_Hook(&crosshairimage, R2D_CrosshairImage_Callback);
@@ -1318,10 +1324,26 @@ void R2D_Console_Resize(void)
 
 	if (!cwidth && !cheight)
 	{
-		if (vid.dpi_y)
-			cheight = (480 * 96) / vid.dpi_y;
+		int i = 0, nh;
+		int biggest = 0;
+		//find the biggest artwork size that won't get minified
+		for (i = 0; i < countof(vid_baseheight.vec4); i++)
+			if (biggest < vid_baseheight.vec4[i] && vid_baseheight.vec4[i] < vid.rotpixelheight && vid_baseheight.vec4[i] >= vid_minsize.vec4[1])
+				biggest = vid_baseheight.vec4[i];
+		if (biggest)
+		{
+			nh = vid.rotpixelheight;
+			while ((nh>>1) >= biggest)
+				nh >>= 1;
+			cheight = nh;
+		}
 		else
-			cheight = 480;
+		{
+			if (vid.dpi_y)
+				cheight = (480 * 96) / vid.dpi_y;
+			else
+				cheight = 480;
+		}
 	}
 	if (cheight && !cwidth && vid.rotpixelheight)
 		cwidth = (cheight*vid.rotpixelwidth)/vid.rotpixelheight;
@@ -1336,6 +1358,12 @@ void R2D_Console_Resize(void)
 	cwidth*=xratio;
 	cheight*=yratio;
 
+	//never go lower than the mod's minimum, UI elements would end up off-screen.
+	if (cwidth < vid_minsize.vec4[0])
+		cwidth = vid_minsize.vec4[0];
+	if (cheight < vid_minsize.vec4[1])
+		cheight = vid_minsize.vec4[1];
+	//the engine has its own requirements too, sorry, though its unlikely for mods go lower.
 	if (cwidth < 320)
 		cwidth = 320;
 	if (cheight < 200)

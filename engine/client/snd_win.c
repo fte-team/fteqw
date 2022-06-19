@@ -225,8 +225,8 @@ qboolean QDECL WAV_InitCard (soundcardinfo_t *sc, const char *cardname)
 	HRESULT			hr;
 	wavhandle_t *wh;
 
-	if (*cardname)
-		return false;	//we only support one card, at the moment.
+	if (cardname && *cardname)
+		return false;	//we don't support explicit devices, so only accept default devices.
 
 	wh = sc->handle = Z_Malloc(sizeof(wavhandle_t));
 

@@ -198,7 +198,9 @@ static char *manifestpackages;	//metapackage named by the manicfest.
 static char *declinedpackages;	//metapackage named by the manicfest.
 static int domanifestinstall;	//SECURITY_MANIFEST_*
 
+#ifdef PLUGINS
 static int pluginsadded;	//so we only show prompts for new externally-installed plugins once, instead of every time the file is reloaded.
+#endif
 
 #ifdef WEBCLIENT
 static struct
@@ -2893,7 +2895,9 @@ static void PM_UpdatePackageList(qboolean autoupdate, int retry)
 
 	if (autoupdate)
 	{
+#ifdef WEBCLIENT
 		doautoupdate = 0;
+#endif
 		if (PM_MarkUpdates())
 		{
 #ifdef DOWNLOADMENU
@@ -5217,6 +5221,7 @@ static void MD_Draw (int x, int y, struct menucustom_s *c, struct emenu_s *m)
 	if (c->dint != downloadablessequence)
 		return;	//probably stale
 
+#ifdef WEBCLIENT
 	if (allowphonehome == -2)
 	{
 		allowphonehome = false;
@@ -5224,6 +5229,7 @@ static void MD_Draw (int x, int y, struct menucustom_s *c, struct emenu_s *m)
 		Menu_Prompt(PM_AllowPackageListQuery_Callback, NULL, "Query updates list?\n", "Okay", NULL, "Nope", true);
 #endif
 	}
+#endif
 
 	p = c->dptr;
 	if (p)

@@ -105,6 +105,10 @@ void Sys_Vibrate(float count)
 //	vibrateduration += count*10*sys_vibrate.value;
 }
 
+qboolean INS_KeyToLocalName(int qkey, char *buf, size_t bufsize)
+{	//onscreen keyboard? erk.
+	return false;
+}
 static int mapkey(int androidkey)
 {
 	switch(androidkey)

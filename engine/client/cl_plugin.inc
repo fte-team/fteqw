@@ -672,7 +672,14 @@ static size_t QDECL Plug_GetServerInfoBlob(const char *key, void *outptr, size_t
 	if (!blob)
 	{	//inescapable hacks
 		if (!strcmp(key, "matchstart"))
-			snprintf(tmp, sizeof(tmp), "%f", cl.playerview[0].statsf[STAT_MATCHSTARTTIME]?cl.playerview[0].statsf[STAT_MATCHSTARTTIME]/1000:cl.matchgametimestart), blob=tmp;
+		{
+			float matchstart = cl.matchgametimestart;
+#ifdef QUAKEHUD
+			if (cl.playerview[0].statsf[STAT_MATCHSTARTTIME])
+				matchstart = cl.playerview[0].statsf[STAT_MATCHSTARTTIME]/1000;
+#endif
+			snprintf(tmp, sizeof(tmp), "%f", matchstart), blob=tmp;
+		}
 		else if (!strcmp(key, "demotime"))
 		{
 			extern float demtime;

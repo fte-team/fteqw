@@ -7234,7 +7234,7 @@ static qboolean FTENET_WebRTC_GetPacket(ftenet_generic_connection_t *gcon)
 		const char *s;
 		char *p;
 
-		MSG_BeginReading(msg_nullnetprim);
+		MSG_BeginReading(&net_message, msg_nullnetprim);
 		cmd = MSG_ReadByte();
 		cl = MSG_ReadShort();
 

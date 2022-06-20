@@ -220,8 +220,10 @@ extern qbyte *mod_base;
 			dist = plane->dist - dist;						\
 			break;
 
+#ifdef Q2BSPS
 #ifdef HAVE_CLIENT
 static unsigned char q2_palette[256*3];
+#endif
 #endif
 
 
@@ -1285,7 +1287,7 @@ static qboolean CModQ2_LoadSurfaces (model_t *mod, qbyte *mod_base, lump_t *l)
 
 	return true;
 }
-#ifndef SERVERONLY
+#ifdef HAVE_CLIENT
 static texture_t *Mod_LoadWall(model_t *loadmodel, char *mapname, char *texname, char *shadername, unsigned int imageflags)
 {
 	char name[MAX_QPATH];

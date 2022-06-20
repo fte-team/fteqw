@@ -9,6 +9,7 @@ plugclientfuncs_t	*clientfuncs;
 plugmsgfuncs_t		*msgfuncs;
 plugworldfuncs_t	*worldfuncs;
 plugmasterfuncs_t	*masterfuncs;
+plugthreadfuncs_t	*threadfuncs;
 
 #ifndef STATIC_Q3
 double realtime;
@@ -1722,8 +1723,9 @@ qboolean Plug_Init(void)
 	fsfuncs = plugfuncs->GetEngineInterface(plugfsfuncs_name, sizeof(*fsfuncs));
 	msgfuncs = plugfuncs->GetEngineInterface(plugmsgfuncs_name, sizeof(*msgfuncs));
 	worldfuncs = plugfuncs->GetEngineInterface(plugworldfuncs_name, sizeof(*worldfuncs));
+	threadfuncs = plugfuncs->GetEngineInterface(plugthreadfuncs_name, sizeof(*threadfuncs));
 
-	if (!vmfuncs || !fsfuncs || !msgfuncs || !worldfuncs)
+	if (!vmfuncs || !fsfuncs || !msgfuncs || !worldfuncs/* || !threadfuncs -- checked on use*/)
 	{
 		Con_Printf("Engine functionality missing, cannot enable q3 gamecode support.\n");
 		return false;
@@ -1745,7 +1747,7 @@ qboolean Plug_Init(void)
 	clientfuncs = plugfuncs->GetEngineInterface(plugclientfuncs_name, sizeof(*clientfuncs));
 	audiofuncs = plugfuncs->GetEngineInterface(plugaudiofuncs_name, sizeof(*audiofuncs));
 	masterfuncs = plugfuncs->GetEngineInterface(plugmasterfuncs_name, sizeof(*masterfuncs));
-	if (drawfuncs && scenefuncs && inputfuncs && audiofuncs && masterfuncs && clientfuncs)
+	if (drawfuncs && scenefuncs && inputfuncs && clientfuncs && audiofuncs && masterfuncs)
 		UI_Init();
 	return true;
 }

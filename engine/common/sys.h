@@ -116,6 +116,25 @@ qboolean Sys_GetDesktopParameters(int *width, int *height, int *bpp, int *refres
 	#define FTE_Atomic32_Dec(ptr) FTE_Atomic32Mutex_Add(ptr, -1)
 #endif
 
+
+typedef enum wgroup_e
+{
+	WG_MAIN		= 0,
+	WG_LOADER	= 1,
+	WG_COUNT	= 2 //main and loaders
+} wgroup_t;
+typedef struct
+{
+	void *(QDECL *CreateMutex)(void);
+	qboolean (QDECL *LockMutex)(void *mutex);
+	qboolean (QDECL *UnlockMutex)(void *mutex);
+	void (QDECL *DestroyMutex)(void *mutex);
+
+	void (*AddWork)(wgroup_t thread, void(*func)(void *ctx, void *data, size_t a, size_t b), void *ctx, void *data, size_t a, size_t b);	//low priority
+	void (*WaitForCompletion)(void *priorityctx, int *address, int sleepwhilevalue);
+#define plugthreadfuncs_name "Threading"
+} plugthreadfuncs_t;
+
 #ifdef MULTITHREAD
 #if defined(_WIN32) && defined(_DEBUG)
 void Sys_SetThreadName(unsigned int dwThreadID, char *threadName);
@@ -148,24 +167,6 @@ qboolean Sys_ConditionWait(void *condv);		//lock first
 qboolean Sys_ConditionSignal(void *condv);		//lock first
 qboolean Sys_ConditionBroadcast(void *condv);	//lock first
 void Sys_DestroyConditional(void *condv);
-
-typedef enum wgroup_e
-{
-	WG_MAIN		= 0,
-	WG_LOADER	= 1,
-	WG_COUNT	= 2 //main and loaders
-} wgroup_t;
-typedef struct
-{
-	void *(QDECL *CreateMutex)(void);
-	qboolean (QDECL *LockMutex)(void *mutex);
-	qboolean (QDECL *UnlockMutex)(void *mutex);
-	void (QDECL *DestroyMutex)(void *mutex);
-
-	void (*AddWork)(wgroup_t thread, void(*func)(void *ctx, void *data, size_t a, size_t b), void *ctx, void *data, size_t a, size_t b);	//low priority
-	void (*WaitForCompletion)(void *priorityctx, int *address, int sleepwhilevalue);
-#define plugthreadfuncs_name "Threading"
-} plugthreadfuncs_t;
 
 //to try to catch leaks more easily.
 #ifdef USE_MSVCRT_DEBUG

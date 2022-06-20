@@ -101,7 +101,7 @@ mergeInto(LibraryManager.library,
 				blen = lengthBytesUTF8(mime)+1;
 				let mimeptr = _malloc(blen);
 				stringToUTF8(mime, mimeptr,blen);
-				{{{makeDynCall('viii')}}}(FTEC.evcb.loadfile, urlptr, mimeptr, handle);
+				{{{makeDynCall('viii','FTEC.evcb.loadfile')}}}(urlptr, mimeptr, handle);
 				_free(mimeptr);
 				_free(urlptr);
 				window.focus();
@@ -115,7 +115,7 @@ mergeInto(LibraryManager.library,
 				let blen = lengthBytesUTF8(command)+1;
 				let ptr = _malloc(blen);
 				stringToUTF8(command, ptr, blen);
-				{{{makeDynCall('vi')}}}(FTEC.evcb.cbufaddtext, ptr);
+				{{{makeDynCall('vi','FTEC.evcb.cbufaddtext')}}}(ptr);
 				_free(ptr);
 				window.focus();
 			}
@@ -129,7 +129,7 @@ mergeInto(LibraryManager.library,
 
 			try	//this try is needed to handle Host_EndGame properly.
 			{
-				dovsync = {{{makeDynCall('if')}}}(FTEC.evcb.frame,timestamp);
+				dovsync = {{{makeDynCall('if','FTEC.evcb.frame')}}}(timestamp);
 			}
 			catch(err)
 			{
@@ -153,7 +153,7 @@ mergeInto(LibraryManager.library,
 				case 'resize':
 					if (FTEC.evcb.resize != 0)
 					{
-						{{{makeDynCall('vii')}}}(FTEC.evcb.resize, Module['canvas'].width, Module['canvas'].height);
+						{{{makeDynCall('vii','FTEC.evcb.resize')}}}(Module['canvas'].width, Module['canvas'].height);
 					}
 					break;
 				case 'mousemove':
@@ -171,12 +171,12 @@ mergeInto(LibraryManager.library,
 								event.movementX = event.webkitMovementX;
 								event.movementY = event.webkitMovementY;
 							}
-							{{{makeDynCall('viiffff')}}}(FTEC.evcb.mouse, 0, false, event.movementX, event.movementY, 0, 0);
+							{{{makeDynCall('viiffff','FTEC.evcb.mouse')}}}(0, false, event.movementX, event.movementY, 0, 0);
 						}
 						else
 						{
 							var rect = Module['canvas'].getBoundingClientRect();
-							{{{makeDynCall('viiffff')}}}(FTEC.evcb.mouse, 0, true, (event.clientX - rect.left)*(Module['canvas'].width/rect.width), (event.clientY - rect.top)*(Module['canvas'].height/rect.height), 0, 0);
+							{{{makeDynCall('viiffff','FTEC.evcb.mouse')}}}(0, true, (event.clientX - rect.left)*(Module['canvas'].width/rect.width), (event.clientY - rect.top)*(Module['canvas'].height/rect.height), 0, 0);
 						}
 					}
 					break;
@@ -187,7 +187,7 @@ mergeInto(LibraryManager.library,
 					//so lets spam requests for it
 					if (!document.fullscreenElement)
 						if (FTEC.evcb.wantfullscreen != 0)
-							if ({{{makeDynCall('i')}}}(FTEC.evcb.wantfullscreen))
+							if ({{{makeDynCall('i','FTEC.evcb.wantfullscreen')}}}())
 							{
 								try
 								{
@@ -214,7 +214,7 @@ mergeInto(LibraryManager.library,
 				case 'mouseup':
 					if (FTEC.evcb.button != 0)
 					{
-						{{{makeDynCall('viii')}}}(FTEC.evcb.button, 0, event.type=='mousedown', event.button);
+						{{{makeDynCall('viii','FTEC.evcb.button')}}}(0, event.type=='mousedown', event.button);
 						event.preventDefault();
 					}
 					break;
@@ -222,7 +222,7 @@ mergeInto(LibraryManager.library,
 				case 'wheel':
 					if (FTEC.evcb.button != 0)
 					{
-						{{{makeDynCall('viii')}}}(FTEC.evcb.button, 0, 2, event.deltaY);
+						{{{makeDynCall('viii','FTEC.evcb.button')}}}(0, 2, event.deltaY);
 						event.preventDefault();
 					}
 					break;
@@ -230,16 +230,16 @@ mergeInto(LibraryManager.library,
 					if (FTEC.evcb.button != 0)
 					{
 						for (var i = 0; i < 8; i++)	
-							{{{makeDynCall('viii')}}}(FTEC.evcb.button, 0, false, i);
+							{{{makeDynCall('viii','FTEC.evcb.button')}}}(0, false, i);
 					}
 					if (FTEC.pointerislocked == -1)
 						FTEC.pointerislocked = 0;
 					break;
 				case 'focus':
 				case 'blur':
-					{{{makeDynCall('iiiii')}}}(FTEC.evcb.key, 0, false, 16, 0); //shift
-					{{{makeDynCall('iiiii')}}}(FTEC.evcb.key, 0, false, 17, 0); //alt
-					{{{makeDynCall('iiiii')}}}(FTEC.evcb.key, 0, false, 18, 0); //ctrl
+					{{{makeDynCall('iiiii','FTEC.evcb.key')}}}(0, false, 16, 0); //shift
+					{{{makeDynCall('iiiii','FTEC.evcb.key')}}}(0, false, 17, 0); //alt
+					{{{makeDynCall('iiiii','FTEC.evcb.key')}}}(0, false, 18, 0); //ctrl
 					if (FTEC.pointerislocked == -1)
 						FTEC.pointerislocked = 0;
 					break;
@@ -248,8 +248,8 @@ mergeInto(LibraryManager.library,
 					{
 						if (event.charCode >= 122 && event.charCode <= 123)	//no f11/f12
 							break;
-						{{{makeDynCall('iiiii')}}}(FTEC.evcb.key, 0, 1, 0, event.charCode);
-						{{{makeDynCall('iiiii')}}}(FTEC.evcb.key, 0, 0, 0, event.charCode);
+						{{{makeDynCall('iiiii','FTEC.evcb.key')}}}(0, 1, 0, event.charCode);
+						{{{makeDynCall('iiiii','FTEC.evcb.key')}}}(0, 0, 0, event.charCode);
 						event.preventDefault();
 						event.stopPropagation();
 					}
@@ -260,7 +260,7 @@ mergeInto(LibraryManager.library,
 					//we don't steal that because its impossible to leave it again once used.
 					if (FTEC.evcb.key != 0 && event.keyCode != 122)
 					{
-						if ({{{makeDynCall('iiiii')}}}(FTEC.evcb.key, 0, event.type=='keydown', event.keyCode, 0))
+						if ({{{makeDynCall('iiiii','FTEC.evcb.key')}}}(0, event.type=='keydown', event.keyCode, 0))
 							event.preventDefault();
 					}
 					break;
@@ -274,13 +274,13 @@ mergeInto(LibraryManager.library,
 					{
 						var t = touches[i];
 						if (FTEC.evcb.mouse)
-							{{{makeDynCall('viiffff')}}}(FTEC.evcb.mouse, t.identifier+1, true, t.pageX, t.pageY, 0, Math.sqrt(t.radiusX*t.radiusX+t.radiusY*t.radiusY));
+							{{{makeDynCall('viiffff','FTEC.evcb.mouse')}}}(t.identifier+1, true, t.pageX, t.pageY, 0, Math.sqrt(t.radiusX*t.radiusX+t.radiusY*t.radiusY));
 						if (FTEC.evcb.button)
 						{
 							if (event.type == 'touchstart')
-								{{{makeDynCall('viii')}}}(FTEC.evcb.button, t.identifier+1, 1, 0);
+								{{{makeDynCall('viii','FTEC.evcb.button')}}}(t.identifier+1, 1, 0);
 							else if (event.type != 'touchmove')
-								{{{makeDynCall('viii')}}}(FTEC.evcb.button, t.identifier+1, 0, 0);
+								{{{makeDynCall('viii','FTEC.evcb.button')}}}(t.identifier+1, 0, 0);
 						}
 					}
 					event.preventDefault();
@@ -317,10 +317,10 @@ mergeInto(LibraryManager.library,
 					delete FTEH.gamepads[gp.index];
 					if (FTEC.evcb.jaxis)	//try and clear out the axis when released.
 						for (var j = 0; j < 6; j+=1)
-							{{{makeDynCall('viifi')}}}(FTEC.evcb.jaxis, gp.index, j, 0, true);
+							{{{makeDynCall('viifi','FTEC.evcb.jaxis')}}}(gp.index, j, 0, true);
 					if (FTEC.evcb.jbutton)	//try and clear out the axis when released.
 						for (var j = 0; j < 32+4; j+=1)
-							{{{makeDynCall('viiii')}}}(FTEC.evcb.jbutton, gp.index, j, 0, true);
+							{{{makeDynCall('viiii','FTEC.evcb.jbutton')}}}(gp.index, j, 0, true);
 					console.log("Gamepad disconnected from index %d: %s", gp.index, gp.id);
 					break;
 				case 'pointerlockerror':
@@ -390,11 +390,11 @@ mergeInto(LibraryManager.library,
 				if (b.lastframe != p)
 				{	//cache it to avoid spam
 					b.lastframe = p;
-					{{{makeDynCall('viiii')}}}(FTEC.evcb.jbutton, gp.index, j, p, gp.mapping=="standard");
+					{{{makeDynCall('viiii','FTEC.evcb.jbutton')}}}(gp.index, j, p, gp.mapping=="standard");
 				}
 			}
 			for (var j = 0; j < gp.axes.length; j+=1)
-				{{{makeDynCall('viifi')}}}(FTEC.evcb.jaxis, gp.index, j, gp.axes[j], gp.mapping=="standard");
+				{{{makeDynCall('viifi','FTEC.evcb.jaxis')}}}(gp.index, j, gp.axes[j], gp.mapping=="standard");
 		}
 	},
 	emscriptenfte_setupcanvas__deps: ['$FTEC', '$Browser', 'emscriptenfte_buf_createfromarraybuf'],
@@ -477,7 +477,7 @@ mergeInto(LibraryManager.library,
 				Browser.setCanvasSize(rect.width, rect.height, false);
 			}
 			if (FTEC.evcb.resize != 0)
-				{{{makeDynCall('vii')}}}(FTEC.evcb.resize, Module['canvas'].width, Module['canvas'].height);
+				{{{makeDynCall('vii','FTEC.evcb.resize')}}}(Module['canvas'].width, Module['canvas'].height);
 		};
 		window.onresize();
 
@@ -635,7 +635,7 @@ mergeInto(LibraryManager.library,
 		for (i = 0; i < c; i++)
 		{
 			stringToUTF8(n[i], ctx, sz);
-			{{{makeDynCall('vii')}}}(cb, ctx, FTEH.f[n[i]].l);
+			{{{makeDynCall('vii','cb')}}}(ctx, FTEH.f[n[i]].l);
 		}
 	},
 	emscriptenfte_buf_pushtolocalstore : function(handle)
@@ -835,7 +835,7 @@ mergeInto(LibraryManager.library,
 				var stringlen = (stringdata.length*3)+1;
 				var dataptr = _malloc(stringlen);
 				stringToUTF8(stringdata, dataptr, stringlen);
-				{{{makeDynCall('viiii')}}}(callback, ctxp,ctxi,evtype,dataptr);
+				{{{makeDynCall('viiii','callback')}}}(ctxp,ctxi,evtype,dataptr);
 				_free(dataptr);
 			}
 		};
@@ -981,7 +981,7 @@ mergeInto(LibraryManager.library,
 		catch(e)
 		{
 			if (onerror)
-				{{{makeDynCall('vii')}}}(onerror, ctx, 404);
+				{{{makeDynCall('vii','onerror')}}}(ctx, 404);
 			return;
 		}
 		http.responseType = 'arraybuffer';
@@ -992,12 +992,12 @@ mergeInto(LibraryManager.library,
 			if (http.status == 200)
 			{
 				if (onload)
-					{{{makeDynCall('vii')}}}(onload, ctx, _emscriptenfte_buf_createfromarraybuf(http.response));
+					{{{makeDynCall('vii','onload')}}}(ctx, _emscriptenfte_buf_createfromarraybuf(http.response));
 			}
 			else
 			{
 				if (onerror)
-					{{{makeDynCall('vii')}}}(onerror, ctx, http.status);
+					{{{makeDynCall('vii','onerror')}}}(ctx, http.status);
 			}
 		};
 
@@ -1005,13 +1005,13 @@ mergeInto(LibraryManager.library,
 		{
 //console.log("onerror: " + _url);
 			if (onerror)
-				{{{makeDynCall('vii')}}}(onerror, ctx, 0);
+				{{{makeDynCall('vii','onerror')}}}(ctx, 0);
 		};
 
 		http.onprogress = function(e)
 		{
 			if (onprogress)
-				{{{makeDynCall('viii')}}}(onprogress, ctx, e.loaded, e.total);
+				{{{makeDynCall('viii','onprogress')}}}(ctx, e.loaded, e.total);
 		};
 
 		try	//ffs
@@ -1135,7 +1135,7 @@ mergeInto(LibraryManager.library,
 				let stringlen = (text.length*3)+1;
 				let dataptr = _malloc(stringlen);
 				stringToUTF8(text, dataptr, stringlen);
-				{{{makeDynCall('vii')}}}(callback, ctx, dataptr);
+				{{{makeDynCall('vii','callback')}}}(ctx, dataptr);
 				_free(dataptr);
 			}catch(e){
 			}

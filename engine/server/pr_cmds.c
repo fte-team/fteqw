@@ -4526,7 +4526,7 @@ static void QCBUILTIN PF_getsoundindex (pubprogfuncs_t *prinst, struct globalvar
 static void QCBUILTIN PF_soundnameforindex (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	int idx = G_FLOAT(OFS_PARM0);
-	if (idx >= 0 && idx < MAX_PRECACHE_SOUNDS && sv.strings.sound_precache)
+	if (idx >= 0 && idx < MAX_PRECACHE_SOUNDS && sv.strings.sound_precache[idx])
 		RETURN_TSTRING(sv.strings.sound_precache[idx]);
 	else
 		G_INT(OFS_RETURN) = 0;
@@ -4625,7 +4625,7 @@ static void QCBUILTIN PF_getmodelindex (pubprogfuncs_t *prinst, struct globalvar
 static void QCBUILTIN PF_modelnameforindex (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	int idx = G_FLOAT(OFS_PARM0);
-	if (idx >= 0 && idx < MAX_PRECACHE_MODELS && sv.strings.model_precache)
+	if (idx >= 0 && idx < MAX_PRECACHE_MODELS && sv.strings.model_precache[idx])
 		RETURN_TSTRING(sv.strings.model_precache[idx]);
 	else
 		G_INT(OFS_RETURN) = 0;

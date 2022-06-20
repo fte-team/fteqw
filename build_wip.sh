@@ -176,6 +176,8 @@ function build {
 	fi
 	echo -n "Making $NAME... "
 	date > $BUILDLOGFOLDER/$DEST.txt
+	echo BUILD: $NAME >> $BUILDLOGFOLDER/$DEST.txt
+	echo PLUGINS: $NATIVE_PLUGINS >> $BUILDLOGFOLDER/$DEST.txt
 	echo make $MAKEARGS $* >> $BUILDLOGFOLDER/$DEST.txt 2>&1
 	make $MAKEARGS $* >> $BUILDLOGFOLDER/$DEST.txt 2>&1
 	if [ $? -eq 0 ]; then

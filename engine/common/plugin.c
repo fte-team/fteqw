@@ -9,10 +9,12 @@
 #define FTEENGINE
 #include "../plugins/plugin.h"
 
+#ifdef PLUGINS
+
+#if defined(Q3SERVER)||defined(Q3CLIENT)
 struct q3gamecode_s *q3;
 static struct plugin_s *q3plug;
-
-#ifdef PLUGINS
+#endif
 
 #define Q_snprintf Q_snprintfz
 #define Q_strlcpy Q_strncpyz
@@ -1588,11 +1590,13 @@ void Plug_Close(plugin_t *plug)
 	FS_UnRegisterFileSystemModule(plug);
 	Mod_UnRegisterAllModelFormats(plug);
 
+#if defined(Q3SERVER)||defined(Q3CLIENT)
 	if (q3plug == plug)
 	{
 		q3 = NULL;
 		q3plug = NULL;
 	}
+#endif
 
 	//tell the plugin that everything is closed and that it should free up any lingering memory/stuff
 	//it is still allowed to create/have open files.

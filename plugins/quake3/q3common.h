@@ -17,6 +17,7 @@ extern plugq3vmfuncs_t	*vmfuncs;
 extern plugfsfuncs_t	*fsfuncs;
 extern plugmsgfuncs_t	*msgfuncs;
 extern plugworldfuncs_t	*worldfuncs;
+extern plugthreadfuncs_t	*threadfuncs;
 
 extern cvar_t *sv_maxclients;
 extern cvar_t *cl_shownet_ptr, *cl_c2sdupe_ptr, *cl_nodelta_ptr;

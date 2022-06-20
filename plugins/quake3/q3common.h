@@ -4,14 +4,22 @@
 #include "../plugins/plugin.h"
 #include "clq3defs.h"
 
+#define VM_TOSTRCACHE(a) VMQ3_StringToHandle(VM_POINTER(a))
+#define VM_FROMSTRCACHE(a) VMQ3_StringFromHandle(a)
+char *VMQ3_StringFromHandle(int handle);
+int VMQ3_StringToHandle(char *str);
+void VMQ3_FlushStringHandles(void);
+
 //#define Q3_NOENCRYPT	//a debugging property, makes it incompatible with q3
 
+#ifdef HAVE_CLIENT
 extern plug2dfuncs_t	*drawfuncs;
 extern plug3dfuncs_t	*scenefuncs;
 extern pluginputfuncs_t	*inputfuncs;
 extern plugaudiofuncs_t	*audiofuncs;
 extern plugmasterfuncs_t*masterfuncs;
 extern plugclientfuncs_t*clientfuncs;
+#endif
 
 extern plugq3vmfuncs_t	*vmfuncs;
 extern plugfsfuncs_t	*fsfuncs;

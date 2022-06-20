@@ -1,15 +1,5 @@
 #include "q3common.h"
-//#include "cg_public.h"
 #if defined(VM_CG) && defined(HAVE_CLIENT)
-
-#include "shader.h"
-
-#if 1
-#include "glquake.h"//hack
-#else
-typedef float m3by3_t[3][3];
-#endif
-
 #include "clq3defs.h"
 #include "com_mesh.h"
 

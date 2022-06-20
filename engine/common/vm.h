@@ -30,13 +30,6 @@ qboolean VM_NonNative(vm_t *vm);
 void *VM_MemoryBase(vm_t *vm);
 quintptr_t VM_MemoryMask(vm_t *vm);
 
-
-#define VM_TOSTRCACHE(a) VMQ3_StringToHandle(VM_POINTER(a))
-#define VM_FROMSTRCACHE(a) VMQ3_StringFromHandle(a)
-char *VMQ3_StringFromHandle(int handle);
-int VMQ3_StringToHandle(char *str);
-void VMQ3_FlushStringHandles(void);
-
 #define VM_FS_READ 0
 #define VM_FS_WRITE 1
 #define VM_FS_APPEND 2

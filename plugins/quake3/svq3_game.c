@@ -1607,8 +1607,10 @@ static qintptr_t EXPORT_FN Q3G_SystemCallsNative(qintptr_t arg, ...)
 void SVQ3_ShutdownGame(qboolean restarting)
 {
 	int i;
+#ifdef HAVE_CLIENT
 	if (!restarting)
 		CG_Stop();
+#endif
 	if (!q3gamevm)
 		return;
 
@@ -3386,7 +3388,7 @@ void SVQ3_DirectConnect(netadr_t *from, sizebuf_t *msg)	//Actually connect the c
 			if (from->type == NA_LOOPBACK)
 				reason = "localhost";	//Q3 uses this specific string for listen servers.
 			else
-				reason = masterfuncs->AdrToString(adr, sizeof(adr), from);
+				reason = msgfuncs->AdrToString(adr, sizeof(adr), from);
 			worldfuncs->SetIBufKey(&cl->userinfo, "ip", reason);	//q3 gamecode needs to know the client's ip (server's perception of the client, NOT QW client's perception of the server/proxy)
 
 			ret = vmfuncs->Call(q3gamevm, GAME_CLIENT_CONNECT, (int)(cl-svs.clients), true/*firsttime*/, false/*isbot*/);

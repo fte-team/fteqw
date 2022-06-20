@@ -368,9 +368,6 @@ void R_DrawGAliasShadowVolume(entity_t *e, vec3_t lightpos, float radius);
 #ifdef GLQUAKE
 //misc model formats
 void R_DrawHLModel(entity_t	*curent);
-
-//typedef float m3by3_t[3][3];
-//int GetTag(model_t *mod, char *tagname, int frame, float **org, m3by3_t **ang);
 #endif
 
 //

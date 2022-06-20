@@ -1655,6 +1655,7 @@ qint64_t Q3VM_GetRealtime(q3time_t *qtime)
 
 static struct q3gamecode_s q3funcs =
 {
+#ifdef HAVE_CLIENT
 	{
 		CLQ3_SendAuthPacket,
 		CLQ3_SendConnectPacket,
@@ -1680,7 +1681,11 @@ static struct q3gamecode_s q3funcs =
 		UI_OpenMenu,
 		UI_Reset,
 	},
+#else
+{NULL},{NULL},{NULL},
+#endif
 
+#ifdef HAVE_SERVER
 	{
 		SVQ3_ShutdownGame,
 		SVQ3_InitGame,
@@ -1695,6 +1700,9 @@ static struct q3gamecode_s q3funcs =
 		SVQ3_RestartGamecode,
 		SVQ3_ServerinfoChanged,
 	},
+#else
+	{NULL},
+#endif
 };
 
 #ifndef STATIC_Q3
@@ -1706,11 +1714,15 @@ void Q3_Frame(double enginetime, double gametime)
 
 void Q3_Shutdown(void)
 {
+#ifdef HAVE_SERVER
 	SVQ3_ShutdownGame(false);
+#endif
+#ifdef HAVE_CLIENT
 	CG_Stop();
 	UI_Stop();
 
 	VMQ3_FlushStringHandles();
+#endif
 }
 
 #ifdef STATIC_Q3
@@ -1741,6 +1753,7 @@ qboolean Plug_Init(void)
 	plugfuncs->ExportFunction("Tick", Q3_Frame);
 #endif
 
+#ifdef HAVE_CLIENT
 	drawfuncs = plugfuncs->GetEngineInterface(plug2dfuncs_name, sizeof(*drawfuncs));
 	scenefuncs = plugfuncs->GetEngineInterface(plug3dfuncs_name, sizeof(*scenefuncs));
 	inputfuncs = plugfuncs->GetEngineInterface(pluginputfuncs_name, sizeof(*inputfuncs));
@@ -1749,6 +1762,7 @@ qboolean Plug_Init(void)
 	masterfuncs = plugfuncs->GetEngineInterface(plugmasterfuncs_name, sizeof(*masterfuncs));
 	if (drawfuncs && scenefuncs && inputfuncs && clientfuncs && audiofuncs && masterfuncs)
 		UI_Init();
+#endif
 	return true;
 }
 #else

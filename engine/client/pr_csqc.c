@@ -1096,6 +1096,29 @@ static void QCBUILTIN PF_R_AddEntity(pubprogfuncs_t *prinst, struct globalvars_s
 		V_AddAxisEntity(&ent);
 	}
 }
+
+static void QCBUILTIN PF_R_AddEntityLighting(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	csqcedict_t *in = (void*)G_EDICT(prinst, OFS_PARM0);
+	entity_t ent;
+	if (ED_ISFREE(in) || in->entnum == 0)
+	{
+		csqc_deprecated("Tried drawing a free/removed/world entity\n");
+		return;
+	}
+
+	if (CopyCSQCEdictToEntity(in, &ent))
+	{
+		ent.light_known = true;
+		VectorCopy(G_VECTOR(OFS_PARM1), ent.light_dir);
+		VectorCopy(G_VECTOR(OFS_PARM2), ent.light_avg);
+		VectorCopy(G_VECTOR(OFS_PARM3), ent.light_range);
+
+		CLQ1_AddShadow(&ent);
+		V_AddAxisEntity(&ent);
+	}
+}
+
 static void QCBUILTIN PF_R_RemoveEntity(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	csqcedict_t *in = (void*)G_EDICT(prinst, OFS_PARM0);
@@ -7206,6 +7229,8 @@ static struct {
 	{"clearscene",				PF_R_ClearScene,	300},				// #300 void() clearscene (EXT_CSQC)
 	{"addentities",				PF_R_AddEntityMask,	301},				// #301 void(float mask) addentities (EXT_CSQC)
 	{"addentity",				PF_R_AddEntity,		302},					// #302 void(entity ent) addentity (EXT_CSQC)
+	{"addentity_lighting",		PF_R_AddEntityLighting,		0},
+
 	{"removeentity",			PF_R_RemoveEntity,	0},
 	{"setproperty",				PF_R_SetViewFlag,	303},				// #303 float(float property, ...) setproperty (EXT_CSQC)
 	{"renderscene",				PF_R_RenderScene,	304},				// #304 void() renderscene (EXT_CSQC)

@@ -2199,6 +2199,26 @@ static void QCBUILTIN PF_m_addentity(pubprogfuncs_t *prinst, struct globalvars_s
 	if (CopyMenuEdictToEntity(prinst, in, &ent))
 		V_AddAxisEntity(&ent);
 }
+static void QCBUILTIN PF_m_addentity_lighting(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	menuedict_t *in = (void*)G_EDICT(prinst, OFS_PARM0);
+	entity_t ent;
+	if (in->ereftype == ER_FREE || in->entnum == 0)
+	{
+		Con_Printf("Tried drawing a free/removed/world entity\n");
+		return;
+	}
+
+	if (CopyMenuEdictToEntity(prinst, in, &ent))
+	{
+		ent.light_known = true;
+		VectorCopy(G_VECTOR(OFS_PARM1), ent.light_dir);
+		VectorCopy(G_VECTOR(OFS_PARM2), ent.light_avg);
+		VectorCopy(G_VECTOR(OFS_PARM3), ent.light_range);
+
+		V_AddAxisEntity(&ent);
+	}
+}
 static void QCBUILTIN PF_m_renderscene(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	V_ApplyRefdef();
@@ -2465,6 +2485,7 @@ static struct {
 	{"clearscene",				PF_m_clearscene,			300},
 //	{"addentities",				PF_Fixme,					301},
 	{"addentity",				PF_m_addentity,				302},//FIXME: needs setmodel, origin, angles, colormap(eep), frame etc, skin, 
+	{"addentity_lighting",		PF_m_addentity_lighting,	0},
 #ifdef CSQC_DAT
 	{"setproperty",				PF_R_SetViewFlag,			303},//should be okay to share
 #endif

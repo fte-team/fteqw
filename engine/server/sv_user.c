@@ -5559,13 +5559,14 @@ void Cmd_Join_f (void)
 		if (!host_client->spectator)
 			continue;
 
-		SV_DespawnClient(host_client);
-
-		SV_SetUpClientEdict (host_client, host_client->edict);
-
 		// turn the spectator into a player
 		host_client->spectator = false;
 		InfoBuf_RemoveKey (&host_client->userinfo, "*spectator");
+		if (!host_client->spawned)
+			continue;
+		//need to respawn them now.
+		SV_DespawnClient(host_client);
+		SV_SetUpClientEdict (host_client, host_client->edict);
 
 		// FIXME, bump the client's userid?
 
@@ -5596,6 +5597,7 @@ void Cmd_Join_f (void)
 			pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, sv_player);
 			PR_ExecuteProgram (svprogfuncs, pr_global_struct->PutClientInServer);
 		}
+		host_client->spawned = true;
 		sv.spawned_client_slots++;
 
 		// send notification to all clients
@@ -5683,14 +5685,14 @@ void Cmd_Observe_f (void)
 		if (host_client->spectator)
 			continue;
 
-		SV_DespawnClient(host_client);
-
-
-		SV_SetUpClientEdict (host_client, host_client->edict);
-
 		// turn the player into a spectator
 		host_client->spectator = true;
 		InfoBuf_SetValueForStarKey (&host_client->userinfo, "*spectator", "1");
+		if (!host_client->spawned)
+			continue;
+		//need to respawn them now.
+		SV_DespawnClient(host_client);
+		SV_SetUpClientEdict (host_client, host_client->edict);
 
 		// FIXME, bump the client's userid?
 
@@ -5726,6 +5728,7 @@ void Cmd_Observe_f (void)
 				sv_player->v->modelindex = 0;
 			}
 		}
+		host_client->spawned = true;
 		sv.spawned_observer_slots++;
 
 		// send notification to all clients

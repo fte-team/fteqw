@@ -371,9 +371,11 @@ pbool PDECL ED_CanFree (edict_t *ed)
 static void ASMCALL StateOp (pubprogfuncs_t *prinst, float var, func_t func)
 {
 	stdentvars_t *vars = PROG_TO_EDICT(prinst, pr_global_struct->self)->v;
+#ifdef HEXEN2
 	if (progstype == PROG_H2)
 		vars->nextthink = pr_global_struct->time+0.05;
 	else
+#endif
 		vars->nextthink = pr_global_struct->time+0.1;
 	vars->think = func;
 	vars->frame = var;
@@ -1163,7 +1165,7 @@ void PR_LoadGlabalStruct(qboolean muted)
 			buttonfields[i].offset = -1;
 	}
 
-#ifdef HEXEN2
+#if defined(HEXEN2) && defined(QUAKESTATS)
 	/*Hexen2 has lots of extra stats, which I don't want special support for, so list them here and send them as for csqc*/
 	if (progstype == PROG_H2)
 	{

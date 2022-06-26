@@ -2937,11 +2937,13 @@ void SV_WritePlayersToClient (client_t *client, client_frame_t *frame, edict_t *
 			clst.onground = (int)ent->v->flags & FL_ONGROUND;
 			clst.solid = ent->v->solid && ent->v->solid != SOLID_CORPSE && ent->v->solid != SOLID_TRIGGER;
 
+#ifdef HEXEN2
 			if (progstype == PROG_H2 && ((int)vent->v->effects & H2EF_NODRAW))
 			{
 				clst.effects = 0;
 				clst.modelindex = 0;
 			}
+#endif
 
 			clst.skin = vent->v->skin;
 			clst.mins = vent->v->mins;

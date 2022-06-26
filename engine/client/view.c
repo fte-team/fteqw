@@ -1948,6 +1948,7 @@ static void SCR_DrawAutoID(vec3_t org, player_info_t *pl, qboolean isteam)
 				break;
 		if (r >= 0 && (scr_autoid_weapon_mask.ival&(1<<1)))
 		{
+#ifdef QUAKEHUD
 			if (scr_autoid_weapon.ival==1)
 			{
 				extern apic_t *sb_weapons[7][8];
@@ -1970,6 +1971,7 @@ static void SCR_DrawAutoID(vec3_t org, player_info_t *pl, qboolean isteam)
 					return;
 				}
 			}
+#endif
 
 			if (h < 8)
 			{

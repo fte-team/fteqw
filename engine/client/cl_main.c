@@ -6867,7 +6867,7 @@ void CL_ArgumentOverrides(void)
 //note that this does NOT include commandline.
 void CL_ExecInitialConfigs(char *resetcommand)
 {
-#ifdef QUAKESTATS
+#ifndef QUAKETC
 	int qrc, hrc;
 #endif
 	int def;

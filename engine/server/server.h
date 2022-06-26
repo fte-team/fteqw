@@ -232,7 +232,9 @@ typedef struct server_s
 
 	qboolean gamedirchanged;
 
+#ifdef QUAKESTATS
 	qboolean haveitems2;	//use items2 field instead of serverflags for the high bits of STAT_ITEMS
+#endif
 
 
 

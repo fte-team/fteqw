@@ -153,6 +153,13 @@ typedef struct nqglobalvars_s
 #define comfieldfloatdep_legacy comfieldfloatdep
 #endif
 
+#ifndef QUAKESTATS
+#define comfieldfloat_legacystat(n,desc)
+#define comfieldfloatdep_legacystat(n,desc,depreason)
+#else
+#define comfieldfloat_legacystat comfieldfloat
+#define comfieldfloatdep_legacystat comfieldfloatdep
+#endif
 
 /*my hands are tied when it comes to the layout of this structure
 On the server side, the structure *must* match original quakeworld, or we break compatibility with mvdsv's qvm api
@@ -339,8 +346,8 @@ and the extension fields are added on the end and can have extra vm-specific stu
 	comfieldfloat(SendFlags,"Indicates that something in the entity has been changed, and that it needs to be updated to all players that can see it. The engine will clear it at some point, with the cleared bits appearing in the 'changedflags' argument of the SendEntity method.")/*EXT_CSQC_1 (one of the DP guys came up with it)*/\
 	comfieldfloatdep_legacy(Version,"Obsolete", "Use SendFlags instead.")/*EXT_CSQC (obsolete)*/\
 	comfieldfloatdep_legacy(clientcolors,NULL, "Doesn't support RGB player colours.")\
-	comfieldfloat_legacy(viewzoom,NULL)/*DP_VIEWZOOM, stats*/\
-	comfieldfloat_legacy(items2,"stub. commented by default, to prevent items2 being networked instead of runes.")		/*added in quake 1.09 (for hipnotic). legacy because of stats*/\
+	comfieldfloat_legacystat(viewzoom,NULL)/*DP_VIEWZOOM, stats*/\
+	comfieldfloat_legacystat(items2,"stub. commented by default, to prevent items2 being networked instead of runes.")		/*added in quake 1.09 (for hipnotic). legacy because of stats*/\
 	svextqcfieldshexen2 \
 	comfieldfloat(pvsflags,"Reconfigures when the entity is visible to clients")/*EXT_CSQC_1*/\
 	comfieldfloat(uniquespawnid,"Incremented by 1 whenever the entity is respawned. Persists across remove calls, for when the two-second grace period is insufficient.")/*FTE_ENT_UNIQUESPAWNID*/\

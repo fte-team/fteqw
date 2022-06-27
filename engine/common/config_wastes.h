@@ -35,9 +35,9 @@
 #undef VKQUAKE /* not yet, needs more testing */
 
  /* disable quake specific hacks and overrides */
-#undef QUAKETC
+#define QUAKETC
 #define NOBUILTINMENUS
-#undef NOLEGACY
+#define NOLEGACY
 
 /* engine behaviour */
 #define PLUGINS /* enables fteplug_ files */
@@ -139,13 +139,13 @@
 #undef DPMMODELS
 #undef PSKMODELS
 #undef MENU_NATIVECODE	/* native menu replacing menuQC */
-#define MVD_RECORDING	/* server can record MVDs. */
+#undef MVD_RECORDING	/* server can record MVDs. */
 #undef AVAIL_WASAPI	/* windows advanced sound api */
 //#undef AVAIL_DSOUND	/* MICROS~1 trash */
 #undef BOTLIB_STATIC	/* q3 botlib */
 #undef AVAIL_XZDEC	/* .xz decompression */
 #undef HAVE_SPEEX	/* .xz decompression */
-#define AVAIL_GZDEC	/* .gz decompression */
+#undef AVAIL_GZDEC	/* .gz decompression */
 #undef PACKAGE_DZIP	/* .dzip special-case archive support */
 #undef AVAIL_PNGLIB	/* .png image format support (read+screenshots) */
 #undef AVAIL_JPEGLIB	/* .jpeg image format support (read+screenshots) */
@@ -155,9 +155,9 @@
 #undef IMAGEFMT_BLP
 #undef NETPREPARSE	/* allows for running both nq+qw on the same server (if not, protocol used must match gamecode) */
 #undef USE_SQLITE	/* sql-database-as-file support */
-#define QUAKESTATS	/* defines STAT_HEALTH etc. if omitted, you'll need to provide that functionality yourself */
-#define QUAKEHUD		/* support for drawing the vanilla hud */
-#define QWSKINS		/* disabling this means no qw .pcx skins nor enemy/team skin/colour forcing */
+#undef QUAKESTATS	/* defines STAT_HEALTH etc. if omitted, you'll need to provide that functionality yourself */
+#undef QUAKEHUD		/* support for drawing the vanilla hud */
+#undef QWSKINS		/* disabling this means no qw .pcx skins nor enemy/team skin/colour forcing */
 #undef SVRANKING	/* legacy server-side ranking system */
 #define HUFFNETWORK	/* crappy network compression. probably needs reseeding */
 #undef SVCHAT		/* ancient lame builtin to support NPC-style chat.. */
@@ -166,8 +166,8 @@
 #undef Q2CLIENT		/* q2 client. file formats enabled separately */
 #undef Q3CLIENT		/* q3 client stuff */
 #undef Q3SERVER		/* q3 server stuff */
-#define HEXEN2		/* runs hexen2 gamecode, supports hexen2 file formats */
-#define NQPROT		/* act as an nq client/server, with nq gamecode */
+#undef HEXEN2		/* runs hexen2 gamecode, supports hexen2 file formats */
+#undef NQPROT		/* act as an nq client/server, with nq gamecode */
 #undef WEBSERVER	/* sv_ftp + sv_http cvars */
 #undef RUNTIMELIGHTING	/* automatic generation of .lit files */
 #undef R_XFLIP		/* old silly thing */
@@ -203,7 +203,7 @@
 #undef IMAGEFMT_JPG
 #undef IMAGEFMT_GIF
 #undef IMAGEFMT_EXR
-#define IPLOG
+#undef IPLOG
 #undef AVAIL_BOTLIB
 #undef AVAIL_BZLIB
 #undef DECOMPRESS_ASTC

@@ -1149,8 +1149,10 @@ void PR_LoadGlabalStruct(qboolean muted)
 	svprogfuncs->AddSharedVar(svprogfuncs, (pint_t *)(pr_global_ptrs)->other-v, 1);
 	svprogfuncs->AddSharedVar(svprogfuncs, (pint_t *)(pr_global_ptrs)->time-v, 1);
 
+#ifdef QUAKESTATS
 	//test the global rather than the field - fte internally always has the field.
 	sv.haveitems2 = !!PR_FindGlobal(svprogfuncs, "items2", 0, NULL);
+#endif
 
 	SV_ClearQCStats();
 

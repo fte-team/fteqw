@@ -1201,11 +1201,8 @@ void SV_StartSound (int ent, vec3_t origin, float *velocity, int seenmask, int c
 		return;
 	}
 
-	if (attenuation < 0 || attenuation > 4)
-	{
-		Con_Printf ("SV_StartSound: attenuation = %f", attenuation);
-		return;
-	}
+	if (attenuation < 0 || attenuation >= 4)
+		Con_DPrintf ("SV_StartSound: attenuation = %f", attenuation);
 
 	if (channel < 0 || channel > 255)
 	{

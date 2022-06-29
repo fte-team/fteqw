@@ -1694,9 +1694,14 @@ void SV_SendClientPrespawnInfo(client_t *client)
 				large = true;
 				if (client->protocol == SCP_BJP3)
 					continue;	//not supported
+				else if (ISQWCLIENT(client) && (client->fteprotocolextensions2 & PEXT2_REPLACEMENTDELTAS))
+				{
+					MSG_WriteByte(&client->netchan.message, svcfte_spawnstaticsound2);
+					MSG_WriteByte(&client->netchan.message, 1);
+				}
 				else if (ISDPCLIENT(client))
 					MSG_WriteByte(&client->netchan.message, svcdp_spawnstaticsound2);
-				else if (ISNQCLIENT(client))
+				else if (client->protocol == SCP_FITZ666)
 					MSG_WriteByte(&client->netchan.message, svcfitz_spawnstaticsound2);
 				else
 					continue; //not supported
@@ -1707,7 +1712,12 @@ void SV_SendClientPrespawnInfo(client_t *client)
 			for (i=0 ; i<3 ; i++)
 				MSG_WriteCoord(&client->netchan.message, sound->position[i]);
 			if (large)
-				MSG_WriteShort(&client->netchan.message, sound->soundnum);
+			{
+				if (client->fteprotocolextensions2&PEXT2_LERPTIME)
+					MSG_WriteULEB128(&client->netchan.message, sound->soundnum);
+				else
+					MSG_WriteShort(&client->netchan.message, sound->soundnum);
+			}
 			else
 				MSG_WriteByte(&client->netchan.message, sound->soundnum);
 			MSG_WriteByte(&client->netchan.message, sound->volume);

@@ -334,6 +334,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define	svcfte_temp_entity_sized	91	//svc_temp_entity with an extra short size right after the svc (high bit means nq, unset means qw).
 #define svcfte_csqcentities_sized	92	//entity lump for csqc (with size info)
 #define svcfte_setanglebase			93	//updates the base angle (and optionally locks the view, otherwise nudging it without race conditions.)
+#define svcfte_spawnstaticsound2	94	//*sigh*
 
 //fitz svcs
 #define svcfitz_skybox				37

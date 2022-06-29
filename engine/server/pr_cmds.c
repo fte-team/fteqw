@@ -3675,7 +3675,7 @@ void PF_ambientsound_Internal (float *pos, const char *samp, float vol, float at
 	VectorCopy(pos, state->position);
 	state->soundnum = soundnum;
 	state->volume = bound(0, (int)(vol*255), 255);
-	state->attenuation = attenuation*64;
+	state->attenuation = bound(0,attenuation*64,255);
 }
 
 static void QCBUILTIN PF_ambientsound (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)

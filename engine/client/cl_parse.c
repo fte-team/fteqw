@@ -4973,22 +4973,33 @@ static void CL_ParseStaticProt (int baselinetype)
 CL_ParseStaticSound
 ===================
 */
-static void CL_ParseStaticSound (qboolean large)
+static void CL_ParseStaticSound (unsigned int flags)
 {
 	extern cvar_t cl_staticsounds;
 	vec3_t		org;
-	int			sound_num;
+	size_t		sound_num;
 	float		vol, atten;
 	int			i;
 
+	if (flags & ~(1))
+		Host_EndGame("CL_ParseStaticSound: unsupported flags & %x\n", flags&~(1));
+
 	for (i=0 ; i<3 ; i++)
 		org[i] = MSG_ReadCoord ();
-	if (large || (cls.protocol == CP_NETQUAKE && cls.protocol_nq == CPNQ_BJP2))
-		sound_num = (unsigned short)MSG_ReadShort();
+	if (flags || (cls.protocol == CP_NETQUAKE && cls.protocol_nq == CPNQ_BJP2))
+	{
+		if (cls.fteprotocolextensions2&PEXT2_LERPTIME)
+			sound_num = (unsigned short)MSG_ReadULEB128();
+		else
+			sound_num = (unsigned short)MSG_ReadShort();
+	}
 	else
 		sound_num = MSG_ReadByte ();
 	vol = MSG_ReadByte ()/255.0;
 	atten = MSG_ReadByte ()/64.0;
+
+	if (sound_num >= countof(cl.sound_precache))
+		return;	//no crashing, please.
 
 	vol *= cl_staticsounds.value;
 	if (vol < 0)
@@ -7519,6 +7530,9 @@ void CLQW_ParseServerMessage (void)
 
 		case svc_spawnstaticsound:
 			CL_ParseStaticSound (false);
+			break;
+		case svcfte_spawnstaticsound2:
+			CL_ParseStaticSound (MSG_ReadByte());
 			break;
 
 		case svc_cdtrack:

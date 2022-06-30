@@ -7068,7 +7068,7 @@ QCC_sref_t QCC_PR_GenerateFunctionCallRef (QCC_sref_t newself, QCC_sref_t func, 
 					copyop[2] = OP_LOADA_V;
 					copyop[1] = OP_LOADA_I64;
 					copyop[0] = OP_LOADA_F;
-					copyop_idx = 0;	//offset the base ref
+					copyop_idx = -2;	//offset the base ref
 					copyop_index = arglist[i]->index;
 					copyop_index = QCC_SupplyConversion(copyop_index, ev_integer, true);
 					sref = arglist[i]->base;
@@ -7089,6 +7089,11 @@ QCC_sref_t QCC_PR_GenerateFunctionCallRef (QCC_sref_t newself, QCC_sref_t func, 
 				copyop[0] = OP_LOAD_F;
 				copyop_index = arglist[i]->index;
 				copyop_idx = -1;
+				if (!QCC_SRef_EvalConst(copyop_index))
+				{	//if its a variable then its probably not a proper field (which has extra field ref values following it). do the shitty thing and make assumptions about ordering. :(
+					copyop_index.cast = type_integer;
+					copyop_idx = OP_ADD_I;
+				}
 				sref = arglist[i]->base;
 				break;
 			case REF_POINTER:
@@ -7136,6 +7141,11 @@ QCC_sref_t QCC_PR_GenerateFunctionCallRef (QCC_sref_t newself, QCC_sref_t func, 
 					{	//with this mode, the base reference can just be updated. no mess with the index.
 						newindex = copyop_index;
 						newindex.ofs += ofs;
+						QCC_UnFreeTemp(copyop_index);
+					}
+					else if (copyop_idx == -2)
+					{	//with this mode, the base reference can just be updated. no mess with the index.
+						newindex = copyop_index;
 						QCC_UnFreeTemp(copyop_index);
 					}
 					else if (copyop_idx == OP_ADD_I)
@@ -7238,7 +7248,15 @@ QCC_sref_t QCC_PR_GenerateFunctionCallRef (QCC_sref_t newself, QCC_sref_t func, 
 							QCC_FreeTemp(copyop_index);
 						}
 						QCC_FreeTemp(newindex);
-						QCC_PR_SimpleStatement(&pr_opcodes[copyop[asz-1]], src, newindex, fparm, false);
+
+						if (copyop_idx == -2)
+						{	//with this mode, the base reference can just be updated. no mess with the index.
+							src.ofs += ofs;
+							QCC_PR_SimpleStatement(&pr_opcodes[copyop[asz-1]], src, newindex, fparm, false);
+							src.ofs -= ofs;
+						}
+						else
+							QCC_PR_SimpleStatement(&pr_opcodes[copyop[asz-1]], src, newindex, fparm, false);
 					}
 
 					ofs += asz;

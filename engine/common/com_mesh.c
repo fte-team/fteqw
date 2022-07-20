@@ -2877,8 +2877,12 @@ static void Mod_CompileTriangleNeighbours(model_t *loadmodel, galiasinfo_t *gali
 }
 #endif
 
+#define MAX_FRAMEINFO_POSES 256
+
 typedef struct
 {
+	unsigned int poses[MAX_FRAMEINFO_POSES];
+	qboolean posesarray;
 	unsigned int firstpose;
 	unsigned int posecount;
 	float fps;
@@ -2895,7 +2899,7 @@ static frameinfo_t *ParseFrameInfo(char *modelname, int *numgroups)
 	char *file;
 	frameinfo_t *frames = NULL;
 	char fname[MAX_QPATH];
-	char tok[64];
+	char tok[MAX_FRAMEINFO_POSES * 4];
 	size_t fsize;
 	com_tokentype_t ttype;
 	Q_snprintfz(fname, sizeof(fname), "%s.framegroups", modelname);
@@ -2904,6 +2908,8 @@ static frameinfo_t *ParseFrameInfo(char *modelname, int *numgroups)
 		return NULL;
 	while(line && *line)
 	{
+		unsigned int posecount = 0;
+
 		eol = strchr(line, '\n');
 		if (eol)
 			*eol = 0;
@@ -2915,9 +2921,23 @@ static frameinfo_t *ParseFrameInfo(char *modelname, int *numgroups)
 		}
 
 		line = COM_ParseOut(line, tok, sizeof(tok));
-		frames[count].firstpose = atoi(tok);
+		// Check if firstpose is actually a sequence of comma separated poses, e.g.: 42,43,44,43,42
+		if (strchr(tok, ','))
+		{
+			char pose[64], *ptok = tok;
+
+			for (; posecount < MAX_FRAMEINFO_POSES; posecount++)
+			{
+				ptok = COM_ParseStringSetSep(ptok, ',', pose, sizeof(pose));
+				if (!pose[0])
+					break;
+				frames[count].poses[posecount] = atoi(pose);
+			}
+		}
+		frames[count].posesarray = !!posecount;
+		frames[count].firstpose = posecount ? 0 : atoi(tok);
 		line = COM_ParseOut(line, tok, sizeof(tok));
-		frames[count].posecount = atoi(tok);
+		frames[count].posecount = posecount ? posecount : atoi(tok);
 		line = COM_ParseOut(line, tok, sizeof(tok));
 		frames[count].fps = atof(tok);
 		line = COM_ParseOut(line, tok, sizeof(tok));
@@ -3983,7 +4003,10 @@ static void Mesh_HandleFramegroupsFile(model_t *mod, galiasinfo_t *galias)
 			o->poseofs = ZG_Malloc(&mod->memgroup, sizeof(*o->poseofs) * framegroups[a].posecount);
 			for (p = 0; p < framegroups[a].posecount; p++)
 			{
-				targpose = framegroups[a].firstpose + p;
+				if (framegroups[a].posesarray)
+					targpose = framegroups[a].poses[p];
+				else
+					targpose = framegroups[a].firstpose + p;
 				for (g = 0, frame = oldanims; g < oldnumanims; g++, frame++)
 				{
 					if (targpose < frame->numposes)
@@ -6199,6 +6222,7 @@ static galiasinfo_t *Mod_LoadQ3ModelLod(model_t *mod, int *surfcount, void *buff
 
 	AddPointToBounds(min, mod->mins, mod->maxs);
 	AddPointToBounds(max, mod->mins, mod->maxs);
+	free(framegroups);
 	return first;
 }
 static qboolean QDECL Mod_LoadQ3Model(model_t *mod, void *buffer, size_t fsize)
@@ -7228,6 +7252,7 @@ static qboolean QDECL Mod_LoadPSKModel(model_t *mod, void *buffer, size_t fsize)
 					animmatrix + (j+i)*12);
 			}
 		}
+		free(frameinfo);
 	}
 	else
 	{
@@ -7721,6 +7746,8 @@ static qboolean QDECL Mod_LoadDarkPlacesModel(model_t *mod, void *buffer, size_t
 	mod->numframes = root->numanimations;
 	mod->type = mod_alias;
 	mod->funcs.NativeTrace = Mod_Trace;
+
+	free(framegroups);
 
 	return true;
 }
@@ -8392,6 +8419,7 @@ static galiasinfo_t *Mod_ParseIQMMeshModel(model_t *mod, const char *buffer, siz
 		anim = (const struct iqmanim*)(buffer + h->ofs_anims);
 		for (i = 0; i < numgroups; i++)
 		{
+			framegroups[i].posesarray = false;
 			framegroups[i].firstpose = LittleLong(anim[i].first_frame);
 			framegroups[i].posecount = LittleLong(anim[i].num_frames);
 			framegroups[i].fps = LittleFloat(anim[i].framerate);
@@ -8407,6 +8435,7 @@ static galiasinfo_t *Mod_ParseIQMMeshModel(model_t *mod, const char *buffer, siz
 	{	/*base frame only*/
 		numgroups = 1;
 		framegroups = malloc(sizeof(*framegroups));
+		framegroups->posesarray = false;
 		framegroups->firstpose = -1;
 		framegroups->posecount = 1;
 		framegroups->fps = 10;

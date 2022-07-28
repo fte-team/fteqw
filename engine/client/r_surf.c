@@ -2289,7 +2289,7 @@ void Surf_GenBrushBatches(batch_t **batches, entity_t *ent)
 
 // calculate dynamic lighting for bmodel if it's not an
 // instanced model
-	if (model->fromgame != fg_quake3 && model->fromgame != fg_doom3 && lightmap && webo_blocklightmapupdates!=3)
+	if (model->fromgame != fg_quake3 && model->fromgame != fg_doom3 && lightmap && !(webo_blocklightmapupdates&1))
 	{
 		int k;
 
@@ -2664,7 +2664,7 @@ static void Surf_SimpleWorld_Q1BSP(struct webostate_s *es, qbyte *pvs)
 	int l = wmodel->numclusters;
 	int fc = es->framecount;
 	int i;
-//	int s, f, lastface;
+	int s, f, lastface;
 	struct wesbatch_s *eb;
 	for (leaf = wmodel->leafs+l; l-- > 0; leaf--)
 	{
@@ -2727,18 +2727,18 @@ static void Surf_SimpleWorld_Q1BSP(struct webostate_s *es, qbyte *pvs)
 		}
 	}
 
-/*TODO	for (s = 0; s < wmodel->numsubmodels; s++)
+	for (s = 1; s < wmodel->numsubmodels; s++)
 	{
-		if (!es->bakedsubmodels[s])
-			continue;	//not baking this one (not currently visible or something)
+//		if (!es->bakedsubmodels[s])
+//			continue;	//not baking this one (not currently visible or something)
 		//FIXME: pvscull it here?
 		lastface = wmodel->submodels[s].firstface + wmodel->submodels[s].numfaces;
 		for (f = wmodel->submodels[s].firstface; f < lastface; f++)
 		{
-			surf = wmodel->surfaces;
+			surf = wmodel->surfaces+f;
 
 			Surf_RenderDynamicLightmaps_Worker (wmodel, surf, es->lightstylevalues);
-
+/*
 			mesh = surf->mesh;
 			eb = &es->batches[surf->sbatch->webobatch];
 			if (eb->maxidx < eb->numidx + mesh->numindexes)
@@ -2749,9 +2749,9 @@ static void Surf_SimpleWorld_Q1BSP(struct webostate_s *es, qbyte *pvs)
 			}
 			for (i = 0; i < mesh->numindexes; i++)
 				eb->idxbuffer[eb->numidx+i] = mesh->indexes[i] + mesh->vbofirstvert;
-			eb->numidx += mesh->numindexes;
+			eb->numidx += mesh->numindexes;*/
 		}
-	}*/
+	}
 }
 #endif
 #if defined(Q2BSPS) || defined(Q3BSPS)

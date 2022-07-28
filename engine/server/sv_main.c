@@ -5286,6 +5286,7 @@ static void SV_PauseChanged(void)
 #endif
 }
 
+double server_frametime;
 /*
 ==================
 SV_Frame
@@ -5590,6 +5591,8 @@ float SV_Frame (void)
 		svs.stats.maxpackets = 0;
 	}
 	oldpackets = svs.stats.packets;
+
+	server_frametime += end-start;
 	return delay;
 }
 

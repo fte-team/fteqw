@@ -179,7 +179,7 @@ void M_DrawTextBox (int x, int y, int width, int lines)
 {
 	mpic_t	*p;
 	int		cx, cy;
-	int		n;
+	int		n, w;
 
 	// draw left side
 	cx = x;
@@ -208,32 +208,38 @@ void M_DrawTextBox (int x, int y, int width, int lines)
 		M_DrawScalePic (cx, cy+8, 8, 8, p);
 
 	// draw middle
+	cy = y;
 	cx += 8;
-	while (width > 0)
+	//top-strip
+	p = R2D_SafeCachePic ("gfx/box_tm.lmp");
+	if (p) for (w = 0; w < width; w+=2)
+		M_DrawScalePic (cx+w*8, cy, 16, 8, p);
+
+	//just-under-top (shadowed region)
+	if (lines)
 	{
-		cy = y;
-		p = R2D_SafeCachePic ("gfx/box_tm.lmp");
-		if (p)
-			M_DrawScalePic (cx, cy, 16, 8, p);
+		cy+=8;
 		p = R2D_SafeCachePic ("gfx/box_mm.lmp");
-		if (p)
-			for (n = 0; n < lines; n++)
-			{
-				cy += 8;
-				if (n == 1)
-				{
-					p = R2D_SafeCachePic ("gfx/box_mm2.lmp");
-					if (!p)
-						break;
-				}
-				M_DrawScalePic (cx, cy, 16, 8, p);
-			}
-		p = R2D_SafeCachePic ("gfx/box_bm.lmp");
-		if (p)
-			M_DrawScalePic (cx, cy+8, 16, 8, p);
-		width -= 2;
-		cx += 16;
+		if (p) for (w = 0; w < width; w+=2)
+			M_DrawScalePic (cx+w*8, cy, 16, 8, p);
 	}
+
+	//2d body
+	p = R2D_SafeCachePic ("gfx/box_mm2.lmp");
+	for (n = 1; n < lines; n++)
+	{
+		cy+=8;
+		if (p) for (w = 0; w < width; w+=2)
+			M_DrawScalePic (cx+w*8, cy, 16, 8, p);
+	}
+
+	//bottom strip
+	cy+=8;
+	p = R2D_SafeCachePic ("gfx/box_bm.lmp");
+	if (p) for (w = 0; w < width; w+=2)
+		M_DrawScalePic (cx+w*8, cy, 16, 8, p);
+
+	cx += 8*width;
 
 	// draw right side
 	cy = y;

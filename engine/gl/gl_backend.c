@@ -1000,7 +1000,7 @@ void GL_CullFace(unsigned int sflags)
 	}
 }
 
-void R_FetchPlayerColour(unsigned int cv, vec3_t rgb)
+static void R_FetchPlayerColour(unsigned int cv, vec3_t rgb)
 {
 	int i;
 
@@ -5530,8 +5530,10 @@ void GLBE_SubmitMeshes (batch_t **worldbatches, int start, int stop)
 #define THREADEDWORLD
 #endif
 
+extern double r_loaderstalltime;
 void GLBE_UpdateLightmaps(void)
 {
+	double starttime;
 	lightmapinfo_t *lm;
 	int lmidx;
 
@@ -5542,6 +5544,7 @@ void GLBE_UpdateLightmaps(void)
 	webo_blocklightmapupdates |= 2;	//FIXME: round-robin it? one lightmap per frame?
 #endif
 
+	starttime = Sys_DoubleTime();
 	for (lmidx = 0; lmidx < numlightmaps; lmidx++)
 	{
 		lm = lightmap[lmidx];
@@ -5615,6 +5618,7 @@ void GLBE_UpdateLightmaps(void)
 			lm->rectchange.b = 0;
 		}
 	}
+	r_loaderstalltime += Sys_DoubleTime()-starttime;
 }
 
 batch_t *GLBE_GetTempBatch(void)

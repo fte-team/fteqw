@@ -213,19 +213,22 @@ void R_NetGraph (void)
 			Vector4Copy(rgba[2], rgba[1]);
 		}
 
-		R2D_Image2dQuad((const vec2_t*)p, (const vec2_t*)tc, (const vec4_t*)rgba, shader_draw_fill);
+		if (a)
+			R2D_Image2dQuad((const vec2_t*)p, (const vec2_t*)tc, (const vec4_t*)rgba, shader_draw_fill);
 	}
 #endif
 }
 
 void R_FrameTimeGraph (float frametime, float scale)
 {
-	float bias = 0;
-	int		a, x, i, y, h, col;
+	float bias = 0, h, lh;
+	int		a, b, x, i, y;
 
-	vec2_t p[4];
-	vec2_t tc[4];
-	vec4_t rgba[4];
+	struct{
+		vec2_t xy[4];
+		vec2_t tc[4];
+		vec4_t rgba[4];
+	} g[3];
 	extern shader_t *shader_draw_fill;
 
 	conchar_t line[128];
@@ -234,17 +237,25 @@ void R_FrameTimeGraph (float frametime, float scale)
 
 	static struct
 	{
-		float time;
-		int col;
+		float time[countof(g)];
 	} history[NET_TIMINGS];
 	static unsigned int findex;
 
 #ifdef LOADERTHREAD
 	extern int com_hadwork[WG_COUNT];
 #endif
+	extern double server_frametime, r_loaderstalltime;
 
-	history[findex&NET_TIMINGSMASK].time = frametime;
-	history[findex&NET_TIMINGSMASK].col = 0xffffffff;
+	history[findex&NET_TIMINGSMASK].time[0] = max(0,frametime);	//server band
+#ifdef HAVE_SERVER
+	frametime -= server_frametime; server_frametime = 0;
+#endif
+
+	history[findex&NET_TIMINGSMASK].time[1] = max(0,frametime);	//stalls band
+	frametime -= r_loaderstalltime; r_loaderstalltime = 0;
+
+	history[findex&NET_TIMINGSMASK].time[2] = max(0,frametime);	//client band (max is needed because we might have been failing to clear the other timers)
+
 	findex++;
 
 #ifdef LOADERTHREAD
@@ -252,20 +263,20 @@ void R_FrameTimeGraph (float frametime, float scale)
 	{	//recolour the graph red if the main thread processed something from a worker.
 		//show three, because its not so easy to see when its whizzing past.
 		com_hadwork[WG_MAIN] = 0;
-		history[(findex-1)&NET_TIMINGSMASK].col = 0xff0000ff;
-		history[(findex-2)&NET_TIMINGSMASK].col = 0xff0000ff;
-		history[(findex-3)&NET_TIMINGSMASK].col = 0xff0000ff;
+//		history[(findex-1)&NET_TIMINGSMASK].col = 0xff0000ff;
+//		history[(findex-2)&NET_TIMINGSMASK].col = 0xff0000ff;
+//		history[(findex-3)&NET_TIMINGSMASK].col = 0xff0000ff;
 	}
 #endif
 
 	x = 0;
 	for (a=0 ; a<NET_TIMINGS ; a++)
 	{
-		avg     += history[a].time;
-		if (minv > history[a].time)
-			minv = history[a].time;
-		if (maxv < history[a].time)
-			maxv = history[a].time;
+		avg     += history[a].time[0];
+		if (minv > history[a].time[0])
+			minv = history[a].time[0];
+		if (maxv < history[a].time[0])
+			maxv = history[a].time[0];
 	}
 	if (!scale)
 	{
@@ -276,7 +287,7 @@ void R_FrameTimeGraph (float frametime, float scale)
 		scale *= 1000;
 	avg/=a;
 	for (a = 0; a < NET_TIMINGS; a++)
-		dev += 1000*1000*(history[a].time - avg)*(history[a].time - avg);
+		dev += 1000*1000*(history[a].time[0] - avg)*(history[a].time[0] - avg);
 	dev /= a;
 	dev = sqrt(dev);
 
@@ -306,31 +317,42 @@ void R_FrameTimeGraph (float frametime, float scale)
 	Draw_ExpandedString(font_console, x, y, line);
 	y += Font_CharVHeight(font_console);
 
-	Vector2Set(p[2], 0,0);
-	Vector2Set(p[3], 0,0);
-	Vector4Set(rgba[2], 0,0,0,0);
-	Vector4Set(rgba[3], 0,0,0,0);
+	for (b = 0; b < countof(g); b++)
+	{
+		Vector2Set(g[b].xy[2], 0,0);
+		Vector2Set(g[b].xy[3], 0,0);
+	}
+	for (a=0 ; a<4 ; a++)
+	{
+		Vector4Set(g[0].rgba[a], 1.0,0.1,0.1,1.0);	//server = red
+		Vector4Set(g[1].rgba[a], 0.1,1.0,0.1,1.0);	//lightmap/stalls = green
+		Vector4Set(g[2].rgba[a], 1.0,1.0,1.0,1.0);	//client/other = white.
+	}
+
 	for (a=0 ; a<NET_TIMINGS ; a++)
 	{
 		i = (findex-NET_TIMINGS+a)&(NET_TIMINGS-1);
-		h = (history[i].time - bias) * scale;
-		col = history[i].col;
+		lh = NET_GRAPHHEIGHT;
+		for (b = countof(g); b-- > 0; lh = h)
+		{
+			h = (history[i].time[b]-bias) * scale;
 
-		if (h > NET_GRAPHHEIGHT)
-			h = NET_GRAPHHEIGHT;
-		Vector2Copy(p[3], p[0]);	Vector4Copy(rgba[3], rgba[0]);
-		Vector2Copy(p[2], p[1]);	Vector4Copy(rgba[2], rgba[1]);
+			if (h > NET_GRAPHHEIGHT)
+				h = NET_GRAPHHEIGHT;
+			h = (NET_GRAPHHEIGHT-h);
 
-		Vector2Set(p[2+0], x+a,		y+(NET_GRAPHHEIGHT-h));
-		Vector2Set(p[2+1], x+a,		y+NET_GRAPHHEIGHT);
+			Vector2Copy(g[b].xy[3], g[b].xy[0]);	Vector4Copy(g[b].rgba[3], g[b].rgba[0]);
+			Vector2Copy(g[b].xy[2], g[b].xy[1]);	Vector4Copy(g[b].rgba[2], g[b].rgba[1]);
 
-		Vector2Set(tc[2+0], x/(float)NET_TIMINGS,		(NET_GRAPHHEIGHT-h)/NET_GRAPHHEIGHT);
-		Vector2Set(tc[2+1], x/(float)NET_TIMINGS,		1);
-		Vector4Set(rgba[2+0], ((col>>0)&0xff)/255.0, ((col>>8)&0xff)/255.0, ((col>>16)&0xff)/255.0, ((col>>24)&0xff)/255.0);
-		Vector4Copy(rgba[2+0], rgba[2+1]);
+			Vector2Set(g[b].xy[2+0], x+a,		y+h);
+			Vector2Set(g[b].xy[2+1], x+a,		y+lh);
 
-		if (a)
-			R2D_Image2dQuad((const vec2_t*)p, (const vec2_t*)tc, (const vec4_t*)rgba, shader_draw_fill);
+			Vector2Set(g[b].tc[2+0], x/(float)NET_TIMINGS,		(NET_GRAPHHEIGHT-h)/NET_GRAPHHEIGHT);
+			Vector2Set(g[b].tc[2+1], x/(float)NET_TIMINGS,		1);
+
+			if (a && (h!=lh || g[b].xy[0][1]!=g[b].xy[1][1]))
+				R2D_Image2dQuad((const vec2_t*)g[b].xy, (const vec2_t*)g[b].tc, (const vec4_t*)g[b].rgba, shader_draw_fill);
+		}
 	}
 }
 

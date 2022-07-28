@@ -56,6 +56,8 @@ extern cvar_t r_stainfadeammount;
 extern cvar_t r_lightmap_nearest;
 extern cvar_t r_lightmap_format;
 
+double r_loaderstalltime;
+
 extern int r_dlightframecount;
 
 static void Surf_FreeLightmap(lightmapinfo_t *lm);
@@ -2484,6 +2486,7 @@ static void R_DestroyWorldEBO(struct webostate_s *es)
 }
 void R_GeneratedWorldEBO(void *ctx, void *data, size_t a_, size_t b_)
 {
+	double starttime = Sys_DoubleTime();
 	size_t idxcount, vertcount;
 	unsigned int i;
 	model_t *mod;
@@ -2648,6 +2651,8 @@ void R_GeneratedWorldEBO(void *ctx, void *data, size_t a_, size_t b_)
 			webostate->rbatches[sortid] = b;
 		}
 	}
+
+	r_loaderstalltime += Sys_DoubleTime() - starttime;
 }
 #ifdef Q1BSPS
 static void Surf_SimpleWorld_Q1BSP(struct webostate_s *es, qbyte *pvs)

@@ -281,7 +281,7 @@ struct icestate_s;
 #define ICE_API_CURRENT "Internet Connectivity Establishment 0.0"
 typedef struct
 {
-	struct icestate_s *(QDECL *ICE_Create)(void *module, const char *conname, const char *peername, enum icemode_e mode, enum iceproto_e proto);	//doesn't start pinging anything.
+	struct icestate_s *(QDECL *ICE_Create)(void *module, const char *conname, const char *peername, enum icemode_e mode, enum iceproto_e proto, qboolean initiator);	//doesn't start pinging anything.
 	qboolean (QDECL *ICE_Set)(struct icestate_s *con, const char *prop, const char *value);
 	qboolean (QDECL *ICE_Get)(struct icestate_s *con, const char *prop, char *value, size_t valuesize);
 	struct icecandinfo_s *(QDECL *ICE_GetLCandidateInfo)(struct icestate_s *con);		//retrieves candidates that need reporting to the peer.

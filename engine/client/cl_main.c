@@ -1257,7 +1257,11 @@ void CL_CheckForResend (void)
 			q3->cl.SendAuthPacket(cls.sockets, to);
 #endif
 
-		if (connectinfo.istransfer || connectinfo.numadr>1)
+		if ((connectinfo.istransfer || connectinfo.numadr>1) && to->prot != NP_RTC_TCP && to->prot != NP_RTC_TLS
+#ifdef SUPPORT_ICE
+		&& to->type != NA_ICE
+#endif
+		)
 			Con_TPrintf ("Connecting to %s" S_COLOR_GRAY "(%s)" S_COLOR_WHITE "...\n", cls.servername, NET_AdrToString(data, sizeof(data), to));
 		else
 			Con_TPrintf ("Connecting to %s...\n", cls.servername);
@@ -1368,6 +1372,8 @@ void CL_CheckForResend (void)
 			Con_TPrintf ("No route to host, giving up\n");
 			connectinfo.trying = false;
 			SCR_EndLoadingPlaque();
+
+			NET_CloseClient();
 		}
 	}
 }
@@ -3619,7 +3625,7 @@ void CL_ConnectionlessPacket (void)
 			NET_SendPacket (cls.sockets, strlen(pkt), pkt, &net_from);
 			return;
 		}
-		if (connectinfo.dtlsupgrade == DTLS_REQUIRE)
+		if (connectinfo.dtlsupgrade == DTLS_REQUIRE && !NET_IsEncrypted(&net_from))
 		{
 			Cvar_Set(&cl_disconnectreason, va("Server does not support/allow dtls. not connecting\n"));
 			connectinfo.trying = false;

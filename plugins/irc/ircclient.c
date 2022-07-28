@@ -1312,11 +1312,11 @@ static struct ircice_s *IRC_ICE_Create(ircclient_t *irc, const char *sender, enu
 		return NULL;
 
 	if (!creator && type == ICEP_QWSERVER)
-		ice = piceapi->ICE_Create(NULL, NULL, sender, ICEM_ICE, ICEP_QWCLIENT);
+		ice = piceapi->ICE_Create(NULL, NULL, sender, ICEM_ICE, ICEP_QWCLIENT, creator);
 	else if (!creator && type == ICEP_QWCLIENT)
-		ice = piceapi->ICE_Create(NULL, NULL, sender, ICEM_ICE, ICEP_QWSERVER);
+		ice = piceapi->ICE_Create(NULL, NULL, sender, ICEM_ICE, ICEP_QWSERVER, creator);
 	else
-		ice = piceapi->ICE_Create(NULL, NULL, sender, ICEM_ICE, type);
+		ice = piceapi->ICE_Create(NULL, NULL, sender, ICEM_ICE, type, creator);
 
 	if (!ice)
 		return NULL;

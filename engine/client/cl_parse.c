@@ -3733,11 +3733,7 @@ void CL_ParseEstablished(void)
 		case CP_QUAKE3:		Con_Printf (S_COLOR_GRAY"Q3 ");	break;
 		default: break;
 		}
-		if (
-#ifdef SUPPORT_ICE
-				(cls.netchan.remote_address.type == NA_ICE && cls.netchan.remote_address.port) ||
-#endif
-				cls.netchan.remote_address.prot == NP_DTLS || cls.netchan.remote_address.prot == NP_TLS || cls.netchan.remote_address.prot == NP_WSS)
+		if (NET_IsEncrypted(&cls.netchan.remote_address))
 			security = "^["S_COLOR_GREEN"encrypted\\tip\\Any passwords will be sent securely, but will still be readable by the server admin^]";
 		else
 			security = "^["S_COLOR_RED"plain-text\\tip\\"CON_WARNING"Do not type passwords as they can potentially be seen by network sniffers^]";

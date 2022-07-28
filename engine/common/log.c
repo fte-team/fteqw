@@ -665,6 +665,7 @@ static void CertLog_Update(const char *hostname, const void *cert, size_t certsi
 		Z_Free(l);
 	}
 	l = Z_Malloc(sizeof(*l) + certsize + strlen(hostname));
+	l->trusted = trusted;
 	l->certsize = certsize;
 	l->hostname = l->cert + l->certsize;
 	memcpy(l->cert, cert, certsize);

@@ -4820,7 +4820,7 @@ dominping:
 
 	// packet is not from a known client
 	if (sv_showconnectionlessmessages.ival)
-		Con_Printf (S_COLOR_GRAY "%s:sequenced packet without connection\n", NET_AdrToString (com_token, sizeof(com_token), &net_from));	//hack: com_token cos we need some random temp buffer.
+		Con_Printf (S_COLOR_GRAY "%s:sequenced packet without connection (%i bytes)\n", NET_AdrToString (com_token, sizeof(com_token), &net_from), net_message.cursize);	//hack: com_token cos we need some random temp buffer.
 }
 
 /*

@@ -22,7 +22,7 @@ static struct c2c_s *JCL_JingleAddContentToSession(jclient_t *jcl, struct c2c_s 
 	}
 	
 	if (piceapi)
-		ice = piceapi->ICE_Create(NULL, sid, with, method, mediatype);
+		ice = piceapi->ICE_Create(NULL, sid, with, method, mediatype, creator);
 	if (ice)
 	{
 		piceapi->ICE_Get(ice, "sid", generatedname, sizeof(generatedname));

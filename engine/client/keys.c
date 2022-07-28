@@ -1086,6 +1086,14 @@ void Key_DefaultLinkClicked(console_t *con, char *text, char *info)
 		return;
 	}
 #endif
+#ifdef SUPPORT_ICE
+	c = Info_ValueForKey(info, "ice");
+	if (*c && !strchr(c, ';') && !strchr(c, '\n'))
+	{
+		Cbuf_AddText(va("\nnet_ice_show \"%s\"\n", c), RESTRICT_LOCAL);
+		return;
+	}
+#endif
 	c = Info_ValueForKey(info, "impulse");
 	if (*c && !strchr(c, ';') && !strchr(c, '\n'))
 	{

@@ -816,14 +816,12 @@ mergeInto(LibraryManager.library,
 	},
 
 	emscriptenfte_rtc_create__deps: ['emscriptenfte_handle_alloc'],
-	emscriptenfte_rtc_create : function(clientside, ctxp, ctxi, callback)
+	emscriptenfte_rtc_create : function(clientside, ctxp, ctxi, callback, pcconfig)
 	{
-		var pcconfig = {
-			iceServers:
-			[{
-				url: 'stun:stun.l.google.com:19302'
-			}]
-		};
+		try {
+			pcconfig = JSON.parse(UTF8ToString(pcconfig));
+		} catch(err) {pcconfig = {};}
+
 		var dcconfig = {ordered: false, maxRetransmits: 0, reliable:false};
 
 		var s = {pc:null, ws:null, inq:[], err:0, con:0, isclient:clientside, callcb:
@@ -914,6 +912,7 @@ mergeInto(LibraryManager.library,
 	},
 	emscriptenfte_rtc_offer : function(sockid, offer, offertype)
 	{
+		var desc;
 		var s = FTEH.h[sockid];
 		offer = UTF8ToString(offer);
 		offertype = UTF8ToString(offertype);
@@ -927,29 +926,35 @@ mergeInto(LibraryManager.library,
 			else
 				desc = {sdp:offer, type:offertype};
 
-			s.pc.setRemoteDescription(desc);
+			s.pc.setRemoteDescription(desc).then(() =>
+					{
+						if (!s.isclient)
+						{	//server must give a response.
+							s.pc.createAnswer().then(
+								function(desc)
+								{
+									s.pc.setLocalDescription(desc);
+
+									if (1)
+										desc = JSON.stringify(desc);
+									else
+										desc = desc.sdp;
+
+									s.callcb(3, desc);
+								},
+								function(event)
+								{
+									s.err = 1;
+								}
+							);
+						}
+					}, err =>
+					{
+						console.log(desc);
+						console.log(err);
+					});
 		} catch(err) { console.log(err); }
 		
-		if (!s.isclient)
-		{	//server must give a response.
-			s.pc.createAnswer().then(
-				function(desc)
-				{
-					s.pc.setLocalDescription(desc);
-
-					if (1)
-						desc = JSON.stringify(desc);
-					else
-						desc = desc.sdp;
-
-					s.callcb(3, desc);
-				},
-				function(event)
-				{
-					s.err = 1;
-				}
-			);
-		}
 	},
 	emscriptenfte_rtc_candidate : function(sockid, offer)
 	{

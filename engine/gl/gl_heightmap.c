@@ -5020,7 +5020,7 @@ void QCBUILTIN PF_terrain_edit(pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 	{
 	case ter_ent_get:
 		{
-			int idx = G_INT(OFS_PARM1);
+			unsigned int idx = G_INT(OFS_PARM1);
 			if (!mod->numentityinfo)
 				Mod_ParseEntities(mod);
 			if (idx >= mod->numentityinfo || !mod->entityinfo[idx].keyvals)

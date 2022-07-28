@@ -5495,6 +5495,7 @@ void Cmd_Join_f (void)
 	int		numclients;
 	extern cvar_t	maxclients;
 	int seats;
+	qboolean wasspawned;
 
 	if (host_client->controller)
 	{
@@ -5569,13 +5570,15 @@ void Cmd_Join_f (void)
 		if (!host_client->spectator)
 			continue;
 
+		wasspawned = host_client->spawned;
+		SV_DespawnClient(host_client);
+
 		// turn the spectator into a player
 		host_client->spectator = false;
 		InfoBuf_RemoveKey (&host_client->userinfo, "*spectator");
-		if (!host_client->spawned)
+		if (!wasspawned)
 			continue;
 		//need to respawn them now.
-		SV_DespawnClient(host_client);
 		SV_SetUpClientEdict (host_client, host_client->edict);
 
 		// FIXME, bump the client's userid?
@@ -5633,6 +5636,7 @@ void Cmd_Observe_f (void)
 	int		numspectators;
 	extern cvar_t	maxspectators, spectator_password;
 	int seats;
+	qboolean wasspawned;
 
 	if (host_client->controller)
 	{
@@ -5695,13 +5699,15 @@ void Cmd_Observe_f (void)
 		if (host_client->spectator)
 			continue;
 
+		wasspawned = host_client->spawned;
+		SV_DespawnClient(host_client);
+
 		// turn the player into a spectator
 		host_client->spectator = true;
 		InfoBuf_SetValueForStarKey (&host_client->userinfo, "*spectator", "1");
-		if (!host_client->spawned)
+		if (!wasspawned)
 			continue;
 		//need to respawn them now.
-		SV_DespawnClient(host_client);
 		SV_SetUpClientEdict (host_client, host_client->edict);
 
 		// FIXME, bump the client's userid?
@@ -7984,6 +7990,15 @@ static double SVFTE_ExecuteClientMove(client_t *controller)
 
 	unsigned int seat, frame, a;
 	qboolean ran;
+
+#define VRM_UNSUPPORTED (~(VRM_LOSS|VRM_DELAY|VRM_SEATS|VRM_FRAMES|VRM_ACKS))
+	if (flags & VRM_UNSUPPORTED)
+	{
+		if (!msg_badread)
+			Con_Printf("SVFTE_ExecuteClientMove: unknown input flags %#x\n", flags & VRM_UNSUPPORTED);
+		msg_badread = true;
+		return 0;
+	}
 
 	for (a = 0; a < numacks; a++)
 	{

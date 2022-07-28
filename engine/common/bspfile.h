@@ -639,8 +639,15 @@ typedef struct
 #define TI_TRANS66		0x20
 #define	TI_FLOWING		0x40	// scroll towards angle
 #define	TI_NODRAW		0x80	// don't bother referencing the texture
+//#define	TI_HINT			0x100	// handled by tools, engine can ignore.
+//#define	TI_SKIP			0x200	// handled by tools, engine can ignore.
 
-#define	TI_ALPHATEST	0x100
+//#define TI_KINGPIN_SPECULAR	0x400
+//#define TI_KINGPIN_DIFFUSE	0x800
+#define TI_KINGPIN_ALPHATEST	0x1000	//regular alphatest
+//#define TI_KINGPIN_MIRROR		0x2000
+//#define TI_KINGPIN_WNDW33		0x4000
+//#define TI_KINGPIN_WNDW64		0x8000
 
 //Surface flags
 //#define Q3SURFACEFLAG_NODAMAGE	0x1		// never give falling damage

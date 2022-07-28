@@ -1438,6 +1438,8 @@ static qboolean CModQ2_LoadTexInfo (model_t *mod, qbyte *mod_base, lump_t *l, ch
 			Q_strncatz(sname, "#ALPHA=0.66", sizeof(sname));
 		else if (out->flags & TI_TRANS33)
 			Q_strncatz(sname, "#ALPHA=0.33", sizeof(sname));
+		else if (out->flags & TI_KINGPIN_ALPHATEST) //kingpin...
+			Q_strncatz(sname, "#MASK=0.666#MASKLT", sizeof(sname));
 		else if (out->flags & (TI_WARP))
 			Q_strncatz(sname, "#ALPHA=1", sizeof(sname));
 		if (in->nexttexinfo != -1)	//used to ensure non-looping and looping don't conflict and get confused.

@@ -322,6 +322,16 @@ keyname_t keynames[] =
 	{"GP_RTHUMB_LEFT",	K_GP_RIGHT_THUMB_LEFT},
 	{"GP_RTHUMB_RIGHT",	K_GP_RIGHT_THUMB_RIGHT},
 
+#ifdef Q2BSPS
+	//kingpin compat
+	{"ESC",				K_ESCAPE},
+	{"B_SPACE",			K_BACKSPACE},
+	{"U_ARROW",			K_UPARROW},
+	{"D_ARROW",			K_DOWNARROW},
+	{"L_ARROW",			K_LEFTARROW},
+	{"R_ARROW",			K_RIGHTARROW},
+#endif
+
 #ifndef QUAKETC
 	//dp compat
 	{"X360_DPAD_UP",			K_GP_DPAD_UP},

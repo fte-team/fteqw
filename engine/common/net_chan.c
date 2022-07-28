@@ -300,7 +300,7 @@ Netchan_OutOfBand
 Sends an out-of-band datagram
 ================
 */
-void Netchan_OutOfBand (netsrc_t sock, netadr_t *adr, int length, qbyte *data)
+void Netchan_OutOfBand (netsrc_t sock, netadr_t *adr, int length, const qbyte *data)
 {
 	sizebuf_t	send;
 	qbyte		send_buf[MAX_QWMSGLEN + PACKET_HEADER];

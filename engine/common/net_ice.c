@@ -4349,7 +4349,7 @@ static void FTENET_ICE_Heartbeat(ftenet_ice_connection_t *b)
 		}
 
 		*info = 0;
-		Info_SetValueForKey(info, "protocol", com_protocolversion.string, sizeof(info));
+		Info_SetValueForKey(info, "protocol", SV_GetProtocolVersionString(), sizeof(info));
 		Info_SetValueForKey(info, "maxclients", maxclients.string, sizeof(info));
 		Info_SetValueForKey(info, "clients", va("%i", numclients), sizeof(info));
 		Info_SetValueForKey(info, "hostname", hostname.string, sizeof(info));

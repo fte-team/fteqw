@@ -297,7 +297,7 @@ void Net_Master_Init(void);
 
 void Netchan_Init (void);
 int Netchan_Transmit (netchan_t *chan, int length, qbyte *data, int rate);
-void Netchan_OutOfBand (netsrc_t sock, netadr_t *adr, int length, qbyte *data);
+void Netchan_OutOfBand (netsrc_t sock, netadr_t *adr, int length, const qbyte *data);
 void VARGS Netchan_OutOfBandPrint (netsrc_t sock, netadr_t *adr, char *format, ...) LIKEPRINTF(3);
 void VARGS Netchan_OutOfBandTPrintf (netsrc_t sock, netadr_t *adr, int language, translation_t text, ...);
 qboolean Netchan_Process (netchan_t *chan);

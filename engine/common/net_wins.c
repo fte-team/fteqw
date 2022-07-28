@@ -7185,7 +7185,7 @@ static void FTENET_WebRTC_Heartbeat(ftenet_websocket_connection_t *b)
 		info[1] =
 		info[2] = 0xff;	//to the broker rather than any actual client
 		info[3] = 0;
-		Info_SetValueForKey(info+3, "protocol", com_protocolversion.string, sizeof(info)-3);
+		Info_SetValueForKey(info+3, "protocol", SV_GetProtocolVersionString(), sizeof(info)-3);
 		Info_SetValueForKey(info+3, "maxclients", maxclients.string, sizeof(info)-3);
 		Info_SetValueForKey(info+3, "clients", va("%i", numclients), sizeof(info)-3);
 		Info_SetValueForKey(info+3, "hostname", hostname.string, sizeof(info)-3);

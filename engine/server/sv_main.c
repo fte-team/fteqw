@@ -1227,6 +1227,36 @@ static void SVC_Status (void)
 }
 
 #if 1//def NQPROT
+const char *SV_GetProtocolVersionString(void)
+{
+	char *ret = va("%i", com_protocolversion.ival);	//for compat with DP, this is basically locked at 3. our pexts allow this to be mostly graceful.
+
+	switch(svs.gametype)
+	{
+	case GT_PROGS:
+	case GT_Q1QVM:
+		if (sv_listen_qw.ival)
+			Q_strncatz(ret, "w", 64);
+#ifdef NQPROT
+		if (progstype == PROG_H2)
+			break;	//don't advertise nq protocols when they're blocked.
+		if (sv_listen_nq.ival)
+		{
+			Q_strncatz(ret, "n", 64);
+#ifdef HAVE_DTLS
+			if (*dtls_psk_user.string)
+				Q_strncatz(ret, "x", 64);
+#endif
+		}
+		if (sv_listen_dp.ival)
+			Q_strncatz(ret, "d", 64);
+#endif
+		break;
+	default:
+		break;	//these do their own thing, with their own protocols. don't be weird.
+	}
+	return ret;
+}
 static void SVC_GetInfo (const char *challenge, int fullstatus)
 {
 	//dpmaster support
@@ -1289,7 +1319,7 @@ static void SVC_GetInfo (const char *challenge, int fullstatus)
 		*resp = 0;
 		Info_SetValueForKey(resp, "challenge", challenge, sizeof(response) - (resp-response));	//the challenge can be important for the master protocol to prevent poisoning
 		Info_SetValueForKey(resp, "gamename", protocolname, sizeof(response) - (resp-response));//distinguishes it from other types of games
-		Info_SetValueForKey(resp, "protocol", com_protocolversion.string, sizeof(response) - (resp-response));	//should be an int.
+		Info_SetValueForKey(resp, "protocol", SV_GetProtocolVersionString(), sizeof(response) - (resp-response));
 		Info_SetValueForKey(resp, "modname", FS_GetGamedir(true), sizeof(response) - (resp-response));
 		Info_SetValueForKey(resp, "clients", va("%d", numclients), sizeof(response) - (resp-response));
 		Info_SetValueForKey(resp, "sv_maxclients", maxclients.string, sizeof(response) - (resp-response));
@@ -1548,6 +1578,33 @@ qboolean SVC_GetChallenge (qboolean respond_dp)
 #else
 	const qboolean respond_qwoverq3 = false;
 #endif
+
+	//ioq3clchallenge = atoi(Cmd_Argv(1));
+	const char *protocols = Cmd_Argv(2);
+	if (*protocols)
+	{
+		const char *pname;
+		char tprot[64], oprot[64];
+		while ((protocols=COM_ParseOut(protocols, tprot,sizeof(tprot))))
+		{
+			pname = com_protocolname.string;
+			while ((pname=COM_ParseOut(pname, oprot,sizeof(oprot))))
+			{
+				if (!strcmp(tprot, oprot))
+					break;
+			}
+			if (pname)
+				break;
+		}
+
+		if (!protocols)
+		{
+			COM_ParseOut(com_protocolname.string, oprot,sizeof(oprot));
+			pname = va("print\nGame mismatch: This is a %s server\n", oprot);
+			Netchan_OutOfBand(NS_SERVER, &net_from, strlen(pname), pname);
+			return false;
+		}
+	}
 
 	if (sv_listen_qw.value && !sv_listen_dp.value)
 	{
@@ -3318,7 +3375,7 @@ void SVC_DirectConnect(int expectedreliablesequence)
 		}
 		Q_strncpyz (info.userinfo, net_message.data + 11, sizeof(info.userinfo)-1);
 
-		if (strcmp(Info_ValueForKey(info.userinfo, "protocol"), "darkplaces 3"))
+		if (strcmp(Info_ValueForKey(info.userinfo, "protocol"), "darkplaces "STRINGIFY(NQ_NETCHAN_VERSION)))
 		{
 			SV_RejectMessage (SCP_BAD, "Server is %s.\n", version_string());
 			Con_TPrintf ("* rejected connect from incompatible client\n");
@@ -4165,8 +4222,9 @@ qboolean SV_ConnectionlessPacket (void)
 	}*/
 	else if (!strcmp(c,"getchallenge"))
 	{
-		//qw+q2 always sends "\xff\xff\xff\xffgetchallenge\n"
-		//dp+q3 always sends "\xff\xff\xff\xffgetchallenge"
+		//qw+q2 sends "\xff\xff\xff\xffgetchallenge\n"
+		//dp+q3 sends "\xff\xff\xff\xffgetchallenge"
+		//ioq3 sends "\xff\xff\xff\xffgetchallenge <clientchallenge> <$com_gamename>"
 		//its a subtle difference, but means we can avoid wasteful spam for real qw clients.
 		SVC_GetChallenge ((net_message.cursize==16)?true:false);
 	}
@@ -4407,13 +4465,15 @@ qboolean SVNQ_ConnectionlessPacket(void)
 
 		if (SV_ChallengeRecent())
 			return true;
-		else if (!strncmp(MSG_ReadString(), "getchallenge", 12) && (sv_listen_qw.ival || sv_listen_dp.ival))
+
+		Cmd_TokenizeString (MSG_ReadString(), false, false);
+		if (!strcmp(Cmd_Argv(0), "getchallenge") && (sv_listen_qw.ival || sv_listen_dp.ival))
 		{
 			/*dual-stack client, supporting either DP or QW protocols*/
 			SVC_GetChallenge (false);
 		}
 		else
-		{
+		{	//legacy pure-nq (though often DP).
 			if (progstype == PROG_H2)
 			{
 				SZ_Clear(&sb);

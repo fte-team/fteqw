@@ -145,7 +145,7 @@ static void SL_TitlesDraw (int x, int y, menucustom_t *ths, emenu_t *menu)
 	else
 		clr = 'B';
 	x = ths->common.width;
-	if (mx > x || mousecursor_y < y || mousecursor_y >= y+8)
+	if ((mx > x || mousecursor_y < y || mousecursor_y >= y+8) && !serverpreview)
 		filldraw = true;
 	if (sb_showtimelimit.value)	{SL_DrawColumnTitle(&x, y, 3*8, mx, "tl", (sf==SLKEY_TIMELIMIT), clr, &filldraw);}
 	if (sb_showfraglimit.value)	{SL_DrawColumnTitle(&x, y, 3*8, mx, "fl", (sf==SLKEY_FRAGLIMIT), clr, &filldraw);}
@@ -268,8 +268,9 @@ static servertypes_t flagstoservertype(int flags)
 
 	switch(flags & SS_PROTOCOLMASK)
 	{
+	case SS_QEPROT:
+		return ST_NETQUAKE;
 	case SS_NETQUAKE:
-	case SS_DARKPLACES:
 		return ST_NETQUAKE;
 	case SS_QUAKE2:
 		return ST_QUAKE2;
@@ -308,7 +309,7 @@ static void SL_ServerDraw (int x, int y, menucustom_t *ths, emenu_t *menu)
 				serverhighlight[(int)stype][2],
 				1.0));
 		}
-		else if (thisone == info->scrollpos + (int)(mousecursor_y-info->servers_top)/8 && mousecursor_x < x)
+		else if (thisone == info->scrollpos + (int)(mousecursor_y-info->servers_top)/8 && mousecursor_x < x && !serverpreview)
 			R2D_ImageColours(SRGBA((sin(realtime*4.4)*0.25)+0.5, (sin(realtime*4.4)*0.25)+0.5, 0.08, sb_alpha.value));
 		else if (selectedserver.inuse && NET_CompareAdr(&si->adr, &selectedserver.adr) && !strcmp(si->brokerid, selectedserver.brokerid))
 			R2D_ImageColours(SRGBA(((sin(realtime*4.4)*0.25)+0.5) * 0.5, ((sin(realtime*4.4)*0.25)+0.5)*0.5, 0.08*0.5, sb_alpha.value));
@@ -852,9 +853,11 @@ dojoin:
 			}
 
 			//which connect command are we using?
-			if ((server->special & SS_PROTOCOLMASK) == SS_NETQUAKE)
-				Cbuf_AddText("nqconnect ", RESTRICT_LOCAL);
+#ifdef NQPROT
+			if ((server->special & SS_PROTOCOLMASK) == SS_QEPROT)
+				Cbuf_AddText("connectqe ", RESTRICT_LOCAL);
 			else
+#endif
 				Cbuf_AddText("connect ", RESTRICT_LOCAL);
 
 			//output the server's address
@@ -1108,7 +1111,6 @@ static void CalcFilters(emenu_t *menu)
 	else
 	{
 		if (info->filter[SLFILTER_HIDENETQUAKE]) Master_SetMaskInteger(false, SLKEY_BASEGAME, SS_NETQUAKE, SLIST_TEST_NOTEQUAL);
-		if (info->filter[SLFILTER_HIDENETQUAKE]) Master_SetMaskInteger(false, SLKEY_BASEGAME, SS_DARKPLACES, SLIST_TEST_NOTEQUAL);
 		if (info->filter[SLFILTER_HIDEQUAKEWORLD]) Master_SetMaskInteger(false, SLKEY_BASEGAME, SS_QUAKEWORLD, SLIST_TEST_NOTEQUAL);
 	}
 	if (info->filter[SLFILTER_HIDEPROXIES]) Master_SetMaskInteger(false, SLKEY_FLAGS, SS_PROXY, SLIST_TEST_NOTCONTAIN);
@@ -1351,9 +1353,11 @@ static void M_QuickConnect_PreDraw(emenu_t *menu)
 		{
 			Con_Printf("Quick connect found %s (gamedir %s, players %i/%i/%i, ping %ims)\n", best->name, best->gamedir, best->numhumans, best->players, best->maxplayers, best->ping);
 
-			if ((best->special & SS_PROTOCOLMASK) == SS_NETQUAKE)
-				Cbuf_AddText(va("nqconnect %s\n", Master_ServerToString(adr, sizeof(adr), best)), RESTRICT_LOCAL);
+#ifdef NQPROT
+			if ((best->special & SS_PROTOCOLMASK) == SS_QEPROT)
+				Cbuf_AddText(va("connectqe %s\n", Master_ServerToString(adr, sizeof(adr), best)), RESTRICT_LOCAL);
 			else
+#endif
 				Cbuf_AddText(va("join %s\n", Master_ServerToString(adr, sizeof(adr), best)), RESTRICT_LOCAL);
 
 			M_ToggleMenu_f();

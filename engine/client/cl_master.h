@@ -22,17 +22,18 @@ enum masterprotocol_e
 #define SS_UNKNOWN		0
 #define SS_QUAKEWORLD	1
 #define SS_NETQUAKE		2
-#define SS_DARKPLACES	3
-#define SS_QUAKE2		4
-#define SS_QUAKE3		5
+#define SS_QUAKE2		3
+#define SS_QUAKE3		4
+#define SS_QEPROT		5	//needs dtls and a different ccreq version
 //#define SS_UNUSED		6
 //#define SS_UNUSED		7
 
 #define SS_LOCAL		(1<<3u)	//local servers are ones we detected without being listed on a master server (masters will report public ips, so these may appear as dupes if they're also public)
-#define SS_FTESERVER	(1<<4u)	//hehehe...
+#define SS_FTESERVER	(1<<4u)	//just highlighting differences, to give some impression of superiority.
 #define SS_FAVORITE		(1<<5u)	//filter all others.
 #define SS_KEEPINFO		(1<<6u)
-#define SS_PROXY		(1<<7u)
+#define SS_GETINFO		(1<<7u)	//explicitly query via getinfo
+#define SS_PROXY		(1<<8u)	//qizmo/qwfwd/qtv/eztv
 
 #define PING_DEAD		0xffff	//default ping value to denote servers that are not responding.
 #define PING_UNKNOWN	0xfffe	//these servers are considered up, but we can't query them directly so can't determine the final ping from here.

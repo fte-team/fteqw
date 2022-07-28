@@ -2758,12 +2758,17 @@ static void Con_DrawModelPreview(model_t *model, float x, float y, float w, floa
 	ent.framestate.g[FS_REG].lerpweight[0] = 1;
 	ent.framestate.g[FS_REG].frametime[0] = ent.framestate.g[FS_REG].frametime[1] = realtime;
 	ent.framestate.g[FS_REG].endbone = 0x7fffffff;
-	ent.customskin = Mod_RegisterSkinFile(va("%s_0.skin", model->publicname));
-	if (ent.customskin == 0)
+	if (model->submodelof)
+		;
+	else
 	{
-		char haxxor[MAX_QPATH];
-		COM_StripExtension(model->publicname, haxxor, sizeof(haxxor));
-		ent.customskin = Mod_RegisterSkinFile(va("%s_default.skin", haxxor));
+		ent.customskin = Mod_RegisterSkinFile(va("%s_0.skin", model->publicname));
+		if (ent.customskin == 0)
+		{
+			char haxxor[MAX_QPATH];
+			COM_StripExtension(model->publicname, haxxor, sizeof(haxxor));
+			ent.customskin = Mod_RegisterSkinFile(va("%s_default.skin", haxxor));
+		}
 	}
 
 	Vector4Set(ent.shaderRGBAf, 1,1,1,1);

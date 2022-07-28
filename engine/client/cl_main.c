@@ -6647,6 +6647,8 @@ double Host_Frame (double time)
 		}
 		else
 			fps_count++;
+
+		sh_config.showbatches = false;
 	}
 
 	if (host_speeds.ival)

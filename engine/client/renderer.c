@@ -685,6 +685,13 @@ void R_ListSkins_f(void)
 void R_SetRenderer_f (void);
 void R_ReloadRenderer_f (void);
 
+#ifdef _DEBUG
+static void R_ShowBatches_f(void)
+{
+	sh_config.showbatches = true;
+}
+#endif
+
 void R_ToggleFullscreen_f(void)
 {
 	double time;
@@ -759,6 +766,10 @@ void Renderer_Init(void)
 	Cmd_AddCommand("r_dumpshaders", Shader_WriteOutGenerics_f);
 	Cmd_AddCommand("r_remapshader", Shader_RemapShader_f);
 	Cmd_AddCommand("r_showshader", Shader_ShowShader_f);
+
+#ifdef _DEBUG
+	Cmd_AddCommand("r_showbatches", R_ShowBatches_f);
+#endif
 
 #ifdef SWQUAKE
 	{

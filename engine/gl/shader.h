@@ -853,6 +853,8 @@ typedef struct
 	qboolean (*pCreateProgram)	(program_t *prog, struct programpermu_s *permu, int ver, const char **precompilerconstants, const char *vert, const char *tcs, const char *tes, const char *geom, const char *frag, qboolean noerrors, vfsfile_t *blobfile);
 	qboolean (*pValidateProgram)(program_t *prog, struct programpermu_s *permu, qboolean noerrors, vfsfile_t *blobfile);
 	void	 (*pProgAutoFields)	(program_t *prog, struct programpermu_s *permu, char **cvarnames, int *cvartypes);
+
+	qboolean showbatches;	//print batches... cleared at end of video frame.
 } sh_config_t;
 extern sh_config_t sh_config;
 #endif

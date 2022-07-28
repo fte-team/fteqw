@@ -1,11 +1,6 @@
 #include "quakedef.h"
 
 //#define FORCESTATE
-#ifdef _DEBUG
-#define DRAWCALL(f) if (developer.ival==-1) Con_Printf(f " (shader %s, ent %i)\n", shaderstate.curshader->name, (shaderstate.curbatch && shaderstate.curbatch->ent)?shaderstate.curbatch->ent->keynum:0)
-#else
-#define DRAWCALL(f)
-#endif
 
 void DumpGLState(void);
 
@@ -218,6 +213,42 @@ struct {
 	int maxwbatches;
 	batch_t *wbatches;
 } shaderstate;
+
+#ifdef _DEBUG
+#define DRAWCALL(f) if (sh_config.showbatches) BE_PrintDrawCall(f)
+#include "pr_common.h"
+static void BE_PrintDrawCall(const char *msg)
+{
+	char shadername[512];
+	char modelname[512];
+	int num;
+
+	Q_snprintfz(shadername, sizeof(shadername), "^[%-16s\\tipimg\\%s\\tipimgtype\\%i\\tip\\%s^]",
+			shaderstate.curshader->name,
+			shaderstate.curshader->name,shaderstate.curshader->usageflags,
+			shaderstate.curshader->name);
+
+	if (shaderstate.curbatch && shaderstate.curbatch->ent)
+	{
+		num = shaderstate.curbatch->ent->keynum;
+		if (shaderstate.curbatch->ent->model)
+			Q_snprintfz(modelname, sizeof(modelname), " - ^[%s\\modelviewer\\%s^]",
+				shaderstate.curbatch->ent->model->name, shaderstate.curbatch->ent->model->name);
+		else
+			*modelname = 0;
+#ifdef HAVE_SERVER
+		if (num >= 1 && num < sv.world.num_edicts)
+			Con_Printf("%s shader %s ent %i%s - \"%s\"\n", msg, shadername, shaderstate.curbatch->ent->keynum, modelname, sv.world.progs->StringToNative(sv.world.progs, (WEDICT_NUM_PB(sv.world.progs, num))->v->classname));
+		else
+#endif
+			Con_Printf("%s shader %s ent %i%s\n", msg, shadername, shaderstate.curbatch->ent->keynum, modelname);
+	}
+	else
+		Con_Printf("%s shader %s\n", msg, shadername);
+}
+#else
+#define DRAWCALL(f)
+#endif
 
 static void BE_PolyOffset(void)
 {

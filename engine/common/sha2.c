@@ -132,6 +132,9 @@ static void sha2trunc_init (void *context)
   hd->count = 0;
 }
 
+#if defined(__GNUC__) && (__GNUC__==10)
+	__attribute__((optimize("no-tree-bit-ccp")))	//gcc (Debian 10.2.1-6) 10.2.1 20210110 miscompiles without this (eg: test webrtc compat with a browser)
+#endif
 fte_inlinestatic u64
 ROTR (u64 x, u64 n)
 {

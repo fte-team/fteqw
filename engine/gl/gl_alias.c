@@ -1567,7 +1567,7 @@ qboolean R_CalcModelLighting(entity_t *e, model_t *clmodel)
 	//MORE HUGE HACKS! WHEN WILL THEY CEASE!
 		// clamp lighting so it doesn't overbright as much
 		// ZOID: never allow players to go totally black
-		if (clmodel->engineflags & MDLF_PLAYER)
+		if (e->playerindex >= 0)
 		{
 			float fb = r_fullbrightSkins.value;
 			if (fb > cls.allow_fbskins)

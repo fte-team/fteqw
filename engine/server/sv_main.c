@@ -5020,11 +5020,19 @@ void SV_CheckTimeouts (void)
 				SV_BroadcastTPrintf (PRINT_HIGH, "Client %s timed out\n", cl->name);
 				SV_DropClient (cl);
 				cl->state = cs_free;	// don't bother with zombie state for local player.
+				if (cl->netchan.remote_address.type != NA_INVALID)
+					NET_TerminateRoute(svs.sockets, &cl->netchan.remote_address);
+				cl->netchan.remote_address.type = NA_INVALID;
 			}
 		}
 
 		if (cl->state == cs_zombie && realtime - cl->connection_started > zombietime.value)
+		{
 			cl->state = cs_free;	// can now be reused
+			if (cl->netchan.remote_address.type != NA_INVALID)
+				NET_TerminateRoute(svs.sockets, &cl->netchan.remote_address);
+			cl->netchan.remote_address.type = NA_INVALID;
+		}
 
 		if (cl->state == cs_loadzombie && realtime - cl->connection_started > zombietime.value)
 		{

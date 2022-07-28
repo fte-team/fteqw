@@ -86,7 +86,11 @@ int		net_drop;
 cvar_t	showpackets = CVAR("showpackets", "0");
 cvar_t	showdrop = CVAR("showdrop", "0");
 cvar_t	qport = CVARF("qport_", "0", CVAR_NOSAVE);
+#ifdef FTE_TARGET_WEB //with webrtc our packets will be layered over sctp(header=28,extras=20ish) over dtls(13),
+cvar_t	net_mtu = CVARD("net_mtu", "1384", "Specifies a maximum udp payload size, above which packets will be fragmented. If routers all worked properly this could be some massive value, and some massive value may work really nicely for lans. Use smaller values than the default if you're connecting through nested tunnels through routers that fail with IP fragmentation.");
+#else
 cvar_t	net_mtu = CVARD("net_mtu", "1440", "Specifies a maximum udp payload size, above which packets will be fragmented. If routers all worked properly this could be some massive value, and some massive value may work really nicely for lans. Use smaller values than the default if you're connecting through nested tunnels through routers that fail with IP fragmentation.");
+#endif
 cvar_t	net_compress = CVARD("net_compress", "0", "Enables huffman compression of network packets.");
 
 cvar_t	pext_vrinputs = CVARD("_pext_vrinputs", "0", "RENAME ME WHEN STABLE. Networks player inputs slightly differently, allowing for greater capabilities, particuarly vr controller info.");

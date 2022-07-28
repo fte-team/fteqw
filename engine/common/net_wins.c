@@ -8199,7 +8199,7 @@ neterr_t NET_SendPacket (ftenet_connections_t *collection, int length, const voi
 
 #ifdef SUPPORT_ICE
 	if (to->type == NA_ICE)
-		return ICE_SendPacket(collection, length, data, to);
+		return ICE_SendPacket(length, data, to);
 #endif
 #ifdef HAVE_DTLS
 	if (to->prot == NP_DTLS)
@@ -8255,6 +8255,24 @@ qboolean NET_EnsureRoute(ftenet_connections_t *collection, char *routename, char
 		break;
 	}
 	return true;
+}
+void NET_TerminateRoute(ftenet_connections_t *collection, netadr_t *adr)
+{
+	switch(adr->prot)
+	{
+	case NP_DTLS:
+#ifdef HAVE_DTLS
+		NET_DTLS_Disconnect(collection, adr);
+#endif
+		break;
+	default:
+		break;
+	}
+
+#ifdef SUPPORT_ICE
+	if (adr->type == NA_ICE)
+		ICE_Terminate(adr);
+#endif
 }
 
 int NET_EnumerateAddresses(ftenet_connections_t *collection, struct ftenet_generic_connection_s **con, unsigned int *adrflags, netadr_t *addresses, const char **adrparams, int maxaddresses)

@@ -2068,13 +2068,29 @@ static qboolean QDECL ICE_Set(struct icestate_s *con, const char *prop, const ch
 	{
 		int oldstate = con->state;
 		if (!strcmp(value, STRINGIFY(ICE_CONNECTING)))
+		{
 			con->state = ICE_CONNECTING;
+			if (net_ice_debug.ival >= 1)
+				Con_Printf(S_COLOR_GRAY"[%s]: ice state connecting\n", con->friendlyname);
+		}
 		else if (!strcmp(value, STRINGIFY(ICE_INACTIVE)))
+		{
 			con->state = ICE_INACTIVE;
+			if (net_ice_debug.ival >= 1)
+				Con_Printf(S_COLOR_GRAY"[%s]: ice state inactive\n", con->friendlyname);
+		}
 		else if (!strcmp(value, STRINGIFY(ICE_FAILED)))
+		{
 			con->state = ICE_FAILED;
+			if (net_ice_debug.ival >= 1)
+				Con_Printf(S_COLOR_GRAY"[%s]: ice state failed\n", con->friendlyname);
+		}
 		else if (!strcmp(value, STRINGIFY(ICE_CONNECTED)))
+		{
 			con->state = ICE_CONNECTED;
+			if (net_ice_debug.ival >= 1)
+				Con_Printf(S_COLOR_GRAY"[%s]: ice state connected\n", con->friendlyname);
+		}
 		else
 		{
 			Con_Printf("ICE_Set invalid state %s\n", value);
@@ -2125,12 +2141,60 @@ static qboolean QDECL ICE_Set(struct icestate_s *con, const char *prop, const ch
 #endif
 		}
 
+		if (oldstate != con->state && con->state == ICE_INACTIVE)
+		{	//forget our peer
+			struct icecandidate_s *c;
+			int i;
+			memset(&con->chosenpeer, 0, sizeof(con->chosenpeer));
+
+#ifdef HAVE_DTLS
+			if (con->sctp)
+			{
+				Z_Free(con->sctp->cookie);
+				Z_Free(con->sctp);
+				con->sctp = NULL;
+			}
+			if (con->dtlsstate)
+			{
+				con->dtlsfuncs->DestroyContext(con->dtlsstate);
+				con->dtlsstate = NULL;
+			}
+#endif
+			while(con->rc)
+			{
+				c = con->rc;
+				con->rc = c->next;
+				Z_Free(c);
+			}
+			while(con->lc)
+			{
+				c = con->lc;
+				con->lc = c->next;
+				Z_Free(c);
+			}
+			for (i = 0; i < con->servers; i++)
+			{
+				struct iceserver_s *s = &con->server[i];
+				if (s->con)
+				{	//make sure we tell the TURN server to release our allocation.
+					s->state = TURN_TERMINATING;
+					ICE_ToStunServer(con, s);
+
+					s->con->Close(s->con);
+					s->con = NULL;
+				}
+				Z_Free(s->nonce);
+				s->nonce = NULL;
+				s->peers = 0;
+			}
+		}
+
 		if (oldstate != con->state && con->state == ICE_CONNECTED)
 		{
 			if (con->chosenpeer.type == NA_INVALID)
 			{
 				con->state = ICE_FAILED;
-				Con_Printf("ICE failed. peer not valid.\n");
+				Con_Printf(CON_WARNING"[%s]: ICE failed. peer not valid.\n", con->friendlyname);
 			}
 #ifndef CLIENTONLY
 			else if (con->proto == ICEP_QWSERVER && con->mode != ICEM_WEBRTC)
@@ -2445,7 +2509,7 @@ static qboolean QDECL ICE_Get(struct icestate_s *con, const char *prop, char *va
 		Q_strncatz(value, "t=0 0\n", valuelen);	//start+end times...
 		Q_strncatz(value, va("a=ice-options:trickle\n"), valuelen);
 
-		if ((con->proto == ICEP_QWSERVER || con->proto == ICEP_QWCLIENT) && con->mode == ICEM_WEBRTC)
+		if (con->proto == ICEP_QWSERVER || con->proto == ICEP_QWCLIENT)
 		{
 #ifdef HAVE_DTLS
 			if (con->cred.local.certsize)
@@ -2457,10 +2521,20 @@ static qboolean QDECL ICE_Get(struct icestate_s *con, const char *prop, char *va
 				for (b = 0; b < hash_sha256.digestsize; b++)
 					Q_strncatz(value, va(b?":%02X":" %02X", fingerprint[b]), valuelen);
 				Q_strncatz(value, "\n", valuelen);
+
+				if (con->mode == ICEM_WEBRTC)
+				{
+					Q_strncatz(value, "m=application 9 UDP/DTLS/SCTP webrtc-datachannel\n", valuelen);
+					if (con->mysctpport)
+						Q_strncatz(value, va("a=sctp-port:%i\n", con->mysctpport), valuelen);	//stupid hardcoded thing.
+					if (con->sctpoptional)
+						Q_strncatz(value, "a=sctp-optional:1\n", valuelen);
+				}
+				else
+					Q_strncatz(value, "m=application 9 UDP/DTLS\n", valuelen);
 			}
-			Q_strncatz(value, "m=application 9 UDP/DTLS/SCTP webrtc-datachannel\n", valuelen);
-			if (con->sctpoptional)
-				Q_strncatz(value, "a=sctp-optional:1\n", valuelen);
+			else
+				Q_strncatz(value, "m=application 9 UDP\n", valuelen);
 #endif
 		}
 //		Q_strncatz(value, va("c=IN %s %s\n", sender.type==NA_IPV6?"IP6":"IP4", NET_BaseAdrToString(tmpstr, sizeof(tmpstr), &sender)), valuelen);
@@ -2481,9 +2555,6 @@ static qboolean QDECL ICE_Get(struct icestate_s *con, const char *prop, char *va
 			else if (!strcmp(prop, "sdpoffer"))
 				Q_strncatz(value, va("a=setup:actpass\n"), valuelen);	//don't care if we're active or passive
 		}
-
-		if (con->mysctpport)
-			Q_strncatz(value, va("a=sctp-port:%i\n", con->mysctpport), valuelen);	//stupid hardcoded thing.
 #endif
 
 		/*fixme: merge the codecs into a single media line*/
@@ -2752,6 +2823,8 @@ static void ICE_Destroy(struct icestate_s *con)
 {
 	struct icecandidate_s *c;
 
+	ICE_Set(con, "state", STRINGIFY(ICE_INACTIVE));
+
 #ifdef HAVE_DTLS
 	if (con->sctp)
 	{
@@ -2940,8 +3013,6 @@ void ICE_Tick(void)
 static void QDECL ICE_Close(struct icestate_s *con)
 {
 	struct icestate_s **link;
-
-	ICE_Set(con, "state", STRINGIFY(ICE_INACTIVE));
 
 	for (link = &icelist; *link; )
 	{
@@ -3325,7 +3396,7 @@ struct sctp_errorcause_s
 	quint16_t cause;
 	quint16_t length;
 };
-static void SCTP_ErrorChunk(const char *errortype, struct sctp_errorcause_s *s, size_t totallen)
+static void SCTP_ErrorChunk(struct icestate_s *peer, const char *errortype, struct sctp_errorcause_s *s, size_t totallen)
 {
 	quint16_t cc, cl;
 	while(totallen > 0)
@@ -3337,22 +3408,22 @@ static void SCTP_ErrorChunk(const char *errortype, struct sctp_errorcause_s *s, 
 		if (totallen < cl)
 			return;	//err..
 
-		switch(cc)
+		if (net_ice_debug.ival >= 1) switch(cc)
 		{
-		case 1:		Con_Printf("%s: Invalid Stream Identifier\n",	errortype);	break;
-        case 2:		Con_Printf("%s: Missing Mandatory Parameter\n", errortype);	break;
-        case 3:		Con_Printf("%s: Stale Cookie Error\n",			errortype);	break;
-        case 4:		Con_Printf("%s: Out of Resource\n",				errortype);	break;
-        case 5:		Con_Printf("%s: Unresolvable Address\n",		errortype);	break;
-        case 6:		Con_Printf("%s: Unrecognized Chunk Type\n",		errortype);	break;
-        case 7:		Con_Printf("%s: Invalid Mandatory Parameter\n", errortype);	break;
-        case 8:		Con_Printf("%s: Unrecognized Parameters\n",		errortype);	break;
-        case 9:		Con_Printf("%s: No User Data\n",				errortype);	break;
-        case 10:	Con_Printf("%s: Cookie Received While Shutting Down\n",				errortype);	break;
-        case 11:	Con_Printf("%s: Restart of an Association with New Addresses\n",	errortype);	break;
-        case 12:	Con_Printf("%s: User Initiated Abort\n",		errortype);	break;
-        case 13:	Con_Printf("%s: Protocol Violation [%s]\n",		errortype, (char*)(s+1));	break;
-        default:	Con_Printf("%s: Unknown Reason\n",				errortype);	break;
+		case 1:		Con_Printf(S_COLOR_GRAY"[%s]: SCTP %s: Invalid Stream Identifier\n",	peer->friendlyname, errortype);	break;
+        case 2:		Con_Printf(S_COLOR_GRAY"[%s]: SCTP %s: Missing Mandatory Parameter\n",	peer->friendlyname, errortype);	break;
+        case 3:		Con_Printf(S_COLOR_GRAY"[%s]: SCTP %s: Stale Cookie Error\n",			peer->friendlyname, errortype);	break;
+        case 4:		Con_Printf(S_COLOR_GRAY"[%s]: SCTP %s: Out of Resource\n",				peer->friendlyname, errortype);	break;
+        case 5:		Con_Printf(S_COLOR_GRAY"[%s]: SCTP %s: Unresolvable Address\n",			peer->friendlyname, errortype);	break;
+        case 6:		Con_Printf(S_COLOR_GRAY"[%s]: SCTP %s: Unrecognized Chunk Type\n",		peer->friendlyname, errortype);	break;
+        case 7:		Con_Printf(S_COLOR_GRAY"[%s]: SCTP %s: Invalid Mandatory Parameter\n",	peer->friendlyname, errortype);	break;
+        case 8:		Con_Printf(S_COLOR_GRAY"[%s]: SCTP %s: Unrecognized Parameters\n",		peer->friendlyname, errortype);	break;
+        case 9:		Con_Printf(S_COLOR_GRAY"[%s]: SCTP %s: No User Data\n",					peer->friendlyname, errortype);	break;
+        case 10:	Con_Printf(S_COLOR_GRAY"[%s]: SCTP %s: Cookie Received While Shutting Down\n",			peer->friendlyname, errortype);	break;
+        case 11:	Con_Printf(S_COLOR_GRAY"[%s]: SCTP %s: Restart of an Association with New Addresses\n",	peer->friendlyname, errortype);	break;
+        case 12:	Con_Printf(S_COLOR_GRAY"[%s]: SCTP %s: User Initiated Abort\n",			peer->friendlyname, errortype);	break;
+        case 13:	Con_Printf(S_COLOR_GRAY"[%s]: SCTP %s: Protocol Violation [%s]\n",		peer->friendlyname, errortype, (char*)(s+1));	break;
+        default:	Con_Printf(S_COLOR_GRAY"[%s]: SCTP %s: Unknown Reason\n",				peer->friendlyname, errortype);	break;
 		}
 
 		totallen -= cl;
@@ -3383,7 +3454,7 @@ static void SCTP_Decode(sctp_t *sctp, struct icestate_s *peer, ftenet_connection
 	if (net_message.cursize&3)
 	{
 		if (net_ice_debug.ival >= 2)
-			Con_Printf("SCTP: packet not padded\n");
+			Con_Printf(S_COLOR_GRAY"[%s]: SCTP: packet not padded\n", peer->friendlyname);
 		return;	//mimic chrome, despite it being pointless.
 	}
 
@@ -3402,11 +3473,20 @@ static void SCTP_Decode(sctp_t *sctp, struct icestate_s *peer, ftenet_connection
 				qint32_t adv = tsn - sctp->i.ctsn;
 				sctp->i.ackneeded++;
 				if (adv >= SCTP_RCVSIZE)
-					Con_DPrintf("SCTP: Future Packet\n");/*too far in the future. we can't track such things*/
+				{
+					if (net_ice_debug.ival >= 1)
+						Con_Printf(S_COLOR_GRAY"[%s]: SCTP: Future Packet\n", peer->friendlyname);/*too far in the future. we can't track such things*/
+				}
 				else if (adv <= 0)
-					Con_DPrintf("SCTP: PreCumulative\n");/*already acked this*/
+				{
+					if (net_ice_debug.ival >= 2)
+						Con_Printf(S_COLOR_GRAY"[%s]: SCTP: PreCumulative\n", peer->friendlyname);/*already acked this*/
+				}
 				else if (sctp->i.received[(tsn>>3)%sizeof(sctp->i.received)] & 1<<(tsn&7))
-					Con_DPrintf("SCTP: Dupe\n");/*already processed it. FIXME: Make a list for the next SACK*/
+				{
+					if (net_ice_debug.ival >= 2)
+						Con_DPrintf(S_COLOR_GRAY"[%s]: SCTP: Dupe\n", peer->friendlyname);/*already processed it. FIXME: Make a list for the next SACK*/
+				}
 				else
 				{
 					qboolean err = false;
@@ -3436,7 +3516,8 @@ static void SCTP_Decode(sctp_t *sctp, struct icestate_s *peer, ftenet_connection
 						sctp->i.r.tsn++;
 						if (sctp->i.r.size + clen-sizeof(*dc) > sizeof(sctp->i.r.buf))
 						{
-							Con_DPrintf("SCTP: Oversized\n");
+							if (net_ice_debug.ival >= 2)
+								Con_Printf(S_COLOR_GRAY"[%s]: SCTP: Oversized\n", peer->friendlyname);
 							sctp->i.r.toobig = true;	//reassembled packet was too large, just corrupt it.
 						}
 						else
@@ -3516,7 +3597,8 @@ static void SCTP_Decode(sctp_t *sctp, struct icestate_s *peer, ftenet_connection
 						sctp->peerhasfwdtsn = true;
 						break;
 					default:
-						Con_DPrintf("SCTP: Found unknown init parameter %i||%#x\n", ptype, ptype);
+						if (net_ice_debug.ival >= 2)
+							Con_Printf(S_COLOR_GRAY"[%s]: SCTP: Found unknown init parameter %i||%#x\n", peer->friendlyname, ptype, ptype);
 						break;
 					}
 					p = (void*)((qbyte*)p + ((plen+3)&~3));
@@ -3607,16 +3689,17 @@ static void SCTP_Decode(sctp_t *sctp, struct icestate_s *peer, ftenet_connection
 //		case SCTP_TYPE_PONG:	//we don't send pings
 		case SCTP_TYPE_ABORT:
 			ICE_Set(peer, "state", STRINGIFY(ICE_FAILED));
-			SCTP_ErrorChunk("Abort", (struct sctp_errorcause_s*)(c+1), clen-sizeof(*c));
+			SCTP_ErrorChunk(peer, "Abort", (struct sctp_errorcause_s*)(c+1), clen-sizeof(*c));
 			break;
 		case SCTP_TYPE_SHUTDOWN:	//FIXME. we should send an ack...
 			ICE_Set(peer, "state", STRINGIFY(ICE_FAILED));
-			Con_DPrintf(CON_ERROR"SCTP: Shutdown\n");
+			if (net_ice_debug.ival >= 1)
+				Con_Printf(S_COLOR_GRAY"[%s]: SCTP: Shutdown\n", peer->friendlyname);
 			break;
 //		case SCTP_TYPE_SHUTDOWNACK:	//we don't send shutdowns, cos we're lame like that...
 		case SCTP_TYPE_ERROR:
 			//not fatal...
-			SCTP_ErrorChunk("Error", (struct sctp_errorcause_s*)(c+1), clen-sizeof(*c));
+			SCTP_ErrorChunk(peer, "Error", (struct sctp_errorcause_s*)(c+1), clen-sizeof(*c));
 			break;
 		case SCTP_TYPE_COOKIEECHO:
 			if (clen >= sizeof(struct sctp_chunk_s))
@@ -3666,7 +3749,8 @@ static void SCTP_Decode(sctp_t *sctp, struct icestate_s *peer, ftenet_connection
 //		case SCTP_TYPE_SHUTDOWNDONE:
 		safedefault:
 			//no idea what this chunk is, just ignore it...
-			Con_DPrintf("SCTP: Unsupported chunk %i\n", c->type);
+			if (net_ice_debug.ival >= 1)
+				Con_Printf(S_COLOR_GRAY"[%s]: SCTP: Unsupported chunk %i\n", peer->friendlyname, c->type);
 			break;
 		}
 		c = (struct sctp_chunk_s*)((qbyte*)c + ((clen+3)&~3));	//next chunk is 4-byte aligned.
@@ -4666,7 +4750,19 @@ qboolean ICE_IsEncrypted(netadr_t *to)
 #endif
 	return false;
 }
-neterr_t ICE_SendPacket(ftenet_connections_t *col, size_t length, const void *data, netadr_t *to)
+void ICE_Terminate(netadr_t *to)
+{
+	struct icestate_s *con;
+	for (con = icelist; con; con = con->next)
+	{
+		if (NET_CompareAdr(to, &con->qadr))
+		{
+			ICE_Set(con, "state", STRINGIFY(ICE_INACTIVE));
+			return;
+		}
+	}
+}
+neterr_t ICE_SendPacket(size_t length, const void *data, netadr_t *to)
 {
 	struct icestate_s *con;
 	for (con = icelist; con; con = con->next)

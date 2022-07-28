@@ -545,11 +545,6 @@ static int QDECL SSL_CheckFingerprint(gnutls_session_t session)
 			file->peerhashfunc->process(ctx, certlist[j].data, certlist[j].size);
 		file->peerhashfunc->terminate(digest, ctx);
 
-{
-vfsfile_t *f = FS_OpenVFS("/tmp/cert", "wb", FS_SYSTEM);
-VFS_WRITE(f, certlist[0].data, certlist[0].size);
-VFS_CLOSE(f);
-}
 		if (!memcmp(digest, file->peerdigest, file->peerhashfunc->digestsize))
 			return 0;
 	}
@@ -640,7 +635,7 @@ static int QDECL SSL_Read(struct vfsfile_s *f, void *buffer, int bytestoread)
 			return 0;	//caller is expected to try again later, no real need to loop here, just in case it repeats (eg E_AGAIN)
 		else
 		{
-			Con_Printf("TLS Read Warning %i (bufsize %i)\n", read, bytestoread);
+			Con_Printf("GNUTLS Read Warning %i (bufsize %i)\n", read, bytestoread);
 			return -1;
 		}
 	}
@@ -667,7 +662,7 @@ static int QDECL SSL_Write(struct vfsfile_s *f, const void *buffer, int bytestow
 			return 0;
 		else
 		{
-			Con_DPrintf("TLS Send Error %i (%i bytes)\n", written, bytestowrite);
+			Con_DPrintf("GNUTLS Send Error %i (%i bytes)\n", written, bytestowrite);
 			return VFS_ERROR_UNSPECIFIED;
 		}
 	}
@@ -999,7 +994,9 @@ static qboolean SSL_LoadPrivateCert(gnutls_certificate_credentials_t cred)
 	if (priv.size && pub.size)
 	{	//submit them to gnutls
 		ret = qgnutls_certificate_set_x509_key_mem(cred, &pub, &priv, GNUTLS_X509_FMT_PEM);
-		if (ret < 0)
+		if (ret == GNUTLS_E_CERTIFICATE_KEY_MISMATCH)
+			Con_Printf(CON_ERROR"gnutls_certificate_set_x509_key_mem failed: GNUTLS_E_CERTIFICATE_KEY_MISMATCH\n");
+		else if (ret < 0)
 			Con_Printf(CON_ERROR"gnutls_certificate_set_x509_key_mem failed: %i\n", ret);
 	}
 	else
@@ -1632,7 +1629,7 @@ static qboolean GNUDTLS_GenTempCertificate(const char *subject, struct dtlslocal
 	{
 		qbyte tmp[16];
 		Sys_RandomBytes(tmp, sizeof(tmp));
-		randomsub[Base16_EncodeBlock(tmp, sizeof(tmp), randomsub, sizeof(randomsub))] = 0;
+		randomsub[Base16_EncodeBlock(tmp, sizeof(tmp), randomsub, sizeof(randomsub)-1)] = 0;
 		subject = randomsub;
 	}
 
@@ -1687,7 +1684,7 @@ static const dtlsfuncs_t *GNUDTLS_InitServer(void)
 {
 	if (!SSL_InitGlobal(true))
 		return NULL;	//unable to init a server certificate. don't allow dtls to init.
-	if (servercertfail && !*dtls_psk_user.string)
+	if (servercertfail && !*dtls_psk_user.string)	//FIXME: with ICE connections we'll be using temporary certs anyway.
 		return NULL;
 	return &dtlsfuncs_gnutls;
 }

@@ -152,6 +152,7 @@ int			NET_LocalAddressForRemote(struct ftenet_connections_s *collection, netadr_
 void		NET_PrintAddresses(struct ftenet_connections_s *collection);
 qboolean	NET_AddressSmellsFunny(netadr_t *a);
 qboolean	NET_EnsureRoute(struct ftenet_connections_s *collection, char *routename, char *host, netadr_t *adr);
+void		NET_TerminateRoute(struct ftenet_connections_s *collection, netadr_t *adr);
 void		NET_PrintConnectionsStatus(struct ftenet_connections_s *collection);
 
 enum addressscope_e
@@ -204,7 +205,8 @@ void NET_DTLS_Timeouts(struct ftenet_connections_s *col);
 extern cvar_t dtls_psk_hint, dtls_psk_user, dtls_psk_key;
 #endif
 #ifdef SUPPORT_ICE
-neterr_t ICE_SendPacket(struct ftenet_connections_s *col, size_t length, const void *data, netadr_t *to);
+neterr_t ICE_SendPacket(size_t length, const void *data, netadr_t *to);
+void ICE_Terminate(netadr_t *to); //if we kicked the client/etc, kill their ICE too.
 qboolean ICE_IsEncrypted(netadr_t *to);
 void ICE_Init(void);
 #endif

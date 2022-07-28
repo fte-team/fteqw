@@ -53,12 +53,12 @@ void GLBE_ClearVBO(vbo_t *vbo, qboolean dataonly)
 	{
 		if (!vboh[i])
 			continue;
-		for (j = 0; j < 7; j++)
+		for (j = 0; j < i; j++)
 		{
 			if (vboh[j] == vboh[i])
 				break;	//already freed by one of the other ones
 		}
-		if (j == 7)
+		if (j == i)
 			qglDeleteBuffersARB(1, &vboh[i]);
 	}
 	if (vbo->vertdata)

@@ -5767,7 +5767,7 @@ void Mod_LoadSpriteShaders(model_t *spr)
 Mod_LoadSpriteFrame
 =================
 */
-static void * Mod_LoadSpriteFrame (model_t *mod, void *pin, void *pend, mspriteframe_t **ppframe, int framenum, int version, unsigned char *palette)
+static void * Mod_LoadSpriteFrame (model_t *mod, void *pin, void *pend, mspriteframe_t **ppframe, int framenum, int subframe, int version, unsigned char *palette)
 {
 	dspriteframe_t		*pinframe;
 	mspriteframe_t		*pspriteframe;
@@ -5816,7 +5816,10 @@ static void * Mod_LoadSpriteFrame (model_t *mod, void *pin, void *pend, mspritef
 		lowresfmt = TF_INVALID;
 	}
 
-	Q_snprintfz(name, sizeof(name), "%s_%i.tga", mod->name, framenum);
+	if (subframe == -1)
+		Q_snprintfz(name, sizeof(name), "%s_%i.tga", mod->name, framenum);
+	else
+		Q_snprintfz(name, sizeof(name), "%s_%i_%i.tga", mod->name, framenum, subframe);
 	pspriteframe->image = Image_GetTexture(name, "sprites", IF_NOMIPMAP|IF_NOGAMMA|IF_CLAMP|IF_PREMULTIPLYALPHA, dataptr, palette, width, height, lowresfmt);
 
 	return (void *)((qbyte *)(pinframe+1) + size);
@@ -5877,7 +5880,7 @@ static void * Mod_LoadSpriteGroup (model_t *mod, void * pin, void *pend, msprite
 
 	for (i=0 ; i<numframes ; i++)
 	{
-		ptemp = Mod_LoadSpriteFrame (mod, ptemp, pend, &pspritegroup->frames[i], framenum * 100 + i, version, palette);
+		ptemp = Mod_LoadSpriteFrame (mod, ptemp, pend, &pspritegroup->frames[i], framenum, i, version, palette);
 	}
 
 	return ptemp;
@@ -6032,7 +6035,7 @@ qboolean QDECL Mod_LoadSpriteModel (model_t *mod, void *buffer, size_t fsize)
 		{
 			pframetype = (dspriteframetype_t *)
 					Mod_LoadSpriteFrame (mod, pframetype + 1, (qbyte*)buffer + fsize,
-										 &psprite->frames[i].frameptr, i, version, pal);
+										 &psprite->frames[i].frameptr, i, -1, version, pal);
 		}
 		else
 		{

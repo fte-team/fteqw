@@ -7986,10 +7986,11 @@ static double SVFTE_ExecuteClientMove(client_t *controller)
 	unsigned int loss = (flags & VRM_LOSS)?MSG_ReadByte():0;
 	double delay = (flags & VRM_DELAY)?MSG_ReadByte()/10000.0:0;	//networked as 10ths of a millisecond.
 	unsigned int numacks = (flags & VRM_ACKS)?MSG_ReadUInt64():0;
-	usercmd_t old;
+	usercmd_t oldcmd, newcmd;
 
 	unsigned int seat, frame, a;
 	qboolean ran;
+	unsigned int dropsequence;	//sequence<=this will be ignored as stale
 
 #define VRM_UNSUPPORTED (~(VRM_LOSS|VRM_DELAY|VRM_SEATS|VRM_FRAMES|VRM_ACKS))
 	if (flags & VRM_UNSUPPORTED)
@@ -8021,7 +8022,7 @@ static double SVFTE_ExecuteClientMove(client_t *controller)
 		if (!split)
 		{	//err, they sent too many seats... assume we kicked one. swallow the extra data.
 			for (frame = 0; frame < frames; frame++)
-				MSGFTE_ReadDeltaUsercmd(&nullcmd, &old);
+				MSGFTE_ReadDeltaUsercmd(&nullcmd, &newcmd);
 			continue;
 		}
 
@@ -8035,12 +8036,24 @@ static double SVFTE_ExecuteClientMove(client_t *controller)
 		split->isindependant = !(sv_nqplayerphysics.ival || split->state < cs_spawned || SV_PlayerPhysicsQC || sv.paused || !sv.world.worldmodel || sv.world.worldmodel->loadstate != MLS_LOADED);
 
 		ran = false;
-		old = nullcmd;
+		oldcmd = nullcmd;
+		dropsequence = split->lastcmd.sequence;
 		for (frame = 0; frame < frames; frame++)
 		{
-			MSGFTE_ReadDeltaUsercmd(&old, &split->lastcmd);
-			split->lastcmd.sequence = controller->netchan.outgoing_sequence - (frames-frame-1);
-			old = split->lastcmd;
+			MSGFTE_ReadDeltaUsercmd(&oldcmd, &newcmd);
+			newcmd.sequence = controller->netchan.outgoing_sequence - (frames-frame-1);
+			oldcmd = newcmd;
+
+			if (newcmd.sequence <= dropsequence)
+				continue;	//this one is a dupe.
+
+			newcmd.msec = newcmd.servertime - split->lastcmd.servertime;
+
+			if (oldcmd.msec && newcmd.msec != oldcmd.msec)
+				if (sv_showpredloss.ival)
+					Con_Printf("%s: %g -> %g\n", split->name, newcmd.msec, oldcmd.msec);
+
+			split->lastcmd = newcmd;
 			split->lastcmd.angles[0] += split->baseangles[0];
 			split->lastcmd.angles[1] += split->baseangles[1];
 			split->lastcmd.angles[2] += split->baseangles[2];
@@ -8054,10 +8067,6 @@ static double SVFTE_ExecuteClientMove(client_t *controller)
 
 			if (split->state == cs_spawned)
 			{
-				//handle impulse here, doing it later might mean it got skipped entirely (nq physics often skips frames).
-				if (split->lastcmd.impulse)
-					split->edict->v->impulse = split->lastcmd.impulse;
-
 				if (split->isindependant)
 				{	//this protocol uses bigger timestamps instead of msecs
 					unsigned int curtime = sv.time*1000;
@@ -8082,13 +8091,16 @@ static double SVFTE_ExecuteClientMove(client_t *controller)
 							ran=true;
 						}
 
-						split->lastcmd.msec = split->lastcmd.servertime - split->lastruncmd;
 						SV_RunCmd (&split->lastcmd, false);
 						split->lastruncmd = split->lastcmd.servertime;
 					}
 				}
 				else
 				{
+					//handle impulse here, doing it later might mean it got skipped entirely (nq physics often skips frames).
+					if (split->lastcmd.impulse)
+						split->edict->v->impulse = split->lastcmd.impulse;
+
 					SV_SetEntityButtons(split->edict, split->lastcmd.buttons);
 					split->lastcmd.buttons = 0;
 				}

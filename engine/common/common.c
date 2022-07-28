@@ -1500,6 +1500,7 @@ void MSGQ2_WriteDeltaUsercmd (sizebuf_t *buf, const usercmd_t *from, const userc
 #define	UC_RIGHT		(1<<4)
 #define	UC_BUTTONS		(1<<5)
 #define	UC_IMPULSE		(1<<6)
+
 #define	UC_UP			(1<<7)	//split from forward/right because its rare, and this avoids sending an extra byte.
 #define UC_ABSANG		(1<<8)	//angle values are shorts
 #define UC_BIGMOVES		(1<<9)	//fwd/left/up are shorts, rather than a fith.
@@ -1507,13 +1508,15 @@ void MSGQ2_WriteDeltaUsercmd (sizebuf_t *buf, const usercmd_t *from, const userc
 #define	UC_CURSORFLDS	(1<<11)	//lots of data in one.
 #define	UC_LIGHTLEV		(1<<12)
 #define	UC_VR_HEAD		(1<<13)
+
 #define	UC_VR_RIGHT		(1<<14)
 #define	UC_VR_LEFT		(1<<15)
 //#define	UC_UNUSED		(1<<16)
 //#define	UC_UNUSED		(1<<17)
-//#define	UC_UNUSED		(1<<18)
+#define	UC_MSEC_DEBUG		(1<<18)	//FIXME: temporary
 //#define	UC_UNUSED		(1<<19)
 //#define	UC_UNUSED		(1<<20)
+
 //#define	UC_UNUSED		(1<<21)
 //#define	UC_UNUSED		(1<<22)
 //#define	UC_UNUSED		(1<<23)
@@ -1521,11 +1524,12 @@ void MSGQ2_WriteDeltaUsercmd (sizebuf_t *buf, const usercmd_t *from, const userc
 //#define	UC_UNUSED		(1<<25)
 //#define	UC_UNUSED		(1<<26)
 //#define	UC_UNUSED		(1<<27)
+
 //#define	UC_UNUSED		(1<<28)
 //#define	UC_UNUSED		(1<<29)
 //#define	UC_UNUSED		(1<<30)
 //#define	UC_UNUSED		(1<<31)
-#define UC_UNSUPPORTED (~(UC_ANGLE1 | UC_ANGLE2 | UC_ANGLE3 | UC_FORWARD | UC_RIGHT | UC_BUTTONS | UC_IMPULSE | UC_UP | UC_ABSANG | UC_BIGMOVES | UC_WEAPON | UC_CURSORFLDS | UC_LIGHTLEV | UC_VR_HEAD | UC_VR_RIGHT | UC_VR_LEFT))
+#define UC_UNSUPPORTED (~(UC_ANGLE1 | UC_ANGLE2 | UC_ANGLE3 | UC_FORWARD | UC_RIGHT | UC_BUTTONS | UC_IMPULSE | UC_UP | UC_ABSANG | UC_BIGMOVES | UC_WEAPON | UC_CURSORFLDS | UC_LIGHTLEV | UC_VR_HEAD | UC_VR_RIGHT | UC_VR_LEFT | UC_MSEC_DEBUG))
 
 #define UC_VR_STATUS		(1<<0)
 #define UC_VR_ANG			(1<<1)
@@ -1651,10 +1655,17 @@ void MSGFTE_WriteDeltaUsercmd (sizebuf_t *buf, const short baseangles[3], const 
 	if (MSG_CompareVR(VRDEV_LEFT, from, cmd))
 		bits |= UC_VR_LEFT;
 
+#ifdef _DEBUG
+	if (developer.ival)
+		bits |= UC_MSEC_DEBUG;
+#endif
+
 	//NOTE: WriteUInt64 actually uses some length coding, so its not quite as bloated as it looks.
 	MSG_WriteUInt64(buf, bits);
 
 	MSG_WriteUInt64(buf, cmd->servertime-from->servertime);
+	if (bits & UC_MSEC_DEBUG)
+		MSG_WriteUInt64(buf, cmd->msec);
 	for (i = 0; i < 3; i++)
 	{
 		if (bits & (UC_ANGLE1<<i))
@@ -1768,6 +1779,10 @@ void MSGFTE_ReadDeltaUsercmd (const usercmd_t *from, usercmd_t *cmd)
 	*cmd = *from;
 	cmd->servertime = from->servertime+MSG_ReadUInt64();
 	cmd->fservertime = cmd->servertime/1000.0;
+	if (bits & UC_MSEC_DEBUG)
+		cmd->msec = MSG_ReadUInt64();	//for debugging only. only sent when developer 1, for now.
+	else
+		cmd->msec = 0;	//no info...
 	for (i = 0; i < 3; i++)
 	{
 		if (bits & (UC_ANGLE1<<i))

@@ -6487,16 +6487,26 @@ char *PF_infokey_Internal (int entnum, const char *key)
 				value = "quake3";	//can actually happen.
 				break;
 			case SCP_NETQUAKE:
-				value = "quake";
+				if (controller->qex)
+					value = "qex15";
+				else
+					value = "quake";
 				break;
 			case SCP_BJP3:
 				value = "bjp3";
 				break;
 			case SCP_FITZ666:
-				if (controller->netchan.netprim.coordtype != COORDTYPE_FIXED_13_3)
-					value = "rmq999";
+				if (controller->qex)
+				{
+					if (controller->netchan.netprim.coordtype != COORDTYPE_FIXED_13_3)
+						value = "qex999";
+					else
+						value = "qex666";
+				}
+				else if (controller->netchan.netprim.coordtype != COORDTYPE_FIXED_13_3)
+					value = controller->fteprotocolextensions2?"rmq999+fte2":"rmq999";
 				else
-					value = "fitz666";
+					value = controller->fteprotocolextensions2?"fitz666+fte2":"fitz666";
 				break;
 			case SCP_DARKPLACES6:
 				value = "dpp6";

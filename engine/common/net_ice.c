@@ -65,6 +65,7 @@ typedef struct
 static cvar_t net_ice_exchangeprivateips = CVARFD("net_ice_exchangeprivateips", "", CVAR_NOTFROMSERVER, "Boolean. When set to 0, hides private IP addresses from your peers. Only addresses determined from the other side of your router will be shared. Setting it to 0 may be desirable but it can cause connections to fail when your router does not support hairpinning, whereas 1 fixes that at the cost of exposing private IP addresses.");
 static cvar_t net_ice_allowstun = CVARFD("net_ice_allowstun", "1", CVAR_NOTFROMSERVER, "Boolean. When set to 0, prevents the use of stun to determine our public address (does not prevent connecting to our peer's server-reflexive candidates).");
 static cvar_t net_ice_allowturn = CVARFD("net_ice_allowturn", "1", CVAR_NOTFROMSERVER, "Boolean. When set to 0, prevents registration of turn connections (does not prevent connecting to our peer's relay candidates).");
+static cvar_t net_ice_allowmdns = CVARFD("net_ice_allowmdns", "1", CVAR_NOTFROMSERVER, "Boolean. When set to 0, prevents the use of multicast-dns to obtain candidates using random numbers instead of revealing private network info.");
 static cvar_t net_ice_relayonly = CVARFD("net_ice_relayonly", "0", CVAR_NOTFROMSERVER, "Boolean. When set to 1, blocks reporting non-relay local candidates, does not attempt to connect to remote candidates other than via a relay.");
 static cvar_t net_ice_usewebrtc = CVARFD("net_ice_usewebrtc", "", CVAR_NOTFROMSERVER, "Use webrtc's extra overheads rather than simple ICE. This makes packets larger and is slower to connect, but is compatible with the web port.");
 static cvar_t net_ice_servers = CVARFD("net_ice_servers", "", CVAR_NOTFROMSERVER, "A space-separated list of ICE servers, eg stun:host.example:3478 or turn:host.example:3478?user=foo?auth=blah");
@@ -72,11 +73,8 @@ static cvar_t net_ice_debug = CVARFD("net_ice_debug", "0", CVAR_NOTFROMSERVER, "
 
 #if 0	//enable this for testing only. will generate excessive error messages with non-hacked turn servers...
 	#define ASCOPE_TURN_REQUIRESCOPE	ASCOPE_HOST //try sending it any address.
-	#define ASCOPE_LCANDIDATE			ASCOPE_HOST	//report ALL addresses
 #else
 	#define ASCOPE_TURN_REQUIRESCOPE	ASCOPE_LAN	//don't report loopback/link-local addresses to turn relays.
-	#define ASCOPE_LCANDIDATE			ASCOPE_LAN	//don't report loopback/link-local addresses over the internet.
-													//FIXME: replace with ASCOPE_NET and report mDNS .local names instead
 #endif
 
 /*
@@ -116,6 +114,7 @@ struct icecandidate_s
 	netadr_t peer;
 	//peer needs telling or something.
 	qboolean dirty;
+	qboolean ismdns;		//indicates that the candidate is a .local domain and thus can be shared without leaking private info.
 
 	//these are bitmasks. one bit for each local socket.
 	unsigned int reachable;	//looked like it was up a while ago...
@@ -261,6 +260,20 @@ static neterr_t TURN_Encapsulate(struct icestate_s *ice, netadr_t *to, const qby
 static void TURN_AuthorisePeer(struct icestate_s *con, struct iceserver_s *srv, int peer);
 
 static struct icestate_s *icelist;
+
+
+const char *ICE_GetCandidateType(struct icecandinfo_s *info)
+{
+	switch(info->type)
+	{
+	case ICE_HOST:	return "host";
+	case ICE_SRFLX:	return "srflx";
+	case ICE_PRFLX:	return "prflx";
+	case ICE_RELAY:	return "relay";
+	}
+	return "?";
+}
+
 
 static struct icecodecslot_s *ICE_GetCodecSlot(struct icestate_s *ice, int slot)
 {
@@ -1326,20 +1339,444 @@ static void TURN_AuthorisePeer(struct icestate_s *con, struct iceserver_s *srv, 
 	srv->con->SendPacket(srv->con, buf.cursize, buf.data, &srv->addr);
 
 	if (net_ice_debug.ival >= 1)
+		Con_Printf(S_COLOR_GRAY"[%s]: (re)registering %s -> %s:%i (%s)\n", con->friendlyname, srv->realm, rc->info.addr, rc->info.port, ICE_GetCandidateType(&rc->info));
+}
+
+static void QDECL ICE_AddRCandidateInfo(struct icestate_s *con, struct icecandinfo_s *n);
+
+static struct mdns_peer_s
+{
+	double nextretry;
+	int tries;	//stop sending after 4, forget a couple seconds after that.
+
+	struct icestate_s *con;
+	struct icecandinfo_s can;
+
+	struct mdns_peer_s *next;
+} *mdns_peers;
+static SOCKET mdns_socket = INVALID_SOCKET;
+static char mdns_name[2][43];	//client, server (so we reply with the right set of sockets... make per-ice?)
+
+struct dnshdr_s
+{
+	unsigned short tid, flags, questions, answerrr, authrr, addrr;
+};
+static qbyte *MDNS_ReadCName(qbyte *in, qbyte *end, char *out, char *outend)
+{
+	char *cname = out;
+	while (*in && in < end)
 	{
-		const char *candtype;
-		safeswitch(rc->info.type)
+		if (cname != out)
+			*cname++ = '.';
+		if (cname+1+*in > outend)
+			return end;	//if it overflows then its an error.
+		memcpy(cname, in+1, *in);
+		cname += *in;
+		in += 1+*in;
+	}
+	*cname = 0;
+	return ++in;
+}
+static void MDNS_ProcessPacket(qbyte *inmsg, size_t inmsgsize, netadr_t *source)
+{
+	struct dnshdr_s *rh = (struct dnshdr_s *)inmsg;
+	unsigned short flags;
+	qbyte *in, *end;
+	struct {
+		unsigned short idx, count;
+		char name[256];
+		unsigned short type;
+		unsigned short class;
+		unsigned int ttl;
+		qbyte *data;
+		unsigned short datasize;
+	} a;
+	struct mdns_peer_s *peer;
+
+	end = inmsg + inmsgsize;
+
+	//ignore packets from outside the lan...
+	if (NET_ClassifyAddress(source, NULL) > ASCOPE_LAN)
+		return;
+	if (source->port != htons(5353))
+		return;	//don't answer/read anything unless its actually mdns. there's supposed to be legacy stuff, but browsers don't seem to respond to that either so lets just play safe.
+
+	if (inmsgsize < sizeof(*rh))
+		return;	//some kind of truncation...
+
+	flags = ntohs(rh->flags);
+	if (flags & 0x780f)
+		return;	//opcode must be 0, response must be 0
+
+	in = (qbyte*)(rh+1);
+
+	if (rh->questions)
+	{
+		a.count = ntohs(rh->questions);
+		for (a.idx = 0; a.idx < a.count; a.idx++)
 		{
-		case ICE_HOST:	candtype="host";	break;
-		case ICE_SRFLX:	candtype="srflx";	break;
-		case ICE_PRFLX:	candtype="prflx";	break;
-		case ICE_RELAY:	candtype="relay";	break;
-		safedefault: candtype="?";
+			ftenet_connections_t *collection = NULL;
+
+			qbyte *questionstart = in;
+			in = MDNS_ReadCName(in, end, a.name, a.name+sizeof(a.name));
+			if (in+4 > end)
+				return;	//error...
+			a.type = *in++<<8;
+			a.type |= *in++<<0;
+			a.class = *in++<<8;
+			a.class |= *in++<<0;
+
+#ifdef HAVE_CLIENT
+			if (*mdns_name[0] && !strcmp(a.name, mdns_name[0]))
+				collection = cls.sockets;
+#endif
+#ifdef HAVE_SERVER
+			if (*mdns_name[1] && !strcmp(a.name, mdns_name[1]))
+				collection = svs.sockets;
+#endif
+			if (collection && (a.type == 1/*A*/ || a.type == 28/*AAAA*/) && a.class == 1/*IN*/)
+			{
+				qbyte resp[512], *o = resp;
+				int n,m, found=0, sz,ty;
+				netadr_t	addr[16];
+				struct ftenet_generic_connection_s			*gcon[sizeof(addr)/sizeof(addr[0])];
+				unsigned int			flags[sizeof(addr)/sizeof(addr[0])];
+				const char *params[sizeof(addr)/sizeof(addr[0])];
+				struct sockaddr_qstorage dest;
+				const unsigned int ttl = 120;
+
+				m = NET_EnumerateAddresses(collection, gcon, flags, addr, params, sizeof(addr)/sizeof(addr[0]));
+				*o++ = 0;*o++ = 0;	//tid - must be 0 for mdns responses.
+				*o++=0x84;*o++= 0;	//flags
+				*o++ = 0;*o++ = 0;	//questions
+				*o++ = 0;*o++ = 0;	//answers
+				*o++ = 0;*o++ = 0;	//auths
+				*o++ = 0;*o++ = 0;	//additionals
+				for (n = 0; n < m; n++)
+				{
+					if (NET_ClassifyAddress(&addr[n], NULL) == ASCOPE_LAN)
+					{	//just copy a load of crap over
+						if (addr[n].type == NA_IP)
+							sz = 4, ty=1;/*A*/
+						else if (addr[n].type == NA_IPV6)
+							sz = 16, ty=28;/*AAAA*/
+						else
+							continue;	//nope.
+						if (ty != a.type)
+							continue;
+						a.class |= 0x8000;
+
+						if (o+(in-questionstart)+6+sz > resp+sizeof(resp))
+							break;	//won't fit.
+
+						memcpy(o, questionstart, in-questionstart-4);
+						o += in-questionstart-4;
+						*o++ = ty>>8; *o++ = ty;
+						*o++ = a.class>>8; *o++ = a.class;
+						*o++ = ttl>>24; *o++ = ttl>>16; *o++ = ttl>>8; *o++ = ttl>>0;
+						*o++ = sz>>8; *o++ = sz;
+						memcpy(o, &addr[n].address, sz);
+						o+=sz;
+
+						found++;
+					}
+				}
+				resp[6] = found>>8; resp[7] = found&0xff;	//replace the answer count now that we actually know
+
+				if (!found)	//don't bother if we can't actually answer it.
+					continue;
+
+				//send a multicast response... (browsers don't seem to respond to unicasts).
+				if (a.type & 0x8000)
+				{	//they asked for a unicast response.
+					resp[0] = inmsg[0]; resp[1] = inmsg[1];	//redo the tid.
+					sz = NetadrToSockadr(source, &dest);
+				}
+				else
+				{
+					sz = sizeof(struct sockaddr_in);
+					memset(&dest, 0, sz);
+					((struct sockaddr_in*)&dest)->sin_family = AF_INET;
+					((struct sockaddr_in*)&dest)->sin_port = htons(5353);
+					((struct sockaddr_in*)&dest)->sin_addr.s_addr = inet_addr("224.0.0.251");
+				}
+				sendto(mdns_socket, resp, o-resp, 0, (struct sockaddr*)&dest, sz);
+			}
 		}
-		Con_Printf(S_COLOR_GRAY"[%s]: (re)registering %s -> %s:%i (%s)\n", con->friendlyname, srv->realm, rc->info.addr, rc->info.port, candtype);
+	}
+
+	a.count = ntohs(rh->answerrr);
+	for (a.idx = 0; a.idx < a.count; a.idx++)
+	{
+		in = MDNS_ReadCName(in, end, a.name, a.name+sizeof(a.name));
+		if (in+10 > end)
+			return;	//error...
+		a.type = *in++<<8;
+		a.type |= *in++<<0;
+		a.class = *in++<<8;
+		a.class |= *in++<<0;
+		a.ttl = *in++<<24;
+		a.ttl |= *in++<<16;
+		a.ttl |= *in++<<8;
+		a.ttl |= *in++<<0;
+		a.datasize = *in++<<8;
+		a.datasize |= *in++<<0;
+		a.data = in;
+		in += a.datasize;
+		if (in > end)
+			return;
+
+		for (peer = mdns_peers; peer; peer = peer->next)
+		{
+			if (!strcmp(a.name, peer->can.addr))
+			{	//this is the record we were looking for. yay.
+
+				struct icestate_s *ice;
+				for	(ice = icelist; ice; ice = ice->next)
+					if (ice == peer->con)
+						break;
+				if (!ice)
+					break;	//no longer valid...
+
+				if ((a.type&0x7fff) == 1/*A*/ && (a.class&0x7fff) == 1/*IN*/ && a.datasize == 4)
+				{	//we got a proper ipv4 address. yay.
+					Q_snprintfz(peer->can.addr, sizeof(peer->can.addr), "%i.%i.%i.%i", a.data[0], a.data[1], a.data[2], a.data[3]);
+				}
+				else if ((a.type&0x7fff) == 28/*AAAA*/ && (a.class&0x7fff) == 1/*IN*/ && a.datasize == 16)
+				{	//we got a proper ipv4 address. yay.
+					Q_snprintfz(peer->can.addr, sizeof(peer->can.addr), "%04x:%04x:%04x:%04x:%04x:%04x:%04x:%04x",
+							(a.data[ 0]<<8)|a.data[ 1],
+							(a.data[ 2]<<8)|a.data[ 3],
+							(a.data[ 4]<<8)|a.data[ 5],
+							(a.data[ 6]<<8)|a.data[ 7],
+							(a.data[ 8]<<8)|a.data[ 9],
+							(a.data[10]<<8)|a.data[11],
+							(a.data[12]<<8)|a.data[13],
+							(a.data[14]<<8)|a.data[15]);
+				}
+				else
+				{
+					Con_Printf("Useless answer\n");
+					break;
+				}
+				if (net_ice_debug.ival)
+					Con_Printf(S_COLOR_GRAY"[%s]: Resolved %s to %s\n", peer->con->friendlyname, a.name, peer->can.addr);
+				if (peer->tries != 4)
+				{	//first response?...
+					peer->tries = 4;
+					peer->nextretry = Sys_DoubleTime()+0.5;
+				}
+				ICE_AddRCandidateInfo(peer->con, &peer->can);	//restore it, so we can handle alternatives properly.
+				Q_strncpyz(peer->can.addr, a.name, sizeof(peer->can.addr));
+				break;
+			}
+		}
+	}
+}
+static void MDNS_ReadPackets(void)
+{
+	qbyte inmsg[9000];
+	ssize_t inmsgsize;
+	netadr_t adr;
+	struct sockaddr_qstorage source;
+
+	for(;;)
+	{
+		int slen = sizeof(source);
+		inmsgsize = recvfrom(mdns_socket, inmsg, sizeof(inmsg), 0, (struct sockaddr*)&source, &slen);
+		if (inmsgsize <= 0)
+			break;
+		SockadrToNetadr(&source, slen, &adr);
+		MDNS_ProcessPacket(inmsg, inmsgsize, &adr);
 	}
 }
 
+static void MDNS_Shutdown(void)
+{
+	if (mdns_socket == INVALID_SOCKET)
+		return;
+	closesocket(mdns_socket);
+	mdns_socket = INVALID_SOCKET;
+}
+
+static void MDNS_GenChars(char *d, size_t len, qbyte *s)
+{	//big endian hex, big endian data, can just do it by bytes.
+	static char tohex[16] = "0123456789abcdef";
+	for (; len--; s++)
+	{
+		*d++ = tohex[*s>>4];
+		*d++ = tohex[*s&15];
+	}
+}
+static void MDNS_Generate(char name[43])
+{	//generate a suitable mdns name.
+	unsigned char uuid[16];
+	Sys_RandomBytes((char*)uuid, sizeof(uuid));
+
+	uuid[8]&=~(1<<6);	//clear clk_seq_hi_res bit 6
+	uuid[8]|=(1<<7);	//set clk_seq_hi_res bit 7
+
+	uuid[6] &= ~0xf0;	//clear time_hi_and_version's high 4 bits
+	uuid[6] |= 0x40;	//replace with version
+
+	MDNS_GenChars(name+0, 4, uuid+0);
+	name[8] = '-';
+	MDNS_GenChars(name+9, 2, uuid+4);
+	name[13] = '-';
+	MDNS_GenChars(name+14, 2, uuid+6);
+	name[18] = '-';
+	MDNS_GenChars(name+19, 2, uuid+8);
+	name[23] = '-';
+	MDNS_GenChars(name+24, 6, uuid+10);
+	strcpy(name+36, ".local");
+}
+
+static qboolean MDNS_Setup(void)
+{
+	struct sockaddr_in adr;
+	int _true = true;
+//	int _false = false;
+	struct ip_mreq mbrship;
+	qboolean success = true;
+
+	if (mdns_socket != INVALID_SOCKET)
+		return true;	//already got one
+
+	memset(&adr, 0, sizeof(adr));
+	adr.sin_family = AF_INET;
+	adr.sin_port = htons(5353);
+	adr.sin_addr.s_addr = INADDR_ANY;
+
+	memset(&mbrship, 0, sizeof(mbrship));
+	mbrship.imr_multiaddr.s_addr = inet_addr("224.0.0.251");
+
+	//browsers don't seem to let us take the easy route, so we can't just use our existing helpers.
+	mdns_socket = socket (PF_INET, SOCK_CLOEXEC|SOCK_DGRAM, IPPROTO_UDP);
+	if (mdns_socket == INVALID_SOCKET) success = false;
+	if (!success || 0 > ioctlsocket(mdns_socket, FIONBIO, (void*)&_true)) success = false;
+	//other processes on the same host may be listening for mdns packets to insert their own responses (eg two browsers), so we need to ensure that other processes can use the same port. there's no real security here for us (that comes from stun's user/pass stuff).
+	if (!success || 0 > setsockopt (mdns_socket, SOL_SOCKET, SO_REUSEADDR, (const void*)&_true, sizeof(_true))) success = false;
+#ifdef SO_REUSEPORT	//not on windows.
+	if (!success || 0 > setsockopt (mdns_socket, SOL_SOCKET, SO_REUSEPORT, (const void*)&_true, sizeof(_true))) success = false;
+#endif
+#if IP_MULTICAST_LOOP	//ideally we'd prefer to not receive our own requests, but this is host-level, not socket-level, so unusable for communication with browsers on the same machine
+//	if (success)		setsockopt (mdns_socket, IPPROTO_IP, IP_MULTICAST_LOOP, &_false, sizeof(_false));
+#endif
+	if (!success || 0 > setsockopt (mdns_socket, IPPROTO_IP, IP_ADD_MEMBERSHIP, (const void*)&mbrship, sizeof(mbrship))) success = false;
+
+	adr.sin_addr.s_addr = INADDR_ANY;
+	if (!success || bind (mdns_socket, (void *)&adr, sizeof(adr)) < 0)
+		success = false;
+	if (!success)
+	{
+		MDNS_Shutdown();
+		Con_Printf("mdns setup failed\n");
+	}
+	else
+		MDNS_Generate(mdns_name[0]), MDNS_Generate(mdns_name[1]);
+	return success;
+}
+
+static void MDNS_SendQuery(struct mdns_peer_s *peer)
+{
+	char *n = peer->can.addr, *dot;
+	struct sockaddr_in dest;
+	qbyte outmsg[1024], *o = outmsg;
+
+	memset(&dest, 0, sizeof(dest));
+	dest.sin_family = AF_INET;
+	dest.sin_port = htons(5353);
+	dest.sin_addr.s_addr = inet_addr("224.0.0.251");
+
+	*o++ = 0;*o++ = 0;	//tid
+	*o++ = 0;*o++ = 0;	//flags
+	*o++ = 0;*o++ = 1;	//questions
+	*o++ = 0;*o++ = 0;	//answers
+	*o++ = 0;*o++ = 0;	//auths
+	*o++ = 0;*o++ = 0;	//additionals
+
+	//mdns is strictly utf-8. no punycode needed.
+	for(;;)
+	{
+		dot = strchr(n, '.');
+		if (!dot)
+			dot = n + strlen(n);
+		if (dot == n)
+			return; //err... can't write a 0-length label.
+		*o++ = dot-n;
+		memcpy(o, n, dot-n); o += dot-n; n += dot-n;
+		if (!*n)
+			break;
+		n++;
+	}
+	*o++ = 0;
+
+	*o++ = 0; *o++ = 1; //type: 'A' record
+	*o++ = 0; *o++ = 1; //class: 'IN'
+
+	sendto(mdns_socket, outmsg, o-outmsg, 0, (struct sockaddr*)&dest, sizeof(dest));
+	peer->tries++;
+	peer->nextretry = Sys_DoubleTime() + (50/1000.0);
+}
+static void MDNS_SendQueries(void)
+{
+	double time;
+	struct mdns_peer_s *peer, **link;
+	if (mdns_socket == INVALID_SOCKET)
+		return;
+	MDNS_ReadPackets();
+	if (!mdns_peers)
+		return;
+	time = Sys_DoubleTime();
+
+	for (link = &mdns_peers; (peer=*link); )
+	{
+		if (peer->nextretry < time)
+		{
+			if (peer->tries == 4)
+			{	//bye bye.
+				*link = peer->next;
+				BZ_Free(peer);
+				continue;
+			}
+
+			MDNS_SendQuery(peer);
+
+			if (peer->tries == 4)
+				peer->nextretry = Sys_DoubleTime() + 2.0;
+			break;	//don't spam multiple each frame.
+		}
+		link = &peer->next;
+	}
+}
+static void MDNS_AddQuery(struct icestate_s *con, struct icecandinfo_s *can)
+{
+	struct mdns_peer_s *peer;
+	if (!MDNS_Setup())
+		return;
+	peer = Z_Malloc(sizeof(*peer));
+	peer->con = con;
+	peer->can = *can;
+	peer->next = mdns_peers;
+	peer->tries = 0;
+	peer->nextretry = Sys_DoubleTime();
+	mdns_peers = peer;
+	MDNS_SendQuery(peer);
+}
+
+static qboolean MDNS_CharsAreHex(char *s, size_t len)
+{
+	for (; len--; s++)
+	{
+		if (*s >= '0' && *s <= '9')
+			;
+		else if (*s >= 'a' && *s <= 'f')
+			;
+		else
+			return false;
+	}
+	return true;
+}
 
 int ParsePartialIP(const char *s, netadr_t *a);
 static void QDECL ICE_AddRCandidateInfo(struct icestate_s *con, struct icecandinfo_s *n)
@@ -1348,13 +1785,25 @@ static void QDECL ICE_AddRCandidateInfo(struct icestate_s *con, struct icecandin
 	qboolean isnew;
 	netadr_t peer;
 	int peerbits;
-	//I don't give a damn about rtpc.
+	//I don't give a damn about rtcp.
 	if (n->component != 1)
 		return;
 	if (n->transport != 0)
 		return;	//only UDP is supported.
 
-	//don't use the regular string->addr, because browsers seem to shove internal gibberish names in there that waste time to resolve. hostnames don't really make sense here anyway.
+	//check if its an mDNS name - must be a UUID, with a .local on the end.
+	if (net_ice_allowmdns.ival &&
+		MDNS_CharsAreHex(n->addr, 8) && n->addr[8]=='-' &&
+		MDNS_CharsAreHex(n->addr+9, 4) && n->addr[13]=='-' &&
+		MDNS_CharsAreHex(n->addr+14, 4) && n->addr[18]=='-' &&
+		MDNS_CharsAreHex(n->addr+19, 4) && n->addr[23]=='-' &&
+		MDNS_CharsAreHex(n->addr+24, 12) && !strcmp(&n->addr[36], ".local"))
+	{
+		MDNS_AddQuery(con, n);
+		return;
+	}
+
+	//don't use the regular string->addr, they can fail and stall and make us unresponsive etc. hostnames don't really make sense here anyway.
 	peerbits = ParsePartialIP(n->addr, &peer);
 	peer.prot = NP_DGRAM;
 	peer.port = htons(n->port);
@@ -1846,15 +2295,6 @@ static qboolean QDECL ICE_Set(struct icestate_s *con, const char *prop, const ch
 }
 static char *ICE_CandidateToSDP(struct icecandidate_s *can, char *value, size_t valuelen)
 {
-	char *ctype = "?";
-	switch(can->info.type)
-	{
-	default:
-	case ICE_HOST: ctype = "host"; break;
-	case ICE_SRFLX: ctype = "srflx"; break;
-	case ICE_PRFLX: ctype = "prflx"; break;
-	case ICE_RELAY: ctype = "relay"; break;
-	}
 	Q_snprintfz(value, valuelen, "a=candidate:%i %i %s %i %s %i typ %s",
 			can->info.foundation,
 			can->info.component,
@@ -1862,7 +2302,7 @@ static char *ICE_CandidateToSDP(struct icecandidate_s *can, char *value, size_t 
 			can->info.priority,
 			can->info.addr,
 			can->info.port,
-			ctype
+			ICE_GetCandidateType(&can->info)
 			);
 	Q_strncatz(value, va(" generation %i", can->info.generation), valuelen);
 	if (can->info.type != ICE_HOST)
@@ -1882,11 +2322,11 @@ static char *ICE_CandidateToSDP(struct icecandidate_s *can, char *value, size_t 
 
 	return value;
 }
-static qboolean ICE_LCandidateIsPrivate(struct icecandinfo_s *caninfo)
+static qboolean ICE_LCandidateIsPrivate(struct icecandidate_s *caninfo)
 {	//return true for the local candidates that we're actually allowed to report. they'll stay flagged as 'dirty' otherwise.
-	if (!net_ice_exchangeprivateips.ival && caninfo->type == ICE_HOST)
+	if (!net_ice_exchangeprivateips.ival && caninfo->info.type == ICE_HOST && !caninfo->ismdns)
 		return true;
-	if (net_ice_relayonly.ival && caninfo->type != ICE_RELAY)
+	if (net_ice_relayonly.ival && caninfo->info.type != ICE_RELAY)
 		return true;
 	return false;
 }
@@ -1933,7 +2373,7 @@ static qboolean QDECL ICE_Get(struct icestate_s *con, const char *prop, char *va
 		Q_strncpyz(value, "0", valuelen);
 		for (can = con->lc; can; can = can->next)
 		{
-			if (can->dirty && !ICE_LCandidateIsPrivate(&can->info))
+			if (can->dirty && !ICE_LCandidateIsPrivate(can))
 			{
 				Q_strncpyz(value, "1", valuelen);
 				break;
@@ -2167,7 +2607,7 @@ static struct icecandinfo_s *QDECL ICE_GetLCandidateInfo(struct icestate_s *con)
 	{
 		if (can->dirty)
 		{
-			if (ICE_LCandidateIsPrivate(&can->info))
+			if (ICE_LCandidateIsPrivate(can))
 				continue;
 
 			can->dirty = false;
@@ -2223,9 +2663,44 @@ void QDECL ICE_AddLCandidateInfo(struct icestate_s *con, netadr_t *adr, int adrn
 	{
 	case NA_IP:
 	case NA_IPV6:
-		if (NET_ClassifyAddress(adr, NULL) < ASCOPE_LCANDIDATE)
-		{	//don't waste time asking the relay to poke its loopback. if only because it'll report lots of errors.
+		switch(NET_ClassifyAddress(adr, NULL))
+		{
+		case ASCOPE_PROCESS://doesn't make sense.
+		case ASCOPE_HOST:	//don't waste time asking the relay to poke its loopback. if only because it'll report lots of errors.
 			return;
+		case ASCOPE_NET:	//public addresses, just add local candidates as normal
+			break;
+		case ASCOPE_LINK:	//random screwy addresses... hopefully don't need em if we're talking to a broker... no dhcp server is weird.
+			return;
+		case ASCOPE_LAN:	//private addresses. give them random info instead...
+			if (net_ice_allowmdns.ival && MDNS_Setup())
+			{
+				for (cand = con->lc; cand; cand = cand->next)
+				{
+					if (cand->ismdns)
+						return;	//DUPE
+				}
+
+				cand = Z_Malloc(sizeof(*cand));
+				cand->next = con->lc;
+				con->lc = cand;
+				Q_strncpyz(cand->info.addr, mdns_name[con->proto == ICEP_QWSERVER], sizeof(cand->info.addr));
+				cand->info.port = ntohs(adr->port);
+				cand->info.type = type;
+				cand->info.generation = 0;
+				cand->info.foundation = 1;
+				cand->info.component = 1;
+				cand->info.network = adr->connum;
+				cand->dirty = true;
+				cand->ismdns = true;
+
+				Sys_RandomBytes((void*)rnd, sizeof(rnd));
+				Q_strncpyz(cand->info.candidateid, va("x%08x%08x", rnd[0], rnd[1]), sizeof(cand->info.candidateid));
+
+				cand->info.priority = ICE_ComputePriority(adr, &cand->info);
+				return;
+			}
+			break;
 		}
 		break;
 	default:	//bad protocols
@@ -2243,10 +2718,8 @@ void QDECL ICE_AddLCandidateInfo(struct icestate_s *con, netadr_t *adr, int adrn
 	for (cand = con->lc; cand; cand = cand->next)
 	{
 		if (NET_CompareAdr(adr, &cand->peer))
-			break;
+			return; //DUPE
 	}
-	if (cand)
-		return;	//DUPE
 
 	cand = Z_Malloc(sizeof(*cand));
 	cand->next = con->lc;
@@ -2335,6 +2808,13 @@ static void ICE_Destroy(struct icestate_s *con)
 void ICE_Tick(void)
 {
 	struct icestate_s *con;
+	unsigned int curtime;
+
+	if (!icelist)
+		return;
+	curtime = Sys_Milliseconds();
+
+	MDNS_SendQueries();
 
 	for (con = icelist; con; con = con->next)
 	{
@@ -2356,7 +2836,6 @@ void ICE_Tick(void)
 		case ICEM_ICE:
 			if (con->state == ICE_CONNECTING || con->state == ICE_CONNECTED)
 			{
-				unsigned int curtime = Sys_Milliseconds();
 				size_t i, j;
 				struct iceserver_s *srv;
 				for (i = 0; i < con->servers; i++)
@@ -2419,7 +2898,7 @@ void ICE_Tick(void)
 								if (net_ice_debug.ival >= 1)
 								{
 									char msg[64];
-									Con_Printf(S_COLOR_GRAY"[%s]: New peer chosen %s, via %s.\n", con->friendlyname, NET_AdrToString(msg, sizeof(msg), &con->chosenpeer), ICE_NetworkToName(con, con->chosenpeer.connum));
+									Con_Printf(S_COLOR_GRAY"[%s]: New peer chosen %s (%s), via %s.\n", con->friendlyname, NET_AdrToString(msg, sizeof(msg), &con->chosenpeer), ICE_GetCandidateType(&best->info), ICE_NetworkToName(con, con->chosenpeer.connum));
 								}
 							}
 						}
@@ -2817,7 +3296,7 @@ static void SCTP_DecodeDCEP(sctp_t *sctp, struct icestate_s *peer, qbyte *resp)
 
 		sctp->qstreamid = sctp->i.r.sid;
 		if (net_ice_debug.ival >= 1)
-			Con_Printf("New SCTP Channel: \"%s\" (%s)\n", label, prot);
+			Con_Printf(S_COLOR_GRAY"[%s]: New SCTP Channel: \"%s\" (%s)\n", peer->friendlyname, label, prot);
 
 		h->dstport = sctp->peerport;
 		h->srcport = sctp->myport;
@@ -3375,7 +3854,7 @@ qboolean ICE_WasStun(ftenet_connections_t *col)
 							{
 								char str[256];
 								if (net_ice_debug.ival >= 1)
-									Con_Printf(S_COLOR_GRAY"[%s]: We can reach %s\n", con->friendlyname, NET_AdrToString(str, sizeof(str), &net_from));
+									Con_Printf(S_COLOR_GRAY"[%s]: We can reach %s (%s)\n", con->friendlyname, NET_AdrToString(str, sizeof(str), &net_from), ICE_GetCandidateType(&rc->info));
 							}
 							rc->reachable |= 1u<<(net_from.connum-1);
 							rc->reached = Sys_Milliseconds();
@@ -4821,6 +5300,7 @@ void ICE_Init(void)
 	Cvar_Register(&net_ice_exchangeprivateips, "networking");
 	Cvar_Register(&net_ice_allowstun, "networking");
 	Cvar_Register(&net_ice_allowturn, "networking");
+	Cvar_Register(&net_ice_allowmdns, "networking");
 	Cvar_Register(&net_ice_relayonly, "networking");
 	Cvar_Register(&net_ice_usewebrtc, "networking");
 	Cvar_Register(&net_ice_servers, "networking");

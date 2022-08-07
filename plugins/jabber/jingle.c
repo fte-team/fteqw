@@ -22,24 +22,24 @@ static struct c2c_s *JCL_JingleAddContentToSession(jclient_t *jcl, struct c2c_s 
 	}
 	
 	if (piceapi)
-		ice = piceapi->ICE_Create(NULL, sid, with, method, mediatype, creator);
+		ice = piceapi->Create(NULL, sid, with, method, mediatype, creator);
 	if (ice)
 	{
-		piceapi->ICE_Get(ice, "sid", generatedname, sizeof(generatedname));
+		piceapi->Get(ice, "sid", generatedname, sizeof(generatedname));
 		sid = generatedname;
 
 		//the controlling role MUST be assumed by the initiator and the controlled role MUST be assumed by the responder
-		piceapi->ICE_Set(ice, "controller", creator?"1":"0");
+		piceapi->Set(ice, "controller", creator?"1":"0");
 
 		if (creator && mediatype == ICEP_VOICE)
 		{
 			//note: the engine will ignore codecs it does not support.
-			piceapi->ICE_Set(ice, "codec96", "opus@48000");
-			piceapi->ICE_Set(ice, "codec97", "speex@16000");	//wide
-			piceapi->ICE_Set(ice, "codec98", "speex@8000");		//narrow
-			piceapi->ICE_Set(ice, "codec99", "speex@32000");	//ultrawide
-			piceapi->ICE_Set(ice, "codec0", "pcmu@8000");
-			piceapi->ICE_Set(ice, "codec8", "pcma@8000");
+			piceapi->Set(ice, "codec96", "opus@48000");
+			piceapi->Set(ice, "codec97", "speex@16000");	//wide
+			piceapi->Set(ice, "codec98", "speex@8000");		//narrow
+			piceapi->Set(ice, "codec99", "speex@32000");	//ultrawide
+			piceapi->Set(ice, "codec0", "pcmu@8000");
+			piceapi->Set(ice, "codec8", "pcma@8000");
 		}
 	}
 	else
@@ -73,7 +73,7 @@ static struct c2c_s *JCL_JingleAddContentToSession(jclient_t *jcl, struct c2c_s 
 	//google doesn't provide a stun srv entry
 	//facebook doesn't provide a stun srv entry
 	if (!Q_snprintfz(stunhost, sizeof(stunhost), "_stun._udp.%s", jcl->domain) && NET_DNSLookup_SRV(stunhost, stunhost, sizeof(stunhost)))
-		piceapi->ICE_Set(ice, "stunip", stunhost);
+		piceapi->Set(ice, "stunip", stunhost);
 	else
 	{
 		//there is no real way to query stun servers from the xmpp server.
@@ -83,8 +83,8 @@ static struct c2c_s *JCL_JingleAddContentToSession(jclient_t *jcl, struct c2c_s 
 		//so we're basically screwed if we want to work with the googletalk xmpp service long term.
 		//more methods are best, I suppose, but I'm lazy.
 		//yes, hardcoding means that other services might 'borrow' googles' stun servers.
-		piceapi->ICE_Set(ice, "stunport", "19302");
-		piceapi->ICE_Set(ice, "stunip", "stun.l.google.com");
+		piceapi->Set(ice, "stunport", "19302");
+		piceapi->Set(ice, "stunip", "stun.l.google.com");
 	}
 	return c2c;
 }
@@ -101,7 +101,7 @@ static qboolean JCL_JingleAcceptAck(jclient_t *jcl, xmltree_t *tree, struct iq_s
 				for (i = 0; i < c2c->contents; i++)
 				{
 					if (c2c->content[i].ice)
-						piceapi->ICE_Set(c2c->content[i].ice, "state", STRINGIFY(ICE_CONNECTING));
+						piceapi->Set(c2c->content[i].ice, "state", STRINGIFY(ICE_CONNECTING));
 				}
 			}
 		}
@@ -120,7 +120,7 @@ static void JCL_PopulateAudioDescription(xmltree_t *description, struct icestate
 		char codecname[64];
 		char argn[64];
 		Q_snprintf(argn, sizeof(argn), "codec%i", i);
-		if (piceapi->ICE_Get(ice, argn,  codecname, sizeof(codecname)))
+		if (piceapi->Get(ice, argn,  codecname, sizeof(codecname)))
 		{
 			if (!strcasecmp(codecname, "speex@8000") || !strcasecmp(codecname, "speex@16000") || !strcasecmp(codecname, "speex@32000"))
 			{	//speex narrowband
@@ -373,7 +373,7 @@ static qboolean JCL_JingleSend(jclient_t *jcl, struct c2c_s *c2c, char *action)
 		for (c = 0; c < c2c->contents; c++)
 		{
 			if (c2c->content[c].ice)
-				piceapi->ICE_Close(c2c->content[c].ice);
+				piceapi->Close(c2c->content[c].ice, true);
 			c2c->content[c].ice = NULL;
 		}
 
@@ -406,7 +406,7 @@ static qboolean JCL_JingleSend(jclient_t *jcl, struct c2c_s *c2c, char *action)
 						xmltree_t *candidate;
 						struct icecandinfo_s *b = NULL;
 						struct icecandinfo_s *c;
-						while ((c = piceapi->ICE_GetLCandidateInfo(ice)))
+						while ((c = piceapi->GetLCandidateInfo(ice)))
 						{
 							if (!b || b->priority < c->priority)
 								b = c;
@@ -426,13 +426,13 @@ static qboolean JCL_JingleSend(jclient_t *jcl, struct c2c_s *c2c, char *action)
 				{
 					char val[64];
 					transport = XML_CreateNode(content, "transport", "urn:xmpp:jingle:transports:ice-udp:1", "");
-					piceapi->ICE_Get(ice, "lufrag",  val, sizeof(val));
+					piceapi->Get(ice, "lufrag",  val, sizeof(val));
 					XML_AddParameter(transport, "ufrag", val);
-					piceapi->ICE_Get(ice, "lpwd",  val, sizeof(val));
+					piceapi->Get(ice, "lpwd",  val, sizeof(val));
 					XML_AddParameter(transport, "pwd", val);
 					{
 						struct icecandinfo_s *c;
-						while ((c = piceapi->ICE_GetLCandidateInfo(ice)))
+						while ((c = piceapi->GetLCandidateInfo(ice)))
 						{
 							char *ctypename[]={"host", "srflx", "prflx", "relay"};
 							xmltree_t *candidate = XML_CreateNode(transport, "candidate", "", "");
@@ -509,7 +509,7 @@ void JCL_JingleTimeouts(jclient_t *jcl, qboolean killall)
 			if (c2c->content[c].method == ICEM_ICE)
 			{
 				char bah[2];
-				piceapi->ICE_Get(c2c->content[c].ice, "newlc", bah, sizeof(bah));
+				piceapi->Get(c2c->content[c].ice, "newlc", bah, sizeof(bah));
 				if (atoi(bah))
 				{
 					Con_DPrintf("Sending updated local addresses\n");
@@ -659,8 +659,8 @@ static void JCL_JingleParsePeerPorts(jclient_t *jcl, struct c2c_s *c2c, xmltree_
 		if (!intransport)
 			continue;	//err, I guess it wasn't a transport update then (or related).
 
-		piceapi->ICE_Set(ice, "rufrag", XML_GetParameter(intransport, "ufrag", ""));
-		piceapi->ICE_Set(ice, "rpwd", XML_GetParameter(intransport, "pwd", ""));
+		piceapi->Set(ice, "rufrag", XML_GetParameter(intransport, "ufrag", ""));
+		piceapi->Set(ice, "rpwd", XML_GetParameter(intransport, "pwd", ""));
 
 		for (i = 0; (incandidate = XML_ChildOfTree(intransport, "candidate", i)); i++)
 		{
@@ -689,7 +689,7 @@ static void JCL_JingleParsePeerPorts(jclient_t *jcl, struct c2c_s *c2c, xmltree_
 				rem.transport = 0;
 			else
 				rem.transport = 0;
-			piceapi->ICE_AddRCandidateInfo(ice, &rem);
+			piceapi->AddRCandidateInfo(ice, &rem);
 		}
 	}
 }
@@ -946,12 +946,12 @@ static struct c2c_s *JCL_JingleHandleInitiate(jclient_t *jcl, xmltree_t *inj, co
 				{
 					Q_snprintf(parm, sizeof(parm), "codec%i", atoi(id));
 					Q_snprintf(val, sizeof(val), "%s@%i", name, atoi(clock));
-					okay |= piceapi->ICE_Set(c2c->content[c].ice, parm, val);
+					okay |= piceapi->Set(c2c->content[c].ice, parm, val);
 				}
 				else if (!strcasecmp(name, "opus"))
 				{
 					Q_snprintf(parm, sizeof(parm), "codec%i", atoi(id));
-					okay |= piceapi->ICE_Set(c2c->content[c].ice, parm, "opus@48000");
+					okay |= piceapi->Set(c2c->content[c].ice, parm, "opus@48000");
 				}
 			}
 		}
@@ -966,7 +966,7 @@ static struct c2c_s *JCL_JingleHandleInitiate(jclient_t *jcl, xmltree_t *inj, co
 			XMPP_ConversationPrintf(b->accountdomain, b->name, false, "%s does not support any compatible codecs, and is unable to call you.\n", convolink);
 
 			if (c2c->content[c].ice)
-				piceapi->ICE_Close(c2c->content[c].ice);
+				piceapi->Close(c2c->content[c].ice, true);
 			c2c->content[c].ice = NULL;
 			c2c->contents--;
 		}
@@ -1022,7 +1022,7 @@ static qboolean JCL_JingleHandleSessionTerminate(jclient_t *jcl, xmltree_t *tree
 
 	for (c = 0; c < c2c->contents; c++)
 		if (c2c->content[c].ice)
-			piceapi->ICE_Close(c2c->content[c].ice);
+			piceapi->Close(c2c->content[c].ice, true);
 	free(c2c);
 	return true;
 }
@@ -1066,7 +1066,7 @@ static qboolean JCL_JingleHandleSessionAccept(jclient_t *jcl, xmltree_t *tree, c
 		//if we didn't error out, the ICE stuff is meant to start sending handshakes/media as soon as the connection is accepted
 		for (c = 0; c < c2c->contents; c++)
 			if (c2c->content[c].ice)
-				piceapi->ICE_Set(c2c->content[c].ice, "state", STRINGIFY(ICE_CONNECTING));
+				piceapi->Set(c2c->content[c].ice, "state", STRINGIFY(ICE_CONNECTING));
 	}
 	return true;
 }

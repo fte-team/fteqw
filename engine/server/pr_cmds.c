@@ -10845,6 +10845,12 @@ static void QCBUILTIN PF_CheckPlayerEXFlags_qex(pubprogfuncs_t *prinst, struct g
 
 	G_FLOAT(OFS_RETURN) = flags;
 }
+static void QCBUILTIN PF_walkpathtogoal_qex(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{	//this builtin is supposed to provide more advanced routing.
+	//the possible return values include an 'inprogress' which is kinda vague and implies persistent state.
+	//we can get away with returning false as a failure here, equivelent to if the map has no waypoints defined. the gamecode is expected to then fall back on the really lame movetogoal builtin.
+	G_FLOAT(OFS_RETURN) = false;
+}
 static void QCBUILTIN PF_centerprint_qex(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {	//TODO: send the strings to the client for localisation+reordering
 	const char *arg[8];
@@ -11208,7 +11214,7 @@ static BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"ex_bot_movetopoint",PF_Fixme,			0,		0,		0,0,	D("float(entity bot, vector point)", "Behaviour is undocumented.")},
 	{"ex_bot_followentity",PF_Fixme,		0,		0,		0,0,	D("float(entity bot, entity goal)", "Behaviour is undocumented.")},
 	{"ex_CheckPlayerEXFlags",PF_CheckPlayerEXFlags_qex,0,0,	0,0,	D("float(entity playerEnt)", "Behaviour is undocumented.")},
-	{"ex_walkpathtogoal",PF_Fixme,			0,		0,		0,0,	D("float(float movedist, vector goal)", "Behaviour is undocumented.")},
+	{"ex_walkpathtogoal",PF_walkpathtogoal_qex,0,	0,		0,0,	D("float(float movedist, vector goal)", "Behaviour is undocumented.")},
 //End QuakeEx, for now. :(
 
 // Tomaz - QuakeC String Manipulation Begin

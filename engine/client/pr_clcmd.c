@@ -1038,8 +1038,8 @@ void QCBUILTIN PF_cl_clipboard_set(pubprogfuncs_t *prinst, struct globalvars_s *
 void QCBUILTIN PF_cl_localsound(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	const char * s = PR_GetStringOfs(prinst, OFS_PARM0);
-	float chan = (prinst->callargc>=1)?G_FLOAT(OFS_PARM1):0;
-	float vol = (prinst->callargc>=2)?G_FLOAT(OFS_PARM2):1;
+	float chan = (prinst->callargc>1)?G_FLOAT(OFS_PARM1):0;
+	float vol = (prinst->callargc>2)?G_FLOAT(OFS_PARM2):1;
 
 	S_LocalSound2(s, chan, vol);
 }

@@ -274,6 +274,7 @@ enum icestate_e
 {
 	ICE_INACTIVE,	//idle.
 	ICE_FAILED,
+	ICE_GATHERING,
 	ICE_CONNECTING,	//exchanging pings.
 	ICE_CONNECTED	//media is flowing, supposedly. sending keepalives.
 };
@@ -281,15 +282,15 @@ struct icestate_s;
 #define ICE_API_CURRENT "Internet Connectivity Establishment 0.0"
 typedef struct
 {
-	struct icestate_s *(QDECL *ICE_Create)(void *module, const char *conname, const char *peername, enum icemode_e mode, enum iceproto_e proto, qboolean initiator);	//doesn't start pinging anything.
-	qboolean (QDECL *ICE_Set)(struct icestate_s *con, const char *prop, const char *value);
-	qboolean (QDECL *ICE_Get)(struct icestate_s *con, const char *prop, char *value, size_t valuesize);
-	struct icecandinfo_s *(QDECL *ICE_GetLCandidateInfo)(struct icestate_s *con);		//retrieves candidates that need reporting to the peer.
-	void (QDECL *ICE_AddRCandidateInfo)(struct icestate_s *con, struct icecandinfo_s *cand);		//stuff that came from the peer.
-	void (QDECL *ICE_Close)(struct icestate_s *con);	//bye then.
-	void (QDECL *ICE_CloseModule)(void *module);	//closes all unclosed connections, with warning.
-//	struct icestate_s *(QDECL *ICE_Find)(void *module, const char *conname);
-	qboolean (QDECL *ICE_GetLCandidateSDP)(struct icestate_s *con, char *out, size_t valuesize);		//retrieves candidates that need reporting to the peer.
+	struct icestate_s *(QDECL *Create)(void *module, const char *conname, const char *peername, enum icemode_e mode, enum iceproto_e proto, qboolean initiator);	//doesn't start pinging anything.
+	qboolean (QDECL *Set)(struct icestate_s *con, const char *prop, const char *value);
+	qboolean (QDECL *Get)(struct icestate_s *con, const char *prop, char *value, size_t valuesize);
+	struct icecandinfo_s *(QDECL *GetLCandidateInfo)(struct icestate_s *con);		//retrieves candidates that need reporting to the peer.
+	void (QDECL *AddRCandidateInfo)(struct icestate_s *con, struct icecandinfo_s *cand);		//stuff that came from the peer.
+	void (QDECL *Close)(struct icestate_s *con, qboolean force);	//bye then.
+	void (QDECL *CloseModule)(void *module);	//closes all unclosed connections, with warning.
+//	struct icestate_s *(QDECL *Find)(void *module, const char *conname);
+	qboolean (QDECL *GetLCandidateSDP)(struct icestate_s *con, char *out, size_t valuesize);		//retrieves candidates that need reporting to the peer.
 } icefuncs_t;
 extern icefuncs_t iceapi;
 #endif
@@ -439,7 +440,7 @@ void QDECL ICE_AddLCandidateInfo(struct icestate_s *con, netadr_t *adr, int adrn
 ftenet_generic_connection_t *FTENET_ICE_EstablishConnection(ftenet_connections_t *col, const char *address, netadr_t adr);
 enum icemsgtype_s
 {	//shared by rtcpeers+broker
-	ICEMSG_PEERDROP=0,	//other side dropped connection
+	ICEMSG_PEERLOST=0,	//other side dropped connection
 	ICEMSG_GREETING=1,	//master telling us our unique game name
 	ICEMSG_NEWPEER=2,	//relay established, send an offer now.
 	ICEMSG_OFFER=3,		//peer's initial details

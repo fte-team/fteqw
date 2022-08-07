@@ -2254,14 +2254,18 @@ void Master_CheckPollSockets(void)
 				continue;
 			}
 #endif
-//#ifdef Q3CLIENT
+			//q3/dpm server responses
 			if (!strcmp(s, "statusResponse"))
-			{
-				CL_ReadServerInfo(MSG_ReadString(), MP_QUAKE3, false);
+			{	//originally q3, but oh well.
+				CL_ReadServerInfo(MSG_ReadString(), MP_DPMASTER, false);
 				continue;
 			}
-//#endif
-
+			if (!strcmp(s, "infoResponse"))	//parse a bit more...
+			{	//originally q3, but oh well.
+				CL_ReadServerInfo(MSG_ReadString(), MP_DPMASTER, false);
+				continue;
+			}
+			//q3/dpm master responses
 #ifdef HAVE_IPV6
 			if (!strncmp(s, "getserversResponse6", 19) && (s[19] == '\\' || s[19] == '/'))	//parse a bit more...
 			{
@@ -2280,11 +2284,6 @@ void Master_CheckPollSockets(void)
 			{
 				net_message.currentbit = (c+18-1)<<3;
 				CL_MasterListParse(NA_IP, SS_GETINFO, true);
-				continue;
-			}
-			if (!strcmp(s, "infoResponse"))	//parse a bit more...
-			{
-				CL_ReadServerInfo(MSG_ReadString(), MP_DPMASTER, false);
 				continue;
 			}
 
@@ -3294,7 +3293,7 @@ static int CL_ReadServerInfo(char *msg, enum masterprotocol_e prototype, qboolea
 		info->special |= SS_QUAKE2;
 #endif
 #ifdef Q3CLIENT
-	else if (prototype == MP_QUAKE3)
+	else if (prototype == MP_QUAKE3 || prototype == MP_DPMASTER/*if no protocol, assume q3 behaviours*/)
 		info->special |= SS_QUAKE3;
 #endif
 #ifdef NQPROT

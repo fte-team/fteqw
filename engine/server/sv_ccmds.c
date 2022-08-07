@@ -2211,8 +2211,8 @@ static void SV_Status_f (void)
 			Con_Printf(" Qizmo");
 		if (net_enable_qtv.ival)
 			Con_Printf(" QTV");
-#endif
 		Con_Printf("\n");
+#endif
 		break;
 	}
 #ifdef SUBSERVERS
@@ -2354,7 +2354,7 @@ static void SV_Status_f (void)
 				columns |= 1<<5;
 			if (cl->protocol != SCP_BAD && (cl->protocol >= SCP_NETQUAKE || cl->spectator || (cl->protocol == SCP_QUAKEWORLD && !(cl->fteprotocolextensions2 & PEXT2_REPLACEMENTDELTAS))))
 				columns |= 1<<9;
-			if (cl->netchan.remote_address.type == NA_IPV6||cl->reversedns)
+			if ((cl->netchan.remote_address.type == NA_IPV6 && memcmp(cl->netchan.remote_address.address.ip6, "\0\0\0\0""\0\0\0\0""\0\0\xff\xff", 12))||cl->reversedns)
 				columns |= (1<<10);
 		}
 		if (columns&(1<<10))	//if address2, remove the limited length addresses.

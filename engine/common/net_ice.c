@@ -103,6 +103,8 @@ this allows the connection to pick a new route if some router dies (like a relay
 FIXME: the client currently disconnects from the broker. the server tracks players via ip rather than ICE.
 
 tcp rtp framing should generally be done with a 16-bit network-endian length prefix followed by the data.
+
+NOTE: we do NOT distinguish between media-level and session-level attributes, as such we can only handle ONE media stream per session. we also don't support rtcp.
 */
 
 struct icecandidate_s
@@ -162,7 +164,8 @@ struct icestate_s
 	} server[8];
 	unsigned int servers;
 
-	unsigned int timeout;	//time when we consider the connection dead
+	qboolean brokerless;	//we lost connection to our broker... clean up on failure status.
+	unsigned int icetimeout;	//time when we consider the connection dead
 	unsigned int keepalive;	//sent periodically...
 	unsigned int retries;	//bumped after each round of connectivity checks. affects future intervals.
 	enum iceproto_e proto;
@@ -189,7 +192,7 @@ struct icestate_s
 	unsigned int tielow;
 	int foundation;
 
-	qboolean blockcandidates;		//don't send candidates yet.
+	qboolean blockcandidates;		//don't send candidates yet. FIXME: replace with gathering.
 #ifdef HAVE_DTLS
 	void *dtlsstate;
 	struct sctp_s *sctp;	//ffs! extra processing needed.
@@ -253,6 +256,7 @@ typedef struct sctp_s
 	unsigned short qstreamid;	//in network endian.
 } sctp_t;
 #ifdef HAVE_DTLS
+extern cvar_t net_enable_dtls;
 static neterr_t SCTP_Transmit(sctp_t *sctp, struct icestate_s *peer, const void *data, size_t length);
 #endif
 static neterr_t ICE_Transmit(void *cbctx, const qbyte *data, size_t datasize);
@@ -536,17 +540,14 @@ static neterr_t TURN_Encapsulate(struct icestate_s *ice, netadr_t *to, const qby
 	struct iceserver_s *srv;
 	if (to->type == NA_INVALID)
 		return NETERR_NOROUTE;
-	if (network >= MAX_CONNECTIONS)
+	if (to->connum && network >= MAX_CONNECTIONS)
 	{	//fancy turn-related gubbins
 		network -= MAX_CONNECTIONS;
 		if (network >= countof(ice->server))
 		{	//really high, its from the raw socket, unstunned.
 			network -= countof(ice->server);
 			if (network >= countof(ice->server))
-			{
-				Con_Printf("TURN_Encapsulate: %i\n", to->connum);
 				return NETERR_NOROUTE;
-			}
 			srv = &ice->server[network];
 
 			if (!srv->con || net_ice_relayonly.ival)
@@ -990,7 +991,7 @@ static qboolean ICE_SendSpam(struct icestate_s *con)
 }
 
 extern ftenet_generic_connection_t *FTENET_Datagram_EstablishConnection(ftenet_connections_t *col, const char *address, netadr_t adr);
-#ifdef TCPCONNECT
+#ifdef HAVE_TCP
 struct turntcp_connection_s
 {	//this sends packets only to the relay, and accepts them only from there too. all packets must be stun packets (for byte-count framing)
 	ftenet_generic_connection_t pub;
@@ -1178,7 +1179,13 @@ static void ICE_ToStunServer(struct icestate_s *con, struct iceserver_s *srv)
 			if (srv->addr.type == NA_INVALID)
 				return; //nope...
 			if (srv->addr.prot != NP_DGRAM)
+			{
+#ifdef HAVE_TCP
 				srv->con = TURN_TCP_EstablishConnection(collection, srv->realm, srv->addr);
+#else
+				srv->con = NULL;
+#endif
+			}
 			else
 			{
 				netadr_t localadr;
@@ -2096,7 +2103,7 @@ static qboolean QDECL ICE_Set(struct icestate_s *con, const char *prop, const ch
 			Con_Printf("ICE_Set invalid state %s\n", value);
 			con->state = ICE_INACTIVE;
 		}
-		con->timeout = Sys_Milliseconds() + 30;
+		con->icetimeout = Sys_Milliseconds() + 30*1000;
 
 		con->retries = 0;
 
@@ -2117,15 +2124,14 @@ static qboolean QDECL ICE_Set(struct icestate_s *con, const char *prop, const ch
 			{
 				if (!con->dtlsstate && con->dtlsfuncs)
 				{
-					extern cvar_t net_enable_dtls;
 					if (con->cred.peer.hash)
 						con->dtlsstate = con->dtlsfuncs->CreateContext(&con->cred, con, ICE_Transmit, con->dtlspassive);
-					else if (net_enable_dtls.ival)
+					else if (net_enable_dtls.ival >= 3)
 					{	//peer doesn't seem to support dtls.
 						con->state = ICE_FAILED;
 						Con_Printf(CON_WARNING"WARNING: peer does not support dtls. Set net_enable_dtls to 0 to make optional.\n");
 					}
-					else if (con->state == ICE_CONNECTING)
+					else if (con->state == ICE_CONNECTING && net_enable_dtls.ival>=2)
 						Con_Printf(CON_WARNING"WARNING: peer does not support dtls.\n");
 				}
 				if (!con->sctp && (!con->sctpoptional || !con->peersctpoptional) && con->mysctpport && con->peersctpport)
@@ -2408,6 +2414,9 @@ static qboolean QDECL ICE_Get(struct icestate_s *con, const char *prop, char *va
 		case ICE_FAILED:
 			Q_strncpyz(value, STRINGIFY(ICE_FAILED), valuelen);
 			break;
+		case ICE_GATHERING:
+			Q_strncpyz(value, STRINGIFY(ICE_GATHERING), valuelen);
+			break;
 		case ICE_CONNECTING:
 			Q_strncpyz(value, STRINGIFY(ICE_CONNECTING), valuelen);
 			break;
@@ -2512,6 +2521,13 @@ static qboolean QDECL ICE_Get(struct icestate_s *con, const char *prop, char *va
 		if (con->proto == ICEP_QWSERVER || con->proto == ICEP_QWCLIENT)
 		{
 #ifdef HAVE_DTLS
+			if (net_enable_dtls.ival >= 3)
+			{	//this is a preliminary check to avoid wasting time
+				if (!con->cred.local.certsize)
+					return false;	//fail if we cannot do dtls when its required.
+				if (!strcmp(prop, "sdpanswer") || !con->cred.peer.hash)
+					return false;	//don't answer if they failed to provide a cert
+			}
 			if (con->cred.local.certsize)
 			{
 				qbyte fingerprint[DIGEST_MAXSIZE];
@@ -2607,12 +2623,17 @@ static void ICE_PrintSummary(struct icestate_s *con, qboolean islisten)
 	{
 	case ICE_INACTIVE:		Con_Printf(S_COLOR_RED "inactive"); break;
 	case ICE_FAILED:		Con_Printf(S_COLOR_RED "failed"); break;
+	case ICE_GATHERING:		Con_Printf(S_COLOR_YELLOW "gathering"); break;
 	case ICE_CONNECTING:	Con_Printf(S_COLOR_YELLOW "connecting"); break;
 	case ICE_CONNECTED:		Con_Printf(S_COLOR_GRAY"%s via %s", NET_AdrToString(msg,sizeof(msg), &con->chosenpeer), ICE_NetworkToName(con, con->chosenpeer.connum)); break;
 	}
+#ifdef HAVE_DTLS
 	if (con->dtlsstate)
-		Con_Printf(S_COLOR_GREEN " (encrypted)");
+		Con_Printf(S_COLOR_GREEN " (encrypted%s)", con->sctp?", sctp":"");
+	else if (con->sctp)
+		Con_Printf(S_COLOR_RED " (plain-text, sctp)");	//weeeeeeird and pointless...
 	else
+#endif
 		Con_Printf(S_COLOR_RED " (plain-text)");
 	Con_Printf("\n");
 }
@@ -2622,6 +2643,14 @@ static void ICE_Debug(struct icestate_s *con)
 	char buf[65536];
 	ICE_Get(con, "state", buf, sizeof(buf));
 	Con_Printf("ICE [%s] (%s):\n", con->friendlyname, buf);
+	if (con->brokerless)
+		Con_Printf(" timeout: %g\n", (int)(con->icetimeout-Sys_Milliseconds())/1000.0);
+	else
+	{
+		unsigned int idle = (Sys_Milliseconds()+30*1000 - con->icetimeout);
+		if (idle > 500)
+			Con_Printf(" idle: %g\n", idle/1000.0);
+	}
 	if (net_ice_debug.ival >= 2)
 	{	//rather uninteresting really...
 		if (con->initiator)
@@ -2880,7 +2909,7 @@ static void ICE_Destroy(struct icestate_s *con)
 //send pings to establish/keep the connection alive
 void ICE_Tick(void)
 {
-	struct icestate_s *con;
+	struct icestate_s **link, *con;
 	unsigned int curtime;
 
 	if (!icelist)
@@ -2889,8 +2918,20 @@ void ICE_Tick(void)
 
 	MDNS_SendQueries();
 
-	for (con = icelist; con; con = con->next)
+	for (link = &icelist; (con=*link);)
 	{
+		if (con->brokerless)
+		{
+			if (con->state <= ICE_GATHERING)
+			{
+				*link = con->next;
+				ICE_Destroy(con);
+				continue;
+			}
+			else if ((signed int)(curtime-con->icetimeout) > 0)
+				ICE_Set(con, "state", STRINGIFY(ICE_FAILED));	//with no broker context, if we're not trying to send anything then kill the link.
+		}
+
 		switch(con->mode)
 		{
 		case ICEM_RAW:
@@ -3008,9 +3049,11 @@ void ICE_Tick(void)
 			}
 			break;
 		}
+
+		link = &con->next;
 	}
 }
-static void QDECL ICE_Close(struct icestate_s *con)
+static void QDECL ICE_Close(struct icestate_s *con, qboolean force)
 {
 	struct icestate_s **link;
 
@@ -3018,8 +3061,13 @@ static void QDECL ICE_Close(struct icestate_s *con)
 	{
 		if (con == *link)
 		{
-			*link = con->next;
-			ICE_Destroy(con);
+			if (!force)
+				con->brokerless = true;
+			else
+			{
+				*link = con->next;
+				ICE_Destroy(con);
+			}
 			return;
 		}
 		else
@@ -3938,7 +3986,7 @@ qboolean ICE_WasStun(ftenet_connections_t *col)
 							{
 								char str[256];
 								if (net_ice_debug.ival >= 1)
-									Con_Printf(S_COLOR_GRAY"[%s]: We can reach %s (%s)\n", con->friendlyname, NET_AdrToString(str, sizeof(str), &net_from), ICE_GetCandidateType(&rc->info));
+									Con_Printf(S_COLOR_GRAY"[%s]: We can reach %s (%s) via %s\n", con->friendlyname, NET_AdrToString(str, sizeof(str), &net_from), ICE_GetCandidateType(&rc->info), ICE_NetworkToName(con, net_from.connum));
 							}
 							rc->reachable |= 1u<<(net_from.connum-1);
 							rc->reached = Sys_Milliseconds();
@@ -4698,8 +4746,7 @@ qboolean ICE_WasStun(ftenet_connections_t *col)
 				{
 				//	if (rc->reachable)
 					{	//found it. fix up its source address to our ICE connection (so we don't have path-switching issues) and keep chugging along.
-
-						con->timeout = Sys_Milliseconds() + 32;	//not dead yet...
+						con->icetimeout = Sys_Milliseconds() + 1000*30;	//not dead yet...
 
 #ifdef HAVE_DTLS
 						if (con->dtlsstate)
@@ -4711,7 +4758,7 @@ qboolean ICE_WasStun(ftenet_connections_t *col)
 							case NETERR_NOROUTE:
 								return false;	//not a dtls packet at all. don't de-ICE it when we're meant to be using ICE.
 							case NETERR_DISCONNECTED:	//dtls failure. ICE failed.
-								iceapi.ICE_Set(con, "state", STRINGIFY(ICE_FAILED));
+								iceapi.Set(con, "state", STRINGIFY(ICE_FAILED));
 								return true;
 							default: //some kind of failure decoding the dtls packet. drop it.
 								return true;
@@ -4722,6 +4769,7 @@ qboolean ICE_WasStun(ftenet_connections_t *col)
 #ifdef HAVE_DTLS
 						if (con->sctp)
 							SCTP_Decode(con->sctp, con, col);
+						else
 #endif
 						if (net_message.cursize)
 							col->ReadGamePacket();
@@ -4769,6 +4817,12 @@ neterr_t ICE_SendPacket(size_t length, const void *data, netadr_t *to)
 	{
 		if (NET_CompareAdr(to, &con->qadr))
 		{
+			con->icetimeout = Sys_Milliseconds()+30*1000;	//keep it alive a little longer.
+
+			if (con->state == ICE_CONNECTING)
+				return NETERR_CLOGGED;
+			else if (con->state != ICE_CONNECTED)
+				return NETERR_DISCONNECTED;
 #ifdef HAVE_DTLS
 			if (con->sctp)
 				return SCTP_Transmit(con->sctp, con, data, length);
@@ -4777,8 +4831,6 @@ neterr_t ICE_SendPacket(size_t length, const void *data, netadr_t *to)
 #endif
 			if (con->chosenpeer.type != NA_INVALID)
 				return ICE_Transmit(con, data, length);
-			if (con->state < ICE_CONNECTING)
-				return NETERR_DISCONNECTED;
 			return NETERR_CLOGGED;	//still pending
 		}
 	}
@@ -4835,10 +4887,10 @@ static void FTENET_ICE_Close(ftenet_generic_connection_t *gcon)
 
 	for (cl = 0; cl < b->numclients; cl++)
 		if (b->clients[cl].ice)
-			iceapi.ICE_Close(b->clients[cl].ice);
+			iceapi.Close(b->clients[cl].ice, true);
 	Z_Free(b->clients);
 	if (b->ice)
-		iceapi.ICE_Close(b->ice);
+		iceapi.Close(b->ice, true);
 
 	Z_Free(b);
 }
@@ -4940,9 +4992,11 @@ static void FTENET_ICE_SendOffer(ftenet_ice_connection_t *b, int cl, struct ices
 {
 	char buf[8192];
 	//okay, now send the sdp to our peer.
-	if (iceapi.ICE_Get(ice, type, buf, sizeof(buf)))
+	if (iceapi.Get(ice, type, buf, sizeof(buf)))
 	{
 		char json[8192+256];
+		if (ice->state == ICE_GATHERING)
+			ice->state = ICE_CONNECTING;
 		if (ice->mode == ICEM_WEBRTC)
 		{
 			Q_strncpyz(json, va("{\"type\":\"%s\",\"sdp\":\"", type+3), sizeof(json));
@@ -4962,24 +5016,24 @@ static void FTENET_ICE_Establish(ftenet_ice_connection_t *b, int cl, struct ices
 	qboolean usewebrtc;
 	char *s;
 	if (*ret)
-		iceapi.ICE_Close(*ret);
+		iceapi.Close(*ret, false);
 #ifndef HAVE_DTLS
 	usewebrtc = false;
 #else
-	if (!*net_ice_usewebrtc.string)
-		usewebrtc = true;	//let the peer decide. this means we use dtls, but not sctp.
+	if (!*net_ice_usewebrtc.string && net_enable_dtls.ival)
+		usewebrtc = true;	//let the peer decide. this means we can use dtls, but not sctp.
 	else
 		usewebrtc = net_ice_usewebrtc.ival;
 #endif
-	ice = *ret = iceapi.ICE_Create(b, NULL, b->generic.islisten?NULL:va("/%s", b->gamename), usewebrtc?ICEM_WEBRTC:ICEM_ICE, b->generic.islisten?ICEP_QWSERVER:ICEP_QWCLIENT, !b->generic.islisten);
+	ice = *ret = iceapi.Create(b, NULL, b->generic.islisten?NULL:va("/%s", b->gamename), usewebrtc?ICEM_WEBRTC:ICEM_ICE, b->generic.islisten?ICEP_QWSERVER:ICEP_QWCLIENT, !b->generic.islisten);
 	if (!*ret)
 		return;	//some kind of error?!?
 
-	iceapi.ICE_Set(ice, "server", va("stun:%s:%i", b->brokername, BigShort(b->brokeradr.port)));
+	iceapi.Set(ice, "server", va("stun:%s:%i", b->brokername, BigShort(b->brokeradr.port)));
 
 	s = net_ice_servers.string;
 	while((s=COM_Parse(s)))
-		iceapi.ICE_Set(ice, "server", com_token);
+		iceapi.Set(ice, "server", com_token);
 
 	if (!b->generic.islisten)
 		FTENET_ICE_SendOffer(b, cl, ice, "sdpoffer");
@@ -4989,7 +5043,7 @@ static void FTENET_ICE_Refresh(ftenet_ice_connection_t *b, int cl, struct icesta
 	char buf[8192];
 	if (ice->blockcandidates)
 		return;	//don't send candidates before the offers...
-	while (ice && iceapi.ICE_GetLCandidateSDP(ice, buf, sizeof(buf)))
+	while (ice && iceapi.GetLCandidateSDP(ice, buf, sizeof(buf)))
 	{
 		char json[8192+256];
 		if (ice->mode == ICEM_WEBRTC)
@@ -5058,11 +5112,11 @@ handleerror:
 		for (cl = 0; cl < b->numclients; cl++)
 		{
 			if (b->clients[cl].ice)
-				iceapi.ICE_Close(b->clients[cl].ice);
+				iceapi.Close(b->clients[cl].ice, false);
 			b->clients[cl].ice = NULL;
 		}
 		if (b->ice)
-			iceapi.ICE_Close(b->ice);
+			iceapi.Close(b->ice, false);
 		b->ice = NULL;
 		if (b->error != 1 || !b->generic.islisten)
 			return false;	//permanant error...
@@ -5163,7 +5217,7 @@ handleerror:
 
 			switch(cmd)
 			{
-			case ICEMSG_PEERDROP:	//connection closing...
+			case ICEMSG_PEERLOST:	//the broker lost its connection to our peer...
 				if (cl == -1)
 				{
 					b->error = true;
@@ -5172,7 +5226,7 @@ handleerror:
 				else if (cl >= 0 && cl < b->numclients)
 				{
 					if (b->clients[cl].ice)
-						iceapi.ICE_Close(b->clients[cl].ice);
+						iceapi.Close(b->clients[cl].ice, false);
 					b->clients[cl].ice = NULL;
 //					Con_Printf("Broker closing connection: %s\n", data);
 				}
@@ -5223,8 +5277,8 @@ handleerror:
 				{
 					if (cl >= 0 && cl < b->numclients && b->clients[cl].ice)
 					{
-						iceapi.ICE_Set(b->clients[cl].ice, "sdpoffer", data);
-						iceapi.ICE_Set(b->clients[cl].ice, "state", STRINGIFY(ICE_CONNECTING));
+						iceapi.Set(b->clients[cl].ice, "sdpoffer", data);
+						iceapi.Set(b->clients[cl].ice, "state", STRINGIFY(ICE_CONNECTING));
 
 						FTENET_ICE_SendOffer(b, cl, b->clients[cl].ice, "sdpanswer");
 					}
@@ -5233,8 +5287,8 @@ handleerror:
 				{
 					if (b->ice)
 					{
-						iceapi.ICE_Set(b->ice, "sdpanswer", data);
-						iceapi.ICE_Set(b->ice, "state", STRINGIFY(ICE_CONNECTING));
+						iceapi.Set(b->ice, "sdpanswer", data);
+						iceapi.Set(b->ice, "state", STRINGIFY(ICE_CONNECTING));
 					}
 				}
 				break;
@@ -5251,12 +5305,12 @@ handleerror:
 				if (b->generic.islisten)
 				{
 					if (cl >= 0 && cl < b->numclients && b->clients[cl].ice)
-						iceapi.ICE_Set(b->clients[cl].ice, "sdp", data);
+						iceapi.Set(b->clients[cl].ice, "sdp", data);
 				}
 				else
 				{
 					if (b->ice)
-						iceapi.ICE_Set(b->ice, "sdp", data);
+						iceapi.Set(b->ice, "sdp", data);
 				}
 				break;
 			}

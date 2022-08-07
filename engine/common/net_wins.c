@@ -3151,6 +3151,8 @@ qboolean NET_DTLS_CheckInbound(ftenet_connections_t *col)
 	netadr_t *from = &net_from;
 	if (from->prot != NP_DGRAM || !net_enable_dtls.ival || !col->dtlsfuncs)
 		return false;
+	if (!net_message.cursize || !(20 <= net_message.data[0] && net_message.data[0] <= 63))
+		return false;	//lead byte must be between 20 and 63 to be valid dtls.
 	for (peer = col->dtls; peer; peer = peer->next)
 	{
 		if (NET_CompareAdr(&peer->addr, from))
@@ -5385,7 +5387,7 @@ static qboolean FTENET_TCP_KillStream(ftenet_tcp_connection_t *con, ftenet_tcp_s
 			if (o->clienttype == TCPC_WEBRTC_HOST && !strcmp(o->webrtc.resource, st->webrtc.resource))
 			{
 				qbyte msg[3];
-				msg[0] = ICEMSG_PEERDROP;
+				msg[0] = ICEMSG_PEERLOST;
 				msg[1] = (st->webrtc.clientnum>>0)&0xff;
 				msg[2] = (st->webrtc.clientnum>>8)&0xff;
 
@@ -5402,7 +5404,7 @@ static qboolean FTENET_TCP_KillStream(ftenet_tcp_connection_t *con, ftenet_tcp_s
 			if (o->clienttype == TCPC_WEBRTC_CLIENT && !strcmp(o->webrtc.resource, st->webrtc.resource))
 			{
 				qbyte msg[3];
-				msg[0] = ICEMSG_PEERDROP;
+				msg[0] = ICEMSG_PEERLOST;
 				msg[1] = (st->webrtc.clientnum>>0)&0xff;
 				msg[2] = (st->webrtc.clientnum>>8)&0xff;
 
@@ -7356,11 +7358,11 @@ static qboolean FTENET_WebRTC_GetPacket(ftenet_generic_connection_t *gcon)
 
 		switch(cmd)
 		{
-		case ICEMSG_PEERDROP:	//connection closing...
+		case ICEMSG_PEERLOST:	//connection closing...
 			if (cl == -1)
 			{
 				wsc->failed = true;
-				Con_Printf("Broker closing connection: %s\n", MSG_ReadString());
+//				Con_Printf("Broker closing connection: %s\n", MSG_ReadString());
 			}
 			else if (cl >= 0 && cl < wsc->numclients)
 			{
@@ -7368,7 +7370,7 @@ static qboolean FTENET_WebRTC_GetPacket(ftenet_generic_connection_t *gcon)
 				if (wsc->clients[cl].datasock != INVALID_SOCKET)
 					emscriptenfte_ws_close(wsc->clients[cl].datasock);
 				wsc->clients[cl].datasock = INVALID_SOCKET;
-				Con_Printf("Broker closing connection: %s\n", MSG_ReadString());
+//				Con_Printf("Broker closing connection: %s\n", MSG_ReadString());
 			}
 			break;
 		case ICEMSG_GREETING:	//reports the trailing url we're 'listening' on. anyone else using that url will connect to us.

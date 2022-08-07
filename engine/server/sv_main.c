@@ -3517,7 +3517,7 @@ void SVC_DirectConnect(int expectedreliablesequence)
 	}
 
 #ifdef HAVE_DTLS
-	if (net_enable_dtls.ival > 2 && (net_from.prot == NP_DGRAM || net_from.prot == NP_STREAM || net_from.prot == NP_WS) && net_from.type != NA_LOOPBACK)
+	if (net_enable_dtls.ival > 2 && (net_from.prot == NP_DGRAM || net_from.prot == NP_STREAM || net_from.prot == NP_WS) && net_from.type != NA_LOOPBACK && !NET_IsEncrypted(&net_from))
 	{
 		SV_RejectMessage (info.protocol, "This server requires the use of DTLS/TLS/WSS.\n");
 		return;
@@ -4432,7 +4432,7 @@ qboolean SVNQ_ConnectionlessPacket(void)
 			MSG_WriteString(&sb, "Incorrect game\n");
 			*(int*)sb.data = BigLong(NETFLAG_CTL+sb.cursize);
 			NET_SendPacket(svs.sockets, sb.cursize, sb.data, &net_from);
-			return false;	//not our game.
+			return true;	//not our game.
 		}
 		if (protver != NQ_NETCHAN_VERSION && protver != NQ_NETCHAN_VERSION_QEX)
 		{
@@ -4442,7 +4442,7 @@ qboolean SVNQ_ConnectionlessPacket(void)
 			MSG_WriteString(&sb, "Incorrect version\n");
 			*(int*)sb.data = BigLong(NETFLAG_CTL+sb.cursize);
 			NET_SendPacket(svs.sockets, sb.cursize, sb.data, &net_from);
-			return false;	//not our version...
+			return true;	//not our version...
 		}
 
 		banreason = SV_BannedReason (&net_from);
@@ -4454,7 +4454,7 @@ qboolean SVNQ_ConnectionlessPacket(void)
 			MSG_WriteString(&sb, *banreason?va("You are banned: %s\n", banreason):"You are banned\n");
 			*(int*)sb.data = BigLong(NETFLAG_CTL+sb.cursize);
 			NET_SendPacket(svs.sockets, sb.cursize, sb.data, &net_from);
-			return false;	//not our version...
+			return true;	//not our version...
 		}
 
 		//proquake's extensions
@@ -4462,6 +4462,8 @@ qboolean SVNQ_ConnectionlessPacket(void)
 		modver = MSG_ReadByte();
 		flags = MSG_ReadByte();
 		passwd = MSG_ReadLong();
+		if (msg_badread)
+			passwd = 0;
 
 		if (SV_ChallengeRecent())
 			return true;
@@ -4482,10 +4484,21 @@ qboolean SVNQ_ConnectionlessPacket(void)
 				MSG_WriteString(&sb, "NQ clients are not supported with hexen2 gamecode\n");
 				*(int*)sb.data = BigLong(NETFLAG_CTL+sb.cursize);
 				NET_SendPacket(svs.sockets, sb.cursize, sb.data, &net_from);
-				return false;	//not our version...
+				return true;	//not our version...
 			}
-			if (sv_listen_nq.ival == 2 && net_from.prot == NP_DGRAM)
+			if (NET_WasSpecialPacket(svs.sockets))
+				return true;
+			if (sv_listen_nq.ival == 2 && net_from.prot == NP_DGRAM && net_from.type != NA_ICE)
 			{
+				if (password.string[0] &&
+					stricmp(password.string, "none") &&
+					strcmp(password.string, va("%i", passwd)) )
+				{	//make sure we don't get crippled because of being unable to specify the actual password with proquake's stuff.
+					Con_TPrintf ("%s:password failed (nq)\n", NET_AdrToString (buffer2, sizeof(buffer2), &net_from));
+					SV_RejectMessage (SCP_NETQUAKE, "server requires a password\n\n");
+					return true;
+				}
+
 				SZ_Clear(&sb);
 				MSG_WriteLong(&sb, 0);
 				MSG_WriteByte(&sb, CCREP_ACCEPT);
@@ -4714,6 +4727,8 @@ void SV_ReadPacket(void)
 			return;
 		}
 
+		if (NET_WasSpecialPacket(svs.sockets))	//fixes up IP->ICE addresses (so we don't break when routes change).
+			return;
 		SV_ConnectionlessPacket();
 		return;
 	}

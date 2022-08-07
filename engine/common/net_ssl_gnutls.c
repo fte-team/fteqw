@@ -635,7 +635,10 @@ static int QDECL SSL_Read(struct vfsfile_s *f, void *buffer, int bytestoread)
 			return 0;	//caller is expected to try again later, no real need to loop here, just in case it repeats (eg E_AGAIN)
 		else
 		{
-			Con_Printf("GNUTLS Read Warning %i (bufsize %i)\n", read, bytestoread);
+			if (read == GNUTLS_E_PULL_ERROR)
+				Con_Printf("GNUTLS_E_PULL_ERROR (%s)\n", file->certname);
+			else
+				Con_Printf("GNUTLS Read Warning %i (bufsize %i)\n", read, bytestoread);
 			return -1;
 		}
 	}
@@ -752,6 +755,7 @@ static ssize_t DTLS_Push(gnutls_transport_ptr_t p, const void *data, size_t size
 	switch(ne)
 	{
 	case NETERR_CLOGGED:
+	case NETERR_NOROUTE:
 		qgnutls_transport_set_errno(file->session, EAGAIN);
 		return -1;
 	case NETERR_MTU:

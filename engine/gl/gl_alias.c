@@ -1564,10 +1564,10 @@ qboolean R_CalcModelLighting(entity_t *e, model_t *clmodel)
 			break;
 		}
 
-	//MORE HUGE HACKS! WHEN WILL THEY CEASE!
+		//MORE HUGE HACKS! WHEN WILL THEY CEASE!
 		// clamp lighting so it doesn't overbright as much
 		// ZOID: never allow players to go totally black
-		if (e->playerindex >= 0)
+		if (e->playerindex >= 0 && !(e->flags & (RF_WEAPONMODEL|RF_WEAPONMODELNOBOB|RF_DEPTHHACK)))
 		{
 			float fb = r_fullbrightSkins.value;
 			if (fb > cls.allow_fbskins)

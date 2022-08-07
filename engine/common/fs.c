@@ -5170,7 +5170,7 @@ qboolean Sys_FindGameData(const char *poshname, const char *gamename, char *base
 	}
 
 
-	if (!strcmp(gamename, "quake"))
+	if (!strcmp(gamename, "quake") || !strcmp(gamename, "afterquake") || !strcmp(gamename, "netquake") || !strcmp(gamename, "spasm") || !strcmp(gamename, "fitz") || !strcmp(gamename, "tenebrae"))
 	{
 		char *prefix[] =
 		{
@@ -5383,9 +5383,14 @@ qboolean Sys_FindGameData(const char *poshname, const char *gamename, char *base
 	char *s;
 	if (!*gamename)
 		gamename = "quake";	//just a paranoia fallback, shouldn't be needed.
-	if (!strcmp(gamename, "quake"))
+	if (!strcmp(gamename, "quake_rerel"))
+		if (Sys_SteamHasFile(basepath, basepathlen, "Quake/rerelease", "id1/pak0.pak"))
+			return true;
+	if (!strcmp(gamename, "quake") || !strcmp(gamename, "afterquake") || !strcmp(gamename, "netquake") || !strcmp(gamename, "spasm") || !strcmp(gamename, "fitz") || !strcmp(gamename, "tenebrae"))
 	{
-		if (Sys_SteamHasFile(basepath, basepathlen, "quake", "id1/pak0.pak"))
+		if (Sys_SteamHasFile(basepath, basepathlen, "Quake", "id1/PAK0.PAK"))	//dos legacies need to die.
+			return true;
+		if (Sys_SteamHasFile(basepath, basepathlen, "Quake", "id1/pak0.pak"))	//people may have tried to sanitise it already.
 			return true;
 
 		if (stat("/usr/share/quake/", &sb) == 0)

@@ -1312,37 +1312,37 @@ static struct ircice_s *IRC_ICE_Create(ircclient_t *irc, const char *sender, enu
 		return NULL;
 
 	if (!creator && type == ICEP_QWSERVER)
-		ice = piceapi->ICE_Create(NULL, NULL, sender, ICEM_ICE, ICEP_QWCLIENT, creator);
+		ice = piceapi->Create(NULL, NULL, sender, ICEM_ICE, ICEP_QWCLIENT, creator);
 	else if (!creator && type == ICEP_QWCLIENT)
-		ice = piceapi->ICE_Create(NULL, NULL, sender, ICEM_ICE, ICEP_QWSERVER, creator);
+		ice = piceapi->Create(NULL, NULL, sender, ICEM_ICE, ICEP_QWSERVER, creator);
 	else
-		ice = piceapi->ICE_Create(NULL, NULL, sender, ICEM_ICE, type, creator);
+		ice = piceapi->Create(NULL, NULL, sender, ICEM_ICE, type, creator);
 
 	if (!ice)
 		return NULL;
 
-	piceapi->ICE_Set(ice, "controller", creator?"1":"0");
+	piceapi->Set(ice, "controller", creator?"1":"0");
 	if (creator && type == ICEP_VOICE)
 	{
 		//note: the engine will ignore codecs it does not support.
-		piceapi->ICE_Set(ice, "codec96", "opus@48000");
-		piceapi->ICE_Set(ice, "codec97", "speex@16000");	//wide
-		piceapi->ICE_Set(ice, "codec98", "speex@8000");		//narrow
-		piceapi->ICE_Set(ice, "codec99", "speex@32000");	//ultrawide
-		piceapi->ICE_Set(ice, "codec8", "pcma@8000");
-		piceapi->ICE_Set(ice, "codec0", "pcmu@8000");
+		piceapi->Set(ice, "codec96", "opus@48000");
+		piceapi->Set(ice, "codec97", "speex@16000");	//wide
+		piceapi->Set(ice, "codec98", "speex@8000");		//narrow
+		piceapi->Set(ice, "codec99", "speex@32000");	//ultrawide
+		piceapi->Set(ice, "codec8", "pcma@8000");
+		piceapi->Set(ice, "codec0", "pcmu@8000");
 	}
 
 	//query dns to see if there's a stunserver hosted by the same domain
 	//nslookup -querytype=SRV _stun._udp.example.com
 //		Q_snprintf(stunhost, sizeof(stunhost), "_stun._udp.%s", ice->server);
 //		if (NET_DNSLookup_SRV(stunhost, stunhost, sizeof(stunhost)))
-//			piceapi->ICE_Set(ice, "stunip", stunhost);
+//			piceapi->Set(ice, "stunip", stunhost);
 //		else
 	{
 		//irc services tend to not provide any stun info, so steal someone's... hopefully they won't mind too much. :(
-		piceapi->ICE_Set(ice, "stunport", "19302");
-		piceapi->ICE_Set(ice, "stunip", "stun.l.google.com");
+		piceapi->Set(ice, "stunport", "19302");
+		piceapi->Set(ice, "stunip", "stun.l.google.com");
 	}
 
 	ircice = malloc(sizeof(*ircice));
@@ -1395,8 +1395,8 @@ static void IRC_ICE_Update(ircclient_t *irc, struct ircice_s *ice, char updatety
 		char ufrag[256];
 		char pwd[256];
 
-		piceapi->ICE_Get(ice->ice, "lufrag",  ufrag, sizeof(ufrag));
-		piceapi->ICE_Get(ice->ice, "lpwd",	 pwd, sizeof(pwd));
+		piceapi->Get(ice->ice, "lufrag",  ufrag, sizeof(ufrag));
+		piceapi->Get(ice->ice, "lpwd",	 pwd, sizeof(pwd));
 
 		Q_snprintf(message, sizeof(message), " ufrag/%s pwd/%s", ufrag, pwd);
 	}
@@ -1410,7 +1410,7 @@ static void IRC_ICE_Update(ircclient_t *irc, struct ircice_s *ice, char updatety
 			char codecname[64];
 			char argn[64];
 			Q_snprintf(argn, sizeof(argn), "codec%i", i);
-			if (!piceapi->ICE_Get(ice->ice, argn,  codecname, sizeof(codecname)))
+			if (!piceapi->Get(ice->ice, argn,  codecname, sizeof(codecname)))
 				continue;
 
 			if (!strcmp(codecname, "speex@8000"))		//speex narrowband
@@ -1448,7 +1448,7 @@ static void IRC_ICE_Update(ircclient_t *irc, struct ircice_s *ice, char updatety
 */
 	if (updatetype != '+' && updatetype != '-')
 	{
-		while ((c = piceapi->ICE_GetLCandidateInfo(ice->ice)))
+		while ((c = piceapi->GetLCandidateInfo(ice->ice)))
 		{
 			char type[] = "hspr";
 			char cand[256];
@@ -1503,7 +1503,7 @@ static void IRC_ICE_ParseCandidate(struct icestate_s *ice, char *cand)
 	Q_strlcpy(info.candidateid, cand+1, sizeof(info.candidateid));
 	Q_strlcpy(info.addr, addr, sizeof(info.candidateid));
 	
-	piceapi->ICE_AddRCandidateInfo(ice, &info);
+	piceapi->AddRCandidateInfo(ice, &info);
 }
 
 static void IRC_ICE_ParseCodec(struct icestate_s *ice, char *codec)
@@ -1518,7 +1518,7 @@ static void IRC_ICE_ParseCodec(struct icestate_s *ice, char *codec)
 
 	Q_strlcat(name, va("@%u", rate), sizeof(name));
 
-	piceapi->ICE_Set(ice, va("codec%i", num), name);
+	piceapi->Set(ice, va("codec%i", num), name);
 }
 
 static void IRC_ICE_Parse(ircclient_t *irc, const char *sender, char *message)
@@ -1559,16 +1559,16 @@ static void IRC_ICE_Parse(ircclient_t *irc, const char *sender, char *message)
 				else if (!strncmp(token, "codec/", 6))
 					IRC_ICE_ParseCodec(ice->ice, token);
 				else if (!strncmp(token, "ufrag/", 6))
-					piceapi->ICE_Set(ice->ice, "rufrag", token+6);
+					piceapi->Set(ice->ice, "rufrag", token+6);
 				else if (!strncmp(token, "pwd/", 4))
-					piceapi->ICE_Set(ice->ice, "rpwd", token+4);
+					piceapi->Set(ice->ice, "rpwd", token+4);
 				else if (*token)
 					IRC_Printf(irc, sender, "unknown ice token %s\n", token);
 			}
 
 			if ((icetype == '=' || icetype == '*') && !ice->accepted && ice->allowed)
 			{
-				piceapi->ICE_Set(ice->ice, "state", STRINGIFY(ICE_CONNECTING));
+				piceapi->Set(ice->ice, "state", STRINGIFY(ICE_CONNECTING));
 				ice->accepted = true;
 			}
 
@@ -1642,7 +1642,7 @@ static void IRC_ICE_Frame(ircclient_t *irc)
 		if (!ice->accepted || !ice->allowed)
 			continue;
 		//ice needs some maintainence. if things change then we need to be prepared to send updated candidate info
-		piceapi->ICE_Get(ice->ice, "newlc", bah, sizeof(bah));
+		piceapi->Get(ice->ice, "newlc", bah, sizeof(bah));
 		if (atoi(bah))
 		{
 			IRC_Printf(irc, ice->peer, "Sending updated peer info\n");
@@ -1687,7 +1687,7 @@ static void IRC_ICE_Authorise(ircclient_t *irc, const char *with, enum iceproto_
 					IRC_ICE_Update(irc, ice, '-');
 					*link = ice->next;
 					if (ice->ice)
-						piceapi->ICE_Close(ice->ice);
+						piceapi->Close(ice->ice, true);
 					IRC_Free(ice);
 
 					IRC_Printf(irc, announce, "Connection terminated\n");

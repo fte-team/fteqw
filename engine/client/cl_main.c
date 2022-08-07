@@ -1348,7 +1348,7 @@ void CL_CheckForResend (void)
 			if (contype & 1)
 			{
 				char tmp[256];
-				MSG_WriteString(&sb, va("%c%c%c%cgetchallenge %i %s\n", 255, 255, 255, 255, connectinfo.clchallenge, COM_QuotedString(com_protocolname.string, tmp, sizeof(tmp), false)));
+				MSG_WriteString(&sb, va("getchallenge %i %s\n", connectinfo.clchallenge, COM_QuotedString(com_protocolname.string, tmp, sizeof(tmp), false)));
 			}
 		}
 
@@ -3600,7 +3600,7 @@ void CL_ConnectionlessPacket (void)
 		}
 
 #ifdef HAVE_DTLS
-		if (candtls && net_from.prot == NP_DGRAM && (connectinfo.dtlsupgrade || candtls > 1))
+		if (candtls && net_from.prot == NP_DGRAM && (connectinfo.dtlsupgrade || candtls > 1) && !NET_IsEncrypted(&net_from))
 		{
 			//c2s getchallenge
 			//s2c c%u\0DTLS=$candtls

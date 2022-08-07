@@ -930,7 +930,7 @@ static neterr_t OSSL_Transmit(void *ctx, const qbyte *data, size_t datasize)
 			}
 		}
 		if (BIO_should_retry(o->bio))
-			return 0;
+			return NETERR_CLOGGED;
 		return NETERR_DISCONNECTED;	//eof or something
 	}
 	return NETERR_SENT;

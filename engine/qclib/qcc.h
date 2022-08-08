@@ -595,6 +595,13 @@ extern	int				pr_token_line_last;
 extern	QCC_type_t		*pr_immediate_type;
 extern	QCC_eval_t		pr_immediate;
 
+extern int verbose;
+#define VERBOSE_WARNINGSONLY -1
+#define VERBOSE_PROGRESS 0
+#define VERBOSE_STANDARD 1
+#define VERBOSE_DEBUG 2
+#define VERBOSE_DEBUGSTATEMENTS 3	//figuring out the files can be expensive.
+
 extern pbool keyword_asm;
 extern pbool keyword_break;
 extern pbool keyword_case;
@@ -1089,7 +1096,6 @@ void QCC_PR_EmitArraySetFunction(QCC_def_t *defscope, QCC_def_t *thearray, char 
 void QCC_PR_EmitClassFromFunction(QCC_def_t *defscope, QCC_type_t *basetype);
 
 void QCC_PR_ParseDefs (char *classname, pbool fatal);
-void QCC_PR_ParseTypedef(void);
 QCC_def_t *QCC_PR_DummyDef(QCC_type_t *type, const char *name, QCC_function_t *scope, int arraysize, QCC_def_t *rootsymbol, unsigned int ofs, int referable, unsigned int flags);
 void QCC_PR_ParseInitializerDef(QCC_def_t *def, unsigned int flags);
 void QCC_PR_FinaliseFunctions(void);

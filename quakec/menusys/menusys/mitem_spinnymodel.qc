@@ -36,8 +36,10 @@ static vector(vector v) vtodpp =
 	//so fucking disgustingly ugly.
 	if (dp_workarounds)
 	{
+#pragma warning disable F333
 		v_x *= cvar("vid_width") / cvar("vid_conwidth");
 		v_y *= cvar("vid_height") / cvar("vid_conheight");
+#pragma warning enable F333
 	}
 #endif
 	return v;

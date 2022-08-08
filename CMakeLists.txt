@@ -1534,7 +1534,9 @@ SET(FTE_MENU_SYS true CACHE BOOL "Compile System Menu.")
 IF(FTE_MENU_SYS)
 	ADD_CUSTOM_TARGET(menusys ALL
 		VERBATIM
-		COMMAND fteqcc -srcfile "${CMAKE_CURRENT_SOURCE_DIR}/quakec/menusys/menu.src" -o "${CMAKE_CURRENT_BINARY_DIR}/menu.dat"
+		DEPENDS fteqcc
+		WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/quakec/menusys/"
+		COMMAND fteqcc -srcfile "menu.src" -o "${CMAKE_CURRENT_BINARY_DIR}/menu.dat"
 		BYPRODUCTS "${CMAKE_CURRENT_BINARY_DIR}/menu.dat" "${CMAKE_CURRENT_BINARY_DIR}/menu.lno"
 		SOURCES
 			quakec/menusys/menu.src
@@ -1570,5 +1572,36 @@ IF(FTE_MENU_SYS)
 			quakec/menusys/menu/options_particles.qc
 			quakec/menusys/menu/options_video.qc
 			quakec/menusys/menu/quit.qc
+	)
+ENDIF()
+
+SET(FTE_CSADDON true CACHE BOOL "CS Addon.")
+IF(FTE_CSADDON)
+	ADD_CUSTOM_TARGET(csaddon ALL
+		VERBATIM
+		DEPENDS fteqcc
+		WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/quakec/csaddon/src/"
+		COMMAND fteqcc -srcfile "csaddon.src" -o "${CMAKE_CURRENT_BINARY_DIR}/csaddon.dat"
+		BYPRODUCTS "${CMAKE_CURRENT_BINARY_DIR}/csaddon.dat" "${CMAKE_CURRENT_BINARY_DIR}/csaddon.lno"
+		SOURCES
+			quakec/csaddon/src/csaddon.src
+
+			quakec/csaddon/src/csplat.qc
+			quakec/csaddon/src/csfixups.qc
+
+			quakec/csaddon/src/editor_lights.qc
+			quakec/csaddon/src/editor_terrain.qc
+			quakec/csaddon/src/brush_selection.qc
+			quakec/csaddon/src/brush_history.qc
+			quakec/csaddon/src/brush_manip.qc
+			quakec/csaddon/src/brush_draw.qc
+			quakec/csaddon/src/brush_vertedit.qc
+			quakec/csaddon/src/editor_brushes.qc
+			quakec/csaddon/src/editor_ents.qc
+			quakec/csaddon/src/textfield.qc
+			quakec/csaddon/src/editor_particles.qc
+			quakec/csaddon/src/menu.qc
+			quakec/csaddon/src/cam.qc
+			quakec/csaddon/src/csaddon.qc
 	)
 ENDIF()

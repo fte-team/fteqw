@@ -482,13 +482,13 @@ void(float width, float height, float do2d) CSQC_UpdateView =
 
 void() CSQC_Input_Frame =
 {
-	vector t, o;
 	if (autocvar_ca_show)	//when we're using the UI, don't send any attack or jump stuff. these are generally annoying modifiers or so
 		input_buttons = 0;
 		
 #ifdef WALLBROWSERS
 	if ((input_buttons & 1) && pointedshadername == "")
 	{
+		vector t, o;
 		t = mousefar;
 		o = mousenear;
 		if (vlen(o - t) > 8192)

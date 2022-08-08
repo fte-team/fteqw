@@ -1,4 +1,4 @@
-../csaddon.dat
+#output "../csaddon.dat"
 //pr_dumpplatform -FFTE -Fdefines -TCS -O csplat
 
 //#pragma flag enable assumeint
@@ -9,6 +9,8 @@
 #pragma target FTE
 //#pragma optimise 2
 //#pragma optimise no-filename
+
+#includelist
 csplat.qc
 csfixups.qc
 
@@ -26,4 +28,4 @@ editor_particles.qc
 menu.qc
 cam.qc
 csaddon.qc
-
+#endlist

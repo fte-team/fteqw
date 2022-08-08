@@ -94,7 +94,8 @@ ev_struct,	//big complex type
 ev_union,	//not really sure why this is separate from struct
 ev_accessor,//some weird type to provide class-like functions over a basic type.
 ev_enum,	//just a numeric type
-ev_boolean	//exists to optimise if(-0) workarounds.
+ev_typedef,	//so typedefs can refer to their original type (primarily for structs).
+ev_boolean,	//exists to optimise if(-0) workarounds. engine just sees int/float.
 } etype_t;
 enum {
 	DEBUG_TRACE_OFF,		//debugging should be off.

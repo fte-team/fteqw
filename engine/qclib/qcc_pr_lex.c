@@ -251,7 +251,7 @@ void QCC_JoinPaths(char *fullname, size_t fullnamesize, const char *newfile, con
 
 extern char qccmsourcedir[];
 //also meant to include it.
-void QCC_FindBestInclude(char *newfile, char *currentfile, pbool verbose)
+void QCC_FindBestInclude(char *newfile, char *currentfile, pbool includetype)
 {
 	struct qccincludeonced_s *onced;
 	int includepath = 0;
@@ -289,9 +289,9 @@ void QCC_FindBestInclude(char *newfile, char *currentfile, pbool verbose)
 			return;
 	}
 
-	if (verbose)
+	if (includetype && verbose >= VERBOSE_PROGRESS)
 	{
-		if (verbose == 2)
+		if (includetype == 2)
 		{
 			if (autoprototype)
 				externs->Printf("prototyping %s\n", fullname);
@@ -4009,7 +4009,6 @@ void QCC_PR_ParsePrintSRef (int type, QCC_sref_t def)
 void *errorscope;
 static void QCC_PR_PrintMacro (qcc_includechunk_t *chunk)
 {
-	extern pbool verbose;
 	if (chunk)
 	{
 		QCC_PR_PrintMacro(chunk->prev);
@@ -4020,7 +4019,7 @@ static void QCC_PR_PrintMacro (qcc_includechunk_t *chunk)
 #else
 			externs->Printf ("%s:%i: expanding %s\n", chunk->currentfilename, chunk->currentlinenumber, chunk->cnst->name);
 #endif
-			if (verbose)
+			if (verbose >= VERBOSE_STANDARD)
 				externs->Printf ("%s\n", chunk->datastart);
 		}
 		else
@@ -4913,19 +4912,9 @@ QCC_type_t *QCC_TypeForName(const char *name)
 			break;	//its okay after all.
 		t = pHash_GetNext(&typedeftable, name, t);
 	}
+	if (t && t->type == ev_typedef)
+		return t->aux_type;	//just use its real type.
 	return t;
-/*
-	int i;
-
-	for (i = 0; i < numtypeinfos; i++)
-	{
-		if (qcc_typeinfo[i].typedefed && !STRCMP(qcc_typeinfo[i].name, name))
-		{
-			return &qcc_typeinfo[i];
-		}
-	}
-
-	return NULL;*/
 }
 
 /*

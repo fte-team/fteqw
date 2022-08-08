@@ -149,6 +149,7 @@ var uiinfo_t ui =
 
 void() queryscreensize =
 {
+#pragma warning disable F333
 #ifdef MENU
 	//there is no proper way to do this.
 	//fte thus has special checks for these cvars, and they should not be autocvars if you want them to work properly.
@@ -169,6 +170,7 @@ void() queryscreensize =
 		}
 	#endif
 #endif
+#pragma warning enable F333
 };
 
 //helper function

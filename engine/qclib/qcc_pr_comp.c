@@ -9021,7 +9021,7 @@ QCC_ref_t *QCC_PR_ParseRefArrayPointer (QCC_ref_t *retbuf, QCC_ref_t *r, pbool a
 	QCC_type_t *t;
 	QCC_sref_t idx;
 	QCC_sref_t tmp;
-	pbool allowarray;
+	pbool allowarray, arraytype;
 	unsigned int arraysize;
 	unsigned int rewindpoint = numstatements;
 	pbool dereference = false;
@@ -9036,11 +9036,14 @@ QCC_ref_t *QCC_PR_ParseRefArrayPointer (QCC_ref_t *retbuf, QCC_ref_t *r, pbool a
 	while(1)
 	{
 		allowarray = false;
+		arraytype = (t->type == ev_union && t->num_parms == 1 && !t->params[0].paramname);	//FIXME
+		if (arraytype)
+			arraytype = true;
 		if (idx.cast)
 			allowarray = arraysize>0 ||
 						(t->type == ev_vector) ||
 						(t->type == ev_field && t->aux_type->type == ev_vector) ||
-						(t->type == ev_union && t->num_parms == 1 && !t->params[0].paramname && !arraysize);
+						(arraytype && !arraysize);
 		else if (!idx.cast)
 		{
 			allowarray = arraysize>0 ||
@@ -9048,6 +9051,7 @@ QCC_ref_t *QCC_PR_ParseRefArrayPointer (QCC_ref_t *retbuf, QCC_ref_t *r, pbool a
 						(t->type == ev_string) ||	//strings are effectively pointers
 						(t->type == ev_vector) ||	//vectors are mini arrays
 						(t->type == ev_field && t->aux_type->type == ev_vector) ||	//as are field vectors
+						(arraytype && !arraysize) ||
 						(!arraysize&&t->accessors);	//custom accessors
 		}
 
@@ -9072,7 +9076,7 @@ QCC_ref_t *QCC_PR_ParseRefArrayPointer (QCC_ref_t *retbuf, QCC_ref_t *r, pbool a
 			/*if its a pointer that got dereferenced, follow the type*/
 			if (!idx.cast && t->type == ev_pointer && !arraysize)
 				t = t->aux_type;
-			else if (idx.cast && (t->type == ev_union && t->num_parms == 1 && !t->params[0].paramname && !arraysize))
+			else if (idx.cast && (arraytype && !arraysize))
 			{
 				arraysize = t->params[0].arraysize;
 				t = t->params[0].type;
@@ -9220,6 +9224,17 @@ fieldarrayindex:
 			QCC_FreeTemp(r->index);
 			QCC_FreeTemp(idx);
 			return QCC_PR_BuildRef(retbuf, REF_GLOBAL, QCC_MakeIntConst(arraysize), nullsref, type_integer, true);
+		}
+		else if (arraytype && (QCC_PR_CheckToken(".") || QCC_PR_CheckToken("->")))
+		{
+			//the only field of an array type is the 'length' property.
+			//if we calculated offsets etc, discard those statements.
+			numstatements = rewindpoint;
+			QCC_PR_Expect("length");
+			QCC_FreeTemp(r->base);
+			QCC_FreeTemp(r->index);
+			QCC_FreeTemp(idx);
+			return QCC_PR_BuildRef(retbuf, REF_GLOBAL, QCC_MakeIntConst(t->params[0].arraysize), nullsref, type_integer, true);
 		}
 		else if (t->type == ev_vector && !arraysize && !t->accessors && QCC_PR_CheckToken("."))
 		{
@@ -13619,16 +13634,11 @@ void QCC_PR_ParseStatement (void)
 		QCC_PR_ParseDefs (NULL, true);
 		return;
 	}
-	if (QCC_PR_CheckKeyword(keyword_typedef, "typedef"))
-	{
-		QCC_PR_ParseTypedef();
-		return;
-	}
 
 	if (pr_token_type == tt_name)
 	{
 		QCC_type_t *type = QCC_TypeForName(pr_token);
-		if (type && type->typedefed)
+		if (type)
 		{
 			if (strncmp(pr_file_p, "::", 2))
 			{
@@ -13654,6 +13664,7 @@ void QCC_PR_ParseStatement (void)
 			(				!STRCMP ("_Bool", pr_token)) ||
 			(keyword_static && !STRCMP ("static", pr_token)) ||
 			(keyword_class && !STRCMP ("class", pr_token)) ||
+			(keyword_typedef && !STRCMP ("typedef", pr_token)) ||
 			(keyword_const && !STRCMP ("const", pr_token)))
 		{
 			QCC_PR_ParseDefs (NULL, true);
@@ -16603,6 +16614,9 @@ QCC_def_t *QCC_PR_DummyDef(QCC_type_t *type, const char *name, QCC_function_t *s
 					break;
 				case ev_void:
 					break;
+				case ev_typedef:	//invalid
+					QCC_PR_ParseWarning(ERR_INTERNAL, "unexpected typedef");
+					break;
 				}
 			}
 		}
@@ -17061,6 +17075,9 @@ static QCC_def_t *QCC_PR_DummyFieldDef(QCC_type_t *type, QCC_function_t *scope, 
 					break;
 				case ev_void:
 					break;
+				case ev_typedef:	//invalid
+					QCC_PR_ParseWarning(ERR_INTERNAL, "unexpected typedef");
+					break;
 				}
 				if (*fieldofs > maxfield)
 					maxfield = *fieldofs;
@@ -17313,7 +17330,6 @@ QCC_sref_t QCC_PR_ParseInitializerType_Internal(int arraysize, QCC_def_t *basede
 	}
 	else
 	{
-		pbool isblock;
 		QCC_type_t *type = def.cast;
 		if (type->type == ev_function && pr_token_type == tt_punct)
 		{
@@ -17512,8 +17528,14 @@ QCC_sref_t QCC_PR_ParseInitializerType_Internal(int arraysize, QCC_def_t *basede
 			QCC_PR_Lex();
 			QCC_PR_Expect(")");
 		}
-		else if ((isblock=(type->type == ev_struct || type->type == ev_union) && QCC_PR_CheckToken("{"))
-				|| (type->type == ev_union && type->num_parms == 1 && !type->params->paramname))
+		else if (type->type == ev_union && type->num_parms == 1 && !type->params->paramname)
+		{	//weird typedefed array hack
+			def.cast = (type)->params[0].type;
+			ret &= QCC_PR_ParseInitializerType((type)->params[0].arraysize, basedef, def, flags);
+			def.cast = type;
+			return ret?def:nullsref;
+		}
+		else if ((type->type == ev_struct || type->type == ev_union) && QCC_PR_CheckToken("{"))
 		{
 			//structs go recursive
 			QCC_type_t *parenttype;
@@ -17585,8 +17607,6 @@ QCC_sref_t QCC_PR_ParseInitializerType_Internal(int arraysize, QCC_def_t *basede
 					ret &= QCC_PR_ParseInitializerType((type)->params[partnum].arraysize, basedef, def, flags);
 					if (isunion || !QCC_PR_CheckToken(","))
 					{
-						if (!isblock)
-							break;
 						QCC_PR_Expect("}");
 						break;
 					}
@@ -17962,81 +17982,6 @@ QCC_type_t *QCC_PR_ParseEnum(pbool flags)
 	return enumtype?enumtype:basetype;
 }
 
-void QCC_PR_ParseTypedef(void)
-{
-	QCC_type_t *old;
-	QCC_type_t *type = QCC_PR_ParseType(false, false);
-	if (!type)
-	{
-		QCC_PR_ParseError(ERR_NOTATYPE, "typedef found unexpected tokens");
-	}
-	do
-	{
-		char *name;
-		if (QCC_PR_CheckToken(";"))
-			return;
-
-		while (QCC_PR_CheckToken("*"))
-			type = QCC_PointerTypeTo(type);
-
-		if (QCC_PR_CheckToken("("))
-		{	//c-style function pointers are annoying.
-			int levels = 0;
-			while (QCC_PR_CheckToken("*"))
-				levels++;
-			name = QCC_PR_ParseName();
-			QCC_PR_Expect(")");
-
-			//now parse its args
-			QCC_PR_Expect("(");
-			type = QCC_PR_ParseFunctionType(false, type);
-
-			//and bring it to the intended indirection level...
-			while (levels --> 1)
-				type = QCC_PointerTypeTo(type);
-		}
-		else
-			name = QCC_PR_ParseName();
-
-		if (QCC_PR_CheckToken("["))
-		{
-			struct QCC_typeparam_s *param = qccHunkAlloc(sizeof(*param));
-			param->type = type;
-			param->arraysize = QCC_PR_IntConstExpr();
-			type = QCC_PR_NewType(name, ev_union, true);
-			type->params = param;
-			type->num_parms = 1;
-			type->size = param->type->size * param->arraysize;
-			QCC_PR_Expect("]");
-		}
-		else
-		{
-			old = QCC_TypeForName(name);
-			if (old && old->scope == pr_scope)
-			{
-				if (typecmp(old, type))
-				{
-					char obuf[1024];
-					char nbuf[1024];
-					old->typedefed = false;
-					QCC_PR_ParseWarning(ERR_NOTATYPE, "Cannot redeclare typedef %s%s%s from %s%s%s to %s%s%s", col_type,name,col_none, col_type,TypeName(old, obuf, sizeof(obuf)),col_none, col_type,TypeName(type, nbuf, sizeof(nbuf)),col_none);
-					old->typedefed = true;
-				}
-			}
-			else
-			{
-				type = QCC_PR_DuplicateType(type, false);
-				type->name = name;
-				type->typedefed = true;
-				type->scope = pr_scope;
-				pHash_Add(&typedeftable, name, type, qccHunkAlloc(sizeof(bucket_t)));
-			}
-		}
-	} while(QCC_PR_CheckToken(","));
-	QCC_PR_Expect(";");
-	return;
-}
-
 /*
 ================
 PR_ParseDefs
@@ -18054,6 +17999,7 @@ void QCC_PR_ParseDefs (char *classname, pbool fatal_unused)
 	pbool shared=false;
 	pbool isstatic=defaultstatic;
 	pbool externfnc=false;
+	pbool istypedef=false;
 	pbool isconstant = false;
 	pbool isvar = false;
 	pbool isinitialised = false;
@@ -18077,12 +18023,6 @@ void QCC_PR_ParseDefs (char *classname, pbool fatal_unused)
 
 	while (QCC_PR_CheckToken(";"))
 		;
-
-	if (QCC_PR_CheckKeyword (keyword_typedef, "typedef"))
-	{
-		QCC_PR_ParseTypedef();
-		return;
-	}
 
 	if (flag_acc)
 	{
@@ -18242,7 +18182,9 @@ void QCC_PR_ParseDefs (char *classname, pbool fatal_unused)
 
 	while(1)
 	{
-		if (QCC_PR_CheckKeyword(keyword_extern, "extern"))
+		if (QCC_PR_CheckKeyword (keyword_typedef, "typedef"))
+			istypedef=true;
+		else if (QCC_PR_CheckKeyword(keyword_extern, "extern"))
 			externfnc=true;
 		else if (QCC_PR_CheckKeyword(keyword_shared, "shared"))
 		{
@@ -18380,7 +18322,10 @@ void QCC_PR_ParseDefs (char *classname, pbool fatal_unused)
 		type = QCC_PR_ParseFunctionTypeReacc(false, basetype);
 		QCC_PR_Expect(";");
 
-		def = QCC_PR_GetDef (basetype, name, NULL, true, 0, false);
+		if (istypedef)
+			return;
+		else
+			def = QCC_PR_GetDef (basetype, name, NULL, true, 0, false);
 
 		if (autoprototype || dostrip)
 		{	//ignore the code and stuff
@@ -18448,6 +18393,11 @@ void QCC_PR_ParseDefs (char *classname, pbool fatal_unused)
 
 		if (QCC_PR_CheckToken (";"))
 		{
+			if (istypedef)
+			{
+				QCC_PR_ParseWarning(WARN_UNEXPECTEDPUNCT, "typedef defines no types");
+				return;
+			}
 			if (type->type == ev_field && (type->aux_type->type == ev_union || type->aux_type->type == ev_struct))
 			{
 				QCC_PR_ExpandUnionToFields(type, &pr.size_fields);
@@ -18473,7 +18423,7 @@ void QCC_PR_ParseDefs (char *classname, pbool fatal_unused)
 			name = QCC_PR_ParseName ();
 		}
 
-		if (QCC_PR_CheckToken("::") && !classname)
+		if (!istypedef && QCC_PR_CheckToken("::") && !classname)
 		{
 			classname = name;
 			name = QCC_PR_ParseName();
@@ -18491,7 +18441,7 @@ void QCC_PR_ParseDefs (char *classname, pbool fatal_unused)
 			if (QCC_PR_CheckToken("]"))
 			{
 				//FIXME: preprocessor will hate this with a passion.
-				if (QCC_PR_CheckToken("="))
+				if (!istypedef && QCC_PR_CheckToken("="))
 				{
 					QCC_PR_Expect("{");
 					arraysize++;
@@ -18592,8 +18542,54 @@ void QCC_PR_ParseDefs (char *classname, pbool fatal_unused)
 		else
 			defclass = NULL;
 
-		isinitialised = QCC_PR_CheckToken ("=") || ((type->type == ev_function) && (pr_token[0] == '{' || pr_token[0] == '[' || pr_token[0] == ':'));
+		if (istypedef)
+		{
+			QCC_type_t *old;
+			if (externfnc||shared||isconstant||isvar||forceused||dostrip||allowinline||dowrap||doweak||accumulate||aliasof||deprecated
+					||(isstatic && !defaultstatic)
+					||(noref && !defaultnoref)
+					||(nosave && !defaultnosave) )
+				QCC_PR_ParseWarning(ERR_BADEXTENSION, "bad combination of modifiers with typedef (defining %s%s%s)", col_type,name,col_none);
+			if (arraysize)
+			{
+				struct QCC_typeparam_s *param = qccHunkAlloc(sizeof(*param));
+//				QCC_PR_ParseWarning(ERR_BADEXTENSION, "unsupported typedefed array (defining %s%s%s[%i])", col_type,name,col_none, arraysize);
+				param->type = type;
+				param->arraysize = arraysize;
+				param->paramname = NULL;
+				type = QCC_PR_NewType(name, ev_union, true);
+				type->params = param;
+				type->num_parms = 1;
+				type->size = param->type->size * param->arraysize;
+			}
+			else if (dynlength.cast)
+			{
+				QCC_PR_ParseWarning(ERR_BADEXTENSION, "unsupported typedefed array (defining %s%s%s[])", col_type,name,col_none);
+				type = QCC_PointerTypeTo(type);
+			}
 
+			old = QCC_TypeForName(name);
+			if (old && old->scope == pr_scope)
+			{
+				if (typecmp(old, type))
+				{
+					char obuf[1024];
+					char nbuf[1024];
+					QCC_PR_ParseWarning(ERR_NOTATYPE, "Cannot redeclare typedef %s%s%s from %s%s%s to %s%s%s", col_type,name,col_none, col_type,TypeName(old, obuf, sizeof(obuf)),col_none, col_type,TypeName(type, nbuf, sizeof(nbuf)),col_none);
+				}
+			}
+			else
+			{
+				old = type;
+				type = QCC_PR_NewType(name, ev_typedef, true);
+				type->aux_type = old;
+				type->scope = pr_scope;
+			}
+
+			continue;
+		}
+
+		isinitialised = QCC_PR_CheckToken ("=") || ((type->type == ev_function) && (pr_token[0] == '{' || pr_token[0] == '[' || pr_token[0] == ':'));
 
 		gd_flags = 0;
 		if (isstatic)

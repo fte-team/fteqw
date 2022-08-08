@@ -271,8 +271,8 @@ void(entedit_t *nent) editor_ents_updated =
 
 	for (i = 0; i < 8; i++)
 	{
-		nent->bboxverts[i].st = (vec2){{0,0}};
-		nent->bboxverts[i].rgba = (vec4){{nent->colourmod[0], nent->colourmod[1], nent->colourmod[2], nent->alpha?nent->alpha:1}};
+		nent->bboxverts[i].st = (vec2){0,0};
+		nent->bboxverts[i].rgba = (vec4){nent->colourmod[0], nent->colourmod[1], nent->colourmod[2], nent->alpha?nent->alpha:1};
 		nent->bboxverts[i].xyz[0] = nent->org[0] + ((i&1i)?nent->maxs[0]:nent->mins[0]);
 		nent->bboxverts[i].xyz[1] = nent->org[1] + (((i&2i)?nent->maxs[1]:nent->mins[1]));
 		nent->bboxverts[i].xyz[2] = nent->org[2] + ((i&4)?nent->maxs[2]:nent->mins[2]);

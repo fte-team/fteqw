@@ -27,7 +27,9 @@ extern int optres_test1;
 extern int optres_test2;
 
 pbool writeasm;
-pbool verbose;
+int verbose;
+#define VERBOSE_WARNINGSONLY -1
+#define VERBOSE_PROGRESS 0
 #define VERBOSE_STANDARD 1
 #define VERBOSE_DEBUG 2
 #define VERBOSE_DEBUGSTATEMENTS 3	//figuring out the files can be expensive.
@@ -1625,7 +1627,7 @@ static void QCC_UnmarshalLocals(void)
 		}
 	}
 	numpr_globals = biggest;
-	if (verbose)
+	if (verbose >= VERBOSE_STANDARD)
 		externs->Printf("%i shared locals, %i private, %i total\n", biggest - onum, onum - eog, numpr_globals-eog);
 }
 static void QCC_GenerateFieldDefs(QCC_def_t *def, char *fieldname, int ofs, QCC_type_t *type)
@@ -1817,7 +1819,7 @@ static pbool QCC_WriteData (int crc)
 		{
 			if (numpr_globals >= 32768)	//not much of a different format. Rewrite output to get it working on original executors?
 				externs->Printf("Globals exceeds 32k - an enhanced QCVM will be required\n");
-			else if (verbose)
+			else if (verbose >= VERBOSE_STANDARD)
 				externs->Printf("Progs should run on any QuakeC VM\n");
 			break;
 		}
@@ -1866,7 +1868,7 @@ static pbool QCC_WriteData (int crc)
 			types = false;
 		}
 
-		if (verbose)
+		if (verbose >= VERBOSE_STANDARD)
 		{
 			if (qcc_targetformat == QCF_QSS)
 				externs->Printf("QSS or FTE will be required\n");
@@ -1881,7 +1883,7 @@ static pbool QCC_WriteData (int crc)
 	case QCF_UHEXEN2:
 		debugtarget = false;
 		outputsttype = PST_UHEXEN2;
-		if (verbose)
+		if (verbose >= VERBOSE_STANDARD)
 			externs->Printf("uHexen2 will be required\n");
 		if (numpr_globals < 65535)
 			externs->Printf("Warning: outputting 32 uHexen2 format when 16bit would suffice\n");
@@ -2117,15 +2119,15 @@ static pbool QCC_WriteData (int crc)
 			else if (strcmp(def->name, "IMMEDIATE") && qccwarningaction[wt] && !(def->type->type == ev_function && def->symbolheader->timescalled) && !def->symbolheader->used)
 			{
 				char typestr[256];
-				if (QC_strcasestr(def->filen, "extensions") && !verbose)
+				if (QC_strcasestr(def->filen, "extensions") && verbose < VERBOSE_STANDARD)
 				{	//try to avoid annoying warnings from dpextensions.qc
 					extwarncount++;
 					QCC_PR_Warning(wt, def->filen, def->s_line, NULL);
 				}
 				else if (def->arraysize)
-					QCC_PR_Warning(wt, def->filen, def->s_line, (dupewarncount++ >= 10 && !verbose)?NULL:"%s %s%s%s[%i]  no references.", TypeName(def->type, typestr, sizeof(typestr)), col_symbol, def->name, col_none, def->arraysize);
+					QCC_PR_Warning(wt, def->filen, def->s_line, (dupewarncount++ >= 10 && verbose < VERBOSE_STANDARD)?NULL:"%s %s%s%s[%i]  no references.", TypeName(def->type, typestr, sizeof(typestr)), col_symbol, def->name, col_none, def->arraysize);
 				else
-					QCC_PR_Warning(wt, def->filen, def->s_line, (dupewarncount++ >= 10 && !verbose)?NULL:"%s %s%s%s  no references.", TypeName(def->type, typestr, sizeof(typestr)), col_symbol, def->name, col_none);
+					QCC_PR_Warning(wt, def->filen, def->s_line, (dupewarncount++ >= 10 && verbose < VERBOSE_STANDARD)?NULL:"%s %s%s%s  no references.", TypeName(def->type, typestr, sizeof(typestr)), col_symbol, def->name, col_none);
 			}
 			pr_scope = NULL;
 
@@ -2260,7 +2262,7 @@ static pbool QCC_WriteData (int crc)
 	}
 	QCC_SortFields();
 
-	if (dupewarncount > 10 && !verbose)
+	if (dupewarncount > 10 && verbose < VERBOSE_STANDARD)
 		QCC_PR_Note(WARN_NOTREFERENCED, NULL, 0, "suppressed %i more warnings about unreferenced variables, as you clearly don't care about the first 10.", dupewarncount-10);
 	if (extwarncount)
 		QCC_PR_Note(WARN_NOTREFERENCED, NULL, 0, "suppressed %i warnings about unused extensions.", extwarncount);
@@ -2320,20 +2322,20 @@ static pbool QCC_WriteData (int crc)
 	for (i = 0; i < nummodels; i++)
 	{
 		if (!precache_model[i].used)
-			dupewarncount+=QCC_PR_Warning(WARN_EXTRAPRECACHE, precache_model[i].filename, precache_model[i].fileline, (dupewarncount>10&&!verbose)?NULL:"Model \"%s\" was precached but not directly used%s", precache_model[i].name, dupewarncount?"":" (annotate the usage with the used_model intrinsic to silence this warning)");
+			dupewarncount+=QCC_PR_Warning(WARN_EXTRAPRECACHE, precache_model[i].filename, precache_model[i].fileline, (dupewarncount>10&&verbose < VERBOSE_STANDARD)?NULL:"Model \"%s\" was precached but not directly used%s", precache_model[i].name, dupewarncount?"":" (annotate the usage with the used_model intrinsic to silence this warning)");
 		else if (!precache_model[i].block)
-			dupewarncount+=QCC_PR_Warning(WARN_NOTPRECACHED, precache_model[i].filename, precache_model[i].fileline, (dupewarncount>10&&!verbose)?NULL:"Model \"%s\" was used but not directly precached", precache_model[i].name);
+			dupewarncount+=QCC_PR_Warning(WARN_NOTPRECACHED, precache_model[i].filename, precache_model[i].fileline, (dupewarncount>10&&verbose < VERBOSE_STANDARD)?NULL:"Model \"%s\" was used but not directly precached", precache_model[i].name);
 	}
 
 	for (i = 0; i < numsounds; i++)
 	{
 		if (!precache_sound[i].used)
-			dupewarncount+=QCC_PR_Warning(WARN_EXTRAPRECACHE, precache_sound[i].filename, precache_sound[i].fileline, (dupewarncount>10&&!verbose)?NULL:"Sound \"%s\" was precached but not directly used", precache_sound[i].name, dupewarncount?"":" (annotate the usage with the used_sound intrinsic to silence this warning)");
+			dupewarncount+=QCC_PR_Warning(WARN_EXTRAPRECACHE, precache_sound[i].filename, precache_sound[i].fileline, (dupewarncount>10&&verbose < VERBOSE_STANDARD)?NULL:"Sound \"%s\" was precached but not directly used", precache_sound[i].name, dupewarncount?"":" (annotate the usage with the used_sound intrinsic to silence this warning)");
 		else if (!precache_sound[i].block)
-			dupewarncount+=QCC_PR_Warning(WARN_NOTPRECACHED, precache_sound[i].filename, precache_sound[i].fileline, (dupewarncount>10&&!verbose)?NULL:"Sound \"%s\" was used but not directly precached", precache_sound[i].name);
+			dupewarncount+=QCC_PR_Warning(WARN_NOTPRECACHED, precache_sound[i].filename, precache_sound[i].fileline, (dupewarncount>10&&verbose < VERBOSE_STANDARD)?NULL:"Sound \"%s\" was used but not directly precached", precache_sound[i].name);
 	}
 
-	if (dupewarncount > 10 && !verbose)
+	if (dupewarncount > 10 && verbose < VERBOSE_STANDARD)
 		QCC_PR_Note(WARN_NOTREFERENCED, NULL, 0, "suppressed %i more %swarnings%s about precaches.", dupewarncount-10, col_warning, col_none);
 
 //PrintStrings ();
@@ -2342,7 +2344,7 @@ static pbool QCC_WriteData (int crc)
 //PrintGlobals ();
 strofs = (strofs+3)&~3;
 
-	if (verbose)
+	if (verbose >= VERBOSE_STANDARD)
 	{
 		externs->Printf ("%6i strofs (of %i)\n", strofs, MAX_STRINGS);
 		externs->Printf ("%6i numstatements (of %i)\n", numstatements, MAX_STATEMENTS);
@@ -2356,7 +2358,7 @@ strofs = (strofs+3)&~3;
 
 	if (!*destfile)
 		strcpy(destfile, "progs.dat");
-	if (verbose)
+	if (verbose >= VERBOSE_PROGRESS)
 		externs->Printf("Writing %s\n", destfile);
 	h = SafeOpenWrite (destfile, 2*1024*1024);
 	SafeWrite (h, &progs, sizeof(progs));
@@ -2867,7 +2869,7 @@ strofs = (strofs+3)&~3;
 		externs->Printf ("WARNING: progs format cannot handle extern functions\n");
 
 
-	if (verbose)
+	if (verbose >= VERBOSE_STANDARD)
 		externs->Printf ("%6i TOTAL SIZE\n", (int)SafeSeek (h, 0, SEEK_CUR));
 
 	progs.entityfields = pr.size_fields;
@@ -2896,7 +2898,7 @@ strofs = (strofs+3)&~3;
 					i = PRLittleLong(qcc_pr_globals[def->ofs]._int);
 				else
 				{	//entsize(=96)+hunk header size(=32)
-					if (verbose)
+					if (verbose >= VERBOSE_STANDARD)
 						externs->Printf("qccx hack - 'entity progs' uninitialised. Assuming 112.\n");
 					i = 112;	//match qccx.
 				}
@@ -2924,7 +2926,7 @@ strofs = (strofs+3)&~3;
 
 
 
-
+	if (verbose >= VERBOSE_PROGRESS)
 	switch(qcc_targetformat)
 	{
 	case QCF_QTEST:
@@ -2988,7 +2990,7 @@ strofs = (strofs+3)&~3;
 			strcat(destfile, ".lno");
 			if (gz)
 				strcat(destfile, ".gz");
-			if (verbose)
+			if (verbose >= VERBOSE_STANDARD)
 				externs->Printf("Writing %s for debugging\n", destfile);
 			h = SafeOpenWrite (destfile, 2*1024*1024);
 			SafeWrite (h, &lnotype, sizeof(int));
@@ -3881,53 +3883,53 @@ static void QCC_PR_CRCMessages(unsigned short crc)
 	case 12923:	//#pragma sourcefile usage
 		break;
 	case 54730:
-		if (verbose)
+		if (verbose >= VERBOSE_STANDARD)
 			externs->Printf("Recognised progs as QuakeWorld\n");
 		break;
 	case 5927:
-		if (verbose)
+		if (verbose >= VERBOSE_STANDARD)
 			externs->Printf("Recognised progs as NetQuake server gamecode\n");
 		break;
 
 	case 26940:
-		if (verbose)
+		if (verbose >= VERBOSE_STANDARD)
 			externs->Printf("Recognised progs as Quake pre-release...\n");
 		break;
 
 	case 38488:
-		if (verbose)
+		if (verbose >= VERBOSE_STANDARD)
 			externs->Printf("Recognised progs as original Hexen2\n");
 		break;
 	case 26905:
-		if (verbose)
+		if (verbose >= VERBOSE_STANDARD)
 			externs->Printf("Recognised progs as Hexen2 Mission Pack\n");
 		break;
 	case 14046:
-		if (verbose)
+		if (verbose >= VERBOSE_STANDARD)
 			externs->Printf("Recognised progs as Hexen2 (demo)\n");
 		break;
 
 	case 22390: //EXT_CSQC_1
-		if (verbose)
+		if (verbose >= VERBOSE_STANDARD)
 			externs->Printf("Recognised progs as an EXT_CSQC_1 module\n");
 		break;
 	case 17105:
 	case 32199:	//outdated ext_csqc
-		QCC_PR_Warning(WARN_SYSTEMCRC2, NULL, 0, "Recognised progs as outdated CSQC module\n");
+		QCC_PR_Warning(WARN_SYSTEMCRC2, NULL, 0, "Recognised progs as outdated CSQC module");
 		break;
 	case 52195:	//this is what DP requires. don't print it as the warning that it is as that would royally piss off xonotic and their use of -Werror.
 		externs->Printf("Recognised progs as DP-specific CSQC module\n");
 		break;
 	case 10020:
-		if (verbose)
+		if (verbose >= VERBOSE_STANDARD)
 			externs->Printf("Recognised progs as a MenuQC module\n");
 		break;
 
 	case 32401:
-		QCC_PR_Warning(WARN_SYSTEMCRC, NULL, 0, "please update your tenebrae system defs.\n");
+		QCC_PR_Warning(WARN_SYSTEMCRC, NULL, 0, "please update your tenebrae system defs.");
 		break;
 	default:
-		QCC_PR_Warning(WARN_SYSTEMCRC, NULL, 0, "system defs not recognised from quake nor clones, probably buggy (sys)defs.qc\n");
+		QCC_PR_Warning(WARN_SYSTEMCRC, NULL, 0, "system defs not recognised from quake nor clones, probably buggy (sys)defs.qc");
 		break;
 	}
 }
@@ -4497,11 +4499,15 @@ static void QCC_PR_CommandLinePrecompilerOptions (void)
 		{	//explicit output file
 			i++;
 			strcpy(destfile, myargv[i]);
+			if (!destfile_explicit)
+				verbose--;
 			destfile_explicit = true;
 		}
 		else if ( !strncmp(myargv[i], "-o", 2) )
 		{	//explicit output file
 			strcpy(destfile, myargv[i]+2);
+			if (!destfile_explicit)
+				verbose--;
 			destfile_explicit = true;
 		}
 		else if ( !strcmp(myargv[i], "-qc") )
@@ -4996,7 +5002,7 @@ static void QCC_SetDefaultProperties (void)
 	qcc_framerate = 0;	//depends on target (engine's OP_STATE)
 	ForcedCRC = 0;
 	defaultstatic = 0;
-	verbose = 0;
+	verbose = VERBOSE_PROGRESS;
 	*qccmsourcedir = 0;
 	QCC_PR_CloseProcessor();
 
@@ -5871,7 +5877,7 @@ void QCC_FinishCompile(void)
 
 	if (donesomething)
 	{
-		if (verbose)
+		if (verbose >= VERBOSE_STANDARD)
 		{
 			externs->Printf ("Compile Complete\n\n");
 
@@ -5926,7 +5932,7 @@ void QCC_FinishCompile(void)
 
 			externs->Printf("numtemps %u\n", (unsigned)tempsused);
 		}
-		if (!flag_msvcstyle)
+		if (!flag_msvcstyle && verbose >= VERBOSE_PROGRESS)
 			externs->Printf("Done. %i warnings\n", pr_warning_count);
 	}
 

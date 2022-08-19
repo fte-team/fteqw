@@ -4092,13 +4092,13 @@ static void CLQEX_ParseServerVars(void)
 	unsigned int bits = MSG_ReadULEB128();
 
 	if (bits & QEX_GV_DEATHMATCH)
-		cl.deathmatch = MSG_ReadByte ();
+		InfoBuf_SetStarKey(&cl.serverinfo, "deathmatch", va("%i", MSG_ReadByte ()));
 	if (bits & QEX_GV_IDEALPITCHSCALE)
 		MSG_ReadFloat ();
 	if (bits & QEX_GV_FRICTION)
 		movevars.friction = MSG_ReadFloat ();
 	if (bits & QEX_GV_EDGEFRICTION)
-		movevars.edgefriction = MSG_ReadFloat ();
+		InfoBuf_SetStarKey(&cl.serverinfo, "pm_edgefriction", va("%g", MSG_ReadFloat ()));
 	if (bits & QEX_GV_STOPSPEED)
 		movevars.stopspeed = MSG_ReadFloat ();
 	if (bits & QEX_GV_MAXVELOCITY)
@@ -4112,11 +4112,51 @@ static void CLQEX_ParseServerVars(void)
 	if (bits & QEX_GV_ACCELERATE)
 		movevars.accelerate = MSG_ReadFloat ();
 	if (bits & QEX_GV_CONTROLLERONLY)
-		/*cl.blockmouse =*/ MSG_ReadByte ();
+		InfoBuf_SetStarKey(&cl.serverinfo, "nomouse", va("%i", MSG_ReadByte ()));
 	if (bits & QEX_GV_TIMELIMIT)
 		InfoBuf_SetStarKey(&cl.serverinfo, "timelimit", va("%g", MSG_ReadFloat ()));
 	if (bits & QEX_GV_FRAGLIMIT)
 		InfoBuf_SetStarKey(&cl.serverinfo, "fraglimit", va("%g", MSG_ReadFloat ()));
+	if (bits & QEX_GV_TEAMPLAY)
+		InfoBuf_SetStarKey(&cl.serverinfo, "teamplay", va("%i", MSG_ReadByte ()));
+	if (bits & ~QEX_GV_ALL)
+		Con_Printf("CLQEX_ParseServerVars: Unknown bits %#x\n", bits & ~QEX_GV_ALL);
+
+	CL_CheckServerInfo();
+}
+static void CLQEX_ParsePrompt(void)
+{
+	int a, count = MSG_ReadByte(), imp;
+	const char *s;
+	char message[65536];
+	size_t ofs = 0;
+
+	if (count == 0)
+	{
+		SCR_CenterPrint(0, NULL, true);
+		return;
+	}
+
+	s = MSG_ReadString();
+	Q_strncatz(message+ofs, "/S/C/.", sizeof(message)-ofs);
+	ofs += strlen(message+ofs);
+	TL_Reformat(message+ofs, sizeof(message)-ofs, 1, &s);
+	ofs += strlen(message+ofs);
+
+	Q_strncatz(message+ofs, "\n", sizeof(message)-ofs);
+	ofs += strlen(message+ofs);
+	for (a = 0; a < count; a++)
+	{
+		s = MSG_ReadString();
+		imp = MSG_ReadByte();
+		Q_strncatz(message+ofs, "^[[", sizeof(message)-ofs);
+		ofs += strlen(message+ofs);
+		TL_Reformat(message+ofs, sizeof(message)-ofs, 1, &s);
+		ofs += strlen(message+ofs);
+		Q_strncatz(message+ofs, va("]\\impulse\\%i^]\n", imp), sizeof(message)-ofs);
+		ofs += strlen(message+ofs);
+	}
+	SCR_CenterPrint(0, message, true);
 }
 static char *CLQEX_ReadStrings(void)
 {
@@ -4127,7 +4167,7 @@ static char *CLQEX_ReadStrings(void)
 	size_t ofs = 0;
 	for (a = 0; a < count && a < countof(arg); )
 	{
-		arg[a++] = MSG_ReadStringBuffer(inputs+ofs, sizeof(inputs)-1);
+		arg[a++] = MSG_ReadStringBuffer(inputs+ofs, sizeof(inputs)-ofs-1);
 		ofs += strlen(inputs+ofs)+1;
 		if (ofs >= sizeof(inputs))
 			break;
@@ -8243,14 +8283,9 @@ void CLNQ_ParseServerMessage (void)
 			break;
 
 		case svc_print:
-			if(cls.qex && cls.protocol_nq != CPNQ_ID)
-				s = CLQEX_ReadStrings();
-			else
-			{
+			s = MSG_ReadString ();
+			//fallthrough...
 		svcprint:
-				s = MSG_ReadString ();
-			}
-
 			if (*s == 1 || *s == 2)
 			{
 				//FIXME: should be using the first char of the line, not the first char of the last segment.
@@ -8267,11 +8302,8 @@ void CLNQ_ParseServerMessage (void)
 			return;
 
 		case svc_centerprint:
-			if (cls.qex && cls.protocol_nq != CPNQ_ID)
-				s = CLQEX_ReadStrings();
-			else
-				s = MSG_ReadString ();
-
+			s = MSG_ReadString ();
+			svccentreprint:
 #ifdef PLUGINS
 			if (Plug_CenterPrintMessage(s, destsplit))
 #endif
@@ -8762,6 +8794,11 @@ void CLNQ_ParseServerMessage (void)
 			break;
 
 		case svcdp_entities:
+			if (cls.qex)
+			{	//svcqex_prompt
+				CLQEX_ParsePrompt();
+				break;
+			}
 			if (cls.signon == 4 - 1)
 			{	// first update is the final signon stage
 				cls.signon = 4;
@@ -8786,6 +8823,11 @@ void CLNQ_ParseServerMessage (void)
 
 #ifdef CSQC_DAT
 		case svcdp_csqcentities:
+			if (cls.qex)
+			{
+				s = CLQEX_ReadStrings();
+				goto svccentreprint;
+			}
 			CSQC_ParseEntities(false);
 			break;
 		case svcfte_csqcentities_sized:
@@ -8847,9 +8889,10 @@ void CLNQ_ParseServerMessage (void)
 				break;
 			}
 			goto badsvc;
-		case svcqex_print:
+		case svcqex_locprint:
 			if (cls.qex)
 			{	//svcqex_'raw'print
+				s = CLQEX_ReadStrings();
 				goto svcprint;
 			}
 			goto badsvc;

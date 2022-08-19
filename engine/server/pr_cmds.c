@@ -11215,6 +11215,9 @@ static BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"ex_bot_followentity",PF_Fixme,		0,		0,		0,0,	D("float(entity bot, entity goal)", "Behaviour is undocumented.")},
 	{"ex_CheckPlayerEXFlags",PF_CheckPlayerEXFlags_qex,0,0,	0,0,	D("float(entity playerEnt)", "Behaviour is undocumented.")},
 	{"ex_walkpathtogoal",PF_walkpathtogoal_qex,0,	0,		0,0,	D("float(float movedist, vector goal)", "Behaviour is undocumented.")},
+//	{"ex_prompt",		PF_prompt_qex,		0,		0,		0,0,	D("void(entity player, string text, float numchoices)", "Behaviour is undocumented.")},
+//	{"ex_promptchoice",	PF_promptchoice_qex,0,		0,		0,0,	D("void(entity player, string text, float impulse)", "Behaviour is undocumented.")},
+//	{"ex_clearprompt",	PF_clearprompt_qex,	0,		0,		0,0,	D("void(entity player)", "Behaviour is undocumented.")},
 //End QuakeEx, for now. :(
 
 // Tomaz - QuakeC String Manipulation Begin

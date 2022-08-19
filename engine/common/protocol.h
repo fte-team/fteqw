@@ -355,10 +355,16 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define svcqex_updateping			46	// [byte] slot, [signed_qe] ping
 #define svcqex_updatesocial			47	// [byte] slot, 8 bytes of unknown
 #define svcqex_updateplinfo			48	// [byte] slot, [leb128] health, [leb128] armour
-#define svcqex_print				49	// identical to svc_print, except not broken by qex.
+#define svcqex_locprint				49	// uses qe's localised string formatting, otherwise treat as svc_print.
 #define svcqex_servervars			50	// [leb128] changedvalues, [???] value...
 #define svcqex_seq					51	// [leb128] input sequence ack
 #define svcqex_achievement			52	// [string] codename
+#define svcqex_chat					53
+#define svcqex_levelcompleted		54
+#define svcqex_backtolobby			55
+#define svcqex_localsound			56
+#define svcqex_prompt				57
+#define svcqex_loccenterprint		58	// [string] codename
 
 //DP extended svcs
 #define svcdp_downloaddata			50
@@ -941,7 +947,8 @@ enum {
 #define QEX_GV_CONTROLLERONLY	(1<<10)
 #define QEX_GV_TIMELIMIT		(1<<11)
 #define QEX_GV_FRAGLIMIT		(1<<12)
-#define QEX_GV_ALL				((1<<13)-1)
+#define QEX_GV_TEAMPLAY			(1<<13)
+#define QEX_GV_ALL				((1<<14)-1)
 
 //==============================================
 //obsolete demo players info

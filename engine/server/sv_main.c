@@ -465,10 +465,7 @@ void SV_FinalMessage (char *message)
 			else if (ISNQCLIENT(cl))
 			{
 				SZ_Clear (&buf);
-				if (cl->qex && cl->protocol != SCP_NETQUAKE)
-					MSG_WriteByte (&buf, svcqex_print);	//urgh, ffs.
-				else
-					MSG_WriteByte (&buf, svc_print);
+				MSG_WriteByte (&buf, svc_print);
 				MSG_WriteString (&buf, message);
 				MSG_WriteByte (&buf, svc_disconnect);
 			}

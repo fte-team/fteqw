@@ -184,10 +184,7 @@ void SV_PrintToClient(client_t *cl, int level, const char *string)
 	case SCP_BJP3:
 	case SCP_FITZ666:
 #ifdef NQPROT
-		if (cl->qex && cl->protocol != SCP_NETQUAKE)
-			ClientReliableWrite_Begin (cl, svcqex_print, strlen(string)+3);	//urgh!
-		else
-			ClientReliableWrite_Begin (cl, svc_print, strlen(string)+3);
+		ClientReliableWrite_Begin (cl, svc_print, strlen(string)+3);
 		if (level == PRINT_CHAT)
 			ClientReliableWrite_Byte (cl, 1);
 		ClientReliableWrite_String (cl, string);
@@ -1599,15 +1596,7 @@ void SV_WriteCenterPrint(client_t *cl, char *s)
 		ClientReliableWrite_Byte (cl, svc_centerprint);
 	}
 	else
-	{
-		if (cl->qex && cl->protocol != SCP_NETQUAKE)
-		{
-			ClientReliableWrite_Begin (cl, svc_centerprint, 4 + strlen(s));
-			ClientReliableWrite_Short (cl, 1);
-		}
-		else
-			ClientReliableWrite_Begin (cl, svc_centerprint, 2 + strlen(s));
-	}
+		ClientReliableWrite_Begin (cl, svc_centerprint, 2 + strlen(s));
 	ClientReliableWrite_String (cl, s);
 
 #ifdef MVD_RECORDING

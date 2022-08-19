@@ -803,6 +803,15 @@ void Sbar_ShowScores (void)
 	sb_updates = 0;
 }
 
+#ifdef NQPROT
+static void Sbar_CTFScores_f(void)
+{	//issued via stuffcmds.
+//	int red = atoi(Cmd_Argv(1));
+//	int blue = atoi(Cmd_Argv(2));
+//	int flags = atoi(Cmd_Argv(3));	//base|carried|dropped | base|carried|dropped
+}
+#endif
+
 #ifdef HEXEN2
 static void Sbar_Hexen2InvLeft_f(void)
 {
@@ -1159,6 +1168,10 @@ void Sbar_Init (void)
 
 	Cmd_AddCommand ("+showteamscores", Sbar_ShowTeamScores);
 	Cmd_AddCommand ("-showteamscores", Sbar_DontShowTeamScores);
+
+#ifdef NQPROT
+	Cmd_AddCommand ("ctfscores", Sbar_CTFScores_f);	//server->client score updates.
+#endif
 
 #ifdef HEXEN2
 	//stuff to get hexen2 working out-of-the-box

@@ -856,6 +856,8 @@ void SVNQ_New_f (void)
 			MSG_WriteFloat (&host_client->netchan.message, timelimit.value);
 		if (bits & QEX_GV_FRAGLIMIT)
 			MSG_WriteFloat (&host_client->netchan.message, fraglimit.value);
+		if (bits & QEX_GV_TEAMPLAY)
+			MSG_WriteByte (&host_client->netchan.message, teamplay.ival&0xff);
 	}
 
 // set view
@@ -6208,6 +6210,24 @@ static void SVNQ_Protocols_f(void)
 		}
 	}
 }
+static void SV_PlayerExFlags_f(void)
+{
+	int i = atoi(Cmd_Argv(1));
+	const char *v = "";
+	switch(i&3)
+	{
+	case 0:
+		v = "";
+		break;
+	case 1:
+		v = "0";
+		break;
+	case 2:
+		v = "1";
+		break;
+	}
+	InfoBuf_SetKey(&host_client->userinfo, "w_switch", v);
+}
 
 /*
 void SVNQ_ExecuteUserCommand (char *s)
@@ -6504,6 +6524,8 @@ ucmd_t nqucmds[] =
 	{"muteall",		SV_Voice_MuteAll_f},	/*disables*/
 	{"unmuteall",	SV_Voice_UnmuteAll_f}, /*reenables*/
 #endif
+
+	{"playerexflags", SV_PlayerExFlags_f},
 
 	{NULL, NULL}
 };

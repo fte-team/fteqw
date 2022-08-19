@@ -4488,7 +4488,12 @@ qboolean SVNQ_ConnectionlessPacket(void)
 			}
 			if (NET_WasSpecialPacket(svs.sockets))
 				return true;
-			if (sv_listen_nq.ival == 2 && net_from.prot == NP_DGRAM && net_from.type != NA_ICE)
+#ifdef HAVE_PACKET
+			if (sv_listen_nq.ival == 2 && net_from.prot == NP_DGRAM
+#ifdef SUPPORT_ICE
+									   && net_from.type != NA_ICE
+#endif
+				)
 			{
 				if (password.string[0] &&
 					stricmp(password.string, "none") &&
@@ -4522,6 +4527,7 @@ qboolean SVNQ_ConnectionlessPacket(void)
 				/*don't worry about repeating, the nop case above will recover it*/
 			}
 			else
+#endif
 			{
 				str = va("connect %i %i %i \"\\name\\unconnected\\mod\\%i\\modver\\%i\\flags\\%i\\password\\%i\"", protver, 0, SV_NewChallenge(), mod, modver, flags, passwd);
 				Cmd_TokenizeString (str, false, false);

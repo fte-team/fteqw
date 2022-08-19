@@ -89,12 +89,12 @@ if [ "$FTEQCC" != "" ]; then
 
 	(	cd quakec/csaddon/src
 		echo -n "Making csaddon... "
-		$FTEQCC -srcfile csaddon.src > $BUILDLOGFOLDER/csaddon.txt
+		$FTEQCC -srcfile csaddon.src > $BUILDLOGFOLDER/csaddon.txt 2>&1
 		if [ $? -eq 0 ]; then
 			echo "done"
 			cp ../csaddon.dat $BUILDFOLDER/csaddon/
 			cd ..
-			zip -9 $BUILDFOLDER/csaddon/csaddon.pk3 csaddon.dat
+			zip -q9 $BUILDFOLDER/csaddon/csaddon.pk3 csaddon.dat
 		else
 			echo "failed"
 		fi
@@ -102,13 +102,13 @@ if [ "$FTEQCC" != "" ]; then
 
 	(	cd quakec/menusys
 		echo -n "Making menusys... "
-		$FTEQCC -srcfile menu.src > $BUILDLOGFOLDER/menu.txt
+		$FTEQCC -srcfile menu.src > $BUILDLOGFOLDER/menu.txt 2>&1
 		if [ $? -eq 0 ]; then
 			echo "done"
-			zip -q -9 -o -r $BUILDFOLDER/csaddon/menusys_src.zip .
+			zip -q -q9 -o -r $BUILDFOLDER/csaddon/menusys_src.zip .
 			cp ../menu.dat $BUILDFOLDER/csaddon/
 			cd ..
-			zip -9 $BUILDFOLDER/csaddon/menusys.pk3 menu.dat
+			zip -q9 $BUILDFOLDER/csaddon/menusys.pk3 menu.dat
 		else
 			echo "failed"
 		fi

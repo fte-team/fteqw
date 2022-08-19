@@ -3918,6 +3918,7 @@ static void QCC_PR_CRCMessages(unsigned short crc)
 		QCC_PR_Warning(WARN_SYSTEMCRC2, NULL, 0, "Recognised progs as outdated CSQC module");
 		break;
 	case 52195:	//this is what DP requires. don't print it as the warning that it is as that would royally piss off xonotic and their use of -Werror.
+		if (verbose >= VERBOSE_PROGRESS)
 		externs->Printf("Recognised progs as DP-specific CSQC module\n");
 		break;
 	case 10020:

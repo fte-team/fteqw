@@ -18586,6 +18586,7 @@ void QCC_PR_ParseDefs (char *classname, pbool fatal_unused)
 				type->scope = pr_scope;
 			}
 
+			def = NULL;
 			continue;
 		}
 
@@ -18888,10 +18889,10 @@ void QCC_PR_ParseDefs (char *classname, pbool fatal_unused)
 	} while (QCC_PR_CheckToken (","));
 
 	if (type->type == ev_function)
-		QCC_PR_CheckTokenComment (";", &def->comment);
+		QCC_PR_CheckTokenComment (";", def?&def->comment:NULL);
 	else
 	{
-		if (!QCC_PR_CheckTokenComment (";", &def->comment))
+		if (!QCC_PR_CheckTokenComment (";", def?&def->comment:NULL))
 			QCC_PR_ParseWarning(WARN_UNDESIRABLECONVENTION, "Missing semicolon at end of definition");
 	}
 }

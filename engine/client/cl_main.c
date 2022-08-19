@@ -2082,6 +2082,8 @@ void CL_ClearState (qboolean gamestart)
 #ifdef CL_MASTER
 	MasterInfo_WriteServers();
 #endif
+
+	R_GAliasFlushSkinCache(false);
 }
 
 /*

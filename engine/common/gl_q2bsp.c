@@ -7282,7 +7282,7 @@ static size_t	CM_LoadAreaPortalBlob (model_t *mod, void *ptr, size_t ptrsize)
 		switch(prv->mapisq3)
 		{
 #ifdef Q3BSPS
-		case 1:	//area*area refcounts. byte sizes don't tell us how many areas there were - would need sqrt(ptrsize/4) and I cba.
+		case true:	//area*area refcounts. byte sizes don't tell us how many areas there were - would need sqrt(ptrsize/4) and I cba.
 			if (ptrsize != sizeof(prv->q3areas))
 			{	//don't bother trying to handle graceful expansion/truncation, just reset the entire thing.
 				size_t x,y;
@@ -7298,7 +7298,7 @@ static size_t	CM_LoadAreaPortalBlob (model_t *mod, void *ptr, size_t ptrsize)
 			return sizeof(prv->q3areas);
 #endif
 #ifdef Q2BSPS
-		case 0:	//per-portal booleans. we can just pad any missing portals.
+		case false:	//per-portal booleans. we can just pad any missing portals.
 			if (ptrsize && ptrsize != sizeof(prv->q2portalopen))
 				Con_Printf("CM_ReadPortalState() expected %u, but only %u available\n",(unsigned int)sizeof(prv->q2portalopen),(unsigned int)ptrsize);
 			if (ptrsize > sizeof(prv->q2portalopen))

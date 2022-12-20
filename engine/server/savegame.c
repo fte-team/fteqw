@@ -1723,7 +1723,7 @@ void SV_LoadPlayers(loadplayer_t *lp, size_t slots)
 	}
 }
 
-static void SV_GameLoaded(loadplayer_t *lp, size_t slots, const char *savename)
+static void SV_GameLoaded(loadplayer_t *lp, size_t slots, const char *savename, qboolean is_quake2)
 {
 	size_t clnum;
 	client_t *cl;
@@ -1746,10 +1746,13 @@ static void SV_GameLoaded(loadplayer_t *lp, size_t slots, const char *savename)
 			sv.spawned_client_slots++;
 			Q_strncpyz(cl->namebuf, lp[clnum].name, sizeof(cl->namebuf));
 		}
-		cl->name = PR_AddString(svprogfuncs, cl->namebuf, sizeof(cl->namebuf), false);
-		cl->team = PR_AddString(svprogfuncs, cl->teambuf, sizeof(cl->teambuf), false);
 
-		cl->edict = EDICT_NUM_PB(svprogfuncs, clnum+1);
+		if (!is_quake2) {
+			cl->name = PR_AddString(svprogfuncs, cl->namebuf, sizeof(cl->namebuf), false);
+			cl->team = PR_AddString(svprogfuncs, cl->teambuf, sizeof(cl->teambuf), false);
+
+			cl->edict = EDICT_NUM_PB(svprogfuncs, clnum+1);
+		}
 
 #ifdef HEXEN2
 		{
@@ -1760,7 +1763,8 @@ static void SV_GameLoaded(loadplayer_t *lp, size_t slots, const char *savename)
 		}
 #endif
 #ifdef HAVE_LEGACY
-		cl->edict->xv->clientcolors = cl->playercolor;
+		if (!is_quake2)
+			cl->edict->xv->clientcolors = cl->playercolor;
 #endif
 
 		if (cl->state == cs_spawned)	//shouldn't have gotten past SV_SpawnServer, but just in case...
@@ -2037,7 +2041,7 @@ static qboolean SV_Loadgame_Legacy(const char *savename, const char *filename, v
 
 	World_ClearWorld(&sv.world, true);
 
-	SV_GameLoaded(lp, slots, savename);
+	SV_GameLoaded(lp, slots, savename, qfalse);
 	return true;
 }
 #endif
@@ -2057,6 +2061,7 @@ qboolean SV_Loadgame (const char *unsafe_savename)
 	client_t *cl;
 	gametype_e gametype;
 	loadplayer_t lp[255];
+	qboolean is_quake2 = qfalse;
 
 	struct
 	{
@@ -2312,6 +2317,7 @@ qboolean SV_Loadgame (const char *unsafe_savename)
 			Con_Printf("%s is inside a package and cannot be used by the quake2 gamecode.\n", name);
 		else
 		{
+			is_quake2 = qtrue;
 			SVQ2_InitGameProgs();
 			if (ge)
 				ge->ReadGame(loc.rawname);
@@ -2322,7 +2328,7 @@ qboolean SV_Loadgame (const char *unsafe_savename)
 	svs.gametype = gametype;
 	SV_LoadLevelCache(savename, str, "", true);
 
-	SV_GameLoaded(lp, slots, savename);
+	SV_GameLoaded(lp, slots, savename, is_quake2);
 	return true;
 }
 

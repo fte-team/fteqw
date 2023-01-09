@@ -504,6 +504,8 @@ void CompleteCommand (qboolean force, int direction)
 	cmd_completion_t *c;
 
 	s = key_lines[edit_line];
+	if (!*s)
+		return;
 	if (*s == ' ' || *s == '\t')
 		s++;
 	if (*s == '\\' || *s == '/')

@@ -546,7 +546,7 @@ typedef struct {
 	menucombo_t *skill;
 	menucombo_t *timelimit;
 	menucombo_t *fraglimit;
-	menuedit_t *mapnameedit;
+	menucombo_t *mapname;
 	menucheck_t *rundedicated;
 
 	int topcolour;
@@ -614,7 +614,8 @@ qboolean MultiBeginGame (union menuoption_s *option,struct emenu_s *menu, int ke
 	}
 	else
 		Cbuf_AddText(va("sv_public %i\n", info->publicgame->selectedoption-1), RESTRICT_LOCAL);
-	Cbuf_AddText(va("map \"%s\"\n", info->mapnameedit->text), RESTRICT_LOCAL);
+
+	Cbuf_AddText(va("map \"%s\"\n", info->mapname->options[info->mapname->selectedoption]), RESTRICT_LOCAL);
 
 	if (info->rundedicated->value)
 	{
@@ -625,6 +626,36 @@ qboolean MultiBeginGame (union menuoption_s *option,struct emenu_s *menu, int ke
 
 	return true;
 }
+
+struct mapopts_s
+{
+	size_t max, count;
+	const char **maps;
+};
+static int QDECL M_Menu_GameOptions_AddMap(const char *fname, qofs_t fsize, time_t mtime, void *parm, searchpathfuncs_t *spath)
+{
+	struct mapopts_s *ctx = parm;
+	size_t i;
+	char *ext;
+	if (Q_strncasecmp(fname, "maps/", 5))
+		return true; //o.O
+	fname += 5;
+	if (*fname == 'b' && *fname == '_')
+		return true;	//stoopid ammo boxes.
+	ext = strrchr(fname, '.');
+	if (ext && !strcmp(ext, ".bsp"))
+		*ext = 0;
+
+	for (i = 0; i < ctx->count; i++)
+		if (!Q_strcasecmp(ctx->maps[i], fname))
+			return true; //don't do dupes.
+	if (ctx->count+1 >= ctx->max)
+		Z_ReallocElements((void**)&ctx->maps, &ctx->max, ctx->count + 64, sizeof(char*));
+	ctx->maps[ctx->count++] = Z_StrDup(fname);
+	return true;
+}
+
+
 void M_Menu_GameOptions_f (void)
 {
 	static const char *deathmatchoptions[] = {
@@ -703,6 +734,7 @@ void M_Menu_GameOptions_f (void)
 	int y = 40;
 	int mgt;
 	int players;
+	struct mapopts_s mapopts = {0};
 
 	menu = M_CreateMenu(sizeof(newmultimenu_t));
 	info = menu->data;
@@ -749,10 +781,16 @@ void M_Menu_GameOptions_f (void)
 	info->timelimit		= MC_AddCombo	(menu, 64, 160, y,			"Time Limit", (const char **)timelimitoptions,		timelimit.value/5);y+=8;
 	info->fraglimit		= MC_AddCombo	(menu, 64, 160, y,			"Frag Limit", (const char **)fraglimitoptions,		fraglimit.value/10);y+=8;
 	y+=8;
-	if (mgt == MGT_QUAKE2)
-		info->mapnameedit	= MC_AddEdit	(menu, 64, 160, y,			"map", "base1");
-	else
-		info->mapnameedit	= MC_AddEdit	(menu, 64, 160, y,			"map", "start");
+
+	M_Menu_GameOptions_AddMap((mgt == MGT_QUAKE2)?"maps/base1":"maps/start", 0, 0, &mapopts, NULL);
+	COM_EnumerateFiles("maps/*.bsp",	M_Menu_GameOptions_AddMap, &mapopts);
+	COM_EnumerateFiles("maps/*.bsp.gz",	M_Menu_GameOptions_AddMap, &mapopts);
+	COM_EnumerateFiles("maps/*.bsp.xz",	M_Menu_GameOptions_AddMap, &mapopts);
+	COM_EnumerateFiles("maps/*.map",	M_Menu_GameOptions_AddMap, &mapopts);
+	COM_EnumerateFiles("maps/*.map.gz",	M_Menu_GameOptions_AddMap, &mapopts);
+	COM_EnumerateFiles("maps/*.cm",		M_Menu_GameOptions_AddMap, &mapopts);
+	COM_EnumerateFiles("maps/*.hmp",	M_Menu_GameOptions_AddMap, &mapopts);
+	info->mapname		= MC_AddCombo	(menu, 64, 160, y,			"Map", (const char **)mapopts.maps,		0);y+=8;
 	y += 16;
 
 	menu->cursoritem = (menuoption_t*)MC_AddWhiteText(menu, 54, 0, menu->selecteditem->common.posy, NULL, false);

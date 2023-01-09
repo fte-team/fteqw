@@ -35,7 +35,7 @@ cvar_t pr_tempstringsize = CVARD("pr_tempstringsize", "4096", "Obsolete");
 #ifdef MULTITHREAD
 cvar_t pr_gc_threaded = CVARD("pr_gc_threaded", "1", "Says whether to use a separate thread for tempstring garbage collections. This avoids main-thread stalls but at the expense of more memory usage.");
 #else
-cvar_t pr_gc_threaded = CVARD("pr_gc_threaded", "0", "Says whether to use a separate thread for tempstring garbage collections. This avoids main-thread stalls but at the expense of more memory usage.");
+cvar_t pr_gc_threaded = CVARFD("pr_gc_threaded", "0", CVAR_NOSET|CVAR_NOSAVE, "Says whether to use a separate thread for tempstring garbage collections. This avoids main-thread stalls but at the expense of more memory usage.");
 #endif
 cvar_t	pr_sourcedir = CVARD("pr_sourcedir", "src", "Subdirectory where your qc source is located. Used by the internal compiler and qc debugging functionality.");
 cvar_t pr_enable_uriget = CVARD("pr_enable_uriget", "1", "Allows gamecode to make direct http requests");
@@ -1864,9 +1864,9 @@ void QCBUILTIN PF_cvar_string (pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 	if (cv && !(cv->flags & CVAR_NOUNSAFEEXPAND))
 	{
 		if(cv->latched_string)
-			RETURN_CSTRING(cv->latched_string);
+			RETURN_TSTRING(cv->latched_string);
 		else
-			RETURN_CSTRING(cv->string);
+			RETURN_TSTRING(cv->string);
 	}
 	else
 		G_INT(OFS_RETURN) = 0;
@@ -1883,7 +1883,7 @@ void QCBUILTIN PF_cvar_defstring (pubprogfuncs_t *prinst, struct globalvars_s *p
 	const char	*str = PR_GetStringOfs(prinst, OFS_PARM0);
 	cvar_t *cv = PF_Cvar_FindOrGet(str);
 	if (cv && !(cv->flags & CVAR_NOUNSAFEEXPAND))
-		RETURN_CSTRING(cv->defaultstr);
+		RETURN_TSTRING(cv->defaultstr);
 	else
 		G_INT(OFS_RETURN) = 0;
 }
@@ -1896,7 +1896,7 @@ void QCBUILTIN PF_cvar_description (pubprogfuncs_t *prinst, struct globalvars_s 
 	if (cv && !(cv->flags & CVAR_NOUNSAFEEXPAND))
 	{
 		if (cv->description)
-			RETURN_CSTRING(localtext(cv->description));
+			RETURN_TSTRING(localtext(cv->description));
 		else
 			G_INT(OFS_RETURN) = 0;
 	}

@@ -3599,9 +3599,9 @@ static qboolean PF_search_getloc(flocation_t *loc, prvmsearch_t *s, int num)
 {
 	const char *fname = s->entry[num].name;
 	if (s->searchinfo.handle)	//we were only searching a single package...
-	{
+	{	//fail if its a directory, or a (pk3)symlink that we'd have to resolve.
 		loc->search = &s->searchinfo;
-		return loc->search->handle->FindFile(loc->search->handle, loc, fname, NULL);
+		return loc->search->handle->FindFile(loc->search->handle, loc, fname, NULL) == FF_FOUND;
 	}
 	else if (!s->entry[num].package)
 	{

@@ -199,53 +199,178 @@ void Sys_Printf (char *fmt, ...)
 	fflush(stdout);
 }
 
-unsigned int Sys_Milliseconds(void)
+
+
+
+//#define QCLOCK(e,n,q,f,i) //q must have t=
+
+#if SDL_VERSION_ATLEAST(2,0,18)	//less wrappy... still terrible precision.
+	#define CLOCKDEF_SDL_TICKS QCLOCK(TICKS, "ticks", t=SDL_GetTicks64(), 1000,;)
+#else
+	#define CLOCKDEF_SDL_TICKS QCLOCK(TICKS, "ticks", t=SDL_GetTicks(), 1000,;)
+#endif
+
+static quint64_t sdlperf_freq;
+#define CLOCKDEF_SDL_PERF  QCLOCK(PERF,  "perf", t=SDL_GetPerformanceCounter(), sdlperf_freq,sdlperf_freq=SDL_GetPerformanceFrequency())
+
+#ifdef CLOCK_MONOTONIC
+	#define CLOCKDEF_LINUX_MONOTONIC QCLOCK(MONOTONIC, "monotonic", {	\
+				struct timespec ts;	\
+				clock_gettime(CLOCK_MONOTONIC, &ts);	\
+				t = (ts.tv_sec*(quint64_t)1000000000) + ts.tv_nsec;	\
+			}, 1000000000,;)
+#else
+	#define CLOCKDEF_LINUX_MONOTONIC
+#endif
+
+#ifdef CLOCK_REALTIME
+	#define CLOCKDEF_LINUX_REALTIME QCLOCK(REALTIME, "realtime", {	\
+				struct timespec ts;	\
+				clock_gettime(CLOCK_REALTIME, &ts);	\
+				t = (ts.tv_sec*(quint64_t)1000000000) + ts.tv_nsec;	\
+			}, 1000000000,;)
+#else
+	#define CLOCKDEF_LINUX_REALTIME
+#endif
+
+#if _POSIX_C_SOURCE >= 200112L
+	#include <sys/time.h>
+	#define CLOCKDEF_POSIX_GTOD QCLOCK(GTOD, "gettimeofday", {	\
+			struct timeval tp;	\
+			gettimeofday(&tp, NULL);	\
+			t = tp.tv_sec*(quint64_t)1000000 + tp.tv_usec;	\
+		}, 1000000,;)
+#else
+	#define CLOCKDEF_POSIX_GTOD
+#endif
+
+#define CLOCKDEF_ALL	\
+					 CLOCKDEF_LINUX_MONOTONIC CLOCKDEF_LINUX_REALTIME /*linux-specific clocks*/\
+					 CLOCKDEF_SDL_PERF CLOCKDEF_SDL_TICKS /*sdl clocks*/\
+					 CLOCKDEF_POSIX_GTOD /*posix clocks*/
+
+static quint64_t timer_basetime;    //used by all clocks to bias them to starting at 0
+static quint64_t timer_nobacksies;  //used by all clocks to bias them to starting at 0
+static void Sys_ClockType_Changed(cvar_t *var, char *oldval);
+#define QCLOCK(e,n,q,f,i) n"\n"
+static cvar_t sys_clocktype = CVARFCD("sys_clocktype", "", CVAR_NOTFROMSERVER, Sys_ClockType_Changed, "Controls which system clock to base timings from.\nAvailable Clocks:\n"
+	CLOCKDEF_ALL);
+#undef QCLOCK
+
+static enum
 {
-	static int first = true;
-	static unsigned long starttime = 0;
-	unsigned long now;
-
-	now = SDL_GetTicks();
-
-	if (first)
-	{
-		first = false;
-		starttime = now;
-	}
-
-	return now - starttime;
-}
-
-//return the current time, in the form of a double
-double Sys_DoubleTime (void)
+#define QCLOCK(e,n,q,f,i) CLOCKID_##e,
+	CLOCKDEF_ALL
+#undef QCLOCK
+	CLOCKID_INVALID
+} timer_clocktype=CLOCKID_INVALID;
+static quint64_t Sys_GetClock(quint64_t *freq)
 {
-	return Sys_Milliseconds() / 1000.0;
-/*
-	static int first = true;
-	static double oldtime = 0.0, curtime = 0.0;
-	double newtime;
-
-	newtime = (double) SDL_GetTicks() / 1000.0;
-
-
-	if (first)
+	quint64_t t;
+	switch(timer_clocktype)
 	{
-		first = false;
-		oldtime = newtime;
+	default:
+#define QCLOCK(e,n,q,f,i) case CLOCKID_##e: *freq = f; q; break;
+	CLOCKDEF_ALL
+#undef QCLOCK
 	}
-
-	if (newtime < oldtime)
+	t -= timer_basetime;
+	if (t < timer_nobacksies && t-*freq>timer_nobacksies)
 	{
-		// warn if it's significant
-		if (newtime - oldtime < -0.01)
-			Con_Printf("Sys_DoubleTime: time stepped backwards (went from %f to %f, difference %f)\n", oldtime, newtime, newtime - oldtime);
+		quint64_t back = timer_nobacksies-t;
+		t = timer_nobacksies;
+		if (back > 0)//*freq/1000)	//warn if the clock went backwards by more than 1ms.
+			Con_Printf("Warning: clock went backwards by %g secs.\n", back/(double)*freq);
+		if (back > 0x8000000 && *freq==1000)
+		{	//32bit value wrapped?
+			timer_basetime -= 0x8000000;
+			t += 0x8000000;
+		}
 	}
 	else
-		curtime += newtime - oldtime;
-	oldtime = newtime;
+		timer_nobacksies = t;
+	return t;
+}
+static void Sys_ClockType_Changed(cvar_t *var, char *oldval)
+{
+	int newtype;
 
-	return curtime;
-*/
+#define QCLOCK(e,n,q,f,i) if (!strcasecmp(var->string, n)) newtype = CLOCKID_##e; else
+	CLOCKDEF_ALL
+#undef QCLOCK
+	{
+		quint64_t freq;
+		if (!*var->string || !strcasecmp(var->string, "auto"))
+			;
+		else
+		{
+			Con_Printf("%s: Unknown clock name %s available clocks", var->name, var->string);
+#define QCLOCK(e,n,q,f,i) Con_Printf(", %s", n);
+	CLOCKDEF_ALL
+#undef QCLOCK
+			Con_Printf("\n");
+		}
+
+		//look for any that work.
+		for(newtype = 0; ; newtype++)
+		{
+			switch(newtype)
+			{
+			default:
+				freq = 0;
+				Sys_Error("No usable clocks");
+#define QCLOCK(e,n,q,f,i) case CLOCKID_##e: freq = f; break;
+	CLOCKDEF_ALL
+#undef QCLOCK
+			}
+			if (freq)
+				break;	//this clock seems usable.
+		}
+	}
+
+	if (newtype != timer_clocktype)
+	{
+		quint64_t oldtime, oldfreq;
+		quint64_t newtime, newfreq;
+
+		oldtime = Sys_GetClock(&oldfreq);
+		timer_clocktype = newtype;
+		timer_nobacksies = timer_basetime = 0;	//make sure we get the raw clock.
+		newtime = Sys_GetClock(&newfreq);
+
+		timer_basetime = newtime - (newfreq * ((long double)oldtime) / oldfreq);
+		timer_nobacksies = newtime - timer_basetime;
+
+		Sys_GetClock(&newfreq);
+	}
+}
+static void Sys_InitClock(void)
+{
+	quint64_t freq;
+
+	Cvar_Register(&sys_clocktype, "System vars");
+
+#define QCLOCK(e,n,q,f,i) i;
+	CLOCKDEF_ALL
+#undef QCLOCK
+
+	//calibrate it, and apply.
+	timer_clocktype = CLOCKID_INVALID;
+	Sys_ClockType_Changed(&sys_clocktype, NULL);
+	timer_basetime = timer_nobacksies = 0;
+	timer_basetime = Sys_GetClock(&freq);
+	timer_nobacksies = 0;
+}
+double Sys_DoubleTime (void)
+{
+	quint64_t denum, num = Sys_GetClock(&denum);
+	return num / (long double)denum;
+}
+unsigned int Sys_Milliseconds (void)
+{
+	quint64_t denum, num = Sys_GetClock(&denum);
+	num *= 1000;
+	return num / denum;
 }
 
 //create a directory
@@ -733,6 +858,7 @@ char *Sys_URIScheme_NeedsRegistering(void)
 void Sys_Init(void)
 {
 	SDL_Init(SDL_INIT_TIMER | SDL_INIT_VIDEO | SDL_INIT_NOPARACHUTE);
+	Sys_InitClock();
 }
 void Sys_Shutdown(void)
 {

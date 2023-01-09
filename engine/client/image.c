@@ -1570,7 +1570,7 @@ static void VARGS png_onwarning(png_structp png_ptr, png_const_charp warning_msg
 #endif
 }
 
-qbyte *ReadPNGFile(const char *fname, qbyte *buf, int length, int *width, int *height, uploadfmt_t *format)
+qbyte *ReadPNGFile(const char *fname, qbyte *buf, int length, int *width, int *height, uploadfmt_t *format, qboolean force_rgb32)
 {
 	qbyte header[8], **rowpointers = NULL, *data = NULL;
 	png_structp png;
@@ -1638,7 +1638,7 @@ error:
 		int numpal = 0, numtrans = 0;
 		png_colorp pal = NULL;
 		png_bytep trans = NULL;
-		if (bitdepth==8 && format)
+		if (bitdepth==8 && !force_rgb32)
 		{
 			qpng_get_tRNS(png, pnginfo, &trans, &numtrans, NULL);
 			qpng_get_PLTE(png, pnginfo, &pal, &numpal);
@@ -1691,7 +1691,7 @@ error:
 		qpng_set_filler(png, ~0u, PNG_FILLER_AFTER);
 
 	//expand greyscale to rgb when we're forcing 32bit output (with padding, as appropriate).
-	if ((colortype == PNG_COLOR_TYPE_GRAY || colortype == PNG_COLOR_TYPE_GRAY_ALPHA)&&!format)
+	if ((colortype == PNG_COLOR_TYPE_GRAY || colortype == PNG_COLOR_TYPE_GRAY_ALPHA)&&force_rgb32)
 	{
 		qpng_set_gray_to_rgb( png );
 		if (colortype == PNG_COLOR_TYPE_GRAY)
@@ -1700,7 +1700,7 @@ error:
 
 	if (bitdepth < 8)
 		qpng_set_expand (png);
-	else if (bitdepth == 16 && (!format || colortype!=PNG_COLOR_TYPE_RGB_ALPHA))
+	else if (bitdepth == 16 && (force_rgb32 || colortype!=PNG_COLOR_TYPE_RGB_ALPHA))
 		qpng_set_strip_16(png);
 	else if (bitdepth == 16)
         qpng_set_swap(png);
@@ -1712,27 +1712,24 @@ error:
 
 	if (colortype == PNG_COLOR_TYPE_PALETTE)
 		*format = PTI_P8;
-	else if (bitdepth == 8 && channels == 1 && format)
+	else if (bitdepth == 8 && channels == 1 && !force_rgb32)
 		*format = PTI_L8;
-	else if (bitdepth == 8 && channels == 2 && format)
+	else if (bitdepth == 8 && channels == 2 && !force_rgb32)
 		*format = (colortype == PNG_COLOR_TYPE_GRAY_ALPHA)?PTI_L8A8:PTI_RG8;
-	else if (bitdepth == 8 && channels == 3 && format)
+	else if (bitdepth == 8 && channels == 3 && !force_rgb32)
 		*format = PTI_RGB8;
 	else if (bitdepth == 8 && channels == 4)
 	{
-		if (format)
-		{
-			if (colortype == PNG_COLOR_TYPE_GRAY)
-				*format = PTI_LLLX8;
-			else if (colortype == PNG_COLOR_TYPE_GRAY_ALPHA)
-				*format = PTI_LLLA8;
-			else if (colortype == PNG_COLOR_TYPE_RGB)
-				*format = PTI_RGBX8;
-			else //if (colortype == PNG_COLOR_TYPE_RGB_ALPHA)
-				*format = PTI_RGBA8;
-		}
+		if (colortype == PNG_COLOR_TYPE_GRAY)
+			*format = PTI_LLLX8;
+		else if (colortype == PNG_COLOR_TYPE_GRAY_ALPHA)
+			*format = PTI_LLLA8;
+		else if (colortype == PNG_COLOR_TYPE_RGB)
+			*format = PTI_RGBX8;
+		else //if (colortype == PNG_COLOR_TYPE_RGB_ALPHA)
+			*format = PTI_RGBA8;
 	}
-	else if (bitdepth == 16 && channels == 4 && format)
+	else if (bitdepth == 16 && channels == 4 && !force_rgb32)
 		*format = PTI_RGBA16;
 	else
 	{
@@ -3352,7 +3349,7 @@ static qbyte *ReadICOFile(const char *fname, qbyte *buf, int length, int *width,
 		qbyte *indata = buf + (bestimg->dwOffset_low | (bestimg->dwOffset_high<<16));
 		size_t insize = (bestimg->dwSize_low | (bestimg->dwSize_high<<16));
 #ifdef AVAIL_PNGLIB
-		if (insize > 4 && (indata[0] == 137 && indata[1] == 'P' && indata[2] == 'N' && indata[3] == 'G') && (ret = ReadPNGFile(fname, indata, insize, width, height, fmt)))
+		if (insize > 4 && (indata[0] == 137 && indata[1] == 'P' && indata[2] == 'N' && indata[3] == 'G') && (ret = ReadPNGFile(fname, indata, insize, width, height, fmt, true)))
 		{
 			TRACE(("dbg: Read32BitImageFile: icon png\n"));
 			return ret;
@@ -7298,7 +7295,7 @@ qbyte *ReadRawImageFile(qbyte *buf, int len, int *width, int *height, uploadfmt_
 #endif
 
 #ifdef AVAIL_PNGLIB
-	if (len > 4 && (buf[0] == 137 && buf[1] == 'P' && buf[2] == 'N' && buf[3] == 'G') && (data = ReadPNGFile(fname, buf, len, width, height, force_rgba8?NULL:format)))
+	if (len > 4 && (buf[0] == 137 && buf[1] == 'P' && buf[2] == 'N' && buf[3] == 'G') && (data = ReadPNGFile(fname, buf, len, width, height, format, force_rgba8)))
 		return data;
 #endif
 #ifdef AVAIL_JPEGLIB

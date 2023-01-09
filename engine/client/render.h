@@ -636,7 +636,7 @@ void RQ_Shutdown(void);
 qboolean WritePCXfile (const char *filename, enum fs_relative fsroot, qbyte *data, int width, int height, int rowbytes, qbyte *palette, qboolean upload); //data is 8bit.
 qbyte *ReadPCXFile(qbyte *buf, int length, int *width, int *height);
 void *ReadTargaFile(qbyte *buf, int length, int *width, int *height, uploadfmt_t *format, qboolean greyonly, uploadfmt_t forceformat);
-qbyte *ReadPNGFile(const char *fname, qbyte *buf, int length, int *width, int *height, uploadfmt_t *format);
+qbyte *ReadPNGFile(const char *fname, qbyte *buf, int length, int *width, int *height, uploadfmt_t *format, qboolean force_rgb32);
 qbyte *ReadPCXPalette(qbyte *buf, int len, qbyte *out);
 
 qbyte *ReadRawImageFile(qbyte *buf, int len, int *width, int *height, uploadfmt_t *format, qboolean force_rgba8, const char *fname);

@@ -1,6 +1,9 @@
 #include "quakedef.h"
 #include "fs.h"
 #include "errno.h"
+#if _POSIX_C_SOURCE >= 200112L
+#include <sys/stat.h>
+#endif
 
 #if !defined(NACL) && !defined(FTE_TARGET_WEB) && (!defined(_WIN32) || defined(FTE_SDL))
 
@@ -336,7 +339,19 @@ static unsigned int QDECL FSSTDIO_FLocate(searchpathfuncs_t *handle, flocation_t
 	if (Q_snprintfz (netpath, sizeof(netpath), "%s/%s", sp->rootpath, filename))
 		return FF_NOTFOUND;
 
-#if 0//def ANDROID
+#if _POSIX_C_SOURCE >= 200112L
+	{
+		struct stat sb;
+		if (stat(netpath, &sb) == 0)
+		{
+			len = sb.st_size;
+			if ((sb.st_mode & S_IFMT) != S_IFREG)
+				return FF_NOTFOUND; //no directories nor sockets! boo! (any simlink will already have been resolved)
+		}
+		else
+			return FF_NOTFOUND; //some kind of screwup.
+	}
+#elif 0//defined(ANDROID)
 	{
 		vfsfile_t *f = VFSSTDIO_Open(netpath, "rb", NULL);
 		if (!f)

@@ -2331,7 +2331,7 @@ static void SV_Status_f (void)
 #define C_USERID	COLUMN(1, "userid", Con_Printf("%6i ", (int)cl->userid))
 #define C_ADDRESS	COLUMN(2, "address        ", Con_Printf("%-16.16s", s))
 #define C_NAME		COLUMN(3, "name           ", Con_Printf("%-16.16s", cl->name))
-#define C_RATE		COLUMN(4, "rate", Con_Printf("%4i ", (cl->frameunion.frames&&cl->netchan.frame_rate>0)?(int)(1/cl->netchan.frame_rate):0))
+#define C_RATE		COLUMN(4, "  hz", Con_Printf("%4i ", (cl->frameunion.frames&&cl->netchan.frame_rate>0)?(int)(0.5f+1/cl->netchan.frame_rate):0))
 #define C_PING		COLUMN(5, "ping", Con_Printf("%4i ", (int)SV_CalcPing (cl, false)))
 #define C_DROP		COLUMN(6, "drop", Con_Printf("%4.1f ", 100.0*cl->netchan.drop_count / cl->netchan.incoming_sequence))
 #define C_DLP		COLUMN(7, "dl ", if (!cl->download||!cl->downloadsize)Con_Printf("    ");else Con_Printf("%3.0f ", (cl->downloadcount*100.0)/cl->downloadsize))
@@ -2401,7 +2401,7 @@ static void SV_Status_f (void)
 
 			safeswitch(cl->protocol)
 			{
-			case SCP_BAD:			p = "none"; break;
+			case SCP_BAD:			p = "-----"; break;
 			case SCP_QUAKEWORLD:	p = (cl->fteprotocolextensions2 & PEXT2_REPLACEMENTDELTAS)?"fteqw":"qw"; break;
 			case SCP_QUAKE2:		p = "q2"; break;
 			case SCP_QUAKE3:		p = "q3"; break;

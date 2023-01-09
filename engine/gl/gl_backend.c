@@ -80,7 +80,7 @@ void GLBE_SubmitBatch(batch_t *batch);
 static qboolean GLBE_RegisterLightShader(int mode);
 #endif
 
-struct {
+static struct {
 	//internal state
 	struct {
 		int lastpasstmus;

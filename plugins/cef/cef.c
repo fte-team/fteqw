@@ -2186,7 +2186,7 @@ void Cef_ExecuteCommand(void)
 		strcpy(videomap, "cef:");
 		cmdfuncs->Argv(1, videomap+4, sizeof(videomap)-4);
 		if (!videomap[4])
-			strcpy(videomap, "cef:http://fte.triptohell.info");
+			strcpy(videomap, "cef:https://fte.triptohell.info");
 
 		confuncs->SetConsoleString(f, "title", videomap+4);
 		confuncs->SetConsoleFloat(f, "iswindow", true);

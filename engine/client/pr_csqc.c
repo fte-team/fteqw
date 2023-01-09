@@ -1992,7 +1992,7 @@ float csqc_proj_matrix[16];
 float csqc_proj_matrix_inverse[16];
 float csqc_proj_frustum[2];
 void V_ApplyAFov(playerview_t *pv);
-void buildmatricies(void)
+static void cs_buildmatricies(void)
 {
 	float modelview[16];
 	float proj[16];
@@ -2035,7 +2035,7 @@ void buildmatricies(void)
 static void QCBUILTIN PF_cs_project (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	if (csqc_rebuildmatricies)
-		buildmatricies();
+		cs_buildmatricies();
 
 
 	{
@@ -2081,7 +2081,7 @@ static void QCBUILTIN PF_cs_project (pubprogfuncs_t *prinst, struct globalvars_s
 static void QCBUILTIN PF_cs_unproject (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	if (csqc_rebuildmatricies)
-		buildmatricies();
+		cs_buildmatricies();
 
 	{
 		float *in = G_VECTOR(OFS_PARM0);
@@ -9011,18 +9011,7 @@ qboolean CSQC_DrawView(void)
 	host_frametime = clframetime;
 
 	if (csqcg.frametime)
-	{
-		if (1)//csqc_isdarkplaces)
-		{
-			if (cl.paused)
-				*csqcg.frametime = 0;	//apparently people can't cope with microstutter when they're using this as a test to see if the game is paused.
-			else
-				*csqcg.frametime = bound(0, cl.time - cl.lasttime, 0.1);
-		}
-		else
-			*csqcg.frametime = host_frametime;
-	}
-
+		*csqcg.frametime = cl.paused?0:bound(0, cl.time - cl.lasttime, 0.1);
 	if (csqcg.clframetime)
 		*csqcg.clframetime = host_frametime;
 

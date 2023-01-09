@@ -1930,10 +1930,10 @@ static int Con_DrawProgress(int left, int right, int y)
 		if (progresspercent < 0)
 		{
 			if ((int)(realtime/2)&1 || total == 0)
-				sprintf(progresspercenttext, " (%ukbps)", CL_DownloadRate()/1000);
+				sprintf(progresspercenttext, " (%ukB/s)", CL_DownloadRate()/1000);
 			else
 			{
-				sprintf(progresspercenttext, " (%u%skb)", (int)(total/1024), extra?"+":"");
+				sprintf(progresspercenttext, " (%u%sKiB)", (int)(total/1024), extra?"+":"");
 			}
 
 			//do some marquee thing, so the user gets the impression that SOMETHING is happening.
@@ -1945,10 +1945,10 @@ static int Con_DrawProgress(int left, int right, int y)
 		else
 		{
 			if ((int)(realtime/2)&1 || total == 0)
-				sprintf(progresspercenttext, " %5.1f%% (%ukbps)", progresspercent, CL_DownloadRate()/1000);
+				sprintf(progresspercenttext, " %5.1f%% (%ukB/s)", progresspercent, CL_DownloadRate()/1000);
 			else
 			{
-				sprintf(progresspercenttext, " %5.1f%% (%u%skb)", progresspercent, (int)(total/1024), extra?"+":"");
+				sprintf(progresspercenttext, " %5.1f%% (%u%sKiB)", progresspercent, (int)(total/1024), extra?"+":"");
 			}
 		}
 	}

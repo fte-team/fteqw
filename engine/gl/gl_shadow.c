@@ -1188,7 +1188,7 @@ static void SHM_RecursiveWorldNodeQ2_r (dlight_t *dl, mnode_t *node)
 	SHM_RecursiveWorldNodeQ2_r (dl, node->children[!side]);
 }
 
-static void SHM_MarkLeavesQ2(dlight_t *dl, unsigned char *lvis)
+static void SHM_MarkLeavesQ2(dlight_t *dl, const unsigned char *lvis)
 {
 	mnode_t *node;
 	int i;
@@ -1241,9 +1241,9 @@ static void SHM_MarkLeavesQ2(dlight_t *dl, unsigned char *lvis)
 		}
 	}
 }
-void Q2BSP_GenerateShadowMesh(model_t *model, dlight_t *dl, qbyte *lvis, int type)
+void Q2BSP_GenerateShadowMesh(model_t *model, dlight_t *dl, const qbyte *lightvis, qbyte *litvis, void (*callback)(msurface_t *surf))
 {
-	SHM_MarkLeavesQ2(dl, lvis);
+	SHM_MarkLeavesQ2(dl, lightvis);
 	SHM_RecursiveWorldNodeQ2_r(dl, model->nodes);
 }
 #endif

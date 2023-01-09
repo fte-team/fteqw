@@ -5317,7 +5317,6 @@ static qboolean QDECL Mod_LoadBrushModel (model_t *mod, void *buffer, size_t fsi
 
 	mod_base = (qbyte *)buffer;
 	memcpy(&header, mod_base, sizeof(header));
-	header.version = LittleLong(header.version);
 	for (i=0 ; i<countof(header.lumps)/4 ; i++)
 	{
 		header.lumps[i].filelen = LittleLong(header.lumps[i].filelen);
@@ -5355,6 +5354,7 @@ static qboolean QDECL Mod_LoadBrushModel (model_t *mod, void *buffer, size_t fsi
 		Con_Printf (CON_ERROR "Mod_LoadBrushModel: %s has wrong version number (%i)\n", mod->name, i);
 		return false;
 	}
+	header.version = LittleLong(header.version);
 
 	mod->lightmaps.width = 128;//LMBLOCK_WIDTH;
 	mod->lightmaps.height = 128;//LMBLOCK_HEIGHT; 

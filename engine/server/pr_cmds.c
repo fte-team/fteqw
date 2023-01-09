@@ -11327,14 +11327,14 @@ static BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"WriteEntity",		PF_WriteEntity,		59,		59,		59,		0,	D("void(float to, entity val)", "Writes the index of the specified entity (the network data size is not specified). This can be read clientside using the readentitynum builtin, with caveats.")},	//59
 
 #if defined(HAVE_LEGACY) && defined(NETPREPARSE)
-	{"swritebyte",		PF_qtSingle_WriteByte,			0,		0,		0,		0,	D("void(float val)", "A legacy of qtest - like WriteByte, except writes explicitly to the MSG_ONE target."), true},	//52
-	{"swritechar",		PF_qtSingle_WriteChar,			0,		0,		0,		0,	D("void(float val)", NULL), true},	//53
-	{"swriteshort",		PF_qtSingle_WriteShort,			0,		0,		0,		0,	D("void(float val)", NULL), true},	//54
-	{"swritelong",		PF_qtSingle_WriteLong,			0,		0,		0,		0,	D("void(float val)", NULL), true},	//55
-	{"swritecoord",		PF_qtSingle_WriteCoord,			0,		0,		0,		0,	D("void(float val)", NULL), true},	//56
-	{"swriteangle",		PF_qtSingle_WriteAngle,			0,		0,		0,		0,	D("void(float val)", NULL), true},	//57
-	{"swritestring",	PF_qtSingle_WriteString,		0,		0,		0,		0,	D("void(string val)", NULL), true},	//58
-	{"swriteentity",	PF_qtSingle_WriteEntity,		0,		0,		0,		0,	D("void(entity val)", NULL), true},
+	{"swritebyte",		PF_qtSingle_WriteByte,			0,		0,		0,		0,	D("void(entity to, float val)", "A legacy of qtest - like WriteByte, except writes explicitly to the MSG_ONE target."), true},	//52
+	{"swritechar",		PF_qtSingle_WriteChar,			0,		0,		0,		0,	D("void(entity to, float val)", NULL), true},	//53
+	{"swriteshort",		PF_qtSingle_WriteShort,			0,		0,		0,		0,	D("void(entity to, float val)", NULL), true},	//54
+	{"swritelong",		PF_qtSingle_WriteLong,			0,		0,		0,		0,	D("void(entity to, float val)", NULL), true},	//55
+	{"swritecoord",		PF_qtSingle_WriteCoord,			0,		0,		0,		0,	D("void(entity to, float val)", NULL), true},	//56
+	{"swriteangle",		PF_qtSingle_WriteAngle,			0,		0,		0,		0,	D("void(entity to, float val)", NULL), true},	//57
+	{"swritestring",	PF_qtSingle_WriteString,		0,		0,		0,		0,	D("void(entity to, string val)", NULL), true},	//58
+	{"swriteentity",	PF_qtSingle_WriteEntity,		0,		0,		0,		0,	D("void(entity to, entity val)", NULL), true},
 
 	{"bwritebyte",		PF_qtBroadcast_WriteByte,		0,		0,		0,		0,	D("void(float byte)", "A legacy of qtest - like WriteByte, except writes explicitly to the MSG_ALL target."), true},	//59
 	{"bwritechar",		PF_qtBroadcast_WriteChar,		0,		0,		0,		0,	D("void(float val)", NULL), true},	//60
@@ -11391,8 +11391,8 @@ static BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"ex_bot_followentity",PF_Fixme,		0,		0,		0,0,	D("float(entity bot, entity goal)", "Behaviour is undocumented.")},
 	{"ex_CheckPlayerEXFlags",PF_CheckPlayerEXFlags_qex,0,0,	0,0,	D("float(entity playerEnt)", "Behaviour is undocumented.")},
 	{"ex_walkpathtogoal",PF_walkpathtogoal_qex,0,	0,		0,0,	D("float(float movedist, vector goal)", "Behaviour is undocumented.")},
-	{"ex_prompt",		PF_prompt_qex,		0,		0,		0,0,	D("void(entity player, string text, float numchoices)", "Behaviour is undocumented.")},
-	{"ex_promptchoice",	PF_promptchoice_qex,0,		0,		0,0,	D("void(entity player, string text, float impulse)", "Behaviour is undocumented.")},
+	{"ex_prompt",		PF_prompt_qex,		0,		0,		0,0,	D("void(entity player, string text, float numchoices)", "Initiates a user prompt. You must call ex_promptchoice once per choice.")},
+	{"ex_promptchoice",	PF_promptchoice_qex,0,		0,		0,0,	D("void(entity player, string text, float impulse)", "Follows a call to ex_prompt.")},
 	{"ex_clearprompt",	PF_prompt_qex,		0,		0,		0,0,	D("void(entity player)", "Behaviour is undocumented.")},
 //End QuakeEx, for now. :(
 
@@ -13616,6 +13616,7 @@ void PR_DumpPlatform_f(void)
 		{"SOUNDFLAG_NOREPLACE",		"const float",	QW|NQ|CS,	D("Sounds started with this flag will be ignored when there's already a sound playing on that same ent-channel."), CF_NOREPLACE},
 		{"SOUNDFLAG_UNICAST",		"const float",	QW|NQ,		D("The sound will be sent only by the player specified by msg_entity. Spectators and related splitscreen players will also hear the sound."), CF_SV_UNICAST},
 		{"SOUNDFLAG_SENDVELOCITY",	"const float",	QW|NQ,		D("The entity's current velocity will be sent to the client, only useful if doppler is enabled."), CF_SV_SENDVELOCITY},
+		{"SOUNDFLAG_INACTIVE",		"const float",	CS,			D("The sound will ignore the value of the snd_inactive cvar."), CF_CLI_INACTIVE},
 
 		{"ATTN_NONE",		"const float", QW|NQ|CS, D("Sounds with this attenuation can be heard throughout the map"), ATTN_NONE},
 		{"ATTN_NORM",		"const float", QW|NQ|CS, D("Standard attenuation"), ATTN_NORM},

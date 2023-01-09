@@ -4858,80 +4858,80 @@ void CL_Status_f(void)
 
 	if (cls.state)
 	{
-		Con_Printf("Server address: %s\n", NET_AdrToString(adr, sizeof(adr), &cls.netchan.remote_address));	//not relevent as a limit.
-
+		Con_Printf("Server address   : %s\n", NET_AdrToString(adr, sizeof(adr), &cls.netchan.remote_address));	//not relevent as a limit.
 		switch(cls.protocol)
 		{
 		default:
 		case CP_UNKNOWN:
-			Con_Printf("Unknown protocol\n");
+			Con_Printf("Network Protocol : Unknown\n");
 			break;
 		case CP_QUAKEWORLD:
-			Con_Printf("QuakeWorld-based protocol\n");
+			Con_Printf("Network Protocol : QuakeWorld\n");
 			break;
 	#ifdef NQPROT
 		case CP_NETQUAKE:
 			switch(cls.protocol_nq)
 			{
 			case CPNQ_ID:
-				Con_Printf("NetQuake-based protocol\n");
 				if (cls.proquake_angles_hack)
-					Con_Printf("With ProQuake's extended angles\n");
+					Con_Printf("Network Protocol : ProQuake\n");
+				else
+					Con_Printf("Network Protocol : NetQuake\n");
 				break;
 			case CPNQ_NEHAHRA:
-				Con_Printf("Nehahra protocol\n");
+				Con_Printf("Network Protocol : Nehahra\n");
 				break;
 			case CPNQ_BJP1:
-				Con_Printf("BJP1 protocol\n");
+				Con_Printf("Network Protocol : BJP1\n");
 				break;
 			case CPNQ_BJP2:
-				Con_Printf("BJP2 protocol\n");
+				Con_Printf("Network Protocol : BJP2\n");
 				break;
 			case CPNQ_BJP3:
-				Con_Printf("BJP3 protocol\n");
+				Con_Printf("Network Protocol : BJP3\n");
 				break;
 			case CPNQ_FITZ666:
-				Con_Printf("FitzQuake-based protocol\n");
+				Con_Printf("Network Protocol : FitzQuake\n");
 				break;
 			case CPNQ_DP5:
-				Con_Printf("DPP5 protocol\n");
+				Con_Printf("Network Protocol : DPP5\n");
 				break;
 			case CPNQ_DP6:
-				Con_Printf("DPP6 protocol\n");
+				Con_Printf("Network Protocol : DPP6\n");
 				break;
 			case CPNQ_DP7:
-				Con_Printf("DPP7 protocol\n");
+				Con_Printf("Network Protocol : DPP7\n");
 				break;
 			}
 			break;
 	#endif
 	#ifdef Q2CLIENT
 		case CP_QUAKE2:
-			Con_Printf("Quake2-based protocol\n");
-			if (cls.protocol_q2 && cls.protocol_q2 < PROTOCOL_VERSION_Q2)
-				Con_Printf("\toutdated protocol version\n");
-			else switch (cls.protocol_q2)
+			switch (cls.protocol_q2)
 			{
 			case PROTOCOL_VERSION_Q2:
-				Con_Printf("\tStandard Quake2\n");
+				Con_Printf("Network Protocol : Quake2\n");
 				break;
 			case PROTOCOL_VERSION_R1Q2:
-				Con_Printf("\tR1Q2\n");
+				Con_Printf("Network Protocol : R1Q2\n");
 				break;
 			case PROTOCOL_VERSION_Q2PRO:
-				Con_Printf("\tQ2Pro\n");
+				Con_Printf("Network Protocol : Q2Pro\n");
+				break;
+			default:
+				Con_Printf("Network Protocol : Quake2 (OLD)\n");
 				break;
 			}
 			break;
 	#endif
 	#ifdef Q3CLIENT
 		case CP_QUAKE3:
-			Con_Printf("Quake3-based protocol\n");
+			Con_Printf("Network Protocol : Quake3\n");
 			break;
 	#endif
 	#ifdef PLUGINS
 		case CP_PLUGIN:
-			Con_Printf("external protocol\n");
+			Con_Printf("Network Protocol : (unknown, provided by plugin)\n");
 			break;
 	#endif
 		}
@@ -4947,6 +4947,10 @@ void CL_Status_f(void)
 			Con_Printf("\tvoice chat\n");
 		if (cls.fteprotocolextensions2 & PEXT2_REPLACEMENTDELTAS)
 			Con_Printf("\treplacement deltas\n");
+		if (cls.fteprotocolextensions2 & PEXT2_VRINPUTS)
+			Con_Printf("\tvrinputs\n");
+		if (cls.fteprotocolextensions2 & PEXT2_INFOBLOBS)
+			Con_Printf("\tinfoblobs\n");
 	}
 
 	if (cl.worldmodel)
@@ -4962,6 +4966,7 @@ void CL_Status_f(void)
 		extern int num_sfx;
 		int count = 0, i;
 		edict_t *e;
+		Con_Printf ("csqc             : loaded\n");
 		for (i = 0; i < csqc_world.num_edicts; i++)
 		{
 			e = EDICT_NUM_PB(csqc_world.progs, i);
@@ -4969,21 +4974,23 @@ void CL_Status_f(void)
 				continue;	//free, and older than the zombie time
 			count++;
 		}
-		Con_Printf("entities         : %i/%i/%i (mem: %.1f%%)\n", count, csqc_world.num_edicts, csqc_world.max_edicts, 100*(float)(csqc_world.progs->stringtablesize/(double)csqc_world.progs->stringtablemaxsize));
+		Con_Printf("csqc entities    : %i/%i/%i (mem: %.1f%%)\n", count, csqc_world.num_edicts, csqc_world.max_edicts, 100*(float)(csqc_world.progs->stringtablesize/(double)csqc_world.progs->stringtablemaxsize));
 		for (count = 1; count < MAX_PRECACHE_MODELS; count++)
 			if (!*cl.model_csqcname[count])
 				break;
-		Con_Printf("models           : %i/%i\n", count, MAX_PRECACHE_MODELS);
-		Con_Printf("sounds           : %i/\n", num_sfx);	//there is a limit, its just private. :(
+		Con_Printf("csqc models      : %i/%i\n", count, MAX_PRECACHE_MODELS);
+		Con_Printf("client sounds    : %i\n", num_sfx);	//there is a limit, its just private. :(
 
 		for (count = 1; count < MAX_SSPARTICLESPRE; count++)
 			if (!cl.particle_csname[count])
 				break;
 		if (count!=1)
-			Con_Printf("particles        : %i/%i\n", count, MAX_SSPARTICLESPRE);
+			Con_Printf("csqc particles   : %i/%i\n", count, MAX_CSPARTICLESPRE);
 		if (cl.csqcdebug)
 			Con_Printf("csqc debug       : true\n");
 	}
+	else
+		Con_Printf ("csqc             : not loaded\n");
 #endif
 	Con_Printf("gamedir          : %s\n", FS_GetGamedir(true));
 }

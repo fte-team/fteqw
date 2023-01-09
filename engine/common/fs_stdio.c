@@ -10,6 +10,10 @@
 #ifdef WEBSVONLY
 	#define Z_Free free
 	#define Z_Malloc malloc
+	#define Con_Printf printf
+	#define fs_readonly true
+	#define FS_FlushFSHashFull()
+	int Sys_EnumerateFiles (const char *gpath, const char *match, int (QDECL *func)(const char *fname, qofs_t fsize, time_t modtime, void *parm, searchpathfuncs_t *spath), void *parm, searchpathfuncs_t *spath) {return 0;}
 #else
 	#if !defined(_WIN32) || defined(FTE_SDL) || defined(WINRT) || defined(_XBOX)
 		#define FSSTDIO_OpenPath VFSOS_OpenPath
@@ -238,7 +242,6 @@ vfsfile_t *VFSSTDIO_Open(const char *osname, const char *mode, qboolean *needsfl
 	return (vfsfile_t*)file;
 }
 
-#ifndef WEBSVONLY
 #if !defined(_WIN32) || defined(FTE_SDL) || defined(WINRT) || defined(_XBOX)
 vfsfile_t *VFSOS_Open(const char *osname, const char *mode)
 {
@@ -299,6 +302,9 @@ static unsigned int QDECL FSSTDIO_CreateLoc(searchpathfuncs_t *handle, flocation
 {
 	stdiopath_t *sp = (void*)handle;
 	char	*ofs;
+
+	if (fs_readonly)
+		return FF_NOTFOUND;
 
 	loc->len = 0;
 	loc->offset = 0;
@@ -491,6 +497,5 @@ searchpathfuncs_t *QDECL FSSTDIO_OpenPath(vfsfile_t *mustbenull, searchpathfuncs
 	return &np->pub;
 }
 
-#endif
 #endif
 

@@ -5672,7 +5672,7 @@ static qboolean FS_DirHasAPackage(char *basedir, ftemanifest_t *man)
 }
 
 //false stops the search (and returns that value to FS_DirHasGame)
-int QDECL FS_DirDoesHaveGame(const char *fname, qofs_t fsize, time_t modtime, void *ctx, searchpathfuncs_t *subdir)
+static int QDECL FS_DirDoesHaveGame(const char *fname, qofs_t fsize, time_t modtime, void *ctx, searchpathfuncs_t *subdir)
 {
 	return false;
 }
@@ -6001,7 +6001,7 @@ static qboolean FS_FoundManifest(void *usr, ftemanifest_t *man)
 //reads the default manifest based upon the basedir, the commandline arguments, the name of the exe, etc.
 //may still fail if no game was identified.
 //if fixedbasedir is true, stuff like -quake won't override/change the active basedir (ie: -basedir or gamedir switching without breaking gamedir)
-ftemanifest_t *FS_ReadDefaultManifest(char *newbasedir, size_t newbasedirsize, qboolean fixedbasedir)
+static ftemanifest_t *FS_ReadDefaultManifest(char *newbasedir, size_t newbasedirsize, qboolean fixedbasedir)
 {
 	int i;
 	int game = -1;

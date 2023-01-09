@@ -534,6 +534,7 @@ const char *HTTP_RunClient (HTTP_active_connections_t *cl)
 		}
 		else if (!stricmp(mode, "GET") || !stricmp(mode, "HEAD") || !stricmp(mode, "POST"))
 		{
+			time_t timestamp = 0;
 			qboolean gzipped = false;
 			if (*resource != '/')
 			{
@@ -555,17 +556,23 @@ const char *HTTP_RunClient (HTTP_active_connections_t *cl)
 				if (SV_AllowDownload(filename))
 				{
 					char nbuf[MAX_OSPATH];
+					flocation_t loc = {NULL};
 
 					if (cl->acceptgzip && strlen(filename) < sizeof(nbuf)-4)
 					{
 						Q_strncpyz(nbuf, filename, sizeof(nbuf));
 						Q_strncatz(nbuf, ".gz", sizeof(nbuf));
-						cl->file = FS_OpenVFS(nbuf, "rb", FS_GAME);
+						gzipped = !!FS_FLocateFile(nbuf, FSLF_IFFOUND|FSLF_DONTREFERENCE, &loc);
 					}
-					if (cl->file)
-						gzipped = true;
 					else
-						cl->file = FS_OpenVFS(filename, "rb", FS_GAME);
+						gzipped = false;
+					if (gzipped || FS_FLocateFile(filename, FSLF_IFFOUND|FSLF_DONTREFERENCE, &loc))
+					{
+						FS_GetLocMTime(&loc, &timestamp);
+						cl->file = FS_OpenReadLocation(NULL, &loc);
+					}
+					else
+						cl->file = NULL;
 				}
 
 				if (!cl->file)
@@ -595,6 +602,7 @@ const char *HTTP_RunClient (HTTP_active_connections_t *cl)
 			else
 			{
 				const char *mimeline;
+				char modifiedline[128];
 				if (strstr(resource, ".htm"))
 					mimeline = "Content-Type: text/html\r\n";
 				else if (strstr(resource, ".wasm"))
@@ -604,11 +612,16 @@ const char *HTTP_RunClient (HTTP_active_connections_t *cl)
 				else
 					mimeline = "";
 
+				if (timestamp)
+					strftime(modifiedline, sizeof(modifiedline), "Last-Modified: %a, %d %b %Y %H:%M:%S GMT\r\n", gmtime(&timestamp));
+				else
+					*modifiedline = 0;
+
 				//fixme: add connection: keep-alive or whatever so that ie3 is happy...
 				if (HTTPmarkup>=3)
-					sprintf(resource, "HTTP/1.1 200 OK\r\n"		"%s%s"		"Connection: %s\r\n"	"Content-Length: %i\r\n"	"Server: "FULLENGINENAME"/0\r\n"	"\r\n", mimeline, gzipped?"Content-Encoding: gzip\r\nCache-Control: public, max-age=86400\r\n":"", cl->closeaftertransaction?"close":"keep-alive", (int)VFS_GETLEN(cl->file));
+					sprintf(resource, "HTTP/1.1 200 OK\r\n"		"%s%s%s"		"Connection: %s\r\n"	"Content-Length: %i\r\n"	"Server: "FULLENGINENAME"/0\r\n"	"\r\n", modifiedline, mimeline, gzipped?"Content-Encoding: gzip\r\nCache-Control: public, max-age=86400\r\n":"", cl->closeaftertransaction?"close":"keep-alive", (int)VFS_GETLEN(cl->file));
 				else if (HTTPmarkup==2)
-					sprintf(resource, "HTTP/1.0 200 OK\r\n"		"%s%s"		"Connection: %s\r\n"	"Content-Length: %i\r\n"	"Server: "FULLENGINENAME"/0\r\n"	"\r\n", mimeline, gzipped?"Content-Encoding: gzip\r\nCache-Control: public, max-age=86400\r\n":"", cl->closeaftertransaction?"close":"keep-alive", (int)VFS_GETLEN(cl->file));
+					sprintf(resource, "HTTP/1.0 200 OK\r\n"		"%s%s%s"		"Connection: %s\r\n"	"Content-Length: %i\r\n"	"Server: "FULLENGINENAME"/0\r\n"	"\r\n", modifiedline, mimeline, gzipped?"Content-Encoding: gzip\r\nCache-Control: public, max-age=86400\r\n":"", cl->closeaftertransaction?"close":"keep-alive", (int)VFS_GETLEN(cl->file));
 				else if (HTTPmarkup)
 					sprintf(resource, "HTTP/0.9 200 OK\r\n\r\n");
 				else
@@ -616,8 +629,7 @@ const char *HTTP_RunClient (HTTP_active_connections_t *cl)
 				msg = resource;
 
 				if (*mode == 'H' || *mode == 'h')
-				{
-
+				{	//'head'
 					VFS_CLOSE(cl->file);
 					cl->file = NULL;
 				}

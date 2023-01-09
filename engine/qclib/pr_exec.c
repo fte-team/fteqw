@@ -679,7 +679,7 @@ ddef32_t *ED_FindLocalOrGlobal(progfuncs_t *progfuncs, const char *name, eval_t 
 	return &def;
 }
 
-static char *COM_TrimString(const char *str, char *buffer, int buffersize)
+static char *TrimString(const char *str, char *buffer, int buffersize)
 {
 	int i;
 	while (*str <= ' ' && *str>'\0')
@@ -758,7 +758,7 @@ pbool LocateDebugTerm(progfuncs_t *progfuncs, const char *key, eval_t **result, 
 		if (!fdef)
 		{
 			char trimmed[256];
-			c2 = COM_TrimString(c2, trimmed, sizeof(trimmed));
+			c2 = TrimString(c2, trimmed, sizeof(trimmed));
 			def = ED_FindLocalOrGlobal(progfuncs, c2, &fval);
 			if (def && def->type == ev_field)
 			{
@@ -955,7 +955,7 @@ char *PDECL PR_EvaluateDebugString(pubprogfuncs_t *ppf, const char *key)
 		if (type != ev_entity)
 			return "'.' without entity";
 		if (c)*c = '\0';
-		fdef = ED_FindField(progfuncs, COM_TrimString(c2));
+		fdef = ED_FindField(progfuncs, TrimString(c2));
 		if (c)*c = '.';
 		if (!fdef)
 			return "(Bad string)";

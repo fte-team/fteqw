@@ -72,6 +72,41 @@ vfsfile_t *QDECL FS_OpenVFS(const char *filename, const char *mode, enum fs_rela
 {
 	return VFSSTDIO_Open(filename, mode, NULL);
 }
+
+#include "fs.h"
+searchpathfuncs_t *QDECL FSSTDIO_OpenPath(vfsfile_t *mustbenull, searchpathfuncs_t *parent, const char *filename, const char *desc, const char *prefix);
+static searchpath_t filesystem;
+int FS_FLocateFile(const char *filename, unsigned int lflags, flocation_t *loc)
+{
+	if (!filesystem.handle)
+	{
+		filesystem.handle = FSSTDIO_OpenPath(NULL, NULL, ".", ".", NULL);
+		if (!filesystem.handle)
+		{
+			printf("Filesystem unavailable\n");
+			return 0;
+		}
+	}
+
+	if (filesystem.handle->FindFile(filesystem.handle, loc, filename, NULL))
+	{
+		loc->search = &filesystem;
+		return 1;
+	}
+	return (lflags&FSLF_DEEPONFAILURE)?0x7fffffff:0;
+}
+qboolean FS_GetLocMTime(flocation_t *location, time_t *modtime)
+{
+	*modtime = 0;
+	if (!location->search->handle->FileStat || !location->search->handle->FileStat(location->search->handle, location, modtime))
+		return false;
+	return true;
+}
+struct vfsfile_s *FS_OpenReadLocation(const char *fname, flocation_t *location)
+{
+	return location->search->handle->OpenVFS(location->search->handle, location, "rb");
+}
+
 void Q_strncpyz(char *d, const char *s, int n)
 {
 	int i;

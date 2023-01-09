@@ -2680,20 +2680,31 @@ void SZ_Print (sizebuf_t *buf, const char *data)
 
 //============================================================================
 
-char *COM_TrimString(char *str, char *buffer, int buffersize)
+qboolean COM_TrimString(char *str, char *buffer, int buffersize)
 {
 	int i;
+	if (buffersize <= 0)
+	{
+		Sys_Error("COM_TrimString: no buffer\n");
+		return false;
+	}
+
 	while (*str <= ' ' && *str>'\0')
 		str++;
 
-	for (i = 0; i < buffersize-1; i++)
+	for (i = 0; ; i++)
 	{
+		if (i == buffersize-1)
+		{
+			buffer[i] = '\0';
+			return false;
+		}
 		if (*str <= ' ')
 			break;
 		buffer[i] = *str++;
 	}
 	buffer[i] = '\0';
-	return buffer;
+	return true;
 }
 
 /*

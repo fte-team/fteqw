@@ -456,7 +456,7 @@ char *COM_ParseCString (const char *data, char *out, size_t maxoutlen, size_t *w
 char *COM_StringParse (const char *data, char *token, unsigned int tokenlen, qboolean expandmacros, qboolean qctokenize);	//fancy version used for console etc parsing
 #define COM_ParseToken(data,punct) COM_ParseTokenOut(data, punct, com_token, sizeof(com_token), &com_tokentype)
 char *COM_ParseTokenOut (const char *data, const char *punctuation, char *token, size_t tokenlen, com_tokentype_t *tokentype);	//note that line endings are a special type of token.
-char *COM_TrimString(char *str, char *buffer, int buffersize);
+qboolean COM_TrimString(char *str, char *buffer, int buffersize);	//trims leading+trailing whitespace writing to the specified buffer. returns false on truncation.
 const char *COM_QuotedString(const char *string, char *buf, int buflen, qboolean omitquotes);	//inverse of COM_StringParse
 
 

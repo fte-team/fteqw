@@ -6324,6 +6324,7 @@ double Host_Frame (double time)
 	extern int r_blockvidrestart;
 	static qboolean hadwork;
 	qboolean vrsync;
+	qboolean mustrenderbeforeread;
 
 	RSpeedLocals();
 
@@ -6536,6 +6537,10 @@ double Host_Frame (double time)
 	cl.do_lerp_players = cl_lerp_players.ival || (cls.demoplayback==DPB_MVD || cls.demoplayback == DPB_EZTV) || (cls.demoplayback && !cl_nolerp.ival && !cls.timedemo);
 	CL_AllowIndependantSendCmd(false);
 
+	mustrenderbeforeread = cls.protocol == CP_QUAKE2;	//FIXME: quake2 MUST render a frame (or a later one) before it can read any acks from the server, otherwise its prediction screws up. I'm too lazy to rewrite that right now.
+//	if (mustrenderbeforeread)
+	CL_ReadPackets();	//this should be redundant.
+
 	CL_RequestNextDownload();
 
 	// send intentions now
@@ -6593,9 +6598,12 @@ double Host_Frame (double time)
 #endif
 
 	// fetch results from server... now that we've run it.
-	CL_AllowIndependantSendCmd(false);
-	CL_ReadPackets ();
-	CL_AllowIndependantSendCmd(true);
+	if (!mustrenderbeforeread)
+	{
+		CL_AllowIndependantSendCmd(false);
+		CL_ReadPackets ();
+		CL_AllowIndependantSendCmd(true);
+	}
 
 	CL_CalcClientTime();
 

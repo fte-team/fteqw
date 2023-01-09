@@ -303,6 +303,8 @@ static void GenerateXMPData(char *blob, size_t blobsize, int width, int height, 
 			"</rdf:RDF>"
 		"</x:xmpmeta>"
 		);
+#else
+	blob[blobsize] = 0;
 #endif
 }
 #endif
@@ -514,7 +516,7 @@ void *ReadTargaFile(qbyte *buf, int length, int *width, int *height, uploadfmt_t
 
 	if (greyonly)	//grey only, load as 8 bit..
 	{
-		if (!(tgaheader.version == 1) && !(tgaheader.version == 3))
+		if (!(tgaheader.version == 1) && !(tgaheader.version == 3) && !(tgaheader.version == 11))
 			return NULL;
 	}
 	if (tgaheader.version == 1 || tgaheader.version == 3)
@@ -13893,8 +13895,6 @@ qboolean Image_LocateHighResTexture(image_t *tex, flocation_t *bestloc, char *be
 							if (!strcmp(tex_extensions[e].name, ".tga"))
 							{
 								Q_snprintfz(fname, sizeof(fname), tex_path[i].path, bumpname, tex_extensions[e].name);
-
-								Q_snprintfz(fname, sizeof(fname), tex_path[i].path, nicename, tex_extensions[e].name);
 								depth = FS_FLocateFile(fname, locflags, &loc);
 								if (depth < bestdepth)
 								{
@@ -14085,6 +14085,8 @@ static void Image_LoadHiResTextureWorker(void *ctx, void *data, size_t a, size_t
 							return;
 						}
 					}
+					else
+						Con_Printf(CON_WARNING "%s: bumpmaps must be greyscale tga.\n", fname);
 					//guess not, fall back to normalmaps
 				}
 #endif

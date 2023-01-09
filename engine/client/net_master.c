@@ -348,8 +348,10 @@ static void SV_Master_SingleHeartbeat(net_masterlist_t *master)
 				//we default to FTE-Quake when running quake so at least that part is fair.
 				//however, I made QSS also look for FTE-Quake servers too, so that's messy with listen_nq 0, but that's true if listen_dp is set.
 				//so we want to be quite permissive here, at least with custom builds that will default to these cvars set to 0.
+				//Note that Darkplaces clients are supposed to be able to use the qw protocol, so it should be okay to heartbeat as Darkplaces-Quake here even when not doing any nq protocols.
+				//either way, custom protocols tend to require ftemaster/dpmaster so we want to heartbeat regardless.
 #if defined(NQPROT) && !defined(QUAKETC)
-				if (sv_listen_dp.value || sv_listen_nq.value)
+				if (sv_listen_dp.value || sv_listen_nq.value || strcasecmp(com_protocolname.string, "FTE-Quake"))
 #endif
 				{
 					//darkplaces here refers to the master server protocol, rather than the game protocol

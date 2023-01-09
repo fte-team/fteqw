@@ -241,6 +241,8 @@ struct {
 	{" F331", WARN_SELFNOTTHIS},
 	{" F332", WARN_DIVISIONBY0},
 	{" F333", WARN_ARGUMENTCHECK},
+	{" F334", WARN_MISSINGMEMBERQUALIFIER},
+	{" F335", WARN_MEMBERNOTDEFINED},		//defining a new member function inside a class that didn't list it.
 
 	{" F207", WARN_NOTREFERENCEDFIELD},
 	{" F208", WARN_NOTREFERENCEDCONST},
@@ -3605,6 +3607,8 @@ static void	QCC_PR_BeginCompilation (void *memory, int memsize)
 	type_uint64 = QCC_PR_NewType("__uint64", ev_uint64, true);
 	type_variant = QCC_PR_NewType("__variant", ev_variant, true);
 
+	type_invalid = QCC_PR_NewType("invalid", ev_void, false);
+
 	type_floatfield = QCC_PR_NewType("__fieldfloat", ev_field, false);
 	type_floatfield->aux_type = type_float;
 	type_pointer->aux_type = QCC_PR_NewType("__pointeraux", ev_float, false);
@@ -4628,7 +4632,7 @@ static void QCC_PR_CommandLinePrecompilerOptions (void)
 				else
 					*compiler_flag[p].enabled = false;
 			}
-			if (!stricmp(myargv[i]+5, "C") || !stricmp(myargv[i]+5, "c89") || !stricmp(myargv[i]+5, "c90") || !stricmp(myargv[i]+5, "c99") || !stricmp(myargv[i]+5, "c11") || !stricmp(myargv[i]+5, "c17"))
+			if (!stricmp(myargv[i]+5, "C") || !stricmp(myargv[i]+5, "c++") ||!stricmp(myargv[i]+5, "c89") || !stricmp(myargv[i]+5, "c90") || !stricmp(myargv[i]+5, "c99") || !stricmp(myargv[i]+5, "c11") || !stricmp(myargv[i]+5, "c17"))
 			{	//set up for greatest C compatibility... variations from C are bugs, not features.
 				keyword_asm = false;
 				keyword_break = keyword_continue = keyword_for = keyword_goto = keyword_const = keyword_extern = keyword_static = true;
@@ -4658,7 +4662,13 @@ static void QCC_PR_CommandLinePrecompilerOptions (void)
 				qccwarningaction[WARN_ASSIGNMENTTOCONSTANT] = WA_ERROR;		//const is const. at least its not const by default.
 				qccwarningaction[WARN_SAMENAMEASGLOBAL] = WA_IGNORE;		//shadowing of globals.
 
-				if (!stricmp(myargv[i]+5, "c89") || !stricmp(myargv[i]+5, "c90"))
+				if (!stricmp(myargv[i]+5, "c++"))
+				{
+					keyword_class = /*keyword_new =*/ keyword_inline = true;
+					cnst = QCC_PR_DefineName("__cplusplus");
+					val = NULL;
+				}
+				else if (!stricmp(myargv[i]+5, "c89") || !stricmp(myargv[i]+5, "c90"))
 					val = "199409L";	//it was ammended, apparently.
 				else if (!stricmp(myargv[i]+5, "c99"))
 					val = "199901L";
@@ -4858,11 +4868,12 @@ static void QCC_PR_CommandLinePrecompilerOptions (void)
 						case WARN_STRICTTYPEMISMATCH:
 						case WARN_PARAMWITHNONAME:
 						case WARN_IFSTRING_USED:
-						case WARN_UNINITIALIZED:
+//						case WARN_UNINITIALIZED:
 						case WARN_GMQCC_SPECIFIC:
 						case WARN_SYSTEMCRC:
 						case WARN_SYSTEMCRC2:
-							qccwarningaction[j] = qccwarningaction[WARN_GMQCC_SPECIFIC];
+							if (qccwarningaction[WARN_GMQCC_SPECIFIC])
+								qccwarningaction[j] = WA_WARN;
 							break;
 
 						//these warnings require -Wextra to enable, as they're too annoying to have to fix

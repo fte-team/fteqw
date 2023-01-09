@@ -98,6 +98,7 @@ QCC_type_t	*type_uint;				//uint32
 QCC_type_t	*type_int64;				//int64
 QCC_type_t	*type_uint64;			//uint64
 QCC_type_t	*type_variant;			//__variant
+QCC_type_t	*type_invalid;			//technically void, but shouldn't really ever be used.
 QCC_type_t	*type_floatpointer;		//float *
 QCC_type_t	*type_intpointer;		//int *
 QCC_type_t	*type_bint;				//int (0 or 1)
@@ -3047,6 +3048,7 @@ void QCC_PR_PreProcessor_Define(pbool append)
 				s++;	//skip the \ char
 				if (*s == '\r' && s[1] == '\n')
 					s++;	//skip the \r. the \n will become part of the macro.
+				s++;	//skip the \n
 				QCC_PR_NewLine(true);
 
 /*
@@ -3524,7 +3526,7 @@ static pbool QCC_PR_ExpandPreProcessorMacro(CompilerConstant_t *c, char **buffer
 					QCC_PR_ExpandStrCat(buffer,bufferlen,buffermax,   "#", 1);
 					QCC_PR_ExpandStrCat(buffer,bufferlen,buffermax,   qcc_token, strlen(qcc_token));
 					if (!c->evil)
-						QCC_PR_ParseWarning(0, "'#' is not followed by a macro parameter in %s", c->name);
+						QCC_PR_ParseWarning(0, "'#%s' is not a macro parameter in %s", qcc_token, c->name);
 				}
 				continue;	//already did this one
 			}
@@ -5643,7 +5645,7 @@ QCC_type_t *QCC_PR_ParseType (int newtype, pbool silentfail)
 		return newt;
 	}
 
-	if (QCC_PR_CheckKeyword (keyword_class, "class"))
+	if (flag_qcfuncs && QCC_PR_CheckKeyword (keyword_class, "class"))
 	{
 //		int parms;
 		QCC_type_t *fieldtype;
@@ -5658,6 +5660,7 @@ QCC_type_t *QCC_PR_ParseType (int newtype, pbool silentfail)
 		int basicindex;
 		QCC_def_t *d;
 		QCC_type_t *pc;
+		QCC_type_t *basetype;
 		pbool found = false;
 		int assumevirtual = 0;	//0=erk, 1=yes, -1=no
 
@@ -5718,11 +5721,9 @@ QCC_type_t *QCC_PR_ParseType (int newtype, pbool silentfail)
 		{
 			unsigned int gdf_flags;
 
-			pbool havebody = false;
-			pbool isnull = false;
-			pbool isvirt = false;
-			pbool isnonvirt = false;
-			pbool isstatic = false;
+			pbool wasvirt = false;
+			pbool wasnonvirt = false;
+			pbool wasstatic = false;
 			pbool isconst = false;
 			pbool isvar = false;
 			pbool isignored = false;
@@ -5732,18 +5733,34 @@ QCC_type_t *QCC_PR_ParseType (int newtype, pbool silentfail)
 //			pbool ispublic = false;
 //			pbool isprivate = false;
 //			pbool isprotected = false;
+			pbool firstkeyword = true;
+
 			while(1)
 			{
 				if (QCC_PR_CheckKeyword(1, "nonvirtual"))
-					isnonvirt = true;
+				{
+					if (firstkeyword && QCC_PR_CheckToken(":"))
+					{	//fteqcc-specific
+						assumevirtual = -1;
+						continue;
+					}
+					wasnonvirt = true;
+				}
 				else if (QCC_PR_CheckKeyword(1, "static"))
-					isstatic = true;
+					wasstatic = true;
 				else if (QCC_PR_CheckKeyword(1, "const"))
-					isconst = isstatic = true;
+					isconst = wasstatic = true;
 				else if (QCC_PR_CheckKeyword(1, "var"))
 					isvar = true;
 				else if (QCC_PR_CheckKeyword(1, "virtual"))
-					isvirt = true;
+				{
+					if (firstkeyword && QCC_PR_CheckToken(":"))
+					{	//fteqcc-specific
+						assumevirtual = 1;
+						continue;
+					}
+					wasvirt = true;
+				}
 				else if (QCC_PR_CheckKeyword(1, "ignore"))
 					isignored = true;
 				else if (QCC_PR_CheckKeyword(1, "strip"))
@@ -5754,339 +5771,384 @@ QCC_type_t *QCC_PR_ParseType (int newtype, pbool silentfail)
 					isget = true;
 				else if (QCC_PR_CheckKeyword(1, "set"))
 					isset = true;
-				else if (QCC_PR_CheckKeyword(1, "public"))
-					/*ispublic = true*/;
-				else if (QCC_PR_CheckKeyword(1, "private"))
-					/*isprivate = true*/;
-				else if (QCC_PR_CheckKeyword(1, "protected"))
-					/*isprotected = true*/;
+				else if (firstkeyword && QCC_PR_CheckKeyword(1, "public"))
+				{
+					/*ispublic = true;*/
+					QCC_PR_Expect(":");
+					continue;
+				}
+				else if (firstkeyword && QCC_PR_CheckKeyword(1, "private"))
+				{
+					QCC_PR_Expect(":");
+					/*isprivate = true; */
+					continue;
+				}
+				else if (firstkeyword && QCC_PR_CheckKeyword(1, "protected"))
+				{
+					QCC_PR_Expect(":");
+					/*isprotected = true;*/ QCC_PR_Expect(":");
+					continue;
+				}
 				else
 					break;
-			}
-			if (QCC_PR_CheckToken(":"))
-			{
-				if (isvirt && !isnonvirt)
-					assumevirtual = 1;
-				else if (isnonvirt && !isvirt)
-					assumevirtual = -1;
-				continue;
+				firstkeyword = false;
 			}
 			if (isget || isset)
 			{
-				if (isvirt)
+				if (wasvirt)
 					QCC_PR_ParseWarning(ERR_INTERNAL, "virtual accessors are not supported at this time");
-				if (isstatic)
+				if (wasstatic)
 					QCC_PR_ParseError(ERR_INTERNAL, "static accessors are not supported");
 				QCC_PR_ParseAccessorMember(newt, isinline, isset);
 				QCC_PR_CheckToken(";");
 				continue;
 			}
 
-			newparm = QCC_PR_ParseType(false, false);
+			basetype = QCC_PR_ParseType(false, false);
 
-			if (!newparm)
+			if (!basetype)
 				QCC_PR_ParseError(ERR_INTERNAL, "In class %s, expected type, found %s", classname, pr_token);
 
-			if (newparm->type == ev_struct || newparm->type == ev_union)	//we wouldn't be able to handle it.
+			if (basetype->type == ev_struct || basetype->type == ev_union)	//we wouldn't be able to handle it.
 				QCC_PR_ParseError(ERR_INTERNAL, "Struct or union in class %s", classname);
 
-			parmname = QCC_PR_ParseName();
-			if (QCC_PR_CheckToken("["))
-			{
-				arraysize = QCC_PR_IntConstExpr();
-				QCC_PR_Expect("]");
-			}
-			else
-				arraysize = 0;
 
-			if (newparm->type == ev_function)
+			for (;basetype;)
 			{
-				if (isstatic)
-				{
-					isstatic = false;
-					isnonvirt = true;
-//					QCC_PR_ParseError(ERR_INTERNAL, "%s::%s static member functions are not supported at this time.", classname, parmname);
+				pbool havebody = false;
+				pbool isnull = false;
+				pbool isstatic = wasstatic;
+				pbool isvirt = wasvirt;
+				pbool isnonvirt = wasnonvirt;
+
+				if (flag_qcfuncs && basetype->type == ev_function && basetype->aux_type == newt && QCC_PR_PeekToken(";"))
+				{	//C++ style constructor (ie: missing return type followed by class name)
+					//swap the class out for the appropriate function type...
+					newparm = QCC_PR_GenFunctionType(type_void, basetype->params, basetype->num_parms);
+					parmname = classname;
 				}
-
-				if (!strcmp(classname, parmname))
+				else if (!flag_qcfuncs && basetype == newt && QCC_PR_CheckToken("("))
 				{
-					if (isstatic)
-						QCC_PR_ParseError(ERR_INTERNAL, "Constructor %s::%s may not be static.", classname, pr_token);
-					if (!isvirt)
-						isnonvirt = true;//silently promote constructors to static
-				}
-				else if (!isvirt && !isnonvirt && !isstatic)
-				{
-					if (assumevirtual == 1)
-						isvirt = true;
-					else if (assumevirtual == -1)
-						isnonvirt = true;
-					else
-					{
-						QCC_PR_ParseWarning(WARN_MISSINGMEMBERQUALIFIER, "%s::%s was not qualified. Assuming non-virtual.", classname, parmname);
-						isnonvirt = true;
-					}
-				}
-				if (isvirt+isnonvirt+isstatic != 1)
-					QCC_PR_ParseError(ERR_INTERNAL, "Multiple conflicting qualifiers on %s::%s.", classname, pr_token);
-			}
-			else
-			{
-				if (isvirt||isnonvirt)
-					QCC_Error(ERR_INTERNAL, "virtual keyword on member that is not a function");
-				if (isinline)
-					QCC_Error(ERR_INTERNAL, "inline keyword on member that is not a function");
-			}
-
-			if (QCC_PR_CheckToken("="))
-				havebody = true;
-			else if (newparm->type == ev_function && pr_token[0] == '{')
-				havebody = true;
-			if (isinline && (!havebody || isvirt))
-				QCC_Error(ERR_INTERNAL, "inline keyword on function prototype or virtual function");
-
-			gdf_flags = 0;
-			if ((newparm->type == ev_function && !arraysize && !isvar) || isconst)
-				gdf_flags = GDF_CONST;
-
-			if (havebody)
-			{
-				QCC_def_t *def;
-				if (pr_scope)
-					QCC_Error(ERR_INTERNAL, "Nested function declaration");
-
-				isnull = (QCC_PR_CheckImmediate("0") || QCC_PR_CheckImmediate("0i"));
-				QC_snprintfz(membername, sizeof(membername), "%s::%s", classname, parmname);
-				if (isnull)
-				{
-					if (isignored)
-						def = NULL;
-					else
-					{
-						def = QCC_PR_GetDef(newparm, membername, NULL, true, 0, gdf_flags);
-						def->symboldata[def->ofs].function = 0;
-						def->initialized = 1;
-					}
+					newparm = QCC_PR_ParseFunctionType(false, type_void);
+					parmname = classname;
 				}
 				else
 				{
-					if (isignored)
-						def = NULL;
-					else
-						def = QCC_PR_GetDef(newparm, membername, NULL, true, 0, gdf_flags);
-
-					if (newparm->type != ev_function && !isstatic)
-						QCC_Error(ERR_INTERNAL, "Can only initialise member functions");
-					else
+					parmname = QCC_PR_ParseName();
+					if (QCC_PR_CheckToken("["))
 					{
-						if (autoprototype || isignored)
-						{
-							if (QCC_PR_CheckToken("["))
-							{
-								while (!QCC_PR_CheckToken("]"))
-								{
-									if (pr_token_type == tt_eof)
-										break;
-									QCC_PR_Lex();
-								}
-							}
-							QCC_PR_Expect("{");
+						arraysize = QCC_PR_IntConstExpr();
+						QCC_PR_Expect("]");
+					}
+					else
+						arraysize = 0;
 
-							{
-								int blev = 1;
-								//balance out the { and }
-								while(blev)
-								{
-									if (pr_token_type == tt_eof)
-										break;
-									if (QCC_PR_CheckToken("{"))
-										blev++;
-									else if (QCC_PR_CheckToken("}"))
-										blev--;
-									else
-										QCC_PR_Lex();	//ignore it.
-								}
-							}
-						}
+					if (QCC_PR_CheckToken("("))
+					{
+						//int fnc(), fld; is valid.
+						newparm = QCC_PR_ParseFunctionType(false, basetype);
+					}
+					else
+						newparm = basetype;
+				}
+
+				if (newparm->type == ev_function)
+				{
+					if (!strcmp(classname, parmname))
+					{
+						if (isstatic)
+							QCC_PR_ParseWarning(WARN_MISSINGMEMBERQUALIFIER, "Constructor %s::%s should not be static.", classname, pr_token);
+						if (!isvirt)
+							isnonvirt = true;//silently promote constructors to static
+						if (newparm->aux_type->type != ev_void)
+							QCC_PR_ParseWarning(WARN_MISSINGMEMBERQUALIFIER, "Constructor %s::%s does not return void.", classname, pr_token);
+						if (newparm->num_parms != 0 || newparm->vargs)
+							QCC_PR_ParseWarning(WARN_MISSINGMEMBERQUALIFIER, "Constructor arguments are not supported at this time %s::%s. Use named fields instead.", classname, pr_token);
+					}
+					else if (!isvirt && !isnonvirt && !isstatic)
+					{
+						if (assumevirtual == 1)
+							isvirt = true;
+						else if (assumevirtual == -1)
+							isnonvirt = true;
 						else
 						{
-							pr_classtype = newt;
-							QCC_PR_ParseInitializerDef(def, 0);
-							pr_classtype = NULL;
-							/*
-							f = QCC_PR_ParseImmediateStatements (def, newparm);
-							pr_classtype = NULL;
-							pr_scope = NULL;
-							def->symboldata[def->ofs].function = f - functions;
-							f->def = def;
-							def->initialized = 1;*/
+							QCC_PR_ParseWarning(WARN_MISSINGMEMBERQUALIFIER, "%s::%s was not qualified. Assuming non-virtual.", classname, parmname);
+							isnonvirt = true;
 						}
 					}
-				}
-				if (def)
-					QCC_FreeDef(def);
+					else if (isvirt+isnonvirt+isstatic != 1)
+						QCC_PR_ParseError(ERR_INTERNAL, "Multiple conflicting qualifiers on %s::%s.", classname, pr_token);
 
-				if (!isvirt && !isignored)
-				{
-					QCC_def_t *fdef;
-					QCC_type_t *pc;
-					unsigned int i;
-
-					for (pc = newt->parentclass; pc; pc = pc->parentclass)
-					{
-						for (i = 0; i < pc->num_parms; i++)
-						{
-							if (!strcmp(pc->params[i].paramname, parmname))
-							{
-								QCC_PR_ParseWarning(WARN_DUPLICATEDEFINITION, "%s::%s is virtual inside parent class '%s'. Did you forget the 'virtual' keyword?", newt->name, parmname, pc->name);
-								break;
-							}
-						}
-						if (i < pc->num_parms)
-							break;
+					if (isstatic)
+					{	//static and non-virtual functions differ only in that static should not have a 'this' available. however there's no hiding 'self' for calling in to other functions.
+						isstatic = false;
+						isnonvirt = true;
+//						QCC_PR_ParseError(ERR_INTERNAL, "%s::%s static member functions are not supported at this time.", classname, parmname);
 					}
-					if (!pc)
-					{
-						fdef = QCC_PR_GetDef(NULL, parmname, NULL, false, 0, GDF_CONST);
-						if (fdef && fdef->type->type == ev_field)
-						{
-							QCC_PR_ParseWarning(WARN_DUPLICATEDEFINITION, "%s::%s is virtual inside parent class 'entity'. Did you forget the 'virtual' keyword?", newt->name, parmname);
-							QCC_PR_ParsePrintDef(0, fdef);
-						}
-						else if (fdef)
-						{
-							QCC_PR_ParseWarning(WARN_DUPLICATEDEFINITION, "%s::%s shadows a global", newt->name, parmname);
-							QCC_PR_ParsePrintDef(0, fdef);
-						}
-						if (fdef)
-							QCC_FreeDef(fdef);
-					}
-				}
-			}
-
-			QCC_PR_Expect(";");
-
-			if (isignored)	//member doesn't really exist
-				continue;
-
-			//static members are technically just funny-named globals, and do not generate fields.
-			if (isnonvirt || isstatic || (newparm->type == ev_function && !arraysize))
-			{
-				QC_snprintfz(membername, sizeof(membername), "%s::%s", classname, parmname);
-				QCC_FreeDef(QCC_PR_GetDef(newparm, membername, NULL, true, 0, gdf_flags));
-
-				if (isnonvirt || isstatic)
-					continue;
-			}
-
-			
-			fieldtype = QCC_PR_NewType(parmname, ev_field, false);
-			fieldtype->aux_type = newparm;
-			fieldtype->size = newparm->size;
-
-			parms = realloc(parms, sizeof(*parms) * (numparms+1));
-			parms[numparms].ofs = 0;
-			parms[numparms].out = false;
-			parms[numparms].optional = false;
-			parms[numparms].isvirtual = isvirt;
-			parms[numparms].paramname = parmname;
-			parms[numparms].arraysize = arraysize;
-			parms[numparms].type = newparm;
-			parms[numparms].defltvalue.cast = NULL;
-
-			basicindex = 0;
-			found = false;
-			for(pc = newt; pc && !found; pc = pc->parentclass)
-			{
-				struct QCC_typeparam_s *pp;
-				int numpc;
-				int i;
-				if (pc == newt)
-				{
-					pp = parms;
-					numpc = numparms;
 				}
 				else
 				{
-					pp = pc->params;
-					numpc = pc->num_parms;
+					if (isvirt||isnonvirt)
+						QCC_Error(ERR_INTERNAL, "virtual keyword on member that is not a function");
+					if (isinline)
+						QCC_Error(ERR_INTERNAL, "inline keyword on member that is not a function");
 				}
-				for (i = 0; i < numpc; i++)
+
+				if (QCC_PR_CheckToken("="))
+					havebody = true;
+				else if (newparm->type == ev_function && QCC_PR_PeekToken("{"))
+					havebody = true;
+				if (isinline && (!havebody || isvirt))
+					QCC_Error(ERR_INTERNAL, "inline keyword on function prototype or virtual function");
+
+				gdf_flags = 0;
+				if ((newparm->type == ev_function && !arraysize && !isvar) || isconst)
+					gdf_flags = GDF_CONST;
+
+				if (havebody)
 				{
-					if (pp[i].type->type == newparm->type)
+					QCC_def_t *def;
+					if (pr_scope)
+						QCC_Error(ERR_INTERNAL, "Nested function declaration");
+
+					isnull = (QCC_PR_CheckImmediate("0") || QCC_PR_CheckImmediate("0i"));
+					QC_snprintfz(membername, sizeof(membername), "%s::%s", classname, parmname);
+					if (isnull)
 					{
-						if (!strcmp(pp[i].paramname, parmname))
+						if (isignored)
+							def = NULL;
+						else
 						{
-							if (typecmp(pp[i].type, newparm))
-							{
-								char bufc[256];
-								char bufp[256];
-								TypeName(pp[i].type, bufp, sizeof(bufp));
-								TypeName(newparm, bufc, sizeof(bufc));
-								QCC_PR_ParseError(0, "%s defined as %s in %s, but %s in %s\n", parmname, bufc, newt->name, bufp, pc->name);
-							}
-							basicindex = pp[i].ofs;
-							found = true;
-							break;
+							def = QCC_PR_GetDef(newparm, membername, NULL, true, 0, gdf_flags);
+							def->symboldata[def->ofs].function = 0;
+							def->initialized = 1;
 						}
-						if ((unsigned int)basicindex < pp[i].ofs+pp[i].type->size*(pp[i].arraysize?pp[i].arraysize:1))	//if we found one with the index
-							basicindex = pp[i].ofs+pp[i].type->size*(pp[i].arraysize?pp[i].arraysize:1);	//make sure we don't union it.
 					}
-				}
-			}
-			parms[numparms].ofs = basicindex;	//ulp, its new
-			numparms++;
-
-			if (found)
-				continue;
-
-			if (!*basictypes[newparm->type])
-				QCC_PR_ParseError(0, "members of type %s are not supported (%s::%s)\n", basictypenames[newparm->type], classname, parmname);
-
-			//make sure the union is okay
-			d = QCC_PR_GetDef(NULL, parmname, NULL, 0, 0, GDF_CONST);
-			if (d)
-				basicindex = 0;
-			else
-			{	//don't go all weird with unioning generic fields
-				QC_snprintfz(membername, sizeof(membername), "::*%s", basictypenames[newparm->type]);
-				d = QCC_PR_GetDef(NULL, membername, NULL, 0, 0, GDF_CONST);
-				if (!d)
-				{
-					d = QCC_PR_GetDef(QCC_PR_FieldType(*basictypes[newparm->type]), membername, NULL, 2, 0, GDF_CONST|GDF_POSTINIT|GDF_USED);
-//					for (i = 0; (unsigned int)i < newparm->size*(arraysize?arraysize:1); i++)
-//						d->symboldata[i]._int = pr.size_fields+i;
-//					pr.size_fields += i;
-
-					d->used = true;
-					d->referenced = true;	//always referenced, so you can inherit safely.
-				}
-				if (d->arraysize < basicindex+(arraysize?arraysize:1))
-				{
-					if (d->symboldata)
-						QCC_PR_ParseError(ERR_INTERNAL, "array members are kinda limited, sorry. try rearranging them or adding padding for alignment\n");	//FIXME: add relocs to cope with this all of a type can then be contiguous and thus allow arrays.
 					else
 					{
-						int newsize = basicindex+(arraysize?arraysize:1);
-						if (d->type->type == ev_union || d->type->type == ev_struct)
-							d->arraysize = newsize;
-						else while(d->arraysize < newsize)
+						if (isignored)
+							def = NULL;
+						else
+							def = QCC_PR_GetDef(newparm, membername, NULL, true, 0, gdf_flags);
+
+						if (newparm->type != ev_function && !isstatic)
+							QCC_Error(ERR_INTERNAL, "Can only initialise member functions");
+						else
 						{
-							QC_snprintfz(membername, sizeof(membername), "::%s[%i]", basictypenames[newparm->type], d->arraysize/d->type->size);
-							QCC_PR_DummyDef(d->type, membername, d->scope, 0, d, d->arraysize, true, GDF_CONST);
-							d->arraysize+=d->type->size;
+							if (autoprototype || isignored)
+							{
+								if (QCC_PR_CheckToken("["))
+								{
+									while (!QCC_PR_CheckToken("]"))
+									{
+										if (pr_token_type == tt_eof)
+											break;
+										QCC_PR_Lex();
+									}
+								}
+								QCC_PR_Expect("{");
+
+								{
+									int blev = 1;
+									//balance out the { and }
+									while(blev)
+									{
+										if (pr_token_type == tt_eof)
+											break;
+										if (QCC_PR_CheckToken("{"))
+											blev++;
+										else if (QCC_PR_CheckToken("}"))
+											blev--;
+										else
+											QCC_PR_Lex();	//ignore it.
+									}
+								}
+							}
+							else
+							{
+								pr_classtype = newt;
+								QCC_PR_ParseInitializerDef(def, 0);
+								pr_classtype = NULL;
+								/*
+								f = QCC_PR_ParseImmediateStatements (def, newparm);
+								pr_classtype = NULL;
+								pr_scope = NULL;
+								def->symboldata[def->ofs].function = f - functions;
+								f->def = def;
+								def->initialized = 1;*/
+							}
+						}
+					}
+					if (def)
+						QCC_FreeDef(def);
+
+					if (!isvirt && !isignored)
+					{
+						QCC_def_t *fdef;
+						QCC_type_t *pc;
+						unsigned int i;
+
+						for (pc = newt->parentclass; pc; pc = pc->parentclass)
+						{
+							for (i = 0; i < pc->num_parms; i++)
+							{
+								if (!strcmp(pc->params[i].paramname, parmname))
+								{
+									QCC_PR_ParseWarning(WARN_DUPLICATEDEFINITION, "%s::%s is virtual inside parent class '%s'. Did you forget the 'virtual' keyword?", newt->name, parmname, pc->name);
+									break;
+								}
+							}
+							if (i < pc->num_parms)
+								break;
+						}
+						if (!pc)
+						{
+							fdef = QCC_PR_GetDef(NULL, parmname, NULL, false, 0, GDF_CONST);
+							if (fdef && fdef->type->type == ev_field)
+							{
+								QCC_PR_ParseWarning(WARN_DUPLICATEDEFINITION, "%s::%s is virtual inside parent class 'entity'. Did you forget the 'virtual' keyword?", newt->name, parmname);
+								QCC_PR_ParsePrintDef(0, fdef);
+							}
+							else if (fdef)
+							{
+								QCC_PR_ParseWarning(WARN_DUPLICATEDEFINITION, "%s::%s shadows a global", newt->name, parmname);
+								QCC_PR_ParsePrintDef(0, fdef);
+							}
+							if (fdef)
+								QCC_FreeDef(fdef);
 						}
 					}
 				}
-			}
-			QCC_FreeDef(d);
 
-			//and make sure we can do member::__fname
-			//actually, that seems pointless.
-			QC_snprintfz(membername, sizeof(membername), "%s::"MEMBERFIELDNAME, classname, parmname);
-//			externs->Printf("define %s -> %s\n", membername, d->name);
-			d = QCC_PR_DummyDef(fieldtype, membername, pr_scope, arraysize, d, basicindex, true, (isnull?0:GDF_CONST)|(opt_classfields?GDF_STRIP:0));
-			d->referenced = true;	//always referenced, so you can inherit safely.
+				if (!QCC_PR_CheckToken(","))
+				{
+					QCC_PR_Expect(";");
+					basetype = NULL;
+				}
+
+				if (isignored)	//member doesn't really exist
+					continue;
+
+				//static members are technically just funny-named globals, and do not generate fields.
+				if (isnonvirt || isstatic || (newparm->type == ev_function && !arraysize))
+				{
+					QC_snprintfz(membername, sizeof(membername), "%s::%s", classname, parmname);
+					QCC_FreeDef(QCC_PR_GetDef(newparm, membername, NULL, true, 0, gdf_flags));
+
+					if (isnonvirt || isstatic)
+						continue;
+				}
+
+
+				fieldtype = QCC_PR_NewType(parmname, ev_field, false);
+				fieldtype->aux_type = newparm;
+				fieldtype->size = newparm->size;
+
+				parms = realloc(parms, sizeof(*parms) * (numparms+1));
+				parms[numparms].ofs = 0;
+				parms[numparms].out = false;
+				parms[numparms].optional = false;
+				parms[numparms].isvirtual = isvirt;
+				parms[numparms].paramname = parmname;
+				parms[numparms].arraysize = arraysize;
+				parms[numparms].type = newparm;
+				parms[numparms].defltvalue.cast = NULL;
+
+				basicindex = 0;
+				found = false;
+				for(pc = newt; pc && !found; pc = pc->parentclass)
+				{
+					struct QCC_typeparam_s *pp;
+					int numpc;
+					int i;
+					if (pc == newt)
+					{
+						pp = parms;
+						numpc = numparms;
+					}
+					else
+					{
+						pp = pc->params;
+						numpc = pc->num_parms;
+					}
+					for (i = 0; i < numpc; i++)
+					{
+						if (pp[i].type->type == newparm->type)
+						{
+							if (!strcmp(pp[i].paramname, parmname))
+							{
+								if (typecmp(pp[i].type, newparm))
+								{
+									char bufc[256];
+									char bufp[256];
+									TypeName(pp[i].type, bufp, sizeof(bufp));
+									TypeName(newparm, bufc, sizeof(bufc));
+									QCC_PR_ParseError(0, "%s defined as %s in %s, but %s in %s\n", parmname, bufc, newt->name, bufp, pc->name);
+								}
+								basicindex = pp[i].ofs;
+								found = true;
+								break;
+							}
+							if ((unsigned int)basicindex < pp[i].ofs+pp[i].type->size*(pp[i].arraysize?pp[i].arraysize:1))	//if we found one with the index
+								basicindex = pp[i].ofs+pp[i].type->size*(pp[i].arraysize?pp[i].arraysize:1);	//make sure we don't union it.
+						}
+					}
+				}
+				parms[numparms].ofs = basicindex;	//ulp, its new
+				numparms++;
+
+				if (found)
+					continue;
+
+				if (!*basictypes[newparm->type])
+					QCC_PR_ParseError(0, "members of type %s are not supported (%s::%s)\n", basictypenames[newparm->type], classname, parmname);
+
+				//make sure the union is okay
+				d = QCC_PR_GetDef(NULL, parmname, NULL, 0, 0, GDF_CONST);
+				if (d)
+					basicindex = 0;
+				else
+				{	//don't go all weird with unioning generic fields
+					QC_snprintfz(membername, sizeof(membername), "::*%s", basictypenames[newparm->type]);
+					d = QCC_PR_GetDef(NULL, membername, NULL, 0, 0, GDF_CONST);
+					if (!d)
+					{
+						d = QCC_PR_GetDef(QCC_PR_FieldType(*basictypes[newparm->type]), membername, NULL, 2, 0, GDF_CONST|GDF_POSTINIT|GDF_USED);
+//						for (i = 0; (unsigned int)i < newparm->size*(arraysize?arraysize:1); i++)
+//							d->symboldata[i]._int = pr.size_fields+i;
+//						pr.size_fields += i;
+
+						d->used = true;
+						d->referenced = true;	//always referenced, so you can inherit safely.
+					}
+					if (d->arraysize < basicindex+(arraysize?arraysize:1))
+					{
+						if (d->symboldata)
+							QCC_PR_ParseError(ERR_INTERNAL, "array members are kinda limited, sorry. try rearranging them or adding padding for alignment\n");	//FIXME: add relocs to cope with this all of a type can then be contiguous and thus allow arrays.
+						else
+						{
+							int newsize = basicindex+(arraysize?arraysize:1);
+							if (d->type->type == ev_union || d->type->type == ev_struct)
+								d->arraysize = newsize;
+							else while(d->arraysize < newsize)
+							{
+								QC_snprintfz(membername, sizeof(membername), "::%s[%i]", basictypenames[newparm->type], d->arraysize/d->type->size);
+								QCC_PR_DummyDef(d->type, membername, d->scope, 0, d, d->arraysize, true, GDF_CONST);
+								d->arraysize+=d->type->size;
+							}
+						}
+					}
+				}
+				QCC_FreeDef(d);
+
+				//and make sure we can do member::__fname
+				//actually, that seems pointless.
+				QC_snprintfz(membername, sizeof(membername), "%s::"MEMBERFIELDNAME, classname, parmname);
+//				externs->Printf("define %s -> %s\n", membername, d->name);
+				d = QCC_PR_DummyDef(fieldtype, membername, pr_scope, arraysize, d, basicindex, true, (isnull?0:GDF_CONST)|(opt_classfields?GDF_STRIP:0));
+				d->referenced = true;	//always referenced, so you can inherit safely.
+			}
 		}
 
 		if (redeclaration)
@@ -6140,7 +6202,9 @@ QCC_type_t *QCC_PR_ParseType (int newtype, pbool silentfail)
 	if (QCC_PR_CheckKeyword (keyword_union, "union"))
 		structtype = ev_union;
 	else if (QCC_PR_CheckKeyword (keyword_struct, "struct"))
-		structtype = ev_struct;
+		structtype = ev_struct;	//defaults to public
+//	else if (QCC_PR_CheckKeyword (keyword_class, "class"))
+//		structtype = ev_struct;	//defaults to private. no other difference.
 	if (structtype != ev_void)
 	{
 		struct QCC_typeparam_s *parms = NULL, *oldparm;
@@ -6152,6 +6216,7 @@ QCC_type_t *QCC_PR_ParseType (int newtype, pbool silentfail)
 		pbool isnonvirt = false;
 		pbool isstatic = false;
 		pbool isvirt = false;
+		pbool definedsomething = false;
 
 		if (QCC_PR_CheckToken("{"))
 		{
@@ -6241,15 +6306,28 @@ QCC_type_t *QCC_PR_ParseType (int newtype, pbool silentfail)
 
 				//parse field modifiers
 				if (QCC_PR_CheckKeyword(1, "public"))
+				{
 					/*ispublic = true*/;
+					QCC_PR_Expect(":");
+					continue;
+				}
 				else if (QCC_PR_CheckKeyword(1, "private"))
+				{
 					/*isprivate = true*/;
+					QCC_PR_Expect(":");
+					continue;
+				}
 				else if (QCC_PR_CheckKeyword(1, "protected"))
+				{
 					/*isprotected = true*/;
+					QCC_PR_Expect(":");
+					continue;
+				}
 
-				if (QCC_PR_CheckKeyword(1, "nonvirtual"))
-					isnonvirt = true;
-				else if (QCC_PR_CheckKeyword(1, "static"))
+				//if (QCC_PR_CheckKeyword(1, "nonvirtual"))
+				//	isnonvirt = true;
+				//else
+				 if (QCC_PR_CheckKeyword(1, "static"))
 					isstatic = true;
 				else if (QCC_PR_CheckKeyword(1, "virtual"))
 					isvirt = true;
@@ -6260,6 +6338,7 @@ QCC_type_t *QCC_PR_ParseType (int newtype, pbool silentfail)
 
 				//now parse the actual type.
 				newparm = QCC_PR_ParseType(false, false);
+				definedsomething = false;
 			}
 			type = newparm;
 
@@ -6269,6 +6348,13 @@ QCC_type_t *QCC_PR_ParseType (int newtype, pbool silentfail)
 			arraysize = 0;
 			if (QCC_PR_CheckToken(";"))
 			{	//annonymous structs do weird scope stuff.
+				if (!definedsomething && (type->type != ev_struct && type->type != ev_union))
+				{
+					if (flag_qcfuncs && type->type == ev_function && type->aux_type == newt && QCC_PR_PeekToken(";"))
+						QCC_PR_ParseWarning(WARN_POINTLESSSTATEMENT, "constructors are not supported in structs at this time", newparm->name);
+					else
+						QCC_PR_ParseWarning(WARN_POINTLESSSTATEMENT, "declaration does not declare anything (%s)", newparm->name);
+				}
 				newparm = NULL;
 				parmname = "";
 			}
@@ -6277,6 +6363,7 @@ QCC_type_t *QCC_PR_ParseType (int newtype, pbool silentfail)
 				parmname = qccHunkAlloc(strlen(pr_token)+1);
 				strcpy(parmname, pr_token);
 				QCC_PR_Lex();
+				definedsomething = true;
 				if (QCC_PR_CheckToken("["))
 				{
 					arraysize=QCC_PR_IntConstExpr();

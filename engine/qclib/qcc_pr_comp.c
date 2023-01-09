@@ -10524,8 +10524,54 @@ static QCC_ref_t *QCC_PR_RefTerm (QCC_ref_t *retbuf, unsigned int exprflags)
 				return QCC_DefToRef(retbuf, QCC_MakeIntConst(sz));
 			}
 		}
+		/*if (QCC_PR_CheckKeyword(keyword_new, "new"))
+		{	//note: C++ requires struct-based classes rather than entity ones.
+			const char *cname = QCC_PR_ParseName();
+			QCC_type_t *rettype = QCC_TypeForName(cname);
+			QCC_sref_t	result, func;
+			if (!rettype || rettype->type != ev_entity)
+				QCC_PR_ParseError (ERR_TYPEMISMATCHPARM, "new %s() unsupported argument type for intrinsic", cname);
+			e = QCC_PR_GetSRef(NULL, "spawn", NULL, 0, 0, 0);
+			if (!e.cast)
+				QCC_PR_ParseError (ERR_TYPEMISMATCHPARM, "new %s() spawn builtin not defined", cname);
+			result = QCC_PR_GenerateFunctionCallRef(nullsref, e, NULL,0);
+			result.cast = rettype;
+			if (QCC_PR_CheckToken("("))
+			{	//arglist is optional, apparently
+				char genfunc[256];
+				//do field assignments.
+				while(QCC_PR_CheckToken(","))
+				{
+					QCC_sref_t f, p, v;
+					f = QCC_PR_ParseValue(rettype, false, false, true);
+					if (f.cast->type != ev_field)
+						QCC_PR_ParseError(0, "Named field is not a field.");
+					if (QCC_PR_CheckToken("="))							//allow : or = as a separator, but throw a warning for =
+						QCC_PR_ParseWarning(0, "That = should be a :");	//rejecting = helps avoid qcc bugs. :P
+					else
+						QCC_PR_Expect(":");
+					v = QCC_PR_Expression(TOP_PRIORITY, EXPR_DISALLOW_COMMA);
+
+					p = QCC_PR_StatementFlags(&pr_opcodes[OP_ADDRESS], result, f, NULL, STFL_PRESERVEA);
+					if (v.cast->size == 3)
+						QCC_FreeTemp(QCC_PR_Statement(&pr_opcodes[OP_STOREP_V], v, p, NULL));
+					else
+						QCC_FreeTemp(QCC_PR_Statement(&pr_opcodes[OP_STOREP_F], v, p, NULL));
+				}
+				QCC_PR_Expect(")");
+
+				QC_snprintfz(genfunc, sizeof(genfunc), "spawnfunc_%s", rettype->name);
+				func = QCC_PR_GetSRef(type_function, genfunc, NULL, true, 0, GDF_CONST);
+				func.sym->referenced = true;
+
+				QCC_UnFreeTemp(result);
+				QCC_FreeTemp(QCC_PR_GenerateFunctionCallRef(result, func, NULL, 0));
+				result.cast = rettype;
+			}
+			return QCC_DefToRef(retbuf, result);
+		}*/
 		if (QCC_PR_CheckKeyword(true, "_length"))
-		{	//for compat with gmqcc
+		{	//for compat with gmqcc. use array.length in fte instead.
 			pbool bracket = QCC_PR_CheckToken("(");
 			/*QCC_type_t *t;
 			t = QCC_PR_ParseType(false, true);
@@ -15047,8 +15093,27 @@ void QCC_CommonSubExpressionRemoval(int first, int last)
 //follow branches (by recursing).
 //stop on first read(error, return statement) or write(no error, return -1)
 //end-of-block returns 0, done/return/goto returns -2
-static int QCC_CheckOneUninitialised(int firststatement, int laststatement, QCC_def_t *def, unsigned int min, unsigned int max)
+static int QCC_CheckOneUninitialised(int firststatement, int laststatement, union QCC_eval_basic_s *min, union QCC_eval_basic_s *max)
 {
+#define SPLIT \
+		if (!(ofs > max || ofs+sz <= min)) \
+		{	\
+			if (min < ofs)	\
+			{	/*keep checking before*/ \
+				ret = QCC_CheckOneUninitialised(i + 1, laststatement, min, ofs);	\
+				if (ret > 0)	\
+					return ret;	\
+			}	\
+			if (ofs+sz < max)	\
+			{	/*keep checking after*/ \
+				ret = QCC_CheckOneUninitialised(i + 1, laststatement, ofs+sz, max);	\
+				if (ret > 0)	\
+					return ret;	\
+			}	\
+			if (iswrite) \
+				return -1; /*okay, we wrote it all*/ \
+			return i;	/*an error when its a read*/ \
+		}
 	int ret;
 	int i;
 	QCC_statement_t *st;
@@ -15059,46 +15124,44 @@ static int QCC_CheckOneUninitialised(int firststatement, int laststatement, QCC_
 
 		if (st->op == OP_DONE || st->op == OP_RETURN)
 		{
-			if (st->a.sym && st->a.sym->symbolheader == def && st->a.ofs >= min && st->a.ofs < max)
-				return i;
+			if (st->a.cast && st->a.sym)
+			{
+				union QCC_eval_basic_s *ofs = st->a.sym->symboldata+st->a.ofs;
+				int sz = st->a.cast->size;
+				if (!(ofs > max || ofs+sz < min))
+					return i;
+			}
 			return -2;
 		}
-
-		if (st->op == OP_GLOBALADDRESS && st->a.sym && (st->a.sym->symbolheader == def || (st->a.sym->symbolheader == def)))
-			return -1;	//assume taking a pointer to it is an initialisation.
 
 //		this code catches gotos, but can cause issues with while statements.
 //		if (st->op == OP_GOTO && (int)st->a < 1)
 //			return -2;
 
-		if (pr_opcodes[st->op].type_a)
+		if (pr_opcodes[st->op].type_a && st->a.sym)
 		{
-			if (st->a.sym && st->a.sym->symbolheader == def && st->a.ofs >= min && st->a.ofs < max)
-			{
-				if (OpAssignsToA(st->op))
-					return -1;
+			union QCC_eval_basic_s *ofs = st->a.sym->symboldata+st->a.ofs;
+			int sz = st->a.cast->size;
+			pbool iswrite = OpAssignsToA(st->op) || st->op == OP_GLOBALADDRESS; /* address-of counts as a write here, because we're too dumb to track when/if that is assigned to.*/
 
-				return i;
-			}
+			SPLIT
 		}
 		else if (pr_opcodes[st->op].associative == ASSOC_RIGHT && (int)st->a.ofs > 0 && !st->a.sym)
 		{
 			int jump = i + (int)st->a.ofs;
-			ret = QCC_CheckOneUninitialised(i + 1, jump, def, min, max);
+			ret = QCC_CheckOneUninitialised(i + 1, jump, min, max);
 			if (ret > 0)
 				return ret;
 			i = jump-1;
 		}
 
-		if (pr_opcodes[st->op].type_b)
+		if (pr_opcodes[st->op].type_b && st->b.sym)
 		{
-			if (st->b.sym && st->b.sym->symbolheader == def && st->b.ofs >= min && st->b.ofs < max)
-			{
-				if (OpAssignsToB(st->op))
-					return -1;
+			union QCC_eval_basic_s *ofs = st->b.sym->symboldata+st->b.ofs;
+			int sz = st->b.cast->size;
+			pbool iswrite = OpAssignsToB(st->op);
 
-				return i;
-			}
+			SPLIT
 		}
 		else if (pr_opcodes[st->op].associative == ASSOC_RIGHT && (int)st->b.ofs > 0 && !st->b.sym && !(st->flags & STF_LOGICOP))
 		{
@@ -15108,10 +15171,10 @@ static int QCC_CheckOneUninitialised(int firststatement, int laststatement, QCC_
 			if (st->op == OP_GOTO && (int)st->a.ofs > 0)
 			{
 				int jump2 = jump-1 + st->a.ofs;
-				int rett = QCC_CheckOneUninitialised(i + 1, jump - 1, def, min, max);
+				int rett = QCC_CheckOneUninitialised(i + 1, jump - 1, min, max);
 				if (rett > 0)
 					return rett;
-				ret = QCC_CheckOneUninitialised(jump, jump2, def, min, max);
+				ret = QCC_CheckOneUninitialised(jump, jump2, min, max);
 				if (ret > 0)
 					return ret;
 				if (rett < 0 && ret < 0)
@@ -15120,7 +15183,7 @@ static int QCC_CheckOneUninitialised(int firststatement, int laststatement, QCC_
 			}
 			else
 			{
-				ret = QCC_CheckOneUninitialised(i + 1, jump, def, min, max);
+				ret = QCC_CheckOneUninitialised(i + 1, jump, min, max);
 				if (ret > 0)
 					return ret;
 				i = jump-1;
@@ -15128,17 +15191,18 @@ static int QCC_CheckOneUninitialised(int firststatement, int laststatement, QCC_
 			continue;
 		}
 
-		if (pr_opcodes[st->op].type_c && st->c.sym && st->c.sym->symbolheader == def && st->c.ofs >= min && st->c.ofs < max)
+		if (pr_opcodes[st->op].type_c && st->c.sym)
 		{
-			if (OpAssignsToC(st->op))
-				return -1;
+			union QCC_eval_basic_s *ofs = st->c.sym->symboldata+st->c.ofs;
+			int sz = st->c.cast->size;
+			pbool iswrite = OpAssignsToC(st->op);
 
-			return i;
+			SPLIT
 		}
 		else if (pr_opcodes[st->op].associative == ASSOC_RIGHT && (int)st->c.ofs > 0 && !st->c.sym)
 		{
 			int jump = i + (int)st->c.ofs;
-			ret = QCC_CheckOneUninitialised(i + 1, jump, def, min, max);
+			ret = QCC_CheckOneUninitialised(i + 1, jump, min, max);
 			if (ret > 0)
 				return ret;
 			i = jump-1;
@@ -15148,11 +15212,12 @@ static int QCC_CheckOneUninitialised(int firststatement, int laststatement, QCC_
 	}
 
 	return 0;
+#undef SPLIT
 }
 
 static pbool QCC_CheckUninitialised(int firststatement, int laststatement)
 {
-	QCC_def_t *local;
+	QCC_def_t *local, *c, *uninit;
 	unsigned int i;
 	pbool result = false;
 	unsigned int paramend = FIRST_LOCAL;
@@ -15180,11 +15245,33 @@ static pbool QCC_CheckUninitialised(int firststatement, int laststatement)
 			continue;
 		if (local->arraysize)
 			continue;	//probably indexed. we won't detect things properly. its the user's resposibility to check. :(
-		err = QCC_CheckOneUninitialised(firststatement, laststatement, local, local->ofs, local->ofs + local->type->size * (local->arraysize?local->arraysize:1));
+		err = QCC_CheckOneUninitialised(firststatement, laststatement, local->symboldata, local->symboldata + local->type->size * (local->arraysize?local->arraysize:1));
 		if (err > 0)
-		{
-			QCC_PR_Warning(WARN_UNINITIALIZED, s_filen, statements[err].linenum, "Potentially uninitialised variable %s%s%s", col_symbol,local->name,col_none);
+		{	//try to refine it to a single component if we can.
+			uninit = NULL;
+			for (c = local; ; c = c->next)
+			{
+				if (c != local)
+				{
+					err = QCC_CheckOneUninitialised(firststatement, laststatement, c->symboldata, c->symboldata + c->type->size * (c->arraysize?c->arraysize:1));
+					if (err > 0)
+					{
+						if (uninit)
+						{
+							uninit = NULL;
+							break;
+						}
+						uninit = c;
+					}
+				}
+				if (c == local->deftail)
+					break;	//that was the last of them.
+			}
+			if (!uninit)	//otherwise give up and print the whole struct.
+				uninit = local;
+			QCC_PR_Warning(WARN_UNINITIALIZED, s_filen, statements[err].linenum, "Potentially uninitialised variable %s%s%s", col_symbol,uninit->name,col_none);
 			result = true;
+
 //			break;
 		}
 	}
@@ -17989,7 +18076,7 @@ PR_ParseDefs
 Called at the outer layer and when a local statement is hit
 ================
 */
-void QCC_PR_ParseDefs (char *classname, pbool fatal_unused)
+void QCC_PR_ParseDefs (const char *classname, pbool fatal_unused)
 {
 	char		*name;
 	QCC_type_t		*basetype, *type, *defclass;
@@ -18416,17 +18503,29 @@ void QCC_PR_ParseDefs (char *classname, pbool fatal_unused)
 //			QCC_PR_ParseError (WARN_TYPEWITHNONAME, "type (%s) with no name", type->name);
 			return;
 		}
-		else
+
+		if (!istypedef && !classname && type->typedefed && QCC_PR_CheckToken("::"))
 		{
-			while (QCC_PR_CheckToken ("*"))
-				type = QCC_PointerTypeTo(type);
-			name = QCC_PR_ParseName ();
+			classname = type->name;	//FIXME: doesn't work with commas...
+			type = type_invalid;
+		}
+		else while (QCC_PR_CheckToken ("*"))
+			type = QCC_PointerTypeTo(type);
+		name = QCC_PR_ParseName ();
+
+		if (!istypedef && !classname && QCC_PR_CheckToken("::"))
+		{
+			classname = name;	//FIXME: doesn't work with commas...
+			name = QCC_PR_ParseName();
 		}
 
-		if (!istypedef && QCC_PR_CheckToken("::") && !classname)
+		if (type == type_invalid)
 		{
-			classname = name;
-			name = QCC_PR_ParseName();
+			type = type_void;
+			if (!strcmp(classname, name))
+				;	//constructor. allowed.
+			else
+				QCC_PR_ParseWarning(ERR_NOTATYPE, "no type specified for %s::%s. this is only allowed for constructors", classname, name);
 		}
 
 //check for an array
@@ -18527,6 +18626,7 @@ void QCC_PR_ParseDefs (char *classname, pbool fatal_unused)
 			name = qccHunkAlloc(strlen(classname) + strlen(name) + 3);
 			sprintf(name, "%s::%s", classname, membername);
 			defclass = QCC_TypeForName(classname);
+			allocatenew = (dynlength.cast || aliasof)?false:2;
 			if (defclass && defclass->type == ev_struct)
 				allocatenew = false;
 			else if (!defclass || !defclass->parentclass)
@@ -18629,6 +18729,15 @@ void QCC_PR_ParseDefs (char *classname, pbool fatal_unused)
 					QCC_PR_ParseError(ERR_NOTANAME, "%s not yet defined, cannot create %s as an alias", aliasof, name);
 				def->referenced = true;
 				def = QCC_PR_DummyDef(type, name, pr_scope, arraysize, def, 0, true, gd_flags);
+			}
+			else if (allocatenew != 1)
+			{	//we always allocate here, because it lets us handle syntax errors a little more gracefully, but an error is still an error and will be fatal later.
+				def = QCC_PR_GetDef (type, name, pr_scope, false, arraysize, gd_flags);
+				if (!def)
+				{
+					QCC_PR_ParseWarning(allocatenew?WARN_MEMBERNOTDEFINED:ERR_NOTDEFINED, "%s is not part of class %s", name, classname);
+					def = QCC_PR_GetDef (type, name, pr_scope, true, arraysize, gd_flags);
+				}
 			}
 			else
 				def = QCC_PR_GetDef (type, name, pr_scope, allocatenew, arraysize, gd_flags);

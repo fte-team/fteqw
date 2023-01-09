@@ -3253,6 +3253,7 @@ void DecompileProgsDat(char *name, void *buf, size_t bufsize)
 	type_bint = type_integer;
 	type_variant = QCC_PR_NewType("variant", ev_variant, true);
 	type_variant = QCC_PR_NewType("__variant", ev_variant, true);
+	type_invalid = QCC_PR_NewType("invalid", ev_void, false);
 
 	DecompileReadData(name, buf, bufsize);
 	DecompileDecompileFunctions(c);

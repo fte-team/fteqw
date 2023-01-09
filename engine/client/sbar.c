@@ -411,38 +411,38 @@ void Sbar_ExecuteLayoutString (char *s, int seat)
 	{
 		s = COM_Parse (s);
 		if (!strcmp(com_token, "xl"))
-		{
+		{	//relative to left
 			s = COM_Parse (s);
 			x = sbar_rect.x + atoi(com_token);
 			continue;
 		}
 		if (!strcmp(com_token, "xr"))
-		{
+		{	//relative to right
 			s = COM_Parse (s);
 			x = sbar_rect.x + sbar_rect.width + atoi(com_token);
 			continue;
 		}
 		if (!strcmp(com_token, "xv"))
-		{
+		{	//relative to central 640*480 box.
 			s = COM_Parse (s);
 			x = sbar_rect.x + (sbar_rect.width-320)/2 + atoi(com_token);
 			continue;
 		}
 
 		if (!strcmp(com_token, "yt"))
-		{
+		{	//relative to top
 			s = COM_Parse (s);
 			y = sbar_rect.y + atoi(com_token);
 			continue;
 		}
 		if (!strcmp(com_token, "yb"))
-		{
+		{	//relative to bottom
 			s = COM_Parse (s);
 			y = sbar_rect.y + sbar_rect.height + atoi(com_token);
 			continue;
 		}
 		if (!strcmp(com_token, "yv"))
-		{
+		{	//relative to central 640*480 box.
 			s = COM_Parse (s);
 			y = sbar_rect.y + (sbar_rect.height-240)/2 + atoi(com_token);
 			continue;
@@ -451,7 +451,10 @@ void Sbar_ExecuteLayoutString (char *s, int seat)
 		if (!strcmp(com_token, "pic"))
 		{	// draw a pic from a stat number
 			s = COM_Parse (s);
-			value = ps->stats[atoi(com_token)];
+			index = atoi(com_token);
+			if (index < 0 || index >= countof(ps->stats))
+				Host_EndGame ("Bad stat index");
+			value = ps->stats[index];
 			if (value >= Q2MAX_IMAGES || value < 0)
 				Host_EndGame ("Pic >= Q2MAX_IMAGES");
 			if (*Get_Q2ConfigString(Q2CS_IMAGES+value))
@@ -553,7 +556,10 @@ void Sbar_ExecuteLayoutString (char *s, int seat)
 			s = COM_Parse (s);
 			width = atoi(com_token);
 			s = COM_Parse (s);
-			value = ps->stats[atoi(com_token)];
+			index = atoi(com_token);
+			if (index < 0 || index >= countof(ps->stats))
+				Host_EndGame ("Bad stat index");
+			value = ps->stats[index];
 			SCR_DrawField (x, y, 0, width, value);
 			continue;
 		}
@@ -669,7 +675,10 @@ void Sbar_ExecuteLayoutString (char *s, int seat)
 		if (!strcmp(com_token, "if"))
 		{	// draw a number
 			s = COM_Parse (s);
-			value = ps->stats[atoi(com_token)];
+			index = atoi(com_token);
+			if (index < 0 || index >= countof(ps->stats))
+				Host_EndGame ("Bad stat index");
+			value = ps->stats[index];
 			if (!value)
 			{	// skip to endif
 				while (s && strcmp(com_token, "endif") )
@@ -680,8 +689,16 @@ void Sbar_ExecuteLayoutString (char *s, int seat)
 
 			continue;
 		}
+		if (!strcmp(com_token, "endif"))
+		{	//conditional was taken (so its endif wasn't ignored)
+			continue;
+		}
 
-
+		if (*com_token)
+		{
+			static float throttle;
+			Con_ThrottlePrintf(&throttle, 2, "Unknown layout command \"%s\"\n", com_token);
+		}
 	}
 }
 

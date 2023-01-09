@@ -240,6 +240,7 @@ qboolean GLSCR_UpdateScreen (void)
 	//gl 4.5 / GL_ARB_robustness / GL_KHR_robustness
 	if (qglGetGraphicsResetStatus)
 	{
+		char *reason;
 		GLenum err = qglGetGraphicsResetStatus();
 		switch(err)
 		{
@@ -249,7 +250,13 @@ qboolean GLSCR_UpdateScreen (void)
 		case GL_INNOCENT_CONTEXT_RESET:	//something else broke the hardware and broke our ram
 		case GL_UNKNOWN_CONTEXT_RESET:	//whodunit
 		default:
-			Con_Printf("OpenGL reset detected\n");
+			if (err == GL_GUILTY_CONTEXT_RESET)
+				reason = "guilty";
+			else if (err == GL_INNOCENT_CONTEXT_RESET)
+				reason = "innocent";
+			else
+				reason = "unknown";
+			Con_Printf("OpenGL reset detected (%s)\n", reason);
 			Sys_Sleep(3.0);
 			Cmd_ExecuteString("vid_restart", RESTRICT_LOCAL);
 			break;

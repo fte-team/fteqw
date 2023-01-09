@@ -759,9 +759,9 @@ static struct icestate_s *QDECL ICE_Create(void *module, const char *conname, co
 		{
 			if (addr[i].type == NA_IP || addr[i].type == NA_IPV6)
 			{
-//				if (flags[i] & ADDR_REFLEX)
-//					ICE_AddLCandidateInfo(con, &addr[i], i, ICE_SRFLX); //FIXME: needs reladdr relport info
-//				else
+				if (flags[i] & ADDR_REFLEX)
+					ICE_AddLCandidateInfo(con, &addr[i], i, ICE_SRFLX); //FIXME: needs reladdr relport info
+				else
 					ICE_AddLCandidateInfo(con, &addr[i], i, ICE_HOST);
 			}
 		}
@@ -2129,10 +2129,10 @@ static qboolean QDECL ICE_Set(struct icestate_s *con, const char *prop, const ch
 					else if (net_enable_dtls.ival >= 3)
 					{	//peer doesn't seem to support dtls.
 						con->state = ICE_FAILED;
-						Con_Printf(CON_WARNING"WARNING: peer does not support dtls. Set net_enable_dtls to 0 to make optional.\n");
+						Con_Printf(CON_WARNING"WARNING: [%s]: peer does not support dtls. Set net_enable_dtls to 0 to make optional.\n", con->friendlyname);
 					}
 					else if (con->state == ICE_CONNECTING && net_enable_dtls.ival>=2)
-						Con_Printf(CON_WARNING"WARNING: peer does not support dtls.\n");
+						Con_Printf(CON_WARNING"WARNING: [%s]: peer does not support dtls.\n", con->friendlyname);
 				}
 				if (!con->sctp && (!con->sctpoptional || !con->peersctpoptional) && con->mysctpport && con->peersctpport)
 				{
@@ -2143,6 +2143,11 @@ static qboolean QDECL ICE_Set(struct icestate_s *con, const char *prop, const ch
 					Sys_RandomBytes((void*)&con->sctp->o.verifycode, sizeof(con->sctp->o.verifycode));
 					Sys_RandomBytes((void*)&con->sctp->i.verifycode, sizeof(con->sctp->i.verifycode));
 				}
+			}
+			else if (!con->dtlsstate && con->cred.peer.hash)
+			{
+				if (!con->peersctpoptional)
+					Con_Printf(CON_WARNING"WARNING: [%s]: peer is trying to use dtls.\n", con->friendlyname);
 			}
 #endif
 		}
@@ -3736,8 +3741,8 @@ static void SCTP_Decode(sctp_t *sctp, struct icestate_s *peer, ftenet_connection
 			break;
 //		case SCTP_TYPE_PONG:	//we don't send pings
 		case SCTP_TYPE_ABORT:
-			ICE_Set(peer, "state", STRINGIFY(ICE_FAILED));
 			SCTP_ErrorChunk(peer, "Abort", (struct sctp_errorcause_s*)(c+1), clen-sizeof(*c));
+			ICE_Set(peer, "state", STRINGIFY(ICE_FAILED));
 			break;
 		case SCTP_TYPE_SHUTDOWN:	//FIXME. we should send an ack...
 			ICE_Set(peer, "state", STRINGIFY(ICE_FAILED));

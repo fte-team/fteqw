@@ -1746,22 +1746,23 @@ static void SV_GameLoaded(loadplayer_t *lp, size_t slots, const char *savename)
 			sv.spawned_client_slots++;
 			Q_strncpyz(cl->namebuf, lp[clnum].name, sizeof(cl->namebuf));
 		}
-		cl->name = PR_AddString(svprogfuncs, cl->namebuf, sizeof(cl->namebuf), false);
-		cl->team = PR_AddString(svprogfuncs, cl->teambuf, sizeof(cl->teambuf), false);
 
-		cl->edict = EDICT_NUM_PB(svprogfuncs, clnum+1);
+		if (svprogfuncs)
+		{
+			cl->name = PR_AddString(svprogfuncs, cl->namebuf, sizeof(cl->namebuf), false);
+			cl->team = PR_AddString(svprogfuncs, cl->teambuf, sizeof(cl->teambuf), false);
+			cl->edict = EDICT_NUM_PB(svprogfuncs, clnum+1);
 
 #ifdef HEXEN2
-		{
 			if (cl->edict)
 				cl->playerclass = cl->edict->xv->playerclass;
 			else
 				cl->playerclass = 0;
-		}
 #endif
 #ifdef HAVE_LEGACY
-		cl->edict->xv->clientcolors = cl->playercolor;
+			cl->edict->xv->clientcolors = cl->playercolor;
 #endif
+		}
 
 		if (cl->state == cs_spawned)	//shouldn't have gotten past SV_SpawnServer, but just in case...
 			cl->state = cs_connected;	//client needs new serverinfo.

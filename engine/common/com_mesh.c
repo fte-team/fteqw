@@ -9364,7 +9364,27 @@ static galiasinfo_t *Mod_ParseMD5MeshModel(model_t *mod, char *buffer, char *mod
 								frames = ZG_Malloc(&mod->memgroup, sizeof(*frames)*skin->numframes);
 								skin->frame = frames;
 								for (vnum = 0; vnum < skin->numframes; vnum++)
+								{
+									size_t fsize=0, w, h;
+									qbyte *img;
 									Q_snprintfz(frames[vnum].shadername, sizeof(frames[vnum].shadername), "%s_%02d_%02d.lmp", texbase, num, vnum);
+
+									//extra stuff to make sure we can colourmap the 8bit data without needing _upper etc images.
+									img = FS_LoadMallocGroupFile(&mod->memgroup, frames[vnum].shadername, &fsize, false);
+									if (img && fsize >= 8)
+									{
+										w = (img[0]<<0)|(img[1]<<8)|(img[2]<<16)|(img[3]<<24);
+										h = (img[4]<<0)|(img[5]<<8)|(img[6]<<16)|(img[7]<<24);
+										if (fsize == 8+w*h && (vnum == 0 || (w==skin->skinwidth&&h==skin->skinheight)))
+										{
+											skin->skinwidth = w;
+											skin->skinheight = h;
+											frames[vnum].texels = img+8;
+										}
+										else
+											ZG_Free(&mod->memgroup, img);	//something's screwy, don't leave the wasted memory lying around.
+									}
+								}
 							}
 						}
 					}

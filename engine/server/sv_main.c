@@ -2005,11 +2005,14 @@ void SV_AcceptMessage(client_t *newcl)
 	Netchan_OutOfBand (NS_SERVER, &net_from, len, (qbyte *)string);
 }
 
-#ifndef _WIN32
+#if !defined(_DEBUG) || defined(_WIN32) || defined(FTE_TARGET_WEB)
+static void SV_CheckRecentCrashes(client_t *tellclient)
+{
+}
+#else
 #include <sys/stat.h>
 static void SV_CheckRecentCrashes(client_t *tellclient)
 {
-#ifndef FTE_TARGET_WEB
 	struct stat sb;
 	if (-1 != stat("crash.log", &sb))
 	{
@@ -2017,11 +2020,6 @@ static void SV_CheckRecentCrashes(client_t *tellclient)
 			return;	//after 2 days, we stop advertising that we once crashed.
 		SV_ClientPrintf(tellclient, PRINT_HIGH, "\1WARNING: crash.log exists, dated %s\n", ctime(&sb.st_mtime));
 	}
-#endif
-}
-#else
-static void SV_CheckRecentCrashes(client_t *tellclient)
-{
 }
 #endif
 

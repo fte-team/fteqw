@@ -6280,7 +6280,7 @@ void QCBUILTIN PF_changelevel (pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 	if (progstype == PROG_H2)
 	{
 		COM_QuotedString(PR_GetStringOfs(prinst, OFS_PARM1), startspot, sizeof(startspot), false);
-		//these flags disable the whole levelcache thing. the spawnspot is meant to still and always be specified.
+		//these flags disable the whole levelcache thing. the startspot is meant to still and always be specified.
 		//hexen2 ALWAYS specifies two arguments, and it seems that raven left it blank in some single-player maps too.
 		//if we don't want to be stupid/broken in deathmatch, we might as well do the fully compatible thing
 		if ((int)pr_global_struct->serverflags & (16|32))

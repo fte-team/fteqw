@@ -8077,7 +8077,7 @@ qc_extension_t QSG_Extensions[] = {
 
 	{"FTE_QC_BASEFRAME",				NULL,	0,{NULL}, "Specifies that .basebone and .baseframe exist in ssqc. These fields affect all bones in the entity's model with a lower index than the .basebone field, allowing you to give separate control to the legs of a skeletal model, without affecting the torso animations, from ssqc."},
 	{"FTE_QC_FILE_BINARY",				NULL,	4,{"fread","fwrite","fseek","fsize"}, "Extends FRIK_FILE with binary read+write, as well as allowing seeking. Requires pointers."},
-	{"FTE_QC_CHANGELEVEL_HUB",			NULL,	0,{NULL}, "Adds an extra argument to changelevel which is carried over to the next map in the 'spawnspot' global. Maps will be saved+reloaded until the extra argument is omitted again, purging all saved maps. Saved games will contain a copy of each preserved map. parm1-parm64 globals can be used, giving more space to transfer more player data."},
+	{"FTE_QC_CHANGELEVEL_HUB",			NULL,	0,{NULL}, "Adds an extra argument to changelevel which is carried over to the next map in the 'startspot' global. Maps will be saved+reloaded until the extra argument is omitted again, purging all saved maps. Saved games will contain a copy of each preserved map. parm1-parm64 globals can be used, giving more space to transfer more player data."},
 	{"FTE_QC_CHECKCOMMAND",				NULL,	1,{"checkcommand"}, "Provides a way to test if a console command exists, and whether its a command/alias/cvar. Does not say anything about the expected meanings of any arguments or values."},
 	{"FTE_QC_CHECKPVS",					NULL,	1,{"checkpvs"}},
 	{"FTE_QC_CROSSPRODUCT",				NULL,	1,{"crossproduct"}},

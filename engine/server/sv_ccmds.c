@@ -698,7 +698,7 @@ void SV_Map_f (void)
 		{
 			char *mangled = Cmd_Argv(1);
 			char *sep = strchr(mangled, ':');
-			if (sep)
+			if (sep && strncmp(mangled, "file:", 5) && strncmp(mangled, "http:", 5) && strncmp(mangled, "https:", 5))
 			{
 				*sep++ = 0;
 				if (Cmd_FromGamecode())
@@ -737,7 +737,7 @@ void SV_Map_f (void)
 	else
 	{
 		snprintf (expanded, sizeof(expanded), "maps/%s.bsp", level); // this function and the if statement below, is a quake bugfix which stopped a map called "dm6++.bsp" from loading because of the + sign, quake2 map syntax interprets + character as "intro.cin+base1.bsp", to play a cinematic then load a map after
-		if (!COM_FCheckExists (expanded))
+		if (!COM_FCheckExists (level) && !COM_FCheckExists (expanded))
 		{
 			nextserver = strchr(level, '+');
 			if (nextserver)
@@ -841,7 +841,7 @@ void SV_Map_f (void)
 	else
 #endif
 	{
-		char *exts[] = {"maps/%s", "maps/%s.bsp", "maps/%s.bsp.gz", "maps/%s.bsp.xz", "maps/%s.cm", "maps/%s.hmp", /*"maps/%s.map",*/ /*"maps/%s.ent",*/ NULL};
+		char *exts[] = {"%s", "maps/%s", "maps/%s.bsp", "maps/%s.bsp.gz", "maps/%s.bsp.xz", "maps/%s.cm", "maps/%s.hmp", /*"maps/%s.map",*/ /*"maps/%s.ent",*/ NULL};
 		int i, j;
 
 		for (i = 0; exts[i]; i++)

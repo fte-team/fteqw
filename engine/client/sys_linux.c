@@ -62,6 +62,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define FTEENGINE
 #include "../plugins/plugin.h"
 #endif
+#include "fs.h"
 
 #undef malloc
 
@@ -1077,7 +1078,7 @@ static void Friendly_Crash_Handler(int sig, siginfo_t *info, void *vcontext)
 #endif
 	backtrace_symbols_fd(array+firstframe, size-firstframe, 2);
 
-	if (sig == SIGINT)
+	if (sig == SIGINT || fs_readonly)
 		fd = -1;	//don't write out crash logs on ctrl+c
 	else
 		fd = open("crash.log", O_WRONLY|O_CREAT|O_APPEND, S_IRUSR | S_IWUSR | S_IRGRP);
@@ -1181,7 +1182,6 @@ char *Sys_ConsoleInput(void)
 }
 
 //begin meta generation helper
-#include "fs.h"
 static int Crypto_GenerateSignature(qbyte *hashdata, size_t hashsize, qbyte *signdata, size_t signsizemax)
 {
 	int i;

@@ -1046,7 +1046,8 @@ void Con_TextEditor_f(void)
 {
 	char *fname = Cmd_Argv(1);
 	char *line = strrchr(fname, ':');
-	if (line)
+	char *lineend = NULL;
+	if (line && strtol(line+1, &lineend, 0) && !lineend)
 		*line++ = 0;
 	if (!*fname)
 	{

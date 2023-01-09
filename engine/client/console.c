@@ -1313,7 +1313,7 @@ void VARGS Con_ThrottlePrintf (float *timer, int developerlevel, const char *fmt
 
 	if (*timer > now)
 		;	//in the future? zomg
-	else if (*timer > now-1)
+	else if (*timer >= now-1)
 		return;	//within the last second
 	*timer = now;	//in the future? zomg
 

@@ -6174,12 +6174,15 @@ done:
 qboolean Host_RunFile(const char *fname, int nlen, vfsfile_t *file)
 {
 	hrf_t *f;
-#if defined(_WIN32) && !defined(FTE_SDL) && !defined(WINRT) && !defined(_XBOX)
-	//win32 file urls are basically fucked, so defer to the windows api.
+#if defined(FTE_TARGET_WEB)
+	if (nlen >= 8 && !strncmp(fname, "file:///", 8))
+	{	//just here so we don't get confused by the arbitrary scheme check below.
+	}
+#else
+	//file urls need special handling, if only for percent-encoding.
 	char utf8[MAX_OSPATH*3];
-	if (nlen >= 7 && !strncmp(fname, "file://", 7))
+	if (nlen >= 5 && !strncmp(fname, "file:", 5))
 	{
-		qboolean Sys_ResolveFileURL(const char *inurl, int inlen, char *out, int outlen);
 		if (!Sys_ResolveFileURL(fname, nlen, utf8, sizeof(utf8)))
 		{
 			Con_Printf("Cannot resolve file url\n");
@@ -6187,17 +6190,6 @@ qboolean Host_RunFile(const char *fname, int nlen, vfsfile_t *file)
 		}
 		fname = utf8;
 		nlen = strlen(fname);
-	}
-#elif defined(FTE_TARGET_WEB)
-	if (nlen >= 8 && !strncmp(fname, "file:///", 8))
-	{	//just here so we don't get confused by the arbitrary scheme check below.
-	}
-#else
-	//unix file urls are fairly consistant - must be an absolute path.
-	if (nlen >= 8 && !strncmp(fname, "file:///", 8))
-	{
-		fname += 7;
-		nlen -= 7;
 	}
 #endif
 	else if((nlen >= 7 && !strncmp(fname, "http://", 7)) ||

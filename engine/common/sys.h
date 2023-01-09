@@ -75,6 +75,8 @@ unsigned int Sys_Milliseconds (void);
 double Sys_DoubleTime (void);
 qboolean Sys_RandomBytes(qbyte *string, int len);
 
+qboolean Sys_ResolveFileURL(const char *inurl, int inlen, char *out, int outlen);
+
 char *Sys_ConsoleInput (void);
 
 typedef enum

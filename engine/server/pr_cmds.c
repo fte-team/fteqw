@@ -2220,8 +2220,8 @@ void Q_InitProgs(enum initprogs_e flags)
 			oldprnum=prnum;
 		}
 
-		//progs depended on by maps.
-		a = as = COM_LoadStackFile(va("maps/%s.inf", svs.name), addons, sizeof(addons), NULL);
+/*		//progs depended on by maps.
+		a = as = COM_LoadStackFile(va("%s.inf", sv.modelname), addons, sizeof(addons), NULL);
 		if (a)
 		{
 			if (progstype == PROG_QW)
@@ -2284,7 +2284,7 @@ void Q_InitProgs(enum initprogs_e flags)
 				a++;
 			}
 		}
-
+*/
 		//add any addons specified
 		for (i2 = 0; i2 < MAXADDONS; i2++)
 		{

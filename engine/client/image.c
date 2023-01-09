@@ -13706,6 +13706,7 @@ qboolean Image_LocateHighResTexture(image_t *tex, flocation_t *bestloc, char *be
 	char *altname;
 	char *nextalt;
 	qboolean exactext = !!(tex->flags & IF_EXACTEXTENSION);
+	qboolean exactpath = false;
 
 	int locflags = FSLF_DEPTH_INEXPLICIT|FSLF_DEEPONFAILURE;
 	int bestdepth = 0x7fffffff, depth;
@@ -13716,7 +13717,13 @@ qboolean Image_LocateHighResTexture(image_t *tex, flocation_t *bestloc, char *be
 	if (strncmp(tex->ident, "http:", 5) && strncmp(tex->ident, "https:", 6))
 	for(altname = tex->ident;altname;altname = nextalt)
 	{
-		nextalt = strchr(altname, ':');
+		if (!strncmp(altname, "file:", 5))
+		{
+			nextalt = strchr(altname+5, ':');
+			exactpath = true;
+		}
+		else
+			nextalt = strchr(altname, ':');
 		if (nextalt)
 		{
 			nextalt++;
@@ -13754,18 +13761,21 @@ qboolean Image_LocateHighResTexture(image_t *tex, flocation_t *bestloc, char *be
 		if (!tex->fallbackdata || (gl_load24bit.ival && !(tex->flags & IF_NOREPLACE)))
 		{
 #ifdef IMAGEFMT_DDS
-			Q_snprintfz(fname, sizeof(fname), "dds/%s.dds", nicename);
-			depth = FS_FLocateFile(fname, locflags, &loc);
-			if (depth < bestdepth)
+			if (!exactpath)
 			{
-				Q_strncpyz(bestname, fname, bestnamesize);
-				bestdepth = depth;
-				*bestloc = loc;
-				*bestflags = 0;
+				Q_snprintfz(fname, sizeof(fname), "dds/%s.dds", nicename);
+				depth = FS_FLocateFile(fname, locflags, &loc);
+				if (depth < bestdepth)
+				{
+					Q_strncpyz(bestname, fname, bestnamesize);
+					bestdepth = depth;
+					*bestloc = loc;
+					*bestflags = 0;
+				}
 			}
 #endif
 
-			if (strchr(nicename, '/') || strchr(nicename, '\\'))	//never look in a root dir for the pic
+			if (exactpath || strchr(nicename, '/') || strchr(nicename, '\\'))	//never look in a root dir for the pic
 				i = 0;
 			else
 				i = 1;
@@ -13774,6 +13784,8 @@ qboolean Image_LocateHighResTexture(image_t *tex, flocation_t *bestloc, char *be
 			{
 				if (!tex_path[i].enabled)
 					continue;
+				if (exactpath && i)
+					break;
 				if (tex_path[i].args >= 3)
 				{	//this is a path that needs subpaths
 					char subpath[MAX_QPATH];

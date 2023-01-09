@@ -19,6 +19,7 @@ hashtable_t filesystemhash;
 static qboolean com_fschanged = true, com_fsneedreload;
 qboolean com_installer = false;
 qboolean fs_readonly;
+static searchpath_t *fs_allowfileuri;
 int waitingformanifest;
 static unsigned int fs_restarts;
 void *fs_thread_mutex;
@@ -169,6 +170,85 @@ void VARGS VFS_PRINTF(vfsfile_t *vf, const char *format, ...)
 }
 
 
+
+#if defined(_WIN32) && !defined(FTE_SDL) && !defined(WINRT) && !defined(_XBOX)
+//windows has a special helper function to handle legacy URIs.
+#else
+qboolean Sys_ResolveFileURL(const char *inurl, int inlen, char *out, int outlen)
+{
+	const unsigned char *i = inurl, *inend = inurl+inlen;
+	unsigned char *o = out, *outend = out+outlen;
+	unsigned char hex;
+
+	//make sure its a file url...
+	if (inlen < 5 || strncmp(inurl, "file:", 5))
+		return false;
+	i += 5;
+
+	if (i+1 < inend && i[0] == '/' && i[1] == '/')
+	{	//has an authority field...
+		i+=2;
+		//except we don't support authorities other than ourself...
+		if (i < inend || *i != '/')
+			return false;	//must be an absolute path...
+#ifdef _WIN32
+		i++;	//on windows, (full)absolute paths start with a drive name...
+#endif
+	}
+	else if (i < inend && i[0] == '/')
+		;	// file:/foo (no authority)
+	else
+		return false;
+
+	//everything else must be percent-encoded
+	while (i < inend)
+	{
+		if (!*i || o == outend)
+			return false;	//don't allow nulls...
+		else if (*i == '/' && i+1<inend && i[1] == '/')
+			return false;	//two slashes is invalid (can be parent directory on some systems, or just buggy or weird)
+		else if (*i == '\\')
+			return false;	//don't allow backslashes. they're meant to be percent-encoded anyway.
+		else if (*i == '%' && i+2<inend)
+		{
+			hex = 0;
+			if (i[1] >= 'A' && i[1] <= 'F')
+				hex += i[1]-'A'+10;
+			else if (i[1] >= 'a' && i[1] <= 'f')
+				hex += i[1]-'a'+10;
+			else if (i[1] >= '0' && i[1] <= '9')
+				hex += i[1]-'0';
+			else
+			{
+				*o++ = *i++;
+				continue;
+			}
+			hex <<= 4;
+			if (i[2] >= 'A' && i[2] <= 'F')
+				hex += i[2]-'A'+10;
+			else if (i[2] >= 'a' && i[2] <= 'f')
+				hex += i[2]-'a'+10;
+			else if (i[2] >= '0' && i[2] <= '9')
+				hex += i[2]-'0';
+			else
+			{
+				*o++ = *i++;
+				continue;
+			}
+			*o++ = hex;
+			i += 3;
+		}
+		else
+			*o++ = *i++;
+	}
+
+	if (o == outend)
+		return false;
+	*o = 0;
+
+	return true;
+}
+#endif
 
 
 
@@ -1104,7 +1184,7 @@ static int QDECL COM_Dir_List(const char *name, qofs_t size, time_t mtime, void 
 		colour = "^1";	//superseeded
 		Q_snprintfz(link, sizeof(link), "\\tip\\flocate error");
 	}
-	else if (loc.search->handle == spath)
+	else if (loc.search->handle == spath || (fs_allowfileuri&&loc.search == fs_allowfileuri))
 	{
 		colour = "^2";
 
@@ -1657,6 +1737,19 @@ int FS_FLocateFile(const char *filename, unsigned int lflags, flocation_t *loc)
 	loc->search = NULL;
 	loc->len = -1;
 
+	if (!strncmp(filename, "file:", 5))
+	{
+		if (fs_allowfileuri && Sys_ResolveFileURL(filename, strlen(filename), cleanpath, sizeof(cleanpath)))
+		{
+			fs_finds++;
+			found = fs_allowfileuri->handle->FindFile(fs_allowfileuri->handle, loc, cleanpath, NULL);
+			if (found)
+				loc->search = fs_allowfileuri;
+		}
+		pf = NULL;
+		goto fail;
+	}
+
 	filename = FS_GetCleanPath(filename, (lflags&FSLF_QUIET), cleanpath, sizeof(cleanpath));
 	if (!filename)
 	{
@@ -1864,7 +1957,7 @@ qboolean FS_GetLocationForPackageHandle(flocation_t *loc, searchpathfuncs_t *spa
 		if (search->handle == spath)
 		{
 			loc->search = search;
-			return spath->FindFile(spath, loc, fname, NULL);
+			return spath->FindFile(spath, loc, fname, NULL) == FF_FOUND;
 		}
 	}
 	return false;
@@ -2033,27 +2126,28 @@ static const char *FS_GetCleanPath(const char *pattern, qboolean silent, char *o
 	char *o;
 	char *seg;
 	char *end = outbuf + outlen;
+	static float throttletimer;
 
 	s = pattern;
 	seg = o = outbuf;
 	if (!pattern || !*pattern)
 	{
-		Con_Printf("Error: Empty filename\n");
+		Con_ThrottlePrintf(&throttletimer, 0, "Error: Empty filename\n");
 		return NULL;
 	}
 	for(;;)
 	{
 		if (o == end)
 		{
-			Con_Printf("Error: filename too long\n");
+			Con_ThrottlePrintf(&throttletimer, 0, "Error: filename too long\n");
 			return NULL;
 		}
 		if (*s == ':')
 		{
 			if (s == pattern+1 && (s[1] == '/' || s[1] == '\\'))
-				Con_Printf("Error: absolute path in filename %s\n", pattern);
+				Con_ThrottlePrintf(&throttletimer, 0, "Error: absolute path in filename %s\n", pattern);
 			else
-				Con_Printf("Error: alternative data stream in filename %s\n", pattern);
+				Con_ThrottlePrintf(&throttletimer, 0, "Error: alternative data stream in filename %s\n", pattern);
 			return NULL;
 		}
 		else if (*s == '\\' || *s == '/' || !*s)
@@ -2062,7 +2156,7 @@ static const char *FS_GetCleanPath(const char *pattern, qboolean silent, char *o
 			{
 				if (o == outbuf)
 				{
-					Con_Printf("Error: absolute path in filename %s\n", pattern);
+					Con_ThrottlePrintf(&throttletimer, 0, "Error: absolute path in filename %s\n", pattern);
 					return NULL;
 				}
 				if (!*s)
@@ -2070,7 +2164,7 @@ static const char *FS_GetCleanPath(const char *pattern, qboolean silent, char *o
 					*o++ = '\0';
 					break;
 				}
-				Con_Printf("Error: empty directory name (%s)\n", pattern);
+				Con_ThrottlePrintf(&throttletimer, 0, "Error: empty directory name (%s)\n", pattern);
 				s++;
 				continue;
 			}
@@ -2080,17 +2174,17 @@ static const char *FS_GetCleanPath(const char *pattern, qboolean silent, char *o
 				seg++;
 			if (!seg[0])
 			{
-				Con_Printf("Error: No filename (%s)\n", pattern);
+				Con_ThrottlePrintf(&throttletimer, 0, "Error: No filename (%s)\n", pattern);
 				return NULL;
 			}
 			if (seg[0] == '.')
 			{
 				if (o == seg+1)
-					Con_Printf("Error: source directory (%s)\n", pattern);
+					Con_ThrottlePrintf(&throttletimer, 0, "Error: source directory (%s)\n", pattern);
 				else if (seg[1] == '.')
-					Con_Printf("Error: parent directory (%s)\n", pattern);
+					Con_ThrottlePrintf(&throttletimer, 0, "Error: parent directory (%s)\n", pattern);
 				else
-					Con_Printf("Error: hidden name (%s)\n", pattern);
+					Con_ThrottlePrintf(&throttletimer, 0, "Error: hidden name (%s)\n", pattern);
 				return NULL;
 			}
 #if defined(_WIN32) || defined(__CYGWIN__)
@@ -2108,7 +2202,7 @@ static const char *FS_GetCleanPath(const char *pattern, qboolean silent, char *o
 			{
 				if (o == seg+4 || seg[4] == ' '|| seg[4] == '\t' || seg[4] == '.')
 				{
-					Con_Printf("Error: reserved name in path (%c%c%c%c in %s)\n", seg[0], seg[1], seg[2], seg[3], pattern);
+					Con_ThrottlePrintf(&throttletimer, 0, "Error: reserved name in path (%c%c%c%c in %s)\n", seg[0], seg[1], seg[2], seg[3], pattern);
 					return NULL;
 				}
 			}
@@ -2125,7 +2219,7 @@ static const char *FS_GetCleanPath(const char *pattern, qboolean silent, char *o
 			{
 				if (o == seg+3 || seg[3] == ' '|| seg[3] == '\t' || seg[3] == '.')
 				{
-					Con_Printf("Error: reserved name in path (%c%c%c in %s)\n", seg[0], seg[1], seg[2], pattern);
+					Con_ThrottlePrintf(&throttletimer, 0, "Error: reserved name in path (%c%c%c in %s)\n", seg[0], seg[1], seg[2], pattern);
 					return NULL;
 				}
 			}
@@ -2400,6 +2494,16 @@ vfsfile_t *QDECL FS_OpenVFS(const char *filename, const char *mode, enum fs_rela
 
 	if (fs_readonly && *mode == 'w')
 		return NULL;
+
+	if (!strncmp(filename, "file:", 5))
+	{
+		if (fs_allowfileuri || relativeto == FS_SYSTEM)
+		{
+			if (Sys_ResolveFileURL(filename, strlen(filename), fullname, sizeof(fullname)))
+				return VFSOS_Open(fullname, mode);
+		}
+		return NULL;
+	}
 
 	if (relativeto == FS_SYSTEM)
 		return VFSOS_Open(filename, mode);
@@ -2869,6 +2973,11 @@ static qboolean FS_EnumerateFilesEach(searchpathfuncs_t *handle, char *matches, 
 	char *sep;
 	for (; matches; matches = sep)
 	{
+		if (!strncmp(matches, "file:", 5))
+		{
+			sep = strchr(matches+5, ':');
+			continue;
+		}
 		sep = strchr(matches, ':');
 		if (sep)
 		{
@@ -2892,6 +3001,11 @@ static int FS_EnumerateFilesEachSys (const char *syspath, char *matches, int (*f
 	char *sep;
 	for (; matches; matches = sep)
 	{
+		if (!strncmp(matches, "file:", 5))
+		{
+			sep = strchr(matches+5, ':');
+			continue;
+		}
 		sep = strchr(matches, ':');
 		if (sep)
 		{
@@ -2989,9 +3103,42 @@ searchpathfuncs_t *COM_EnumerateFilesPackage (char *matches, const char *package
 	}
 	return NULL;
 }
+
+struct fs_enumerate_fileuri_s
+{
+	int (QDECL *func)(const char *, qofs_t, time_t mtime, void *, searchpathfuncs_t*);
+	void *parm;
+};
+static int QDECL COM_EnumerateFiles_FileURI (const char *name, qofs_t flags, time_t mtime, void *parm, searchpathfuncs_t *spath)
+{
+	char syspath[MAX_OSPATH];
+	struct fs_enumerate_fileuri_s *e = parm;
+	size_t nlen = strlen(name)+1;
+	if (7+nlen > sizeof(syspath))
+		return true;
+	memcpy(syspath, "file://", 7);
+	memcpy(syspath+7, name, nlen);
+	return e->func(syspath, flags, mtime, e->parm, spath);
+}
+
 void COM_EnumerateFiles (const char *match, int (QDECL *func)(const char *, qofs_t, time_t mtime, void *, searchpathfuncs_t*), void *parm)
 {
 	searchpath_t    *search;
+
+	if (!strncmp(match, "file:", 5))
+	{
+		if (fs_allowfileuri)
+		{
+			char syspath[MAX_OSPATH];
+			struct fs_enumerate_fileuri_s e;
+			e.func = func;
+			e.parm = parm;
+			if (Sys_ResolveFileURL(match, strlen(match), syspath, sizeof(syspath)))
+				Sys_EnumerateFiles(NULL, syspath, COM_EnumerateFiles_FileURI, &e, NULL);
+		}
+		return;
+	}
+
 	for (search = com_searchpaths; search ; search = search->next)
 	{
 	// is the element a pak file?
@@ -7502,6 +7649,11 @@ void COM_InitFilesystem (void)
 	COM_InitHomedir(NULL);
 
 	fs_readonly = COM_CheckParm("-readonly");
+	if (COM_CheckParm("-allowfileuri") || COM_CheckParm("-allowfileurl"))
+	{
+		fs_allowfileuri = (searchpath_t*)Z_Malloc (sizeof(searchpath_t));
+		fs_allowfileuri->handle = VFSOS_OpenPath(NULL, NULL, "", "", "");
+	}
 
 	fs_thread_mutex = Sys_CreateMutex();
 }
@@ -7520,7 +7672,10 @@ extern searchpathfuncs_t *(QDECL FSPAK_LoadArchive) (vfsfile_t *packhandle, sear
 extern searchpathfuncs_t *(QDECL FSDWD_LoadArchive) (vfsfile_t *packhandle, searchpathfuncs_t *parent, const char *filename, const char *desc, const char *prefix);
 #endif*/
 void FS_RegisterDefaultFileSystems(void)
-{
+{	//packages listed last will be scanned for last (and thus be favoured when searching for game files)
+#ifdef PACKAGE_DOOMWAD
+	FS_RegisterFileSystemType(NULL, "wad", FSDWD_LoadArchive, true);
+#endif
 #ifdef PACKAGE_DZIP
 	FS_RegisterFileSystemType(NULL, "dz", FSDZ_LoadArchive, false);
 #endif
@@ -7531,7 +7686,6 @@ void FS_RegisterDefaultFileSystems(void)
 	FS_RegisterFileSystemType(NULL, "PAK", FSPAK_LoadArchive, true);
 #endif
 #endif
-	FS_RegisterFileSystemType(NULL, "pk3dir", VFSOS_OpenPath, true);	//used for git repos or whatever, to make packaging easier
 #ifdef PACKAGE_PK3
 	FS_RegisterFileSystemType(NULL, "pk3", FSZIP_LoadArchive, true);	//quake3's extension for zips
 	FS_RegisterFileSystemType(NULL, "pk4", FSZIP_LoadArchive, true);	//quake4's extension for zips...
@@ -7545,7 +7699,5 @@ void FS_RegisterDefaultFileSystems(void)
 	FS_RegisterFileSystemType(NULL, "dll", FSZIP_LoadArchive, false);	//for plugin metas / self-extracting zips.
 	FS_RegisterFileSystemType(NULL, "so", FSZIP_LoadArchive, false);	//for plugin metas / self-extracting zips.
 #endif
-#ifdef PACKAGE_DOOMWAD
-	FS_RegisterFileSystemType(NULL, "wad", FSDWD_LoadArchive, true);
-#endif
+	FS_RegisterFileSystemType(NULL, "pk3dir", VFSOS_OpenPath, true);	//used for git repos or whatever, to make packaging easier
 }

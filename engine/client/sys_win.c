@@ -1474,6 +1474,12 @@ qboolean Sys_ResolveFileURL(const char *inurl, int inlen, char *out, int outlen)
 	if (FAILED(pPathCreateFromUrlW(wurl, local, &grr, 0)))
 		return false;
 	narrowen(out, outlen, local);
+	while(*out)
+	{
+		if (*out == '\\')
+			*out = '/';
+		out++;
+	}
 	return true;
 }
 /*

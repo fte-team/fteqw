@@ -601,7 +601,7 @@ static qboolean QDECL VFSW32_CreateLoc(searchpathfuncs_t *handle, flocation_t *l
 	loc->offset = 0;
 	loc->fhandle = handle;
 	loc->rawname[sizeof(loc->rawname)-1] = 0;
-	if (Q_snprintfz (loc->rawname, sizeof(loc->rawname), "%s/%s", wp->rootpath, filename))
+	if (Q_snprintfz (loc->rawname, sizeof(loc->rawname), "%s%s", wp->rootpath, filename))
 		return FF_NOTFOUND;
 	for (ofs = loc->rawname+1 ; *ofs ; ofs++)
 	{
@@ -639,7 +639,7 @@ static unsigned int QDECL VFSW32_FLocate(searchpathfuncs_t *handle, flocation_t 
 */
 
 // check a file in the directory tree
-	if (Q_snprintfz (netpath, sizeof(netpath), "%s/%s", wp->rootpath, filename))
+	if (Q_snprintfz (netpath, sizeof(netpath), "%s%s", wp->rootpath, filename))
 		return FF_NOTFOUND;
 
 	if (!WinNT)
@@ -716,8 +716,8 @@ static qboolean QDECL VFSW32_RenameFile(searchpathfuncs_t *handle, const char *o
 	char newsyspath[MAX_OSPATH];
 	if (fs_readonly)
 		return false;
-	snprintf (oldsyspath, sizeof(oldsyspath)-1, "%s/%s", wp->rootpath, oldfname);
-	snprintf (newsyspath, sizeof(newsyspath)-1, "%s/%s", wp->rootpath, newfname);
+	snprintf (oldsyspath, sizeof(oldsyspath)-1, "%s%s", wp->rootpath, oldfname);
+	snprintf (newsyspath, sizeof(newsyspath)-1, "%s%s", wp->rootpath, newfname);
 	return Sys_Rename(oldsyspath, newsyspath);
 }
 static qboolean QDECL VFSW32_RemoveFile(searchpathfuncs_t *handle, const char *filename)
@@ -726,7 +726,7 @@ static qboolean QDECL VFSW32_RemoveFile(searchpathfuncs_t *handle, const char *f
 	char syspath[MAX_OSPATH];
 	if (fs_readonly)
 		return false;
-	snprintf (syspath, sizeof(syspath)-1, "%s/%s", wp->rootpath, filename);
+	snprintf (syspath, sizeof(syspath)-1, "%s%s", wp->rootpath, filename);
 	if (*filename && filename[strlen(filename)-1] == '/')
 		return Sys_rmdir(syspath);
 	return Sys_remove(syspath);
@@ -745,6 +745,8 @@ searchpathfuncs_t *QDECL VFSW32_OpenPath(vfsfile_t *mustbenull, searchpathfuncs_
 	{
 		wchar_t wide[MAX_OSPATH];
 		memcpy(np->rootpath, desc, dlen+1);
+		if (*np->rootpath)
+			Q_strncpy(np->rootpath+dlen, "/", 2);
 		if (!WinNT)
 			np->changenotification = FindFirstChangeNotificationA(np->rootpath, true, FILE_NOTIFY_CHANGE_FILE_NAME|FILE_NOTIFY_CHANGE_CREATION);
 		else

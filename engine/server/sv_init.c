@@ -1016,22 +1016,38 @@ void SV_SpawnServer (const char *server, const char *startspot, qboolean noents,
 	{
 		//.map is commented out because quite frankly, they're a bit annoying when the engine loads the gpled start.map when really you wanted to just play the damn game intead of take it apart.
 		//if you want to load a .map, just use 'map foo.map' instead.
-		char *exts[] = {"maps/%s", "maps/%s.bsp", "maps/%s.cm", "maps/%s.hmp", /*"maps/%s.map",*/ "maps/%s.bsp.gz", "maps/%s.bsp.xz", NULL};
+		char *exts[] = {"maps/%s", "maps/%s.bsp", "maps/%s.cm", "maps/%s.hmp", /*"maps/%s.map",*/ "maps/%s.bsp.gz", "maps/%s.bsp.xz", NULL}, *e;
 		int depth, bestdepth;
 		flocation_t loc;
 		time_t filetime;
-		Q_strncpyz (svs.name, server, sizeof(svs.name));
-		Q_snprintfz (sv.modelname, sizeof(sv.modelname), exts[0], server);
+		Q_snprintfz (sv.modelname, sizeof(sv.modelname), "%s", server);
 		bestdepth = COM_FDepthFile(sv.modelname, false);
-		for (i = 1; exts[i]; i++)
-		{
-			depth = COM_FDepthFile(va(exts[i], server), false);
-			if (depth < bestdepth)
+		if (bestdepth == FDEPTH_MISSING)
+		{	//not an exact name, scan the maps subdir.
+			for (i = 0; exts[i]; i++)
 			{
-				bestdepth = depth;
-				Q_snprintfz (sv.modelname, sizeof(sv.modelname), exts[i], server);
+				depth = COM_FDepthFile(va(exts[i], server), false);
+				if (depth < bestdepth)
+				{
+					bestdepth = depth;
+					Q_snprintfz (sv.modelname, sizeof(sv.modelname), exts[i], server);
+				}
 			}
 		}
+
+		if (!strncmp(sv.modelname, "maps/", 5))
+			Q_strncpyz (svs.name, sv.modelname+5, sizeof(svs.name));
+		else
+			Q_strncpyz (svs.name, sv.modelname, sizeof(svs.name));
+		e = (char*)COM_GetFileExtension(svs.name, NULL);
+		if (!strcmp(e, ".gz") || !strcmp(e, ".xz"))
+		{
+			*e = 0;
+			e = (char*)COM_GetFileExtension(svs.name, NULL);
+		}
+		if (!strcmp(e, ".bsp"))
+			*e = 0;
+
 		sv.world.worldmodel = Mod_ForName (sv.modelname, MLV_ERROR);
 
 		if (FS_FLocateFile(sv.modelname,FSLF_IFFOUND, &loc) && FS_GetLocMTime(&loc, &filetime))

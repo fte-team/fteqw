@@ -4555,17 +4555,17 @@ static const char *PF_cs_getplayerkey_internal (unsigned int pnum, const char *k
 		ret = buffer;
 		sprintf(ret, "%i", cl.players[pnum].pl);
 	}
-	else if (!strcmp(keyname, "activetime"))	//packet loss
+	else if (!strcmp(keyname, "activetime"))
 	{
 		ret = buffer;
 		sprintf(ret, "%f", realtime - cl.players[pnum].realentertime);
 	}
-//	else if (!strcmp(keyname, "entertime"))	//packet loss
+//	else if (!strcmp(keyname, "entertime"))
 //	{
 //		ret = buffer;
 //		sprintf(ret, "%i", (int)cl.players[pnum].entertime);
 //	}
-	else if (!strcmp(keyname, "topcolor_rgb"))	//packet loss
+	else if (!strcmp(keyname, "topcolor_rgb"))
 	{
 		unsigned int col = cl.players[pnum].dtopcolor;
 		ret = buffer;
@@ -4577,7 +4577,7 @@ static const char *PF_cs_getplayerkey_internal (unsigned int pnum, const char *k
 		else
 			sprintf(ret, "'%g %g %g'", ((col&0xff0000)>>16)/255.0, ((col&0x00ff00)>>8)/255.0, ((col&0x0000ff)>>0)/255.0);
 	}
-	else if (!strcmp(keyname, "bottomcolor_rgb"))	//packet loss
+	else if (!strcmp(keyname, "bottomcolor_rgb"))
 	{
 		unsigned int col = cl.players[pnum].dbottomcolor;
 		ret = buffer;
@@ -5686,9 +5686,10 @@ static void CS_ConsoleCommand_f(void)
 }
 static void QCBUILTIN PF_cs_registercommand (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	const char *str = PF_VarString(prinst, 0, pr_globals);
+	const char *str = PR_GetStringOfs(prinst, OFS_PARM0);
+	const char *desc = (prinst->callargc>1)?PR_GetStringOfs(prinst, OFS_PARM1):NULL;
 	if (!Cmd_Exists(str))
-		Cmd_AddCommand(str, CS_ConsoleCommand_f);
+		Cmd_AddCommandD(str, CS_ConsoleCommand_f, desc);
 }
 
 static void QCBUILTIN PF_cs_setlistener (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
@@ -7389,6 +7390,8 @@ static struct {
 	{"memsetval",				PF_memsetval,				389},
 	{"memptradd",				PF_memptradd,				390},
 	{"memstrsize",				PF_memstrsize,				0},
+	{"base64encode",			PF_base64encode,			0},
+	{"base64decode",			PF_base64decode,			0},
 
 	{"con_getset",				PF_SubConGetSet,			391},
 	{"con_printf",				PF_SubConPrintf,			392},

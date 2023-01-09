@@ -2058,11 +2058,13 @@ void QCBUILTIN PF_memptradd (pubprogfuncs_t *prinst, struct globalvars_s *pr_glo
 {
 	//convienience function. needed for: ptr = &ptr[5]; or ptr += 5;
 	int dst = G_INT(OFS_PARM0);
-	float ofs = G_FLOAT(OFS_PARM1);
-	if (ofs != (float)(int)ofs)
+	int ofs = G_FLOAT(OFS_PARM1);
+	if (ofs != G_FLOAT(OFS_PARM1))
 		PR_BIError(prinst, "PF_memptradd: non-integer offset\n");
-	if ((int)ofs & 3)
-		PR_BIError(prinst, "PF_memptradd: offset is not 32-bit aligned.\n");	//means pointers can internally be expressed as 16.16 with 18-bit segments/allocations.
+	if (ofs & 3)
+		PR_BIError(prinst, "PF_memptradd: offset is not 32-bit aligned.\n");	//allows for other implementations to provide this with eg pointers expressed as 16.16 with 18-bit segments/allocations.
+	if (((unsigned int)ofs & 0x80000000) && ofs!=0)
+		PR_BIError(prinst, "PF_memptradd: special pointers cannot be offset.\n");
 
 	G_INT(OFS_RETURN) = dst + ofs;
 }
@@ -5685,6 +5687,27 @@ void QCBUILTIN PF_digest_ptr (pubprogfuncs_t *prinst, struct globalvars_s *pr_gl
 		return;
 	}
 	PF_digest_internal(prinst, pr_globals, hashtype, prinst->stringtable + qcptr, size);
+}
+
+void QCBUILTIN PF_base64encode (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	size_t bytes = G_INT(OFS_PARM1);										//input blob size.
+	const void *input = PR_GetReadQCPtr(prinst, G_INT(OFS_PARM0), bytes);	//make sure the input is a valid qc pointer.
+	size_t chars = ((bytes+2)/3)*4+1;										//size required
+	char *temp;
+	G_INT(OFS_RETURN) = prinst->AllocTempString(prinst, (char**)&temp, chars);
+	Base64_EncodeBlock(input, bytes, temp, chars);							//spew out the string.
+}
+void QCBUILTIN PF_base64decode (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	const unsigned char *s = PR_GetStringOfs(prinst, OFS_PARM0);	//grab the input string
+	size_t bytes = Base64_DecodeBlock(s, NULL, NULL, 0);			//figure out how long the output needs to be
+	qbyte *ptr = prinst->AddressableAlloc(prinst, bytes);			//grab some qc memory
+	bytes = Base64_DecodeBlock(s, NULL, NULL, bytes);				//decode it.
+	ptr[bytes] = 0;													//make sure its null terminated or whatever.
+
+	G_INT(OFS_RETURN) = (char*)ptr - prinst->stringtable;			//let the qc know where it is.
+	G_INT(OFS_PARM1) = bytes;										//let the qc know how many bytes were actually read.
 }
 
 // #510 string(string in) uri_escape = #510;

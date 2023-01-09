@@ -2678,9 +2678,10 @@ static void PR_ConsoleCommand_f(void)
 }
 static void QCBUILTIN PF_sv_registercommand (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	const char *str = PF_VarString(prinst, 0, pr_globals);
+	const char *str = PR_GetStringOfs(prinst, OFS_PARM0);
+	const char *desc = (prinst->callargc>1)?PR_GetStringOfs(prinst, OFS_PARM1):NULL;
 	if (!Cmd_Exists(str))
-		Cmd_AddCommand(str, PR_ConsoleCommand_f);
+		Cmd_AddCommandD(str, PR_ConsoleCommand_f, desc);
 }
 
 
@@ -11884,7 +11885,7 @@ static BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"keynumtostring_csqc",PF_Fixme,0,		0,		0,		340,	D("DEP string(float keynum)", "Returns a hunam-readable name for the given keycode, as a tempstring.")},// (found in menuqc)
 	{"stringtokeynum",	PF_Fixme,	0,		0,		0,		341,	D("float(string keyname)", "Looks up the key name in the same way that the bind command would, returning the keycode for that key.")},// (EXT_CSQC)
 	{"stringtokeynum_csqc",	PF_Fixme,0,		0,		0,		341,	D("DEP float(string keyname)", "Looks up the key name in the same way that the bind command would, returning the keycode for that key.")},// (found in menuqc)
-	{"getkeybind",		PF_Fixme,	0,		0,		0,		342,	D("string(float keynum)", "Returns the current binding for the given key (returning only the command executed when no modifiers are pressed).")},// (EXT_CSQC)
+	{"getkeybind",		PF_Fixme,	0,		0,		0,		342,	D("string(float keynum, optional float bindmap, optional float modifier)", "Returns the current binding for the given key (returning only the command executed when no modifiers are pressed).")},// (EXT_CSQC)
 
 	{"setcursormode",	PF_Fixme,	0,		0,		0,		343,	D("void(float usecursor, optional string cursorimage, optional vector hotspot, optional float scale)", "Pass TRUE if you want the engine to release the mouse cursor (absolute input events + touchscreen mode). Pass FALSE if you want the engine to grab the cursor (relative input events + standard looking). If the image name is specified, the engine will use that image for a cursor (use an empty string to clear it again), in a way that will not conflict with the console. Images specified this way will be hardware accelerated, if supported by the platform/port.")},
 	{"getcursormode",	PF_Fixme,	0,		0,		0,		0,		D("float(float effective)", "Reports the cursor mode this module previously attempted to use. If 'effective' is true, reports the cursor mode currently active (if was overriden by a different module which has precidence, for instance, or if there is only a touchscreen and no mouse).")},
@@ -11910,7 +11911,7 @@ static BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"isserver",		PF_Fixme,	0,		0,		0,		350,	D("float()", "Returns non-zero whenever the local console can directly affect the server (ie: listen servers or single-player). Compat note: DP returns 0 for single-player.")},//(EXT_CSQC)
 	{"SetListener",		PF_Fixme, 	0,		0,		0,		351,	D("void(vector origin, vector forward, vector right, vector up, optional float reverbtype)", "Sets the position of the view, as far as the audio subsystem is concerned. This should be called once per CSQC_UpdateView as it will otherwise revert to default. For reverbtype, see setup_reverb or treat as 'underwater'.")},// (EXT_CSQC)
 	{"setup_reverb",	PF_Fixme, 	0,		0,		0,		0,		D("typedef struct {\n\tfloat flDensity;\n\tfloat flDiffusion;\n\tfloat flGain;\n\tfloat flGainHF;\n\tfloat flGainLF;\n\tfloat flDecayTime;\n\tfloat flDecayHFRatio;\n\tfloat flDecayLFRatio;\n\tfloat flReflectionsGain;\n\tfloat flReflectionsDelay;\n\tvector flReflectionsPan;\n\tfloat flLateReverbGain;\n\tfloat flLateReverbDelay;\n\tvector flLateReverbPan;\n\tfloat flEchoTime;\n\tfloat flEchoDepth;\n\tfloat flModulationTime;\n\tfloat flModulationDepth;\n\tfloat flAirAbsorptionGainHF;\n\tfloat flHFReference;\n\tfloat flLFReference;\n\tfloat flRoomRolloffFactor;\n\tint   iDecayHFLimit;\n} reverbinfo_t;\nvoid(float reverbslot, reverbinfo_t *reverbinfo, int sizeofreverinfo_t)", "Reconfigures a reverb slot for weird effects. Slot 0 is reserved for no effects. Slot 1 is reserved for underwater effects. Reserved slots will be reinitialised on snd_restart, but can otherwise be changed. These reverb slots can be activated with SetListener. Note that reverb will currently only work when using OpenAL.")},
-	{"registercommand",	PF_sv_registercommand,0,0,	0,		352,	D("void(string cmdname)", "Register the given console command, for easy console use.\nConsole commands that are later used will invoke CSQC_ConsoleCommand/m_consolecommand/ConsoleCmd according to module.")},//(EXT_CSQC)
+	{"registercommand",	PF_sv_registercommand,0,0,	0,		352,	D("void(string cmdname, optional string desc)", "Register the given console command, for easy console use.\nConsole commands that are later used will invoke CSQC_ConsoleCommand/m_consolecommand/ConsoleCmd according to module.")},//(EXT_CSQC)
 	{"wasfreed",		PF_WasFreed,0,		0,		0,		353,	D("float(entity ent)", "Quickly check to see if the entity is currently free. This function is only valid during the half-second non-reuse window, after that it may give bad results. Try one second to make it more robust.")},//(EXT_CSQC) (should be availabe on server too)
 	{"serverkey",		PF_sv_serverkeystring,0,0,	0,		354,	D("string(string key)", "Look up a key in the server's public serverinfo string. If the key contains binary data then it will be truncated at the first null.")},//
 	{"serverkeyfloat",	PF_sv_serverkeyfloat,0,0,	0,		0,		D("float(string key, optional float assumevalue)", "Version of serverkey that returns the value as a float (which avoids tempstrings).")},//
@@ -11962,11 +11963,13 @@ static BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"memalloc",		PF_memalloc,		0,		0,		0,		384,	D("__variant*(int size)", "Allocate an arbitary block of memory")},
 	{"memfree",			PF_memfree,			0,		0,		0,		385,	D("void(__variant *ptr)", "Frees a block of memory that was allocated with memfree")},
 	{"memcpy",			PF_memcpy,			0,		0,		0,		386,	D("void(__variant *dst, __variant *src, int size)", "Copys memory from one location to another")},
-	{"memfill8",		PF_memfill8,		0,		0,		0,		387,	D("void(__variant *dst, int val, int size)", "Sets an entire block of memory to a specified value. Pretty much always 0.")},
+	{"memfill8",		PF_memfill8,		0,		0,		0,		387,	D("void(__variant *dst, int val, int size, optional int offset)", "Sets an entire block of memory to a specified value. Pretty much always 0.")},
 	{"memgetval",		PF_memgetval,		0,		0,		0,		388,	D("__variant(__variant *dst, float ofs)", "Looks up the 32bit value stored at a pointer-with-offset.")},
 	{"memsetval",		PF_memsetval,		0,		0,		0,		389,	D("void(__variant *dst, float ofs, __variant val)", "Changes the 32bit value stored at the specified pointer-with-offset.")},
 	{"memptradd",		PF_memptradd,		0,		0,		0,		390,	D("__variant*(__variant *base, float ofs)", "Perform some pointer maths. Woo.")},
 	{"memstrsize",		PF_memstrsize,		0,		0,		0,		0,		D("float(string s)", "strlen, except ignores utf-8")},
+	{"base64encode",	PF_base64encode,	0,		0,		0,		0,		D("string(__variant *ptr, int bytes, optional int offset)", "Returns a copy of a binary blob encoded as a base64 temp-string (uses + and /, so be sure to include quotes).")},
+	{"base64decode",	PF_base64decode,	0,		0,		0,		0,		D("__variant*(string base64str, __out int bytes)", "Decodes a base64, returning a new block of memory that can must be freed with memfree.")},
 
 	{"con_getset",		PF_Fixme,			0,		0,		0,		391,	D("string(string conname, string field, optional string newvalue)", "Reads or sets a property from a console object. The old value is returned. Iterrate through consoles with the 'next' field. Valid properties: 	title, name, next, unseen, markup, forceutf8, close, clear, hidden, linecount")},
 	{"con_printf",		PF_Fixme,			0,		0,		0,		392,	D("void(string conname, string messagefmt, ...)", "Prints onto a named console.")},
@@ -12083,7 +12086,14 @@ static BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"tokenize",		PF_Tokenize,		0,		0,		0,		441,	"float(string s)"},// (KRIMZON_SV_PARSECLIENTCOMMAND)
 	{"argv",			PF_ArgV,			0,		0,		0,		442,	"string(float n)"},// (KRIMZON_SV_PARSECLIENTCOMMAND
 	{"setattachment",	PF_setattachment,	0,		0,		0,		443,	"void(entity e, entity tagentity, string tagname)"},// (DP_GFX_QUAKE3MODELTAGS)
-	{"search_begin",	PF_search_begin,	0,		0,		0,		444,	D("searchhandle(string pattern, enumflags:float{SB_CASEINSENSITIVE=1<<0,SB_FULLPACKAGEPATH=1<<1,SB_ALLOWDUPES=1<<2,SB_FORCESEARCH=1<<3} flags, float quiet, optional string filterpackage)", "initiate a filesystem scan based upon filenames. Be sure to call search_end on the returned handle. SB_FULLPACKAGEPATH interprets the filterpackage arg as a full package path to avoid gamedir ambiguity, equivelent to whichpack's WP_FULLPACKAGEPATH flag. SB_ALLOWDUPES allows returning multiple entries with the same name (but different package, useful with search_fopen). SB_FORCESEARCH requires use of the filterpackage and SB_FULLPACKAGEPATH flag, initiating searches from gamedirs/packages which are not currently active.")},
+	{"search_begin",	PF_search_begin,	0,		0,		0,		444,	D("searchhandle(string pattern, enumflags:float{\n"
+																				"\tSB_CASEINSENSITIVE=1<<0/*deprecated, ignored*/,\n"
+																				"\tSB_FULLPACKAGEPATH=1<<1/*in/out package names use gamedir prefix for extra info/specificity. see also: WP_FULLPACKAGEPATH*/,\n"
+																				"\tSB_ALLOWDUPES=1<<2/*don't filter out dupes, useful with search_getpackagename or search_fopen*/,\n"
+																				"\tSB_FORCESEARCH=1<<3/*open the named package if needed (possibly in other gamedirs)*/,\n"
+																				"\tSB_MULTISEARCH=1<<4/*use colons as a delimiter for multiple search patterns (instead of needing to somehow sort/combine multiple searches after, eg for ui displays)*/,\n"
+																				"\tSB_NAMESORT=1<<5/*sort results by filename, instead of by filesystem priority/randomness*/\n"
+																				"} flags, float quiet, optional string filterpackage)", "initiate a filesystem scan based upon filenames. Be sure to call search_end on the returned handle. Returns a negative value on error.")},
 	{"search_end",		PF_search_end,		0,		0,		0,		445,	"void(searchhandle handle)"},
 	{"search_getsize",	PF_search_getsize,	0,		0,		0,		446,	D("float(searchhandle handle)", "Retrieves the number of files that were found.")},
 	{"search_getfilename", PF_search_getfilename,0,	0,		0,		447,	D("string(searchhandle handle, float num)", "Retrieves name of one of the files that was found by the initial search.")},

@@ -2272,9 +2272,10 @@ static void MP_ConsoleCommand_f(void)
 }
 static void QCBUILTIN PF_menu_registercommand (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	const char *str = PF_VarString(prinst, 0, pr_globals);
+	const char *str = PR_GetStringOfs(prinst, OFS_PARM0);
+	const char *desc = (prinst->callargc>1)?PR_GetStringOfs(prinst, OFS_PARM1):NULL;
 	if (!Cmd_Exists(str))
-		Cmd_AddCommand(str, MP_ConsoleCommand_f);
+		Cmd_AddCommandD(str, MP_ConsoleCommand_f, desc);
 }
 
 static void PF_m_clipboard_got(void *ctx, const char *utf8)
@@ -2646,6 +2647,8 @@ static struct {
 															//gap
 	{"uri_escape",				PF_uri_escape,				510},
 	{"uri_unescape",			PF_uri_unescape,			511},
+	{"base64encode",			PF_base64encode,			0},
+	{"base64decode",			PF_base64decode,			0},
 	{"num_for_edict",			PF_etof,					512},
 	{"uri_get",					PF_uri_get,					513},
 	{"uri_post",				PF_uri_get,					513},

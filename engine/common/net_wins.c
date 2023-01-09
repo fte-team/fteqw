@@ -8383,8 +8383,9 @@ void NET_PrintAddresses(ftenet_connections_t *collection)
 	int i;
 	char adrbuf[MAX_ADR_SIZE];
 	int m;
+	qboolean shown = false;
 	netadr_t	addr[64];
-	struct ftenet_generic_connection_s			*con[sizeof(addr)/sizeof(addr[0])];
+	struct ftenet_generic_connection_s			*con[sizeof(addr)/sizeof(addr[0])], *nc;
 	int			flags[sizeof(addr)/sizeof(addr[0])];
 	const char *params[sizeof(addr)/sizeof(addr[0])];
 	qboolean	warn = true;
@@ -8401,8 +8402,19 @@ void NET_PrintAddresses(ftenet_connections_t *collection)
 		if (addr[i].type != NA_INVALID)
 		{
 			enum addressscope_e scope = NET_ClassifyAddress(&addr[i], &desc);
+			if (i+1 < m)
+				nc = con[i+1];
+			else
+				nc = NULL;
+			if (nc != con[i])
+			{	//next is a different family.
+				if (!shown && (scope == ASCOPE_LINK || scope == ASCOPE_HOST))
+					scope = ASCOPE_LAN;	//force it visible.
+				shown = false;
+			}
 			if (developer.ival || scope >= ASCOPE_LAN)
 			{
+				shown = true;
 				warn = false;
 				if ((addr[i].prot == NP_RTC_TCP || addr[i].prot == NP_RTC_TLS) && params[i])
 				{

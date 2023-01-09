@@ -5212,6 +5212,8 @@ client_t *Write_GetClient(void)
 	entnum = NUM_FOR_EDICT(svprogfuncs, ent);
 	if (entnum < 1 || entnum > sv.allocated_client_slots)
 		return NULL;//PR_RunError ("WriteDest: not a client");
+	if (svs.clients[entnum-1].protocol == SCP_BAD)
+		return NULL;	//don't try writing to bots... we don't want the overflows.
 	return &svs.clients[entnum-1];
 }
 

@@ -4440,6 +4440,11 @@ void SV_CleanupEnts(void)
 
 	if (!needcleanup)
 		return;
+	if (needcleanup >= sv.world.num_edicts)
+	{
+		needcleanup = 0;
+		return;
+	}
 
 	for (e=1 ; e<=needcleanup ; e++)
 	{

@@ -4268,16 +4268,24 @@ static void QCBUILTIN PF_cs_runplayerphysics (pubprogfuncs_t *prinst, struct glo
 	pmove.cmd.sidemove = csqcg.input_movevalues[1];
 	pmove.cmd.upmove = csqcg.input_movevalues[2];
 	pmove.cmd.buttons = *csqcg.input_buttons;
+	pmove.onladder = false;
 	pmove.safeorigin_known = false;
 	pmove.capsule = false;	//FIXME
 
+	movevars.bunnyspeedcap = cl.bunnyspeedcap;
 	movevars.coordtype = cls.netchan.message.prim.coordtype;
+	if (csqc_playerseat >= 0 && cl.playerview[csqc_playerseat].playernum+1 == ent->xv->entnum)
+	{
+		movevars.entgravity = cl.playerview[csqc_playerseat].entgravity;
+		movevars.maxspeed = cl.playerview[csqc_playerseat].maxspeed;
+	}
+	else
+	{
+		movevars.entgravity = 1;
+		movevars.maxspeed = cl.playerview[0].maxspeed;
+	}
 	if (ent->xv->gravity)
 		movevars.entgravity = ent->xv->gravity;
-	else if (csqc_playerseat >= 0 && cl.playerview[csqc_playerseat].playernum+1 == ent->xv->entnum)
-		movevars.entgravity = cl.playerview[csqc_playerseat].entgravity;
-	else
-		movevars.entgravity = 1;
 
 	if (ent->xv->entnum)
 		pmove.skipent = ent->xv->entnum;
@@ -4300,11 +4308,12 @@ static void QCBUILTIN PF_cs_runplayerphysics (pubprogfuncs_t *prinst, struct glo
 	}
 	pmove.jump_held = (int)ent->xv->pmove_flags & PMF_JUMP_HELD;
 	pmove.waterjumptime = 0;
-	pmove.onground = (int)ent->v->flags & FL_ONGROUND;
+	pmove.onground = !!((int)ent->v->flags & FL_ONGROUND);
 	VectorCopy(ent->v->origin, pmove.origin);
 	VectorCopy(ent->v->velocity, pmove.velocity);
 	VectorCopy(ent->v->maxs, pmove.player_maxs);
 	VectorCopy(ent->v->mins, pmove.player_mins);
+	VectorCopy(ent->xv->gravitydir, pmove.gravitydir);
 
 	CL_SetSolidEntities();
 

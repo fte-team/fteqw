@@ -1210,8 +1210,8 @@ void SV_SendClientPrespawnInfo(client_t *client)
 	if (client->prespawn_stage == PRESPAWN_CSPROGS)
 	{
 		extern cvar_t sv_demo_write_csqc;
-		if (client == &demo.recorder && sv_demo_write_csqc.ival)	//we only really want to do this for demos. actual clients can make the request themselves.
-		if (client->fteprotocolextensions & PEXT_CHUNKEDDOWNLOADS)	//there's many different download mechanisms...
+		if (client == &demo.recorder && (sv_demo_write_csqc.ival || !*sv_demo_write_csqc.string))	//we only really want to do this for demos(hopefully we're gzipping). actual clients can make the request themselves.
+		if ((client->fteprotocolextensions & PEXT_CHUNKEDDOWNLOADS) && (client->fteprotocolextensions & PEXT_CSQC))	//there's many different download mechanisms...
 		{
 			if (!client->prespawn_idx && !client->download)
 			{
@@ -6339,6 +6339,7 @@ void SV_Pext_f(void)
 
 	host_client->fteprotocolextensions = 0;
 	host_client->fteprotocolextensions2 = 0;
+	host_client->ezprotocolextensions1 = 0;
 	for (i = 1; i < Cmd_Argc(); )
 	{
 		tag = Cmd_Argv(i++);

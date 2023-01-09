@@ -2126,7 +2126,7 @@ void SV_ClientProtocolExtensionsChanged(client_t *client)
 		s = InfoBuf_ValueForKey(&client->userinfo, "*client");
 		if (!strncmp(s, "ezQuake", 7) || !strncmp(s, "FortressOne", 11))
 		{
-			COM_Parse(s);	//skip name-of-fork
+			s = COM_Parse(s);	//skip name-of-fork
 			COM_Parse(s);	//tokenize the version
 			ver = atoi(com_token);
 

@@ -2968,9 +2968,12 @@ void CL_UpdateBeams (float frametime)
 						VectorAngles (org, NULL, ang, false);
 
 						// lerp pitch
+						delta = anglemod(viewang[0] - ang[0]);
+						if (delta > 180)
+							delta -= 360;
 						if (ang[0] < -180)
 							ang[0] += 360;
-						ang[0] += (viewang[0] - ang[0]) * f;
+						ang[0] += delta * f;
 
 						// lerp yaw
 						delta = anglemod(viewang[1] - ang[1]);

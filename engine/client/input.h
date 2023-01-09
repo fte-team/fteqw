@@ -77,7 +77,6 @@ extern cvar_t	cl_nodelta;
 extern cvar_t	cl_c2spps;
 extern cvar_t	cl_c2sImpulseBackup;
 extern cvar_t	cl_netfps;
-extern cvar_t	cl_sparemsec;
 extern cvar_t	cl_queueimpulses;
 extern cvar_t	cl_smartjump;
 extern cvar_t	cl_run;

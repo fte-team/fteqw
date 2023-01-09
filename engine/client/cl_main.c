@@ -63,14 +63,15 @@ cvar_t	cl_pure		= CVARD("cl_pure", "0", "0=standard quake rules.\n1=clients shou
 cvar_t	cl_sbar		= CVARFC("cl_sbar", "0", CVAR_ARCHIVE, CL_Sbar_Callback);
 cvar_t	cl_hudswap	= CVARF("cl_hudswap", "0", CVAR_ARCHIVE);
 cvar_t	cl_maxfps	= CVARFD("cl_maxfps", "250", CVAR_ARCHIVE, "Sets the maximum allowed framerate. If you're using vsync or want to uncap framerates entirely then you should probably set this to 0. Set cl_yieldcpu 0 if you're trying to benchmark.");
-cvar_t	cl_idlefps	= CVARAFD("cl_idlefps", "60", "cl_maxidlefps"/*dp*/, CVAR_ARCHIVE, "This is the maximum framerate to attain while idle/paused/unfocused.");
+static cvar_t	cl_maxfps_slop	= CVARFD("cl_maxfps_slop", "3", CVAR_ARCHIVE, "If a frame is delayed (eg because of poor system timer precision), this is how much sooner to pretend the frame happened (in milliseconds). If it is set too low then the average framerate will drop below the target, while too high may result in excessively fast frames.");
+static cvar_t	cl_idlefps	= CVARAFD("cl_idlefps", "60", "cl_maxidlefps"/*dp*/, CVAR_ARCHIVE, "This is the maximum framerate to attain while idle/paused/unfocused.");
 cvar_t	cl_yieldcpu = CVARFD("cl_yieldcpu", "1", CVAR_ARCHIVE, "Attempt to yield between frames. This can resolve issues with certain drivers and background software, but can mean less consistant frame times. Will reduce power consumption/heat generation so should be set on laptops or similar (over-hot/battery powered) devices.");
 cvar_t	cl_nopext	= CVARF("cl_nopext", "0", CVAR_ARCHIVE);
-cvar_t	cl_pext_mask = CVAR("cl_pext_mask", "0xffffffff");
+static cvar_t	cl_pext_mask = CVAR("cl_pext_mask", "0xffffffff");
 cvar_t	cl_nolerp	= CVARD("cl_nolerp", "0", "Disables interpolation. If set, missiles/monsters will be show exactly what was last received, which will be jerky. Does not affect players. A value of 2 means 'interpolate only in single-player/coop'.");
 #ifdef NQPROT
 cvar_t	cl_nolerp_netquake = CVARD("cl_nolerp_netquake", "0", "Disables interpolation when connected to an NQ server. Does affect players, even the local player. You probably don't want to set this.");
-cvar_t	cl_fullpitch_nq = CVARAFD("cl_fullpitch", "0", "pq_fullpitch", CVAR_SEMICHEAT, "When set, attempts to unlimit the default view pitch. Note that some servers will screw over your angles if you use this, resulting in terrible gameplay, while some may merely clamp your angle serverside. This is also considered a cheat in quakeworld, ^1so this will not function there^7. For the equivelent in quakeworld, use serverinfo minpitch+maxpitch instead, which applies to all players fairly.");
+static cvar_t	cl_fullpitch_nq = CVARAFD("cl_fullpitch", "0", "pq_fullpitch", CVAR_SEMICHEAT, "When set, attempts to unlimit the default view pitch. Note that some servers will screw over your angles if you use this, resulting in terrible gameplay, while some may merely clamp your angle serverside. This is also considered a cheat in quakeworld, ^1so this will not function there^7. For the equivelent in quakeworld, use serverinfo minpitch+maxpitch instead, which applies to all players fairly.");
 #endif
 static cvar_t	cl_forcevrui = CVARD("cl_forcevrui", "0", "Force the use of VR UIs, even with no VR headset active.");
 cvar_t	*hud_tracking_show;
@@ -5083,6 +5084,7 @@ void CL_Init (void)
 	Cvar_Register (&cl_pure,	cl_screengroup);
 	Cvar_Register (&cl_hudswap,	cl_screengroup);
 	Cvar_Register (&cl_maxfps,	cl_screengroup);
+	Cvar_Register (&cl_maxfps_slop,	cl_screengroup);
 	Cvar_Register (&cl_idlefps, cl_screengroup);
 	Cvar_Register (&cl_yieldcpu, cl_screengroup);
 	Cvar_Register (&cl_timeout, cl_controlgroup);
@@ -6310,7 +6312,6 @@ Runs all active servers
 ==================
 */
 extern cvar_t cl_netfps;
-extern cvar_t cl_sparemsec;
 
 void CL_StartCinematicOrMenu(void);
 int		nopacketcount;
@@ -6323,8 +6324,7 @@ double Host_Frame (double time)
 	static double		time3 = 0;
 	int			pass0, pass1, pass2, pass3, i;
 //	float fps;
-	double newrealtime;
-	static double spare;
+	double newrealtime, spare;
 	float maxfps;
 	qboolean maxfpsignoreserver;
 	qboolean idle;
@@ -6454,33 +6454,34 @@ double Host_Frame (double time)
 	if (vid.isminimized && (maxfps <= 0 || maxfps > 10))
 		maxfps = 10;
 
-	if (maxfps > 0 
+	if (maxfps > 0
 #ifdef HAVE_MEDIA_ENCODER
 		&& Media_Capturing() != 2
 #endif
 		&& !vrsync)
 	{
-//		realtime += spare/1000;	//don't use it all!
-		double newspare = CL_FilterTime((spare/1000 + realtime - oldrealtime)*1000, maxfps, 1.5, maxfpsignoreserver);
-		if (!newspare)
+		spare = CL_FilterTime((realtime - oldrealtime)*1000, maxfps, 1.5, maxfpsignoreserver);
+		if (!spare)
 		{
 			while(COM_DoWork(0, false))
 				;
 			return (cl_yieldcpu.ival || vid.isminimized || idle)? (1.0 / maxfps - (realtime - oldrealtime)) : 0;
 		}
+		if (spare > cl_maxfps_slop.ival)
+			spare = cl_maxfps_slop.ival;
+		spare /= 1000;
+		if (spare > 0.5/maxfps)	//don't delay the next by
+			spare = 0.5/maxfps;
 		if (spare < 0 || cls.state < ca_onserver)
-			spare = 0;	//uncapped.
-		if (spare > cl_sparemsec.ival)
-			spare = cl_sparemsec.ival;
-		spare = newspare;
-
-//		realtime -= spare/1000;	//don't use it all!
+			spare = 0;
 	}
 	else
 		spare = 0;
-
 	host_frametime = (realtime - oldrealtime)*cl.gamespeed;
-	oldrealtime = realtime;
+	oldrealtime = realtime-spare;
+
+	if (host_speeds.ival)
+		time0 = Sys_DoubleTime ();	//end-of-idle
 
 	if (cls.demoplayback && !cl.stillloading)
 	{
@@ -6542,9 +6543,6 @@ double Host_Frame (double time)
 	cl.do_lerp_players = cl_lerp_players.ival || (cls.demoplayback==DPB_MVD || cls.demoplayback == DPB_EZTV) || (cls.demoplayback && !cl_nolerp.ival && !cls.timedemo);
 	CL_AllowIndependantSendCmd(false);
 
-	// fetch results from server
-	CL_ReadPackets ();
-
 	CL_RequestNextDownload();
 
 	// send intentions now
@@ -6586,9 +6584,6 @@ double Host_Frame (double time)
 
 	RSpeedEnd(RSPEED_PROTOCOL);
 
-	if (host_speeds.ival)
-		time0 = Sys_DoubleTime ();
-
 #ifdef HAVE_SERVER
 	if (sv.state)
 	{
@@ -6603,6 +6598,12 @@ double Host_Frame (double time)
 	else
 		MSV_PollSlaves();
 #endif
+
+	// fetch results from server... now that we've run it.
+	CL_AllowIndependantSendCmd(false);
+	CL_ReadPackets ();
+	CL_AllowIndependantSendCmd(true);
+
 	CL_CalcClientTime();
 
 	// update video

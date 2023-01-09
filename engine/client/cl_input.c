@@ -27,7 +27,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 float in_sensitivityscale = 1;
 
-static void QDECL CL_SpareMsec_Callback (struct cvar_s *var, char *oldvalue);
 #ifdef NQPROT
 static cvar_t	cl_movement = CVARD("cl_movement","1", "Specifies whether to send movement sequence info over DPP7 protocols (other protocols are unaffected). Unlike cl_nopred, this can result in different serverside behaviour.");
 #endif
@@ -39,7 +38,6 @@ cvar_t	cl_c2spps = CVARD("cl_c2spps", "0", "Reduces outgoing packet rates by dro
 cvar_t	cl_c2sImpulseBackup = CVARD("cl_c2sImpulseBackup","3", "Prevents the cl_c2spps setting from dropping redundant packets that contain impulses, in an attempt to keep impulses more reliable.");
 static cvar_t	cl_c2sMaxRedundancy = CVARD("cl_c2sMaxRedundancy","5", "This is the maximum number of input frames to send in each input packet. Values greater than 1 provide redundancy and avoid prediction misses, though you might find cl_c2sdupe provides equivelent result and at lower latency. It is locked at 3 for vanilla quakeworld, and locked at 1 for vanilla netquake.");
 cvar_t	cl_netfps = CVARD("cl_netfps", "150", "Send up to this many packets to the server per second. The rate used is also limited by the server which usually forces a cap to this setting of 77. Low packet rates can result in extra extrapolation to try to hide the resulting latencies.");
-cvar_t	cl_sparemsec = CVARCD("cl_sparemsec", "10", CL_SpareMsec_Callback, "Allows the 'banking' of a little extra time, so that one slow frame will not delay the timing of the following frame so much.");
 cvar_t  cl_queueimpulses = CVARD("cl_queueimpulses", "0", "Queues unsent impulses instead of replacing them. This avoids the need for extra wait commands (and the timing issues of such commands), but potentially increases latency and can cause scripts to be desynced with regard to buttons and impulses.");
 cvar_t	cl_smartjump = CVARD("cl_smartjump", "1", "Makes the jump button act as +moveup when in water. This is typically quieter and faster.");
 cvar_t	cl_iDrive = CVARFD("cl_iDrive", "1", CVAR_SEMICHEAT, "Effectively releases movement keys when the opposing key is pressed. This avoids dead-time when both keys are pressed. This can be emulated with various scripts, but that's messy.");
@@ -1990,8 +1988,16 @@ float CL_FilterTime (double time, float wantfps, float limit, qboolean ignoreser
 	}
 
 	//its not time yet
-	if (time < ceil(1000 / fps))
-		return 0;
+	if (ignoreserver)
+	{	//don't try to hold to milliseconds.
+		if (time < 1000 / fps)
+			return 0;
+	}
+	else
+	{
+		if (time < ceil(1000 / fps))
+			return 0;
+	}
 
 	//clamp it if we have over 1.5 frame banked somehow
 	if (limit && time - (1000 / fps) > (1000 / fps)*limit)
@@ -2211,20 +2217,6 @@ void CL_UseIndepPhysics(qboolean allow)
 {
 }
 #endif
-
-static void QDECL CL_SpareMsec_Callback (struct cvar_s *var, char *oldvalue)
-{
-	if (var->value > 50)
-	{
-		Cvar_ForceSet(var, "50");
-		return;
-	}
-	else if (var->value < 0)
-	{
-		Cvar_ForceSet(var, "0");
-		return;
-	}
-}
 
 void CL_UpdateSeats(void)
 {
@@ -3097,7 +3089,6 @@ void CL_InitInput (void)
 	Cvar_Register (&cl_c2spps, inputnetworkcvargroup);
 	Cvar_Register (&cl_queueimpulses, inputnetworkcvargroup);
 	Cvar_Register (&cl_netfps, inputnetworkcvargroup);
-	Cvar_Register (&cl_sparemsec, inputnetworkcvargroup);
 	Cvar_Register (&cl_run, inputnetworkcvargroup);
 	Cvar_Register (&cl_iDrive, inputnetworkcvargroup);
 

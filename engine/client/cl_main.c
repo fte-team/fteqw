@@ -2619,6 +2619,7 @@ void CL_CheckServerInfo(void)
 	//FIXME: we should probably tweak our movement code instead.
 	cl.maxpitch = bound(-89.9, cl.maxpitch, 89.9);
 	cl.minpitch = bound(-89.9, cl.minpitch, 89.9);
+	cl.disablemouse = atoi(InfoBuf_ValueForKey(&cl.serverinfo, "nomouse"));
 
 	cl.hexen2pickups = atoi(InfoBuf_ValueForKey(&cl.serverinfo, "sv_pupglow"));
 

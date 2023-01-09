@@ -590,7 +590,7 @@ static void FTENativeActivity_motion(JNIEnv *env, jobject this, jint ptrid, jint
 	{
 	case 2:	//mouse down
 	case 3:	//mouse up
-		IN_KeyEvent(ptrid, act==2, K_MOUSE1, 0);
+		IN_KeyEvent(ptrid, act==2, K_TOUCH, 0);
 		break;
 	case 1:	//relative motion
 	case 0: //absolute motion (android sucks)

@@ -172,9 +172,13 @@ typedef enum {
 	K_GP_DIAMOND_RIGHT,
 	K_GP_DIAMOND_LEFT,
 	K_GP_DIAMOND_UP,
-	K_GP_BACK,
+//for their behaviours in the menus... we may want to put a conditional in here for japanese-style right-for-confirm, but for now I'm lazy and am sticking with western/xbox/steam mappings.
+#define K_GP_DIAMOND_CONFIRM	K_GP_DIAMOND_DOWN	//roughly equivelent to k_return for menu behaviours
+#define K_GP_DIAMOND_CANCEL		K_GP_DIAMOND_RIGHT	//roughly like escape, at least in menus
+#define K_GP_DIAMOND_ALTCONFIRM	K_GP_DIAMOND_UP		//for more negative confirmations.
+	K_GP_VIEW,
 	K_GP_GUIDE,
-	K_GP_START,
+	K_GP_MENU,
 	K_GP_LEFT_STICK,
 	K_GP_RIGHT_STICK,
 	K_GP_LEFT_SHOULDER,
@@ -232,6 +236,8 @@ typedef enum {
 	K_RSHIFT,
 	K_PRINTSCREEN,
 
+	K_TOUCH,
+
 	/* multimedia keyboard */
 	K_MM_BROWSER_BACK,
 	K_MM_BROWSER_FAVORITES,
@@ -251,6 +257,8 @@ typedef enum {
 	K_GP_B = K_GP_DIAMOND_RIGHT,
 	K_GP_X = K_GP_DIAMOND_LEFT,
 	K_GP_Y = K_GP_DIAMOND_UP,
+	K_GP_BACK = K_GP_VIEW,
+	K_GP_START = K_GP_MENU,
 
 	//ps buttons
 	K_GP_PS_CROSS		= K_GP_DIAMOND_DOWN,

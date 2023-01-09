@@ -5360,6 +5360,8 @@ float SV_Frame (void)
 		svs.framenum = 0;
 
 	delay = sv_maxtic.value;
+	if (delay < sv_mintic.value)
+		delay = sv_mintic.value;
 	if (isDedicated && sv.allocated_client_slots == 0)
 		delay = max(delay, 1);	//when idle, don't keep waking up for no reason
 
@@ -5378,7 +5380,7 @@ float SV_Frame (void)
 #endif
 
 #ifdef HAVE_CLIENT
-	isidle = !isDedicated && sv.allocated_client_slots == 1 && Key_Dest_Has(~kdm_game) && cls.state == ca_active && !cl.implicitpause;
+	isidle = !isDedicated && sv.allocated_client_slots == 1 && (Key_Dest_Has(~kdm_game) || IN_WeaponWheelIsShown()) && cls.state == ca_active && !cl.implicitpause;
 	/*server is effectively paused in SP/coop if there are no clients/spectators*/
 	if (sv.spawned_client_slots == 0 && sv.spawned_observer_slots == 0 && !deathmatch.ival)
 		isidle = true;

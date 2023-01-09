@@ -757,6 +757,12 @@ void IN_FireUp(void)
 		IN_DoWeaponHide();
 }
 
+qboolean IN_WeaponWheelIsShown(void)
+{
+	if (!(in_wwheel.state[0]&1) || !weaponinfo_count)
+		return false;
+	return true;
+}
 qboolean IN_WeaponWheelAccumulate(int pnum, float x, float y) //either mouse or controller
 {
 	if (!(in_wwheel.state[pnum]&1) || !weaponinfo_count)

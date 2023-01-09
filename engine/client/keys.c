@@ -198,6 +198,7 @@ keyname_t keynames[] =
 	{"MWHEELDOWN",	K_MWHEELDOWN},
 	{"MWHEELLEFT",	K_MWHEELLEFT},
 	{"MWHEELRIGHT",	K_MWHEELRIGHT},
+	{"TOUCH",		K_TOUCH},
 
 	{"LWIN",	K_LWIN},	//windows name
 	{"RWIN",	K_RWIN},	//windows name
@@ -280,7 +281,7 @@ keyname_t keynames[] =
 	{"BACKQUOTE",	'`'},
 	{"BACKSLASH",	'\\'},
 
-	{"GP_A",			K_GP_A},
+	{"GP_A",			K_GP_A},	//note: xbox arrangement, not nintendo arrangement.
 	{"GP_B",			K_GP_B},
 	{"GP_X",			K_GP_X},
 	{"GP_Y",			K_GP_Y},
@@ -288,8 +289,8 @@ keyname_t keynames[] =
 	{"GP_RSHOULDER",	K_GP_RIGHT_SHOULDER},
 	{"GP_LTRIGGER",		K_GP_LEFT_TRIGGER},
 	{"GP_RTRIGGER",		K_GP_RIGHT_TRIGGER},
-	{"GP_BACK",			K_GP_BACK},
-	{"GP_START",		K_GP_START},
+	{"GP_VIEW",			K_GP_VIEW},
+	{"GP_MENU",			K_GP_MENU},
 	{"GP_LTHUMB",		K_GP_LEFT_STICK},
 	{"GP_RTHUMB",		K_GP_RIGHT_STICK},
 	{"GP_DPAD_UP",		K_GP_DPAD_UP},
@@ -305,12 +306,18 @@ keyname_t keynames[] =
 	{"GP_TOUCHPAD",		K_GP_TOUCHPAD},
 	{"GP_UNKNOWN",		K_GP_UNKNOWN},
 
+	//older xbox names
+	{"GP_BACK",			K_GP_BACK},
+	{"GP_START",		K_GP_START},
 	//names for playstation controllers
 	{"GP_CROSS",		K_GP_PS_CROSS},
 	{"GP_CIRCLE",		K_GP_PS_CIRCLE},
 	{"GP_SQUARE",		K_GP_PS_SQUARE},
 	{"GP_TRIANGLE",		K_GP_PS_TRIANGLE},
-	{"GP_MIC",		K_GP_MISC1},
+	{"GP_MIC",			K_GP_MISC1},
+	{"GP_SELECT",		K_GP_VIEW},
+	{"GP_SHARE",		K_GP_VIEW},
+	{"GP_OPTIONS",		K_GP_START},
 
 	//axis->button emulation
 	{"GP_LTHUMB_UP",	K_GP_LEFT_THUMB_UP},
@@ -1252,7 +1259,7 @@ void Key_ConsoleRelease(console_t *con, int key, unsigned int unicode)
 		}
 		con->buttonsdown = CB_NONE;
 	}
-	if (key == K_MOUSE1 && con->buttonsdown == CB_SCROLL)// || (key == K_MOUSE2 && con->buttonsdown == CB_SCROLL_R))
+	if ((key == K_TOUCH || key == K_MOUSE1) && con->buttonsdown == CB_SCROLL)// || (key == K_MOUSE2 && con->buttonsdown == CB_SCROLL_R))
 	{
 		con->buttonsdown = CB_NONE;
 		if (fabs(con->mousedown[0] - con->mousecursor[0]) < 5 && fabs(con->mousedown[1] - con->mousecursor[1]) < 5)
@@ -1654,7 +1661,7 @@ qboolean Key_EntryLine(console_t *con, unsigned char **line, int lineoffset, int
 			*linepos = utf_left((*line)+lineoffset, (*line) + *linepos, !alt) - (*line);
 		return true;
 	}
-	if (key == K_RIGHTARROW || key == K_KP_RIGHTARROW)
+	if (key == K_RIGHTARROW || key == K_KP_RIGHTARROW || key == K_GP_DPAD_RIGHT)
 	{
 		if ((*line)[*linepos])
 		{
@@ -1869,13 +1876,13 @@ qboolean Key_Console (console_t *con, int key, unsigned int unicode)
 	}
 	if (con->redirect)
 	{
-		if (key == K_MOUSE1 || key == K_MOUSE2)
+		if (key == K_TOUCH || key == K_MOUSE1 || key == K_MOUSE2)
 			;
 		else if (con->redirect(con, unicode, key))
 			return true;
 	}
 
-	if (key == K_GP_BACK)
+	if (key == K_GP_VIEW || key == K_GP_MENU)
 	{
 		Key_Dest_Remove(kdm_console);
 		Key_Dest_Remove(kdm_cwindows);
@@ -1884,7 +1891,7 @@ qboolean Key_Console (console_t *con, int key, unsigned int unicode)
 		return true;
 	}
 
-	if ((key == K_MOUSE1 || key == K_MOUSE2))
+	if (key == K_TOUCH || key == K_MOUSE1 || key == K_MOUSE2)
 	{
 		int olddown[2] = {con->mousedown[0],con->mousedown[1]};
 		if (con->flags & CONF_ISWINDOW)
@@ -1922,7 +1929,7 @@ qboolean Key_Console (console_t *con, int key, unsigned int unicode)
 				return true;
 
 			con->flags &= ~CONF_KEEPSELECTION;
-			if (Key_IsTouchScreen())	//o.O mouse2+touchscreen? really?
+			if (key == K_TOUCH)
 				con->buttonsdown = CB_COPY;
 			else
 				con->buttonsdown = CB_SCROLL_R;
@@ -1947,7 +1954,7 @@ qboolean Key_Console (console_t *con, int key, unsigned int unicode)
 					return true;
 				}
 #endif
-				if (Key_IsTouchScreen() || con->mousecursor[0] > ((con->flags & CONF_ISWINDOW)?con->wnd_w-16:vid.width)-8)
+				if (key == K_TOUCH || con->mousecursor[0] > ((con->flags & CONF_ISWINDOW)?con->wnd_w-16:vid.width)-8)
 				{	//just scroll the console up/down
 					con->buttonsdown = CB_SCROLL;
 				}
@@ -1990,7 +1997,7 @@ qboolean Key_Console (console_t *con, int key, unsigned int unicode)
 			return true;
 	}
 
-	if (key == K_PGUP || key == K_KP_PGUP || key==K_MWHEELUP)
+	if (key == K_PGUP || key == K_KP_PGUP || key==K_MWHEELUP || key == K_GP_LEFT_THUMB_UP)
 	{
 		conline_t *l;
 		int i = 2;
@@ -2016,7 +2023,7 @@ qboolean Key_Console (console_t *con, int key, unsigned int unicode)
 			return true;
 		}
 	}
-	if (key == K_PGDN || key == K_KP_PGDN || key==K_MWHEELDOWN)
+	if (key == K_PGDN || key == K_KP_PGDN || key==K_MWHEELDOWN || key == K_GP_LEFT_THUMB_DOWN)
 	{
 		int i = 2;
 		if (ctrl)
@@ -2092,7 +2099,7 @@ qboolean Key_Console (console_t *con, int key, unsigned int unicode)
 		return false;
 	}
 	
-	if (key == K_ENTER || key == K_KP_ENTER || key == K_GP_START)
+	if (key == K_ENTER || key == K_KP_ENTER || key == K_GP_DIAMOND_CONFIRM)
 	{	// backslash text are commands, else chat
 		char demoji[8192];
 		const char *txt = Key_Demoji(demoji, sizeof(demoji), key_lines[edit_line]);
@@ -2247,7 +2254,7 @@ void Key_Message (int key, int unicode)
 		chat_bufferpos = 0;
 	}
 
-	if (key == K_ENTER || key == K_KP_ENTER || key == K_GP_START)
+	if (key == K_ENTER || key == K_KP_ENTER || key == K_GP_DIAMOND_CONFIRM)
 	{
 		if (chat_buffer && chat_buffer[0])
 		{	//send it straight into the command.
@@ -2280,7 +2287,7 @@ void Key_Message (int key, int unicode)
 		return;
 	}
 
-	if (key == K_ESCAPE || key == K_GP_BACK)
+	if (key == K_ESCAPE || key == K_GP_DIAMOND_CANCEL)
 	{
 		Key_Dest_Remove(kdm_message);
 		chat_bufferpos = 0;
@@ -2898,6 +2905,7 @@ void Key_Init (void)
 	}
 	consolekeys[K_MWHEELUP] = true;
 	consolekeys[K_MWHEELDOWN] = true;
+	consolekeys[K_TOUCH] = true;
 
 //
 // register our functions
@@ -3076,7 +3084,7 @@ void Key_Event (unsigned int devid, int key, unsigned int unicode, qboolean down
 				con = con_curwindow;
 			else
 				con = NULL;
-			if (con_mouseover && key >= K_MOUSE1 && key <= K_MWHEELDOWN)
+			if (con_mouseover && ((key >= K_MOUSE1 && key <= K_MWHEELDOWN) || key == K_TOUCH))
 				con = con_mouseover;
 			if (con_curwindow && con_curwindow != con)
 				con_curwindow->buttonsdown = CB_NONE;
@@ -3142,7 +3150,7 @@ void Key_Event (unsigned int devid, int key, unsigned int unicode, qboolean down
 	if (/*conkey &&*/Key_Dest_Has(kdm_console|kdm_cwindows))
 	{
 		console_t *con = Key_Dest_Has(kdm_console)?con_current:con_curwindow;
-		if ((con_mouseover||!Key_Dest_Has(kdm_console)) && key >= K_MOUSE1 && key <= K_MWHEELDOWN)
+		if ((con_mouseover||!Key_Dest_Has(kdm_console)) && ((key >= K_MOUSE1 && key <= K_MWHEELDOWN)||key==K_TOUCH))
 			con = con_mouseover;
 		if (con)
 		{
@@ -3236,8 +3244,10 @@ void Key_Event (unsigned int devid, int key, unsigned int unicode, qboolean down
 
 		//gamepad buttons should get fallbacks out of the box, even if they're not initially listed on the binds menu.
 		//these may be redefined later...
-		case K_GP_LEFT_SHOULDER:	dc = "impulse 12";		goto defaultedbind;	//matches QS's default.cfg
-		case K_GP_RIGHT_SHOULDER:	dc = "impulse 10";		goto defaultedbind;	//matches QS's default.cfg
+//		case K_GP_LEFT_SHOULDER:	dc = "impulse 12";		goto defaultedbind;	//matches QS's default.cfg
+//		case K_GP_RIGHT_SHOULDER:	dc = "impulse 10";		goto defaultedbind;	//matches QS's default.cfg
+		case K_GP_LEFT_SHOULDER:	dc = "impulse 10";		goto defaultedbind;
+		case K_GP_RIGHT_SHOULDER:	dc = "+weaponwheel";	goto defaultedbind;
 		case K_GP_LEFT_TRIGGER:		dc = "+button3";		goto defaultedbind;	//matches QS's default.cfg
 		case K_GP_RIGHT_TRIGGER:	dc = "+attack";			goto defaultedbind;	//matches QS's default.cfg
 		case K_GP_START:			dc = "togglemenu";		goto defaultedbind;
@@ -3264,7 +3274,7 @@ void Key_Event (unsigned int devid, int key, unsigned int unicode, qboolean down
 	}
 
 defaultedbind:
-	if (key == K_MOUSE1 && IN_MouseDevIsTouch(devid))
+	if (key == K_TOUCH || (key == K_MOUSE1 && IN_MouseDevIsTouch(devid)))
 	{
 		char *button = SCR_ShowPics_ClickCommand(mousecursor_x, mousecursor_y);
 		if (button)

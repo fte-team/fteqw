@@ -313,6 +313,15 @@ static qboolean SDLVID_Init (rendererstate_t *info, unsigned char *palette, r_qr
 #if SDL_MAJOR_VERSION >= 2
 	int display = -1;
 	SDL_DisplayMode modeinfo, *usemode;
+
+	SDL_SetHint(SDL_HINT_TOUCH_MOUSE_EVENTS, "0");		//we understand touch events. we do NOT want to get confused with mouse motion constantly warping.
+	SDL_SetHint(SDL_HINT_IME_INTERNAL_EDITING, "1");	//our code doesn't handle displaying non-committed text. ask to not be expected to show it, where possible.
+#ifdef SDL_HINT_IME_SUPPORT_EXTENDED_TEXT
+//	SDL_SetHint(SDL_HINT_IME_SUPPORT_EXTENDED_TEXT, "1");//says we don't have a limit. enable once we actually support this stuff.
+#endif
+#ifdef SDL_HINT_IME_SHOW_UI
+	SDL_SetHint(SDL_HINT_IME_SHOW_UI, "1");				//not much point having an IME if you can't see it...
+#endif
 #endif
 
 	SDL_Init(SDL_INIT_VIDEO | SDL_INIT_NOPARACHUTE);

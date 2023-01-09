@@ -213,7 +213,7 @@ void Sys_Printf (char *fmt, ...)
 static quint64_t sdlperf_freq;
 #define CLOCKDEF_SDL_PERF  QCLOCK(PERF,  "perf", t=SDL_GetPerformanceCounter(), sdlperf_freq,sdlperf_freq=SDL_GetPerformanceFrequency())
 
-#ifdef CLOCK_MONOTONIC
+#if defined(CLOCK_MONOTONIC) && (_POSIX_C_SOURCE >= 200112L)
 	#define CLOCKDEF_LINUX_MONOTONIC QCLOCK(MONOTONIC, "monotonic", {	\
 				struct timespec ts;	\
 				clock_gettime(CLOCK_MONOTONIC, &ts);	\
@@ -223,7 +223,7 @@ static quint64_t sdlperf_freq;
 	#define CLOCKDEF_LINUX_MONOTONIC
 #endif
 
-#ifdef CLOCK_REALTIME
+#if defined(CLOCK_REALTIME) && (_POSIX_C_SOURCE >= 200112L)
 	#define CLOCKDEF_LINUX_REALTIME QCLOCK(REALTIME, "realtime", {	\
 				struct timespec ts;	\
 				clock_gettime(CLOCK_REALTIME, &ts);	\

@@ -983,6 +983,7 @@ typedef struct
 
 	qboolean teamfortress;	// *sigh*. This is used for teamplay stuff. This sucks.
 	qboolean hexen2pickups;
+	qboolean disablemouse;	//no mouse inputs (for controller-only games, though we do also allow keyboards if only because of joy2key type stuff)
 
 	qboolean sendprespawn;
 	int contentstage;
@@ -1217,6 +1218,7 @@ void CL_UpdateWindowTitle(void);
 const char *IN_GetPreselectedViewmodelName(unsigned int pnum);
 qboolean IN_WeaponWheelAccumulate(int pnum, float x, float y);
 qboolean IN_DrawWeaponWheel(int pnum);
+qboolean IN_WeaponWheelIsShown(void);	//to decide when the game should be auto-paused.
 #endif
 void CL_InitInput (void);
 void CL_SendCmd (double frametime, qboolean mainloop);

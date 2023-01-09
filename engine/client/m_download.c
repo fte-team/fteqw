@@ -5380,13 +5380,13 @@ static qboolean MD_Key (struct menucustom_s *c, struct emenu_s *m, int key, unsi
 	p = c->dptr;
 	if (key == 'c' && ctrl)
 		Sys_SaveClipboard(CBT_CLIPBOARD, p->website);
-	else if (key == K_DEL || key == K_KP_DEL || key == K_BACKSPACE)
+	else if (key == K_DEL || key == K_KP_DEL || key == K_BACKSPACE || key == K_GP_DIAMOND_ALTCONFIRM)
 	{
 		if (!(p->flags & DPF_MARKED))
 			p->flags |= DPF_PURGE;	//purge it when its already not marked (ie: when pressed twice)
 		PM_UnmarkPackage(p, DPF_MARKED);	//deactivate it
 	}
-	else if (key == K_ENTER || key == K_KP_ENTER || key == K_GP_START || key == K_MOUSE1 || key == K_GP_A)
+	else if (key == K_ENTER || key == K_KP_ENTER || key == K_MOUSE1 || key == K_TOUCH || key == K_GP_DIAMOND_CONFIRM)
 	{
 		if (p->alternative && (p->flags & DPF_HIDDEN))
 			p = p->alternative;
@@ -5554,7 +5554,7 @@ static qboolean MD_MapKey (struct menucustom_s *c, struct emenu_s *m, int key, u
 	if (c->dint != downloadablessequence)
 		return false;	//probably stale
 
-	if (key == K_ENTER || key == K_KP_ENTER || key == K_GP_START || key == K_MOUSE1 || key == K_GP_A)
+	if (key == K_ENTER || key == K_KP_ENTER || key == K_GP_START || key == K_MOUSE1 || key == K_TOUCH || key == K_GP_DIAMOND_CONFIRM)
 		for (dep = p->deps; dep; dep = dep->next)
 		{
 			if (dep == map)
@@ -5628,7 +5628,7 @@ static void MD_Source_Draw (int x, int y, struct menucustom_s *c, struct emenu_s
 }
 static qboolean MD_Source_Key (struct menucustom_s *c, struct emenu_s *m, int key, unsigned int unicode)
 {
-	if (key == K_ENTER || key == K_KP_ENTER || key == K_GP_START || key == K_MOUSE1)
+	if (key == K_ENTER || key == K_KP_ENTER || key == K_GP_DIAMOND_CONFIRM || key == K_MOUSE1 || key == K_TOUCH)
 	{
 		if (pm_source[c->dint].flags & SRCFL_DISABLED)
 		{
@@ -5642,8 +5642,9 @@ static qboolean MD_Source_Key (struct menucustom_s *c, struct emenu_s *m, int ke
 		}
 		PM_WriteInstalledPackages();
 		PM_UpdatePackageList(true, 2);
+		return true;
 	}
-	if (key == K_DEL || key == K_BACKSPACE)
+	if (key == K_DEL || key == K_BACKSPACE || key == K_GP_DIAMOND_ALTCONFIRM)
 	{
 		if (pm_source[c->dint].flags & SRCFL_ENABLED)
 		{
@@ -5659,6 +5660,7 @@ static qboolean MD_Source_Key (struct menucustom_s *c, struct emenu_s *m, int ke
 			return false;	//will just be re-added anyway... :(
 		PM_WriteInstalledPackages();
 		PM_UpdatePackageList(true, 2);
+		return true;
 	}
 	return false;
 }
@@ -5685,7 +5687,7 @@ static void MD_AutoUpdate_Draw (int x, int y, struct menucustom_s *c, struct eme
 }
 static qboolean MD_AutoUpdate_Key (struct menucustom_s *c, struct emenu_s *m, int key, unsigned int unicode)
 {
-	if (key == K_ENTER || key == K_KP_ENTER || key == K_GP_START || key == K_MOUSE1)
+	if (key == K_ENTER || key == K_KP_ENTER || key == K_GP_DIAMOND_CONFIRM || key == K_MOUSE1 || key == K_TOUCH)
 	{
 		char nv[8] = "0";
 		if (pkg_autoupdate.ival < UPD_TESTING && pkg_autoupdate.ival >= 0)
@@ -5700,7 +5702,7 @@ static qboolean MD_AutoUpdate_Key (struct menucustom_s *c, struct emenu_s *m, in
 
 static qboolean MD_MarkUpdatesButton (union menuoption_s *mo,struct emenu_s *m,int key)
 {
-	if (key == K_ENTER || key == K_KP_ENTER || key == K_GP_START || key == K_MOUSE1)
+	if (key == K_ENTER || key == K_KP_ENTER || key == K_GP_DIAMOND_CONFIRM || key == K_MOUSE1 || key == K_TOUCH)
 	{
 		PM_MarkUpdates();
 		return true;
@@ -5711,7 +5713,7 @@ static qboolean MD_MarkUpdatesButton (union menuoption_s *mo,struct emenu_s *m,i
 
 qboolean MD_PopMenu (union menuoption_s *mo,struct emenu_s *m,int key)
 {
-	if (key == K_ENTER || key == K_KP_ENTER || key == K_GP_START || key == K_MOUSE1)
+	if (key == K_ENTER || key == K_KP_ENTER || key == K_GP_DIAMOND_CONFIRM || key == K_MOUSE1 || key == K_TOUCH)
 	{
 		M_RemoveMenu(m);
 		return true;
@@ -5721,7 +5723,7 @@ qboolean MD_PopMenu (union menuoption_s *mo,struct emenu_s *m,int key)
 
 static qboolean MD_ApplyDownloads (union menuoption_s *mo,struct emenu_s *m,int key)
 {
-	if (key == K_ENTER || key == K_KP_ENTER || key == K_GP_START || key == K_MOUSE1)
+	if (key == K_ENTER || key == K_KP_ENTER || key == K_GP_DIAMOND_CONFIRM || key == K_MOUSE1 || key == K_TOUCH)
 	{
 		PM_PromptApplyChanges();
 		return true;
@@ -5731,7 +5733,7 @@ static qboolean MD_ApplyDownloads (union menuoption_s *mo,struct emenu_s *m,int 
 
 static qboolean MD_RevertUpdates (union menuoption_s *mo,struct emenu_s *m,int key)
 {
-	if (key == K_ENTER || key == K_KP_ENTER || key == K_GP_START || key == K_MOUSE1)
+	if (key == K_ENTER || key == K_KP_ENTER || key == K_GP_DIAMOND_CONFIRM || key == K_MOUSE1 || key == K_TOUCH)
 	{
 		PM_RevertChanges();
 		return true;

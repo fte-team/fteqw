@@ -89,6 +89,7 @@ int MP_TranslateFTEtoQCCodes(keynum_t code)
 //	case K_MOUSE14:			return 527;
 //	case K_MOUSE15:			return 528;
 //	case K_MOUSE16:			return 529;
+	case K_TOUCH:			return 600;
 
 	case K_JOY1:			return 768;
 	case K_JOY2:			return 769;
@@ -286,6 +287,7 @@ keynum_t MP_TranslateQCtoFTECodes(int code)
 //	case 527:		return K_MOUSE14;
 //	case 528:		return K_MOUSE15;
 //	case 529:		return K_MOUSE16;
+	case 600:		return K_TOUCH;
 
 	case 768:		return K_JOY1;
 	case 769:		return K_JOY2;

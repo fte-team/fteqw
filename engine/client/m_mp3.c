@@ -1238,7 +1238,7 @@ qboolean M_Media_Key (int key, emenu_t *menu)
 		if (selectedoption < MEDIA_MIN)
 			selectedoption = MEDIA_MIN;
 	}
-	else if (key == K_DEL)
+	else if (key == K_DEL|| key == K_GP_DIAMOND_ALTCONFIRM)
 	{
 		if (selectedoption>=0)
 		{
@@ -1266,7 +1266,7 @@ qboolean M_Media_Key (int key, emenu_t *menu)
 			}
 		}
 	}
-	else if (key == K_ENTER || key == K_KP_ENTER || key == K_GP_START || key == K_MOUSE1)
+	else if (key == K_ENTER || key == K_KP_ENTER || key == K_GP_DIAMOND_CONFIRM || key == K_MOUSE1 || key == K_TOUCH)
 	{
 		if (key == K_MOUSE1)
 		{
@@ -2760,7 +2760,7 @@ void QDECL Media_Send_KeyEvent(cin_t *cin, int button, int unicode, int event)
 		return;
 	if (cin->key)
 		cin->key(cin, button, unicode, event);
-	else if (button == K_SPACE && !event)
+	else if ((button == K_SPACE || button == K_GP_DIAMOND_ALTCONFIRM) && !event)
 	{
 		if (cin->playstate == CINSTATE_PAUSE)
 			Media_SetState(cin, CINSTATE_PLAY);

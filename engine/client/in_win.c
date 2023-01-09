@@ -2137,10 +2137,10 @@ static qboolean INS_ReadJoystick (struct wjoy_s *joy)
 				if (joy->devid != DEVID_UNSET)
 				{
 					IN_JoystickAxisEvent(joy->devid, GPAXIS_LT_RIGHT, xistate.Gamepad.sThumbLX / 32768.0);
-					IN_JoystickAxisEvent(joy->devid, GPAXIS_LT_DOWN, xistate.Gamepad.sThumbLY / 32768.0);
+					IN_JoystickAxisEvent(joy->devid, GPAXIS_LT_DOWN, -xistate.Gamepad.sThumbLY / 32768.0);
 					IN_JoystickAxisEvent(joy->devid, GPAXIS_LT_TRIGGER, xistate.Gamepad.bLeftTrigger/255.0);
 					IN_JoystickAxisEvent(joy->devid, GPAXIS_RT_RIGHT, xistate.Gamepad.sThumbRX / 32768.0);
-					IN_JoystickAxisEvent(joy->devid, GPAXIS_RT_DOWN, xistate.Gamepad.sThumbRY / 32768.0);
+					IN_JoystickAxisEvent(joy->devid, GPAXIS_RT_DOWN, -xistate.Gamepad.sThumbRY / 32768.0);
 					IN_JoystickAxisEvent(joy->devid, GPAXIS_RT_TRIGGER, xistate.Gamepad.bRightTrigger/255.0);
 
 					vibrator.wLeftMotorSpeed = xinput_leftvibrator.value * 0xffff;

@@ -344,7 +344,7 @@ static qboolean SL_ServerKey (menucustom_t *ths, emenu_t *menu, int key, unsigne
 	serverinfo_t *server;
 	qboolean ctrl = keydown[K_LCTRL] || keydown[K_RCTRL];
 
-	if (key == K_MOUSE1)
+	if (key == K_MOUSE1 || key == K_TOUCH)
 	{
 		oldselection = info->selectedpos;
 		info->selectedpos = info->scrollpos + (mousecursor_y-info->servers_top)/8;
@@ -386,7 +386,7 @@ static qboolean SL_ServerKey (menucustom_t *ths, emenu_t *menu, int key, unsigne
 		}
 	}
 
-	else if (key == K_ENTER || key == K_KP_ENTER || key == K_GP_START || (ctrl && (key == 's' || key == 'j')) || key == K_SPACE)
+	else if (key == K_ENTER || key == K_KP_ENTER || key == K_GP_DIAMOND_CONFIRM || (ctrl && (key == 's' || key == 'j')) || key == K_SPACE)
 	{
 		server = Master_SortedServer(info->selectedpos);
 		if (server)
@@ -775,12 +775,12 @@ static qboolean SL_Key	(int key, emenu_t *menu)
 		serverinfo_t *server = selectedserver.inuse?Master_InfoForServer(&selectedserver.adr, selectedserver.brokerid):NULL;
 		qboolean ctrldown = keydown[K_LCTRL] || keydown[K_RCTRL];
 
-		if (key == K_ESCAPE || key == K_GP_BACK || key == K_MOUSE2 || key == K_MOUSE4)
+		if (key == K_ESCAPE || key == K_GP_DIAMOND_CANCEL || key == K_MOUSE2 || key == K_MOUSE4)
 		{
 			serverpreview = SVPV_NO;
 			return true;
 		}
-		else if (key == K_MOUSE1)
+		else if (key == K_MOUSE1 || key == K_TOUCH)
 		{
 			if (mousecursor_x >= joinbutton.x && mousecursor_x < joinbutton.x+joinbutton.width)
 				if (mousecursor_y >= joinbutton.y && mousecursor_y < joinbutton.y+joinbutton.height)
@@ -839,14 +839,14 @@ static qboolean SL_Key	(int key, emenu_t *menu)
 			return true;
 		}
 #endif
-		else if (key == 'b' || key == 'o' || key == 'j' || key == K_ENTER || key == K_KP_ENTER || key == K_GP_START)	//join
+		else if (key == 'b' || key == 'o' || key == 'j' || key == K_ENTER || key == K_KP_ENTER || key == K_GP_DIAMOND_CONFIRM || key == K_GP_DIAMOND_ALTCONFIRM)	//join
 		{
-			if (key == 's' || key == 'o')
+			if (key == 's' || key == 'o' || key == K_GP_DIAMOND_ALTCONFIRM)
 			{
 dospec:
 				Cbuf_AddText("spectator 1\n", RESTRICT_LOCAL);
 			}
-			else if (key == 'j')
+			else if (key == 'j' || key == K_GP_DIAMOND_CONFIRM)
 			{
 dojoin:
 				Cbuf_AddText("spectator 0\n", RESTRICT_LOCAL);
@@ -1034,13 +1034,13 @@ static void SL_SliderDraw (int x, int y, menucustom_t *ths, emenu_t *menu)
 		R2D_ImageColours(1,1,1,1);
 	}
 
-	if (keydown[K_MOUSE1])
+	if (keydown[K_MOUSE1] || keydown[K_TOUCH])
 		if (mousecursor_x >= ths->common.posx && mousecursor_x < ths->common.posx + ths->common.width)
 			if (mousecursor_y >= ths->common.posy && mousecursor_y < ths->common.posy + ths->common.height)
 				info->sliderpressed = true;
 	if (info->sliderpressed)
 	{
-		if (keydown[K_MOUSE1])
+		if (keydown[K_MOUSE1] || keydown[K_TOUCH])
 		{
 			float my;
 			serverlist_t *info = (serverlist_t*)(menu + 1);
@@ -1069,7 +1069,7 @@ static void SL_SliderDraw (int x, int y, menucustom_t *ths, emenu_t *menu)
 }
 static qboolean SL_SliderKey (menucustom_t *ths, emenu_t *menu, int key, unsigned int unicode)
 {
-	if (key == K_MOUSE1)
+	if (key == K_MOUSE1 || key == K_TOUCH)
 	{
 		float my;
 		serverlist_t *info = (serverlist_t*)(menu + 1);
@@ -1160,7 +1160,7 @@ static void SL_Remove	(emenu_t *menu)
 
 static qboolean SL_DoRefresh (menuoption_t *opt, emenu_t *menu, int key)
 {
-	if (key == K_MOUSE1 || key == K_MOUSE1 || key == K_ENTER || key == K_KP_ENTER)
+	if (key == K_MOUSE1 || key == K_TOUCH || key == K_ENTER || key == K_KP_ENTER || key == K_GP_DIAMOND_CONFIRM)
 	{
 		MasterInfo_Refresh(false);
 		isrefreshing = true;

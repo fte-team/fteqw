@@ -234,7 +234,7 @@ qboolean SetupMenuColour (union menuoption_s *option,struct emenu_s *menu, int k
 	//but we give the top free reign.
 	//unless they hold shift, in which case it switches around
 	//this allows for whatever you want
-	if (key == K_ENTER || key == K_KP_ENTER || key == K_GP_START || key == K_RIGHTARROW || key == K_KP_RIGHTARROW || key == K_MOUSE1 || key == K_GP_DPAD_RIGHT)
+	if (key == K_ENTER || key == K_KP_ENTER || key == K_GP_DIAMOND_CONFIRM || key == K_RIGHTARROW || key == K_KP_RIGHTARROW || key == K_MOUSE1 || key == K_TOUCH || key == K_GP_DPAD_RIGHT)
 	{
 		if ((keydown[K_LSHIFT] || keydown[K_RSHIFT]) ^ (ptr == &info->topcolour))
 		{
@@ -321,13 +321,13 @@ qboolean MSetupQ2_ChangeSkin (struct menucustom_s *option,struct emenu_s *menu, 
 	setupmenu_t *info = menu->data;
 	q2skinsearch_t *s = Z_Malloc(sizeof(*s));
 	COM_EnumerateFiles(va("players/%s/*_i.*", info->modeledit->values[info->modeledit->selectedoption]), q2skin_enumerate, s);
-	if (key == K_ENTER || key == K_KP_ENTER || key == K_GP_START || key == K_RIGHTARROW || key == K_KP_RIGHTARROW || key == K_GP_DPAD_RIGHT)
+	if (key == K_ENTER || key == K_KP_ENTER || key == K_RIGHTARROW || key == K_KP_RIGHTARROW || key == K_GP_DPAD_RIGHT || key == K_GP_DIAMOND_CONFIRM)
 	{
 		s->match ++;
 		if (s->match>=s->entries)
 			s->match=0;
 	}
-	else if (key == K_LEFTARROW || key == K_KP_LEFTARROW || key == K_GP_DPAD_LEFT)
+	else if (key == K_LEFTARROW || key == K_KP_LEFTARROW || key == K_GP_DPAD_LEFT || key == K_GP_DIAMOND_ALTCONFIRM)
 	{
 		s->match --;
 		if (s->match<=0)
@@ -570,7 +570,7 @@ qboolean MultiBeginGame (union menuoption_s *option,struct emenu_s *menu, int ke
 {
 	newmultimenu_t *info = menu->data;
 	char quoted[1024];
-	if (key != K_ENTER && key != K_KP_ENTER && key != K_GP_START && key != K_MOUSE1)
+	if (key != K_ENTER && key != K_KP_ENTER && key != K_GP_DIAMOND_CONFIRM && key != K_MOUSE1 && key != K_TOUCH)
 		return false;
 
 	if (cls.state)

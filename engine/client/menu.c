@@ -443,7 +443,7 @@ static qboolean Prompt_MenuKeyEvent(struct menu_s *gm, qboolean isdown, unsigned
 	void (*callback)(void *, promptbutton_t) = m->callback;
 	void *ctx = m->ctx;
 
-	if (key == K_MOUSE1)
+	if (key == K_MOUSE1 || key == K_TOUCH)
 	{	//mouse events fire their action on release.
 		if (isdown)
 		{
@@ -463,7 +463,7 @@ static qboolean Prompt_MenuKeyEvent(struct menu_s *gm, qboolean isdown, unsigned
 		action = PROMPT_NO;
 	else if (key == 'y' || key == 'Y')
 		action = PROMPT_YES;
-	else if (key==K_RIGHTARROW || key==K_GP_DPAD_RIGHT || key==K_DOWNARROW || key==K_GP_DPAD_DOWN || (key == K_TAB && !keydown[K_LSHIFT] && !keydown[K_RSHIFT]))
+	else if (key==K_RIGHTARROW || key==K_GP_DPAD_RIGHT || key==K_GP_LEFT_THUMB_RIGHT || key==K_DOWNARROW || key==K_GP_DPAD_DOWN || key==K_GP_LEFT_THUMB_DOWN || key == K_GP_DIAMOND_ALTCONFIRM || (key == K_TAB && !keydown[K_LSHIFT] && !keydown[K_RSHIFT]))
 	{
 		int start = m->kbutton;
 		for(;;)
@@ -478,7 +478,7 @@ static qboolean Prompt_MenuKeyEvent(struct menu_s *gm, qboolean isdown, unsigned
 		}
 		return true;
 	}
-	else if (key == K_LEFTARROW || key == K_GP_DPAD_LEFT || key==K_UPARROW || key==K_GP_DPAD_UP || key==K_TAB)
+	else if (key == K_LEFTARROW || key == K_GP_DPAD_LEFT || key==K_GP_LEFT_THUMB_LEFT || key==K_UPARROW || key==K_GP_DPAD_UP || key==K_GP_LEFT_THUMB_UP || key==K_TAB)
 	{
 		int start = m->kbutton;
 		for(;;)
@@ -493,12 +493,12 @@ static qboolean Prompt_MenuKeyEvent(struct menu_s *gm, qboolean isdown, unsigned
 		}
 		return true;
 	}
-	else if (key == K_ESCAPE || key == K_GP_BACK || key == K_MOUSE2 || key == K_MOUSE4)
+	else if (key == K_ESCAPE || key == K_GP_BACK || key == K_MOUSE2 || key == K_MOUSE4 || key == K_GP_DIAMOND_CANCEL)
 		action = PROMPT_CANCEL;
-	else if (key == K_ENTER || key == K_KP_ENTER || key == K_MOUSE1 || key == K_GP_A)
+	else if (key == K_ENTER || key == K_KP_ENTER || key == K_MOUSE1 || key == K_TOUCH || key == K_GP_DIAMOND_CONFIRM)
 	{
 		int button;
-		if (key == K_MOUSE1)
+		if (key == K_MOUSE1 || key == K_TOUCH)
 			button = m->mbutton;
 		else
 			button = m->kbutton;
@@ -1074,7 +1074,8 @@ qboolean M_Help_Key (int key, emenu_t *m)
 	switch (key)
 	{
 	case K_ESCAPE:
-	case K_GP_BACK:
+	case K_GP_DIAMOND_CANCEL:
+	case K_GP_START:
 	case K_MOUSE2:
 	case K_MOUSE4:
 		M_RemoveMenu(m);
@@ -1085,6 +1086,7 @@ qboolean M_Help_Key (int key, emenu_t *m)
 	case K_KP_RIGHTARROW:
 	case K_GP_DPAD_RIGHT:
 	case K_MOUSE1:
+	case K_GP_DIAMOND_CONFIRM:
 		S_LocalSound ("misc/menu2.wav");
 		if (++help_page >= num_help_pages)
 			help_page = 0;
@@ -1094,6 +1096,7 @@ qboolean M_Help_Key (int key, emenu_t *m)
 	case K_LEFTARROW:
 	case K_KP_LEFTARROW:
 	case K_GP_DPAD_LEFT:
+	case K_GP_DIAMOND_ALTCONFIRM:
 		S_LocalSound ("misc/menu2.wav");
 		if (--help_page < 0)
 			help_page = num_help_pages-1;

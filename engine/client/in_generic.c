@@ -122,7 +122,16 @@ static cvar_t	joy_movethreshold[3] =
 };
 
 static cvar_t joy_exponent = CVARD("joyexponent", "3", "Scales joystick/controller sensitivity non-linearly to increase precision in the center.\nA value of 1 is linear.");
-static cvar_t joy_radialdeadzone = CVARD("joyradialdeadzone", "1", "Treat controller dead zones as a pair, rather than per-axis.");
+void joy_radialdeadzone_cb(cvar_t *var, char *oldvalue)
+{
+	if (!*var->string)
+	{
+#if defined(__linux__) && defined(FTE_SDL)
+		var->ival = 2;	//sdl2 provides its own deadzones on linux, by default. FIXME: check SDL_GetHint(SDL_HINT_LINUX_JOYSTICK_DEADZONES), default is "1"
+#endif
+	}
+}
+static cvar_t joy_radialdeadzone = CVARCD("joyradialdeadzone", "", joy_radialdeadzone_cb, "Treat controller dead zones as a pair, rather than per-axis.");
 
 
 #define EVENTQUEUELENGTH 1024
@@ -427,9 +436,9 @@ void IN_Commands(void)
 				break;
 			}
 		case IEV_KEYDOWN:
-//Con_Printf("IEV_KEY%s %i: %i '%c'\n", (ev->type==IEV_KEYDOWN)?"DOWN":"RELEASE", ev->devid, ev->keyboard.scancode, ev->keyboard.unicode?ev->keyboard.unicode:' ');
+//Con_Printf("IEV_KEY%s %i: %i '%c'\n", (ev->type==IEV_KEYDOWN)?"DOWN   ":"RELEASE", ev->devid, ev->keyboard.scancode, ev->keyboard.unicode?ev->keyboard.unicode:' ');
 			//on touchscreens, mouse1 is used as up/down state. we have to emulate actual mouse clicks based upon distance moved, so we can get movement events.
-			if (ev->keyboard.scancode == K_MOUSE1 && ev->devid < MAXPOINTERS && (ptr[ev->devid].type == M_TOUCH))
+			if ((ev->keyboard.scancode == K_MOUSE1||ev->keyboard.scancode==K_TOUCH) && ev->devid < MAXPOINTERS && (ptr[ev->devid].type == M_TOUCH))
 			{
 				if (ev->type == IEV_KEYDOWN)
 				{
@@ -454,9 +463,9 @@ void IN_Commands(void)
 						if (ptr[ev->devid].held == 1 && ptr[ev->devid].moveddist < m_slidethreshold.value)
 						{
 							ptr[ev->devid].held = 2;	//so we don't just flag it as held again
-							Key_Event(ev->devid, K_MOUSE1, 0, true);
+							Key_Event(ev->devid, ev->keyboard.scancode, 0, true);
 						}
-						Key_Event(ev->devid, K_MOUSE1, 0, false);
+						Key_Event(ev->devid, ev->keyboard.scancode, 0, false);
 						ptr[ev->devid].held = 0;
 					}
 					break;
@@ -469,12 +478,6 @@ void IN_Commands(void)
 			{
 				if (topmenu && topmenu->joyaxis && topmenu->joyaxis(topmenu, ev->devid, ev->joy.axis, ev->joy.value))
 					joy[ev->devid].axis[ev->joy.axis] = 0;
-#ifdef QUAKESTATS
-				else if (ev->joy.axis==GPAXIS_LT_RIGHT && IN_WeaponWheelAccumulate(ev->devid, ev->joy.value, 0))
-					joy[ev->devid].axis[ev->joy.axis] = 0;
-				else if (ev->joy.axis==GPAXIS_LT_DOWN && IN_WeaponWheelAccumulate(ev->devid, 0, ev->joy.value))
-					joy[ev->devid].axis[ev->joy.axis] = 0;
-#endif
 #ifdef CSQC_DAT
 				else if (CSQC_JoystickAxis(ev->joy.axis, ev->joy.value, ev->devid))
 					joy[ev->devid].axis[ev->joy.axis] = 0;
@@ -842,7 +845,7 @@ void IN_MoveMouse(struct mouse_s *mouse, float *movements, int pnum, float frame
 #endif
 */
 
-	if (!movements)
+	if (!movements || cl.disablemouse)
 	{
 		return;
 	}
@@ -931,6 +934,7 @@ void IN_MoveJoystick(struct joy_s *joy, float *movements, int pnum, float framet
 		case -3:
 		case -5:
 			jstrafe[(-ax-1)/2] -= joy->axis[i] * joy_advaxisscale[i].value;
+			break;
 
 		case 2:
 		case 4:
@@ -945,11 +949,17 @@ void IN_MoveJoystick(struct joy_s *joy, float *movements, int pnum, float framet
 		}
 	}
 
-	//uses a radial deadzone for x+y axis, and separate out the z axis, just because most controllers are 2d affairs with any 3rd axis being a separate knob.
-	//deadzone values are stolen from microsoft's xinput documentation. they seem quite large to me - I guess that means that xbox controllers are just dodgy imprecise crap with excessive amounts of friction and finger grease.
+	if (IN_WeaponWheelAccumulate(joy->qdeviceid, jstrafe[1]*50, -jstrafe[0]*50))
+		jstrafe[0] = jstrafe[1] = 0;
 
-	if (joy_radialdeadzone.ival)
+	if (joy_radialdeadzone.ival == 2)
+	{	//steam or SDL or something is doing deadzone and exponent stuff already. just use identity so we don't get double deadzones.
+	}
+	else if (joy_radialdeadzone.ival)
 	{
+		//uses a radial deadzone for x+y axis, and separate out the z axis, just because most controllers are 2d affairs with any 3rd axis being a separate knob.
+		//deadzone values are stolen from microsoft's xinput documentation. they seem quite large to me - I guess that means that xbox controllers are just dodgy imprecise crap with excessive amounts of friction and finger grease.
+
 		mag = joydeadzone(sqrt(jlook[0]*jlook[0] + jlook[1]*jlook[1]), sqrt(joy_anglethreshold[0].value*joy_anglethreshold[0].value + joy_anglethreshold[1].value*joy_anglethreshold[1].value));
 		mag = pow(mag, joy_exponent.value);
 		jlook[0] *= mag;

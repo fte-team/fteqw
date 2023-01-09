@@ -646,12 +646,12 @@ static void M_DemoDraw(int x, int y, menucustom_t *control, emenu_t *menu)
 	if (!item)
 		info->firstitem = info->items;
 
-	if (!info->dragscroll && keydown[K_MOUSE1])
+	if (!info->dragscroll && (keydown[K_MOUSE1] || keydown[K_TOUCH]))
 	{
 		info->dragscroll = 1;
 		info->mousedownpos = mousecursor_y;
 	}
-	if (info->dragscroll && keydown[K_MOUSE1])
+	if (info->dragscroll && (keydown[K_MOUSE1] || keydown[K_TOUCH]))
 	{
 		if (info->mousedownpos >= mousecursor_y+8)
 		{
@@ -739,6 +739,7 @@ static qboolean M_DemoKey(menucustom_t *control, emenu_t *menu, int key, unsigne
 				info->selected = info->selected->next;
 		}
 		break;
+	case K_TOUCH:
 	case K_MOUSE1:
 		if (info->dragscroll == 2)
 		{
@@ -761,6 +762,7 @@ static qboolean M_DemoKey(menucustom_t *control, emenu_t *menu, int key, unsigne
 		//fallthrough
 	case K_ENTER:
 	case K_KP_ENTER:
+	case K_GP_DIAMOND_CONFIRM:
 		if (info->selected)
 		{
 			if (info->selected->isdir)

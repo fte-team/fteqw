@@ -1510,7 +1510,7 @@ qboolean M_PresetApply (union menuoption_s *op, struct emenu_s *menu, int key)
 {
 	fpsmenuinfo_t *info = (fpsmenuinfo_t*)menu->data;
 
-	if (key != K_ENTER && key != K_KP_ENTER && key != K_GP_START && key != K_MOUSE1)
+	if (key != K_ENTER && key != K_KP_ENTER && key != K_GP_DIAMOND_CONFIRM && key != K_MOUSE1 && key != K_TOUCH)
 		return false;
 
 	Cbuf_AddText("fps_preset ", RESTRICT_LOCAL);
@@ -1663,14 +1663,18 @@ void M_Menu_Textures_f (void)
 {
 	static const char *texturefilternames[] =
 	{
-		"Nearest",
+		"Nearest (noise)",
+		"Nearest (harsh)",
+		"Nearest (soft)",
 		"Bilinear",
 		"Trilinear",
 		NULL
 	};
 	static const char *texturefiltervalues[] =
 	{
+		"GL_NEAREST",
 		"GL_NEAREST_MIPMAP_NEAREST",
+		"nll",
 		"GL_LINEAR_MIPMAP_NEAREST",
 		"GL_LINEAR_MIPMAP_LINEAR",
 		NULL
@@ -1767,7 +1771,7 @@ qboolean M_VideoApplyShadowLighting (union menuoption_s *op,struct emenu_s *menu
 {
 	lightingmenuinfo_t *info = (lightingmenuinfo_t*)menu->data;
 
-	if (key != K_ENTER && key != K_KP_ENTER && key != K_GP_START && key != K_MOUSE1)
+	if (key != K_ENTER && key != K_KP_ENTER && key != K_GP_DIAMOND_CONFIRM && key != K_MOUSE1 && key != K_TOUCH)
 		return false;
 
 #ifdef RTLIGHTS
@@ -1948,6 +1952,9 @@ void M_Menu_Lighting_f (void)
 	static const char *lightmapformatopts[] =
 	{
 		"Automatic",
+		"4bit",
+		"5bit (5551)",
+		"5bit (565)",
 		"8bit (Greyscale)",
 		"8bit (Misaligned)",
 		"8bit (Aligned)",
@@ -1960,6 +1967,9 @@ void M_Menu_Lighting_f (void)
 	static const char *lightmapformatvalues[] =
 	{
 		"",
+		"rgba4",
+		"rgb5a1",
+		"rgb565",
 		"l8",
 		"rgb8",
 		"bgrx8",
@@ -1967,9 +1977,6 @@ void M_Menu_Lighting_f (void)
 		"rgb9e5",
 		"rgba16f",
 		"rgba32f",
-//		"rgb4",
-//		"rgb565",
-//		"rgba5551",
 		NULL
 	};
 
@@ -2223,7 +2230,7 @@ qboolean M_Apply_SP_Cheats (union menuoption_s *op,struct emenu_s *menu,int key)
 {
 	singleplayerinfo_t *info = menu->data;
 
-	if (key != K_ENTER && key != K_KP_ENTER && key != K_GP_START && key != K_MOUSE1)
+	if (key != K_ENTER && key != K_KP_ENTER && key != K_GP_DIAMOND_CONFIRM && key != K_MOUSE1 && key != K_TOUCH)
 		return false;
 
 	switch(info->skillcombo->selectedoption)
@@ -2341,7 +2348,7 @@ qboolean M_Apply_SP_Cheats_Q2 (union menuoption_s *op,struct emenu_s *menu,int k
 {
 	singleplayerq2info_t *info = menu->data;
 
-	if (key != K_ENTER && key != K_KP_ENTER && key != K_GP_START && key != K_MOUSE1)
+	if (key != K_ENTER && key != K_KP_ENTER && key != K_GP_DIAMOND_CONFIRM && key != K_MOUSE1 && key != K_TOUCH)
 		return false;
 
 	switch(info->skillcombo->selectedoption)
@@ -2547,7 +2554,7 @@ qboolean M_Apply_SP_Cheats_H2 (union menuoption_s *op,struct emenu_s *menu,int k
 {
 	singleplayerh2info_t *info = menu->data;
 
-	if (key != K_ENTER && key != K_KP_ENTER && key != K_GP_START && key != K_MOUSE1)
+	if (key != K_ENTER && key != K_KP_ENTER && key != K_GP_DIAMOND_CONFIRM && key != K_MOUSE1 && key != K_TOUCH)
 		return false;
 
 #ifdef HAVE_SERVER
@@ -2803,7 +2810,7 @@ qboolean M_VideoApply (union menuoption_s *op, struct emenu_s *menu, int key)
 	extern cvar_t vid_desktopsettings;
 	videomenuinfo_t *info = (videomenuinfo_t*)menu->data;
 
-	if (key != K_ENTER && key != K_KP_ENTER && key != K_GP_START && key != K_MOUSE1)
+	if (key != K_ENTER && key != K_KP_ENTER && key != K_GP_DIAMOND_CONFIRM && key != K_MOUSE1 && key != K_TOUCH)
 		return false;
 
 	// force update display options
@@ -4374,7 +4381,7 @@ static void Mods_Draw(int x, int y, struct menucustom_s *c, struct emenu_s *m)
 static qboolean Mods_Key(struct menucustom_s *c, struct emenu_s *m, int key, unsigned int unicode)
 {
 	int gameidx = c->dint;
-	if (key == K_MOUSE1 || key == K_ENTER || key == K_GP_A || key == K_GP_START)
+	if (key == K_ENTER || key == K_KP_ENTER || key == K_GP_DIAMOND_CONFIRM || key == K_MOUSE1 || key == K_TOUCH)
 	{
 		qboolean wasgameless = !*FS_GetGamedir(false);
 		if (!Mods_GetMod(c->dint))
@@ -4440,7 +4447,7 @@ static qboolean Installer_Go(menuoption_t *opt, menu_t *menu, int key)
 {
 	struct installermenudata *md = menu->data;
 	
-	if (key == K_MOUSE1 || key == K_ENTER || key == K_GP_START)
+	if (key == K_ENTER || key == K_KP_ENTER || key == K_GP_DIAMOND_CONFIRM || key == K_MOUSE1 || key == K_TOUCH)
 	{
 		extern int startuppending;
 		vfsfile_t *f;

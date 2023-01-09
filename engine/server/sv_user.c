@@ -38,9 +38,12 @@ void QDECL SV_NQPhysicsUpdate(cvar_t *var, char *oldvalue)
 {
 	if (!strcmp(var->string, "auto") || !strcmp(var->string, ""))
 	{	//prediction requires nq physics, so use it by default in multiplayer.
-		if (	progstype <= PROG_QW ||	//none or qw use qw physics by default
-				(!isDedicated &&  sv.allocated_client_slots > 1) ||	//multiplayer dedicated servers use qw physics for nq mods too. server admins are expected to be able to spend a little more time to configure things properly.
-				(svprogfuncs&&PR_FindFunction(svprogfuncs, "SV_RunClientCommand", PR_ANY)))	//mods that use explicit custom player physics/pred ALWAYS want qw physics (just hope noone forces it off)
+		if ((svprogfuncs&&PR_FindFunction(svprogfuncs, "SV_RunClientCommand", PR_ANY)))
+			var->ival = 0;	//mods that use explicit custom player physics/pred ALWAYS want qw-like physics (just hope noone forces it off)
+		else if ((svprogfuncs&&PR_FindFunction(svprogfuncs, "SV_PlayerPhysics", PR_ANY)))
+			var->ival = 1;	//DP mods wanting DP's weird physics also suffer NQ behaviours
+		else if (	progstype <= PROG_QW ||	//none or qw use qw physics by default
+				(!isDedicated &&  sv.allocated_client_slots > 1))	//multiplayer dedicated servers use qw physics for nq mods too. server admins are expected to be able to spend a little more time to configure things properly.
 			var->ival = 0;
 		else
 			var->ival = 1;

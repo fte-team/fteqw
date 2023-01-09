@@ -488,10 +488,11 @@ void(vector mousepos) editor_terrain_addentities =
 		s = sin(gettime(5)) * r;
 		c = cos(gettime(5)) * r;
 
-		col_x = (sin(gettime(5))+1.5)*0.1;
+		col = [(sin(gettime(5))+1.5)*0.1,  0,  0];
 
 		t = trace_endpos;
 		R_BeginPolygon("terrainedit");
+		tx_z = 0;
 		for (a = 0; a < 3.14*2; a += 3.14*2/8)
 		{
 			tx_x = sin(a);

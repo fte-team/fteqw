@@ -51,6 +51,7 @@ void(mitem_desktop desktop) M_Pop =
 	cmd("m_configs",	M_Configs,		menu/options_configs.qc)	\
 	cmd("m_reset",		M_Reset,		)				\
 	cmd("m_dir",		M_Dir,		)				\
+	cmd("m_cat",		M_FOpen,		)				\
 	cmd("m_preset",		M_Preset,		menu/presets.qc)
 	
 //make sure all the right files are included
@@ -89,7 +90,7 @@ void(float mode) m_toggle
 };
 float(string cstr) m_consolecommand =
 {
-	tokenize(cstr);
+	tokenize_console(cstr);
 	string cmd = argv(0);
 
 	switch(cmd)
@@ -145,7 +146,7 @@ void() m_init =
 };
 void(string cstr) GameCommand =
 {
-	tokenize(cstr);
+	tokenize_console(cstr);
 	string cmd = argv(0);
 
 	switch(cmd)

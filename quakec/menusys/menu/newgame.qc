@@ -13,7 +13,7 @@ nonstatic void(mitem_desktop desktop) M_Dir =
 		print("m_dir <FILEPATH> [PACKAGE]\n");
 		return;
 	}
-	if (pack != "")
+	if (pack)
 		h = search_begin(path, SB_FULLPACKAGEPATH|SB_FORCESEARCH|16, 0, argv(2));
 	else
 		h = search_begin(path, SB_FULLPACKAGEPATH|16|32, 0);
@@ -35,8 +35,33 @@ nonstatic void(mitem_desktop desktop) M_Dir =
 			search_getfilemtime(h,i),
 			search_getpackagename(h,i)
 			));
+
+#if 1
+		float f = search_fopen(h,i);
+		if (f>=0)
+		{
+			print(sprintf("^`u8:" "\t%S\n", substring(fgets(f), 0, 64)));
+			fclose(f);
+		}
+		else
+			print("\tsearch_fopen failure\n");
+#endif
 	}
 	search_end(h);
+};
+nonstatic void(mitem_desktop desktop) M_FOpen =
+{
+	float f = fopen(argv(1), FILE_READ);
+	string s;
+	if (f>=0)
+	{
+		while ((s=fgets(f)))
+			print(sprintf("^`u8:" "%s\n", s));
+		fclose(f);
+		print("<EOF>\n");
+	}
+	else
+		print("fopen failure\n");
 };
 
 #define FOURCC(a,b,c,d) ((int)(a)<<0i)|((int)(b)<<8i)|((int)(c)<<16i)|((int)(d)<<24i)
@@ -128,7 +153,7 @@ class mitem_maplist : mitem_grid
 		buf_del(descs);
 		super::item_remove();
 	};
-	static void() mitem_maplist =
+	void() mitem_maplist =
 	{
 		searchhandle searchtable;
 		searchtable = search_begin("maps/*.bsp", SB_FULLPACKAGEPATH, 0);

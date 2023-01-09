@@ -101,7 +101,7 @@ float(vector pos, float scan, float char, float down) mitem_tabs::item_keypress 
 
 	if (down && (scan == K_MOUSE1 || scan == K_MOUSE2 || scan == K_MOUSE3))
 	{
-		sz_y = 16;
+		sz = [8,16];
 		//to highlight the active tab, we draw the top line 1 pixel higher, and no bottom line
 		for (ch = this.item_children; ch; ch = ch.item_next)
 		{

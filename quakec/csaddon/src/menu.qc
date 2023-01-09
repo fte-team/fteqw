@@ -396,14 +396,10 @@ void(string shader, vector org, vector s, vector t, string text, vector col, flo
 	}
 
 	//precompute the st offset for each vertex
-	tc0_x = (0.0/16) + st_x;
-	tc1_x = (1.0/16) - st_x;
-	tc2_x = (1.0/16) - st_x;
-	tc3_x = (0.0/16) + st_x;
-	tc0_y = (0.0/16) + st_y;
-	tc1_y = (0.0/16) + st_y;
-	tc2_y = (1.0/16) - st_y;
-	tc3_y = (1.0/16) - st_y;
+	tc0 = [(0.0/16) + st_x, (0.0/16) + st_y];
+	tc1 = [(1.0/16) - st_x, (0.0/16) + st_y];
+	tc2 = [(1.0/16) - st_x, (1.0/16) - st_y];
+	tc3 = [(0.0/16) + st_x, (1.0/16) - st_y];
 
 	/*begin looks up the shader and is thus potentially expensive, fte requires it only once per batch of polygons.*/
 	R_BeginPolygon(shader);

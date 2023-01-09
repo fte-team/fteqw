@@ -15,7 +15,7 @@ class mitem_cvargrid : mitem_grid
 	};
 	float 	cursorpos;
 	string 	newval;
-	static void() mitem_cvargrid =
+	void() mitem_cvargrid =
 	{
 		grid_buf_names = -1;
 		cursorpos = -1;

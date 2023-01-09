@@ -1266,7 +1266,7 @@ qboolean M_Media_Key (int key, emenu_t *menu)
 			}
 		}
 	}
-	else if (key == K_ENTER || key == K_KP_ENTER || key == K_GP_DIAMOND_CONFIRM || key == K_MOUSE1 || key == K_TOUCH)
+	else if (key == K_ENTER || key == K_KP_ENTER || key == K_GP_DIAMOND_CONFIRM || key == K_MOUSE1 || key == K_TOUCHTAP)
 	{
 		if (key == K_MOUSE1)
 		{
@@ -2549,7 +2549,7 @@ static void MediaView_DrawFilm(menu_t *m)
 }
 static qboolean MediaView_KeyEvent(menu_t *m, qboolean isdown, unsigned int devid, int key, int unicode)
 {
-	if (isdown && key == K_ESCAPE)
+	if (isdown && (key == K_ESCAPE || key == K_GP_GUIDE || key == K_GP_DIAMOND_CANCEL || key == K_TOUCHLONG))
 	{
 		Media_StopFilm(false);	//skip to the next.
 		return true;

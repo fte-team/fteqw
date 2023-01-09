@@ -1510,7 +1510,7 @@ qboolean M_PresetApply (union menuoption_s *op, struct emenu_s *menu, int key)
 {
 	fpsmenuinfo_t *info = (fpsmenuinfo_t*)menu->data;
 
-	if (key != K_ENTER && key != K_KP_ENTER && key != K_GP_DIAMOND_CONFIRM && key != K_MOUSE1 && key != K_TOUCH)
+	if (key != K_ENTER && key != K_KP_ENTER && key != K_GP_DIAMOND_CONFIRM && key != K_MOUSE1 && key != K_TOUCHTAP)
 		return false;
 
 	Cbuf_AddText("fps_preset ", RESTRICT_LOCAL);
@@ -1771,7 +1771,7 @@ qboolean M_VideoApplyShadowLighting (union menuoption_s *op,struct emenu_s *menu
 {
 	lightingmenuinfo_t *info = (lightingmenuinfo_t*)menu->data;
 
-	if (key != K_ENTER && key != K_KP_ENTER && key != K_GP_DIAMOND_CONFIRM && key != K_MOUSE1 && key != K_TOUCH)
+	if (key != K_ENTER && key != K_KP_ENTER && key != K_GP_DIAMOND_CONFIRM && key != K_MOUSE1 && key != K_TOUCHTAP)
 		return false;
 
 #ifdef RTLIGHTS
@@ -2230,7 +2230,7 @@ qboolean M_Apply_SP_Cheats (union menuoption_s *op,struct emenu_s *menu,int key)
 {
 	singleplayerinfo_t *info = menu->data;
 
-	if (key != K_ENTER && key != K_KP_ENTER && key != K_GP_DIAMOND_CONFIRM && key != K_MOUSE1 && key != K_TOUCH)
+	if (key != K_ENTER && key != K_KP_ENTER && key != K_GP_DIAMOND_CONFIRM && key != K_MOUSE1 && key != K_TOUCHTAP)
 		return false;
 
 	switch(info->skillcombo->selectedoption)
@@ -2348,7 +2348,7 @@ qboolean M_Apply_SP_Cheats_Q2 (union menuoption_s *op,struct emenu_s *menu,int k
 {
 	singleplayerq2info_t *info = menu->data;
 
-	if (key != K_ENTER && key != K_KP_ENTER && key != K_GP_DIAMOND_CONFIRM && key != K_MOUSE1 && key != K_TOUCH)
+	if (key != K_ENTER && key != K_KP_ENTER && key != K_GP_DIAMOND_CONFIRM && key != K_MOUSE1 && key != K_TOUCHTAP)
 		return false;
 
 	switch(info->skillcombo->selectedoption)
@@ -2554,7 +2554,7 @@ qboolean M_Apply_SP_Cheats_H2 (union menuoption_s *op,struct emenu_s *menu,int k
 {
 	singleplayerh2info_t *info = menu->data;
 
-	if (key != K_ENTER && key != K_KP_ENTER && key != K_GP_DIAMOND_CONFIRM && key != K_MOUSE1 && key != K_TOUCH)
+	if (key != K_ENTER && key != K_KP_ENTER && key != K_GP_DIAMOND_CONFIRM && key != K_MOUSE1 && key != K_TOUCHTAP)
 		return false;
 
 #ifdef HAVE_SERVER
@@ -2810,7 +2810,7 @@ qboolean M_VideoApply (union menuoption_s *op, struct emenu_s *menu, int key)
 	extern cvar_t vid_desktopsettings;
 	videomenuinfo_t *info = (videomenuinfo_t*)menu->data;
 
-	if (key != K_ENTER && key != K_KP_ENTER && key != K_GP_DIAMOND_CONFIRM && key != K_MOUSE1 && key != K_TOUCH)
+	if (key != K_ENTER && key != K_KP_ENTER && key != K_GP_DIAMOND_CONFIRM && key != K_MOUSE1 && key != K_TOUCHTAP)
 		return false;
 
 	// force update display options
@@ -4381,7 +4381,7 @@ static void Mods_Draw(int x, int y, struct menucustom_s *c, struct emenu_s *m)
 static qboolean Mods_Key(struct menucustom_s *c, struct emenu_s *m, int key, unsigned int unicode)
 {
 	int gameidx = c->dint;
-	if (key == K_ENTER || key == K_KP_ENTER || key == K_GP_DIAMOND_CONFIRM || key == K_MOUSE1 || key == K_TOUCH)
+	if (key == K_ENTER || key == K_KP_ENTER || key == K_GP_DIAMOND_CONFIRM || key == K_MOUSE1 || key == K_TOUCHTAP)
 	{
 		qboolean wasgameless = !*FS_GetGamedir(false);
 		if (!Mods_GetMod(c->dint))
@@ -4447,7 +4447,7 @@ static qboolean Installer_Go(menuoption_t *opt, menu_t *menu, int key)
 {
 	struct installermenudata *md = menu->data;
 	
-	if (key == K_ENTER || key == K_KP_ENTER || key == K_GP_DIAMOND_CONFIRM || key == K_MOUSE1 || key == K_TOUCH)
+	if (key == K_ENTER || key == K_KP_ENTER || key == K_GP_DIAMOND_CONFIRM || key == K_MOUSE1 || key == K_TOUCHTAP)
 	{
 		extern int startuppending;
 		vfsfile_t *f;

@@ -1253,12 +1253,14 @@ typedef struct showpic_s {
 	struct showpic_s *next;
 	qbyte zone;
 	qboolean persist;
+	float fadedelay;
 	short x, y, w, h;
 	char *name;
 	char *picname;
 	char *tcommand;
 } showpic_t;
 showpic_t *showpics;
+double showpics_touchtime;
 
 static void SP_RecalcXY ( float *xx, float *yy, int origin )
 {
@@ -1347,7 +1349,7 @@ static void SP_RecalcXY ( float *xx, float *yy, int origin )
 void SCR_ShowPics_Draw(void)
 {
 	downloadlist_t *failed;
-	float x, y;
+	float x, y, a = 1;
 	showpic_t *sp;
 	mpic_t *p;
 	for (sp = showpics; sp; sp = sp->next)
@@ -1366,22 +1368,47 @@ void SCR_ShowPics_Draw(void)
 		if (failed)
 			continue;
 
+		if (sp->fadedelay && showpics_touchtime+sp->fadedelay < realtime)
+		{
+			a = 1+(showpics_touchtime+sp->fadedelay-realtime);
+			if (a > 1)
+				a = 1;	//shouldn't really happen, w/e.
+			else if (a <= 0)
+				continue;
+			R2D_ImageColours(1,1,1,a);
+		}
+		else if (a != 1)
+			R2D_ImageColours(1,1,1,a=1);
+
 		p = R2D_SafeCachePic(sp->picname);
-		if (!p)
-			continue;
-		R2D_ScalePic(x, y, sp->w?sp->w:p->width, sp->h?sp->h:p->height, p);
+		if (!p || !R_GetShaderSizes(p, NULL, NULL, false))
+		{
+			if (sp->h > 8)
+				Draw_FunStringWidth(x-2, y + (sp->h-8)/2, sp->name, sp->w+4, 2, false);	//slightly wider, to try to somewhat deal with 16:10 resolutions...
+		}
+		else
+			R2D_ScalePic(x, y, sp->w?sp->w:p->width, sp->h?sp->h:p->height, p);
 	}
+
+	if (a != 1)
+		R2D_ImageColours(1,1,1,1);
 }
-char *SCR_ShowPics_ClickCommand(int cx, int cy)
+const char *SCR_ShowPics_ClickCommand(float cx, float cy, qboolean istouch)
 {
 	downloadlist_t *failed;
 	float x, y, w, h;
 	showpic_t *sp;
 	mpic_t *p;
+	qboolean tryload = !showpics_touchtime;
+	float bestdist = istouch?16:1;
+	const char *best = NULL;
+	showpics_touchtime = realtime;
 	for (sp = showpics; sp; sp = sp->next)
 	{
 		if (!sp->tcommand || !*sp->tcommand)
 			continue;
+
+		tryload = false;
 
 		x = sp->x;
 		y = sp->y;
@@ -1396,7 +1423,7 @@ char *SCR_ShowPics_ClickCommand(int cx, int cy)
 			for (failed = cl.faileddownloads; failed; failed = failed->next)
 			{	//don't try displaying ones that we know to have failed.
 				if (!strcmp(failed->rname, sp->picname))
-				break;
+					break;
 			}
 			if (failed)
 				continue;
@@ -1406,11 +1433,22 @@ char *SCR_ShowPics_ClickCommand(int cx, int cy)
 			w = w?w:sp->w;
 			h = h?h:sp->h;
 		}
-		if (cx >= x && cx < x+w)
-			if (cy >= y && cy < y+h)
-				return sp->tcommand;	//if they overlap, that's your own damn fault.
+
+		x = bound(x, cx, x+w)-cx;
+		y = bound(y, cy, y+h)-cy;
+		x = max(fabs(x),fabs(y));
+		if (bestdist > x)
+		{	//looks like this one is closer to the cursor
+			bestdist = x;
+			best = sp->tcommand;
+			if (bestdist <= 0)	//use the first that's inside.
+				break;
+		}
 	}
-	return NULL;
+
+	if (tryload)
+		Cbuf_AddText("exec touch.cfg\n", RESTRICT_LOCAL);
+	return best;
 }
 
 //all=false clears only server pics, not ones from configs.
@@ -1425,6 +1463,8 @@ void SCR_ShowPic_ClearAll(qboolean persistflag)
 		scr_centerprint[pnum].charcount = 0;
 	}
 
+	if (!persistflag)
+		showpics_touchtime = 0;	//map change. gamedir may have changed too.
 	for (link = &showpics; (sp=*link); )
 	{
 		if (sp->persist != persistflag)
@@ -1599,6 +1639,7 @@ void SCR_ShowPic_Script_f(void)
 	int x, y, w, h;
 	int zone;
 	showpic_t *sp;
+	float fadedelay;
 
 	imgname = Cmd_Argv(1);
 	name = Cmd_Argv(2);
@@ -1609,6 +1650,7 @@ void SCR_ShowPic_Script_f(void)
 	w = atoi(Cmd_Argv(6));
 	h = atoi(Cmd_Argv(7));
 	tcommand = Cmd_Argv(8);
+	fadedelay = atof(Cmd_Argv(9));
 
 
 	sp = SCR_ShowPic_Find(name);
@@ -1623,6 +1665,7 @@ void SCR_ShowPic_Script_f(void)
 	sp->y = y;
 	sp->w = w;
 	sp->h = h;
+	sp->fadedelay = fadedelay;
 
 	if (!sp->persist)
 		sp->persist = !Cmd_FromGamecode();

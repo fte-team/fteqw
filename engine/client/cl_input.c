@@ -763,13 +763,16 @@ qboolean IN_WeaponWheelIsShown(void)
 		return false;
 	return true;
 }
-qboolean IN_WeaponWheelAccumulate(int pnum, float x, float y) //either mouse or controller
+qboolean IN_WeaponWheelAccumulate(int pnum, float x, float y, float threshhold) //either mouse or controller
 {
 	if (!(in_wwheel.state[pnum]&1) || !weaponinfo_count)
 		return false;
 
-	wwheeldir[pnum][0] += x;
-	wwheeldir[pnum][1] += y;
+	if (x*x+y*y > threshhold*threshhold)	//protects against deadzones.
+	{
+		wwheeldir[pnum][0] += x;
+		wwheeldir[pnum][1] += y;
+	}
 	return true;
 }
 #include "shader.h"

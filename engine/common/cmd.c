@@ -700,6 +700,20 @@ static const char *replacementq1binds =
 //	"bind		F11	+zoom\n"
 	"bind		F12	screenshot\n"
 	;
+static const char *defaulttouchcfg =
+	"showpic_removeall\n"
+//	"sv_aim 0.90\n" //quake style, avoid needing to pitch too much
+	"showpic touch_moveforward.tga	fwd		-128	-112 bm	32	32	+forward	5\n"
+	"showpic touch_moveback.tga		back	-128	-80	bm	32	32	+back		5\n"
+	"showpic touch_moveleft.tga		left	-160	-88	bm	32	32	+moveleft	5\n"
+	"showpic touch_moveright.tga	rght	-96		-88	bm	32	32	+moveright	5\n"
+
+	"showpic touch_attack.tga		fire	-160	-160 bm	32	32	+attack		5\n"
+	"showpic touch_jump.tga			jump	128		-80	bm	32	32	+jump		5\n"
+
+	"showpic touch_weapons.tga		weap	80		-80	bm	32	32	+weaponwheel	5\n"
+	"showpic touch_menu.tga			menu	-32		0	tr	32	32	togglemenu 10\n"
+	;
 #endif
 
 /*
@@ -785,9 +799,9 @@ static void Cmd_Exec_f (void)
 	if (!strncmp(name, "../", 3) || !strncmp(name, "..\\", 3) || !strncmp(name, "./", 2) || !strncmp(name, ".\\", 2))
 	{	//filesystem will correctly block this (and more), but it does look dodgy when servers try doing this dodgy shit anyway.
 		if (Cmd_IsInsecure())
-			Con_TPrintf ("exec: %s is an invalid path (from server)\n", name);
+			Con_TPrintf ("%s: %s is an invalid path (from server)\n", Cmd_Argv(0), name);
 		else
-			Con_TPrintf ("exec: %s is an invalid path\n", name);
+			Con_TPrintf ("%s: %s is an invalid path\n", Cmd_Argv(0), name);
 		return;
 	}
 
@@ -796,7 +810,7 @@ static void Cmd_Exec_f (void)
 		file = FS_OpenReadLocation(name, &loc);
 		if (!file)
 		{
-			Con_TPrintf ("couldn't exec %s. check permissions.\n", name);
+			Con_TPrintf ("couldn't %s %s. check permissions.\n", Cmd_Argv(0), name);
 			return;
 		}
 
@@ -812,6 +826,12 @@ static void Cmd_Exec_f (void)
 	else if (!strcmp(name, "default.cfg"))	//the q1 rerelease lacks a default.cfg (which I suppose is kinda handy, but oh well)
 	{
 		f = Z_StrDup(replacementq1binds);
+		untrusted = false;
+		l = 0;
+	}
+	else if (!strcmp(name, "touch.cfg"))	//auto-execed if they touch a touchscreen.
+	{
+		f = Z_StrDup(defaulttouchcfg);
 		untrusted = false;
 		l = 0;
 	}

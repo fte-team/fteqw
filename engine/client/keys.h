@@ -236,8 +236,6 @@ typedef enum {
 	K_RSHIFT,
 	K_PRINTSCREEN,
 
-	K_TOUCH,
-
 	/* multimedia keyboard */
 	K_MM_BROWSER_BACK,
 	K_MM_BROWSER_FAVORITES,
@@ -250,6 +248,14 @@ typedef enum {
 	K_MM_TRACK_PREV,
 	K_MM_TRACK_STOP,
 	K_MM_TRACK_PLAYPAUSE,
+
+	//touchscreen stuff.
+	K_TOUCH,		//initial touch
+	//will be paired with one of...
+	K_TOUCHSLIDE,	//existing touch became a slide
+	K_TOUCHTAP,		//touched briefly without sliding (treat like a left-click, though fired on final release)
+	K_TOUCHLONG,	//touch lasted a while and without moving (treat like a right-click)
+
 	K_MAX,
 
 	//360 buttons
@@ -337,6 +343,7 @@ qboolean Key_Centerprint(int key, int unicode, unsigned int devid);
 void Key_Unbindall_f (void);	//aka: Key_Shutdown
 void Key_ConsoleReplace(const char *instext);
 void Key_DefaultLinkClicked(console_t *con, char *text, char *info);
+void Key_HandleConsoleLink(console_t *con, char *buffer);
 
 qboolean Key_Console (console_t *con, int key, unsigned int unicode);
 void Key_ConsoleRelease(console_t *con, int key, unsigned int unicode);

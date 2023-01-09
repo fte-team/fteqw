@@ -153,6 +153,15 @@ void Menu_PopAll(void)
 		Menu_Unlink(menus[i], true);
 }
 
+int Menu_WantOSK(void)
+{
+	if (promptmenu)
+		return promptmenu->showosk;
+	if (topmenu)
+		return topmenu->showosk;
+	return -1;
+}
+
 void Menu_Draw(void)
 {
 #ifdef MENU_DAT
@@ -443,7 +452,7 @@ static qboolean Prompt_MenuKeyEvent(struct menu_s *gm, qboolean isdown, unsigned
 	void (*callback)(void *, promptbutton_t) = m->callback;
 	void *ctx = m->ctx;
 
-	if (key == K_MOUSE1 || key == K_TOUCH)
+	if (key == K_MOUSE1 || key == K_TOUCHTAP)
 	{	//mouse events fire their action on release.
 		if (isdown)
 		{
@@ -495,10 +504,10 @@ static qboolean Prompt_MenuKeyEvent(struct menu_s *gm, qboolean isdown, unsigned
 	}
 	else if (key == K_ESCAPE || key == K_GP_BACK || key == K_MOUSE2 || key == K_MOUSE4 || key == K_GP_DIAMOND_CANCEL)
 		action = PROMPT_CANCEL;
-	else if (key == K_ENTER || key == K_KP_ENTER || key == K_MOUSE1 || key == K_TOUCH || key == K_GP_DIAMOND_CONFIRM)
+	else if (key == K_ENTER || key == K_KP_ENTER || key == K_MOUSE1 || key == K_TOUCHTAP || key == K_GP_DIAMOND_CONFIRM)
 	{
 		int button;
-		if (key == K_MOUSE1 || key == K_TOUCH)
+		if (key == K_MOUSE1 || key == K_TOUCHTAP)
 			button = m->mbutton;
 		else
 			button = m->kbutton;
@@ -1048,7 +1057,10 @@ void M_Help_Draw (emenu_t *m)
 			pic = NULL;
 	}
 	if (!pic)
+	{
+		m->postdraw = M_RemoveMenu;
 		M_Menu_Main_f ();
+	}
 	else
 	{
 		//define default aspect ratio

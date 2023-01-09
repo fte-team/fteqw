@@ -234,7 +234,7 @@ qboolean SetupMenuColour (union menuoption_s *option,struct emenu_s *menu, int k
 	//but we give the top free reign.
 	//unless they hold shift, in which case it switches around
 	//this allows for whatever you want
-	if (key == K_ENTER || key == K_KP_ENTER || key == K_GP_DIAMOND_CONFIRM || key == K_RIGHTARROW || key == K_KP_RIGHTARROW || key == K_MOUSE1 || key == K_TOUCH || key == K_GP_DPAD_RIGHT)
+	if (key == K_ENTER || key == K_KP_ENTER || key == K_GP_DIAMOND_CONFIRM || key == K_RIGHTARROW || key == K_KP_RIGHTARROW || key == K_MOUSE1 || key == K_TOUCHTAP || key == K_GP_DPAD_RIGHT)
 	{
 		if ((keydown[K_LSHIFT] || keydown[K_RSHIFT]) ^ (ptr == &info->topcolour))
 		{
@@ -570,7 +570,7 @@ qboolean MultiBeginGame (union menuoption_s *option,struct emenu_s *menu, int ke
 {
 	newmultimenu_t *info = menu->data;
 	char quoted[1024];
-	if (key != K_ENTER && key != K_KP_ENTER && key != K_GP_DIAMOND_CONFIRM && key != K_MOUSE1 && key != K_TOUCH)
+	if (key != K_ENTER && key != K_KP_ENTER && key != K_GP_DIAMOND_CONFIRM && key != K_MOUSE1 && key != K_TOUCHTAP)
 		return false;
 
 	if (cls.state)

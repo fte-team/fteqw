@@ -29,8 +29,9 @@ void IN_Shutdown (void);
 void IN_Commands (void);
 // oportunity for devices to stick commands on the script buffer
 
-qboolean IN_MouseDevIsTouch(unsigned int devid);	//check if a mouse devid is a touch screen, and thus if we should check the cursor and simulate a ui event or not
-int IN_TranslateMButtonPress(unsigned int devid);	//allow the touchscreen code to swallow mouse1 as a begin-looking event
+void IN_Touch_BlockGestures(unsigned int devid);	//prevents any gestures from being generated from the same touch event.
+int IN_Touch_Fallback(unsigned int devid);		//decides whether a tap should be attack/jump according to m_touchstrafe
+qboolean IN_Touch_MouseIsAbs(unsigned int devid);
 
 void IN_Move (float *nudgemovements, float *absmovements, int pnum, float frametime);
 // add additional movement on top of the keyboard move cmd

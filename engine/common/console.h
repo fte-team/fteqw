@@ -119,14 +119,15 @@ enum
 {
 	CB_NONE			= 0,
 	CB_SCROLL		= 1,
-	CB_COPY			= 2,
+	CB_SCROLL_R		= 2,
 	CB_CLOSE		= 3,
 	CB_MOVE			= 4,
 	CB_ACTIONBAR	= 5,
 	CB_SELECT		= 6,
-	CB_SCROLL_R		= 7,
+	CB_SELECTED		= 7,
 
 	//the flags part
+	CB_STALE		= (1u<<28),	//WAS held last frame - to make sure we still do stuff when released on the same frame.
 	CB_SIZELEFT		= (1u<<29),
 	CB_SIZERIGHT	= (1u<<30),
 	CB_SIZEBOTTOM	= (1u<<31),

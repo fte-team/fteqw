@@ -15,8 +15,9 @@ extern qboolean mouse_active;
 static cvar_t m_filter = CVARF("m_filter", "0", CVAR_ARCHIVE);
 static cvar_t m_forcewheel = CVARD("m_forcewheel", "1", "0: ignore mousewheels in apis where it is abiguous.\n1: Use mousewheel when it is treated as a third axis. Motion above a threshold is ignored, to avoid issues with an unknown threshold.\n2: Like 1, but excess motion is retained. The threshold specifies exact z-axis distance per notice.");
 static cvar_t m_forcewheel_threshold = CVARD("m_forcewheel_threshold", "32", "Mousewheel graduations smaller than this will not trigger mousewheel deltas.");
-static cvar_t m_touchstrafe = CVARAFD("m_touchstrafe", "1", "m_strafeonright", CVAR_ARCHIVE, "0: entire screen changes angles only.\n1: right hand side controls strafing.\n2:left hand side strafes.");
-static cvar_t m_fatpressthreshold = CVARFD("m_fatpressthreshold", "0.2", CVAR_ARCHIVE, "How fat your thumb has to be to register a fat press (touchscreens).");
+static cvar_t m_touchstrafe = CVARAFD("m_touchstrafe", "0", "m_strafeonright", CVAR_ARCHIVE, "0: entire screen changes angles only.\n1: right hand side controls strafing.\n2:left hand side strafes.");
+//static cvar_t m_fatpressthreshold = CVARFD("m_fatpressthreshold", "0.2", CVAR_ARCHIVE, "How fat your thumb has to be to register a fat press (touchscreens).");
+static cvar_t m_longpressthreshold = CVARFD("m_longpressthreshold", "1", CVAR_ARCHIVE, "How long to press for it to register as a long press (touchscreens).");
 static cvar_t m_touchmajoraxis = CVARFD("m_touchmajoraxis", "1", CVAR_ARCHIVE, "When using a touchscreen, use only the major axis for strafing.");
 static cvar_t m_slidethreshold = CVARFD("m_slidethreshold", "10", CVAR_ARCHIVE, "How far your finger needs to move to be considered a slide event (touchscreens).");
 
@@ -121,16 +122,27 @@ static cvar_t	joy_movethreshold[3] =
 	CVAR("joyupthreshold", "0.118"),	//30/255	 (trigger)
 };
 
-static cvar_t joy_exponent = CVARD("joyexponent", "3", "Scales joystick/controller sensitivity non-linearly to increase precision in the center.\nA value of 1 is linear.");
+static cvar_t joy_exponent = CVARD("joyexponent", "1", "Scales joystick/controller sensitivity non-linearly to increase precision in the center.\nA value of 1 is linear.");
+
+#if defined(__linux__) && defined(FTE_SDL)
+#include <SDL.h>
 void joy_radialdeadzone_cb(cvar_t *var, char *oldvalue)
 {
 	if (!*var->string)
 	{
-#if defined(__linux__) && defined(FTE_SDL)
-		var->ival = 2;	//sdl2 provides its own deadzones on linux, by default. FIXME: check SDL_GetHint(SDL_HINT_LINUX_JOYSTICK_DEADZONES), default is "1"
-#endif
+		if (SDL_GetHintBoolean(SDL_HINT_LINUX_JOYSTICK_DEADZONES, true))
+			var->ival = 2;	//sdl2 provides its own deadzones on linux, by default.
+		else
+			var->ival = 1;
 	}
 }
+#else
+void joy_radialdeadzone_cb(cvar_t *var, char *oldvalue)
+{
+	if (!*var->string)
+		var->ival = 1;
+}
+#endif
 static cvar_t joy_radialdeadzone = CVARCD("joyradialdeadzone", "", joy_radialdeadzone_cb, "Treat controller dead zones as a pair, rather than per-axis.");
 
 
@@ -207,7 +219,8 @@ static struct mouse_s
 	vec2_t delta;		//how far its moved recently
 	vec2_t old_delta;	//how far its moved previously, for mouse smoothing
 	float wheeldelta;
-	int held;		//button is held (for touch stuff). 1=mouse movements permitted. 2=mouse1 was sent to the game
+	double touchtime;	//0 when not touching, otherwise start time of touch.
+	unsigned int touchkey;	//which other key we generated (so it gets released again.
 	unsigned int updates;	//tracks updates per second
 	qboolean updated;
 } ptr[MAXPOINTERS];
@@ -336,7 +349,7 @@ void IN_Init(void)
 	Cvar_Register (&m_forcewheel, "Input Controls");
 	Cvar_Register (&m_forcewheel_threshold, "Input Controls");
 	Cvar_Register (&m_touchstrafe, "input controls");
-	Cvar_Register (&m_fatpressthreshold, "input controls");
+	Cvar_Register (&m_longpressthreshold, "input controls");
 	Cvar_Register (&m_slidethreshold, "input controls");
 	Cvar_Register (&m_touchmajoraxis, "input controls");
 	Cvar_Register (&m_accel, "input controls");
@@ -367,50 +380,39 @@ void IN_Init(void)
 	INS_Init();
 }
 
-//tells the keys.c code whether the cursor is currently active, causing mouse clicks instead of binds.
-qboolean IN_MouseDevIsTouch(unsigned int devid)
-{
-	if (devid < MAXPOINTERS)
-		return ptr[devid].type == M_TOUCH;
-	return false;
-}
 //there was no ui to click on at least...
-//translates MOUSE1 press events into begin-look-or-strafe events.
-//translates to MOUSE2 accordingly
-//returns 0 if it ate it completely.
-int IN_TranslateMButtonPress(unsigned int devid)
+//translates touch press events into ones that are actually bound, according to touchstrafe and position.
+int IN_Touch_Fallback(unsigned int devid)
 {
 	int ret;
-	if (!ptr[devid].held)
+	if (devid >= countof(ptr))
+		ret = 0;
+	else switch(m_touchstrafe.ival)	//translate touch to mouse2 if its on the strafing side of the screen.
 	{
-		//set the cursor-pressed state, so we begin to look/strafe around
-		ptr[devid].held = 1;
-		ptr[devid].moveddist = 0;
-		ptr[devid].heldpos[0] = ptr[devid].oldpos[0];
-		ptr[devid].heldpos[1] = ptr[devid].oldpos[1];
-		ptr[devid].delta[0] = 0;
-		ptr[devid].delta[1] = 0;
-		ret = 0;	//eat it
+	case 2:
+		ret = ptr[devid].heldpos[0] < vid.pixelwidth/2;
+		break;
+	default:
+		ret = ptr[devid].heldpos[0] > vid.pixelwidth/2;
+		break;
+	case 0:
+		ret = false;
+		break;
 	}
-	else
-	{
-		//translate touch to mouse2 if its on the strafing side of the screen.
-		switch(m_touchstrafe.ival)
-		{
-		case 2:
-			ret = ptr[devid].heldpos[0] < vid.pixelwidth/2;
-			break;
-		default:
-			ret = ptr[devid].heldpos[0] > vid.pixelwidth/2;
-			break;
-		case 0:
-			ret = false;
-			break;
-		}
-		ret = ret?K_MOUSE2:K_MOUSE1;
-	}
+	ret = ret?K_MOUSE2:K_MOUSE1;
 
 	return ret;
+}
+void IN_Touch_BlockGestures(unsigned int devid)
+{	//called via K_TOUCH, blocks K_TOUCHTAP etc gestures
+	if (devid < countof(ptr))
+		ptr[devid].touchkey = 0;	//block it all.
+}
+qboolean IN_Touch_MouseIsAbs(unsigned int devid)
+{	//lets the caller know if a mouse1 down event was abs
+	if (devid < countof(ptr))
+		return ptr[devid].type == M_TOUCH;
+	return false;
 }
 
 /*a 'pointer' is either a multitouch pointer, or a separate device
@@ -428,6 +430,7 @@ void IN_Commands(void)
 		switch(ev->type)
 		{
 		case IEV_KEYRELEASE:
+//Con_Printf("IEV_KEYDOWN %i: %i '%c'\n", ev->devid, ev->keyboard.scancode, ev->keyboard.unicode?ev->keyboard.unicode:' ');
 			if (ev->keyboard.scancode == -1)
 			{
 				int i;
@@ -435,43 +438,48 @@ void IN_Commands(void)
 					Key_Event(ev->devid, i, 0, false);
 				break;
 			}
-		case IEV_KEYDOWN:
-//Con_Printf("IEV_KEY%s %i: %i '%c'\n", (ev->type==IEV_KEYDOWN)?"DOWN   ":"RELEASE", ev->devid, ev->keyboard.scancode, ev->keyboard.unicode?ev->keyboard.unicode:' ');
-			//on touchscreens, mouse1 is used as up/down state. we have to emulate actual mouse clicks based upon distance moved, so we can get movement events.
 			if ((ev->keyboard.scancode == K_MOUSE1||ev->keyboard.scancode==K_TOUCH) && ev->devid < MAXPOINTERS && (ptr[ev->devid].type == M_TOUCH))
-			{
-				if (ev->type == IEV_KEYDOWN)
-				{
-					float fl;
-					touchcursor = ev->devid;
-					fl = ptr[ev->devid].oldpos[0] * vid.width / vid.pixelwidth;
-					mousecursor_x = bound(0, fl, vid.width-1);
-					fl = ptr[ev->devid].oldpos[1] * vid.height / vid.pixelheight;
-					mousecursor_y = bound(0, fl, vid.height-1);
-				}
-				else if (touchcursor == ev->devid)
+			{	//touch (or abs clicks)
+				struct mouse_s *m = &ptr[ev->devid];
+				if (touchcursor == ev->devid)
 					touchcursor = -1;	//revert it to the mouse, or whatever device was 0.
 
-				if (Key_MouseShouldBeFree())
-					ptr[ev->devid].held = 0;
-				else if (ptr[ev->devid].held)
-				{
-					if (ev->type == IEV_KEYDOWN)
-						Key_Event(ev->devid, ev->keyboard.scancode, ev->keyboard.unicode, ev->type == IEV_KEYDOWN); 
+				if (ev->keyboard.scancode==K_TOUCH && m->touchtime && m->touchkey==K_TOUCH)
+				{	//convert to tap/longpress if it wasn't already a gesture. don't ever convert mouse.
+					if (Sys_DoubleTime()-m->touchtime > m_longpressthreshold.value)
+						m->touchkey = K_TOUCHLONG;
 					else
-					{
-						if (ptr[ev->devid].held == 1 && ptr[ev->devid].moveddist < m_slidethreshold.value)
-						{
-							ptr[ev->devid].held = 2;	//so we don't just flag it as held again
-							Key_Event(ev->devid, ev->keyboard.scancode, 0, true);
-						}
-						Key_Event(ev->devid, ev->keyboard.scancode, 0, false);
-						ptr[ev->devid].held = 0;
-					}
-					break;
+						m->touchkey = K_TOUCHTAP;
+					Key_Event(ev->devid, m->touchkey, 0, true);
 				}
+				if (m->touchkey && m->touchkey!=ev->keyboard.scancode)
+					Key_Event(ev->devid, m->touchkey, 0, false);	//and release...
+
+				//reset it.
+				m->touchkey = 0;
+				m->touchtime = 0;
+				m->moveddist = 0;
 			}
-			Key_Event(ev->devid, ev->keyboard.scancode, ev->keyboard.unicode, ev->type == IEV_KEYDOWN); 
+			Key_Event(ev->devid, ev->keyboard.scancode, ev->keyboard.unicode, false);
+			break;
+		case IEV_KEYDOWN:
+//Con_Printf("IEV_KEYDOWN %i: %i '%c'\n", ev->devid, ev->keyboard.scancode, ev->keyboard.unicode?ev->keyboard.unicode:' ');
+			if ((ev->keyboard.scancode == K_MOUSE1||ev->keyboard.scancode==K_TOUCH) && ev->devid < MAXPOINTERS && (ptr[ev->devid].type == M_TOUCH))
+			{	//touch (or abs clicks)
+				struct mouse_s *m = &ptr[ev->devid];
+				float fl;
+				touchcursor = ev->devid;
+				fl = m->oldpos[0] * vid.width / vid.pixelwidth;		mousecursor_x = bound(0, fl, vid.width-1);
+				fl = m->oldpos[1] * vid.height / vid.pixelheight;	mousecursor_y = bound(0, fl, vid.height-1);
+
+				m->touchtime = Sys_DoubleTime();
+				m->moveddist = 0;
+				if (ev->keyboard.scancode==K_TOUCH)
+					m->touchkey = K_TOUCH;
+				else
+					m->touchkey = 0;
+			}
+			Key_Event(ev->devid, ev->keyboard.scancode, ev->keyboard.unicode, true);
 			break;
 		case IEV_JOYAXIS:
 			if (ev->devid < MAXJOYSTICKS && ev->joy.axis < MAXJOYAXIS)
@@ -541,44 +549,45 @@ void IN_Commands(void)
 
 			if (ev->devid < MAXPOINTERS)
 			{
-				if (ptr[ev->devid].type != M_TOUCH)
+				struct mouse_s *m = &ptr[ev->devid];
+				if (m->type != M_TOUCH)
 				{
 					//if its now become an absolute device, clear stuff so we don't get confused.
-					ptr[ev->devid].type = M_TOUCH;
-					ptr[ev->devid].held = 0;
-					ptr[ev->devid].moveddist = 0;
-					ptr[ev->devid].oldpos[0] = ev->mouse.x;
-					ptr[ev->devid].oldpos[1] = ev->mouse.y;
+					m->type = M_TOUCH;
+					m->touchtime = 0;
+					m->touchkey = 0;
+					m->moveddist = 0;
+					m->oldpos[0] = ev->mouse.x;
+					m->oldpos[1] = ev->mouse.y;
 				}
 
-				if (ptr[ev->devid].held)
-				{
-					ptr[ev->devid].delta[0] += ev->mouse.x - ptr[ev->devid].oldpos[0];
-					ptr[ev->devid].delta[1] += ev->mouse.y - ptr[ev->devid].oldpos[1];
+				if (m->touchtime)
+				{	//only do this when its actually held in some form...
+					m->delta[0] += ev->mouse.x - m->oldpos[0];
+					m->delta[1] += ev->mouse.y - m->oldpos[1];
 		
-					ptr[ev->devid].moveddist += fabs(ev->mouse.x - ptr[ev->devid].oldpos[0]) + fabs(ev->mouse.y - ptr[ev->devid].oldpos[1]);
+					m->moveddist += fabs(ev->mouse.x - m->oldpos[0]) + fabs(ev->mouse.y - m->oldpos[1]);
 				}
 
-				if (ev->mouse.x != ptr[ev->devid].oldpos[0] ||
-					ev->mouse.y != ptr[ev->devid].oldpos[1])
+				if (ev->mouse.x != m->oldpos[0] ||
+					ev->mouse.y != m->oldpos[1])
 				{
-					ptr[ev->devid].updates++;
-					ptr[ev->devid].updated = true;
+					m->updates++;
+					m->updated = true;
 				}
 
-				ptr[ev->devid].oldpos[0] = ev->mouse.x;
-				ptr[ev->devid].oldpos[1] = ev->mouse.y;
+				m->oldpos[0] = ev->mouse.x;
+				m->oldpos[1] = ev->mouse.y;
 
-
-				if (ptr[ev->devid].held > 1 && ev->mouse.tsize < m_fatpressthreshold.value)
+				if (m->touchtime && m->touchkey == K_TOUCH)
 				{
-					ptr[ev->devid].held = 1;
-					Key_Event(ev->devid, K_MOUSE1, 0, false);
-				}
-				if (ptr[ev->devid].held == 1 && ev->mouse.tsize > m_fatpressthreshold.value)
-				{
-					ptr[ev->devid].held = 2;
-					Key_Event(ev->devid, K_MOUSE1, 0, true);
+					if (Sys_DoubleTime()-m->touchtime > 1)
+						m->touchkey = K_TOUCHLONG;	//held for long enough...
+					else if (m->moveddist >= m_slidethreshold.value)
+						m->touchkey = K_TOUCHSLIDE;	//moved far enough to consitute a slide
+					else
+						break;
+					Key_Event(ev->devid, m->touchkey, 0, true);
 				}
 			}
 			break;
@@ -672,6 +681,17 @@ void IN_MoveMouse(struct mouse_s *mouse, float *movements, int pnum, float frame
 	if (mouse->type == M_TOUCH)
 	{
 		qboolean strafing = false;
+
+		if (mouse->touchtime && mouse->touchkey==K_TOUCH)
+		{	//convert to tap/longpress if it wasn't already a gesture. don't ever convert mouse.
+			if (Sys_DoubleTime()-mouse->touchtime > m_longpressthreshold.value)
+			{	//might as well trigger this here...
+				mouse->touchkey = K_TOUCHLONG;
+				Key_Event(mouse-ptr, mouse->touchkey, 0, true);
+			}
+		}
+
+
 		switch(m_touchstrafe.ival)
 		{
 		case 2:
@@ -681,13 +701,13 @@ void IN_MoveMouse(struct mouse_s *mouse, float *movements, int pnum, float frame
 			strafing = mouse->heldpos[0] > vid.pixelwidth/2;
 			break;
 		case 0:
-			strafing = true;
+			strafing = false;
 			break;
 		}
 		if (strafing && movements != NULL && !Key_Dest_Has(~kdm_game))
 		{
 			//if they're strafing, calculate the speed to move at based upon their displacement
-			if (mouse->held)
+			if (mouse->touchtime)
 			{
 				if (m_touchstrafe.ival == 2)	//left side
 					mx = mouse->oldpos[0] - (vid.pixelwidth*1)/4.0;
@@ -724,6 +744,9 @@ void IN_MoveMouse(struct mouse_s *mouse, float *movements, int pnum, float frame
 			//boost sensitivity so that the default works okay.
 			mx *= 1.75;
 			my *= 1.75;
+
+			if (IN_WeaponWheelAccumulate(pnum, mx, my, 0))
+					mx = my = 0;
 		}
 	}
 	else
@@ -778,7 +801,7 @@ void IN_MoveMouse(struct mouse_s *mouse, float *movements, int pnum, float frame
 		//if game is not focused, kill any mouse look
 		if (
 #ifdef QUAKESTATS
-			IN_WeaponWheelAccumulate(pnum, mx, my) ||
+			IN_WeaponWheelAccumulate(pnum, mx, my, 0) ||
 #endif
 			Key_Dest_Has(~kdm_game))
 		{
@@ -879,12 +902,17 @@ void IN_MoveMouse(struct mouse_s *mouse, float *movements, int pnum, float frame
 //rescales threshold-1 down 0-1
 static float joydeadzone(float mag, float deadzone)
 {
+	if (joy_radialdeadzone.ival == 2)	//hacky overload to disable dead zones where the system provides it instead.
+		deadzone = 0;
+
 	if (mag > 1)	//erg?
 		mag = 1;
 	if (mag > deadzone)
 	{
 		mag -= deadzone;
 		mag = mag / (1.f-deadzone);
+
+		mag = pow(mag, joy_exponent.value);
 	}
 	else
 		mag = 0;
@@ -949,48 +977,50 @@ void IN_MoveJoystick(struct joy_s *joy, float *movements, int pnum, float framet
 		}
 	}
 
-	if (IN_WeaponWheelAccumulate(joy->qdeviceid, jstrafe[1]*50, -jstrafe[0]*50))
-		jstrafe[0] = jstrafe[1] = 0;
-
-	if (joy_radialdeadzone.ival == 2)
-	{	//steam or SDL or something is doing deadzone and exponent stuff already. just use identity so we don't get double deadzones.
-	}
-	else if (joy_radialdeadzone.ival)
+	if (joy_radialdeadzone.ival)
 	{
 		//uses a radial deadzone for x+y axis, and separate out the z axis, just because most controllers are 2d affairs with any 3rd axis being a separate knob.
 		//deadzone values are stolen from microsoft's xinput documentation. they seem quite large to me - I guess that means that xbox controllers are just dodgy imprecise crap with excessive amounts of friction and finger grease.
-
-		mag = joydeadzone(sqrt(jlook[0]*jlook[0] + jlook[1]*jlook[1]), sqrt(joy_anglethreshold[0].value*joy_anglethreshold[0].value + joy_anglethreshold[1].value*joy_anglethreshold[1].value));
-		mag = pow(mag, joy_exponent.value);
-		jlook[0] *= mag;
-		jlook[1] *= mag;
-
+		float basemag = sqrt(jlook[0]*jlook[0] + jlook[1]*jlook[1]);
+		if (basemag)
+		{
+			mag = joydeadzone(basemag, sqrt(joy_anglethreshold[0].value*joy_anglethreshold[0].value + joy_anglethreshold[1].value*joy_anglethreshold[1].value));
+			jlook[0] = (jlook[0]/basemag) * mag;
+			jlook[1] = (jlook[1]/basemag) * mag;
+		}
+		else
+			jlook[0] = jlook[1] = 0;
 		mag = joydeadzone(fabs(jlook[2]), joy_anglethreshold[2].value);
-		mag = pow(mag, joy_exponent.value);
-		jlook[2] *= mag;
+		jlook[2] = mag;
 
-		mag = joydeadzone(sqrt(jstrafe[0]*jstrafe[0] + jstrafe[1]*jstrafe[1]), sqrt(joy_movethreshold[0].value*joy_movethreshold[0].value + joy_movethreshold[1].value*joy_movethreshold[1].value));
-		mag = pow(mag, joy_exponent.value);
-		jstrafe[0] *= mag;
-		jstrafe[1] *= mag;
-
+		basemag = sqrt(jstrafe[0]*jstrafe[0] + jstrafe[1]*jstrafe[1]);
+		if (basemag)
+		{
+			mag = joydeadzone(basemag, sqrt(joy_movethreshold[0].value*joy_movethreshold[0].value + joy_movethreshold[1].value*joy_movethreshold[1].value));
+			jstrafe[0] = (jstrafe[0]/basemag) * mag;
+			jstrafe[1] = (jstrafe[1]/basemag) * mag;
+		}
+		else
+			jstrafe[0] = jstrafe[1] = 0;
 		mag = joydeadzone(fabs(jstrafe[2]), joy_movethreshold[2].value);
-		mag = pow(mag, joy_exponent.value);
-		jstrafe[2] *= mag;
+		jstrafe[2] = mag;
 	}
 	else
 	{
 		for (i = 0; i < 3; i++)
 		{
 			mag = joydeadzone(fabs(jlook[i]), joy_anglethreshold[i].value);
-			mag = pow(mag, joy_exponent.value);
-			jlook[i] *= mag;
+			jlook[i] = ((jlook[i]<0)?-1:1)*mag;
 
 			mag = joydeadzone(fabs(jstrafe[i]), joy_movethreshold[i].value);
-			mag = pow(mag, joy_exponent.value);
-			jstrafe[i] *= mag;
+			jstrafe[i] = ((jstrafe[i]<0)?-1:1)*mag;
 		}
 	}
+
+	if (IN_WeaponWheelAccumulate(joy->qdeviceid, jstrafe[1]*50, -jstrafe[0]*50, 20))
+		jstrafe[0] = jstrafe[1] = 0;
+	if (IN_WeaponWheelAccumulate(joy->qdeviceid, jlook[1]*50, jlook[0]*50, 20))
+		jlook[0] = jlook[1] = 0;
 
 	if (Key_Dest_Has(~kdm_game))
 	{

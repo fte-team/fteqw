@@ -1216,7 +1216,7 @@ void CL_UpdateWindowTitle(void);
 
 #ifdef QUAKESTATS
 const char *IN_GetPreselectedViewmodelName(unsigned int pnum);
-qboolean IN_WeaponWheelAccumulate(int pnum, float x, float y);
+qboolean IN_WeaponWheelAccumulate(int pnum, float x, float y, float threshhold);
 qboolean IN_DrawWeaponWheel(int pnum);
 qboolean IN_WeaponWheelIsShown(void);	//to decide when the game should be auto-paused.
 #endif

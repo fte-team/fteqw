@@ -969,7 +969,8 @@ int QDECL main(int argc, char **argv)
 
 	TL_InitLanguages(parms.basedir);
 
-	Sys_Printf ("Host_Init\n");
+	if (parms.binarydir)
+		Sys_Printf("Binary is located at \"%s\"\n", parms.binarydir);
 	Host_Init (&parms);
 
 	oldtime = Sys_DoubleTime ();
@@ -1071,11 +1072,24 @@ qboolean Sys_GetDesktopParameters(int *width, int *height, int *bpp, int *refres
 #include <SDL_clipboard.h>
 void Sys_Clipboard_PasteText(clipboardtype_t cbt, void (*callback)(void *cb, const char *utf8), void *ctx)
 {
-	callback(ctx, SDL_GetClipboardText());
+	char *txt;
+#if SDL_VERSION_ATLEAST(2,26,0)
+	if (cbt == CBT_SELECTION)
+		txt = SDL_GetPrimarySelectionText();
+	else
+#endif
+		txt = SDL_GetClipboardText();
+	callback(ctx, txt);
+	SDL_free(txt);
 }
 void Sys_SaveClipboard(clipboardtype_t cbt, const char *text)
 {
-	SDL_SetClipboardText(text);
+#if SDL_VERSION_ATLEAST(2,26,0)
+	if (cbt == CBT_SELECTION)
+		SDL_SetPrimarySelectionText(text);
+	else
+#endif
+		SDL_SetClipboardText(text);
 }
 #else
 static char *clipboard_buffer;

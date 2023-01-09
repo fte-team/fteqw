@@ -19,7 +19,7 @@ extern qboolean vid_isfullscreen;
 
 #if SDL_MAJOR_VERSION > 1 || (SDL_MAJOR_VERSION == 1 && SDL_MINOR_VERSION >= 3)
 #define HAVE_SDL_TEXTINPUT
-cvar_t sys_osk = CVARD("sys_osk", "1", "Enables support for text input. This will be ignored when the console has focus, but gamecode may end up with composition boxes appearing.");
+cvar_t sys_osk = CVARD("sys_osk", "0", "Enables support for text input. This will be ignored when the console has focus, but gamecode may end up with composition boxes appearing.");
 #endif
 
 void IN_ActivateMouse(void)
@@ -1053,21 +1053,64 @@ static unsigned int tbl_sdltoquakemouse[] =
 	K_MOUSE10
 };
 
+#ifdef HAVE_SDL_TEXTINPUT
+#ifdef __linux__
+#include <SDL_misc.h>
+static qboolean usesteamosk;
+#endif
+#endif
 void Sys_SendKeyEvents(void)
 {
 	SDL_Event event;
+	int axis, j;
 
 #ifdef HAVE_SDL_TEXTINPUT
-	SDL_bool active = SDL_IsTextInputActive();
-	if (Key_Dest_Has(kdm_console|kdm_message) || (!Key_Dest_Has(~kdm_game) && cls.state == ca_disconnected) || sys_osk.ival)
+	static SDL_bool active = false;
+	SDL_bool osk = Key_Dest_Has(kdm_console|kdm_cwindows|kdm_message);
+	if (Key_Dest_Has(kdm_prompt|kdm_menu))
 	{
+		j = Menu_WantOSK();
+		if (j < 0)
+			osk |= sys_osk.ival;
+		else
+			osk |= j;
+	}
+	else if (Key_Dest_Has(kdm_game))
+		osk |= sys_osk.ival;
+	if (osk)
+	{
+		SDL_Rect rect;
+		rect.x = 0;
+		rect.y = vid.rotpixelheight/2;
+		rect.w = vid.rotpixelwidth;
+		rect.h = vid.rotpixelheight - rect.y;
+		SDL_SetTextInputRect(&rect);
+
 		if (!active)
-			SDL_StartTextInput();
+		{
+#ifdef __linux__
+			if (usesteamosk)
+				SDL_OpenURL("steam://open/keyboard?Mode=1");
+			else
+#endif
+				SDL_StartTextInput();
+			active = true;
+//			Con_Printf("OSK shown...\n");
+		}
 	}
 	else
 	{
 		if (active)
-			SDL_StopTextInput();
+		{
+#ifdef __linux__
+			if (usesteamosk)
+				SDL_OpenURL("steam://close/keyboard?Mode=1");
+			else
+#endif
+				SDL_StopTextInput();
+			active = false;
+//			Con_Printf("OSK shown... killed\n");
+		}
 	}
 #endif
 
@@ -1410,6 +1453,12 @@ void INS_Init (void)
 {
 #ifdef HAVE_SDL_TEXTINPUT
 	Cvar_Register(&sys_osk, "input controls");
+#endif
+
+#ifdef HAVE_SDL_TEXTINPUT
+#ifdef __linux__
+	usesteamosk = SDL_GetHintBoolean("SteamDeck", false);	//looks like there's a 'SteamDeck=1' environment setting on the deck (when started via steam itself, at least), so we don't get valve's buggy-as-poop osk on windows etc.
+#endif
 #endif
 }
 void INS_Accumulate(void)	//input polling

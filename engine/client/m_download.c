@@ -5685,7 +5685,7 @@ static void MD_Source_Draw (int x, int y, struct menucustom_s *c, struct emenu_s
 }
 static qboolean MD_Source_Key (struct menucustom_s *c, struct emenu_s *m, int key, unsigned int unicode)
 {
-	if (key == K_ENTER || key == K_KP_ENTER || key == K_GP_DIAMOND_CONFIRM || key == K_MOUSE1 || key == K_TOUCH)
+	if (key == K_ENTER || key == K_KP_ENTER || key == K_GP_DIAMOND_CONFIRM || key == K_MOUSE1 || key == K_TOUCHTAP)
 	{
 		if (pm_source[c->dint].flags & SRCFL_DISABLED)
 		{
@@ -5744,7 +5744,7 @@ static void MD_AutoUpdate_Draw (int x, int y, struct menucustom_s *c, struct eme
 }
 static qboolean MD_AutoUpdate_Key (struct menucustom_s *c, struct emenu_s *m, int key, unsigned int unicode)
 {
-	if (key == K_ENTER || key == K_KP_ENTER || key == K_GP_DIAMOND_CONFIRM || key == K_MOUSE1 || key == K_TOUCH)
+	if (key == K_ENTER || key == K_KP_ENTER || key == K_GP_DIAMOND_CONFIRM || key == K_MOUSE1 || key == K_TOUCHTAP)
 	{
 		char nv[8] = "0";
 		if (pkg_autoupdate.ival < UPD_TESTING && pkg_autoupdate.ival >= 0)
@@ -5759,7 +5759,7 @@ static qboolean MD_AutoUpdate_Key (struct menucustom_s *c, struct emenu_s *m, in
 
 static qboolean MD_MarkUpdatesButton (union menuoption_s *mo,struct emenu_s *m,int key)
 {
-	if (key == K_ENTER || key == K_KP_ENTER || key == K_GP_DIAMOND_CONFIRM || key == K_MOUSE1 || key == K_TOUCH)
+	if (key == K_ENTER || key == K_KP_ENTER || key == K_GP_DIAMOND_CONFIRM || key == K_MOUSE1 || key == K_TOUCHTAP)
 	{
 		PM_MarkUpdates();
 		return true;
@@ -5770,7 +5770,7 @@ static qboolean MD_MarkUpdatesButton (union menuoption_s *mo,struct emenu_s *m,i
 
 qboolean MD_PopMenu (union menuoption_s *mo,struct emenu_s *m,int key)
 {
-	if (key == K_ENTER || key == K_KP_ENTER || key == K_GP_DIAMOND_CONFIRM || key == K_MOUSE1 || key == K_TOUCH)
+	if (key == K_ENTER || key == K_KP_ENTER || key == K_GP_DIAMOND_CONFIRM || key == K_MOUSE1 || key == K_TOUCHTAP)
 	{
 		M_RemoveMenu(m);
 		return true;
@@ -5780,7 +5780,7 @@ qboolean MD_PopMenu (union menuoption_s *mo,struct emenu_s *m,int key)
 
 static qboolean MD_ApplyDownloads (union menuoption_s *mo,struct emenu_s *m,int key)
 {
-	if (key == K_ENTER || key == K_KP_ENTER || key == K_GP_DIAMOND_CONFIRM || key == K_MOUSE1 || key == K_TOUCH)
+	if (key == K_ENTER || key == K_KP_ENTER || key == K_GP_DIAMOND_CONFIRM || key == K_MOUSE1 || key == K_TOUCHTAP)
 	{
 		PM_PromptApplyChanges();
 		return true;
@@ -5790,7 +5790,7 @@ static qboolean MD_ApplyDownloads (union menuoption_s *mo,struct emenu_s *m,int 
 
 static qboolean MD_RevertUpdates (union menuoption_s *mo,struct emenu_s *m,int key)
 {
-	if (key == K_ENTER || key == K_KP_ENTER || key == K_GP_DIAMOND_CONFIRM || key == K_MOUSE1 || key == K_TOUCH)
+	if (key == K_ENTER || key == K_KP_ENTER || key == K_GP_DIAMOND_CONFIRM || key == K_MOUSE1 || key == K_TOUCHTAP)
 	{
 		PM_RevertChanges();
 		return true;

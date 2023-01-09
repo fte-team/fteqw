@@ -739,7 +739,7 @@ static qboolean M_DemoKey(menucustom_t *control, emenu_t *menu, int key, unsigne
 				info->selected = info->selected->next;
 		}
 		break;
-	case K_TOUCH:
+	case K_TOUCHTAP:
 	case K_MOUSE1:
 		if (info->dragscroll == 2)
 		{

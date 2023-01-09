@@ -111,10 +111,12 @@ typedef struct menu_s {
 	qboolean lowpriority;	//appears underneath other menus.
 	qboolean isopaque;	//guarentees an opaque background
 	qboolean persist;	//try really hard to not kill this.
+	qboolean showosk;
 } menu_t;
 extern menu_t *topmenu;		//the currently visible menu.
 extern menu_t *promptmenu;	//the currently visible prompt (separate from menus, so they always appear over the top of consoles too, they also always show the menu underneath)
 void Menu_KeyEvent(qboolean down, int qdeviceid, int key, int unicode);
+int Menu_WantOSK(void);
 void Menu_Draw(void);
 void Prompts_Draw(void);
 void Menu_PopAll(void); //attempts to pop all menus (this is for map starts, some might linger)

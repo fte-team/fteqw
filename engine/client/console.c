@@ -3294,7 +3294,7 @@ void Con_DrawConsole (int lines, qboolean noback)
 		}
 		selactive = Key_GetConsoleSelectionBox(con_current, &selsx, &selsy, &selex, &seley);
 
-		if ((con_current->flags & CONF_KEEPSELECTION) && con_current->selstartline && con_current->selendline)
+		if ((con_current->flags & CONF_KEEPSELECTION) && con_current->selstartline && con_current->selendline && con_current->buttonsdown != CB_SELECTED)
 			selactive = -1;
 
 		Font_BeginString(font_console, x, y, &x, &y);
@@ -3327,6 +3327,54 @@ void Con_DrawConsole (int lines, qboolean noback)
 
 		Font_EndString(font_console);
 		mouseconsole = con_mouseover?con_mouseover:con_current;
+
+
+		if (con_current->buttonsdown == CB_SELECTED)
+		{	//select was released...
+			console_t *con = con_current;
+			char *buffer;
+			con->buttonsdown = CB_NONE;
+			if (con->selstartline)
+			{
+				con->flags |= CONF_KEEPSELECTION;
+				if (con->userline)
+				{
+					if (con->flags & CONF_BACKSELECTION)
+					{
+						con->userline = con->selendline;
+						con->useroffset = con->selendoffset;
+					}
+					else
+					{
+						con->userline = con->selstartline;
+						con->useroffset = con->selstartoffset;
+					}
+				}
+				if (con->selstartline == con->selendline && con->selendoffset <= con->selstartoffset+1)
+				{
+					if (keydown[K_LSHIFT] || keydown[K_RSHIFT])
+						;
+					else
+					{
+						buffer = Con_CopyConsole(con, false, true, false);
+						if (buffer)
+						{
+							Key_HandleConsoleLink(con, buffer);
+							Z_Free(buffer);
+						}
+					}
+				}
+				else
+				{
+					buffer = Con_CopyConsole(con, true, false, true);	//don't keep markup if we're copying to the clipboard
+					if (buffer)
+					{
+						Sys_SaveClipboard(CBT_SELECTION,  buffer);
+						Z_Free(buffer);
+					}
+				}
+			}
+		}
 	}
 	else
 		mouseconsole = con_mouseover?con_mouseover:NULL;

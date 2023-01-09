@@ -82,7 +82,7 @@ void SCR_ShowPic_Hide(void);
 void SCR_ShowPic_Move(void);
 void SCR_ShowPic_Update(void);
 void SCR_ShowPic_ClearAll(qboolean persistflag);
-char *SCR_ShowPics_ClickCommand(int cx, int cy);
+const char *SCR_ShowPics_ClickCommand(float cx, float cy, qboolean loadtouch);
 void SCR_ShowPic_Script_f(void);
 void SCR_ShowPic_Remove_f(void);
 

@@ -327,6 +327,8 @@ typedef struct {
 	float			time_off;
 	int				erase_lines;
 	int				erase_center;
+
+	int				oldmousex, oldmousey;	//so the cursorchar can be changed by keyboard without constantly getting stomped on.
 } cprint_t;
 
 cprint_t scr_centerprint[MAX_SPLITS];
@@ -682,7 +684,7 @@ int SCR_DrawCenterString (vrect_t *playerrect, cprint_t *p, struct font_s *font)
 	int				remaining;
 	shader_t		*pic;
 	int				ch;
-	int mousex,mousey;
+	int mousex,mousey, mousemoved;
 
 	conchar_t *line_start[MAX_CPRINT_LINES];
 	conchar_t *line_end[MAX_CPRINT_LINES];
@@ -741,6 +743,10 @@ int SCR_DrawCenterString (vrect_t *playerrect, cprint_t *p, struct font_s *font)
 	Font_BeginString(font, rect.x+rect.width, rect.y+rect.height, &right, &bottom);
 	linecount = Font_LineBreaks(p->string, p->string + p->charcount, (p->flags & CPRINT_NOWRAP)?0x7fffffff:(right - left), MAX_CPRINT_LINES, line_start, line_end);
 
+	mousemoved = mousex != p->oldmousex || mousey != p->oldmousey;
+	p->oldmousex = mousex;
+	p->oldmousey = mousey;
+
 	ch = Font_CharHeight();
 
 	if (p->flags & CPRINT_TALIGN)
@@ -791,9 +797,27 @@ int SCR_DrawCenterString (vrect_t *playerrect, cprint_t *p, struct font_s *font)
 		else
 			x = left + (right - left - Font_LineWidth(line_start[l], line_end[l]))/2;
 
-		if (mousey >= y && mousey < y+ch)
+		if (mousemoved && mousey >= y && mousey < y+ch)
 		{
-			p->cursorchar = Font_CharAt(mousex - x, line_start[l], line_end[l]);
+			conchar_t *linkstart;
+			linkstart = Font_CharAt(mousex - x, line_start[l], line_end[l]);
+
+			//scan backwards to find any link enclosure
+			if (linkstart)
+				for(linkstart = linkstart-1; linkstart >= line_start[l]; linkstart--)
+				{
+					if (*linkstart == CON_LINKSTART)
+					{
+						//found one
+						p->cursorchar = linkstart;
+						break;
+					}
+					if (*linkstart == CON_LINKEND)
+					{
+						//some other link ended here. don't use its start.
+						break;
+					}
+				}
 		}
 
 		remaining -= line_end[l]-line_start[l];
@@ -803,6 +827,25 @@ int SCR_DrawCenterString (vrect_t *playerrect, cprint_t *p, struct font_s *font)
 			if (line_end[l] <= line_start[l])
 				break;
 		}
+
+		if (p->cursorchar && p->cursorchar >= line_start[l] && p->cursorchar < line_end[l] && *p->cursorchar == CON_LINKSTART)
+		{
+			conchar_t *linkend;
+			int s, e;
+			for (linkend = p->cursorchar; linkend < line_end[l]; linkend++)
+				if (*linkend == CON_LINKEND)
+					break;
+
+			s = x+Font_LineWidth(line_start[l], p->cursorchar);
+			e = x+Font_LineWidth(line_start[l], linkend);
+
+			//draw a 2-pixel underscore (behind the text).
+			R2D_ImageColours(SRGBA(0.3,0.3,0.3, 1));	//mouseover.
+			R2D_FillBlock((s*vid.width)/(float)vid.rotpixelwidth, ((y+Font_CharHeight()-2)*vid.height)/(float)vid.rotpixelheight, ((e - s)*vid.width)/(float)vid.rotpixelwidth, (2*vid.height)/(float)vid.rotpixelheight);
+			R2D_Flush();
+			R2D_ImageColours(SRGBA(1, 1, 1, 1));
+		}
+
 		Font_LineDraw(x, y, line_start[l], line_end[l]);
 	}
 
@@ -811,11 +854,59 @@ int SCR_DrawCenterString (vrect_t *playerrect, cprint_t *p, struct font_s *font)
 	return linecount;
 }
 
+static void Key_CenterPrintActivate(int pnum)
+{
+	char *link;
+	cprint_t *p = &scr_centerprint[pnum];
+	link = SCR_CopyCenterPrint(p);
+	if (link)
+	{
+
+		if (link[0] == '^' && link[1] == '[')
+		{
+			//looks like it might be a link!
+			char *end = NULL;
+			char *info;
+			for (info = link + 2; *info; )
+			{
+				if (info[0] == '^' && info[1] == ']')
+					break; //end of tag, with no actual info, apparently
+				if (*info == '\\')
+					break;
+				else if (info[0] == '^' && info[1] == '^')
+					info+=2;
+				else
+					info++;
+			}
+			for(end = info; *end; )
+			{
+				if (end[0] == '^' && end[1] == ']')
+				{
+					//okay, its a valid link that they clicked
+					*end = 0;
+
+#ifdef PLUGINS
+					if (!Plug_ConsoleLink(link+2, info, ""))
+#endif
+#ifdef CSQC_DAT
+					if (!CSQC_ConsoleLink(link+2, info))
+#endif
+						Key_DefaultLinkClicked(NULL, link+2, info);
+
+					break;
+				}
+				if (end[0] == '^' && end[1] == '^')
+					end+=2;
+				else
+					end++;
+			}
+		}
+	}
+}
 qboolean Key_Centerprint(int key, int unicode, unsigned int devid)
 {
 	int pnum;
 	cprint_t *p;
-	char *link;
 
 	if (key == K_MOUSE1)
 	{
@@ -824,52 +915,7 @@ qboolean Key_Centerprint(int key, int unicode, unsigned int devid)
 		{
 			p = &scr_centerprint[pnum];
 			if (cl.playerview[pnum].gamerectknown == cls.framecount)
-			{
-				link = SCR_CopyCenterPrint(p);
-				if (link)
-				{
-
-					if (link[0] == '^' && link[1] == '[')
-					{
-						//looks like it might be a link!
-						char *end = NULL;
-						char *info;
-						for (info = link + 2; *info; )
-						{
-							if (info[0] == '^' && info[1] == ']')
-								break; //end of tag, with no actual info, apparently
-							if (*info == '\\')
-								break;
-							else if (info[0] == '^' && info[1] == '^')
-								info+=2;
-							else
-								info++;
-						}
-						for(end = info; *end; )
-						{
-							if (end[0] == '^' && end[1] == ']')
-							{
-								//okay, its a valid link that they clicked
-								*end = 0;
-
-#ifdef PLUGINS
-								if (!Plug_ConsoleLink(link+2, info, ""))
-#endif
-#ifdef CSQC_DAT
-								if (!CSQC_ConsoleLink(link+2, info))
-#endif
-									Key_DefaultLinkClicked(NULL, link+2, info);
-
-								break;
-							}
-							if (end[0] == '^' && end[1] == '^')
-								end+=2;
-							else
-								end++;
-						}
-					}
-				}
-			}
+				Key_CenterPrintActivate(pnum);
 		}
 		return true;	//handled
 	}
@@ -882,6 +928,52 @@ qboolean Key_Centerprint(int key, int unicode, unsigned int devid)
 		}
 		return true;
 	}
+	else if ((key == K_ENTER ||
+			  key == K_KP_ENTER ||
+			  key == K_GP_DIAMOND_RIGHT) && devid < countof(scr_centerprint))
+	{
+		p = &scr_centerprint[devid];
+		if (p->cursorchar)
+			Key_CenterPrintActivate(devid);
+		return true;
+	}
+	else if ((key == K_UPARROW ||
+			  key == K_LEFTARROW ||
+			  key == K_KP_UPARROW ||
+			  key == K_KP_LEFTARROW ||
+			  key == K_GP_DPAD_UP ||
+			  key == K_GP_DPAD_LEFT) && devid < countof(scr_centerprint))
+	{
+		p = &scr_centerprint[devid];
+		if (!p->cursorchar)
+			p->cursorchar = p->string + p->charcount;
+		while (--p->cursorchar >= p->string)
+		{
+			if (*p->cursorchar == CON_LINKSTART)
+				return true;	//found one
+		}
+		p->cursorchar = NULL;
+		return true;
+	}
+	else if ((key == K_DOWNARROW ||
+			  key == K_RIGHTARROW ||
+			  key == K_KP_DOWNARROW ||
+			  key == K_KP_RIGHTARROW ||
+			  key == K_GP_DPAD_DOWN ||
+			  key == K_GP_DPAD_RIGHT) && devid < countof(scr_centerprint))
+	{
+		p = &scr_centerprint[devid];
+		if (!p->cursorchar)
+			p->cursorchar = p->string-1;
+		while (++p->cursorchar < p->string + p->charcount)
+		{
+			if (*p->cursorchar == CON_LINKSTART)
+				return true;	//found one
+		}
+		p->cursorchar = NULL;	//hit the end
+		return true;
+	}
+
 	return false;
 }
 
@@ -895,7 +987,6 @@ void SCR_CheckDrawCenterString (void)
 	for (pnum = 0; pnum < cl.splitclients; pnum++)
 	{
 		p = &scr_centerprint[pnum];
-		p->cursorchar = NULL;
 
 #ifdef QUAKESTATS
 		if (IN_DrawWeaponWheel(pnum))

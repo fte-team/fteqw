@@ -4136,11 +4136,11 @@ static void CLQEX_ParsePrompt(void)
 		SCR_CenterPrint(0, NULL, true);
 		return;
 	}
-
+	*message = 0;
 	s = MSG_ReadString();
 	Q_strncatz(message+ofs, "/S/C/.", sizeof(message)-ofs);
 	ofs += strlen(message+ofs);
-	TL_Reformat(message+ofs, sizeof(message)-ofs, 1, &s);
+	TL_Reformat(com_language, message+ofs, sizeof(message)-ofs, 1, &s);
 	ofs += strlen(message+ofs);
 
 	Q_strncatz(message+ofs, "\n", sizeof(message)-ofs);
@@ -4151,7 +4151,7 @@ static void CLQEX_ParsePrompt(void)
 		imp = MSG_ReadByte();
 		Q_strncatz(message+ofs, "^[[", sizeof(message)-ofs);
 		ofs += strlen(message+ofs);
-		TL_Reformat(message+ofs, sizeof(message)-ofs, 1, &s);
+		TL_Reformat(com_language, message+ofs, sizeof(message)-ofs, 1, &s);
 		ofs += strlen(message+ofs);
 		Q_strncatz(message+ofs, va("]\\impulse\\%i^]\n", imp), sizeof(message)-ofs);
 		ofs += strlen(message+ofs);
@@ -4175,7 +4175,7 @@ static char *CLQEX_ReadStrings(void)
 	for (; a < count; a++)
 		MSG_ReadString(); //don't lose space, though we can't buffer it.
 
-	TL_Reformat(formatted, sizeof(formatted), a, arg);
+	TL_Reformat(com_language, formatted, sizeof(formatted), a, arg);
 	return formatted;
 }
 
@@ -7606,7 +7606,7 @@ void CLQW_ParseServerMessage (void)
 				cl.completed_time = cl.gametime;
 			}
 			cl.intermissionmode = IM_NQFINALE;
-			SCR_CenterPrint (destsplit, TL_Translate(MSG_ReadString ()), false);
+			SCR_CenterPrint (destsplit, TL_Translate(com_language, MSG_ReadString ()), false);
 			break;
 
 		case svc_sellscreen:
@@ -8784,8 +8784,8 @@ void CLNQ_ParseServerMessage (void)
 				//FIXME: figure out the player index so we can kickban/mute/etc them.
 				qbyte plcolour = MSG_ReadByte();
 				qbyte chatcolour = MSG_ReadByte();
-				char *pcols[] = {S_COLOR_WHITE,S_COLOR_RED,S_COLOR_YELLOW, S_COLOR_CYAN};
-				char *ccols[] = {S_COLOR_WHITE,S_COLOR_CYAN};
+				char *pcols[] = {S_COLOR_WHITE,S_COLOR_GREEN,S_COLOR_CYAN, S_COLOR_YELLOW};
+				char *ccols[] = {S_COLOR_WHITE,S_COLOR_CYAN};	//say, say_team
 				Con_Printf("^[%s%s"/*"\\player\\%i"*/"^]: ", pcols[plcolour%countof(pcols)], MSG_ReadString());
 				Con_Printf("%s%s\n", ccols[chatcolour%countof(ccols)], MSG_ReadString());
 				break;

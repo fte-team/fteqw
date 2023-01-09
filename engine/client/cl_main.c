@@ -4048,8 +4048,8 @@ void CLNQ_ConnectionlessPacket(void)
 			return;
 		}
 
-		if (length == 5 && net_from.prot == NP_DTLS)
-		{
+		if (length == 5)
+		{	//QE strips the port entirely.
 			cls.proquake_angles_hack = false;
 			cls.protocol_nq = CPNQ_ID;
 			Con_DPrintf("QuakeEx server...\n");

@@ -4166,12 +4166,14 @@ void CL_LinkPacketEntities (void)
 			if (state->effects & EF_BRIGHTLIGHT)
 			{
 				radius = max(radius,r_brightlight_colour.vec4[3]);
-				VectorAdd(colour, r_brightlight_colour.vec4, colour);
+				if (!(state->effects & (EF_RED|EF_GREEN|EF_BLUE)))
+					VectorAdd(colour, r_brightlight_colour.vec4, colour);
 			}
 			if (state->effects & EF_DIMLIGHT)
 			{
 				radius = max(radius,r_dimlight_colour.vec4[3]);
-				VectorAdd(colour, r_dimlight_colour.vec4, colour);
+				if (!(state->effects & (EF_RED|EF_GREEN|EF_BLUE)))
+					VectorAdd(colour, r_dimlight_colour.vec4, colour);
 			}
 			if (state->effects & EF_BLUE)
 			{
@@ -5398,12 +5400,14 @@ void CL_LinkPlayers (void)
 			if (state->effects & EF_BRIGHTLIGHT)
 			{
 				radius = max(radius,r_brightlight_colour.vec4[3]);
-				VectorAdd(colour, r_brightlight_colour.vec4, colour);
+				if (!(state->effects & (EF_RED|EF_GREEN|EF_BLUE)))
+					VectorAdd(colour, r_brightlight_colour.vec4, colour);
 			}
 			if (state->effects & EF_DIMLIGHT)
 			{
 				radius = max(radius,r_dimlight_colour.vec4[3]);
-				VectorAdd(colour, r_dimlight_colour.vec4, colour);
+				if (!(state->effects & (EF_RED|EF_GREEN|EF_BLUE)))
+					VectorAdd(colour, r_dimlight_colour.vec4, colour);
 			}
 			if (state->effects & EF_BLUE)
 			{

@@ -409,6 +409,69 @@ void SV_BroadcastPrint (unsigned int flags, int level, const char *string)
 #endif
 }
 
+void SV_BroadcastPrint_QexLoc (unsigned int flags, int level, const char **arg, int args)
+{
+	client_t	*cl;
+	int			i;
+
+	char string[1024];
+
+	if (!(flags & BPRINT_IGNORECONSOLE))
+	{
+		//pretend to print on the server, but not to the client's console
+		TL_Reformat(com_language, string, sizeof(string), args, arg);
+		Sys_Printf ("%s", string);	// print to the system console
+		Log_String(LOG_CONSOLE, string);	//dump into log
+	}
+
+	if (!(flags & BPRINT_IGNORECLIENTS))
+	{
+		for (i=0, cl = svs.clients ; i<svs.allocated_client_slots ; i++, cl++)
+		{
+			if (level < cl->messagelevel)
+				continue;
+			if (!cl->state)
+				continue;
+			if (cl->protocol == SCP_BAD)
+				continue;
+
+			if (cl == sv.skipbprintclient)	//silence bprints about the player in ClientConnect. NQ completely wipes the buffer after clientconnect, which is what traditionally hides it.
+				continue;
+
+			if (cl->controller)
+				continue;
+
+			if (cl->qex)
+			{	//get the damn client to do it.
+				int size = 3;
+				for (i = 0; i < args; i++)
+					size += strlen(arg[i])+1;
+				ClientReliableWrite_Begin (cl, svcqex_locprint, size);
+				ClientReliableWrite_Short (cl, args);
+				for (i = 0; i < args; i++)
+					ClientReliableWrite_String (cl, arg[i]);
+			}
+			else
+			{
+				TL_Reformat(cl->language, string, sizeof(string), args, arg);
+				SV_PrintToClient(cl, level, string);
+			}
+		}
+	}
+
+#ifdef MVD_RECORDING
+	if (sv.mvdrecording && !(flags&BPRINT_IGNOREINDEMO))
+	{
+		sizebuf_t *msg;
+		TL_Reformat(com_language, string, sizeof(string), args, arg);
+		msg = MVDWrite_Begin (dem_all, 0, strlen(string)+3);
+		MSG_WriteByte (msg, svc_print);
+		MSG_WriteByte (msg, level);
+		MSG_WriteString (msg, string);
+	}
+#endif
+}
+
 void VARGS SV_BroadcastPrintf (int level, const char *fmt, ...)
 {
 	va_list		argptr;
@@ -1639,6 +1702,9 @@ void SV_WriteClientdataToMessage (client_t *client, sizebuf_t *msg)
 	for (split = client; split; split=split->controlled, pnum++)
 	{
 		SV_WriteEntityDataToMessage(split, msg, pnum);
+
+		if (split->prompt.active)
+			SV_Prompt_Resend(split);
 
 		if (split->centerprintstring && ! client->num_backbuf)
 		{

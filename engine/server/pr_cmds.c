@@ -10857,11 +10857,15 @@ static void QCBUILTIN PF_centerprint_qex(pubprogfuncs_t *prinst, struct globalva
 	int args;
 	char s[1024];
 	int			entnum;
+	int lang = com_language;
 
 	entnum = G_EDICTNUM(prinst, OFS_PARM0);
 	for (args = 0; args+1 < prinst->callargc; args++)
 		arg[args] = PR_GetStringOfs(prinst, OFS_PARM1+args*(OFS_PARM1-OFS_PARM0));
-	TL_Reformat(s, sizeof(s), args, arg);
+
+	if (entnum >= 1 && entnum <= sv.allocated_client_slots)
+		lang = svs.clients[entnum-1].language;
+	TL_Reformat(lang, s, sizeof(s), args, arg);
 
 	PF_centerprint_Internal(entnum, false, s);
 }
@@ -10893,7 +10897,6 @@ static void QCBUILTIN PF_sprint_qex(pubprogfuncs_t *prinst, struct globalvars_s 
 		for (args = 0; args+2 < prinst->callargc; args++)
 			arg[args] = PR_GetStringOfs(prinst, OFS_PARM2+args*(OFS_PARM1-OFS_PARM0));
 	}
-	TL_Reformat(s, sizeof(s), args, arg);
 
 	if (entnum < 1 || entnum > sv.allocated_client_slots)
 	{
@@ -10903,6 +10906,7 @@ static void QCBUILTIN PF_sprint_qex(pubprogfuncs_t *prinst, struct globalvars_s 
 
 	client = &svs.clients[entnum-1];
 
+	TL_Reformat(client->language, s, sizeof(s), args, arg);
 	SV_ClientPrintf (client, level, "%s", s);
 
 	if (sv_specprint.ival & SPECPRINT_SPRINT)
@@ -10929,7 +10933,6 @@ static void QCBUILTIN PF_bprint_qex(pubprogfuncs_t *prinst, struct globalvars_s 
 {	//TODO: send the strings to the client for localisation+reordering
 	const char *arg[8];
 	int args;
-	char formatted[1024];
 	int level;
 
 	if (progstype == PROG_QW)
@@ -10945,8 +10948,178 @@ static void QCBUILTIN PF_bprint_qex(pubprogfuncs_t *prinst, struct globalvars_s 
 			arg[args] = PR_GetStringOfs(prinst, OFS_PARM0+args*(OFS_PARM1-OFS_PARM0));
 	}
 
-	TL_Reformat(formatted, sizeof(formatted), args, arg);
-	SV_BroadcastPrintf (level, "%s", formatted);
+	SV_BroadcastPrint_QexLoc (0, level, arg, args);
+}
+
+void SV_Prompt_Input(client_t *cl, usercmd_t *ucmd)
+{
+	if (cl->prompt.active && !cl->qex)
+	{	//with this serverside, we don't get autorepeat etc.
+		//we also can't prevent movement beyond the menu closure.
+		if (ucmd->forwardmove >= 100 && cl->prompt.oldmove[0] < 100)
+		{	//up
+			if (cl->prompt.selected > 0)
+				cl->prompt.selected--;
+			else if (cl->prompt.numopts)
+				cl->prompt.selected = cl->prompt.numopts-1;	//wrap.
+
+			cl->prompt.nextsend = realtime;
+		}
+		else if (ucmd->forwardmove <= -100 && cl->prompt.oldmove[0] > -100)
+		{	//down
+			cl->prompt.selected++;
+			if (cl->prompt.selected >= cl->prompt.numopts)
+				cl->prompt.selected = 0;	//wrap.
+			cl->prompt.nextsend = realtime;
+		}
+		else if (ucmd->sidemove >= 100 && cl->prompt.oldmove[1] < 100)
+		{	//right (use)
+			if (cl->prompt.selected < cl->prompt.numopts)
+				cl->edict->v->impulse = cl->prompt.opt[cl->prompt.selected].impulse;
+		}
+		cl->prompt.oldmove[0] = ucmd->forwardmove;
+		cl->prompt.oldmove[1] = ucmd->sidemove;
+		ucmd->forwardmove = 0;
+		ucmd->sidemove = 0;
+	}
+	else
+	{
+		cl->prompt.oldmove[0] = ucmd->forwardmove;
+		cl->prompt.oldmove[1] = ucmd->sidemove;
+	}
+}
+void SV_Prompt_Resend(client_t *client)
+{
+	Z_Free(client->centerprintstring);
+	client->centerprintstring = NULL;
+
+	if (client->prompt.nextsend > realtime)
+		return;	//still good.
+
+	if (client->qex)
+	{	//can depend on the client doing any translation stuff.
+		size_t sz;
+		sizebuf_t *msg;
+		size_t i;
+
+		sz = 2;
+		if (client->prompt.numopts)
+		{
+			sz += strlen(client->prompt.header)+1;
+			for (i = 0; i < client->prompt.numopts; i++)
+				sz += strlen(client->prompt.opt[i].text)+2;
+		}
+
+		msg = ClientReliable_StartWrite(client, sz);
+
+		MSG_WriteByte(msg, svcqex_prompt);
+		MSG_WriteByte(msg, client->prompt.numopts);
+		if (client->prompt.numopts)
+		{
+			MSG_WriteString(msg, client->prompt.header);
+			for (i = 0; i < client->prompt.numopts; i++)
+			{
+				MSG_WriteString(msg, client->prompt.opt[i].text);
+				MSG_WriteByte(msg, client->prompt.opt[i].impulse);
+			}
+		}
+
+		ClientReliable_FinishWrite(client);
+
+		client->prompt.nextsend = DBL_MAX;	//don't let it time out.
+	}
+	else
+	{	//emulate via centerprints
+		const char *txt[4];
+		size_t i;
+		client->prompt.nextsend = realtime + 1;	//don't let it time out.
+
+		if (client->prompt.numopts)
+		{
+			txt[0] = client->prompt.header?client->prompt.header:"";
+			for (i = 0; i < 3; i++)
+			{
+				if (client->prompt.selected + i - 1u < client->prompt.numopts)
+					txt[1+i] = client->prompt.opt[client->prompt.selected + i - 1u].text;
+				else
+					txt[1+i] = " ";
+			}
+
+			//need to translate it too.
+			for (i = 0; i < countof(txt); i++)
+				txt[i] = TL_Translate(client->language, txt[i]);
+
+			client->centerprintstring = va("%s\n%s\n^a[[ %s ]]^a\n%s", txt[0], txt[1], txt[2], txt[3]);
+		}
+		else
+			client->centerprintstring = client->prompt.header?client->prompt.header:"";
+		client->centerprintstring = Z_StrDup(client->centerprintstring);
+	}
+}
+void SV_Prompt_Clear(client_t *cl)
+{
+	int i;
+	cl->prompt.active = false;
+	Z_Free(cl->prompt.header);
+	cl->prompt.header = NULL;
+	cl->prompt.selected = 0;
+	cl->prompt.nextsend = realtime;
+
+	for (i = 0; i < cl->prompt.numopts; i++)
+		Z_Free(cl->prompt.opt[i].text);
+	cl->prompt.numopts = cl->prompt.maxopts = 0;
+	Z_Free(cl->prompt.opt);
+	cl->prompt.opt = NULL;
+}
+static void QCBUILTIN PF_prompt_qex(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	int p = G_EDICT(prinst, OFS_PARM0)->entnum - 1;
+	client_t *cl;
+	const char *text = (prinst->callargc >= 2)?PR_GetStringOfs(prinst, OFS_PARM1):NULL;
+	unsigned int opts = (prinst->callargc >= 3)?G_FLOAT(OFS_PARM2):0;
+	if (p < 0 || p >= sv.allocated_client_slots)
+	{
+		PR_BIError (prinst, "PF_clearprompt_qex: not a player\n");
+		return;
+	}
+	cl = &svs.clients[p];
+
+	SV_Prompt_Clear(cl);
+	if (!text)
+	{
+		SV_Prompt_Resend(cl);
+		return;
+	}
+	cl->prompt.active = true;
+	cl->prompt.maxopts = opts;
+	cl->prompt.numopts = 0;
+	Z_StrDupPtr(&cl->prompt.header, text);
+	cl->prompt.opt = Z_Malloc(sizeof(*cl->prompt.opt) * cl->prompt.maxopts);
+}
+static void QCBUILTIN PF_promptchoice_qex(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	int p = G_EDICT(prinst, OFS_PARM0)->entnum - 1;
+	client_t *cl;
+	const char *text = PR_GetStringOfs(prinst, OFS_PARM1);
+	int impulse = G_FLOAT(OFS_PARM2);
+	size_t opt;
+	if (p < 0 || p >= sv.allocated_client_slots)
+	{
+		PR_BIError (prinst, "PF_clearprompt_qex: not a player\n");
+		return;
+	}
+	cl = &svs.clients[p];
+	if (!cl->prompt.active)
+	{
+		PR_BIError (prinst, "PF_clearprompt_qex: too many options\n");
+		return;
+	}
+
+	opt = cl->prompt.numopts++;
+	if (opt >= cl->prompt.maxopts)
+		Z_ReallocElements((void**)&cl->prompt.opt, &cl->prompt.maxopts, opt+1, sizeof(*cl->prompt.opt));
+	Z_StrDupPtr(&cl->prompt.opt[opt].text, text);
+	cl->prompt.opt[opt].impulse = impulse;
 }
 
 #define STUB ,NULL,true
@@ -11215,9 +11388,9 @@ static BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"ex_bot_followentity",PF_Fixme,		0,		0,		0,0,	D("float(entity bot, entity goal)", "Behaviour is undocumented.")},
 	{"ex_CheckPlayerEXFlags",PF_CheckPlayerEXFlags_qex,0,0,	0,0,	D("float(entity playerEnt)", "Behaviour is undocumented.")},
 	{"ex_walkpathtogoal",PF_walkpathtogoal_qex,0,	0,		0,0,	D("float(float movedist, vector goal)", "Behaviour is undocumented.")},
-//	{"ex_prompt",		PF_prompt_qex,		0,		0,		0,0,	D("void(entity player, string text, float numchoices)", "Behaviour is undocumented.")},
-//	{"ex_promptchoice",	PF_promptchoice_qex,0,		0,		0,0,	D("void(entity player, string text, float impulse)", "Behaviour is undocumented.")},
-//	{"ex_clearprompt",	PF_clearprompt_qex,	0,		0,		0,0,	D("void(entity player)", "Behaviour is undocumented.")},
+	{"ex_prompt",		PF_prompt_qex,		0,		0,		0,0,	D("void(entity player, string text, float numchoices)", "Behaviour is undocumented.")},
+	{"ex_promptchoice",	PF_promptchoice_qex,0,		0,		0,0,	D("void(entity player, string text, float impulse)", "Behaviour is undocumented.")},
+	{"ex_clearprompt",	PF_prompt_qex,		0,		0,		0,0,	D("void(entity player)", "Behaviour is undocumented.")},
 //End QuakeEx, for now. :(
 
 // Tomaz - QuakeC String Manipulation Begin

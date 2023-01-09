@@ -559,6 +559,21 @@ typedef struct client_s
 	char			*statss[MAX_CL_STATS];
 	char			*centerprintstring;
 
+	struct
+	{
+		qboolean active;
+		char *header;
+		double nextsend;	//qex is a one-off, other clients need spam.
+		size_t numopts, maxopts, selected;
+		struct
+		{
+			char *text;
+			int impulse;
+		} *opt;
+
+		int oldmove[2];
+	} prompt;
+
 	union{	//save space
 		client_frame_t	*frames;	// updates can be deltad from here
 #ifdef Q2SERVER
@@ -1303,6 +1318,7 @@ void SV_StuffcmdToClient_Unreliable(client_t *cl, const char *string);
 void VARGS SV_ClientPrintf (client_t *cl, int level, const char *fmt, ...) LIKEPRINTF(3);
 void VARGS SV_ClientTPrintf (client_t *cl, int level, translation_t text, ...);
 void VARGS SV_BroadcastPrintf (int level, const char *fmt, ...) LIKEPRINTF(2);
+void SV_BroadcastPrint_QexLoc (unsigned int flags, int level, const char **arg, int args);
 void SV_BroadcastPrint (unsigned int flags, int level, const char *text);
 	//flags exposed to ktx.
 	#define BPRINT_IGNOREINDEMO  (1<<0) // broad cast print will be not put in demo
@@ -1316,6 +1332,10 @@ void SV_FindModelNumbers (void);
 void SV_SendFixAngle(client_t *client, sizebuf_t *msg, int fixtype, qboolean roll);
 
 void SV_BroadcastUserinfoChange(client_t *about, qboolean isbasic, const char *key, const char *newval);
+
+void SV_Prompt_Resend(client_t *cl);
+void SV_Prompt_Clear(client_t *cl);
+void SV_Prompt_Input(client_t *cl, usercmd_t *ucmd);
 
 //
 // sv_user.c

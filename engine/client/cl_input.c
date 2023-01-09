@@ -1837,7 +1837,7 @@ void CLNQ_SendMove (usercmd_t *cmd, int pnum, sizebuf_t *buf)
 	MSG_WriteFloat (buf, cmd->fservertime);	// use latest time. because ping reports!
 
 	if (cls.qex)
-		MSG_WriteByte(buf, 4);
+		MSG_WriteByte(buf, 1);
 
 	for (i=0 ; i<3 ; i++)
 	{

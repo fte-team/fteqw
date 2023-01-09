@@ -613,6 +613,7 @@ void SV_DropClient (client_t *drop)
 		break;
 	}
 
+	SV_Prompt_Clear(drop);
 	if (drop->centerprintstring)
 		Z_Free(drop->centerprintstring);
 	drop->centerprintstring = NULL;
@@ -1083,6 +1084,19 @@ void SV_FullClientUpdate (client_t *client, client_t *to)
 			MSG_WriteByte(buf, i);
 			MSG_WriteByte(buf, playercolor);
 		ClientReliable_FinishWrite(to);
+
+		if (to->qex)
+		{
+			unsigned int s1, s2;
+			if (client->netchan.remote_address.type == NA_LOOPBACK)
+				s1 = s2 = 0;	//host
+			else
+				s1 = s2 = -1;	//non-playfab connection
+			MSG_WriteByte(buf, svcqex_updatesocial);
+			MSG_WriteByte(buf, i);
+			MSG_WriteLong(buf, s1);
+			MSG_WriteLong(buf, s2);
+		}
 
 		if (to->fteprotocolextensions2 & PEXT2_PREDINFO)
 		{
@@ -1961,11 +1975,18 @@ void SV_AcceptMessage(client_t *newcl)
 			MSG_WriteLong(&sb, 0);
 			MSG_WriteByte(&sb, CCREP_ACCEPT);
 			if (newcl->qex)
-				;	//skip any port info (as well as any proquake ident stuff.
+				;	//skip any port info (as well as any proquake ident stuff).
 			else
 			{
 				NET_LocalAddressForRemote(svs.sockets, &net_from, &localaddr, 0);
-				MSG_WriteLong(&sb, ShortSwap(localaddr.port));
+				if (net_from.prot == NP_DTLS
+				#ifdef SUPPORT_ICE
+						|| net_from.type == NA_ICE
+				#endif
+						)
+					MSG_WriteLong(&sb, 0);	//send a port of 0 if we expect the client to be sane enough and/or otherwise problematic.
+				else
+					MSG_WriteLong(&sb, ShortSwap(localaddr.port));
 				if (newcl->proquake_angles_hack)
 				{
 					MSG_WriteByte(&sb, MOD_PROQUAKE);

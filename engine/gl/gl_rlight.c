@@ -1680,7 +1680,7 @@ static int R_EditLight(dlight_t *dl, const char *cmd, int argc, const char *x, c
 		VectorInverse(dl->axis[1]);
 	}
 
-	else if (!strcmp(cmd, "avel"))
+	else if (!strcmp(cmd, "avel") || !strcmp(cmd, "spin"))
 	{
 		dl->rotation[0] = atof(x);
 		dl->rotation[1] = atof(y);
@@ -1693,7 +1693,7 @@ static int R_EditLight(dlight_t *dl, const char *cmd, int argc, const char *x, c
 	else if (!strcmp(cmd, "avelz"))
 		dl->rotation[2] = atof(x);
 
-	else if (!strcmp(cmd, "outercone") || !strcmp(cmd, "fov"))
+	else if (!strcmp(cmd, "outercone") || !strcmp(cmd, "fov") || !strcmp(cmd, "cone"))
 		dl->fov = atof(x);
 	else if (!strcmp(cmd, "nearclip"))
 		dl->nearclip = atof(x);

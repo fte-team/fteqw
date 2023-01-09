@@ -59,7 +59,7 @@ extern texid_t r_whiteimage, missing_texture_gloss, missing_texture_normal;
 extern texid_t r_blackimage, r_blackcubeimage, r_whitecubeimage;
 
 static void BE_RotateForEntity (const entity_t *fte_restrict e, const model_t *fte_restrict mod);
-void VKBE_SetupLightCBuffer(dlight_t *l, vec3_t colour);
+static void VKBE_SetupLightCBuffer(dlight_t *l, vec3_t colour, vec3_t axis[3]);
 
 #ifdef VK_EXT_debug_utils
 static void DebugSetName(VkObjectType objtype, uint64_t handle, const char *name)
@@ -3266,14 +3266,14 @@ qboolean VKBE_SelectDLight(dlight_t *dl, vec3_t colour, vec3_t axis[3], unsigned
 		lmode &= ~(LSHADER_SMAP|LSHADER_CUBE);
 		if (!VKBE_GenerateRTLightShader(lmode))
 		{
-			VKBE_SetupLightCBuffer(NULL, colour);
+			VKBE_SetupLightCBuffer(NULL, colour, NULL);
 			return false;
 		}
 	}
 	shaderstate.curdlight = dl;
 	shaderstate.curlmode = lmode;
 
-	VKBE_SetupLightCBuffer(dl, colour);
+	VKBE_SetupLightCBuffer(dl, colour, axis);
 	return true;
 }
 
@@ -3743,7 +3743,7 @@ batch_t *VKBE_GetTempBatch(void)
 	return &shaderstate.wbatches[shaderstate.wbatch++];
 }
 
-void VKBE_SetupLightCBuffer(dlight_t *l, vec3_t colour)
+static void VKBE_SetupLightCBuffer(dlight_t *dl, vec3_t colour, vec3_t axis[3])
 {
 #ifdef RTLIGHTS
 	extern cvar_t gl_specular;
@@ -3751,7 +3751,7 @@ void VKBE_SetupLightCBuffer(dlight_t *l, vec3_t colour)
 	vkcbuf_light_t *cbl = VKBE_AllocateBufferSpace(DB_UBO, (sizeof(*cbl) + 0x0ff) & ~0xff, &shaderstate.ubo_light.buffer, &shaderstate.ubo_light.offset);
 	shaderstate.ubo_light.range = sizeof(*cbl);
 
-	if (!l)
+	if (!dl)
 	{
 		memset(cbl, 0, sizeof(*cbl));
 
@@ -3760,36 +3760,51 @@ void VKBE_SetupLightCBuffer(dlight_t *l, vec3_t colour)
 	}
 
 
-	cbl->l_lightradius = l->radius;
+	cbl->l_lightradius = dl->radius;
 
 #ifdef RTLIGHTS
-	if (shaderstate.curlmode & LSHADER_SPOT)
+	if (shaderstate.curlmode & LSHADER_ORTHO)
+	{
+		float view[16];
+		float proj[16];
+		float xmin = -dl->radius;
+		float ymin = -dl->radius;
+		float znear = -dl->radius;
+		float xmax = dl->radius;
+		float ymax = dl->radius;
+		float zfar = dl->radius;
+		Matrix4x4_CM_Orthographic(proj, xmin, xmax, ymax, ymin, znear, zfar);
+		Matrix4x4_CM_ModelViewMatrixFromAxis(view, axis[0], axis[2], axis[1], dl->origin);
+		Matrix4_Multiply(proj, view, cbl->l_cubematrix);
+//		Matrix4x4_CM_LightMatrixFromAxis(cbl->l_cubematrix, axis[0], axis[1], axis[2], dl->origin);
+	}
+	else if (shaderstate.curlmode & LSHADER_SPOT)
 	{
 		float view[16];
 		float proj[16];
 		extern cvar_t r_shadow_shadowmapping_nearclip;
-		Matrix4x4_CM_Projection_Far(proj, l->fov, l->fov, l->nearclip?l->nearclip:r_shadow_shadowmapping_nearclip.value, l->radius, false);
-		Matrix4x4_CM_ModelViewMatrixFromAxis(view, l->axis[0], l->axis[1], l->axis[2], l->origin);
+		Matrix4x4_CM_Projection_Far(proj, dl->fov, dl->fov, dl->nearclip?dl->nearclip:r_shadow_shadowmapping_nearclip.value, dl->radius, false);
+		Matrix4x4_CM_ModelViewMatrixFromAxis(view, axis[0], axis[1], axis[2], dl->origin);
 		Matrix4_Multiply(proj, view, cbl->l_cubematrix);
 	}
 	else
 #endif
-		Matrix4x4_CM_LightMatrixFromAxis(cbl->l_cubematrix, l->axis[0], l->axis[1], l->axis[2], l->origin);
-	VectorCopy(l->origin, cbl->l_lightposition);
+		Matrix4x4_CM_LightMatrixFromAxis(cbl->l_cubematrix, axis[0], axis[1], axis[2], dl->origin);
+	VectorCopy(dl->origin, cbl->l_lightposition);
 	cbl->padl1 = 0;
 	VectorCopy(colour, cbl->l_colour);
 #ifdef RTLIGHTS
-	VectorCopy(l->lightcolourscales, cbl->l_lightcolourscale);
-	cbl->l_lightcolourscale[0] = l->lightcolourscales[0];
-	cbl->l_lightcolourscale[1] = l->lightcolourscales[1];
-	cbl->l_lightcolourscale[2] = l->lightcolourscales[2] * gl_specular.value;
+	VectorCopy(dl->lightcolourscales, cbl->l_lightcolourscale);
+	cbl->l_lightcolourscale[0] = dl->lightcolourscales[0];
+	cbl->l_lightcolourscale[1] = dl->lightcolourscales[1];
+	cbl->l_lightcolourscale[2] = dl->lightcolourscales[2] * gl_specular.value;
 #endif
-	cbl->l_lightradius = l->radius;
+	cbl->l_lightradius = dl->radius;
 	Vector4Copy(shaderstate.lightshadowmapproj, cbl->l_shadowmapproj);
 	Vector2Copy(shaderstate.lightshadowmapscale, cbl->l_shadowmapscale);
 
-	VectorCopy(l->origin, shaderstate.lightinfo);
-	shaderstate.lightinfo[3] = l->radius;
+	VectorCopy(dl->origin, shaderstate.lightinfo);
+	shaderstate.lightinfo[3] = dl->radius;
 }
 
 

@@ -118,7 +118,7 @@ vec3 ShadowmapCoord(void)
 	{
 		//bias it. don't bother figuring out which side or anything, its not needed
 		//l_projmatrix contains the light's projection matrix so no other magic needed
-		return ((vtexprojcoord.xyz-vec3(0.0,0.0,0.015))/vtexprojcoord.w + vec3(1.0, 1.0, 1.0)) * vec3(0.5, 0.5, 0.5);
+		return ((vtexprojcoord.yxz-vec3(0.0,0.0,0.015))/vtexprojcoord.w + vec3(1.0, -1.0, 1.0)) * vec3(0.5, -0.5, 0.5);
 	}
 //	else if (CUBESHADOW)
 //	{

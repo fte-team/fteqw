@@ -2495,11 +2495,35 @@ typedef struct {
 } pf_fopen_files_t;
 static pf_fopen_files_t pf_fopen_files[MAX_QC_FILES];
 
+static qboolean QC_PathRequiresSandbox(const char *name)
+{
+	//if its a user config, ban any fallback locations so that csqc can't read passwords or whatever.
+	/* (sorry about the windows paths, it avoids compiler warnings... -Werror sucks)
+	bad:
+		*.cfg
+		configs\*.cfg
+	allowed:
+		particles\*.cfg (required for particle editor type stuff)
+		huds\*.cfg  (shouldn't have any passwords. yay editing)
+		models\*.*  (xonotic is evil)
+		sound\*.*  (xonotic is evil)
+	*/
+	if ((!strchr(name, '/') || !strnicmp(name, "configs/", 8))	//
+		&& !stricmp(COM_GetFileExtension(name, NULL), ".cfg"))
+		return true;
+	return false;
+}
+
 //returns false if the file is denied.
 //fallbackread can be NULL, if the qc is not allowed to read that (original) file at all.
 qboolean QC_FixFileName(const char *name, const char **result, const char **fallbackread)
 {
-	char ext[8];
+	if (!strncmp(name, "file:", 5))
+	{
+		*result = name;
+		*fallbackread = NULL;
+		return true;
+	}
 
 	if (!*name ||	//blank names are bad
 		strchr(name, ':') ||	//dos/win absolute path, ntfs ADS, amiga drives. reject them all.
@@ -2510,13 +2534,22 @@ qboolean QC_FixFileName(const char *name, const char **result, const char **fall
 		return false;
 	}
 
-	*fallbackread = name;
-	//if its a user config, ban any fallback locations so that csqc can't read passwords or whatever.
-	if ((!strchr(name, '/') || strnicmp(name, "configs/", 8)) 
-		&& !stricmp(COM_FileExtension(name, ext, sizeof(ext)), "cfg")
-		&& strnicmp(name, "particles/", 10) && strnicmp(name, "huds/", 5) && strnicmp(name, "models/", 7))
-		*fallbackread = NULL;
-	*result = va("data/%s", name);
+	if (!strncmp(name, "data/", 5))
+	{
+		*fallbackread = NULL;	//don't be weird.
+		*result = name;	//already has a data/ prefix.
+	}
+	else if (COM_CheckParm("-unsafefopen") && !QC_PathRequiresSandbox(name))
+	{
+		*fallbackread = va("data/%s", name);	//in case the mod was distributed with a data/ subdir.
+		*result = name;
+	}
+	else
+	{
+		*fallbackread = QC_PathRequiresSandbox(name)?NULL:name;
+		*result = va("data/%s", name);
+
+	}
 	return true;
 }
 
@@ -2741,7 +2774,6 @@ int PR_QCFile_From_Buffer (pubprogfuncs_t *prinst, const char *name, void *buffe
 //internal function used by search_begin
 static int PF_fopen_search (pubprogfuncs_t *prinst, const char *name, flocation_t *loc)
 {
-	const char *fallbackread;
 	int i;
 
 	Con_DPrintf("qcfopen(\"%s\") called\n", name);
@@ -2756,7 +2788,7 @@ static int PF_fopen_search (pubprogfuncs_t *prinst, const char *name, flocation_
 		return -1;
 	}
 
-	if (!QC_FixFileName(name, &name, &fallbackread) || !fallbackread)
+	if (QC_PathRequiresSandbox(name))
 	{	//we're ignoring the data/ dir so using only the fallback, but still blocking it if its a nasty path.
 		Con_Printf("qcfopen(\"%s\"): Access denied\n", name);
 		return -1;
@@ -2764,7 +2796,7 @@ static int PF_fopen_search (pubprogfuncs_t *prinst, const char *name, flocation_
 
 	pf_fopen_files[i].accessmode = FRIK_FILE_READ_DELAY;
 
-	Q_strncpyz(pf_fopen_files[i].name, fallbackread, sizeof(pf_fopen_files[i].name));
+	Q_strncpyz(pf_fopen_files[i].name, name, sizeof(pf_fopen_files[i].name));
 	if (loc->search->handle)
 		pf_fopen_files[i].file = FS_OpenReadLocation(name, loc);
 	else

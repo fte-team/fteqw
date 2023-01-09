@@ -3355,6 +3355,132 @@ static int QDECL PM_ExtractFiles(const char *fname, qofs_t fsize, time_t mtime, 
 	return 1;
 }
 
+static qboolean PM_Download_Got_Extract(package_t *p, searchpathfuncs_t *archive, const char *tempname, enum fs_relative temproot)
+{	//EXTRACT_EXPLICITZIP is very special.
+	qboolean success = false;
+	char native[MAX_OSPATH];
+	char ext[8];
+	char *destname;
+	struct packagedep_s *dep, *srcname = p->deps;
+
+	for (dep = p->deps; dep; dep = dep->next)
+	{
+		unsigned int nfl;
+		if (dep->dtype != DEP_FILE && dep->dtype != DEP_CACHEFILE)
+			continue;
+
+		COM_FileExtension(dep->name, ext, sizeof(ext));
+		if (!stricmp(ext, "pak") || !stricmp(ext, "pk3") || !stricmp(ext, "zip"))
+			FS_UnloadPackFiles();	//we reload them after
+#ifdef PLUGINS
+		if ((!stricmp(ext, "dll") || !stricmp(ext, "so")) && !Q_strncmp(dep->name, PLUGINPREFIX, strlen(PLUGINPREFIX)))
+			Cmd_ExecuteString(va("plug_close %s\n", dep->name), RESTRICT_LOCAL);	//try to purge plugins so there's no files left open
+#endif
+
+		if (dep->dtype == DEP_CACHEFILE)
+		{
+			nfl = DPF_CACHED;
+			destname = va("downloads/%s", dep->name);
+		}
+		else
+		{
+			nfl = DPF_NATIVE;
+			if (!*p->gamedir)	//basedir
+				destname = dep->name;
+			else
+			{
+				char temp[MAX_OSPATH];
+				destname = va("%s/%s", p->gamedir, dep->name);
+				if (PM_TryGenCachedName(destname, p, temp, sizeof(temp)))
+				{
+					nfl = DPF_CACHED;
+					destname = va("%s", temp);
+				}
+			}
+		}
+		if (p->flags & DPF_MARKED)
+			nfl |= DPF_ENABLED;
+		nfl |= (p->flags & ~(DPF_CACHED|DPF_NATIVE|DPF_CORRUPT));
+		FS_CreatePath(destname, p->fsroot);
+		if (FS_Remove(destname, p->fsroot))
+			;
+		if (p->extract == EXTRACT_EXPLICITZIP)
+		{
+			while (srcname && srcname->dtype != DEP_EXTRACTNAME)
+				srcname = srcname->next;
+			if (archive)
+			{
+				flocation_t loc;
+
+				if (archive->FindFile(archive, &loc, srcname->name, NULL)==FF_FOUND && loc.len < 0x80000000u)
+				{
+					char *f = malloc(loc.len);
+					if (f)
+					{
+						archive->ReadFile(archive, &loc, f);
+						if (FS_WriteFile(destname, f, loc.len, p->fsroot))
+						{
+							p->flags = nfl;
+							success = true;
+							continue;
+						}
+					}
+				}
+			}
+
+			if (!FS_NativePath(destname, p->fsroot, native, sizeof(native)))
+				Q_strncpyz(native, destname, sizeof(native));
+			Con_Printf("Couldn't extract %s/%s to %s. Removed instead.\n", tempname, dep->name, native);
+
+			success = false;
+		}
+		else if (!FS_Rename2(tempname, destname, temproot, p->fsroot))
+		{
+			//error!
+			if (!FS_NativePath(destname, p->fsroot, native, sizeof(native)))
+				Q_strncpyz(native, destname, sizeof(native));
+			Con_Printf("Couldn't rename %s to %s. Removed instead.\n", tempname, native);
+
+			success = false;
+		}
+		else
+		{	//success!
+			if (!FS_NativePath(destname, p->fsroot, native, sizeof(native)))
+				Q_strncpyz(native, destname, sizeof(native));
+			Con_Printf("Downloaded %s (to %s)\n", p->name, native);
+
+			p->flags = nfl;
+
+			success = true;
+		}
+	}
+
+	return success;
+}
+
+static qboolean PM_DownloadSharesSource(package_t *p1, package_t *p2)
+{
+	if (p1 == p2)
+		return false;	//well yes... but no. just no.
+	if (p1->extract != p2->extract)
+		return false;
+	if (p1->extract != EXTRACT_EXPLICITZIP)
+		return false;	//others can't handle it, or probably don't make much sense. don't try, too unsafe/special-case.
+	//these are on the download, not the individual files to extract, awkwardly enough.
+	if (p1->filesize != p2->filesize)
+		return false;
+	if (!p1->filesha1 != !p2->filesha1)
+		return false;
+	if (p1->filesha1 && strcmp(p1->filesha1, p2->filesha1))
+		return false;
+	if (!p1->filesha512 != !p2->filesha512)
+		return false;
+	if (p1->filesha512 && strcmp(p1->filesha512, p2->filesha512))
+		return false;
+
+	return true;
+}
+
 static void PM_StartADownload(void);
 typedef struct
 {
@@ -3369,9 +3495,8 @@ typedef struct
 static void PM_Download_Got(int iarg, void *data)
 {
 	pmdownloadedinfo_t *info = data;
-	char native[MAX_OSPATH];
 	qboolean successful = info->successful;
-	package_t *p;
+	package_t *p, *p2;
 	char *tempname = info->tempname;
 	const enum fs_relative temproot = info->temproot;
 
@@ -3384,9 +3509,6 @@ static void PM_Download_Got(int iarg, void *data)
 
 	if (p)
 	{
-		char ext[8];
-		char *destname;
-		struct packagedep_s *dep, *srcname = p->deps;
 		p->download = NULL;
 
 		if (!successful)
@@ -3452,107 +3574,31 @@ static void PM_Download_Got(int iarg, void *data)
 					if (!archive)
 						VFS_CLOSE(f);
 				}
-			}
-#endif
+				success = PM_Download_Got_Extract(p, archive, tempname, temproot);
 
-
-
-
-
-
-
-			for (dep = p->deps; dep; dep = dep->next)
-			{
-				unsigned int nfl;
-				if (dep->dtype != DEP_FILE && dep->dtype != DEP_CACHEFILE)
-					continue;
-
-				COM_FileExtension(dep->name, ext, sizeof(ext));
-				if (!stricmp(ext, "pak") || !stricmp(ext, "pk3") || !stricmp(ext, "zip"))
-					FS_UnloadPackFiles();	//we reload them after
-#ifdef PLUGINS
-				if ((!stricmp(ext, "dll") || !stricmp(ext, "so")) && !Q_strncmp(dep->name, PLUGINPREFIX, strlen(PLUGINPREFIX)))
-					Cmd_ExecuteString(va("plug_close %s\n", dep->name), RESTRICT_LOCAL);	//try to purge plugins so there's no files left open
-#endif
-
-				if (dep->dtype == DEP_CACHEFILE)
+				if (success)
+				for (p2 = availablepackages; p2; p2=p2->next)
 				{
-					nfl = DPF_CACHED;
-					destname = va("downloads/%s", dep->name);
-				}
-				else
-				{
-					nfl = DPF_NATIVE;
-					if (!*p->gamedir)	//basedir
-						destname = dep->name;
-					else
-					{
-						char temp[MAX_OSPATH];
-						destname = va("%s/%s", p->gamedir, dep->name);
-						if (PM_TryGenCachedName(destname, p, temp, sizeof(temp)))
+					if (p2->download ||	//only if they've not already started downloading separately...
+						!p2->trymirrors	//ignore ones that are not pending.
+						)
+						continue;
+
+					if (PM_DownloadSharesSource(p, p2))
+						if (PM_Download_Got_Extract(p2, archive, tempname, temproot))
 						{
-							nfl = DPF_CACHED;
-							destname = va("%s", temp);
+							p2->trymirrors = false;	//already did it. mwahaha.
+							PM_ValidatePackage(p2);
+							PM_PackageEnabled(p2);
 						}
-					}
 				}
-				if (p->flags & DPF_MARKED)
-					nfl |= DPF_ENABLED;
-				nfl |= (p->flags & ~(DPF_CACHED|DPF_NATIVE|DPF_CORRUPT));
-				FS_CreatePath(destname, p->fsroot);
-				if (FS_Remove(destname, p->fsroot))
-					;
-				if (p->extract == EXTRACT_EXPLICITZIP)
-				{
-					while (srcname && srcname->dtype != DEP_EXTRACTNAME)
-						srcname = srcname->next;
-					if (archive)
-					{
-						flocation_t loc;
-
-						if (archive->FindFile(archive, &loc, srcname->name, NULL)==FF_FOUND && loc.len < 0x80000000u)
-						{
-							char *f = malloc(loc.len);
-							if (f)
-							{
-								archive->ReadFile(archive, &loc, f);
-								if (FS_WriteFile(destname, f, loc.len, p->fsroot))
-								{
-									p->flags = nfl;
-									success = true;
-									continue;
-								}
-							}
-						}
-					}
-
-					if (!FS_NativePath(destname, p->fsroot, native, sizeof(native)))
-						Q_strncpyz(native, destname, sizeof(native));
-					Con_Printf("Couldn't extract %s/%s to %s. Removed instead.\n", tempname, dep->name, native);
-					FS_Remove (tempname, temproot);
-				}
-				else if (!FS_Rename2(tempname, destname, temproot, p->fsroot))
-				{
-					//error!
-					if (!FS_NativePath(destname, p->fsroot, native, sizeof(native)))
-						Q_strncpyz(native, destname, sizeof(native));
-					Con_Printf("Couldn't rename %s to %s. Removed instead.\n", tempname, native);
-					FS_Remove (tempname, temproot);
-				}
-				else
-				{	//success!
-					if (!FS_NativePath(destname, p->fsroot, native, sizeof(native)))
-						Q_strncpyz(native, destname, sizeof(native));
-					Con_Printf("Downloaded %s (to %s)\n", p->name, native);
-
-					p->flags = nfl;
-				}
-
-				success = true;
 			}
+			else
+#endif
+				success = PM_Download_Got_Extract(p, archive, tempname, temproot);
 			if (archive)
 				archive->ClosePath(archive);
-			if (p->extract == EXTRACT_EXPLICITZIP)
+			if (p->extract == EXTRACT_EXPLICITZIP || !success)
 				FS_Remove (tempname, temproot);
 			if (success)
 			{
@@ -3767,7 +3813,7 @@ static vfsfile_t *FS_Hash_ValidateWrites(vfsfile_t *f, const char *fname, qofs_t
 static qboolean PM_SignatureOkay(package_t *p)
 {
 	struct packagedep_s *dep;
-	char ext[MAX_QPATH];
+	const char *ext;
 
 	if (p->flags & DPF_PRESENT)
 		return true;	//we don't know where it came from, but someone manually installed it...
@@ -3791,8 +3837,8 @@ static qboolean PM_SignatureOkay(package_t *p)
 			continue;
 
 		//only allow .pak/.pk3/.zip without a signature, and only when they have a qhash specified (or the .fmf specified it without a qhash...).
-		COM_FileExtension(dep->name, ext, sizeof(ext));
-		if ((!stricmp(ext, "pak") || !stricmp(ext, "pk3") || !stricmp(ext, "zip")) && (p->qhash || dep->dtype == DEP_CACHEFILE || (p->flags&DPF_MANIFEST)))
+		ext = COM_GetFileExtension(dep->name, NULL);
+		if ((!stricmp(ext, ".pak") || !stricmp(ext, ".pk3") || !stricmp(ext, ".zip")) && (p->qhash || dep->dtype == DEP_CACHEFILE || (p->flags&DPF_MANIFEST)))
 			;
 		else
 			return false;
@@ -3973,6 +4019,17 @@ static void PM_StartADownload(void)
 			{
 				p->flags &= ~DPF_MARKED;	//refusing to do it.
 				continue;
+			}
+
+			if (p->extract == EXTRACT_EXPLICITZIP)
+			{	//don't allow multiple of these at a time... so we can download a single file and extract two packages from it.
+				package_t *p2;
+				for (p2 = availablepackages; p2; p2=p2->next)
+					if (p2->download)	//only skip if the other one is already downloading.
+						if (PM_DownloadSharesSource(p2, p))
+							break;
+				if (p2)
+					continue;	//skip downloading it. we'll extract this one when the other is extracted.
 			}
 
 			temp = PM_GetTempName(p);

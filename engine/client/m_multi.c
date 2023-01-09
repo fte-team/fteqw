@@ -643,6 +643,16 @@ void M_Menu_GameOptions_f (void)
 		"no team fire (qw-only)",	//like 1, except you still hurt yourself.
 		NULL
 	};
+	static const char *teamplayoptions_rogue[] = {
+		"off",				//no teams at all
+		"no self+team fire",	//don't hurt same-team (with bugs in coop)
+		"friendly fire",	//scoreboard shows teams, gamecode doesn't care
+		"tag",
+		"Capture The Flag",
+		"One Flag CTF",
+		"Three Team CTF",
+		NULL
+	};
 	static const char *skilloptions[] = {
 		"Easy",
 		"Medium",
@@ -732,7 +742,7 @@ void M_Menu_GameOptions_f (void)
 	info->numplayers	= MC_AddCombo	(menu, 64, 160, y,			"Max players", (const char **)numplayeroptions,	players);y+=8;
 
 	info->deathmatch	= MC_AddCombo	(menu, 64, 160, y,			"Deathmatch", (const char **)deathmatchoptions,	deathmatch.value);y+=8;
-	info->teamplay		= MC_AddCombo	(menu, 64, 160, y,			"Teamplay", (const char **)teamplayoptions,		teamplay.value);y+=8;
+	info->teamplay		= MC_AddCombo	(menu, 64, 160, y,			"Teamplay", (!strcasecmp(FS_GetGamedir(true), "rogue")?(const char **)teamplayoptions_rogue:(const char **)teamplayoptions),		teamplay.value);y+=8;
 	info->skill			= MC_AddCombo	(menu, 64, 160, y,			"Skill", (const char **)skilloptions,			skill.value);y+=8;
 	info->rundedicated	= MC_AddCheckBox(menu, 64, 160, y,			"dedicated", NULL, 0);y+=8;
 	y+=8;

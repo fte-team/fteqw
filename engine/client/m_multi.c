@@ -637,14 +637,19 @@ static int QDECL M_Menu_GameOptions_AddMap(const char *fname, qofs_t fsize, time
 	struct mapopts_s *ctx = parm;
 	size_t i;
 	char *ext;
+	char trimmedfname[MAX_QPATH];
 	if (Q_strncasecmp(fname, "maps/", 5))
 		return true; //o.O
 	fname += 5;
-	if (*fname == 'b' && *fname == '_')
+	if (fname[0] == 'b' && fname[1] == '_')
 		return true;	//stoopid ammo boxes.
 	ext = strrchr(fname, '.');
-	if (ext && !strcmp(ext, ".bsp"))
-		*ext = 0;
+	if (ext && !strcmp(ext, ".bsp") && ext-fname<sizeof(trimmedfname))
+	{
+		memcpy(trimmedfname, fname, ext-fname);
+		trimmedfname[ext-fname] = 0;
+		fname = trimmedfname;
+	}
 
 	for (i = 0; i < ctx->count; i++)
 		if (!Q_strcasecmp(ctx->maps[i], fname))

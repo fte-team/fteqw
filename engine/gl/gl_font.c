@@ -473,6 +473,7 @@ void Font_Init(void)
 
 	fontplanes.shader = R_RegisterShader("ftefont", SUF_2D,
 		"{\n"
+			"fullrate\n"	//don't hurt readability of text.
 			"if $nofixed\n"
 				"program default2d\n"
 			"endif\n"

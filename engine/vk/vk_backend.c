@@ -2155,6 +2155,9 @@ static void BE_CreatePipeline(program_t *p, unsigned int shaderflags, unsigned i
 	VkGraphicsPipelineCreateInfo pipeCreateInfo = {VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO};
 	VkPipelineShaderStageCreateInfo shaderStages[2] = {{0}};
 	VkPipelineRasterizationStateRasterizationOrderAMD ro = {VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_RASTERIZATION_ORDER_AMD};	//long enough names for you?
+#ifdef VK_KHR_fragment_shading_rate
+	VkPipelineFragmentShadingRateStateCreateInfoKHR shadingrate = {VK_STRUCTURE_TYPE_PIPELINE_FRAGMENT_SHADING_RATE_STATE_CREATE_INFO_KHR};
+#endif
 	struct specdata_s
 	{
 		int alphamode;
@@ -2511,6 +2514,28 @@ static void BE_CreatePipeline(program_t *p, unsigned int shaderflags, unsigned i
 
 //	pipeCreateInfo.flags = VK_PIPELINE_CREATE_ALLOW_DERIVATIVES_BIT;
 
+#ifdef VK_KHR_fragment_shading_rate
+	if (vk.khr_fragment_shading_rate)
+	{
+		//three ways to specify rates... we need to set which one wins here.
+		shadingrate.combinerOps[0] = VK_FRAGMENT_SHADING_RATE_COMBINER_OP_MAX_KHR;//pipeline vs primitive
+		shadingrate.combinerOps[1] = VK_FRAGMENT_SHADING_RATE_COMBINER_OP_MAX_KHR;//previous vs attachment
+		if (blendflags & SBITS_MISC_FULLRATE)
+		{
+			shadingrate.fragmentSize.width = 1;
+			shadingrate.fragmentSize.height = 1;
+		}
+		else
+		{	//actually this is more quater-rate. oh well.
+			shadingrate.fragmentSize.width = 2;
+			shadingrate.fragmentSize.height = 2;
+		}
+
+		shadingrate.pNext = pipeCreateInfo.pNext;
+		pipeCreateInfo.pNext = &shadingrate;
+	}
+#endif
+
 	err = vkCreateGraphicsPipelines(vk.device, vk.pipelinecache, 1, &pipeCreateInfo, vkallocationcb, &pipe->pipeline);
 	DebugSetName(VK_OBJECT_TYPE_PIPELINE, (uint64_t)pipe->pipeline, p->name);
 
@@ -2530,7 +2555,7 @@ static void BE_BindPipeline(program_t *p, unsigned int shaderflags, unsigned int
 	blendflags &=	0
 					| SBITS_SRCBLEND_BITS | SBITS_DSTBLEND_BITS | SBITS_MASK_BITS | SBITS_ATEST_BITS
 					| SBITS_MISC_DEPTHWRITE | SBITS_MISC_NODEPTHTEST | SBITS_DEPTHFUNC_BITS
-					| SBITS_LINES
+					| SBITS_LINES | SBITS_MISC_FULLRATE
 					;
 	shaderflags &= 0
 					| SHADER_CULL_FRONT | SHADER_CULL_BACK

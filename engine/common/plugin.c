@@ -514,7 +514,11 @@ static int QDECL Plug_Cmd_Argc(void)
 //void Cvar_SetString (char *name, char *value);
 static void QDECL Plug_Cvar_SetString(const char *name, const char *value)
 {
-	cvar_t *var = Cvar_Get(name, value, 0, "Plugin vars");
+	cvar_t *var;
+	if (!value)
+		var = Cvar_FindVar(name);
+	else
+		var = Cvar_Get(name, value, 0, "Plugin vars");
 	if (var)
 		Cvar_Set(var, value);
 }

@@ -912,6 +912,9 @@ static cvar_t *Cvar_SetCore (cvar_t *var, const char *value, qboolean force)
 		return NULL;
 	}
 
+	if (!value)
+		value = var->defaultstr;
+
 	if (force)
 		;
 	else if (0)//var->flags & CVAR_SERVEROVERRIDE && !force)

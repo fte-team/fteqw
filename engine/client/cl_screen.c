@@ -1876,9 +1876,9 @@ void R_GetGPUUtilisation(float *gpu, float *mem)
 	typedef void *nvmlDevice_t;
 	struct nvmlUtilization_s
 	{
-		unsigned int cpu;
+		unsigned int gpu;
 		unsigned int mem;
-	} util = {-1,-1};
+	} util = {~0u,~0u};
 	static int (*nvmlDeviceGetUtilizationRates) (nvmlDevice_t device, struct nvmlUtilization_s *utilization);
 	static nvmlDevice_t dev;
 	if (!tried)
@@ -1906,8 +1906,8 @@ void R_GetGPUUtilisation(float *gpu, float *mem)
 
 	if (dev)
 		nvmlDeviceGetUtilizationRates(dev, &util);
-	*gpu = util.cpu/100.0;
-	*mem = util.mem/100.0;
+	*gpu = (util.gpu == ~0u)?-1:(util.gpu/100.0);
+	*mem = (util.mem == ~0u)?-1:(util.mem/100.0);
 #else
 	*gpu = *mem = -1;
 #endif
@@ -1954,6 +1954,11 @@ void SCR_DrawFPS (void)
 		sprintf(str, "%.0f%% GPU", gpu*100);
 		SCR_StringXY(str, show_fps_x.value, (show_fps_y.value>=0)?(show_fps_y.value+8):(show_fps_y.value-1));
 	}
+/*	if (gpumem>=0)
+	{
+		sprintf(str, "%.0f%% VRAM Bus", gpumem*100);
+		SCR_StringXY(str, show_fps_x.value, (show_fps_y.value>=0)?(show_fps_y.value+16):(show_fps_y.value-2));
+	}*/
 }
 
 void SCR_DrawClock(void)

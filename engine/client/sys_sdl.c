@@ -11,7 +11,7 @@
 #ifndef WIN32
 #include <fcntl.h>
 #include <sys/stat.h>
-#ifdef __unix__
+#if defined(__unix__) || defined(__unix) || (defined(__APPLE__) && defined(__MACH__))	//apple make everything painful.
 #include <unistd.h>
 #endif
 #else

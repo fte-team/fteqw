@@ -3546,7 +3546,9 @@ static void VK_PaintScreen(void)
 		nohud = true;
 	}
 
-	SCR_DrawTwoDimensional(nohud);
+	r_refdef.playerview = &cl.playerview[0];
+	if (!vrui.enabled)
+		SCR_DrawTwoDimensional(nohud);
 
 	V_UpdatePalette (false);
 	R2D_BrightenScreen();

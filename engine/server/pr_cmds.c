@@ -12201,7 +12201,9 @@ static BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 //	{"delayedparticle",	PF_Fixme,			0,		0,		0,		528,	D("float(vector org, vector vel, float delay, float collisiondelay, optional float theme)","Basically just extra args for 'particle'.")},
 	{"loadfromdata",	PF_loadfromdata,	0,		0,		0,		529,	D("void(string s)", "Reads a set of entities from the given string. This string should have the same format as a .ent file or a saved game. Entities will be spawned as required. If you need to see the entities that were created, you should use parseentitydata instead.")},
 	{"loadfromfile",	PF_loadfromfile,	0,		0,		0,		530,	D("void(string s)", "Reads a set of entities from the named file. This file should have the same format as a .ent file or a saved game. Entities will be spawned as required. If you need to see the entities that were created, you should use parseentitydata instead.")},
-	{"setpause",		PF_setpause,		0,		0,		0,		531,	D("void(float pause)", "Sets whether the server should or should not be paused. This does not affect auto-paused things like when the console is down.")},
+	{"setpause",		PF_setpause,		0,		0,		0,		531,	D("void(float pause)",	"SSQC: Sets whether the server should or should not be paused.\n"
+																									"CSQC: Only works in singleplayer, suitable for menu auto-pause. To pause in multiplayer use eg localcmd(\"cmd pause\n\") to ask the server side to pause.\n"
+																									"Pause state between modules will be ORed, along with engine reasons for auto pausing.")},
 	//end dp extras
 	//begin mvdsv extras
 #ifdef HAVE_LEGACY

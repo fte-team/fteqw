@@ -753,6 +753,38 @@ int Sys_EnumerateFiles (const char *gpath, const char *match, int (QDECL *func)(
 	return Sys_EnumerateFiles2(fullmatch, start, start, func, parm, spath);
 }
 
+//wide only. we let the windows api sort out the mess of file urls. system-wide consistancy.
+qboolean Sys_ResolveFileURL(const char *inurl, int inlen, char *out, int outlen)
+{
+	char *cp;
+	wchar_t wurl[MAX_PATH];
+	wchar_t local[MAX_PATH];
+	DWORD grr;
+	static HRESULT (WINAPI *pPathCreateFromUrlW)(PCWSTR pszUrl, PWSTR pszPath, DWORD *pcchPath, DWORD dwFlags);
+	if (!pPathCreateFromUrlW)
+		pPathCreateFromUrlW = Sys_GetAddressForName(Sys_LoadLibrary("Shlwapi.dll", NULL), "PathCreateFromUrlW");
+	if (!pPathCreateFromUrlW)
+		return false;
+
+	//need to make a copy, because we can't terminate the inurl easily.
+	cp = malloc(inlen+1);
+	memcpy(cp, inurl, inlen);
+	cp[inlen] = 0;
+	widen(wurl, sizeof(wurl), cp);
+	free(cp);
+	grr = sizeof(local)/sizeof(wchar_t);
+	if (FAILED(pPathCreateFromUrlW(wurl, local, &grr, 0)))
+		return false;
+	narrowen(out, outlen, local);
+	while(*out)
+	{
+		if (*out == '\\')
+			*out = '/';
+		out++;
+	}
+	return true;
+}
+
 /*
 ================
 Sys_Error

@@ -615,7 +615,8 @@ void CL_CalcClientTime(void)
 {
 	if (!cls.state)
 	{
-		cl.servertime += host_frametime;
+		if (!cl.implicitpause)
+			cl.servertime += host_frametime;
 		cl.time = cl.servertime;
 		return;
 	}

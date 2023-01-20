@@ -1399,7 +1399,7 @@ const char *SCR_ShowPics_ClickCommand(float cx, float cy, qboolean istouch)
 	float x, y, w, h;
 	showpic_t *sp;
 	mpic_t *p;
-	qboolean tryload = !showpics_touchtime;
+	qboolean tryload = istouch && !showpics_touchtime;
 	float bestdist = istouch?16:1;
 	const char *best = NULL;
 	showpics_touchtime = realtime;

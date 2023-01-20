@@ -176,9 +176,9 @@ typedef enum {
 #define K_GP_DIAMOND_CONFIRM	K_GP_DIAMOND_DOWN	//roughly equivelent to k_return for menu behaviours
 #define K_GP_DIAMOND_CANCEL		K_GP_DIAMOND_RIGHT	//roughly like escape, at least in menus
 #define K_GP_DIAMOND_ALTCONFIRM	K_GP_DIAMOND_UP		//for more negative confirmations.
-	K_GP_VIEW,
+	K_GP_VIEW, //aka back (near left stick)
 	K_GP_GUIDE,
-	K_GP_MENU,
+	K_GP_MENU,	//aka options/start (near right stick)
 	K_GP_LEFT_STICK,
 	K_GP_RIGHT_STICK,
 	K_GP_LEFT_SHOULDER,

@@ -2137,6 +2137,10 @@ qboolean NET_IsEncrypted(netadr_t *adr)
 	if (adr->type == NA_ICE && ICE_IsEncrypted(adr))
 		return true;
 #endif
+#if defined(FTE_TARGET_WEB)
+	if (adr->prot == NP_RTC_TLS)	//web port works a bit differently... webrtc is ALWAYS encrypted, but only report it as secure when the broker connection is encrypted too.
+		return true;
+#endif
 	if (adr->prot == NP_DTLS || adr->prot == NP_TLS || adr->prot == NP_WSS)
 		return true;
 	return false;
@@ -9352,7 +9356,7 @@ void NET_InitServer(void)
 #ifdef HAVE_DTLS
 		Cvar_ForceCallback(&net_enable_dtls);
 #endif
-#ifdef SUPPORT_ICE
+#if defined(SUPPORT_ICE) || defined(FTE_TARGET_WEB)
 		Cvar_ForceCallback(&sv_public);
 #endif
 	}

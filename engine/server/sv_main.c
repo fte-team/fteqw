@@ -105,7 +105,7 @@ cvar_t	allow_download_other		= CVARD("allow_download_other", "0", "0 blocks down
 
 extern cvar_t sv_allow_splitscreen;
 
-#ifdef SUPPORT_ICE
+#if defined(SUPPORT_ICE) || defined(FTE_TARGET_WEB)
 static void QDECL SV_Public_Callback(struct cvar_s *var, char *oldvalue)
 {
 	char name[64], *e;
@@ -116,7 +116,11 @@ static void QDECL SV_Public_Callback(struct cvar_s *var, char *oldvalue)
 		FTENET_AddToCollection(svs.sockets, var->name, va("/%s", (*name == '/')?name+1:name), NA_INVALID, NP_RTC_TLS);
 		var->value = var->ival = 2;	//so other stuff sees us as holepunched.
 	}
+#ifdef FTE_TARGET_WEB
+	else if (var->ival)	//any kind of public is webrtc public, browsers don't allow more.
+#else
 	else if (var->ival == 2)
+#endif
 		FTENET_AddToCollection(svs.sockets, var->name, "/", NA_INVALID, NP_RTC_TLS);
 	else
 		FTENET_AddToCollection(svs.sockets, var->name, "", NA_INVALID, NP_INVALID);

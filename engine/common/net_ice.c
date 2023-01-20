@@ -2129,7 +2129,7 @@ static qboolean QDECL ICE_Set(struct icestate_s *con, const char *prop, const ch
 					else if (net_enable_dtls.ival >= 3)
 					{	//peer doesn't seem to support dtls.
 						con->state = ICE_FAILED;
-						Con_Printf(CON_WARNING"WARNING: [%s]: peer does not support dtls. Set net_enable_dtls to 0 to make optional.\n", con->friendlyname);
+						Con_Printf(CON_WARNING"WARNING: [%s]: peer does not support dtls. Set net_enable_dtls to 1 to make optional.\n", con->friendlyname);
 					}
 					else if (con->state == ICE_CONNECTING && net_enable_dtls.ival>=2)
 						Con_Printf(CON_WARNING"WARNING: [%s]: peer does not support dtls.\n", con->friendlyname);
@@ -2147,7 +2147,10 @@ static qboolean QDECL ICE_Set(struct icestate_s *con, const char *prop, const ch
 			else if (!con->dtlsstate && con->cred.peer.hash)
 			{
 				if (!con->peersctpoptional)
-					Con_Printf(CON_WARNING"WARNING: [%s]: peer is trying to use dtls.\n", con->friendlyname);
+				{
+					con->state = ICE_FAILED;
+					Con_Printf(CON_WARNING"WARNING: [%s]: peer is trying to use dtls.%s\n", con->friendlyname, net_enable_dtls.ival?"":" Set ^[/net_enable_dtls 1^].");
+				}
 			}
 #endif
 		}

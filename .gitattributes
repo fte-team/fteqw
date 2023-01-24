@@ -1,0 +1,44 @@
+*.[chsi]	text
+*.cpp		text
+*.asm		text
+*.inc		text
+*.[gh]lsl	text
+*.src		text
+*.sh		text
+*.xml		text
+*.json		text
+*.m4		text
+*.rc		text
+*.fmf		text
+*.cfg		text
+*.def		text
+*.pem		text
+*.rdf		text
+*.q3asm		text
+*.bat		text
+*.txt		text
+*.md		text
+*.html		text
+GNUmakefile*	text
+BSDmakefile	text
+Makefile*	text
+README		text
+LICENSE		text
+quake.manifest	text
+
+*.o		binary
+*.[sc]o		binary
+*.a		binary
+*.lib		binary
+*.dbg		binary
+*.sym		binary
+*.zip		binary
+*.ico		binary
+*.suo		binary
+
+*.dev		text eol=crlf
+*.dsp		text eol=crlf
+*.dsw		text eol=crlf
+*.sln		text eol=crlf
+*.vcproj	text eol=crlf
+*.vdproj	text eol=crlf

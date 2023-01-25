@@ -119,6 +119,7 @@ typedef struct {
 	qboolean stepdown;
 	qboolean slidyslopes;
 	qboolean autobunny;
+	qboolean bunnyfriction;	//force at least one frame of friction when bunnying.
 	int stepheight;
 
 	qbyte coordtype;	//FIXME: EZPEXT1_FLOATENTCOORDS should mean 4, but the result does not match ezquake/mvdsv's round-towards-origin which would result in inconsistencies. so player coords are rounded inconsistently.

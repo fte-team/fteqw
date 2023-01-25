@@ -1078,17 +1078,18 @@ const char *presetexec[] =
 struct
 {
 	const char *name;
+	qboolean dorestart;
 	const char *desc;
 	const char *settings;
 } builtinpresets[] =
 {
-	{	"hdr",
+	{	"hdr", true,
 		"Don't let colour depth stop you!",
 
 		"set vid_srgb 2\n"
 		"set r_hdr_irisadaptation 1\n"
 	},
-	{	"shib",
+	{	"shib", true,
 		"Performance optimisations for large/detailed maps.",
 
 		"set r_temporalscenecache 1\n"	//the main speedup.
@@ -1096,7 +1097,7 @@ struct
 		"set sv_autooffload 1\n"		//Needs polish still.
 		"set gl_pbolightmaps 1\n"		//FIXME: this needs to be the default eventually.
 	},
-	{	"dm",
+	{	"dm", false,
 		"Various settings to make you more competitive."
 
 		"set cl_yieldcpu 0\n"
@@ -1110,20 +1111,42 @@ struct
 		"set sys_clockprecision 1\n"	//windows kinda sucks otherwise
 #endif
 	},
-	{	"qw",
-		"Enable QuakeWorld-isms, for better gameplay.",
+	{	"qw", false,
+		"Enable QuakeWorld physics, for better gameplay.",
 
 		"set sv_nqplayerphysics 0\n"
 		"set sv_gameplayfix_multiplethinks 1\n"
+		"cvarreset pm_bunnyfriction\n"
+		"cvarreset pm_edgefriction\n"
+		"cvarreset pm_slidefix\n"
+		"cvarreset pm_slidyslopes\n"
 	},
-	{	"nq"
-		"Disable QuakeWorld-isms, for nq mod compat.",
+	{	"hybridphysics", false,
+		"Tweak QuakeWorld player physics to feel like nq physics, while still supporting prediction.",
+
+		"set sv_nqplayerphysics 0\n"
+		"set sv_gameplayfix_multiplethinks 1\n"
+		"set pm_bunnyfriction 1\n"	//don't need bunnyspeedcap with this.
+		"set pm_edgefriction 2\n"	//forces traceline instead of tracebox, to match nq (applies earlier, making it more aggressive)
+		"set pm_slidefix 1\n"		//smoother running down slopes
+		"set pm_slidyslopes 1\n"	//*sigh*
+		"set pm_noround 1\n"		//lame
+		"set sv_maxtic 0\n"			//fixed tick rates.
+	},
+	{	"nq", false,
+		"Disable QuakeWorld physics, for nq mod compat.",
 
 		"set sv_nqplayerphysics 1\n"
 		"set sv_gameplayfix_multiplethinks 0\n"
+		//*also* set these, in case they use nqplayerphysics 2 after, which should give better hints.
+		"set pm_bunnyfriction 1\n"	//don't need bunnyspeedcap with this.
+		"set pm_edgefriction 2\n"	//forces traceline instead of tracebox, to match nq (applies earlier, making it more aggressive)
+		"set pm_slidefix 1\n"		//smoother running down slopes
+		"set pm_slidyslopes 1\n"	//*sigh*
+		"set pm_noround 1\n"		//lame
 	},
 
-	{	"dp",
+	{	"dp", false,
 		"Reconfigures FTE to mimic DP for compat reasons.",
 
 		"if $server then echo Be sure to restart your server\n"
@@ -1153,7 +1176,7 @@ struct
 //		"sv_listen_dp 1\nsv_listen_nq 0\nsv_listen_qw 0\ncl_loopbackprotocol dpp7\ndpcompat_nopreparse 1\n"
 	},
 
-	{	"tenebrae",
+	{	"tenebrae", true,
 		"Reconfigures FTE to mimic Tenebrae for compat/style reasons.",
 		//for the luls. combine with the tenebrae mod for maximum effect.
 		"fps_preset nq\n"
@@ -1169,7 +1192,7 @@ struct
 		"set r_nolerp 1\n"	//well, that matches tenebrae. for the luls, right?
 	},
 
-	{	"timedemo",
+	{	"timedemo", false,
 		"Reconfigure some stuff to get through timedemos really fast. Some people might consider this cheating.",
 		//some extra things to pwn timedemos.
 		"fps_preset fast\n"
@@ -1457,7 +1480,7 @@ void FPS_Preset_f (void)
 	{
 		if (!stricmp(builtinpresets[i].name, arg))
 		{
-			if (doreload)
+			if (doreload && builtinpresets[i].dorestart)
 				Cbuf_InsertText("\nfs_restart\nvid_reload\n", RESTRICT_LOCAL, false);
 			Cbuf_InsertText(builtinpresets[i].settings, RESTRICT_LOCAL, false);
 			return;

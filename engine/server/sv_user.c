@@ -115,6 +115,7 @@ extern cvar_t	pm_bunnyspeedcap;
 extern cvar_t	pm_ktjump;
 extern cvar_t	pm_slidefix;
 extern cvar_t	pm_slidyslopes;
+extern cvar_t	pm_bunnyfriction;
 extern cvar_t	pm_autobunny;
 extern cvar_t	pm_airstep;
 extern cvar_t	pm_pground;
@@ -7608,6 +7609,7 @@ void SV_RunCmd (usercmd_t *ucmd, qboolean recurse)
 	movevars.stepdown = (pm_stepdown.value != 0);
 	movevars.walljump = (pm_walljump.value);
 	movevars.slidyslopes = (pm_slidyslopes.value!=0);
+	movevars.bunnyfriction = (pm_bunnyfriction.value!=0);
 	movevars.autobunny = (pm_autobunny.value!=0);
 	movevars.watersinkspeed = *pm_watersinkspeed.string?pm_watersinkspeed.value:60;
 	movevars.flyfriction = *pm_flyfriction.string?pm_flyfriction.value:4;

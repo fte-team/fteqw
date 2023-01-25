@@ -8324,6 +8324,7 @@ qboolean CSQC_Init (qboolean anycsqc, const char *csprogsname, unsigned int chec
 		movevars.stepdown = true;
 		movevars.walljump = false;//(pm_walljump.value);
 		movevars.slidyslopes = false;//(pm_slidyslopes.value!=0);
+		movevars.bunnyfriction = false;
 		movevars.autobunny = false;	//pm_autobunny.value!=0
 		movevars.watersinkspeed = 60;//*pm_watersinkspeed.string?pm_watersinkspeed.value:60;
 		movevars.flyfriction = 4;//*pm_flyfriction.string?pm_flyfriction.value:4;

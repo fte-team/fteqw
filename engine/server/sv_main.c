@@ -5690,6 +5690,7 @@ void SV_InitLocal (void)
 	extern	cvar_t	sv_aim;
 
 	extern	cvar_t	pm_bunnyspeedcap;
+	extern	cvar_t	pm_bunnyfriction;
 	extern	cvar_t	pm_ktjump;
 	extern	cvar_t	pm_slidefix;
 	extern	cvar_t	pm_airstep;
@@ -5766,6 +5767,7 @@ void SV_InitLocal (void)
 	Cvar_Register (&sv_bigcoords,			cvargroup_serverphysics);
 
 	Cvar_Register (&pm_bunnyspeedcap,		cvargroup_serverphysics);
+	Cvar_Register (&pm_bunnyfriction,		cvargroup_serverphysics);
 	Cvar_Register (&pm_watersinkspeed,		cvargroup_serverphysics);
 	Cvar_Register (&pm_flyfriction,			cvargroup_serverphysics);
 	Cvar_Register (&pm_ktjump,				cvargroup_serverphysics);

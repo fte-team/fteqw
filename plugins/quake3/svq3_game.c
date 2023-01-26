@@ -3409,6 +3409,7 @@ void SVQ3_DirectConnect(netadr_t *from, sizebuf_t *msg)	//Actually connect the c
 
 	cl->protocol = SCP_QUAKE3;
 	cl->state = cs_connected;
+	cl->connection_started = realtime;
 	cl->name = cl->namebuf;
 	cl->team = cl->teambuf;
 	worldfuncs->ExtractFromUserinfo(cl, true);
@@ -3434,6 +3435,7 @@ static int SVQ3_AddBot(void)
 		return -1;	//failure, no slots
 
 	cl->protocol = SCP_BAD;
+	cl->connection_started = realtime;
 	cl->state = cs_connected;
 	cl->name = cl->namebuf;
 	cl->team = cl->teambuf;

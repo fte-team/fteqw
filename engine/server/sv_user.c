@@ -375,7 +375,6 @@ void SV_New_f (void)
 			ClientReliableWrite_Byte (host_client, playernum);
 
 			split->state = cs_connected;
-			split->connection_started = realtime;
 		#ifdef SVRANKING
 			split->stats_started = realtime;
 		#endif
@@ -412,7 +411,6 @@ void SV_New_f (void)
 				playernum |= 128;
 
 			split->state = cs_connected;
-			split->connection_started = realtime;
 		#ifdef SVRANKING
 			split->stats_started = realtime;
 		#endif
@@ -5459,7 +5457,6 @@ void SV_SetUpClientEdict (client_t *cl, edict_t *ent)
 	ent->v->movetype = MOVETYPE_NOCLIP;
 
 	ent->v->frags = 0;
-	cl->connection_started = realtime;
 }
 
 //dynamically add/remove a splitscreen client
@@ -5949,18 +5946,7 @@ static void SVNQ_Spawn_f (void)
 		host_client->maxspeed = ent->xv->maxspeed;
 	}
 	else
-	{
-		ED_Clear(svprogfuncs, ent);
-		ED_Spawned(ent, false);
-
-		ent->v->colormap = NUM_FOR_EDICT(svprogfuncs, ent);
-		ent->v->team = 0;	// FIXME
-		svprogfuncs->SetStringField(svprogfuncs, ent, &ent->v->netname, host_client->name, true);
-
-		host_client->entgravity = ent->xv->gravity = 1.0;
-		host_client->entgravity*=sv_gravity.value;
-		host_client->maxspeed = ent->xv->maxspeed = sv_maxspeed.value;
-	}
+		SV_SetUpClientEdict(host_client, ent);
 
 //
 // force stats to be updated
@@ -6221,6 +6207,8 @@ static void SVNQ_Status_f(void)
 		int hours, mins, secs;
 		if (!cl->state)
 			continue;
+		if (i >= host_client->max_net_clients)
+			break;	//don't send more than it expects. the ping parsers will give up and get spammy (sucks).
 		secs = realtime - cl->connection_started;
 		mins = secs/60;
 		secs -= mins*60;
@@ -6418,6 +6406,7 @@ ucmd_t ucmds[] =
 	{"sayone",		SV_SayOne_f},
 	{"say",			SV_Say_f},
 	{"say_team",	SV_Say_Team_f},
+	{"status",		SVNQ_Status_f},
 #ifdef SVRANKING
 	{"topten",		Rank_ListTop10_f},
 #endif

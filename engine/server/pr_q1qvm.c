@@ -1668,6 +1668,7 @@ static qintptr_t QVM_Add_Bot (void *offset, quintptr_t mask, const qintptr_t *ar
 			cl->userid = ++nextuserid;
 			cl->protocol = SCP_BAD;	//marker for bots
 			cl->state = cs_spawned;
+			cl->connection_started = realtime;
 			cl->spawned = true;
 			sv.spawned_client_slots++;
 			cl->netchan.message.allowoverflow = true;

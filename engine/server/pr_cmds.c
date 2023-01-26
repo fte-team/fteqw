@@ -4180,6 +4180,7 @@ static void QCBUILTIN PF_spawnclient (pubprogfuncs_t *prinst, struct globalvars_
 			svs.clients[i].userid = ++nextuserid;
 			svs.clients[i].protocol = SCP_BAD;	//marker for bots
 			svs.clients[i].state = cs_spawned;
+			svs.clients[i].connection_started = realtime;
 			svs.clients[i].spawned = true;
 			sv.spawned_client_slots++;
 			svs.clients[i].netchan.message.allowoverflow = true;

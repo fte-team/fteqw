@@ -1018,6 +1018,7 @@ void SV_FullClientUpdate (client_t *client, client_t *to)
 
 	if (ISQWCLIENT(to))
 	{
+		float onservertime;
 		unsigned int pext = to->fteprotocolextensions;
 		int ping = SV_CalcPing (client, false);
 		if (ping > 0xffff)
@@ -1041,10 +1042,13 @@ void SV_FullClientUpdate (client_t *client, client_t *to)
 			MSG_WriteByte(buf, client->lossage);
 		ClientReliable_FinishWrite(to);
 
+		onservertime = realtime - client->connection_started;
+		if (onservertime > sv.time)
+			onservertime = sv.time;
 		buf = ClientReliable_StartWrite(to, 6);
 			MSG_WriteByte(buf, svc_updateentertime);
 			MSG_WriteByte(buf, i);
-			MSG_WriteFloat(buf, realtime - client->connection_started);
+			MSG_WriteFloat(buf, onservertime);
 		ClientReliable_FinishWrite(to);
 
 		InfoBuf_ToString(&client->userinfo, info, (pext&PEXT_BIGUSERINFOS)?BASIC_INFO_STRING:sizeof(info), basicuserinfos, privateuserinfos, (pext&PEXT_BIGUSERINFOS)?NULL:basicuserinfos, &to->infosync, &client->userinfo);
@@ -2546,6 +2550,7 @@ client_t *SV_AddSplit(client_t *controller, char *info, int id)
 	if (cl->spectator)
 		InfoBuf_SetValueForStarKey (&cl->userinfo, "*spectator", va("%i", cl->spectator));
 	cl->state = controller->state;
+	cl->connection_started = realtime;
 
 //	host_client = NULL;
 //	sv_player = NULL;
@@ -3076,6 +3081,7 @@ void SV_DoDirectConnect(svconnectinfo_t *fte_restrict info)
 #endif
 
 	newcl->state = cs_connected;
+	newcl->connection_started = realtime;
 
 #ifdef Q3SERVER
 	newcl->gamestatesequence = -1;
@@ -5273,6 +5279,7 @@ void SV_Impulse_f (void)
 	pr_global_struct->time = sv.world.physicstime;
 
 	svs.clients[i].state = cs_connected;
+	svs.clients[i].connection_started = realtime;
 
 	SV_SetUpClientEdict(&svs.clients[i], svs.clients[i].edict);
 

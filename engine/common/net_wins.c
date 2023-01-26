@@ -160,16 +160,11 @@ static void QDECL NET_Enable_DTLS_Changed(struct cvar_s *var, char *oldvalue)
 	if (!*var->string)
 		var->ival = 0;	//FIXME: change to 1 then 2 when better tested.
 
-	if (var->ival && svs.sockets)
+	if (svs.sockets)
 	{
-		if (!svs.sockets->dtlsfuncs)
-			svs.sockets->dtlsfuncs = DTLS_InitServer();
-		if (!svs.sockets->dtlsfuncs)
-		{
-			if (var->ival >= 2)
-				Con_Printf("%sUnable to set %s to \"%s\", no DTLS provider available.\n", (var->ival >= 2)?CON_ERROR:CON_WARNING, var->name, var->string);
-			var->ival = 0;	//disable the cvar (internally) if we don't have a usable certificate. this allows us to default the cvar to enabled without it breaking otherwise.
-		}
+		svs.sockets->dtlsfuncs = (var->ival)?DTLS_InitServer():NULL;
+		if (!svs.sockets->dtlsfuncs && var->ival >= 2)
+			Con_Printf("%sUnable to set %s to \"%s\", no DTLS provider available.\n", (var->ival >= 2)?CON_ERROR:CON_WARNING, var->name, var->string);
 	}
 }
 cvar_t net_enable_dtls		= CVARAFCD("net_enable_dtls", "", "sv_listen_dtls", 0, NET_Enable_DTLS_Changed, "Controls serverside dtls support.\n0: dtls blocked, not advertised.\n1: clientside choice.\n2: used where possible (recommended setting).\n3: disallow non-dtls clients (sv_port_tcp should be eg tls://[::]:27500 to also disallow unencrypted tcp connections).");
@@ -253,7 +248,8 @@ static void NET_TLS_Provider_Changed(struct cvar_s *var, char *oldvalue)
 	}
 
 #if defined(HAVE_DTLS) && defined(HAVE_SERVER)
-	Cvar_ForceCallback(&net_enable_dtls);
+	if (net_enable_dtls.string)	//might not be registered yet...
+		Cvar_ForceCallback(&net_enable_dtls);
 #endif
 }
 #endif
@@ -2133,6 +2129,8 @@ qboolean NET_StringToAdrMasked (const char *s, qboolean allowdns, netadr_t *a, n
 
 qboolean NET_IsEncrypted(netadr_t *adr)
 {
+	if (adr->type == NA_LOOPBACK)
+		return true;	//might as well claim it, others can't snoop on it so...
 #ifdef SUPPORT_ICE
 	if (adr->type == NA_ICE && ICE_IsEncrypted(adr))
 		return true;

@@ -897,6 +897,7 @@ Cvar_Set
 static cvar_t *Cvar_SetCore (cvar_t *var, const char *value, qboolean force)
 {	//fixme: force should probably be a latch bitmask
 	char *latch=NULL;
+	qboolean changed;
 
 	COM_AssertMainThread("Cvar_SetCore");
 
@@ -1002,33 +1003,33 @@ static cvar_t *Cvar_SetCore (cvar_t *var, const char *value, qboolean force)
 
 	latch = var->string;//save off the old value (so cvar_set(var, var->string) works)
 
-	var->string = (char*)Z_Malloc (Q_strlen(value)+1);
-	Q_strcpy (var->string, value);
-	var->value = Q_atof (var->string);
- 	var->ival = Q_atoi (var->string);
+	changed = (!latch) || strcmp(latch, value);
 
 	var->flags &= ~CVAR_TEAMPLAYTAINT;
-
+	if (changed)
 	{
-		char *str = COM_Parse(var->string);
-		var->vec4[0] = atof(com_token);
-		str = COM_Parse(str);
-		var->vec4[1] = atof(com_token);
-		str = COM_Parse(str);
-		var->vec4[2] = atof(com_token);
-		if (!str || !*str)
-			var->vec4[3] = 1;
-		else
+		var->string = Z_StrDup (value);
+		var->value = Q_atof (var->string);
+		var->ival = Q_atoi (var->string);
+
 		{
+			char *str = COM_Parse(var->string);
+			var->vec4[0] = atof(com_token);
 			str = COM_Parse(str);
-			var->vec4[3] = atof(com_token);
+			var->vec4[1] = atof(com_token);
+			str = COM_Parse(str);
+			var->vec4[2] = atof(com_token);
+			if (!str || !*str)
+				var->vec4[3] = 1;
+			else
+			{
+				str = COM_Parse(str);
+				var->vec4[3] = atof(com_token);
+			}
 		}
-	}
 
-	if (latch)
-	{
-		if (strcmp(latch, value))
-		{
+		if (latch)
+		{	//don't do this on registration.
 			var->modified=true;	//only modified if it changed.
 			var->modifiedcount++;
 			if (var->callback)
@@ -1049,6 +1050,7 @@ static cvar_t *Cvar_SetCore (cvar_t *var, const char *value, qboolean force)
 #endif
 			}
 		}
+
 		if ((var->flags & CVAR_ARCHIVE) && !(var->flags & CVAR_SERVEROVERRIDE) && cl_warncmd.ival)
 		{
 			if (var->latched_string)
@@ -1058,11 +1060,10 @@ static cvar_t *Cvar_SetCore (cvar_t *var, const char *value, qboolean force)
 			}
 			else
 			{
-				if (strcmp(latch, value))
+				if (!latch || strcmp(latch, value))
 					Cvar_ConfigChanged();
 			}
 		}
-
 
 		Z_Free (latch);	// free the old value string
 	}

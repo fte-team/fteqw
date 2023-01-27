@@ -1,0 +1,8 @@
+*.o
+*.o.d
+engine/debug/
+engine/release/
+
+# clangd artifacts
+compile_commands.json
+.cache/

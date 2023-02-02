@@ -434,13 +434,36 @@ qbyte GetPaletteIndexRange(int first, int stop, int red, int green, int blue)
 	return best;
 }
 
+const char *palette = NULL;
+
 sh_config_t sh_config;
 viddef_t vid;
+
 void ImgTool_SetupPalette(void)
 {
 	int i;
-	//we ought to try to read gfx/palette.lmp, but its probably in a pak
+	FILE *fPAL;
+	qbyte cust_pal[768];
+
 	host_basepal = default_quakepal;
+
+	if (palette)
+	{
+		fPAL = fopen(palette, "rb");
+	
+		if (fPAL != NULL)
+		{
+			Con_Printf("using user-specified palette\n");
+			fread(cust_pal, 1, 768, fPAL);
+			fclose(fPAL);
+			host_basepal = cust_pal;
+		}
+		else
+			Con_Printf("cannot find palette file %s\n", palette);
+	}
+	else
+		Con_Printf("using built-in Quake palette\n");
+
 	for (i = 0; i < 256; i++)
 	{
 		d_8to24rgbtable[i] = (host_basepal[i*3+0]<<0)|(host_basepal[i*3+1]<<8)|(host_basepal[i*3+2]<<16);
@@ -2555,6 +2578,7 @@ int main(int argc, const char **argv)
 	struct opts_s args;
 	size_t files = 0;
 	const char *outname = NULL;
+
 	for (u = 1; u < countof(sh_config.texfmt); u++)
 		sh_config.texfmt[u] = true;
 
@@ -2564,8 +2588,6 @@ int main(int argc, const char **argv)
 	args.textype = PTI_ANY;
 	args.defaultext = NULL;
 	args.width = args.height = 0;
-
-	ImgTool_SetupPalette();
 
 	if (argc==1)
 		goto showhelp;
@@ -2669,6 +2691,16 @@ showhelp:
 					return 1;
 				}
 			}
+			else if (!files && (!strcmp(argv[u], "-p") || !strcmp(argv[u], "--palette")))
+			{
+				if (u+1 < argc)
+					palette = argv[++u];
+				else
+				{
+					Con_Printf("--palette requires palette filename\n");
+					return 1;
+				}
+			}
 			else if (!strcmp(argv[u], "--resize"))
 			{
 				if (u+2 < argc)
@@ -2765,6 +2797,8 @@ showhelp:
 		else
 			argv[files++] = argv[u];
 	}
+
+	ImgTool_SetupPalette();
 
 	if (mode == mode_unspecified && args.textype!=PTI_ANY)
 		mode = mode_convert;

@@ -5260,7 +5260,7 @@ static bool writemdl(const char *filename, bool md16)
 		s -= 0.5;	//glquake has some annoying half-texel offset thing.
 		t -= 0.5;
 		s = bound(0, s, skinwidth);
-		t = bound(0, t, skinwidth);
+		t = bound(0, t, skinheight);
 		f->putlil((uint)(0?32:0));	//onseam. no verts are ever onseam for us, as we don't do that nonsense here.
 		f->putlil((int)s);	//mdl texcoords are ints, in texels. which sucks, but what can you do...
 		f->putlil((int)t);

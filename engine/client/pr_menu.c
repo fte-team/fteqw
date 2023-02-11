@@ -105,6 +105,7 @@ struct {
 	char facename[MAX_OSPATH];
 	float scale; //poop
 	int outline; //argh
+	unsigned int fontflags; //erk
 	int sizes;
 	int size[FONT_SIZES];
 	struct font_s *font[FONT_SIZES];
@@ -233,7 +234,7 @@ void PR_ReloadFonts(qboolean reload)
 		{	//otherwise load it.
 			for (j = 0; j < fontslot[i].sizes; j++)
 			{
-				fontslot[i].font[j] = Font_LoadFont(fontslot[i].facename, fontslot[i].size[j], fontslot[i].scale, fontslot[i].outline);
+				fontslot[i].font[j] = Font_LoadFont(fontslot[i].facename, fontslot[i].size[j], fontslot[i].scale, fontslot[i].outline, fontslot[i].fontflags);
 			}
 		}
 	}
@@ -333,7 +334,7 @@ void QCBUILTIN PF_CL_loadfont (pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 	if (qrenderer > QR_NONE)
 	{
 		for (i = 0; i < fontslot[slotnum].sizes; i++)
-			fontslot[slotnum].font[i] = Font_LoadFont(facename, fontslot[slotnum].size[i], fontslot[slotnum].scale, fontslot[slotnum].outline);
+			fontslot[slotnum].font[i] = Font_LoadFont(facename, fontslot[slotnum].size[i], fontslot[slotnum].scale, fontslot[slotnum].outline, fontslot[slotnum].fontflags);
 	}
 
 	G_FLOAT(OFS_RETURN) = slotnum;
@@ -342,7 +343,7 @@ void QCBUILTIN PF_CL_loadfont (pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 #ifdef HAVE_LEGACY
 void CL_LoadFont_f(void)
 {
-	extern cvar_t r_font_postprocess_outline;
+	extern cvar_t r_font_postprocess_outline, r_font_postprocess_mono;
 	//console command for compat with dp/debug.
 	if (Cmd_Argc() == 1)
 	{
@@ -418,6 +419,8 @@ void CL_LoadFont_f(void)
 			fontslot[slotnum].scale = 1;
 			fontslot[slotnum].sizes = 0;
 			fontslot[slotnum].outline = r_font_postprocess_outline.ival;	//locked in at definition, so different fonts can have different settings even with vid_reload going on.
+			fontslot[slotnum].fontflags = 0 |
+										(r_font_postprocess_mono.ival?FONT_MONO:0);
 		}
 		if (!*facename)
 			return;
@@ -435,6 +438,14 @@ void CL_LoadFont_f(void)
 			if (!strcmp(a, "outline"))
 			{
 				fontslot[slotnum].outline = atoi(Cmd_Argv(sizenum++));
+				continue;
+			}
+			if (!strcmp(a, "mono"))
+			{
+				if (atoi(Cmd_Argv(sizenum++)))
+					fontslot[slotnum].fontflags |= FONT_MONO;
+				else
+					fontslot[slotnum].fontflags &= ~FONT_MONO;
 				continue;
 			}
 			if (!strcmp(a, "blur"))
@@ -471,7 +482,7 @@ void CL_LoadFont_f(void)
 		if (qrenderer > QR_NONE)
 		{
 			for (i = 0; i < fontslot[slotnum].sizes; i++)
-				fontslot[slotnum].font[i] = Font_LoadFont(facename, fontslot[slotnum].size[i], fontslot[slotnum].scale, fontslot[slotnum].outline);
+				fontslot[slotnum].font[i] = Font_LoadFont(facename, fontslot[slotnum].size[i], fontslot[slotnum].scale, fontslot[slotnum].outline, fontslot[slotnum].fontflags);
 		}
 
 		//FIXME: slotnum0==default is problematic.

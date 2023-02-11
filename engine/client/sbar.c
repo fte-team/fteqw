@@ -1279,7 +1279,7 @@ void Draw_TinyString (float x, float y, const qbyte *str)
 
 	if (!font_tiny)
 	{
-		font_tiny = Font_LoadFont("gfx/tinyfont", 8, 1, 0);
+		font_tiny = Font_LoadFont("gfx/tinyfont", 8, 1, 0, 0);
 		if (!font_tiny)
 			return;
 	}

@@ -56,7 +56,7 @@ struct
 extern cvar_t scr_conalpha;
 extern cvar_t gl_conback;
 extern cvar_t gl_font, con_textfont;
-extern cvar_t r_font_postprocess_outline;
+extern cvar_t r_font_postprocess_outline, r_font_postprocess_mono;
 extern cvar_t gl_screenangle;
 extern cvar_t vid_minsize;
 extern cvar_t vid_conautoscale;
@@ -167,6 +167,7 @@ void R2D_Shutdown(void)
 	Cvar_Unhook(&con_textfont);
 	Cvar_Unhook(&gl_font);
 	Cvar_Unhook(&r_font_postprocess_outline);
+	Cvar_Unhook(&r_font_postprocess_mono);
 	Cvar_Unhook(&vid_conautoscale);
 	Cvar_Unhook(&gl_screenangle);
 	Cvar_Unhook(&vid_conheight);
@@ -444,6 +445,7 @@ void R2D_Init(void)
 	Cvar_Hook(&con_textfont, R2D_Font_Callback);
 	Cvar_Hook(&gl_font, R2D_Font_Callback);
 	Cvar_Hook(&r_font_postprocess_outline, R2D_Font_Callback);
+	Cvar_Hook(&r_font_postprocess_mono, R2D_Font_Callback);
 	Cvar_Hook(&vid_conautoscale, R2D_Conautoscale_Callback);
 	Cvar_Hook(&gl_screenangle, R2D_ScreenAngle_Callback);
 	Cvar_Hook(&vid_conheight, R2D_Conheight_Callback);
@@ -1137,6 +1139,7 @@ void R2D_Font_Changed(void)
 {
 	float tsize;
 	const char *con_font_name = con_textfont.string;
+	unsigned int flags;
 	if (!con_textsize.modified)
 		return;
 	if (!*con_font_name)
@@ -1170,6 +1173,10 @@ void R2D_Font_Changed(void)
 	if (qrenderer == QR_NONE)
 		return;
 
+	flags = 0;
+	if (r_font_postprocess_mono.ival)
+		flags |= FONT_MONO;
+
 	if (!strcmp(gl_font.string, "?"))
 	{
 #ifndef AVAIL_FREETYPE
@@ -1184,9 +1191,9 @@ void R2D_Font_Changed(void)
 		LOGFONTW lf = {0};
 		CHOOSEFONTW cf = {sizeof(cf)};
 		extern HWND	mainwindow;
-		font_default = Font_LoadFont("", 8, 1, r_font_postprocess_outline.ival);
+		font_default = Font_LoadFont("", 8, 1, r_font_postprocess_outline.ival, flags);
 		if (tsize != 8)
-			font_console = Font_LoadFont("", tsize, 1, r_font_postprocess_outline.ival);
+			font_console = Font_LoadFont("", tsize, 1, r_font_postprocess_outline.ival, flags);
 		if (!font_console)
 			font_console = font_default;
 
@@ -1230,19 +1237,19 @@ void R2D_Font_Changed(void)
 	}
 
 	if (COM_FCheckExists("fonts/qfont.kfont"))
-		font_menu = Font_LoadFont("qfont", 20, 1, r_font_postprocess_outline.ival);
+		font_menu = Font_LoadFont("qfont", 20, 1, r_font_postprocess_outline.ival, flags);
 	else
 		font_menu = NULL;
 
-	font_default = Font_LoadFont(gl_font.string, 8, 1, r_font_postprocess_outline.ival);
+	font_default = Font_LoadFont(gl_font.string, 8, 1, r_font_postprocess_outline.ival, flags);
 	if (!font_default && *gl_font.string)
-		font_default = Font_LoadFont("", 8, 1, r_font_postprocess_outline.ival);
+		font_default = Font_LoadFont("", 8, 1, r_font_postprocess_outline.ival, flags);
 
 	if (tsize != 8 || strcmp(gl_font.string, con_font_name))
 	{
-		font_console = Font_LoadFont(con_font_name, tsize, 1, r_font_postprocess_outline.ival);
+		font_console = Font_LoadFont(con_font_name, tsize, 1, r_font_postprocess_outline.ival, flags);
 		if (!font_console)
-			font_console = Font_LoadFont("", tsize, 1, r_font_postprocess_outline.ival);
+			font_console = Font_LoadFont("", tsize, 1, r_font_postprocess_outline.ival, flags);
 	}
 	if (!font_console)
 		font_console = font_default;

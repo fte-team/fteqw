@@ -458,6 +458,7 @@ cvar_t gl_texturemode2d						= CVARFCD("gl_texturemode2d", "GL_LINEAR",
 												"Specifies how 2d images are sampled. format is a 3-tupple ");
 cvar_t r_font_linear						= CVARF("r_font_linear", "1", CVAR_ARCHIVE);
 cvar_t r_font_postprocess_outline			= CVARFD("r_font_postprocess_outline", "0", 0, "Controls the number of pixels of dark borders to use around fonts.");
+cvar_t r_font_postprocess_mono				= CVARFD("r_font_postprocess_mono", "0", 0, "Disables anti-aliasing on fonts.");
 
 #if defined(HAVE_LEGACY) && defined(AVAIL_FREETYPE)
 cvar_t dpcompat_smallerfonts				= CVARFD("dpcompat_smallerfonts", "0", 0, "Mimics DP's behaviour of using a smaller font size than was actually requested.");
@@ -984,6 +985,7 @@ void Renderer_Init(void)
 	Cvar_Register (&gl_texturemode2d, GLRENDEREROPTIONS);
 	Cvar_Register (&r_font_linear, GLRENDEREROPTIONS);
 	Cvar_Register (&r_font_postprocess_outline, GLRENDEREROPTIONS);
+	Cvar_Register (&r_font_postprocess_mono, GLRENDEREROPTIONS);
 #if defined(HAVE_LEGACY) && defined(AVAIL_FREETYPE)
 	Cvar_Register (&dpcompat_smallerfonts, GLRENDEREROPTIONS);
 #endif

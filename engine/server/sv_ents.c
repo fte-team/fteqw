@@ -3459,7 +3459,8 @@ void SV_Snapshot_BuildStateQ1(entity_state_t *state, edict_t *ent, client_t *cli
 	if ((state->number-1) < (unsigned int)sv.allocated_client_slots && ent->v->movetype && client)
 	{
 		client_t *cl = &svs.clients[state->number-1];
-		if (cl->isindependant)
+		extern cvar_t sv_nqplayerphysics;
+		if (cl->isindependant || sv_nqplayerphysics.ival==2)
 		{
 			state->u.q1.pmovetype = ent->v->movetype;
 			if (state->u.q1.pmovetype && ((int)ent->v->flags & FL_ONGROUND) && (client->zquake_extensions&Z_EXT_PF_ONGROUND))

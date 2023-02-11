@@ -84,7 +84,7 @@ cvar_t cmd_allowaccess	= CVAR("cmd_allowaccess", "0");	//set to 1 to allow cmd t
 cvar_t cmd_gamecodelevel	= CVARF("cmd_gamecodelevel", STRINGIFY(RESTRICT_LOCAL), CVAR_NOTFROMSERVER);	//execution level which gamecode is told about (for unrecognised commands)
 
 cvar_t	sv_pure	= CVARFD("sv_pure", "", CVAR_SERVERINFO, "The most evil cvar in the world, many clients will ignore this.\n0=standard quake rules.\n1=clients should prefer files within packages present on the server.\n2=clients should use *only* files within packages present on the server.\nDue to quake 1.01/1.06 differences, a setting of 2 only works in total conversions.");
-cvar_t	sv_nqplayerphysics	= CVARAFCD("sv_nqplayerphysics", "auto", "sv_nomsec", CVAR_ARCHIVE, SV_NQPhysicsUpdate, "Disable player prediction and run NQ-style player physics instead. This can be used for compatibility with mods that expect exact behaviour.");
+cvar_t	sv_nqplayerphysics	= CVARAFCD("sv_nqplayerphysics", "auto", "sv_nomsec", CVAR_ARCHIVE, SV_NQPhysicsUpdate, "Disable player prediction and run NQ-style player physics instead. This can be used for compatibility with mods that expect exact behaviour. A value of 2 will not block prediction, and may be juddery/jerky/swimmy.");
 
 #ifdef HAVE_LEGACY
 static cvar_t	sv_brokenmovetypes	= CVARD("sv_brokenmovetypes", "0", "Emulate vanilla quakeworld by forcing MOVETYPE_WALK on all players. Shouldn't be used for any games other than QuakeWorld.");
@@ -2086,8 +2086,12 @@ void SVQW_Spawn_f (void)
 		//which really sucks.
 		//so let multiplayer people know what's going on so that they don't think its an actual bug, and can harass the admin to get it fixed in mods that allow for it.
 		if (!strcmp(sv_nqplayerphysics.string, "auto") || !strcmp(sv_nqplayerphysics.string, ""))
-			if (sv_nqplayerphysics.ival)
+		{
+			if (sv_nqplayerphysics.ival == 2)
+				SV_PrintToClient(host_client, PRINT_HIGH, CON_WARNING"Movement prediction may not match server due to non-quakeworld mod compatibilty\n");
+			else
 				SV_PrintToClient(host_client, PRINT_HIGH, CON_WARNING"Movement prediction is disabled in favour of non-quakeworld mod compatibilty\n");
+		}
 	}
 }
 
@@ -7144,6 +7148,9 @@ int SV_PMTypeForClient (client_t *cl, edict_t *ent)
 		return PM_NORMAL;
 	}
 #endif
+
+	if (sv_nqplayerphysics.ival && sv_nqplayerphysics.ival != 2)
+		return PM_NONE;	//let the client know that its prediction is fucked. should make it just lerp.
 
 	switch((int)ent->v->movetype)
 	{

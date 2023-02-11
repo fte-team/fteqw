@@ -1393,6 +1393,9 @@ void CL_ClampPitch (int pnum, float frametime)
 		VectorAngles(view[0], view[2], pv->viewangles, false);
 		VectorClear(pv->viewanglechange);
 
+		//fixme: in_vraim stuff
+		VectorCopy(pv->viewangles, pv->aimangles);
+
 		return;
 	}
 #if 1
@@ -1450,7 +1453,10 @@ void CL_ClampPitch (int pnum, float frametime)
 		if (!vang[ROLL])
 		{
 			if (!pv->viewanglechange[PITCH] && !pv->viewanglechange[YAW] && !pv->viewanglechange[ROLL])
+			{
+				VectorCopy(pv->viewangles, pv->aimangles);
 				return;
+			}
 		}
 		else
 		{
@@ -1490,6 +1496,9 @@ void CL_ClampPitch (int pnum, float frametime)
 			pv->viewangles[ROLL] += 360;
 		if (pv->viewangles[PITCH] < -180)
 			pv->viewangles[PITCH] += 360;
+
+		//fixme: in_vraim stuff
+		VectorCopy(pv->viewangles, pv->aimangles);
 		return;
 	}
 #endif

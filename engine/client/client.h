@@ -187,6 +187,7 @@ typedef struct player_info_s
 
 	qboolean ignored;
 	qboolean vignored;
+	unsigned int chatstate;
 
 	// skin information
 	unsigned int		rtopcolor;	//real, according to their userinfo

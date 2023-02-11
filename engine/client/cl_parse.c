@@ -5551,6 +5551,8 @@ static void CL_ProcessUserInfo (int slot, player_info_t *player)
 		player->rbottomcolor = 13;
 */
 
+	player->chatstate = atoi(InfoBuf_ValueForKey (&player->userinfo, "chat"));
+
 #ifdef HEXEN2
 	/*if we're running hexen2, they have to be some class...*/
 	player->h2playerclass = atoi(InfoBuf_ValueForKey (&player->userinfo, "cl_playerclass"));

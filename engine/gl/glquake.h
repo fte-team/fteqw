@@ -62,7 +62,7 @@ void ModBrush_LoadGLStuff(void *ctx, void *data, size_t a, size_t b);	//data ===
 		#define GLdouble GLfloat
 	#else
 		#ifdef _WIN32	//windows might use the standard header filename, but it still requires that we manually include windows.h first.
-			#ifndef WIN32_BLOATED
+			#if !defined(WIN32_BLOATED) && !defined(WIN32_LEAN_AND_MEAN)
 				#define WIN32_LEAN_AND_MEAN
 			#endif
 			#include <windows.h>

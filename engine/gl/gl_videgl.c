@@ -182,12 +182,12 @@ qboolean EGL_LoadLibrary(char *driver)
 #ifndef _WIN32
 	if (!eslibrary)
 	{
-		eslibrary = dlopen("libGL.so.1.2", RTLD_NOW|RTLD_GLOBAL);
+		eslibrary = dlopen("libGL"ARCH_DL_POSTFIX".1.2", RTLD_NOW|RTLD_GLOBAL);
 		if (eslibrary) Sys_Printf("Loaded libGL.so.1.2\n");
 	}
 	if (!eslibrary)
 	{
-		eslibrary = dlopen("libGL.so.1", RTLD_NOW|RTLD_GLOBAL);
+		eslibrary = dlopen("libGL"ARCH_DL_POSTFIX".1", RTLD_NOW|RTLD_GLOBAL);
 		if (eslibrary) Sys_Printf("Loaded libGL.so.1\n");
 	}
 	if (!eslibrary)

@@ -1583,7 +1583,7 @@ static void MDNS_ProcessPacket(qbyte *inmsg, size_t inmsgsize, netadr_t *source)
 static void MDNS_ReadPackets(void)
 {
 	qbyte inmsg[9000];
-	ssize_t inmsgsize;
+	int inmsgsize;
 	netadr_t adr;
 	struct sockaddr_qstorage source;
 

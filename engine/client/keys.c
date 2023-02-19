@@ -1408,6 +1408,8 @@ void Key_EmojiCompletion_c(int argn, const char *partial, struct xcommandargcomp
 	char guess[256];
 	char repl[256];
 	size_t ofs, len;
+	if (*partial != ':')
+		return;	//don't show annoying completion crap.
 	if (!emojidata)
 		Key_LoadEmojiList();
 	len = strlen(partial);

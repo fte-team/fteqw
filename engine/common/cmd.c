@@ -150,7 +150,23 @@ static void Cmd_MacroList_f (void)
 }
 
 
+static void Cmd_MacroCompletion_c(int argn, const char *partial, struct xcommandargcompletioncb_s *ctx)
+{
+	size_t i, len;
+	const char *end = partial;
+	if (*end++ != '$')
+		return;
+	if (*end == '{')
+		end++;
+	len = strlen(end);
 
+	for (i = 0; i < macro_count; i++)
+	{
+		if (len <= strlen(macro_commands[i].name))
+			if (!strncmp(end, macro_commands[i].name, len))
+				ctx->cb(va("${%s}", macro_commands[i].name), NULL, NULL, ctx);
+	}
+}
 
 
 
@@ -2498,8 +2514,9 @@ cmd_completion_t *Cmd_Complete(const char *partial, qboolean caseinsens)
 
 	cvar_group_t	*grp;
 	cvar_t		*cvar;
-	const char *sp;
+	const char *sp, *e;
 	qboolean quoted = false;
+	int arg = 0;
 
 	static cmd_completion_t c;
 
@@ -2515,30 +2532,37 @@ cmd_completion_t *Cmd_Complete(const char *partial, qboolean caseinsens)
 	c.partial = Z_StrDup(partial);
 	c.caseinsens = caseinsens;
 
-	for (sp = partial; *sp; sp++)
+	len = 0;
+	for(e = partial;;)
 	{
-		if (*sp == ' ' || *sp == '\t')
+		sp = e;	//the start of where we're trying to complete...
+		while (*sp == ' ' || *sp == '\t')
+			sp++;	//leading spaces are annoying...
+		e = COM_Parse(sp);
+		if (!arg && e)
+			len = e - partial;
+		if (e && (*e == ' ' || *e == '\t'))
+		{	//there seems to be whitespace after it.
+			arg++;
+			while (*sp == ' ' || *sp == '\t')
+				sp++;
+			//try to handle quotes
+			if (*sp == '\\' && sp[1] == '\"')
+			{
+				sp+=2;
+				quoted = true;
+			}
+			else if (*sp == '\"')
+			{
+				sp++;
+				quoted = true;
+			}
+			else
+				quoted = false;
+		}
+		else
 			break;
 	}
-	len = sp - partial;
-	if (*sp)
-	{
-		while (*sp == ' ' || *sp == '\t')
-			sp++;
-		//try to handle quotes
-		if (*sp == '\\' && sp[1] == '\"')
-		{
-			sp+=2;
-			quoted = true;
-		}
-		else if (*sp == '\"')
-		{
-			sp++;
-			quoted = true;
-		}
-	}
-	else
-		sp = NULL;
 
 //	if (len)
 	{
@@ -2547,7 +2571,7 @@ cmd_completion_t *Cmd_Complete(const char *partial, qboolean caseinsens)
 			for (cmd=cmd_functions ; cmd ; cmd=cmd->next)
 				if (!Q_strncasecmp (partial,cmd->name, len) && (!partial[len] || strlen(cmd->name) == len))
 				{
-					if (sp && cmd->argcompletion)
+					if (arg)
 					{
 						struct cmdargcompletion_ctx_s ctx;
 						ctx.cb.cb = Cmd_Complete_CheckArg;
@@ -2557,7 +2581,10 @@ cmd_completion_t *Cmd_Complete(const char *partial, qboolean caseinsens)
 						ctx.res = &c;
 						ctx.desc = cmd->description;
 						ctx.quoted = quoted;
-						cmd->argcompletion(1, sp, &ctx.cb);
+
+						Cmd_MacroCompletion_c(arg, sp, &ctx.cb);
+						if (cmd->argcompletion)
+							cmd->argcompletion(arg, sp, &ctx.cb);
 					}
 					else
 						Cmd_Complete_Check(cmd->name, &c, cmd->description);
@@ -4416,7 +4443,7 @@ void Cmd_Init (void)
 	Cmd_AddCommandAD ("seta_calc", Cmd_set_f, Cmd_Set_c, "Sets the named cvar to the result of a (complex) expression. Also forces the archive flag so that the cvar will always be written into any saved configs.");
 	Cmd_AddCommandD ("vstr", Cmd_Vstr_f, "Executes the string value of the cvar, much like if it were an alias. For compatibility with q3.");
 	Cmd_AddCommandAD ("inc", Cvar_Inc_f, Cmd_Set_c, "Adds a value to the named cvar. Use a negative value if you wish to decrease the cvar's value.");
-	Cmd_AddCommand ("if", Cmd_if_f);
+	Cmd_AddCommandD ("if", Cmd_if_f, "For conditionally executing console commands.");
 
 	Cmd_AddCommand ("cmdlist", Cmd_List_f);
 	Cmd_AddCommand ("aliaslist", Cmd_AliasList_f);

@@ -5348,7 +5348,28 @@ static qboolean QDECL Mod_LoadBrushModel (model_t *mod, void *buffer, size_t fsi
 	else if (!memcmp(&header.version,  BSPVERSION_LONG2))
 		mod->engineflags |= MDLF_NEEDOVERBRIGHT, subbsp = sb_long2;
 	else if (!memcmp(&header.version,  BSPVERSIONHL))
+	{
+		char tmp[64];
 		mod->fromgame = fg_halflife;
+
+		//special hack to work around blueshit bugs - we need to swap LUMP_ENTITIES and LUMP_PLANES over
+		if (COM_ParseOut(mod_base + header.lumps[LUMP_PLANES].fileofs, tmp, sizeof(tmp)) && !strcmp(tmp, "{"))
+		{
+			COM_ParseOut(mod_base + header.lumps[LUMP_ENTITIES].fileofs, tmp, sizeof(tmp));
+			if (strcmp(tmp, "{"))
+			{
+				int i;
+				for (i = 0; i < header.lumps[LUMP_ENTITIES].filelen && i < sizeof(dplane_t); i++)
+					if (mod_base[header.lumps[LUMP_ENTITIES].fileofs + i] == 0)
+					{	//yeah, looks screwy in the way we expect. swap em over.
+						lump_t tmp = header.lumps[LUMP_ENTITIES];
+						header.lumps[LUMP_ENTITIES] = header.lumps[LUMP_PLANES];
+						header.lumps[LUMP_PLANES] = tmp;
+						break;
+					}
+			}
+		}
+	}
 	else
 	{
 		Con_Printf (CON_ERROR "Mod_LoadBrushModel: %s has wrong version number (%i)\n", mod->name, i);

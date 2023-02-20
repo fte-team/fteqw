@@ -1154,7 +1154,7 @@ void SV_SpawnServer (const char *server, const char *startspot, qboolean noents,
 	if (file)
 	{
 		char text[64];
-		sv.csqcchecksum = Com_BlockChecksum(file, fsz);
+		sv.csqcchecksum = CalcHashInt(&hash_md4, file, fsz);
 		sprintf(text, "0x%x", sv.csqcchecksum);
 		InfoBuf_SetValueForStarKey(&svs.info, "*csprogs", text);
 		sprintf(text, "0x%x", (unsigned int)fsz);

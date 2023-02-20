@@ -1235,9 +1235,9 @@ static int QDECL FSDZ_GeneratePureCRC(searchpathfuncs_t *handle, int seed, int c
 	}
 
 	if (crctype)
-		result = Com_BlockChecksum(filecrcs, numcrcs*sizeof(int));
+		result = CalcHashInt(&hash_md4, filecrcs, numcrcs*sizeof(int));
 	else
-		result = Com_BlockChecksum(filecrcs+1, (numcrcs-1)*sizeof(int));
+		result = CalcHashInt(&hash_md4, filecrcs+1, (numcrcs-1)*sizeof(int));
 
 	BZ_Free(filecrcs);
 	return result;

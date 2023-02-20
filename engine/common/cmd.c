@@ -916,7 +916,7 @@ static void Cmd_Exec_f (void)
 			Cbuf_InsertText (fs_manifest->defaultoverrides, level, false);
 
 #if defined(HAVE_LEGACY) && defined(HAVE_CLIENT)
-		if (l == 1914 && Com_BlockChecksum(f, l) == 0x2d7b72b9)
+		if (l == 1914 && CalcHashInt(&hash_md4, f, l) == 0x2d7b72b9)
 			s = (char*)replacementq1binds;
 #endif
 	}

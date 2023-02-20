@@ -8924,7 +8924,7 @@ void QCBUILTIN PF_sj_strhash (pubprogfuncs_t *prinst, struct globalvars_s *pr_gl
 {	//not quite the same, but oh well
 	const char *str = PF_VarString(prinst, 0, pr_globals);
 	int len = strlen(str);
-	G_FLOAT(OFS_RETURN) = Com_BlockChecksum(str, len);
+	G_FLOAT(OFS_RETURN) = CalcHashInt(&hash_md4, str, len);
 }
 #endif
 static void QCBUILTIN PF_StopSound(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)

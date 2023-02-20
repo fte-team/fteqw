@@ -1330,10 +1330,10 @@ static void COM_CalcHash_Thread(void *ctx, void *fname, size_t a, size_t b)
 //		{"crc16", &hash_crc16},
 		{"sha1", &hash_sha1},
 #if defined(HAVE_SERVER) || defined(HAVE_CLIENT)
-//		{"sha224", &hash_sha224},
-		{"sha256", &hash_sha256},
-//		{"sha384", &hash_sha384},
-//		{"sha512", &hash_sha512},
+//		{"sha224", &hash_sha2_224},
+		{"sha256", &hash_sha2_256},
+//		{"sha384", &hash_sha2_384},
+//		{"sha512", &hash_sha2_512},
 #endif
 	};
 	qbyte digest[DIGEST_MAXSIZE];

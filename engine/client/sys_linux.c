@@ -1219,7 +1219,7 @@ static void DoSign(const char *fname, int signtype)
 	}
 	else if (f)
 	{
-		hashfunc_t *h = (signtype==1)?&hash_sha256:&hash_sha512;
+		hashfunc_t *h = (signtype==1)?&hash_sha2_256:&hash_sha2_512;
 		size_t l, ts = 0;
 		void *ctx = alloca(h->contextsize);
 		qbyte data[65536*16];

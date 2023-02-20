@@ -547,7 +547,7 @@ typedef struct	//for plugins that need to read/write files...
 	F(const char *,GetExtension,(const char *filename, const char *ignoreext));
 	F(void,		FileBase,		(const char *in, char *out, int outlen));
 	F(void,		CleanUpPath,	(char *str));
-	F(unsigned int,BlockChecksum,(const void *buffer, int length));	//mostly for pack hashes.
+	F(unsigned int,BlockChecksum,(const void *buffer, size_t length));	//mostly for pack hashes.
 	F(void*,	LoadFile,		(const char *fname, size_t *fsize));	//plugfuncs->Free
 
 	//stuff that's useful for networking.

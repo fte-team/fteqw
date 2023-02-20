@@ -930,14 +930,12 @@ void InfoBuf_WriteToFile(vfsfile_t *f, infobuf_t *info, const char *commandname,
 void InfoBuf_Enumerate (infobuf_t *info, void *ctx, void(*cb)(void *ctx, const char *key, const char *value));
 
 
-void Com_BlocksChecksum (int blocks, void **buffer, int *len, unsigned char *outbuf);
-unsigned int Com_BlockChecksum (const void *buffer, int length);
-void Com_BlockFullChecksum (const void *buffer, int len, unsigned char *outbuf);
 qbyte	COM_BlockSequenceCheckByte (qbyte *base, int length, int sequence, unsigned mapchecksum);
 qbyte	COM_BlockSequenceCRCByte (qbyte *base, int length, int sequence);
 qbyte	Q2COM_BlockSequenceCRCByte (qbyte *base, int length, int sequence);
 
 size_t Base64_EncodeBlock(const qbyte *in, size_t length, char *out, size_t outsize);	//tries to null terminate, but returns length without termination.
+size_t Base64_EncodeBlockURI(const qbyte *in, size_t length, char *out, size_t outsize); //slightly different chars for uri safety. also trims.
 size_t Base64_DecodeBlock(const char *in, const char *in_end, qbyte *out, size_t outsize); // +/ and =
 size_t Base16_EncodeBlock(const char *in, size_t length, qbyte *out, size_t outsize);
 size_t Base16_DecodeBlock(const char *in, qbyte *out, size_t outsize);
@@ -951,15 +949,16 @@ typedef struct
 	void (*process) (void *context, const void *data, size_t datasize);
 	void (*terminate) (unsigned char *digest, void *context);
 } hashfunc_t;
-extern hashfunc_t hash_sha1;
-extern hashfunc_t hash_sha224;
-extern hashfunc_t hash_sha256;
-extern hashfunc_t hash_sha384;
-extern hashfunc_t hash_sha512;
-extern hashfunc_t hash_crc16;
+extern hashfunc_t hash_md4;			//required for vanilla qw mapchecks
+extern hashfunc_t hash_sha1;		//required for websockets, and ezquake's crypted rcon
+extern hashfunc_t hash_sha2_224;
+extern hashfunc_t hash_sha2_256;	//required for webrtc
+extern hashfunc_t hash_sha2_384;
+extern hashfunc_t hash_sha2_512;
+extern hashfunc_t hash_crc16;		//aka ccitt, required for qw's clc_move and various bits of dp compat
 extern hashfunc_t hash_crc16_lower;
 unsigned int hashfunc_terminate_uint(const hashfunc_t *hash, void *context); //terminate, except returning the digest as a uint instead of a blob. folds the digest if longer than 4 bytes.
-unsigned int CalcHashInt(const hashfunc_t *hash, const unsigned char *data, size_t datasize);
+unsigned int CalcHashInt(const hashfunc_t *hash, const void *data, size_t datasize);
 size_t CalcHash(const hashfunc_t *hash, unsigned char *digest, size_t maxdigestsize, const unsigned char *data, size_t datasize);
 size_t CalcHMAC(const hashfunc_t *hashfunc, unsigned char *digest, size_t maxdigestsize, const unsigned char *data, size_t datalen, const unsigned char *key, size_t keylen);
 

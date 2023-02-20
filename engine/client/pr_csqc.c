@@ -7997,7 +7997,7 @@ static qboolean CSQC_ValidateMainCSProgs(void *file, size_t filesize, unsigned i
 	}
 	else
 	{	//FTE uses folded-md4. yeah, its broken but at least its still more awkward
-		if (LittleLong(Com_BlockChecksum(file, filesize)) != checksum)
+		if (LittleLong(CalcHashInt(&hash_md4, file, filesize)) != checksum)
 			return false;
 	}
 	return true;

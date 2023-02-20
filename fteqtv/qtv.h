@@ -248,10 +248,10 @@ typedef struct
 	void (*terminate) (unsigned char *digest, void *context);
 } hashfunc_t;
 extern hashfunc_t hash_sha1;
-/*extern hashfunc_t hash_sha224;
-extern hashfunc_t hash_sha256;
-extern hashfunc_t hash_sha384;
-extern hashfunc_t hash_sha512;*/
+/*extern hashfunc_t hash_sha2_224;
+extern hashfunc_t hash_sha2_256;
+extern hashfunc_t hash_sha2_384;
+extern hashfunc_t hash_sha2_512;*/
 #define HMAC HMAC_quake	//stop conflicts...
 size_t CalcHash(hashfunc_t *hash, unsigned char *digest, size_t maxdigestsize, const unsigned char *string, size_t stringlen);
 size_t HMAC(hashfunc_t *hashfunc, unsigned char *digest, size_t maxdigestsize, const unsigned char *data, size_t datalen, const unsigned char *key, size_t keylen);

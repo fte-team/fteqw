@@ -1191,6 +1191,11 @@ void QDECL Plug_FS_EnumerateFiles(enum fs_relative fsroot, const char *match, in
 	}
 }
 
+unsigned int Plug_BlockChecksum(const void *data, size_t datasize)
+{	//convienience function. we use md4 for legacy reasons (every qw engine must have an implementation)
+	return CalcHashInt(&hash_md4, data, datasize);
+}
+
 #if defined(HAVE_SERVER) && defined(HAVE_CLIENT)
 static qboolean QDECL Plug_MapLog_Query(const char *packagename, const char *mapname, float *vals)
 {
@@ -1930,7 +1935,7 @@ static void *QDECL PlugBI_GetEngineInterface(const char *interfacename, size_t s
 			COM_GetFileExtension,
 			COM_FileBase,
 			COM_CleanUpPath,
-			Com_BlockChecksum,
+			Plug_BlockChecksum,
 			FS_LoadMallocFile,
 
 			FS_GetPackHashes,

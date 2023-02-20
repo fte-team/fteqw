@@ -4517,7 +4517,7 @@ static cmodel_t *CM_LoadMap (model_t *mod, qbyte *filein, size_t filelen, qboole
 		return NULL;
 	}
 
-	checksum = LittleLong (Com_BlockChecksum (buf, length));
+	checksum = LittleLong (CalcHashInt(&hash_md4, buf, length));
 
 	header = *(q2dheader_t *)(buf);
 	header.ident = LittleLong(header.ident);

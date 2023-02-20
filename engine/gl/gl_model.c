@@ -1461,7 +1461,7 @@ static const char *Mod_RemapBuggyTexture(const char *name, const qbyte *data, un
 	{
 		if (!strcmp(name, buggytextures[i].oldname))
 		{
-			unsigned int sum = Com_BlockChecksum(data, datalen);
+			unsigned int sum = CalcHashInt(&hash_md4, data, datalen);
 			for (; i < sizeof(buggytextures)/sizeof(buggytextures[0]); i++)
 			{
 				if (strcmp(name, buggytextures[i].oldname))
@@ -5413,7 +5413,7 @@ static qboolean QDECL Mod_LoadBrushModel (model_t *mod, void *buffer, size_t fsi
 		}
 		if (i == LUMP_ENTITIES)
 			continue;
-		chksum = Com_BlockChecksum(mod_base + header.lumps[i].fileofs, header.lumps[i].filelen);
+		chksum = CalcHashInt(&hash_md4, mod_base + header.lumps[i].fileofs, header.lumps[i].filelen);
 		mod->checksum ^= chksum;
 
 		if (i == LUMP_VISIBILITY || i == LUMP_LEAFS || i == LUMP_NODES)

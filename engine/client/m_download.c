@@ -1498,7 +1498,7 @@ static qboolean PM_ParsePackageList(const char *f, unsigned int parseflags, cons
 					size_t signsize;
 					enum hashvalidation_e r;
 					int i;
-					hashfunc_t *hf = &hash_sha512;
+					hashfunc_t *hf = &hash_sha2_512;
 					void *hashdata = Z_Malloc(hf->digestsize);
 					void *hashctx = Z_Malloc(hf->contextsize);
 					tokstart = COM_StringParse (tokstart, authority, sizeof(authority), false, false);
@@ -4071,7 +4071,7 @@ static void PM_StartADownload(void)
 			}
 
 			if (p->filesha512 && tmpfile)
-				tmpfile = FS_Hash_ValidateWrites(tmpfile, p->name, p->filesize, &hash_sha512, p->filesha512);
+				tmpfile = FS_Hash_ValidateWrites(tmpfile, p->name, p->filesize, &hash_sha2_512, p->filesha512);
 			else if (p->filesha1 && tmpfile)
 				tmpfile = FS_Hash_ValidateWrites(tmpfile, p->name, p->filesize, &hash_sha1, p->filesha1);
 

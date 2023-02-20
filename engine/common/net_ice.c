@@ -256,6 +256,21 @@ typedef struct sctp_s
 	unsigned short qstreamid;	//in network endian.
 } sctp_t;
 #ifdef HAVE_DTLS
+
+static const struct
+{
+	const char *name;
+	hashfunc_t *hash;
+} webrtc_hashes[] =
+{	//RFC8211 specifies this list of hashes
+//	{"md2",	&hash_md2},	//deprecated, hopefully we won't see it
+//	{"md5",	&hash_md5},	//deprecated, hopefully we won't see it
+	{"sha-1",	&hash_sha1},
+	{"sha-224",	&hash_sha2_224},
+	{"sha-256",	&hash_sha2_256},
+	{"sha-384",	&hash_sha2_384},
+	{"sha-512",	&hash_sha2_512},
+};
 extern cvar_t net_enable_dtls;
 static neterr_t SCTP_Transmit(sctp_t *sctp, struct icestate_s *peer, const void *data, size_t length);
 #endif
@@ -1912,26 +1927,24 @@ static void ICE_ParseSDPLine(struct icestate_s *con, const char *value)
 	}
 	else if (!strncmp(value, "a=fingerprint:", 14))
 	{
+		hashfunc_t *hash = NULL;
+		int i;
 		char name[64];
 		value = COM_ParseOut(value+14, name, sizeof(name));
-		if (!strcasecmp(name, "sha-1"))
-			con->cred.peer.hash = &hash_sha1;
-		else if (!strcasecmp(name, "sha-224"))
-			con->cred.peer.hash = &hash_sha224;
-		else if (!strcasecmp(name, "sha-256"))
-			con->cred.peer.hash = &hash_sha256;
-		else if (!strcasecmp(name, "sha-384"))
-			con->cred.peer.hash = &hash_sha384;
-		else if (!strcasecmp(name, "sha-512"))
-			con->cred.peer.hash = &hash_sha512;
-		else
-			con->cred.peer.hash = NULL; //hash not recognised
-		if (con->cred.peer.hash)
+		for (i = 0; i < countof(webrtc_hashes); i++)
+		{
+			if (!strcasecmp(name, webrtc_hashes[i].name))
+			{
+				hash = webrtc_hashes[i].hash;
+				break;
+			}
+		}
+		if (hash && (!con->cred.peer.hash || hash->digestsize>con->cred.peer.hash->digestsize))	//FIXME: digest size is not a good indicator of whether its exploitable or not, but should work for sha1/sha2 options. the sender here is expected to be trustworthy anyway.
 		{
 			int b, o, v;
 			while (*value == ' ')
 				value++;
-			for (b = 0; b < con->cred.peer.hash->digestsize; )
+			for (b = 0; b < hash->digestsize; )
 			{
 				v = *value;
 				if      (v >= '0' && v <= '9')
@@ -1958,8 +1971,10 @@ static void ICE_ParseSDPLine(struct icestate_s *con, const char *value)
 					break;
 				value++;
 			}
-			if (b != con->cred.peer.hash->digestsize)
-				con->cred.peer.hash = NULL; //bad!
+			if (b == hash->digestsize)
+				con->cred.peer.hash = hash;	//it was the right size, woo.
+			else
+				con->cred.peer.hash = NULL; //bad! (should we 0-pad?)
 		}
 	}
 	else if (!strncmp(value, "a=sctp-port:", 12))
@@ -2471,14 +2486,12 @@ static qboolean QDECL ICE_Get(struct icestate_s *con, const char *prop, char *va
 			{
 				int b;
 				Q_strncatz(value, "a=fingerprint:", valuelen);
-				if (con->cred.peer.hash == &hash_sha1)
-					Q_strncatz(value, "sha-1", valuelen);
-				else if (con->cred.peer.hash == &hash_sha256)
-					Q_strncatz(value, "sha-256", valuelen);
-				else if (con->cred.peer.hash == &hash_sha512)
-					Q_strncatz(value, "sha-512", valuelen);
-				else
-					Q_strncatz(value, "UNKNOWN", valuelen);
+				for (b = 0; b < countof(webrtc_hashes); b++)
+				{
+					if (con->cred.peer.hash == webrtc_hashes[b].hash)
+						break;
+				}
+				Q_strncatz(value, (b==countof(webrtc_hashes))?"UNKNOWN":webrtc_hashes[b].name, valuelen);
 				for (b = 0; b < con->cred.peer.hash->digestsize; b++)
 					Q_strncatz(value, va(b?":%02X":" %02X", con->cred.peer.digest[b]), valuelen);
 				Q_strncatz(value, "\n", valuelen);
@@ -2533,16 +2546,17 @@ static qboolean QDECL ICE_Get(struct icestate_s *con, const char *prop, char *va
 			{	//this is a preliminary check to avoid wasting time
 				if (!con->cred.local.certsize)
 					return false;	//fail if we cannot do dtls when its required.
-				if (!strcmp(prop, "sdpanswer") || !con->cred.peer.hash)
+				if (!strcmp(prop, "sdpanswer") && !con->cred.peer.hash)
 					return false;	//don't answer if they failed to provide a cert
 			}
 			if (con->cred.local.certsize)
 			{
 				qbyte fingerprint[DIGEST_MAXSIZE];
 				int b;
-				CalcHash(&hash_sha256, fingerprint, sizeof(fingerprint), con->cred.local.cert, con->cred.local.certsize);
+				hashfunc_t *hash = &hash_sha2_256;	//browsers use sha-256, lets match them.
+				CalcHash(hash, fingerprint, sizeof(fingerprint), con->cred.local.cert, con->cred.local.certsize);
 				Q_strncatz(value, "a=fingerprint:sha-256", valuelen);
-				for (b = 0; b < hash_sha256.digestsize; b++)
+				for (b = 0; b < hash->digestsize; b++)
 					Q_strncatz(value, va(b?":%02X":" %02X", fingerprint[b]), valuelen);
 				Q_strncatz(value, "\n", valuelen);
 

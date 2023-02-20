@@ -536,10 +536,9 @@ char *CL_GUIDString(netadr_t *adr)
 {
 	static qbyte buf[2048];
 	static int buflen;
-	unsigned int digest[4];
+	qbyte digest[DIGEST_MAXSIZE];
 	char serveraddr[256];
-	void *blocks[2];
-	int lens[2];
+	void *ctx;
 
 	if (!*cl_sendguid.string && *connectinfo.ext.guidsalt)
 	{
@@ -587,11 +586,12 @@ char *CL_GUIDString(netadr_t *adr)
 		}
 	}
 
-	blocks[0] = buf;lens[0] = buflen;
-	blocks[1] = serveraddr;lens[1] = strlen(serveraddr);
-	Com_BlocksChecksum(2, blocks, lens, (void*)digest);
-
-	Q_snprintfz(connectinfo.guid, sizeof(connectinfo.guid), "%08x%08x%08x%08x", digest[0], digest[1], digest[2], digest[3]);
+	ctx = alloca(hash_md4.contextsize);
+	hash_md4.init(ctx);
+	hash_md4.process(ctx, buf, buflen);
+	hash_md4.process(ctx, serveraddr, strlen(serveraddr));
+	hash_md4.terminate(digest, ctx);
+	Base16_EncodeBlock(digest, hash_md4.digestsize, connectinfo.guid, sizeof(connectinfo.guid));
 	return connectinfo.guid;
 }
 

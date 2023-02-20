@@ -3534,7 +3534,7 @@ static void SCTP_Decode(sctp_t *sctp, struct icestate_s *peer, ftenet_connection
 	while ((qbyte*)(c+1) <= msgend)
 	{
 		clen = BigShort(c->length);
-		if ((qbyte*)c + clen > msgend)
+		if ((qbyte*)c + clen > msgend || clen < sizeof(*c))
 			break;	//corrupt
 		safeswitch(c->type)
 		{
@@ -3587,7 +3587,7 @@ static void SCTP_Decode(sctp_t *sctp, struct icestate_s *peer, ftenet_connection
 						if (adv > sctp->i.htsn)	//weird maths in case it wraps.
 							sctp->i.htsn = adv;
 						sctp->i.r.tsn++;
-						if (sctp->i.r.size + clen-sizeof(*dc) > sizeof(sctp->i.r.buf))
+						if (sctp->i.r.size + dlen > sizeof(sctp->i.r.buf))
 						{
 							if (net_ice_debug.ival >= 2)
 								Con_Printf(S_COLOR_GRAY"[%s]: SCTP: Oversized\n", peer->friendlyname);

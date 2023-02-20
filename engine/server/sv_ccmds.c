@@ -3268,6 +3268,11 @@ void SV_PrecacheList_f(void)
 {
 	unsigned int i;
 	char *group = Cmd_Argv(1);
+	if (sv.state != ss_active)
+	{
+		Con_Printf("Server is not active.\n");
+		return;
+	}
 #ifdef HAVE_LEGACY
 	if (!*group || !strncmp(group, "vwep", 4))
 	{

@@ -5826,11 +5826,13 @@ QCC_type_t *QCC_PR_ParseType (int newtype, pbool silentfail)
 					//swap the class out for the appropriate function type...
 					newparm = QCC_PR_GenFunctionType(type_void, basetype->params, basetype->num_parms);
 					parmname = classname;
+					arraysize = 0;
 				}
 				else if (!flag_qcfuncs && basetype == newt && QCC_PR_CheckToken("("))
 				{
 					newparm = QCC_PR_ParseFunctionType(false, type_void);
 					parmname = classname;
+					arraysize = 0;
 				}
 				else
 				{

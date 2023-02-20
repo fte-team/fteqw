@@ -7930,6 +7930,7 @@ void Mod_Terrain_Save_f(void)
 	{
 		//warning: brushes are not saved unless its a .map
 		COM_StripExtension(mod->name, fname, sizeof(fname));
+		Q_strncatz(fname, mod_modifier, sizeof(fname));
 		Q_strncatz(fname, ".ent", sizeof(fname));
 
 		FS_CreatePath(fname, FS_GAMEONLY);

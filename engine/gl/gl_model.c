@@ -81,6 +81,7 @@ void Mod_LoadDoomSprite (model_t *mod);
 #define	MAX_MOD_KNOWN	8192
 model_t	*mod_known;
 int		mod_numknown;
+char mod_modifier[MAX_QPATH];	//postfix for ent files
 
 extern cvar_t r_loadlits;
 #ifdef SPECULAR
@@ -617,6 +618,17 @@ void Mod_Purge(enum mod_purge_e ptype)
 		else if (mod->type == mod_halflife)
 			R_HalfLife_TouchTextures(mod);
 #endif
+	}
+}
+
+void Mod_SetModifier(const char *modifier)
+{
+	if (!modifier || strlen(modifier) >= sizeof(mod_modifier)) modifier = "";
+	if (strcmp(modifier, mod_modifier))
+	{	//if the modifier changed, force all models to reset.
+		COM_WorkerFullSync();	//sync all the workers, just in case.
+		strcpy(mod_modifier, modifier);
+		Mod_Purge(MP_RESET);	//nuke it now
 	}
 }
 
@@ -2252,11 +2264,13 @@ static void Mod_SaveEntFile_f(void)
 	{
 		Q_snprintfz(fname, sizeof(fname), "maps/%s/%s", mod_loadentfiles_dir.string, mod->name+5);
 		COM_StripExtension(fname, fname, sizeof(fname));
+		Q_strncatz(fname, mod_modifier, sizeof(fname));
 		Q_strncatz(fname, ".ent", sizeof(fname));
 	}
 	else
 	{
 		COM_StripExtension(mod->name, fname, sizeof(fname));
+		Q_strncatz(fname, mod_modifier, sizeof(fname));
 		Q_strncatz(fname, ".ent", sizeof(fname));
 	}
 
@@ -2293,6 +2307,7 @@ qboolean Mod_LoadEntitiesBlob(struct model_s *mod, const char *entdata, size_t e
 		{
 			Q_snprintfz(fname, sizeof(fname), "maps/%s/%s", mod_loadentfiles_dir.string, mod->name+5);
 			COM_StripExtension(fname, fname, sizeof(fname));
+			Q_strncatz(fname, mod_modifier, sizeof(fname));
 			Q_strncatz(fname, ".ent", sizeof(fname));
 			ents = FS_LoadMallocFile(fname, &sz);
 		}
@@ -2300,12 +2315,14 @@ qboolean Mod_LoadEntitiesBlob(struct model_s *mod, const char *entdata, size_t e
 	if (mod_loadentfiles.value && !ents)
 	{
 		COM_StripExtension(mod->name, fname, sizeof(fname));
+		Q_strncatz(fname, mod_modifier, sizeof(fname));
 		Q_strncatz(fname, ".ent", sizeof(fname));
 		ents = FS_LoadMallocFile(fname, &sz);
 	}
 	if (mod_loadentfiles.value && !ents)
 	{	//tenebrae compat
 		COM_StripExtension(mod->name, fname, sizeof(fname));
+		Q_strncatz(fname, mod_modifier, sizeof(fname));
 		Q_strncatz(fname, ".edo", sizeof(fname));
 		ents = FS_LoadMallocFile(fname, &sz);
 	}

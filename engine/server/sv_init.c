@@ -1016,12 +1016,11 @@ void SV_SpawnServer (const char *server, const char *startspot, qboolean noents,
 	{
 		//.map is commented out because quite frankly, they're a bit annoying when the engine loads the gpled start.map when really you wanted to just play the damn game intead of take it apart.
 		//if you want to load a .map, just use 'map foo.map' instead.
-		char *exts[] = {"maps/%s", "maps/%s.bsp", "maps/%s.cm", "maps/%s.hmp", /*"maps/%s.map",*/ "maps/%s.bsp.gz", "maps/%s.bsp.xz", NULL}, *e;
-		int depth, bestdepth;
+		char *exts[] = {"%s", "maps/%s", "maps/%s.bsp", "maps/%s.cm", "maps/%s.hmp", /*"maps/%s.map",*/ "maps/%s.bsp.gz", "maps/%s.bsp.xz", NULL}, *e;
+		int depth, bestdepth = FDEPTH_MISSING;
 		flocation_t loc;
 		time_t filetime;
-		Q_snprintfz (sv.modelname, sizeof(sv.modelname), "%s", server);
-		bestdepth = COM_FDepthFile(sv.modelname, false);
+		char *mod = NULL;
 		if (bestdepth == FDEPTH_MISSING)
 		{	//not an exact name, scan the maps subdir.
 			for (i = 0; exts[i]; i++)
@@ -1032,6 +1031,32 @@ void SV_SpawnServer (const char *server, const char *startspot, qboolean noents,
 					bestdepth = depth;
 					Q_snprintfz (sv.modelname, sizeof(sv.modelname), exts[i], server);
 				}
+			}
+		}
+		if (bestdepth == FDEPTH_MISSING)
+		{
+			mod = strchr(server, '#');
+			if (mod)
+			{
+				*mod = 0;
+				bestdepth = COM_FDepthFile(server, false);
+				if (bestdepth != FDEPTH_MISSING)
+					Q_snprintfz (sv.modelname, sizeof(sv.modelname), "%s", server);
+				else
+				{	//not an exact name, scan the maps subdir.
+					for (i = 0; exts[i]; i++)
+					{
+						depth = COM_FDepthFile(va(exts[i], server), false);
+						if (depth < bestdepth)
+						{
+							bestdepth = depth;
+							Q_snprintfz (sv.modelname, sizeof(sv.modelname), exts[i], server);
+						}
+					}
+				}
+				*mod = '#';
+				if (bestdepth == FDEPTH_MISSING)
+					mod = NULL;
 			}
 		}
 
@@ -1047,6 +1072,8 @@ void SV_SpawnServer (const char *server, const char *startspot, qboolean noents,
 		}
 		if (!strcmp(e, ".bsp"))
 			*e = 0;
+
+		Mod_SetModifier(mod);
 
 		sv.world.worldmodel = Mod_ForName (sv.modelname, MLV_ERROR);
 

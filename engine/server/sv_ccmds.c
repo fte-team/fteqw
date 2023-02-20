@@ -471,6 +471,27 @@ static int QDECL CompleteMapList (const char *name, qofs_t flags, time_t mtime, 
 	ctx->cb(stripped, NULL, NULL, ctx);
 	return true;
 }
+static int QDECL CompleteMapListEnt (const char *name, qofs_t flags, time_t mtime, void *parm, searchpathfuncs_t *spath)
+{
+	struct xcommandargcompletioncb_s *ctx = parm;
+	char stripped[64];
+	char *modifier = strchr(name, '#');
+	if (!modifier)	//skip non-modifiers.
+		return true;
+	if (modifier-name+4 > sizeof(stripped))	//too long...
+		return true;
+
+	//make sure we have its .bsp
+	memcpy(stripped, name, modifier-name);
+	strcpy(stripped+(modifier-name), ".bsp");
+	if (!COM_FCheckExists(stripped))
+		return true;
+
+	COM_StripExtension(name+5, stripped, sizeof(stripped));
+	ctx->cb(stripped, NULL, NULL, ctx);
+	return true;
+}
+
 static int QDECL CompleteMapListExt (const char *name, qofs_t flags, time_t mtime, void *parm, searchpathfuncs_t *spath)
 {
 	struct xcommandargcompletioncb_s *ctx = parm;
@@ -492,6 +513,8 @@ static void SV_Map_c(int argn, const char *partial, struct xcommandargcompletion
 		COM_EnumerateFiles(va("maps/%s*.map.gz", partial), CompleteMapListExt, ctx);
 		COM_EnumerateFiles(va("maps/%s*.cm", partial), CompleteMapList, ctx);
 		COM_EnumerateFiles(va("maps/%s*.hmp", partial), CompleteMapList, ctx);
+
+		COM_EnumerateFiles(va("maps/%s*.ent", partial), CompleteMapListEnt, ctx);
 
 		COM_EnumerateFiles(va("maps/%s*/*.bsp", partial), CompleteMapList, ctx);
 		COM_EnumerateFiles(va("maps/%s*/*.bsp.gz", partial), CompleteMapListExt, ctx);
@@ -609,7 +632,7 @@ fte:
 'map package:mapname' should download the specified map package and load up its maps.
 
 mvdsv:
-basemap#modifier.ent files
+'map foo bar' should load 'maps/bar.ent' instead of the regular ent file. this 'bar' will usually be something like 'foo#modified'
 
 ======================
 */
@@ -851,10 +874,25 @@ void SV_Map_f (void)
 				break;
 		}
 		if (!exts[i])
+		{	//try again.
+			char *mod = strchr(level, '#');
+			if (mod)
+			{
+				*mod = 0;
+				for (i = 0; exts[i]; i++)
+				{
+					snprintf (expanded, sizeof(expanded), exts[i], level);
+					if (COM_FCheckExists (expanded))
+						break;
+				}
+				*mod = '#';
+			}
+		}
+		if (!exts[i])
 		{
 			for (i = 0; exts[i]; i++)
 			{
-				//doesn't exist, so try lowercase. Q3 does this.
+				//doesn't exist, so try lowercase. Q3 does this. really our fs_cache stuff should be handling this, but its possible its disabled.
 				for (j = 0; j < sizeof(level) && level[j]; j++)
 				{
 					if (level[j] >= 'A' && level[j] <= 'Z')

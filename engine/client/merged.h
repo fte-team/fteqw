@@ -184,6 +184,8 @@ void Mod_ParseEntities(struct model_s *mod);
 void Mod_LoadMapArchive(struct model_s *mod, void *archivedata, size_t archivesize);
 extern void	Mod_ClearAll						(void);
 extern void Mod_Purge							(enum mod_purge_e type);
+extern void Mod_SetModifier						(const char *modifier);
+extern char mod_modifier[];
 extern qboolean Mod_PurgeModel					(struct model_s	*mod, enum mod_purge_e ptype);
 extern struct model_s *Mod_FindName				(const char *name);	//find without loading. needload should be set.
 extern struct model_s *Mod_ForName				(const char *name, enum mlverbosity_e verbosity);	//finds+loads

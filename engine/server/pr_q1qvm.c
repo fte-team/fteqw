@@ -1090,11 +1090,21 @@ static qintptr_t QVM_SetSpawnParams (void *offset, quintptr_t mask, const qintpt
 static qintptr_t QVM_ChangeLevel (void *offset, quintptr_t mask, const qintptr_t *arg)
 {
 	const char *arg_mapname = VM_POINTER(arg[0]);
-//	const char *arg_entfilename = VM_POINTER(arg[1]);
+	const char *arg_entfilename = (qvm_api_version > 13)?(VM_POINTER(arg[1])):"";
 
 	char newmap[MAX_QPATH];
 	if (sv.mapchangelocked)
 		return 0;
+
+	if (arg_entfilename && *arg_entfilename)
+	{
+		int nl = strlen(arg_mapname);
+		if (!strncmp(arg_mapname, arg_entfilename, nl) && arg_mapname[nl]=='#')
+			arg_mapname = arg_entfilename;
+		else
+			Con_Printf(CON_ERROR"%s: named ent file does not match map\n", "QVM_ChangeLevel");
+	}
+
 	sv.mapchangelocked = true;
 	COM_QuotedString(arg_mapname, newmap, sizeof(newmap), false);
 	Cbuf_AddText (va("\nchangelevel %s\n", newmap), RESTRICT_LOCAL);
@@ -1103,13 +1113,23 @@ static qintptr_t QVM_ChangeLevel (void *offset, quintptr_t mask, const qintptr_t
 static qintptr_t QVM_ChangeLevelHub (void *offset, quintptr_t mask, const qintptr_t *arg)
 {
 	const char *arg_mapname = VM_POINTER(arg[0]);
-//	const char *arg_entfile = VM_POINTER(arg[1]);
+	const char *arg_entfilename = VM_POINTER(arg[1]);
 	const char *arg_startspot = VM_POINTER(arg[2]);
 
 	char newmap[MAX_QPATH];
 	char startspot[MAX_QPATH];
 	if (sv.mapchangelocked)
 		return 0;
+
+	if (arg_entfilename && *arg_entfilename)
+	{
+		int nl = strlen(arg_mapname);
+		if (!strncmp(arg_mapname, arg_entfilename, nl) && arg_mapname[nl]=='#')
+			arg_mapname = arg_entfilename;
+		else
+			Con_Printf(CON_ERROR"%s: named ent file does not match map\n", "QVM_ChangeLevelHub");
+	}
+
 	sv.mapchangelocked = true;
 	COM_QuotedString(arg_mapname, newmap, sizeof(newmap), false);
 	COM_QuotedString(arg_startspot, startspot, sizeof(startspot), false);

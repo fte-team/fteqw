@@ -439,6 +439,7 @@ void M_Menu_Setup_f (void)
 	menucustom_t *ci;
 	menubutton_t *b;
 	static menuresel_t resel;
+	int y;
 
 #ifdef Q2CLIENT
 	if (M_GameType() == MGT_QUAKE2)	//quake2 main menu.
@@ -469,7 +470,7 @@ void M_Menu_Setup_f (void)
 		cu->draw = MSetupQ2_TransDraw;
 		cu->key = MSetupQ2_ChangeSkin;
 
-		menu->cursoritem = (menuoption_t*)MC_AddCursorSmall(menu, &resel, 54, 32);
+		menu->cursoritem = (menuoption_t*)MC_AddCursorSmall(menu, &resel, 54);
 		return;
 	}
 #endif
@@ -480,9 +481,10 @@ void M_Menu_Setup_f (void)
 
 //	MC_AddPicture(menu, 72, 32, Draw_CachePic ("gfx/mp_menu.lmp") );
 
+	y = 40;
 	menu->selecteditem = (menuoption_t*)
-	(info->nameedit = MC_AddEdit(menu, 64, 160, 40, "Your name", name.string));
-	(info->teamedit = MC_AddEdit(menu, 64, 160, 56, "Your team", team.string));
+	(info->nameedit = MC_AddEdit(menu, 64, 160, y, "Your name", name.string)); y+= info->nameedit->common.height;
+	(info->teamedit = MC_AddEdit(menu, 64, 160, y, "Your team", team.string)); y+= info->teamedit->common.height;
 #ifdef HEXEN2
 	info->ticlass = -1;
 	if (M_GameType() == MGT_HEXEN2)
@@ -497,7 +499,7 @@ void M_Menu_Setup_f (void)
 			NULL
 		};
 		cvar_t *pc = Cvar_Get("cl_playerclass", "1", CVAR_USERINFO|CVAR_ARCHIVE, "Hexen2");
-		(info->classedit = MC_AddCombo(menu, 64, 160, 72, "Your class", (const char **)classnames, pc->ival-1));
+		(info->classedit = MC_AddCombo(menu, 64, 160, y, "Your class", (const char **)classnames, pc->ival-1)); y+= info->classedit->common.height;
 	}
 	else
 #endif
@@ -505,21 +507,25 @@ void M_Menu_Setup_f (void)
 		MC_AddPicture(menu, 16, 4, 32, 144, "gfx/qplaque.lmp");
 		MC_AddCenterPicture(menu, 4, 24, "gfx/p_multi.lmp");
 
-		(info->skinedit = MC_AddEdit(menu, 64, 160, 72, "Your skin", skin.string));
+		(info->skinedit = MC_AddEdit(menu, 64, 160, y, "Your skin", skin.string)); y+= info->skinedit->common.height;
 	}
 
-	ci = MC_AddCustom(menu, 172+32, 88, NULL, 0, NULL);
+	ci = MC_AddCustom(menu, 172+32, y, NULL, 0, NULL);
 	ci->draw = MSetup_TransDraw;
 	ci->key = NULL;
 
-	MC_AddCommand(menu, 64, 160, 96, "Top colour", SetupMenuColour);
-	MC_AddCommand(menu, 64, 160, 120, "Lower colour", SetupMenuColour);
+	MC_AddCommand(menu, 64, 160, y+8, "Top colour", SetupMenuColour);
+	MC_AddCommand(menu, 64, 160, y+32, "Lower colour", SetupMenuColour);
+	y+= 16;
+	y+=4;
 
 	b = MC_AddConsoleCommand(menu, 64, 204, 168, "Network Settings", "menu_network\n");
 	b->common.tooltip = "Change network and client prediction settings.";
+	y += b->common.height;
 	b = MC_AddConsoleCommand(menu, 64, 204, 176, "Teamplay Settings", "menu_teamplay\n");
 	b->common.tooltip = "Change teamplay macro settings.";
-	menu->cursoritem = (menuoption_t*)MC_AddCursorSmall(menu, &resel, 54, 32);
+	y += b->common.height;
+	menu->cursoritem = (menuoption_t*)MC_AddCursorSmall(menu, &resel, 54);
 
 
 	info->lowercolour = bottomcolor.value;
@@ -766,7 +772,7 @@ void M_Menu_GameOptions_f (void)
 	MC_AddCommand						(menu, 64, 160, y,	"Start game", MultiBeginGame);y+=16;
 
 	y+=4;
-	info->hostnameedit	= MC_AddEdit	(menu, 64, 160, y,			"Hostname", name.string);y+=16;
+	info->hostnameedit	= MC_AddEdit	(menu, 64, 160, y,			"Hostname", name.string);y+=info->hostnameedit->common.height;
 	info->publicgame	= MC_AddCombo	(menu, 64, 160, y,			"Public", publicoptions, bound(0, sv_public.ival+1, 4));y+=8;
 	y+=4;
 

@@ -421,17 +421,20 @@ void M_Menu_Options_f (void)
 	MC_AddFrameEnd(menu, framey);
 
 	menu->predraw = M_Options_Predraw;
-	o = NULL;
-	if (!o && !m_preset_chosen.ival)
-		o = M_FindButton(menu, "fps_preset\n");
-#ifdef PACKAGEMANAGER
-	if (!o && PM_AreSourcesNew(false))
-		o = M_FindButton(menu, "menu_download\n");
-#endif
-	if (o)
+	if (!resel.x)
 	{
-		menu->selecteditem = (menuoption_t*)o;
-		menu->cursoritem->common.posy = o->common.posy;
+		o = NULL;
+		if (!o && !m_preset_chosen.ival)
+			o = M_FindButton(menu, "fps_preset\n");
+#ifdef PACKAGEMANAGER
+		if (!o && PM_AreSourcesNew(false))
+			o = M_FindButton(menu, "menu_download\n");
+#endif
+		if (o)
+		{
+			menu->selecteditem = (menuoption_t*)o;
+			menu->cursoritem->common.posy = o->common.posy + (o->common.height-menu->cursoritem->common.height)/2;
+		}
 	}
 }
 
@@ -1344,7 +1347,7 @@ static void M_Menu_Preset_Predraw(emenu_t *menu)
 		}
 	}
 	M_Menu_ApplyGravity(menu->options);
-	menu->cursoritem->common.posy = menu->selecteditem->common.posy;	//make sure it shows the right place still
+	menu->cursoritem->common.posy = menu->selecteditem->common.posy + (menu->selecteditem->common.height-menu->cursoritem->common.height)/2;
 
 	if (forcereload)
 		Cbuf_InsertText("\nfs_restart\nvid_reload\n", RESTRICT_LOCAL, true);
@@ -1427,7 +1430,7 @@ void M_Menu_Preset_f (void)
 	if (presetoption[item])
 	{
 		menu->selecteditem = presetoption[item];
-		menu->cursoritem->common.posy = menu->selecteditem->common.posy;
+		menu->cursoritem->common.posy = menu->selecteditem->common.posy + (menu->selecteditem->common.height-menu->cursoritem->common.height)/2;
 	}
 
 	//so they can actually see the preset they're picking.

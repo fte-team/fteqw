@@ -1895,7 +1895,7 @@ TRACE(("dbg: R_ApplyRenderer: efrags\n"));
 #endif
 #ifdef CSQC_DAT
 	Shader_DoReload();
-	CSQC_RendererRestarted();
+	CSQC_RendererRestarted(false);
 #endif
 #ifdef MENU_DAT
 	MP_RendererRestarted();

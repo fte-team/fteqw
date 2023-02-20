@@ -1452,7 +1452,7 @@ qboolean CL_MayLerp(void);
 //
 #ifdef CSQC_DAT
 qboolean CSQC_Inited(void);
-void	 CSQC_RendererRestarted(void);
+void	 CSQC_RendererRestarted(qboolean initing);
 qboolean CSQC_UnconnectedOkay(qboolean inprinciple);
 qboolean CSQC_UnconnectedInit(void);
 qboolean CSQC_CheckDownload(const char *name, unsigned int checksum, size_t checksize);	//reports whether we already have a usable csprogs.dat

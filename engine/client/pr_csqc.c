@@ -793,7 +793,7 @@ static model_t *CSQC_GetModelForIndex(int index)
 	else if (index < 0 && index > -MAX_CSMODELS)
 	{
 		if (!cl.model_csqcprecache[-index])
-			cl.model_csqcprecache[-index] = Mod_ForName(Mod_FixName(cl.model_csqcname[-index], csqc_world.worldmodel->publicname), MLV_WARN);
+			cl.model_csqcprecache[-index] = Mod_ForName(Mod_FixName(cl.model_csqcname[-index], csqc_world.worldmodel?csqc_world.worldmodel->publicname:NULL), MLV_WARN);
 		return cl.model_csqcprecache[-index];
 	}
 	else
@@ -2770,7 +2770,8 @@ static void QCBUILTIN PF_R_RenderScene(pubprogfuncs_t *prinst, struct globalvars
 	{
 		csqc_worldchanged = false;
 		cl.worldmodel = r_worldentity.model = csqc_world.worldmodel;
-		FS_LoadMapPackFile(cl.worldmodel->name, cl.worldmodel->archive);
+		if (cl.worldmodel)
+			FS_LoadMapPackFile(cl.worldmodel->name, cl.worldmodel->archive);
 		Surf_NewMap(csqc_world.worldmodel);
 		CL_UpdateWindowTitle();
 
@@ -8552,7 +8553,7 @@ qboolean CSQC_Init (qboolean anycsqc, const char *csprogsname, unsigned int chec
 
 		csqc_world.physicstime = 0.1;
 
-		CSQC_RendererRestarted();
+		CSQC_RendererRestarted(true);
 
 		if (cls.state == ca_disconnected)
 			CSQC_WorldLoaded();
@@ -8561,17 +8562,36 @@ qboolean CSQC_Init (qboolean anycsqc, const char *csprogsname, unsigned int chec
 	return true; //success!
 }
 
-void CSQC_RendererRestarted(void)
+void CSQC_RendererRestarted(qboolean initing)
 {
 	int i;
 	if (!csqcprogs)
 		return;
 
-	csqc_world.worldmodel = cl.worldmodel;
-
-	for (i = 0; i < MAX_CSMODELS; i++)
+	if (initing)
 	{
-		cl.model_csqcprecache[i] = NULL;
+		//called at startup
+		if (csqc_worldchanged)
+		{
+			csqc_worldchanged = false;
+			cl.worldmodel = r_worldentity.model = csqc_world.worldmodel;
+			if (cl.worldmodel)
+				FS_LoadMapPackFile(cl.worldmodel->name, cl.worldmodel->archive);
+			Surf_NewMap(csqc_world.worldmodel);
+			CL_UpdateWindowTitle();
+
+			World_RBE_Shutdown(&csqc_world);
+			World_RBE_Start(&csqc_world);
+		}
+	}
+	else
+	{	//FIXME: this might be awkward in the purecsqc case.
+		csqc_world.worldmodel = cl.worldmodel;
+
+		for (i = 0; i < MAX_CSMODELS; i++)
+		{
+			cl.model_csqcprecache[i] = NULL;
+		}
 	}
 
 	//FIXME: registered shaders

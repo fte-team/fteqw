@@ -774,6 +774,20 @@ void M_Menu_GameOptions_f (void)
 	y+=4;
 	info->hostnameedit	= MC_AddEdit	(menu, 64, 160, y,			"Hostname", name.string);y+=info->hostnameedit->common.height;
 	info->publicgame	= MC_AddCombo	(menu, 64, 160, y,			"Public", publicoptions, bound(0, sv_public.ival+1, 4));y+=8;
+#if !defined(FTE_TARGET_WEB) && defined(HAVE_DTLS)
+	{
+		extern cvar_t net_enable_dtls;
+		static const char *encoptions[] =
+		{
+			"None",
+			"Accept",
+			"Request",
+			"Require",
+			NULL
+		};
+		MC_AddCvarCombo (menu, 64, 160, y,		"DTLS Encryption", &net_enable_dtls, encoptions, NULL);y+=8;
+	}
+#endif
 	y+=4;
 
 	for (players = 0; players < sizeof(numplayeroptions)/ sizeof(numplayeroptions[0]); players++)
@@ -1110,6 +1124,16 @@ void M_Menu_Network_f (void)
 		"Smooth Demos Only",
 		NULL
 	};
+#ifdef HAVE_DTLS
+	extern cvar_t net_enable_dtls;
+	static const char *dtlsopts[] = {
+		"Disabled",
+		"Accept",
+		"Request",
+		"Require",
+		NULL
+	};
+#endif
 	static const char *smoothingvalues[] = {"0", "1", "2", NULL};
 	extern cvar_t cl_download_csprogs, cl_download_redirection, requiredownloads, cl_solid_players;
 	extern cvar_t cl_predict_players, cl_lerp_smooth, cl_predict_extrapolate;
@@ -1122,6 +1146,9 @@ void M_Menu_Network_f (void)
 		MB_EDITCVARSLIM("Network FPS", "cl_netfps", "Sets ammount of FPS used to communicate with server (sent and received)"),
 		MB_EDITCVARSLIM("Rate", "rate", "Maximum bytes per second that the server should send to the client"),
 		MB_EDITCVARSLIM("Download Rate", "drate", "Maximum bytes per second that the server should send maps and demos to the client"),
+#ifdef HAVE_DTLS
+		MB_COMBOCVAR("DTLS Encryption", net_enable_dtls, dtlsopts, NULL, "Use this to avoid snooping. Certificates will be pinned."),
+#endif
 		MB_SPACING(4),
 		MB_CHECKBOXCVARTIP("Require Download", requiredownloads, 0, "Ignore downloaded content sent to the client and connect immediately"),
 		MB_CHECKBOXCVARTIP("Redirect Download", cl_download_redirection, 0, "Whether the client will ignore download redirection from servers"),

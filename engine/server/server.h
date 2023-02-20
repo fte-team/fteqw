@@ -1649,7 +1649,7 @@ typedef struct
 {
 	qboolean hasauthed;
 	qboolean isreverse;
-	char challenge[64];
+	char challenge[64];	//aka nonce
 } qtvpendingstate_t;
 int SV_MVD_GotQTVRequest(vfsfile_t *clientstream, char *headerstart, char *headerend, qtvpendingstate_t *p);
 #endif

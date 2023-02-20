@@ -151,7 +151,8 @@ neterr_t	NET_SendPacket (struct ftenet_connections_s *col, int length, const voi
 int			NET_LocalAddressForRemote(struct ftenet_connections_s *collection, netadr_t *remote, netadr_t *local, int idx);
 void		NET_PrintAddresses(struct ftenet_connections_s *collection);
 qboolean	NET_AddressSmellsFunny(netadr_t *a);
-qboolean	NET_EnsureRoute(struct ftenet_connections_s *collection, char *routename, char *host, netadr_t *adr);
+struct dtlspeercred_s;
+qboolean	NET_EnsureRoute(struct ftenet_connections_s *collection, char *routename, const struct dtlspeercred_s *peerinfo, netadr_t *adr);
 void		NET_TerminateRoute(struct ftenet_connections_s *collection, netadr_t *adr);
 void		NET_PrintConnectionsStatus(struct ftenet_connections_s *collection);
 
@@ -191,9 +192,13 @@ qboolean FTENET_AddToCollection(struct ftenet_connections_s *col, const char *na
 
 enum certprops_e
 {
-	QCERT_PEERFINGERPRINT
+	QCERT_ISENCRYPTED,		//0 or error
+	QCERT_PEERSUBJECT,		//null terminated. should be a hash of the primary cert, ignoring chain.
+	QCERT_PEERCERTIFICATE,	//should be the primary cert, ignoring chain. no fixed maximum size required, mostly 2k but probably best to allow at leasy 5k.. or 8k.
+
+	QCERT_LOCALCERTIFICATE,	//the cert we're using/advertising. may have no context. to tell people what fp to expect.
 };
-size_t NET_GetConnectionCertificate(struct ftenet_connections_s *col, netadr_t *a, enum certprops_e prop, char *out, size_t outsize);
+int NET_GetConnectionCertificate(struct ftenet_connections_s *col, netadr_t *a, enum certprops_e prop, char *out, size_t outsize);
 
 #ifdef HAVE_DTLS
 struct dtlscred_s;
@@ -207,7 +212,7 @@ extern cvar_t dtls_psk_hint, dtls_psk_user, dtls_psk_key;
 #ifdef SUPPORT_ICE
 neterr_t ICE_SendPacket(size_t length, const void *data, netadr_t *to);
 void ICE_Terminate(netadr_t *to); //if we kicked the client/etc, kill their ICE too.
-qboolean ICE_IsEncrypted(netadr_t *to);
+int ICE_GetPeerCertificate(netadr_t *to, enum certprops_e prop, char *out, size_t outsize);
 void ICE_Init(void);
 #endif
 extern cvar_t timeout;

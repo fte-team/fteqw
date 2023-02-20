@@ -5,6 +5,7 @@ clientside master queries and server ping/polls
 
 #include "quakedef.h"
 #include "cl_master.h"
+#include "netinc.h"
 
 #define FAVOURITESFILE "favourites.txt"
 
@@ -496,7 +497,10 @@ static void SV_Master_Worker_Resolved(void *ctx, void *data, size_t a, size_t b)
 				{
 					//tcp masters require a route
 					if (NET_AddrIsReliable(na))
-						NET_EnsureRoute(svs.sockets, master->cv.name, master->cv.string, na);
+					{
+						struct dtlspeercred_s cred = {master->cv.string};
+						NET_EnsureRoute(svs.sockets, master->cv.name, &cred, na);
+					}
 
 					//q2+qw masters are given a ping to verify that they're still up
 					switch (master->protocol)

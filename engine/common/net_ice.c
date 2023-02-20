@@ -2103,9 +2103,12 @@ static qboolean QDECL ICE_Set(struct icestate_s *con, const char *prop, const ch
 		}
 		else if (!strcmp(value, STRINGIFY(ICE_FAILED)))
 		{
-			con->state = ICE_FAILED;
-			if (net_ice_debug.ival >= 1)
-				Con_Printf(S_COLOR_GRAY"[%s]: ice state failed\n", con->friendlyname);
+			if (con->state != ICE_FAILED)
+			{
+				con->state = ICE_FAILED;
+				if (net_ice_debug.ival >= 1)
+					Con_Printf(S_COLOR_GRAY"[%s]: ice state failed\n", con->friendlyname);
+			}
 		}
 		else if (!strcmp(value, STRINGIFY(ICE_CONNECTED)))
 		{
@@ -4805,7 +4808,7 @@ qboolean ICE_WasStun(ftenet_connections_t *col)
 	return false;
 }
 #ifdef SUPPORT_ICE
-qboolean ICE_IsEncrypted(netadr_t *to)
+int ICE_GetPeerCertificate(netadr_t *to, enum certprops_e prop, char *out, size_t outsize)
 {
 #ifdef HAVE_DTLS
 	struct icestate_s *con;
@@ -4813,12 +4816,14 @@ qboolean ICE_IsEncrypted(netadr_t *to)
 	{
 		if (NET_CompareAdr(to, &con->qadr))
 		{
-			if (con->dtlsstate)
-				return true;
+			if (con->dtlsstate && con->dtlsfuncs->GetPeerCertificate)
+				return con->dtlsfuncs->GetPeerCertificate(con->dtlsstate, prop, out, outsize);
+			else if (prop==QCERT_ISENCRYPTED && con->dtlsstate)
+				return 0;
 		}
 	}
 #endif
-	return false;
+	return -1;
 }
 void ICE_Terminate(netadr_t *to)
 {
@@ -5243,14 +5248,16 @@ handleerror:
 				if (cl == -1)
 				{
 					b->error = true;
-//					Con_Printf("Broker closed connection: %s\n", data);
+					if (net_ice_debug.ival)
+						Con_Printf(S_COLOR_GRAY"[%s]: Broker lost connection: %s\n", b->ice?b->ice->friendlyname:"?", *data?data:"<NO REASON>");
 				}
 				else if (cl >= 0 && cl < b->numclients)
 				{
+					if (net_ice_debug.ival)
+						Con_Printf(S_COLOR_GRAY"[%s]: Broker lost connection: %s\n", b->clients[cl].ice?b->clients[cl].ice->friendlyname:"?", *data?data:"<NO REASON>");
 					if (b->clients[cl].ice)
 						iceapi.Close(b->clients[cl].ice, false);
 					b->clients[cl].ice = NULL;
-//					Con_Printf("Broker closing connection: %s\n", data);
 				}
 				break;
 			case ICEMSG_NAMEINUSE:
@@ -5273,13 +5280,23 @@ handleerror:
 						Z_ReallocElements((void**)&b->clients, &b->numclients, cl+1, sizeof(b->clients[0]));
 					}
 					if (cl >= 0 && cl < b->numclients)
+					{
 						FTENET_ICE_Establish(b, cl, &b->clients[cl].ice);
+
+						if (net_ice_debug.ival)
+							Con_Printf(S_COLOR_GRAY"[%s]: New client spotted...\n", b->clients[cl].ice?b->clients[cl].ice->friendlyname:"?");
+					}
+					else if (net_ice_debug.ival)
+						Con_Printf(S_COLOR_GRAY"[%s]: New client spotted, but index is unusable\n", "?");
 				}
 				else
 				{
 //					Con_DPrintf("Server found: %s\n", data);
 					FTENET_ICE_Establish(b, cl, &b->ice);
 					b->serverid = cl;
+
+					if (net_ice_debug.ival)
+						Con_Printf(S_COLOR_GRAY"[%s]: Relay to server now open\n", b->ice?b->ice->friendlyname:"?");
 				}
 				break;
 			case ICEMSG_OFFER:	//we received an offer from a client
@@ -5299,19 +5316,31 @@ handleerror:
 				{
 					if (cl >= 0 && cl < b->numclients && b->clients[cl].ice)
 					{
+						if (net_ice_debug.ival)
+							Con_Printf(S_COLOR_GRAY"[%s]: Got offer:\n%s\n", b->clients[cl].ice?b->clients[cl].ice->friendlyname:"?", data);
 						iceapi.Set(b->clients[cl].ice, "sdpoffer", data);
 						iceapi.Set(b->clients[cl].ice, "state", STRINGIFY(ICE_CONNECTING));
 
 						FTENET_ICE_SendOffer(b, cl, b->clients[cl].ice, "sdpanswer");
+						break;
 					}
+
+					if (net_ice_debug.ival)
+						Con_Printf(S_COLOR_GRAY"[%s]: Got bad offer/answer:\n%s\n", b->clients[cl].ice?b->clients[cl].ice->friendlyname:"?", data);
 				}
 				else
 				{
 					if (b->ice)
 					{
+						if (net_ice_debug.ival)
+							Con_Printf(S_COLOR_GRAY"[%s]: Got answer:\n%s\n", b->ice?b->ice->friendlyname:"?", data);
 						iceapi.Set(b->ice, "sdpanswer", data);
 						iceapi.Set(b->ice, "state", STRINGIFY(ICE_CONNECTING));
+						break;
 					}
+
+					if (net_ice_debug.ival)
+						Con_Printf(S_COLOR_GRAY"[%s]: Got bad offer/answer:\n%s\n", b->ice?b->ice->friendlyname:"?", data);
 				}
 				break;
 			case ICEMSG_CANDIDATE:
@@ -5327,12 +5356,20 @@ handleerror:
 				if (b->generic.islisten)
 				{
 					if (cl >= 0 && cl < b->numclients && b->clients[cl].ice)
+					{
+						if (net_ice_debug.ival)
+							Con_Printf(S_COLOR_GRAY"[%s]: Got candidate:\n%s\n", b->clients[cl].ice->friendlyname, data);
 						iceapi.Set(b->clients[cl].ice, "sdp", data);
+					}
 				}
 				else
 				{
 					if (b->ice)
+					{
+						if (net_ice_debug.ival)
+							Con_Printf(S_COLOR_GRAY"[%s]: Got candidate:\n%s\n", b->ice->friendlyname, data);
 						iceapi.Set(b->ice, "sdp", data);
+					}
 				}
 				break;
 			}

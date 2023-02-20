@@ -155,6 +155,9 @@ cvar_t	net_enable_websockets	= CVARD("net_enable_websockets",	"1", "If enabled, 
 #if defined(HAVE_SERVER)
 static void QDECL NET_Enable_DTLS_Changed(struct cvar_s *var, char *oldvalue)
 {
+	char cert[8192];
+	int certsize;
+	char digest[DIGEST_MAXSIZE];
 	var->ival = var->value;
 	//set up the default value
 	if (!*var->string)
@@ -165,6 +168,12 @@ static void QDECL NET_Enable_DTLS_Changed(struct cvar_s *var, char *oldvalue)
 		svs.sockets->dtlsfuncs = (var->ival)?DTLS_InitServer():NULL;
 		if (!svs.sockets->dtlsfuncs && var->ival >= 2)
 			Con_Printf("%sUnable to set %s to \"%s\", no DTLS provider available.\n", (var->ival >= 2)?CON_ERROR:CON_WARNING, var->name, var->string);
+
+		certsize = svs.sockets->dtlsfuncs?svs.sockets->dtlsfuncs->GetPeerCertificate(NULL, QCERT_LOCALCERTIFICATE, cert, sizeof(cert)):-1;
+		if (certsize > 0)
+			InfoBuf_SetStarBlobKey(&svs.info, "*fp", cert, Base64_EncodeBlockURI(digest, CalcHash(&hash_sha1, digest, sizeof(digest), cert, certsize), cert, sizeof(cert)));
+		else
+			InfoBuf_SetStarKey(&svs.info, "*fp", "");
 	}
 }
 cvar_t net_enable_dtls		= CVARAFCD("net_enable_dtls", "", "sv_listen_dtls", 0, NET_Enable_DTLS_Changed, "Controls serverside dtls support.\n0: dtls blocked, not advertised.\n1: clientside choice.\n2: used where possible (recommended setting).\n3: disallow non-dtls clients (sv_port_tcp should be eg tls://[::]:27500 to also disallow unencrypted tcp connections).");
@@ -1565,6 +1574,7 @@ size_t	NET_StringToAdr2 (const char *s, int defaultport, netadr_t *a, size_t num
 	netproto_t prot;
 	netadrtype_t afhint;
 	char *path;
+	char *args;
 
 	struct
 	{
@@ -1793,6 +1803,10 @@ size_t	NET_StringToAdr2 (const char *s, int defaultport, netadr_t *a, size_t num
 		}
 	}
 
+	args = strchr(s, '?');
+	if (args)
+		*args=0;
+
 	path = strchr(s, '/');
 #if !defined(HAVE_WEBSOCKCL) && defined(SUPPORT_ICE)
 	if (path == s && fs_manifest->rtcbroker && *fs_manifest->rtcbroker)
@@ -1828,6 +1842,9 @@ size_t	NET_StringToAdr2 (const char *s, int defaultport, netadr_t *a, size_t num
 		SockadrToNetadr (&sadr[i], asize[i], &a[i]);
 		a[i].prot = prot;
 	}
+
+	if (args)
+		*args='?';
 
 	return result;
 }
@@ -2132,7 +2149,7 @@ qboolean NET_IsEncrypted(netadr_t *adr)
 	if (adr->type == NA_LOOPBACK)
 		return true;	//might as well claim it, others can't snoop on it so...
 #ifdef SUPPORT_ICE
-	if (adr->type == NA_ICE && ICE_IsEncrypted(adr))
+	if (adr->type == NA_ICE && ICE_GetPeerCertificate(adr, QCERT_ISENCRYPTED, NULL, 0)==0)
 		return true;
 #endif
 #if defined(FTE_TARGET_WEB)
@@ -3230,7 +3247,8 @@ qboolean NET_DTLS_Decode(ftenet_connections_t *col)
 			switch(peer->funcs->Received(peer->dtlsstate, &net_message))
 			{
 			case NETERR_DISCONNECTED:
-				NET_DTLS_DisconnectPeer(col, peer);
+				if (col->islisten)
+					NET_DTLS_DisconnectPeer(col, peer);
 				net_message.cursize = 0;
 				break;
 			case NETERR_NOROUTE:
@@ -3254,36 +3272,33 @@ qboolean NET_DTLS_Decode(ftenet_connections_t *col)
 #endif
 
 
-size_t NET_GetConnectionCertificate(struct ftenet_connections_s *col, netadr_t *a, enum certprops_e prop, char *out, size_t outsize)
+int NET_GetConnectionCertificate(struct ftenet_connections_s *col, netadr_t *a, enum certprops_e prop, char *out, size_t outsize)
 {
 	if (!col)
-		return 0;
+		return -1;
 
-	switch(prop)
-	{
-	default:
-		break;
-	case QCERT_PEERFINGERPRINT:
-#if 0//def HAVE_DTLS
-		if (a->prot == NP_DTLS)
-		{
-			struct dtlspeer_s *peer;
-			{
-				a->prot = NP_DGRAM;
-				for (peer = col->dtls; peer; peer = peer->next)
-				{
-					if (NET_CompareAdr(&peer->addr, a))
-						break;
-				}
-				a->prot = NP_DTLS;
-			}
-			if (peer)
-				return peer->funcs->GetPeerCertificate(peer->dtlsstate, data, length);
-		}
+#ifdef SUPPORT_ICE
+	if (a->type == NA_ICE)
+		return ICE_GetPeerCertificate(a, prop, out, outsize);
 #endif
-		return 0;
+#ifdef HAVE_DTLS
+	if (a->prot == NP_DTLS)
+	{
+		struct dtlspeer_s *peer;
+		{
+			a->prot = NP_DGRAM;
+			for (peer = col->dtls; peer; peer = peer->next)
+			{
+				if (NET_CompareAdr(&peer->addr, a))
+					break;
+			}
+			a->prot = NP_DTLS;
+		}
+		if (peer && peer->funcs->GetPeerCertificate)
+			return peer->funcs->GetPeerCertificate(peer->dtlsstate, prop, out, outsize);
 	}
-	return 0;
+#endif
+	return -1;
 }
 
 
@@ -8212,7 +8227,7 @@ neterr_t NET_SendPacket (ftenet_connections_t *collection, int length, const voi
 	return NET_SendPacketCol (collection, length, data, to);
 }
 
-qboolean NET_EnsureRoute(ftenet_connections_t *collection, char *routename, char *host, netadr_t *adr)
+qboolean NET_EnsureRoute(ftenet_connections_t *collection, char *routename, const struct dtlspeercred_s *peerinfo, netadr_t *adr)
 {
 	switch(adr->prot)
 	{
@@ -8225,11 +8240,11 @@ qboolean NET_EnsureRoute(ftenet_connections_t *collection, char *routename, char
 	case NP_DTLS:
 #ifdef HAVE_DTLS
 		adr->prot = NP_DGRAM;
-		if (NET_EnsureRoute(collection, routename, host, adr))
+		if (NET_EnsureRoute(collection, routename, peerinfo, adr))
 		{
 			dtlscred_t cred;
 			memset(&cred, 0, sizeof(cred));
-			cred.peer.name = host;
+			cred.peer = *peerinfo;
 			if (NET_DTLS_Create(collection, adr, &cred))
 			{
 				adr->prot = NP_DTLS;
@@ -8243,14 +8258,14 @@ qboolean NET_EnsureRoute(ftenet_connections_t *collection, char *routename, char
 	case NP_WSS:
 	case NP_TLS:
 	case NP_STREAM:
-		if (!FTENET_AddToCollection(collection, routename, host, adr->type, adr->prot))
+		if (!FTENET_AddToCollection(collection, routename, peerinfo->name, adr->type, adr->prot))
 			return false;
-		Con_Printf("Establishing connection to %s\n", host);
+		Con_Printf("Establishing connection to %s\n", peerinfo->name);
 		break;
 #if defined(SUPPORT_ICE) || defined(FTE_TARGET_WEB)
 	case NP_RTC_TCP:
 	case NP_RTC_TLS:
-		if (!FTENET_AddToCollection(collection, routename, host, adr->type, adr->prot))
+		if (!FTENET_AddToCollection(collection, routename, peerinfo->name, adr->type, adr->prot))
 			return false;
 		break;
 #endif
@@ -9478,7 +9493,10 @@ int QDECL VFSTCP_ReadBytes (struct vfsfile_s *file, void *buffer, int bytestorea
 	{
 		trying = VFSTCP_IsStillConnecting(tf->sock);
 		if (trying < 0)
+		{
 			tf->readaborted = trying;
+			tf->writeaborted = true;
+		}
 		else if (trying)
 			return 0;
 		tf->conpending = false;
@@ -9509,18 +9527,22 @@ int QDECL VFSTCP_ReadBytes (struct vfsfile_s *file, void *buffer, int bytestorea
 				case NET_ENOTCONN:
 					Con_Printf("connection to \"%s\" failed\n", tf->peer);
 					tf->readaborted = VFS_ERROR_NORESPONSE;
+					tf->writeaborted = true;
 					break;
 				case NET_ECONNABORTED:
 					Con_DPrintf("connection to \"%s\" aborted\n", tf->peer);
 					tf->readaborted = VFS_ERROR_NORESPONSE;
+					tf->writeaborted = true;
 					break;
 				case NET_ETIMEDOUT:
 					Con_Printf("connection to \"%s\" timed out\n", tf->peer);
 					tf->readaborted = VFS_ERROR_NORESPONSE;
+					tf->writeaborted = true;
 					break;
 				case NET_ECONNREFUSED:
 					Con_DPrintf("connection to \"%s\" refused\n", tf->peer);
 					tf->readaborted = VFS_ERROR_REFUSED;
+					tf->writeaborted = true;
 					break;
 				case NET_ECONNRESET:
 					Con_DPrintf("connection to \"%s\" reset\n", tf->peer);
@@ -9579,7 +9601,7 @@ int QDECL VFSTCP_WriteBytes (struct vfsfile_s *file, const void *buffer, int byt
 		tf->conpending = false;
 	}
 
-	len = send(tf->sock, buffer, bytestoread, 0);
+	len = send(tf->sock, buffer, bytestoread, MSG_NOSIGNAL);
 	if (len == -1 || len == 0)
 	{
 		int reason = VFS_ERROR_UNSPECIFIED;
@@ -9591,9 +9613,13 @@ int QDECL VFSTCP_WriteBytes (struct vfsfile_s *file, const void *buffer, int byt
 			return 0;	//nothing available yet.
 		case NET_ETIMEDOUT:
 			Con_Printf("connection to \"%s\" timed out\n", tf->peer);
+			tf->writeaborted = true;
+			tf->conpending = false;
 			return VFS_ERROR_NORESPONSE;	//don't bother trying to read if we never connected.
 		case NET_ECONNREFUSED:	//peer sent a reset instead of accepting a new connection
 			Con_DPrintf("connection to \"%s\" refused\n", tf->peer);
+			tf->writeaborted = true;
+			tf->conpending = false;
 			return VFS_ERROR_REFUSED;	//don't bother trying to read if we never connected.
 		case NET_ECONNABORTED:	//peer closed its socket
 			Con_Printf("connection to \"%s\" aborted\n", tf->peer);
@@ -9608,6 +9634,8 @@ int QDECL VFSTCP_WriteBytes (struct vfsfile_s *file, const void *buffer, int byt
 		case EPIPE:
 #endif
 			Con_Printf("connection to \"%s\" failed\n", tf->peer);
+			tf->writeaborted = true;
+			tf->conpending = false;
 			return VFS_ERROR_NORESPONSE;	//don't bother trying to read if we never connected.
 		default:
 			Sys_Printf("tcp socket error %i (%s)\n", e, tf->peer);

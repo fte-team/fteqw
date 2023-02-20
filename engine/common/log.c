@@ -695,7 +695,10 @@ static void CertLog_Write(void)
 			VFS_PUTS(f, certhex);
 			VFS_PRINTF(f, "\" %i\n", l->trusted?true:false);
 		}
+		VFS_CLOSE(f);
 	}
+	else
+		Con_Printf(CON_ERROR"Unable to write %s\n", CERTLOG_FILENAME);
 }
 static void CertLog_Purge(void)
 {
@@ -753,6 +756,7 @@ static void CertLog_Import(const char *filename)
 		}
 		CertLog_Update(addressstring, certdata, certsize, atoi(trusted));
 	}
+	VFS_CLOSE(f);
 }
 static void CertLog_UntrustAll_f(void)
 {
@@ -795,6 +799,8 @@ qboolean CertLog_ConnectOkay(const char *hostname, void *cert, size_t certsize, 
 	extern cvar_t net_enable_dtls;
 	struct certlog_s *l;
 	qboolean trusted = (net_enable_dtls.ival >= 2);
+	char digest[DIGEST_MAXSIZE];
+	char fp[DIGEST_MAXSIZE*2+1];
 
 	if (certlog_curprompt)
 		return false;
@@ -808,11 +814,20 @@ qboolean CertLog_ConnectOkay(const char *hostname, void *cert, size_t certsize, 
 	{	//cert is new, but we don't care about full trust. don't bother to prompt when the user doesn't much care.
 		//(but do pin so we at least know when its MITMed after the fact)
 		Con_Printf(CON_WARNING"Auto-Pinning certificate for %s."CON_DEFAULT" ^[/seta %s 2^]+ for actual security.\n", hostname, net_enable_dtls.name);
+		if (certsize)
+			Base64_EncodeBlockURI(digest, CalcHash(&hash_sha1, digest, sizeof(digest), cert, certsize), fp, sizeof(fp));
+		else
+			strcpy(fp, "<No Certificate>");
+		Con_Printf(S_COLOR_GRAY"  fp: %s\n", fp);
 		CertLog_Update(hostname, cert, certsize, false);
 		CertLog_Write();
 	}
 	else if (!l || l->certsize != certsize || memcmp(l->cert, cert, certsize) || (trusted && !l->trusted))
 	{	//new or different
+		if (certsize)
+			Base64_EncodeBlockURI(digest, CalcHash(&hash_sha1, digest, sizeof(digest), cert, certsize), fp, sizeof(fp));
+		else
+			strcpy(fp, "<No Certificate>");
 		if (qrenderer)
 		{
 			unsigned int i;
@@ -820,7 +835,7 @@ qboolean CertLog_ConnectOkay(const char *hostname, void *cert, size_t certsize, 
 			char *text;
 			const char *accepttext;
 			const char *lines[] = {
-									va(localtext("Certificate for %s\n"), hostname),
+									va(localtext("Certificate for %s\n(fp:"S_COLOR_GRAY"%s"S_COLOR_WHITE")\n"), hostname, fp),
 									(certlogproblems&CERTLOG_WRONGHOST)?localtext("^1Certificate does not match host\n"):"",
 									((certlogproblems&(CERTLOG_MISSINGCA|CERTLOG_WRONGHOST))==CERTLOG_MISSINGCA)?localtext("^1Certificate authority is untrusted.\n"):"",
 									(certlogproblems&CERTLOG_EXPIRED)?localtext("^1Expired Certificate\n"):"",

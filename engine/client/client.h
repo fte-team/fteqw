@@ -492,7 +492,8 @@ typedef struct
 	infobuf_t	userinfo[MAX_SPLITS];
 	infosync_t	userinfosync;
 
-	char		servername[MAX_OSPATH];	// name of server from original connect
+	char		serverurl[MAX_OSPATH*4];	// eg qw://foo:27500/join?fp=blah
+	char		servername[MAX_OSPATH];		// internal parsing, eg dtls://foo:27500
 
 	struct ftenet_connections_s *sockets;
 

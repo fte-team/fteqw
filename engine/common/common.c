@@ -6891,9 +6891,9 @@ static int Base64_Decode(char inp)
 		return (inp-'a') + 26;
 	if (inp >= '0' && inp <= '9')
 		return (inp-'0') + 52;
-	if (inp == '+')
+	if (inp == '+' || inp == '-')
 		return 62;
-	if (inp == '/')
+	if (inp == '/' || inp == '_')
 		return 63;
 	//if (inp == '=') //padding char
 	return 0;	//invalid
@@ -6928,6 +6928,23 @@ size_t Base64_EncodeBlock(const qbyte *in, size_t length, char *out, size_t outs
 	if (out < end)
 		*out = 0;
 	return out-start;
+}
+size_t Base64_EncodeBlockURI(const qbyte *in, size_t length, char *out, size_t outsize)
+{	//special uri-safe version (also trims)
+	outsize = Base64_EncodeBlock(in, length, out, outsize);
+	for (length = 0; length < outsize; length++)
+	{
+		if (out[length] == '+')
+			out[length] = '-';
+		else if (out[length] == '/')
+			out[length] = '_';
+		else if (out[length] == '=')
+		{	//truncate it here.
+			out[length] = 0;
+			return length;
+		}
+	}
+	return outsize;
 }
 size_t Base64_DecodeBlock(const char *in, const char *in_end, qbyte *out, size_t outsize)
 {

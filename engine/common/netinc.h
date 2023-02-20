@@ -223,6 +223,9 @@
 #ifndef INVALID_SOCKET
 	#define INVALID_SOCKET -1
 #endif
+#ifndef MSG_NOSIGNAL
+	#define MSG_NOSIGNAL	0	//available on linux, no idea about other unixes. don't bug out too much... (d)tls needs this to not get constant SIGPIPE errors
+#endif
 
 #ifndef INADDR_LOOPBACK
 	#define INADDR_LOOPBACK 0x7f000001
@@ -372,7 +375,7 @@ typedef struct dtlsfuncs_s
 	neterr_t (*Transmit)(void *ctx, const qbyte *data, size_t datasize);
 	neterr_t (*Received)(void *ctx, sizebuf_t *message);	//operates in-place...
 	neterr_t (*Timeouts)(void *ctx);
-	void (*GetPeerCertificate)(void *ctx);
+	int (*GetPeerCertificate)(void *ctx, enum certprops_e prop, char *out, size_t outsize);
 	qboolean (*GenTempCertificate)(const char *subject, struct dtlslocalcred_s *cred);
 } dtlsfuncs_t;
 #ifdef HAVE_DTLS

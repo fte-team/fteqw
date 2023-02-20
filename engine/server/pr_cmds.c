@@ -6462,6 +6462,18 @@ char *PF_infokey_Internal (int entnum, const char *key)
 			sprintf(ov, "%d", SV_CalcPing (&svs.clients[entnum-1], true));
 		else if (!strcmp(key, "guid"))
 			sprintf(ov, "%s", pl->guid);
+		else if (!strcmp(key, "*cert_sha1"))
+		{
+			char buf[8192];
+			char digest[DIGEST_MAXSIZE];
+			int certsize = NET_GetConnectionCertificate(svs.sockets, &controller->netchan.remote_address, QCERT_PEERCERTIFICATE, buf, sizeof(buf));
+			if (certsize <= 0)
+				value = "";
+			else
+				Base64_EncodeBlockURI(digest,CalcHash(&hash_sha1, digest, sizeof(digest), buf, certsize), ov, sizeof(ov));
+		}
+		else if (!strcmp(key, "*cert_dn"))
+			NET_GetConnectionCertificate(svs.sockets, &controller->netchan.remote_address, QCERT_PEERSUBJECT, ov, sizeof(ov));
 		else if (!strcmp(key, "challenge"))
 			sprintf(ov, "%u", pl->challenge);
 		else if (!strcmp(key, "*userid"))
@@ -12567,7 +12579,7 @@ void PR_ResetBuiltins(progstype_t type)	//fix all nulls to PF_FIXME and add any 
 				}
 			}
 			if (!BuiltinList[i].name)
-				Con_Printf("Failed to map builtin %s to %i specified in fte_bimap.dat\n", com_token, binum);
+				Con_Printf("Failed to map builtin %s to %i specified in fte_bimap.txt\n", com_token, binum);
 		}
 	}
 }
@@ -13688,6 +13700,8 @@ void PR_DumpPlatform_f(void)
 		{"INFOKEY_P_CSQCACTIVE","const string", QW|NQ, D("Client has csqc enabled. CSQC ents etc will be sent to this player."), 0, "\"csqcactive\""},
 		{"INFOKEY_P_SVPING",	"const string", QW|NQ, NULL, 0, "\"svping\""},
 		{"INFOKEY_P_GUID",		"const string", QW|NQ, D("Some hash string which should be reasonably unique to this player's quake installation."), 0, "\"guid\""},
+		{"INFOKEY_P_CERT_SHA1",	"const string", QW|NQ, D("Obtains the client's (d)tls certificate's fingerprint."), 0, "\"*cert_sha1\""},
+		{"INFOKEY_P_CERT_DN",	"const string", QW|NQ, D("Obtains the client's (d)tls certificate's Distinguished Name string."), 0, "\"*cert_dn\""},
 		{"INFOKEY_P_CHALLENGE",	"const string", QW|NQ, NULL, 0, "\"challenge\""},
 		{"INFOKEY_P_USERID",	"const string", QW|NQ, NULL, 0, "\"*userid\""},
 		{"INFOKEY_P_DOWNLOADPCT","const string",QW|NQ, D("The client's download percentage for the current file. Additional files are not known."), 0, "\"download\""},

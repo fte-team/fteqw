@@ -1127,19 +1127,67 @@ CONNECTIONLESS COMMANDS
 ==============================================================================
 */
 
+const char *SV_ProtocolNameForClient(client_t *cl)
+{
+	//okay, that failed...
+	safeswitch (cl->protocol)
+	{
+	case SCP_QUAKEWORLD:
+		if (cl->fteprotocolextensions2 & PEXT2_REPLACEMENTDELTAS)
+			return "fteqw";	//changes enough to be significant. assumed to include csqc.
+		return "quakeworld";
+	case SCP_BAD:
+		return "bot";
+	case SCP_QUAKE2:
+		return "quake2";
+	case SCP_QUAKE3:
+		return "quake3";
+	case SCP_NETQUAKE:
+		if (cl->fteprotocolextensions2 & PEXT2_REPLACEMENTDELTAS)
+			return "ftenq";	//changes enough to be significant. assumed to include csqc.
+		if (cl->qex)
+			return "qex";
+		if (cl->proquake_angles_hack)
+			return "proquake";
+		return "vanilla";
+	case SCP_BJP3:
+		return "bjp3";
+	case SCP_FITZ666:
+		//this gets messy... probably we should distinguish more
+		if (cl->fteprotocolextensions2 & PEXT2_REPLACEMENTDELTAS)
+			return "ftenq";	//changes enough to be significant. assumed to include csqc.
+		if (cl->qex)
+			return "qex";
+		if (cl->netchan.netprim.coordtype != COORDTYPE_FIXED_13_3 || cl->netchan.netprim.anglesize != 1)
+			return "rmq";	//while fte tends not to care, most people consider them separate.
+		return "fitz";
+	case SCP_DARKPLACES6:
+		return "dp6";
+	case SCP_DARKPLACES7:
+		return "dp7";
+	safedefault:
+		return "unknown";
+	}
+}
+
 char *SV_PlayerPublicAddress(client_t *cl)
 {	//returns a string containing the client's IP address, as permitted for viewing by other clients.
 	//if something useful is actually returned, it should be masked.
-	return "private";
+	//we hide it entirely out of private info caution. most nq clients expect a #.#.#.INVALID type address.
+	//it should be fine to put other stuff here though, we put client version instead, if we know it.
+	const char *ver = InfoBuf_ValueForKey(&cl->userinfo, "*ver");
+	const char *prot = SV_ProtocolNameForClient(cl);
+
+	return va("prot %s %s", prot, ver);	//something so they can't confuse ip parsing so easily nor pass them off as some other protocol.
 }
 
-#define STATUS_OLDSTYLE					0
+#define	STATUS_OLDSTYLE					0 //equivelent to STATUS_SERVERINFO|STATUS_PLAYERS
 #define	STATUS_SERVERINFO				1
 #define	STATUS_PLAYERS					2
 #define	STATUS_SPECTATORS				4
 #define	STATUS_SPECTATORS_AS_PLAYERS	8 //for ASE - change only frags: show as "S"
-#define STATUS_SHOWTEAMS				16
-#define STATUS_QTVLIST					32 //qtv destid "name" "streamid@host:port" numviewers
+#define	STATUS_SHOWTEAMS				16
+#define	STATUS_QTVLIST					32 //qtv destid "name" "streamid@host:port" numviewers
 
 /*
 ================
@@ -1768,14 +1816,16 @@ qboolean SVC_GetChallenge (qboolean respond_dp)
 #endif
 
 #ifdef HAVE_DTLS
-		if (net_enable_dtls.ival/* || !*net_enable_dtls.string*/)
+		if (net_enable_dtls.ival>0/* || !*net_enable_dtls.string*/ && svs.sockets->dtlsfuncs)
 		{
 			lng = LittleLong(PROTOCOL_VERSION_DTLSUPGRADE);
 			memcpy(over, &lng, sizeof(lng));
 			over+=sizeof(lng);
 
-			if (net_enable_dtls.ival >= 2)
-				lng = LittleLong(2);	//required
+			if (net_enable_dtls.ival >= 3)
+				lng = LittleLong(3);	//required
+			else if (net_enable_dtls.ival >= 2)
+				lng = LittleLong(2);	//encouraged
 			else
 				lng = LittleLong(1);	//supported
 			memcpy(over, &lng, sizeof(lng));
@@ -2606,7 +2656,8 @@ void SV_DoDirectConnect(svconnectinfo_t *fte_restrict info)
 		{
 			if (spectator_password.string[0] &&
 				stricmp(spectator_password.string, "none") &&
-				strcmp(spectator_password.string, s) )
+				strcmp(spectator_password.string, s) &&
+				!NET_IsLoopBackAddress(&info->adr))
 			{	// failed
 				Con_TPrintf ("%s:spectator password failed\n", NET_AdrToString (adrbuf, sizeof(adrbuf), &info->adr));
 				SV_RejectMessage (info->protocol, "requires a spectator password\n\n");
@@ -2621,7 +2672,8 @@ void SV_DoDirectConnect(svconnectinfo_t *fte_restrict info)
 			s = Info_ValueForKey (info->userinfo, "password");
 			if (password.string[0] &&
 				stricmp(password.string, "none") &&
-				strcmp(password.string, s) )
+				strcmp(password.string, s) &&
+				!NET_IsLoopBackAddress(&info->adr))
 			{
 				Con_TPrintf ("%s:password failed\n", NET_AdrToString (adrbuf, sizeof(adrbuf), &info->adr));
 				SV_RejectMessage (info->protocol, "server requires a password\n\n");
@@ -3056,10 +3108,15 @@ void SV_DoDirectConnect(svconnectinfo_t *fte_restrict info)
 	//this is the upper bound of the mtu, if its too high we'll get EMSGSIZE and we'll reduce it.
 	//however, if it drops below newcl->netchan.message.maxsize then we'll start to see undeliverable reliables, which means dropped clients.
 	newcl->netchan.mtu = MAX_DATAGRAM;	//vanilla qw clients are assumed to have an mtu of this size.
-	if (info->mtu >= 64)
+	if (info->mtu >= 300)	//anything smaller is someone being intentionally malicious.
 	{	//if we support application fragmenting, then we can send massive reliables without too much issue
 		newcl->netchan.mtu = info->mtu;
 		newcl->netchan.message.maxsize = sizeof(newcl->netchan.message_buf);
+
+		if (info->adr.type == NA_ICE)
+			newcl->netchan.mtu -= 48+12;	//dtls+sctp overhead
+		else if (info->adr.prot == NP_DTLS || info->adr.prot == NP_TLS)
+			newcl->netchan.mtu -= 48;		//dtls overhead
 	}
 	else
 	{	//otherwise we can't fragment the packets, and the only way to honour the mtu is to send less data. yay for more round-trips.
@@ -3664,9 +3721,6 @@ void SVC_DirectConnect(int expectedreliablesequence)
 		}
 	}
 	msg_badread=false;
-
-	if (!*info.guid)
-		NET_GetConnectionCertificate(svs.sockets, &net_from, QCERT_PEERFINGERPRINT, info.guid, sizeof(info.guid));
 
 	info.adr = net_from;
 	if (MSV_ClusterLogin(&info))
@@ -4500,16 +4554,18 @@ qboolean SVNQ_ConnectionlessPacket(void)
 			/*dual-stack client, supporting either DP or QW protocols*/
 			SVC_GetChallenge (false);
 		}
+#ifdef HAVE_DTLS
+		else if (net_enable_dtls.ival > 2 && (net_from.prot == NP_DGRAM || net_from.prot == NP_STREAM || net_from.prot == NP_WS) && net_from.type != NA_LOOPBACK && !NET_IsEncrypted(&net_from))
+		{
+			SV_RejectMessage (SCP_NETQUAKE, "This server requires the use of DTLS/TLS/WSS.\n");
+			return true;
+		}
+#endif
 		else
 		{	//legacy pure-nq (though often DP).
 			if (progstype == PROG_H2)
 			{
-				SZ_Clear(&sb);
-				MSG_WriteLong(&sb, 0);
-				MSG_WriteByte(&sb, CCREP_REJECT);
-				MSG_WriteString(&sb, "NQ clients are not supported with hexen2 gamecode\n");
-				*(int*)sb.data = BigLong(NETFLAG_CTL+sb.cursize);
-				NET_SendPacket(svs.sockets, sb.cursize, sb.data, &net_from);
+				SV_RejectMessage (SCP_NETQUAKE, "NQ clients are not supported with hexen2 gamecode\n");
 				return true;	//not our version...
 			}
 			if (NET_WasSpecialPacket(svs.sockets))

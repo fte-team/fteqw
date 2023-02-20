@@ -2093,26 +2093,26 @@ void PM_LoadPackages(searchpath_t **oldpaths, const char *parent_pure, const cha
 		pri = maxpri;
 		for (p = availablepackages; p; p = p->next)
 		{
-			if ((p->flags & DPF_ENABLED) && p->qhash && p->priority>=minpri&&p->priority<pri && !Q_strcasecmp(parent_pure, p->gamedir))
+			if ((p->flags & (DPF_ENABLED|DPF_MANIMARKED)) && p->qhash && p->priority>=minpri&&p->priority<pri && !Q_strcasecmp(parent_pure, p->gamedir))
 				pri = p->priority;
 		}
 		minpri = pri+1;
 
 		for (p = availablepackages; p; p = p->next)
 		{
-			if ((p->flags & DPF_ENABLED) && p->qhash && p->priority==pri && !Q_strcasecmp(parent_pure, p->gamedir))
+			if ((p->flags & (DPF_ENABLED|DPF_MANIMARKED)) && p->qhash && p->priority==pri && !Q_strcasecmp(parent_pure, p->gamedir))
 			{
 				for (d = p->deps; d; d = d->next)
 				{
 					if (d->dtype == DEP_FILE)
 					{
 						Q_snprintfz(temp, sizeof(temp), "%s/%s", p->gamedir, d->name);
-						FS_AddHashedPackage(oldpaths, parent_pure, parent_logical, search, loadstuff, temp, *p->qhash?p->qhash:NULL, p->packprefix, SPF_COPYPROTECTED|SPF_UNTRUSTED);
+						FS_AddHashedPackage(oldpaths, parent_pure, parent_logical, search, loadstuff, temp, *p->qhash?p->qhash:NULL, p->packprefix, SPF_COPYPROTECTED|((p->flags & DPF_SIGNATUREACCEPTED)?0:SPF_UNTRUSTED));
 					}
 					else if (d->dtype == DEP_CACHEFILE)
 					{
 						Q_snprintfz(temp, sizeof(temp), "downloads/%s", d->name);
-						FS_AddHashedPackage(oldpaths, parent_pure, parent_logical, NULL, loadstuff, temp, *p->qhash?p->qhash:NULL, p->packprefix, SPF_COPYPROTECTED|SPF_UNTRUSTED);
+						FS_AddHashedPackage(oldpaths, parent_pure, parent_logical, NULL, loadstuff, temp, *p->qhash?p->qhash:NULL, p->packprefix, SPF_COPYPROTECTED|((p->flags & DPF_SIGNATUREACCEPTED)?0:SPF_UNTRUSTED));
 					}
 				}
 			}
@@ -3270,6 +3270,7 @@ static void PM_PackageEnabled(package_t *p)
 		if (dep->dtype != DEP_FILE && dep->dtype != DEP_CACHEFILE)
 			continue;
 		COM_FileExtension(dep->name, ext, sizeof(ext));
+		if (!pm_packagesinstalled)
 		if (!stricmp(ext, "pak") || !stricmp(ext, "pk3") || !stricmp(ext, "zip"))
 		{
 			if (pm_packagesinstalled)
@@ -3420,6 +3421,10 @@ static qboolean PM_Download_Got_Extract(package_t *p, searchpathfuncs_t *archive
 						archive->ReadFile(archive, &loc, f);
 						if (FS_WriteFile(destname, f, loc.len, p->fsroot))
 						{
+							if (!FS_NativePath(destname, p->fsroot, native, sizeof(native)))
+								Q_strncpyz(native, destname, sizeof(native));
+							Con_Printf("Extracted %s (to %s)\n", p->name, native);
+
 							p->flags = nfl;
 							success = true;
 							continue;
@@ -4672,6 +4677,17 @@ void PM_Command_f(void)
 					Con_Printf(" ^[[Add]\\type\\pkg add %s;pkg apply^]", COM_QuotedString(p->name, quoted, sizeof(quoted), false));
 				if ((p->flags&DPF_MARKED) && p == PM_MarkedPackage(p->name, DPF_MARKED))
 					Con_Printf(" ^[[Remove]\\type\\pkg rem %s;pkg apply^]", COM_QuotedString(p->name, quoted, sizeof(quoted), false));
+
+
+				if (p->flags & DPF_SIGNATUREACCEPTED)
+					Con_Printf(" ^&02Trusted");
+				else if (p->flags & DPF_SIGNATUREREJECTED)
+					Con_Printf(" ^&04Untrusted");
+				else if (p->flags & DPF_SIGNATUREUNKNOWN)
+					Con_Printf(" ^&0EUnverified");
+				else
+					Con_Printf(" ^&0EUnsigned");
+
 				Con_Printf("\n");
 			}
 			Z_Free(sorted);
@@ -5041,6 +5057,15 @@ void PM_AddManifestPackages(ftemanifest_t *man)
 		p->flags = DPF_FORGETONUNINSTALL|DPF_MANIFEST|DPF_GUESSED;
 		p->qhash = pack->crcknown?Z_StrDupf("%#x", pack->crc):NULL;
 
+		//note that this signs the hash(validated with size) with an separately trusted authority and is thus not dependant upon trusting the manifest itself...
+		//that said, we can't necessarily trust any overrides the manifest might include - those parts do not form part of the signature.
+		if (!pack->prefix && pack->crcknown && strchr(p->name, '/'))
+		{
+			p->signature = pack->signature?Z_StrDup(pack->signature):NULL;
+			p->filesha512 = pack->sha512?Z_StrDup(pack->sha512):NULL;
+			p->filesize = pack->filesize;
+		}
+
 		{
 			char *c = p->name;
 			for (c=p->name; *c; c++)	//don't get confused.
@@ -5105,6 +5130,8 @@ void PM_AddManifestPackages(ftemanifest_t *man)
 				p->mirror[i] = Z_StrDup(url);
 		}
 		PM_AddDep(p, DEP_FILE, path);
+
+		PM_ValidateAuthenticity(p, VH_UNSUPPORTED);
 
 		m = PM_InsertPackage(p);
 		if (!m)

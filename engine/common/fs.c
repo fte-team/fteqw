@@ -189,7 +189,7 @@ qboolean Sys_ResolveFileURL(const char *inurl, int inlen, char *out, int outlen)
 	{	//has an authority field...
 		i+=2;
 		//except we don't support authorities other than ourself...
-		if (i < inend || *i != '/')
+		if (i >= inend || *i != '/')
 			return false;	//must be an absolute path...
 #ifdef _WIN32
 		i++;	//on windows, (full)absolute paths start with a drive name...
@@ -320,6 +320,8 @@ void FS_Manifest_Free(ftemanifest_t *man)
 		Z_Free(man->package[i].path);
 		Z_Free(man->package[i].prefix);
 		Z_Free(man->package[i].condition);
+		Z_Free(man->package[i].sha512);
+		Z_Free(man->package[i].signature);
 		for (j = 0; j < sizeof(man->package[i].mirrors) / sizeof(man->package[i].mirrors[0]); j++)
 			Z_Free(man->package[i].mirrors[j]);
 	}
@@ -372,12 +374,20 @@ static ftemanifest_t *FS_Manifest_Clone(ftemanifest_t *oldm)
 	}
 	for (i = 0; i < sizeof(newm->package) / sizeof(newm->package[0]); i++)
 	{
+		newm->package[i].type = oldm->package[i].type;
+		newm->package[i].crc = oldm->package[i].crc;
+		newm->package[i].crcknown = oldm->package[i].crcknown;
 		if (oldm->package[i].path)
 			newm->package[i].path = Z_StrDup(oldm->package[i].path);
 		if (oldm->package[i].prefix)
 			newm->package[i].prefix = Z_StrDup(oldm->package[i].prefix);
 		if (oldm->package[i].condition)
 			newm->package[i].condition = Z_StrDup(oldm->package[i].condition);
+		if (oldm->package[i].sha512)
+			newm->package[i].sha512 = Z_StrDup(oldm->package[i].sha512);
+		if (oldm->package[i].signature)
+			newm->package[i].signature = Z_StrDup(oldm->package[i].signature);
+		newm->package[i].filesize = oldm->package[i].filesize;
 		for (j = 0; j < sizeof(newm->package[i].mirrors) / sizeof(newm->package[i].mirrors[0]); j++)
 			if (oldm->package[i].mirrors[j])
 				newm->package[i].mirrors[j] = Z_StrDup(oldm->package[i].mirrors[j]);
@@ -483,10 +493,16 @@ static void FS_Manifest_Print(ftemanifest_t *man)
 			else
 				Con_Printf("package ");
 			Con_Printf("%s", COM_QuotedString(man->package[i].path, buffer, sizeof(buffer), false));
-			if (man->package[i].condition)
-				Con_Printf(" prefix %s", COM_QuotedString(man->package[i].condition, buffer, sizeof(buffer), false));
+			if (man->package[i].prefix)
+				Con_Printf(" prefix %s", COM_QuotedString(man->package[i].prefix, buffer, sizeof(buffer), false));
 			if (man->package[i].condition)
 				Con_Printf(" condition %s", COM_QuotedString(man->package[i].condition, buffer, sizeof(buffer), false));
+			if (man->package[i].filesize)
+				Con_Printf(" filesize %"PRIuQOFS, man->package[i].filesize);
+			if (man->package[i].sha512)
+				Con_Printf(" sha512 %s", COM_QuotedString(man->package[i].sha512, buffer, sizeof(buffer), false));
+			if (man->package[i].signature)
+				Con_Printf(" signature %s", COM_QuotedString(man->package[i].signature, buffer, sizeof(buffer), false));
 			if (man->package[i].crcknown)
 				Con_Printf(" crc 0x%x", man->package[i].crc);
 			for (j = 0; j < sizeof(man->package[i].mirrors) / sizeof(man->package[i].mirrors[0]); j++)
@@ -552,6 +568,9 @@ static qboolean FS_Manifest_ParsePackage(ftemanifest_t *man, int packagetype)
 	char *condition = NULL;
 	char *prefix = NULL;
 	char *arch = NULL;
+	char *signature = NULL;
+	char *sha512 = NULL;
+	qofs_t filesize = 0;
 	unsigned int arg = 1;
 	unsigned int mirrors = 0;
 	char *mirror[countof(man->package[0].mirrors)];
@@ -598,6 +617,12 @@ static qboolean FS_Manifest_ParsePackage(ftemanifest_t *man, int packagetype)
 			prefix = Cmd_Argv(arg++);
 		else if (!strcmp(a, "arch"))
 			arch = Cmd_Argv(arg++);
+		else if (!strcmp(a, "signature"))
+			signature = Cmd_Argv(arg++);
+		else if (!strcmp(a, "sha512"))
+			sha512 = Cmd_Argv(arg++);
+		else if (!strcmp(a, "filesize")||!strcmp(a, "size"))
+			filesize = strtoull(Cmd_Argv(arg++), NULL, 0);
 		else if (!strcmp(a, "mirror"))
 		{
 			a = Cmd_Argv(arg++);
@@ -642,6 +667,9 @@ mirror:
 			man->package[i].path = Z_StrDup(path);
 			man->package[i].prefix = prefix?Z_StrDup(prefix):NULL;
 			man->package[i].condition = condition?Z_StrDup(condition):NULL;
+			man->package[i].sha512 = sha512?Z_StrDup(sha512):NULL;
+			man->package[i].signature = signature?Z_StrDup(signature):NULL;
+			man->package[i].filesize = filesize;
 			man->package[i].crcknown = crcknown;
 			man->package[i].crc = crc;
 			for (j = 0; j < mirrors; j++)
@@ -3529,6 +3557,7 @@ void FS_AddHashedPackage(searchpath_t **oldpaths, const char *parentpath, const 
 
 static void FS_AddManifestPackages(searchpath_t **oldpaths, const char *purepath, const char *logicalpaths, searchpath_t *search, unsigned int loadstuff)
 {
+#ifndef PACKAGEMANAGER
 	int				i;
 
 	int ptlen, palen;
@@ -3552,6 +3581,7 @@ static void FS_AddManifestPackages(searchpath_t **oldpaths, const char *purepath
 					);
 		}
 	}
+#endif
 }
 
 static void FS_AddDownloadManifestPackages(searchpath_t **oldpaths, unsigned int loadstuff)//, const char *purepath, searchpath_t *search, const char *extension, searchpathfuncs_t *(QDECL *OpenNew)(vfsfile_t *file, const char *desc))
@@ -6141,6 +6171,8 @@ qboolean FS_ChangeGame(ftemanifest_t *man, qboolean allowreloadconfigs, qboolean
 	char *vidfile[] = {"gfx.wad", "gfx/conback.lmp",	//misc stuff
 		"gfx/palette.lmp", "pics/colormap.pcx", "gfx/conchars.png"};		//palettes
 	searchpathfuncs_t *vidpath[countof(vidfile)];
+	char *menufile[] = {"menu.dat"/*mods*/, "gfx/ttl_main.lmp"/*q1*/, "pics/m_main_quit.pcx"/*q2*/, "gfx/menu/title0.lmp"/*h2*/};
+	searchpathfuncs_t *menupath[countof(menufile)];
 #endif
 
 	//if any of these files change location, the configs will be re-execed.
@@ -6158,6 +6190,16 @@ qboolean FS_ChangeGame(ftemanifest_t *man, qboolean allowreloadconfigs, qboolean
 		}
 		else
 			vidpath[i] = NULL;
+	}
+	for (i = 0; i < countof(menufile); i++)
+	{
+		if (allowreloadconfigs)
+		{
+			FS_FLocateFile(menufile[i], FSLF_IFFOUND|FSLF_SECUREONLY, &loc);
+			menupath[i] = loc.search?loc.search->handle:NULL;
+		}
+		else
+			menupath[i] = NULL;
 	}
 #endif
 
@@ -6439,6 +6481,12 @@ qboolean FS_ChangeGame(ftemanifest_t *man, qboolean allowreloadconfigs, qboolean
 	}
 #endif
 
+	//our basic filesystem should be okay, but no packages loaded yet.
+#ifdef MANIFESTDOWNLOADS
+	//make sure the package manager knows what its meant to know...
+	PM_AddManifestPackages(man);
+#endif
+
 	if (Sys_LockMutex(fs_thread_mutex))
 	{
 #ifdef HAVE_CLIENT
@@ -6536,6 +6584,20 @@ qboolean FS_ChangeGame(ftemanifest_t *man, qboolean allowreloadconfigs, qboolean
 		{
 			Cbuf_AddText ("vid_reload\n", RESTRICT_LOCAL);
 			vidrestart = false;
+		}
+
+
+		if (qrenderer != QR_NONE && allowreloadconfigs)
+		{
+			for (i = 0; i < countof(menufile); i++)
+			{
+				FS_FLocateFile(menufile[i], FSLF_IFFOUND, &loc);
+				if (menupath[i] != (loc.search?loc.search->handle:NULL))
+				{
+					Cbuf_AddText ("menu_restart\n", RESTRICT_LOCAL);
+					break;
+				}
+			}
 		}
 #endif
 

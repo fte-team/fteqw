@@ -797,6 +797,9 @@ typedef struct
 		unsigned int crc;	//the public crc
 		char *mirrors[8];	//a randomized (prioritized-on-load) list of mirrors to use. (may be 'prompt:game,package', 'unzip:file,url', 'xz:url', 'gz:url'
 		char *condition;	//only downloaded if this cvar is set | delimited allows multiple cvars.
+		char *sha512;		//package must match this hash, if specified
+		char *signature;	//signs the hash
+		qofs_t filesize;
 		int mirrornum;		//the index we last tried to download from, so we still work even if mirrors are down.
 	} package[64];
 } ftemanifest_t;

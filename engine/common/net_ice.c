@@ -3510,7 +3510,7 @@ static void SCTP_Decode(sctp_t *sctp, struct icestate_s *peer, ftenet_connection
 	qbyte resp[4096];
 
 	qbyte *msg = net_message.data;
-	qbyte *msgend = net_message.data+net_message.cursize;
+	qbyte *msgend = msg+net_message.cursize;
 	struct sctp_header_s *h = (struct sctp_header_s*)msg;
 	struct sctp_chunk_s *c = (struct sctp_chunk_s*)(h+1);
 	quint16_t clen;
@@ -3531,11 +3531,21 @@ static void SCTP_Decode(sctp_t *sctp, struct icestate_s *peer, ftenet_connection
 		return;	//mimic chrome, despite it being pointless.
 	}
 
+	//passed the simple header checks, spend a memcpy...
+	msg = alloca(net_message.cursize);
+	memcpy(msg, net_message.data, net_message.cursize);
+	msgend = msg+net_message.cursize;
+	h = (struct sctp_header_s*)msg;
+	c = (struct sctp_chunk_s*)(h+1);
+
 	while ((qbyte*)(c+1) <= msgend)
 	{
 		clen = BigShort(c->length);
 		if ((qbyte*)c + clen > msgend || clen < sizeof(*c))
-			break;	//corrupt
+		{
+			Con_Printf(CON_ERROR"Corrupt SCTP message\n");
+			break;
+		}
 		safeswitch(c->type)
 		{
 		case SCTP_TYPE_DATA:

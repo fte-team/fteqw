@@ -265,10 +265,7 @@ void PrepareStun(int epfd, int reportport)
 #if 0
 	char *stunserver = "localhost";
 	int stunport = 27500;
-#elif 1
-	char *stunserver = "stun.l.google.com";
-	int stunport = 19302;
-#else
+#else	//sorry about hardcoding a server, but probably few people are gonna care enough.
 	char *stunserver = "master.frag-net.com";
 	int stunport = 27950;
 #endif

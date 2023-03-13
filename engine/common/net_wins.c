@@ -118,6 +118,7 @@ int UDP6_OpenSocket (int port);
 #ifdef HAVE_IPX
 void IPX_CloseSocket (int socket);
 #endif
+cvar_t	net_ice_broker			= CVARFD("net_ice_broker", "tls://master.frag-net.com:27950", CVAR_NOTFROMSERVER, "This is the default broker we attempt to connect through when using 'sv_public /foo' or 'connect /foo'.");
 cvar_t	timeout					= CVARD("timeout","65", "Connections will time out if no packets are received for this duration of time.");		// seconds without any message
 cvar_t	net_hybriddualstack		= CVARD("net_hybriddualstack",		"1", "Uses hybrid ipv4+ipv6 sockets where possible. Not supported on xp or below.");
 cvar_t	net_fakeloss			= CVARFD("net_fakeloss",			"0", CVAR_CHEAT, "Simulates packetloss in both receiving and sending, on a scale from 0 to 1.");
@@ -1654,8 +1655,7 @@ size_t	NET_StringToAdr2 (const char *s, int defaultport, netadr_t *a, size_t num
 	//`connect /GAMENAME` is equivelent to `connect rtc://broker/GAMENAME`
 	if (*s == '/')
 	{
-		char *broker = fs_manifest->rtcbroker;
-		if (!broker || !*broker)
+		if (!*net_ice_broker.string)
 		{	//FIXME: use referrer? or the website's host?
 			Con_DPrintf("No default rtc broker\n");
 			return 0;	//can't accept it
@@ -1809,9 +1809,11 @@ size_t	NET_StringToAdr2 (const char *s, int defaultport, netadr_t *a, size_t num
 
 	path = strchr(s, '/');
 #if !defined(HAVE_WEBSOCKCL) && defined(SUPPORT_ICE)
-	if (path == s && fs_manifest->rtcbroker && *fs_manifest->rtcbroker)
+	if (path == s)
 	{
-		s = fs_manifest->rtcbroker;
+		if (!*net_ice_broker.string)
+			return result;
+		s = net_ice_broker.string;
 		if (!strncmp(s, "tls://", 6) || !strncmp(s, "wss://", 6))
 			s+=6, prot=NP_RTC_TLS;
 		else if (!strncmp(s, "tcp://", 6))
@@ -2473,6 +2475,7 @@ void *TLS_GetKnownCertificate(const char *certname, size_t *size)
 	//the xor helps break that shitty recursive loop of mistrust from defects in other people's code.
 	//at least until there's a sandbox that checks the dns resolutions for our update requests anyway.
 	//I should probably just copy the downloadables file to sourceforge.
+	//FIXME: we should be signing the content, not the sender. this SHOULD become redundant.
 	static struct
 	{
 		qbyte *data;
@@ -7265,7 +7268,7 @@ static int FTENET_WebRTC_Create(qboolean initiator, ftenet_websocket_connection_
 		}
 		if (*brokeraddress == '/')
 		{
-			brokeraddress = fs_manifest->rtcbroker;
+			brokeraddress = net_ice_broker.string;
 			for (i = countof(pre); i --> 0; )
 			{
 				if (!strncmp(brokeraddress, pre[i], strlen(pre[i])))
@@ -7555,7 +7558,7 @@ static int FTENET_WebRTC_Establish(const char *address, const char *type)
 	{
 		path = address+1;
 
-		address = fs_manifest->rtcbroker;
+		address = net_ice_broker.string;
 		for (i = countof(pre); i --> 0; )
 		{
 			if (!strncmp(address, pre[i], strlen(pre[i])))
@@ -7650,7 +7653,7 @@ static ftenet_generic_connection_t *FTENET_WebRTC_EstablishConnection(ftenet_con
 	if (adr.type == NA_INVALID)
 	{	//if its using our broker, flip it over to a real address type, if we can.
 		adr.type = NA_WEBSOCKET;
-		Q_strncpyz(adr.address.websocketurl, fs_manifest->rtcbroker, sizeof(adr.address.websocketurl));
+		Q_strncpyz(adr.address.websocketurl, net_ice_broker.string, sizeof(adr.address.websocketurl));
 	}
 
 	brokersocket = FTENET_WebRTC_Establish(address, isserver?"rtc_host":"rtc_client");
@@ -9059,6 +9062,7 @@ void NET_Init (void)
 #endif
 	}
 
+	Cvar_Register(&net_ice_broker, "networking");
 	Cvar_Register(&timeout, "networking");
 	Cvar_Register(&net_hybriddualstack, "networking");
 	Cvar_Register(&net_fakeloss, "networking");

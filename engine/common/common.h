@@ -767,7 +767,6 @@ typedef struct
 	char *defaultexec;	//execed after cvars are reset, to give game-specific engine-defaults.
 	char *defaultoverrides;	//execed after default.cfg, to give usable defaults even when the mod the user is running is shit.
 	char *eula;			//when running as an installer, the user will be presented with this as a prompt
-	char *rtcbroker;	//the broker to use for webrtc connections.
 	char *basedir;		//this is where we expect to find the data.
 	char *iconname;		//path we can find the icon (relative to the fmf's location)
 

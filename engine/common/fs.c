@@ -308,7 +308,6 @@ void FS_Manifest_Free(ftemanifest_t *man)
 	Z_Free(man->eula);
 	Z_Free(man->defaultexec);
 	Z_Free(man->defaultoverrides);
-	Z_Free(man->rtcbroker);
 	Z_Free(man->basedir);
 	Z_Free(man->iconname);
 	for (i = 0; i < sizeof(man->gamepath) / sizeof(man->gamepath[0]); i++)
@@ -356,8 +355,6 @@ static ftemanifest_t *FS_Manifest_Clone(ftemanifest_t *oldm)
 		newm->defaultexec = Z_StrDup(oldm->defaultexec);
 	if (oldm->defaultoverrides)
 		newm->defaultoverrides = Z_StrDup(oldm->defaultoverrides);
-	if (oldm->rtcbroker)
-		newm->rtcbroker = Z_StrDup(oldm->rtcbroker);
 	if (oldm->iconname)
 		newm->iconname = Z_StrDup(oldm->iconname);
 	if (oldm->basedir)
@@ -460,8 +457,6 @@ static void FS_Manifest_Print(ftemanifest_t *man)
 		}
 		//Con_Printf("%s", man->defaultoverrides);
 	}
-	if (man->rtcbroker)
-		Con_Printf("rtcbroker %s\n", COM_QuotedString(man->rtcbroker, buffer, sizeof(buffer), false));
 	if (man->iconname)
 		Con_Printf("icon %s\n", COM_QuotedString(man->iconname, buffer, sizeof(buffer), false));
 	if (man->basedir)
@@ -554,8 +549,6 @@ static ftemanifest_t *FS_Manifest_Create(const char *syspath, const char *basedi
 #else
 	man->mainconfig = Z_StrDup("fte.cfg");
 #endif
-
-	man->rtcbroker = Z_StrDup("tls://master.frag-net.com:27950");	//This is eukara's server. fixme: this really ought to be a cvar instead.
 	return man;
 }
 
@@ -812,11 +805,12 @@ static qboolean FS_Manifest_ParseTokens(ftemanifest_t *man)
 	{
 		Z_StrCat(&man->defaultoverrides, va("%s %s\n", Cmd_Argv(0), Cmd_Args()));
 	}
+#ifdef HAVE_LEGACY
 	else if (!Q_strcasecmp(cmd, "rtcbroker"))
 	{
-		Z_Free(man->rtcbroker);
-		man->rtcbroker = Z_StrDup(Cmd_Argv(1));
+		Z_StrCat(&man->defaultexec, va("set %s %s\n", net_ice_broker.name, Cmd_Args()));
 	}
+#endif
 	else if (!Q_strcasecmp(cmd, "updateurl"))
 	{
 		Z_Free(man->updateurl);

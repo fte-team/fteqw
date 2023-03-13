@@ -2889,18 +2889,18 @@ void MasterInfo_Refresh(qboolean doreset)
 		Master_AddMaster("255.255.255.255:"STRINGIFY(PORT_Q3SERVER),				MT_BCAST,			MP_QUAKE3, "Nearby Quake3 UDP servers.");
 #endif
 
-		if (!fs_manifest->rtcbroker || !*fs_manifest->rtcbroker)
+		if (!*net_ice_broker.string)
 			;	//nope, sorry, not configured.
 		else
 		{
 			char *url;
 			COM_Parse(com_protocolname.string);
-			if (!strncmp(fs_manifest->rtcbroker, "tls://", 6))
-				url = va("https://%s/raw/%s", fs_manifest->rtcbroker+6, com_token);
-			else if (!strncmp(fs_manifest->rtcbroker, "tcp://", 6))
-				url = va("http://%s/raw/%s", fs_manifest->rtcbroker+6, com_token);
+			if (!strncmp(net_ice_broker.string, "tls://", 6))
+				url = va("https://%s/raw/%s", net_ice_broker.string+6, com_token);
+			else if (!strncmp(net_ice_broker.string, "tcp://", 6))
+				url = va("http://%s/raw/%s", net_ice_broker.string+6, com_token);
 			else
-				url = va("http://%s/raw/%s", fs_manifest->rtcbroker, com_token);
+				url = va("http://%s/raw/%s", net_ice_broker.string, com_token);
 			Master_AddMasterHTTP(url,				MT_MASTERHTTP,		MP_DPMASTER, "Public Servers Potentially Behind A NAT.");
 		}
 
@@ -3786,12 +3786,12 @@ static void NetQ3_GlobalServers_Request(size_t masternum, int protocol, const ch
 		const char *url;
 		struct dl_download *dl;
 		COM_Parse(com_protocolname.string);
-		if (!strncmp(fs_manifest->rtcbroker, "tls://", 6))
-			url = va("https://%s/raw/%s", fs_manifest->rtcbroker+6, com_token);
-		else if (!strncmp(fs_manifest->rtcbroker, "tcp://", 6))
-			url = va("http://%s/raw/%s", fs_manifest->rtcbroker+6, com_token);
+		if (!strncmp(net_ice_broker.string, "tls://", 6))
+			url = va("https://%s/raw/%s", net_ice_broker.string+6, com_token);
+		else if (!strncmp(net_ice_broker.string, "tcp://", 6))
+			url = va("http://%s/raw/%s", net_ice_broker.string+6, com_token);
 		else
-			url = va("http://%s/raw/%s", fs_manifest->rtcbroker, com_token);
+			url = va("http://%s/raw/%s", net_ice_broker.string, com_token);
 
 		dl = HTTP_CL_Get(url, NULL, MasterInfo_ProcessHTTP);
 		if (dl)

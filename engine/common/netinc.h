@@ -296,6 +296,7 @@ typedef struct
 	qboolean (QDECL *GetLCandidateSDP)(struct icestate_s *con, char *out, size_t valuesize);		//retrieves candidates that need reporting to the peer.
 } icefuncs_t;
 extern icefuncs_t iceapi;
+extern cvar_t net_ice_broker;
 #endif
 
 #ifdef HAVE_EPOLL

@@ -5469,12 +5469,12 @@ ftenet_generic_connection_t *FTENET_ICE_EstablishConnection(ftenet_connections_t
 		address+=6;
 	else if (!strncmp(address, "ices://", 7)||!strncmp(address, "rtcs://", 7))
 		address+=7;
-	if (address == path && *path=='/' && fs_manifest->rtcbroker)
+	if (address == path && *path=='/')
 	{
-		if (!strncmp(fs_manifest->rtcbroker, "tls://", 6) || !strncmp(fs_manifest->rtcbroker, "tcp://", 6))
-			Q_strncpyz(newcon->brokername, fs_manifest->rtcbroker+6, sizeof(newcon->brokername));	//name is for prints only.
+		if (!strncmp(net_ice_broker.string, "tls://", 6) || !strncmp(net_ice_broker.string, "tcp://", 6))
+			Q_strncpyz(newcon->brokername, net_ice_broker.string+6, sizeof(newcon->brokername));	//name is for prints only.
 		else
-			Q_strncpyz(newcon->brokername, fs_manifest->rtcbroker, sizeof(newcon->brokername));	//name is for prints only.
+			Q_strncpyz(newcon->brokername, net_ice_broker.string, sizeof(newcon->brokername));	//name is for prints only.
 		Q_strncpyz(newcon->gamename, path+1, sizeof(newcon->gamename));	//so we know what to tell the broker.
 	}
 	else

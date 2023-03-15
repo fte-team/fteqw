@@ -1487,6 +1487,7 @@ static int CL_LoadModels(int stage, qboolean dontactuallyload)
 		SCR_SetLoadingFile("external textures");
 		if (cl.worldmodel && cl.worldmodel->loadstate == MLS_LOADING)
 			COM_WorkerPartialSync(cl.worldmodel, &cl.worldmodel->loadstate, MLS_LOADING);
+		CL_CheckServerInfo(); //some serverinfo rules can change with map type, so make sure they're updated now we're sure we know it properly.
 		if (cl.worldmodel && cl.worldmodel->loadstate == MLS_LOADED)
 			Mod_NowLoadExternal(cl.worldmodel);
 
@@ -3706,6 +3707,7 @@ static void CLQ2_ParseServerData (void)
 	Cvar_ForceCallback(Cvar_FindVar("r_particlesdesc"));
 
 	Surf_PreNewMap();
+	CL_CheckServerInfo();
 }
 #endif
 

@@ -7240,6 +7240,12 @@ void SV_RunCmd (usercmd_t *ucmd, qboolean recurse)
 #ifdef NEWSPEEDCHEATPROT
 		if (ucmd->msec && host_client->msecs > 500)
 			host_client->msecs = 500;
+		if (host_client->hoverms)
+		{
+			if (sv_showpredloss.ival)
+				Con_Printf("%s: forcing %g msecs (anti-hover)\n", host_client->name, cmd.msec);
+			host_client->hoverms = 0;
+		}
 		if (ucmd->msec > host_client->msecs)
 		{	//they're over their timeslice allocation
 			//if they're not taking the piss then be prepared to truncate the frame. this should hide clockskew without allowing full-on speedcheats.

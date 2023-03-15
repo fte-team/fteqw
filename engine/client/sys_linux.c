@@ -213,7 +213,7 @@ void Sys_Printf (char *fmt, ...)
 		if (w >= 0xe000 && w < 0xe100)
 		{
 			/*not all quake chars are ascii compatible, so map those control chars to safe ones so we don't mess up anyone's xterm*/
-			if ((w & 0x7f) > 0x20)
+			if ((w & 0x7f) >= 0x20)
 				putc(w&0x7f, out);
 			else if (w & 0x80)
 			{

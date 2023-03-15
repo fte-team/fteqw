@@ -1026,6 +1026,7 @@ ELSE()
 				engine/common/cvar.c
 				engine/common/cmd.c
 				engine/common/sha1.c		#for websockets
+				engine/common/sha2.c		#for fingerprints
 				engine/http/httpclient.c	#for the pipe stuff
 				engine/common/log.c
 				engine/common/fs.c

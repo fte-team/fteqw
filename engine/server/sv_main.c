@@ -140,7 +140,6 @@ cvar_t sv_listen_q3			= CVAR("sv_listen_q3", "0");
 #endif
 cvar_t sv_reconnectlimit	= CVARD("sv_reconnectlimit", "0", "Blocks dupe connection within the specified length of time .");
 cvar_t sv_use_dns			= CVARD("sv_use_dns", "", "Performs a reverse-dns lookup in order to report more info about where clients are connecting from.");
-extern cvar_t net_enable_dtls;
 cvar_t sv_reportheartbeats	= CVARD("sv_reportheartbeats", "2", "Print a notice each time a heartbeat is sent to a master server. When set to 2, the message will be displayed once.");
 cvar_t sv_heartbeat_interval = CVARD("sv_heartbeat_interval", "110", "Interval between heartbeats. Low values are abusive, high values may cause NAT/ghost issues.");
 cvar_t sv_heartbeat_checks	= CVARD("sv_heartbeat_checks", "1", "Report when sv_public 1 fails due to PROBABLE router/NAT issues.");
@@ -162,7 +161,6 @@ cvar_t sv_pupglow				= CVARFD("sv_pupglow", "", CVAR_SERVERINFO, "Instructs clie
 
 #ifdef SV_MASTER
 cvar_t sv_master				= CVAR("sv_master", "0");
-cvar_t sv_masterport			= CVAR("sv_masterport", "0");
 #endif
 
 cvar_t	sv_reliable_sound		= CVARFD("sv_reliable_sound", "0",  0, "Causes all sounds to be sent reliably, so they will not be missed due to packetloss. However, this will cause them to be delayed somewhat, and slightly bursty. This can be overriden using the 'rsnd' userinfo setting (either forced on or forced off). Note: this does not affect sounds attached to particle effects.");
@@ -3113,9 +3111,12 @@ void SV_DoDirectConnect(svconnectinfo_t *fte_restrict info)
 		newcl->netchan.mtu = info->mtu;
 		newcl->netchan.message.maxsize = sizeof(newcl->netchan.message_buf);
 
+#ifdef HAVE_ICE
 		if (info->adr.type == NA_ICE)
 			newcl->netchan.mtu -= 48+12;	//dtls+sctp overhead
-		else if (info->adr.prot == NP_DTLS || info->adr.prot == NP_TLS)
+		else
+#endif
+		if (info->adr.prot == NP_DTLS || info->adr.prot == NP_TLS)
 			newcl->netchan.mtu -= 48;		//dtls overhead
 	}
 	else
@@ -4042,8 +4043,13 @@ void SVC_ACK (void)
 			}
 		}
 	}
-	Con_TPrintf ("A2A_ACK from %s\n", NET_AdrToString (adr, sizeof(adr), &net_from));
+	Con_TPrintf (S_COLOR_GRAY"A2A_ACK from %s\n", NET_AdrToString (adr, sizeof(adr), &net_from));
 }
+
+#ifdef SUPPORT_ICE
+void SVC_ICE_Offer(void);
+void SVC_ICE_Candidate(void);
+#endif
 
 //returns false to block replies
 //this is to mitigate wasted bandwidth if we're used as a udp amplification
@@ -4083,7 +4089,7 @@ static struct attacker_s
 } *dosattacker;
 static size_t dosattacker_count;
 static size_t dosattacker_max;
-#define dosattacker_limit 10				//if we get X packets
+#define dosattacker_limit 15				//if we get X packets
 #define dosattacker_period 30					//within Y secs
 #define dosattacker_blocktime (60*60*24)	//block them for Z secs (24 hours).
 static qboolean SV_DetectAmplificationDDOS (void)
@@ -4286,8 +4292,10 @@ qboolean SV_ConnectionlessPacket (void)
 				else
 				{
 					//NET_DTLS_Disconnect(svs.sockets, &net_from);
-					if (NET_DTLS_Create(svs.sockets, &net_from, NULL))
+					if (NET_DTLS_Create(svs.sockets, &net_from, NULL, false))
 						Netchan_OutOfBandPrint(NS_SERVER, &net_from, "dtlsopened");
+					else
+						SV_RejectMessage (SCP_QUAKEWORLD, "DTLS driver failure.\n");
 				}
 			}
 			else
@@ -4332,6 +4340,13 @@ qboolean SV_ConnectionlessPacket (void)
 	}
 	else if (!strcmp(c, "realip") || !strcmp(c, "ip"))
 		SVC_RealIP ();
+
+#ifdef SUPPORT_ICE
+	else if (!strcmp(c, "ice_offer"))
+		SVC_ICE_Offer();
+	else if (!strcmp(c, "ice_ccand"))
+		SVC_ICE_Candidate();
+#endif
 /*
 	else if (!strcmp(c,"lastscores"))
 	{
@@ -5077,10 +5092,6 @@ qboolean SV_ReadPackets (float *delay)
 
 	NET_ReadPackets(svs.sockets);
 
-#ifdef HAVE_DTLS
-	NET_DTLS_Timeouts(svs.sockets);
-#endif
-
 	if (inboundsequence == oldinboundsequence)
 		return false;	//nothing new.
 	oldinboundsequence = inboundsequence;
@@ -5513,12 +5524,7 @@ float SV_Frame (void)
 
 #ifdef SV_MASTER
 	if (sv_master.ival)
-	{
-		if (sv_masterport.ival)
-			SVM_Think(sv_masterport.ival);
-		else
-			SVM_Think(PORT_QWMASTER);
-	}
+		SVM_Think();
 #endif
 
 #ifdef PLUGINS
@@ -5882,7 +5888,6 @@ void SV_InitLocal (void)
 	Cvar_Register (&sv_banproxies, cvargroup_serverpermissions);
 #ifdef SV_MASTER
 	Cvar_Register (&sv_master,	cvargroup_servercontrol);
-	Cvar_Register (&sv_masterport,	cvargroup_servercontrol);
 #endif
 
 	Cvar_Register (&filterban,	cvargroup_servercontrol);

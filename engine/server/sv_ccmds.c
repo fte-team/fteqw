@@ -2160,9 +2160,6 @@ static void SV_Status_f (void)
 #ifdef QWOVERQ3
 	extern cvar_t sv_listen_q3;
 #endif
-#ifdef HAVE_DTLS
-	extern cvar_t net_enable_dtls;
-#endif
 
 #ifndef SERVERONLY
 	if (!sv.state && cls.state >= ca_connected && !cls.demoplayback && cls.protocol == CP_NETQUAKE)
@@ -2210,9 +2207,6 @@ static void SV_Status_f (void)
 		s = "private";
 	Con_TPrintf("public           : %s\n", s);
 
-#ifdef HAVE_DTLS
-	Con_TPrintf("fingerprint      : "S_COLOR_GRAY"%s\n", InfoBuf_ValueForKey(&svs.info, "*fp"));
-#endif
 	switch(svs.gametype)
 	{
 #ifdef Q3SERVER

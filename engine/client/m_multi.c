@@ -780,10 +780,9 @@ void M_Menu_GameOptions_f (void)
 	info->publicgame	= MC_AddCombo	(menu, 64, 160, y,			"Public", publicoptions, bound(0, sv_public.ival+1, 4));y+=8;
 #if !defined(FTE_TARGET_WEB) && defined(HAVE_DTLS)
 	{
-		extern cvar_t net_enable_dtls;
 		static const char *encoptions[] =
 		{
-			"None",
+			"Disabled",
 			"Accept",
 			"Request",
 			"Require",
@@ -1143,7 +1142,6 @@ void M_Menu_Network_f (void)
 		NULL
 	};
 #ifdef HAVE_DTLS
-	extern cvar_t net_enable_dtls;
 	static const char *dtlsopts[] = {
 		"Disabled",
 		"Accept",

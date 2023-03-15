@@ -187,9 +187,6 @@ cvar_t  cl_gunanglex			= CVAR("cl_gunanglex", "0");
 cvar_t  cl_gunangley			= CVAR("cl_gunangley", "0");
 cvar_t  cl_gunanglez			= CVAR("cl_gunanglez", "0");
 
-#ifdef HAVE_DTLS
-extern cvar_t net_enable_dtls;
-#endif
 cvar_t	cl_proxyaddr			= CVAR("cl_proxyaddr", "");
 cvar_t	cl_sendguid				= CVARD("cl_sendguid", "", "Send a randomly generated 'globally unique' id to servers, which can be used by servers for score rankings and stuff. Different servers will see different guids. Delete the 'qkey' file in order to appear as a different user.\nIf set to 2, all servers will see the same guid. Be warned that this can show other people the guid that you're using.");
 cvar_t	cl_downloads			= CVARAFD("cl_downloads", "1", /*q3*/"cl_allowDownload", CVAR_NOTFROMSERVER, "Allows you to block all automatic downloads.");
@@ -614,6 +611,18 @@ static void CL_ConnectAbort(const char *format, ...)
 	connectinfo.numadr = 0;
 	SCR_EndLoadingPlaque();
 	connectinfo.trying = false;
+
+	if (format)
+	{
+		//try and force the menu to show again. this should force the disconnectreason to show.
+		if (!Key_Dest_Has(kdm_console))
+		{
+#ifdef MENU_DAT
+			if (!MP_Toggle(1))
+#endif
+				Menu_Prompt(NULL, NULL, reason, NULL, NULL, "Okay", true);
+		}
+	}
 }
 
 /*
@@ -679,6 +688,7 @@ static void CL_SendConnectPacket (netadr_t *to)
 
 	t1 = Sys_DoubleTime ();
 
+#ifdef HAVE_DTLS
 	if (connectinfo.peercred.hash && net_enable_dtls.ival>0)
 	{
 		char cert[8192];
@@ -693,6 +703,7 @@ static void CL_SendConnectPacket (netadr_t *to)
 			return;
 		}
 	}
+#endif
 
 	if (!to)
 	{
@@ -844,7 +855,7 @@ static void CL_ResolvedServer(void *vctx, void *data, size_t a, size_t b)
 
 	if (!ctx->found)
 	{
-		CL_ConnectAbort("Bad server address \"%s\"\n", ctx->servername);
+		CL_ConnectAbort("Unable to resolve server address \"%s\"\n", ctx->servername);
 		return;
 	}
 
@@ -1293,7 +1304,7 @@ void CL_CheckForResend (void)
 		connectinfo.clogged = false;
 
 	if (connectinfo.tries == 0 && connectinfo.nextadr < connectinfo.numadr)
-		if (!NET_EnsureRoute(cls.sockets, "conn", &connectinfo.peercred, to))
+		if (!NET_EnsureRoute(cls.sockets, "conn", &connectinfo.peercred, to, true))
 		{
 			CL_ConnectAbort ("Unable to establish connection to %s\n", cls.servername);
 			return;
@@ -1499,8 +1510,15 @@ static void CL_BeginServerConnect(char *host, int port, qboolean noproxy, enum c
 				*e=0;
 			if (!strncasecmp(arglist, "fp=", 3))
 			{
-				Base64_DecodeBlock(arglist+3, arglist+strlen(arglist), connectinfo.peercred.digest, sizeof(connectinfo.peercred.digest));
-				connectinfo.peercred.hash = &hash_sha1;
+				size_t l = 8*Base64_DecodeBlock(arglist+3, arglist+strlen(arglist), connectinfo.peercred.digest, sizeof(connectinfo.peercred.digest));
+				if (l <= 160)
+					connectinfo.peercred.hash = &hash_sha1;
+				else if (l <= 256)
+					connectinfo.peercred.hash = &hash_sha2_256;
+				else if (l <= 512)
+					connectinfo.peercred.hash = &hash_sha2_512;
+				else
+					connectinfo.peercred.hash = NULL;
 			}
 			else
 				Con_Printf(CON_WARNING"uri arg not known: \"%s\"\n", arglist);
@@ -3110,7 +3128,7 @@ void CL_Packet_f (void)
 
 	if (!cls.sockets)
 		NET_InitClient(false);
-	if (!NET_EnsureRoute(cls.sockets, "packet", &cred, &adr))
+	if (!NET_EnsureRoute(cls.sockets, "packet", &cred, &adr, true))
 		return;
 	NET_SendPacket (cls.sockets, out-send, send, &adr);
 
@@ -3432,7 +3450,7 @@ void CL_ConnectionlessPacket (void)
 				if (CL_IsPendingServerAddress(&net_from))
 				{
 					struct dtlspeercred_s cred = {cls.servername}; //FIXME
-					if (!NET_EnsureRoute(cls.sockets, "redir", &cred, &adr))
+					if (!NET_EnsureRoute(cls.sockets, "redir", &cred, &adr, true))
 						Con_Printf (CON_ERROR"Unable to redirect to %s\n", data);
 					else
 					{
@@ -3896,7 +3914,7 @@ void CL_ConnectionlessPacket (void)
 
 			memset(&cred, 0, sizeof(cred));
 			cred.peer = connectinfo.peercred;
-			if (NET_DTLS_Create(cls.sockets, &net_from, &cred))
+			if (NET_DTLS_Create(cls.sockets, &net_from, &cred, true))
 			{
 				connectinfo.numadr = 1;	//fixate on this resolved address.
 				connectinfo.adr[0] = net_from;
@@ -3942,15 +3960,6 @@ client_connect:	//fixme: make function
 				Con_TPrintf ("ignoring connection\n");
 			return;
 		}
-		if (net_from.type != NA_LOOPBACK)
-		{
-			Con_TPrintf (S_COLOR_GRAY"connection\n");
-
-#ifdef HAVE_SERVER
-			if (sv.state && sv.state != ss_clustermode)
-				SV_UnspawnServer();
-#endif
-		}
 
 		if (cls.state >= ca_connected)
 		{
@@ -3967,6 +3976,15 @@ client_connect:	//fixme: make function
 					Con_TPrintf ("Dup connect received.  Ignored.\n");
 				return;
 			}
+		}
+		if (net_from.type != NA_LOOPBACK)
+		{
+//			Con_TPrintf (S_COLOR_GRAY"connection\n");
+
+#ifdef HAVE_SERVER
+			if (sv.state && sv.state != ss_clustermode)
+				SV_UnspawnServer();
+#endif
 		}
 		connectinfo.trying = false;
 		cl.splitclients = 0;
@@ -4382,10 +4400,6 @@ void CL_ReadPackets (void)
 	}
 	else
 		NET_ReadPackets(cls.sockets);
-
-#ifdef HAVE_DTLS
-	NET_DTLS_Timeouts(cls.sockets);
-#endif
 
 	//
 	// check timeout

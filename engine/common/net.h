@@ -152,17 +152,17 @@ int			NET_LocalAddressForRemote(struct ftenet_connections_s *collection, netadr_
 void		NET_PrintAddresses(struct ftenet_connections_s *collection);
 qboolean	NET_AddressSmellsFunny(netadr_t *a);
 struct dtlspeercred_s;
-qboolean	NET_EnsureRoute(struct ftenet_connections_s *collection, char *routename, const struct dtlspeercred_s *peerinfo, netadr_t *adr);
+qboolean	NET_EnsureRoute(struct ftenet_connections_s *collection, char *routename, const struct dtlspeercred_s *peerinfo, netadr_t *adr, qboolean outgoing);
 void		NET_TerminateRoute(struct ftenet_connections_s *collection, netadr_t *adr);
 void		NET_PrintConnectionsStatus(struct ftenet_connections_s *collection);
 
 enum addressscope_e
 {
-	ASCOPE_PROCESS=0,
-	ASCOPE_HOST=1,
-	ASCOPE_LINK=2,
-	ASCOPE_LAN=3,
-	ASCOPE_NET=4
+	ASCOPE_PROCESS=0,	//unusable
+	ASCOPE_HOST=1,		//unroutable
+	ASCOPE_LINK=2,		//unpredictable
+	ASCOPE_LAN=3,		//private
+	ASCOPE_NET=4		//aka hopefully globally routable
 };
 enum addressscope_e NET_ClassifyAddress(netadr_t *adr, const char **outdesc);
 
@@ -175,6 +175,7 @@ char		*NET_AdrToString (char *s, int len, netadr_t *a);
 char		*NET_SockadrToString (char *s, int len, struct sockaddr_qstorage *a, size_t sizeofa);
 char		*NET_BaseAdrToString (char *s, int len, netadr_t *a);
 size_t		NET_StringToSockaddr2 (const char *s, int defaultport, netadrtype_t afhint, struct sockaddr_qstorage *sadr, int *addrfamily, int *addrsize, size_t addrcount);
+qboolean NET_StringToAdr_NoDNS(const char *address, int port, netadr_t *out);
 #define NET_StringToSockaddr(s,p,a,f,z) (NET_StringToSockaddr2(s,p,NA_INVALID,a,f,z,1)>0)
 size_t		NET_StringToAdr2 (const char *s, int defaultport, netadr_t *a, size_t addrcount, const char **pathstart);
 #define NET_StringToAdr(s,p,a) NET_StringToAdr2(s,p,a,1,NULL)
@@ -203,11 +204,11 @@ int NET_GetConnectionCertificate(struct ftenet_connections_s *col, netadr_t *a, 
 #ifdef HAVE_DTLS
 struct dtlscred_s;
 struct dtlsfuncs_s;
-qboolean NET_DTLS_Create(struct ftenet_connections_s *col, netadr_t *to, const struct dtlscred_s *cred);
+qboolean NET_DTLS_Create(struct ftenet_connections_s *col, netadr_t *to, const struct dtlscred_s *cred, qboolean outgoing);
 qboolean NET_DTLS_Decode(struct ftenet_connections_s *col);
 qboolean NET_DTLS_Disconnect(struct ftenet_connections_s *col, netadr_t *to);
-void NET_DTLS_Timeouts(struct ftenet_connections_s *col);
 extern cvar_t dtls_psk_hint, dtls_psk_user, dtls_psk_key;
+extern cvar_t net_enable_dtls;
 #endif
 #ifdef SUPPORT_ICE
 neterr_t ICE_SendPacket(size_t length, const void *data, netadr_t *to);

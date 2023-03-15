@@ -794,6 +794,8 @@ mergeInto(LibraryManager.library,
 			return -1;
 		if (s.con == 0)
 			return 0; //not connected yet
+		if (s.err != 0)
+			return -1;
 		if (len == 0)
 			return 0; //...
 		s.ws.send(HEAPU8.subarray(data, data+len));
@@ -887,6 +889,29 @@ mergeInto(LibraryManager.library,
 				s.recvchan = e.channel;
 				s.recvchan.binaryType = 'arraybuffer';
 				s.recvchan.onmessage = s.ws.onmessage;
+			};
+		s.pc.onconnectionstatechange = function(e)
+			{
+//console.log(s.pc.connectionState);
+//console.log(e);
+				switch (s.pc.connectionState)
+				{
+				//case "new":
+				//case "checking":
+				//case "connected":
+				case "disconnected":
+					s.err = 1;
+					break;
+				case "closed":
+					s.con = 0;
+					s.err = 1;
+					break;
+				case "failed":
+					s.err = 1;
+					break;
+				default:
+					break;
+				}
 			};
 
 		if (clientside)

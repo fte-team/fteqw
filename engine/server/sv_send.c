@@ -3499,8 +3499,7 @@ void SV_SendClientMessages (void)
 				stepmsec = 13;
 				cmd.msec = stepmsec;
 
-				if (sv_showpredloss.ival)
-					Con_Printf("%s: forcing %g msecs (anti-hover)\n", c->name, cmd.msec);
+				c->hoverms += cmd.msec;
 				VectorCopy(c->lastcmd.angles, cmd.angles);
 				cmd.buttons = c->lastcmd.buttons;
 				SV_RunCmd (&cmd, true);

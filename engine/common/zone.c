@@ -254,6 +254,16 @@ char	*Z_StrDupf(const char *format, ...)
 
 	return string;
 }
+void Z_StrCatLen(char **ptr, const char *append, size_t newlen)
+{
+	size_t oldlen = *ptr?strlen(*ptr):0;
+	char *newptr = BZ_Malloc(oldlen+newlen+1);
+	memcpy(newptr, *ptr, oldlen);
+	memcpy(newptr+oldlen, append, newlen);
+	newptr[oldlen+newlen] = 0;
+	BZ_Free(*ptr);
+	*ptr = newptr;
+}
 void Z_StrCat(char **ptr, const char *append)
 {
 	size_t oldlen = *ptr?strlen(*ptr):0;

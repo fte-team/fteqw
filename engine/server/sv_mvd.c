@@ -468,7 +468,7 @@ int SV_MVD_GotQTVRequest(vfsfile_t *clientstream, char *headerstart, char *heade
 			{
 				char tmp[32];
 				Sys_RandomBytes(tmp, sizeof(tmp));
-				tobase64(p->challenge, sizeof(p->challenge), tmp, sizeof(tmp));
+				Base64_EncodeBlock(tmp, sizeof(tmp), p->challenge, sizeof(p->challenge));
 			}
 
 			e = va("QTVSV 1\n"

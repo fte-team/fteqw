@@ -352,7 +352,7 @@ static void SV_Master_SingleHeartbeat(net_masterlist_t *master)
 				//Note that Darkplaces clients are supposed to be able to use the qw protocol, so it should be okay to heartbeat as Darkplaces-Quake here even when not doing any nq protocols.
 				//either way, custom protocols tend to require ftemaster/dpmaster so we want to heartbeat regardless.
 #if defined(NQPROT) && !defined(QUAKETC)
-				if (sv_listen_dp.value || sv_listen_nq.value || strcasecmp(com_protocolname.string, "FTE-Quake"))
+//				if (sv_listen_dp.value || sv_listen_nq.value || strcasecmp(com_protocolname.string, "FTE-Quake"))
 #endif
 				{
 					//darkplaces here refers to the master server protocol, rather than the game protocol
@@ -375,7 +375,7 @@ static void SV_Master_SingleHeartbeat(net_masterlist_t *master)
 					if (sv_reportheartbeats.ival != 2 || !master->announced)
 					{
 						COM_Parse(master->cv.string);
-						Con_TPrintf ("Sending heartbeat to %s (%s)\n", NET_AdrToString (adr, sizeof(adr), na), com_token);
+						Con_TPrintf (S_COLOR_GRAY"Sending heartbeat to %s (%s)\n", NET_AdrToString (adr, sizeof(adr), na), com_token);
 					}
 					master->announced = true;
 				}
@@ -414,7 +414,7 @@ static void SV_Master_SingleHeartbeat(net_masterlist_t *master)
 struct thr_res
 {
 	qboolean success;
-	netadr_t na[8];
+	netadr_t na[MAX_MASTER_ADDRESSES];
 	char str[1];	//trailing
 };
 static void SV_Master_Worker_Resolved(void *ctx, void *data, size_t a, size_t b)
@@ -499,7 +499,7 @@ static void SV_Master_Worker_Resolved(void *ctx, void *data, size_t a, size_t b)
 					if (NET_AddrIsReliable(na))
 					{
 						struct dtlspeercred_s cred = {master->cv.string};
-						NET_EnsureRoute(svs.sockets, master->cv.name, &cred, na);
+						NET_EnsureRoute(svs.sockets, master->cv.name, &cred, na, true);
 					}
 
 					//q2+qw masters are given a ping to verify that they're still up
@@ -527,6 +527,39 @@ static void SV_Master_Worker_Resolved(void *ctx, void *data, size_t a, size_t b)
 	}
 	Z_Free(work);
 }
+
+#if defined(SUPPORT_ICE)
+struct stunheader_s
+{
+	unsigned short msgtype;
+	unsigned short msglen;
+	unsigned int magiccookie;
+	unsigned int transactid[3];
+};
+static void SV_Master_Worker_Resolved_Broker(void *ctx, void *data, size_t a, size_t b)
+{
+	struct thr_res *work = data;
+	if (svs.sockets && work->na[0].type != NA_INVALID)	//something resolved...
+	{
+		struct stunheader_s msg = {htons(1), htons(sizeof(msg)-20), BigLong(0x2112a442), {42,42,42}};
+
+		//randomize the transaction id to avoid poisoning.
+		if (!Sys_RandomBytes((qbyte*)msg.transactid, sizeof(msg.transactid)))
+		{ 	//FIXME: not really random enough to avoid hacks. oh well.
+			msg.transactid[0] = rand();
+			msg.transactid[1] = rand();
+			msg.transactid[2] = rand();
+		}
+
+		svs.sockets->srflx_tid[0] = msg.transactid[0];
+		svs.sockets->srflx_tid[1] = msg.transactid[1];
+		svs.sockets->srflx_tid[2] = msg.transactid[2];
+
+		NET_SendPacket(svs.sockets, sizeof(msg), &msg, &work->na[0]);
+	}
+	Z_Free(work);
+}
+#endif
 //worker thread
 static void SV_Master_Worker_Resolve(void *ctx, void *data, size_t a, size_t b)
 {
@@ -540,13 +573,19 @@ static void SV_Master_Worker_Resolve(void *ctx, void *data, size_t a, size_t b)
 	{
 		str = COM_ParseOut(str, token, sizeof(token));
 		if (*token)
-			found += NET_StringToAdr2(token, 0, &work->na[found], MAX_MASTER_ADDRESSES-found, NULL);
+			found += NET_StringToAdr2(token, 0, &work->na[found], countof(work->na)-found, NULL);
 		if (first && found)
 			break;	//if we found one by name, don't try any fallback ip addresses.
 		first = false;
 	}
 	work->success = !!found;
-	COM_AddWork(WG_MAIN, SV_Master_Worker_Resolved, NULL, work, a, b);
+
+#if defined(SUPPORT_ICE)
+	if (a==~(size_t)0)
+		COM_AddWork(WG_MAIN, SV_Master_Worker_Resolved_Broker, NULL, work, a, b);
+	else
+#endif
+		COM_AddWork(WG_MAIN, SV_Master_Worker_Resolved, NULL, work, a, b);
 }
 
 /*
@@ -560,7 +599,7 @@ let it know we are alive, and log information
 void SV_Master_Heartbeat (void)
 {
 	int			i;
-	int interval = bound(90, sv_heartbeat_interval.ival, 600);
+	int interval = bound(85, sv_heartbeat_interval.ival, 600);
 
 	if (sv_public.ival<=0 || SSV_IsSubServer())
 		return;
@@ -605,6 +644,18 @@ void SV_Master_Heartbeat (void)
 		else
 			SV_Master_SingleHeartbeat(&net_masterlist[i]);
 	}
+
+#if defined(SUPPORT_ICE)
+	if (*net_ice_broker.string)
+	{
+		const char *s = net_ice_broker.string;
+		struct thr_res *work = Z_Malloc(sizeof(*work) + strlen(s));
+		if (!strncmp(s, "tls://", 6) || !strncmp(s, "tcp://", 6))
+			s+=6;	//ignore weird prefixes here
+		strcpy(work->str, s);
+		COM_AddWork(WG_MAIN, SV_Master_Worker_Resolve, NULL, work, ~(size_t)0, 0);
+	}
+#endif
 }
 
 #ifdef HAVE_LEGACY
@@ -2521,25 +2572,87 @@ void SListOptionChanged(serverinfo_t *newserver)
 	}
 }
 
+static qboolean MasterInfo_ReadProtocol(serverinfo_t *info, const char *infostring)
+{
+	char *token = Info_ValueForKey(infostring, "protocol");
+	if (*token)
+	{
+		//read the protocol number
+		info->protocol = strtoul(token, &token, 0);
+
+		//and try to figure out which filter it should be under.
+		info->special &= ~SS_PROTOCOLMASK;
+		if (*token)
+		{
+			while (*token)
+			{
+				if (*token == 'w')
+					info->special |= SS_QUAKEWORLD;
+				else if (*token == 'n' || *token == 'd')
+					info->special |= SS_NETQUAKE;
+				else if (*token == 'x')
+					info->special |= SS_QEPROT;
+				else
+					continue;
+				break;
+			}
+		}
+		else switch(info->protocol)
+		{
+		case PROTOCOL_VERSION_QW:	info->special |= SS_QUAKEWORLD;	break;
+#ifdef NQPROT
+		case PROTOCOL_VERSION_NQ:	info->special |= SS_NETQUAKE;	break;
+		case PROTOCOL_VERSION_H2:	info->special |= SS_NETQUAKE;	break;	//erk
+		case PROTOCOL_VERSION_NEHD:	info->special |= SS_NETQUAKE;	break;
+		case PROTOCOL_VERSION_FITZ:	info->special |= SS_NETQUAKE;	break;
+		case PROTOCOL_VERSION_RMQ:	info->special |= SS_NETQUAKE;	break;
+		case PROTOCOL_VERSION_DP5:	info->special |= SS_NETQUAKE;	break;	//dp actually says 3... but hey, that's dp being WEIRD.
+		case PROTOCOL_VERSION_DP6:	info->special |= SS_NETQUAKE;	break;
+		case PROTOCOL_VERSION_DP7:	info->special |= SS_NETQUAKE;	break;
+		case NQ_NETCHAN_VERSION_QEX:info->special |= SS_QEPROT;		break;
+		case NQ_NETCHAN_VERSION:
+#endif
+		default:
+			if ((info->special&SS_PROTOCOLMASK) == SS_UNKNOWN)
+			{	//guesses...
+				if (PROTOCOL_VERSION_Q2 >= info->protocol && info->protocol >= PROTOCOL_VERSION_Q2_MIN)
+					info->special |= SS_QUAKE2;	//q2 has a range!
+				else if (info->protocol > 60)
+					info->special |= SS_QUAKE3;
+				else if (!strcmp(Info_ValueForKey(infostring, "gamename"), "DarkPlaces-Quake") || *Info_ValueForKey(infostring, "nqprotocol"))
+					info->special |= SS_NETQUAKE;
+				else
+					info->special |= SS_QUAKEWORLD;
+			}
+			break;
+		}
+		return true;
+	}
+	info->protocol = 0;
+	return false;
+}
+
 #ifdef WEBCLIENT
 static void MasterInfo_ProcessHTTPInfo(serverinfo_t *srv, const char *info)
 {
 	char adrbuf[MAX_ADR_SIZE];
 	if (info && (!(srv->status & SRVSTATUS_ALIVE) || srv->ping == PING_UNKNOWN))
 	{
-		if (srv->adr.prot == NP_RTC_TLS || srv->adr.prot == NP_RTC_TCP)
+		if (srv->adr.prot != NP_DGRAM)
 		{
 			srv->sends = 0;	//no point pinging it, it won't work.
 			srv->ping = PING_UNKNOWN;
 			srv->status |= SRVSTATUS_ALIVE;	//or at least wouldn't have been reported this time around.
 		}
-		else
-			srv->sends = 1;	//no point pinging it, it won't work.
+
 		Q_strncpyz(srv->name, Info_ValueForKey(info, "hostname"), sizeof(srv->name));
 		Q_strncpyz(srv->gamedir, Info_ValueForKey(info, "modname"), sizeof(srv->gamedir));
 		Q_strncpyz(srv->map, Info_ValueForKey(info, "mapname"), sizeof(srv->map));
 		srv->players = atoi(Info_ValueForKey(info, "clients"));
 		srv->maxplayers = atoi(Info_ValueForKey(info, "maxclients"));
+
+		if (!MasterInfo_ReadProtocol(srv, info))
+			srv->special = (srv->special&~SS_PROTOCOLMASK)|SS_QUAKEWORLD;	//assume its an older fteqw server.
 
 		srv->numbots = 0;
 		srv->numhumans = srv->players - srv->numbots;
@@ -2564,7 +2677,7 @@ static void MasterInfo_ProcessHTTP(struct dl_download *dl)
 	char *el;
 	serverinfo_t *info;
 	char linebuffer[2048];
-	char *brokerid;
+	const char *brokerid;
 	char *infostring;
 	netadr_t brokeradr;
 
@@ -2611,12 +2724,19 @@ static void MasterInfo_ProcessHTTP(struct dl_download *dl)
 		if (*s == '#')	//hash is a comment, apparently.
 			continue;
 
-		for (infostring = s; *infostring && *infostring != ' '; )
+		for (infostring = s; *infostring && *infostring != ' ' && *infostring != '\t'; )
 			infostring++;
-		if (*infostring == ' ')
-			*infostring++ = 0;
+		if (*infostring == ' ' || *infostring == '\t')
+		{
+			*infostring++ = 0;	//null terminate the address
+			while(*infostring == ' ' || *infostring == '\t')
+				infostring++;	//skip over any whitespace...
+			if (*infostring != '\\')
+				infostring = NULL;	//err... no. not an info string. probably a comment.
+		}
 		else
 			infostring = NULL;
+
 		if (!strncmp(s, "ice:///", 7) || !strncmp(s, "ices:///", 8) || !strncmp(s, "rtc:///", 7) || !strncmp(s, "rtcs:///", 8))
 		{
 			brokerid = s+((s[4]==':')?7:6);
@@ -2624,10 +2744,14 @@ static void MasterInfo_ProcessHTTP(struct dl_download *dl)
 			if (!*brokerid)
 				continue;	//invalid...
 		}
+		else if (*s == '/')
+		{
+			brokerid = s;
+			adr = brokeradr;
+		}
 		else
 		{
-			brokerid = "";
-			if (!NET_StringToAdr(s, 80, &adr))
+			if (!NET_StringToAdr2(s, 80, &adr, 1, &brokerid))
 				continue;
 		}
 
@@ -2648,8 +2772,8 @@ static void MasterInfo_ProcessHTTP(struct dl_download *dl)
 			info->special = 0;
 			if (protocoltype == MP_QUAKEWORLD)
 				info->special |= SS_QUAKEWORLD;
-			else if (protocoltype == MP_DPMASTER)
-				info->special |= SS_GETINFO;
+			else if (protocoltype == MP_DPMASTER)	//actually ftemaster... so assume fteqw servers not ftenq ones unless otherwise indicated.
+				info->special |= SS_QUAKEWORLD|SS_GETINFO;
 #if defined(Q2CLIENT) || defined(Q2SERVER)
 			else if (protocoltype == MP_QUAKE2)
 				info->special |= SS_QUAKE2;
@@ -3249,65 +3373,23 @@ static int CL_ReadServerInfo(char *msg, enum masterprotocol_e prototype, qboolea
 	else if (!strncmp(DISTRIBUTION, Info_ValueForKey(msg, "*version"), strlen(DISTRIBUTION)))
 		info->special |= SS_FTESERVER;
 
-	info->protocol = strtoul(Info_ValueForKey(msg, "protocol"), &token, 0);
-	if (info->protocol)
-	{
-		switch(info->protocol)
-		{
-		case PROTOCOL_VERSION_QW:	info->special |= SS_QUAKEWORLD;	break;
-#ifdef NQPROT
-		case PROTOCOL_VERSION_NQ:	info->special |= SS_NETQUAKE;	break;
-		case PROTOCOL_VERSION_H2:	info->special |= SS_NETQUAKE;	break;	//erk
-		case PROTOCOL_VERSION_NEHD:	info->special |= SS_NETQUAKE;	break;
-		case PROTOCOL_VERSION_FITZ:	info->special |= SS_NETQUAKE;	break;
-		case PROTOCOL_VERSION_RMQ:	info->special |= SS_NETQUAKE;	break;
-		case PROTOCOL_VERSION_DP5:	info->special |= SS_NETQUAKE;	break;	//dp actually says 3... but hey, that's dp being WEIRD.
-		case PROTOCOL_VERSION_DP6:	info->special |= SS_NETQUAKE;	break;
-		case PROTOCOL_VERSION_DP7:	info->special |= SS_NETQUAKE;	break;
-		case NQ_NETCHAN_VERSION_QEX:info->special |= SS_QEPROT;		break;
-		case NQ_NETCHAN_VERSION:
-#endif
-		default:
-			while (*token)
-			{
-				if (*token == 'w')
-					info->special |= SS_QUAKEWORLD;
-				else if (*token == 'n' || *token == 'd')
-					info->special |= SS_NETQUAKE;
-				else if (*token == 'x')
-					info->special |= SS_QEPROT;
-				else
-					continue;
-				break;
-			}
-			if ((info->special&SS_PROTOCOLMASK) == SS_UNKNOWN)
-			{	//guesses...
-				if (PROTOCOL_VERSION_Q2 >= info->protocol && info->protocol >= PROTOCOL_VERSION_Q2_MIN)
-					info->special |= SS_QUAKE2;	//q2 has a range!
-				else if (info->protocol > 60)
-					info->special |= SS_QUAKE3;
-				else if (!strcmp(Info_ValueForKey(msg, "gamename"), "DarkPlaces-Quake") || *Info_ValueForKey(msg, "nqprotocol"))
-					info->special |= SS_NETQUAKE;
-				else
-					info->special |= SS_QUAKEWORLD;
-			}
-			break;
-		}
-	}
+	if (!MasterInfo_ReadProtocol(info, msg))
+	{	//try and guess.
 #ifdef Q2CLIENT
-	else if (prototype == MP_QUAKE2)
-		info->special |= SS_QUAKE2;
+		if (prototype == MP_QUAKE2)
+			info->special |= SS_QUAKE2;
 #endif
 #ifdef Q3CLIENT
-	else if (prototype == MP_QUAKE3 || prototype == MP_DPMASTER/*if no protocol, assume q3 behaviours*/)
-		info->special |= SS_QUAKE3;
+		else if (prototype == MP_QUAKE3 || prototype == MP_DPMASTER/*if no protocol, assume q3 behaviours*/)
+			info->special |= SS_QUAKE3;
 #endif
 #ifdef NQPROT
-	else if (prototype == MP_NETQUAKE)
-		info->special |= SS_NETQUAKE;
+		else if (prototype == MP_NETQUAKE)
+			info->special |= SS_NETQUAKE;
 #endif
-	else
-		info->special |= SS_QUAKEWORLD;
+		else
+			info->special |= SS_QUAKEWORLD;
+	}
 	if (favorite)	//was specifically named, not retrieved from a master.
 		info->special |= SS_FAVORITE;
 
@@ -3786,16 +3868,19 @@ static void NetQ3_GlobalServers_Request(size_t masternum, int protocol, const ch
 		const char *url;
 		struct dl_download *dl;
 		COM_Parse(com_protocolname.string);
-		if (!strncmp(net_ice_broker.string, "tls://", 6))
-			url = va("https://%s/raw/%s", net_ice_broker.string+6, com_token);
-		else if (!strncmp(net_ice_broker.string, "tcp://", 6))
-			url = va("http://%s/raw/%s", net_ice_broker.string+6, com_token);
-		else
-			url = va("http://%s/raw/%s", net_ice_broker.string, com_token);
+		if (*net_ice_broker.string)
+		{
+			if (!strncmp(net_ice_broker.string, "tls://", 6))
+				url = va("https://%s/raw/%s", net_ice_broker.string+6, com_token);
+			else if (!strncmp(net_ice_broker.string, "tcp://", 6))
+				url = va("http://%s/raw/%s", net_ice_broker.string+6, com_token);
+			else
+				url = va("http://%s/raw/%s", net_ice_broker.string, com_token);
 
-		dl = HTTP_CL_Get(url, NULL, MasterInfo_ProcessHTTP);
-		if (dl)
-			dl->isquery = true;
+			dl = HTTP_CL_Get(url, NULL, MasterInfo_ProcessHTTP);
+			if (dl)
+				dl->isquery = true;
+		}
 	}
 #endif
 #if POLLTOTALSOCKETS>0

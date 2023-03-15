@@ -1499,6 +1499,7 @@ static int CL_LoadModels(int stage, qboolean dontactuallyload)
 	if (atstage())
 	{
 		SCR_SetLoadingFile("newmap");
+
 //		if (!cl.worldmodel || cl.worldmodel->type == mod_dummy)
 //			Host_EndGame("No worldmodel was loaded\n");
 		Surf_NewMap (cl.worldmodel);
@@ -3740,7 +3741,7 @@ void CL_ParseEstablished(void)
 		else
 			security = "^["S_COLOR_RED"plain-text\\tip\\"CON_WARNING"Do not type passwords as they can potentially be seen by network sniffers^]";
 
-		Con_TPrintf ("Connected to ^["S_COLOR_BLUE"%s\\type\\connect %s^] (%s).\n", cls.servername, cls.servername, security);
+		Con_TPrintf ("\rConnected to ^["S_COLOR_BLUE"%s\\type\\connect %s^] (%s).\n", cls.servername, cls.servername, security);
 	}
 }
 

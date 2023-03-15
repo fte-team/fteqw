@@ -45,6 +45,7 @@ typedef struct svm_server_s {
 	unsigned int bots;			//non-human players
 	unsigned int clients;		//human players
 	unsigned int maxclients;	//limit of bots+clients, but not necessarily spectators.
+	int secure:1;
 	int needpass:1;
 	int coop:1;
 	char hostname[64];	//just for our own listings.
@@ -188,6 +189,28 @@ static svm_server_t *SVM_GetServer(netadr_t *adr)
 		server = Hash_GetNextKey(&svm.serverhash, key, server);
 	}
 	return NULL;
+}
+qboolean SVM_FixupServerAddress(netadr_t *adr, struct dtlspeercred_s *cred)
+{	//if we get a request to send an ice offer over udp, make sure we respond from the socket they heartbeated from, so their (possible) nat won't block us.
+	//also make sure the fingerprint stuff is okay.
+	svm_server_t *sv = SVM_GetServer(adr);
+	char *fp;
+	size_t b;
+	if (!sv)
+		return false;
+	*adr = sv->adr;	//fix it up (mostly the connum so it follows the proper 'return' route)
+	fp = Info_ValueForKey(sv->rules, "*fp");
+	b = Base64_DecodeBlock(fp, NULL, cred->digest, sizeof(cred->digest));
+	if (b <= 20)
+		cred->hash = &hash_sha1;
+	else if (b <= 256/8)
+		cred->hash = &hash_sha2_256;
+	else if (b <= 512/8)
+		cred->hash = &hash_sha2_512;
+	else
+		return false;	//just no.
+	memset(cred->digest+b, 0, cred->hash->digestsize-b); //make sure its -terminated, in case the provided size was wrong
+	return true;
 }
 
 static svm_game_t *SVM_FindGame(const char *game, int create)
@@ -579,7 +602,7 @@ vfsfile_t *SVM_Generate_Gamelist(const char **mimetype, const char *query)
 		if (game->numservers || !sv_hideinactivegames.ival)	//only show active servers
 		{
 			QuakeCharsToHTML(tmpbuf, sizeof(tmpbuf), game->name, true);
-			VFS_PRINTF(f, "<tr><td><a href=\"game/%s%s%s\">%s</a></td><td>%u player%s", game->name, query?"?":"", query?query:"", tmpbuf, clients, clients==1?"":"s");
+			VFS_PRINTF(f, "<tr><td><a href=\"/game/%s%s%s\">%s</a></td><td>%u player%s", game->name, query?"?":"", query?query:"", tmpbuf, clients, clients==1?"":"s");
 			if (bots)
 				VFS_PRINTF(f, ", %u bot%s", bots, bots==1?"":"s");
 			if (specs)
@@ -634,12 +657,12 @@ static int QDECL SVM_SortServerRule(const void *r1, const void *r2)
 vfsfile_t *SVM_Generate_Serverinfo(const char **mimetype, const char *serveraddr, const char *query)
 {
 	vfsfile_t *f = VFSPIPE_Open(1, false);
-	char tmpbuf[256];
+	char tmpbuf[512];
 	char hostname[1024];
 	svm_server_t *server;
 	netadr_t adr[64];
 	size_t count, u;
-	const char *url;
+	const char *url, *fp;
 
 	VFS_PRINTF(f, "%s", master_css);
 	VFS_PRINTF(f, "<h1>Single Server Info</h1>\n");
@@ -656,10 +679,17 @@ vfsfile_t *SVM_Generate_Serverinfo(const char **mimetype, const char *serveraddr
 			QuakeCharsToHTML(hostname, sizeof(hostname), server->hostname, false);
 
 			url = NET_AdrToString(tmpbuf, sizeof(tmpbuf), &server->adr);
+			fp = Info_ValueForKey(server->rules, "*fp");
+			if (*fp)
+				fp = va("?fp=%s", Info_ValueForKey(server->rules, "*fp"));
 			if (server->game->scheme && !server->brokerid)
-				url = va("<a href=\"%s://%s\">%s</a>", server->game->scheme, url, url);
+				url = va("<a href=\"%s://%s%s\">%s</a>", server->game->scheme, url,fp, url);
 
-			VFS_PRINTF(f, "<tr><td>%s</td><td>%s</td><td>%s%s</td><td>%s</td><td>%s</td><td>%u/%u</td></tr>\n", server->game?server->game->name:"Unknown", url, (server->needpass&1)?"&#x1F512;":"", hostname, server->gamedir, server->mapname, server->clients, server->maxclients);
+			VFS_PRINTF(f, "<tr><td><a href=\"/game/%s%s%s\">%s</a></td><td>%s</td><td>%s%s%s%s</td><td>%s</td><td>%s</td><td>%u/%u</td></tr>\n",
+				server->game?server->game->name:"Unknown", query?"?":"", query?query:"", server->game?server->game->name:"Unknown",	//game column
+				url,	//address column
+				server->secure?"&#x1f6e1;":"&#x1f6ab;", (server->needpass&1)?"&#x1F512;":"", (server->coop&1)?"&#x1F6B8;":"", hostname,	//hostname column
+				server->gamedir, server->mapname, server->clients, server->maxclients);
 			VFS_PRINTF(f, "</table>\n");
 			VFS_PRINTF(f, "<br/>\n");
 
@@ -749,7 +779,7 @@ vfsfile_t *SVM_Generate_Serverlist(const char **mimetype, const char *masteraddr
 				infourl = url = NET_AdrToString(tmpbuf, sizeof(tmpbuf), &server->adr);
 			}
 			QuakeCharsToHTML(hostname, sizeof(hostname), server->hostname, false);
-			VFS_PRINTF(f, "<tr><td><a href=\"/server/%s\">%s</a></td><td>%s%s%s</td><td>%s</td><td>%s</td><td>%u", infourl, url, (server->needpass&1)?"&#x1F512;":"", (server->coop&1)?"&#x1F6B8;":"", hostname, server->gamedir, server->mapname, server->clients);
+			VFS_PRINTF(f, "<tr><td><a href=\"/server/%s\">%s</a></td><td>%s%s%s%s</td><td>%s</td><td>%s</td><td>%u", infourl, url, server->secure?"&#x1f6e1;":"&#x1f6ab;", (server->needpass&1)?"&#x1F512;":"", (server->coop&1)?"&#x1F6B8;":"", hostname, server->gamedir, server->mapname, server->clients);
 			if (server->bots)
 				VFS_PRINTF(f, "+%ub", server->bots);
 			VFS_PRINTF(f, "/%u", server->maxclients);
@@ -786,6 +816,10 @@ vfsfile_t *SVM_Generate_Rawlist(const char **mimetype, const char *masteraddr, c
 	svm_game_t *game;
 	svm_server_t *server;
 	vfsfile_t *f = VFSPIPE_Open(1, false);
+	char *fp;
+	char *prot;
+
+	masteraddr = "";	//client should work this out based on where it got the list from.
 
 	COM_StripExtension(gamename, tmpbuf, sizeof(tmpbuf));
 	game = SVM_FindGame(tmpbuf, false);
@@ -794,8 +828,13 @@ vfsfile_t *SVM_Generate_Rawlist(const char **mimetype, const char *masteraddr, c
 	VFS_PRINTF(f, "#Server list for \"%s\"\n", tmpbuf);
 	for (server = (game?game->firstserver:NULL); server; server = server->next)
 	{
+		prot = Info_ValueForKey(server->rules, "protocol");
+		if (!*prot)
+			prot = va("%i", server->protover);
 		if (server->brokerid)
-			VFS_PRINTF(f, "rtc://%s/%s \\maxclients\\%u\\clients\\%u\\bots\\%u\\hostname\\%s\\modname\\%s\\mapname\\%s\\needpass\\%i\n", masteraddr, server->brokerid, server->maxclients, server->clients, server->bots, *server->hostname?server->hostname:"unnamed", *server->gamedir?server->gamedir:"-", *server->mapname?server->mapname:"-", server->needpass);
+			VFS_PRINTF(f, "rtc://%s/%s \\protocol\\%s\\maxclients\\%u\\clients\\%u\\bots\\%u\\hostname\\%s\\modname\\%s\\mapname\\%s\\needpass\\%i\n", masteraddr, server->brokerid, prot, server->maxclients, server->clients, server->bots, *server->hostname?server->hostname:"unnamed", *server->gamedir?server->gamedir:"-", *server->mapname?server->mapname:"-", server->needpass?1:0);
+		else if ((fp = Info_ValueForKey(server->rules, "*fp")))
+			VFS_PRINTF(f, "rtc://%s/udp/%s \\protocol\\%s\\maxclients\\%u\\clients\\%u\\bots\\%u\\hostname\\%s\\modname\\%s\\mapname\\%s\\needpass\\%i\\*fp\\%s\n", masteraddr, NET_AdrToString(tmpbuf, sizeof(tmpbuf), &server->adr), prot, server->maxclients, server->clients, server->bots, *server->hostname?server->hostname:"unnamed", *server->gamedir?server->gamedir:"-", *server->mapname?server->mapname:"-", server->needpass?1:0, fp);
 		else
 			VFS_PRINTF(f, "%s\n", NET_AdrToString(tmpbuf, sizeof(tmpbuf), &server->adr));
 	}
@@ -1112,6 +1151,13 @@ static void SVM_ProcessUDPPacket(void)
 		*(int*)&net_from.address.ip6[12]=0;
 	}
 
+#ifdef HAVE_DTLS
+	if (*(int *)net_message.data != -1)
+		if (NET_DTLS_Decode(svm_sockets))
+			if (!net_message.cursize)
+				return;
+#endif
+
 	if (NET_WasSpecialPacket(svm_sockets))
 	{
 		svm.total.stun++;
@@ -1258,7 +1304,6 @@ static void SVM_ProcessUDPPacket(void)
 		SVM_GenChallenge(ourchallenge, sizeof(ourchallenge), &net_from);
 		if (!strcmp(chal, ourchallenge))
 		{
-
 			bots = atoi(Info_ValueForKey(s, "bots"));
 			clients = atoi(Info_ValueForKey(s, "clients"));
 			clients = max(0, clients-bots);
@@ -1272,11 +1317,13 @@ static void SVM_ProcessUDPPacket(void)
 			if (srv)
 			{
 				Q_strncpyz(srv->rules, s, sizeof(srv->rules));
+				Info_RemoveKey(srv->rules, "challenge");	//prevent poisoning
 				if (developer.ival)
 					Info_Print(s, "\t");
 				if (game)
 					srv->protover = atoi(Info_ValueForKey(s, "protocol"));
 				srv->maxclients = atoi(Info_ValueForKey(s, "sv_maxclients"));
+				srv->secure = !!*Info_ValueForKey(s, "*fp");
 				srv->needpass = atoi(Info_ValueForKey(s, "needpass"));
 				srv->coop = atoi(Info_ValueForKey(s, "coop"));
 				if (!srv->coop)
@@ -1453,6 +1500,7 @@ static void SVM_ProcessUDPPacket(void)
 				Info_Print(s, "\t");
 			srv->protover = 3;//atoi(Info_ValueForKey(s, "protocol"));
 			srv->maxclients = atoi(Info_ValueForKey(s, "maxclients"));
+			srv->secure = !!*Info_ValueForKey(s, "*fp");
 			srv->needpass = atoi(Info_ValueForKey(s, "needpass"));
 			srv->coop = atoi(Info_ValueForKey(s, "coop"));
 			if (!srv->coop)
@@ -1499,6 +1547,14 @@ static void SVM_ProcessUDPPacket(void)
 	{	//quakeworld server shutting down...
 		//this isn't actually useful. we can't use it because we can't protect against spoofed denial-of-service attacks.
 		//we could only use this by sending it a few pings to see if it is actually still responding. which is unreliable (especially if we're getting spammed by packet floods).
+	}
+	else if (!strcmp(com_token, "ice_answer"))
+	{	//one of our ws clients sent an ice offer over udp. this is the reply... hopefully.
+		FTENET_TCP_ICEResponse(svm_sockets, ICEMSG_OFFER, s, MSG_ReadString());
+	}
+	else if (!strcmp(com_token, "ice_scand"))
+	{	//a send or ack...
+		FTENET_TCP_ICEResponse(svm_sockets, ICEMSG_CANDIDATE, s, MSG_ReadString());
 	}
 	else
 		svm.total.junk++;
@@ -1577,14 +1633,123 @@ float SVM_RequerySlaves(void)
 	return 4;	//nothing happening.
 }
 
-float SVM_Think(int port)
+
+static void SVM_RegisterAlias(svm_game_t *game, char *aliasname)
 {
+	const char *a;
+	size_t l;
+	svm_game_t *aliasgame;
+	if (!game)
+		return;
+
+	//make sure we never have dupes. they confuse EVERYTHING.
+	aliasgame = SVM_FindGame(aliasname, false);
+	if (aliasgame == game)
+		return;	//already in there somehow.
+	if (aliasgame)
+	{
+		Con_Printf("game alias of %s is already registered\n", aliasname);
+		return;
+	}
+	game->persistent = true;	//don't forget us!
+
+	if (!*aliasname)
+		return;
+
+	a = game->aliases;
+	if (a) for (; *a; a+=strlen(a)+1);
+	l = a-game->aliases;
+	game->aliases = BZ_Realloc(game->aliases, l+strlen(aliasname)+2);
+	memcpy(game->aliases+l, aliasname, strlen(aliasname)+1);
+	l += strlen(aliasname)+1;
+	game->aliases[l] = 0;
+}
+static void SVM_GameAlias_f(void)
+{
+	svm_game_t *game = SVM_FindGame(Cmd_Argv(1), 2);
+	if (!game)
+	{
+		Con_Printf("Unable to register game %s\n", Cmd_Argv(1));
+		return;
+	}
+	SVM_RegisterAlias(game, Cmd_Argv(2));
+}
+static void SVM_Register(void)
+{
+	size_t u;
+
+	svm_sockets = FTENET_CreateCollection(true, SVM_ProcessUDPPacket);
+	Hash_InitTable(&svm.serverhash, 1024, Z_Malloc(Hash_BytesForBuckets(1024)));
+
+	Cmd_AddCommand ("gamealias", SVM_GameAlias_f);
+
+	Cvar_Register(&sv_masterport, "server control variables");
+	Cvar_Register(&sv_masterport_tcp, "server control variables");
+	Cvar_Register(&sv_heartbeattimeout, "server control variables");
+	Cvar_Register(&sv_maxgames, "server control variables");
+	Cvar_Register(&sv_maxservers, "server control variables");
+	Cvar_Register(&sv_hideinactivegames, "server control variables");
+	Cvar_Register(&sv_sortlist, "server control variables");
+	Cvar_Register(&sv_hostname, "server control variables");
+	Cvar_Register(&sv_slaverequery, "server control variables");
+	for (u = 0; u < countof(sv_masterslave); u++)
+		Cvar_Register(&sv_masterslave[u].var, "server control variables");
+}
+static qboolean SVM_FoundManifest(void *usr, ftemanifest_t *man)
+{
+	svm_game_t *game;
+	const char *g;
+	if (man->protocolname)
+	{	//FIXME: we ought to do this for each manifest we could find.
+		g = man->protocolname;
+
+#if 1
+		game = SVM_FindGame(man->formalname, 2);
+#else
+		g = COM_Parse(g);
+		game = SVM_FindGame(com_token, 2);
+#endif
+		if (!game)
+			return false;
+		if (man->schemes && !game->scheme)
+		{
+			COM_Parse(man->schemes);
+			game->scheme = Z_StrDup(com_token);
+		}
+		while (*g)
+		{
+			g = COM_Parse(g);
+			SVM_RegisterAlias(game, com_token);
+		}
+	}
+
+	return false;
+}
+static void SVM_Begin(void)
+{	//called once filesystem etc stuff is started.
+	SVM_FoundManifest(NULL, fs_manifest);
+	FS_EnumerateKnownGames(SVM_FoundManifest, NULL);
+
+	Cvar_ForceCallback(&sv_masterport);
+	Cvar_ForceCallback(&sv_masterport_tcp);
+}
+
+float SVM_Think(void)
+{
+#ifndef MASTERONLY
+	if (!svm_sockets)
+	{
+		SVM_Register();
+		SVM_Begin();
+	}
+#endif
+
 	NET_ReadPackets (svm_sockets);
 	SVM_RemoveOldServers();
 	return SVM_RequerySlaves();
 }
 #else
-float SVM_Think(int port){return 4;}
+float SVM_Think(void){return 4;}
 #endif
 
 
@@ -1631,81 +1796,9 @@ static void SVM_Status_f(void)
 
 }
 
-static void SVM_RegisterAlias(svm_game_t *game, char *aliasname)
-{
-	const char *a;
-	size_t l;
-	svm_game_t *aliasgame;
-	if (!game)
-		return;
-
-	//make sure we never have dupes. they confuse EVERYTHING.
-	aliasgame = SVM_FindGame(aliasname, false);
-	if (aliasgame == game)
-		return;	//already in there somehow.
-	if (aliasgame)
-	{
-		Con_Printf("game alias of %s is already registered\n", aliasname);
-		return;
-	}
-	game->persistent = true;	//don't forget us!
-
-	if (!*aliasname)
-		return;
-
-	a = game->aliases;
-	if (a) for (; *a; a+=strlen(a)+1);
-	l = a-game->aliases;
-	game->aliases = BZ_Realloc(game->aliases, l+strlen(aliasname)+2);
-	memcpy(game->aliases+l, aliasname, strlen(aliasname)+1);
-	l += strlen(aliasname)+1;
-	game->aliases[l] = 0;
-}
-static qboolean SVM_FoundManifest(void *usr, ftemanifest_t *man)
-{
-	svm_game_t *game;
-	const char *g;
-	if (man->protocolname)
-	{	//FIXME: we ought to do this for each manifest we could find.
-		g = man->protocolname;
-
-#if 1
-		game = SVM_FindGame(man->formalname, 2);
-#else
-		g = COM_Parse(g);
-		game = SVM_FindGame(com_token, 2);
-#endif
-		if (!game)
-			return false;
-		if (man->schemes && !game->scheme)
-		{
-			COM_Parse(man->schemes);
-			game->scheme = Z_StrDup(com_token);
-		}
-		while (*g)
-		{
-			g = COM_Parse(g);
-			SVM_RegisterAlias(game, com_token);
-		}
-	}
-
-	return false;
-}
-
-static void SVM_GameAlias_f(void)
-{
-	svm_game_t *game = SVM_FindGame(Cmd_Argv(1), 2);
-	if (!game)
-	{
-		Con_Printf("Unable to register game %s\n", Cmd_Argv(1));
-		return;
-	}
-	SVM_RegisterAlias(game, Cmd_Argv(2));
-}
 void SV_Init (struct quakeparms_s *parms)
 {
 	int manarg;
-	size_t u;
 
 	COM_InitArgv (parms->argc, parms->argv);
 
@@ -1731,22 +1824,8 @@ void SV_Init (struct quakeparms_s *parms)
 
 	Cmd_AddCommand ("quit", SV_Quit_f);
 	Cmd_AddCommand ("status", SVM_Status_f);
-	Cmd_AddCommand ("gamealias", SVM_GameAlias_f);
 
-	svm_sockets = FTENET_CreateCollection(true, SVM_ProcessUDPPacket);
-	Hash_InitTable(&svm.serverhash, 1024, Z_Malloc(Hash_BytesForBuckets(1024)));
-
-	Cvar_Register(&sv_masterport, "server control variables");
-	Cvar_Register(&sv_masterport_tcp, "server control variables");
-	Cvar_Register(&sv_heartbeattimeout, "server control variables");
-	Cvar_Register(&sv_maxgames, "server control variables");
-	Cvar_Register(&sv_maxservers, "server control variables");
-	Cvar_Register(&sv_hideinactivegames, "server control variables");
-	Cvar_Register(&sv_sortlist, "server control variables");
-	Cvar_Register(&sv_hostname, "server control variables");
-	Cvar_Register(&sv_slaverequery, "server control variables");
-	for (u = 0; u < countof(sv_masterslave); u++)
-		Cvar_Register(&sv_masterslave[u].var, "server control variables");
+	SVM_Register();
 
 	Cvar_ParseWatches();
 	host_initialized = true;
@@ -1760,11 +1839,7 @@ void SV_Init (struct quakeparms_s *parms)
 	Cmd_StuffCmds();
 	Cbuf_Execute ();
 
-	Cvar_ForceCallback(&sv_masterport);
-	Cvar_ForceCallback(&sv_masterport_tcp);
-
-	SVM_FoundManifest(NULL, fs_manifest);
-	FS_EnumerateKnownGames(SVM_FoundManifest, NULL);
+	SVM_Begin();
 
 	Con_Printf ("Exe: %s\n", version_string());
 
@@ -1785,7 +1860,7 @@ float SV_Frame (void)
 	}
 	Cbuf_Execute ();
 
-	sleeptime = SVM_Think(sv_masterport.ival);
+	sleeptime = SVM_Think();
 
 	//record lots of info over multiple frames, for smoother stats info.
 	svm.total.timestamp = realtime;

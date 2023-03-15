@@ -796,7 +796,6 @@ static void CertLog_Add_Prompted(void *vctx, promptbutton_t button)
 }
 qboolean CertLog_ConnectOkay(const char *hostname, void *cert, size_t certsize, unsigned int certlogproblems)
 {	//this is specifically for dtls certs.
-	extern cvar_t net_enable_dtls;
 	struct certlog_s *l;
 	qboolean trusted = (net_enable_dtls.ival >= 2);
 	char digest[DIGEST_MAXSIZE];

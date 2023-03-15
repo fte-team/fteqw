@@ -429,9 +429,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 	//FIXME: HAVE_WINSSPI does not work as a server.
 	//FIXME: advertising dtls without a valid certificate will probably bug out if a client tries to auto-upgrade.
 	//FIXME: we don't cache server certs
-	#ifndef MASTERONLY
-		#define HAVE_DTLS
-	#endif
+	#define HAVE_DTLS
 #endif
 
 #if defined(USE_SQLITE) || defined(USE_MYSQL)

@@ -6462,18 +6462,31 @@ char *PF_infokey_Internal (int entnum, const char *key)
 			sprintf(ov, "%d", SV_CalcPing (&svs.clients[entnum-1], true));
 		else if (!strcmp(key, "guid"))
 			sprintf(ov, "%s", pl->guid);
-		else if (!strcmp(key, "*cert_sha1"))
-		{
-			char buf[8192];
-			char digest[DIGEST_MAXSIZE];
-			int certsize = NET_GetConnectionCertificate(svs.sockets, &controller->netchan.remote_address, QCERT_PEERCERTIFICATE, buf, sizeof(buf));
-			if (certsize <= 0)
-				value = "";
-			else
-				Base64_EncodeBlockURI(digest,CalcHash(&hash_sha1, digest, sizeof(digest), buf, certsize), ov, sizeof(ov));
-		}
 		else if (!strcmp(key, "*cert_dn"))
 			NET_GetConnectionCertificate(svs.sockets, &controller->netchan.remote_address, QCERT_PEERSUBJECT, ov, sizeof(ov));
+		else if (!strncmp(key, "*cert_", 6))
+		{
+			static struct
+			{
+				const char *name;
+				hashfunc_t *func;
+			} funcs[] = {{"sha1",&hash_sha1}, {"sha2_256", &hash_sha2_256}, {"sha2_512", &hash_sha2_512}};
+			int i;
+			char buf[8192];
+			char digest[DIGEST_MAXSIZE];
+			int certsize;
+			*ov = 0;
+			for (i = 0; i < countof(funcs); i++)
+			{
+				if (!strcmp(key+6, funcs[i].name))
+				{
+					certsize = NET_GetConnectionCertificate(svs.sockets, &controller->netchan.remote_address, QCERT_PEERCERTIFICATE, buf, sizeof(buf));
+					if (certsize > 0)
+						Base64_EncodeBlockURI(digest,CalcHash(&hash_sha1, digest, sizeof(digest), buf, certsize), ov, sizeof(ov));
+					break;
+				}
+			}
+		}
 		else if (!strcmp(key, "challenge"))
 			sprintf(ov, "%u", pl->challenge);
 		else if (!strcmp(key, "*userid"))

@@ -7408,8 +7408,8 @@ void QCBUILTIN PF_patch_create(pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 			{
 				MSG_WriteByte(&sv.multicast, svcfte_brushedit);
 				MSG_WriteShort(&sv.multicast, modelindex);
-				MSG_WriteByte(&sv.multicast, hmcmd_brush_insert);
-				Brush_Serialise(&sv.multicast, nb);
+				MSG_WriteByte(&sv.multicast, hmcmd_patch_insert);
+				Patch_Serialise(&sv.multicast, nb);
 				SV_MulticastProtExt(vec3_origin, MULTICAST_ALL_R, ~0, 0, 0);
 				return;
 			}
@@ -7419,8 +7419,8 @@ void QCBUILTIN PF_patch_create(pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 			{
 				MSG_WriteByte(&cls.netchan.message, clcfte_brushedit);
 				MSG_WriteShort(&cls.netchan.message, modelindex);
-				MSG_WriteByte(&cls.netchan.message, hmcmd_brush_insert);
-				Brush_Serialise(&cls.netchan.message, nb);
+				MSG_WriteByte(&cls.netchan.message, hmcmd_patch_insert);
+				Patch_Serialise(&cls.netchan.message, nb);
 				return;
 			}
 #endif

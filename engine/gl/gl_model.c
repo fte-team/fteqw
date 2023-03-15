@@ -3737,6 +3737,12 @@ TRACE(("dbg: Mod_LoadTextures: inittexturedescs\n"));
 
 	m->nummiptex = LittleLong (m->nummiptex);
 
+	if ((1+m->nummiptex)*sizeof(int) > l->filelen)
+	{
+		Con_Printf(CON_WARNING "warning: %s contains corrupt texture lump\n", loadmodel->name);
+		return false;
+	}
+
 	loadmodel->numtextures = m->nummiptex;
 	loadmodel->textures = ZG_Malloc(&loadmodel->memgroup, m->nummiptex * sizeof(*loadmodel->textures));
 	sizes = alloca(sizeof(*sizes)*m->nummiptex);

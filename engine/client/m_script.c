@@ -43,7 +43,7 @@ void M_Script_Option (emenu_t *menu, char *optionvalue, qboolean isexplicit)
 		}
 	}
 	Cmd_TokenizeString(buf, false, false);
-	Cmd_ExpandString(scriptname, buf, sizeof(buf), &expandlevel, true, true);
+	Cmd_ExpandString(scriptname, buf, sizeof(buf), &expandlevel, true, false, false);
 
 	//and execute it as-is
 	Cbuf_AddText(buf, execlevel);

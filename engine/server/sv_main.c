@@ -1186,6 +1186,7 @@ char *SV_PlayerPublicAddress(client_t *cl)
 #define	STATUS_SPECTATORS_AS_PLAYERS	8 //for ASE - change only frags: show as "S"
 #define	STATUS_SHOWTEAMS				16
 #define	STATUS_QTVLIST					32 //qtv destid "name" "streamid@host:port" numviewers
+#define STATUS_LOGININFO				64
 
 /*
 ================
@@ -1205,6 +1206,8 @@ static void SVC_Status (void)
 	int		top, bottom;
 	char frags[64];
 	char *skin, *team, *botpre, *specpre;
+	char junk[512];
+	int jlen;
 
 	int slots=0;
 
@@ -1260,18 +1263,21 @@ static void SVC_Status (void)
 			else
 				sprintf(frags, "%i", cl->old_frags);
 
-			if (displayflags & STATUS_SHOWTEAMS)
+			junk[jlen = 0] = 0;
+			if ((displayflags & STATUS_SHOWTEAMS) && jlen+4<sizeof(junk))
 			{
-				Con_Printf ("%i %s %i %i \"%s%s%s\" \"%s\" %i %i \"%s\"\n", cl->userid,
-					frags, (int)(realtime - cl->connection_started)/60,
-					ping, specpre, botpre, name, skin, top, bottom, team);
+				junk[jlen++] = ' ';
+				jlen += strlen(COM_QuotedString(team, junk+jlen, sizeof(junk)-jlen, false));
 			}
-			else
+			if ((displayflags & STATUS_LOGININFO) && jlen+4<sizeof(junk))
 			{
-				Con_Printf ("%i %s %i %i \"%s%s%s\" \"%s\" %i %i\n", cl->userid,
-					frags, (int)(realtime - cl->connection_started)/60,
-					ping, specpre, botpre, name, skin, top, bottom);
+				junk[jlen++] = ' ';
+				jlen += strlen(COM_QuotedString("", junk+jlen, sizeof(junk)-jlen, false));
 			}
+
+			Con_Printf ("%i %s %i %i \"%s%s%s\" \"%s\" %i %i%s\n", cl->userid,
+					frags, (int)(realtime - cl->connection_started)/60,
+					ping, specpre, botpre, name, skin, top, bottom, junk);
 		}
 		else
 			slots++;

@@ -189,18 +189,18 @@ cvar_t  cl_gunanglez			= CVAR("cl_gunanglez", "0");
 
 cvar_t	cl_proxyaddr			= CVAR("cl_proxyaddr", "");
 cvar_t	cl_sendguid				= CVARD("cl_sendguid", "", "Send a randomly generated 'globally unique' id to servers, which can be used by servers for score rankings and stuff. Different servers will see different guids. Delete the 'qkey' file in order to appear as a different user.\nIf set to 2, all servers will see the same guid. Be warned that this can show other people the guid that you're using.");
-cvar_t	cl_downloads			= CVARAFD("cl_downloads", "1", /*q3*/"cl_allowDownload", CVAR_NOTFROMSERVER, "Allows you to block all automatic downloads.");
-cvar_t	cl_download_csprogs		= CVARFD("cl_download_csprogs", "1", CVAR_NOTFROMSERVER, "Download updated client gamecode if available. Warning: If you clear this to avoid downloading vm code, you should also clear cl_download_packages.");
-cvar_t	cl_download_redirection	= CVARFD("cl_download_redirection", "2", CVAR_NOTFROMSERVER, "Follow download redirection to download packages instead of individual files. Also allows the server to send nearly arbitary download commands.\n2: allows redirection only to named packages files (and demos/*.mvd), which is a bit safer.");
-cvar_t  cl_download_mapsrc		= CVARFD("cl_download_mapsrc", "", CVAR_ARCHIVE, "Specifies an http location prefix for map downloads. EG: \"http://example.com/path/quakemaps/\"");
+cvar_t	cl_downloads			= CVARAFD("cl_downloads", "1", /*q3*/"cl_allowDownload", CVAR_NOTFROMSERVER|CVAR_ARCHIVE, "Allows you to block all automatic downloads.");
+cvar_t	cl_download_csprogs		= CVARFD("cl_download_csprogs", "1", CVAR_NOTFROMSERVER|CVAR_ARCHIVE, "Download updated client gamecode if available. Warning: If you clear this to avoid downloading vm code, you should also clear cl_download_packages.");
+cvar_t	cl_download_redirection	= CVARFD("cl_download_redirection", "2", CVAR_NOTFROMSERVER|CVAR_ARCHIVE, "Follow download redirection to download packages instead of individual files. Also allows the server to send nearly arbitary download commands.\n2: allows redirection only to named packages files (and demos/*.mvd), which is a bit safer.");
+cvar_t  cl_download_mapsrc		= CVARFD("cl_download_mapsrc", "", CVAR_ARCHIVE, "Specifies an http location prefix for map downloads. EG: \"http://example.com/path/gamemaps/\"");
 cvar_t	cl_download_packages	= CVARFD("cl_download_packages", "1", CVAR_NOTFROMSERVER, "0=Do not download packages simply because the server is using them. 1=Download and load packages as needed (does not affect games which do not use this package). 2=Do download and install permanently (use with caution!)");
-cvar_t	requiredownloads		= CVARFD("requiredownloads","1", CVAR_ARCHIVE, "0=join the game before downloads have even finished (might be laggy). 1=wait for all downloads to complete before joining.");
+cvar_t	requiredownloads		= CVARAFD("cl_download_wait", "1", /*old*/"requiredownloads", CVAR_ARCHIVE, "0=join the game before downloads have even finished (might be laggy). 1=wait for all downloads to complete before joining.");
 cvar_t	mod_precache			= CVARD("mod_precache","1", "Controls when models are loaded.\n0: Load them only when they're actually needed.\n1: Load them upfront.\n2: Lazily load them to shorten load times at the risk of brief stuttering during only the start of the map.");
 
 cvar_t	cl_muzzleflash			= CVAR("cl_muzzleflash", "1");
 
-cvar_t	gl_simpleitems			= CVARF("gl_simpleitems", "0", CVAR_ARCHIVE);
-cvar_t	cl_item_bobbing			= CVARF("cl_model_bobbing", "0", CVAR_ARCHIVE);
+cvar_t	gl_simpleitems			= CVARFD("gl_simpleitems", "0", CVAR_ARCHIVE, "Replace models with simpler sprites.");
+cvar_t	cl_item_bobbing			= CVARFD("cl_model_bobbing", "0", CVAR_ARCHIVE, "Makes rotating pickup items bob too.");
 cvar_t	cl_countpendingpl		= CVARD("cl_countpendingpl", "0", "If set to 1, packet loss percentages will show packets still in transit as lost, even if they might still be received.");
 
 cvar_t	cl_standardchat			= CVARFD("cl_standardchat", "0", CVAR_ARCHIVE, "Disables auto colour coding in chat messages.");
@@ -210,7 +210,7 @@ cvar_t	msg_filter_pickups		= CVARD("msg_filter_pickups", "0", "Prevents pickup m
 cvar_t  cl_standardmsg			= CVARFD("cl_standardmsg", "0", CVAR_ARCHIVE, "Disables auto colour coding in console prints.");
 cvar_t  cl_parsewhitetext		= CVARD("cl_parsewhitetext", "1", "When parsing chat messages, enable support for messages like: red{white}red");
 
-cvar_t	cl_dlemptyterminate		= CVAR("cl_dlemptyterminate", "1");
+cvar_t	cl_dlemptyterminate		= CVARD("cl_dlemptyterminate", "1", "Terminate downloads when reciving an empty download packet. This should help work around buggy mvdsv servers.");
 
 static void QDECL Cvar_CheckServerInfo(struct cvar_s *var, char *oldvalue)
 {	//values depend upon the serverinfo, so reparse for overrides.

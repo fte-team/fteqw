@@ -102,7 +102,7 @@ typedef struct
 #include "zlib.h"
 #endif
 #ifdef SUPPORT_ICE
-static cvar_t net_ice_exchangeprivateips = CVARFD("net_ice_exchangeprivateips", "", CVAR_NOTFROMSERVER, "Boolean. When set to 0, hides private IP addresses from your peers. Only addresses determined from the other side of your router will be shared. Setting it to 0 may be desirable but it can cause connections to fail when your router does not support hairpinning, whereas 1 fixes that at the cost of exposing private IP addresses.");
+static cvar_t net_ice_exchangeprivateips = CVARFD("net_ice_exchangeprivateips", "0", CVAR_NOTFROMSERVER, "Boolean. When set to 0, hides private IP addresses from your peers - only addresses determined from the other side of your router will be shared. You should only need to set this to 1 if mdns is unavailable.");
 static cvar_t net_ice_allowstun = CVARFD("net_ice_allowstun", "1", CVAR_NOTFROMSERVER, "Boolean. When set to 0, prevents the use of stun to determine our public address (does not prevent connecting to our peer's server-reflexive candidates).");
 static cvar_t net_ice_allowturn = CVARFD("net_ice_allowturn", "1", CVAR_NOTFROMSERVER, "Boolean. When set to 0, prevents registration of turn connections (does not prevent connecting to our peer's relay candidates).");
 static cvar_t net_ice_allowmdns = CVARFD("net_ice_allowmdns", "1", CVAR_NOTFROMSERVER, "Boolean. When set to 0, prevents the use of multicast-dns to obtain candidates using random numbers instead of revealing private network info.");

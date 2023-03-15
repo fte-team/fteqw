@@ -1166,7 +1166,7 @@ void M_Menu_Network_f (void)
 		MB_COMBOCVAR("DTLS Encryption", net_enable_dtls, dtlsopts, NULL, "Use this to avoid snooping. Certificates will be pinned."),
 #endif
 		MB_SPACING(4),
-		MB_CHECKBOXCVARTIP("Require Download", requiredownloads, 0, "Ignore downloaded content sent to the client and connect immediately"),
+		MB_CHECKBOXCVARTIP("Wait for Downloads", requiredownloads, 0, "Ignore downloaded content sent to the client and connect immediately"),
 		MB_CHECKBOXCVARTIP("Redirect Download", cl_download_redirection, 0, "Whether the client will ignore download redirection from servers"),
 		MB_CHECKBOXCVARTIP("Download CSQC", cl_download_csprogs, 0, "Whether to allow the client to download CSQC (client-side QuakeC) progs from servers"),
 		MB_SPACING(4),

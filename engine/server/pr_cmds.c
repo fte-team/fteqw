@@ -8122,6 +8122,8 @@ void PRH2_SetPlayerClass(client_t *cl, int classnum, qboolean fromqc)
 		return; //reject it (it would crash the (standard hexen2) mod)
 	if (classnum > 5)
 		return;
+	while (classnum>1 && !COM_FCheckExists(va("gfx/menu/netp%i.lmp", classnum)))
+		classnum--;
 
 	if (!fromqc)
 	{

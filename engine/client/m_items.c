@@ -110,7 +110,8 @@ menuoption_t *M_NextSelectableItem(emenu_t *m, menuoption_t *old, qboolean wrap)
 //but we're lazy so we don't consider the next char. italic fonts are annoying like that. feel free to refudge it.
 void Draw_Hexen2BigFontString(int x, int y, const char *text)
 {
-	int c;
+	conchar_t *w, buffer[256];
+	unsigned int codeflags, oldflags=CON_WHITEMASK, c;
 	int sx, sy;
 	mpic_t *p;
 	p = R_RegisterShader ("gfx/menu/bigfont.lmp", SUF_2D,
@@ -144,9 +145,45 @@ void Draw_Hexen2BigFontString(int x, int y, const char *text)
 			p->defaulttextures->base = R_LoadHiResTexture("gfx/menu/bigfont.lmp", NULL, IF_PREMULTIPLYALPHA|IF_UIPIC|IF_NOPICMIP|IF_NOMIPMAP|IF_CLAMP);
 	}
 
-	while(*text)
+
+	COM_ParseFunString(oldflags, text, buffer, sizeof(buffer), false);
+
+	for (w = buffer; *w; )
 	{
-		c = *text++;
+		w = Font_Decode(w, &codeflags, &c);
+		if (codeflags & CON_HIDDEN)
+			continue;
+		if (c >= 0xe020 && c <= 0xe07f)
+			c &= 0x00ff; //convert to quake glyph to unicode/ascii...
+
+		if (codeflags != oldflags)
+		{
+			vec4_t rgba;
+			unsigned int col;
+			oldflags = codeflags;
+
+			col = (codeflags&CON_FGMASK)>>CON_FGSHIFT;
+			rgba[0] = consolecolours[col].fr;
+			rgba[1] = consolecolours[col].fg;
+			rgba[2] = consolecolours[col].fb;
+			if(codeflags & CON_HALFALPHA)
+				rgba[3] = 0.5;
+			else
+				rgba[3] = 1;
+			if (vid.flags&VID_SRGBAWARE)
+			{
+				rgba[0] = M_SRGBToLinear(rgba[0], 1);
+				rgba[1] = M_SRGBToLinear(rgba[1], 1);
+				rgba[2] = M_SRGBToLinear(rgba[2], 1);
+			}
+			if (codeflags & CON_BLINKTEXT)
+			{
+				float a = (sin(realtime*3)+1)*0.3 + 0.4;
+				VectorScale(rgba, a, rgba);
+			}
+			R2D_ImageColours(rgba[0], rgba[1], rgba[2], rgba[3]);
+		}
+
 		if (c >= 'a' && c <= 'z')
 		{
 			sx = ((c-'a')%8)*20;
@@ -197,6 +234,8 @@ void Draw_Hexen2BigFontString(int x, int y, const char *text)
 		default:	x+=20; break;
 		}
 	}
+
+	R2D_ImageColours(1, 1, 1, 1);
 }
 #endif
 
@@ -248,6 +287,8 @@ void Draw_BigFontString(int x, int y, const char *text)
 	for (w = buffer; *w; )
 	{
 		w = Font_Decode(w, &codeflags, &codepoint);
+		if (codeflags & CON_HIDDEN)
+			continue;
 		if (codepoint >= 0xe020 && codepoint <= 0xe07f)
 			codepoint &= 0x00ff; //convert to quake glyph to unicode/ascii...
 

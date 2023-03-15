@@ -500,6 +500,10 @@ void M_Menu_Setup_f (void)
 		};
 		cvar_t *pc = Cvar_Get("cl_playerclass", "1", CVAR_USERINFO|CVAR_ARCHIVE, "Hexen2");
 		(info->classedit = MC_AddCombo(menu, 64, 160, y, "Your class", (const char **)classnames, pc->ival-1)); y+= info->classedit->common.height;
+
+		//trim options if the artwork is missing.
+		while (info->classedit->numoptions && !COM_FCheckExists(va("gfx/menu/netp%i.lmp", info->classedit->numoptions)))
+			info->classedit->numoptions--;
 	}
 	else
 #endif
@@ -807,7 +811,21 @@ void M_Menu_GameOptions_f (void)
 	info->fraglimit		= MC_AddCombo	(menu, 64, 160, y,			"Frag Limit", (const char **)fraglimitoptions,		fraglimit.value/10);y+=8;
 	y+=8;
 
-	M_Menu_GameOptions_AddMap((mgt == MGT_QUAKE2)?"maps/base1":"maps/start", 0, 0, &mapopts, NULL);
+	//populate it with an appropriate default. its a shame it won't change with the deathmatch/coop options
+	switch(mgt)
+	{
+	case MGT_QUAKE2:
+		M_Menu_GameOptions_AddMap("maps/base1.bsp", 0, 0, &mapopts, NULL);
+		break;
+	case MGT_HEXEN2:
+		M_Menu_GameOptions_AddMap("maps/demo1.bsp", 0, 0, &mapopts, NULL);
+		break;
+	case MGT_QUAKE1:
+		M_Menu_GameOptions_AddMap("maps/start.bsp", 0, 0, &mapopts, NULL);
+		break;
+	default:
+		break;
+	}
 	COM_EnumerateFiles("maps/*.bsp",	M_Menu_GameOptions_AddMap, &mapopts);
 	COM_EnumerateFiles("maps/*.bsp.gz",	M_Menu_GameOptions_AddMap, &mapopts);
 	COM_EnumerateFiles("maps/*.bsp.xz",	M_Menu_GameOptions_AddMap, &mapopts);

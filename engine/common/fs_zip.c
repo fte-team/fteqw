@@ -607,6 +607,9 @@ typedef struct
 #define ZFL_SYMLINK		(1u<<3)	//file is a symlink
 #define ZFL_CORRUPT		(1u<<4)	//file is corrupt or otherwise unreadable (usually just means we don't support reading it rather than actually corrupt, but hey).
 #define ZFL_WEAKENCRYPT	(1u<<5)	//traditional zip encryption
+#define ZFL_DEFLATE64D	(1u<<6)	//need to use zlib's 'inflateBack9' stuff.
+
+#define ZFL_COMPRESSIONTYPE (ZFL_STORED|ZFL_CORRUPT|ZFL_DEFLATED|ZFL_DEFLATE64D|ZFL_BZIP2)
 
 
 typedef struct zipfile_s
@@ -1030,6 +1033,95 @@ static struct decompressstate *FSZIP_Deflate_Init(zipfile_t *source, qofs_t star
 }
 #endif
 
+#if defined(ZLIB_DEFLATE64) && !defined(AVAIL_ZLIB)
+	#undef ZLIB_DEFLATE64	//don't be silly.
+#endif
+#if defined(ZLIB_DEFLATE64)
+#include "infback9.h"	//an obscure compile-your-own part of zlib.
+struct def64ctx
+{
+	vfsfile_t *src;
+	vfsfile_t *dst;
+	qofs_t csize;
+	qofs_t usize;
+	unsigned int crc;
+
+	qbyte inbuf[0x8000];
+};
+static unsigned int FSZIP_Deflate64_Grab(void *vctx, unsigned char **bufptr)
+{
+	struct def64ctx *ctx = vctx;
+	int avail;
+	avail = sizeof(ctx->inbuf);
+	if (avail > ctx->csize)
+		avail = ctx->csize;	//don't over-read.
+	if (avail <= 0)
+	{
+		*bufptr = NULL;
+		return 0;
+	}
+
+	avail = VFS_READ(ctx->src, ctx->inbuf, avail);
+	*bufptr = ctx->inbuf;
+
+	if (avail < 0)
+		avail = 0;	//treated as eof...
+	ctx->csize -= avail;
+	return avail;
+}
+static int FSZIP_Deflate64_Spew(void *vctx, unsigned char *buf, unsigned int buflen)
+{
+	struct def64ctx *ctx = vctx;
+
+	//update the crc
+	ctx->crc = crc32(ctx->crc, buf, buflen);
+	ctx->usize += buflen;
+
+	if (VFS_WRITE(ctx->dst, buf, buflen) != buflen)
+		return 1;	//failure returns non-zero.
+	return 0;
+}
+//inflateBack stuff is apparently not restartable, and must read the entire file
+static vfsfile_t *FSZIP_Deflate64(vfsfile_t *src, qofs_t csize, qofs_t usize, unsigned int crc32)
+{
+	z_stream strm = {NULL};
+	qbyte window[65536];
+	struct def64ctx ctx;
+	ctx.src = src;
+	ctx.dst = VFSPIPE_Open(1, true);
+	ctx.csize = csize;
+	ctx.usize = 0;
+	ctx.crc = 0;
+
+	strm.data_type = Z_UNKNOWN;
+	inflateBack9Init(&strm, window);
+	//getting inflateBack9 to
+	if (Z_STREAM_END != inflateBack9(&strm, FSZIP_Deflate64_Grab, &ctx, FSZIP_Deflate64_Spew, &ctx))
+	{	//some stream error?
+		Con_Printf("Decompression error\n");
+		VFS_CLOSE(ctx.dst);
+		ctx.dst = NULL;
+	}
+	else if (ctx.csize != 0 || ctx.usize != usize)
+	{	//corrupt file table?
+		Con_Printf("Decompression size error\n");
+		Con_Printf("read %i of %i bytes\n", (unsigned)ctx.csize, (unsigned)csize);
+		Con_Printf("wrote %i of %i bytes\n", (unsigned)ctx.usize, (unsigned)usize);
+		VFS_CLOSE(ctx.dst);
+		ctx.dst = NULL;
+	}
+	else if (ctx.crc != crc32)
+	{	//corrupt file table?
+		Con_Printf("CRC32 error\n");
+		VFS_CLOSE(ctx.dst);
+		ctx.dst = NULL;
+	}
+	inflateBack9End(&strm);
+
+	return ctx.dst;
+}
+#endif
+
 #ifdef AVAIL_BZLIB
 //if the offset is still within our decompressed block then we can just rewind a smidge
 static qboolean FSZIP_BZip2_Seek(struct decompressstate *st, qofs_t *offset, qofs_t newoffset)
@@ -1403,11 +1495,38 @@ static vfsfile_t *QDECL FSZIP_OpenVFS(searchpathfuncs_t *handle, flocation_t *lo
 	vfsz->funcs.WriteBytes = NULL;
 	vfsz->funcs.seekstyle = SS_SLOW;
 
+	//NOTE: pf->name is the quakeified name, and may have an extra prefix/stripped prefix for certain zips - different from what you'd see if you opened the zip yourself. this is only relevant for debugging, whuch might be misleading but is not fatal.
 	if (!FSZIP_ValidateLocalHeader(zip, pf, &vfsz->startpos, &datasize))
 	{
-		Con_Printf("file %s:%s is incompatible or inconsistent with zip central directory\n", zip->filename, pf->name);
+		Con_Printf(CON_WARNING"file %s:%s is incompatible or inconsistent with zip central directory\n", zip->filename, pf->name);
 		Z_Free(vfsz);
 		return NULL;
+	}
+
+	if (flags & ZFL_DEFLATE64D)
+	{	//crap
+#if defined(ZLIB_DEFLATE64)
+		vfsfile_t *tmp = NULL;
+		qofs_t startpos = vfsz->startpos;
+		qofs_t usize = vfsz->length;
+		qofs_t csize = datasize;
+		Z_Free(vfsz);
+
+		Con_Printf(CON_WARNING"file %s:%s was compressed with deflate64\n", zip->filename, pf->name);
+
+		if (Sys_LockMutex(zip->mutex))
+		{
+			VFS_SEEK(vfsz->parent->raw, startpos);
+			tmp = FSZIP_Deflate64(zip->raw, csize, usize, pf->crc);
+			Sys_UnlockMutex(zip->mutex);
+		}
+
+		return tmp;
+#else
+		Con_Printf(CON_WARNING"%s:%s: deflate64 not supported\n", COM_SkipPath(zip->filename), pf->name);
+		Z_Free(vfsz);
+		return NULL;
+#endif
 	}
 
 	if (flags & ZFL_DEFLATED)
@@ -1670,11 +1789,19 @@ static qboolean FSZIP_ValidateLocalHeader(zipfile_t *zip, zpackfile_t *zfile, qo
 		return false;	//FIXME: proper spanned zips fragment compressed data over multiple spans, but we don't support that
 
 	if (local.cmethod == 0)
-		return (zfile->flags & (ZFL_STORED|ZFL_CORRUPT|ZFL_DEFLATED|ZFL_BZIP2)) == ZFL_STORED;
+		return (zfile->flags & ZFL_COMPRESSIONTYPE) == ZFL_STORED;
+#if defined(AVAIL_ZLIB)
 	if (local.cmethod == 8)
-		return (zfile->flags & (ZFL_STORED|ZFL_CORRUPT|ZFL_DEFLATED|ZFL_BZIP2)) == ZFL_DEFLATED;
+		return (zfile->flags & ZFL_COMPRESSIONTYPE) == ZFL_DEFLATED;
+#endif
+#if defined(ZLIB_DEFLATE64)
+	if (local.cmethod == 9)
+		return (zfile->flags & ZFL_COMPRESSIONTYPE) == ZFL_DEFLATE64D;
+#endif
+#ifdef AVAIL_BZLIB
 	if (local.cmethod == 12)
-		return (zfile->flags & (ZFL_STORED|ZFL_CORRUPT|ZFL_DEFLATED|ZFL_BZIP2)) == ZFL_BZIP2;
+		return (zfile->flags & ZFL_COMPRESSIONTYPE) == ZFL_BZIP2;
+#endif
 	return false;	//some other method that we don't know.
 }
 
@@ -1850,7 +1977,8 @@ static qboolean FSZIP_ReadCentralEntry(zipfile_t *zip, qbyte *data, struct zipce
 	//7: tokenize
 	else if (entry->cmethod == 8)	//8: deflate
 		entry->flags |= ZFL_DEFLATED;
-	//9: deflate64 - patented. sometimes written by microsoft's crap, so this might be problematic. only minor improvements.
+	else if (entry->cmethod == 9)	//9: deflate64 - patented. sometimes written by microsoft's crap, so this might be problematic. only minor improvements.
+		entry->flags |= ZFL_DEFLATE64D;
 	//10: implode
 	else if (entry->cmethod == 12)	//12: bzip2
 		entry->flags |= ZFL_BZIP2;

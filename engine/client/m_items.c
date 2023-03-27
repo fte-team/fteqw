@@ -364,7 +364,7 @@ int dotofs;
 
 static void MenuTooltipChange(emenu_t *menu, const char *text)
 {
-	unsigned int MAX_CHARS=1024;
+	unsigned int MAX_CHARS=2048;
 	menutooltip_t *mtt;
 	if (menu->tooltip)
 	{
@@ -2081,13 +2081,14 @@ menuoption_t *M_PrevSelectableItem(emenu_t *m, menuoption_t *old, qboolean wrap)
 
 void M_Complex_Key(emenu_t *currentmenu, int key, int unicode)
 {
+	menuoption_t *mi;
 	if (!currentmenu)
 		return;	//erm...
 
 	M_CheckMouseMove(currentmenu);
 
 	if (currentmenu->key)
-		if (currentmenu->key(key, currentmenu))
+		if (currentmenu->key(currentmenu, key, unicode))
 			return;
 
 	if (currentmenu->selecteditem && currentmenu->selecteditem->common.type == mt_custom && (key == K_DOWNARROW || key == K_KP_DOWNARROW || key == K_GP_DPAD_DOWN || key == K_GP_LEFT_THUMB_DOWN || key == K_GP_DIAMOND_CONFIRM || key == K_GP_DIAMOND_ALTCONFIRM || key == K_UPARROW || key == K_KP_UPARROW || key == K_GP_DPAD_UP || key == K_GP_LEFT_THUMB_UP || key == K_TAB || key == K_MWHEELUP || key == K_MWHEELDOWN || key == K_PGUP || key == K_PGDN))
@@ -2206,28 +2207,31 @@ void M_Complex_Key(emenu_t *currentmenu, int key, int unicode)
 
 	case K_MWHEELUP:
 	case K_MWHEELDOWN:
-		if (currentmenu->mouseitem)
+		mi = currentmenu->mouseitem;
+		if (!mi)
+			mi = currentmenu->selecteditem;
+		if (mi)
 		{
 			qboolean handled = false;
-			switch(currentmenu->mouseitem->common.type)
+			switch(mi->common.type)
 			{
 			case mt_combo:
-				if (mousecursor_x >= currentmenu->xpos + currentmenu->mouseitem->common.posx + currentmenu->mouseitem->combo.captionwidth + 3*8)
+				if (mousecursor_x >= currentmenu->xpos + mi->common.posx + mi->combo.captionwidth + 3*8)
 				{
-					MC_Combo_Key(&currentmenu->mouseitem->combo, key);
+					MC_Combo_Key(&mi->combo, key);
 					handled = true;
 				}
 				break;
 			case mt_checkbox:
-				if (mousecursor_x >= currentmenu->xpos + currentmenu->mouseitem->common.posx + currentmenu->mouseitem->check.textwidth + 3*8)
+				if (mousecursor_x >= currentmenu->xpos + mi->common.posx + mi->check.textwidth + 3*8)
 				{
-					MC_CheckBox_Key(&currentmenu->mouseitem->check, currentmenu, key);
+					MC_CheckBox_Key(&mi->check, currentmenu, key);
 					handled = true;
 				}
 				break;
 			case mt_custom:
-				if (currentmenu->mouseitem->custom.key)
-					handled = currentmenu->mouseitem->custom.key(&currentmenu->mouseitem->custom, currentmenu, key, unicode);
+				if (mi->custom.key)
+					handled = mi->custom.key(&mi->custom, currentmenu, key, unicode);
 				break;
 			default:
 				break;
@@ -2235,7 +2239,7 @@ void M_Complex_Key(emenu_t *currentmenu, int key, int unicode)
 
 			if (handled)
 			{
-				currentmenu->selecteditem = currentmenu->mouseitem;
+				currentmenu->selecteditem = mi;
 				if (currentmenu->cursoritem)
 					currentmenu->cursoritem->common.posy = currentmenu->selecteditem->common.posy + (currentmenu->selecteditem->common.height-currentmenu->cursoritem->common.height)/2;
 				break;
@@ -2326,7 +2330,7 @@ void M_Complex_Key(emenu_t *currentmenu, int key, int unicode)
 
 
 
-qboolean MC_Main_Key (int key, emenu_t *menu)	//here purly to restart demos.
+qboolean MC_Main_Key (emenu_t *menu, int key, unsigned int unicode)	//here purly to restart demos.
 {
 	if (key == K_ESCAPE || key == K_GP_BACK || key == K_GP_DIAMOND_CANCEL || key == K_MOUSE2)
 	{

@@ -789,7 +789,7 @@ typedef struct
 	} gamepath[8];
 	struct manpack_s	//FIXME: this struct should be replaced with packagemanager info instead.
 	{
-		int type;
+		enum manifestdeptype_e type;
 		char *path;			//the 'pure' name
 		char *prefix;
 		qboolean crcknown;	//if the crc was specified

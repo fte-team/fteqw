@@ -449,7 +449,7 @@ typedef struct {
 	soundcardinfo_t *card;
 } audiomenuinfo_t;
 
-qboolean M_Audio_Key (int key, struct emenu_s *menu)
+qboolean M_Audio_Key (struct emenu_s *menu, int key, unsigned int unicode)
 {
 	int i;
 	audiomenuinfo_t *info = menu->data;

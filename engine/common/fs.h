@@ -90,7 +90,7 @@ void Menu_Download_Update(void);
 typedef struct
 {
 	char *description;
-	void (*Update)			(const char *url, vfsfile_t *out);
+	void (*Update)			(const char *url, vfsfile_t *out, qboolean favourcache);
 #define plugupdatesourcefuncs_name "UpdateSource"
 } plugupdatesourcefuncs_t;
 qboolean PM_RegisterUpdateSource(void *module, plugupdatesourcefuncs_t *funcs);

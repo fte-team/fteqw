@@ -4896,6 +4896,8 @@ static void FS_ReloadPackFilesFlags(unsigned int reloadflags)
 			}
 			else
 			{
+				if (!FS_GamedirIsOkay(dir))
+					continue;
 				FS_AddGameDirectory(&oldpaths, dir, reloadflags, fl);
 			}
 		}
@@ -4912,15 +4914,6 @@ static void FS_ReloadPackFilesFlags(unsigned int reloadflags)
 		char *dir = fs_manifest->gamepath[i].path;
 		if (dir && !(fs_manifest->gamepath[i].flags&GAMEDIR_BASEGAME))
 		{
-			//don't allow leading dots, hidden files are evil.
-			//don't allow complex paths. those are evil too.
-			if (!*dir || *dir == '.' || !strcmp(dir, ".") || strstr(dir, "..") || strstr(dir, "/")
-				|| strstr(dir, "\\") || strstr(dir, ":") )
-			{
-				Con_Printf ("Gamedir should be a single filename, not a path\n");
-				continue;
-			}
-
 			for (j = 0; j < countof(fs_manifest->gamepath); j++)
 			{
 				char *dir2 = fs_manifest->gamepath[j].path;
@@ -4930,12 +4923,28 @@ static void FS_ReloadPackFilesFlags(unsigned int reloadflags)
 			if (j < countof(fs_manifest->gamepath))
 				continue;	//already loaded above. don't mess up gameonly_gamedir.
 
+			fl = SPF_EXPLICIT;
+			if (!(fs_manifest->gamepath[i].flags&GAMEDIR_READONLY))
+				fl |= SPF_WRITABLE;
+			if (fs_manifest->gamepath[i].flags&GAMEDIR_PRIVATE)
+				fl |= SPF_PRIVATE;
+			if (fs_manifest->gamepath[i].flags&GAMEDIR_QSHACK)
+				fl |= SPF_QSHACK;
+
 			if (*dir == '*')
-			{
+			{	//just in case... shouldn't be needed.
+				dir++;
+				fl |= GAMEDIR_PRIVATE;
 			}
+
+			if (fs_manifest->gamepath[i].flags & GAMEDIR_SPECIAL)
+				; //don't.
 			else
 			{
-				FS_AddGameDirectory(&oldpaths, dir, reloadflags, SPF_EXPLICIT|SPF_WRITABLE);
+				//don't use evil gamedir names.
+				if (!FS_GamedirIsOkay(dir))
+					continue;
+				FS_AddGameDirectory(&oldpaths, dir, reloadflags, fl);
 			}
 		}
 	}
@@ -7259,6 +7268,7 @@ static void FS_ChangeMod_f(void)
 	int packages = 0;
 	const char *arg = "?";
 	qboolean okay = false;
+	char *dir = NULL;
 
 	if (Cmd_IsInsecure())
 		return;
@@ -7302,6 +7312,11 @@ static void FS_ChangeMod_f(void)
 			arg = Cmd_Argv(i++);
 			packagespaths[packages-1].subpath = Z_StrDup(arg);
 		}
+		else if (!strcmp(arg, "dir"))
+		{
+			arg = Cmd_Argv(i++);
+			Z_StrDupPtr(&dir, arg);
+		}
 		else if (!strcmp(arg, "map"))
 		{
 			Z_Free(fs_loadedcommand);
@@ -7324,13 +7339,14 @@ static void FS_ChangeMod_f(void)
 	}
 
 	if (okay)
-		COM_Gamedir("", packagespaths);
+		COM_Gamedir(dir?dir:"", packagespaths);
 	else
 	{
 		Con_Printf("unsupported args: %s\n", arg);
 		Z_Free(fs_loadedcommand);
 		fs_loadedcommand = NULL;
 	}
+	Z_Free(dir);
 
 	for (i = 0; i < packages; i++)
 	{

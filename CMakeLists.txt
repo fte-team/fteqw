@@ -1164,8 +1164,7 @@ SET(FTE_PLUG_QI true CACHE BOOL "Compile Quake-Injnector plugin.")
 IF(FTE_PLUG_QI)
 	ADD_LIBRARY(plug_qi MODULE
 		plugins/plugin.c
-			plugins/qi/qi.c
-		plugins/emailnot/md5.c
+		plugins/qi/qi.c
 		plugins/jabber/xml.c
 	)
 	SET_TARGET_PROPERTIES(plug_qi PROPERTIES COMPILE_DEFINITIONS "FTEPLUGIN;${FTE_LIB_DEFINES}")

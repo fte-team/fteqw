@@ -765,7 +765,7 @@ static void SL_PostDraw	(emenu_t *menu)
 		}
 	}
 }
-static qboolean SL_Key	(int key, emenu_t *menu)
+static qboolean SL_Key	(emenu_t *menu, int key, unsigned int unicode)
 {
 	serverlist_t *info = (serverlist_t*)(menu + 1);
 
@@ -1370,7 +1370,7 @@ static void M_QuickConnect_PreDraw(emenu_t *menu)
 	}
 }
 
-static qboolean M_QuickConnect_Key	(int key, emenu_t *menu)
+static qboolean M_QuickConnect_Key	(emenu_t *menu, int key, unsigned int unicode)
 {
 	return false;
 }

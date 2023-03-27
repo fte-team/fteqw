@@ -267,6 +267,8 @@ static void PM_FreePackage(package_t *p)
 	int i;
 #endif
 
+	COM_AssertMainThread("PM_FreePackage");
+
 	if (p->link)
 	{
 		if (p->alternative)
@@ -963,6 +965,7 @@ static qboolean PM_CheckFile(const char *filename, enum fs_relative base)
 	return false;
 }
 
+static void PM_Plugin_Source_CacheFinished(void *ctx, vfsfile_t *f);
 static void PM_AddSubListModule(void *module, plugupdatesourcefuncs_t *funcs, const char *url, const char *prefix, unsigned int flags)
 {
 	size_t i;
@@ -1015,6 +1018,9 @@ static void PM_AddSubListModule(void *module, plugupdatesourcefuncs_t *funcs, co
 
 		downloadablessequence++;
 	}
+
+	if (pm_source[i].funcs && (pm_source[i].status == SRCSTAT_UNTRIED) && (pm_source[i].flags&SRCFL_ENABLED))	//cache only!
+		pm_source[i].funcs->Update(pm_source[i].url, VFS_OpenPipeCallback(PM_Plugin_Source_CacheFinished, &pm_source[i]), true);
 }
 static void PM_AddSubList(const char *url, const char *prefix, unsigned int flags)
 {
@@ -1709,7 +1715,7 @@ void PM_EnumerateMaps(const char *partial, struct xcommandargcompletioncb_s *ctx
 					{
 						Q_snprintfz(mname, sizeof(mname), "%s:%s", p->name, d->name);
 						if (!Q_strncasecmp(mname, partial, partiallen))
-							ctx->cb(mname, NULL, NULL, ctx);
+							ctx->cb(mname, p->description, NULL, ctx);
 					}
 				}
 			}
@@ -2093,26 +2099,31 @@ void PM_LoadPackages(searchpath_t **oldpaths, const char *parent_pure, const cha
 		pri = maxpri;
 		for (p = availablepackages; p; p = p->next)
 		{
-			if ((p->flags & (DPF_ENABLED|DPF_MANIMARKED)) && p->qhash && p->priority>=minpri&&p->priority<pri && !Q_strcasecmp(parent_pure, p->gamedir))
+			if ((p->flags & (DPF_ENABLED|DPF_MANIMARKED)) && p->priority>=minpri&&p->priority<pri && !Q_strcasecmp(parent_pure, p->gamedir))
 				pri = p->priority;
 		}
 		minpri = pri+1;
 
 		for (p = availablepackages; p; p = p->next)
 		{
-			if ((p->flags & (DPF_ENABLED|DPF_MANIMARKED)) && p->qhash && p->priority==pri && !Q_strcasecmp(parent_pure, p->gamedir))
+			if ((p->flags & (DPF_ENABLED|DPF_MANIMARKED)) && p->priority==pri && !Q_strcasecmp(parent_pure, p->gamedir))
 			{
+				char *qhash = (p->qhash&&*p->qhash)?p->qhash:NULL;
+				unsigned int fsfl = SPF_COPYPROTECTED;
+				if (!qhash || !(p->flags & DPF_SIGNATUREACCEPTED))
+					fsfl |= SPF_UNTRUSTED;	//never trust it if we can't provide it
+
 				for (d = p->deps; d; d = d->next)
 				{
 					if (d->dtype == DEP_FILE)
 					{
 						Q_snprintfz(temp, sizeof(temp), "%s/%s", p->gamedir, d->name);
-						FS_AddHashedPackage(oldpaths, parent_pure, parent_logical, search, loadstuff, temp, *p->qhash?p->qhash:NULL, p->packprefix, SPF_COPYPROTECTED|((p->flags & DPF_SIGNATUREACCEPTED)?0:SPF_UNTRUSTED));
+						FS_AddHashedPackage(oldpaths, parent_pure, parent_logical, search, loadstuff, temp, qhash, p->packprefix, fsfl);
 					}
 					else if (d->dtype == DEP_CACHEFILE)
 					{
 						Q_snprintfz(temp, sizeof(temp), "downloads/%s", d->name);
-						FS_AddHashedPackage(oldpaths, parent_pure, parent_logical, NULL, loadstuff, temp, *p->qhash?p->qhash:NULL, p->packprefix, SPF_COPYPROTECTED|((p->flags & DPF_SIGNATUREACCEPTED)?0:SPF_UNTRUSTED));
+						FS_AddHashedPackage(oldpaths, parent_pure, parent_logical, NULL, loadstuff, temp, qhash, p->packprefix, fsfl);
 					}
 				}
 			}
@@ -2290,6 +2301,8 @@ static void PM_UnmarkPackage(package_t *package, unsigned int markflag)
 {
 	package_t *o;
 	struct packagedep_s *dep;
+
+	COM_AssertMainThread("PM_UnmarkPackage");
 
 	if (pkg_updating)
 		return;
@@ -2686,7 +2699,8 @@ static void PM_ListDownloaded(struct dl_download *dl)
 
 	if (f)
 	{
-		pm_source[listidx].status = SRCSTAT_OBTAINED;
+		if (dl->replycode != 100)
+			pm_source[listidx].status = SRCSTAT_OBTAINED;
 		downloadablessequence++;
 		if (pm_source[listidx].flags & SRCFL_UNSAFE)
 			PM_ParsePackageList(f, DPF_SIGNATUREACCEPTED, dl->url, pm_source[listidx].prefix);
@@ -2772,7 +2786,7 @@ static void PM_ListDownloaded(struct dl_download *dl)
 	}
 }
 static void PM_Plugin_Source_Finished(void *ctx, vfsfile_t *f)
-{
+{	//plugin closed its write end.
 	struct pm_source_s *src = ctx;
 	size_t idx = src-pm_source;
 	if (idx < pm_numsources && ctx == &pm_source[idx])
@@ -2785,6 +2799,7 @@ static void PM_Plugin_Source_Finished(void *ctx, vfsfile_t *f)
 			dl.status = DL_FINISHED;
 			dl.user_num = src-pm_source;
 			dl.url = src->url;
+			dl.replycode = 200;	//okay
 			src->curdl = &dl;
 			PM_ListDownloaded(&dl);
 		}
@@ -2792,6 +2807,31 @@ static void PM_Plugin_Source_Finished(void *ctx, vfsfile_t *f)
 	else
 	{
 		Con_Printf("PM_Plugin_Source_Finished: stale\n");
+	}
+	VFS_CLOSE(f);
+}
+static void PM_Plugin_Source_CacheFinished(void *ctx, vfsfile_t *f)
+{	//plugin closed its write end.
+	struct pm_source_s *src = ctx;
+	size_t idx = src-pm_source;
+	if (idx < pm_numsources && ctx == &pm_source[idx])
+	{
+		COM_AssertMainThread("PM_Plugin_Source_CacheFinished");
+		if (!src->curdl)
+		{
+			struct dl_download dl;
+			dl.file = f;
+			dl.status = DL_FINISHED;
+			dl.user_num = src-pm_source;
+			dl.url = src->url;
+			dl.replycode = 100;
+			src->curdl = &dl;
+			PM_ListDownloaded(&dl);
+		}
+	}
+	else
+	{
+		Con_Printf("PM_Plugin_Source_CacheFinished: stale\n");
 	}
 	VFS_CLOSE(f);
 }
@@ -2871,7 +2911,7 @@ static void PM_UpdatePackageList(qboolean autoupdate, int retry)
 
 		if (pm_source[i].funcs)
 		{
-			pm_source[i].funcs->Update(pm_source[i].url, VFS_OpenPipeCallback(PM_Plugin_Source_Finished, &pm_source[i]));
+			pm_source[i].funcs->Update(pm_source[i].url, VFS_OpenPipeCallback(PM_Plugin_Source_Finished, &pm_source[i]), false);
 		}
 		else
 		{
@@ -2925,7 +2965,7 @@ qboolean PM_RegisterUpdateSource(void *module, plugupdatesourcefuncs_t *funcs)
 		}
 	}
 	else
-		PM_AddSubListModule(module, funcs, va("plug:%s", funcs->description), NULL, SRCFL_PLUGIN);
+		PM_AddSubListModule(module, funcs, va("plug:%s", funcs->description), NULL, SRCFL_PLUGIN|SRCFL_ENABLED);	//plugin sources default to enabled as you can always just disable the plugin that provides it.
 	return true;
 }
 
@@ -2973,13 +3013,243 @@ static void COM_QuotedKeyVal(const char *key, const char *val, char *buf, size_t
 
 	Q_strncatz(buf, "\"\n", bufsize);
 }
+static void PM_WriteInstalledPackage_v3(package_t *p, char *buf, size_t bufsize)
+{
+	struct packagedep_s *dep;
+
+	buf[0] = '{';
+	buf[1] = '\n';
+	buf[2] = 0;
+	COM_QuotedKeyVal("package", p->name, buf, bufsize);
+	COM_QuotedKeyVal("category", p->category, buf, bufsize);
+	if (p->flags & DPF_ENABLED)
+		COM_QuotedKeyVal("enabled", "1", buf, bufsize);
+	if (p->flags & DPF_GUESSED)
+		COM_QuotedKeyVal("guessed", "1", buf, bufsize);
+	if (*p->title && strcmp(p->title, p->name))
+		COM_QuotedKeyVal("title", p->title, buf, bufsize);
+	if (*p->version)
+		COM_QuotedKeyVal("ver", p->version, buf, bufsize);
+	COM_QuotedKeyVal("gamedir", p->gamedir, buf, bufsize);
+	if (p->qhash)
+		COM_QuotedKeyVal("qhash", p->qhash, buf, bufsize);
+	if (p->priority!=PM_DEFAULTPRIORITY)
+		COM_QuotedKeyVal("priority", va("%i", p->priority), buf, bufsize);
+	if (p->arch)
+		COM_QuotedKeyVal("arch", p->arch, buf, bufsize);
+
+	if (p->license)
+		COM_QuotedKeyVal("license", p->license, buf, bufsize);
+	if (p->website)
+		COM_QuotedKeyVal("website", p->website, buf, bufsize);
+	if (p->author)
+		COM_QuotedKeyVal("author", p->author, buf, bufsize);
+	if (p->description)
+		COM_QuotedKeyVal("desc", p->description, buf, bufsize);
+	if (p->previewimage)
+		COM_QuotedKeyVal("preview", p->previewimage, buf, bufsize);
+	if (p->filesize)
+		COM_QuotedKeyVal("filesize", va("%"PRIu64, p->filesize), buf, bufsize);
+
+	if (p->fsroot == FS_BINARYPATH)
+		COM_QuotedKeyVal("root", "bin", buf, bufsize);
+	if (p->packprefix)
+		COM_QuotedKeyVal("packprefix", p->packprefix, buf, bufsize);
+
+	for (dep = p->deps; dep; dep = dep->next)
+	{
+		safeswitch(dep->dtype)
+		{
+		case DEP_FILE:			COM_QuotedKeyVal("file",		dep->name, buf, bufsize); break;
+		case DEP_CACHEFILE:		COM_QuotedKeyVal("cachefile",	dep->name, buf, bufsize); break;
+		case DEP_MAP:			COM_QuotedKeyVal("map",			dep->name, buf, bufsize); break;
+		case DEP_REQUIRE:		COM_QuotedKeyVal("depend",		dep->name, buf, bufsize); break;
+		case DEP_CONFLICT:		COM_QuotedKeyVal("conflict",	dep->name, buf, bufsize); break;
+		case DEP_REPLACE:		COM_QuotedKeyVal("replace",		dep->name, buf, bufsize); break;
+		case DEP_FILECONFLICT:	COM_QuotedKeyVal("fileconflict",dep->name, buf, bufsize); break;
+		case DEP_RECOMMEND:		COM_QuotedKeyVal("recommend",	dep->name, buf, bufsize); break;
+		case DEP_NEEDFEATURE:	COM_QuotedKeyVal("need",		dep->name, buf, bufsize); break;
+		case DEP_SUGGEST:		COM_QuotedKeyVal("suggest",		dep->name, buf, bufsize); break;
+		case DEP_SOURCE:		COM_QuotedKeyVal("source",		dep->name, buf, bufsize); break;
+		case DEP_EXTRACTNAME:	COM_QuotedKeyVal("unzipfile",	dep->name, buf, bufsize); break;
+		safedefault:
+			break;
+		}
+	}
+
+	if (p->flags & DPF_TESTING)
+		COM_QuotedKeyVal("test", "1", buf, bufsize);
+
+	if ((p->flags & DPF_AUTOMARKED) && !(p->flags & DPF_USERMARKED))
+		COM_QuotedKeyVal("auto", "1", buf, bufsize);
+
+	Q_strncatz(buf, "}", bufsize);
+	Q_strncatz(buf, "\n", bufsize);
+}
+static void PM_WriteInstalledPackage_v2(package_t *p, char *buf, size_t bufsize)
+{
+	struct packagedep_s *dep;
+
+	buf[0] = 0;
+	COM_QuotedString(va("%s%s", p->category, p->name), buf, bufsize, false);
+	if (p->flags & DPF_ENABLED)
+	{	//v3+
+		Q_strncatz(buf, " ", bufsize);
+		COM_QuotedConcat(va("enabled=1"), buf, bufsize);
+	}
+	else
+	{	//v2
+		Q_strncatz(buf, " ", bufsize);
+		COM_QuotedConcat(va("stale=1"), buf, bufsize);
+	}
+	if (p->flags & DPF_GUESSED)
+	{
+		Q_strncatz(buf, " ", bufsize);
+		COM_QuotedConcat(va("guessed=1"), buf, bufsize);
+	}
+	if (*p->title && strcmp(p->title, p->name))
+	{
+		Q_strncatz(buf, " ", bufsize);
+		COM_QuotedConcat(va("title=%s", p->title), buf, bufsize);
+	}
+	if (*p->version)
+	{
+		Q_strncatz(buf, " ", bufsize);
+		COM_QuotedConcat(va("ver=%s", p->version), buf, bufsize);
+	}
+	//if (*p->gamedir)
+	{
+		Q_strncatz(buf, " ", bufsize);
+		COM_QuotedConcat(va("gamedir=%s", p->gamedir), buf, bufsize);
+	}
+	if (p->qhash)
+	{
+		Q_strncatz(buf, " ", bufsize);
+		COM_QuotedConcat(va("qhash=%s", p->qhash), buf, bufsize);
+	}
+	if (p->priority!=PM_DEFAULTPRIORITY)
+	{
+		Q_strncatz(buf, " ", bufsize);
+		COM_QuotedConcat(va("priority=%i", p->priority), buf, bufsize);
+	}
+	if (p->arch)
+	{
+		Q_strncatz(buf, " ", bufsize);
+		COM_QuotedConcat(va("arch=%s", p->arch), buf, bufsize);
+	}
+
+	if (p->license)
+	{
+		Q_strncatz(buf, " ", bufsize);
+		COM_QuotedConcat(va("license=%s", p->license), buf, bufsize);
+	}
+	if (p->website)
+	{
+		Q_strncatz(buf, " ", bufsize);
+		COM_QuotedConcat(va("website=%s", p->website), buf, bufsize);
+	}
+	if (p->author)
+	{
+		Q_strncatz(buf, " ", bufsize);
+		COM_QuotedConcat(va("author=%s", p->author), buf, bufsize);
+	}
+	if (p->description)
+	{
+		Q_strncatz(buf, " ", bufsize);
+		COM_QuotedConcat(va("desc=%s", p->description), buf, bufsize);
+	}
+	if (p->previewimage)
+	{
+		Q_strncatz(buf, " ", bufsize);
+		COM_QuotedConcat(va("preview=%s", p->previewimage), buf, bufsize);
+	}
+	if (p->filesize)
+	{
+		Q_strncatz(buf, " ", bufsize);
+		COM_QuotedConcat(va("filesize=%"PRIu64, p->filesize), buf, bufsize);
+	}
+
+	if (p->fsroot == FS_BINARYPATH)
+	{
+		Q_strncatz(buf, " ", bufsize);
+		COM_QuotedConcat("root=bin", buf, bufsize);
+	}
+	if (p->packprefix)
+	{
+		Q_strncatz(buf, " ", bufsize);
+		COM_QuotedConcat(va("packprefix=%s", p->packprefix), buf, bufsize);
+	}
+
+	for (dep = p->deps; dep; dep = dep->next)
+	{
+		if (dep->dtype == DEP_FILE)
+		{
+			Q_strncatz(buf, " ", bufsize);
+			COM_QuotedConcat(va("file=%s", dep->name), buf, bufsize);
+		}
+		else if (dep->dtype == DEP_CACHEFILE)
+		{
+			Q_strncatz(buf, " ", bufsize);
+			COM_QuotedConcat(va("cachefile=%s", dep->name), buf, bufsize);
+		}
+		else if (dep->dtype == DEP_MAP)
+		{
+			Q_strncatz(buf, " ", bufsize);
+			COM_QuotedConcat(va("map=%s", dep->name), buf, bufsize);
+		}
+		else if (dep->dtype == DEP_REQUIRE)
+		{
+			Q_strncatz(buf, " ", bufsize);
+			COM_QuotedConcat(va("depend=%s", dep->name), buf, bufsize);
+		}
+		else if (dep->dtype == DEP_CONFLICT)
+		{
+			Q_strncatz(buf, " ", bufsize);
+			COM_QuotedConcat(va("conflict=%s", dep->name), buf, bufsize);
+		}
+		else if (dep->dtype == DEP_REPLACE)
+		{
+			Q_strncatz(buf, " ", bufsize);
+			COM_QuotedConcat(va("replace=%s", dep->name), buf, bufsize);
+		}
+		else if (dep->dtype == DEP_FILECONFLICT)
+		{
+			Q_strncatz(buf, " ", bufsize);
+			COM_QuotedConcat(va("fileconflict=%s", dep->name), buf, bufsize);
+		}
+		else if (dep->dtype == DEP_RECOMMEND)
+		{
+			Q_strncatz(buf, " ", bufsize);
+			COM_QuotedConcat(va("recommend=%s", dep->name), buf, bufsize);
+		}
+		else if (dep->dtype == DEP_NEEDFEATURE)
+		{
+			Q_strncatz(buf, " ", bufsize);
+			COM_QuotedConcat(va("need=%s", dep->name), buf, bufsize);
+		}
+	}
+
+	if (p->flags & DPF_TESTING)
+	{
+		Q_strncatz(buf, " ", bufsize);
+		COM_QuotedConcat("test=1", buf, bufsize);
+	}
+
+	if ((p->flags & DPF_AUTOMARKED) && !(p->flags & DPF_USERMARKED))
+	{
+		Q_strncatz(buf, " ", bufsize);
+		COM_QuotedConcat("auto", buf, bufsize);
+	}
+
+	buf[bufsize-2] = 0;	//just in case.
+	Q_strncatz(buf, "\n", bufsize);
+}
 static void PM_WriteInstalledPackages(void)
 {
 	char buf[65536];
 	int i;
 	char *s;
 	package_t *p;
-	struct packagedep_s *dep;
 	vfsfile_t *f = FS_OpenVFS(INSTALLEDFILES, "wb", FS_ROOT);
 	qboolean v3 = false;
 	if (!f)
@@ -3021,233 +3291,11 @@ static void PM_WriteInstalledPackages(void)
 	{
 		if (p->flags & (DPF_PRESENT|DPF_ENABLED))
 		{
-			buf[0] = 0;
 			if (v3)
-			{
-				buf[0] = '{';
-				buf[1] = '\n';
-				buf[2] = 0;
-				COM_QuotedKeyVal("package", p->name, buf, sizeof(buf));
-				COM_QuotedKeyVal("category", p->category, buf, sizeof(buf));
-				if (p->flags & DPF_ENABLED)
-					COM_QuotedKeyVal("enabled", "1", buf, sizeof(buf));
-				if (p->flags & DPF_GUESSED)
-					COM_QuotedKeyVal("guessed", "1", buf, sizeof(buf));
-				if (*p->title && strcmp(p->title, p->name))
-					COM_QuotedKeyVal("title", p->title, buf, sizeof(buf));
-				if (*p->version)
-					COM_QuotedKeyVal("ver", p->version, buf, sizeof(buf));
-				COM_QuotedKeyVal("gamedir", p->gamedir, buf, sizeof(buf));
-				if (p->qhash)
-					COM_QuotedKeyVal("qhash", p->qhash, buf, sizeof(buf));
-				if (p->priority!=PM_DEFAULTPRIORITY)
-					COM_QuotedKeyVal("priority", va("%i", p->priority), buf, sizeof(buf));
-				if (p->arch)
-					COM_QuotedKeyVal("arch", p->arch, buf, sizeof(buf));
-
-				if (p->license)
-					COM_QuotedKeyVal("license", p->license, buf, sizeof(buf));
-				if (p->website)
-					COM_QuotedKeyVal("website", p->website, buf, sizeof(buf));
-				if (p->author)
-					COM_QuotedKeyVal("author", p->author, buf, sizeof(buf));
-				if (p->description)
-					COM_QuotedKeyVal("desc", p->description, buf, sizeof(buf));
-				if (p->previewimage)
-					COM_QuotedKeyVal("preview", p->previewimage, buf, sizeof(buf));
-				if (p->filesize)
-					COM_QuotedKeyVal("filesize", va("%"PRIu64, p->filesize), buf, sizeof(buf));
-
-				if (p->fsroot == FS_BINARYPATH)
-					COM_QuotedKeyVal("root", "bin", buf, sizeof(buf));
-				if (p->packprefix)
-					COM_QuotedKeyVal("packprefix", p->packprefix, buf, sizeof(buf));
-
-				for (dep = p->deps; dep; dep = dep->next)
-				{
-					if (dep->dtype == DEP_FILE)
-						COM_QuotedKeyVal("file", dep->name, buf, sizeof(buf));
-					else if (dep->dtype == DEP_CACHEFILE)
-						COM_QuotedKeyVal("cachefile", dep->name, buf, sizeof(buf));
-					else if (dep->dtype == DEP_MAP)
-						COM_QuotedKeyVal("map", dep->name, buf, sizeof(buf));
-					else if (dep->dtype == DEP_REQUIRE)
-						COM_QuotedKeyVal("depend", dep->name, buf, sizeof(buf));
-					else if (dep->dtype == DEP_CONFLICT)
-						COM_QuotedKeyVal("conflict", dep->name, buf, sizeof(buf));
-					else if (dep->dtype == DEP_REPLACE)
-						COM_QuotedKeyVal("replace", dep->name, buf, sizeof(buf));
-					else if (dep->dtype == DEP_FILECONFLICT)
-						COM_QuotedKeyVal("fileconflict", dep->name, buf, sizeof(buf));
-					else if (dep->dtype == DEP_RECOMMEND)
-						COM_QuotedKeyVal("recommend", dep->name, buf, sizeof(buf));
-					else if (dep->dtype == DEP_NEEDFEATURE)
-						COM_QuotedKeyVal("need", dep->name, buf, sizeof(buf));
-				}
-
-				if (p->flags & DPF_TESTING)
-					COM_QuotedKeyVal("test", "1", buf, sizeof(buf));
-
-				if ((p->flags & DPF_AUTOMARKED) && !(p->flags & DPF_USERMARKED))
-					COM_QuotedKeyVal("auto", "1", buf, sizeof(buf));
-
-				Q_strncatz(buf, "}", sizeof(buf));
-			}
+				PM_WriteInstalledPackage_v3(p, buf, sizeof(buf));
 			else
-			{
-				COM_QuotedString(va("%s%s", p->category, p->name), buf, sizeof(buf), false);
-				if (p->flags & DPF_ENABLED)
-				{	//v3+
-	//				Q_strncatz(buf, " ", sizeof(buf));
-	//				COM_QuotedConcat(va("enabled=1"), buf, sizeof(buf));
-				}
-				else
-				{	//v2
-					Q_strncatz(buf, " ", sizeof(buf));
-					COM_QuotedConcat(va("stale=1"), buf, sizeof(buf));
-				}
-				if (p->flags & DPF_GUESSED)
-				{
-					Q_strncatz(buf, " ", sizeof(buf));
-					COM_QuotedConcat(va("guessed=1"), buf, sizeof(buf));
-				}
-				if (*p->title && strcmp(p->title, p->name))
-				{
-					Q_strncatz(buf, " ", sizeof(buf));
-					COM_QuotedConcat(va("title=%s", p->title), buf, sizeof(buf));
-				}
-				if (*p->version)
-				{
-					Q_strncatz(buf, " ", sizeof(buf));
-					COM_QuotedConcat(va("ver=%s", p->version), buf, sizeof(buf));
-				}
-				//if (*p->gamedir)
-				{
-					Q_strncatz(buf, " ", sizeof(buf));
-					COM_QuotedConcat(va("gamedir=%s", p->gamedir), buf, sizeof(buf));
-				}
-				if (p->qhash)
-				{
-					Q_strncatz(buf, " ", sizeof(buf));
-					COM_QuotedConcat(va("qhash=%s", p->qhash), buf, sizeof(buf));
-				}
-				if (p->priority!=PM_DEFAULTPRIORITY)
-				{
-					Q_strncatz(buf, " ", sizeof(buf));
-					COM_QuotedConcat(va("priority=%i", p->priority), buf, sizeof(buf));
-				}
-				if (p->arch)
-				{
-					Q_strncatz(buf, " ", sizeof(buf));
-					COM_QuotedConcat(va("arch=%s", p->arch), buf, sizeof(buf));
-				}
+				PM_WriteInstalledPackage_v2(p, buf, sizeof(buf));
 
-				if (p->license)
-				{
-					Q_strncatz(buf, " ", sizeof(buf));
-					COM_QuotedConcat(va("license=%s", p->license), buf, sizeof(buf));
-				}
-				if (p->website)
-				{
-					Q_strncatz(buf, " ", sizeof(buf));
-					COM_QuotedConcat(va("website=%s", p->website), buf, sizeof(buf));
-				}
-				if (p->author)
-				{
-					Q_strncatz(buf, " ", sizeof(buf));
-					COM_QuotedConcat(va("author=%s", p->author), buf, sizeof(buf));
-				}
-				if (p->description)
-				{
-					Q_strncatz(buf, " ", sizeof(buf));
-					COM_QuotedConcat(va("desc=%s", p->description), buf, sizeof(buf));
-				}
-				if (p->previewimage)
-				{
-					Q_strncatz(buf, " ", sizeof(buf));
-					COM_QuotedConcat(va("preview=%s", p->previewimage), buf, sizeof(buf));
-				}
-				if (p->filesize)
-				{
-					Q_strncatz(buf, " ", sizeof(buf));
-					COM_QuotedConcat(va("filesize=%"PRIu64, p->filesize), buf, sizeof(buf));
-				}
-
-				if (p->fsroot == FS_BINARYPATH)
-				{
-					Q_strncatz(buf, " ", sizeof(buf));
-					COM_QuotedConcat("root=bin", buf, sizeof(buf));
-				}
-				if (p->packprefix)
-				{
-					Q_strncatz(buf, " ", sizeof(buf));
-					COM_QuotedConcat(va("packprefix=%s", p->packprefix), buf, sizeof(buf));
-				}
-
-				for (dep = p->deps; dep; dep = dep->next)
-				{
-					if (dep->dtype == DEP_FILE)
-					{
-						Q_strncatz(buf, " ", sizeof(buf));
-						COM_QuotedConcat(va("file=%s", dep->name), buf, sizeof(buf));
-					}
-					else if (dep->dtype == DEP_CACHEFILE)
-					{
-						Q_strncatz(buf, " ", sizeof(buf));
-						COM_QuotedConcat(va("cachefile=%s", dep->name), buf, sizeof(buf));
-					}
-					else if (dep->dtype == DEP_MAP)
-					{
-						Q_strncatz(buf, " ", sizeof(buf));
-						COM_QuotedConcat(va("map=%s", dep->name), buf, sizeof(buf));
-					}
-					else if (dep->dtype == DEP_REQUIRE)
-					{
-						Q_strncatz(buf, " ", sizeof(buf));
-						COM_QuotedConcat(va("depend=%s", dep->name), buf, sizeof(buf));
-					}
-					else if (dep->dtype == DEP_CONFLICT)
-					{
-						Q_strncatz(buf, " ", sizeof(buf));
-						COM_QuotedConcat(va("conflict=%s", dep->name), buf, sizeof(buf));
-					}
-					else if (dep->dtype == DEP_REPLACE)
-					{
-						Q_strncatz(buf, " ", sizeof(buf));
-						COM_QuotedConcat(va("replace=%s", dep->name), buf, sizeof(buf));
-					}
-					else if (dep->dtype == DEP_FILECONFLICT)
-					{
-						Q_strncatz(buf, " ", sizeof(buf));
-						COM_QuotedConcat(va("fileconflict=%s", dep->name), buf, sizeof(buf));
-					}
-					else if (dep->dtype == DEP_RECOMMEND)
-					{
-						Q_strncatz(buf, " ", sizeof(buf));
-						COM_QuotedConcat(va("recommend=%s", dep->name), buf, sizeof(buf));
-					}
-					else if (dep->dtype == DEP_NEEDFEATURE)
-					{
-						Q_strncatz(buf, " ", sizeof(buf));
-						COM_QuotedConcat(va("need=%s", dep->name), buf, sizeof(buf));
-					}
-				}
-
-				if (p->flags & DPF_TESTING)
-				{
-					Q_strncatz(buf, " ", sizeof(buf));
-					COM_QuotedConcat("test=1", buf, sizeof(buf));
-				}
-
-				if ((p->flags & DPF_AUTOMARKED) && !(p->flags & DPF_USERMARKED))
-				{
-					Q_strncatz(buf, " ", sizeof(buf));
-					COM_QuotedConcat("auto", buf, sizeof(buf));
-				}
-			}
-
-			buf[sizeof(buf)-2] = 0;	//just in case.
-			Q_strncatz(buf, "\n", sizeof(buf));
 			VFS_WRITE(f, buf, strlen(buf));
 		}
 	}
@@ -3644,7 +3692,10 @@ static void PM_Download_PreliminaryGot(struct dl_download *dl)
 	for (info.p = availablepackages; info.p ; info.p=info.p->next)
 	{
 		if (info.p->download == dl)
+		{
+			info.p->download = NULL;
 			break;
+		}
 	}
 
 	info.successful = (dl->status == DL_FINISHED);
@@ -3950,7 +4001,7 @@ static void PM_DownloadsCompleted(int iarg, void *data)
 			Z_Free(pm_onload.package);
 			pm_onload.package = NULL;
 			COM_Gamedir(p->gamedir, packs);
-			Cbuf_InsertText(va("map %s\n", map), RESTRICT_LOCAL, false);
+			Cbuf_InsertText(map, RESTRICT_LOCAL, false);
 			Z_Free(map);
 		}
 		else
@@ -4693,6 +4744,18 @@ void PM_Command_f(void)
 			Z_Free(sorted);
 			Con_Printf("<end of list>\n");
 		}
+		else if (!strcmp(act, "internal"))
+		{
+			char buf[65536];
+			key = Cmd_Argv(2);
+			for (p = availablepackages; p; p=p->next)
+			{
+				if (Q_strcasecmp(p->name, key))
+					continue;
+				PM_WriteInstalledPackage_v3(p, buf, sizeof(buf));
+				Con_Printf("%s", buf);
+			}
+		}
 		else if (!strcmp(act, "show"))
 		{
 			struct packagedep_s *dep;
@@ -5028,6 +5091,7 @@ void PM_AddManifestPackages(ftemanifest_t *man)
 	int idx;
 	struct manpack_s *pack;
 	const char *baseurl = man->updateurl;	//this is a url for updated versions of the fmf itself.
+	int dtype;
 
 	for (p = availablepackages; p; p = p->next)
 		p->flags &= ~DPF_MANIMARKED;
@@ -5047,6 +5111,20 @@ void PM_AddManifestPackages(ftemanifest_t *man)
 				continue;	//ignore it
 		}
 
+		if (pack->mirrors[0])
+		{
+			for (p = availablepackages; p; p = p->next)
+			{
+				if (p->mirror[0] && !strcmp(p->mirror[0], pack->mirrors[0]))
+					break;
+			}
+			if (p)
+			{
+				PM_MarkPackage(p, DPF_MANIMARKED);
+				continue;
+			}
+		}
+
 		p = Z_Malloc(sizeof(*p));
 		p->name = Z_StrDup(pack->path);
 		p->title = Z_StrDup(pack->path);
@@ -5056,6 +5134,7 @@ void PM_AddManifestPackages(ftemanifest_t *man)
 		strcpy(p->version, "");
 		p->flags = DPF_FORGETONUNINSTALL|DPF_MANIFEST|DPF_GUESSED;
 		p->qhash = pack->crcknown?Z_StrDupf("%#x", pack->crc):NULL;
+		dtype = DEP_FILE;
 
 		//note that this signs the hash(validated with size) with an separately trusted authority and is thus not dependant upon trusting the manifest itself...
 		//that said, we can't necessarily trust any overrides the manifest might include - those parts do not form part of the signature.
@@ -5129,7 +5208,7 @@ void PM_AddManifestPackages(ftemanifest_t *man)
 			if (url && *url)
 				p->mirror[i] = Z_StrDup(url);
 		}
-		PM_AddDep(p, DEP_FILE, path);
+		PM_AddDep(p, dtype, path);
 
 		PM_ValidateAuthenticity(p, VH_UNSUPPORTED);
 
@@ -5289,6 +5368,8 @@ typedef struct {
 	int downloadablessequence;
 	char titletext[128];
 	char applymessage[128];	//so we can change its text to give it focus
+	char filtertext[128];
+	qboolean filtering;
 	const void *expandedpackage;	//which package we're currently viewing maps for.
 	qboolean populated;
 } dlmenu_t;
@@ -5594,12 +5675,14 @@ static qboolean MD_Key (struct menucustom_s *c, struct emenu_s *m, int key, unsi
 
 static void MD_MapDraw (int x, int y, struct menucustom_s *c, struct emenu_s *m)
 {
-	const package_t *p = c->dptr;
 	struct packagedep_s *map = c->dptr2;
+#if defined(HAVE_SERVER)
+	const package_t *p = c->dptr;
 	struct packagedep_s *dep;
 	float besttime, fulltime, bestkills, bestsecrets;
 	char *package = NULL;
 	const char *ext;
+#endif
 
 	if (y + 8 < 0 || y >= vid.height)	//small optimisation.
 		return;
@@ -5607,7 +5690,7 @@ static void MD_MapDraw (int x, int y, struct menucustom_s *c, struct emenu_s *m)
 	if (c->dint != downloadablessequence)
 		return;	//probably stale
 
-
+#if defined(HAVE_SERVER)
 	for (dep = p->deps; dep; dep = dep->next)
 	{
 		if (dep->dtype == DEP_CACHEFILE)
@@ -5627,6 +5710,7 @@ static void MD_MapDraw (int x, int y, struct menucustom_s *c, struct emenu_s *m)
 			Draw_FunStringU8(CON_WHITEMASK, x+48+8*4, y, va("^m%s^m (%g %g in %.1f secs)", map->name, bestkills,bestsecrets,fulltime));
 	}
 	else
+#endif
 		Draw_FunStringU8(CON_WHITEMASK, x+48+8*4, y, map->name);
 }
 static qboolean MD_MapKey (struct menucustom_s *c, struct emenu_s *m, int key, unsigned int unicode)
@@ -5825,7 +5909,7 @@ static qboolean MD_RevertUpdates (union menuoption_s *mo,struct emenu_s *m,int k
 	return false;
 }
 
-static int MD_AddMapItems(emenu_t *m, package_t *p, int y)
+static int MD_AddMapItems(emenu_t *m, package_t *p, int y, const char *filter)
 {
 	struct packagedep_s *dep;
 	menucustom_t *c;
@@ -5833,6 +5917,9 @@ static int MD_AddMapItems(emenu_t *m, package_t *p, int y)
 	{
 		if (dep->dtype != DEP_MAP)
 			continue;
+		if (filter)
+			if (!strstr(dep->name, filter))
+				continue;
 		c = MC_AddCustom(m, 0, y, p, downloadablessequence, NULL);
 		c->dptr2 = dep;
 		c->draw = MD_MapDraw;
@@ -5843,7 +5930,37 @@ static int MD_AddMapItems(emenu_t *m, package_t *p, int y)
 	}
 	return y;
 }
-static int MD_AddItemsToDownloadMenu(emenu_t *m, int y, const char *pathprefix, void *selpackage)
+static int MD_DownloadMenuFiltered(package_t *p, const char *filter)
+{
+	struct packagedep_s *dep;
+	if ((p->flags & DPF_HIDDEN) && (p->arch || !(p->flags & DPF_ENABLED)))
+		return true;
+	if ((p->flags & DPF_HIDEUNLESSPRESENT) && !(p->flags & DPF_PRESENT))
+		return true;
+
+	if (filter && *filter)
+	{
+		if (strstr(p->title, filter) ||
+			strstr(p->name, filter) ||
+			(p->description && strstr(p->description, filter)) ||
+			(p->author && strstr(p->author, filter)))
+			;
+		else
+		{
+			for (dep = p->deps; dep; dep = dep->next)
+			{
+				if (dep->dtype == DEP_MAP)
+					if (strstr(dep->name, filter))
+						return -1;
+			}
+			if (!dep)
+				return true;
+		}
+	}
+	return false;
+}
+
+static int MD_AddItemsToDownloadMenu(emenu_t *m, int y, const char *pathprefix, const char *filter, void *selpackage)
 {
 	char path[MAX_QPATH];
 	package_t *p;
@@ -5853,15 +5970,15 @@ static int MD_AddItemsToDownloadMenu(emenu_t *m, int y, const char *pathprefix, 
 	int prefixlen = strlen(pathprefix);
 	struct packagedep_s *dep;
 	dlmenu_t *info = m->data;
+	int filtered;
 
 	//add all packages in this dir
 	for (p = availablepackages; p; p = p->next)
 	{
 		if (strncmp(p->category, pathprefix, prefixlen))
 			continue;
-		if ((p->flags & DPF_HIDDEN) && (p->arch || !(p->flags & DPF_ENABLED)))
-			continue;
-		if ((p->flags & DPF_HIDEUNLESSPRESENT) && !(p->flags & DPF_PRESENT))
+		filtered = MD_DownloadMenuFiltered(p, filter);
+		if (filtered==true)
 			continue;
 		slash = strchr(p->category+prefixlen, '/');
 		if (!slash)
@@ -5926,11 +6043,11 @@ static int MD_AddItemsToDownloadMenu(emenu_t *m, int y, const char *pathprefix, 
 			c->common.height = 8;
 			y += 8;
 
-			if (info->expandedpackage == p)
+			if (info->expandedpackage == p || filtered<0)
 			{
 				m->selecteditem = (menuoption_t*)c;
 
-				y = MD_AddMapItems(m, p, y);
+				y = MD_AddMapItems(m, p, y, (filtered==-1)?filter:NULL);
 			}
 			if (!m->selecteditem || p == selpackage)
 				m->selecteditem = (menuoption_t*)c;
@@ -5942,9 +6059,7 @@ static int MD_AddItemsToDownloadMenu(emenu_t *m, int y, const char *pathprefix, 
 	{
 		if (strncmp(p->category, pathprefix, prefixlen))
 			continue;
-		if ((p->flags & DPF_HIDDEN) && (p->arch || !(p->flags & DPF_ENABLED)))
-			continue;
-		if ((p->flags & DPF_HIDEUNLESSPRESENT) && !(p->flags & DPF_PRESENT))
+		if (MD_DownloadMenuFiltered(p, filter)==true)
 			continue;
 
 		slash = strchr(p->category+prefixlen, '/');
@@ -5965,7 +6080,7 @@ static int MD_AddItemsToDownloadMenu(emenu_t *m, int y, const char *pathprefix, 
 				MC_AddBufferedText(m, 48, 320-16, y, path+prefixlen, false, true);
 				y += 8;
 				Q_strncatz(path, "/", sizeof(path));
-				y = MD_AddItemsToDownloadMenu(m, y, path, selpackage);
+				y = MD_AddItemsToDownloadMenu(m, y, path, filter, selpackage);
 			}
 		}
 	}
@@ -6008,6 +6123,8 @@ static void MD_Download_UpdateStatus(struct emenu_s *m)
 
 		info->populated = false;
 		MC_AddWhiteText(m, 24, 320, 8, "Downloads", false)->text = info->titletext;
+		if (info->filtering || *info->filtertext)
+			MC_AddWhiteText(m, 24, 320, 16, va("%sFilter: %s", info->filtering?"^m":"", info->filtertext), false);
 		MC_AddWhiteText(m, 16, 320, 24, "^Ue01d^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01f", false);
 
 		//FIXME: should probably reselect the previous selected item. lets just assume everyone uses a mouse...
@@ -6080,64 +6197,71 @@ static void MD_Download_UpdateStatus(struct emenu_s *m)
 
 		info->populated = true;
 		MC_AddFrameStart(m, 48);
-#ifdef WEBCLIENT
-		for (i = 0, sources=false; i < pm_numsources; i++)
+		if (!info->filtering)
 		{
-			if (pm_source[i].flags & SRCFL_HISTORIC)
-				continue;	//historic... ignore it.
-			if (!sources)
-				MC_AddBufferedText(m, 48, 320-16, y, "Sources", false, true), y += 8;
-			sources=true;
-			c = MC_AddCustom(m, 0, y, p, i, NULL);
-			c->draw = MD_Source_Draw;
-			c->key = MD_Source_Key;
-			c->common.width = 320-48-16;
-			c->common.height = 8;
+#ifdef WEBCLIENT
+			for (i = 0, sources=false; i < pm_numsources; i++)
+			{
+				if (pm_source[i].flags & SRCFL_HISTORIC)
+					continue;	//historic... ignore it.
+				if (!sources)
+					MC_AddBufferedText(m, 48, 320-16, y, "Sources", false, true), y += 8;
+				sources=true;
+				c = MC_AddCustom(m, 0, y, p, i, NULL);
+				c->draw = MD_Source_Draw;
+				c->key = MD_Source_Key;
+				c->common.width = 320-48-16;
+				c->common.height = 8;
 
-			if (!m->selecteditem)
-				m->selecteditem = (menuoption_t*)c;
-			y += 8;
-		}
-		y+=4;	//small gap
+				if (!m->selecteditem)
+					m->selecteditem = (menuoption_t*)c;
+				y += 8;
+			}
+			y+=4;	//small gap
 #endif
-		MC_AddBufferedText(m, 48, 320-16, y, "Options", false, true), y += 8;
-		b = MC_AddCommand(m, 48, 320-16, y, info->applymessage, MD_ApplyDownloads);
-		b->rightalign = false;
-		b->common.tooltip = "Enable/Disable/Download/Delete packages to match any changes made (you will be prompted with a list of the changes that will be made).";
-		y+=8;
-		d = b = MC_AddCommand(m, 48, 320-16, y, "Back", MD_PopMenu);
-		b->rightalign = false;
-		y+=8;
-#ifdef WEBCLIENT
-		if (pm_numsources)
-		{
-			b = MC_AddCommand(m, 48, 320-16, y, "Mark Updates", MD_MarkUpdatesButton);
+			MC_AddBufferedText(m, 48, 320-16, y, "Options", false, true), y += 8;
+			b = MC_AddCommand(m, 48, 320-16, y, info->applymessage, MD_ApplyDownloads);
 			b->rightalign = false;
-			b->common.tooltip = "Select any updated versions of packages that are already installed.";
+			b->common.tooltip = "Enable/Disable/Download/Delete packages to match any changes made (you will be prompted with a list of the changes that will be made).";
 			y+=8;
-		}
-#endif
-		b = MC_AddCommand(m, 48, 320-16, y, "Undo Changes", MD_RevertUpdates);
-		b->rightalign = false;
-		b->common.tooltip = "Reset selection to only those packages that are currently installed.";
-		y+=8;
+			d = b = MC_AddCommand(m, 48, 320-16, y, "Back", MD_PopMenu);
+			b->rightalign = false;
+			y+=8;
 #ifdef WEBCLIENT
-		if (pm_numsources)
-		{
-			c = MC_AddCustom(m, 48, y, p, 0, NULL);
-			c->draw = MD_AutoUpdate_Draw;
-			c->key = MD_AutoUpdate_Key;
-			c->common.width = 320-48-16;
-			c->common.height = 8;
-			y += 8;
-		}
+			if (pm_numsources)
+			{
+				b = MC_AddCommand(m, 48, 320-16, y, "Mark Updates", MD_MarkUpdatesButton);
+				b->rightalign = false;
+				b->common.tooltip = "Select any updated versions of packages that are already installed.";
+				y+=8;
+			}
 #endif
-		y+=4;	//small gap
+			b = MC_AddCommand(m, 48, 320-16, y, "Undo Changes", MD_RevertUpdates);
+			b->rightalign = false;
+			b->common.tooltip = "Reset selection to only those packages that are currently installed.";
+			y+=8;
+#ifdef WEBCLIENT
+			if (pm_numsources)
+			{
+				c = MC_AddCustom(m, 48, y, p, 0, NULL);
+				c->draw = MD_AutoUpdate_Draw;
+				c->key = MD_AutoUpdate_Key;
+				c->common.width = 320-48-16;
+				c->common.height = 8;
+				y += 8;
+			}
+#endif
+			y+=4;	//small gap
+		}
+		else d = NULL;
 		MC_AddBufferedText(m, 48, 320-16, y, "Packages", false, true), y += 8;
-		MD_AddItemsToDownloadMenu(m, y, info->pathprefix, oldpackage);
+		MD_AddItemsToDownloadMenu(m, y, info->pathprefix, info->filtertext, oldpackage);
 		if (!m->selecteditem)
 			m->selecteditem = (menuoption_t*)d;
-		m->cursoritem = (menuoption_t*)MC_AddWhiteText(m, 40, 0, m->selecteditem->common.posy, NULL, false);
+		if (info->filtering)
+			m->cursoritem = NULL;
+		else
+			m->cursoritem = (menuoption_t*)MC_AddWhiteText(m, 40, 0, m->selecteditem->common.posy, NULL, false);
 		MC_AddFrameEnd(m, 48)->frac = framefrac;
 	}
 
@@ -6156,6 +6280,57 @@ static void MD_Download_UpdateStatus(struct emenu_s *m)
 	}
 }
 
+static qboolean MD_Download_Key(struct emenu_s *m, int key, unsigned int unicode)
+{
+	dlmenu_t *info = m->data;
+
+	if (info->filtering)
+	{
+		if (key == K_BACKSPACE)
+		{
+			unsigned int l = strlen(info->filtertext);
+			if (l)
+			{
+				while (l > 0 && (info->filtertext[--l]&0xc0) == 0x80)
+					;
+				info->filtertext[l] = 0;
+			}
+			else
+				info->filtering = false;
+		}
+		else if (key == K_ENTER || key == K_ESCAPE)
+			info->filtering = false; //done...
+		else if (key>=K_F1 && key!=K_RALT && key!=K_RCTRL && key!=K_RSHIFT)
+		{	//some other action... don't swallow clicks.
+			info->filtering = false;
+			info->populated = false;
+			return false;
+		}
+		else if (unicode)
+		{
+			unsigned int l = strlen(info->filtertext);
+			l+=utf8_encode(info->filtertext+l, unicode, sizeof(info->filtertext)-1-l);
+			info->filtertext[l] = 0;
+		}
+
+		info->populated = false;
+		return true;
+	}
+	else if (key == '/')
+	{
+		info->filtering = true;
+		info->filtertext[0] = 0;
+
+		info->populated = false;
+		return true;
+	}
+	else
+	{
+		info->filtering = false;
+		return false;
+	}
+}
+
 void Menu_DownloadStuff_f (void)
 {
 	emenu_t *menu;
@@ -6167,6 +6342,7 @@ void Menu_DownloadStuff_f (void)
 
 	menu->menu.persist = true;
 	menu->predraw = MD_Download_UpdateStatus;
+	menu->key = MD_Download_Key;
 	info->downloadablessequence = downloadablessequence;
 
 

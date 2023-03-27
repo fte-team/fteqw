@@ -57,7 +57,7 @@ void M_Script_Remove (emenu_t *menu)
 
 	M_Script_Option(menu, "cancel", false);
 }
-qboolean M_Script_Key (int key, emenu_t *menu)
+qboolean M_Script_Key (struct emenu_s *menu, int key, unsigned int unicode)
 {
 	if (menu->selecteditem && menu->selecteditem->common.type == mt_edit)
 		return false;

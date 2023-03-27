@@ -730,7 +730,7 @@ void SV_Map_f (void)
 					sv.mapchangelocked = false;
 				}
 				else
-					PM_LoadMap(mangled, sep);
+					PM_LoadMap(mangled, va("%s %s\n", Cmd_Argv(0), COM_QuotedString(sep, expanded, sizeof(expanded), false)));
 				return;
 			}
 		}
@@ -1003,7 +1003,10 @@ void SV_Map_f (void)
 		if (!isrestart)
 		{
 			if (q3singleplayer)
+			{
 				Cvar_ForceSet(gametype, "2");//singleplayer
+				Cvar_ForceSet(&deathmatch, "0");//for non-q3 type stuff to not get confused..
+			}
 			else if (gametype->value == 2)
 				Cvar_ForceSet(gametype, "");//force to ffa deathmatch
 		}

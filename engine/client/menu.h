@@ -329,7 +329,7 @@ struct emenu_s {
 
 	void (*reset)		(struct emenu_s *);	//called after a video mode switch / shader reload.
 	void (*remove)		(struct emenu_s *);
-	qboolean (*key)		(int key, struct emenu_s *);	//true if key was handled
+	qboolean (*key)		(struct emenu_s *, int key, unsigned int unicode);	//true if key was handled
 	void (*predraw)		(struct emenu_s *);
 	void (*postdraw)	(struct emenu_s *);
 	menuoption_t *options;

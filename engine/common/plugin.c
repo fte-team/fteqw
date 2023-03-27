@@ -971,6 +971,7 @@ static qhandle_t QDECL Plug_FS_Open(const char *fname, qhandle_t *outhandle, int
 #ifndef WEBCLIENT
 		f = NULL;
 #else
+		Con_DPrintf("Plugin %s requesting %s\n", currentplug->name, fname);
 		handle = Plug_NewStreamHandle(STREAM_WEB);
 		pluginstreamarray[handle].dl = HTTP_CL_Get(fname, NULL, Plug_DownloadComplete);
 		pluginstreamarray[handle].dl->user_num = handle;

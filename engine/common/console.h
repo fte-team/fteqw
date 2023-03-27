@@ -124,7 +124,8 @@ enum
 	CB_MOVE			= 4,
 	CB_ACTIONBAR	= 5,
 	CB_SELECT		= 6,
-	CB_SELECTED		= 7,
+	CB_SELECTED		= 7,	//selection ended (deferred until drawing to ensure selections happen properly)
+	CB_TAPPED		= 8,	//quick-tap ended (deferred until drawing to ensure selections happen properly)
 
 	//the flags part
 	CB_STALE		= (1u<<28),	//WAS held last frame - to make sure we still do stuff when released on the same frame.

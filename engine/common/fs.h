@@ -27,6 +27,7 @@ extern int fs_hash_files;	//for tracking efficiency. no functional use.
 extern qboolean fs_readonly;	//if true, fopen(, "w") should always fail.
 extern void *fs_thread_mutex;
 extern float fs_accessed_time;
+extern cvar_t	fs_dlURL;
 
 struct searchpath_s;
 struct searchpathfuncs_s

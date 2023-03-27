@@ -33,6 +33,11 @@ static cvar_t fs_gamepath			= CVARAFD	("fs_gamepath"/*q3ish*/, "", "fs_gamedir"/
 static cvar_t fs_basepath			= CVARAFD	("fs_basepath"/*q3*/,    "", "fs_basedir"/*q2*/, CVAR_NOUNSAFEEXPAND|CVAR_NOSET|CVAR_NOSAVE, "Provided for Q2/Q3 compat. System path of the base directory.");
 static cvar_t fs_homepath			= CVARAFD	("fs_homepath"/*q3ish*/, "", "fs_homedir"/*q2ish*/, CVAR_NOUNSAFEEXPAND|CVAR_NOSET|CVAR_NOSAVE, "Provided for Q2/Q3 compat. System path of the base directory.");
 static cvar_t dpcompat_ignoremodificationtimes = CVARAFD("fs_packageprioritisation", "1", "dpcompat_ignoremodificationtimes", CVAR_NOUNSAFEEXPAND|CVAR_NOSAVE, "Favours the package that is:\n0: Most recently modified\n1: Is alphabetically last (favour z over a, 9 over 0).");
+#ifdef FTE_TARGET_WEB
+cvar_t	fs_dlURL					= CVARAFD(/*ioq3*/"sv_dlURL", "", /*dp*/"sv_curl_defaulturl", CVAR_SERVERINFO|CVAR_NOSAVE, "Provides clients with an external url from which they can obtain pk3s/packages from an external http server instead of having to download over udp.");
+#else
+cvar_t	fs_dlURL					= CVARAFD(/*ioq3*/"sv_dlURL", "", /*dp*/"sv_curl_defaulturl", CVAR_SERVERINFO|CVAR_ARCHIVE, "Provides clients with an external url from which they can obtain pk3s/packages from an external http server instead of having to download over udp.");
+#endif
 int active_fs_cachetype;
 static int fs_referencetype;
 int fs_finds;
@@ -7717,6 +7722,7 @@ void COM_InitFilesystem (void)
 	Cvar_Register(&fs_gamepath, "Filesystem");
 	Cvar_Register(&fs_basepath, "Filesystem");
 	Cvar_Register(&fs_homepath, "Filesystem");
+	Cvar_Register(&fs_dlURL,	"Filesystem");
 
 	COM_InitHomedir(NULL);
 

@@ -69,7 +69,6 @@ struct cminfo_s;
 
 void CM_Init(void);
 
-static qboolean	CM_HeadnodeVisible (struct model_s *mod, int nodenum, const qbyte *visbits);
 static qboolean	VARGS CM_AreasConnected (struct model_s *mod, unsigned int area1, unsigned int area2);
 static size_t	CM_WriteAreaBits (struct model_s *mod, qbyte *buffer, size_t buffersize, int area, qboolean merge);
 static qbyte	*CM_ClusterPVS (struct model_s *mod, int cluster, pvsbuffer_t *buffer, pvsmerge_t merge);
@@ -82,9 +81,12 @@ static void	CM_SetAreaPortalState (model_t *mod, unsigned int portalnum, unsigne
 static size_t	CM_SaveAreaPortalBlob (model_t *mod, void **data);
 static size_t	CM_LoadAreaPortalBlob (model_t *mod, void *ptr, size_t ptrsize);
 
+#ifdef HAVE_SERVER
 static unsigned int Q23BSP_FatPVS(model_t *mod, const vec3_t org, pvsbuffer_t *buffer, qboolean merge);
 static qboolean Q23BSP_EdictInFatPVS(model_t *mod, const struct pvscache_s *ent, const qbyte *pvs, const int *areas);
 static void Q23BSP_FindTouchedLeafs(model_t *mod, struct pvscache_s *ent, const float *mins, const float *maxs);
+static qboolean	CM_HeadnodeVisible (struct model_s *mod, int nodenum, const qbyte *visbits);
+#endif
 
 #ifdef HAVE_CLIENT
 static void CM_PrepareFrame(model_t *mod, refdef_t *refdef, int area, int viewclusters[2], pvsbuffer_t *vis, qbyte **entvis_out, qbyte **surfvis_out);
@@ -4123,7 +4125,7 @@ static void CM_OpenAllPortals(model_t *mod, char *ents)	//this is a compleate ha
 #endif
 
 
-#if defined(HAVE_SERVER) && defined(Q3BSPS)
+#if defined(Q3BSPS)
 static void CalcClusterPHS(cminfo_t	*prv, int cluster)
 {
 	int j, k, l, index;
@@ -4167,6 +4169,8 @@ static void CalcClusterPHS(cminfo_t	*prv, int cluster)
 	}
 	prv->phscalced[cluster>>3] |= 1<<(cluster&7);
 }
+#endif
+#if defined(HAVE_SERVER) && defined(Q3BSPS)
 static void CMQ3_CalcPHS (model_t *mod)
 {
 	cminfo_t	*prv = (cminfo_t*)mod->meshinfo;
@@ -5197,12 +5201,14 @@ static int CM_PointLeafnum_r (model_t *mod, const vec3_t p, int num)
 	return -1 - num;
 }
 
+#ifdef HAVE_SERVER
 static int CM_PointLeafnum (model_t *mod, const vec3_t p)
 {
 	if (!mod || mod->loadstate != MLS_LOADED)
 		return 0;		// sound may call this without map loaded
 	return CM_PointLeafnum_r (mod, p, 0);
 }
+#endif
 
 static int CM_PointCluster (model_t *mod, const vec3_t p, int *area)
 {
@@ -6884,6 +6890,7 @@ static qbyte	*CM_ClusterPHS (model_t *mod, int cluster, pvsbuffer_t *buffer)
 	return buffer->buffer;
 }
 
+#ifdef HAVE_SERVER
 static unsigned int  SV_Q2BSP_FatPVS (model_t *mod, const vec3_t org, pvsbuffer_t *result, qboolean merge)
 {
 	int	leafs[64];
@@ -7053,6 +7060,7 @@ static void Q23BSP_FindTouchedLeafs(model_t *model, struct pvscache_s *ent, cons
 		}
 	}
 }
+#endif
 
 /*
 ===============================================================================
@@ -7314,6 +7322,7 @@ static size_t	CM_LoadAreaPortalBlob (model_t *mod, void *ptr, size_t ptrsize)
 	return 0;
 }
 
+#ifdef HAVE_SERVER
 /*
 =============
 CM_HeadnodeVisible
@@ -7344,6 +7353,7 @@ static qboolean CM_HeadnodeVisible (model_t *mod, int nodenum, const qbyte *visb
 		return true;
 	return CM_HeadnodeVisible(mod, node->childnum[1], visbits);
 }
+#endif
 
 static unsigned int Q2BSP_PointContents(model_t *mod, const vec3_t axis[3], const vec3_t p)
 {

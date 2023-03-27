@@ -56,7 +56,7 @@ typedef struct	//merge?
 
 
 
-
+#ifdef HAVE_SERVER
 typedef struct
 {
 	world_t *world;
@@ -77,3 +77,5 @@ typedef struct
 } q3serverstate_t;
 extern q3serverstate_t sv3;
 #undef CALCAREAGRIDBOUNDS
+#endif
+

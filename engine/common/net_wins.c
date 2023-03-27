@@ -5531,6 +5531,7 @@ void FTENET_TCP_PrintStatus(ftenet_generic_connection_t *gcon)
 static qboolean FTENET_TCP_KillStream(ftenet_tcp_connection_t *con, ftenet_tcp_stream_t *st, const char *reason)
 {	//some sort of error. kill the connection info (will be cleaned up later)
 
+#ifdef HAVE_HTTPSV
 	if (st->clienttype == TCPC_WEBRTC_CLIENT && st->clientstream && !strcmp(st->webrtc.resource, st->webrtc.resource))
 	{
 		qbyte msg[256];
@@ -5541,6 +5542,7 @@ static qboolean FTENET_TCP_KillStream(ftenet_tcp_connection_t *con, ftenet_tcp_s
 
 		FTENET_TCP_WebSocket_Splurge(st, WS_PACKETTYPE_BINARYFRAME, msg, 3+strlen(msg+3));
 	}
+#endif
 
 #ifdef HAVE_EPOLL
 	if (st->socketnum != INVALID_SOCKET)
@@ -6312,6 +6314,7 @@ static qboolean FTENET_TCP_GetPacket(ftenet_generic_connection_t *gcon)
 		}
 		FTENET_TCP_Flush(con, st);
 
+#ifdef HAVE_HTTPSV
 		if (st->clienttype==TCPC_WEBRTC_CLIENT && st->webrtc.target.type!=NA_INVALID && st->webrtc.resendtime < timeval && st->clientstream)
 		{
 			if (st->webrtc.offer)
@@ -6385,6 +6388,7 @@ static qboolean FTENET_TCP_GetPacket(ftenet_generic_connection_t *gcon)
 			else
 				st->webrtc.resendtime = timeval + 30;
 		}
+#endif
 	}
 
 	if (con->generic.thesocket != INVALID_SOCKET && con->active < 256)

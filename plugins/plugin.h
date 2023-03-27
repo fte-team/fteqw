@@ -499,8 +499,8 @@ typedef struct	//for collision stuff
 	F(void,			SetInfoKey,			(char *s, const char *key, const char *value, int maxsize));
 
 	//server things, shouldn't really be here but small. null in client-only builds
-	F(void,			DropClient,			(client_t *drop));
-	F(void,			ExtractFromUserinfo,(client_t *cl, qboolean verbose));
+	F(void,			DropClient,			(struct client_s *drop));
+	F(void,			ExtractFromUserinfo,(struct client_s *cl, qboolean verbose));
 	F(qboolean,		ChallengePasses,	(int challenge));
 #define plugworldfuncs_name "World"
 } plugworldfuncs_t;

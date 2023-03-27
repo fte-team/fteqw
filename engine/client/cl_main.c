@@ -1404,7 +1404,7 @@ void CL_CheckForResend (void)
 		}
 		else
 		{
-			CL_ConnectAbort ("No route to host, giving up\n");
+			CL_ConnectAbort ("Unable to connect to %s, giving up\n", cls.servername);
 
 			NET_CloseClient();
 		}

@@ -11,7 +11,7 @@ struct q3gamecode_s
 		void (*SendAuthPacket)(struct ftenet_connections_s *socket, netadr_t *gameserver);
 		void (*SendConnectPacket)(struct ftenet_connections_s *socket, netadr_t *to, int challenge, int qport, infobuf_t *userinfo);
 		void (*Established)(void);
-		void (*VARGS SendClientCommand)(const char *fmt, ...) LIKEPRINTF(1);
+		void (VARGS *SendClientCommand)(const char *fmt, ...) LIKEPRINTF(1);
 		void (*SendCmd)(struct ftenet_connections_s *socket, struct usercmd_s *cmd, unsigned int movesequence, double gametime);
 		int (*ParseServerMessage) (sizebuf_t *msg);
 		void (*Disconnect) (struct ftenet_connections_s *socket);	//disconnects from the server, killing all connection+cgame state.

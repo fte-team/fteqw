@@ -971,7 +971,7 @@ static qhandle_t QDECL Plug_FS_Open(const char *fname, qhandle_t *outhandle, int
 #ifndef WEBCLIENT
 		f = NULL;
 #else
-		Con_DPrintf("Plugin %s requesting %s\n", currentplug->name, fname);
+		Con_Printf("Plugin %s requesting %s\n", currentplug->name, fname);
 		handle = Plug_NewStreamHandle(STREAM_WEB);
 		pluginstreamarray[handle].dl = HTTP_CL_Get(fname, NULL, Plug_DownloadComplete);
 		pluginstreamarray[handle].dl->user_num = handle;
@@ -2033,10 +2033,15 @@ static void *QDECL PlugBI_GetEngineInterface(const char *interfacename, size_t s
 			InfoBuf_ValueForKey,
 			Info_ValueForKey,
 			Info_SetValueForKey,
-
+#ifdef HAVE_SERVER
 			SV_DropClient,
 			SV_ExtractFromUserinfo,
 			SV_ChallengePasses,
+#else
+			NULL,
+			NULL,
+			NULL,
+#endif
 		};
 		if (structsize == sizeof(funcs))
 			return &funcs;

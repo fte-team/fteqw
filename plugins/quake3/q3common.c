@@ -16,8 +16,10 @@ double realtime;
 struct netprim_s msg_nullnetprim;
 #endif
 
+#ifdef HAVE_SERVER
 //mostly for access to sv.state or svs.sockets
 q3serverstate_t sv3;
+#endif
 
 //this file contains q3 netcode related things.
 //field info, netchan, and the WriteBits stuff (which should probably be moved to common.c with the others) 

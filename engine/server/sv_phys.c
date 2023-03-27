@@ -67,6 +67,7 @@ cvar_t	dpcompat_noretouchground	= CVARD( "dpcompat_noretouchground", "0", "Preve
 cvar_t	sv_sound_watersplash = CVAR( "sv_sound_watersplash", "misc/h2ohit1.wav");
 cvar_t	sv_sound_land		 = CVAR( "sv_sound_land", "demon/dland2.wav");
 cvar_t	sv_stepheight		 = CVARAFD("pm_stepheight", "",	/*dp*/"sv_stepheight", CVAR_SERVERINFO, "If empty, the value "STRINGIFY(PM_DEFAULTSTEPHEIGHT)" will be used instead. This is the size of the step you can step up or down.");
+extern cvar_t sv_nqplayerphysics;
 
 cvar_t	pm_ktjump			 = CVARF("pm_ktjump", "", CVAR_SERVERINFO);
 cvar_t	pm_bunnyspeedcap	 = CVARFD("pm_bunnyspeedcap", "", CVAR_SERVERINFO, "0 or 1, ish. If the player is traveling faster than this speed while turning, their velocity will be gracefully reduced to match their current maxspeed. You can still rocket-jump to gain high velocity, but turning will reduce your speed back to the max. This can be used to disable bunny hopping.");
@@ -154,8 +155,6 @@ void WPhys_CheckVelocity (world_t *w, wedict_t *ent)
 {
 	int		i;
 #ifdef HAVE_SERVER
-	extern cvar_t sv_nqplayerphysics;
-
 	if (sv_nqplayerphysics.ival)
 	{	//bound axially (like vanilla)
 		for (i=0 ; i<3 ; i++)
@@ -690,9 +689,9 @@ static qboolean WPhys_PushAngles (world_t *w, wedict_t *pusher, vec3_t move, vec
 	//float oldsolid;
 	pushed_t	*p;
 	vec3_t		org, org2, move2, forward, right, up;
-	short yawchange;
-
-	yawchange = (amove[PITCH]||amove[ROLL])?0:ANGLE2SHORT(amove[YAW]);
+#ifdef HAVE_SERVER
+	short yawchange = (amove[PITCH]||amove[ROLL])?0:ANGLE2SHORT(amove[YAW]);
+#endif
 
 	pushed_p = pushed;
 
@@ -771,8 +770,10 @@ static qboolean WPhys_PushAngles (world_t *w, wedict_t *pusher, vec3_t move, vec
 			// try moving the contacted entity
 			VectorAdd (check->v->origin, move, check->v->origin);
 			VectorAdd (check->v->angles, amove, check->v->angles);
-			if (check->entnum>0&&(check->entnum)<=sv.allocated_client_slots)
+#ifdef HAVE_SERVER
+			if (w == &sv.world && check->entnum>0&&(check->entnum)<=sv.allocated_client_slots)
 				svs.clients[check->entnum-1].baseangles[YAW] += yawchange;
+#endif
 
 			// figure movement due to the pusher's amove
 			VectorSubtract (check->v->origin, pusher->v->origin, org);
@@ -874,8 +875,10 @@ static qboolean WPhys_PushAngles (world_t *w, wedict_t *pusher, vec3_t move, vec
 			VectorCopy (p->angles, p->ent->v->angles);
 			World_LinkEdict (w, p->ent, false);
 
-			if (p->ent->entnum>0&&(p->ent->entnum)<=sv.allocated_client_slots)
+#ifdef HAVE_SERVER
+			if (w==&sv.world && p->ent->entnum>0&&(p->ent->entnum)<=sv.allocated_client_slots)
 				svs.clients[p->ent->entnum-1].baseangles[YAW] -= yawchange;
+#endif
 		}
 		return false;
 	}
@@ -1222,8 +1225,10 @@ A moving object that doesn't obey physics
 static void WPhys_Physics_Noclip (world_t *w, wedict_t *ent)
 {
 	vec3_t end;
+#ifdef HAVE_SERVER
 	trace_t trace;
 	wedict_t *impact;
+#endif
 
 // regular thinking
 	if (!WPhys_RunThink (w, ent))
@@ -1232,7 +1237,7 @@ static void WPhys_Physics_Noclip (world_t *w, wedict_t *ent)
 	VectorMA (ent->v->angles, host_frametime, ent->v->avelocity, ent->v->angles);
 	VectorMA (ent->v->origin, host_frametime, ent->v->velocity, end);
 
-#ifndef CLIENTONLY
+#ifdef HAVE_SERVER
 	//allow spectators to no-clip through portals without bogging down sock's mods.
 	if (ent->entnum > 0 && ent->entnum <= sv.allocated_client_slots && w == &sv.world)
 	{
@@ -2420,7 +2425,6 @@ void World_Physics_Frame(world_t *w)
 	int i;
 	qboolean retouch;
 	wedict_t *ent;
-	extern cvar_t sv_nqplayerphysics;
 
 	w->framenum++;
 
@@ -2460,7 +2464,7 @@ void World_Physics_Frame(world_t *w)
 		if (retouch)
 			World_LinkEdict (w, ent, true);	// force retouch even for stationary
 
-#ifndef CLIENTONLY
+#ifdef HAVE_SERVER
 		if (i > 0 && i <= sv.allocated_client_slots && w == &sv.world)
 		{
 			if (!svs.clients[i-1].isindependant)
@@ -2509,7 +2513,7 @@ void World_Physics_Frame(world_t *w)
 		*w->g.force_retouch-=1;
 }
 
-#ifndef CLIENTONLY
+#ifdef HAVE_SERVER
 /*
 ================
 SV_Physics
@@ -2524,7 +2528,6 @@ qboolean SV_Physics (void)
 	double trueframetime = host_frametime;
 	double maxtic = sv_maxtic.value;
 	double mintic = sv_mintic.value;
-	extern cvar_t sv_nqplayerphysics;
 	if (sv_nqplayerphysics.ival)
 		if (mintic < 0.013)
 			mintic = 0.013;	//NQ physics can't cope with low rates and just generally bugs out.

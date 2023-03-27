@@ -72,6 +72,10 @@ Note: testing this stuff is a pain when eg browsers do NOT support DTLS1.0 any m
 #define SECPKG_ATTR_DTLS_MTU 34
 #endif
 
+#ifndef CRYPT_ARCHIVABLE
+#define CRYPT_ARCHIVABLE 0x00004000
+#endif
+
 
 //hungarian ensures we hit no macros.
 static struct

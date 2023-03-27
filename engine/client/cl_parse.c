@@ -978,10 +978,9 @@ qboolean	CL_CheckOrEnqueDownloadFile (const char *filename, const char *localnam
 
 	if (flags & DLLF_ALLOWWEB)
 	{
-		extern cvar_t sv_dlURL;
 		const char *dlURL = InfoBuf_ValueForKey(&cl.serverinfo, "sv_dlURL");
 		if (!*dlURL)
-			dlURL = sv_dlURL.string;
+			dlURL = fs_dlURL.string;
 		flags &= ~(DLLF_TRYWEB|DLLF_ALLOWWEB);
 		if (*dlURL && (flags & DLLF_NONGAME) && !strncmp(filename, "package/", 8))
 		{	//filename is something like: package/GAMEDIR/foo.pk3

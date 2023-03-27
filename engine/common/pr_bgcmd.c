@@ -3942,7 +3942,7 @@ void QCBUILTIN PF_findradius (pubprogfuncs_t *prinst, struct globalvars_s *pr_gl
 				for (j=0 ; j<3 ; j++)
 				{
 					eorg[j] = org[j] - ent->v->origin[j];
-					eorg[j] -= bound(ent->v->mins[j], org[j], ent->v->maxs[j]);
+					eorg[j] -= bound(ent->v->mins[j], eorg[j], ent->v->maxs[j]);
 				}
 			}
 			else
@@ -3972,7 +3972,7 @@ void QCBUILTIN PF_findradius (pubprogfuncs_t *prinst, struct globalvars_s *pr_gl
 				for (j=0 ; j<3 ; j++)
 				{
 					eorg[j] = org[j] - ent->v->origin[j];
-					eorg[j] -= bound(ent->v->mins[j], org[j], ent->v->maxs[j]);
+					eorg[j] -= bound(ent->v->mins[j], eorg[j], ent->v->maxs[j]);
 				}
 			}
 			else

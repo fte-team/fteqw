@@ -3175,7 +3175,6 @@ qboolean SV_FindRemotePackage(const char *package, char *url, size_t urlsize)
 
 	//or something.
 
-	extern cvar_t sv_dlURL;
 	vfsfile_t *f;
 	char line[512];
 
@@ -3209,9 +3208,9 @@ qboolean SV_FindRemotePackage(const char *package, char *url, size_t urlsize)
 		VFS_CLOSE(f);
 	}
 
-	if (*sv_dlURL.string)
+	if (*fs_dlURL.string)
 	{	//a fallback, though the above mechanism allows for a wildcard for all.
-		Q_strncatz(sv_dlURL.string, package, urlsize);
+		Q_strncatz(fs_dlURL.string, package, urlsize);
 		Q_strncatz(url, package, urlsize);
 		return true;
 	}

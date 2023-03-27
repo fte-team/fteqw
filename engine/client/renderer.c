@@ -1811,6 +1811,8 @@ TRACE(("dbg: R_ApplyRenderer: starting on client state\n"));
 #endif
 	if (cl.worldmodel)
 	{
+		int wmidx = 0;
+		model_t *oldwm = cl.worldmodel;
 		cl.worldmodel = NULL;
 		CL_ClearEntityLists();	//shouldn't really be needed, but we're paranoid
 
@@ -1822,6 +1824,9 @@ TRACE(("dbg: R_ApplyRenderer: reloading ALL models\n"));
 				break;
 
 			TRACE(("dbg: R_ApplyRenderer: reloading model %s\n", cl.model_name[i]));
+
+			if (oldwm == cl.model_precache[i])
+				wmidx = i;
 
 #ifdef Q2CLIENT	//skip vweps
 			if (cls.protocol == CP_QUAKE2 && *cl.model_name[i] == '#')
@@ -1850,14 +1855,19 @@ TRACE(("dbg: R_ApplyRenderer: reloading ALL models\n"));
 			if (!cl.model_csqcname[i][0])
 				break;
 
+			if (oldwm == cl.model_csqcprecache[i])
+				wmidx = -i;
+
 			cl.model_csqcprecache[i] = NULL;
 			TRACE(("dbg: R_ApplyRenderer: reloading csqc model %s\n", cl.model_csqcname[i]));
 			cl.model_csqcprecache[i] = Mod_ForName (Mod_FixName(cl.model_csqcname[i], cl.model_name[1]), MLV_SILENT);
 		}
-#endif
 
-		//fixme: worldmodel could be ssqc or csqc.
-		cl.worldmodel = cl.model_precache[1];
+		if (wmidx < 0)
+			cl.worldmodel = cl.model_csqcprecache[-wmidx];
+		else
+#endif
+			cl.worldmodel = cl.model_precache[wmidx];
 
 		if (cl.worldmodel && cl.worldmodel->loadstate == MLS_LOADING)
 			COM_WorkerPartialSync(cl.worldmodel, &cl.worldmodel->loadstate, MLS_LOADING);
@@ -1865,14 +1875,14 @@ TRACE(("dbg: R_ApplyRenderer: reloading ALL models\n"));
 TRACE(("dbg: R_ApplyRenderer: done the models\n"));
 		if (!cl.worldmodel || cl.worldmodel->loadstate != MLS_LOADED)
 		{
-//				Con_Printf ("\nThe required model file '%s' could not be found.\n\n", cl.model_name[i]);
-//				Con_Printf ("You may need to download or purchase a client pack in order to play on this server.\n\n");
+//			Con_Printf ("\nThe required model file '%s' could not be found.\n\n", cl.model_name[i]);
+//			Con_Printf ("You may need to download or purchase a client pack in order to play on this server.\n\n");
 
-				CL_Disconnect ("Worldmodel missing after video reload");
+			CL_Disconnect ("Worldmodel missing after video reload");
 
-				if (newr)
-					memcpy(&currentrendererstate, newr, sizeof(currentrendererstate));
-				return true;
+			if (newr)
+				memcpy(&currentrendererstate, newr, sizeof(currentrendererstate));
+			return true;
 		}
 
 TRACE(("dbg: R_ApplyRenderer: checking any wad textures\n"));

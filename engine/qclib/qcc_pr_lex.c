@@ -1139,6 +1139,8 @@ static pbool QCC_PR_Precompiler(void)
 			else if (!QC_strcasecmp(qcc_token, "framerate"))
 			{
 				qcc_framerate = atof(msg);
+				if (qcc_framerate < 0)
+					qcc_framerate = 0;
 			}
 			else if (!QC_strcasecmp(qcc_token, "once"))
 			{

@@ -890,6 +890,8 @@ QCC_opcode_t pr_opcodes[] =
 {7, "<<",	"LSHIFT_DI",	PC_SHIFT,	ASSOC_LEFT,		&type_double,		&type_integer,		&type_double,	OPF_STD},
 {7, ">>",	"RSHIFT_DI",	PC_SHIFT,	ASSOC_LEFT,		&type_double,		&type_integer,		&type_double,	OPF_STD},
 
+{7, "<WSTATE>", "WSTATE",	PC_NONE, ASSOC_LEFT,		&type_float,	&type_float,	&type_void},
+
  {0, NULL, "OPD_GOTO_FORSTART"},
  {0, NULL, "OPD_GOTO_WHILE1"},
 
@@ -968,6 +970,7 @@ static int OpAssignsCount(unsigned int op)
 	case OP_CALL8H:
 		return 0;	//also, eep.
 	case OP_STATE:
+	case OP_WSTATE:
 	case OP_CSTATE:
 	case OP_CWSTATE:
 	case OP_THINKTIME:
@@ -2253,7 +2256,7 @@ void QCC_FreeTemp(QCC_sref_t t)
 	if (t.sym && t.sym->symbolheader)
 	{
 		if (--t.sym->symbolheader->refcount < 0)
-			QCC_PR_ParseWarning(WARN_DEBUGGING, "INTERNAL: over-freed refcount to %s", t.sym->name);
+			QCC_PR_ParseWarning(WARN_DEBUGGING, "INTERNAL: over-freed refcount to %s", QCC_VarAtOffset(t));
 	}
 }
 
@@ -2277,7 +2280,7 @@ static void QCC_UnFreeTemp(QCC_sref_t t)
 	if (t.sym && t.sym->symbolheader)
 	{
 		if (!t.sym->symbolheader->refcount++)
-			QCC_PR_ParseWarning(WARN_DEBUGGING, "INTERNAL: %s+%i@%i was already fully freed.", t.sym->name, t.ofs, t.sym->ofs);
+			QCC_PR_ParseWarning(WARN_DEBUGGING, "INTERNAL: %s+%i@%i was already fully freed.", QCC_VarAtOffset(t), t.ofs, t.sym->ofs);
 	}
 }
 
@@ -3625,21 +3628,56 @@ QCC_sref_t QCC_PR_StatementFlags ( QCC_opcode_t *op, QCC_sref_t var_a, QCC_sref_
 			QCC_sref_t fldthink = QCC_PR_GetSRef(QCC_PR_FieldType(type_function), "think", NULL, true, 0, false);
 			QCC_sref_t fldnextthink = QCC_PR_GetSRef(type_floatfield, "nextthink", NULL, true, 0, false);
 
+			QCC_UnFreeTemp(self);
+			QCC_UnFreeTemp(self);
+
 			//self.frame = var_a;
 			QCC_StoreSRefToRef(QCC_PR_BuildRef(&tempref, REF_FIELD,	self,
 				fldframe, fldframe.cast->aux_type,
-				true), var_a, false, false);
+				false), var_a, false, false);
 
 			//self.think = var_b;
 			QCC_StoreSRefToRef(QCC_PR_BuildRef(&tempref, REF_FIELD, self,
 				fldthink, fldthink.cast->aux_type,
-				true), var_b, false, false);
+				false), var_b, false, false);
 
 			//self.frame = time + interval;
 			time = QCC_PR_Statement(&pr_opcodes[OP_ADD_F], time, QCC_MakeFloatConst(1/qcc_framerate), NULL);
 			QCC_StoreSRefToRef(QCC_PR_BuildRef(&tempref, REF_FIELD, self,
 				fldnextthink, fldnextthink.cast->aux_type,
-				true), time, false, false);
+				false), time, false, false);
+			return nullsref;
+		}
+		break;
+	case OP_WSTATE:
+		{	//there is no normal opcode.
+			QCC_ref_t tempref;
+			QCC_sref_t self = QCC_PR_GetSRef(type_entity, "self", NULL, true, 0, false);
+			QCC_sref_t time = QCC_PR_GetSRef(type_float, "time", NULL, true, 0, false);
+			QCC_sref_t fldframe = QCC_PR_GetSRef(type_floatfield, "weaponframe", NULL, true, 0, false);
+			QCC_sref_t fldthink = QCC_PR_GetSRef(QCC_PR_FieldType(type_function), "think", NULL, true, 0, false);
+			QCC_sref_t fldnextthink = QCC_PR_GetSRef(type_floatfield, "nextthink", NULL, true, 0, false);
+
+			float framerate = (qcc_framerate>0)?qcc_framerate:(qcc_targetformat_ishexen2()?20:10);
+
+			QCC_UnFreeTemp(self);
+			QCC_UnFreeTemp(self);
+
+			//self.frame = var_a;
+			QCC_StoreSRefToRef(QCC_PR_BuildRef(&tempref, REF_FIELD,	self,
+				fldframe, fldframe.cast->aux_type,
+				false), var_a, false, false);
+
+			//self.think = var_b;
+			QCC_StoreSRefToRef(QCC_PR_BuildRef(&tempref, REF_FIELD, self,
+				fldthink, fldthink.cast->aux_type,
+				false), var_b, false, false);
+
+			//self.frame = time + interval;
+			time = QCC_PR_Statement(&pr_opcodes[OP_ADD_F], time, QCC_MakeFloatConst(1/framerate), NULL);
+			QCC_StoreSRefToRef(QCC_PR_BuildRef(&tempref, REF_FIELD, self,
+				fldnextthink, fldnextthink.cast->aux_type,
+				false), time, false, false);
 			return nullsref;
 		}
 		break;
@@ -14427,77 +14465,145 @@ void QCC_PR_ParseState (void)
 {
 	QCC_sref_t	s1, def;
 
+	pbool isinc;
+
 	//FIXME: this is ambiguous with pre-inc and post-inc logic.
-	if (QCC_PR_CheckToken("++") || QCC_PR_CheckToken("--"))
+	if ((isinc=QCC_PR_CheckToken("++")) || QCC_PR_CheckToken("--"))
 	{
-		s1 = QCC_PR_ParseImmediate ();
+		const QCC_eval_t *first, *last;
+		int dir = 0;
+		int op = OP_CSTATE;
+		if (QCC_PR_CheckToken("("))
+		{
+			op = OP_CWSTATE;
+			if (!QCC_PR_CheckToken("w"))
+				QCC_PR_Expect("W");
+			QCC_PR_Expect(")");
+		}
+
+//		s1 = QCC_PR_ParseImmediate ();
+
+		s1 = QCC_PR_Expression (TOP_PRIORITY, EXPR_DISALLOW_COMMA);
+		s1 = QCC_SupplyConversion(s1, ev_float, true);
+
 		QCC_PR_Expect("..");
-		def = QCC_PR_ParseImmediate ();
+//		def = QCC_PR_ParseImmediate ();
+		def = QCC_PR_Expression (TOP_PRIORITY, EXPR_DISALLOW_COMMA);
+		def = QCC_SupplyConversion(def, ev_float, true);
 		QCC_PR_Expect ("]");
 
 		if (s1.cast->type != ev_float || def.cast->type != ev_float)
 			QCC_PR_ParseError(ERR_STATETYPEMISMATCH, "state type mismatch");
 
+		first = QCC_SRef_EvalConst(s1);
+		last = QCC_SRef_EvalConst(def);
+		if (first&&last)
+		{	//whether its a ++ or -- doesn't really matter, but hcc generates an error so we should at least generate a warning.
+			dir = (last->_float >= first->_float)?1:-1;
+			if (isinc)
+			{
+				if (first->_float > last->_float)
+					QCC_PR_ParseWarning(ERR_STATETYPEMISMATCH, "Forwards State Cycle with backwards range");
+			}
+			else
+			{
+				if (first->_float < last->_float)
+					QCC_PR_ParseWarning(ERR_STATETYPEMISMATCH, "Forwards State Cycle with backwards range");
+			}
+		}
 
-		if (QCC_OPCodeValid(&pr_opcodes[OP_CSTATE]))
-			QCC_FreeTemp(QCC_PR_Statement (&pr_opcodes[OP_CSTATE], s1, def, NULL));
+
+		if (QCC_OPCodeValid(&pr_opcodes[op]))
+			QCC_FreeTemp(QCC_PR_Statement (&pr_opcodes[op], s1, def, NULL));
 		else
 		{
-			QCC_statement_t *patch1, *entercyc, *fwd, *back;
+			QCC_statement_t *patch1, *entercycf, *entercycb, *fwd, *back;
 			QCC_sref_t t1, t2;
 			QCC_sref_t framef, frame;
 			QCC_sref_t self;
 			QCC_sref_t cycle_wrapped;
 
 			self = QCC_PR_GetSRef(type_entity, "self", NULL, false, 0, false);
-			framef = QCC_PR_GetSRef(NULL, "frame", NULL, false, 0, false);
+			framef = QCC_PR_GetSRef(NULL, (op==OP_CWSTATE)?"weaponframe":"frame", NULL, false, 0, false);
 			cycle_wrapped = QCC_PR_GetSRef(type_float, "cycle_wrapped", NULL, false, 0, false);
 
-			frame = QCC_PR_Statement(&pr_opcodes[OP_LOAD_F], self, framef, NULL);
+			frame = QCC_PR_StatementFlags(&pr_opcodes[OP_LOAD_F], self, framef, NULL, 0);
 			if (cycle_wrapped.cast)
-				QCC_FreeTemp(QCC_PR_Statement(&pr_opcodes[OP_STORE_F], QCC_MakeFloatConst(0), cycle_wrapped, NULL));
+				QCC_FreeTemp(QCC_PR_StatementFlags(&pr_opcodes[OP_STORE_F], QCC_MakeFloatConst(0), cycle_wrapped, NULL, STFL_PRESERVEB));
 
-			//make sure the frame is within the bounds given.
-			t1 = QCC_PR_StatementFlags(&pr_opcodes[OP_LT_F], frame, s1, NULL, STFL_PRESERVEA);
-			t2 = QCC_PR_StatementFlags(&pr_opcodes[OP_GT_F], frame, def, NULL, STFL_PRESERVEA);
-			t1 = QCC_PR_Statement(&pr_opcodes[OP_OR_F], t1, t2, NULL);
-			patch1 = QCC_Generate_OP_IFNOT(t1, false);
-				QCC_FreeTemp(QCC_PR_StatementFlags(&pr_opcodes[OP_STORE_F], s1, frame, NULL, STFL_PRESERVEB));
-				entercyc = QCC_Generate_OP_GOTO();
-			patch1->b.ofs = &statements[numstatements] - patch1;
-
-			t1 = QCC_PR_Statement(&pr_opcodes[OP_GE_F], def, s1, NULL);
-			fwd = QCC_Generate_OP_IFNOT(t1, false);	//this block is the 'it's in a forwards direction'
+			if (dir)
+				fwd = NULL;	//can skip the checks
+			else
 			{
+				t1 = QCC_PR_StatementFlags(&pr_opcodes[OP_GE_F], def, s1, NULL, STFL_PRESERVEA|STFL_PRESERVEB);
+				fwd = QCC_Generate_OP_IFNOT(t1, false);
+			}
+			if (dir >= 0)
+			{	//this block is the 'it's in a forwards direction'
+				//make sure the frame is within the bounds given.
+				t1 = QCC_PR_StatementFlags(&pr_opcodes[OP_LT_F], frame, s1, NULL, STFL_PRESERVEA|STFL_PRESERVEB);
+				t2 = QCC_PR_StatementFlags(&pr_opcodes[OP_GT_F], frame, def, NULL, STFL_PRESERVEA|STFL_PRESERVEB);
+				t1 = QCC_PR_Statement(&pr_opcodes[OP_OR_F], t1, t2, NULL);
+				patch1 = QCC_Generate_OP_IFNOT(t1, false);
+				{
+					QCC_FreeTemp(QCC_PR_StatementFlags(&pr_opcodes[OP_STORE_F], s1, frame, NULL, STFL_PRESERVEA|STFL_PRESERVEB));
+					entercycf = QCC_Generate_OP_GOTO();
+				}
+				patch1->b.ofs = &statements[numstatements] - patch1;
+
 				QCC_PR_SimpleStatement(&pr_opcodes[OP_ADD_F], frame, QCC_MakeFloatConst(1), frame, false);
-				t1 = QCC_PR_Statement(&pr_opcodes[OP_GT_F], frame, def, NULL);
+				t1 = QCC_PR_StatementFlags(&pr_opcodes[OP_GT_F], frame, def, NULL, STFL_PRESERVEA|STFL_PRESERVEB);
+				patch1 = QCC_Generate_OP_IFNOT(t1, false);
+				{
+					QCC_FreeTemp(QCC_PR_StatementFlags(&pr_opcodes[OP_STORE_F], s1, frame, NULL, STFL_PRESERVEA|STFL_PRESERVEB));
+					if (cycle_wrapped.cast)
+						QCC_FreeTemp(QCC_PR_StatementFlags(&pr_opcodes[OP_STORE_F], QCC_MakeFloatConst(1), cycle_wrapped, NULL, STFL_PRESERVEB));
+				}
+				patch1->b.ofs = &statements[numstatements] - patch1;
+			}
+			else entercycf = NULL;
+			if (fwd)
+			{
+				back = QCC_Generate_OP_GOTO();
+				fwd->b.ofs = &statements[numstatements] - fwd;
+			}
+			else
+				back = NULL;
+			if (dir <= 0)
+			{	//reverse animation.
+
+				//make sure the frame is within the bounds given.
+				t1 = QCC_PR_StatementFlags(&pr_opcodes[OP_GT_F], frame, s1, NULL, STFL_PRESERVEA|STFL_PRESERVEB);
+				t2 = QCC_PR_StatementFlags(&pr_opcodes[OP_LT_F], frame, def, NULL, STFL_PRESERVEA|STFL_PRESERVEB);
+				t1 = QCC_PR_Statement(&pr_opcodes[OP_OR_F], t1, t2, NULL);
+				patch1 = QCC_Generate_OP_IFNOT(t1, false);
+				{
+					QCC_FreeTemp(QCC_PR_StatementFlags(&pr_opcodes[OP_STORE_F], s1, frame, NULL, STFL_PRESERVEA|STFL_PRESERVEB));
+					entercycb = QCC_Generate_OP_GOTO();
+				}
+				patch1->b.ofs = &statements[numstatements] - patch1;
+
+				QCC_PR_SimpleStatement(&pr_opcodes[OP_SUB_F], frame, QCC_MakeFloatConst(1), frame, false);
+				t1 = QCC_PR_StatementFlags(&pr_opcodes[OP_LT_F], frame, def, NULL, STFL_PRESERVEA);
 				patch1 = QCC_Generate_OP_IFNOT(t1, false);
 				{
 					QCC_FreeTemp(QCC_PR_StatementFlags(&pr_opcodes[OP_STORE_F], s1, frame, NULL, STFL_PRESERVEB));
 					if (cycle_wrapped.cast)
-						QCC_FreeTemp(QCC_PR_Statement(&pr_opcodes[OP_STORE_F], QCC_MakeFloatConst(1), cycle_wrapped, NULL));
+						QCC_FreeTemp(QCC_PR_StatementFlags(&pr_opcodes[OP_STORE_F], QCC_MakeFloatConst(1), cycle_wrapped, NULL, 0));
 				}
 				patch1->b.ofs = &statements[numstatements] - patch1;
 			}
-			back = QCC_Generate_OP_GOTO();
-			fwd->b.ofs = &statements[numstatements] - fwd;
-			{
-				//reverse animation.
-				QCC_PR_SimpleStatement(&pr_opcodes[OP_SUB_F], frame, QCC_MakeFloatConst(1), frame, false);
-				t1 = QCC_PR_StatementFlags(&pr_opcodes[OP_LT_F], frame, s1, NULL, STFL_PRESERVEA);
-				patch1 = QCC_Generate_OP_IFNOT(t1, false);
-				{
-					QCC_FreeTemp(QCC_PR_StatementFlags(&pr_opcodes[OP_STORE_F], def, frame, NULL, STFL_PRESERVEB));
-					if (cycle_wrapped.cast)
-						QCC_FreeTemp(QCC_PR_Statement(&pr_opcodes[OP_STORE_F], QCC_MakeFloatConst(1), cycle_wrapped, NULL));
-				}
-				patch1->b.ofs = &statements[numstatements] - patch1;
-			}
-			back->b.ofs = &statements[numstatements] - back;
+			else entercycb = NULL;
 
-			/*out of range*/entercyc->b.ofs = &statements[numstatements] - entercyc;
+			if (back)
+				back->a.ofs = &statements[numstatements] - back;
+
+			if (entercycf)
+				/*out of range*/entercycf->a.ofs = &statements[numstatements] - entercycf;
+			if (entercycb)
+				/*out of range*/entercycb->a.ofs = &statements[numstatements] - entercycb;
 			//self.frame = frame happens with the normal state opcode.
-			QCC_FreeTemp(QCC_PR_Statement (&pr_opcodes[OP_STATE], frame, QCC_MakeSRef(pr_scope->def, 0, pr_scope->type), NULL));
+			QCC_FreeTemp(QCC_PR_Statement (&pr_opcodes[(op==OP_CWSTATE)?OP_WSTATE:OP_STATE], frame, QCC_MakeSRef(pr_scope->def, 0, pr_scope->type), NULL));
 		}
 		return;
 	}

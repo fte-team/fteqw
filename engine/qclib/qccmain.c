@@ -4782,6 +4782,10 @@ static void QCC_PR_CommandLinePrecompilerOptions (void)
 			else
 				QCC_PR_Warning(WARN_BADPARAMS, "cmdline", 0, "Unrecognised std parameter (%s)", myargv[i]);
 		}
+		else if (!strnicmp(myargv[i], "-state-fps=", 11))
+		{
+			qcc_framerate = atof(myargv[i]+11);
+		}
 		else if ( !strnicmp(myargv[i], "-F", 2) || WINDOWSARG(!strnicmp(myargv[i], "/F", 2)) )
 		{
 			pbool state;
@@ -4816,6 +4820,13 @@ static void QCC_PR_CommandLinePrecompilerOptions (void)
 					flag_ifstring = state;
 				else if (!stricmp(arg, "true-empty-strings"))
 					flag_brokenifstring = state;
+				else if (!stricmp(arg, "emulate-state"))
+				{
+					if (qcc_framerate>0 && state)
+						;//already on, don't force if they already gave it an actual rate.
+					else
+						qcc_framerate = state?10:0;
+				}
 				else if (!stricmp(arg, "arithmetic-exceptions"))
 					qccwarningaction[WARN_DIVISIONBY0] = state?WA_ERROR:WA_IGNORE;
 				else if (!stricmp(arg, "lno"))

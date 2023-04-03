@@ -729,7 +729,7 @@ static int Sys_EnumerateFiles2 (const char *truepath, int apathofs, const char *
 			{
 				Q_snprintfz(file, sizeof(file), "%s/%s", truepath, ent->d_name);
 
-				if (stat(file, &st) == 0)
+				if (stat(file, &st) == 0 || lstat(file, &st) == 0)
 				{
 					Q_snprintfz(file, sizeof(file), "%s%s%s", apath, ent->d_name, S_ISDIR(st.st_mode)?"/":"");
 
@@ -740,8 +740,8 @@ static int Sys_EnumerateFiles2 (const char *truepath, int apathofs, const char *
 						return false;
 					}
 				}
-				else
-					printf("Stat failed for \"%s\"\n", file);
+//				else
+//					printf("Stat failed for \"%s\"\n", file);
 			}
 		}
 	} while(1);

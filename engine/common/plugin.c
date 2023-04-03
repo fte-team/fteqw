@@ -173,6 +173,7 @@ static plugin_t *Plug_Load(const char *file)
 	static enum fs_relative prefixes[] =
 	{
 		FS_BINARYPATH,
+		FS_LIBRARYPATH,
 #ifndef ANDROID
 		FS_ROOT,
 #endif
@@ -1259,9 +1260,16 @@ void Plug_Initialise(qboolean fromgamedir)
 	{
 		if (!fromgamedir)
 		{
-			FS_NativePath("", FS_BINARYPATH, nat, sizeof(nat));
-			Con_DPrintf("Loading plugins from \"%s\"\n", nat);
-			Sys_EnumerateFiles(nat, PLUGINPREFIX"*" ARCH_CPU_POSTFIX ARCH_DL_POSTFIX, Plug_EnumeratedRoot, NULL, NULL);
+			if (FS_NativePath("", FS_BINARYPATH, nat, sizeof(nat)))
+			{
+				Con_DPrintf("Loading plugins from \"%s\"\n", nat);
+				Sys_EnumerateFiles(nat, PLUGINPREFIX"*" ARCH_CPU_POSTFIX ARCH_DL_POSTFIX, Plug_EnumeratedRoot, NULL, NULL);
+			}
+			if (FS_NativePath("", FS_LIBRARYPATH, nat, sizeof(nat)))
+			{
+				Con_DPrintf("Loading plugins from \"%s\"\n", nat);
+				Sys_EnumerateFiles(nat, PLUGINPREFIX"*" ARCH_CPU_POSTFIX ARCH_DL_POSTFIX, Plug_EnumeratedRoot, NULL, NULL);
+			}
 		}
 	}
 	if (plug_loaddefault.ival & 1)
@@ -1753,6 +1761,7 @@ int QDECL Plug_List_Print(const char *fname, qofs_t fsize, time_t modtime, void 
 void Plug_List_f(void)
 {
 	char binarypath[MAX_OSPATH];
+	char librarypath[MAX_OSPATH];
 	char rootpath[MAX_OSPATH];
 	unsigned int u;
 	plugin_t *plug;
@@ -1775,8 +1784,21 @@ void Plug_List_f(void)
 		while ((mssuck=strchr(binarypath, '\\')))
 			*mssuck = '/';
 #endif
-		Con_DPrintf("Scanning for plugins at %s:\n", binarypath);
+		Con_Printf("Scanning for plugins at %s:\n", binarypath);
 		Sys_EnumerateFiles(binarypath, PLUGINPREFIX"*" ARCH_DL_POSTFIX, Plug_List_Print, binarypath, NULL);
+	}
+	if (FS_NativePath("", FS_LIBRARYPATH, librarypath, sizeof(librarypath)))
+	{
+#ifdef _WIN32
+		char *mssuck;
+		while ((mssuck=strchr(librarypath, '\\')))
+			*mssuck = '/';
+#endif
+		if (strcmp(librarypath, rootpath))
+		{
+			Con_Printf("Scanning for plugins at %s:\n", librarypath);
+			Sys_EnumerateFiles(librarypath, PLUGINPREFIX"*" ARCH_DL_POSTFIX, Plug_List_Print, librarypath, NULL);
+		}
 	}
 	if (FS_NativePath("", FS_ROOT, rootpath, sizeof(rootpath)))
 	{

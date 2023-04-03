@@ -4848,6 +4848,7 @@ qboolean VK_Init(rendererstate_t *info, const char **sysextnames, qboolean (*cre
 		okay = vrsetup.createinstance(&vrsetup, NULL, NULL);
 	if (!okay)
 	{
+		Con_TPrintf(CON_ERROR"Unable to create vulkan instance\n");
 		if (info->vr)
 			info->vr->Shutdown();
 		return false;

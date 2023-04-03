@@ -4234,7 +4234,7 @@ ftenet_generic_connection_t *FTENET_Datagram_EstablishConnection(ftenet_connecti
 	}
 
 	if (ioctlsocket (newsocket, FIONBIO, &_true) == -1)
-		Sys_Error ("UDP_OpenSocket: ioctl FIONBIO: %s", strerror(neterrno()));
+		Sys_Error ("FTENET_Datagram_EstablishConnection: ioctl FIONBIO: %s", strerror(neterrno()));
 
 	//ipv6 sockets need to add themselves to a multicast group, so that we can receive broadcasts on a lan
 #if defined(HAVE_IPV6)
@@ -8935,7 +8935,7 @@ int TCP_OpenStream (netadr_t *remoteaddr, const char *remotename)
 	setsockopt(newsocket, SOL_SOCKET, SO_RCVBUF, (void*)&recvbufsize, sizeof(recvbufsize));
 
 	if (ioctlsocket (newsocket, FIONBIO, &_true) == -1)
-		Sys_Error ("UDP_OpenSocket: ioctl FIONBIO: %s", strerror(neterrno()));
+		Sys_Error ("TCP_OpenStream: ioctl FIONBIO: %s", strerror(neterrno()));
 
 #ifdef UNIXSOCKETS
 	if (remoteaddr->type == AF_UNIX)

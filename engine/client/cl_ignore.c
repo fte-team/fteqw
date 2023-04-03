@@ -460,10 +460,13 @@ static void Ignoreteam_f(void)
 			}
 			if (j == MAX_TEAMIGNORELIST)
 				Con_Printf("You cannot ignore more than %d teams\n", MAX_TEAMIGNORELIST);
-			Q_strncpyz(ignoreteamlist[j], arg, sizeof(ignoreteamlist[j]));
-			if (j + 1 < MAX_TEAMIGNORELIST)
-				ignoreteamlist[j + 1][0] = 0;			
-			Con_Printf("Added team %s to ignore list\n", arg);
+			else
+			{
+				Q_strncpyz(ignoreteamlist[j], arg, sizeof(ignoreteamlist[j]));
+				if (j + 1 < MAX_TEAMIGNORELIST)
+					ignoreteamlist[j + 1][0] = 0;
+				Con_Printf("Added team %s to ignore list\n", arg);
+			}
 			return;
 		}
 	}

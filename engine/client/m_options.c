@@ -4445,7 +4445,8 @@ void M_Menu_Mods_f (void)
 	MC_AddFrameStart(menu, 32);
 	for (i = 0; i<1 || Mods_GetMod(i); i++)
 	{
-		c = MC_AddCustom(menu, 64, 32+i*8, menu->data, i, NULL);
+		struct modlist_s *mod = Mods_GetMod(i);
+		c = MC_AddCustom(menu, 64, 32+i*8, menu->data, i, (mod&&mod->manifest)?mod->manifest->basedir:NULL);
 //		if (!menu->selecteditem)
 //			menu->selecteditem = (menuoption_t*)c;
 		c->common.height = 8;

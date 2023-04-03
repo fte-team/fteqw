@@ -1190,9 +1190,8 @@ static void Cmd_Alias_f (void)
 	// check for overlap with a command
 	if (Cmd_Exists (s))
 	{	//commands always take precedence over aliases (so mods can't clobber 'quit' etc), so creating an alias with one of these names is stupid. always try to rename them.
-		if (Cmd_IsInsecure())
+		if (Cmd_IsInsecure() && snprintf(cmd, sizeof(cmd), "%s_a", s) < sizeof(cmd))
 		{
-			snprintf(cmd, sizeof(cmd), "%s_a", s);
 			if (Cmd_Exists (cmd))
 			{
 				Con_Printf (S_COLOR_RED"Can't register alias, %s is a command\n", s);
@@ -1211,9 +1210,8 @@ static void Cmd_Alias_f (void)
 	{	//aliases take precedence over cvars (while cvars can be set via 'set'), so user's choice.
 		if (Cvar_FindVar (s))
 		{
-			if (Cmd_IsInsecure())
+			if (Cmd_IsInsecure() && snprintf(cmd, sizeof(cmd), "%s_a", s) < sizeof(cmd))
 			{
-				snprintf(cmd, sizeof(cmd), "%s_a", s);
 				Con_Printf (S_COLOR_RED"alias %s: renamed to %s due to cvar conflict\n", s, cmd);
 				s = cmd;
 			}

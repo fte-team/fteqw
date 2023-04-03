@@ -4633,8 +4633,10 @@ static void *ReadEXRFile(qbyte *buf, size_t len, const char *fname, int *outwidt
 	fd = mkstemp(tname);	//bsd4.3/posix1-2001
 	if (fd >= 0)
 	{
-		write(fd, buf, len);
-		ctx = exr.OpenInputFile(tname);
+		if (write(fd, buf, len) == len)
+			ctx = exr.OpenInputFile(tname);
+		else
+			ctx = NULL;
 		close(fd);	//we don't need the input file now.
 		unlink(tname);
 #endif

@@ -471,11 +471,10 @@ static void FS_Manifest_Print(ftemanifest_t *man)
 	{
 		if (man->gamepath[i].path)
 		{
-			size_t bufsize = strlen(man->gamepath[i].path) + 16;
-			char *str = Z_Malloc(bufsize);
-			if (man->gamepath[i].flags & GAMEDIR_PRIVATE)
-				Q_strncatz(str, "*", bufsize);
-			Q_strncatz(str, man->gamepath[i].path, bufsize);
+			char *str = va("%s%s%s",
+				(man->gamepath[i].flags & GAMEDIR_QSHACK)?"/":"",
+				(man->gamepath[i].flags & GAMEDIR_PRIVATE)?"*":"",
+				man->gamepath[i].path);
 
 			if (man->gamepath[i].flags & GAMEDIR_BASEGAME)
 				Con_Printf("basegame %s\n", COM_QuotedString(str, buffer, sizeof(buffer), false));
@@ -2304,6 +2303,7 @@ qboolean FS_NativePath(const char *fname, enum fs_relative relativeto, char *out
 	char cleanname[MAX_QPATH];
 	char *last;
 	qboolean wasbase;	//to handle out-of-order base/game dirs.
+	int nlen;
 
 	if (relativeto == FS_SYSTEM)
 	{
@@ -2322,7 +2322,7 @@ qboolean FS_NativePath(const char *fname, enum fs_relative relativeto, char *out
 	{
 		//this is sometimes used to query the actual path.
 		//don't alow it for other stuff though.
-		if (relativeto != FS_ROOT && relativeto != FS_BINARYPATH && relativeto != FS_GAMEONLY)
+		if (relativeto != FS_ROOT && relativeto != FS_BINARYPATH && relativeto != FS_LIBRARYPATH && relativeto != FS_GAMEONLY)
 			return false;
 	}
 	else
@@ -2337,29 +2337,36 @@ qboolean FS_NativePath(const char *fname, enum fs_relative relativeto, char *out
 	case FS_GAME: //this is really for diagnostic type stuff...
 		if (FS_FLocateFile(fname, FSLF_IFFOUND, &loc))
 		{
-			snprintf(out, outlen, "%s/%s", loc.search->logicalpath, fname);
+			nlen = snprintf(out, outlen, "%s/%s", loc.search->logicalpath, fname);
 			break;
 		}
 		//fallthrough
 	case FS_GAMEONLY:
 		if (com_homepathenabled)
-			snprintf(out, outlen, "%s%s/%s", com_homepath, gamedirfile, fname);
+			nlen = snprintf(out, outlen, "%s%s/%s", com_homepath, gamedirfile, fname);
 		else
-			snprintf(out, outlen, "%s%s/%s", com_gamepath, gamedirfile, fname);
+			nlen = snprintf(out, outlen, "%s%s/%s", com_gamepath, gamedirfile, fname);
 		break;
+	case FS_LIBRARYPATH:
+#ifdef FTE_LIBRARY_PATH
+		nlen = snprintf(out, outlen, STRINGIFY(FTE_LIBRARY_PATH)"/%s", fname);
+		break;
+#else
+		return false;
+#endif
 	case FS_BINARYPATH:
 		if (host_parms.binarydir && *host_parms.binarydir)
-			snprintf(out, outlen, "%s%s", host_parms.binarydir, fname);
+			nlen = snprintf(out, outlen, "%s%s", host_parms.binarydir, fname);
 		else
-			snprintf(out, outlen, "%s%s", host_parms.basedir, fname);
+			nlen = snprintf(out, outlen, "%s%s", host_parms.basedir, fname);
 		break;
 	case FS_ROOT:
 		if (com_installer)
 			return false;
 		if (com_homepathenabled)
-			snprintf(out, outlen, "%s%s", com_homepath, fname);
+			nlen = snprintf(out, outlen, "%s%s", com_homepath, fname);
 		else
-			snprintf(out, outlen, "%s%s", com_gamepath, fname);
+			nlen = snprintf(out, outlen, "%s%s", com_gamepath, fname);
 		break;
 
 	case FS_BASEGAMEONLY:	// fte/
@@ -2376,9 +2383,9 @@ qboolean FS_NativePath(const char *fname, enum fs_relative relativeto, char *out
 		if (!last)
 			return false;	//eep?
 		if (com_homepathenabled)
-			snprintf(out, outlen, "%s%s/%s", com_homepath, last, fname);
+			nlen = snprintf(out, outlen, "%s%s/%s", com_homepath, last, fname);
 		else
-			snprintf(out, outlen, "%s%s/%s", com_gamepath, last, fname);
+			nlen = snprintf(out, outlen, "%s%s/%s", com_gamepath, last, fname);
 		break;
 	case FS_PUBGAMEONLY:	// $gamedir/ or qw/ but not fte/
 		last = NULL;
@@ -2399,9 +2406,9 @@ qboolean FS_NativePath(const char *fname, enum fs_relative relativeto, char *out
 		if (!last)
 			return false;	//eep?
 		if (com_homepathenabled)
-			snprintf(out, outlen, "%s%s/%s", com_homepath, last, fname);
+			nlen = snprintf(out, outlen, "%s%s/%s", com_homepath, last, fname);
 		else
-			snprintf(out, outlen, "%s%s/%s", com_gamepath, last, fname);
+			nlen = snprintf(out, outlen, "%s%s/%s", com_gamepath, last, fname);
 		break;
 	case FS_PUBBASEGAMEONLY:	// qw/ (fixme: should be the last non-private basedir)
 		last = NULL;
@@ -2417,14 +2424,14 @@ qboolean FS_NativePath(const char *fname, enum fs_relative relativeto, char *out
 		if (!last)
 			return false;	//eep?
 		if (com_homepathenabled)
-			snprintf(out, outlen, "%s%s/%s", com_homepath, last, fname);
+			nlen = snprintf(out, outlen, "%s%s/%s", com_homepath, last, fname);
 		else
-			snprintf(out, outlen, "%s%s/%s", com_gamepath, last, fname);
+			nlen = snprintf(out, outlen, "%s%s/%s", com_gamepath, last, fname);
 		break;
 	default:
 		Sys_Error("FS_NativePath case not handled\n");
 	}
-	return true;
+	return nlen < outlen;
 }
 
 //returns false to stop the enumeration. check the return value of the fs enumerator to see if it was canceled by this return value.
@@ -3832,6 +3839,68 @@ qboolean FS_Restarted(unsigned int *since)
 	return false;
 }
 
+#ifdef __WIN32	//already assumed to be case insensitive. let the OS keep fixing up the paths itself.
+static void FS_FixupFileCase(char *out, size_t outsize, const char *basedir, const char *entry)
+{
+	Q_snprintfz(out, outsize, "%s%s", basedir, entry);
+}
+#else
+struct fixupcase_s
+{
+	char *out;
+	size_t outsize;
+	const char *match;
+	size_t matchlen;
+	qboolean isdir;	//directory results have a trailing /
+};
+static int FS_FixupFileCaseResult(const char *name, qofs_t sz, time_t modtime, void *vparm, searchpathfuncs_t *spath)
+{
+	struct fixupcase_s *parm = vparm;
+	if (strlen(name) != parm->matchlen+parm->isdir)
+		return true;
+	if (parm->isdir && name[parm->matchlen] != '/')
+		return true;
+	if (Q_strncasecmp(name, parm->match, parm->matchlen))
+		return true;
+	memcpy(parm->out, name, parm->matchlen);
+	return !!Q_strncmp(name, parm->match, parm->matchlen);	//stop if we find the exact path case. otherwise keep looking
+}
+//like snprintf("%s%s") but fixes up 'gamedir' case to a real file
+static qboolean FS_FixupFileCase(char *out, size_t outsize, const char *basedir, const char *entry, qboolean isdir)
+{
+	char *s;
+	struct fixupcase_s parm = {out+strlen(basedir), outsize-strlen(basedir), entry, strlen(entry), isdir};
+	if (Q_snprintfz(out, outsize, "%s%s", basedir, entry) >= outsize || outsize < strlen(basedir)+1 || parm.outsize < parm.matchlen+1)
+		return false;	//over sized?...
+	if (strchr(entry, '/')) for(;;)
+	{
+		parm.match = entry;
+		s = strchr(entry, '/');
+		if (s)
+		{
+			parm.isdir = true;
+			parm.matchlen = s-entry;
+			Sys_EnumerateFiles(basedir, "*", FS_FixupFileCaseResult, &parm, NULL);
+			parm.out += parm.matchlen+1;
+			parm.outsize -= parm.matchlen+1;
+			entry += (s-entry)+1;
+		}
+		else
+		{
+			parm.isdir = isdir;
+			parm.matchlen = strlen(entry);
+			parm.out[-1] = 0;
+			Sys_EnumerateFiles(out, "*", FS_FixupFileCaseResult, &parm, NULL);
+			parm.out[-1] = '/';
+			break;
+		}
+	}
+	else
+		Sys_EnumerateFiles(basedir, "*", FS_FixupFileCaseResult, &parm, NULL);
+	return true;
+}
+#endif
+
 /*
 ================
 FS_AddGameDirectory
@@ -3883,13 +3952,12 @@ static searchpath_t *FS_AddSingleGameDirectory (searchpath_t **oldpaths, const c
 static void FS_AddGameDirectory (searchpath_t **oldpaths, const char *puredir, unsigned int loadstuff, unsigned int flags)
 {
 	char syspath[MAX_OSPATH];
-	Q_snprintfz(syspath, sizeof(syspath), "%s%s", com_gamepath, puredir);
-	gameonly_gamedir = FS_AddSingleGameDirectory(oldpaths, puredir, syspath, loadstuff, flags&~(com_homepathenabled?SPF_WRITABLE:0u));
-	if (com_homepathenabled)
-	{
-		Q_snprintfz(syspath, sizeof(syspath), "%s%s", com_homepath, puredir);
+	if (FS_FixupFileCase(syspath, sizeof(syspath),  com_gamepath, puredir, true))
+		gameonly_gamedir = FS_AddSingleGameDirectory(oldpaths, puredir, syspath, loadstuff, flags&~(com_homepathenabled?SPF_WRITABLE:0u));
+	else
+		gameonly_gamedir = NULL;
+	if (com_homepathenabled && FS_FixupFileCase(syspath, sizeof(syspath), com_homepath, puredir, true))
 		gameonly_homedir = FS_AddSingleGameDirectory(oldpaths, puredir, syspath, loadstuff, flags);
-	}
 	else
 		gameonly_homedir = NULL;
 }
@@ -4165,7 +4233,7 @@ void COM_Gamedir (const char *dir, const struct gamepacks *packagespaths)
 #define QCFG "//schemes quake qw\n"   QUAKEOVERRIDES "set com_parseutf8 0\n" QRPCOMPAT
 #define KEXCFG "//schemes quake_r2\n" QUAKEOVERRIDES "set com_parseutf8 1\nset campaign 0\nset net_enable_dtls 1\nset sv_mintic 0.016666667\nset sv_maxtic $sv_mintic\nset cl_netfps 60\n"
 /*NetQuake reconfiguration, to make certain people feel more at home...*/
-#define NQCFG "//disablehomedir 1\n//mainconfig ftenq\n" QCFG "cfg_save_auto 1\nset sv_nqplayerphysics 1\nset cl_loopbackprotocol auto\ncl_sbar 1\nset plug_sbar 0\nset sv_port "STRINGIFY(PORT_NQSERVER)"\ncl_defaultport "STRINGIFY(PORT_NQSERVER)"\nset m_preset_chosen 1\nset vid_wait 1\nset cl_demoreel 1\n"
+#define NQCFG "//disablehomedir 1\n//mainconfig ftenq\n" QCFG "cfg_save_auto 1\nset pm_bunnyfriction 1\nset sv_nqplayerphysics 1\nset cl_loopbackprotocol auto\ncl_sbar 1\nset plug_sbar 0\nset sv_port "STRINGIFY(PORT_NQSERVER)"\ncl_defaultport "STRINGIFY(PORT_NQSERVER)"\nset m_preset_chosen 1\nset vid_wait 1\nset cl_demoreel 1\n"
 #define SPASMCFG NQCFG "fps_preset builtin_spasm\nset cl_demoreel 0\ncl_sbar 2\nset gl_load24bit 1\n"
 #define FITZCFG NQCFG "fps_preset builtin_spasm\ncl_sbar 2\nset gl_load24bit 1\n"
 #define TENEBRAECFG NQCFG "fps_preset builtin_tenebrae\n"
@@ -4256,7 +4324,7 @@ static const gamemode_info_t gamemode_info[] = {
 	//because we can. 'fps_preset spasm' is hopefully close enough...
 	{"-fitz",		"nq",		QUAKEPROT,				{"id1/pak0.pak","id1/quake.rc"},FITZCFG,{"id1"},									"FauxFitz",							UPDATEURL(Q1)},
 	//because we can
-	{"-tenebrae",	NULL,		QUAKEPROT,				{"id1/pak0.pak","id1/quake.rc"},TENEBRAECFG,{"id1",	"tenebrae"},					"FauxTenebrae",						UPDATEURL(Q1)},
+	{"-tenebrae",	NULL,		QUAKEPROT,				{"tenebrae/Pak0.pak","id1/quake.rc"},TENEBRAECFG,{"id1",	"tenebrae"},					"FauxTenebrae",						UPDATEURL(Q1)},
 
 	//quake's mission packs should not be favoured over the base game nor autodetected
 	//third part mods also tend to depend upon the mission packs for their huds, even if they don't use any other content.
@@ -5573,6 +5641,8 @@ qboolean Sys_FindGameData(const char *poshname, const char *gamename, char *base
 			return true;
 	if (!strcmp(gamename, "quake") || !strcmp(gamename, "afterquake") || !strcmp(gamename, "netquake") || !strcmp(gamename, "spasm") || !strcmp(gamename, "fitz") || !strcmp(gamename, "tenebrae"))
 	{
+		if (Sys_SteamHasFile(basepath, basepathlen, "Quake", "Id1/PAK0.PAK"))	//dos legacies need to die.
+			return true;
 		if (Sys_SteamHasFile(basepath, basepathlen, "Quake", "id1/PAK0.PAK"))	//dos legacies need to die.
 			return true;
 		if (Sys_SteamHasFile(basepath, basepathlen, "Quake", "id1/pak0.pak"))	//people may have tried to sanitise it already.
@@ -5709,16 +5779,19 @@ static qboolean FS_DirHasAPackage(char *basedir, ftemanifest_t *man)
 	return defaultret;
 }
 
+#ifdef _WIN32
 //false stops the search (and returns that value to FS_DirHasGame)
 static int QDECL FS_DirDoesHaveGame(const char *fname, qofs_t fsize, time_t modtime, void *ctx, searchpathfuncs_t *subdir)
 {
 	return false;
 }
+#endif
 
 //just check each possible file, see if one is there.
 static qboolean FS_DirHasGame(const char *basedir, int gameidx)
 {
 	int j;
+	char realpath[MAX_OSPATH];
 
 	//none listed, just assume its correct.
 	if (!gamemode_info[gameidx].auniquefile[0])
@@ -5728,8 +5801,13 @@ static qboolean FS_DirHasGame(const char *basedir, int gameidx)
 	{
 		if (!gamemode_info[gameidx].auniquefile[j])
 			continue;	//no more
+#ifdef _WIN32
 		if (!Sys_EnumerateFiles(basedir, gamemode_info[gameidx].auniquefile[j], FS_DirDoesHaveGame, NULL, NULL))
 			return true;	//search was cancelled by the callback, so it actually got called.
+#else
+		if (FS_FixupFileCase(realpath, sizeof(realpath), basedir, gamemode_info[gameidx].auniquefile[j], false) && access(realpath, R_OK) == 0)
+			return true;	//something readable.
+#endif
 	}
 	return false;
 }
@@ -5784,7 +5862,7 @@ static int FS_IdentifyDefaultGame(char *newbase, int sizeof_newbase, qboolean fi
 		if (gamenum != -1)
 			Q_strncpyz(newbase, host_parms.binarydir, sizeof_newbase);
 	}
-	if (gamenum == -1 && *com_homepath && !fixedbase)
+	if (gamenum == -1 && *com_homepath && com_homepathusable && !fixedbase)
 	{
 		gamenum = FS_IdentifyDefaultGameFromDir(com_homepath);
 		if (gamenum != -1)
@@ -6771,7 +6849,7 @@ int FS_EnumerateKnownGames(qboolean (*callback)(void *usr, ftemanifest_t *man), 
 		Q_strncpyz(basedir, com_gamepath, sizeof(basedir));
 		if (gamemode_info[i].manifestfile ||
 			((gamemode_info[i].exename || (i>0&&gamemode_info[i].customexec&&gamemode_info[i-1].customexec&&strcmp(gamemode_info[i].customexec,gamemode_info[i-1].customexec))) && FS_DirHasGame(com_gamepath, i)) ||
-			(e.anygamedir&&Sys_FindGameData(NULL, gamemode_info[i].argname+1, basedir, sizeof(basedir), true)))
+			(e.anygamedir&&Sys_FindGameData(NULL, gamemode_info[i].argname+1, basedir, sizeof(basedir), false)))
 		{
 			man = FS_GenerateLegacyManifest(i, basedir);
 			if (e.callback(e.usr, man))

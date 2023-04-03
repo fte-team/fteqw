@@ -2075,9 +2075,16 @@ static void PM_PreparePackageList(void)
 #ifdef PLUGINS
 		{
 			char nat[MAX_OSPATH];
-			FS_NativePath("", FS_BINARYPATH, nat, sizeof(nat));
-			Con_DPrintf("Loading plugins from \"%s\"\n", nat);
-			Sys_EnumerateFiles(nat, PLUGINPREFIX"*" ARCH_DL_POSTFIX, PM_EnumeratedPlugin, &pluginsadded, NULL);
+			if (FS_NativePath("", FS_BINARYPATH, nat, sizeof(nat)))
+			{
+				Con_DPrintf("Loading plugins from \"%s\"\n", nat);
+				Sys_EnumerateFiles(nat, PLUGINPREFIX"*" ARCH_DL_POSTFIX, PM_EnumeratedPlugin, &pluginsadded, NULL);
+			}
+			if (FS_NativePath("", FS_LIBRARYPATH, nat, sizeof(nat)))
+			{
+				Con_DPrintf("Loading plugins from \"%s\"\n", nat);
+				Sys_EnumerateFiles(nat, PLUGINPREFIX"*" ARCH_DL_POSTFIX, PM_EnumeratedPlugin, &pluginsadded, NULL);
+			}
 		}
 #endif
 	}

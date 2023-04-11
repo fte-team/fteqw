@@ -2625,7 +2625,7 @@ bspx_header_t *BSPX_Setup(model_t *mod, char *filebase, size_t filelen, lump_t *
 		}
 	}
 
-	if (offs < filelen && mod && !mod->archive && mod_loadmappackages.ival)
+	if (offs < filelen && mod && !mod->archive && mod_loadmappackages.ival && filelen-offs > 22)//end-of-central-dir being 22 bytes sets a minimum zip size, which should slightly reduce false-positives.
 	{	//we have some sort of trailing junk... is it a zip?...
 		Mod_LoadMapArchive(mod, filebase+offs, filelen-offs);
 	}

@@ -35,6 +35,7 @@ static char *CLNQ_ParseProQuakeMessage (char *s);
 #endif
 static void DLC_Poll(qdownload_t *dl);
 static void CL_ProcessUserInfo (int slot, player_info_t *player);
+static void Con_HexDump(qbyte *packet, size_t len, size_t badoffset);
 
 #ifdef NQPROT
 char *cl_dp_packagenames;
@@ -6697,9 +6698,13 @@ static void CL_ParseStuffCmd(char *msg, int destsplit)	//this protects stuffcmds
 {
 	int cbuflevel;
 #ifdef NQPROT
-	if (!*stufftext && *msg == 1 && !cls.allow_csqc)
+	if (!*stufftext && *msg == 1)
 	{
-		Con_DPrintf("Proquake: %s\n", msg);
+		if (developer.ival)
+		{
+			Con_DPrintf("Proquake Message:\n");
+			Con_HexDump(msg, strlen(msg), 1);
+		}
 		msg = CLNQ_ParseProQuakeMessage(msg);
 	}
 #endif

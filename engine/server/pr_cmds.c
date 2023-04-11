@@ -6081,7 +6081,10 @@ void SV_point_tempentity (vec3_t o, int type, int count)	//count (usually 1) is 
 #endif
 		break;
 	case TEQW_NQGUNSHOT:
-		qwtype[0] = TEQW_NQGUNSHOT;
+#ifdef NQPROT
+		nqtype[0] = TENQ_NQGUNSHOT;
+		nqtype[1] = TENQ_NQGUNSHOT;
+#endif
 		qwtype[1] = TEQW_QWGUNSHOT;
 		split = PEXT_TE_BULLET;
 		break;
@@ -6138,8 +6141,9 @@ void SV_point_tempentity (vec3_t o, int type, int count)	//count (usually 1) is 
 		}
 		else if (nqtype[i] >= 0)
 		{
-			int nqcount = min(3,count);
-			do
+			//messy - TENQ_NQGUNSHOT loops until we reach our counter. should probably randomize positions a little
+			int nqcount = (nqtype[i] == TENQ_NQGUNSHOT)?min(3,count):1;
+			while(nqcount-->0)
 			{
 				MSG_WriteByte (&sv.nqmulticast, svc_temp_entity);
 				MSG_WriteByte (&sv.nqmulticast, nqtype[i]);
@@ -6149,19 +6153,12 @@ void SV_point_tempentity (vec3_t o, int type, int count)	//count (usually 1) is 
 					MSG_WriteChar(&sv.nqmulticast, 0);
 					MSG_WriteChar(&sv.nqmulticast, 0);
 				}
-				else if (/*nqtype == TENQ_QWBLOOD ||*/ nqtype[i] == TENQ_QWGUNSHOT)
+				else if (nqtype[i] == TENQ_QWGUNSHOT)
 					MSG_WriteByte (&sv.nqmulticast, count);
 				MSG_WriteCoord (&sv.nqmulticast, o[0]);
 				MSG_WriteCoord (&sv.nqmulticast, o[1]);
 				MSG_WriteCoord (&sv.nqmulticast, o[2]);
-
-				//messy - TENQ_NQGUNSHOT looks until we reach our counter. should probably randomize positions a little
-				if (nqcount > 1 && nqtype[i] == TENQ_NQGUNSHOT)
-				{
-					nqcount--;
-					continue;
-				}
-			} while(0);
+			}
 		}
 #endif
 		if (i)

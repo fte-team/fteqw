@@ -5731,7 +5731,10 @@ static void CL_ParseSetInfo (void)
 	{
 		player = &cl.players[slot];
 
-		Con_DLPrintf(strcmp(key, "chat")?1:2,"SETINFO %s: %s=%s\n", player->name, key, val);
+		if (cl_shownet.value == 3)
+			Con_Printf("\t%i(%s): %s=\"%s\"\n", slot, player->name, key, val);
+		else
+			Con_DLPrintf(strcmp(key, "chat")?1:2,"SETINFO %s: %s=%s\n", player->name, key, val);
 
 		InfoBuf_SetStarKey(&player->userinfo, key, val);
 		player->userinfovalid = true;
@@ -5755,7 +5758,10 @@ static void CL_ServerInfo (void)
 	Q_strncpyz (key, MSG_ReadString(), sizeof(key));
 	Q_strncpyz (value, MSG_ReadString(), sizeof(value));
 
-	Con_DPrintf("SERVERINFO: %s=%s\n", key, value);
+	if (cl_shownet.value == 3)
+		Con_Printf("\t%s=%s\n", key, value);
+	else
+		Con_DPrintf("SERVERINFO: %s=%s\n", key, value);
 
 	InfoBuf_SetStarKey(&cl.serverinfo, key, value);
 
@@ -5914,6 +5920,9 @@ static void CL_SetStatNumeric (int pnum, int stat, int ivalue, float fvalue)
 		cl.players[cls_lastto].stats[stat]=ivalue;
 		cl.players[cls_lastto].statsf[stat]=fvalue;
 
+		if (cl_shownet.value == 3)
+			Con_Printf("\t%i: %i=%g\n", cls_lastto, stat, fvalue);
+
 		for (pnum = 0; pnum < cl.splitclients; pnum++)
 			if (cl.playerview[pnum].cam_spec_track == cls_lastto && cl.playerview[pnum].cam_state != CAM_FREECAM)
 				CL_SetStat_Internal(pnum, stat, ivalue, fvalue);
@@ -5926,6 +5935,9 @@ static void CL_SetStatNumeric (int pnum, int stat, int ivalue, float fvalue)
 			cl.players[pl].stats[stat]=ivalue;
 			cl.players[pl].statsf[stat]=fvalue;
 		}
+
+		if (cl_shownet.value == 3)
+			Con_Printf("\t%i(%i): %i=%g\n", pnum, pl, stat, fvalue);
 
 		CL_SetStat_Internal(pnum, stat, ivalue, fvalue);
 	}
@@ -7440,7 +7452,10 @@ void CLQW_ParseServerMessage (void)
 			i = MSG_ReadByte ();
 			if (i >= MAX_NET_LIGHTSTYLES)
 				Host_EndGame ("svc_lightstyle > MAX_LIGHTSTYLES");
-			R_UpdateLightStyle(i, MSG_ReadString(), 1, 1, 1);
+			s = MSG_ReadString();
+			if (cl_shownet.value == 3)
+				Con_Printf("\t%i=\"%s\"\n", i, s);
+			R_UpdateLightStyle(i, s, 1, 1, 1);
 			break;
 #ifdef PEXT_LIGHTSTYLECOL
 		case svcfte_lightstylecol:
@@ -7891,7 +7906,7 @@ void CLQ2_ParseServerMessage (void)
 //
 	if (cl_shownet.value == 1)
 		Con_Printf ("%i ",net_message.cursize);
-	else if (cl_shownet.value == 2)
+	else if (cl_shownet.value >= 2)
 		Con_Printf ("------------------\n");
 
 
@@ -8281,7 +8296,7 @@ void CLNQ_ParseServerMessage (void)
 //
 	if (cl_shownet.value == 1)
 		Con_Printf ("%i ",net_message.cursize);
-	else if (cl_shownet.value == 2)
+	else if (cl_shownet.value >= 2)
 		Con_Printf ("------------------\n");
 
 //

@@ -9841,7 +9841,9 @@ void CSQC_ParseEntities(qboolean sized)
 
 			CSQC_EntityCheck(entnum);
 
-			if (cl_csqcdebug.ival)
+			if (cl_shownet.ival == 3)
+				Con_Printf("%3i:     Remove %i\n", MSG_GetReadCount(), entnum);
+			else if (cl_csqcdebug.ival)
 				Con_Printf("Remove %i\n", entnum);
 
 			ent = csqcent[entnum];
@@ -9887,13 +9889,17 @@ void CSQC_ParseEntities(qboolean sized)
 
 				G_FLOAT(OFS_PARM0) = true;
 
-				if (cl_csqcdebug.ival)
+				if (cl_shownet.ival == 3)
+					Con_Printf("%3i:     Added %i (%i)\n", MSG_GetReadCount(), entnum, packetsize);
+				else if (cl_csqcdebug.ival)
 					Con_Printf("Add %i\n", entnum);
 			}
 			else
 			{
 				G_FLOAT(OFS_PARM0) = false;
-				if (cl_csqcdebug.ival)
+				if (cl_shownet.ival == 3)
+					Con_Printf("%3i:     Update %i (%i)\n", MSG_GetReadCount(), entnum, packetsize);
+				else if (cl_csqcdebug.ival)
 					Con_Printf("Update %i\n", entnum);
 			}
 #ifdef QUAKESTATS

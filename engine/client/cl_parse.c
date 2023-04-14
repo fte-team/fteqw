@@ -2240,6 +2240,7 @@ static void DL_Completed(qdownload_t *dl, qofs_t start, qofs_t end)
 
 static float chunkrate;
 
+static int CL_CountQueuedDownloads(void);
 static void CL_ParseChunkedDownload(qdownload_t *dl)
 {
 	qbyte	*svname;
@@ -2263,7 +2264,41 @@ static void CL_ParseChunkedDownload(qdownload_t *dl)
 
 		svname = MSG_ReadString();
 		if (cls.demoplayback)
-			return;
+		{	//downloading in demos is allowed ONLY for csprogs.dat
+			extern cvar_t cl_downloads, cl_download_csprogs;
+			if (!cls.download && !dl &&
+					!strcmp(svname, "csprogs.dat") && filesize && filesize == strtoul(InfoBuf_ValueForKey(&cl.serverinfo, "*csprogssize"), NULL, 0) &&
+					cl_downloads.ival && cl_download_csprogs.ival)
+			{
+				//FIXME: should probably save this to memory instead of bloating it on disk.
+				dl = Z_Malloc(sizeof(*dl));
+
+				Q_strncpyz(dl->remotename, svname, sizeof(dl->remotename));
+				Q_strncpyz(dl->localname, va("csprogsvers/%x.dat", (unsigned int)strtoul(InfoBuf_ValueForKey(&cl.serverinfo, "*csprogs"), NULL, 0)), sizeof(dl->localname));
+
+				// download to a temp name, and only rename
+				// to the real name when done, so if interrupted
+				// a runt file wont be left
+				COM_StripExtension (dl->localname, dl->tempname, sizeof(dl->tempname)-5);
+				Q_strncatz (dl->tempname, ".tmp", sizeof(dl->tempname));
+
+				dl->method = DL_QWPENDING;
+				dl->percent = 0;
+				dl->sizeunknown = true;
+				dl->flags = DLLF_OVERWRITE;
+
+				if (COM_FCheckExists(dl->localname))
+				{
+					Con_DPrintf("Demo embeds redundant %s\n", dl->localname);
+					Z_Free(dl);
+					return;
+				}
+				cls.download = dl;
+				Con_Printf("Saving recorded file %s (%lu bytes)\n", dl->localname, (unsigned long)filesize);
+			}
+			else
+				return;
+		}
 
 		if (!*svname)
 		{
@@ -2367,6 +2402,7 @@ static void CL_ParseChunkedDownload(qdownload_t *dl)
 		dl->method = DL_QWCHUNKS;
 		dl->percent = 0;
 		dl->size = filesize;
+		dl->sizeunknown = false;
 
 		dl->starttime = Sys_DoubleTime();
 
@@ -2391,7 +2427,8 @@ static void CL_ParseChunkedDownload(qdownload_t *dl)
 
 	if (!dl)
 	{
-		Con_Printf("ignoring download data packet\n");
+		if (!cls.demoplayback)	//mute it in demos.
+			Con_Printf("ignoring download data packet\n");
 		return;
 	}
 
@@ -2400,11 +2437,6 @@ static void CL_ParseChunkedDownload(qdownload_t *dl)
 
 	if (!dl->file)
 		return;
-
-	if (cls.demoplayback)
-	{	//err, yeah, when playing demos we don't actually pay any attention to this.
-		return;
-	}
 
 	VFS_SEEK(dl->file, chunknum*DLBLOCKSIZE);
 	if (dl->size - chunknum*DLBLOCKSIZE < DLBLOCKSIZE)	//final block is actually meant to be smaller than we recieve.
@@ -2417,6 +2449,9 @@ static void CL_ParseChunkedDownload(qdownload_t *dl)
 	dl->percent = dl->completedbytes/(float)dl->size*100;
 
 	chunkrate += 1;
+
+	if (dl->completedbytes == dl->size)
+		CL_DownloadFinished(dl);
 }
 
 static int CL_CountQueuedDownloads(void)

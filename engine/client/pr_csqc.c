@@ -8310,7 +8310,11 @@ qboolean CSQC_Init (qboolean anycsqc, const char *csprogsname, unsigned int chec
 	}
 
 	if (cl_nocsqc.value)
+	{
+		if (checksum || progssize)
+			Con_Printf(CON_WARNING"Server is using csqc, but its disabled via %s\n", cl_nocsqc.name);
 		return false;
+	}
 
 	if (cls.state == ca_disconnected)
 	{
@@ -8430,6 +8434,8 @@ qboolean CSQC_Init (qboolean anycsqc, const char *csprogsname, unsigned int chec
 			csprogsnum = PR_LoadProgs(csqcprogs, csprogs_checkname);
 			if (csprogsnum >= 0)
 				Con_DPrintf("Loaded csprogs.dat\n");
+			else if (csprogs_checksum || csprogs_checksize)
+				Con_Printf(CON_WARNING"Unable to load \"csprogsvers/%x.dat\"\n", csprogs_checksum);
 		}
 		
 		if (csqc_singlecheats || anycsqc)
@@ -9725,13 +9731,29 @@ int CSQC_StartSound(int entnum, int channel, char *soundname, vec3_t pos, float 
 	return false;
 }
 
-void CSQC_GetEntityOrigin(unsigned int csqcent, float *out)
+qboolean CSQC_GetEntityOrigin(unsigned int csqcent, float *out)
 {
 	wedict_t *ent;
 	if (!csqcprogs)
-		return;
+		return false;
 	ent = WEDICT_NUM_UB(csqcprogs, csqcent);
 	VectorCopy(ent->v->origin, out);
+	return true;
+}
+qboolean CSQC_GetSSQCEntityOrigin(unsigned int ssqcent, float *out)
+{
+	csqcedict_t *ent;
+	if (csqcprogs && ssqcent < maxcsqcentities)
+	{
+		ent = csqcent[ssqcent];
+		if (ent)
+		{
+			if (out)
+				VectorCopy(ent->v->origin, out);
+			return true;
+		}
+	}
+	return false;
 }
 
 void CSQC_ParseEntities(qboolean sized)
@@ -9744,7 +9766,23 @@ void CSQC_ParseEntities(qboolean sized)
 	qboolean removeflag;
 
 	if (!csqcprogs)
-		Host_EndGame("CSQC needs to be initialized for this server.\n");
+	{
+		const char *fname = va("csprogsvers/%x.dat", (unsigned int)strtoul(InfoBuf_ValueForKey(&cl.serverinfo, "*csprogs"), NULL, 0));
+		const char *msg;
+		if (cl_nocsqc.value)
+			msg = "blocked by cl_nocsqc.\n";
+		else if (!COM_FCheckExists(fname))
+		{
+			extern cvar_t cl_downloads, cl_download_csprogs;
+			if (!cl_downloads.ival || !cl_download_csprogs.ival)
+				msg = "downloading blocked by cl_downloads or cl_download_csprogs.\n";
+			else
+				msg = "unable to download.\n";
+		}
+		else
+			msg = "not initialised.\n";
+		Host_EndGame("%s required, but %s", fname, msg);
+	}
 
 	if (!csqcg.CSQC_Ent_Update || !csqcg.self)
 		Host_EndGame("CSQC has no CSQC_Ent_Update function\n");
@@ -9858,6 +9896,13 @@ void CSQC_ParseEntities(qboolean sized)
 				if (cl_csqcdebug.ival)
 					Con_Printf("Update %i\n", entnum);
 			}
+#ifdef QUAKESTATS
+			if (entnum-1 < cl.allocated_client_slots && cls.findtrack && cl.players[entnum-1].stats[STAT_HEALTH] > 0)
+			{	//FIXME: is this still needed with the autotrack stuff?
+				Cam_Lock(&cl.playerview[0], entnum-1);
+				cls.findtrack = false;
+			}
+#endif
 
 			*csqcg.self = EDICT_TO_PROG(csqcprogs, (void*)ent);
 			csqc_mayread = true;

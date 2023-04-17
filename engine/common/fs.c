@@ -4157,6 +4157,8 @@ void COM_Gamedir (const char *dir, const struct gamepacks *packagespaths)
 #define Q3CFG "//schemes quake3\n" "set v_gammainverted 0\nset snd_ignorecueloops 1\nsetfl g_gametype 0 s\nset gl_clear 1\nset r_clearcolour 0 0 0\nset com_parseutf8 0\ngl_overbright "FORWEB("0","2")"\nseta model sarge\nseta headmodel sarge\nseta handicap 100\ncom_gamedirnativecode 1\nsv_port "STRINGIFY(PORT_Q3SERVER)"\ncl_defaultport "STRINGIFY(PORT_Q3SERVER)"\ncom_protocolversion 68\n"
 //#define RMQCFG "sv_bigcoords 1\n"
 
+#define HLCFG "plug_load ffmpeg\n"
+
 #ifndef UPDATEURL
 	#ifdef HAVE_SSL
 		#define UPDATEURL(g)	"/downloadables.php?game=" #g
@@ -4281,10 +4283,8 @@ static const gamemode_info_t gamemode_info[] = {
 	//for the luls
 //	{"-diablo2",	NULL,		"FTE-Diablo2",			{"d2music.mpq"},				NULL,	{"*",							"*fted2"},	"Diablo 2"},
 #endif
-#if defined(HLSERVER) || defined(HLCLIENT)
-	//can run in windows, needs hl gamecode enabled. maps can always be viewed, but meh.
-	{"-halflife",	"halflife",	"FTE-HalfLife",			{"valve/liblist.gam"},			NULL,	{"valve",						"*ftehl"},	"Half-Life"},
-#endif
+	/* maintained by FreeHL ~eukara */
+	{"-halflife",	"halflife",	"FTE-HalfLife",			{"valve/liblist.gam"},			HLCFG,	{"logos", "valve"},				"Half-Life"},
 #endif
 
 	{NULL}

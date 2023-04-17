@@ -2012,6 +2012,7 @@ static qboolean Shader_LoadPermutations(char *name, program_t *prog, char *scrip
 
 	for (end = *name?strchr(name+1, '#'):NULL; end && *end; )
 	{
+		size_t startoffset=offset;
 		char *start = end+1;
 		end = strchr(start, '#');
 		if (!end)
@@ -2027,11 +2028,26 @@ static qboolean Shader_LoadPermutations(char *name, program_t *prog, char *scrip
 		{
 			if (*start == '=')
 			{
+				if (offset == startoffset+8)
+					break;
 				start++;
 				prescript[offset++] = ' ';
 				break;
 			}
-			prescript[offset++] = toupper(*start++);
+			if ((*start >='a'&&*start<='z')||(*start >='A'&&*start<='Z')||*start=='_'||(*start >='0'&&*start<='9'&&offset>startoffset+8))
+				prescript[offset++] = toupper(*start++);
+			else
+			{	///invalid symbol name...
+				offset = startoffset+8;
+				prescript[offset] = 0;
+				break;
+			}
+		}
+		if (offset == startoffset+8)
+		{	///invalid symbol name...
+			offset = startoffset;
+			prescript[offset] = 0;
+			break;
 		}
 		while (offset < sizeof(prescript) && start < end)
 			prescript[offset++] = toupper(*start++);

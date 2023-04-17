@@ -78,6 +78,7 @@ void RSpeedShow(void)
 
 	RSpNames[RSPEED_PROTOCOL]		= "Client Protocol";
 	RSpNames[RSPEED_SERVER]			= "Server";
+	RSpNames[RSPEED_AUDIO]			= "Audio";
 
 	memset(RQntNames, 0, sizeof(RQntNames));
 	RQntNames[RQUANT_MSECS]					= "Microseconds";

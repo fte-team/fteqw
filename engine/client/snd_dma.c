@@ -3889,7 +3889,7 @@ static void S_UpdateCard(soundcardinfo_t *sc)
 			if (ch->sfx && (ch->vol[0] || ch->vol[1]) )
 			{
 				if (snd_show.ival > 1)
-					Con_Printf ("%i, %i %i %i %i %i %i %s\n", i, ch->vol[0], ch->vol[1], ch->vol[2], ch->vol[3], ch->vol[4], ch->vol[5], ch->sfx->name);
+					Con_Printf ("%i, %i/%i/%i/%i/%i/%i %s\n", i, ch->vol[0], ch->vol[1], ch->vol[2], ch->vol[3], ch->vol[4], ch->vol[5], ch->sfx->name);
 				active++;
 			}
 			else if (ch->sfx)
@@ -3961,11 +3961,12 @@ int S_GetMixerTime(soundcardinfo_t *sc)
 void S_Update (void)
 {
 	soundcardinfo_t *sc;
-
+	RSpeedMark();
 	S_LockMixer();
 	for (sc = sndcardinfo; sc; sc = sc->next)
 		S_UpdateCard(sc);
 	S_UnlockMixer();
+	RSpeedEnd(RSPEED_AUDIO);
 }
 
 void S_ExtraUpdate (void)

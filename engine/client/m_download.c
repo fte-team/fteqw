@@ -2811,10 +2811,6 @@ static void PM_Plugin_Source_Finished(void *ctx, vfsfile_t *f)
 			PM_ListDownloaded(&dl);
 		}
 	}
-	else
-	{
-		Con_Printf("PM_Plugin_Source_Finished: stale\n");
-	}
 	VFS_CLOSE(f);
 }
 static void PM_Plugin_Source_CacheFinished(void *ctx, vfsfile_t *f)
@@ -2835,10 +2831,6 @@ static void PM_Plugin_Source_CacheFinished(void *ctx, vfsfile_t *f)
 			src->curdl = &dl;
 			PM_ListDownloaded(&dl);
 		}
-	}
-	else
-	{
-		Con_Printf("PM_Plugin_Source_CacheFinished: stale\n");
 	}
 	VFS_CLOSE(f);
 }

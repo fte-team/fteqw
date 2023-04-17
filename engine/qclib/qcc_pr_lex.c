@@ -4074,11 +4074,14 @@ NORETURN void VARGS QCC_PR_ParseError (int errortype, const char *error, ...)
 	editbadfile(s_filen, pr_source_line);
 #endif
 
-	QCC_PR_PrintScope();
-	if (flag_msvcstyle)
-		externs->Printf ("%s%s(%i) : %serror%s: %s\n", col_location, s_filen, pr_source_line, col_error, col_none, string);
-	else
-		externs->Printf ("%s%s:%i: %serror%s: %s\n", col_location, s_filen, pr_source_line, col_error, col_none, string);
+	if (error)
+	{
+		QCC_PR_PrintScope();
+		if (flag_msvcstyle)
+			externs->Printf ("%s%s(%i) : %serror%s: %s\n", col_location, s_filen, pr_source_line, col_error, col_none, string);
+		else
+			externs->Printf ("%s%s:%i: %serror%s: %s\n", col_location, s_filen, pr_source_line, col_error, col_none, string);
+	}
 
 	longjmp (pr_parse_abort, 1);
 }

@@ -187,6 +187,7 @@ typedef struct player_info_s
 
 	qboolean ignored;
 	qboolean vignored;
+	unsigned int chatstate;
 
 	// skin information
 	unsigned int		rtopcolor;	//real, according to their userinfo
@@ -491,7 +492,8 @@ typedef struct
 	infobuf_t	userinfo[MAX_SPLITS];
 	infosync_t	userinfosync;
 
-	char		servername[MAX_OSPATH];	// name of server from original connect
+	char		serverurl[MAX_OSPATH*4];	// eg qw://foo:27500/join?fp=blah
+	char		servername[MAX_OSPATH];		// internal parsing, eg dtls://foo:27500
 
 	struct ftenet_connections_s *sockets;
 
@@ -1450,7 +1452,7 @@ qboolean CL_MayLerp(void);
 //
 #ifdef CSQC_DAT
 qboolean CSQC_Inited(void);
-void	 CSQC_RendererRestarted(void);
+void	 CSQC_RendererRestarted(qboolean initing);
 qboolean CSQC_UnconnectedOkay(qboolean inprinciple);
 qboolean CSQC_UnconnectedInit(void);
 qboolean CSQC_CheckDownload(const char *name, unsigned int checksum, size_t checksize);	//reports whether we already have a usable csprogs.dat

@@ -99,6 +99,7 @@
 
 
 #define GNUTLS_X509_STUFF \
+	GNUTLS_FUNC(gnutls_certificate_server_set_request,void,(gnutls_session_t session, gnutls_certificate_request_t req)) \
 	GNUTLS_FUNC(gnutls_sec_param_to_pk_bits,unsigned int,(gnutls_pk_algorithm_t algo, gnutls_sec_param_t param))	\
 	GNUTLS_FUNC(gnutls_x509_crt_init,int,(gnutls_x509_crt_t * cert))	\
 	GNUTLS_FUNC(gnutls_x509_crt_deinit,void,(gnutls_x509_crt_t cert))	\
@@ -108,6 +109,7 @@
 	GNUTLS_FUNC(gnutls_x509_crt_set_expiration_time,int,(gnutls_x509_crt_t cert, time_t exp_time))	\
 	GNUTLS_FUNC(gnutls_x509_crt_set_serial,int,(gnutls_x509_crt_t cert, const void *serial, size_t serial_size))	\
 	GNUTLS_FUNC(gnutls_x509_crt_set_dn,int,(gnutls_x509_crt_t crt, const char *dn, const char **err))	\
+	GNUTLS_FUNC(gnutls_x509_crt_get_dn3,int,(gnutls_x509_crt_t crt, gnutls_datum_t * dn, unsigned flags))	\
 	GNUTLS_FUNC(gnutls_x509_crt_set_issuer_dn,int,(gnutls_x509_crt_t crt,const char *dn, const char **err))	\
 	GNUTLS_FUNC(gnutls_x509_crt_set_key,int,(gnutls_x509_crt_t crt, gnutls_x509_privkey_t key))	\
 	GNUTLS_FUNC(gnutls_x509_crt_export2,int,(gnutls_x509_crt_t cert, gnutls_x509_crt_fmt_t format, gnutls_datum_t * out))	\
@@ -123,7 +125,9 @@
 	GNUTLS_FUNC(gnutls_pubkey_init,int,(gnutls_pubkey_t * key))	\
 	GNUTLS_FUNC(gnutls_pubkey_deinit,void,(gnutls_pubkey_t key))	\
 	GNUTLS_FUNC(gnutls_pubkey_import_x509,int,(gnutls_pubkey_t key, gnutls_x509_crt_t crt, unsigned int flags))	\
-	GNUTLS_FUNC(gnutls_pubkey_verify_hash2,int,(gnutls_pubkey_t key, gnutls_sign_algorithm_t algo, unsigned int flags, const gnutls_datum_t * hash, const gnutls_datum_t * signature))
+	GNUTLS_FUNC(gnutls_pubkey_verify_hash2,int,(gnutls_pubkey_t key, gnutls_sign_algorithm_t algo, unsigned int flags, const gnutls_datum_t * hash, const gnutls_datum_t * signature))	\
+	GNUTLS_FUNC(gnutls_certificate_get_ours,const gnutls_datum_t*,(gnutls_session_t session))	\
+	GNUTLS_FUNC(gnutls_certificate_get_crt_raw,int,(gnutls_certificate_credentials_t sc, unsigned idx1, unsigned idx2, gnutls_datum_t * cert))
 
 
 #define GNUTLS_FUNCS \
@@ -548,7 +552,7 @@ static int QDECL SSL_CheckFingerprint(gnutls_session_t session)
 		if (!memcmp(digest, file->peerdigest, file->peerhashfunc->digestsize))
 			return 0;
 	}
-	Con_DPrintf(CON_ERROR "%s: rejecting certificate\n", file->certname);
+	Con_Printf(CON_ERROR "%s: rejecting certificate\n", file->certname);
 	return GNUTLS_E_CERTIFICATE_ERROR;
 }
 #endif
@@ -1084,7 +1088,10 @@ qboolean SSL_InitGlobal(qboolean isserver)
 #endif
 		}
 		else
+		{
 			qgnutls_certificate_set_verify_function (xcred[isserver], SSL_CheckCert);
+//			qgnutls_certificate_set_retrieve_function (xcred[isserver], SSL_FindClientCert);
+		}
 #endif
 	}
 	else
@@ -1151,7 +1158,7 @@ static int GetPSKForServer(gnutls_session_t sess, char **username, gnutls_datum_
 				if (strcmp(svhint, dtls_psk_user.string) || CalcHashInt(&hash_sha1, dtls_psk_key.string, strlen(dtls_psk_key.string)) != 0x3dd348e4)
 				{
 					Con_Printf(CON_WARNING	"Possible QEx Server, please set your ^[%s\\type\\%s^] and ^[%s\\type\\%s^] cvars correctly, their current values are likely to crash the server.\n", dtls_psk_user.name,dtls_psk_user.name, dtls_psk_key.name,dtls_psk_key.name);
-					return 0; //don't report anything.
+					return -1; //don't report anything.
 				}
 			}
 		}
@@ -1174,7 +1181,10 @@ static int GetPSKForServer(gnutls_session_t sess, char **username, gnutls_datum_
 static qboolean SSL_InitConnection(gnutlsfile_t *newf, qboolean isserver, qboolean datagram)
 {
 	// Initialize TLS session
-	qgnutls_init (&newf->session, GNUTLS_NONBLOCK|(isserver?GNUTLS_SERVER:GNUTLS_CLIENT)|(datagram?GNUTLS_DATAGRAM:0));
+	qgnutls_init (&newf->session, ((newf->certcred)?GNUTLS_FORCE_CLIENT_CERT:0)
+									|GNUTLS_NONBLOCK
+									|(isserver?GNUTLS_SERVER:GNUTLS_CLIENT)
+									|(datagram?GNUTLS_DATAGRAM:0));
 
 	if (!isserver)
 		qgnutls_server_name_set(newf->session, GNUTLS_NAME_DNS, newf->certname, strlen(newf->certname));
@@ -1182,6 +1192,7 @@ static qboolean SSL_InitConnection(gnutlsfile_t *newf, qboolean isserver, qboole
 
 	if (newf->certcred)
 	{
+		qgnutls_certificate_server_set_request(newf->session, GNUTLS_CERT_REQUIRE);	//we will need to validate their fingerprint.
 		qgnutls_credentials_set (newf->session, GNUTLS_CRD_CERTIFICATE, newf->certcred);
 		qgnutls_set_default_priority (newf->session);
 	}
@@ -1192,6 +1203,8 @@ static qboolean SSL_InitConnection(gnutlsfile_t *newf, qboolean isserver, qboole
 		qgnutls_credentials_set (newf->session, GNUTLS_CRD_ANON, anoncred[isserver]);
 #else
 #ifdef HAVE_DTLS
+		qgnutls_certificate_server_set_request(newf->session, GNUTLS_CERT_REQUEST);	//request a cert, we'll use it for fingerprints.
+
 		if (datagram && !isserver)
 		{	//do psk as needed. we can still do the cert stuff if the server isn't doing psk.
 			gnutls_psk_client_credentials_t pskcred;
@@ -1402,16 +1415,22 @@ static void *GNUDTLS_CreateContext(const dtlscred_t *credinfo, void *cbctx, nete
 
 //	Sys_Printf("DTLS_CreateContext: server=%i\n", isserver);
 
-	if (credinfo && credinfo->local.cert && credinfo->local.key && credinfo->peer.hash)
+	if (credinfo && ((credinfo->local.cert && credinfo->local.key) || credinfo->peer.hash))
 	{
-		gnutls_datum_t	pub = {credinfo->local.cert, credinfo->local.certsize},
-						priv = {credinfo->local.key, credinfo->local.keysize};
 		qgnutls_certificate_allocate_credentials (&newf->certcred);
-		qgnutls_certificate_set_x509_key_mem(newf->certcred, &pub, &priv, GNUTLS_X509_FMT_DER);
+		if (credinfo->local.cert && credinfo->local.key)
+		{
+			gnutls_datum_t	pub = {credinfo->local.cert, credinfo->local.certsize},
+							priv = {credinfo->local.key, credinfo->local.keysize};
+			qgnutls_certificate_set_x509_key_mem(newf->certcred, &pub, &priv, GNUTLS_X509_FMT_DER);
+		}
 
-		newf->peerhashfunc = credinfo->peer.hash;
-		memcpy(newf->peerdigest, credinfo->peer.digest, newf->peerhashfunc->digestsize);
-		qgnutls_certificate_set_verify_function (newf->certcred, SSL_CheckFingerprint);
+		if (credinfo->peer.hash)
+		{
+			newf->peerhashfunc = credinfo->peer.hash;
+			memcpy(newf->peerdigest, credinfo->peer.digest, newf->peerhashfunc->digestsize);
+			qgnutls_certificate_set_verify_function (newf->certcred, SSL_CheckFingerprint);
+		}
 	}
 
 	SSL_SetCertificateName(newf, credinfo?credinfo->peer.name:NULL);
@@ -1442,6 +1461,9 @@ static neterr_t GNUDTLS_Transmit(void *ctx, const qbyte *data, size_t datasize)
 			return NETERR_DISCONNECTED;
 	}
 
+	if (!datasize)
+		return NETERR_SENT;
+
 	ret = qgnutls_record_send(f->session, data, datasize);
 	if (ret < 0)
 	{
@@ -1462,17 +1484,39 @@ static neterr_t GNUDTLS_Received(void *ctx, sizebuf_t *message)
 
 	if (f->challenging)
 	{
-		int cli_addr = 0xdeadbeef;	//FIXME: replace with client's IP:port.
+		size_t asize;
+		safeswitch (net_from.type)
+		{
+		case NA_LOOPBACK:	asize = 0; break;
+		case NA_IP:			asize = sizeof(net_from.address.ip);	break;
+		case NA_IPV6:		asize = sizeof(net_from.address.ip6);	break;
+		case NA_IPX:		asize = sizeof(net_from.address.ipx);	break;
+#ifdef UNIXSOCKETS
+		case NA_UNIX:		asize = (qbyte*)&net_from.address.un.path[net_from.address.un.len]-(qbyte*)&net_from.address; break;	//unlikely to be spoofed...
+#endif
+#ifdef IRCCONNECT
+		//case NA_IRC:
+#endif
+#ifdef HAVE_WEBSOCKCL
+		//case NA_WEBSOCKET:	//basically web browser.
+#endif
+#ifdef SUPPORT_ICE
+		case NA_ICE:		asize = strlen(net_from.address.icename);	break;
+#endif
+		case NA_INVALID:
+		safedefault: return NETERR_NOROUTE;
+		}
+
 		memset(&f->prestate, 0, sizeof(f->prestate));
 		ret = qgnutls_dtls_cookie_verify(&cookie_key,
-				&cli_addr, sizeof(cli_addr),
+				&net_from.address, asize,
 				message->data, message->cursize,
 				&f->prestate);
 
 		if (ret == GNUTLS_E_BAD_COOKIE)
 		{
 			qgnutls_dtls_cookie_send(&cookie_key,
-					&cli_addr, sizeof(cli_addr),
+					&net_from.address, asize,
 					&f->prestate,
 					(gnutls_transport_ptr_t)f, DTLS_Push);
 			return NETERR_CLOGGED;
@@ -1599,6 +1643,74 @@ static neterr_t GNUDTLS_Timeouts(void *ctx)
 	return NETERR_SENT;
 }
 
+static int GNUDTLS_GetPeerCertificate(void *ctx, enum certprops_e prop, char *out, size_t outsize)
+{
+	gnutlsfile_t *f = (gnutlsfile_t *)ctx;
+	if (f && (f->challenging || f->handshaking))
+		return -1;	//no cert locked down yet...
+	safeswitch(prop)
+	{
+	case QCERT_ISENCRYPTED:
+		return 0;	//well, should be...
+	case QCERT_PEERSUBJECT:
+		{
+			unsigned int certcount;
+			const gnutls_datum_t *const certlist = qgnutls_certificate_get_peers(f->session, &certcount);
+			if (certlist)
+			{
+				gnutls_x509_crt_t cert = NULL;
+				gnutls_datum_t dn={NULL};
+				qgnutls_x509_crt_init(&cert);
+				qgnutls_x509_crt_import(cert, certlist, GNUTLS_X509_FMT_DER);
+				qgnutls_x509_crt_get_dn3(cert, &dn, 0);
+				if (dn.size >= outsize)
+					dn.size = -1;	//too big...
+				else
+				{
+					memcpy(out, dn.data, dn.size);
+					out[dn.size] = 0;
+				}
+				(*qgnutls_free)(dn.data);
+				qgnutls_x509_crt_deinit(cert);
+				return (int)dn.size;
+			}
+		}
+		return -1;
+	case QCERT_PEERCERTIFICATE:
+		{
+			unsigned int certcount;
+			const gnutls_datum_t *const certlist = qgnutls_certificate_get_peers(f->session, &certcount);
+			if (certlist && certlist->size <= outsize)
+			{
+				memcpy(out, certlist->data, certlist->size);
+				return certlist->size;
+			}
+		}
+		return -1;
+	case QCERT_LOCALCERTIFICATE:
+		{
+			const gnutls_datum_t *cert;
+			gnutls_datum_t d;
+
+			if (f)
+				cert = qgnutls_certificate_get_ours(f->session);
+			else	//no actual context? get our default dtls server cert.
+			{
+				qgnutls_certificate_get_crt_raw (xcred[true], 0/*first chain*/, 0/*primary one*/, &d);
+				cert = &d;
+			}
+			if (cert->size <= outsize)
+			{
+				memcpy(out, cert->data, cert->size);
+				return cert->size;
+			}
+		}
+		return -1;
+	safedefault:
+		return -1; //dunno what you want from me.
+	}
+}
+
 static qboolean GNUDTLS_GenTempCertificate(const char *subject, struct dtlslocalcred_s *qcred)
 {
 	gnutls_datum_t priv = {NULL}, pub = {NULL};
@@ -1681,7 +1793,7 @@ static const dtlsfuncs_t dtlsfuncs_gnutls =
 	GNUDTLS_Transmit,
 	GNUDTLS_Received,
 	GNUDTLS_Timeouts,
-	NULL,
+	GNUDTLS_GetPeerCertificate,
 	GNUDTLS_GenTempCertificate
 };
 static const dtlsfuncs_t *GNUDTLS_InitServer(void)

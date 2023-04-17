@@ -95,6 +95,10 @@ SET(FTE_BUILD_CONFIG ${CMAKE_HOME_DIRECTORY}/engine/common/config_fteqw.h CACHE 
 SET(FTE_LIB_DEFINES ${FTE_LIB_DEFINES};CONFIG_FILE_NAME=${FTE_BUILD_CONFIG})
 SET(FTE_USE_SDL false CACHE BOOL "Force the use of SDL instead of using native builds.")
 
+INCLUDE(GNUInstallDirs)
+SET(FTE_INSTALL_BINDIR games CACHE STRING "Binary dir to install to.")
+SET(FTE_INSTALL_LIBDIR fteqw CACHE STRING "Binary dir to install to.")
+
 IF(NOT WIN32)
 	SET(SYS_LIBS ${SYS_LIBS} m)
 ELSE()
@@ -131,8 +135,12 @@ ELSE()
 	SET(FTE_LIB_DEFINES ${FTE_LIB_DEFINES};NO_OPENGL)
 ENDIF()
 
-FIND_PACKAGE(JPEG)
+SET(FTE_DEP_JPEG true CACHE BOOL "Link against libjpeg.")
+IF(FTE_DEP_JPEG)
+	FIND_PACKAGE(JPEG)
+ENDIF()
 IF(JPEG_FOUND)
+	INCLUDE_DIRECTORIES( ${JPEG_INCLUDE_DIRS} )
 	SET(FTE_LIB_DEFINES ${FTE_LIB_DEFINES};LIBJPEG_STATIC)
 	SET(FTE_LIBS ${FTE_LIBS} ${JPEG_LIBRARIES})
 ELSE()
@@ -142,6 +150,7 @@ ENDIF()
 
 FIND_PACKAGE(PNG)
 IF(PNG_FOUND)
+	INCLUDE_DIRECTORIES( ${PNG_INCLUDE_DIRS} )
 	SET(FTE_LIB_DEFINES ${FTE_LIB_DEFINES};LIBPNG_STATIC)
 	SET(FTE_LIBS ${FTE_LIBS} ${PNG_LIBRARIES})
 ELSE()
@@ -169,6 +178,7 @@ ENDIF()
 
 FIND_LIBRARY(VORBISFILE_LIBRARY NAMES vorbisfile)
 IF(NOT VORBISFILE_LIBRARY)
+	INCLUDE_DIRECTORIES( ${VORBISFILE_INCLUDE_DIRS} )
 	MESSAGE(WARNING "libvorbisfile library NOT available. Who listens to the bgm anyway?")
 	SET(FTE_LIB_DEFINES ${FTE_LIB_DEFINES};NO_OGG)
 ENDIF()
@@ -215,11 +225,13 @@ IF(CMAKE_BUILD_TYPE MATCHES "Debug")
 ENDIF()
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -D_FILE_OFFSET_BITS=64")
 
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -DFTE_LIBRARY_PATH=${CMAKE_INSTALL_FULL_LIBDIR}/${FTE_INSTALL_LIBDIR}")
+
 FUNCTION(EMBED_PLUGIN_META PLUGNAME PLUGTITLE PLUGDESC)
 	SET_TARGET_PROPERTIES(plug_${PLUGNAME} PROPERTIES OUTPUT_NAME "${PLUGNAME}")
 	SET_TARGET_PROPERTIES(plug_${PLUGNAME} PROPERTIES PREFIX "fteplug_")
 	SET_TARGET_PROPERTIES(plug_${PLUGNAME} PROPERTIES LINK_FLAGS "-Wl,--no-undefined")
-	SET(INSTALLTARGS ${INSTALLTARGS} "plug_${PLUGNAME}")
+	SET(INSTALLTARGS ${INSTALLTARGS} "plug_${PLUGNAME}" PARENT_SCOPE)
 	#sadly we need to use a temp zip file, because otherwise zip insists on using zip64 extensions which breaks zip -A (as well as any attempts to read any files).
 	ADD_CUSTOM_COMMAND(
 		TARGET plug_${PLUGNAME} POST_BUILD
@@ -1020,6 +1032,7 @@ ELSE()
 				engine/common/cvar.c
 				engine/common/cmd.c
 				engine/common/sha1.c		#for websockets
+				engine/common/sha2.c		#for fingerprints
 				engine/http/httpclient.c	#for the pipe stuff
 				engine/common/log.c
 				engine/common/fs.c
@@ -1157,8 +1170,7 @@ SET(FTE_PLUG_QI true CACHE BOOL "Compile Quake-Injnector plugin.")
 IF(FTE_PLUG_QI)
 	ADD_LIBRARY(plug_qi MODULE
 		plugins/plugin.c
-			plugins/qi/qi.c
-		plugins/emailnot/md5.c
+		plugins/qi/qi.c
 		plugins/jabber/xml.c
 	)
 	SET_TARGET_PROPERTIES(plug_qi PROPERTIES COMPILE_DEFINITIONS "FTEPLUGIN;${FTE_LIB_DEFINES}")
@@ -1241,11 +1253,7 @@ IF(FTE_PLUG_NAMEMAKER)
 		plugins/namemaker/namemaker.c
 	)
 	SET_TARGET_PROPERTIES(plug_namemaker PROPERTIES COMPILE_DEFINITIONS "${FTE_LIB_DEFINES}")
-	SET_TARGET_PROPERTIES(plug_namemaker PROPERTIES OUTPUT_NAME "namemaker")
-	SET_TARGET_PROPERTIES(plug_namemaker PROPERTIES PREFIX "fteplug_")
-	SET_TARGET_PROPERTIES(plug_namemaker PROPERTIES LINK_FLAGS "-Wl,--no-undefined")
 	TARGET_LINK_LIBRARIES(plug_namemaker ${SYS_LIBS})
-	SET(INSTALLTARGS ${INSTALLTARGS} plug_namemaker)
 
 	EMBED_PLUGIN_META(namemaker "Name Maker Plugin" "Provides a lame UI for selecting arbitrary non-ascii glyphs as part of your nickname.")
 ENDIF()
@@ -1525,12 +1533,15 @@ IF(FTE_PLUG_XMPP)
 ENDIF()
 ENDIF()	#android
 
-INCLUDE(GNUInstallDirs)
-SET(FTE_INSTALL_BINDIR games CACHE STRING "Binary dir to install to.")
 INSTALL(TARGETS ${INSTALLTARGS}
 	RUNTIME DESTINATION "${CMAKE_INSTALL_PREFIX}/${FTE_INSTALL_BINDIR}"
-	LIBRARY DESTINATION "${CMAKE_INSTALL_FULL_LIBDIR}"
+	LIBRARY DESTINATION "${CMAKE_INSTALL_FULL_LIBDIR}/${FTE_INSTALL_LIBDIR}"
 )
+
+INSTALL(FILES
+	fteqw.desktop
+	DESTINATION "${CMAKE_INSTALL_DATAROOTDIR}/applications/")
+
 
 SET(FTE_MENU_SYS true CACHE BOOL "Compile System Menu.")
 IF(FTE_MENU_SYS)

@@ -84,10 +84,10 @@ MAKE:=$(MAKE) --no-print-directory SVNREVISION="$(SVNREVISION)" SVN_VERSION="$(S
 #update these to download+build a different version. this assumes that the url+subdirs etc contain a consistant version everywhere.
 JPEGVER=9c
 ZLIBVER=1.2.13
-PNGVER=1.6.37
+PNGVER=1.6.39
 OGGVER=1.3.4
 VORBISVER=1.3.6
-SDL2VER=2.0.10
+SDL2VER=2.26.4
 SCINTILLAVER=373
 OPUSVER=1.3.1
 SPEEXVER=1.2.0
@@ -1044,6 +1044,14 @@ endif
 ifeq (1,$(LINK_ZLIB))
     CLIENTLIBFLAGS+=-DZLIB_STATIC
     CLIENTLDDEPS+=-lz
+
+    #and deflate64, because why not.
+    ifneq ("$(wildcard $(ARCHLIBS)/infback9.h)","")
+        CLIENTLIBFLAGS+=-DZLIB_DEFLATE64
+        CLIENTLDDEPS+=-lz9
+        QCC_CFLAGS+=-DZLIB_DEFLATE64
+        QCC_LDFLAGS+=-lz9
+    endif
 endif
 ifeq (1,$(LINK_ODE))
     ALL_CFLAGS+=$(shell $(PKGCONFIG) ode --cflags --silence-errors) -DODE_STATIC
@@ -2124,7 +2132,7 @@ m-profile:
 
 
 _qcc-tmp: $(REQDIR)
-	@$(MAKE) $(TYPE) EXE_NAME="$(EXE_NAME)$(EXEPOSTFIX)" PRECOMPHEADERS="" OUT_DIR="$(OUT_DIR)" WCFLAGS="$(CLIENT_ONLY_CFLAGS) $(WCFLAGS)" LDFLAGS="$(LDFLAGS) $(QCC_LDFLAGS)" OBJS="QCC_OBJS SOBJS"
+	@$(MAKE) $(TYPE) EXE_NAME="$(EXE_NAME)$(EXEPOSTFIX)" PRECOMPHEADERS="" OUT_DIR="$(OUT_DIR)" WCFLAGS="$(QCC_CFLAGS) $(WCFLAGS)" LDFLAGS="$(LDFLAGS) $(QCC_LDFLAGS)" OBJS="QCC_OBJS SOBJS"
 qcc-rel:
 	@$(MAKE) _qcc-tmp TYPE=_out-rel REQDIR=reldir EXE_NAME="../fteqcc$(BITS)" OUT_DIR="$(RELEASE_DIR)/$(NCDIRPREFIX)$(QCC_DIR)" SOBJS="qcctui.o packager.o $(if $(findstring win,$(FTE_TARGET)),fteqcc.o)"
 qccgui-rel:
@@ -2429,6 +2437,13 @@ libs-$(ARCH)/libz.a libs-$(ARCH)/libz.pc:
 	test -f zlib-$(ZLIBVER).tar.gz || wget http://zlib.net/zlib-$(ZLIBVER).tar.gz
 	-test -f libs-$(ARCH)/libz.a || (mkdir -p libs-$(ARCH) && cd libs-$(ARCH) && tar -xvzf ../zlib-$(ZLIBVER).tar.gz && cd zlib-$(ZLIBVER) && $(TOOLOVERRIDES) ./configure --static && $(TOOLOVERRIDES) $(MAKE) libz.a CC="$(CC) $(W32_CFLAGS) -fPIC" && cp libz.a ../ && $(TOOLOVERRIDES) $(AR) -s ../libz.a && cp zlib.h zconf.h zutil.h zlib.pc ../ )
 endif
+libs-$(ARCH)/libz9.a: libs-$(ARCH)/libz.a
+	(cd libs-$(ARCH)/zlib-$(ZLIBVER) && \
+		$(CC) -o contrib/infback9/infback9.o -c contrib/infback9/infback9.c -I.	&& \
+		$(CC) -o contrib/infback9/inftree9.o -c contrib/infback9/inftree9.c -I.	&& \
+		cp contrib/infback9/infback9.h .. && \
+		$(AR) rcs ../libz9.a contrib/infback9/infback9.o contrib/infback9/inftree9.o)
+
 
 libs-$(ARCH)/libpng.a libs-$(ARCH)/libpng.pc: libs-$(ARCH)/libz.a libs-$(ARCH)/libz.pc
 	test -f libpng-$(PNGVER).tar.gz || wget http://prdownloads.sourceforge.net/libpng/libpng-$(PNGVER).tar.gz?download -O libpng-$(PNGVER).tar.gz
@@ -2465,7 +2480,7 @@ libs-$(ARCH)/libBulletDynamics.a:
 ifeq ($(FTE_TARGET),web)
 makelibs: libs-$(ARCH)/libz.a $(MAKELIBS)
 else
-makelibs: libs-$(ARCH)/libjpeg.a libs-$(ARCH)/libz.a libs-$(ARCH)/libpng.a libs-$(ARCH)/libogg.a libs-$(ARCH)/libvorbis.a libs-$(ARCH)/libopus.a libs-$(ARCH)/libspeex.a libs-$(ARCH)/libspeexdsp.a libs-$(ARCH)/libfreetype.a $(MAKELIBS)
+makelibs: libs-$(ARCH)/libjpeg.a libs-$(ARCH)/libz9.a libs-$(ARCH)/libz.a libs-$(ARCH)/libpng.a libs-$(ARCH)/libogg.a libs-$(ARCH)/libvorbis.a libs-$(ARCH)/libopus.a libs-$(ARCH)/libspeex.a libs-$(ARCH)/libspeexdsp.a libs-$(ARCH)/libfreetype.a $(MAKELIBS)
 endif
 
 HTTP_OBJECTS=http/httpserver.c http/iwebiface.c common/fs_stdio.c http/ftpserver.c

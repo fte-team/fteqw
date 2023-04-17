@@ -110,7 +110,8 @@ menuoption_t *M_NextSelectableItem(emenu_t *m, menuoption_t *old, qboolean wrap)
 //but we're lazy so we don't consider the next char. italic fonts are annoying like that. feel free to refudge it.
 void Draw_Hexen2BigFontString(int x, int y, const char *text)
 {
-	int c;
+	conchar_t *w, buffer[256];
+	unsigned int codeflags, oldflags=CON_WHITEMASK, c;
 	int sx, sy;
 	mpic_t *p;
 	p = R_RegisterShader ("gfx/menu/bigfont.lmp", SUF_2D,
@@ -144,9 +145,45 @@ void Draw_Hexen2BigFontString(int x, int y, const char *text)
 			p->defaulttextures->base = R_LoadHiResTexture("gfx/menu/bigfont.lmp", NULL, IF_PREMULTIPLYALPHA|IF_UIPIC|IF_NOPICMIP|IF_NOMIPMAP|IF_CLAMP);
 	}
 
-	while(*text)
+
+	COM_ParseFunString(oldflags, text, buffer, sizeof(buffer), false);
+
+	for (w = buffer; *w; )
 	{
-		c = *text++;
+		w = Font_Decode(w, &codeflags, &c);
+		if (codeflags & CON_HIDDEN)
+			continue;
+		if (c >= 0xe020 && c <= 0xe07f)
+			c &= 0x00ff; //convert to quake glyph to unicode/ascii...
+
+		if (codeflags != oldflags)
+		{
+			vec4_t rgba;
+			unsigned int col;
+			oldflags = codeflags;
+
+			col = (codeflags&CON_FGMASK)>>CON_FGSHIFT;
+			rgba[0] = consolecolours[col].fr;
+			rgba[1] = consolecolours[col].fg;
+			rgba[2] = consolecolours[col].fb;
+			if(codeflags & CON_HALFALPHA)
+				rgba[3] = 0.5;
+			else
+				rgba[3] = 1;
+			if (vid.flags&VID_SRGBAWARE)
+			{
+				rgba[0] = M_SRGBToLinear(rgba[0], 1);
+				rgba[1] = M_SRGBToLinear(rgba[1], 1);
+				rgba[2] = M_SRGBToLinear(rgba[2], 1);
+			}
+			if (codeflags & CON_BLINKTEXT)
+			{
+				float a = (sin(realtime*3)+1)*0.3 + 0.4;
+				VectorScale(rgba, a, rgba);
+			}
+			R2D_ImageColours(rgba[0], rgba[1], rgba[2], rgba[3]);
+		}
+
 		if (c >= 'a' && c <= 'z')
 		{
 			sx = ((c-'a')%8)*20;
@@ -197,6 +234,8 @@ void Draw_Hexen2BigFontString(int x, int y, const char *text)
 		default:	x+=20; break;
 		}
 	}
+
+	R2D_ImageColours(1, 1, 1, 1);
 }
 #endif
 
@@ -248,6 +287,8 @@ void Draw_BigFontString(int x, int y, const char *text)
 	for (w = buffer; *w; )
 	{
 		w = Font_Decode(w, &codeflags, &codepoint);
+		if (codeflags & CON_HIDDEN)
+			continue;
 		if (codepoint >= 0xe020 && codepoint <= 0xe07f)
 			codepoint &= 0x00ff; //convert to quake glyph to unicode/ascii...
 
@@ -323,7 +364,7 @@ int dotofs;
 
 static void MenuTooltipChange(emenu_t *menu, const char *text)
 {
-	unsigned int MAX_CHARS=1024;
+	unsigned int MAX_CHARS=2048;
 	menutooltip_t *mtt;
 	if (menu->tooltip)
 	{
@@ -412,7 +453,7 @@ static qboolean M_MouseMoved(emenu_t *menu)
 						{
 							menu->selecteditem = option;
 							if (menu->cursoritem)
-								menu->cursoritem->common.posy = menu->selecteditem->common.posy;
+								menu->cursoritem->common.posy = menu->selecteditem->common.posy + (menu->selecteditem->common.height-menu->cursoritem->common.height)/2;
 						}
 						menu->tooltiptime = realtime + 1;
 						MenuTooltipChange(menu, menu->mouseitem->common.tooltip);
@@ -765,7 +806,7 @@ static void MenuDrawItems(int xpos, int ypos, menuoption_t *option, emenu_t *men
 				int y = ypos+option->common.posy;
 
 				if (!option->edit.slim)
-					y += (16-8)/2;	//fat ones are twice the height on account of the text box's borders.
+					y += (option->common.height-8)/2;	//fat ones are twice the height on account of the text box's borders.
 
 				Draw_FunStringWidth(x, y, option->edit.caption, option->edit.captionwidth, true, !menu->cursoritem && menu->selecteditem == option);
 				x += option->edit.captionwidth + 3*8;
@@ -923,6 +964,7 @@ menutext_t *MC_AddWhiteText(emenu_t *menu, int lhs, int rhs, int y, const char *
 	n->common.posx = lhs;
 	n->common.posy = y;
 	n->common.width = (rhs)?rhs-lhs:0;
+	n->common.height = 8;
 	n->rightalign = rightalign;
 	if (text)
 	{
@@ -1068,7 +1110,7 @@ menupicture_t *MC_AddCenterPicture(emenu_t *menu, int y, int height, char *picna
 	return MC_AddPicture(menu, x, y, width, height, picname);
 }
 
-menuoption_t *MC_AddCursorSmall(emenu_t *menu, menuresel_t *reselection, int x, int y)
+menuoption_t *MC_AddCursorSmall(emenu_t *menu, menuresel_t *reselection, int x)
 {
 	menuoption_t *n = Z_Malloc(sizeof(menucommon_t));
 	if (reselection)
@@ -1076,7 +1118,11 @@ menuoption_t *MC_AddCursorSmall(emenu_t *menu, menuresel_t *reselection, int x, 
 	n->common.type = mt_menucursor;
 	n->common.iszone = true;
 	n->common.posx = x;
-	n->common.posy = y;
+	n->common.height = 8;
+	if (!menu->selecteditem)
+		n->common.posy = -8;
+	else
+		n->common.posy = menu->selecteditem->common.posy + (menu->selecteditem->common.height-n->common.height)/2;
 
 	n->common.next = menu->options;
 	menu->options = (menuoption_t *)n;
@@ -1090,7 +1136,7 @@ menuoption_t *MC_AddCursorSmall(emenu_t *menu, menuresel_t *reselection, int x, 
 			if (sel->common.posx == menu->reselection->x && sel->common.posy == menu->reselection->y)
 			{
 				menu->selecteditem = sel;
-				n->common.posy = sel->common.posy;
+				n->common.posy = sel->common.posy + (sel->common.height-n->common.height)/2;
 				break;
 			}
 			sel = M_NextSelectableItem(menu, sel, false);
@@ -1182,7 +1228,7 @@ menuedit_t *MC_AddEdit(emenu_t *menu, int cx, int ex, int y, char *text, char *d
 	n->common.posx = cx;
 	n->common.posy = y;
 	n->common.width = ex-cx+(17)*8;
-	n->common.height = n->slim?8:16;
+	n->common.height = 8 + (n->slim?0:(8*2));	//the 8bit artwork has 8*8 borders - only 4 pixels of that contains any actual data, but replacement images don't stick to that. so just treat them as the full +/- 8 extents here.
 	n->modified = true;
 	n->captionwidth = ex-cx;
 	n->caption = (char *)(n+1);
@@ -2035,13 +2081,14 @@ menuoption_t *M_PrevSelectableItem(emenu_t *m, menuoption_t *old, qboolean wrap)
 
 void M_Complex_Key(emenu_t *currentmenu, int key, int unicode)
 {
+	menuoption_t *mi;
 	if (!currentmenu)
 		return;	//erm...
 
 	M_CheckMouseMove(currentmenu);
 
 	if (currentmenu->key)
-		if (currentmenu->key(key, currentmenu))
+		if (currentmenu->key(currentmenu, key, unicode))
 			return;
 
 	if (currentmenu->selecteditem && currentmenu->selecteditem->common.type == mt_custom && (key == K_DOWNARROW || key == K_KP_DOWNARROW || key == K_GP_DPAD_DOWN || key == K_GP_LEFT_THUMB_DOWN || key == K_GP_DIAMOND_CONFIRM || key == K_GP_DIAMOND_ALTCONFIRM || key == K_UPARROW || key == K_KP_UPARROW || key == K_GP_DPAD_UP || key == K_GP_LEFT_THUMB_UP || key == K_TAB || key == K_MWHEELUP || key == K_MWHEELDOWN || key == K_PGUP || key == K_PGDN))
@@ -2154,34 +2201,37 @@ void M_Complex_Key(emenu_t *currentmenu, int key, int unicode)
 				S_LocalSound ("misc/menu1.wav");
 
 			if (currentmenu->cursoritem)
-				currentmenu->cursoritem->common.posy = currentmenu->selecteditem->common.posy;
+				currentmenu->cursoritem->common.posy = currentmenu->selecteditem->common.posy + (currentmenu->selecteditem->common.height-currentmenu->cursoritem->common.height)/2;
 		}
 		break;
 
 	case K_MWHEELUP:
 	case K_MWHEELDOWN:
-		if (currentmenu->mouseitem)
+		mi = currentmenu->mouseitem;
+		if (!mi)
+			mi = currentmenu->selecteditem;
+		if (mi)
 		{
 			qboolean handled = false;
-			switch(currentmenu->mouseitem->common.type)
+			switch(mi->common.type)
 			{
 			case mt_combo:
-				if (mousecursor_x >= currentmenu->xpos + currentmenu->mouseitem->common.posx + currentmenu->mouseitem->combo.captionwidth + 3*8)
+				if (mousecursor_x >= currentmenu->xpos + mi->common.posx + mi->combo.captionwidth + 3*8)
 				{
-					MC_Combo_Key(&currentmenu->mouseitem->combo, key);
+					MC_Combo_Key(&mi->combo, key);
 					handled = true;
 				}
 				break;
 			case mt_checkbox:
-				if (mousecursor_x >= currentmenu->xpos + currentmenu->mouseitem->common.posx + currentmenu->mouseitem->check.textwidth + 3*8)
+				if (mousecursor_x >= currentmenu->xpos + mi->common.posx + mi->check.textwidth + 3*8)
 				{
-					MC_CheckBox_Key(&currentmenu->mouseitem->check, currentmenu, key);
+					MC_CheckBox_Key(&mi->check, currentmenu, key);
 					handled = true;
 				}
 				break;
 			case mt_custom:
-				if (currentmenu->mouseitem->custom.key)
-					handled = currentmenu->mouseitem->custom.key(&currentmenu->mouseitem->custom, currentmenu, key, unicode);
+				if (mi->custom.key)
+					handled = mi->custom.key(&mi->custom, currentmenu, key, unicode);
 				break;
 			default:
 				break;
@@ -2189,9 +2239,9 @@ void M_Complex_Key(emenu_t *currentmenu, int key, int unicode)
 
 			if (handled)
 			{
-				currentmenu->selecteditem = currentmenu->mouseitem;
+				currentmenu->selecteditem = mi;
 				if (currentmenu->cursoritem)
-					currentmenu->cursoritem->common.posy = currentmenu->selecteditem->common.posy;
+					currentmenu->cursoritem->common.posy = currentmenu->selecteditem->common.posy + (currentmenu->selecteditem->common.height-currentmenu->cursoritem->common.height)/2;
 				break;
 			}
 			else if (key == K_MWHEELUP)
@@ -2220,7 +2270,7 @@ void M_Complex_Key(emenu_t *currentmenu, int key, int unicode)
 				S_LocalSound ("misc/menu1.wav");
 
 			if (currentmenu->cursoritem)
-				currentmenu->cursoritem->common.posy = currentmenu->selecteditem->common.posy;
+				currentmenu->cursoritem->common.posy = currentmenu->selecteditem->common.posy + (currentmenu->selecteditem->common.height-currentmenu->cursoritem->common.height)/2;
 			break;	//require a double-click when selecting...
 		}
 		//fall through
@@ -2280,7 +2330,7 @@ void M_Complex_Key(emenu_t *currentmenu, int key, int unicode)
 
 
 
-qboolean MC_Main_Key (int key, emenu_t *menu)	//here purly to restart demos.
+qboolean MC_Main_Key (emenu_t *menu, int key, unsigned int unicode)	//here purly to restart demos.
 {
 	if (key == K_ESCAPE || key == K_GP_BACK || key == K_GP_DIAMOND_CANCEL || key == K_MOUSE2)
 	{
@@ -2621,13 +2671,13 @@ void M_Menu_Main_f (void)
 	if (b)
 	{
 		mainm->selecteditem = (menuoption_t*)b;
-		mainm->cursoritem->common.posy = mainm->selecteditem->common.posy;
+		mainm->cursoritem->common.posy = mainm->selecteditem->common.posy + (mainm->selecteditem->common.height-mainm->cursoritem->common.height)/2;
 	}
 }
 
 int MC_AddBulk(struct emenu_s *menu, menuresel_t *resel, menubulk_t *bulk, int xstart, int xtextend, int y)
 {
-	int selectedy = y, last_y = y;
+	int last_y = y;
 	menuoption_t *selected = NULL;
 
 	while (bulk)
@@ -2755,9 +2805,7 @@ int MC_AddBulk(struct emenu_s *menu, menuresel_t *resel, menubulk_t *bulk, int x
 	}
 
 	menu->selecteditem = selected;
-	if (selected)
-		selectedy = selected->common.posy;
-	menu->cursoritem = (menuoption_t*)MC_AddCursorSmall(menu, resel, xtextend + 8, selectedy);
+	menu->cursoritem = (menuoption_t*)MC_AddCursorSmall(menu, resel, xtextend + 8);
 	return y;
 }
 #endif

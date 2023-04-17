@@ -4098,7 +4098,10 @@ TRACE(("dbg: Surf_NewMap: tp\n"));
 
 void Surf_PreNewMap(void)
 {
+	extern cvar_t gl_specular;
+
 	r_loadbumpmapping = r_deluxemapping || r_glsl_offsetmapping.ival;
+	r_loadbumpmapping |= gl_specular.value>0;
 #ifdef RTLIGHTS
 	r_loadbumpmapping |= r_shadow_realtime_world.ival || r_shadow_realtime_dlight.ival;
 #endif

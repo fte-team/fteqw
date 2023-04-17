@@ -515,7 +515,7 @@ static void sha256_finish (qbyte *digest, void *context)
 	memcpy(digest, hd->buf, 256/8);
 }
 
-hashfunc_t hash_sha224 =
+hashfunc_t hash_sha2_224 =
 {
 	224/8,
 	sizeof(SHA2_CONTEXT),
@@ -523,7 +523,7 @@ hashfunc_t hash_sha224 =
 	sha2_write,
 	sha224_finish
 };
-hashfunc_t hash_sha256 =
+hashfunc_t hash_sha2_256 =
 {
 	256/8,
 	sizeof(SHA2_CONTEXT),
@@ -547,7 +547,7 @@ static void sha512_finish (qbyte *digest, void *context)
 	memcpy(digest, hd->buf, 512/8);
 }
 
-hashfunc_t hash_sha384 =
+hashfunc_t hash_sha2_384 =
 {
 	384/8,
 	sizeof(SHA2_CONTEXT),
@@ -555,7 +555,7 @@ hashfunc_t hash_sha384 =
 	sha2_write,
 	sha384_finish
 };
-hashfunc_t hash_sha512 =
+hashfunc_t hash_sha2_512 =
 {
 	512/8,
 	sizeof(SHA2_CONTEXT),

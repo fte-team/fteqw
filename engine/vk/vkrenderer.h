@@ -28,7 +28,7 @@
 #endif
 
 #define VK_NO_PROTOTYPES
-#include <../vulkan/vulkan.h>
+#include <vulkan/vulkan.h>
 
 #if defined(_MSC_VER) && !defined(UINT64_MAX)
 #define UINT64_MAX _UI64_MAX
@@ -281,6 +281,9 @@ extern struct vulkaninfo_s
 	qboolean		khr_push_descriptor;			//more efficient descriptor streaming
 	qboolean		amd_rasterization_order;		//allows primitives to draw in any order
 	qboolean		ext_astc_decode_mode;			//small perf boost
+#ifdef VK_KHR_fragment_shading_rate
+	qboolean		khr_fragment_shading_rate;		//small perf boost. probably more useful for battery.
+#endif
 
 	VkInstance instance;
 	VkDevice device;

@@ -41,6 +41,44 @@ pbool QC_decodeMethodSupported(int method)
 	return false;
 }
 
+
+#ifdef ZLIB_DEFLATE64
+#include "infback9.h"	//an obscure compile-your-own part of zlib.
+struct def64ctx
+{
+	const char *in;
+	char *out;
+	size_t csize;
+	size_t usize;
+
+	char window[65536];
+};
+static unsigned int QC_Deflate64_Grab(void *vctx, unsigned char **bufptr)
+{
+	struct def64ctx *ctx = vctx;
+
+	unsigned int avail = ctx->csize;
+	*bufptr = (unsigned char *)ctx->in;
+	ctx->csize = 0;
+	ctx->in += avail;
+
+	return avail;
+}
+static int QC_Deflate64_Spew(void *vctx, unsigned char *buf, unsigned int buflen)
+{
+	struct def64ctx *ctx = vctx;
+
+	if (buflen > ctx->usize)
+		return 1;	//over the size of our buffer...
+	memcpy(ctx->out, buf, buflen);
+	ctx->out += buflen;
+	ctx->usize -= buflen;
+	return 0;
+}
+#endif
+
+
+
 char *QC_decode(progfuncs_t *progfuncs, int complen, int len, int method, const void *info, char *buffer)
 {
 	int i;
@@ -86,6 +124,35 @@ char *QC_decode(progfuncs_t *progfuncs, int complen, int len, int method, const 
 		if (Z_STREAM_END != inflate(&strm, Z_FINISH))	//decompress it in one go.
 			externs->Sys_Error("Failed block decompression\n");
 		inflateEnd(&strm);
+	}
+#endif
+#ifdef ZLIB_DEFLATE64
+	else if (method == 9)
+	{
+		z_stream strm = {NULL};
+		struct def64ctx ctx;
+		ctx.in = info;
+		ctx.csize = complen;
+		ctx.out = buffer;
+		ctx.usize = len;
+
+		strm.data_type = Z_UNKNOWN;
+		inflateBack9Init(&strm, ctx.window);
+		//getting inflateBack9 to
+		if (Z_STREAM_END != inflateBack9(&strm, QC_Deflate64_Grab, &ctx, QC_Deflate64_Spew, &ctx))
+		{	//some stream error?
+			externs->Printf("Decompression error\n");
+			buffer = NULL;
+		}
+		else if (ctx.csize != 0 || ctx.usize != 0)
+		{	//corrupt file table?
+			externs->Printf("Decompression size error\n");
+			externs->Printf("read %i of %i bytes\n", (unsigned)ctx.csize, (unsigned)complen);
+			externs->Printf("wrote %i of %i bytes\n", (unsigned)ctx.usize, (unsigned)len);
+			buffer = NULL;
+		}
+		inflateBack9End(&strm);
+		return buffer;
 	}
 #endif
 	//add your decryption/decompression routine here.
@@ -191,8 +258,17 @@ int QC_EnumerateFilesFromBlob(const void *blob, size_t blobsize, void (*cb)(cons
 	unsigned int cdlen;
 	const unsigned char *eocd;
 	const unsigned char *cd;
-	int nl,el,cl;
+	unsigned int ofs_le;
+	unsigned int cd_nl,cd_el,cd_cl;
 	int ret = 0;
+
+	const unsigned char *le;
+	unsigned int csize, usize, method;
+	unsigned int le_nl,le_el;
+	char name[256];
+
+	const void *data;
+
 	if (blobsize < 22)
 		return ret;
 	if (!strncmp(blob, "PACK", 4))
@@ -221,13 +297,20 @@ int QC_EnumerateFilesFromBlob(const void *blob, size_t blobsize, void (*cb)(cons
 		return ret;
 
 
-	for(; cdentries --> 0; cd += 46 + nl+el+cl)
+	for(; cdentries --> 0 && (QC_ReadRawInt(cd+0) == 0x02014b50); cd += 46 + cd_nl+cd_el+cd_cl)
 	{
-		if (QC_ReadRawInt(cd+0) != 0x02014b50)
-			break;
-		nl = QC_ReadRawShort(cd+28);
-		el = QC_ReadRawShort(cd+30);
-		cl = QC_ReadRawShort(cd+32);
+		data = NULL, csize=usize=0, method=-1;
+
+		cd_nl = QC_ReadRawShort(cd+28);	//name length
+		cd_el = QC_ReadRawShort(cd+30);	//extras length
+		cd_cl = QC_ReadRawShort(cd+32);	//comment length
+
+		ofs_le = QC_ReadRawInt(cd+42);
+
+		if (cd_nl < sizeof(name))	//make can't be too long...
+			QC_strlcpy(name, cd+46, (cd_nl+1<sizeof(name))?cd_nl+1:sizeof(name));
+		else
+			QC_strlcpy(name, "?", sizeof(name));
 
 		//1=encrypted
 		//2,4=encoder flags
@@ -240,35 +323,41 @@ int QC_EnumerateFilesFromBlob(const void *blob, size_t blobsize, void (*cb)(cons
 		//1000=enh comp
 		//2000=masked localheader
 		//4000,8000=reserved
-		if (QC_ReadRawShort(cd+8) & ~0x80e)
-			continue;
-
+		if (!(QC_ReadRawShort(cd+8) & ~0x80e))	//only accept known cd general purpose flags
 		{
-			const unsigned char *le = (const unsigned char*)blob + QC_ReadRawInt(cd+42);
-			unsigned int csize, usize, method;
-			char name[256];
+			if (ofs_le+46 < blobsize)
+			{
+				le = (const unsigned char*)blob + QC_ReadRawInt(cd+42);
 
-			if (QC_ReadRawInt(le+0) != 0x04034b50)
-				continue;
-			if (QC_ReadRawShort(le+6) & ~0x80e)	//general purpose flags
-				continue;
-			method = QC_ReadRawShort(le+8);
-			if (method != 0 && method != 8)
-				continue;
-			if (nl != QC_ReadRawShort(le+26))
-				continue;	//name is weird...
-//			if (el != QC_ReadRawShort(le+28))
-//				continue;	//extradata is weird...
+				if (QC_ReadRawInt(le+0) == 0x04034b50)	//needs proper local entry tag
+				if (!(QC_ReadRawShort(le+6) & ~0x80e))	//ignore unsupported general purpose flags
+				{
+					le_nl = QC_ReadRawShort(le+26);
+					le_el = QC_ReadRawShort(le+28);
+					if (cd_nl == le_nl)	//name (length) must match...
+//					if (cd_el != le_el) //extras does NOT match
+					{
+						csize = QC_ReadRawInt(le+18);
+						usize = QC_ReadRawInt(le+22);
 
-			csize = QC_ReadRawInt(le+18);
-			usize = QC_ReadRawInt(le+22);
-			if (nl >= sizeof(name))
-				continue;	//name is too long
-			QC_strlcpy(name, cd+46, (nl+1<sizeof(name))?nl+1:sizeof(name));
+						data = le+30+le_nl+le_el;
 
-			cb(name, le+30+QC_ReadRawShort(le+26)+QC_ReadRawShort(le+28), csize, method, usize);
-			ret++;
+						method = QC_ReadRawShort(le+8);
+						if (method != 0
+#ifdef AVAIL_ZLIB
+							&& method != 8
+#endif
+#ifdef ZLIB_DEFLATE64
+							&& method != 9
+#endif
+						 )
+							method=-1-method;
+					}
+				}
+			}
 		}
+		cb(name, data, csize, method, usize);
+		ret++;
 	}
 	return ret;
 }

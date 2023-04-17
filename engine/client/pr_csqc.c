@@ -793,7 +793,7 @@ static model_t *CSQC_GetModelForIndex(int index)
 	else if (index < 0 && index > -MAX_CSMODELS)
 	{
 		if (!cl.model_csqcprecache[-index])
-			cl.model_csqcprecache[-index] = Mod_ForName(Mod_FixName(cl.model_csqcname[-index], csqc_world.worldmodel->publicname), MLV_WARN);
+			cl.model_csqcprecache[-index] = Mod_ForName(Mod_FixName(cl.model_csqcname[-index], csqc_world.worldmodel?csqc_world.worldmodel->publicname:NULL), MLV_WARN);
 		return cl.model_csqcprecache[-index];
 	}
 	else
@@ -2770,7 +2770,8 @@ static void QCBUILTIN PF_R_RenderScene(pubprogfuncs_t *prinst, struct globalvars
 	{
 		csqc_worldchanged = false;
 		cl.worldmodel = r_worldentity.model = csqc_world.worldmodel;
-		FS_LoadMapPackFile(cl.worldmodel->name, cl.worldmodel->archive);
+		if (cl.worldmodel)
+			FS_LoadMapPackFile(cl.worldmodel->name, cl.worldmodel->archive);
 		Surf_NewMap(csqc_world.worldmodel);
 		CL_UpdateWindowTitle();
 
@@ -7208,7 +7209,7 @@ static struct {
 	{"patch_getcp",				PF_patch_getcp,			0},
 	{"patch_getmesh",			PF_patch_getmesh,		0},
 	{"patch_create",			PF_patch_create,		0},
-//	{"patch_calculate",			PF_patch_calculate,		0},
+	{"patch_evaluate",			PF_patch_evaluate,		0},
 #endif
 
 #ifdef ENGINE_ROUTING
@@ -7997,7 +7998,7 @@ static qboolean CSQC_ValidateMainCSProgs(void *file, size_t filesize, unsigned i
 	}
 	else
 	{	//FTE uses folded-md4. yeah, its broken but at least its still more awkward
-		if (LittleLong(Com_BlockChecksum(file, filesize)) != checksum)
+		if (LittleLong(CalcHashInt(&hash_md4, file, filesize)) != checksum)
 			return false;
 	}
 	return true;
@@ -8309,7 +8310,11 @@ qboolean CSQC_Init (qboolean anycsqc, const char *csprogsname, unsigned int chec
 	}
 
 	if (cl_nocsqc.value)
+	{
+		if (checksum || progssize)
+			Con_Printf(CON_WARNING"Server is using csqc, but its disabled via %s\n", cl_nocsqc.name);
 		return false;
+	}
 
 	if (cls.state == ca_disconnected)
 	{
@@ -8324,6 +8329,7 @@ qboolean CSQC_Init (qboolean anycsqc, const char *csprogsname, unsigned int chec
 		movevars.stepdown = true;
 		movevars.walljump = false;//(pm_walljump.value);
 		movevars.slidyslopes = false;//(pm_slidyslopes.value!=0);
+		movevars.bunnyfriction = false;
 		movevars.autobunny = false;	//pm_autobunny.value!=0
 		movevars.watersinkspeed = 60;//*pm_watersinkspeed.string?pm_watersinkspeed.value:60;
 		movevars.flyfriction = 4;//*pm_flyfriction.string?pm_flyfriction.value:4;
@@ -8428,9 +8434,13 @@ qboolean CSQC_Init (qboolean anycsqc, const char *csprogsname, unsigned int chec
 			csprogsnum = PR_LoadProgs(csqcprogs, csprogs_checkname);
 			if (csprogsnum >= 0)
 				Con_DPrintf("Loaded csprogs.dat\n");
+			else if (csprogs_checksum || csprogs_checksize)
+				Con_Printf(CON_WARNING"Unable to load \"csprogsvers/%x.dat\"\n", csprogs_checksum);
 		}
 		
-		if (csqc_singlecheats || anycsqc)
+		if (csprogsnum >= 0 && !Q_strcasecmp(csprogs_checkname, "csaddon.dat"))
+			;	//using csaddon directly... map editor mode?
+		else if (csqc_singlecheats || anycsqc)
 		{
 			csaddonnum = PR_LoadProgs(csqcprogs, "csaddon.dat");
 			if (csaddonnum >= 0)
@@ -8551,7 +8561,7 @@ qboolean CSQC_Init (qboolean anycsqc, const char *csprogsname, unsigned int chec
 
 		csqc_world.physicstime = 0.1;
 
-		CSQC_RendererRestarted();
+		CSQC_RendererRestarted(true);
 
 		if (cls.state == ca_disconnected)
 			CSQC_WorldLoaded();
@@ -8560,17 +8570,36 @@ qboolean CSQC_Init (qboolean anycsqc, const char *csprogsname, unsigned int chec
 	return true; //success!
 }
 
-void CSQC_RendererRestarted(void)
+void CSQC_RendererRestarted(qboolean initing)
 {
 	int i;
 	if (!csqcprogs)
 		return;
 
-	csqc_world.worldmodel = cl.worldmodel;
-
-	for (i = 0; i < MAX_CSMODELS; i++)
+	if (initing)
 	{
-		cl.model_csqcprecache[i] = NULL;
+		//called at startup
+		if (csqc_worldchanged)
+		{
+			csqc_worldchanged = false;
+			cl.worldmodel = r_worldentity.model = csqc_world.worldmodel;
+			if (cl.worldmodel)
+				FS_LoadMapPackFile(cl.worldmodel->name, cl.worldmodel->archive);
+			Surf_NewMap(csqc_world.worldmodel);
+			CL_UpdateWindowTitle();
+
+			World_RBE_Shutdown(&csqc_world);
+			World_RBE_Start(&csqc_world);
+		}
+	}
+	else
+	{	//FIXME: this might be awkward in the purecsqc case.
+		csqc_world.worldmodel = cl.worldmodel;
+
+		for (i = 0; i < MAX_CSMODELS; i++)
+		{
+			cl.model_csqcprecache[i] = NULL;
+		}
 	}
 
 	//FIXME: registered shaders
@@ -9704,13 +9733,29 @@ int CSQC_StartSound(int entnum, int channel, char *soundname, vec3_t pos, float 
 	return false;
 }
 
-void CSQC_GetEntityOrigin(unsigned int csqcent, float *out)
+qboolean CSQC_GetEntityOrigin(unsigned int csqcent, float *out)
 {
 	wedict_t *ent;
 	if (!csqcprogs)
-		return;
+		return false;
 	ent = WEDICT_NUM_UB(csqcprogs, csqcent);
 	VectorCopy(ent->v->origin, out);
+	return true;
+}
+qboolean CSQC_GetSSQCEntityOrigin(unsigned int ssqcent, float *out)
+{
+	csqcedict_t *ent;
+	if (csqcprogs && ssqcent < maxcsqcentities)
+	{
+		ent = csqcent[ssqcent];
+		if (ent)
+		{
+			if (out)
+				VectorCopy(ent->v->origin, out);
+			return true;
+		}
+	}
+	return false;
 }
 
 void CSQC_ParseEntities(qboolean sized)
@@ -9723,7 +9768,23 @@ void CSQC_ParseEntities(qboolean sized)
 	qboolean removeflag;
 
 	if (!csqcprogs)
-		Host_EndGame("CSQC needs to be initialized for this server.\n");
+	{
+		const char *fname = va("csprogsvers/%x.dat", (unsigned int)strtoul(InfoBuf_ValueForKey(&cl.serverinfo, "*csprogs"), NULL, 0));
+		const char *msg;
+		if (cl_nocsqc.value)
+			msg = "blocked by cl_nocsqc.\n";
+		else if (!COM_FCheckExists(fname))
+		{
+			extern cvar_t cl_downloads, cl_download_csprogs;
+			if (!cl_downloads.ival || !cl_download_csprogs.ival)
+				msg = "downloading blocked by cl_downloads or cl_download_csprogs.\n";
+			else
+				msg = "unable to download.\n";
+		}
+		else
+			msg = "not initialised.\n";
+		Host_EndGame("%s required, but %s", fname, msg);
+	}
 
 	if (!csqcg.CSQC_Ent_Update || !csqcg.self)
 		Host_EndGame("CSQC has no CSQC_Ent_Update function\n");
@@ -9782,7 +9843,9 @@ void CSQC_ParseEntities(qboolean sized)
 
 			CSQC_EntityCheck(entnum);
 
-			if (cl_csqcdebug.ival)
+			if (cl_shownet.ival == 3)
+				Con_Printf("%3i:     Remove %i\n", MSG_GetReadCount(), entnum);
+			else if (cl_csqcdebug.ival)
 				Con_Printf("Remove %i\n", entnum);
 
 			ent = csqcent[entnum];
@@ -9828,15 +9891,26 @@ void CSQC_ParseEntities(qboolean sized)
 
 				G_FLOAT(OFS_PARM0) = true;
 
-				if (cl_csqcdebug.ival)
+				if (cl_shownet.ival == 3)
+					Con_Printf("%3i:     Added %i (%i)\n", MSG_GetReadCount(), entnum, packetsize);
+				else if (cl_csqcdebug.ival)
 					Con_Printf("Add %i\n", entnum);
 			}
 			else
 			{
 				G_FLOAT(OFS_PARM0) = false;
-				if (cl_csqcdebug.ival)
+				if (cl_shownet.ival == 3)
+					Con_Printf("%3i:     Update %i (%i)\n", MSG_GetReadCount(), entnum, packetsize);
+				else if (cl_csqcdebug.ival)
 					Con_Printf("Update %i\n", entnum);
 			}
+#ifdef QUAKESTATS
+			if (entnum-1 < cl.allocated_client_slots && cls.findtrack && cl.players[entnum-1].stats[STAT_HEALTH] > 0)
+			{	//FIXME: is this still needed with the autotrack stuff?
+				Cam_Lock(&cl.playerview[0], entnum-1);
+				cls.findtrack = false;
+			}
+#endif
 
 			*csqcg.self = EDICT_TO_PROG(csqcprogs, (void*)ent);
 			csqc_mayread = true;

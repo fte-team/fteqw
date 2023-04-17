@@ -305,7 +305,7 @@ const char *HTTP_RunClient (HTTP_active_connections_t *cl)
 	char *content;
 	char *msg, *nl;
 	char buf2[2560];	//short lived temp buffer.
-	char resource[2560];
+	char resource[2560], *args;
 	char host[256];
 	char mode[80];
 	qboolean hostspecified;
@@ -388,6 +388,10 @@ const char *HTTP_RunClient (HTTP_active_connections_t *cl)
 				memmove(resource, slash, strlen(slash+1));	//just get rid of the http:// stuff.
 			}
 		}
+
+		args = strchr(resource, '?');
+		if (args)
+			*args++=0;
 
 		if (!strcmp(resource, "/"))
 			strcpy(resource, "/index.html");

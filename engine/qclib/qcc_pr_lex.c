@@ -1139,6 +1139,8 @@ static pbool QCC_PR_Precompiler(void)
 			else if (!QC_strcasecmp(qcc_token, "framerate"))
 			{
 				qcc_framerate = atof(msg);
+				if (qcc_framerate < 0)
+					qcc_framerate = 0;
 			}
 			else if (!QC_strcasecmp(qcc_token, "once"))
 			{
@@ -4072,11 +4074,14 @@ NORETURN void VARGS QCC_PR_ParseError (int errortype, const char *error, ...)
 	editbadfile(s_filen, pr_source_line);
 #endif
 
-	QCC_PR_PrintScope();
-	if (flag_msvcstyle)
-		externs->Printf ("%s%s(%i) : %serror%s: %s\n", col_location, s_filen, pr_source_line, col_error, col_none, string);
-	else
-		externs->Printf ("%s%s:%i: %serror%s: %s\n", col_location, s_filen, pr_source_line, col_error, col_none, string);
+	if (error)
+	{
+		QCC_PR_PrintScope();
+		if (flag_msvcstyle)
+			externs->Printf ("%s%s(%i) : %serror%s: %s\n", col_location, s_filen, pr_source_line, col_error, col_none, string);
+		else
+			externs->Printf ("%s%s:%i: %serror%s: %s\n", col_location, s_filen, pr_source_line, col_error, col_none, string);
+	}
 
 	longjmp (pr_parse_abort, 1);
 }
@@ -5826,11 +5831,13 @@ QCC_type_t *QCC_PR_ParseType (int newtype, pbool silentfail)
 					//swap the class out for the appropriate function type...
 					newparm = QCC_PR_GenFunctionType(type_void, basetype->params, basetype->num_parms);
 					parmname = classname;
+					arraysize = 0;
 				}
 				else if (!flag_qcfuncs && basetype == newt && QCC_PR_CheckToken("("))
 				{
 					newparm = QCC_PR_ParseFunctionType(false, type_void);
 					parmname = classname;
+					arraysize = 0;
 				}
 				else
 				{
@@ -6095,6 +6102,50 @@ QCC_type_t *QCC_PR_ParseType (int newtype, pbool silentfail)
 						}
 					}
 				}
+
+
+				/* iterate over every parent-class and see if our method already exists in conflicting nonvirtual type form */
+				if (isvirt)
+				{
+					for(pc = newt; pc && !found; pc = pc->parentclass)
+					{
+						struct QCC_typeparam_s *pp;
+						int numpc;
+						int i;
+						found = false;
+
+						if (pc == newt)
+							continue;
+
+						pp = parms;
+						numpc = numparms;
+
+						/* iterate over all of the virtual methods */
+						for (i = 0; i < numpc; i++)
+						{
+							if (pp[i].type->type == newparm->type)
+							{
+								/* if we found it, abandon this loop - we still have to check the other classes however */
+								if (!strcmp(pp[i].paramname, parmname))
+								{
+									found = true;
+									break;
+								}
+							}
+						}
+
+						/* we didn't find it as a field... so check if it exists as a nonvirtual method */
+						if (found == false)
+						{
+							QC_snprintfz(membername, sizeof(membername), "%s::%s", pc->name, parmname);
+
+							/* if we found it, game over */
+							if (QCC_PR_GetDef(NULL, membername, NULL, false, 0, 0))
+								QCC_PR_ParseError(0, "%s defined as virtual in %s, but nonvirtual in %s\n", parmname, newt->name, pc->name);
+						}
+					}
+				}
+
 				parms[numparms].ofs = basicindex;	//ulp, its new
 				numparms++;
 

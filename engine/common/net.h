@@ -151,17 +151,18 @@ neterr_t	NET_SendPacket (struct ftenet_connections_s *col, int length, const voi
 int			NET_LocalAddressForRemote(struct ftenet_connections_s *collection, netadr_t *remote, netadr_t *local, int idx);
 void		NET_PrintAddresses(struct ftenet_connections_s *collection);
 qboolean	NET_AddressSmellsFunny(netadr_t *a);
-qboolean	NET_EnsureRoute(struct ftenet_connections_s *collection, char *routename, char *host, netadr_t *adr);
+struct dtlspeercred_s;
+qboolean	NET_EnsureRoute(struct ftenet_connections_s *collection, char *routename, const struct dtlspeercred_s *peerinfo, netadr_t *adr, qboolean outgoing);
 void		NET_TerminateRoute(struct ftenet_connections_s *collection, netadr_t *adr);
 void		NET_PrintConnectionsStatus(struct ftenet_connections_s *collection);
 
 enum addressscope_e
 {
-	ASCOPE_PROCESS=0,
-	ASCOPE_HOST=1,
-	ASCOPE_LINK=2,
-	ASCOPE_LAN=3,
-	ASCOPE_NET=4
+	ASCOPE_PROCESS=0,	//unusable
+	ASCOPE_HOST=1,		//unroutable
+	ASCOPE_LINK=2,		//unpredictable
+	ASCOPE_LAN=3,		//private
+	ASCOPE_NET=4		//aka hopefully globally routable
 };
 enum addressscope_e NET_ClassifyAddress(netadr_t *adr, const char **outdesc);
 
@@ -174,6 +175,7 @@ char		*NET_AdrToString (char *s, int len, netadr_t *a);
 char		*NET_SockadrToString (char *s, int len, struct sockaddr_qstorage *a, size_t sizeofa);
 char		*NET_BaseAdrToString (char *s, int len, netadr_t *a);
 size_t		NET_StringToSockaddr2 (const char *s, int defaultport, netadrtype_t afhint, struct sockaddr_qstorage *sadr, int *addrfamily, int *addrsize, size_t addrcount);
+qboolean NET_StringToAdr_NoDNS(const char *address, int port, netadr_t *out);
 #define NET_StringToSockaddr(s,p,a,f,z) (NET_StringToSockaddr2(s,p,NA_INVALID,a,f,z,1)>0)
 size_t		NET_StringToAdr2 (const char *s, int defaultport, netadr_t *a, size_t addrcount, const char **pathstart);
 #define NET_StringToAdr(s,p,a) NET_StringToAdr2(s,p,a,1,NULL)
@@ -191,23 +193,27 @@ qboolean FTENET_AddToCollection(struct ftenet_connections_s *col, const char *na
 
 enum certprops_e
 {
-	QCERT_PEERFINGERPRINT
+	QCERT_ISENCRYPTED,		//0 or error
+	QCERT_PEERSUBJECT,		//null terminated. should be a hash of the primary cert, ignoring chain.
+	QCERT_PEERCERTIFICATE,	//should be the primary cert, ignoring chain. no fixed maximum size required, mostly 2k but probably best to allow at leasy 5k.. or 8k.
+
+	QCERT_LOCALCERTIFICATE,	//the cert we're using/advertising. may have no context. to tell people what fp to expect.
 };
-size_t NET_GetConnectionCertificate(struct ftenet_connections_s *col, netadr_t *a, enum certprops_e prop, char *out, size_t outsize);
+int NET_GetConnectionCertificate(struct ftenet_connections_s *col, netadr_t *a, enum certprops_e prop, char *out, size_t outsize);
 
 #ifdef HAVE_DTLS
 struct dtlscred_s;
 struct dtlsfuncs_s;
-qboolean NET_DTLS_Create(struct ftenet_connections_s *col, netadr_t *to, const struct dtlscred_s *cred);
+qboolean NET_DTLS_Create(struct ftenet_connections_s *col, netadr_t *to, const struct dtlscred_s *cred, qboolean outgoing);
 qboolean NET_DTLS_Decode(struct ftenet_connections_s *col);
 qboolean NET_DTLS_Disconnect(struct ftenet_connections_s *col, netadr_t *to);
-void NET_DTLS_Timeouts(struct ftenet_connections_s *col);
 extern cvar_t dtls_psk_hint, dtls_psk_user, dtls_psk_key;
+extern cvar_t net_enable_dtls;
 #endif
 #ifdef SUPPORT_ICE
 neterr_t ICE_SendPacket(size_t length, const void *data, netadr_t *to);
 void ICE_Terminate(netadr_t *to); //if we kicked the client/etc, kill their ICE too.
-qboolean ICE_IsEncrypted(netadr_t *to);
+int ICE_GetPeerCertificate(netadr_t *to, enum certprops_e prop, char *out, size_t outsize);
 void ICE_Init(void);
 #endif
 extern cvar_t timeout;

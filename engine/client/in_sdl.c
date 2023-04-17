@@ -506,7 +506,7 @@ static void J_ControllerSensor(SDL_JoystickID jid, SDL_SensorType sensor, float 
 	if (joy->qdevid == DEVID_UNSET)
 		return;
 
-	safeswitch(sensor)
+	switch(sensor)
 	{
 	case SDL_SENSOR_ACCEL:
 		IN_Accelerometer(joy->qdevid, data[0], data[1], data[2]);
@@ -520,7 +520,7 @@ static void J_ControllerSensor(SDL_JoystickID jid, SDL_SensorType sensor, float 
 	case SDL_SENSOR_GYRO_R:
 	case SDL_SENSOR_INVALID:
 	case SDL_SENSOR_UNKNOWN:
-	safedefault:
+	default:
 		break;
 	}
 }

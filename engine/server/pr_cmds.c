@@ -4180,6 +4180,7 @@ static void QCBUILTIN PF_spawnclient (pubprogfuncs_t *prinst, struct globalvars_
 			svs.clients[i].userid = ++nextuserid;
 			svs.clients[i].protocol = SCP_BAD;	//marker for bots
 			svs.clients[i].state = cs_spawned;
+			svs.clients[i].connection_started = realtime;
 			svs.clients[i].spawned = true;
 			sv.spawned_client_slots++;
 			svs.clients[i].netchan.message.allowoverflow = true;
@@ -6080,7 +6081,10 @@ void SV_point_tempentity (vec3_t o, int type, int count)	//count (usually 1) is 
 #endif
 		break;
 	case TEQW_NQGUNSHOT:
-		qwtype[0] = TEQW_NQGUNSHOT;
+#ifdef NQPROT
+		nqtype[0] = TENQ_NQGUNSHOT;
+		nqtype[1] = TENQ_NQGUNSHOT;
+#endif
 		qwtype[1] = TEQW_QWGUNSHOT;
 		split = PEXT_TE_BULLET;
 		break;
@@ -6137,8 +6141,9 @@ void SV_point_tempentity (vec3_t o, int type, int count)	//count (usually 1) is 
 		}
 		else if (nqtype[i] >= 0)
 		{
-			int nqcount = min(3,count);
-			do
+			//messy - TENQ_NQGUNSHOT loops until we reach our counter. should probably randomize positions a little
+			int nqcount = (nqtype[i] == TENQ_NQGUNSHOT)?min(3,count):1;
+			while(nqcount-->0)
 			{
 				MSG_WriteByte (&sv.nqmulticast, svc_temp_entity);
 				MSG_WriteByte (&sv.nqmulticast, nqtype[i]);
@@ -6148,19 +6153,12 @@ void SV_point_tempentity (vec3_t o, int type, int count)	//count (usually 1) is 
 					MSG_WriteChar(&sv.nqmulticast, 0);
 					MSG_WriteChar(&sv.nqmulticast, 0);
 				}
-				else if (/*nqtype == TENQ_QWBLOOD ||*/ nqtype[i] == TENQ_QWGUNSHOT)
+				else if (nqtype[i] == TENQ_QWGUNSHOT)
 					MSG_WriteByte (&sv.nqmulticast, count);
 				MSG_WriteCoord (&sv.nqmulticast, o[0]);
 				MSG_WriteCoord (&sv.nqmulticast, o[1]);
 				MSG_WriteCoord (&sv.nqmulticast, o[2]);
-
-				//messy - TENQ_NQGUNSHOT looks until we reach our counter. should probably randomize positions a little
-				if (nqcount > 1 && nqtype[i] == TENQ_NQGUNSHOT)
-				{
-					nqcount--;
-					continue;
-				}
-			} while(0);
+			}
 		}
 #endif
 		if (i)
@@ -6461,6 +6459,31 @@ char *PF_infokey_Internal (int entnum, const char *key)
 			sprintf(ov, "%d", SV_CalcPing (&svs.clients[entnum-1], true));
 		else if (!strcmp(key, "guid"))
 			sprintf(ov, "%s", pl->guid);
+		else if (!strcmp(key, "*cert_dn"))
+			NET_GetConnectionCertificate(svs.sockets, &controller->netchan.remote_address, QCERT_PEERSUBJECT, ov, sizeof(ov));
+		else if (!strncmp(key, "*cert_", 6))
+		{
+			static struct
+			{
+				const char *name;
+				hashfunc_t *func;
+			} funcs[] = {{"sha1",&hash_sha1}, {"sha2_256", &hash_sha2_256}, {"sha2_512", &hash_sha2_512}};
+			int i;
+			char buf[8192];
+			char digest[DIGEST_MAXSIZE];
+			int certsize;
+			*ov = 0;
+			for (i = 0; i < countof(funcs); i++)
+			{
+				if (!strcmp(key+6, funcs[i].name))
+				{
+					certsize = NET_GetConnectionCertificate(svs.sockets, &controller->netchan.remote_address, QCERT_PEERCERTIFICATE, buf, sizeof(buf));
+					if (certsize > 0)
+						Base64_EncodeBlockURI(digest,CalcHash(&hash_sha1, digest, sizeof(digest), buf, certsize), ov, sizeof(ov));
+					break;
+				}
+			}
+		}
 		else if (!strcmp(key, "challenge"))
 			sprintf(ov, "%u", pl->challenge);
 		else if (!strcmp(key, "*userid"))
@@ -8109,6 +8132,8 @@ void PRH2_SetPlayerClass(client_t *cl, int classnum, qboolean fromqc)
 		return; //reject it (it would crash the (standard hexen2) mod)
 	if (classnum > 5)
 		return;
+	while (classnum>1 && !COM_FCheckExists(va("gfx/menu/netp%i.lmp", classnum)))
+		classnum--;
 
 	if (!fromqc)
 	{
@@ -8923,7 +8948,7 @@ void QCBUILTIN PF_sj_strhash (pubprogfuncs_t *prinst, struct globalvars_s *pr_gl
 {	//not quite the same, but oh well
 	const char *str = PF_VarString(prinst, 0, pr_globals);
 	int len = strlen(str);
-	G_FLOAT(OFS_RETURN) = Com_BlockChecksum(str, len);
+	G_FLOAT(OFS_RETURN) = CalcHashInt(&hash_md4, str, len);
 }
 #endif
 static void QCBUILTIN PF_StopSound(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
@@ -11772,9 +11797,9 @@ static BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	"} patchvert_t;\n"				\
 	"#define patch_delete(modelidx,patchidx) brush_delete(modelidx,patchidx)\n"
 	{"patch_getcp",		PF_patch_getcp,		0,		0,		0,		0,		D(qcpatchvert "int(float modelidx, int patchid, patchvert_t *out_controlverts, int maxcp, patchinfo_t *out_info)", "Queries a patch's information. You must pre-allocate the face array for the builtin to write to. Return value is the total number of control verts that were retrieved, 0 on error.")},
-	{"patch_getmesh",	PF_patch_getmesh,	0,		0,		0,		0,		D("int(float modelidx, int patchid, patchvert_t *out_verts, int maxverts, __out patchinfo_t out_info)", "Queries a patch's information. You must pre-allocate the face array for the builtin to write to. Return value is the total number of control verts that were retrieved, 0 on error.")},
+	{"patch_getmesh",	PF_patch_getmesh,	0,		0,		0,		0,		D("int(float modelidx, int patchid, patchvert_t *out_verts, int maxverts, patchinfo_t *out_info)", "Queries a patch's information. You must pre-allocate the face array for the builtin to write to. Return value is the total number of control verts that were retrieved, 0 on error.")},
 	{"patch_create",	PF_patch_create,	0,		0,		0,		0,		D("int(float modelidx, int oldpatchid, patchvert_t *in_controlverts, patchinfo_t in_info)", "Inserts a new patch into the model. Return value is the new patch's id.")},
-//	{"patch_calculate",	PF_patch_calculate,	0,		0,		0,		0,		D("int(patchvert_t *in_controlverts, patchvert_t *out_renderverts, int maxout, __inout patchinfo_t inout_info)", "Calculates the geometry of a hyperthetical patch.")},
+	{"patch_evaluate",	PF_patch_evaluate,	0,		0,		0,		0,		D("int(patchvert_t *in_controlverts, patchvert_t *out_renderverts, int maxout, patchinfo_t *inout_info)", "Calculates the geometry of a hyperthetical patch.")},
 #endif
 
 #ifdef ENGINE_ROUTING
@@ -12201,7 +12226,9 @@ static BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 //	{"delayedparticle",	PF_Fixme,			0,		0,		0,		528,	D("float(vector org, vector vel, float delay, float collisiondelay, optional float theme)","Basically just extra args for 'particle'.")},
 	{"loadfromdata",	PF_loadfromdata,	0,		0,		0,		529,	D("void(string s)", "Reads a set of entities from the given string. This string should have the same format as a .ent file or a saved game. Entities will be spawned as required. If you need to see the entities that were created, you should use parseentitydata instead.")},
 	{"loadfromfile",	PF_loadfromfile,	0,		0,		0,		530,	D("void(string s)", "Reads a set of entities from the named file. This file should have the same format as a .ent file or a saved game. Entities will be spawned as required. If you need to see the entities that were created, you should use parseentitydata instead.")},
-	{"setpause",		PF_setpause,		0,		0,		0,		531,	D("void(float pause)", "Sets whether the server should or should not be paused. This does not affect auto-paused things like when the console is down.")},
+	{"setpause",		PF_setpause,		0,		0,		0,		531,	D("void(float pause)",	"SSQC: Sets whether the server should or should not be paused.\n"
+																									"CSQC: Only works in singleplayer, suitable for menu auto-pause. To pause in multiplayer use eg localcmd(\"cmd pause\n\") to ask the server side to pause.\n"
+																									"Pause state between modules will be ORed, along with engine reasons for auto pausing.")},
 	//end dp extras
 	//begin mvdsv extras
 #ifdef HAVE_LEGACY
@@ -12564,7 +12591,7 @@ void PR_ResetBuiltins(progstype_t type)	//fix all nulls to PF_FIXME and add any 
 				}
 			}
 			if (!BuiltinList[i].name)
-				Con_Printf("Failed to map builtin %s to %i specified in fte_bimap.dat\n", com_token, binum);
+				Con_Printf("Failed to map builtin %s to %i specified in fte_bimap.txt\n", com_token, binum);
 		}
 	}
 }
@@ -13685,6 +13712,8 @@ void PR_DumpPlatform_f(void)
 		{"INFOKEY_P_CSQCACTIVE","const string", QW|NQ, D("Client has csqc enabled. CSQC ents etc will be sent to this player."), 0, "\"csqcactive\""},
 		{"INFOKEY_P_SVPING",	"const string", QW|NQ, NULL, 0, "\"svping\""},
 		{"INFOKEY_P_GUID",		"const string", QW|NQ, D("Some hash string which should be reasonably unique to this player's quake installation."), 0, "\"guid\""},
+		{"INFOKEY_P_CERT_SHA1",	"const string", QW|NQ, D("Obtains the client's (d)tls certificate's fingerprint."), 0, "\"*cert_sha1\""},
+		{"INFOKEY_P_CERT_DN",	"const string", QW|NQ, D("Obtains the client's (d)tls certificate's Distinguished Name string."), 0, "\"*cert_dn\""},
 		{"INFOKEY_P_CHALLENGE",	"const string", QW|NQ, NULL, 0, "\"challenge\""},
 		{"INFOKEY_P_USERID",	"const string", QW|NQ, NULL, 0, "\"*userid\""},
 		{"INFOKEY_P_DOWNLOADPCT","const string",QW|NQ, D("The client's download percentage for the current file. Additional files are not known."), 0, "\"download\""},

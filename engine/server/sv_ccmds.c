@@ -471,6 +471,27 @@ static int QDECL CompleteMapList (const char *name, qofs_t flags, time_t mtime, 
 	ctx->cb(stripped, NULL, NULL, ctx);
 	return true;
 }
+static int QDECL CompleteMapListEnt (const char *name, qofs_t flags, time_t mtime, void *parm, searchpathfuncs_t *spath)
+{
+	struct xcommandargcompletioncb_s *ctx = parm;
+	char stripped[64];
+	char *modifier = strchr(name, '#');
+	if (!modifier)	//skip non-modifiers.
+		return true;
+	if (modifier-name+4 > sizeof(stripped))	//too long...
+		return true;
+
+	//make sure we have its .bsp
+	memcpy(stripped, name, modifier-name);
+	strcpy(stripped+(modifier-name), ".bsp");
+	if (!COM_FCheckExists(stripped))
+		return true;
+
+	COM_StripExtension(name+5, stripped, sizeof(stripped));
+	ctx->cb(stripped, NULL, NULL, ctx);
+	return true;
+}
+
 static int QDECL CompleteMapListExt (const char *name, qofs_t flags, time_t mtime, void *parm, searchpathfuncs_t *spath)
 {
 	struct xcommandargcompletioncb_s *ctx = parm;
@@ -492,6 +513,8 @@ static void SV_Map_c(int argn, const char *partial, struct xcommandargcompletion
 		COM_EnumerateFiles(va("maps/%s*.map.gz", partial), CompleteMapListExt, ctx);
 		COM_EnumerateFiles(va("maps/%s*.cm", partial), CompleteMapList, ctx);
 		COM_EnumerateFiles(va("maps/%s*.hmp", partial), CompleteMapList, ctx);
+
+		COM_EnumerateFiles(va("maps/%s*.ent", partial), CompleteMapListEnt, ctx);
 
 		COM_EnumerateFiles(va("maps/%s*/*.bsp", partial), CompleteMapList, ctx);
 		COM_EnumerateFiles(va("maps/%s*/*.bsp.gz", partial), CompleteMapListExt, ctx);
@@ -609,7 +632,7 @@ fte:
 'map package:mapname' should download the specified map package and load up its maps.
 
 mvdsv:
-basemap#modifier.ent files
+'map foo bar' should load 'maps/bar.ent' instead of the regular ent file. this 'bar' will usually be something like 'foo#modified'
 
 ======================
 */
@@ -707,7 +730,7 @@ void SV_Map_f (void)
 					sv.mapchangelocked = false;
 				}
 				else
-					PM_LoadMap(mangled, sep);
+					PM_LoadMap(mangled, va("%s %s\n", Cmd_Argv(0), COM_QuotedString(sep, expanded, sizeof(expanded), false)));
 				return;
 			}
 		}
@@ -851,10 +874,25 @@ void SV_Map_f (void)
 				break;
 		}
 		if (!exts[i])
+		{	//try again.
+			char *mod = strchr(level, '#');
+			if (mod)
+			{
+				*mod = 0;
+				for (i = 0; exts[i]; i++)
+				{
+					snprintf (expanded, sizeof(expanded), exts[i], level);
+					if (COM_FCheckExists (expanded))
+						break;
+				}
+				*mod = '#';
+			}
+		}
+		if (!exts[i])
 		{
 			for (i = 0; exts[i]; i++)
 			{
-				//doesn't exist, so try lowercase. Q3 does this.
+				//doesn't exist, so try lowercase. Q3 does this. really our fs_cache stuff should be handling this, but its possible its disabled.
 				for (j = 0; j < sizeof(level) && level[j]; j++)
 				{
 					if (level[j] >= 'A' && level[j] <= 'Z')
@@ -965,7 +1003,10 @@ void SV_Map_f (void)
 		if (!isrestart)
 		{
 			if (q3singleplayer)
+			{
 				Cvar_ForceSet(gametype, "2");//singleplayer
+				Cvar_ForceSet(&deathmatch, "0");//for non-q3 type stuff to not get confused..
+			}
 			else if (gametype->value == 2)
 				Cvar_ForceSet(gametype, "");//force to ffa deathmatch
 		}
@@ -2101,7 +2142,7 @@ static void SV_Status_f (void)
 	int			i;
 	client_t	*cl;
 	float		cpu;
-	char		*s, *p;
+	char		*s, *p, *sec;
 	char		adr[MAX_ADR_SIZE];
 	float pi, po, bi, bo;
 
@@ -2121,9 +2162,6 @@ static void SV_Status_f (void)
 #endif
 #ifdef QWOVERQ3
 	extern cvar_t sv_listen_q3;
-#endif
-#ifdef HAVE_DTLS
-	extern cvar_t net_enable_dtls;
 #endif
 
 #ifndef SERVERONLY
@@ -2171,6 +2209,7 @@ static void SV_Status_f (void)
 	else
 		s = "private";
 	Con_TPrintf("public           : %s\n", s);
+
 	switch(svs.gametype)
 	{
 #ifdef Q3SERVER
@@ -2185,38 +2224,38 @@ static void SV_Status_f (void)
 #endif
 
 	default:
-		Con_TPrintf("client types     :%s", sv_listen_qw.ival?" QW":"");
+		Con_TPrintf("client types     :%s", sv_listen_qw.ival?" ^[QW\\tip\\This is "FULLENGINENAME"'s standard protocol.^]":"");
 #ifdef NQPROT
-		Con_TPrintf("%s%s", (sv_listen_nq.ival==2)?" -NQ":(sv_listen_nq.ival?" NQ":""), sv_listen_dp.ival?" DP":"");
+		Con_TPrintf("%s%s", (sv_listen_nq.ival==2)?" ^[-NQ\\tip\\Allows 'Net'/'Normal' Quake clients to connect, with cookies and extensions that might confuse some old clients^]":(sv_listen_nq.ival?" ^[NQ\\tip\\Vanilla/Normal Quake protocol with maximum compatibility^]":""), sv_listen_dp.ival?" ^[DP\\tip\\Explicitly recognise connection requests from DP clients.^]":"");
 #endif
 #ifdef QWOVERQ3
 		if (sv_listen_q3.ival) Con_Printf(" Q3");
 #endif
 #ifdef HAVE_DTLS
 		if (net_enable_dtls.ival >= 3)
-			Con_Printf(" DTLS-only");
+			Con_Printf(" ^[DTLS-only\\tip\\Insecure clients (those without support for DTLS) will be barred from connecting.^]");
 		else if (net_enable_dtls.ival)
-			Con_Printf(" DTLS");
+			Con_Printf(" ^[DTLS\\tip\\Clients may optionally connect via DTLS for added security^]");
 #endif
 		Con_Printf("\n");
 #if defined(TCPCONNECT) && !defined(CLIENTONLY)
 		Con_TPrintf("tcp services     :");
 #if defined(HAVE_SSL)
 		if (net_enable_tls.ival)
-			Con_Printf(" TLS");
+			Con_Printf(" ^[TLS\\tip\\Clients are able to connect with Transport Layer Security for the other services, allowing for the use of tls://, wss:// or https:// schemes when their underlaying protocol is enabled.^]");
 #endif
 #ifdef HAVE_HTTPSV
 		if (net_enable_http.ival)
-			Con_Printf(" HTTP");
+			Con_Printf(" ^[HTTP\\tip\\This server also acts as a web server. This might be useful to allow hosting demos or stats.^]");
 		if (net_enable_rtcbroker.ival)
-			Con_Printf(" RTC");
+			Con_Printf(" ^[RTC\\tip\\This server is set up to act as a webrtc broker, allowing clients+servers to locate each other instead of playing on this server.^]");
 		if (net_enable_websockets.ival)
-			Con_Printf(" WebSocket");
+			Con_Printf(" ^[WebSocket\\tip\\Clients can use the ws:// or possibly wss:// schemes to connect to this server, potentially from browser ports. This may be laggy.^]");
 #endif
 		if (net_enable_qizmo.ival)
-			Con_Printf(" Qizmo");
+			Con_Printf(" ^[Qizmo\\tip\\Compatible with the tcp connection feature of qizmo, equivelent to 'connect tcp://ip:port' in FTE.^]");
 		if (net_enable_qtv.ival)
-			Con_Printf(" QTV");
+			Con_Printf(" ^[QTV\\tip\\Allows receiving streamed mvd data from this server.^]");
 		Con_Printf("\n");
 #endif
 		break;
@@ -2231,7 +2270,7 @@ static void SV_Status_f (void)
 	Con_TPrintf("map uptime       : %s\n", ShowTime(sv.world.physicstime));
 	//show the current map+name (but hide name if its too long or would be ugly)
 	if (columns >= 80 && *sv.mapname && strlen(sv.mapname) < 45 && !strchr(sv.mapname, '\n'))
-		Con_TPrintf ("current map      : %s (%s)\n", svs.name, sv.mapname);
+		Con_TPrintf ("current map      : %s "S_COLOR_GRAY"(%s)\n", svs.name, sv.mapname);
 	else
 		Con_TPrintf ("current map      : %s\n", svs.name);
 
@@ -2329,7 +2368,7 @@ static void SV_Status_f (void)
 #define COLUMNS C_FRAGS C_USERID C_ADDRESS C_NAME C_RATE C_PING C_DROP C_DLP C_DLS C_PROT C_ADDRESS2
 #define C_FRAGS		COLUMN(0, "frags", if (cl->spectator==1)Con_Printf("%-5s ", "spec"); else Con_Printf("%5i ", (int)cl->old_frags))
 #define C_USERID	COLUMN(1, "userid", Con_Printf("%6i ", (int)cl->userid))
-#define C_ADDRESS	COLUMN(2, "address        ", Con_Printf("%-16.16s", s))
+#define C_ADDRESS	COLUMN(2, "address        ", Con_Printf("%s%-16.16s", sec, s))
 #define C_NAME		COLUMN(3, "name           ", Con_Printf("%-16.16s", cl->name))
 #define C_RATE		COLUMN(4, "  hz", Con_Printf("%4i ", (cl->frameunion.frames&&cl->netchan.frame_rate>0)?(int)(0.5f+1/cl->netchan.frame_rate):0))
 #define C_PING		COLUMN(5, "ping", Con_Printf("%4i ", (int)SV_CalcPing (cl, false)))
@@ -2398,6 +2437,13 @@ static void SV_Status_f (void)
 				s = "bot";
 			else
 				s = NET_BaseAdrToString (adr, sizeof(adr), &cl->netchan.remote_address);
+
+			if (NET_IsLoopBackAddress(&cl->netchan.remote_address))
+				sec = "";
+			else if (NET_IsEncrypted(&cl->netchan.remote_address))
+				sec = S_COLOR_GREEN;
+			else
+				sec = S_COLOR_RED;
 
 			safeswitch(cl->protocol)
 			{
@@ -2690,7 +2736,9 @@ void SV_User_f (void)
 	client_t	*cl;
 	int clnum=-1;
 	unsigned int u;
-	char buf[256];
+	char buf[8192];
+	qbyte digest[DIGEST_MAXSIZE];
+	int certsize;
 	extern cvar_t sv_userinfo_bytelimit, sv_userinfo_keylimit;
 	static const char *pext1names[32] = {	"setview",		"scale",	"lightstylecol",	"trans",		"view2",		"builletens",	"accuratetimings",	"sounddbl",
 											"fatness",		"hlbsp",	"bullet",			"hullsize",		"modeldbl",		"entitydbl",	"entitydbl2",		"floatcoords",
@@ -2775,7 +2823,16 @@ void SV_User_f (void)
 			Con_Printf("\n");
 		}
 
-		Con_Printf("ip: %s\n", NET_AdrToString(buf, sizeof(buf), &cl->netchan.remote_address));
+		Con_Printf("ip: %s%s\n", NET_IsEncrypted(&cl->netchan.remote_address)?S_COLOR_GREEN:S_COLOR_RED, NET_AdrToString(buf, sizeof(buf), &cl->netchan.remote_address));
+		certsize = NET_GetConnectionCertificate(svs.sockets, &cl->netchan.remote_address, QCERT_PEERCERTIFICATE, buf, sizeof(buf));
+		if (certsize <= 0)
+			strcpy(buf, "<no certificate>");
+		else
+			Base64_EncodeBlockURI(digest,CalcHash(&hash_sha1, digest, sizeof(digest), buf, certsize), buf, sizeof(buf));
+		Con_Printf("fp: %s\n", buf);
+		if (NET_GetConnectionCertificate(svs.sockets, &cl->netchan.remote_address, QCERT_PEERSUBJECT, buf, sizeof(buf)) < 0)
+			strcpy(buf, "<unavailable>");
+		Con_Printf("dn: %s\n", buf);
 		switch(cl->realip_status)
 		{
 		case 1:
@@ -3208,6 +3265,11 @@ void SV_PrecacheList_f(void)
 {
 	unsigned int i;
 	char *group = Cmd_Argv(1);
+	if (sv.state != ss_active)
+	{
+		Con_Printf("Server is not active.\n");
+		return;
+	}
 #ifdef HAVE_LEGACY
 	if (!*group || !strncmp(group, "vwep", 4))
 	{

@@ -223,6 +223,9 @@
 #ifndef INVALID_SOCKET
 	#define INVALID_SOCKET -1
 #endif
+#ifndef MSG_NOSIGNAL
+	#define MSG_NOSIGNAL	0	//available on linux, no idea about other unixes. don't bug out too much... (d)tls needs this to not get constant SIGPIPE errors
+#endif
 
 #ifndef INADDR_LOOPBACK
 	#define INADDR_LOOPBACK 0x7f000001
@@ -289,10 +292,11 @@ typedef struct
 	void (QDECL *AddRCandidateInfo)(struct icestate_s *con, struct icecandinfo_s *cand);		//stuff that came from the peer.
 	void (QDECL *Close)(struct icestate_s *con, qboolean force);	//bye then.
 	void (QDECL *CloseModule)(void *module);	//closes all unclosed connections, with warning.
-//	struct icestate_s *(QDECL *Find)(void *module, const char *conname);
 	qboolean (QDECL *GetLCandidateSDP)(struct icestate_s *con, char *out, size_t valuesize);		//retrieves candidates that need reporting to the peer.
+	struct icestate_s *(QDECL *Find)(void *module, const char *conname);
 } icefuncs_t;
 extern icefuncs_t iceapi;
+extern cvar_t net_ice_broker;
 #endif
 
 #ifdef HAVE_EPOLL
@@ -372,7 +376,7 @@ typedef struct dtlsfuncs_s
 	neterr_t (*Transmit)(void *ctx, const qbyte *data, size_t datasize);
 	neterr_t (*Received)(void *ctx, sizebuf_t *message);	//operates in-place...
 	neterr_t (*Timeouts)(void *ctx);
-	void (*GetPeerCertificate)(void *ctx);
+	int (*GetPeerCertificate)(void *ctx, enum certprops_e prop, char *out, size_t outsize);
 	qboolean (*GenTempCertificate)(const char *subject, struct dtlslocalcred_s *cred);
 } dtlsfuncs_t;
 #ifdef HAVE_DTLS
@@ -431,6 +435,9 @@ typedef struct ftenet_connections_s
 		size_t cursize;
 		qbyte data[1];
 	} *delayed_packets;
+
+	netadr_t srflx[2];	//ipv4, ipv6
+	unsigned int srflx_tid[3]; //to verify the above.
 } ftenet_connections_t;
 
 void ICE_Tick(void);

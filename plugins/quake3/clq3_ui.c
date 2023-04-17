@@ -1565,7 +1565,7 @@ static qintptr_t UI_SystemCalls(void *offset, quintptr_t mask, qintptr_t fn, con
 		break;
 */
 
-#if 1//def BOTLIB_STATIC
+#ifdef HAVE_SERVER
 	case UI_PC_ADD_GLOBAL_DEFINE:
 		return botlib->PC_AddGlobalDefine(VM_POINTER(arg[0]));
 	case UI_PC_LOAD_SOURCE:
@@ -1837,7 +1837,9 @@ void UI_Start (void)
 	uimenu.release = UI_Release;
 	uimenu.lowpriority = true;
 
+#ifdef HAVE_SERVER
 	SV_InitBotLib();
+#endif
 	uivm = vmfuncs->Create("ui", cvarfuncs->GetFloat("com_gamedirnativecode")?UI_SystemCallsNative:NULL, "vm/ui", UI_SystemCallsVM);
 	if (uivm)
 	{

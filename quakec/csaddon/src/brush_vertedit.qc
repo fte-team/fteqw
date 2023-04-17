@@ -14,6 +14,9 @@ typedef struct
 } vertsoup_t;
 vertsoup_t vertedit;
 
+static patchinfo_t patchinfo;
+static patchvert_t *patchvert;
+static int maxcp = 64*64;
 
 
 //take a brush apart and generate trisoup from it.
@@ -29,7 +32,38 @@ void(vertsoup_t *vertedit, int model, int brush) Debrushify =
 	vertedit->model = model;
 	vertedit->brush = brush;
 	vertedit->numidx = 0;
-	vertedit->numverts = 0;
+	vertedit->numverts = patch_getcp(vertedit->model, vertedit->brush, __NULL__, 0, __NULL__);
+	if (vertedit->numverts)
+	{	//okay, this is a patch. one logical face.
+		memfree(vertedit->i);
+		memfree(vertedit->p);
+
+		vertedit->p = memalloc(sizeof(*vertedit->p) * vertedit->numverts);
+
+		if (!patchvert)
+			patchvert = memalloc(sizeof(*patchvert)*maxcp);
+		vertedit->numverts = patch_getcp(vertedit->model, vertedit->brush, patchvert, maxcp, &patchinfo);
+		for (i = 0; i < vertedit->numverts; i++)
+			vertedit->p[i] = patchvert[i].xyz;
+
+		//some of the rest of the code assumes we have indexes. oh well.
+		k = (patchinfo.cpwidth-1)*(patchinfo.cpheight-1);
+		vertedit->numidx = k*6;
+		vertedit->i = ni = memalloc(sizeof(*ni) * vertedit->numidx);
+		for (i = 0; i < k; i++, ni+=6)
+		{
+			ni[0] = i;
+			ni[1] = i+1;
+			ni[2] = i+patchinfo.cpwidth;
+
+			ni[3] = i+1;
+			ni[4] = i+patchinfo.cpwidth+1;
+			ni[5] = i+patchinfo.cpwidth;
+		}
+		return;
+	}
+
+	//brush.
 	for (i = 0; ; )
 	{
 		points = brush_getfacepoints(vertedit->model, vertedit->brush, ++i, facepoints, facepoints.length);
@@ -78,17 +112,36 @@ void(vertsoup_t *vertedit, int model, int brush) Debrushify =
 };
 
 //determines only the various points of the brush, without duplicates. doesn't care about indexes.
-void(brushface_t *faces, int numfaces) DebrushifyLite =
+void(void) DebrushifyLite =
 {
 	int points, k;
 	vector p;
 	vector *np;
 	int fi[64];
 	vertedit.numidx = 0;
-	vertedit.numverts = 0;
+
+	vertedit->numverts = patch_getcp(vertedit->model, vertedit->brush, __NULL__, 0, __NULL__);
+	if (vertedit->numverts)
+	{	//okay, this is a patch. one logical face.
+		memfree(vertedit->i);
+		memfree(vertedit->p);
+
+		vertedit->i = __NULL__;	//don't bother.
+		vertedit->p = memalloc(sizeof(*vertedit->p) * vertedit->numverts);
+
+		if (!patchvert)
+			patchvert = memalloc(sizeof(*patchvert)*maxcp);
+
+		vertedit->numverts = patch_getcp(vertedit->model, vertedit->brush, patchvert, maxcp, &patchinfo);
+
+		for (int i = 0; i < vertedit->numverts; i++)
+			vertedit->p[i] = patchvert[i].xyz;
+		return;
+	}
+
 	for (int i = 0; ; )
 	{
-		points = brush_calcfacepoints(++i, faces, numfaces, facepoints, facepoints.length);
+		points = brush_calcfacepoints(++i, tmp.faces, tmp.numfaces, facepoints, facepoints.length);
 		if (!points)
 			break;
 		
@@ -140,7 +193,7 @@ static float(vertsoup_t *soup, int *idx, __out vector norm, __out float dist) pl
 
 void(vertsoup_t *soup, int drawit) Rebrushify =
 {
-	brushface_t faces[64];
+	brushface_t faces[MAX_BRUSHFACES];
 	int numfaces, f, point;
 	string shader = 0;
 	
@@ -148,6 +201,36 @@ void(vertsoup_t *soup, int drawit) Rebrushify =
 	float d;
 	int o=0;
 		
+	f = patch_getcp(soup->model, soup->brush, patchvert, maxcp, &patchinfo);
+	if (f)
+	{
+		for (o = 0; o < f; o++)
+			patchvert[o].xyz = soup.p[o];
+		if (drawit)
+		{
+			const int maxtessverts=64*64;
+			patchinfo_t tessinfo = patchinfo;
+			patchvert_t *tessverts = memalloc(sizeof(*tessverts)*maxtessverts);
+			if (patch_evaluate(patchvert, tessverts, maxtessverts, &tessinfo) <= maxtessverts)
+			{
+				//draw textured preview (yay for fullbright lighting being overbright)
+				DrawQCPatchTextured(tessverts, tessinfo, '0.7 0.7 0.7', 0.7);		//display the patch. in-place so you know what it'll actually look like. stoopid tessellation.
+				DrawQCPatchWireframe(tessverts, tessinfo, "chop", [0.3,0,0.3], 1);	//show a somewhat faded indication of how many quads are actually being used.
+			}
+			memfree(tessverts);
+			
+			//draw it wireframe without depth testing
+			DrawQCPatchWireframe(patchvert, patchinfo, "chop", [0,0,1], 1);
+		}
+		else
+		{
+			patch_history_edit(soup->model, soup->brush, patchvert, patchinfo); 
+			
+			soup->numidx = 0;
+			soup->numverts = 0;
+		}	
+		return;
+	}
 	
 	tmp.numfaces = brush_get(soup->model, soup->brush, tmp.faces, tmp.faces.length, &tmp.contents);
 	
@@ -304,10 +387,7 @@ p3p1edge:
 		return;	//can't possibly be valid.
 	
 	if (drawit)
-	{
-		//draw it wireframe WITH depth testing
-		//DrawQCBrushWireframe(faces, numfaces, "terrainedit", '1 0 0', 1);
-		
+	{	
 		//draw textured preview (yay for block lighting)
 		DrawQCBrushTextured(faces, numfaces, '0.7 0.7 0.7', 1);
 		

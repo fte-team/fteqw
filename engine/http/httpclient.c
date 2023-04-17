@@ -1570,7 +1570,10 @@ void DL_Close(struct dl_download *dl)
 #ifdef MULTITHREAD
 	dl->threadenable = false;
 	if (dl->threadctx)
+	{
 		Sys_WaitOnThread(dl->threadctx);
+		dl->threadctx = NULL;
+	}
 #endif
 	if (dl->file && dl->file->seekstyle < SS_PIPE)
 		VFS_SEEK(dl->file, 0);

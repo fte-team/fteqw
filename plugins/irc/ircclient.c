@@ -1308,6 +1308,7 @@ static struct ircice_s *IRC_ICE_Create(ircclient_t *irc, const char *sender, enu
 {
 	struct icestate_s *ice;
 	struct ircice_s *ircice;
+	char *s, token[MAX_OSPATH];
 	if (!piceapi)
 		return NULL;
 
@@ -1335,15 +1336,21 @@ static struct ircice_s *IRC_ICE_Create(ircclient_t *irc, const char *sender, enu
 
 	//query dns to see if there's a stunserver hosted by the same domain
 	//nslookup -querytype=SRV _stun._udp.example.com
-//		Q_snprintf(stunhost, sizeof(stunhost), "_stun._udp.%s", ice->server);
-//		if (NET_DNSLookup_SRV(stunhost, stunhost, sizeof(stunhost)))
-//			piceapi->Set(ice, "stunip", stunhost);
-//		else
+//	Q_snprintf(stunhost, sizeof(stunhost), "_stun._udp.%s", ice->server);
+//	if (NET_DNSLookup_SRV(stunhost, stunhost, sizeof(stunhost)))
+//		piceapi->Set(ice, "server", va("stun:%s" + stunhost));
+//	else
 	{
-		//irc services tend to not provide any stun info, so steal someone's... hopefully they won't mind too much. :(
-		piceapi->Set(ice, "stunport", "19302");
-		piceapi->Set(ice, "stunip", "stun.l.google.com");
+		char *stun = cvarfuncs->GetNVFDG("net_ice_broker", "", 0, NULL, NULL)->string;
+		s = strstr(stun, "://");
+		if (s) stun = s+3;
+		piceapi->Set(ice, "server", va("stun:%s", stun));
 	}
+
+	//sadly we need to add the other ice servers ourselves despite there being a cvar to list them.
+	s = cvarfuncs->GetNVFDG("net_ice_servers", "", 0, NULL, NULL)->string;
+	while((s=cmdfuncs->ParseToken(s, token, sizeof(token), NULL)))
+		piceapi->Set(ice, "server", token);
 
 	ircice = malloc(sizeof(*ircice));
 	memset(ircice, 0, sizeof(*ircice));

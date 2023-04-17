@@ -35,6 +35,7 @@ static char *CLNQ_ParseProQuakeMessage (char *s);
 #endif
 static void DLC_Poll(qdownload_t *dl);
 static void CL_ProcessUserInfo (int slot, player_info_t *player);
+static void Con_HexDump(qbyte *packet, size_t len, size_t badoffset);
 
 #ifdef NQPROT
 char *cl_dp_packagenames;
@@ -978,10 +979,9 @@ qboolean	CL_CheckOrEnqueDownloadFile (const char *filename, const char *localnam
 
 	if (flags & DLLF_ALLOWWEB)
 	{
-		extern cvar_t sv_dlURL;
 		const char *dlURL = InfoBuf_ValueForKey(&cl.serverinfo, "sv_dlURL");
 		if (!*dlURL)
-			dlURL = sv_dlURL.string;
+			dlURL = fs_dlURL.string;
 		flags &= ~(DLLF_TRYWEB|DLLF_ALLOWWEB);
 		if (*dlURL && (flags & DLLF_NONGAME) && !strncmp(filename, "package/", 8))
 		{	//filename is something like: package/GAMEDIR/foo.pk3
@@ -1000,10 +1000,10 @@ qboolean	CL_CheckOrEnqueDownloadFile (const char *filename, const char *localnam
 		{
 			char base[MAX_QPATH];
 			COM_FileBase(filename, base, sizeof(base));
-#ifndef FTE_TARGET_WEB
-			if (strncmp(cl_download_mapsrc.string, "http://", 7) && !strncmp(cl_download_mapsrc.string, "https://", 8))
+#ifndef FTE_TARGET_WEB //don't care about prefixes in the web build, for site-relative uris.
+			if (strncmp(cl_download_mapsrc.string, "http://", 7) && strncmp(cl_download_mapsrc.string, "https://", 8))
 			{
-				Con_Printf("%s: Scheme not specified.\n", cl_download_mapsrc.name);
+				Con_Printf("%s: Scheme not specified, assuming https.\n", cl_download_mapsrc.name);
 				filename = va("https://%s/%s", cl_download_mapsrc.string, filename+5);
 			}
 			else
@@ -1487,6 +1487,7 @@ static int CL_LoadModels(int stage, qboolean dontactuallyload)
 		SCR_SetLoadingFile("external textures");
 		if (cl.worldmodel && cl.worldmodel->loadstate == MLS_LOADING)
 			COM_WorkerPartialSync(cl.worldmodel, &cl.worldmodel->loadstate, MLS_LOADING);
+		CL_CheckServerInfo(); //some serverinfo rules can change with map type, so make sure they're updated now we're sure we know it properly.
 		if (cl.worldmodel && cl.worldmodel->loadstate == MLS_LOADED)
 			Mod_NowLoadExternal(cl.worldmodel);
 
@@ -1498,6 +1499,7 @@ static int CL_LoadModels(int stage, qboolean dontactuallyload)
 	if (atstage())
 	{
 		SCR_SetLoadingFile("newmap");
+
 //		if (!cl.worldmodel || cl.worldmodel->type == mod_dummy)
 //			Host_EndGame("No worldmodel was loaded\n");
 		Surf_NewMap (cl.worldmodel);
@@ -2238,6 +2240,7 @@ static void DL_Completed(qdownload_t *dl, qofs_t start, qofs_t end)
 
 static float chunkrate;
 
+static int CL_CountQueuedDownloads(void);
 static void CL_ParseChunkedDownload(qdownload_t *dl)
 {
 	qbyte	*svname;
@@ -2261,7 +2264,41 @@ static void CL_ParseChunkedDownload(qdownload_t *dl)
 
 		svname = MSG_ReadString();
 		if (cls.demoplayback)
-			return;
+		{	//downloading in demos is allowed ONLY for csprogs.dat
+			extern cvar_t cl_downloads, cl_download_csprogs;
+			if (!cls.download && !dl &&
+					!strcmp(svname, "csprogs.dat") && filesize && filesize == strtoul(InfoBuf_ValueForKey(&cl.serverinfo, "*csprogssize"), NULL, 0) &&
+					cl_downloads.ival && cl_download_csprogs.ival)
+			{
+				//FIXME: should probably save this to memory instead of bloating it on disk.
+				dl = Z_Malloc(sizeof(*dl));
+
+				Q_strncpyz(dl->remotename, svname, sizeof(dl->remotename));
+				Q_strncpyz(dl->localname, va("csprogsvers/%x.dat", (unsigned int)strtoul(InfoBuf_ValueForKey(&cl.serverinfo, "*csprogs"), NULL, 0)), sizeof(dl->localname));
+
+				// download to a temp name, and only rename
+				// to the real name when done, so if interrupted
+				// a runt file wont be left
+				COM_StripExtension (dl->localname, dl->tempname, sizeof(dl->tempname)-5);
+				Q_strncatz (dl->tempname, ".tmp", sizeof(dl->tempname));
+
+				dl->method = DL_QWPENDING;
+				dl->percent = 0;
+				dl->sizeunknown = true;
+				dl->flags = DLLF_OVERWRITE;
+
+				if (COM_FCheckExists(dl->localname))
+				{
+					Con_DPrintf("Demo embeds redundant %s\n", dl->localname);
+					Z_Free(dl);
+					return;
+				}
+				cls.download = dl;
+				Con_Printf("Saving recorded file %s (%lu bytes)\n", dl->localname, (unsigned long)filesize);
+			}
+			else
+				return;
+		}
 
 		if (!*svname)
 		{
@@ -2365,6 +2402,7 @@ static void CL_ParseChunkedDownload(qdownload_t *dl)
 		dl->method = DL_QWCHUNKS;
 		dl->percent = 0;
 		dl->size = filesize;
+		dl->sizeunknown = false;
 
 		dl->starttime = Sys_DoubleTime();
 
@@ -2389,7 +2427,8 @@ static void CL_ParseChunkedDownload(qdownload_t *dl)
 
 	if (!dl)
 	{
-		Con_Printf("ignoring download data packet\n");
+		if (!cls.demoplayback)	//mute it in demos.
+			Con_Printf("ignoring download data packet\n");
 		return;
 	}
 
@@ -2398,11 +2437,6 @@ static void CL_ParseChunkedDownload(qdownload_t *dl)
 
 	if (!dl->file)
 		return;
-
-	if (cls.demoplayback)
-	{	//err, yeah, when playing demos we don't actually pay any attention to this.
-		return;
-	}
 
 	VFS_SEEK(dl->file, chunknum*DLBLOCKSIZE);
 	if (dl->size - chunknum*DLBLOCKSIZE < DLBLOCKSIZE)	//final block is actually meant to be smaller than we recieve.
@@ -2415,6 +2449,9 @@ static void CL_ParseChunkedDownload(qdownload_t *dl)
 	dl->percent = dl->completedbytes/(float)dl->size*100;
 
 	chunkrate += 1;
+
+	if (dl->completedbytes == dl->size)
+		CL_DownloadFinished(dl);
 }
 
 static int CL_CountQueuedDownloads(void)
@@ -3706,6 +3743,7 @@ static void CLQ2_ParseServerData (void)
 	Cvar_ForceCallback(Cvar_FindVar("r_particlesdesc"));
 
 	Surf_PreNewMap();
+	CL_CheckServerInfo();
 }
 #endif
 
@@ -3738,7 +3776,7 @@ void CL_ParseEstablished(void)
 		else
 			security = "^["S_COLOR_RED"plain-text\\tip\\"CON_WARNING"Do not type passwords as they can potentially be seen by network sniffers^]";
 
-		Con_TPrintf ("Connected to ^["S_COLOR_BLUE"%s\\type\\connect %s^] (%s).\n", cls.servername, cls.servername, security);
+		Con_TPrintf ("\rConnected to ^["S_COLOR_BLUE"%s\\type\\connect %s^] (%s).\n", cls.servername, cls.servername, security);
 	}
 }
 
@@ -5549,6 +5587,8 @@ static void CL_ProcessUserInfo (int slot, player_info_t *player)
 		player->rbottomcolor = 13;
 */
 
+	player->chatstate = atoi(InfoBuf_ValueForKey (&player->userinfo, "chat"));
+
 #ifdef HEXEN2
 	/*if we're running hexen2, they have to be some class...*/
 	player->h2playerclass = atoi(InfoBuf_ValueForKey (&player->userinfo, "cl_playerclass"));
@@ -5691,7 +5731,10 @@ static void CL_ParseSetInfo (void)
 	{
 		player = &cl.players[slot];
 
-		Con_DLPrintf(strcmp(key, "chat")?1:2,"SETINFO %s: %s=%s\n", player->name, key, val);
+		if (cl_shownet.value == 3)
+			Con_Printf("\t%i(%s): %s=\"%s\"\n", slot, player->name, key, val);
+		else
+			Con_DLPrintf(strcmp(key, "chat")?1:2,"SETINFO %s: %s=%s\n", player->name, key, val);
 
 		InfoBuf_SetStarKey(&player->userinfo, key, val);
 		player->userinfovalid = true;
@@ -5715,7 +5758,10 @@ static void CL_ServerInfo (void)
 	Q_strncpyz (key, MSG_ReadString(), sizeof(key));
 	Q_strncpyz (value, MSG_ReadString(), sizeof(value));
 
-	Con_DPrintf("SERVERINFO: %s=%s\n", key, value);
+	if (cl_shownet.value == 3)
+		Con_Printf("\t%s=%s\n", key, value);
+	else
+		Con_DPrintf("SERVERINFO: %s=%s\n", key, value);
 
 	InfoBuf_SetStarKey(&cl.serverinfo, key, value);
 
@@ -5874,6 +5920,9 @@ static void CL_SetStatNumeric (int pnum, int stat, int ivalue, float fvalue)
 		cl.players[cls_lastto].stats[stat]=ivalue;
 		cl.players[cls_lastto].statsf[stat]=fvalue;
 
+		if (cl_shownet.value == 3)
+			Con_Printf("\t%i: %i=%g\n", cls_lastto, stat, fvalue);
+
 		for (pnum = 0; pnum < cl.splitclients; pnum++)
 			if (cl.playerview[pnum].cam_spec_track == cls_lastto && cl.playerview[pnum].cam_state != CAM_FREECAM)
 				CL_SetStat_Internal(pnum, stat, ivalue, fvalue);
@@ -5886,6 +5935,9 @@ static void CL_SetStatNumeric (int pnum, int stat, int ivalue, float fvalue)
 			cl.players[pl].stats[stat]=ivalue;
 			cl.players[pl].statsf[stat]=fvalue;
 		}
+
+		if (cl_shownet.value == 3)
+			Con_Printf("\t%i(%i): %i=%g\n", pnum, pl, stat, fvalue);
 
 		CL_SetStat_Internal(pnum, stat, ivalue, fvalue);
 	}
@@ -6693,9 +6745,13 @@ static void CL_ParseStuffCmd(char *msg, int destsplit)	//this protects stuffcmds
 {
 	int cbuflevel;
 #ifdef NQPROT
-	if (!*stufftext && *msg == 1 && !cls.allow_csqc)
+	if (!*stufftext && *msg == 1)
 	{
-		Con_DPrintf("Proquake: %s\n", msg);
+		if (developer.ival)
+		{
+			Con_DPrintf("Proquake Message:\n");
+			Con_HexDump(msg, strlen(msg), 1);
+		}
 		msg = CLNQ_ParseProQuakeMessage(msg);
 	}
 #endif
@@ -7396,7 +7452,10 @@ void CLQW_ParseServerMessage (void)
 			i = MSG_ReadByte ();
 			if (i >= MAX_NET_LIGHTSTYLES)
 				Host_EndGame ("svc_lightstyle > MAX_LIGHTSTYLES");
-			R_UpdateLightStyle(i, MSG_ReadString(), 1, 1, 1);
+			s = MSG_ReadString();
+			if (cl_shownet.value == 3)
+				Con_Printf("\t%i=\"%s\"\n", i, s);
+			R_UpdateLightStyle(i, s, 1, 1, 1);
 			break;
 #ifdef PEXT_LIGHTSTYLECOL
 		case svcfte_lightstylecol:
@@ -7847,7 +7906,7 @@ void CLQ2_ParseServerMessage (void)
 //
 	if (cl_shownet.value == 1)
 		Con_Printf ("%i ",net_message.cursize);
-	else if (cl_shownet.value == 2)
+	else if (cl_shownet.value >= 2)
 		Con_Printf ("------------------\n");
 
 
@@ -8237,7 +8296,7 @@ void CLNQ_ParseServerMessage (void)
 //
 	if (cl_shownet.value == 1)
 		Con_Printf ("%i ",net_message.cursize);
-	else if (cl_shownet.value == 2)
+	else if (cl_shownet.value >= 2)
 		Con_Printf ("------------------\n");
 
 //

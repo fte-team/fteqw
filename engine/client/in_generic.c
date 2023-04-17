@@ -751,8 +751,10 @@ void IN_MoveMouse(struct mouse_s *mouse, float *movements, int pnum, float frame
 			mx *= 1.75;
 			my *= 1.75;
 
+#ifdef QUAKESTATS
 			if (IN_WeaponWheelAccumulate(pnum, mx, my, 0))
-					mx = my = 0;
+				mx = my = 0;
+#endif
 		}
 	}
 	else
@@ -1023,10 +1025,12 @@ void IN_MoveJoystick(struct joy_s *joy, float *movements, int pnum, float framet
 		}
 	}
 
+#ifdef QUAKESTATS
 	if (IN_WeaponWheelAccumulate(joy->qdeviceid, jstrafe[1]*50, -jstrafe[0]*50, 20))
 		jstrafe[0] = jstrafe[1] = 0;
 	if (IN_WeaponWheelAccumulate(joy->qdeviceid, jlook[1]*50, jlook[0]*50, 20))
 		jlook[0] = jlook[1] = 0;
+#endif
 
 	if (Key_Dest_Has(~kdm_game))
 	{

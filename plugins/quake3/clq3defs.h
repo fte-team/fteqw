@@ -423,6 +423,7 @@ void UI_Stop (void);
 qboolean UI_OpenMenu(void);
 void UI_Reset(void);
 
+#ifdef HAVE_SERVER
 void SVQ3_ShutdownGame(qboolean restarting);
 qboolean SVQ3_InitGame(server_static_t *server_state_static, server_t *server_state, qboolean restart);
 qboolean SVQ3_ConsoleCommand(void);
@@ -435,4 +436,5 @@ void SVQ3_RunFrame(void);
 void SVQ3_SendMessage(struct client_s *client);
 qboolean SVQ3_RestartGamecode(void);
 void SVQ3_ServerinfoChanged(const char *key);
+#endif
 #endif

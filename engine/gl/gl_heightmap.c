@@ -18,12 +18,6 @@ See gl_terrain.h for terminology, networking notes, etc.
 #include "gl_terrain.h"
 
 static plugterrainfuncs_t terrainfuncs;
-typedef struct
-{
-	vec3_t v;
-	vec2_t tc;
-	vec4_t rgba;
-} qcpatchvert_t;
 
 
 cvar_t mod_terrain_networked = CVARD("mod_terrain_networked", "0", "Terrain edits are networked. Clients will download sections on demand, and servers will notify clients of changes.");
@@ -3321,6 +3315,8 @@ unsigned int Heightmap_PointContents(model_t *model, const vec3_t axis[3], const
 	for (i = 0; i < hm->numbrushes; i++)
 	{
 		br = &hm->wbrushes[i];
+		if (br->patch)
+			continue;	//infinitely thin...
 
 		for (j = 0; j < br->numplanes; j++)
 		{
@@ -3785,7 +3781,7 @@ static qboolean Heightmap_Trace_Patch(hmtrace_t *tr, brushes_t *brushinfo)
 
 	if (!patch->tessvert)
 	{
-		const struct patchcpvert_s *r1 = patch->cp, *r2;
+		const struct qcpatchvert_s *r1 = patch->cp, *r2;
 		w = patch->numcp[0];
 		h = patch->numcp[1];
 
@@ -6255,6 +6251,8 @@ static brushes_t *Terr_Brush_Insert(model_t *model, heightmap_t *hm, brushes_t *
 	out->planes = NULL;
 	out->faces = NULL;
 	out->numplanes = 0;
+	out->ispatch = !!brush->patch;
+	out->selected = false;
 	ClearBounds(out->mins, out->maxs);
 	if (brush->numplanes)
 	{
@@ -6426,6 +6424,9 @@ static brushes_t *Terr_Brush_Insert(model_t *model, heightmap_t *hm, brushes_t *
 	AddPointToBounds(out->mins, model->mins, model->maxs);
 	AddPointToBounds(out->maxs, model->mins, model->maxs);
 
+	if (out->patch && (out->patch->subdiv[0] || out->patch->subdiv[1]))
+		out->patch->tessvert = PatchInfo_Evaluate(out->patch->cp, out->patch->numcp, out->patch->subdiv, out->patch->tesssize);
+
 	return out;
 }
 
@@ -6481,6 +6482,11 @@ static void Terr_Brush_DeleteIdx(heightmap_t *hm, size_t idx)
 	}
 
 	BZ_Free(br->planes);
+	if (br->patch)
+	{
+		BZ_Free(br->patch->tessvert);
+		BZ_Free(br->patch);
+	}
 	hm->numbrushes--;
 	hm->brushesedited = true;
 	//plug the hole with some other brush.
@@ -6504,6 +6510,104 @@ static qboolean Terr_Brush_DeleteId(heightmap_t *hm, unsigned int brushid)
 		}
 	}
 	return false;
+}
+
+
+static void Patch_Serialise(sizebuf_t *sb, brushes_t *br)
+{
+	qbyte flags = 0;
+	unsigned int i, m = br->patch->numcp[0]*br->patch->numcp[1];
+
+	for (i = 0; i < m; i++)
+	{
+		if (br->patch->cp[i].rgba[0] != 1)
+			flags |= 1;
+		if (br->patch->cp[i].rgba[1] != 1)
+			flags |= 2;
+		if (br->patch->cp[i].rgba[2] != 1)
+			flags |= 4;
+		if (br->patch->cp[i].rgba[3] != 1)
+			flags |= 8;
+	}
+
+	MSG_WriteLong(sb, br->id);
+	MSG_WriteLong(sb, br->contents);
+	MSG_WriteShort(sb, br->patch->numcp[0]);
+	MSG_WriteShort(sb, br->patch->numcp[1]);
+
+	MSG_WriteByte(sb, flags);
+
+	MSG_WriteString(sb, br->patch->tex->shadername);
+	MSG_WriteShort(sb, br->patch->subdiv[0]);
+	MSG_WriteShort(sb, br->patch->subdiv[1]);
+
+	for (i = 0; i < m; i++)
+	{
+		MSG_WriteFloat(sb, br->patch->cp[i].v[0]);
+		MSG_WriteFloat(sb, br->patch->cp[i].v[1]);
+		MSG_WriteFloat(sb, br->patch->cp[i].v[2]);
+		MSG_WriteFloat(sb, br->patch->cp[i].tc[0]);
+		MSG_WriteFloat(sb, br->patch->cp[i].tc[1]);
+
+		if (flags&1)
+			MSG_WriteFloat(sb, br->patch->cp[i].rgba[0]);
+		if (flags&2)
+			MSG_WriteFloat(sb, br->patch->cp[i].rgba[1]);
+		if (flags&4)
+			MSG_WriteFloat(sb, br->patch->cp[i].rgba[2]);
+		if (flags&8)
+			MSG_WriteFloat(sb, br->patch->cp[i].rgba[3]);
+	}
+}
+static size_t Patch_DeserialiseHeader(brushes_t *br)
+{
+	unsigned int numcp[2];
+	br->id = MSG_ReadLong();
+	br->contents = MSG_ReadLong();
+
+	br->numplanes   = numcp[0] = (unsigned short)MSG_ReadShort();
+	br->axialplanes = numcp[1] = (unsigned short)MSG_ReadShort();
+
+	if (numcp[0]*numcp[1] > 8192)
+		return 0; //too many. reject it as bad.
+	return sizeof(*br->patch) + sizeof(*br->patch->cp)*(numcp[0]*numcp[1]-countof(br->patch->cp));
+}
+static qboolean Patch_Deserialise(heightmap_t *hm, brushes_t *br, void *mem)
+{
+	struct qcpatchvert_s vert;
+	qboolean flags;
+	unsigned int i, m;
+	flags = MSG_ReadByte();
+
+	br->patch = mem;
+	br->patch->numcp[0] = br->numplanes;
+	br->patch->numcp[1] = br->axialplanes;
+	br->numplanes = br->axialplanes = 0;
+
+	m = br->patch->numcp[0]*br->patch->numcp[1];
+
+	//FIXME: as a server, we probably want to reject the brush if we exceed some texnum/memory limitation, so clients can't just spam new textures endlessly.
+	br->patch->tex = Terr_Brush_FindTexture(hm, MSG_ReadString());
+
+	br->patch->subdiv[0] = MSG_ReadShort();
+	br->patch->subdiv[1] = MSG_ReadShort();
+
+	for (i = 0; i < m; i++)
+	{
+		vert.v[0] = MSG_ReadFloat();
+		vert.v[1] = MSG_ReadFloat();
+		vert.v[2] = MSG_ReadFloat();
+		vert.tc[0] = MSG_ReadFloat();
+		vert.tc[1] = MSG_ReadFloat();
+
+		vert.rgba[0] = (flags&1)?MSG_ReadFloat():1;
+		vert.rgba[1] = (flags&2)?MSG_ReadFloat():1;
+		vert.rgba[2] = (flags&4)?MSG_ReadFloat():1;
+		vert.rgba[3] = (flags&8)?MSG_ReadFloat():1;
+
+		br->patch->cp[i] = vert;
+	}
+	return true;
 }
 
 static void Brush_Serialise(sizebuf_t *sb, brushes_t *br)
@@ -6533,16 +6637,30 @@ static void Brush_Serialise(sizebuf_t *sb, brushes_t *br)
 		MSG_WriteFloat(sb, br->faces[i].stdir[1][3]);
 	}
 }
-static qboolean Brush_Deserialise(heightmap_t *hm, brushes_t *br)
+static size_t Brush_DeserialiseHeader(brushes_t *br, qboolean ispatch)
 {
-	unsigned int i;
-	unsigned int maxplanes = br->numplanes;
+	br->ispatch = ispatch;
+	if (br->ispatch)
+		return Patch_DeserialiseHeader(br);
+
 	br->id = MSG_ReadLong();
 	br->contents = MSG_ReadLong();
 	br->numplanes = MSG_ReadLong();
 
-	if (br->numplanes > maxplanes)
-		return false;
+	if (br->numplanes > 8192)
+		return 0;	//abusive
+
+	return sizeof(*br->faces)  * br->numplanes
+		 + sizeof(*br->planes) * br->numplanes;
+}
+static qboolean Brush_Deserialise(heightmap_t *hm, brushes_t *br, void *mem)
+{
+	unsigned int i;
+	if (br->ispatch)
+		return Patch_Deserialise(hm, br, mem);
+
+	br->faces = mem;
+	br->planes = (vec4_t*)(br->faces + br->numplanes);
 
 	for (i = 0; i < br->numplanes; i++)
 	{
@@ -6566,88 +6684,6 @@ static qboolean Brush_Deserialise(heightmap_t *hm, brushes_t *br)
 		br->faces[i].stdir[1][3] = MSG_ReadFloat();
 	}
 	return true;
-}
-
-static void Patch_Serialise(sizebuf_t *sb, brushes_t *br)
-{
-	qbyte flags = 0;
-	unsigned int i, m = br->patch->numcp[0]*br->patch->numcp[1];
-
-	for (i = 0; i < m; i++)
-	{
-		if (br->patch->cp[i].rgba[0] != 1)
-			flags |= 1;
-		if (br->patch->cp[i].rgba[1] != 1)
-			flags |= 2;
-		if (br->patch->cp[i].rgba[2] != 1)
-			flags |= 4;
-		if (br->patch->cp[i].rgba[3] != 1)
-			flags |= 8;
-	}
-
-	MSG_WriteLong(sb, br->id);
-	MSG_WriteByte(sb, flags);
-
-	MSG_WriteLong(sb, br->contents);
-	MSG_WriteString(sb, br->patch->tex->shadername);
-	MSG_WriteShort(sb, br->patch->numcp[0]);
-	MSG_WriteShort(sb, br->patch->numcp[1]);
-	MSG_WriteShort(sb, br->patch->subdiv[0]);
-	MSG_WriteShort(sb, br->patch->subdiv[1]);
-
-	for (i = 0; i < m; i++)
-	{
-		MSG_WriteFloat(sb, br->patch->cp[i].v[0]);
-		MSG_WriteFloat(sb, br->patch->cp[i].v[1]);
-		MSG_WriteFloat(sb, br->patch->cp[i].v[2]);
-		MSG_WriteFloat(sb, br->patch->cp[i].tc[0]);
-		MSG_WriteFloat(sb, br->patch->cp[i].tc[1]);
-
-		if (flags&1)
-			MSG_WriteFloat(sb, br->patch->cp[i].rgba[0]);
-		if (flags&2)
-			MSG_WriteFloat(sb, br->patch->cp[i].rgba[1]);
-		if (flags&4)
-			MSG_WriteFloat(sb, br->patch->cp[i].rgba[2]);
-		if (flags&8)
-			MSG_WriteFloat(sb, br->patch->cp[i].rgba[3]);
-	}
-}
-static qboolean Patch_Deserialise(heightmap_t *hm, brushes_t *br)
-{
-	struct patchcpvert_s vert;
-	qboolean flags;
-	unsigned int i, maxverts = br->patch->numcp[0]*br->patch->numcp[1];
-	br->id = MSG_ReadLong();
-	flags = MSG_ReadByte();
-
-	br->contents = MSG_ReadLong();
-
-	//FIXME: as a server, we probably want to reject the brush if we exceed some texnum/memory limitation, so clients can't just spam new textures endlessly.
-	br->patch->tex = Terr_Brush_FindTexture(hm, MSG_ReadString());
-
-	br->patch->numcp[0] = MSG_ReadShort();
-	br->patch->numcp[1] = MSG_ReadShort();
-	br->patch->subdiv[0] = MSG_ReadShort();
-	br->patch->subdiv[1] = MSG_ReadShort();
-
-	for (i = 0; i < br->patch->numcp[0]*br->patch->numcp[1]; i++)
-	{
-		vert.v[0] = MSG_ReadFloat();
-		vert.v[1] = MSG_ReadFloat();
-		vert.v[2] = MSG_ReadFloat();
-		vert.tc[0] = MSG_ReadFloat();
-		vert.tc[1] = MSG_ReadFloat();
-
-		vert.rgba[0] = (flags&1)?MSG_ReadFloat():1;
-		vert.rgba[1] = (flags&2)?MSG_ReadFloat():1;
-		vert.rgba[2] = (flags&4)?MSG_ReadFloat():1;
-		vert.rgba[3] = (flags&8)?MSG_ReadFloat():1;
-
-		if (i < maxverts)
-			br->patch->cp[i] = vert;
-	}
-	return i <= maxverts;
 }
 
 
@@ -6699,45 +6735,36 @@ void CL_Parse_BrushEdit(void)
 	else if (cmd == hmcmd_brush_insert || cmd == hmcmd_patch_insert)	//1=create/replace
 	{
 		brushes_t brush;
+		size_t tempmemsize;
 
 		hm = CL_BrushEdit_ForceContext(mod);	//do this early, to ensure that the textures are correct
 
 		memset(&brush, 0, sizeof(brush));
-		if (cmd == hmcmd_patch_insert)
+		tempmemsize = Brush_DeserialiseHeader(&brush, (cmd == hmcmd_patch_insert));
+		if (!tempmemsize)
+			Host_EndGame("CL_Parse_BrushEdit: unparsable %s\n", brush.ispatch?"patch":"brush");
+		if (!Brush_Deserialise(hm, &brush, alloca(tempmemsize)))
+			Host_EndGame("CL_Parse_BrushEdit: unparsable %s\n", brush.ispatch?"patch":"brush");
+
+		if (!ignore)	//ignore if we're the server, we should already have it anyway (but might need it for demos, hence why its still sent).
 		{
-			const unsigned int maxpoints = 64*64;
-			brush.patch = alloca(sizeof(*brush.patch) + sizeof(*brush.patch->cp)*(maxpoints-countof(brush.patch->cp)));
-			brush.patch->numcp[0] = 1;
-			brush.patch->numcp[1] = maxpoints;
-			if (!Patch_Deserialise(hm, &brush))
-				Host_EndGame("CL_Parse_BrushEdit: unparsable patch\n");
-		}
-		else
-		{
-			brush.numplanes = 128;
-			brush.planes = alloca(sizeof(*brush.planes) * brush.numplanes);
-			brush.faces = alloca(sizeof(*brush.faces) * brush.numplanes);
-			if (!Brush_Deserialise(hm, &brush))
-				Host_EndGame("CL_Parse_BrushEdit: unparsable brush\n");
-		}
-		if (ignore)
-			return;	//ignore if we're the server, we should already have it anyway (but might need it for demos, hence why its still sent).
-		if (brush.id)
-		{
-			int i;
-			if (cls.demoplayback)
-				Terr_Brush_DeleteId(hm, brush.id);
-			else
+			if (brush.id)
 			{
-				for (i = 0; i < hm->numbrushes; i++)
+				int i;
+				if (cls.demoplayback)
+					Terr_Brush_DeleteId(hm, brush.id);
+				else
 				{
-					brushes_t *br = &hm->wbrushes[i];
-					if (br->id == brush.id)
-						return;	//we already have it. assume we just edited it.
+					for (i = 0; i < hm->numbrushes; i++)
+					{
+						brushes_t *br = &hm->wbrushes[i];
+						if (br->id == brush.id)
+							return;	//we already have it. assume we just edited it.
+					}
 				}
 			}
+			Terr_Brush_Insert(mod, hm, &brush);
 		}
-		Terr_Brush_Insert(mod, hm, &brush);
 	}
 	else if (cmd == hmcmd_prespawning)
 	{	//delete all
@@ -6899,31 +6926,22 @@ qboolean SV_Parse_BrushEdit(void)
 	else if (cmd == hmcmd_brush_insert || cmd == hmcmd_patch_insert)
 	{
 		brushes_t brush;
+		size_t tempmemsize;
 		memset(&brush, 0, sizeof(brush));
-		if (cmd == hmcmd_patch_insert)
+		brush.ispatch = (cmd == hmcmd_patch_insert);
+
+		tempmemsize = Brush_DeserialiseHeader(&brush, cmd == hmcmd_patch_insert);
+		if (!tempmemsize)
 		{
-			const unsigned int maxpoints = 64*64;
-			brush.patch = alloca(sizeof(*brush.patch) + sizeof(*brush.patch->cp)*(maxpoints-countof(brush.patch->cp)));
-			memset(brush.patch, 0, sizeof(*brush.patch));
-			brush.patch->numcp[0] = maxpoints;
-			brush.patch->numcp[1] = 1;
-			if (!Patch_Deserialise(hm, &brush))
-			{
-				Con_Printf("SV_Parse_BrushEdit: %s sent an unparsable patch\n", host_client->name);
-				return false;
-			}
+			Con_Printf("SV_Parse_BrushEdit: %s sent an abusive %s\n", host_client->name, brush.ispatch?"patch":"brush");
+			return false;
 		}
-		else
+		if (!Brush_Deserialise(hm, &brush, alloca(tempmemsize)))
 		{
-			brush.numplanes = 128;
-			brush.planes = alloca(sizeof(*brush.planes) * brush.numplanes);
-			brush.faces = alloca(sizeof(*brush.faces) * brush.numplanes);
-			if (!Brush_Deserialise(hm, &brush))
-			{
-				Con_Printf("SV_Parse_BrushEdit: %s sent an unparsable brush\n", host_client->name);
-				return false;
-			}
+			Con_Printf("SV_Parse_BrushEdit: %s sent an unparsable brush\n", host_client->name);
+			return false;
 		}
+
 		if (!authorise)
 		{
 			SV_PrintToClient(host_client, PRINT_MEDIUM, "Brush editing ignored: you are not a mapper\n");
@@ -6979,28 +6997,6 @@ qboolean SV_Parse_BrushEdit(void)
 	return true;
 }
 #endif
-
-typedef struct
-{
-	string_t	shadername;
-	vec3_t		planenormal;
-	float		planedist;
-	vec3_t		sdir;
-	float		sbias;
-	vec3_t		tdir;
-	float		tbias;
-} qcbrushface_t;
-
-typedef struct
-{
-	string_t	shadername;
-	unsigned int contents;
-	unsigned int cp_width;
-	unsigned int cp_height;
-	unsigned int subdiv_x;
-	unsigned int subdiv_y;
-	vec3_t		texinfo;
-} qcpatchinfo_t;
 
 static void *validateqcpointer(pubprogfuncs_t *prinst, size_t qcptr, size_t elementsize, size_t elementcount, qboolean allownull)
 {
@@ -7066,9 +7062,9 @@ void QCBUILTIN PF_patch_getcp(pubprogfuncs_t *prinst, struct globalvars_s *pr_gl
 				G_INT(OFS_RETURN) = br->patch->numcp[0]*br->patch->numcp[1];
 			else
 			{
-				maxverts = min(br->numplanes, maxverts);
+				maxverts = min(br->patch->numcp[0]*br->patch->numcp[1], maxverts);
 
-				for (j = 0; j < br->patch->numcp[0]*br->patch->numcp[1]; j++)
+				for (j = 0; j < maxverts; j++)
 				{
 					VectorCopy(br->patch->cp[j].v, out_verts->v);
 					Vector2Copy(br->patch->cp[j].tc, out_verts->tc);
@@ -7082,7 +7078,43 @@ void QCBUILTIN PF_patch_getcp(pubprogfuncs_t *prinst, struct globalvars_s *pr_gl
 		}
 	}
 }
-//	{"patch_getmesh",	PF_patch_getmesh,	0,		0,		0,		0,		D("int(float modelidx, int patchid, patchvert_t *out_verts, int maxverts, __out patchinfo_t out_info)", "Queries a patch's information. You must pre-allocate the face array for the builtin to write to. Return value is the total number of control verts that were retrieved, 0 on error.")},
+//  {"patch_evaluate",	PF_patch_evaluate,	0,		0,		0,		0,		D("int(patchvert_t *in_controlverts, patchvert_t *out_renderverts, int maxout, patchinfo_t *inout_info)", "Calculates the geometry of a hyperthetical patch.")},
+void QCBUILTIN PF_patch_evaluate(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	qcpatchinfo_t	*inout_info		= validateqcpointer(prinst, G_INT(OFS_PARM3), sizeof(*inout_info), 1, false);
+	unsigned int	maxverts		= G_INT(OFS_PARM2);
+	qcpatchvert_t	*out_verts		= validateqcpointer(prinst, G_INT(OFS_PARM1), sizeof(*out_verts), maxverts, true);
+	qcpatchvert_t	*in_cp			= validateqcpointer(prinst, G_INT(OFS_PARM0), sizeof(*in_cp), inout_info->cp_width*inout_info->cp_height, false);
+
+	unsigned short numcp[] = {inout_info->cp_width, inout_info->cp_height}, size[2];
+	short subdiv[] = {inout_info->subdiv_x, inout_info->subdiv_y};
+	patchtessvert_t	*working_verts	= PatchInfo_Evaluate(in_cp, numcp, subdiv, size);
+
+	unsigned int i;
+	if (working_verts)
+	{
+		if (out_verts)
+		{
+			maxverts = min(maxverts, size[0]*size[1]);
+			for (i = 0; i < maxverts; i++)
+			{
+				VectorCopy(working_verts[i].v, out_verts[i].v);
+				Vector4Copy(working_verts[i].rgba, out_verts[i].rgba);
+				Vector2Copy(working_verts[i].tc, out_verts[i].tc);
+			}
+		}
+		BZ_Free(working_verts);
+
+		inout_info->cp_width = size[0];	//not really controlpoints, but the data works the same.
+		inout_info->cp_height = size[1];
+	}
+	else
+		inout_info->cp_width = inout_info->cp_height = 0; //erk...
+	inout_info->subdiv_x = inout_info->subdiv_y = 0;	//make it as explicit tessellation, so we can maybe skip this.
+
+	G_INT(OFS_RETURN) = maxverts;
+}
+//	{"patch_getmesh",	PF_patch_getmesh,	0,		0,		0,		0,		D("int(float modelidx, int patchid, patchvert_t *out_verts, int maxverts, patchinfo_t *out_info)", "Queries a patch's information. You must pre-allocate the face array for the builtin to write to. Return value is the total number of control verts that were retrieved, 0 on error.")},
 void QCBUILTIN PF_patch_getmesh(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	world_t			*vmw			= prinst->parms->user;
@@ -7113,10 +7145,10 @@ void QCBUILTIN PF_patch_getmesh(pubprogfuncs_t *prinst, struct globalvars_s *pr_
 			if (out_info)
 			{
 				out_info->contents = br->contents;
-				out_info->cp_width = br->patch->numcp[0];
-				out_info->cp_height = br->patch->numcp[1];
-				out_info->subdiv_x = br->patch->subdiv[0];
-				out_info->subdiv_y = br->patch->subdiv[1];
+				out_info->cp_width = br->patch->tesssize[0];
+				out_info->cp_height = br->patch->tesssize[1];
+				out_info->subdiv_x = 0;
+				out_info->subdiv_y = 0;
 				out_info->shadername = PR_TempString(prinst, br->patch->tex->shadername);
 			}
 
@@ -7124,9 +7156,9 @@ void QCBUILTIN PF_patch_getmesh(pubprogfuncs_t *prinst, struct globalvars_s *pr_
 				G_INT(OFS_RETURN) = br->patch->tesssize[0]*br->patch->tesssize[1];
 			else
 			{
-				maxverts = min(br->numplanes, maxverts);
+				maxverts = min(br->patch->tesssize[0]*br->patch->tesssize[1], maxverts);
 
-				for (j = 0; j < br->patch->tesssize[0]*br->patch->tesssize[1]; j++)
+				for (j = 0; j < maxverts; j++)
 				{
 					VectorCopy(br->patch->tessvert[j].v, out_verts->v);
 					Vector2Copy(br->patch->tessvert[j].tc, out_verts->tc);
@@ -7408,8 +7440,8 @@ void QCBUILTIN PF_patch_create(pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 			{
 				MSG_WriteByte(&sv.multicast, svcfte_brushedit);
 				MSG_WriteShort(&sv.multicast, modelindex);
-				MSG_WriteByte(&sv.multicast, hmcmd_brush_insert);
-				Brush_Serialise(&sv.multicast, nb);
+				MSG_WriteByte(&sv.multicast, hmcmd_patch_insert);
+				Patch_Serialise(&sv.multicast, nb);
 				SV_MulticastProtExt(vec3_origin, MULTICAST_ALL_R, ~0, 0, 0);
 				return;
 			}
@@ -7419,8 +7451,8 @@ void QCBUILTIN PF_patch_create(pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 			{
 				MSG_WriteByte(&cls.netchan.message, clcfte_brushedit);
 				MSG_WriteShort(&cls.netchan.message, modelindex);
-				MSG_WriteByte(&cls.netchan.message, hmcmd_brush_insert);
-				Brush_Serialise(&cls.netchan.message, nb);
+				MSG_WriteByte(&cls.netchan.message, hmcmd_patch_insert);
+				Patch_Serialise(&cls.netchan.message, nb);
 				return;
 			}
 #endif
@@ -7930,6 +7962,7 @@ void Mod_Terrain_Save_f(void)
 	{
 		//warning: brushes are not saved unless its a .map
 		COM_StripExtension(mod->name, fname, sizeof(fname));
+		Q_strncatz(fname, mod_modifier, sizeof(fname));
 		Q_strncatz(fname, ".ent", sizeof(fname));
 
 		FS_CreatePath(fname, FS_GAMEONLY);

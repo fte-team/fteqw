@@ -3231,7 +3231,7 @@ void CLQ1_AddShadow(entity_t *ent)
 	scenetris_t *t;
 	cl_adddecal_ctx_t ctx;
 
-	if (!r_blobshadows || !ent->model || (ent->model->type != mod_alias && ent->model->type != mod_halflife))
+	if (!r_blobshadows || !ent->model || (ent->model->type != mod_alias && ent->model->type != mod_halflife) || (ent->flags & RF_NOSHADOW))
 		return;
 
 	s = R_RegisterShader("shadowshader", SUF_NONE,
@@ -3295,7 +3295,7 @@ void CLQ1_AddShadow(entity_t *ent)
 	}
 
 	ctx.t = t;
-	Vector4Set(ctx.rgbavalue, 0, 0, 0, r_blobshadows);
+	Vector4Set(ctx.rgbavalue, 0, 0, 0, r_blobshadows*((ent->flags & RF_TRANSLUCENT)?ent->shaderRGBAf[3]:1));
 	Mod_ClipDecal(cl.worldmodel, shadoworg, ctx.axis[0], ctx.axis[1], ctx.axis[2], radius, 0,0, CL_AddDecal_Callback, &ctx);
 	if (!t->numidx)
 		cl_numstris--;

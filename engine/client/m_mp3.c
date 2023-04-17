@@ -1183,7 +1183,7 @@ void Com_CompleateOSFileName(char *name)
 		strcpy(name, compleatenamename);
 }
 
-qboolean M_Media_Key (int key, emenu_t *menu)
+qboolean M_Media_Key (emenu_t *menu, int key, unsigned int unicode)
 {
 	int dir;
 	if (key == K_ESCAPE || key == K_GP_BACK || key == K_MOUSE2)

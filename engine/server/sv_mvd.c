@@ -266,19 +266,23 @@ int SV_MVD_GotQTVRequest(vfsfile_t *clientstream, char *headerstart, char *heade
 	int raw = 0;
 	char password[256] = "";
 	char userinfo[1024];
-	enum {
-		//MUST BE ORDERED HIGHEST-PRIORITY-LAST
-		QTVAM_NONE,
-		QTVAM_PLAIN,
-#ifdef TCPCONNECT
-//		QTVAM_CCITT,	//16bit = ddos it
-		QTVAM_MD4,		//fucked. required for eztv compat
-//		QTVAM_MD5,		//fucked, no hash implemented
-		QTVAM_SHA1,		//fucked too nowadays
-		QTVAM_SHA2_256,	//
-		QTVAM_SHA2_512,	//
-#endif
-	} authmethod = QTVAM_NONE;
+	static struct
+	{
+		const char *name;	//as seen in protocol
+		hashfunc_t *func;
+		int base;
+	} hashes[] = {
+		{"NONE", NULL, -1},			//for annonymous connections
+		{"PLAIN", NULL, 0},
+//		{"CCITT", &hash_crc16, 16},	//'the CCITT standard CRC used by XMODEM'. 16bit anyway, don't allow, too easy to guess.
+//		{"MD4", &hash_md4, 15},		//md4 is available to all QW clients, but probably too weak to really use.
+//		{"MD5", &hash_md5, 16},		//blurgh
+		{"SHA1", &hash_sha1, 16},
+		{"SHA2_256", &hash_sha2_256, 64},
+		{"SHA2_512", &hash_sha2_512, 64},
+//		{"SHA3_512", &hash_sha3_512, 16},	//eztv apparently allows this
+	};
+	int authmethod = 0;	//which of the above we're trying to use...
 
 	start = headerstart;
 
@@ -347,32 +351,20 @@ int SV_MVD_GotQTVRequest(vfsfile_t *clientstream, char *headerstart, char *heade
 			{
 				int thisauth;
 				start = COM_ParseToken(start, NULL);
-				if (!strcmp(com_token, "NONE"))
-					thisauth = QTVAM_NONE;
-				else if (!strcmp(com_token, "PLAIN"))
-					thisauth = QTVAM_PLAIN;
-#ifdef TCPCONNECT
-//				else if (!strcmp(com_token, "CCIT"))
-//					thisauth = QTVAM_CCITT;
-				else if (!strcmp(com_token, "MD4"))
-					thisauth = QTVAM_MD4;
-//				else if (!strcmp(com_token, "MD5"))
-//					thisauth = QTVAM_MD5;
-				else if (!strcmp(com_token, "SHA1"))
-					thisauth = QTVAM_SHA1;
-				else if (!strcmp(com_token, "SHA2_256"))
-					thisauth = QTVAM_SHA2_256;
-				else if (!strcmp(com_token, "SHA2_512"))
-					thisauth = QTVAM_SHA2_512;
-#endif
-				else
+				for (thisauth = 1; ; thisauth++)
 				{
-					thisauth = QTVAM_NONE;
-					Con_DPrintf("qtv: received unrecognised auth method (%s)\n", com_token);
+					if (thisauth == countof(hashes))
+					{
+						Con_DPrintf("qtv: received unrecognised auth method (%s)\n", com_token);
+						break;
+					}
+					if (!strcmp(com_token, hashes[thisauth].name))
+					{	//we know this one.
+						if (authmethod < thisauth)
+							authmethod = thisauth;	//and its better than the previous one we saw
+						break;
+					}
 				}
-
-				if (authmethod < thisauth)
-					authmethod = thisauth;
 			}
 			else if (!strcmp(com_token, "SOURCE"))
 			{
@@ -416,77 +408,38 @@ int SV_MVD_GotQTVRequest(vfsfile_t *clientstream, char *headerstart, char *heade
 		p->hasauthed = true;	//no password, no need to auth.
 	else if (*password)
 	{
-		hashfunc_t *func = NULL;
-		if (!*p->challenge && authmethod>QTVAM_PLAIN)
+		char hash[512];
+		qbyte digest[DIGEST_MAXSIZE];
+		if (!*p->challenge && hashes[authmethod].func)
 			e =	("QTVSV 1\n"
 				 "PERROR: Challenge wasn't given...\n\n");
-		else switch (authmethod)
+		switch(hashes[authmethod].base)
 		{
-		case QTVAM_NONE:
+		default:
+		case -1:	//no auth at all
 			e = ("QTVSV 1\n"
 				 "PERROR: You need to provide a password.\n\n");
 			break;
-		case QTVAM_PLAIN:
-			p->hasauthed = !strcmp(qtv_password.string, password);
+		case 0:		//plain text. challenge is not used.
+			Q_snprintfz(hash, sizeof(hash), "%s", qtv_password.string);
 			break;
-#ifdef TCPCONNECT
-		/*case QTVAM_CCITT:
-			{
-				unsigned short ushort_result;
-				QCRC_Init(&ushort_result);
-				QCRC_AddBlock(&ushort_result, p->challenge, strlen(p->challenge));
-				QCRC_AddBlock(&ushort_result, qtv_password.string, strlen(qtv_password.string));
-				p->hasauthed = (ushort_result == strtoul(password, NULL, 0));
-			}
-			break;*/
-		case QTVAM_MD4:
-			{
-				char hash[512];
-				int md4sum[4];
-
-				Q_snprintfz(hash, sizeof(hash), "%s%s", p->challenge, qtv_password.string);
-				Com_BlockFullChecksum (hash, strlen(hash), (unsigned char*)md4sum);
-				Q_snprintfz(hash, sizeof(hash), "%X%X%X%X", md4sum[0], md4sum[1], md4sum[2], md4sum[3]);
-				p->hasauthed = !strcmp(password, hash);
-			}
-			break;
-#ifdef HAVE_LEGACY //to be disabled at some point.
-		case QTVAM_SHA1:
-			{
-				char hash[512];
-				int digest[5];
-
-				Q_snprintfz(hash, sizeof(hash), "%s%s", p->challenge, qtv_password.string);
-				CalcHash(&hash_sha1, (char*)digest, sizeof(digest), hash, strlen(hash));
-				Q_snprintfz(hash, sizeof(hash), "%08X%08X%08X%08X%08X", digest[0], digest[1], digest[2], digest[3], digest[4]);
-				p->hasauthed = !strcmp(password, hash);
-
-				if (!p->hasauthed)
-					func = &hash_sha1;
-			}
-			break;
-#else
-		case QTVAM_SHA1:		func = &hash_sha1;		break;
-#endif
-		case QTVAM_SHA2_256:	func = &hash_sha256;	break;
-		case QTVAM_SHA2_512:	func = &hash_sha512;	break;
-//		case QTVAM_MD5:			func = &hash_md5;		break;
-#endif
-		default:
-			e = ("QTVSV 1\n"
-				 "PERROR: server bug detected.\n\n");
-			break;
-		}
-		if (func)
-		{
-			char hash[DIGEST_MAXSIZE*2+1];
-			qbyte digest[DIGEST_MAXSIZE];
-
+		case 15:	//fucked encoding(missing some leading 0s)
 			Q_snprintfz(hash, sizeof(hash), "%s%s", p->challenge, qtv_password.string);
-			CalcHash(func, digest, sizeof(digest), hash, strlen(hash));
-			Base64_EncodeBlock(digest, func->digestsize, hash, sizeof(hash));
-			p->hasauthed = !strcmp(password, hash);
+			CalcHash(hashes[authmethod].func, digest, sizeof(digest), hash, strlen(hash));
+			Q_snprintfz(hash, sizeof(hash), "%X%X%X%X", ((quint32_t*)digest)[0], ((quint32_t*)digest)[1], ((quint32_t*)digest)[2], ((quint32_t*)digest)[3]);
+			break;
+		case 16:
+			Q_snprintfz(hash, sizeof(hash), "%s%s", p->challenge, qtv_password.string);
+			CalcHash(hashes[authmethod].func, digest, sizeof(digest), hash, strlen(hash));
+			Base16_EncodeBlock(digest, hashes[authmethod].func->digestsize, hash, sizeof(hash));
+			break;
+		case 64:
+			Q_snprintfz(hash, sizeof(hash), "%s%s", p->challenge, qtv_password.string);
+			CalcHash(hashes[authmethod].func, digest, sizeof(digest), hash, strlen(hash));
+			Base64_EncodeBlock(digest, hashes[authmethod].func->digestsize, hash, sizeof(hash));
+			break;
 		}
+		p->hasauthed = !strcmp(password, hash);
 		if (!p->hasauthed && !e)
 		{
 			if (raw)
@@ -499,66 +452,31 @@ int SV_MVD_GotQTVRequest(vfsfile_t *clientstream, char *headerstart, char *heade
 	else
 	{
 		//no password, and not automagically authed
-		switch (authmethod)
+		switch (hashes[authmethod].base)
 		{
-		case QTVAM_NONE:
+		case -1:
 			if (raw)
 				e = "";
 			else
 				e = ("QTVSV 1\n"
 					 "PERROR: You need to provide a common auth method.\n\n");
 			break;
-		case QTVAM_PLAIN:
+		case 0:
 			p->hasauthed = !strcmp(qtv_password.string, password);
 			break;
-#ifdef TCPCONNECT
-		/*case QTVAM_CCITT:
-			e =	("QTVSV 1\n"
-				"AUTH: CCITT\n"
-				"CHALLENGE: ");
-			goto hashedpassword;*/
-		case QTVAM_MD4:
-			e =	("QTVSV 1\n"
-				"AUTH: MD4\n"
-				"CHALLENGE: ");
-			goto hashedpassword;
-		/*case QTVAM_MD5:
-			e =	("QTVSV 1\n"
-				"AUTH: MD5\n"
-				"CHALLENGE: ");
-			goto hashedpassword;*/
-		case QTVAM_SHA1:
-			e =	("QTVSV 1\n"
-				"AUTH: SHA1\n"
-				"CHALLENGE: ");
-			goto hashedpassword;
-		case QTVAM_SHA2_256:
-			e =	("QTVSV 1\n"
-				"AUTH: SHA2_256\n"
-				"CHALLENGE: ");
-			goto hashedpassword;
-		case QTVAM_SHA2_512:
-			e =	("QTVSV 1\n"
-				"AUTH: SHA2_512\n"
-				"CHALLENGE: ");
-			goto hashedpassword;
-hashedpassword:
+		default:
 			{
 				char tmp[32];
 				Sys_RandomBytes(tmp, sizeof(tmp));
-				tobase64(p->challenge, sizeof(p->challenge), tmp, sizeof(tmp));
+				Base64_EncodeBlock(tmp, sizeof(tmp), p->challenge, sizeof(p->challenge));
 			}
 
-			VFS_WRITE(clientstream, e, strlen(e));
-			VFS_WRITE(clientstream, p->challenge, strlen(p->challenge));
-			e = "\n\n";
+			e = va("QTVSV 1\n"
+				"AUTH: %s\n"
+				"CHALLENGE: %s\n\n",
+					hashes[authmethod].name, p->challenge);
 			VFS_WRITE(clientstream, e, strlen(e));
 			return QTV_RETRY;
-#endif
-		default:
-			e = ("QTVSV 1\n"
-				 "PERROR: server bug detected.\n\n");
-			break;
 		}
 	}
 
@@ -1715,7 +1633,7 @@ qboolean SV_MVD_Record (mvddest_t *dest)
 		else if (sv_demoExtensions.ival)
 		{	/*everything*/
 			extern cvar_t pext_replacementdeltas;
-			demo.recorder.fteprotocolextensions = PEXT_CSQC | PEXT_COLOURMOD | PEXT_DPFLAGS | PEXT_CUSTOMTEMPEFFECTS | PEXT_ENTITYDBL | PEXT_ENTITYDBL2 | PEXT_FATNESS | PEXT_HEXEN2 | PEXT_HULLSIZE | PEXT_LIGHTSTYLECOL | PEXT_MODELDBL | PEXT_SCALE | PEXT_SETATTACHMENT | PEXT_SETVIEW | PEXT_SOUNDDBL | PEXT_SPAWNSTATIC2 | PEXT_TRANS;
+			demo.recorder.fteprotocolextensions = PEXT_CHUNKEDDOWNLOADS | PEXT_CSQC | PEXT_COLOURMOD | PEXT_DPFLAGS | PEXT_CUSTOMTEMPEFFECTS | PEXT_ENTITYDBL | PEXT_ENTITYDBL2 | PEXT_FATNESS | PEXT_HEXEN2 | PEXT_HULLSIZE | PEXT_LIGHTSTYLECOL | PEXT_MODELDBL | PEXT_SCALE | PEXT_SETATTACHMENT | PEXT_SETVIEW | PEXT_SOUNDDBL | PEXT_SPAWNSTATIC2 | PEXT_TRANS;
 #ifdef PEXT_VIEW2
 			demo.recorder.fteprotocolextensions |= PEXT_VIEW2;
 #endif

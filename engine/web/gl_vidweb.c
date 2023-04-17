@@ -172,14 +172,14 @@ static int DOM_KeyEvent(unsigned int devid, int down, int scan, int uni)
 //	Con_Printf("Key %s %i %i:%c\n", down?"down":"up", scan, uni, uni?(char)uni:' ');
 	if (shift_down)
 	{
-		uni = domkeytoshift(scan);
+//		uni = domkeytoshift(scan);
 		scan = domkeytoquake(scan);
-		uni = (uni >= 32 && uni <= 127)?uni:0;
+//		uni = (uni >= 32 && uni <= 127)?uni:0;
 	}
 	else
 	{
 		scan = domkeytoquake(scan);
-		uni = (scan >= 32 && scan <= 127)?scan:0;
+//		uni = (scan >= 32 && scan <= 127)?scan:0;
 	}
 	IN_KeyEvent(keyboardid[devid], down, scan, uni);
 	//Chars which don't map to some printable ascii value get preventDefaulted.
@@ -192,8 +192,31 @@ static int DOM_KeyEvent(unsigned int devid, int down, int scan, int uni)
 		return true;
 //	return false;
 }
+static int RemapTouchId(int id, qboolean final)
+{
+	static int touchids[8];
+	int i;
+	if (!id)
+		return id;
+	for (i = 1; i < countof(touchids); i++)
+		if (touchids[i] == id)
+		{
+			if (final)	
+				touchids[i] = 0;
+			return i;
+		}
+	for (i = 1; i < countof(touchids); i++)
+		if (touchids[i] == 0)
+		{
+			if (!final)
+				touchids[i] = id;
+			return i;
+		}
+	return id;
+}
 static void DOM_ButtonEvent(unsigned int devid, int down, int button)
 {
+	devid = RemapTouchId(devid, !down);
 	if (down == 2)
 	{
 		//fixme: the event is a float. we ignore that.
@@ -216,11 +239,16 @@ static void DOM_ButtonEvent(unsigned int devid, int down, int button)
 		else if (button == 1)
 			button = 2;
 
-		IN_KeyEvent(mouseid[devid], down, K_MOUSE1+button, 0);
+		if (button < 0)
+			button = K_TOUCH;
+		else
+			button += K_MOUSE1;
+		IN_KeyEvent(mouseid[devid], down, button, 0);
 	}
 }
 static void DOM_MouseMove(unsigned int devid, int abs, float x, float y, float z, float size)
 {
+	devid = RemapTouchId(devid, false);
 	IN_MouseMove(mouseid[devid], abs, x, y, z, size);
 }
 

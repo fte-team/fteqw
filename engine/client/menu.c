@@ -1081,7 +1081,7 @@ void M_Help_Draw (emenu_t *m)
 		R2D_ScalePic ((vid.width-width)/2, (vid.height-height)/2, width, height, pic);
 	}
 }
-qboolean M_Help_Key (int key, emenu_t *m)
+qboolean M_Help_Key (struct emenu_s *m, int key, unsigned int unicode)
 {
 	switch (key)
 	{

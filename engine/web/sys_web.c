@@ -49,12 +49,50 @@ qboolean Sys_RandomBytes(qbyte *string, int len)
 void Sys_Printf (char *fmt, ...)
 {
 	va_list		argptr;	
-	char buf[1024];
+	char text[2048];
+	conchar_t	ctext[2048], *e, *c;
+	unsigned int len = 0;
+	unsigned int w, codeflags;
 		
 	va_start (argptr,fmt);
-	vsnprintf (buf, sizeof(buf), fmt, argptr);
-	emscriptenfte_print(buf);
+	vsnprintf (text, sizeof(text), fmt, argptr);
 	va_end (argptr);
+
+	//make sense of any markup
+	e = COM_ParseFunString(CON_WHITEMASK, text, ctext, sizeof(ctext), false);
+
+	//convert to utf-8 for the js to make sense of
+	for (c = ctext; c < e; )
+	{
+		c = Font_Decode(c, &codeflags, &w);
+		if (codeflags & CON_HIDDEN)
+			continue;
+
+		//dequake it as required, so its only codepoints the browser will understand. should probably deal with linefeeds specially.
+		if (w >= 0xe000 && w < 0xe100)
+		{	//quake-encoded mess
+			if ((w & 0x7f) >= 0x20)
+				w &= 0x7f;	//regular (discoloured) ascii
+			else if (w & 0x80)
+			{	//c1 glyphs
+				static char tab[32] = "---#@.@@@@ # >.." "[]0123456789.---";
+				w = tab[w&31];
+			}
+			else
+			{	//c0 glyphs
+				static char tab[32] = ".####.#### # >.." "[]0123456789.---";
+				w = tab[w&31];
+			}
+		}
+		else if (w < ' ' && w != '\t' && w != '\r' && w != '\n')
+			w = '?';	//c0 chars are awkward
+	
+		len += utf8_encode(text+len, w, sizeof(text)-1-len);
+	}
+	text[len] = 0;
+
+	//now throw it at the browser's console.log.
+	emscriptenfte_print(text);
 }
 
 #if 1

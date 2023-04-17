@@ -150,7 +150,23 @@ static void Cmd_MacroList_f (void)
 }
 
 
+static void Cmd_MacroCompletion_c(int argn, const char *partial, struct xcommandargcompletioncb_s *ctx)
+{
+	size_t i, len;
+	const char *end = partial;
+	if (*end++ != '$')
+		return;
+	if (*end == '{')
+		end++;
+	len = strlen(end);
 
+	for (i = 0; i < macro_count; i++)
+	{
+		if (len <= strlen(macro_commands[i].name))
+			if (!strncmp(end, macro_commands[i].name, len))
+				ctx->cb(va("${%s}", macro_commands[i].name), NULL, NULL, ctx);
+	}
+}
 
 
 
@@ -900,7 +916,7 @@ static void Cmd_Exec_f (void)
 			Cbuf_InsertText (fs_manifest->defaultoverrides, level, false);
 
 #if defined(HAVE_LEGACY) && defined(HAVE_CLIENT)
-		if (l == 1914 && Com_BlockChecksum(f, l) == 0x2d7b72b9)
+		if (l == 1914 && CalcHashInt(&hash_md4, f, l) == 0x2d7b72b9)
 			s = (char*)replacementq1binds;
 #endif
 	}
@@ -1026,7 +1042,7 @@ static void Cmd_Echo_f (void)
 	Q_strncatz(text, "\n", sizeof(text));
 
 	//echo text is often quoted, so expand the text again now that we're no longer in quotes.
-	t = Cmd_ExpandString(text, extext, sizeof(extext), &level, !Cmd_IsInsecure()?true:false, true);
+	t = Cmd_ExpandString(text, extext, sizeof(extext), &level, false, !Cmd_IsInsecure()?true:false, true);
 
 #ifndef HAVE_CLIENT
 	Con_Printf ("%s", t);
@@ -1174,9 +1190,8 @@ static void Cmd_Alias_f (void)
 	// check for overlap with a command
 	if (Cmd_Exists (s))
 	{	//commands always take precedence over aliases (so mods can't clobber 'quit' etc), so creating an alias with one of these names is stupid. always try to rename them.
-		if (Cmd_IsInsecure())
+		if (Cmd_IsInsecure() && snprintf(cmd, sizeof(cmd), "%s_a", s) < sizeof(cmd))
 		{
-			snprintf(cmd, sizeof(cmd), "%s_a", s);
 			if (Cmd_Exists (cmd))
 			{
 				Con_Printf (S_COLOR_RED"Can't register alias, %s is a command\n", s);
@@ -1195,9 +1210,8 @@ static void Cmd_Alias_f (void)
 	{	//aliases take precedence over cvars (while cvars can be set via 'set'), so user's choice.
 		if (Cvar_FindVar (s))
 		{
-			if (Cmd_IsInsecure())
+			if (Cmd_IsInsecure() && snprintf(cmd, sizeof(cmd), "%s_a", s) < sizeof(cmd))
 			{
-				snprintf(cmd, sizeof(cmd), "%s_a", s);
 				Con_Printf (S_COLOR_RED"alias %s: renamed to %s due to cvar conflict\n", s, cmd);
 				s = cmd;
 			}
@@ -1652,7 +1666,7 @@ static const char *Cmd_ExpandCvar(char *cvarterm, int maxaccesslevel, int *newac
 		quotetype = 2;
 	}
 	else if (fixup-cvarterm > 2 && !strncmp(fixup-2, " !", 2))
-	{	//abort is not defined
+	{	//abort if not defined
 		pl = 2;
 		quotetype = 3;
 	}
@@ -1684,8 +1698,9 @@ static const char *Cmd_ExpandCvar(char *cvarterm, int maxaccesslevel, int *newac
 	else
 		cvarname = cvarterm;
 
-	result = strtoul(cvarname, &t, 10);
-	if ((dpcompat_console.ival||fixval) && (*t == 0 || (*t == '-' && t[1] == 0))) //only expand $0 if its actually ${0} - this avoids conflicting with the $0 macro
+	if (!cvarname)
+		;
+	else if ((result = strtoul(cvarname, &t, 10)), (dpcompat_console.ival||fixval) && (*t == 0 || (*t == '-' && t[1] == 0))) //only expand $0 if its actually ${0} - this avoids conflicting with the $0 macro
 	{
 		if (*t == '-')	//pure number with a trailing minus means
 		{				//args starting after that.
@@ -1755,7 +1770,7 @@ If not SERVERONLY, also expands $macro expressions
 Note: dest must point to a 1024 byte buffer
 ================
 */
-char *Cmd_ExpandString (const char *data, char *dest, int destlen, int *accesslevel, qboolean expandcvars, qboolean expandmacros)
+char *Cmd_ExpandString (const char *data, char *dest, int destlen, int *accesslevel, qboolean expandargs, qboolean expandcvars, qboolean expandmacros)
 {
 	unsigned int	c;
 	char	buf[255];
@@ -1763,7 +1778,7 @@ char *Cmd_ExpandString (const char *data, char *dest, int destlen, int *accessle
 	int		quotes = 0;
 	const char	*str;
 	const char	*bestvar;
-	int		name_length, var_length;
+	int		name_length, var_length, best_length;
 	qboolean striptrailing;
 	int		maxaccesslevel = *accesslevel;
 
@@ -1774,7 +1789,7 @@ char *Cmd_ExpandString (const char *data, char *dest, int destlen, int *accessle
 		if (c == '"')
 			quotes++;
 
-		if (c == '%' && !(quotes&1) && !dpcompat_console.ival)
+		if (c == '%' && !(quotes&1) && !dpcompat_console.ival && expandargs)
 		{	//QW262/ezquake does this. kinda annoying.
 			char *end;
 			if (data[1] == '%')
@@ -1792,7 +1807,7 @@ char *Cmd_ExpandString (const char *data, char *dest, int destlen, int *accessle
 				str = Cmd_Args();
 				data+=2;
 			}
-			else if ((i=strtol(data+1, &end, 10)))
+			else if ((i=strtol(data+1, &end, 10)) || (end!=data+1&&(!*end||*end==' '||*end=='\t')))
 			{
 				data = end;
 				str = Cmd_Argv(i);
@@ -1857,7 +1872,7 @@ char *Cmd_ExpandString (const char *data, char *dest, int destlen, int *accessle
 				buf[0] = 0;
 				buf[1] = 0;
 				bestvar = NULL;
-				var_length = 0;
+				var_length = best_length = 0;
 				while((c = *data))
 				{
 					if (c < ' ' || c == '$')
@@ -1868,15 +1883,15 @@ char *Cmd_ExpandString (const char *data, char *dest, int destlen, int *accessle
 					buf[i++] = c;
 					buf[i] = 0;
 					if ((str = Cmd_ExpandCvar(buf+striptrailing, expandcvars?maxaccesslevel:-999, accesslevel, false, &var_length)))
-						bestvar = str;
+						bestvar = str, best_length=var_length;
 					if (expandmacros && (str = TP_MacroString (buf+striptrailing, accesslevel, &var_length)))
-						bestvar = str;
+						bestvar = str, best_length=var_length;
 				}
 
 				if (bestvar)
 				{
 					str = bestvar;
-					name_length = var_length;
+					name_length = best_length;
 				}
 				else
 				{
@@ -1919,7 +1934,7 @@ char *Cmd_ExpandString (const char *data, char *dest, int destlen, int *accessle
 			if (len >= destlen-1)
 				break;
 		}
-	};
+	}
 
 	dest[len] = 0;
 
@@ -2498,8 +2513,9 @@ cmd_completion_t *Cmd_Complete(const char *partial, qboolean caseinsens)
 
 	cvar_group_t	*grp;
 	cvar_t		*cvar;
-	const char *sp;
+	const char *sp, *e;
 	qboolean quoted = false;
+	int arg = 0;
 
 	static cmd_completion_t c;
 
@@ -2515,30 +2531,37 @@ cmd_completion_t *Cmd_Complete(const char *partial, qboolean caseinsens)
 	c.partial = Z_StrDup(partial);
 	c.caseinsens = caseinsens;
 
-	for (sp = partial; *sp; sp++)
+	len = 0;
+	for(e = partial;;)
 	{
-		if (*sp == ' ' || *sp == '\t')
+		sp = e;	//the start of where we're trying to complete...
+		while (*sp == ' ' || *sp == '\t')
+			sp++;	//leading spaces are annoying...
+		e = COM_Parse(sp);
+		if (!arg && e)
+			len = e - partial;
+		if (e && (*e == ' ' || *e == '\t'))
+		{	//there seems to be whitespace after it.
+			arg++;
+			while (*sp == ' ' || *sp == '\t')
+				sp++;
+			//try to handle quotes
+			if (*sp == '\\' && sp[1] == '\"')
+			{
+				sp+=2;
+				quoted = true;
+			}
+			else if (*sp == '\"')
+			{
+				sp++;
+				quoted = true;
+			}
+			else
+				quoted = false;
+		}
+		else
 			break;
 	}
-	len = sp - partial;
-	if (*sp)
-	{
-		while (*sp == ' ' || *sp == '\t')
-			sp++;
-		//try to handle quotes
-		if (*sp == '\\' && sp[1] == '\"')
-		{
-			sp+=2;
-			quoted = true;
-		}
-		else if (*sp == '\"')
-		{
-			sp++;
-			quoted = true;
-		}
-	}
-	else
-		sp = NULL;
 
 //	if (len)
 	{
@@ -2547,7 +2570,7 @@ cmd_completion_t *Cmd_Complete(const char *partial, qboolean caseinsens)
 			for (cmd=cmd_functions ; cmd ; cmd=cmd->next)
 				if (!Q_strncasecmp (partial,cmd->name, len) && (!partial[len] || strlen(cmd->name) == len))
 				{
-					if (sp && cmd->argcompletion)
+					if (arg)
 					{
 						struct cmdargcompletion_ctx_s ctx;
 						ctx.cb.cb = Cmd_Complete_CheckArg;
@@ -2557,7 +2580,10 @@ cmd_completion_t *Cmd_Complete(const char *partial, qboolean caseinsens)
 						ctx.res = &c;
 						ctx.desc = cmd->description;
 						ctx.quoted = quoted;
-						cmd->argcompletion(1, sp, &ctx.cb);
+
+						Cmd_MacroCompletion_c(arg, sp, &ctx.cb);
+						if (cmd->argcompletion)
+							cmd->argcompletion(arg, sp, &ctx.cb);
 					}
 					else
 						Cmd_Complete_Check(cmd->name, &c, cmd->description);
@@ -2931,7 +2957,7 @@ void Cmd_ExecuteString (const char *text, int level)
 	if (dpcompat_console.ival && !strncmp(text, "alias", 5) && (text[5] == ' ' || text[5] == '\t'))
 		;	//certain commands don't get pre-expanded in dp. evil hack. quote them to pre-expand anyway. double evil.
 	else
-		text = Cmd_ExpandString(text, dest, sizeof(dest), &level, true/*!Cmd_IsInsecure()?true:false*/, true);
+		text = Cmd_ExpandString(text, dest, sizeof(dest), &level, false, true/*!Cmd_IsInsecure()?true:false*/, true);
 	Cmd_TokenizeString (text, (level == RESTRICT_LOCAL&&!dpcompat_console.ival)?true:false, false);
 
 // execute the command line
@@ -2976,14 +3002,14 @@ void Cmd_ExecuteString (const char *text, int level)
 				execlevel = level;
 		}
 
-		Cbuf_InsertText ("\n", execlevel, false);
-
 		// if the alias value is a command or cvar and
 		// the alias is called with parameters, add them
 		//unless we're mimicing dp, or the alias has explicit expansions (or macros) in which case it can do its own damn args
-		{
+		if (dpcompat_console.ival)
+		{	//defective double escaping. the following line should sum it up nicely...
+			//set foo 3; alias test "set foo 2; echo $foo==1"; set foo 1; test
 			char *ignoringquoteswasstupid;
-			Cmd_ExpandString(a->value, dest, sizeof(dest), &execlevel, !Cmd_IsInsecure()?true:false, true);
+			Cmd_ExpandString(a->value, dest, sizeof(dest), &execlevel, true, !Cmd_IsInsecure()?true:false, true);
 			for (ignoringquoteswasstupid = dest; *ignoringquoteswasstupid; )
 			{	//double up dollars, to prevent expansion when its actually execed.
 				if (*ignoringquoteswasstupid == '$')
@@ -2993,9 +3019,17 @@ void Cmd_ExecuteString (const char *text, int level)
 				}
 				ignoringquoteswasstupid++;
 			}
-			if ((a->restriction?a->restriction:rcon_level.ival) > execlevel)
-				return;
 		}
+		else
+		{	//more sane (and ezquake-like)
+			//set foo 3; alias test "set foo 2; echo $foo==2"; set foo 1; test
+			//alias test "echo Args were $qt${* q}$qt"; set foo 1; test Test Args Here
+			Cmd_ExpandString(a->value, dest, sizeof(dest), &execlevel, true, false, false);	//expand args, but not other stuff.
+		}
+		if ((a->restriction?a->restriction:rcon_level.ival) > execlevel)
+			return;	//we expanded something it wasn't meant to see.
+
+		Cbuf_InsertText ("\n", execlevel, false);
 		if (!dpcompat_console.ival)
 		{
 			if (Cmd_Argc() > 1 && (!strncmp(a->value, "cmd ", 4) || (!strchr(a->value, ' ') && !strchr(a->value, '\t')	&&
@@ -4416,7 +4450,7 @@ void Cmd_Init (void)
 	Cmd_AddCommandAD ("seta_calc", Cmd_set_f, Cmd_Set_c, "Sets the named cvar to the result of a (complex) expression. Also forces the archive flag so that the cvar will always be written into any saved configs.");
 	Cmd_AddCommandD ("vstr", Cmd_Vstr_f, "Executes the string value of the cvar, much like if it were an alias. For compatibility with q3.");
 	Cmd_AddCommandAD ("inc", Cvar_Inc_f, Cmd_Set_c, "Adds a value to the named cvar. Use a negative value if you wish to decrease the cvar's value.");
-	Cmd_AddCommand ("if", Cmd_if_f);
+	Cmd_AddCommandD ("if", Cmd_if_f, "For conditionally executing console commands.");
 
 	Cmd_AddCommand ("cmdlist", Cmd_List_f);
 	Cmd_AddCommand ("aliaslist", Cmd_AliasList_f);

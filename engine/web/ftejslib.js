@@ -260,7 +260,9 @@ mergeInto(LibraryManager.library,
 					//we don't steal that because its impossible to leave it again once used.
 					if (FTEC.evcb.key != 0 && event.keyCode != 122)
 					{
-						if ({{{makeDynCall('iiiii','FTEC.evcb.key')}}}(0, event.type=='keydown', event.keyCode, 0))
+						var codepoint = event.key.codePointAt(1)?0:event.key.codePointAt(0); // only if its a single codepoint - none of this 'Return' nonsense.
+						if (codepoint < ' ') codepoint = 0; //don't give a codepoint for c0 chars - like tab.
+						if ({{{makeDynCall('iiiii','FTEC.evcb.key')}}}(0, event.type=='keydown', event.keyCode, codepoint))
 							event.preventDefault();
 					}
 					break;
@@ -269,6 +271,7 @@ mergeInto(LibraryManager.library,
 				case 'touchcancel':
 				case 'touchleave':
 				case 'touchmove':
+					event.preventDefault();
 					var touches = event.changedTouches;
 					for (var i = 0; i < touches.length; i++)
 					{
@@ -278,12 +281,11 @@ mergeInto(LibraryManager.library,
 						if (FTEC.evcb.button)
 						{
 							if (event.type == 'touchstart')
-								{{{makeDynCall('viii','FTEC.evcb.button')}}}(t.identifier+1, 1, 0);
+								{{{makeDynCall('viii','FTEC.evcb.button')}}}(t.identifier+1, 1, -1);
 							else if (event.type != 'touchmove')
-								{{{makeDynCall('viii','FTEC.evcb.button')}}}(t.identifier+1, 0, 0);
+								{{{makeDynCall('viii','FTEC.evcb.button')}}}(t.identifier+1, 0, -1);
 						}
 					}
-					event.preventDefault();
 					break;
 				case 'dragenter':
 				case 'dragover':
@@ -792,6 +794,8 @@ mergeInto(LibraryManager.library,
 			return -1;
 		if (s.con == 0)
 			return 0; //not connected yet
+		if (s.err != 0)
+			return -1;
 		if (len == 0)
 			return 0; //...
 		s.ws.send(HEAPU8.subarray(data, data+len));
@@ -886,6 +890,29 @@ mergeInto(LibraryManager.library,
 				s.recvchan.binaryType = 'arraybuffer';
 				s.recvchan.onmessage = s.ws.onmessage;
 			};
+		s.pc.onconnectionstatechange = function(e)
+			{
+//console.log(s.pc.connectionState);
+//console.log(e);
+				switch (s.pc.connectionState)
+				{
+				//case "new":
+				//case "checking":
+				//case "connected":
+				case "disconnected":
+					s.err = 1;
+					break;
+				case "closed":
+					s.con = 0;
+					s.err = 1;
+					break;
+				case "failed":
+					s.err = 1;
+					break;
+				default:
+					break;
+				}
+			};
 
 		if (clientside)
 		{
@@ -921,10 +948,14 @@ mergeInto(LibraryManager.library,
 
 		try
 		{
-			if (1)
+			try
+			{
 				desc = JSON.parse(offer);
-			else
+			}
+			catch(e)
+			{
 				desc = {sdp:offer, type:offertype};
+			}
 
 			s.pc.setRemoteDescription(desc).then(() =>
 					{
@@ -966,10 +997,14 @@ mergeInto(LibraryManager.library,
 		try	//don't screw up if the peer is trying to screw with us.
 		{
 			var desc;
-			if (1)
+			try
+			{
 				desc = JSON.parse(offer);
-			else
+			}
+			catch(e)
+			{
 				desc = {candidate:offer, sdpMid:null, sdpMLineIndex:0};
+			}
 			s.pc.addIceCandidate(desc);
 		} catch(err) { console.log(err); }
 	},
@@ -977,7 +1012,6 @@ mergeInto(LibraryManager.library,
 	emscriptenfte_async_wget_data2 : function(url, ctx, onload, onerror, onprogress)
 	{
 		var _url = UTF8ToString(url);
-//		console.log("Attempting download of " + _url);
 		var http = new XMLHttpRequest();
 		try
 		{
@@ -993,7 +1027,6 @@ mergeInto(LibraryManager.library,
 
 		http.onload = function(e)
 		{
-//console.log("onload: " + _url + " status " + http.status);
 			if (http.status == 200)
 			{
 				if (onload)
@@ -1008,7 +1041,8 @@ mergeInto(LibraryManager.library,
 
 		http.onerror = function(e)
 		{
-//console.log("onerror: " + _url);
+			//Note: Unfortunately it is not possible to distinguish between dns, network, certificate, or CORS errors (other than viewing the browser's log).
+			//      This is apparently intentional to prevent sites probing lans - cors will make them all seem dead and thus uninteresting targets.
 			if (onerror)
 				{{{makeDynCall('vii','onerror')}}}(ctx, 0);
 		};

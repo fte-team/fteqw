@@ -117,6 +117,7 @@ cvar_t gl_shadeq1_name						= CVARD  ("gl_shadeq1_name", "*", "Rename all surfac
 extern cvar_t r_vertexlight;
 extern cvar_t r_forceprogramify;
 extern cvar_t r_glsl_precache;
+extern cvar_t r_halfrate;
 extern cvar_t dpcompat_nopremulpics;
 #ifdef PSKMODELS
 cvar_t dpcompat_psa_ungroup					= CVAR  ("dpcompat_psa_ungroup", "0");
@@ -375,7 +376,7 @@ cvar_t r_tessellation						= CVARAFD  ("r_tessellation", "0", "gl_ati_truform", 
 cvar_t gl_ati_truform_type					= CVAR  ("gl_ati_truform_type", "1");
 cvar_t r_tessellation_level					= CVAR  ("r_tessellation_level", "5");
 cvar_t gl_blend2d							= CVAR  ("gl_blend2d", "1");
-cvar_t gl_blendsprites						= CVARD  ("gl_blendsprites", "0", "Specifies how sprites are blended.\n0: Alpha tested.\n1: Premultiplied blend.\n2: Additive blend.");
+cvar_t gl_blendsprites						= CVARFD  ("gl_blendsprites", "0", CVAR_SHADERSYSTEM, "Specifies how sprites are blended.\n0: Alpha tested.\n1: Premultiplied blend.\n2: Additive blend.");
 cvar_t r_deluxemapping_cvar					= CVARAFD ("r_deluxemapping", "1", "r_glsl_deluxemapping",
 												CVAR_ARCHIVE|CVAR_RENDERERLATCH, "Enables bumpmapping based upon precomputed light directions.\n0=off\n1=use if available\n2=auto-generate (if possible)");
 cvar_t mod_loadsurfenvmaps					= CVARD ("r_loadsurfenvmaps", "1", "Load local reflection environment-maps, where available. These are normally defined via env_cubemap entities dotted around the place.");
@@ -457,6 +458,7 @@ cvar_t gl_texturemode2d						= CVARFCD("gl_texturemode2d", "GL_LINEAR",
 												"Specifies how 2d images are sampled. format is a 3-tupple ");
 cvar_t r_font_linear						= CVARF("r_font_linear", "1", CVAR_ARCHIVE);
 cvar_t r_font_postprocess_outline			= CVARFD("r_font_postprocess_outline", "0", 0, "Controls the number of pixels of dark borders to use around fonts.");
+cvar_t r_font_postprocess_mono				= CVARFD("r_font_postprocess_mono", "0", 0, "Disables anti-aliasing on fonts.");
 
 #if defined(HAVE_LEGACY) && defined(AVAIL_FREETYPE)
 cvar_t dpcompat_smallerfonts				= CVARFD("dpcompat_smallerfonts", "0", 0, "Mimics DP's behaviour of using a smaller font size than was actually requested.");
@@ -983,6 +985,7 @@ void Renderer_Init(void)
 	Cvar_Register (&gl_texturemode2d, GLRENDEREROPTIONS);
 	Cvar_Register (&r_font_linear, GLRENDEREROPTIONS);
 	Cvar_Register (&r_font_postprocess_outline, GLRENDEREROPTIONS);
+	Cvar_Register (&r_font_postprocess_mono, GLRENDEREROPTIONS);
 #if defined(HAVE_LEGACY) && defined(AVAIL_FREETYPE)
 	Cvar_Register (&dpcompat_smallerfonts, GLRENDEREROPTIONS);
 #endif
@@ -1020,6 +1023,7 @@ void Renderer_Init(void)
 
 	Cvar_Register (&r_forceprogramify, GLRENDEREROPTIONS);
 	Cvar_Register (&r_glsl_precache, GLRENDEREROPTIONS);
+	Cvar_Register (&r_halfrate, GRAPHICALNICETIES);
 #ifdef HAVE_LEGACY
 	Cvar_Register (&dpcompat_nopremulpics, GLRENDEREROPTIONS);
 #endif
@@ -1807,6 +1811,8 @@ TRACE(("dbg: R_ApplyRenderer: starting on client state\n"));
 #endif
 	if (cl.worldmodel)
 	{
+		int wmidx = 0;
+		model_t *oldwm = cl.worldmodel;
 		cl.worldmodel = NULL;
 		CL_ClearEntityLists();	//shouldn't really be needed, but we're paranoid
 
@@ -1818,6 +1824,9 @@ TRACE(("dbg: R_ApplyRenderer: reloading ALL models\n"));
 				break;
 
 			TRACE(("dbg: R_ApplyRenderer: reloading model %s\n", cl.model_name[i]));
+
+			if (oldwm == cl.model_precache[i])
+				wmidx = i;
 
 #ifdef Q2CLIENT	//skip vweps
 			if (cls.protocol == CP_QUAKE2 && *cl.model_name[i] == '#')
@@ -1846,14 +1855,19 @@ TRACE(("dbg: R_ApplyRenderer: reloading ALL models\n"));
 			if (!cl.model_csqcname[i][0])
 				break;
 
+			if (oldwm == cl.model_csqcprecache[i])
+				wmidx = -i;
+
 			cl.model_csqcprecache[i] = NULL;
 			TRACE(("dbg: R_ApplyRenderer: reloading csqc model %s\n", cl.model_csqcname[i]));
 			cl.model_csqcprecache[i] = Mod_ForName (Mod_FixName(cl.model_csqcname[i], cl.model_name[1]), MLV_SILENT);
 		}
-#endif
 
-		//fixme: worldmodel could be ssqc or csqc.
-		cl.worldmodel = cl.model_precache[1];
+		if (wmidx < 0)
+			cl.worldmodel = cl.model_csqcprecache[-wmidx];
+		else
+#endif
+			cl.worldmodel = cl.model_precache[wmidx];
 
 		if (cl.worldmodel && cl.worldmodel->loadstate == MLS_LOADING)
 			COM_WorkerPartialSync(cl.worldmodel, &cl.worldmodel->loadstate, MLS_LOADING);
@@ -1861,14 +1875,14 @@ TRACE(("dbg: R_ApplyRenderer: reloading ALL models\n"));
 TRACE(("dbg: R_ApplyRenderer: done the models\n"));
 		if (!cl.worldmodel || cl.worldmodel->loadstate != MLS_LOADED)
 		{
-//				Con_Printf ("\nThe required model file '%s' could not be found.\n\n", cl.model_name[i]);
-//				Con_Printf ("You may need to download or purchase a client pack in order to play on this server.\n\n");
+//			Con_Printf ("\nThe required model file '%s' could not be found.\n\n", cl.model_name[i]);
+//			Con_Printf ("You may need to download or purchase a client pack in order to play on this server.\n\n");
 
-				CL_Disconnect ("Worldmodel missing after video reload");
+			CL_Disconnect ("Worldmodel missing after video reload");
 
-				if (newr)
-					memcpy(&currentrendererstate, newr, sizeof(currentrendererstate));
-				return true;
+			if (newr)
+				memcpy(&currentrendererstate, newr, sizeof(currentrendererstate));
+			return true;
 		}
 
 TRACE(("dbg: R_ApplyRenderer: checking any wad textures\n"));
@@ -1891,7 +1905,7 @@ TRACE(("dbg: R_ApplyRenderer: efrags\n"));
 #endif
 #ifdef CSQC_DAT
 	Shader_DoReload();
-	CSQC_RendererRestarted();
+	CSQC_RendererRestarted(false);
 #endif
 #ifdef MENU_DAT
 	MP_RendererRestarted();

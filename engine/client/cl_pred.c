@@ -615,7 +615,8 @@ void CL_CalcClientTime(void)
 {
 	if (!cls.state)
 	{
-		cl.servertime += host_frametime;
+		if (!cl.implicitpause)
+			cl.servertime += host_frametime;
 		cl.time = cl.servertime;
 		return;
 	}
@@ -958,6 +959,8 @@ float CL_GetPredictionRealtime(playerview_t *pv)
 
 	return simtime;
 }
+
+qboolean CSQC_GetSSQCEntityOrigin(unsigned int ssqcent, float *out);
 /*
 ==============
 CL_PredictMove
@@ -1059,7 +1062,8 @@ void CL_PredictMovePNum (int seat)
 	if (pv->cam_state == CAM_PENDING && pv->cam_spec_track >= 0 && pv->cam_spec_track < cl.allocated_client_slots && pv->viewentity != pv->cam_spec_track+1)
 	{
 		if ((cl.inframes[cl.validsequence & UPDATE_MASK].playerstate[pv->cam_spec_track].messagenum == cl.validsequence) ||
-			(pv->cam_spec_track+1 < cl.maxlerpents && cl.lerpents[pv->cam_spec_track+1].sequence == cl.lerpentssequence))
+			(pv->cam_spec_track+1 < cl.maxlerpents && cl.lerpents[pv->cam_spec_track+1].sequence == cl.lerpentssequence) ||
+			CSQC_GetSSQCEntityOrigin(pv->cam_spec_track+1, NULL))
 		{
 			pv->cam_state = CAM_EYECAM;
 			pv->viewentity = pv->cam_spec_track+1;

@@ -1562,12 +1562,22 @@ static int GLVID_SetMode (rendererstate_t *info, unsigned char *palette)
 		stat = CreateMainWindow(info, true);
 		if (stat)
 		{
+			EGLConfig cfg;
 			maindc = GetDC(mainwindow);
-			stat = EGL_Init (info, palette, EGL_PLATFORM_WIN32, mainwindow, maindc, (EGLNativeWindowType)mainwindow, (EGLNativeDisplayType)maindc);
 
-			if (stat)
-				if (!GL_Init(info, &EGL_Proc))
-					return false;
+			if (!EGL_InitDisplay(info, EGL_PLATFORM_WIN32, maindc, (EGLNativeDisplayType)maindc, &cfg))
+			{
+				Con_Printf("couldn't find suitable EGL config\n");
+				return false;
+			}
+			if (!EGL_InitWindow(info, EGL_PLATFORM_WIN32, mainwindow, (EGLNativeWindowType)mainwindow, cfg))
+			{
+				Con_Printf("couldn't initialise EGL context\n");
+				return false;
+			}
+
+			if (!GL_Init(info, &EGL_Proc))
+				return false;
 		}
 		break;
 #endif
@@ -3369,7 +3379,7 @@ rendererinfo_t eglrendererinfo =
 	GLBE_Init,
 	GLBE_GenBrushModelVBO,
 	GLBE_ClearVBO,
-	GLBE_UploadAllLightmaps,
+	GLBE_UpdateLightmaps,
 	GLBE_SelectEntity,
 	GLBE_SelectDLight,
 	GLBE_Scissor,

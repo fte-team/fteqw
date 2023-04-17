@@ -499,8 +499,8 @@ typedef struct	//for collision stuff
 	F(void,			SetInfoKey,			(char *s, const char *key, const char *value, int maxsize));
 
 	//server things, shouldn't really be here but small. null in client-only builds
-	F(void,			DropClient,			(client_t *drop));
-	F(void,			ExtractFromUserinfo,(client_t *cl, qboolean verbose));
+	F(void,			DropClient,			(struct client_s *drop));
+	F(void,			ExtractFromUserinfo,(struct client_s *cl, qboolean verbose));
 	F(qboolean,		ChallengePasses,	(int challenge));
 #define plugworldfuncs_name "World"
 } plugworldfuncs_t;
@@ -547,7 +547,7 @@ typedef struct	//for plugins that need to read/write files...
 	F(const char *,GetExtension,(const char *filename, const char *ignoreext));
 	F(void,		FileBase,		(const char *in, char *out, int outlen));
 	F(void,		CleanUpPath,	(char *str));
-	F(unsigned int,BlockChecksum,(const void *buffer, int length));	//mostly for pack hashes.
+	F(unsigned int,BlockChecksum,(const void *buffer, size_t length));	//mostly for pack hashes.
 	F(void*,	LoadFile,		(const char *fname, size_t *fsize));	//plugfuncs->Free
 
 	//stuff that's useful for networking.

@@ -4633,8 +4633,10 @@ static void *ReadEXRFile(qbyte *buf, size_t len, const char *fname, int *outwidt
 	fd = mkstemp(tname);	//bsd4.3/posix1-2001
 	if (fd >= 0)
 	{
-		write(fd, buf, len);
-		ctx = exr.OpenInputFile(tname);
+		if (write(fd, buf, len) == len)
+			ctx = exr.OpenInputFile(tname);
+		else
+			ctx = NULL;
 		close(fd);	//we don't need the input file now.
 		unlink(tname);
 #endif
@@ -14162,18 +14164,18 @@ image_t *Image_FindTexture(const char *identifier, const char *subdir, unsigned 
 	image_t *tex;
 	if (!subdir)
 		subdir = "";
-	tex = Hash_Get(&imagetable, identifier);
+	tex = Hash_GetInsensitive(&imagetable, identifier);
 	while(tex)
 	{
 		if (!((tex->flags ^ flags) & (IF_CLAMP|IF_PALETTIZE|IF_PREMULTIPLYALPHA)))
 		{
-			if (r_ignoremapprefixes.ival || !strcmp(subdir, tex->subpath?tex->subpath:"") || ((flags|tex->flags) & IF_INEXACT))
+			if (r_ignoremapprefixes.ival || !Q_strcasecmp(subdir, tex->subpath?tex->subpath:"") || ((flags|tex->flags) & IF_INEXACT))
 			{
 				tex->regsequence = r_regsequence;
 				return tex;
 			}
 		}
-		tex = Hash_GetNext(&imagetable, identifier, tex);
+		tex = Hash_GetNextInsensitive(&imagetable, identifier, tex);
 	}
 	return NULL;
 }
@@ -14212,7 +14214,7 @@ static image_t *Image_CreateTexture_Internal (const char *identifier, const char
 	tex->fallbackheight = 0;
 	tex->fallbackfmt = TF_INVALID;
 	if (*tex->ident)
-		Hash_Add(&imagetable, tex->ident, tex, buck);
+		Hash_AddInsensitive(&imagetable, tex->ident, tex, buck);
 	return tex;
 }
 
@@ -14549,7 +14551,7 @@ void Image_DestroyTexture(image_t *tex)
 	Sys_UnlockMutex(com_resourcemutex);
 #endif
 	if (*tex->ident)
-		Hash_RemoveData(&imagetable, tex->ident, tex);
+		Hash_RemoveDataInsensitive(&imagetable, tex->ident, tex);
 	Z_Free(tex);
 }
 
@@ -14787,7 +14789,7 @@ void Image_Shutdown(void)
 	{
 		tex = imagelist;
 		if (*tex->ident)
-			Hash_RemoveData(&imagetable, tex->ident, tex);
+			Hash_RemoveDataInsensitive(&imagetable, tex->ident, tex);
 		imagelist = tex->next;
 		if (tex->status == TEX_LOADED)
 			j++;

@@ -326,7 +326,7 @@ float(float keyc, float unic, vector m) editor_particles_key =
 	/*middle mouse*/
 	if (keyc == 514)
 	{
-		mousedown = 3;
+		mousedown |= 4;
 
 		applyparticles();
 	}
@@ -364,7 +364,7 @@ void(vector mousepos) editor_particles_overlay =
 		loadparticles(setname);
 	}
 
-	if (mousedown == 3 && cureffect >= 0 && cureffect < numptypes)
+	if (mousedown & 4 && cureffect >= 0 && cureffect < numptypes)
 	{
 		vector t = unproject(mousepos + '0 0 8192');
 		vector o = unproject(mousepos);

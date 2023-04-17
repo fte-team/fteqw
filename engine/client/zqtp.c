@@ -1830,7 +1830,7 @@ char *TP_LocationName (const vec3_t location)
 
 	recursive = true;
 	level = Cmd_ExecLevel;
-	Cmd_ExpandString (locdata[minnum].name, buf, sizeof(buf), &level, true, false);
+	Cmd_ExpandString (locdata[minnum].name, buf, sizeof(buf), &level, false, true, false);
 	recursive = false;
 
 	return buf;
@@ -3427,7 +3427,7 @@ void TP_UpdateAutoStatus(void)
 	vars.autoteamstatus_time = realtime + 3;
 
 	level = tp_autostatus.restriction;
-	newstatus = Cmd_ExpandString(tp_autostatus.string, newstatusbuf, sizeof(newstatusbuf), &level, true, true);
+	newstatus = Cmd_ExpandString(tp_autostatus.string, newstatusbuf, sizeof(newstatusbuf), &level, false, true, true);
 	newstatus = TP_ParseMacroString(newstatus);
 
 	if (!strcmp(newstatus, vars.autoteamstatus))
@@ -3789,7 +3789,7 @@ void CL_Say (qboolean team, char *extra)
 	{
 		char buf[1024];
 		int level = Cmd_ExecLevel;
-		Cmd_ExpandString (cl_fakename.string, buf, sizeof(buf), &level, true, true);
+		Cmd_ExpandString (cl_fakename.string, buf, sizeof(buf), &level, false, true, true);
 		strcpy (buf, TP_ParseMacroString (buf));
 		Q_snprintfz (sendtext, sizeof(sendtext), "\x0d%s: ", TP_ParseFunChars(buf));
 	}

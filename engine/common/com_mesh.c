@@ -1718,6 +1718,7 @@ qboolean Alias_GAliasBuildMesh(mesh_t *mesh, vbo_t **vbop, galiasinfo_t *inf, in
 	bytecolours = !!inf->ofs_rgbaub;
 #endif
 	mesh->st_array = inf->ofs_st_array;
+	mesh->lmst_array[0] = inf->ofs_lmst_array; //some formats allow for two.
 #endif
 	mesh->trneighbors = inf->ofs_trineighbours;
 
@@ -1831,6 +1832,7 @@ qboolean Alias_GAliasBuildMesh(mesh_t *mesh, vbo_t **vbop, galiasinfo_t *inf, in
 			meshcache.vbo.indexcount = inf->numindexes;
 			meshcache.vbo.vertcount = inf->numverts;
 			meshcache.vbo.texcoord = inf->vbotexcoords;
+			meshcache.vbo.lmcoord[0] = inf->vbolmtexcoords;
 			meshcache.vbo.coord = inf->vbo_skel_verts;
 			memset(&meshcache.vbo.coord2, 0, sizeof(meshcache.vbo.coord2));
 			meshcache.vbo.normals = inf->vbo_skel_normals;
@@ -1897,6 +1899,7 @@ qboolean Alias_GAliasBuildMesh(mesh_t *mesh, vbo_t **vbop, galiasinfo_t *inf, in
 				meshcache.vbo.indexcount = inf->numindexes;
 				meshcache.vbo.vertcount = inf->numverts;
 				meshcache.vbo.texcoord = inf->vbotexcoords;
+				meshcache.vbo.lmcoord[0] = inf->vbolmtexcoords;
 				meshcache.vbo.coord = inf->vbo_skel_verts;
 				memset(&meshcache.vbo.coord2, 0, sizeof(meshcache.vbo.coord2));
 				meshcache.vbo.normals = inf->vbo_skel_normals;
@@ -2030,6 +2033,7 @@ qboolean Alias_GAliasBuildMesh(mesh_t *mesh, vbo_t **vbop, galiasinfo_t *inf, in
 			meshcache.vbo.indexcount = inf->numindexes;
 			meshcache.vbo.vertcount = inf->numverts;
 			meshcache.vbo.texcoord = inf->vbotexcoords;
+			meshcache.vbo.lmcoord[0] = inf->vbolmtexcoords;
 
 #ifdef SKELETALMODELS
 			memset(&meshcache.vbo.bonenums, 0, sizeof(meshcache.vbo.bonenums));
@@ -3083,6 +3087,8 @@ static void Mod_GenerateMeshVBO(model_t *mod, galiasinfo_t *galias)
 	//determine the amount of space we need for our vbos.
 	if (galias->ofs_st_array)
 		vbospace += sizeof(*galias->ofs_st_array) * galias->numverts;
+	if (galias->ofs_lmst_array)
+		vbospace += sizeof(*galias->ofs_lmst_array) * galias->numverts;
 	if (galias->ofs_rgbaf)
 		vbospace += sizeof(*galias->ofs_rgbaf) * galias->numverts;
 	else if (galias->ofs_rgbaub)
@@ -3112,6 +3118,8 @@ static void Mod_GenerateMeshVBO(model_t *mod, galiasinfo_t *galias)
 	BE_VBO_Begin(&vboctx, vbospace);
 	if (galias->ofs_st_array)
 		BE_VBO_Data(&vboctx, galias->ofs_st_array, sizeof(*galias->ofs_st_array) * galias->numverts, &galias->vbotexcoords);
+	if (galias->ofs_lmst_array)
+		BE_VBO_Data(&vboctx, galias->ofs_lmst_array, sizeof(*galias->ofs_lmst_array) * galias->numverts, &galias->vbolmtexcoords);
 	if (galias->ofs_rgbaf)
 		BE_VBO_Data(&vboctx, galias->ofs_rgbaf, sizeof(*galias->ofs_rgbaf) * galias->numverts, &galias->vborgba);
 	else if (galias->ofs_rgbaub)

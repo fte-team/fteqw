@@ -40,20 +40,29 @@ static void() editor_brushes_drawselected =
 	float intensity = (sin(gettime(5)*4)+1)*0.05;
 	int facenum, point, points;
 	vector col;
+
+	for (int sb = 0; sb < selectedbrushcount; sb++)
+	{
+		int model = selectedbrushes[sb].model;
+		int brush = selectedbrushes[sb].id;
+		
+		//draw a faded version of all the brushes.
+		DrawEngineBrushFaded(model, brush, 0.5);
+	}
 	
 	//draw all selected brush faces.
 	for (int sb = 0; sb < selectedbrushcount; sb++)
 	{
 		int model = selectedbrushes[sb].model;
 		int brush = selectedbrushes[sb].id;
-		int face = selectedbrushes[sb].face;
-		for(facenum = 0;;)
+		__uint64 facemask = selectedbrushes[sb].facemask;
+		for(facenum = 0;; facenum++)
 		{
-			points = brush_getfacepoints(model, brush, ++facenum, facepoints, MAX_FACEPOINTS);
+			points = brush_getfacepoints(model, brush, 1+facenum, facepoints, MAX_FACEPOINTS);
 			if (!points)
 				break;	//end of face list, I guess
 
-			if (facenum == face)
+			if (facemask & (1ul<<facenum))
 				col = [0,intensity,0];
 			else
 				col = [intensity,0,0];
@@ -238,7 +247,7 @@ void(vector mousepos) editor_brushes_addentities =
 
 		Rebrushify(&vertedit, TRUE);
 	}
-	else if (brushtool == BT_CREATE)
+	else if (brushtool == BT_CREATEBRUSH || brushtool == BT_CREATEPATCH)
 	{
 		editor_brushes_drawselected();
 		
@@ -335,7 +344,7 @@ void(vector mousepos) editor_brushes_addentities =
 		{
 			int model = oldselectedbrushes[sb].model;
 			int brush = oldselectedbrushes[sb].id;
-			int face = oldselectedbrushes[sb].face;
+			__uint64 facemask = oldselectedbrushes[sb].facemask;
 			if (!brush)
 				continue;
 
@@ -344,19 +353,25 @@ void(vector mousepos) editor_brushes_addentities =
 
 			if (mousetool == BT_PUSHFACE)
 			{
-				if (!face)
-					continue;	//FIXME: should not happen.
-				tmp.faces[face-1].planedist += tmp.faces[face-1].planenormal * displace;
+				for (facenum = 0; facenum < tmp.numfaces; facenum++)
+				{
+					if (facemask & (1ul<<facenum))
+						tmp.faces[facenum].planedist += tmp.faces[facenum].planenormal * displace;
+				}
 			}
 			else if (mousetool == BT_MOVETEXTURE)
 			{
-				if (!face)
-					continue;	//FIXME: should not happen.
-				tmp.faces[face-1].sbias -= tmp.faces[face-1].sdir * displace;
-				tmp.faces[face-1].tbias -= tmp.faces[face-1].tdir * displace;
+				for (facenum = 0; facenum < tmp.numfaces; facenum++)
+				{
+					if (facemask & (1ul<<facenum))
+					{
+						tmp.faces[facenum].sbias -= tmp.faces[facenum].sdir * displace;
+						tmp.faces[facenum].tbias -= tmp.faces[facenum].tdir * displace;
+					}
+				}
 			}
 			else if (mousetool == BT_MOVE || mousetool == BT_CLONEDISPLACE)
-				brushface_translate(tmp.faces, tmp.numfaces, displace);
+				brushface_translate(displace);		
 			else if (mousetool == BT_ROTATE)
 			{
 				//find the brush's middle (based on its bbox)
@@ -365,18 +380,20 @@ void(vector mousepos) editor_brushes_addentities =
 				makevectors(col);
 
 				//move it so its pivot is at the origin
-				brushface_translate(tmp.faces, tmp.numfaces, -mid);
-				//rotate it
-				brushface_rotate(tmp.faces, tmp.numfaces);
+				brushface_translate(-mid);
+				//rotate it (by v_forward etc)
+				brushface_rotate();
 				//reposition it around its pivot again
-				brushface_translate(tmp.faces, tmp.numfaces, mid);
+				brushface_translate(mid);
 			}
 			else
 				continue;
 
-			if (mousetool == BT_MOVETEXTURE)
+			if (0)//mousetool == BT_MOVETEXTURE)
 			{
-				points = brush_calcfacepoints(model, tmp.faces, tmp.numfaces, facepoints, MAX_FACEPOINTS);
+				DrawQCBrushTextured(tmp.faces, tmp.numfaces, '1 1 1', 0.3);	//faded to give an idea, without stopping you from seeing what you're aligning it to.
+
+				/*points = brush_calcfacepoints(model, tmp.faces, tmp.numfaces, facepoints, MAX_FACEPOINTS);
 				if (points)
 				{
 					//this is unfortunate. the built in shaders expect to use lightmaps. we don't have those.
@@ -396,39 +413,45 @@ void(vector mousepos) editor_brushes_addentities =
 					for (point = 0; point < points; point++)
 						R_PolygonVertex(facepoints[point] + tmp.faces[face-1].planenormal*0.1, [(facepoints[point] * tmp.faces[face-1].sdir + tmp.faces[face-1].sbias)/sz_x, (facepoints[point] * tmp.faces[face-1].tdir + tmp.faces[face-1].tbias)/sz_y], col, 1);
 					R_EndPolygon();
-				}
+				}*/
 			}
 			else
 			{
-				//draw it wireframe
-				for(facenum = 0; facenum < tmp.numfaces;)
+				//draw it wireframe WITH depth testing
+				if (tmp.numcp)
+					DrawQCPatchWireframe(tmp.cp, tmp.patchinfo, "terrainedit", '0 0 1', 1);
+				else
 				{
-					points = brush_calcfacepoints(++facenum, tmp.faces, tmp.numfaces, facepoints, MAX_FACEPOINTS);
-					if (!points)
-						continue;	//should probably warn somehow about this
-					//should we use two colour channels? one depth one not?
-					if (facenum == face)
-						col = '1 0 0';
-					else
-						col = '0 0.5 0';
-					R_BeginPolygon("chop");
-					R_PolygonVertex(facepoints[0], '0 0', col, 1);
-					for (point = 0; point < points-1; )
+					//draw it wireframe
+					for(facenum = 0; facenum < tmp.numfaces;)
 					{
-						point++;
-						R_PolygonVertex(facepoints[point], '0 0', col, 1);
+						points = brush_calcfacepoints(++facenum, tmp.faces, tmp.numfaces, facepoints, MAX_FACEPOINTS);
+						if (!points)
+							continue;	//should probably warn somehow about this
+						//should we use two colour channels? one depth one not?
+						if (facemask & (1ul<<facenum))
+							col = '1 0 0';
+						else
+							col = '0 0.5 0';
+						R_BeginPolygon("chop");
+						R_PolygonVertex(facepoints[0], '0 0', col, 1);
+						for (point = 0; point < points-1; )
+						{
+							point++;
+							R_PolygonVertex(facepoints[point], '0 0', col, 1);
+							R_EndPolygon();
+							R_PolygonVertex(facepoints[point], '0 0', col, 1);
+						}
+						R_PolygonVertex(facepoints[0], '0 0', col, 1);
 						R_EndPolygon();
-						R_PolygonVertex(facepoints[point], '0 0', col, 1);
 					}
-					R_PolygonVertex(facepoints[0], '0 0', col, 1);
-					R_EndPolygon();
+
+					DrawQCBrushTextured(tmp.faces, tmp.numfaces, '1 1 1', 0.3);	//faded to give an idea, without stopping you from seeing what you're aligning it to.
+					DrawQCBrushWireframe(tmp.faces, tmp.numfaces, "terrainedit", '0 0 1', 1);
 				}
 			}
 
-			//draw it wireframe WITH depth testing
-			DrawQCBrushWireframe(tmp.faces, tmp.numfaces, "terrainedit", '0 0 1', 1);
-
-			DebrushifyLite(tmp.faces, tmp.numfaces);
+			DebrushifyLite();
 			DrawAxisExtensions(vertedit.p, vertedit.numverts, "terrainedit", '0 0 0.3', 1);
 
 			if (!mousedown)
@@ -438,6 +461,8 @@ void(vector mousepos) editor_brushes_addentities =
 					if (displace*displace > 1)
 						brush_history_create(model, tmp.faces, tmp.numfaces, tmp.contents, TRUE);
 				}
+				else if (tmp.numcp)
+					patch_history_edit(model, brush, tmp.cp, tmp.patchinfo);
 				else
 					brush_history_edit(model, brush, tmp.faces, tmp.numfaces, tmp.contents);
 				bt_points = 0;
@@ -478,7 +503,9 @@ void(vector mousepos) editor_brushes_addentities =
 	vector o = mousenear;
 	if (vlen(o - t) > 8192 && !autocvar_ca_brush_view)
 		t = o + normalize(t)*8192;
+	*world_hitcontentsmaski = ~0;	//I want to be able to select water...
 	traceline(o, t, TRUE, world);
+	*world_hitcontentsmaski = 0;	//don't break stuff
 
 #if 0
 	//find all the brushes within 32qu of the mouse cursor's impact point
@@ -515,7 +542,7 @@ void(vector mousepos) editor_brushes_addentities =
 //		bt_point[showpoints++] = brush_snappoint(trace_endpos);
 		showpoints = 3;
 	}
-	if (brushtool == BT_CREATE)
+	if (brushtool == BT_CREATEBRUSH || brushtool == BT_CREATEPATCH)
 		bt_point[showpoints++] = brush_snappoint(trace_endpos);
 
 	//FIXME: if slicing, draw the intersection
@@ -607,7 +634,13 @@ void(vector mousepos) editor_brushes_overlay =
 	case BT_CREATEDRAG:
 		drawrawstring('0 32 0', "Drag+Create", '8 8 0', '1 1 1', 1);
 		break;
-	case BT_CREATE:
+	case BT_CREATEPATCH:
+		if (autocvar_ca_explicitpatch)
+			drawrawstring('0 32 0', sprintf("Create Explicit %g*%g Patch", autocvar_ca_cpwidth, autocvar_ca_cpheight), '8 8 0', '1 1 1', 1);
+		else
+			drawrawstring('0 32 0', sprintf("Create Auto %g*%g Patch", autocvar_ca_cpwidth, autocvar_ca_cpheight), '8 8 0', '1 1 1', 1);
+		break;
+	case BT_CREATEBRUSH:
 		drawrawstring('0 32 0', "Paint+Create", '8 8 0', '1 1 1', 1);
 		break;
 	case BT_SLICE:
@@ -653,10 +686,12 @@ brusheditormodes
 	registercommand("brushedit_redo");
 	registercommand("brushedit_delete");
 	registercommand("brushedit_create");
+	registercommand("brushedit_createpatch");
 	registercommand("brushedit_slice");
 	registercommand("brushedit_matchface");
 	registercommand("brushedit_resettexcoords");
 	registercommand("brushedit_settexture");
+	registercommand("brushedit_scrolltex");
 	registercommand("brushedit_subtract");
 	registercommand("brushedit_binds");
 	registercommand("brushedit_binds_default");
@@ -679,11 +714,19 @@ brusheditormodes
 		brush_undo();
 		break;
 	case "brushedit_create":
-		brushtool = BT_CREATE;
+		brushtool = BT_CREATEBRUSH;
+		bt_points = 0;
+		break;
+	case "brushedit_createpatch":
+		brushtool = BT_CREATEPATCH;
 		bt_points = 0;
 		break;
 	case "brushedit_slice":
 		brushtool = BT_SLICE;
+		bt_points = 0;
+		break;
+	case "brushedit_scrolltex":
+		brushtool = BT_MOVETEXTURE;
 		bt_points = 0;
 		break;
 		
@@ -719,9 +762,7 @@ brusheditormodes
 		brushedit_resettextures();
 		break;
 	case "brushedit_settexture":
-		//IMPLEMENTME
-		brushtool = BT_NONE;
-		bt_points = 0;
+		brushedit_settexture(argv(1));
 		break;
 	case "brushedit_subtract":
 		brushedit_subtract();
@@ -737,15 +778,16 @@ brusheditormodes
 		localcmd("bind ctrl+z		brushedit_undo\n");
 		localcmd("bind ctrl+y		brushedit_redo\n");
 		localcmd("bind ctrl+i		brushedit_create\n");
+		localcmd("bind ctrl+p		brushedit_createpatch\n");
 		localcmd("bind ctrl+s		brushedit_slice\n");
 		localcmd("bind ctrl+m		brushedit_matchface\n");
-		localcmd("bind ctrl+delete	brushedit_delete\n");
+		localcmd("bind ctrl+del		brushedit_delete\n");
 		localcmd("bind ctrl+backspace	brushedit_subtract\n");
 		localcmd("bind ctrl+c		+brushedit_clone\n");
 		localcmd("bind ctrl+d		+brushedit_draw\n");
 		localcmd("bind ctrl+r		+brushedit_rotate\n");
 		localcmd("bind ctrl+f		+brushedit_pushface\n");
-		localcmd("bind ctrl+t		+brushedit_scrolltex\n");
+		localcmd("bind ctrl+t		brushedit_scrolltex\n");
 		localcmd("bind ctrl+v		+brushedit_vertex\n");
 		break;
 	case "brushedit_binds":
@@ -806,7 +848,7 @@ float(float key, float unic, vector mousepos) editor_brushes_key =
 		{
 			if (vertedit.selectedvert1 != -1)
 			{
-				mousedown = TRUE;
+				mousedown |= 1;
 				mousetool = BT_VERTEXEDIT;
 				if (vertedit.selectedvert2 != -1)
 				{
@@ -823,7 +865,9 @@ float(float key, float unic, vector mousepos) editor_brushes_key =
 			return TRUE;
 		}
 		
+		*world_hitcontentsmaski = ~0;	//I want to be able to select water...
 		traceline(o, t, TRUE, world);
+		*world_hitcontentsmaski = 0;	//don't break stuff.
 		float tracemodel = trace_ent.modelindex;
 
 		/*if (brushtool == BT_CREATEDRAG || (brushtool == BT_PUSHFACE && selectedbrushface))
@@ -835,10 +879,12 @@ float(float key, float unic, vector mousepos) editor_brushes_key =
 		else*/ if (brushtool != BT_PUSHFACE && brushtool != BT_MOVETEXTURE)
 			trace_brush_faceid = 0;
 			
-		if (brushtool == BT_SLICE || brushtool == BT_CREATE)
+		if (brushtool == BT_SLICE || brushtool == BT_CREATEBRUSH || brushtool == BT_CREATEPATCH)
 		{
 			if (brushtool == BT_SLICE && bt_points > 2)
 				bt_points = 2;
+			if (brushtool == BT_CREATEPATCH && bt_points > 3)
+				bt_points = 3;
 
 //FIXME: BT_CREATE is planar. so keep the points planar too.
 //FIXME: need a way to move points already placed
@@ -883,10 +929,10 @@ float(float key, float unic, vector mousepos) editor_brushes_key =
 				if (!tracemodel || !trace_brush_id)
 				{
 				}
-				else if (brush_isselected(tracemodel, trace_brush_id))
-					brush_deselect(tracemodel, trace_brush_id);
+				else if (brushface_isselected(tracemodel, trace_brush_id, trace_brush_faceid))
+					brushface_deselect(tracemodel, trace_brush_id, trace_brush_faceid);
 				else
-					brush_select(tracemodel, trace_brush_id);
+					brushface_select(tracemodel, trace_brush_id, trace_brush_faceid);
 			}
 			else
 			{	//deselect everything but the targetted brush.
@@ -895,11 +941,11 @@ float(float key, float unic, vector mousepos) editor_brushes_key =
 				else if (!brush_isselected(tracemodel, trace_brush_id))
 				{
 					brush_deselectall();
-					brush_select(tracemodel, trace_brush_id);
+					brushface_select(tracemodel, trace_brush_id, trace_brush_faceid);
 				}
 				else
 				{	//its already selected, start doing whatever the current mouse action is meant to be
-					mousedown = TRUE;
+					mousedown |= 1;
 					mousetool = brushtool;
 					vertedit.selectedvert1 = -1;
 					vertedit.selectedvert2 = -1;
@@ -939,7 +985,7 @@ float(float key, float unic, vector mousepos) editor_brushes_key =
 				
 				if (selectedbrushface && (brushtool == BT_PUSHFACE || brushtool == BT_MOVETEXTURE))
 				{
-					mousedown = TRUE;
+					mousedown |= 1;
 					mousetool = brushtool;
 					vertedit.selectedvert1 = -1;
 					vertedit.selectedvert2 = -1;
@@ -975,7 +1021,51 @@ float(float key, float unic, vector mousepos) editor_brushes_key =
 			mousedown = FALSE;
 			return TRUE;
 		}
-		else if (brushtool == BT_CREATE)
+		else if (brushtool == BT_CREATEPATCH)
+		{
+			if (bt_points == 4)
+			{
+				int x,y;
+				patchvert_t *vert;
+				patchvert_t *cp;
+				patchinfo_t patchinfo = {autocvar_ca_newbrushtexture, CONTENTBIT_SOLID, max(2,autocvar_ca_cpwidth), max(2,autocvar_ca_cpheight), 0, 0, '0 0 0'};
+				tmp.numfaces = 0;
+				tmp.numcp = 0;
+				bt_points = 0;
+
+				if (!autocvar_ca_explicitpatch)
+				{	//must be odd sizes. cos grr.
+					patchinfo.cpwidth|=1;
+					patchinfo.cpheight|=1;
+					patchinfo.tesswidth = patchinfo.tessheight = -1; //proper q3 patch, engine decides according to smoothness (which means nothing quite fits).
+				}
+				if (patchinfo.cpwidth*patchinfo.cpheight>64*64)
+				{
+					cprint(sprintf("%i*%i patch dimensions too large", patchinfo.cpwidth, patchinfo.cpheight));
+					return TRUE;
+				}
+
+				//populate the CPs, averaging from the 4 specified coords.
+				cp = vert = memalloc(sizeof(*vert) * patchinfo.cpwidth*patchinfo.cpheight);
+				for (y = 0; y < patchinfo.cpheight; y++)
+				for (x = 0; x < patchinfo.cpwidth; x++)
+				{
+					cp->s = x/(patchinfo.cpwidth-1);
+					cp->t = y/(patchinfo.cpheight-1);
+					vector top = bt_point[0]+(bt_point[1]-bt_point[0])*cp->s;
+					vector bot = bt_point[3]+(bt_point[2]-bt_point[3])*cp->s;
+					cp->xyz = top+(bot-top)*cp->t;
+					cp->rgb = '1 1 1'; cp->a = 1;
+					cp++;
+				}
+
+				brush_deselectall();
+				patch_history_create(selectedbrushmodel, vert, patchinfo, TRUE);
+				memfree(vert);
+			}
+			return TRUE;
+		}
+		else if (brushtool == BT_CREATEBRUSH)
 		{
 			if (bt_points >= 3)
 			{
@@ -983,7 +1073,7 @@ float(float key, float unic, vector mousepos) editor_brushes_key =
 				tmp.numcp = 0;
 				bt_points = 0;
 				brush_deselectall();
-				brush_history_create(selectedbrushmodel, tmp.faces, tmp.numfaces, 1i, TRUE);
+				brush_history_create(selectedbrushmodel, tmp.faces, tmp.numfaces, CONTENTBIT_SOLID, TRUE);
 			}
 			return TRUE;
 		}

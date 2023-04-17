@@ -465,7 +465,7 @@ void Net_SendQTVConnectionRequest(sv_t *qtv, char *authmethod, char *challenge)
 
 					snprintf(hash, sizeof(hash), "%s%s", challenge, qtv->connectpassword);
 					Com_BlockFullChecksum (hash, strlen(hash), (unsigned char*)md4sum);
-					sprintf(hash, "%X%X%X%X", md4sum[0], md4sum[1], md4sum[2], md4sum[3]);
+					sprintf(hash, "%X%X%X%X", md4sum[0], md4sum[1], md4sum[2], md4sum[3]);	//FIXME: bad formatting!
 
 					str = hash;				Net_QueueUpstream(qtv, strlen(str), str);
 					str = "\"\n";			Net_QueueUpstream(qtv, strlen(str), str);

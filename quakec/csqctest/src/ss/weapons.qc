@@ -235,14 +235,19 @@ void(float damage, vector dir) TraceAttack =
 	}
 	else
 	{
-		WriteByte (MSG_BROADCAST, SVC_TEMPENTITY);
-		WriteByte (MSG_BROADCAST, TE_GUNSHOT);
+		if (checkbuiltin(te_gunshot))
+			te_gunshot(org);
+		else
+		{
+			WriteByte (MSG_BROADCAST, SVC_TEMPENTITY);
+			WriteByte (MSG_BROADCAST, TE_GUNSHOT);
 #ifdef QWSSQC
-		WriteByte (MSG_BROADCAST, 1);	//count
+			WriteByte (MSG_BROADCAST, 1);	//count
 #endif
-		WriteCoord (MSG_BROADCAST, org_x);
-		WriteCoord (MSG_BROADCAST, org_y);
-		WriteCoord (MSG_BROADCAST, org_z);
+			WriteCoord (MSG_BROADCAST, org_x);
+			WriteCoord (MSG_BROADCAST, org_y);
+			WriteCoord (MSG_BROADCAST, org_z);
+		}
 	}
 };
 
@@ -399,15 +404,16 @@ void() BecomeExplosion =
 	self.dimension_seen = DIMENSION_NOCSQC;
 	dimension_send = DIMENSION_NOCSQC;
 
-#if 1
-	WriteByte (MSG_BROADCAST, SVC_TEMPENTITY);
-	WriteByte (MSG_BROADCAST, TE_EXPLOSION);
-	WriteCoord (MSG_BROADCAST, self.origin_x);
-	WriteCoord (MSG_BROADCAST, self.origin_y);
-	WriteCoord (MSG_BROADCAST, self.origin_z);
-#else
-	te_explosion(self.origin);
-#endif
+	if (checkbuiltin(te_explosion))
+		te_explosion(self.origin);
+	else
+	{
+		WriteByte (MSG_BROADCAST, SVC_TEMPENTITY);
+		WriteByte (MSG_BROADCAST, TE_EXPLOSION);
+		WriteCoord (MSG_BROADCAST, self.origin_x);
+		WriteCoord (MSG_BROADCAST, self.origin_y);
+		WriteCoord (MSG_BROADCAST, self.origin_z);
+	}
 
 	sound (self, CHAN_WEAPON, "weapons/r_exp3.wav", 1, ATTN_NORM);
 	self.dimension_seen = DIMENSION_DEFAULT;

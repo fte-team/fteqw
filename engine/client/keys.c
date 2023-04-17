@@ -761,7 +761,7 @@ qboolean Key_GetConsoleSelectionBox(console_t *con, int *sx, int *sy, int *ex, i
 		*ey = con->mousecursor[1];
 		return true;
 	}
-	else if (con->buttonsdown == CB_SELECT || con->buttonsdown == CB_SELECTED)
+	else if (con->buttonsdown == CB_SELECT || con->buttonsdown == CB_SELECTED || con->buttonsdown == CB_TAPPED)
 	{
 		//right-mouse
 		//select. copy-to-clipboard on release.
@@ -1219,7 +1219,10 @@ void Key_ConsoleRelease(console_t *con, int key, unsigned int unicode)
 
 	if ((key == K_TOUCHTAP || key == K_MOUSE1) && con->buttonsdown == CB_SELECT)
 	{
-		con->buttonsdown = CB_SELECTED;
+		if (fabs(con->mousedown[0] - con->mousecursor[0]) < 5 && fabs(con->mousedown[1] - con->mousecursor[1]) < 5 && realtime < con->mousedowntime + 0.4)
+			con->buttonsdown = CB_TAPPED;	//don't leave it selected.
+		else
+			con->buttonsdown = CB_SELECTED;
 		return;
 	}
 	if ((key == K_TOUCHSLIDE || key == K_MOUSE1) && con->buttonsdown == CB_SCROLL)// || (key == K_MOUSE2 && con->buttonsdown == CB_SCROLL_R))
@@ -1276,7 +1279,7 @@ void Key_ConsoleRelease(console_t *con, int key, unsigned int unicode)
 			return;
 		}
 	}
-	if (con->buttonsdown == CB_SELECTED)
+	if (con->buttonsdown == CB_SELECTED || con->buttonsdown == CB_TAPPED)
 		;	//will time out in the drawing code.
 	else
 //	if (con->buttonsdown == CB_MOVE)	//window title(move)
@@ -1408,6 +1411,8 @@ void Key_EmojiCompletion_c(int argn, const char *partial, struct xcommandargcomp
 	char guess[256];
 	char repl[256];
 	size_t ofs, len;
+	if (*partial != ':')
+		return;	//don't show annoying completion crap.
 	if (!emojidata)
 		Key_LoadEmojiList();
 	len = strlen(partial);

@@ -3942,7 +3942,7 @@ void QCBUILTIN PF_findradius (pubprogfuncs_t *prinst, struct globalvars_s *pr_gl
 				for (j=0 ; j<3 ; j++)
 				{
 					eorg[j] = org[j] - ent->v->origin[j];
-					eorg[j] -= bound(ent->v->mins[j], org[j], ent->v->maxs[j]);
+					eorg[j] -= bound(ent->v->mins[j], eorg[j], ent->v->maxs[j]);
 				}
 			}
 			else
@@ -3972,7 +3972,7 @@ void QCBUILTIN PF_findradius (pubprogfuncs_t *prinst, struct globalvars_s *pr_gl
 				for (j=0 ; j<3 ; j++)
 				{
 					eorg[j] = org[j] - ent->v->origin[j];
-					eorg[j] -= bound(ent->v->mins[j], org[j], ent->v->maxs[j]);
+					eorg[j] -= bound(ent->v->mins[j], eorg[j], ent->v->maxs[j]);
 				}
 			}
 			else
@@ -5665,21 +5665,18 @@ static void QCBUILTIN PF_digest_internal (pubprogfuncs_t *prinst, struct globalv
 	unsigned char hexdig[sizeof(digest)*2+1];
 
 	if (!strcmp(hashtype, "MD4"))
-	{
-		digestsize = 16;
-		Com_BlockFullChecksum(str, len, digest);
-	}
+		digestsize = CalcHash(&hash_md4, digest, sizeof(digest), str, len);
 	//md5?
 	else if (!strcmp(hashtype, "SHA1"))
 		digestsize = CalcHash(&hash_sha1, digest, sizeof(digest), str, len);
-	else if (!strcmp(hashtype, "SHA224"))
-		digestsize = CalcHash(&hash_sha224, digest, sizeof(digest), str, len);
-	else if (!strcmp(hashtype, "SHA256"))
-		digestsize = CalcHash(&hash_sha256, digest, sizeof(digest), str, len);
-	else if (!strcmp(hashtype, "SHA384"))
-		digestsize = CalcHash(&hash_sha384, digest, sizeof(digest), str, len);
-	else if (!strcmp(hashtype, "SHA512"))
-		digestsize = CalcHash(&hash_sha512, digest, sizeof(digest), str, len);
+	else if (!strcmp(hashtype, "SHA2-224") || !strcmp(hashtype, "SHA224"))
+		digestsize = CalcHash(&hash_sha2_224, digest, sizeof(digest), str, len);
+	else if (!strcmp(hashtype, "SHA2-256") || !strcmp(hashtype, "SHA256"))
+		digestsize = CalcHash(&hash_sha2_256, digest, sizeof(digest), str, len);
+	else if (!strcmp(hashtype, "SHA2-384") || !strcmp(hashtype, "SHA384"))
+		digestsize = CalcHash(&hash_sha2_384, digest, sizeof(digest), str, len);
+	else if (!strcmp(hashtype, "SHA2-512") || !strcmp(hashtype, "SHA512"))
+		digestsize = CalcHash(&hash_sha2_512, digest, sizeof(digest), str, len);
 	else if (!strcmp(hashtype, "CRC16"))
 		digestsize = CalcHash(&hash_crc16, digest, sizeof(digest), str, len);
 	else

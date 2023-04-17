@@ -27,6 +27,7 @@ extern int fs_hash_files;	//for tracking efficiency. no functional use.
 extern qboolean fs_readonly;	//if true, fopen(, "w") should always fail.
 extern void *fs_thread_mutex;
 extern float fs_accessed_time;
+extern cvar_t	fs_dlURL;
 
 struct searchpath_s;
 struct searchpathfuncs_s
@@ -90,7 +91,7 @@ void Menu_Download_Update(void);
 typedef struct
 {
 	char *description;
-	void (*Update)			(const char *url, vfsfile_t *out);
+	void (*Update)			(const char *url, vfsfile_t *out, qboolean favourcache);
 #define plugupdatesourcefuncs_name "UpdateSource"
 } plugupdatesourcefuncs_t;
 qboolean PM_RegisterUpdateSource(void *module, plugupdatesourcefuncs_t *funcs);

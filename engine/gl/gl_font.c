@@ -15,7 +15,7 @@
 
 void Font_Init(void);
 void Font_Shutdown(void);
-struct font_s *Font_LoadFont(const char *fontfilename, float height, float scale, int outline);
+struct font_s *Font_LoadFont(const char *fontfilename, float height, float scale, int outline, unsigned int flags);
 void Font_Free(struct font_s *f);
 void Font_BeginString(struct font_s *font, float vx, float vy, int *px, int *py);
 void Font_BeginScaledString(struct font_s *font, float vx, float vy, float szx, float szy, float *px, float *py); /*avoid using*/
@@ -80,6 +80,9 @@ const char *(VARGS *pFT_Error_String)	(FT_Error  error_code);
 typedef unsigned int FT_Pixel_Mode; //for consistency even without freetype support.
 #endif
 
+#ifndef FT_PIXEL_MODE_MONO
+#define FT_PIXEL_MODE_MONO 1
+#endif
 #ifndef FT_PIXEL_MODE_GRAY
 #define FT_PIXEL_MODE_GRAY 2
 #endif
@@ -322,6 +325,7 @@ typedef struct font_s
 	unsigned short truecharheight;	//what you actually got, for compat with dp's lets-use-the-wrong-size-for-double-padding-between-lines thing.
 	float scale;	//some sort of poop
 	short outline;
+	unsigned int flags;
 
 	unsigned short faces;
 	fontface_t *face[MAX_FACES];
@@ -473,6 +477,7 @@ void Font_Init(void)
 
 	fontplanes.shader = R_RegisterShader("ftefont", SUF_2D,
 		"{\n"
+			"fullrate\n"	//don't hurt readability of text.
 			"if $nofixed\n"
 				"program default2d\n"
 			"endif\n"
@@ -720,6 +725,32 @@ static struct charcache_s *Font_LoadGlyphData(font_t *f, CHARIDXTYPE charidx, FT
 			out += PLANEWIDTH;
 		}
 	}
+	else if (pixelmode == FT_PIXEL_MODE_MONO)
+	{	//1bit font (
+		for (y = -pad; y < 0; y++)
+		{
+			for (x = -pad; x < (int)bmw+pad; x++)
+				out[x].c = BORDERCOLOUR;
+			out += PLANEWIDTH;
+		}
+		for (; y < bmh; y++)
+		{
+			for (x = -pad; x < 0; x++)
+				out[x].c = BORDERCOLOUR;
+			for (; x < bmw; x++)
+				out[x].c = (((unsigned char*)data)[x>>3]&(1<<(7-(x&7))))?0xffffffff:0;
+			for (; x < bmw+pad; x++)
+				out[x].c = BORDERCOLOUR;
+			data = (char*)data + pitch;
+			out += PLANEWIDTH;
+		}
+		for (; y < bmh+pad; y++)
+		{
+			for (x = -pad; x < (int)bmw+pad; x++)
+				out[x].c = BORDERCOLOUR;
+			out += PLANEWIDTH;
+		}
+	}
 	else if ((unsigned int)pixelmode == FT_PIXEL_MODE_RGBA_SA)
 	{	//rgba source using standard alpha.
 		//(we'll multiply out the alpha for the gpu)
@@ -821,9 +852,6 @@ static struct charcache_s *Font_LoadGlyphData(font_t *f, CHARIDXTYPE charidx, FT
 
 	if (outline)
 	{
-		int bytes = (pixelmode == FT_PIXEL_MODE_GRAY)?1:4;
-		qbyte *alpha = (char*)data + bytes-1 - pitch*bmh;
-
 		static int filter_outline;
 		static unsigned char filter_highest[MAXOUTLINE*2+1][MAXOUTLINE*2+1];
 		if (outline != filter_outline)
@@ -836,23 +864,57 @@ static struct charcache_s *Font_LoadGlyphData(font_t *f, CHARIDXTYPE charidx, FT
 
 		//expand it to out full(ish) size
 
-		alpha -= pitch*outline + bytes*outline;
-		out = &fontplanes.plane[c->bmx+((int)c->bmy-outline)*PLANEHEIGHT];
-		for (y = -outline; y < (int)bmh+outline; y++, out += PLANEWIDTH)
-			for (x = -outline; x < (int)bmw+outline; x++)
-			{
-				int xn, x1 = max(outline-x, 0), x2 = min(2*outline, (int)bmw-1-x+outline);
-				int yn, y1 = max(outline-y, 0), y2 = min(2*outline, (int)bmh-1-y+outline);
-				int v, m = out[x].rgba[3]*255;
-				for (yn = y1; yn <= y2; yn++)
-					for (xn = x1; xn <= x2; xn++)
-					{
-						v = filter_highest[yn][xn] * alpha[(xn+x)*bytes+(yn+y)*pitch];
-						m = max(m, v);
-					}
-				//out[x].c = 0;
-				out[x].rgba[3] = m/255;
-			}
+		if (pixelmode == FT_PIXEL_MODE_MONO)
+		{
+			qbyte *alpha = (char*)data - pitch*bmh;
+			qbyte a;
+			int bit;
+
+			alpha -= pitch*outline;
+			out = &fontplanes.plane[c->bmx+((int)c->bmy-outline)*PLANEHEIGHT];
+			for (y = -outline; y < (int)bmh+outline; y++, out += PLANEWIDTH)
+				for (x = -outline; x < (int)bmw+outline; x++)
+				{
+					int xn, x1 = max(outline-x, 0), x2 = min(2*outline, (int)bmw-1-x+outline);
+					int yn, y1 = max(outline-y, 0), y2 = min(2*outline, (int)bmh-1-y+outline);
+					int v, m = out[x].rgba[3]*255;
+					for (yn = y1; yn <= y2; yn++)
+						for (xn = x1; xn <= x2; xn++)
+						{
+							bit = (xn+x)-outline;
+							a = alpha[(bit>>3)+(yn+y)*pitch];
+							a = (a&(1<<(7-(bit&7))))?0xff:0;
+
+							v = filter_highest[yn][xn] * a;
+							m = max(m, v);
+						}
+					//out[x].c = 0;
+					out[x].rgba[3] = m/255;
+				}
+		}
+		else
+		{
+			int bytes = (pixelmode == FT_PIXEL_MODE_GRAY)?1:4;
+			qbyte *alpha = (char*)data + bytes-1 - pitch*bmh;
+
+			alpha -= pitch*outline + bytes*outline;
+			out = &fontplanes.plane[c->bmx+((int)c->bmy-outline)*PLANEHEIGHT];
+			for (y = -outline; y < (int)bmh+outline; y++, out += PLANEWIDTH)
+				for (x = -outline; x < (int)bmw+outline; x++)
+				{
+					int xn, x1 = max(outline-x, 0), x2 = min(2*outline, (int)bmw-1-x+outline);
+					int yn, y1 = max(outline-y, 0), y2 = min(2*outline, (int)bmh-1-y+outline);
+					int v, m = out[x].rgba[3]*255;
+					for (yn = y1; yn <= y2; yn++)
+						for (xn = x1; xn <= x2; xn++)
+						{
+							v = filter_highest[yn][xn] * alpha[(xn+x)*bytes+(yn+y)*pitch];
+							m = max(m, v);
+						}
+					//out[x].c = 0;
+					out[x].rgba[3] = m/255;
+				}
+		}
 
 
 		c->bmx -= outline;
@@ -1316,7 +1378,7 @@ static struct charcache_s *Font_TryLoadGlyph(font_t *f, CHARIDXTYPE charidx)
 						return NULL;	//some sort of error.
 				}
 				if (charidx == 0xfffe || pFT_Get_Char_Index(face, charidx))	//ignore glyph 0 (undefined)
-					if (pFT_Load_Char(face, charidx, FT_LOAD_RENDER|FT_LOAD_COLOR) == 0)
+					if (pFT_Load_Char(face, charidx, FT_LOAD_RENDER|(((f->flags&FONT_MONO)&&qface->ft.activeheight==qface->ft.actualsize/*FIXME*/)?FT_LOAD_TARGET_MONO:FT_LOAD_TARGET_NORMAL)|FT_LOAD_COLOR) == 0)
 					{
 						FT_GlyphSlot slot;
 						FT_Bitmap *bm;
@@ -1348,6 +1410,12 @@ static struct charcache_s *Font_TryLoadGlyph(font_t *f, CHARIDXTYPE charidx)
 								Image_ResampleTexture(PTI_L8, (void*)bm->buffer, bm->width, bm->rows, out, nw, nh);
 								c = Font_LoadGlyphData(f, charidx, bm->pixel_mode, out, nw, nh, nw*sizeof(*out));
 							}
+							/*else if (bm->pixel_mode == FT_PIXEL_MODE_MONO)
+							{
+								unsigned char *out = alloca(nw*nh*sizeof(*out));
+								Image_ResampleTexture(PTI_L1, (void*)bm->buffer, bm->width, bm->rows, out, nw, nh);
+								c = Font_LoadGlyphData(f, charidx, bm->pixel_mode, out, nw, nh, nw*sizeof(*out));
+							}*/
 							else
 								c = NULL;
 							if (c)
@@ -2208,7 +2276,7 @@ static qboolean Font_LoadFontLump(font_t *f, const char *facename)
 
 //creates a new font object from the given file, with each text row with the given height.
 //width is implicit and scales with height and choice of font.
-struct font_s *Font_LoadFont(const char *fontfilename, float vheight, float scale, int outline)
+struct font_s *Font_LoadFont(const char *fontfilename, float vheight, float scale, int outline, unsigned int flags)
 {
 	struct font_s *f;
 	int i = 0;
@@ -2236,6 +2304,7 @@ struct font_s *Font_LoadFont(const char *fontfilename, float vheight, float scal
 	f->scale = scale;
 	f->charheight = height;
 	f->truecharheight = height;
+	f->flags = flags;
 	Q_strncpyz(f->name, fontfilename, sizeof(f->name));
 
 	switch(M_GameType())
@@ -2453,7 +2522,7 @@ struct font_s *Font_LoadFont(const char *fontfilename, float vheight, float scal
 		}
 		else
 		{
-			f->alt = Font_LoadFont(aname, vheight, scale, outline);
+			f->alt = Font_LoadFont(aname, vheight, scale, outline, flags);
 			if (f->alt)
 			{
 				VectorCopy(f->alt->tint, f->alttint);

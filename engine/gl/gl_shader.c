@@ -46,6 +46,7 @@ cvar_t r_forceprogramify = CVARAFD("r_forceprogramify", "0", "dpcompat_makeshitu
 cvar_t dpcompat_nopremulpics = CVARFD("dpcompat_nopremulpics", "0", CVAR_SHADERSYSTEM, "By default FTE uses premultiplied alpha for hud/2d images, while DP does not (which results in halos with low-res content). Unfortunately DDS files would need to be recompressed, resulting in visible issues.");
 #endif
 cvar_t r_glsl_precache = CVARFD("r_glsl_precache", "0", CVAR_SHADERSYSTEM, "Force all relevant glsl permutations to load upfront.");
+cvar_t r_halfrate = CVARFD("r_halfrate", "0", CVAR_SHADERSYSTEM, "Use half-rate shading (where supported by gpu).");
 
 extern cvar_t r_glsl_offsetmapping_reliefmapping;
 extern cvar_t r_drawflat;
@@ -964,9 +965,17 @@ static void Shader_NoMipMaps (parsestate_t *ps, const char **ptr)
 static void Shader_Affine (parsestate_t *ps, const char **ptr)
 {
 	shader_t *shader = ps->s;
-	shader->flags |= SBITS_AFFINE;
+	int i;
+	for (i = 0; i < countof(shader->passes); i++)
+		shader->passes[i].shaderbits |= SBITS_AFFINE;
 }
-
+static void Shader_FullRate (parsestate_t *ps, const char **ptr)
+{
+	shader_t *shader = ps->s;
+	int i;
+	for (i = 0; i < countof(shader->passes); i++)
+		shader->passes[i].shaderbits |= SBITS_MISC_FULLRATE;
+}
 
 static void Shader_NoPicMip (parsestate_t *ps, const char **ptr)
 {
@@ -2003,6 +2012,7 @@ static qboolean Shader_LoadPermutations(char *name, program_t *prog, char *scrip
 
 	for (end = *name?strchr(name+1, '#'):NULL; end && *end; )
 	{
+		size_t startoffset=offset;
 		char *start = end+1;
 		end = strchr(start, '#');
 		if (!end)
@@ -2018,11 +2028,26 @@ static qboolean Shader_LoadPermutations(char *name, program_t *prog, char *scrip
 		{
 			if (*start == '=')
 			{
+				if (offset == startoffset+8)
+					break;
 				start++;
 				prescript[offset++] = ' ';
 				break;
 			}
-			prescript[offset++] = toupper(*start++);
+			if ((*start >='a'&&*start<='z')||(*start >='A'&&*start<='Z')||*start=='_'||(*start >='0'&&*start<='9'&&offset>startoffset+8))
+				prescript[offset++] = toupper(*start++);
+			else
+			{	///invalid symbol name...
+				offset = startoffset+8;
+				prescript[offset] = 0;
+				break;
+			}
+		}
+		if (offset == startoffset+8)
+		{	///invalid symbol name...
+			offset = startoffset;
+			prescript[offset] = 0;
+			break;
 		}
 		while (offset < sizeof(prescript) && start < end)
 			prescript[offset++] = toupper(*start++);
@@ -2872,6 +2897,7 @@ static shaderkey_t shaderkeys[] =
 	{"deferredlight",		Shader_Deferredlight,		"fte"},	//(sort = prelight)
 //	{"lpp_light",			Shader_Deferredlight,		"fte"},	//(sort = prelight)
 	{"affine",				Shader_Affine,				"fte"},	//some hardware is horribly slow, and can benefit from certain hints.
+	{"fullrate",			Shader_FullRate,			"fte"},	//blocks half-rate shading on this surface.
 
 	{"bemode",				Shader_BEMode,				"fte"},
 
@@ -5852,6 +5878,14 @@ done:;
 					break;
 				}
 			}
+		}
+	}
+
+	if (!r_halfrate.ival)
+	{
+		for (i = 0; i < s->numpasses; i++)
+		{
+			s->passes[i].shaderbits |= SBITS_MISC_FULLRATE;
 		}
 	}
 }

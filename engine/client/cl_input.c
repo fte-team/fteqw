@@ -37,7 +37,7 @@ cvar_t	cl_c2sdupe = CVARD("cl_c2sdupe", "0", "Send duplicate copies of packets t
 cvar_t	cl_c2spps = CVARD("cl_c2spps", "0", "Reduces outgoing packet rates by dropping up to a third of outgoing packets.");
 cvar_t	cl_c2sImpulseBackup = CVARD("cl_c2sImpulseBackup","3", "Prevents the cl_c2spps setting from dropping redundant packets that contain impulses, in an attempt to keep impulses more reliable.");
 static cvar_t	cl_c2sMaxRedundancy = CVARD("cl_c2sMaxRedundancy","5", "This is the maximum number of input frames to send in each input packet. Values greater than 1 provide redundancy and avoid prediction misses, though you might find cl_c2sdupe provides equivelent result and at lower latency. It is locked at 3 for vanilla quakeworld, and locked at 1 for vanilla netquake.");
-cvar_t	cl_netfps = CVARD("cl_netfps", "150", "Send up to this many packets to the server per second. The rate used is also limited by the server which usually forces a cap to this setting of 77. Low packet rates can result in extra extrapolation to try to hide the resulting latencies.");
+cvar_t	cl_netfps = CVARFD("cl_netfps", "150", CVAR_ARCHIVE, "Send up to this many packets to the server per second. The rate used is also limited by the server which usually forces a cap to this setting of 77. Low packet rates can result in extra extrapolation to try to hide the resulting latencies.");
 cvar_t  cl_queueimpulses = CVARD("cl_queueimpulses", "0", "Queues unsent impulses instead of replacing them. This avoids the need for extra wait commands (and the timing issues of such commands), but potentially increases latency and can cause scripts to be desynced with regard to buttons and impulses.");
 cvar_t	cl_smartjump = CVARD("cl_smartjump", "1", "Makes the jump button act as +moveup when in water. This is typically quieter and faster.");
 cvar_t	cl_iDrive = CVARFD("cl_iDrive", "1", CVAR_SEMICHEAT, "Effectively releases movement keys when the opposing key is pressed. This avoids dead-time when both keys are pressed. This can be emulated with various scripts, but that's messy.");
@@ -1393,6 +1393,9 @@ void CL_ClampPitch (int pnum, float frametime)
 		VectorAngles(view[0], view[2], pv->viewangles, false);
 		VectorClear(pv->viewanglechange);
 
+		//fixme: in_vraim stuff
+		VectorCopy(pv->viewangles, pv->aimangles);
+
 		return;
 	}
 #if 1
@@ -1450,7 +1453,10 @@ void CL_ClampPitch (int pnum, float frametime)
 		if (!vang[ROLL])
 		{
 			if (!pv->viewanglechange[PITCH] && !pv->viewanglechange[YAW] && !pv->viewanglechange[ROLL])
+			{
+				VectorCopy(pv->viewangles, pv->aimangles);
 				return;
+			}
 		}
 		else
 		{
@@ -1490,6 +1496,9 @@ void CL_ClampPitch (int pnum, float frametime)
 			pv->viewangles[ROLL] += 360;
 		if (pv->viewangles[PITCH] < -180)
 			pv->viewangles[PITCH] += 360;
+
+		//fixme: in_vraim stuff
+		VectorCopy(pv->viewangles, pv->aimangles);
 		return;
 	}
 #endif

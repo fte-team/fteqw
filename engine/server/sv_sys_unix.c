@@ -1271,8 +1271,8 @@ dllhandle_t *Sys_LoadLibrary(const char *name, dllfunction_t *funcs)
 	dllhandle_t *lib;
 
 	lib = dlopen (name, RTLD_LAZY);
-	if (!lib && !strstr(name, ".so"))
-		lib = dlopen (va("%s.so", name), RTLD_LAZY);
+	if (!lib && !strstr(name, ARCH_DL_POSTFIX))
+		lib = dlopen (va("%s"ARCH_DL_POSTFIX, name), RTLD_LAZY);
 	if (!lib)
 	{
 		const char *err = dlerror();

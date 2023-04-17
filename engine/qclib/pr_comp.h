@@ -558,6 +558,8 @@ enum qcop_e {
 	OP_LSHIFT_DI,
 	OP_RSHIFT_DI,
 
+	OP_WSTATE,	//for the 'w' part of CWSTATE. will probably never be used, but hey, hexen2...
+
 	//special/fake opcodes used by the decompiler.
 	OPD_GOTO_FORSTART,
 	OPD_GOTO_WHILE1,

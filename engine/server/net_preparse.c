@@ -835,6 +835,7 @@ void NPP_NQFlush(void)
 		break;
 
 	case svcfte_cgamepacket:
+		requireextension = PEXT_CSQC;
 		if (sv_csqcdebug.ival || writedest != &sv.multicast)
 		{
 			if (writedest != &sv.multicast)
@@ -1919,6 +1920,7 @@ void NPP_QWFlush(void)
 
 		break;
 	case svcfte_cgamepacket:
+		requireextension = PEXT_CSQC;
 		if (sv_csqcdebug.ival || writedest != &sv.nqmulticast)
 		{
 			if (writedest != &sv.nqmulticast)

@@ -120,7 +120,16 @@ static void QCC_FileList(const char *name, const void *compdata, size_t compsize
 {
 	totalsize += plainsize;
 	filecount += 1;
-	if (!method && compsize==plainsize)
+	if (method < 0)
+	{
+		if (method == -1-9)
+			externs->Printf("%s%8u DF64 %s%s\n", col_error, (unsigned)plainsize, name, col_none);
+		else if (method == -1)	//general error
+			externs->Printf("%s%8u ERR %s%s\n", col_error, (unsigned)plainsize, name, col_none);
+		else
+			externs->Printf("%s%8u m%-3i %s%s\n", col_error, (unsigned)plainsize, -1-method, name, col_none);
+	}
+	else if (!method && compsize==plainsize)
 		externs->Printf("%8u      %s\n", (unsigned)plainsize, name);
 	else
 		externs->Printf("%8u %3u%% %s\n", (unsigned)plainsize, plainsize?(unsigned)((100*compsize)/plainsize):100u, name);
@@ -191,10 +200,13 @@ int qcc_wildcmp(const char *wild, const char *string)
 
 
 
-static const char *extractonly;
-static pbool extractonlyfound;
+static const char *extractonly;	//the file we're looking for
+static pbool extractonlyfound;	//for errors.
+static pbool extractecho;	//print the file to stdout instead of writing it.
 static void QCC_FileExtract(const char *name, const void *compdata, size_t compsize, int method, size_t plainsize)
 {
+	if (method < 0)
+		return;	//QC_decode will fail. provided for enumeration reasons.
 	if (extractonly)
 	{
 		const char *sl = strrchr(extractonly, '/');
@@ -216,11 +228,19 @@ static void QCC_FileExtract(const char *name, const void *compdata, size_t comps
 		void *buffer = malloc(plainsize);
 		if (buffer && QC_decode(progfuncs, compsize, plainsize, method, compdata, buffer))
 		{
-			QCC_Mkdir(name);
-			if (!QCC_WriteFile(name, buffer, plainsize))
-				externs->Printf(" write failure\n");
+			if (extractecho)
+			{
+				externs->Printf("\n");
+				fwrite(buffer, 1, plainsize, stdout);
+			}
 			else
-				externs->Printf(" done\n");
+			{
+				QCC_Mkdir(name);
+				if (!QCC_WriteFile(name, buffer, plainsize))
+					externs->Printf(" write failure\n");
+				else
+					externs->Printf(" done\n");
+			}
 		}
 		else
 			externs->Printf(" read failure\n");
@@ -253,6 +273,7 @@ int main (int argc, const char **argv)
 	pbool writelog = false;	//other systems are sane.
 #endif
 	int colours = 2;	//auto
+	int ziparg = -1;
 	progexterns_t ext;
 	progfuncs_t funcs;
 	progfuncs = &funcs;
@@ -265,52 +286,6 @@ int main (int argc, const char **argv)
 	funcs.funcs.parms->Printf = logprintf;
 	funcs.funcs.parms->Sys_Error = Sys_Error;
 
-	if ((argc == 3 && !strcmp(argv[1], "-l")) || (argc >= 3 && !strcmp(argv[1], "-x")))
-	{
-		size_t blobsize;
-		void *blob = QCC_ReadFile(argv[2], NULL, NULL, &blobsize, false);
-		if (!blob)
-		{
-			logprintf("Unable to read %s\n", argv[2]);
-			return EXIT_FAILURE;
-		}
-		if (argc > 3)
-		{
-			for (i = 3; i < argc; i++)
-			{
-				extractonly = argv[i];
-				extractonlyfound = false;
-				QC_EnumerateFilesFromBlob(blob, blobsize, QCC_FileExtract);
-				if (!extractonlyfound)
-					externs->Printf("Unable to find file %s\n", extractonly);
-			}
-			extractonly = NULL;
-		}
-		else if (argv[1][1] == 'x')
-			QC_EnumerateFilesFromBlob(blob, blobsize, QCC_FileExtract);
-		else
-		{
-			QC_EnumerateFilesFromBlob(blob, blobsize, QCC_FileList);
-			externs->Printf("Total size %u bytes, %u files\n", (unsigned)totalsize, (unsigned)filecount);
-		}
-		free(blob);
-		return EXIT_SUCCESS;
-	}
-	if (argc == 3 && (!strncmp(argv[1], "-z", 2) || !strcmp(argv[1], "-0") || !strcmp(argv[1], "-9")))
-	{	//exe -0 foo.pk3dir
-		enum pkgtype_e t;
-		if (argv[1][1] == '9')
-			t = PACKAGER_PK3;
-		else if (argv[1][1] == '0')
-			t = PACKAGER_PAK;	//not really any difference but oh well
-		else
-			t = PACKAGER_PK3_SPANNED;
-
-		if (Packager_CompressDir(argv[2], t, QCC_PR_PackagerMessage, NULL))
-			return EXIT_SUCCESS;
-		else
-			return EXIT_FAILURE;
-	}
 	for (i = 0; i < argc; i++)
 	{
 		if (!argv[i])
@@ -327,7 +302,20 @@ int main (int argc, const char **argv)
 			colours = 0;
 		else if (!strcmp(argv[i], "--color=auto"))
 			colours = 2;
+		else if (!strcmp(argv[i], "-l") ||
+				 !strcmp(argv[i], "-x") ||
+				 !strcmp(argv[i], "-p") ||
+				 !strcmp(argv[i], "-z") ||
+				 !strcmp(argv[i], "-0") ||
+				 !strcmp(argv[i], "-9"))
+		{
+			ziparg = i;
+			break;	//other args are all filenames. don't misinterpret stuff.
+		}
 	}
+
+	for (i = 0; i < COL_MAX; i++)
+		qcccol[i] = "";
 #if defined(__linux__) || defined(__unix__)
 	if (colours == 2)
 		colours = isatty(STDOUT_FILENO);
@@ -345,6 +333,86 @@ int main (int argc, const char **argv)
 #else
 	(void)colours;
 #endif
+
+	if (ziparg >= 0)
+	{
+		if (ziparg+1 >= argc)
+		{
+			logprintf("archive name not specified\n");
+			return EXIT_FAILURE;
+		}
+		switch(argv[ziparg][1])
+		{
+		case 'l':	//list all files.
+			{
+				size_t blobsize;
+				void *blob = QCC_ReadFile(argv[ziparg+1], NULL, NULL, &blobsize, false);
+				if (blob)
+				{
+					QC_EnumerateFilesFromBlob(blob, blobsize, QCC_FileList);
+					externs->Printf("Total size %lu bytes, %u files\n", (unsigned long)totalsize, (unsigned)filecount);
+					free(blob);
+					return EXIT_SUCCESS;
+				}
+				logprintf("Unable to read %s\n", argv[ziparg+1]);
+			}
+			break;
+		case 'p':	//print (named) files to stdout.
+			extractecho = true;
+			//fall through
+		case 'x':	//extract (named) files to working directory.
+			{	//list/extract/view
+				size_t blobsize;
+				void *blob = QCC_ReadFile(argv[ziparg+1], NULL, NULL, &blobsize, false);
+				int ret = EXIT_FAILURE;
+				if (!blob)
+					logprintf("Unable to read %s\n", argv[ziparg+1]);
+				else if (ziparg+2 < argc)
+				{
+					for (i = ziparg+2; i < argc; i++)
+					{
+						extractonly = argv[i];
+						extractonlyfound = false;
+						QC_EnumerateFilesFromBlob(blob, blobsize, QCC_FileExtract);
+						if (!extractonlyfound)
+							externs->Printf("Unable to find file %s\n", extractonly);
+						else
+							ret = EXIT_SUCCESS;
+					}
+					extractonly = NULL;
+				}
+				else
+				{
+					QC_EnumerateFilesFromBlob(blob, blobsize, QCC_FileExtract);
+					ret = EXIT_SUCCESS;
+				}
+				free(blob);
+				return ret;
+			}
+		case 'z':	//fancy spanned stuff
+		case '0':	//store-only (pak)
+		case '9':	//best compression (pk3)
+
+			{	//exe -0 foo.pk3dir
+				enum pkgtype_e t;
+				if (argv[1][1] == '9')
+					t = PACKAGER_PK3;
+				else if (argv[1][1] == '0')
+					t = PACKAGER_PAK;	//not really any difference but oh well
+				else
+					t = PACKAGER_PK3_SPANNED;
+
+				if (Packager_CompressDir(argv[ziparg+1], t, QCC_PR_PackagerMessage, NULL))
+					return EXIT_SUCCESS;
+			}
+			break;
+		default:
+			//should be unreachable.
+			break;
+		}
+		return EXIT_FAILURE;
+	}
+
 
 	logfile = writelog?fopen("fteqcc.log", "wt"):false;
 

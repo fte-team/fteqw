@@ -151,6 +151,7 @@ void QDECL ZG_FreeGroup(zonegroup_t *ctx);
 
 char	*Z_StrDupf(const char *format, ...);
 void Z_StrCat(char **ptr, const char *append);
+void Z_StrCatLen(char **ptr, const char *append, size_t newlen); //still doesn't allow nulls, but src doesn't need null termination.
 
 /*
 void *Hunk_Alloc (int size);		// returns 0 filled memory

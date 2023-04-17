@@ -205,6 +205,7 @@ typedef struct galiasinfo_s
 #endif
 	vboarray_t vboindicies;
 	vboarray_t vbotexcoords;
+	vboarray_t vbolmtexcoords;
 	vboarray_t vborgba;	//yeah, just you try reading THAT as an actual word.
 	void *vbomem;
 	void *ebomem;

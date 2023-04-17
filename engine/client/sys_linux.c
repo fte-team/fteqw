@@ -213,7 +213,7 @@ void Sys_Printf (char *fmt, ...)
 		if (w >= 0xe000 && w < 0xe100)
 		{
 			/*not all quake chars are ascii compatible, so map those control chars to safe ones so we don't mess up anyone's xterm*/
-			if ((w & 0x7f) > 0x20)
+			if ((w & 0x7f) >= 0x20)
 				putc(w&0x7f, out);
 			else if (w & 0x80)
 			{
@@ -993,10 +993,10 @@ dllhandle_t *Sys_LoadLibrary(const char *name, dllfunction_t *funcs)
 	lib = NULL;
 	if (!lib)
 		lib = dlopen (name, RTLD_LOCAL|RTLD_LAZY);
-	if (!lib && !strstr(name, ".so"))
-		lib = dlopen (va("%s.so", name), RTLD_LOCAL|RTLD_LAZY);
-	if (!lib && !strstr(name, ".so") && !strncmp(name, "./", 2) && host_parms.binarydir)
-		lib = dlopen (va("%s%s.so", host_parms.binarydir, name+2), RTLD_LOCAL|RTLD_LAZY);
+	if (!lib && !strstr(name, ARCH_DL_POSTFIX))
+		lib = dlopen (va("%s"ARCH_DL_POSTFIX, name), RTLD_LOCAL|RTLD_LAZY);
+	if (!lib && !strstr(name, ARCH_DL_POSTFIX) && !strncmp(name, "./", 2) && host_parms.binarydir)
+		lib = dlopen (va("%s%s"ARCH_DL_POSTFIX, host_parms.binarydir, name+2), RTLD_LOCAL|RTLD_LAZY);
 	if (!lib)
 	{
 		Con_DLPrintf(2,"%s\n", dlerror());
@@ -1219,7 +1219,7 @@ static void DoSign(const char *fname, int signtype)
 	}
 	else if (f)
 	{
-		hashfunc_t *h = (signtype==1)?&hash_sha256:&hash_sha512;
+		hashfunc_t *h = (signtype==1)?&hash_sha2_256:&hash_sha2_512;
 		size_t l, ts = 0;
 		void *ctx = alloca(h->contextsize);
 		qbyte data[65536*16];

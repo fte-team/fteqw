@@ -36,7 +36,7 @@ cvar_t mod_loadentfiles						= CVAR("sv_loadentfiles", "1");
 cvar_t mod_loadentfiles_dir					= CVAR("sv_loadentfiles_dir", "");
 cvar_t mod_external_vis						= CVARD("mod_external_vis", "1", "Attempt to load .vis patches for quake maps, allowing transparent water to work properly.");
 cvar_t mod_warnmodels						= CVARD("mod_warnmodels", "1", "Warn if any models failed to load. Set to 0 if your mod is likely to lack optional models (like its in development).");	//set to 0 for hexen2 and its otherwise-spammy-as-heck demo.
-cvar_t mod_litsprites_force					= CVARD("mod_litsprites_force", "0", "If set to 1, sprites will be lit according to world lighting (including rtlights), like Tenebrae. Ideally use EF_ADDITIVE or EF_FULLBRIGHT to make emissive sprites instead.");
+cvar_t mod_litsprites_force					= CVARFD("mod_litsprites_force", "0", CVAR_RENDERERLATCH, "If set to 1, sprites will be lit according to world lighting (including rtlights), like Tenebrae. Ideally use EF_ADDITIVE or EF_FULLBRIGHT to make emissive sprites instead.");
 cvar_t mod_loadmappackages					= CVARD ("mod_loadmappackages", "1", "Load additional content embedded within bsp files.");
 cvar_t mod_lightscale_broken				= CVARFD("mod_lightscale_broken", "0", CVAR_RENDERERLATCH, "When active, replicates a bug from vanilla - the radius of r_dynamic lights is scaled by per-surface texture scale rather than using actual distance.");
 cvar_t mod_lightpoint_distance				= CVARD("mod_lightpoint_distance", "8192", "This is the maximum distance to trace when searching for a ground surface for lighting info on map formats without light more fancy lighting info. Use 2048 for full compat with Quake.");
@@ -81,6 +81,7 @@ void Mod_LoadDoomSprite (model_t *mod);
 #define	MAX_MOD_KNOWN	8192
 model_t	*mod_known;
 int		mod_numknown;
+char mod_modifier[MAX_QPATH];	//postfix for ent files
 
 extern cvar_t r_loadlits;
 #ifdef SPECULAR
@@ -617,6 +618,17 @@ void Mod_Purge(enum mod_purge_e ptype)
 		else if (mod->type == mod_halflife)
 			R_HalfLife_TouchTextures(mod);
 #endif
+	}
+}
+
+void Mod_SetModifier(const char *modifier)
+{
+	if (!modifier || strlen(modifier) >= sizeof(mod_modifier)) modifier = "";
+	if (strcmp(modifier, mod_modifier))
+	{	//if the modifier changed, force all models to reset.
+		COM_WorkerFullSync();	//sync all the workers, just in case.
+		strcpy(mod_modifier, modifier);
+		Mod_Purge(MP_RESET);	//nuke it now
 	}
 }
 
@@ -1449,7 +1461,7 @@ static const char *Mod_RemapBuggyTexture(const char *name, const qbyte *data, un
 	{
 		if (!strcmp(name, buggytextures[i].oldname))
 		{
-			unsigned int sum = Com_BlockChecksum(data, datalen);
+			unsigned int sum = CalcHashInt(&hash_md4, data, datalen);
 			for (; i < sizeof(buggytextures)/sizeof(buggytextures[0]); i++)
 			{
 				if (strcmp(name, buggytextures[i].oldname))
@@ -2252,11 +2264,13 @@ static void Mod_SaveEntFile_f(void)
 	{
 		Q_snprintfz(fname, sizeof(fname), "maps/%s/%s", mod_loadentfiles_dir.string, mod->name+5);
 		COM_StripExtension(fname, fname, sizeof(fname));
+		Q_strncatz(fname, mod_modifier, sizeof(fname));
 		Q_strncatz(fname, ".ent", sizeof(fname));
 	}
 	else
 	{
 		COM_StripExtension(mod->name, fname, sizeof(fname));
+		Q_strncatz(fname, mod_modifier, sizeof(fname));
 		Q_strncatz(fname, ".ent", sizeof(fname));
 	}
 
@@ -2293,6 +2307,7 @@ qboolean Mod_LoadEntitiesBlob(struct model_s *mod, const char *entdata, size_t e
 		{
 			Q_snprintfz(fname, sizeof(fname), "maps/%s/%s", mod_loadentfiles_dir.string, mod->name+5);
 			COM_StripExtension(fname, fname, sizeof(fname));
+			Q_strncatz(fname, mod_modifier, sizeof(fname));
 			Q_strncatz(fname, ".ent", sizeof(fname));
 			ents = FS_LoadMallocFile(fname, &sz);
 		}
@@ -2300,12 +2315,14 @@ qboolean Mod_LoadEntitiesBlob(struct model_s *mod, const char *entdata, size_t e
 	if (mod_loadentfiles.value && !ents)
 	{
 		COM_StripExtension(mod->name, fname, sizeof(fname));
+		Q_strncatz(fname, mod_modifier, sizeof(fname));
 		Q_strncatz(fname, ".ent", sizeof(fname));
 		ents = FS_LoadMallocFile(fname, &sz);
 	}
 	if (mod_loadentfiles.value && !ents)
 	{	//tenebrae compat
 		COM_StripExtension(mod->name, fname, sizeof(fname));
+		Q_strncatz(fname, mod_modifier, sizeof(fname));
 		Q_strncatz(fname, ".edo", sizeof(fname));
 		ents = FS_LoadMallocFile(fname, &sz);
 	}
@@ -3719,6 +3736,12 @@ TRACE(("dbg: Mod_LoadTextures: inittexturedescs\n"));
 	m = (dmiptexlump_t *)(mod_base + l->fileofs);
 
 	m->nummiptex = LittleLong (m->nummiptex);
+
+	if ((1+m->nummiptex)*sizeof(int) > l->filelen)
+	{
+		Con_Printf(CON_WARNING "warning: %s contains corrupt texture lump\n", loadmodel->name);
+		return false;
+	}
 
 	loadmodel->numtextures = m->nummiptex;
 	loadmodel->textures = ZG_Malloc(&loadmodel->memgroup, m->nummiptex * sizeof(*loadmodel->textures));
@@ -5348,7 +5371,28 @@ static qboolean QDECL Mod_LoadBrushModel (model_t *mod, void *buffer, size_t fsi
 	else if (!memcmp(&header.version,  BSPVERSION_LONG2))
 		mod->engineflags |= MDLF_NEEDOVERBRIGHT, subbsp = sb_long2;
 	else if (!memcmp(&header.version,  BSPVERSIONHL))
+	{
+		char tmp[64];
 		mod->fromgame = fg_halflife;
+
+		//special hack to work around blueshit bugs - we need to swap LUMP_ENTITIES and LUMP_PLANES over
+		if (COM_ParseOut(mod_base + header.lumps[LUMP_PLANES].fileofs, tmp, sizeof(tmp)) && !strcmp(tmp, "{"))
+		{
+			COM_ParseOut(mod_base + header.lumps[LUMP_ENTITIES].fileofs, tmp, sizeof(tmp));
+			if (strcmp(tmp, "{"))
+			{
+				int i;
+				for (i = 0; i < header.lumps[LUMP_ENTITIES].filelen && i < sizeof(dplane_t); i++)
+					if (mod_base[header.lumps[LUMP_ENTITIES].fileofs + i] == 0)
+					{	//yeah, looks screwy in the way we expect. swap em over.
+						lump_t tmp = header.lumps[LUMP_ENTITIES];
+						header.lumps[LUMP_ENTITIES] = header.lumps[LUMP_PLANES];
+						header.lumps[LUMP_PLANES] = tmp;
+						break;
+					}
+			}
+		}
+	}
 	else
 	{
 		Con_Printf (CON_ERROR "Mod_LoadBrushModel: %s has wrong version number (%i)\n", mod->name, i);
@@ -5375,7 +5419,7 @@ static qboolean QDECL Mod_LoadBrushModel (model_t *mod, void *buffer, size_t fsi
 		}
 		if (i == LUMP_ENTITIES)
 			continue;
-		chksum = Com_BlockChecksum(mod_base + header.lumps[i].fileofs, header.lumps[i].filelen);
+		chksum = CalcHashInt(&hash_md4, mod_base + header.lumps[i].fileofs, header.lumps[i].filelen);
 		mod->checksum ^= chksum;
 
 		if (i == LUMP_VISIBILITY || i == LUMP_LEAFS || i == LUMP_NODES)

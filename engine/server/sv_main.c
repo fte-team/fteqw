@@ -78,11 +78,6 @@ extern cvar_t	password;
 #endif
 cvar_t	spectator_password			= CVARF("spectator_password", "", CVAR_NOUNSAFEEXPAND);	// password for entering as a sepctator
 
-#ifdef FTE_TARGET_WEB
-cvar_t	sv_dlURL					= CVARAFD(/*ioq3*/"sv_dlURL", "", /*dp*/"sv_curl_defaulturl", CVAR_SERVERINFO|CVAR_NOSAVE, "Provides clients with an external url from which they can obtain pk3s/packages from an external http server instead of having to download over udp.");
-#else
-cvar_t	sv_dlURL					= CVARAFD(/*ioq3*/"sv_dlURL", "", /*dp*/"sv_curl_defaulturl", CVAR_SERVERINFO|CVAR_ARCHIVE, "Provides clients with an external url from which they can obtain pk3s/packages from an external http server instead of having to download over udp.");
-#endif
 cvar_t	allow_download				= CVARAD("allow_download", "1", /*q3*/"sv_allowDownload", "If 1, permits downloading. Set to 0 to unconditionally block *ALL* downloads from this server. You may wish to set sv_dlURL if you wish clients to still be able to download content.");
 cvar_t	allow_download_skins		= CVARD("allow_download_skins", "1", "0 blocks downloading of any file in the skins/ directory");
 cvar_t	allow_download_models		= CVARD("allow_download_models", "1", "0 blocks downloading of any file in the progs/ or models/ directory");
@@ -105,7 +100,7 @@ cvar_t	allow_download_other		= CVARD("allow_download_other", "0", "0 blocks down
 
 extern cvar_t sv_allow_splitscreen;
 
-#ifdef SUPPORT_ICE
+#if defined(SUPPORT_ICE) || defined(FTE_TARGET_WEB)
 static void QDECL SV_Public_Callback(struct cvar_s *var, char *oldvalue)
 {
 	char name[64], *e;
@@ -116,7 +111,11 @@ static void QDECL SV_Public_Callback(struct cvar_s *var, char *oldvalue)
 		FTENET_AddToCollection(svs.sockets, var->name, va("/%s", (*name == '/')?name+1:name), NA_INVALID, NP_RTC_TLS);
 		var->value = var->ival = 2;	//so other stuff sees us as holepunched.
 	}
+#ifdef FTE_TARGET_WEB
+	else if (var->ival)	//any kind of public is webrtc public, browsers don't allow more.
+#else
 	else if (var->ival == 2)
+#endif
 		FTENET_AddToCollection(svs.sockets, var->name, "/", NA_INVALID, NP_RTC_TLS);
 	else
 		FTENET_AddToCollection(svs.sockets, var->name, "", NA_INVALID, NP_INVALID);
@@ -136,7 +135,6 @@ cvar_t sv_listen_q3			= CVAR("sv_listen_q3", "0");
 #endif
 cvar_t sv_reconnectlimit	= CVARD("sv_reconnectlimit", "0", "Blocks dupe connection within the specified length of time .");
 cvar_t sv_use_dns			= CVARD("sv_use_dns", "", "Performs a reverse-dns lookup in order to report more info about where clients are connecting from.");
-extern cvar_t net_enable_dtls;
 cvar_t sv_reportheartbeats	= CVARD("sv_reportheartbeats", "2", "Print a notice each time a heartbeat is sent to a master server. When set to 2, the message will be displayed once.");
 cvar_t sv_heartbeat_interval = CVARD("sv_heartbeat_interval", "110", "Interval between heartbeats. Low values are abusive, high values may cause NAT/ghost issues.");
 cvar_t sv_heartbeat_checks	= CVARD("sv_heartbeat_checks", "1", "Report when sv_public 1 fails due to PROBABLE router/NAT issues.");
@@ -158,7 +156,6 @@ cvar_t sv_pupglow				= CVARFD("sv_pupglow", "", CVAR_SERVERINFO, "Instructs clie
 
 #ifdef SV_MASTER
 cvar_t sv_master				= CVAR("sv_master", "0");
-cvar_t sv_masterport			= CVAR("sv_masterport", "0");
 #endif
 
 cvar_t	sv_reliable_sound		= CVARFD("sv_reliable_sound", "0",  0, "Causes all sounds to be sent reliably, so they will not be missed due to packetloss. However, this will cause them to be delayed somewhat, and slightly bursty. This can be overriden using the 'rsnd' userinfo setting (either forced on or forced off). Note: this does not affect sounds attached to particle effects.");
@@ -1014,6 +1011,7 @@ void SV_FullClientUpdate (client_t *client, client_t *to)
 
 	if (ISQWCLIENT(to))
 	{
+		float onservertime;
 		unsigned int pext = to->fteprotocolextensions;
 		int ping = SV_CalcPing (client, false);
 		if (ping > 0xffff)
@@ -1037,10 +1035,13 @@ void SV_FullClientUpdate (client_t *client, client_t *to)
 			MSG_WriteByte(buf, client->lossage);
 		ClientReliable_FinishWrite(to);
 
+		onservertime = realtime - client->connection_started;
+		if (onservertime > sv.time)
+			onservertime = sv.time;
 		buf = ClientReliable_StartWrite(to, 6);
 			MSG_WriteByte(buf, svc_updateentertime);
 			MSG_WriteByte(buf, i);
-			MSG_WriteFloat(buf, realtime - client->connection_started);
+			MSG_WriteFloat(buf, onservertime);
 		ClientReliable_FinishWrite(to);
 
 		InfoBuf_ToString(&client->userinfo, info, (pext&PEXT_BIGUSERINFOS)?BASIC_INFO_STRING:sizeof(info), basicuserinfos, privateuserinfos, (pext&PEXT_BIGUSERINFOS)?NULL:basicuserinfos, &to->infosync, &client->userinfo);
@@ -1119,19 +1120,68 @@ CONNECTIONLESS COMMANDS
 ==============================================================================
 */
 
+const char *SV_ProtocolNameForClient(client_t *cl)
+{
+	//okay, that failed...
+	safeswitch (cl->protocol)
+	{
+	case SCP_QUAKEWORLD:
+		if (cl->fteprotocolextensions2 & PEXT2_REPLACEMENTDELTAS)
+			return "fteqw";	//changes enough to be significant. assumed to include csqc.
+		return "quakeworld";
+	case SCP_BAD:
+		return "bot";
+	case SCP_QUAKE2:
+		return "quake2";
+	case SCP_QUAKE3:
+		return "quake3";
+	case SCP_NETQUAKE:
+		if (cl->fteprotocolextensions2 & PEXT2_REPLACEMENTDELTAS)
+			return "ftenq";	//changes enough to be significant. assumed to include csqc.
+		if (cl->qex)
+			return "qex";
+		if (cl->proquake_angles_hack)
+			return "proquake";
+		return "vanilla";
+	case SCP_BJP3:
+		return "bjp3";
+	case SCP_FITZ666:
+		//this gets messy... probably we should distinguish more
+		if (cl->fteprotocolextensions2 & PEXT2_REPLACEMENTDELTAS)
+			return "ftenq";	//changes enough to be significant. assumed to include csqc.
+		if (cl->qex)
+			return "qex";
+		if (cl->netchan.netprim.coordtype != COORDTYPE_FIXED_13_3 || cl->netchan.netprim.anglesize != 1)
+			return "rmq";	//while fte tends not to care, most people consider them separate.
+		return "fitz";
+	case SCP_DARKPLACES6:
+		return "dp6";
+	case SCP_DARKPLACES7:
+		return "dp7";
+	safedefault:
+		return "unknown";
+	}
+}
+
 char *SV_PlayerPublicAddress(client_t *cl)
 {	//returns a string containing the client's IP address, as permitted for viewing by other clients.
 	//if something useful is actually returned, it should be masked.
-	return "private";
+	//we hide it entirely out of private info caution. most nq clients expect a #.#.#.INVALID type address.
+	//it should be fine to put other stuff here though, we put client version instead, if we know it.
+	const char *ver = InfoBuf_ValueForKey(&cl->userinfo, "*ver");
+	const char *prot = SV_ProtocolNameForClient(cl);
+
+	return va("prot %s %s", prot, ver);	//something so they can't confuse ip parsing so easily nor pass them off as some other protocol.
 }
 
-#define STATUS_OLDSTYLE					0
+#define	STATUS_OLDSTYLE					0 //equivelent to STATUS_SERVERINFO|STATUS_PLAYERS
 #define	STATUS_SERVERINFO				1
 #define	STATUS_PLAYERS					2
 #define	STATUS_SPECTATORS				4
 #define	STATUS_SPECTATORS_AS_PLAYERS	8 //for ASE - change only frags: show as "S"
-#define STATUS_SHOWTEAMS				16
-#define STATUS_QTVLIST					32 //qtv destid "name" "streamid@host:port" numviewers
+#define	STATUS_SHOWTEAMS				16
+#define	STATUS_QTVLIST					32 //qtv destid "name" "streamid@host:port" numviewers
+#define STATUS_LOGININFO				64
 
 /*
 ================
@@ -1151,6 +1201,8 @@ static void SVC_Status (void)
 	int		top, bottom;
 	char frags[64];
 	char *skin, *team, *botpre, *specpre;
+	char junk[512];
+	int jlen;
 
 	int slots=0;
 
@@ -1206,18 +1258,21 @@ static void SVC_Status (void)
 			else
 				sprintf(frags, "%i", cl->old_frags);
 
-			if (displayflags & STATUS_SHOWTEAMS)
+			junk[jlen = 0] = 0;
+			if ((displayflags & STATUS_SHOWTEAMS) && jlen+4<sizeof(junk))
 			{
-				Con_Printf ("%i %s %i %i \"%s%s%s\" \"%s\" %i %i \"%s\"\n", cl->userid,
-					frags, (int)(realtime - cl->connection_started)/60,
-					ping, specpre, botpre, name, skin, top, bottom, team);
+				junk[jlen++] = ' ';
+				jlen += strlen(COM_QuotedString(team, junk+jlen, sizeof(junk)-jlen, false));
 			}
-			else
+			if ((displayflags & STATUS_LOGININFO) && jlen+4<sizeof(junk))
 			{
-				Con_Printf ("%i %s %i %i \"%s%s%s\" \"%s\" %i %i\n", cl->userid,
-					frags, (int)(realtime - cl->connection_started)/60,
-					ping, specpre, botpre, name, skin, top, bottom);
+				junk[jlen++] = ' ';
+				jlen += strlen(COM_QuotedString("", junk+jlen, sizeof(junk)-jlen, false));
 			}
+
+			Con_Printf ("%i %s %i %i \"%s%s%s\" \"%s\" %i %i%s\n", cl->userid,
+					frags, (int)(realtime - cl->connection_started)/60,
+					ping, specpre, botpre, name, skin, top, bottom, junk);
 		}
 		else
 			slots++;
@@ -1760,14 +1815,16 @@ qboolean SVC_GetChallenge (qboolean respond_dp)
 #endif
 
 #ifdef HAVE_DTLS
-		if (net_enable_dtls.ival/* || !*net_enable_dtls.string*/)
+		if (net_enable_dtls.ival>0/* || !*net_enable_dtls.string*/ && svs.sockets->dtlsfuncs)
 		{
 			lng = LittleLong(PROTOCOL_VERSION_DTLSUPGRADE);
 			memcpy(over, &lng, sizeof(lng));
 			over+=sizeof(lng);
 
-			if (net_enable_dtls.ival >= 2)
-				lng = LittleLong(2);	//required
+			if (net_enable_dtls.ival >= 3)
+				lng = LittleLong(3);	//required
+			else if (net_enable_dtls.ival >= 2)
+				lng = LittleLong(2);	//encouraged
 			else
 				lng = LittleLong(1);	//supported
 			memcpy(over, &lng, sizeof(lng));
@@ -2542,6 +2599,7 @@ client_t *SV_AddSplit(client_t *controller, char *info, int id)
 	if (cl->spectator)
 		InfoBuf_SetValueForStarKey (&cl->userinfo, "*spectator", va("%i", cl->spectator));
 	cl->state = controller->state;
+	cl->connection_started = realtime;
 
 //	host_client = NULL;
 //	sv_player = NULL;
@@ -2597,7 +2655,8 @@ void SV_DoDirectConnect(svconnectinfo_t *fte_restrict info)
 		{
 			if (spectator_password.string[0] &&
 				stricmp(spectator_password.string, "none") &&
-				strcmp(spectator_password.string, s) )
+				strcmp(spectator_password.string, s) &&
+				!NET_IsLoopBackAddress(&info->adr))
 			{	// failed
 				Con_TPrintf ("%s:spectator password failed\n", NET_AdrToString (adrbuf, sizeof(adrbuf), &info->adr));
 				SV_RejectMessage (info->protocol, "requires a spectator password\n\n");
@@ -2612,7 +2671,8 @@ void SV_DoDirectConnect(svconnectinfo_t *fte_restrict info)
 			s = Info_ValueForKey (info->userinfo, "password");
 			if (password.string[0] &&
 				stricmp(password.string, "none") &&
-				strcmp(password.string, s) )
+				strcmp(password.string, s) &&
+				!NET_IsLoopBackAddress(&info->adr))
 			{
 				Con_TPrintf ("%s:password failed\n", NET_AdrToString (adrbuf, sizeof(adrbuf), &info->adr));
 				SV_RejectMessage (info->protocol, "server requires a password\n\n");
@@ -3047,10 +3107,18 @@ void SV_DoDirectConnect(svconnectinfo_t *fte_restrict info)
 	//this is the upper bound of the mtu, if its too high we'll get EMSGSIZE and we'll reduce it.
 	//however, if it drops below newcl->netchan.message.maxsize then we'll start to see undeliverable reliables, which means dropped clients.
 	newcl->netchan.mtu = MAX_DATAGRAM;	//vanilla qw clients are assumed to have an mtu of this size.
-	if (info->mtu >= 64)
+	if (info->mtu >= 300)	//anything smaller is someone being intentionally malicious.
 	{	//if we support application fragmenting, then we can send massive reliables without too much issue
 		newcl->netchan.mtu = info->mtu;
 		newcl->netchan.message.maxsize = sizeof(newcl->netchan.message_buf);
+
+#ifdef HAVE_ICE
+		if (info->adr.type == NA_ICE)
+			newcl->netchan.mtu -= 48+12;	//dtls+sctp overhead
+		else
+#endif
+		if (info->adr.prot == NP_DTLS || info->adr.prot == NP_TLS)
+			newcl->netchan.mtu -= 48;		//dtls overhead
 	}
 	else
 	{	//otherwise we can't fragment the packets, and the only way to honour the mtu is to send less data. yay for more round-trips.
@@ -3072,6 +3140,7 @@ void SV_DoDirectConnect(svconnectinfo_t *fte_restrict info)
 #endif
 
 	newcl->state = cs_connected;
+	newcl->connection_started = realtime;
 
 #ifdef Q3SERVER
 	newcl->gamestatesequence = -1;
@@ -3655,9 +3724,6 @@ void SVC_DirectConnect(int expectedreliablesequence)
 	}
 	msg_badread=false;
 
-	if (!*info.guid)
-		NET_GetConnectionCertificate(svs.sockets, &net_from, QCERT_PEERFINGERPRINT, info.guid, sizeof(info.guid));
-
 	info.adr = net_from;
 	if (MSV_ClusterLogin(&info))
 		return;
@@ -3978,8 +4044,13 @@ void SVC_ACK (void)
 			}
 		}
 	}
-	Con_TPrintf ("A2A_ACK from %s\n", NET_AdrToString (adr, sizeof(adr), &net_from));
+	Con_TPrintf (S_COLOR_GRAY"A2A_ACK from %s\n", NET_AdrToString (adr, sizeof(adr), &net_from));
 }
+
+#ifdef SUPPORT_ICE
+void SVC_ICE_Offer(void);
+void SVC_ICE_Candidate(void);
+#endif
 
 //returns false to block replies
 //this is to mitigate wasted bandwidth if we're used as a udp amplification
@@ -4019,7 +4090,7 @@ static struct attacker_s
 } *dosattacker;
 static size_t dosattacker_count;
 static size_t dosattacker_max;
-#define dosattacker_limit 10				//if we get X packets
+#define dosattacker_limit 15				//if we get X packets
 #define dosattacker_period 30					//within Y secs
 #define dosattacker_blocktime (60*60*24)	//block them for Z secs (24 hours).
 static qboolean SV_DetectAmplificationDDOS (void)
@@ -4222,8 +4293,10 @@ qboolean SV_ConnectionlessPacket (void)
 				else
 				{
 					//NET_DTLS_Disconnect(svs.sockets, &net_from);
-					if (NET_DTLS_Create(svs.sockets, &net_from, NULL))
+					if (NET_DTLS_Create(svs.sockets, &net_from, NULL, false))
 						Netchan_OutOfBandPrint(NS_SERVER, &net_from, "dtlsopened");
+					else
+						SV_RejectMessage (SCP_QUAKEWORLD, "DTLS driver failure.\n");
 				}
 			}
 			else
@@ -4268,6 +4341,13 @@ qboolean SV_ConnectionlessPacket (void)
 	}
 	else if (!strcmp(c, "realip") || !strcmp(c, "ip"))
 		SVC_RealIP ();
+
+#ifdef SUPPORT_ICE
+	else if (!strcmp(c, "ice_offer"))
+		SVC_ICE_Offer();
+	else if (!strcmp(c, "ice_ccand"))
+		SVC_ICE_Candidate();
+#endif
 /*
 	else if (!strcmp(c,"lastscores"))
 	{
@@ -4490,16 +4570,18 @@ qboolean SVNQ_ConnectionlessPacket(void)
 			/*dual-stack client, supporting either DP or QW protocols*/
 			SVC_GetChallenge (false);
 		}
+#ifdef HAVE_DTLS
+		else if (net_enable_dtls.ival > 2 && (net_from.prot == NP_DGRAM || net_from.prot == NP_STREAM || net_from.prot == NP_WS) && net_from.type != NA_LOOPBACK && !NET_IsEncrypted(&net_from))
+		{
+			SV_RejectMessage (SCP_NETQUAKE, "This server requires the use of DTLS/TLS/WSS.\n");
+			return true;
+		}
+#endif
 		else
 		{	//legacy pure-nq (though often DP).
 			if (progstype == PROG_H2)
 			{
-				SZ_Clear(&sb);
-				MSG_WriteLong(&sb, 0);
-				MSG_WriteByte(&sb, CCREP_REJECT);
-				MSG_WriteString(&sb, "NQ clients are not supported with hexen2 gamecode\n");
-				*(int*)sb.data = BigLong(NETFLAG_CTL+sb.cursize);
-				NET_SendPacket(svs.sockets, sb.cursize, sb.data, &net_from);
+				SV_RejectMessage (SCP_NETQUAKE, "NQ clients are not supported with hexen2 gamecode\n");
 				return true;	//not our version...
 			}
 			if (NET_WasSpecialPacket(svs.sockets))
@@ -5011,10 +5093,6 @@ qboolean SV_ReadPackets (float *delay)
 
 	NET_ReadPackets(svs.sockets);
 
-#ifdef HAVE_DTLS
-	NET_DTLS_Timeouts(svs.sockets);
-#endif
-
 	if (inboundsequence == oldinboundsequence)
 		return false;	//nothing new.
 	oldinboundsequence = inboundsequence;
@@ -5269,6 +5347,7 @@ void SV_Impulse_f (void)
 	pr_global_struct->time = sv.world.physicstime;
 
 	svs.clients[i].state = cs_connected;
+	svs.clients[i].connection_started = realtime;
 
 	SV_SetUpClientEdict(&svs.clients[i], svs.clients[i].edict);
 
@@ -5380,7 +5459,11 @@ float SV_Frame (void)
 #endif
 
 #ifdef HAVE_CLIENT
-	isidle = !isDedicated && sv.allocated_client_slots == 1 && (Key_Dest_Has(~kdm_game) || IN_WeaponWheelIsShown()) && cls.state == ca_active && !cl.implicitpause;
+	isidle = !isDedicated && sv.allocated_client_slots == 1 && (Key_Dest_Has(~kdm_game)
+#ifdef QUAKESTATS
+		|| IN_WeaponWheelIsShown()
+#endif
+		|| cl.implicitpause) && cls.state == ca_active;
 	/*server is effectively paused in SP/coop if there are no clients/spectators*/
 	if (sv.spawned_client_slots == 0 && sv.spawned_observer_slots == 0 && !deathmatch.ival)
 		isidle = true;
@@ -5442,12 +5525,7 @@ float SV_Frame (void)
 
 #ifdef SV_MASTER
 	if (sv_master.ival)
-	{
-		if (sv_masterport.ival)
-			SVM_Think(sv_masterport.ival);
-		else
-			SVM_Think(PORT_QWMASTER);
-	}
+		SVM_Think();
 #endif
 
 #ifdef PLUGINS
@@ -5682,6 +5760,7 @@ void SV_InitLocal (void)
 	extern	cvar_t	sv_aim;
 
 	extern	cvar_t	pm_bunnyspeedcap;
+	extern	cvar_t	pm_bunnyfriction;
 	extern	cvar_t	pm_ktjump;
 	extern	cvar_t	pm_slidefix;
 	extern	cvar_t	pm_airstep;
@@ -5758,6 +5837,7 @@ void SV_InitLocal (void)
 	Cvar_Register (&sv_bigcoords,			cvargroup_serverphysics);
 
 	Cvar_Register (&pm_bunnyspeedcap,		cvargroup_serverphysics);
+	Cvar_Register (&pm_bunnyfriction,		cvargroup_serverphysics);
 	Cvar_Register (&pm_watersinkspeed,		cvargroup_serverphysics);
 	Cvar_Register (&pm_flyfriction,			cvargroup_serverphysics);
 	Cvar_Register (&pm_ktjump,				cvargroup_serverphysics);
@@ -5809,12 +5889,10 @@ void SV_InitLocal (void)
 	Cvar_Register (&sv_banproxies, cvargroup_serverpermissions);
 #ifdef SV_MASTER
 	Cvar_Register (&sv_master,	cvargroup_servercontrol);
-	Cvar_Register (&sv_masterport,	cvargroup_servercontrol);
 #endif
 
 	Cvar_Register (&filterban,	cvargroup_servercontrol);
 
-	Cvar_Register (&sv_dlURL,	cvargroup_serverpermissions);
 	Cvar_Register (&allow_download,	cvargroup_serverpermissions);
 	Cvar_Register (&allow_download_skins,	cvargroup_serverpermissions);
 	Cvar_Register (&allow_download_models,	cvargroup_serverpermissions);

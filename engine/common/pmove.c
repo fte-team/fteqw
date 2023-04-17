@@ -1473,8 +1473,9 @@ void PM_PlayerMove (float gamespeed)
 			pmove.jump_msec = 0;
 	}
 
-	PM_CheckJump ();
 
+	if (!movevars.bunnyfriction)
+		PM_CheckJump ();	//qw-style bunny
 	PM_Friction ();
 
 	if (pmove.waterlevel >= 2)
@@ -1485,6 +1486,9 @@ void PM_PlayerMove (float gamespeed)
 		PM_LadderMove ();
 	else
 		PM_AirMove ();
+
+	if (movevars.bunnyfriction)
+		PM_CheckJump ();	//nq-style bunny. note tick rate differences too.
 
 /*	//round to network precision
 	for (i = 0; i < 3; i++)

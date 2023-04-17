@@ -22,6 +22,9 @@ static cvar_t vk_khr_get_memory_requirements2	= CVARFD("vk_khr_get_memory_requir
 static cvar_t vk_khr_dedicated_allocation		= CVARFD("vk_khr_dedicated_allocation",	"", CVAR_VIDEOLATCH, "Flag vulkan memory allocations as dedicated, where applicable.");
 static cvar_t vk_khr_push_descriptor			= CVARFD("vk_khr_push_descriptor",		"", CVAR_VIDEOLATCH, "Enables better descriptor streaming.");
 static cvar_t vk_amd_rasterization_order		= CVARFD("vk_amd_rasterization_order",	"",	CVAR_VIDEOLATCH, "Enables the use of relaxed rasterization ordering, for a small speedup at the minor risk of a little zfighting.");
+#ifdef VK_KHR_fragment_shading_rate
+static cvar_t vK_khr_fragment_shading_rate		= CVARFD("vK_khr_fragment_shading_rate","",	CVAR_VIDEOLATCH, "Enables the use of variable shading rates.");
+#endif
 #ifdef VK_EXT_astc_decode_mode
 static cvar_t vk_ext_astc_decode_mode			= CVARFD("vk_ext_astc_decode_mode",		"",	CVAR_VIDEOLATCH, "Enables reducing texture cache sizes for LDR ASTC-compressed textures.");
 #endif
@@ -42,9 +45,12 @@ void VK_RegisterVulkanCvars(void)
 	Cvar_Register (&vk_usememorypools,			VKRENDEREROPTIONS);
 
 	Cvar_Register (&vk_khr_get_memory_requirements2,VKRENDEREROPTIONS);
-	Cvar_Register (&vk_khr_dedicated_allocation,VKRENDEREROPTIONS);
-	Cvar_Register (&vk_khr_push_descriptor,		VKRENDEREROPTIONS);
-	Cvar_Register (&vk_amd_rasterization_order,	VKRENDEREROPTIONS);
+	Cvar_Register (&vk_khr_dedicated_allocation,	VKRENDEREROPTIONS);
+	Cvar_Register (&vk_khr_push_descriptor,			VKRENDEREROPTIONS);
+	Cvar_Register (&vk_amd_rasterization_order,		VKRENDEREROPTIONS);
+#ifdef VK_KHR_fragment_shading_rate
+	Cvar_Register (&vK_khr_fragment_shading_rate,	VKRENDEREROPTIONS);
+#endif
 #ifdef VK_EXT_astc_decode_mode
 	Cvar_Register (&vk_ext_astc_decode_mode,	VKRENDEREROPTIONS);
 #endif
@@ -3497,7 +3503,7 @@ static void VK_PaintScreen(void)
 	if (topmenu && topmenu->isopaque)
 		nohud = true;
 #ifdef VM_CG
-	else if (q3->cg.Redraw(cl.time))
+	else if (q3 && q3->cg.Redraw(cl.time))
 		nohud = true;
 #endif
 #ifdef CSQC_DAT
@@ -3540,7 +3546,9 @@ static void VK_PaintScreen(void)
 		nohud = true;
 	}
 
-	SCR_DrawTwoDimensional(nohud);
+	r_refdef.playerview = &cl.playerview[0];
+	if (!vrui.enabled)
+		SCR_DrawTwoDimensional(nohud);
 
 	V_UpdatePalette (false);
 	R2D_BrightenScreen();
@@ -4708,6 +4716,9 @@ qboolean VK_Init(rendererstate_t *info, const char **sysextnames, qboolean (*cre
 		{&vk.khr_dedicated_allocation,		VK_KHR_DEDICATED_ALLOCATION_EXTENSION_NAME,		&vk_khr_dedicated_allocation,	true, NULL, NULL},
 		{&vk.khr_push_descriptor,			VK_KHR_PUSH_DESCRIPTOR_EXTENSION_NAME,			&vk_khr_push_descriptor,		true, NULL, NULL},
 		{&vk.amd_rasterization_order,		VK_AMD_RASTERIZATION_ORDER_EXTENSION_NAME,		&vk_amd_rasterization_order,	false, NULL, NULL},
+#ifdef VK_KHR_fragment_shading_rate
+		{&vk.khr_fragment_shading_rate,		VK_KHR_FRAGMENT_SHADING_RATE_EXTENSION_NAME,	&vK_khr_fragment_shading_rate,	true, NULL, NULL},
+#endif
 #ifdef VK_EXT_astc_decode_mode
 		{&vk.ext_astc_decode_mode,			VK_EXT_ASTC_DECODE_MODE_EXTENSION_NAME,			&vk_ext_astc_decode_mode,		true,  NULL, NULL},
 #endif
@@ -4837,6 +4848,7 @@ qboolean VK_Init(rendererstate_t *info, const char **sysextnames, qboolean (*cre
 		okay = vrsetup.createinstance(&vrsetup, NULL, NULL);
 	if (!okay)
 	{
+		Con_TPrintf(CON_ERROR"Unable to create vulkan instance\n");
 		if (info->vr)
 			info->vr->Shutdown();
 		return false;

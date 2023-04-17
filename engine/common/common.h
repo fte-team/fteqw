@@ -692,7 +692,7 @@ vfsfile_t *FS_OpenTCP(const char *name, int defaultport, qboolean assumetls);
 
 vfsfile_t *FS_OpenWithFriends(const char *fname, char *sysname, size_t sysnamesize, int numfriends, ...);
 
-#define countof(array) (sizeof(array)/sizeof(array[0]))
+#define countof(array) (sizeof(array)/sizeof((array)[0]))
 #ifdef _WIN32
 //windows doesn't support utf-8. Which is a shame really, because that's the charset we expect from everything.
 char *narrowen(char *out, size_t outlen, wchar_t *wide);
@@ -767,7 +767,6 @@ typedef struct
 	char *defaultexec;	//execed after cvars are reset, to give game-specific engine-defaults.
 	char *defaultoverrides;	//execed after default.cfg, to give usable defaults even when the mod the user is running is shit.
 	char *eula;			//when running as an installer, the user will be presented with this as a prompt
-	char *rtcbroker;	//the broker to use for webrtc connections.
 	char *basedir;		//this is where we expect to find the data.
 	char *iconname;		//path we can find the icon (relative to the fmf's location)
 
@@ -790,13 +789,16 @@ typedef struct
 	} gamepath[8];
 	struct manpack_s	//FIXME: this struct should be replaced with packagemanager info instead.
 	{
-		int type;
+		enum manifestdeptype_e type;
 		char *path;			//the 'pure' name
 		char *prefix;
 		qboolean crcknown;	//if the crc was specified
 		unsigned int crc;	//the public crc
 		char *mirrors[8];	//a randomized (prioritized-on-load) list of mirrors to use. (may be 'prompt:game,package', 'unzip:file,url', 'xz:url', 'gz:url'
 		char *condition;	//only downloaded if this cvar is set | delimited allows multiple cvars.
+		char *sha512;		//package must match this hash, if specified
+		char *signature;	//signs the hash
+		qofs_t filesize;
 		int mirrornum;		//the index we last tried to download from, so we still work even if mirrors are down.
 	} package[64];
 } ftemanifest_t;
@@ -930,14 +932,12 @@ void InfoBuf_WriteToFile(vfsfile_t *f, infobuf_t *info, const char *commandname,
 void InfoBuf_Enumerate (infobuf_t *info, void *ctx, void(*cb)(void *ctx, const char *key, const char *value));
 
 
-void Com_BlocksChecksum (int blocks, void **buffer, int *len, unsigned char *outbuf);
-unsigned int Com_BlockChecksum (const void *buffer, int length);
-void Com_BlockFullChecksum (const void *buffer, int len, unsigned char *outbuf);
 qbyte	COM_BlockSequenceCheckByte (qbyte *base, int length, int sequence, unsigned mapchecksum);
 qbyte	COM_BlockSequenceCRCByte (qbyte *base, int length, int sequence);
 qbyte	Q2COM_BlockSequenceCRCByte (qbyte *base, int length, int sequence);
 
 size_t Base64_EncodeBlock(const qbyte *in, size_t length, char *out, size_t outsize);	//tries to null terminate, but returns length without termination.
+size_t Base64_EncodeBlockURI(const qbyte *in, size_t length, char *out, size_t outsize); //slightly different chars for uri safety. also trims.
 size_t Base64_DecodeBlock(const char *in, const char *in_end, qbyte *out, size_t outsize); // +/ and =
 size_t Base16_EncodeBlock(const char *in, size_t length, qbyte *out, size_t outsize);
 size_t Base16_DecodeBlock(const char *in, qbyte *out, size_t outsize);
@@ -951,15 +951,16 @@ typedef struct
 	void (*process) (void *context, const void *data, size_t datasize);
 	void (*terminate) (unsigned char *digest, void *context);
 } hashfunc_t;
-extern hashfunc_t hash_sha1;
-extern hashfunc_t hash_sha224;
-extern hashfunc_t hash_sha256;
-extern hashfunc_t hash_sha384;
-extern hashfunc_t hash_sha512;
-extern hashfunc_t hash_crc16;
+extern hashfunc_t hash_md4;			//required for vanilla qw mapchecks
+extern hashfunc_t hash_sha1;		//required for websockets, and ezquake's crypted rcon
+extern hashfunc_t hash_sha2_224;
+extern hashfunc_t hash_sha2_256;	//required for webrtc
+extern hashfunc_t hash_sha2_384;
+extern hashfunc_t hash_sha2_512;
+extern hashfunc_t hash_crc16;		//aka ccitt, required for qw's clc_move and various bits of dp compat
 extern hashfunc_t hash_crc16_lower;
 unsigned int hashfunc_terminate_uint(const hashfunc_t *hash, void *context); //terminate, except returning the digest as a uint instead of a blob. folds the digest if longer than 4 bytes.
-unsigned int CalcHashInt(const hashfunc_t *hash, const unsigned char *data, size_t datasize);
+unsigned int CalcHashInt(const hashfunc_t *hash, const void *data, size_t datasize);
 size_t CalcHash(const hashfunc_t *hash, unsigned char *digest, size_t maxdigestsize, const unsigned char *data, size_t datasize);
 size_t CalcHMAC(const hashfunc_t *hashfunc, unsigned char *digest, size_t maxdigestsize, const unsigned char *data, size_t datalen, const unsigned char *key, size_t keylen);
 

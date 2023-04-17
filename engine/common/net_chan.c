@@ -203,6 +203,7 @@ unsigned int Net_PextMask(unsigned int protover, qboolean fornq)
 #ifdef PEXT_Q3BSP
 					PEXT_Q3BSP |
 #endif
+					PEXT_TE_BULLET |	//qw's gunshot+explosions etc.
 					PEXT_FLOATCOORDS | PEXT_HLBSP;
 
 			//these all depend fully upon the player/entity deltas, and don't make sense for NQ. Implement PEXT2_REPLACEMENTDELTAS instead.

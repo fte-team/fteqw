@@ -6,6 +6,8 @@ static struct c2c_s *JCL_JingleAddContentToSession(jclient_t *jcl, struct c2c_s 
 	char generatedname[64];
 	char stunhost[256];
 	int c;
+	char *s;
+	char token[MAX_OSPATH];
 
 	if (!bres)
 		return NULL;
@@ -82,10 +84,18 @@ static struct c2c_s *JCL_JingleAddContentToSession(jclient_t *jcl, struct c2c_s 
 		//google also don't provide stun srv records.
 		//so we're basically screwed if we want to work with the googletalk xmpp service long term.
 		//more methods are best, I suppose, but I'm lazy.
-		//yes, hardcoding means that other services might 'borrow' googles' stun servers.
-		piceapi->Set(ice, "stunport", "19302");
-		piceapi->Set(ice, "stunip", "stun.l.google.com");
+
+		//try to use our default rtcbroker setting as a stun server, too.
+		char *stun = cvarfuncs->GetNVFDG("net_ice_broker", "", 0, NULL, NULL)->string;
+		s = strstr(stun, "://");
+		if (s) stun = s+3;
+		piceapi->Set(ice, "server", va("stun:%s", stun));
 	}
+
+	//if the user has manually set up some other stun servers, use them.
+	s = cvarfuncs->GetNVFDG("net_ice_servers", "", 0, NULL, NULL)->string;
+	while((s=cmdfuncs->ParseToken(s, token, sizeof(token), NULL)))
+		piceapi->Set(ice, "server", token);
 	return c2c;
 }
 static qboolean JCL_JingleAcceptAck(jclient_t *jcl, xmltree_t *tree, struct iq_s *iq)

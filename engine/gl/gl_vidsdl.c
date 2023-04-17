@@ -806,10 +806,7 @@ static qboolean VKVID_Init (rendererstate_t *info, unsigned char *palette)
 
 	vkGetInstanceProcAddr = SDL_Vulkan_GetVkGetInstanceProcAddr();
 	if (!VK_Init(info, extnames, VKSDL_CreateSurface, NULL))
-	{
-		SDL_ShowSimpleMessageBox(0, "FTEQuake", extnames[1], sdlwindow);
 		return false;
-	}
 	return true;
 }
 rendererinfo_t vkrendererinfo =

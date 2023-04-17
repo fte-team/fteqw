@@ -439,6 +439,7 @@ void M_Menu_Setup_f (void)
 	menucustom_t *ci;
 	menubutton_t *b;
 	static menuresel_t resel;
+	int y;
 
 #ifdef Q2CLIENT
 	if (M_GameType() == MGT_QUAKE2)	//quake2 main menu.
@@ -469,7 +470,7 @@ void M_Menu_Setup_f (void)
 		cu->draw = MSetupQ2_TransDraw;
 		cu->key = MSetupQ2_ChangeSkin;
 
-		menu->cursoritem = (menuoption_t*)MC_AddCursorSmall(menu, &resel, 54, 32);
+		menu->cursoritem = (menuoption_t*)MC_AddCursorSmall(menu, &resel, 54);
 		return;
 	}
 #endif
@@ -480,9 +481,10 @@ void M_Menu_Setup_f (void)
 
 //	MC_AddPicture(menu, 72, 32, Draw_CachePic ("gfx/mp_menu.lmp") );
 
+	y = 40;
 	menu->selecteditem = (menuoption_t*)
-	(info->nameedit = MC_AddEdit(menu, 64, 160, 40, "Your name", name.string));
-	(info->teamedit = MC_AddEdit(menu, 64, 160, 56, "Your team", team.string));
+	(info->nameedit = MC_AddEdit(menu, 64, 160, y, "Your name", name.string)); y+= info->nameedit->common.height;
+	(info->teamedit = MC_AddEdit(menu, 64, 160, y, "Your team", team.string)); y+= info->teamedit->common.height;
 #ifdef HEXEN2
 	info->ticlass = -1;
 	if (M_GameType() == MGT_HEXEN2)
@@ -497,7 +499,11 @@ void M_Menu_Setup_f (void)
 			NULL
 		};
 		cvar_t *pc = Cvar_Get("cl_playerclass", "1", CVAR_USERINFO|CVAR_ARCHIVE, "Hexen2");
-		(info->classedit = MC_AddCombo(menu, 64, 160, 72, "Your class", (const char **)classnames, pc->ival-1));
+		(info->classedit = MC_AddCombo(menu, 64, 160, y, "Your class", (const char **)classnames, pc->ival-1)); y+= info->classedit->common.height;
+
+		//trim options if the artwork is missing.
+		while (info->classedit->numoptions && !COM_FCheckExists(va("gfx/menu/netp%i.lmp", info->classedit->numoptions)))
+			info->classedit->numoptions--;
 	}
 	else
 #endif
@@ -505,21 +511,25 @@ void M_Menu_Setup_f (void)
 		MC_AddPicture(menu, 16, 4, 32, 144, "gfx/qplaque.lmp");
 		MC_AddCenterPicture(menu, 4, 24, "gfx/p_multi.lmp");
 
-		(info->skinedit = MC_AddEdit(menu, 64, 160, 72, "Your skin", skin.string));
+		(info->skinedit = MC_AddEdit(menu, 64, 160, y, "Your skin", skin.string)); y+= info->skinedit->common.height;
 	}
 
-	ci = MC_AddCustom(menu, 172+32, 88, NULL, 0, NULL);
+	ci = MC_AddCustom(menu, 172+32, y, NULL, 0, NULL);
 	ci->draw = MSetup_TransDraw;
 	ci->key = NULL;
 
-	MC_AddCommand(menu, 64, 160, 96, "Top colour", SetupMenuColour);
-	MC_AddCommand(menu, 64, 160, 120, "Lower colour", SetupMenuColour);
+	MC_AddCommand(menu, 64, 160, y+8, "Top colour", SetupMenuColour);
+	MC_AddCommand(menu, 64, 160, y+32, "Lower colour", SetupMenuColour);
+	y+= 16;
+	y+=4;
 
 	b = MC_AddConsoleCommand(menu, 64, 204, 168, "Network Settings", "menu_network\n");
 	b->common.tooltip = "Change network and client prediction settings.";
+	y += b->common.height;
 	b = MC_AddConsoleCommand(menu, 64, 204, 176, "Teamplay Settings", "menu_teamplay\n");
 	b->common.tooltip = "Change teamplay macro settings.";
-	menu->cursoritem = (menuoption_t*)MC_AddCursorSmall(menu, &resel, 54, 32);
+	y += b->common.height;
+	menu->cursoritem = (menuoption_t*)MC_AddCursorSmall(menu, &resel, 54);
 
 
 	info->lowercolour = bottomcolor.value;
@@ -637,14 +647,19 @@ static int QDECL M_Menu_GameOptions_AddMap(const char *fname, qofs_t fsize, time
 	struct mapopts_s *ctx = parm;
 	size_t i;
 	char *ext;
+	char trimmedfname[MAX_QPATH];
 	if (Q_strncasecmp(fname, "maps/", 5))
 		return true; //o.O
 	fname += 5;
-	if (*fname == 'b' && *fname == '_')
+	if (fname[0] == 'b' && fname[1] == '_')
 		return true;	//stoopid ammo boxes.
 	ext = strrchr(fname, '.');
-	if (ext && !strcmp(ext, ".bsp"))
-		*ext = 0;
+	if (ext && !strcmp(ext, ".bsp") && ext-fname<sizeof(trimmedfname))
+	{
+		memcpy(trimmedfname, fname, ext-fname);
+		trimmedfname[ext-fname] = 0;
+		fname = trimmedfname;
+	}
 
 	for (i = 0; i < ctx->count; i++)
 		if (!Q_strcasecmp(ctx->maps[i], fname))
@@ -761,8 +776,21 @@ void M_Menu_GameOptions_f (void)
 	MC_AddCommand						(menu, 64, 160, y,	"Start game", MultiBeginGame);y+=16;
 
 	y+=4;
-	info->hostnameedit	= MC_AddEdit	(menu, 64, 160, y,			"Hostname", name.string);y+=16;
+	info->hostnameedit	= MC_AddEdit	(menu, 64, 160, y,			"Hostname", name.string);y+=info->hostnameedit->common.height;
 	info->publicgame	= MC_AddCombo	(menu, 64, 160, y,			"Public", publicoptions, bound(0, sv_public.ival+1, 4));y+=8;
+#if !defined(FTE_TARGET_WEB) && defined(HAVE_DTLS)
+	{
+		static const char *encoptions[] =
+		{
+			"Disabled",
+			"Accept",
+			"Request",
+			"Require",
+			NULL
+		};
+		MC_AddCvarCombo (menu, 64, 160, y,		"DTLS Encryption", &net_enable_dtls, encoptions, NULL);y+=8;
+	}
+#endif
 	y+=4;
 
 	for (players = 0; players < sizeof(numplayeroptions)/ sizeof(numplayeroptions[0]); players++)
@@ -782,7 +810,21 @@ void M_Menu_GameOptions_f (void)
 	info->fraglimit		= MC_AddCombo	(menu, 64, 160, y,			"Frag Limit", (const char **)fraglimitoptions,		fraglimit.value/10);y+=8;
 	y+=8;
 
-	M_Menu_GameOptions_AddMap((mgt == MGT_QUAKE2)?"maps/base1":"maps/start", 0, 0, &mapopts, NULL);
+	//populate it with an appropriate default. its a shame it won't change with the deathmatch/coop options
+	switch(mgt)
+	{
+	case MGT_QUAKE2:
+		M_Menu_GameOptions_AddMap("maps/base1.bsp", 0, 0, &mapopts, NULL);
+		break;
+	case MGT_HEXEN2:
+		M_Menu_GameOptions_AddMap("maps/demo1.bsp", 0, 0, &mapopts, NULL);
+		break;
+	case MGT_QUAKE1:
+		M_Menu_GameOptions_AddMap("maps/start.bsp", 0, 0, &mapopts, NULL);
+		break;
+	default:
+		break;
+	}
 	COM_EnumerateFiles("maps/*.bsp",	M_Menu_GameOptions_AddMap, &mapopts);
 	COM_EnumerateFiles("maps/*.bsp.gz",	M_Menu_GameOptions_AddMap, &mapopts);
 	COM_EnumerateFiles("maps/*.bsp.xz",	M_Menu_GameOptions_AddMap, &mapopts);
@@ -1099,6 +1141,15 @@ void M_Menu_Network_f (void)
 		"Smooth Demos Only",
 		NULL
 	};
+#ifdef HAVE_DTLS
+	static const char *dtlsopts[] = {
+		"Disabled",
+		"Accept",
+		"Request",
+		"Require",
+		NULL
+	};
+#endif
 	static const char *smoothingvalues[] = {"0", "1", "2", NULL};
 	extern cvar_t cl_download_csprogs, cl_download_redirection, requiredownloads, cl_solid_players;
 	extern cvar_t cl_predict_players, cl_lerp_smooth, cl_predict_extrapolate;
@@ -1111,8 +1162,11 @@ void M_Menu_Network_f (void)
 		MB_EDITCVARSLIM("Network FPS", "cl_netfps", "Sets ammount of FPS used to communicate with server (sent and received)"),
 		MB_EDITCVARSLIM("Rate", "rate", "Maximum bytes per second that the server should send to the client"),
 		MB_EDITCVARSLIM("Download Rate", "drate", "Maximum bytes per second that the server should send maps and demos to the client"),
+#ifdef HAVE_DTLS
+		MB_COMBOCVAR("DTLS Encryption", net_enable_dtls, dtlsopts, NULL, "Use this to avoid snooping. Certificates will be pinned."),
+#endif
 		MB_SPACING(4),
-		MB_CHECKBOXCVARTIP("Require Download", requiredownloads, 0, "Ignore downloaded content sent to the client and connect immediately"),
+		MB_CHECKBOXCVARTIP("Wait for Downloads", requiredownloads, 0, "Ignore downloaded content sent to the client and connect immediately"),
 		MB_CHECKBOXCVARTIP("Redirect Download", cl_download_redirection, 0, "Whether the client will ignore download redirection from servers"),
 		MB_CHECKBOXCVARTIP("Download CSQC", cl_download_csprogs, 0, "Whether to allow the client to download CSQC (client-side QuakeC) progs from servers"),
 		MB_SPACING(4),

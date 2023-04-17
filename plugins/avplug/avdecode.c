@@ -4,7 +4,7 @@
 static plugfsfuncs_t *filefuncs;
 static plugaudiofuncs_t *audiofuncs;
 
-//#include "libavcodec/avcodec.h"
+#include "libavcodec/avcodec.h"
 #include "libavformat/avformat.h"
 #include "libswscale/swscale.h"
 #include "libavutil/imgutils.h"

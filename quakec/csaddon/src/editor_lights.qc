@@ -31,7 +31,7 @@ void() editor_lights_addentities =
 			tempent.effects |= 8192f;
 		}
 		else
-			tempent.effects &~= 8192f;
+			tempent.effects &= ~8192f;
 		if (!(float)dynamiclight_get(l, LFIELD_RADIUS))
 			continue;
 		setorigin(tempent, dynamiclight_get(l, LFIELD_ORIGIN));

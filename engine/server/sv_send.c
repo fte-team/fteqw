@@ -713,7 +713,7 @@ void SV_MulticastProtExt(vec3_t origin, multicast_t to, int dimension_mask, int 
 
 			for (split = client, seat = 0; split; split = split->controlled, seat++)
 			{
-				if (split->protocol == SCP_QUAKEWORLD)
+				//if (split->protocol == SCP_QUAKEWORLD)
 				{
 					if (split->fteprotocolextensions & without)
 					{
@@ -3499,8 +3499,7 @@ void SV_SendClientMessages (void)
 				stepmsec = 13;
 				cmd.msec = stepmsec;
 
-				if (sv_showpredloss.ival)
-					Con_Printf("%s: forcing %g msecs (anti-hover)\n", c->name, cmd.msec);
+				c->hoverms += cmd.msec;
 				VectorCopy(c->lastcmd.angles, cmd.angles);
 				cmd.buttons = c->lastcmd.buttons;
 				SV_RunCmd (&cmd, true);

@@ -6,7 +6,7 @@
 
 #define CSQC
 #define _ACCESSORS
-#pragma target FTE
+#pragma target FTE_5768
 //#pragma optimise 2
 //#pragma optimise no-filename
 

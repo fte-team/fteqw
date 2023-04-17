@@ -1238,11 +1238,11 @@ static int sasl_scramsha1minus_initial(struct sasl_ctx_s *ctx, char *buf, int bu
 }
 static int sasl_scramsha256minus_initial(struct sasl_ctx_s *ctx, char *buf, int bufsize)
 {
-	return sasl_scram_initial(ctx, buf, bufsize, &hash_sha256, false);
+	return sasl_scram_initial(ctx, buf, bufsize, &hash_sha2_256, false);
 }
 static int sasl_scramsha512minus_initial(struct sasl_ctx_s *ctx, char *buf, int bufsize)
 {
-	return sasl_scram_initial(ctx, buf, bufsize, &hash_sha512, false);
+	return sasl_scram_initial(ctx, buf, bufsize, &hash_sha2_512, false);
 }
 static int sasl_scramsha1plus_initial(struct sasl_ctx_s *ctx, char *buf, int bufsize)
 {
@@ -1250,11 +1250,11 @@ static int sasl_scramsha1plus_initial(struct sasl_ctx_s *ctx, char *buf, int buf
 }
 static int sasl_scramsha256plus_initial(struct sasl_ctx_s *ctx, char *buf, int bufsize)
 {
-	return sasl_scram_initial(ctx, buf, bufsize, &hash_sha256, true);
+	return sasl_scram_initial(ctx, buf, bufsize, &hash_sha2_256, true);
 }
 static int sasl_scramsha512plus_initial(struct sasl_ctx_s *ctx, char *buf, int bufsize)
 {
-	return sasl_scram_initial(ctx, buf, bufsize, &hash_sha512, true);
+	return sasl_scram_initial(ctx, buf, bufsize, &hash_sha2_512, true);
 }
 
 static void buf_cat(buf_t *buf, char *data, int len)

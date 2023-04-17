@@ -21,6 +21,7 @@ struct fte_certctx_s
 {
 	const char *peername;
 	qboolean dtls;
+	qboolean failure;
 
 	hashfunc_t *hash;	//if set peer's cert MUST match the specified digest (with this hash function)
 	qbyte digest[DIGEST_MAXSIZE];
@@ -44,6 +45,8 @@ static int OSSL_Bio_FWrite(BIO *h, const char *buf, int size)
 		BIO_set_retry_write(h);
 		r = -1; //paranoia
 	}
+//	else if (r < 0)
+//		Con_DPrintf("ossl Error: %i\n", r);
 	return r;
 }
 static int OSSL_Bio_FRead(BIO *h, char *buf, int size)
@@ -242,7 +245,12 @@ static int OSSL_Verify_Peer(int preverify_ok, X509_STORE_CTX *x509_ctx)
 		uctx->hash->terminate(digest, hctx);
 
 		//return 1 for success
-		return !memcmp(digest, uctx->digest, uctx->hash->digestsize);
+		if (memcmp(digest, uctx->digest, uctx->hash->digestsize))
+		{
+			uctx->failure = true;
+			return 0;
+		}
+		return 1;
 	}
 
 	if(preverify_ok == 0)
@@ -914,7 +922,22 @@ static void OSSL_DestroyContext(void *ctx)
 static neterr_t OSSL_Transmit(void *ctx, const qbyte *data, size_t datasize)
 {	//we're sending data
 	ossldtls_t *o = (ossldtls_t*)ctx;
-	int r = BIO_write(o->bio, data, datasize);
+	int r;
+	if (datasize == 0)	//liveness test. return clogged while handshaking and sent when finished. openssl doesn't like 0-byte writes.
+	{
+		if (o->cert.failure)
+			return NETERR_DISCONNECTED;	//actual security happens elsewhere.
+		else if (SSL_is_init_finished(o->ssl))
+			return NETERR_SENT;	//go on, send stuff.
+		else if (BIO_should_retry(o->bio))
+		{
+			if (BIO_do_handshake(o->bio) == 1)
+				return NETERR_SENT;
+		}
+		return NETERR_CLOGGED;	//can't send yet.
+	}
+	else
+		r = BIO_write(o->bio, data, datasize);
 	if (r <= 0)
 	{
 		if (BIO_should_io_special(o->bio))
@@ -941,7 +964,7 @@ static neterr_t OSSL_Received(void *ctx, sizebuf_t *message)
 	int r;
 
 	if (!message)
-		r = 0;
+		r = BIO_read(o->bio, NULL, 0);
 	else
 	{
 		o->pending = message->data;
@@ -981,7 +1004,52 @@ static neterr_t OSSL_Timeouts(void *ctx)
 	return OSSL_Received(ctx, NULL);
 }
 
-qboolean OSSL_GenTempCertificate(const char *subject, struct dtlslocalcred_s *cred)
+static int OSSL_GetPeerCertificate(void *ctx, enum certprops_e prop, char *out, size_t outsize)
+{
+	ossldtls_t *o = (ossldtls_t*)ctx;
+	X509 *cert;
+
+	safeswitch(prop)
+	{
+	case QCERT_ISENCRYPTED:
+		return 0;	//not an error.
+	case QCERT_PEERCERTIFICATE:
+		cert = SSL_get_peer_certificate(o->ssl);
+		goto returncert;
+	case QCERT_LOCALCERTIFICATE:
+		cert = vhost.servercert;
+		goto returncert;
+returncert:
+		if (cert)
+		{
+			size_t blobsize = i2d_X509(cert, NULL);
+			qbyte *end = out;
+			if (blobsize <= outsize)
+				i2d_X509(cert, &end);
+			return end-(qbyte*)out;
+		}
+		return -1;
+	case QCERT_PEERSUBJECT:
+		{
+			int r;
+			X509 *cert = SSL_get_peer_certificate(o->ssl);
+			if (cert)
+			{
+				X509_NAME *iname = X509_get_subject_name(cert);
+				BIO *bio = BIO_new(BIO_s_mem());
+				X509_NAME_print_ex(bio, iname, 0, XN_FLAG_RFC2253);
+				r = BIO_read(bio, out, outsize-1);
+				out[(r<0)?0:r] = 0;
+				BIO_free(bio);
+				return r;
+			}
+		}
+		return -1;
+	safedefault:
+		return -1;
+	}
+}
+static qboolean OSSL_GenTempCertificate(const char *subject, struct dtlslocalcred_s *cred)
 {
 	EVP_PKEY*pkey = EVP_PKEY_new();
 	RSA		*rsa = RSA_new();
@@ -1033,7 +1101,7 @@ static dtlsfuncs_t ossl_dtlsfuncs =
 	OSSL_Transmit,
 	OSSL_Received,
 	OSSL_Timeouts,
-	NULL,
+	OSSL_GetPeerCertificate,
 	OSSL_GenTempCertificate,
 };
 static const dtlsfuncs_t *OSSL_InitClient(void)
@@ -1172,6 +1240,8 @@ static void OSSL_PluginShutdown(void)
 	EVP_PKEY_free(vhost.privatekey);
 	BIO_meth_free(biometh_vfs);
 	BIO_meth_free(biometh_dtls);
+
+	memset(&vhost, 0, sizeof(vhost));
 }
 static qboolean OSSL_PluginMayShutdown(void)
 {

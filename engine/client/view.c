@@ -1512,20 +1512,32 @@ static int QDECL V_DepthSortTwoEntities(const void *p1,const void *p2)
 }
 void V_DepthSortEntities(float *vieworg)
 {
-	int i;
+	int i, j;
 	vec3_t disp;
 	for (i = 0; i < cl_numvisedicts; i++)
 	{
 		if (cl_visedicts[i].flags & RF_WEAPONMODEL)
 		{	//weapon models have their own extra matrix thing going on. don't mess up because of it.
-			cl_visedicts[i].angles[0] = 0;
+			//however, qsort is not stable so hide ordering in here so they still come out with the same ordering, at least with respect to each other.
+			cl_visedicts[i].angles[0] = -1-i;
 			continue;
 		}
 		if (cl_visedicts[i].rtype == RT_MODEL && cl_visedicts[i].model && cl_visedicts[i].model->type == mod_brush)
 		{
-			VectorAdd(cl_visedicts[i].model->maxs, cl_visedicts[i].model->mins, disp);
-			VectorMA(cl_visedicts[i].origin, 0.5, disp, disp);
-			VectorSubtract(disp, vieworg, disp);
+			if (1)
+			{	//by nearest point.
+				for (j=0 ; j<3 ; j++)
+				{
+					disp[j] = vieworg[j] - cl_visedicts[i].origin[j];
+					disp[j] -= bound(cl_visedicts[i].model->mins[j], disp[j], cl_visedicts[i].model->maxs[j]);
+				}
+			}
+			else
+			{	//by midpoint...
+				VectorAdd(cl_visedicts[i].model->maxs, cl_visedicts[i].model->mins, disp);
+				VectorMA(cl_visedicts[i].origin, 0.5, disp, disp);
+				VectorSubtract(disp, vieworg, disp);
+			}
 		}
 		else
 		{
@@ -2181,7 +2193,7 @@ void R_DrawNameTags(void)
 		}
 		else
 #endif
-		if (w && w->progs && svs.gametype == GT_PROGS)
+		if (w && w->progs && w->progs->saveent)
 		{
 			int best = 0;
 			float bestscore = 0, score = 0;

@@ -2870,7 +2870,7 @@ entity_t *CL_NewTempEntity (void)
 	return ent;
 }
 
-void CSQC_GetEntityOrigin(unsigned int csqcent, float *out);
+qboolean CSQC_GetEntityOrigin(unsigned int csqcent, float *out);
 
 /*
 =================

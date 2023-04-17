@@ -154,6 +154,26 @@ int(int mod, brushface_t *faces, int numfaces, int contents, float selectnow) br
 		brush_select(mod, h->id);
 	return h->id;
 };
+//create and journal.
+int(int mod, patchvert_t *vert, patchinfo_t info, float selectnow) patch_history_create =
+{
+	int totalcp = info.cpwidth * info.cpheight;
+	history_t *h = history_allocate();
+
+	h->patchdata = memalloc(sizeof(patchvert_t) * totalcp);
+	memcpy(h->patchdata, vert, sizeof(patchvert_t) * totalcp);
+	h->patchinfo = info;
+	h->brushmodel = mod;
+	h->wasdelete = FALSE;
+
+	h->id = patch_create(h->brushmodel, 0, vert, info);
+
+	if (!h->id)
+		history_deallocate(h);
+	else if (selectnow)
+		brush_select(mod, h->id);
+	return h->id;
+};
 //delete and journal.
 void(int mod, int id) brush_history_delete =
 {
@@ -190,6 +210,20 @@ int(int mod, int id, brushface_t *faces, int numfaces, int contents) brush_histo
 		selectedbrushes[wasselected-1].id = -id;	//hack so that brush_history_delete won't remove this entry.
 	brush_history_delete(mod, id);
 	id = brush_history_create(mod, faces, numfaces, contents, FALSE);
+	if (wasselected)
+	{
+		selectedbrushes[wasselected-1].id = id;
+		brush_selected(mod, id, -1, TRUE);
+	}
+	return id;
+};
+int(int mod, int id, patchvert_t *vert, patchinfo_t info) patch_history_edit =
+{
+	int wasselected = brush_isselected(mod, id);
+	if (wasselected)
+		selectedbrushes[wasselected-1].id = -id;	//hack so that brush_history_delete won't remove this entry.
+	brush_history_delete(mod, id);
+	id = patch_history_create(mod, vert, info, FALSE);
 	if (wasselected)
 	{
 		selectedbrushes[wasselected-1].id = id;

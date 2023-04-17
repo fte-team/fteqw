@@ -29,20 +29,22 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 extern cvar_t *hud_tracking_show;
 extern cvar_t *hud_miniscores_show;
 
-cvar_t scr_scoreboard_drawtitle = CVARD("scr_scoreboard_drawtitle", "1", "Wastes screen space when looking at the scoreboard.");
-cvar_t scr_scoreboard_forcecolors = CVARD("scr_scoreboard_forcecolors", "0", "Makes the scoreboard colours obey enemycolor/teamcolor rules.");	//damn americans
-cvar_t scr_scoreboard_newstyle = CVARD("scr_scoreboard_newstyle", "1", "Display team colours and stuff in a style popularised by Electro. Looks more modern, but might not quite fit classic huds.");	// New scoreboard style ported from Electro, by Molgrum
-cvar_t scr_scoreboard_showfrags = CVARD("scr_scoreboard_showfrags", "0", "Display kills+deaths+teamkills, as determined by fragfile.dat-based conprint parsing. These may be inaccurate if you join mid-game.");
-cvar_t scr_scoreboard_showflags = CVARD("scr_scoreboard_showflags", "2", "Display flag caps+touches on the scoreboard, where our fragfile.dat supports them.\n0: off\n1: on\n2: on only if someone appears to have interacted with a flag.");
-cvar_t scr_scoreboard_fillalpha = CVARD("scr_scoreboard_fillalpha", "0.7", "Transparency amount for newstyle scoreboard.");
-cvar_t scr_scoreboard_backgroundalpha = CVARD("scr_scoreboard_backgroundalpha", "0.5", "Further multiplier for the background alphas.");
-cvar_t scr_scoreboard_teamscores = CVARD("scr_scoreboard_teamscores", "1", "Makes +showscores act as +showteamscores. Because reasons.");
-cvar_t scr_scoreboard_teamsort = CVARD("scr_scoreboard_teamsort", "0", "On the scoreboard, sort players by their team BEFORE their personal score.");
-cvar_t scr_scoreboard_titleseperator = CVAR("scr_scoreboard_titleseperator", "1");
-cvar_t scr_scoreboard_showruleset = CVAR("scr_scoreboard_showruleset", "1");
-cvar_t sbar_teamstatus = CVARD("sbar_teamstatus", "1", "Display the last team say from each of your team members just above the sbar area.");
+static cvar_t scr_scoreboard_drawtitle = CVARD("scr_scoreboard_drawtitle", "1", "Wastes screen space when looking at the scoreboard.");
+static cvar_t scr_scoreboard_forcecolors = CVARD("scr_scoreboard_forcecolors", "0", "Makes the scoreboard colours obey enemycolor/teamcolor rules.");	//damn americans
+static cvar_t scr_scoreboard_newstyle = CVARD("scr_scoreboard_newstyle", "1", "Display team colours and stuff in a style popularised by Electro. Looks more modern, but might not quite fit classic huds.");	// New scoreboard style ported from Electro, by Molgrum
+static cvar_t scr_scoreboard_showfrags = CVARD("scr_scoreboard_showfrags", "0", "Display kills+deaths+teamkills, as determined by fragfile.dat-based conprint parsing. These may be inaccurate if you join mid-game.");
+static cvar_t scr_scoreboard_showflags = CVARD("scr_scoreboard_showflags", "2", "Display flag caps+touches on the scoreboard, where our fragfile.dat supports them.\n0: off\n1: on\n2: on only if someone appears to have interacted with a flag.");
+static cvar_t scr_scoreboard_fillalpha = CVARD("scr_scoreboard_fillalpha", "0.7", "Transparency amount for newstyle scoreboard.");
+static cvar_t scr_scoreboard_backgroundalpha = CVARD("scr_scoreboard_backgroundalpha", "0.5", "Further multiplier for the background alphas.");
+static cvar_t scr_scoreboard_teamscores = CVARD("scr_scoreboard_teamscores", "1", "Makes +showscores act as +showteamscores. Because reasons.");
+static cvar_t scr_scoreboard_teamsort = CVARD("scr_scoreboard_teamsort", "0", "On the scoreboard, sort players by their team BEFORE their personal score.");
+static cvar_t scr_scoreboard_titleseperator = CVAR("scr_scoreboard_titleseperator", "1");
+static cvar_t scr_scoreboard_showruleset = CVAR("scr_scoreboard_showruleset", "1");
+static cvar_t scr_scoreboard_afk = CVARD("scr_scoreboard_afk", "1", "Show 'afk' in the packetloss column when they're afk.");
+static cvar_t scr_scoreboard_ping_status = CVARD("scr_scoreboard_ping_status", "25 50 100 150", "Threshholds required to switch ping display from green to white, yellow, megenta and red.");
+static cvar_t sbar_teamstatus = CVARD("sbar_teamstatus", "1", "Display the last team say from each of your team members just above the sbar area.");
 
-cvar_t cl_sbaralpha = CVARAFD("cl_sbaralpha", "0.75", "scr_sbaralpha", CVAR_ARCHIVE, "Specifies the transparency of the status bar. Only Takes effect when cl_sbar is set to 2.");	//with premultiplied alpha, this needs to affect the RGB values too.
+static cvar_t cl_sbaralpha = CVARAFD("cl_sbaralpha", "0.75", "scr_sbaralpha", CVAR_ARCHIVE, "Specifies the transparency of the status bar. Only Takes effect when cl_sbar is set to 2.");	//with premultiplied alpha, this needs to affect the RGB values too.
 
 //===========================================
 //rogue changed and added defines
@@ -1165,6 +1167,8 @@ void Sbar_Init (void)
 	Cvar_Register(&scr_scoreboard_showfrags, "Scoreboard settings");
 	Cvar_Register(&scr_scoreboard_showflags, "Scoreboard settings");
 	Cvar_Register(&scr_scoreboard_showruleset, "Scoreboard settings");
+	Cvar_Register(&scr_scoreboard_afk, "Scoreboard settings");
+	Cvar_Register(&scr_scoreboard_ping_status, "Scoreboard settings");
 	Cvar_Register(&scr_scoreboard_fillalpha, "Scoreboard settings");
 	Cvar_Register(&scr_scoreboard_backgroundalpha, "Scoreboard settings");
 	Cvar_Register(&scr_scoreboard_teamscores, "Scoreboard settings");
@@ -1279,7 +1283,7 @@ void Draw_TinyString (float x, float y, const qbyte *str)
 
 	if (!font_tiny)
 	{
-		font_tiny = Font_LoadFont("gfx/tinyfont", 8, 1, 0);
+		font_tiny = Font_LoadFont("gfx/tinyfont", 8, 1, 0, 0);
 		if (!font_tiny)
 			return;
 	}
@@ -3385,7 +3389,16 @@ ping time frags name
 {														\
 	int p = s->ping;									\
 	if (p < 0 || p > 999) p = 999;						\
-	sprintf(num, "%4i", p);								\
+	if (p >= scr_scoreboard_ping_status.vec4[3] && scr_scoreboard_ping_status.vec4[3] && *scr_scoreboard_ping_status.string)	\
+		sprintf(num, S_COLOR_RED"%4i", p);			\
+	else if (p >= scr_scoreboard_ping_status.vec4[2] && scr_scoreboard_ping_status.vec4[2])	\
+		sprintf(num, S_COLOR_MAGENTA"%4i", p);			\
+	else if (p >= scr_scoreboard_ping_status.vec4[1] && scr_scoreboard_ping_status.vec4[1])	\
+		sprintf(num, S_COLOR_YELLOW"%4i", p);			\
+	else if (p >= scr_scoreboard_ping_status.vec4[0] || !scr_scoreboard_ping_status.vec4[0])	\
+		sprintf(num, S_COLOR_WHITE"%4i", p);			\
+	else												\
+		sprintf(num, S_COLOR_GREEN"%4i", p);							\
 	Draw_FunStringWidth(x, y, num, 4*8, false, false);	\
 },NOFILL)
 
@@ -3397,9 +3410,14 @@ ping time frags name
 },NOFILL)
 #define COLUMN_TIME COLUMN(time, 4*8,					\
 {														\
-	total = realtime - s->realentertime;				\
-	minutes = (int)total/60;							\
-	sprintf (num, "%4i", minutes);						\
+	if (scr_scoreboard_afk.ival && s->chatstate&2)		\
+		sprintf (num, S_COLOR_RED"afk");				\
+	else												\
+	{													\
+		total = realtime - s->realentertime;			\
+		minutes = (int)total/60;						\
+		sprintf (num, "%4i", minutes);					\
+	}													\
 	Draw_FunStringWidth(x, y, num, 4*8, false, false);	\
 },NOFILL)
 #define COLUMN_FRAGS COLUMN(frags, 5*8,					\

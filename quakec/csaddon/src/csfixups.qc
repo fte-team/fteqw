@@ -27,6 +27,7 @@ void() csfixups =
 	ptr_self				= (entity*)externvalue(0, "&self");
 };
 
+int *world_hitcontentsmaski; //evilness, so we can assign to world without errors.
 
 vector mousenear;
 vector mousefar;

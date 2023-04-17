@@ -169,6 +169,7 @@ enum
 
 	SBITS_TESSELLATION					= 0x00100000,
 	SBITS_AFFINE						= 0x00200000,
+	SBITS_MISC_FULLRATE					= 0x00400000,	//don't use half-rate shading (for text/ui)
 
 	//provided for the backend to hack about with
 	SBITS_LINES							= 0x80000000
@@ -653,7 +654,6 @@ struct shader_s
 		SHADER_HASLIGHTMAP		= 1 << 16,
 		SHADER_HASTOPBOTTOM		= 1 << 17,
 		SHADER_HASREFLECTCUBE	= 1 << 18,	//shader has a T_GEN_REFLECTCUBE pass (otherwise we can skip surf envmaps for better batching)
-//		SHADER_STATICDATA		= 1 << 18,	//set if true: no deforms, no tcgen, rgbgen=identitylighting, alphagen=identity, tmu0=st + tmu1=lm(if available) for every pass, no norms
 		SHADER_HASREFLECT		= 1 << 19,	//says that we need to generate a reflection image first
 		SHADER_HASREFRACT		= 1 << 20,	//says that we need to generate a refraction image first
 		SHADER_HASREFRACTDEPTH	= 1 << 21,	//refraction generation needs to generate a depth texture too.

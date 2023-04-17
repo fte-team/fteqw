@@ -31,9 +31,15 @@ void QDECL joyaxiscallback(cvar_t *var, char *oldvalue)
 {
 	int sign;
 	char *end;
-	strtol(var->string, &end, 0);
-	if (!*end)	//okay, its missing or an actual number.
+	sign = strtol(var->string, &end, 0);
+	if (!*end)
+	{
+		//okay, its missing or an actual number.
+		if (sign >= -6  &&  sign <= 6) {
+			var->ival = sign;
+		}
 		return;
+	}
 
 	end = var->string;
 	if (*end == '-')

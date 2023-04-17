@@ -95,6 +95,9 @@ static uint32_t SDL_GiveFinger(SDL_JoystickID jid, SDL_TouchID tid, SDL_FingerID
 
 #if SDL_MAJOR_VERSION >= 2
 #define MAX_JOYSTICKS 16
+#ifndef MAXJOYAXIS
+#define MAXJOYAXIS 6
+#endif
 
 static struct
 {
@@ -154,6 +157,8 @@ static struct sdljoy_s
 	float buttonrepeat[countof(gpbuttonmap)];
 } sdljoy[MAX_JOYSTICKS]; 
 
+static cvar_t joy_only = CVARD("joyonly", "0", "If true, treats \"game controllers\" as regular joysticks.\nMust be set at startup.");
+
 //the enumid is the value for the open function rather than the working id.
 static void J_AllocateDevID(struct sdljoy_s *joy)
 {
@@ -184,6 +189,10 @@ static void J_ControllerAdded(int enumid)
 {
 	const char *cname;
 	int i;
+
+	if (joy_only.ival)
+		return;
+
 	for (i = 0; i < MAX_JOYSTICKS; i++)
 		if (sdljoy[i].controller == NULL && sdljoy[i].joystick == NULL)
 			break;
@@ -213,7 +222,7 @@ static void J_JoystickAdded(int enumid)
 	if (i == MAX_JOYSTICKS)
 		return;
 
-	if (SDL_IsGameController(enumid))	//if its reported via the gamecontroller api then use that instead. don't open it twice.
+	if (!joy_only.ival  &&  SDL_IsGameController(enumid))	//if its reported via the gamecontroller api then use that instead. don't open it twice.
 		return;
 
 	sdljoy[i].joystick = SDL_JoystickOpen(enumid);
@@ -283,11 +292,17 @@ static void J_ControllerAxis(SDL_JoystickID jid, int axis, int value)
 }
 static void J_JoystickAxis(SDL_JoystickID jid, int axis, int value)
 {
-	static const int axismap[] = {0,1,3,4,2,5};
-
 	struct sdljoy_s *joy = J_DevId(jid);
-	if (joy && !joy->controller && axis < sizeof(axismap)/sizeof(axismap[0]) && joy->qdevid != DEVID_UNSET)
-		IN_JoystickAxisEvent(joy->qdevid, axismap[axis], value / 32767.0);
+
+	if (joy->qdevid == DEVID_UNSET)
+	{
+		if (abs(value) < 0x1000)
+			return;
+		J_AllocateDevID(joy);
+	}
+
+	if (joy && !joy->controller && axis < MAXJOYAXIS && joy->qdevid != DEVID_UNSET)
+		IN_JoystickAxisEvent(joy->qdevid, axis, value / 32767.0);
 }
 //we don't do hats and balls and stuff.
 static void J_ControllerButton(SDL_JoystickID jid, int button, qboolean pressed)
@@ -499,7 +514,10 @@ static void J_ControllerSensor(SDL_JoystickID jid, SDL_SensorType sensor, float 
 	case SDL_SENSOR_GYRO:
 		IN_Gyroscope(joy->qdevid, data[0], data[1], data[2]);
 		break;
-
+	case SDL_SENSOR_ACCEL_L:
+	case SDL_SENSOR_ACCEL_R:
+	case SDL_SENSOR_GYRO_L:
+	case SDL_SENSOR_GYRO_R:
 	case SDL_SENSOR_INVALID:
 	case SDL_SENSOR_UNKNOWN:
 	default:
@@ -1455,6 +1473,7 @@ void INS_Init (void)
 #ifdef HAVE_SDL_TEXTINPUT
 	Cvar_Register(&sys_osk, "input controls");
 #endif
+	Cvar_Register (&joy_only, "input controls");
 
 #ifdef HAVE_SDL_TEXTINPUT
 #ifdef __linux__

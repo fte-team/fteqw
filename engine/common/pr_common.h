@@ -356,6 +356,7 @@ void QCBUILTIN PF_brush_findinvolume(pubprogfuncs_t *prinst, struct globalvars_s
 void QCBUILTIN PF_patch_getcp(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 void QCBUILTIN PF_patch_getmesh(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 void QCBUILTIN PF_patch_create(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_patch_evaluate(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 #endif
 
 void QCBUILTIN PF_touchtriggers(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);

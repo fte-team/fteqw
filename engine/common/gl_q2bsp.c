@@ -559,7 +559,8 @@ static void Patch_Evaluate_QuadricBezier( float t, const vec_t *point0, const ve
 Patch_Evaluate
 ===============
 */
-static void Patch_Evaluate( const vec_t *p, const unsigned short *numcp, const int *tess, vec_t *dest, int comp )
+#define Patch_Evaluate(p,numcp,tess,dest, comp) Patch_EvaluateStride(p,comp,numcp,tess,dest,comp,comp)
+static void Patch_EvaluateStride(const vec_t *p, int pstride, const unsigned short *numcp, const int *tess, vec_t *dest, int deststride, int comp)
 {
 	int num_patches[2], num_tess[2];
 	int index[3], dstpitch, i, u, v, x, y;
@@ -570,14 +571,15 @@ static void Patch_Evaluate( const vec_t *p, const unsigned short *numcp, const i
 
 	if (!tess[0] || !tess[1])
 	{	//not really a patch
-		for( i = 0; i < comp*numcp[1]*numcp[0]; i++ )
-			dest[i] = p[i];
+		for( u = 0; u < numcp[1]*numcp[0]; u++, dest += deststride, p += pstride)
+			for( i = 0; i < comp; i++ )
+				dest[i] = p[i];
 		return;
 	}
 
 	num_patches[0] = numcp[0] / 2;
 	num_patches[1] = numcp[1] / 2;
-	dstpitch = ( num_patches[0] * tess[0] + 1 ) * comp;
+	dstpitch = ( num_patches[0] * tess[0] + 1 ) * deststride;
 
 	step[0] = 1.0f / (float)tess[0];
 	step[1] = 1.0f / (float)tess[1];
@@ -605,24 +607,113 @@ static void Patch_Evaluate( const vec_t *p, const unsigned short *numcp, const i
 			// current 3x3 patch control points
 			for( i = 0; i < 3; i++ )
 			{
-				pv[i][0] = &p[( index[0]+i ) * comp];
-				pv[i][1] = &p[( index[1]+i ) * comp];
-				pv[i][2] = &p[( index[2]+i ) * comp];
+				pv[i][0] = &p[( index[0]+i ) * pstride];
+				pv[i][1] = &p[( index[1]+i ) * pstride];
+				pv[i][2] = &p[( index[2]+i ) * pstride];
 			}
 
-			tvec = dest + v * tess[1] * dstpitch + u * tess[0] * comp;
+			tvec = dest + v * tess[1] * dstpitch + u * tess[0] * deststride;
 			for( y = 0, t = 0.0f; y < num_tess[1]; y++, t += step[1], tvec += dstpitch )
 			{
 				Patch_Evaluate_QuadricBezier( t, pv[0][0], pv[0][1], pv[0][2], v1, comp );
 				Patch_Evaluate_QuadricBezier( t, pv[1][0], pv[1][1], pv[1][2], v2, comp );
 				Patch_Evaluate_QuadricBezier( t, pv[2][0], pv[2][1], pv[2][2], v3, comp );
 
-				for( x = 0, tvec2 = tvec, s = 0.0f; x < num_tess[0]; x++, s += step[0], tvec2 += comp )
+				for( x = 0, tvec2 = tvec, s = 0.0f; x < num_tess[0]; x++, s += step[0], tvec2 += deststride )
 					Patch_Evaluate_QuadricBezier( s, v1, v2, v3, tvec2, comp );
 			}
 		}
 	}
 }
+#ifdef TERRAIN
+#include "gl_terrain.h"
+patchtessvert_t *PatchInfo_Evaluate(const qcpatchvert_t *cp, const unsigned short patch_cp[2], const short subdiv[2], unsigned short *size)
+{
+	int step[2], flat[2];
+	float subdivlevel;
+	unsigned int numverts;
+	patchtessvert_t *out;
+	int i;
+
+	if (subdiv[0]>=0 && subdiv[1]>=0)
+	{	//fixed
+		step[0] = subdiv[0];
+		step[1] = subdiv[1];
+	}
+	else
+	{
+		// find the degree of subdivision in the u and v directions
+		subdivlevel = bound(1, r_subdivisions.ival, 15);
+		Patch_GetFlatness ( subdivlevel, cp->v, sizeof(*cp)/sizeof(vec_t), patch_cp, flat );
+
+		step[0] = 1 << flat[0];
+		step[1] = 1 << flat[1];
+	}
+	if (!step[0] || !step[1])
+	{
+		size[0] = patch_cp[0];
+		size[1] = patch_cp[1];
+	}
+	else
+	{
+		size[0] = ( patch_cp[0] >> 1 ) * step[0] + 1;
+		size[1] = ( patch_cp[1] >> 1 ) * step[1] + 1;
+	}
+	if( size[0] <= 0 || size[1] <= 0 )
+		return NULL;
+
+	numverts = (unsigned int)size[0] * size[1];
+
+// fill in
+
+	out = BZ_Malloc(sizeof(*out) * numverts);
+	for (i = 0; i < numverts*sizeof(*out)/sizeof(vec_t); i++)
+		((vec_t *)out)[i] = -1;
+	Patch_EvaluateStride ( cp->v, sizeof(*cp)/sizeof(vec_t), patch_cp, step, out->v, sizeof(*out)/sizeof(vec_t), countof(cp->v));
+	Patch_EvaluateStride ( cp->rgba, sizeof(*cp)/sizeof(vec_t), patch_cp, step, out->rgba, sizeof(*out)/sizeof(vec_t), countof(cp->rgba));
+	Patch_EvaluateStride ( cp->tc, sizeof(*cp)/sizeof(vec_t), patch_cp, step, out->tc, sizeof(*out)/sizeof(vec_t), countof(cp->tc));
+
+	return out;
+}
+unsigned int PatchInfo_EvaluateIndexes(const unsigned short *size, index_t *out_indexes)
+{
+	int i, u, v, p;
+// compute new indexes avoiding adding invalid triangles
+	unsigned int numindexes = 0;
+	index_t	*indexes = out_indexes;
+	for (v = 0, i = 0; v < size[1]-1; v++)
+	{
+		for (u = 0; u < size[0]-1; u++, i += 6)
+		{
+			indexes[0] = p = v * size[0] + u;
+			indexes[1] = p + size[0];
+			indexes[2] = p + 1;
+
+//			if ( !VectorEquals(mesh->xyz_array[indexes[0]], mesh->xyz_array[indexes[1]]) &&
+//				!VectorEquals(mesh->xyz_array[indexes[0]], mesh->xyz_array[indexes[2]]) &&
+//				!VectorEquals(mesh->xyz_array[indexes[1]], mesh->xyz_array[indexes[2]]) )
+			{
+				indexes += 3;
+				numindexes += 3;
+			}
+
+			indexes[0] = p + 1;
+			indexes[1] = p + size[0];
+			indexes[2] = p + size[0] + 1;
+
+//			if ( !VectorEquals(mesh->xyz_array[indexes[0]], mesh->xyz_array[indexes[1]]) &&
+//				!VectorEquals(mesh->xyz_array[indexes[0]], mesh->xyz_array[indexes[2]]) &&
+//				!VectorEquals(mesh->xyz_array[indexes[1]], mesh->xyz_array[indexes[2]]) )
+			{
+				indexes += 3;
+				numindexes += 3;
+			}
+		}
+	}
+
+	return numindexes;
+}
+#endif
 
 
 #define	PLANE_NORMAL_EPSILON	0.00001

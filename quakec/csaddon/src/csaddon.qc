@@ -183,7 +183,7 @@ void() wrap_renderscene =
 		return;
 	}
 	
-	if (mousedown == 2)
+	if (mousedown & 2)
 	{	//RMB re-enables mlook
 		if (releasedmouse)
 		{
@@ -269,8 +269,8 @@ void() wrap_renderscene =
 	drawcharacter(curmousepos - '4 4', '+', '8 8', '1 1 1', 1);
 };
 
-var float(float,float,float) orig_input_event = __NULL__;
-float (float event, float parama, float paramb) wrap_InputEvent =
+var float(float,float,float,float) orig_input_event = __NULL__;
+float (float event, float parama, float paramb, float devid) CSQC_InputEvent =
 {
 	if (event == IE_KEYDOWN || event == IE_KEYUP)
 	{
@@ -341,23 +341,32 @@ float (float event, float parama, float paramb) wrap_InputEvent =
 			}
 			if (parama == K_MOUSE1)
 			{
-				mousedown = 1;
+				mousedown |= 1;
 				return TRUE;
 			}
 			if (parama == K_MOUSE2)
 			{
-				mousedown = 2;
+				mousedown |= 2;
+				return TRUE;
+			}
+			if (parama == K_MOUSE3)
+			{
+				mousedown |= 4;
 				return TRUE;
 			}
 		}
 		else if (event == IE_KEYUP)
 		{
-			if (parama == K_MOUSE1-1+mousedown)
-				mousedown = FALSE;
+			if (parama == K_MOUSE1)
+				mousedown &= ~1;
+			if (parama == K_MOUSE2)
+				mousedown &= ~2;
+			if (parama == K_MOUSE3)
+				mousedown &= ~4;
 		}
 		else if (event == IE_MOUSEDELTA)
 		{
-			if (mousedown == 2)
+			if (mousedown & 2)
 				return FALSE;
 			originalmousepos = curmousepos;
 			curmousepos_x += parama;
@@ -377,7 +386,7 @@ float (float event, float parama, float paramb) wrap_InputEvent =
 		{
 			curmousepos_x = parama;
 			curmousepos_y = paramb;
-			if (mousedown == 2)
+			if (mousedown & 2)
 				return FALSE;
 			return TRUE;
 		}
@@ -403,7 +412,7 @@ float (float event, float parama, float paramb) wrap_InputEvent =
 #endif
 
 	if (orig_input_event)
-		return orig_input_event(event, parama, paramb);
+		return orig_input_event(event, parama, paramb, devid);
 	return FALSE;
 };
 
@@ -520,7 +529,7 @@ void() CSQC_Input_Frame =
 
 	if (pointedshadername != "")
 	{
-		input_buttons = input_buttons - (input_buttons & 1);
+		input_buttons &= ~1;
 
 		makevectors(input_angles);
 		if (v_forward * pointedsurfacenormal >= 0)
@@ -607,10 +616,10 @@ float(string cmd) CSQC_ConsoleCommand =
 };
 
 /*this is a fallback function, in case the main progs does not have one*/
-float (float event, float parama, float paramb, float devid) CSQC_InputEvent =
+/*float (float event, float parama, float paramb, float devid) CSQC_InputEvent =
 {
 	return wrap_InputEvent(event, parama, paramb);
-};
+};*/
 
 void(float prevprogs) init =
 {
@@ -626,9 +635,9 @@ void(float prevprogs) init =
 		externset(0, wrap_renderscene, "renderscene");
 		externset(0, wrap_addentities, "addentities");
 
-		/*wrap the parent's input event function*/
-		orig_input_event = (float(float, float, float))externvalue(0, "CSQC_InputEvent");
-		externset(0, wrap_InputEvent, "CSQC_InputEvent");
+		/*wrap the parent's input event function in favour of ours*/
+		orig_input_event = (float(float, float, float, float))externvalue(0, "CSQC_InputEvent");
+		externset(0, CSQC_InputEvent, "CSQC_InputEvent");
 	}
 	csfixups();
 	localcmd(sprintf("alias rtlight_editor \"set ca_show 1; set ca_editormode %g\"\n", MODE_LIGHTEDIT));
@@ -640,11 +649,16 @@ void(float prevprogs) init =
 	//brush editor needs some commands for easier binds.
 	editor_brushes_registercommands();
 };
+void() initents =
+{
+	world_hitcontentsmaski = &world.hitcontentsmaski;
+}
 
 void() CSQC_Shutdown =
 {
 #ifdef CAMQUAKE
 	spline_shutdown();
 #endif
+	brush_deselectall();	//so they don't stay hidden when restarted...
 };
 

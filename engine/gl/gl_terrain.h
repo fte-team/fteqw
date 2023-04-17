@@ -259,13 +259,32 @@ typedef struct brushtex_s
 	struct brushtex_s *next;
 } brushtex_t;
 
+typedef struct patchtessvert_s
+{
+	vec3_t v;
+	vec4_t rgba;
+	vec2_t tc;
+//	vec3_t norm;
+//	vec3_t sdir;
+//	vec3_t tdir;
+} patchtessvert_t;
+typedef struct qcpatchvert_s
+{
+	vec3_t v;
+	vec4_t rgba;
+	vec2_t tc;
+} qcpatchvert_t;
+patchtessvert_t *PatchInfo_Evaluate(const qcpatchvert_t *cp, const unsigned short patch_cp[2], const short subdiv[2], unsigned short *size);
+unsigned int PatchInfo_EvaluateIndexes(const unsigned short *size, index_t *out_indexes);
+
 typedef struct
 {
-	unsigned int	contents;
+	unsigned int	contents;	//bitmask
 	unsigned int	id;			//networked/gamecode id.
 	unsigned int	axialplanes;	//+x,+y,+z,-x,-y,-z. used for bevel stuff.
 	unsigned int	numplanes;
 	unsigned char	selected:1;	//different shader stuff
+	unsigned char	ispatch:1;	//just for parsing really
 	vec4_t			*planes;
 	vec3_t			mins, maxs;	//for optimisation and stuff
 	struct patchdata_s
@@ -275,23 +294,10 @@ typedef struct
 		short subdiv[2];	//<0=regular q3 patch, 0=cp-only, >0=fixed-tessellation.
 
 		unsigned short tesssize[2];
-		struct patchtessvert_s
-		{
-			vec3_t v;
-			vec2_t tc;
-			vec4_t rgba;
-//			vec3_t norm;
-//			vec3_t sdir;
-//			vec3_t tdir;
-		} *tessvert; //x+(y*tesssize[0])
+		patchtessvert_t *tessvert; //x+(y*tesssize[0])
 
 		//control points
-		struct patchcpvert_s
-		{
-			vec3_t v;
-			vec2_t tc;
-			vec4_t rgba;
-		} cp[1]; //x+(y*numcp[0]) extends past end of patchdata_s
+		qcpatchvert_t cp[1]; //x+(y*numcp[0]) extends past end of patchdata_s
 	} *patch;	//if this is NULL, then its a regular brush. otherwise its a patch.
 	struct brushface_s
 	{
@@ -311,6 +317,28 @@ typedef struct
 		qbyte *lightdata;
 	} *faces;
 } brushes_t;
+
+typedef struct
+{
+	string_t	shadername;
+	vec3_t		planenormal;
+	float		planedist;
+	vec3_t		sdir;
+	float		sbias;
+	vec3_t		tdir;
+	float		tbias;
+} qcbrushface_t;
+typedef struct
+{
+	string_t	shadername;
+	unsigned int contents;
+	unsigned int cp_width;
+	unsigned int cp_height;
+	unsigned int subdiv_x;
+	unsigned int subdiv_y;
+	vec3_t		texinfo;
+} qcpatchinfo_t;
+
 typedef struct heightmap_s
 {
 	char path[MAX_QPATH];

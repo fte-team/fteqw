@@ -692,7 +692,7 @@ vfsfile_t *FS_OpenTCP(const char *name, int defaultport, qboolean assumetls);
 
 vfsfile_t *FS_OpenWithFriends(const char *fname, char *sysname, size_t sysnamesize, int numfriends, ...);
 
-#define countof(array) (sizeof(array)/sizeof(array[0]))
+#define countof(array) (sizeof(array)/sizeof((array)[0]))
 #ifdef _WIN32
 //windows doesn't support utf-8. Which is a shame really, because that's the charset we expect from everything.
 char *narrowen(char *out, size_t outlen, wchar_t *wide);

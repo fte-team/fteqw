@@ -11797,9 +11797,9 @@ static BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	"} patchvert_t;\n"				\
 	"#define patch_delete(modelidx,patchidx) brush_delete(modelidx,patchidx)\n"
 	{"patch_getcp",		PF_patch_getcp,		0,		0,		0,		0,		D(qcpatchvert "int(float modelidx, int patchid, patchvert_t *out_controlverts, int maxcp, patchinfo_t *out_info)", "Queries a patch's information. You must pre-allocate the face array for the builtin to write to. Return value is the total number of control verts that were retrieved, 0 on error.")},
-	{"patch_getmesh",	PF_patch_getmesh,	0,		0,		0,		0,		D("int(float modelidx, int patchid, patchvert_t *out_verts, int maxverts, __out patchinfo_t out_info)", "Queries a patch's information. You must pre-allocate the face array for the builtin to write to. Return value is the total number of control verts that were retrieved, 0 on error.")},
+	{"patch_getmesh",	PF_patch_getmesh,	0,		0,		0,		0,		D("int(float modelidx, int patchid, patchvert_t *out_verts, int maxverts, patchinfo_t *out_info)", "Queries a patch's information. You must pre-allocate the face array for the builtin to write to. Return value is the total number of control verts that were retrieved, 0 on error.")},
 	{"patch_create",	PF_patch_create,	0,		0,		0,		0,		D("int(float modelidx, int oldpatchid, patchvert_t *in_controlverts, patchinfo_t in_info)", "Inserts a new patch into the model. Return value is the new patch's id.")},
-//	{"patch_calculate",	PF_patch_calculate,	0,		0,		0,		0,		D("int(patchvert_t *in_controlverts, patchvert_t *out_renderverts, int maxout, __inout patchinfo_t inout_info)", "Calculates the geometry of a hyperthetical patch.")},
+	{"patch_evaluate",	PF_patch_evaluate,	0,		0,		0,		0,		D("int(patchvert_t *in_controlverts, patchvert_t *out_renderverts, int maxout, patchinfo_t *inout_info)", "Calculates the geometry of a hyperthetical patch.")},
 #endif
 
 #ifdef ENGINE_ROUTING

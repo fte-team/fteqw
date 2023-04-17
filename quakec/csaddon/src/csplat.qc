@@ -2414,11 +2414,12 @@ typedef struct
 int(float modelidx, int patchid, patchvert_t *out_controlverts, int maxcp, patchinfo_t *out_info) patch_getcp = #0:patch_getcp; /*
 		Queries a patch's information. You must pre-allocate the face array for the builtin to write to. Return value is the total number of control verts that were retrieved, 0 on error. */
 
-int(float modelidx, int patchid, patchvert_t *out_verts, int maxverts, __out patchinfo_t out_info) patch_getmesh = #0:patch_getmesh; /*
+int(float modelidx, int patchid, patchvert_t *out_verts, int maxverts, patchinfo_t *out_info) patch_getmesh = #0:patch_getmesh; /*
 		Queries a patch's information. You must pre-allocate the face array for the builtin to write to. Return value is the total number of control verts that were retrieved, 0 on error. */
 
 int(float modelidx, int oldpatchid, patchvert_t *in_controlverts, patchinfo_t in_info) patch_create = #0:patch_create; /*
 		Inserts a new patch into the model. Return value is the new patch's id. */
+int(patchvert_t *in_controlverts, patchvert_t *out_renderverts, int maxout, patchinfo_t *inout_info) patch_evaluate = #0;
 
 typedef struct
 {

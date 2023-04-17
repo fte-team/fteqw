@@ -67,7 +67,7 @@ int(brushface_t *fa, int famax, vector *points, int numpoints, float height) Bru
 
 vector(vector guess) brush_snappoint =
 {
-	if (nogrid)
+	if (nogrid || autocvar_ca_grid <= 0)
 		return guess;
 	int facenum, points;
 	float bestdist = autocvar_ca_grid*autocvar_ca_grid;	//worst case value so we don't snap to grid when there's a vertex 0.001qu away from the grid.
@@ -107,36 +107,60 @@ vector(vector guess) brush_snappoint =
 
 
 //move a brush so that its planes all move without any translations in positions or texcoords
-void brushface_translate(brushface_t *fa, int numfaces, vector displacement)
+void brushface_translate(vector displacement)
 {
 	int i;
-	for (i = 0; i < numfaces; i++, fa++)
+	if (tmp.numcp)
 	{
-		fa->planedist += fa->planenormal * displacement;
-		fa->sbias -= fa->sdir * displacement;
-		fa->tbias -= fa->tdir * displacement;
+		for (i = 0; i < tmp.numcp; i++)
+			tmp.cp[i].xyz += displacement;
+	}
+	else
+	{
+		for (i = 0; i < tmp.numfaces; i++)
+		{
+			tmp.faces[i].planedist += tmp.faces[i].planenormal * displacement;
+			tmp.faces[i].sbias -= tmp.faces[i].sdir * displacement;
+			tmp.faces[i].tbias -= tmp.faces[i].tdir * displacement;
+		}
 	}
 };
 //rotates a list of faces by the current v_* vectors, around the origin.
 //translate before+after first in order to deal with pivots.
-void brushface_rotate(brushface_t *fa, int numfaces)
+void brushface_rotate(void)
 {
-	for (int i = 0; i < numfaces; i++, fa++)
+	if (tmp.numcp)
 	{
-		vector orig = fa->planenormal;
-		fa->planenormal[0] = orig * v_forward;
-		fa->planenormal[1] = orig * -v_right;	//quake just isn't right...
-		fa->planenormal[2] = orig * v_up;
+		for (int i = 0; i < tmp.numcp; i++)
+		{
+			vector orig = tmp.cp[i].xyz;
+			tmp.cp[i].xyz = [orig * v_forward,
+					orig * -v_right,
+					orig * v_up];
+			//don't need to touch tcs
+		}
+	}
+	else
+	{
+		brushface_t *fa = tmp.faces;
+		int numfaces = tmp.numfaces;
+		for (int i = 0; i < numfaces; i++, fa++)
+		{
+			vector orig = fa->planenormal;
+			fa->planenormal[0] = orig * v_forward;
+			fa->planenormal[1] = orig * -v_right;	//quake just isn't right...
+			fa->planenormal[2] = orig * v_up;
 
-		orig = fa->sdir;
-		fa->sdir[0] = orig * v_forward;
-		fa->sdir[1] = orig * -v_right;	//quake just isn't right...
-		fa->sdir[2] = orig * v_up;
+			orig = fa->sdir;
+			fa->sdir[0] = orig * v_forward;
+			fa->sdir[1] = orig * -v_right;	//quake just isn't right...
+			fa->sdir[2] = orig * v_up;
 
-		orig = fa->tdir;
-		fa->tdir[0] = orig * v_forward;
-		fa->tdir[1] = orig * -v_right;	//quake just isn't right...
-		fa->tdir[2] = orig * v_up;
+			orig = fa->tdir;
+			fa->tdir[0] = orig * v_forward;
+			fa->tdir[1] = orig * -v_right;	//quake just isn't right...
+			fa->tdir[2] = orig * v_up;
+		}
 	}
 };
 
@@ -415,14 +439,34 @@ void() brushedit_resettextures =
 	{
 		int model = selectedbrushes[sb].model;
 		int brush = selectedbrushes[sb].id;
-		int face = selectedbrushes[sb].face;
+		__uint64 facemask = selectedbrushes[sb].facemask;
 		
 		int planecount = brush_get(model, brush, tmp.faces, tmp.faces.length, &tmp.contents);		
 		if (planecount)
 		{
 			for (int i = 0; i < planecount; i++)
-				if (!face || face == planecount+1)
+				if (facemask & (1lu << i))
 					reset_texturecoords(&tmp.faces[i]);
+
+			brush_history_edit(model, brush, tmp.faces, planecount, tmp.contents);
+		}
+	}
+};
+
+void(string newtexture) brushedit_settexture =
+{
+	for (int sb = 0; sb < selectedbrushcount; sb++)
+	{
+		int model = selectedbrushes[sb].model;
+		int brush = selectedbrushes[sb].id;
+		__uint64 facemask = selectedbrushes[sb].facemask;
+		
+		int planecount = brush_get(model, brush, tmp.faces, tmp.faces.length, &tmp.contents);		
+		if (planecount)
+		{
+			for (int i = 0; i < planecount; i++)
+				if (facemask & (1lu << i))
+					tmp.faces[i].shadername = newtexture;
 
 			brush_history_edit(model, brush, tmp.faces, planecount, tmp.contents);
 		}

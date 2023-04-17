@@ -7209,7 +7209,7 @@ static struct {
 	{"patch_getcp",				PF_patch_getcp,			0},
 	{"patch_getmesh",			PF_patch_getmesh,		0},
 	{"patch_create",			PF_patch_create,		0},
-//	{"patch_calculate",			PF_patch_calculate,		0},
+	{"patch_evaluate",			PF_patch_evaluate,		0},
 #endif
 
 #ifdef ENGINE_ROUTING
@@ -8438,7 +8438,9 @@ qboolean CSQC_Init (qboolean anycsqc, const char *csprogsname, unsigned int chec
 				Con_Printf(CON_WARNING"Unable to load \"csprogsvers/%x.dat\"\n", csprogs_checksum);
 		}
 		
-		if (csqc_singlecheats || anycsqc)
+		if (csprogsnum >= 0 && !Q_strcasecmp(csprogs_checkname, "csaddon.dat"))
+			;	//using csaddon directly... map editor mode?
+		else if (csqc_singlecheats || anycsqc)
 		{
 			csaddonnum = PR_LoadProgs(csqcprogs, "csaddon.dat");
 			if (csaddonnum >= 0)

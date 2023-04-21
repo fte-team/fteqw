@@ -739,7 +739,7 @@ typedef struct
 	{
 		MANIFEST_SECURITY_NOT,		//don't trust it, don't even allow downloadsurl.
 		MANIFEST_SECURITY_DEFAULT,	//the default.fmf file may suggest packages+force sources
-		MANIFEST_SECURITY_INSTALLER	//built-in fmf files can force packages+sources
+		MANIFEST_SECURITY_INSTALLER	//built-in fmf files can 'force' packages+sources
 	} security;		//manifest was embedded in the engine. don't assume its already installed, but ask to install it (also, enable some extra permissions for writing dlls)
 
 	enum
@@ -763,6 +763,7 @@ typedef struct
 #ifdef PACKAGEMANAGER
 	char *downloadsurl;	//optional installable files (menu)
 	char *installupd;	//which download/updated package to install.
+	qboolean installable;	//(expected) available packages give a playable experience, even if just a basic/demo version.
 #endif
 	char *protocolname;	//the name used for purposes of dpmaster
 	char *defaultexec;	//execed after cvars are reset, to give game-specific engine-defaults.
@@ -814,6 +815,7 @@ qboolean PM_CanInstall(const char *packagename);
 void COM_InitFilesystem (void);	//does not set up any gamedirs.
 qboolean FS_DownloadingPackage(void);
 void FS_CreateBasedir(const char *path);
+qboolean FS_DirHasAPackage(char *basedir, ftemanifest_t *man);
 qboolean FS_ChangeGame(ftemanifest_t *newgame, qboolean allowreloadconfigs, qboolean allowbasedirchange);
 qboolean FS_GameIsInitialised(void);
 void FS_Shutdown(void);
@@ -844,7 +846,8 @@ void FS_CloseMapPackFile (searchpathfuncs_t *archive);
 void COM_FlushTempoaryPacks(void);
 
 void COM_EnumerateFiles (const char *match, int (QDECL *func)(const char *fname, qofs_t fsize, time_t mtime, void *parm, searchpathfuncs_t *spath), void *parm);
-searchpathfuncs_t *FS_OpenPackByExtension(vfsfile_t *f, searchpathfuncs_t *parent, const char *filename, const char *pakname);
+void COM_EnumerateFilesReverse (const char *match, int (QDECL *func)(const char *fname, qofs_t fsize, time_t mtime, void *parm, searchpathfuncs_t *spath), void *parm);
+searchpathfuncs_t *FS_OpenPackByExtension(vfsfile_t *f, searchpathfuncs_t *parent, const char *filename, const char *pakname, const char *pakpathprefix);
 
 extern qboolean com_installer;	//says that the engine is running in an 'installer' mode, and that the correct basedir is not yet known.
 extern	struct cvar_s	registered;

@@ -61,8 +61,30 @@ IF (EXISTS ${CMAKE_SOURCE_DIR}/.git)
 		OUTPUT_VARIABLE FTE_BRANCH
 		ERROR_QUIET OUTPUT_STRIP_TRAILING_WHITESPACE
 	)
-	MESSAGE(STATUS "FTE GIT ${FTE_BRANCH} Revision git-${FTE_REVISON_GIT}, ${FTE_DATE}")
-	SET(SVNREVISION git-${FTE_REVISON_GIT})
+	EXECUTE_PROCESS(COMMAND
+		git rev-parse --is-shallow-repository
+		WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
+		OUTPUT_VARIABLE FTE_GIT_IS_SHALLOW
+		ERROR_QUIET OUTPUT_STRIP_TRAILING_WHITESPACE
+	)
+	IF(FTE_GIT_IS_SHALLOW STREQUAL true)
+		MESSAGE(STATUS "shallow clone prevents calculation of revision number.")
+		SET(SVNREVISION "git-${FTE_REVISON_GIT}")	#if its a shallow clone then we can't count commits properly so don't know what revision we actually are.
+	ELSE()
+		EXECUTE_PROCESS(COMMAND
+			git rev-list HEAD --count
+			WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
+			OUTPUT_VARIABLE SVNREVISION
+			ERROR_QUIET OUTPUT_STRIP_TRAILING_WHITESPACE
+		)
+		MATH(EXPR SVNREVISION "${SVNREVISION} + 29") #not all svn commits managed to appear im the git repo, so we have a small bias to keep things consistent.
+		IF (FTE_BRANCH STREQUAL "master")
+			SET(SVNREVISION "${SVNREVISION}-git-${FTE_REVISON_GIT}")
+		ELSE()
+			SET(SVNREVISION "${FTE_BRANCH}-${SVNREVISION}-git-${FTE_REVISON_GIT}") #weird branches get a different form of revision, to reduce confusion.
+		ENDIF()
+	ENDIF()
+	MESSAGE(STATUS "FTE GIT ${FTE_BRANCH} Revision ${SVNREVISION}, ${FTE_DATE}")
 	SET(FTE_REVISON SVNREVISION=${SVNREVISION} SVNDATE=${FTE_DATE} FTE_BRANCH=${FTE_BRANCH})
 ENDIF()
 
@@ -225,7 +247,7 @@ IF(CMAKE_BUILD_TYPE MATCHES "Debug")
 ENDIF()
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -D_FILE_OFFSET_BITS=64")
 
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -DFTE_LIBRARY_PATH=${CMAKE_INSTALL_FULL_LIBDIR}/${FTE_INSTALL_LIBDIR}")
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -DFTE_LIBRARY_PATH=${CMAKE_INSTALL_FULL_LIBDIR}/${FTE_INSTALL_LIBDIR} -DFTE_DATA_DIR=${CMAKE_INSTALL_FULL_DATAROOTDIR}")
 
 FUNCTION(EMBED_PLUGIN_META PLUGNAME PLUGTITLE PLUGDESC)
 	SET_TARGET_PROPERTIES(plug_${PLUGNAME} PROPERTIES OUTPUT_NAME "${PLUGNAME}")
@@ -235,10 +257,10 @@ FUNCTION(EMBED_PLUGIN_META PLUGNAME PLUGTITLE PLUGDESC)
 	#sadly we need to use a temp zip file, because otherwise zip insists on using zip64 extensions which breaks zip -A (as well as any attempts to read any files).
 	ADD_CUSTOM_COMMAND(
 		TARGET plug_${PLUGNAME} POST_BUILD
-		COMMAND echo "{\\n	package fteplug_${PLUGNAME}\\n	ver \"${SVNREVISION}\"\\n	category Plugins\\n	title \"${PLUGTITLE}\"\\n	gamedir \"\"\\n	desc \"${PLUGDESC}\"\\n}" | zip -q -9 -fz- $<TARGET_FILE:plug_${PLUGNAME}>.zip -
-		COMMAND cat $<TARGET_FILE:plug_${PLUGNAME}>.zip >> "$<TARGET_FILE:plug_${PLUGNAME}>"
+		COMMAND /bin/echo -e "{\\n	package fteplug_${PLUGNAME}\\n	ver \"${SVNREVISION}\"\\n	category Plugins\\n	title \"${PLUGTITLE}\"\\n	gamedir \"\"\\n	desc \"${PLUGDESC}\"\\n}" | zip -q -9 -fz- $<TARGET_FILE:plug_${PLUGNAME}>.zip -
+		COMMAND cmake -E cat $<TARGET_FILE:plug_${PLUGNAME}>.zip >> "$<TARGET_FILE:plug_${PLUGNAME}>"
 		COMMAND zip -A "$<TARGET_FILE:plug_${PLUGNAME}>"
-		COMMAND rm $<TARGET_FILE:plug_${PLUGNAME}>.zip
+		COMMAND cmake -E rm $<TARGET_FILE:plug_${PLUGNAME}>.zip
 		VERBATIM)
 ENDFUNCTION()
 
@@ -1585,6 +1607,14 @@ IF(FTE_MENU_SYS)
 			quakec/menusys/menu/options_video.qc
 			quakec/menusys/menu/quit.qc
 	)
+
+	ADD_CUSTOM_COMMAND(
+		TARGET menusys POST_BUILD
+		COMMAND /bin/echo -e "{\\n	package fte_menusys\\n	ver \"${SVNREVISION}\"\\n	category Plugins\\n	title \"Replacement Menus\"\\n	gamedir \"id1\"\\n	desc \"Modern menus to replace the ancient quake ones\"\\n}" | zip -q -9 -fz- menusys.pk3 - menu.dat
+		VERBATIM)
+	INSTALL(FILES
+		menusys.pk3
+		DESTINATION "${CMAKE_INSTALL_DATAROOTDIR}/games/quake/id1/")
 ENDIF()
 
 SET(FTE_CSADDON true CACHE BOOL "CS Addon.")
@@ -1616,4 +1646,12 @@ IF(FTE_CSADDON)
 			quakec/csaddon/src/cam.qc
 			quakec/csaddon/src/csaddon.qc
 	)
+
+	ADD_CUSTOM_COMMAND(
+		TARGET csaddon POST_BUILD
+		COMMAND /bin/echo -e "{\\n	package fte_csaddon\\n	ver \"${SVNREVISION}\"\\n	category Plugins\\n	title \"${PLUGTITLE}\"\\n	gamedir \"id1\"\\n	desc \"${PLUGDESC}\"\\n}" | zip -q -9 -fz- csaddon.pk3 - csaddon.dat
+		VERBATIM)
+	INSTALL(FILES
+		csaddon.pk3
+		DESTINATION "${CMAKE_INSTALL_DATAROOTDIR}/games/quake/id1/")
 ENDIF()

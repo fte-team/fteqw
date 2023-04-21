@@ -2426,6 +2426,16 @@ void M_Menu_Main_f (void)
 */
 	SCR_EndLoadingPlaque();	//just in case...
 
+	if (!FS_GameIsInitialised())
+	{	//if you canceled the mods menu, quit instead.
+		if (!Key_Dest_Has(kdm_prompt) && !Key_Dest_Has(kdm_menu))
+		{
+			M_Menu_Mods_f();	//bring back the mods menu... THERE'S NO ESCAPE!!! (no basedir, so options etc is ponitless)
+			M_Menu_Quit_f();	//and a quit prompt, cos they probably hit escape or something.
+		}
+		return;
+	}
+
 /*
 	if (0)
 	{

@@ -428,6 +428,8 @@ void M_Complex_Key(emenu_t *currentmenu, int key, int unicode);
 void M_Script_Init(void);
 void M_Serverlist_Init(void);
 
+void M_Menu_BasedirPrompt(ftemanifest_t *man);
+
 const char *M_ChooseAutoSave(void);
 void M_Menu_Main_f (void);
 	void M_Menu_SinglePlayer_f (void);

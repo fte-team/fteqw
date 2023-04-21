@@ -1,7 +1,7 @@
 {
 	"//":"To build:",
-	"//":"	flatpak-builder --user --install --from-git=~/quake/fteqw-code-git build-dir flatpak.json",
-	"//":"	(swap the git url for a web-based one if you're not gonna make any local changes first - note that it'll only take committed changes)",
+	"//":"	flatpak-builder --user --install --from-git=https://github.com/fte-team/fteqw.git build-dir flatpak.json",
+	"//":"	(drop the git arg if you're making local changes to this file - note that it'll only take committed changes, annoyingly there's no way to have the git sources pick up the proper url)",
 	"//":"To then run:",
 	"//":"	cd ~/quake && flatpak run info.triptohell.fteqw",
 
@@ -23,8 +23,10 @@
 	"//":"dri needed for gl",
 	"//":"ipc supposedly recommended for x11's shm stuff",
 	"//":"flatpak doesn't seem to support alsa. anyone not using pipewire is thus fucked, nothing I can do about that",
+	"//":"flatpak doesn't seem to support gamepads, at least not on the steamdeck.",
 	"//":"filesystem /usr/share/quake seems b0rked, we can't find standard gamedata there. still using 'host' because steam might have your game library on some other partition/device other than home.",
-	"//":"--device=all fixes gamepad so we have usable inputs on steamdeck (apparently there's no proper way around that)",
+	"//":"we request network... cos we ARE a game...",
+	"//":"--filesystem=host",
 	"finish-args": [
 		"--share=network",
 
@@ -35,12 +37,6 @@
 
 		"--socket=wayland",
 
-		"--filesystem=host",
-		"--filesystem=/run/udev:ro",
-
-		"--device=all",
-
-		"--device=snd",
 		"--socket=pulseaudio"
 	],
 	"modules": [
@@ -48,7 +44,7 @@
 			"name": "fteqw",
 			"buildsystem": "cmake",
 
-			"//":"Using sdl to ensure game controller support eg for steamdeck etc. This may result in some clipboard issues as flatpak's sdl is a little too old (and sdl sucked in delaying proper support).",
+			"//":"Using sdl to provide game controller support eg for steamdeck etc (FIXME: see above complaint about gamepads being unusable in flatpak...). This may result in some clipboard issues as flatpak's sdl is a little too old (and sdl sucked in delaying proper support).",
 			"//":"Server stuff disabled, flatpak is not a good match. commandline tools also disabled for the most part, no .desktop files for those",
 			"//":"install to /app/bin instead of /app/games, flatpak just prefers it that way and the distinction isn't useful.",
 			"config-opts": ["-DCMAKE_BUILD_TYPE=Release",
@@ -72,7 +68,19 @@
 					"path": "/home/spike/quake/fteqw-code-git",
 					"//url": "https://github.com/fte-team/fteqw.git"
 				}
-			]
+			],
+
+			"//":"Add in our manifest files for TCs.",
+			"post-install": [
+				"install -d /app/etc/xdg/fte/",
+				"install games/*.fmf /app/etc/xdg/fte/",
+
+				"install -D games/quake-demo.fmf /app/share/games/quake/default.fmf",
+				"install -D games/hexen2-demo.fmf /app/share/games/hexen2-demo/default.fmf"
+			],
+			"build-options" : {
+                "no-debuginfo": true
+            }
 		}
 	]
 }

@@ -689,6 +689,8 @@ void SVNQ_New_f (void)
 
 #ifdef OFFICIAL_RELEASE
 	Q_snprintfz(build, sizeof(build), "v%i.%02i", FTE_VER_MAJOR, FTE_VER_MINOR);
+#elif defined(FTE_BRANCH)
+	Q_snprintfz(build, sizeof(build), "Rev %s", STRINGIFY(SVNREVISION));
 #elif defined(SVNREVISION)
 	Q_snprintfz(build, sizeof(build), "SVN %s", STRINGIFY(SVNREVISION));
 #else

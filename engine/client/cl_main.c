@@ -7006,7 +7006,7 @@ void CL_ArgumentOverrides(void)
 }
 
 //note that this does NOT include commandline.
-void CL_ExecInitialConfigs(char *resetcommand)
+void CL_ExecInitialConfigs(char *resetcommand, qboolean fullvidrestart)
 {
 #ifndef QUAKETC
 	int qrc, hrc;
@@ -7085,7 +7085,9 @@ void CL_ExecInitialConfigs(char *resetcommand)
 	com_parseutf8.ival = com_parseutf8.value;
 
 	//if the renderer is already up and running, be prepared to reload content to match the new conback/font/etc
-	if (qrenderer != QR_NONE)
+	if (fullvidrestart)
+		Cbuf_AddText ("vid_restart\n", RESTRICT_LOCAL);
+	else if (qrenderer != QR_NONE)
 		Cbuf_AddText ("vid_reload\n", RESTRICT_LOCAL);
 //	if (Key_Dest_Has(kdm_menu))
 //		Cbuf_AddText ("closemenu\ntogglemenu\n", RESTRICT_LOCAL);	//make sure the menu has the right content loaded.
@@ -7175,7 +7177,7 @@ void Host_FinishLoading(void)
 #endif
 	}
 
-	if (PM_IsApplying(true))
+	if (PM_IsApplying() == 1)
 	{
 #ifdef MULTITHREAD
 		Sys_Sleep(0.1);

@@ -689,7 +689,7 @@ static const char *replacementq1binds =
 	"bind		LSHIFT		+speed\n"
 	"bind		RSHIFT		+speed\n"
 
-	"bind		+			sizeup\n"
+	"bind		=			sizeup\n"
 	"bind		-			sizedown\n"
 
 	"bind		1			impulse 1\n"

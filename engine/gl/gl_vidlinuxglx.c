@@ -4010,6 +4010,7 @@ static Window X_CreateWindow(rendererstate_t *info, qboolean override, XVisualIn
 	XSizeHints szhints;
 	unsigned int mask;
 	Atom prots[2];
+	extern cvar_t vid_minsize;
 
 	/* window attributes */
 	attr.background_pixel = 0;
@@ -4029,8 +4030,8 @@ static Window X_CreateWindow(rendererstate_t *info, qboolean override, XVisualIn
 
 	memset(&szhints, 0, sizeof(szhints));
 	szhints.flags = PMinSize|PPosition|PSize;
-	szhints.min_width = 320;
-	szhints.min_height = 200;
+	szhints.min_width = max(vid_minsize.vec4[0], 320);
+	szhints.min_height = max(vid_minsize.vec4[1], 200);
 
 	if (!fullscreen)
 	{

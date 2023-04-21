@@ -1149,7 +1149,7 @@ void CL_SetInfoBlob (int pnum, const char *key, const char *value, size_t values
 
 char *CL_TryingToConnect(void);
 
-void CL_ExecInitialConfigs(char *defaultexec);
+void CL_ExecInitialConfigs(char *defaultexec, qboolean fullvidrestart);
 
 extern	int				cl_framecount;	//number of times the entity lists have been cleared+reset.
 extern	int				cl_numvisedicts;

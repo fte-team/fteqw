@@ -12,6 +12,193 @@
 #include "winquake.h"
 #endif
 
+
+
+#ifdef FTE_TARGET_WEB	//for stuff that doesn't work right...
+#define FORWEB(a,b) a
+#else
+#define FORWEB(a,b) b
+#endif
+
+
+
+
+#if !defined(HAVE_LEGACY) || !defined(HAVE_CLIENT)
+	#define ZFIXHACK
+#elif defined(ANDROID) //on android, these numbers seem to be generating major weirdness, so disable these.
+	#define ZFIXHACK
+#elif defined(FTE_TARGET_WEB) //on firefox (but not chrome or ie), these numbers seem to be generating major weirdness, so tone them down significantly by default.
+	#define ZFIXHACK "set r_polygonoffset_submodel_offset 1\nset r_polygonoffset_submodel_factor 0.05\n"
+#else	//many quake maps have hideous z-fighting. this provides a way to work around it, although the exact numbers are gpu and bitdepth dependant, and trying to fix it can actually break other things.
+	#define ZFIXHACK "set r_polygonoffset_submodel_offset 25\nset r_polygonoffset_submodel_factor 0.05\n"
+#endif
+
+/*ezquake cheats and compat*/
+#define EZQUAKECOMPETITIVE "set ruleset_allow_fbmodels 1\nset sv_demoExtensions \"\"\n"
+/*quake requires a few settings for compatibility*/
+#define QRPCOMPAT "set cl_cursor_scale 0.2\nset cl_cursor_bias_x 7.5\nset cl_cursor_bias_y 0.8\n"
+#define QUAKESPASMSUCKS "set mod_h2holey_bugged 1\n"
+#define QUAKEOVERRIDES "set sv_listen_nq 2\n set v_gammainverted 1\nset cl_download_mapsrc \"https://maps.quakeworld.nu/all/\"\nset con_stayhidden 0\nset allow_download_pakcontents 2\nset allow_download_refpackages 0\nset r_meshpitch -1\nr_sprite_backfacing 1\nset sv_bigcoords \"\"\nmap_autoopenportals 1\n"  "sv_port "STRINGIFY(PORT_QWSERVER)" "STRINGIFY(PORT_NQSERVER)"\n" ZFIXHACK EZQUAKECOMPETITIVE QUAKESPASMSUCKS
+#define QCFG "//schemes quake qw\n"   QUAKEOVERRIDES "set com_parseutf8 0\n" QRPCOMPAT
+#define KEXCFG "//schemes quake_r2\n" QUAKEOVERRIDES "set com_parseutf8 1\nset campaign 0\nset net_enable_dtls 1\nset sv_mintic 0.016666667\nset sv_maxtic $sv_mintic\nset cl_netfps 60\n"
+/*NetQuake reconfiguration, to make certain people feel more at home...*/
+#define NQCFG "//disablehomedir 1\n//mainconfig ftenq\n" QCFG "cfg_save_auto 1\nset pm_bunnyfriction 1\nset sv_nqplayerphysics 1\nset cl_loopbackprotocol auto\ncl_sbar 1\nset plug_sbar 0\nset sv_port "STRINGIFY(PORT_NQSERVER)"\ncl_defaultport "STRINGIFY(PORT_NQSERVER)"\nset m_preset_chosen 1\nset vid_wait 1\nset cl_demoreel 1\n"
+#define SPASMCFG NQCFG "fps_preset builtin_spasm\nset cl_demoreel 0\ncl_sbar 2\nset gl_load24bit 1\n"
+#define FITZCFG NQCFG "fps_preset builtin_spasm\ncl_sbar 2\nset gl_load24bit 1\n"
+#define TENEBRAECFG NQCFG "fps_preset builtin_tenebrae\n"
+//nehahra has to be weird with its extra cvars, and buggy fullbrights.
+#define NEHCFG QCFG "set nospr32 0\nset cutscene 1\nalias startmap_sp \"map nehstart\"\nr_fb_bmodels 0\nr_fb_models 0\n"
+/*stuff that makes dp-only mods work a bit better*/
+#define DPCOMPAT QCFG "gl_specular 1\nset _cl_playermodel \"\"\n set dpcompat_set 1\ndpcompat_console 1\nset dpcompat_corruptglobals 1\nset vid_pixelheight 1\nset dpcompat_set 1\nset dpcompat_console 1\nset r_particlesdesc effectinfo\n"
+/*nexuiz/xonotic has a few quirks/annoyances...*/
+#define NEXCFG DPCOMPAT "cl_loopbackprotocol dpp7\nset sv_listen_dp 1\nset sv_listen_qw 0\nset sv_listen_nq 0\nset dpcompat_nopreparse 1\nset sv_bigcoords 1\nset sv_maxairspeed \"30\"\nset sv_jumpvelocity 270\nset sv_mintic \"0.01\"\ncl_nolerp 0\n"
+#define XONCFG NEXCFG "set qport $qport_\ncom_parseutf8 1\npr_fixbrokenqccarrays 2\nset pr_csqc_memsize 64m\nset pr_ssqc_memsize 96m\n"
+/*some modern non-compat settings*/
+#define DMFCFG "set com_parseutf8 1\npm_airstep 1\nsv_demoExtensions 1\n"
+/*set some stuff so our regular qw client appears more like hexen2. sv_mintic is required to 'fix' the ravenstaff so that its projectiles don't impact upon each other*/
+#define HEX2CFG "//schemes hexen2\n" "set v_gammainverted 1\nset com_parseutf8 -1\nset gl_font gfx/hexen2\nset in_builtinkeymap 0\nset_calc cl_playerclass int (random * 5) + 1\nset cl_forwardspeed 200\nset cl_backspeed 200\ncl_sidespeed 225\nset sv_maxspeed 640\ncl_run 0\nset watervis 1\nset r_lavaalpha 1\nset r_lavastyle -2\nset r_wateralpha 0.5\nset sv_pupglow 1\ngl_shaftlight 0.5\nsv_mintic 0.015\nset r_meshpitch -1\nset r_meshroll -1\nr_sprite_backfacing 1\nset mod_warnmodels 0\nset cl_model_bobbing 1\nsv_sound_watersplash \"misc/hith2o.wav\"\nsv_sound_land \"fx/thngland.wav\"\nset sv_walkpitch 0\n"
+/*yay q2!*/
+#define Q2CFG "//schemes quake2\n" "set v_gammainverted 1\nset com_parseutf8 0\ncom_gamedirnativecode 1\nset sv_bigcoords 0\nsv_port "STRINGIFY(PORT_Q2SERVER)"\ncl_defaultport "STRINGIFY(PORT_Q2SERVER)"\n"
+/*Q3's ui doesn't like empty model/headmodel/handicap cvars, even if the gamecode copes*/
+#define Q3CFG "//schemes quake3\n" "set v_gammainverted 0\nset snd_ignorecueloops 1\nsetfl g_gametype 0 s\nset gl_clear 1\nset r_clearcolour 0 0 0\nset com_parseutf8 0\ngl_overbright "FORWEB("0","2")"\nseta model sarge\nseta headmodel sarge\nseta handicap 100\ncom_gamedirnativecode 1\nsv_port "STRINGIFY(PORT_Q3SERVER)"\ncl_defaultport "STRINGIFY(PORT_Q3SERVER)"\ncom_protocolversion 68\n"
+//#define RMQCFG "sv_bigcoords 1\n"
+
+#define HLCFG NULL
+
+#ifndef UPDATEURL
+	#ifdef HAVE_SSL
+		#define UPDATEURL(g)	"/downloadables.php?game=" #g
+	#else
+		#define UPDATEURL(g)	NULL
+	#endif
+#endif
+
+#define QUAKEPROT "FTE-Quake DarkPlaces-Quake"
+
+typedef struct {
+	const char *argname;	//used if this was used as a parameter.
+	const char *exename;	//used if the exe name contains this
+	const char *protocolname;	//sent to the master server when this is the current gamemode (Typically set for DP compat).
+	const char *auniquefile[4];	//used if this file is relative from the gamedir. needs just one file
+
+	const char *customexec;
+
+	const char *dir[4];
+	const char *poshname;		//Full name for the game.
+	const char *downloadsurl;	//url to check for updates.
+	const char *needpackages;	//package name(s) that are considered mandatory for this game to work.
+	const char *manifestfile;	//contents of manifest file to use.
+} gamemode_info_t;
+static const gamemode_info_t gamemode_info[] = {
+#ifdef GAME_SHORTNAME
+	#ifndef GAME_PROTOCOL
+	#define GAME_PROTOCOL			DISTRIBUTION
+	#endif
+	#ifndef GAME_IDENTIFYINGFILES
+	#define GAME_IDENTIFYINGFILES	NULL	//
+	#endif
+	#ifndef GAME_DEFAULTCMDS
+	#define GAME_DEFAULTCMDS		NULL	//doesn't need anything
+	#endif
+	#ifndef GAME_BASEGAMES
+	#define GAME_BASEGAMES			"data"
+	#endif
+	#ifndef GAME_FULLNAME
+	#define GAME_FULLNAME			FULLENGINENAME
+	#endif
+	#ifndef GAME_MANIFESTUPDATE
+	#define GAME_MANIFESTUPDATE		NULL
+	#endif
+
+	{"-"GAME_SHORTNAME,		GAME_SHORTNAME,			GAME_PROTOCOL,					{GAME_IDENTIFYINGFILES}, GAME_DEFAULTCMDS, {GAME_BASEGAMES}, GAME_FULLNAME, NULL/*updateurl*/, NULL/*needpackages*/, GAME_MANIFESTUPDATE},
+#endif
+//note that there is no basic 'fte' gamemode, this is because we aim for network compatability. Darkplaces-Quake is the closest we get.
+//this is to avoid having too many gamemodes anyway.
+
+//mission packs should generally come after the main game to avoid prefering the main game. we violate this for hexen2 as the mission pack is mostly a superset.
+//whereas the quake mission packs replace start.bsp making the original episodes unreachable.
+//for quake, we also allow extracting all files from paks. some people think it loads faster that way or something.
+#ifdef HAVE_LEGACY
+	//cmdline switch exename    protocol name(dpmaster)  identifying file				exec     dir1       dir2    dir3       dir(fte)     full name
+	//use rerelease behaviours if we seem to be running from that dir.
+	{"-quake_rerel",NULL,		"FTE-QuakeRerelease",	{"QuakeEX.kpf"},				KEXCFG,	{"id1",							"*fte"},	"Quake Re-Release",					UPDATEURL(Q1)},
+	//standard quake
+	{"-quake",		"q1",		QUAKEPROT,				{"id1/pak0.pak","id1/quake.rc"},QCFG,	{"id1",		"qw",				"*fte"},	"Quake",							UPDATEURL(Q1)},
+	//alternative name, because fmf file install names are messy when a single name is used for registry install path.
+	{"-afterquake",	NULL,		"FTE-Quake",			{"id1/pak0.pak", "id1/quake.rc"},QCFG,	{"id1",		"qw",				"*fte"},	"AfterQuake",						UPDATEURL(Q1),	NULL},
+	//netquake-specific quake that avoids qw/ with its nquake fuckups, and disables nqisms
+	{"-netquake",	NULL,		QUAKEPROT,				{"id1/pak0.pak","id1/quake.rc"},NQCFG,	{"id1"},									"NetQuake",							UPDATEURL(Q1)},
+	//common variant of fitzquake that includes its own special pak file in the basedir
+	{"-spasm",		NULL,		QUAKEPROT,				{"quakespasm.pak"},				SPASMCFG,{"/id1"},									"FauxSpasm",						UPDATEURL(Q1)},
+	//because we can. 'fps_preset spasm' is hopefully close enough...
+	{"-fitz",		"nq",		QUAKEPROT,				{"id1/pak0.pak","id1/quake.rc"},FITZCFG,{"id1"},									"FauxFitz",							UPDATEURL(Q1)},
+	//because we can
+	{"-tenebrae",	NULL,		QUAKEPROT,				{"tenebrae/Pak0.pak","id1/quake.rc"},TENEBRAECFG,{"id1",	"tenebrae"},			"FauxTenebrae",						UPDATEURL(Q1)},
+
+	//quake's mission packs should not be favoured over the base game nor autodetected
+	//third part mods also tend to depend upon the mission packs for their huds, even if they don't use any other content.
+	//and q2 also has a rogue/pak0.pak file that we don't want to find and cause quake2 to look like dissolution of eternity
+	//so just make these require the same files as good ol' quake.
+	{"-hipnotic",	"hipnotic",	"FTE-Hipnotic",			{"id1/pak0.pak","id1/quake.rc"},QCFG,	{"id1",		"qw",	"hipnotic",	"*fte"},	"Quake: Scourge of Armagon",		UPDATEURL(Q1)},
+	{"-rogue",		"rogue",	"FTE-Rogue",			{"id1/pak0.pak","id1/quake.rc"},QCFG,	{"id1",		"qw",	"rogue",	"*fte"},	"Quake: Dissolution of Eternity",	UPDATEURL(Q1)},
+
+	//various quake-dependant non-standalone mods that require hacks
+	//quoth needed an extra arg just to enable hipnotic hud drawing, it doesn't actually do anything weird, but most engines have a -quoth arg, so lets have one too.
+	{"-quoth",		"quoth",	"FTE-Quake",			{"id1/pak0.pak","id1/quake.rc"},QCFG,	{"id1",		"qw",	"quoth",	"*fte"},	"Quake: Quoth",						UPDATEURL(Q1)},
+	{"-nehahra",	"nehahra",	"FTE-Quake",			{"id1/pak0.pak","id1/quake.rc"},NEHCFG,	{"id1",		"qw",	"nehahra",	"*fte"},	"Quake: Seal Of Nehahra",			UPDATEURL(Q1)},
+	//various quake-based standalone mods.
+	{"-librequake",	"librequake","LibreQuake",			{"lq1/pak0.pak","lq1/gfx.pk3","lq1/quake.rc"},QCFG,	{"lq1"},									"LibreQuake",			UPDATEURL(LQ)},
+//	{"-nexuiz",		"nexuiz",	"Nexuiz",				{"nexuiz.exe"},					NEXCFG,	{"data",						"*ftedata"},"Nexuiz"},
+//	{"-xonotic",	"xonotic",	"Xonotic",				{"data/xonotic-data.pk3dir",
+//														 "data/xonotic-*data*.pk3"},	XONCFG,	{"data",						"*ftedata"},"Xonotic",							UPDATEURL(Xonotic)},
+//	{"-spark",		"spark",	"Spark",				{"base/src/progs.src",
+//														 "base/qwprogs.dat",
+//														 "base/pak0.pak"},				DMFCFG,	{"base",								},	"Spark"},
+//	{"-scouts",		"scouts",	"FTE-SJ",				{"basesj/src/progs.src",
+//														 "basesj/progs.dat",
+//														 "basesj/pak0.pak"},			NULL,	{"basesj",						        },	"Scouts Journey"},
+//	{"-rmq",		"rmq",		"RMQ",					{NULL},							RMQCFG,	{"id1",		"qw",	"rmq",		"*fte"	},	"Remake Quake"},
+
+#ifdef HEXEN2
+	//hexen2's mission pack generally takes precedence if both are installed.
+	{"-portals",	"h2mp",		"FTE-H2MP",				{"portals/hexen.rc",
+														 "portals/pak3.pak"},			HEX2CFG,{"data1",	"portals",			"*fteh2"},	"Hexen II MP",						UPDATEURL(H2)},
+	{"-hexen2",		"hexen2",	"FTE-Hexen2",			{"data1/pak0.pak"},				HEX2CFG,{"data1",						"*fteh2"},	"Hexen II",							UPDATEURL(H2)},
+#endif
+#if defined(Q2CLIENT) || defined(Q2SERVER)
+	{"-quake2",		"q2",		"Quake2",				{"baseq2/pak0.pak"},			Q2CFG,	{"baseq2",						"*fteq2"},	"Quake II",							UPDATEURL(Q2)},
+	//mods of the above that should generally work.
+	{"-dday",		"dday",		"Quake2",				{"dday/pak0.pak"},				Q2CFG,	{"baseq2",	"dday",				"*fteq2"},	"D-Day: Normandy"},
+#endif
+
+#if defined(Q3CLIENT) || defined(Q3SERVER)
+	{"-quake3",		"q3",		"Quake3",				{"baseq3/pak0.pk3"},			Q3CFG,	{"baseq3",						"*fteq3"},	"Quake III Arena",					UPDATEURL(Q3),		"fteplug_quake3"},
+	{"-quake3demo",	"q3demo",	"Quake3Demo",			{"demoq3/pak0.pk3"},			Q3CFG,	{"demoq3",						"*fteq3"},	"Quake III Arena Demo",				NULL,				"fteplug_quake3"},
+	//the rest are not supported in any real way. maps-only mostly, if that
+//	{"-quake4",		"q4",		"FTE-Quake4",			{"q4base/pak00.pk4"},			NULL,	{"q4base",						"*fteq4"},	"Quake 4"},
+//	{"-et",			NULL,		"FTE-EnemyTerritory",	{"etmain/pak0.pk3"},			NULL,	{"etmain",						"*fteet"},	"Wolfenstein - Enemy Territory"},
+
+//	{"-jk2",		"jk2",		"FTE-JK2",				{"base/assets0.pk3"},			NULL,	{"base",						"*ftejk2"},	"Jedi Knight II: Jedi Outcast"},
+//	{"-warsow",		"warsow",	"FTE-Warsow",			{"basewsw/pak0.pk3"},			NULL,	{"basewsw",						"*ftewsw"},	"Warsow"},
+#endif
+#if !defined(QUAKETC) && !defined(MINIMAL)
+//	{"-doom",		"doom",		"FTE-Doom",				{"doom.wad"},					NULL,	{"*",							"*ftedoom"},"Doom"},
+//	{"-doom2",		"doom2",	"FTE-Doom2",			{"doom2.wad"},					NULL,	{"*",							"*ftedoom"},"Doom2"},
+//	{"-doom3",		"doom3",	"FTE-Doom3",			{"doom3.wad"},					NULL,	{"based3",						"*ftedoom3"},"Doom3"},
+
+	//for the luls
+//	{"-diablo2",	NULL,		"FTE-Diablo2",			{"d2music.mpq"},				NULL,	{"*",							"*fted2"},	"Diablo 2"},
+#endif
+	/* maintained by FreeHL ~eukara */
+	{"-halflife",	"halflife",	"FTE-HalfLife",			{"valve/liblist.gam"},			HLCFG,	{"logos", "valve"},							"Half-Life",						NULL, "fteplug_ffmpeg"},
+#endif
+
+	{NULL}
+};
+
+
+
+
 void FS_BeginManifestUpdates(void);
 static void QDECL fs_game_callback(cvar_t *var, char *oldvalue);
 static void COM_InitHomedir(ftemanifest_t *man);
@@ -45,7 +232,6 @@ void COM_CheckRegistered (void);
 void Mods_FlushModList(void);
 static void FS_ReloadPackFilesFlags(unsigned int reloadflags);
 static qboolean Sys_SteamHasFile(char *basepath, int basepathlen, char *steamdir, char *fname);
-searchpathfuncs_t *FS_OpenPackByExtension(vfsfile_t *f, searchpathfuncs_t *parent, const char *filename, const char *pakname);
 
 static void QDECL fs_game_callback(cvar_t *var, char *oldvalue)
 {
@@ -395,6 +581,8 @@ static ftemanifest_t *FS_Manifest_Clone(ftemanifest_t *oldm)
 				newm->package[i].mirrors[j] = Z_StrDup(oldm->package[i].mirrors[j]);
 	}
 
+	newm->security = oldm->security;
+
 	return newm;
 }
 
@@ -537,7 +725,13 @@ static ftemanifest_t *FS_Manifest_Create(const char *syspath, const char *basedi
 {
 	ftemanifest_t *man = Z_Malloc(sizeof(*man));
 
-	man->formalname = Z_StrDup(FULLENGINENAME);
+	if (syspath)
+	{
+		char base[MAX_QPATH];
+		COM_FileBase(syspath, base, sizeof(base));
+		if (*base && !Q_strcasecmp(base, "default"))
+			man->formalname = Z_StrDup(base);
+	}
 
 #ifdef _DEBUG	//FOR TEMPORARY TESTING ONLY.
 //	man->doinstall = true;
@@ -558,6 +752,7 @@ static ftemanifest_t *FS_Manifest_Create(const char *syspath, const char *basedi
 
 static qboolean FS_Manifest_ParsePackage(ftemanifest_t *man, int packagetype)
 {
+	//CMD [deparch] packagename qhash [archivedfilename] [prefix skip/this/] [mirror url] [[filesize foo] [sha512 hash] [signature "base64"]]
 	char *path = "";
 	unsigned int crc = 0;
 	qboolean crcknown = false;
@@ -924,7 +1119,7 @@ static qboolean FS_Manifest_ParseTokens(ftemanifest_t *man)
 		FS_Manifest_ParsePackage(man, mdt_singlepackage);
 	else if (!Q_strcasecmp(cmd, "basedir"))
 	{	//allow explicit basedirs when this is an actual file on the user's system, and we don't have an explicit one.
-		//this should only happen from parsing /etc/fte/*.fmf
+		//this should only happen from parsing /etc/xdg/games/*.fmf
 		if (!man->basedir && man->filename)
 			man->basedir = Z_StrDup(Cmd_Argv(1));
 	}
@@ -935,9 +1130,95 @@ static qboolean FS_Manifest_ParseTokens(ftemanifest_t *man)
 	}
 	return result;
 }
+//if the manifest omits some expected stuff, give it some defaults to match known game names (so fmf files can defer to the engine instead of having to be maintained separately).
+static void FS_Manifest_SetDefaultSettings(ftemanifest_t *man, const gamemode_info_t *game)
+{
+	int j;
+
+	if (game)
+	{
+		//if there's no base dirs, edit the manifest to give it its default ones.
+		for (j = 0; j < sizeof(man->gamepath) / sizeof(man->gamepath[0]); j++)
+		{
+			if (man->gamepath[j].path && (man->gamepath[j].flags&GAMEDIR_BASEGAME))
+				break;
+		}
+		if (j == sizeof(man->gamepath) / sizeof(man->gamepath[0]))
+		{
+			for (j = 0; j < 4; j++)
+				if (game->dir[j])
+				{
+					Cmd_TokenizeString(va("basegame \"%s\"", game->dir[j]), false, false);
+					FS_Manifest_ParseTokens(man);
+				}
+		}
+
+		if (!man->schemes)
+		{
+			Cmd_TokenizeString(va("schemes \"%s\"", game->argname+1), false, false);
+			FS_Manifest_ParseTokens(man);
+		}
+
+#ifdef PACKAGEMANAGER
+		if (!man->downloadsurl && game->downloadsurl)
+		{
+#ifndef FTE_TARGET_WEB
+			if (*game->downloadsurl == '/')
+			{
+				conchar_t musite[256], *e;
+				char site[256];
+				char *oldprefix = "http://fte.";
+				char *newprefix = "https://updates.";
+				e = COM_ParseFunString(CON_WHITEMASK, ENGINEWEBSITE, musite, sizeof(musite), false);
+				COM_DeFunString(musite, e, site, sizeof(site)-1, true, true);
+				if (!strncmp(site, oldprefix, strlen(oldprefix)))
+				{
+					memmove(site+strlen(newprefix), site+strlen(oldprefix), strlen(site)-strlen(oldprefix)+1);
+					memcpy(site, newprefix, strlen(newprefix));
+				}
+				man->downloadsurl = Z_StrDupf("%s%s", site, game->downloadsurl);
+			}
+			else
+#endif
+				man->downloadsurl = Z_StrDup(game->downloadsurl);
+			FS_Manifest_ParseTokens(man);
+		}
+		if (!man->installupd && game->needpackages)
+			man->installupd = Z_StrDup(game->needpackages);
+#endif
+
+		if (!man->protocolname)
+			man->protocolname = Z_StrDup(game->protocolname);
+
+		if (!man->defaultexec && game->customexec)
+		{
+			const char *e = game->customexec;
+			while (e[0] == '/' && e[1] == '/')
+			{
+				e+=2;
+				while(*e)
+				{
+					if (*e++ == '\n')
+						break;
+				}
+			}
+			man->defaultexec = Z_StrDup(e);
+		}
+
+		if (!man->formalname)
+			man->formalname = Z_StrDup(game->poshname);
+	}
+
+
+	if (!man->formalname && man->installation && *man->installation)
+		man->formalname = Z_StrDup(man->installation);
+	else if (!man->formalname)
+		man->formalname = Z_StrDup(FULLENGINENAME);
+}
 //read a manifest file
 ftemanifest_t *FS_Manifest_ReadMem(const char *fname, const char *basedir, const char *data)
 {
+	int i;
 	ftemanifest_t *man;
 	if (!data)
 		return NULL;
@@ -967,6 +1248,17 @@ ftemanifest_t *FS_Manifest_ReadMem(const char *fname, const char *basedir, const
 		data = Cmd_TokenizeString((char*)"game quake", false, false);
 #endif
 		FS_Manifest_ParseTokens(man);
+	}
+	if (man->installation)
+	{	//if we know about it, fill in some defaults...
+		for (i = 0; gamemode_info[i].argname; i++)
+		{
+			if (!strcmp(man->installation, gamemode_info[i].argname+1))
+			{
+				FS_Manifest_SetDefaultSettings(man, &gamemode_info[i]);
+				break;
+			}
+		}
 	}
 
 #ifdef SVNREVISION
@@ -2619,6 +2911,7 @@ vfsfile_t *QDECL FS_OpenVFS(const char *filename, const char *mode, enum fs_rela
 		if (!FS_NativePath(filename, relativeto, fullname, sizeof(fullname)))
 			return NULL;
 		break;
+	case FS_LIBRARYPATH:
 	case FS_BINARYPATH:
 		if (!FS_NativePath(filename, relativeto, fullname, sizeof(fullname)))
 			return NULL;
@@ -2632,12 +2925,16 @@ vfsfile_t *QDECL FS_OpenVFS(const char *filename, const char *mode, enum fs_rela
 		{
 			if (!try_snprintf(fullname, sizeof(fullname), "%s%s", com_homepath, filename))
 				return NULL;
+			if (*mode == 'w')
+				COM_CreatePath(fullname);
 			vfs = VFSOS_Open(fullname, mode);
 			if (vfs)
 				return vfs;
 		}
 		if (!try_snprintf(fullname, sizeof(fullname), "%s%s", com_gamepath, filename))
 			return NULL;
+		if (*mode == 'w')
+			COM_CreatePath(fullname);
 		return VFSOS_Open(fullname, mode);
 	default:
 		Sys_Error("FS_OpenVFS: Bad relative path (%i)", relativeto);
@@ -3106,14 +3403,14 @@ searchpathfuncs_t *COM_EnumerateFilesPackage (char *matches, const char *package
 			if (com_homepathenabled)
 			{	//try the homedir
 				Q_snprintfz(syspath, sizeof(syspath), "%s%s", com_homepath, package);
-				handle = FS_OpenPackByExtension(VFSOS_Open(syspath, "rb"), NULL, package, package);
+				handle = FS_OpenPackByExtension(VFSOS_Open(syspath, "rb"), NULL, package, package, "");
 			}
 			else
 				handle = NULL;
 			if (!handle)
 			{	//now go for the basedir to see if ther.
 				Q_snprintfz(syspath, sizeof(syspath), "%s%s", com_gamepath, package);
-				handle = FS_OpenPackByExtension(VFSOS_Open(syspath, "rb"), NULL, package, package);
+				handle = FS_OpenPackByExtension(VFSOS_Open(syspath, "rb"), NULL, package, package, "");
 			}
 
 			if (handle)
@@ -3427,7 +3724,7 @@ static void FS_LoadWildDataFiles (filelist_t *list, wildpaks_t *wp)
 	list->maxfiles = list->maxnames = 0;
 }
 
-searchpathfuncs_t *FS_OpenPackByExtension(vfsfile_t *f, searchpathfuncs_t *parent, const char *filename, const char *pakname)
+searchpathfuncs_t *FS_OpenPackByExtension(vfsfile_t *f, searchpathfuncs_t *parent, const char *filename, const char *pakname, const char *pakpathprefix)
 {
 	searchpathfuncs_t *pak;
 	int j;
@@ -3441,7 +3738,7 @@ searchpathfuncs_t *FS_OpenPackByExtension(vfsfile_t *f, searchpathfuncs_t *paren
 			continue;
 		if (!strcmp(ext, searchpathformats[j].extension))
 		{
-			pak = searchpathformats[j].OpenNew(f, parent, filename, pakname, "");
+			pak = searchpathformats[j].OpenNew(f, parent, filename, pakname, pakpathprefix);
 			if (pak)
 				return pak;
 			Con_Printf("Unable to open %s - corrupt?\n", pakname);
@@ -3548,7 +3845,10 @@ void FS_AddHashedPackage(searchpath_t **oldpaths, const char *parentpath, const 
 					int truecrc = handle->GeneratePureCRC(handle, 0, false);
 					if (truecrc != (int)strtoul(qhash, NULL, 0))
 					{
-						Con_Printf(CON_ERROR "File \"%s\" has hash %#x (required: %s). Please delete it or move it away\n", lname, truecrc, qhash);
+						if (pakprefix && *pakprefix)
+							Con_Printf(CON_ERROR "File \"%s\" [prefix %s] has hash %#x (required: %s). Please delete it or move it away\n", lname, pakprefix, truecrc, qhash);
+						else
+							Con_Printf(CON_ERROR "File \"%s\" has hash %#x (required: %s). Please delete it or move it away\n", lname, truecrc, qhash);
 						handle->ClosePath(handle);
 						handle = NULL;
 					}
@@ -3711,7 +4011,7 @@ static void FS_AddDataFiles(searchpath_t **oldpaths, const char *purepath, const
 					snprintf (pakfile, sizeof(pakfile), "quakespasm.%s", extension);
 					handle = FS_GetOldPath(oldpaths, logicalfile, &keptflags);
 					if (!handle)
-						handle = FS_OpenPackByExtension(VFSOS_Open(pakfile, "rb"), NULL, pakfile, pakfile);
+						handle = FS_OpenPackByExtension(VFSOS_Open(pakfile, "rb"), NULL, pakfile, pakfile, "");
 					if (handle)	//logically should have SPF_EXPLICIT set, but that would give it a worse gamedir depth
 						FS_AddPathHandle(oldpaths, "", pakfile, handle, "", SPF_COPYPROTECTED|SPF_PRIVATE, (unsigned int)-1);
 				}
@@ -3765,12 +4065,15 @@ static searchpath_t *FS_AddPathHandle(searchpath_t **oldpaths, const char *purep
 	}
 
 	search = (searchpath_t*)Z_Malloc (sizeof(searchpath_t));
-	search->flags = flags;
 	search->handle = handle;
 	Q_strncpyz(search->purepath, purepath, sizeof(search->purepath));
 	Q_strncpyz(search->logicalpath, logicalpath, sizeof(search->logicalpath));
-	if (prefix)
+	if (prefix && *prefix)
+	{
 		Q_strncpyz(search->prefix, prefix, sizeof(search->prefix));
+		flags |= SPF_COPYPROTECTED; //don't do downloading weirdness when there's weird prefix shenanegans going on.
+	}
+	search->flags = flags;
 
 	flags &= ~SPF_WRITABLE;
 
@@ -4208,185 +4511,6 @@ void COM_Gamedir (const char *dir, const struct gamepacks *packagespaths)
 	InfoBuf_SetStarKey (&svs.info, "*gamedir", dir);
 #endif
 }
-
-#if !defined(HAVE_LEGACY) || !defined(HAVE_CLIENT)
-	#define ZFIXHACK
-#elif defined(ANDROID) //on android, these numbers seem to be generating major weirdness, so disable these.
-	#define ZFIXHACK
-#elif defined(FTE_TARGET_WEB) //on firefox (but not chrome or ie), these numbers seem to be generating major weirdness, so tone them down significantly by default.
-	#define ZFIXHACK "set r_polygonoffset_submodel_offset 1\nset r_polygonoffset_submodel_factor 0.05\n"
-#else	//many quake maps have hideous z-fighting. this provides a way to work around it, although the exact numbers are gpu and bitdepth dependant, and trying to fix it can actually break other things.
-	#define ZFIXHACK "set r_polygonoffset_submodel_offset 25\nset r_polygonoffset_submodel_factor 0.05\n"
-#endif
-
-#ifdef FTE_TARGET_WEB	//for stuff that doesn't work right...
-#define FORWEB(a,b) a
-#else
-#define FORWEB(a,b) b
-#endif
-
-/*ezquake cheats and compat*/
-#define EZQUAKECOMPETITIVE "set ruleset_allow_fbmodels 1\nset sv_demoExtensions \"\"\n"
-/*quake requires a few settings for compatibility*/
-#define QRPCOMPAT "set cl_cursor_scale 0.2\nset cl_cursor_bias_x 7.5\nset cl_cursor_bias_y 0.8\n"
-#define QUAKESPASMSUCKS "set mod_h2holey_bugged 1\n"
-#define QUAKEOVERRIDES "set sv_listen_nq 2\n set v_gammainverted 1\nset cl_download_mapsrc \"https://maps.quakeworld.nu/all/\"\nset con_stayhidden 0\nset allow_download_pakcontents 2\nset allow_download_refpackages 0\nset r_meshpitch -1\nr_sprite_backfacing 1\nset sv_bigcoords \"\"\nmap_autoopenportals 1\n"  "sv_port "STRINGIFY(PORT_QWSERVER)" "STRINGIFY(PORT_NQSERVER)"\n" ZFIXHACK EZQUAKECOMPETITIVE QUAKESPASMSUCKS
-#define QCFG "//schemes quake qw\n"   QUAKEOVERRIDES "set com_parseutf8 0\n" QRPCOMPAT
-#define KEXCFG "//schemes quake_r2\n" QUAKEOVERRIDES "set com_parseutf8 1\nset campaign 0\nset net_enable_dtls 1\nset sv_mintic 0.016666667\nset sv_maxtic $sv_mintic\nset cl_netfps 60\n"
-/*NetQuake reconfiguration, to make certain people feel more at home...*/
-#define NQCFG "//disablehomedir 1\n//mainconfig ftenq\n" QCFG "cfg_save_auto 1\nset pm_bunnyfriction 1\nset sv_nqplayerphysics 1\nset cl_loopbackprotocol auto\ncl_sbar 1\nset plug_sbar 0\nset sv_port "STRINGIFY(PORT_NQSERVER)"\ncl_defaultport "STRINGIFY(PORT_NQSERVER)"\nset m_preset_chosen 1\nset vid_wait 1\nset cl_demoreel 1\n"
-#define SPASMCFG NQCFG "fps_preset builtin_spasm\nset cl_demoreel 0\ncl_sbar 2\nset gl_load24bit 1\n"
-#define FITZCFG NQCFG "fps_preset builtin_spasm\ncl_sbar 2\nset gl_load24bit 1\n"
-#define TENEBRAECFG NQCFG "fps_preset builtin_tenebrae\n"
-//nehahra has to be weird with its extra cvars, and buggy fullbrights.
-#define NEHCFG QCFG "set nospr32 0\nset cutscene 1\nalias startmap_sp \"map nehstart\"\nr_fb_bmodels 0\nr_fb_models 0\n"
-/*stuff that makes dp-only mods work a bit better*/
-#define DPCOMPAT QCFG "gl_specular 1\nset _cl_playermodel \"\"\n set dpcompat_set 1\ndpcompat_console 1\nset dpcompat_corruptglobals 1\nset vid_pixelheight 1\nset dpcompat_set 1\nset dpcompat_console 1\nset r_particlesdesc effectinfo\n"
-/*nexuiz/xonotic has a few quirks/annoyances...*/
-#define NEXCFG DPCOMPAT "cl_loopbackprotocol dpp7\nset sv_listen_dp 1\nset sv_listen_qw 0\nset sv_listen_nq 0\nset dpcompat_nopreparse 1\nset sv_bigcoords 1\nset sv_maxairspeed \"30\"\nset sv_jumpvelocity 270\nset sv_mintic \"0.01\"\ncl_nolerp 0\n"
-#define XONCFG NEXCFG "set qport $qport_\ncom_parseutf8 1\npr_fixbrokenqccarrays 2\nset pr_csqc_memsize 64m\nset pr_ssqc_memsize 96m\n"
-/*some modern non-compat settings*/
-#define DMFCFG "set com_parseutf8 1\npm_airstep 1\nsv_demoExtensions 1\n"
-/*set some stuff so our regular qw client appears more like hexen2. sv_mintic is required to 'fix' the ravenstaff so that its projectiles don't impact upon each other*/
-#define HEX2CFG "//schemes hexen2\n" "set v_gammainverted 1\nset com_parseutf8 -1\nset gl_font gfx/hexen2\nset in_builtinkeymap 0\nset_calc cl_playerclass int (random * 5) + 1\nset cl_forwardspeed 200\nset cl_backspeed 200\ncl_sidespeed 225\nset sv_maxspeed 640\ncl_run 0\nset watervis 1\nset r_lavaalpha 1\nset r_lavastyle -2\nset r_wateralpha 0.5\nset sv_pupglow 1\ngl_shaftlight 0.5\nsv_mintic 0.015\nset r_meshpitch -1\nset r_meshroll -1\nr_sprite_backfacing 1\nset mod_warnmodels 0\nset cl_model_bobbing 1\nsv_sound_watersplash \"misc/hith2o.wav\"\nsv_sound_land \"fx/thngland.wav\"\nset sv_walkpitch 0\n"
-/*yay q2!*/
-#define Q2CFG "//schemes quake2\n" "set v_gammainverted 1\nset com_parseutf8 0\ncom_gamedirnativecode 1\nset sv_bigcoords 0\nsv_port "STRINGIFY(PORT_Q2SERVER)"\ncl_defaultport "STRINGIFY(PORT_Q2SERVER)"\n"
-/*Q3's ui doesn't like empty model/headmodel/handicap cvars, even if the gamecode copes*/
-#define Q3CFG "//schemes quake3\n" "set v_gammainverted 0\nset snd_ignorecueloops 1\nsetfl g_gametype 0 s\nset gl_clear 1\nset r_clearcolour 0 0 0\nset com_parseutf8 0\ngl_overbright "FORWEB("0","2")"\nseta model sarge\nseta headmodel sarge\nseta handicap 100\ncom_gamedirnativecode 1\nsv_port "STRINGIFY(PORT_Q3SERVER)"\ncl_defaultport "STRINGIFY(PORT_Q3SERVER)"\ncom_protocolversion 68\n"
-//#define RMQCFG "sv_bigcoords 1\n"
-
-#define HLCFG "plug_load ffmpeg\n"
-
-#ifndef UPDATEURL
-	#ifdef HAVE_SSL
-		#define UPDATEURL(g)	"/downloadables.php?game=" #g
-	#else
-		#define UPDATEURL(g)	NULL
-	#endif
-#endif
-
-#define QUAKEPROT "FTE-Quake DarkPlaces-Quake"
-
-typedef struct {
-	const char *argname;	//used if this was used as a parameter.
-	const char *exename;	//used if the exe name contains this
-	const char *protocolname;	//sent to the master server when this is the current gamemode (Typically set for DP compat).
-	const char *auniquefile[4];	//used if this file is relative from the gamedir. needs just one file
-
-	const char *customexec;
-
-	const char *dir[4];
-	const char *poshname;		//Full name for the game.
-	const char *downloadsurl;	//url to check for updates.
-	const char *needpackages;	//package name(s) that are considered mandatory for this game to work.
-	const char *manifestfile;	//contents of manifest file to use.
-} gamemode_info_t;
-static const gamemode_info_t gamemode_info[] = {
-#ifdef GAME_SHORTNAME
-	#ifndef GAME_PROTOCOL
-	#define GAME_PROTOCOL			DISTRIBUTION
-	#endif
-	#ifndef GAME_IDENTIFYINGFILES
-	#define GAME_IDENTIFYINGFILES	NULL	//
-	#endif
-	#ifndef GAME_DEFAULTCMDS
-	#define GAME_DEFAULTCMDS		NULL	//doesn't need anything
-	#endif
-	#ifndef GAME_BASEGAMES
-	#define GAME_BASEGAMES			"data"
-	#endif
-	#ifndef GAME_FULLNAME
-	#define GAME_FULLNAME			FULLENGINENAME
-	#endif
-	#ifndef GAME_MANIFESTUPDATE
-	#define GAME_MANIFESTUPDATE		NULL
-	#endif
-
-	{"-"GAME_SHORTNAME,		GAME_SHORTNAME,			GAME_PROTOCOL,					{GAME_IDENTIFYINGFILES}, GAME_DEFAULTCMDS, {GAME_BASEGAMES}, GAME_FULLNAME, NULL/*updateurl*/, NULL/*needpackages*/, GAME_MANIFESTUPDATE},
-#endif
-//note that there is no basic 'fte' gamemode, this is because we aim for network compatability. Darkplaces-Quake is the closest we get.
-//this is to avoid having too many gamemodes anyway.
-
-//mission packs should generally come after the main game to avoid prefering the main game. we violate this for hexen2 as the mission pack is mostly a superset.
-//whereas the quake mission packs replace start.bsp making the original episodes unreachable.
-//for quake, we also allow extracting all files from paks. some people think it loads faster that way or something.
-#ifdef HAVE_LEGACY
-	//cmdline switch exename    protocol name(dpmaster)  identifying file				exec     dir1       dir2    dir3       dir(fte)     full name
-	//use rerelease behaviours if we seem to be running from that dir.
-	{"-quake_rerel",NULL,		"FTE-QuakeRerelease",	{"QuakeEX.kpf"},				KEXCFG,	{"id1",							"*fte"},	"Quake Re-Release",					UPDATEURL(Q1)},
-	//standard quake
-	{"-quake",		"q1",		QUAKEPROT,				{"id1/pak0.pak","id1/quake.rc"},QCFG,	{"id1",		"qw",				"*fte"},	"Quake",							UPDATEURL(Q1)},
-	//alternative name, because fmf file install names are messy when a single name is used for registry install path.
-	{"-afterquake",	NULL,		"FTE-Quake",			{"id1/pak0.pak", "id1/quake.rc"},QCFG,	{"id1",		"qw",				"*fte"},	"AfterQuake",						UPDATEURL(Q1)},
-	//netquake-specific quake that avoids qw/ with its nquake fuckups, and disables nqisms
-	{"-netquake",	NULL,		QUAKEPROT,				{"id1/pak0.pak","id1/quake.rc"},NQCFG,	{"id1"},									"NetQuake",							UPDATEURL(Q1)},
-	//common variant of fitzquake that includes its own special pak file in the basedir
-	{"-spasm",		NULL,		QUAKEPROT,				{"quakespasm.pak"},				SPASMCFG,{"/id1"},									"FauxSpasm",						UPDATEURL(Q1)},
-	//because we can. 'fps_preset spasm' is hopefully close enough...
-	{"-fitz",		"nq",		QUAKEPROT,				{"id1/pak0.pak","id1/quake.rc"},FITZCFG,{"id1"},									"FauxFitz",							UPDATEURL(Q1)},
-	//because we can
-	{"-tenebrae",	NULL,		QUAKEPROT,				{"tenebrae/Pak0.pak","id1/quake.rc"},TENEBRAECFG,{"id1",	"tenebrae"},					"FauxTenebrae",						UPDATEURL(Q1)},
-
-	//quake's mission packs should not be favoured over the base game nor autodetected
-	//third part mods also tend to depend upon the mission packs for their huds, even if they don't use any other content.
-	//and q2 also has a rogue/pak0.pak file that we don't want to find and cause quake2 to look like dissolution of eternity
-	//so just make these require the same files as good ol' quake.
-	{"-hipnotic",	"hipnotic",	"FTE-Hipnotic",			{"id1/pak0.pak","id1/quake.rc"},QCFG,	{"id1",		"qw",	"hipnotic",	"*fte"},	"Quake: Scourge of Armagon",		UPDATEURL(Q1)},
-	{"-rogue",		"rogue",	"FTE-Rogue",			{"id1/pak0.pak","id1/quake.rc"},QCFG,	{"id1",		"qw",	"rogue",	"*fte"},	"Quake: Dissolution of Eternity",	UPDATEURL(Q1)},
-
-	//various quake-dependant non-standalone mods that require hacks
-	//quoth needed an extra arg just to enable hipnotic hud drawing, it doesn't actually do anything weird, but most engines have a -quoth arg, so lets have one too.
-	{"-quoth",		"quoth",	"FTE-Quake",			{"id1/pak0.pak","id1/quake.rc"},QCFG,	{"id1",		"qw",	"quoth",	"*fte"},	"Quake: Quoth",						UPDATEURL(Q1)},
-	{"-nehahra",	"nehahra",	"FTE-Quake",			{"id1/pak0.pak","id1/quake.rc"},NEHCFG,	{"id1",		"qw",	"nehahra",	"*fte"},	"Quake: Seal Of Nehahra",			UPDATEURL(Q1)},
-	//various quake-based standalone mods.
-	{"-librequake",	"librequake","LibreQuake",			{"lq1/pak0.pak","lq1/gfx.pk3","lq1/quake.rc"},QCFG,	{"lq1"},									"LibreQuake",						UPDATEURL(LQ)},
-//	{"-nexuiz",		"nexuiz",	"Nexuiz",				{"nexuiz.exe"},					NEXCFG,	{"data",						"*ftedata"},"Nexuiz"},
-//	{"-xonotic",	"xonotic",	"Xonotic",				{"data/xonotic-data.pk3dir",
-//														 "data/xonotic-*data*.pk3"},	XONCFG,	{"data",						"*ftedata"},"Xonotic",							UPDATEURL(Xonotic)},
-//	{"-spark",		"spark",	"Spark",				{"base/src/progs.src",
-//														 "base/qwprogs.dat",
-//														 "base/pak0.pak"},				DMFCFG,	{"base",								},	"Spark"},
-//	{"-scouts",		"scouts",	"FTE-SJ",				{"basesj/src/progs.src",
-//														 "basesj/progs.dat",
-//														 "basesj/pak0.pak"},			NULL,	{"basesj",						        },	"Scouts Journey"},
-//	{"-rmq",		"rmq",		"RMQ",					{NULL},							RMQCFG,	{"id1",		"qw",	"rmq",		"*fte"	},	"Remake Quake"},
-
-#ifdef HEXEN2
-	//hexen2's mission pack generally takes precedence if both are installed.
-	{"-portals",	"h2mp",		"FTE-H2MP",				{"portals/hexen.rc",
-														 "portals/pak3.pak"},			HEX2CFG,{"data1",	"portals",			"*fteh2"},	"Hexen II MP",						UPDATEURL(H2)},
-	{"-hexen2",		"hexen2",	"FTE-Hexen2",			{"data1/pak0.pak"},				HEX2CFG,{"data1",						"*fteh2"},	"Hexen II",							UPDATEURL(H2)},
-#endif
-#if defined(Q2CLIENT) || defined(Q2SERVER)
-	{"-quake2",		"q2",		"Quake2",				{"baseq2/pak0.pak"},			Q2CFG,	{"baseq2",						"*fteq2"},	"Quake II",							UPDATEURL(Q2)},
-	//mods of the above that should generally work.
-	{"-dday",		"dday",		"Quake2",				{"dday/pak0.pak"},				Q2CFG,	{"baseq2",	"dday",				"*fteq2"},	"D-Day: Normandy"},
-#endif
-
-#if defined(Q3CLIENT) || defined(Q3SERVER)
-	{"-quake3",		"q3",		"Quake3",				{"baseq3/pak0.pk3"},			Q3CFG,	{"baseq3",						"*fteq3"},	"Quake III Arena",					UPDATEURL(Q3),		"quake3"},
-	{"-quake3demo",	"q3demo",	"Quake3Demo",			{"demoq3/pak0.pk3"},			Q3CFG,	{"demoq3",						"*fteq3"},	"Quake III Arena Demo",				NULL,				"quake3"},
-	//the rest are not supported in any real way. maps-only mostly, if that
-//	{"-quake4",		"q4",		"FTE-Quake4",			{"q4base/pak00.pk4"},			NULL,	{"q4base",						"*fteq4"},	"Quake 4"},
-//	{"-et",			NULL,		"FTE-EnemyTerritory",	{"etmain/pak0.pk3"},			NULL,	{"etmain",						"*fteet"},	"Wolfenstein - Enemy Territory"},
-
-//	{"-jk2",		"jk2",		"FTE-JK2",				{"base/assets0.pk3"},			NULL,	{"base",						"*ftejk2"},	"Jedi Knight II: Jedi Outcast"},
-//	{"-warsow",		"warsow",	"FTE-Warsow",			{"basewsw/pak0.pk3"},			NULL,	{"basewsw",						"*ftewsw"},	"Warsow"},
-#endif
-#if !defined(QUAKETC) && !defined(MINIMAL)
-//	{"-doom",		"doom",		"FTE-Doom",				{"doom.wad"},					NULL,	{"*",							"*ftedoom"},"Doom"},
-//	{"-doom2",		"doom2",	"FTE-Doom2",			{"doom2.wad"},					NULL,	{"*",							"*ftedoom"},"Doom2"},
-//	{"-doom3",		"doom3",	"FTE-Doom3",			{"doom3.wad"},					NULL,	{"based3",						"*ftedoom3"},"Doom3"},
-
-	//for the luls
-//	{"-diablo2",	NULL,		"FTE-Diablo2",			{"d2music.mpq"},				NULL,	{"*",							"*fted2"},	"Diablo 2"},
-#endif
-	/* maintained by FreeHL ~eukara */
-	{"-halflife",	"halflife",	"FTE-HalfLife",			{"valve/liblist.gam"},			HLCFG,	{"logos", "valve"},				"Half-Life"},
-#endif
-
-	{NULL}
-};
 
 static void QDECL Q_strnlowercatz(char *d, const char *s, int n)
 {
@@ -4911,7 +5035,7 @@ static void FS_ReloadPackFilesFlags(unsigned int reloadflags)
 		const char *pakname = com_argv[i+1];
 		searchpathfuncs_t *pak;
 		vfsfile_t *vfs = VFSOS_Open(pakname, "rb");
-		pak = FS_OpenPackByExtension(vfs, NULL, pakname, pakname);
+		pak = FS_OpenPackByExtension(vfs, NULL, pakname, pakname, "");
 		if (pak)	//logically should have SPF_EXPLICIT set, but that would give it a worse gamedir depth
 			FS_AddPathHandle(&oldpaths, "", pakname, pak, "", SPF_COPYPROTECTED, reloadflags);
 		i = COM_CheckNextParm ("-basepack", i);
@@ -5630,11 +5754,37 @@ qboolean Sys_DoDirectoryPrompt(char *basepath, size_t basepathsize, const char *
 }
 //#define Sys_DoDirectoryPrompt(bp,bps,game,savename) false
 
+#if defined(__linux__) || defined(__unix__) || defined(__apple__)
+static qboolean Sys_XDGHasDirectory(char *basepath, int basepathlen, const char *pregame, const char *gamename, const char *postgame)
+{	//returns true if the gamedir can be found, and fills in the basepath.
+	struct stat sb;
+	const char *dirs = getenv("XDG_DATA_DIRS"), *s;
+	char dir[MAX_OSPATH];
+	if (!dirs||!*dirs)
+		dirs = "/usr/local/share:/usr/share";
+
+	while (dirs && *dirs)
+	{
+		dirs = COM_ParseStringSetSep(dirs, ':', dir, sizeof(dir));
+
+		s = va("%s/%s%s%s/", dir, pregame, gamename, postgame);
+		if (stat(s, &sb) == 0)
+		{
+			if (S_ISDIR(sb.st_mode))
+			{
+				Q_strncpyz(basepath, s, basepathlen);
+				return true;
+			}
+		}
+	}
+	return false;
+}
+#endif
+
+//FIXME: replace with a callback version, for multiple results.
 qboolean Sys_FindGameData(const char *poshname, const char *gamename, char *basepath, int basepathlen, qboolean allowprompts)
 {
 #if defined(__linux__) || defined(__unix__) || defined(__apple__)
-	struct stat sb;
-	char *s;
 	if (!*gamename)
 		gamename = "quake";	//just a paranoia fallback, shouldn't be needed.
 	if (!strcmp(gamename, "quake_rerel"))
@@ -5649,14 +5799,8 @@ qboolean Sys_FindGameData(const char *poshname, const char *gamename, char *base
 		if (Sys_SteamHasFile(basepath, basepathlen, "Quake", "id1/pak0.pak"))	//people may have tried to sanitise it already.
 			return true;
 
-		if (stat("/usr/share/quake/", &sb) == 0)
-		{
-			if (S_ISDIR(sb.st_mode))
-			{
-				Q_strncpyz(basepath, "/usr/share/quake/", basepathlen);
-				return true;
-			}
-		}
+		if (Sys_XDGHasDirectory(basepath, basepathlen, "", gamename, ""))
+			return true;
 	}
 	else if (!strcmp(gamename, "quake2"))
 	{
@@ -5670,24 +5814,14 @@ qboolean Sys_FindGameData(const char *poshname, const char *gamename, char *base
 		gamename = "hexen2";
 	}
 
-	s = va("/usr/share/games/%s/", gamename);
-	if (stat(s, &sb) == 0)
-	{
-		if (S_ISDIR(sb.st_mode))
-		{
-			Q_strncpyz(basepath, s, basepathlen);
-			return true;
-		}
-	}
-	s = va("/usr/share/games/%s-demo/", gamename);
-	if (stat(s, &sb) == 0)
-	{
-		if (S_ISDIR(sb.st_mode))
-		{
-			Q_strncpyz(basepath, s, basepathlen);
-			return true;
-		}
-	}
+	if (Sys_XDGHasDirectory(basepath, basepathlen, "games/", gamename, ""))
+		return true;
+	if (Sys_XDGHasDirectory(basepath, basepathlen, "", gamename, ""))
+		return true;
+	if (Sys_XDGHasDirectory(basepath, basepathlen, "games/", gamename, "-demo"))
+		return true;
+	if (Sys_XDGHasDirectory(basepath, basepathlen, "", gamename, "-demo"))
+		return true;
 
 #if defined(HAVE_CLIENT) //this is *really* unfortunate, but doing this crashes the browser
 	if (allowprompts && poshname && *gamename && !COM_CheckParm("-manifest"))
@@ -5739,7 +5873,7 @@ void FS_Shutdown(void)
 	Mods_FlushModList();
 
 #ifdef PACKAGEMANAGER
-	PM_ManifestPackage(NULL, false);
+	PM_ManifestChanged(NULL);
 #endif
 	FS_FreePaths();
 	Sys_DestroyMutex(fs_thread_mutex);
@@ -5751,7 +5885,7 @@ void FS_Shutdown(void)
 
 //returns false if the directory is not suitable.
 //returns true if it contains a known package. if we don't actually know of any packages that it should have, we just have to assume that its okay.
-static qboolean FS_DirHasAPackage(char *basedir, ftemanifest_t *man)
+qboolean FS_DirHasAPackage(char *basedir, ftemanifest_t *man)
 {
 	qboolean defaultret = true;
 	int j;
@@ -5875,7 +6009,6 @@ static int FS_IdentifyDefaultGame(char *newbase, int sizeof_newbase, qboolean fi
 static ftemanifest_t *FS_GenerateLegacyManifest(int game, const char *basedir)
 {
 	ftemanifest_t *man;
-	size_t j;
 	const char *cexec;
 
 	if (gamemode_info[game].manifestfile)
@@ -5883,6 +6016,9 @@ static ftemanifest_t *FS_GenerateLegacyManifest(int game, const char *basedir)
 	else
 	{
 		man = FS_Manifest_Create(NULL, basedir);
+
+		Cmd_TokenizeString(va("game \"%s\"", gamemode_info[game].argname+1), false, false);
+		FS_Manifest_ParseTokens(man);
 
 		for (cexec = gamemode_info[game].customexec; cexec && cexec[0] == '/' && cexec[1] == '/'; )
 		{
@@ -5896,29 +6032,7 @@ static ftemanifest_t *FS_GenerateLegacyManifest(int game, const char *basedir)
 			FS_Manifest_ParseTokens(man);
 		}
 
-		Cmd_TokenizeString(va("game \"%s\"", gamemode_info[game].argname+1), false, false);
-		FS_Manifest_ParseTokens(man);
-		if (gamemode_info[game].poshname)
-		{
-			Cmd_TokenizeString(va("name \"%s\"", gamemode_info[game].poshname), false, false);
-			FS_Manifest_ParseTokens(man);
-		}
-
-		//if there's no base dirs, edit the manifest to give it its default ones.
-		for (j = 0; j < sizeof(man->gamepath) / sizeof(man->gamepath[0]); j++)
-		{
-			if (man->gamepath[j].path && (man->gamepath[j].flags&GAMEDIR_BASEGAME))
-				break;
-		}
-		if (j == sizeof(man->gamepath) / sizeof(man->gamepath[0]))
-		{
-			for (j = 0; j < countof(gamemode_info[game].dir); j++)
-				if (gamemode_info[game].dir[j])
-				{
-					Cmd_TokenizeString(va("basegame \"%s\"", gamemode_info[game].dir[j]), false, false);
-					FS_Manifest_ParseTokens(man);
-				}
-		}
+		FS_Manifest_SetDefaultSettings(man, &gamemode_info[game]);
 	}
 	man->security = MANIFEST_SECURITY_INSTALLER;
 	return man;
@@ -5984,7 +6098,7 @@ static void FS_AppendManifestGameArguments(ftemanifest_t *man)
 static struct dl_download *curpackagedownload;
 qboolean FS_DownloadingPackage(void)
 {
-	if (PM_IsApplying(false))
+	if (PM_IsApplying() & 3)
 		return true;
 	return !fs_manifest || !!curpackagedownload;
 }
@@ -6089,7 +6203,6 @@ static void FS_ManifestUpdated(struct dl_download *dl)
 void FS_BeginManifestUpdates(void)
 {
 	ftemanifest_t *man = fs_manifest;
-	PM_ManifestPackage(man->installupd, man->security);
 	if (curpackagedownload || !man)
 		return;
 
@@ -6172,7 +6285,7 @@ static ftemanifest_t *FS_ReadDefaultManifest(char *newbasedir, size_t newbasedir
 		const char *pakname = com_argv[i+1];
 		searchpathfuncs_t *pak;
 		vfsfile_t *vfs = VFSOS_Open(pakname, "rb");
-		pak = FS_OpenPackByExtension(vfs, NULL, pakname, pakname);
+		pak = FS_OpenPackByExtension(vfs, NULL, pakname, pakname, "");
 		if (pak)
 		{
 			flocation_t loc;
@@ -6379,36 +6492,6 @@ qboolean FS_ChangeGame(ftemanifest_t *man, qboolean allowreloadconfigs, qboolean
 		olddownloadsurl = NULL;
 #endif
 
-	if (man == fs_manifest)
-	{
-		//don't close anything. theoretically nothing is changing, and we don't want to load new defaults either.
-	}
-	else if (!fs_manifest || !strcmp(fs_manifest->installation?fs_manifest->installation:"", man->installation?man->installation:""))
-	{
-		if (!fs_manifest)
-			reloadconfigs = true;
-		FS_Manifest_Free(fs_manifest);
-	}
-	else
-	{
-		FS_FreePaths();
-
-		reloadconfigs = true;
-	}
-	fs_manifest = man;
-
-#ifdef PACKAGEMANAGER
-	PM_Shutdown(true);
-
-	if (man->security == MANIFEST_SECURITY_NOT && strcmp(man->downloadsurl?man->downloadsurl:"", olddownloadsurl?olddownloadsurl:""))
-	{	//make sure we only fuck over the user if this is a 'secure' manifest, and not hacked in some way.
-		Z_Free(man->downloadsurl);
-		man->downloadsurl = olddownloadsurl;
-	}
-	else
-		Z_Free(olddownloadsurl);
-#endif
-
 	if (man->installation && *man->installation)
 	{
 		for (i = 0; gamemode_info[i].argname; i++)
@@ -6508,6 +6591,18 @@ qboolean FS_ChangeGame(ftemanifest_t *man, qboolean allowreloadconfigs, qboolean
 		{
 			if (Sys_FindGameData(man->formalname, man->installation, realpath, sizeof(realpath), man->security != MANIFEST_SECURITY_INSTALLER) && FS_FixPath(realpath, sizeof(realpath)) && FS_DirHasAPackage(realpath, man))
 				Q_strncpyz (newbasedir, realpath, sizeof(newbasedir));
+			else if (man->basedir)
+				Q_strncpyz (newbasedir, man->basedir, sizeof(newbasedir));
+#if !defined(NOBUILTINMENUS) && defined(HAVE_CLIENT)
+			else if (man != fs_manifest)
+			{
+#ifdef PACKAGEMANAGER
+				Z_Free(olddownloadsurl);
+#endif
+				M_Menu_BasedirPrompt(man);
+				return false;
+			}
+#endif
 #ifdef HAVE_CLIENT
 			else
 			{	//no basedir known... switch to installer mode and ask the user where they want it (at least on windows)
@@ -6521,13 +6616,41 @@ qboolean FS_ChangeGame(ftemanifest_t *man, qboolean allowreloadconfigs, qboolean
 	if (!fixedbasedir && !com_installer)
 	{
 		if (strcmp(com_gamepath, newbasedir))
-		{
-#ifdef PACKAGEMANAGER
-			PM_Shutdown(false);
-#endif
 			Q_strncpyz (com_gamepath, newbasedir, sizeof(com_gamepath));
-		}
 	}
+
+	//now that we know what we're running and where we're running it, we can switch to it.
+	if (man == fs_manifest)
+	{
+		//don't close anything. theoretically nothing is changing, and we don't want to load new defaults either.
+	}
+	else if (!fs_manifest || !strcmp(fs_manifest->installation?fs_manifest->installation:"", man->installation?man->installation:""))
+	{
+		if (!fs_manifest)
+			reloadconfigs = true;
+		FS_Manifest_Free(fs_manifest);
+	}
+	else
+	{
+		FS_FreePaths();
+
+		reloadconfigs = true;
+	}
+	fs_manifest = man;
+
+
+
+#ifdef PACKAGEMANAGER
+	PM_ManifestChanged(man);
+
+	if (man->security == MANIFEST_SECURITY_NOT && strcmp(man->downloadsurl?man->downloadsurl:"", olddownloadsurl?olddownloadsurl:""))
+	{	//make sure we only fuck over the user if this is a 'secure' manifest, and not hacked in some way.
+		Z_Free(man->downloadsurl);
+		man->downloadsurl = olddownloadsurl;
+	}
+	else
+		Z_Free(olddownloadsurl);
+#endif
 
 	//make sure it has a trailing slash, or is empty. woo.
 	FS_CleanDir(com_gamepath, sizeof(com_gamepath));
@@ -6577,7 +6700,7 @@ qboolean FS_ChangeGame(ftemanifest_t *man, qboolean allowreloadconfigs, qboolean
 	if (Sys_LockMutex(fs_thread_mutex))
 	{
 #ifdef HAVE_CLIENT
-		qboolean vidrestart = false;
+		int vidrestart = FS_GameIsInitialised()?false:2;
 #endif
 
 		FS_ReloadPackFilesFlags(~0);
@@ -6594,7 +6717,7 @@ qboolean FS_ChangeGame(ftemanifest_t *man, qboolean allowreloadconfigs, qboolean
 		COM_CheckRegistered();
 
 #ifdef HAVE_CLIENT
-		if (qrenderer != QR_NONE && allowvidrestart)
+		if (qrenderer != QR_NONE && allowvidrestart && !vidrestart)
 		{
 			for (i = 0; i < countof(vidfile); i++)
 			{
@@ -6629,9 +6752,6 @@ qboolean FS_ChangeGame(ftemanifest_t *man, qboolean allowreloadconfigs, qboolean
 				//FIXME: flag this instead and do it after a delay?
 				Cvar_ForceSet(&fs_gamename, fs_gamename.enginevalue);
 				Cvar_ForceSet(&com_protocolname, com_protocolname.enginevalue);
-#ifdef HAVE_CLIENT
-				vidrestart = false;
-#endif
 
 #ifdef HAVE_SERVER
 				if (isDedicated)
@@ -6640,7 +6760,10 @@ qboolean FS_ChangeGame(ftemanifest_t *man, qboolean allowreloadconfigs, qboolean
 #endif
 #ifdef HAVE_CLIENT
 				if (1)
-					CL_ExecInitialConfigs(man->defaultexec?man->defaultexec:"");
+				{
+					CL_ExecInitialConfigs(man->defaultexec?man->defaultexec:"", vidrestart==2);
+					vidrestart = false;
+				}
 				else
 #endif
 				{
@@ -6649,11 +6772,6 @@ qboolean FS_ChangeGame(ftemanifest_t *man, qboolean allowreloadconfigs, qboolean
 				}
 			}
 #ifdef HAVE_CLIENT
-			else if (vidrestart)
-			{
-				Cbuf_AddText ("vid_reload\n", RESTRICT_LOCAL);
-				vidrestart = false;
-			}
 
 			if (Cmd_Exists("ui_restart"))	//if we're running a q3 ui, restart it now...
 				Cbuf_InsertText("ui_restart\n", RESTRICT_LOCAL, false);
@@ -6667,7 +6785,12 @@ qboolean FS_ChangeGame(ftemanifest_t *man, qboolean allowreloadconfigs, qboolean
 			}
 		}
 #ifdef HAVE_CLIENT
-		if (vidrestart)
+		if (vidrestart == 2)
+		{	//done when we picked an initial mod to run (so managed to actually read user settings instead of being forced windowed)
+			Cbuf_AddText ("vid_restart\n", RESTRICT_LOCAL);
+			vidrestart = false;
+		}
+		else if (vidrestart)
 		{
 			Cbuf_AddText ("vid_reload\n", RESTRICT_LOCAL);
 			vidrestart = false;
@@ -6769,10 +6892,23 @@ static int QDECL FS_EnumeratedFMF(const char *fname, qofs_t fsize, time_t mtime,
 			}
 		}
 	}
-	else if (e->basedir)
+	else if (e->basedir == com_gamepath)
 		man = FS_Manifest_ReadMod(fname);
 	else
-		man = FS_Manifest_ReadSystem(fname, NULL);
+	{
+		man = FS_Manifest_ReadSystem(fname, e->basedir);
+
+		if (man && !man->basedir && man->installation && *man->installation)
+		{	//try and give it a proper gamedir...
+			char basedir[MAX_OSPATH];
+
+			//enables sources etc.
+			man->security = MANIFEST_SECURITY_INSTALLER;
+
+			if (Sys_FindGameData(NULL, man->installation, basedir, sizeof(basedir), false))
+				man->basedir = Z_StrDup(basedir);
+		}
+	}
 
 	if (man)
 	{
@@ -6819,9 +6955,18 @@ int FS_EnumerateKnownGames(qboolean (*callback)(void *usr, ftemanifest_t *man), 
 
 	if (e.anygamedir)
 	{
-#ifdef __linux__
+#ifdef __unix__
+		const char *dirs = getenv("XDG_CONFIG_DIRS");
+		if (!dirs || !*dirs)
+			dirs = "/etc/xdg";
+
 		e.basedir = NULL;
-		Sys_EnumerateFiles(NULL, "/etc/fte/*.fmf", FS_EnumeratedFMF, &e, NULL);
+		while (dirs && *dirs)
+		{
+			dirs = COM_ParseStringSetSep(dirs, ':', basedir, sizeof(basedir));
+			Q_strncatz(basedir, "/games/*.fmf", sizeof(basedir));
+			Sys_EnumerateFiles(NULL, basedir, FS_EnumeratedFMF, &e, NULL);
+		}
 #endif
 	}
 
@@ -6834,7 +6979,7 @@ int FS_EnumerateKnownGames(qboolean (*callback)(void *usr, ftemanifest_t *man), 
 		const char *pakname = com_argv[i+1];
 		searchpathfuncs_t *pak;
 		vfsfile_t *vfs = VFSOS_Open(pakname, "rb");
-		pak = FS_OpenPackByExtension(vfs, NULL, pakname, pakname);
+		pak = FS_OpenPackByExtension(vfs, NULL, pakname, pakname, "");
 		if (pak)
 		{
 			pak->EnumerateFiles(pak, "*.fmf", FS_EnumeratedFMF, &e);
@@ -7262,7 +7407,7 @@ static void FS_ChangeGame_f(void)
 			else
 				COM_Gamedir(mod->gamedir, NULL);
 #ifdef HAVE_CLIENT
-			Cbuf_AddText("menu_restart\n", RESTRICT_LOCAL);
+//			Cbuf_AddText("menu_restart\n", RESTRICT_LOCAL);
 #endif
 		}
 		return;

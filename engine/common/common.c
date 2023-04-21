@@ -5548,8 +5548,8 @@ static void COM_Version_f (void)
 
 #ifdef FTE_BRANCH
 	Con_Printf("Branch: "STRINGIFY(FTE_BRANCH)"\n");
-#endif
-#if defined(SVNREVISION) && defined(SVNDATE)
+	Con_Printf("Revision: %s - %s\n",STRINGIFY(SVNREVISION), STRINGIFY(SVNDATE));
+#elif defined(SVNREVISION) && defined(SVNDATE)
 	if (!strncmp(STRINGIFY(SVNREVISION), "git-", 4))
 		Con_Printf("GIT Revision: %s - %s\n",STRINGIFY(SVNREVISION), STRINGIFY(SVNDATE));
 	else
@@ -8511,10 +8511,15 @@ char *version_string(void)
 #ifdef OFFICIAL_RELEASE
 		Q_snprintfz(s, sizeof(s), "%s v%i.%02i", DISTRIBUTION, FTE_VER_MAJOR, FTE_VER_MINOR);
 #elif defined(SVNREVISION) && defined(SVNDATE)
+	#ifdef FTE_BRANCH
+		//something like 'FTE master 6410M-HASH'
+		Q_snprintfz(s, sizeof(s), "%s %s %s", DISTRIBUTION, STRINGIFY(FTE_BRANCH), STRINGIFY(SVNREVISION));
+	#else
 		if (!strncmp(STRINGIFY(SVNREVISION), "git-", 4))
 			Q_snprintfz(s, sizeof(s), "%s %s", DISTRIBUTION, STRINGIFY(SVNREVISION));	//if both are defined then its a known unmodified svn revision.
 		else
 			Q_snprintfz(s, sizeof(s), "%s SVN %s", DISTRIBUTION, STRINGIFY(SVNREVISION));	//if both are defined then its a known unmodified svn revision.
+	#endif
 #else
 	#if defined(SVNREVISION)
 		if (!strncmp(STRINGIFY(SVNREVISION), "git-", 4))
@@ -8569,9 +8574,17 @@ int parse_revision_number(const char *s, qboolean strict)
 	}
 	else
 	{
-		//[lower-]upper[M]
+		//svn: [lower-]upper[M]
+		//git: revision-git-hash[-dirty]
+		//git: branch-revision-git-hash[-dirty]
 		rev = strtoul(s, &e, 10);
-		if (*e && strict)
+		if (!strncmp(e, "-git", 4))
+		{	//if there's a -dirty in there then its bad.
+			//we can't validate that the commit id matches the same branch as this build. we'll just have to live with it.
+			if (strict && strstr(s, "-dirty"))
+				return false;
+		}
+		else if (*e && strict)
 			return false;	//something odd.
 	}
 	return rev;

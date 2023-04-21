@@ -2066,13 +2066,13 @@ static qboolean FSZIP_EnumerateCentralDirectory(zipfile_t *zip, struct zipinfo *
 						nlen += cl;
 					}
 					f->name[nlen] = 0;
-
 				}
+				ofs += entry.cesize;
 
 				if (prefix && *prefix)
 				{
 					if (!strcmp(prefix, ".."))
-					{
+					{	//strip leading directories blindly
 						char *c; 
 						for (c = f->name; *c; )
 						{
@@ -2081,8 +2081,20 @@ static qboolean FSZIP_EnumerateCentralDirectory(zipfile_t *zip, struct zipinfo *
 						}
 						memmove(f->name, c, strlen(c)+1);
 					}
+					else if (*prefix == '/')
+					{	//move any files with the specified prefix to the root
+						size_t prelen = strlen(prefix+1);
+						if (!strncmp(prefix+1, f->name, prelen))
+						{
+							if (f->name[prelen] == '/')
+								prelen++;
+							memmove(f->name, f->name+prelen, strlen(f->name+prelen)+1);
+						}
+						else
+							continue;
+					}
 					else
-					{
+					{	//add the specified text to the start of each file name (handy for 'maps')
 						size_t prelen = strlen(prefix);
 						size_t oldlen = strlen(f->name);
 						if (prelen+1+oldlen+1 > sizeof(f->name))
@@ -2102,7 +2114,6 @@ static qboolean FSZIP_EnumerateCentralDirectory(zipfile_t *zip, struct zipinfo *
 				f->flags = entry.flags;
 				f->mtime = entry.mtime;
 
-				ofs += entry.cesize;
 				f++;
 			}
 
@@ -2113,6 +2124,7 @@ static qboolean FSZIP_EnumerateCentralDirectory(zipfile_t *zip, struct zipinfo *
 				zip->files = NULL;
 				zip->numfiles = 0;
 			}
+			zip->numfiles = f - zip->files;
 		}
 	}
 

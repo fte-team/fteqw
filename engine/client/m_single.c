@@ -599,6 +599,9 @@ typedef struct {
 	demoloc_t *fs; 
 	int pathlen;
 
+	//for the basedir picker...
+	ftemanifest_t *man;
+
 	char *command[64];	//these let the menu be used for nearly any sort of file browser.
 	char *ext[64];
 	int numext;
@@ -646,41 +649,48 @@ static void M_DemoDraw(int x, int y, menucustom_t *control, emenu_t *menu)
 	if (!item)
 		info->firstitem = info->items;
 
-	if (!info->dragscroll && (keydown[K_MOUSE1] || keydown[K_TOUCH]))
+	if (keydown[K_MOUSE1] || keydown[K_TOUCHSLIDE])
 	{
-		info->dragscroll = 1;
-		info->mousedownpos = mousecursor_y;
-	}
-	if (info->dragscroll && (keydown[K_MOUSE1] || keydown[K_TOUCH]))
-	{
-		if (info->mousedownpos >= mousecursor_y+8)
+		if (!info->dragscroll)
 		{
-			info->dragscroll = 2;
-			info->mousedownpos -= 8;
-			if (info->firstitem->next)
+			info->dragscroll = 1;
+			info->mousedownpos = mousecursor_y-y;
+		}
+		if (info->dragscroll)
+		{
+			if (info->mousedownpos >= mousecursor_y-y+8)
 			{
-				if (info->firstitem == info->selected)
-					info->selected = info->firstitem->next;
-				info->firstitem = info->firstitem->next;
+				info->dragscroll = 2;
+				info->mousedownpos -= 8;
+				if (info->firstitem->next)
+				{
+					if (info->firstitem == info->selected)
+						info->selected = info->firstitem->next;
+					info->firstitem = info->firstitem->next;
+				}
+			}
+			if (info->mousedownpos+8 <= mousecursor_y-y)
+			{
+				info->dragscroll = 2;
+				info->mousedownpos += 8;
+				if (info->firstitem->prev)
+				{
+					if (ty <= 24)
+						info->selected = info->selected->prev;
+					info->firstitem = info->firstitem->prev;
+				}
 			}
 		}
-		if (info->mousedownpos+8 <= mousecursor_y)
-		{
-			info->dragscroll = 2;
-			info->mousedownpos += 8;
-			if (info->firstitem->prev)
-			{
-				if (ty <= 24)
-					info->selected = info->selected->prev;
-				info->firstitem = info->firstitem->prev;
-			}
-		}
 	}
+	else
+		info->dragscroll = 0;
+
+	control->common.height = vid.height-y;
 
 	item = info->firstitem;
 	while(item)
 	{
-		if (y >= vid.height)
+		if (y >= y+control->common.height)
 			return;
 		if (!item->isdir)
 			text = va("%-32.32s%6iKB", item->name+info->pathlen, item->size/1024);
@@ -739,13 +749,10 @@ static qboolean M_DemoKey(menucustom_t *control, emenu_t *menu, int key, unsigne
 				info->selected = info->selected->next;
 		}
 		break;
-	case K_TOUCHTAP:
-	case K_MOUSE1:
+	case K_MOUSE1:	//this is on release
 		if (info->dragscroll == 2)
-		{
-			info->dragscroll = 0;
 			break;
-		}
+	case K_TOUCHTAP:
 		it = info->firstitem;
 		i = (mousecursor_y - control->common.posy) / 8;
 		while(i > 0 && it && it->next)
@@ -767,7 +774,7 @@ static qboolean M_DemoKey(menucustom_t *control, emenu_t *menu, int key, unsigne
 		{
 			if (info->selected->isdir)
 				ShowDemoMenu(menu, info->selected->name);
-			else
+			else if (info->numext)
 			{
 				extern int		shift_down;
 				int extnum;
@@ -945,6 +952,34 @@ static void M_Demo_Remove (emenu_t *menu)
 {
 	demomenu_t *info = menu->data;
 	M_Demo_Flush(info);
+
+	FS_Manifest_Free(info->man);
+	info->man = NULL;
+}
+
+static void FS_GameDirPrompted(void *ctx, promptbutton_t btn)
+{
+	emenu_t *menu = ctx;
+	if (Menu_IsLinked(&menu->menu))
+	{
+		demomenu_t *info = menu->data;
+		ftemanifest_t *man = info->man;
+		if (!man || info->fs->fsroot != FS_SYSTEM)
+			return;	//erk? no exploits!
+
+		switch(btn)
+		{
+		case PROMPT_CANCEL:
+			return;
+		case PROMPT_YES:
+			info->man = NULL;
+			Menu_Unlink(&menu->menu, true);	//try to kill the dialog menu.
+			FS_ChangeGame(man, true, true);	//switch to that new gamedir
+			break;
+		case PROMPT_NO:
+			return;
+		}
+	}
 }
 
 static void ShowDemoMenu (emenu_t *menu, const char *path)
@@ -1042,6 +1077,15 @@ static void ShowDemoMenu (emenu_t *menu, const char *path)
 //		COM_EnumerateFiles(match, DemoAddItem, info);
 	}
 	M_Demo_Flatten(info);
+
+	if (info->man && FS_DirHasAPackage(info->fs->path, info->man))
+	{
+		if (promptmenu)
+			return	//wut? don't confuse basedirs here...
+		Z_Free(info->man->basedir);
+		info->man->basedir = Z_StrDup(info->fs->path);
+		Menu_Prompt(FS_GameDirPrompted, &menu->menu, va("Use this directory?%s", info->fs->path), "Yes!", NULL, "No", true);
+	}
 }
 void M_Demo_Reselect(demomenu_t *info, const char *name)
 {
@@ -1206,4 +1250,55 @@ void M_Menu_MediaFiles_f (void)
 	M_Demo_Reselect(info, info->fs->selname);
 }
 #endif
+
+#include <stdlib.h>
+void M_Menu_BasedirPrompt(ftemanifest_t *man)
+{
+	demomenu_t *info;
+	emenu_t *menu;
+	char *start = getenv("HOME");
+	size_t l;
+
+	Key_Dest_Remove(kdm_console);
+
+	menu = M_CreateMenu(sizeof(demomenu_t) + sizeof(demoloc_t));
+	menu->remove = M_Demo_Remove;
+	info = menu->data;
+
+	info->man = man;
+
+	info->fs = (demoloc_t*)(info+1);
+	info->fs->fsroot = FS_SYSTEM;
+	if (!start || !*start || (l = strlen(info->fs->path))>=sizeof(info->fs->path))
+		strcpy(info->fs->path, "/");
+	else
+		strcpy(info->fs->path, start);
+	//make sure it has a trailing slash.
+	l = strlen(info->fs->path);
+#ifdef _WIN32
+	if (info->fs->path[l-1] == '\\')
+		info->fs->path[l-1] = '/';
+#endif
+	if (info->fs->path[l-1] != '/')
+	{
+		info->fs->path[l] = '/';
+		info->fs->path[l+1] = 0;
+	}
+
+	info->numext = 0;
+
+	MC_AddWhiteText(menu, 24, 170, 8, va("Where is %s installed?", man->formalname), false);
+	MC_AddWhiteText(menu, 16, 170, 24, "^Ue01d^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01f", false);
+
+	info->list = MC_AddCustom(menu, 0, 32, NULL, 0, NULL);
+	info->list->common.width = 320;
+	info->list->draw = M_DemoDraw;
+	info->list->key = M_DemoKey;
+
+	menu->selecteditem = (menuoption_t*)info->list;
+
+	ShowDemoMenu(menu, info->fs->path);
+	M_Demo_Reselect(info, info->fs->selname);
+}
+
 #endif

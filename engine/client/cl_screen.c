@@ -26,6 +26,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #endif
 #include "shader.h"
 #include "gl_draw.h"
+#include "fs.h"
 
 //name of the current backdrop for the loading screen
 char levelshotname[MAX_QPATH];
@@ -2462,7 +2463,7 @@ void SCR_SetUpToDrawConsole (void)
 					{
 						if (CL_TryingToConnect())	//if we're trying to connect, make sure there's a loading/connecting screen showing instead of forcing the menu visible
 							SCR_SetLoadingStage(LS_CONNECTION);
-						else if (!Key_Dest_Has(kdm_menu) && !startuppending)	//don't force anything until the startup stuff has been done
+						else if (!Key_Dest_Has(kdm_menu) && !Key_Dest_Has(kdm_prompt) && !PM_IsApplying() && !startuppending)	//don't force anything until the startup stuff has been done
 							M_ToggleMenu_f();
 					}
 				}

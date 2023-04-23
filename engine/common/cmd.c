@@ -876,6 +876,7 @@ static void Cmd_Exec_f (void)
 
 	if (!strcmp(name, "config.cfg") || !strcmp(name, "q3config.cfg") || !strcmp(name, fs_manifest->mainconfig))
 	{
+		char *restart;
 		//if the config is from id1 and the default.cfg was from some mod, make sure the default.cfg overrides the config.
 		//we won't just exec the default instead, because we can at least retain things which are not specified (ie: a few binds)
 		int cfgdepth = COM_FDepthFile(name, true);
@@ -885,17 +886,12 @@ static void Cmd_Exec_f (void)
 
 		//hack to work around the more insideous hacks of other engines.
 		//namely: vid_restart at the end of config.cfg is evil, and NOT desired in FTE as it generally means any saved video settings are wrong.
-		if (l >= 13 && !strcmp(f+l-13, "\nvid_restart\n"))
-		{
+		restart = strstr(f, "\nvid_restart");
+		if (restart && (restart[12] == '\r' || restart[12]=='\n'))
+		{	//convert it to a comment so we don't get fucked over by bad configs.
+			restart[1] = restart[2] = '/';
 			Con_Printf(CON_WARNING "WARNING: %s came from a different engine\n", loc.rawname);
-			l -= 12;
 		}
-		else if (l >= 14 && !strcmp(f+l-14, "\nvid_restart\r\n"))
-		{
-			Con_Printf(CON_WARNING "WARNING: %s came from a different engine\n", loc.rawname);
-			l -= 13;
-		}
-		f[l] = 0;
 	}
 
 	if (*loc.rawname)

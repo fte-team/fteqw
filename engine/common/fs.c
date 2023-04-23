@@ -3472,10 +3472,44 @@ void COM_EnumerateFiles (const char *match, int (QDECL *func)(const char *, qofs
 
 	for (search = com_searchpaths; search ; search = search->next)
 	{
-	// is the element a pak file?
 		if (!search->handle->EnumerateFiles(search->handle, match, func, parm))
 			break;
 	}
+}
+
+//scan packages in a reverse order, ie lowest priority first (for less scrolling upwards)
+void COM_EnumerateFilesReverse (const char *match, int (QDECL *func)(const char *, qofs_t, time_t mtime, void *, searchpathfuncs_t*), void *parm)
+{
+	searchpath_t    *search;
+	searchpath_t    **rev;
+	size_t count;
+
+	if (!strncmp(match, "file:", 5))
+	{
+		if (fs_allowfileuri)
+		{
+			char syspath[MAX_OSPATH];
+			struct fs_enumerate_fileuri_s e;
+			e.func = func;
+			e.parm = parm;
+			if (Sys_ResolveFileURL(match, strlen(match), syspath, sizeof(syspath)))
+				Sys_EnumerateFiles(NULL, syspath, COM_EnumerateFiles_FileURI, &e, NULL);
+		}
+		return;
+	}
+
+	for (search = com_searchpaths, count=0; search ; search = search->next)
+		count++;
+	rev = BZ_Malloc(sizeof(*rev)*count);
+	for (search = com_searchpaths, count=0; search ; search = search->next)
+		rev[count++] = search;
+	while(count)
+	{
+		search = rev[--count];
+		if (!search->handle->EnumerateFiles(search->handle, match, func, parm))
+			break;
+	}
+	BZ_Free(rev);
 }
 
 void COM_FlushTempoaryPacks(void)	//flush all temporary packages

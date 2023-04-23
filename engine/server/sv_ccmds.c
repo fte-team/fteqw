@@ -403,6 +403,7 @@ static void SV_redundantcommand_f(void)
 
 static int QDECL ShowMapList (const char *name, qofs_t flags, time_t mtime, void *parm, searchpathfuncs_t *spath)
 {
+	searchpathfuncs_t **oldspath = parm;
 	const char *levelshots[] =
 	{
 		"levelshots/%s.tga",
@@ -415,9 +416,52 @@ static int QDECL ShowMapList (const char *name, qofs_t flags, time_t mtime, void
 	size_t u;
 	char stripped[MAX_QPATH];
 	char completed[256];
-	char *ext = parm;
+	const char *cmd = name+5; //the arg to pass to `map`
+	const char *ext;
+	flocation_t loc;
 	if (name[5] == 'b' && name[6] == '_')	//skip box models
 		return true;
+
+	if (FS_FLocateFile(name, FSLF_IFFOUND, &loc))
+	{
+		if (loc.search->handle != spath)
+			return true; //shadowed
+	}
+	else
+		return true; //wtf?
+
+	ext = COM_GetFileExtension (name+5, NULL);
+	if (!strcmp(ext, ".gz") || !strcmp(ext, ".xz"))
+		ext = COM_GetFileExtension (name+5, ext);	//.gz files should be listed too.
+
+	if (!strcmp(ext, ".bsp"))
+	{
+		ext = "";	//hide it
+		cmd = stripped;	//omit it, might as well. should give less confusing mapname serverinfo etc.
+	}
+	else if (!Q_strcasecmp(ext, ".bsp") || !Q_strcasecmp(ext, ".bsp.gz") || !Q_strcasecmp(ext, ".bsp.xz"))
+		;
+#ifdef TERRAIN
+	else if (!Q_strcasecmp(ext, ".map") || !Q_strcasecmp(ext, ".map.gz") || !Q_strcasecmp(ext, ".hmp"))
+		;
+#endif
+#ifdef MAP_PROC
+	else if (!Q_strcasecmp(ext, ".cm"))
+		;
+#endif
+	else if (!Q_strcasecmp(ext, ".ent") && strchr(name+5, '#'))
+	{	//FIXME hide if earlier that the .bsp
+		ext = ""; //hide it.
+		cmd = stripped;	//do NOT use the .ent extension here
+	}
+	else
+		return true; //probably a .lit
+
+	if (*oldspath != spath)
+	{
+		*oldspath = spath;
+		Con_Printf(S_COLOR_GRAY"From %s\n", loc.search->purepath);
+	}
 
 	*completed = 0;
 #ifdef HAVE_CLIENT
@@ -433,31 +477,24 @@ static int QDECL ShowMapList (const char *name, qofs_t flags, time_t mtime, void
 	}
 #endif
 
-	name += 5;	//skip the maps/ prefix
-	COM_StripExtension(name, stripped, sizeof(stripped));
+	COM_StripExtension(name+5, stripped, sizeof(stripped));
 	for (u = 0; u < countof(levelshots); u++)
 	{
 		const char *ls = va(levelshots[u], stripped);
 		if (COM_FCheckExists(ls))
 		{
-			Con_Printf("^[\\map\\%s\\img\\%s\\w\\64\\h\\48^]", name, ls);
-			Con_Printf("^[[%s%s]%s\\map\\%s\\tipimg\\%s^]\n", stripped, ext, completed, name, ls);
+			Con_Printf("^[\\map\\%s\\img\\%s\\w\\64\\h\\48^]", cmd, ls);
+			Con_Printf("^[[%s%s]%s\\map\\%s\\tipimg\\%s\\tip\\from %s/%s^]\n", stripped, ext, completed, cmd, ls, loc.search->logicalpath, name);
 			return true;
 		}
 	}
-	Con_Printf("^[[%s%s]%s\\map\\%s^]\n", stripped, ext, completed, name);
+	Con_Printf("^[[%s%s]%s\\map\\%s\\tip\\from %s/%s^]\n", stripped, ext, completed, cmd, loc.search->logicalpath, name);
 	return true;
 }
 static void SV_MapList_f(void)
 {
-	//FIXME: maps/mapname#modifier.ent
-	COM_EnumerateFiles("maps/*.bsp", ShowMapList, "");
-	COM_EnumerateFiles("maps/*.bsp.gz", ShowMapList, ".bsp.gz");
-	COM_EnumerateFiles("maps/*.bsp.xz", ShowMapList, ".bsp.xz");
-	COM_EnumerateFiles("maps/*.map", ShowMapList, ".map");
-	COM_EnumerateFiles("maps/*.map.gz", ShowMapList, ".gz");
-	COM_EnumerateFiles("maps/*.cm", ShowMapList, ".cm");
-	COM_EnumerateFiles("maps/*.hmp", ShowMapList, ".hmp");
+	searchpathfuncs_t *spath = NULL;
+	COM_EnumerateFilesReverse("maps/*.*", ShowMapList, &spath);
 }
 
 static int QDECL CompleteMapList (const char *name, qofs_t flags, time_t mtime, void *parm, searchpathfuncs_t *spath)

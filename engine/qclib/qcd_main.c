@@ -256,6 +256,8 @@ int QC_EnumerateFilesFromBlob(const void *blob, size_t blobsize, void (*cb)(cons
 {
 	unsigned int cdentries;
 	unsigned int cdlen;
+	unsigned int cdstart;
+	unsigned int zipoffset = 0;
 	const unsigned char *eocd;
 	const unsigned char *cd;
 	unsigned int ofs_le;
@@ -263,7 +265,8 @@ int QC_EnumerateFilesFromBlob(const void *blob, size_t blobsize, void (*cb)(cons
 	int ret = 0;
 
 	const unsigned char *le;
-	unsigned int csize, usize, method;
+	unsigned int csize, usize;
+	int method; //negatives for errors.
 	unsigned int le_nl,le_el;
 	char name[256];
 
@@ -282,19 +285,45 @@ int QC_EnumerateFilesFromBlob(const void *blob, size_t blobsize, void (*cb)(cons
 		return ret;
 	}
 
-	//treat it as a zip
+	//treat it as a zip (with no comment, too lazy to scan)
 	eocd = blob;
 	eocd += blobsize-22;
-	if (QC_ReadRawInt(eocd+0) != 0x06054b50)
+	for (cdlen = 0; ; eocd--, cdlen++)
+	{
+		if (cdlen > 65535 || eocd < (const unsigned char*)blob)
+		{
+			printf("No zip EOCD\n");
+			return ret;
+		}
+		if (QC_ReadRawInt(eocd+0) == 0x06054b50)
+			break;
+	}
+
+	if (QC_ReadRawShort(eocd+4) || QC_ReadRawShort(eocd+6) || QC_ReadRawShort(eocd+20)!=cdlen || QC_ReadRawShort(eocd+8) != QC_ReadRawShort(eocd+10))
+	{		//this-disk					start-disk					comment-length			numfiles_thisdisk			numfiles_all
+		printf("Unsupported zip\n");
 		return ret;
-	if (QC_ReadRawShort(eocd+4) || QC_ReadRawShort(eocd+6) || QC_ReadRawShort(eocd+20) || QC_ReadRawShort(eocd+8) != QC_ReadRawShort(eocd+10))
-		return ret;
-	cd = blob;
-	cd += QC_ReadRawInt(eocd+16);
+	}
+	cdstart = QC_ReadRawInt(eocd+16);
 	cdlen = QC_ReadRawInt(eocd+12);
 	cdentries = QC_ReadRawShort(eocd+10);
-	if (cd+cdlen>=(const unsigned char*)blob+blobsize)
-		return ret;
+	cd = blob;
+	cd += cdstart + zipoffset;
+	if (cdlen < 46 || cd+cdlen>=(const unsigned char*)blob+blobsize || cd[0]!='P'||cd[1]!='K'||cd[2]!=1||cd[3]!=2)
+	{	//cd looks corrupt? assume eocd starts right after the cd and use that as an offset at the start of the zip (concatenated onto a binary or w/e)
+		zipoffset += (eocd-(const unsigned char*)blob) - (cdstart+cdlen);
+
+		cd = blob;
+		cd += cdstart + zipoffset;
+
+		if (cdlen < 46 || zipoffset > blobsize || cd+cdlen>=(const unsigned char*)blob+blobsize || cd[0]!='P'||cd[1]!='K'||cd[2]!=1||cd[3]!=2)
+		{
+			printf("Zip CentralDir not found: %s\n", cd);
+			return ret;
+		}
+		//okay, we're at an offset.
+		printf("Zip offset is %u\n", zipoffset);
+	}
 
 
 	for(; cdentries --> 0 && (QC_ReadRawInt(cd+0) == 0x02014b50); cd += 46 + cd_nl+cd_el+cd_cl)
@@ -327,7 +356,7 @@ int QC_EnumerateFilesFromBlob(const void *blob, size_t blobsize, void (*cb)(cons
 		{
 			if (ofs_le+46 < blobsize)
 			{
-				le = (const unsigned char*)blob + QC_ReadRawInt(cd+42);
+				le = (const unsigned char*)blob + zipoffset + QC_ReadRawInt(cd+42);
 
 				if (QC_ReadRawInt(le+0) == 0x04034b50)	//needs proper local entry tag
 				if (!(QC_ReadRawShort(le+6) & ~0x80e))	//ignore unsupported general purpose flags
@@ -337,20 +366,73 @@ int QC_EnumerateFilesFromBlob(const void *blob, size_t blobsize, void (*cb)(cons
 					if (cd_nl == le_nl)	//name (length) must match...
 //					if (cd_el != le_el) //extras does NOT match
 					{
-						csize = QC_ReadRawInt(le+18);
-						usize = QC_ReadRawInt(le+22);
+						unsigned short gpflags = QC_ReadRawShort(le+6);
+						if (gpflags & (1u<<3))
+						{	//stream-compressed (csize+usize+crc are AFTER the data... just fall back to the central directory instead)
+							csize = QC_ReadRawInt(cd+20);
+							usize = QC_ReadRawInt(cd+24);
+						}
+						else
+						{
+							csize = QC_ReadRawInt(le+18);
+							usize = QC_ReadRawInt(le+22);
+						}
+
+						//parse extra
+						if (le_el)
+						{
+							const pbyte *extra = le + 30 + le_nl, *extraend = extra + le_el;
+							unsigned short extrachunk_tag;
+							unsigned short extrachunk_len;
+
+							while(extra+4 < extraend)
+							{
+								extrachunk_tag = QC_ReadRawShort(extra+0);
+								extrachunk_len = QC_ReadRawShort(extra+2);
+								if (extra + extrachunk_len > extraend)
+									break;	//error
+								extra += 4;
+
+								switch(extrachunk_tag)
+								{
+								case 1:	//zip64 extended information extra field. the attributes are only present if the reegular file info is nulled out with a -1
+									if (usize == 0xffffffffu)
+									{
+										usize = QC_ReadRawInt/*64*/(extra);
+										if (QC_ReadRawInt(extra+4))
+											method=-1-method;
+										extra += 8;
+									}
+									if (csize == 0xffffffffu)
+									{
+										csize = QC_ReadRawInt/*64*/(extra);
+										if (QC_ReadRawInt(extra+4))
+											method=-1-method;
+										extra += 8;
+									}
+									break;
+								default:
+/*									printf("Unknown chunk %x\n", extrachunk_tag);
+								case 0x000a:	//NTFS (timestamps)
+								case 0x5455:	//extended timestamp
+								case 0x7875:	//unix uid/gid
+*/									extra += extrachunk_len;
+									break;
+								}
+							}
+						}
 
 						data = le+30+le_nl+le_el;
 
 						method = QC_ReadRawShort(le+8);
-						if (method != 0
+						if (method >= 0 && (method != 0
 #ifdef AVAIL_ZLIB
 							&& method != 8
 #endif
 #ifdef ZLIB_DEFLATE64
 							&& method != 9
 #endif
-						 )
+						 ))
 							method=-1-method;
 					}
 				}

@@ -13,6 +13,20 @@
 #endif
 #include <ctype.h>
 
+/* Font Names:
+	primaryface[,altface[...]][?primaryarg[&arg[...]]][:[secondaryface[,altface[...]]][?secondaryargs]]
+
+	args:
+		col=r,g,b -- tint the font (overriding the game's normal tint). only arg allowed when the secondary face is omitted.
+		fmt=q	-- quake-style raster font with quake's own codepage (no fallbacks needed for the weird glyphs).
+		fmt=l	-- quake-style raster font with io8859-1(latin-1) codepage
+		fmt=w	-- quake-style raster font with windows1252 codepage (for more glyphs than latin-1)
+		fmt=k	-- quake-style raster font with koi8-u codepage (apparently its somewhat common in the quake community)
+		fmt=h	-- halflife-style all-on-one-line raster font
+		aspect=0.5 -- raster font is squished horizontally
+		style	-- list of modifiets for inexact family font matching for system fonts
+*/
+
 void Font_Init(void);
 void Font_Shutdown(void);
 struct font_s *Font_LoadFont(const char *fontfilename, float height, float scale, int outline, unsigned int flags);
@@ -1762,6 +1776,9 @@ qboolean Font_LoadKexFont(struct font_s *f, int fheight, const char *fontfilenam
 }
 
 #ifdef AVAIL_FREETYPE
+#if defined(LIBFONTCONFIG_STATIC)
+#include <fontconfig/fontconfig.h>
+#endif
 extern cvar_t dpcompat_smallerfonts;
 int Font_ChangeFTSize(fontface_t *qface, int pixelheight)
 {
@@ -1813,7 +1830,7 @@ int Font_ChangeFTSize(fontface_t *qface, int pixelheight)
 	}
 	return pixelheight;
 }
-qboolean Font_LoadFreeTypeFont(struct font_s *f, int height, const char *fontfilename)
+qboolean Font_LoadFreeTypeFont(struct font_s *f, int height, const char *fontfilename, const char *styles)
 {
 	fontface_t *qface;
 	FT_Face face = NULL;
@@ -1913,7 +1930,34 @@ qboolean Font_LoadFreeTypeFont(struct font_s *f, int height, const char *fontfil
 		}
 	}
 
-#if defined(_WIN32) 
+#if defined(LIBFONTCONFIG_STATIC)
+	if (error && !strchr(fontfilename, '/'))
+	{
+		FcConfig *config = FcInitLoadConfigAndFonts();
+		FcResult res;
+		FcPattern *font;
+		FcPattern *pat;
+
+		//FcNameParse takes something of the form: "family:style1:style2". we already swapped spaces for : in styles.
+		if (styles)
+			pat = FcNameParse((const FcChar8*)va("%s:%s", fontfilename, styles));
+		else
+			pat = FcNameParse((const FcChar8*)fontfilename);
+		FcConfigSubstitute(config, pat, FcMatchPattern);
+		FcDefaultSubstitute(pat);
+
+		// find the font
+		font = FcFontMatch(config, pat, &res);
+		if (font)
+		{
+			FcChar8 *file = NULL;
+			if (FcPatternGetString(font, FC_FILE, 0, &file) == FcResultMatch)
+				error = pFT_New_Face(fontlib, file, 0, &face);	//'file' should be a system path
+			FcPatternDestroy(font);
+		}
+		FcPatternDestroy(pat);
+	}
+#elif defined(_WIN32)
 	if (error)
 	{
 		static qboolean firsttime = true;
@@ -2285,6 +2329,7 @@ struct font_s *Font_LoadFont(const char *fontfilename, float vheight, float scal
 	char *parms;
 	int height = ((vheight * vid.rotpixelheight)/vid.height) + 0.5;
 	char facename[MAX_QPATH*12];
+	char *styles = NULL;
 	struct charcache_s *c;
 	float aspect = 1;
 	enum fontfmt_e fmt = FMT_AUTO;
@@ -2356,12 +2401,24 @@ struct font_s *Font_LoadFont(const char *fontfilename, float vheight, float scal
 				aspect = strtod(t, &t);
 				parms = t;
 			}
+			if (!strncmp(parms, "style=", 6))
+			{
+				char *t = parms+6;
+				styles = t;
+				while (*t && *t != '&')
+				{
+					if (*t == ' ')
+						*t = ':';
+					t++;
+				}
+				parms = t;
+			}
 
 			while(*parms && *parms != '&')
 				parms++;
 			if (*parms == '&')
 			{
-				parms++;
+				*parms++ = 0;
 				continue;
 			}
 		}
@@ -2547,7 +2604,7 @@ struct font_s *Font_LoadFont(const char *fontfilename, float vheight, float scal
 			else if (fmt == FMT_HORIZONTAL)
 				success = Font_LoadHorizontalFont(f, height, start);
 #ifdef AVAIL_FREETYPE
-			else if (fmt == FMT_AUTO && Font_LoadFreeTypeFont(f, height, start))
+			else if (fmt == FMT_AUTO && Font_LoadFreeTypeFont(f, height, start, styles))
 				success = true;
 #endif
 			else

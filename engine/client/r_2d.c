@@ -1075,7 +1075,22 @@ void QDECL R2D_Conback_Callback(struct cvar_s *var, char *oldvalue)
 }
 
 #ifdef AVAIL_FREETYPE
-#if defined(_WIN32) && !defined(FTE_SDL) && !defined(WINRT) && !defined(_XBOX)
+#if defined(LIBFONTCONFIG_STATIC)
+#include <fontconfig/fontconfig.h>
+static int QDECL SortCompareFonts(const void *av, const void *bv)
+{	//qsort compare
+	const FcPattern *af = *(FcPattern *const*const)av, *bf = *(FcPattern *const*const)bv;
+	FcChar8 *as, *bs;
+	int r = 0;
+	if (FcPatternGetString(af, FC_FAMILY, 0, &as) == FcResultMatch && FcPatternGetString(bf, FC_FAMILY, 0, &bs) == FcResultMatch)
+	{
+		r = strcmp(as, bs);
+		if (!r && FcPatternGetString(af, FC_STYLE, 0, &as) == FcResultMatch && FcPatternGetString(bf, FC_STYLE, 0, &bs) == FcResultMatch)
+			r = strcmp(as, bs);
+	}
+	return r;
+}
+#elif defined(_WIN32) && !defined(FTE_SDL) && !defined(WINRT) && !defined(_XBOX)
 #include <windows.h>
 qboolean R2D_Font_WasAdded(char *buffer, char *fontfilename)
 {
@@ -1181,6 +1196,45 @@ void R2D_Font_Changed(void)
 	{
 #ifndef AVAIL_FREETYPE
 		Cvar_Set(&gl_font, "");
+#elif defined(LIBFONTCONFIG_STATIC)
+		Cvar_Set(&gl_font, "");
+		{
+			FcConfig *config = FcInitLoadConfigAndFonts();
+			FcPattern *pat = FcPatternCreate();
+			FcObjectSet *os = FcObjectSetBuild (FC_FAMILY, FC_STYLE, (char *) 0);
+			FcFontSet *fs = FcFontList(config, pat, os);
+
+			if (fs)
+			{
+				int i;
+				FcChar8 *oldfam = NULL;
+				FcPattern **fonts = BZ_Malloc(sizeof(*fonts)*fs->nfont);
+				memcpy(fonts, fs->fonts, sizeof(*fonts)*fs->nfont);
+				qsort(fonts, fs->nfont, sizeof(*fonts), SortCompareFonts);
+				for (i=0; fs && i < fs->nfont; i++)
+				{
+					FcPattern *font = fonts[i];
+					FcChar8 *style, *family;
+					if (FcPatternGetString(font, FC_FAMILY, 0, &family) == FcResultMatch && FcPatternGetString(font, FC_STYLE, 0, &style) == FcResultMatch)
+					{
+						if (!oldfam || strcmp(oldfam, family))
+						{
+							if (oldfam)
+								Con_Printf("\n");
+							oldfam = family;
+							Con_Printf("^["S_COLOR_WHITE"%s\\type\\/gl_font %s^]: ", family, family);
+						}
+						Con_Printf(" \t^[%s\\type\\/gl_font %s?style=%s^]", style, family, style);
+					}
+				}
+				if (oldfam)
+					Con_Printf("\n");
+				BZ_Free(fonts);
+				FcFontSetDestroy(fs);
+			}
+			FcObjectSetDestroy(os);
+			FcPatternDestroy(pat);
+		}
 #elif defined(_WIN32) && !defined(FTE_SDL) && !defined(WINRT) && !defined(_XBOX)
 		BOOL (APIENTRY *pChooseFontW)(LPCHOOSEFONTW) = NULL;
 		dllfunction_t funcs[] =

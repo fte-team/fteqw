@@ -558,9 +558,9 @@ void CompleteCommand (qboolean force, int direction)
 				con_commandmatch = 1;
 
 			if (desc)
-				Con_Footerf(NULL, false, "%s: %s", cmd, localtext(desc));
+				Con_Footerf(con_current, false, "%s: %s", cmd, desc);
 			else
-				Con_Footerf(NULL, false, "");
+				Con_Footerf(con_current, false, "");
 			return;
 		}
 	}

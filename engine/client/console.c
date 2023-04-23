@@ -159,9 +159,7 @@ void Con_Destroy (console_t *con)
 	}
 	con->display = con->current = con->oldest = NULL;
 
-	if (con->footerline)
-		Z_Free(con->footerline);
-	con->footerline = NULL;
+	Con_Footerf(con, false, "");
 	if (con->completionline)
 		Z_Free(con->completionline);
 	con->completionline = NULL;
@@ -331,13 +329,7 @@ void Con_SetActive (console_t *con)
 		con_current = con;
 	}
 
-	if (con->footerline)
-	{
-		con->selstartline = NULL;
-		con->selendline = NULL;
-		Z_Free(con->footerline);
-		con->footerline = NULL;
-	}
+	Con_Footerf(con, false, "");
 	con->buttonsdown = CB_NONE;
 }
 /*for enumerating consoles*/
@@ -936,9 +928,10 @@ qboolean Con_InsertConChars (console_t *con, conline_t *line, int offset, concha
 void Con_PrintCon (console_t *con, const char *txt, unsigned int parseflags)
 {
 	conchar_t expanded[4096];
-	conchar_t *c;
+	conchar_t *c, *n;
 	conline_t *reuse;
 	int maxlines;
+	unsigned flags, codepoint;
 
 	if (con->maxlines)
 		maxlines = con->maxlines;
@@ -950,14 +943,13 @@ void Con_PrintCon (console_t *con, const char *txt, unsigned int parseflags)
 	c = expanded;
 	if (*c)
 		con->unseentext = true;
-	while (*c)
+	for (;*c; c=n)
 	{
-		switch (*c & (CON_CHARMASK|CON_HIDDEN))	//include hidden so we don't do \r or \n on hidden chars, allowing them to be embedded in links and stuff.
-		{
-		case '\r':
+		n = Font_Decode(c, &flags, &codepoint);
+		if (codepoint=='\r' && !(flags&CON_HIDDEN))
 			con->cr = true;
-			break;
-		case '\n':
+		else if (codepoint=='\n' && !(flags&CON_HIDDEN))
+		{
 			con->cr = false;
 			reuse = NULL;
 			while (con->linecount >= maxlines)
@@ -1012,8 +1004,9 @@ void Con_PrintCon (console_t *con, const char *txt, unsigned int parseflags)
 			con->current->length = 0;
 			if (con->display == con->current->older && con->displayscroll==0)
 				con->display = con->current;
-			break;
-		default:
+		}
+		else
+		{
 			if (con->cr)
 			{
 				con->current->length = 0;
@@ -1034,10 +1027,8 @@ void Con_PrintCon (console_t *con, const char *txt, unsigned int parseflags)
 			}
 
 			//FIXME: don't do this a char at a time
-			Con_InsertConChars(con, con->current, con->current->length, c, 1);
-			break;
+			Con_InsertConChars(con, con->current, con->current->length, c, n-c);
 		}
-		c++;
 	}
 
 	con->current->time = realtime;
@@ -1327,14 +1318,70 @@ void VARGS Con_ThrottlePrintf (float *timer, int developerlevel, const char *fmt
 		Con_Printf("%s", msg);
 }
 
+static void Con_FooterMarked(console_t *con, qboolean append, conchar_t *marked, conchar_t *markedend)
+{
+	int oldlen, newlen;
+	conline_t *newf = NULL, *l;
+	unsigned fl, cp;
+	conchar_t *nl, *n;
+
+	if (!append)
+	{
+		while(con->footerline)
+		{
+			l = con->footerline;
+			con->footerline = l->older;
+			if (con->selstartline == l)
+				con->selstartline = NULL;
+			if (con->selendline == l)
+				con->selendline = NULL;
+			Z_Free(l);
+		}
+		con->footerline = NULL;
+	}
+	for (append = true; marked < markedend; marked = n, append = false)
+	{
+		n = markedend;
+		for (nl = marked; nl < markedend; nl=n)
+		{
+			n = Font_Decode(nl, &fl, &cp);
+			if (cp == '\n' && !(fl&CONF_HIDDEN))
+				break;
+		}
+
+		newlen = nl - marked;
+		if (append && con->footerline)
+			oldlen = con->footerline->length;
+		else
+			oldlen = 0;
+
+		if (newlen || !append)
+		{
+			newf = Z_Malloc(sizeof(*newf) + (oldlen + newlen) * sizeof(conchar_t));
+			if (append && con->footerline)
+			{
+				memcpy(newf, con->footerline, sizeof(*con->footerline)+oldlen*sizeof(conchar_t));
+				Z_Free(con->footerline);
+			}
+			else
+				newf->older = con->footerline;
+			if (newf->older)
+				newf->older->newer = newf;
+
+			memcpy((conchar_t*)(newf+1)+oldlen, marked, newlen*sizeof(conchar_t));
+			newf->length = oldlen + newlen;
+			con->footerline = newf;
+		}
+	}
+}
+
 /*description text at the bottom of the console*/
 void Con_Footerf(console_t *con, qboolean append, const char *fmt, ...)
 {
 	va_list		argptr;
 	char		msg[MAXPRINTMSG];
 	conchar_t	marked[MAXPRINTMSG], *markedend;
-	int oldlen, newlen;
-	conline_t *newf;
+
 	if (!con)
 		con = con_current;
 	if (!con)
@@ -1345,31 +1392,7 @@ void Con_Footerf(console_t *con, qboolean append, const char *fmt, ...)
 	va_end (argptr);
 	markedend = COM_ParseFunString((COLOR_YELLOW << CON_FGSHIFT)|(con->backshader?CON_NONCLEARBG:0), msg, marked, sizeof(marked), false);
 
-	newlen = markedend - marked;
-	if (append && con->footerline)
-		oldlen = con->footerline->length;
-	else
-		oldlen = 0;
-
-	if (!newlen && !oldlen)
-		newf = NULL;
-	else
-	{
-		newf = Z_Malloc(sizeof(*newf) + (oldlen + newlen) * sizeof(conchar_t));
-		if (con->footerline)
-			memcpy(newf, con->footerline, sizeof(*con->footerline)+oldlen*sizeof(conchar_t));
-		markedend = (void*)(newf+1);
-		markedend += oldlen;
-		memcpy(markedend, marked, newlen*sizeof(conchar_t));
-		newf->length = oldlen + newlen;
-	}
-
-	if (con->selstartline == con->footerline)
-		con->selstartline = NULL;
-	if (con->selendline == con->footerline)
-		con->selendline = NULL;
-	Z_Free(con->footerline);
-	con->footerline = newf;
+	Con_FooterMarked(con, append, marked, markedend);
 }
 
 /*

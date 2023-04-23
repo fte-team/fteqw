@@ -1436,12 +1436,23 @@ static int QDECL CompleteSaveList (const char *name, qofs_t flags, time_t mtime,
 	struct xcommandargcompletioncb_s *ctx = parm;
 	char trimmed[256];
 	size_t l;
-	Q_strncpyz(trimmed, name+6, sizeof(trimmed));
-	l = strlen(trimmed);
-	if (l >= 9 && !Q_strcasecmp(trimmed+l-9, "/info.fsv"))
+	char timetext[128];
+	char desc[256];
+	flocation_t loc;
+	if (FS_FLocateFile(name, FSLF_QUIET|FSLF_DONTREFERENCE, &loc) && loc.search->handle != spath)
+		;	//found in some other gamedir. don't show the dupe.
+	else
 	{
-		trimmed[l-9] = 0;
-		ctx->cb(trimmed, NULL, NULL, ctx);
+		Q_strncpyz(trimmed, name+6, sizeof(trimmed));
+		l = strlen(trimmed);
+		if (l >= 9 && !Q_strcasecmp(trimmed+l-9, "/info.fsv"))
+		{
+			trimmed[l-9] = 0;
+
+			strftime(timetext, sizeof(timetext), "%a "S_COLOR_MAGENTA"%Y-%m-%d "S_COLOR_WHITE"%H:%M:%S", localtime(&mtime));
+			Q_snprintfz(desc, sizeof(desc), "Modified %s\n^[\\h\\64\\img\\saves/%s/screeny.tga^]", timetext, trimmed);
+			ctx->cb(trimmed, desc, NULL, ctx);
+		}
 	}
 	return true;
 }
@@ -1450,8 +1461,18 @@ static int QDECL CompleteSaveListLegacy (const char *name, qofs_t flags, time_t 
 {
 	struct xcommandargcompletioncb_s *ctx = parm;
 	char stripped[64];
-	COM_StripExtension(name, stripped, sizeof(stripped));
-	ctx->cb(stripped, NULL, NULL, ctx);
+	char timetext[128];
+	char desc[256];
+	flocation_t loc;
+	if (FS_FLocateFile(name, FSLF_QUIET|FSLF_DONTREFERENCE, &loc) && loc.search->handle != spath)
+		;	//found in some other gamedir. don't show the dupe.
+	else
+	{
+		COM_StripExtension(name, stripped, sizeof(stripped));
+		strftime(timetext, sizeof(timetext), "%a "S_COLOR_MAGENTA"%Y-%m-%d "S_COLOR_WHITE"%H:%M:%S", localtime(&mtime));
+		Q_snprintfz(desc, sizeof(desc), "%s, Modified %s", name, timetext);
+		ctx->cb(stripped, desc, NULL, ctx);
+	}
 	return true;
 }
 #endif

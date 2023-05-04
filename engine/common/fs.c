@@ -190,7 +190,7 @@ static const gamemode_info_t gamemode_info[] = {
 //	{"-diablo2",	NULL,		"FTE-Diablo2",			{"d2music.mpq"},				NULL,	{"*",							"*fted2"},	"Diablo 2"},
 #endif
 	/* maintained by FreeHL ~eukara */
-	{"-halflife",	"halflife",	"FTE-HalfLife",			{"valve/liblist.gam"},			HLCFG,	{"logos", "valve"},							"Half-Life",						NULL, "fteplug_ffmpeg"},
+	{"-halflife",	"halflife",	"FTE-HalfLife",			{"valve/liblist.gam"},			HLCFG,	{"logos", "valve"},							"Half-Life",						"https://www.frag-net.com/pkgs/list", "game_valve;fteplug_ffmpeg"},
 #endif
 
 	{NULL}

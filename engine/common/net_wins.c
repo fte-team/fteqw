@@ -2522,6 +2522,28 @@ void *Auth_GetKnownCertificate(const char *certname, size_t *size)
 					"WjGunhXXkEjitAk+ssBjbEh8kIfpFdVA09v60rMdm7BdfO3//QOsjwiwKkBOXcYW\n"
 					"QGE0Ue4J7anLVAKiQq4n1aU=\n"
 					"-----END CERTIFICATE-----\n"},
+		{"eukara",	"-----BEGIN CERTIFICATE-----\n"
+					"MIIDnzCCAgcCCjE2ODI1NDc0MDEwDQYJKoZIhvcNAQELBQAwETEPMA0GA1UEAxMG\n"
+					"ZXVrYXJhMB4XDTIzMDQyNjIyMTY0MFoXDTMzMDQyMzIyMTY0MVowETEPMA0GA1UE\n"
+					"AxMGZXVrYXJhMIIBojANBgkqhkiG9w0BAQEFAAOCAY8AMIIBigKCAYEAqyI2LKEb\n"
+					"kBN7JhbCUD1VJFDMPwcnj3JXXswiIVl0j56W7PBP0k8nT8Ar/Wy/NhplDqmJz78p\n"
+					"DPimU1ajifZLvRSW7sqln/KqZdUBvfHbO3drLj/NPAIymLvNB+NJ+TG6ljzwiu+P\n"
+					"RFtxphPXqxHkjt5PzJXfmgXO5id3iXrC0N66rQwJHOeTYWuOHPooKpXqBNkrDn1p\n"
+					"IKtfwVbyjWgvyy19wplXmYeOVr4zW/iH4VMhHWkfD0Gzvm5oofa93ZXrurQf6lMs\n"
+					"0RvTCB8+fS9t+tQL9Rf1zuBJ2HtcV46OPEM/+RtD1l6Hq9yFyoC1vjdFd69NefQR\n"
+					"+ox9EwztSXZ+omP2BWe3cl8UyPVNA22vdPEVz70Cc/d3JYk+ewAJ9L4FR0P2/czv\n"
+					"V3rB8EzRCYRqrYAv7eKVbatmogRQqx558sO0OVSapPPjqQlowczkfZ+eddrXjVK4\n"
+					"efRfI158kkSX/+nG3UeBtPpf6Za26EjXwbRmhushnPE9B+VreIogMzanAgMBAAEw\n"
+					"DQYJKoZIhvcNAQELBQADggGBAERSnFNwFxxvwksgwdZjFO7HUtupuAGmB+FU5TpP\n"
+					"R94zE2rm7yhT2EfmoqlSWL1yBEab3Qp39pQwygoVbgwlqEhytNo08QcqODRXtmBv\n"
+					"GsoEf6OVbr3NrFtuiqByxgX7tNTf3KdHEnJMBdT5PuB6f72ue3cvpOHOezrgY/t4\n"
+					"paLgLKXTCaZCOwSBFmMpZJWKH0stX1EANWktTHUoGsii3ai3PY2jG2NCP/fazwcK\n"
+					"SJbKHFwiOzfHHz9dHibnOMb7IDEmSE3P3newBPrMuxjcVcZFFcR8vz/vwVyffOB5\n"
+					"qbuD7YACB446v4m3CZ3wgXUdxqYqraaqksWZTanDm6WDKVpIdXlTOZi7XI3mbQpn\n"
+					"cS3KDJ93nfPnsfxSdDCThHaYwUDZJy8Q70sGSiewJOxeg8wCa5VnJN7r2wHZ1sQy\n"
+					"TtVkEgKRGCsCwchgJQIuNU3A5mBidYM1CP0O4idzmYfRSum1nHkuKuuwFWmCGZPl\n"
+					"B/MXftuzxxv65defj4e05UntzQ=="
+					"-----END CERTIFICATE-----\n"},
 	};
 	size_t i;
 	for (i = 0; i < countof(certs); i++)

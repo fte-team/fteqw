@@ -2089,10 +2089,15 @@ void SVQW_Spawn_f (void)
 		//so let multiplayer people know what's going on so that they don't think its an actual bug, and can harass the admin to get it fixed in mods that allow for it.
 		if (!strcmp(sv_nqplayerphysics.string, "auto") || !strcmp(sv_nqplayerphysics.string, ""))
 		{
-			if (sv_nqplayerphysics.ival == 2)
-				SV_PrintToClient(host_client, PRINT_HIGH, CON_WARNING"Movement prediction may not match server due to non-quakeworld mod compatibilty\n");
-			else
+			if (svprogfuncs&&(PR_FindFunction(svprogfuncs, "SV_RunClientCommand", PR_ANY)	//modern mod with custom physics
+				||PR_FindFunction(svprogfuncs, "SV_PlayerPhysics", PR_ANY)))	//lame dp mod with hacky player physics.
+				;	//say nothing. its annoying. this mod ain't gonna have weird badly defined behaviour anyway.
+			else if (sv_nqplayerphysics.ival == 2)
+				SV_PrintToClient(host_client, PRINT_MEDIUM, CON_WARNING"Movement prediction may not match server due to non-quakeworld mod compatibilty\n");
+			else if (sv_nqplayerphysics.ival)
 				SV_PrintToClient(host_client, PRINT_HIGH, CON_WARNING"Movement prediction is disabled in favour of non-quakeworld mod compatibilty\n");
+//			else
+//				SV_PrintToClient(host_client, PRINT_LOW, CON_NOTICE"Movement prediction works, yay this server is awesome and good and all that is right with the world\n");
 		}
 	}
 }

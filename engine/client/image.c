@@ -13390,7 +13390,7 @@ struct pendingtextureinfo *Image_LoadMipsFromMemory(int flags, const char *iname
 	}
 #endif
 	else
-		Con_Printf("Unable to read file %s (format unsupported)\n", fname);
+		Con_TPrintf("Unable to load file %s (format unsupported)\n", fname);
 
 	BZ_Free(filedata);
 	return NULL;

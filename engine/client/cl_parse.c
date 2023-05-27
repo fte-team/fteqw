@@ -3772,11 +3772,12 @@ void CL_ParseEstablished(void)
 		default: break;
 		}
 		if (NET_IsEncrypted(&cls.netchan.remote_address))
-			security = "^["S_COLOR_GREEN"encrypted\\tip\\Any passwords will be sent securely, but will still be readable by the server admin^]";
+			security = localtext("^["S_COLOR_GREEN"encrypted\\tip\\Any passwords will be sent securely, but will still be readable by the server admin^]");
 		else
-			security = "^["S_COLOR_RED"plain-text\\tip\\"CON_WARNING"Do not type passwords as they can potentially be seen by network sniffers^]";
+			security = localtext("^["S_COLOR_RED"plain-text\\tip\\"CON_WARNING"Do not type passwords as they can potentially be seen by network sniffers^]");
 
-		Con_TPrintf ("\rConnected to ^["S_COLOR_BLUE"%s\\type\\connect %s^] (%s).\n", cls.servername, cls.servername, security);
+		Con_Printf ("\r");
+		Con_TPrintf ("Connected to ^["S_COLOR_BLUE"%s\\type\\connect %s^] (%s).\n", cls.servername, cls.servername, security);
 	}
 }
 

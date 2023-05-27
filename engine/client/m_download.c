@@ -2898,7 +2898,7 @@ static void PM_UpdatePackageList(qboolean autoupdate)
 	else if (allowphonehome == -1)
 	{
 		if (doautoupdate)
-			Menu_Prompt(PM_AllowPackageListQuery_Callback, NULL, "Query updates list?\n", "Okay", NULL, "Nope", true);
+			Menu_Prompt(PM_AllowPackageListQuery_Callback, NULL, localtext("Query updates list?\n"), "Okay", NULL, "Nope", true);
 		return;
 	}
 
@@ -3391,16 +3391,16 @@ static void PM_PackageEnabled(package_t *p)
 		}
 
 #ifndef HAVE_CLIENT
-#define Menu_Prompt(cb,ctx,msg,yes,no,cancel,highpri) Con_Printf(CON_WARNING msg "\n")
+#define Menu_Prompt(cb,ctx,msg,yes,no,cancel,highpri) Con_Printf(CON_WARNING "%s\n", msg)
 #endif
 
 		if (FS_NativePath(ef->name, p->fsroot, native, sizeof(native)) && Sys_SetUpdatedBinary(native))
 		{
 			Q_strncpyz(enginerevision, p->version, sizeof(enginerevision));	//make sure 'revert' picks up the new binary...
-			Menu_Prompt(NULL, NULL, "Engine binary updated.\nRestart to use.", NULL, NULL, NULL, true);
+			Menu_Prompt(NULL, NULL, localtext("Engine binary updated.\nRestart to use."), NULL, NULL, NULL, true);
 		}
 		else
-			Menu_Prompt(NULL, NULL, "Engine update failed.\nManual update required.", NULL, NULL, NULL, true);
+			Menu_Prompt(NULL, NULL, localtext("Engine update failed.\nManual update required."), NULL, NULL, NULL, true);
 	}
 #endif
 }
@@ -4548,18 +4548,18 @@ static void PM_PromptApplyChanges(void)
 	//lock it down, so noone can make any changes while this prompt is still displayed
 	if (pkg_updating)
 	{
-		Menu_Prompt(PM_PromptApplyChanges_Callback, NULL, "An update is already in progress\nPlease wait\n", NULL, NULL, "Cancel", true);
+		Menu_Prompt(PM_PromptApplyChanges_Callback, NULL, localtext("An update is already in progress\nPlease wait\n"), NULL, NULL, "Cancel", true);
 		return;
 	}
 	pkg_updating = true;
 #endif
 
-	strcpy(text, "Really decline the following\nrecommended packages?\n\n");
+	strcpy(text, localtext("Really decline the following\nrecommended packages?\n\n"));
 	if (PM_DeclinedPackages(text+strlen(text), sizeof(text)-strlen(text)))
 		Menu_Prompt(PM_PromptApplyDecline_Callback, NULL, text, NULL, "Confirm", "Cancel", true);
 	else
 	{
-		strcpy(text, "Apply the following changes?\n\n");
+		strcpy(text, localtext("Apply the following changes?\n\n"));
 		changes = PM_ChangeList(text+strlen(text), sizeof(text)-strlen(text));
 		if (!changes)
 		{
@@ -4651,7 +4651,7 @@ void PM_Command_f(void)
 			else
 			{
 				#ifdef HAVE_CLIENT
-					Menu_Prompt(PM_AddSubList_Callback, Z_StrDup(Cmd_Argv(2)), va("Add updates source?\n%s", Cmd_Argv(2)), "Confirm", NULL, "Cancel", true);
+					Menu_Prompt(PM_AddSubList_Callback, Z_StrDup(Cmd_Argv(2)), va(localtext("Add updates source?\n%s"), Cmd_Argv(2)), "Confirm", NULL, "Cancel", true);
 				#else
 					PM_AddSubList(Cmd_Argv(2), "", SRCFL_USER|SRCFL_ENABLED);
 					PM_WriteInstalledPackages();
@@ -5429,7 +5429,7 @@ static void MD_Draw (int x, int y, struct menucustom_s *c, struct emenu_s *m)
 	{
 		allowphonehome = false;
 #ifdef HAVE_CLIENT
-		Menu_Prompt(PM_AllowPackageListQuery_Callback, NULL, "Query updates list?\n", "Okay", NULL, "Nope", true);
+		Menu_Prompt(PM_AllowPackageListQuery_Callback, NULL, localtext("Query updates list?\n"), "Okay", NULL, "Nope", true);
 #endif
 	}
 #endif
@@ -6506,7 +6506,7 @@ qboolean PM_AreSourcesNew(qboolean doprompt)
 			ret = true;	//something is dirty.
 			if (doprompt)
 			{
-				const char *msg = va("Enable update source\n\n^x66F%s", (pm_source[i].flags&SRCFL_MANIFEST)?PrettyHostFromURL(pm_source[i].url):pm_source[i].url);
+				const char *msg = va(localtext("Enable update source\n\n^x66F%s"), (pm_source[i].flags&SRCFL_MANIFEST)?PrettyHostFromURL(pm_source[i].url):pm_source[i].url);
 				pm_pendingprompts++;
 				Menu_Prompt(PM_ConfirmSource, Z_StrDup(pm_source[i].url), msg, "Enable", "Configure", "Later", true);
 				pm_source[i].flags |= SRCFL_PROMPTED;

@@ -415,7 +415,7 @@ void M_Menu_Options_f (void)
 			"3",
 			NULL
 		};
-		MC_AddCvarCombo(menu, 16, 216, y, "Use Hud Plugin", &plug_sbar, hudplugopts, hudplugvalues);			y += 8;
+		MC_AddCvarCombo(menu, 16, 216, y, localtext("Use Hud Plugin"), &plug_sbar, hudplugopts, hudplugvalues);			y += 8;
 	}
 #endif
 	MC_AddFrameEnd(menu, framey);
@@ -1303,17 +1303,18 @@ static void M_Menu_Preset_Predraw(emenu_t *menu)
 			if (!strcmp(op->button.command, "menupop\n"))
 			{
 				if (m_preset_chosen.ival)
-					op->button.text = "^sAccept";
+					op->button.text = localtext("^sAccept");
 			}
 			else if (!strncmp(op->button.command, "fps_preset ", 11))
 			{
-				((char*)op->button.text)[1] = (preset==0)?'m':'7';
+				if (((char*)op->button.text)[0] == '^' && ((char*)op->button.text)[1] == ((preset!=0)?'m':'7'))
+					((char*)op->button.text)[1] = (preset==0)?'m':'7';
 				preset--;
 			}
 #if defined(WEBCLIENT) && defined(PACKAGEMANAGER)
 			else if (!strcmp(op->button.command, "menu_download\n"))
 			{
-				op->button.text = PM_AreSourcesNew(false)?"^bPackages (New!)":"Packages";
+				op->button.text = PM_AreSourcesNew(false)?localtext("^bPackages (New!)"):localtext("Packages");
 				op->common.posx = op->common.next->common.posx;
 				op->common.width = 216-op->common.posx;
 			}

@@ -372,7 +372,7 @@ void M_Menu_SinglePlayer_f (void)
 #endif
 
 #if MAX_SPLITS > 1
-		b = (menubutton_t*)MC_AddCvarCombo(menu, 72, 170, 96, "Splitscreen", &cl_splitscreen, splitopts, splitvals);
+		b = (menubutton_t*)MC_AddCvarCombo(menu, 72, 170, 96, localtext("Splitscreen"), &cl_splitscreen, splitopts, splitvals);
 #endif
 
 		menu->cursoritem = (menuoption_t*)MC_AddWhiteText(menu, 48, 0, 40, NULL, false);
@@ -412,7 +412,7 @@ void M_Menu_SinglePlayer_f (void)
 				MC_AddCenterPicture(menu, 0, 60, "gfx/menu/title2.lmp");
 
 				if (cl_splitscreen.ival)
-					MC_AddBufferedText(menu, 80, 0, (y+=8)+12, va("Player %i\n", pnum), false, true); 
+					MC_AddBufferedText(menu, 80, 0, (y+=8)+12, va(localtext("Player %i\n"), pnum), false, true);
 
 				for (i = 0; i <= 4+havemp; i++)
 				{
@@ -501,7 +501,7 @@ void M_Menu_SinglePlayer_f (void)
 				MC_AddConsoleCommandHexen2BigFont(menu, 80, y+=20,		"Load Game",	"menu_load\n");
 #endif
 
-				MC_AddCvarCombo(menu, 72, 170, y+=20, "Splitscreen", &cl_splitscreen, splitopts, splitvals);
+				MC_AddCvarCombo(menu, 72, 170, y+=20, localtext("Splitscreen"), &cl_splitscreen, splitopts, splitvals);
 			}
 
 			menu->cursoritem = (menuoption_t *)MC_AddCursor(menu, &resel, 56, menu->selecteditem?menu->selecteditem->common.posy:0);
@@ -566,7 +566,7 @@ void M_Menu_SinglePlayer_f (void)
 
 #if MAX_SPLITS > 1
 		b = (menubutton_t*)MC_AddCvarCombo(menu, 72, 72+width/2, 92, "", &cl_splitscreen, splitopts, splitvals);
-		MC_AddWhiteText(menu, 72, 0, 92, "^aSplitscreen", false);
+		MC_AddRedText(menu, 72, 0, 92, localtext("Splitscreen"), false);
 		b->common.height = 20;
 		b->common.width = width;
 #endif
@@ -1084,7 +1084,7 @@ static void ShowDemoMenu (emenu_t *menu, const char *path)
 			return	//wut? don't confuse basedirs here...
 		Z_Free(info->man->basedir);
 		info->man->basedir = Z_StrDup(info->fs->path);
-		Menu_Prompt(FS_GameDirPrompted, &menu->menu, va("Use this directory?%s", info->fs->path), "Yes!", NULL, "No", true);
+		Menu_Prompt(FS_GameDirPrompted, &menu->menu, va(localtext("Use this directory?\n%s"), info->fs->path), "Yes!", NULL, "No", true);
 	}
 }
 void M_Demo_Reselect(demomenu_t *info, const char *name)
@@ -1170,7 +1170,7 @@ void M_Menu_Demos_f (void)
 		info->ext[info->numext++] = archiveexts[u];
 	}
 
-	MC_AddWhiteText(menu, 24, 170, 8, "Choose a Demo", false);
+	MC_AddWhiteText(menu, 24, 170, 8, localtext("Choose a Demo"), false);
 	MC_AddWhiteText(menu, 16, 170, 24, "^Ue01d^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01f", false);
 
 	info->list = MC_AddCustom(menu, 0, 32, NULL, 0, NULL);
@@ -1237,7 +1237,7 @@ void M_Menu_MediaFiles_f (void)
 #endif
 #endif
 
-	MC_AddWhiteText(menu, 24, 170, 8, "Media List", false);
+	MC_AddWhiteText(menu, 24, 170, 8, localtext("Media List"), false);
 	MC_AddWhiteText(menu, 16, 170, 24, "^Ue01d^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01f", false);
 
 	info->list = MC_AddCustom(menu, 0, 32, NULL, 0, NULL);
@@ -1287,7 +1287,7 @@ void M_Menu_BasedirPrompt(ftemanifest_t *man)
 
 	info->numext = 0;
 
-	MC_AddWhiteText(menu, 24, 170, 8, va("Where is %s installed?", man->formalname), false);
+	MC_AddWhiteText(menu, 24, 170, 8, va(localtext("Where is %s installed?"), man->formalname), false);
 	MC_AddWhiteText(menu, 16, 170, 24, "^Ue01d^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01e^Ue01f", false);
 
 	info->list = MC_AddCustom(menu, 0, 32, NULL, 0, NULL);

@@ -5512,7 +5512,7 @@ NORETURN void VARGS Host_EndGame (const char *message, ...)
 	char		string[1024];
 
 	va_start (argptr,message);
-	vsnprintf (string,sizeof(string)-1, message,argptr);
+	vsnprintf (string,sizeof(string)-1, localtext(message),argptr);
 	va_end (argptr);
 
 	COM_AssertMainThread(string);
@@ -5552,7 +5552,7 @@ void VARGS Host_Error (const char *error, ...)
 	inerror = true;
 
 	va_start (argptr,error);
-	vsnprintf (string,sizeof(string)-1, error,argptr);
+	vsnprintf (string,sizeof(string)-1, localtext(error),argptr);
 	va_end (argptr);
 	COM_AssertMainThread(string);
 	Con_TPrintf ("Host_Error: %s\n", string);
@@ -6094,7 +6094,7 @@ done:
 	else if (f->flags & HRF_MODEL)
 	{
 		if (!FS_FixupGamedirForExternalFile(f->fname, loadcommand, sizeof(loadcommand)))
-			Con_Printf("%s is not within the current gamedir\n", f->fname);
+			Con_TPrintf("%s is not within the current gamedir\n", f->fname);
 		else
 			Cbuf_AddText(va("modelviewer \"%s\"\n", loadcommand), RESTRICT_LOCAL);
 		goto done;
@@ -6121,7 +6121,7 @@ done:
 		if (!(f->flags & HRF_ACTION))
 		{
 			Key_Dest_Remove(kdm_console);
-			Menu_Prompt(Host_RunFilePrompted, f, va("Exec %s?\n", COM_SkipPath(f->fname)), "Yes", NULL, "Cancel", true);
+			Menu_Prompt(Host_RunFilePrompted, f, va(localtext("Exec %s?\n"), COM_SkipPath(f->fname)), "Yes", NULL, "Cancel", true);
 			return;
 		}
 		if (f->flags & HRF_OPENED)
@@ -6169,7 +6169,7 @@ done:
 
 	if (!f->srcfile)
 	{
-		Con_Printf("Unable to open %s\n", f->fname);
+		Con_TPrintf("Unable to open %s\n", f->fname);
 		goto done;
 	}
 
@@ -6232,17 +6232,17 @@ done:
 		Key_Dest_Remove(kdm_console);
 		if (haschanged)
 		{
-			Menu_Prompt(Host_RunFilePrompted, f, va("File already exists.\nWhat would you like to do?\n%s\n", displayname), "Overwrite", "Run old", "Cancel", true);
+			Menu_Prompt(Host_RunFilePrompted, f, va(localtext("File already exists.\nWhat would you like to do?\n%s\n"), displayname), "Overwrite", "Run old", "Cancel", true);
 			return;
 		}
 		else if (isnew)
 		{
-			Menu_Prompt(Host_RunFilePrompted, f, va("File appears new.\nWould you like to install\n%s\n", displayname), "Install!", "", "Cancel", true);
+			Menu_Prompt(Host_RunFilePrompted, f, va(localtext("File appears new.\nWould you like to install\n%s\n"), displayname), "Install!", "", "Cancel", true);
 			return;
 		}
 		else
 		{
-			Menu_Prompt(NULL, NULL, va("File is already installed\n%s\n", displayname), NULL, NULL, "Cancel", true);
+			Menu_Prompt(NULL, NULL, va(localtext("File is already installed\n%s\n"), displayname), NULL, NULL, "Cancel", true);
 			f->flags |= HRF_ABORT;
 		}
 	}
@@ -6411,7 +6411,7 @@ qboolean Host_RunFile(const char *fname, int nlen, vfsfile_t *file)
 	if (file)
 		f->flags |= HRF_OPENED;
 
-	Con_Printf("Opening external file: %s\n", f->fname);
+	Con_TPrintf("Opening external file: %s\n", f->fname);
 
 	Host_DoRunFile(f);
 	return true;
@@ -7207,7 +7207,7 @@ void Host_FinishLoading(void)
 			char *scheme = Sys_URIScheme_NeedsRegistering();
 			if (scheme)
 			{
-				Menu_Prompt(Host_URIPrompt, NULL, va("The URI scheme %s:// is not configured.\nRegister now?", scheme), "Register", NULL, "No", true);
+				Menu_Prompt(Host_URIPrompt, NULL, va(localtext("The URI scheme %s:// is not configured.\nRegister now?"), scheme), "Register", NULL, "No", true);
 				Z_Free(scheme);
 			}
 		}

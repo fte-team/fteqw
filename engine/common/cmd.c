@@ -975,7 +975,7 @@ static void Cmd_Exec_f (void)
 			else
 #endif
 			{
-				Menu_Prompt(NULL, NULL, va("WARNING: nquake %s file detected. The file has been ignored.", name), NULL, NULL, "Argh", false);
+				Menu_Prompt(NULL, NULL, va(localtext("WARNING: nquake %s file detected. The file has been ignored."), name), NULL, NULL, "Argh", false);
 				*s = 0;
 				foundone = 0;
 			}
@@ -2366,8 +2366,8 @@ static void Cmd_Complete_CheckArg(const char *value, const char *desc, const cha
 	char *p;
 	char quoted[8192];
 
-	if (!desc)	//if no arg desc, use the command's.
-		desc = ctx->desc;
+	if (!desc && ctx->desc)	//if no arg desc, use the command's.
+		desc = localtext(ctx->desc);
 
 	if (strchr(value, ' ') || strchr(value, '\t') || strchr(value, '\"') || strchr(value, '\r') || strchr(value, '\n'))
 	{

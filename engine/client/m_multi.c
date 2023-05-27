@@ -68,13 +68,13 @@ void M_Menu_MultiPlayer_f (void)
 
 		mgt=32;
 		menu->selecteditem = (menuoption_t*)
-		MC_AddConsoleCommandQBigFont	(menu, 72, mgt,	"Server List ",	"menu_slist\n");mgt+=20;
+		MC_AddConsoleCommandQBigFont	(menu, 72, mgt,	localtext("Server List "),	"menu_slist\n");mgt+=20;
 #ifdef HAVE_PACKET
-		MC_AddConsoleCommandQBigFont	(menu, 72, mgt,	"Quick Connect", "quickconnect qw\n");mgt+=20;
+		MC_AddConsoleCommandQBigFont	(menu, 72, mgt,	localtext("Quick Connect"), "quickconnect qw\n");mgt+=20;
 #endif
-		MC_AddConsoleCommandQBigFont	(menu, 72, mgt,	"New Server  ",	"menu_newmulti\n");mgt+=20;
-		MC_AddConsoleCommandQBigFont	(menu, 72, mgt,	"Player Setup",	"menu_setup\n");mgt+=20;
-		MC_AddConsoleCommandQBigFont	(menu, 72, mgt,	"Demos       ",	"menu_demo\n");mgt+=20;
+		MC_AddConsoleCommandQBigFont	(menu, 72, mgt,	localtext("New Server  "),	"menu_newmulti\n");mgt+=20;
+		MC_AddConsoleCommandQBigFont	(menu, 72, mgt,	localtext("Player Setup"),	"menu_setup\n");mgt+=20;
+		MC_AddConsoleCommandQBigFont	(menu, 72, mgt,	localtext("Demos       "),	"menu_demo\n");mgt+=20;
 
 		menu->cursoritem = (menuoption_t*)MC_AddCursor(menu, &resel, 54, 32);
 		return;
@@ -106,13 +106,13 @@ void M_Menu_MultiPlayer_f (void)
 		b->common.width = width;
 
 		b = MC_AddConsoleCommand(menu, 72, 320, 92, "", "menu_demo\n");
-		MC_AddWhiteText(menu, 72, 0, 92+20/2-6, "^aDemos", false);
+		MC_AddWhiteText(menu, 72, 0, 92+20/2-6, localtext("^aDemos"), false);
 		b->common.height = 20;
 		b->common.width = width;
 
 #ifdef HAVE_PACKET
 		b = MC_AddConsoleCommand(menu, 72, 320, 112, "", "quickconnect qw\n");
-		MC_AddWhiteText(menu, 72, 0, 112+20/2-6, "^aQuick Connect", false);
+		MC_AddWhiteText(menu, 72, 0, 112+20/2-6, localtext("^aQuick Connect"), false);
 		b->common.height = 20;
 		b->common.width = width;
 #endif
@@ -463,8 +463,8 @@ void M_Menu_Setup_f (void)
 		MC_AddCenterPicture(menu, 4, 24, "pics/m_banner_player_setup");
 
 		menu->selecteditem = (menuoption_t*)
-		(info->nameedit = MC_AddEdit(menu, 64, 160, 40, "Your name", name.string));
-		(info->modeledit = MC_AddCvarCombo(menu, 64, 160,72, "model", &skin, (const char **)modeloptions, (const char **)modeloptions));
+		(info->nameedit = MC_AddEdit(menu, 64, 160, 40, localtext("Your name"), name.string));
+		(info->modeledit = MC_AddCvarCombo(menu, 64, 160,72, localtext("model"), &skin, (const char **)modeloptions, (const char **)modeloptions));
 		info->modeledit->selectedoption = !strncmp(skin.string, "female", 6);
 		cu = MC_AddCustom(menu, 64, 88+16, NULL, 0, NULL);
 		cu->draw = MSetupQ2_TransDraw;
@@ -483,8 +483,8 @@ void M_Menu_Setup_f (void)
 
 	y = 40;
 	menu->selecteditem = (menuoption_t*)
-	(info->nameedit = MC_AddEdit(menu, 64, 160, y, "Your name", name.string)); y+= info->nameedit->common.height;
-	(info->teamedit = MC_AddEdit(menu, 64, 160, y, "Your team", team.string)); y+= info->teamedit->common.height;
+	(info->nameedit = MC_AddEdit(menu, 64, 160, y, localtext("Your name"), name.string)); y+= info->nameedit->common.height;
+	(info->teamedit = MC_AddEdit(menu, 64, 160, y, localtext("Your team"), team.string)); y+= info->teamedit->common.height;
 #ifdef HEXEN2
 	info->ticlass = -1;
 	if (M_GameType() == MGT_HEXEN2)
@@ -499,7 +499,7 @@ void M_Menu_Setup_f (void)
 			NULL
 		};
 		cvar_t *pc = Cvar_Get("cl_playerclass", "1", CVAR_USERINFO|CVAR_ARCHIVE, "Hexen2");
-		(info->classedit = MC_AddCombo(menu, 64, 160, y, "Your class", (const char **)classnames, pc->ival-1)); y+= info->classedit->common.height;
+		(info->classedit = MC_AddCombo(menu, 64, 160, y, localtext("Your class"), (const char **)classnames, pc->ival-1)); y+= info->classedit->common.height;
 
 		//trim options if the artwork is missing.
 		while (info->classedit->numoptions && !COM_FCheckExists(va("gfx/menu/netp%i.lmp", info->classedit->numoptions)))
@@ -511,23 +511,23 @@ void M_Menu_Setup_f (void)
 		MC_AddPicture(menu, 16, 4, 32, 144, "gfx/qplaque.lmp");
 		MC_AddCenterPicture(menu, 4, 24, "gfx/p_multi.lmp");
 
-		(info->skinedit = MC_AddEdit(menu, 64, 160, y, "Your skin", skin.string)); y+= info->skinedit->common.height;
+		(info->skinedit = MC_AddEdit(menu, 64, 160, y, localtext("Your skin"), skin.string)); y+= info->skinedit->common.height;
 	}
 
 	ci = MC_AddCustom(menu, 172+32, y, NULL, 0, NULL);
 	ci->draw = MSetup_TransDraw;
 	ci->key = NULL;
 
-	MC_AddCommand(menu, 64, 160, y+8, "Top colour", SetupMenuColour);
-	MC_AddCommand(menu, 64, 160, y+32, "Lower colour", SetupMenuColour);
+	MC_AddCommand(menu, 64, 160, y+8, localtext("Top colour"), SetupMenuColour);
+	MC_AddCommand(menu, 64, 160, y+32, localtext("Lower colour"), SetupMenuColour);
 	y+= 16;
 	y+=4;
 
-	b = MC_AddConsoleCommand(menu, 64, 204, 168, "Network Settings", "menu_network\n");
-	b->common.tooltip = "Change network and client prediction settings.";
+	b = MC_AddConsoleCommand(menu, 64, 204, 168, localtext("Network Settings"), "menu_network\n");
+	b->common.tooltip = localtext("Change network and client prediction settings.");
 	y += b->common.height;
-	b = MC_AddConsoleCommand(menu, 64, 204, 176, "Teamplay Settings", "menu_teamplay\n");
-	b->common.tooltip = "Change teamplay macro settings.";
+	b = MC_AddConsoleCommand(menu, 64, 204, 176, localtext("Teamplay Settings"), "menu_teamplay\n");
+	b->common.tooltip = localtext("Change teamplay macro settings.");
 	y += b->common.height;
 	menu->cursoritem = (menuoption_t*)MC_AddCursorSmall(menu, &resel, 54);
 
@@ -773,11 +773,11 @@ void M_Menu_GameOptions_f (void)
 //	MC_AddPicture(menu, 72, 32, ("gfx/mp_menu.lmp") );
 
 	menu->selecteditem = (menuoption_t*)
-	MC_AddCommand						(menu, 64, 160, y,	"Start game", MultiBeginGame);y+=16;
+	MC_AddCommand						(menu, 64, 160, y,	localtext("Start game"), MultiBeginGame);y+=16;
 
 	y+=4;
-	info->hostnameedit	= MC_AddEdit	(menu, 64, 160, y,			"Hostname", name.string);y+=info->hostnameedit->common.height;
-	info->publicgame	= MC_AddCombo	(menu, 64, 160, y,			"Public", publicoptions, bound(0, sv_public.ival+1, 4));y+=8;
+	info->hostnameedit	= MC_AddEdit	(menu, 64, 160, y,			localtext("Hostname"), name.string);y+=info->hostnameedit->common.height;
+	info->publicgame	= MC_AddCombo	(menu, 64, 160, y,			localtext("Public"), publicoptions, bound(0, sv_public.ival+1, 4));y+=8;
 #if !defined(FTE_TARGET_WEB) && defined(HAVE_DTLS)
 	{
 		static const char *encoptions[] =
@@ -788,7 +788,7 @@ void M_Menu_GameOptions_f (void)
 			"Require",
 			NULL
 		};
-		MC_AddCvarCombo (menu, 64, 160, y,		"DTLS Encryption", &net_enable_dtls, encoptions, NULL);y+=8;
+		MC_AddCvarCombo (menu, 64, 160, y,		localtext("DTLS Encryption"), &net_enable_dtls, encoptions, NULL);y+=8;
 	}
 #endif
 	y+=4;
@@ -799,15 +799,15 @@ void M_Menu_GameOptions_f (void)
 			break;
 	}
 
-	info->numplayers	= MC_AddCombo	(menu, 64, 160, y,			"Max players", (const char **)numplayeroptions,	players);y+=8;
+	info->numplayers	= MC_AddCombo	(menu, 64, 160, y,			localtext("Max players"), (const char **)numplayeroptions,	players);y+=8;
 
-	info->deathmatch	= MC_AddCombo	(menu, 64, 160, y,			"Deathmatch", (const char **)deathmatchoptions,	deathmatch.value);y+=8;
-	info->teamplay		= MC_AddCombo	(menu, 64, 160, y,			"Teamplay", (!strcasecmp(FS_GetGamedir(true), "rogue")?(const char **)teamplayoptions_rogue:(const char **)teamplayoptions),		teamplay.value);y+=8;
-	info->skill			= MC_AddCombo	(menu, 64, 160, y,			"Skill", (const char **)skilloptions,			skill.value);y+=8;
-	info->rundedicated	= MC_AddCheckBox(menu, 64, 160, y,			"dedicated", NULL, 0);y+=8;
+	info->deathmatch	= MC_AddCombo	(menu, 64, 160, y,			localtext("Deathmatch"), (const char **)deathmatchoptions,	deathmatch.value);y+=8;
+	info->teamplay		= MC_AddCombo	(menu, 64, 160, y,			localtext("Teamplay"), (!strcasecmp(FS_GetGamedir(true), "rogue")?(const char **)teamplayoptions_rogue:(const char **)teamplayoptions),		teamplay.value);y+=8;
+	info->skill			= MC_AddCombo	(menu, 64, 160, y,			localtext("Skill"), (const char **)skilloptions,			skill.value);y+=8;
+	info->rundedicated	= MC_AddCheckBox(menu, 64, 160, y,			localtext("dedicated"), NULL, 0);y+=8;
 	y+=8;
-	info->timelimit		= MC_AddCombo	(menu, 64, 160, y,			"Time Limit", (const char **)timelimitoptions,		timelimit.value/5);y+=8;
-	info->fraglimit		= MC_AddCombo	(menu, 64, 160, y,			"Frag Limit", (const char **)fraglimitoptions,		fraglimit.value/10);y+=8;
+	info->timelimit		= MC_AddCombo	(menu, 64, 160, y,			localtext("Time Limit"), (const char **)timelimitoptions,		timelimit.value/5);y+=8;
+	info->fraglimit		= MC_AddCombo	(menu, 64, 160, y,			localtext("Frag Limit"), (const char **)fraglimitoptions,		fraglimit.value/10);y+=8;
 	y+=8;
 
 	//populate it with an appropriate default. its a shame it won't change with the deathmatch/coop options
@@ -832,7 +832,7 @@ void M_Menu_GameOptions_f (void)
 	COM_EnumerateFiles("maps/*.map.gz",	M_Menu_GameOptions_AddMap, &mapopts);
 	COM_EnumerateFiles("maps/*.cm",		M_Menu_GameOptions_AddMap, &mapopts);
 	COM_EnumerateFiles("maps/*.hmp",	M_Menu_GameOptions_AddMap, &mapopts);
-	info->mapname		= MC_AddCombo	(menu, 64, 160, y,			"Map", (const char **)mapopts.maps,		0);y+=8;
+	info->mapname		= MC_AddCombo	(menu, 64, 160, y,			localtext("Map"), (const char **)mapopts.maps,		0);y+=8;
 	y += 16;
 
 	menu->cursoritem = (menuoption_t*)MC_AddWhiteText(menu, 54, 0, menu->selecteditem->common.posy, NULL, false);

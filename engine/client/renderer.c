@@ -2195,7 +2195,7 @@ void R_RestartRenderer (rendererstate_t *newr)
 	rendererstate_t oldr;
 	if (r_blockvidrestart)
 	{
-		Con_Printf("Ignoring vid_restart from config\n");
+		Con_TPrintf("Ignoring vid_restart from config\n");
 		return;
 	}
 

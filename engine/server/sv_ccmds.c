@@ -948,7 +948,7 @@ void SV_Map_f (void)
 					!strcmp(cmd, "map") && !startspot &&
 					!isDedicated && Cmd_ExecLevel==RESTRICT_LOCAL && !strchr(level, '.'))
 				{
-					Menu_Prompt(SV_Map_DownloadPrompted, Z_StrDup(level), va("Download map %s from "S_COLOR_BLUE "%s" S_COLOR_WHITE"?", level, cl_download_mapsrc.string), "Download", NULL, "Cancel", true);
+					Menu_Prompt(SV_Map_DownloadPrompted, Z_StrDup(level), va(localtext("Download map %s from "S_COLOR_BLUE "%s" S_COLOR_WHITE"?"), level, cl_download_mapsrc.string), "Download", NULL, "Cancel", true);
 					return;
 				}
 #endif
@@ -2245,7 +2245,7 @@ static void SV_Status_f (void)
 		s = "direct";
 	else
 		s = "private";
-	Con_TPrintf("public           : %s\n", s);
+	Con_TPrintf("public           : %s\n", localtext(s));
 
 	switch(svs.gametype)
 	{
@@ -2270,29 +2270,29 @@ static void SV_Status_f (void)
 #endif
 #ifdef HAVE_DTLS
 		if (net_enable_dtls.ival >= 3)
-			Con_Printf(" ^[DTLS-only\\tip\\Insecure clients (those without support for DTLS) will be barred from connecting.^]");
+			Con_TPrintf(" ^[DTLS-only\\tip\\Insecure clients (those without support for DTLS) will be barred from connecting.^]");
 		else if (net_enable_dtls.ival)
-			Con_Printf(" ^[DTLS\\tip\\Clients may optionally connect via DTLS for added security^]");
+			Con_TPrintf(" ^[DTLS\\tip\\Clients may optionally connect via DTLS for added security^]");
 #endif
 		Con_Printf("\n");
 #if defined(TCPCONNECT) && !defined(CLIENTONLY)
 		Con_TPrintf("tcp services     :");
 #if defined(HAVE_SSL)
 		if (net_enable_tls.ival)
-			Con_Printf(" ^[TLS\\tip\\Clients are able to connect with Transport Layer Security for the other services, allowing for the use of tls://, wss:// or https:// schemes when their underlaying protocol is enabled.^]");
+			Con_TPrintf(" ^[TLS\\tip\\Clients are able to connect with Transport Layer Security for the other services, allowing for the use of tls://, wss:// or https:// schemes when their underlaying protocol is enabled.^]");
 #endif
 #ifdef HAVE_HTTPSV
 		if (net_enable_http.ival)
-			Con_Printf(" ^[HTTP\\tip\\This server also acts as a web server. This might be useful to allow hosting demos or stats.^]");
+			Con_TPrintf(" ^[HTTP\\tip\\This server also acts as a web server. This might be useful to allow hosting demos or stats.^]");
 		if (net_enable_rtcbroker.ival)
-			Con_Printf(" ^[RTC\\tip\\This server is set up to act as a webrtc broker, allowing clients+servers to locate each other instead of playing on this server.^]");
+			Con_TPrintf(" ^[RTC\\tip\\This server is set up to act as a webrtc broker, allowing clients+servers to locate each other instead of playing on this server.^]");
 		if (net_enable_websockets.ival)
-			Con_Printf(" ^[WebSocket\\tip\\Clients can use the ws:// or possibly wss:// schemes to connect to this server, potentially from browser ports. This may be laggy.^]");
+			Con_TPrintf(" ^[WebSocket\\tip\\Clients can use the ws:// or possibly wss:// schemes to connect to this server, potentially from browser ports. This may be laggy.^]");
 #endif
 		if (net_enable_qizmo.ival)
-			Con_Printf(" ^[Qizmo\\tip\\Compatible with the tcp connection feature of qizmo, equivelent to 'connect tcp://ip:port' in FTE.^]");
+			Con_TPrintf(" ^[Qizmo\\tip\\Compatible with the tcp connection feature of qizmo, equivelent to 'connect tcp://ip:port' in FTE.^]");
 		if (net_enable_qtv.ival)
-			Con_Printf(" ^[QTV\\tip\\Allows receiving streamed mvd data from this server.^]");
+			Con_TPrintf(" ^[QTV\\tip\\Allows receiving streamed mvd data from this server.^]");
 		Con_Printf("\n");
 #endif
 		break;
@@ -2352,7 +2352,7 @@ static void SV_Status_f (void)
 	{
 		// most remote clients are 40 columns
 		//           0123456789012345678901234567890123456789
-		Con_Printf (	"name               userid frags\n"
+		Con_TPrintf (	"name               userid frags\n"
 						"  address          rate ping drop\n"
 						"  ---------------- ---- ---- -----\n");
 		for (i=0,cl=svs.clients ; i<svs.allocated_client_slots ; i++,cl++)
@@ -2386,12 +2386,12 @@ static void SV_Status_f (void)
 			Con_Printf ("  %-16.16s", s);
 			if (cl->state == cs_connected)
 			{
-				Con_Printf ("CONNECTING\n");
+				Con_TPrintf ("CONNECTING\n");
 				continue;
 			}
 			if (cl->state == cs_zombie || cl->state == cs_loadzombie)
 			{
-				Con_Printf ("ZOMBIE\n");
+				Con_TPrintf ("ZOMBIE\n");
 				continue;
 			}
 			Con_Printf ("%4i %4i %5.2f\n"
@@ -2654,7 +2654,7 @@ void SV_Serverinfo_f (void)
 
 				return;
 			}
-		Con_Printf ("Can't set * keys\n");
+		Con_TPrintf ("Can't set * keys\n");
 		return;
 	}
 
@@ -2664,11 +2664,11 @@ void SV_Serverinfo_f (void)
 		char *data = FS_MallocFile(Cmd_Argv(2), FS_GAME, &fsize);
 		if (!data)
 		{
-			Con_Printf ("Unable to read %s\n", Cmd_Argv(2));
+			Con_TPrintf ("Unable to read %s\n", Cmd_Argv(2));
 			return;
 		}
 		if (fsize > 64*1024*1024)
-			Con_Printf ("File is over 64mb\n");
+			Con_TPrintf ("File is over 64mb\n");
 		else
 			InfoBuf_SetStarBlobKey(&svs.info, Cmd_Argv(1), data, fsize);
 		FS_FreeFile(data);
@@ -2731,7 +2731,7 @@ static void SV_Localinfo_f (void)
 				InfoBuf_Clear(&svs.localinfo, false);
 				return;
 			}
-		Con_Printf ("Can't set * keys\n");
+		Con_TPrintf ("Can't set * keys\n");
 		return;
 	}
 	old = InfoBuf_ValueForKey(&svs.localinfo, Cmd_Argv(1));
@@ -2794,7 +2794,7 @@ void SV_User_f (void)
 
 	while((cl = SV_GetClientForString(Cmd_Argv(1), &clnum)))
 	{
-		Con_Printf("Userinfo (%i):\n", cl->userid);
+		Con_TPrintf("Userinfo (%i):\n", cl->userid);
 		InfoBuf_Print (&cl->userinfo, "  ");
 		Con_Printf("[%u/%i, %u/%i]\n", (unsigned)cl->userinfo.totalsize, sv_userinfo_bytelimit.ival, (unsigned)cl->userinfo.numkeys, sv_userinfo_keylimit.ival);
 		switch(cl->protocol)

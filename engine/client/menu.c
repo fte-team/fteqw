@@ -617,6 +617,13 @@ void Menu_Prompt (void (*callback)(void *, promptbutton_t), void *ctx, const cha
 	char *t;
 	conchar_t message[8192], *e;
 
+	if (optionyes)
+		optionyes = localtext(optionyes);
+	if (optionno)
+		optionno = localtext(optionno);
+	if (optioncancel)
+		optioncancel = localtext(optioncancel);
+
 	e = COM_ParseFunString(CON_WHITEMASK, messages, message, sizeof(message)-sizeof(conchar_t), false);
 
 	m = (promptmenu_t*)Z_Malloc(sizeof(*m) + (e-message)*sizeof(conchar_t)+(optionyes?strlen(optionyes):0)+(optionno?strlen(optionno):0)+(optioncancel?strlen(optioncancel):0)+7);
@@ -965,7 +972,7 @@ void M_Menu_Keys_f (void)
 			"4"
 #endif
 		};
-		MC_AddCvarCombo(menu, 16, 170, y, "Force client", &cl_forceseat, (const char **)texts, (const char **)values);
+		MC_AddCvarCombo(menu, 16, 170, y, localtext("Force client"), &cl_forceseat, (const char **)texts, (const char **)values);
 		y+=8;
 	}
 #endif
@@ -997,7 +1004,7 @@ void M_Menu_Keys_f (void)
 	MC_AddFrameStart(menu, 48+8);
 	while (bindnames->name)
 	{
-		MC_AddBind(menu, 16, 170, y, bindnames->name, bindnames->command, NULL);
+		MC_AddBind(menu, 16, 170, y, localtext(bindnames->name), bindnames->command, NULL);
 		y += 8;
 		bindnames++;
 	}
@@ -1292,10 +1299,10 @@ void M_Menu_Quit_f (void)
 #endif
 		break;
 	case 2:
-		Menu_Prompt (M_Menu_DoQuitSave, NULL, "You have unsaved settings\nWould you like to\nsave them now?", "Yes", "No", "Cancel", true);
+		Menu_Prompt (M_Menu_DoQuitSave, NULL, localtext("You have unsaved settings\nWould you like to\nsave them now?"), "Yes", "No", "Cancel", true);
 		break;
 	case 1:
-		Menu_Prompt (M_Menu_DoQuit, NULL, quitMessage[rand()%countof(quitMessage)], "Quit", NULL, "Cancel", true);
+		Menu_Prompt (M_Menu_DoQuit, NULL, localtext(quitMessage[rand()%countof(quitMessage)]), "Quit", NULL, "Cancel", true);
 		break;
 	}
 }
@@ -1303,7 +1310,7 @@ void M_Menu_Quit_f (void)
 #ifdef HAVE_LEGACY
 void M_Menu_Credits_f (void)
 {
-	Menu_Prompt (NULL, NULL, "That's all folks!\nTry a different mod now.", NULL, NULL, "Sure!", false);
+	Menu_Prompt (NULL, NULL, localtext("That's all folks!\nTry a different mod now."), NULL, NULL, "Sure!", false);
 }
 #endif
 

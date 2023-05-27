@@ -80,7 +80,7 @@ static int TL_LoadLanguage(char *lang)
 	languages[j].name = strdup(lang);
 	languages[j].po = NULL;
 	
-#ifndef COLOURUNTRANSLATEDSTRINGS
+#if !defined(COLOURUNTRANSLATEDSTRINGS) && !defined(COLOURMISSINGSTRINGS)
 	if (f)
 #endif
 	{
@@ -308,14 +308,45 @@ struct po_s
 };
 
 static struct poline_s *PO_AddText(struct po_s *po, const char *orig, const char *trans)
-{
+{	//input is assumed to be utf-8, but that's not always what quake uses. on the plus side we do have our own silly markup to handle unicode (and colours etc).
 	size_t olen = strlen(orig)+1;
-	size_t tlen = strlen(trans)+1;
-	struct poline_s *line = Z_Malloc(sizeof(*line)+olen+tlen);
+	size_t tlen;
+	struct poline_s *line;
+	const char *s;
+	char temp[64];
+
+	//figure out the required length for the encoding we're actually going to use
+	if (com_parseutf8.ival != 1)
+	{
+		tlen = 0;
+		for (s = trans, tlen = 0; *s; )
+		{
+			unsigned int err;
+			unsigned int chr = utf8_decode(&err, s, &s);
+			tlen += unicode_encode(temp, chr, sizeof(temp), true);
+		}
+		tlen++;
+	}
+	else
+		tlen = strlen(trans)+1;
+
+	line = Z_Malloc(sizeof(*line)+olen+tlen);
 	memcpy(line+1, orig, olen);
 	orig = (const char*)(line+1);
 	line->translated = (char*)(line+1)+olen;
-	memcpy(line->translated, trans, tlen);
+	if (com_parseutf8.ival != 1)
+	{
+		//do the loop again now we know we've got enough space for it.
+		for (s = trans, tlen = 0; *s; )
+		{
+			unsigned int err;
+			unsigned int chr = utf8_decode(&err, s, &s);
+			tlen += unicode_encode(line->translated+tlen, chr, sizeof(temp), true);
+		}
+		line->translated[tlen] = 0;
+	}
+	else
+		memcpy(line->translated, trans, tlen);
 	trans = (const char*)(line->translated);
 	Hash_Add(&po->hash, orig, line, &line->buck);
 
@@ -470,7 +501,7 @@ void PO_Close(struct po_s *po)
 const char *PO_GetText(struct po_s *po, const char *msg)
 {
 	struct poline_s *line;
-	if (!po)
+	if (!po || !msg)
 		return msg;
 	line = Hash_Get(&po->hash, msg);
 
@@ -479,17 +510,20 @@ const char *PO_GetText(struct po_s *po, const char *msg)
 	{
 		char temp[1024];
 		int i;
-		Q_snprintfz(temp, sizeof(temp), "%s", msg);
-		for (i = 0; temp[i]; i++)
+		const char *in = msg;
+		for (i = 0; *in && i < sizeof(temp)-1; )
 		{
-			if (temp[i] == '%')
-			{
-				while (temp[i] > ' ')
-					i++;
+			if (*in == '%')
+			{	//don't mess up % formatting too much
+				while (*in > ' ' && i < sizeof(temp)-1)
+					temp[i++] = *in++;
 			}
-			else if (temp[i] >= ' ')
-				temp[i] |= 0x80;
+			else if (in > ' ' && *in < 128)	//otherwise force any ascii chars to the 0xe0XX range so it doesn't use any freetype fonts so its instantly recognisable as bad.
+				i += utf8_encode(temp+i, *in++|0xe080, sizeof(temp)-1-i);
+			else
+				temp[i++] = *in++;	//don't mess with any c0/extended codepoints
 		}
+		temp[i] = 0;
 		line = PO_AddText(po, msg, temp);
 	}
 #endif

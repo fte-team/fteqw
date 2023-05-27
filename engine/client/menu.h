@@ -347,11 +347,11 @@ struct emenu_s {
 menutext_t *MC_AddBufferedText(emenu_t *menu, int lhs, int rhs, int y, const char *text, int rightalign, qboolean red);
 menutext_t *MC_AddRedText(emenu_t *menu, int lhs, int rhs, int y, const char *text, int rightalign);
 menutext_t *MC_AddWhiteText(emenu_t *menu, int lhs, int rhs, int y, const char *text, int rightalign);
-menubind_t *MC_AddBind(emenu_t *menu, int cx, int bx, int y, const char *caption, char *command, char *tooltip);
+menubind_t *MC_AddBind(emenu_t *menu, int cx, int bx, int y, const char *caption, char *command, const char *tooltip);
 menubox_t *MC_AddBox(emenu_t *menu, int x, int y, int width, int height);
-menupicture_t *MC_AddPicture(emenu_t *menu, int x, int y, int width, int height, char *picname);
-menupicture_t *MC_AddSelectablePicture(emenu_t *menu, int x, int y, int height, char *picname);
-menupicture_t *MC_AddCenterPicture(emenu_t *menu, int y, int height, char *picname);
+menupicture_t *MC_AddPicture(emenu_t *menu, int x, int y, int width, int height, const char *picname);
+menupicture_t *MC_AddSelectablePicture(emenu_t *menu, int x, int y, int height, const char *picname);
+menupicture_t *MC_AddCenterPicture(emenu_t *menu, int y, int height, const char *picname);
 menupicture_t *MC_AddCursor(emenu_t *menu, menuresel_t *resel, int x, int y);
 menuoption_t *MC_AddCursorSmall(emenu_t *menu, menuresel_t *reselection, int x);
 menuslider_t *MC_AddSlider(emenu_t *menu, int tx, int sx, int y, const char *text, cvar_t *var, float min, float max, float delta);
@@ -362,11 +362,11 @@ menubutton_t *MC_AddConsoleCommandQBigFont(emenu_t *menu, int x, int y, const ch
 mpic_t *QBigFontWorks(void);
 menubutton_t *MC_AddConsoleCommandHexen2BigFont(emenu_t *menu, int x, int y, const char *text, const char *command);
 menubutton_t *VARGS MC_AddConsoleCommandf(emenu_t *menu, int lhs, int rhs, int y, int rightalign, const char *text, char *command, ...);
-menubutton_t *MC_AddCommand(emenu_t *menu, int lhs, int rhs, int y, char *text, qboolean (*command) (union menuoption_s *,struct emenu_s *,int));
+menubutton_t *MC_AddCommand(emenu_t *menu, int lhs, int rhs, int y, const char *text, qboolean (*command) (union menuoption_s *,struct emenu_s *,int));
 menucombo_t *MC_AddCombo(emenu_t *menu, int tx, int cx, int y, const char *caption, const char **ops, int initialvalue);
 menucombo_t *MC_AddCvarCombo(emenu_t *menu, int tx, int cx, int y, const char *caption, cvar_t *cvar, const char **ops, const char **values);
-menuedit_t *MC_AddEdit(emenu_t *menu, int cx, int ex, int y, char *text, char *def);
-menuedit_t *MC_AddEditCvar(emenu_t *menu, int cx, int ex, int y, char *text, char *name, qboolean slim);
+menuedit_t *MC_AddEdit(emenu_t *menu, int cx, int ex, int y, const char *text, const char *def);
+menuedit_t *MC_AddEditCvar(emenu_t *menu, int cx, int ex, int y, const char *text, const char *name, qboolean slim);
 menucustom_t *MC_AddCustom(emenu_t *menu, int x, int y, void *dptr, int dint, const char *tooltip);
 menuframe_t *MC_AddFrameStart(emenu_t *menu, int y);	//call before items are added
 menuframe_t *MC_AddFrameEnd(emenu_t *menu, int y);	//and call AFTER that stuff with the same y.
@@ -374,7 +374,7 @@ menuframe_t *MC_AddFrameEnd(emenu_t *menu, int y);	//and call AFTER that stuff w
 typedef struct menubulk_s {
 	menutype_t type;
 	int variant;
-	char *text;
+	const char *text;
 	const char *tooltip;
 	char *consolecmd; // console command
 	cvar_t *cvar; // check box, slider
@@ -393,24 +393,24 @@ typedef struct menubulk_s {
 	int spacing; // spacing
 } menubulk_t;
 
-#define MB_CONSOLECMD(text, cmd, tip) 								{mt_button, 0, text, tip, cmd}
-#define MB_CONSOLECMDRETURN(text, cmd, tip, ret)					{mt_button, 0, text, tip, cmd, NULL, 0, NULL, 0, 0, 0, false, NULL, NULL, NULL, NULL, 0, (union menuoption_s **)&ret}
-#define MB_CHECKBOXCVAR(text, cvar, cvarflag) 						{mt_checkbox, 0, text, NULL, NULL, &cvar, cvarflag}
-#define MB_CHECKBOXCVARTIP(text, cvar, cvarflag, tip) 				{mt_checkbox, 0, text, tip, NULL, &cvar, cvarflag}
-#define MB_CHECKBOXCVARRETURN(text, cvar, cvarflag, ret) 			{mt_checkbox, 0, text, NULL, NULL, &cvar, cvarflag, NULL, 0, 0, 0, false, NULL, NULL, NULL, NULL, 0, (union menuoption_s **)&ret}
-#define MB_CHECKBOXFUNC(text, func, flags, tip) 					{mt_checkbox, 0, text, tip, NULL, NULL, flags, func}
-#define MB_SLIDER(text, cvar, min, max, delta, tip) 				{mt_slider, 0, text, tip, NULL, &cvar, 0, NULL, min, max, delta}
-#define MB_TEXT(text, align) 										{mt_text, 0, text, NULL, NULL, NULL, 0, NULL, 0, 0, 0, align}
-#define MB_REDTEXT(text, align) 									{mt_text, 1, text, NULL, NULL, NULL, 0, NULL, 0, 0, 0, align}
-#define MB_CMD(text, cmdfunc, tip) 									{mt_button, 1, text, tip, NULL, NULL, 0, NULL, 0, 0, 0, false, cmdfunc}
-#define MB_EDITCVARTIP(text, cvarname, tip) 						{mt_edit, 0, text, tip, NULL, NULL, 0, NULL, 0, 0, 0, false, NULL, cvarname}
-#define MB_EDITCVAR(text, cvarname) 								{mt_edit, 0, text, NULL, NULL, NULL, 0, NULL, 0, 0, 0, false, NULL, cvarname}
-#define MB_EDITCVARSLIM(text, cvarname, tip) 						{mt_edit, 1, text, tip, NULL, NULL, 0, NULL, 0, 0, 0, false, NULL, cvarname}
-#define MB_EDITCVARSLIMRETURN(text, cvarname, ret) 					{mt_edit, 1, text, NULL, NULL, NULL, 0, NULL, 0, 0, 0, false, NULL, cvarname, NULL, NULL, 0, (union menuoption_s **)&ret}
-#define MB_COMBOCVAR(text, cvar, options, values, tip) 				{mt_combo, 0, text, tip, NULL, &cvar, 0, NULL, 0, 0, 0, false, NULL, NULL, options, values}
-#define MB_COMBORETURN(text, options, selected, ret, tip) 			{mt_combo, 1, text, tip, NULL, NULL, 0, NULL, 0, 0, 0, false, NULL, NULL, options, NULL, selected, (union menuoption_s **)&ret}
-#define MB_COMBOCVARRETURN(text, cvar, options, values, ret, tip) 	{mt_combo, 0, text, tip, NULL, &cvar, 0, NULL, 0, 0, 0, false, NULL, NULL, options, values, 0, (union menuoption_s **)&ret}
-#define MB_SPACING(space) 											{mt_text, 2, NULL, NULL, NULL, NULL, 0, NULL, 0, 0, 0, false, NULL, NULL, NULL, NULL, 0, NULL, space}
+#define MB_CONSOLECMD(text, cmd, tip) 								{mt_button,		0, localtext(text), localtext(tip), cmd}
+#define MB_CONSOLECMDRETURN(text, cmd, tip, ret)					{mt_button,		0, localtext(text), localtext(tip), cmd, NULL, 0, NULL, 0, 0, 0, false, NULL, NULL, NULL, NULL, 0, (union menuoption_s **)&ret}
+#define MB_CHECKBOXCVAR(text, cvar, cvarflag) 						{mt_checkbox,	0, localtext(text), NULL, NULL, &cvar, cvarflag}
+#define MB_CHECKBOXCVARTIP(text, cvar, cvarflag, tip) 				{mt_checkbox,	0, localtext(text), localtext(tip), NULL, &cvar, cvarflag}
+#define MB_CHECKBOXCVARRETURN(text, cvar, cvarflag, ret) 			{mt_checkbox,	0, localtext(text), NULL, NULL, &cvar, cvarflag, NULL, 0, 0, 0, false, NULL, NULL, NULL, NULL, 0, (union menuoption_s **)&ret}
+#define MB_CHECKBOXFUNC(text, func, flags, tip) 					{mt_checkbox,	0, localtext(text), localtext(tip), NULL, NULL, flags, func}
+#define MB_SLIDER(text, cvar, min, max, delta, tip) 				{mt_slider,		0, localtext(text), localtext(tip), NULL, &cvar, 0, NULL, min, max, delta}
+#define MB_TEXT(text, align) 										{mt_text,		0, localtext(text), NULL, NULL, NULL, 0, NULL, 0, 0, 0, align}
+#define MB_REDTEXT(text, align) 									{mt_text,		1, localtext(text), NULL, NULL, NULL, 0, NULL, 0, 0, 0, align}
+#define MB_CMD(text, cmdfunc, tip) 									{mt_button,		1, localtext(text), localtext(tip), NULL, NULL, 0, NULL, 0, 0, 0, false, cmdfunc}
+#define MB_EDITCVARTIP(text, cvarname, tip) 						{mt_edit,		0, localtext(text), localtext(tip), NULL, NULL, 0, NULL, 0, 0, 0, false, NULL, cvarname}
+#define MB_EDITCVAR(text, cvarname) 								{mt_edit,		0, localtext(text), NULL, NULL, NULL, 0, NULL, 0, 0, 0, false, NULL, cvarname}
+#define MB_EDITCVARSLIM(text, cvarname, tip) 						{mt_edit,		1, localtext(text), localtext(tip), NULL, NULL, 0, NULL, 0, 0, 0, false, NULL, cvarname}
+#define MB_EDITCVARSLIMRETURN(text, cvarname, ret) 					{mt_edit,		1, localtext(text), NULL, NULL, NULL, 0, NULL, 0, 0, 0, false, NULL, cvarname, NULL, NULL, 0, (union menuoption_s **)&ret}
+#define MB_COMBOCVAR(text, cvar, options, values, tip) 				{mt_combo,		0, localtext(text), localtext(tip), NULL, &cvar, 0, NULL, 0, 0, 0, false, NULL, NULL, options, values}
+#define MB_COMBORETURN(text, options, selected, ret, tip) 			{mt_combo,		1, localtext(text), localtext(tip), NULL, NULL, 0, NULL, 0, 0, 0, false, NULL, NULL, options, NULL, selected, (union menuoption_s **)&ret}
+#define MB_COMBOCVARRETURN(text, cvar, options, values, ret, tip) 	{mt_combo,		0, localtext(text), localtext(tip), NULL, &cvar, 0, NULL, 0, 0, 0, false, NULL, NULL, options, values, 0, (union menuoption_s **)&ret}
+#define MB_SPACING(space) 											{mt_text,		2, NULL, NULL, NULL, NULL, 0, NULL, 0, 0, 0, false, NULL, NULL, NULL, NULL, 0, NULL, space}
 #define MB_END() 													{mt_text, -1}
 
 int MC_AddBulk(emenu_t *menu, menuresel_t *resel, menubulk_t *bulk, int xstart, int xtextend, int y);

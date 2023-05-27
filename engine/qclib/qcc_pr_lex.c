@@ -1931,7 +1931,7 @@ forcequake:
 				else if (c >= 0x80)
 				{
 					//FIXME: spit it out as ^{xxxxxx} instead
-					QCC_PR_ParseWarning(WARN_NOTUTF8, "Cannot convert character to quake's charset");
+					QCC_PR_ParseWarning(WARN_NOTUTF8, "Cannot convert codepoint %#x to quake's charset", c);
 				}
 
 forcebyte:

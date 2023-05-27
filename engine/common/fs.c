@@ -7355,7 +7355,7 @@ static void FS_ModInstallGot(struct dl_download *dl)
 		if (ctx->man && !strcmp(ctx->man->basedir, com_gamepath))
 		{
 			//should probably show just the hostname for brevity.
-			Menu_Prompt(FS_ModInstallConfirmed, ctx, va("Install %s from\n%s ?", ctx->man->formalname, ctx->url), "Install", NULL, "Cancel", true);
+			Menu_Prompt(FS_ModInstallConfirmed, ctx, va(localtext("Install %s from\n%s ?"), ctx->man->formalname, ctx->url), "Install", NULL, "Cancel", true);
 			return;
 		}
 	}

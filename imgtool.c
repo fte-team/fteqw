@@ -29,6 +29,15 @@ void VARGS Con_Printf (const char *fmt, ...)
 	va_end (argptr);
 	fflush(stderr);
 }
+void VARGS Con_TPrintf (const char *fmt, ...)
+{
+	va_list		argptr;
+
+	va_start (argptr,fmt);
+	vfprintf (stderr,fmt,argptr);
+	va_end (argptr);
+	fflush(stderr);
+}
 void VARGS Con_DPrintf (const char *fmt, ...)
 {
 	va_list		argptr;

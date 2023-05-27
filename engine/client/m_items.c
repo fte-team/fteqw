@@ -357,10 +357,10 @@ void Draw_BigFontString(int x, int y, const char *text)
 	R2D_ImageColours(1,1,1,1);
 }
 
-char *menudotstyle;
-int maxdots;
-int mindot;
-int dotofs;
+static char *menudotstyle;
+static int maxdots;
+static int mindot;
+static int dotofs;
 
 static void MenuTooltipChange(emenu_t *menu, const char *text)
 {
@@ -795,9 +795,9 @@ static void MenuDrawItems(int xpos, int ypos, menuoption_t *option, emenu_t *men
 					Draw_Character (x, y, 0xe081);
 #endif
 				if (!menu->cursoritem && menu->selecteditem == option)
-					Draw_AltFunString (x, y, on ? "on" : "off");
+					Draw_AltFunString (x, y, on ? localtext("on") : localtext("off"));
 				else
-					Draw_FunString (x, y, on ? "on" : "off");
+					Draw_FunString (x, y, on ? localtext("on") : localtext("off"));
 			}
 			break;
 		case mt_edit:
@@ -1005,7 +1005,7 @@ menutext_t *MC_AddRedText(emenu_t *menu, int lhs, int rhs, int y, const char *te
 	return n;
 }
 
-menubind_t *MC_AddBind(emenu_t *menu, int cx, int bx, int y, const char *caption, char *command, char *tooltip)
+menubind_t *MC_AddBind(emenu_t *menu, int cx, int bx, int y, const char *caption, char *command, const char *tooltip)
 {
 	menubind_t *n = Z_Malloc(sizeof(*n) + strlen(caption)+1 + strlen(command)+1 + (tooltip?strlen(tooltip)+1:0));
 	n->common.type = mt_bind;
@@ -1031,7 +1031,7 @@ menubind_t *MC_AddBind(emenu_t *menu, int cx, int bx, int y, const char *caption
 	return n;
 }
 
-menupicture_t *MC_AddSelectablePicture(emenu_t *menu, int x, int y, int height, char *picname)
+menupicture_t *MC_AddSelectablePicture(emenu_t *menu, int x, int y, int height, const char *picname)
 {
 	char selname[MAX_QPATH];
 	menupicture_t *n;
@@ -1060,7 +1060,7 @@ menupicture_t *MC_AddSelectablePicture(emenu_t *menu, int x, int y, int height, 
 	return n;
 }
 
-menupicture_t *MC_AddPicture(emenu_t *menu, int x, int y, int width, int height, char *picname)
+menupicture_t *MC_AddPicture(emenu_t *menu, int x, int y, int width, int height, const char *picname)
 {
 	menupicture_t *n;
 	if (qrenderer == QR_NONE)
@@ -1083,7 +1083,7 @@ menupicture_t *MC_AddPicture(emenu_t *menu, int x, int y, int width, int height,
 	return n;
 }
 
-menupicture_t *MC_AddCenterPicture(emenu_t *menu, int y, int height, char *picname)
+menupicture_t *MC_AddCenterPicture(emenu_t *menu, int y, int height, const char *picname)
 {
 	int x;
 	int width;
@@ -1219,7 +1219,7 @@ menupicture_t *MC_AddCursor(emenu_t *menu, menuresel_t *reselection, int x, int 
 	return n;
 }
 
-menuedit_t *MC_AddEdit(emenu_t *menu, int cx, int ex, int y, char *text, char *def)
+menuedit_t *MC_AddEdit(emenu_t *menu, int cx, int ex, int y, const char *text, const char *def)
 {
 	menuedit_t *n = Z_Malloc(sizeof(menuedit_t)+strlen(text)+1);
 	n->slim = false;
@@ -1240,7 +1240,7 @@ menuedit_t *MC_AddEdit(emenu_t *menu, int cx, int ex, int y, char *text, char *d
 	return n;
 }
 
-menuedit_t *MC_AddEditCvar(emenu_t *menu, int cx, int ex, int y, char *text, char *name, qboolean isslim)
+menuedit_t *MC_AddEditCvar(emenu_t *menu, int cx, int ex, int y, const char *text, const char *name, qboolean isslim)
 {
 	menuedit_t *n = Z_Malloc(sizeof(menuedit_t)+strlen(text)+1);
 	cvar_t *cvar;
@@ -1424,6 +1424,7 @@ menucombo_t *MC_AddCombo(emenu_t *menu, int tx, int cx, int y, const char *capti
 	menucombo_t *n;
 	char **newops;
 	char *optbuf;
+	const char *o;
 	int i;
 
 	maxoptlen = 0;
@@ -1432,7 +1433,9 @@ menucombo_t *MC_AddCombo(emenu_t *menu, int tx, int cx, int y, const char *capti
 	optlen = 0;
 	if (ops) while(ops[numopts])
 	{
-		optlen = strlen(ops[numopts]);
+		o = localtext(ops[numopts]);
+
+		optlen = strlen(o);
 		if (maxoptlen < optlen)
 			maxoptlen = optlen;
 		optbufsize += optlen+1+sizeof(char*);
@@ -1459,7 +1462,9 @@ menucombo_t *MC_AddCombo(emenu_t *menu, int tx, int cx, int y, const char *capti
 	n->numoptions = numopts;
 	for (i = 0; i < numopts; i++)
 	{
-		strcpy(optbuf, ops[i]);
+		o = localtext(ops[i]);
+
+		strcpy(optbuf, o);
 		newops[i] = optbuf;
 		optbuf += strlen(optbuf)+1;
 	}
@@ -1484,7 +1489,7 @@ menucombo_t *MC_AddCvarCombo(emenu_t *menu, int tx, int cx, int y, const char *c
 	char **newops;
 	char **newvalues;
 	char *optbuf;
-	const char *v;
+	const char *v, *o;
 	int i;
 
 	maxoptlen = 0;
@@ -1493,8 +1498,9 @@ menucombo_t *MC_AddCvarCombo(emenu_t *menu, int tx, int cx, int y, const char *c
 	for (i = 0; ops[i]; i++)
 	{
 		v = values?values[i]:va("%i", i);
+		o = localtext(ops[i]);
 
-		optlen = strlen(ops[i]);
+		optlen = strlen(o);
 		if (maxoptlen < optlen)
 			maxoptlen = optlen;
 		optbufsize += optlen+1+sizeof(char*);
@@ -1514,7 +1520,7 @@ menucombo_t *MC_AddCvarCombo(emenu_t *menu, int tx, int cx, int y, const char *c
 	n->common.posy = y;
 	n->common.height = 8;
 	n->common.width = cx-tx + maxoptlen*8;
-	n->common.tooltip = cvar->description;
+	n->common.tooltip = localtext(cvar->description);
 	n->captionwidth = cx-tx;
 
 	strcpy(optbuf, caption);
@@ -1537,11 +1543,12 @@ menucombo_t *MC_AddCvarCombo(emenu_t *menu, int tx, int cx, int y, const char *c
 	for (i = 0; i < numopts; i++)
 	{
 		v = values?values[i]:va("%i", i);
+		o = localtext(ops[i]);
 
 		if (!strcmp(v, cvar->string))
 			n->selectedoption = i;
 
-		strcpy(optbuf, ops[i]);
+		strcpy(optbuf, o);
 		newops[i] = optbuf;
 		optbuf += strlen(optbuf)+1;
 
@@ -1613,15 +1620,15 @@ menubutton_t *MC_AddConsoleCommandHexen2BigFont(emenu_t *menu, int x, int y, con
 	return n;
 }
 #endif
-menubutton_t *MC_AddCommand(emenu_t *menu, int lhs, int rhs, int y, char *text, qboolean (*command) (union menuoption_s *,struct emenu_s *,int))
+menubutton_t *MC_AddCommand(emenu_t *menu, int lhs, int rhs, int y, const char *text, qboolean (*command) (union menuoption_s *,struct emenu_s *,int))
 {
-	menubutton_t *n = Z_Malloc(sizeof(menubutton_t));
+	menubutton_t *n = Z_Malloc(sizeof(menubutton_t)+strlen(text)+1);
 	n->common.type = mt_button;
 	n->common.iszone = true;
 	n->common.posx = lhs;
 	n->common.posy = y;
 	n->rightalign = true;
-	n->text = text;
+	n->text = strcpy((char*)(n+1), text);
 	n->command = NULL;
 	n->key = command;
 	n->common.height = 8;
@@ -1734,6 +1741,8 @@ void MC_Slider_Key(menuslider_t *option, int key)
 
 void MC_CheckBox_Key(menucheck_t *option, emenu_t *menu, int key)
 {
+	if (key == K_DEL && option->var && !option->func)
+		Cvar_Set(option->var, option->var->defaultstr);
 	if (key != K_ENTER && key != K_KP_ENTER && key != K_GP_START && key != K_GP_DIAMOND_CONFIRM && key != K_GP_DIAMOND_ALTCONFIRM && key != K_LEFTARROW && key != K_KP_LEFTARROW && key != K_GP_DPAD_LEFT && key != K_GP_LEFT_THUMB_LEFT && key != K_RIGHTARROW && key != K_KP_LEFTARROW && key != K_GP_DPAD_RIGHT && key != K_GP_LEFT_THUMB_RIGHT && key != K_MWHEELUP && key != K_MWHEELDOWN && key != K_MOUSE1 && key != K_TOUCHTAP)
 		return;
 	if (option->func)
@@ -1800,7 +1809,9 @@ void MC_EditBox_Key(menuedit_t *edit, int key, unsigned int unicode)
 
 void MC_Combo_Key(menucombo_t *combo, int key)
 {
-	if (key == K_ENTER || key == K_KP_ENTER || key == K_GP_START || key == K_RIGHTARROW || key == K_KP_RIGHTARROW || key == K_GP_DPAD_RIGHT || key == K_GP_LEFT_THUMB_RIGHT ||key == K_GP_DIAMOND_ALTCONFIRM || key == K_MWHEELDOWN || key == K_MOUSE1 || key == K_TOUCHTAP)
+	if (key == K_DEL && combo->cvar)
+		Cvar_Set(combo->cvar, combo->cvar->defaultstr);
+	else if (key == K_ENTER || key == K_KP_ENTER || key == K_GP_START || key == K_RIGHTARROW || key == K_KP_RIGHTARROW || key == K_GP_DPAD_RIGHT || key == K_GP_LEFT_THUMB_RIGHT ||key == K_GP_DIAMOND_ALTCONFIRM || key == K_MWHEELDOWN || key == K_MOUSE1 || key == K_TOUCHTAP)
 	{
 		combo->selectedoption++;
 		if (combo->selectedoption >= combo->numoptions)
@@ -2349,24 +2360,24 @@ static int M_Main_AddExtraOptions(emenu_t *mainm, int y)
 	if (Cmd_AliasExist("mod_menu", RESTRICT_LOCAL))
 		{MC_AddConsoleCommandQBigFont(mainm, 72, y,	va("%-14s", Cvar_Get("mod_menu", "Mod Menu", 0, NULL)->string), "mod_menu\n");			y += 20;}
 	if (Cmd_Exists("xmpp"))
-		{MC_AddConsoleCommandQBigFont(mainm, 72, y,	"Social        ", "xmpp\n");			y += 20;}
+		{MC_AddConsoleCommandQBigFont(mainm, 72, y,	localtext("Social        "), "xmpp\n");			y += 20;}
 	if (Cmd_Exists("irc"))
-		{MC_AddConsoleCommandQBigFont(mainm, 72, y,	"IRC           ", "irc\n");				y += 20;}
+		{MC_AddConsoleCommandQBigFont(mainm, 72, y,	localtext("IRC           "), "irc\n");				y += 20;}
 	if (Cmd_Exists("qi"))
-		{MC_AddConsoleCommandQBigFont(mainm, 72, y,	"Quake Injector", "qi\n");				y += 20;}
+		{MC_AddConsoleCommandQBigFont(mainm, 72, y,	localtext("Quake Injector"), "qi\n");				y += 20;}
 	else if (PM_CanInstall("qi"))
-		{MC_AddConsoleCommandQBigFont(mainm, 72, y,	"Get Quake Injector", "pkg reset; pkg add qi; pkg apply\n");	y += 20;}
+		{MC_AddConsoleCommandQBigFont(mainm, 72, y,	localtext("Get Quake Injector"), "pkg reset; pkg add qi; pkg apply\n");	y += 20;}
 	if (Cmd_Exists("menu_download"))
 	{
 #ifdef WEBCLIENT
-		MC_AddConsoleCommandQBigFont(mainm, 72, y,	"^bUpdates       ", "menu_download\n");	y += 20;
+		MC_AddConsoleCommandQBigFont(mainm, 72, y,	localtext("^bUpdates       "), "menu_download\n");	y += 20;
 #else
-		MC_AddConsoleCommandQBigFont(mainm, 72, y,	"^bPackages      ", "menu_download\n");	y += 20;
+		MC_AddConsoleCommandQBigFont(mainm, 72, y,	localtext("^bPackages      "), "menu_download\n");	y += 20;
 #endif
 	}
 	if (Cmd_Exists("menu_mods"))
 	{
-		MC_AddConsoleCommandQBigFont(mainm, 72, y,	"Mods          ", "menu_mods\n");	y += 20;
+		MC_AddConsoleCommandQBigFont(mainm, 72, y,	localtext("Mods          "), "menu_mods\n");	y += 20;
 		y += 20;
 	}
 
@@ -2386,7 +2397,9 @@ void MC_Main_Predraw(emenu_t *menu)
 			PM_AreSourcesNew(false)||
 #endif
 			!m_preset_chosen.ival;
-		b->text = (char*)(b+1) + (flash?0:2);
+		b->text = (char*)(b+1);
+		if (b->text[0] == '^' && b->text[1] == 'b' && !flash)
+			b->text += 2;
 	}
 
 #ifdef PACKAGEMANAGER
@@ -2394,7 +2407,9 @@ void MC_Main_Predraw(emenu_t *menu)
 	if (b && b->text[0] && b->text[1])
 	{
 		qboolean flash = PM_AreSourcesNew(false);
-		b->text = (char*)(b+1) + (flash?0:2);
+		b->text = (char*)(b+1);
+		if (b->text[0] == '^' && b->text[1] == 'b' && !flash)
+			b->text += 2;
 	}
 #endif
 }
@@ -2485,27 +2500,27 @@ void M_Menu_Main_f (void)
 
 #if defined(HAVE_SERVER) && defined(Q2SERVER)
 			b = MC_AddConsoleCommand	(mainm, 68, 320, 13,	"", "menu_single\n");
-			b->common.tooltip = "Singleplayer.";
+			b->common.tooltip = localtext("Singleplayer.");
 			mainm->selecteditem = (menuoption_t *)b;
 			b->common.width = 12*20;
 			b->common.height = itemheight;
 #endif
 			b = MC_AddConsoleCommand	(mainm, 68, 320, 53,	"", "menu_multi\n");
-			b->common.tooltip = "Multiplayer.";
+			b->common.tooltip = localtext("Multiplayer.");
 			if (!mainm->selecteditem)
 				mainm->selecteditem = (menuoption_t *)b;
 			b->common.width = 12*20;
 			b->common.height = itemheight;
 			b = MC_AddConsoleCommand	(mainm, 68, 320, 93,	"", "menu_options\n");
-			b->common.tooltip = "Options.";
+			b->common.tooltip = localtext("Options.");
 			b->common.width = 12*20;
 			b->common.height = itemheight;
 			b = MC_AddConsoleCommand	(mainm, 68, 320, 133,	"", "menu_video\n");
-			b->common.tooltip = "Video Options.";
+			b->common.tooltip = localtext("Video Options.");
 			b->common.width = 12*20;
 			b->common.height = itemheight;
 			b = MC_AddConsoleCommand	(mainm, 68, 320, 173,	"", "menu_quit\n");
-			b->common.tooltip = "Quit to DOS.";
+			b->common.tooltip = localtext("Quit to DOS.");
 			b->common.width = 12*20;
 			b->common.height = itemheight;
 
@@ -2528,37 +2543,37 @@ void M_Menu_Main_f (void)
 			MC_AddCenterPicture(mainm, 0, 60, "gfx/menu/title0.lmp");
 
 #ifndef CLIENTONLY
-			b=MC_AddConsoleCommandHexen2BigFont	(mainm, 80, y,	"Single Player", "menu_single\n");
+			b=MC_AddConsoleCommandHexen2BigFont	(mainm, 80, y,	localtext("Single Player"), "menu_single\n");
 			mainm->selecteditem = (menuoption_t *)b;
 			b->common.width = 12*20;
 			b->common.height = 20;
 			y += 20;
 #endif
-			b=MC_AddConsoleCommandHexen2BigFont	(mainm, 80, y,	"MultiPlayer", "menu_multi\n");
+			b=MC_AddConsoleCommandHexen2BigFont	(mainm, 80, y,	localtext("MultiPlayer"), "menu_multi\n");
 #ifdef CLIENTONLY
 			mainm->selecteditem = (menuoption_t *)b;
 #endif
 			b->common.width = 12*20;
 			b->common.height = 20;
 			y += 20;
-			b=MC_AddConsoleCommandHexen2BigFont	(mainm, 80, y,	"^bOptions", "menu_options\n");
+			b=MC_AddConsoleCommandHexen2BigFont	(mainm, 80, y,	localtext("^bOptions"), "menu_options\n");
 			b->common.width = 12*20;
 			b->common.height = 20;
 			y += 20;
 			if (m_helpismedia.value)
-				b=MC_AddConsoleCommandHexen2BigFont	(mainm, 80, y,	"Media", "menu_media\n");
+				b=MC_AddConsoleCommandHexen2BigFont	(mainm, 80, y,	localtext("Media"), "menu_media\n");
 			else
-				b=MC_AddConsoleCommandHexen2BigFont	(mainm, 80, y,	"Help", "help\n");
+				b=MC_AddConsoleCommandHexen2BigFont	(mainm, 80, y,	localtext("Help"), "help\n");
 			b->common.width = 12*20;
 			b->common.height = 20;
 			y += 20;
 
-			b=MC_AddConsoleCommandHexen2BigFont	(mainm, 80, y,	"Mods", "menu_mods\n");
+			b=MC_AddConsoleCommandHexen2BigFont	(mainm, 80, y,	localtext("Mods"), "menu_mods\n");
 			b->common.width = 12*20;
 			b->common.height = 20;
 			y += 20;
 
-			b=MC_AddConsoleCommandHexen2BigFont	(mainm, 80, y,	"Quit", "menu_quit\n");
+			b=MC_AddConsoleCommandHexen2BigFont	(mainm, 80, y,	localtext("Quit"), "menu_quit\n");
 			b->common.width = 12*20;
 			b->common.height = 20;
 			y += 20;
@@ -2582,19 +2597,19 @@ void M_Menu_Main_f (void)
 			y = 32;
 			mainm->selecteditem = (menuoption_t *)
 #ifndef CLIENTONLY
-			MC_AddConsoleCommandQBigFont	(mainm, 72, y,	"Single        ", "menu_single\n");		y += 20;
+			MC_AddConsoleCommandQBigFont	(mainm, 72, y,	localtext("Single        "), "menu_single\n");		y += 20;
 #endif
-			MC_AddConsoleCommandQBigFont	(mainm, 72, y,	"Multiplayer   ", "menu_multi\n");		y += 20;
-			MC_AddConsoleCommandQBigFont	(mainm, 72, y,"^bOptions       ", "menu_options\n");	y += 20;
+			MC_AddConsoleCommandQBigFont	(mainm, 72, y,	localtext("Multiplayer   "), "menu_multi\n");		y += 20;
+			MC_AddConsoleCommandQBigFont	(mainm, 72, y,localtext("^bOptions       "), "menu_options\n");	y += 20;
 			if (m_helpismedia.value)
-				{MC_AddConsoleCommandQBigFont(mainm, 72, y,	"Media         ", "menu_media\n");		y += 20;}
+				{MC_AddConsoleCommandQBigFont(mainm, 72, y,	localtext("Media         "), "menu_media\n");		y += 20;}
 			else
-				{MC_AddConsoleCommandQBigFont(mainm, 72, y,	"Help          ", "help\n");			y += 20;}
+				{MC_AddConsoleCommandQBigFont(mainm, 72, y,	localtext("Help          "), "help\n");			y += 20;}
 			y = M_Main_AddExtraOptions(mainm, y);
 #ifdef FTE_TARGET_WEB
-			MC_AddConsoleCommandQBigFont	(mainm, 72, y,	"Save Settings ", "menu_quit\n");		y += 20;
+			MC_AddConsoleCommandQBigFont	(mainm, 72, y,	localtext("Save Settings "), "menu_quit\n");		y += 20;
 #else
-			MC_AddConsoleCommandQBigFont	(mainm, 72, y,	"Quit          ", "menu_quit\n");		y += 20;
+			MC_AddConsoleCommandQBigFont	(mainm, 72, y,	localtext("Quit          "), "menu_quit\n");		y += 20;
 #endif
 
 			mainm->cursoritem = (menuoption_t *)MC_AddCursor(mainm, &resel, 54, mainm->selecteditem->common.posy);
@@ -2616,35 +2631,35 @@ void M_Menu_Main_f (void)
 			MC_AddPicture(mainm, 72, 32, 240, 112, "gfx/mainmenu.lmp");
 
 			b=MC_AddConsoleCommand	(mainm, 72, 312, 32,	"", "menu_single\n");
-			b->common.tooltip = "Start singleplayer Quake game.";
+			b->common.tooltip = localtext("Start singleplayer Quake game.");
 			mainm->selecteditem = (menuoption_t *)b;
 			b->common.width = width;
 			b->common.height = 20;
 			b=MC_AddConsoleCommand	(mainm, 72, 312, 52,	"", "menu_multi\n");
-			b->common.tooltip = "Multiplayer menu.";
+			b->common.tooltip = localtext("Multiplayer menu.");
 			b->common.width = width;
 			b->common.height = 20;
 			b=MC_AddConsoleCommand	(mainm, 72, 312, 72,	"", "menu_options\n");
-			b->common.tooltip = "Options menu.";
+			b->common.tooltip = localtext("Options menu.");
 			b->common.width = width;
 			b->common.height = 20;
 			if (m_helpismedia.value)
 			{
 				b=MC_AddConsoleCommand(mainm, 72, 312, 92,	"", "menu_media\n");
-				b->common.tooltip = "Media menu.";
+				b->common.tooltip = localtext("Media menu.");
 			}
 			else
 			{
 				b=MC_AddConsoleCommand(mainm, 72, 312, 92,	"", "help\n");
-				b->common.tooltip = "Help menu.";
+				b->common.tooltip = localtext("Help menu.");
 			}
 			b->common.width = width;
 			b->common.height = 20;
 			b=MC_AddConsoleCommand	(mainm, 72, 312, 112,	"", "menu_quit\n");
 #ifdef FTE_TARGET_WEB
-			b->common.tooltip = "Save settings to local storage.";
+			b->common.tooltip = localtext("Save settings to local storage.");
 #else
-			b->common.tooltip = "Exit to DOS.";
+			b->common.tooltip = localtext("Exit to DOS.");
 #endif
 			b->common.width = width;
 			b->common.height = 20;
@@ -2663,10 +2678,10 @@ void M_Menu_Main_f (void)
 		y = 36;
 		mainm->selecteditem = (menuoption_t *)
 		//skip menu_single if we don't seem to have any content.
-		MC_AddConsoleCommandQBigFont	(mainm, 72, y,	"Join server",	"menu_servers\n");	y += 20;
-		MC_AddConsoleCommandQBigFont	(mainm, 72, y,	"^bOptions",		"menu_options\n");	y += 20;
+		MC_AddConsoleCommandQBigFont	(mainm, 72, y,	localtext("Join server"),	"menu_servers\n");	y += 20;
+		MC_AddConsoleCommandQBigFont	(mainm, 72, y,	localtext("^bOptions"),		"menu_options\n");	y += 20;
 		y = M_Main_AddExtraOptions(mainm, y);
-		MC_AddConsoleCommandQBigFont	(mainm, 72, y,	"Quit",			"menu_quit\n");		y += 20;
+		MC_AddConsoleCommandQBigFont	(mainm, 72, y,	localtext("Quit"),			"menu_quit\n");		y += 20;
 
 		mainm->cursoritem = (menuoption_t *)MC_AddCursor(mainm, &resel, 54, mainm->selecteditem->common.posy);
 	}

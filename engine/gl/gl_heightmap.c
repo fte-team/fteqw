@@ -5160,7 +5160,7 @@ void QCBUILTIN PF_terrain_edit(pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 		/*
 		if (mod->type == mod_brush)
 		{
-			Con_Printf("that model isn't a suitable worldmodel\n");
+			Con_TPrintf("that model isn't a suitable worldmodel\n");
 			return;
 		}
 		else
@@ -5168,7 +5168,7 @@ void QCBUILTIN PF_terrain_edit(pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 			FS_CreatePath(fname, FS_GAMEONLY);
 			file = FS_OpenVFS(fname, "wb", FS_GAMEONLY);
 			if (!file)
-				Con_Printf("unable to open %s\n", fname);
+				Con_TPrintf("unable to open %s\n", fname);
 			else
 			{
 				Terr_WriteMapFile(file, mod);
@@ -7968,7 +7968,7 @@ void Mod_Terrain_Save_f(void)
 		FS_CreatePath(fname, FS_GAMEONLY);
 		file = FS_OpenVFS(fname, "wb", FS_GAMEONLY);
 		if (!file)
-			Con_Printf("unable to open %s\n", fname);
+			Con_TPrintf("unable to open %s\n", fname);
 		else
 		{
 			const char *s = Mod_GetEntitiesString(mod);
@@ -7982,7 +7982,7 @@ void Mod_Terrain_Save_f(void)
 		FS_CreatePath(fname, FS_GAMEONLY);
 		file = FS_OpenVFS(fname, "wb", FS_GAMEONLY);
 		if (!file)
-			Con_Printf("unable to open %s\n", fname);
+			Con_TPrintf("unable to open %s\n", fname);
 		else
 		{
 			Terr_WriteMapFile(file, mod);
@@ -9005,12 +9005,12 @@ void Mod_Terrain_Create_f(void)
 	FS_CreatePath(mname, FS_GAMEONLY);
 	file = FS_OpenVFS(mname, "wb", FS_GAMEONLY);
 	if (!file)
-		Con_Printf("unable to open %s\n", mname);
+		Con_TPrintf("unable to open %s\n", mname);
 	else
 	{
 		Terr_WriteMapFile(file, &mod);
 		VFS_CLOSE(file);
-		Con_Printf("Wrote %s\n", mname);
+		Con_TPrintf("Wrote %s\n", mname);
 		FS_FlushFSHashWritten(mname);
 	}
 	Mod_SetEntitiesString(&mod, NULL, false);

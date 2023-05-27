@@ -435,7 +435,7 @@ static void SL_PreDraw	(emenu_t *menu)
 	}
 
 	info->numslots = Master_NumSorted();
-	snprintf(info->refreshtext, sizeof(info->refreshtext), "Refresh - %u/%u/%u\n", info->numslots, Master_NumAlive(), Master_TotalCount());
+	snprintf(info->refreshtext, sizeof(info->refreshtext), localtext("Refresh - %u/%u/%u\n"), info->numslots, Master_NumAlive(), Master_TotalCount());
 }
 qboolean NET_SendPollPacket(int len, void *data, netadr_t to);
 static void SL_PostDraw	(emenu_t *menu)
@@ -587,7 +587,7 @@ static void SL_PostDraw	(emenu_t *menu)
 				x = lx;
 				for (i = 0; i < countof(helpstrings); i++)
 				{
-					Draw_FunStringWidth (x, y, helpstrings[i], w, false, false);
+					Draw_FunStringWidth (x, y, localtext(helpstrings[i]), w, false, false);
 					y += 8;
 				}
 			}
@@ -667,15 +667,15 @@ static void SL_PostDraw	(emenu_t *menu)
 					y += 8;
 				}
 
-				Draw_FunStringWidth (lx, y, "^h(left/rightarrow for different info)", w, false, false);
+				Draw_FunStringWidth (lx, y, localtext("^h(left/rightarrow for different info)"), w, false, false);
 			}
 #endif
 		}
 		else
 		{
 			Draw_ApproxTextBox(vid.width/2 - 100, vid.height/2 - 16, 200, 16*3);
-			Draw_FunStringWidth(vid.width/2 - 100, vid.height/2 - 8, "Querying server", 200, 2, false);
-			Draw_FunStringWidth(vid.width/2 - 100, vid.height/2 + 0, "Please wait", 200, 2, false);
+			Draw_FunStringWidth(vid.width/2 - 100, vid.height/2 - 8, localtext("Querying server"), 200, 2, false);
+			Draw_FunStringWidth(vid.width/2 - 100, vid.height/2 + 0, localtext("Please wait"), 200, 2, false);
 		}
 
 		if (server && (server->special & SS_PROTOCOLMASK) == SS_QUAKEWORLD)
@@ -687,7 +687,7 @@ static void SL_PostDraw	(emenu_t *menu)
 			bw = w+16+12;
 			bh = 24;
 //			lx += bw-12;
-			bw = strlen("Observe")*8 + 24;
+			bw = strlen(localtext("Observe"))*8 + 24;
 			bw = ((bw+15)/16) * 16;	//width must be a multiple of 16
 //			lx -= bw;
 
@@ -703,7 +703,7 @@ static void SL_PostDraw	(emenu_t *menu)
 				if (mousecursor_y >= specbutton.y && mousecursor_y < specbutton.y+specbutton.height)
 					active = true;
 
-			Draw_FunStringWidth(lx, y + (bh-8)/2, "Observe", bw, 2, active);y+=8;
+			Draw_FunStringWidth(lx, y + (bh-8)/2, localtext("Observe"), bw, 2, active);y+=8;
 		}
 
 		{
@@ -714,7 +714,7 @@ static void SL_PostDraw	(emenu_t *menu)
 			bw = w+16;
 			bh = 24;
 			lx += w-12;
-			bw = strlen("Join")*8 + 24;
+			bw = strlen(localtext("Join"))*8 + 24;
 			bw = ((bw+15)/16) * 16;	//width must be a multiple of 16
 			lx -= bw;
 
@@ -731,37 +731,37 @@ static void SL_PostDraw	(emenu_t *menu)
 				if (mousecursor_y >= joinbutton.y && mousecursor_y < joinbutton.y+joinbutton.height)
 					active = true;
 
-			Draw_FunStringWidth(lx, y + (bh-8)/2, "Join", bw, 2, active);y+=8;
+			Draw_FunStringWidth(lx, y + (bh-8)/2, localtext("Join"), bw, 2, active);y+=8;
 		}
 	}
 	else if (isrefreshing)
 	{
 		R2D_ImageColours(1,1,1,1);
 		Draw_ApproxTextBox(vid.width/2 - 100-4, vid.height/2 - 24, 200, 64);
-		Draw_FunStringWidth(vid.width/2 - 100, vid.height/2 - 8, "Refreshing, please wait", 200, 2, false);
-		Draw_FunStringWidth(vid.width/2 - 100, vid.height/2 + 0, va("%i of %i", Master_NumPolled(), Master_TotalCount()), 200, 2, false);
+		Draw_FunStringWidth(vid.width/2 - 100, vid.height/2 - 8, localtext("Refreshing, please wait"), 200, 2, false);
+		Draw_FunStringWidth(vid.width/2 - 100, vid.height/2 + 0, va(localtext("polling %i of %i"), Master_NumPolled(), Master_TotalCount()), 200, 2, false);
 	}
 	else if (!info->numslots)
 	{
 		R2D_ImageColours(1,1,1,1);
 		if (!Master_TotalCount())
 		{
-			Draw_FunStringWidth(0, vid.height/2 - 8, "No servers found", vid.width, 2, false);
+			Draw_FunStringWidth(0, vid.height/2 - 8, localtext("No servers found"), vid.width, 2, false);
 #ifdef HAVE_PACKET
-			Draw_FunStringWidth(0, vid.height/2 + 0, "Check internet connection", vid.width, 2, false);
+			Draw_FunStringWidth(0, vid.height/2 + 0, localtext("Check internet connection"), vid.width, 2, false);
 #endif
 		}
 		else if (!Master_NumAlive())
 		{
-			Draw_FunStringWidth(0, vid.height/2 - 8, "No servers responding", vid.width, 2, false);
+			Draw_FunStringWidth(0, vid.height/2 - 8, localtext("No servers responding"), vid.width, 2, false);
 #ifdef HAVE_PACKET
-			Draw_FunStringWidth(0, vid.height/2 + 0, "Check udp internet connection", vid.width, 2, false);
+			Draw_FunStringWidth(0, vid.height/2 + 0, localtext("Check udp internet connection"), vid.width, 2, false);
 #endif
 		}
 		else
 		{
-			Draw_FunStringWidth(0, vid.height/2 - 8, "All servers were filtered out", vid.width, 2, false);
-			Draw_FunStringWidth(0, vid.height/2 + 0, "Change filter settings", vid.width, 2, false);
+			Draw_FunStringWidth(0, vid.height/2 - 8, localtext("All servers were filtered out"), vid.width, 2, false);
+			Draw_FunStringWidth(0, vid.height/2 + 0, localtext("Change filter settings"), vid.width, 2, false);
 		}
 	}
 }
@@ -980,7 +980,7 @@ static void SL_ServerPlayer (int x, int y, menucustom_t *ths, emenu_t *menu)
 			{
 				int i = ths->dint;
 				if (selectedserver.detail->players[i].isspec&1)
-					Draw_FunStringWidth (x, y, "spectator", 32, false, false);
+					Draw_FunStringWidth (x, y, localtext("spectator"), 32, false, false);
 				else
 				{
 					R2D_ImagePaletteColour (Sbar_ColorForMap(selectedserver.detail->players[i].topc), 1.0);
@@ -1241,29 +1241,29 @@ void M_Menu_ServerList2_f(void)
 		}
 	}
 
-	strcpy(info->refreshtext, "Refresh");
+	strcpy(info->refreshtext, localtext("Refresh Server List"));
 
-	MC_AddCheckBox(menu, 0, 72, vid.height - 64+8*1, "Ping     ", &sb_showping, 1);
-	MC_AddCheckBox(menu, 0, 72, vid.height - 64+8*2, "Address  ", &sb_showaddress, 1);
-	MC_AddCheckBox(menu, 0, 72, vid.height - 64+8*3, "Map      ", &sb_showmap, 1);
-	MC_AddCheckBox(menu, 0, 72, vid.height - 64+8*4, "Gamedir  ", &sb_showgamedir, 1);
-	MC_AddCheckBox(menu, 0, 72, vid.height - 64+8*5, "Players  ", &sb_showplayers, 1);
-	MC_AddCheckBox(menu, 0, 72, vid.height - 64+8*6, "Fraglimit", &sb_showfraglimit, 1);
-	MC_AddCheckBox(menu, 0, 72, vid.height - 64+8*7, "Timelimit", &sb_showtimelimit, 1);
+	MC_AddCheckBox(menu, 0, 72, vid.height - 64+8*1, localtext("Ping     "), &sb_showping, 1);
+	MC_AddCheckBox(menu, 0, 72, vid.height - 64+8*2, localtext("Address  "), &sb_showaddress, 1);
+	MC_AddCheckBox(menu, 0, 72, vid.height - 64+8*3, localtext("Map      "), &sb_showmap, 1);
+	MC_AddCheckBox(menu, 0, 72, vid.height - 64+8*4, localtext("Gamedir  "), &sb_showgamedir, 1);
+	MC_AddCheckBox(menu, 0, 72, vid.height - 64+8*5, localtext("Players  "), &sb_showplayers, 1);
+	MC_AddCheckBox(menu, 0, 72, vid.height - 64+8*6, localtext("Fraglimit"), &sb_showfraglimit, 1);
+	MC_AddCheckBox(menu, 0, 72, vid.height - 64+8*7, localtext("Timelimit"), &sb_showtimelimit, 1);
 
 #ifdef NQPROT
 	if (M_GameType() == MGT_QUAKE1)
 	{
-		MC_AddCheckBoxFunc(menu, 128, 208, vid.height - 64+8*1, "Show NQ   ", SL_ReFilter, SLFILTER_HIDENETQUAKE);
-		MC_AddCheckBoxFunc(menu, 128, 208, vid.height - 64+8*2, "Show QW   ", SL_ReFilter, SLFILTER_HIDEQUAKEWORLD);
+		MC_AddCheckBoxFunc(menu, 128, 208, vid.height - 64+8*1, localtext("Show NQ   "), SL_ReFilter, SLFILTER_HIDENETQUAKE);
+		MC_AddCheckBoxFunc(menu, 128, 208, vid.height - 64+8*2, localtext("Show QW   "), SL_ReFilter, SLFILTER_HIDEQUAKEWORLD);
 	}
 #endif
-	MC_AddCheckBoxFunc(menu, 128, 208, vid.height - 64+8*3, "Show Proxies", SL_ReFilter, SLFILTER_HIDEPROXIES);
+	MC_AddCheckBoxFunc(menu, 128, 208, vid.height - 64+8*3, localtext("Show Proxies"), SL_ReFilter, SLFILTER_HIDEPROXIES);
 	info->filtertext =
-	MC_AddEditCvar    (menu, 128, 200, vid.height - 64+8*4, "Filter   ",	sb_filtertext.name, true);
-	MC_AddCheckBoxFunc(menu, 128, 208, vid.height - 64+8*5, "Only Favs ", SL_ReFilter, SLFILTER_ONLYFAVOURITES);
-	MC_AddCheckBoxFunc(menu, 128, 208, vid.height - 64+8*6, "Show Empty", SL_ReFilter, SLFILTER_HIDEEMPTY);
-	MC_AddCheckBoxFunc(menu, 128, 208, vid.height - 64+8*7, "Show Full ", SL_ReFilter, SLFILTER_HIDEFULL);
+	MC_AddEditCvar    (menu, 128, 200, vid.height - 64+8*4, localtext("Filter   "),	sb_filtertext.name, true);
+	MC_AddCheckBoxFunc(menu, 128, 208, vid.height - 64+8*5, localtext("Only Favs "), SL_ReFilter, SLFILTER_ONLYFAVOURITES);
+	MC_AddCheckBoxFunc(menu, 128, 208, vid.height - 64+8*6, localtext("Show Empty"), SL_ReFilter, SLFILTER_HIDEEMPTY);
+	MC_AddCheckBoxFunc(menu, 128, 208, vid.height - 64+8*7, localtext("Show Full "), SL_ReFilter, SLFILTER_HIDEFULL);
 
 	MC_AddCommand(menu, 64, 320, 0, info->refreshtext, SL_DoRefresh);
 
@@ -1351,7 +1351,7 @@ static void M_QuickConnect_PreDraw(emenu_t *menu)
 
 		if (best)
 		{
-			Con_Printf("Quick connect found %s (gamedir %s, players %i/%i/%i, ping %ims)\n", best->name, best->gamedir, best->numhumans, best->players, best->maxplayers, best->ping);
+			Con_TPrintf("Quick connect found %s (gamedir %s, players %i/%i/%i, ping %ims)\n", best->name, best->gamedir, best->numhumans, best->players, best->maxplayers, best->ping);
 
 #ifdef NQPROT
 			if ((best->special & SS_PROTOCOLMASK) == SS_QEPROT)
@@ -1409,8 +1409,8 @@ void M_QuickConnect_f(void)
 	cust->common.height = 8;
 	cust->common.width = vid.width-8;
 
-	MC_AddCommand(menu, 64, 0, 128, "Refresh", SL_DoRefresh);
-	MC_AddCommand(menu, 64, 0, 136, "Cancel", M_QuickConnect_Cancel);
+	MC_AddCommand(menu, 64, 0, 128, localtext("Refresh"), SL_DoRefresh);
+	MC_AddCommand(menu, 64, 0, 136, localtext("Cancel"), M_QuickConnect_Cancel);
 }
 #endif
 

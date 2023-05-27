@@ -1179,7 +1179,7 @@ void VARGS Con_TPrintf (translation_t text, ...)
 {
 	va_list		argptr;
 	char		msg[MAXPRINTMSG];
-	const char *fmt = langtext(text, com_language);
+	const char *fmt = localtext(text);
 
 	va_start (argptr,text);
 	vsnprintf (msg,sizeof(msg), fmt,argptr);
@@ -1193,7 +1193,7 @@ void VARGS Con_SafeTPrintf (translation_t text, ...)
 {
 	va_list		argptr;
 	char		msg[MAXPRINTMSG];
-	const char *fmt = langtext(text, com_language);
+	const char *fmt = localtext(text);
 
 	va_start (argptr,text);
 	vsnprintf (msg,sizeof(msg), fmt,argptr);

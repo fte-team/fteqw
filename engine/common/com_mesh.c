@@ -3782,7 +3782,7 @@ static void Mod_FloodFillSkin( qbyte *skin, int skinwidth, int skinheight )
 	int					filledcolor = -1;
 	int					i;
 
-	if (dpcompat_nofloodfill.ival)
+	if (dpcompat_nofloodfill.ival || skinwidth > 0x7fffu || skinheight > 0x7fffu)
 		return;
 
 	if (filledcolor == -1)
@@ -3856,7 +3856,8 @@ static void *Q1MDL_LoadSkins_GL (galiasinfo_t *galias, dmdl_t *pq1inmodel, model
 				saved = (qbyte*)(frames+1);
 				frames[0].texels = saved;
 				memcpy(saved, pskintype+1, s);
-				Mod_FloodFillSkin(saved, outskin->skinwidth, outskin->skinheight);
+				if (i == 0) //Vanilla bug: ONLY skin 0 is flood-filled (the vanilla code operates on a cached 'skin' variable that does NOT get updated between skins reflooding skin 0). We still don't like flood fills either. Hexen2 has the same issue.
+					Mod_FloodFillSkin(saved, outskin->skinwidth, outskin->skinheight);
 			}
 			else
 			{

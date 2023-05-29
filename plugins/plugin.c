@@ -264,19 +264,31 @@ qboolean ZF_ReallocElements(void **ptr, size_t *elements, size_t newelements, si
 
 	//protect against malicious overflows
 	if (newelements > SIZE_MAX / elementsize)
+#ifdef __cplusplus
+		return qfalse;
+#else
 		return false;
+#endif
 
 	oldsize = *elements * elementsize;
 	newsize = newelements * elementsize;
 
 	n = plugfuncs->Realloc(*ptr, newsize);
 	if (!n)
+#ifdef __cplusplus
+		return qfalse;
+#else
 		return false;
+#endif
 	if (newsize > oldsize)
 		memset((char*)n+oldsize, 0, newsize - oldsize);
 	*elements = newelements;
 	*ptr = n;
-	return true;
+#ifdef __cplusplus
+		return qtrue;
+#else
+		return true;
+#endif
 }
 
 

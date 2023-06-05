@@ -657,6 +657,7 @@ struct playerview_s
 #ifdef HEXEN2
 	int			sb_hexen2_cur_item;//hexen2 hud
 	float		sb_hexen2_item_time;
+	float		sb_hexen2_extra_info_lines;
 	qboolean	sb_hexen2_extra_info;//show the extra stuff
 	qboolean	sb_hexen2_infoplaque;
 #endif

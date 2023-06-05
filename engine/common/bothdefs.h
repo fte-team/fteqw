@@ -968,6 +968,7 @@ STAT_H2_DEXTERITY,					// changes stat bar
 STAT_H2_BLUEMANA,					// changes stat bar
 STAT_H2_GREENMANA,					// changes stat bar
 STAT_H2_EXPERIENCE,					// changes stat bar
+#define STAT_H2_CNT_FIRST (STAT_H2_CNT_TORCH)
 STAT_H2_CNT_TORCH,					// changes stat bar
 STAT_H2_CNT_H_BOOST,				// changes stat bar
 STAT_H2_CNT_SH_BOOST,				// changes stat bar
@@ -983,6 +984,8 @@ STAT_H2_CNT_POLYMORPH,				// changes stat bar
 STAT_H2_CNT_FLIGHT,					// changes stat bar
 STAT_H2_CNT_CUBEOFFORCE,			// changes stat bar
 STAT_H2_CNT_INVINCIBILITY,			// changes stat bar
+#define STAT_H2_CNT_LAST (STAT_H2_CNT_INVINCIBILITY)
+#define STAT_H2_CNT_COUNT (STAT_H2_CNT_LAST+1-STAT_H2_CNT_FIRST)
 STAT_H2_ARTIFACT_ACTIVE,
 STAT_H2_ARTIFACT_LOW,
 STAT_H2_MOVETYPE,

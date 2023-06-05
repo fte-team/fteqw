@@ -126,7 +126,8 @@ static apic_t      *hsb_items[2];
 
 static qboolean	sbarfailed;
 #ifdef HEXEN2
-static qboolean	sbar_hexen2;
+qboolean	sbar_hexen2;
+static const char *puzzlenames;
 #endif
 #ifdef NQPROT
 static void Sbar_CTFScores_f(void);
@@ -842,13 +843,14 @@ static void Sbar_Hexen2InvLeft_f(void)
 		int tries = 15;
 		playerview_t *pv = &cl.playerview[seat];
 		pv->sb_hexen2_item_time = realtime;
+		S_LocalSound("misc/invmove.wav");
 		while (tries-- > 0)
 		{
 			pv->sb_hexen2_cur_item--;
 			if (pv->sb_hexen2_cur_item < 0)
 				pv->sb_hexen2_cur_item = 14;
 
-			if (pv->stats[STAT_H2_CNT_TORCH+pv->sb_hexen2_cur_item] > 0)
+			if (pv->stats[STAT_H2_CNT_FIRST+pv->sb_hexen2_cur_item] > 0)
 				break;
 		}
 	}
@@ -869,13 +871,14 @@ static void Sbar_Hexen2InvRight_f(void)
 		int tries = 15;
 		playerview_t *pv = &cl.playerview[seat];
 		pv->sb_hexen2_item_time = realtime;
+		S_LocalSound("misc/invmove.wav");
 		while (tries-- > 0)
 		{
 			pv->sb_hexen2_cur_item++;
 			if (pv->sb_hexen2_cur_item > 14)
 				pv->sb_hexen2_cur_item = 0;
 
-			if (pv->stats[STAT_H2_CNT_TORCH+pv->sb_hexen2_cur_item] > 0)
+			if (pv->stats[STAT_H2_CNT_FIRST+pv->sb_hexen2_cur_item] > 0)
 				break;
 		}
 	}
@@ -895,6 +898,7 @@ static void Sbar_Hexen2InvUse_f(void)
 	else
 	{
 		playerview_t *pv = &cl.playerview[seat];
+		S_LocalSound("misc/invuse.wav");
 		Cmd_ExecuteString(va("impulse %d\n", 100+pv->sb_hexen2_cur_item), Cmd_ExecLevel);
 	}
 }
@@ -2422,26 +2426,45 @@ void Sbar_DrawScoreboard (playerview_t *pv)
 static void Sbar_Hexen2DrawActiveStuff(playerview_t *pv)
 {
 	int x = r_refdef.grect.x + r_refdef.grect.width;
-	mpic_t *pic;
+	int y = 0;
+
+	//rings are vertical...
+	if (pv->stats[STAT_H2_RINGS_ACTIVE] & 8)
+	{	//turning...
+		R2D_ScalePic(x-32, r_refdef.grect.y+y, 32, 32, R2D_SafeCachePic(va("gfx/rngtrn%d.lmp", ((int)(cl.time*16)%15)+1)));
+		y += 32;
+	}
+	if (pv->stats[STAT_H2_RINGS_ACTIVE] & 2)
+	{	//water breathing
+		R2D_ScalePic(x-32, r_refdef.grect.y+y, 32, 32, R2D_SafeCachePic(va("gfx/rngwtr%d.lmp", ((int)(cl.time*16)%15)+1)));
+		y += 32;
+	}
+	if (pv->stats[STAT_H2_RINGS_ACTIVE] & 1)
+	{	//flight
+		R2D_ScalePic(x-32, r_refdef.grect.y+y, 32, 32, R2D_SafeCachePic(va("gfx/rngfly%d.lmp", ((int)(cl.time*16)%15)+1)));
+		y += 32;
+	}
+
+	if (y)	//if we drew the rings column, move artifacts over so they don't fight
+		x -= 50;
+
+	//artifacts are horizontal (without stomping on rings)...
 	if (pv->stats[STAT_H2_ARTIFACT_ACTIVE] & 4)
-	{
-		pic = R2D_SafeCachePic(va("gfx/pwrbook%d.lmp", ((int)(cl.time*16)%15)+1));
+	{	//tome of power
 		x -= 32;
-		R2D_ScalePic(x, r_refdef.grect.y, 32, 32, pic);
+		R2D_ScalePic(x, r_refdef.grect.y, 32, 32, R2D_SafeCachePic(va("gfx/pwrbook%d.lmp", ((int)(cl.time*16)%15)+1)));
 		x -= 18;
 	}
 	if (pv->stats[STAT_H2_ARTIFACT_ACTIVE] & 1)
-	{
-		pic = R2D_SafeCachePic(va("gfx/durhst%d.lmp", ((int)(cl.time*16)%15)+1));
+	{	//boots
 		x -= 32;
-		R2D_ScalePic(x, r_refdef.grect.y, 32, 32, pic);
+		R2D_ScalePic(x, r_refdef.grect.y, 32, 32, R2D_SafeCachePic(va("gfx/durhst%d.lmp", ((int)(cl.time*16)%15)+1)));
 		x -= 18;
 	}
 	if (pv->stats[STAT_H2_ARTIFACT_ACTIVE] & 2)
-	{
-		pic = R2D_SafeCachePic(va("gfx/durshd%d.lmp", ((int)(cl.time*16)%15)+1));
+	{	//invincibility
 		x -= 32;
-		R2D_ScalePic(x, r_refdef.grect.y, 32, 32, pic);
+		R2D_ScalePic(x, r_refdef.grect.y, 32, 32, R2D_SafeCachePic(va("gfx/durshd%d.lmp", ((int)(cl.time*16)%15)+1)));
 		x -= 18;
 	}
 }
@@ -2450,9 +2473,11 @@ static void Sbar_Hexen2DrawItem(playerview_t *pv, float x, float y, int itemnum)
 	int num;
 	Sbar_DrawMPic(x, y, 29, 28, R2D_SafeCachePic(va("gfx/arti%02d.lmp", itemnum)));
 
-	num = pv->stats[STAT_H2_CNT_TORCH+itemnum];
+	num = pv->stats[STAT_H2_CNT_FIRST+itemnum];
 	if(num > 0)
 	{
+		if (num > 99)
+			num = 99;
 		if (num >= 10)
 			Sbar_DrawMPic(x+20, y+21, 4, 6, R2D_SafeCachePic(va("gfx/artinum%d.lmp", num/10)));
 		Sbar_DrawMPic(x+20+4, y+21, 4, 6, R2D_SafeCachePic(va("gfx/artinum%d.lmp", num%10)));
@@ -2467,23 +2492,26 @@ static void Sbar_Hexen2DrawInventory(playerview_t *pv)
 	int activeright = 0;
 
 	/*always select an artifact that we actually have whether we are drawing the full bar or not.*/
-	for (i = 0; i < 15; i++)
+	/*NOTE: Hexen2 reorders them in collection order.*/
+	for (i = 0; i < STAT_H2_CNT_COUNT; i++)
 	{
-		if (pv->stats[STAT_H2_CNT_TORCH+(i+pv->sb_hexen2_cur_item)%15])
+		if (pv->stats[STAT_H2_CNT_FIRST+(i+pv->sb_hexen2_cur_item)%STAT_H2_CNT_COUNT])
 		{
-			pv->sb_hexen2_cur_item = (pv->sb_hexen2_cur_item + i)%15;
+			pv->sb_hexen2_cur_item = (pv->sb_hexen2_cur_item + i)%STAT_H2_CNT_COUNT;
 			break;
 		}
 	}
 
 	if (pv->sb_hexen2_item_time+3 < realtime)
 		return;
+	if (!pv->stats[STAT_H2_CNT_FIRST+pv->sb_hexen2_cur_item])
+		return; //no items... don't confuse the user.
 
-	for (i = pv->sb_hexen2_cur_item; i < 15; i++)
-		if (pv->sb_hexen2_cur_item == i || pv->stats[STAT_H2_CNT_TORCH+i] > 0)
+	for (i = pv->sb_hexen2_cur_item; i < STAT_H2_CNT_COUNT; i++)
+		if (pv->sb_hexen2_cur_item == i || pv->stats[STAT_H2_CNT_FIRST+i] > 0)
 			activeright++;
 	for (i = pv->sb_hexen2_cur_item-1; i >= 0; i--)
-		if (pv->sb_hexen2_cur_item == i || pv->stats[STAT_H2_CNT_TORCH+i] > 0)
+		if (pv->sb_hexen2_cur_item == i || pv->stats[STAT_H2_CNT_FIRST+i] > 0)
 			activeleft++;
 
 	if (activeleft > 3 + (activeright<=3?(4-activeright):0))
@@ -2491,7 +2519,7 @@ static void Sbar_Hexen2DrawInventory(playerview_t *pv)
 	x=320/2-114 + (activeleft-1)*33;
 	for (i = pv->sb_hexen2_cur_item-1; x>=320/2-114; i--)
 	{
-		if (!pv->stats[STAT_H2_CNT_TORCH+i])
+		if (!pv->stats[STAT_H2_CNT_FIRST+i])
 			continue;
 
 		if (i == pv->sb_hexen2_cur_item)
@@ -2501,14 +2529,91 @@ static void Sbar_Hexen2DrawInventory(playerview_t *pv)
 	}
 
 	x=320/2-114 + activeleft*33;
-	for (i = pv->sb_hexen2_cur_item; i < 15 && x < 320/2-114+7*33; i++)
+	for (i = pv->sb_hexen2_cur_item; i < STAT_H2_CNT_COUNT && x < 320/2-114+7*33; i++)
 	{
-		if (i != pv->sb_hexen2_cur_item && !pv->stats[STAT_H2_CNT_TORCH+i])
+		if (i != pv->sb_hexen2_cur_item && !pv->stats[STAT_H2_CNT_FIRST+i])
 			continue;
 		if (i == pv->sb_hexen2_cur_item)
 			Sbar_DrawMPic(x+9, y-12, 11, 11, R2D_SafeCachePic("gfx/artisel.lmp"));
 		Sbar_Hexen2DrawItem(pv, x, y, i);
 		x+=33;
+	}
+}
+
+static void Sbar_Hexen2DrawPuzzles (playerview_t *pv)
+{
+	unsigned int i, place=0, x, y, mid, j;
+	char name[64];
+	const char *line;
+	mpic_t *pic;
+
+	puzzlenames = FS_LoadMallocFile("puzzles.txt", NULL);
+	if (!puzzlenames)
+		puzzlenames = Z_StrDup("");
+
+	for (i = 0; i < 8; i++)
+	{
+		if (pv->statsstr[STAT_H2_PUZZLE1+i] && *pv->statsstr[STAT_H2_PUZZLE1+i])
+		{
+			pic = R2D_SafeCachePic(va("gfx/puzzle/%s.lmp", pv->statsstr[STAT_H2_PUZZLE1+i]));
+
+			strcpy(name, "Unknown");
+			for (line = puzzlenames; (line = COM_Parse(line)); )
+			{
+				if (!Q_strcasecmp(com_token, pv->statsstr[STAT_H2_PUZZLE1+i]))
+				{
+					while (*line == ' ' || *line == '\t')
+						line++;
+					for (j = 0; j < countof(name)-1; j++)
+					{
+						if (*line == '\r' || *line == '\n' || !*line)
+							break;
+						name[j] = *line++;
+					}
+					name[j] = 0;
+					break;
+				}
+				line = strchr(line, '\n');
+				if (!line)
+					break;
+				line++;
+			}
+
+			if (r_refdef.grect.width < 320)
+			{	//screen too narrow for side by side. depend on height.
+				x = r_refdef.grect.x + 10;
+				y = 50 + place*32;
+				if (y+26 > r_refdef.grect.height)
+					continue;
+				y += sbar_rect.y;
+				mid = r_refdef.grect.x + r_refdef.grect.width;
+				R2D_ScalePic(x, y, 26, 26, pic);
+				Draw_FunStringWidth(x+35, y+(26-8)/2, name, mid-(x+35), false, false);
+			}
+			else if (place < 4)
+			{	//first four are on the left.
+				x = r_refdef.grect.x + 10;
+				y = 50 + place*32;
+				if (y+26 > r_refdef.grect.height)
+					continue;
+				y += sbar_rect.y;
+				mid = r_refdef.grect.x + r_refdef.grect.width/2;
+				R2D_ScalePic(x, y, 26, 26, pic);
+				R_DrawTextField(x+35, y, mid-(x+35), 26, name, CON_WHITEMASK, CPRINT_LALIGN, font_default, NULL);
+			}
+			else
+			{	//last four are on the right
+				x = r_refdef.grect.x + r_refdef.grect.width - 10 - 26;
+				y = 50 + (place-4)*32;
+				if (y+26 > r_refdef.grect.height)
+					continue;
+				y += sbar_rect.y;
+				mid = r_refdef.grect.x + r_refdef.grect.width/2;
+				R2D_ScalePic(x, y, 26, 26, pic);
+				R_DrawTextField(mid, y, x-(35-26)-mid, 26, name, CON_WHITEMASK, CPRINT_RALIGN, font_default, NULL);
+			}
+			place++;
+		}
 	}
 }
 
@@ -2528,19 +2633,12 @@ static void Sbar_Hexen2DrawExtra (playerview_t *pv)
 		"Demoness"
 	};
 
-	if (!pv->sb_hexen2_extra_info)
-	{
-		sbar_rect.y -= 46-SBAR_HEIGHT;
-		return;
-	}
+//	if (!pv->sb_hexen2_extra_info)
+//		return;
 
 	pclass = cl.players[pv->playernum].h2playerclass;
 	if (pclass >= sizeof(pclassname)/sizeof(pclassname[0]))
 		pclass = 0;
-
-
-	//adjust it so there's space
-	sbar_rect.y -= 46+98-SBAR_HEIGHT;
 
 	Sbar_DrawMPic(0, 46, 160, 98, R2D_SafeCachePic("gfx/btmbar1.lmp"));
 	Sbar_DrawMPic(160, 46, 160, 98, R2D_SafeCachePic("gfx/btmbar2.lmp"));
@@ -2694,8 +2792,8 @@ static void Sbar_Hexen2DrawBasic(playerview_t *pv)
 	Sbar_DrawMPic(43, 36, 10, 10, R2D_SafeCachePic("gfx/chnlcov.lmp"));
 	Sbar_DrawMPic(267, 36, 10, 10, R2D_SafeCachePic("gfx/chnrcov.lmp"));
 
-
-	Sbar_Hexen2DrawItem(pv, 144, 3, pv->sb_hexen2_cur_item);
+	if (pv->stats[STAT_H2_CNT_FIRST+pv->sb_hexen2_cur_item])
+		Sbar_Hexen2DrawItem(pv, 144, 3, pv->sb_hexen2_cur_item);
 }
 
 static void Sbar_Hexen2DrawMinimal(playerview_t *pv)
@@ -2709,6 +2807,9 @@ static void Sbar_Hexen2DrawMinimal(playerview_t *pv)
 	Sbar_DrawTinyStringf(10, y+18+6, "%03d", pv->stats[STAT_H2_GREENMANA]);
 
 	Sbar_Hexen2DrawNum(38, y+18, pv->stats[STAT_HEALTH], 3);
+
+	if (pv->stats[STAT_H2_CNT_FIRST+pv->sb_hexen2_cur_item])
+		Sbar_Hexen2DrawItem(pv, 320-32, y+10, pv->sb_hexen2_cur_item);
 }
 #endif
 
@@ -2999,6 +3100,8 @@ void Sbar_Draw (playerview_t *pv)
 #ifdef HEXEN2
 	if (sbar_hexen2)
 	{
+		extern cvar_t scr_conspeed;
+		float targlines;
 		//hexen2 hud
 
 		if (pv->sb_hexen2_infoplaque)
@@ -3013,19 +3116,44 @@ void Sbar_Draw (playerview_t *pv)
 			pv->sb_hexen2_infoplaque = false;
 		}
 
-		if (sb_lines > 24 || pv->sb_hexen2_extra_info)
+		if (pv->sb_hexen2_extra_info)
+			targlines = 46+98;	//extra stuff shown when hitting tab
+		else if (sb_lines > SBAR_HEIGHT)
+			targlines = 46;		//viewsize 100 stuff...
+		else
+			targlines = -23;	//viewsize 110/120 transparent overlay. negative covers the extra translucent details above.
+		if (targlines > pv->sb_hexen2_extra_info_lines)
+		{	//expand
+			pv->sb_hexen2_extra_info_lines += scr_conspeed.value*host_frametime;
+			if (pv->sb_hexen2_extra_info_lines > targlines)
+				pv->sb_hexen2_extra_info_lines = targlines;
+		}
+		else
+		{	//shrink
+			pv->sb_hexen2_extra_info_lines -= scr_conspeed.value*host_frametime;
+			if (pv->sb_hexen2_extra_info_lines < targlines)
+				pv->sb_hexen2_extra_info_lines = targlines;
+		}
+
+		if (sb_lines > 0 && pv->sb_hexen2_extra_info_lines < 46)
+			Sbar_Hexen2DrawMinimal(pv);
+		if (pv->sb_hexen2_extra_info_lines > -23)
 		{
-			Sbar_Hexen2DrawExtra(pv);
+			sbar_rect.y -= pv->sb_hexen2_extra_info_lines - SBAR_HEIGHT;	//Sbar_DrawMPic... eww.
+			if (pv->sb_hexen2_extra_info_lines > 46)
+				Sbar_Hexen2DrawExtra(pv);
 			Sbar_Hexen2DrawBasic(pv);
 		}
-		else if (sb_lines > 0)
-			Sbar_Hexen2DrawMinimal(pv);
 		Sbar_Hexen2DrawInventory(pv);
 
 		if (minidmoverlay)
 			Sbar_MiniDeathmatchOverlay (pv);
 
 		Sbar_Hexen2DrawActiveStuff(pv);
+
+		if (!cls.deathmatch)
+		if (pv->sb_showscores || pv->sb_showteamscores || pv->stats[STAT_HEALTH] <= 0)
+			Sbar_Hexen2DrawPuzzles(pv);
 	}
 	else
 #endif

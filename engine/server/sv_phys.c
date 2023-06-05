@@ -1525,6 +1525,11 @@ static void WPhys_Physics_Step (world_t *w, wedict_t *ent)
 
 		if ( (int)ent->v->flags & FL_ONGROUND )	// just hit ground
 		{
+#ifdef HEXEN2
+			if (progstype == PROG_H2 && ((int)ent->v->flags & FL_MONSTER))
+				;	//hexen2 monsters do not make landing sounds.
+			else
+#endif
 			if (hitsound && *sv_sound_land.string)
 			{
 				w->Event_Sound(NULL, ent, 0, sv_sound_land.string, 255, 1, 0, 0, 0);

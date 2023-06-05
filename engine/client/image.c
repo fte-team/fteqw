@@ -7436,7 +7436,9 @@ qbyte *ReadRawImageFile(qbyte *buf, int len, int *width, int *height, uploadfmt_
 		int w = LittleLong(((int*)buf)[0]);
 		int h = LittleLong(((int*)buf)[1]);
 		int i;
-		if (w >= 3 && h	>= 4 && w*h+sizeof(int)*2 == len)
+		if (((w >= 3 && h >= 4)
+			||(w==26&&h==1) //hack for hexen2. stupid lack of a magic.
+			) && w*h+sizeof(int)*2 == len)
 		{	//quake lmp
 			if (force_rgba8)
 			{
@@ -7482,6 +7484,22 @@ qbyte *ReadRawImageFile(qbyte *buf, int len, int *width, int *height, uploadfmt_
 			*width = w;
 			*height = h;
 			*format = foundalpha?PTI_RGBA8:PTI_RGBX8;
+			return data;
+		}
+		else if (len == 128*128 || len == 128*256)
+		{	//conchars lump (or h2). 0 is transparent.
+			qbyte *in = buf;
+			h = 128;
+			w = len/h;
+			data = BZ_Malloc(w * h * sizeof(int));
+			for (i = 0; i < w * h; i++)
+			{
+				((unsigned int*)data)[i] = d_8to24rgbtable[in[i]];
+				data[i*4+3] = (in[i] == 0)?0:255;
+			}
+			*width = w;
+			*height = h;
+			*format = PTI_RGBA8;
 			return data;
 		}
 	}

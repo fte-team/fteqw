@@ -71,7 +71,7 @@ qboolean World_CheckBottom (world_t *world, wedict_t *ent, vec3_t up)
 		//quake's hulls are weird. sizes are defined as from mins to mins+hullsize. the actual maxs is ignored other than for its size.
 		hull_t *hull;
 		hull = Q1BSP_ChooseHull(world->worldmodel, ent->xv->hull, ent->v->mins, ent->v->maxs, start);
-		VectorAdd (mins, start, mins);
+		//ignore the hull's offset. the minpoint is the minpoint. lets fix up the size though, just in case.
 		VectorSubtract (mins, hull->clip_mins, maxs);
 		VectorAdd (maxs, hull->clip_maxs, maxs);
 	}

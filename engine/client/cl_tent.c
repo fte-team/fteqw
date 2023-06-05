@@ -179,15 +179,19 @@ int
 	ptfte_bullet=P_INVALID,
 	ptfte_superbullet=P_INVALID;
 
-typedef struct {
+typedef struct tentmodels_s {
 	/*static stuff*/
 	char *modelname;
 	char *beamparticles;
 	char *beamimpactparticle;
+	char *beamimpactmodel;
+	float impactscale;
+	struct tentmodels_s *partner;
 	int bflags;
 
 	/*cached stuff*/
 	model_t *model;
+	model_t *impactmodel;
 	int ef_beam;
 	int ef_impact;
 } tentmodels_t;
@@ -260,8 +264,8 @@ static tentmodels_t beamtypes[] =
 
 	{"models/stltng2.mdl",						"te_stream_lightning_small",	NULL},
 	{"models/stchain.mdl",						"te_stream_chain",				NULL},
-	{"models/stsunsf1.mdl",						"te_stream_sunstaff1",			NULL},
-	{"models/stsunsf2.mdl",						NULL,							NULL},
+	{"models/stsunsf1.mdl",						"te_stream_sunstaff1",			NULL,	"models/stsunsf3.mdl", 0.8, &beamtypes[BT_H2SUNSTAFF1_SUB]}, //the core beam
+	{"models/stsunsf2.mdl",						NULL,							NULL,	"models/stsunsf4.mdl", 1.5},//the transparenty bit.
 	{"models/stsunsf1.mdl",						"te_stream_sunstaff2",			NULL},
 	{"models/stlghtng.mdl",						"te_stream_lightning",			NULL},
 	{"models/stclrbm.mdl",						"te_stream_colorbeam",			NULL},
@@ -608,6 +612,7 @@ void CL_RegisterParticles(void)
 	{
 		//we can normally expect the server to have precache_modeled these models, so any lookups should be just a lookup, and thus relatively cheap.
 		beamtypes[i].model = NULL;
+		beamtypes[i].impactmodel = NULL;
 		beamtypes[i].ef_beam = beamtypes[i].beamparticles?P_FindParticleType(beamtypes[i].beamparticles):P_INVALID;
 		beamtypes[i].ef_impact = beamtypes[i].beamimpactparticle?P_FindParticleType(beamtypes[i].beamimpactparticle):P_INVALID;
 	}
@@ -886,6 +891,7 @@ beam_t *CL_AddBeam (enum beamtype_e tent, int ent, vec3_t start, vec3_t end)	//f
 	b->bflags |= /*STREAM_ATTACHED|*/STREAM_ATTACHTOPLAYER;
 	b->endtime = cl.time + 0.2;
 	b->alpha = 1;
+	b->skin = 0;
 	VectorCopy (start, b->start);
 	VectorCopy (end, b->end);
 
@@ -1054,25 +1060,22 @@ void CL_ParseStream (int type)
 	}
 
 	//special handling...
-	switch(type)
+	if (info->partner && info->ef_beam == P_INVALID)
 	{
-	case TEH2_STREAM_SUNSTAFF1:
-		if (info->ef_beam == P_INVALID)
+		b2 = CL_NewBeam(ent, tag+128, info->partner);
+		if (b2)
 		{
-			b2 = CL_NewBeam(ent, tag+128, &beamtypes[BT_H2SUNSTAFF1_SUB]);
-			if (b2)
-			{
-				P_DelinkTrailstate(&b2->trailstate);
-				P_DelinkTrailstate(&b2->emitstate);
-				memcpy(b2, b, sizeof(*b2));
-				b2->trailstate = trailkey_null;
-				b2->emitstate = trailkey_null;
-				b2->alpha = 0.5;
-				b2->rflags = RF_TRANSLUCENT|RF_NOSHADOW;
-			}
+			P_DelinkTrailstate(&b2->trailstate);
+			P_DelinkTrailstate(&b2->emitstate);
+			memcpy(b2, b, sizeof(*b2));
+			b2->trailstate = b2->emitstate = 0;
+			b2->info = info->partner;
+			b2->tag = tag+128;
+			b2->trailstate = trailkey_null;
+			b2->emitstate = trailkey_null;
+			b2->alpha = 0.5;
+			b2->rflags = RF_TRANSLUCENT|RF_NOSHADOW;
 		}
-		//FIXME: we don't add the blob corners+smoke
-		break;
 	}
 }
 
@@ -3044,12 +3047,12 @@ void CL_UpdateBeams (float frametime)
 		}
 		else
 		{
-			yaw = (int) (atan2(dist[1], dist[0]) * 180 / M_PI);
+			yaw = (atan2(dist[1], dist[0]) * 180 / M_PI);
 			if (yaw < 0)
 				yaw += 360;
 
 			forward = sqrt (dist[0]*dist[0] + dist[1]*dist[1]);
-			pitch = (int) (atan2(dist[2], forward) * 180 / M_PI);
+			pitch = (atan2(dist[2], forward) * 180 / M_PI);
 			if (pitch < 0)
 				pitch += 360;
 		}
@@ -3083,6 +3086,7 @@ void CL_UpdateBeams (float frametime)
 				return;
 			VectorCopy (org, ent->origin);
 			ent->model = type->model;
+			ent->skinnum = b->skin;
 #ifdef HEXEN2
 			ent->drawflags |= MLS_ABSLIGHT;
 			ent->abslight = 64 + 128 * bound(0, cl_shaftlight.value, 1);
@@ -3093,7 +3097,7 @@ void CL_UpdateBeams (float frametime)
 			ent->angles[0] = -pitch;
 			ent->angles[1] = yaw;
 			ent->angles[2] = rand()%360;
-			AngleVectors(ent->angles, ent->axis[0], ent->axis[1], ent->axis[2]);
+			AngleVectorsFLU(ent->angles, ent->axis[0], ent->axis[1], ent->axis[2]);
 			ent->angles[0] = pitch;
 			ent->framestate.g[FS_REG].lerpweight[0] = 1;
 			ent->framestate.g[FS_REG].frame[0] = 0;
@@ -3102,6 +3106,37 @@ void CL_UpdateBeams (float frametime)
 			for (i=0 ; i<3 ; i++)
 				org[i] += dist[i]*30;
 			d -= 30;
+		}
+
+		if (type->beamimpactmodel)
+		{
+			if (!type->impactmodel)
+			{
+				type->impactmodel = Mod_ForName(type->beamimpactmodel, MLV_WARN);
+				if (!type->impactmodel)
+					continue;
+			}
+			ent = CL_NewTempEntity ();
+			if (!ent)
+				return;
+			VectorCopy (b->end, ent->origin);
+			ent->model = type->impactmodel;
+#ifdef HEXEN2
+			ent->drawflags |= MLS_ABSLIGHT;
+			ent->abslight = 128;
+#endif
+			ent->shaderRGBAf[3] = b->alpha;
+			ent->flags = b->rflags;
+			ent->scale = type->impactscale;
+
+			ent->angles[0] = -pitch;
+			ent->angles[1] = yaw;
+			ent->angles[2] = rand()%360;
+			AngleVectorsFLU(ent->angles, ent->axis[0], ent->axis[1], ent->axis[2]);
+			ent->angles[0] = pitch;
+			ent->framestate.g[FS_REG].lerpweight[0] = 1;
+			ent->framestate.g[FS_REG].frame[0] = 0;
+			ent->framestate.g[FS_REG].frametime[0] = cl.time - (b->endtime - 0.2);
 		}
 	}
 

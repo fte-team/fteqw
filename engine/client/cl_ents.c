@@ -4205,7 +4205,12 @@ void CL_LinkPacketEntities (void)
 			if (radius)
 			{
 				radius += r_lightflicker.value?((flicker + state->number)&31):0;
-				CL_NewDlight(state->number, ent->origin, radius, 0.1, colour[0], colour[1], colour[2]);
+				dl = CL_NewDlight(state->number, ent->origin, radius, 0.1, colour[0], colour[1], colour[2]);
+
+				if (state->effects & EF_BRIGHTLIGHT)
+				{	//urgh. apparently correct for vanilla quake. puts the bright effect about where the firing point is. broken for hexen2, yet still consistent with the hexen2 engine...
+					dl->origin[2] += 16;
+				}
 			}
 		}
 		if ((state->lightpflags & (PFLAGS_FULLDYNAMIC|PFLAGS_CORONA)) && ((state->lightpflags&PFLAGS_FULLDYNAMIC)||state->light[3]))

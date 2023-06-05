@@ -9515,7 +9515,7 @@ static void SV_AirMove (void)
 	}
 }
 
-static void SV_WaterMove (void)
+static void SV_WaterMove (qboolean flymode)
 {
 	int		i;
 	vec3_t	wishvel;
@@ -9531,7 +9531,9 @@ static void SV_WaterMove (void)
 	for (i=0 ; i<3 ; i++)
 		wishvel[i] = forward[i]*cmd.forwardmove + right[i]*cmd.sidemove;
 
-	if (!cmd.forwardmove && !cmd.sidemove && !cmd.upmove)
+	if (flymode)
+		VectorMA(wishvel, cmd.upmove, up, wishvel);
+	else if (!cmd.forwardmove && !cmd.sidemove && !cmd.upmove)
 		wishvel[2] -= 60;		// drift towards bottom
 	else
 		wishvel[2] += cmd.upmove;
@@ -9553,7 +9555,8 @@ static void SV_WaterMove (void)
 		VectorScale (wishvel, maxspeed/wishspeed, wishvel);
 		wishspeed = maxspeed*scale;
 	}
-	wishspeed *= 0.7;
+	if (!flymode)
+		wishspeed *= 0.7;
 
 //
 // water friction
@@ -9767,7 +9770,11 @@ void SV_ClientThink (void)
 // walk
 //
 	if ( (sv_player->v->waterlevel >= 2) && (sv_player->v->movetype != MOVETYPE_NOCLIP) )
-		SV_WaterMove ();
+		SV_WaterMove (false);
+#ifdef HEXEN2
+	else if (progstype == PROG_H2 && sv_player->v->movetype == MOVETYPE_FLY)
+		SV_WaterMove (true);	//just reuse our swimming code for hexen2's flying (quake tends to deny traction).
+#endif
 	else if (((int)sv_player->xv->pmove_flags&PMF_LADDER) && (sv_player->v->movetype != MOVETYPE_NOCLIP) )
 		SV_LadderMove();
 	else

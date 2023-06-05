@@ -22,7 +22,7 @@ typedef struct {
 #define SAVEFIRST_STANDARD (SAVEFIRST_AUTO + SAVECOUNT_AUTO)
 #define SAVECOUNT_STANDARD 20
 #define	MAX_SAVEGAMES		(1+SAVECOUNT_AUTO+SAVECOUNT_STANDARD)
-struct
+static struct
 {
 	qboolean loadable;
 	qbyte	saveable; //0=autosave, 1=regular, 2=quick
@@ -33,7 +33,7 @@ struct
 	char	map[32];
 } m_saves[MAX_SAVEGAMES];
 
-static void M_ScanSave(unsigned int slot, const char *name, qboolean savable)
+static void M_ScanSave(unsigned int slot, const char *name, qbyte savable)
 {
 	char	*in, *out, *end;
 	int		j;
@@ -779,8 +779,10 @@ static qboolean M_DemoKey(menucustom_t *control, emenu_t *menu, int key, unsigne
 				extern int		shift_down;
 				int extnum;
 				const char *ext = COM_GetFileExtension(info->selected->name, NULL);
+				if (!Q_strcasecmp(ext, ".gz") || !Q_strcasecmp(ext, ".xz"))
+					ext = COM_GetFileExtension(info->selected->name, ext);
 				for (extnum = 0; extnum < info->numext; extnum++)
-					if (!stricmp(ext, info->ext[extnum]))
+					if (!Q_strcasecmp(ext, info->ext[extnum]))
 						break;
 
 				if (extnum == info->numext)	//wasn't on our list of extensions.
@@ -823,8 +825,11 @@ static int QDECL DemoAddItem(const char *filename, qofs_t size, time_t modified,
 	i = strchr(filename+menu->pathlen, '/');
 	if (i == NULL)
 	{
+		const char *ext = COM_GetFileExtension(filename, NULL);
+		if (!Q_strcasecmp(ext, ".gz") || !Q_strcasecmp(ext, ".xz"))
+			ext = COM_GetFileExtension(filename, ext);
 		for (extnum = 0; extnum < menu->numext; extnum++)
-			if (!stricmp(COM_GetFileExtension(filename, NULL), menu->ext[extnum]))
+			if (!Q_strcasecmp(ext, menu->ext[extnum]))
 				break;
 
 		if (extnum == menu->numext)	//wasn't on our list of extensions.
@@ -854,7 +859,7 @@ static int QDECL DemoAddItem(const char *filename, qofs_t size, time_t modified,
 			if (link->isdir != isdir)	//bias directories, so they sink
 				side = (link->isdir > isdir)?1:-1;
 			else
-				side = stricmp(link->name, filename);
+				side = Q_strcasecmp(link->name, filename);
 			if (side == 0)
 				return true;	//already got this file
 			else if (side > 0)

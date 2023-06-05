@@ -5788,7 +5788,16 @@ void CL_LinkViewModel(void)
 		{
 			lerpents_t *le = &cl.lerpents[plnum+1];
 			if (le->entstate)
+			{
 				playereffects = le->entstate->effects;
+#ifdef HEXEN2
+				if (!le->entstate->modelindex || (le->entstate->hexen2flags & DRF_TRANSLUCENT))
+				{	//urgh.
+					ent.shaderRGBAf[3] *= .5;
+					ent.flags |= RF_TRANSLUCENT;
+				}
+#endif
+			}
 		}
 	}
 	else if (plnum < cl.allocated_client_slots)

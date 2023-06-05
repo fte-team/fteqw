@@ -3683,7 +3683,7 @@ void SV_Snapshot_BuildStateQ1(entity_state_t *state, edict_t *ent, client_t *cli
 			//The client still needs to know about it though, as it might have other effects on it.
 			if (progstype == PROG_H2)
 			{
-				if (state->effects == H2EF_NODRAW)
+				if (state->effects & H2EF_NODRAW)
 				{
 					//actually, H2 is pretty lame about this
 					state->effects = 0;

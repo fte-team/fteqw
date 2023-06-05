@@ -590,8 +590,10 @@ static int te_515sevilhackworkaround;
 #define svc_updatecolors 17
 
 #ifdef HEXEN2
-#define svch2_clearviewflags 41	//hexen2.
-#define svch2_setangles_lerp 50
+#define svch2_setviewflags		40	//hexen2.
+#define svch2_clearviewflags	41	//hexen2.
+#define svch2_setviewtint		46	//hexen2.
+#define svch2_setangles_lerp	50
 #endif
 
 //these are present in the darkplaces engine.
@@ -1148,7 +1150,9 @@ void NPP_NQWriteByte(int dest, qbyte data)	//replacement write func (nq to qw)
 			nullterms = 1;
 			break;
 #ifdef HEXEN2
-		case svch2_clearviewflags:
+		case svch2_setviewflags:	//sets some viewmodel drawflag
+		case svch2_clearviewflags:	//undoes svch2_setviewflags
+		case svch2_setviewtint:		//tints the viewmodel (tied to hexen2's weird colormap stuff)
 			if (progstype == PROG_H2)
 			{
 				protocollen = 2;

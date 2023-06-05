@@ -914,6 +914,24 @@ static void Cmd_Exec_f (void)
 #if defined(HAVE_LEGACY) && defined(HAVE_CLIENT)
 		if (l == 1914 && CalcHashInt(&hash_md4, f, l) == 0x2d7b72b9)
 			s = (char*)replacementq1binds;
+#ifdef HEXEN2
+		else if (l == 1875 && CalcHashInt(&hash_md4, f, l) == 0x27b4d813)
+		{	//hexen2 has weird stuff in there. just give it wasd.
+			s = va(
+				"%s\n"
+				"bind w +forward\n"
+				"bind a +moveleft\n"
+				"bind s +back\n"
+				"bind d +moveright\n"
+
+				"bind mouse2 +jump\n"
+				"bind mouse3 +forward\n" //mneh
+
+				"bind x +lookup\n"	//moved to x instead of a
+				"cl_forwardspeed 400\n" //hexen2's autorun state.
+			, s);
+		}
+#endif
 #endif
 	}
 #ifndef QUAKETC

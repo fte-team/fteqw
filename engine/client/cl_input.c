@@ -1326,22 +1326,46 @@ Send the intended movement message to the server
 */
 static void CL_BaseMove (vec3_t moves, int pnum)
 {
-	float scale;
+	float fwdspeed = cl_forwardspeed.value;
+	float sidespeed = cl_sidespeed.value;
+	float backspeed = (*cl_backspeed.string?cl_backspeed.value:cl_forwardspeed.value);
+	float upspeed = (*cl_backspeed.string?cl_backspeed.value:cl_forwardspeed.value);
+	float scale = 1;
 //
 // adjust for speed key
 //
-	scale = ((in_speed.state[pnum] & 1) ^ cl_run.ival)?cl_movespeedkey.value:1;
+#ifdef HEXEN2
+	extern qboolean	sbar_hexen2;
+	if (sbar_hexen2)
+	{	//hexen2 is a bit different. forwardspeed is treated as something of a boolean and we need to be able to cope with the boots-of-speed without forcing it always. not really sure why that's clientside instead of serverside, but oh well. evilness.
+		scale = cl.playerview[pnum].statsf[STAT_H2_HASTED];
+		if (!scale)
+			scale = 1;
+		if (((in_speed.state[pnum] & 1) ^ (cl_run.ival || fwdspeed > 200))
+			&& scale <= 1)	//don't go super fast with speed boots.
+			scale *= cl_movespeedkey.value;
+		fwdspeed = backspeed = 200;
+		sidespeed = 225;
+	}
+	else
+#endif
+	if ((in_speed.state[pnum] & 1) ^ cl_run.ival)
+		scale *= cl_movespeedkey.value;
 
 	moves[0] = 0;
 	if (! (in_klook.state[pnum] & 1) )
 	{
-		moves[0] += scale*(cl_forwardspeed.value * CL_KeyState (&in_forward, pnum, true) -
-					(*cl_backspeed.string?cl_backspeed.value:cl_forwardspeed.value) * CL_KeyState (&in_back, pnum, true));
+		moves[0] += (fwdspeed * CL_KeyState (&in_forward, pnum, true) -
+					backspeed * CL_KeyState (&in_back, pnum, true));
 	}
-	moves[1] = scale*cl_sidespeed.value * (CL_KeyState (&in_moveright, pnum, true) - CL_KeyState (&in_moveleft, pnum, true)) * (in_xflip.ival?-1:1);
+	moves[1] = sidespeed * (CL_KeyState (&in_moveright, pnum, true) - CL_KeyState (&in_moveleft, pnum, true)) * (in_xflip.ival?-1:1);
 	if (in_strafe.state[pnum] & 1)
-		moves[1] += scale*cl_sidespeed.value * (CL_KeyState (&in_right, pnum, true) - CL_KeyState (&in_left, pnum, true)) * (in_xflip.ival?-1:1);
-	moves[2] = scale*cl_upspeed.value * (CL_KeyState (&in_up, pnum, true) - CL_KeyState (&in_down, pnum, true));
+		moves[1] += sidespeed * (CL_KeyState (&in_right, pnum, true) - CL_KeyState (&in_left, pnum, true)) * (in_xflip.ival?-1:1);
+	moves[2] = upspeed * (CL_KeyState (&in_up, pnum, true) - CL_KeyState (&in_down, pnum, true));
+
+	moves[0] *= scale;
+	moves[1] *= scale;
+	moves[2] *= scale;
 }
 
 void CL_ClampPitch (int pnum, float frametime)

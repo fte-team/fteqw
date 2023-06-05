@@ -184,16 +184,28 @@ emenu_t *M_Options_Title(int *y, int infosize)
 //these are awkward/strange
 static qboolean M_Options_AlwaysRun (menucheck_t *option, struct emenu_s *menu, chk_set_t set)
 {
-	if (M_GameType() == MGT_QUAKE2)
+	extern cvar_t cl_run;
+	switch (M_GameType())
 	{
-		extern cvar_t cl_run;
+	case MGT_HEXEN2:
+		//hexen2 uses forwardspeed's magnitude as an 'isrunning' boolean check, with all else hardcoded.
+		if (set != CHK_CHECKED)
+		{
+			if (cl_forwardspeed.value > 200 || cl_run.ival)
+				Cvar_SetValue(&cl_forwardspeed, 200);
+			else
+				Cvar_SetValue(&cl_forwardspeed, 400);
+			Cvar_Set(&cl_backspeed, "");
+			Cvar_SetValue(&cl_run, 0);
+		}
+		return cl_forwardspeed.value > 200;
+	default:
+	case MGT_QUAKE2:
 		//quake2 mods have a nasty tendancy to hack at the various cvars, which breaks everything
 		if (set != CHK_CHECKED)
 			Cvar_SetValue(&cl_run, !cl_run.ival);
 		return cl_run.ival;
-	}
-	else
-	{
+	case MGT_QUAKE1:
 		//for better compat with other quake engines, we just ignore the cl_run cvar, at least for the menu.
 		if (set == CHK_CHECKED)
 			return cl_forwardspeed.value > 200;

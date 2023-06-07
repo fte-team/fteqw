@@ -961,8 +961,8 @@ int QDECL main(int argc, char **argv)
 	parms.manifest = CONFIG_MANIFEST_TEXT;
 #endif
 
-#if !defined(WIN32) && !defined(__HAIKU__)
-	fcntl(0, F_SETFL, fcntl (0, F_GETFL, 0) | FNDELAY);
+#if !defined(WIN32)
+	fcntl(0, F_SETFL, fcntl (0, F_GETFL, 0) | O_NDELAY);
 #endif
 
 	COM_InitArgv (parms.argc, parms.argv);

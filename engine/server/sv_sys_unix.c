@@ -593,7 +593,7 @@ void Sys_Quit (void)
 	if (!noconinput)
 	{
 		tcsetattr(STDIN_FILENO, TCSADRAIN, &orig);
-		fcntl (STDIN_FILENO, F_SETFL, fcntl (STDIN_FILENO, F_GETFL, 0) & ~FNDELAY);
+		fcntl (STDIN_FILENO, F_SETFL, fcntl (STDIN_FILENO, F_GETFL, 0) & ~O_NDELAY);
 	}
 	exit (0);		// appkit isn't running
 }

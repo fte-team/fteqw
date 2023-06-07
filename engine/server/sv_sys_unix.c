@@ -291,7 +291,7 @@ void Sys_Error (const char *error, ...)
 	if (!noconinput)
 	{
 		tcsetattr(STDIN_FILENO, TCSADRAIN, &orig);
-		fcntl (STDIN_FILENO, F_SETFL, fcntl (STDIN_FILENO, F_GETFL, 0) & ~FNDELAY);
+		fcntl (STDIN_FILENO, F_SETFL, fcntl (STDIN_FILENO, F_GETFL, 0) & ~O_NDELAY);
 	}
 
 	//we used to fire sigsegv. this resulted in people reporting segfaults and not the error message that appeared above. resulting in wasted debugging.
@@ -700,9 +700,9 @@ char *Sys_ConsoleInput (void)
 #if defined(__linux__)
 	{
 		int fl = fcntl (STDIN_FILENO, F_GETFL, 0);
-		if (!(fl & FNDELAY))
+		if (!(fl & O_NDELAY))
 		{
-			fcntl(STDIN_FILENO, F_SETFL, fl | FNDELAY);
+			fcntl(STDIN_FILENO, F_SETFL, fl | O_NDELAY);
 //			Sys_Printf(CON_WARNING "stdin flags became blocking - gdb bug?\n");
 		}
 	}
@@ -996,8 +996,8 @@ static int Sys_CheckChRoot(void)
 static void SigCont(int code)
 {	//lets us know when we regained foreground focus.
 	int fl = fcntl (STDIN_FILENO, F_GETFL, 0);
-	if (!(fl & FNDELAY))
-		fcntl(STDIN_FILENO, F_SETFL, fl | FNDELAY);
+	if (!(fl & O_NDELAY))
+		fcntl(STDIN_FILENO, F_SETFL, fl | O_NDELAY);
 	noconinput &= ~2;
 }
 #endif

@@ -70,7 +70,7 @@ static qboolean AVDec_SetSize (void *vctx, int width, int height)
 	if (width == ctx->width && height == ctx->height && ctx->pScaleCtx)
 		return true;
 
-	if (av_image_alloc(rgb_data, rgb_linesize, width, height, AV_PIX_FMT_BGRA, 16) >= 0)
+	if (av_image_alloc(rgb_data, rgb_linesize, width, height, AV_PIX_FMT_BGRA, 1) >= 0)
 	{
 		//update the scale context as required
 		//clear the old stuff out

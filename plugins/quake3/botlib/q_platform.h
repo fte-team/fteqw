@@ -163,7 +163,7 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 
 //================================================================= LINUX ===
 
-#if defined(__linux__) || defined(__FreeBSD_kernel__) || defined(ANDROID) || defined(__ANDROID__)
+#if defined(__linux__) || defined(__FreeBSD_kernel__) || defined(ANDROID) || defined(__ANDROID__) || defined(__HAIKU__)
 
 #include <endian.h>
 
@@ -171,6 +171,8 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #define OS_STRING "android"
 #elif defined(__linux__)
 #define OS_STRING "linux"
+#elif defined(__HAIKU__)
+#define OS_STRING "Haiku"
 #else
 #define OS_STRING "kFreeBSD"
 #endif

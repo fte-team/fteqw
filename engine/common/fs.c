@@ -2308,7 +2308,7 @@ qboolean FS_NativePath(const char *fname, enum fs_relative relativeto, char *out
 	if (relativeto == FS_SYSTEM)
 	{
 		//system is already the native path. we can just pass it through. perhaps we should clean it up first however, although that's just making sure all \ are /
-		snprintf(out, outlen, "%s", fname);
+		Q_snprintfz(out, outlen, "%s", fname);
 
 		for (; *out; out++)
 		{
@@ -2337,36 +2337,36 @@ qboolean FS_NativePath(const char *fname, enum fs_relative relativeto, char *out
 	case FS_GAME: //this is really for diagnostic type stuff...
 		if (FS_FLocateFile(fname, FSLF_IFFOUND, &loc))
 		{
-			nlen = snprintf(out, outlen, "%s/%s", loc.search->logicalpath, fname);
+			nlen = Q_snprintfz(out, outlen, "%s/%s", loc.search->logicalpath, fname);
 			break;
 		}
 		//fallthrough
 	case FS_GAMEONLY:
 		if (com_homepathenabled)
-			nlen = snprintf(out, outlen, "%s%s/%s", com_homepath, gamedirfile, fname);
+			nlen = Q_snprintfz(out, outlen, "%s%s/%s", com_homepath, gamedirfile, fname);
 		else
-			nlen = snprintf(out, outlen, "%s%s/%s", com_gamepath, gamedirfile, fname);
+			nlen = Q_snprintfz(out, outlen, "%s%s/%s", com_gamepath, gamedirfile, fname);
 		break;
 	case FS_LIBRARYPATH:
 #ifdef FTE_LIBRARY_PATH
-		nlen = snprintf(out, outlen, STRINGIFY(FTE_LIBRARY_PATH)"/%s", fname);
+		nlen = Q_snprintfz(out, outlen, STRINGIFY(FTE_LIBRARY_PATH)"/%s", fname);
 		break;
 #else
 		return false;
 #endif
 	case FS_BINARYPATH:
 		if (host_parms.binarydir && *host_parms.binarydir)
-			nlen = snprintf(out, outlen, "%s%s", host_parms.binarydir, fname);
+			nlen = Q_snprintfz(out, outlen, "%s%s", host_parms.binarydir, fname);
 		else
-			nlen = snprintf(out, outlen, "%s%s", host_parms.basedir, fname);
+			nlen = Q_snprintfz(out, outlen, "%s%s", host_parms.basedir, fname);
 		break;
 	case FS_ROOT:
 		if (com_installer)
 			return false;
 		if (com_homepathenabled)
-			nlen = snprintf(out, outlen, "%s%s", com_homepath, fname);
+			nlen = Q_snprintfz(out, outlen, "%s%s", com_homepath, fname);
 		else
-			nlen = snprintf(out, outlen, "%s%s", com_gamepath, fname);
+			nlen = Q_snprintfz(out, outlen, "%s%s", com_gamepath, fname);
 		break;
 
 	case FS_BASEGAMEONLY:	// fte/
@@ -2383,9 +2383,9 @@ qboolean FS_NativePath(const char *fname, enum fs_relative relativeto, char *out
 		if (!last)
 			return false;	//eep?
 		if (com_homepathenabled)
-			nlen = snprintf(out, outlen, "%s%s/%s", com_homepath, last, fname);
+			nlen = Q_snprintfz(out, outlen, "%s%s/%s", com_homepath, last, fname);
 		else
-			nlen = snprintf(out, outlen, "%s%s/%s", com_gamepath, last, fname);
+			nlen = Q_snprintfz(out, outlen, "%s%s/%s", com_gamepath, last, fname);
 		break;
 	case FS_PUBGAMEONLY:	// $gamedir/ or qw/ but not fte/
 		last = NULL;
@@ -2406,9 +2406,9 @@ qboolean FS_NativePath(const char *fname, enum fs_relative relativeto, char *out
 		if (!last)
 			return false;	//eep?
 		if (com_homepathenabled)
-			nlen = snprintf(out, outlen, "%s%s/%s", com_homepath, last, fname);
+			nlen = Q_snprintfz(out, outlen, "%s%s/%s", com_homepath, last, fname);
 		else
-			nlen = snprintf(out, outlen, "%s%s/%s", com_gamepath, last, fname);
+			nlen = Q_snprintfz(out, outlen, "%s%s/%s", com_gamepath, last, fname);
 		break;
 	case FS_PUBBASEGAMEONLY:	// qw/ (fixme: should be the last non-private basedir)
 		last = NULL;
@@ -2424,9 +2424,9 @@ qboolean FS_NativePath(const char *fname, enum fs_relative relativeto, char *out
 		if (!last)
 			return false;	//eep?
 		if (com_homepathenabled)
-			nlen = snprintf(out, outlen, "%s%s/%s", com_homepath, last, fname);
+			nlen = Q_snprintfz(out, outlen, "%s%s/%s", com_homepath, last, fname);
 		else
-			nlen = snprintf(out, outlen, "%s%s/%s", com_gamepath, last, fname);
+			nlen = Q_snprintfz(out, outlen, "%s%s/%s", com_gamepath, last, fname);
 		break;
 	default:
 		Sys_Error("FS_NativePath case not handled\n");
@@ -3840,9 +3840,10 @@ qboolean FS_Restarted(unsigned int *since)
 }
 
 #ifdef __WIN32	//already assumed to be case insensitive. let the OS keep fixing up the paths itself.
-static void FS_FixupFileCase(char *out, size_t outsize, const char *basedir, const char *entry)
+static qboolean FS_FixupFileCase(char *out, size_t outsize, const char *basedir, const char *entry, qboolean isdir)
 {
 	Q_snprintfz(out, outsize, "%s%s", basedir, entry);
+	return true;
 }
 #else
 struct fixupcase_s

@@ -762,7 +762,7 @@ static void Cmd_Exec_f (void)
 			f = fs_manifest->mainconfig;
 		if (!*f)
 			f = "config";
-		snprintf(name, sizeof(name)-5, "configs/%s", f);
+		Q_snprintfz(name, sizeof(name)-5, "configs/%s", f);
 		COM_DefaultExtension(name, ".cfg", sizeof(name));
 	}
 	else
@@ -1190,7 +1190,7 @@ static void Cmd_Alias_f (void)
 	// check for overlap with a command
 	if (Cmd_Exists (s))
 	{	//commands always take precedence over aliases (so mods can't clobber 'quit' etc), so creating an alias with one of these names is stupid. always try to rename them.
-		if (Cmd_IsInsecure() && snprintf(cmd, sizeof(cmd), "%s_a", s) < sizeof(cmd))
+		if (Cmd_IsInsecure() && Q_snprintfz(cmd, sizeof(cmd), "%s_a", s) < sizeof(cmd))
 		{
 			if (Cmd_Exists (cmd))
 			{
@@ -1210,7 +1210,7 @@ static void Cmd_Alias_f (void)
 	{	//aliases take precedence over cvars (while cvars can be set via 'set'), so user's choice.
 		if (Cvar_FindVar (s))
 		{
-			if (Cmd_IsInsecure() && snprintf(cmd, sizeof(cmd), "%s_a", s) < sizeof(cmd))
+			if (Cmd_IsInsecure() && Q_snprintfz(cmd, sizeof(cmd), "%s_a", s) < sizeof(cmd))
 			{
 				Con_Printf (S_COLOR_RED"alias %s: renamed to %s due to cvar conflict\n", s, cmd);
 				s = cmd;
@@ -4147,7 +4147,7 @@ static void Cmd_WriteConfig_f(void)
 	else if (!Q_strcasecmp(Cmd_Argv(0), "saveconfig"))
 	{
 		//dpcompat: this variation allows writing to any path. at least force the extension.
-		snprintf(fname, sizeof(fname), "%s", filename);
+		Q_snprintfz(fname, sizeof(fname), "%s", filename);
 		COM_RequireExtension(fname, ".cfg", sizeof(fname));
 
 		if (Cmd_IsInsecure() && strncmp(fname, "data/", 5))
@@ -4175,7 +4175,7 @@ static void Cmd_WriteConfig_f(void)
 			Con_Printf (CON_ERROR "Couldn't write config %s\n",filename);
 			return;
 		}
-		snprintf(fname, sizeof(fname), "configs/%s", filename);
+		Q_snprintfz(fname, sizeof(fname), "configs/%s", filename);
 		COM_DefaultExtension(fname, ".cfg", sizeof(fname));
 
 		FS_NativePath(fname, FS_BASEGAMEONLY, sysname, sizeof(sysname));

@@ -207,7 +207,9 @@ void Mod_SortShaders(model_t *mod)
 
 #if defined(Q2BSPS) || defined(Q3BSPS)
 
+#ifdef IMAGEFMT_PCX
 qbyte *ReadPCXPalette(qbyte *buf, int len, qbyte *out);
+#endif
 
 #ifdef SERVERONLY
 #define Host_Error SV_Error
@@ -4118,7 +4120,8 @@ static qboolean CModRBSP_LoadLightgrid (model_t *loadmodel, qbyte *mod_base, lum
 #endif
 #endif
 
-#if !defined(SERVERONLY) && defined(Q2BSPS)
+#if !defined(SERVERONLY) && (defined(Q2BSPS) || defined(Q3BSPS))
+#ifdef IMAGEFMT_PCX
 qbyte *ReadPCXPalette(qbyte *buf, int len, qbyte *out);
 static int CM_GetQ2Palette (void)
 {
@@ -4136,6 +4139,7 @@ static int CM_GetQ2Palette (void)
 		FS_FreeFile(f);
 		return -1;
 	}
+
 	FS_FreeFile(f);
 
 
@@ -4163,6 +4167,7 @@ static int CM_GetQ2Palette (void)
 #endif
 	return 0;
 }
+#endif
 #endif
 
 #if 0
@@ -4917,7 +4922,7 @@ static cmodel_t *CM_LoadMap (model_t *mod, qbyte *filein, size_t filelen, qboole
 		}
 		BSPX_Setup(mod, mod_base, filelen, header.lumps, i);
 
-#ifdef HAVE_CLIENT
+#if defined(HAVE_CLIENT) && defined(IMAGEFMT_PCX)
 		if (CM_GetQ2Palette())
 			memcpy(q2_palette, host_basepal, 768);
 #endif

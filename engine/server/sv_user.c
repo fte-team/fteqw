@@ -6409,7 +6409,10 @@ ucmd_t ucmds[] =
 	{"sayone",		SV_SayOne_f},
 	{"say",			SV_Say_f},
 	{"say_team",	SV_Say_Team_f},
+#ifdef NQPROT
 	{"status",		SVNQ_Status_f},
+#endif
+
 #ifdef SVRANKING
 	{"topten",		Rank_ListTop10_f},
 #endif

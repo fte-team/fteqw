@@ -835,6 +835,7 @@ static void SHM_RecursiveWorldNodeQ1_r (dlight_t *dl, mnode_t *node)
 	SHM_RecursiveWorldNodeQ1_r (dl, node->children[!side]);
 }
 
+#ifdef Q1BSPS
 void CategorizePlane ( mplane_t *plane );
 static void SHM_OrthoWorldLeafsQ1 (dlight_t *dl)
 {
@@ -934,7 +935,9 @@ void Q1BSP_GenerateShadowMesh(model_t *model, dlight_t *dl, const qbyte *lightvi
 		SHM_RecursiveWorldNodeQ1_r(dl, cl.worldmodel->nodes);
 	}
 }
+#endif
 
+#ifdef Q3BSPS
 static void SHM_OrthoWorldLeafsQ3 (dlight_t *dl)
 {
 	int			c, i;
@@ -992,6 +995,7 @@ static void SHM_OrthoWorldLeafsQ3 (dlight_t *dl)
 next:;
 	}
 }
+#endif
 
 #ifdef Q2BSPS
 static void SHM_RecursiveWorldNodeQ2_r (dlight_t *dl, mnode_t *node)
@@ -1722,6 +1726,7 @@ static struct shadowmesh_s *SHM_BuildShadowMesh(dlight_t *dl, unsigned char *lvi
 	{
 		switch(cl.worldmodel->fromgame)
 		{
+#ifdef Q1BSPS
 		case fg_quake:
 		case fg_halflife:
 			if (type == SMT_ORTHO)
@@ -1732,6 +1737,7 @@ static struct shadowmesh_s *SHM_BuildShadowMesh(dlight_t *dl, unsigned char *lvi
 				SHM_RecursiveWorldNodeQ1_r(dl, cl.worldmodel->nodes);
 			}
 			break;
+#endif
 		default:
 			sh_shadowframe++;
 

@@ -1,0 +1,10 @@
+*.o
+*.o.d
+engine/debug/
+engine/release/
+engine/libs-*/
+engine/*.tar.gz
+
+# clangd artifacts
+compile_commands.json
+.cache/

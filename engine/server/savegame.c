@@ -1794,10 +1794,20 @@ static void SV_GameLoaded(loadplayer_t *lp, size_t slots, const char *savename)
 		}
 	}
 	host_client = NULL;
-	//make sure userinfos match any renamed players.
-	for (clnum = 0; clnum < slots; clnum++)
-		if (svs.clients[clnum].state >= cs_connected)
-			SV_ExtractFromUserinfo (&svs.clients[clnum], true);
+
+	for (clnum = 0; clnum < slots; clnum++) {		
+		cl = &svs.clients[clnum];
+
+		/* ensure angles are respected -eukara */
+		if (svprogfuncs) {
+			cl->edict->v->fixangle = 1;
+		}
+
+		//make sure userinfos match any renamed players.
+		if (cl->state >= cs_connected) {
+			SV_ExtractFromUserinfo(&svs.clients[clnum], true);
+		}
+	}
 }
 
 #ifndef QUAKETC

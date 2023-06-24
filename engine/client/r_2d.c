@@ -1236,7 +1236,7 @@ void R2D_Font_Changed(void)
 #endif
 	}
 
-	if (COM_FCheckExists("fonts/qfont.kfont"))
+	if (COM_FDepthFile("fonts/qfont.kfont", true) <= COM_FDepthFile("gfx/mainmenu.lmp", true))
 		font_menu = Font_LoadFont("qfont", 20, 1, r_font_postprocess_outline.ival, flags);
 	else
 		font_menu = NULL;

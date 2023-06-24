@@ -795,7 +795,7 @@ static qboolean HTTP_DL_Work(struct dl_download *dl)
 				return true;
 			}
 
-			if (stricmp(buffer, "200"))
+			if (stricmp(buffer, "200") && stricmp(buffer, "201") && stricmp(buffer, "202"))
 			{
 				nl = strchr(msg, '\n');
 				if (!nl)

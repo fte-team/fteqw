@@ -2767,7 +2767,7 @@ static void MasterInfo_ProcessHTTP(struct dl_download *dl)
 			info = Z_Malloc(sizeof(serverinfo_t));
 			info->adr = adr;
 			info->sends = 1;
-			Q_strncpyz(info->brokerid, brokerid, sizeof(info->brokerid));
+			Q_strncpyz(info->brokerid, brokerid?brokerid:"", sizeof(info->brokerid));
 
 			info->special = 0;
 			if (protocoltype == MP_QUAKEWORLD)

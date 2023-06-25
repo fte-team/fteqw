@@ -649,6 +649,32 @@ static trace_t WPhys_PushEntity (world_t *w, wedict_t *ent, vec3_t push, unsigne
 			trace.ent = w->edicts;
 		}
 	}
+#if defined(HAVE_SERVER) && defined(HEXEN2)
+	else if (ent->v->solid == SOLID_PHASEH2 && progstype == PROG_H2 && w == &sv.world && trace.fraction != 1 && trace.ent &&
+		(((int)((wedict_t*)trace.ent)->v->flags & FL_MONSTER) || (int)((wedict_t*)trace.ent)->v->movetype == MOVETYPE_WALK))
+	{	//hexen2's SOLID_PHASEH2 ents should pass through players+monsters, yet still trigger impacts. I would use MOVE_ENTCHAIN but that would corrupt .chain, perhaps that's okay though?
+
+		//continue the trace on to where we wold be if there had been no impact
+		trace_t trace2 = World_Move (w, trace.endpos, ent->v->mins, ent->v->maxs, end, traceflags|MOVE_NOMONSTERS|MOVE_MISSILE|MOVE_RESERVED/*Don't fuck up in the face of dp's MOVE_WORLDONLY*/, (wedict_t*)ent);
+
+		//do the first non-world impact
+	//	if (trace.ent)
+	//		VectorMA(trace.endpos, sv_impactpush.value, trace.plane.normal, ent->v->origin);
+	//	else
+			VectorCopy (trace.endpos, ent->v->origin);
+		World_LinkEdict (w, ent, true);
+
+		if (trace.ent)
+		{
+			WPhys_Impact (w, ent, &trace);
+			if (ent->ereftype != ER_ENTITY)
+				return trace;	//someone remove()d it. don't do weird stuff.
+		}
+
+		//and use our regular impact logic for the rest of it.
+		trace = trace2;
+	}
+#endif
 
 //	if (trace.ent)
 //		VectorMA(trace.endpos, sv_impactpush.value, trace.plane.normal, ent->v->origin);
@@ -1430,7 +1456,7 @@ static void WPhys_Physics_Toss (world_t *w, wedict_t *ent)
 		if (ent->xv->bouncefactor)
 			backoff = 1 + ent->xv->bouncefactor;
 //		else if (progstype == PROG_H2 && ent->v->solid == SOLID_PHASEH2 && ((int)((wedict_t*)trace.ent)->v->flags & (FL_MONSTER|FL_CLIENT)))
-//			backoff = 0;
+//			backoff = 0;	//don't bounce/slide, just pass straight through.
 		else
 			backoff = w->remasterlogic?1.5/*gib...*/:2;
 	}

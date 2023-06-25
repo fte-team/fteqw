@@ -1029,7 +1029,7 @@ static trace_t World_ClipMoveToEntity (world_t *w, wedict_t *ent, vec3_t eorg, v
 			trace.startsolid = false;
 		hitmodel = false;
 	}
-	else if (solid == SOLID_CORPSE)
+	else if (solid == SOLID_CORPSE && w->usesolidcorpse)
 		goto scorpse;
 	else if (ent->v->skin < 0)
 	{	//if forcedcontents is set, then ALL brushes in this model are forced to the specified contents value.
@@ -2501,7 +2501,7 @@ trace_t World_Move (world_t *w, vec3_t start, vec3_t mins, vec3_t maxs, vec3_t e
 		else
 			clip.hitcontentsmask = FTECONTENTS_SOLID|Q2CONTENTS_WINDOW | FTECONTENTS_BODY;	//slidebox passes through corpses
 	}
-	else if (passedict->v->solid == SOLID_CORPSE)
+	else if (passedict->v->solid == SOLID_CORPSE && w->usesolidcorpse)
 		clip.hitcontentsmask = FTECONTENTS_SOLID|Q2CONTENTS_WINDOW | FTECONTENTS_BODY;	//corpses ignore corpses
 	else if (passedict->v->solid == SOLID_TRIGGER||passedict->v->solid == SOLID_BSPTRIGGER)
 		clip.hitcontentsmask = FTECONTENTS_SOLID|Q2CONTENTS_WINDOW | FTECONTENTS_BODY;	//triggers ignore corpses too, apparently

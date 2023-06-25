@@ -518,6 +518,7 @@ typedef struct
 	qboolean	demohadkeyframe;	//q2 needs to wait for a packet with a key frame, supposedly.
 	qboolean	demoseeking;
 	float		demoseektime;
+	int			demotrack;
 	qboolean	timedemo;
 	char		lastdemoname[MAX_OSPATH];
 	qboolean	lastdemowassystempath;

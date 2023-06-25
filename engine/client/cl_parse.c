@@ -8405,6 +8405,10 @@ void CLNQ_ParseServerMessage (void)
 				unsigned int looptrack;
 				firsttrack = MSG_ReadByte ();
 				looptrack = MSG_ReadByte ();
+
+				if (cls.demotrack != -1)
+					firsttrack = looptrack = cls.demotrack;
+
 				Media_NumberedTrack (firsttrack, looptrack);
 			}
 			break;

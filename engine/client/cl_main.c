@@ -5135,6 +5135,7 @@ void CL_Init (void)
 	size_t seat;
 
 	cls.state = ca_disconnected;
+	cls.demotrack = -1;
 
 #ifdef SVNREVISION
 	if (strcmp(STRINGIFY(SVNREVISION), "-"))

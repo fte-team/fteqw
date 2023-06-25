@@ -965,7 +965,7 @@ static int bi_lua_precache_model(lua_State *L)
 #define bi_lua_precache_model2 bi_lua_precache_model
 static int bi_lua_precache_sound(lua_State *L)
 {
-	PF_precache_sound_Internal(&lua.progfuncs, lua_tolstring(L, 1, NULL));
+	PF_precache_sound_Internal(&lua.progfuncs, lua_tolstring(L, 1, NULL), false);
 	return 0;
 }
 #define bi_lua_precache_sound2 bi_lua_precache_sound
@@ -1000,7 +1000,7 @@ static int bi_lua_remove(lua_State *L)
 	entnum = lua_tointegerx(L, -1, NULL);
 	e = (entnum>=lua.maxedicts)?NULL:lua.edicttable[entnum];
 	if (e)
-		lua.progfuncs.EntFree(&lua.progfuncs, e);
+		lua.progfuncs.EntFree(&lua.progfuncs, e, false);
 	return 0;
 }
 static int bi_lua_setorigin(lua_State *L)
@@ -2586,14 +2586,14 @@ edict_t *Lua_CreateEdict(unsigned int num)
 	e->entnum = num;
 	return e;
 }
-static void QDECL Lua_EntRemove(pubprogfuncs_t *pf, edict_t *e)
+static void QDECL Lua_EntRemove(pubprogfuncs_t *pf, edict_t *e, qboolean instant)
 {
 	lua_State *L = lua.ctx;
 
 	if (!ED_CanFree(e))
 		return;
 	e->ereftype = ER_FREE;
-	e->freetime = sv.time;
+	e->freetime = (instant?0:sv.time); //can respawn instantly when asked.
 
 	//clear out the lua version of the entity, so that it can be garbage collected.
 	//should probably clear out its entnum field too, just in case.
@@ -2837,7 +2837,11 @@ cont:
 	return data;
 }
 
-static int QDECL Lua_LoadEnts(pubprogfuncs_t *pf, const char *mapstring, void *ctx, void (PDECL *callback) (pubprogfuncs_t *progfuncs, struct edict_s *ed, void *ctx, const char *entstart, const char *entend), pbool (PDECL *unhandledcallback)(pubprogfuncs_t *,void *,const char **))
+static int QDECL Lua_LoadEnts(pubprogfuncs_t *pf, const char *mapstring, void *ctx,
+														void (PDECL *memoryreset) (pubprogfuncs_t *progfuncs, void *ctx),
+														void (PDECL *entspawned) (pubprogfuncs_t *progfuncs, struct edict_s *ed, void *ctx, const char *entstart, const char *entend),
+														pbool(PDECL *extendedterm)(pubprogfuncs_t *progfuncs, void *ctx, const char **extline)
+												) //restore the entire progs state (or just add some more ents) (returns edicts ize)
 {
 	lua_State *L = lua.ctx;
 	struct edict_s *ed = NULL;
@@ -2847,6 +2851,50 @@ static int QDECL Lua_LoadEnts(pubprogfuncs_t *pf, const char *mapstring, void *c
 	while (1)
 	{
 		datastart = mapstring;
+
+		if (extendedterm)
+		{
+			//skip simple leading whitespace
+			while (*mapstring == ' ' || *mapstring == '\t' || *mapstring == '\r' || *mapstring == '\n')
+				mapstring++;
+			if (mapstring[0] == '/' && mapstring[1] == '*')	//we are not reading lua here, so C-style comments are the proper form (otherwise ignored by COM_Parse, giving extensibility).
+			{	//looks like we have a hidden extension.
+				mapstring+=2;
+				for(;;)
+				{
+					//skip to end of line
+					if (!*mapstring)
+						break;	//unexpected EOF
+					else if (mapstring[0] == '*' && mapstring[1] == '/')
+					{	//end of comment
+						mapstring+=2;
+						break;
+					}
+					else if (*mapstring != '\n')
+					{
+						mapstring++;
+						continue;
+					}
+					mapstring++;	//skip past the \n
+					while (*mapstring == ' ' || *mapstring == '\t')
+						mapstring++;	//skip leading indentation
+
+					if (mapstring[0] == '*' && mapstring[1] == '/')
+					{	//end of comment
+						mapstring+=2;
+						break;
+					}
+					else if (*mapstring == '/')
+						continue;	//embedded comment. ignore the line. not going to do nested comments, because those are not normally valid anyway, just C++-style inside C-style.
+					else if (extendedterm(pf, ctx, &mapstring))
+						;	//found a term we recognised
+					else
+						;	//unknown line, but this is a comment so whatever
+
+				}
+				continue;
+			}
+		}
 
 		mapstring = COM_Parse(mapstring);
 		if (!strcmp(com_token, "{"))
@@ -2869,7 +2917,7 @@ static int QDECL Lua_LoadEnts(pubprogfuncs_t *pf, const char *mapstring, void *c
 				spawnflags = lua_tointeger(L, -1);
 				lua_pop(L, 1);
 				if (spawnflags & killonspawnflags)
-					lua.progfuncs.EntFree(&lua.progfuncs, ed);
+					lua.progfuncs.EntFree(&lua.progfuncs, ed, true);
 				else
 				{
 					lua_getfield(L, -1, "classname");	//push -1["classname"]...
@@ -2888,7 +2936,7 @@ static int QDECL Lua_LoadEnts(pubprogfuncs_t *pf, const char *mapstring, void *c
 			else
 			{
 				lua_pop(L, 1);
-				callback(pf, ed, ctx, datastart, mapstring);
+				entspawned(pf, ed, ctx, datastart, mapstring);
 			}
 			lua_pop(L, 1);	//pop ent table
 		}
@@ -3137,7 +3185,7 @@ static void Lua_SetupGlobals(world_t *world)
 		lua.globflds[flds].name = "parm"#n;		\
 		lua.globflds[flds].type = ev_float;		\
 		Hash_AddInsensitive(&lua.globalfields, lua.globflds[flds].name, &lua.globflds[flds], &lua.globflds[flds].buck);	\
-		flds++;
+		flds++
 	parm( 0);parm( 1);parm( 2);parm( 3);parm( 4);parm( 5);parm( 6);parm( 7);
 	parm( 8);parm( 9);parm(10);parm(11);parm(12);parm(13);parm(14);parm(15);
 #undef parm
@@ -3270,7 +3318,7 @@ qboolean PR_LoadLua(void)
 
 	pf = svprogfuncs = &lua.progfuncs;
 
-	pf->CloseProgs = Lua_CloseProgs;
+	pf->Shutdown = Lua_CloseProgs;
 	pf->AddString = Lua_AddString;
 	pf->EdictNum = Lua_EdictNum;
 	pf->NumForEdict = Lua_NumForEdict;

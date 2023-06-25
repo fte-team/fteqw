@@ -3761,7 +3761,7 @@ static void QCBUILTIN PF_pointsound(pubprogfuncs_t *prinst, struct globalvars_s 
 }
 
 //an evil one from telejano.
-#ifndef SERVERONLY
+#if defined(HAVE_CLIENT) && !defined(NOLEGACY)
 static void QCBUILTIN PF_ss_LocalSound(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	sfx_t	*sfx;
@@ -10843,7 +10843,23 @@ static void QCBUILTIN PF_finaleFinished_qex(pubprogfuncs_t *prinst, struct globa
 	}
 }
 static void QCBUILTIN PF_localsound_qex(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
-{	//undocumented. just stub it.
+{	//localsound(player, "foo.wav") - plays the sound with no attenuation to only that specific player. to be paired with centerprints.
+	int oldmsgent = pr_global_struct->msg_entity;
+	edict_t *ent = G_EDICT(prinst, OFS_PARM0);
+	const char *sample = PR_GetStringOfs(prinst, OFS_PARM1);
+	int entnum = NUM_FOR_EDICT(prinst, ent);
+	if (entnum < 1 || entnum > sv.allocated_client_slots)
+	{
+		PR_RunWarning(sv.world.progs, "tried to localsound to a non-client\n");
+		return;
+	}
+	if (svs.clients[entnum-1].state < cs_connected)
+		return;	//bad caller!
+
+	pr_global_struct->msg_entity = G_INT(OFS_PARM0);	//required for CF_SV_UNICAST
+	SV_StartSound(NUM_FOR_EDICT(svprogfuncs, ent), ent->v->origin, vec3_origin, ent->xv->dimension_seen, CHAN_AUTO, sample, 1/*vol*/, 0/*attn*/, 1/*rate*/, 0/*ofs*/, CF_SV_UNICAST|CF_SV_RELIABLE|CF_NOREVERB|CF_NOSPACIALISE);
+	pr_global_struct->msg_entity = oldmsgent; //don't break stuff.
+
 }
 static void QCBUILTIN PF_CheckPlayerEXFlags_qex(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
@@ -11399,7 +11415,7 @@ static BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 
 //QuakeEx (aka: quake rerelease). These conflict with core extensions so we don't register them by default (Update: they now link by name rather than number.
 	{"ex_finaleFinished",PF_finaleFinished_qex,0,	0,		0,0/*79*/,	D("float()", "Behaviour is undocumented.")},
-	{"ex_localsound",	PF_localsound_qex,	0,		0,		0,0/*80*/,	D("void(entity client, string sample)", "Behaviour is undocumented.")},
+	{"ex_localsound",	PF_localsound_qex,	0,		0,		0,0/*80*/,	D("void(entity client, string sample)", "Plays a sound only to the single specified player. The sound will be full volume, unattenuated, unaffected by reverb. Suitable for menus and things that are not part of the actual game world.")},
 	{"ex_draw_point",	PF_Fixme,			0,		0,		0,0/*81*/,	D("void(vector point, float colormap, float lifetime, float depthtest)", "Behaviour is undocumented.")},
 	{"ex_draw_line",	PF_Fixme,			0,		0,		0,0/*82*/,	D("void(vector start, vector end, float colormap, float lifetime, float depthtest)", "Behaviour is undocumented.")},
 	{"ex_draw_arrow",	PF_Fixme,			0,		0,		0,0/*83*/,	D("void(vector start, vector end, float colormap, float size, float lifetime, float depthtest)", "Behaviour is undocumented.")},
@@ -11416,9 +11432,9 @@ static BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"ex_bot_followentity",PF_Fixme,		0,		0,		0,0,	D("float(entity bot, entity goal)", "Behaviour is undocumented.")},
 	{"ex_CheckPlayerEXFlags",PF_CheckPlayerEXFlags_qex,0,0,	0,0,	D("float(entity playerEnt)", "Behaviour is undocumented.")},
 	{"ex_walkpathtogoal",PF_walkpathtogoal_qex,0,	0,		0,0,	D("float(float movedist, vector goal)", "Behaviour is undocumented.")},
-	{"ex_prompt",		PF_prompt_qex,		0,		0,		0,0,	D("void(entity player, string text, float numchoices)", "Initiates a user prompt. You must call ex_promptchoice once per choice.")},
+	{"ex_prompt",		PF_prompt_qex,		0,		0,		0,0,	D("void(entity player, string text, float numchoices)", "Initiates a user prompt. You must call ex_promptchoice exactly once per choice, with no other networking between.")},
 	{"ex_promptchoice",	PF_promptchoice_qex,0,		0,		0,0,	D("void(entity player, string text, float impulse)", "Follows a call to ex_prompt.")},
-	{"ex_clearprompt",	PF_prompt_qex,		0,		0,		0,0,	D("void(entity player)", "Behaviour is undocumented.")},
+	{"ex_clearprompt",	PF_prompt_qex,		0,		0,		0,0,	D("void(entity player)", "Hides a previously sent prompt.")},
 //End QuakeEx, for now. :(
 
 // Tomaz - QuakeC String Manipulation Begin
@@ -11589,7 +11605,7 @@ static BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 
 //these are telejano's
 	{"cvar_setf",		PF_cvar_setf,		0,		0,		0,		176,	"void(string cvar, float val)"},
-	{"localsound",		PF_ss_LocalSound,	0,		0,		0,		177,	D("void(string soundname, optional float channel, optional float volume)", "Plays a sound... locally... probably best not to call this from ssqc. Also disables reverb.")},//	#177
+	{"localsound",		PF_ss_LocalSound,	0,		0,		0,		177,	D("DEP_SSQC(\"This bypasses networking by design, so do NOT call this from ssqc. Use ex_localsound or sound(...,CF_UNICAST) instead.\") void(string soundname, optional float channel, optional float volume)", "Plays a sound... locally... Also disables reverb.")},//	#177
 //end telejano
 
 //fte extras
@@ -14304,6 +14320,17 @@ void PR_DumpPlatform_f(void)
 	}
 	else
 		VFS_PRINTF(f, "#define DEP_CSQC DEP\n");
+	if (targ&(NQ|QW|H2))
+	{	//DEP_SSQC means deprecated in ssqc only, but NOT in the CSQC.
+		VFS_PRINTF(f,	"#if defined(SSQC)"
+							"\t#define DEP_SSQC DEP\n"
+						"#else\n"
+							"\t#define DEP_SSQC\n"
+						"#endif\n"
+						);
+	}
+	else
+		VFS_PRINTF(f, "#define DEP_SSQC\n");
 	VFS_PRINTF(f,	"#ifndef DEP\n"
 						"\t#define DEP __deprecated //predefine this if you want to avoid our deprecation warnings.\n"
 					"#endif\n"

@@ -3087,16 +3087,6 @@ void Sbar_Draw (playerview_t *pv)
 
 	sb_updates++;
 
-	if (cl_sbar.value == 1 || scr_viewsize.value<100)
-	{
-		if (sbar_rect.x>r_refdef.grect.x)
-		{	// left
-			R2D_TileClear (r_refdef.grect.x, r_refdef.grect.y+sbar_rect.height - sb_lines, sbar_rect.x - r_refdef.grect.x, sb_lines);
-		}
-		if (sbar_rect.x + 320 <= r_refdef.grect.x + sbar_rect.width && !headsup)
-			R2D_TileClear (sbar_rect.x + 320, r_refdef.grect.y+sbar_rect.height - sb_lines, sbar_rect.width - (320), sb_lines);
-	}
-
 #ifdef HEXEN2
 	if (sbar_hexen2)
 	{
@@ -3104,22 +3094,33 @@ void Sbar_Draw (playerview_t *pv)
 		float targlines;
 		//hexen2 hud
 
+		if (cl_sbar.value == 1 || scr_viewsize.value<100)
+			R2D_TileClear (r_refdef.grect.x, r_refdef.grect.y+sbar_rect.height - sb_lines, r_refdef.grect.width, sb_lines);
+
 		if (pv->sb_hexen2_infoplaque)
 		{
+			qboolean foundone = false;
 			int i;
-			Con_Printf("Objectives:\n");
+			char *text = Z_StrDup("Objectives:\n");
 			for (i = 0; i < 64; i++)
 			{
 				if (pv->stats[STAT_H2_OBJECTIVE1 + i/32] & (1<<(i&31)))
-					Con_Printf("%s\n", T_GetInfoString(i));
+				{
+					Z_StrCat(&text, va("%s\n", T_GetInfoString(i)));
+					foundone = true;
+				}
 			}
-			pv->sb_hexen2_infoplaque = false;
+			if (!foundone)
+				Z_StrCat(&text, va("<No Current Objectives>\n"));
+
+			R_DrawTextField(r_refdef.grect.x, r_refdef.grect.y, r_refdef.grect.width, r_refdef.grect.height, text, CON_WHITEMASK, CPRINT_BACKGROUND|CPRINT_LALIGN, font_default, NULL);
+			Z_Free(text);
 		}
 
 		if (pv->sb_hexen2_extra_info)
 			targlines = 46+98;	//extra stuff shown when hitting tab
 		else if (sb_lines > SBAR_HEIGHT)
-			targlines = 46;		//viewsize 100 stuff...
+			targlines = sb_lines;		//viewsize 100 stuff...
 		else
 			targlines = -23;	//viewsize 110/120 transparent overlay. negative covers the extra translucent details above.
 		if (targlines > pv->sb_hexen2_extra_info_lines)
@@ -3173,6 +3174,16 @@ void Sbar_Draw (playerview_t *pv)
 	}
 	else
 	{
+		if (cl_sbar.value == 1 || scr_viewsize.value<100)
+		{
+			if (sbar_rect.x>r_refdef.grect.x)
+			{	// left
+				R2D_TileClear (r_refdef.grect.x, r_refdef.grect.y+sbar_rect.height - sb_lines, sbar_rect.x - r_refdef.grect.x, sb_lines);
+			}
+			if (sbar_rect.x + 320 <= r_refdef.grect.x + sbar_rect.width && !headsup)
+				R2D_TileClear (sbar_rect.x + 320, r_refdef.grect.y+sbar_rect.height - sb_lines, sbar_rect.width - (320), sb_lines);
+		}
+
 	//standard quake(world) hud.
 	// main area
 		if (sb_lines > 0)

@@ -404,30 +404,37 @@ void M_Menu_SinglePlayer_f (void)
 
 			if (!strncmp(Cmd_Argv(1), "class", 5))
 			{
+				unsigned taken = 0;
+				int oldclass;
 				int pnum;
 				pnum = atoi(Cmd_Argv(1)+5);
-				if (!pnum)
-					pnum = 1;
+				cl_splitscreen.ival = bound(0, cl_splitscreen.ival, MAX_SPLITS-1);
+				pnum = bound(1, pnum, cl_splitscreen.ival+1);
 
 				MC_AddCenterPicture(menu, 0, 60, "gfx/menu/title2.lmp");
 
 				if (cl_splitscreen.ival)
 					MC_AddBufferedText(menu, 80, 0, (y+=8)+12, va(localtext("Player %i\n"), pnum), false, true);
 
+				for (i = 0; i < pnum-1 && i < countof(cls.userinfo); i++)
+					taken |= 1<<atoi(InfoBuf_ValueForKey(&cls.userinfo[i], "cl_playerclass"));
+				oldclass = atoi(InfoBuf_ValueForKey(&cls.userinfo[pnum-1], "cl_playerclass"));
+
 				for (i = 0; i <= 4+havemp; i++)
 				{
-					b = MC_AddConsoleCommandHexen2BigFont(menu, 80, y+=20,		classlistmp[i],
+					b = MC_AddConsoleCommandHexen2BigFont(menu, 80, y+=20,		(!i || !(taken&(1<<i)))?classlistmp[i]:(va(S_COLOR_GRAY"%s", classlistmp[i])),
 							va("p%i setinfo cl_playerclass %i; menu_single %s %s\n",
 								pnum,
 								i?i:((rand()%(4+havemp))+1),
 								((pnum+1 > cl_splitscreen.ival+1)?"skill":va("class%i",pnum+1)),
 								Cmd_Argv(2)));
-					if (!menu->selecteditem)
+					if (!menu->selecteditem || i == oldclass)
 						menu->selecteditem = (menuoption_t*)b;
 				}
 			}
 			else if (!strncmp(Cmd_Argv(1), "skill", 5))
 			{
+				extern cvar_t skill;
 				//yes, hexen2 has per-class names for the skill levels. because being weird and obtuse is kinda its forte
 				static char *skillnames[6][4] =
 				{
@@ -477,7 +484,7 @@ void M_Menu_SinglePlayer_f (void)
 				for (i = 0; i < 4; i++)
 				{
 					b = MC_AddConsoleCommandHexen2BigFont(menu, 80, y+=20,	sn[i],	va("skill %i; closemenu; disconnect; deathmatch 0; coop %i;wait;map %s\n", i, cl_splitscreen.ival>0, Cmd_Argv(2)));
-					if (!menu->selecteditem)
+					if (!menu->selecteditem || i == skill.ival)
 						menu->selecteditem = (menuoption_t*)b;
 				}
 			}
@@ -504,7 +511,7 @@ void M_Menu_SinglePlayer_f (void)
 				MC_AddCvarCombo(menu, 72, 170, y+=20, localtext("Splitscreen"), &cl_splitscreen, splitopts, splitvals);
 			}
 
-			menu->cursoritem = (menuoption_t *)MC_AddCursor(menu, &resel, 56, menu->selecteditem?menu->selecteditem->common.posy:0);
+			menu->cursoritem = (menuoption_t *)MC_AddCursor(menu, menu->selecteditem?NULL:&resel, 56, menu->selecteditem?menu->selecteditem->common.posy:0);
 
 			return;
 		}

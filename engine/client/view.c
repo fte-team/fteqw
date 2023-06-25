@@ -1376,6 +1376,9 @@ void V_ApplyRefdef (void)
 	int             h;
 	qboolean		full = false;
 #endif
+#ifdef HEXEN2
+	extern qboolean sbar_hexen2;
+#endif
 
 // force the status bar to redraw
 	Sbar_Changed ();
@@ -1409,6 +1412,11 @@ void V_ApplyRefdef (void)
 	else if (size >= 110)
 		sb_lines = 24;          // no inventory
 	else
+#ifdef HEXEN2
+		if (sbar_hexen2)
+			sb_lines = 46;	//hexen2's sbar is a smidge more crampt.
+		else
+#endif
 		sb_lines = 24+16+8;
 
 	if (scr_viewsize.value >= 100.0)

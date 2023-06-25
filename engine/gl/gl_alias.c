@@ -950,14 +950,14 @@ static shader_t *GL_ChooseSkin(galiasinfo_t *inf, model_t *model, int surfnum, e
 					scaled_height = 4;
 
 #ifdef HEXEN2
-				if (h2playertranslations && pc)
+				if (h2playertranslations && pc && pc >= 1 && pc < 6)
 				{
 					unsigned int color_offsets[5] = {2*14*256,0,1*14*256,2*14*256,2*14*256};
 					unsigned char *colorA, *colorB, *sourceA, *sourceB;
 					colorA = h2playertranslations + 256 + color_offsets[pc-1];
 					colorB = colorA + 256;
-					sourceA = colorB + (tc * 256);
-					sourceB = colorB + (bc * 256);
+					sourceA = colorB + ((tc>10)?0:(tc * 256)); //hexen2 allows only colours 0..10 inclusive.
+					sourceB = colorB + ((bc>10)?0:(bc * 256));
 					for(i=0;i<256;i++)
 					{
 						translate32[i] = d_8to24rgbtable[i];

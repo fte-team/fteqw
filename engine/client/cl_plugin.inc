@@ -536,7 +536,7 @@ static void Plug_Scene_RenderScene(plugrefdef_t *in, size_t areabytes, const qby
 static void QDECL Plug_LocalSound(const char *soundname, int channel, float volume)
 {
 	if (qrenderer != QR_NONE)
-		S_LocalSound(soundname);
+		S_LocalSound2(soundname, channel, volume);
 }
 
 

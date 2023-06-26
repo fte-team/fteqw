@@ -1032,7 +1032,7 @@ static qintptr_t CG_SystemCalls(void *offset, quintptr_t mask, qintptr_t fn, con
 
 	case CG_S_STARTLOCALSOUND:
 		if (VM_LONG(arg[0]) != -1 && arg[0])
-			audiofuncs->LocalSound(VM_FROMSTRCACHE(arg[0]), CHAN_AUTO, 1.0);
+			audiofuncs->LocalSound(VM_FROMSTRCACHE(arg[0]), VM_LONG(arg[1]), 1.0);
 		break;
 
 	case CG_S_STARTSOUND:// ( vec3_t origin, int entityNum, int entchannel, sfxHandle_t sfx )

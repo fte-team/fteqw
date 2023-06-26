@@ -2037,7 +2037,13 @@ static void GenerateTCMods(const shaderpass_t *pass, int passnum)
 
 		src = tcgen(pass, mesh->numvertexes, texcoordarray[passnum]+mesh->vbofirstvert*2, mesh);
 		//tcgen might return unmodified info
-		if (pass->numtcmods)
+		if (!src)
+		{	//don't crash... not much else we can do.
+			shaderstate.pendingtexcoordparts[passnum] = 2;
+			shaderstate.pendingtexcoordvbo[passnum] = shaderstate.sourcevbo->texcoord.gl.vbo;
+			shaderstate.pendingtexcoordpointer[passnum] = shaderstate.sourcevbo->texcoord.gl.addr;
+		}
+		else if (pass->numtcmods)
 		{
 			tcmod(&pass->tcmods[0], mesh->numvertexes, src, texcoordarray[passnum]+mesh->vbofirstvert*2, mesh);
 			for (i = 1; i < pass->numtcmods; i++)

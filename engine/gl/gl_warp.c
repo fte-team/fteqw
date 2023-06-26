@@ -400,7 +400,7 @@ qboolean R_DrawSkyChain (batch_t *batch)
 			return true;
 		}
 
-		if (forcedsky->numpasses && !forcedsky->skydome)
+		if (forcedsky->numpasses && !forcedsky->skydome && batch->mesh[0]->xyz_array)
 		{	//cubemap skies!
 			//this is just a simple pass. we use glsl/texgen for any actual work
 			batch_t b = *batch;
@@ -471,7 +471,7 @@ qboolean R_DrawSkyChain (batch_t *batch)
 	else if (batch->meshes)
 	{	//skys are weird.
 		//they're the one type of surface with implicit nodraw when there's no passes.
-		if (batch->shader->skydome || batch->shader->numpasses)
+		if ((skyboxtex&&*skyboxtex) || batch->shader->numpasses)
 			R_DrawFastSky(batch);
 		return true;	//depth will always be drawn with this pathway... or we were not drawing anything anyway...
 	}

@@ -21,7 +21,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #define	PORT_ANY	-1
 
-#if defined(NACL) || defined(FTE_TARGET_WEB)
+#if defined(FTE_TARGET_WEB)
 #define HAVE_WEBSOCKCL
 #endif
 

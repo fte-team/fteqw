@@ -4319,7 +4319,7 @@ typedef struct ftenet_tcp_stream_s {
 		//TCPC_QTV,			//included for completeness. qtv handles the sockets itself, we just parse initial handshake and then pass it over (as either a tcp or tls vfsfile_t)
 		TCPC_QIZMO,			//'qizmo\n' handshake, followed by packets prefixed with a 16bit packet length.
 #ifdef HAVE_HTTPSV
-		TCPC_WEBSOCKETU,	//utf-8 encoded data.
+		TCPC_WEBSOCKETU,	//utf-8 encoded data. //TODO(fhomolka): Check if any targets use this, remove if not
 		TCPC_WEBSOCKETB,	//binary encoded data (subprotocol = 'binary')
 		TCPC_WEBSOCKETNQ,	//raw nq msg buffers with no encapsulation or handshake
 		TCPC_HTTPCLIENT,	//we're sending a file to this victim.

@@ -1,4 +1,4 @@
-There are multiple ways to embed a program into a browser. The 'web'/emscripten port, the nacl port, the npapi port, and the activex port.
+There are multiple ways to embed a program into a browser. The 'web'/emscripten port, the npapi port, and the activex port.
 
 Quick start with browser-servers:
 (this uses webrtc, which should give low latency but is incompatible with native servers at this time.)

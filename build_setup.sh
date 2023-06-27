@@ -183,7 +183,6 @@ if [ "$REUSE_CONFIG" != "y" ]; then
 	else
 		echo "Skipping mac option."
 	fi
-	read -n 1 -p "Build for NaCL? [y/N] " BUILD_NACL && echo
 fi
 
 BUILD_CLEAN=${BUILD_CLEAN:-y}
@@ -213,9 +212,6 @@ if [ "$UID" != "0" ]; then
 	echo "export ANDROID_ZIPALIGN=\"$ANDROID_ZIPALIGN\""	>>$FTECONFIG
 	echo "EMSCRIPTENROOT=\"$EMSCRIPTENROOT\""		>>$FTECONFIG
 	echo "OSXCROSSROOT=\"$OSXCROSSROOT\""			>>$FTECONFIG
-	echo "NACLROOT=\"$NACLROOT\""				>>$FTECONFIG
-	echo "NACL_SDK_ROOT=\"$NACLROOT/nacl_sdk/$NACLSDKVERSION\""	>>$FTECONFIG
-	echo "NACLSDKVERSION=\"$NACLSDKVERSION\""		>>$FTECONFIG
 
 	echo "BUILD_CLEAN=\"$BUILD_CLEAN\""		>>$FTECONFIG
 

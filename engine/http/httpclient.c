@@ -1285,7 +1285,7 @@ qboolean DL_Decide(struct dl_download *dl)
 	}
 	return true;
 }
-#endif	/*!defined(NACL)*/
+#endif	/*!defined(FTE_TARGET_WEB)*/
 
 #ifdef MULTITHREAD
 static unsigned int dlthreads = 0;

@@ -6,8 +6,6 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "fteqcc", "..\qclib\dotnet20
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "qtvprox", "..\..\fteqtv\dotnet2005\qtvprox.vcproj", "{62669E6C-7E18-4E4D-BA54-DFBE29E7D24E}"
 EndProject
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "nacl", "..\nacl\nacl.vcproj", "{4735677B-6D5A-4BE6-A945-CB32A7282F56}"
-EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "xsv", "..\..\plugins\xsv\xsv.vcproj", "{873CCE24-3549-49D4-A4B4-653F91B1532A}"
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "berkplug", "..\..\plugins\berkelium\berkelium.vcproj", "{4877586B-E85B-4DF8-BCCE-59D31514D240}"

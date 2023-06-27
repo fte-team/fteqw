@@ -24,8 +24,6 @@
 	#define AF_UNSPEC 0
 //	#define AF_INET 1
 
-	/*NaCl engines cannot host servers. Regular FTE servers can use the same listening tcpconnect socket to host a websocket connection*/
-
 	#define AF_WEBSOCK 342
 
 	struct sockaddr_websocket

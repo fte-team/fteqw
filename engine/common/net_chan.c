@@ -278,8 +278,6 @@ void Netchan_Init (void)
 	// pick a port value that should be nice and random
 #ifdef _WIN32
 	port = (time(NULL)) & 0xffff;
-#elif defined(NACL)
-	port = ((int)(getpid()) * time(NULL)) & 0xffff;
 #else
 	port = ((int)(getpid()+getuid()*1000) * time(NULL)) & 0xffff;
 #endif

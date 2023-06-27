@@ -363,18 +363,6 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #define DLL_EXT ".so"
 #endif
 
-#ifdef NACL
-#define OS_STRING "nacl"
-#define ID_INLINE static inline
-#define PATH_SEP '/'
-
-#define ARCH_STRING "web"
-
-#define Q3_LITTLE_ENDIAN
-
-#define DLL_EXT ".so"
-#endif
-
 //================================================================== Q3VM ===
 
 #ifdef Q3_VM

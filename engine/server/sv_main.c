@@ -2860,7 +2860,7 @@ void SV_DoDirectConnect(svconnectinfo_t *fte_restrict info)
 
 	if (newcl)
 	{	//client is reprising a loaded slot.
-		if (cl->istobeloaded)
+		if (newcl->istobeloaded)
 		{
 			SV_BroadcastTPrintf(PRINT_HIGH, "%s reprises %s\n", name, newcl->name);
 			Con_DPrintf("%s:Using loadzombie\n", svs.name);

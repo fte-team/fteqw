@@ -90,7 +90,11 @@ void VidMode_Clear(void)
 }
 void VidMode_Add(int w, int h)
 {
+	extern cvar_t vid_minsize;
 	size_t m;
+
+	if (w < vid_minsize.vec4[0] || h < vid_minsize.vec4[1])
+		return;	//would be too small. ignore it.
 	for (m = 0; m < nummodes; m++)
 	{
 		if (vidmodes[m].w == w && vidmodes[m].h == h)
@@ -124,7 +128,7 @@ qboolean M_Vid_GetMode(qboolean forfullscreen, int num, int *w, int *h)
 			rf->VID_EnumerateVideoModes("", vid_devicename.string, VidMode_Add);
 
 		if (!nummodes)
-		{
+		{	//failed to query, use internal fallbacks (may be too big).
 			for (a = 0; a < countof(resaspects); a++)
 			{
 				const char **v = resaspects[a];
@@ -1067,7 +1071,7 @@ const char *presetexec[] =
 	"r_particledesc \"high tsshaft\";"
 #endif
 	"gl_specular 1;"
-//	"r_loadlit 2;"
+//	"r_loadlit 3;"
 	"r_waterstyle 2;"
 	"gl_blendsprites 1;"
 //	"r_fastsky -1;"
@@ -1372,7 +1376,7 @@ void M_Menu_Preset_f (void)
 	emenu_t *menu;
 	int y;
 	menuoption_t *presetoption[7];
-	extern cvar_t r_nolerp, sv_nqplayerphysics;
+	extern cvar_t r_nolerp, sv_nqplayerphysics, r_loadlits;
 #if defined(RTLIGHTS) && (defined(GLQUAKE) || defined(VKQUAKE))
 	extern cvar_t r_bloom, r_shadow_realtime_world_importlightentitiesfrommap;
 #endif
@@ -1381,6 +1385,16 @@ void M_Menu_Preset_f (void)
 		"Off",
 		"Auto",
 		"Force",
+		NULL
+	};
+	static const char *litopts[] = {
+		"Off",
+		"Auto",
+		NULL
+	};
+	static const char *litvals[] = {
+		"1",
+		"3",
 		NULL
 	};
 	menubulk_t bulk[] =
@@ -1401,7 +1415,8 @@ void M_Menu_Preset_f (void)
 #endif
 		MB_CONSOLECMDRETURN("^7normal    (faithful)",	"fps_preset normal\n",		"An updated but still faithful appearance, using content replacements where applicable", presetoption[4]),
 		MB_CONSOLECMDRETURN("^7nice       (dynamic)",	"fps_preset nice\n",		"For people who like nice things, but still want to actually play", presetoption[5]),
-			MB_COMBOCVAR("gen deluxemaps", r_deluxemapping_cvar, deluxeopts, NULL, NULL),
+			MB_COMBOCVAR("rgb lighting", r_loadlits, litopts, litvals, NULL),
+			MB_COMBOCVAR("deluxemaps", r_deluxemapping_cvar, deluxeopts, NULL, NULL),
 #if defined(RTLIGHTS) && (defined(GLQUAKE) || defined(VKQUAKE))
 		MB_CONSOLECMDRETURN("^7realtime    (all on)",	"fps_preset realtime\n",	"For people who value pretty over fast/smooth. Not viable for deathmatch.", presetoption[6]),
 			MB_CHECKBOXCVAR("bloom", r_bloom, 1),
@@ -1928,18 +1943,20 @@ void M_Menu_Lighting_f (void)
 		NULL
 	};
 
-	static const char *loadlitopts[] =
+	static const char *loaddeluxeopts[] =
 	{
 		"Disabled",
 		"Enabled",
 		"Generate",
 		NULL
 	};
-	static const char *loadlitvalues[] =
+
+	static const char *loadlitopts[] =
 	{
-		"0",
-		"1",
-		"2",
+		"Disabled",
+		"Enabled",
+		"Generate LDR",
+		"Generate HDR",
 		NULL
 	};
 
@@ -2074,8 +2091,8 @@ void M_Menu_Lighting_f (void)
 			MB_SPACING(4),
 #endif
 			MB_COMBOCVAR("Lightmap Format", r_lightmap_format, lightmapformatopts, lightmapformatvalues, "Selects which format to use for lightmaps."),
-			MB_COMBOCVAR("LIT Loading", r_loadlits, loadlitopts, loadlitvalues, "Determines if the engine should use external colored lighting for maps. The generated setting will cause the engine to generate colored lighting for maps that don't have the associated data."),
-			MB_COMBOCVAR("Deluxemapping", r_deluxemapping_cvar, loadlitopts, loadlitvalues, "Controls whether static lighting should respond to lighting directions."),
+			MB_COMBOCVAR("LIT Loading", r_loadlits, loadlitopts, NULL, "Determines if the engine should use external colored lighting for maps. The generated setting will cause the engine to generate colored lighting for maps that don't have the associated data."),
+			MB_COMBOCVAR("Deluxemapping", r_deluxemapping_cvar, loaddeluxeopts, NULL, "Controls whether static lighting should respond to lighting directions."),
 			MB_CHECKBOXCVAR("Lightstyle Lerp", r_lightstylesmooth, 0),
 			MB_SPACING(4),
 			MB_COMBOCVAR("Flash Blend", r_flashblend, fbopts, fbvalues, "Disables or enables the spherical light effect for dynamic lights. Traced means the sphere effect will be line of sight checked before displaying the effect."),

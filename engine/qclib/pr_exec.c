@@ -1040,16 +1040,17 @@ char *PDECL PR_EvaluateDebugString(pubprogfuncs_t *ppf, const char *key)
 				mfunction_t *func;
 				progsnum_t i;
 				progsnum_t progsnum = -1;
-				if (str[0] && str[1] == ':')
+				char *end;
+				if (!strcmp(str, "0"))
 				{
-					progsnum = atoi(str);
-					str+=2;
+					*(func_t *)val = 0;
+					break;
 				}
-				else if (str[0] && str[1] && str[2] == ':')
-				{
-					progsnum = atoi(str);
-					str+=3;
-				}
+				progsnum = strtol(str, &end, 10);
+				if (end != str && *end == ':')
+					str = end+1;	//skip past the num: prefix
+				else
+					progsnum = -1;	//wasn't a num: prefix
 
 				func = ED_FindFunction (progfuncs, str, &i, progsnum);
 				if (!func)
@@ -1058,7 +1059,7 @@ char *PDECL PR_EvaluateDebugString(pubprogfuncs_t *ppf, const char *key)
 
 					*assignment = '=';
 
-					strcpy(buf, "Can't find field ");
+					strcpy(buf, "Can't find function ");
 					l = strlen(buf);
 					if (nl > sizeof(buf)-l-2)
 						nl = sizeof(buf)-l-2;

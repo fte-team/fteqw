@@ -7883,7 +7883,9 @@ static QCC_sref_t QCC_PR_ParseFunctionCall (QCC_ref_t *funcref)	//warning, the f
 		}
 		else if (!strcmp(funcname, "spawn"))
 		{
-			QCC_sref_t result;
+			//foo_c e = spawn(foo_c, fld:val, fld:val);	//regular spawn...
+			//foo_c e = spawn(existingent, foo_c, fld:val, fld:val);	//placement-spawn...
+			QCC_sref_t result = nullsref;
 			QCC_type_t *rettype;
 			
 			/*
@@ -7896,16 +7898,25 @@ static QCC_sref_t QCC_PR_ParseFunctionCall (QCC_ref_t *funcref)	//warning, the f
 
 			if (!QCC_PR_CheckToken(")"))
 			{
-				char *nam = QCC_PR_ParseName();
-				rettype = QCC_TypeForName(nam);
+				rettype = QCC_PR_ParseType(false, true);
+				if (!rettype)
+				{
+					result = QCC_PR_Expression(TOP_PRIORITY, EXPR_DISALLOW_COMMA);
+					QCC_PR_Expect(",");
+					rettype = QCC_PR_ParseType(false, true);
+				}
+				//FIXME: C++'s Placement New syntax: obj *p= new(ptr) obj();
 				if (!rettype || rettype->type != ev_entity)
-					QCC_PR_ParseError(ERR_NOTANAME, "Spawn operator with undefined class: %s", nam);
+					QCC_PR_ParseError(ERR_NOTANAME, "Spawn operator with undefined class: %s", QCC_PR_ParseName());
 			}
 			else
 				rettype = NULL;	//default, corrected to entity later
 
-			//ret = spawn()
-			result = QCC_PR_GenerateFunctionCallRef(nullsref, func, NULL, 0);
+			if (!result.cast)
+			{
+				//ret = spawn()
+				result = QCC_PR_GenerateFunctionCallRef(nullsref, func, NULL, 0);
+			}
 
 			if (rettype)
 			{

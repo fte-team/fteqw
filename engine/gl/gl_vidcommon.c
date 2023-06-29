@@ -282,6 +282,9 @@ FTEPFNGLACTIVESTENCILFACEEXTPROC qglActiveStencilFaceEXT;
 
 
 #define GLchar char
+#if defined(_DEBUG) && !defined(DEBUG)
+#define DEBUG
+#endif
 #if defined(DEBUG)
 //always defining this, my system headers use void instead of GLvoid which results in gcc warnings.
 typedef void (APIENTRY *qGLDEBUGPROCARB)(GLenum source,

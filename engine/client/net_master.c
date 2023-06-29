@@ -2299,14 +2299,14 @@ void Master_CheckPollSockets(void)
 #ifdef HAVE_IPV6
 			if (!strncmp(s, "server6", 7))	//parse a bit more...
 			{
-				net_message.currentbit = (c+7)<<3;
+				net_message.currentbit = c+(7<<3);
 				CL_MasterListParse(NA_IPV6, SS_QUAKE2, false);
 				continue;
 			}
 #endif
 			if (!strncmp(s, "servers", 7))	//parse a bit more...
 			{
-				net_message.currentbit = (c+7)<<3;
+				net_message.currentbit = c+(7<<3);
 				CL_MasterListParse(NA_IP, SS_QUAKE2, false);
 				continue;
 			}

@@ -534,19 +534,7 @@ static void CG_StartLoopingSounds(unsigned int entnum, float *origin, float *vel
 //	loopers[i].range = range;
 //	loopers[i].volume = volume;
 }
-static void CG_MoveLoopingSound(unsigned int entnum, float *origin)
-{
-	size_t i;
-	for (i = 0; i < numloopers; i++)
-	{
-		if (loopers[i].entnum == entnum)
-			break;
-	}
 
-	if (i == numloopers)
-		return;
-	VectorCopy(origin, loopers[i].origin);
-}
 static void CG_ClearLoopingSounds(qboolean clearall)
 {
 	if (clearall)
@@ -567,6 +555,57 @@ static void CG_ClearLoopingSounds(qboolean clearall)
 	}
 }
 
+/* same principle as the looper code above */
+static struct
+{
+	unsigned int entnum;
+	vec3_t origin;
+} *entsounds;
+static size_t numentsounds;
+static size_t maxentsounds;
+
+/* called by CG_S_UPDATEENTITYPOSITION to inform us of an ent its actual position */
+static void CG_UpdateEntityPosition(unsigned int entnum, float *origin)
+{
+	size_t i;
+
+	if (entnum == ENTITYNUM_NONE)
+		return;
+
+	for (i = 0; i < numentsounds; i++)
+	{
+		if (entsounds[i].entnum == entnum)
+			break;
+	}
+
+	/* not present in list. */
+	if (i == numentsounds)
+	{
+		if (numentsounds == maxentsounds)
+			Z_ReallocElements((void**)&entsounds, & maxentsounds, maxentsounds+1, sizeof(*entsounds));
+		numentsounds++;
+
+		entsounds[i].entnum = entnum;
+	}
+
+	VectorCopy(origin, entsounds[i].origin);
+}
+
+/* returns the last updated position of an entity. */
+static float* CG_GetEntityPosition(unsigned int entnum)
+{
+	int i;
+
+	for (i = 0; i < numentsounds; i++)
+	{
+		if (entsounds[i].entnum == entnum) {
+			return entsounds[i].origin;
+		}
+	}
+
+	Con_Printf("CG_GetEntityPosition: entity num %i not known.\n", entnum);
+	return NULL;
+}
 
 
 int VM_LerpTag(float *out, model_t *model, int f1, int f2, float l2, char *tagname);
@@ -997,7 +1036,12 @@ static qintptr_t CG_SystemCalls(void *offset, quintptr_t mask, qintptr_t fn, con
 		break;
 
 	case CG_S_STARTSOUND:// ( vec3_t origin, int entityNum, int entchannel, sfxHandle_t sfx )
-		audiofuncs->StartSound(VM_LONG(arg[1])+1, VM_LONG(arg[2]), audiofuncs->PrecacheSound(VM_FROMSTRCACHE(arg[3])), VM_POINTER(arg[0]), NULL, 1, 1, 0, 0, CF_CLI_NODUPES);
+		/* if NULL gets passed for an origin, it wants us to look at those
+		   provided by CG_S_UPDATEENTITYPOSITION updates instead. */
+		if (VM_POINTER(arg[0]) == NULL)
+			audiofuncs->StartSound(VM_LONG(arg[1])+1, VM_LONG(arg[2]), audiofuncs->PrecacheSound(VM_FROMSTRCACHE(arg[3])), CG_GetEntityPosition(VM_LONG(arg[1])+1), NULL, 1, 1, 0, 0, CF_CLI_NODUPES | CF_FOLLOW);
+		else
+			audiofuncs->StartSound(VM_LONG(arg[1])+1, VM_LONG(arg[2]), audiofuncs->PrecacheSound(VM_FROMSTRCACHE(arg[3])), VM_POINTER(arg[0]), NULL, 1, 1, 0, 0, CF_CLI_NODUPES);
 		break;
 
 	case CG_S_ADDLOOPINGSOUND:
@@ -1018,7 +1062,7 @@ static qintptr_t CG_SystemCalls(void *offset, quintptr_t mask, qintptr_t fn, con
 		break;
 	case CG_S_UPDATEENTITYPOSITION://void		trap_S_UpdateEntityPosition( int entityNum, const vec3_t origin );
 		//entnum, org
-		CG_MoveLoopingSound(VM_LONG(arg[0])+1, VM_POINTER(arg[1]));
+		CG_UpdateEntityPosition(VM_LONG(arg[0])+1, VM_POINTER(arg[1]));
 		break;
 
 	case CG_S_STARTBACKGROUNDTRACK:

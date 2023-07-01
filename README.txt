@@ -23,7 +23,7 @@ Easy Build Bot System:
 If you want to set up a linux box that cross-compiles each target with your own private customisations, then you can run the build_setup.sh script to set up which targets you wish to support.
 You can then just run the build_wip.sh script any time your code changes to have it rebuild every target you previously picked.
 The script can also be run from cygwin, but does not support compiling for linux then.
-(The setup script will install android+emscripten+nacl dependancies for you, so you're likely to find this an easier way to deal with those special targets).
+(The setup script will install android+emscripten dependancies for you, so you're likely to find this an easier way to deal with those special targets).
 (note that the android sdk can be a big download, while installing emscripten may require several hours to compile clang and about 40gb of disk space if emscripten doesn't provide prebuilt stuff for your distro).
 
 
@@ -47,24 +47,6 @@ Note that the plugin will run the engine in a separate process and thus requires
 If given an 'npfte.txt' file that contains the line 'relexe foo', the plugin will try to run foo.exe instead of fteqw, basedir "foo" can be used to invoke it with a different basedir. You can use this if you'd rather run the mingl or gl-only version, or if you'd like to retarget npfte to invoke a different quake engine intead. Note that different quake engines will need to support the -plugin argument and the stdin/stdout parsing for embedding - at the time of writing, no others do.
 The following chunk of html can then be included on a web page to embed it. Yes. Two nested objects.
 <object	name="ieplug" type="text/x-quaketvident" classid="clsid:7d676c9f-fb84-40b6-b3ff-e10831557eeb" width=100% height=100% ><param name="splash" value="http://127.0.0.1:27599/qtvsplash.jpg"><param name="game" value="q1"><param name="dataDownload" value=''><object	name="npplug" type="text/x-quaketvident" width=100% height=100% ><param name="splash" value="http://127.0.0.1:27599/qtvsplash.jpg"><param name="game" value="q1"><param name="dataDownload" value=''>Plugin failed to load</object></object>
-
-Nacl version of FTE:
-make gl-rel FTE_TARGET=nacl NACL_SDK_ROOT=SOMEVALIDPATHHERE BITS=32
-make gl-rel FTE_TARGET=nacl NACL_SDK_ROOT=SOMEVALIDPATHHERE BITS=64
-in windows compile with cygwin, not minsys.
-This will give you two 'nexe' files.
-You can then embed the 'fteqw.nmf' file (its entire contents can be found on the following line) with mime type 'application/x-nacl' on your page. Give it a sane width/height.
-	{
-  "program": {
-    "x86-64": {"url": "fteqw_x86_64.nexe"},
-    "x86-32": {"url": "fteqw_x86_32.nexe"}
-  }
-}
-
-You can object.postMessage("join foo") / qtvplay / map to tell it to switch server/map/stream.
-You can read console prints via listener.addEventListener('message', handleMessage, true);
-Your users will need to explicitly allow nacl use outside of google play (in about:config or whatever it is), or you will need to submit your port of fte to google play.
-
 
 
 This stuff has separate directories

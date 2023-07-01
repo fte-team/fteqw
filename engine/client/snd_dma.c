@@ -1862,9 +1862,6 @@ sounddriver_t fte_weakstruct Droid_AudioOutput;
 #if defined(__MORPHOS__)
 sounddriver_t fte_weakstruct AHI_AudioOutput;		//prefered on morphos
 #endif
-#ifdef NACL
-extern sounddriver_t PPAPI_AudioOutput;	//nacl
-#endif
 sounddriver_t fte_weakstruct SNDIO_AudioOutput;	//bsd
 
 //in order of preference
@@ -1910,9 +1907,6 @@ static sounddriver_t *outputdrivers[] =
 #endif
 #if defined(__MORPHOS__)
 	&AHI_AudioOutput,	//prefered on morphos
-#endif
-#ifdef NACL
-	&PPAPI_AudioOutput,	//google's native client
 #endif
 	&SNDIO_AudioOutput,	//prefered on OpenBSD
 

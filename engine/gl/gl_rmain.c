@@ -1588,7 +1588,7 @@ void GLR_SetupFog (void)
 
 static void R_RenderMotionBlur(void)
 {
-#if !defined(ANDROID) && !defined(NACL)
+#if !defined(ANDROID)
 	int vwidth = 1, vheight = 1;
 	float vs, vt, cs, ct;
 	shader_t *shader;

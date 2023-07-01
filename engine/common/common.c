@@ -5422,7 +5422,7 @@ void COM_InitArgv (int argc, const char **argv)	//not allowed to tprint
 	qboolean	safe;
 	int			i;
 
-#if !defined(NACL) && !defined(FTE_TARGET_WEB)
+#if !defined(FTE_TARGET_WEB)
 	FILE *f;
 
 	if (argv && argv[0])

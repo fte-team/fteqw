@@ -31,8 +31,6 @@ TARGETS_LINUX="qcc-rel rel dbg vk-rel plugins-rel plugins-dbg"
 TARGETS_WINDOWS="sv-rel m-rel qcc-rel qccgui-scintilla qccgui-dbg m-dbg sv-dbg plugins-dbg plugins-rel"
 TARGETS_WEB="gl-rel"
 
-########### NaCL stuff
-NACL_SDK_ROOT=/opt/nacl_sdk/pepper_31/
 
 if [ -e $FTECONFIG ]; then
 	. $FTECONFIG
@@ -106,7 +104,6 @@ done
 
 MAKEARGS="$THREADS $TARGET"
 
-export NACL_SDK_ROOT
 
 ########### Emscripten / Web Stuff
 export EMSDK=$EMSCRIPTENROOT
@@ -264,13 +261,6 @@ fi
 if [ "$BUILD_SDL_WIN64" == "y" ]; then
 	build "Windows 64-bit (SDL)" win64_sdl FTE_TARGET=win64_SDL $TARGETS_SDL
 fi
-if [ "$BUILD_NACL" != "n" ]; then
-	#non-pnacl is supported ONLY in chrome's store crap, but pnacl works anywhere.
-#	build "Native Client 64-bit" nacl_amd64 FTE_TARGET=nacl NARCH=x86_64 gl-rel
-#	build "Native Client 32-bit" nacl_x86 FTE_TARGET=nacl NARCH=x86_32 gl-rel
-#internal compiler error	build "Native Client ARM" nacl_arm FTE_TARGET=nacl NARCH=arm gl-rel
-	build "Native Client Portable" nacl_portable FTE_TARGET=nacl NARCH=pnacl gl-rel
-fi
 ####build "MorphOS" morphos CFLAGS="-I$BASE/morphos/os-include/ -I$BASE/morphos/lib/ -L$BASE/morphos/lib/ -I$BASE/zlib/zlib-1.2.5 -L$BASE/zlib/zlib-1.2.5 -I./libs $WARNINGLEVEL" gl-rel mingl-rel sv-rel qcc-rel
 if [ "$BUILD_MAC" != "n" ]; then
 	#build "MacOSX" macosx_tiger CFLAGS="-I$BASE/mac/x86/include/ -L$BASE/mac/x86/lib -I./libs" FTE_TARGET=macosx_x86 sv-rel gl-rel mingl-rel qcc-rel
@@ -278,6 +268,7 @@ if [ "$BUILD_MAC" != "n" ]; then
 	build "MacOSX 32-bit" osx32 CC=o32-clang CXX=o32-clang++ FTE_TARGET=osx_x86 BITS=32 sv-rel gl-rel mingl-rel qcc-rel
 	build "MacOSX 64-bit" osx64 CC=o64-clang CXX=o64-clang++ FTE_TARGET=osx_x86_64 BITS=64 sv-rel gl-rel mingl-rel qcc-rel
 fi
+
 
 #third party stuff / misc crap
 if [ "$BUILD_WEB" != "n" ]; then
@@ -357,31 +348,6 @@ fi
 #cp $BUILDFOLDER/morphos/fteqcc $QCCBUILDFOLDER/morphos-fteqcc
 #cp $BUILDFOLDER/macosx_tiger/fteqcc $QCCBUILDFOLDER/macosx_tiger-fteqcc
 cp $BUILDFOLDER/version.txt $QCCBUILDFOLDER/version.txt
-
-if [ "$BUILD_NACL" != "n" ]; then
-	mkdir -p $BUILDFOLDER/nacl
-	NACL=$BUILDFOLDER/nacl/fteqw.nmf
-	echo "{	\"program\":{" > $NACL
-	if [ -e "$BUILDFOLDER/nacl_amd64/fteqw-x86_64.nexe" ]; then
-		mv $BUILDFOLDER/nacl_amd64/fteqw-x86_64.nexe $BUILDFOLDER/nacl/fteqw-x86_64.nexe
-		echo "	\"x86-64\":{\"url\":\"fteqw-x86_64.nexe\"}," >> $NACL
-	fi
-	if [ -e "$BUILDFOLDER/nacl_x86/fteqw-x86_32.nexe" ]; then
-		mv $BUILDFOLDER/nacl_x86/fteqw-x86_32.nexe $BUILDFOLDER/nacl/fteqw-x86_32.nexe
-		echo "	\"x86-32\":{\"url\":\"fteqw-x86_32.nexe\"}," >> $NACL
-	fi
-	if [ -e "$BUILDFOLDER/nacl_arm/fteqw-arm.nexe" ]; then
-		mv $BUILDFOLDER/nacl_arm/fteqw-arm.nexe $BUILDFOLDER/nacl/fteqw-arm.nexe
-		echo "	\"arm\":{\"url\":\"fteqw-arm.nexe\"}" >> $NACL
-	fi
-	$NACL_SDK_ROOT/toolchain/linux_pnacl/bin/pnacl-finalize -o $BUILDFOLDER/nacl/fteqw.pexe $BUILDFOLDER/nacl_portable/fteqw.pexe
-	echo "	\"portable\":{\"pnacl-translate\":{\"url\":\"fteqw.pexe\"}}" >> $NACL
-	echo "} }" >> $NACL
-	rm -rf "$BUILDFOLDER/nacl_amd64"
-	rm -rf "$BUILDFOLDER/nacl_x86"
-	rm -rf "$BUILDFOLDER/nacl_arm"
-	rm -rf "$BUILDFOLDER/nacl_portable"
-fi
 
 if [ "$BUILD_WIN32" != "n" ] && [ "$BUILD_WIN64" != "n" ]; then
 	echo Archiving output

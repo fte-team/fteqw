@@ -17,10 +17,6 @@ OSXCROSSROOT=$FTEROOT/osxcross
 #emscripten defaults
 EMSCRIPTENROOT=$FTEROOT/emsdk-portable
 
-#nacl defaults
-NACLROOT=$FTEROOT/nacl_sdk
-NACLSDKVERSION=pepper_49
-
 #android defaults
 ANDROIDROOT=$FTEROOT/android
 if [ ! -z "$(uname -o 2>&1 | grep Cygwin)" ]; then
@@ -187,7 +183,6 @@ if [ "$REUSE_CONFIG" != "y" ]; then
 	else
 		echo "Skipping mac option."
 	fi
-	read -n 1 -p "Build for NaCL? [y/N] " BUILD_NACL && echo
 fi
 
 BUILD_CLEAN=${BUILD_CLEAN:-y}
@@ -205,7 +200,6 @@ BUILD_SDL=${BUILD_SDL:-n}
 BUILD_ANDROID=${BUILD_ANDROID:-n}
 BUILD_WEB=${BUILD_WEB:-n}
 BUILD_MAC=${BUILD_MAC:-n}
-BUILD_NACL=${BUILD_NACL:-n}
 
 if [ "$UID" != "0" ]; then
 	echo "#path config for fte build scripts"		>$FTECONFIG
@@ -218,9 +212,6 @@ if [ "$UID" != "0" ]; then
 	echo "export ANDROID_ZIPALIGN=\"$ANDROID_ZIPALIGN\""	>>$FTECONFIG
 	echo "EMSCRIPTENROOT=\"$EMSCRIPTENROOT\""		>>$FTECONFIG
 	echo "OSXCROSSROOT=\"$OSXCROSSROOT\""			>>$FTECONFIG
-	echo "NACLROOT=\"$NACLROOT\""				>>$FTECONFIG
-	echo "NACL_SDK_ROOT=\"$NACLROOT/nacl_sdk/$NACLSDKVERSION\""	>>$FTECONFIG
-	echo "NACLSDKVERSION=\"$NACLSDKVERSION\""		>>$FTECONFIG
 
 	echo "BUILD_CLEAN=\"$BUILD_CLEAN\""		>>$FTECONFIG
 
@@ -238,7 +229,6 @@ if [ "$UID" != "0" ]; then
 	echo "BUILD_SDL=\"$BUILD_SDL\""				>>$FTECONFIG
 	echo "BUILD_WEB=\"$BUILD_WEB\""				>>$FTECONFIG
 	echo "BUILD_MAC=\"$BUILD_MAC\""				>>$FTECONFIG
-	echo "BUILD_NACL=\"$BUILD_NACL\""			>>$FTECONFIG
 
 	echo "TARGETS_WINDOWS=\"$TARGETS_WINDOWS\""		>>$FTECONFIG
 	echo "TARGETS_LINUX=\"$TARGETS_LINUX\""			>>$FTECONFIG
@@ -439,16 +429,6 @@ if [ "$BUILD_MAC" == "y" ] && [ $UID -ne 0 ] && [ $REBUILD_TOOLCHAINS == "y" ] &
 	cp *.tar.xz
 	SDK_VERSION=10.10 UNATTENDED=0 ./build.sh
 	cd ~
-fi
-
-if [ "$BUILD_NACL" == "y" ] && [ $UID -ne 0 ] && [ $REBUILD_TOOLCHAINS == "y" ]; then
-	echo "Setting up NaCL..."
-	mkdir -p $NACLROOT
-	cd $NACLROOT/..
-	wget -N https://storage.googleapis.com/nativeclient-mirror/nacl/nacl_sdk/nacl_sdk.zip
-	unzip -qn nacl_sdk.zip
-	cd $NACLROOT
-	./naclsdk update $NACLSDKVERSION
 fi
 
 

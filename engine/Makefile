@@ -17,8 +17,6 @@
 #linux->morphos (FTE_TARGET=morphos)
 #linux->macosx (FTE_TARGET=macosx) or (FTE_TARGET=macosx_x86)
 #linux->javascript (FTE_TARGET=web)
-#linux->nacl (FTE_TARGET=nacl NARCH=x86_64) deprecated.
-#win32->nacl
 #linux->droid (make droid)
 #win32->droid (make droid)
 #if you are cross compiling, you'll need to use FTE_TARGET=mytarget
@@ -574,7 +572,6 @@ HTTP_DIR=$(BASE_DIR)/http
 #LIBS_DIR=$(BASE_DIR)/libs
 LIBS_DIR?=.
 PROGS_DIR=$(BASE_DIR)/qclib
-NACL_DIR=$(BASE_DIR)/nacl
 
 ifeq ($(NOCOMPAT),1)
 	NCCFLAGS=-DNOLEGACY -DOMIT_QCC
@@ -717,7 +714,7 @@ ifeq ($(FTE_TARGET),SDL2)
 	BASE_CFLAGS+=-DLIBJPEG_STATIC -DLIBJPEG_STATIC -DLIBPNG_STATIC -DOPUS_STATIC -DSPEEX_STATIC -DFREETYPE_STATIC -DLIBVORBISFILE_STATIC
 endif
 
-VPATH := $(BASE_DIR) : $(CLIENT_DIR) : $(GL_DIR) : $(SW_DIR) : $(COMMON_DIR) : $(SERVER_DIR) : $(HTTP_DIR) : $(QUX_DIR) : $(PROGS_DIR) : $(NACL_DIR) : $(D3D_DIR) : $(VK_DIR) : $(BASE_DIR)/web
+VPATH := $(BASE_DIR) : $(CLIENT_DIR) : $(GL_DIR) : $(SW_DIR) : $(COMMON_DIR) : $(SERVER_DIR) : $(HTTP_DIR) : $(QUX_DIR) : $(PROGS_DIR) : $(D3D_DIR) : $(VK_DIR) : $(BASE_DIR)/web
 
 PROFILE_CFLAGS=-pg
 DX7SDK=-I./libs/dxsdk7/include/
@@ -1136,76 +1133,6 @@ endif
 
 
 #specific targets override those defaults as needed.
-#google native client
-ifeq ($(FTE_TARGET),nacl)
-	CLIENTLDDEPS=
-	SERVERLDDEPS=
-
-	NARCH ?= x86_32
-	ifeq ($(shell uname -o 2>&1 | grep Cygwin),)
-		MYOS=linux
-	else
-		MYOS=win
-	endif
-
-	CC=
-	CXX=
-	STRIP=@echo SKIP: strip
-	NACLLIBC=glibc
-	ifeq ($(NARCH),x86_32)
-		CC=$(NACL_SDK_ROOT)/toolchain/$(MYOS)_x86_$(NACLLIBC)/bin/i686-nacl-gcc -DNACL -m32
-		CXX=$(NACL_SDK_ROOT)/toolchain/$(MYOS)_x86_$(NACLLIBC)/bin/i686-nacl-g++ -DNACL -m32
-		STRIP=$(NACL_SDK_ROOT)/toolchain/$(MYOS)_x86_$(NACLLIBC)/bin/i686-nacl-strip
-		BITS=
-		NACLLIBS=$(NACLLIBC)_x86_32/Release
-	endif
-	ifeq ($(NARCH),x86_64)
-		CC=$(NACL_SDK_ROOT)/toolchain/$(MYOS)_x86_$(NACLLIBC)/bin/i686-nacl-gcc -DNACL -m64
-		CXX=$(NACL_SDK_ROOT)/toolchain/$(MYOS)_x86_$(NACLLIBC)/bin/i686-nacl-g++ -DNACL -m64
-		STRIP=$(NACL_SDK_ROOT)/toolchain/$(MYOS)_x86_$(NACLLIBC)/bin/i686-nacl-strip
-		BITS=
-		NACLLIBS=$(NACLLIBC)_x86_64/Release
-	endif
-	ifeq ($(NARCH),arm)
-		CC=$(NACL_SDK_ROOT)/toolchain/$(MYOS)_arm_$(NACLLIBC)/bin/arm-nacl-gcc -DNACL
-		CXX=$(NACL_SDK_ROOT)/toolchain/$(MYOS)_arm_$(NACLLIBC)/bin/arm-nacl-g++ -DNACL
-		STRIP=$(NACL_SDK_ROOT)/toolchain/$(MYOS)_arm_$(NACLLIBC)/bin/arm-nacl-strip
-		BITS=
-		NACLLIBS=$(NACLLIBC)_arm/Release
-	endif
-	ifeq ($(NARCH),pnacl)
-		CC=$(NACL_SDK_ROOT)/toolchain/$(MYOS)_pnacl/bin/pnacl-clang -DNACL
-		CXX=$(NACL_SDK_ROOT)/toolchain/$(MYOS)_pnacl/bin/pnacl-clang++ -DNACL
-		STRIP=$(NACL_SDK_ROOT)/toolchain/$(MYOS)_pnacl/bin/pnacl-strip
-		STRIPFLAGS=
-		BITS=
-		NACLLIBS=pnacl/Release
-	endif
-
-	BASELDFLAGS = -lm -lppapi_gles2 -lnosys -lppapi
-	IMAGELDFLAGS =
-
-	GL_CFLAGS=$(GLCFLAGS)
-	GL_CFLAGS+=-I$(realpath $(NACL_SDK_ROOT)/include)
-	BASELDFLAGS+=-L$(realpath $(NACL_SDK_ROOT)/lib/$(NACLLIBS))
-
-	GLCL_OBJS=$(GL_OBJS) $(D3DGL_OBJS) $(GLQUAKE_OBJS) sys_ppapi.o cd_null.o gl_vidppapi.o fs_ppapi.o snd_ppapi.o 
-
-	GL_LDFLAGS=$(GLLDFLAGS)
-	M_LDFLAGS=$(GLLDFLAGS)
-	
-	GLB_DIR=gl_nacl_$(NARCH)
-	MINGL_DIR=mingl_nacl_$(NARCH)
-	ifeq ($(NARCH),pnacl)
-		GL_EXE_NAME=../$(EXE_NAME).pexe
-		GLCL_EXE_NAME=../$(EXE_NAME)-cl.pexe
-		MINGL_EXE_NAME=../$(EXE_NAME)-mingl.pexe
-	else
-		GL_EXE_NAME=../$(EXE_NAME)-$(NARCH).nexe
-		GLCL_EXE_NAME=../$(EXE_NAME)-cl-$(NARCH).nexe
-		MINGL_EXE_NAME=../$(EXE_NAME)-mingl-$(NARCH).nexe
-	endif
-endif
 
 #FTE_TARGET=win32_SDL | FTE_TARGET=win64_SDL (MinGW32 + SDL | MinGW64 + SDL)
 ifeq (win_SDL,$(findstring win,$(FTE_TARGET))$(findstring _SDL,$(FTE_TARGET)))
@@ -2211,14 +2138,13 @@ help:
 	@-echo "'droid-???' (cross compiles Android package)"
 	@-echo "'web-???' (compiles javascript/emscripten page)"
 	@-echo "'npfte-???' (cross compiles QuakeTV Firefox/Netscape browser plugin)"
-	@-echo "'nacl-???' (cross compiles QuakeTV Firefox/Netscape browser plugin)"
 	@-echo ""
 	@-echo "Cross targets can be specified with FTE_TARGET=blah"
 	@-echo "linux32, linux64 specify specific x86 archs"
 	@-echo "SDL - Attempt to use sdl for the current target"
 	@-echo "win32 - Mingw compile for win32"
 	@-echo "vc - Attempts to use msvc8+ to compile. Note: uses profile guided optimisations. You must build+run the relevent profile target before a release target will compile properly. Debug doesn't care."
-	@-echo "android, npfte, nacl targets explicitly cross compile, and should generally not be given an FTE_TARGET."
+	@-echo "android, npfte, targets explicitly cross compile, and should generally not be given an FTE_TARGET."
 
 clean:
 	-rm -f -r $(RELEASE_DIR)
@@ -2265,20 +2191,6 @@ npfte-dbg:
 npfte-profile:
 	@$(MAKE) npfte-tmp TYPE=_npfte-profile OUT_DIR="$(PROFILE_DIR)/$(NPFTEB_DIR)"
 
-
-#################################################
-#nacl shortcut
-
-nacl-rel:
-	@$(MAKE) gl-rel FTE_TARGET=nacl NARCH=x86_32
-	@$(MAKE) gl-rel FTE_TARGET=nacl NARCH=x86_64
-	@$(MAKE) gl-rel FTE_TARGET=nacl NARCH=arm
-	@$(MAKE) gl-rel FTE_TARGET=nacl NARCH=pnacl
-nacl-dbg:
-	@$(MAKE) gl-dbg FTE_TARGET=nacl NARCH=x86_32
-	@$(MAKE) gl-dbg FTE_TARGET=nacl NARCH=x86_64
-	@$(MAKE) gl-dbg FTE_TARGET=nacl NARCH=arm
-	@$(MAKE) gl-dbg FTE_TARGET=nacl NARCH=pnacl
 
 #################################################
 #webgl helpers

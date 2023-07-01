@@ -1830,7 +1830,7 @@ void PDECL PR_ExecuteProgram (pubprogfuncs_t *ppf, func_t fnum)
 	{
 //		if (pr_global_struct->self)
 //			ED_Print (PROG_TO_EDICT(pr_global_struct->self));
-#if defined(__GNUC__) && !defined(FTE_TARGET_WEB) && !defined(NACL)
+#if defined(__GNUC__) && !defined(FTE_TARGET_WEB)
 		externs->Printf("PR_ExecuteProgram: NULL function from exe (address %p)\n", __builtin_return_address(0));
 #else
 		externs->Printf("PR_ExecuteProgram: NULL function from exe\n");

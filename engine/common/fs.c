@@ -6303,7 +6303,7 @@ qboolean FS_ChangeGame(ftemanifest_t *man, qboolean allowreloadconfigs, qboolean
 			confpath[i] = NULL;
 	}
 
-#if defined(NACL) || defined(FTE_TARGET_WEB) || defined(ANDROID) || defined(WINRT)
+#if defined(FTE_TARGET_WEB) || defined(ANDROID) || defined(WINRT)
 	//these targets are considered to be sandboxed already, and have their own app-based base directory which they will always use.
 	Q_strncpyz (newbasedir, host_parms.basedir, sizeof(newbasedir));
 	fixedbasedir = true;

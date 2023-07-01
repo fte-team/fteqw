@@ -52,13 +52,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 	#define HAVE_PACKET
 #endif
 
-#ifdef NACL
-	#define NO_PNG
-	#define NO_JPEG
-	#define NO_OGG
-	#define NO_ZLIB
-#endif
-
 #ifndef MULTITHREAD
 	#if !defined(_WIN32) || defined(FTE_SDL) //win32 is annoying
 		#define NO_MULTITHREAD
@@ -350,24 +343,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 	#endif
 	#define NO_OPENAL
 #endif
-#if defined(NACL)
-	//stuff is sandboxed.
-	#undef HAVE_TCP		//websockets are not true tcp
-	#undef HAVE_PACKET	//no udp support.
-
-	#undef SUPPORT_ICE
-	#undef CL_MASTER	//no sockets support
-	#undef SV_MASTER	//noone uses this anyway
-	#undef WEBSERVER		//http server
-	#undef FTPSERVER		//ftp server
-	#undef FTPCLIENT		//ftp client.
-	#undef TCPCONNECT
-	#undef IRCCONNECT
-	#define GLSLONLY	//pointless having the junk
-	#define GLESONLY	//should reduce the conditions a little
-	#undef HEADLESSQUAKE
-	#define NO_FREETYPE
-#endif
 #if (defined(_MSC_VER) && (_MSC_VER < 1500)) || defined(FTE_SDL)
 	#undef AVAIL_WASAPI	//wasapi is available in the vista sdk, while that's compatible with earlier versions, its not really expected until 2008
 #endif
@@ -505,7 +480,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 	#undef WEBSERVER		//http server
 	#undef FTPSERVER		//ftp server
 	#undef FTPCLIENT		//ftp client.
-	#if !defined(FTE_TARGET_WEB) && !defined(NACL)
+	#if !defined(FTE_TARGET_WEB)
 		#undef WEBCLIENT
 	#endif
 #endif
@@ -612,8 +587,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 		#define PLATFORM		"Web"
 		#define ARCH_CPU_POSTFIX "web"
 		#define ARCH_DL_POSTFIX ".wasm"
-	#elif defined(NACL)
-		#define PLATFORM		"Nacl"
 	#elif defined(_WIN32_WCE)
 		#define PLATFORM		"WinCE"
 		#define ARCH_DL_POSTFIX ".dll"

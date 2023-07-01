@@ -5,7 +5,7 @@
 #include <sys/stat.h>
 #endif
 
-#if !defined(NACL) && !defined(FTE_TARGET_WEB) && (!defined(_WIN32) || defined(FTE_SDL))
+#if !defined(FTE_TARGET_WEB) && (!defined(_WIN32) || defined(FTE_SDL))
 
 #ifdef WEBSVONLY
 	#define Z_Free free

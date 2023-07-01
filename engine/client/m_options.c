@@ -4375,7 +4375,7 @@ static void Mods_Draw(int x, int y, struct menucustom_s *c, struct emenu_s *m)
 		R_DrawTextField(0, y, vid.width, vid.height - y,
 					va(
 					"No games or mods known.\n"
-#if defined(FTE_TARGET_WEB) || defined(NACL)
+#if defined(FTE_TARGET_WEB)
 					"Connection issue or bad server config.\n"
 #else
 	#ifndef ANDROID

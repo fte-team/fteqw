@@ -1,7 +1,0 @@
-How to make project files for Visual Studio .net 2003?
-
-Load the Visual C++ 6.0 project file (ftequake.dsw in the /ftequake folder), say yes to Convert ftequake.dsp and gas2masm.whatever.. Hit save now..
-
-Now you must edit ftequake.vcproj, and replace every occurance of &quot; with nothing. If you don't do this, the custom build steps will fail. There now you have uptodate project files.
-
-Moodles

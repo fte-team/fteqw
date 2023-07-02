@@ -5172,7 +5172,6 @@ void PM_AddManifestPackages(ftemanifest_t *man)
 
 		p->packprefix = pack->prefix?Z_StrDup(pack->prefix):NULL;
 
-Con_Printf("Adding package %s, prefix %s\n", p->name, p->packprefix);
 		//note that this signs the hash(validated with size) with an separately trusted authority and is thus not dependant upon trusting the manifest itself...
 		//that said, we can't necessarily trust any overrides the manifest might include - those parts do not form part of the signature.
 		if (pack->crcknown && strchr(p->name, '/'))

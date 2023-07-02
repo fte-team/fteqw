@@ -1,7 +1,6 @@
 FTEMANIFEST 1
 game quake
 name "FortressOne"
-basegame id1
 gamedir fortress
 protocolname FortressOne
 

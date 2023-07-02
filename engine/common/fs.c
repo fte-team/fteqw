@@ -133,19 +133,23 @@ static const gamemode_info_t gamemode_info[] = {
 	//because we can. 'fps_preset spasm' is hopefully close enough...
 	{"-fitz",		"nq",		QUAKEPROT,				{"id1/pak0.pak","id1/quake.rc"},FITZCFG,{"id1"},									"FauxFitz",							UPDATEURL(Q1)},
 	//because we can
-	{"-tenebrae",	NULL,		QUAKEPROT,				{"tenebrae/Pak0.pak","id1/quake.rc"},TENEBRAECFG,{"id1",	"tenebrae"},			"FauxTenebrae",						UPDATEURL(Q1)},
+	{"-tenebrae",	NULL,		QUAKEPROT,			{"tenebrae/Pak0.pak","id1/quake.rc"},TENEBRAECFG,{"id1",		"tenebrae"},			"FauxTenebrae",						UPDATEURL(Q1)},
 
-	//quake's mission packs should not be favoured over the base game nor autodetected
-	//third part mods also tend to depend upon the mission packs for their huds, even if they don't use any other content.
-	//and q2 also has a rogue/pak0.pak file that we don't want to find and cause quake2 to look like dissolution of eternity
-	//so just make these require the same files as good ol' quake.
-	{"-hipnotic",	"hipnotic",	"FTE-Hipnotic",			{"id1/pak0.pak","id1/quake.rc"},QCFG,	{"id1",		"qw",	"hipnotic",	"*fte"},	"Quake: Scourge of Armagon",		UPDATEURL(Q1)},
-	{"-rogue",		"rogue",	"FTE-Rogue",			{"id1/pak0.pak","id1/quake.rc"},QCFG,	{"id1",		"qw",	"rogue",	"*fte"},	"Quake: Dissolution of Eternity",	UPDATEURL(Q1)},
+#if defined(Q2CLIENT) || defined(Q2SERVER)
+	//list quake2 before q1 missionpacks, to avoid confusion about rogue/pak0.pak
+	{"-quake2",		"q2",		"Quake2",				{"baseq2/pak0.pak"},			Q2CFG,	{"baseq2",						"*fteq2"},	"Quake II",							UPDATEURL(Q2)},
+	//mods of the above that should generally work.
+	{"-dday",		"dday",		"Quake2",				{"dday/pak0.pak"},				Q2CFG,	{"baseq2",	"dday",				"*fteq2"},	"D-Day: Normandy"},
+#endif
+
+	//quake's mission packs technically have their own protocol (thanks to stat_items). copyrights mean its best to keep them separate, too.
+	{"-hipnotic",	"hipnotic",	"FTE-Hipnotic",		{"hipnotic/pak0.pak","hipnotic/gfx.wad"},QCFG,{"id1"	"qw",	"hipnotic",	"*fte"},	"Quake: Scourge of Armagon",		UPDATEURL(Q1)},
+	{"-rogue",		"rogue",	"FTE-Rogue",			{"rogue/pak0.pak","rogue/gfx.wad"},QCFG,{"id1",		"qw",	"rogue",	"*fte"},	"Quake: Dissolution of Eternity",	UPDATEURL(Q1)},
 
 	//various quake-dependant non-standalone mods that require hacks
 	//quoth needed an extra arg just to enable hipnotic hud drawing, it doesn't actually do anything weird, but most engines have a -quoth arg, so lets have one too.
-	{"-quoth",		"quoth",	"FTE-Quake",			{"id1/pak0.pak","id1/quake.rc"},QCFG,	{"id1",		"qw",	"quoth",	"*fte"},	"Quake: Quoth",						UPDATEURL(Q1)},
-	{"-nehahra",	"nehahra",	"FTE-Quake",			{"id1/pak0.pak","id1/quake.rc"},NEHCFG,	{"id1",		"qw",	"nehahra",	"*fte"},	"Quake: Seal Of Nehahra",			UPDATEURL(Q1)},
+	{"-quoth",		"quoth",	"FTE-Quake",			{"quoth/pak0.pak"},				QCFG,	{"id1",		"qw",	"quoth",	"*fte"},	"Quake: Quoth",						UPDATEURL(Q1)},
+	{"-nehahra",	"nehahra",	"FTE-Quake",			{"nehahra/pak0.pak"},			NEHCFG,	{"id1",		"qw",	"nehahra",	"*fte"},	"Quake: Seal Of Nehahra",			UPDATEURL(Q1)},
 	//various quake-based standalone mods.
 	{"-librequake",	"librequake","LibreQuake",			{"lq1/pak0.pak","lq1/gfx.pk3","lq1/quake.rc"},QCFG,	{"lq1"},									"LibreQuake",			UPDATEURL(LQ)},
 //	{"-nexuiz",		"nexuiz",	"Nexuiz",				{"nexuiz.exe"},					NEXCFG,	{"data",						"*ftedata"},"Nexuiz"},
@@ -164,11 +168,6 @@ static const gamemode_info_t gamemode_info[] = {
 	{"-portals",	"h2mp",		"FTE-H2MP",				{"portals/hexen.rc",
 														 "portals/pak3.pak"},			HEX2CFG,{"data1",	"portals",			"*fteh2"},	"Hexen II MP",						UPDATEURL(H2)},
 	{"-hexen2",		"hexen2",	"FTE-Hexen2",			{"data1/pak0.pak"},				HEX2CFG,{"data1",						"*fteh2"},	"Hexen II",							UPDATEURL(H2)},
-#endif
-#if defined(Q2CLIENT) || defined(Q2SERVER)
-	{"-quake2",		"q2",		"Quake2",				{"baseq2/pak0.pak"},			Q2CFG,	{"baseq2",						"*fteq2"},	"Quake II",							UPDATEURL(Q2)},
-	//mods of the above that should generally work.
-	{"-dday",		"dday",		"Quake2",				{"dday/pak0.pak"},				Q2CFG,	{"baseq2",	"dday",				"*fteq2"},	"D-Day: Normandy"},
 #endif
 
 #if defined(Q3CLIENT) || defined(Q3SERVER)
@@ -729,7 +728,7 @@ static ftemanifest_t *FS_Manifest_Create(const char *syspath, const char *basedi
 	{
 		char base[MAX_QPATH];
 		COM_FileBase(syspath, base, sizeof(base));
-		if (*base && !Q_strcasecmp(base, "default"))
+		if (*base && Q_strcasecmp(base, "default"))
 			man->formalname = Z_StrDup(base);
 	}
 
@@ -1027,7 +1026,7 @@ static qboolean FS_Manifest_ParseTokens(ftemanifest_t *man)
 			man->homedirtype = MANIFEST_HOMEDIRWHENREADONLY;
 		else if (!*arg || atoi(arg))
 			man->homedirtype = MANIFEST_NOHOMEDIR;
-		else if (!atoi(arg) || !Q_strcasecmp(arg, "force"))
+		else if (!atoi(arg) || !Q_strcasecmp(arg, "force") || !Q_strcasecmp(arg, "always"))
 			man->homedirtype = MANIFEST_FORCEHOMEDIR;
 		else if (!Q_strcasecmp(arg, "never"))
 			man->homedirtype = MANIFEST_NOHOMEDIR;
@@ -4179,8 +4178,7 @@ qboolean FS_Restarted(unsigned int *since)
 #ifdef __WIN32	//already assumed to be case insensitive. let the OS keep fixing up the paths itself.
 static qboolean FS_FixupFileCase(char *out, size_t outsize, const char *basedir, const char *entry, qboolean isdir)
 {
-	Q_snprintfz(out, outsize, "%s%s", basedir, entry);
-	return true;
+	return Q_snprintfz(out, outsize, "%s%s", basedir, entry) < outsize;
 }
 #else
 struct fixupcase_s
@@ -5948,7 +5946,7 @@ qboolean FS_DirHasAPackage(char *basedir, ftemanifest_t *man)
 	return defaultret;
 }
 
-#ifdef _WIN32
+#if defined(_WIN32) || defined(NOSTDIO) || !defined(_POSIX_C_SOURCE)
 //false stops the search (and returns that value to FS_DirHasGame)
 static int QDECL FS_DirDoesHaveGame(const char *fname, qofs_t fsize, time_t modtime, void *ctx, searchpathfuncs_t *subdir)
 {
@@ -5960,7 +5958,10 @@ static int QDECL FS_DirDoesHaveGame(const char *fname, qofs_t fsize, time_t modt
 static qboolean FS_DirHasGame(const char *basedir, int gameidx)
 {
 	int j;
+#if defined(_WIN32) || defined(NOSTDIO) || !defined(_POSIX_C_SOURCE)
+#else
 	char realpath[MAX_OSPATH];
+#endif
 
 	//none listed, just assume its correct.
 	if (!gamemode_info[gameidx].auniquefile[0])
@@ -5970,7 +5971,7 @@ static qboolean FS_DirHasGame(const char *basedir, int gameidx)
 	{
 		if (!gamemode_info[gameidx].auniquefile[j])
 			continue;	//no more
-#ifdef _WIN32
+#if defined(_WIN32) || defined(NOSTDIO) || !defined(_POSIX_C_SOURCE)	//systems that lack a working 'access' function.
 		if (!Sys_EnumerateFiles(basedir, gamemode_info[gameidx].auniquefile[j], FS_DirDoesHaveGame, NULL, NULL))
 			return true;	//search was cancelled by the callback, so it actually got called.
 #else
@@ -6044,6 +6045,27 @@ static ftemanifest_t *FS_GenerateLegacyManifest(int game, const char *basedir)
 {
 	ftemanifest_t *man;
 	const char *cexec;
+
+	if (basedir)
+	{	//see if the gamedir we're aiming for already has a default.fmf file...
+		man = NULL;
+		if (!man)
+			man = FS_Manifest_ReadSystem(va("%s%s.fmf", basedir, gamemode_info[game].exename), basedir);
+#ifdef BRANDING_NAME
+		if (!man)
+			man = FS_Manifest_ReadSystem(va("%s"STRINGIFY(BRANDING_NAME)".fmf", basedir), basedir);
+#endif
+		if (!man)
+			man = FS_Manifest_ReadSystem(va("%sdefault.fmf", basedir), basedir);
+
+		if (man)
+		{
+			if (!Q_strcasecmp(man->installation, gamemode_info[game].argname+1))
+				return man;	//this seems to match what we were expecting. use its data instead of making one up.
+			else
+				FS_Manifest_Free(man);
+		}
+	}
 
 	if (gamemode_info[game].manifestfile)
 		man = FS_Manifest_ReadMem(NULL, basedir, gamemode_info[game].manifestfile);
@@ -6253,7 +6275,7 @@ void FS_BeginManifestUpdates(void)
 }
 #endif
 
-static qboolean FS_FoundManifest(void *usr, ftemanifest_t *man)
+static qboolean FS_FoundManifest(void *usr, ftemanifest_t *man, enum modsourcetype_e sourcetype)
 {
 	if (!*(ftemanifest_t**)usr)
 		*(ftemanifest_t**)usr = man;
@@ -6896,7 +6918,8 @@ typedef struct
 	qboolean anygamedir;
 	const char *basedir;
 	int found;
-	qboolean (*callback)(void *usr, ftemanifest_t *man);
+	qboolean (*callback)(void *usr, ftemanifest_t *man, enum modsourcetype_e sourcetype);
+	enum modsourcetype_e sourcetype;
 	void *usr;
 } fmfenums_t;
 static int QDECL FS_EnumeratedFMF(const char *fname, qofs_t fsize, time_t mtime, void *inf, searchpathfuncs_t *spath)
@@ -6946,7 +6969,7 @@ static int QDECL FS_EnumeratedFMF(const char *fname, qofs_t fsize, time_t mtime,
 
 	if (man)
 	{
-		if (e->callback(e->usr, man))
+		if (e->callback(e->usr, man, e->sourcetype))
 			e->found++;
 		else
 			FS_Manifest_Free(man);
@@ -6956,7 +6979,7 @@ static int QDECL FS_EnumeratedFMF(const char *fname, qofs_t fsize, time_t mtime,
 }
 
 //callback must call FS_Manifest_Free or return false.
-int FS_EnumerateKnownGames(qboolean (*callback)(void *usr, ftemanifest_t *man), void *usr)
+int FS_EnumerateKnownGames(qboolean (*callback)(void *usr, ftemanifest_t *man, enum modsourcetype_e sourcetype), void *usr)
 {
 	int i;
 	char basedir[MAX_OSPATH];
@@ -6973,7 +6996,7 @@ int FS_EnumerateKnownGames(qboolean (*callback)(void *usr, ftemanifest_t *man), 
 		man = FS_ReadDefaultManifest(com_gamepath, 0, true);
 		if (man)
 		{
-			if (e.callback(e.usr, man))
+			if (e.callback(e.usr, man, MST_DEFAULT))
 				e.found++;
 			else
 				FS_Manifest_Free(man);
@@ -6983,9 +7006,13 @@ int FS_EnumerateKnownGames(qboolean (*callback)(void *usr, ftemanifest_t *man), 
 	//okay, no manifests in the basepack, try looking in the basedir.
 	//this defaults to the working directory. perhaps try the exe's location instead?
 	e.basedir = com_gamepath;
+	e.sourcetype = MST_BASEDIR;
 	Sys_EnumerateFiles(com_gamepath, "*.fmf", FS_EnumeratedFMF, &e, NULL);
 	if (*com_homepath)
+	{
+		e.sourcetype = MST_HOMEDIR;
 		Sys_EnumerateFiles(com_homepath, "*.fmf", FS_EnumeratedFMF, &e, NULL);
+	}
 
 	if (e.anygamedir)
 	{
@@ -6995,10 +7022,13 @@ int FS_EnumerateKnownGames(qboolean (*callback)(void *usr, ftemanifest_t *man), 
 			dirs = "/etc/xdg";
 
 		e.basedir = NULL;
+		e.sourcetype = MST_SYSTEM;
 		while (dirs && *dirs)
 		{
 			dirs = COM_ParseStringSetSep(dirs, ':', basedir, sizeof(basedir));
-			Q_strncatz(basedir, "/games/*.fmf", sizeof(basedir));
+			if (*basedir)
+				FS_CleanDir(basedir, sizeof(basedir));
+			Q_strncatz(basedir, "fteqw/*.fmf", sizeof(basedir));
 			Sys_EnumerateFiles(NULL, basedir, FS_EnumeratedFMF, &e, NULL);
 		}
 #endif
@@ -7007,6 +7037,7 @@ int FS_EnumerateKnownGames(qboolean (*callback)(void *usr, ftemanifest_t *man), 
 	//-basepack is primarily an android feature, where the apk file is specified.
 	//this allows custom mods purely by customising the apk
 	e.basedir = host_parms.basedir;
+	e.sourcetype = MST_SYSTEM;
 	i = COM_CheckParm ("-basepack");
 	while (i && i < com_argc-1)
 	{
@@ -7028,11 +7059,11 @@ int FS_EnumerateKnownGames(qboolean (*callback)(void *usr, ftemanifest_t *man), 
 	{
 		Q_strncpyz(basedir, com_gamepath, sizeof(basedir));
 		if (gamemode_info[i].manifestfile ||
-			((gamemode_info[i].exename || (i>0&&gamemode_info[i].customexec&&gamemode_info[i-1].customexec&&strcmp(gamemode_info[i].customexec,gamemode_info[i-1].customexec))) && FS_DirHasGame(com_gamepath, i)) ||
+			((gamemode_info[i].exename || (i>0&&gamemode_info[i].customexec&&gamemode_info[i-1].customexec&&strcmp(gamemode_info[i].customexec,gamemode_info[i-1].customexec))) && FS_DirHasGame(basedir, i)) ||
 			(e.anygamedir&&Sys_FindGameData(NULL, gamemode_info[i].argname+1, basedir, sizeof(basedir), false)))
 		{
 			man = FS_GenerateLegacyManifest(i, basedir);
-			if (e.callback(e.usr, man))
+			if (e.callback(e.usr, man, MST_INTRINSIC))
 				e.found++;
 			else
 				FS_Manifest_Free(man);
@@ -7172,10 +7203,30 @@ void Mods_FlushModList(void)
 	modsinited = false;
 }
 
-static qboolean Mods_AddManifest(void *usr, ftemanifest_t *man)
+static qboolean Mods_AddManifest(void *usr, ftemanifest_t *man, enum modsourcetype_e sourcetype)
 {
 	int p, best = -1;
 	int i = nummods;
+
+	switch(sourcetype)
+	{
+	case MST_SYSTEM:	//part of the app's install or via some other system package that should be found upfront.
+	case MST_INTRINSIC:	//embedded into the engine (very little info)
+		//if we seem to already know about this game in the same basedir then assume its a dupe. don't care
+		//note that intrinsics are ignored entirely if someone took the time to make any other kind of fmf for that basedir.
+		for (p = 0; p < nummods; p++)
+		{
+			if (modlist[p].manifest && !strcmp(modlist[p].manifest->basedir?:"", man->basedir?:"") && !strcmp(modlist[p].manifest->mainconfig?:"", man->mainconfig?:"") && ((modlist[p].sourcetype!=MST_INTRINSIC&&sourcetype==MST_INTRINSIC) || !Q_strcasecmp(modlist[p].manifest->installation, man->installation)))
+				return false;
+		}
+		break;
+	case MST_DEFAULT:	//the default.fmf (basically MST_BASEDIR, but posh)
+	case MST_BASEDIR:	//fmf found inside the basedir we're using  (yeah, weird, you'll have to pick the base game to switch basedir first).
+	case MST_HOMEDIR:	//fmf found inside the homedir of the mod we're using (yeah, weird, you'll have to pick the base game first)
+	case MST_GAMEDIR:	//found inside a gamedir...
+	case MST_UNKNOWN:	//shouldn't really be hit.
+		break;
+	}
 
 	for (p = 0; p < countof(man->gamepath); p++)
 		if (man->gamepath[p].path)
@@ -7190,6 +7241,7 @@ static qboolean Mods_AddManifest(void *usr, ftemanifest_t *man)
 
 	modlist = BZ_Realloc(modlist, (i+1) * sizeof(*modlist));
 	modlist[i].manifest = man;
+	modlist[i].sourcetype = sourcetype;
 	modlist[i].gamedir = Z_StrDup(man->gamepath[best].path);
 	modlist[i].description = man->formalname?Z_StrDup(man->formalname):NULL;
 	nummods = i+1;
@@ -7286,7 +7338,24 @@ static int QDECL Mods_SortMod(const void *first, const void *second)
 {
 	const struct modlist_s *a = first;
 	const struct modlist_s *b = second;
-	return strcmp(a->gamedir, b->gamedir);
+	int d = 0;
+	if (a->manifest || b->manifest)
+	{
+		if (a->manifest && b->manifest)
+		{
+			if (!d)
+				d = Q_strcasecmp(a->manifest->formalname, b->manifest->formalname);
+			if (!d)
+				d = Q_strcasecmp(a->manifest->basedir, b->manifest->basedir);
+			if (!d)
+				d = strcmp(a->gamedir, b->gamedir);
+		}
+		else
+			d = a->manifest?1:-1;	//put manifest-based ones first.
+	}
+	if (!d)
+		d = strcmp(a->gamedir, b->gamedir);
+	return d;
 }
 struct modlist_s *Mods_GetMod(size_t diridx)
 {
@@ -7464,7 +7533,7 @@ static void FS_ChangeGame_f(void)
 		{
 			man = mod->manifest;
 			if (man)
-				Con_Printf("\t^[%s\\tip\\%s\\type\\fs_changegame \"%u\" //%s^] (%s)\n", man->installation, man->filename?man->filename:"", i+1, man->filename, man->basedir?man->basedir:"not installed");
+				Con_Printf("\t^[%s\\tip\\%s\n%s\\type\\fs_changegame \"%u\" //%s^] (%s)\n", mod->description?mod->description:man->formalname, man->installation, man->filename?man->filename:"<INTERNAL>", i+1, man->filename, man->basedir?man->basedir:"not installed");
 			else
 				Con_Printf("\t^[%s\\type\\gamedir \"%s\"^]\n", mod->description?mod->description:mod->gamedir, mod->gamedir);
 		}

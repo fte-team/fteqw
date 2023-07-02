@@ -17,6 +17,7 @@
 	"sdk": "org.freedesktop.Sdk",
 	"command": "fteqw",
 
+	"//": "NOTE: you will likely need to change this line for a TC, and provide your own",
 	"rename-desktop-file":"fteqw.desktop",
 	"strip":"true",
 
@@ -65,18 +66,14 @@
 			"sources": [
 				{
 					"type": "git",
-					"path": "/home/spike/quake/fteqw-code-git",
-					"//url": "https://github.com/fte-team/fteqw.git"
+					"url": "https://github.com/fte-team/fteqw.git"
 				}
 			],
 
-			"//":"Add in our manifest files for TCs.",
+			"//":"Add in our manifest file(s) for instabbable TCs.",
 			"post-install": [
-				"install -d /app/etc/xdg/fte/",
-				"install games/*.fmf /app/etc/xdg/fte/",
-
-				"install -D games/quake-demo.fmf /app/share/games/quake/default.fmf",
-				"install -D games/hexen2-demo.fmf /app/share/games/hexen2-demo/default.fmf"
+				"install -d /app/etc/xdg/fteqw/",
+				"install games/*.fmf /app/etc/xdg/fteqw/"
 			],
 			"build-options" : {
                 "no-debuginfo": true

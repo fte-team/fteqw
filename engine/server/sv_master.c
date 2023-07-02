@@ -1695,7 +1695,7 @@ static void SVM_Register(void)
 	for (u = 0; u < countof(sv_masterslave); u++)
 		Cvar_Register(&sv_masterslave[u].var, "server control variables");
 }
-static qboolean SVM_FoundManifest(void *usr, ftemanifest_t *man)
+static qboolean SVM_FoundManifest(void *usr, ftemanifest_t *man, enum modsourcetype_e sourcetype)
 {
 	svm_game_t *game;
 	const char *g;
@@ -1727,7 +1727,7 @@ static qboolean SVM_FoundManifest(void *usr, ftemanifest_t *man)
 }
 static void SVM_Begin(void)
 {	//called once filesystem etc stuff is started.
-	SVM_FoundManifest(NULL, fs_manifest);
+	SVM_FoundManifest(NULL, fs_manifest, MST_UNKNOWN);
 	FS_EnumerateKnownGames(SVM_FoundManifest, NULL);
 
 	Cvar_ForceCallback(&sv_masterport);

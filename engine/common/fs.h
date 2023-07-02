@@ -96,11 +96,23 @@ typedef struct
 } plugupdatesourcefuncs_t;
 qboolean PM_RegisterUpdateSource(void *module, plugupdatesourcefuncs_t *funcs);
 
-int FS_EnumerateKnownGames(qboolean (*callback)(void *usr, ftemanifest_t *man), void *usr);
+enum modsourcetype_e
+{
+	MST_SYSTEM,		//found via an fmf installed at system level (eg part of a flatpak app)
+	MST_DEFAULT,	//the default.fmf in the working directory
+	MST_BASEDIR,	//other fmf files in the basedir
+	MST_HOMEDIR,	//other fmf files in the homedir
+	MST_GAMEDIR,	//mod found from just looking for gamedirs.
+	MST_INTRINSIC,	//knowledge of the mod came one of the games we're hardcoded with.
+
+	MST_UNKNOWN,	//forgot where it came from...
+};
+int FS_EnumerateKnownGames(qboolean (*callback)(void *usr, ftemanifest_t *man, enum modsourcetype_e sourcetype), void *usr);
 
 struct modlist_s
 {
 	ftemanifest_t *manifest;
+	enum modsourcetype_e sourcetype;
 	char *gamedir;
 	char *description;
 };

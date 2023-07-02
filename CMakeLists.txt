@@ -845,6 +845,27 @@ SET(FTE_Q3_FILES
 	plugins/quake3/q3g_public.h
 )
 
+#For annoying compressed gltf2 files.
+SET(FTE_DEP_DRACO false CACHE BOOL "Link against libdraco.")
+IF(FTE_DEP_DRACO)
+	FIND_LIBRARY(
+		DRACO_LIBRARY
+		NAMES draco
+	)
+	IF(DRACO_LIBRARY)
+		SET(DRACO_FILES plugins/models/draco.cpp)
+		SET(DRACO_CFLAGS HAVE_DRACO)
+
+		SET(FTE_COMMON_FILES ${FTE_COMMON_FILES} ${DRACO_FILES})
+		SET(FTE_LIB_DEFINES ${FTE_LIB_DEFINES};${DRACO_CFLAGS})
+		SET(FTE_LIBS ${FTE_LIBS} ${DRACO_LIBRARY})
+		SET(FTESV_LIBS ${FTESV_LIBS} ${DRACO_LIBRARY})
+	ELSE()
+		MESSAGE(WARNING "draco library not found, needed for GLTF's KHR_draco_mesh_compression to be usable.")
+	ENDIF()
+ENDIF()
+
+
 SET(FTE_PLUG_QUAKE3 true CACHE BOOL "Compile Quake3 plugin.")
 IF(FTE_PLUG_QUAKE3)
 	IF (0)
@@ -912,7 +933,7 @@ IF(FTE_PLUG_ODE)
 			#SET (FTE_COMMON_FILES ${FTE_COMMON_FILES} engine/common/com_phys_ode.c)
 			SET(FTE_LIB_DEFINES "${FTE_LIB_DEFINES};USE_INTERNAL_ODE;ODE_STATIC")
 			SET(FTE_LIBS ${FTE_LIBS} ${LIBODE_LIBRARY})
-			SET(FTESV_LIBS ${FTE_LIBS} ${LIBODE_LIBRARY})
+			SET(FTESV_LIBS ${FTESV_LIBS} ${LIBODE_LIBRARY})
 			SET(FTE_INCLUDES ${FTE_INCLUDES} ${ODE_INCLUDE_DIRS})
 		ELSE()
 			ADD_LIBRARY(plug_ode MODULE
@@ -1009,13 +1030,14 @@ ELSE()
 		ADD_EXECUTABLE(iqmtool
 			iqm/iqm.cpp
 			plugins/models/gltf.c
+			${DRACO_FILES}
 			engine/common/json.c
 			engine/client/image.c
 			imgtool.c
 			iqm/iqm.h
 		)
-		SET_TARGET_PROPERTIES(iqmtool PROPERTIES COMPILE_DEFINITIONS "IQMTOOL;${FTE_REVISON}")
-		TARGET_LINK_LIBRARIES(iqmtool ${CMAKE_DL_LIBS})
+		SET_TARGET_PROPERTIES(iqmtool PROPERTIES COMPILE_DEFINITIONS "IQMTOOL;${DRACO_CFLAGS};${FTE_REVISON}")
+		TARGET_LINK_LIBRARIES(iqmtool ${CMAKE_DL_LIBS} ${DRACO_LIBRARY})
 		SET(INSTALLTARGS ${INSTALLTARGS} iqmtool)
 	ENDIF()
 
@@ -1362,11 +1384,12 @@ IF(FTE_PLUG_MODELS)
 		plugins/plugin.c
 		plugins/models/models.c
 		plugins/models/gltf.c
+		${DRACO_FILES}
 		engine/common/json.c
 		plugins/models/exportiqm.c
 	)
-	SET_TARGET_PROPERTIES(plug_models PROPERTIES COMPILE_DEFINITIONS "FTEPLUGIN;${FTE_LIB_DEFINES}")
-	TARGET_LINK_LIBRARIES(plug_models ${SYS_LIBS})
+	SET_TARGET_PROPERTIES(plug_models PROPERTIES COMPILE_DEFINITIONS "FTEPLUGIN;${DRACO_CFLAGS};${FTE_LIB_DEFINES}")
+	TARGET_LINK_LIBRARIES(plug_models ${SYS_LIBS} ${DRACO_LIBRARY})
 
 	EMBED_PLUGIN_META(models "Models Plugin" "Kinda redundant now that the engine has gltf2 loading.")
 ENDIF()

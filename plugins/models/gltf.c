@@ -518,6 +518,13 @@ static qboolean GLTF_GetAccessor(gltf_t *gltf, json_t *accessorid, struct gltf_a
 	offset = JSON_GetUInteger(a, "byteOffset", 0);
 	if (offset > bv.length)
 		return false;
+
+	if (JSON_FindChild(a, "sparse"))
+	{	//0-initialised, with separate index+values tables for ones that need an actual value.
+		if (gltf->warnlimit --> 0)
+			Con_Printf(CON_WARNING"%s: sparse accessors are not supported\n", gltf->mod->name);
+		return false;
+	}
 	out->length = bv.length - offset;
 	if (gltf->ver <= 1)
 		out->bytestride = JSON_GetInteger(a, "byteStride", 0);
@@ -578,7 +585,6 @@ static qboolean GLTF_GetAccessor(gltf_t *gltf, json_t *accessorid, struct gltf_a
 		out->maxs[j] = JSON_GetIndexedFloat(maxs, j, 0);
 	}
 
-//	JSON_WarnIfChild(a, "sparse");
 //	JSON_WarnIfChild(a, "name");
 	GLTF_FlagExtras(a);
 
@@ -1749,6 +1755,8 @@ static void GLTF_LoadMaterial(gltf_t *gltf, json_t *materialid, galiasskin_t *re
 			ret->frame->texnums.base     = GLTF_LoadTexture(gltf, albedo, 0);
 		if (mrt)
 			ret->frame->texnums.specular = GLTF_LoadTexture(gltf, mrt, IF_NOSRGB);
+		else	//else depend upon specularfactor
+			ret->frame->texnums.specular = modfuncs->GetTexture("$whiteimage", NULL, IF_NOMIPMAP|IF_NOPICMIP|IF_NEAREST|IF_NOGAMMA, NULL, NULL, 0, 0, TF_INVALID);
 
 		Q_snprintf(shader, sizeof(shader),
 			"{\n"
@@ -1795,13 +1803,164 @@ static void GLTF_LoadMaterial(gltf_t *gltf, json_t *materialid, galiasskin_t *re
 	Q_strlcpy(ret->name, ret->frame->shadername, sizeof(ret->name));
 }
 #endif
+
+#ifdef HAVE_DRACO
+	#define DRACO_API_ONLY
+	#include "draco.cpp"
+#endif
+typedef struct {
+	gltf_t *gltf;
+	json_t *prim;
+	json_t *primattrs;
+#ifdef HAVE_DRACO
+	json_t *dracoattrs;
+	struct ftedracofuncs_s *draco;
+#endif
+} gltf_prim_t;
+static qboolean GLTF_GetAttributeAccessor(gltf_prim_t *state, char *attributename, struct gltf_accessor *out)
+{
+	json_t *primaccessor = JSON_FindChild(state->primattrs, attributename);
+#ifdef HAVE_DRACO
+	if (state->draco && primaccessor)
+	{
+		json_t *da = JSON_FindChild(state->dracoattrs, attributename);
+		if (da)
+		{	//comes from compressed data instead.
+			//we're still meant to require some attributes match the original accessors.
+			struct ftedracoattr_s *dattr;
+			json_t *a, *mins, *maxs;
+			unsigned int j, attridx;
+			memset(out, 0, sizeof(*out));
+
+			if (!strcmp(attributename, "NORMAL") || !strcmp(attributename, "TANGENT"))
+				return false; //these come out shite. don't use.
+
+			a = GLTF_FindJSONID(state->gltf, "accessors", primaccessor, NULL);
+			if (!a)
+				return false;
+			j = JSON_GetInteger(da, NULL, -1);
+			for (attridx = 0; attridx < state->draco->num_attribs; attridx++)
+				if (state->draco->attrib[attridx].uniqueid == j)
+					break;
+			if (attridx >= state->draco->num_attribs)
+			{
+				if (state->gltf->warnlimit --> 0)
+					Con_Printf(CON_WARNING"%s: draco lacks specified uniqueid %i\n", state->gltf->mod->name, j);
+				return false;
+			}
+
+			JSON_FlagAsUsed(a, "name");
+
+			out->bytestride = 0; //
+			out->componentType = JSON_GetInteger(a, "componentType", 0);
+			out->normalized = JSON_GetInteger(a, "normalized", false);
+			out->count = JSON_GetInteger(a, "count", 0);
+			if (JSON_Equals(a, "type", "SCALAR"))
+				out->type = (1<<8) | 1;
+			else if (JSON_Equals(a, "type", "VEC2"))
+				out->type = (1<<8) | 2;
+			else if (JSON_Equals(a, "type", "VEC3"))
+				out->type = (1<<8) | 3;
+			else if (JSON_Equals(a, "type", "VEC4"))
+				out->type = (1<<8) | 4;
+			else if (JSON_Equals(a, "type", "MAT2"))
+				out->type = (2<<8) | 2;
+			else if (JSON_Equals(a, "type", "MAT3"))
+				out->type = (3<<8) | 3;
+			else if (JSON_Equals(a, "type", "MAT4"))
+				out->type = (4<<8) | 4;
+			else
+			{
+				if (state->gltf->warnlimit --> 0)
+					Con_Printf(CON_WARNING"%s: glTF2 unsupported type\n", state->gltf->mod->name);
+				out->type = 1;
+			}
+
+			if (!out->bytestride)
+			{
+				out->bytestride = (out->type & 0xff) * (out->type>>8);
+				switch(out->componentType)
+				{
+				default:
+					if (state->gltf->warnlimit --> 0)
+						Con_Printf(CON_WARNING"GLTF_GetAccessor: %s: glTF2 unsupported componentType (%i)\n", state->gltf->mod->name, out->componentType);
+				case 5120:	//BYTE
+				case 5121:	//UNSIGNED_BYTE
+					break;
+				case 5122: //SHORT
+				case 5123: //UNSIGNED_SHORT
+					out->bytestride *= 2;
+					break;
+				case 5125: //UNSIGNED_INT
+				case 5126: //FLOAT
+					out->bytestride *= 4;
+					break;
+				}
+			}
+
+
+			mins = JSON_FindChild(a, "min");
+			maxs = JSON_FindChild(a, "max");
+			for (j = 0; j < (out->type>>8)*(out->type&0xff); j++)
+			{	//'must' be set in various situations.
+				out->mins[j] = JSON_GetIndexedFloat(mins, j, 0);
+				out->maxs[j] = JSON_GetIndexedFloat(maxs, j, 0);
+			}
+
+			GLTF_FlagExtras(a);
+
+			dattr = &state->draco->attrib[attridx];
+
+			if (out->count < state->draco->num_vertexes)
+				out->count = state->draco->num_vertexes;	//hack. seems to be needed for one of our test models.
+			if (out->count != state->draco->num_vertexes ||
+				!out->normalized != !dattr->isnormalised ||
+				out->componentType != dattr->type ||
+				out->type != ((1<<8)|dattr->components) ||
+				out->bytestride != dattr->bytestride)
+			{
+				if (state->gltf->warnlimit --> 0)
+					Con_Printf(CON_WARNING"%s: %s (%i) draco/accessor mismatch\n", state->gltf->mod->name, attributename, dattr->usage);
+				memset(out, 0, sizeof(*out));	//abort! abort!
+				return false;
+			}
+
+			out->data = dattr->ptr;
+			out->length = out->bytestride*out->count;
+			return true;
+		}
+	}
+#endif
+	return GLTF_GetAccessor(state->gltf, primaccessor, out);
+}
+static void GLTF_GetIndiciesAccessor(gltf_prim_t *state, struct gltf_accessor *out)
+{
+#ifdef HAVE_DRACO
+	if (state->draco)
+	{
+		memset(out->mins, 0, sizeof(out->mins));
+		memset(out->maxs, 0, sizeof(out->maxs));
+		out->componentType = 5125;	//unsigned int
+		out->normalized = false;
+		out->type = (1<<8) | 1; //'scaler'
+		out->bytestride = sizeof(*state->draco->ptr_indexes);
+
+		out->count = state->draco->num_indexes;
+		out->data = state->draco->ptr_indexes;
+		out->length = out->bytestride*out->count;
+		return;
+	}
+#endif
+	GLTF_GetAccessor(state->gltf, JSON_FindChild(state->prim, "indices"), out);
+}
+
 static const float *QDECL GLTF_AnimateMorphs(const galiasinfo_t *surf, const framestate_t *framestate);
 static qboolean GLTF_ProcessMesh(gltf_t *gltf, json_t *meshid, int basebone, double skinmatrix[])
 {
 	model_t *mod = gltf->mod;
 	quintptr_t meshidx;
 	json_t *mesh = GLTF_FindJSONID(gltf, "meshes", meshid, &meshidx);
-	json_t *prim;
+	json_t *primnode;
 	json_t *meshname = JSON_FindChild(mesh, "name");
 	json_t *target = NULL;
 	float	morphweights[MAX_MORPHWEIGHTS];
@@ -1813,26 +1972,66 @@ static qboolean GLTF_ProcessMesh(gltf_t *gltf, json_t *meshid, int basebone, dou
 	morphtargets = ~0;
 	GLTF_FlagExtras(mesh);
 
-	for(prim = JSON_FindIndexedChild(mesh, "primitives", 0); prim; prim = prim->sibling)
+	for(primnode = JSON_FindIndexedChild(mesh, "primitives", 0); primnode; primnode = primnode->sibling)
 	{
-		int mode  = JSON_GetInteger(prim, "mode", 4);
-		json_t *attr = JSON_FindChild(prim, "attributes");
+		int mode  = JSON_GetInteger(primnode, "mode", 4);
+		json_t *attr = JSON_FindChild(primnode, "attributes");
 		struct gltf_accessor tc_0, tc_1, norm, tang, vpos, col0, idx, sidx, swgt;
 		struct gltf_accessor morph_vpos[MAX_MORPHWEIGHTS], morph_norm[MAX_MORPHWEIGHTS], morph_tang[MAX_MORPHWEIGHTS];
 		galiasinfo_t *surf;
 		size_t i, j;
+		index_t maxvert;
 
-		prim->used = true;
+		gltf_prim_t prim = {gltf, primnode, attr};
 
-		if (mode != 4)
+#ifdef HAVE_DRACO
+ #define PRIMCLEANUP() do{if (prim.draco) prim.draco->Release(prim.draco);}while(0)		//frees memory allocations from inside this loop
+		json_t *draconode = JSON_FindChild(primnode, "extensions.KHR_draco_mesh_compression");
+		if (draconode)
+		{	//decompress the ext.bufferview and replace matching primative.attributes[n] with any listed ext.attributes[n] entries, and the indicies
+			//accessor's componentType, type, count should match that from draco.
+			struct gltf_bufferview bv;
+			if (!GLTF_GetBufferViewData(gltf, JSON_FindChild(draconode, "bufferView"), &bv))
+			{
+				if (gltf->warnlimit --> 0)
+					Con_Printf(CON_WARNING "%s: KHR_draco_mesh_compression without bufferview\n", gltf->mod->name);
+				continue;
+			}
+			prim.draco = Draco_Decode(bv.data, bv.length);
+			if (!prim.draco)
+			{
+				if (gltf->warnlimit --> 0)
+					Con_Printf(CON_WARNING "%s: KHR_draco_mesh_compression decompression failure\n", gltf->mod->name);	//in case a model tries supplying more. we ought to renormalise the weights in this case.
+				continue;
+			}
+			prim.dracoattrs = JSON_FindChild(draconode, "attributes");
+		}
+#else
+ #define PRIMCLEANUP() do{}while(0)
+#endif
+
+		primnode->used = true;
+
+		switch(mode)
 		{
-			Con_Printf("Primitive mode %i not supported\n", mode);
+		case 4:
+			break;
+		case 0: //points
+		case 1: //lines
+		case 2: //line loop
+		case 3: //line strip
+		case 5: //triangle strip -- FIXME: probably relevant (with degenerates)
+		case 6: //triangle fan
+		default:
+			if (gltf->warnlimit --> 0)
+				Con_Printf("Primitive mode %i not supported\n", mode);
+			PRIMCLEANUP();
 			continue;
 		}
 
 		for (i = 0; ; i++)
 		{
-			target = JSON_FindIndexedChild(prim, "targets", i);
+			target = JSON_FindIndexedChild(primnode, "targets", i);
 			if (!target)
 				break;
 			GLTF_GetAccessor(gltf, JSON_FindChild(target, "POSITION"), &morph_vpos[i]);
@@ -1853,42 +2052,44 @@ static qboolean GLTF_ProcessMesh(gltf_t *gltf, json_t *meshid, int basebone, dou
 			}
 		}
 
-		GLTF_FlagExtras(prim);
+		GLTF_FlagExtras(primnode);
 
-		GLTF_GetAccessor(gltf, JSON_FindChild(attr, "TEXCOORD_0"),	&tc_0);	//float, ubyte, ushort
-		GLTF_GetAccessor(gltf, JSON_FindChild(attr, "TEXCOORD_1"),	&tc_1);	//float, ubyte, ushort
-		GLTF_GetAccessor(gltf, JSON_FindChild(attr, "NORMAL"),		&norm);	//float
-		GLTF_GetAccessor(gltf, JSON_FindChild(attr, "TANGENT"),		&tang);	//float
-		GLTF_GetAccessor(gltf, JSON_FindChild(attr, "POSITION"),	&vpos);	//float
-		GLTF_GetAccessor(gltf, JSON_FindChild(attr, "COLOR_0"),		&col0);	//float, ubyte, ushort
-		GLTF_GetAccessor(gltf, JSON_FindChild(prim, "indices"),		&idx);
+		GLTF_GetAttributeAccessor(&prim, "POSITION",		&vpos);	//float
+		if (!vpos.count)
+		{
+			PRIMCLEANUP();
+			continue;
+		}
+		GLTF_GetAttributeAccessor(&prim, "TEXCOORD_0",		&tc_0);	//float, ubyte, ushort
+		GLTF_GetAttributeAccessor(&prim, "TEXCOORD_1",		&tc_1);	//float, ubyte, ushort
+		GLTF_GetAttributeAccessor(&prim, "NORMAL",			&norm);	//float
+		GLTF_GetAttributeAccessor(&prim, "TANGENT",		&tang);	//float
+		GLTF_GetAttributeAccessor(&prim, "COLOR_0",		&col0);	//float, ubyte, ushort
+		GLTF_GetIndiciesAccessor(&prim, &idx);
 		if (gltf->ver <= 1)
 		{
-			GLTF_GetAccessor(gltf, JSON_FindChild(attr, "JOINT"),	&sidx);	//ubyte, ushort
-			GLTF_GetAccessor(gltf, JSON_FindChild(attr, "WEIGHT"),	&swgt);	//float, ubyte, ushort
+			GLTF_GetAttributeAccessor(&prim, "JOINT",	&sidx);	//ubyte, ushort
+			GLTF_GetAttributeAccessor(&prim, "WEIGHT",	&swgt);	//float, ubyte, ushort
 		}
 		else
 		{	//potentially multiple, each a vec4.
-			GLTF_GetAccessor(gltf, JSON_FindChild(attr, "JOINTS_0"),	&sidx);	//ubyte, ushort
-			GLTF_GetAccessor(gltf, JSON_FindChild(attr, "WEIGHTS_0"),	&swgt);	//float, ubyte, ushort
+			GLTF_GetAttributeAccessor(&prim, "JOINTS_0",	&sidx);	//ubyte, ushort
+			GLTF_GetAttributeAccessor(&prim, "WEIGHTS_0",	&swgt);	//float, ubyte, ushort
 		}
 
 		if (JSON_GetInteger(attr, "JOINTS_1",	-1) != -1 || JSON_GetInteger(attr, "WEIGHTS_1",	-1) != -1)
 			if (gltf->warnlimit --> 0)
 				Con_Printf(CON_WARNING "%s: only 4 bones supported per vert\n", gltf->mod->name);	//in case a model tries supplying more. we ought to renormalise the weights in this case.
 
-		if (!vpos.count)
-			continue;
-
 		surf = plugfuncs->GMalloc(&mod->memgroup, sizeof(*surf) + (morphtargets*sizeof(float)));
 
-		surf->surfaceid = JSON_GetInteger(prim, "extras.fte.surfaceid", meshidx);
-		surf->contents = JSON_GetInteger(prim, "extras.fte.contents", FTECONTENTS_BODY);
-		surf->csurface.flags = JSON_GetInteger(prim, "extras.fte.surfaceflags", 0);
-		surf->geomset = JSON_GetInteger(prim, "extras.fte.geomset", ~0u);
-		surf->geomid = JSON_GetInteger(prim, "extras.fte.geomid", 0);
-		surf->mindist = JSON_GetInteger(prim, "extras.fte.mindist", 0);
-		surf->maxdist = JSON_GetInteger(prim, "extras.fte.maxdist", 0);
+		surf->surfaceid = JSON_GetInteger(primnode, "extras.fte.surfaceid", meshidx);
+		surf->contents = JSON_GetInteger(primnode, "extras.fte.contents", FTECONTENTS_BODY);
+		surf->csurface.flags = JSON_GetInteger(primnode, "extras.fte.surfaceflags", 0);
+		surf->geomset = JSON_GetInteger(primnode, "extras.fte.geomset", ~0u);
+		surf->geomid = JSON_GetInteger(primnode, "extras.fte.geomid", 0);
+		surf->mindist = JSON_GetInteger(primnode, "extras.fte.mindist", 0);
+		surf->maxdist = JSON_GetInteger(primnode, "extras.fte.maxdist", 0);
 
 		surf->shares_bones = gltf->numsurfaces;
 		surf->shares_verts = gltf->numsurfaces;
@@ -1910,12 +2111,15 @@ static qboolean GLTF_ProcessMesh(gltf_t *gltf, json_t *meshid, int basebone, dou
 					surf->ofs_indexes[i] = *(unsigned char *)((char*)idx.data + i*idx.bytestride);
 			}
 			else if (idx.componentType == 5125)
-			{	//unsigned ints
+			{	//unsigned ints. -- FIXME: catch overflows.
 				for (i = 0; i < idx.count; i++)
 					surf->ofs_indexes[i] = *(unsigned int *)((char*)idx.data + i*idx.bytestride);	//FIXME: bounds check.
 			}
 			else
+			{
+				PRIMCLEANUP();
 				continue;
+			}
 		}
 		else
 		{
@@ -1931,6 +2135,16 @@ static qboolean GLTF_ProcessMesh(gltf_t *gltf, json_t *meshid, int basebone, dou
 			index_t t = surf->ofs_indexes[i+0];
 			surf->ofs_indexes[i+0] = surf->ofs_indexes[i+2];
 			surf->ofs_indexes[i+2] = t;
+		}
+
+		for (maxvert = 0, i = 0; i < idx.count; i++)
+			if (maxvert < surf->ofs_indexes[i])
+				maxvert = surf->ofs_indexes[i];
+		if (maxvert >= surf->numverts)
+		{
+			Con_Printf(CON_WARNING "%s: %s Index list exceeds vertex count range\n", gltf->mod->name, surf->surfacename);	//in case a model tries supplying more. we ought to renormalise the weights in this case.
+			PRIMCLEANUP();
+			continue;
 		}
 
 		surf->AnimateMorphs = GLTF_AnimateMorphs;
@@ -2020,11 +2234,11 @@ static qboolean GLTF_ProcessMesh(gltf_t *gltf, json_t *meshid, int basebone, dou
 			json_t *mapping, *var;
 			surf->numskins = 1+gltf->variations;
 			surf->ofsskins = plugfuncs->GMalloc(&gltf->mod->memgroup, sizeof(*surf->ofsskins)*surf->numskins);
-			GLTF_LoadMaterial(gltf, JSON_FindChild(prim, "material"), surf->ofsskins, surf->ofs_rgbaub||surf->ofs_rgbaf);
+			GLTF_LoadMaterial(gltf, JSON_FindChild(primnode, "material"), surf->ofsskins, surf->ofs_rgbaub||surf->ofs_rgbaf);
 			for (i = 0; i < gltf->variations; i++)
 				surf->ofsskins[1+i] = surf->ofsskins[0];	//unspecified matches defaults...
 
-			for (mapping=JSON_FindIndexedChild(prim, "extensions.KHR_materials_variants.mappings", 0); mapping; mapping = mapping->sibling)
+			for (mapping=JSON_FindIndexedChild(primnode, "extensions.KHR_materials_variants.mappings", 0); mapping; mapping = mapping->sibling)
 			{
 				i = 0;
 				for(var = JSON_FindIndexedChild(mapping, "variants", 0); var; var = var->sibling)
@@ -2051,6 +2265,8 @@ static qboolean GLTF_ProcessMesh(gltf_t *gltf, json_t *meshid, int basebone, dou
 		gltf->numsurfaces++;
 		surf->nextsurf = mod->meshinfo;
 		mod->meshinfo = surf;
+
+		PRIMCLEANUP();
 	}
 	return true;
 }
@@ -2741,13 +2957,17 @@ static qboolean GLTF_LoadModel(struct model_s *mod, char *json, size_t jsonsize,
 		{"KHR_materials_pbrSpecularGlossiness",		true,   false},
 //		{"KHR_materials_cmnBlinnPhong",				true,   true},
 		{"KHR_materials_unlit",						true,	false},
-		{"KHR_mesh_quantization",					true,	true},
+		{"KHR_mesh_quantization",					true,	false},
 		{"MSFT_texture_dds",						true,	false},
 		{"MSFT_packing_occlusionRoughnessMetallic", true,	false},
 		{"KHR_materials_variants",					true,	false},
 		{"KHR_materials_ior",						true,	false},
 
-		{"KHR_draco_mesh_compression",				false,	true},	//probably fatal
+#ifdef HAVE_DRACO
+		{"KHR_draco_mesh_compression",				true,	false},	//probably fatal
+#else
+		{"KHR_draco_mesh_compression",				false,	false},	//probably fatal
+#endif
 		{"KHR_texture_transform",					false,	false},	//requires glsl tweaks, per texmap. can't use tcmod if its only on the bumpmap etc.
 		{"KHR_materials_sheen",						false,	false},	//requires glsl tweaks, extra brdf layer in the middle for velvet.
 		{"KHR_materials_clearcoat",					false,	false},	//requires glsl tweaks, extra brdf layer over the top for varnish etc.

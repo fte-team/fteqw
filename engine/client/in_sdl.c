@@ -514,10 +514,12 @@ static void J_ControllerSensor(SDL_JoystickID jid, SDL_SensorType sensor, float 
 	case SDL_SENSOR_GYRO:
 		IN_Gyroscope(joy->qdevid, data[0], data[1], data[2]);
 		break;
+/*#if SDL_VERSION_ATLEAST(2,25,0)
 	case SDL_SENSOR_ACCEL_L:
 	case SDL_SENSOR_ACCEL_R:
 	case SDL_SENSOR_GYRO_L:
 	case SDL_SENSOR_GYRO_R:
+#endif*/
 	case SDL_SENSOR_INVALID:
 	case SDL_SENSOR_UNKNOWN:
 	default:

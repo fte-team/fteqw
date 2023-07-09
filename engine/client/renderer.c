@@ -1294,9 +1294,7 @@ static void R_RegisterBuiltinRenderers(void)
 		R_RegisterRenderer(NULL, &fbdevrendererinfo);	//direct stuff that doesn't interact well with the system should always be low priority
 	}
 	#endif
-	#ifndef NPQTV
 		R_RegisterRenderer(NULL, &dedicatedrendererinfo);
-	#endif
 	#ifdef HEADLESSQUAKE
 	{
 		extern rendererinfo_t headlessrenderer;

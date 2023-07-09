@@ -429,10 +429,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #endif
 
 //fix things a little...
-#ifdef NPQTV
-	#define NPFTE
-	#undef NPQTV
-#endif
 #ifdef NPFTE
 	/*plugins require threads and stuff now, and http download support*/
 	#ifndef MULTITHREAD

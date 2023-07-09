@@ -35,8 +35,6 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "dedserver", "dedserver.vcpr
 		{0018E098-B12A-4E4D-9B22-6772DA287080} = {0018E098-B12A-4E4D-9B22-6772DA287080}
 	EndProjectSection
 EndProject
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "npfte", "npfte.vcproj", "{88BFEE0E-7BC0-43AD-9CCC-6B1A6E4C1365}"
-EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "irc", "..\..\plugins\irc\irc.vcproj", "{6ABD62A3-C5A0-43E8-BA4F-84606057774F}"
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "private", "..\..\plugins\private\private.vcproj", "{74542CA7-48C1-4664-9007-66F751131EA3}"

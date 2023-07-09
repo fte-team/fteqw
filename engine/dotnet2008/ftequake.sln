@@ -7,11 +7,6 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "ftequake", "ftequake.vcproj
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "ftequake_SDL", "ftequake_SDL.vcproj", "{F384725A-62D4-4063-9941-6D8D2D6C2A47}"
 EndProject
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "npfte", "npfte.vcproj", "{88BFEE0E-7BC0-43AD-9CCC-6B1A6E4C1365}"
-	ProjectSection(ProjectDependencies) = postProject
-		{0018E098-B12A-4E4D-9B22-6772DA287080} = {0018E098-B12A-4E4D-9B22-6772DA287080}
-	EndProjectSection
-EndProject
 Project("{54435603-DBB4-11D2-8724-00A0C9A8B90C}") = "FTEQuake", "..\setup\setup.vdproj", "{E0EE8B50-3A75-42A9-B80A-787675979B0C}"
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "qtvprox", "..\..\fteqtv\qtvprox.vcproj", "{1A353DA0-F351-4C0D-A21D-E2B460600B20}"

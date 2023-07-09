@@ -722,7 +722,6 @@ DX7SDK=-I./libs/dxsdk7/include/
 GLCFLAGS?=-DGLQUAKE
 D3DCFLAGS?=-DD3D9QUAKE -DD3D11QUAKE
 VKCFLAGS?=-DVKQUAKE
-NPFTECFLAGS=-DNPFTE
 
 CLIENT_OBJS = \
 	textedit.o	\
@@ -1510,12 +1509,6 @@ ifneq (,$(findstring linux,$(FTE_TARGET)))
 	endif
 	
 	QCC_DIR=linqcc$(BITS)
-	
-	NPFTE_OBJS=httpclient.o image.o sys_linux_threads.o sys_npfte.o sys_axfte.o sys_plugfte.o
-	NPFTE_DLL_NAME=../npfte$(BITS).so
-	NPFTE_LDFLAGS=-shared -Wl,-z,defs -ldl -lpthread
-	NPFTE_CFLAGS=$(NPFTECFLAGS) $(W32_CFLAGS) -DMULTITHREAD -fPIC -DDYNAMIC_LIBPNG -DDYNAMIC_LIBJPEG
-	NPFTEB_DIR=npfte_linux$(BITS)
 
 	GLCL_OBJS=$(GL_OBJS) $(D3DGL_OBJS) $(GLQUAKE_OBJS) gl_vidlinuxglx.o gl_vidwayland.o gl_videgl.o snd_pulse.o snd_alsa.o snd_linux.o snd_sdl.o cd_linux.o sys_linux.o sys_linux_threads.o
 	GL_EXE_NAME=../$(EXE_NAME)-gl$(BITS)
@@ -1815,7 +1808,6 @@ releases:
 #	-$(MAKE) FTE_TARGET=win32 relcl
 	-$(MAKE) droid-rel
 	-$(MAKE) web-rel
-	-$(MAKE) FTE_TARGET=win32 npfte-rel
 
 autoconfig: clean
 	/bin/bash makeconfig.sh y
@@ -2128,14 +2120,13 @@ help:
 	@-echo "'glcl-???' (currently broken)"
 	@-echo "'droid-???' (cross compiles Android package)"
 	@-echo "'web-???' (compiles javascript/emscripten page)"
-	@-echo "'npfte-???' (cross compiles QuakeTV Firefox/Netscape browser plugin)"
 	@-echo ""
 	@-echo "Cross targets can be specified with FTE_TARGET=blah"
 	@-echo "linux32, linux64 specify specific x86 archs"
 	@-echo "SDL - Attempt to use sdl for the current target"
 	@-echo "win32 - Mingw compile for win32"
 	@-echo "vc - Attempts to use msvc8+ to compile. Note: uses profile guided optimisations. You must build+run the relevent profile target before a release target will compile properly. Debug doesn't care."
-	@-echo "android, npfte, targets explicitly cross compile, and should generally not be given an FTE_TARGET."
+	@-echo "android targets explicitly cross compile, and should generally not be given an FTE_TARGET."
 
 clean:
 	-rm -f -r $(RELEASE_DIR)
@@ -2153,34 +2144,6 @@ distclean: clean
 	-rm -f droid/ftekeystore
 	-rm -f -r libs/SDL2-$(SDL2VER)
 
-
-#################################################
-#npfte
-
-npfte-tmprel: reldir
-	@$(MAKE) $(OUT_DIR)/$(EXE_NAME)  OUT_DIR="$(OUT_DIR)" WCFLAGS="$(NPFTE_CFLAGS) $(RELEASE_CFLAGS)" LDFLAGS="$(NPFTE_LDFLAGS) $(LDFLAGS) $(RELEASE_LDFLAGS)" OBJS="NPFTE_OBJS"
-npfte-tmpdbg: debugdir
-	@$(MAKE) $(OUT_DIR)/$(EXE_NAME)  OUT_DIR="$(OUT_DIR)" WCFLAGS="$(NPFTE_CFLAGS) $(DEBUG_CFLAGS)" LDFLAGS="$(NPFTE_LDFLAGS) $(LDFLAGS) $(DEBUG_LDFLAGS)" OBJS="NPFTE_OBJS"
-npfte-rel:
-	-@$(MAKE) npfte-tmprel OUT_DIR="$(RELEASE_DIR)/$(NPFTEB_DIR)w32" EXE_NAME="../npfte.dll" PRECOMPHEADERS="" FTE_TARGET=win32
-	-@$(MAKE) npfte-tmprel OUT_DIR="$(RELEASE_DIR)/$(NPFTEB_DIR)l32" EXE_NAME="../npfte32.so" PRECOMPHEADERS="" FTE_TARGET=linux32
-	-@$(MAKE) npfte-tmprel OUT_DIR="$(RELEASE_DIR)/$(NPFTEB_DIR)l64" EXE_NAME="../npfte64.so" PRECOMPHEADERS="" FTE_TARGET=linux64
-	-cp $(RELEASE_DIR)/npfte.dll npfte/plugins
-	-cp $(RELEASE_DIR)/npfte32.so npfte/plugins
-	-cp $(RELEASE_DIR)/npfte64.so npfte/plugins
-	cd npfte && zip $(abspath $(RELEASE_DIR)/npfte.xpi) install.rdf plugins/npfte.dll plugins/npfte32.so plugins/npfte64.so
-	rm -rf /tmp/npfte
-	mkdir /tmp/npfte
-	cp $(RELEASE_DIR)/npfte.dll /tmp/npfte
-	cp ./npfte/manifest.json /tmp/npfte
-	-cd $(RELEASE_DIR)/ && ../npfte/crxmake.sh /tmp/npfte ../npfte/chrome.pem
-	rm -rf /tmp/npfte
-npfte-dbg:
-	@$(MAKE) npfte-tmpdbg OUT_DIR="$(DEBUG_DIR)/$(NPFTEB_DIR)w32" EXE_NAME="../npfte.dll" PRECOMPHEADERS="" FTE_TARGET=win32
-	@$(MAKE) npfte-tmpdbg OUT_DIR="$(DEBUG_DIR)/$(NPFTEB_DIR)l32" EXE_NAME="../npfte32.so" PRECOMPHEADERS="" FTE_TARGET=linux32
-	@$(MAKE) npfte-tmpdbg OUT_DIR="$(DEBUG_DIR)/$(NPFTEB_DIR)l64" EXE_NAME="../npfte64.so" PRECOMPHEADERS="" FTE_TARGET=linux64
-npfte-profile:
-	@$(MAKE) npfte-tmp TYPE=_npfte-profile OUT_DIR="$(PROFILE_DIR)/$(NPFTEB_DIR)"
 
 
 #################################################

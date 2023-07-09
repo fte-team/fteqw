@@ -411,7 +411,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 	#define SQL
 #endif
 
-#if defined(AVAIL_GZDEC) && (!defined(AVAIL_ZLIB) || defined(NPFTE) || defined(NO_ZLIB))
+#if defined(AVAIL_GZDEC) && (!defined(AVAIL_ZLIB) || defined(NO_ZLIB))
 	//gzip needs zlib to work (pk3s can still contain non-compressed files)
 	#undef AVAIL_GZDEC
 #endif
@@ -426,16 +426,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #if !defined(NQPROT) || defined(SERVERONLY) || !defined(AVAIL_ZLIB) || defined(DYNAMIC_ZLIB)
 	#undef PACKAGE_DZIP
-#endif
-
-//fix things a little...
-#ifdef NPFTE
-	/*plugins require threads and stuff now, and http download support*/
-	#ifndef MULTITHREAD
-		#define MULTITHREAD
-		#define WEBCLIENT
-	#endif
-	#undef SUBSERVERS
 #endif
 
 #if (defined(NOLOADERTHREAD) || !defined(MULTITHREAD)) && defined(LOADERTHREAD)
@@ -457,13 +447,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 	#if !defined(MD2MODELS) || !defined(SP2MODELS)
 		#error "Q2 game support without full Q2 model support. doesn't make sense"
 	#endif
-#endif
-
-#ifdef NPFTE
-	#undef TEXTEDITOR
-	#undef WEBSERVER		//http server
-	#undef FTPSERVER		//ftp server
-	#undef FTPCLIENT		//ftp client.
 #endif
 
 #ifndef AVAIL_ZLIB

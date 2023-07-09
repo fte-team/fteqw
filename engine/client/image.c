@@ -1567,9 +1567,7 @@ static void VARGS png_onerror(png_structp png_ptr, png_const_charp error_msg)
 static void VARGS png_onwarning(png_structp png_ptr, png_const_charp warning_msg)
 {
 	struct pngerr *err = qpng_get_error_ptr(png_ptr);
-#ifndef NPFTE
 	Con_DPrintf("libpng %s: %s\n", err->fname, warning_msg);
-#endif
 }
 
 qbyte *ReadPNGFile(const char *fname, qbyte *buf, int length, int *width, int *height, uploadfmt_t *format, qboolean force_rgb32)
@@ -1792,7 +1790,6 @@ error:
 
 
 
-#ifndef NPFTE
 int Image_WritePNG (const char *filename, enum fs_relative fsroot, int compression, void **buffers, int numbuffers, qintptr_t bufferstride, int width, int height, enum uploadfmt fmt, qboolean writemetadata)
 {
 	char name[MAX_OSPATH];
@@ -2035,7 +2032,6 @@ err:
 	Con_Printf("File error writing %s\n", filename);
 	return false;
 }
-#endif
 
 
 #endif
@@ -2453,7 +2449,6 @@ badjpeg:
 
 }
 /*end read*/
-#ifndef NPFTE
 /*begin write*/
 
 
@@ -2663,7 +2658,6 @@ qboolean screenshotJPEG(char *filename, enum fs_relative fsroot, int compression
 	BZ_Free(tmpdata);
 	return ret;
 }
-#endif
 #endif
 
 #ifdef IMAGEFMT_PCX

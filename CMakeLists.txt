@@ -477,7 +477,6 @@ ELSE()
 #	engine/client/sys_droid.c
 #	engine/client/sys_linux.c
 #	engine/client/sys_morphos.c
-#	engine/client/sys_npfte.c
 #	engine/client/sys_plugfte.c
 #	engine/client/sys_sdl.c
 #	engine/client/sys_xdk.c

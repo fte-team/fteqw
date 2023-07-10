@@ -2919,6 +2919,7 @@ void CLQ1_AddVisibleBBoxes(void)
 			s = R_RegisterShader("bboxshader", SUF_NONE,
 				"{\n"
 					"polygonoffset\n"
+					"sort additive\n"
 					"{\n"
 						"map $whiteimage\n"
 						"blendfunc add\n"
@@ -2975,6 +2976,7 @@ void CLQ1_AddVisibleBBoxes(void)
 	s = R_RegisterShader("bboxshader", SUF_NONE,
 		"{\n"
 			"polygonoffset\n"
+			"sort additive\n"
 			"{\n"
 				"map $whiteimage\n"
 				"blendfunc add\n"

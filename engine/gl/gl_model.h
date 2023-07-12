@@ -942,6 +942,12 @@ typedef struct
 	vec4_t *points;
 } portal_t;
 
+struct surfedgenormals_s {
+	quint32_t n;
+	quint32_t s;
+	quint32_t t;
+};
+
 enum
 {
 	MLS_NOTLOADED,
@@ -1007,6 +1013,7 @@ typedef struct model_s
 	int			numvertexes;
 	mvertex_t	*vertexes;
 	vec3_t		*normals;
+	struct surfedgenormals_s	*surfedgenormals; //for per-vertex normals
 
 	int			numedges;
 	medge_t		*edges;

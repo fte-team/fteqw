@@ -4973,8 +4973,6 @@ static cmodel_t *CM_LoadMap (model_t *mod, qbyte *filein, size_t filelen, qboole
 			{
 				// load into heap
 				noerrors = noerrors && Mod_LoadVertexes			(mod, mod_base, &header.lumps[Q2LUMP_VERTEXES]);
-				if (header.version == BSPVERSION_Q2W)
-					/*noerrors = noerrors &&*/ Mod_LoadVertexNormals(mod, bspx, mod_base, &header.lumps[19]);
 				noerrors = noerrors && Mod_LoadEdges			(mod, mod_base, &header.lumps[Q2LUMP_EDGES], false);
 				noerrors = noerrors && Mod_LoadSurfedges		(mod, mod_base, &header.lumps[Q2LUMP_SURFEDGES]);
 				noerrors = noerrors && CModQ2_LoadSurfaces		(mod, mod_base, &header.lumps[Q2LUMP_TEXINFO]);
@@ -4983,6 +4981,8 @@ static cmodel_t *CM_LoadMap (model_t *mod, qbyte *filein, size_t filelen, qboole
 				if (noerrors)
 					Mod_LoadEntities							(mod, mod_base, &header.lumps[Q2LUMP_ENTITIES]);
 				noerrors = noerrors && CModQ2_LoadFaces			(mod, mod_base, &header.lumps[Q2LUMP_FACES], &header.lumps[Q2LUMP_LIGHTING], header.version == BSPVERSION_Q2W, bspx);
+				if (header.version == BSPVERSION_Q2W)
+					/*noerrors = noerrors &&*/ Mod_LoadVertexNormals(mod, bspx, mod_base, &header.lumps[19]);
 				noerrors = noerrors && Mod_LoadMarksurfaces		(mod, mod_base, &header.lumps[Q2LUMP_LEAFFACES], false);
 				noerrors = noerrors && CModQ2_LoadVisibility	(mod, mod_base, &header.lumps[Q2LUMP_VISIBILITY]);
 				noerrors = noerrors && CModQ2_LoadBrushSides	(mod, mod_base, &header.lumps[Q2LUMP_BRUSHSIDES]);

@@ -2922,6 +2922,7 @@ qboolean Mod_BSPXRW_Read(struct bspxrw *ctx, const char *fname)
 		#endif
 		};
 #endif
+	static const char *q1corelumpnames[HEADER_LUMPS] = {"entities","planes","textures","vertexes","visibility","nodes","texinfo","faces","lighting","clipnodes","leafs","marksurfaces","edges","surfedges","models"};
 	ctx->fname = fname;
 	ctx->origfile = FS_MallocFile(ctx->fname, FS_GAME, &ctx->origsize);
 	if (!ctx->origfile)
@@ -2936,9 +2937,10 @@ qboolean Mod_BSPXRW_Read(struct bspxrw *ctx, const char *fname)
 	case 30:
 		ctx->fg = ((i==30)?fg_halflife:fg_quake);
 		ctx->lumpofs = 4;
-		ctx->corelumps = 0;
+		ctx->corelumps = HEADER_LUMPS;
+		corelumpnames = q1corelumpnames;
 		break;
-	case ('I'<<0)+('B'<<8)+('S'<<16)+('P'<<24):
+	case ('I'<<0)+('B'<<8)+('S'<<16)+('P'<<24):	//starting with q2.
 		i = LittleLong(*(int*)(ctx->origfile+4));
 		ctx->lumpofs = 8;
 		switch(i)
@@ -3172,14 +3174,11 @@ void Mod_BSPX_List_f(void)
 		fname = cl.worldmodel->name;
 	if (Mod_BSPXRW_Read(&ctx, fname))
 	{
+		Con_Printf("%s:\n", fname);
 		for (i = 0; i < ctx.corelumps; i++)
-		{
-			Con_Printf("%s: %u\n", ctx.lumps[i].lumpname, (unsigned int)ctx.lumps[i].filelen);
-		}
+			Con_Printf("\t%s: %u\n", ctx.lumps[i].lumpname, (unsigned int)ctx.lumps[i].filelen);
 		for (     ; i < ctx.totallumps; i++)
-		{
-			Con_Printf("%s: %u\n", ctx.lumps[i].lumpname, (unsigned int)ctx.lumps[i].filelen);
-		}
+			Con_Printf("\t%s: %u\n", ctx.lumps[i].lumpname, (unsigned int)ctx.lumps[i].filelen);
 		Mod_BSPXRW_Free(&ctx);
 	}
 }

@@ -2422,18 +2422,48 @@ qboolean Mod_LoadVertexNormals (model_t *loadmodel, bspx_header_t *bspx, qbyte *
 			Con_Printf (CON_ERROR "MOD_LoadBmodel: funny lump size in %s\n", loadmodel->name);
 			return false;
 		}
+
+		if (count != loadmodel->numvertexes)
+			return false;	//invalid number of verts there, can't use this.
 	}
 	else
-	{
-		in = BSPX_FindLump(bspx, mod_base, "VERTEXNORMALS", &count); 
-		if (in)
-			count /= sizeof(vec3_t);
+	{	//ericw's thing
+		unsigned int size;
+		quint32_t t;
+		int *normcount;
+		struct surfedgenormals_s *sen;
+		normcount = BSPX_FindLump(bspx, mod_base, "FACENORMALS", &size);
+		if (normcount && size >= sizeof(*normcount))
+		{
+			count = LittleLong(*normcount);
+			if (count < 1)
+				return false;
+			in = (void*)(normcount+1);	//now the normals table.
+			sen = (void*)(in + count*3);
+			if ((qbyte*)(sen + loadmodel->numsurfedges)-(qbyte*)normcount != size)
+				return false;	//bad size.
+
+			loadmodel->surfedgenormals = ZG_Malloc(&loadmodel->memgroup, loadmodel->numsurfedges*sizeof(*loadmodel->surfedgenormals));
+			for ( i=0 ; i<loadmodel->numsurfedges ; i++, sen++)
+			{
+				t = LittleLong(sen->n); loadmodel->surfedgenormals[i].n = bound(0, t, count-1);
+				t = LittleLong(sen->s); loadmodel->surfedgenormals[i].s = bound(0, t, count-1);
+				t = LittleLong(sen->t); loadmodel->surfedgenormals[i].t = bound(0, t, count-1);
+			}
+		}
 		else
-			count = 0;
+		{
+			//quake2world's thing
+			in = BSPX_FindLump(bspx, mod_base, "VERTEXNORMALS", &count);
+			if (in)
+				count /= sizeof(vec3_t);
+			else
+				count = 0;
+			if (count != loadmodel->numvertexes)
+				return false;	//invalid number of verts there, can't use this.
+		}
 	}
 
-	if (count != loadmodel->numvertexes)
-		return false;	//invalid number of verts there, can't use this.
 	out = ZG_Malloc(&loadmodel->memgroup, count*sizeof(vec3_t));	
 	loadmodel->normals = (vec3_t*)out;
 	for ( i=0 ; i<count ; i++, in+=3, out+=3)
@@ -2532,28 +2562,38 @@ void ModQ1_Batches_BuildQ1Q2Poly(model_t *mod, msurface_t *surf, builddata_t *co
 			}
 		}
 
-		//figure out the texture directions, for bumpmapping and stuff
-		if (mod->normals && (surf->texinfo->flags & 0x800) && (mod->normals[vertidx][0] || mod->normals[vertidx][1] || mod->normals[vertidx][2])) 
+		if (mod->surfedgenormals)
 		{
-			//per-vertex normals - used for smoothing groups and stuff.
-			VectorCopy(mod->normals[vertidx], mesh->normals_array[i]);
+			struct surfedgenormals_s *pv = mod->surfedgenormals + surf->firstedge + i;
+			VectorCopy(mod->normals[pv->n], mesh->normals_array[i]);
+			VectorCopy(mod->normals[pv->s], mesh->snormals_array[i]);
+			VectorCopy(mod->normals[pv->t], mesh->tnormals_array[i]);
 		}
 		else
 		{
-			if (surf->flags & SURF_PLANEBACK)
-				VectorNegate(surf->plane->normal, mesh->normals_array[i]);
+			//figure out the texture directions, for bumpmapping and stuff
+			if (mod->normals && (surf->texinfo->flags & 0x800) && (mod->normals[vertidx][0] || mod->normals[vertidx][1] || mod->normals[vertidx][2]))
+			{
+				//per-vertex normals - used for smoothing groups and stuff.
+				VectorCopy(mod->normals[vertidx], mesh->normals_array[i]);
+			}
 			else
-				VectorCopy(surf->plane->normal, mesh->normals_array[i]);
+			{
+				if (surf->flags & SURF_PLANEBACK)
+					VectorNegate(surf->plane->normal, mesh->normals_array[i]);
+				else
+					VectorCopy(surf->plane->normal, mesh->normals_array[i]);
+			}
+			VectorCopy(surf->texinfo->vecs[0], mesh->snormals_array[i]);
+			VectorNegate(surf->texinfo->vecs[1], mesh->tnormals_array[i]);
+			//for q1bsp the s+t vectors are usually axis-aligned, so fiddle them so they're normal aligned instead
+			d = -DotProduct(mesh->normals_array[i], mesh->snormals_array[i]);
+			VectorMA(mesh->snormals_array[i], d, mesh->normals_array[i], mesh->snormals_array[i]);
+			d = -DotProduct(mesh->normals_array[i], mesh->tnormals_array[i]);
+			VectorMA(mesh->tnormals_array[i], d, mesh->normals_array[i], mesh->tnormals_array[i]);
+			VectorNormalize(mesh->snormals_array[i]);
+			VectorNormalize(mesh->tnormals_array[i]);
 		}
-		VectorCopy(surf->texinfo->vecs[0], mesh->snormals_array[i]);
-		VectorNegate(surf->texinfo->vecs[1], mesh->tnormals_array[i]);
-		//the s+t vectors are axis-aligned, so fiddle them so they're normal aligned instead
-		d = -DotProduct(mesh->normals_array[i], mesh->snormals_array[i]);
-		VectorMA(mesh->snormals_array[i], d, mesh->normals_array[i], mesh->snormals_array[i]);
-		d = -DotProduct(mesh->normals_array[i], mesh->tnormals_array[i]);
-		VectorMA(mesh->tnormals_array[i], d, mesh->normals_array[i], mesh->tnormals_array[i]);
-		VectorNormalize(mesh->snormals_array[i]);
-		VectorNormalize(mesh->tnormals_array[i]);
 
 		//q1bsp has no colour information (fixme: sample from the lightmap?)
 		for (sty = 0; sty < 1; sty++)
@@ -4228,6 +4268,7 @@ static qboolean Mod_LoadFaces (model_t *loadmodel, bspx_header_t *bspx, qbyte *m
 	loadmodel->surfaces = out;
 	loadmodel->numsurfaces = count;
 
+	Mod_LoadVertexNormals(loadmodel, bspx, mod_base, NULL);
 	Mod_LoadLighting (loadmodel, bspx, mod_base, lightlump, false, &overrides, subbsp);
 
 	switch(loadmodel->lightmaps.fmt)

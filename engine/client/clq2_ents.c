@@ -983,21 +983,21 @@ static void CLQ2_ParseDelta (entity_state_t *from, entity_state_t *to, int numbe
 	else if (bits & Q2U_SKIN8)
 		to->skinnum = MSG_ReadByte();
 	else if (bits & Q2U_SKIN16)
-		to->skinnum = MSG_ReadShort();
+		to->skinnum = MSG_ReadUShort();
 
 	if ( (bits & (Q2U_EFFECTS8|Q2U_EFFECTS16)) == (Q2U_EFFECTS8|Q2U_EFFECTS16) )
 		to->effects = MSG_ReadLong();
 	else if (bits & Q2U_EFFECTS8)
 		to->effects = MSG_ReadByte();
 	else if (bits & Q2U_EFFECTS16)
-		to->effects = MSG_ReadShort();
+		to->effects = MSG_ReadUShort();
 
 	if ( (bits & (Q2U_RENDERFX8|Q2U_RENDERFX16)) == (Q2U_RENDERFX8|Q2U_RENDERFX16) )
 		to->u.q2.renderfx = MSG_ReadLong() & 0x0007ffff;	//only the standard ones actually supported by vanilla q2.
 	else if (bits & Q2U_RENDERFX8)
 		to->u.q2.renderfx = MSG_ReadByte();
 	else if (bits & Q2U_RENDERFX16)
-		to->u.q2.renderfx = MSG_ReadShort();
+		to->u.q2.renderfx = MSG_ReadUShort();
 
 	if (bits & Q2U_ORIGIN1)
 		to->origin[0] = MSG_ReadCoord ();
@@ -1046,7 +1046,7 @@ static void CLQ2_ParseDelta (entity_state_t *from, entity_state_t *to, int numbe
 		if (net_message.prim.flags & NPQ2_SOLID32)
 			to->solidsize = MSG_ReadLong();
 		else
-			to->solidsize = MSG_ReadSize16 (&net_message);
+			to->solidsize = MSG_ReadUShort();
 	}
 }
 

@@ -352,6 +352,7 @@ int MSG_ReadChar (void);
 int MSG_ReadBits(int bits);
 int MSG_ReadByte (void);
 int MSG_ReadShort (void);
+int MSG_ReadUShort (void);
 int MSG_ReadLong (void);
 qint64_t MSG_ReadInt64 (void);
 quint64_t MSG_ReadUInt64 (void);

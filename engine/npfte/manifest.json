@@ -1,8 +1,0 @@
-{
-  "name": "FTE Quakeworld Embedded Browser Plugin",
-  "version": "1",
-  "description": "FTEQW by the ForeThought Entertainment team, a Windows only free open source engine that supports Quake(tm) 1 (QuakeWorld/NetQuake), Quake 2(tm), Hexen 2(tm), Quake 3(tm) etc via way of NPAPI many browsers support like Safari, Chrome & Firefox",
-  "plugins": [
-    { "path": "npfte.dll", "public": true }
-  ]
-}

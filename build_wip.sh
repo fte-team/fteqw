@@ -236,9 +236,6 @@ export NATIVE_PLUGINS="qi ezhud xmpp irc"
 if [ "$BUILD_ANDROID" != "n" ]; then
 	NATIVE_PLUGINS="$PLUGINS_DROID" build "Android" android droid-rel
 fi
-#if [ "$BUILD_WIN32" != "n" ]; then
-#	build "NPFTE" npfte npfte-rel
-#fi
 if [ "$BUILD_DOS" == "y" ]; then
 	#no networking makes dedicated servers useless. and only a crappy sw renderer is implemented right now.
 	#the qcc might be useful to someone though!

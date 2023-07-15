@@ -200,10 +200,6 @@ void *Sys_CreateMutexNamed(char *file, int line);
 
 void Sys_Sleep(double seconds);
 
-#ifdef NPFTE
-qboolean NPQTV_Sys_Startup(int argc, char *argv[]);
-void NPQTV_Sys_MainLoop(void);
-#endif
 
 #define UPD_OFF 0
 #define UPD_STABLE 1

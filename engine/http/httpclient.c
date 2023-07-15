@@ -6,9 +6,7 @@
 #include "fs.h"
 
 #if defined(WEBCLIENT)
-#ifndef NPFTE
 static struct dl_download *activedownloads;
-#endif
 
 #if defined(FTE_TARGET_WEB)
 
@@ -148,10 +146,6 @@ typedef struct cookie_s
 } cookie_t;
 cookie_t *cookies;
 
-#ifdef NPFTE
-#define Z_Malloc malloc
-#define Z_Free free
-#endif
 
 //set a specific cookie.
 void Cookie_Feed(char *domain, int secure, char *name, char *value)
@@ -284,12 +278,8 @@ void Cookie_Regurgitate(char *domain, int secure, char *buffer, size_t buffersiz
 struct http_dl_ctx_s {
 //	struct dl_download *dlctx;
 
-#ifndef NPFTE
 	vfsfile_t *stream;
 	SOCKET sock;	//so we can wait on it when multithreaded.
-#else
-	SOCKET sock;	//FIXME: support https.
-#endif
 
 	char *buffer;
 
@@ -317,15 +307,9 @@ void HTTP_Cleanup(struct dl_download *dl)
 	struct http_dl_ctx_s *con = dl->ctx;
 	dl->ctx = NULL;
 
-#ifndef NPFTE
 	if (con->stream)
 		VFS_CLOSE(con->stream);
 	con->stream = NULL;
-#else
-	if (con->sock != INVALID_SOCKET)
-		closesocket(con->sock);
-	con->sock = INVALID_SOCKET;
-#endif
 	free(con->buffer);
 	free(con);
 
@@ -413,7 +397,7 @@ static qboolean HTTP_DL_Work(struct dl_download *dl)
 	switch(con->state)
 	{
 	case HC_REQUESTING:
-#ifndef NPFTE
+
 		ammount = VFS_WRITE(con->stream, con->buffer, con->bufferused);
 		if (!ammount)
 			return true;
@@ -423,19 +407,6 @@ static qboolean HTTP_DL_Work(struct dl_download *dl)
 			dl->replycode = VFSError_To_HTTP(ammount);
 			return false;
 		}
-#else
-		ammount = send(con->sock, con->buffer, con->bufferused, 0);
-
-		if (!ammount)
-			return false;
-
-		if (ammount < 0)
-		{
-			if (neterrno() != NET_EWOULDBLOCK)
-				return false;
-			return true;
-		}
-#endif
 
 		con->bufferused -= ammount;
 		memmove(con->buffer, con->buffer+ammount, con->bufferused);
@@ -447,7 +418,6 @@ static qboolean HTTP_DL_Work(struct dl_download *dl)
 		if (con->bufferlen - con->bufferused < 1530)
 			ExpandBuffer(con, 1530);
 
-#ifndef NPFTE
 		ammount = VFS_READ(con->stream, con->buffer+con->bufferused, con->bufferlen-con->bufferused-15);
 		if (!ammount)
 			return true;
@@ -457,17 +427,6 @@ static qboolean HTTP_DL_Work(struct dl_download *dl)
 			dl->replycode = VFSError_To_HTTP(ammount);
 			return false;
 		}
-#else
-		ammount = recv(con->sock, con->buffer+con->bufferused, con->bufferlen-con->bufferused-15, 0);
-		if (!ammount)
-			return false;
-		if (ammount < 0)
-		{
-			if (neterrno() != NET_EWOULDBLOCK)
-				return false;
-			return true;
-		}
-#endif
 
 		con->bufferused+=ammount;
 		con->buffer[con->bufferused] = '\0';
@@ -686,7 +645,6 @@ static qboolean HTTP_DL_Work(struct dl_download *dl)
 
 		if (!dl->file)
 		{
-#ifndef NPFTE
 			if (*dl->localname)
 			{
 				FS_CreatePath(dl->localname, dl->fsroot);
@@ -694,7 +652,7 @@ static qboolean HTTP_DL_Work(struct dl_download *dl)
 			}
 			else
 				dl->file = FS_OpenTemp();
-#endif
+
 			if (!dl->file)
 			{
 				if (*dl->localname)
@@ -725,21 +683,11 @@ static qboolean HTTP_DL_Work(struct dl_download *dl)
 		if (con->bufferlen - con->bufferused < 1530)
 			ExpandBuffer(con, 1530);
 
-#ifndef NPFTE
 		ammount = VFS_READ(con->stream, con->buffer+con->bufferused, con->bufferlen-con->bufferused-1);
 		if (ammount == 0)
 			return true;	//no data yet
 		else if (ammount < 0)
 			ammount = 0;	//error (EOF?)
-#else
-		ammount = recv(con->sock, con->buffer+con->bufferused, con->bufferlen-con->bufferused-1, 0);
-		if (ammount < 0)
-		{
-			if (neterrno() != NET_EWOULDBLOCK)
-				return false;
-			return true;
-		}
-#endif
 
 		con->bufferused+=ammount;
 
@@ -886,12 +834,6 @@ firstread:
 
 void HTTPDL_Establish(struct dl_download *dl)
 {
-#ifdef NPFTE
-	unsigned long _true = true;
-	struct sockaddr_qstorage	serveraddr;
-	int addressfamily;
-	int addresssize;
-#endif
 	struct http_dl_ctx_s *con;
 	qboolean https = false;
 
@@ -935,7 +877,6 @@ void HTTPDL_Establish(struct dl_download *dl)
 
 	dl->status = DL_RESOLVING;
 
-#ifndef NPFTE
 	con->sock = INVALID_SOCKET;
 	con->stream = NULL;
 	con->secure = false;
@@ -968,53 +909,6 @@ void HTTPDL_Establish(struct dl_download *dl)
 		dl->status = DL_FAILED;
 		return;
 	}
-#else
-	con->secure = false;
-	if (https || !NET_StringToSockaddr(con->server, 80, &serveraddr, &addressfamily, &addresssize))
-	{
-		dl->status = DL_FAILED;
-		return;
-	}
-
-	dl->status = DL_QUERY;
-
-	if ((con->sock = socket (addressfamily, SOCK_STREAM, IPPROTO_TCP)) == -1)
-	{
-		dl->status = DL_FAILED;
-		return;
-	}
-
-	//don't bother binding. its optional.
-
-	//FIXME: make the connect call with a non-blocking socket.
-	//FIXME: use a vfsfile_t instead of a direct socket to support https
-
-	//not yet blocking.
-	if (connect(con->sock, (struct sockaddr *)&serveraddr, addresssize) == -1)
-	{
-		int err = neterrno();
-		switch(err)
-		{
-		case NET_EACCES:
-			Con_Printf("HTTP: connect(%s): access denied. Check firewall.\n", con->server);
-			break;
-		case NET_ETIMEDOUT:
-			Con_Printf("HTTP: connect(%s): timed out.\n", con->server);
-			break;
-		default:
-			Con_Printf("HTTP: connect(%s): %s", con->server, strerror(neterrno()));
-			break;
-		}
-		dl->status = DL_FAILED;
-		return;
-	}
-
-	if (ioctlsocket (con->sock, FIONBIO, &_true) == -1)	//now make it non blocking.
-	{
-		dl->status = DL_FAILED;
-		return;
-	}
-#endif
 #ifdef COOKIECOOKIECOOKIE
 	Cookie_Regurgitate(con->server, con->secure, cookies, sizeof(cookies));
 #endif
@@ -1227,7 +1121,6 @@ qboolean DataScheme_Decode(struct dl_download *dl)
 
 	if (!dl->file)
 	{
-#ifndef NPFTE
 		if (*dl->localname)
 		{
 			FS_CreatePath(dl->localname, dl->fsroot);
@@ -1235,7 +1128,6 @@ qboolean DataScheme_Decode(struct dl_download *dl)
 		}
 		else
 			dl->file = FS_OpenTemp();
-#endif
 		if (!dl->file)
 		{
 			if (*dl->localname)
@@ -1290,7 +1182,7 @@ qboolean DL_Decide(struct dl_download *dl)
 #ifdef MULTITHREAD
 static unsigned int dlthreads = 0;
 #define MAXDOWNLOADTHREADS 4
-#if defined(LOADERTHREAD) && !defined(NPFTE)
+#if defined(LOADERTHREAD) 
 static void HTTP_Wake_Think(void *ctx, void *data, size_t a, size_t b)
 {
 	dlthreads--;
@@ -1305,25 +1197,14 @@ static int DL_Thread_Work(void *arg)
 	{
 		if (!dl->poll(dl))
 		{
-#ifdef NPFTE
-			//the plugin doesn't have a download loop
-			if (dl->notifycomplete)
-			{
-				dl->notifycomplete(dl);
-				dl->notifycomplete = NULL;
-			}
-			if (dl->file)
-				VFS_CLOSE(dl->file);
-#else
 			if (dl->status != DL_FAILED && dl->status != DL_FINISHED)
 				dl->status = DL_FAILED;
-#endif
 			break;
 		}
 	}
 	dl->threadenable = false;
 
-#if defined(LOADERTHREAD) && !defined(NPFTE)
+#if defined(LOADERTHREAD) 
 	COM_AddWork(WG_MAIN, HTTP_Wake_Think, NULL, NULL, 0, 0);
 #endif
 	return 0;
@@ -1345,7 +1226,7 @@ qboolean DL_CreateThread(struct dl_download *dl, vfsfile_t *file, void (*NotifyF
 		dl->notifycomplete = NotifyFunction;
 
 	dl->threadenable = true;
-#if defined(LOADERTHREAD) && !defined(NPFTE)
+#if defined(LOADERTHREAD) 
 	if (dlthreads < 4)
 #endif
 	{
@@ -1385,7 +1266,7 @@ struct dl_download *DL_Create(const char *url)
 	newdl->poll = DL_Decide;
 	newdl->fsroot = FS_GAMEONLY;
 	newdl->sizelimit = 0x80000000u;	//some sanity limit.
-#if !defined(NPFTE) && !defined(SERVERONLY)
+#if !defined(SERVERONLY)
 	newdl->qdownload.method = DL_HTTP;
 #endif
 
@@ -1403,7 +1284,6 @@ void DL_Close(struct dl_download *dl)
 {
 	struct dl_download **link = NULL;
 
-#ifndef NPFTE
 	for (link = &activedownloads; *link; link = &(*link)->next)
 	{
 		if (*link == dl)
@@ -1412,9 +1292,8 @@ void DL_Close(struct dl_download *dl)
 			break;
 		}
 	}
-#endif
 
-#if !defined(NPFTE) && !defined(SERVERONLY)
+#if !defined(SERVERONLY)
 	if (cls.download == &dl->qdownload)
 		cls.download = NULL;
 #endif
@@ -1440,7 +1319,6 @@ void DL_Close(struct dl_download *dl)
 	free(dl);
 }
 
-#ifndef NPFTE
 void DL_DeThread(void)
 {
 #ifdef MULTITHREAD
@@ -1639,7 +1517,6 @@ void HTTP_CL_Terminate(void)
 	Cookie_Monster();
 #endif
 }
-#endif
 #endif	/*WEBCLIENT*/
 
 

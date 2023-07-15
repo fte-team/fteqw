@@ -518,7 +518,7 @@ void M_Menu_SinglePlayer_f (void)
 			MC_AddCenterPicture(menu, 4, 24, "gfx/ttl_sgl.lmp");
 
 			menu->selecteditem = (menuoption_t*)
-			MC_AddConsoleCommandQBigFont	(menu, 72, 32,	"New Game",  "closemenu;disconnect;maxclients 1;samelevel \"\";deathmatch \"\";set_calc coop ($cl_splitscreen>0);startmap_sp\n");
+			MC_AddConsoleCommandQBigFont	(menu, 72, 32,	"New Game",  "closemenu;disconnect;maxclients 1;spectator \"\";samelevel \"\";deathmatch \"\";set_calc coop ($cl_splitscreen>0);startmap_sp\n");
 #ifdef SAVEDGAMES
 			MC_AddConsoleCommandQBigFont	(menu, 72, 52,	"Load Game", "menu_load\n");
 			MC_AddConsoleCommandQBigFont	(menu, 72, 72,	"Save Game", "menu_save\n");
@@ -551,7 +551,7 @@ void M_Menu_SinglePlayer_f (void)
 
 		MC_AddPicture(menu, 72, 32, 232, 64, "gfx/sp_menu.lmp");
 
-		b = MC_AddConsoleCommand	(menu, 72, 304, 32,	"", "closemenu;disconnect;maxclients 1;samelevel \"\";deathmatch \"\";set_calc coop ($cl_splitscreen>0);startmap_sp\n");
+		b = MC_AddConsoleCommand	(menu, 72, 304, 32,	"", "closemenu;disconnect;maxclients 1;spectator \"\";samelevel \"\";deathmatch \"\";set_calc coop ($cl_splitscreen>0);startmap_sp\n");
 		menu->selecteditem = (menuoption_t *)b;
 		b->common.width = width;
 		b->common.height = 20;

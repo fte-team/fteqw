@@ -5529,7 +5529,7 @@ qboolean Sys_FindGameData(const char *poshname, const char *gamename, char *base
 			return true;
 	}
 
-#if !defined(NPFTE) && defined(HAVE_CLIENT) //this is *really* unfortunate, but doing this crashes the browser
+#if defined(HAVE_CLIENT) //this is *really* unfortunate, but doing this crashes the browser
 	if (allowprompts && poshname && *gamename && !COM_CheckParm("-manifest"))
 	{
 		if (Sys_DoDirectoryPrompt(basepath, basepathlen, poshname, gamename))
@@ -5689,7 +5689,7 @@ qboolean Sys_FindGameData(const char *poshname, const char *gamename, char *base
 		}
 	}
 
-#if !defined(NPFTE) && defined(HAVE_CLIENT) //this is *really* unfortunate, but doing this crashes the browser
+#if defined(HAVE_CLIENT) //this is *really* unfortunate, but doing this crashes the browser
 	if (allowprompts && poshname && *gamename && !COM_CheckParm("-manifest"))
 	{
 		if (Sys_DoDirectoryPrompt(basepath, basepathlen, poshname, gamename))
@@ -7610,18 +7610,11 @@ static qboolean FS_GetBestHomeDir(ftemanifest_t *manifest)
 		}
 	}
 
-#ifdef NPFTE
-	if (!*com_homepath)
-		Q_snprintfz(com_homepath, sizeof(com_homepath), "/%s/", HOMESUBDIR);
-	//as a browser plugin, always use their home directory
-	return true;
-#else
 	/*would it not be better to just check to see if we have write permission to the basedir?*/
 	if (winver >= 0x6) // Windows Vista and above
 		usehome = true; // always use home directory by default, as Vista+ mimics this behavior anyway
 	else if (winver >= 0x5) // Windows 2000/XP/2003
 		usehome = true;	//might as well follow this logic. We use .manifest stuff to avoid getting redirected to obscure locations, so access rights is all that is relevant, not whether we're an admin or not.
-#endif
 
 	if (usehome && manifest)
 	{

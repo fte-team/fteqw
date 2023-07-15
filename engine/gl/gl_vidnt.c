@@ -1440,9 +1440,7 @@ static int GLVID_SetMode (rendererstate_t *info, unsigned char *palette)
 {
 	int				temp;
 	qboolean		stat;
-#ifndef NPFTE
 	MSG				msg;
-#endif
 //	HDC				hdc;
 
 	vrsetup_t setup = {sizeof(setup)};
@@ -1623,7 +1621,6 @@ static int GLVID_SetMode (rendererstate_t *info, unsigned char *palette)
 // Who knows if it helps, but it probably doesn't hurt
 	SetForegroundWindow (mainwindow);
 
-#ifndef NPFTE
 	/*I don't like this, but if we */
 	Sleep (100);
 	while (PeekMessage (&msg, mainwindow, 0, 0, PM_REMOVE))
@@ -1632,7 +1629,6 @@ static int GLVID_SetMode (rendererstate_t *info, unsigned char *palette)
 		DispatchMessage (&msg);
 	}
 	Sleep (100);
-#endif
 
 	SetWindowPos (mainwindow, HWND_TOP, 0, 0, 0, 0,
 				  SWP_DRAWFRAME | SWP_NOMOVE | SWP_NOSIZE | SWP_SHOWWINDOW |

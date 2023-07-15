@@ -94,7 +94,7 @@ make $THREADS FTE_TARGET=linux32 >> $BUILDLOGFOLDER/linux32.txt 2>> $BUILDLOGFOL
 cp $SVNFOLDER/* $BUILDFOLDER/linux_32bit/ >> /dev/null 2>> /dev/null
 make clean >> /dev/null
 echo "Making Windows\n"
-make $THREADS FTE_TARGET=win32 sv-rel gl-rel mingl-rel npqtv-rel >> $BUILDLOGFOLDER/win32.txt 2>> $BUILDLOGFOLDER/win32.txt
+make $THREADS FTE_TARGET=win32 sv-rel gl-rel mingl-rel >> $BUILDLOGFOLDER/win32.txt 2>> $BUILDLOGFOLDER/win32.txt
 cp $SVNFOLDER/* $BUILDFOLDER/win32/ >> /dev/null 2>> /dev/null
 make clean >> /dev/null
 echo "Making MorphOS\n"

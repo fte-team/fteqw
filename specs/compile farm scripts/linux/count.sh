@@ -21,7 +21,7 @@ MACOSX=$(ls -1 /home/moodles/htdocs/macosx_tiger_10.4/ | wc -l)
 # known count when all binaries build
 LIN32TOTAL=24 #4 compilers (GCC, ICC, CLANG & LLVM) * 3 targets (sv, mingl, gl) * 2 (SDL versions)
 LIN64TOTAL=6 #2 compilers (GCC, CLANG) * 3 targets (sv, mingl, gl)
-WIN32TOTAL=7 #1 compiler (MinGW32) * 3 targets (sv, mingl, gl) * 2 (SDL versions) + 1 firefox plugin (npqtv)
+WIN32TOTAL=7 #1 compiler (MinGW32) * 3 targets (sv, mingl, gl) * 2 (SDL versions)
 MORPHTOTAL=2 #1 compiler (GCC based by bigfoot) * 2 targets (gl, mingl)
 MACOSTOTAL=6 #2 compilers (10.4 x86 and ppc) * 3 targets (gl, mingl, sv)
 

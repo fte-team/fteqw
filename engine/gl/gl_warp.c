@@ -1346,8 +1346,8 @@ void R_Sky_Register(void)
 	Cvar_Register (&r_skybox_orientation,	groupname);
 	Cvar_Register (&gl_skyboxdist,			groupname);
 
-	Cmd_AddCommandAD("sky", R_ForceSky_f, R_ForceSky_c, "For compat with Quakespasm");	//QS compat
-	Cmd_AddCommandAD("loadsky", R_ForceSky_f, R_ForceSky_c, "For compat with DP");
-	Cmd_AddCommand ("listskyboxes", R_ListSkyBoxes_f);
+	Cmd_AddCommandAD("sky", R_ForceSky_f, R_ForceSky_c, "For compat with Quakespasm, please use r_skybox");	//QS compat
+	Cmd_AddCommandAD("loadsky", R_ForceSky_f, R_ForceSky_c, "For compat with DP, please use r_skybox");
+	Cmd_AddCommandD ("listskyboxes", R_ListSkyBoxes_f, "Displays a list of available custom skyboxes that can be set with r_skybox, type or click an entry");
 }
 #endif

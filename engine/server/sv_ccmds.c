@@ -3439,7 +3439,7 @@ void SV_InitOperatorCommands (void)
 	Cmd_AddCommandD ("unban", SV_Unfilter_f, "Unbans or removes an IP Address from the penality list, alias to removeip");	//merely renamed.
 
 	Cmd_AddCommand ("addip", SV_FilterIP_f);
-	Cmd_AddCommandD ("removeip", SV_Unfilter_f,"Removes an IP Address from the penality list");
+	Cmd_AddCommandD ("removeip", SV_Unfilter_f, "Removes an IP Address from the penality list");
 	Cmd_AddCommandD ("listip", SV_FilterList_f, "Displays a list of ever player the server has penalties for");	//shows all penalties
 	Cmd_AddCommand ("writeip", SV_WriteIP_f);
 

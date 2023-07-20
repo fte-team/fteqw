@@ -3457,7 +3457,7 @@ void SV_InitOperatorCommands (void)
 #endif
 	Cmd_AddCommand ("killserver", SV_KillServer_f);
 	Cmd_AddCommandD ("precaches", SV_PrecacheList_f, "Displays a list of current server precaches.");
-	Cmd_AddCommandAD ("map", SV_Map_f, SV_Map_c, "Changes map. If a second argument is specified then that is normally the name of the initial start spot. Note that vanilla NetQuake and Half-Life kicks everyone (both expect you to use changelevel for that");
+	Cmd_AddCommandAD ("map", SV_Map_f, SV_Map_c, "Changes map. If a second argument is specified then that is normally the name of the initial start spot. Note that vanilla NetQuake and Half-Life kicks everyone (both expect you to use changelevel for that)");
 	Cmd_AddCommandAD ("mapedit", SV_Map_f, SV_Map_c, "Loads the named map without any gamecode active.");
 #ifdef Q3SERVER
 	Cmd_AddCommandAD ("spmap", SV_Map_f, SV_Map_c, "Loads a map in single-player mode, for Quake III compat");

@@ -2949,7 +2949,7 @@ static void S_UpdateSoundCard(soundcardinfo_t *sc, qboolean updateonly, channel_
 	if (sfx->loopstart == -1 && !(flags&CF_FORCELOOP))	//only skip if its not looping.
 	{
 		target_chan->sfx = NULL;
-		return;		// not audible at all
+		goto updatechannel;
 	}
 
 	target_chan->sfx = sfx;
@@ -2976,6 +2976,8 @@ static void S_UpdateSoundCard(soundcardinfo_t *sc, qboolean updateonly, channel_
 			}
 		}
 	}
+
+updatechannel:
 
 	if (sc->ChannelUpdate)
 		sc->ChannelUpdate(sc, target_chan, chanupdatetype);

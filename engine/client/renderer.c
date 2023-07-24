@@ -1034,9 +1034,9 @@ void Renderer_Init(void)
 // misc
 	Cvar_Register(&con_ocranaleds, "Console controls");
 
-	Cmd_AddCommandD ("listfonts", R_ListFonts_f, "Displays a list of every installed font");
-	Cmd_AddCommandD ("listskins", R_ListSkins_f, "Displays a list of every installed or downloaded QuakeWorld player skin");
-	Cmd_AddCommandD ("listconfigs", R_ListConfigs_f, "Displays a list of every installed config file");
+	Cmd_AddCommandD ("listfonts", R_ListFonts_f, "Displays a list of every installed font.");
+	Cmd_AddCommandD ("listskins", R_ListSkins_f, "Displays a list of every installed or downloaded QuakeWorld player skin.");
+	Cmd_AddCommandD ("listconfigs", R_ListConfigs_f, "Displays a list of every installed config file.");
 
 	R_Sky_Register();
 

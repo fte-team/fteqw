@@ -3392,19 +3392,19 @@ void SV_InitOperatorCommands (void)
 	if (isDedicated)
 #endif
 	{
-		Cmd_AddCommandD ("quit", SV_Quit_f, "Exits the engine back to desktop");
-		Cmd_AddCommandD ("say", SV_ConSay_f, "Send a chat message to everyone on the server");
+		Cmd_AddCommandD ("quit", SV_Quit_f, "Exits the engine back to desktop.");
+		Cmd_AddCommandD ("say", SV_ConSay_f, "Send a chat message to everyone on the server.");
 		Cmd_AddCommand ("sayone", SV_ConSayOne_f);
 		Cmd_AddCommand ("tell", SV_ConSayOne_f);
 		Cmd_AddCommand ("serverinfo", SV_Serverinfo_f);	//commands that conflict with client commands.
 		Cmd_AddCommand ("serverinfoblob", SV_Serverinfo_f);	//commands that conflict with client commands.
 		Cmd_AddCommand ("user", SV_User_f);
 
-		Cmd_AddCommandD ("god", SV_God_f, "Makes you immune to damage");
+		Cmd_AddCommandD ("god", SV_God_f, "Makes you immune to damage.");
 #ifdef QUAKESTATS
 		Cmd_AddCommand ("give", SV_Give_f);
 #endif
-		Cmd_AddCommandD ("noclip", SV_Noclip_f, "Disables clipping, allowing you to fly through the level");
+		Cmd_AddCommandD ("noclip", SV_Noclip_f, "Disables clipping, allowing you to fly through the level.");
 
 		Cmd_AddCommand ("download", SV_Download_f);
 	}
@@ -3425,7 +3425,7 @@ void SV_InitOperatorCommands (void)
 	Cmd_AddCommand ("snapall", SV_SnapAll_f);
 
 	//various punishments
-	Cmd_AddCommandD ("kick", SV_Kick_f, "Removes a player from the server, provide the name or IP of the desired player");
+	Cmd_AddCommandD ("kick", SV_Kick_f, "Removes a player from the server, provide the name or IP of the desired player.");
 	Cmd_AddCommand ("clientkick", SV_KickSlot_f);
 	Cmd_AddCommand ("renameclient", SV_ForceName_f);
 	Cmd_AddCommandD ("mute", SV_Mute_f, "Mutes the player (no voice or chat), shaming them.");
@@ -3433,19 +3433,19 @@ void SV_InitOperatorCommands (void)
 	Cmd_AddCommandD ("cuff", SV_Cuff_f, "Slap handcuffs on the player, preventing them from being able to attack.");
 	Cmd_AddCommandD ("cripple", SV_CripplePlayer_f, "Block the player's ability to move.");
 	Cmd_AddCommandD ("ban", SV_BanClientIP_f, "Block the player's IP, preventing them from connecting. Also kicks them.");
-	Cmd_AddCommandD ("banname", SV_BanClientIP_f, "Legacy compat, please use ban");	//legacy dupe-name crap
+	Cmd_AddCommandD ("banname", SV_BanClientIP_f, "Legacy compat, please use ban.");	//legacy dupe-name cruft
 
-	Cmd_AddCommandD ("banlist", SV_BanList_f, "Displays a list of every banned player on the server");	//shows only bans, not other penalties
-	Cmd_AddCommandD ("unban", SV_Unfilter_f, "Unbans or removes an IP Address from the penality list, alias to removeip");	//merely renamed.
+	Cmd_AddCommandD ("banlist", SV_BanList_f, "Displays a list of every banned player on the server.");	//shows only bans, not other penalties
+	Cmd_AddCommandD ("unban", SV_Unfilter_f, "Unbans or removes an IP Address from the penality list, alias to removeip.");	//merely renamed.
 
 	Cmd_AddCommand ("addip", SV_FilterIP_f);
-	Cmd_AddCommandD ("removeip", SV_Unfilter_f, "Removes an IP Address from the penality list");
-	Cmd_AddCommandD ("listip", SV_FilterList_f, "Displays a list of ever player the server has penalties for");	//shows all penalties
+	Cmd_AddCommandD ("removeip", SV_Unfilter_f, "Removes an IP Address from the penality list.");
+	Cmd_AddCommandD ("listip", SV_FilterList_f, "Displays a list of ever player the server has penalties for.");	//shows all penalties
 	Cmd_AddCommand ("writeip", SV_WriteIP_f);
 
 	Cmd_AddCommand ("floodprot", SV_Floodprot_f);
 
-	Cmd_AddCommandD ("status", SV_Status_f, "Prints info about the current server");
+	Cmd_AddCommandD ("status", SV_Status_f, "Prints info about the current server.");
 
 	Cmd_AddCommand ("sv", SV_SendGameCommand_f);
 	Cmd_AddCommand ("mod", SV_SendGameCommand_f);
@@ -3457,19 +3457,19 @@ void SV_InitOperatorCommands (void)
 #endif
 	Cmd_AddCommand ("killserver", SV_KillServer_f);
 	Cmd_AddCommandD ("precaches", SV_PrecacheList_f, "Displays a list of current server precaches.");
-	Cmd_AddCommandAD ("map", SV_Map_f, SV_Map_c, "Changes map. If a second argument is specified then that is normally the name of the initial start spot. Note that vanilla NetQuake and Half-Life kicks everyone (both expect you to use changelevel for that)");
+	Cmd_AddCommandAD ("map", SV_Map_f, SV_Map_c, "Begins a new game on the specified map.");
 	Cmd_AddCommandAD ("mapedit", SV_Map_f, SV_Map_c, "Loads the named map without any gamecode active.");
 #ifdef Q3SERVER
-	Cmd_AddCommandAD ("spmap", SV_Map_f, SV_Map_c, "Loads a map in single-player mode, for Quake III compat");
-	Cmd_AddCommandAD ("spdevmap", SV_Map_f, SV_Map_c, "Loads a map in single-player developer mode (sv_cheats 1), for Quake III compat");
-	Cmd_AddCommandAD ("devmap", SV_Map_f, SV_Map_c, "Loads a map in developer mode (sv_cheats 1), for Quake III compat");
+	Cmd_AddCommandAD ("spmap", SV_Map_f, SV_Map_c, "Loads a map in single-player mode, for Quake III compat.");
+	Cmd_AddCommandAD ("spdevmap", SV_Map_f, SV_Map_c, "Loads a map in single-player developer mode (sv_cheats 1), for Quake III compat.");
+	Cmd_AddCommandAD ("devmap", SV_Map_f, SV_Map_c, "Loads a map in developer mode (sv_cheats 1), for Quake III compat.");
 #endif
 	Cmd_AddCommandAD ("gamemap", SV_Map_f, SV_Map_c, NULL);
-	Cmd_AddCommandAD ("changelevel", SV_Map_f, SV_Map_c, "Changes a map without flushing the level cache or restarting the server, for HeXen II compat (won't save current level state in such a situation, as NetQuake would prefer not) and Half-Life");
-	Cmd_AddCommandD ("map_restart", SV_Map_f, "Restarts the server, and reloads the map while flushing level cache, for Quake III compat");	//from q3.
-	Cmd_AddCommandD ("listmaps", SV_MapList_f, "Displays a list of installed maps");
-	Cmd_AddCommandD ("maplist", SV_MapList_f, "Displays a list of installed maps");
-	Cmd_AddCommandD ("maps", SV_MapList_f, "Displays a list of installed maps");
+	Cmd_AddCommandAD ("changelevel", SV_Map_f, SV_Map_c, "Continues the game on a different map. The current map can be reentered later when a starting position for the new map is specified as a second argument.");
+	Cmd_AddCommandD ("map_restart", SV_Map_f, "Restarts the server and reloads the map while flushing level cache, for general use and Quake III compat.");	//from q3.
+	Cmd_AddCommandD ("listmaps", SV_MapList_f, "Displays a list of installed maps.");
+	Cmd_AddCommandD ("maplist", SV_MapList_f, "Displays a list of installed maps.");
+	Cmd_AddCommandD ("maps", SV_MapList_f, "Displays a list of installed maps.");
 #if defined(HAVE_LEGACY) && defined(HAVE_SERVER)
 	Cmd_AddCommandD ("check_maps", SV_redundantcommand_f, "Obsolete, specific to ktpro. Modern mods should use search_begin instead.");
 	Cmd_AddCommandD ("sys_select_timeout", SV_redundantcommand_f, "Redundant - server will throttle according to tick rates instead.");
@@ -3481,7 +3481,7 @@ void SV_InitOperatorCommands (void)
 	Cmd_AddCommandD ("sv_progtype", SV_redundantcommand_f, "Use sv_progs instead. Using to block .dll loading is insufficient with buggy clients around.");
 #endif
 
-	Cmd_AddCommandD ("heartbeat", SV_Heartbeat_f, "Sends an update or ping to the master server so the current server can remain listed");
+	Cmd_AddCommandD ("heartbeat", SV_Heartbeat_f, "Sends an update or ping to the master server so the current server can remain listed.");
 
 	Cmd_AddCommand ("localinfo", SV_Localinfo_f);
 	Cmd_AddCommandAD ("gamedir", SV_Gamedir_f, SV_Gamedir_c, "Change the current gamedir.");

@@ -976,7 +976,7 @@ static void CLQ2_ParseDelta (entity_state_t *from, entity_state_t *to, int numbe
 	if (bits & Q2U_FRAME8)
 		to->frame = MSG_ReadByte ();
 	if (bits & Q2U_FRAME16)
-		to->frame = MSG_ReadShort ();
+		to->frame = MSG_ReadUInt16();
 
 	if ((bits & Q2U_SKIN8) && (bits & Q2U_SKIN16))		//used for laser colors
 		to->skinnum = MSG_ReadLong();
@@ -1031,7 +1031,7 @@ static void CLQ2_ParseDelta (entity_state_t *from, entity_state_t *to, int numbe
 	if (bits & Q2U_SOUND)
 	{
 		if (bits & Q2UX_INDEX16)
-			to->u.q2.sound = MSG_ReadShort();
+			to->u.q2.sound = MSG_ReadUInt16();
 		else
 			to->u.q2.sound = MSG_ReadByte ();
 	}

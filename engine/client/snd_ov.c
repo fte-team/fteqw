@@ -162,7 +162,7 @@ static sfxcache_t *QDECL OV_DecodeSome(struct sfx_s *sfx, struct sfxcache_s *buf
 			p_ov_pcm_seek(&dec->vf, (dec->decodedbytestart * dec->srcspeed) / outspeed);
 		}
 	*/
-		if (dec->decodedbytecount > outspeed*8 && !dec->nopurge)
+		if (dec->decodedbytecount > outspeed*8)
 		{
 			/*everything is okay, but our buffer is getting needlessly large.
 			keep anything after the 'new' position, but discard all before that
@@ -532,9 +532,6 @@ qboolean QDECL S_LoadOVSound (sfx_t *s, qbyte *data, size_t datalen, int sndspee
 	s->decoder.ended = OV_ClearDecoder;
 
 	s->decoder.decodedata(s, NULL, 0, 100);
-
-	if (p_ov_time_total(&buffer->vf, -1) < 5)	//short sounds might as well remain cached.
-		buffer->nopurge = true;
 
 	return true;
 }

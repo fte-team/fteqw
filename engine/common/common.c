@@ -2183,6 +2183,30 @@ int MSG_ReadShort (void)
 	return c;
 }
 
+int MSG_ReadUInt16 (void)
+{
+	int	c;
+	unsigned int msg_readcount;
+
+	if (msg_readmsg->packing!=SZ_RAWBYTES)
+		return (short)MSG_ReadBits(16);
+
+	msg_readcount = msg_readmsg->currentbit>>3;
+	if (msg_readcount+2 > msg_readmsg->cursize)
+	{
+		msg_badread = true;
+		return -1;
+	}
+
+	c = (unsigned short)(msg_readmsg->data[msg_readcount]
+	+ (msg_readmsg->data[msg_readcount+1]<<8));
+
+	msg_readcount += 2;
+	msg_readmsg->currentbit = msg_readcount<<3;
+
+	return c;
+}
+
 int MSG_ReadLong (void)
 {
 	int	c;

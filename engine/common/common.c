@@ -2183,7 +2183,7 @@ int MSG_ReadShort (void)
 	return c;
 }
 
-int MSG_ReadUShort (void)
+int MSG_ReadUInt16 (void)
 {
 	int	c;
 	unsigned int msg_readcount;

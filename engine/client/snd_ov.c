@@ -86,11 +86,10 @@ static float QDECL OV_Query(struct sfx_s *sfx, struct sfxcache_s *buf, char *nam
 	if (!dec)
 		return -1;
 
-	if (dec->timetotal < 0)
-	{
-		dec->pcmtotal = p_ov_pcm_total(&dec->vf, -1);
-		dec->timetotal = p_ov_time_total(&dec->vf, -1);
-	}
+//	if (dec->pcmtotal == 0)
+//		dec->pcmtotal = p_ov_pcm_total(&dec->vf, -1);
+//	if (dec->timetotal < 0)
+//		dec->timetotal = p_ov_time_total(&dec->vf, -1);
 
 	if (buf)
 	{
@@ -162,7 +161,7 @@ static sfxcache_t *QDECL OV_DecodeSome(struct sfx_s *sfx, struct sfxcache_s *buf
 			p_ov_pcm_seek(&dec->vf, (dec->decodedbytestart * dec->srcspeed) / outspeed);
 		}
 	*/
-		if (dec->decodedbytecount > outspeed*8)
+		if (dec->decodedbytecount > outspeed*8 && !dec->nopurge)
 		{
 			/*everything is okay, but our buffer is getting needlessly large.
 			keep anything after the 'new' position, but discard all before that
@@ -199,9 +198,9 @@ static sfxcache_t *QDECL OV_DecodeSome(struct sfx_s *sfx, struct sfxcache_s *buf
 			if (dec->failed || start+length <= dec->decodedbytestart + dec->decodedbytecount)
 				break;
 
-			if (dec->decodedbufferbytes < start+length - dec->decodedbytestart + 4096)	//expand if needed. 4096 seems to be the recommended size.
+			if (dec->decodedbufferbytes < start+length - dec->decodedbytestart + 4096 && !dec->nopurge)	//expand if needed. 4096 seems to be the recommended size.
 			{
-		//		Con_Printf("Expand buffer\n");
+//				Con_Printf("Expand buffer for %s\n", sfx->name);
 				dec->decodedbufferbytes = (start+length - dec->decodedbytestart) + max(outspeed, 4096); //over allocate, because we can.
 				dec->decodedbuffer = BZ_Realloc(dec->decodedbuffer, dec->decodedbufferbytes);
 			}
@@ -489,8 +488,21 @@ static qboolean OV_StartDecode(unsigned char *start, unsigned long length, ovdec
 	buffer->start = BZ_Malloc(length);
 	memcpy(buffer->start, start, length);
 
-	buffer->timetotal = -1;
+	buffer->pcmtotal = p_ov_pcm_total(&buffer->vf, -1);
+	buffer->timetotal = buffer->pcmtotal / (float)buffer->srcspeed;
 
+	if (buffer->timetotal < 5)	//short sounds might as well remain cached.
+		buffer->nopurge = true;
+
+	if (buffer->nopurge)
+	{	//waste more memory upfront to avoid reallocs later.
+		buffer->decodedbufferbytes = buffer->pcmtotal;
+		buffer->decodedbufferbytes += 4096;	 //ogg vorbis apparently lies/fails sometimes.
+		buffer->decodedbufferbytes *= (double)snd_speed / buffer->srcspeed;	//from src rate to dst rate
+		buffer->decodedbufferbytes *= 2*buffer->srcchannels; //convert from frames to bytes.
+		buffer->decodedbufferbytes += 4096;	 //just general paranoia.
+		buffer->decodedbuffer = BZ_Realloc(buffer->decodedbuffer, buffer->decodedbufferbytes);
+	}
 	return true;
 }
 

@@ -1046,7 +1046,7 @@ static void CLQ2_ParseDelta (entity_state_t *from, entity_state_t *to, int numbe
 		if (net_message.prim.flags & NPQ2_SOLID32)
 			to->solidsize = MSG_ReadLong();
 		else
-			to->solidsize = MSG_ReadUInt16();
+			to->solidsize = MSG_ReadSize16 (&net_message);
 	}
 }
 

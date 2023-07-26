@@ -3231,6 +3231,7 @@ void CL_UpdateExplosions (float frametime)
 #ifdef HEXEN2
 		ent->drawflags = SCALE_ORIGIN_ORIGIN;
 #endif
+		cl.worldmodel->funcs.FindTouchedLeafs(cl.worldmodel, &ent->pvscache, ent->origin, ent->origin);
 
 		if (ex->traileffect != P_INVALID)
 			pe->ParticleTrail(ent->oldorigin, ent->origin, ex->traileffect, frametime, 0, ent->axis, &(ex->trailstate));

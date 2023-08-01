@@ -753,6 +753,10 @@ void R_PushDlights (void)
 	{
 		if (!l->radius || !(l->flags & LFLAG_LIGHTMAP))
 			continue;
+		if ((l->flags & LFLAG_NORMALMODE) && r_shadow_realtime_dlight.ival)
+			continue;	//don't draw both. its redundant and a waste of cpu.
+		if ((l->flags & LFLAG_REALTIMEMODE) && r_shadow_realtime_world.ival)
+			continue;	//also don't draw both.
 		currentmodel->funcs.MarkLights( l, (dlightbitmask_t)1u<<i, currentmodel->nodes );
 	}
 }
@@ -2701,7 +2705,7 @@ static float *GLRecursiveLightPoint3C (model_t *mod, mnode_t *node, const vec3_t
 	msurface_t	*surf;
 	int			s, t, ds, dt;
 	int			i;
-	mtexinfo_t	*tex;
+	vec4_t	*lmvecs;
 	qbyte		*lightmap, *deluxmap;
 	float	scale, overbright;
 	int			maps;
@@ -2748,10 +2752,13 @@ static float *GLRecursiveLightPoint3C (model_t *mod, mnode_t *node, const vec3_t
 		if (surf->flags & SURF_DRAWTILED)
 			continue;	// no lightmaps
 
-		tex = surf->texinfo;
+		if (mod->facelmvecs)
+			lmvecs = mod->facelmvecs[surf-mod->surfaces].lmvecs;
+		else
+			lmvecs = surf->texinfo->vecs;
 		
-		s = DotProduct (mid, tex->vecs[0]) + tex->vecs[0][3];
-		t = DotProduct (mid, tex->vecs[1]) + tex->vecs[1][3];
+		s = DotProduct (mid, lmvecs[0]) + lmvecs[0][3];
+		t = DotProduct (mid, lmvecs[1]) + lmvecs[1][3];
 
 		if (s < surf->texturemins[0] ||
 		t < surf->texturemins[1])

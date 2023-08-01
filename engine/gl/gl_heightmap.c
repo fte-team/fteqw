@@ -4452,7 +4452,7 @@ void Heightmap_LightPointValues	(model_t *mod, const vec3_t point, vec3_t res_di
 	res_dir[2] = 0;//sin(time);
 	VectorNormalize(res_dir);
 }
-void Heightmap_StainNode			(mnode_t *node, float *parms)
+void Heightmap_StainNode			(model_t *mod, float *parms)
 {
 }
 void Heightmap_MarkLights			(dlight_t *light, dlightbitmask_t bit, mnode_t *node)

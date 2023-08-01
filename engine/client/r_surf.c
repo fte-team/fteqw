@@ -80,7 +80,7 @@ void QDECL Surf_RebuildLightmap_Callback (struct cvar_s *var, char *oldvalue)
 }
 
 //radius, x y z, r g b
-void Surf_StainSurf (msurface_t *surf, float *parms)
+void Surf_StainSurf (model_t *mod, msurface_t *surf, float *parms)
 {
 	int			sd, td;
 	float		dist, rad, minlight;
@@ -91,7 +91,8 @@ void Surf_StainSurf (msurface_t *surf, float *parms)
 	int			smax, tmax;
 	float amm;
 	int lim;
-	mtexinfo_t	*tex;
+	vec4_t	*lmvecs;
+	float	*lmvecscale;
 	stmap *stainbase;
 	lightmapinfo_t *lm;
 
@@ -107,7 +108,10 @@ void Surf_StainSurf (msurface_t *surf, float *parms)
 
 	smax = (surf->extents[0]>>surf->lmshift)+1;
 	tmax = (surf->extents[1]>>surf->lmshift)+1;
-	tex = surf->texinfo;
+	if (mod->facelmvecs)
+		lmvecs = mod->facelmvecs[surf-mod->surfaces].lmvecs, lmvecscale = mod->facelmvecs[surf-mod->surfaces].lmvecscale;
+	else
+		lmvecs = surf->texinfo->vecs, lmvecscale = surf->texinfo->vecscale;
 
 	stainbase = lm->stainmaps;
 	stainbase += (surf->light_t[0] * lm->width + surf->light_s[0]) * 3;
@@ -125,20 +129,20 @@ void Surf_StainSurf (msurface_t *surf, float *parms)
 		impact[i] = (parms+1)[i] - surf->plane->normal[i]*dist;
 	}
 
-	local[0] = DotProduct (impact, tex->vecs[0]) + tex->vecs[0][3];
-	local[1] = DotProduct (impact, tex->vecs[1]) + tex->vecs[1][3];
+	local[0] = DotProduct (impact, lmvecs[0]) + lmvecs[0][3];
+	local[1] = DotProduct (impact, lmvecs[1]) + lmvecs[1][3];
 
 	local[0] -= surf->texturemins[0];
 	local[1] -= surf->texturemins[1];
 
 	for (t = 0 ; t<tmax ; t++)
 	{
-		td = local[1] - (t<<surf->lmshift);
+		td = (local[1] - (t<<surf->lmshift))*lmvecscale[1];
 		if (td < 0)
 			td = -td;
 		for (s=0 ; s<smax ; s++)
 		{
-			sd = local[0] - (s<<surf->lmshift);
+			sd = (local[0] - (s<<surf->lmshift))*lmvecscale[0];
 			if (sd < 0)
 				sd = -sd;
 			if (sd > td)
@@ -219,7 +223,7 @@ void Surf_AddStain(vec3_t org, float red, float green, float blue, float radius)
 	parms[6] = blue;
 
 
-	cl.worldmodel->funcs.StainNode(cl.worldmodel->rootnode, parms);
+	cl.worldmodel->funcs.StainNode(cl.worldmodel, parms);
 
 	//now stain inline bsp models other than world.
 
@@ -243,7 +247,7 @@ void Surf_AddStain(vec3_t org, float red, float green, float blue, float radius)
 			}
 
 
-			pe->model->funcs.StainNode(pe->model->rootnode, parms);
+			pe->model->funcs.StainNode(pe->model, parms);
 		}
 	}
 }
@@ -340,14 +344,17 @@ static void Surf_AddDynamicLights_Lum (msurface_t *surf)
 	int			s, t;
 	int			i;
 	int			smax, tmax;
-	mtexinfo_t	*tex;
-	float a;
+	float l;
 	unsigned	*bl;
+	vec4_t		*lmvecs;
+	float		*lmvecscale;
 
 	smax = (surf->extents[0]>>surf->lmshift)+1;
 	tmax = (surf->extents[1]>>surf->lmshift)+1;
-	tex = surf->texinfo;
-
+	if (currentmodel->facelmvecs)
+		lmvecs = currentmodel->facelmvecs[surf-currentmodel->surfaces].lmvecs, lmvecscale = currentmodel->facelmvecs[surf-currentmodel->surfaces].lmvecscale;
+	else
+		lmvecs = surf->texinfo->vecs, lmvecscale = surf->texinfo->vecscale;
 	for (lnum=rtlights_first; lnum<RTL_FIRST; lnum++)
 	{
 		if ( !(surf->dlightbits & ((dlightbitmask_t)1u<<lnum) ) )
@@ -371,23 +378,23 @@ static void Surf_AddDynamicLights_Lum (msurface_t *surf)
 					surf->plane->normal[i]*dist;
 		}
 
-		local[0] = DotProduct (impact, tex->vecs[0]) + tex->vecs[0][3];
-		local[1] = DotProduct (impact, tex->vecs[1]) + tex->vecs[1][3];
+		local[0] = DotProduct (impact, lmvecs[0]) + lmvecs[0][3];
+		local[1] = DotProduct (impact, lmvecs[1]) + lmvecs[1][3];
 
 		local[0] -= surf->texturemins[0];
 		local[1] -= surf->texturemins[1];
 
-		a = 256*(cl_dlights[lnum].color[0]*NTSC_RED + cl_dlights[lnum].color[1]*NTSC_GREEN + cl_dlights[lnum].color[2]*NTSC_BLUE);
+		l = 256*(cl_dlights[lnum].color[0]*NTSC_RED + cl_dlights[lnum].color[1]*NTSC_GREEN + cl_dlights[lnum].color[2]*NTSC_BLUE);
 
 		bl = blocklights;
 		for (t = 0 ; t<tmax ; t++)
 		{
-			td = local[1] - (t<<surf->lmshift);
+			td = (local[1] - (t<<surf->lmshift))*lmvecscale[1];
 			if (td < 0)
 				td = -td;
 			for (s=0 ; s<smax ; s++)
 			{
-				sd = local[0] - (s<<surf->lmshift);
+				sd = (local[0] - (s<<surf->lmshift))*lmvecscale[0];
 				if (sd < 0)
 					sd = -sd;
 				if (sd > td)
@@ -395,7 +402,7 @@ static void Surf_AddDynamicLights_Lum (msurface_t *surf)
 				else
 					dist = td + (sd>>1);
 				if (dist < minlight)
-					bl[0] += (rad - dist)*a;
+					bl[0] += (rad - dist)*l;
 				bl++;
 			}
 		}
@@ -412,7 +419,8 @@ static void Surf_AddDynamicLightNorms (msurface_t *surf)
 	int			s, t;
 	int			i;
 	int			smax, tmax;
-	mtexinfo_t	*tex;
+	vec4_t		*lmvecs;
+	float		*lmvecscale;
 	float a;
 
 	smax = (surf->extents[0]>>4)+1;
@@ -442,8 +450,8 @@ static void Surf_AddDynamicLightNorms (msurface_t *surf)
 					surf->plane->normal[i]*dist;
 		}
 
-		local[0] = DotProduct (impact, tex->vecs[0]) + tex->vecs[0][3];
-		local[1] = DotProduct (impact, tex->vecs[1]) + tex->vecs[1][3];
+		local[0] = DotProduct (impact, lmvecs[0]) + lmvecs[0][3];
+		local[1] = DotProduct (impact, lmvecs[1]) + lmvecs[1][3];
 
 		local[0] -= surf->texturemins[0];
 		local[1] -= surf->texturemins[1];
@@ -452,12 +460,12 @@ static void Surf_AddDynamicLightNorms (msurface_t *surf)
 
 		for (t = 0 ; t<tmax ; t++)
 		{
-			td = local[1] - t*surf->lmscale;
+			td = (local[1] - t*surf->lmscale)*lmvecscale[1];
 			if (td < 0)
 				td = -td;
 			for (s=0 ; s<smax ; s++)
 			{
-				sd = local[0] - s*surf->lmscale;
+				sd = (local[0] - s*surf->lmscale)*lmvecscale[0];
 				if (sd < 0)
 					sd = -sd;
 				if (sd > td)
@@ -480,13 +488,15 @@ static void Surf_AddDynamicLightNorms (msurface_t *surf)
 static void Surf_AddDynamicLights_RGB (msurface_t *surf)
 {
 	int			lnum;
-	int			sd, td;
+	float		sd, td;
 	float		dist, rad, minlight;
-	vec3_t		impact, local;
+	vec3_t		impact;
+	vec2_t		local;
 	int			s, t;
 	int			i;
 	int			smax, tmax;
-	mtexinfo_t	*tex;
+	vec4_t		*lmvecs;
+	float		*lmvecscale;
 //	float temp;
 	float r, g, b;
 	unsigned	*bl;
@@ -494,7 +504,10 @@ static void Surf_AddDynamicLights_RGB (msurface_t *surf)
 
 	smax = (surf->extents[0]>>surf->lmshift)+1;
 	tmax = (surf->extents[1]>>surf->lmshift)+1;
-	tex = surf->texinfo;
+	if (currentmodel->facelmvecs)
+		lmvecs = currentmodel->facelmvecs[surf-currentmodel->surfaces].lmvecs, lmvecscale = currentmodel->facelmvecs[surf-currentmodel->surfaces].lmvecscale;
+	else
+		lmvecs = surf->texinfo->vecs, lmvecscale = surf->texinfo->vecscale;
 
 	for (lnum=rtlights_first; lnum<RTL_FIRST; lnum++)
 	{
@@ -503,7 +516,7 @@ static void Surf_AddDynamicLights_RGB (msurface_t *surf)
 
 		rad = cl_dlights[lnum].radius;
 		VectorSubtract(cl_dlights[lnum].origin, currententity->origin, lightofs);
-		//FIXME: transform by forward/right/up
+		//FIXME: transform by currententity->axis
 		dist = DotProduct (lightofs, surf->plane->normal) - surf->plane->dist;
 		rad -= fabs(dist);
 		minlight = cl_dlights[lnum].minlight;
@@ -517,11 +530,12 @@ static void Surf_AddDynamicLights_RGB (msurface_t *surf)
 					surf->plane->normal[i]*dist;
 		}
 
-		local[0] = DotProduct (impact, tex->vecs[0]) + tex->vecs[0][3];
-		local[1] = DotProduct (impact, tex->vecs[1]) + tex->vecs[1][3];
+		local[0] = DotProduct (impact, lmvecs[0]) + lmvecs[0][3];
+		local[1] = DotProduct (impact, lmvecs[1]) + lmvecs[1][3];
 
 		local[0] -= surf->texturemins[0];
 		local[1] -= surf->texturemins[1];
+
 
 		if (r_dynamic.ival == 2)
 			r = g = b = 256;
@@ -537,18 +551,18 @@ static void Surf_AddDynamicLights_RGB (msurface_t *surf)
 		{
 			for (t = 0 ; t<tmax ; t++)
 			{
-				td = local[1] - (t<<surf->lmshift);
+				td = (local[1] - (t<<surf->lmshift))*lmvecscale[1];
 				if (td < 0)
 					td = -td;
 				for (s=0 ; s<smax ; s++)
 				{
-					sd = local[0] - (s<<surf->lmshift);
+					sd = (local[0] - (s<<surf->lmshift))*lmvecscale[0];
 					if (sd < 0)
 						sd = -sd;
 					if (sd > td)
-						dist = sd + (td>>1);
+						dist = sd + td*0.5;
 					else
-						dist = td + (sd>>1);
+						dist = td + sd*0.5;
 					if (dist < minlight)
 					{
 						i = bl[0] + (rad - dist)*r;
@@ -566,18 +580,18 @@ static void Surf_AddDynamicLights_RGB (msurface_t *surf)
 		{
 			for (t = 0 ; t<tmax ; t++)
 			{
-				td = local[1] - (t<<surf->lmshift);
+				td = (local[1] - (t<<surf->lmshift))*lmvecscale[1];
 				if (td < 0)
 					td = -td;
 				for (s=0 ; s<smax ; s++)
 				{
-					sd = local[0] - (s<<surf->lmshift);
+					sd = (local[0] - (s<<surf->lmshift))*lmvecscale[0];
 					if (sd < 0)
 						sd = -sd;
 					if (sd > td)
-						dist = sd + (td>>1);
+						dist = sd + td*0.5;
 					else
-						dist = td + (sd>>1);
+						dist = td + sd*0.5;
 					if (dist < minlight)
 					{
 						bl[0] += (rad - dist)*r;
@@ -2303,7 +2317,10 @@ void Surf_GenBrushBatches(batch_t **batches, entity_t *ent)
 					continue;
 				if (!(cl_dlights[k].flags & LFLAG_LIGHTMAP))
 					continue;
-
+				if ((cl_dlights[k].flags & LFLAG_NORMALMODE) && r_shadow_realtime_dlight.ival)
+					continue;
+				if ((cl_dlights[k].flags & LFLAG_REALTIMEMODE) && r_shadow_realtime_world.ival)
+					continue;
 				model->funcs.MarkLights (&cl_dlights[k], (dlightbitmask_t)1<<k, model->rootnode);
 			}
 		}

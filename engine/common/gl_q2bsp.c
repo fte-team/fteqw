@@ -4432,7 +4432,7 @@ static void Q2BSP_MarkLights (dlight_t *light, dlightbitmask_t bit, mnode_t *nod
 }
 
 #ifndef SERVERONLY
-static void GLR_Q2BSP_StainNode (mnode_t *node, float *parms)
+static void GLR_Q2BSP_StainNode_r (model_t *model, mnode_t *node, float *parms)
 {
 	mplane_t	*splitplane;
 	float		dist;
@@ -4447,26 +4447,30 @@ static void GLR_Q2BSP_StainNode (mnode_t *node, float *parms)
 
 	if (dist > (*parms))
 	{
-		GLR_Q2BSP_StainNode (node->children[0], parms);
+		GLR_Q2BSP_StainNode_r (model, node->children[0], parms);
 		return;
 	}
 	if (dist < (-*parms))
 	{
-		GLR_Q2BSP_StainNode (node->children[1], parms);
+		GLR_Q2BSP_StainNode_r (model, node->children[1], parms);
 		return;
 	}
 
 // mark the polygons
-	surf = cl.worldmodel->surfaces + node->firstsurface;
+	surf = model->surfaces + node->firstsurface;
 	for (i=0 ; i<node->numsurfaces ; i++, surf++)
 	{
 		if (surf->flags&~(SURF_DONTWARP|SURF_PLANEBACK))
 			continue;
-		Surf_StainSurf(surf, parms);
+		Surf_StainSurf(model, surf, parms);
 	}
 
-	GLR_Q2BSP_StainNode (node->children[0], parms);
-	GLR_Q2BSP_StainNode (node->children[1], parms);
+	GLR_Q2BSP_StainNode_r (model, node->children[0], parms);
+	GLR_Q2BSP_StainNode_r (model, node->children[1], parms);
+}
+static void GLR_Q2BSP_StainNode (model_t *model, float *parms)
+{
+	GLR_Q2BSP_StainNode_r(model, model->rootnode, parms);
 }
 #endif
 

@@ -2485,6 +2485,7 @@ void ModQ1_Batches_BuildQ1Q2Poly(model_t *mod, msurface_t *surf, builddata_t *co
 	float s, t, d;
 	int sty;
 //	int w,h;
+	struct facelmvecs_s *flmv = mod->facelmvecs?mod->facelmvecs + (surf-mod->surfaces):NULL;
 
 	if (!mesh)
 	{
@@ -2543,22 +2544,40 @@ void ModQ1_Batches_BuildQ1Q2Poly(model_t *mod, msurface_t *surf, builddata_t *co
 				mesh->st_array[i][1] /= surf->texinfo->texture->vheight;
 		}
 
-#ifndef SERVERONLY
-		if (r_lightmap_average.ival)
+		if (flmv)
 		{
+			s = DotProduct (vec, flmv->lmvecs[0]) + flmv->lmvecs[0][3];
+			t = DotProduct (vec, flmv->lmvecs[1]) + flmv->lmvecs[1][3];
+#ifndef SERVERONLY
+			if (r_lightmap_average.ival)
+				s = surf->extents[0]*0.5, t = surf->extents[1]*0.5;
+#endif
+			//s+t are now in luxels... need to convert those to normalised texcoords though.
 			for (sty = 0; sty < 1; sty++)
 			{
-				mesh->lmst_array[sty][i][0] = (surf->extents[0]*0.5 + (surf->light_s[sty]<<surf->lmshift) + (1<<surf->lmshift)*0.5) / (mod->lightmaps.width<<surf->lmshift);
-				mesh->lmst_array[sty][i][1] = (surf->extents[1]*0.5 + (surf->light_t[sty]<<surf->lmshift) + (1<<surf->lmshift)*0.5) / (mod->lightmaps.height<<surf->lmshift);
+				mesh->lmst_array[sty][i][0] = (surf->light_s[sty] + s) / mod->lightmaps.width;
+				mesh->lmst_array[sty][i][1] = (surf->light_t[sty] + t) / mod->lightmaps.height;
 			}
 		}
 		else
-#endif
 		{
-			for (sty = 0; sty < 1; sty++)
+#ifndef SERVERONLY
+			if (r_lightmap_average.ival)
 			{
-				mesh->lmst_array[sty][i][0] = (s - surf->texturemins[0] + (surf->light_s[sty]<<surf->lmshift) + (1<<surf->lmshift)*0.5) / (mod->lightmaps.width<<surf->lmshift);
-				mesh->lmst_array[sty][i][1] = (t - surf->texturemins[1] + (surf->light_t[sty]<<surf->lmshift) + (1<<surf->lmshift)*0.5) / (mod->lightmaps.height<<surf->lmshift);
+				for (sty = 0; sty < 1; sty++)
+				{
+					mesh->lmst_array[sty][i][0] = (surf->extents[0]*0.5 + (surf->light_s[sty]<<surf->lmshift) + (1<<surf->lmshift)*0.5) / (mod->lightmaps.width<<surf->lmshift);
+					mesh->lmst_array[sty][i][1] = (surf->extents[1]*0.5 + (surf->light_t[sty]<<surf->lmshift) + (1<<surf->lmshift)*0.5) / (mod->lightmaps.height<<surf->lmshift);
+				}
+			}
+			else
+#endif
+			{
+				for (sty = 0; sty < 1; sty++)
+				{
+					mesh->lmst_array[sty][i][0] = (s - surf->texturemins[0] + (surf->light_s[sty]<<surf->lmshift) + (1<<surf->lmshift)*0.5) / (mod->lightmaps.width<<surf->lmshift);
+					mesh->lmst_array[sty][i][1] = (t - surf->texturemins[1] + (surf->light_t[sty]<<surf->lmshift) + (1<<surf->lmshift)*0.5) / (mod->lightmaps.height<<surf->lmshift);
+				}
 			}
 		}
 
@@ -4228,6 +4247,10 @@ static qboolean Mod_LoadFaces (model_t *loadmodel, bspx_header_t *bspx, qbyte *m
 	lightmapoverrides_t overrides;
 
 	int lofsscale = 1;
+	qboolean lightmapusable = false;
+
+	struct decoupled_lm_info_s *decoupledlm;
+	unsigned int dcsize;
 
 	memset(&overrides, 0, sizeof(overrides));
 
@@ -4270,6 +4293,12 @@ static qboolean Mod_LoadFaces (model_t *loadmodel, bspx_header_t *bspx, qbyte *m
 
 	Mod_LoadVertexNormals(loadmodel, bspx, mod_base, NULL);
 	Mod_LoadLighting (loadmodel, bspx, mod_base, lightlump, false, &overrides, subbsp);
+
+	decoupledlm = BSPX_FindLump(bspx, mod_base, "DECOUPLED_LM", &dcsize); //RGB packed data
+	if (dcsize == count*sizeof(*decoupledlm))
+		loadmodel->facelmvecs = ZG_Malloc(&loadmodel->memgroup, count * sizeof(*loadmodel->facelmvecs));	//seems good.
+	else
+		decoupledlm	= NULL;	//wrong size somehow... discard it.
 
 	switch(loadmodel->lightmaps.fmt)
 	{
@@ -4353,14 +4382,37 @@ static qboolean Mod_LoadFaces (model_t *loadmodel, bspx_header_t *bspx, qbyte *m
 			if (loadmodel->lightmaps.maxstyle < out->styles[i])
 				loadmodel->lightmaps.maxstyle = out->styles[i];
 
-		CalcSurfaceExtents (loadmodel, out);
+		if (decoupledlm)
+		{
+			lofs = LittleLong(decoupledlm->lmoffset);
+			out->texturemins[0] = out->texturemins[1] = 0; // should be handled by the now-per-surface vecs[][3] value.
+			out->lmshift = 0;	//redundant.
+			out->extents[0] = (unsigned short)LittleShort(decoupledlm->lmsize[0]) - 1;
+			out->extents[1] = (unsigned short)LittleShort(decoupledlm->lmsize[1]) - 1;
+			loadmodel->facelmvecs[surfnum].lmvecs[0][0] = LittleFloat(decoupledlm->lmvecs[0][0]);
+			loadmodel->facelmvecs[surfnum].lmvecs[0][1] = LittleFloat(decoupledlm->lmvecs[0][1]);
+			loadmodel->facelmvecs[surfnum].lmvecs[0][2] = LittleFloat(decoupledlm->lmvecs[0][2]);
+			loadmodel->facelmvecs[surfnum].lmvecs[0][3] = LittleFloat(decoupledlm->lmvecs[0][3]) + 0.5f; //sigh
+			loadmodel->facelmvecs[surfnum].lmvecs[1][0] = LittleFloat(decoupledlm->lmvecs[1][0]);
+			loadmodel->facelmvecs[surfnum].lmvecs[1][1] = LittleFloat(decoupledlm->lmvecs[1][1]);
+			loadmodel->facelmvecs[surfnum].lmvecs[1][2] = LittleFloat(decoupledlm->lmvecs[1][2]);
+			loadmodel->facelmvecs[surfnum].lmvecs[1][3] = LittleFloat(decoupledlm->lmvecs[1][3]) + 0.5f; //sigh
+			loadmodel->facelmvecs[surfnum].lmvecscale[0] = 1.0f/Length(loadmodel->facelmvecs[surfnum].lmvecs[0]);	//luxels->qu
+			loadmodel->facelmvecs[surfnum].lmvecscale[1] = 1.0f/Length(loadmodel->facelmvecs[surfnum].lmvecs[1]);
+			decoupledlm++;
+		}
+		else
+			CalcSurfaceExtents (loadmodel, out);
 		if (lofs != (unsigned int)-1)
 			lofs *= lofsscale;
-		lend = lofs+(out->extents[0]+1)*(out->extents[1]+1);
+		lend = lofs+(out->extents[0]+1)*(out->extents[1]+1) /*FIXME: mul by numstyles */;
 		if (lofs > loadmodel->lightdatasize || lend < lofs)
 			out->samples = NULL;	//should includes -1
 		else
+		{
 			out->samples = loadmodel->lightdata + lofs;
+			lightmapusable = true;	//something has a valid offset.
+		}
 
 		if (!out->texinfo->texture)
 			continue;
@@ -4405,6 +4457,15 @@ static qboolean Mod_LoadFaces (model_t *loadmodel, bspx_header_t *bspx, qbyte *m
 			out->flags &= ~SURF_DRAWALPHA;
 	}
 
+	if (!lightmapusable)
+	{
+		Con_Printf("no valid lightmap offsets in map\n");
+#ifdef RUNTIMELIGHTING
+		RelightTerminate(loadmodel);	//not gonna work...
+#endif
+		loadmodel->lightdata = NULL;
+		loadmodel->deluxdata = NULL;
+	}
 	return true;
 }
 

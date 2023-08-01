@@ -281,7 +281,7 @@ typedef struct {
 	void (*FindTouchedLeafs)	(struct model_s *model, struct pvscache_s *ent, const vec3_t cullmins, const vec3_t cullmaxs);	//edict system as opposed to q2 game dll system.
 
 	void (*LightPointValues)	(struct model_s *model, const vec3_t point, vec3_t res_diffuse, vec3_t res_ambient, vec3_t res_dir);
-	void (*StainNode)			(struct mnode_s *node, float *parms);
+	void (*StainNode)			(struct model_s *model, float *parms);
 	void (*MarkLights)			(struct dlight_s *light, dlightbitmask_t bit, struct mnode_s *node);
 
 	int	(*ClusterForPoint)		(struct model_s *model, const vec3_t point, int *areaout);	//pvs index (leaf-1 for q1bsp). may be negative (ie: no pvs).
@@ -413,7 +413,7 @@ typedef struct
 
 typedef struct mtexinfo_s
 {
-	float		vecs[2][4];
+	vec4_t		vecs[2];
 	float		vecscale[2];
 	texture_t	*texture;
 	int			flags;
@@ -942,6 +942,18 @@ typedef struct
 	vec4_t *points;
 } portal_t;
 
+struct decoupled_lm_info_s
+{
+	quint16_t lmsize[2];	//made explicit. beware MAX_
+    quint32_t lmoffset;		//replacement offset for vanilla compat.
+    vec4_t lmvecs[2]; //lmcoord[] = dotproduct3(vertexcoord, lmvecs[])+lmvecs[][3]
+};
+struct facelmvecs_s
+{
+	vec4_t lmvecs[2];		//lmcoord[] = dotproduct3(vertexcoord, lmvecs[])+lmvecs[][3]
+	float lmvecscale[2];	//just 1/Length(lmvecs). dlights work in luxels, but need to be able to work back to qu.
+};
+
 struct surfedgenormals_s {
 	quint32_t n;
 	quint32_t s;
@@ -1014,6 +1026,7 @@ typedef struct model_s
 	mvertex_t	*vertexes;
 	vec3_t		*normals;
 	struct surfedgenormals_s	*surfedgenormals; //for per-vertex normals
+	struct facelmvecs_s			*facelmvecs;
 
 	int			numedges;
 	medge_t		*edges;

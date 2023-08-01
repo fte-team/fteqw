@@ -5919,7 +5919,7 @@ static void QCC_VerifyFormatString (const char *funcname, QCC_ref_t **arglist, u
 	char formatbuf[16];
 	char temp[256];
 	int argpos = firstarg, argn_last = firstarg;
-	int isfloat;
+	int isfloat, is64bit;
 	const QCC_eval_t *formatstring = QCC_SRef_EvalConst(arglist[0]->base);
 	if (!formatstring)	//can't check variables.
 		return;
@@ -5952,6 +5952,7 @@ static void QCC_VerifyFormatString (const char *funcname, QCC_ref_t **arglist, u
 			width = -1;
 			thisarg = -1;
 			isfloat = -1;
+			is64bit = 0;
 
 			// is number following?
 			if(*s >= '0' && *s <= '9')
@@ -6078,7 +6079,7 @@ noflags:
 					//case 'll':	//long long
 					case 'l': isfloat = 0; break;	//long
 					case 'L': isfloat = 0; break;	//long double
-					//case 'q': break; //long long in c
+					case 'q': is64bit = 1; break; //BSD's int64
 					case 'j':	//[u]intmax_t
 					case 'z':	//size_t
 					case 't':	//ptrdiff_t
@@ -6125,21 +6126,38 @@ nolength:
 			case 'e': case 'E': case 'f': case 'F': case 'g': case 'G':
 				if (isfloat)
 				{
-					switch(ARGTYPE(thisarg))
+					if (is64bit)
 					{
-					case ev_float:
-					case ev_variant:
-						break;
-					default:
-						reqtype = "float";
-						break;
+						switch(ARGTYPE(thisarg))
+						{
+						case ev_double:
+						case ev_variant:
+							break;
+						default:
+							reqtype = "double";
+							break;
+						}
+					}
+					else
+					{
+						switch(ARGTYPE(thisarg))
+						{
+						case ev_float:
+						case ev_variant:
+							break;
+						default:
+							reqtype = "float";
+							break;
+						}
 					}
 				}
 				else
 				{
 					if (*s == 'p' || *s == 'P')
 					{
-						switch(ARGTYPE(thisarg))
+						if (is64bit)
+							reqtype = "some kind of double-size pointer! oh noes!";
+						else switch(ARGTYPE(thisarg))
 						{
 						case ev_pointer:
 						case ev_variant:
@@ -6151,20 +6169,37 @@ nolength:
 					}
 					else
 					{
-						switch(ARGTYPE(thisarg))
+						if (is64bit)
 						{
-						case ev_integer:
-						case ev_uint:
-						case ev_variant:
-							break;
-						case ev_entity:	//accept ents ONLY for %i
-							if (*s == 'i')
+							switch(ARGTYPE(thisarg))
+							{
+							case ev_int64:
+							case ev_uint64:
+							case ev_variant:
 								break;
-							//fallthrough
-						default:
-							reqtype = "int";
-							QCC_PR_ParseWarning(WARN_FORMATSTRING, "%s: %s%s%s requires int at arg %i (got %s%s%s)", funcname, col_name, formatbuf, col_none, thisarg+1, col_type, TypeName(ARGCTYPE(thisarg), temp, sizeof(temp)), col_none);
-							break;
+							default:
+								reqtype = "__int64";
+								QCC_PR_ParseWarning(WARN_FORMATSTRING, "%s: %s%s%s requires __int64 at arg %i (got %s%s%s)", funcname, col_name, formatbuf, col_none, thisarg+1, col_type, TypeName(ARGCTYPE(thisarg), temp, sizeof(temp)), col_none);
+								break;
+							}
+						}
+						else
+						{
+							switch(ARGTYPE(thisarg))
+							{
+							case ev_integer:
+							case ev_uint:
+							case ev_variant:
+								break;
+							case ev_entity:	//accept ents ONLY for %i
+								if (*s == 'i')
+									break;
+								//fallthrough
+							default:
+								reqtype = "int";
+								QCC_PR_ParseWarning(WARN_FORMATSTRING, "%s: %s%s%s requires int at arg %i (got %s%s%s)", funcname, col_name, formatbuf, col_none, thisarg+1, col_type, TypeName(ARGCTYPE(thisarg), temp, sizeof(temp)), col_none);
+								break;
+							}
 						}
 					}
 				}
@@ -6228,14 +6263,19 @@ nolength:
 				case ev_uint:
 					QCC_PR_Note(WARN_FORMATSTRING, s_filen, pr_source_line, "%s", "use %lu or or %lx for 32bit ints");
 					break;
-
+				case ev_int64:
+					QCC_PR_Note(WARN_FORMATSTRING, s_filen, pr_source_line, "%s", "use %qi or %lqx for 64bit ints");
+					break;
+				case ev_uint64:
+					QCC_PR_Note(WARN_FORMATSTRING, s_filen, pr_source_line, "%s", "use %lqu or or %lqx for 64bit ints");
+					break;
+				case ev_double:
+					QCC_PR_Note(WARN_FORMATSTRING, s_filen, pr_source_line, "%s", "use %qg or %qf or %hqx for doubles");
+					break;
 				case ev_void:		//coder's problem
 				case ev_field:		//cast to int
 				case ev_function:	//cast to int
 				case ev_variant:	//should be accepted by anything...
-				case ev_int64:		//specification problem
-				case ev_uint64:		//specification problem
-				case ev_double:		//specification problem
 				case ev_struct:		//coder's problem
 				case ev_union:		//coder's problem
 				case ev_accessor:	//should be unreachable

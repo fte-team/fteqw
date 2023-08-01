@@ -7011,7 +7011,7 @@ void QCBUILTIN PF_sprintf_internal (pubprogfuncs_t *prinst, struct globalvars_s 
 	char formatbuf[16];
 	char *f;
 	int argpos = firstarg;
-	int isfloat;
+	int isfloat, is64bit;
 	static int dummyivec[3] = {0, 0, 0};
 	static float dummyvec[3] = {0, 0, 0};
 
@@ -7024,10 +7024,17 @@ void QCBUILTIN PF_sprintf_internal (pubprogfuncs_t *prinst, struct globalvars_s 
 	formatbuf[0] = '%';
 
 #define GETARG_FLOAT(a) (((a)>=firstarg && (a)<prinst->callargc) ? (G_FLOAT(OFS_PARM0 + 3 * (a))) : 0)
+#define GETARG_DOUBLE(a) (((a)>=firstarg && (a)<prinst->callargc) ? (G_FLOAT(OFS_PARM0 + 3 * (a))) : 0)
 #define GETARG_VECTOR(a) (((a)>=firstarg && (a)<prinst->callargc) ? (G_VECTOR(OFS_PARM0 + 3 * (a))) : dummyvec)
 #define GETARG_INT(a) (((a)>=firstarg && (a)<prinst->callargc) ? (G_INT(OFS_PARM0 + 3 * (a))) : 0)
+#define GETARG_INT64(a) (((a)>=firstarg && (a)<prinst->callargc) ? (G_INT64(OFS_PARM0 + 3 * (a))) : 0)
+#define GETARG_UINT(a) (((a)>=firstarg && (a)<prinst->callargc) ? (G_UINT(OFS_PARM0 + 3 * (a))) : 0)
+#define GETARG_UINT64(a) (((a)>=firstarg && (a)<prinst->callargc) ? (G_UINT64(OFS_PARM0 + 3 * (a))) : 0)
 #define GETARG_INTVECTOR(a) (((a)>=firstarg && (a)<prinst->callargc) ? ((int*) G_VECTOR(OFS_PARM0 + 3 * (a))) : dummyivec)
 #define GETARG_STRING(a) (((a)>=firstarg && (a)<prinst->callargc) ? (PR_GetStringOfs(prinst, OFS_PARM0 + 3 * (a))) : "")
+
+#define GETARG_SNUMERIC(t, a) (is64bit?(isfloat ? (t) GETARG_DOUBLE(a) : (t) GETARG_INT64 (a)):(isfloat ? (t) GETARG_FLOAT(a) : (t) GETARG_INT (a)))
+#define GETARG_UNUMERIC(t, a) (is64bit?(isfloat ? (t) GETARG_DOUBLE(a) : (t) GETARG_UINT64(a)):(isfloat ? (t) GETARG_FLOAT(a) : (t) GETARG_UINT(a)))
 
 	for(;;)
 	{
@@ -7050,6 +7057,7 @@ void QCBUILTIN PF_sprintf_internal (pubprogfuncs_t *prinst, struct globalvars_s 
 				thisarg = -1;
 				flags = 0;
 				isfloat = -1;
+				is64bit = 0;
 
 				// is number following?
 				if(*s >= '0' && *s <= '9')
@@ -7176,10 +7184,18 @@ noflags:
 				{
 					switch(*s)
 					{
+						/*	note: this is technically a dp extension, so for our inputs:
+							dp defined %lx for entity numbers (it not having actual ints)
+							it later defined %llx for Actual ints, not that it makes a difference in DP.
+							This leaves us unable to use C's 'l' for our int64 type (aka long), nor 'll' either.
+							So lean on BSD's 'q'.
+
+							for our outputs, %llx is standard for int64 with MS violating c99 and requiring %I64x instead.
+						*/
 						case 'h': isfloat = 1; break;	//short in C, interpreted as float here. doubled for char.
 						case 'l': isfloat = 0; break;	//long, twice for long long... we interpret as int32.
 						case 'L': isfloat = 0; break;	//'long double'
-						//case 'q': isfloat = 0; break;	//synonym for long long.
+						case 'q': is64bit = 1; break;	//BSD synonym for long long. or more specifically int64 and NOT int128.
 						case 'j': break;	//intmax_t
 						//case 'Z':	//synonym for 'z'. do not use
 						case 'z': break;	//size_t
@@ -7229,6 +7245,24 @@ nolength:
 						*f++ = '.';
 						*f++ = '*';
 					}
+
+					switch(*s)
+					{
+						case 'd': case 'i': case 'I':
+						case 'o': case 'u': case 'x': case 'X': case 'p': case 'P':
+#ifdef _WIN32				//not c99
+							*f++ = 'I';
+							*f++ = '6';
+							*f++ = '4';
+#else						//c99
+							*f++ = 'l';
+							if (sizeof(long) == 4)
+								*f++ = 'l';	//go for long long instead
+#endif
+							break;
+					}
+
+
 					if (*s == 'p')
 						*f++ = 'x';
 					else if (*s == 'P')
@@ -7246,23 +7280,23 @@ nolength:
 					{
 						case 'd': case 'i': case 'I':
 							if(precision < 0) // not set
-								Q_snprintfz(o, end - o, formatbuf, width, (isfloat ? (int) GETARG_FLOAT(thisarg) : (int) GETARG_INT(thisarg)));
+								Q_snprintfz(o, end - o, formatbuf, width, GETARG_SNUMERIC(qint64_t, thisarg));
 							else
-								Q_snprintfz(o, end - o, formatbuf, width, precision, (isfloat ? (int) GETARG_FLOAT(thisarg) : (int) GETARG_INT(thisarg)));
+								Q_snprintfz(o, end - o, formatbuf, width, precision, GETARG_SNUMERIC(qint64_t, thisarg));
 							o += strlen(o);
 							break;
 						case 'o': case 'u': case 'x': case 'X': case 'p': case 'P':
 							if(precision < 0) // not set
-								Q_snprintfz(o, end - o, formatbuf, width, (isfloat ? (unsigned int) GETARG_FLOAT(thisarg) : (unsigned int) GETARG_INT(thisarg)));
+								Q_snprintfz(o, end - o, formatbuf, width, GETARG_UNUMERIC(quint64_t, thisarg));
 							else
-								Q_snprintfz(o, end - o, formatbuf, width, precision, (isfloat ? (unsigned int) GETARG_FLOAT(thisarg) : (unsigned int) GETARG_INT(thisarg)));
+								Q_snprintfz(o, end - o, formatbuf, width, precision, GETARG_UNUMERIC(quint64_t, thisarg));
 							o += strlen(o);
 							break;
 						case 'e': case 'E': case 'f': case 'F': case 'g': case 'G':
 							if(precision < 0) // not set
-								Q_snprintfz(o, end - o, formatbuf, width, (isfloat ? (double) GETARG_FLOAT(thisarg) : (double) GETARG_INT(thisarg)));
+								Q_snprintfz(o, end - o, formatbuf, width, GETARG_SNUMERIC(double, thisarg));
 							else
-								Q_snprintfz(o, end - o, formatbuf, width, precision, (isfloat ? (double) GETARG_FLOAT(thisarg) : (double) GETARG_INT(thisarg)));
+								Q_snprintfz(o, end - o, formatbuf, width, precision, GETARG_SNUMERIC(double, thisarg));
 							o += strlen(o);
 							break;
 						case 'v': case 'V':

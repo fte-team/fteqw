@@ -2264,9 +2264,9 @@ quint64_t MSG_ReadUInt64 (void)
 		v-=l;
 		b++;
 	}
-	r = v<<(b*8);
+	r = (quint64_t)v<<(b*8);
 	while(b --> 0)
-		r |= MSG_ReadByte()<<(b*8);
+		r |= (quint64_t)MSG_ReadByte()<<(b*8);
 	return r;
 }
 qint64_t MSG_ReadInt64 (void)

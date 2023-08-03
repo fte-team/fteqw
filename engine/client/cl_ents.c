@@ -2892,6 +2892,15 @@ void CLQ1_AddVisibleBBoxes(void)
 	shader_t *s;
 	vec3_t min, max, size;
 
+	#pragma message("Temporary Code: BBoxes calling R2D_Flush")
+	/*
+	* HACK(fhomolka): For some reason, bboxes like to mess with progs-drawn Polygons.
+	* The clean way would be to understand WHY they mess with eachother, for now this must do.
+	* TODO(fhomolka)
+	* Comment by Spike: "qc's polys should have been flushed inside renderscene"
+	*/
+	if(R2D_Flush) R2D_Flush();
+
 	switch(r_showbboxes.ival & 3)
 	{
 	default:

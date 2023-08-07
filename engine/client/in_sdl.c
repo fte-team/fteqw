@@ -162,7 +162,8 @@ static cvar_t joy_only = CVARD("joyonly", "0", "If true, treats \"game controlle
 //the enumid is the value for the open function rather than the working id.
 static void J_AllocateDevID(struct sdljoy_s *joy)
 {
-	unsigned int id = 0, j;
+	extern cvar_t in_skipplayerone;
+	unsigned int id = (in_skipplayerone.ival?1:0), j;
 	for (j = 0; j < MAX_JOYSTICKS;)
 	{
 		if (sdljoy[j++].qdevid == id)

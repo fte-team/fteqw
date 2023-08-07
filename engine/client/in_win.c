@@ -447,8 +447,9 @@ static void INS_HideMouse (void)
 static int Joy_AllocateDevID(void)
 {
 	extern cvar_t cl_splitscreen;
-	int id = 0, j;
-	for (id = 0; ; id++)
+	extern cvar_t in_skipplayerone;
+	int id = (in_skipplayerone.ival?1:0), j;
+	for ( ; ; id++)
 	{
 		for (j = 0; j < joy_count; j++)
 		{

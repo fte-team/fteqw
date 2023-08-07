@@ -151,6 +151,8 @@ void joy_radialdeadzone_cb(cvar_t *var, char *oldvalue)
 #endif
 static cvar_t joy_radialdeadzone = CVARCD("joyradialdeadzone", "", joy_radialdeadzone_cb, "Treat controller dead zones as a pair, rather than per-axis.");
 
+cvar_t in_skipplayerone = CVARD("in_skipplayerone", "1", "Do not auto-assign joysticks/game-controllers to the first player. Requires in_restart to take effect.");	//FIXME: this needs to be able to change deviceids when changed. until then menus will need to in_restart.
+
 
 #define EVENTQUEUELENGTH 1024
 static struct eventlist_s
@@ -380,6 +382,7 @@ void IN_Init(void)
 	}
 	Cvar_Register (&joy_exponent, "input controls");
 	Cvar_Register (&joy_radialdeadzone, "input controls");
+	Cvar_Register (&in_skipplayerone, "input controls");
 
 	Cmd_AddCommand ("in_deviceids", IN_DeviceIDs_f);
 

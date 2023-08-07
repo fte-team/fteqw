@@ -2852,12 +2852,12 @@ void COM_CleanUpPath(char *str)
 	int criticize = 0;
 	for (dots = str; *dots; dots++)
 	{
-		if (*dots >= 'A' && *dots <= 'Z')
+		/*if (*dots >= 'A' && *dots <= 'Z')
 		{
 			*dots = *dots - 'A' + 'a';
 			criticize = 1;
 		}
-		else if (*dots == '\\')
+		else */if (*dots == '\\')
 		{
 			*dots = '/';
 			criticize = 2;

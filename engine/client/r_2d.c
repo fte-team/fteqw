@@ -488,7 +488,7 @@ mpic_t	*R2D_SafeCachePic (const char *path)
 mpic_t *R2D_SafePicFromWad (const char *name)
 {
 	shader_t *s;
-	if (!qrenderer)
+	if (!qrenderer || strchr(name, ':'))
 		return NULL;
 	s = R_RegisterCustom (NULL, va("gfx/%s", name), SUF_2D, Shader_Default2D, "wad");
 	return s;

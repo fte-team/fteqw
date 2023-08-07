@@ -287,7 +287,7 @@ static void Con_Editor_Save(console_t *con)
 			char *bend = COM_DeFunString(cl, el, buffer, sizeof(buffer)-2, true, !!(con->parseflags & PFS_FORCEUTF8));
 			if (editaddcr.ival 
 #ifdef _WIN32
-				|| !*editaddcr.string
+				|| !*editaddcr.string	//windows editors have a history of bugging out so make sure we default to whatever b0rkedness they mandate.
 #endif
 				)
 				*bend++ = '\r';
@@ -301,6 +301,11 @@ static void Con_Editor_Save(console_t *con)
 
 		if (!Q_strncasecmp(con->name, "scripts/", 8))
 			Shader_NeedReload(true);
+		else if (!Q_strncasecmp(con->name, "particles/", 10))
+		{
+			extern cvar_t r_particledesc;
+			Cvar_ForceCallback(&r_particledesc);
+		}
 	}
 }
 qboolean	Con_Editor_MouseOver(struct console_s *con, char **out_tiptext, shader_t **out_shader)
@@ -309,24 +314,71 @@ qboolean	Con_Editor_MouseOver(struct console_s *con, char **out_tiptext, shader_
 
 	if (mouseover)
 	{
-		if (editprogfuncs && editprogfuncs->EvaluateDebugString)
-			*out_tiptext = editprogfuncs->EvaluateDebugString(editprogfuncs, mouseover);
-		else
+		const char *ext = COM_GetFileExtension(con->name, NULL);
+		if (!Q_strcasecmp(ext, ".cfg"))
 		{
+			*out_tiptext = NULL;
+			//look for a command...
+			if (*out_tiptext == NULL && Cmd_Exists(mouseover))
+			{
+				const char *desc = Cmd_Describe(mouseover);
+				*out_tiptext = va("%s\n\n%s", mouseover, desc?desc:"<NO DESCRIPTION>");
+			}
+			if (!*out_tiptext)	//check if we can get the body of an alias...
+			{
+				const char *desc = Cmd_AliasExist(mouseover, RESTRICT_LOCAL);
+				if (desc)
+					*out_tiptext = va("alias \"%s\"\n\n%s", mouseover, *desc?desc:"<NO TEXT>");
+			}
+			if (!*out_tiptext)	//now look to see if its a cvar...
+			{
+				cvar_t *cv = Cvar_FindVar(mouseover);
+				if (cv)
+				{
+					const char *cmd = "";
+					char fl[4];
+					int i = 0;
+					if ((cv->flags & CVAR_USERINFO) || (cv->flags & CVAR_SERVERINFO))
+					{
+						cmd = "setfl ";
+						fl[i++] = ' ';
+						if (cv->flags & CVAR_SERVERINFO)
+							fl[i++] = 's';
+						if (cv->flags & CVAR_USERINFO)
+							fl[i++] = 'u';
+						if (cv->flags & CVAR_ARCHIVE)
+							fl[i++] = 'a';
+					}
+					else if (cv->flags & CVAR_ARCHIVE)
+						cmd = "seta ";
+					else// if (cv->flags & CVAR_POINTER)
+						cmd = "set ";
+					fl[i] = 0;
+					*out_tiptext = va("%s%s \"%s\"%s\nDefault: \"%s\"\n\n%s", cmd, cv->name, fl, cv->string, cv->defaultstr, cv->description?cv->description:"<NO DESCRIPTION>");
+				}
+			}
+		}
+		else if (!Q_strcasecmp(ext, ".qc") || !Q_strcasecmp(ext, ".hc")/*hexenc...*/ || !Q_strcasecmp(ext, ".src") || !Q_strcasecmp(ext, ".c")/*weird people. you know who you are...*/)
+		{	//qc files
+			if (editprogfuncs && editprogfuncs->EvaluateDebugString)
+				*out_tiptext = editprogfuncs->EvaluateDebugString(editprogfuncs, mouseover);
+			else
+			{
 #ifndef SERVERONLY
 #ifdef CSQC_DAT
-			if (csqc_world.progs && csqc_world.progs->EvaluateDebugString && !*out_tiptext)
-				*out_tiptext = csqc_world.progs->EvaluateDebugString(csqc_world.progs, mouseover);
+				if (csqc_world.progs && csqc_world.progs->EvaluateDebugString && !*out_tiptext)
+					*out_tiptext = csqc_world.progs->EvaluateDebugString(csqc_world.progs, mouseover);
 #endif
 #ifdef MENU_DAT
-			if (menu_world.progs && menu_world.progs->EvaluateDebugString && !*out_tiptext)
-				*out_tiptext = menu_world.progs->EvaluateDebugString(menu_world.progs, mouseover);
+				if (menu_world.progs && menu_world.progs->EvaluateDebugString && !*out_tiptext)
+					*out_tiptext = menu_world.progs->EvaluateDebugString(menu_world.progs, mouseover);
 #endif
 #endif
 #ifndef CLIENTONLY
-			if (sv.world.progs && sv.world.progs->EvaluateDebugString && !*out_tiptext)
-				*out_tiptext = sv.world.progs->EvaluateDebugString(sv.world.progs, mouseover);
+				if (sv.world.progs && sv.world.progs->EvaluateDebugString && !*out_tiptext)
+					*out_tiptext = sv.world.progs->EvaluateDebugString(sv.world.progs, mouseover);
 #endif
+			}
 		}
 		Z_Free(mouseover);
 	}
@@ -1047,7 +1099,7 @@ void Con_TextEditor_f(void)
 	char *fname = Cmd_Argv(1);
 	char *line = strrchr(fname, ':');
 	char *lineend = NULL;
-	if (line && strtol(line+1, &lineend, 0) && !lineend)
+	if (line && strtol(line+1, &lineend, 0) && !*lineend)
 		*line++ = 0;
 	if (!*fname)
 	{

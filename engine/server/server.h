@@ -1129,6 +1129,7 @@ const char *SV_CheckRejectConnection(netadr_t *adr, const char *uinfo, unsigned 
 char *SV_BannedReason (netadr_t *a);
 void SV_EvaluatePenalties(client_t *cl);
 void SV_AutoAddPenalty (client_t *cl, unsigned int banflag, int duration, char *reason);
+void SV_AutoBanSender (int duration, char *reason);	//bans net_from
 
 //note: not all penalties are actually penalties, but they can still expire.
 #define BAN_BAN			(1u<<0)	//user is banned from the server

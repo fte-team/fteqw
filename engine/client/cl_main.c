@@ -1347,6 +1347,8 @@ void CL_CheckForResend (void)
 #ifdef NQPROT
 	if ((contype & 2) && !connectinfo.clogged)
 	{
+		char *e;
+		int pwd;
 		sizebuf_t sb;
 		memset(&sb, 0, sizeof(sb));
 		sb.data = data;
@@ -1366,11 +1368,18 @@ void CL_CheckForResend (void)
 			  which means it corrects for our public port if our nat uses different public ports for different remote ports
 			  thus all nq engines claim to be proquake
 			*/
-
+			if (!*password.string || !strcmp(password.string, "none"))
+				pwd = 0;
+			else
+			{
+				pwd = strtol(password.string, &e, 0);
+				if (*e)
+					pwd = CalcHashInt(&hash_md4, password.string, strlen(password.string));
+			}
 			MSG_WriteByte(&sb, 1); /*'mod'*/
 			MSG_WriteByte(&sb, 34); /*'mod' version*/
 			MSG_WriteByte(&sb, 0); /*flags*/
-			MSG_WriteLong(&sb, strtoul(password.string, NULL, 0)); /*password*/
+			MSG_WriteLong(&sb, pwd); /*password*/
 
 			/*FTE servers will detect this string and treat it as a qw challenge instead (if it allows qw clients), so protocol choice is deterministic*/
 			if (contype & 1)
@@ -4370,31 +4379,36 @@ void CLNQ_ConnectionlessPacket(void)
 		}
 		else
 		{
-			port = htons((unsigned short)MSG_ReadLong());
-			//this is the port that we're meant to respond to.
+			port = htons((unsigned short)MSG_ReadLong()); //this is the port that we're meant to respond to...
+			if (msg_badread)	//qe has no port specified. and that's fine when its over dtls anyway.
+				port = 0;
 
-			if (port && !msg_badread)
-			{
-				char buf[256];
-				net_from.port = port;
-				Con_DPrintf("redirecting to port %s\n", NET_AdrToString(buf, sizeof(buf), &net_from));
-			}
 
 			cls.proquake_angles_hack = false;
 			cls.protocol_nq = CPNQ_ID;
 			if (MSG_ReadByte() == 1)	//a proquake server adds a little extra info
 			{
 				int ver = MSG_ReadByte();
+				int flags = MSG_ReadByte();
 				Con_DPrintf("ProQuake server %i.%i\n", ver/10, ver%10);
 
 //				if (ver >= 34)
 				cls.proquake_angles_hack = true;
-				if (MSG_ReadByte() == 1)
+				if (flags & 1)
 				{
 					//its a 'pure' server.
 					Con_Printf("pure ProQuake server\n");
 					return;
 				}
+				if (flags & 0x80)
+					port = 0;	//don't force the port.
+			}
+
+			if (port && port != net_from.port)
+			{
+				char buf[256];
+				net_from.port = port;
+				Con_Printf("redirecting to port %s\n", NET_AdrToString(buf, sizeof(buf), &net_from));
 			}
 		}
 

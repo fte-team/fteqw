@@ -2668,15 +2668,33 @@ void SV_DoDirectConnect(svconnectinfo_t *fte_restrict info)
 		}
 		else
 		{
-			s = Info_ValueForKey (info->userinfo, "password");
-			if (password.string[0] &&
-				stricmp(password.string, "none") &&
-				strcmp(password.string, s) &&
-				!NET_IsLoopBackAddress(&info->adr))
+			if (!password.string[0] ||
+				!stricmp(password.string, "none") ||
+				NET_IsLoopBackAddress(&info->adr))
+				;	//don't care, doesn't matter.
+			else if (info->protocol == SCP_NETQUAKE)
+			{	//if its a proquake client then use numeric passwords, which take a bit of processing
+				char *e;
+				int got = strtol(Info_ValueForKey (info->userinfo, "password"), NULL, 0);
+				int need = strtol(password.string, &e, 0);
+				if (*e)
+					need = CalcHashInt(&hash_md4, password.string, strlen(password.string));
+				if (got != need)
+				{
+					Con_TPrintf ("%s:password failed\n", NET_AdrToString (adrbuf, sizeof(adrbuf), &info->adr));
+					SV_RejectMessage (info->protocol, "server requires a password\n\n");
+					return;
+				}
+			}
+			else
 			{
-				Con_TPrintf ("%s:password failed\n", NET_AdrToString (adrbuf, sizeof(adrbuf), &info->adr));
-				SV_RejectMessage (info->protocol, "server requires a password\n\n");
-				return;
+				s = Info_ValueForKey (info->userinfo, "password");
+				if (strcmp(password.string, s))
+				{
+					Con_TPrintf ("%s:password failed\n", NET_AdrToString (adrbuf, sizeof(adrbuf), &info->adr));
+					SV_RejectMessage (info->protocol, "server requires a password\n\n");
+					return;
+				}
 			}
 			spectator = false;
 			Info_RemoveKey (info->userinfo, "password"); // remove passwd
@@ -4594,12 +4612,21 @@ qboolean SVNQ_ConnectionlessPacket(void)
 				)
 			{
 				if (password.string[0] &&
-					stricmp(password.string, "none") &&
-					strcmp(password.string, va("%i", passwd)) )
+					stricmp(password.string, "none"))
 				{	//make sure we don't get crippled because of being unable to specify the actual password with proquake's stuff.
-					Con_TPrintf ("%s:password failed (nq)\n", NET_AdrToString (buffer2, sizeof(buffer2), &net_from));
-					SV_RejectMessage (SCP_NETQUAKE, "server requires a password\n\n");
-					return true;
+					char *e;
+					intmax_t svpass = strtoll(password.string, &e, 0);
+					if (*e)	//something ain't numeric... hash it so they have a chance of getting it right...
+						svpass = CalcHashInt(&hash_md4, password.string, strlen(password.string));
+					if (passwd != svpass)
+					{
+						Con_TPrintf ("%s:password failed (nq)\n", NET_AdrToString (buffer2, sizeof(buffer2), &net_from));
+						SV_RejectMessage (SCP_NETQUAKE, "\x01this server requires a password\n\n");
+
+						//and prevent them from spamming attempts. botnets might still get through fast though.
+						SV_AutoBanSender(15, "password cooldown");
+						return true;
+					}
 				}
 
 				SZ_Clear(&sb);

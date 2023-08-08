@@ -1916,6 +1916,19 @@ void SV_AutoAddPenalty (client_t *cl, unsigned int banflag, int duration, char *
 	SV_AddBanEntry(&proto, reason);
 	SV_EvaluatePenalties(cl);
 }
+void SV_AutoBanSender (int duration, char *reason)
+{
+	bannedips_t proto;
+
+	proto.banflags = BAN_BAN;
+	proto.expiretime = SV_BanTime() + duration;
+	memset(&proto.adrmask.address, 0xff, sizeof(proto.adrmask.address));
+	proto.adr = net_from;
+	proto.adr.port = 0;
+	proto.adrmask.type = proto.adr.type;
+
+	SV_AddBanEntry(&proto, reason);
+}
 
 static void SV_WriteIP_f (void)
 {

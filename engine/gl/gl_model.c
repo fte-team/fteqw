@@ -43,8 +43,9 @@ cvar_t mod_lightpoint_distance				= CVARD("mod_lightpoint_distance", "8192", "Th
 #ifdef SPRMODELS
 cvar_t r_sprite_backfacing					= CVARD	("r_sprite_backfacing", "0", "Make oriented sprites face backwards relative to their orientation, for compat with q1.");
 #endif
+cvar_t r_nolerp_list						= CVARFD ("r_nolerp_list"/*qs*/, "", CVAR_RENDERERLATCH, "Models in this list will not interpolate. Any models included here should be considered bad.");
 #ifdef RTLIGHTS
-cvar_t r_noEntityCastShadowList				= CVARD ("r_noEntityCastShadowList", "progs/missile.mdl,progs/flame.mdl,progs/flame2.mdl,progs/lavaball.mdl,progs/grenade.mdl,progs/spike.mdl,progs/s_spike.mdl,progs/laser.mdl,progs/lspike.mdl,progs/candle.mdl", "Models in this list will not cast shadows.");
+cvar_t r_noshadow_list						= CVARAFD ("r_noshadow_list"/*qs*/, "r_noEntityCastShadowList", "progs/missile.mdl,progs/flame.mdl,progs/flame2.mdl,progs/lavaball.mdl,progs/grenade.mdl,progs/spike.mdl,progs/s_spike.mdl,progs/laser.mdl,progs/lspike.mdl,progs/candle.mdl", CVAR_RENDERERLATCH, "Models in this list will not cast shadows.");
 #endif
 #ifdef SERVERONLY
 cvar_t gl_overbright, gl_specular, gl_load24bit, r_replacemodels, gl_miptexLevel, r_fb_bmodels;	//all of these can/should default to 0
@@ -676,8 +677,9 @@ void Mod_Init (qboolean initial)
 		Cvar_Register(&mod_lightpoint_distance, NULL);
 		Cvar_Register (&r_meshpitch, "Gamecode");
 		Cvar_Register (&r_meshroll, "Gamecode");
+		Cvar_Register(&r_nolerp_list, "Graphical Nicaties");
 #ifdef RTLIGHTS
-		Cvar_Register(&r_noEntityCastShadowList, "Graphical Nicaties");
+		Cvar_Register(&r_noshadow_list, "Graphical Nicaties");
 #endif
 		Cmd_AddCommandD("sv_saveentfile", Mod_SaveEntFile_f, "Dumps a copy of the map's entities to disk, so that it can be edited and used as a replacement for slightly customised maps.");
 		Cmd_AddCommandD("mod_showent", Mod_ShowEnt_f, "Allows you to quickly search through a map's entities.");
@@ -1140,7 +1142,7 @@ static void Mod_LoadModelWorker (void *ctx, void *data, size_t a, size_t b)
 		|| !strcmp(mod->publicname, "models/cflmtrch.mdl")	//hexen2 wall torch
 #endif
 			)
-		mod->engineflags |= MDLF_FLAME;
+		mod->engineflags |= MDLF_FLAME|MDLF_NOSHADOWS;
 	else if (!strcmp(mod->publicname, "progs/bolt.mdl")
 		|| !strcmp(mod->publicname, "progs/bolt2.mdl")
 		|| !strcmp(mod->publicname, "progs/bolt3.mdl")
@@ -1151,7 +1153,7 @@ static void Mod_LoadModelWorker (void *ctx, void *data, size_t a, size_t b)
 		|| !strcmp(mod->publicname, "models/stice.mdl")
 #endif
 			 )
-		mod->engineflags |= MDLF_BOLT;
+		mod->engineflags |= MDLF_NOSHADOWS;
 	else if (!strcmp(mod->publicname, "progs/backpack.mdl"))
 		mod->engineflags |= MDLF_NOTREPLACEMENTS;
 	else if (!strcmp(mod->publicname, "progs/eyes.mdl"))
@@ -1368,13 +1370,20 @@ model_t *Mod_LoadModel (model_t *mod, enum mlverbosity_e verbose)
 {
 	if (mod->loadstate == MLS_NOTLOADED && *mod->name != '*')
 	{
-#ifdef RTLIGHTS
-		char *s = strstr(r_noEntityCastShadowList.string, mod->publicname);
+		const char *s = strstr(r_nolerp_list.string, mod->publicname);
 		COM_AssertMainThread("Mod_LoadModel");
 		if (s)
 		{
 			size_t l = strlen(mod->publicname);
-			if ((s == r_noEntityCastShadowList.string || s[-1]==',') && (s[l] == 0 || s[l] == ','))
+			if ((s == r_nolerp_list.string || s[-1]==',') && (s[l] == 0 || s[l] == ','))
+				mod->engineflags |= MDLF_NOLERP;
+		}
+#ifdef RTLIGHTS
+		s = strstr(r_noshadow_list.string, mod->publicname);
+		if (s)
+		{
+			size_t l = strlen(mod->publicname);
+			if ((s == r_noshadow_list.string || s[-1]==',') && (s[l] == 0 || s[l] == ','))
 				mod->engineflags |= MDLF_NOSHADOWS;
 		}
 #endif

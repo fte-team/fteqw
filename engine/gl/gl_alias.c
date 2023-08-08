@@ -2185,7 +2185,7 @@ void R_DrawGAliasShadowVolume(entity_t *e, vec3_t lightpos, float radius)
 	if (qrenderer != QR_OPENGL)
 		return;
 
-	if (clmodel->engineflags & (MDLF_FLAME | MDLF_BOLT))
+	if (clmodel->engineflags & MDLF_NOSHADOWS)
 		return;
 	if (r_noaliasshadows.ival)
 		return;

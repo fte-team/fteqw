@@ -972,6 +972,7 @@ typedef struct model_s
 	char		name[MAX_QPATH];	//actual name on disk
 	char		publicname[MAX_QPATH];	//name that the gamecode etc sees
 	int			datasequence;	//if it gets old enough, we can purge it.
+	int			engineflags;	//
 	int			loadstate;		//MLS_
 	qboolean	tainted;		// differs from the server's version. this model will be invisible as a result, to avoid spiked models.
 	qboolean	pushdepth;		// bsp submodels have this flag set so you don't get z fighting on co-planar surfaces.
@@ -986,7 +987,6 @@ typedef struct model_s
 	synctype_t	synctype;
 
 	int			flags;
-	int			engineflags;
 	int			particleeffect;
 	int			particletrail;
 	int			traildefaultindex;
@@ -1135,10 +1135,10 @@ typedef struct model_s
 #define MDLF_FLAME           0x0020 // can be excluded with r_drawflame, fullbright render hack
 #define MDLF_DOCRC           0x0040 // model needs CRC built
 #define MDLF_NEEDOVERBRIGHT  0x0080 // only overbright these models with gl_overbright_all set
-#define MDLF_BOLT            0x0100 // doesn't produce shadows
+#define MDLF_NOSHADOWS       0x0100 // doesn't produce shadows for one reason or another
 #define	MDLF_NOTREPLACEMENTS 0x0200 // can be considered a cheat, disable texture replacements
 #define MDLF_EZQUAKEFBCHEAT  0x0400 // this is a blatent cheat, one that can disadvantage us fairly significantly if we don't support it.
-#define MDLF_NOSHADOWS		 0x0800 // do not cast shadows from this entity, ever.
+#define MDLF_NOLERP		     0x0800 // doesn't lerp, ever. for dodgy models that don't scale to nothingness before jumping.
 #define MDLF_RECALCULATERAIN 0x1000 // particles changed, recalculate any sky polys
 
 //============================================================================

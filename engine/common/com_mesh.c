@@ -1992,7 +1992,7 @@ qboolean Alias_GAliasBuildMesh(mesh_t *mesh, vbo_t **vbop, galiasinfo_t *inf, in
 			frame1=floor(lerp);
 			frame2=frame1+1;
 			lerp-=frame1;
-			if (r_noframegrouplerp.ival)
+			if (r_noframegrouplerp.ival || (e->model->engineflags&MDLF_NOLERP))
 				lerp = 0;
 			if (g1->loop)
 			{
@@ -2006,7 +2006,15 @@ qboolean Alias_GAliasBuildMesh(mesh_t *mesh, vbo_t **vbop, galiasinfo_t *inf, in
 			}
 		}
 		else	//don't bother with a four way lerp. Yeah, this will produce jerkyness with models with just framegroups.
-		{	//FIXME: find the two poses with the strongest influence.
+		{
+			if (e->model->engineflags&MDLF_NOLERP)
+			{
+				if (lerp > 0.5)
+					g2 = g1;
+				else
+					g1 = g2;
+			}
+			//FIXME: find the two poses with the strongest influence.
 			frame1=0;
 			frame2=0;
 		}

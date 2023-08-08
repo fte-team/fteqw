@@ -4303,6 +4303,12 @@ void CL_LinkPacketEntities (void)
 				Con_DPrintf("Bad modelindex (%i)\n", state->modelindex);
 				continue;
 			}
+			if (model->loadstate != MLS_LOADED)
+			{
+				if (model->loadstate == MLS_NOTLOADED)
+					Mod_LoadModel(model, MLV_WARN);
+				continue;	//still waiting for it to load, don't poke anything here
+			}
 
 			//DP extension. .modelflags (which is sent in the high parts of effects) allows to specify exactly the q1-compatible flags.
 			//the extra bit allows for setting to 0.

@@ -3723,6 +3723,22 @@ static void CLQ2_ParseServerData (void)
 	{	// playing a cinematic or showing a pic, not a level
 		SCR_EndLoadingPlaque();
 		CL_MakeActive("Quake2");
+		if (!COM_FCheckExists(str) && !COM_FCheckExists(va("video/%s", str)))
+		{
+			int i;
+			char basename[64], *t;
+			char *exts[] = {".ogv", ".roq", ".cin"};
+			COM_StripExtension(COM_SkipPath(str), basename, sizeof(basename));
+			for(i = 0; i < countof(exts); i++)
+			{
+				t = va("video/%s%s", basename, exts[i]);
+				if (COM_FCheckExists(t))
+				{
+					str = t;
+					break;
+				}
+			}
+		}
 		if (!Media_PlayFilm(str, false))
 		{
 			CL_SendClientCommand(true, "nextserver %i", cl.servercount);

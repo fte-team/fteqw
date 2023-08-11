@@ -887,6 +887,7 @@ void SV_Map_f (void)
 	if (strlen(level) > 4 &&
 		(!strcmp(level + strlen(level)-4, ".cin") ||
 		!strcmp(level + strlen(level)-4, ".roq") ||
+		!strcmp(level + strlen(level)-4, ".ogv") ||
 		!strcmp(level + strlen(level)-4, ".pcx") ||
 		!strcmp(level + strlen(level)-4, ".avi")))
 	{

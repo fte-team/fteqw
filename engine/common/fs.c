@@ -1554,7 +1554,7 @@ static int QDECL COM_Dir_List(const char *name, qofs_t size, time_t mtime, void 
 			Q_snprintfz(link, sizeof(link), "\\tip\\Play Demo\\demo\\%s", name);
 			colour = "^4";	//disconnects
 		}
-		else if (!Q_strcasecmp(ext, "roq") || !Q_strcasecmp(ext, "cin") || !Q_strcasecmp(ext, "avi") || !Q_strcasecmp(ext, "mp4") || !Q_strcasecmp(ext, "mkv"))
+		else if (!Q_strcasecmp(ext, "roq") || !Q_strcasecmp(ext, "cin") || !Q_strcasecmp(ext, "avi") || !Q_strcasecmp(ext, "mp4") || !Q_strcasecmp(ext, "mkv") || !Q_strcasecmp(ext, "ogv"))
 			Q_snprintfz(link, sizeof(link), "\\tip\\Play Film\\film\\%s", name);
 		else if (!Q_strcasecmp(ext, "wav") || !Q_strcasecmp(ext, "ogg") || !Q_strcasecmp(ext, "mp3") || !Q_strcasecmp(ext, "opus") || !Q_strcasecmp(ext, "flac"))
 			Q_snprintfz(link, sizeof(link), "\\tip\\Play Audio\\playaudio\\%s", name);

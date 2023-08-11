@@ -2933,6 +2933,9 @@ qboolean Mod_BSPXRW_Read(struct bspxrw *ctx, const char *fname)
 		#endif
 		};
 #endif
+#ifdef Q2BSPS
+	static const char *q2corelumpnames[Q2HEADER_LUMPS] = {"entities","planes","vertexes","visibility","nodes","texinfo","faces","lighting","leafs","leaffaces","leafbrushes","edges","surfedges","models","brushes","brushsides","pop","areas","areaportals"};
+#endif
 	static const char *q1corelumpnames[HEADER_LUMPS] = {"entities","planes","textures","vertexes","visibility","nodes","texinfo","faces","lighting","clipnodes","leafs","marksurfaces","edges","surfedges","models"};
 	ctx->fname = fname;
 	ctx->origfile = FS_MallocFile(ctx->fname, FS_GAME, &ctx->origsize);
@@ -2961,6 +2964,7 @@ qboolean Mod_BSPXRW_Read(struct bspxrw *ctx, const char *fname)
 //		case BSPVERSION_Q2W:
 			ctx->fg = fg_quake2;
 			ctx->corelumps = Q2HEADER_LUMPS;
+			corelumpnames = q2corelumpnames;
 			break;
 #endif
 #ifdef Q3BSPS

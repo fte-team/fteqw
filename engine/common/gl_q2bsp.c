@@ -1668,6 +1668,9 @@ static qboolean CModQ2_LoadFaces (model_t *mod, qbyte *mod_base, lump_t *l, lump
 	int			ti;
 	int			style;
 
+	struct decoupled_lm_info_s *decoupledlm;
+	unsigned int dcsize, lofs;
+
 	unsigned short lmshift, lmscale;
 	char buf[64];
 	lightmapoverrides_t overrides = {0};
@@ -1699,6 +1702,12 @@ static qboolean CModQ2_LoadFaces (model_t *mod, qbyte *mod_base, lump_t *l, lump
 				lmscale >>= 1;
 		}
 	}
+
+	decoupledlm = BSPX_FindLump(bspx, mod_base, "DECOUPLED_LM", &dcsize); //RGB packed data
+	if (dcsize == count*sizeof(*decoupledlm))
+		mod->facelmvecs = ZG_Malloc(&mod->memgroup, count * sizeof(*mod->facelmvecs));	//seems good.
+	else
+		decoupledlm	= NULL;	//wrong size somehow... discard it.
 
 	for ( surfnum=0 ; surfnum<count ; surfnum++, in++, out++)
 	{
@@ -1736,11 +1745,40 @@ static qboolean CModQ2_LoadFaces (model_t *mod, qbyte *mod_base, lump_t *l, lump
 			out->lmshift = overrides.shifts[surfnum];
 		else
 			out->lmshift = lmshift;
-		CalcSurfaceExtents (mod, out);
-		if (overrides.extents)
+
+
+		if (decoupledlm)
 		{
-			out->extents[0] = overrides.extents[surfnum*2+0];
-			out->extents[1] = overrides.extents[surfnum*2+1];
+			lofs = LittleLong(decoupledlm->lmoffset);
+			out->texturemins[0] = out->texturemins[1] = 0; // should be handled by the now-per-surface vecs[][3] value.
+			out->lmshift = 0;	//redundant.
+			out->extents[0] = (unsigned short)LittleShort(decoupledlm->lmsize[0]) - 1;
+			out->extents[1] = (unsigned short)LittleShort(decoupledlm->lmsize[1]) - 1;
+			mod->facelmvecs[surfnum].lmvecs[0][0] = LittleFloat(decoupledlm->lmvecs[0][0]);
+			mod->facelmvecs[surfnum].lmvecs[0][1] = LittleFloat(decoupledlm->lmvecs[0][1]);
+			mod->facelmvecs[surfnum].lmvecs[0][2] = LittleFloat(decoupledlm->lmvecs[0][2]);
+			mod->facelmvecs[surfnum].lmvecs[0][3] = LittleFloat(decoupledlm->lmvecs[0][3]) + 0.5f; //sigh
+			mod->facelmvecs[surfnum].lmvecs[1][0] = LittleFloat(decoupledlm->lmvecs[1][0]);
+			mod->facelmvecs[surfnum].lmvecs[1][1] = LittleFloat(decoupledlm->lmvecs[1][1]);
+			mod->facelmvecs[surfnum].lmvecs[1][2] = LittleFloat(decoupledlm->lmvecs[1][2]);
+			mod->facelmvecs[surfnum].lmvecs[1][3] = LittleFloat(decoupledlm->lmvecs[1][3]) + 0.5f; //sigh
+			mod->facelmvecs[surfnum].lmvecscale[0] = 1.0f/Length(mod->facelmvecs[surfnum].lmvecs[0]);	//luxels->qu
+			mod->facelmvecs[surfnum].lmvecscale[1] = 1.0f/Length(mod->facelmvecs[surfnum].lmvecs[1]);
+			decoupledlm++;
+		}
+		else
+		{
+			if (overrides.offsets)
+				lofs = overrides.offsets[surfnum];
+			else
+				lofs = LittleLong(in->lightofs);
+
+			CalcSurfaceExtents (mod, out);
+			if (overrides.extents)
+			{
+				out->extents[0] = overrides.extents[surfnum*2+0];
+				out->extents[1] = overrides.extents[surfnum*2+1];
+			}
 		}
 
 	// lighting info
@@ -1782,16 +1820,12 @@ static qboolean CModQ2_LoadFaces (model_t *mod, qbyte *mod_base, lump_t *l, lump
 		}
 		for ( ; i<MAXCPULIGHTMAPS ; i++)
 			out->styles[i] = INVALID_LIGHTSTYLE;
-		if (overrides.offsets)
-			i = overrides.offsets[surfnum];
-		else
-			i = LittleLong(in->lightofs);
-		if (i == -1)
+		if (lofs == ~0u)
 			out->samples = NULL;
 		else if (lightofsisdouble)
-			out->samples = mod->lightdata + (i/2);
+			out->samples = mod->lightdata + (lofs/2);
 		else
-			out->samples = mod->lightdata + i;
+			out->samples = mod->lightdata + lofs;
 
 	// set the drawing flags
 
@@ -4924,7 +4958,7 @@ static cmodel_t *CM_LoadMap (model_t *mod, qbyte *filein, size_t filelen, qboole
 			header.lumps[i].fileofs = LittleLong (header.lumps[i].fileofs);
 			i++;
 		}
-		BSPX_Setup(mod, mod_base, filelen, header.lumps, i);
+		bspx = BSPX_Setup(mod, mod_base, filelen, header.lumps, i);
 
 #if defined(HAVE_CLIENT) && defined(IMAGEFMT_PCX)
 		if (CM_GetQ2Palette())
@@ -4985,8 +5019,7 @@ static cmodel_t *CM_LoadMap (model_t *mod, qbyte *filein, size_t filelen, qboole
 				if (noerrors)
 					Mod_LoadEntities							(mod, mod_base, &header.lumps[Q2LUMP_ENTITIES]);
 				noerrors = noerrors && CModQ2_LoadFaces			(mod, mod_base, &header.lumps[Q2LUMP_FACES], &header.lumps[Q2LUMP_LIGHTING], header.version == BSPVERSION_Q2W, bspx);
-				if (header.version == BSPVERSION_Q2W)
-					/*noerrors = noerrors &&*/ Mod_LoadVertexNormals(mod, bspx, mod_base, &header.lumps[19]);
+				                       Mod_LoadVertexNormals(mod, bspx, mod_base, (header.version == BSPVERSION_Q2W)?&header.lumps[19]:NULL);
 				noerrors = noerrors && Mod_LoadMarksurfaces		(mod, mod_base, &header.lumps[Q2LUMP_LEAFFACES], false);
 				noerrors = noerrors && CModQ2_LoadVisibility	(mod, mod_base, &header.lumps[Q2LUMP_VISIBILITY]);
 				noerrors = noerrors && CModQ2_LoadBrushSides	(mod, mod_base, &header.lumps[Q2LUMP_BRUSHSIDES]);

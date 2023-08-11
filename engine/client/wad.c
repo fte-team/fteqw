@@ -930,18 +930,17 @@ void Mod_ParseInfoFromEntityLump(model_t *wmodel)	//actually, this should be in 
 		else if (!strcmp("skyaxis", key))	//q2 feature
 		{
 			char *s;
-			Q_strncpyz(key, token, sizeof(key));
-			s = COM_ParseOut(key, token, sizeof(token));
+			s = COM_ParseOut(token, key, sizeof(key));
 			if (s)
 			{
-				cl.skyaxis[0] = atof(s);
-				s = COM_ParseOut(s, token, sizeof(token));
+				cl.skyaxis[0] = atof(key);
+				s = COM_ParseOut(s, key, sizeof(key));
 				if (s)
 				{
-					cl.skyaxis[1] = atof(s);
-					COM_ParseOut(s, token, sizeof(token));
+					cl.skyaxis[1] = atof(key);
+					COM_ParseOut(s, key, sizeof(key));
 					if (s)
-						cl.skyaxis[2] = atof(s);
+						cl.skyaxis[2] = atof(key);
 				}
 			}
 		}

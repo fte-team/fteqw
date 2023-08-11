@@ -381,11 +381,10 @@ void VARGS SV_Error (char *error, ...)
 
 	if (!isDedicated)	//dedicated servers crash...
 	{
-		extern cvar_t cl_disconnectreason;
 		extern jmp_buf 	host_abort;
 		SCR_EndLoadingPlaque();
 		SV_UnspawnServer();
-		Cvar_Set(&cl_disconnectreason, va("SV_Error: %s", string));
+		CL_Disconnect(string);
 		inerror=false;
 		longjmp (host_abort, 1);
 	}

@@ -399,6 +399,15 @@ void M_ToggleMenu_f (void)
 #endif
 
 #ifndef NOBUILTINMENUS
+	{
+		extern cvar_t cl_disconnectreason;
+		if (*cl_disconnectreason.string)
+		{
+			Menu_Prompt(NULL, NULL, cl_disconnectreason.string, NULL, NULL, "Okay", true);
+			Cvar_Set(&cl_disconnectreason, "");
+		}
+	}
+
 	M_Menu_Main_f ();
 	Key_Dest_Remove(kdm_console|kdm_cwindows);
 #endif

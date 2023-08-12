@@ -600,6 +600,7 @@ void Q1BSP_LoadBrushes(struct model_s *model, bspx_header_t *bspx, void *mod_bas
 void Q1BSP_Init(void);
 void Q1BSP_GenerateShadowMesh(struct model_s *model, struct dlight_s *dl, const qbyte *lightvis, qbyte *litvis, void (*callback)(msurface_t *surf));
 
+void BSPX_LightGridLoad(struct model_s *model, bspx_header_t *bspx, qbyte *mod_base);	//for q1 or q2 models.
 void BSPX_LoadEnvmaps(struct model_s *mod, bspx_header_t *bspx, void *mod_base);
 void *BSPX_FindLump(bspx_header_t *bspxheader, void *mod_base, char *lumpname, int *lumpsize);
 bspx_header_t *BSPX_Setup(struct model_s *mod, char *filebase, size_t filelen, lump_t *lumps, size_t numlumps);

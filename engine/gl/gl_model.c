@@ -1334,18 +1334,6 @@ static void Mod_LoadModelWorker (void *ctx, void *data, size_t a, size_t b)
 			}
 		}
 
-/*
-#ifdef MAP_PROC
-			if (!strcmp(com_token, "CM"))	//doom3 map.
-			{
-				TRACE(("Mod_LoadModel: doom3 CM\n"));
-				if (!D3_LoadMap_CollisionMap (mod, (char*)buf))
-					continue;
-				break;
-			}
-#endif
-*/
-
 		TRACE(("Mod_LoadModel: Loaded\n"));
 
 		BZ_Free(buf);
@@ -1635,6 +1623,11 @@ void Mod_LoadLighting (model_t *loadmodel, bspx_header_t *bspx, qbyte *mod_base,
 #endif
 
 	extern cvar_t gl_overbright;
+
+#ifdef HAVE_CLIENT
+	BSPX_LightGridLoad(loadmodel, bspx, mod_base);
+#endif
+
 	loadmodel->lightmaps.fmt = LM_L8;
 
 	//q3 maps have built in 4-fold overbright.

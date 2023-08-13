@@ -3170,7 +3170,6 @@ static void Mod_LightmapAllocSurf(lmalloc_t *lmallocator, msurface_t *surf, int 
 		(surf->texinfo->texture->shader && !(surf->texinfo->texture->shader->flags & SHADER_HASLIGHTMAP)) || //fte
 		(surf->flags & (SURF_DRAWSKY|SURF_DRAWTILED)) ||	//q1
 		(surf->texinfo->flags & TEX_SPECIAL) ||	//the original 'no lightmap'
-		(surf->texinfo->flags & (TI_SKY|TI_TRANS33|TI_TRANS66|TI_WARP)) ||	//q2 surfaces
 		smax > lmallocator->width || tmax > lmallocator->height || smax < 0 || tmax < 0)	//bugs/bounds/etc
 	{
 		surf->lightmaptexturenums[surfstyle] = -1;

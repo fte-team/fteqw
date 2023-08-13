@@ -1541,8 +1541,8 @@ static qboolean CModQ2_LoadTexInfo (model_t *mod, qbyte *mod_base, lump_t *l, ch
 			Q_strncatz(sname, "#ANIMLOOP", sizeof(sname));
 
 		//in q2, 'TEX_SPECIAL' is TI_LIGHT, and that conflicts.
-		out->flags &= ~TI_LIGHT;
-		if (out->flags & (TI_SKY|TI_TRANS33|TI_TRANS66|TI_WARP))
+		out->flags &= ~TI_LIGHT;	//TI_LIGHT makes the surface emissive. its for the rad tool, not useful to us, so its safe to just strip it to avoid confusion.
+		if (out->flags & (TI_SKY))
 			out->flags |= TEX_SPECIAL;
 
 		//compact the textures.
@@ -1764,23 +1764,6 @@ static qboolean CModQ2_LoadFaces (model_t *mod, qbyte *mod_base, lump_t *l, lump
 		}
 		out->texinfo = mod->texinfo + ti;
 
-#ifndef SERVERONLY
-		if (out->texinfo->flags & TI_SKY)
-		{
-			out->flags |= SURF_DRAWSKY;
-		}
-		if (out->texinfo->flags & TI_WARP)
-		{
-			out->flags |= SURF_DRAWTURB|SURF_DRAWTILED;
-		}
-#endif
-
-		if (overrides.shifts)
-			out->lmshift = overrides.shifts[surfnum];
-		else
-			out->lmshift = lmshift;
-
-
 		if (decoupledlm)
 		{
 			lofs = LittleLong(decoupledlm->lmoffset);
@@ -1802,6 +1785,11 @@ static qboolean CModQ2_LoadFaces (model_t *mod, qbyte *mod_base, lump_t *l, lump
 		}
 		else
 		{
+			if (overrides.shifts)
+				out->lmshift = overrides.shifts[surfnum];
+			else
+				out->lmshift = lmshift;
+
 			if (overrides.offsets)
 				lofs = overrides.offsets[surfnum];
 
@@ -1849,9 +1837,19 @@ static qboolean CModQ2_LoadFaces (model_t *mod, qbyte *mod_base, lump_t *l, lump
 
 	// set the drawing flags
 
+
+		if (out->texinfo->flags & TI_SKY)
+			out->flags |= SURF_DRAWSKY|SURF_DRAWTILED;
 		if (out->texinfo->flags & TI_WARP)
 		{
 			out->flags |= SURF_DRAWTURB;
+			if (out->styles[0]==0&&out->styles[1]==0&&out->styles[2]==0&&out->styles[3]==0)
+				out->flags |= SURF_DRAWTILED;	//normally you won't get the same lightmap 4 times over... assume uninitialised, and therefore unlit.
+			else if (!strstr(out->texinfo->texture->name, "#LIT"))
+				Q_strncatz(out->texinfo->texture->name, "#LIT", sizeof(out->texinfo->texture->name));
+		}
+		if (out->flags & SURF_DRAWTILED)
+		{	//shouldn't have been lit...
 			for (i=0 ; i<2 ; i++)
 			{
 				out->extents[i] = 16384;
@@ -3397,6 +3395,7 @@ static qboolean CModQ3_LoadRFaces (model_t *mod, qbyte *mod_base, lump_t *l)
 	int facetype;
 	int count;
 	int surfnum;
+	int shadernum;
 
 	int fv;
 	int sty; 
@@ -3422,8 +3421,14 @@ static qboolean CModQ3_LoadRFaces (model_t *mod, qbyte *mod_base, lump_t *l)
 	{
 		out->plane = pl;
 		
+		shadernum = LittleLong(in->shadernum);
+		if (shadernum < 0 || shadernum >= mod->numtexinfo)
+		{
+			Con_Printf (CON_ERROR "CMod_LoadRFaces: bad shader index %s\n",mod->name);
+			return false;
+		}
 		facetype = LittleLong(in->facetype);
-		out->texinfo = mod->texinfo + LittleLong(in->shadernum);
+		out->texinfo = mod->texinfo + shadernum;
 		out->lightmaptexturenums[0] = LittleLong(in->lightmapnum);
 		if (facetype == MST_FLARE)
 			out->texinfo = mod->texinfo + mod->numtexinfo*2;
@@ -3461,18 +3466,18 @@ static qboolean CModQ3_LoadRFaces (model_t *mod, qbyte *mod_base, lump_t *l)
 			CategorizePlane(pl);
 		}
 
-		if (prv->surfaces[LittleLong(in->shadernum)].c.value == 0 || prv->surfaces[LittleLong(in->shadernum)].c.value & Q3CONTENTS_TRANSLUCENT)
+		if (prv->surfaces[shadernum].c.value == 0 || prv->surfaces[shadernum].c.value & Q3CONTENTS_TRANSLUCENT)
 				//q3dm10's thingie is 0
 			out->flags |= SURF_DRAWALPHA;
 
-		if (mod->texinfo[LittleLong(in->shadernum)].flags & TI_SKY)
-			out->flags |= SURF_DRAWSKY;
+		if (mod->texinfo[shadernum].flags & TI_SKY)
+			out->flags |= SURF_DRAWSKY|SURF_DRAWTILED;
 
 		if (LittleLong(in->fognum) == -1 || !mod->numfogs)
 			out->fog = NULL;
 		else
 			out->fog = mod->fogs + LittleLong(in->fognum);
-		if (prv->surfaces[LittleLong(in->shadernum)].c.flags & (Q3SURF_NODRAW | Q3SURF_SKIP))
+		if (prv->surfaces[shadernum].c.flags & (Q3SURF_NODRAW | Q3SURF_SKIP))
 		{
 			out->mesh = &mesh[surfnum];
 			out->mesh->numindexes = 0;
@@ -3521,6 +3526,7 @@ static qboolean CModRBSP_LoadRFaces (model_t *mod, qbyte *mod_base, lump_t *l)
 
 	int count;
 	int surfnum;
+	int shadernum;
 
 	int fv;
 	int j;
@@ -3547,8 +3553,14 @@ static qboolean CModRBSP_LoadRFaces (model_t *mod, qbyte *mod_base, lump_t *l)
 	for (surfnum = 0; surfnum < count; surfnum++, out++, in++, pl++)
 	{
 		out->plane = pl;
+		shadernum = LittleLong(in->shadernum);
+		if (shadernum < 0 || shadernum >= mod->numtexinfo)
+		{
+			Con_Printf (CON_ERROR "CMod_LoadRFaces: bad shader index %s\n",mod->name);
+			return false;
+		}
 		facetype = LittleLong(in->facetype);
-		out->texinfo = mod->texinfo + LittleLong(in->shadernum);
+		out->texinfo = mod->texinfo + shadernum;
 		for (j = 0; j < maxstyle; j++)
 		{
 			out->lightmaptexturenums[j] = LittleLong(in->lightmapnum[j]);
@@ -3590,19 +3602,19 @@ static qboolean CModRBSP_LoadRFaces (model_t *mod, qbyte *mod_base, lump_t *l)
 			CategorizePlane(pl);
 		}
 
-		if (prv->surfaces[in->shadernum].c.value == 0 || prv->surfaces[in->shadernum].c.value & Q3CONTENTS_TRANSLUCENT)
+		if (prv->surfaces[shadernum].c.value == 0 || prv->surfaces[shadernum].c.value & Q3CONTENTS_TRANSLUCENT)
 				//q3dm10's thingie is 0
 			out->flags |= SURF_DRAWALPHA;
 
-		if (mod->texinfo[in->shadernum].flags & TI_SKY)
-			out->flags |= SURF_DRAWSKY;
+		if (mod->texinfo[shadernum].flags & TI_SKY)
+			out->flags |= SURF_DRAWSKY|SURF_DRAWTILED;
 
 		if (in->fognum < 0 || in->fognum >= mod->numfogs)
 			out->fog = NULL;
 		else
 			out->fog = mod->fogs + in->fognum;
 
-		if (prv->surfaces[LittleLong(in->shadernum)].c.flags & (Q3SURF_NODRAW | Q3SURF_SKIP))
+		if (prv->surfaces[shadernum].c.flags & (Q3SURF_NODRAW | Q3SURF_SKIP))
 		{
 			out->mesh = &mesh[surfnum];
 			out->mesh->numindexes = 0;

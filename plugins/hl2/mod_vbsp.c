@@ -1801,7 +1801,7 @@ static qboolean VBSP_LoadFaces (model_t *mod, qbyte *mod_base, vlump_t *lumps, i
 
 		if (out->texinfo->flags & TI_SKY)
 		{
-			out->flags |= SURF_DRAWSKY;
+			out->flags |= SURF_DRAWSKY|SURF_DRAWTILED;
 		}
 		if (out->texinfo->flags & TI_WARP)
 		{

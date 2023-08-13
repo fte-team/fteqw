@@ -1217,6 +1217,7 @@ static void FS_Manifest_SetDefaultSettings(ftemanifest_t *man, const gamemode_in
 //read a manifest file
 ftemanifest_t *FS_Manifest_ReadMem(const char *fname, const char *basedir, const char *data)
 {
+	int ver;
 	int i;
 	ftemanifest_t *man;
 	if (!data)
@@ -1260,17 +1261,13 @@ ftemanifest_t *FS_Manifest_ReadMem(const char *fname, const char *basedir, const
 		}
 	}
 
-#ifdef SVNREVISION
 	//svnrevision is often '-', which means we can't just use it as a constant.
+	ver = revision_number(false);
+	if (ver && (man->minver > ver || (man->maxver && man->maxver < ver)))
 	{
-		int ver = atoi(STRINGIFY(SVNREVISION));
-		if (man->minver > ver || (man->maxver && man->maxver < ver))
-		{
-			FS_Manifest_Free(man);
-			return NULL;
-		}
+		FS_Manifest_Free(man);
+		return NULL;
 	}
-#endif
 	return man;
 }
 
@@ -6493,6 +6490,7 @@ qboolean FS_ChangeGame(ftemanifest_t *man, qboolean allowreloadconfigs, qboolean
 
 	if (!man)
 	{
+		int found = 0;
 		//if we're already running a game, don't autodetect.
 		if (fs_manifest)
 			return false;
@@ -6501,7 +6499,7 @@ qboolean FS_ChangeGame(ftemanifest_t *man, qboolean allowreloadconfigs, qboolean
 
 		if (!man)
 		{
-			int found = FS_EnumerateKnownGames(FS_FoundManifest, &man);
+			found = FS_EnumerateKnownGames(FS_FoundManifest, &man);
 			if (found != 1)
 			{
 				//we found more than 1 (or none)
@@ -6522,7 +6520,7 @@ qboolean FS_ChangeGame(ftemanifest_t *man, qboolean allowreloadconfigs, qboolean
 		{
 #ifdef _WIN32
 			//quit straight out on windows. this prevents shitty sandboxed malware scanners from seeing bugs in opengl drivers and blaming us for it.
-			if (!fixedbasedir)
+			if (!fixedbasedir && found == 0)
 				Sys_Error("No recognised game data found in working directory:\n%s", com_gamepath);
 #endif
 			man = FS_Manifest_ReadMem(NULL, NULL,

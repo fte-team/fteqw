@@ -1010,6 +1010,8 @@ static void SHM_RecursiveWorldNodeQ2_r (dlight_t *dl, mnode_t *node)
 	float		l, maxdist;
 	int			j, s, t;
 	vec3_t		impact;
+	vec4_t		*lmvecs;
+	float		*lmvecscale;
 
 	if (node->shadowframe != sh_shadowframe)
 		return;
@@ -1120,13 +1122,17 @@ static void SHM_RecursiveWorldNodeQ2_r (dlight_t *dl, mnode_t *node)
 				for (j=0 ; j<3 ; j++)
 					impact[j] = dl->origin[j] - surf->plane->normal[j]*dot;
 
+				if (currentmodel->facelmvecs)
+					lmvecs = currentmodel->facelmvecs[surf-currentmodel->surfaces].lmvecs, lmvecscale = currentmodel->facelmvecs[surf-currentmodel->surfaces].lmvecscale;
+				else
+					lmvecs = surf->texinfo->vecs, lmvecscale = surf->texinfo->vecscale;
 				// clamp center of light to corner and check brightness
-				l = DotProduct (impact, surf->texinfo->vecs[0]) + surf->texinfo->vecs[0][3] - surf->texturemins[0];
+				l = DotProduct (impact, lmvecs[0]) + lmvecs[0][3] - surf->texturemins[0];
 				s = l;if (s < 0) s = 0;else if (s > surf->extents[0]) s = surf->extents[0];
-				s = (l - s)*surf->texinfo->vecscale[0];
-				l = DotProduct (impact, surf->texinfo->vecs[1]) + surf->texinfo->vecs[1][3] - surf->texturemins[1];
+				s = (l - s)*lmvecscale[0];
+				l = DotProduct (impact, lmvecs[1]) + lmvecs[1][3] - surf->texturemins[1];
 				t = l;if (t < 0) t = 0;else if (t > surf->extents[1]) t = surf->extents[1];
-				t = (l - t)*surf->texinfo->vecscale[1];
+				t = (l - t)*lmvecscale[1];
 				// compare to minimum light
 				if ((s*s+t*t+dot*dot) < maxdist)
 				{

@@ -2944,7 +2944,10 @@ qboolean Mod_BSPXRW_Read(struct bspxrw *ctx, const char *fname)
 	ctx->lumps = 0;
 	ctx->totallumps = 0;
 
-	i = LittleLong(*(int*)ctx->origfile);
+	if (ctx->origsize < 4)
+		i = 0;
+	else
+		i = LittleLong(*(int*)ctx->origfile);
 	switch(i)
 	{
 	case 29:
@@ -2977,6 +2980,7 @@ qboolean Mod_BSPXRW_Read(struct bspxrw *ctx, const char *fname)
 #endif
 		default:
 			Mod_BSPXRW_Free(ctx);
+			Con_Printf(CON_ERROR"%s: Unknown 'IBSP' revision\n", fname);
 			return false;
 		}
 		break;
@@ -2987,19 +2991,21 @@ qboolean Mod_BSPXRW_Read(struct bspxrw *ctx, const char *fname)
 		ctx->lumpofs = 8;
 		switch(i)
 		{
-		case BSPVERSION_RBSP:
+		case BSPVERSION_RBSP:	//both rbsp+fbsp are version 1, with the only difference being lightmap sizes.
 			ctx->fg = fg_quake3;
 			ctx->corelumps = 18;
 			corelumpnames = q3corelumpnames;
 			break;
 		default:
 			Mod_BSPXRW_Free(ctx);
+			Con_Printf(CON_ERROR"%s: Unknown 'RBSP'/'FBSP' revision\n", fname);
 			return false;
 		}
 		break;
 #endif
 	default:
 		Mod_BSPXRW_Free(ctx);
+		Con_Printf(CON_ERROR"%s: Unknown file magic\n", fname);
 		return false;
 	}
 

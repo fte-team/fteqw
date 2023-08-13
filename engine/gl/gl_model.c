@@ -708,18 +708,18 @@ void Mod_Init (qboolean initial)
 #endif
 
 		//q2/q3bsps
-#if defined(Q2BSPS) || defined(Q3BSPS)
-#ifndef Q2BSPS
-		Mod_RegisterModelFormatMagic(NULL, "Quake3 Map (bsp)",				IDBSPHEADER,							Mod_LoadQ2BrushModel);
-#elif !defined(Q3BSPS)
-		Mod_RegisterModelFormatMagic(NULL, "Quake2 Map (bsp)",				IDBSPHEADER,							Mod_LoadQ2BrushModel);
-#else
-		Mod_RegisterModelFormatMagic(NULL, "Quake2/Quake3 Map (bsp)",		IDBSPHEADER,							Mod_LoadQ2BrushModel);
+#ifdef Q3BSPS
+		Mod_RegisterModelFormatMagic(NULL, "RTCW Map (bsp)",				"IBSP\57\0\0\0",8,						Mod_LoadQ2BrushModel);
+		Mod_RegisterModelFormatMagic(NULL, "Quake3 Map (bsp)",				"IBSP\56\0\0\0",8,						Mod_LoadQ2BrushModel);
 #endif
+#ifdef Q2BSPS
+		Mod_RegisterModelFormatMagic(NULL, "Quake2 Map (bsp)",				"IBSP\46\0\0\0",8,						Mod_LoadQ2BrushModel);
+		Mod_RegisterModelFormatMagic(NULL, "Quake2World Map (bsp)",			"IBSP\105\0\0\0",8,						Mod_LoadQ2BrushModel);
+		Mod_RegisterModelFormatMagic(NULL, "Qbism (Quake2) Map (bsp)",		"QBSP\46\0\0\0",8,						Mod_LoadQ2BrushModel);
 #endif
 #ifdef RFBSPS
-		Mod_RegisterModelFormatMagic(NULL, "Raven Map (bsp)",				"RBSP",4,	Mod_LoadQ2BrushModel);
-		Mod_RegisterModelFormatMagic(NULL, "QFusion Map (bsp)",				"FBSP",4,	Mod_LoadQ2BrushModel);
+		Mod_RegisterModelFormatMagic(NULL, "Raven Map (bsp)",				"RBSP\1\0\0\0",8,	Mod_LoadQ2BrushModel);
+		Mod_RegisterModelFormatMagic(NULL, "QFusion Map (bsp)",				"FBSP\1\0\0\0",8,	Mod_LoadQ2BrushModel);
 #endif
 
 		//doom maps

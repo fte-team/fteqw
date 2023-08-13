@@ -693,7 +693,7 @@ typedef struct
 	short		maxs[3];
 	unsigned short	firstface;
 	unsigned short	numfaces;	// counting both sides
-} q2dnode_t;
+} q2dsnode_t;
 
 typedef struct
 {
@@ -730,7 +730,23 @@ typedef struct
 
 	unsigned short	firstleafbrush;
 	unsigned short	numleafbrushes;
-} q2dleaf_t;
+} q2dsleaf_t;
+typedef struct
+{
+	int				contents;			// OR of all brushes (not needed?)
+
+	int			cluster;
+	int			area;
+
+	float			mins[3];			// for frustum culling
+	float			maxs[3];
+
+	unsigned int	firstleafface;
+	unsigned int	numleaffaces;
+
+	unsigned int	firstleafbrush;
+	unsigned int	numleafbrushes;
+} q2dlleaf_t;
 
 typedef struct
 {
@@ -749,7 +765,12 @@ typedef struct
 {
 	unsigned short	planenum;		// facing out of the leaf
 	short	texinfo;
-} q2dbrushside_t;
+} q2dsbrushside_t;
+typedef struct
+{
+	unsigned int	planenum;		// facing out of the leaf
+	int	texinfo;
+} q2dlbrushside_t;
 
 typedef struct
 {

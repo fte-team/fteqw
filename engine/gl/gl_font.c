@@ -2460,17 +2460,17 @@ struct font_s *Font_LoadFont(const char *fontfilename, float vheight, float scal
 				h = 0;
 			}
 
-			f->chars[i].advance = dp->width;	/*this is how much line space the char takes*/
-			f->chars[i].left = -dp->leftoffset;
-			f->chars[i].top = -dp->topoffset;
-			f->chars[i].nextchar = 0;
-			f->chars[i].pad = 0;
-			f->chars[i].texplane = SINGLEPLANE;
+			c = Font_GetCharStore(f, i);
+			c->advance = dp->width;	/*this is how much line space the char takes*/
+			c->left = -dp->leftoffset;
+			c->top = -dp->topoffset;
+			c->nextchar = 0;
+			c->texplane = SINGLEPLANE;
 
-			f->chars[i].bmx = x;
-			f->chars[i].bmy = y;
-			f->chars[i].bmh = dp->height;
-			f->chars[i].bmw = dp->width;
+			c->bmx = x;
+			c->bmy = y;
+			c->bmh = dp->height;
+			c->bmw = dp->width;
 
 			Doom_ExpandPatch(dp, &buf[y*PLANEWIDTH + x], PLANEWIDTH);
 
@@ -2490,15 +2490,15 @@ struct font_s *Font_LoadFont(const char *fontfilename, float vheight, float scal
 		{
 			//doom doesn't have many chars, so make sure the lower case chars exist.
 			for (i = 'a'; i <= 'z'; i++)
-				f->chars[i] = f->chars[i-'a'+'A'];
+				Font_CopyChar(f, i-'a'+'A', i);
+
 			//no space char either
-			f->chars[' '].advance = 8;
+			c = Font_GetCharStore(f, ' ');
+			c->advance = 8;
 
 			f->singletexture = R_LoadTexture8("doomfont", PLANEWIDTH, PLANEHEIGHT, buf, 0, true);
 			for (i = 0xe000; i <= 0xe0ff; i++)
-			{
-				f->chars[i] = f->chars[toupper(i&0x7f)];
-			}
+				Font_CopyChar(f, toupper(i&0x7f), i);
 			return f;
 		}
 	}

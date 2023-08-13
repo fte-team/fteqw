@@ -389,7 +389,7 @@ searchpathfuncs_t *QDECL FSPAK_LoadArchive (vfsfile_t *file, searchpathfuncs_t *
 }
 
 #ifdef PACKAGE_DOOMWAD
-searchpathfuncs_t *QDECL FSDWD_LoadArchive (vfsfile_t *packhandle, const char *desc, const char *prefix)
+searchpathfuncs_t *QDECL FSDWD_LoadArchive (vfsfile_t *packhandle, searchpathfuncs_t *parent, const char *wadname, const char *desc, const char *prefix)
 {
 	dwadheader_t	header;
 	int				i;
@@ -484,7 +484,7 @@ newsection:
 					newfiles[i].filelen = 4;
 					break;
 				}
-				if (!strncmp(filename, "gl_", 3) && ((filename[4] == 'e' && filename[5] == 'm') || !strncmp(filename+3, "map", 3)))
+				if (!strncmp(filename, "gl_", 3) && ((filename[3] == 'e' && filename[5] == 'm') || !strncmp(filename+3, "map", 3)))
 				{	//this is the start of a beutiful new map
 					section = 5;
 					strcpy(sectionname, filename+3);
@@ -523,7 +523,8 @@ newsection:
 			}
 			sprintf (newfiles[i].name, "maps/%s%s.%s", neatwadname, sectionname, filename);
 			break;
-		case 2:	//sprite section
+		case 2:	//sprite section. sprites use the first 4 letters to identify the name of the sprite, and the last 4 to define its frame+dir [+ xflipped frame+dir]
+			//FIXME: inject a '.dsp' file for filesystem accountability when we see an a0 (or a1) postfix.
 			if (!strcmp(filename, "s_end"))
 			{
 				section = 0;
@@ -531,7 +532,7 @@ newsection:
 			}
 			sprintf (newfiles[i].name, "sprites/%s", filename);
 			break;
-		case 3:	//patches section
+		case 3:	//patches section. they need the textures1/2 lump in order to position correctly as actual textures.
 			if (!strcmp(filename, "p_end"))
 			{
 				section = 0;
@@ -539,7 +540,7 @@ newsection:
 			}
 			sprintf (newfiles[i].name, "patches/%s.pat", filename);
 			break;
-		case 4:	//flats section
+		case 4:	//flats section. note that these are raw p8 64*64 images
 			if (!strcmp(filename, "f_end"))
 			{
 				section = 0;

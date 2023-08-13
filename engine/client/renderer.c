@@ -1547,7 +1547,11 @@ qboolean R_ApplyRenderer_Load (rendererstate_t *newr)
 		host_basepal = (qbyte *)FS_LoadMallocFile ("gfx/palette.lmp", &sz);
 		vid.fullbright = host_basepal?32:0;	//q1-like mods are assumed to have 32 fullbright pixels, even if the colormap is missing.
 		if (!host_basepal)
+		{
 			host_basepal = (qbyte *)FS_LoadMallocFile ("wad/playpal", &sz);
+			if (host_basepal && sz > 768)
+				sz = 768;
+		}
 		if (!host_basepal || sz != 768)
 		{
 #if defined(Q2CLIENT) && defined(IMAGEFMT_PCX)

@@ -2518,12 +2518,14 @@ mspriteframe_t *R_GetSpriteFrame (entity_t *currententity)
 	{
 		float f = DotProduct(vpn,currententity->axis[0]);
 		float r = DotProduct(vright,currententity->axis[0]);
-		int dir = (atan2(r, f)+1.125*M_PI)*(4/M_PI);
-
+		float ang;
 		pspritegroup = (mspritegroup_t *)psprite->frames[frame].frameptr;
+		ang = (atan2(r, f)+M_PI)/(2*M_PI);	//to give 0 - 1 range
+		i = (ang*pspritegroup->numframes) + 0.5;
+
 //		pspriteframe = pspritegroup->frames[(int)((r_refdef.viewangles[1]-currententity->angles[1])/360*pspritegroup->numframes + 0.5-4)%pspritegroup->numframes];
 		//int dir = (int)((r_refdef.viewangles[1]-currententity->angles[1])/360*8 + 8 + 0.5-4)&7;
-		pspriteframe = pspritegroup->frames[dir&7];
+		pspriteframe = pspritegroup->frames[i%pspritegroup->numframes];
 	}
 	else
 	{

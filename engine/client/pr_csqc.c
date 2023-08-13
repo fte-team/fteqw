@@ -3388,9 +3388,9 @@ static void QCBUILTIN PF_cs_spriteframe(pubprogfuncs_t *prinst, struct globalvar
 			pspriteframe = psprite->frames[frame].frameptr;
 		else if (psprite->frames[frame].type == SPR_ANGLED)
 		{	//just take frametime as 0-1
-			int dir = frametime/8;
 			pspritegroup = (mspritegroup_t *)psprite->frames[frame].frameptr;
-			pspriteframe = pspritegroup->frames[dir&7];
+			i = frametime/pspritegroup->numframes;
+			pspriteframe = pspritegroup->frames[i%pspritegroup->numframes];
 		}
 		else
 		{

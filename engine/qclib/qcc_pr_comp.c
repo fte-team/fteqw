@@ -3840,10 +3840,9 @@ QCC_sref_t QCC_PR_StatementFlags ( QCC_opcode_t *op, QCC_sref_t var_a, QCC_sref_
 			QCC_PR_ParseWarning(WARN_STRICTTYPEMISMATCH, "'%s' type mismatch: %s with %s", op->name, typea, typeb);
 		}
 
-		pbool sym_cmp = var_a.sym == var_b.sym && var_a.ofs == var_b.ofs;
-		pbool nan_cmp = nan_eq_cond && (var_a.cast == type_float || var_a.cast == type_vector);
+		pbool sym_cmp = !nan_eq_cond && var_a.sym == var_b.sym && var_a.ofs == var_b.ofs;
 
-		if ((var_a.sym->constant && var_b.sym->constant && !var_a.sym->temp && !var_b.sym->temp) || (!nan_cmp && sym_cmp))
+		if ((var_a.sym->constant && var_b.sym->constant && !var_a.sym->temp && !var_b.sym->temp) || sym_cmp)
 		{
 			QCC_PR_ParseWarning(WARN_CONSTANTCOMPARISON, "Result of comparison is constant");
 			QCC_PR_ParsePrintDef(WARN_CONSTANTCOMPARISON, var_a.sym);

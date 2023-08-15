@@ -3731,13 +3731,20 @@ static void QCBUILTIN PF_sound (pubprogfuncs_t *prinst, struct globalvars_s *pr_
 		if (channel < 0)
 			channel = 0;
 	}
-	else
+	else if (progstype == PROG_QW)
 	{
 		//QW uses channel&8 to mean reliable.
 		chflags = (channel & 8)?CF_SV_RELIABLE:0;
-		//demangle it so the upper bits are still useful.
+		//strip out that unused bit.
 		channel = (channel & 7) | ((channel & ~15) >> 1);
+		if (channel > 7 && !ssqc_deprecated_warned && sv.csqcchecksum)
+		{	//warn for extended channels (inconsistencies with csqc).
+			PR_RunWarning(prinst, "PF_sound: recommended to pass the flags arg when using extended channel numbers.");
+			ssqc_deprecated_warned = true;
+		}
 	}
+	else
+		chflags = 0;
 	timeofs = (svprogfuncs->callargc>7)?G_FLOAT(OFS_PARM7):0;
 
 	if (volume < 0)	//erm...
@@ -13656,7 +13663,7 @@ void PR_DumpPlatform_f(void)
 		{"SOUNDFLAG_NOSPACIALISE",	"const float",	QW|NQ|CS,	D("The different audio channels are played at the same volume regardless of which way the player is facing, without needing to use 0 attenuation."), CF_NOSPACIALISE},
 		{"SOUNDFLAG_NOREVERB",		"const float",	QW|NQ|CS,	D("Disables the use of underwater/reverb effects on this sound effect."), CF_NOREVERB},
 		{"SOUNDFLAG_FOLLOW",		"const float",	QW|NQ|CS,	D("The sound's origin will updated to follow the emitting entity."), CF_FOLLOW},
-		{"SOUNDFLAG_NOREPLACE",		"const float",	QW|NQ|CS,	D("Sounds started with this flag will be ignored when there's already a sound playing on that same ent-channel."), CF_NOREPLACE},
+		{"SOUNDFLAG_NOREPLACE",		"const float",	QW|NQ|CS,	D("Sounds started with this flag will be ignored when there's already a sound playing on that same ent-channel. Such sounds can be safely 're-' started every single frame without harming anything. Tends not to make sense with CHAN_AUTO."), CF_NOREPLACE},
 		{"SOUNDFLAG_UNICAST",		"const float",	QW|NQ,		D("The sound will be sent only by the player specified by msg_entity. Spectators and related splitscreen players will also hear the sound."), CF_SV_UNICAST},
 		{"SOUNDFLAG_SENDVELOCITY",	"const float",	QW|NQ,		D("The entity's current velocity will be sent to the client, only useful if doppler is enabled."), CF_SV_SENDVELOCITY},
 		{"SOUNDFLAG_INACTIVE",		"const float",	CS,			D("The sound will ignore the value of the snd_inactive cvar."), CF_CLI_INACTIVE},

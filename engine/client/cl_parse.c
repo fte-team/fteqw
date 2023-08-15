@@ -5330,8 +5330,7 @@ static void CLNQ_ParseStartSoundPacket(void)
 		channel &= 7;
 	}
 
-	/*unpack mangling*/
-	channel = (channel & 7) | ((channel & 0x0f1) << 1);
+	//channel = (channel & 7) | ((channel & 0x0f1) << 1); //this line undoes the reliable=(channel&8) gap from qwssqc... but frankly just pass the flags arg properly. csqc's builtin doesn't use it, so don't give an inconsistent gap at all here.
 
 	if ((field_mask & NQSND_LARGESOUND) || (cls.protocol == CP_NETQUAKE && (cls.protocol_nq == CPNQ_BJP2 || cls.protocol_nq == CPNQ_BJP3))) //bjp kinda sucks
 		sound_num = (unsigned short)MSG_ReadShort();

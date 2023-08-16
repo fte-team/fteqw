@@ -4,7 +4,9 @@
 #include "fs.h"
 #include <assert.h>
 
-#include "../../engine/libs/zlib.h"
+#ifdef AVAIL_ZLIB
+	#include <zlib.h>
+#endif
 #include "blast.h"
 
 //http://bazaar.launchpad.net/~jeanfrancois.roy/mpqkit/trunk/files
@@ -598,6 +600,7 @@ static void MPQF_decompress(qboolean legacymethod, void *outdata, unsigned int o
 		struct blastdata_s args = {outdata, outlen, indata, inlen};
 		blast(mpqf_blastin, &args, mpqf_blastout, &args);
 	}
+#ifdef AVAIL_ZLIB
 	else if (methods == 2)
 	{
 		z_stream strm =
@@ -651,6 +654,7 @@ static void MPQF_decompress(qboolean legacymethod, void *outdata, unsigned int o
 
 		inflateEnd(&strm);
 	}
+#endif
 	else
 	{
 		Con_Printf("mpq: unsupported decompression method - %x\n", methods);

@@ -1873,6 +1873,21 @@ static qboolean M_KeyEvent(menu_t *m, qboolean isdown, unsigned int devid, int k
 	{
 		if (key == K_MOUSE1 || key == K_TOUCHTAP)	//mouse clicks are deferred until the release event. this is for touch screens and aiming.
 		{
+
+			if (menu->mouseitem && menu->selecteditem != menu->mouseitem)
+			{
+				menu->selecteditem = menu->mouseitem;
+#ifdef HEXEN2
+				if (M_GameType() == MGT_HEXEN2)
+					S_LocalSound ("raven/menu1.wav");
+				else
+#endif
+					S_LocalSound ("misc/menu1.wav");
+
+				if (menu->cursoritem)
+					menu->cursoritem->common.posy = menu->selecteditem->common.posy + (menu->selecteditem->common.height-menu->cursoritem->common.height)/2;
+			}
+
 			if (menu->mouseitem && menu->mouseitem->common.type == mt_frameend)
 				menu->mouseitem->frame.mousedown = true;
 			else
@@ -2272,7 +2287,7 @@ void M_Complex_Key(emenu_t *currentmenu, int key, int unicode)
 			break;
 		if (currentmenu->mouseitem && currentmenu->selecteditem != currentmenu->mouseitem)
 		{
-			currentmenu->selecteditem = currentmenu->mouseitem;
+/*			currentmenu->selecteditem = currentmenu->mouseitem;
 #ifdef HEXEN2
 			if (M_GameType() == MGT_HEXEN2)
 				S_LocalSound ("raven/menu1.wav");
@@ -2282,7 +2297,7 @@ void M_Complex_Key(emenu_t *currentmenu, int key, int unicode)
 
 			if (currentmenu->cursoritem)
 				currentmenu->cursoritem->common.posy = currentmenu->selecteditem->common.posy + (currentmenu->selecteditem->common.height-currentmenu->cursoritem->common.height)/2;
-			break;	//require a double-click when selecting...
+*/			break;	//require a double-click when selecting... too easy to miss, and a touble-tap at least makes it easier to clarify what you meant.
 		}
 		//fall through
 	default:

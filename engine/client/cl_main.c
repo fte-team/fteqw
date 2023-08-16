@@ -3562,6 +3562,127 @@ void CL_Reconnect_f (void)
 	CL_BeginServerReconnect();
 }
 
+static void CL_ConnectionlessPacket_Connection(char *tokens)
+{
+	if (net_from.type == NA_INVALID)
+		return;	//I've found a qizmo demo that contains one of these. its best left ignored.
+
+	if (!CL_IsPendingServerAddress(&net_from))
+	{
+		if (net_from.type != NA_LOOPBACK)
+			Con_TPrintf ("ignoring connection\n");
+		return;
+	}
+
+	if (cls.state >= ca_connected)
+	{
+		if (!NET_CompareAdr(&cls.netchan.remote_address, &net_from))
+		{
+#ifdef HAVE_SERVER
+			if (sv.state != ss_clustermode)
+#endif
+				CL_Disconnect (NULL);
+		}
+		else
+		{
+			if (cls.demoplayback == DPB_NONE)
+				Con_TPrintf ("Dup connect received.  Ignored.\n");
+			return;
+		}
+	}
+	if (net_from.type != NA_LOOPBACK)
+	{
+//			Con_TPrintf (S_COLOR_GRAY"connection\n");
+
+#ifdef HAVE_SERVER
+		if (sv.state && sv.state != ss_clustermode)
+			SV_UnspawnServer();
+#endif
+	}
+
+#if defined(Q2CLIENT)
+	if (tokens)
+	{
+		tokens = COM_Parse(tokens);	//skip the client_connect bit
+		while((tokens = COM_Parse(tokens)))
+		{
+			if (!strncmp(com_token, "ac=", 3))
+			{
+				if (atoi(com_token+3))
+				{
+					CL_ConnectAbort("Server requires anticheat support");
+					return;
+				}
+			}
+			else if (!strncmp(com_token, "nc=", 3))
+			{
+				int type = (cls.protocol_q2 == PROTOCOL_VERSION_R1Q2 || cls.protocol_q2 == PROTOCOL_VERSION_Q2PRO)?1:0;
+				if (atoi(com_token+3) != type)
+				{
+					CL_ConnectAbort("server's netchan type differs from expected.");
+					return;
+				}
+			}
+			else if (!strncmp(com_token, "map=", 4))
+				;
+			else if (!strncmp(com_token, "dlserver=", 9))
+				Q_strncpyz(cls.downloadurl, com_token+9, sizeof(cls.downloadurl));
+			else
+				Con_DPrintf("client_connect: Unknown token \"%s\"\n", com_token);
+		}
+	}
+#endif
+
+	connectinfo.trying = false;
+	cl.splitclients = 0;
+	cls.protocol = connectinfo.protocol;
+	cls.proquake_angles_hack = false;
+	cls.fteprotocolextensions = connectinfo.ext.fte1;
+	cls.fteprotocolextensions2 = connectinfo.ext.fte2;
+	cls.ezprotocolextensions1 = connectinfo.ext.ez1;
+	cls.challenge = connectinfo.challenge;
+	Netchan_Setup (NS_CLIENT, &cls.netchan, &net_from, connectinfo.qport);
+	if (cls.protocol == CP_QUAKE2)
+	{
+		cls.protocol_q2 = connectinfo.subprotocol;
+		if (cls.protocol_q2 == PROTOCOL_VERSION_R1Q2 || cls.protocol_q2 == PROTOCOL_VERSION_Q2PRO)
+			cls.netchan.qportsize = 1;
+	}
+	cls.netchan.pext_fragmentation = connectinfo.ext.mtu?true:false;
+	cls.netchan.pext_stunaware = !!(connectinfo.ext.fte2&PEXT2_STUNAWARE);
+	if (connectinfo.ext.mtu >= 64)
+	{
+		cls.netchan.mtu = connectinfo.ext.mtu;
+		cls.netchan.message.maxsize = sizeof(cls.netchan.message_buf);
+	}
+	else
+		cls.netchan.mtu = MAX_QWMSGLEN;
+#ifdef HUFFNETWORK
+	cls.netchan.compresstable = Huff_CompressionCRC(connectinfo.ext.compresscrc);
+#else
+	cls.netchan.compresstable = NULL;
+#endif
+	CL_ParseEstablished();
+#ifdef Q3CLIENT
+	if (cls.protocol == CP_QUAKE3)
+		q3->cl.Established();
+	else
+#endif
+		CL_SendClientCommand(true, "new");
+	cls.state = ca_connected;
+#ifdef QUAKESPYAPI
+	allowremotecmd = false; // localid required now for remote cmds
+#endif
+
+	total_loading_size = 100;
+	current_loading_size = 0;
+	SCR_SetLoadingStage(LS_CLIENT);
+
+	Validation_Apply_Ruleset();
+
+	CL_WriteSetDemoMessage();
+}
+
 /*
 =================
 CL_ConnectionlessPacket
@@ -3718,14 +3839,16 @@ void CL_ConnectionlessPacket (void)
 		if (!strcmp(com_token, "onnectResponse"))
 		{
 			connectinfo.protocol = CP_QUAKE3;
-			goto client_connect;
+			CL_ConnectionlessPacket_Connection(s);
+			return;
 		}
 #endif
 #ifdef Q2CLIENT
 		if (!strcmp(com_token, "lient_connect"))
 		{
 			connectinfo.protocol = CP_QUAKE2;
-			goto client_connect;
+			CL_ConnectionlessPacket_Connection(s);
+			return;
 		}
 #endif
 
@@ -3991,7 +4114,8 @@ void CL_ConnectionlessPacket (void)
 			*nl = '\0';
 		}
 
-		if (!strcmp(s, "print"))
+		COM_Parse(s);
+		if (!strcmp(com_token, "print"))
 		{
 			Con_TPrintf (S_COLOR_GRAY"print\n");
 
@@ -4001,12 +4125,13 @@ void CL_ConnectionlessPacket (void)
 			Con_Printf ("%s", s);
 			return;
 		}
-		else if (!strcmp(s, "client_connect"))
+		else if (!strcmp(com_token, "client_connect"))
 		{
 			connectinfo.protocol = CP_QUAKE2;
-			goto client_connect;
+			CL_ConnectionlessPacket_Connection(s);
+			return;
 		}
-		else if (!strcmp(s, "disconnect"))
+		else if (!strcmp(com_token, "disconnect"))
 		{
 			if (NET_CompareAdr(&net_from, &cls.netchan.remote_address))
 			{
@@ -4160,95 +4285,11 @@ void CL_ConnectionlessPacket (void)
 
 	if (c == S2C_CONNECTION)
 	{
+		s = NULL;
 		connectinfo.protocol = CP_QUAKEWORLD;
 		connectinfo.subprotocol = PROTOCOL_VERSION_QW;
-#if defined(Q2CLIENT) || defined(Q3CLIENT)
-client_connect:	//fixme: make function
-#endif
-		if (net_from.type == NA_INVALID)
-			return;	//I've found a qizmo demo that contains one of these. its best left ignored.
 
-		if (!CL_IsPendingServerAddress(&net_from))
-		{
-			if (net_from.type != NA_LOOPBACK)
-				Con_TPrintf ("ignoring connection\n");
-			return;
-		}
-
-		if (cls.state >= ca_connected)
-		{
-			if (!NET_CompareAdr(&cls.netchan.remote_address, &net_from))
-			{
-#ifdef HAVE_SERVER
-				if (sv.state != ss_clustermode)
-#endif
-					CL_Disconnect (NULL);
-			}
-			else
-			{
-				if (cls.demoplayback == DPB_NONE)
-					Con_TPrintf ("Dup connect received.  Ignored.\n");
-				return;
-			}
-		}
-		if (net_from.type != NA_LOOPBACK)
-		{
-//			Con_TPrintf (S_COLOR_GRAY"connection\n");
-
-#ifdef HAVE_SERVER
-			if (sv.state && sv.state != ss_clustermode)
-				SV_UnspawnServer();
-#endif
-		}
-		connectinfo.trying = false;
-		cl.splitclients = 0;
-		cls.protocol = connectinfo.protocol;
-		cls.proquake_angles_hack = false;
-		cls.fteprotocolextensions = connectinfo.ext.fte1;
-		cls.fteprotocolextensions2 = connectinfo.ext.fte2;
-		cls.ezprotocolextensions1 = connectinfo.ext.ez1;
-		cls.challenge = connectinfo.challenge;
-		Netchan_Setup (NS_CLIENT, &cls.netchan, &net_from, connectinfo.qport);
-		if (cls.protocol == CP_QUAKE2)
-		{
-			cls.protocol_q2 = connectinfo.subprotocol;
-			if (cls.protocol_q2 == PROTOCOL_VERSION_R1Q2 || cls.protocol_q2 == PROTOCOL_VERSION_Q2PRO)
-				cls.netchan.qportsize = 1;
-		}
-		cls.netchan.pext_fragmentation = connectinfo.ext.mtu?true:false;
-		cls.netchan.pext_stunaware = !!(connectinfo.ext.fte2&PEXT2_STUNAWARE);
-		if (connectinfo.ext.mtu >= 64)
-		{
-			cls.netchan.mtu = connectinfo.ext.mtu;
-			cls.netchan.message.maxsize = sizeof(cls.netchan.message_buf);
-		}
-		else
-			cls.netchan.mtu = MAX_QWMSGLEN;
-#ifdef HUFFNETWORK
-		cls.netchan.compresstable = Huff_CompressionCRC(connectinfo.ext.compresscrc);
-#else
-		cls.netchan.compresstable = NULL;
-#endif
-		CL_ParseEstablished();
-#ifdef Q3CLIENT
-		if (cls.protocol == CP_QUAKE3)
-			q3->cl.Established();
-		else
-#endif
-			CL_SendClientCommand(true, "new");
-		cls.state = ca_connected;
-#ifdef QUAKESPYAPI
-		allowremotecmd = false; // localid required now for remote cmds
-#endif
-
-		total_loading_size = 100;
-		current_loading_size = 0;
-		SCR_SetLoadingStage(LS_CLIENT);
-
-		Validation_Apply_Ruleset();
-
-		CL_WriteSetDemoMessage();
-
+		CL_ConnectionlessPacket_Connection(NULL);
 		return;
 	}
 #ifdef QUAKESPYAPI

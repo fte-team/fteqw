@@ -2067,7 +2067,9 @@ void SV_AcceptMessage(client_t *newcl)
 		break;
 	case SCP_QUAKE2:
 	default:
-		strcpy(string, "client_connect\n");
+		Q_snprintfz(string, sizeof(string), "client_connect%s\n",
+			(*fs_dlURL.string?va(" dlserver=%s", fs_dlURL.string):"")	//q2pro's dlserver hint
+			);
 		len = strlen(string);
 		break;
 

@@ -477,6 +477,7 @@ typedef struct
 #endif
 
 	int protocol_q2;
+	char downloadurl[MAX_OSPATH];	//where to download files from (for q2pro compat)
 
 	qboolean findtrack;
 

@@ -981,16 +981,20 @@ qboolean	CL_CheckOrEnqueDownloadFile (const char *filename, const char *localnam
 	{
 		const char *dlURL = InfoBuf_ValueForKey(&cl.serverinfo, "sv_dlURL");
 		if (!*dlURL)
+			dlURL = cls.downloadurl;
+		if (!*dlURL)
 			dlURL = fs_dlURL.string;
+		if (strncmp(dlURL, "http://", 7) && strncmp(dlURL, "https://", 8))
+			dlURL = "";	//only allow http+https here. just paranoid.
 		flags &= ~(DLLF_TRYWEB|DLLF_ALLOWWEB);
 		if (*dlURL && (flags & DLLF_NONGAME) && !strncmp(filename, "package/", 8))
 		{	//filename is something like: package/GAMEDIR/foo.pk3
-			filename = va("%s/%s", dlURL, filename+8);
+			filename = va("%s%s%s", dlURL, ((dlURL[strlen(dlURL)-1]=='/')?"":"/"), filename+8);
 			flags |= DLLF_TRYWEB|DLLF_ALLOWWEB;
 		}
 		else if (*dlURL)
 		{	//we don't really know which gamedir its meant to be for...
-			filename = va("%s/%s/%s", dlURL, FS_GetGamedir(true), filename);
+			filename = va("%s%s%s/%s", dlURL, ((dlURL[strlen(dlURL)-1]=='/')?"":"/"), FS_GetGamedir(true), filename);
 			flags |= DLLF_TRYWEB|DLLF_ALLOWWEB;
 		}
 		else if (*cl_download_mapsrc.string &&
@@ -1150,7 +1154,7 @@ static qboolean CL_CheckQ2BspWals(char *file)
 			//we make a special exception for .tga-without-.wal because other q2 engines already expect that, with pre-scaled textures (and thus lightmaps too).
 			if (!CL_CheckDLFile(va("textures/%s.wal", tinf[i].texture)))
 				if (!CL_CheckDLFile(va("textures/%s.tga", tinf[i].texture)))
-					if (!CL_CheckOrEnqueDownloadFile(va("textures/%s.wal", tinf[i].texture), NULL, 0))
+					if (!CL_CheckOrEnqueDownloadFile(va("textures/%s.wal", tinf[i].texture), NULL, DLLF_ALLOWWEB))
 						gotone = true;
 		}
 	}
@@ -1435,11 +1439,6 @@ static int CL_LoadModels(int stage, qboolean dontactuallyload)
 
 		FS_LoadMapPackFile(cl.worldmodel->name, cl.worldmodel->archive);
 
-#ifdef Q2CLIENT
-		if (cls.protocol == CP_QUAKE2 && cl.worldmodel && cl.worldmodel->checksum != cl.q2mapchecksum)
-			Host_EndGame("Local map version differs from server: %i != '%i'\n", cl.worldmodel->checksum, cl.q2mapchecksum);
-#endif
-
 		SCR_SetLoadingFile("csprogs world");
 
 		endstage();
@@ -1490,6 +1489,11 @@ static int CL_LoadModels(int stage, qboolean dontactuallyload)
 		CL_CheckServerInfo(); //some serverinfo rules can change with map type, so make sure they're updated now we're sure we know it properly.
 		if (cl.worldmodel && cl.worldmodel->loadstate == MLS_LOADED)
 			Mod_NowLoadExternal(cl.worldmodel);
+
+#ifdef Q2CLIENT
+		if (cls.protocol == CP_QUAKE2 && cl.worldmodel && cl.worldmodel->checksum != cl.q2mapchecksum)
+			Host_EndGame("Local map version differs from server: %i != '%i'\n", cl.worldmodel->checksum, cl.q2mapchecksum);
+#endif
 
 		endstage();
 	}

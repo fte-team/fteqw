@@ -1756,6 +1756,21 @@ void VARGS Sys_Printf (char *fmt, ...)
 	}
 }
 
+static unsigned int sys_interrupt_freq;
+static void Sys_ClockPrecision_Changed(cvar_t *var, char *oldval)
+{
+	if (sys_interrupt_freq)
+		timeEndPeriod(sys_interrupt_freq);
+	sys_interrupt_freq = 0;
+
+	if (var && var->ival > 0)
+	{
+		sys_interrupt_freq = var->ival;
+		if (TIMERR_NOERROR != timeBeginPeriod(sys_interrupt_freq) && oldval)
+			Con_Printf(CON_ERROR"%s: timeBeginPeriod(%u) failed.\n", var->name, sys_interrupt_freq);
+	}
+}
+
 static quint64_t timer_qpc_frequency;
 static unsigned int timer_tgt_period;
 static quint64_t timer_basetime;	//used by all clocks to bias them to starting at 0
@@ -1864,6 +1879,8 @@ static void Sys_InitClock(void)
 	//calibrate it, and apply.
 	timer_basetime = Sys_GetClock(&freq);
 	Sys_ClockType_Changed(&sys_clocktype, NULL);
+
+	Sys_ClockPrecision_Changed(&sys_clocktype, NULL);
 }
 double Sys_DoubleTime (void)
 {
@@ -1875,21 +1892,6 @@ unsigned int Sys_Milliseconds (void)
 	quint64_t denum, num = Sys_GetClock(&denum);
 	num *= 1000;
 	return num / denum;
-}
-
-static unsigned int sys_interrupt_freq;
-static void Sys_ClockPrecision_Changed(cvar_t *var, char *oldval)
-{
-	if (sys_interrupt_freq)
-		timeEndPeriod(sys_interrupt_freq);
-	sys_interrupt_freq = 0;
-
-	if (var && var->ival > 0)
-	{
-		sys_interrupt_freq = var->ival;
-		if (TIMERR_NOERROR != timeBeginPeriod(sys_interrupt_freq))
-			Con_Printf(CON_ERROR"%s: timeBeginPeriod(%u) failed.\n", var->name, sys_interrupt_freq);
-	}
 }
 
 void Sys_Quit (void)

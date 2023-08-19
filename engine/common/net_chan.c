@@ -387,7 +387,10 @@ void Netchan_Setup (netsrc_t sock, netchan_t *chan, netadr_t *adr, int qport)
 
 	chan->qport = qport;
 
-	chan->qportsize = 2;
+	if (adr->prot == NP_KEXLAN)
+		chan->qportsize = 0;
+	else
+		chan->qportsize = 2;
 }
 
 
@@ -790,6 +793,28 @@ int Netchan_Transmit (netchan_t *chan, int length, qbyte *data, int rate)
 		send_reliable = true;
 	}
 
+	if (send_reliable && chan->remote_address.prot == NP_KEXLAN)
+#ifndef SERVERONLY
+	if (!cls.demoplayback)
+#endif
+	{
+		if (chan->reliable_length)
+		{
+			send.data = send_buf;
+			send.maxsize = (chan->mtu?chan->mtu:MAX_QWMSGLEN) + PACKET_HEADER;
+			send.cursize = 0;
+
+			MSG_WriteLong (&send, 1u<<31);
+			MSG_WriteLong (&send, 1u<<31);
+			SZ_Write (&send, chan->reliable_buf, chan->reliable_length);
+
+			if (NETERR_SENT == NET_SendPacket (chan->sock, send.cursize, send.data, &chan->remote_address))
+				chan->reliable_length = 0;	//the lower layer will handle any retransmission for us.
+		}
+		send_reliable = 0;
+		chan->incoming_reliable_sequence = 0;
+	}
+
 // write the packet header
 	send.data = send_buf;
 	send.maxsize = (chan->mtu?chan->mtu:MAX_QWMSGLEN) + PACKET_HEADER;
@@ -950,6 +975,9 @@ int Netchan_Transmit (netchan_t *chan, int length, qbyte *data, int rate)
 
 	if (e == NETERR_SENT)
 	{
+		if (send_reliable && NET_AddrIsReliable(&chan->remote_address))
+			chan->reliable_length = 0;	//we know the peer will receive it. don't worry about waiting for their acks.
+
 		chan->bytesout += send.cursize;
 		Netchan_Block(chan, send.cursize, rate);
 	}
@@ -1025,7 +1053,7 @@ qboolean Netchan_Process (netchan_t *chan)
 	// skip over the qport if we are a server (its handled elsewhere)
 #ifndef CLIENTONLY
 	if (chan->sock == NS_SERVER)
-		MSG_ReadShort ();
+		MSG_ReadSkip (chan->qportsize);
 #endif
 
 	if (chan->pext_fragmentation)
@@ -1083,7 +1111,8 @@ qboolean Netchan_Process (netchan_t *chan)
 //
 // discard stale or duplicated packets
 //
-	if (sequence <= (unsigned)chan->incoming_sequence)
+	if (sequence <= (unsigned)chan->incoming_sequence &&
+		!(reliable_message && chan->remote_address.prot == NP_KEXLAN))	//*sigh* reliables don't work properly here.
 	{
 		if (showdrop.value)
 			Con_TPrintf ("%s:Out of order packet %i at %i\n"
@@ -1180,11 +1209,16 @@ qboolean Netchan_Process (netchan_t *chan)
 //
 // if this message contains a reliable message, bump incoming_reliable_sequence 
 //
-	chan->incoming_sequence = sequence;
-	chan->incoming_acknowledged = sequence_ack;
-	chan->incoming_reliable_acknowledged = reliable_ack;
-	if (reliable_message)
-		chan->incoming_reliable_sequence ^= 1;
+	if (reliable_message && chan->remote_address.prot == NP_KEXLAN)	//*sigh* reliables don't work properly here.
+		;	//don't corrupt sequences/acks/etc.
+	else
+	{
+		chan->incoming_sequence = sequence;
+		chan->incoming_acknowledged = sequence_ack;
+		chan->incoming_reliable_acknowledged = reliable_ack;
+		if (reliable_message)
+			chan->incoming_reliable_sequence ^= 1;
+	}
 
 //
 // the message can now be read from the current message pointer

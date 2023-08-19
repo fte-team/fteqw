@@ -3871,6 +3871,11 @@ void CL_Say (qboolean team, char *extra)
 		strlcat (sendtext, va("\x7f!%c", 'A'+pv->playernum), sizeof(sendtext));
 	}
 
+#ifdef Q2CLIENT
+	if (cls.netchan.remote_address.prot == NP_KEXLAN && NET_GetConnectionCertificate(cls.sockets, &cls.netchan.remote_address, QCERT_LOBBYSENDCHAT, sendtext, strlen(sendtext))>0)
+		return;
+#endif
+
 #ifdef Q3CLIENT
 	if (cls.protocol == CP_QUAKE3)
 		q3->cl.SendClientCommand("%s %s%s", team ? "say_team" : "say", extra?extra:"", sendtext);

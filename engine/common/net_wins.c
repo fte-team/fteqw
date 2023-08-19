@@ -26,30 +26,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include <sys/stat.h>	//to delete the file/socket.
 #endif
 
-//try to be slightly cleaner about the protocols that'll get killed.
-#ifdef TCPCONNECT
-	#define NP_STREAM_OR_INVALID NP_STREAM
-	#define NP_TLS_OR_INVALID NP_TLS
-	#define NP_WS_OR_INVALID NP_WS
-	#define NP_WSS_OR_INVALID NP_WSS
-#else
-	#define NP_STREAM_OR_INVALID NP_INVALID
-	#define NP_TLS_OR_INVALID NP_INVALID
-	#define NP_WS_OR_INVALID NP_INVALID
-	#define NP_WSS_OR_INVALID NP_INVALID
-#endif
-#define NP_DTLS_OR_INVALID NP_DTLS
-#ifndef HAVE_SSL
-	#undef NP_WSS_OR_INVALID
-	#define NP_WSS_OR_INVALID NP_INVALID
-	#undef NP_TLS_OR_INVALID
-	#define NP_TLS_OR_INVALID NP_INVALID
-	#undef NP_DTLS_OR_INVALID
-	#define NP_DTLS_OR_INVALID NP_INVALID
-#endif
-
-
-
 extern ftemanifest_t	*fs_manifest;
 
 // Eww, eww. This is hacky but so is netinc.h, so bite me
@@ -100,6 +76,12 @@ FTE_ALIGN(4) qbyte		net_message_buffer[MAX_OVERALLMSGLEN];
 
 #if defined(HAVE_IPV4) && defined(HAVE_SERVER)
 	#define HAVE_NATPMP
+#endif
+#if (defined(Q2CLIENT) || defined(Q2SERVER)) && (defined(HAVE_CLIENT) || defined(HAVE_SERVER)) && defined(HAVE_DTLS)	//q2e's lobby/tunnel crap
+	#define KEXLOBBY "q2e"	//enables the feature, and defines the name of the sceme we use for it.
+#ifdef HAVE_SERVER
+cvar_t	net_enable_kexlobby			= CVARD("net_enable_"KEXLOBBY,			"0", "If enabled, accept connection requests from the quake2-remaster engine on our listening udp ports.\nNote that this defaults to disabled due to it being highly vulnerable to applification attacks.");
+#endif
 #endif
 
 //#if !defined(HAVE_SERVER) && !defined(MASTERONLY)
@@ -450,6 +432,7 @@ qboolean NET_AddrIsReliable(netadr_t *adr)	//hints that the protocol is reliable
 	case NP_NATPMP:
 	default:
 		return false;
+	case NP_KEXLAN: //provides its own reliability (at least for packets with the 'reliable' netchan flag set)
 	case NP_STREAM:
 	case NP_TLS:
 	case NP_WS:
@@ -809,6 +792,11 @@ char	*NET_AdrToString (char *s, int len, netadr_t *a)
 	switch(a->prot)
 	{
 	case NP_INVALID:prot = "invalid://";break;
+	case NP_KEXLAN:
+#ifdef KEXLOBBY
+		prot = KEXLOBBY"://";
+#endif
+		break;
 	case NP_DGRAM:	prot = ""/*qw://*/;	break;
 	case NP_DTLS:	prot = "dtls://";	break;
 	case NP_STREAM:	prot = "tcp://";	break;	//not strictly true for ipx, but whatever.
@@ -1059,6 +1047,11 @@ char	*NET_BaseAdrToString (char *s, int len, netadr_t *a)
 	case NP_INVALID:prot = "invalid://";break;
 	case NP_DGRAM:	prot = ""/*qw://*/;	break;
 	case NP_DTLS:	prot = "dtls://";	break;
+	case NP_KEXLAN:
+#ifdef KEXLOBBY
+					prot = KEXLOBBY"://";
+#endif
+		break;
 	case NP_STREAM:	prot = "tcp://";	break;	//not strictly true for ipx, but whatever.
 	case NP_TLS:	prot = "tls://";	break;
 	case NP_WS:		prot = "ws://";		break;
@@ -1564,6 +1557,72 @@ size_t NET_StringToSockaddr2 (const char *s, int defaultport, netadrtype_t afhin
 	return result;
 }
 
+static const struct urischeme_s urischemes[] =
+{
+#ifdef HAVE_PACKET
+	{"udp://",	NP_DGRAM,	NA_INVALID},	//placeholder for dgram rather than an actual family.
+	{"udp4//",	NP_DGRAM,	NA_IP},
+	{"udp6//",	NP_DGRAM,	NA_IPV6},
+	{"ipx://",	NP_DGRAM,	NA_IPX},
+
+	//compat with qtv. we don't have any way to exclude specific protocols though.
+	{"qw://",	NP_DGRAM,	NA_INVALID},
+	{"nq://",	NP_DGRAM,	NA_INVALID},
+	{"dp://",	NP_DGRAM,	NA_INVALID},
+	{"q2://",	NP_DGRAM,	NA_INVALID},
+	{"q3://",	NP_DGRAM,	NA_INVALID},
+
+	#ifdef KEXLOBBY
+	{KEXLOBBY"://",	NP_KEXLAN,	NA_INVALID},
+	#endif
+#endif
+
+#ifdef TCPCONNECT
+	{"tcp://",	NP_STREAM,	NA_INVALID},	//placeholder for dgram rather than an actual family.
+	{"tcp4//",	NP_STREAM,	NA_IP},
+	{"tcp6//",	NP_STREAM,	NA_IPV6},
+	{"spx://",	NP_STREAM,	NA_IPX},
+
+	{"ws://",	NP_WS,		NA_INVALID,	true},
+	#ifdef HAVE_SSL
+	{"wss://",	NP_WSS,		NA_INVALID,	true},
+	{"tls://",	NP_TLS,		NA_INVALID},
+	#endif
+#endif
+#ifdef HAVE_DTLS
+	{"dtls://",	NP_DTLS,	NA_INVALID},
+#endif
+
+#if defined(SUPPORT_ICE) || defined(HAVE_WEBSOCKCL)
+	{"ice://",	NP_RTC_TCP,	NA_INVALID, true},
+	{"rtc://",	NP_RTC_TCP,	NA_INVALID, true},
+	{"ices://",	NP_RTC_TLS,	NA_INVALID,	true},
+	{"rtcs://",	NP_RTC_TLS,	NA_INVALID,	true},
+#endif
+
+#ifdef IRCCONNECT
+	{"irc://",	NP_IRC,		NA_INVALID,	true},	//should have been handled explicitly, if supported.
+#endif
+
+#ifdef UNIXSOCKETS
+	{"udg://",	NP_DGRAM,	NA_UNIX},
+	#ifdef TCPCONNECT
+	{"unix://",	NP_STREAM,	NA_UNIX},
+	#endif
+#endif
+};
+
+const struct urischeme_s *NET_IsURIScheme(const char *possible)
+{
+	size_t i;
+	for (i = 0; i < countof(urischemes); i++)
+	{
+		if (!strncmp(possible, urischemes[i].name, strlen(urischemes[i].name)))
+			return &urischemes[i];
+	}
+	return NULL;
+}
+
 /*
 accepts anything that NET_StringToSockaddr accepts plus certain url schemes
 including: tcp, irc
@@ -1580,50 +1639,6 @@ size_t	NET_StringToAdr2 (const char *s, int defaultport, netadr_t *a, size_t num
 	char *path;
 	char *args;
 
-	struct
-	{
-		const char *name;
-		netproto_t prot;
-		netadrtype_t family;
-	} schemes[] =
-	{
-		{"udp://", NP_DGRAM, NA_INVALID},	//placeholder for dgram rather than an actual family.
-		{"udp4//", NP_DGRAM, NA_IP},
-		{"udp6//", NP_DGRAM, NA_IPV6},
-		{"ipx://", NP_DGRAM, NA_IPX},
-
-		//compat with qtv. we don't have any way to exclude specific protocols though.
-		{"qw://", NP_DGRAM, NA_INVALID},
-		{"nq://", NP_DGRAM, NA_INVALID},
-		{"dp://", NP_DGRAM, NA_INVALID},
-		{"q2://", NP_DGRAM, NA_INVALID},
-		{"q3://", NP_DGRAM, NA_INVALID},
-
-		{"tcp://", NP_STREAM_OR_INVALID, NA_INVALID},	//placeholder for dgram rather than an actual family.
-		{"tcp4//", NP_STREAM_OR_INVALID, NA_IP},
-		{"tcp6//", NP_STREAM_OR_INVALID, NA_IPV6},
-		{"spx://", NP_STREAM_OR_INVALID, NA_IPX},
-
-		{"ws://", NP_WS_OR_INVALID, NA_INVALID},
-		{"wss://", NP_WSS_OR_INVALID, NA_INVALID},
-
-		{"tls://", NP_TLS_OR_INVALID, NA_INVALID},
-		{"dtls://", NP_DTLS_OR_INVALID, NA_INVALID},
-
-#if defined(SUPPORT_ICE) || defined(HAVE_WEBSOCKCL)
-		{"ice://", NP_RTC_TCP, NA_INVALID},
-		{"rtc://", NP_RTC_TCP, NA_INVALID},
-		{"ices://", NP_RTC_TLS, NA_INVALID},
-		{"rtcs://", NP_RTC_TLS, NA_INVALID},
-#endif
-
-		{"irc://", NP_INVALID, NA_INVALID},	//should have been handled explicitly, if supported.
-
-#ifdef UNIXSOCKETS
-		{"udg://", NP_DGRAM, NA_UNIX},
-		{"unix://", NP_STREAM_OR_INVALID, NA_UNIX},
-#endif
-	};
 
 
 	memset(a, 0, sizeof(*a)*numaddresses);
@@ -1813,13 +1828,13 @@ size_t	NET_StringToAdr2 (const char *s, int defaultport, netadr_t *a, size_t num
 	}
 #endif
 
-	for (prot = NP_DGRAM, afhint = NA_INVALID/*any*/, i = 0; i < countof(schemes); i++)
+	for (prot = NP_DGRAM, afhint = NA_INVALID/*any*/, i = 0; i < countof(urischemes); i++)
 	{
-		if (!strncmp(s, schemes[i].name, strlen(schemes[i].name)))
+		if (!strncmp(s, urischemes[i].name, strlen(urischemes[i].name)))
 		{
-			s += strlen(schemes[i].name);
-			prot = schemes[i].prot;
-			afhint = schemes[i].family;
+			s += strlen(urischemes[i].name);
+			prot = urischemes[i].prot;
+			afhint = urischemes[i].family;
 
 			if (prot == NP_RTC_TCP || prot == NP_RTC_TLS)
 				defaultport = PORT_ICEBROKER;
@@ -3126,7 +3141,9 @@ struct dtlspeer_s
 
 	ftenet_connections_t *col;
 	void *dtlsstate;
-	netadr_t addr;
+	netadr_t	addr;	//underlying address
+	netproto_t	prot;	//layered protocol
+
 	float timeout;
 
 	struct dtlspeer_s *next;
@@ -3211,6 +3228,7 @@ qboolean NET_DTLS_Create(ftenet_connections_t *col, netadr_t *to, const dtlscred
 	{
 		peer = Z_Malloc(sizeof(*peer));
 		peer->addr = *to;
+		peer->prot = NP_DTLS;
 		peer->col = col;
 
 		if (outgoing)
@@ -3275,11 +3293,11 @@ qboolean NET_DTLS_CheckInbound(ftenet_connections_t *col)
 	{
 		if (col->dtlsfuncs->CheckConnection)
 		{
-			struct dtlspeer_s peer;
+			struct dtlspeer_s peer = {col->dtlsfuncs};
 			//fill it with preliminary info
 			peer.addr = *from;
 			peer.col = col;
-			peer.funcs = col->dtlsfuncs;
+			peer.prot = NP_DTLS;
 			return col->dtlsfuncs->CheckConnection(&peer, from, sizeof(*from), net_message.data, net_message.cursize, FTENET_DTLS_DoSendPacket, FTENET_DTLS_Established);
 		}
 	}
@@ -3310,7 +3328,7 @@ qboolean NET_DTLS_Disconnect(ftenet_connections_t *col, netadr_t *to)
 {
 	struct dtlspeer_s *peer;
 	netadr_t n = *to;
-	if (!col || (to->prot != NP_DGRAM && to->prot != NP_DTLS))
+	if (!col || (to->prot != NP_DGRAM && !NP_ISLAYERED(to->prot)))
 		return false;
 	n.prot = NP_DGRAM;
 	peer = FTENET_DTLS_FindPeer(col, &n);
@@ -3321,10 +3339,11 @@ qboolean NET_DTLS_Disconnect(ftenet_connections_t *col, netadr_t *to)
 }
 static neterr_t FTENET_DTLS_SendPacket(ftenet_connections_t *col, int length, const void *data, netadr_t *to)
 {
+	netproto_t np = to->prot;
 	struct dtlspeer_s *peer;
 	to->prot = NP_DGRAM;
 	peer = FTENET_DTLS_FindPeer(col, to);
-	to->prot = NP_DTLS;
+	to->prot = np;
 	if (peer)
 		return peer->funcs->Transmit(peer->dtlsstate, data, length);
 	else
@@ -3354,10 +3373,10 @@ qboolean NET_DTLS_Decode(ftenet_connections_t *col)
 			break;
 		case NETERR_SENT:
 			//we decoded it properly
-			net_from.prot = NP_DTLS;
+			net_from.prot = peer->prot;
 			break;
 		}
-		net_from.prot = NP_DTLS;
+		net_from.prot = peer->prot;
 		return true;
 	}
 	return false;
@@ -3375,18 +3394,13 @@ int NET_GetConnectionCertificate(struct ftenet_connections_s *col, netadr_t *a, 
 		return ICE_GetPeerCertificate(a, prop, out, outsize);
 #endif
 #ifdef HAVE_DTLS
-	if (a->prot == NP_DTLS)
+	if (NP_ISLAYERED(a->prot))
 	{
+		netproto_t np = a->prot;
 		struct dtlspeer_s *peer;
-		{
-			a->prot = NP_DGRAM;
-			for (peer = col->dtls; peer; peer = peer->next)
-			{
-				if (NET_CompareAdr(&peer->addr, a))
-					break;
-			}
-			a->prot = NP_DTLS;
-		}
+		a->prot = NP_DGRAM;
+		peer = FTENET_DTLS_FindPeer(col, a);
+		a->prot = np;
 		if (peer && peer->funcs->GetPeerCertificate)
 			return peer->funcs->GetPeerCertificate(peer->dtlsstate, prop, out, outsize);
 	}
@@ -3472,7 +3486,7 @@ qboolean FTENET_AddToCollection(ftenet_connections_t *col, const char *name, con
 		if (adr[i].prot == NP_RTC_TLS)								establish[i] = FTENET_WebRTC_EstablishConnection; else
 #endif
 #ifdef HAVE_NATPMP
-		if (adr[i].prot == NP_NATPMP&& adr[i].type == NA_IP)	establish[i] = FTENET_NATPMP_EstablishConnection; else
+		if (adr[i].prot == NP_NATPMP && adr[i].type == NA_IP)	establish[i] = FTENET_NATPMP_EstablishConnection; else
 #endif
 #if defined(HAVE_CLIENT) && defined(HAVE_SERVER)
 		if (adr[i].prot == NP_DGRAM && adr[i].type == NA_LOOPBACK)	establish[i] = FTENET_Loop_EstablishConnection; else
@@ -4065,7 +4079,7 @@ static void FTENET_Datagram_Polled(epollctx_t *ctx, unsigned int events)
 {
 	ftenet_generic_connection_t *con = NULL;
 	con = (ftenet_generic_connection_t *)((qbyte*)ctx - ((qbyte*)&con->epoll-(qbyte*)con));
-	while (FTENET_Datagram_GetPacket(con))
+	while (con->GetPacket(con))
 	{
 		net_from.connum = con->connum;
 		net_from_connection = con;
@@ -4323,6 +4337,842 @@ ftenet_generic_connection_t *FTENET_Datagram_EstablishConnection(ftenet_connecti
 	}
 #endif
 }
+
+
+///////////////////////////////////////////////////////////////////////////
+#ifdef KEXLOBBY
+
+//Note: Kex stuff has a lobby. but we do not really have any lobby state of our own.
+//FIXME: provide feedback to the client about whether it connected and who's in the lobby.
+//FIXME: chat needs to go via this code too (both c2s and eg yq2->q2e).
+
+struct kexcon_s
+{
+	qboolean isserver;
+	void *cbctx;
+	neterr_t(*push)(void *cbctx, const qbyte *data, size_t datasize);
+
+	struct kexcon_s *next;
+
+	unsigned short inseq;
+	unsigned short inrseq;
+	qbyte infrag[65536];
+	unsigned int infragsize;
+	unsigned int infragseq;
+
+	unsigned short outseq;
+	unsigned short outrseq;
+	qbyte outqueue[1400];	//temp buffer for naggle-type stuff.
+	unsigned int outqueuesize;
+	struct kexlan_resendqueue_s
+	{	//in seq order. popped on ack.
+		struct kexlan_resendqueue_s *next;
+		unsigned short sz;
+		unsigned short seq;
+		qbyte frag[1];
+	} *resendqueue;
+
+	char name[64];
+	enum
+	{
+		KEXLOBBY_PENDING,
+		KEXLOBBY_ESTABLISHED,
+		KEXLOBBY_INGAME,
+		KEXLOBBY_DROPPED,
+	} state;
+	int plidx[MAX_SPLITS];
+	int seats;
+	int entnum;
+
+	infobuf_t slot[256];
+	infobuf_t rules;
+
+	double resend;
+	double nextping;	//sigh... even if we're spamming valid packets we still need a ping every now and then.
+	double timeout;
+};
+
+#define KEXLAN_SHAMELESSSELFPROMOMAGIC "\x08""CRANTIME"	//hey, if you can't shove your own nick in your network protocols then you're doing it wrong.
+#define KEXLAN_SUBPROTOCOL "\x08""Quake II"	//this should be cvar-ised at some point, if its to ever be useful for anything but q2.
+#define KEXLAN_RELIABLE		0x100	//part(ish) of the protocol, don't change
+#define KEXLAN_SEQUENCED	0x200	//part(ish) of the protocol, don't change
+#define KEXLAN_NAGGLE		0x400	//delay sending in order to merge it with other stuff. we don't have timeouts though.
+enum kexlobby_type_e
+{
+	KEXLAN_GAMEPACKET=0x00,		//both reliables+unreliables
+	KEXLAN_MATCHDETAILS=0x1,	//sent at end of game
+	KEXLAN_ZGAMEPACKET=0x7f,	//typically only reliables, probably fragmented.
+	KEXLAN_NEWCONNECTION=0x80,	//both request+response.
+	KEXLAN_KEEPALIVE=0x81,		//I *THINK* this is a keepalive.
+	KEXLAN_ACK=0x82,
+	KEXLAN_LOBBDYCHAT=0xfc,
+	KEXLAN_LOBBDYPLAYER=0xfd,
+	KEXLAN_LOBBDYCOMMAND=0xfe,
+	KEXLAN_LOBBDYRULE=0xff
+};
+static neterr_t  NET_KexLobby_SendMessage(struct kexcon_s *peer, int type, const void *data, size_t length)
+{
+	neterr_t e;
+	size_t offset = 0;
+	int minmtu;
+	if (length > 1400-7 && !(type & KEXLAN_RELIABLE))
+		return NETERR_MTU;	//drop unreliables bigger than we can cope with
+	if (type & KEXLAN_RELIABLE)
+	{
+		minmtu = 1280-8-20;	//we can't reduce the size of reliables while they're still pending as we wouldn't know what was acked,
+							//so keep reliables under the mtu size so nothing bad happens if we find the mtu is smaller later.
+		type |= KEXLAN_SEQUENCED;
+	}
+	else
+		minmtu = sizeof(peer->outqueue);	//don't bother fragmenting.
+
+	if (peer->resendqueue && peer->resend < realtime && peer->state != KEXLOBBY_PENDING)
+	{	//try to fill a single segment.
+		struct kexlan_resendqueue_s *q = peer->resendqueue;
+		for (q = peer->resendqueue; q && peer->outqueuesize+q->sz < sizeof(peer->outqueue); q = q->next)
+		{
+//Con_Printf(S_COLOR_GRAY"Retransmit %x\n", q->seq);
+			memcpy(peer->outqueue+peer->outqueuesize, q->frag, q->sz);
+			peer->outqueuesize += q->sz;
+			peer->resend = realtime + 0.050;	//too aggressive?
+		}
+	}
+
+	if (data)
+	while (offset < length)
+	{
+		qbyte flags = (type&(KEXLAN_RELIABLE|KEXLAN_SEQUENCED))>>8;
+		unsigned short hdrsize = 2 + ((type & KEXLAN_SEQUENCED)?4:0) + (offset?0:1);
+		unsigned short pktsize = hdrsize+length-offset;
+		qboolean morefrags = false;
+		qbyte *pkt;
+		if (pktsize > minmtu)
+			pktsize = minmtu, morefrags = true;
+
+		if (peer->outqueuesize+pktsize > sizeof(peer->outqueue))
+		{	//can't fit it, flush the queue.
+			e = peer->push(peer->cbctx, peer->outqueue, peer->outqueuesize);
+			if (e == NETERR_MTU && peer->outqueuesize == 0)
+				return NETERR_DISCONNECTED;	//we need to handle fragmentation here
+			if (e != NETERR_SENT)
+				return e;
+			peer->nextping = realtime + 15;
+			peer->outqueuesize = 0;
+		}
+		pkt = peer->outqueue + peer->outqueuesize;
+
+		if (morefrags)
+		{	//these bits are kinda inconsistent
+			if (!offset)
+				flags |= 0x4;	//frag start
+			else
+				flags |= 0x8;	//frag mid
+		}
+		else if (offset)
+			flags |= 0xc;	//frag tail
+
+		pkt[0] = (pktsize)>>4;
+		pkt[1] = ((pktsize)<<4) | flags;
+		hdrsize = 2;
+		if (type & KEXLAN_SEQUENCED)
+		{
+			peer->outseq++;
+			pkt[hdrsize++] = peer->outseq>>8;
+			pkt[hdrsize++] = peer->outseq;
+			if (flags & 1)
+				peer->outrseq++;
+			pkt[hdrsize++] = peer->outrseq>>8;
+			pkt[hdrsize++] = peer->outrseq;
+		}
+		if (!offset)
+			pkt[hdrsize++] = type&0xff;
+		memcpy(pkt+hdrsize, (const char*)data+offset, pktsize-hdrsize);
+		offset += pktsize-hdrsize;
+
+		if (flags & 1)
+		{
+			struct kexlan_resendqueue_s **l, *q;
+			if (!peer->resendqueue)
+				peer->resend = realtime + 0.050;
+			for (l = &peer->resendqueue; *l; l = &(*l)->next)
+				;
+			*l = q = BZ_Malloc(sizeof(*q)-sizeof(q->frag) + pktsize);
+			q->next = NULL;
+			q->sz = pktsize;
+			q->seq = peer->outrseq;	//so we know when to stop trying to resent it!
+			memcpy(q->frag, pkt, pktsize);
+		}
+
+		if (peer->state != KEXLOBBY_PENDING)
+			peer->outqueuesize += pktsize;
+		//else just drop it here. if its reliable then its queued until we actually connect so that's fine.
+	}
+
+	if (peer->nextping < realtime && peer->state != KEXLOBBY_PENDING)
+	{
+		peer->nextping = realtime + 15;
+		if (peer->outqueuesize)
+			type&=~KEXLAN_NAGGLE;
+		else
+		{	//nothing to send... make sure we send SOMETHING to keep it open.
+			static qbyte pkt[1] = {0};
+//Con_Printf(S_COLOR_GRAY"sendkeepalive\n");
+
+			//might as well just recurse.
+			return NET_KexLobby_SendMessage(peer, KEXLAN_SEQUENCED|KEXLAN_KEEPALIVE, pkt, sizeof(pkt));
+		}
+	}
+
+	if (peer->outqueuesize > ((type&KEXLAN_NAGGLE)?500:0))
+	{
+		e = peer->push(peer->cbctx, peer->outqueue, peer->outqueuesize);
+		if (e == NETERR_SENT)
+			peer->nextping = realtime + 15;
+		peer->outqueuesize = 0;
+	}
+	else if (peer->nextping > realtime + 0.3 && peer->outqueuesize)
+		peer->nextping = realtime + 0.3;	//set a timeout for it to be flushed.
+	return NETERR_SENT;
+}
+static neterr_t  NET_KexLobby_SendMessageZ(struct kexcon_s *peer, int type, const char *data)
+{
+	return NET_KexLobby_SendMessage(peer, type, data, strlen(data));
+}
+static neterr_t NET_KexLobby_SendChat(struct kexcon_s *peer, int seat, const char *text)
+{
+	char pkt[2+256];
+	pkt[0] = peer->plidx[seat];
+	pkt[1] = strlen(text);
+	memcpy(pkt+2, text, pkt[1]);
+	return NET_KexLobby_SendMessage(peer, KEXLAN_NAGGLE|KEXLAN_RELIABLE|KEXLAN_LOBBDYCHAT, pkt, 2 + pkt[1]);
+}
+#ifdef HAVE_CLIENT
+static neterr_t NET_KexLobby_CLSetPlayerInfo(struct kexcon_s *peer, int seat, const char *info)
+{	//info sould be eg 'playername\YourName'
+	char pkt[2+256];
+	pkt[0] = seat;
+	pkt[1] = strlen(info);
+	memcpy(pkt+2, info, pkt[1]);
+	return NET_KexLobby_SendMessage(peer, KEXLAN_NAGGLE|KEXLAN_RELIABLE|KEXLAN_LOBBDYPLAYER, pkt, 2 + pkt[1]);
+}
+#endif
+#ifdef HAVE_SERVER
+static neterr_t NET_KexLobby_SVSetPlayerInfo(struct kexcon_s *peer, int plid, const char *info)
+{	//info sould be eg 'playername\YourName'
+	char pkt[2+256];
+	pkt[0] = info?0:2;//update type
+	pkt[1] = plid;
+	if (!info) info = "";
+	pkt[2] = strlen(info);
+	memcpy(pkt+3, info, pkt[2]);
+	return NET_KexLobby_SendMessage(peer, KEXLAN_NAGGLE|KEXLAN_RELIABLE|KEXLAN_LOBBDYPLAYER, pkt, 3 + pkt[2]);
+}
+#endif
+#ifdef HAVE_SERVER
+static void NET_KexLobby_Ack(struct kexcon_s *peer, int rseq)
+{
+	char pkt[3] = {0x00,rseq>>8, rseq};
+	NET_KexLobby_SendMessage(peer, KEXLAN_NAGGLE|KEXLAN_ACK, pkt, sizeof(pkt));
+}
+#endif
+
+static void NET_KexLobby_DestroyContext(void *ctx)
+{
+	struct kexcon_s *peer = ctx;
+	struct kexlan_resendqueue_s *queue;
+	int i;
+
+	//let the server know to kill the client too (serverside will notice soon enough). should probably send a couple
+	NET_KexLobby_SendMessage(peer, KEXLAN_LOBBDYCOMMAND, "\x0a""disconnect", 11);
+
+	while ((queue=peer->resendqueue))
+	{	//would could have been is never to be.
+		peer->resendqueue = queue->next;
+		Z_Free(queue);
+	}
+	InfoBuf_Clear(&peer->rules, true);
+	for (i = 0; i < countof(peer->slot); i++)
+		InfoBuf_Clear(&peer->slot[i], true);
+	Z_Free(peer);
+}
+
+static void * NET_KexLobby_CreateContext(const dtlscred_t *credinfo, void *cbctx, neterr_t(*push)(void *cbctx, const qbyte *data, size_t datasize), qboolean isserver)
+{
+	struct kexcon_s *peer;
+	peer = Z_Malloc(sizeof(*peer));
+	peer->cbctx = cbctx;
+	peer->push = push;
+	peer->isserver = isserver;
+
+	peer->inseq = 0;
+	peer->inrseq = 0;
+	peer->outseq = 0;
+	peer->outrseq = 0;
+	peer->nextping = 0;
+	peer->timeout = realtime + timeout.value;
+	peer->state = KEXLOBBY_PENDING;
+
+	if (isserver)
+	{
+#ifdef HAVE_SERVER
+		peer->seats = 1;
+		peer->plidx[0] = 1;	//Q2E does _NOT_ like it when its id 0...
+		peer->plidx[1] = 2;
+		peer->plidx[2] = 3;
+		peer->plidx[3] = 4;
+
+		NET_KexLobby_SendMessageZ(peer, KEXLAN_NAGGLE|KEXLAN_RELIABLE|KEXLAN_LOBBDYRULE, va("map\\%s", sv.mapname));
+		// NET_KexLobby_SendMessageZ(peer, KEXLAN_NAGGLE|KEXLAN_RELIABLE|KEXLAN_LOBBDYRULE, "_savedgamename\\");
+		// NET_KexLobby_SendMessageZ(peer, KEXLAN_NAGGLE|KEXLAN_RELIABLE|KEXLAN_LOBBDYRULE, "_savedgame\\0");
+		if (deathmatch.value)
+			NET_KexLobby_SendMessageZ(peer, KEXLAN_NAGGLE|KEXLAN_RELIABLE|KEXLAN_LOBBDYRULE, "gamemode\\$m_deathmatch");
+		else
+			NET_KexLobby_SendMessageZ(peer, KEXLAN_NAGGLE|KEXLAN_RELIABLE|KEXLAN_LOBBDYRULE, "gamemode\\$m_coop");
+		// NET_KexLobby_SendMessageZ(peer, KEXLAN_NAGGLE|KEXLAN_RELIABLE|KEXLAN_LOBBDYRULE, "ingame\\0");
+		// NET_KexLobby_SendMessageZ(peer, KEXLAN_NAGGLE|KEXLAN_RELIABLE|KEXLAN_LOBBDYRULE, "_maplist\\0");
+		// NET_KexLobby_SendMessageZ(peer, KEXLAN_NAGGLE|KEXLAN_RELIABLE|KEXLAN_LOBBDYRULE, "q2game\\baseq2");
+
+		NET_KexLobby_SVSetPlayerInfo(peer, 0, va("playername\\"DISTRIBUTION" - %s", hostname.string));	//always give a name for the server, so Q2E doesn't bug out and make up its own thing.
+//		NET_KexLobby_SVSetPlayerInfo(peer, 0, "q2ent\\1");
+		NET_KexLobby_SVSetPlayerInfo(peer, peer->plidx[0], "playername\\You...");
+//		NET_KexLobby_SVSetPlayerInfo(peer, peer->plidx, "q2ent\\2");
+
+//		NET_KexLobby_SVSetPlayerInfo(peer, peer->plidx[1], "playername\\Also You...");
+//		NET_KexLobby_SVSetPlayerInfo(peer, peer->plidx[2], "playername\\Kinda You...");
+//		NET_KexLobby_SVSetPlayerInfo(peer, peer->plidx[3], "playername\\Partly you...");
+
+		NET_KexLobby_SendMessageZ(peer, KEXLAN_NAGGLE|KEXLAN_RELIABLE|KEXLAN_LOBBDYRULE, "ingame\\1");
+		peer->state = KEXLOBBY_ESTABLISHED;
+#endif
+	}
+	else
+	{
+#ifdef HAVE_CLIENT
+		int i;
+		for (i = 0; i < MAX_SPLITS; i++)
+			NET_KexLobby_CLSetPlayerInfo(peer, i, va("playername\\%s", InfoBuf_ValueForKey(&cls.userinfo[i], "name")));
+#endif
+	}
+
+	return peer;
+}
+size_t ZLib_DecompressBuffer(const qbyte *in, size_t insize, qbyte *out, size_t maxoutsize);
+size_t ZLib_CompressBuffer(const qbyte *in, size_t insize, qbyte *out, size_t maxoutsize);
+static neterr_t NET_KexLobby_Received(void *ctx, sizebuf_t *message)
+{
+	static float throttle;
+	struct kexcon_s *peer = ctx;
+
+	const qbyte *buf = memcpy(alloca(message->cursize), message->data, message->cursize);
+	const qbyte *bufend = buf + message->cursize, *nextseq;
+	struct kexlan_resendqueue_s **ql;
+	net_from.prot = NP_KEXLAN;
+
+	for (; buf < bufend; buf = nextseq)
+	{
+		char s[256], *sl;
+		qbyte l, p;
+		qbyte fl = buf[1]&0xf;
+		qbyte ptype;
+		int csz = (buf[0]<<4) | (buf[1]>>4);
+		const qbyte *seqend = buf + csz;
+		unsigned short useq = peer->inseq;
+		if (buf+csz > bufend)
+		{
+			Con_DPrintf("%s: Trunctaed\n", "NET_KexLobby_Received");
+			break;
+		}
+		nextseq = seqend;
+		buf += 2;
+
+		if (fl&0x2)
+		{
+			unsigned short useq = (buf[0]<<8) | (buf[1]);
+			unsigned short rseq = (buf[2]<<8) | (buf[3]);
+
+			if (rseq != peer->inrseq + (unsigned short)(fl&1))
+			{	//is this right? it'll stop us from reading unreliables until the reliable is actually received.
+//Con_Printf(S_COLOR_GRAY"missed a reliable %x(%x) vs %x(%x)\n", useq,rseq, peer->inseq,peer->inrseq);
+				if ((short)(rseq-peer->inrseq) <= 0)
+				{
+					if (fl & 1)
+						NET_KexLobby_Ack(peer, rseq);
+					continue;	//a dupe
+				}
+				//FIXME: queue these (may be either reliable or unreliables). sort by useq, process once rseq is met...
+				continue;
+			}
+			else if (fl & 1)
+				NET_KexLobby_Ack(peer, rseq);
+
+			if ((short)(useq-peer->inseq) <= 0)
+			{	//dupe?
+//Con_Printf(S_COLOR_GRAY"Dupe useq %x at %x\n", useq, peer->inseq);
+				continue;
+			}
+			peer->inseq = useq;
+			peer->inrseq = rseq;
+			buf += 4;
+		}
+		else if (fl & 1)
+			Con_DPrintf(S_COLOR_GRAY"%s: unsequenced reliable\n", "NET_KexLobby_Received");
+
+		if (fl&0xc)
+		{	//doesn't make sense without sequence info, but w/e
+			csz = seqend-buf;
+			if (fl&0x8)
+			{
+				if (!peer->infragsize)
+				{
+//Con_Printf(S_COLOR_GRAY"Missed first fragment %x (%x)\n", peer->inseq, peer->inrseq);
+					continue;
+				}
+				memcpy(peer->infrag+peer->infragsize, buf, csz);
+				peer->infragsize += csz;
+				if (fl&0x4)
+				{
+//Con_Printf(S_COLOR_GRAY"Got tail fragment %x (%x)\n", peer->inseq, peer->inrseq);
+
+					//completed fragment. switch it over to read that instead.
+					buf = peer->infrag;
+					seqend = buf + peer->infragsize;
+					peer->infragsize = 0;
+				}
+				else
+				{
+//Con_Printf(S_COLOR_GRAY"Got mid fragment %x (%x)\n", peer->inseq, peer->inrseq);
+					continue;	//incomplete, can't process it yet.
+				}
+			}
+			else
+			{
+//Con_Printf(S_COLOR_GRAY"Got first fragment %x (%x)\n", peer->inseq, peer->inrseq);
+				memcpy(peer->infrag, buf, csz);
+				peer->infragsize = csz;
+				continue;	//
+			}
+		}
+		ptype = *buf++;
+
+		csz = seqend-buf;
+
+		safeswitch((enum kexlobby_type_e)ptype)
+		{
+		case KEXLAN_GAMEPACKET:	//regular game packet
+			if (!csz)
+				break;
+			memcpy(net_message_buffer, buf, csz);
+			net_message.cursize = csz;
+			{
+				struct dtlspeer_s *dp = peer->cbctx;
+				dp->col->ReadGamePacket();
+			}
+			break;
+		case KEXLAN_MATCHDETAILS:
+//			Con_ThrottlePrintf(&throttle, 0, "NET_KexLobby_Received: KEXLAN_MATCHDETAILS\n", ptype);
+			return NETERR_CLOGGED;
+		case KEXLAN_ZGAMEPACKET:
+#ifdef AVAIL_ZLIB
+			if (*buf++ != 0)
+				Con_ThrottlePrintf(&throttle, 0, "zgame: always-0 is not 0\n");
+			csz--;
+			net_message.cursize = ZLib_DecompressBuffer(buf, csz, net_message.data, net_message.maxsize);
+
+			{
+				struct dtlspeer_s *dp = peer->cbctx;
+				dp->col->ReadGamePacket();
+			}
+			break;
+#else
+			break;
+#endif
+		case KEXLAN_NEWCONNECTION:	//connection ack.
+			if (strncmp(buf, KEXLAN_SHAMELESSSELFPROMOMAGIC, strlen(KEXLAN_SHAMELESSSELFPROMOMAGIC)))
+				return NETERR_CLOGGED;	//wtf
+			buf += strlen(KEXLAN_SHAMELESSSELFPROMOMAGIC);
+			if (peer->state == KEXLOBBY_PENDING)
+			{
+				if (!peer->isserver)
+					Con_Printf(S_COLOR_GRAY KEXLOBBY" channel established\n");
+				peer->state = KEXLOBBY_ESTABLISHED;
+			}
+			if (peer->isserver)
+			{
+				peer->outqueuesize = 0;
+				peer->resend = realtime;
+				NET_KexLobby_SendMessage(peer, KEXLAN_NEWCONNECTION, va(KEXLAN_SHAMELESSSELFPROMOMAGIC"%c", peer->plidx[0]), strlen(KEXLAN_SHAMELESSSELFPROMOMAGIC)+1);	//flush-naggle or resend any other queued reliables or w/e
+			}
+			else
+				peer->plidx[0] = *buf++;	//which slot(s)? we got rammed in to.
+			NET_KexLobby_SendMessage(peer, 0, NULL, 0);	//flush-naggle or resend any other queued reliables or w/e
+			break;
+		case KEXLAN_KEEPALIVE:
+//Con_Printf(S_COLOR_GRAY"?ping? %i: got %i\n", csz, *buf++);
+			break;
+		case KEXLAN_ACK:	//ack
+			p = *buf++;
+			useq = (buf[0]<<8)|buf[1];
+			buf+=2;
+			//acks may be out of order, independant of earlier acks, and may be dupes.
+			for (ql = &peer->resendqueue; *ql; )
+			{	//these are packets the peer has received.
+				struct kexlan_resendqueue_s *f = *ql;
+				if (f->seq == useq || (p && f->seq-useq<0))
+				{
+//Con_Printf(S_COLOR_GRAY"Acked %x\n", f->seq);
+					*ql = f->next;
+					BZ_Free(f);
+					if (p)
+						continue;
+					break;
+				}
+				ql = &(*ql)->next;
+			}
+//if (*ql)Con_Printf(S_COLOR_GRAY"Dupe Acked %x\n", useq);
+			break;
+		case KEXLAN_LOBBDYCHAT:	//player chat
+			p = *buf++;
+			if (peer->isserver)
+				p = peer->plidx[p];
+			l = *buf++;	//skip the length info
+			csz = seqend-buf;
+			if (l == csz && l < sizeof(s))
+			{
+				memcpy(s, buf, l);
+				s[l] = 0;
+				if (peer->isserver)
+				{	//inject a reliable clientcommand to fake it.
+					((int*)net_message_buffer)[0] = LittleLong(0x80000000);
+					((int*)net_message_buffer)[1] = LittleLong(0x80000000);
+					net_message_buffer[8] = clcq2_stringcmd;
+					net_message_buffer[9] = 0;
+					memcpy(&net_message_buffer[10], "say ", 4);
+					memcpy(net_message_buffer+14, buf, l);
+					net_message_buffer[14+l] = 0;
+					net_message.cursize = 14+l+1;
+					{
+						struct dtlspeer_s *dp = peer->cbctx;
+						dp->col->ReadGamePacket();
+					}
+				}
+				else
+					Con_Printf("\x01%s: %s\n", InfoBuf_ValueForKey(&peer->slot[p], "playername"), s);
+			}
+			break;
+		case KEXLAN_LOBBDYPLAYER:
+			if (peer->isserver)
+			{
+				ptype = 0;
+				p = *buf++;
+				p = bound(0, p, countof(peer->plidx)-1);
+				p = peer->plidx[p];
+			}
+			else
+			{
+				ptype = *buf++;
+				p = *buf++;
+			}
+			if (ptype == 2)
+				InfoBuf_Clear(&peer->slot[p], true);
+			else if (ptype == 0)
+			{
+				l = *buf++;
+				csz = seqend-buf;
+				if (l == csz && l < sizeof(s))
+				{
+					memcpy(s, buf, l);
+					s[l] = 0;
+					sl = strchr(s, '\\');
+					if (sl)
+					{	//no slash? no idea.
+						*sl++ = 0;
+						Con_DPrintf(S_COLOR_GRAY"p%02x: %s = %s\n", p, s, sl);
+						InfoBuf_SetValueForStarKey(&peer->slot[p], s, sl);
+					}
+				}
+			}
+			else
+				Con_ThrottlePrintf(&throttle, 0, "Unknown player update type\n");
+			break;
+		case KEXLAN_LOBBDYCOMMAND:
+			l = *buf++;
+			csz = seqend-buf;
+			if (csz != l || csz >= sizeof(s))
+				csz = 0;
+			memcpy(s, buf, csz);
+			s[csz] = 0;
+			if (!strcmp(s, "disconnect"))
+			{
+				peer->state = KEXLOBBY_DROPPED;
+				return NETERR_DISCONNECTED;
+			}
+#ifdef HAVE_CLIENT
+			else if (!strcmp(s, "kicked"))
+			{
+				extern cvar_t cl_disconnectreason;
+				Cvar_Set(&cl_disconnectreason, "You were kicked");
+				peer->state = KEXLOBBY_DROPPED;
+				return NETERR_DISCONNECTED;
+			}
+#endif
+			else
+				Con_ThrottlePrintf(&throttle, 0, KEXLOBBY": unrecognised command %s\n", s);
+			break;
+		case KEXLAN_LOBBDYRULE:
+#ifdef HAVE_CLIENT
+			if (csz < sizeof(s) && !peer->isserver)
+			{
+				memcpy(s, buf, csz);
+				s[csz] = 0;
+				sl = strchr(s, '\\');
+				if (sl)
+				{	//no slash? no idea.
+					*sl++ = 0;
+					Con_DPrintf(S_COLOR_GRAY"srv: %s = %s\n", s, sl);
+					InfoBuf_SetValueForStarKey(&peer->rules, s, sl);
+					if (!strcmp(s, "ingame"))
+					{
+						if (atoi(sl))
+							peer->state = KEXLOBBY_INGAME;
+						else if (peer->state == KEXLOBBY_INGAME)
+						{
+							peer->state = KEXLOBBY_ESTABLISHED;
+							Cbuf_AddText("disconnect;reconnect\n", RESTRICT_LOCAL);
+						}
+					}
+				}
+			}
+#endif
+			break;
+		safedefault:
+			Con_ThrottlePrintf(&throttle, 0, "NET_KexLobby_Received: Unknown packet type %i\n", ptype);
+			break;
+		}
+	}
+
+	if (peer->resendqueue)
+		NET_KexLobby_SendMessage(peer, 0, NULL, 0);
+
+	return NETERR_CLOGGED;
+}
+static neterr_t NET_KexLobby_Transmit(void *ctx, const qbyte *data, size_t length)
+{
+	struct kexcon_s *peer = ctx;
+
+	if (peer->state == KEXLOBBY_DROPPED)
+		return NETERR_DISCONNECTED;
+
+#ifdef HAVE_CLIENT
+	if (peer->state == KEXLOBBY_PENDING)
+	{	//send a peer request until we get an ack that its all okay.
+		if (peer->nextping < realtime)
+		{
+			static char pkt[] = "\x01\x60\x80"KEXLAN_SHAMELESSSELFPROMOMAGIC KEXLAN_SUBPROTOCOL"\x01";
+			//pkt[strlen(pkt)-1] = bound(1, cl_splitscreen.ival+1, MAX_SPLITS);	//fix the last byte to the seat count.
+			peer->push(peer->cbctx, pkt, strlen(pkt));
+			peer->nextping = realtime + 15;
+		}
+		return NETERR_CLOGGED;
+	}
+	if (!peer->isserver)
+	{
+		if (peer->state != KEXLOBBY_INGAME)
+		{
+			neterr_t e = NET_KexLobby_SendMessage(peer, KEXLAN_RELIABLE|KEXLAN_GAMEPACKET, NULL, 0);	//send this packet reliably!
+			if (e == NETERR_SENT)
+				e = NETERR_CLOGGED;	//we didn't actually send the requested packet yet.
+			return e;
+		}
+		if (peer->entnum != cl.playerview[0].playernum+1)
+		{
+			peer->entnum = cl.playerview[0].playernum+1;
+			NET_KexLobby_CLSetPlayerInfo(peer, 0, va("q2ent\\%i", peer->entnum));
+		}
+	}
+#endif
+	if (length >= 4 && ((const qbyte*)data)[3] & 0x80)
+	{	//reliables...
+		if (((const qbyte*)data)[0] == 0xff && ((const qbyte*)data)[1] == 0xff && ((const qbyte*)data)[2] == 0xff && ((const qbyte*)data)[3] == 0xff)
+		{	//connect packets should be compressed... 4/8 sets of userinfo can get big and bloated, but mostly it also helps obfuscate.
+			qbyte *zdata = alloca(length+1);
+			size_t zlength = ZLib_CompressBuffer(data, length, zdata+1, length);
+			if (zlength)
+			{
+				zdata[0] = 0;
+				return NET_KexLobby_SendMessage(peer, KEXLAN_RELIABLE|KEXLAN_ZGAMEPACKET, zdata, zlength+1);	//send this packet reliably!
+			}
+		}
+		return NET_KexLobby_SendMessage(peer, KEXLAN_RELIABLE|KEXLAN_GAMEPACKET, data, length);	//send this packet reliably!
+	}
+	else
+		return NET_KexLobby_SendMessage(peer, KEXLAN_SEQUENCED|KEXLAN_GAMEPACKET, data, length);	//can be unreliable.
+}
+
+static neterr_t NET_KexLobby_Timeouts(void *ctx)
+{
+	struct kexcon_s *peer = ctx;
+	NET_KexLobby_SendMessage(peer, 0, NULL, 0);
+	return NETERR_SENT;
+}
+
+static int NET_KexLobby_GetPeerCertificate(void *ctx, enum certprops_e prop, char *out, size_t outsize)
+{
+	struct kexcon_s *peer = ctx;
+	const char *map, *mode;
+	char *s = out;
+	int i;
+	size_t n;
+	switch(prop)
+	{
+	case QCERT_LOBBYSENDCHAT:
+		if (outsize > 255)
+			return -1;	//dumb limis.
+		NET_KexLobby_SendChat(peer, 0, out);
+		return outsize;
+	case QCERT_LOBBYSTATUS:
+		map = InfoBuf_ValueForKey(&peer->rules, "map");
+		map = TL_Translate(com_language, map);
+		mode = InfoBuf_ValueForKey(&peer->rules, "gamemode");
+		mode = TL_Translate(com_language, mode);
+
+		switch(peer->state)
+		{
+		case KEXLOBBY_PENDING:
+			Q_snprintfz(out, outsize, "\nWaiting for response...\n");
+			break;
+		case KEXLOBBY_ESTABLISHED:
+			Q_snprintfz(out, outsize, "\nWaiting for host to start...\n");
+			break;
+		case KEXLOBBY_INGAME:
+			Q_snprintfz(out, outsize, "\nStarting...\n");
+			break;
+		case KEXLOBBY_DROPPED:
+			Q_snprintfz(out, outsize, "\n"CON_ERROR"Dropped!\n");
+			break;
+		}
+		n = strlen(out); out += n; outsize -= n;
+		Q_snprintfz(out, outsize, "%s - %s\n\n", mode, map);
+		n = strlen(out); out += n; outsize -= n;
+
+		for (i = 0; i < countof(peer->slot); i++)
+			if (peer->slot[i].numkeys)
+			{
+				if (peer->plidx[0] == i)
+					Q_snprintfz(out, outsize, S_COLOR_GREEN"%s\n", InfoBuf_ValueForKey(&peer->slot[i], "playername"));
+				else
+					Q_snprintfz(out, outsize, "%s\n", InfoBuf_ValueForKey(&peer->slot[i], "playername"));
+				n = strlen(out); out += n; outsize -= n;
+			}
+		return out-s;
+	default:
+		return -1;
+	}
+}
+
+static dtlsfuncs_t kexpeerfuncs =
+{
+	NET_KexLobby_CreateContext,//void *(*CreateContext)(const dtlscred_t *credinfo, void *cbctx, neterr_t(*push)(void *cbctx, const qbyte *data, size_t datasize), qboolean isserver);	//the certificate to advertise.
+	NULL,//qboolean (*CheckConnection)(void *cbctx, void *peeraddr, size_t peeraddrsize, void *indata, size_t insize, neterr_t(*push)(void *cbctx, const qbyte *data, size_t datasize), void (*EstablishTrueContext)(void **cbctx, void *state));
+	NET_KexLobby_DestroyContext,//void (*DestroyContext)(void *ctx);
+	NET_KexLobby_Transmit,//neterr_t (*Transmit)(void *ctx, const qbyte *data, size_t datasize);
+	NET_KexLobby_Received,//neterr_t (*Received)(void *ctx, sizebuf_t *message);	//operates in-place...
+	NET_KexLobby_Timeouts,//neterr_t (*Timeouts)(void *ctx);
+	NET_KexLobby_GetPeerCertificate,//int (*GetPeerCertificate)(void *ctx, enum certprops_e prop, char *out, size_t outsize);
+	NULL,//qboolean (*GenTempCertificate)(const char *subject, struct dtlslocalcred_s *cred);
+};
+static struct dtlspeer_s *NET_KexLobby_Create(ftenet_connections_t *col, netadr_t *to, qboolean outgoing)
+{
+	extern cvar_t timeout;
+	struct dtlspeer_s *peer;
+	if (to->prot != NP_DGRAM || to->type==NA_LOOPBACK)	//FIXME: allow this to be layered over dtls...
+		return NULL;
+	for (peer = col->dtls; peer; peer = peer->next)
+	{
+		if (NET_CompareAdr(&peer->addr, to))
+			break;
+	}
+	if (!peer)
+	{
+		peer = Z_Malloc(sizeof(*peer));
+		peer->addr = *to;
+		peer->prot = NP_KEXLAN;
+		peer->col = col;
+
+		peer->funcs = &kexpeerfuncs;
+		if (peer->funcs)
+			peer->dtlsstate = peer->funcs->CreateContext(NULL, peer, FTENET_DTLS_DoSendPacket, !outgoing);
+
+		peer->timeout = realtime+timeout.value;
+		if (peer->dtlsstate)
+		{
+			peer->link = &col->dtls;
+			peer->next = col->dtls;
+			if (peer->next)
+				peer->next->link = &peer->next;
+			col->dtls = peer;
+		}
+		else
+		{
+			Z_Free(peer);
+			peer = NULL;
+		}
+	}
+	else
+		peer->timeout = realtime+timeout.value;
+	return peer;
+}
+
+qboolean SV_ChallengeRecent(void);
+qboolean NET_KexLobby_CheckInbound(ftenet_connections_t *col)
+{
+	qbyte *buf = net_message.data;
+	if (net_from.prot != NP_DGRAM)
+		return false;	//could allow dtls here perhaps.
+#ifdef HAVE_SERVER
+	if (col->islisten)
+	if (svs.gametype == GT_QUAKE2 && sv.state!=ss_dead)
+	{
+		if (((buf[0]<<4)|(buf[1]>>4)) == net_message.cursize && (buf[1]&15)==0 && buf[2] == KEXLAN_NEWCONNECTION && net_message.cursize == 3+strlen(KEXLAN_SHAMELESSSELFPROMOMAGIC KEXLAN_SUBPROTOCOL)+1)
+		if (!memcmp(buf+3, KEXLAN_SHAMELESSSELFPROMOMAGIC KEXLAN_SUBPROTOCOL, strlen(KEXLAN_SHAMELESSSELFPROMOMAGIC KEXLAN_SUBPROTOCOL)))
+		if (buf[3+strlen(KEXLAN_SHAMELESSSELFPROMOMAGIC KEXLAN_SUBPROTOCOL)] == 0x1)	//'player count' byte must be at least 1... we don't accept higher because I dunno how player ids are meant to work for those extra seats.
+		if (!SV_ChallengeRecent())	//don't respond if we got a getchallenge packet recently. it'd waste resources.
+		{
+			static float throttle;
+			if (!net_enable_kexlobby.ival)
+				Con_ThrottlePrintf(&throttle, 0, CON_WARNING"Inbound connection blocked - %s is disabled.\n", net_enable_kexlobby.name);
+			else
+			{
+				struct dtlspeer_s *peer = NET_KexLobby_Create(col, &net_from, !col->islisten);
+				if (peer)
+					peer->funcs->Received(peer->dtlsstate, &net_message);
+			}
+			return true;
+		}
+	}
+#endif
+#ifdef HAVE_CLIENT
+	if (!col->islisten)
+	{
+		if (((buf[0]<<4)|(buf[1]>>4)) == net_message.cursize && (buf[1]&15)==0 && buf[2] == KEXLAN_NEWCONNECTION && net_message.cursize == 3+strlen(KEXLAN_SHAMELESSSELFPROMOMAGIC)+1)
+		if (!memcmp(buf+3, KEXLAN_SHAMELESSSELFPROMOMAGIC, strlen(KEXLAN_SHAMELESSSELFPROMOMAGIC)))
+		if (CL_IsPendingServerAddress(&net_from))
+		{
+			struct dtlspeer_s *peer = NET_KexLobby_Create(col, &net_from, !col->islisten);
+			if (peer)
+			{
+				net_from.prot = peer->prot;
+				CL_Transfer(&net_from);
+				peer->funcs->Received(peer->dtlsstate, &net_message);
+			}
+			return true;
+		}
+	}
+#endif
+	return false;
+}
+#endif
+
+///////////////////////////////////////////////////////////////////////////
 
 #ifdef TCPCONNECT
 typedef struct ftenet_tcp_stream_s {
@@ -8179,7 +9029,7 @@ void NET_ReadPackets (ftenet_connections_t *collection)
 	{
 		if (collection->conn[c])
 		{
-			while (collection->conn[c]->GetPacket(collection->conn[c]))
+			while (collection->conn[c] && collection->conn[c]->GetPacket(collection->conn[c]))
 			{
 				if (net_fakeloss.value)
 				{
@@ -8326,7 +9176,7 @@ neterr_t NET_SendPacket (ftenet_connections_t *collection, int length, const voi
 		return ICE_SendPacket(length, data, to);
 #endif
 #ifdef HAVE_DTLS
-	if (to->prot == NP_DTLS)
+	if (NP_ISLAYERED(to->prot))
 		return FTENET_DTLS_SendPacket(collection, length, data, to);
 #endif
 	return NET_SendPacketCol (collection, length, data, to);
@@ -8337,6 +9187,9 @@ qboolean NET_EnsureRoute(ftenet_connections_t *collection, char *routename, cons
 	switch(adr->prot)
 	{
 	case NP_DGRAM:
+#ifdef KEXLAN
+	case NP_KEXLAN:
+#endif
 		if (NET_SendPacketCol(collection, 0, NULL, adr) != NETERR_NOROUTE)
 			return true;
 		if (!FTENET_AddToCollection(collection, routename, "0", adr->type, adr->prot))
@@ -8359,6 +9212,21 @@ qboolean NET_EnsureRoute(ftenet_connections_t *collection, char *routename, cons
 		adr->prot = NP_DTLS;
 #endif
 		return false;
+#ifdef KEXLOBBY
+	case NP_KEXLAN:
+		adr->prot = NP_DGRAM;
+		if (NET_EnsureRoute(collection, routename, peerinfo, adr, outgoing))
+		{
+			if (NET_KexLobby_Create(collection, adr, outgoing))
+			{
+				adr->prot = NP_KEXLAN;
+				return true;
+			}
+		}
+		adr->prot = NP_KEXLAN;
+		return false;
+#endif
+
 	case NP_WS:
 	case NP_WSS:
 	case NP_TLS:
@@ -8382,16 +9250,10 @@ qboolean NET_EnsureRoute(ftenet_connections_t *collection, char *routename, cons
 }
 void NET_TerminateRoute(ftenet_connections_t *collection, netadr_t *adr)
 {
-	switch(adr->prot)
-	{
-	case NP_DTLS:
 #ifdef HAVE_DTLS
+	if (NP_ISLAYERED(adr->prot))
 		NET_DTLS_Disconnect(collection, adr);
 #endif
-		break;
-	default:
-		break;
-	}
 
 #ifdef SUPPORT_ICE
 	if (adr->type == NA_ICE)
@@ -9150,6 +10012,10 @@ qboolean NET_WasSpecialPacket(ftenet_connections_t *collection)
 	if (collection->islisten && NET_DTLS_CheckInbound(collection))
 		return true;
 #endif
+#ifdef KEXLOBBY
+	if (NET_KexLobby_CheckInbound(collection))
+		return true;
+#endif
 
 	return false;
 }
@@ -9224,7 +10090,9 @@ void NET_Init (void)
 #ifdef HAVE_DTLS
 	Cvar_Register(&net_enable_dtls, "networking");
 #endif
-
+#if defined(HAVE_SERVER) && defined(KEXLOBBY)
+	Cvar_Register(&net_enable_kexlobby, "networking");
+#endif
 
 
 #ifdef HAVE_SERVER

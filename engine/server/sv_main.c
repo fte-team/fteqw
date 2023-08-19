@@ -1943,7 +1943,7 @@ qboolean SV_ChallengePasses(int challenge)
 //this means that DP clients tend to connect as generic NQ clients.
 //and because DP _REQUIRES_ sv_bigcoords, they tend to end up being given fitz/rmq protocols
 //thus we don't respond to the connect if sv_listen_dp is 1, and we had a recent getchallenge request. recent is 2 secs.
-static qboolean SV_ChallengeRecent(void)
+qboolean SV_ChallengeRecent(void)
 {
 	int curtime = realtime;	//yeah, evil. sue me. consitent with challenges.
 	int i;
@@ -3264,13 +3264,13 @@ void SV_DoDirectConnect(svconnectinfo_t *fte_restrict info)
 			else	//measure this guy in minuites.
 				s = va(langtext("Welcome back %s. You have previously spent %i mins connected\n", newcl->language), newcl->name, (int)(rs.timeonserver/60));
 
-			SV_OutOfBandPrintf (info->protocol == SCP_QUAKE2, &info->adr, s);
+			SV_OutOfBandPrintf (ISQ2CLIENT(info), &info->adr, s);
 		}
 		else if (!preserveparms)
 		{
 			SV_GetNewSpawnParms(newcl);
 
-			SV_OutOfBandTPrintf (info->protocol == SCP_QUAKE2, &info->adr, newcl->language, "Welcome %s. Your time on this server is being logged and ranked\n", newcl->name, (int)rs.timeonserver);
+			SV_OutOfBandTPrintf (ISQ2CLIENT(info), &info->adr, newcl->language, "Welcome %s. Your time on this server is being logged and ranked\n", newcl->name, (int)rs.timeonserver);
 		}
 		//else loaded players already have their initial parms set
 	}
@@ -3570,7 +3570,7 @@ void SVC_DirectConnect(int expectedreliablesequence)
 		}*/
 
 		version = atoi(Cmd_Argv(1));
-		if (version >= 31 && version <= 34)
+		if (version >= PROTOCOL_VERSION_Q2_MIN && version <= PROTOCOL_VERSION_Q2)
 			info.protocol = SCP_QUAKE2;
 #ifdef NQPROT
 		else if (version == NQ_NETCHAN_VERSION)
@@ -3650,11 +3650,13 @@ void SVC_DirectConnect(int expectedreliablesequence)
 		}
 	}
 
+	// see if the challenge is valid.
 	if (net_from.type == NA_LOOPBACK)	//normal rules don't apply
 		;
+	else if (net_from.prot != NP_DGRAM)
+		;	//challenge checks are irrelevant when we've alread passed a challenge in a lower network layer.
 	else
 	{
-	// see if the challenge is valid
 		if (!SV_ChallengePasses(info.challenge))
 		{
 			if (sv_listen_dp.ival && !info.challenge && info.protocol == SCP_QUAKEWORLD)
@@ -4940,8 +4942,16 @@ void SV_ReadPacket(void)
 			continue;
 #endif
 
-		if (cl->netchan.qport != qport)
-			continue;
+		if (cl->netchan.qportsize == 0)
+		{	//no qports... use the actual port.
+			if (cl->netchan.remote_address.port != net_from.port)
+				continue;
+		}
+		else
+		{
+			if (cl->netchan.qport != qport)
+				continue;
+		}
 		if (cl->netchan.remote_address.port != net_from.port)
 		{
 			Con_DPrintf ("SV_ReadPackets: fixing up a translated port\n");
@@ -4994,7 +5004,7 @@ dominping:
 					cl->send_message = true;	// reply at end of frame
 
 #ifdef Q2SERVER
-				if (cl->protocol == SCP_QUAKE2)
+				if (ISQ2CLIENT(cl))
 					SVQ2_ExecuteClientMessage(cl);
 				else
 #endif
@@ -5107,7 +5117,7 @@ qboolean SV_ReadPackets (float *delay)
 								cl->send_message = true;	// reply at end of frame
 
 		#ifdef Q2SERVER
-							if (cl->protocol == SCP_QUAKE2)
+							if (ISQ2CLIENT(cl))
 								SVQ2_ExecuteClientMessage(cl);
 							else
 		#endif

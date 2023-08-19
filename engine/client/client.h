@@ -1671,6 +1671,8 @@ int CLNQ_GetMessage (void);
 #endif
 
 void CL_BeginServerReconnect(void);
+qboolean CL_IsPendingServerAddress(netadr_t *adr);
+void CL_Transfer(netadr_t *adr);
 
 void SV_User_f (void);	//called by client version of the function
 void SV_Serverinfo_f (void);

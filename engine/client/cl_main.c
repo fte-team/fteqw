@@ -310,6 +310,7 @@ static struct
 		CIM_DEFAULT,	//sends both a qw getchallenge and nq connect (also with postfixed getchallenge so modified servers can force getchallenge)
 		CIM_NQONLY,		//disables getchallenge (so fte servers treat us as an nq client). should not be used for dpp7 servers.
 		CIM_QEONLY,		//forces dtls and uses a different nq netchan version
+		CIM_Q2EONLY,	//forces dtls and uses a different nq netchan version
 	}					mode;
 	enum coninfospec_e
 	{
@@ -825,6 +826,12 @@ char *CL_TryingToConnect(void)
 	if (!connectinfo.trying)
 		return NULL;
 
+	if (connectinfo.numadr >= 1 && connectinfo.adr[0].prot == NP_KEXLAN)
+	{
+		char status[1024];
+		if (NET_GetConnectionCertificate(cls.sockets, &connectinfo.adr[0], QCERT_LOBBYSTATUS, status, sizeof(status))>0)
+			return va("%s\n%s", cls.servername, status);
+	}
 	return cls.servername;
 }
 
@@ -870,6 +877,15 @@ static void CL_ResolvedServer(void *vctx, void *data, size_t a, size_t b)
 	}
 #endif
 
+	if (connectinfo.mode == CIM_Q2EONLY)
+	{
+		for (i = 0; i < ctx->found; i++)
+		{	//if we've already established a dtls connection, stick with it
+			if (ctx->adr[i].prot == NP_DGRAM)
+				ctx->adr[i].prot = NP_KEXLAN;
+		}
+	}
+
 	connectinfo.numadr = ctx->found;
 	connectinfo.nextadr = 0;
 	connectinfo.resolving = false;
@@ -889,7 +905,7 @@ static void CL_ResolveServer(void *vctx, void *data, size_t a, size_t b)
 
 	COM_AddWork(WG_MAIN, CL_ResolvedServer, ctx, data, a, b);
 }
-static qboolean CL_IsPendingServerAddress(netadr_t *adr)
+qboolean CL_IsPendingServerAddress(netadr_t *adr)
 {
 	size_t i;
 	for (i = 0; i < connectinfo.numadr; i++)
@@ -1313,7 +1329,9 @@ void CL_CheckForResend (void)
 	if (to->prot == NP_DGRAM)
 		connectinfo.nextadr++;	//cycle hosts with each ping (if we got multiple).
 
-	if (connectinfo.mode==CIM_QEONLY || connectinfo.mode==CIM_NQONLY)
+	if (connectinfo.mode==CIM_Q2EONLY)
+		contype |= 1;	//don't ever try nq packets here.
+	else if (connectinfo.mode==CIM_QEONLY || connectinfo.mode==CIM_NQONLY)
 		contype |= 2;
 	else
 	{
@@ -1321,7 +1339,16 @@ void CL_CheckForResend (void)
 #ifdef VM_UI
 		if (!(q3&&q3->ui.IsRunning()))	//don't try to connect to nq servers when running a q3ui. I was getting annoying error messages from q3 servers due to this.
 #endif
-			contype |= 2; /*try nq connections periodically (or if its the default nq port)*/
+		{
+			COM_Parse(com_protocolname.string);
+			if (!strcmp(com_token, "Quake2"))
+			{
+				if (connectinfo.nextadr>3)	//don't create an extra channel until we know our preferred one has failed.
+					contype |= 4; /*q2e's kex lan layer*/
+			}
+			else
+				contype |= 2; /*try nq connections periodically (or if its the default nq port)*/
+		}
 	}
 
 	/*DP, QW, Q2, Q3*/
@@ -1401,6 +1428,15 @@ void CL_CheckForResend (void)
 		}
 	}
 #endif
+#ifdef Q2CLIENT
+	if ((contype & 4) && !connectinfo.clogged)
+	{
+#define KEXLAN_SHAMELESSSELFPROMOMAGIC "\x08""CRANTIME"	//hey, if you can't shove your own nick in your network protocols then you're doing it wrong.
+#define KEXLAN_SUBPROTOCOL "\x08""Quake II"	//this should be cvar-ised at some point, if its to ever be useful for anything but q2.
+		static char pkt[] = "\x01\x60\x80"KEXLAN_SHAMELESSSELFPROMOMAGIC KEXLAN_SUBPROTOCOL"\x01";
+		NET_SendPacket (cls.sockets, strlen(pkt), pkt, to);
+	}
+#endif
 
 	connectinfo.tries++;
 
@@ -1429,30 +1465,25 @@ static void CL_BeginServerConnect(char *host, int port, qboolean noproxy, enum c
 
 	if (schemeend)
 	{
+		//"qw:tcp://host/observe"
 		const char *schemestart = strchr(host, ':');
-		int schemelen;
-	//if its one of our explicit protocols then use the url as-is
-		const char *netschemes[] = {"udp", "udp4", "udp6", "ipx", "tcp", "tcp4", "tcp6", /*ipx*/"spx", "ws", "wss", "tls", "dtls", "ice", "rtc", "ices", "rtcs", "irc", "udg", "unix"};
-		int i;
-		size_t slen;
+		const struct urischeme_s *scheme;
 
 		if (!schemestart || schemestart==schemeend)
 			schemestart = host;
 		else
 			schemestart++;
-		schemelen = schemeend-schemestart;
 
-		Q_strncpyz (cls.servername, "", sizeof(cls.servername));
-		for (i = 0; i < countof(netschemes); i++)
+		//the scheme is either a network scheme in which case we use it directly, or a game-specific scheme.
+		scheme = NET_IsURIScheme(schemestart);
+		if (scheme->prot == NP_INVALID)
+			scheme = NULL;	//qw:// or q3:// something that's just noise here.
+		if (scheme->flags&URISCHEME_NEEDSRESOURCE)
 		{
-			slen = strlen(netschemes[i]);
-			if (schemelen == slen && !strncmp(schemestart, netschemes[i], slen))
-			{
-				Q_strncpyz (cls.servername, host, sizeof(cls.servername));	//oh. will probably be okay then
-				break;
-			}
+			Q_strncpyz (cls.servername, schemestart, sizeof(cls.servername));	//oh. will probably be okay then
+			arglist = NULL;
 		}
-		if (!*cls.servername)
+		else
 		{	//not some '/foo' name, not rtc:// either...
 			char *sl = strchr(schemeend+3, '/');
 			if (sl)
@@ -1479,7 +1510,11 @@ static void CL_BeginServerConnect(char *host, int port, qboolean noproxy, enum c
 					memmove(sl, sl+1, strlen(sl+1)+1);
 				}
 			}
-			Q_strncpyz (cls.servername, schemeend+3, sizeof(cls.servername));	//probably some game-specific mess that we don't know
+			if (scheme)	//preserve the scheme, the netchan cares.
+				Q_strncpyz (cls.servername, schemestart, sizeof(cls.servername));	//probably some game-specific mess that we don't know
+			else
+				Q_strncpyz (cls.servername, schemeend+3, sizeof(cls.servername));	//probably some game-specific mess that we don't know
+			arglist = strchr(cls.servername, '?');
 		}
 	}
 	else
@@ -1491,9 +1526,8 @@ static void CL_BeginServerConnect(char *host, int port, qboolean noproxy, enum c
 			Q_strncpyz (cls.servername, host, sizeof(cls.servername));
 		else
 			Q_snprintfz(cls.servername, sizeof(cls.servername), "%s@%s", host, cl_proxyaddr.string);
+		arglist = strchr(cls.servername, '?');
 	}
-
-	arglist = strchr(cls.servername, '?');
 
 	if (!port)
 		port = cl_defaultport.value;
@@ -1748,6 +1782,7 @@ void CLNQ_Connect_f (void)
 {
 	char	*server;
 	enum coninfomode_e mode;
+	int port = 26000;
 
 	if (Cmd_Argc() != 2)
 	{
@@ -1765,7 +1800,26 @@ void CLNQ_Connect_f (void)
 
 	CL_Disconnect_f ();
 
-	CL_BeginServerConnect(server, 26000, true, mode, CIS_DEFAULT/*doesn't really do spec/join stuff, but if the server asks for our info later...*/);
+	CL_BeginServerConnect(server, port, true, mode, CIS_DEFAULT/*doesn't really do spec/join stuff, but if the server asks for our info later...*/);
+}
+#endif
+#ifdef Q2CLIENT
+void CLQ2E_Connect_f (void)
+{
+	char	*server;
+
+	if (Cmd_Argc() != 2)
+	{
+		Con_TPrintf ("usage: connect <server>\n");
+		return;
+	}
+
+	server = Cmd_Argv (1);
+	server = strcpy(alloca(strlen(server)+1), server);
+
+	CL_Disconnect_f ();
+
+	CL_BeginServerConnect(server, PORT_Q2EXSERVER/*q2e servers ignore their own port cvar, so don't use the standard q2 port number here*/, true, CIM_Q2EONLY, CIS_DEFAULT);
 }
 #endif
  
@@ -3564,6 +3618,7 @@ void CL_Reconnect_f (void)
 
 static void CL_ConnectionlessPacket_Connection(char *tokens)
 {
+	int qportsize = -1;
 	if (net_from.type == NA_INVALID)
 		return;	//I've found a qizmo demo that contains one of these. its best left ignored.
 
@@ -3601,8 +3656,10 @@ static void CL_ConnectionlessPacket_Connection(char *tokens)
 	}
 
 #if defined(Q2CLIENT)
-	if (tokens)
+	if (tokens && cls.protocol == CP_QUAKE2)
 	{
+		if (cls.protocol_q2 == PROTOCOL_VERSION_R1Q2 || cls.protocol_q2 == PROTOCOL_VERSION_Q2PRO)
+			qportsize = 1;
 		tokens = COM_Parse(tokens);	//skip the client_connect bit
 		while((tokens = COM_Parse(tokens)))
 		{
@@ -3615,16 +3672,9 @@ static void CL_ConnectionlessPacket_Connection(char *tokens)
 				}
 			}
 			else if (!strncmp(com_token, "nc=", 3))
-			{
-				int type = (cls.protocol_q2 == PROTOCOL_VERSION_R1Q2 || cls.protocol_q2 == PROTOCOL_VERSION_Q2PRO)?1:0;
-				if (atoi(com_token+3) != type)
-				{
-					CL_ConnectAbort("server's netchan type differs from expected.");
-					return;
-				}
-			}
+				qportsize = atoi(com_token+3)?1:2;
 			else if (!strncmp(com_token, "map=", 4))
-				;
+				SCR_ImageName(com_token+4);
 			else if (!strncmp(com_token, "dlserver=", 9))
 				Q_strncpyz(cls.downloadurl, com_token+9, sizeof(cls.downloadurl));
 			else
@@ -3642,12 +3692,9 @@ static void CL_ConnectionlessPacket_Connection(char *tokens)
 	cls.ezprotocolextensions1 = connectinfo.ext.ez1;
 	cls.challenge = connectinfo.challenge;
 	Netchan_Setup (NS_CLIENT, &cls.netchan, &net_from, connectinfo.qport);
-	if (cls.protocol == CP_QUAKE2)
-	{
-		cls.protocol_q2 = connectinfo.subprotocol;
-		if (cls.protocol_q2 == PROTOCOL_VERSION_R1Q2 || cls.protocol_q2 == PROTOCOL_VERSION_Q2PRO)
-			cls.netchan.qportsize = 1;
-	}
+	cls.protocol_q2 = (cls.protocol == CP_QUAKE2)?connectinfo.subprotocol:0;
+	if (qportsize>=0)
+		cls.netchan.qportsize = qportsize;
 	cls.netchan.pext_fragmentation = connectinfo.ext.mtu?true:false;
 	cls.netchan.pext_stunaware = !!(connectinfo.ext.fte2&PEXT2_STUNAWARE);
 	if (connectinfo.ext.mtu >= 64)
@@ -5685,6 +5732,9 @@ void CL_Init (void)
 #ifdef NQPROT
 	Cmd_AddCommandD ("connectnq", CLNQ_Connect_f, "Connects to the specified server, defaulting to port "STRINGIFY(PORT_NQSERVER)". Also disables QW/Q2/Q3/DP handshakes preventing them from being favoured, so should only be used when you actually want NQ protocols specifically.");
 	Cmd_AddCommandD ("connectqe", CLNQ_Connect_f, "Connects to the specified server, defaulting to port "STRINGIFY(PORT_NQSERVER)". Also forces the use of DTLS and QE-specific handshakes. You will also need to ensure the dtls_psk_* cvars are set properly or the server will refuse the connection.");
+#endif
+#ifdef Q2CLIENT
+	Cmd_AddCommandD ("connectq2e", CLQ2E_Connect_f, "Connects to the specified server, defaulting to port "STRINGIFY(PORT_Q2ESERVER)".");
 #endif
 	Cmd_AddCommand ("reconnect", CL_Reconnect_f);
 	Cmd_AddCommandAD ("join", CL_Join_f, CL_Connect_c, "Switches away from spectator mode, optionally connecting to a different server.");

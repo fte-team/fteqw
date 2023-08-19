@@ -397,7 +397,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 	#undef USE_EGL
 #endif
 
-#if defined(HAVE_GNUTLS) || defined(HAVE_WINSSPI)
+#if defined(HAVE_GNUTLS) || defined(HAVE_WINSSPI) || defined(HAVE_PLUGINS)
 	#define HAVE_SSL
 #endif
 #if defined(HAVE_GNUTLS) || defined(HAVE_WINSSPI) || defined(HAVE_PLUGINS)

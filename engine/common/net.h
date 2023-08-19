@@ -54,6 +54,9 @@ typedef enum {
 typedef enum {
 	NP_DGRAM,
 	NP_DTLS,	//connected via ICE/WebRTC
+	NP_KEXLAN,	//layered over some silly lobby mess
+#define NP_ISLAYERED(np) (np>=NP_DTLS && np<=NP_KEXLAN)
+
 	NP_STREAM,
 	NP_TLS,
 	NP_WS,
@@ -166,6 +169,18 @@ enum addressscope_e
 };
 enum addressscope_e NET_ClassifyAddress(netadr_t *adr, const char **outdesc);
 
+struct urischeme_s
+{
+	const char *name;
+	netproto_t prot;		//NP_INVALID means its a game-specific one that should really be handled elsewhere but is silently ignored by the netcode.
+	netadrtype_t family;	//usually NA_INVALID, unless ipv4/ipv6-specific
+	enum
+	{
+		URISCHEME_NEEDSRESOURCE = (1<<0),	//forwards it on to the server
+	} flags;
+};
+const struct urischeme_s *NET_IsURIScheme(const char *possible);
+
 qboolean NET_AddrIsReliable(netadr_t *adr);	//hints that the protocol is reliable. if so, we don't need to wait for acks
 qboolean	NET_IsEncrypted(netadr_t *adr);
 qboolean	NET_CompareAdr (netadr_t *a, netadr_t *b);
@@ -198,6 +213,9 @@ enum certprops_e
 	QCERT_PEERCERTIFICATE,	//should be the primary cert, ignoring chain. no fixed maximum size required, mostly 2k but probably best to allow at leasy 5k.. or 8k.
 
 	QCERT_LOCALCERTIFICATE,	//the cert we're using/advertising. may have no context. to tell people what fp to expect.
+
+	QCERT_LOBBYSTATUS,		//for special-case lobby wrappers.
+	QCERT_LOBBYSENDCHAT,	//to send chat via the stupid lobby instead of the game itself.
 };
 int NET_GetConnectionCertificate(struct ftenet_connections_s *col, netadr_t *a, enum certprops_e prop, char *out, size_t outsize);
 

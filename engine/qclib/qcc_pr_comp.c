@@ -3616,6 +3616,9 @@ QCC_sref_t QCC_PR_StatementFlags ( QCC_opcode_t *op, QCC_sref_t var_a, QCC_sref_
 		}
 	}
 
+	// self-comparison that is impacted when NaN
+	// e.g. NaN == NaN, NaN != NaN, [NaN, 0, 0] == [NaN, 0, 0], etc.
+	pbool nan_eq_cond = false;
 	switch (op - pr_opcodes)
 	{
 	case OP_STATE:
@@ -3791,23 +3794,25 @@ QCC_sref_t QCC_PR_StatementFlags ( QCC_opcode_t *op, QCC_sref_t var_a, QCC_sref_
 			QCC_PR_ParsePrintDef(WARN_CONSTANTCOMPARISON, var_b.sym);
 		}
 		break;
+
 	case OP_EQ_F:
+	case OP_NE_F:
+	case OP_EQ_V:
+	case OP_NE_V:
+	case OP_LE_F:
+	case OP_GE_F:
+		nan_eq_cond = true;
 	case OP_EQ_S:
 	case OP_EQ_E:
 	case OP_EQ_FNC:
 //		if (opt_shortenifnots)
 //			if (var_b->constant && ((int*)qcc_pr_globals)[var_b->ofs]==0)	// (a == 0) becomes (!a)
 //				op = &pr_opcodes[(op - pr_opcodes) - OP_EQ_F + OP_NOT_F];
-	case OP_EQ_V:
 
-	case OP_NE_F:
-	case OP_NE_V:
 	case OP_NE_S:
 	case OP_NE_E:
 	case OP_NE_FNC:
 
-	case OP_LE_F:
-	case OP_GE_F:
 	case OP_LT_F:
 	case OP_GT_F:
 		if (typecmp_lax(var_a.cast, var_b.cast))
@@ -3834,7 +3839,10 @@ QCC_sref_t QCC_PR_StatementFlags ( QCC_opcode_t *op, QCC_sref_t var_a, QCC_sref_
 			TypeName(var_b.cast, typeb, sizeof(typeb));
 			QCC_PR_ParseWarning(WARN_STRICTTYPEMISMATCH, "'%s' type mismatch: %s with %s", op->name, typea, typeb);
 		}
-		if ((var_a.sym->constant && var_b.sym->constant && !var_a.sym->temp && !var_b.sym->temp) || (var_a.sym == var_b.sym && var_a.ofs == var_b.ofs))
+
+		pbool sym_cmp = !nan_eq_cond && var_a.sym == var_b.sym && var_a.ofs == var_b.ofs;
+
+		if ((var_a.sym->constant && var_b.sym->constant && !var_a.sym->temp && !var_b.sym->temp) || sym_cmp)
 		{
 			QCC_PR_ParseWarning(WARN_CONSTANTCOMPARISON, "Result of comparison is constant");
 			QCC_PR_ParsePrintDef(WARN_CONSTANTCOMPARISON, var_a.sym);

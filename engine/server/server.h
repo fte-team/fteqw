@@ -207,12 +207,6 @@ typedef struct server_s
 #endif
 
 #ifdef Q2SERVER
-	sizebuf_t	q2datagram;
-	qbyte		q2datagram_buf[MAX_Q2DATAGRAM];
-
-	sizebuf_t	q2reliable_datagram;
-	qbyte		q2reliable_datagram_buf[MAX_Q2MSGLEN];
-
 	sizebuf_t	q2multicast;
 	qbyte		q2multicast_buf[MAX_Q2MSGLEN];
 #endif

@@ -2126,7 +2126,7 @@ static void SV_StuffToClient_f(void)
 
 	while((cl = SV_GetClientForString(clientname, &clnum)))
 	{
-		if (cl->protocol == SCP_QUAKE2)
+		if (ISQ2CLIENT(cl))
 			ClientReliableWrite_Begin (cl, svcq2_stufftext, 3+strlen(str) + (key?strlen(key)+6:0));
 		else
 			ClientReliableWrite_Begin (cl, svc_stufftext, 3+strlen(str) + (key?strlen(key)+6:0));

@@ -789,15 +789,6 @@ void SV_SetupNetworkBuffers(qboolean bigcoords)
 #endif
 
 #ifdef Q2SERVER
-	sv.q2datagram.maxsize = sizeof(sv.q2datagram_buf);
-	sv.q2datagram.data = sv.q2datagram_buf;
-	sv.q2datagram.allowoverflow = true;
-	sv.q2datagram.prim = svs.netprim;
-
-	sv.q2reliable_datagram.maxsize = sizeof(sv.q2reliable_datagram_buf);
-	sv.q2reliable_datagram.data = sv.q2reliable_datagram_buf;
-	sv.q2reliable_datagram.prim = svs.netprim;
-
 	sv.q2multicast.maxsize = sizeof(sv.q2multicast_buf);
 	sv.q2multicast.data = sv.q2multicast_buf;
 	sv.q2multicast.prim = svs.netprim;

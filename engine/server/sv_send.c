@@ -1516,7 +1516,7 @@ void SV_SendFixAngle(client_t *client, sizebuf_t *msg, int fixtype, qboolean rol
 	client_t *controller = client->controller?client->controller:client;
 	edict_t *ent = client->edict;
 	pvec_t *ang;
-	if (!ent || client->protocol == SCP_QUAKE2)
+	if (!ent || ISQ2CLIENT(client))
 		return;
 	ang = ent->v->fixangle?ent->v->angles:ent->v->v_angle;	//angles is just WEIRD for mdls, but then quake sucks.
 	if (ent->v->movetype == MOVETYPE_6DOF)
@@ -2792,22 +2792,8 @@ void SV_FlushBroadcasts (void)
 		if (client->protocol == SCP_BAD)
 			continue;	//botclient
 
-#ifdef Q2SERVER
-		if (ISQ2CLIENT(client))
-		{
-			ClientReliableCheckBlock(client, sv.q2reliable_datagram.cursize);
-			ClientReliableWrite_SZ(client, sv.q2reliable_datagram.data, sv.q2reliable_datagram.cursize);
-
-			if (client->state != cs_spawned)
-				continue;	// datagrams only go to spawned
-			SZ_Write (&client->datagram
-				, sv.q2datagram.data
-				, sv.q2datagram.cursize);
-		}
-		else
-#endif
 #ifdef NQPROT
-		if (!ISQWCLIENT(client))
+		if (ISNQCLIENT(client))
 		{
 			if (client->pextknown)
 			{
@@ -2845,10 +2831,6 @@ void SV_FlushBroadcasts (void)
 	SZ_Clear (&sv.nqreliable_datagram);
 	SZ_Clear (&sv.nqdatagram);
 #endif
-#ifdef Q2SERVER
-	SZ_Clear (&sv.q2reliable_datagram);
-	SZ_Clear (&sv.q2datagram);
-#endif
 }
 
 static qboolean SV_SyncInfoBuf(client_t *client)
@@ -2866,7 +2848,7 @@ static qboolean SV_SyncInfoBuf(client_t *client)
 	qboolean final;
 	sizebuf_t *buf;
 
-	if (client->protocol == SCP_QUAKE2)
+	if (ISQ2CLIENT(client))
 	{	//q2 gamecode is fully responsible for networking this via configstrings.
 		InfoSync_Clear(&client->infosync);
 		return false;
@@ -3271,10 +3253,6 @@ void SV_UpdateToReliableMessages (void)
 #ifdef NQPROT
 	if (sv.nqdatagram.overflowed)
 		SZ_Clear (&sv.nqdatagram);
-#endif
-#ifdef Q2SERVER
-	if (sv.q2datagram.overflowed)
-		SZ_Clear (&sv.q2datagram);
 #endif
 
 	SV_FlushBroadcasts();

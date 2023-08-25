@@ -9405,6 +9405,47 @@ static galiasinfo_t *Mod_ParseMD5MeshModel(model_t *mod, char *buffer, char *mod
 							}
 						}
 					}
+#ifdef MD2MODELS
+					if (!numskins && strcmp(mod->publicname, mod->name))
+					{	//try grabbing the names from an original md2 file.
+						size_t sz;
+						md2_t *md2 = FS_LoadMallocFile(mod->publicname, &sz);
+						if (md2)
+						{
+							if (!memcmp(md2, MD2IDALIASHEADER) && md2->version == LittleLong(MD2ALIAS_VERSION))
+							{
+								char *p;
+								const char *str = (const char*)md2 + LittleLong(md2->ofs_skins);
+								numskins = LittleLong(md2->num_skins);
+								if (str + numskins*MD2MAX_SKINNAME>(char*)md2+sz)
+									numskins = 0;
+
+								skin = ZG_Malloc(&mod->memgroup, sizeof(*skin)*numskins);
+								inf->numskins = numskins;
+								inf->ofsskins = skin;
+								for (num = 0; num < numskins; num++, skin++, str += MD2MAX_SKINNAME)
+								{
+									skin->skinspeed = 5;	//match bsp anim speed.
+									skin->numframes = 1;
+
+									frames = ZG_Malloc(&mod->memgroup, sizeof(*frames)*skin->numframes);
+									skin->frame = frames;
+
+									p = COM_SkipPath(mod->publicname);
+									if (!strncmp(str, mod->publicname, p-mod->publicname))
+									{
+										Q_snprintfz(frames[0].shadername, sizeof(frames[0].shadername), "%s", mod->name);
+										*COM_SkipPath(frames[0].shadername) = 0;
+										Q_strncatz(frames[0].shadername, str+(p-mod->publicname), sizeof(frames[0].shadername));
+									}
+									else
+										Q_snprintfz(frames[0].shadername, sizeof(frames[0].shadername), "%s", str);
+								}
+							}
+							FS_FreeFile(md2);
+						}
+					}
+#endif
 					if (!numskins)
 						//FIXME: we probably want to support multiple skins some time
 						Q_strncpyz(frames[0].shadername, token, sizeof(frames[0].shadername));

@@ -1205,8 +1205,20 @@ static void Mod_LoadModelWorker (void *ctx, void *data, size_t a, size_t b)
 
 		if (replstr)
 		{
-			char altname[MAX_QPATH];
-			Q_snprintfz(altname, sizeof(altname), "%s.%s", mdlbase, token);
+			char altname[MAX_QPATH], *sl;
+			sl = strchr(token, '/');
+			if (sl)
+			{	//models/name.mdl -> path/preslash/name.postslash
+				char *p = COM_SkipPath(mdlbase);
+				size_t ofs = (p-mdlbase) + (sl+1-token);
+				memcpy(altname, mdlbase, p-mdlbase);
+				memcpy(altname+(p-mdlbase), token, sl+1-token);
+				if (ofs + strlen(p)+strlen(sl+1)+2 > sizeof(altname))
+					continue;	//erk
+				Q_snprintfz(altname + ofs, sizeof(altname)-ofs, "%s.%s", p, sl+1);
+			}
+			else
+				Q_snprintfz(altname, sizeof(altname), "%s.%s", mdlbase, token);
 
 			if (COM_FDepthFile(altname, true) > basedepth)
 				continue;

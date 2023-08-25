@@ -58,7 +58,8 @@
 /*set some stuff so our regular qw client appears more like hexen2. sv_mintic must be 0.015 to 'fix' the ravenstaff so that its projectiles don't impact upon each other, or even 0.05 to exactly match the hardcoded assumptions in obj_push. There's maps that depend on a low framerate via waterjump framerate-dependance too.*/
 #define HEX2CFG "//schemes hexen2\n" "set v_gammainverted 1\nset com_parseutf8 -1\nset gl_font gfx/hexen2\nset in_builtinkeymap 0\nset_calc cl_playerclass int (random * 5) + 1\nset cl_forwardspeed 200\nset cl_backspeed 200\ncl_sidespeed 225\nset sv_maxspeed 640\ncl_run 0\nset watervis 1\nset r_lavaalpha 1\nset r_lavastyle -2\nset r_wateralpha 0.5\nset sv_pupglow 1\ngl_shaftlight 0.5\nsv_mintic 0.05\nset r_meshpitch -1\nset r_meshroll -1\nr_sprite_backfacing 1\nset mod_warnmodels 0\nset cl_model_bobbing 1\nsv_sound_watersplash \"misc/hith2o.wav\"\nsv_sound_land \"fx/thngland.wav\"\nset sv_walkpitch 0\n"
 /*yay q2!*/
-#define Q2CFG "//schemes quake2\n" "set v_gammainverted 1\nset com_parseutf8 0\ncom_gamedirnativecode 1\nset sv_bigcoords 0\nsv_port "STRINGIFY(PORT_Q2SERVER)"\ncl_defaultport "STRINGIFY(PORT_Q2SERVER)"\n"
+#define Q2CFG "//schemes quake2\n" "set v_gammainverted 1\nset com_parseutf8 0\ncom_gamedirnativecode 1\nset sv_bigcoords 0\nsv_port "STRINGIFY(PORT_Q2SERVER)"\ncl_defaultport "STRINGIFY(PORT_Q2SERVER)"\n"	\
+	"set r_replacemodels " IFMINIMAL("","md3 md5/md5mesh")"\n"
 /*Q3's ui doesn't like empty model/headmodel/handicap cvars, even if the gamecode copes*/
 #define Q3CFG "//schemes quake3\n" "set v_gammainverted 0\nset snd_ignorecueloops 1\nsetfl g_gametype 0 s\nset gl_clear 1\nset r_clearcolour 0 0 0\nset com_parseutf8 0\ngl_overbright "FORWEB("0","2")"\nseta model sarge\nseta headmodel sarge\nseta handicap 100\ncom_gamedirnativecode 1\nsv_port "STRINGIFY(PORT_Q3SERVER)"\ncl_defaultport "STRINGIFY(PORT_Q3SERVER)"\ncom_protocolversion 68\n"
 //#define RMQCFG "sv_bigcoords 1\n"

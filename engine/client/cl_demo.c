@@ -2135,6 +2135,9 @@ void CL_DemoList_c(int argn, const char *partial, struct xcommandargcompletioncb
 		COM_EnumerateFiles(va("%s*.mvd", partial), CompleteDemoList, ctx);
 		COM_EnumerateFiles(va("%s*.mvd.gz", partial), CompleteDemoList, ctx);
 
+		COM_EnumerateFiles(va("%s*.dm2", partial), CompleteDemoList, ctx);
+		COM_EnumerateFiles(va("%s*.dm2.gz", partial), CompleteDemoList, ctx);
+
 		//fixme: show files in both .zip and .dz
 //		COM_EnumerateFiles(va("%s*.dz", partial), CompleteDemoList, ctx);
 	}

@@ -925,6 +925,7 @@ typedef struct
 	//used for q2 sky/configstrings
 	char skyname[MAX_QPATH];
 	float skyrotate;
+	qboolean skyautorotate;
 	vec3_t skyaxis;
 
 	qboolean	fog_locked;			//FIXME: make bitmask

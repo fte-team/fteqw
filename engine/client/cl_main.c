@@ -2250,6 +2250,7 @@ void CL_ClearState (qboolean gamestart)
 	cl.autotrack_killer = -1;
 	cl.downloadlist = pendingdownloads;
 	cl.faileddownloads = faileddownloads;
+	cl.skyautorotate = 1;
 
 	if (cfg_save_auto.ival && Cvar_UnsavedArchive())
 		Cmd_ExecuteString("cfg_save\n", RESTRICT_LOCAL);

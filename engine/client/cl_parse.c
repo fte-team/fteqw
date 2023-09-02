@@ -4716,7 +4716,13 @@ static void CLQ2_ParseConfigString (void)
 	else if (i == Q2CS_SKYAXIS || i == Q2CS_SKYROTATE)
 	{
 		if (i == Q2CS_SKYROTATE)
-			cl.skyrotate = atof(s);
+		{
+			s = COM_Parse(s);
+			cl.skyrotate = atof(com_token);
+			s = COM_Parse(s);
+			if (*com_token)
+				cl.skyautorotate = atoi(com_token);
+		}
 		else
 		{
 			s = COM_Parse(s);
@@ -4737,12 +4743,13 @@ static void CLQ2_ParseConfigString (void)
 		if (cl.skyrotate)
 		{
 			if (cl.skyaxis[0]||cl.skyaxis[1]||cl.skyaxis[2])
-				Cvar_Set(&r_skybox_orientation, va("%g %g %g %g", cl.skyaxis[0], cl.skyaxis[1], cl.skyaxis[2], cl.skyrotate));
+				Cvar_LockFromServer(&r_skybox_orientation, va("%g %g %g %g", cl.skyaxis[0], cl.skyaxis[1], cl.skyaxis[2], cl.skyrotate));
 			else
-				Cvar_Set(&r_skybox_orientation, va("0 0 1 %g", cl.skyrotate));
+				Cvar_LockFromServer(&r_skybox_orientation, va("0 0 1 %g", cl.skyrotate));
 		}
 		else
-			Cvar_Set(&r_skybox_orientation, "");
+			Cvar_LockFromServer(&r_skybox_orientation, "");
+		Cvar_LockFromServer(&r_skybox_autorotate, va("%i", cl.skyautorotate));
 	}
 	else if (i == Q2CS_STATUSBAR)
 	{

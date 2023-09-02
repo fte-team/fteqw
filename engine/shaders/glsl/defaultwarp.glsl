@@ -17,6 +17,9 @@ varying vec2 lm0;
 void main ()
 {
 	tc = v_texcoord.st;
+	#ifdef FLOWV
+	tc.st += e_time * vec2(FLOWV);
+	#endif
 	#ifdef FLOW
 	tc.s += e_time * -0.5;
 	#endif

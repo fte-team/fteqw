@@ -1428,7 +1428,7 @@ static texture_t *Mod_LoadWall(model_t *loadmodel, char *mapname, char *texname,
 		if (wal->offsets[0])
 			base = R_LoadReplacementTexture(wal->name, "bmodels", imageflags, (qbyte *)wal+wal->offsets[0], wal->width, wal->height, TF_SOLID8);
 		else
-			base = R_LoadReplacementTexture(wal->name, "bmodels", imageflags, NULL, 0, 0, TF_INVALID);
+			base = R_LoadHiResTexture(wal->name, "bmodels", imageflags);
 	}
 	else
 		base = NULL;
@@ -1529,11 +1529,20 @@ static qboolean CModQ2_LoadTexInfo (model_t *mod, qbyte *mod_base, lump_t *l, ch
 			Q_strncatz(sname, "#WARP", sizeof(sname));
 		if (out->flags & TI_FLOWING)
 			Q_strncatz(sname, "#FLOW", sizeof(sname));
+		if (out->flags & (TI_N64_SCROLL_X | TI_N64_SCROLL_Y | TI_N64_SCROLL_FLIP))
+		{
+			Q_snprintfz(sname+strlen(sname), sizeof(sname)-strlen(sname), "#FLOWV=%s%s,%s%s",
+						(out->flags&TI_N64_SCROLL_FLIP)?"":"-",
+						(out->flags&TI_N64_SCROLL_X)?"1.0":"0.0",
+						(out->flags&TI_N64_SCROLL_FLIP)?"-":"",
+						(out->flags&TI_N64_SCROLL_Y)?"1.0":"0.0"
+						);
+		}
 		if (out->flags & TI_TRANS66)
 			Q_strncatz(sname, "#ALPHA=0.66", sizeof(sname));
 		else if (out->flags & TI_TRANS33)
 			Q_strncatz(sname, "#ALPHA=0.33", sizeof(sname));
-		else if (out->flags & TI_KINGPIN_ALPHATEST) //kingpin...
+		else if (out->flags & (TI_KINGPIN_ALPHATEST|TI_Q2EX_ALPHATEST)) //kingpin...
 			Q_strncatz(sname, "#MASK=0.666#MASKLT", sizeof(sname));
 		else if (out->flags & (TI_WARP))
 			Q_strncatz(sname, "#ALPHA=1", sizeof(sname));

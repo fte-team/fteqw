@@ -2556,6 +2556,12 @@ void ModQ1_Batches_BuildQ1Q2Poly(model_t *mod, msurface_t *surf, builddata_t *co
 				mesh->st_array[i][0] /= surf->texinfo->texture->vwidth;
 			if (surf->texinfo->texture->vheight)
 				mesh->st_array[i][1] /= surf->texinfo->texture->vheight;
+
+			if (surf->texinfo->flags & TI_N64_UV)
+			{
+				mesh->st_array[i][0] /= 2;
+				mesh->st_array[i][1] /= 2;
+			}
 		}
 
 		if (flmv)

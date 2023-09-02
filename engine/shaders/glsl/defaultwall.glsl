@@ -78,6 +78,9 @@ void main ()
 	invsurface = mat3(v_svector, v_tvector, v_normal);
 #endif
 	tc = v_texcoord;
+#ifdef FLOWV
+	tc.st += e_time * vec2(FLOWV);
+#endif
 #ifdef FLOW
 	tc.s += e_time * -0.5;
 #endif

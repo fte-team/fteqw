@@ -649,6 +649,12 @@ typedef struct
 //#define TI_KINGPIN_WNDW33		0x4000
 //#define TI_KINGPIN_WNDW64		0x8000
 
+#define TI_Q2EX_ALPHATEST	(1u<<25)
+#define TI_N64_UV			(1u<<28)
+#define TI_N64_SCROLL_X		(1u<<29)
+#define TI_N64_SCROLL_Y		(1u<<30)
+#define TI_N64_SCROLL_FLIP	(1u<<31)
+
 //Surface flags
 //#define Q3SURFACEFLAG_NODAMAGE	0x1		// never give falling damage
 //#define Q3SURFACEFLAG_SLICK		0x2		// effects game physics

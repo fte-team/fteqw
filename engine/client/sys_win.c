@@ -124,7 +124,7 @@ double Sys_DoubleTime (void)
 void Sys_Quit (void)
 {
 	Host_Shutdown ();
-	exit(0);
+	exit(EXIT_SUCCESS);
 }
 
 void Sys_mkdir (const char *path)
@@ -900,7 +900,7 @@ DWORD CrashExceptionHandler (qboolean iswatchdog, DWORD exceptionCode, LPEXCEPTI
 				case IDYES:
 					break;	//take a dump.
 				case IDNO:
-					exit(0);
+					exit(EXIT_FAILURE);
 				default:	//cancel = run the exception handler, which means we reset the watchdog.
 					return EXCEPTION_EXECUTE_HANDLER;
 				}
@@ -950,7 +950,7 @@ LONG CALLBACK nonmsvc_CrashExceptionHandler(PEXCEPTION_POINTERS ExceptionInfo)
 	foo = CrashExceptionHandler(false, ExceptionInfo->ExceptionRecord->ExceptionCode, ExceptionInfo);
 	//we have no handler. thus we handle it by exiting.
 	if (foo == EXCEPTION_EXECUTE_HANDLER)
-		exit(1);
+		exit(EXIT_FAILURE);
 	return foo;
 }
 
@@ -1687,7 +1687,7 @@ void VARGS Sys_Error (const char *error, ...)
 		OutputDebugStringA("Leaks detected\n");
 #endif
 
-	exit (1);
+	exit (EXIT_FAILURE);
 }
 
 void VARGS Sys_Printf (char *fmt, ...)
@@ -1920,7 +1920,7 @@ void Sys_Quit (void)
 		OutputDebugStringA("Leaks detected\n");
 #endif
 
-	exit(1);
+	exit(EXIT_SUCCESS);
 }
 
 
@@ -4011,7 +4011,7 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 
 	/* previous instances do not exist in Win32 */
 	if (hPrevInstance)
-		return 0;
+		return EXIT_FAILURE;
 
 	/* determine if we're on nt early, so we don't do the wrong thing when checking commandlines */
 	{
@@ -4129,7 +4129,7 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 					return thefunc();
 			}
 			MessageBox(NULL, "Unable to start up plugin wrapper", FULLENGINENAME, 0);
-			return 0;
+			return EXIT_FAILURE;
 		}
 #endif
 
@@ -4154,7 +4154,7 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 		if (c)
 		{
 			Sys_DoFileAssociations(1, (c+1 < com_argc)?com_argv[c+1]:NULL);
-			return true;
+			return EXIT_SUCCESS;
 		}
 		/*
 		else if (!isPlugin)
@@ -4185,7 +4185,7 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 		if (COM_CheckParm("--version") || COM_CheckParm("-v"))
 		{
 			printf("version: %s\n", version_string());
-			return true;
+			return EXIT_SUCCESS;
 		}
 		if (COM_CheckParm("-outputdebugstring"))
 			debugout = true;
@@ -4208,7 +4208,7 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 		if (c)
 		{
 			Sys_MakeInstaller(parms.argv[c+1]);
-			return true;
+			return EXIT_SUCCESS;
 		}
 		parms.manifest = Sys_FindManifest();
 #endif
@@ -4240,14 +4240,14 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 						if (SendMessage(old, WM_COPYDATA, (WPARAM)GetDesktopWindow(), (LPARAM)&cds))
 						{
 							Sleep(10*1000);	//sleep for 10 secs so the real engine has a chance to open it, if the program that gave it is watching to see if we quit.
-							return 0;	//message sent.
+							return EXIT_SUCCESS;	//message sent.
 						}
 					}
 				}
 				else
 				{
 					MessageBox(NULL, va("Invalid commandline:\n%s", lpCmdLine), FULLENGINENAME, 0);
-					return 0;
+					return EXIT_FAILURE;
 				}
 
 				GetModuleFileName(NULL, cwd, sizeof(cwd)-1);
@@ -4329,7 +4329,7 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 				NET_Sleep(delay, false);
 				delay = SV_Frame();
 			}
-			return TRUE;
+			return EXIT_FAILURE;
 		}
 #endif
 
@@ -4353,7 +4353,7 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 			{
 				SetHookState(false);
 				Host_Shutdown ();
-				return TRUE;
+				return EXIT_FAILURE;
 			}
 		}
 
@@ -4418,13 +4418,13 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 #ifdef MSVC_SEH
 	__except (CrashExceptionHandler(false, GetExceptionCode(), GetExceptionInformation()))
 	{
-		return 1;
+		return EXIT_FAILURE;
 	}
 #endif
 #endif
 
 	/* return success of application */
-	return TRUE;
+	return EXIT_FAILURE;
 }
 #ifdef _MSC_VER
 #pragma optimize( "", on)	//revert back to default optimisations again.

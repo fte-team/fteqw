@@ -491,6 +491,7 @@ cvar_t r_glsl_offsetmapping_scale			= CVAR  ("r_glsl_offsetmapping_scale", "0.04
 cvar_t r_glsl_offsetmapping_reliefmapping	= CVARFD("r_glsl_offsetmapping_reliefmapping", "0", CVAR_ARCHIVE|CVAR_SHADERSYSTEM, "Changes the paralax sampling mode to be a bit nicer, but noticably more expensive at high resolutions. r_glsl_offsetmapping must be set.");
 cvar_t r_glsl_turbscale_reflect				= CVARFD  ("r_glsl_turbscale_reflect", "1", CVAR_ARCHIVE, "Controls the strength of the water reflection ripples (used by the altwater glsl code).");
 cvar_t r_glsl_turbscale_refract				= CVARFD  ("r_glsl_turbscale_refract", "1", CVAR_ARCHIVE, "Controls the strength of the underwater ripples (used by the altwater glsl code).");
+cvar_t r_glsl_emissive						= CVARFD  ("r_glsl_emissive", "1", CVAR_SHADERSYSTEM, "When set, specifies that the _luma or _glow textures are emissive... When 0 they are taken as a mask for the proportion of the lightmap that will apply (for q2e compat, has issues with overbrights).");
 
 cvar_t r_fastturbcolour						= CVARFD ("r_fastturbcolour", "0.1 0.2 0.3", CVAR_ARCHIVE, "The colour to use for water surfaces draw with r_waterstyle 0.");
 cvar_t r_waterstyle							= CVARFD ("r_waterstyle", "1", CVAR_ARCHIVE|CVAR_SHADERSYSTEM, "Changes how water, and teleporters are drawn. Possible values are:\n0: fastturb-style block colour.\n1: regular q1-style water.\n2: refraction(ripply and transparent)\n3: refraction with reflection at an angle\n4: ripplemapped without reflections (requires particle effects)\n5: ripples+reflections");
@@ -911,6 +912,7 @@ void Renderer_Init(void)
 	Cvar_Register (&r_glsl_offsetmapping_reliefmapping, GRAPHICALNICETIES);
 	Cvar_Register (&r_glsl_turbscale_reflect, GRAPHICALNICETIES);
 	Cvar_Register (&r_glsl_turbscale_refract, GRAPHICALNICETIES);
+	Cvar_Register (&r_glsl_emissive, GRAPHICALNICETIES);
 
 	Cvar_Register(&scr_viewsize, SCREENOPTIONS);
 	Cvar_Register(&scr_fov, SCREENOPTIONS);

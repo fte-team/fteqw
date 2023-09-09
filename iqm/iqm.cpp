@@ -4577,12 +4577,14 @@ void calcanimdata()
 				pose &j = poses.add();
 				j.name = p.bonename;
 				j.parent = -1;
-				loopk(p.remap)
-				{
-					if (!strcmp(poses[k].name, fr.pose[p.boneparent].bonename))
+				if(p.boneparent >= 0) {
+					loopk(p.remap)
 					{
-						j.parent = k;
-						break;
+						if (!strcmp(poses[k].name, fr.pose[p.boneparent].bonename))
+						{
+							j.parent = k;
+							break;
+						}
 					}
 				}
 				loopk(10) { j.offset[k] = 1e16f; j.scale[k] = -1e16f; }

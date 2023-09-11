@@ -1927,14 +1927,7 @@ void CL_SendDownloadReq(sizebuf_t *msg)
 }
 
 #ifdef PEXT_ZLIBDL
-#ifdef _WIN32
-#define ZEXPORT VARGS
-#include "../../zip/zlib.h"
-
-//# pragma comment (lib, "zip/zlib.lib")
-#else
 #include <zlib.h>
-#endif
 
 static char *ZLibDownloadDecode(int *messagesize, char *input, int finalsize)
 {

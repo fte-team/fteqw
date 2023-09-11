@@ -583,7 +583,9 @@ static int mpqf_blastout(void *how, unsigned char *buf, unsigned len)
 }
 static void MPQF_decompress(qboolean legacymethod, void *outdata, unsigned int outlen, void *indata, unsigned int inlen)
 {
+#ifdef AVAIL_ZLIB
 	int ret;
+#endif
 
 	int methods;
 	if (legacymethod)

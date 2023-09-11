@@ -4656,8 +4656,10 @@ static void * NET_KexLobby_CreateContext(const dtlscred_t *credinfo, void *cbctx
 
 	return peer;
 }
+#ifdef AVAIL_ZLIB
 size_t ZLib_DecompressBuffer(const qbyte *in, size_t insize, qbyte *out, size_t maxoutsize);
 size_t ZLib_CompressBuffer(const qbyte *in, size_t insize, qbyte *out, size_t maxoutsize);
+#endif
 static neterr_t NET_KexLobby_Received(void *ctx, sizebuf_t *message)
 {
 	static float throttle;
@@ -4992,6 +4994,7 @@ static neterr_t NET_KexLobby_Transmit(void *ctx, const qbyte *data, size_t lengt
 #endif
 	if (length >= 4 && ((const qbyte*)data)[3] & 0x80)
 	{	//reliables...
+#ifdef AVAIL_ZLIB
 		if (((const qbyte*)data)[0] == 0xff && ((const qbyte*)data)[1] == 0xff && ((const qbyte*)data)[2] == 0xff && ((const qbyte*)data)[3] == 0xff)
 		{	//connect packets should be compressed... 4/8 sets of userinfo can get big and bloated, but mostly it also helps obfuscate.
 			qbyte *zdata = alloca(length+1);
@@ -5002,6 +5005,7 @@ static neterr_t NET_KexLobby_Transmit(void *ctx, const qbyte *data, size_t lengt
 				return NET_KexLobby_SendMessage(peer, KEXLAN_RELIABLE|KEXLAN_ZGAMEPACKET, zdata, zlength+1);	//send this packet reliably!
 			}
 		}
+#endif
 		return NET_KexLobby_SendMessage(peer, KEXLAN_RELIABLE|KEXLAN_GAMEPACKET, data, length);	//send this packet reliably!
 	}
 	else
@@ -10003,7 +10007,7 @@ qboolean NET_WasSpecialPacket(ftenet_connections_t *collection)
 		return true;
 #endif
 
-#if defined(SUPPORT_ICE) || defined(MASTERONLY)
+#if defined(SUPPORT_ICE) || (defined(MASTERONLY) && defined(AVAIL_ZLIB))
 	if (ICE_WasStun(collection))
 		return true;
 #endif

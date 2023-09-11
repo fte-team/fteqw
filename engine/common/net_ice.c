@@ -98,7 +98,7 @@ typedef struct
 	unsigned short attrtype;
 	unsigned short attrlen;
 } stunattr_t;
-#if defined(SUPPORT_ICE) || defined(MASTERONLY)
+#if defined(SUPPORT_ICE) || (defined(MASTERONLY) && defined(AVAIL_ZLIB))
 #include "zlib.h"
 #endif
 #ifdef SUPPORT_ICE
@@ -4054,7 +4054,7 @@ qboolean SCTP_Handshake(const dtlsfuncs_t *dtlsfuncs, void *dtlsstate, sctp_t **
 //========================================
 #endif
 
-#if defined(SUPPORT_ICE) || defined(MASTERONLY)
+#if defined(SUPPORT_ICE) || (defined(MASTERONLY) && defined(AVAIL_ZLIB))
 qboolean ICE_WasStun(ftenet_connections_t *col)
 {
 #ifdef SUPPORT_ICE

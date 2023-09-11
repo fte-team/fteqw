@@ -27,6 +27,15 @@ Encode a client frame onto the network channel
 =============================================================================
 */
 
+static void MSG_WriteSizeQ2E(sizebuf_t *sb, int solid)
+{	//urgh...
+	if (solid != ES_SOLID_BSP && solid != ES_SOLID_NOT)
+		solid = ((solid & 255)<<0)	//recode fte's sizes to q2ex's...
+		      | ((solid & 255)<<8)
+		      | (((solid>>8) & 255)<<16)
+		      | ((((solid>>16) & 65535) - 32768+32)<<24);
+	MSG_WriteLong(sb, solid);
+}
 /*
 ==================
 MSG_WriteDeltaEntity
@@ -35,9 +44,9 @@ Writes part of a packetentities message.
 Can delta from either a baseline or a previous packet_entity
 ==================
 */
-void MSGQ2_WriteDeltaEntity (q2entity_state_t *from, q2entity_state_t *to, sizebuf_t *msg, qboolean force, qboolean newentity)
+void MSGQ2_WriteDeltaEntity (q2entity_state_t *from, q2entity_state_t *to, sizebuf_t *msg, qboolean force, qboolean newentity, qboolean q2ex)
 {
-	int		bits;
+	quint64_t		bits;
 
 	if (!to->number)
 		Sys_Error ("Unset entity number");
@@ -84,7 +93,16 @@ void MSGQ2_WriteDeltaEntity (q2entity_state_t *from, q2entity_state_t *to, sizeb
 
 	if ( to->effects != from->effects )
 	{
-		if (to->effects < 256)
+		if ((uint64_t)to->effects > 0xffffffffu)
+		{	//this encoding is weird, Q2UEX_EFFECTS64 without any of the other flags is equivelent to the 8|16==32bit flags, so is pointless without the extra ones.
+			if (to->effects < (uint64_t)256<<32)
+				bits |= Q2U_EFFECTS8|Q2UEX_EFFECTS64;
+			else if (to->effects < (uint64_t)0x8000<<32)
+				bits |= Q2U_EFFECTS16|Q2UEX_EFFECTS64;
+			else
+				bits |= Q2U_EFFECTS8|Q2U_EFFECTS16|Q2UEX_EFFECTS64;
+		}
+		else if (to->effects < 256)
 			bits |= Q2U_EFFECTS8;
 		else if (to->effects < 0x8000)
 			bits |= Q2U_EFFECTS16;
@@ -134,12 +152,19 @@ void MSGQ2_WriteDeltaEntity (q2entity_state_t *from, q2entity_state_t *to, sizeb
 			bits |= Q2UX_INDEX16;
 	}
 
-	if ( to->sound != from->sound )
+	if ( to->sound != from->sound /*||vol  or attn*/)
 	{
 		bits |= Q2U_SOUND;
-		if (to->sound > 0xff)
+		if (to->sound > 0xff && !q2ex)
 			bits |= Q2UX_INDEX16;
 	}
+
+
+//	if (to->alpha != from->alpha) bits |= Q2UEX_ALPHA;
+//	if (to->scale != from->scale)bits |= Q2UEX_SCALE;
+//	if (to->instance != from->instance) bits |= Q2UEX_INSTANCE;
+//	if (to->owner != from->owner) bits |= Q2UEX_OWNER;
+//	if (to->oldframe != from->oldframe) bits |= Q2UEX_OLDFRAME;
 
 	if (newentity || (to->renderfx & Q2RF_BEAM))
 		bits |= Q2U_OLDORIGIN;
@@ -152,7 +177,9 @@ void MSGQ2_WriteDeltaEntity (q2entity_state_t *from, q2entity_state_t *to, sizeb
 
 	//----------
 
-	if (bits & 0xff000000)
+	if (bits & 0xff00000000)
+		bits |= Q2UEX_MOREBITS4 | Q2U_MOREBITS3 | Q2U_MOREBITS2 | Q2U_MOREBITS1;
+	else if (bits & 0xff000000)
 		bits |= Q2U_MOREBITS3 | Q2U_MOREBITS2 | Q2U_MOREBITS1;
 	else if (bits & 0x00ff0000)
 		bits |= Q2U_MOREBITS2 | Q2U_MOREBITS1;
@@ -161,7 +188,14 @@ void MSGQ2_WriteDeltaEntity (q2entity_state_t *from, q2entity_state_t *to, sizeb
 
 	MSG_WriteByte (msg,	bits&255 );
 
-	if (bits & 0xff000000)
+	if (bits & 0xff00000000)
+	{
+		MSG_WriteByte (msg,	(bits>>8)&255 );
+		MSG_WriteByte (msg,	(bits>>16)&255 );
+		MSG_WriteByte (msg,	(bits>>24)&255 );
+		MSG_WriteByte (msg,	(bits>>32)&255 );
+	}
+	else if (bits & 0xff000000)
 	{
 		MSG_WriteByte (msg,	(bits>>8)&255 );
 		MSG_WriteByte (msg,	(bits>>16)&255 );
@@ -225,13 +259,25 @@ void MSGQ2_WriteDeltaEntity (q2entity_state_t *from, q2entity_state_t *to, sizeb
 	else if (bits & Q2U_SKIN16)
 		MSG_WriteShort (msg, to->skinnum);
 
-
-	if ( (bits & (Q2U_EFFECTS8|Q2U_EFFECTS16)) == (Q2U_EFFECTS8|Q2U_EFFECTS16) )
+	if (bits & Q2UEX_EFFECTS64)
+	{
 		MSG_WriteLong (msg, to->effects);
-	else if (bits & Q2U_EFFECTS8)
-		MSG_WriteByte (msg, to->effects);
-	else if (bits & Q2U_EFFECTS16)
-		MSG_WriteShort (msg, to->effects);
+		if ( (bits & (Q2U_EFFECTS8|Q2U_EFFECTS16)) == (Q2U_EFFECTS8|Q2U_EFFECTS16) )
+			MSG_WriteLong (msg, (quint64_t)to->effects>>32);
+		else if (bits & Q2U_EFFECTS8)
+			MSG_WriteByte (msg, (quint64_t)to->effects>>32);
+		else if (bits & Q2U_EFFECTS16)
+			MSG_WriteShort (msg, (quint64_t)to->effects>>32);
+	}
+	else
+	{
+		if ( (bits & (Q2U_EFFECTS8|Q2U_EFFECTS16)) == (Q2U_EFFECTS8|Q2U_EFFECTS16) )
+			MSG_WriteLong (msg, to->effects);
+		else if (bits & Q2U_EFFECTS8)
+			MSG_WriteByte (msg, to->effects);
+		else if (bits & Q2U_EFFECTS16)
+			MSG_WriteShort (msg, to->effects);
+	}
 
 	if ( (bits & (Q2U_RENDERFX8|Q2U_RENDERFX16)) == (Q2U_RENDERFX8|Q2U_RENDERFX16) )
 		MSG_WriteLong (msg, to->renderfx);
@@ -240,44 +286,113 @@ void MSGQ2_WriteDeltaEntity (q2entity_state_t *from, q2entity_state_t *to, sizeb
 	else if (bits & Q2U_RENDERFX16)
 		MSG_WriteShort (msg, to->renderfx);
 
-	if (bits & Q2U_ORIGIN1)
-		MSG_WriteCoord (msg, to->origin[0]);		
-	if (bits & Q2U_ORIGIN2)
-		MSG_WriteCoord (msg, to->origin[1]);
-	if (bits & Q2U_ORIGIN3)
-		MSG_WriteCoord (msg, to->origin[2]);
-
-	if (bits & Q2U_ANGLE1)
-		MSG_WriteAngle(msg, to->angles[0]);
-	if (bits & Q2U_ANGLE2)
-		MSG_WriteAngle(msg, to->angles[1]);
-	if (bits & Q2U_ANGLE3)
-		MSG_WriteAngle(msg, to->angles[2]);
-
-	if (bits & Q2U_OLDORIGIN)
+	if (q2ex)
 	{
-		MSG_WriteCoord (msg, to->old_origin[0]);
-		MSG_WriteCoord (msg, to->old_origin[1]);
-		MSG_WriteCoord (msg, to->old_origin[2]);
+		if (bits & Q2U_SOLID)
+			MSG_WriteSizeQ2E(msg, to->solid);
+
+		if (!to->solid)
+		{	//demos reportedly compress these... not that it makes a difference.
+			if (bits & Q2U_ORIGIN1)
+				MSG_WriteCoord (msg, to->origin[0]);
+			if (bits & Q2U_ORIGIN2)
+				MSG_WriteCoord (msg, to->origin[1]);
+			if (bits & Q2U_ORIGIN3)
+				MSG_WriteCoord (msg, to->origin[2]);
+
+			if (bits & Q2U_OLDORIGIN)
+			{
+				MSG_WriteCoord (msg, to->old_origin[0]);
+				MSG_WriteCoord (msg, to->old_origin[1]);
+				MSG_WriteCoord (msg, to->old_origin[2]);
+			}
+		}
+		else
+		{
+			if (bits & Q2U_ORIGIN1)
+				MSG_WriteFloat (msg, to->origin[0]);
+			if (bits & Q2U_ORIGIN2)
+				MSG_WriteFloat (msg, to->origin[1]);
+			if (bits & Q2U_ORIGIN3)
+				MSG_WriteFloat (msg, to->origin[2]);
+
+			if (bits & Q2U_OLDORIGIN)
+			{
+				MSG_WriteFloat (msg, to->old_origin[0]);
+				MSG_WriteFloat (msg, to->old_origin[1]);
+				MSG_WriteFloat (msg, to->old_origin[2]);
+			}
+		}
+
+		if (bits & Q2U_ANGLE1)
+			MSG_WriteFloat(msg, to->angles[0]);	//blatent overkill.
+		if (bits & Q2U_ANGLE2)
+			MSG_WriteFloat(msg, to->angles[1]);
+		if (bits & Q2U_ANGLE3)
+			MSG_WriteFloat(msg, to->angles[2]);
+	}
+	else
+	{
+		if (bits & Q2U_ORIGIN1)
+			MSG_WriteCoord (msg, to->origin[0]);
+		if (bits & Q2U_ORIGIN2)
+			MSG_WriteCoord (msg, to->origin[1]);
+		if (bits & Q2U_ORIGIN3)
+			MSG_WriteCoord (msg, to->origin[2]);
+
+		if (bits & Q2U_ANGLE1)
+			MSG_WriteAngle(msg, to->angles[0]);
+		if (bits & Q2U_ANGLE2)
+			MSG_WriteAngle(msg, to->angles[1]);
+		if (bits & Q2U_ANGLE3)
+			MSG_WriteAngle(msg, to->angles[2]);
+
+		if (bits & Q2U_OLDORIGIN)
+		{
+			MSG_WriteCoord (msg, to->old_origin[0]);
+			MSG_WriteCoord (msg, to->old_origin[1]);
+			MSG_WriteCoord (msg, to->old_origin[2]);
+		}
 	}
 
 	if (bits & Q2U_SOUND)
 	{
-		if (bits & Q2UX_INDEX16)
-			MSG_WriteShort	(msg,	to->sound);
+		if (q2ex)
+		{
+#if 1
+			MSG_WriteShort	(msg,	to->sound&0x3fff);
+#else
+			MSG_WriteShort	(msg,	to->sound&0x3fff | ((to->soundvol!=1)?0x4000:0))  | ((to->soundattn!=3)?0x8000:0));
+			MSG_WriteByte	(msg,	to->soundvol*255);
+			MSG_WriteByte	(msg,	to->soundattn);	//this is normally a /64, but oh well...
+#endif
+		}
 		else
-			MSG_WriteByte	(msg,	to->sound);
+		{
+			if (bits & Q2UX_INDEX16)
+				MSG_WriteShort	(msg,	to->sound);
+			else
+				MSG_WriteByte	(msg,	to->sound);
+		}
 	}
 
 	if (bits & Q2U_EVENT)
 		MSG_WriteByte (msg, to->event);
-	if (bits & Q2U_SOLID)
-	{
-		if (msg->prim.flags & NPQ2_SOLID32)
-			MSG_WriteLong(msg, to->solid);
-		else
-			MSG_WriteSize16(msg, to->solid);
-	}
+
+	if (!q2ex)
+		if (bits & Q2U_SOLID)
+		{
+			if (msg->prim.flags & NPQ2_SOLID32)
+				MSG_WriteLong(msg, to->solid);
+			else
+				MSG_WriteSize16(msg, to->solid);
+		}
+
+	if (bits & Q2UEX_ALPHA)		MSG_WriteByte(msg, 0);
+	if (bits & Q2UEX_SCALE)		MSG_WriteByte(msg, 0);
+	if (bits & Q2UEX_INSTANCE)	MSG_WriteByte(msg, 0);
+	if (bits & Q2UEX_OWNER)		MSG_WriteShort(msg, 0);
+	if (bits & Q2UEX_OLDFRAME)	MSG_WriteShort(msg, 0);
 }
 
 
@@ -288,7 +403,7 @@ SV_EmitPacketEntities
 Writes a delta update of an entity_state_t list to the message.
 =============
 */
-void SVQ2_EmitPacketEntities (q2client_frame_t *from, q2client_frame_t *to, sizebuf_t *msg)
+void SVQ2_EmitPacketEntities (q2client_frame_t *from, q2client_frame_t *to, sizebuf_t *msg, qboolean q2ex)
 {
 	q2entity_state_t	*oldent, *newent;
 	int		oldindex, newindex;
@@ -338,7 +453,7 @@ void SVQ2_EmitPacketEntities (q2client_frame_t *from, q2client_frame_t *to, size
 			if (msg->cursize+128 > msg->maxsize)
 				memcpy(newent, oldent, sizeof(*newent));	//too much data, so set the ent up as the same as the old, so it's sent next frame
 			else
-				MSGQ2_WriteDeltaEntity (oldent, newent, msg, false, newent->number <= svs.allocated_client_slots);
+				MSGQ2_WriteDeltaEntity (oldent, newent, msg, false, newent->number <= svs.allocated_client_slots, q2ex);
 			oldindex++;
 			newindex++;
 			continue;
@@ -355,7 +470,7 @@ void SVQ2_EmitPacketEntities (q2client_frame_t *from, q2client_frame_t *to, size
 			}
 			else
 			{
-				MSGQ2_WriteDeltaEntity (&sv_baselines[newnum], newent, msg, true, true);
+				MSGQ2_WriteDeltaEntity (&sv_baselines[newnum], newent, msg, true, true, q2ex);
 				newindex++;
 			}
 			continue;
@@ -397,13 +512,16 @@ SV_WritePlayerstateToClient
 
 =============
 */
-void SVQ2_WritePlayerstateToClient (unsigned int pext, int seat, int extflags, q2client_frame_t *from, q2client_frame_t *to, sizebuf_t *msg)
+void SVQ2_WritePlayerstateToClient (client_t *client, int seat, int extflags, q2client_frame_t *from, q2client_frame_t *to, sizebuf_t *msg)
 {
 	int				i;
 	int				pflags;
 	q2player_state_t	*ps, *ops;
 	q2player_state_t	dummy;
 	int				statbits;
+	unsigned int pext = client->fteprotocolextensions;
+	unsigned int q2e = client->protocol == SCP_QUAKE2EX;
+
 
 	ps = &to->ps[seat];
 	if (!from)
@@ -421,7 +539,7 @@ void SVQ2_WritePlayerstateToClient (unsigned int pext, int seat, int extflags, q
 
 	if (pext & PEXT_SPLITSCREEN)
 		if (!from || from->clientnum[seat] != to->clientnum[seat])
-			pflags |= Q2PS_CLIENTNUM;
+			pflags |= Q2FTEPS_CLIENTNUM;
 
 	if (ps->pmove.pm_type != ops->pmove.pm_type)
 		pflags |= Q2PS_M_TYPE;
@@ -487,9 +605,9 @@ void SVQ2_WritePlayerstateToClient (unsigned int pext, int seat, int extflags, q
 	if (pext & PEXT_MODELDBL)
 	{
 		if ((pflags & Q2PS_WEAPONINDEX) && ps->gunindex > 0xff)
-			pflags |= Q2PS_INDEX16;
+			pflags |= Q2FTEPS_INDEX16;
 		if ((pflags & Q2PS_WEAPONFRAME) && ps->gunframe > 0xff)
-			pflags |= Q2PS_INDEX16;
+			pflags |= Q2FTEPS_INDEX16;
 	}
 
 	if (pflags > 0xffff)
@@ -501,42 +619,101 @@ void SVQ2_WritePlayerstateToClient (unsigned int pext, int seat, int extflags, q
 	MSG_WriteByte (msg, svcq2_playerinfo);
 	MSG_WriteShort (msg, pflags&0xffff);
 	if (pflags & Q2PS_EXTRABITS)
-		MSG_WriteByte (msg, pflags>>16);
+	{
+		if (q2e)
+			MSG_WriteShort (msg, pflags>>16);
+		else
+			MSG_WriteByte (msg, pflags>>16);
+	}
 
 	//
 	// write the pmove_state_t
 	//
 	if (pflags & Q2PS_M_TYPE)
-		MSG_WriteByte (msg, ps->pmove.pm_type);
-
-	if (pflags & Q2PS_M_ORIGIN)
 	{
-		MSG_WriteShort (msg, ps->pmove.origin[0]);
-		MSG_WriteShort (msg, ps->pmove.origin[1]);
-		MSG_WriteShort (msg, ps->pmove.origin[2]);
+		i = ps->pmove.pm_type;
+		if (q2e)
+		{	//sigh... q2e added some extra pmove types that we don't support, and not on the end. :(
+			switch((q2pmtype_t)i)
+			{
+			case Q2PM_NORMAL:		i = Q2EPM_NORMAL;		break;
+			//case Q2PM_GRAPPLE:	i = Q2EPM_GRAPPLE;		break;
+			case Q2PM_SPECTATOR:	i = Q2EPM_SPECTATOR;	break;
+			//case Q2PM_SPECTATOR2:	i = Q2EPM_SPECTATOR2;	break;
+			case Q2PM_DEAD:			i = Q2EPM_DEAD;			break;
+			case Q2PM_GIB:			i = Q2EPM_GIB;			break;
+			case Q2PM_FREEZE:		i = Q2EPM_FREEZE;		break;
+			}
+		}
+		MSG_WriteByte (msg, i);
 	}
 
-	if (pflags & Q2PS_M_VELOCITY)
+	if (q2e)
 	{
-		MSG_WriteShort (msg, ps->pmove.velocity[0]);
-		MSG_WriteShort (msg, ps->pmove.velocity[1]);
-		MSG_WriteShort (msg, ps->pmove.velocity[2]);
+		if (pflags & Q2PS_M_ORIGIN)
+		{
+			MSG_WriteFloat (msg, ps->pmove.origin[0]/8.0);
+			MSG_WriteFloat (msg, ps->pmove.origin[1]/8.0);
+			MSG_WriteFloat (msg, ps->pmove.origin[2]/8.0);
+		}
+
+		if (pflags & Q2PS_M_VELOCITY)
+		{
+			MSG_WriteFloat (msg, ps->pmove.velocity[0]/8.0);
+			MSG_WriteFloat (msg, ps->pmove.velocity[1]/8.0);
+			MSG_WriteFloat (msg, ps->pmove.velocity[2]/8.0);
+		}
+	}
+	else
+	{
+		if (pflags & Q2PS_M_ORIGIN)
+		{
+			MSG_WriteShort (msg, ps->pmove.origin[0]);
+			MSG_WriteShort (msg, ps->pmove.origin[1]);
+			MSG_WriteShort (msg, ps->pmove.origin[2]);
+		}
+
+		if (pflags & Q2PS_M_VELOCITY)
+		{
+			MSG_WriteShort (msg, ps->pmove.velocity[0]);
+			MSG_WriteShort (msg, ps->pmove.velocity[1]);
+			MSG_WriteShort (msg, ps->pmove.velocity[2]);
+		}
 	}
 
 	if (pflags & Q2PS_M_TIME)
-		MSG_WriteByte (msg, ps->pmove.pm_time);
+	{
+		if (q2e)
+			MSG_WriteShort (msg, ps->pmove.pm_time);
+		else
+			MSG_WriteByte (msg, ps->pmove.pm_time);
+	}
 
 	if (pflags & Q2PS_M_FLAGS)
-		MSG_WriteByte (msg, ps->pmove.pm_flags);
+	{
+		if (q2e)
+			MSG_WriteShort (msg, ps->pmove.pm_flags);
+		else
+			MSG_WriteByte (msg, ps->pmove.pm_flags);
+	}
 
 	if (pflags & Q2PS_M_GRAVITY)
 		MSG_WriteShort (msg, ps->pmove.gravity);
 
 	if (pflags & Q2PS_M_DELTA_ANGLES)
 	{
-		MSG_WriteShort (msg, ps->pmove.delta_angles[0]);
-		MSG_WriteShort (msg, ps->pmove.delta_angles[1]);
-		MSG_WriteShort (msg, ps->pmove.delta_angles[2]);
+		if (q2e)
+		{
+			MSG_WriteFloat (msg, SHORT2ANGLE(ps->pmove.delta_angles[0]));
+			MSG_WriteFloat (msg, SHORT2ANGLE(ps->pmove.delta_angles[1]));
+			MSG_WriteFloat (msg, SHORT2ANGLE(ps->pmove.delta_angles[2]));
+		}
+		else
+		{
+			MSG_WriteShort (msg, ps->pmove.delta_angles[0]);
+			MSG_WriteShort (msg, ps->pmove.delta_angles[1]);
+			MSG_WriteShort (msg, ps->pmove.delta_angles[2]);
+		}
 	}
 
 	//
@@ -544,46 +721,102 @@ void SVQ2_WritePlayerstateToClient (unsigned int pext, int seat, int extflags, q
 	//
 	if (pflags & Q2PS_VIEWOFFSET)
 	{
-		MSG_WriteChar (msg, ps->viewoffset[0]*4);
-		MSG_WriteChar (msg, ps->viewoffset[1]*4);
-		MSG_WriteChar (msg, ps->viewoffset[2]*4);
+		if (q2e)
+		{
+			MSG_WriteShort (msg, ps->viewoffset[0]*16);
+			MSG_WriteShort (msg, ps->viewoffset[1]*16);
+			MSG_WriteShort (msg, (ps->viewoffset[2]-DEFAULT_VIEWHEIGHT)*16);
+			MSG_WriteChar (msg, DEFAULT_VIEWHEIGHT/*ps->pmove.viewheight*/);
+		}
+		else
+		{
+			MSG_WriteChar (msg, ps->viewoffset[0]*4);
+			MSG_WriteChar (msg, ps->viewoffset[1]*4);
+			MSG_WriteChar (msg, ps->viewoffset[2]*4);
+		}
 	}
 
 
 	if (pflags & Q2PS_VIEWANGLES)
 	{
-		MSG_WriteAngle16 (msg, ps->viewangles[0]);
-		MSG_WriteAngle16 (msg, ps->viewangles[1]);
-		MSG_WriteAngle16 (msg, ps->viewangles[2]);
+		if (q2e)
+		{
+			MSG_WriteFloat (msg, ps->viewangles[0]);
+			MSG_WriteFloat (msg, ps->viewangles[1]);
+			MSG_WriteFloat (msg, ps->viewangles[2]);
+		}
+		else
+		{
+			MSG_WriteAngle16 (msg, ps->viewangles[0]);
+			MSG_WriteAngle16 (msg, ps->viewangles[1]);
+			MSG_WriteAngle16 (msg, ps->viewangles[2]);
+		}
 	}
 
 	if (pflags & Q2PS_KICKANGLES)
 	{
-		MSG_WriteChar (msg, ps->kick_angles[0]*4);
-		MSG_WriteChar (msg, ps->kick_angles[1]*4);
-		MSG_WriteChar (msg, ps->kick_angles[2]*4);
+		if (q2e)
+		{
+			MSG_WriteShort (msg, ps->kick_angles[0]*1024);
+			MSG_WriteShort (msg, ps->kick_angles[1]*1024);
+			MSG_WriteShort (msg, ps->kick_angles[2]*1024);
+		}
+		else
+		{
+			MSG_WriteChar (msg, ps->kick_angles[0]*4);
+			MSG_WriteChar (msg, ps->kick_angles[1]*4);
+			MSG_WriteChar (msg, ps->kick_angles[2]*4);
+		}
 	}
 
 	if (pflags & Q2PS_WEAPONINDEX)
 	{
-		if (pflags & Q2PS_INDEX16)
-			MSG_WriteShort(msg, ps->gunindex);
+		if (q2e)
+			MSG_WriteShort(msg, (0/*gunskin*/<<13) | ps->gunindex);
 		else
-			MSG_WriteByte (msg, ps->gunindex);
+		{
+			if (pflags & Q2FTEPS_INDEX16)
+				MSG_WriteShort(msg, ps->gunindex);
+			else
+				MSG_WriteByte (msg, ps->gunindex);
+		}
 	}
 
 	if (pflags & Q2PS_WEAPONFRAME)
 	{
-		if (pflags & Q2PS_INDEX16)
-			MSG_WriteShort (msg, ps->gunframe);
+		if (q2e)
+		{
+			unsigned short fl = ps->gunframe&0x1ff;
+			if (ps->gunoffset[0]) fl |= 1<<9;
+			if (ps->gunoffset[1]) fl |= 1<<10;
+			if (ps->gunoffset[2]) fl |= 1<<11;
+			if (ps->gunangles[0]) fl |= 1<<12;
+			if (ps->gunangles[1]) fl |= 1<<13;
+			if (ps->gunangles[2]) fl |= 1<<14;
+			//if (ps->gunrate[2]) fl |= 1<<15;
+
+			MSG_WriteShort (msg, fl);
+			if (fl & (1<<9))	MSG_WriteFloat(msg, ps->gunoffset[0]);
+			if (fl & (1<<10))	MSG_WriteFloat(msg, ps->gunoffset[1]);
+			if (fl & (1<<11))	MSG_WriteFloat(msg, ps->gunoffset[2]);
+			if (fl & (1<<12))	MSG_WriteFloat(msg, ps->gunangles[0]);
+			if (fl & (1<<13))	MSG_WriteFloat(msg, ps->gunangles[1]);
+			if (fl & (1<<14))	MSG_WriteFloat(msg, ps->gunangles[2]);
+			//if (fl & (1<<15))	MSG_WriteByte(msg, ps->gunrate);
+		}
 		else
-			MSG_WriteByte (msg, ps->gunframe);
-		MSG_WriteChar (msg, ps->gunoffset[0]*4);
-		MSG_WriteChar (msg, ps->gunoffset[1]*4);
-		MSG_WriteChar (msg, ps->gunoffset[2]*4);
-		MSG_WriteChar (msg, ps->gunangles[0]*4);
-		MSG_WriteChar (msg, ps->gunangles[1]*4);
-		MSG_WriteChar (msg, ps->gunangles[2]*4);
+		{
+			if (pflags & Q2FTEPS_INDEX16)
+				MSG_WriteShort (msg, ps->gunframe);
+			else
+				MSG_WriteByte (msg, ps->gunframe);
+			MSG_WriteChar (msg, ps->gunoffset[0]*4);
+			MSG_WriteChar (msg, ps->gunoffset[1]*4);
+			MSG_WriteChar (msg, ps->gunoffset[2]*4);
+			MSG_WriteChar (msg, ps->gunangles[0]*4);
+			MSG_WriteChar (msg, ps->gunangles[1]*4);
+			MSG_WriteChar (msg, ps->gunangles[2]*4);
+		}
 	}
 
 	if (pflags & Q2PS_BLEND)
@@ -601,16 +834,40 @@ void SVQ2_WritePlayerstateToClient (unsigned int pext, int seat, int extflags, q
 
 	// send stats
 	statbits = 0;
-	for (i=0 ; i<Q2MAX_STATS ; i++)
+	for (i=0 ; i<min(32,Q2MAX_STATS); i++)
 		if (ps->stats[i] != ops->stats[i])
 			statbits |= 1<<i;
 	MSG_WriteLong (msg, statbits);
-	for (i=0 ; i<Q2MAX_STATS ; i++)
+	for (i=0 ; i<min(32,Q2MAX_STATS) ; i++)
 		if (statbits & (1<<i) )
 			MSG_WriteShort (msg, ps->stats[i]);
 
-	if ((extflags & Q2PSX_CLIENTNUM) || (pflags & Q2PS_CLIENTNUM))
-		MSG_WriteByte(msg, to->clientnum[seat]);
+	if (q2e)
+	{
+		statbits = 0;
+		for (i=0 ; i<Q2MAX_STATS-32 ; i++)
+			if (ps->stats[32+i] != ops->stats[32+i])
+				statbits |= 1<<i;
+		MSG_WriteLong (msg, statbits);
+		for (i=0 ; i<Q2MAX_STATS-32 ; i++)
+			if (statbits & (1<<i) )
+				MSG_WriteShort (msg, ps->stats[32+i]);
+
+		if (pflags & Q2EXPS_DAMAGEBLEND)
+		{
+			MSG_WriteByte(msg, 0*255);
+			MSG_WriteByte(msg, 0*255);
+			MSG_WriteByte(msg, 0*255);
+			MSG_WriteByte(msg, 0*255);
+		}
+		if (pflags & Q2EXPS_TEAMID)
+			MSG_WriteByte(msg, 0);
+	}
+	else
+	{
+		if ((extflags & Q2PSX_CLIENTNUM) || (pflags & Q2FTEPS_CLIENTNUM))
+			MSG_WriteByte(msg, to->clientnum[seat]);
+	}
 }
 
 
@@ -655,16 +912,31 @@ void SVQ2_WriteFrameToClient (client_t *client, sizebuf_t *msg)
 	extflags |= Q2PSX_OLD;
 	client->chokecount = 0;
 
-	// send over the areabits
-	MSG_WriteByte (msg, frame->areabytes);
-	SZ_Write (msg, frame->areabits, frame->areabytes);
+	if (client->protocol == SCP_QUAKE2EX)
+	{
+		for (split = client, seat = 0; split; split = split->controlled, seat++)
+		{
+			// send over the areabits, private per-seat
+			MSG_WriteByte (msg, frame->areabytes);
+			SZ_Write (msg, frame->areabits, frame->areabytes);
 
-	// delta encode the playerstate
-	for (split = client, seat = 0; split; split = split->controlled, seat++)
-		SVQ2_WritePlayerstateToClient (client->fteprotocolextensions, seat, extflags, oldframe, frame, msg);
+			// delta encode the playerstate
+			SVQ2_WritePlayerstateToClient (client, seat, extflags, oldframe, frame, msg);
+		}
+	}
+	else
+	{
+		// send over the areabits, shared between all seats
+		MSG_WriteByte (msg, frame->areabytes);
+		SZ_Write (msg, frame->areabits, frame->areabytes);
+
+		// delta encode the playerstate
+		for (split = client, seat = 0; split; split = split->controlled, seat++)
+			SVQ2_WritePlayerstateToClient (client, seat, extflags, oldframe, frame, msg);
+	}
 
 	// delta encode the entities
-	SVQ2_EmitPacketEntities (oldframe, frame, msg);
+	SVQ2_EmitPacketEntities (oldframe, frame, msg, client->protocol==SCP_QUAKE2EX);
 }
 
 

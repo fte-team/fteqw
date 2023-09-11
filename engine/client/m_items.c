@@ -2365,7 +2365,17 @@ qboolean MC_Main_Key (emenu_t *menu, int key, unsigned int unicode)	//here purly
 		//don't spam menu open+close events if we're not going to be allowing the console to appear
 		if (con_stayhidden.ival && cls.state == ca_disconnected)
 			if (!CL_TryingToConnect())
+			{
+				extern cvar_t cl_demoreel;
+				if (cl_demoreel.ival)
+				{	//start a demo instead. this should probably be on a timer...
+					cls.demonum = MAX_DEMOS;
+					CL_NextDemo();
+					if (cls.state)
+						return false;
+				}
 				return true;
+			}
 	}
 	return false;
 }

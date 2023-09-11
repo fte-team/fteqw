@@ -207,8 +207,9 @@ typedef struct server_s
 #endif
 
 #ifdef Q2SERVER
-	sizebuf_t	q2multicast;
-	qbyte		q2multicast_buf[MAX_Q2MSGLEN];
+	sizebuf_t	q2multicast[2];	//0=little/legacy coords, 1=big coords (used for q2e compat)
+	qbyte		q2multicast_lcbuf[MAX_Q2MSGLEN];
+	qbyte		q2multicast_bcbuf[MAX_Q2MSGLEN*2];
 #endif
 
 	// the master buffer is used for building log packets
@@ -441,6 +442,7 @@ enum serverprotocols_e
 	SCP_BAD,	//don't send (a bot)
 	SCP_QUAKEWORLD,
 	SCP_QUAKE2,
+	SCP_QUAKE2EX,
 	SCP_QUAKE3,
 	//all the below are considered netquake clients.
 	SCP_NETQUAKE,
@@ -748,7 +750,7 @@ typedef struct client_s
 
 #if defined(NQPROT) || defined(Q2SERVER) || defined(Q3SERVER)
 #define ISQWCLIENT(cl) ((cl)->protocol == SCP_QUAKEWORLD)
-#define ISQ2CLIENT(cl) ((cl)->protocol == SCP_QUAKE2)
+#define ISQ2CLIENT(cl) ((cl)->protocol >= SCP_QUAKE2 && (cl)->protocol <= SCP_QUAKE2EX)
 #define ISQ3CLIENT(cl) ((cl)->protocol == SCP_QUAKE3)
 #define ISNQCLIENT(cl) ((cl)->protocol >= SCP_NETQUAKE)
 #define ISDPCLIENT(cl) ((cl)->protocol >= SCP_DARKPLACES6)
@@ -1190,7 +1192,10 @@ typedef struct
 #endif
 	int			challenge;					//the challenge used at connect. remembered to make life harder for proxies.
 	int			mtu;						//allowed fragment size (also signifies that it supports fragmented qw packets)
-	char		userinfo[2048];				//random userinfo data. no blobs, obviously.
+	int seats;
+	struct	{
+		char		info[2048];				//random userinfo data. no blobs, obviously.
+	} seat[MAX_SPLITS];
 	char		guid[128];					//user's guid data
 	netadr_t	adr;						//the address the connect request came from (so we can check passwords before accepting)
 } svconnectinfo_t;
@@ -1282,7 +1287,7 @@ void VARGS PFQ2_Configstring (int i, const char *val); //for engine cheats.
 void SVQ2_BuildClientFrame (client_t *client);
 void SVQ2_WriteFrameToClient (client_t *client, sizebuf_t *msg);
 #ifdef Q2SERVER
-void MSGQ2_WriteDeltaEntity (q2entity_state_t *from, q2entity_state_t *to, sizebuf_t *msg, qboolean force, qboolean newentity);
+void MSGQ2_WriteDeltaEntity (q2entity_state_t *from, q2entity_state_t *to, sizebuf_t *msg, qboolean force, qboolean newentity, qboolean q2ex);
 void SVQ2_BuildBaselines(void);
 #endif
 

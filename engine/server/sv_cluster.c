@@ -1807,7 +1807,7 @@ qboolean MSV_ClusterLoginSQLResult(queryrequest_t *req, int firstrow, int numrow
 		if (!playerid)
 			SV_RejectMessage(info->protocol, "Bad username or password.\n");
 		else if (sv.state == ss_clustermode)
-			MSV_ClusterLoginReply(NULL, serverid, playerid, Info_ValueForKey(info->userinfo, "name"), info->guid, &info->adr, statsblob, blobsize);
+			MSV_ClusterLoginReply(NULL, serverid, playerid, Info_ValueForKey(info->seat[0].info, "name"), info->guid, &info->adr, statsblob, blobsize);
 		else
 			SV_DoDirectConnect(info);
 		Z_Free(info);
@@ -1876,8 +1876,8 @@ qboolean MSV_ClusterLogin(svconnectinfo_t *info)
 		sql = SQL_GetServer(&sv, sv.logindatabase, false);
 		if (!sql)
 			return true;	//connection was killed? o.O
-		SQL_Escape(sql, Info_ValueForKey(info->userinfo, "name"), escname, sizeof(escname));
-		SQL_Escape(sql, Info_ValueForKey(info->userinfo, "password"), escpasswd, sizeof(escpasswd));
+		SQL_Escape(sql, Info_ValueForKey(info->seat[0].info, "name"), escname, sizeof(escname));
+		SQL_Escape(sql, Info_ValueForKey(info->seat[0].info, "password"), escpasswd, sizeof(escpasswd));
 		if (SQL_NewQuery(sql, MSV_ClusterLoginSQLResult, va("SELECT playerid,serverid,parms,parmstring FROM accounts WHERE name='%s' AND password='%s';", escname, escpasswd), &req) != -1)
 		{
 			pendinglookups++;
@@ -1902,7 +1902,7 @@ qboolean MSV_ClusterLogin(svconnectinfo_t *info)
 		return true;
 	}
 	else*/
-		MSV_ClusterLoginReply(NULL, 0, ++nextuserid, Info_ValueForKey(info->userinfo, "name"), info->guid, &net_from, NULL, 0);
+		MSV_ClusterLoginReply(NULL, 0, ++nextuserid, Info_ValueForKey(info->seat[0].info, "name"), info->guid, &net_from, NULL, 0);
 	return true;
 }
 #endif

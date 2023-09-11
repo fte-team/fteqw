@@ -70,6 +70,8 @@ struct
 
 extern qbyte *host_basepal;
 
+static float throttle;
+
 extern int PClassic_PointFile(int c, vec3_t point);
 extern particleengine_t pe_classic;
 particleengine_t *fallback = NULL; //does this really need to be 'extern'?
@@ -314,7 +316,8 @@ typedef struct part_type_s {
 		SM_UNICIRCLE, //unicircle = uniform circle
 		SM_FIELD, //field = synced field (brightfield, etc)
 		SM_DISTBALL, // uneven distributed ball
-		SM_MESHSURFACE //distributed roughly evenly over the surface of the mesh
+		SM_MESHSURFACE, //distributed roughly evenly over the surface of the mesh
+		SM_FIXMEWARNING,	//for people to use to mark placeholder effects.
 	} spawnmode;
 
 	float gravity;
@@ -1924,6 +1927,8 @@ parsefluid:
 				ptype->looks.blendmode = BM_BLEND;	//fallback
 			}
 		}
+		else if (!strcmp(var, "placeholder"))
+			ptype->spawnmode = SM_FIXMEWARNING;
 		else if (!strcmp(var, "spawnmode"))
 		{
 			if (!strcmp(value, "circle"))
@@ -2524,6 +2529,9 @@ qboolean PScript_Query(int typenum, int body, char *outstr, int outstrlen)
 			break;
 		case SM_MESHSURFACE:
 			Q_strncatz(outstr, va("spawnmode meshsurface\n"), outstrlen);
+			break;
+		case SM_FIXMEWARNING:
+			Q_strncatz(outstr, va("placeholder\n"), outstrlen);
 			break;
 		}
 		if (ptype->spawnvel || ptype->spawnvelvert || all)
@@ -4916,6 +4924,9 @@ static int PScript_RunParticleEffectState (vec3_t org, vec3_t dir, float count, 
 //			area = 0;
 //			tri = -1;
 //			break;
+		case SM_FIXMEWARNING:
+			Con_ThrottlePrintf(&throttle, 0, CON_WARNING"Particle effect %s.%s is marked as a placeholder\n", ptype->config, ptype->name);
+			return 1;
 		default:	//others don't need intitialisation
 			break;
 		}
@@ -5702,18 +5713,24 @@ static void P_ParticleTrailSpawn (vec3_t startpos, vec3_t end, part_type_t *ptyp
 //	VectorAdd(start, ptype->orgbias, start);
 
 	// spawn mode precalculations
-	if (ptype->spawnmode == SM_SPIRAL)
+	switch(ptype->spawnmode)
 	{
+	case SM_SPIRAL:
 		VectorVectors(vec, right, up);
 
 		// precalculate degree of rotation
 		if (ptype->spawnparam1)
 			tdegree = 2.0*M_PI/ptype->spawnparam1; /* distance per rotation inversed */
 		sdegree = ptype->spawnparam2*(M_PI/180);
-	}
-	else if (ptype->spawnmode == SM_CIRCLE)
-	{
+		break;
+	case SM_CIRCLE:
 		VectorVectors(vec, right, up);
+		break;
+	case SM_FIXMEWARNING:
+		Con_ThrottlePrintf(&throttle, 0, CON_WARNING"Particle effect %s.%s is marked as a placeholder\n", ptype->config, ptype->name);
+		return;
+	default:
+		break;
 	}
 
 	if (ptype->flags & PT_NOSPREADFIRST)

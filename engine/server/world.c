@@ -746,29 +746,6 @@ void VARGS WorldQ2_LinkEdict(world_t *w, q2edict_t *ent)
 	if (ent->solid == Q2SOLID_BBOX && !(ent->svflags & SVF_DEADMONSTER))
 	{	// assume that x/y are equal and symetric
 		ent->s.solid = COM_EncodeSize(ent->mins, ent->maxs);
-		/*
-		i = ent->maxs[0]/8;
-		if (i<1)
-			i = 1;
-		if (i>31)
-			i = 31;
-
-		// z is not symetric
-		j = (-ent->mins[2])/8;
-		if (j<1)
-			j = 1;
-		if (j>31)
-			j = 31;
-
-		// and z maxs can be negative...
-		k = (ent->maxs[2]+32)/8;
-		if (k<1)
-			k = 1;
-		if (k>63)
-			k = 63;
-
-		//fixme: 32bit?
-		ent->s.solid = (k<<10) | (j<<5) | i;*/
 	}
 	else if (ent->solid == Q2SOLID_BSP)
 	{

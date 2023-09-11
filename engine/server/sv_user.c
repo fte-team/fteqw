@@ -245,7 +245,7 @@ void SV_New_f (void)
 	int			playernum;
 	int splitnum;
 	client_t *split;
-	unsigned int fteext1, fteext2, ezext1;	//reported to client
+	unsigned int fteext1, fteext2, ezext1, vers;	//reported to client
 
 	host_client->prespawn_stage = PRESPAWN_INVALID;
 	host_client->prespawn_idx = 0;
@@ -306,18 +306,39 @@ void SV_New_f (void)
 	fteext1 = host_client->fteprotocolextensions;
 	fteext2 = host_client->fteprotocolextensions2;
 	ezext1 = host_client->ezprotocolextensions1;
+
+	if (ISQ2CLIENT(host_client))
+	{
+		if (host_client->protocol==SCP_QUAKE2EX)
+		{
+//			if (svs.netprim.coordtype == COORDTYPE_FLOAT_32)
+				vers = PROTOCOL_VERSION_Q2EX;
+//			else
+//				vers = PROTOCOL_VERSION_Q2EXDEMO;	//has some explicitly bigger sizes without using generic primatives.
+		}
+		else
+			vers = PROTOCOL_VERSION_Q2;
+	}
+	else
+		vers = PROTOCOL_VERSION_QW;
+
 	switch(svs.netprim.coordtype)
 	{
 	case COORDTYPE_FLOAT_32:
-		fteext1 |= PEXT_FLOATCOORDS;
-		ezext1 &= ~EZPEXT1_FLOATENTCOORDS; //redundant.
-		if (!(host_client->fteprotocolextensions & PEXT_FLOATCOORDS))
+		if (host_client->protocol==SCP_QUAKE2EX)
+			fteext1 &= ~PEXT_FLOATCOORDS;
+		else
 		{
-			SV_ClientPrintf(host_client, 2, "\nForcing bigcoords.\nIf this doesn't work, please update your engine\n");
-			host_client->fteprotocolextensions |= PEXT_FLOATCOORDS;
-//			Con_Printf("%s does not support bigcoords\n", host_client->name);
-//			host_client->drop = true;
-//			return;
+			fteext1 |= PEXT_FLOATCOORDS;
+			ezext1 &= ~EZPEXT1_FLOATENTCOORDS; //redundant.
+			if (!(host_client->fteprotocolextensions & PEXT_FLOATCOORDS))
+			{
+				SV_ClientPrintf(host_client, 2, "\nForcing bigcoords.\nIf this doesn't work, please update your engine\n");
+				host_client->fteprotocolextensions |= PEXT_FLOATCOORDS;
+//				Con_Printf("%s does not support bigcoords\n", host_client->name);
+//				host_client->drop = true;
+//				return;
+			}
 		}
 		break;
 	case COORDTYPE_FIXED_13_3:
@@ -350,10 +371,14 @@ void SV_New_f (void)
 		ClientReliableWrite_Long (host_client, PROTOCOL_VERSION_EZQUAKE1);
 		ClientReliableWrite_Long (host_client, ezext1);
 	}
-	ClientReliableWrite_Long (host_client, ISQ2CLIENT(host_client)?PROTOCOL_VERSION_Q2:PROTOCOL_VERSION_QW);
+	ClientReliableWrite_Long (host_client, vers);
 	ClientReliableWrite_Long (host_client, svs.spawncount);
 	if (ISQ2CLIENT(host_client))
-		ClientReliableWrite_Byte (host_client, 0);
+	{
+		ClientReliableWrite_Byte (host_client, 0);	//demo mode.
+		if (host_client->protocol==SCP_QUAKE2EX)
+			ClientReliableWrite_Byte (host_client, 10);	//tick rate.
+	}
 	ClientReliableWrite_String (host_client, gamedir);
 
 	if (fteext2 & PEXT2_MAXPLAYERS)
@@ -382,6 +407,18 @@ void SV_New_f (void)
 	}
 	else
 	{
+		if (host_client->protocol==SCP_QUAKE2EX)
+		{	//let it know how many to expect
+			for (split = host_client, splitnum=0; split; split = split->controlled)
+				splitnum++;
+
+			if (splitnum != 1)
+			{
+				ClientReliableWrite_Short (host_client, -2);
+				ClientReliableWrite_Short (host_client, splitnum);
+			}
+		}
+
 		splitnum = 0;
 		for (split = host_client; split; split = split->controlled)
 		{
@@ -421,7 +458,8 @@ void SV_New_f (void)
 				if (sv.state == ss_cinematic)
 					playernum = -1;
 				ClientReliableWrite_Short (host_client, playernum);
-				break;
+				if (host_client->protocol!=SCP_QUAKE2EX)
+					break;
 			}
 			else
 				ClientReliableWrite_Byte (host_client, playernum);
@@ -892,6 +930,33 @@ void SVNQ_New_f (void)
 
 
 #ifdef Q2SERVER
+
+static const char *SVQ2_GetQ2EXConfigString(int i)
+{	//remap from vanilla to q2e
+	if (i == Q2EXCS_MAPCHECKSUM && sv.world.worldmodel)
+		return va("%i", sv.world.worldmodel->checksum2);
+#define REMAPR(n,l) 		if (i >= Q2EXCS_##n && i < Q2EXCS_##n+Q2MAX_##l) return sv.strings.configstring[i-Q2EXCS_##n+Q2CS_##n]; else
+#define REMAPS(n)			if (i == Q2EXCS_##n) return sv.strings.configstring[i-Q2EXCS_##n+Q2CS_##n]; else
+#define Q2MAX_STATUSBAR 1//(Q2EXCS_AIRACCEL-Q2EXCS_STATUSBAR)
+	REMAPS(NAME)
+	REMAPS(CDTRACK)
+	REMAPS(SKY)
+	REMAPS(SKYAXIS)
+	REMAPS(SKYROTATE)
+	REMAPR(STATUSBAR, STATUSBAR)
+	REMAPS(AIRACCEL)
+	REMAPS(MAXCLIENTS)
+	REMAPS(MAPCHECKSUM)
+	REMAPR(MODELS, MODELS)
+	REMAPR(SOUNDS, SOUNDS)
+	REMAPR(IMAGES, IMAGES)
+	REMAPR(LIGHTS, LIGHTSTYLES)
+	REMAPR(ITEMS, ITEMS)
+	REMAPR(PLAYERSKINS, CLIENTS)
+	REMAPR(GENERAL, GENERAL)
+	return NULL;
+}
+
 void SVQ2_ConfigStrings_f (void)
 {
 	unsigned int			start;
@@ -916,50 +981,70 @@ void SVQ2_ConfigStrings_f (void)
 	start = strtoul(Cmd_Argv(2), NULL, 0);
 
 	// write a packet full of data
-
-	while ( host_client->netchan.message.cursize < host_client->netchan.message.maxsize/2
-		&& start < Q2MAX_CONFIGSTRINGS)
+	if (host_client->protocol == SCP_QUAKE2EX)
 	{
-		str = sv.strings.configstring[start];
-		if (str && *str)
+		while ( host_client->netchan.message.cursize < host_client->netchan.message.maxsize/2
+			&& start < Q2EXMAX_CONFIGSTRINGS)
 		{
-			MSG_WriteByte (&host_client->netchan.message, svcq2_configstring);
-			MSG_WriteShort (&host_client->netchan.message, (unsigned short)start);
-			MSG_WriteString (&host_client->netchan.message, str);
+			str = SVQ2_GetQ2EXConfigString(start);
+			if (str && *str)
+			{
+				MSG_WriteByte (&host_client->netchan.message, svcq2_configstring);
+				MSG_WriteShort (&host_client->netchan.message, (unsigned short)start);
+				MSG_WriteString (&host_client->netchan.message, str);
+			}
+			start++;
 		}
-		start++;
+
+		if (start == Q2EXMAX_CONFIGSTRINGS)
+			start = 0xc000+MAX_PRECACHE_SOUNDS;
 	}
-
-	//model overflows
-	if (start == Q2MAX_CONFIGSTRINGS)
-		start = 0x8000;
-	while ( host_client->netchan.message.cursize < host_client->netchan.message.maxsize/2
-		&& start < 0x8000+MAX_PRECACHE_MODELS)
+	else
 	{
-		str = sv.strings.q2_extramodels[start-0x8000];
-		if (str && *str)
+		while ( host_client->netchan.message.cursize < host_client->netchan.message.maxsize/2
+			&& start < Q2MAX_CONFIGSTRINGS)
 		{
-			MSG_WriteByte (&host_client->netchan.message, svcq2_configstring);
-			MSG_WriteShort (&host_client->netchan.message, start);
-			MSG_WriteString (&host_client->netchan.message, str);
+			str = sv.strings.configstring[start];
+			if (str && *str)
+			{
+				MSG_WriteByte (&host_client->netchan.message, svcq2_configstring);
+				MSG_WriteShort (&host_client->netchan.message, (unsigned short)start);
+				MSG_WriteString (&host_client->netchan.message, str);
+			}
+			start++;
 		}
-		start++;
-	}
 
-	//sound overflows
-	if (start == 0x8000+MAX_PRECACHE_MODELS)
-		start = 0xc000;
-	while ( host_client->netchan.message.cursize < host_client->netchan.message.maxsize/2
-		&& start < 0xc000+MAX_PRECACHE_SOUNDS)
-	{
-		str = sv.strings.q2_extrasounds[start-0xc000];
-		if (str && *str)
+		//model overflows
+		if (start == Q2MAX_CONFIGSTRINGS)
+			start = 0x8000;
+		while ( host_client->netchan.message.cursize < host_client->netchan.message.maxsize/2
+			&& start < 0x8000+MAX_PRECACHE_MODELS)
 		{
-			MSG_WriteByte (&host_client->netchan.message, svcq2_configstring);
-			MSG_WriteShort (&host_client->netchan.message, start);
-			MSG_WriteString (&host_client->netchan.message, str);
+			str = sv.strings.q2_extramodels[start-0x8000];
+			if (str && *str)
+			{
+				MSG_WriteByte (&host_client->netchan.message, svcq2_configstring);
+				MSG_WriteShort (&host_client->netchan.message, start);
+				MSG_WriteString (&host_client->netchan.message, str);
+			}
+			start++;
 		}
-		start++;
+
+		//sound overflows
+		if (start == 0x8000+MAX_PRECACHE_MODELS)
+			start = 0xc000;
+		while ( host_client->netchan.message.cursize < host_client->netchan.message.maxsize/2
+			&& start < 0xc000+MAX_PRECACHE_SOUNDS)
+		{
+			str = sv.strings.q2_extrasounds[start-0xc000];
+			if (str && *str)
+			{
+				MSG_WriteByte (&host_client->netchan.message, svcq2_configstring);
+				MSG_WriteShort (&host_client->netchan.message, start);
+				MSG_WriteString (&host_client->netchan.message, str);
+			}
+			start++;
+		}
 	}
 
 	// send next command
@@ -1015,7 +1100,7 @@ void SVQ2_BaseLines_f (void)
 		if (base->modelindex || base->sound || base->effects)
 		{
 			MSG_WriteByte (&host_client->netchan.message, svcq2_spawnbaseline);
-			MSGQ2_WriteDeltaEntity (&nullstate, base, &host_client->netchan.message, true, true);
+			MSGQ2_WriteDeltaEntity (&nullstate, base, &host_client->netchan.message, true, true, host_client->protocol==SCP_QUAKE2EX);
 		}
 		start++;
 	}
@@ -2417,7 +2502,7 @@ void SV_Begin_f (void)
 
 	if (!SV_CheckRealIP(host_client, true))
 	{
-		if (host_client->protocol == SCP_QUAKE2)
+		if (ISQ2CLIENT(host_client))
 			ClientReliableWrite_Begin (host_client, svcq2_stufftext, 13+strlen(Cmd_Args()));
 		else
 			ClientReliableWrite_Begin (host_client, svc_stufftext, 13+strlen(Cmd_Args()));
@@ -4094,6 +4179,8 @@ static void SV_SendQEXChat(client_t *to, int clcolour, int chatcolour, const cha
 	case SCP_QUAKE3:
 	case SCP_QUAKEWORLD:
 		break;	//doesn't make sense.
+	case SCP_QUAKE2EX:
+		break;	//send it via the lobby...
 	case SCP_DARKPLACES6:
 	case SCP_DARKPLACES7:
 	case SCP_NETQUAKE:
@@ -4511,7 +4598,7 @@ static void SV_UpdateSeats(client_t *controller)
 	client_t *cl;
 	int curclients;
 	
-	if (controller->protocol == SCP_QUAKE2)
+	if (ISQ2CLIENT(controller))
 		return;	//wait for the clientinfo stuff instead.
 
 	for (curclients = 0, cl = controller; cl; cl = cl->controlled)
@@ -5870,17 +5957,19 @@ static void Cmd_FPSList_f(void)
 
 		SV_CalcNetRates(cl, &ftime, &frames, &minf, &maxf);
 
-		switch(cl->protocol)
+		safeswitch(cl->protocol)
 		{
 		case SCP_QUAKEWORLD: protoname = (cl->fteprotocolextensions2 & PEXT2_REPLACEMENTDELTAS)?"fteqw":(cl->fteprotocolextensions||cl->fteprotocolextensions2?"qw":"qwid"); break;
 		case SCP_QUAKE2: protoname = "q2"; break;
+		case SCP_QUAKE2EX: protoname = "q2"; break;
 		case SCP_QUAKE3: protoname = "q3"; break;
 		case SCP_NETQUAKE: protoname = (cl->fteprotocolextensions2 & PEXT2_REPLACEMENTDELTAS)?"ftenq":"nq"; break;
 		case SCP_BJP3: protoname = (cl->fteprotocolextensions2 & PEXT2_REPLACEMENTDELTAS)?"ftenq":"bjp3"; break;
 		case SCP_FITZ666: protoname = (cl->fteprotocolextensions2 & PEXT2_REPLACEMENTDELTAS)?"ftenq":"fitz"; break;
 		case SCP_DARKPLACES6: protoname = "dpp6"; break;
 		case SCP_DARKPLACES7: protoname = "dpp7"; break;
-		default: protoname = "?"; break;
+		case SCP_BAD: protoname = "bot"; break;
+		safedefault: protoname = "?"; break;
 		}
 
 		if (frames)
@@ -8588,9 +8677,67 @@ static void SVQ2_ClientThink(q2edict_t *ed, usercmd_t *cmd)
 	q2.lightlevel = cmd->lightlevel;
 	ge->ClientThink (ed, &q2);
 }
+void InfoBuf_FromString_Q2EX(infobuf_t *info, const char *infostring, int seat)
+{
+	qboolean match;
+	int foundseat;
+	char *postfix, *end;
+	InfoBuf_Clear(info, true);
+	if (*infostring && *infostring == '\\')
+		infostring++;
+
+	//all keys must start with a backslash
+	do
+	{
+		const char *keystart = infostring;
+		const char *keyend;
+		const char *valstart;
+		const char *valend;
+		char *key;
+		char *val;
+		size_t keysize, valsize;
+		while (*infostring)
+		{
+			if (*infostring == '\\')
+				break;
+			else infostring += 1;
+		}
+		keyend = infostring;
+		if (*infostring++ != '\\')
+			break;	//missing value...
+		valstart = infostring;
+		while (*infostring)
+		{
+			if (*infostring == '\\')
+				break;
+			else infostring += 1;
+		}
+		valend = infostring;
+
+		key = InfoBuf_DecodeString(keystart, keyend, &keysize);
+		match = true;	//all, if there's no _#
+		postfix = strrchr(key, '_');
+		if (postfix && postfix[1])
+		{
+			foundseat = strtol(postfix+1, &end, 10);
+			if (!*end)
+			{
+				*postfix = 0;	//strip the trailing part of the key name.
+				match = foundseat == seat;	//there's an underscore, and a number, and nothing else after it...
+			}
+		}
+		if (match)
+		{
+			val = InfoBuf_DecodeString(valstart, valend, &valsize);
+			InfoBuf_SetStarBlobKey(info, key, val, valsize);
+			Z_Free(val);
+		}
+		Z_Free(key);
+	} while (*infostring++ == '\\');
+}
 void SVQ2_ExecuteClientMessage (client_t *cl)
 {
-	int		c;
+	int		c, lc=-1;
 	char	*s;
 	usercmd_t	oldest, oldcmd, newcmd;
 	q2client_frame_t	*frame;
@@ -8609,10 +8756,11 @@ void SVQ2_ExecuteClientMessage (client_t *cl)
 
 	// make sure the reply sequence number matches the incoming
 	// sequence number
-	if (cl->netchan.incoming_sequence >= cl->netchan.outgoing_sequence)
+	//FIXME: is this actually needed?
+	/*if (cl->netchan.incoming_sequence >= cl->netchan.outgoing_sequence)
 		cl->netchan.outgoing_sequence = cl->netchan.incoming_sequence;
 	else
-		cl->send_message = false;	// don't reply, sequences have slipped
+		cl->send_message = false;	// don't reply, sequences have slipped*/
 
 	// calc ping time
 	if (cl->netchan.outgoing_sequence - cl->netchan.incoming_acknowledged > Q2UPDATE_MASK)
@@ -8661,7 +8809,7 @@ void SVQ2_ExecuteClientMessage (client_t *cl)
 	{
 		if (msg_badread)
 		{
-			Con_Printf ("SVQ2_ExecuteClientMessage: badread\n");
+			Con_Printf ("SVQ2_ExecuteClientMessage: badread (parsing q2clc_%i)\n", lc);
 			SV_DropClient (cl);
 			return;
 		}
@@ -8669,6 +8817,9 @@ void SVQ2_ExecuteClientMessage (client_t *cl)
 		c = MSG_ReadByte ();
 		if (c == -1)
 			break;
+
+//		if (sv_shownet.ival)
+//			Con_Printf("%i: %i\n", (net_message.currentbit>>3)-1, c);
 
 		safeswitch ((enum clcq2_ops_e)c)
 		{
@@ -8682,7 +8833,19 @@ void SVQ2_ExecuteClientMessage (client_t *cl)
 			for (checksumIndex = 0, split = cl; split && checksumIndex < move_issued; checksumIndex++)
 				split = split->controlled;
 
-			if (move_issued)
+			if (cl->protocol == SCP_QUAKE2EX)
+			{
+				if (move_issued)
+					return;	//no dupes.
+				lastframe = MSG_ReadLong();
+				if (lastframe != split->delta_sequence)
+					split->delta_sequence = lastframe;
+
+nextseat:
+				checksumIndex = MSG_GetReadCount();
+				checksum = (qbyte)MSG_ReadByte ();
+			}
+			else if (move_issued)
 			{
 				checksumIndex = -1;
 				checksum = 0;
@@ -8692,7 +8855,6 @@ void SVQ2_ExecuteClientMessage (client_t *cl)
 				checksumIndex = MSG_GetReadCount();
 				checksum = (qbyte)MSG_ReadByte ();
 
-
 				lastframe = MSG_ReadLong();
 				if (lastframe != split->delta_sequence)
 				{
@@ -8700,9 +8862,9 @@ void SVQ2_ExecuteClientMessage (client_t *cl)
 				}
 			}
 
-			MSGQ2_ReadDeltaUsercmd (&nullcmd, &oldest);
-			MSGQ2_ReadDeltaUsercmd (&oldest, &oldcmd);
-			MSGQ2_ReadDeltaUsercmd (&oldcmd, &newcmd);
+			MSGQ2_ReadDeltaUsercmd (cl, &nullcmd, &oldest);
+			MSGQ2_ReadDeltaUsercmd (cl, &oldest, &oldcmd);
+			MSGQ2_ReadDeltaUsercmd (cl, &oldcmd, &newcmd);
 
 			if ( split && split->state == cs_spawned )
 			{
@@ -8758,24 +8920,53 @@ void SVQ2_ExecuteClientMessage (client_t *cl)
 				split->lastcmd = newcmd;
 			}
 			move_issued++;
+
+			if (cl->protocol == SCP_QUAKE2EX && split->controlled)
+			{	//q2ex needs them all upfront.
+				split = split->controlled;
+				//with each seat having its own private checksum, for some reason.
+				goto nextseat;
+			}
 			break;
 
 		case clcq2_userinfo:
 			//FIXME: allows the client to set * keys mid-game.
 			s = MSG_ReadString();
-			InfoBuf_FromString(&cl->userinfo, s, false);
-			SV_ExtractFromUserinfo(cl, true);	//let the server routines know
-			ge->ClientUserinfoChanged (cl->q2edict, s);	//tell the gamecode
+			if (cl->protocol == SCP_QUAKE2EX)
+			{
+				int seat;
+				char useruserinfo[1024];
+				for (split = cl, seat = 0; split; split = split->controlled, seat++)
+				{
+					InfoBuf_FromString_Q2EX(&split->userinfo, s, seat);
+					InfoBuf_ToString(&split->userinfo, useruserinfo, sizeof(useruserinfo), NULL, NULL, NULL, NULL, NULL);
+					SV_ExtractFromUserinfo(split, true);	//let the server routines know
+					ge->ClientUserinfoChanged (split->q2edict, useruserinfo);	//tell the gamecode
+				}
+			}
+			else
+			{
+				InfoBuf_FromString(&cl->userinfo, s, false);
+				SV_ExtractFromUserinfo(cl, true);	//let the server routines know
+				ge->ClientUserinfoChanged (cl->q2edict, s);	//tell the gamecode
+			}
 			break;
 
+		case clcq2_stringcmd:
 		case clcq2_stringcmd_seat:
-			c = MSG_ReadByte();
+			if (c == clcq2_stringcmd_seat)
+				c = MSG_ReadByte();
+			else if (cl->protocol == SCP_QUAKE2EX)
+				c = MSG_ReadByte()-1;
+			else
+				c = 0;
+
 			host_client = cl;
 			while (c --> 0 && host_client->controlled)
 				host_client = host_client->controlled;
 			sv_player = host_client->edict;
-			//fall through
-		case clcq2_stringcmd:
+
+			//regular stringcmd
 			s = MSG_ReadString ();
 			SV_ExecuteUserCommand (s, false);
 
@@ -8796,10 +8987,11 @@ void SVQ2_ExecuteClientMessage (client_t *cl)
 		case clcr1q2_setting:
 		case clcr1q2_multimoves:
 		safedefault:
-			Con_Printf ("SVQ2_ReadClientMessage: unknown command char %i\n", c);
+			Con_Printf ("SVQ2_ReadClientMessage: unknown command char %i (last was q2clc_%i)\n", c, lc);
 			SV_DropClient (cl);
 			return;
 		}
+		lc = c;
 	}
 }
 #endif
@@ -9146,6 +9338,7 @@ void SVNQ_ExecuteClientMessage (client_t *cl)
 			case SCP_BAD:
 			case SCP_QUAKEWORLD:
 			case SCP_QUAKE2:
+			case SCP_QUAKE2EX:
 			case SCP_QUAKE3:
 			case SCP_DARKPLACES6:
 			case SCP_DARKPLACES7:

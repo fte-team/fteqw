@@ -2329,7 +2329,9 @@ struct font_s *Font_LoadFont(const char *fontfilename, float vheight, float scal
 	char *parms;
 	int height = ((vheight * vid.rotpixelheight)/vid.height) + 0.5;
 	char facename[MAX_QPATH*12];
+#ifdef AVAIL_FREETYPE
 	char *styles = NULL;
+#endif
 	struct charcache_s *c;
 	float aspect = 1;
 	enum fontfmt_e fmt = FMT_AUTO;
@@ -2401,6 +2403,7 @@ struct font_s *Font_LoadFont(const char *fontfilename, float vheight, float scal
 				aspect = strtod(t, &t);
 				parms = t;
 			}
+#ifdef AVAIL_FREETYPE
 			if (!strncmp(parms, "style=", 6))
 			{
 				char *t = parms+6;
@@ -2413,6 +2416,7 @@ struct font_s *Font_LoadFont(const char *fontfilename, float vheight, float scal
 				}
 				parms = t;
 			}
+#endif
 
 			while(*parms && *parms != '&')
 				parms++;

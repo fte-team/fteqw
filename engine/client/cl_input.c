@@ -852,7 +852,7 @@ qboolean IN_DrawWeaponWheel(int pnum)
 	Draw_FunString(pos[0], pos[1], "X");
 	return true;
 }
-static void IN_WWheelDown (void)
+void IN_WWheelDown (void)
 {
 #ifdef CSQC_DAT
 	int pnum = CL_TargettedSplit(false);
@@ -877,7 +877,7 @@ static void IN_WWheelDown (void)
 	}
 	KeyDown(&in_wwheel, NULL);
 }
-static void IN_WWheelUp (void)
+void IN_WWheelUp (void)
 {
 	int pnum = CL_TargettedSplit(false);
 #ifdef CSQC_DAT
@@ -889,10 +889,27 @@ static void IN_WWheelUp (void)
 	if (wwheelsel[pnum] < weaponinfo_count)
 		CL_QueueImpulse(pnum, weaponinfo[wwheelsel[pnum]].impulse);
 }
+void IN_IWheelDown (void)
+{
+}
+void IN_IWheelUp (void)
+{
+}
 #else
 #define IN_DoPostSelect()
 #define IN_DoWeaponHide()
 #endif
+
+
+//q2e compat. too lazy to use the wwheel info. let the gamecode do it the old way.
+void IN_WeapNext_f (void)
+{
+	CL_SendClientCommand(true, "weapnext");
+}
+void IN_WeapPrev_f (void)
+{
+	CL_SendClientCommand(true, "weapprev");
+}
 
 
 static void IN_KLookDown (void) {KeyDown(&in_klook, NULL);}
@@ -1179,8 +1196,8 @@ cvar_t	cl_pitchspeed = CVAR("cl_pitchspeed","150");
 cvar_t	cl_anglespeedkey = CVAR("cl_anglespeedkey","1.5");
 
 
-#define GATHERBIT(bname,bit)	if (bname.state[pnum] & 3)	{bits |=   (1u<<(bit));} bname.state[pnum]	&= ~2;
-#define UNUSEDBUTTON(bnum)		if (in_button[bnum].state[pnum] & 3)	{Con_Printf("+button%i is not supported on this protocol\n", bnum); } in_button[bnum].state[pnum]	&= ~3;
+#define GATHERBIT(bname,bit)	do{if (bname.state[pnum] & 3)	{bits |=   (1u<<(bit));} bname.state[pnum]	&= ~2;}while(0)
+#define UNUSEDBUTTON(bnum)		do{if (in_button[bnum].state[pnum] & 3)	{Con_Printf("+button%i is not supported on this protocol\n", bnum); } in_button[bnum].state[pnum]	&= ~3;}while(0)
 void CL_GatherButtons (usercmd_t *cmd, int pnum)
 {
 	unsigned int bits = 0;
@@ -1197,6 +1214,47 @@ void CL_GatherButtons (usercmd_t *cmd, int pnum)
 //		bits |= 1<<4;	//rtcw walking
 //		bits |= 1<<7;	//rtcw any key
 		cmd->buttons = bits;
+		return;
+	}
+#endif
+#ifdef Q2CLIENT
+	if (cls.protocol==CP_QUAKE2 && cls.protocol_q2 == PROTOCOL_VERSION_Q2EX)
+	{	//buttons limited to 8 bits.
+
+		//GATHERBIT(in_attack,		0);	//handled above
+		GATHERBIT(in_use,			1);
+		//GATHERBIT(in_holster,		2);	//urgh
+		//GATHERBIT(in_jump,		3);	//also set by +moveup
+		//GATHERBIT(in_crouch,		4);	//also set by +movedown
+		//GATHERBIT(in_unused,		5);
+		//GATHERBIT(in_unused,		6);
+		//GATHERBIT(in_any,			7);	//urgh
+
+		//also let +button stuff map to bits.
+		GATHERBIT(in_button[0],		0);
+		GATHERBIT(in_button[1],		1);
+		GATHERBIT(in_button[2],		2);
+		GATHERBIT(in_button[3],		3);
+		GATHERBIT(in_button[4],		4);
+		GATHERBIT(in_button[5],		5);
+		GATHERBIT(in_button[6],		6);
+		GATHERBIT(in_button[7],		7);
+
+		UNUSEDBUTTON(8);
+		UNUSEDBUTTON(9);
+		UNUSEDBUTTON(10);
+		UNUSEDBUTTON(11);
+		UNUSEDBUTTON(12);
+		UNUSEDBUTTON(13);
+		UNUSEDBUTTON(14);
+		UNUSEDBUTTON(15);
+		UNUSEDBUTTON(16);
+		UNUSEDBUTTON(17);
+		UNUSEDBUTTON(18);
+		UNUSEDBUTTON(19);
+//		UNUSEDBUTTON(20);
+
+		cmd->buttons |= bits;
 		return;
 	}
 #endif
@@ -1562,7 +1620,7 @@ void CL_ClampPitch (int pnum, float frametime)
 	if (cls.protocol == CP_QUAKE2)
 	{
 		float	pitch;
-		pitch = SHORT2ANGLE(cl.q2frame.playerstate[pnum].pmove.delta_angles[PITCH]);
+		pitch = SHORT2ANGLE(cl.q2frame.seat[pnum].playerstate.pmove.delta_angles[PITCH]);
 		if (pitch > 180)
 			pitch -= 360;
 
@@ -2365,17 +2423,31 @@ qboolean CLQ2_SendCmd (sizebuf_t *buf)
 		if (cmd->msec > 100)
 			cmd->msec = 100;
 
-		MSG_WriteByte (buf, clcq2_move);
+		if (cls.protocol_q2 == PROTOCOL_VERSION_Q2EX)
+		{	//checksum byte got switched around to something that doesn't include so much sequence info. not really sure why.
+			if (!seat)
+			{
+				MSG_WriteByte (buf, clcq2_move);
+				if (!cl.q2frame.valid || cl_nodelta.ival || (cls.demorecording && !cls.demohadkeyframe))
+					MSG_WriteLong (buf, -1);	// no compression
+				else
+					MSG_WriteLong (buf, cl.q2frame.serverframe);
+			}
 
-		if (seat)
+			checksumIndex = buf->cursize;
+			MSG_WriteByte (buf, 0);	//each seat has its own individual checksum for some reason (but no extra clcq2_move - player counts are not dynamic).
+		}
+		else if (seat)
 		{
 			//multi-seat still has an extra clc_move per seat
 			//but no checksum (pointless when its opensource anyway)
 			//no sequence (only seat 0 reports that)
+			MSG_WriteByte (buf, clcq2_move);
 			checksumIndex = -1;
 		}
 		else
 		{
+			MSG_WriteByte (buf, clcq2_move);
 			// save the position for a checksum qbyte
 			if (cls.protocol_q2 == PROTOCOL_VERSION_R1Q2 || cls.protocol_q2 == PROTOCOL_VERSION_Q2PRO)
 				checksumIndex = -1;
@@ -2404,6 +2476,18 @@ qboolean CLQ2_SendCmd (sizebuf_t *buf)
 		cl.outframes[i].senttime = realtime;
 		cl.outframes[i].latency = -1;
 
+		if (cls.protocol_q2 == PROTOCOL_VERSION_Q2EX)
+		{
+			if (cmd->upmove >= 100)
+				cmd->buttons |= 1<<3;	//jump
+			else if (cmd->upmove <= -100)
+				cmd->buttons |= 1<<4;	//crouch
+		}
+		else
+		{
+			if (in_jump.state[seat]&3 && cmd->upmove==0)
+				cmd->upmove = 200;
+		}
 		if (cmd->buttons)
 			cmd->buttons |= 128;	//fixme: this isn't really what's meant by the anykey.
 
@@ -2593,7 +2677,16 @@ static void CL_SendUserinfoUpdate(void)
 	{
 		char userinfo[2048];
 		InfoSync_Strip(&cls.userinfosync, info);	//can't track this stuff. all or nothing.
-		if (info == &cls.userinfo[0])
+
+		if (cls.protocol_q2 == PROTOCOL_VERSION_Q2EX)
+		{
+			extern size_t Q2EX_UserInfoToString(char *infostring, size_t maxsize, const char **ignore, int seats);
+			Q2EX_UserInfoToString(userinfo, sizeof(userinfo), NULL, cl.splitclients);
+
+			MSG_WriteByte (&cls.netchan.message, clcq2_userinfo);
+			MSG_WriteString (&cls.netchan.message, userinfo+(*userinfo=='\\'?1:0));
+		}
+		else if (info == &cls.userinfo[0])
 		{
 			InfoBuf_ToString(info, userinfo, sizeof(userinfo), NULL, NULL, NULL, NULL, NULL);
 
@@ -2641,7 +2734,11 @@ static void CL_SendUserinfoUpdate(void)
 			MSG_WriteByte (&cls.netchan.message, seat);
 		}
 		else
+		{
 			MSG_WriteByte (&cls.netchan.message, (cls.protocol == CP_QUAKE2)?clcq2_stringcmd:clc_stringcmd);
+			if (cls.protocol_q2 == PROTOCOL_VERSION_Q2EX)
+				MSG_WriteByte (&cls.netchan.message, 1+seat);
+		}
 		MSG_WriteString (&cls.netchan.message, s);
 	}
 
@@ -2891,7 +2988,12 @@ void CL_SendCmd (double frametime, qboolean mainloop)
 					break;
 				if (!strncmp(clientcmdlist->command, "spawn", 5) && cls.userinfosync.numkeys && cl.haveserverinfo)
 					break;	//HACK: don't send the spawn until all pending userinfos have been flushed.
-				if (clientcmdlist->seat && (cls.fteprotocolextensions&PEXT_SPLITSCREEN))
+				if (cls.protocol==CP_QUAKE2 && cls.protocol_q2==PROTOCOL_VERSION_Q2EX)
+				{
+					MSG_WriteByte (&cls.netchan.message, clcq2_stringcmd);
+					MSG_WriteByte (&cls.netchan.message, clientcmdlist->seat+1);
+				}
+				else if (clientcmdlist->seat && (cls.fteprotocolextensions&PEXT_SPLITSCREEN))
 				{
 					MSG_WriteByte (&cls.netchan.message, clcfte_stringcmd_seat);
 					MSG_WriteByte (&cls.netchan.message, clientcmdlist->seat);

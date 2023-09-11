@@ -1647,6 +1647,8 @@ static int SSPI_DTLS_GetPeerCertificate(void *ctx, enum certprops_e prop, char *
 			return crypt.pCertNameToStrA(cert->dwCertEncodingType, &cert->pCertInfo->Subject, CERT_X500_NAME_STR, out, outsize);
 		return -1;
 	case QCERT_LOCALCERTIFICATE:
+	case QCERT_LOBBYSTATUS:
+	case QCERT_LOBBYSENDCHAT:
 	safedefault:
 		return -1;
 	}

@@ -752,6 +752,8 @@ void SV_SetupNetworkBuffers(qboolean bigcoords)
 	for (i = 0; i < svs.allocated_client_slots; i++)
 	{
 		svs.clients[i].netchan.netprim = svs.netprim;
+		if (svs.clients[i].protocol == SCP_QUAKE2EX)
+			svs.clients[i].netchan.netprim.coordtype = COORDTYPE_FLOAT_32; //forced to floats. we have multiple multicast buffers. woo.
 
 		//make sure those are kept up to date too.
 		svs.clients[i].datagram.prim =
@@ -789,9 +791,13 @@ void SV_SetupNetworkBuffers(qboolean bigcoords)
 #endif
 
 #ifdef Q2SERVER
-	sv.q2multicast.maxsize = sizeof(sv.q2multicast_buf);
-	sv.q2multicast.data = sv.q2multicast_buf;
-	sv.q2multicast.prim = svs.netprim;
+	sv.q2multicast[0].maxsize = sizeof(sv.q2multicast_lcbuf);
+	sv.q2multicast[0].data = sv.q2multicast_lcbuf;
+	sv.q2multicast[0].prim = svs.netprim;
+	sv.q2multicast[1].maxsize = sizeof(sv.q2multicast_bcbuf);
+	sv.q2multicast[1].data = sv.q2multicast_bcbuf;
+	sv.q2multicast[1].prim = svs.netprim;
+	sv.q2multicast[1].prim.coordtype = COORDTYPE_FLOAT_32;
 #endif
 
 	sv.master.maxsize = sizeof(sv.master_buf);
@@ -1316,7 +1322,7 @@ MSV_OpenUserDatabase();
 			sv.strings.configstring[Q2CS_AIRACCEL] = Z_StrDup("0");
 
 		// init map checksum config string but only for Q2/Q3 maps
-		sv.strings.configstring[Q2CS_MAPCHECKSUM] = Z_StrDupf("%i", sv.world.worldmodel->checksum);
+		sv.strings.configstring[Q2CS_MAPCHECKSUM] = Z_StrDupf("%i %i", sv.world.worldmodel->checksum, sv.world.worldmodel->checksum2);
 
 		subs = sv.world.worldmodel->numsubmodels;
 		if (subs > MAX_PRECACHE_MODELS-1)

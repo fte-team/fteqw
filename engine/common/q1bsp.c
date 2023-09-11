@@ -631,7 +631,7 @@ void Mod_ClipDecal(struct model_s *mod, vec3_t center, vec3_t normal, vec3_t tan
 		Q1BSP_ClipDecalToNodes(mod, &dec, mod->rootnode);
 #endif
 #ifdef Q3BSPS
-	else if (mod->fromgame == fg_quake3)
+	else if (mod->fromgame == fg_quake3 || mod->fromgame == fg_quake2)
 	{
 		if (mod->submodelof)
 		{
@@ -3197,9 +3197,9 @@ void Mod_BSPX_List_f(void)
 	{
 		Con_Printf("%s:\n", fname);
 		for (i = 0; i < ctx.corelumps; i++)
-			Con_Printf("\t%s: %u\n", ctx.lumps[i].lumpname, (unsigned int)ctx.lumps[i].filelen);
+			Con_Printf("\t%20s: %-12u csum:%08x\n", ctx.lumps[i].lumpname, (unsigned int)ctx.lumps[i].filelen, LittleLong (CalcHashInt(&hash_md4, ctx.lumps[i].data, ctx.lumps[i].filelen)));
 		for (     ; i < ctx.totallumps; i++)
-			Con_Printf("\t%s: %u\n", ctx.lumps[i].lumpname, (unsigned int)ctx.lumps[i].filelen);
+			Con_Printf("\t%20s: %-12u csum:%08x\n", ctx.lumps[i].lumpname, (unsigned int)ctx.lumps[i].filelen, LittleLong (CalcHashInt(&hash_md4, ctx.lumps[i].data, ctx.lumps[i].filelen)));
 		Mod_BSPXRW_Free(&ctx);
 	}
 }

@@ -99,17 +99,25 @@ typedef enum
 	Q2PM_GIB,		// different bounding box
 	Q2PM_FREEZE
 } q2pmtype_t;
+enum
+{	//urgh.
+	// can accelerate and turn
+	Q2EPM_NORMAL,
+	Q2EPM_GRAPPLE,
+	Q2EPM_SPECTATOR,
+	Q2EPM_SPECTATOR2,
+	// no acceleration or turning
+	Q2EPM_DEAD,
+	Q2EPM_GIB,		// different bounding box
+	Q2EPM_FREEZE
+};
 typedef struct
 {	//shared with q2 dll
 
 	q2pmtype_t	pm_type;
 
-#if 0
-	int		origin[3];		// 12.3
-#else
-	short		origin[3];		// 20.3
-#endif
-	short		velocity[3];	// 12.3
+	short		origin[3];		// 13.3
+	short		velocity[3];	// 13.3
 	qbyte		pm_flags;		// ducked, jump_held, etc
 	qbyte		pm_time;		// each unit = 8 ms
 	short		gravity;
@@ -266,9 +274,11 @@ typedef struct
 	int				serverframe;
 	int				servertime;		// server time the message is valid for (in msec)
 	int				deltaframe;
-	qbyte			areabits[MAX_Q2MAP_AREAS/8];		// portalarea visibility bits
-	q2player_state_t	playerstate[MAX_SPLITS];
-	int				clientnum[MAX_SPLITS];
+	struct {
+		qbyte				areabits[MAX_Q2MAP_AREAS/8];		// portalarea visibility bits
+		q2player_state_t	playerstate;
+		int					clientnum;
+	} seat[MAX_SPLITS];
 	int				num_entities;
 	int				parse_entities;	// non-masked index into cl_parse_entities array
 } q2frame_t;
@@ -307,8 +317,9 @@ typedef struct
 #define LFLAG_SHADOWMAP		(1<<9)
 #define LFLAG_CREPUSCULAR	(1<<10)	//weird type of sun light that gives god rays
 #define LFLAG_ORTHO			(1<<11)	//sun-style -light
+#define LFLAG_FORCECACHE	(1<<12)	//shadowmap/surfaces should be cached from one frame to the next.
 
-#define LFLAG_INTERNAL		(LFLAG_LIGHTMAP|LFLAG_FLASHBLEND)	//these are internal to FTE, and never written to disk (ie: .rtlights files shouldn't contain these)
+#define LFLAG_INTERNAL		(LFLAG_LIGHTMAP|LFLAG_FLASHBLEND|LFLAG_FORCECACHE)	//these are internal to FTE, and never written to disk (ie: .rtlights files shouldn't contain these)
 #define LFLAG_DYNAMIC (LFLAG_LIGHTMAP | LFLAG_FLASHBLEND | LFLAG_NORMALMODE)
 
 typedef struct dlight_s
@@ -859,14 +870,14 @@ typedef struct
 	double		lastlinktime;	//cl.time from last frame.
 	double		mapstarttime;	//for computing csqc's cltime.
 
-	float servertime;	//current server time, bound between gametime and gametimemark
+	double servertime;	//current server time, bound between gametime and gametimemark
 	float mtime;		//server time as on the server when we last received a packet. not allowed to decrease.
 	float oldmtime;		//server time as on the server for the previously received packet.
 
-	float gametime;
-	float gametimemark;
-	float oldgametime;		//used as the old time to lerp cl.time from.
-	float oldgametimemark;	//if it's 0, cl.time will casually increase.
+	double gametime;
+	double gametimemark;
+	double oldgametime;		//used as the old time to lerp cl.time from.
+	double oldgametimemark;	//if it's 0, cl.time will casually increase.
 	float demogametimebias;	//mvd timings are weird.
 	int	  demonudge;		//
 	float demopausedtilltime;//demo is paused until realtime>this
@@ -1643,6 +1654,7 @@ void CLR1Q2_ParsePlayerUpdate(void);
 void CLQ2_ParseFrame (int extrabits);
 void CLQ2_ParseMuzzleFlash (void);
 void CLQ2_ParseMuzzleFlash2 (void);
+void CLQ2EX_ParseMuzzleFlash3 (void);
 void CLQ2_ParseInventory (int seat);
 int CLQ2_RegisterTEntModels (void);
 void CLQ2_WriteDemoBaselines(sizebuf_t *buf);

@@ -653,7 +653,7 @@ void VARGS PR_BIError(pubprogfuncs_t *progfuncs, char *format, ...)
 	if (developer.value || !progfuncs)
 	{
 		struct globalvars_s *pr_globals = PR_globals(progfuncs, PR_CURRENT);
-		PR_RunWarning(progfuncs, "%s\n", string);
+		PR_RunWarning(progfuncs, CON_ERROR"%s\n", string);
 		G_INT(OFS_RETURN)=0;	//just in case it was a float and should be an ent...
 		G_INT(OFS_RETURN+1)=0;
 		G_INT(OFS_RETURN+2)=0;
@@ -662,7 +662,7 @@ void VARGS PR_BIError(pubprogfuncs_t *progfuncs, char *format, ...)
 	{
 		PR_StackTrace(progfuncs, false);
 //		PR_AbortStack(progfuncs);
-		progfuncs->parms->Abort ("%s", string);
+		progfuncs->parms->Abort (CON_ERROR"%s", string);
 	}
 }
 
@@ -1684,26 +1684,40 @@ void QCBUILTIN PF_FindString (pubprogfuncs_t *prinst, struct globalvars_s *pr_gl
 		return;
 	}
 	s = PR_GetStringOfs(prinst, OFS_PARM2);
-	if (!s)
-	{
-		PR_BIError (prinst, "PF_FindString: bad search string");
-		return;
-	}
 
-	//FIXME: bound f
-
-	for (e++ ; e < *prinst->parms->num_edicts ; e++)
-	{
-		ed = WEDICT_NUM_PB(prinst, e);
-		if (ED_ISFREE(ed))
-			continue;
-		t = ((string_t *)ed->v)[f];
-		if (!t)
-			continue;
-		if (!strcmp(PR_GetString(prinst, t),s))
+	if (!s || !*s)
+	{	//checking for empty (and by extension null)
+		//looking for an empty string is a bloody stupid thing to do, and basically always a bug, but existing code exists. either way it warrents a warning.
+		if (developer.ival)
+			PR_RunWarning(prinst, "PF_FindString: empty string\n");
+		for (e++ ; e < *prinst->parms->num_edicts ; e++)
 		{
-			RETURN_EDICT(prinst, ed);
-			return;
+			ed = WEDICT_NUM_PB(prinst, e);
+			if (ED_ISFREE(ed))
+				continue;
+			t = ((string_t *)ed->v)[f];
+			if (!t || !*PR_GetString(prinst, t))
+			{
+				RETURN_EDICT(prinst, ed);
+				return;
+			}
+		}
+	}
+	else
+	{	//should be safe to assume that null is empty and thus never a match. speed
+		for (e++ ; e < *prinst->parms->num_edicts ; e++)
+		{
+			ed = WEDICT_NUM_PB(prinst, e);
+			if (ED_ISFREE(ed))
+				continue;
+			t = ((string_t *)ed->v)[f];
+			if (!t)
+				continue;
+			if (!strcmp(PR_GetString(prinst, t),s))
+			{
+				RETURN_EDICT(prinst, ed);
+				return;
+			}
 		}
 	}
 

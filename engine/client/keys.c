@@ -2328,7 +2328,7 @@ int Key_StringToKeynum (const char *str, int *modifier)
 		for (i = 0; i < countof(mods); )
 		{
 			if (!Q_strncasecmp(mods[i].prefix, str, mods[i].len))
-				if (str[mods[i].len] == '_' || str[mods[i].len] == '+' || str[mods[i].len] == ' ')
+				if (/*str[mods[i].len] == '_' ||*/ str[mods[i].len] == '+' || str[mods[i].len] == ' ')
 				if (str[mods[i].len+1])
 				{
 					*modifier |= mods[i].mod;

@@ -1113,8 +1113,8 @@ typedef struct model_s
 		qboolean deluxemapping_modelspace; //deluxemaps are in modelspace - we need different glsl.
 	} lightmaps;
 
-	unsigned	checksum;
-	unsigned	checksum2;
+	unsigned	checksum;	//the legacy checksum (excludes ent lump)
+	unsigned	checksum2;	//the watervis checksum (excludes ent lump and vis stuff). this is the one that's sent over the network.
 
 	portal_t *portal;
 	unsigned int numportals;

@@ -524,6 +524,8 @@ qboolean CL_GetDemoMessage (void)
 	{
 		endofdemo = false;
 		CL_StopPlayback ();
+
+		CL_NextDemo();
 		return 0;
 	}
 
@@ -2047,9 +2049,19 @@ void CL_Record_f (void)
 		}
 		MSG_WriteLong (&buf, cls.protocol_q2);
 		MSG_WriteLong (&buf, 0x80000000 + cl.servercount);
-		MSG_WriteByte (&buf, 1);
+		MSG_WriteByte (&buf, 1);	//attract loop
+		if (cls.protocol_q2 == PROTOCOL_VERSION_Q2EX)
+			MSG_WriteByte (&buf, cl.q2svnetrate);	//tick rate
 		MSG_WriteString (&buf, gamedirfile);
-		MSG_WriteShort (&buf, cl.playerview[0].playernum);
+		if (cls.protocol_q2 == PROTOCOL_VERSION_Q2EX && cl.playerview[0].playernum != -1 && cl.splitclients!=1)
+		{
+			MSG_WriteShort (&buf, -2);
+			MSG_WriteShort (&buf, cl.splitclients);
+			for (i = 0; i < cl.splitclients; i++)
+				MSG_WriteShort (&buf, cl.playerview[i].playernum);
+		}
+		else
+			MSG_WriteShort (&buf, cl.playerview[0].playernum);
 		MSG_WriteString (&buf, cl.levelname);
 
 		for (i = 0; i < Q2MAX_CONFIGSTRINGS; i++)

@@ -626,6 +626,58 @@ static void CL_ConnectAbort(const char *format, ...)
 	}
 }
 
+
+size_t Q2EX_UserInfoToString(char *infostring, size_t maxsize, const char **ignore, int seats)
+{	//infoblobs are not a thing here. don't need to maintain sync objects - can't really do anything with them anyway.
+	size_t k, r = 1, l;
+	char *o = infostring;
+	char *e = infostring?infostring + maxsize-1:infostring;
+	int s;
+
+	for (s = 0; s < seats; s++)
+	{
+		char *pf = s?va("_%i", s):"";
+		size_t pfl = strlen(pf);
+		infobuf_t *info = &cls.userinfo[s];
+		for (k = 0; k < info->numkeys; k++)
+		{
+			if (ignore)
+			{
+				for (l = 0; ignore[l]; l++)
+				{
+					if (!strcmp(ignore[l], info->keys[k].name))
+						break;
+					else if (ignore[l][0] == '*' && !ignore[l][1] && *info->keys[k].name == '*')
+						break;	//read-only
+					else if (ignore[l][0] == '_' && !ignore[l][1] && *info->keys[k].name == '_')
+						break;	//comment
+				}
+				if (ignore[l])
+					continue;	//ignore when in the list
+			}
+
+			if (!info->keys[k].large)	//lower priorities don't bother with extended blocks. be sure to prioritise them explicitly. they'd just bug stuff out.
+			{
+				size_t knl = strlen(info->keys[k].name);
+				size_t kvl = info->keys[k].size;
+				r+= 1+knl+pfl+1+kvl;
+				if (o + 1+knl+1+kvl >= e)
+					continue;
+				o[0] = '\\';
+				memcpy(o+1, info->keys[k].name, knl);
+				memcpy(o+1+knl, pf, pfl);
+				o[1+knl+pfl] = '\\';
+				memcpy(o+1+knl+pfl+1, info->keys[k].value, kvl);
+				o[1+knl+pfl+1+kvl] = 0;
+
+				o += 1+knl+pfl+1+kvl;
+			}
+		}
+	}
+	*o = 0;
+	return r;
+}
+
 /*
 =======================
 CL_SendConnectPacket
@@ -748,39 +800,78 @@ static void CL_SendConnectPacket (netadr_t *to)
 	}
 #endif
 
-	Q_snprintfz(data, sizeof(data), "%c%c%c%cconnect", 255, 255, 255, 255);
-
-	Q_strncatz(data, va(" %i %i %i", connectinfo.subprotocol, connectinfo.qport, connectinfo.challenge), sizeof(data));
-
-	//userinfo0 has some twiddles for extensions from other qw engines.
-	Q_strncatz(data, " \"", sizeof(data));
-	//qwfwd proxy routing
-	if ((a = strrchr(cls.servername, '@')))
+	if (connectinfo.subprotocol == PROTOCOL_VERSION_Q2EX)
 	{
-		*a = 0;
-		Q_strncatz(data, va("\\prx\\%s", cls.servername), sizeof(data));
-		*a = '@';
+		size_t foo;
+		int seats = bound(1, cl_splitscreen.ival+1, MAX_SPLITS), i;
+		Q_snprintfz(data, sizeof(data), "%c%c%c%cconnect", 255, 255, 255, 255);
+
+		//qport+challenge were removed.
+		Q_strncatz(data, va(" %i %i", connectinfo.subprotocol, seats), sizeof(data));
+
+		//socials...
+		for (i = 0; i < seats; i++)
+		{
+			Q_strncatz(data, va(" anon"), sizeof(data));
+
+			//also make sure they have a valid name field, Q2E kinda bugs out otherwise.
+			if (!InfoBuf_FindKey(&cls.userinfo[i], "name", &foo))
+				InfoBuf_SetValueForKey(&cls.userinfo[i], "name", va("%s-%i", name.string, i+1));
+			if (!InfoBuf_FindKey(&cls.userinfo[i], "fov", &foo))
+				InfoBuf_SetValueForKey(&cls.userinfo[i], "fov", scr_fov.string);
+		}
+
+		Q_strncatz(data, " \"", sizeof(data));
+		//note: this specific info string should lack the leading \\ char.
+		Q_strncatz(data, va("qport\\%i", connectinfo.qport), sizeof(data));	//just in case a server enforces it (ie: someone connecting directly raw udp without the lobby junk)
+		Q_strncatz(data, va("\\challenge\\%i", connectinfo.challenge), sizeof(data));	//just in case a server enforces it (ie: someone connecting directly raw udp without the lobby junk)
+		if (connectinfo.spec==CIS_OBSERVE)
+			Q_strncatz(data, "\\spectator\\1", sizeof(data));
+
+		{
+			const char *ignorekeys[] = {"prx", "*z_ext", (connectinfo.spec!=CIS_DEFAULT)?"spectator":NULL, NULL};
+			Q2EX_UserInfoToString(data+strlen(data), sizeof(data)-strlen(data), ignorekeys, seats);
+		}
+		Q_strncatz(data, "\"", sizeof(data));
+		Q_strncatz(data, "\n", sizeof(data));
+
+		connectinfo.ext.fte1 = connectinfo.ext.fte2 = connectinfo.ext.ez1 = 0;
 	}
-	if (connectinfo.spec==CIS_OBSERVE)
-		Q_strncatz(data, "\\spectator\\1", sizeof(data));
-	//the info itself
+	else
 	{
-		static const char *prioritykeys[] = {"name", "password", "spectator", "lang", "rate", "team", "topcolor", "bottomcolor", "skin", "_", "*", NULL};
-		const char *ignorekeys[] = {"prx", "*z_ext", (connectinfo.spec!=CIS_DEFAULT)?"spectator":NULL, NULL};
-		InfoBuf_ToString(&cls.userinfo[0], data+strlen(data), sizeof(data)-strlen(data), prioritykeys, ignorekeys, NULL, &cls.userinfosync, &cls.userinfo[0]);
+		Q_snprintfz(data, sizeof(data), "%c%c%c%cconnect", 255, 255, 255, 255);
+
+		Q_strncatz(data, va(" %i %i %i", connectinfo.subprotocol, connectinfo.qport, connectinfo.challenge), sizeof(data));
+
+		//userinfo0 has some twiddles for extensions from other qw engines.
+		Q_strncatz(data, " \"", sizeof(data));
+		//qwfwd proxy routing
+		if ((a = strrchr(cls.servername, '@')))
+		{
+			*a = 0;
+			Q_strncatz(data, va("\\prx\\%s", cls.servername), sizeof(data));
+			*a = '@';
+		}
+		if (connectinfo.spec==CIS_OBSERVE)
+			Q_strncatz(data, "\\spectator\\1", sizeof(data));
+		//the info itself
+		{
+			static const char *prioritykeys[] = {"name", "password", "spectator", "lang", "rate", "team", "topcolor", "bottomcolor", "skin", "_", "*", NULL};
+			const char *ignorekeys[] = {"prx", "*z_ext", (connectinfo.spec!=CIS_DEFAULT)?"spectator":NULL, NULL};
+			InfoBuf_ToString(&cls.userinfo[0], data+strlen(data), sizeof(data)-strlen(data), prioritykeys, ignorekeys, NULL, &cls.userinfosync, &cls.userinfo[0]);
+		}
+		if (connectinfo.protocol == CP_QUAKEWORLD)	//zquake extension info.
+			Q_strncatz(data, va("\\*z_ext\\%i", CLIENT_SUPPORTED_Z_EXTENSIONS), sizeof(data));
+
+		Q_strncatz(data, "\"", sizeof(data));
+
+		if (connectinfo.protocol == CP_QUAKE2 && connectinfo.subprotocol == PROTOCOL_VERSION_R1Q2)
+			Q_strncatz(data, va(" %d %d", connectinfo.ext.mtu, 1905), sizeof(data));	//mti, sub-sub-version
+		else if (connectinfo.protocol == CP_QUAKE2 && connectinfo.subprotocol == PROTOCOL_VERSION_Q2PRO)
+			Q_strncatz(data, va(" %d 0 0 %d", connectinfo.ext.mtu, 1021), sizeof(data));	//mtu, netchan-fragmentation, zlib, sub-sub-version
+
+		Q_strncatz(data, "\n", sizeof(data));
 	}
-	if (connectinfo.protocol == CP_QUAKEWORLD)	//zquake extension info.
-		Q_strncatz(data, va("\\*z_ext\\%i", CLIENT_SUPPORTED_Z_EXTENSIONS), sizeof(data));
-
-	Q_strncatz(data, "\"", sizeof(data));
-
-	if (connectinfo.protocol == CP_QUAKE2 && connectinfo.subprotocol == PROTOCOL_VERSION_R1Q2)
-		Q_strncatz(data, va(" %d %d", connectinfo.ext.mtu, 1905), sizeof(data));	//mti, sub-sub-version
-	else if (connectinfo.protocol == CP_QUAKE2 && connectinfo.subprotocol == PROTOCOL_VERSION_Q2PRO)
-		Q_strncatz(data, va(" %d 0 0 %d", connectinfo.ext.mtu, 1021), sizeof(data));	//mtu, netchan-fragmentation, zlib, sub-sub-version
-
-	Q_strncatz(data, "\n", sizeof(data));
-
 	if (connectinfo.ext.fte1)
 		Q_strncatz(data, va("0x%x 0x%x\n", PROTOCOL_VERSION_FTE1, connectinfo.ext.fte1), sizeof(data));
 	if (connectinfo.ext.fte2)
@@ -986,8 +1077,25 @@ void CL_CheckForResend (void)
 #ifdef Q2CLIENT
 		case GT_QUAKE2:
 			connectinfo.protocol = CP_QUAKE2;
-			connectinfo.subprotocol = PROTOCOL_VERSION_Q2;
-			connectinfo.ext.fte1 = PEXT_MODELDBL|PEXT_SOUNDDBL|PEXT_SPLITSCREEN;
+			lbp = cl_loopbackprotocol.string;
+			if (!strcmp(lbp, "q2"))
+			{	//vanilla
+				connectinfo.subprotocol = PROTOCOL_VERSION_Q2;
+				connectinfo.ext.fte1 = 0;
+			}
+			else if (!strcmp(lbp, "q2e") || !strcmp(lbp, STRINGIFY(PROTOCOL_VERSION_Q2EX)))
+			{	//no fte extensions
+				//still provides big coords, bigger index sizes, and splitscreen(non-dynamic though)
+				connectinfo.subprotocol = PROTOCOL_VERSION_Q2EX;
+				connectinfo.ext.fte1 = 0;
+			}
+			//else if (!strcmp(lbp, "r1q2") || !strcmp(lbp, STRINGIFY(PROTOCOL_VERSION_R1Q2)))
+			//else if (!strcmp(lbp, "q2pro") || !strcmp(lbp, STRINGIFY(PROTOCOL_VERSION_Q2PRO)))
+			else
+			{
+				connectinfo.subprotocol = PROTOCOL_VERSION_Q2EX;
+				connectinfo.ext.fte1 = 0;//PEXT_MODELDBL|PEXT_SOUNDDBL|PEXT_SPLITSCREEN;
+			}
 			connectinfo.ext.fte2 = 0;
 			connectinfo.ext.ez1 = 0;
 			break;
@@ -2012,6 +2120,13 @@ static void CL_ReconfigureCommands(int newgame)
 	extern void IN_Weapon (void);		//cl_input
 	extern void IN_FireDown (void);		//cl_input
 	extern void IN_FireUp (void);		//cl_input
+	extern void IN_WWheelDown (void);
+	extern void IN_WWheelUp (void);
+
+	extern void IN_IWheelDown (void);
+	extern void IN_IWheelUp (void);
+	extern void IN_WeapNext_f (void);
+	extern void IN_WeapPrev_f (void);
 #endif
 	extern void CL_Say_f (void);
 	extern void CL_SayTeam_f (void);
@@ -2030,13 +2145,25 @@ static void CL_ReconfigureCommands(int newgame)
 		{"sizeup",		SCR_SizeUp_f,	"Increase viewsize",		Q3},
 		{"sizedown",	SCR_SizeDown_f,	"Decrease viewsize",		Q3},
 		{"color",		CL_Color_f,		"Change Player Colours",	Q3},
+		{"say",			CL_Say_f,		NULL, Q3},
+		{"say_team",	CL_SayTeam_f,	NULL, Q3},
+
 #ifdef QUAKESTATS
 		{"weapon",		IN_Weapon,		"Configures weapon priorities for the next +attack as an alternative for the impulse command", ~Q1},
 		{"+fire",		IN_FireDown,	"'+fire 8 7' will fire lg if you have it and fall back on rl if you don't, and just fire your current weapon if neither are held. Releasing fire will then switch away to exploit a bug in most mods to deny your weapon upgrades to your killer.", ~Q1},
 		{"-fire",		IN_FireUp,		NULL, ~Q1},
+		{"+weaponwheel",IN_WWheelDown,	"Quickly select a weapon without needing too many extra keybinds", ~Q1},
+		{"-weaponwheel",IN_WWheelUp,	NULL, ~Q1},
+
+#ifdef Q2CLIENT
+		{"+wheel",		IN_WWheelDown,	"Quickly select a weapon without needing too many extra keybinds", ~Q2},
+		{"-wheel",		IN_WWheelUp,	NULL, ~Q2},
+		{"+wheel2",		IN_IWheelDown,	"Quickly use a powerup without needing too many extra keybinds", ~Q2},
+		{"-wheel2",		IN_IWheelUp,	NULL, ~Q2},
+		{"cl_weapnext",	IN_WeapNext_f,	"Select the next weapon", ~Q2},
+		{"cl_weapprev",	IN_WeapPrev_f,	"Select the previous weapon", ~Q2},
 #endif
-		{"say",			CL_Say_f,		NULL, Q3},
-		{"say_team",	CL_SayTeam_f,	NULL, Q3},
+#endif
 	};
 #undef Q1
 #undef Q2
@@ -2271,7 +2398,7 @@ This is also called on Host_Error, so it shouldn't cause any errors
 */
 void CL_Disconnect (const char *reason)
 {
-	qbyte	final[12];
+	qbyte	final[13];
 	int i;
 
 	if (reason)
@@ -2317,7 +2444,13 @@ void CL_Disconnect (const char *reason)
 		case CP_QUAKE2:
 #ifdef Q2CLIENT
 			final[0] = clcq2_stringcmd;
-			strcpy (final+1, "disconnect");
+			if (cls.protocol_q2 == PROTOCOL_VERSION_Q2EX)
+			{
+				final[1] = 1;
+				strcpy (final+2, "disconnect");
+			}
+			else
+				strcpy (final+1, "disconnect");
 			Netchan_Transmit (&cls.netchan, strlen(final)+1, final, 2500);
 			Netchan_Transmit (&cls.netchan, strlen(final)+1, final, 2500);
 			Netchan_Transmit (&cls.netchan, strlen(final)+1, final, 2500);
@@ -3422,26 +3555,47 @@ Called to play the next demo in the demo loop
 */
 void CL_NextDemo (void)
 {
+	cvar_t *cl_autodemos;
 	char	str[1024];
 
 	if (cls.demonum < 0)
 		return;		// don't play demos
 
-	if (!cls.demos[cls.demonum][0] || cls.demonum >= MAX_DEMOS)
+	cl_autodemos = Cvar_FindVar("cl_autodemos");
+	if (cl_autodemos && *cl_autodemos->string)
 	{
-		cls.demonum = 0;
-		if (!cls.demos[cls.demonum][0])
-		{
-//			Con_Printf ("No demos listed with startdemos\n");
+		Cmd_TokenizeString(cl_autodemos->string, false, false);
+		if (!Cmd_Argc())
+		{	//none...
 			cls.demonum = -1;
 			return;
 		}
-	}
+		if (cls.demonum >= Cmd_Argc())
+			cls.demonum = 0;	//restart the loop
 
-	if (!strcmp(cls.demos[cls.demonum], "quit"))
-		Q_snprintfz (str, sizeof(str), "quit\n");
+		if (!strcmp(Cmd_Argv(cls.demonum), "quit"))
+			Q_snprintfz (str, sizeof(str), "quit\n");
+		else
+			Q_snprintfz (str, sizeof(str), "playdemo \"demos/%s\"\n", Cmd_Argv(cls.demonum));
+	}
 	else
-		Q_snprintfz (str, sizeof(str), "playdemo %s\n", cls.demos[cls.demonum]);
+	{
+		if (!cls.demos[cls.demonum][0] || cls.demonum >= MAX_DEMOS)
+		{
+			cls.demonum = 0;
+			if (!cls.demos[cls.demonum][0])
+			{
+	//			Con_Printf ("No demos listed with startdemos\n");
+				cls.demonum = -1;
+				return;
+			}
+		}
+
+		if (!strcmp(cls.demos[cls.demonum], "quit"))
+			Q_snprintfz (str, sizeof(str), "quit\n");
+		else
+			Q_snprintfz (str, sizeof(str), "playdemo %s\n", cls.demos[cls.demonum]);
+	}
 	Cbuf_InsertText (str, RESTRICT_LOCAL, false);
 	cls.demonum++;
 
@@ -3657,7 +3811,7 @@ static void CL_ConnectionlessPacket_Connection(char *tokens)
 	}
 
 #if defined(Q2CLIENT)
-	if (tokens && cls.protocol == CP_QUAKE2)
+	if (tokens && connectinfo.protocol == CP_QUAKE2)
 	{
 		if (cls.protocol_q2 == PROTOCOL_VERSION_R1Q2 || cls.protocol_q2 == PROTOCOL_VERSION_Q2PRO)
 			qportsize = 1;
@@ -3678,6 +3832,8 @@ static void CL_ConnectionlessPacket_Connection(char *tokens)
 				SCR_ImageName(com_token+4);
 			else if (!strncmp(com_token, "dlserver=", 9))
 				Q_strncpyz(cls.downloadurl, com_token+9, sizeof(cls.downloadurl));
+			else if (!strcmp(com_token, STRINGIFY(PROTOCOL_VERSION_Q2EX)))
+				connectinfo.subprotocol = atoi(com_token);
 			else
 				Con_DPrintf("client_connect: Unknown token \"%s\"\n", com_token);
 		}
@@ -3979,7 +4135,10 @@ void CL_ConnectionlessPacket (void)
 			if (connectinfo.protocol == CP_QUAKE2 || connectinfo.protocol == CP_UNKNOWN)
 			{
 				connectinfo.protocol = CP_QUAKE2;
-				connectinfo.subprotocol = PROTOCOL_VERSION_Q2;
+				if (connectinfo.mode == CIM_Q2EONLY)
+					connectinfo.subprotocol = PROTOCOL_VERSION_Q2EX;
+				else
+					connectinfo.subprotocol = PROTOCOL_VERSION_Q2;
 			}
 			else
 			{
@@ -4035,10 +4194,19 @@ void CL_ConnectionlessPacket (void)
 						if (connectinfo.subprotocol < PROTOCOL_VERSION_Q2PRO)
 							connectinfo.subprotocol = PROTOCOL_VERSION_Q2PRO;
 						break;
+					case PROTOCOL_VERSION_Q2EX:
+						if (connectinfo.subprotocol < PROTOCOL_VERSION_Q2EX)
+							connectinfo.subprotocol = PROTOCOL_VERSION_Q2EX;
+						break;
 					}
 				} while (*p++ == ',');
 			}
 		}
+
+		//if its over q2e's lan layer then pretend there was a p=2023 hint in there...
+		if (connectinfo.protocol == CP_QUAKE2 && net_from.prot == NP_KEXLAN)
+			if (connectinfo.subprotocol < PROTOCOL_VERSION_Q2EX)
+				connectinfo.subprotocol = PROTOCOL_VERSION_Q2EX;
 
 		for(;;)
 		{
@@ -4568,9 +4736,6 @@ void CL_ReadPacket(void)
 		MSG_BeginReading (&net_message, cls.netchan.netprim);
 		cls.netchan.last_received = realtime;
 		CLNQ_ParseServerMessage ();
-
-		if (!cls.demoplayback)
-			CL_NextDemo();
 		return;
 	}
 #endif
@@ -5329,6 +5494,10 @@ void CL_Status_f(void)
 			case PROTOCOL_VERSION_Q2PRO:
 				Con_Printf("Network Protocol : Q2Pro\n");
 				break;
+			case PROTOCOL_VERSION_Q2EXDEMO:
+			case PROTOCOL_VERSION_Q2EX:
+				Con_Printf("Network Protocol : Quake2Ex\n");
+				break;
 			default:
 				Con_Printf("Network Protocol : Quake2 (OLD)\n");
 				break;
@@ -5444,6 +5613,7 @@ void CL_Init (void)
 
 	cls.state = ca_disconnected;
 	cls.demotrack = -1;
+	cls.demonum = -1;
 
 #ifdef SVNREVISION
 	if (strcmp(STRINGIFY(SVNREVISION), "-"))
@@ -6921,13 +7091,6 @@ double Host_Frame (double time)
 #endif
 		;
 	COM_MainThreadWork();
-
-
-#if defined(Q2CLIENT)
-	if (cls.protocol == CP_QUAKE2)
-		cl.time += host_frametime;
-#endif
-
 
 //	if (host_frametime > 0.2)
 //		host_frametime = 0.2;

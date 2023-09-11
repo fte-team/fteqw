@@ -371,18 +371,19 @@ char *MSG_ReadStringLine (void);
 
 float MSG_ReadCoord (void);
 float MSG_ReadCoordFloat (void);
-void MSG_ReadPos (float pos[3]);
+void MSG_ReadPos (float *pos);	//uses md2 normals to approximate a unit vector into a single byte.
+void MSG_ReadDir (float *dir);	//simply 3 coords
 float MSG_ReadAngle (void);
 float MSG_ReadAngle16 (void);
 void MSGQW_ReadDeltaUsercmd (const struct usercmd_s *from, struct usercmd_s *cmd, int qwprotocolver);
 void MSGFTE_ReadDeltaUsercmd (const struct usercmd_s *from, struct usercmd_s *move);
-void MSGQ2_ReadDeltaUsercmd (const struct usercmd_s *from, struct usercmd_s *move);
+void MSGQ2_ReadDeltaUsercmd (struct client_s *cl, const struct usercmd_s *from, struct usercmd_s *move);
 void MSG_ReadData (void *data, int len);
 void MSG_ReadSkip (int len);
 
 
 int MSG_ReadSize16 (sizebuf_t *sb);
-void MSG_WriteSize16 (sizebuf_t *sb, int sz);
+void MSG_WriteSize16 (sizebuf_t *sb, unsigned int sz);
 void COM_DecodeSize(int solid, float *mins, float *maxs);
 int COM_EncodeSize(const float *mins, const float *maxs);
 

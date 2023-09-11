@@ -6513,6 +6513,9 @@ char *PF_infokey_Internal (int entnum, const char *key)
 				else
 					value = "quakeworld+";
 				break;
+			case SCP_QUAKE2EX:
+				value = "q2e";	//shouldn't happen
+				break;
 			case SCP_QUAKE2:
 				value = "quake2";	//shouldn't happen
 				break;
@@ -7888,15 +7891,16 @@ const char *SV_CheckRejectConnection(netadr_t *adr, const char *uinfo, unsigned 
 		*clfeatures = 0;
 		safeswitch(protocol)
 		{
-		safedefault:			bp = "unknown";		break;
 		case SCP_QUAKEWORLD:	bp = "qw";			break;
 		case SCP_QUAKE2:		bp = "q2";			break;
+		case SCP_QUAKE2EX:		bp = "q2ex";		break;
 		case SCP_QUAKE3:		bp = "q3";			break;
 		case SCP_NETQUAKE:		bp = "nq";			break;
 		case SCP_BJP3:			bp = "bjp3";		break;
 		case SCP_FITZ666:		bp = "fitz666";		break;
 		case SCP_DARKPLACES6:	bp = "dpp6";		break;
 		case SCP_DARKPLACES7:	bp = "dpp7";		break;
+		safedefault:			bp = "unknown";		break;
 		}
 		Info_SetValueForKey(clfeatures, "basicprotocol", bp, sizeof(clfeatures));
 		Info_SetValueForKey(clfeatures, "guid", guid, sizeof(clfeatures));

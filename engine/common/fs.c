@@ -5052,11 +5052,19 @@ static void FS_ReloadPackFilesFlags(unsigned int reloadflags)
 		searchpathfuncs_t *pak;
 		vfsfile_t *vfs;
 		char pakname[MAX_OSPATH];
-		Q_snprintfz(pakname, sizeof(pakname), "%sQuakeEX.kpf", com_gamepath);
-		vfs = VFSOS_Open(pakname, "rb");
-		pak = FSZIP_LoadArchive(vfs, NULL, pakname, pakname, "");
-		if (pak)	//logically should have SPF_EXPLICIT set, but that would give it a worse gamedir depth
-			FS_AddPathHandle(&oldpaths, "", pakname, pak, "", SPF_COPYPROTECTED, reloadflags);
+		int i;
+		static char *names[] = {"QuakeEX.kpf", "Q2Game.kpf"};	//need a better way to handle this rubbish. fucking mod-specific translations being stored in the engine-specific data.
+		for (i = 0; i < countof(names); i++)
+		{
+			Q_snprintfz(pakname, sizeof(pakname), "%s%s", com_gamepath, names[i]);
+			vfs = VFSOS_Open(pakname, "rb");
+			pak = FSZIP_LoadArchive(vfs, NULL, pakname, pakname, "");
+			if (pak)	//logically should have SPF_EXPLICIT set, but that would give it a worse gamedir depth
+			{
+				FS_AddPathHandle(&oldpaths, "", pakname, pak, "", SPF_COPYPROTECTED, reloadflags);
+				break;
+			}
+		}
 	}
 #endif
 

@@ -292,13 +292,42 @@ vfsfile_t *FS_DecompressGZip(vfsfile_t *infile, vfsfile_t *outfile)
 }
 
 
+size_t ZLib_CompressBuffer(const qbyte *in, size_t insize, qbyte *out, size_t maxoutsize)
+{	//compresses... returns 0 if the data would have grown.
+	z_stream strm = {
+		(qbyte*)in,
+		insize,
+		0,
 
-size_t ZLib_DecompressBuffer(qbyte *in, size_t insize, qbyte *out, size_t maxoutsize)
+		out,
+		maxoutsize,
+		0,
+
+		NULL,
+		NULL,
+
+		NULL,
+		NULL,
+		NULL,
+
+		Z_UNKNOWN,
+		0,
+		0
+	};
+
+	qdeflateInit2(&strm, Z_BEST_COMPRESSION, Z_DEFLATED, MAX_WBITS, MAX_MEM_LEVEL, Z_DEFAULT_STRATEGY);
+	if (qdeflate(&strm, Z_FINISH) != Z_STREAM_END)
+		strm.total_out = 0; //some sort of failure. probably needs more output buffer
+	qdeflateEnd(&strm);
+
+	return strm.total_out;
+}
+size_t ZLib_DecompressBuffer(const qbyte *in, size_t insize, qbyte *out, size_t maxoutsize)
 {
 	int ret;
 
 	z_stream strm = {
-		in,
+		(qbyte*)in,
 		insize,
 		0,
 

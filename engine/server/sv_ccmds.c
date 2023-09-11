@@ -1915,7 +1915,9 @@ void SV_AutoAddPenalty (client_t *cl, unsigned int banflag, int duration, char *
 	proto.adrmask.type = proto.adr.type;
 
 	SV_AddBanEntry(&proto, reason);
-	SV_EvaluatePenalties(cl);
+
+	for (cl = (cl->controller?cl->controller:cl); cl; cl = cl->controlled)
+		SV_EvaluatePenalties(cl);
 }
 void SV_AutoBanSender (int duration, char *reason)
 {
@@ -2188,12 +2190,14 @@ static char *ShowTime(unsigned int seconds)
 SV_Status_f
 ================
 */
+const char *SV_ProtocolNameForClient(client_t *cl);
 static void SV_Status_f (void)
 {
 	int			i;
 	client_t	*cl;
 	float		cpu;
-	char		*s, *p, *sec;
+	char		*s, *sec;
+	const char	*p;
 	char		adr[MAX_ADR_SIZE];
 	float pi, po, bi, bo;
 
@@ -2496,21 +2500,7 @@ static void SV_Status_f (void)
 			else
 				sec = S_COLOR_RED;
 
-			safeswitch(cl->protocol)
-			{
-			case SCP_BAD:			p = "-----"; break;
-			case SCP_QUAKEWORLD:	p = (cl->fteprotocolextensions2 & PEXT2_REPLACEMENTDELTAS)?"fteqw":"qw"; break;
-			case SCP_QUAKE2:		p = "q2"; break;
-			case SCP_QUAKE3:		p = "q3"; break;
-			case SCP_NETQUAKE:		p = (cl->fteprotocolextensions2 & PEXT2_REPLACEMENTDELTAS)?"ftenq":(cl->qex?"qe15":"nq"); break;
-			case SCP_BJP3:			p = (cl->fteprotocolextensions2 & PEXT2_REPLACEMENTDELTAS)?"ftenq":"bjp3"; break;
-			case SCP_FITZ666:		p = (cl->fteprotocolextensions2 & PEXT2_REPLACEMENTDELTAS)?"ftenq":(cl->qex?"qe666":"fitz"); break;
-			case SCP_DARKPLACES6:	p = "dpp6"; break;
-			case SCP_DARKPLACES7:	p = "dpp7"; break;
-			safedefault:
-				p = "";
-				break;
-			}
+			p = SV_ProtocolNameForClient(cl);
 			if (cl->state == cs_connected && cl->protocol>=SCP_NETQUAKE)
 				p = "nq";	//not actually known yet.
 			else if (cl->state == cs_zombie || cl->state == cs_loadzombie)
@@ -2811,7 +2801,7 @@ void SV_User_f (void)
 		Con_TPrintf("Userinfo (%i):\n", cl->userid);
 		InfoBuf_Print (&cl->userinfo, "  ");
 		Con_Printf("[%u/%i, %u/%i]\n", (unsigned)cl->userinfo.totalsize, sv_userinfo_bytelimit.ival, (unsigned)cl->userinfo.numkeys, sv_userinfo_keylimit.ival);
-		switch(cl->protocol)
+		safeswitch(cl->protocol)
 		{
 		case SCP_BAD:
 			Con_Printf("protocol: bot/invalid\n");
@@ -2824,6 +2814,9 @@ void SV_User_f (void)
 			break;
 		case SCP_QUAKE2:
 			Con_Printf("protocol: quake2\n");
+			break;
+		case SCP_QUAKE2EX:
+			Con_Printf("protocol: quake2ex\n");
 			break;
 		case SCP_QUAKE3:
 			Con_Printf("protocol: quake3\n");
@@ -2849,7 +2842,7 @@ void SV_User_f (void)
 		case SCP_DARKPLACES7:
 			Con_Printf("protocol: dpp7\n");
 			break;
-		default:
+		safedefault:
 			Con_Printf("protocol: other (fixme)\n");
 			break;
 		}

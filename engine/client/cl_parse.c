@@ -829,7 +829,6 @@ void CL_DownloadFinished(qdownload_t *dl)
 		CL_CheckModelResources(filename);
 
 		Mod_FileWritten(filename);
-		if (!cl.sendprespawn)
 		{
 /*
 			extern int mod_numknown;
@@ -850,7 +849,8 @@ void CL_DownloadFinished(qdownload_t *dl)
 				{
 					if (cl.model_precache[i] && cl.model_precache[i]->loadstate == MLS_FAILED)
 						cl.model_precache[i]->loadstate = MLS_NOTLOADED;
-					cl.model_precache[i] = Mod_ForName(cl.model_name[i], MLV_WARN);
+					CL_CheckModelResources(cl.model_name[i]);
+					cl.model_precache[i] = Mod_ForName(cl.model_name[i], ((i==1)?MLV_WARNSYNC:MLV_WARN));
 					if (i == 1)
 					{
 						cl.worldmodel = cl.model_precache[i];
@@ -867,6 +867,7 @@ void CL_DownloadFinished(qdownload_t *dl)
 				{
 					if (cl.model_csqcprecache[i] && cl.model_csqcprecache[i]->loadstate == MLS_FAILED)
 						cl.model_csqcprecache[i]->loadstate = MLS_NOTLOADED;
+					CL_CheckModelResources(cl.model_csqcname[i]);
 					cl.model_csqcprecache[i] = Mod_ForName(cl.model_csqcname[i], MLV_WARN);
 					break;
 				}
@@ -878,6 +879,7 @@ void CL_DownloadFinished(qdownload_t *dl)
 				{
 					if (cl.model_precache_vwep[i] && cl.model_precache_vwep[i]->loadstate == MLS_FAILED)
 						cl.model_precache_vwep[i]->loadstate = MLS_NOTLOADED;
+					CL_CheckModelResources(cl.model_name_vwep[i]);
 					cl.model_precache_vwep[i] = Mod_ForName(cl.model_name_vwep[i], MLV_WARN);
 					break;
 				}
@@ -994,6 +996,10 @@ qboolean	CL_CheckOrEnqueDownloadFile (const char *filename, const char *localnam
 		}
 		else if (*dlURL)
 		{	//we don't really know which gamedir its meant to be for...
+#ifdef Q2CLIENT	//ffs
+			if (!strncmp(filename, "pics/../", 8))
+				filename += 8;
+#endif
 			filename = va("%s%s%s/%s", dlURL, ((dlURL[strlen(dlURL)-1]=='/')?"":"/"), FS_GetGamedir(true), filename);
 			flags |= DLLF_TRYWEB|DLLF_ALLOWWEB;
 		}
@@ -1214,6 +1220,11 @@ static void Model_CheckDownloads (void)
 			char picname[256];
 			if (!cl.image_name[i] || !*cl.image_name[i])
 				continue;
+#if defined(HAVE_LEGACY)
+			Q_snprintfz(picname, sizeof(picname), "pics/%s.png", cl.image_name[i]);
+			if (COM_FCheckExists(picname))
+				return;
+#endif
 			Q_snprintfz(picname, sizeof(picname), "pics/%s.pcx", cl.image_name[i]);
 			if (!strncmp(cl.image_name[i], "../", 3))	//some servers are just awkward.
 				CL_CheckOrEnqueDownloadFile(picname, picname+8, DLLF_ALLOWWEB);
@@ -1490,10 +1501,12 @@ static int CL_LoadModels(int stage, qboolean dontactuallyload)
 		if (cl.worldmodel && cl.worldmodel->loadstate == MLS_LOADED)
 			Mod_NowLoadExternal(cl.worldmodel);
 
-#ifdef Q2CLIENT
-		if (cls.protocol == CP_QUAKE2 && cl.worldmodel && cl.worldmodel->checksum != cl.q2mapchecksum)
-			Host_EndGame("Local map version differs from server: %i != '%i'\n", cl.worldmodel->checksum, cl.q2mapchecksum);
-#endif
+/*#ifdef Q2CLIENT
+		if (cls.protocol == CP_QUAKE2 && cl.worldmodel && !cls.demoplayback &&
+				cl.worldmodel->checksum  != cl.q2mapchecksum &&
+				cl.worldmodel->checksum2 != cl.q2mapchecksum)
+			Host_EndGame("Local map version differs from server: %i != '%i'\n", cl.worldmodel->checksum2, cl.q2mapchecksum);
+#endif*/
 
 		endstage();
 	}
@@ -1767,8 +1780,15 @@ void CL_RequestNextDownload (void)
 
 		cl.sendprespawn = false;
 
-		if (cl_splitscreen.ival && !(cls.fteprotocolextensions & PEXT_SPLITSCREEN))
-			Con_TPrintf(CON_WARNING "Splitscreen requested but not available on this server.\n");
+		if (cl_splitscreen.ival)
+		{
+			if (cls.fteprotocolextensions & PEXT_SPLITSCREEN)
+				;
+			else if (cls.protocol == CP_QUAKE2 && cls.protocol_q2 == PROTOCOL_VERSION_Q2EX)
+				;
+			else
+				Con_TPrintf(CON_WARNING "Splitscreen requested but not available on this server.\n");
+		}
 
 		if (cl.worldmodel && cl.worldmodel->loadstate == MLS_LOADING)
 			COM_WorkerPartialSync(cl.worldmodel, &cl.worldmodel->loadstate, MLS_LOADING);
@@ -3587,6 +3607,7 @@ static void CLQ2_ParseServerData (void)
 	char	*str;
 	int		i;
 	int svcnt;
+	int rate;
 //	int cflag;
 
 	memset(&cls.netchan.netprim, 0, sizeof(cls.netchan.netprim));
@@ -3612,8 +3633,8 @@ static void CLQ2_ParseServerData (void)
 	if (i == PROTOCOL_VERSION_FTE1)
 	{
 		cls.fteprotocolextensions = i = MSG_ReadLong();
-//		if (i & PEXT_FLOATCOORDS)
-//			i -= PEXT_FLOATCOORDS;
+		if (i & PEXT_FLOATCOORDS)
+			i -= PEXT_FLOATCOORDS;
 		if (i & PEXT_SOUNDDBL)
 			i -= PEXT_SOUNDDBL;
 		if (i & PEXT_MODELDBL)
@@ -3625,19 +3646,38 @@ static void CLQ2_ParseServerData (void)
 		i = MSG_ReadLong ();
 
 		if (cls.fteprotocolextensions & PEXT_FLOATCOORDS)
+		{
 			cls.netchan.netprim.coordtype = COORDTYPE_FLOAT_32;
+			cls.netchan.netprim.anglesize = 2;
+		}
 	}
-	cls.protocol_q2 = i;
 
 	if (i == PROTOCOL_VERSION_R1Q2)
 		Con_DPrintf("Using R1Q2 protocol\n");
 	else if (i == PROTOCOL_VERSION_Q2PRO)
 		Con_DPrintf("Using Q2PRO protocol\n");
+	else if (i == PROTOCOL_VERSION_Q2EXDEMO)
+	{
+		i = PROTOCOL_VERSION_Q2EX;	//close enough, don't distinguish. only real difference is 16bit coords for WritePos etc.
+		Con_DPrintf("Using Q2EXDemo protocol\n");
+	}
+	else if (i == PROTOCOL_VERSION_Q2EX)
+	{
+		cls.netchan.netprim.coordtype = COORDTYPE_FLOAT_32;
+		cls.netchan.netprim.anglesize = 2;
+		Con_DPrintf("Using Q2EX protocol\n");
+	}
 	else if (i > PROTOCOL_VERSION_Q2 || i < (cls.demoplayback?PROTOCOL_VERSION_Q2_DEMO_MIN:PROTOCOL_VERSION_Q2_MIN))
 		Host_EndGame ("Q2 Server returned version %i, not %i", i, PROTOCOL_VERSION_Q2);
+	cls.protocol_q2 = i;
 
 	svcnt = MSG_ReadLong ();
 	/*cl.attractloop =*/ MSG_ReadByte ();
+
+	if (cls.protocol_q2 == PROTOCOL_VERSION_Q2EX)
+		rate = MSG_ReadByte();
+	else
+		rate = 10;	//fixed to a poopy 10hz.
 
 	// game directory
 	str = MSG_ReadString ();
@@ -3668,14 +3708,29 @@ static void CLQ2_ParseServerData (void)
 	cl.playerview[0].spectator = false;
 	cl.splitclients = 1;
 
+	if (cls.protocol_q2 == PROTOCOL_VERSION_Q2EX && cl.playerview[0].playernum==-2)
+	{
+		i = MSG_ReadShort();
+		if (i > MAX_SPLITS)
+			Host_EndGame ("server's splitscreen count too high (%u > %u)\n", i, MAX_SPLITS);
+		cl.splitclients = i;
+		for (i = 0; i < cl.splitclients; i++)
+		{
+			cl.playerview[i].playernum = MSG_ReadShort ();
+			cl.playerview[i].viewentity = cl.playerview[i].playernum+1;
+			cl.playerview[i].spectator = false;
+		}
+	}
+
 	cl.numq2visibleweapons = 1;	//give it a default.
 	cl.q2visibleweapons[0] = "weapon.md2";
-	cl.q2svnetrate = 10;
+	cl.q2svnetrate = rate;
+	if (cl.q2svnetrate < 1)	//wut?...
+		cl.q2svnetrate = 10;
 
 	// get the full level name
 	str = MSG_ReadString ();
 	Q_strncpyz (cl.levelname, str, sizeof(cl.levelname));
-
 
 	if (cls.protocol_q2 == PROTOCOL_VERSION_R1Q2)
 	{
@@ -4537,6 +4592,8 @@ static void CL_ParseModellist (qboolean lots)
 		if (!str[0])
 			break;
 		nummodels++;
+		if (nummodels==1)
+			SCR_ImageName(cl.model_name[nummodels]);
 		if (nummodels>=MAX_PRECACHE_MODELS)
 			Host_EndGame ("Server sent too many model_precache");
 		strcpy (cl.model_name[nummodels], str);
@@ -4568,10 +4625,11 @@ static void CL_ParseModellist (qboolean lots)
 			cl_gib2index = nummodels;
 		if (!strcmp(cl.model_name[nummodels],"progs/gib3.mdl"))
 			cl_gib3index = nummodels;
-	}
 
-	if (nummodels)
-		SCR_ImageName(cl.model_name[1]);
+		//we have the names, we might as well START loading them now.
+		if (COM_HasWorkers(WG_LOADER))
+			Mod_ForName (cl.model_name[nummodels], MLV_SILENT);
+	}
 
 	n = (cl.protocol_qw>=26)?MSG_ReadByte():0;
 
@@ -4590,7 +4648,7 @@ static void CL_ParseModellist (qboolean lots)
 	SCR_SetLoadingFile("loading data");
 
 	//we need to try to load it now if we can, so any embedded archive will be loaded *before* we start looking for other content...
-	cl.model_precache[1] = Mod_ForName (cl.model_name[1], MLV_SILENT);
+	cl.model_precache[1] = Mod_ForName (cl.model_name[1], MLV_SILENTSYNC);
 	if (cl.model_precache[1] && cl.model_precache[1]->loadstate == MLS_LOADED)
 		FS_LoadMapPackFile(cl.model_precache[1]->name, cl.model_precache[1]->archive);
 
@@ -4653,45 +4711,46 @@ static void CLQ2_ParseClientinfo(int i, char *s)
 	CL_ProcessUserInfo (i, player);
 }
 
-static void CLQ2_ParseConfigString (void)
+void CLQ2EX_ParseLightConfigString(int i, const char *s);
+static void CLQ2_UpdateConfigString (unsigned int i, char *s)
 {
-	unsigned int		i;
-	char	*s;
-//	char	olds[MAX_QPATH];
-
-	i = (unsigned short)MSG_ReadShort ();
-	s = MSG_ReadString();
-
 	if (i >= 0x8000 && i < 0x8000+MAX_PRECACHE_MODELS)
 	{
-		if (*s == '/')
-			s++;	//*sigh*
-		Q_strncpyz(cl.model_name[i-0x8000], s, MAX_QPATH);
-		if (cl.model_name[i-0x8000][0] == '#')
-		{
-			if (cl.numq2visibleweapons < Q2MAX_VISIBLE_WEAPONS)
-			{
-				cl.q2visibleweapons[cl.numq2visibleweapons] = cl.model_name[i-0x8000]+1;
-				cl.numq2visibleweapons++;
-			}
-			cl.model_precache[i-0x8000] = NULL;
-		}
-		else if (cl.contentstage)
-			cl.model_precache[i-0x8000] = Mod_ForName (cl.model_name[i-0x8000], MLV_WARN);
-		return;
+		i -= 0x8000;
+		goto parsemodelindex;
 	}
 	else if (i >= 0xc000 && i < 0xc000+MAX_PRECACHE_SOUNDS)
 	{
-		if (*s == '/')
-			s++;	//*sigh*
-		Q_strncpyz(cl.sound_name[i-0xc000], s, MAX_QPATH);
-		if (cl.contentstage)
-			cl.sound_precache[i-0xc000] = S_PrecacheSound (s);
-		return;
+		i -= 0xc000;
+		goto parsesoundindex;
+	}
+	if (cls.protocol_q2 != PROTOCOL_VERSION_Q2EX)
+	{	//remap from vanilla to q2e
+#define PASTE(a,b) (a##b)
+#define REMAPR(n,l) 		if (i >= Q2CS_##n && i < Q2CS_##n+Q2MAX_##l) i = i-Q2CS_##n+Q2EXCS_##n; else
+#define REMAPS(n)			if (i == PASTE(Q2CS_,n)) i = i-PASTE(Q2CS_,n)+PASTE(Q2EXCS_,n); else
+#define Q2MAX_STATUSBAR (Q2CS_AIRACCEL-Q2CS_STATUSBAR)
+		REMAPS(NAME)
+		REMAPS(CDTRACK)
+		REMAPS(SKY)
+		REMAPS(SKYAXIS)
+		REMAPS(SKYROTATE)
+		REMAPR(STATUSBAR, STATUSBAR)
+		REMAPS(AIRACCEL)
+		REMAPS(MAXCLIENTS)
+		REMAPS(MAPCHECKSUM)
+		REMAPR(MODELS, MODELS)
+		REMAPR(SOUNDS, SOUNDS)
+		REMAPR(IMAGES, IMAGES)
+		REMAPR(LIGHTS, LIGHTSTYLES)
+		REMAPR(ITEMS, ITEMS)
+		REMAPR(PLAYERSKINS, CLIENTS)
+		REMAPR(GENERAL, GENERAL)
+		Host_EndGame ("configstring %i > Q2MAX_CONFIGSTRINGS", i);
 	}
 
-	if ((unsigned int)i >= Q2MAX_CONFIGSTRINGS)
-		Host_EndGame ("configstring > Q2MAX_CONFIGSTRINGS");
+	if ((unsigned int)i >= Q2EXMAX_CONFIGSTRINGS)
+		Host_EndGame ("configstring %i > Q2EXMAX_CONFIGSTRINGS", i);
 
 //	strncpy (olds, cl.configstrings[i], sizeof(olds));
 //	olds[sizeof(olds) - 1] = 0;
@@ -4700,15 +4759,15 @@ static void CLQ2_ParseConfigString (void)
 
 	// do something apropriate
 
-	if (i == Q2CS_NAME)
+	if (i == Q2EXCS_NAME)
 	{
 		Q_strncpyz (cl.levelname, s, sizeof(cl.levelname));
 	}
-	else if (i == Q2CS_SKY)
+	else if (i == Q2EXCS_SKY)
 		R_SetSky(s);
-	else if (i == Q2CS_SKYAXIS || i == Q2CS_SKYROTATE)
+	else if (i == Q2EXCS_SKYAXIS || i == Q2EXCS_SKYROTATE)
 	{
-		if (i == Q2CS_SKYROTATE)
+		if (i == Q2EXCS_SKYROTATE)
 		{
 			s = COM_Parse(s);
 			cl.skyrotate = atof(com_token);
@@ -4744,83 +4803,142 @@ static void CLQ2_ParseConfigString (void)
 			Cvar_LockFromServer(&r_skybox_orientation, "");
 		Cvar_LockFromServer(&r_skybox_autorotate, va("%i", cl.skyautorotate));
 	}
-	else if (i == Q2CS_STATUSBAR)
+	else if (i == Q2EXCS_STATUSBAR)
 	{
 		Q_strncpyz(cl.q2statusbar, s, sizeof(cl.q2statusbar));
 	}
-	else if (i >= Q2CS_LIGHTS && i < Q2CS_LIGHTS+Q2MAX_LIGHTSTYLES)
+	else if (i > Q2EXCS_STATUSBAR && i < Q2EXCS_AIRACCEL)
+		; //trailing statusbar
+	else if (i == Q2EXCS_MAXCLIENTS)
 	{
-		R_UpdateLightStyle(i-Q2CS_LIGHTS, s, 1, 1, 1);
+		i = atoi(s);
+		if (i > 1)
+			cl.allocated_client_slots = i;
 	}
-	else if (i == Q2CS_CDTRACK)
+	else if (i >= Q2EXCS_LIGHTS && i < Q2EXCS_LIGHTS+Q2EXMAX_LIGHTSTYLES)
+	{
+		R_UpdateLightStyle(i-Q2EXCS_LIGHTS, s, 1, 1, 1);
+	}
+	else if (i >= Q2EXCS_RTLIGHTS && i < Q2EXCS_RTLIGHTS+Q2EXMAX_RTLIGHTS)
+	{
+		i -= Q2EXCS_RTLIGHTS;
+		CLQ2EX_ParseLightConfigString(i, s);
+	}
+	else if (i == Q2EXCS_CDTRACK)
 	{
 		Media_NamedTrack (s, NULL);
 	}
-	else if (i == Q2CS_AIRACCEL)
+	else if (i == Q2EXCS_AIRACCEL)
 		Q_strncpyz(cl.q2airaccel, s, sizeof(cl.q2airaccel));
-	else if (i >= Q2CS_MODELS && i < Q2CS_MODELS+Q2MAX_MODELS)
+	else if (i >= Q2EXCS_MODELS && i < Q2EXCS_MODELS+Q2EXMAX_MODELS)
 	{
+		i-= Q2EXCS_MODELS;
+parsemodelindex:
+		if ((unsigned int)i >= countof(cl.model_name))
+			return;
 		if (*s == '/')
 			s++;	//*sigh*
-		Q_strncpyz(cl.model_name[i-Q2CS_MODELS], s, MAX_QPATH);
-		if (cl.model_name[i-Q2CS_MODELS][0] == '#')
+		if (i == 255)
+			s = "*playermodel";	//something special.
+		Q_strncpyz(cl.model_name[i], s, MAX_QPATH);
+		if (cl.model_name[i][0] == '#')
 		{
 			if (cl.numq2visibleweapons < Q2MAX_VISIBLE_WEAPONS)
 			{
-				cl.q2visibleweapons[cl.numq2visibleweapons] = cl.model_name[i-Q2CS_MODELS]+1;
+				cl.q2visibleweapons[cl.numq2visibleweapons] = cl.model_name[i]+1;
 				cl.numq2visibleweapons++;
 			}
-			cl.model_precache[i-Q2CS_MODELS] = NULL;
+			cl.model_precache[i] = NULL;
 		}
 		else if (cl.contentstage)
-			cl.model_precache[i-Q2CS_MODELS] = Mod_ForName (cl.model_name[i-Q2CS_MODELS], MLV_WARN);
+			cl.model_precache[i] = Mod_ForName (cl.model_name[i], MLV_WARN);
 	}
-	else if (i >= Q2CS_SOUNDS && i < Q2CS_SOUNDS+Q2MAX_SOUNDS)
+	else if (i >= Q2EXCS_SOUNDS && i < Q2EXCS_SOUNDS+Q2MAX_SOUNDS)
 	{
+		i-= Q2EXCS_SOUNDS;
+parsesoundindex:
+		if ((unsigned int)i >= countof(cl.sound_name))
+			return;
 		if (*s == '/')
 			s++;	//*sigh*
-		Q_strncpyz(cl.sound_name[i-Q2CS_SOUNDS], s, MAX_QPATH);
+		Q_strncpyz(cl.sound_name[i], s, MAX_QPATH);
 		if (cl.contentstage)
-			cl.sound_precache[i-Q2CS_SOUNDS] = S_PrecacheSound (s);
+			cl.sound_precache[i] = S_PrecacheSound (s);
 	}
-	else if (i >= Q2CS_IMAGES && i < Q2CS_IMAGES+Q2MAX_IMAGES)
+	else if (i >= Q2EXCS_IMAGES && i < Q2EXCS_IMAGES+Q2MAX_IMAGES)
 	{
-		Z_Free(cl.image_name[i-Q2CS_IMAGES]);
-		cl.image_name[i-Q2CS_IMAGES] = Z_StrDup(s);
+		i -= Q2EXCS_IMAGES;
+		if ((unsigned int)i >= countof(cl.image_name))
+			return;
+		Z_Free(cl.image_name[i]);
+		cl.image_name[i] = Z_StrDup(s);
 	}
-	else if (i >= Q2CS_ITEMS && i < Q2CS_ITEMS+Q2MAX_ITEMS)
+	else if (i >= Q2EXCS_ITEMS && i < Q2EXCS_ITEMS+Q2MAX_ITEMS)
 	{
-		Z_Free(cl.item_name[i-Q2CS_ITEMS]);
-		cl.item_name[i-Q2CS_ITEMS] = Z_StrDup(s);
+		i -= Q2EXCS_ITEMS;
+		if ((unsigned int)i >= countof(cl.item_name))
+			return;
+		Z_Free(cl.item_name[i]);
+		cl.item_name[i] = Z_StrDup(s);
 	}
-	else if (i >= Q2CS_GENERAL && i < Q2CS_GENERAL+Q2MAX_GENERAL)
+	else if (i >= Q2EXCS_GENERAL && i < Q2EXCS_GENERAL+Q2EXMAX_GENERAL)
 	{
-		Z_Free(cl.configstring_general[i-Q2CS_PLAYERSKINS]);
-		cl.configstring_general[i-Q2CS_PLAYERSKINS] = Z_StrDup(s);
+		i -= Q2EXCS_GENERAL;
+		if ((unsigned int)i >= Q2MAX_CLIENTS)//countof(cl.configstring_general))
+			return;
+		Z_Free(cl.configstring_general[i]);
+		cl.configstring_general[i] = Z_StrDup(s);
 	}
-	else if (i >= Q2CS_PLAYERSKINS && i < Q2CS_PLAYERSKINS+Q2MAX_CLIENTS)
+	else if (i >= Q2EXCS_PLAYERSKINS && i < Q2EXCS_PLAYERSKINS+Q2EXMAX_CLIENTS)
 	{
-		CLQ2_ParseClientinfo (i-Q2CS_PLAYERSKINS, s);
-		Z_Free(cl.configstring_general[i-Q2CS_PLAYERSKINS]);
-		cl.configstring_general[i-Q2CS_PLAYERSKINS] = Z_StrDup(s);
+		i -= Q2EXCS_GENERAL;
+		i += Q2EXMAX_CLIENTS;
+		if ((unsigned int)i >= countof(cl.configstring_general))
+			return;
+		Z_Free(cl.configstring_general[i]);
+		cl.configstring_general[i] = Z_StrDup(s);
+
+		CLQ2_ParseClientinfo (i, s);
 	}
-	else if (i == Q2CS_MAPCHECKSUM)
+	else if (i == Q2EXCS_MAPCHECKSUM)
 	{
 		int serverchecksum = (int)strtol(s, NULL, 10);
-		int mapchecksum = 0;
 		if (cl.worldmodel)
 		{
 			if (cl.worldmodel->loadstate == MLS_LOADING)
 				COM_WorkerPartialSync(cl.worldmodel, &cl.worldmodel->loadstate, MLS_LOADING);
-			mapchecksum = cl.worldmodel->checksum;
 
 			// the Q2 client normally exits here, however for our purposes we might as well ignore it
-			if (mapchecksum != serverchecksum)
-				Con_Printf(CON_WARNING "WARNING: Client checksum does not match server checksum (%i != %i)", mapchecksum, serverchecksum);
+			if (cl.worldmodel->checksum != serverchecksum &&
+				cl.worldmodel->checksum2!= serverchecksum)
+				Con_Printf(CON_WARNING "WARNING: Client checksum does not match server checksum (%i != %i)", cl.worldmodel->checksum2, serverchecksum);
 		}
 
 		cl.q2mapchecksum = serverchecksum;
 	}
+	else if (i >= Q2ECS_WHEEL_WEAPONS && i < Q2ECS_WHEEL_WEAPONS+Q2EXMAX_WWHEEL)
+		;
+	else if (i >= Q2ECS_WHEEL_AMMO && i < Q2ECS_WHEEL_AMMO+Q2EXMAX_WWHEEL)
+		;
+	else if (i >= Q2ECS_WHEEL_POWERUPS && i < Q2ECS_WHEEL_POWERUPS+Q2EXMAX_WWHEEL)
+		;
+	else if (i == Q2ECS_CD_LOOP_COUNT)
+		;
+	else if (i == Q2ECS_GAME_STYLE)
+		;
+
+#define	Q2EXCS_SOUNDS			(Q2EXCS_MODELS			+Q2EXMAX_MODELS)
+#define	Q2EXCS_IMAGES			(Q2EXCS_SOUNDS			+Q2EXMAX_SOUNDS)
+#define	Q2EXCS_LIGHTS			(Q2EXCS_IMAGES			+Q2EXMAX_IMAGES)
+#define	Q2EXCS_RTLIGHTS			(Q2EXCS_LIGHTS			+Q2EXMAX_LIGHTSTYLES)
+	else
+		Con_Printf(CON_WARNING"Config string %i unsupported\n", i);
+}
+static void CLQ2_ParseConfigString (void)
+{
+	unsigned int	i = MSG_ReadUInt16();
+	char			*s = MSG_ReadString();
+	CLQ2_UpdateConfigString(i, s);
 }
 #endif
 
@@ -5176,8 +5294,7 @@ static void CLQW_ParseStartSoundPacket(void)
 #ifdef Q2CLIENT
 static void CLQ2_ParseStartSoundPacket(void)
 {
-	vec3_t  pos_v;
-	float	*pos;
+	vec3_t  pos;
 	int 	channel, ent;
 	int 	sound_num;
 	float 	volume;
@@ -5187,9 +5304,11 @@ static void CLQ2_ParseStartSoundPacket(void)
 	sfx_t	*sfx;
 
 	flags = MSG_ReadByte ();
+	if (flags & Q2SND_EXTRABITS)
+		flags |= MSG_ReadByte ()<<8;
 
-	if ((flags & Q2SND_LARGEIDX) && (cls.fteprotocolextensions & PEXT_SOUNDDBL))
-		sound_num = MSG_ReadShort();
+	if (cls.protocol_q2 == PROTOCOL_VERSION_Q2EX || ((flags & Q2SNDFTE_LARGEIDX) && (cls.fteprotocolextensions & PEXT_SOUNDDBL)))
+		sound_num = MSG_ReadUInt16();
 	else
 		sound_num = MSG_ReadByte ();
 
@@ -5210,7 +5329,10 @@ static void CLQ2_ParseStartSoundPacket(void)
 
 	if (flags & Q2SND_ENT)
 	{	// entity reletive
-		channel = MSG_ReadShort();
+		if (cls.protocol_q2 == PROTOCOL_VERSION_Q2EX && (flags & Q2SNDEX_LARGEENT))
+			channel = MSG_ReadLong();
+		else
+			channel = MSG_ReadShort();
 		ent = channel>>3;
 		if (ent > MAX_EDICTS)
 			Host_EndGame ("CL_ParseStartSoundPacket: ent = %i", ent);
@@ -5225,22 +5347,15 @@ static void CLQ2_ParseStartSoundPacket(void)
 
 	if (flags & Q2SND_POS)
 	{	// positioned in space
-		if ((flags & Q2SND_LARGEPOS) && (cls.fteprotocolextensions & PEXT_FLOATCOORDS))
-		{
-			pos_v[0] = MSG_ReadFloat();
-			pos_v[1] = MSG_ReadFloat();
-			pos_v[2] = MSG_ReadFloat();
-		}
-		else
-			MSG_ReadPos (pos_v);
+		MSG_ReadPos (pos);
 
-		pos = pos_v;
+//FIXME
+//		if (!(flags & Q2SNDEX_EXPLICITPOS))
+//			CL_GetNumberedEntityInfo(ent, pos, NULL);
 	}
 	else	// use entity number
 	{
-		CL_GetNumberedEntityInfo(ent, pos_v, NULL);
-		pos = pos_v;
-//		pos = NULL;
+		CL_GetNumberedEntityInfo(ent, pos, NULL);
 	}
 
 	if (!cl.sound_precache[sound_num])
@@ -5464,7 +5579,7 @@ void CL_NewTranslation (int slot)
 
 	if (cls.protocol == CP_QUAKE2)
 	{
-		char *mod, *skin;
+		char *mod, *skin, *dogtag;
 		player->qwskin = NULL;
 		player->skinid = 0;
 		player->model = NULL;
@@ -5474,13 +5589,18 @@ void CL_NewTranslation (int slot)
 		mod = InfoBuf_ValueForKey(&player->userinfo, "skin");
 		skin = strchr(mod, '/');
 		if (skin)
+		{
 			*skin++ = 0;
-		if (!skin || !*skin)
-			skin = "grunt";
+			dogtag = strchr(skin, '\\');
+			if (dogtag)
+				*dogtag++ = 0;
+		}
 		if (!mod || !*mod)
 			mod = "male";
+		if (!skin || !*skin || !COM_FCheckExists(va("players/%s/%s.pcx", mod, skin)))
+			skin = "grunt";
 
-		player->model = Mod_ForName(va("players/%s/tris.md2", mod), 0);
+		player->model = Mod_ForName(va("players/%s/tris.md2", mod), MLV_WARNSYNC);
 		if (player->model->loadstate == MLS_FAILED && strcmp(mod, "male"))
 		{	//fall back on male if the model doesn't exist. yes, sexist, but also statistically most likely to represent the actual player.
 			mod = "male";
@@ -6592,9 +6712,9 @@ static void CL_PrintStandardMessage(char *msgtext, int printlevel)
 }
 
 static char printtext[4096];
-static void CL_ParsePrint(char *msg, int level)
+static void CL_ParsePrint(const char *msg, int level)
 {
-	char n;
+	char n, *e;
 	if (strlen(printtext) + strlen(msg) >= sizeof(printtext))
 	{
 		Con_Printf("%s", printtext);
@@ -6602,10 +6722,10 @@ static void CL_ParsePrint(char *msg, int level)
 	}
 	else
 		strcat(printtext, msg);	//safe due to size on if.
-	while((msg = strchr(printtext, '\n')) || (msg = strchr(printtext, '\r')))
+	while((e = strchr(printtext, '\n')) || (e = strchr(printtext, '\r')))
 	{
-		n = msg[1];
-		msg[1] = 0;
+		n = e[1];
+		e[1] = 0;
 
 		if (!cls.demoseeking)
 		{
@@ -6642,10 +6762,10 @@ static void CL_ParsePrint(char *msg, int level)
 		}
 
 		TP_SearchForMsgTriggers(printtext, level);
-		msg[1] = n;
-		msg++;
+		e[1] = n;
+		e++;
 
-		memmove(printtext, msg, strlen(msg)+1);
+		memmove(printtext, e, strlen(e)+1);
 	}
 }
 
@@ -7908,11 +8028,285 @@ static void CLR1Q2_ParseSetting(void)
 			Con_Printf("warning: fps rate changed mid-game\n");	//fixme: we need to clean up lerping stuff. if its now lower, we might have a whole load of things waiting ages for a timeout.
 	}
 }
+static void CLQ2EX_ParseFog(void)
+{
+	float d=0;
+	qbyte r=255, g=255, b=255;
+	unsigned short t=0;
+	unsigned int flags = MSG_ReadByte();
+	if (flags & (1<<7))
+		flags |= MSG_ReadByte()<<8;
+
+	if (flags & (1<<0))		d = MSG_ReadFloat();	//density
+	if (flags & (1<<0))		MSG_ReadByte();	//density
+	if (flags & (1<<1))		r = MSG_ReadByte();		//r
+	if (flags & (1<<2))		g = MSG_ReadByte();		//g
+	if (flags & (1<<3))		b = MSG_ReadByte();		//b
+	if (flags & (1<<4))		t = MSG_ReadUInt16();	//time
+
+	if (flags & (1<<5))		MSG_ReadFloat();	//h falloff
+	if (flags & (1<<6))		MSG_ReadFloat();	//h density
+	if (flags & (1<<8))		MSG_ReadByte();		//h s r
+	if (flags & (1<<9))		MSG_ReadByte();		//h s g
+	if (flags & (1<<10))	MSG_ReadByte();		//h s b
+	if (flags & (1<<11))	MSG_ReadLong();		//h s dist
+	if (flags & (1<<12))	MSG_ReadByte();		//h e r
+	if (flags & (1<<13))	MSG_ReadByte();		//h e g
+	if (flags & (1<<14))	MSG_ReadByte();		//h e b
+	if (flags & (1<<15))	MSG_ReadLong();		//h e dist
+
+	CL_ResetFog(FOGTYPE_AIR);
+	cl.fog[FOGTYPE_AIR].density = d;
+	cl.fog[FOGTYPE_AIR].colour[0] = SRGBf(r/255.0f);
+	cl.fog[FOGTYPE_AIR].colour[1] = SRGBf(g/255.0f);
+	cl.fog[FOGTYPE_AIR].colour[2] = SRGBf(b/255.0f);
+	cl.fog[FOGTYPE_AIR].time += (t) / 100.0;
+	cl.fog_locked = !!cl.fog[FOGTYPE_AIR].density;
+}
+static char *CLQ2EX_ReformatBinds(int seat, const char *source, char *buffer, size_t buffersize)
+{	//q2e has various "%bind:cmd:$desc%" tags that should be expanded to some "<BUTTON> Desc\n" string instead, for tutorialy areas.
+	//we're too dumb to know about any artwork for each key.
+	//note that multiple can exist in any centerprint.
+	char *s = buffer;
+	if (s != source)
+		Q_strncpyz(buffer, source, buffersize);
+	while (!strncmp(s, "%bind:", 6))
+	{
+		int keys[1], keymods[countof(keys)];
+		char *cmd = s+6;
+		char *desc = strchr(cmd, ':');
+		char *e;
+		const char *rep, *key;
+		if (!desc)
+			break;
+		e = strchr(desc, '%');
+		if (!e)
+			break;
+		*desc++ = 0;
+		*e++ = 0;
+		rep = TL_Translate(com_language, desc);	//sigh
+
+		if (M_FindKeysForCommand(0, seat, cmd, keys, keymods, countof(keys)) > 0)
+			key = Key_KeynumToLocalString (keys[0], keymods[0]);
+		else
+			key = "UNBOUND";
+
+		rep = va("<%s> %s\n", key, rep);
+
+		if (s+strlen(rep) >= buffer+buffersize)
+			rep = "";	//would overflow, just strip it out instead.
+		memmove(s+strlen(rep), e, strlen(e)+1);
+		memcpy(s, rep, strlen(rep));
+		s += strlen(rep);
+	}
+	return buffer;
+}
+static void CLQ2EX_LocPrint(int targetseat)
+{
+	int seat;
+	qbyte flags = MSG_ReadByte();
+	qbyte level = flags&7;
+	qboolean broadcast = !!(flags & (1<<3));	//meaningful clientside for splitscreen, at least with centerprints.
+	qboolean nonotify = flags & (1<<4);
+	unsigned short count, a;
+	const char *arg[256];
+	static char formatted[8192];
+	char inputs[8192];
+	size_t ofs = 0;
+	char *s;
+	arg[0] = MSG_ReadString();
+	count = MSG_ReadByte();
+	for (a = 1; a <= count && a < countof(arg); )
+	{
+		arg[a] = MSG_ReadStringBuffer(inputs+ofs, sizeof(inputs)-ofs-1);
+		if (!strncmp(arg[a], "##P", 3))
+		{
+			int p = atoi(arg[a]+3);
+			if (p < cl.allocated_client_slots)
+			{
+				inputs[ofs] = 0;
+				arg[a] = cl.players[p].name;	//FIXME: do colours here instead of CL_ParsePrint?
+			}
+		}
+		a++;
+		ofs += strlen(inputs+ofs)+1;
+		if (ofs >= sizeof(inputs))
+			break;
+	}
+	for (; a <= count; a++)
+		MSG_ReadString(); //don't lose space, though we can't buffer it.
+
+	TL_Reformat(com_language, formatted, sizeof(formatted), a, arg);
+
+	if (level == 4)
+	{	//'typewriter'...
+		for (seat = (broadcast?0:targetseat); (broadcast?(seat < cl.splitclients):(seat==targetseat)); seat++)
+		{
+			s = va("/Q/W%s/.%s",nonotify?"/N0":"", CLQ2EX_ReformatBinds(seat, formatted, inputs,sizeof(inputs)));
+			SCR_CenterPrint(seat, s, false);
+		}
+		return;
+	}
+	else if (level == 5)
+	{	//centerprint
+		for (seat = (broadcast?0:targetseat); (broadcast?(seat < cl.splitclients):(seat==targetseat)); seat++)
+		{
+			s = va("%s/.%s",nonotify?"/N0":"", CLQ2EX_ReformatBinds(seat, formatted, inputs,sizeof(inputs)));
+			SCR_CenterPrint(seat, s, false);
+		}
+		return;
+	}
+	else if (level >= 6)
+		level = 3;	//TTS
+	CL_ParsePrint(formatted, level);
+}
+static void CLQ2EX_ParseDamage(int seat)
+{	//not really sure what this is useful for, when there's already damage blend info in the playerstate messages.
+	vec3_t dir;
+	qbyte count = MSG_ReadByte();
+	while (count --> 0)
+	{
+		/*bits =*/ MSG_ReadByte();
+		//dam = (bits&0x1f)*3;
+		//health= !!(bits&0x20);
+		//armour= !!(bits&0x40);
+		//shield= !!(bits&0x80);
+		MSG_ReadDir(dir);
+	}
+}
+extern sizebuf_t	*msg_readmsg;
+#ifdef AVAIL_ZLIB
+size_t ZLib_DecompressBuffer(qbyte *in, size_t insize, qbyte *out, size_t maxoutsize);
+#endif
+static void CLQ2EX_ParseBlast(void(*func)(void))
+{
+#ifdef AVAIL_ZLIB
+	sizebuf_t tmp, *prevmsg = msg_readmsg;
+	unsigned int csize = MSG_ReadUInt16();
+	unsigned int usize = MSG_ReadUInt16();
+	void *cdata = msg_readmsg->data + (msg_readmsg->currentbit>>3);
+	MSG_ReadSkip(csize);
+	if (msg_badread)
+		return;	//erk?!?
+
+	//create a new uncompressed buffer...
+	MSG_BeginWriting (&tmp, msg_readmsg->prim, alloca(usize), usize);
+	if (ZLib_DecompressBuffer(cdata, csize, SZ_GetSpace (&tmp, usize), usize) != usize)
+	{
+		msg_badread = true;
+		return;	//wut?
+	}
+
+	//and read it...
+	MSG_BeginReading(&tmp, msg_readmsg->prim);
+	while(tmp.currentbit>>3 < msg_readmsg->cursize)
+		func();
+
+	//before returning to our original buffer.
+	msg_readmsg = prevmsg;
+#else
+	msg_badread = true;
+#endif
+}
+static void CLQ2EX_ParseRouteMarker(void)
+{
+	qboolean isfirst;
+	vec3_t pos;
+	vec3_t dir;
+	float timeout = 10;
+	float radius = 16;
+
+	struct itemtimer_s *timer;
+	float start = cl.time;
+
+	isfirst = MSG_ReadByte();
+	MSG_ReadPos(pos);
+	MSG_ReadDir(dir);
+//	pos[2]-=24;
+
+	if (isfirst)
+		radius*=2;
+
+	timer = Z_Malloc(sizeof(*timer));
+	timer->next = cl.itemtimers;
+	cl.itemtimers = timer;
+
+	VectorCopy(pos, timer->origin);
+	timer->start = cl.time;
+	timer->duration = timeout;
+	timer->radius = radius;
+	timer->duration = timeout;
+	timer->entnum = 0;
+	timer->start = start;
+	timer->end = start + timer->duration;
+	timer->rgb[0] = 0.15;
+	timer->rgb[1] = 1;
+	timer->rgb[2] = 0.1;
+}
+static void CLQ2EX_ParseLevelRestart(void)
+{	//fast restart... allowing us to skip (full)configstrings and baselines
+	int id;
+	char *str;
+	while (!msg_badread)
+	{
+		id = MSG_ReadShort();
+		if (id==-1)
+			break;	//end of our svc.
+		str = MSG_ReadString();
+		CLQ2_UpdateConfigString(id, str);
+	}
+
+	//clear out some stuff that should not be lingering...
+	for (id = 0; id < cl.splitclients; id++)
+		SCR_CenterPrint(id, NULL, true);
+}
+
 void CL_WriteDemoMessage (sizebuf_t *msg, int payloadoffset);
+static const char *q2svcnames[] = {
+	"svcq2_bad",				//0
+
+	// these ops are known to the game dll
+	"svcq2_muzzleflash",		//1
+	"svcq2_muzzleflash2",		//2
+	"svcq2_temp_entity",		//3
+	"svcq2_layout",				//4
+	"svcq2_inventory",			//5
+
+	// the rest are private to the client and server
+	"q2_nop",					//6
+	"q2_disconnect",			//7
+	"q2_reconnect",				//8
+	"q2_sound",					//9
+	"q2_print",					//10
+	"q2_stufftext",				//11
+	"q2_serverdata",			//12
+	"q2_configstring",			//13
+	"q2_spawnbaseline",			//14
+	"q2_centerprint",			//15
+	"q2_download",				//16
+	"q2_playerinfo",			//17
+	"q2_packetentities",		//18
+	"q2_deltapacketentities",	//19
+	"q2_frame",					//20
+
+	//extended tat.
+	"q2ex_splitclient/r1q2_zpacket",	//21
+	"q2ex_configblast/r1q2_zdownload",	//22
+	"q2ex_spawnbaselineblast/r1q2_playerupdate/q2pro_gamestate",	//23
+	"q2ex_Levelrestart/r1q2_setting/q2pro_setting",	//24
+	"q2ex_danage",				//25
+	"q2ex_locprint",			//26
+	"q2ex_fog",					//27
+	"q2ex_waiting",				//28
+	"q2ex_botchat",				//29
+	"q2ex_mapmarker",			//30
+	"q2ex_routemarker",			//31
+	"q2ex_achievement",			//32
+};
 void CLQ2_ParseServerMessage (void)
 {
-	int				cmd;
-	char			*s;
+	int				cmd, last=-1;
+	const char		*s;
 	int				i;
 	unsigned int	seat;
 //	int				j;
@@ -7939,7 +8333,9 @@ void CLQ2_ParseServerMessage (void)
 	{
 		if (msg_badread)
 		{
-			Host_EndGame ("CLQ2_ParseServerMessage: Bad server message");
+			if (cl_shownet.ival)
+				CL_DumpPacket();
+			Host_EndGame ("CLQ2_ParseServerMessage: Bad server message (last %i)", last);
 			break;
 		}
 
@@ -7951,6 +8347,7 @@ void CLQ2_ParseServerMessage (void)
 			//so we can just 'borrow' it for seat numbers for targetted svcs.
 			SHOWNET(va("%i", cmd));
 			seat = MSG_ReadByte ();
+seatedcommand:
 			if (seat >= MAX_SPLITS)
 				Host_EndGame ("CLQ2_ParseServerMessage: Unsupported seat (%i)", seat);
 			cmd = MSG_ReadByte ();
@@ -7962,13 +8359,13 @@ void CLQ2_ParseServerMessage (void)
 			break;
 		}
 
-		SHOWNET(va("%i", cmd));
+		SHOWNET(cmd>=countof(q2svcnames)?va("%i", cmd):q2svcnames[cmd]);
 
 	// other commands
 		switch (cmd)
 		{
 		default:
-isilegible:
+isillegible:
 			if (cls.protocol_q2 == PROTOCOL_VERSION_R1Q2 || cls.protocol_q2 == PROTOCOL_VERSION_Q2PRO)
 			{
 				switch(cmd & 0x1f)
@@ -7977,12 +8374,16 @@ isilegible:
 					CLQ2_ParseFrame(cmd>>5);
 					break;
 				default:
-					Host_EndGame ("CLQ2_ParseServerMessage: Illegible server message (%i)", cmd);
+					if (cl_shownet.ival)
+						CL_DumpPacket();
+					Host_EndGame ("CLQ2_ParseServerMessage: Illegible server message (%i, last %i)", cmd, last);
 					return;
 				}
 				break;
 			}
-			Host_EndGame ("CLQ2_ParseServerMessage: Illegible server message (%i)", cmd);
+			if (cl_shownet.ival)
+				CL_DumpPacket();
+			Host_EndGame ("CLQ2_ParseServerMessage: Illegible server message (%i, last %i)", cmd, last);
 			return;
 
 	//known to game
@@ -8005,6 +8406,8 @@ isilegible:
 
 	// the rest are private to the client and server
 		case svcq2_nop:			//6
+			break;	//q2e sends these when it has nothing else to send, for some reason.
+			//or they're never seen and thus probably a bug.
 			Host_EndGame ("CL_ParseServerMessage: svcq2_nop not implemented");
 			return;
 		case svcq2_disconnect:
@@ -8030,6 +8433,8 @@ isilegible:
 		case svcq2_print:		//10			// [qbyte] id [string] null terminated string
 			i = MSG_ReadByte ();
 			s = MSG_ReadString ();
+			if (i != PRINT_CHAT)
+				s = TL_Translate(com_language, s);
 
 			CL_ParsePrint(s, i);
 			break;
@@ -8054,7 +8459,9 @@ isilegible:
 			CLQ2_ParseBaseline();
 			break;
 		case svcq2_centerprint:	//15		// [string] to put in center of the screen
-			s = MSG_ReadString();
+			s = TL_Translate(com_language, MSG_ReadString ());
+			if (*s == '%')	//grr!
+				s = CLQ2EX_ReformatBinds(seat, s, alloca(8192), 8192);
 
 #ifdef PLUGINS
 			if (Plug_CenterPrintMessage(s, seat))
@@ -8077,31 +8484,126 @@ isilegible:
 			CLQ2_ParseFrame(0);
 			break;
 
-		case svcr1q2_zpacket:	//r1q2, just try to ignore it.
+		case 21:
 			if (cls.protocol_q2 == PROTOCOL_VERSION_R1Q2 || cls.protocol_q2 == PROTOCOL_VERSION_Q2PRO)
+		//case svcr1q2_zpacket:	//r1q2, just try to ignore it.
 				CLQ2_ParseZPacket();
+			else if (cls.protocol_q2 == PROTOCOL_VERSION_Q2EX)
+			{
+		//case svcq2ex_splitclient:
+				seat = MSG_ReadByte()-1;
+				goto seatedcommand;
+			}
 			else
-				goto isilegible;
+				goto isillegible;
 			break;
-		case svcr1q2_zdownload:
+		case 22:
 			if (cls.protocol_q2 == PROTOCOL_VERSION_R1Q2 || cls.protocol_q2 == PROTOCOL_VERSION_Q2PRO)
+		//case svcr1q2_zdownload:
 				CL_ParseDownload(true);
+			else if (cls.protocol_q2 == PROTOCOL_VERSION_Q2EX)
+		//case svcq2ex_configblast:
+				CLQ2EX_ParseBlast(CLQ2_ParseConfigString);
 			else
-				goto isilegible;
+				goto isillegible;
 			break;
-		case svcr1q2_playerupdate:
+		case 23:
 			if (cls.protocol_q2 == PROTOCOL_VERSION_R1Q2)
+		//case svcr1q2_playerupdate:
 				CLR1Q2_ParsePlayerUpdate();
+			else if (cls.protocol_q2 == PROTOCOL_VERSION_Q2EX)
+		//case svcq2ex_spawnbaselineblast:
+				CLQ2EX_ParseBlast(CLQ2_ParseBaseline);
 			else
-				goto isilegible;
+				goto isillegible;
 			break;
-		case svcr1q2_setting:
+		case 24:
 			if (cls.protocol_q2 == PROTOCOL_VERSION_R1Q2)
+		//case svcr1q2_setting:
 				CLR1Q2_ParseSetting();
+			else if (cls.protocol_q2 == PROTOCOL_VERSION_Q2EX)
+		//case svcq2ex_levelrestart:
+				CLQ2EX_ParseLevelRestart();
 			else
-				goto isilegible;
+				goto isillegible;
+			break;
+		case 25:
+			if (cls.protocol_q2 == PROTOCOL_VERSION_Q2EX)
+		//case svcq2ex_danage:
+				CLQ2EX_ParseDamage(seat);
+			else
+				goto isillegible;
+			break;
+		case 26:
+			if (cls.protocol_q2 == PROTOCOL_VERSION_Q2EX)
+		//case svcq2ex_locprint:
+				CLQ2EX_LocPrint(seat);
+			else
+				goto isillegible;
+			break;
+		case 27:
+			if (cls.protocol_q2 == PROTOCOL_VERSION_Q2EX)
+		//case svcq2ex_fog:
+				CLQ2EX_ParseFog();
+			else
+				goto isillegible;
+			break;
+		case 28:
+			if (cls.protocol_q2 == PROTOCOL_VERSION_Q2EX)
+		//case svcq2ex_waiting:
+				MSG_ReadByte();	//number of players remaining
+			else
+				goto isillegible;
+			break;
+		case 29:
+			if (cls.protocol_q2 == PROTOCOL_VERSION_Q2EX)
+			{
+		//case svcq2ex_botchat:
+				MSG_ReadString();
+				MSG_ReadUInt16();
+				MSG_ReadString();
+			}
+			else
+				goto isillegible;
+			break;
+		case 30:
+			if (cls.protocol_q2 == PROTOCOL_VERSION_Q2EX)
+			{
+			//case svcq2ex_mapmarker:
+				vec3_t pos;
+				/*id=*/MSG_ReadUInt16();
+				/*time=*/MSG_ReadUInt16();
+				MSG_ReadPos(pos);
+				/*image=*/MSG_ReadUInt16();
+				/*paltint=*/MSG_ReadByte();
+				/*flags=*/MSG_ReadByte();
+			}
+			else
+				goto isillegible;
+			break;
+		case 31:
+			if (cls.protocol_q2 == PROTOCOL_VERSION_Q2EX)
+		//case svcq2ex_routemarker:
+				CLQ2EX_ParseRouteMarker();
+			else
+				goto isillegible;
+			break;
+		case 32:
+			if (cls.protocol_q2 == PROTOCOL_VERSION_Q2EX)
+		//case svcq2ex_muzzleflash3:
+				CLQ2EX_ParseMuzzleFlash3();
+			else
+				goto isillegible;
+			break;
+		case 33:
+			if (cls.protocol_q2 == PROTOCOL_VERSION_Q2EX)
+		//case svcq2ex_achievement:
+				Con_Printf("ACHIEVEMENT! %s\n", MSG_ReadString());
+			else
+				goto isillegible;
 			break;
 		}
+		last = cmd;
 	}
 	CL_SetSolidEntities ();
 

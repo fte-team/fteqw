@@ -295,27 +295,30 @@ static char		*q2sb_nums[2][11] =
 
 static mpic_t *Sbar_Q2CachePic(char *name)
 {
-	mpic_t *pic = R2D_SafeCachePic(va("pics/%s.pcx", name));
+	mpic_t *pic = R2D_SafeCachePic(strncmp(name, "../", 3)?va("pics/%s.pcx", name):va("%s.pcx", name+3));
 #if defined(IMAGEFMT_PCX)
-	int xmin,ymin,swidth,sheight;
-	size_t length;
-	pcx_t *pcx = (pcx_t*)COM_LoadTempFile(va("pics/%s.pcx", name), 0, &length);
-	if (pcx && length >= sizeof(*pcx))
+	if (pic->width == 0 && pic->height == 0)
 	{
-		xmin = LittleShort(pcx->xmin);
-		ymin = LittleShort(pcx->ymin);
-		swidth = LittleShort(pcx->xmax)-xmin+1;
-		sheight = LittleShort(pcx->ymax)-ymin+1;
-
-		if (pcx->manufacturer == 0x0a
-			&& pcx->version == 5
-			&& pcx->encoding == 1
-			&& pcx->bits_per_pixel == 8
-			&& swidth <= 1024
-			&& sheight <= 1024)
+		int xmin,ymin,swidth,sheight;
+		size_t length;
+		pcx_t *pcx = (pcx_t*)COM_LoadTempFile(strncmp(name, "../", 3)?va("pics/%s.pcx", name):va("%s.pcx", name+3), 0, &length);
+		if (pcx && length >= sizeof(*pcx))
 		{
-			pic->width = swidth;
-			pic->height = sheight;
+			xmin = LittleShort(pcx->xmin);
+			ymin = LittleShort(pcx->ymin);
+			swidth = LittleShort(pcx->xmax)-xmin+1;
+			sheight = LittleShort(pcx->ymax)-ymin+1;
+
+			if (pcx->manufacturer == 0x0a
+				&& pcx->version == 5
+				&& pcx->encoding == 1
+				&& pcx->bits_per_pixel == 8
+				&& swidth <= 1024
+				&& sheight <= 1024)
+			{
+				pic->width = swidth;
+				pic->height = sheight;
+			}
 		}
 	}
 #endif
@@ -398,7 +401,7 @@ void Sbar_ExecuteLayoutString (char *s, int seat)
 	int pw, ph;
 //	q2clientinfo_t	*ci;
 	mpic_t *p;
-	q2player_state_t *ps = &cl.q2frame.playerstate[seat];
+	q2player_state_t *ps = &cl.q2frame.seat[seat].playerstate;
 
 	if (cls.state != ca_active)
 		return;
@@ -561,8 +564,9 @@ void Sbar_ExecuteLayoutString (char *s, int seat)
 			s = COM_Parse (s);
 			index = atoi(com_token);
 			if (index < 0 || index >= countof(ps->stats))
-				Host_EndGame ("Bad stat index");
-			value = ps->stats[index];
+				value = 0;
+			else
+				value = ps->stats[index];
 			SCR_DrawField (x, y, 0, width, value);
 			continue;
 		}
@@ -680,8 +684,9 @@ void Sbar_ExecuteLayoutString (char *s, int seat)
 			s = COM_Parse (s);
 			index = atoi(com_token);
 			if (index < 0 || index >= countof(ps->stats))
-				Host_EndGame ("Bad stat index");
-			value = ps->stats[index];
+				value = 0;
+			else
+				value = ps->stats[index];
 			if (!value)
 			{	// skip to endif
 				while (s && strcmp(com_token, "endif") )
@@ -710,13 +715,14 @@ static void Sbar_Q2DrawInventory(int seat)
 	int keys[1], keymods[1];
 	char cmd[1024];
 	const char *boundkey;
-	q2player_state_t *ps = &cl.q2frame.playerstate[seat];
+	q2player_state_t *ps = &cl.q2frame.seat[seat].playerstate;
 	unsigned int validlist[Q2MAX_ITEMS], rows, i, item, selected = ps->stats[Q2STAT_SELECTED_ITEM];
 	int first;
 	unsigned int maxrows = ((240-24*2-8*2)/8);
 	//draw background
 	float x = sbar_rect.x + (sbar_rect.width - 256)/2;
 	float y = sbar_rect.y + (sbar_rect.height - 240)/2;
+	int deflang = TL_FindLanguage("");	//ffs... read: english
 	if (y < sbar_rect.y)
 		y = sbar_rect.y;	//try to fix small-res 3-way splitscreen slightly
 	R2D_ScalePic(x, y, 256, 240, Sbar_Q2CachePic("inventory"));
@@ -745,13 +751,13 @@ static void Sbar_Q2DrawInventory(int seat)
 	{
 		item = validlist[i];
 
-		Q_snprintfz(cmd, sizeof(cmd), "use %s", Get_Q2ConfigString(Q2CS_ITEMS+item));
+		Q_snprintfz(cmd, sizeof(cmd), "use %s", TL_Translate(deflang, Get_Q2ConfigString(Q2CS_ITEMS+item)));
 		if (!M_FindKeysForCommand(0, 0, cmd, keys, keymods, countof(keys)))
 			boundkey = "";	//we don't actually know which ones can be selected at all.
 		else
 			boundkey = Key_KeynumToString(keys[0], keymods[0]);
 
-		Q_snprintfz(cmd, sizeof(cmd), "%6s %3i %s", boundkey, cl.inventory[seat][item], Get_Q2ConfigString(Q2CS_ITEMS+item));
+		Q_snprintfz(cmd, sizeof(cmd), "%6s %3i %s", boundkey, cl.inventory[seat][item], TL_Translate(com_language, Get_Q2ConfigString(Q2CS_ITEMS+item)));
 		Draw_FunStringWidth(x, y, cmd, 256-24*2+8, false, item != selected);	y+=8;
 	}
 }
@@ -3052,9 +3058,9 @@ void Sbar_Draw (playerview_t *pv)
 		R2D_ImageColours(1, 1, 1, 1);
 		if (*cl.q2statusbar)
 			Sbar_ExecuteLayoutString(cl.q2statusbar, seat);
-		if (cl.q2frame.playerstate[seat].stats[Q2STAT_LAYOUTS] & 1)
+		if (*cl.q2layout && (cl.q2frame.seat[seat].playerstate.stats[Q2STAT_LAYOUTS] & 1))
 			Sbar_ExecuteLayoutString(cl.q2layout[seat], seat);
-		if (cl.q2frame.playerstate[seat].stats[Q2STAT_LAYOUTS] & 2)
+		if (cl.q2frame.seat[seat].playerstate.stats[Q2STAT_LAYOUTS] & 2)
 			Sbar_Q2DrawInventory(seat);
 		return;
 	}

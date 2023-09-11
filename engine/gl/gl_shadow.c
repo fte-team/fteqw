@@ -498,7 +498,7 @@ static void SHM_BeginShadowMesh(dlight_t *dl, int type)
 	sh_vertnum = 0;
 
 	lb = (cl.worldmodel->numclusters+7)/8;
-	if (!dl->die || !dl->key)
+	if (!dl->die || !dl->key || (dl->flags&LFLAG_FORCECACHE))
 	{
 		sh_shmesh = dl->worldshadowmesh;
 		if (!sh_shmesh || sh_shmesh->leafbytes != lb)

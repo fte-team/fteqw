@@ -1437,6 +1437,7 @@ qboolean R_LoadRTLights(void)
 			dl->lightcolourscales[2] = specularscale;
 			dl->fade[0] = fade[0];
 			dl->fade[1] = fade[1];
+			VectorCopy(angles, dl->angles);
 			AngleVectorsFLU(angles, dl->axis[0], dl->axis[1], dl->axis[2]);
 			VectorCopy(avel, dl->rotation);
 

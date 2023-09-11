@@ -136,6 +136,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define	PROTOCOL_VERSION_Q2_DEMO_MIN	26	//we can parse this server
 #define	PROTOCOL_VERSION_Q2_MIN			31	//we can join these outdated servers
 #define	PROTOCOL_VERSION_Q2				34	//we host this
+#define	PROTOCOL_VERSION_Q2EXDEMO		2022
+#define	PROTOCOL_VERSION_Q2EX			2023
 #define	PROTOCOL_VERSION_R1Q2			35
 #define	PROTOCOL_VERSION_Q2PRO			36
 
@@ -153,6 +155,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define PORT_Q2MASTER	27900
 #define PORT_Q2CLIENT	27901
 #define PORT_Q2SERVER	27910
+#define PORT_Q2EXSERVER	5069
 #define PORT_Q3MASTER	27950
 #define PORT_Q3SERVER	27960
 #define PORT_ICEBROKER	PORT_DPMASTER
@@ -466,6 +469,20 @@ enum svcq2_ops_e
 	svcq2_packetentities,//18			// [...]
 	svcq2_deltapacketentities,//19	// [...]
 	svcq2_frame,			//20 (the bastard to implement.)
+
+	svcq2ex_splitclient = 21,
+	svcq2ex_configblast = 22,
+	svcq2ex_spawnbaselineblast = 23,
+	svcq2ex_levelrestart = 24,
+	svcq2ex_danage = 25,
+	svcq2ex_locprint = 26,
+	svcq2ex_fog = 27,
+	svcq2ex_waiting = 28,
+	svcq2ex_botchat = 29,
+	svcq2ex_mapmarker = 30,
+	svcq2ex_routemarker = 31,
+	svcq2ex_muzzleflash3 = 32,
+	svcq2ex_achievement = 33,
 
 
 	svcr1q2_zpacket = 21,
@@ -891,19 +908,19 @@ enum {
 
 
 
-#define	Q2U_ORIGIN1	(1<<0)
-#define	Q2U_ORIGIN2	(1<<1)
-#define	Q2U_ANGLE2	(1<<2)
-#define	Q2U_ANGLE3	(1<<3)
-#define	Q2U_FRAME8	(1<<4)		// frame is a qbyte
+#define	Q2U_ORIGIN1		(1<<0)
+#define	Q2U_ORIGIN2		(1<<1)
+#define	Q2U_ANGLE2		(1<<2)
+#define	Q2U_ANGLE3		(1<<3)
+#define	Q2U_FRAME8		(1<<4)		// frame is a qbyte
 #define	Q2U_EVENT		(1<<5)
-#define	Q2U_REMOVE	(1<<6)		// REMOVE this entity, don't add it
+#define	Q2U_REMOVE		(1<<6)		// REMOVE this entity, don't add it
 #define	Q2U_MOREBITS1	(1<<7)		// read one additional qbyte
 
 // second qbyte
 #define	Q2U_NUMBER16	(1<<8)		// NUMBER8 is implicit if not set
-#define	Q2U_ORIGIN3	(1<<9)
-#define	Q2U_ANGLE1	(1<<10)
+#define	Q2U_ORIGIN3		(1<<9)
+#define	Q2U_ANGLE1		(1<<10)
 #define	Q2U_MODEL		(1<<11)
 #define Q2U_RENDERFX8	(1<<12)		// fullbright, etc
 #define Q2UX_ANGLE16	(1<<13)
@@ -911,24 +928,28 @@ enum {
 #define	Q2U_MOREBITS2	(1<<15)		// read one additional qbyte
 
 // third qbyte
-#define	Q2U_SKIN8		(1<<16)
-#define	Q2U_FRAME16	(1<<17)		// frame is a short
-#define	Q2U_RENDERFX16 (1<<18)	// 8 + 16 = 32
-#define	Q2U_EFFECTS16	(1<<19)		// 8 + 16 = 32
-#define	Q2U_MODEL2	(1<<20)		// weapons, flags, etc
-#define	Q2U_MODEL3	(1<<21)
-#define	Q2U_MODEL4	(1<<22)
-#define	Q2U_MOREBITS3	(1<<23)		// read one additional qbyte
+#define	Q2U_SKIN8			(1<<16)
+#define	Q2U_FRAME16			(1<<17)		// frame is a short
+#define	Q2U_RENDERFX16		(1<<18)		// 8 + 16 = 32
+#define	Q2U_EFFECTS16		(1<<19)		// 8 + 16 = 32
+#define	Q2U_MODEL2			(1<<20)		// weapons, flags, etc
+#define	Q2U_MODEL3			(1<<21)
+#define	Q2U_MODEL4			(1<<22)
+#define	Q2U_MOREBITS3		(1<<23)		// read one additional qbyte
 
 // fourth qbyte
-#define	Q2U_OLDORIGIN	(1<<24)		// FIXME: get rid of this
-#define	Q2U_SKIN16	(1<<25)
-#define	Q2U_SOUND		(1<<26)
-#define	Q2U_SOLID		(1<<27)
-#define Q2UX_INDEX16	(1<<28)		//model or sound is 16bit
-#define Q2UX_UNUSED3	(1<<29)
-#define Q2UX_UNUSED2	(1<<30)
-#define Q2UX_UNUSED1	(1<<31)
+#define	Q2U_OLDORIGIN		(1<<24)		// FIXME: get rid of this
+#define	Q2U_SKIN16			(1<<25)
+#define	Q2U_SOUND			(1<<26)
+#define	Q2U_SOLID			(1<<27)
+#define Q2UX_INDEX16		(1<<28)		//model or sound is 16bit
+#define Q2UEX_EFFECTS64		(1<<29)
+#define Q2UEX_ALPHA			(1<<30)
+#define Q2UEX_MOREBITS4		(1u<<31)
+#define Q2UEX_SCALE			(1ull<<32)
+#define Q2UEX_INSTANCE		(1ull<<33)
+#define Q2UEX_OWNER			(1ull<<34)
+#define Q2UEX_OLDFRAME		(1ull<<35)
 
 #define Q2UX_UNUSED		(Q2UX_UNUSED1|Q2UX_UNUSED2|Q2UX_UNUSED3|Q2UX_UNUSED4)
 
@@ -1172,13 +1193,16 @@ typedef struct entity_state_s
 #if defined(Q2CLIENT) || defined(Q2SERVER)
 		struct
 		{
-			int		renderfx;		//q2
+			unsigned int		renderfx;		//q2
 			vec3_t	old_origin;		//q2/q3
 
 			unsigned short		modelindex3;	//q2
 			unsigned short		modelindex4;	//q2
 			unsigned short		sound;			//q2
 			qbyte				event;			//q2
+			qbyte				instance;		//q2ex (splitcreen, so specific seats see it or not)
+			unsigned short		owner;			//q2ex for splitscreen prediction I guess (can't just network it as non-solid).
+			unsigned short		oldframe;		//q2ex
 		} q2;
 #endif
 		struct
@@ -1206,7 +1230,17 @@ typedef struct entity_state_s
 
 	unsigned short		baseframe;
 	qbyte				basebone;
-	qbyte				pad;
+	qbyte				solidtype;
+#define EST_FTE		0	//q2pro/r1q2, also used for fte's replacement deltas etc.
+#define EST_Q2EX	1	//q2ex packs it differently.
+#define EST_Q2		2	//16bit
+
+	unsigned int solidsize;
+#define ES_SOLID_NOT 0
+#define ES_SOLID_BSP 31
+#define ES_SOLID_HULL1 0x80201810
+#define ES_SOLID_HULL2 0x80401820
+#define ES_SOLID_HAS_EXTRA_BITS(solid) ((solid&0x0707) || (((solid>>16)-32768+32) & 7))	//needs to be 32bit.
 
 	unsigned int		skinnum; /*for q2 this often contains rgba*/
 
@@ -1234,13 +1268,6 @@ typedef struct entity_state_s
 	unsigned short tagindex;	//~0 == weird portal thing.
 
 	unsigned int tagentity;
-
-	unsigned int solidsize;
-#define ES_SOLID_NOT 0
-#define ES_SOLID_BSP 31
-#define ES_SOLID_HULL1 0x80201810
-#define ES_SOLID_HULL2 0x80401820
-#define ES_SOLID_HAS_EXTRA_BITS(solid) ((solid&0x0707) || (((solid>>16)-32768+32) & 7))
 } entity_state_t;
 extern entity_state_t nullentitystate;
 
@@ -1364,6 +1391,41 @@ typedef struct q1usercmd_s
 #define	Q2MAX_CONFIGSTRINGS		(Q2CS_GENERAL	+Q2MAX_GENERAL)
 
 
+#define	Q2EXMAX_CLIENTS			Q2MAX_CLIENTS		// absolute limit
+#define	Q2EXMAX_EDICTS			8192	// must change protocol to increase more
+#define	Q2EXMAX_LIGHTSTYLES		256
+#define	Q2EXMAX_RTLIGHTS		256
+#define	Q2EXMAX_MODELS			8192		// these are sent over the net as bytes
+#define	Q2EXMAX_SOUNDS			2048		// so they cannot be blindly increased
+#define	Q2EXMAX_IMAGES			512
+#define	Q2EXMAX_ITEMS			256
+#define	Q2EXMAX_WWHEEL			32
+#define Q2EXMAX_GENERAL			(Q2EXMAX_CLIENTS*2)	// general config strings
+
+#define	Q2EXCS_NAME				Q2CS_NAME
+#define	Q2EXCS_CDTRACK			Q2CS_CDTRACK
+#define	Q2EXCS_SKY				Q2CS_SKY
+#define	Q2EXCS_SKYAXIS			Q2CS_SKYAXIS		// %f %f %f format
+#define	Q2EXCS_SKYROTATE		Q2CS_SKYROTATE
+#define	Q2EXCS_STATUSBAR		Q2CS_STATUSBAR		// display program string
+#define Q2EXCS_AIRACCEL			59		// air acceleration control
+#define	Q2EXCS_MAXCLIENTS		60
+#define	Q2EXCS_MAPCHECKSUM		61		// for catching cheater maps
+#define	Q2EXCS_MODELS			62
+#define	Q2EXCS_SOUNDS			(Q2EXCS_MODELS			+Q2EXMAX_MODELS)
+#define	Q2EXCS_IMAGES			(Q2EXCS_SOUNDS			+Q2EXMAX_SOUNDS)
+#define	Q2EXCS_LIGHTS			(Q2EXCS_IMAGES			+Q2EXMAX_IMAGES)
+#define	Q2EXCS_RTLIGHTS			(Q2EXCS_LIGHTS			+Q2EXMAX_LIGHTSTYLES)
+#define	Q2EXCS_ITEMS			(Q2EXCS_RTLIGHTS		+Q2EXMAX_RTLIGHTS)
+#define	Q2EXCS_PLAYERSKINS		(Q2EXCS_ITEMS			+Q2EXMAX_ITEMS)
+#define Q2EXCS_GENERAL			(Q2EXCS_PLAYERSKINS		+Q2EXMAX_CLIENTS)
+#define	Q2ECS_WHEEL_WEAPONS		(Q2EXCS_GENERAL			+Q2EXMAX_GENERAL)	//item|icon|ammotype|minammo|powerup|sortid|warnammo|droppable
+#define	Q2ECS_WHEEL_AMMO		(Q2ECS_WHEEL_WEAPONS	+Q2EXMAX_WWHEEL)	//item|icon
+#define	Q2ECS_WHEEL_POWERUPS	(Q2ECS_WHEEL_AMMO		+Q2EXMAX_WWHEEL)	//item|icon|toggled|sortid|droppable|ammotype
+#define	Q2ECS_CD_LOOP_COUNT		(Q2ECS_WHEEL_POWERUPS	+Q2EXMAX_WWHEEL)
+#define	Q2ECS_GAME_STYLE		(Q2ECS_CD_LOOP_COUNT	+1)
+#define	Q2EXMAX_CONFIGSTRINGS	(Q2ECS_GAME_STYLE		+1)
+
 // player_state->stats[] indexes
 #define Q2STAT_HEALTH_ICON		0
 #define	Q2STAT_HEALTH				1
@@ -1404,8 +1466,10 @@ typedef struct q1usercmd_s
 #define	Q2PS_WEAPONFRAME		(1<<13)
 #define	Q2PS_RDFLAGS			(1<<14)
 #define	Q2PS_EXTRABITS			(1<<15)
-#define Q2PS_INDEX16			(1<<16)
-#define Q2PS_CLIENTNUM			(1<<17)
+#define Q2FTEPS_INDEX16			(1<<16)
+#define Q2EXPS_DAMAGEBLEND		(1<<16)
+#define Q2FTEPS_CLIENTNUM		(1<<17)
+#define Q2EXPS_TEAMID			(1<<17)
 #define Q2PS_UNUSED6			(1<<18)
 #define Q2PS_UNUSED5			(1<<19)
 #define Q2PS_UNUSED4			(1<<20)
@@ -1432,27 +1496,36 @@ typedef struct q1usercmd_s
 #define	RF_TRANSLUCENT			(1u<<5)		//forces shader sort order and BEF_FORCETRANSPARENT
 #define	Q2RF_FRAMELERP			(1u<<6)		//q2only
 #define Q2RF_BEAM				(1u<<7)		//mostly q2only
-
+//
 #define	Q2RF_CUSTOMSKIN			(1u<<8)		//not even in q2		skin is an index in image_precache
 #define	Q2RF_GLOW				(1u<<9)		//i		pulse lighting for bonus items
 #define Q2RF_SHELL_RED			(1u<<10)	//q2only
 #define	Q2RF_SHELL_GREEN		(1u<<11)	//q2only
 #define Q2RF_SHELL_BLUE			(1u<<12)	//q2only
-
-//ROGUE
+//
+#define RF_NOSHADOW				(1u<<13)
+#define Q2REX_CASTSHADOW		(1u<<14)
+//ROGUE start
 #define Q2RF_IR_VISIBLE			(1u<<15)	// shows red with Q2RDF_IRGOGGLES
 #define	Q2RF_SHELL_DOUBLE		(1u<<16)	//q2only
 #define	Q2RF_SHELL_HALF_DAM		(1u<<17)	//q2only
 #define Q2RF_USE_DISGUISE		(1u<<18)	//ni	entity is displayed with skin 'players/$MODEL/disguise.pcx' instead
-//ROGUE
+//ROGUE end
+//#define Q2EXRF_SHELL_LITE_GREEN	(1u<<19)
+#define Q2EXRF_CUSTOM_LIGHT		(1u<<20)
+#define Q2EXRF_FLARE			(1u<<21)	//changes the interpretation of a lot of fields, basically replacing the entire ent.
+//#define Q2EXRF_OLD_FRAME_LERP	(1u<<22)	//This flag signals that `s.old_frame` should be used for the next frame and respected by the client. This can be used for custom frame interpolation; its use in this engine is specific to fixing interpolation bugs on certain monster animations.
+//#define Q2EXRF_BLOB_SHADOW		(1u<<23)	//
+//#define Q2EXRF_LOW_PRIORITY		(1u<<24)	//
+//#define Q2EXRF_NO_LOD				(1u<<25)	//
+//#define Q2EXRF_STAIRSTEP			(1u<<26)	//
 
-#define RF_ADDITIVE				(1u<<19)	//forces shader sort order and BEF_FORCEADDITIVE
-#define RF_NOSHADOW				(1u<<20)	//disables shadow casting
-#define RF_NODEPTHTEST			(1u<<21)	//forces shader sort order and BEF_FORCENODEPTH
-#define RF_FORCECOLOURMOD		(1u<<22)	//forces BEF_FORCECOLOURMOD
-#define RF_WEAPONMODELNOBOB		(1u<<23)
-#define RF_FIRSTPERSON			(1u<<24)	//only draw through eyes
-#define	RF_XFLIP				(1u<<25)	//flip horizontally (for q2's left-handed weapons)
+#define RF_ADDITIVE				(1u<<27)	//forces shader sort order and BEF_FORCEADDITIVE
+#define RF_NODEPTHTEST			(1u<<28)	//forces shader sort order and BEF_FORCENODEPTH
+#define RF_FORCECOLOURMOD		(1u<<29)	//forces BEF_FORCECOLOURMOD
+#define RF_WEAPONMODELNOBOB		(1u<<30)
+#define RF_FIRSTPERSON			(1u<<31)	//only draw through eyes
+#define	RF_XFLIP				Q2EXRF_FLARE	//flip horizontally (for q2's left-handed weapons)
 
 // player_state_t->refdef flags
 #define	RDF_UNDERWATER			(1u<<0)		// warp the screen as apropriate (fov trick)
@@ -1484,8 +1557,9 @@ typedef struct q1usercmd_s
 #define	Q2SND_POS			(1u<<2)		// three coordinates
 #define	Q2SND_ENT			(1u<<3)		// a short 0-2: channel, 3-12: entity
 #define	Q2SND_OFFSET		(1u<<4)		// a qbyte, msec offset from frame start
-#define Q2SND_LARGEIDX		(1u<<5)		// idx is a short
-#define Q2SND_LARGEPOS		(1u<<6)		// float coord
+#define Q2SNDFTE_LARGEIDX	(1u<<5)		// idx is a short
+#define Q2SNDEX_EXPLICITPOS	(1u<<5)		// ?
+#define Q2SNDEX_LARGEENT	(1u<<6)		// 32bit index
 #define Q2SND_EXTRABITS		(1u<<7)		// unused for now, reserved.
 
 #define Q2DEFAULT_SOUND_PACKET_VOLUME	1.0
@@ -1524,7 +1598,7 @@ typedef struct q1usercmd_s
 
 //ROGUE
 #define Q2MZ_ETF_RIFLE		30
-#define Q2MZ_UNUSED			31
+//#define Q2MZ_UNUSED			31
 #define Q2MZ_SHOTGUN2			32
 #define Q2MZ_HEATBEAM			33
 #define Q2MZ_BLASTER2			34
@@ -1534,6 +1608,12 @@ typedef struct q1usercmd_s
 #define	Q2MZ_NUKE4			38
 #define	Q2MZ_NUKE8			39
 //ROGUE
+
+#define Q2EXMZ_BFG2		19
+#define Q2EXMZ_PHALANX2		20
+#define Q2EXMZ_PROX		31
+#define Q2EXMZ_ETF_RIFLE_2		32
+
 
 //
 // monster muzzle flashes

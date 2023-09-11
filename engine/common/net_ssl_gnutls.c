@@ -1714,6 +1714,9 @@ static int GNUDTLS_GetPeerCertificate(void *ctx, enum certprops_e prop, char *ou
 			}
 		}
 		return -1;
+	case QCERT_LOBBYSTATUS:
+	case QCERT_LOBBYSENDCHAT:
+		return -1;
 	safedefault:
 		return -1; //dunno what you want from me.
 	}

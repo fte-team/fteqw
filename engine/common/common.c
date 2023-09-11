@@ -1277,7 +1277,7 @@ int MSG_ReadSize16 (sizebuf_t *sb)
 		return solid;
 	}
 }
-void MSG_WriteSize16 (sizebuf_t *sb, int sz)
+void MSG_WriteSize16 (sizebuf_t *sb, unsigned int sz)
 {
 	if (sz == ES_SOLID_BSP)
 		MSG_WriteShort(sb, ES_SOLID_BSP);
@@ -1297,12 +1297,25 @@ void MSG_WriteSize16 (sizebuf_t *sb, int sz)
 }
 void COM_DecodeSize(int solid, float *mins, float *maxs)
 {
-#if 1
+#if 0
+	//q2e 32bit-encoding
+	int x,y,d,u;
+	x = (solid>>0)&0xff;
+	y = (solid>>8)&0xff;
+	d = (solid>>16)&0xff;
+	u = (solid>>24)&0xff;
+
+	mins[0] = -x; maxs[0] = x;
+	mins[1] = -y; maxs[1] = y;
+	mins[2] = -d; maxs[2] = u - 32;
+#elif 1
+	//r1q2/q2pro 32bit-encoding
 	maxs[0] = maxs[1] = solid & 255;
 	mins[0] = mins[1] = -maxs[0];
 	mins[2] = -((solid>>8) & 255);
 	maxs[2] = ((solid>>16) & 65535) - 32768;
 #else
+	//classic q2 16-bit encoding.
 	maxs[0] = maxs[1] = 8*(solid & 31);
 	mins[0] = mins[1] = -maxs[0];
 	mins[2] = -8*((solid>>5) & 31);
@@ -1319,6 +1332,7 @@ int COM_EncodeSize(const float *mins, const float *maxs)
 	if (solid == 0x80000000)
 		solid = 0;	//point sized stuff should just be non-solid. you'll thank me for splitscreens.
 #else
+	//vanilla q2
 	solid = bound(0, (int)-mins[0]/8, 31);
 	solid |= bound(0, (int)-mins[2]/8, 31)<<5;
 	solid |= bound(0, (int)((maxs[2]+32)/8), 63)<<10;	/*up can be negative*/;
@@ -1385,6 +1399,51 @@ unsigned int MSGCL_ReadEntity(void)
 #endif
 
 #if defined(Q2CLIENT) && defined(HAVE_CLIENT)
+void MSGQ2EX_WriteDeltaUsercmd (sizebuf_t *buf, const usercmd_t *from, const usercmd_t *cmd)
+{
+	unsigned int  bits = 0;
+//	unsigned char buttons = 0;
+	if (cmd->angles[0] != from->angles[0])
+		bits |= Q2CM_ANGLE1;
+	if (cmd->angles[1] != from->angles[1])
+		bits |= Q2CM_ANGLE2;
+	if (cmd->angles[2] != from->angles[2])
+		bits |= Q2CM_ANGLE3;
+	if (cmd->forwardmove != from->forwardmove)
+		bits |= Q2CM_FORWARD;
+	if (cmd->sidemove != from->sidemove)
+		bits |= Q2CM_SIDE;
+//	if (cmd->upmove != from->upmove)
+//		bits |= Q2CM_UP;
+	if (cmd->buttons != from->buttons)
+		bits |= Q2CM_BUTTONS;
+//	if (cmd->impulse != from->impulse)
+//		bits |= Q2CM_IMPULSE;
+
+	MSG_WriteByte (buf, bits);
+
+	if (bits & Q2CM_ANGLE1)
+		MSG_WriteFloat (buf, SHORT2ANGLE(cmd->angles[0]));
+	if (bits & Q2CM_ANGLE2)
+		MSG_WriteFloat (buf, SHORT2ANGLE(cmd->angles[1]));
+	if (bits & Q2CM_ANGLE3)
+		MSG_WriteFloat (buf, SHORT2ANGLE(cmd->angles[2]));
+
+	if (bits & Q2CM_FORWARD)
+		MSG_WriteFloat (buf, cmd->forwardmove);
+	if (bits & Q2CM_SIDE)
+		MSG_WriteFloat (buf, cmd->sidemove);
+//	if (bits & Q2CM_UP)
+//		MSG_WriteFloat (buf, cmd->upmove);
+
+	if (bits & Q2CM_BUTTONS)
+		MSG_WriteByte (buf, cmd->buttons);
+	//if (bits & Q2CM_IMPULSE)
+//		MSG_WriteByte (buf, cmd->impulse);
+	MSG_WriteByte (buf, bound(0, cmd->msec, 250));	//clamp msecs to 250, because r1q2 likes kicking us if we stall for any reason
+
+//	MSG_WriteByte (buf, cmd->lightlevel);
+}
 void MSGQ2_WriteDeltaUsercmd (sizebuf_t *buf, const usercmd_t *from, const usercmd_t *cmd)
 {
 	unsigned int  bits = 0;
@@ -1894,7 +1953,12 @@ void MSGCL_WriteDeltaUsercmd (sizebuf_t *buf, const usercmd_t *from, const userc
 {
 #if defined(Q2CLIENT)
 	if (cls_state && cls.protocol == CP_QUAKE2)
-		MSGQ2_WriteDeltaUsercmd(buf, from, cmd);
+	{
+		if (cls.protocol_q2 == PROTOCOL_VERSION_Q2EX)
+			MSGQ2EX_WriteDeltaUsercmd(buf, from, cmd);
+		else
+			MSGQ2_WriteDeltaUsercmd(buf, from, cmd);
+	}
 	else
 #endif
 		MSGQW_WriteDeltaUsercmd(buf, from, cmd);
@@ -1906,7 +1970,7 @@ void MSGCL_WriteDeltaUsercmd (sizebuf_t *buf, const usercmd_t *from, const userc
 //
 qboolean	msg_badread;
 struct netprim_s msg_nullnetprim;
-static sizebuf_t	*msg_readmsg;
+sizebuf_t	*msg_readmsg;
 
 void MSG_BeginReading (sizebuf_t *sb, struct netprim_s prim)
 {
@@ -2414,7 +2478,7 @@ float MSG_ReadCoordFloat (void)
 	return MSG_FromCoord(c, COORDTYPE_FLOAT_32);
 }
 
-void MSG_ReadPos (float pos[3])
+void MSG_ReadPos (float *pos)
 {
 	pos[0] = MSG_ReadCoord();
 	pos[1] = MSG_ReadCoord();
@@ -2561,7 +2625,7 @@ void MSGQW_ReadDeltaUsercmd (const usercmd_t *from, usercmd_t *move, int protove
 	}
 }
 
-void MSGQ2_ReadDeltaUsercmd (const usercmd_t *from, usercmd_t *move)
+void MSGQ2_ReadDeltaUsercmd (client_t *cl, const usercmd_t *from, usercmd_t *move)
 {
 	int bits;
 	unsigned int buttons = 0;
@@ -2573,63 +2637,97 @@ void MSGQ2_ReadDeltaUsercmd (const usercmd_t *from, usercmd_t *move)
 	if (msg_readmsg->prim.flags & NPQ2_R1Q2_UCMD)
 		buttons = MSG_ReadByte();
 
-// read current angles
-	if (bits & Q2CM_ANGLE1)
+	if (cl->protocol == SCP_QUAKE2EX)
 	{
-		if (buttons & R1Q2_BUTTON_BYTE_ANGLE1)
-			move->angles[0] = MSG_ReadChar ()*64;
-		else
-			move->angles[0] = MSG_ReadShort ();
-	}
-	if (bits & Q2CM_ANGLE2)
-	{
-		if (buttons & R1Q2_BUTTON_BYTE_ANGLE2)
-			move->angles[1] = MSG_ReadChar ()*256;
-		else
-			move->angles[1] = MSG_ReadShort ();
-	}
-	if (bits & Q2CM_ANGLE3)
-		move->angles[2] = MSG_ReadShort ();
+		if (bits & Q2CM_ANGLE1)
+			move->angles[0] = ANGLE2SHORT(MSG_ReadFloat());
+		if (bits & Q2CM_ANGLE2)
+			move->angles[1] = ANGLE2SHORT(MSG_ReadFloat());
+		if (bits & Q2CM_ANGLE3)
+			move->angles[2] = ANGLE2SHORT(MSG_ReadFloat());
 
-// read movement
-	if (bits & Q2CM_FORWARD)
-	{
-		if (buttons & R1Q2_BUTTON_BYTE_FORWARD)
-			move->forwardmove = MSG_ReadChar ()*5;
-		else
-			move->forwardmove = MSG_ReadShort ();
-	}
-	if (bits & Q2CM_SIDE)
-	{
-		if (buttons & R1Q2_BUTTON_BYTE_SIDE)
-			move->sidemove = MSG_ReadChar ()*5;
-		else
-			move->sidemove = MSG_ReadShort ();
-	}
-	if (bits & Q2CM_UP)
-	{
-		if (buttons & R1Q2_BUTTON_BYTE_UP)
-			move->upmove = MSG_ReadChar ()*5;
-		else
-			move->upmove = MSG_ReadShort ();
-	}
+		// read movement
+		if (bits & Q2CM_FORWARD)
+			move->forwardmove = MSG_ReadFloat ();
+		if (bits & Q2CM_SIDE)
+			move->sidemove = MSG_ReadFloat();
+		if (bits & Q2CM_UP)
+			Con_DPrintf("Q2CM_UP unexpected\n");
 
-// read buttons
-	if (bits & Q2CM_BUTTONS)
-	{
-		if (msg_readmsg->prim.flags & NPQ2_R1Q2_UCMD)
-			move->buttons = buttons & (1|2|128);	//only use the bits that are actually buttons, so gamecode can't get excited despite being crippled by this.
-		else
+		if (bits & Q2CM_BUTTONS)
 			move->buttons = MSG_ReadByte ();
+
+		if (bits & Q2CM_IMPULSE/*repurposed*/)
+			move->sequence = MSG_ReadLong();
+
+		if (move->buttons & (1<<3))
+			move->upmove = 200;
+		else if (move->buttons & (1<<4))
+			move->upmove = -200;
+	}
+	else
+	{
+		// read current angles
+		if (bits & Q2CM_ANGLE1)
+		{
+			if (buttons & R1Q2_BUTTON_BYTE_ANGLE1)
+				move->angles[0] = MSG_ReadChar ()*64;
+			else
+				move->angles[0] = MSG_ReadShort ();
+		}
+		if (bits & Q2CM_ANGLE2)
+		{
+			if (buttons & R1Q2_BUTTON_BYTE_ANGLE2)
+				move->angles[1] = MSG_ReadChar ()*256;
+			else
+				move->angles[1] = MSG_ReadShort ();
+		}
+		if (bits & Q2CM_ANGLE3)
+			move->angles[2] = MSG_ReadShort ();
+
+		// read movement
+		if (bits & Q2CM_FORWARD)
+		{
+			if (buttons & R1Q2_BUTTON_BYTE_FORWARD)
+				move->forwardmove = MSG_ReadChar ()*5;
+			else
+				move->forwardmove = MSG_ReadShort ();
+		}
+		if (bits & Q2CM_SIDE)
+		{
+			if (buttons & R1Q2_BUTTON_BYTE_SIDE)
+				move->sidemove = MSG_ReadChar ()*5;
+			else
+				move->sidemove = MSG_ReadShort ();
+		}
+		if (bits & Q2CM_UP)
+		{
+			if (buttons & R1Q2_BUTTON_BYTE_UP)
+				move->upmove = MSG_ReadChar ()*5;
+			else
+				move->upmove = MSG_ReadShort ();
+		}
+
+		// read buttons
+		if (bits & Q2CM_BUTTONS)
+		{
+			if (msg_readmsg->prim.flags & NPQ2_R1Q2_UCMD)
+				move->buttons = buttons & (1|2|128);	//only use the bits that are actually buttons, so gamecode can't get excited despite being crippled by this.
+			else
+				move->buttons = MSG_ReadByte ();
+		}
+
+		if (bits & Q2CM_IMPULSE)
+			move->impulse = MSG_ReadByte ();
 	}
 
-	if (bits & Q2CM_IMPULSE)
-		move->impulse = MSG_ReadByte ();
-
-// read time to run command
+	// read time to run command
 	move->msec = MSG_ReadByte ();
 
-	move->lightlevel = MSG_ReadByte ();
+	if (cl->protocol == SCP_QUAKE2EX)
+		move->lightlevel = 255; //light level removed.
+	else
+		move->lightlevel = MSG_ReadByte ();
 }
 
 void MSG_ReadData (void *data, int len)
@@ -5961,6 +6059,10 @@ static struct com_work_s
 	size_t a;
 	size_t b;
 } *com_work_head[WG_COUNT], *com_work_tail[WG_COUNT];
+unsigned int COM_HasWorkers(wgroup_t tg)
+{	//simply returns if adding work will block or not (and a hint for how many jobs should be queued at once).
+	return com_liveworkers[tg];
+}
 //return if there's *any* loading that needs to be done anywhere.
 qboolean COM_HasWork(void)
 {
@@ -6871,6 +6973,175 @@ unsigned int COM_RemapMapChecksum(model_t *model, unsigned int checksum)
 		{"maps/dm5.bsp",	0xD651996F,	/*0x2DB66BBC,*/	0xB02D48FD},
 		{"maps/dm6.bsp",	0x33F7D9C9,	/*0x0EBB386D,*/	0x5208DA2B},
 //		{"maps/end.bsp",	0x3C87824B,	/*0xA66198D8,*/	0xBBD4B4A5},
+
+		//Quake2 Rerelease.
+		//These are listed to remap the rerelease's crc32 checksums from the vanilla maps to the rerelease, so q2e can connect to regular servers.
+		//the reverse is not a concern as there's too many translation errors that way anyway.
+		//yes this is kinda backwards vs the q1 stuff above.
+
+		//MAP NAME				VAN+fmd4	VAN+crc32	REMST+fmd4 REMST+crc32
+//base12/pak0
+//		{"maps/base1.bsp",		/*0x0,*/ 0xc49cac93, /*0x0,*/ 0x8939212b},	//expanded area and some wallhacky bits and areaportal screwups
+		//{"maps/base2.bsp",		/*0x0,*/ 0x49ed539e, /*0x0,*/ 0xda61be7b},
+		//{"maps/base3.bsp",		/*0x0,*/ 0xf29055e4, /*0x0,*/ 0x13ac20a1},
+		//{"maps/biggun.bsp",		/*0x0,*/ 0x0b95a4ae, /*0x0,*/ 0x7cae003f},
+		//{"maps/boss1.bsp",		/*0x0,*/ 0x7a52514a, /*0x0,*/ 0xeeff1917},
+		//{"maps/boss2.bsp",		/*0x0,*/ 0x81ac4371, /*0x0,*/ 0x7b6392d6},
+		//{"maps/bunk1.bsp",		/*0x0,*/ 0xa37f1a6d, /*0x0,*/ 0xe529ac52},
+		//{"maps/city1.bsp",		/*0x0,*/ 0x4fd6239b, /*0x0,*/ 0x8876eb6a},
+		//{"maps/city2.bsp",		/*0x0,*/ 0x6f7768d8, /*0x0,*/ 0xd0797f11},
+		//{"maps/city3.bsp",		/*0x0,*/ 0x3809bd4e, /*0x0,*/ 0xb7135bdd},
+		//{"maps/command.bsp",	/*0x0,*/ 0x80d7b67c, /*0x0,*/ 0x66e404f5},
+		//{"maps/cool1.bsp",		/*0x0,*/ 0xeabfd863, /*0x0,*/ 0xbbe51fc9},
+		//{"maps/fact1.bsp",		/*0x0,*/ 0xfba460e5, /*0x0,*/ 0xf9bf8d9f},
+		//{"maps/fact2.bsp",		/*0x0,*/ 0x6655c1a5, /*0x0,*/ 0xb2cc8d37},
+		//{"maps/fact3.bsp",		/*0x0,*/ 0xabe9c595, /*0x0,*/ 0xb64f87d4},
+		//{"maps/hangar1.bsp",	/*0x0,*/ 0x5893e66d, /*0x0,*/ 0x1334d867},
+		//{"maps/hangar2.bsp",	/*0x0,*/ 0x933c0a95, /*0x0,*/ 0x077e9ba3},
+		//{"maps/jail1.bsp",		/*0x0,*/ 0xee5e64ec, /*0x0,*/ 0x158a1107},
+		//{"maps/jail2.bsp",		/*0x0,*/ 0x154ae1bf, /*0x0,*/ 0x2921f388},
+		//{"maps/jail3.bsp",		/*0x0,*/ 0x8f3de333, /*0x0,*/ 0x32554a02},
+		//{"maps/jail4.bsp",		/*0x0,*/ 0xe66ec160, /*0x0,*/ 0xb1013e3b},
+		//{"maps/jail5.bsp",		/*0x0,*/ 0x3af55df6, /*0x0,*/ 0xbd077c5b},
+		//{"maps/lab.bsp",		/*0x0,*/ 0xf2bc9c9a, /*0x0,*/ 0x4eea0f97},
+		//{"maps/mine1.bsp",		/*0x0,*/ 0x31db729e, /*0x0,*/ 0x5fc5f3cf},
+		//{"maps/mine2.bsp",		/*0x0,*/ 0xf8c3c330, /*0x0,*/ 0x35eacacb},
+		//{"maps/mine3.bsp",		/*0x0,*/ 0x1ba1ba64, /*0x0,*/ 0x6c8e3f66},
+		//{"maps/mine4.bsp",		/*0x0,*/ 0x6d4d9c98, /*0x0,*/ 0x48a30d5d},
+		//{"maps/mintro.bsp",		/*0x0,*/ 0x15bcf39c, /*0x0,*/ 0xfb72d23f},
+		//{"maps/power1.bsp",		/*0x0,*/ 0x6e9407f7, /*0x0,*/ 0x8d15b695},
+		//{"maps/power2.bsp",		/*0x0,*/ 0xd64d63b5, /*0x0,*/ 0xcf9fd9f5},
+		//{"maps/security.bsp",	/*0x0,*/ 0xc75d06ff, /*0x0,*/ 0xcb7a0229},
+		//{"maps/space.bsp",		/*0x0,*/ 0xe9b1ca59, /*0x0,*/ 0x34678329},
+		//{"maps/strike.bsp",		/*0x0,*/ 0x373acf3b, /*0x0,*/ 0x1e6aa8da},
+		//{"maps/train.bsp",		/*0x0,*/ 0x339a6bf3, /*0x0,*/ 0x1c6b7d5c},
+		//{"maps/ware1.bsp",		/*0x0,*/ 0x039d00bc, /*0x0,*/ 0x34713cb1},
+		//{"maps/ware2.bsp",		/*0x0,*/ 0xe25b761e, /*0x0,*/ 0x00c06d11},
+		//{"maps/waste1.bsp",		/*0x0,*/ 0x14f41c2e, /*0x0,*/ 0x33dd40ff},
+		//{"maps/waste2.bsp",		/*0x0,*/ 0x91267752, /*0x0,*/ 0x5b53de97},
+		//{"maps/waste3.bsp",		/*0x0,*/ 0x7658206d, /*0x0,*/ 0x80101af0},
+
+		//baseq2/pak1.pak
+		{"maps/q2dm1.bsp",		/*0x0,*/ 0x6cc8eda7, /*0x0,*/ 0x23393278},
+		{"maps/q2dm2.bsp",		/*0x0,*/ 0x60a8b392, /*0x0,*/ 0x2f03a689},
+//		{"maps/q2dm3.bsp",		/*0x0,*/ 0xdc3aac9b, /*0x0,*/ 0x378903ee},	//bmodel snafus
+		{"maps/q2dm4.bsp",		/*0x0,*/ 0x87db6388, /*0x0,*/ 0xa6b504da},
+		{"maps/q2dm5.bsp",		/*0x0,*/ 0x7da73bb5, /*0x0,*/ 0xc639cbb7},
+		{"maps/q2dm6.bsp",		/*0x0,*/ 0xc63f6546, /*0x0,*/ 0xbe784b8a},
+		{"maps/q2dm7.bsp",		/*0x0,*/ 0x39f11899, /*0x0,*/ 0xea6ac852},
+//		{"maps/q2dm8.bsp",		/*0x0,*/ 0x8659ee44, /*0x0,*/ 0x09a423b2},	//crates are missing
+
+//		//one-offs
+//		{"maps/base64.bsp",		/*0x0,*/ 0x0, /*0x0,*/ 0x7db2883f},
+//		{"maps/city64.bsp",		/*0x0,*/ 0x0, /*0x0,*/ 0x635eb291},
+//		{"maps/sewer64.bsp",	/*0x0,*/ 0x0, /*0x0,*/ 0x46da9e37},
+		//mg
+//		{"maps/mgdm1.bsp",		/*0x0,*/ 0x0, /*0x0,*/ 0x826e737a},
+//		{"maps/mgu1m1.bsp",		/*0x0,*/ 0x0, /*0x0,*/ 0xc27e2cef},
+//		{"maps/mgu1m2.bsp",		/*0x0,*/ 0x0, /*0x0,*/ 0x1ec516fa},
+//		{"maps/mgu1m3.bsp",		/*0x0,*/ 0x0, /*0x0,*/ 0xb9f13047},
+//		{"maps/mgu1m4.bsp",		/*0x0,*/ 0x0, /*0x0,*/ 0x8211337e},
+//		{"maps/mgu1m5.bsp",		/*0x0,*/ 0x0, /*0x0,*/ 0x1549c505},
+//		{"maps/mgu1trial.bsp",	/*0x0,*/ 0x0, /*0x0,*/ 0x0f75a608},
+//		{"maps/mgu2m1.bsp",		/*0x0,*/ 0x0, /*0x0,*/ 0x4a769bb0},
+//		{"maps/mgu2m2.bsp",		/*0x0,*/ 0x0, /*0x0,*/ 0xd307cad8},
+//		{"maps/mgu2m3.bsp",		/*0x0,*/ 0x0, /*0x0,*/ 0xd9352a68},
+//		{"maps/mgu3m1.bsp",		/*0x0,*/ 0x0, /*0x0,*/ 0x5ab2ea83},
+//		{"maps/mgu3m2.bsp",		/*0x0,*/ 0x0, /*0x0,*/ 0x4952301e},
+//		{"maps/mgu3m3.bsp",		/*0x0,*/ 0x0, /*0x0,*/ 0x7ed253fa},
+//		{"maps/mgu3m4.bsp",		/*0x0,*/ 0x0, /*0x0,*/ 0xc91edb2e},
+//		{"maps/mgu3secret.bsp",	/*0x0,*/ 0x0, /*0x0,*/ 0xdb50aa0d},
+//		{"maps/mgu4m1.bsp",		/*0x0,*/ 0x0, /*0x0,*/ 0x5558556a},
+//		{"maps/mgu4m2.bsp",		/*0x0,*/ 0x0, /*0x0,*/ 0x32090016},
+//		{"maps/mgu4m3.bsp",		/*0x0,*/ 0x0, /*0x0,*/ 0xa60d1e9a},
+//		{"maps/mgu4trial.bsp",	/*0x0,*/ 0x0, /*0x0,*/ 0x5cb612d1},
+//		{"maps/mgu5m1.bsp",		/*0x0,*/ 0x0, /*0x0,*/ 0x60d40817},
+//		{"maps/mgu5m2.bsp",		/*0x0,*/ 0x0, /*0x0,*/ 0x88083b2f},
+//		{"maps/mgu5m3.bsp",		/*0x0,*/ 0x0, /*0x0,*/ 0x4dc5140a},
+//		{"maps/mgu5trial.bsp",	/*0x0,*/ 0x0, /*0x0,*/ 0x4808e583},
+//		{"maps/mgu6m1.bsp",		/*0x0,*/ 0x0, /*0x0,*/ 0xbcc16455},
+//		{"maps/mgu6m2.bsp",		/*0x0,*/ 0x0, /*0x0,*/ 0x6313d469},
+//		{"maps/mgu6m3.bsp",		/*0x0,*/ 0x0, /*0x0,*/ 0x2651b5f7},
+//		{"maps/mgu6trial.bsp",	/*0x0,*/ 0x0, /*0x0,*/ 0xfabf1b9f},
+//		{"maps/mguboss.bsp",	/*0x0,*/ 0x0, /*0x0,*/ 0x12733e70},
+//		{"maps/mguhub.bsp",		/*0x0,*/ 0x0, /*0x0,*/ 0x51fbdd73},
+//
+//		//new
+//		{"maps/ndctf0.bsp",		/*0x0,*/ 0x0, /*0x0,*/ 0xa8c81b2b},
+//		{"maps/q2kctf1.bsp",	/*0x0,*/ 0x0, /*0x0,*/ 0x8d176d56},
+//		{"maps/q2kctf2.bsp",	/*0x0,*/ 0x0, /*0x0,*/ 0x01a32428},
+//		{"maps/tutorial.bsp",	/*0x0,*/ 0x0, /*0x0,*/ 0x8869d954},
+
+		//q2ctf maps
+		//{"maps/q2ctf1.bsp",		/*0x0,*/ 0xe067a203, /*0x0,*/ 0x6143b5e7},
+		//{"maps/q2ctf2.bsp",		/*0x0,*/ 0x28030fe8, /*0x0,*/ 0x5c71d212},
+		//{"maps/q2ctf3.bsp",		/*0x0,*/ 0xca29c6a3, /*0x0,*/ 0x59bb4823},
+		//{"maps/q2ctf4.bsp",		/*0x0,*/ 0x2fa28832, /*0x0,*/ 0x63fef5de},
+		//{"maps/q2ctf5.bsp",		/*0x0,*/ 0x033ccd79, /*0x0,*/ 0x98116fdd},
+//		{"maps/q2ctf6.bsp",		/*0x0,*/ 0xe0f199b9, /*0x0,*/ 0x0},	//no idea why these are missing in the rerelease..
+//		{"maps/q2ctf7.bsp",		/*0x0,*/ 0x390abd05, /*0x0,*/ 0x0},
+//		{"maps/q2ctf8.bsp",		/*0x0,*/ 0x3ba7c491, /*0x0,*/ 0x0},
+
+		//xatrix maps
+		//{"maps/badlands.bsp",	/*0x0,*/ 0xafa0e22e, /*0x0,*/ 0x203ffacb},
+		//{"maps/industry.bsp",	/*0x0,*/ 0x876bd244, /*0x0,*/ 0x3cf0c2bd},
+		//{"maps/outbase.bsp",	/*0x0,*/ 0xe7531d00, /*0x0,*/ 0x1c36a9e0},
+		//{"maps/refinery.bsp",	/*0x0,*/ 0xe4e81e7b, /*0x0,*/ 0xaf61d172},
+		//{"maps/w_treat.bsp",	/*0x0,*/ 0xde9eb38c, /*0x0,*/ 0x4a3685fe},
+		//{"maps/xcompnd1.bsp",	/*0x0,*/ 0xb3540a91, /*0x0,*/ 0x24bc9f6f},
+		//{"maps/xcompnd2.bsp",	/*0x0,*/ 0xe4745192, /*0x0,*/ 0x55df1931},
+		//{"maps/xdm1.bsp",		/*0x0,*/ 0x3d48b316, /*0x0,*/ 0x26a71790},
+		//{"maps/xdm2.bsp",		/*0x0,*/ 0x1152e7c4, /*0x0,*/ 0x11db3085},
+		//{"maps/xdm3.bsp",		/*0x0,*/ 0xdb97aeac, /*0x0,*/ 0xb60a8631},
+		//{"maps/xdm4.bsp",		/*0x0,*/ 0xeef68945, /*0x0,*/ 0x6e070a92},
+		//{"maps/xdm5.bsp",		/*0x0,*/ 0x47c1f3a3, /*0x0,*/ 0x558d4dd6},
+		//{"maps/xdm6.bsp",		/*0x0,*/ 0x852def91, /*0x0,*/ 0x3cb70b50},
+		//{"maps/xdm7.bsp",		/*0x0,*/ 0xc4d93896, /*0x0,*/ 0xc0de3235},
+		//{"maps/xhangar1.bsp",	/*0x0,*/ 0x9e18dceb, /*0x0,*/ 0x10de03f6},
+		//{"maps/xhangar2.bsp",	/*0x0,*/ 0x781c8f17, /*0x0,*/ 0xd9f92aa3},
+		//{"maps/xintell.bsp",	/*0x0,*/ 0x5cf61c9b, /*0x0,*/ 0x2c979acf},
+		//{"maps/xmoon1.bsp",		/*0x0,*/ 0xc2ec98f6, /*0x0,*/ 0x57f1373c},
+		//{"maps/xmoon2.bsp",		/*0x0,*/ 0x79cdedf8, /*0x0,*/ 0xc2236a38},
+		//{"maps/xreactor.bsp",	/*0x0,*/ 0xa32f926d, /*0x0,*/ 0x5dc0db58},
+		//{"maps/xsewer1.bsp",	/*0x0,*/ 0x53f393b3, /*0x0,*/ 0x68c01403},
+		//{"maps/xsewer2.bsp",	/*0x0,*/ 0xdae8d63f, /*0x0,*/ 0xc78c8261},
+		//{"maps/xship.bsp",		/*0x0,*/ 0xcaae64c3, /*0x0,*/ 0x16434a51},
+		//{"maps/xswamp.bsp",		/*0x0,*/ 0x7a01ffe3, /*0x0,*/ 0x92852525},
+		//{"maps/xware.bsp",		/*0x0,*/ 0x769d834c, /*0x0,*/ 0xa21dad68},
+
+		//(q2) rogue maps
+		//{"maps/rammo1.bsp",		/*0x0,*/ 0x157c38b5, /*0x0,*/ 0x70778442},
+		//{"maps/rammo2.bsp",		/*0x0,*/ 0xe59eb4f3, /*0x0,*/ 0xb9a6bb64},
+		//{"maps/rbase1.bsp",		/*0x0,*/ 0xfe907818, /*0x0,*/ 0xcc316310},
+		//{"maps/rbase2.bsp",		/*0x0,*/ 0x6a9f5a26, /*0x0,*/ 0xd148fd82},
+		//{"maps/rboss.bsp",		/*0x0,*/ 0x5c3167e7, /*0x0,*/ 0x0ba861c9},
+		//{"maps/rdm1.bsp",		/*0x0,*/ 0x9d581b00, /*0x0,*/ 0xcc0dc613},
+		//{"maps/rdm2.bsp",		/*0x0,*/ 0xcaef085e, /*0x0,*/ 0xcb93d84b},
+		//{"maps/rdm3.bsp",		/*0x0,*/ 0xecd65aea, /*0x0,*/ 0x2c334d25},
+		//{"maps/rdm4.bsp",		/*0x0,*/ 0xb0e01e67, /*0x0,*/ 0xc9d989ea},
+		//{"maps/rdm5.bsp",		/*0x0,*/ 0x998f2929, /*0x0,*/ 0xf4e5d735},
+		//{"maps/rdm6.bsp",		/*0x0,*/ 0x06041298, /*0x0,*/ 0x7dc53173},
+		//{"maps/rdm7.bsp",		/*0x0,*/ 0x5d1a6d8e, /*0x0,*/ 0x8c618a24},
+		//{"maps/rdm8.bsp",		/*0x0,*/ 0x9563932d, /*0x0,*/ 0x07b32d04},
+		//{"maps/rdm9.bsp",		/*0x0,*/ 0x6abbd719, /*0x0,*/ 0x726d4859},
+		//{"maps/rdm10.bsp",		/*0x0,*/ 0xe5097216, /*0x0,*/ 0x54b0b786},
+		//{"maps/rdm11.bsp",		/*0x0,*/ 0x55602288, /*0x0,*/ 0x890dc692},
+		//{"maps/rdm12.bsp",		/*0x0,*/ 0xeadab431, /*0x0,*/ 0x762197d8},
+		//{"maps/rdm13.bsp",		/*0x0,*/ 0x8b51e2d9, /*0x0,*/ 0x20678587},
+		//{"maps/rdm14.bsp",		/*0x0,*/ 0x9f12a7af, /*0x0,*/ 0xe22f5e58},
+		//{"maps/rhangar1.bsp",	/*0x0,*/ 0x29f4a50f, /*0x0,*/ 0xf5b1eeee},
+		//{"maps/rhangar2.bsp",	/*0x0,*/ 0xfa92ab46, /*0x0,*/ 0x6167fa5e},
+		//{"maps/rlava1.bsp",		/*0x0,*/ 0x54a8f40b, /*0x0,*/ 0xa16d41ec},
+		//{"maps/rlava2.bsp",		/*0x0,*/ 0x994cec5d, /*0x0,*/ 0x92e9c884},
+		//{"maps/rmine1.bsp",		/*0x0,*/ 0xf5e042cf, /*0x0,*/ 0x7a9eb9a8},
+		//{"maps/rmine2.bsp",		/*0x0,*/ 0xeb8ddc19, /*0x0,*/ 0xa4e07d51},
+		//{"maps/rsewer1.bsp",	/*0x0,*/ 0x934df93c, /*0x0,*/ 0x605443ab},
+		//{"maps/rsewer2.bsp",	/*0x0,*/ 0x07e18c79, /*0x0,*/ 0x62513621},
+//		{"maps/runit2.bsp",		/*0x0,*/ 0x074e46de, /*0x0,*/ 0x},	//pointless content-skip rooms for coop, I guess
+//		{"maps/runit3.bsp",		/*0x0,*/ 0x36c066a7, /*0x0,*/ 0x},
+//		{"maps/runit4.bsp",		/*0x0,*/ 0xd31d0e32, /*0x0,*/ 0x},
+		//{"maps/rware1.bsp",		/*0x0,*/ 0xbba033a9, /*0x0,*/ 0x031eda0a},
+		//{"maps/rware2.bsp",		/*0x0,*/ 0xc2993fed, /*0x0,*/ 0xcba25fcf},
 	};
 	unsigned int i;
 	for (i = 0; i < sizeof(sums)/sizeof(sums[0]); i++)

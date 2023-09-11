@@ -4723,6 +4723,9 @@ static void CM_BuildBIH(model_t *mod, int submodel)
 	BZ_Free(bihleaf);
 }
 
+#ifdef AVAIL_ZLIB
+#include <zlib.h>	//for crc32.
+#endif
 /*
 ==================
 CM_LoadMap
@@ -4741,7 +4744,7 @@ static cmodel_t *CM_LoadMap (model_t *mod, qbyte *filein, size_t filelen, qboole
 	char			loadname[32];
 	qbyte			*mod_base = (qbyte *)filein;
 	bspx_header_t	*bspx = NULL;
-	unsigned int	checksum;
+	unsigned int	checksum1, checksum2;
 #ifdef Q3BSPS
 	extern cvar_t	gl_overbright;
 #endif
@@ -4786,7 +4789,12 @@ static cmodel_t *CM_LoadMap (model_t *mod, qbyte *filein, size_t filelen, qboole
 		return NULL;
 	}
 
-	checksum = LittleLong (CalcHashInt(&hash_md4, buf, length));
+	checksum1 = LittleLong (CalcHashInt(&hash_md4, buf, length));
+#ifdef AVAIL_ZLIB
+	checksum2 = crc32(0, (void*)buf, length);	//q2rerelease uses crc32 instead... *sigh*
+#else
+	checksum2 = checksum1;	//we accept either, so wimp out.
+#endif
 
 	header = *(q2dheader_t *)(buf);
 	header.ident = LittleLong(header.ident);
@@ -5198,7 +5206,8 @@ static cmodel_t *CM_LoadMap (model_t *mod, qbyte *filein, size_t filelen, qboole
 #endif
 	FloodAreaConnections (prv);
 
-	mod->checksum = mod->checksum2 = checksum;
+	mod->checksum = checksum1;
+	mod->checksum2 = checksum2;
 
 	mod->nummodelsurfaces = mod->numsurfaces;
 	memset(&mod->batches, 0, sizeof(mod->batches));

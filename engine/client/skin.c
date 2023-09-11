@@ -469,6 +469,7 @@ void Skin_NextDownload (void)
 		int j;
 		char *slash;
 		char *skinname;
+		char *dogtag;
 		for (i = 0; i != MAX_CLIENTS; i++)
 		{
 			sc = &cl.players[i];
@@ -479,6 +480,11 @@ void Skin_NextDownload (void)
 			if (slash)
 			{
 				*slash = 0;
+
+				dogtag = strchr(slash+1, '\\');	//q2e
+				if (dogtag)
+					*dogtag++ = 0;
+
 				CL_CheckOrEnqueDownloadFile(va("players/%s/tris.md2", skinname), NULL, 0);
 				for (j = 1; j < MAX_PRECACHE_MODELS; j++)
 				{

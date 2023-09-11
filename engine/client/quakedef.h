@@ -368,6 +368,7 @@ extern cvar_t worker_flush;
 qboolean COM_DoWork(int thread, qboolean leavelocked);
 #define COM_MainThreadWork() while (COM_DoWork(0, false) && worker_flush.ival) /*called each frame to do any gl uploads or whatever*/
 #define COM_MainThreadFlush() while (COM_DoWork(0, false))	/*make sure the main thread has done ALL work pending*/
+unsigned int COM_HasWorkers(wgroup_t tg);
 void COM_AddWork(wgroup_t thread, void(*func)(void *ctx, void *data, size_t a, size_t b), void *ctx, void *data, size_t a, size_t b);	//low priority
 void COM_InsertWork(wgroup_t tg, void(*func)(void *ctx, void *data, size_t a, size_t b), void *ctx, void *data, size_t a, size_t b);	//high priority
 qboolean COM_HasWork(void);
@@ -385,6 +386,7 @@ void COM_AssertMainThread(const char *msg);
 #endif
 #else
 #define com_workererror false
+#define COM_HasWorkers(t) 0
 #define COM_AddWork(t,f,a,b,c,d) (f)((a),(b),(c),(d))
 #define COM_InsertWork(t,f,a,b,c,d) (f)((a),(b),(c),(d))
 #define COM_WorkerPartialSync(c,a,v)

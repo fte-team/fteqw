@@ -2106,7 +2106,6 @@ static void ICE_ParseSDPLine(struct icestate_s *con, const char *value)
 	}
 }
 
-void CL_Transfer(netadr_t *adr);
 static qboolean QDECL ICE_Set(struct icestate_s *con, const char *prop, const char *value)
 {
 	if (!strcmp(prop, "state"))

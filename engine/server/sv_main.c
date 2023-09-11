@@ -507,6 +507,7 @@ void SV_DropClient (client_t *drop)
 			switch (drop->protocol)
 			{
 			case SCP_QUAKE2:
+			case SCP_QUAKE2EX:
 				MSG_WriteByte (&drop->netchan.message, svcq2_disconnect);
 				break;
 			case SCP_QUAKEWORLD:
@@ -917,13 +918,11 @@ int SV_CalcPing (client_t *cl, qboolean forcecalc)
 	if (!cl->frameunion.frames)
 		return 0;
 
-	switch (cl->protocol)
+	safeswitch (cl->protocol)
 	{
-	default:
-	case SCP_BAD:
-		break;
 #ifdef Q2SERVER
 	case SCP_QUAKE2:
+	case SCP_QUAKE2EX:
 		{
 			q2client_frame_t *frame;
 			ping = 0;
@@ -968,6 +967,9 @@ int SV_CalcPing (client_t *cl, qboolean forcecalc)
 			ping /= count;
 		}
 		return ping*1000;
+	case SCP_BAD:
+	safedefault:
+		break;
 	}
 	return 0;
 }
@@ -1127,21 +1129,23 @@ const char *SV_ProtocolNameForClient(client_t *cl)
 	case SCP_QUAKEWORLD:
 		if (cl->fteprotocolextensions2 & PEXT2_REPLACEMENTDELTAS)
 			return "fteqw";	//changes enough to be significant. assumed to include csqc.
-		return "quakeworld";
+		return "qw";
 	case SCP_BAD:
 		return "bot";
 	case SCP_QUAKE2:
-		return "quake2";
+		return "q2";
+	case SCP_QUAKE2EX:
+		return "q2ex";
 	case SCP_QUAKE3:
-		return "quake3";
+		return "q3";
 	case SCP_NETQUAKE:
 		if (cl->fteprotocolextensions2 & PEXT2_REPLACEMENTDELTAS)
 			return "ftenq";	//changes enough to be significant. assumed to include csqc.
 		if (cl->qex)
 			return "qex";
 		if (cl->proquake_angles_hack)
-			return "proquake";
-		return "vanilla";
+			return "pq";
+		return "nq";
 	case SCP_BJP3:
 		return "bjp3";
 	case SCP_FITZ666:
@@ -1158,7 +1162,7 @@ const char *SV_ProtocolNameForClient(client_t *cl)
 	case SCP_DARKPLACES7:
 		return "dp7";
 	safedefault:
-		return "unknown";
+		return "unk";
 	}
 }
 
@@ -1734,7 +1738,7 @@ qboolean SVC_GetChallenge (qboolean respond_dp)
 #endif
 #ifdef Q2SERVER
 	case GT_QUAKE2:
-		buf = va("challenge %i", challenge);	//quake 2 servers give a different challenge response
+		buf = va("challenge %i p="STRINGIFY(PROTOCOL_VERSION_Q2EX), challenge);	//quake 2 servers give a different challenge response
 		break;
 #endif
 	default:
@@ -2019,7 +2023,7 @@ void SV_AcceptMessage(client_t *newcl)
 	sb.maxsize = sizeof(string);
 	sb.data = string;
 
-	switch(newcl->protocol)
+	safeswitch(newcl->protocol)
 	{
 #ifdef NQPROT
 	case SCP_NETQUAKE:
@@ -2066,13 +2070,16 @@ void SV_AcceptMessage(client_t *newcl)
 		len = strlen(string);
 		break;
 	case SCP_QUAKE2:
-	default:
-		Q_snprintfz(string, sizeof(string), "client_connect%s\n",
+	case SCP_QUAKE2EX:
+		Q_snprintfz(string, sizeof(string), "client_connect%s%s\n",
+			(newcl->protocol==SCP_QUAKE2EX)?" "STRINGIFY(PROTOCOL_VERSION_Q2EX):"",
 			(*fs_dlURL.string?va(" dlserver=%s", fs_dlURL.string):"")	//q2pro's dlserver hint
 			);
 		len = strlen(string);
 		break;
 
+	safedefault:
+	case SCP_BAD:
 	case SCP_QUAKEWORLD:
 		string[0] = S2C_CONNECTION;
 		string[1] = '\n';
@@ -2415,12 +2422,6 @@ client_t *SV_AddSplit(client_t *controller, char *info, int id)
 	unsigned int clients = 0, spectators = 0;
 	qboolean asspec;
 
-	if (!(controller->fteprotocolextensions & PEXT_SPLITSCREEN))
-	{
-		SV_PrintToClient(controller, PRINT_HIGH, "Your client doesn't support splitscreen\n");
-		return NULL;
-	}
-
 	for (curclients = 0, prev = cl = controller; cl; cl = cl->controlled)
 	{
 		prev = cl;
@@ -2651,7 +2652,7 @@ void SV_DoDirectConnect(svconnectinfo_t *fte_restrict info)
 	// check for password or spectator_password
 	if (svprogfuncs)
 	{
-		s = Info_ValueForKey (info->userinfo, "spectator");
+		s = Info_ValueForKey (info->seat[0].info, "spectator");
 		if (s[0] && strcmp(s, "0"))
 		{
 			if (spectator_password.string[0] &&
@@ -2663,8 +2664,8 @@ void SV_DoDirectConnect(svconnectinfo_t *fte_restrict info)
 				SV_RejectMessage (info->protocol, "requires a spectator password\n\n");
 				return;
 			}
-			Info_RemoveKey (info->userinfo, "spectator"); // remove key
-			Info_SetValueForStarKey (info->userinfo, "*spectator", "1", sizeof(info->userinfo));
+			Info_RemoveKey (info->seat[0].info, "spectator"); // remove key
+			Info_SetValueForStarKey (info->seat[0].info, "*spectator", "1", sizeof(info->seat[0].info));
 			spectator = true;
 		}
 		else
@@ -2676,7 +2677,7 @@ void SV_DoDirectConnect(svconnectinfo_t *fte_restrict info)
 			else if (info->protocol == SCP_NETQUAKE)
 			{	//if its a proquake client then use numeric passwords, which take a bit of processing
 				char *e;
-				int got = strtol(Info_ValueForKey (info->userinfo, "password"), NULL, 0);
+				int got = strtol(Info_ValueForKey (info->seat[0].info, "password"), NULL, 0);
 				int need = strtol(password.string, &e, 0);
 				if (*e)
 					need = CalcHashInt(&hash_md4, password.string, strlen(password.string));
@@ -2689,7 +2690,7 @@ void SV_DoDirectConnect(svconnectinfo_t *fte_restrict info)
 			}
 			else
 			{
-				s = Info_ValueForKey (info->userinfo, "password");
+				s = Info_ValueForKey (info->seat[0].info, "password");
 				if (strcmp(password.string, s))
 				{
 					Con_TPrintf ("%s:password failed\n", NET_AdrToString (adrbuf, sizeof(adrbuf), &info->adr));
@@ -2698,8 +2699,8 @@ void SV_DoDirectConnect(svconnectinfo_t *fte_restrict info)
 				}
 			}
 			spectator = false;
-			Info_RemoveKey (info->userinfo, "password"); // remove passwd
-			Info_RemoveKey (info->userinfo, "*spectator"); // remove key
+			Info_RemoveKey (info->seat[0].info, "password"); // remove passwd
+			Info_RemoveKey (info->seat[0].info, "*spectator"); // remove key
 		}
 	}
 	else
@@ -2807,7 +2808,7 @@ void SV_DoDirectConnect(svconnectinfo_t *fte_restrict info)
 		}
 	}
 
-	name = Info_ValueForKey (info->userinfo, "name");
+	name = Info_ValueForKey (info->seat[0].info, "name");
 
 	/*
 	if (sv.world.worldmodel && info->protocol == SCP_QUAKEWORLD &&!atoi(Info_ValueForKey (info->userinfo, "iknow")))
@@ -3045,7 +3046,7 @@ void SV_DoDirectConnect(svconnectinfo_t *fte_restrict info)
 		temp.edict = ent;
 
 		{
-			const char *reject = SV_CheckRejectConnection(&info->adr, info->userinfo, info->protocol, info->ftepext1, info->ftepext2, info->ezpext1, info->guid);
+			const char *reject = SV_CheckRejectConnection(&info->adr, info->seat[0].info, info->protocol, info->ftepext1, info->ftepext2, info->ezpext1, info->guid);
 			if (reject)
 			{
 				SV_RejectMessage(info->protocol, "%s", reject);
@@ -3058,7 +3059,7 @@ void SV_DoDirectConnect(svconnectinfo_t *fte_restrict info)
 
 #ifdef Q2SERVER
 	case GT_QUAKE2:
-		if (info->protocol != SCP_QUAKE2)
+		if (info->protocol != SCP_QUAKE2 && info->protocol != SCP_QUAKE2EX)
 		{
 			SV_RejectMessage(info->protocol, "This is a %s server.", fs_manifest->formalname);
 			Con_DPrintf ("* Rejected non-q2 client.\n");
@@ -3068,9 +3069,9 @@ void SV_DoDirectConnect(svconnectinfo_t *fte_restrict info)
 		temp.edict = NULL;
 		temp.q2edict = q2ent;
 
-		if (!ge->ClientConnect(q2ent, info->userinfo))
+		if (!ge->ClientConnect(q2ent, info->seat[0].info))
 		{
-			const char *reject = Info_ValueForKey(info->userinfo, "rejmsg");
+			const char *reject = Info_ValueForKey(info->seat[0].info, "rejmsg");
 			if (*reject)
 				SV_RejectMessage(info->protocol, "%s\nConnection Refused.", reject);
 			else
@@ -3079,7 +3080,7 @@ void SV_DoDirectConnect(svconnectinfo_t *fte_restrict info)
 			return;
 		}
 
-		ge->ClientUserinfoChanged(q2ent, info->userinfo);
+		ge->ClientUserinfoChanged(q2ent, info->seat[0].info);
 
 
 		break;
@@ -3102,7 +3103,7 @@ void SV_DoDirectConnect(svconnectinfo_t *fte_restrict info)
 	*newcl = temp;
 	newcl->userinfo.ChangeCB = svs.info.ChangeCB;
 	newcl->userinfo.ChangeCTX = &newcl->userinfo;
-	InfoBuf_FromString(&newcl->userinfo, info->userinfo, false);
+	InfoBuf_FromString(&newcl->userinfo, info->seat[0].info, false);
 
 	newcl->challenge = info->challenge;
 	newcl->zquake_extensions = atoi(InfoBuf_ValueForKey(&newcl->userinfo, "*z_ext"));
@@ -3142,7 +3143,7 @@ void SV_DoDirectConnect(svconnectinfo_t *fte_restrict info)
 	else
 	{	//otherwise we can't fragment the packets, and the only way to honour the mtu is to send less data. yay for more round-trips.
 		int mtu;
-		mtu = atoi(Info_ValueForKey (info->userinfo, "mtu"));
+		mtu = atoi(Info_ValueForKey (info->seat[0].info, "mtu"));
 		if (mtu)
 			newcl->netchan.mtu = mtu;	//locked mtu size, because not everyone has a working connection (we need icmp would-fragment responses for mtu detection)
 		else						//if its not set then use some 'safe' fallback.
@@ -3171,10 +3172,20 @@ void SV_DoDirectConnect(svconnectinfo_t *fte_restrict info)
 	else
 		newcl->datagram.maxsize = MAX_DATAGRAM;
 
-	newcl->netchan.netprim =
-	newcl->datagram.prim =
-	newcl->backbuf.prim =
-	newcl->netchan.message.prim = svs.netprim;
+	if (newcl->protocol == SCP_QUAKE2EX)
+	{
+		newcl->netchan.netprim =
+		newcl->datagram.prim =
+		newcl->backbuf.prim =
+		newcl->netchan.message.prim = sv.q2multicast[1].prim;
+	}
+	else
+	{
+		newcl->netchan.netprim =
+		newcl->datagram.prim =
+		newcl->backbuf.prim =
+		newcl->netchan.message.prim = svs.netprim;
+	}
 
 	SV_ClientProtocolExtensionsChanged(newcl);
 
@@ -3371,7 +3382,30 @@ void SV_DoDirectConnect(svconnectinfo_t *fte_restrict info)
 	if (sv_use_dns.ival)
 		NET_AdrToStringResolve(&info->adr, SV_UserDNSResolved, NULL, newcl-svs.clients, newcl->userid);
 
+	for (i = 1; i < info->seats; i++)
+		SV_AddSplit(newcl, info->seat[i].info, i);
 }
+
+#ifdef Q2SERVER
+void Q2EFixupInfo(void *vctx, const char *key, const char *value)
+{
+	int seat = -1;
+	svconnectinfo_t *ctx = vctx;
+	int l = strlen(key);
+	if (l > 2 && key[l-2] == '_' && key[l-1] >= '0' && key[l-1] < '0'+MAX_SPLITS)
+	{
+		seat = key[l-1]-'0';
+		((char*)key)[l-2] = 0;	//strip out the annoying _0s
+	}
+	if (seat < 0)
+	{
+		for(seat = 0; seat < ctx->seats; seat++)
+			Info_SetValueForStarKey(ctx->seat[seat].info, key, value, sizeof(ctx->seat[seat].info));
+	}
+	else
+		Info_SetValueForStarKey(ctx->seat[seat].info, key, value, sizeof(ctx->seat[seat].info));
+}
+#endif
 
 /*
 ==================
@@ -3411,7 +3445,7 @@ void SVC_DirectConnect(int expectedreliablesequence)
 	info.ftepext2 = 0;
 	info.ezpext1 = 0;
 	*info.guid = 0;
-
+	info.seats = 1;
 	if (*Cmd_Argv(1) == '\\')
 	{	//q3: connect "\key\val"
 #ifndef QWOVERQ3
@@ -3477,9 +3511,9 @@ void SVC_DirectConnect(int expectedreliablesequence)
 			Con_TPrintf ("* rejected connect from dp client (because of hexen2)\n");
 			return;
 		}
-		Q_strncpyz (info.userinfo, net_message.data + 11, sizeof(info.userinfo)-1);
+		Q_strncpyz (info.seat[0].info, net_message.data + 11, sizeof(info.seat[0].info)-1);
 
-		if (strcmp(Info_ValueForKey(info.userinfo, "protocol"), "darkplaces "STRINGIFY(NQ_NETCHAN_VERSION)))
+		if (strcmp(Info_ValueForKey(info.seat[0].info, "protocol"), "darkplaces "STRINGIFY(NQ_NETCHAN_VERSION)))
 		{
 			SV_RejectMessage (SCP_BAD, "Server is %s.\n", version_string());
 			Con_TPrintf ("* rejected connect from incompatible client\n");
@@ -3487,7 +3521,7 @@ void SVC_DirectConnect(int expectedreliablesequence)
 		}
 		//it's a darkplaces client.
 
-		s = Info_ValueForKey(info.userinfo, "protocols");
+		s = Info_ValueForKey(info.seat[0].info, "protocols");
 
 		while(s && *s)
 		{
@@ -3535,24 +3569,54 @@ void SVC_DirectConnect(int expectedreliablesequence)
 
 		info.protocol = SCP_DARKPLACES7;
 
-		s = Info_ValueForKey(info.userinfo, "challenge");
+		s = Info_ValueForKey(info.seat[0].info, "challenge");
 		if (!strncmp(s, "FTE", strlen("FTE")))	//cope with our mangling of the challenge.
 			info.challenge = atoi(s+strlen("FTE"));
 		else
 			info.challenge = atoi(s);
 
-		Info_RemoveKey(info.userinfo, "protocol");
-		Info_RemoveKey(info.userinfo, "protocols");
-		Info_RemoveKey(info.userinfo, "challenge");
+		Info_RemoveKey(info.seat[0].info, "protocol");
+		Info_RemoveKey(info.seat[0].info, "protocols");
+		Info_RemoveKey(info.seat[0].info, "challenge");
 
-		s = Info_ValueForKey(info.userinfo, "name");
+		s = Info_ValueForKey(info.seat[0].info, "name");
 		if (!*s)
-			Info_SetValueForKey(info.userinfo, "name", "CONNECTING", sizeof(info.userinfo));
+			Info_SetValueForKey(info.seat[0].info, "name", "CONNECTING", sizeof(info.seat[0].info));
 
 		info.qport = 0;
 		info.proquakeanglehack = false;	//NOTE: DP clients fuck up here due to a DP client bug.
 									//DP clients will use 16bit angles if it has previously connected to a proquake-handshake server,
 									//and 8bit angles otherwise (or a non-proquake/non-dp/non-qw server more recently than the proquake one).
+	}
+#endif
+#ifdef Q2SERVER
+	else if (atoi(Cmd_Argv(1)) == PROTOCOL_VERSION_Q2EX)
+	{
+		int i, numseats;
+		info.seats = numseats = atoi(Cmd_Argv(2));
+		version = atoi(Cmd_Argv(1));
+		info.protocol = SCP_QUAKE2EX;
+		info.seats = bound(1, numseats, countof(info.seat));
+		if (info.seats < 1 || info.seats > MAX_SPLITS)
+		{	//no splitscreen(yet)
+			SV_RejectMessage (info.protocol, "bad number of seats\n", PROTOCOL_VERSION_Q2, version);
+			Con_TPrintf ("* rejected connect from version %i\n", version);
+			return;
+		}
+		Q_strncpyz(info.guid, Cmd_Argv(3), sizeof(info.guid));
+		//Socials - Cmd_Argv(3 ... 3+numseats-1); fuck that spyware
+		for (i = 0; i < info.seats; i++)
+			*info.seat[i].info = 0;
+		Info_Enumerate(va("\\%s", Cmd_Argv(3+numseats)), &info, Q2EFixupInfo);
+
+		//hide a challenge in there, in case we're not using the lobby stuff.
+		info.challenge = atoi(Info_ValueForKey(info.seat[0].info, "challenge"));
+		info.qport = atoi(Info_ValueForKey(info.seat[0].info, "qport"));
+		for (i = 0; i < info.seats; i++)
+		{
+			Info_RemoveKey(info.seat[i].info, "challenge");
+			Info_RemoveKey(info.seat[i].info, "qport");
+		}
 	}
 #endif
 	else
@@ -3611,12 +3675,12 @@ void SVC_DirectConnect(int expectedreliablesequence)
 		info.challenge = atoi(Cmd_Argv(3));
 
 		// note an extra qbyte is needed to replace spectator key
-		Q_strncpyz (info.userinfo, Cmd_Argv(4), sizeof(info.userinfo)-1);
+		Q_strncpyz (info.seat[0].info, Cmd_Argv(4), sizeof(info.seat[0].info)-1);
 		if (info.protocol >= SCP_NETQUAKE)
 		{
-			Info_RemoveKey(info.userinfo, "mod");	//its served its purpose.
-			Info_RemoveKey(info.userinfo, "modver");	//its served its purpose.
-			Info_RemoveKey(info.userinfo, "flags");	//its served its purpose.
+			Info_RemoveKey(info.seat[0].info, "mod");	//its served its purpose.
+			Info_RemoveKey(info.seat[0].info, "modver");	//its served its purpose.
+			Info_RemoveKey(info.seat[0].info, "flags");	//its served its purpose.
 		}
 	}
 
@@ -3673,19 +3737,19 @@ void SVC_DirectConnect(int expectedreliablesequence)
 	if (sv_banproxies.ival)
 	{
 		//FIXME: allow them to spectate but not join
-		if (*Info_ValueForKey(info.userinfo, "*qwfwd"))
+		if (*Info_ValueForKey(info.seat[0].info, "*qwfwd"))
 		{
 			SV_RejectMessage (info.protocol, "Proxies are not permitted on this server.\n");
 			Con_TPrintf ("* rejected connect from qwfwd proxy\n");
 			return;
 		}
-		if (*Info_ValueForKey(info.userinfo, "Qizmo"))
+		if (*Info_ValueForKey(info.seat[0].info, "Qizmo"))
 		{
 			SV_RejectMessage (info.protocol, "Proxies are not permitted on this server.\n");
 			Con_TPrintf ("* rejected connect from qizmo proxy\n");
 			return;
 		}
-		if (*Info_ValueForKey(info.userinfo, "*qtv"))
+		if (*Info_ValueForKey(info.seat[0].info, "*qtv"))
 		{
 			SV_RejectMessage (info.protocol, "Proxies are not permitted on this server.\n");
 			Con_TPrintf ("* rejected connect from qtv proxy (udp)\n");
@@ -4903,7 +4967,7 @@ void SV_ReadPacket(void)
 	// check for packets from connected clients
 	for (i=0, cl=svs.clients ; i<svs.allocated_client_slots ; i++,cl++)
 	{
-		if (cl->state == cs_free)
+		if (cl->state == cs_free || cl->controller)
 			continue;
 		if (!NET_CompareBaseAdr (&net_from, &cl->netchan.remote_address))
 			continue;

@@ -165,6 +165,7 @@ void SV_PrintToClient(client_t *cl, int level, const char *string)
 	case SCP_BAD:	//bot
 		break;
 	case SCP_QUAKE2:
+	case SCP_QUAKE2EX:
 #ifdef Q2SERVER
 		ClientReliableWrite_Begin (cl, svcq2_print, strlen(string)+3);
 		ClientReliableWrite_Byte (cl, level);
@@ -206,6 +207,7 @@ void SV_StuffcmdToClient(client_t *cl, const char *string)
 	case SCP_BAD:	//bot
 		break;
 	case SCP_QUAKE2:
+	case SCP_QUAKE2EX:
 #ifdef Q2SERVER
 		ClientReliableWrite_Begin (cl, svcq2_stufftext, strlen(string)+3);
 		ClientReliableWrite_String (cl, string);
@@ -252,6 +254,7 @@ void SV_StuffcmdToClient_Unreliable(client_t *cl, const char *string)
 	case SCP_BAD:	//bot
 		break;
 	case SCP_QUAKE2:
+	case SCP_QUAKE2EX:
 #ifdef Q2SERVER
 		ClientReliableWrite_Begin (cl, svcq2_stufftext, strlen(string)+3);
 		ClientReliableWrite_String (cl, string);
@@ -604,7 +607,7 @@ void SV_MulticastProtExt(vec3_t origin, multicast_t to, int dimension_mask, int 
 		&& !sv.nqmulticast.cursize
 #endif
 #ifdef Q2SERVER
-		&& !sv.q2multicast.cursize
+		&& !sv.q2multicast[0].cursize
 #endif
 		)
 		return;
@@ -780,11 +783,11 @@ void SV_MulticastProtExt(vec3_t origin, multicast_t to, int dimension_mask, int 
 			if (!split)
 				continue;
 
-			switch (client->protocol)
+			safeswitch (client->protocol)
 			{
 			case SCP_BAD:
 				continue;	//a bot.
-			default:
+			safedefault:
 				SV_Error("multicast: Client is using a bad protocol");
 
 			case SCP_QUAKE3:
@@ -811,11 +814,20 @@ void SV_MulticastProtExt(vec3_t origin, multicast_t to, int dimension_mask, int 
 			case SCP_QUAKE2:
 				if (reliable)
 				{
-					ClientReliableCheckBlock(client, sv.q2multicast.cursize);
-					ClientReliableWrite_SZ(client, sv.q2multicast.data, sv.q2multicast.cursize);
+					ClientReliableCheckBlock(client, sv.q2multicast[0].cursize);
+					ClientReliableWrite_SZ(client, sv.q2multicast[0].data, sv.q2multicast[0].cursize);
 				}
 				else
-					SZ_Write (&client->datagram, sv.q2multicast.data, sv.q2multicast.cursize);
+					SZ_Write (&client->datagram, sv.q2multicast[0].data, sv.q2multicast[0].cursize);
+				break;
+			case SCP_QUAKE2EX:
+				if (reliable)
+				{
+					ClientReliableCheckBlock(client, sv.q2multicast[1].cursize);
+					ClientReliableWrite_SZ(client, sv.q2multicast[1].data, sv.q2multicast[1].cursize);
+				}
+				else
+					SZ_Write (&client->datagram, sv.q2multicast[1].data, sv.q2multicast[1].cursize);
 				break;
 #endif
 			case SCP_QUAKEWORLD:
@@ -901,7 +913,8 @@ void SV_MulticastProtExt(vec3_t origin, multicast_t to, int dimension_mask, int 
 	SZ_Clear (&sv.nqmulticast);
 #endif
 #ifdef Q2SERVER
-	SZ_Clear (&sv.q2multicast);
+	SZ_Clear (&sv.q2multicast[0]);
+	SZ_Clear (&sv.q2multicast[1]);
 #endif
 	SZ_Clear (&sv.multicast);
 }
@@ -3151,6 +3164,7 @@ void SV_UpdateToReliableMessages (void)
 					{
 					case SCP_BAD:	//bots
 					case SCP_QUAKE2:
+					case SCP_QUAKE2EX:
 					case SCP_QUAKE3:
 						break;
 					default:

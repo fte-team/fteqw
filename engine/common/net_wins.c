@@ -5034,16 +5034,12 @@ static int NET_KexLobby_GetPeerCertificate(void *ctx, enum certprops_e prop, cha
 		NET_KexLobby_SendChat(peer, 0, out);
 		return outsize;
 	case QCERT_LOBBYSTATUS:
-		map = InfoBuf_ValueForKey(&peer->rules, "map");
-		map = TL_Translate(com_language, map);
-		mode = InfoBuf_ValueForKey(&peer->rules, "gamemode");
-		mode = TL_Translate(com_language, mode);
-
 		switch(peer->state)
 		{
 		case KEXLOBBY_PENDING:
-			Q_snprintfz(out, outsize, "\nWaiting for response...\n");
-			break;
+			return 0;
+//			Q_snprintfz(out, outsize, "\nWaiting for response...\n");
+//			break;
 		case KEXLOBBY_ESTABLISHED:
 			Q_snprintfz(out, outsize, "\nWaiting for host to start...\n");
 			break;
@@ -5055,6 +5051,11 @@ static int NET_KexLobby_GetPeerCertificate(void *ctx, enum certprops_e prop, cha
 			break;
 		}
 		n = strlen(out); out += n; outsize -= n;
+
+		map = InfoBuf_ValueForKey(&peer->rules, "map");
+		map = TL_Translate(com_language, map);
+		mode = InfoBuf_ValueForKey(&peer->rules, "gamemode");
+		mode = TL_Translate(com_language, mode);
 		Q_snprintfz(out, outsize, "%s - %s\n\n", mode, map);
 		n = strlen(out); out += n; outsize -= n;
 

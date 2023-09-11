@@ -2384,17 +2384,20 @@ void SCR_DrawLoading (qboolean opaque)
 
 		y+= 16+8;
 	}
-	else if (CL_TryingToConnect())
+	else if ((s=CL_TryingToConnect()))
 	{
-		char dots[4];
+		char *nl;
+		if (!strchr(s, '\n'))
+			s = va("^bConnecting to: %s...", s);
 
-		s = CL_TryingToConnect();
-		x = (vid.width - (strlen(s)+15)*8) / 2;
-		dots[0] = '.';
-		dots[1] = '.';
-		dots[2] = '.';
-		dots[(int)realtime & 3] = 0;
-		Draw_FunString(x, y+4, va("Connecting to: %s%s", s, dots));
+		for (;s; s = nl)
+		{
+			nl = strchr(s, '\n');
+			if (nl)
+				*nl++ = 0;
+			Draw_FunStringWidth(0, y+4, s, vid.width, 2, false);
+			y += 8;
+		}
 	}
 }
 

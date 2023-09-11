@@ -1538,7 +1538,7 @@ qboolean Plug_ChatMessage(char *buffer, int talkernum, int tpflags)
 	return ret; // true to display message, false to supress
 }
 
-qboolean Plug_CenterPrintMessage(char *buffer, int clientnum)
+qboolean Plug_CenterPrintMessage(const char *buffer, int clientnum)
 {
 	qboolean ret = true;
 

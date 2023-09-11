@@ -543,7 +543,7 @@ int M_GameType(void);
 
 //plugin functions
 #ifdef PLUGINS
-qboolean	Plug_CenterPrintMessage(char *buffer, int clientnum);
+qboolean	Plug_CenterPrintMessage(const char *buffer, int clientnum);
 qboolean	Plug_ChatMessage(char *buffer, int talkernum, int tpflags);
 void		Plug_Command_f(void);
 int			Plug_ConnectionlessClientPacket(char *buffer, int size);

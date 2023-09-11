@@ -262,10 +262,11 @@ void *scr_curcursor;
 
 static void SCR_CPrint_f(void)
 {
+	int seat = CL_TargettedSplit(false);
 	if (Cmd_Argc() == 2)
-		SCR_CenterPrint(0, Cmd_Argv(1), true);
+		SCR_CenterPrint(seat, Cmd_Argv(1), true);
 	else
-		SCR_CenterPrint(0, Cmd_Args(), true);
+		SCR_CenterPrint(seat, Cmd_Args(), true);
 }
 
 extern char cl_screengroup[];
@@ -317,7 +318,7 @@ CENTER PRINTING
 ===============================================================================
 */
 
-typedef struct {
+typedef struct cprint_s {
 	unsigned int	flags;
 
 	conchar_t		*string;
@@ -331,9 +332,11 @@ typedef struct {
 	int				erase_center;
 
 	int				oldmousex, oldmousey;	//so the cursorchar can be changed by keyboard without constantly getting stomped on.
+
+	struct cprint_s *queue;	//switch to the next on timeout.
 } cprint_t;
 
-cprint_t scr_centerprint[MAX_SPLITS];
+static cprint_t *scr_centerprint[MAX_SPLITS];
 
 // SCR_StringToRGB: takes in "<index>" or "<r> <g> <b>" and converts to an RGB vector
 void SCR_StringToRGB (char *rgbstring, float *rgb, float rgbinputscale)
@@ -397,6 +400,22 @@ void SCR_StringToRGB (char *rgbstring, float *rgb, float rgbinputscale)
 	} // i contains the crosshair color
 }
 
+static qboolean SCR_CenterPrintPop(int pnum)
+{
+	cprint_t *p = scr_centerprint[pnum];
+	if (!p)
+		return false;
+	scr_centerprint[pnum] = p->queue;
+	Z_Free(p->string);
+	Z_Free(p);
+
+	//timers start NOW (not when its first queued, obviously)
+	p = scr_centerprint[pnum];
+	if (p)
+		p->time_start = cl.time;
+	return true;
+}
+
 /*
 ==============
 SCR_CenterPrint
@@ -409,7 +428,9 @@ void SCR_CenterPrint (int pnum, const char *str, qboolean skipgamecode)
 {
 	unsigned int pfl = 0;
 	size_t i;
-	cprint_t *p;
+	cprint_t *p, **l;
+	qboolean doqueue = false;
+	qboolean donotify = ((scr_logcenterprint.ival && !cl.deathmatch) || scr_logcenterprint.ival == 2);
 #ifdef HAVE_LEGACY
 	if (scr_usekfont.ival)
 		pfl |= PFS_FORCEUTF8;
@@ -417,11 +438,8 @@ void SCR_CenterPrint (int pnum, const char *str, qboolean skipgamecode)
 	if (!str)
 	{
 		if (cl.intermissionmode == IM_NONE)
-		{
-			p = &scr_centerprint[pnum];
-			p->flags = 0;
-			p->time_off = 0;
-		}
+			while(SCR_CenterPrintPop(pnum))
+				;
 		return;
 	}
 	if (!skipgamecode)
@@ -445,10 +463,11 @@ void SCR_CenterPrint (int pnum, const char *str, qboolean skipgamecode)
 		}
 	}
 
-	p = &scr_centerprint[pnum];
+	p = Z_Malloc(sizeof(*p));
 	p->flags = 0;
 	p->titleimage[0] = 0;
 	p->cursorchar = NULL;
+	p->time_off = scr_centertime.value;
 
 	if (*str != '/')
 	{
@@ -477,10 +496,22 @@ void SCR_CenterPrint (int pnum, const char *str, qboolean skipgamecode)
 			p->flags |= CPRINT_CURSOR;	//this can be a little jarring if there's no links, so this forces consistent behaviour.
 		else if (str[1] == 'W')	//wait between each char
 			p->flags ^= CPRINT_TYPEWRITER;
+		else if (str[1] == 'Q')	//queue
+			doqueue = true;
+		else if (str[1] == 'D')	//explicit delay
+		{
+			p->time_off = strtod(str+2, (char**)&str);
+			continue;
+		}
 		else if (str[1] == 'S')	//Stay
 			p->flags ^= CPRINT_PERSIST;
 		else if (str[1] == 'M')	//'Mask' the background so that its readable.
 			p->flags ^= CPRINT_BACKGROUND;
+		else if (str[1] == 'N')	//'Notify' spam it to the console even in deathmatch.
+		{
+			donotify = strtol(str+2, (char**)&str, 10);
+			continue;
+		}
 		else if (str[1] == 'O')	//Obituaries are shown at the bottom, ish.
 			p->flags ^= CPRINT_OBITUARTY;
 		else if (str[1] == 'B')
@@ -549,7 +580,16 @@ void SCR_CenterPrint (int pnum, const char *str, qboolean skipgamecode)
 		str += 2;
 	}
 
-	if (((scr_logcenterprint.ival && !cl.deathmatch) || scr_logcenterprint.ival == 2) && !(p->flags & CPRINT_PERSIST))
+	if (!doqueue)	//kill all prior ones if we're not queueing
+		while (SCR_CenterPrintPop(pnum))
+			;
+	//add it to the end
+	for (l = &scr_centerprint[pnum]; *l; l = &(*l)->queue)
+		;
+	*l = p;
+
+
+	if (donotify && !(p->flags & CPRINT_PERSIST))
 	{
 		//don't spam too much.
 		if (*str && strncmp(cl.lastcenterprint, str, sizeof(cl.lastcenterprint)-1))
@@ -585,7 +625,6 @@ void SCR_CenterPrint (int pnum, const char *str, qboolean skipgamecode)
 		}
 	}
 
-	p->time_off = scr_centertime.value;
 	p->time_start = cl.time;
 	VRUI_SnapAngle();
 }
@@ -594,16 +633,17 @@ void VARGS Stats_Message(char *msg, ...)
 {
 	va_list		argptr;
 	char str[2048];
-	cprint_t *p = &scr_centerprint[0];
+	cprint_t *p = scr_centerprint[0];
 	if (!scr_showobituaries.ival)
 		return;
-	if (p->time_off >= 0)
+	if (p)	//don't show if one is shown... FIXME: queue these too (some depth cutoff?)
 		return;
 
 	va_start (argptr, msg);
 	vsnprintf (str,sizeof(str)-1, msg, argptr);
 	va_end (argptr);
 
+	p = scr_centerprint[0] = Z_Malloc(sizeof(*p));
 	p->flags = CPRINT_OBITUARTY;
 	p->titleimage[0] = 0;
 
@@ -788,6 +828,7 @@ int SCR_DrawCenterString (vrect_t *playerrect, cprint_t *p, struct font_s *font)
 		Font_BeginString(font, rect.x, y, &left, &top);
 	}
 
+	x = (left+right)/2;
 	for (l = 0; l < linecount; l++, y += ch)
 	{
 		if (y >= bottom)
@@ -825,9 +866,11 @@ int SCR_DrawCenterString (vrect_t *playerrect, cprint_t *p, struct font_s *font)
 		remaining -= line_end[l]-line_start[l];
 		if (remaining <= 0)
 		{
+			if (p->time_off && (p->flags&(CPRINT_TYPEWRITER|CPRINT_PERSIST))==CPRINT_TYPEWRITER)
+				p->time_off = scr_centertime.value;	//reset the timeout while we're still truncating it.
 			line_end[l] += remaining;
 			if (line_end[l] <= line_start[l])
-				break;
+				line_end[l] = line_start[l];
 		}
 
 		if (p->cursorchar && p->cursorchar >= line_start[l] && p->cursorchar < line_end[l] && *p->cursorchar == CON_LINKSTART)
@@ -849,6 +892,16 @@ int SCR_DrawCenterString (vrect_t *playerrect, cprint_t *p, struct font_s *font)
 		}
 
 		Font_LineDraw(x, y, line_start[l], line_end[l]);
+
+		if (remaining <= 0 || l == linecount-1)
+		{
+			if ((p->flags&(CPRINT_TYPEWRITER|CPRINT_PERSIST))==CPRINT_TYPEWRITER && l < linecount && ((int)(realtime*4)&1))
+			{
+				x = x+Font_LineWidth(line_start[l], line_end[l]);
+				Font_DrawChar(x, y, CON_WHITEMASK, 0xe00b);
+			}
+			break;
+		}
 	}
 
 	Font_EndString(font);
@@ -859,7 +912,7 @@ int SCR_DrawCenterString (vrect_t *playerrect, cprint_t *p, struct font_s *font)
 static void Key_CenterPrintActivate(int pnum)
 {
 	char *link;
-	cprint_t *p = &scr_centerprint[pnum];
+	cprint_t *p = scr_centerprint[pnum];
 	link = SCR_CopyCenterPrint(p);
 	if (link)
 	{
@@ -915,7 +968,6 @@ qboolean Key_Centerprint(int key, int unicode, unsigned int devid)
 		//figure out which player has the cursor
 		for (pnum = 0; pnum < cl.splitclients; pnum++)
 		{
-			p = &scr_centerprint[pnum];
 			if (cl.playerview[pnum].gamerectknown == cls.framecount)
 				Key_CenterPrintActivate(pnum);
 		}
@@ -925,8 +977,9 @@ qboolean Key_Centerprint(int key, int unicode, unsigned int devid)
 	{
 		for (pnum = 0; pnum < cl.splitclients; pnum++)
 		{
-			p = &scr_centerprint[pnum];
-			p->flags &= ~CPRINT_CURSOR;
+			p = scr_centerprint[pnum];
+			if (p)
+				p->flags &= ~CPRINT_CURSOR;
 		}
 		return true;
 	}
@@ -934,8 +987,8 @@ qboolean Key_Centerprint(int key, int unicode, unsigned int devid)
 			  key == K_KP_ENTER ||
 			  key == K_GP_DIAMOND_RIGHT) && devid < countof(scr_centerprint))
 	{
-		p = &scr_centerprint[devid];
-		if (p->cursorchar)
+		p = scr_centerprint[devid];
+		if (p && p->cursorchar)
 			Key_CenterPrintActivate(devid);
 		return true;
 	}
@@ -946,15 +999,18 @@ qboolean Key_Centerprint(int key, int unicode, unsigned int devid)
 			  key == K_GP_DPAD_UP ||
 			  key == K_GP_DPAD_LEFT) && devid < countof(scr_centerprint))
 	{
-		p = &scr_centerprint[devid];
-		if (!p->cursorchar)
-			p->cursorchar = p->string + p->charcount;
-		while (--p->cursorchar >= p->string)
+		p = scr_centerprint[devid];
+		if (p)
 		{
-			if (*p->cursorchar == CON_LINKSTART)
-				return true;	//found one
+			if (!p->cursorchar)
+				p->cursorchar = p->string + p->charcount;
+			while (--p->cursorchar >= p->string)
+			{
+				if (*p->cursorchar == CON_LINKSTART)
+					return true;	//found one
+			}
+			p->cursorchar = NULL;
 		}
-		p->cursorchar = NULL;
 		return true;
 	}
 	else if ((key == K_DOWNARROW ||
@@ -964,15 +1020,18 @@ qboolean Key_Centerprint(int key, int unicode, unsigned int devid)
 			  key == K_GP_DPAD_DOWN ||
 			  key == K_GP_DPAD_RIGHT) && devid < countof(scr_centerprint))
 	{
-		p = &scr_centerprint[devid];
-		if (!p->cursorchar)
-			p->cursorchar = p->string-1;
-		while (++p->cursorchar < p->string + p->charcount)
+		p = scr_centerprint[devid];
+		if (p)
 		{
-			if (*p->cursorchar == CON_LINKSTART)
-				return true;	//found one
+			if (!p->cursorchar)
+				p->cursorchar = p->string-1;
+			while (++p->cursorchar < p->string + p->charcount)
+			{
+				if (*p->cursorchar == CON_LINKSTART)
+					return true;	//found one
+			}
+			p->cursorchar = NULL;	//hit the end
 		}
-		p->cursorchar = NULL;	//hit the end
 		return true;
 	}
 
@@ -988,8 +1047,6 @@ void SCR_CheckDrawCenterString (void)
 
 	for (pnum = 0; pnum < cl.splitclients; pnum++)
 	{
-		p = &scr_centerprint[pnum];
-
 #ifdef QUAKESTATS
 		if (IN_DrawWeaponWheel(pnum))
 		{	//we won't draw the cprint, but it also won't fade while the wwheel is shown.
@@ -997,8 +1054,15 @@ void SCR_CheckDrawCenterString (void)
 		}
 #endif
 
-		if (p->time_off <= 0 && !(p->flags & CPRINT_PERSIST))
-			continue;	//'/P' prefix doesn't time out
+		p = scr_centerprint[pnum];
+		if (!p)
+			continue;
+		if (p->time_off <= 0 && !(p->flags & CPRINT_PERSIST))	//'/P' prefix doesn't time out
+		{	//this one is done. move to the next.
+			if (SCR_CenterPrintPop(pnum))
+				pnum++;
+			continue;
+		}
 
 		p->time_off -= host_frametime;
 
@@ -1461,8 +1525,8 @@ void SCR_ShowPic_ClearAll(qboolean persistflag)
 
 	for (pnum = 0; pnum < MAX_SPLITS; pnum++)
 	{
-		scr_centerprint[pnum].flags = 0;
-		scr_centerprint[pnum].charcount = 0;
+		while (SCR_CenterPrintPop(pnum))
+			;
 	}
 
 	if (!persistflag)
@@ -3415,7 +3479,8 @@ void SCR_BringDownConsole (void)
 
 	for (pnum = 0; pnum < cl.splitclients; pnum++)
 	{
-		scr_centerprint[pnum].charcount = 0;
+		while (SCR_CenterPrintPop(pnum))
+			;
 		cl.playerview[pnum].cshifts[CSHIFT_CONTENTS].percent = 0;              // no area contents palette on next frame
 	}
 }
@@ -3571,8 +3636,8 @@ void SCR_DeInit (void)
 	}
 	for (i = 0; i < countof(scr_centerprint); i++)
 	{
-		Z_Free(scr_centerprint[i].string);
-		memset(&scr_centerprint[i], 0, sizeof(scr_centerprint[i]));
+		while (SCR_CenterPrintPop(i))
+			;
 	}
 	if (scr_initialized)
 	{

@@ -4749,7 +4749,7 @@ bool writeiqm(const char *filename)
 {
 	vector<iqmextension> extensions;
 
-	stream *f = openfile(filename, "wb");
+	filestream *f = (filestream *) openfile(filename, "wb");
 	if(!f) return false;
 
 	iqmheader hdr;
@@ -4788,35 +4788,41 @@ bool writeiqm(const char *filename)
 		ext_skins_fte->num_data += skinframes.length()*sizeof(iqmext_fte_skin_skinframe);
 		ext_skins_fte->num_data += meshskins.length()*sizeof(iqmext_fte_skin_meshskin);
 	}
-
-	if(stringdata.length()) hdr.ofs_text = hdr.filesize, hdr.num_text = stringdata.length(), hdr.filesize += hdr.num_text;
-	hdr.num_meshes = meshes.length(); if(meshes.length()) hdr.ofs_meshes = hdr.filesize; hdr.filesize += meshes.length() * sizeof(iqmmesh);
-	uint voffset = hdr.filesize + varrays.length() * sizeof(iqmvertexarray);
-	hdr.num_vertexarrays = varrays.length(); if(varrays.length()) hdr.ofs_vertexarrays = hdr.filesize; hdr.filesize += varrays.length() * sizeof(iqmvertexarray);
+	if(stringdata.length()) hdr.ofs_text = pad_field_ofs(hdr.filesize), hdr.num_text = stringdata.length(), hdr.filesize = hdr.ofs_text + hdr.num_text;
+	hdr.num_meshes = meshes.length(); if(meshes.length()) hdr.ofs_meshes = pad_field_ofs(hdr.filesize), hdr.filesize = hdr.ofs_meshes + meshes.length() * sizeof(iqmmesh);
+	hdr.num_vertexarrays = varrays.length(); if(varrays.length()) hdr.ofs_vertexarrays = pad_field_ofs(hdr.filesize), hdr.filesize = hdr.ofs_vertexarrays + varrays.length() * sizeof(iqmvertexarray);
 	uint valign = (8 - (hdr.filesize%8))%8;
-	voffset += valign;
+	uint voffset = hdr.filesize + valign;
 	hdr.filesize += valign + vdata.length();
 	hdr.num_vertexes = numfverts;
-	hdr.num_triangles = triangles.length(); if(triangles.length()) hdr.ofs_triangles = hdr.filesize; hdr.filesize += triangles.length() * sizeof(iqmtriangle);
-	if(neighbors.length()) hdr.ofs_adjacency = hdr.filesize, hdr.filesize += neighbors.length() * sizeof(iqmtriangle);
-	hdr.num_joints = joints.length(); if(joints.length()) hdr.ofs_joints = hdr.filesize; hdr.filesize += joints.length() * sizeof(iqmjoint);
-	hdr.num_poses = poses.length(); if(poses.length()) hdr.ofs_poses = hdr.filesize; hdr.filesize += poses.length() * sizeof(iqmpose);
-	hdr.num_anims = anims.length(); if(anims.length()) hdr.ofs_anims = hdr.filesize; hdr.filesize += anims.length() * sizeof(iqmanim);
+	hdr.num_triangles = triangles.length(); if(triangles.length()) hdr.ofs_triangles = pad_field_ofs(hdr.filesize), hdr.filesize = hdr.ofs_triangles + triangles.length() * sizeof(iqmtriangle);
+	if(neighbors.length()) hdr.ofs_adjacency = pad_field_ofs(hdr.filesize), hdr.filesize = hdr.ofs_adjacency + neighbors.length() * sizeof(iqmtriangle);
+	hdr.num_joints = joints.length(); if(joints.length()) hdr.ofs_joints = pad_field_ofs(hdr.filesize), hdr.filesize = hdr.ofs_joints + joints.length() * sizeof(iqmjoint);
+	hdr.num_poses = poses.length(); if(poses.length()) hdr.ofs_poses = pad_field_ofs(hdr.filesize), hdr.filesize = hdr.ofs_poses + poses.length() * sizeof(iqmpose);
+	hdr.num_anims = anims.length(); if(anims.length()) hdr.ofs_anims = pad_field_ofs(hdr.filesize), hdr.filesize = hdr.ofs_anims + anims.length() * sizeof(iqmanim);
 	hdr.num_frames = frames.length(); hdr.num_framechannels = framesize; 
-	if(animdata.length()) hdr.ofs_frames = hdr.filesize, hdr.filesize += animdata.length() * sizeof(ushort);
-	if(bounds.length()) hdr.ofs_bounds = hdr.filesize, hdr.filesize += bounds.length() * sizeof(float[8]);
-	if(commentdata.length()) hdr.ofs_comment = hdr.filesize, hdr.num_comment = commentdata.length(), hdr.filesize += hdr.num_comment;
-	if (extensions.length()) hdr.ofs_extensions = hdr.filesize, hdr.num_extensions = extensions.length(), hdr.filesize += sizeof(iqmextension) * hdr.num_extensions;
-	if (ext_meshes_fte) ext_meshes_fte->ofs_data = hdr.filesize, ext_meshes_fte->num_data = meshes_fte.length()*sizeof(iqmext_fte_mesh), hdr.filesize += ext_meshes_fte->num_data;
-	if (ext_events_fte) ext_events_fte->ofs_data = hdr.filesize, ext_events_fte->num_data = events_fte.length()*sizeof(iqmext_fte_events), hdr.filesize += ext_events_fte->num_data;
-	if (ext_skins_fte) ext_skins_fte->ofs_data = hdr.filesize, hdr.filesize += ext_skins_fte->num_data;
+	if(animdata.length()) hdr.ofs_frames = pad_field_ofs(hdr.filesize), hdr.filesize = hdr.ofs_frames + animdata.length() * sizeof(ushort);
+	if(bounds.length()) hdr.ofs_bounds = pad_field_ofs(hdr.filesize), hdr.filesize = hdr.ofs_bounds + bounds.length() * sizeof(float[8]);
+	if(commentdata.length()) hdr.ofs_comment = pad_field_ofs(hdr.filesize), hdr.num_comment = commentdata.length(), hdr.filesize = hdr.ofs_comment + hdr.num_comment;
+	if (extensions.length()) hdr.ofs_extensions = pad_field_ofs(hdr.filesize), hdr.num_extensions = extensions.length(), hdr.filesize = hdr.ofs_extensions + sizeof(iqmextension) * hdr.num_extensions;
+	if (ext_meshes_fte) ext_meshes_fte->ofs_data = pad_field_ofs(hdr.filesize), ext_meshes_fte->num_data = meshes_fte.length()*sizeof(iqmext_fte_mesh), hdr.filesize = ext_meshes_fte->ofs_data + ext_meshes_fte->num_data;
+	if (ext_events_fte) ext_events_fte->ofs_data = pad_field_ofs(hdr.filesize), ext_events_fte->num_data = events_fte.length()*sizeof(iqmext_fte_events), hdr.filesize = ext_events_fte->ofs_data + ext_events_fte->num_data;
+	if (ext_skins_fte) ext_skins_fte->ofs_data = pad_field_ofs(hdr.filesize), hdr.filesize = ext_skins_fte->ofs_data + ext_skins_fte->num_data;
 
 	lilswap(&hdr.version, (sizeof(hdr) - sizeof(hdr.magic))/sizeof(uint));
 
 	f->write(&hdr, sizeof(hdr));
 
+	// Move file write position to location specified by ofs_text
+	for(int i = f->tell(); i < hdr.ofs_text; i++) {
+		f->putchar(0);
+	}
 	if(stringdata.length()) f->write(stringdata.getbuf(), stringdata.length());
 
+	// Move file write position to location specified by ofs_meshes
+	for(int i = f->tell(); i < hdr.ofs_meshes; i++) {
+		f->putchar(0);
+	}
 	loopv(meshes)
 	{
 		mesh &m = meshes[i];
@@ -4828,6 +4834,10 @@ bool writeiqm(const char *filename)
 		f->putlil(m.numtris);
 	}
 
+	// Move file write position to location specified by ofs_vertexarrays
+	for(int i = f->tell(); i < hdr.ofs_vertexarrays; i++) {
+		f->putchar(0);
+	}
 	loopv(varrays)
 	{
 		vertexarray &v = varrays[i];
@@ -4841,18 +4851,30 @@ bool writeiqm(const char *filename)
 	loopi(valign) f->putchar(0);
 	f->write(vdata.getbuf(), vdata.length());
 
+	// Move file write position to location specified by ofs_triangles
+	for(int i = f->tell(); i < hdr.ofs_triangles; i++) {
+		f->putchar(0);
+	}
 	loopv(triangles)
 	{
 		triangle &t = triangles[i];
 		loopk(3) f->putlil(t.vert[k]);
 	}
 
+	// Move file write position to location specified by ofs_adjacency
+	for(int i = f->tell(); i < hdr.ofs_adjacency; i++) {
+		f->putchar(0);
+	}
 	loopv(neighbors)
 	{
 		triangle &t = neighbors[i];
 		loopk(3) f->putlil(t.vert[k]);
 	}
 
+	// Move file write position to location specified by ofs_joints
+	for(int i = f->tell(); i < hdr.ofs_joints; i++) {
+		f->putchar(0);
+	}
 	loopv(joints)
 	{
 		joint &j = joints[i];
@@ -4863,6 +4885,10 @@ bool writeiqm(const char *filename)
 		loopk(3) f->putlil(float(j.scale[k]));
 	}
 
+	// Move file write position to location specified by ofs_poses
+	for(int i = f->tell(); i < hdr.ofs_poses; i++) {
+		f->putchar(0);
+	}
 	loopv(poses)
 	{
 		pose &p = poses[i];
@@ -4872,6 +4898,10 @@ bool writeiqm(const char *filename)
 		loopk(10) f->putlil(p.scale[k]);
 	}
 
+	// Move file write position to location specified by ofs_anims
+	for(int i = f->tell(); i < hdr.ofs_anims; i++) {
+		f->putchar(0);
+	}
 	loopv(anims)
 	{
 		anim &a = anims[i];
@@ -4882,8 +4912,16 @@ bool writeiqm(const char *filename)
 		f->putlil(a.flags);
 	}
 
+	// Move file write position to location specified by ofs_frames
+	for(int i = f->tell(); i < hdr.ofs_frames; i++) {
+		f->putchar(0);
+	}
 	loopv(animdata) f->putlil(animdata[i]);
 
+	// Move file write position to location specified by ofs_bounds
+	for(int i = f->tell(); i < hdr.ofs_bounds; i++) {
+		f->putchar(0);
+	}
 	loopv(bounds)
 	{
 		framebounds &b = bounds[i];
@@ -4893,8 +4931,19 @@ bool writeiqm(const char *filename)
 		f->putlil(float(b.radius));
 	}
 
-	if(commentdata.length()) f->write(commentdata.getbuf(), commentdata.length());
+	if(commentdata.length())
+	{
+		// Move file write position to location specified by ofs_comment
+		for(int i = f->tell(); i < hdr.ofs_comment; i++) {
+			f->putchar(0);
+		}
+		f->write(commentdata.getbuf(), commentdata.length());
+	} 
 
+	// Move file write position to location specified by ofs_extensions
+	for(int i = f->tell(); i < hdr.ofs_extensions; i++) {
+		f->putchar(0);
+	}
 	loopv (extensions)
 	{
 		iqmextension &ext = extensions[i];
@@ -4907,29 +4956,47 @@ bool writeiqm(const char *filename)
 			f->putlil((uint)(hdr.ofs_extensions + (i+1)*sizeof(ext)));
 	}
 
-	if (ext_meshes_fte) loopv(meshes_fte)
+	if (ext_meshes_fte) 
 	{
-		meshprop &mf = meshes_fte[i];
-		f->putlil(mf.contents);
-		f->putlil(mf.surfaceflags);
-		f->putlil(mf.body);
-		f->putlil(mf.geomset);
-		f->putlil(mf.geomid);
-		f->putlil(mf.mindist);
-		f->putlil(mf.maxdist);
+		// Move file write position to location specified by ext_meshes_fte->ofs_data
+		for(int i = f->tell(); i < ext_meshes_fte->ofs_data; i++) {
+			f->putchar(0);
+		}
+		loopv(meshes_fte)
+		{
+			meshprop &mf = meshes_fte[i];
+			f->putlil(mf.contents);
+			f->putlil(mf.surfaceflags);
+			f->putlil(mf.body);
+			f->putlil(mf.geomset);
+			f->putlil(mf.geomid);
+			f->putlil(mf.mindist);
+			f->putlil(mf.maxdist);
+		}
 	}
 
-	if (ext_events_fte) loopv(events_fte)
+	if (ext_events_fte) 
 	{
-		event_fte &ev = events_fte[i];
-		f->putlil(ev.anim);
-		f->putlil(ev.timestamp);
-		f->putlil(ev.evcode);
-		f->putlil(ev.evdata_idx);
+		// Move file write position to location specified by ext_events_fte->ofs_data
+		for(int i = f->tell(); i < ext_events_fte->ofs_data; i++) {
+			f->putchar(0);
+		}
+		loopv(events_fte)
+		{
+			event_fte &ev = events_fte[i];
+			f->putlil(ev.anim);
+			f->putlil(ev.timestamp);
+			f->putlil(ev.evcode);
+			f->putlil(ev.evdata_idx);
+		}
 	}
 
 	if (ext_skins_fte)
 	{
+		// Move file write position to location specified by ext_skins_fte->ofs_data
+		for(int i = f->tell(); i < ext_skins_fte->ofs_data; i++) {
+			f->putchar(0);
+		}
 		f->putlil(skinframes.length());
 		f->putlil(meshskins.length());
 		loopv(meshes) f->putlil(meshes[i].numskins);

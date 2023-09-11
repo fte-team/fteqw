@@ -1100,3 +1100,12 @@ void fatal(const char *s, ...)    // failure exit
 	exit(EXIT_FAILURE);
 }
 
+//
+// According to IQM file spec, all field offsets must be 4-byte aligned.
+// Given a desired destination pointer to write data to, add pad bytes
+// to ensure 4-byte alignment. 
+// 
+unsigned int pad_field_ofs(unsigned int field_ofs) 
+{
+	return (field_ofs - 1) + 4 - ((field_ofs - 1) % 4);
+}

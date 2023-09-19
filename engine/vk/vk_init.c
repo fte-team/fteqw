@@ -2891,9 +2891,12 @@ void	VK_R_RenderView				(void)
 
 	if (!r_refdef.globalfog.density)
 	{
+		extern cvar_t r_fog_linear;
+
 		int fogtype = ((r_refdef.flags & RDF_UNDERWATER) && cl.fog[FOGTYPE_WATER].density)?FOGTYPE_WATER:FOGTYPE_AIR;
 		CL_BlendFog(&r_refdef.globalfog, &cl.oldfog[fogtype], realtime, &cl.fog[fogtype]);
-		r_refdef.globalfog.density /= 64;	//FIXME
+		if (!r_fog_linear.ival)
+			r_refdef.globalfog.density /= 64;	//FIXME
 	}
 
 	custompostproc = NULL;

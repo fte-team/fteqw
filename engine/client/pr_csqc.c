@@ -8484,6 +8484,11 @@ qboolean CSQC_Init (qboolean anycsqc, const char *csprogsname, unsigned int chec
 
 		memset(csqcent, 0, sizeof(*csqcent)*maxcsqcentities);	//clear the server->csqc entity translations.
 
+		if (csqc_isdarkplaces)
+			CSQC_FindGlobals(true);
+		else
+			CSQC_FindGlobals(false);
+
 		for (i = 0; i < csqcprogs->numprogs; i++)
 		{
 			func_t f = PR_FindFunction (csqcprogs, "init", i);
@@ -8494,11 +8499,6 @@ qboolean CSQC_Init (qboolean anycsqc, const char *csprogsname, unsigned int chec
 				PR_ExecuteProgram(csqcprogs, f);
 			}
 		}
-
-		if (csqc_isdarkplaces)
-			CSQC_FindGlobals(true);
-		else
-			CSQC_FindGlobals(false);
 
 		csqcentsize = PR_InitEnts(csqcprogs, pr_csqc_maxedicts.value);
 

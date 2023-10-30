@@ -11596,8 +11596,8 @@ static BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"fclose",			PF_fclose,			0,		0,		0,		111, "void(filestream fhandle)"},	// (FRIK_FILE)
 	{"fgets",			PF_fgets,			0,		0,		0,		112, D("string(filestream fhandle)", "Reads a single line out of the file. The new line character is not returned as part of the string. Returns the null string on EOF (use if not(string) to easily test for this, which distinguishes it from the empty string which is returned if the line being read is blank")},	// (FRIK_FILE)
 	{"fputs",			PF_fputs,			0,		0,		0,		113, D("void(filestream fhandle, string s, optional string s2, optional string s3, optional string s4, optional string s5, optional string s6, optional string s7)", "Writes the given string(s) into the file. For compatibility with fgets, you should ensure that the string is terminated with a \\n - this will not otherwise be done for you. It is up to the engine whether dos or unix line endings are actually written.")},	// (FRIK_FILE)
-	{"fread",			PF_fread,			0,		0,		0,		0,	 D("int(filestream fhandle, void *ptr, int size)", "Reads binary data out of the file. Returns truncated lengths if the read exceeds the length of the file.")},
-	{"fwrite",			PF_fwrite,			0,		0,		0,		0,	 D("int(filestream fhandle, void *ptr, int size)", "Writes binary data out of the file.")},
+	{"fread",			PF_fread,			0,		0,		0,		0,	 D("int(filestream fhandle, void *ptr, int size, optional int offset)", "Reads binary data out of the file. Returns truncated lengths if the read exceeds the length of the file.")},
+	{"fwrite",			PF_fwrite,			0,		0,		0,		0,	 D("int(filestream fhandle, void *ptr, int size, optional int offset)", "Writes binary data out of the file.")},
 	{"fseek",			PF_fseek,			0,		0,		0,		0,	 D("#define ftell fseek //c compat\nint(filestream fhandle, optional int newoffset)", "Changes the current position of the file, if specified. Returns prior position, in bytes.")},
 	{"fsize",			PF_fsize,			0,		0,		0,		0,	 D("int(filestream fhandle, optional int newsize)", "Reports the total size of the file, in bytes. Can also be used to truncate/extend the file")},
 	{"strlen",			PF_strlen,			0,		0,		0,		114, "float(string s)"},	// (FRIK_FILE)
@@ -12016,7 +12016,7 @@ static BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 
 	{"memalloc",		PF_memalloc,		0,		0,		0,		384,	D("__variant*(int size)", "Allocate an arbitary block of memory")},
 	{"memfree",			PF_memfree,			0,		0,		0,		385,	D("void(__variant *ptr)", "Frees a block of memory that was allocated with memfree")},
-	{"memcpy",			PF_memcpy,			0,		0,		0,		386,	D("void(__variant *dst, __variant *src, int size)", "Copys memory from one location to another")},
+	{"memcpy",			PF_memcpy,			0,		0,		0,		386,	D("void(__variant *dst, __variant *src, int size, optional int dstoffset, int srcoffset)", "Copys memory from one location to another")},
 	{"memfill8",		PF_memfill8,		0,		0,		0,		387,	D("void(__variant *dst, int val, int size, optional int offset)", "Sets an entire block of memory to a specified value. Pretty much always 0.")},
 	{"memgetval",		PF_memgetval,		0,		0,		0,		388,	D("__variant(__variant *dst, float ofs)", "Looks up the 32bit value stored at a pointer-with-offset.")},
 	{"memsetval",		PF_memsetval,		0,		0,		0,		389,	D("void(__variant *dst, float ofs, __variant val)", "Changes the 32bit value stored at the specified pointer-with-offset.")},
@@ -12325,7 +12325,7 @@ static BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"crypto_getmyidfp",PF_Fixme,			0,		0,		0,		637,	"DEP string(float addr)" STUB},
 //	{"CL_RotateMoves",	PF_Fixme,			0,		0,		0,		638,	D("void(vector anglechange)", "Rewrites the input log history to rotate all unacknowledged frames according to the angle delta specified.")},
 	{"digest_hex",		PF_digest_hex,		0,		0,		0,		639,	"string(string digest, string data, ...)"},
-	{"digest_ptr",		PF_digest_ptr,		0,		0,		0,		0,		D("string(string digest, void *data, int length)", "Calculates the digest of a single contiguous block of memory (including nulls) using the specified hash function.")},
+	{"digest_ptr",		PF_digest_ptr,		0,		0,		0,		0,		D("string(string digest, void *data, int length, optional int offset)", "Calculates the digest of a single contiguous block of memory (including nulls) using the specified hash function.")},
 	{"V_CalcRefdef",	PF_Fixme,			0,		0,		0,		640,	"DEP void(entity e, float flags)"	STUB},
 	{"crypto_getmyidstatus",PF_Fixme,		0,		0,		0,		641,	"DEP float(float i)"	STUB},
 	{"coverage",		PF_Fixme,			0,		0,		0,		642,	"DEP void()"	STUB},

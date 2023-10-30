@@ -49,6 +49,8 @@ void PF_buf_shutdown(pubprogfuncs_t *prinst);
 
 void skel_info_f(void);
 void skel_generateragdoll_f(void);
+void *PR_PointerToNative_Resize(pubprogfuncs_t *inst, pint_t ptr, size_t offset, size_t datasize);			//dangerous version
+void *PR_PointerToNative_MoInvalidate(pubprogfuncs_t *inst, pint_t ptr, size_t offset, size_t datasize);	//safer faily version.
 
 #ifdef __SSE2__
 #include "xmmintrin.h"
@@ -2040,20 +2042,26 @@ void QCBUILTIN PF_memfree (pubprogfuncs_t *prinst, struct globalvars_s *pr_globa
 }
 void QCBUILTIN PF_memcpy (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	int dst = G_INT(OFS_PARM0);
-	int src = G_INT(OFS_PARM1);
+	int qcdst = G_INT(OFS_PARM0);
+	int qcsrc = G_INT(OFS_PARM1);
 	int size = G_INT(OFS_PARM2);
-	if (size < 0 || size > prinst->stringtablesize)
+	int srcoffset = (prinst->callargc>3)?G_INT(OFS_PARM3):0;
+	int dstoffset = (prinst->callargc>4)?G_INT(OFS_PARM4):0;
+	if (size < 0)
 		PR_BIError(prinst, "PF_memcpy: invalid size\n");
-	else if (dst < 0 || dst+size > prinst->stringtablesize)
-		PR_BIError(prinst, "PF_memcpy: invalid dest\n");
-	else if (src < 0 || src+size > prinst->stringtablesize)
-		PR_BIError(prinst, "PF_memcpy: invalid source\n");
-	else
-		memmove(prinst->stringtable + dst, prinst->stringtable + src, size);
+	else if (size)
+	{
+		void *dst = PR_PointerToNative_Resize(prinst, qcdst, dstoffset, size);
+		void *src = PR_PointerToNative_MoInvalidate(prinst, qcsrc, srcoffset, size);
+		if (!dst)
+			PR_BIError(prinst, "PF_memcpy: invalid dest\n");
+		else if (!src)
+			PR_BIError(prinst, "PF_memcpy: invalid source\n");
+		else
+			memmove(dst, src, size);
+	}
 }
 
-void *PR_PointerToNative_Resize(pubprogfuncs_t *inst, pint_t ptr, size_t offset, size_t datasize);
 void QCBUILTIN PF_memfill8 (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	int dst = G_INT(OFS_PARM0);
@@ -2077,6 +2085,7 @@ void QCBUILTIN PF_memptradd (pubprogfuncs_t *prinst, struct globalvars_s *pr_glo
 		PR_BIError(prinst, "PF_memptradd: non-integer offset\n");
 	if (ofs & 3)
 		PR_BIError(prinst, "PF_memptradd: offset is not 32-bit aligned.\n");	//allows for other implementations to provide this with eg pointers expressed as 16.16 with 18-bit segments/allocations.
+	//cannot work with tempstrings/createbuffer
 	if (((unsigned int)ofs & 0x80000000) && ofs!=0)
 		PR_BIError(prinst, "PF_memptradd: special pointers cannot be offset.\n");
 
@@ -3136,28 +3145,32 @@ void QCBUILTIN PF_fputs (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals
 void QCBUILTIN PF_fwrite (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	int fnum = G_FLOAT(OFS_PARM0) - FIRST_QC_FILE_INDEX;
-	int ptr = G_INT(OFS_PARM1);
+	int qcptr = G_INT(OFS_PARM1);
 	int size = G_INT(OFS_PARM2);
-	if (ptr < 0 || size < 0 || ptr+size >= prinst->stringtablesize)
+	int srcoffset = (prinst->callargc>3)?G_INT(OFS_PARM3):0;
+	const void *ptr = PR_PointerToNative_MoInvalidate(prinst, qcptr, srcoffset, size);
+	if (!ptr)
 	{
 		PR_BIError(prinst, "PF_fwrite: invalid ptr / size\n");
 		return;
 	}
 
-	G_INT(OFS_RETURN) = PF_fwrite_internal (prinst, fnum, prinst->stringtable + ptr, size);
+	G_INT(OFS_RETURN) = PF_fwrite_internal (prinst, fnum, ptr, size);
 }
 void QCBUILTIN PF_fread (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	int fnum = G_FLOAT(OFS_PARM0) - FIRST_QC_FILE_INDEX;
-	int ptr = G_INT(OFS_PARM1);
+	int qcptr = G_INT(OFS_PARM1);
 	int size = G_INT(OFS_PARM2);
-	if (ptr <= 0 || size < 0 || (unsigned)ptr+(unsigned)size >= (unsigned)prinst->stringtablesize)
+	int dstoffset = (prinst->callargc>3)?G_INT(OFS_PARM3):0;
+	void *ptr = PR_PointerToNative_Resize(prinst, qcptr, dstoffset, size);
+	if (!ptr)
 	{
 		PR_BIError(prinst, "PF_fread: invalid ptr / size\n");
 		return;
 	}
 
-	G_INT(OFS_RETURN) = PF_fread_internal (prinst, fnum, prinst->stringtable + ptr, size);
+	G_INT(OFS_RETURN) = PF_fread_internal (prinst, fnum, ptr, size);
 }
 void QCBUILTIN PF_fseek (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
@@ -5723,13 +5736,15 @@ void QCBUILTIN PF_digest_ptr (pubprogfuncs_t *prinst, struct globalvars_s *pr_gl
 	const char *hashtype = PR_GetStringOfs(prinst, OFS_PARM0);
 	int qcptr = G_INT(OFS_PARM1);
 	int size = G_INT(OFS_PARM2);
-	if (qcptr < 0 || qcptr+size >= prinst->stringtablesize)
+	int offset = (prinst->callargc>3)?G_INT(OFS_PARM3):0;
+	const void *input = PR_PointerToNative_MoInvalidate(prinst, qcptr, offset, size);	//make sure the input is a valid qc pointer.
+	if (!input)
 	{
-		PR_BIError(prinst, "PF_digest_ptr: invalid dest\n");
+		PR_BIError(prinst, "PF_digest_ptr: invalid pointer\n");
 		G_INT(OFS_RETURN) = 0;
 		return;
 	}
-	PF_digest_internal(prinst, pr_globals, hashtype, prinst->stringtable + qcptr, size);
+	PF_digest_internal(prinst, pr_globals, hashtype, input, size);
 }
 
 void QCBUILTIN PF_base64encode (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
@@ -5746,7 +5761,7 @@ void QCBUILTIN PF_base64decode (pubprogfuncs_t *prinst, struct globalvars_s *pr_
 	const unsigned char *s = PR_GetStringOfs(prinst, OFS_PARM0);	//grab the input string
 	size_t bytes = Base64_DecodeBlock(s, NULL, NULL, 0);			//figure out how long the output needs to be
 	qbyte *ptr = prinst->AddressableAlloc(prinst, bytes);			//grab some qc memory
-	bytes = Base64_DecodeBlock(s, NULL, NULL, bytes);				//decode it.
+	bytes = Base64_DecodeBlock(s, NULL, ptr, bytes);				//decode it.
 	ptr[bytes] = 0;													//make sure its null terminated or whatever.
 
 	G_INT(OFS_RETURN) = (char*)ptr - prinst->stringtable;			//let the qc know where it is.

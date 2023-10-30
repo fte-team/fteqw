@@ -6248,7 +6248,7 @@ nolength:
 
 			if (reqtype)
 			{
-				QCC_PR_ParseWarning(WARN_FORMATSTRING, "%s: %s%s%s requires %s at arg %i (got %s%s%s)", funcname, col_name, formatbuf, col_none, reqtype, thisarg+1, col_type, TypeName(ARGCTYPE(thisarg), temp, sizeof(temp)), col_none);
+				QCC_PR_ParseWarning(WARN_FORMATSTRING, "%s: %s%s%s requires %s%s%s at arg %i (got %s%s%s)", funcname, col_name,formatbuf,col_none, col_type,reqtype,col_none, thisarg+1, col_type,TypeName(ARGCTYPE(thisarg), temp, sizeof(temp)),col_none);
 				switch(ARGCTYPE(thisarg)->type)
 				{
 				case ev_string:
@@ -7330,7 +7330,7 @@ QCC_sref_t QCC_PR_GenerateFunctionCallRef (QCC_sref_t newself, QCC_sref_t func, 
 					asz = 3-(ofs%3);
 					if (ofs+asz > arglist[i]->cast->size)
 						asz = arglist[i]->cast->size-ofs;
-					while (!copyop[asz-1] || !QCC_OPCodeValid(&pr_opcodes[copyop[asz-1]]))
+					while (asz > 3 || !copyop[asz-1] || (asz>1&&!QCC_OPCodeValid(&pr_opcodes[copyop[asz-1]])))
 						asz--;	//can't do that size...
 
 					if (copyop[0] == OP_STORE_F)
@@ -9260,7 +9260,7 @@ QCC_ref_t *QCC_PR_ParseRefArrayPointer (QCC_ref_t *retbuf, QCC_ref_t *r, pbool a
 				else
 				{
 					/*automatic runtime bounds checks on strings, I'm not going to check this too much...*/
-					r = QCC_PR_BuildRef(retbuf, REF_STRING, QCC_RefToDef(r, true), tmp, type_float, r->readonly);
+					r = QCC_PR_BuildRef(retbuf, REF_STRING, QCC_RefToDef(r, true), tmp, (tmp.cast->type != ev_float)?type_integer:type_float, r->readonly);
 					return QCC_PR_ParseRefArrayPointer(retbuf, r, allowarrayassign, makearraypointers);
 				}
 			}
@@ -11918,7 +11918,7 @@ QCC_sref_t QCC_RefToDef(QCC_ref_t *ref, pbool freetemps)
 	case REF_FIELD:
 		return QCC_PR_ExpandField(ref->base, ref->index, ref->cast, freetemps?0:(STFL_PRESERVEA|STFL_PRESERVEB));
 	case REF_STRING:
-		if (ref->index.cast->type == ev_float)
+		if (ref->cast->type == ev_float)
 		{
 			idx = QCC_SupplyConversion(ref->index, ev_float, true);
 			return QCC_PR_StatementFlags(&pr_opcodes[OP_LOADP_C], ref->base, idx, NULL, freetemps?0:(STFL_PRESERVEA|STFL_PRESERVEB));

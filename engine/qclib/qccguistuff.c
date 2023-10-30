@@ -891,10 +891,10 @@ int GUI_ParseCommandLine(const char *args, pbool keepsrcanddir)
 
 		args=next;
 	}
-	if (paramlen)
-		parameters[paramlen-1] = '\0';
-	else
-		*parameters = '\0';
+
+	while (paramlen>0 && (parameters[paramlen-1] == ' ' || parameters[paramlen-1] == '\t'))
+		paramlen--;
+	parameters[paramlen] = '\0';
 
 	qccpersisthunk = (mode!=1);
 	return mode;

@@ -6626,7 +6626,7 @@ void QCBUILTIN PF_changepitch (pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 	float		ideal, current, move, speed;
 
 	ent = PROG_TO_WEDICT(prinst, *w->g.self);
-	current = anglemod( ent->v->angles[1] );
+	current = anglemod( ent->v->angles[0] );
 	ideal = ent->xv->idealpitch;
 	speed = ent->xv->pitch_speed;
 
@@ -6654,7 +6654,7 @@ void QCBUILTIN PF_changepitch (pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 			move = -speed;
 	}
 
-	ent->v->angles[1] = anglemod (current + move);
+	ent->v->angles[0] = anglemod (current + move);
 }
 
 //float vectoyaw(vector, optional entity reference)

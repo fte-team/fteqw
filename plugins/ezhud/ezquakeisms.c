@@ -233,7 +233,7 @@ mpic_t *Draw_CachePicSafe(const char *name, qbool crash, qbool ignorewad)
 mpic_t *Draw_CacheWadPic(const char *name)
 {
 	char ftename[MAX_QPATH];
-	Q_snprintf(ftename, sizeof(ftename), "gfx/%s.lmp", name);
+	Q_snprintf(ftename, sizeof(ftename), "gfx/%s", name);
 	return (mpic_t*)(qintptr_t)drawfuncs->LoadImage(ftename);
 }
 

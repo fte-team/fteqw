@@ -1035,6 +1035,13 @@ const char *CSQC_GetExtraFieldInfo(void *went, char *out, size_t outsize)
 			Q_snprintfz(out, e-out, "q1lower %#x\n", sk->q1lower);
 			out+=strlen(out);
 		}
+#ifdef HEXEN2
+		if (sk->h2class != Q1UNSPECIFIED)
+		{
+			Q_snprintfz(out, e-out, "h2class %i\n", sk->h2class);
+			out+=strlen(out);
+		}
+#endif
 #endif
 
 		return r;

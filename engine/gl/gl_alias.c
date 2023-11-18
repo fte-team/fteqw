@@ -273,6 +273,9 @@ skinid_t Mod_ReadSkinFile(const char *skinname, const char *skintext)
 #ifdef QWSKINS
 	skin->q1lower = Q1UNSPECIFIED;
 	skin->q1upper = Q1UNSPECIFIED;
+#ifdef HEXEN2
+	skin->h2class = Q1UNSPECIFIED;
+#endif
 #endif
 
 
@@ -387,6 +390,13 @@ skinid_t Mod_ReadSkinFile(const char *skinname, const char *skintext)
 			else
 				skin->q1upper = atoi(com_token);
 		}
+#ifdef HEXEN2
+		else if (!strcmp(com_token, "h2class"))
+		{
+			skintext = COM_ParseToken(skintext, NULL);
+			skin->h2class = atoi(com_token);
+		}
+#endif
 #endif
 		else
 		{
@@ -612,7 +622,12 @@ static shader_t *GL_ChooseSkin(galiasinfo_t *inf, model_t *model, int surfnum, e
 	shader_t *shader;
 	qwskin_t *plskin = NULL;
 	unsigned int subframe;
-	unsigned int tc = e->topcolour, bc = e->bottomcolour, pc;
+	unsigned int tc = e->topcolour, bc = e->bottomcolour;
+#ifdef HEXEN2
+	unsigned int pc = e->h2playerclass;
+#else
+	unsigned int pc = 0;
+#endif
 	qboolean generateupperlower = false;
 	qboolean forced;
 	extern int cl_playerindex;	//so I don't have to strcmp
@@ -649,6 +664,10 @@ static shader_t *GL_ChooseSkin(galiasinfo_t *inf, model_t *model, int surfnum, e
 				bc = e->bottomcolour = sk->q1lower;
 			if (sk->q1upper != Q1UNSPECIFIED)
 				tc = e->topcolour = sk->q1upper;
+#ifdef HEXEN2
+			if (sk->h2class != Q1UNSPECIFIED)
+				pc = sk->h2class;
+#endif
 			if (!sk->qwskin && *sk->qwskinname)
 				sk->qwskin = Skin_Lookup(sk->qwskinname);
 			plskin = sk->qwskin;
@@ -716,11 +735,6 @@ static shader_t *GL_ChooseSkin(galiasinfo_t *inf, model_t *model, int surfnum, e
 			else
 				plskin = NULL;
 		}
-#ifdef HEXEN2
-		pc = e->h2playerclass;
-#else
-		pc = 0;
-#endif
 
 		if (forced || tc != TOP_DEFAULT || bc != BOTTOM_DEFAULT || plskin)
 		{

@@ -178,6 +178,7 @@ typedef struct
 	struct qwskin_s *qwskin;
 	unsigned int q1upper;	//Q1UNSPECIFIED
 	unsigned int q1lower;	//Q1UNSPECIFIED
+	unsigned int h2class;	//Q1UNSPECIFIED. urgh.
 #endif
 	struct
 	{

@@ -145,7 +145,7 @@ static const gamemode_info_t gamemode_info[] = {
 #endif
 
 	//quake's mission packs technically have their own protocol (thanks to stat_items). copyrights mean its best to keep them separate, too.
-	{"-hipnotic",	"hipnotic",	"FTE-Hipnotic",		{"hipnotic/pak0.pak","hipnotic/gfx.wad"},QCFG,{"id1"	"qw",	"hipnotic",	"*fte"},	"Quake: Scourge of Armagon",		UPDATEURL(Q1)},
+	{"-hipnotic",	"hipnotic",	"FTE-Hipnotic",		{"hipnotic/pak0.pak","hipnotic/gfx.wad"},QCFG,{"id1",	"qw",	"hipnotic",	"*fte"},	"Quake: Scourge of Armagon",		UPDATEURL(Q1)},
 	{"-rogue",		"rogue",	"FTE-Rogue",			{"rogue/pak0.pak","rogue/gfx.wad"},QCFG,{"id1",		"qw",	"rogue",	"*fte"},	"Quake: Dissolution of Eternity",	UPDATEURL(Q1)},
 
 	//various quake-dependant non-standalone mods that require hacks

@@ -2137,13 +2137,22 @@ static void World_ClipToNetwork (world_t *w, moveclip_t *clip)
 	float *ang;
 	trace_t trace;
 	static framestate_t framestate;	//meh
+	int skip;
 
 	if ((clip->type & MOVE_ENTCHAIN) || !pe)
+		return;
+
+	skip = ((csqcedict_t*)clip->passedict)->xv->entnum;
+
+	//lets say that ssqc ents are in dimension 0x1, as far as the csqc can see.
+	if (clip->passedict && !((int)clip->passedict->xv->dimension_hit & 1))
 		return;
 
 	for (i = 0; i < pe->num_entities; i++)
 	{
 		touch = &pe->entities[i];
+		if (touch->number == skip)
+			continue; //can happen with deltalisten or certain evil hacks.
 
 		if (touch->solidsize == ES_SOLID_BSP)
 		{
@@ -2223,10 +2232,6 @@ static void World_ClipToNetwork (world_t *w, moveclip_t *clip)
 			|| clip->boxmaxs[0] < touch->origin[0]+bmins[0]
 			|| clip->boxmaxs[1] < touch->origin[1]+bmins[1]
 			|| clip->boxmaxs[2] < touch->origin[2]+bmins[2] )
-			continue;
-
-		//lets say that ssqc ents are in dimension 0x1, as far as the csqc can see.
-		if (clip->passedict && !((int)clip->passedict->xv->dimension_hit & 1))
 			continue;
 
 		framestate.g[FS_REG].frame[0] = touch->frame;

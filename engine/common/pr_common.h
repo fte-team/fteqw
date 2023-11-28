@@ -1176,6 +1176,84 @@ enum
 	ENDLIST
 
 
+//note: doesn't even have to match the clprogs.dat :)
+typedef struct {
+
+#define comfieldfloat(csqcname,desc) float csqcname;
+#define comfieldvector(csqcname,desc) vec3_t csqcname;
+#define comfieldentity(csqcname,desc) int csqcname;
+#define comfieldstring(csqcname,desc) string_t csqcname;
+#define comfieldfunction(csqcname, typestr,desc) func_t csqcname;
+comqcfields
+#undef comfieldfloat
+#undef comfieldvector
+#undef comfieldentity
+#undef comfieldstring
+#undef comfieldfunction
+
+#ifdef VM_Q1
+} csqcentvars_t;
+typedef struct {
+#endif
+
+#define comfieldfloat(name,desc) float name;
+#define comfieldint(name,desc) int name;
+#define comfieldvector(name,desc) vec3_t name;
+#define comfieldentity(name,desc) int name;
+#define comfieldstring(name,desc) string_t name;
+#define comfieldfunction(name, typestr,desc) func_t name;
+comextqcfields
+csqcextfields
+#undef comfieldfloat
+#undef comfieldint
+#undef comfieldvector
+#undef comfieldentity
+#undef comfieldstring
+#undef comfieldfunction
+
+#ifdef VM_Q1
+} csqcextentvars_t;
+#else
+} csqcentvars_t;
+#endif
+
+typedef struct csqcedict_s
+{
+	enum ereftype_e	ereftype;
+	float			freetime; // sv.time when the object was freed
+	int				entnum;
+	unsigned int	fieldsize;
+	pbool			readonly;	//world
+#ifdef VM_Q1
+	csqcentvars_t	*v;
+	csqcextentvars_t	*xv;
+#else
+	union {
+		csqcentvars_t	*v;
+		csqcentvars_t	*xv;
+	};
+#endif
+	/*the above is shared with qclib*/
+#ifdef USEAREAGRID
+	areagridlink_t	gridareas[AREAGRIDPERENT];	//on overflow, use the inefficient overflow list.
+	size_t			gridareasequence;	//used to avoid iterrating the same ent twice.
+#else
+	link_t	area;
+#endif
+	pvscache_t pvsinfo;
+	int lastruntime;
+	int solidsize;
+#ifdef USERBE
+	entityrbe_t rbe;
+#endif
+	/*the above is shared with ssqc*/
+
+	//add whatever you wish here
+	trailkey_t trailstate;
+	int		skinobject;
+} csqcedict_t;
+
+
 #ifdef __cplusplus
 };
 #endif

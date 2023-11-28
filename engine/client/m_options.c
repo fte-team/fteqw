@@ -3497,6 +3497,7 @@ static void M_ModelViewerDraw(int x, int y, struct menucustom_s *c, struct emenu
 	modelview_t *mods = c->dptr;
 	skinfile_t *skin;
 	texnums_t *texnums;
+	qboolean boneanimsonly;
 
 	if (R2D_Flush)
 		R2D_Flush();
@@ -3807,7 +3808,15 @@ static void M_ModelViewerDraw(int x, int y, struct menucustom_s *c, struct emenu
 		}
 #endif
 	}
-	if (mods->mode == MV_BONES)
+	boneanimsonly = false;
+	if (ent.model && ent.model->loadstate == MLS_LOADED && ent.model->type == mod_alias)
+	{	//some models don't actually contain any mesh data, but exist as containers for skeletal animations that can be skel_built into a different model's anims.
+		//always show their bones, so users don't think its an engine bug.
+		galiasinfo_t *inf = Mod_Extradata(ent.model);
+		if (inf && !inf->nextsurf && !inf->numindexes && inf->numbones)
+			boneanimsonly = true;
+	}
+	if (mods->mode == MV_BONES || boneanimsonly)
 	{
 		shader_t *lineshader;
 		int tags = Mod_GetNumBones(ent.model, true);
@@ -4328,7 +4337,7 @@ void M_Menu_ModelViewer_f(void)
 	menu->menu.persist = true;
 	mv = menu->data;
 	c = MC_AddCustom(menu, 64, 32, mv, 0, NULL);
-	menu->cursoritem = (menuoption_t*)c;
+	menu->selecteditem = menu->cursoritem = (menuoption_t*)c;
 	c->draw = M_ModelViewerDraw;
 	c->key = M_ModelViewerKey;
 

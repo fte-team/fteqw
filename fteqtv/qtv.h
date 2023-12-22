@@ -947,7 +947,7 @@ void Netchan_OutOfBandPrint (cluster_t *cluster, netadr_t adr, char *format, ...
 //int Netchan_IsLocal (netadr_t adr);
 void NET_InitUDPSocket(cluster_t *cluster, int port, int socketid);
 void NET_SendPacket(cluster_t *cluster, SOCKET sock, int length, void *data, netadr_t adr);
-SOCKET NET_ChooseSocket(SOCKET sock[], netadr_t *toadr, netadr_t in);
+SOCKET NET_ChooseSocket(SOCKET sock[SOCKETGROUPS], netadr_t *toadr, netadr_t in);
 qboolean Net_CompareAddress(netadr_t *s1, netadr_t *s2, int qp1, int qp2);
 qboolean Netchan_Process (netchan_t *chan, netmsg_t *msg);
 qboolean NQNetchan_Process(cluster_t *cluster, netchan_t *chan, netmsg_t *msg);

@@ -112,7 +112,7 @@ void NET_InitUDPSocket(cluster_t *cluster, int port, int socketid)
 		Sys_Printf(cluster, "opened udp port %i\n", port);
 }
 
-SOCKET NET_ChooseSocket(SOCKET sock[2], netadr_t *toadr, netadr_t ina)
+SOCKET NET_ChooseSocket(SOCKET sock[SOCKETGROUPS], netadr_t *toadr, netadr_t ina)
 {
 #ifdef AF_INET6
 	if (((struct sockaddr *)ina.sockaddr)->sa_family == AF_INET6)
@@ -120,7 +120,7 @@ SOCKET NET_ChooseSocket(SOCKET sock[2], netadr_t *toadr, netadr_t ina)
 		*toadr = ina;
 		return sock[SG_IPV6];
 	}
-	if (sock[0] == INVALID_SOCKET && sock[SG_IPV6] != INVALID_SOCKET)
+	if (sock[SG_IPV4] == INVALID_SOCKET && sock[SG_IPV6] != INVALID_SOCKET)
 	{
 		struct sockaddr_in6 *out = (struct sockaddr_in6*)toadr->sockaddr;
 		struct sockaddr_in *in = (struct sockaddr_in*)ina.sockaddr;

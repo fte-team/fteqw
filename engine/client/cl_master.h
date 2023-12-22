@@ -244,7 +244,7 @@ float Master_ReadKeyFloat(serverinfo_t *server, unsigned int keynum);
 char *Master_ReadKeyString(serverinfo_t *server, unsigned int keynum);
 
 int Master_SortServers(void);
-void Master_SetSortField(hostcachekey_t field, qboolean descending);
+void Master_SetSortField(hostcachekey_t field, unsigned int sortflags);
 hostcachekey_t Master_GetSortField(void);
 qboolean Master_GetSortDescending(void);
 

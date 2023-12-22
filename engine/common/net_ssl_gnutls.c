@@ -896,8 +896,16 @@ static qboolean SSL_LoadPrivateCert(gnutls_certificate_credentials_t cred)
 		const char *errstr;
 		gnutls_pk_algorithm_t privalgo = GNUTLS_PK_RSA;
 
-		if (privf)VFS_CLOSE(privf);privf=NULL;
-		if (pubf)VFS_CLOSE(pubf);pubf=NULL;
+		if (privf)
+		{
+			VFS_CLOSE(privf);
+			privf = NULL;
+		}
+		if (pubf)
+		{
+			VFS_CLOSE(pubf);
+			pubf = NULL;
+		}
 
 		Con_Printf("Generating new GNUTLS key+cert...\n");
 

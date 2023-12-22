@@ -105,7 +105,7 @@ static unsigned int IN_GetKeyDest(void)
 
 qboolean QDECL Plug_Input_IsKeyDown(int key)
 {
-	extern qboolean keydown[K_MAX];
+	extern unsigned int keydown[K_MAX];
 	if (key >= 0 && key < K_MAX)
 		return !!keydown[key];
 	return false;

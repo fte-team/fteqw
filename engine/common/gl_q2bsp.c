@@ -60,7 +60,7 @@ extern void BuildLightMapGammaTable (float g, float c);
 
 #if defined(Q2BSPS) || defined(Q3BSPS)
 static qboolean CM_NativeTrace(model_t *model, int forcehullnum, const framestate_t *framestate, const vec3_t axis[3], const vec3_t start, const vec3_t end, const vec3_t mins, const vec3_t maxs, qboolean capsule, unsigned int contents, trace_t *trace);
-static unsigned int CM_NativeContents(struct model_s *model, int hulloverride, const framestate_t *framestate, const vec3_t axis[3], const vec3_t p, const vec3_t mins, const vec3_t maxs);
+static unsigned int CM_NativeContents(struct model_s *model, int hulloverride, const framestate_t *framestate, const vec3_t axis[3], const vec3_t point, const vec3_t mins, const vec3_t maxs);
 static unsigned int Q2BSP_PointContents(model_t *mod, const vec3_t axis[3], const vec3_t p);
 static int CM_PointCluster (model_t *mod, const vec3_t p, int *area);
 static void CM_InfoForPoint (struct model_s *mod, vec3_t pos, int *area, int *cluster, unsigned int *contentbits);
@@ -5504,12 +5504,12 @@ static int CM_PointContents (model_t *mod, const vec3_t p)
 	return contents;
 }
 
-static unsigned int CM_NativeContents(struct model_s *model, int hulloverride, const framestate_t *framestate, const vec3_t axis[3], const vec3_t p, const vec3_t mins, const vec3_t maxs)
+static unsigned int CM_NativeContents(struct model_s *model, int hulloverride, const framestate_t *framestate, const vec3_t axis[3], const vec3_t point, const vec3_t mins, const vec3_t maxs)
 {
 	cminfo_t	*prv = (cminfo_t*)model->meshinfo;
 	int	contents;
 	if (!DotProduct(mins, mins) && !DotProduct(maxs, maxs))
-		return CM_PointContents(model, p);
+		return CM_PointContents(model, point);
 
 	if (!model)	// map not loaded
 		return 0;
@@ -5520,11 +5520,10 @@ static unsigned int CM_NativeContents(struct model_s *model, int hulloverride, c
 		mleaf_t			*leaf;
 		q2cbrush_t		*brush;
 		q2cbrushside_t	*brushside;
-		vec3_t absmin, absmax;
 
 		int leaflist[64];
 
-		k = CM_BoxLeafnums (model, absmin, absmax, leaflist, 64, NULL);
+		k = CM_BoxLeafnums (model, point, point, leaflist, 64, NULL);
 
 		contents = 0;
 		for (k--; k >= 0; k--)
@@ -5544,7 +5543,7 @@ static unsigned int CM_NativeContents(struct model_s *model, int hulloverride, c
 					brushside = brush->brushside;
 					for ( j = 0; j < brush->numsides; j++, brushside++ )
 					{
-						if ( PlaneDiff (p, brushside->plane) > 0 )
+						if (PlaneDiff (point, brushside->plane) > 0 )
 							break;
 					}
 

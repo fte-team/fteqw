@@ -3052,7 +3052,7 @@ void Sbar_Draw (playerview_t *pv)
 		R2D_ImageColours(1, 1, 1, 1);
 		if (*cl.q2statusbar)
 			Sbar_ExecuteLayoutString(cl.q2statusbar, seat);
-		if (*cl.q2layout && (cl.q2frame.playerstate[seat].stats[Q2STAT_LAYOUTS] & 1))
+		if (cl.q2frame.playerstate[seat].stats[Q2STAT_LAYOUTS] & 1)
 			Sbar_ExecuteLayoutString(cl.q2layout[seat], seat);
 		if (cl.q2frame.playerstate[seat].stats[Q2STAT_LAYOUTS] & 2)
 			Sbar_Q2DrawInventory(seat);

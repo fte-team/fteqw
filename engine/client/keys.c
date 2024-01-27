@@ -2553,8 +2553,7 @@ void Key_Unbindall_f (void)
 	int		i;
 	
 	for (i=0 ; i<K_MAX ; i++)
-		if (keybindings[i])
-			Key_SetBinding (i, ~0, NULL, Cmd_ExecLevel);
+		Key_SetBinding (i, ~0, NULL, Cmd_ExecLevel);
 }
 
 void Key_Bind_c(int argn, const char *partial, struct xcommandargcompletioncb_s *ctx)

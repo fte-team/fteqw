@@ -6759,7 +6759,7 @@ static void QCBUILTIN PF_resourcestatus(pubprogfuncs_t *prinst, struct globalvar
 		return;
 	case RESTYPE_SOUND:
 		sfx = NULL;
-		for (idx=1 ; idx<MAX_PRECACHE_SOUNDS && cl.sound_name[idx] ; idx++)
+		for (idx=1 ; idx<MAX_PRECACHE_SOUNDS; idx++)
 		{
 			if (!strcmp(cl.sound_name[idx], resname))
 			{

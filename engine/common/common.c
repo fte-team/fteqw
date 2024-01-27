@@ -2423,7 +2423,7 @@ float MSG_ReadCoordFloat (void)
 	return MSG_FromCoord(c, COORDTYPE_FLOAT_32);
 }
 
-void MSG_ReadPos (vec3_t pos)
+void MSG_ReadPos (float pos[3])
 {
 	pos[0] = MSG_ReadCoord();
 	pos[1] = MSG_ReadCoord();
@@ -2452,7 +2452,7 @@ void MSG_ReadDir (vec3_t dir)
 }
 #endif
 #if 1//def Q2SERVER
-void MSG_WriteDir (sizebuf_t *sb, vec3_t dir)
+void MSG_WriteDir (sizebuf_t *sb, float dir[3])
 {
 	int		i, best;
 	float	d, bestd;

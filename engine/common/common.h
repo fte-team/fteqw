@@ -340,7 +340,7 @@ void MSG_WriteAngle16 (sizebuf_t *sb, float f);
 void MSGFTE_WriteDeltaUsercmd (sizebuf_t *buf, const short baseanges[3], const struct usercmd_s *from, const struct usercmd_s *cmd);
 void MSGQW_WriteDeltaUsercmd (sizebuf_t *sb, const struct usercmd_s *from, const struct usercmd_s *cmd);
 void MSGCL_WriteDeltaUsercmd (sizebuf_t *sb, const struct usercmd_s *from, const struct usercmd_s *cmd);
-void MSG_WriteDir (sizebuf_t *sb, float *dir);
+void MSG_WriteDir (sizebuf_t *sb, float dir[3]);
 
 extern	qboolean	msg_badread;		// set if a read goes beyond end of message
 extern struct netprim_s msg_nullnetprim;
@@ -371,7 +371,7 @@ char *MSG_ReadStringLine (void);
 
 float MSG_ReadCoord (void);
 float MSG_ReadCoordFloat (void);
-void MSG_ReadPos (float *pos);
+void MSG_ReadPos (float pos[3]);
 float MSG_ReadAngle (void);
 float MSG_ReadAngle16 (void);
 void MSGQW_ReadDeltaUsercmd (const struct usercmd_s *from, struct usercmd_s *cmd, int qwprotocolver);

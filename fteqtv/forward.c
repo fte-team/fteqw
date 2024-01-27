@@ -83,7 +83,7 @@ void SV_FindProxies(SOCKET sock, cluster_t *cluster, sv_t *defaultqtv)
 	if (cluster->maxproxies >= 0 && cluster->numproxies >= cluster->maxproxies)
 	{
 		const char buffer[] = {dem_all, 1, 'P','r','o','x','y',' ','i','s',' ','f','u','l','l','.'};
-		send(sock, buffer, strlen(buffer), 0);
+		send(sock, buffer, sizeof(buffer), 0);
 		closesocket(sock);
 		return;
 	}

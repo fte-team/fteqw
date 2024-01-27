@@ -7969,8 +7969,8 @@ static void SCR_HUD_DrawNotImplemented(hud_t *hud)
 	width = 8 * strlen(line1);
 	height = 8;
 
-    if (!HUD_PrepareDraw(hud, width, height, &x, &y))
-        return;
+	if (!HUD_PrepareDraw(hud, width, height, &x, &y))
+		return;
 
 	Draw_SString(x, y, line1, 1);
 }

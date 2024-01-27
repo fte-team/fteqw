@@ -2728,7 +2728,7 @@ I've removed the following from this function as it covered the menu (~Moodles):
 	else if (!strcmp(command, "guidemos"))
 	{
 		int maxshowndemos;
-		char sizestr[7];
+		char sizestr[11];
 		int start;
 		int i;
 
@@ -2776,13 +2776,13 @@ I've removed the following from this function as it covered the menu (~Moodles):
 			if (i >= cluster->availdemoscount)
 				break;
 			if (cluster->availdemos[i].size < 1024)
-				sprintf(sizestr, "%4ib", cluster->availdemos[i].size);
+				snprintf(sizestr, sizeof(sizestr), "%4ib", cluster->availdemos[i].size);
 			else if (cluster->availdemos[i].size < 1024*1024)
-				sprintf(sizestr, "%4ikb", cluster->availdemos[i].size/1024);
+				snprintf(sizestr, sizeof(sizestr), "%4ikb", cluster->availdemos[i].size/1024);
 			else if (cluster->availdemos[i].size < 1024*1024*1024)
-				sprintf(sizestr, "%4imb", cluster->availdemos[i].size/(1024*1024));
+				snprintf(sizestr, sizeof(sizestr), "%4imb", cluster->availdemos[i].size/(1024*1024));
 			else// if (cluster->availdemos[i].size < 1024*1024*1024*1024)
-				sprintf(sizestr, "%4igb", cluster->availdemos[i].size/(1024*1024*1024));
+				snprintf(sizestr, sizeof(sizestr), "%4igb", cluster->availdemos[i].size/(1024*1024*1024));
 //			else
 //				*sizestr = 0;
 			QW_StuffcmdToViewer(v, "menutext 32 %i \"%6s %-30s\" \"demo %s\"\n", (i-start)*8 + 52+16, sizestr, cluster->availdemos[i].name, cluster->availdemos[i].name);

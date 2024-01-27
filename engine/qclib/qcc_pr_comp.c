@@ -2700,7 +2700,7 @@ QCC_sref_t QCC_PR_StatementFlags ( QCC_opcode_t *op, QCC_sref_t var_a, QCC_sref_
 	char typea[256], typeb[256];
 	QCC_statement_t	*statement;
 	QCC_sref_t			var_c=nullsref;
-
+	pbool nan_eq_cond, sym_cmp;
 
 	if (var_a.sym)
 	{
@@ -3618,7 +3618,8 @@ QCC_sref_t QCC_PR_StatementFlags ( QCC_opcode_t *op, QCC_sref_t var_a, QCC_sref_
 
 	// self-comparison that is impacted when NaN
 	// e.g. NaN == NaN, NaN != NaN, [NaN, 0, 0] == [NaN, 0, 0], etc.
-	pbool nan_eq_cond = false;
+	nan_eq_cond = false;
+
 	switch (op - pr_opcodes)
 	{
 	case OP_STATE:
@@ -3840,7 +3841,7 @@ QCC_sref_t QCC_PR_StatementFlags ( QCC_opcode_t *op, QCC_sref_t var_a, QCC_sref_
 			QCC_PR_ParseWarning(WARN_STRICTTYPEMISMATCH, "'%s' type mismatch: %s with %s", op->name, typea, typeb);
 		}
 
-		pbool sym_cmp = !nan_eq_cond && var_a.sym == var_b.sym && var_a.ofs == var_b.ofs;
+		sym_cmp = !nan_eq_cond && var_a.sym == var_b.sym && var_a.ofs == var_b.ofs;
 
 		if ((var_a.sym->constant && var_b.sym->constant && !var_a.sym->temp && !var_b.sym->temp) || sym_cmp)
 		{

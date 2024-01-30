@@ -960,8 +960,10 @@ static qboolean Route_Process(struct routecalc_s *r)
 		{
 			struct wpneighbour_s *l = &wp->neighbour[u];
 			int linkidx = l->node;
-
 			float realcost = nodecost[nodeidx] + l->linkcost;
+
+			if (l->linkflags & r->denylinkflags)
+				continue;
 #ifdef _DEBUG
 			if (linkidx < 0 || linkidx >= n->numwaypoints)
 			{

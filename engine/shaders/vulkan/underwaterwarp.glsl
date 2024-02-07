@@ -1,4 +1,4 @@
-!!cvarf r_waterwarp
+!!cvarf r_waterwarp=1
 !!samps 3
 
 #include "sys/defs.h"

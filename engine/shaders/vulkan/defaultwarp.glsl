@@ -1,5 +1,5 @@
 !!permu FOG
-!!cvarf r_wateralpha
+!!cvarf r_wateralpha=1
 !!cvarb r_fog_exp2=true
 !!argf alpha=0
 !!samps diffuse

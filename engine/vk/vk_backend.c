@@ -515,10 +515,13 @@ qboolean VK_LoadBlob(program_t *prog, void *blobdata, const char *name)
 	unsigned char *cvardata;
 
 	if (blob->blobmagic[0] != 0xff || blob->blobmagic[1] != 'S' || blob->blobmagic[2] != 'P' || blob->blobmagic[3] != 'V')
+	{
+		Con_Printf(CON_ERROR"Blob %s is outdated\n", name);
 		return false;	//bad magic.
+	}
 	if (blob->blobversion != 1)
 	{
-		Con_Printf("Blob %s is outdated\n", name);
+		Con_Printf(CON_ERROR"Blob %s is outdated\n", name);
 		return false;
 	}
 

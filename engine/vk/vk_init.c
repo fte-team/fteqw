@@ -97,12 +97,12 @@ const char *vklayerlist[] =
 #ifdef VK_NO_PROTOTYPES
 	#define VKFunc(n) PFN_vk##n vk##n;
 	#ifdef VK_EXT_debug_utils
-		VKFunc(CreateDebugUtilsMessengerEXT)
-		VKFunc(DestroyDebugUtilsMessengerEXT)
+		static VKFunc(CreateDebugUtilsMessengerEXT)
+		static VKFunc(DestroyDebugUtilsMessengerEXT)
 	#endif
 	#ifdef VK_EXT_debug_report
-		VKFunc(CreateDebugReportCallbackEXT)
-		VKFunc(DestroyDebugReportCallbackEXT)
+		static VKFunc(CreateDebugReportCallbackEXT)
+		static VKFunc(DestroyDebugReportCallbackEXT)
 	#endif
 	VKFuncs
 	#undef VKFunc
@@ -4705,7 +4705,7 @@ qboolean VK_Init(rendererstate_t *info, const char **sysextnames, qboolean (*cre
 		qboolean *flag;
 		const char *name;
 		cvar_t *var;
-		qboolean def;
+		qboolean def;				//default value when the cvar is empty.
 		qboolean *superseeded;		//if this is set then the extension will not be enabled after all
 		const char *warningtext;	//printed if the extension is requested but not supported by the device
 		qboolean supported;
@@ -5215,7 +5215,7 @@ qboolean VK_Init(rendererstate_t *info, const char **sysextnames, qboolean (*cre
 				devextensions[numdevextensions++] = knowndevexts[e].name;
 			}
 			else if (knowndevexts[e].var && knowndevexts[e].var->ival)
-				Con_Printf("unable to enable %s extension.%s\n", knowndevexts[e].name, knowndevexts[e].warningtext?knowndevexts[e].warningtext:"");
+				Con_Printf(CON_WARNING"unable to enable %s extension.%s\n", knowndevexts[e].name, knowndevexts[e].warningtext?knowndevexts[e].warningtext:"");
 			else if (knowndevexts[e].supported)
 				Con_DPrintf("Ignoring %s.\n", knowndevexts[e].name);
 			else

@@ -50,11 +50,11 @@ ifeq ($(SVNREVISION),)
 	#try subversion firstly...
     SVN_VERSION:=$(shell test -d $(BASE_DIR)/../.svn && svnversion $(BASE_DIR))
     SVN_DATE:=$(shell test -d $(BASE_DIR)/../.svn && cd $(BASE_DIR) && svn info --show-item last-changed-date --no-newline)
-    ifeq (,$(SVN_VERSION))
-		#grab the svn version from git-svn (assuming no other modifications). this fails when there's extra commits (probably a good thing).
-        SVN_VERSION=$(shell test -d $(BASE_DIR)/../.git && git svn find-rev `git rev-parse HEAD`)
-        SVN_DATE:=$(shell test -d $(BASE_DIR)/../.git && git log -1 --format=%cs $(BASE_DIR))
-    endif
+#    ifeq (,$(SVN_VERSION))
+#        #grab the svn version from git-svn (assuming no other modifications). this fails when there's extra commits (probably a good thing).
+#        SVN_VERSION=$(shell test -d $(BASE_DIR)/../.git && git svn find-rev `git rev-parse HEAD`)
+#        SVN_DATE:=$(shell test -d $(BASE_DIR)/../.git && git log -1 --format=%cs $(BASE_DIR))
+#    endif
     ifeq (,$(SVN_VERSION))
         #try to get git version info instead. this usually uses git-count-hash[-dirty] format
         SVN_VERSION:=$(shell test -d $(BASE_DIR)/../.git && cd $(BASE_DIR) && echo $$((`git rev-list HEAD --count` + 29)))
@@ -81,10 +81,11 @@ MAKE:=$(MAKE) --no-print-directory SVNREVISION="$(SVNREVISION)" SVN_VERSION="$(S
 
 #update these to download+build a different version. this assumes that the url+subdirs etc contain a consistant version everywhere.
 JPEGVER=9c
-ZLIBVER=1.3
-PNGVER=1.6.39
+ZLIBVER=1.3.1
+PNGVER=1.6.40
 OGGVER=1.3.4
-VORBISVER=1.3.6
+VORBISVER=1.3.7
+VULKANVER=1.3.275.0
 SDL2VER=2.26.4
 SCINTILLAVER=373
 OPUSVER=1.3.1
@@ -92,6 +93,7 @@ SPEEXVER=1.2.0
 SPEEXDSPVER=1.2.0
 FREETYPEVER=2.10.1
 BULLETVER=2.87
+OPENSSLVER=3.0.1
 
 #cygwin's make's paths confuses non-cygwin things
 RELEASE_DIR=$(BASE_DIR)/release
@@ -121,7 +123,7 @@ endif
 FTE_CONFIG?=fteqw
 ifneq ($(findstring msvc,$(FTE_TARGET)),msvc)
 ifeq (,$(FTE_CONFIG_EXTRA))
-    export FTE_CONFIG_EXTRA := $(shell $(CC) -xc -E -P -DFTE_TARGET_$(FTE_TARGET) -DCOMPILE_OPTS $(CFLAGS) common/config_$(FTE_CONFIG).h)
+    FTE_CONFIG_EXTRA := $(shell $(CC) -xc -E -P -DFTE_TARGET_$(shell echo $(FTE_TARGET) | tr '[:lower:]' '[:upper:]') -DCOMPILE_OPTS $(CFLAGS) common/config_$(FTE_CONFIG).h)
 endif
 endif
 BRANDFLAGS+=-DCONFIG_FILE_NAME=config_$(FTE_CONFIG).h $(FTE_CONFIG_EXTRA)
@@ -2343,9 +2345,14 @@ libs-$(ARCH)/libBulletDynamics.a:
 	test -f bullet3-$(BULLETVER).tar.gz || wget https://github.com/bulletphysics/bullet3/archive/$(BULLETVER).tar.gz -O bullet3-$(BULLETVER).tar.gz
 	-test -f libs-$(ARCH)/libBulletDynamics.a || (mkdir -p libs-$(ARCH) && cd libs-$(ARCH) && tar -xvzf ../bullet3-$(BULLETVER).tar.gz && cd bullet3-$(BULLETVER) && CFLAGS="$(CFLAGS) -Os" $(TOOLOVERRIDES) $(DO_CMAKE) . && $(TOOLOVERRIDES) $(MAKE) LinearMath BulletDynamics BulletCollision && cp src/LinearMath/libLinearMath.a src/BulletDynamics/libBulletDynamics.a src/BulletCollision/libBulletCollision.a src/btBulletCollisionCommon.h src/btBulletDynamicsCommon.h ..)
 
+libs-$(ARCH)/vulkan/vulkan.h:
+	test -f vulkan-sdk-$(VULKANVER).tar.gz || wget https://github.com/KhronosGroup/Vulkan-Headers/archive/refs/tags/vulkan-sdk-$(VULKANVER).tar.gz  
+	cd libs-$(ARCH) && tar -xvzf ../vulkan-sdk-$(VULKANVER).tar.gz --strip-components=2 Vulkan-Headers-vulkan-sdk-$(VULKANVER)/include/
+
 ifeq ($(FTE_TARGET),web)
 makelibs: libs-$(ARCH)/libz.a $(MAKELIBS)
 else
+MAKELIBS+=libs-$(ARCH)/vulkan/vulkan.h
 makelibs: libs-$(ARCH)/libjpeg.a libs-$(ARCH)/libz9.a libs-$(ARCH)/libz.a libs-$(ARCH)/libpng.a libs-$(ARCH)/libogg.a libs-$(ARCH)/libvorbis.a libs-$(ARCH)/libopus.a libs-$(ARCH)/libspeex.a libs-$(ARCH)/libspeexdsp.a libs-$(ARCH)/libfreetype.a $(MAKELIBS)
 endif
 

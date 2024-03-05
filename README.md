@@ -1,6 +1,6 @@
-# FTEQW
+# [FTEQW](https://fteqw.org)
 
-https://fteqw.org
+![FTEQW Logo](engine/client/fte_eukara.ico)
 
 Powerful engine for playing and modding idTech based games.
 
@@ -61,9 +61,9 @@ Please see the `documentation` folder inside the repo for building, using the en
 
 ## Developers
 
-- @Shpoike - Creator and Maintainer of FTEQW & FTEQCC
-- @eukara - Maintainer, Nuclide SDK/FreeHL creator (powed by FTEQW), QuakeC Master
-- @Xylemon - Technical Support, Cheerleader
+- **[@Shpoike](https://github.com/Shpoike)** - Creator and Maintainer of FTEQW & FTEQCC
+- **[@eukara](https://github.com/eukara)** - Maintainer, Nuclide SDK/FreeHL creator (powed by FTEQW), QuakeC Master
+- **[@Xylemon](https://github.com/Xylemon)** - Technical Support, Cheerleader
 
 ## Matrix
 
@@ -75,8 +75,8 @@ irc.quakenet.org #fte
 
 ## Forums
 
-@Shpoike and @eukara can be found on inside3d.com
+**[@Shpoike](https://github.com/Shpoike)** and **[@eukara](https://github.com/eukara)** can be found on [insideqc.com](https://www.insideqc.com/)
 
 ## Discord
 
-There is a semi-official Discord server that @Shpoike is in, however, we really recommend you use open, secure, privacy-respecting communication platforms like the ones listed above.
+There is a semi-official Discord server that **[@Shpoike](https://github.com/Shpoike)** is in, however, we really recommend you use open, secure, privacy-respecting communication platforms like the ones listed above.

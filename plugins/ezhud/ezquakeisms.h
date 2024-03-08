@@ -1,3 +1,8 @@
+#ifndef FTEPLUGIN
+#define FTEPLUGIN
+#endif
+#include "../plugins/plugin.h"
+
 //ezquake likes this
 #include <assert.h>
 #include <ctype.h>
@@ -33,6 +38,12 @@ extern pluginputfuncs_t *inputfuncs;
 #define Q_atoi atoi
 #define strlcpy Q_strlcpy
 #define strlcat Q_strlcat
+
+#ifdef USE_INTERNAL_EZHUD
+#define Q_strlcat Q_strncatz
+#define Q_strlcpy Q_strncpyz
+#endif
+
 
 #undef mpic_t
 #define mpic_t void
@@ -130,7 +141,7 @@ mpic_t *Draw_CacheWadPic(const char *name);
 
 int Sbar_TopColor(player_info_t *pi);
 int Sbar_BottomColor(player_info_t *pi);
-char *TP_ParseFunChars(char*, qbool chat);
+char *TP_ParseFunChars(char*);
 char *TP_ItemName(unsigned int itbit);
 
 #define Util_SkipChars(src,strip,dst,dstlen) strlcpy(dst,src,dstlen)
@@ -163,7 +174,10 @@ void Draw_AlphaRectangleRGB(int x, int y, int w, int h, int foo, int bar, byte r
 void Draw_AlphaLineRGB(float x1, float y1, float x2, float y2, float width, byte r, byte g, byte b, byte a);
 void Draw_Polygon(int x, int y, vec3_t *vertices, int num_vertices, qbool fill, byte r, byte g, byte b, byte a);
 
+#ifndef USE_INTERNAL_EZHUD
 #undef sb_lines	//just in case.
+#endif
+
 #ifndef SBAR_HEIGHT
 #define SBAR_HEIGHT 24
 #define STAT_HEALTH			0

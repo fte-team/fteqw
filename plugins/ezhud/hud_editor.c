@@ -21,7 +21,6 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 	Initial concept code jogihoogi, rewritten by Cokeman, Feb 2007
 */
 
-#include "../plugin.h"
 #include "ezquakeisms.h"
 
 //#include "qsound.h"

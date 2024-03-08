@@ -1,4 +1,3 @@
-#include "../plugin.h"
 #include "ezquakeisms.h"
 #include "hud.h"
 #include "hud_editor.h"
@@ -12,8 +11,15 @@ struct ezcl_s cl;
 struct ezcls_s cls;
 struct ezvid_s vid;
 
+
+#ifdef USE_INTERNAL_EZHUD
+extern int sb_lines;
+extern float scr_con_current;
+#else
 int sb_lines;
 float scr_con_current;
+#endif
+
 int sb_showteamscores;
 int sb_showscores;
 int host_screenupdatecount;
@@ -31,6 +37,7 @@ static void QDECL EZHud_UpdateVideo(int width, int height, qboolean restarted)
 		HUD_InitSbarImages();
 }
 
+#ifndef USE_INTERNAL_EZHUD
 char *Cmd_Argv(int arg)
 {
 	static char buf[4][128];
@@ -39,6 +46,7 @@ char *Cmd_Argv(int arg)
 	cmdfuncs->Argv(arg, buf[arg], sizeof(buf[arg]));
 	return buf[arg];
 }
+#endif
 
 float infofloat(char *info, char *findkey, float def);
 
@@ -81,12 +89,14 @@ void Draw_TextBox (int x, int y, int width, int lines)
 {
 }
 
+#ifndef USE_INTERNAL_EZHUD
 char *TP_LocationName (const vec3_t location)
 {
 	static char locname[256];
 	clientfuncs->GetLocationName(location, locname, sizeof(locname));
 	return locname;
 }
+#endif
 
 
 void Draw_SPic(float x, float y, mpic_t *pic, float scale)
@@ -242,7 +252,8 @@ mpic_t *SCR_LoadCursorImage(char *cursorimage)
 	return Draw_CachePicSafe(cursorimage, false, true);
 }
 
-unsigned int	Sbar_ColorForMap (unsigned int m)
+#ifndef USE_INTERNAL_EZHUD
+unsigned int Sbar_ColorForMap (unsigned int m)
 {
 	if (m >= 16)
 		return m;
@@ -250,6 +261,8 @@ unsigned int	Sbar_ColorForMap (unsigned int m)
 	m *= 16;
 	return m < 128 ? m + 8 : m + 8;
 }
+#endif
+
 int Sbar_TopColor(player_info_t *pi)
 {
 	return Sbar_ColorForMap(pi->topcolour);
@@ -268,7 +281,9 @@ int dehex(char nib)
 		return nib - 'A' + 10;
 	return 0;
 }
-char *TP_ParseFunChars(char *str, qbool chat)
+
+#ifndef USE_INTERNAL_EZHUD
+char *TP_ParseFunChars(char *str)
 {
 	static char resultbuf[1024];
 	char *out = resultbuf, *end = resultbuf+sizeof(resultbuf)-1;
@@ -324,6 +339,8 @@ char *TP_ParseFunChars(char *str, qbool chat)
 	*out = 0;
 	return resultbuf;
 }
+#endif
+
 char *TP_ItemName(unsigned int itbit)
 {
 	return "Dunno";
@@ -512,10 +529,12 @@ void EZHud_UseNquake_f(void)
 	cmdfuncs->AddText(hudstr, true);
 }
 
+#ifndef USE_INTERNAL_EZHUD
 qboolean Cmd_AddCommand	(const char *funcname, xcommand_t function)
 {
 	return cmdfuncs->AddCommand(funcname, function, NULL);
-};
+}
+#endif
 
 int IN_BestWeapon(void)
 {
@@ -526,7 +545,11 @@ qbool VID_VSyncIsOn(void){return false;}
 double vid_vsync_lag;
 
 
+#ifdef USE_INTERNAL_EZHUD
+extern vrect_t scr_vrect;
+#else
 vrect_t scr_vrect;
+#endif
 
 void EZHud_Tick(double realtime, double gametime)
 {
@@ -668,7 +691,12 @@ int EZHud_Draw(int seat, float viewx, float viewy, float viewwidth, float viewhe
 	return true;
 }
 
+#ifdef USE_INTERNAL_EZHUD
+extern unsigned int keydown[K_MAX];
+#else
 unsigned int keydown[K_MAX];
+#endif
+
 float cursor_x;
 float cursor_y;
 float mouse_x;
@@ -706,6 +734,10 @@ qboolean QDECL EZHud_MenuEvent(int eventtype, int keyparam, int unicodeparm, flo
 	}
 	return 1;
 }
+
+#ifdef USE_INTERNAL_EZHUD
+#define Plug_Init Plug_EzHud_Init
+#endif
 
 qboolean Plug_Init(void)
 {

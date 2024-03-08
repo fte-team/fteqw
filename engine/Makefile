@@ -985,6 +985,16 @@ ifeq (1,$(LINK_QUAKE3))
 		l_struct.o	
 endif
 
+ifeq (1,$(LINK_EZHUD))
+    VPATH := $(VPATH) : $(BASE_DIR)/../plugins/ezhud
+    ALL_CFLAGS+=-DUSE_INTERNAL_EZHUD
+    COMMON_OBJS += 			\
+		ezquakeisms.o	\
+		hud.o \
+		hud_common.o \
+		hud_editor.o
+endif
+
 COMMONLIBFLAGS=
 COMMONLDDEPS=
 CLIENTLIBFLAGS=$(COMMONLIBFLAGS) $(LIBOPUS_STATIC) $(LIBSPEEX_STATIC) $(OGGVORBISFILE_STATIC)

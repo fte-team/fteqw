@@ -2296,11 +2296,11 @@ libs-$(ARCH)/libjpeg.a:
 
 ifeq ($(FTE_TARGET),web)
 libs-$(ARCH)/libz.a libs-$(ARCH)/libz.pc:
-	test -f zlib-$(ZLIBVER).tar.gz || wget http://zlib.net/zlib-$(ZLIBVER).tar.gz
+	test -f zlib-$(ZLIBVER).tar.gz || wget http://zlib.net/fossils/zlib-$(ZLIBVER).tar.gz
 	-test -f libs-$(ARCH)/libz.a || (mkdir -p libs-$(ARCH) && cd libs-$(ARCH) && tar -xvzf ../zlib-$(ZLIBVER).tar.gz && cd zlib-$(ZLIBVER) && emconfigure ./configure --static && emmake $(MAKE) libz.a CC="$(CC) $(W32_CFLAGS) -fPIC" && cp libz.a ../ && $(TOOLOVERRIDES) $(AR) -s ../libz.a && cp zlib.h zconf.h zutil.h zlib.pc ../ )
 else
 libs-$(ARCH)/libz.a libs-$(ARCH)/libz.pc:
-	test -f zlib-$(ZLIBVER).tar.gz || wget http://zlib.net/zlib-$(ZLIBVER).tar.gz
+	test -f zlib-$(ZLIBVER).tar.gz || wget http://zlib.net/fossils/zlib-$(ZLIBVER).tar.gz
 	-test -f libs-$(ARCH)/libz.a || (mkdir -p libs-$(ARCH) && cd libs-$(ARCH) && tar -xvzf ../zlib-$(ZLIBVER).tar.gz && cd zlib-$(ZLIBVER) && $(TOOLOVERRIDES) ./configure --static && $(TOOLOVERRIDES) $(MAKE) libz.a CC="$(CC) $(W32_CFLAGS) -fPIC" && cp libz.a ../ && $(TOOLOVERRIDES) $(AR) -s ../libz.a && cp zlib.h zconf.h zutil.h zlib.pc ../ )
 endif
 libs-$(ARCH)/libz9.a: libs-$(ARCH)/libz.a

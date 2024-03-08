@@ -556,11 +556,12 @@ qboolean QDECL Mod_LoadHLModel (model_t *mod, void *buffer, size_t fsize)
 		}
 		else if (tex[i].flags & HLMDLFL_MASKED)
 		{
+			int k = 0;
 			qbyte *in = (qbyte *) texheader + tex[i].offset;
 			qbyte *pal = (qbyte *) texheader + tex[i].w * tex[i].h + tex[i].offset;
 			qbyte alphaPal[1024]; /* 256 color 32-bit palette */
 
-			for (int k = 0; k < 255; k+= 1) {
+			for (k = 0; k < 255; k+= 1) {
 				int p = k * 4;
 				int x = k * 3;
 				alphaPal[p + 0] = pal[x + 0];

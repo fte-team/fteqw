@@ -558,32 +558,26 @@ qboolean QDECL Mod_LoadHLModel (model_t *mod, void *buffer, size_t fsize)
 		{
 			qbyte *in = (qbyte *) texheader + tex[i].offset;
 			qbyte *pal = (qbyte *) texheader + tex[i].w * tex[i].h + tex[i].offset;
-			qbyte *alphaPal = Z_Malloc(4*256); /* 256 color 32-bit palette */
-			int x = 0;
+			qbyte alphaPal[1024]; /* 256 color 32-bit palette */
+
+			for (int k = 0; k < 255; k+= 1) {
+				int p = k * 4;
+				int x = k * 3;
+				alphaPal[p + 0] = pal[x + 0];
+				alphaPal[p + 1] = pal[x + 1];
+				alphaPal[p + 2] = pal[x + 2];
+				alphaPal[p + 3] = 255;
+			}
 
 			/* pal index 255 = always transparent ~eukara */
-			for (int k = 0; k < 256; k+= 1) {
-				int p = k * 4;
-
-				if (k == 255) {
-					alphaPal[p + 0] = 0;
-					alphaPal[p + 1] = 0;
-					alphaPal[p + 2] = 0;
-					alphaPal[p + 3] = 0;
-				} else {
-					alphaPal[p + 0] = pal[x + 0];
-					alphaPal[p + 1] = pal[x + 1];
-					alphaPal[p + 2] = pal[x + 2];
-					alphaPal[p + 3] = 255;
-				}
-
-				x += 3;
-			}
+			alphaPal[255*4+0] = 0;
+			alphaPal[255*4+1] = 0;
+			alphaPal[255*4+2] = 0;
+			alphaPal[255*4+3] = 0;
 
 			shaders[i].atlasid = j++;
 			Q_snprintfz(texname, sizeof(texname), "%s*%i", mod->name, shaders[i].atlasid);
 			shaders[i].defaulttex.base = Image_GetTexture(texname, "", IF_NOREPLACE, in, alphaPal, tex[i].w, tex[i].h, TF_8PAL32);
-			Z_Free(alphaPal);
 		}
 	}
 

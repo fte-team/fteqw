@@ -79,8 +79,41 @@ typedef struct {
 	statmessage_t *message;
 } fragstats_t;
 
+static void TrackerLinesChanged(struct cvar_s *var, char *oldvalue);
+static void TrackerTimeChanged(struct cvar_s *var, char *oldvalue);
+
 cvar_t r_tracker_frags = CVARD("r_tracker_frags", "0", "0: like vanilla quake\n1: shows only your kills/deaths\n2: shows all kills\n");
+cvar_t r_tracker_messages = CVARCD("r_tracker_messages", "20", TrackerLinesChanged, "Maximum number of r_tracker messages to show\n");
+cvar_t r_tracker_time = CVARCD("r_tracker_time", "4.0", TrackerTimeChanged, "Seconds until each line fades out\n");
 static fragstats_t fragstats;
+
+static console_t *TrackerGetOrCreate(void)
+{
+	console_t *tracker = Con_FindConsole("tracker");
+	if (!tracker)
+	{
+		tracker = Con_Create("tracker", CONF_HIDDEN|CONF_NOTIFY|CONF_NOTIFY_RIGHT|CONF_NOTIFY_BOTTOM);
+		tracker->notif_l = tracker->maxlines = r_tracker_messages.ival;
+		tracker->notif_x = 0.5;
+		tracker->notif_y = 0.333;
+		tracker->notif_w = 1-tracker->notif_x;
+		tracker->notif_t = r_tracker_time.value;
+		tracker->notif_fade = 1;
+	}
+	return tracker;
+}
+
+static void TrackerLinesChanged(struct cvar_s *var, char *oldvalue)
+{
+	console_t *tracker = TrackerGetOrCreate();
+	tracker->notif_l = tracker->maxlines = var->ival;
+}
+
+static void TrackerTimeChanged(struct cvar_s *var, char *oldvalue)
+{
+	console_t *tracker = TrackerGetOrCreate();
+	tracker->notif_t = var->value;
+}
 
 int Stats_GetKills(int playernum)
 {
@@ -283,18 +316,7 @@ void Stats_FragMessage(int p1, int wid, int p2, qboolean teamkill)
 
 	Q_snprintfz(message, sizeof(message), "%s%s ^7%s %s%s\n", p2c, p2n, Stats_TrackerImageLoaded(w->image)?w->image:w->abrev, p1c, p1n);
 
-	tracker = Con_FindConsole("tracker");
-	if (!tracker)
-	{
-		tracker = Con_Create("tracker", CONF_HIDDEN|CONF_NOTIFY|CONF_NOTIFY_RIGHT|CONF_NOTIFY_BOTTOM);
-		//this stuff should be configurable
-		tracker->notif_l = tracker->maxlines = 8;
-		tracker->notif_x = 0.5;
-		tracker->notif_y = 0.333;
-		tracker->notif_w = 1-tracker->notif_x;
-		tracker->notif_t = 4;
-		tracker->notif_fade = 1;
-	}
+	tracker = TrackerGetOrCreate();
 	Con_PrintCon(tracker, message, tracker->parseflags);
 }
 
@@ -606,6 +628,8 @@ void Stats_Clear(void)
 void Stats_Init(void)
 {
 	Cvar_Register(&r_tracker_frags, NULL);
+	Cvar_Register(&r_tracker_messages, NULL);
+	Cvar_Register(&r_tracker_time, NULL);
 }
 static void Stats_LoadFragFile(char *name)
 {

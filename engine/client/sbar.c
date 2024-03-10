@@ -3604,13 +3604,19 @@ ping time frags name
 		Draw_FunStringWidth(x, y, s->team, 4*8, false, false);			\
 	}													\
 },NOFILL)
+#define COLUMN_STAT(title, width, code, fill) COLUMN(title, width, {	\
+	if (!(s->spectator && s->spectator != 2))							\
+	{																	\
+		code															\
+	}																	\
+}, fill)
 #define COLUMN_RULESET COLUMN(ruleset, 8*8,	{Draw_FunStringWidth(x, y, s->ruleset, 8*8, false, false);},NOFILL)
 #define COLUMN_NAME COLUMN(name, namesize,	{Draw_FunStringWidth(x, y, s->name, namesize, false, false);},NOFILL)
-#define COLUMN_KILLS COLUMN(kils, 4*8, {Draw_FunStringWidth(x, y, va("%4i", Stats_GetKills(k)), 4*8, false, false);},NOFILL)
-#define COLUMN_TKILLS COLUMN(tkil, 4*8, {Draw_FunStringWidth(x, y, va("%4i", Stats_GetTKills(k)), 4*8, false, false);},NOFILL)
-#define COLUMN_DEATHS COLUMN(dths, 4*8, {Draw_FunStringWidth(x, y, va("%4i", Stats_GetDeaths(k)), 4*8, false, false);},NOFILL)
-#define COLUMN_TOUCHES COLUMN(tchs, 4*8, {Draw_FunStringWidth(x, y, va("%4i", Stats_GetTouches(k)), 4*8, false, false);},NOFILL)
-#define COLUMN_CAPS COLUMN(caps, 4*8, {Draw_FunStringWidth(x, y, va("%4i", Stats_GetCaptures(k)), 4*8, false, false);},NOFILL)
+#define COLUMN_KILLS COLUMN_STAT(kils, 4*8, {Draw_FunStringWidth(x, y, va("%4i", Stats_GetKills(k)), 4*8, false, false);},NOFILL)
+#define COLUMN_TKILLS COLUMN_STAT(tkil, 4*8, {Draw_FunStringWidth(x, y, va("%4i", Stats_GetTKills(k)), 4*8, false, false);},NOFILL)
+#define COLUMN_DEATHS COLUMN_STAT(dths, 4*8, {Draw_FunStringWidth(x, y, va("%4i", Stats_GetDeaths(k)), 4*8, false, false);},NOFILL)
+#define COLUMN_TOUCHES COLUMN_STAT(tchs, 4*8, {Draw_FunStringWidth(x, y, va("%4i", Stats_GetTouches(k)), 4*8, false, false);},NOFILL)
+#define COLUMN_CAPS COLUMN_STAT(caps, 4*8, {Draw_FunStringWidth(x, y, va("%4i", Stats_GetCaptures(k)), 4*8, false, false);},NOFILL)
 #define COLUMN_AFK COLUMN(afk, 0, {int cs = atoi(InfoBuf_ValueForKey(&s->userinfo, "chat")); if (cs)Draw_FunStringWidth(x+4, y, (cs&2)?"afk":"msg", 4*8, false, false);},NOFILL)
 
 

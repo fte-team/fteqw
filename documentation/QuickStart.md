@@ -294,13 +294,6 @@ developers that make FTEQW what it is, join us on a platform listed below!
 
 Bug reports are welcomed! See our [public bug tracker](https://github.com/fte-team/fteqw/issues).
 
-Developers
-----------
-
-- @Shpoike - Creator and Maintainer of FTEQW & FTEQCC
-- @eukara - Maintainer, Nuclide SDK/FreeHL creator (powed by FTEQW), QuakeC Master
-- @Xylemon - Technical Support, Cheerleader
-
 Matrix
 ------
 
@@ -324,7 +317,7 @@ There is a semi-official Discord server that @Shpoike is in, however, we really 
 9. LICENSE
 ==========
 
-Copyright (c) 2004-2023 FTE's team and its contributors
+Copyright (c) 2004-2024 FTE's team and its contributors
 Quake source (c) 1999 id Software
 
 FTEQW is supplied to you under the terms of the same license as the

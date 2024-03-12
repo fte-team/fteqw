@@ -96,6 +96,6 @@ Please read the `LICENSE` file for details.
 
 The latest source & binaries are always available at:
 
-    https://fteqw.org
+    [fteqw.org](https://fteqw.org)
 
-    https://fteqcc.org
+    [fteqcc.org](https://fteqcc.org)

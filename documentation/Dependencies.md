@@ -1,6 +1,10 @@
 # Dependencies
 
+Here is a list of dependencies required for building FTEQW on several platforms.
+
 ## Debian / Raspbian
+
+### Base
 
 ```
 apt-get install libgl-dev gnutls-dev
@@ -46,6 +50,8 @@ pkg_add ffmpeg
 
 ## Arch Linux
 
+### Base
+
 ```
 pacman -S make gcc Xorg
 ```
@@ -62,7 +68,11 @@ pacman -S zip automake autoconf
 pacman -S ffmpeg4.4
 ```
 
-`make plugins-rel NATIVE_PLUGINS="ffmpeg" AV_BASE=/usr/include/ffmpeg4.4/ AV_LDFLAGS="-l:libavcodec.so.58 -l:libavformat.so.58 -l:libavutil.so.56 -l:libswscale.so.5"`
+You must pass these flags to compile the plugin:
+
+```
+make plugins-rel NATIVE_PLUGINS="ffmpeg" AV_BASE=/usr/include/ffmpeg4.4/ AV_LDFLAGS="-l:libavcodec.so.58 -l:libavformat.so.58 -l:libavutil.so.56 -l:libswscale.so.5"
+```
 
 ### SDL2
 
@@ -71,6 +81,8 @@ pacman -S sdl2
 ```
 
 ## OpenSUSE
+
+### Base
 
 ```
 zypper in make gcc gcc-c++ mesa-libGL-devel libgnutls-devel alsa-devel libopus-devel speex-devel libvorbis-devel
@@ -126,14 +138,16 @@ dnf install autoconf automake libtool zip
 
 ### Plugin: FFMPEG
 
-First, you will need to install the RPM Fusion if you don't have it. We recommend reading their official guide: https://rpmfusion.org/Configuration
+You need to install the RPM Fusion repo if you don't have it. We recommend reading their official guide: https://rpmfusion.org/Configuration
 
-Then, you can install the required version of FFMPEG:
+Then you can install the required version of FFMPEG:
 
 ```
 dnf install compat-ffmpeg4-devel
 ```
 
-Now to build:
+Finally, you must pass these flags to compile the plugin:
 
-`make plugins-rel NATIVE_PLUGINS="ffmpeg" AV_BASE=/usr/include/compat-ffmpeg4 AV_LDFLAGS="-l:libavcodec.so.58 -l:libavformat.so.58 -l:libavutil.so.56 -l:libswscale.so.5"`
+```
+make plugins-rel NATIVE_PLUGINS="ffmpeg" AV_BASE=/usr/include/compat-ffmpeg4 AV_LDFLAGS="-l:libavcodec.so.58 -l:libavformat.so.58 -l:libavutil.so.56 -l:libswscale.so.5"
+```

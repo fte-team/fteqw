@@ -13,7 +13,7 @@
 - **Circlemaster** - Demo & Console Additions
 - **[Daniel Svensson](https://github.com/dsvensson)** - Github Actions & Various Bugfixes
 - **[erysdren](https://github.com/erysdren)** - Haiku OS Port
-- **[ewhac](https://github.com/ewhac)** - Joystick Bugfixes
+- **[ewhac](https://github.com/ewhac)** - Joystick Bugfixes & .gitignore
 - **[Fix](https://github.com/fhomolka)** - Cleanup & Bugfixes
 - **Hexum** - Linux Port & Fixes
 - **Jogi** - Menu Bugfixes

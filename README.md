@@ -6,16 +6,14 @@ Powerful engine for playing and modding idTech based games.
 
 # What is FTEQW?
 
-FTEQW is the advanced, portable Quake engine. It supports multiple games 
-running on idTech, plus its own set of games that developers have created.
-Due to the vast amount of supported formats, features and innovations
-inside the engine and its very own QuakeC compiler (fteqcc), it's very much
-considered the swiss-army knife of Quake engines.
+FTEQW is an advanced and portable Quake engine. It supports multiple games running on idTech, plus its own set of games that developers have created.
 
-Some highlights:
+Due to the vast amount of supported formats, features, and innovations inside the engine and its very own QuakeC compiler (FTEQCC), it's very much considered the swiss-army knife of Quake engines.
 
-- Single & multi-player support.
-- Supports multiple games (see above)
+### Highlights:
+
+- Single & multi-player support
+- Supports multiple games
 - Vast amount of map, model & image formats are supported
 - Advanced console, with descriptions & autocompletion
 - Plugin support, enabling use of FFMPEG, Bullet/ODE physics & more
@@ -31,10 +29,10 @@ Some highlights:
 
 Contributions and help is always welcomed.
 
-Some guidelines:
+### Guidelines:
 
 - Be kind and respectful
-- GPL2 licensed contributions are prefered, but plugins can be licensed different as long as the GPL isn't violated
+- GPL2 licensed contributions are preferred, but plugins can be licensed different as long as the GPL isn't violated
 - This codebase follows USA/EU/UK copyright laws
 - Always give credit from other codebases and make sure licenses are compatible
 - Test your changes and ensure nothing else has been broken (games/plugins/etc)
@@ -43,7 +41,7 @@ Some guidelines:
 
 Bug reports are welcomed! :)
 
-But before you open an issue, please include:
+### Required Information:
 
 - Your system information
 - If the binary is pre-built (e.g. from fteqw.org) or if it was built manually
@@ -55,28 +53,49 @@ But before you open an issue, please include:
 
 # Documentation
 
-Please see the `documentation` folder inside the repo for building, using the engine, and more.
+Please see the `documentation` folder inside the repo for building, using the engine, tools, and more.
+
+The `specs` folder is for more advanced users seeking QuakeC and idTech file format related information or examples.
 
 # Contact
 
-## Developers
+### Matrix
 
-- **[@Shpoike](https://github.com/Shpoike)** - Creator and Maintainer of FTEQW & FTEQCC
-- **[@eukara](https://github.com/eukara)** - Maintainer, Nuclide SDK/FreeHL creator (powed by FTEQW), QuakeC Master
-- **[@Xylemon](https://github.com/Xylemon)** - Technical Support, Cheerleader
-
-## Matrix
+Join our Matrix Space here:
 
 https://matrix.to/#/#fte:matrix.org
 
-## IRC
+### IRC
 
-irc.quakenet.org #fte
+We have a channel on [QuakeNet](https://www.quakenet.org):
 
-## Forums
+**Server:** irc.quakenet.org
 
-**[@Shpoike](https://github.com/Shpoike)** and **[@eukara](https://github.com/eukara)** can be found on [insideqc.com](https://www.insideqc.com/)
+**Channel:** #fte
 
-## Discord
+### Forums
 
-There is a semi-official Discord server that **[@Shpoike](https://github.com/Shpoike)** is in, however, we really recommend you use open, secure, privacy-respecting communication platforms like the ones listed above.
+**[Spike](https://forums.insideqc.com/memberlist.php?mode=viewprofile&u=26)** and **[eukara](https://forums.insideqc.com/memberlist.php?mode=viewprofile&u=949)** can be found on [insideqc.com](https://forums.insideqc.com/)
+
+### Discord
+
+There is a semi-official Discord server that **Spike** is in, however, we really recommend you use open, secure, privacy-respecting communication platforms like the ones listed above.
+
+# Credits
+
+Please read the `Credits.md` file.
+
+# License
+
+Copyright (c) 2004-2024 FTE's team and its contributors
+Quake source (c) 1999 id Software
+
+FTEQW is supplied to you under the terms of the same license as the
+original Quake sources, the GNU General Public License Version 2.
+Please read the `LICENSE` file for details.
+
+The latest source & binaries are always available at:
+
+    https://fteqw.org
+
+    https://fteqcc.org

@@ -137,11 +137,22 @@ ENDIF()
 # On windows we build zlib by including its source (which includes a CMakeLists.txt)
 # into a folder dependencies.
 IF (WIN32)
-	ADD_SUBDIRECTORY(dependencies/zlib-1.3.1)
+	
+	IF(NOT DEFINED ZLIB_SOURCE_DIR)
+		SET(ZLIB_SOURCE_DIR "dependencies/zlib")
+	ENDIF()
+
+	MESSAGE("Zlib source directory is set to: " ${ZLIB_SOURCE_DIR})
+
+	IF (NOT EXISTS ${ZLIB_SOURCE_DIR})
+		MESSAGE("Zlib source directory could not be found: " ${ZLIB_SOURCE_DIR})
+	ENDIF()	
+
+	ADD_SUBDIRECTORY(${ZLIB_SOURCE_DIR})
 	SET(ZLIB_LIBRARIES zlib)
 	SET(ZLIB_STATIC zlibstatic)
 	SET(ZLIB_LIBRARY zlib)
-	SET(ZLIB_INCLUDE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/dependencies/zlib-1.3.1)
+	SET(ZLIB_INCLUDE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/${ZLIB_SOURCE_DIR})
 
 	SET(FTE_LIB_DEFINES ${FTE_LIB_DEFINES};ZLIB_STATIC)
 	SET(FTE_LIBS ${FTE_LIBS} ${ZLIB_LIBRARIES})

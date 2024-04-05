@@ -1006,7 +1006,7 @@ void SCR_CheckDrawCenterString (void)
 			continue;					//should probably allow the console with a scissor region or something.
 
 #ifdef QUAKEHUD
-		if (cl.playerview[pnum].sb_showscores)	//this was annoying
+		if (cl.playerview[pnum].sb_showscores || cl.playerview[pnum].sb_showteamscores)	//this was annoying
 			continue;
 #endif
 

@@ -2211,64 +2211,12 @@ static qboolean Media_Roq_DecodeFrame (cin_t *cin, qboolean nosound, qboolean fo
 
 	if (doupdate)
 	{
-	//#define LIMIT(x) ((x)<0xFFFF)?(x)>>16:0xFF;
-#define LIMIT(x) ((((x) > 0xffffff) ? 0xff0000 : (((x) <= 0xffff) ? 0 : (x) & 0xff0000)) >> 16)
-		unsigned char *pa=cin->roq.roqfilm->y[0];
-		unsigned char *pb=cin->roq.roqfilm->u[0];
-		unsigned char *pc=cin->roq.roqfilm->v[0];
-		int pix=0;
-		int num_columns=(cin->roq.roqfilm->width)>>1;
-		int num_rows=cin->roq.roqfilm->height;
-		int y;
-		int x;
-
-		qbyte *framedata;
-
 		if (cin->roq.roqfilm->num_frames)
 			cin->filmpercentage = cin->roq.roqfilm->frame_num / cin->roq.roqfilm->num_frames;
 		else
 			cin->filmpercentage = 0;
 
-		{
-			framedata = cin->framedata;
-
-			for(y = 0; y < num_rows; ++y)	//roq playing doesn't give nice data. It's still fairly raw.
-			{										//convert it properly.
-				for(x = 0; x < num_columns; ++x)
-				{
-
-					int r, g, b, y1, y2, u, v, t;
-					y1 = *(pa++); y2 = *(pa++);
-					u = pb[x] - 128;
-					v = pc[x] - 128;
-
-					y1 <<= 16;
-					y2 <<= 16;
-					r = 91881 * v;
-					g = -22554 * u + -46802 * v;
-					b = 116130 * u;
-
-					t=r+y1;
-					framedata[pix] =(unsigned char) LIMIT(t);
-					t=g+y1;
-					framedata[pix+1] =(unsigned char) LIMIT(t);
-					t=b+y1;
-					framedata[pix+2] =(unsigned char) LIMIT(t);
-
-					t=r+y2;
-					framedata[pix+4] =(unsigned char) LIMIT(t);
-					t=g+y2;
-					framedata[pix+5] =(unsigned char) LIMIT(t);
-					t=b+y2;
-					framedata[pix+6] =(unsigned char) LIMIT(t);
-					pix+=8;
-
-				}
-				if(y & 0x01) { pb += num_columns; pc += num_columns; }
-			}
-		}
-
-		uploadtexture(ctx, TF_RGBX32, cin->roq.roqfilm->width, cin->roq.roqfilm->height, cin->framedata, NULL);
+		uploadtexture(ctx, TF_RGBX32, cin->roq.roqfilm->width, cin->roq.roqfilm->height, cin->roq.roqfilm->rgba[0], NULL);
 
 		if (!nosound)
 		{
@@ -2308,7 +2256,6 @@ static cin_t *Media_RoQ_TryLoad(char *name)
 
 		cin->roq.roqfilm = roqfilm;
 
-		cin->framedata = BZ_Malloc(roqfilm->width*roqfilm->height*4);
 		return cin;
 	}
 	return NULL;

@@ -150,101 +150,70 @@ int max_frame;
 }
 
 /* -------------------------------------------------------------------------- */
-static void apply_vector_2x2(roq_info *ri, int x, int y, roq_cell *cell)
+static void apply_vector_2x2(roq_info *ri, int x, int y, roq_cell_rgba *cell)
 {
-unsigned char *yptr;
+	// place 2x2 vector codeword in framebuffer
 
-	yptr = ri->y[0] + (y * ri->width) + x;
-	*yptr++ = cell->y0;
-	*yptr++ = cell->y1;
-	yptr += (ri->width - 2);
-	*yptr++ = cell->y2;
-	*yptr++ = cell->y3;
-	ri->u[0][(y/2) * (ri->width/2) + x/2] = cell->u;
-	ri->v[0][(y/2) * (ri->width/2) + x/2] = cell->v;
+	int idxa = (y * ri->width) + x;
+	int idxb = 0;
+
+	int *ptra = (int*) &ri->rgba[0][idxa][0];
+	int *ptrb = (int*) &cell->p[idxb];
+
+	ptra[0] = ptrb[0];
+	ptra[1] = ptrb[1];
+	ptra += ri->width;
+	ptra[0] = ptrb[2];
+	ptra[1] = ptrb[3];
 }
 
-
 /* -------------------------------------------------------------------------- */
-static void apply_vector_4x4(roq_info *ri, int x, int y, roq_cell *cell)
+static void apply_vector_4x4(roq_info *ri, int x, int y, roq_cell_rgba *cell)
 {
-unsigned long row_inc, c_row_inc;
-register unsigned char y0, y1, u, v;
-unsigned char *yptr, *uptr, *vptr;
+	// upsample 2x2 vector codeword to 4x4 and place in framebuffer
 
-	yptr = ri->y[0] + (y * ri->width) + x;
-	uptr = ri->u[0] + (y/2) * (ri->width/2) + x/2;
-	vptr = ri->v[0] + (y/2) * (ri->width/2) + x/2;
+	int idxa = (y * ri->width) + x;
+	int idxb = 0;
 
-	row_inc = ri->width - 4;
-	c_row_inc = (ri->width/2) - 2;
-	*yptr++ = y0 = cell->y0; *uptr++ = u = cell->u; *vptr++ = v = cell->v;
-	*yptr++ = y0;
-	*yptr++ = y1 = cell->y1; *uptr++ = u; *vptr++ = v;
-	*yptr++ = y1;
+	int *ptra = (int*) &ri->rgba[0][idxa][0];
+	int *ptrb = (int*) &cell->p[idxb];
 
-	yptr += row_inc;
+	int i;
+	for(i = 0; i < 4; i++) {
+		ptra[0] = ptrb[0];
+		ptra[1] = ptrb[0];
+		ptra[2] = ptrb[1];
+		ptra[3] = ptrb[1];
 
-	*yptr++ = y0;
-	*yptr++ = y0;
-	*yptr++ = y1;
-	*yptr++ = y1;
-
-	yptr += row_inc; uptr += c_row_inc; vptr += c_row_inc;
-
-	*yptr++ = y0 = cell->y2; *uptr++ = u; *vptr++ = v;
-	*yptr++ = y0;
-	*yptr++ = y1 = cell->y3; *uptr++ = u; *vptr++ = v;
-	*yptr++ = y1;
-
-	yptr += row_inc;
-
-	*yptr++ = y0;
-	*yptr++ = y0;
-	*yptr++ = y1;
-	*yptr++ = y1;
+		ptra += ri->width;
+		if(i & 0x1) { // increase src pointer only every second dest line
+			ptrb += 2;
+		}
+	}
 }
 
 
 /* -------------------------------------------------------------------------- */
 static void apply_motion_4x4(roq_info *ri, int x, int y, unsigned char mv, char mean_x, char mean_y)
 {
-int i, mx, my;
-unsigned char *pa, *pb;
+	int mx = x + 8 - (mv >> 4) - mean_x;
+	int my = y + 8 - (mv & 0xf) - mean_y;
+	
+	int idxa = (y * ri->width) + x;
+	int idxb = (my * ri->width) + mx;
 
-	mx = x + 8 - (mv >> 4) - mean_x;
-	my = y + 8 - (mv & 0xf) - mean_y;
+	int *ptra = (int*) &ri->rgba[0][idxa][0];
+	int *ptrb = (int*) &ri->rgba[1][idxb][0];
+	
+	int i;
+	for(i = 0; i < 4; i++) {
+		ptra[0] = ptrb[0];
+		ptra[1] = ptrb[1];
+		ptra[2] = ptrb[2];
+		ptra[3] = ptrb[3];
 
-	pa = ri->y[0] + (y * ri->width) + x;
-	pb = ri->y[1] + (my * ri->width) + mx;
-	for(i = 0; i < 4; i++)
-	{
-		pa[0] = pb[0];
-		pa[1] = pb[1];
-		pa[2] = pb[2];
-		pa[3] = pb[3];
-		pa += ri->width;
-		pb += ri->width;
-	}
-
-	pa = ri->u[0] + (y/2) * (ri->width/2) + x/2;
-	pb = ri->u[1] + (my/2) * (ri->width/2) + (mx + 1)/2;
-	for(i = 0; i < 2; i++)
-	{
-		pa[0] = pb[0];
-		pa[1] = pb[1];
-		pa += ri->width/2;
-		pb += ri->width/2;
-	}
-
-	pa = ri->v[0] + (y/2) * (ri->width/2) + x/2;
-	pb = ri->v[1] + (my/2) * (ri->width/2) + (mx + 1)/2;
-	for(i = 0; i < 2; i++)
-	{
-		pa[0] = pb[0];
-		pa[1] = pb[1];
-		pa += ri->width/2;
-		pb += ri->width/2;
+		ptra += ri->width;
+		ptrb += ri->width;
 	}
 }
 
@@ -252,50 +221,28 @@ unsigned char *pa, *pb;
 /* -------------------------------------------------------------------------- */
 static void apply_motion_8x8(roq_info *ri, int x, int y, unsigned char mv, char mean_x, char mean_y)
 {
-int mx, my, i;
-unsigned char *pa, *pb;
+	int mx = x + 8 - (mv >> 4) - mean_x;
+	int my = y + 8 - (mv & 0xf) - mean_y;
 
-	mx = x + 8 - (mv >> 4) - mean_x;
-	my = y + 8 - (mv & 0xf) - mean_y;
+	int idxa = (y * ri->width) + x;
+	int idxb = (my * ri->width) + mx;
+	
+	int *ptra = (int*) &ri->rgba[0][idxa][0];
+	int *ptrb = (int*) &ri->rgba[1][idxb][0];
 
-	pa = ri->y[0] + (y * ri->width) + x;
-	pb = ri->y[1] + (my * ri->width) + mx;
-	for(i = 0; i < 8; i++)
-	{
-		pa[0] = pb[0];
-		pa[1] = pb[1];
-		pa[2] = pb[2];
-		pa[3] = pb[3];
-		pa[4] = pb[4];
-		pa[5] = pb[5];
-		pa[6] = pb[6];
-		pa[7] = pb[7];
-		pa += ri->width;
-		pb += ri->width;
-	}
+	int i;
+	for(i = 0; i < 8; i++) {
+		ptra[0] = ptrb[0];
+		ptra[1] = ptrb[1];
+		ptra[2] = ptrb[2];
+		ptra[3] = ptrb[3];
+		ptra[4] = ptrb[4];
+		ptra[5] = ptrb[5];
+		ptra[6] = ptrb[6];
+		ptra[7] = ptrb[7];
 
-	pa = ri->u[0] + (y/2) * (ri->width/2) + x/2;
-	pb = ri->u[1] + (my/2) * (ri->width/2) + (mx + 1)/2;
-	for(i = 0; i < 4; i++)
-	{
-		pa[0] = pb[0];
-		pa[1] = pb[1];
-		pa[2] = pb[2];
-		pa[3] = pb[3];
-		pa += ri->width/2;
-		pb += ri->width/2;
-	}
-
-	pa = ri->v[0] + (y/2) * (ri->width/2) + x/2;
-	pb = ri->v[1] + (my/2) * (ri->width/2) + (mx + 1)/2;
-	for(i = 0; i < 4; i++)
-	{
-		pa[0] = pb[0];
-		pa[1] = pb[1];
-		pa[2] = pb[2];
-		pa[3] = pb[3];
-		pa += ri->width/2;
-		pb += ri->width/2;
+		ptra += ri->width;
+		ptrb += ri->width;
 	}
 }
 
@@ -337,9 +284,7 @@ int i;
 
 	for(i = 0; i < 2; i++)
 	{
-		if((ri->y[i] = BZF_Malloc(ri->width * ri->height)) == NULL ||
-			(ri->u[i] = BZF_Malloc((ri->width * ri->height)/4)) == NULL ||
-			(ri->v[i] = BZF_Malloc((ri->width * ri->height)/4)) == NULL)
+		if((ri->rgba[i] = BZF_Malloc(ri->width * ri->height * sizeof(byte_vec4_t))) == NULL)
 		{
 			Con_Printf("Memory allocation error.\n");
 			return NULL;
@@ -378,18 +323,72 @@ int i;
 	VFS_CLOSE(ri->fp);
 	for(i = 0; i < 2; i++)
 	{
-		if(ri->y[i] != NULL)
-			BZ_Free(ri->y[i]);
-		if(ri->u[i] != NULL)
-			BZ_Free(ri->u[i]);
-		if(ri->v[i] != NULL)
-			BZ_Free(ri->v[i]);
+		if(ri->rgba[i] != NULL)
+			BZ_Free(ri->rgba[i]);
 	}
 	if(ri->buf != NULL)
 		BZ_Free(ri->buf);
 	if (ri->audio)
 		BZ_Free(ri->audio);
 	BZ_Free(ri);
+}
+
+/* -------------------------------------------------------------------------- */
+#define LIMIT(x) ((((x) > 0xffffff) ? 0xff0000 : (((x) <= 0xffff) ? 0 : (x) & 0xff0000)) >> 16)
+void roq_cells_to_rgba(roq_info *ri)
+{
+	char *pptr;
+	int i, r, g, b, y, u, v, t;
+	for(i = 0; i < 256; i++) {
+		pptr = ri->cells_rgba[i].p;
+
+		u = ri->cells[i].u - 128;
+		v = ri->cells[i].v - 128;
+
+		r = 91881 * v;
+		g = -22554 * u + -46802 * v;
+		b = 116130 * u;
+
+		// first pixel
+		y = (ri->cells[i].y0) << 16;
+		t = r + y;
+		pptr[0] = LIMIT(t); // R
+		t = g + y;
+		pptr[1] = LIMIT(t); // G
+		t = b + y;
+		pptr[2] = LIMIT(t); // B
+		pptr[3] = 255;      // A
+
+		// second pixel
+		y = (ri->cells[i].y1) << 16;
+		t = r + y;
+		pptr[4] = LIMIT(t); // R
+		t = g + y;
+		pptr[5] = LIMIT(t); // G
+		t = b + y;
+		pptr[6] = LIMIT(t); // B
+		pptr[7] = 255;      // A
+
+		// third pixel
+		y = (ri->cells[i].y2) << 16;
+		t = r + y;
+		pptr[8] = LIMIT(t); // R
+		t = g + y;
+		pptr[9] = LIMIT(t); // G
+		t = b + y;
+		pptr[10] = LIMIT(t); // B
+		pptr[11] = 255;      // A
+
+		// fourth pixel
+		y = (ri->cells[i].y3) << 16;
+		t = r + y;
+		pptr[12] = LIMIT(t); // R
+		t = g + y;
+		pptr[13] = LIMIT(t); // G
+		t = b + y;
+		pptr[14] = LIMIT(t); // B
+		pptr[15] = 255;      // A
+	}
 }
 
 
@@ -400,7 +399,7 @@ vfsfile_t *fp = ri->fp;
 unsigned int chunk_id = 0, chunk_arg = 0;
 unsigned long chunk_size = 0;
 int i, j, k, nv1, nv2, vqflg = 0, vqflg_pos = -1, vqid, bpos, xpos, ypos, xp, yp, x, y;
-unsigned char *tp, *buf;
+unsigned char *buf;
 int frame_stats[2][4] = {{0},{0}};
 roq_qcell *qcell;
 
@@ -424,6 +423,7 @@ qofs_t fpos = ri->vid_pos;
 			if((nv2 = chunk_arg & 0xff) == 0 && nv1 * 6 < chunk_size)
 				nv2 = 256;
 			VFS_READ(fp, ri->cells, nv1 * sizeof(roq_cell));
+			roq_cells_to_rgba(ri);
 			for(i = 0; i < nv2; i++)
 				for(j = 0; j < 4; j++) ri->qcells[i].idx[j] = VFS_GETC(fp);
 		}
@@ -472,14 +472,15 @@ qofs_t fpos = ri->vid_pos;
 				{
 					case RoQ_ID_MOT: break;
 					case RoQ_ID_FCC:
-						apply_motion_8x8(ri, xp, yp, buf[bpos++], (char)(chunk_arg >> 8), (char)(chunk_arg & 0xff));
+						apply_motion_8x8(ri, xp, yp, buf[bpos], (char)(chunk_arg >> 8), (char)(chunk_arg & 0xff));
+						bpos++;
 						break;
 					case RoQ_ID_SLD:
 						qcell = ri->qcells + buf[bpos++];
-						apply_vector_4x4(ri, xp, yp, ri->cells + qcell->idx[0]);
-						apply_vector_4x4(ri, xp+4, yp, ri->cells + qcell->idx[1]);
-						apply_vector_4x4(ri, xp, yp+4, ri->cells + qcell->idx[2]);
-						apply_vector_4x4(ri, xp+4, yp+4, ri->cells + qcell->idx[3]);
+						apply_vector_4x4(ri, xp, yp, ri->cells_rgba + qcell->idx[0]);
+						apply_vector_4x4(ri, xp+4, yp, ri->cells_rgba + qcell->idx[1]);
+						apply_vector_4x4(ri, xp, yp+4, ri->cells_rgba + qcell->idx[2]);
+						apply_vector_4x4(ri, xp+4, yp+4, ri->cells_rgba + qcell->idx[3]);
 						break;
 					case RoQ_ID_CCC:
 						for(k = 0; k < 4; k++)
@@ -500,20 +501,21 @@ qofs_t fpos = ri->vid_pos;
 							{
 								case RoQ_ID_MOT: break;
 								case RoQ_ID_FCC:
-									apply_motion_4x4(ri, x, y, buf[bpos++], (char)(chunk_arg >> 8), (char)(chunk_arg & 0xff));
+									apply_motion_4x4(ri, x, y, buf[bpos], (char)(chunk_arg >> 8), (char)(chunk_arg & 0xff));
+									bpos++;
 									break;
 								case RoQ_ID_SLD:
 									qcell = ri->qcells + buf[bpos++];
-									apply_vector_2x2(ri, x, y, ri->cells + qcell->idx[0]);
-									apply_vector_2x2(ri, x+2, y, ri->cells + qcell->idx[1]);
-									apply_vector_2x2(ri, x, y+2, ri->cells + qcell->idx[2]);
-									apply_vector_2x2(ri, x+2, y+2, ri->cells + qcell->idx[3]);
+									apply_vector_2x2(ri, x, y, ri->cells_rgba + qcell->idx[0]);
+									apply_vector_2x2(ri, x+2, y, ri->cells_rgba + qcell->idx[1]);
+									apply_vector_2x2(ri, x, y+2, ri->cells_rgba + qcell->idx[2]);
+									apply_vector_2x2(ri, x+2, y+2, ri->cells_rgba + qcell->idx[3]);
 									break;
 								case RoQ_ID_CCC:
-									apply_vector_2x2(ri, x, y, ri->cells + buf[bpos]);
-									apply_vector_2x2(ri, x+2, y, ri->cells + buf[bpos+1]);
-									apply_vector_2x2(ri, x, y+2, ri->cells + buf[bpos+2]);
-									apply_vector_2x2(ri, x+2, y+2, ri->cells + buf[bpos+3]);
+									apply_vector_2x2(ri, x, y, ri->cells_rgba + buf[bpos]);
+									apply_vector_2x2(ri, x+2, y, ri->cells_rgba + buf[bpos+1]);
+									apply_vector_2x2(ri, x, y+2, ri->cells_rgba + buf[bpos+2]);
+									apply_vector_2x2(ri, x+2, y+2, ri->cells_rgba + buf[bpos+3]);
 									bpos += 4;
 									break;
 							}
@@ -544,23 +546,13 @@ qofs_t fpos = ri->vid_pos;
 
 	if(ri->frame_num == 1)
 	{
-		memcpy(ri->y[1], ri->y[0], ri->width * ri->height);
-		memcpy(ri->u[1], ri->u[0], (ri->width * ri->height)/4);
-		memcpy(ri->v[1], ri->v[0], (ri->width * ri->height)/4);
+		memcpy(ri->rgba[1], ri->rgba[0], ri->width * ri->height * sizeof(byte_vec4_t));
 	}
 	else
 	{
-		tp = ri->y[0];
-		ri->y[0] = ri->y[1];
-		ri->y[1] = tp;
-
-		tp = ri->u[0];
-		ri->u[0] = ri->u[1];
-		ri->u[1] = tp;
-
-		tp = ri->v[0];
-		ri->v[0] = ri->v[1];
-		ri->v[1] = tp;
+		byte_vec4_t *tp = ri->rgba[0];
+		ri->rgba[0] = ri->rgba[1];
+		ri->rgba[1] = tp;
 	}
 
 	return 1;

@@ -178,7 +178,8 @@ static void apply_vector_4x4(roq_info *ri, int x, int y, roq_cell_rgba *cell)
 	int *ptra = (int*) &ri->rgba[0][idxa][0];
 	int *ptrb = (int*) &cell->p[idxb];
 
-	for(int i = 0; i < 4; i++) {
+    int i;
+	for(i = 0; i < 4; i++) {
 		ptra[0] = ptrb[0];
 		ptra[1] = ptrb[0];
 		ptra[2] = ptrb[1];
@@ -204,7 +205,8 @@ static void apply_motion_4x4(roq_info *ri, int x, int y, unsigned char mv, char 
 	int *ptra = (int*) &ri->rgba[0][idxa][0];
 	int *ptrb = (int*) &ri->rgba[1][idxb][0];
 	
-	for(int i = 0; i < 4; i++) {
+    int i;
+	for(i = 0; i < 4; i++) {
 		ptra[0] = ptrb[0];
 		ptra[1] = ptrb[1];
 		ptra[2] = ptrb[2];
@@ -228,7 +230,8 @@ static void apply_motion_8x8(roq_info *ri, int x, int y, unsigned char mv, char 
 	int *ptra = (int*) &ri->rgba[0][idxa][0];
 	int *ptrb = (int*) &ri->rgba[1][idxb][0];
 
-	for(int i = 0; i < 8; i++) {
+    int i;
+	for(i = 0; i < 8; i++) {
 		ptra[0] = ptrb[0];
 		ptra[1] = ptrb[1];
 		ptra[2] = ptrb[2];
@@ -335,8 +338,8 @@ int i;
 void roq_cells_to_rgba(roq_info *ri)
 {
 	char *pptr;
-	for(int i = 0; i < 256; i++) {
-		int r, g, b, y, u, v, t;
+    int i, r, g, b, y, u, v, t;
+	for(i = 0; i < 256; i++) {
 		pptr = ri->cells_rgba[i].p;
 
 		u = ri->cells[i].u - 128;

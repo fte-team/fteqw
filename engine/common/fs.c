@@ -191,6 +191,10 @@ static const gamemode_info_t gamemode_info[] = {
 
 //	{"-jk2",		"jk2",		"FTE-JK2",				{"base/assets0.pk3"},			NULL,	{"base",						"*ftejk2"},	"Jedi Knight II: Jedi Outcast"},
 //	{"-warsow",		"warsow",	"FTE-Warsow",			{"basewsw/pak0.pk3"},			NULL,	{"basewsw",						"*ftewsw"},	"Warsow"},
+
+	{"-cod4",		NULL,		"FTE-CoD4",				{"cod4.ico"},					NULL,	{"main",						"*ftecod"},	"Call of Duty 4",				NULL,				"fteplug_cod"},
+	{"-cod2",		NULL,		"FTE-CoD2",				{"main/iw_00.iwd"},				NULL,	{"main",						"*ftecod"},	"Call of Duty 2",				NULL,				"fteplug_cod"},
+	{"-cod",		NULL,		"FTE-CoD",				{"Main/pak0.pk3"},				NULL,	{"Main",						"*ftecod"},	"Call of Duty",					NULL,				"fteplug_cod"},
 #endif
 #if !defined(QUAKETC) && !defined(MINIMAL)
 //	{"-doom",		"doom",		"FTE-Doom",				{"doom.wad"},					NULL,	{"*",							"*ftedoom"},"Doom"},
@@ -1554,7 +1558,7 @@ static int QDECL COM_Dir_List(const char *name, qofs_t size, time_t mtime, void 
 			}
 		}
 
-		if ((!Q_strcasecmp(ext, "bsp") || !Q_strcasecmp(ext, "map") || !Q_strcasecmp(ext, "hmp")) && !strncmp(name, "maps/", 5) && strncmp(name, "maps/b_", 7))
+		if ((!Q_strcasecmp(ext, "bsp") || !Q_strcasecmp(ext, "d3dbsp") || !Q_strcasecmp(ext, "map") || !Q_strcasecmp(ext, "hmp")) && !strncmp(name, "maps/", 5) && strncmp(name, "maps/b_", 7))
 		{
 			Q_snprintfz(link, sizeof(link), "\\tip\\Change Map\\map\\%s", name+5);
 			colour = "^4";	//disconnects
@@ -1563,7 +1567,9 @@ static int QDECL COM_Dir_List(const char *name, qofs_t size, time_t mtime, void 
 		else if (!Q_strcasecmp(ext, "bsp") || !Q_strcasecmp(ext, "spr") || !Q_strcasecmp(ext, "sp2") || !Q_strcasecmp(ext, "mdl") || !Q_strcasecmp(ext, "md3") || !Q_strcasecmp(ext, "iqm") ||
 				 !Q_strcasecmp(ext, "vvm") || !Q_strcasecmp(ext, "psk") || !Q_strcasecmp(ext, "dpm") || !Q_strcasecmp(ext, "zym") || !Q_strcasecmp(ext, "md5mesh") ||
 				 !Q_strcasecmp(ext, "mdx") || !Q_strcasecmp(ext, "md2") || !Q_strcasecmp(ext, "obj") || !Q_strcasecmp(ext, "mds") || !Q_strcasecmp(ext, "mdc") ||
-				 !Q_strcasecmp(ext, "md5anim") || !Q_strcasecmp(ext, "gltf") || !Q_strcasecmp(ext, "glb") || !Q_strcasecmp(ext, "ase") || !Q_strcasecmp(ext, "lwo"))
+				 !Q_strcasecmp(ext, "md5anim") || !Q_strcasecmp(ext, "gltf") || !Q_strcasecmp(ext, "glb") || !Q_strcasecmp(ext, "ase") || !Q_strcasecmp(ext, "lwo") ||
+				 ((!Q_strncasecmp(name, "xmodel/", 7)||!Q_strncasecmp(name, "xanim/", 6)) && !Q_strcasecmp(ext, ""))	//urgh
+				 )
 			Q_snprintfz(link, sizeof(link), "\\tip\\Open in Model Viewer\\modelviewer\\%s", name);
 #endif
 #ifdef TEXTEDITOR
@@ -1578,7 +1584,7 @@ static int QDECL COM_Dir_List(const char *name, qofs_t size, time_t mtime, void 
 #endif
 		else if (!Q_strcasecmp(ext, "tga") || !Q_strcasecmp(ext, "png") || !Q_strcasecmp(ext, "jpg") || !Q_strcasecmp(ext, "jpeg")|| !Q_strcasecmp(ext, "lmp") || !Q_strcasecmp(ext, "ico") ||
 				 !Q_strcasecmp(ext, "pcx") || !Q_strcasecmp(ext, "bmp") || !Q_strcasecmp(ext, "dds") || !Q_strcasecmp(ext, "ktx") || !Q_strcasecmp(ext, "ktx2")|| !Q_strcasecmp(ext, "vtf") ||
-				 !Q_strcasecmp(ext, "astc")|| !Q_strcasecmp(ext, "htga")|| !Q_strcasecmp(ext, "exr") || !Q_strcasecmp(ext, "xcf") || !Q_strcasecmp(ext, "psd") ||
+				 !Q_strcasecmp(ext, "astc")|| !Q_strcasecmp(ext, "htga")|| !Q_strcasecmp(ext, "exr") || !Q_strcasecmp(ext, "xcf") || !Q_strcasecmp(ext, "psd") || !Q_strcasecmp(ext, "iwi") ||
 				 !Q_strcasecmp(ext, "pbm") || !Q_strcasecmp(ext, "ppm") || !Q_strcasecmp(ext, "pgm") || !Q_strcasecmp(ext, "pam") || !Q_strcasecmp(ext, "pfm") || !Q_strcasecmp(ext, "hdr") )
 		{
 			//FIXME: image replacements are getting in the way here.
@@ -8272,6 +8278,7 @@ void FS_RegisterDefaultFileSystems(void)
 	FS_RegisterFileSystemType(NULL, "pkz", FSZIP_LoadArchive, true);	//q2pro uses a different extension
 	FS_RegisterFileSystemType(NULL, "pkx", FSZIP_LoadArchive, true);	//q2xp naturally uses a different extension too... you'll be glad to know that yq2 uses pk3 instead. yay consistency - every engine uses something different!
 #endif
+	FS_RegisterFileSystemType(NULL, "iwd", FSZIP_LoadArchive, true);	//cod2's variation.
 	FS_RegisterFileSystemType(NULL, "apk", FSZIP_LoadArchive, false);	//android package
 	FS_RegisterFileSystemType(NULL, "zip", FSZIP_LoadArchive, false);	//regular zip file (don't automatically read from these, because it gets messy)
 	FS_RegisterFileSystemType(NULL, "kpf", FSZIP_LoadArchive, true);	//regular zip file (don't automatically read from these, because it gets messy)

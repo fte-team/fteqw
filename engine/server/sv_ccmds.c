@@ -435,13 +435,15 @@ static int QDECL ShowMapList (const char *name, qofs_t flags, time_t mtime, void
 	if (!strcmp(ext, ".gz") || !strcmp(ext, ".xz"))
 		ext = COM_GetFileExtension (name+5, ext);	//.gz files should be listed too.
 
-	if (!strcmp(ext, ".bsp"))
+	if (!strcmp(ext, ".bsp") || !Q_strcasecmp(ext, ".d3dbsp"))
 	{
 		ext = "";	//hide it
 		cmd = stripped;	//omit it, might as well. should give less confusing mapname serverinfo etc.
 	}
 	else if (!Q_strcasecmp(ext, ".bsp") || !Q_strcasecmp(ext, ".bsp.gz") || !Q_strcasecmp(ext, ".bsp.xz"))
 		;
+	else if (!Q_strcasecmp(ext, ".d3dbsp") || !Q_strcasecmp(ext, ".d3dbsp.gz") || !Q_strcasecmp(ext, ".d3dbsp.xz"))
+		;	//cod2 compat. vile.
 #ifdef TERRAIN
 	else if (!Q_strcasecmp(ext, ".map") || !Q_strcasecmp(ext, ".map.gz") || !Q_strcasecmp(ext, ".hmp"))
 		;
@@ -547,6 +549,7 @@ static void SV_Map_c(int argn, const char *partial, struct xcommandargcompletion
 	{
 		//FIXME: maps/mapname#modifier.ent
 		COM_EnumerateFiles(va("maps/%s*.bsp", partial), CompleteMapList, ctx);
+		COM_EnumerateFiles(va("maps/%s*.d3dbsp", partial), CompleteMapList, ctx);
 		COM_EnumerateFiles(va("maps/%s*.bsp.gz", partial), CompleteMapListExt, ctx);
 		COM_EnumerateFiles(va("maps/%s*.bsp.xz", partial), CompleteMapListExt, ctx);
 		COM_EnumerateFiles(va("maps/%s*.map", partial), CompleteMapListExt, ctx);
@@ -557,6 +560,7 @@ static void SV_Map_c(int argn, const char *partial, struct xcommandargcompletion
 		COM_EnumerateFiles(va("maps/%s*.ent", partial), CompleteMapListEnt, ctx);
 
 		COM_EnumerateFiles(va("maps/%s*/*.bsp", partial), CompleteMapList, ctx);
+		COM_EnumerateFiles(va("maps/%s*/*.d3dbsp", partial), CompleteMapList, ctx);
 		COM_EnumerateFiles(va("maps/%s*/*.bsp.gz", partial), CompleteMapListExt, ctx);
 		COM_EnumerateFiles(va("maps/%s*/*.bsp.xz", partial), CompleteMapListExt, ctx);
 		COM_EnumerateFiles(va("maps/%s*/*.map", partial), CompleteMapListExt, ctx);
@@ -949,7 +953,7 @@ void SV_Map_f (void)
 	else
 #endif
 	{
-		char *exts[] = {"%s", "maps/%s", "maps/%s.bsp", "maps/%s.bsp.gz", "maps/%s.bsp.xz", "maps/%s.cm", "maps/%s.hmp", /*"maps/%s.map",*/ /*"maps/%s.ent",*/ NULL};
+		char *exts[] = {"%s", "maps/%s", "maps/%s.bsp", "maps/%s.bsp.gz", "maps/%s.bsp.xz", "maps/%s.d3dbsp", "maps/%s.cm", "maps/%s.hmp", /*"maps/%s.map",*/ /*"maps/%s.ent",*/ NULL};
 		int i, j;
 
 		for (i = 0; exts[i]; i++)

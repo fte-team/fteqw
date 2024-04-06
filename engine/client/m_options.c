@@ -4423,7 +4423,8 @@ static int QDECL CompleteModelViewerList (const char *name, qofs_t flags, time_t
 		|| !strcmp(ext, ".psk") || !strcmp(ext, ".md5mesh") || !strcmp(ext, ".md5anim")
 		|| !strcmp(ext, ".bsp") || !strcmp(ext, ".map") || !strcmp(ext, ".hmp")
 		|| !strcmp(ext, ".spr") || !strcmp(ext, ".sp2") || !strcmp(ext, ".spr32")
-		|| !strcmp(ext, ".gltf") || !strcmp(ext, ".glb") || !strcmp(ext, ".ase") || !strcmp(ext, ".lwo") || !strcmp(ext, ".obj"))
+		|| !strcmp(ext, ".gltf") || !strcmp(ext, ".glb") || !strcmp(ext, ".ase") || !strcmp(ext, ".lwo") || !strcmp(ext, ".obj")
+		|| !strncmp(name, "xmodel/", 7) || !strncmp(name, "xanim/", 6))	//urgh!
 	{
 		ctx->cb(name, NULL, NULL, ctx);
 	}

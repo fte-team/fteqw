@@ -937,20 +937,37 @@ IF(FTE_PLUG_QUAKE3)
 		#define the modules and make sure they're linked (one generic, one for server-only builds.
 		ADD_LIBRARY(quake3 STATIC ${FTE_Q3_FILES})
 		SET_TARGET_PROPERTIES(quake3 PROPERTIES COMPILE_DEFINITIONS "${FTE_LIB_DEFINES};${FTE_REVISON};BOTLIB;BOTLIB_STATIC;FTEPLUGIN;STATIC_Q3")
-		TARGET_LINK_LIBRARIES(quake3 m)
+		TARGET_LINK_LIBRARIES(quake3 ${SYS_LIBS})
 
 		#ADD_LIBRARY(q3sv STATIC EXCLUDE_FROM_ALL ${FTE_Q3_FILES})
 		#SET_TARGET_PROPERTIES(q3sv PROPERTIES COMPILE_DEFINITIONS "${FTE_LIB_DEFINES};${FTE_REVISON};BOTLIB;BOTLIB_STATIC;SERVERONLY")
 		#SET_TARGET_PROPERTIES(q3sv PROPERTIES LINK_FLAGS "-Wl,--no-undefined")
-		#TARGET_LINK_LIBRARIES(q3sv m)
+		#TARGET_LINK_LIBRARIES(q3sv ${SYS_LIBS})
 		#SET(FTESV_LIBS ${FTESV_LIBS} q3sv)
 	ELSE()
 		#define the modules and make sure they're linked (one generic, one for server-only builds.
 		ADD_LIBRARY(plug_quake3 MODULE ${FTE_Q3_FILES} plugins/plugin.c)
 		SET_TARGET_PROPERTIES(plug_quake3 PROPERTIES COMPILE_DEFINITIONS "${FTE_LIB_DEFINES};${FTE_REVISON};BOTLIB;BOTLIB_STATIC;FTEPLUGIN")
-		TARGET_LINK_LIBRARIES(plug_quake3 m)
+		TARGET_LINK_LIBRARIES(plug_quake3 ${SYS_LIBS})
 		EMBED_PLUGIN_META(quake3 "Quake3 Compat" "Provides compatability with Quake3's gamecode.")
 	ENDIF()
+ENDIF()
+
+#still a wip, so disabled by default
+SET(FTE_PLUG_COD true CACHE BOOL "Compile Call of Duty plugin.")
+IF(FTE_PLUG_COD)
+	ADD_LIBRARY(plug_cod MODULE
+		plugins/cod/codmod.c
+		plugins/cod/codbsp.c
+		plugins/cod/codmat.c
+		plugins/cod/codiwi.c
+		#plugins/cod/codff.c
+		plugins/plugin.c)
+	SET_TARGET_PROPERTIES(plug_cod PROPERTIES COMPILE_DEFINITIONS "${FTE_LIB_DEFINES};${FTE_REVISON};FTEPLUGIN")
+	TARGET_LINK_LIBRARIES(plug_cod ${SYS_LIBS}
+		#${ZLIB_LIBRARIES}
+		)
+	EMBED_PLUGIN_META(cod "CoD Formats" "Provides compatability with Call Of Duty's file formats.")
 ENDIF()
 
 FILE(STRINGS "${FTE_BUILD_CONFIG}" BULLET_INTERNAL REGEX "^#define[\t ]+USE_INTERNAL_BULLET")

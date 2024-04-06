@@ -157,6 +157,7 @@ static void QDECL TP_EnemyColor_CB (struct cvar_s *var, char *oldvalue);
 	TP_CVAR(loc_name_ga,		"ga");	\
 	TP_CVAR(loc_name_ya,		"ya");	\
 	TP_CVAR(loc_name_ra,		"ra");	\
+	TP_CVAR(loc_name_mh,		"mh");	\
 	TP_CVAR(loc_name_quad,		"quad");	\
 	TP_CVAR(loc_name_pent,		"pent");	\
 	TP_CVAR(loc_name_ring,		"ring");	\

@@ -17,13 +17,20 @@ along with this program; if not, write to the Free Software
 Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 */
+
+#if defined(WIN32)
+	#include <stdint.h> // NOTE(pythno): Needed for windows 'intmax_t'
+#endif
+
 #include "quakedef.h"
 #include "netinc.h"
 #include "fs.h"	//for updates
 #ifdef SQL
 #include "sv_sql.h"
 #endif
+
 #include <sys/types.h>
+
 #ifndef CLIENTONLY
 #define Q2EDICT_NUM(i) (q2edict_t*)((char *)ge->edicts+(i)*ge->edict_size)
 

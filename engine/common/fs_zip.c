@@ -47,6 +47,9 @@
 # endif
 # include <zlib.h>
 
+// NOTE(pythno): zlib64 is not available if we compile zlib from source. Both
+//               libs will be called just zlib.lib
+/*
 # ifdef _MSC_VER
 #  ifdef _WIN64
 #   pragma comment(lib, MSVCLIBSPATH "zlib64.lib")
@@ -54,6 +57,7 @@
 #   pragma comment(lib, MSVCLIBSPATH "zlib.lib")
 #  endif
 # endif
+*/
 
 # ifdef DYNAMIC_ZLIB
 #  define ZLIB_LOADED() (zlib_handle!=NULL)

@@ -7216,7 +7216,8 @@ static qboolean Mods_AddManifest(void *usr, ftemanifest_t *man, enum modsourcety
 		//note that intrinsics are ignored entirely if someone took the time to make any other kind of fmf for that basedir.
 		for (p = 0; p < nummods; p++)
 		{
-			if (modlist[p].manifest && !strcmp(modlist[p].manifest->basedir?:"", man->basedir?:"") && !strcmp(modlist[p].manifest->mainconfig?:"", man->mainconfig?:"") && ((modlist[p].sourcetype!=MST_INTRINSIC&&sourcetype==MST_INTRINSIC) || !Q_strcasecmp(modlist[p].manifest->installation, man->installation)))
+			// NOTE(pythno): The original code without providing a statement after '?' won't compile with msvc
+			if (modlist[p].manifest && !strcmp(modlist[p].manifest->basedir ? modlist[p].manifest->basedir :"", man->basedir ? man->basedir :"") && !strcmp(modlist[p].manifest->mainconfig ? modlist[p].manifest->mainconfig  :"", man->mainconfig ? man->mainconfig  :"") && ((modlist[p].sourcetype!=MST_INTRINSIC&&sourcetype==MST_INTRINSIC) || !Q_strcasecmp(modlist[p].manifest->installation, man->installation)))
 				return false;
 		}
 		break;

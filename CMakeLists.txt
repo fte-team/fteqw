@@ -8,6 +8,13 @@ cmake_policy(SET CMP0063 NEW)
 
 PROJECT(FTEQuake)
 
+# On Windows put all the built libs/exes/etc. in one directory
+IF (WIN32)
+	set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}/bin")
+	set(CMAKE_LIBRARY_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}/bin")
+	set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}/bin")
+ENDIF()
+
 INCLUDE_DIRECTORIES(
 	engine/common
 	engine/client
@@ -127,15 +134,41 @@ ELSE()
 	SET(SYS_LIBS ${SYS_LIBS})
 ENDIF()
 
-FIND_PACKAGE(ZLIB)
-IF(ZLIB_FOUND)
+# On windows we build zlib by including its source (which includes a CMakeLists.txt)
+# into a folder dependencies.
+IF (WIN32)
+	
+	IF(NOT DEFINED ZLIB_SOURCE_DIR)
+		SET(ZLIB_SOURCE_DIR "dependencies/zlib")
+	ENDIF()
+
+	MESSAGE("Zlib source directory is set to: " ${ZLIB_SOURCE_DIR})
+
+	IF (NOT EXISTS ${ZLIB_SOURCE_DIR})
+		MESSAGE("Zlib source directory could not be found: " ${ZLIB_SOURCE_DIR})
+	ENDIF()	
+
+	ADD_SUBDIRECTORY(${ZLIB_SOURCE_DIR})
+	SET(ZLIB_LIBRARIES zlib)
+	SET(ZLIB_STATIC zlibstatic)
+	SET(ZLIB_LIBRARY zlib)
+	SET(ZLIB_INCLUDE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/${ZLIB_SOURCE_DIR})
+
 	SET(FTE_LIB_DEFINES ${FTE_LIB_DEFINES};ZLIB_STATIC)
 	SET(FTE_LIBS ${FTE_LIBS} ${ZLIB_LIBRARIES})
 	SET(FTESV_LIBS ${FTESV_LIBS} ${ZLIB_LIBRARIES})
 	SET(FTEQCC_LIBS ${FTEQCC_LIBS} ${ZLIB_LIBRARIES})
 ELSE()
-	MESSAGE(WARNING "libz library NOT available. compressed pk3 will not be available.")
-	SET(FTE_LIB_DEFINES ${FTE_LIB_DEFINES};NO_ZLIB)
+	FIND_PACKAGE(ZLIB)
+	IF(ZLIB_FOUND)
+		SET(FTE_LIB_DEFINES ${FTE_LIB_DEFINES};ZLIB_STATIC)
+		SET(FTE_LIBS ${FTE_LIBS} ${ZLIB_LIBRARIES})
+		SET(FTESV_LIBS ${FTESV_LIBS} ${ZLIB_LIBRARIES})
+		SET(FTEQCC_LIBS ${FTEQCC_LIBS} ${ZLIB_LIBRARIES})
+	ELSE()
+		MESSAGE(WARNING "libz library NOT available. compressed pk3 will not be available.")
+		SET(FTE_LIB_DEFINES ${FTE_LIB_DEFINES};NO_ZLIB)
+	ENDIF()
 ENDIF()
 
 FIND_PACKAGE(BZip2)
@@ -256,7 +289,10 @@ IF(CMAKE_BUILD_TYPE MATCHES "Debug")
 ENDIF()
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -D_FILE_OFFSET_BITS=64")
 
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -DFTE_LIBRARY_PATH=${CMAKE_INSTALL_FULL_LIBDIR}/${FTE_INSTALL_LIBDIR} -DFTE_DATA_DIR=${CMAKE_INSTALL_FULL_DATAROOTDIR}")
+# NOTE(pythno): On windows we have folder names with spaces, eg. "Program Files (x86)". Therefore the path variables have to be surrounded
+#               with doublequotes (") to make it visiable as one string to windows and not multiple.
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -DFTE_LIBRARY_PATH=\"${CMAKE_INSTALL_FULL_LIBDIR}/${FTE_INSTALL_LIBDIR}\" -DFTE_DATA_DIR=\"${CMAKE_INSTALL_FULL_DATAROOTDIR}\"")
+
 
 FUNCTION(EMBED_PLUGIN_META PLUGNAME PLUGTITLE PLUGDESC)
 	SET_TARGET_PROPERTIES(plug_${PLUGNAME} PROPERTIES OUTPUT_NAME "${PLUGNAME}")
@@ -307,10 +343,8 @@ ELSEIF(WIN32 AND NOT FTE_USE_SDL)
 		engine/client/snd_wasapi.c
 		engine/client/snd_win.c
 		engine/client/snd_xaudio.c
-		engine/client/sys_win.c
-		
+		engine/client/sys_win.c		
 		engine/gl/gl_vidnt.c
-
 		engine/d3d/d3d_backend.c
 		engine/d3d/d3d_image.c
 		engine/d3d/d3d_shader.c
@@ -377,17 +411,14 @@ ELSEIF(UNIX AND NOT FTE_USE_SDL)	#linux(ish)
 		engine/client/sys_linux.c
 		engine/common/sys_linux_threads.c
 		engine/common/net_ssl_gnutls.c
-
 		engine/client/snd_al.c
 		engine/client/snd_alsa.c
 		engine/client/snd_linux.c
 		engine/client/snd_pulse.c
 		engine/client/snd_sdl.c	#we use SDL audio even without sys_sdl, because of pulseaudio fucking over alsa, alsa fucking over oss3, and oss4 not being used. Either way, openal should be the default anyway.
-
 		engine/client/cd_linux.c
 		engine/gl/gl_vidlinuxglx.c
 		engine/gl/gl_videgl.c
-
 #		engine/gl/gl_vidrpi.c
 #		engine/gl/gl_vidwayland.c
 	)
@@ -599,7 +630,6 @@ SET(FTE_COMMON_FILES
 	engine/common/sha2.c
 	engine/common/translate.c
 	engine/common/zone.c
-
 	#important headers
 	engine/common/bothdefs.h
 	engine/common/config_fteqw.h
@@ -608,7 +638,6 @@ SET(FTE_COMMON_FILES
 	engine/common/config_wastes.h
 	engine/common/config_freecs.h
 	engine/common/config_fteqw_noweb.h
-
 	#useless headers that I'll never search for
 	engine/client/api_menu.h
 	engine/client/cdaudio.h
@@ -681,31 +710,25 @@ SET(FTE_COMMON_FILES
 	#engine/sw/sw_spans.h
 	engine/vk/vkrenderer.h
 	engine/web/ftejslib.h
-
-
 	#sigh
 	engine/client/pr_skelobj.c
 	engine/client/m_download.c
-	engine/client/net_master.c
-	
+	engine/client/net_master.c	
 	#these are here because of hitmodel etc
 	engine/gl/gl_heightmap.c
 	engine/gl/gl_hlmdl.c
-	engine/gl/gl_model.c
-	
+	engine/gl/gl_model.c	
 	engine/server/sv_move.c
 	engine/server/sv_phys.c
-	engine/server/world.c
-	
-	${FTE_QCVM_FILES}
-	engine/qclib/hash.c
-	
+	engine/server/world.c	
+	${FTE_QCVM_FILES}	
+	engine/qclib/hash.c	
 	engine/http/httpclient.c
 )
 
 SET(FTE_SERVER_FILES
 	engine/server/net_preparse.c
-	engine/server/pr_cmds.c
+	engine/server/pr_cmds.c	
 	engine/server/pr_lua.c
 	engine/server/pr_q1qvm.c
 	engine/server/savegame.c
@@ -785,8 +808,6 @@ SET(FTE_CLIENT_FILES
 	engine/client/view.c
 	engine/client/wad.c
 	engine/client/zqtp.c
-
-
 #These are generic renderer files and no longer gl-specific (for the most part)
 	engine/gl/gl_alias.c
 	engine/gl/gl_font.c
@@ -796,7 +817,6 @@ SET(FTE_CLIENT_FILES
 	engine/gl/gl_shadow.c
 	engine/gl/gl_warp.c
 	engine/gl/ltface.c
-
 #these are renderer-specific
 	engine/client/vid_headless.c
 	${FTE_GL_FILES}
@@ -1216,7 +1236,6 @@ IF(0)
 #		engine/sw/sw_vidwin.c
 		engine/common/mathlib.c
 #		engine/client/in_win.c
-
 		engine/sw/sw.h
 		engine/sw/sw_spans.h
 	)

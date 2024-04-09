@@ -725,7 +725,27 @@ void NewClient(cluster_t *cluster, viewer_t *viewer)
 {
 	sv_t *initialserver;
 	initialserver = NULL;
-	if (*cluster->autojoinadr)
+
+	if (viewer->netchan.remote_address.tcpcon)
+	{
+		tcpconnect_t *dest;
+		for (dest = cluster->tcpconnects; dest; dest = dest->next)
+		{
+			if (dest == viewer->netchan.remote_address.tcpcon)
+				break;
+		}
+
+		if (*dest->initialstreamname)
+		{
+			initialserver = QTV_NewServerConnection(cluster, 0, dest->initialstreamname, "", false, AD_WHENEMPTY, true, false);
+			if (initialserver && initialserver->sourcetype == SRC_UDP)
+				initialserver->controller = viewer;
+		}
+	}
+
+	if (initialserver)
+		;	//already picked it via websocket resources.
+	else if (*cluster->autojoinadr)
 	{
 		initialserver = QTV_NewServerConnection(cluster, 0, cluster->autojoinadr, "", false, AD_WHENEMPTY, true, false);
 		if (initialserver && initialserver->sourcetype == SRC_UDP)
@@ -3743,6 +3763,10 @@ void ParseQWC(cluster_t *cluster, sv_t *qtv, viewer_t *v, netmsg_t *m)
 				if (v->server && v->server->controller == v)
 					SendClientCommand(v->server, "%s", buf+4);
 			}
+			else if (iscont && !strncmp(buf, "pext ", 5))
+			{	//FIXME: include ones we can parse properly...
+				SendClientCommand(v->server, "pext");
+			}
 			else if (!iscont && !strcmp(buf, "new"))
 			{
 				if (qtv && qtv->parsingconnectiondata)
@@ -4404,29 +4428,47 @@ void QW_ProcessUDPPacket(cluster_t *cluster, netmsg_t *m, netadr_t from)
 	}
 }
 
-void QW_TCPConnection(cluster_t *cluster, SOCKET sock, wsrbuf_t ws)
+void QW_TCPConnection(cluster_t *cluster, oproxy_t *sock, char *initialstreamname)
 {
 	int alen;
 	tcpconnect_t *tc;
-	tc = malloc(sizeof(*tc));
+
+	//clean up the pending source a bit...
+	if (sock->srcfile) fclose(sock->srcfile), sock->srcfile = NULL;
+
+	if (sock->drop)
+		tc = NULL;	//FIXME
+	else
+		tc = malloc(sizeof(*tc));
 	if (!tc)
 	{
-		closesocket(sock);
-		return;
+		closesocket(sock->sock);
+		free(initialstreamname);
 	}
-	tc->sock = sock;
-	tc->websocket = ws;
-	tc->inbuffersize = 0;
-	tc->outbuffersize = 0;
+	else
+	{
+		tc->sock = sock->sock;
+		tc->websocket = sock->websocket;	//copy it over
 
-	memset(&tc->peeraddr, 0, sizeof(tc->peeraddr));
-	tc->peeraddr.tcpcon = tc;
+		tc->inbuffersize = sock->inbuffersize;
+		memcpy(tc->inbuffer, sock->inbuffer, tc->inbuffersize);
+		tc->outbuffersize = sock->buffersize;
+		memcpy(tc->outbuffer, sock->buffer+sock->bufferpos, tc->outbuffersize);
 
-	alen = sizeof(tc->peeraddr.sockaddr);
-	getpeername(sock, (struct sockaddr*)&tc->peeraddr.sockaddr, &alen);
+		memset(&tc->peeraddr, 0, sizeof(tc->peeraddr));
+		tc->peeraddr.tcpcon = tc;
 
-	tc->next = cluster->tcpconnects;
-	cluster->tcpconnects = tc;
+		alen = sizeof(tc->peeraddr.sockaddr);
+		getpeername(sock->sock, (struct sockaddr*)&tc->peeraddr.sockaddr, &alen);
+
+		tc->initialstreamname = initialstreamname;
+		tc->next = cluster->tcpconnects;
+		cluster->tcpconnects = tc;
+	}
+
+	//okay, we're done with it.
+	free(sock);
+	cluster->numproxies--;
 }
 
 void QW_UpdateUDPStuff(cluster_t *cluster)
@@ -4491,6 +4533,19 @@ void QW_UpdateUDPStuff(cluster_t *cluster)
 		QW_ProcessUDPPacket(cluster, &m, from);
 	}
 
+	for (tc = cluster->tcpconnects; tc; tc = tc->next)
+	{
+		if (tc->outbuffersize)
+		{
+			int clen = send(tc->sock, tc->outbuffer, tc->outbuffersize, 0);
+			if (clen > 0)
+			{
+				memmove(tc->outbuffer, tc->outbuffer+clen, tc->outbuffersize-clen);
+				tc->outbuffersize-=clen;
+			}
+		}
+	}
+
 	for (l = &cluster->tcpconnects; *l; )
 	{
 		int clen;
@@ -4504,7 +4559,9 @@ void QW_UpdateUDPStuff(cluster_t *cluster)
 			if (read == 0 || qerrno != NET_EWOULDBLOCK)
 			{
 				*l = tc->next;
-				closesocket(tc->sock);
+				if (tc->sock != INVALID_SOCKET)
+					closesocket(tc->sock);
+				free(tc->initialstreamname);
 				free(tc);
 				continue;
 			}

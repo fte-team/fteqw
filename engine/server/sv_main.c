@@ -165,7 +165,7 @@ cvar_t	sv_csqc_progname	= CVARAF("sv_csqc_progname", "csprogs.dat", /*dp*/"csqc_
 cvar_t pausable				= CVAR("pausable", "");
 cvar_t sv_banproxies		= CVARD("sv_banproxies", "0", "If enabled, anyone connecting via known proxy software will be refused entry. This should aid with blocking aimbots, but is only reliable for certain public proxies.");
 cvar_t	sv_specprint		= CVARD("sv_specprint", "3",	"Bitfield that controls which player events spectators see when tracking that player.\n&1: spectators will see centerprints.\n&2: spectators will see sprints (pickup messages etc).\n&4: spectators will receive console commands, this is potentially risky.\nIndividual spectators can use 'setinfo sp foo' to limit this setting.");
-cvar_t	sv_protocol				= CVARD("sv_protocol", "", "Specifies which protocol extensions to force. recognised values: csqc");
+cvar_t	sv_protocol				= CVARD("sv_protocol", "", "Specifies which protocol extensions to force. Clients which do not support the named protocols will be kicked. Recognised values: fte1 fte2 csqc.");
 
 //
 // game rules mirrored in svs.info
@@ -307,10 +307,6 @@ void SV_Shutdown (void)
 
 	InfoBuf_Clear(&svs.info, true);
 	InfoBuf_Clear(&svs.localinfo, true);
-
-#ifdef WEBSERVER
-	IWebShutdown();
-#endif
 
 	COM_BiDi_Shutdown();
 	TL_Shutdown();
@@ -757,6 +753,21 @@ void SV_DropClient (client_t *drop)
 	}
 }
 
+//called when someone's connection goes away.
+void SV_DropClient_ByAddress (netadr_t *addr)
+{	//just flag em, its easier on stack...
+	int i;
+	for (i = 0; i < svs.allocated_client_slots; i++)
+	{
+		if (!svs.clients[i].drop && svs.clients[i].state >= cs_connected)
+			if (NET_CompareAdr(&svs.clients[i].netchan.remote_address, addr))
+			{
+				SV_BroadcastTPrintf (PRINT_HIGH, "%s lost connection\n", svs.clients[i].name);
+				svs.clients[i].drop = true;
+			}
+	}
+}
+
 
 //====================================================================
 
@@ -765,8 +776,8 @@ typedef struct pinnedmessages_s {
 	char setby[64];
 	char message[1024];
 } pinnedmessages_t;
-pinnedmessages_t *pinned;
-qboolean dopinnedload = true;
+static pinnedmessages_t *pinned;
+static qboolean dopinnedload = true;
 void PIN_DeleteOldestMessage(void);
 void PIN_MakeMessage(char *from, char *msg);
 
@@ -920,9 +931,9 @@ int SV_CalcPing (client_t *cl, qboolean forcecalc)
 
 	safeswitch (cl->protocol)
 	{
-#ifdef Q2SERVER
 	case SCP_QUAKE2:
 	case SCP_QUAKE2EX:
+#ifdef Q2SERVER
 		{
 			q2client_frame_t *frame;
 			ping = 0;
@@ -1339,11 +1350,6 @@ static void SVC_GetInfo (const char *challenge, int fullstatus)
 	const char *gamestatus;
 	eval_t *v;
 
-#ifdef NQPROT
-	if (!sv_listen_nq.ival && !sv_listen_dp.ival)
-		return;
-#endif
-
 	for (i=0 ; i<svs.allocated_client_slots ; i++)
 	{
 		cl = &svs.clients[i];
@@ -1475,7 +1481,7 @@ static void SVC_InfoQ2 (void)
 		snprintf (string, sizeof(string), "%16s %8s %2i/%2i\n", hostname.string, svs.name, count, (int)maxclients.value);
 	}
 
-	Netchan_OutOfBandPrint (NS_SERVER, &net_from, "info\n%s", string);
+	Netchan_OutOfBandPrint (NCF_SERVER, &net_from, "info\n%s", string);
 }
 #endif
 
@@ -1648,7 +1654,7 @@ qboolean SVC_GetChallenge (qboolean respond_dp)
 	const qboolean respond_qwoverq3 = false;
 #endif
 
-	//ioq3clchallenge = atoi(Cmd_Argv(1));
+	int ioq3clchallenge = atoi(Cmd_Argv(1));
 	const char *protocols = Cmd_Argv(2);
 	if (*protocols)
 	{
@@ -1670,7 +1676,7 @@ qboolean SVC_GetChallenge (qboolean respond_dp)
 		{
 			COM_ParseOut(com_protocolname.string, oprot,sizeof(oprot));
 			pname = va("print\nGame mismatch: This is a %s server\n", oprot);
-			Netchan_OutOfBand(NS_SERVER, &net_from, strlen(pname), pname);
+			Netchan_OutOfBand(NCF_SERVER, &net_from, strlen(pname), pname);
 			return false;
 		}
 	}
@@ -1733,7 +1739,7 @@ qboolean SVC_GetChallenge (qboolean respond_dp)
 	{
 #ifdef Q3SERVER
 	case GT_QUAKE3:	//q3 servers
-		buf = va("challengeResponse %i", challenge);
+		buf = va("challengeResponse %i %i %i", challenge, ioq3clchallenge, com_protocolversion.ival);
 		break;
 #endif
 #ifdef Q2SERVER
@@ -1861,11 +1867,11 @@ qboolean SVC_GetChallenge (qboolean respond_dp)
 			dp = va("challenge FTE%i", challenge);	//an FTE prefix will cause FTE clients to ignore the packet, to give preference to the qw challenge + protocols
 		else
 			dp = va("challenge %iDP", challenge);	//we still need to add a postfix to prevent it from being interpreted as a Q2 server
-		Netchan_OutOfBand(NS_SERVER, &net_from, strlen(dp)+1, dp);
+		Netchan_OutOfBand(NCF_SERVER, &net_from, strlen(dp)+1, dp);
 	}
 
 	if (respond_std)
-		Netchan_OutOfBand(NS_SERVER, &net_from, over-buf, buf);
+		Netchan_OutOfBand(NCF_SERVER, &net_from, over-buf, buf);
 
 #ifdef QWOVERQ3
 	if (svs.gametype == GT_PROGS || svs.gametype == GT_Q1QVM)
@@ -1901,7 +1907,7 @@ static void VARGS SV_OutOfBandPrintf (int q2, netadr_t *adr, char *format, ...)
 	va_end (argptr);
 
 
-	Netchan_OutOfBand (NS_SERVER, adr, strlen(string), (qbyte *)string);
+	Netchan_OutOfBand (NCF_SERVER, adr, strlen(string), (qbyte *)string);
 }
 static void VARGS SV_OutOfBandTPrintf (int q2, netadr_t *adr, int language, translation_t text, ...)
 {
@@ -1923,7 +1929,7 @@ static void VARGS SV_OutOfBandTPrintf (int q2, netadr_t *adr, int language, tran
 	va_end (argptr);
 
 
-	Netchan_OutOfBand (NS_SERVER, adr, strlen(string), (qbyte *)string);
+	Netchan_OutOfBand (NCF_SERVER, adr, strlen(string), (qbyte *)string);
 }
 #endif
 
@@ -2007,7 +2013,7 @@ void VARGS SV_RejectMessage(enum serverprotocols_e protocol, char *format, ...)
 	}
 	va_end (argptr);
 
-	Netchan_OutOfBand (NS_SERVER, &net_from, len, (qbyte *)string);
+	Netchan_OutOfBand (NCF_SERVER, &net_from, len, (qbyte *)string);
 }
 
 void SV_AcceptMessage(client_t *newcl)
@@ -2088,7 +2094,7 @@ void SV_AcceptMessage(client_t *newcl)
 		break;
 	}
 
-	Netchan_OutOfBand (NS_SERVER, &net_from, len, (qbyte *)string);
+	Netchan_OutOfBand (NCF_SERVER, &net_from, len, (qbyte *)string);
 }
 
 #if !defined(_DEBUG) || defined(_WIN32) || defined(FTE_TARGET_WEB)
@@ -2135,7 +2141,7 @@ void SV_ClientProtocolExtensionsChanged(client_t *client)
 					 | PEXT2_MAXPLAYERS			/*not supporting the extra players is bad*/
 					 | PEXT2_PREDINFO			/*fixes some repdelta issues (especially for nq)*/
 					 | PEXT2_NEWSIZEENCODING	/*more accurate sizes, for awkward mods*/
-					 | PEXT2_INFOBLOBS			/*allows mods to send infoblobs to csqc (for avatar images or whatever)*/
+//					 | PEXT2_INFOBLOBS			/*allows mods to send infoblobs to csqc (for avatar images or whatever)*/
 					 ;
 		}
 		if (!strcasecmp(com_token, "fte1"))
@@ -2637,6 +2643,7 @@ void SV_DoDirectConnect(svconnectinfo_t *fte_restrict info)
 	char		basic[80];
 	qboolean	redirect = false;
 	qboolean	preserveparms = false;
+	unsigned int	ncflags;
 
 #ifdef NQPROT
 	extern cvar_t sv_protocol_nq;
@@ -2759,7 +2766,7 @@ void SV_DoDirectConnect(svconnectinfo_t *fte_restrict info)
 	newcl->fteprotocolextensions2 = info->ftepext2;
 	newcl->ezprotocolextensions1 = info->ezpext1;
 	newcl->protocol = info->protocol;
-	newcl->pextknown = info->ftepext1||info->ftepext2;
+	newcl->pextknown = info->ftepext1||info->ftepext2||info->ezpext1;
 	Q_strncpyz(newcl->guid, info->guid, sizeof(newcl->guid));
 
 //	Con_TPrintf("%s:%s:connect\n", sv.name, NET_AdrToString (adrbuf, sizeof(adrbuf), &adr));
@@ -3114,7 +3121,13 @@ void SV_DoDirectConnect(svconnectinfo_t *fte_restrict info)
 	}
 	newcl->zquake_extensions &= SERVER_SUPPORTED_Z_EXTENSIONS;
 
-	Netchan_Setup (NS_SERVER, &newcl->netchan, &info->adr, info->qport);
+	ncflags = NCF_SERVER;
+	if (info->mtu)
+		ncflags |= NCF_FRAGABLE;
+	if (info->ftepext2&PEXT2_STUNAWARE)
+		ncflags |= NCF_STUNAWARE;
+	Netchan_Setup (ncflags, &newcl->netchan, &info->adr, info->qport,
+					info->mtu?info->mtu:atoi(Info_ValueForKey (info->seat[0].info, "mtu")));
 
 #ifdef HUFFNETWORK
 	if (info->huffcrc)
@@ -3122,37 +3135,6 @@ void SV_DoDirectConnect(svconnectinfo_t *fte_restrict info)
 	else
 #endif
 		newcl->netchan.compresstable = NULL;
-	newcl->netchan.pext_fragmentation = info->mtu?true:false;
-	newcl->netchan.pext_stunaware = !!(info->ftepext2&PEXT2_STUNAWARE);
-	//this is the upper bound of the mtu, if its too high we'll get EMSGSIZE and we'll reduce it.
-	//however, if it drops below newcl->netchan.message.maxsize then we'll start to see undeliverable reliables, which means dropped clients.
-	newcl->netchan.mtu = MAX_DATAGRAM;	//vanilla qw clients are assumed to have an mtu of this size.
-	if (info->mtu >= 300)	//anything smaller is someone being intentionally malicious.
-	{	//if we support application fragmenting, then we can send massive reliables without too much issue
-		newcl->netchan.mtu = info->mtu;
-		newcl->netchan.message.maxsize = sizeof(newcl->netchan.message_buf);
-
-#ifdef HAVE_ICE
-		if (info->adr.type == NA_ICE)
-			newcl->netchan.mtu -= 48+12;	//dtls+sctp overhead
-		else
-#endif
-		if (info->adr.prot == NP_DTLS || info->adr.prot == NP_TLS)
-			newcl->netchan.mtu -= 48;		//dtls overhead
-	}
-	else
-	{	//otherwise we can't fragment the packets, and the only way to honour the mtu is to send less data. yay for more round-trips.
-		int mtu;
-		mtu = atoi(Info_ValueForKey (info->seat[0].info, "mtu"));
-		if (mtu)
-			newcl->netchan.mtu = mtu;	//locked mtu size, because not everyone has a working connection (we need icmp would-fragment responses for mtu detection)
-		else						//if its not set then use some 'safe' fallback.
-			mtu = MAX_BACKBUFLEN;	//MAX_BACKBUFLEN of 1200 is < ipv6 required segment size so should always work for reliables.
-		//enforce some boundaries
-		mtu = bound(512-8, mtu, sizeof(newcl->netchan.message_buf));
-		newcl->netchan.message.maxsize = mtu;
-	}
-	Con_DLPrintf(2, "MTU size: %i - %i\n", newcl->netchan.message.maxsize, newcl->netchan.mtu);
 
 	newcl->protocol = info->protocol;
 #ifdef NQPROT
@@ -3167,11 +3149,12 @@ void SV_DoDirectConnect(svconnectinfo_t *fte_restrict info)
 #endif
 	newcl->datagram.allowoverflow = true;
 	newcl->datagram.data = newcl->datagram_buf;
-	if (info->mtu >= 64)
+	if (newcl->netchan.flags&NCF_FRAGABLE)
 		newcl->datagram.maxsize = sizeof(newcl->datagram_buf);
 	else
 		newcl->datagram.maxsize = MAX_DATAGRAM;
 
+#ifdef Q2SERVER
 	if (newcl->protocol == SCP_QUAKE2EX)
 	{
 		newcl->netchan.netprim =
@@ -3180,6 +3163,7 @@ void SV_DoDirectConnect(svconnectinfo_t *fte_restrict info)
 		newcl->netchan.message.prim = sv.q2multicast[1].prim;
 	}
 	else
+#endif
 	{
 		newcl->netchan.netprim =
 		newcl->datagram.prim =
@@ -4123,7 +4107,7 @@ void SVC_ACK (void)
 				}
 				else
 				{
-					Netchan_OutOfBandPrint(NS_SERVER, &net_from, "realip not accepted. Please stop hacking.\n");
+					Netchan_OutOfBandPrint(NCF_SERVER, &net_from, "realip not accepted. Please stop hacking.\n");
 				}
 				return;
 			}
@@ -4216,7 +4200,7 @@ static qboolean SV_DetectAmplificationDDOS (void)
 					}
 					else	//extend by a smidge...
 						dosattacker[at].timeout += dosattacker_period/(double)dosattacker_limit;
-					return true;
+					return false;
 				}
 				break;
 			}
@@ -4350,7 +4334,7 @@ qboolean SV_ConnectionlessPacket (void)
 
 		if (secure.value)	//FIXME: possible problem for nq clients when enabled
 		{
-			Netchan_OutOfBandTPrintf (NS_SERVER, &net_from, com_language, "%c\nThis server requires client validation.\nPlease use the "FULLENGINENAME" validation program\n", A2C_PRINT);
+			Netchan_OutOfBandTPrintf (NCF_SERVER, &net_from, com_language, "%c\nThis server requires client validation.\nPlease use the "FULLENGINENAME" validation program\n", A2C_PRINT);
 		}
 		else
 		{
@@ -4379,7 +4363,7 @@ qboolean SV_ConnectionlessPacket (void)
 				{
 					//NET_DTLS_Disconnect(svs.sockets, &net_from);
 					if (NET_DTLS_Create(svs.sockets, &net_from, NULL, false))
-						Netchan_OutOfBandPrint(NS_SERVER, &net_from, "dtlsopened");
+						Netchan_OutOfBandPrint(NCF_SERVER, &net_from, "dtlsopened");
 					else
 						SV_RejectMessage (SCP_QUAKEWORLD, "DTLS driver failure.\n");
 				}
@@ -4682,7 +4666,7 @@ qboolean SVNQ_ConnectionlessPacket(void)
 					stricmp(password.string, "none"))
 				{	//make sure we don't get crippled because of being unable to specify the actual password with proquake's stuff.
 					char *e;
-					intmax_t svpass = strtoll(password.string, &e, 0);
+					qintmax_t svpass = strtoll(password.string, &e, 0);
 					if (*e)	//something ain't numeric... hash it so they have a chance of getting it right...
 						svpass = CalcHashInt(&hash_md4, password.string, strlen(password.string));
 					if (passwd != svpass)
@@ -4893,7 +4877,7 @@ void SV_OpenRoute_f(void)
 	{
 		sprintf(data, "\xff\xff\xff\xff%c", S2C_CONNECTION);
 
-		Netchan_OutOfBandPrint(NS_SERVER, &to, "hello");
+		Netchan_OutOfBandPrint(NCF_SERVER, &to, "hello");
 //		NET_SendPacket (strlen(data)+1, data, to);
 	}
 }
@@ -4918,9 +4902,9 @@ void SV_ReadPacket(void)
 			if (ct - lt > 5*1000)
 			{
 				if (*banreason)
-					Netchan_OutOfBandTPrintf(NS_SERVER, &net_from, com_language, "You are banned: %s\n", banreason);
+					Netchan_OutOfBandTPrintf(NCF_SERVER, &net_from, com_language, "You are banned: %s\n", banreason);
 				else
-					Netchan_OutOfBandTPrintf(NS_SERVER, &net_from, com_language, "You are banned\n");
+					Netchan_OutOfBandTPrintf(NCF_SERVER, &net_from, com_language, "You are banned\n");
 			}
 			return;
 		}
@@ -5620,11 +5604,6 @@ float SV_Frame (void)
 		}
 	}
 
-
-#ifdef WEBSERVER
-	IWebRun();
-#endif
-
 #ifdef SV_MASTER
 	if (sv_master.ival)
 		SVM_Think();
@@ -5882,7 +5861,7 @@ void SV_InitLocal (void)
 	static cvar_t qws_buildnum	= CVARF("qws_buildnum",	STRINGIFY(SVNREVISION),	CVAR_NOSET );
 	static cvar_t qws_platform	= CVARF("qws_platform",	PLATFORM "-" ARCH_CPU_POSTFIX,				CVAR_NOSET );
 	static cvar_t qws_builddate	= CVARF("qws_builddate",STRINGIFY(SVNDATE),		CVAR_NOSET );
-	static cvar_t qws_homepage	= CVARF("qws_homepage",	"https://sourceforge.net/projects/fteqw/",		CVAR_NOSET );
+	static cvar_t qws_homepage	= CVARF("qws_homepage",	ENGINEWEBSITE,		CVAR_NOSET );
 	Cvar_Register(&qws_name,		"Server Info");
 	Cvar_Register(&qws_fullname,	"Server Info");
 	Cvar_Register(&qws_version,		"Server Info");
@@ -6503,7 +6482,10 @@ void SV_ArgumentOverrides(void)
 	if (!p)
 		p = COM_CheckParm ("-port");
 	if (p && p < com_argc)
+	{
 		Cvar_Set(Cvar_FindVar("sv_port"), com_argv[p+1]);
+		Cvar_Set(Cvar_FindVar("sv_port_tcp"), com_argv[p+1]);
+	}
 }
 
 void SV_ExecInitialConfigs(char *defaultexec)
@@ -6541,6 +6523,89 @@ void SV_ExecInitialConfigs(char *defaultexec)
 	SV_ArgumentOverrides();
 }
 
+static void SV_StartInitialMap(void)
+{
+	// if a map wasn't specified on the command line, spawn start.map
+	//aliases require that we flush the cbuf in order to actually see the results.
+	if (sv.state == ss_dead && Cmd_AliasExist("dedicated_start", RESTRICT_LOCAL))
+	{
+		Cbuf_AddText("dedicated_start", RESTRICT_LOCAL);	//Q2 feature
+		Cbuf_Execute();
+	}
+	if (sv.state == ss_dead && Cmd_AliasExist("startmap_dm", RESTRICT_LOCAL))
+	{
+		Cbuf_AddText("startmap_dm", RESTRICT_LOCAL);	//DP extension
+		Cbuf_Execute();
+	}
+	if (sv.state == ss_dead && Cmd_AliasExist("startmap_sp", RESTRICT_LOCAL))
+	{
+		Cbuf_AddText("startmap_sp", RESTRICT_LOCAL);	//DP extension
+		Cbuf_Execute();
+	}
+	if (sv.state == ss_dead && COM_FCheckExists("maps/start.bsp"))
+		Cmd_ExecuteString ("map start", RESTRICT_LOCAL);	//regular q1
+#ifdef HEXEN2
+	if (sv.state == ss_dead && COM_FCheckExists("maps/demo1.bsp"))
+		Cmd_ExecuteString ("map demo1", RESTRICT_LOCAL);	//regular h2 sp
+#endif
+#ifdef Q2SERVER
+	if (sv.state == ss_dead && COM_FCheckExists("maps/base1.bsp"))
+		Cmd_ExecuteString ("map base1", RESTRICT_LOCAL);	//regular q2 sp
+#endif
+#ifdef Q3SERVER
+	if (sv.state == ss_dead && COM_FCheckExists("maps/q3dm1.bsp"))
+		Cmd_ExecuteString ("map q3dm1", RESTRICT_LOCAL);	//regular q3 'sp'
+#endif
+#ifdef HLSERVER
+	if (sv.state == ss_dead && COM_FCheckExists("maps/c0a0.bsp"))
+		Cmd_ExecuteString ("map c0a0", RESTRICT_LOCAL);	//regular hl sp
+#endif
+}
+
+static void SV_CheckMapless(int iarg, void *data)
+{	//kills the server if we're dead
+	static int wtf;
+	if (sv.state != ss_dead)
+		return;	//yay, the situation got resolved!
+	else if (HTTP_CL_GetActiveDownloads())
+		;	//we still have hope. check again later.
+	else
+	{
+#ifdef PACKAGEMANAGER
+		if (!FS_GameIsInitialised())
+			wtf = -1;
+		if (wtf == 0)
+		{
+			Cmd_ExecuteString("pkg listenabledsources", RESTRICT_LOCAL);
+			Cmd_ExecuteString("pkg refresh", RESTRICT_LOCAL);
+		}
+		else if (wtf == 1)
+		{
+			Cmd_ExecuteString("pkg upgrade", RESTRICT_LOCAL);
+			Cmd_ExecuteString("pkg apply", RESTRICT_LOCAL);
+		}
+		else if (wtf == 2)
+			Cmd_ExecuteString("fs_restart", RESTRICT_LOCAL);	//just in case...
+		else if (wtf == 3)
+			SV_StartInitialMap();	//we should be fully up and running, so try starting that initial map again.
+		else
+#endif
+		{
+			Cmd_ExecuteString("path", RESTRICT_LOCAL);
+			if (COM_CheckParm("-allowmapless"))
+			{	//this is risky and mustn't be on by default. there's a load of scripts that check for success or w/e, so best to not make them arbitrarily fail.
+				Con_Printf(CON_ERROR"Couldn't load a map. You may need to use the -basedir argument or to install some packages.\n");
+				Con_Printf(CON_ERROR"Use the ^[/fs_changegame^] to select the proper basedir/game, or use the ^[/pkg^] command to install required packages, or ^[/quit^] out\n");
+			}
+			else
+				SV_Error (CON_ERROR"Couldn't load a map. You may need to use the -basedir argument.");
+			return;
+		}
+		wtf++;
+	}
+	Cmd_AddTimer(0.1, SV_CheckMapless, 0, NULL,0);	//we still have hope. check again later.
+}
+
 void SV_Init (quakeparms_t *parms)
 {
 	if (isDedicated)
@@ -6551,7 +6616,6 @@ void SV_Init (quakeparms_t *parms)
 		host_parms = *parms;
 
 		Cvar_Init();
-
 		Memory_Init();
 
 		Sys_Init();
@@ -6589,10 +6653,6 @@ void SV_Init (quakeparms_t *parms)
 
 	SV_InitLocal ();
 
-#ifdef WEBSERVER
-	IWebInit();
-#endif
-
 #ifdef SERVER_DEMO_PLAYBACK
 	SV_Demo_Init();
 #endif
@@ -6623,7 +6683,6 @@ void SV_Init (quakeparms_t *parms)
 			FS_ChangeGame(NULL, true, true);
 
 		Cmd_StuffCmds();
-		Cbuf_Execute ();
 
 		Menu_Download_Update();
 
@@ -6649,48 +6708,8 @@ void SV_Init (quakeparms_t *parms)
 		IPLog_Merge_File("iplog.dat");	//legacy crap, for compat with proquake
 #endif
 
-		// if a map wasn't specified on the command line, spawn start.map
-		//aliases require that we flush the cbuf in order to actually see the results.
-		if (sv.state == ss_dead && Cmd_AliasExist("dedicated_start", RESTRICT_LOCAL))
-		{
-			Cbuf_AddText("dedicated_start", RESTRICT_LOCAL);	//Q2 feature
-			Cbuf_Execute();
-		}
-		if (sv.state == ss_dead && Cmd_AliasExist("startmap_dm", RESTRICT_LOCAL))
-		{
-			Cbuf_AddText("startmap_dm", RESTRICT_LOCAL);	//DP extension
-			Cbuf_Execute();
-		}
-		if (sv.state == ss_dead && Cmd_AliasExist("startmap_sp", RESTRICT_LOCAL))
-		{
-			Cbuf_AddText("startmap_sp", RESTRICT_LOCAL);	//DP extension
-			Cbuf_Execute();
-		}
-		if (sv.state == ss_dead && COM_FCheckExists("maps/start.bsp"))
-			Cmd_ExecuteString ("map start", RESTRICT_LOCAL);	//regular q1
-	#ifdef HEXEN2
-		if (sv.state == ss_dead && COM_FCheckExists("maps/demo1.bsp"))
-			Cmd_ExecuteString ("map demo1", RESTRICT_LOCAL);	//regular h2 sp
-	#endif
-	#ifdef Q2SERVER
-		if (sv.state == ss_dead && COM_FCheckExists("maps/base1.bsp"))
-			Cmd_ExecuteString ("map base1", RESTRICT_LOCAL);	//regular q2 sp
-	#endif
-	#ifdef Q3SERVER
-		if (sv.state == ss_dead && COM_FCheckExists("maps/q3dm1.bsp"))
-			Cmd_ExecuteString ("map q3dm1", RESTRICT_LOCAL);	//regular q3 'sp'
-	#endif
-	#ifdef HLSERVER
-		if (sv.state == ss_dead && COM_FCheckExists("maps/c0a0.bsp"))
-			Cmd_ExecuteString ("map c0a0", RESTRICT_LOCAL);	//regular hl sp
-	#endif
-
-		if (sv.state == ss_dead)
-		{
-			Cmd_ExecuteString("path", RESTRICT_LOCAL);
-			SV_Error ("Couldn't load a map. You may need to use the -basedir argument.");
-		}
-
+		SV_StartInitialMap();
+		SV_CheckMapless(0,NULL);	//restarts a timer, kill the server only when the pending downloads have ended.
 	}
 }
 

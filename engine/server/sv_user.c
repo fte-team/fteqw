@@ -36,17 +36,22 @@ static usercmd_t	cmd;
 
 void QDECL SV_NQPhysicsUpdate(cvar_t *var, char *oldvalue)
 {
-	if (!strcmp(var->string, "auto") || !strcmp(var->string, ""))
-	{	//prediction requires nq physics, so use it by default in multiplayer.
-		if ((svprogfuncs&&PR_FindFunction(svprogfuncs, "SV_RunClientCommand", PR_ANY)))
-			var->ival = 0;	//mods that use explicit custom player physics/pred ALWAYS want qw-like physics (just hope noone forces it off)
-		else if ((svprogfuncs&&PR_FindFunction(svprogfuncs, "SV_PlayerPhysics", PR_ANY)))
-			var->ival = 1;	//DP mods wanting DP's weird physics also suffer NQ behaviours
-		else if (	progstype <= PROG_QW ||	//none or qw use qw physics by default
-				(!isDedicated &&  sv.allocated_client_slots > 1))	//multiplayer dedicated servers use qw physics for nq mods too. server admins are expected to be able to spend a little more time to configure things properly.
-			var->ival = 0;
-		else
-			var->ival = 1;
+	if (svs.gametype != GT_PROGS)
+		var->ival = 0;	//nope, not a thing.
+	else
+	{
+		if (!strcmp(var->string, "auto") || !strcmp(var->string, ""))
+		{	//prediction requires nq physics, so use it by default in multiplayer.
+			if ((svprogfuncs&&PR_FindFunction(svprogfuncs, "SV_RunClientCommand", PR_ANY)))
+				var->ival = 0;	//mods that use explicit custom player physics/pred ALWAYS want qw-like physics (just hope noone forces it off)
+			else if ((svprogfuncs&&PR_FindFunction(svprogfuncs, "SV_PlayerPhysics", PR_ANY)))
+				var->ival = 1;	//DP mods wanting DP's weird physics also suffer NQ behaviours
+			else if (	progstype <= PROG_QW ||	//none or qw use qw physics by default
+					(!isDedicated &&  sv.allocated_client_slots > 1))	//multiplayer dedicated servers use qw physics for nq mods too. server admins are expected to be able to spend a little more time to configure things properly.
+				var->ival = 0;
+			else
+				var->ival = 1;
+		}
 	}
 }
 
@@ -1177,9 +1182,9 @@ void SV_SendClientPrespawnInfo(client_t *client)
 	//just because we CAN generate huge messages doesn't mean that we should.
 	//try to keep packets within reasonable sizes so that we don't trigger insane burst+packetloss on map changes.
 	maxsize = client->netchan.message.maxsize/2;
-	if (client->netchan.mtu && maxsize > client->netchan.mtu-200)
+	if (client->netchan.mtu_cur && maxsize > client->netchan.mtu_cur-200)
 	{
-		maxsize = client->netchan.mtu-200;
+		maxsize = client->netchan.mtu_cur-200;
 		if (maxsize < 500)
 			maxsize = 500;
 	}
@@ -2165,7 +2170,7 @@ void SVQW_Spawn_f (void)
 	ClientReliableWrite_Begin (host_client, svc_stufftext, 8);
 	ClientReliableWrite_String (host_client, "skins\n" );
 
-	if (sv.allocated_client_slots > 1)
+	if (sv.allocated_client_slots > 1 && svs.gametype == GT_PROGS)
 	{	//okay, so nq player physics don't suppot prediction.
 		//if we use qw physics in nq mods then we risk breaking things.
 		//the only progs many players will have is the vanilla nq one.
@@ -2533,7 +2538,6 @@ void SV_Begin_f (void)
 	host_client->netchan.frame_latency = 0;
 	host_client->netchan.frame_rate = 0;
 	host_client->netchan.drop_count = 0;
-	host_client->netchan.good_count = 0;
 
 	//check he's not cheating
 	if (progstype == PROG_QW)
@@ -2737,7 +2741,7 @@ static void SV_NextChunkedDownload(unsigned int chunknum, int ezpercent, int ezf
 
 			if (msg == &msg_oob)
 			{
-				Netchan_OutOfBand(NS_SERVER, &host_client->netchan.remote_address, msg_oob.cursize, msg_oob.data);
+				Netchan_OutOfBand(NCF_SERVER, &host_client->netchan.remote_address, msg_oob.cursize, msg_oob.data);
 				Netchan_Block(&host_client->netchan, msg_oob.cursize, SV_RateForClient(host_client));
 				host_client->netchan.bytesout += msg_oob.cursize;
 			}
@@ -3067,6 +3071,7 @@ void SV_VoiceReadPacket(void)
 				(ring->receiver[1]<<8) |
 				(ring->receiver[2]<<16) |
 				(ring->receiver[3]<<24);
+			//FIXME: 32 maxplayers limit.
 			msg = MVDWrite_Begin (dem_multiple, cls, ring->datalen+6);
 		}
 
@@ -3257,10 +3262,8 @@ void SV_Voice_UnmuteAll_f(void)
 }
 #endif
 
-qboolean SV_FindRemotePackage(const char *package, char *url, size_t urlsize)
+int SV_FindRemotePackage(const char *package, char *url, size_t urlsize)
 {
-	//FIXME: interrogate the package manager first? it probably doesn't have source urls though. I guess that should be done clientside.
-
 	//basedir/gamedir/curl_urls.txt contains something like:
 	//maps_*.pk3 https://host/maps/
 	//* https://host/gamedir/
@@ -3273,40 +3276,47 @@ qboolean SV_FindRemotePackage(const char *package, char *url, size_t urlsize)
 	//filter out the gamedir, so different gamedirs can have different sets of urls.
 	//(useful for eg pakN.pak, if it were not blocked elsewhere)
 	char *sep = strchr(package, '/');
-	if (!sep || sep-package>=sizeof(line))
-		return false;
-	memcpy(line, package, sep-package+1);
-	line[sep-package+1] = 0;
-	package = sep+1;
-
-	/*compat with xonotic*/
-	Q_strncatz(line, "curl_urls.txt", sizeof(line));
-	f = FS_OpenVFS(line, "rb", FS_ROOT);	//this is for server admins to deal with. urls are too unreliable for paks.
-	if (f)
+	if (sep && sep-package<sizeof(line))
 	{
-		char pattern[256];
-		char *e;
-		while (VFS_GETS(f, line, sizeof(line)))
+		sep++;
+		memcpy(line, package, sep-package);
+		line[sep-package] = 0;
+		//line is now 'gamedir/', sep is the gamedirless package
+
+		/*compat with xonotic*/
+		Q_strncatz(line, "curl_urls.txt", sizeof(line));
+		f = FS_OpenVFS(line, "rb", FS_ROOT);	//this is for server admins to deal with. urls are too unreliable for paks.
+		if (f)
 		{
-			e = COM_ParseOut(line, pattern, sizeof(pattern));
-			if (*pattern && wildcmp(pattern, package))
+			char pattern[256];
+			char *e;
+			while (VFS_GETS(f, line, sizeof(line)))
 			{
-				COM_ParseOut(e, url, urlsize);
-				Q_strncatz(url, package, urlsize);
-				VFS_CLOSE(f);
-				return true;
+				e = COM_ParseOut(line, pattern, sizeof(pattern));
+				if (*pattern && wildcmp(pattern, sep))
+				{
+					COM_ParseOut(e, url, urlsize);
+					Q_strncatz(url, sep, urlsize);
+					VFS_CLOSE(f);
+					return DLERR_SV_REDIRECTPACK;
+				}
 			}
+			VFS_CLOSE(f);
 		}
-		VFS_CLOSE(f);
 	}
+
+	//curl stuff is explicit so goes first.
+	//NOW try the package manager. probably it'll just redirect to the dlcache dir.
+//	if (PM_HandleRedirect(package, url, urlsize))
+//		return DLERR_SV_PACKAGE;
 
 	if (*fs_dlURL.string)
 	{	//a fallback, though the above mechanism allows for a wildcard for all.
 		Q_strncatz(fs_dlURL.string, package, urlsize);
 		Q_strncatz(url, package, urlsize);
-		return true;
+		return DLERR_SV_REDIRECTPACK;
 	}
-	return false;
+	return DLERR_FILENOTFOUND;
 }
 
 //Use of this function is on name only.
@@ -3451,6 +3461,8 @@ static int SV_LocateDownload(const char *name, flocation_t *loc, char **replacem
 	qboolean found;
 	static char tmpname[MAX_QPATH];
 
+//Con_Printf("%s request for %s\n", redirectpaks?"dlsize":"download", name);
+
 	if (replacementname)
 		*replacementname = NULL;
 
@@ -3500,19 +3512,47 @@ static int SV_LocateDownload(const char *name, flocation_t *loc, char **replacem
 
 	if (!Q_strncasecmp(name, "package/", 8))
 	{
-		vfsfile_t *f;
-		if (redirectpaks && SV_FindRemotePackage(name+8, tmpname, sizeof(tmpname)))
+		vfsfile_t *f = NULL;
+		searchpath_t *p;
+		if (redirectpaks)
 		{
-			*replacementname = tmpname;
-			return DLERR_REDIRECTFILE;
+			int redir = SV_FindRemotePackage(name+8, tmpname, sizeof(tmpname));
+//			can't handle http here. caller won't know what we mean
+			if (redir == DLERR_SV_PACKAGE)
+			{
+Con_Printf("Complex Redirecting %s to %s\n", name, tmpname);
+				Q_strncpyz(loc->rawname, tmpname, sizeof(loc->rawname));
+				return DLERR_SV_PACKAGE;
+			}
+			else if (redir == DLERR_SV_REDIRECTPACK)
+			{	//probably an http(s) path
+Con_Printf("Simple Redirecting %s to %s\n", name, tmpname);
+				*replacementname = tmpname;
+				return DLERR_SV_REDIRECTPACK;
+			}
 		}
 
-		f = FS_OpenVFS(name+8, "rb", FS_ROOT);
+		p = FS_GetPackage(name+8);
+		if (p && !*p->prefix)
+		{
+			if (FS_GenCachedPakName(name+8, va("%i", p->crc_check), loc->rawname, sizeof(loc->rawname)))
+			{
+				f = FS_OpenVFS(loc->rawname, "rb", FS_ROOT);	//it was cached
+				if (!f)
+				{
+					Q_strncpyz(loc->rawname, name+8, sizeof(loc->rawname));
+					f = FS_OpenVFS(loc->rawname, "rb", FS_ROOT);	//not cached go direct.
+				}
+			}
+			//else some evil path we're best off avoiding
+		}
+		else
+			f = NULL;	//don't let em grab paks we're not using ourselves.
 		if (f)
 		{
 			loc->len = VFS_GETLEN(f);
 			VFS_CLOSE(f);
-			return DLERR_PACKAGE;	//found package
+			return DLERR_SV_PACKAGE;	//found package
 		}
 		else
 			return DLERR_FILENOTFOUND;	//not found/unable to open
@@ -3586,7 +3626,7 @@ static int SV_LocateDownload(const char *name, flocation_t *loc, char **replacem
 					{	//this path is non authoritive, but we shouldn't be pushing people to download files they're not going to be allowed to download.
 						Q_snprintfz(tmpname, sizeof(tmpname), "package/%s", pakname);
 						*replacementname = tmpname;
-						return DLERR_REDIRECTPACK;	//redirect
+						return DLERR_SV_REDIRECTPACK;	//redirect
 					}
 				}
 			}
@@ -3616,7 +3656,7 @@ static int SV_LocateDownload(const char *name, flocation_t *loc, char **replacem
 		}
 
 		if (replacementname && *replacementname)
-			return DLERR_REDIRECTPACK;
+			return DLERR_SV_REDIRECTPACK;
 		return 0;
 	}
 	return -1;	//not found
@@ -3631,8 +3671,9 @@ void SV_DownloadSize_f(void)
 
 	switch(SV_LocateDownload(name, &loc, &redirected, true))
 	{
+	case DLERR_SV_REDIRECTPACK: /*redirect (the containing package)*/
+
 	case DLERR_REDIRECTFILE: /*redirect (extension difference or so)*/
-	case DLERR_REDIRECTPACK: /*redirect (the containing package)*/
 		name = va("dlsize \"%s\" r \"%s\"\n", name, redirected);
 		ClientReliableWrite_Begin (host_client, svc_stufftext, 2+strlen(name));
 		ClientReliableWrite_String (host_client, name);
@@ -3648,7 +3689,7 @@ void SV_DownloadSize_f(void)
 		ClientReliableWrite_Begin (host_client, svc_stufftext, 2+strlen(name));
 		ClientReliableWrite_String (host_client, name);
 		break;
-	case DLERR_PACKAGE: /*requested file is a package*/
+	case DLERR_SV_PACKAGE: /*requested file is a package*/
 	case 0: /*file exists*/
 		name = va("dlsize \"%s\" %u\n", name, (unsigned int)loc.len);
 		ClientReliableWrite_Begin (host_client, svc_stufftext, 2+strlen(name));
@@ -3845,16 +3886,16 @@ void SV_BeginDownload_f(void)
 
 	result = SV_LocateDownload(name, &loc, &redirection, false);
 
-	if (result == DLERR_PACKAGE)
+	if (result == DLERR_SV_PACKAGE)
 	{
 		//package download
 		result = 0;
-		host_client->download = FS_OpenVFS(name+8, "rb", FS_ROOT);
+		host_client->download = FS_OpenVFS(loc.rawname, "rb", FS_ROOT);
 	}
 	else
 	{
 		//redirection protocol-specific code goes here.
-		if (result == DLERR_REDIRECTPACK || result == DLERR_REDIRECTFILE)
+		if (result == DLERR_SV_REDIRECTPACK || result == DLERR_REDIRECTFILE)
 		{
 #ifdef PEXT_CHUNKEDDOWNLOADS
 			//ezquake etc cannot cope with proper redirects
@@ -3917,7 +3958,8 @@ void SV_BeginDownload_f(void)
 			result = DLERR_PERMISSIONS;
 			error = "Client doesn't support file redirection for %s\n";
 			break;
-		case DLERR_REDIRECTPACK:
+		case DLERR_SV_REDIRECTPACK:
+		case DLERR_SV_PACKAGE:
 			result = DLERR_PERMISSIONS;
 			error = "Package contents not available individually\n";
 			break;
@@ -5976,6 +6018,8 @@ static void Cmd_FPSList_f(void)
 			SV_ClientPrintf(host_client, PRINT_HIGH, "%s: %gfps (%g - %g), c2s: %ibps, s2c: %ibps, ping %ims(-%i), pl %i%% %s\n", cl->name, ftime/frames, minf, maxf, (int)cl->inrate, (int)cl->outrate, SV_CalcPing(cl, false), (int)(1000*cl->delay), cl->lossage, protoname);
 		else
 			SV_ClientPrintf(host_client, PRINT_HIGH, "%s: unknown framerate, c2s: %ibps, s2c: %ibps, ping %ims(-%i), pl %i%% %s\n", cl->name, (int)cl->inrate, (int)cl->outrate, SV_CalcPing(cl, false), (int)(1000*cl->delay), cl->lossage, protoname);
+
+//		SV_ClientPrintf(host_client, PRINT_HIGH, CON_DEBUG"%s: %i\n", cl->name, cl->netchan.mtu_cur);
 	}
 }
 
@@ -6106,7 +6150,6 @@ static void SVNQ_Begin_f (void)
 	host_client->netchan.frame_latency = 0;
 	host_client->netchan.frame_rate = 0;
 	host_client->netchan.drop_count = 0;
-	host_client->netchan.good_count = 0;
 
 	//check he's not cheating
 
@@ -6633,6 +6676,7 @@ ucmd_t nqucmds[] =
 	{"dlsize",		SV_DownloadSize_f},
 	{"download",	SV_BeginDownload_f},
 	{"sv_startdownload",	SVDP_StartDownload_f},
+	{"stopdownload",	SV_StopDownload_f},
 
 	{"serverinfo", SV_ShowServerinfo_f},
 	/*userinfo stuff*/
@@ -6918,19 +6962,19 @@ static qboolean AddEntityToPmove(world_t *w, wedict_t *player, wedict_t *check)
 	safeswitch(q1contents)
 	{
 	case Q1CONTENTS_EMPTY:			pe->nonsolid = true;	pe->forcecontentsmask = FTECONTENTS_EMPTY;	break;
-	case Q1CONTENTS_TRANS:
 	case Q1CONTENTS_SOLID:			pe->nonsolid = false;	pe->forcecontentsmask = FTECONTENTS_SOLID;	break;
 	case Q1CONTENTS_WATER:			pe->nonsolid = true;	pe->forcecontentsmask = FTECONTENTS_WATER;	break;
 	case Q1CONTENTS_LAVA:			pe->nonsolid = true;	pe->forcecontentsmask = FTECONTENTS_LAVA;	break;
 	case Q1CONTENTS_SLIME:			pe->nonsolid = true;	pe->forcecontentsmask = FTECONTENTS_SLIME;	break;
 	case Q1CONTENTS_SKY:			pe->nonsolid = true;	pe->forcecontentsmask = FTECONTENTS_SKY;	break;
-	case Q1CONTENTS_CLIP:			pe->nonsolid = false;	pe->forcecontentsmask = FTECONTENTS_PLAYERCLIP|FTECONTENTS_MONSTERCLIP;	break;
-	case Q1CONTENTS_CURRENT_0:		pe->nonsolid = true;	pe->forcecontentsmask = FTECONTENTS_WATER|Q2CONTENTS_CURRENT_0;			break;
-	case Q1CONTENTS_CURRENT_90:		pe->nonsolid = true;	pe->forcecontentsmask = FTECONTENTS_WATER|Q2CONTENTS_CURRENT_90;		break;
-	case Q1CONTENTS_CURRENT_180:	pe->nonsolid = true;	pe->forcecontentsmask = FTECONTENTS_WATER|Q2CONTENTS_CURRENT_180;		break;
-	case Q1CONTENTS_CURRENT_270:	pe->nonsolid = true;	pe->forcecontentsmask = FTECONTENTS_WATER|Q2CONTENTS_CURRENT_270;		break;
-	case Q1CONTENTS_CURRENT_UP:		pe->nonsolid = true;	pe->forcecontentsmask = FTECONTENTS_WATER|Q2CONTENTS_CURRENT_UP;		break;
-	case Q1CONTENTS_CURRENT_DOWN:	pe->nonsolid = true;	pe->forcecontentsmask = FTECONTENTS_WATER|Q2CONTENTS_CURRENT_DOWN;		break;
+	case HLCONTENTS_CLIP:			pe->nonsolid = false;	pe->forcecontentsmask = FTECONTENTS_PLAYERCLIP|FTECONTENTS_MONSTERCLIP;	break;
+	case HLCONTENTS_CURRENT_0:		pe->nonsolid = true;	pe->forcecontentsmask = FTECONTENTS_WATER|Q2CONTENTS_CURRENT_0;			break;
+	case HLCONTENTS_CURRENT_90:		pe->nonsolid = true;	pe->forcecontentsmask = FTECONTENTS_WATER|Q2CONTENTS_CURRENT_90;		break;
+	case HLCONTENTS_CURRENT_180:	pe->nonsolid = true;	pe->forcecontentsmask = FTECONTENTS_WATER|Q2CONTENTS_CURRENT_180;		break;
+	case HLCONTENTS_CURRENT_270:	pe->nonsolid = true;	pe->forcecontentsmask = FTECONTENTS_WATER|Q2CONTENTS_CURRENT_270;		break;
+	case HLCONTENTS_CURRENT_UP:		pe->nonsolid = true;	pe->forcecontentsmask = FTECONTENTS_WATER|Q2CONTENTS_CURRENT_UP;		break;
+	case HLCONTENTS_CURRENT_DOWN:	pe->nonsolid = true;	pe->forcecontentsmask = FTECONTENTS_WATER|Q2CONTENTS_CURRENT_DOWN;		break;
+	case HLCONTENTS_TRANS:			pe->nonsolid = true;	pe->forcecontentsmask = FTECONTENTS_EMPTY;	break;
 	case Q1CONTENTS_LADDER:			pe->nonsolid = true;	pe->forcecontentsmask = FTECONTENTS_LADDER;			break;
 	case Q1CONTENTS_MONSTERCLIP:	pe->nonsolid = true;	pe->forcecontentsmask = FTECONTENTS_MONSTERCLIP;	break;
 	case Q1CONTENTS_PLAYERCLIP:		pe->nonsolid = false;	pe->forcecontentsmask = FTECONTENTS_PLAYERCLIP;		break;
@@ -8248,7 +8292,7 @@ static double SVFTE_ExecuteClientMove(client_t *controller)
 					if (split->lastcmd.servertime < split->lastruncmd)
 					{
 						if (sv_showpredloss.ival)
-							Con_Printf("%s: client jumped %u msecs backwards (anti speed cheat)\n", split->name, split->lastruncmd - split->lastcmd.servertime);
+							Con_Printf("%s: client jumped %u msecs backwards (anti speed cheat buffering)\n", split->name, split->lastruncmd - split->lastcmd.servertime);
 					}
 					else if (split->lastruncmd < split->lastcmd.servertime)
 					{
@@ -8257,7 +8301,7 @@ static double SVFTE_ExecuteClientMove(client_t *controller)
 							//from last map?... attempted speedcheat?
 							if (sv_showpredloss.ival)
 								Con_Printf("%s: client is %u msecs in the future (anti speed cheat)\n", split->name, split->lastcmd.servertime - curtime);
-							split->lastcmd.servertime = curtime;
+							split->lastcmd.servertime = curtime;	//push it back to what we thought it would be...
 						}
 
 						if (!ran)
@@ -8265,6 +8309,8 @@ static double SVFTE_ExecuteClientMove(client_t *controller)
 							SV_PreRunCmd();
 							ran=true;
 						}
+
+						split->lastcmd.msec = split->lastcmd.servertime - split->lastruncmd;
 
 						SV_Prompt_Input(split, &split->lastcmd);
 						SV_RunCmd (&split->lastcmd, false);

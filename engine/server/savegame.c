@@ -244,7 +244,7 @@ static qboolean SV_LegacySavegame (const char *savename, qboolean verbose)
 
 	sprintf (name, "%s", savename);
 	COM_RequireExtension (name, ".sav", sizeof(name));	//do NOT allow .pak etc
-	if (!FS_NativePath(name, FS_GAMEONLY, native, sizeof(native)))
+	if (!FS_DisplayPath(name, FS_GAMEONLY, native, sizeof(native)))
 		return false;
 	Con_TPrintf (U8("Saving game to %s...\n"), native);
 	f = FS_OpenVFS(name, "wbp", FS_GAMEONLY);
@@ -982,9 +982,9 @@ void SV_SaveLevelCache(const char *savedir, qboolean dontharmgame)
 #ifdef Q2SERVER
 	if (ge)
 	{
-		char	syspath[256];
+		char	syspath[MAX_OSPATH];
 
-		if (!FS_NativePath(name, FS_GAMEONLY, syspath, sizeof(syspath)))
+		if (!FS_SystemPath(name, FS_GAMEONLY, syspath, sizeof(syspath)))
 			return;
 		ge->WriteLevel(syspath);
 
@@ -1415,7 +1415,7 @@ void SV_Savegame (const char *savename, qboolean mapchange)
 	if (ge)
 	{
 		char syspath[256];
-		if (!FS_NativePath(va("saves/%s/game.gsv", savename), FS_GAMEONLY, syspath, sizeof(syspath)))
+		if (!FS_SystemPath(va("saves/%s/game.gsv", savename), FS_GAMEONLY, syspath, sizeof(syspath)))
 			return;
 		ge->WriteGame(syspath, mapchange);
 		FS_FlushFSHashFull();

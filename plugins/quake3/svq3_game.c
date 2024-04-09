@@ -3413,7 +3413,7 @@ void SVQ3_DirectConnect(netadr_t *from, sizebuf_t *msg)	//Actually connect the c
 	cl->name = cl->namebuf;
 	cl->team = cl->teambuf;
 	worldfuncs->ExtractFromUserinfo(cl, true);
-	Netchan_SetupQ3(NS_SERVER, &cl->netchan, from, qport);
+	Netchan_SetupQ3(NCF_SERVER, &cl->netchan, from, qport);
 	cl->netchan.outgoing_sequence = 1;
 
 	cl->challenge = challenge;

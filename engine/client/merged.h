@@ -209,7 +209,7 @@ extern int Mod_TagNumForName					(struct model_s *model, const char *name, int f
 
 void Mod_AddSingleSurface(struct entity_s *ent, int surfaceidx, shader_t *shader, int mode);
 int Mod_GetNumBones(struct model_s *model, qboolean allowtags);
-int Mod_GetBoneRelations(struct model_s *model, int firstbone, int lastbone, framestate_t *fstate, float *result);
+int Mod_GetBoneRelations(struct model_s *model, int firstbone, int lastbone, const struct galiasbone_s *boneinfo, const framestate_t *fstate, float *result);
 int Mod_GetBoneParent(struct model_s *model, int bonenum);
 struct galiasbone_s *Mod_GetBoneInfo(struct model_s *model, int *numbones);
 const char *Mod_GetBoneName(struct model_s *model, int bonenum);
@@ -221,11 +221,6 @@ void Draw_FunStringWidthFont(struct font_s *font, float x, float y, const void *
 #define Draw_FunStringWidth(x,y,str,width,rightalign,highlight) Draw_FunStringWidthFont(font_default,x,y,str,width,rightalign,highlight)
 
 extern int r_regsequence;
-
-#ifdef SERVERONLY
-#define Mod_Q1LeafPVS Mod_LeafPVS
-// qbyte *Mod_LeafPVS (struct mleaf_s *leaf, struct model_s *model, qbyte *buffer);
-#endif
 
 enum
 {
@@ -314,13 +309,13 @@ struct pendingtextureinfo
 
 	uploadfmt_t encoding;	//PTI_* formats
 	void *extrafree;		//avoids some memcpys
-	int mipcount;
+	unsigned int mipcount;
 	struct
 	{
 		void *data;
 		size_t datasize; //ceil(width/blockwidth)*ceil(height/blockheight)*ceil(depth/blockdepth)*blocksize - except that blockdepth is always considered 1 for now.
-		int width;
-		int height;
+		unsigned int width;
+		unsigned int height;
 		int depth;
 		qboolean needfree;
 	} mip[72];	//enough for a 4096 cubemap. or a really smegging big 2d texture...

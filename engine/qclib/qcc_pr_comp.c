@@ -894,6 +894,8 @@ QCC_opcode_t pr_opcodes[] =
 
  {0, NULL, "OPD_GOTO_FORSTART"},
  {0, NULL, "OPD_GOTO_WHILE1"},
+ {0, NULL, "OPD_GOTO_BREAK"},
+ {0, NULL, "OPD_GOTO_DEFAULT"},
 
  {0, NULL}
 };
@@ -1382,6 +1384,8 @@ static pbool QCC_OPCodeValidForTarget(qcc_targetformat_t targfmt, unsigned int q
 			return (qcc_targetversion>=5768);
 		if (num >= OP_STOREP_B)	//byte
 			return (qcc_targetversion>=5744);
+		//storep_* offsets 5712
+		//	return (qcc_targetversion>=5744);
 		if (num >= OP_STOREF_V)	//field stores
 			return (qcc_targetversion>=5698);
 		if (num >= OP_IF_F)		//iffloat fixes
@@ -11376,8 +11380,9 @@ QCC_sref_t QCC_LoadFromArray(QCC_sref_t base, QCC_sref_t index, QCC_type_t *t, p
 	int flags;
 	int accel;
 
-	//dp-style opcodes take integer indicies, and thus often need type conversions
-	//h2-style opcodes take float indicies, but have a built in boundscheck that wrecks havoc with vectors and structs (and thus sucks when the types don't match)
+	//1: hexen2's FETCH_GBL opcodes take float indicies, but have a built in boundscheck that wrecks havoc with vectors and structs (and thus sucks when the types don't match)
+	//2: fte's LOADA opcodes use ints without hidden boundcheck (engine will still ensure it reads an actual global), and vectors are not special(needs a separate *3 opcode) so they're struct friendly.
+	//3: dp's GLOAD opcodes -- like fte's but without any offsetting so you need an extra addition.
 
 	if (index.cast->type != ev_float || t->type != base.cast->type)
 		accel = 2;
@@ -11385,9 +11390,9 @@ QCC_sref_t QCC_LoadFromArray(QCC_sref_t base, QCC_sref_t index, QCC_type_t *t, p
 		accel = 1;
 
 	if (accel == 2 && !QCC_OPCodeValid(&pr_opcodes[OP_LOADA_F]))
-		accel = QCC_OPCodeValid(&pr_opcodes[OP_GLOAD_F])&&!base.sym->temp?3:1;
+		accel = QCC_OPCodeValid(&pr_opcodes[OP_GLOAD_F])&&!base.sym->temp?3:1;	//chose best for ints
 	if (accel == 1 && (!base.sym->arraylengthprefix || !QCC_OPCodeValid(&pr_opcodes[OP_FETCH_GBL_F])))
-		accel = QCC_OPCodeValid(&pr_opcodes[OP_LOADA_F])?2:0;
+		accel = QCC_OPCodeValid(&pr_opcodes[OP_LOADA_F])?2:0;	//chose best for floats
 
 	if (accel == 3)
 	{	//dp-style, somewhat annoying.

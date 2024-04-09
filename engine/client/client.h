@@ -475,6 +475,7 @@ typedef struct
 		CPNQ_BJP1,	//16bit models, strict 8bit sounds (otherwise based on nehahra)
 		CPNQ_BJP2,	//16bit models, strict 16bit sounds
 		CPNQ_BJP3,	//16bit models, flagged 16bit sounds, 8bit static sounds.
+		CPNQ_H2MP,	//urgh
 		CPNQ_FITZ666, /*and rmqe999 protocol, which is a strict superset*/
 		CPNQ_DP5,
 		CPNQ_DP6,
@@ -519,7 +520,7 @@ typedef struct
 // entering a map (and clearing client_state_t)
 	vfsfile_t	*demooutfile;
 
-	enum{DPB_NONE,DPB_QUAKEWORLD,DPB_MVD,DPB_EZTV,
+	enum{DPB_NONE,DPB_QUAKEWORLD,DPB_MVD,
 #ifdef NQPROT
 		DPB_NETQUAKE,
 #endif
@@ -527,18 +528,29 @@ typedef struct
 		DPB_QUAKE2
 #endif
 	}	demoplayback, demorecording;
+	unsigned int demoeztv_ext;
+		#define EZTV_DOWNLOAD		(1u<<0)	//also changes modellist/soundlist stuff to keep things synced
+		#define EZTV_SETINFO		(1u<<1)	//proxy wants setinfo + ptrack commands
+		#define EZTV_QTVUSERLIST	(1u<<2)	//'//qul cmd id [name]' commands from proxy.
 	qboolean	demohadkeyframe;	//q2 needs to wait for a packet with a key frame, supposedly.
 	qboolean	demoseeking;
 	float		demoseektime;
 	int			demotrack;
 	qboolean	timedemo;
-	char		lastdemoname[MAX_OSPATH];
+	char		lastdemoname[MAX_OSPATH];	//empty if is a qtv stream
 	qboolean	lastdemowassystempath;
 	vfsfile_t	*demoinfile;
 	float		td_lastframe;		// to meter out one message a frame
 	int			td_startframe;		// host_framecount at start
 	float		td_starttime;		// realtime at second frame of timedemo
 	float		demostarttime;		// the time of the first frame, so we don't get weird results with qw demos
+
+	struct qtvviewers_s
+	{	//(other) people on a qtv. in case people give a damn.
+		struct qtvviewers_s *next;
+		int			userid;
+		char		name[128];
+	} *qtvviewers;
 
 	int			challenge;
 
@@ -904,12 +916,12 @@ typedef struct
 // information that is static for the entire time connected to a server
 //
 #ifdef HAVE_LEGACY
-	char				model_name_vwep[MAX_VWEP_MODELS][MAX_QPATH];
+	char				*model_name_vwep[MAX_VWEP_MODELS];
 	struct model_s		*model_precache_vwep[MAX_VWEP_MODELS];
 #endif
-	char				model_name[MAX_PRECACHE_MODELS][MAX_QPATH];
+	char				*model_name[MAX_PRECACHE_MODELS];
 	struct model_s		*model_precache[MAX_PRECACHE_MODELS];
-	char				sound_name[MAX_PRECACHE_SOUNDS][MAX_QPATH];
+	char				*sound_name[MAX_PRECACHE_SOUNDS];
 	struct sfx_s		*sound_precache[MAX_PRECACHE_SOUNDS];
 	char				*particle_ssname[MAX_SSPARTICLESPRE];
 	int					particle_ssprecache[MAX_SSPARTICLESPRE];	//these are actually 1-based, so 0 can be used to lazy-init them. I cheat.
@@ -994,6 +1006,8 @@ typedef struct
 	float				currentpacktime;
 	qboolean			do_lerp_players;
 
+	playerview_t		*mouseplayerview;	//for mouse/scoreboard interaction when playing mvds.
+	int					mousenewtrackplayer;
 
 	int teamplay;
 	int deathmatch;
@@ -1363,6 +1377,7 @@ void CL_Parse_Disconnected(void);
 void CL_DumpPacket(void);
 void CL_ParseEstablished(void);
 void CLQW_ParseServerMessage (void);
+void CLEZ_ParseHiddenDemoMessage (void);
 void CLNQ_ParseServerMessage (void);
 #ifdef Q2CLIENT
 void CLQ2_ParseServerMessage (void);

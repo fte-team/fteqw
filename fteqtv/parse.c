@@ -1743,6 +1743,7 @@ void ParseMessage(sv_t *tv, void *buffer, int length, int to, int mask)
 #ifndef _MSC_VER
 	#warning QTV is meant to disconnect when servers tells it to.
 #endif
+				QTV_Printf(tv, "Maliciously ignoring svc_disconnect from upstream...\n");	//ideally the client would be the one to close() the socket first so its the one that gets stuck in TIME_WAIT instead of the server.
 				// FIXME: Servers are today sending the svc_disconnect in a non-standard way, which makes QTV drop when it shouldn't.
 				// Tell the server developers to fix the servers.
 				//tv->drop = true;

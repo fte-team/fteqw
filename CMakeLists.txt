@@ -174,6 +174,19 @@ IF(JPEG_FOUND)
 ELSE()
 	MESSAGE(WARNING "libjpeg library NOT available. Who cares?")
 	SET(FTE_LIB_DEFINES ${FTE_LIB_DEFINES};NO_JPEG)
+	SET(JPEG_LIBRARIES)
+ENDIF()
+
+SET(FTE_DEP_DBUS true CACHE BOOL "Link against libdbus.")
+IF(FTE_DEP_DBUS)
+	FIND_PACKAGE(DBus1)
+ENDIF()
+IF(DBUS1_FOUND)
+	INCLUDE_DIRECTORIES( ${DBus1_INCLUDE_DIRS} )
+	SET(FTE_LIB_DEFINES ${FTE_LIB_DEFINES};HAVE_DBUS)
+	SET(FTE_LIBS ${FTE_LIBS} ${DBus1_LIBRARIES})
+ELSE()
+	MESSAGE(WARNING "libdbus-1 library NOT available. Who cares?")
 ENDIF()
 
 SET(FTE_DEP_PNG true CACHE BOOL "Link against libpng.")
@@ -187,6 +200,7 @@ IF(PNG_FOUND)
 ELSE()
 	MESSAGE(WARNING "libpng library NOT available. Good luck with screenshots.")
 	SET(FTE_LIB_DEFINES ${FTE_LIB_DEFINES};NO_PNG)
+	SET(PNG_LIBRARIES)
 ENDIF()
 
 SET(FTE_DEP_FREETYPE true CACHE BOOL "Link against libfreetype.")
@@ -221,7 +235,7 @@ ELSE()
 ENDIF()
 
 SET(FTE_DEP_VORBISFILE true CACHE BOOL "Link against libvorbisfile.")
-IF(FTE_DEP_VROBISFILE)
+IF(FTE_DEP_VORBISFILE)
 	FIND_LIBRARY(VORBISFILE_LIBRARY NAMES vorbisfile)
 ENDIF()
 IF(NOT VORBISFILE_LIBRARY)
@@ -230,18 +244,30 @@ IF(NOT VORBISFILE_LIBRARY)
 	SET(FTE_LIB_DEFINES ${FTE_LIB_DEFINES};NO_OGG)
 ENDIF()
 
+IF(CMAKE_BUILD_TYPE MATCHES "Debug")
+	SET(FTE_WERROR true CACHE BOOL "Warnings as errors.")
+ELSE()
+	SET(FTE_WERROR false CACHE BOOL "Warnings as errors.")
+ENDIF()
+IF(FTE_WERROR)
+	SET(FTE_WERROR_ARG "-Werror")
+ELSE()
+	SET(FTE_WERROR_ARG "")
+ENDIF()
+
 IF(CMAKE_C_COMPILER_ID MATCHES "Clang")
 	set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wno-pointer-sign")
 
 	IF(CMAKE_BUILD_TYPE MATCHES "Debug")
-		set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -Werror -Wno-pointer-sign -Wno-unknown-pragmas -Wno-format-zero-length -Wno-strict-aliasing -Wno-error=cpp")
+		set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall ${FTE_WERROR_ARG} -Wno-pointer-sign -Wno-unknown-pragmas -Wno-format-zero-length -Wno-strict-aliasing -Wno-error=cpp")
 	ELSE()
-		set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O3")
+		set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O3 ${FTE_WERROR_ARG}")
 	ENDIF()
 endif()
 IF(CMAKE_C_COMPILER_ID MATCHES "GNU")
 	SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wstrict-prototypes")			#
 	SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wold-style-definition")		#k&r c is weird and can't cope with 64bit types.
+	SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wmissing-parameter-type")		#k&r c is weird and can't cope with 64bit types.
 	SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wold-style-declaration")		#
 	SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wpointer-arith")				#void* stuff
 	SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wvla")							#msvc doesn't support vla
@@ -254,9 +280,9 @@ IF(CMAKE_C_COMPILER_ID MATCHES "GNU")
 	#might as well do this, public builds use the regular Makefile.
 	set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -march=native")
 	IF(CMAKE_BUILD_TYPE MATCHES "Debug")
-		set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -Werror -Wno-pointer-sign -Wno-unknown-pragmas -Wno-format-zero-length -Wno-strict-aliasing -Wno-error=cpp")
+		set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall ${FTE_WERROR_} -Wno-pointer-sign -Wno-unknown-pragmas -Wno-format-zero-length -Wno-strict-aliasing -Wno-error=cpp")
 	ELSE()
-		set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O3")
+		set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O3 ${FTE_WERROR_}")
 	ENDIF()
 	IF (NOT FTE_USE_SDL)
 		set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wl,--warn-common")
@@ -266,8 +292,8 @@ ENDIF()
 IF(CMAKE_BUILD_TYPE MATCHES "Debug")
 	IF(NOT ${WIN32})
 		set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fstack-protector-strong")
+		set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -std=gnu89")
 	ENDIF()
-	set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -std=gnu89")
 	set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -D_DEBUG")
 ENDIF()
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -D_FILE_OFFSET_BITS=64")
@@ -288,6 +314,32 @@ FUNCTION(EMBED_PLUGIN_META PLUGNAME PLUGTITLE PLUGDESC)
 		COMMAND cmake -E rm $<TARGET_FILE:plug_${PLUGNAME}>.zip
 		VERBATIM)
 ENDFUNCTION()
+
+SET(FTE_DEP_GNUTLS true CACHE BOOL "Link against gnutls")
+IF(FTE_DEP_GNUTLS)
+	FIND_PACKAGE(GnuTLS)
+	IF(NOT GNUTLS_FOUND)
+		MESSAGE(WARNING "gnutls library NOT available. HTTPS/DTLS will not be available.")
+		SET(FTE_LIB_DEFINES ${FTE_LIB_DEFINES};NO_GNUTLS)
+	ELSE()
+		IF(WIN32)
+			SET(GNUTLS_STATIC true CACHE BOOL "Link gnutls statically.") #usually as an .so though. :/
+		ELSE()
+			SET(GNUTLS_STATIC false CACHE BOOL "Link gnutls statically.") #usually as an .so though. :/
+		ENDIF()
+		IF(GNUTLS_STATIC)
+			SET(FTE_LIB_DEFINES ${FTE_LIB_DEFINES};GNUTLS_STATIC)
+			SET(FTE_LIBS ${FTE_LIBS} ${GNUTLS_LIBRARY})
+			SET(FTESV_LIBS ${FTESV_LIBS} ${GNUTLS_LIBRARY})
+		ENDIF()
+	ENDIF()
+ENDIF()
+IF(WIN32)
+	SET(FTE_DEP_WINSSPI true CACHE BOOL "Link against winsspi(schannel)")
+	IF(NOT FTE_DEP_WINSSPI)
+		SET(FTE_DEFINES ${FTE_DEFINES};NO_WINSSPI)
+	ENDIF()
+ENDIF()
 
 IF(${ANDROID})
 #	FIND_PACKAGE(Freetype REQUIRED)
@@ -315,6 +367,7 @@ ELSEIF(WIN32 AND NOT FTE_USE_SDL)
 		engine/client/winquake.rc
 		engine/common/sys_win_threads.c
 		engine/common/net_ssl_winsspi.c
+		engine/common/net_ssl_gnutls.c
 		engine/common/fs_win32.c
 		engine/client/cd_win.c
 		engine/client/in_win.c
@@ -345,24 +398,12 @@ ELSEIF(WIN32 AND NOT FTE_USE_SDL)
 		engine/client/winquake.rc
 		engine/common/sys_win_threads.c
 		engine/common/net_ssl_winsspi.c
+		engine/common/net_ssl_gnutls.c
 		engine/common/fs_win32.c
 		engine/server/sv_sys_win.c
 	)
 ELSEIF(UNIX AND NOT FTE_USE_SDL)	#linux(ish)
 				#openbsd will have issues with snd_linux.c
-
-	FIND_PACKAGE(GnuTLS)
-	IF(NOT GNUTLS_FOUND)
-		MESSAGE(WARNING "gnutls library NOT available. HTTPS/DTLS will not be available.")
-		SET(FTE_LIB_DEFINES ${FTE_LIB_DEFINES};NO_GNUTLS)
-	ELSE()
-		SET(GNUTLS_STATIC false CACHE BOOL "Link gnutls statically.") #usually as an .so though. :/
-		IF(GNUTLS_STATIC)
-			SET(FTE_LIB_DEFINES ${FTE_LIB_DEFINES};GNUTLS_STATIC)
-			SET(FTE_LIBS ${FTE_LIBS} ${GNUTLS_LIBRARY})
-			SET(FTESV_LIBS ${FTESV_LIBS} ${GNUTLS_LIBRARY})
-		ENDIF()
-	ENDIF()
 
 	#linux-only packages
 	FIND_PACKAGE(ALSA)
@@ -381,6 +422,10 @@ ELSEIF(UNIX AND NOT FTE_USE_SDL)	#linux(ish)
 		IF (NOT X11_Xrandr_FOUND)
 			SET(FTE_LIB_DEFINES ${FTE_LIB_DEFINES};NO_X11_RANDR)
 			MESSAGE(WARNING "Xrandr library NOT available.")
+		ENDIF()
+		IF (NOT X11_Xscreensaver_FOUND)
+			SET(FTE_LIB_DEFINES ${FTE_LIB_DEFINES};NO_X11_XSS)
+			MESSAGE(WARNING "Xss library NOT available.")
 		ENDIF()
 	ELSE()
 		MESSAGE(WARNING "x11 library NOT available.")
@@ -450,7 +495,7 @@ ELSEIF(UNIX AND NOT FTE_USE_SDL)	#linux(ish)
 		ENDIF()
 	ENDIF()
 
-	SET(FTESV_DEFINES MULTITHREAD)
+	SET(FTESV_DEFINES ${FTESV_DEFINES};MULTITHREAD)
 	SET(FTESV_ARCH_FILES ${FTESV_ARCH_FILES}
 		engine/server/sv_sys_unix.c
 		engine/common/sys_linux_threads.c
@@ -481,7 +526,7 @@ ELSEIF(1)	#SDL
 		engine/gl/gl_vidsdl.c
 	)
 
-	SET(FTESV_DEFINES FTE_SDL)
+	SET(FTESV_DEFINES ${FTESV_DEFINES};MULTITHREAD)
 	SET(FTESV_LIBS ${FTESV_LIBS} ${SYS_LIBS} ${CMAKE_DL_LIBS} ${SDL2_LIBRARIES})
 
 	IF(WIN32)
@@ -505,6 +550,7 @@ ELSEIF(1)	#SDL
 			engine/common/sys_linux_threads.c
 			engine/server/sv_sys_unix.c
 		)
+		SET(FTESV_LIBS ${FTESV_LIBS} pthread)
 	ENDIF()
 ELSE()
 #	engine/common/sys_linux_threads.c
@@ -862,7 +908,7 @@ SET(FTE_Q3_FILES
 )
 
 #For annoying compressed gltf2 files.
-SET(FTE_DEP_DRACO false CACHE BOOL "Link against libdraco.")
+SET(FTE_DEP_DRACO false CACHE BOOL "Link against libdraco (apache2).")
 IF(FTE_DEP_DRACO)
 	FIND_LIBRARY(
 		DRACO_LIBRARY
@@ -1052,8 +1098,8 @@ ELSE()
 			imgtool.c
 			iqm/iqm.h
 		)
-		SET_TARGET_PROPERTIES(iqmtool PROPERTIES COMPILE_DEFINITIONS "IQMTOOL;${DRACO_CFLAGS};${FTE_REVISON}")
-		TARGET_LINK_LIBRARIES(iqmtool ${CMAKE_DL_LIBS} ${DRACO_LIBRARY})
+		SET_TARGET_PROPERTIES(iqmtool PROPERTIES COMPILE_DEFINITIONS "IQMTOOL;${DRACO_CFLAGS};${FTE_LIB_DEFINES};${FTE_REVISON}")
+		TARGET_LINK_LIBRARIES(iqmtool ${CMAKE_DL_LIBS} ${DRACO_LIBRARY} ${JPEG_LIBRARIES} ${PNG_LIBRARIES})
 		SET(INSTALLTARGS ${INSTALLTARGS} iqmtool)
 	ENDIF()
 
@@ -1151,6 +1197,7 @@ ELSE()
 			engine/qclib/qcc_pr_lex.c
 			engine/qclib/qccmain.c
 			engine/qclib/qcd_main.c
+			engine/qclib/decomp.c
 			engine/qclib/packager.c
 		)
 		SET_TARGET_PROPERTIES(fteqcc PROPERTIES COMPILE_DEFINITIONS "${FTE_LIB_DEFINES};${FTE_REVISON}")
@@ -1260,6 +1307,8 @@ SET(FTE_PLUG_OPENSSL false CACHE BOOL "Compile OpenSSL.")
 IF(FTE_PLUG_OPENSSL)
 	#the openssl license is incompatible with the GPL, so while we have code to use it distributing the binaries built with it is not a (legal) option.
 	#note that openssl 3.0.0 upwards are apache-2 licensed, which IS gpl-3 compatible (though not gpl-2). debian has not caught up with that yet, however.
+	#Crosscompile linux->win64: sudo ln -s ${pwd}/engine/libs-x86_64-w64-mingw32/openssl-openssl-3.0.1/ /usr/x86_64-w64-mingw32/OpenSSL
+	SET(OPENSSL_USE_STATIC_LIBS true CACHE BOOL "Link openssl statically.") #usually as an .so though. :/)
 	FIND_PACKAGE(OpenSSL)
 	IF(OPENSSL_VERSION_MAJOR LESS 3)
 		SET(FTE_PRIVATE_USE_ONLY false CACHE BOOL "Ignore license violations.")
@@ -1275,11 +1324,15 @@ IF(FTE_PLUG_OPENSSL)
 			MESSAGE(WARNING "Using openssl. Resulting plugin must be licensed as GPLv3.")
 		ENDIF()
 		SET(FTE_LIB_DEFINES ${FTE_LIB_DEFINES})
+		if (WIN32)
+			SET(OPENSSL_LIBRARIES ${OPENSSL_LIBRARIES} ws2_32)
+		ENDIF()
 
 		ADD_LIBRARY(plug_openssl MODULE
 			plugins/plugin.c
 			plugins/net_ssl_openssl.c
 		)
+		TARGET_INCLUDE_DIRECTORIES(plug_openssl PRIVATE ${OPENSSL_INCLUDE_DIR})
 		SET_TARGET_PROPERTIES(plug_openssl PROPERTIES COMPILE_DEFINITIONS "FTEPLUGIN;${FTE_LIB_DEFINES}")
 		TARGET_LINK_LIBRARIES(plug_openssl ${SYS_LIBS} ${OPENSSL_LIBRARIES})
 
@@ -1291,7 +1344,7 @@ ENDIF()
 #IF(FTE_PLUG_GNUTLS)
 #	FIND_PACKAGE(GnuTLS)
 #	IF(NOT GNUTLS_FOUND)
-#		MESSAGE(WARNING "openssl library NOT available. you'll have to use some other library.")
+#		MESSAGE(WARNING "gnutls library NOT available. you'll have to use some other library.")
 #	ELSE()
 #		SET(FTE_LIB_DEFINES ${FTE_LIB_DEFINES})
 #
@@ -1628,7 +1681,8 @@ IF(FTE_MENU_SYS)
 		DEPENDS fteqcc
 		WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/quakec/menusys/"
 		COMMAND fteqcc -srcfile "menu.src" -o "${CMAKE_CURRENT_BINARY_DIR}/menu.dat" -DREVISION="${SVNREVISION}" -DDATE="${FTE_DATE}" -DBRANCH="${FTE_BRANCH}"
-		BYPRODUCTS "${CMAKE_CURRENT_BINARY_DIR}/menu.dat" "${CMAKE_CURRENT_BINARY_DIR}/menu.lno"
+		COMMAND /bin/echo -e "{\\n	package fte_menusys\\n	ver \"${SVNREVISION}\"\\n	category Plugins\\n	title \"Replacement Menus\"\\n	gamedir \"id1\"\\n	desc \"Modern menus to replace the ancient quake ones\"\\n}" | zip -j -q -9 -fz- "${CMAKE_CURRENT_BINARY_DIR}/menusys.pk3" - "${CMAKE_CURRENT_BINARY_DIR}/menu.dat"
+		BYPRODUCTS "${CMAKE_CURRENT_BINARY_DIR}/menu.dat" "${CMAKE_CURRENT_BINARY_DIR}/menu.lno" "${CMAKE_CURRENT_BINARY_DIR}/menusys.pk3"
 		SOURCES
 			quakec/menusys/menu.src
 			quakec/menusys/fteextensions.qc
@@ -1665,12 +1719,8 @@ IF(FTE_MENU_SYS)
 			quakec/menusys/menu/quit.qc
 	)
 
-	ADD_CUSTOM_COMMAND(
-		TARGET menusys POST_BUILD
-		COMMAND /bin/echo -e "{\\n	package fte_menusys\\n	ver \"${SVNREVISION}\"\\n	category Plugins\\n	title \"Replacement Menus\"\\n	gamedir \"id1\"\\n	desc \"Modern menus to replace the ancient quake ones\"\\n}" | zip -q -9 -fz- menusys.pk3 - menu.dat
-		VERBATIM)
 	INSTALL(FILES
-		menusys.pk3
+		${CMAKE_CURRENT_BINARY_DIR}/menusys.pk3
 		DESTINATION "${CMAKE_INSTALL_DATAROOTDIR}/games/quake/id1/")
 ENDIF()
 
@@ -1681,7 +1731,8 @@ IF(FTE_CSADDON)
 		DEPENDS fteqcc
 		WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/quakec/csaddon/src/"
 		COMMAND fteqcc -srcfile "csaddon.src" -o "${CMAKE_CURRENT_BINARY_DIR}/csaddon.dat"
-		BYPRODUCTS "${CMAKE_CURRENT_BINARY_DIR}/csaddon.dat" "${CMAKE_CURRENT_BINARY_DIR}/csaddon.lno"
+		COMMAND /bin/echo -e "{\\n	package fte_csaddon\\n	ver \"${SVNREVISION}\"\\n	category Plugins\\n	title \"${PLUGTITLE}\"\\n	gamedir \"id1\"\\n	desc \"${PLUGDESC}\"\\n}" | zip -j -q -9 -fz- "${CMAKE_CURRENT_BINARY_DIR}/csaddon.pk3" - "${CMAKE_CURRENT_BINARY_DIR}/csaddon.dat"
+		BYPRODUCTS "${CMAKE_CURRENT_BINARY_DIR}/csaddon.dat" "${CMAKE_CURRENT_BINARY_DIR}/csaddon.lno" "${CMAKE_CURRENT_BINARY_DIR}/csaddon.pk3"
 		SOURCES
 			quakec/csaddon/src/csaddon.src
 
@@ -1704,11 +1755,7 @@ IF(FTE_CSADDON)
 			quakec/csaddon/src/csaddon.qc
 	)
 
-	ADD_CUSTOM_COMMAND(
-		TARGET csaddon POST_BUILD
-		COMMAND /bin/echo -e "{\\n	package fte_csaddon\\n	ver \"${SVNREVISION}\"\\n	category Plugins\\n	title \"${PLUGTITLE}\"\\n	gamedir \"id1\"\\n	desc \"${PLUGDESC}\"\\n}" | zip -q -9 -fz- csaddon.pk3 - csaddon.dat
-		VERBATIM)
 	INSTALL(FILES
-		csaddon.pk3
+		${CMAKE_CURRENT_BINARY_DIR}/csaddon.pk3
 		DESTINATION "${CMAKE_INSTALL_DATAROOTDIR}/games/quake/id1/")
 ENDIF()

@@ -452,7 +452,7 @@ static void Sys_Register_File_Associations_f(void)
 		if (!strcmp(iconname, "afterquake") || !strcmp(iconname, "nq"))	//hacks so that we don't need to create icons.
 			iconname = "quake";
 
-		if (FS_NativePath("icon.png", FS_PUBBASEGAMEONLY, iconsyspath, sizeof(iconsyspath)))
+		if (FS_SystemPath("icon.png", FS_PUBBASEGAMEONLY, iconsyspath, sizeof(iconsyspath)))
 			iconname = iconsyspath;
 
 		s = va("%s/applications/fte-%s.desktop", xdgbase, fs_manifest->installation);
@@ -1215,7 +1215,7 @@ static void DoSign(const char *fname, int signtype)
 		searchpathfuncs_t *search = FS_OpenPackByExtension(f, NULL, fname, fname, prefix);
 		if (search)
 		{
-			printf("%#08x", search->GeneratePureCRC(search, 0, 0));
+			printf("%#08x", search->GeneratePureCRC(search, NULL));
 			search->ClosePath(search);
 		}
 		else
@@ -1550,15 +1550,6 @@ int main (int c, const char **v)
 #endif
 
 	Host_Init(&parms);
-
-	for (i = 1; i < parms.argc; i++)
-	{
-		if (!parms.argv[i])
-			continue;
-		if (*parms.argv[i] == '+' || *parms.argv[i] == '-')
-			break;
-		Host_RunFile(parms.argv[i], strlen(parms.argv[i]), NULL);
-	}
 
 	oldtime = Sys_DoubleTime ();
 	while (1)

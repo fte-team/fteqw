@@ -31,7 +31,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #endif
 
 #define VK_NO_STDINT_H //we're handling this. please don't cause conflicts. grr.
-#if __STDC_VERSION__ >= 199901L || defined(__GNUC__)
+#if __STDC_VERSION__ >= 199901L || defined(__GNUC__) || _MSC_VER >= 1600
 	//C99 has a stdint header which hopefully contains an intptr_t
 	//its optional... but if its not in there then its unlikely you'll actually be able to get the engine to a stage where it *can* load anything
 	#include <stdint.h>
@@ -43,6 +43,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 	#define quint32_t uint32_t
 	#define qint64_t int64_t
 	#define quint64_t uint64_t
+	#define qintmax_t intmax_t
+	#define quintmax_t uintmax_t
 #else
 	#define qint8_t signed char	//be explicit with this one.
 	#define quint8_t unsigned char
@@ -85,6 +87,9 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 		#define quint64_t unsigned qint64_t
 	#endif
 
+	#define qintmax_t qint64_t
+	#define quintmax_t quint64_t
+
 	#ifndef uint32_t
 		#define int8_t		qint8_t
 		#define uint8_t		quint8_t
@@ -96,6 +101,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 		#define uint64_t	quint64_t
 		#define intptr_t	qintptr_t
 		#define uintptr_t	quintptr_t
+		#define intmax_t	qintmax_t
+		#define uintmax_t	quintmax_t
 	#endif
 #endif
 
@@ -345,6 +352,8 @@ void MSG_WriteDir (sizebuf_t *sb, float dir[3]);
 extern	qboolean	msg_badread;		// set if a read goes beyond end of message
 extern struct netprim_s msg_nullnetprim;
 
+int MSG_PeekByte(void);
+
 void MSG_BeginReading (sizebuf_t *sb, struct netprim_s prim);
 void MSG_ChangePrimitives(struct netprim_s prim);
 int MSG_GetReadCount(void);
@@ -380,7 +389,6 @@ void MSGFTE_ReadDeltaUsercmd (const struct usercmd_s *from, struct usercmd_s *mo
 void MSGQ2_ReadDeltaUsercmd (struct client_s *cl, const struct usercmd_s *from, struct usercmd_s *move);
 void MSG_ReadData (void *data, int len);
 void MSG_ReadSkip (int len);
-
 
 int MSG_ReadSize16 (sizebuf_t *sb);
 void MSG_WriteSize16 (sizebuf_t *sb, unsigned int sz);
@@ -568,6 +576,7 @@ typedef struct searchpath_s
 	char logicalpath[MAX_OSPATH];	//printable hunam-readable location of the package. generally includes a system path, including nested packages.
 	char purepath[256];	//server tracks the path used to load them so it can tell the client
 	char prefix[MAX_QPATH];	//prefix to add to each file within the archive. may also be ".." to mean ignore the top-level path.
+	int crc_seed;	//can skip some hashes if this is cached.
 	int crc_check;	//client sorts packs according to this checksum
 	int crc_reply;	//client sends a different crc back to the server, for the paks it's actually loaded.
 	int orderkey;	//used to check to see if the paths were actually changed or not.
@@ -607,6 +616,7 @@ qboolean FS_GetLocMTime(flocation_t *location, time_t *modtime);
 const char *FS_GetPackageDownloadFilename(flocation_t *loc);	//returns only packages (or null)
 const char *FS_GetRootPackagePath(flocation_t *loc);			//favours packages, but falls back on gamedirs.
 
+searchpath_t *FS_GetPackage(const char *package); //for fancy stuff that should probably have its own helper...
 qboolean FS_GetPackageDownloadable(const char *package);
 char *FS_GetPackHashes(char *buffer, int buffersize, qboolean referencedonly);
 char *FS_GetPackNames(char *buffer, int buffersize, int referencedonly, qboolean ext);
@@ -660,12 +670,12 @@ char *VFS_GETS(vfsfile_t *vf, char *buffer, size_t buflen);
 void VARGS VFS_PRINTF(vfsfile_t *vf, const char *fmt, ...) LIKEPRINTF(2);
 
 enum fs_relative{
-	//note that many of theses paths can map to multiple system locations. FS_NativePath can vary somewhat in terms of what it returns, generally favouring writable locations rather then the path that actually contains a file.
+	//note that many of theses paths can map to multiple system locations. FS_SystemPath/FS_DisplayPath can vary somewhat in terms of what it returns, generally favouring writable locations rather then the path that actually contains a file.
 	FS_BINARYPATH,	//where the 'exe' is located. we'll check here for dlls too.
 	FS_LIBRARYPATH,	//for system dlls and stuff
 	FS_ROOT,		//./ (effectively -homedir if enabled, otherwise effectively -basedir arg)
 	FS_SYSTEM,		//a system path. absolute paths are explicitly allowed and expected, but not required.
-
+#define FS_RELATIVE_ISSPECIAL(r) ((r)<FS_GAME)
 	//after this point, all types must be relative to a gamedir
 	FS_GAME,		//standard search (not generally valid for writing/save/rename/delete/etc)
 	FS_GAMEONLY,	//$gamedir/
@@ -676,6 +686,8 @@ enum fs_relative{
 
 qboolean COM_WriteFile (const char *filename, enum fs_relative fsroot, const void *data, int len);
 
+char *FS_AbbreviateSize(char *buf, size_t bufsize, qofs_t fsize);	//just formats a filesize into the buffer and returns it.
+
 void FS_FlushFSHashWritten(const char *fname);
 void FS_FlushFSHashRemoved(const char *fname);
 void FS_FlushFSHashFull(void);	//too much/unknown changed...
@@ -685,7 +697,9 @@ qboolean FS_Rename2(const char *oldf, const char *newf, enum fs_relative oldrela
 qboolean FS_Remove(const char *fname, enum fs_relative relativeto);	//0 on success, non-0 on error
 qboolean FS_RemoveTree(searchpathfuncs_t *pathhandle, const char *fname);
 qboolean FS_Copy(const char *source, const char *dest, enum fs_relative relativesource, enum fs_relative relativedest);
-qboolean FS_NativePath(const char *fname, enum fs_relative relativeto, char *out, int outlen);	//if you really need to fopen yourself
+//qboolean FS_NativePath(const char *fname, enum fs_relative relativeto, char *out, int outlen);	//if you really need to fopen yourself
+qboolean FS_SystemPath(const char *fname, enum fs_relative relativeto, char *out, int outlen);	//if you really need to fopen yourself
+qboolean FS_DisplayPath(const char *fname, enum fs_relative relativeto, char *out, int outlen);	//retrieves a string for user display. prefixes may be masked for privacy.
 qboolean FS_WriteFile (const char *filename, const void *data, int len, enum fs_relative relativeto);
 void *FS_MallocFile(const char *filename, enum fs_relative relativeto, qofs_t *filesize);
 vfsfile_t *QDECL FS_OpenVFS(const char *filename, const char *mode, enum fs_relative relativeto);
@@ -964,6 +978,7 @@ extern hashfunc_t hash_sha2_384;
 extern hashfunc_t hash_sha2_512;
 extern hashfunc_t hash_crc16;		//aka ccitt, required for qw's clc_move and various bits of dp compat
 extern hashfunc_t hash_crc16_lower;
+#define hash_certfp hash_sha2_256	//This is the hash function we're using to compute *fp serverinfo. we can detect 1/2-256/2-512 by sizes, but we need consistency to avoid confusion in clientside things too.
 unsigned int hashfunc_terminate_uint(const hashfunc_t *hash, void *context); //terminate, except returning the digest as a uint instead of a blob. folds the digest if longer than 4 bytes.
 unsigned int CalcHashInt(const hashfunc_t *hash, const void *data, size_t datasize);
 size_t CalcHash(const hashfunc_t *hash, unsigned char *digest, size_t maxdigestsize, const unsigned char *data, size_t datasize);
@@ -1001,7 +1016,6 @@ typedef enum {
 } logtype_t;
 void Log_String (logtype_t lognum, const char *s);
 void Con_Log (const char *s);
-void Log_Logfile_f (void);
 void Log_Init(void);
 void Log_ShutDown(void);
 #ifdef IPLOG
@@ -1085,8 +1099,15 @@ json_t *JSON_FindChild(json_t *t, const char *child);	//find a named child in an
 json_t *JSON_GetIndexed(json_t *t, unsigned int idx);	//find an indexed child in an array (or object, though slower)
 double JSON_ReadFloat(json_t *t, double fallback);		//read a numeric value.
 size_t JSON_ReadBody(json_t *t, char *out, size_t outsize);	//read a string value.
+size_t JSON_GetCount(json_t *t);
 //exotic fancy functions
-json_t *JSON_ParseNode(json_t *t, const char *namestart, const char *nameend, const char *json, int *jsonpos, int jsonlen); //fancy parsing.
+struct jsonparsectx_s
+{
+	char const *const data;
+	const size_t size;
+	size_t pos;
+};
+json_t *JSON_ParseNode(json_t *t, const char *namestart, const char *nameend, struct jsonparsectx_s *ctx); //fancy parsing.
 //helpers
 json_t *JSON_FindIndexedChild(json_t *t, const char *child, unsigned int idx);		//just a helper.
 qboolean JSON_Equals(json_t *t, const char *child, const char *expected);			//compares a bit faster.

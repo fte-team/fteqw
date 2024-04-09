@@ -319,11 +319,10 @@ void M_Menu_Load_f (void)
 void M_Menu_SinglePlayer_f (void)
 {
 	emenu_t *menu;
-#ifndef CLIENTONLY
+#ifdef HAVE_SERVER
 	menubutton_t *b;
 	mpic_t *p;
 	static menuresel_t resel;
-#endif
 
 #if MAX_SPLITS > 1
 	static const char *splitopts[] =
@@ -343,15 +342,6 @@ void M_Menu_SinglePlayer_f (void)
 			NULL
 		};
 #endif
-
-#ifdef CLIENTONLY
-	menu = M_CreateMenu(0);
-
-	MC_AddWhiteText(menu, 84, 0, 12*8, "This build is unable", false);
-	MC_AddWhiteText(menu, 84, 0, 13*8, "to start a local game", false);
-
-	MC_AddBox (menu, 60, 11*8, 25*8, 4*8);
-#else
 
 	switch(M_GameType())
 	{
@@ -580,6 +570,14 @@ void M_Menu_SinglePlayer_f (void)
 
 		menu->cursoritem = (menuoption_t*)MC_AddCursor(menu, &resel, 54, 32);
 	}
+
+#else
+	menu = M_CreateMenu(0);
+
+	MC_AddWhiteText(menu, 84, 0, 12*8, "This build is unable", false);
+	MC_AddWhiteText(menu, 84, 0, 13*8, "to start a local game", false);
+
+	MC_AddBox (menu, 60, 11*8, 25*8, 4*8);
 #endif
 }
 
@@ -626,9 +624,9 @@ static void M_DemoDraw(int x, int y, menucustom_t *control, emenu_t *menu)
 	demoitem_t *item, *lostit;
 	int ty;
 
-	char syspath[MAX_OSPATH];
-	if (FS_NativePath(info->fs->path, (info->fs->fsroot==FS_GAME)?FS_GAMEONLY:info->fs->fsroot, syspath, sizeof(syspath)))
-		Draw_FunString(x, y-16, syspath);
+	char displaypath[MAX_OSPATH];
+	if (FS_DisplayPath(info->fs->path, (info->fs->fsroot==FS_GAME)?FS_GAMEONLY:info->fs->fsroot, displaypath, sizeof(displaypath)))
+		Draw_FunString(x, y-16, displaypath);
 
 	ty = vid.height-24;
 	item = info->selected;
@@ -1021,7 +1019,7 @@ static void ShowDemoMenu (emenu_t *menu, const char *path)
 	{
 		if (!strcmp(path, "../"))
 		{
-			FS_NativePath("", FS_ROOT, info->fs->path, sizeof(info->fs->path));
+			FS_SystemPath("", FS_ROOT, info->fs->path, sizeof(info->fs->path));
 			Q_strncatz(info->fs->path, "../", sizeof(info->fs->path));
 			info->fs->fsroot = FS_SYSTEM;
 			while((s = strchr(info->fs->path, '\\')))

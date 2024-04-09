@@ -1351,6 +1351,7 @@ static struct
 {
 	evalc_t chain;
 	evalc_t model;
+	evalc_t modelindex;
 	evalc_t mins;
 	evalc_t maxs;
 	evalc_t origin;
@@ -1364,6 +1365,7 @@ static struct
 	evalc_t frame2time;
 	evalc_t renderflags;
 	evalc_t skinobject;
+	evalc_t skelobject;
 	evalc_t colourmod;
 	evalc_t alpha;
 } menuc_eval;
@@ -2034,6 +2036,23 @@ static void QCBUILTIN PF_m_precache_model(pubprogfuncs_t *prinst, struct globalv
 	const char *modelname = PR_GetStringOfs(prinst, OFS_PARM0);
 	Mod_ForName(modelname, MLV_WARN);
 }
+static model_t *QDECL MP_GetCModel(struct world_s *w, int modelindex)
+{
+	extern int		mod_numknown;
+	modelindex--;
+	if (modelindex < 0 || modelindex >= mod_numknown)
+		return NULL;
+	return &mod_known[modelindex];
+}
+static void QCBUILTIN PF_m_getmodelindex(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	const char *modelname = PR_GetStringOfs(prinst, OFS_PARM0);
+	model_t *m = Mod_ForName(modelname, MLV_WARN);
+	if (m)
+		G_FLOAT(OFS_RETURN) = (m-mod_known)+1;
+	else
+		G_FLOAT(OFS_RETURN) = 0;
+}
 static void QCBUILTIN PF_m_setmodel(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	menuedict_t *ent = (void*)G_EDICT(prinst, OFS_PARM0);
@@ -2041,6 +2060,7 @@ static void QCBUILTIN PF_m_setmodel(pubprogfuncs_t *prinst, struct globalvars_s 
 	eval_t *modelval = prinst->GetEdictFieldValue(prinst, (void*)ent, "model", ev_string, &menuc_eval.model);
 	eval_t *minsval = prinst->GetEdictFieldValue(prinst, (void*)ent, "mins", ev_vector, &menuc_eval.mins);
 	eval_t *maxsval = prinst->GetEdictFieldValue(prinst, (void*)ent, "maxs", ev_vector, &menuc_eval.maxs);
+	eval_t *modelidxval = prinst->GetEdictFieldValue(prinst, (void*)ent, "modelindex", ev_float, &menuc_eval.modelindex);
 	model_t *mod = Mod_ForName(modelname, MLV_WARN);
 	if (modelval)
 		modelval->string = G_INT(OFS_PARM1);	//lets hope garbage collection is enough.
@@ -2050,6 +2070,8 @@ static void QCBUILTIN PF_m_setmodel(pubprogfuncs_t *prinst, struct globalvars_s 
 	if (mod)
 		while(mod->loadstate == MLS_LOADING)
 			COM_WorkerPartialSync(mod, &mod->loadstate, MLS_LOADING);
+	if (modelidxval)
+		modelidxval->_float = mod?(mod-mod_known)+1:0;
 
 	if (mod && minsval)
 		VectorCopy(mod->mins, minsval->_vector);
@@ -2110,6 +2132,44 @@ static void QCBUILTIN PF_m_clearscene(pubprogfuncs_t *prinst, struct globalvars_
 	V_CalcRefdef(&menuview);	//set up the defaults
 	r_refdef.flags |= RDF_NOWORLDMODEL;
 }
+static void QDECL MP_Read_FrameState(pubprogfuncs_t *prinst, wedict_t *ent, framestate_t *fstate)
+{
+	eval_t *frame1val = prinst->GetEdictFieldValue(prinst, (void*)ent, "frame", ev_float, &menuc_eval.frame1);
+	eval_t *frame2val = prinst->GetEdictFieldValue(prinst, (void*)ent, "frame2", ev_float, &menuc_eval.frame2);
+	eval_t *lerpfracval = prinst->GetEdictFieldValue(prinst, (void*)ent, "lerpfrac", ev_float, &menuc_eval.lerpfrac);
+	eval_t *frame1timeval = prinst->GetEdictFieldValue(prinst, (void*)ent, "frame1time", ev_float, &menuc_eval.frame1time);
+	eval_t *frame2timeval = prinst->GetEdictFieldValue(prinst, (void*)ent, "frame2time", ev_float, &menuc_eval.frame2time);
+	eval_t *skelobjectval = prinst->GetEdictFieldValue(prinst, (void*)ent, "skeletonindex", ev_float, &menuc_eval.skelobject);
+
+	fstate->g[FST_BASE].endbone = 0;
+	fstate->g[FS_REG].endbone = 0x7fffffff;
+	fstate->g[FS_REG].frame[0] = frame1val?frame1val->_float:0;
+	fstate->g[FS_REG].frame[1] = frame2val?frame2val->_float:0;
+	fstate->g[FS_REG].lerpweight[1] = lerpfracval?lerpfracval->_float:0;
+	fstate->g[FS_REG].frametime[0] = frame1timeval?frame1timeval->_float:0;
+	fstate->g[FS_REG].frametime[1] = frame2timeval?frame2timeval->_float:0;
+
+#if FRAME_BLENDS >= 4
+	fstate->g[FS_REG].frame[2] = fstate->g[FS_REG].frame[0];
+	fstate->g[FS_REG].lerpweight[2] = 0;
+	fstate->g[FS_REG].frame[3] = fstate->g[FS_REG].frame[0];
+	fstate->g[FS_REG].lerpweight[3] = 0;
+	fstate->g[FS_REG].lerpweight[0] = 1-(fstate->g[FS_REG].lerpweight[1]+fstate->g[FS_REG].lerpweight[2]+fstate->g[FS_REG].lerpweight[3]);
+#else
+	fstate->g[FS_REG].lerpweight[0] = 1-fstate->g[FS_REG].lerpweight[1];
+#endif
+
+#if defined(SKELETALOBJECTS) || defined(RAGDOLL)
+	fstate->bonecount = 0;
+	fstate->bonestate = NULL;
+	if (skelobjectval && skelobjectval->_float)
+		skel_lookup(&menu_world, skelobjectval->_float, fstate);
+#endif
+}
+static void QDECL MP_Get_FrameState(struct world_s *w, wedict_t *ent, framestate_t *fstate)
+{
+	MP_Read_FrameState(w->progs, ent, fstate);
+}
 static qboolean CopyMenuEdictToEntity(pubprogfuncs_t *prinst, menuedict_t *in, entity_t *out)
 {
 	eval_t *modelval = prinst->GetEdictFieldValue(prinst, (void*)in, "model", ev_string, &menuc_eval.model);
@@ -2121,6 +2181,7 @@ static qboolean CopyMenuEdictToEntity(pubprogfuncs_t *prinst, menuedict_t *in, e
 	eval_t *lerpfracval = prinst->GetEdictFieldValue(prinst, (void*)in, "lerpfrac", ev_float, &menuc_eval.lerpfrac);
 	eval_t *frame1timeval = prinst->GetEdictFieldValue(prinst, (void*)in, "frame1time", ev_float, &menuc_eval.frame1time);
 	eval_t *frame2timeval = prinst->GetEdictFieldValue(prinst, (void*)in, "frame2time", ev_float, &menuc_eval.frame2time);
+	eval_t *skelobjectval = prinst->GetEdictFieldValue(prinst, (void*)in, "skeletonindex", ev_float, &menuc_eval.skelobject);
 	eval_t *colormapval = prinst->GetEdictFieldValue(prinst, (void*)in, "colormap", ev_float, &menuc_eval.colormap);
 	eval_t *renderflagsval = prinst->GetEdictFieldValue(prinst, (void*)in, "renderflags", ev_float, &menuc_eval.renderflags);
 	eval_t *skinobjectval = prinst->GetEdictFieldValue(prinst, (void*)in, "skinobject", ev_float, &menuc_eval.skinobject);
@@ -2148,6 +2209,13 @@ static qboolean CopyMenuEdictToEntity(pubprogfuncs_t *prinst, menuedict_t *in, e
 	out->framestate.g[FS_REG].lerpweight[0] = 1-out->framestate.g[FS_REG].lerpweight[1];
 	out->framestate.g[FS_REG].frametime[0] = frame1timeval?frame1timeval->_float:0;
 	out->framestate.g[FS_REG].frametime[1] = frame2timeval?frame2timeval->_float:0;
+
+#if defined(SKELETALOBJECTS) || defined(RAGDOLL)
+	out->framestate.bonecount = 0;
+	out->framestate.bonestate = NULL;
+	if (skelobjectval && skelobjectval->_float)
+		skel_lookup(&menu_world, skelobjectval->_float, &out->framestate);
+#endif
 
 	out->customskin = skinobjectval?skinobjectval->_float:0;
 
@@ -2285,6 +2353,8 @@ static void QCBUILTIN PF_menu_registercommand (pubprogfuncs_t *prinst, struct gl
 {
 	const char *str = PR_GetStringOfs(prinst, OFS_PARM0);
 	const char *desc = (prinst->callargc>1)?PR_GetStringOfs(prinst, OFS_PARM1):NULL;
+	if (desc && !*desc)
+		desc = NULL;
 	if (!Cmd_Exists(str))
 		Cmd_AddCommandD(str, MP_ConsoleCommand_f, desc);
 }
@@ -2466,6 +2536,8 @@ static struct {
 	{"precache_model",			PF_m_precache_model,		91},
 	{"setorigin",				PF_m_setorigin,				92},
 															//gap
+	{"getmodelindex",			PF_m_getmodelindex,			200},
+															//gap
 	{"abort",					PF_Abort,					211},
 															//gap
 	{"strstrofs",				PF_strstrofs,				221},
@@ -2483,6 +2555,29 @@ static struct {
 															//gap
 	{"shaderforname",			PF_shaderforname,			238},
 	{"sendpacket",				PF_cl_SendPacket,			242},
+															//gap
+	{"skel_create",				PF_skel_create,				263},//float(float modlindex) skel_create = #263; // (FTE_CSQC_SKELETONOBJECTS)
+	{"skel_build",				PF_skel_build,				264},//float(float skel, entity ent, float modelindex, float retainfrac, float firstbone, float lastbone, optional float addition) skel_build = #264; // (FTE_CSQC_SKELETONOBJECTS)
+	{"skel_build_ptr",			PF_skel_build_ptr,			0},//float(float skel, int numblends, __variant *blends, int blendsize) skel_build_ptr = #0;
+	{"skel_get_numbones",		PF_skel_get_numbones,		265},//float(float skel) skel_get_numbones = #265; // (FTE_CSQC_SKELETONOBJECTS)
+	{"skel_get_bonename",		PF_skel_get_bonename,		266},//string(float skel, float bonenum) skel_get_bonename = #266; // (FTE_CSQC_SKELETONOBJECTS) (returns tempstring)
+	{"skel_get_boneparent",		PF_skel_get_boneparent,		267},//float(float skel, float bonenum) skel_get_boneparent = #267; // (FTE_CSQC_SKELETONOBJECTS)
+	{"skel_find_bone",			PF_skel_find_bone,			268},//float(float skel, string tagname) skel_get_boneidx = #268; // (FTE_CSQC_SKELETONOBJECTS)
+	{"skel_get_bonerel",		PF_skel_get_bonerel,		269},//vector(float skel, float bonenum) skel_get_bonerel = #269; // (FTE_CSQC_SKELETONOBJECTS) (sets v_forward etc)
+	{"skel_get_boneabs",		PF_skel_get_boneabs,		270},//vector(float skel, float bonenum) skel_get_boneabs = #270; // (FTE_CSQC_SKELETONOBJECTS) (sets v_forward etc)
+	{"skel_set_bone",			PF_skel_set_bone,			271},//void(float skel, float bonenum, vector org) skel_set_bone = #271; // (FTE_CSQC_SKELETONOBJECTS) (reads v_forward etc)
+	{"skel_premul_bone",		PF_skel_premul_bone,		272},//void(float skel, float bonenum, vector org) skel_mul_bone = #272; // (FTE_CSQC_SKELETONOBJECTS) (reads v_forward etc)
+	{"skel_premul_bones",		PF_skel_premul_bones,		273},//void(float skel, float startbone, float endbone, vector org) skel_mul_bone = #273; // (FTE_CSQC_SKELETONOBJECTS) (reads v_forward etc)
+	{"skel_postmul_bone",		PF_skel_postmul_bone,		0},//void(float skel, float bonenum, vector org) skel_mul_bone = #272; // (FTE_CSQC_SKELETONOBJECTS) (reads v_forward etc)
+//	{"skel_postmul_bones",		PF_skel_postmul_bones,		0},//void(float skel, float startbone, float endbone, vector org) skel_mul_bone = #273; // (FTE_CSQC_SKELETONOBJECTS) (reads v_forward etc)
+	{"skel_copybones",			PF_skel_copybones,			274},//void(float skeldst, float skelsrc, float startbone, float entbone) skel_copybones = #274; // (FTE_CSQC_SKELETONOBJECTS)
+	{"skel_delete",				PF_skel_delete,				275},//void(float skel) skel_delete = #275; // (FTE_CSQC_SKELETONOBJECTS)
+	{"frameforname",			PF_frameforname,			276},//float(float modidx, string framename) frameforname = #276 (FTE_CSQC_SKELETONOBJECTS)
+	{"frameduration",			PF_frameduration,			277},//float(float modidx, float framenum) frameduration = #277 (FTE_CSQC_SKELETONOBJECTS)
+	{"frameforaction",			PF_frameforaction,			0},//float(float modidx, int actionid) frameforaction = #0
+	{"processmodelevents",		PF_processmodelevents,		0},
+	{"getnextmodelevent",		PF_getnextmodelevent,		0},
+	{"getmodeleventidx",		PF_getmodeleventidx,		0},
 															//gap
 	{"hash_createtab",			PF_hash_createtab,			287},
 	{"hash_destroytab",			PF_hash_destroytab,			288},
@@ -2555,6 +2650,7 @@ static struct {
 															//gap
 	{"memalloc",				PF_memalloc,				384},
 	{"memfree",					PF_memfree,					385},
+	{"memcmp",					PF_memcmp,					0},
 	{"memcpy",					PF_memcpy,					386},
 	{"memfill8",				PF_memfill8,				387},
 	{"memgetval",				PF_memgetval,				388},
@@ -3163,8 +3259,12 @@ qboolean MP_Init (void)
 	menutime = Sys_DoubleTime();
 	if (!menu_world.progs)
 	{
+		vec3_t fwd,rht,up;
 		int mprogs;
 		Con_DPrintf("Initializing menu.dat\n");
+		menu_world.Get_CModel = MP_GetCModel;
+		menu_world.Get_FrameState = MP_Get_FrameState;
+
 		menu_world.progs = InitProgs(&menuprogparms);
 		PR_Configure(menu_world.progs, PR_ReadBytesString(pr_menu_memsize.string), 1, pr_enable_profiling.ival);
 		mprogs = PR_LoadProgs(menu_world.progs, "menu.dat");
@@ -3192,6 +3292,10 @@ qboolean MP_Init (void)
 		if (menu_world.g.time)
 			*menu_world.g.time = Sys_DoubleTime();
 		menu_world.g.frametime = (float*)PR_FindGlobal(menu_world.progs, "frametime", 0, NULL);
+
+		menu_world.g.v_forward	= (float*)PR_FindGlobal(menu_world.progs, "v_forward",	0, NULL); if (!menu_world.g.v_forward)	menu_world.g.v_forward = fwd;
+		menu_world.g.v_right	= (float*)PR_FindGlobal(menu_world.progs, "v_right",	0, NULL); if (!menu_world.g.v_right)	menu_world.g.v_right = rht;
+		menu_world.g.v_up		= (float*)PR_FindGlobal(menu_world.progs, "v_up",		0, NULL); if (!menu_world.g.v_up)		menu_world.g.v_up = up;
 
 		menu_world.g.drawfont = (float*)PR_FindGlobal(menu_world.progs, "drawfont", 0, NULL);
 		menu_world.g.drawfontscale = (float*)PR_FindGlobal(menu_world.progs, "drawfontscale", 0, NULL);

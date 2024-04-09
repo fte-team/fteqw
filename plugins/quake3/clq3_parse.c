@@ -1021,7 +1021,7 @@ void CLQ3_SendConnectPacket(struct ftenet_connections_s *socket, netadr_t *to, i
 	memset(&ccs, 0, sizeof(ccs));
 	ccs.servercount = -1;
 	ccs.challenge = challenge;
-	Netchan_SetupQ3(NS_CLIENT, &ccs.netchan, to, qport);
+	Netchan_SetupQ3(NCF_CLIENT, &ccs.netchan, to, qport);
 
 	worldfuncs->IBufToInfo(userinfo, infostr, sizeof(infostr), priorityq3, nonq3, NULL, NULL,/*&cls.userinfosync,*/ userinfo);
 

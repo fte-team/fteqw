@@ -210,6 +210,10 @@ pubsubserver_t *MSV_FindSubServer(unsigned int id)
 
 static void MSV_SendCvars(pubsubserver_t *s)
 {
+	sizebuf_t send;
+	char send_buf[8192];
+
+#if 0
 	extern cvar_t skill, sv_nqplayerphysics, sv_pure, sv_minpitch, sv_maxpitch;
 	cvar_t *cvars[] = {
 		&developer,
@@ -219,9 +223,6 @@ static void MSV_SendCvars(pubsubserver_t *s)
 		&saved1, &saved2, &saved3, &saved4, &savedgamecfg,
 		&sv_nqplayerphysics, &sv_pure, &sv_mintic, &sv_maxtic,
 		&sv_minpitch, &sv_maxpitch};
-
-	sizebuf_t send;
-	char send_buf[8192];
 	size_t v;
 
 	memset(&send, 0, sizeof(send));
@@ -235,6 +236,32 @@ static void MSV_SendCvars(pubsubserver_t *s)
 		MSG_WriteString(&send, cvars[v]->string);
 		MSV_WriteSlave(s, &send);
 	}
+#else
+	extern cvar_group_t *cvar_groups;
+	cvar_group_t *grp;
+	cvar_t *var;
+
+	memset(&send, 0, sizeof(send));
+	send.data = send_buf;
+	send.maxsize = sizeof(send_buf);
+
+	for (grp=cvar_groups ; grp ; grp=grp->next)
+	{
+		for (var=grp->cvars ; var ; var=var->next)
+		{
+			if (var->flags & CVAR_NOSET)
+				continue;	//don't spam errors...
+//			if (var->flags & CVAR_USERCREATED)
+//				continue;
+
+			send.cursize = 2;
+			MSG_WriteByte(&send, ccmd_setcvar);
+			MSG_WriteString(&send, var->name);
+			MSG_WriteString(&send, var->string);
+			MSV_WriteSlave(s, &send);
+		}
+	}
+#endif
 }
 
 static pubsubserver_t *MSV_Link_Server(vfsfile_t *stream, int id, const char *mapname)
@@ -778,6 +805,25 @@ void MSV_SubServerCommand_f(void)
 		Con_Printf("No node for index.\n");
 }
 
+void MSV_SendCvarChange(cvar_t *var)
+{
+	if (var->flags & CVAR_NOSET)
+		return;
+	if (subservers && !subservers->next && sv.state == ss_clustermode)
+	{
+		pubsubserver_t *s = subservers;	//there is only one.
+		sizebuf_t buf;
+		char bufmem[65536];
+		buf.data = bufmem;
+		buf.maxsize = sizeof(bufmem);
+		buf.cursize = 2;
+		buf.packing = SZ_RAWBYTES;
+		MSG_WriteByte(&buf, ccmd_setcvar);
+		MSG_WriteString(&buf, var->name);
+		MSG_WriteString(&buf, var->string);
+		MSV_WriteSlave(s, &buf);
+	}
+}
 qboolean MSV_ForwardToAutoServer(void)
 {
 	pubsubserver_t *s;
@@ -809,7 +855,7 @@ qboolean MSV_ForwardToAutoServer(void)
 		sizebuf_t buf;
 		char bufmem[65536];
 		const char *cmd = Cmd_Argv(0);
-		const char *args = Cmd_Args();;
+		const char *args = Cmd_Args();
 		buf.data = bufmem;
 		buf.maxsize = sizeof(bufmem);
 		buf.cursize = 2;
@@ -1074,7 +1120,7 @@ void MSV_ReadFromSubServer(pubsubserver_t *s)
 				if (svadr.type != NA_INVALID)
 				{	//the client was trying to connect to the cluster master.
 					rmsg = va("fredir\n%s", NET_AdrToString(adrbuf, sizeof(adrbuf), &svadr));
-					Netchan_OutOfBand (NS_SERVER, &cladr, strlen(rmsg), (qbyte *)rmsg);
+					Netchan_OutOfBand (NCF_SERVER, &cladr, strlen(rmsg), (qbyte *)rmsg);
 				}
 			}
 			else
@@ -1763,7 +1809,7 @@ qboolean MSV_ClusterLoginReply(netadr_t *legacyclientredirect, unsigned int serv
 		else
 		{
 			char *s = va("fredir\n%s", NET_AdrToString(tmpbuf, sizeof(tmpbuf), &serveraddr));
-			Netchan_OutOfBand (NS_SERVER, clientaddr, strlen(s), (qbyte *)s);
+			Netchan_OutOfBand (NCF_SERVER, clientaddr, strlen(s), (qbyte *)s);
 			return true;
 		}
 	}

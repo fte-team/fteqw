@@ -92,13 +92,8 @@ cvar_t snd_precache				= CVARAF(	"s_precache", "1",
 cvar_t snd_loadas8bit			= CVARAFD(	"s_loadas8bit", "0",
 											"loadas8bit", CVAR_ARCHIVE,
 											"Downsample sounds on load as lower quality 8-bit sound, to save memory.");
-#ifdef FTE_TARGET_WEB
-cvar_t snd_loadasstereo			= CVARD(	"snd_loadasstereo", "1",
-											"Force mono sounds to load as if stereo ones, to waste memory. Used to work around stupid browser bugs.");
-#else
 cvar_t snd_loadasstereo			= CVARD(	"snd_loadasstereo", "0",
 											"Force mono sounds to load as if stereo ones, to waste memory. Not normally useful.");
-#endif
 cvar_t ambient_level			= CVARAFD(	"s_ambientlevel", "0.3",
 											"ambient_level", CVAR_ARCHIVE,
 											"This controls the volume levels of automatic area-based sounds (like water or sky), and is quite annoying. If you're playing deathmatch you'll definitely want this OFF.");
@@ -1091,6 +1086,7 @@ static float S_Voip_Preprocess(short *start, unsigned int samples, float micamp)
 }
 static void S_Voip_TryInitCaptureContext(char *driver, char *device, int rate)
 {
+	static float throttle;
 	int i;
 
 	s_voip.cdriver = NULL;
@@ -1114,12 +1110,12 @@ static void S_Voip_TryInitCaptureContext(char *driver, char *device, int rate)
 	if (!s_voip.cdriver)
 	{
 		if (!driver)
-			Con_Printf("No microphone drivers supported\n");
+			Con_ThrottlePrintf(&throttle, 0, CON_ERROR"No microphone drivers supported\n");
 		else
-			Con_Printf("Microphone driver \"%s\" is not valid\n", driver);
+			Con_ThrottlePrintf(&throttle, 0, CON_ERROR"Microphone driver \"%s\" is not valid\n", driver);
 	}
 	else
-		Con_Printf("No microphone detected\n");
+		Con_ThrottlePrintf(&throttle, 0, CON_ERROR"No microphone detected\n");
 	s_voip.cdriver = NULL;
 }
 
@@ -1388,7 +1384,7 @@ void S_Voip_Transmit(unsigned char clc, sizebuf_t *buf)
 
 	s_voip.capturepos += s_voip.cdriver->Update(s_voip.cdriverctx, (unsigned char*)s_voip.capturebuf + s_voip.capturepos, s_voip.encframesize*2, sizeof(s_voip.capturebuf) - s_voip.capturepos);
 
-	if (!s_voip.wantsend && s_voip.capturepos < s_voip.encframesize*2)
+	if (!voipsendenable || (!s_voip.wantsend && s_voip.capturepos < s_voip.encframesize*2))
 	{
 		s_voip.voiplevel = -1;
 		s_voip.capturepos = 0;
@@ -1710,10 +1706,10 @@ void S_Voip_MapChange(void)
 }
 int S_Voip_Loudness(qboolean ignorevad)
 {
-	if (s_voip.voiplevel > 100)
-		return 100;
 	if (!s_voip.cdriverctx || (!ignorevad && s_voip.dumps))
 		return -1;
+	if (s_voip.voiplevel > 100)
+		return 100;
 	return s_voip.voiplevel;
 }
 int S_Voip_ClientLoudness(unsigned int plno)
@@ -1769,6 +1765,10 @@ void S_Voip_Parse(void)
 	MSG_ReadByte();
 	bytes = MSG_ReadShort();
 	MSG_ReadSkip(bytes);
+}
+int S_Voip_ClientLoudness(unsigned int plno)
+{
+	return -1;
 }
 #endif
 
@@ -2188,7 +2188,7 @@ void S_DoRestart (qboolean onlyifneeded)
 
 	for (i=1 ; i<MAX_PRECACHE_SOUNDS ; i++)
 	{
-		if (!cl.sound_name[i][0])
+		if (!cl.sound_name[i])
 			break;
 		cl.sound_precache[i] = S_FindName (cl.sound_name[i], true, false);
 	}
@@ -2710,7 +2710,7 @@ static void SND_AccumulateSpacialization(soundcardinfo_t *sc, channel_t *ch, vec
 	listener_vec[1] = DotProduct(listener[seat].right, world_vec);
 	listener_vec[2] = DotProduct(listener[seat].up, world_vec);
 
-	if (snd_leftisright.ival)
+	if (snd_leftisright.ival^r_xflip.ival)
 		listener_vec[1] = -listener_vec[1];
 
 	for (i = 0; i < sc->sn.numchannels; i++)
@@ -2859,7 +2859,7 @@ static void SND_Spatialize(soundcardinfo_t *sc, channel_t *ch)
 	listener_vec[1] = DotProduct(listener[seat].right, world_vec);
 	listener_vec[2] = DotProduct(listener[seat].up, world_vec);
 
-	if (snd_leftisright.ival)
+	if (snd_leftisright.ival^r_xflip.ival)
 		listener_vec[1] = -listener_vec[1];
 
 	for (i = 0; i < sc->sn.numchannels; i++)

@@ -208,16 +208,19 @@ void Cluster_Run(cluster_t *cluster, qboolean dowait)
 {
 	oproxy_t *pend, *pend2, *pend3;
 	sv_t *sv, *old;
+	tcpconnect_t *tc;
 
 	int m;
 	struct timeval timeout;
 	fd_set socketset;
+	fd_set socketset_wr;
 
 	if (dowait)
 	{
 		//FIXME: use poll or epoll to work around FD_SETSIZE limits, though we're mostly only doing this for the sleeping.
 
 		FD_ZERO(&socketset);
+		FD_ZERO(&socketset_wr);
 		m = 0;
 		if (cluster->qwdsocket[0] != INVALID_SOCKET)
 		{
@@ -250,6 +253,28 @@ void Cluster_Run(cluster_t *cluster, qboolean dowait)
 			}
 		}
 
+		for (tc = cluster->tcpconnects; tc; tc = tc->next)
+		{
+			if (tc->sock != INVALID_SOCKET && tc->sock < FD_SETSIZE)
+			{
+				FD_SET(tc->sock, &socketset);
+				if (tc->sock >= m)
+					m = tc->sock+1;
+			}
+		}
+
+		for (pend = cluster->pendingproxies; pend; pend = pend->next)
+		{
+			if (pend->sock != INVALID_SOCKET && pend->sock < FD_SETSIZE)
+			{
+				FD_SET(pend->sock, &socketset);
+				if (pend->file)	//also wake up if we're doing some (large) file transfer and we can give them a bit more.
+					FD_SET(pend->sock, &socketset_wr);
+				if (pend->sock >= m)
+					m = pend->sock+1;
+			}
+		}
+
 	#ifndef _WIN32
 		#ifndef STDIN
 			#define STDIN 0
@@ -270,7 +295,7 @@ void Cluster_Run(cluster_t *cluster, qboolean dowait)
 			timeout.tv_usec = (100%1000)*1000;
 		}
 
-		m = select(m, &socketset, NULL, NULL, &timeout);
+		m = select(m, &socketset, &socketset_wr, NULL, &timeout);
 
 #ifdef _WIN32
 		for (;;)

@@ -1332,6 +1332,8 @@ void CL_AdjustAngles (int pnum, double frametime)
 		if (!cl_instantrotate.ival)
 			quant *= speed*frametime;
 		in_rotate -= quant;
+		if (r_xflip.ival)
+			quant *= -1;
 		if (ruleset_allow_frj.ival)
 			cl.playerview[pnum].viewanglechange[YAW] += quant;
 	}
@@ -1342,6 +1344,8 @@ void CL_AdjustAngles (int pnum, double frametime)
 		if ((cl.fpd & FPD_LIMIT_YAW) || !ruleset_allow_frj.ival)
 			quant = bound(-900, quant, 900);
 		quant *= frametime;
+		if (r_xflip.ival)
+			quant *= -1;
 		cl.playerview[pnum].viewanglechange[YAW] -= quant * CL_KeyState (&in_right, pnum, false);
 		cl.playerview[pnum].viewanglechange[YAW] += quant * CL_KeyState (&in_left, pnum, false);
 	}
@@ -1409,6 +1413,9 @@ static void CL_BaseMove (vec3_t moves, int pnum)
 #endif
 	if ((in_speed.state[pnum] & 1) ^ cl_run.ival)
 		scale *= cl_movespeedkey.value;
+
+	if (r_xflip.ival)
+		sidespeed *= -1;
 
 	moves[0] = 0;
 	if (! (in_klook.state[pnum] & 1) )
@@ -1819,7 +1826,7 @@ static qboolean CLFTE_SendVRCmd (sizebuf_t *buf, unsigned int seats)
 	if (flags & VRM_LOSS)
 		MSG_WriteByte (buf, (qbyte)lost);
 	if (flags & VRM_DELAY)
-		MSG_WriteByte (buf, bound(0,cldelay,255));	//a byte should always be enough for any framerate above 40.
+		MSG_WriteByte (buf, bound(0,cldelay,255));	//a byte should always be enough for any framerate above 40, and we don't want peole to be able to lie so easily.
 	if (flags & VRM_ACKS)
 	{
 		MSG_WriteUInt64(buf, cl.numackframes);
@@ -2122,7 +2129,7 @@ void VARGS CL_SendSeatClientCommand(qboolean reliable, unsigned int seat, char *
 	char		string[2048];
 	clcmdbuf_t *buf, *prev;
 
-	if (cls.demoplayback && cls.demoplayback != DPB_EZTV)
+	if (cls.demoplayback && !(cls.demoplayback == DPB_MVD && cls.demoeztv_ext))
 		return;	//no point.
 
 	va_start (argptr, format);
@@ -2783,7 +2790,7 @@ void CL_SendCmd (double frametime, qboolean mainloop)
 	if (cls.demoplayback != DPB_NONE || cls.state <= ca_demostart)
 	{
 		cursor_active = false;
-		if (!cls.state || cls.demoplayback == DPB_MVD || cls.demoplayback == DPB_EZTV)
+		if (!cls.state || cls.demoplayback == DPB_MVD)
 		{
 			extern cvar_t cl_splitscreen;
 			cl.ackedmovesequence = cl.movesequence;

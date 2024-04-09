@@ -1273,7 +1273,7 @@ int MSG_ReadSize16 (sizebuf_t *sb)
 	{
 		int solid = (((ssolid>>7) & 0x1F8) - 32+32768)<<16;	/*up can be negative*/
 		solid|= ((ssolid & 0x1F)<<3);
-		solid|= ((ssolid & 0x3E0)<<10);
+		solid|= ((ssolid & 0x3E0)<<6);
 		return solid;
 	}
 }
@@ -2192,6 +2192,20 @@ int MSG_ReadChar (void)
 	return c;
 }
 
+int MSG_PeekByte(void)
+{
+	unsigned int msg_readcount;
+
+	if (msg_readmsg->packing!=SZ_RAWBYTES)
+		return -1;
+
+	msg_readcount = msg_readmsg->currentbit>>3;
+	if (msg_readcount+1 > msg_readmsg->cursize)
+		return -1;
+
+	return (unsigned char)msg_readmsg->data[msg_readcount];
+}
+
 int MSG_ReadByte (void)
 {
 	unsigned char	c;
@@ -2625,6 +2639,7 @@ void MSGQW_ReadDeltaUsercmd (const usercmd_t *from, usercmd_t *move, int protove
 	}
 }
 
+#ifdef HAVE_SERVER
 void MSGQ2_ReadDeltaUsercmd (client_t *cl, const usercmd_t *from, usercmd_t *move)
 {
 	int bits;
@@ -2729,6 +2744,7 @@ void MSGQ2_ReadDeltaUsercmd (client_t *cl, const usercmd_t *from, usercmd_t *mov
 	else
 		move->lightlevel = MSG_ReadByte ();
 }
+#endif
 
 void MSG_ReadData (void *data, int len)
 {
@@ -5671,7 +5687,11 @@ static void COM_Version_f (void)
 	Con_Printf("Renderers:");
 #ifdef GLQUAKE
 #ifdef GLESONLY
-	Con_Printf(" OpenGLES");
+	#ifdef FTE_TARGET_WEB	//shuld we be just asking the video code for a list?...
+		Con_Printf(" WebGL");
+	#else
+		Con_Printf(" OpenGLES");
+	#endif
 #else
 	Con_Printf(" OpenGL");
 #endif
@@ -5709,6 +5729,10 @@ static void COM_Version_f (void)
 
 #ifdef __CYGWIN__
 	Con_Printf("Compiled with Cygwin\n");
+#endif
+
+#ifdef FTE_TARGET_WEB
+	Con_Printf("Compiled with emscripten %i.%i.%i\n", __EMSCRIPTEN_major__, __EMSCRIPTEN_minor__, __EMSCRIPTEN_tiny__);
 #endif
 
 #ifdef __clang__
@@ -5831,28 +5855,36 @@ static void COM_Version_f (void)
 	#if !defined(VOICECHAT)
 		Con_Printf(" disabled");
 	#else
-		#ifdef SPEEX_STATIC
-			Con_Printf(" speex");
-			Con_DPrintf("^h(static)");
-		#else
-			Con_Printf(" speex^h(dynamic)");
+		#ifdef HAVE_SPEEX
+			#ifdef SPEEX_STATIC
+				Con_Printf(" speex");
+				Con_DPrintf("^h(static)");
+			#else
+				Con_Printf(" speex^h(dynamic)");
+			#endif
 		#endif
-		#ifdef OPUS_STATIC
-			Con_Printf(" opus");
-			Con_DPrintf("^h(static)");
-		#else
-			Con_Printf(" opus^h(dynamic)");
+		#ifdef HAVE_OPUS
+			#ifdef OPUS_STATIC
+				Con_Printf(" opus");
+				Con_DPrintf("^h(static)");
+			#else
+				Con_Printf(" opus^h(dynamic)");
+			#endif
 		#endif
 	#endif
 	Con_Printf("\n");
 
 	Con_Printf("^3Audio Decoders:^7");
+	#ifdef FTE_TARGET_WEB
+		Con_DPrintf(" javascript");
+	#endif
 	#ifndef AVAIL_OGGVORBIS
 		Con_DPrintf(" ^h(disabled: Ogg Vorbis)^7");
 	#elif defined(LIBVORBISFILE_STATIC)
-		Con_Printf(" Ogg Vorbis");
+		Con_Printf(" Ogg-Vorbis");
+		Con_DPrintf("^h(static)");
 	#else
-		Con_Printf(" Ogg Vorbis^h(dynamic)");
+		Con_Printf(" Ogg-Vorbis^h(dynamic)");
 	#endif
 	#if defined(AVAIL_MP3_ACM)
 		Con_Printf(" mp3(system)");
@@ -5893,7 +5925,12 @@ static void COM_Version_f (void)
 	Con_DPrintf(" ^h(disabled: freetype2)^7");
 #endif
 #ifdef AVAIL_OPENAL
-	Con_Printf(" openal^h(dynamic)");
+	#ifdef FTE_TARGET_WEB
+		Con_Printf(" WebAudio");
+		Con_DPrintf("^h(static)");
+	#else
+		Con_Printf(" OpenAL^h(dynamic)");
+	#endif
 #else
 	Con_DPrintf(" ^h(disabled: openal)^7");
 #endif
@@ -5986,12 +6023,19 @@ static void COM_Version_f (void)
 #ifdef FTPSERVER
 	Con_Printf(" FTPServer");
 #endif
-#ifdef HAVE_TCP
-#ifdef TCPCONNECT
-	Con_Printf(" TCPConnect");
+#if (defined(SUPPORT_ICE)&&defined(HAVE_DTLS)) || defined(FTE_TARGET_WEB)
+	Con_Printf(" WebRTC");
 #endif
+#ifdef FTE_TARGET_WEB
+	Con_Printf(" WebSocket/WSS");
 #else
-	Con_Printf(" ^h(disabled: TCP)");
+	#if defined(HAVE_TCP)
+	#ifdef TCPCONNECT
+		Con_Printf(" TCPConnect");
+	#endif
+	#else
+		Con_Printf(" ^h(disabled: TCP)");
+	#endif
 #endif
 #ifdef HAVE_GNUTLS             //on linux
 	Con_Printf(" GnuTLS");
@@ -6705,9 +6749,6 @@ void COM_Init (void)
 	//random should be random from the start...
 	srand(time(0));
 
-#ifdef MULTITHREAD
-	Sys_ThreadsInit();
-#endif
 #ifdef LOADERTHREAD
 	COM_InitWorkerThread();
 #endif

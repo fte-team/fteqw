@@ -463,6 +463,48 @@ void APIENTRY GL_ClientActiveTextureStub(GLenum texid)
 {
 }
 
+static qboolean GL_ParseVersionTupple(char *id, int offset, unsigned int ver[3])
+{
+	if (id)
+	{
+		id += offset;
+		ver[0] = strtoul(id, &id, 10);
+		if (*id == '.')
+		{
+			ver[1] = strtoul(id+1, &id, 10);
+			if (*id == '.')
+			{
+				ver[2] = strtoul(id+1, &id, 10);
+				return true;
+			}
+		}
+	}
+	ver[0] = ver[1] = ver[2] = 0;
+	return false;
+}
+static qboolean GL_IsVersionTuppleGreaterEqual(unsigned int ver[3], unsigned int max0, unsigned int max1, unsigned int max2)
+{
+	if (ver[0] > max0)
+		return true;
+	if (ver[0] == max0)
+	{
+		if (ver[1] > max1)
+			return true;
+		if (ver[1] == max1)
+		{
+			if (ver[2] >= max2)
+				return true;
+		}
+	}
+	return false;
+}
+static qboolean GL_IsVersionTuppleWithin(unsigned int ver[3], unsigned int min0, unsigned int min1, unsigned int min2, unsigned int max0, unsigned int max1, unsigned int max2)
+{
+	if (GL_IsVersionTuppleGreaterEqual(ver, max0, max1, max2))
+		return false;	//more recent
+	return GL_IsVersionTuppleGreaterEqual(ver, min0, min1, min2);
+}
+
 #define getglcore getglfunction
 #define getglext(name) getglfunction(name)
 static qboolean GL_CheckExtensions (void *(*getglfunction) (char *name))
@@ -470,7 +512,10 @@ static qboolean GL_CheckExtensions (void *(*getglfunction) (char *name))
 	qboolean webgl = false;
 	unsigned int gl_major_version = 0;
 	unsigned int gl_minor_version = 0;
+	unsigned int mesaver[3];
 	memset(&gl_config, 0, sizeof(gl_config));
+
+	GL_ParseVersionTupple(strstr(gl_version, " Mesa "), 6, mesaver);
 
 	if (!strncmp(gl_version, "WebGL", 5))
 	{
@@ -1117,17 +1162,19 @@ static qboolean GL_CheckExtensions (void *(*getglfunction) (char *name))
 
 		Con_DPrintf("GLSL available\n");
 	}
+#endif
 
 	if (Cvar_Get("gl_blacklist_invariant", "0", CVAR_VIDEOLATCH, "gl blacklists")->ival)
 		gl_config.blacklist_invariant = true;
 	else if (gl_config.arb_shader_objects && !gl_config_nofixedfunc &&
 		(strstr(gl_renderer, " Mesa ") || strstr(gl_version, " Mesa ")) && Cvar_Get("gl_blacklist_mesa_invariant", "1", CVAR_VIDEOLATCH, "gl blacklists")->ival)
-	{
-		gl_config.blacklist_invariant = true;
-		Con_Printf(CON_NOTICE "Mesa detected, disabling the use of glsl's invariant keyword."CON_DEFAULT" This will result in z-fighting. Use '+set gl_blacklist_mesa_invariant 0' on the commandline to reenable it (but you will probably get glsl compilation errors from your driver).\n");
+	{	//should be fixed with 19.1.0
+		if (GL_IsVersionTuppleWithin(mesaver, 0,0,1/*fixme*/, 19,1,0))
+		{
+			gl_config.blacklist_invariant = true;	//assume yes
+			Con_Printf(CON_NOTICE "Mesa detected, disabling the use of glsl's invariant keyword."CON_DEFAULT" This will result in z-fighting. Use '+set gl_blacklist_mesa_invariant 0' on the commandline to reenable it (but you will probably get glsl compilation errors from your driver).\n");
+		}
 	}
-
-#endif
 
 	qglGetProgramBinary = NULL;
 	qglProgramBinary = NULL;
@@ -2293,10 +2340,10 @@ static GLhandleARB GLSlang_CreateShader (program_t *prog, const char *name, int 
 				"#define shadow2D texture\n"
 				//gl_FragColor and gl_FragData got deprecated too, need to make manual outputs
 				"#if __VERSION__ >= 300\n"	//gl3.3, gles3 (gles3 requires layout stuff)
-					"layout(location = 0) out vec4 fte_fragdata0;"
-					"layout(location = 1) out vec4 fte_fragdata1;"
-					"layout(location = 2) out vec4 fte_fragdata2;"
-					"layout(location = 3) out vec4 fte_fragdata3;"
+					"layout(location=0) out vec4 fte_fragdata0;"
+					"layout(location=1) out vec4 fte_fragdata1;"
+					"layout(location=2) out vec4 fte_fragdata2;"
+					"layout(location=3) out vec4 fte_fragdata3;"
 				"\n#else\n"
 					"out vec4 fte_fragdata0;"
 					"out vec4 fte_fragdata1;"

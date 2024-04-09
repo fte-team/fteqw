@@ -480,7 +480,7 @@ static qboolean M_MouseMoved(emenu_t *menu)
 					if (opt2->common.posy + opt2->common.height > maxy)
 						maxy = opt2->common.posy + opt2->common.height;
 				}
-				maxy -= vid.height-8;
+				maxy -= vid.height;
 				framescroll += option->frame.frac * maxy;
 				ypos -= option->frame.frac * maxy;
 			}
@@ -682,16 +682,16 @@ static void MenuDrawItems(int xpos, int ypos, menuoption_t *option, emenu_t *men
 				int maxy = option->frame.common.posy;
 				option->frame.common.width = 16;
 				option->frame.common.posx = vid.width - option->frame.common.width - xpos;
-				option->frame.common.height = vid.height-8-maxy - ypos;
+				option->frame.common.height = vid.height-maxy - ypos;
 				for (opt2 = option->common.next; opt2; opt2 = opt2->common.next)
 				{
 					if (opt2->common.posy + opt2->common.height > maxy)
 						maxy = opt2->common.posy + opt2->common.height;
 				}
-				maxy -= vid.height-8;
+				maxy -= vid.height;
 				framescrollheight = maxy;
 
-				if (maxy < 0)
+				if (maxy <= 0)
 				{
 					option->frame.mousedown = false;
 					option->frame.frac = 0;
@@ -892,7 +892,10 @@ static void MenuDrawItems(int xpos, int ypos, menuoption_t *option, emenu_t *men
 static void MenuDraw(emenu_t *menu)
 {
 	if (!menu->dontexpand)
-		menu->xpos = ((vid.width - 320)>>1);
+	{
+		menu->width = min(vid.width,320);
+		menu->xpos = ((vid.width - menu->width)>>1);
+	}
 	if (menu->predraw)
 		menu->predraw(menu);
 	if (menu->selecteditem && menu->selecteditem->common.type == mt_text)
@@ -1771,8 +1774,8 @@ void MC_CheckBox_Key(menucheck_t *option, emenu_t *menu, int key)
 			else
 				Cvar_SetValue(option->var, !option->var->value);
 		}
-		S_LocalSound ("misc/menu2.wav");
 	}
+	S_LocalSound ("misc/menu2.wav");
 }
 
 void MC_EditBox_Key(menuedit_t *edit, int key, unsigned int unicode)
@@ -2401,10 +2404,15 @@ static int M_Main_AddExtraOptions(emenu_t *mainm, int y)
 #endif
 	}
 	if (Cmd_Exists("menu_mods"))
-	{
-		MC_AddConsoleCommandQBigFont(mainm, 72, y,	localtext("Mods          "), "menu_mods\n");	y += 20;
-		y += 20;
-	}
+		{MC_AddConsoleCommandQBigFont(mainm, 72, y,	localtext("Mods          "), "menu_mods\n");	y += 20;}
+
+	if (Cmd_Exists("sys_openfile"))
+		{MC_AddConsoleCommandQBigFont(mainm, 72, y,	localtext("Open File     "), "sys_openfile\n");	y += 20;}
+
+#ifdef FTE_TARGET_WEB
+	if (Cmd_Exists("xr_toggle"))
+		{MC_AddConsoleCommandQBigFont(mainm, 72, y,	localtext("Toggle WebXR  "), "xr_toggle\n");	y += 20;}
+#endif
 
 	return y;
 }
@@ -2716,8 +2724,10 @@ void M_Menu_Main_f (void)
 	b = NULL;
 	if (!b && !m_preset_chosen.ival)
 		b = M_FindButton(mainm, "menu_options\n");
+#ifdef PACKAGEMANAGER
 	if (!b && PM_AreSourcesNew(false))
 		b = M_FindButton(mainm, "menu_download\n");
+#endif
 	if (b)
 	{
 		mainm->selecteditem = (menuoption_t*)b;

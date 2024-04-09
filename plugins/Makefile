@@ -98,6 +98,7 @@ ifeq ($(FTE_TARGET),droid)
 	PLUG_CFLAGS=-DANDROID
 	PLUG_CXXFLAGS=-DANDROID
 endif
+ARCHLIBS=../engine/libs-$(ARCH)
 
 #fallback
 PLUG_NATIVE_EXT?=.so
@@ -108,9 +109,9 @@ PLUG_CXXFLAGS?=-fPIC -Wl,--no-undefined -Bsymbolic -fvisibility=hidden -static-l
 PLUG_CMAKE?=-DCMAKE_POSITION_INDEPENDENT_CODE=ON -DCMAKE_C_COMPILER=$(CC) -DCMAKE_CXX_COMPILER=$(CXX)
 PLUG_LDFLAGS_ZLIB?=
 ARCH:=$(shell $(CC) -dumpmachine)
-PLUG_LDFLAGS:=-L../engine/libs-$(ARCH) $(PLUG_LDFLAGS)
-PLUG_CFLAGS:=-I../engine/libs-$(ARCH) $(PLUG_CFLAGS)
-PLUG_CXXFLAGS:=-I../engine/libs-$(ARCH) $(PLUG_CXXFLAGS)
+PLUG_LDFLAGS:=-L$(ARCHLIBS) $(PLUG_LDFLAGS)
+PLUG_CFLAGS:=-I$(ARCHLIBS) $(PLUG_CFLAGS)
+PLUG_CXXFLAGS:=-I$(ARCHLIBS) $(PLUG_CXXFLAGS)
 
 #$1 is the plugin name, $2 is its filename, $3 is title, $4 is description
 define EMBEDMETA
@@ -442,12 +443,15 @@ NATIVE_PLUGINS+=irc
 
 ######################################
 #OpenXR plugin, for use with VR headsets.
-$(PLUG_PREFIX)openxr$(PLUG_NATIVE_EXT): openxr.c plugin.c
+#the tar.gz has a stupid name
+OPENXRVER=1.0.33
+$(ARCHLIBS)/openxr/openxr.h:
+	cd $(ARCHLIBS)/.. && (test -f release-$(OPENXRVER).tar.gz || wget https://github.com/KhronosGroup/OpenXR-SDK/archive/refs/tags/release-$(OPENXRVER).tar.gz)
+	cd $(ARCHLIBS) && tar -xvzf ../release-$(OPENXRVER).tar.gz --strip-components=2 OpenXR-SDK-release-$(OPENXRVER)/include/openxr/
+$(PLUG_PREFIX)openxr$(PLUG_NATIVE_EXT): openxr.c plugin.c $(ARCHLIBS)/openxr/openxr.h
 	$(CC) $(BASE_CFLAGS) $(CFLAGS) -DFTEPLUGIN -o $@ -shared $(PLUG_CFLAGS) $^ $(PLUG_DEFFILE) $(PLUG_LDFLAGS) -DXR_NO_PROTOTYPES `$(PKGCONFIG) --cflags openxr` -DGLQUAKE -DVKQUAKE -DD3D11QUAKE
 	$(call EMBEDMETA,openxr,$@,OpenXR Support,Enables the use of Virtual Reality headsets and inputs.)
-ifeq ($(shell $(PKGCONFIG) --exists openxr && echo 1),1)
 NATIVE_PLUGINS+=openxr
-endif
 ######################################
 
 ######################################
@@ -478,7 +482,6 @@ endif
 #statically link openssl on the above systems (instead of depending on system libs)
 ifneq ($(OSSL_ARCH),)
 OSSL_VERSION=3.0.1
-ARCHLIBS=../engine/libs-$(ARCH)
 #../engine/libs-$(ARCH)/openssl-$(OSSL_VERSION).tar.gz:
 ../engine/openssl-$(OSSL_VERSION).tar.gz:
 	wget -O $@ -N https://github.com/openssl/openssl/archive/refs/tags/openssl-$(OSSL_VERSION).tar.gz

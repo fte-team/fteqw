@@ -222,6 +222,8 @@ static void Mod_TextureList_f(void)
 					char *cr;
 					while ((cr = strchr(body, '\r')))
 						*cr = ' ';
+					if (strlen(body) > 3000)
+						body[3000] = 0;	//arbitrary cut off, to avoid console glitches with big shaders.
 				}
 
 				if (preview)
@@ -634,10 +636,7 @@ void Mod_SetModifier(const char *modifier)
 }
 
 #ifndef SERVERONLY
-void Mod_FindCubemaps_f(void);
-void Mod_Realign_f(void);
-void Mod_BSPX_List_f(void);
-void Mod_BSPX_Strip_f(void);
+void Mod_BSPX_Init(void);
 #endif
 
 /*
@@ -689,10 +688,7 @@ void Mod_Init (qboolean initial)
 		Cvar_Register (&r_sprite_backfacing, NULL);
 #endif
 #ifndef SERVERONLY
-		Cmd_AddCommandD("mod_findcubemaps", Mod_FindCubemaps_f, "Scans the entities of a map to find reflection env_cubemap sites and determines the nearest one to each surface.");
-		Cmd_AddCommandD("mod_realign", Mod_Realign_f, "Reads the named bsp and writes it back out with only alignment changes.");
-		Cmd_AddCommandD("mod_bspx_list", Mod_BSPX_List_f, "Lists all lumps (and their sizes) in the specified bsp.");
-		Cmd_AddCommandD("mod_bspx_strip", Mod_BSPX_Strip_f, "Strips a named extension lump from a bsp file.");
+		Mod_BSPX_Init();
 #endif
 	}
 
@@ -1629,7 +1625,7 @@ void Mod_LoadLighting (model_t *loadmodel, bspx_header_t *bspx, qbyte *mod_base,
 	qbyte *litdata = NULL; //xyz8
 	qbyte *lumdata = NULL; //l8
 	qbyte *out;
-	unsigned int samples;
+	size_t samples;
 #ifdef RUNTIMELIGHTING
 	qboolean relighting = false;
 #endif
@@ -1851,7 +1847,7 @@ void Mod_LoadLighting (model_t *loadmodel, bspx_header_t *bspx, qbyte *mod_base,
 		exptmp = littmp = false;
 		if (!litdata && !expdata)
 		{
-			int size;
+			size_t size;
 			/*FIXME: bspx support for extents+lmscale, may require style+offset lumps too, not sure what to do here*/
 			expdata = BSPX_FindLump(bspx, mod_base, "LIGHTING_E5BGR9", &size);
 			exptmp = true;
@@ -1943,7 +1939,7 @@ void Mod_LoadLighting (model_t *loadmodel, bspx_header_t *bspx, qbyte *mod_base,
 		}
 		if (!luxdata)
 		{
-			int size;
+			size_t size;
 			luxdata = BSPX_FindLump(bspx, mod_base, "LIGHTINGDIR", &size);
 			if (size != samples*3)
 				luxdata = NULL;
@@ -2038,28 +2034,28 @@ void Mod_LoadLighting (model_t *loadmodel, bspx_header_t *bspx, qbyte *mod_base,
 
 	if (overrides && !overrides->shifts)
 	{
-		int size;
+		size_t size;
 		//if we have shifts, then we probably also have legacy data in the surfaces that we want to override
 		if (!overrides->offsets)
 		{
-			int size;
+			size_t size;
 			overrides->offsets = BSPX_FindLump(bspx, mod_base, "LMOFFSET", &size);
 			if (size != loadmodel->numsurfaces * sizeof(int))
 			{
 				if (size)
-					Con_Printf(CON_ERROR"BSPX LMOFFSET lump is wrong size, expected %u entries, found %u\n", loadmodel->numsurfaces, size/(unsigned int)sizeof(int));
+					Con_Printf(CON_ERROR"BSPX LMOFFSET lump is wrong size, expected %u entries, found %"PRIuSIZE"\n", loadmodel->numsurfaces, size/(unsigned int)sizeof(int));
 				overrides->offsets = NULL;
 			}
 		}
 		if (!overrides->styles8 && !overrides->styles16)
 		{	//16bit per-face lightmap styles index
-			int size;
+			size_t size;
 			overrides->styles16 = BSPX_FindLump(bspx, mod_base, "LMSTYLE16", &size);
 			overrides->stylesperface = size / (sizeof(*overrides->styles16)*loadmodel->numsurfaces); //rounding issues will be caught on the next line...
 			if (!overrides->stylesperface || size != loadmodel->numsurfaces * sizeof(*overrides->styles16)*overrides->stylesperface)
 			{
 				if (size)
-					Con_Printf(CON_ERROR"BSPX LMSTYLE16 lump is wrong size, expected %u*%u entries, found %u\n", loadmodel->numsurfaces, overrides->stylesperface, size/(unsigned int)sizeof(*overrides->styles16));
+					Con_Printf(CON_ERROR"BSPX LMSTYLE16 lump is wrong size, expected %u*%u entries, found %"PRIuSIZE"\n", loadmodel->numsurfaces, overrides->stylesperface, size/(unsigned int)sizeof(*overrides->styles16));
 				overrides->styles16 = NULL;
 			}
 			else if (overrides->stylesperface > MAXCPULIGHTMAPS)
@@ -2067,13 +2063,13 @@ void Mod_LoadLighting (model_t *loadmodel, bspx_header_t *bspx, qbyte *mod_base,
 		}
 		if (!overrides->styles8 && !overrides->styles16)
 		{	//16bit per-face lightmap styles index
-			int size;
+			size_t size;
 			overrides->styles8 = BSPX_FindLump(bspx, mod_base, "LMSTYLE", &size);
 			overrides->stylesperface = size / (sizeof(*overrides->styles8)*loadmodel->numsurfaces); //rounding issues will be caught on the next line...
 			if (!overrides->stylesperface || size != loadmodel->numsurfaces * sizeof(*overrides->styles8)*overrides->stylesperface)
 			{
 				if (size)
-					Con_Printf(CON_ERROR"BSPX LMSTYLE16 lump is wrong size, expected %u*%u entries, found %u\n", loadmodel->numsurfaces, overrides->stylesperface, size/(unsigned int)sizeof(*overrides->styles8));
+					Con_Printf(CON_ERROR"BSPX LMSTYLE16 lump is wrong size, expected %u*%u entries, found %"PRIuSIZE"\n", loadmodel->numsurfaces, overrides->stylesperface, size/(unsigned int)sizeof(*overrides->styles8));
 				overrides->styles8 = NULL;
 			}
 			else if (overrides->stylesperface > MAXCPULIGHTMAPS)
@@ -2085,7 +2081,7 @@ void Mod_LoadLighting (model_t *loadmodel, bspx_header_t *bspx, qbyte *mod_base,
 		{
 			if (size)
 			{	//ericw-tools is screwing up again. don't leave things screwed.
-				Con_Printf(CON_ERROR"BSPX LMSHIFT lump is wrong size, expected %u entries, found %u\n", loadmodel->numsurfaces, size);
+				Con_Printf(CON_ERROR"BSPX LMSHIFT lump is wrong size, expected %u entries, found %"PRIuSIZE"\n", loadmodel->numsurfaces, size);
 				overrides->styles16 = NULL;
 				overrides->styles8 = NULL;
 				overrides->offsets = NULL;
@@ -2290,7 +2286,7 @@ static void Mod_SaveEntFile_f(void)
 
 	if (COM_WriteFile(fname, FS_GAMEONLY, ents, strlen(ents)))
 	{
-		if (FS_NativePath(fname, FS_GAMEONLY, nname, sizeof(nname)))
+		if (FS_DisplayPath(fname, FS_GAMEONLY, nname, sizeof(nname)))
 			Con_Printf("Wrote %s\n", nname);
 	}
 	else
@@ -2425,7 +2421,7 @@ qboolean Mod_LoadVertexNormals (model_t *loadmodel, bspx_header_t *bspx, qbyte *
 {
 	float	*in;
 	float	*out;
-	int			i, count;
+	size_t	i, count;
 
 	if (l)
 	{
@@ -2442,7 +2438,7 @@ qboolean Mod_LoadVertexNormals (model_t *loadmodel, bspx_header_t *bspx, qbyte *
 	}
 	else
 	{	//ericw's thing
-		unsigned int size;
+		size_t size;
 		quint32_t t;
 		int *normcount;
 		struct surfedgenormals_s *sen;
@@ -3687,7 +3683,7 @@ static void Mod_LoadMiptex(model_t *loadmodel, texture_t *tx, miptex_t *mt, int 
 			}
 			if (extsize != 16+sz)
 			{
-				Con_Printf("miptex %s has incomplete mipchain\n", Image_FormatName(newfmt));
+				Con_Printf(CON_WARNING"miptex %s (%s) has incomplete mipchain\n", tx->name, Image_FormatName(newfmt));
 				continue;
 			}
 
@@ -3767,7 +3763,7 @@ static void Mod_LoadMiptex(model_t *loadmodel, texture_t *tx, miptex_t *mt, int 
 	legacysize = 0;
 	for (m = 0; m < 4; m++)
 	{
-		if (mt->offsets[m])
+		if (mt->offsets[m] && (mt->offsets[m]+(mt->width>>m)*(mt->height>>m)<=miptexsize))
 			memcpy(tx->srcdata+legacysize, ptr + mt->offsets[m], (mt->width>>m)*(mt->height>>m));
 		else
 			memset(tx->srcdata+legacysize, 0, (mt->width>>m)*(mt->height>>m));
@@ -3837,6 +3833,7 @@ TRACE(("dbg: Mod_LoadTextures: inittexturedescs\n"));
 		o = LittleLong(m->dataofs[i]);
 		if (o >= l->filelen)	//e1m2, this happens
 		{
+badmip:
 			tx = ZG_Malloc(&loadmodel->memgroup, sizeof(texture_t));
 			memcpy(tx, r_notexture_mip, sizeof(texture_t));
 			sprintf(tx->name, "unnamed%i", i);
@@ -3869,6 +3866,12 @@ TRACE(("dbg: Mod_LoadTextures: inittexturedescs\n"));
 		}
 
 		TRACE(("dbg: Mod_LoadTextures: texture %s\n", mt->name));
+
+		if (mt->offsets[0] && (mt->width > 0xffff|| mt->height > 0xffff))
+		{
+			Con_Printf(CON_WARNING "%s: miptex %i is excessively large. probably corrupt\n", loadmodel->name, i);
+			goto badmip;
+		}
 
 		if (!*mt->name)	//I HATE MAPPERS!
 		{
@@ -4269,7 +4272,7 @@ static qboolean Mod_LoadFaces (model_t *loadmodel, bspx_header_t *bspx, qbyte *m
 	qboolean lightmapusable = false;
 
 	struct decoupled_lm_info_s *decoupledlm;
-	unsigned int dcsize;
+	size_t dcsize;
 
 	memset(&overrides, 0, sizeof(overrides));
 
@@ -4406,8 +4409,20 @@ static qboolean Mod_LoadFaces (model_t *loadmodel, bspx_header_t *bspx, qbyte *m
 			lofs = LittleLong(decoupledlm->lmoffset);
 			out->texturemins[0] = out->texturemins[1] = 0; // should be handled by the now-per-surface vecs[][3] value.
 			out->lmshift = 0;	//redundant.
-			out->extents[0] = (unsigned short)LittleShort(decoupledlm->lmsize[0]) - 1;
-			out->extents[1] = (unsigned short)LittleShort(decoupledlm->lmsize[1]) - 1;
+			if (!decoupledlm->lmsize[0] || !decoupledlm->lmsize[1])
+			{
+				decoupledlm->lmsize[0] = decoupledlm->lmsize[1] = 0;
+				if (lofs != (unsigned int)-1)
+				{	//we'll silently allow these buggy surfaces for now... but only if they've got no lightmap data at all. unsafe if they're the last otherwise.
+					lofs = -1;
+					Con_Printf(CON_WARNING"%s: Face %i has invalid extents\n", loadmodel->name, surfnum);
+				}
+			}
+			else
+			{
+				out->extents[0] = (unsigned short)LittleShort(decoupledlm->lmsize[0]) - 1;	//surfaces should NEVER have an extent of 0. even if the surface is omitted it should still have some padding...
+				out->extents[1] = (unsigned short)LittleShort(decoupledlm->lmsize[1]) - 1;
+			}
 			loadmodel->facelmvecs[surfnum].lmvecs[0][0] = LittleFloat(decoupledlm->lmvecs[0][0]);
 			loadmodel->facelmvecs[surfnum].lmvecs[0][1] = LittleFloat(decoupledlm->lmvecs[0][1]);
 			loadmodel->facelmvecs[surfnum].lmvecs[0][2] = LittleFloat(decoupledlm->lmvecs[0][2]);

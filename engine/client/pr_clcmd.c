@@ -542,7 +542,6 @@ void QCBUILTIN PF_cl_playingdemo (pubprogfuncs_t *prinst, struct globalvars_s *p
 		G_FLOAT(OFS_RETURN) = 0;
 		break;
 	case DPB_MVD:
-	case DPB_EZTV:
 		G_FLOAT(OFS_RETURN) = 2;
 		break;
 	default:

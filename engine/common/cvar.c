@@ -474,7 +474,7 @@ showhelp:
 			else
 				col = S_COLOR_YELLOW;	//cvar is changed, but won't be saved to a config so w/e.
 			if (cmd->flags & CVAR_NOUNSAFEEXPAND)
-				Con_Printf("^[%s%s\\type\\%s\\tip\\"S_COLOR_YELLOW"%s^]", col, cmd->name, cmd->name, cmd->description?cmd->description:"");	//cvar is changed, but won't be saved to a config so w/e.
+				Con_Printf("^[%s%s\\type\\%s\\tip\\<Current value is hidden>\n\n"S_COLOR_YELLOW"%s^]", col, cmd->name, cmd->name, cmd->description?cmd->description:"");	//cvar is changed, but won't be saved to a config so w/e.
 			else
 				Con_Printf("^[%s%s\\type\\%s %s\\tip\\Default: %s\nCurrent: %s\n\n"S_COLOR_YELLOW"%s^]", col, cmd->name, cmd->name,cmd->string, cmd->defaultstr,cmd->string, cmd->description?cmd->description:"");	//cvar is changed, but won't be saved to a config so w/e.
 			total++;
@@ -1066,6 +1066,10 @@ static cvar_t *Cvar_SetCore (cvar_t *var, const char *value, qboolean force)
 		}
 
 		Z_Free (latch);	// free the old value string
+
+#ifdef HAVE_SERVER
+		MSV_SendCvarChange(var);
+#endif
 	}
 
 	if (var->latched_string)	//we may as well have this here.

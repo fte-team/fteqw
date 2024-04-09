@@ -297,8 +297,10 @@ static const struct
 static neterr_t ICE_Transmit(void *cbctx, const qbyte *data, size_t datasize);
 static neterr_t TURN_Encapsulate(struct icestate_s *ice, netadr_t *to, const qbyte *data, size_t datasize);
 static void TURN_AuthorisePeer(struct icestate_s *con, struct iceserver_s *srv, int peer);
+#ifdef HAVE_DTLS
 static neterr_t SCTP_Transmit(sctp_t *sctp, const void *data, size_t length);
-
+#endif
+static qboolean ICE_SetFailed(struct icestate_s *con, const char *reasonfmt, ...) LIKEPRINTF(2);
 static struct icestate_s *icelist;
 
 
@@ -2168,8 +2170,7 @@ static qboolean QDECL ICE_Set(struct icestate_s *con, const char *prop, const ch
 						con->dtlsstate = con->dtlsfuncs->CreateContext(&con->cred, con, ICE_Transmit, con->dtlspassive);
 					else if (net_enable_dtls.ival >= 3)
 					{	//peer doesn't seem to support dtls.
-						con->state = ICE_FAILED;
-						Con_Printf(CON_WARNING"WARNING: [%s]: peer does not support dtls. Set net_enable_dtls to 1 to make optional.\n", con->friendlyname);
+						ICE_SetFailed(con, "peer does not support dtls. Set net_enable_dtls to 1 to make optional.\n");
 					}
 					else if (con->state == ICE_CONNECTING && net_enable_dtls.ival>=2)
 						Con_Printf(CON_WARNING"WARNING: [%s]: peer does not support dtls.\n", con->friendlyname);
@@ -2189,10 +2190,7 @@ static qboolean QDECL ICE_Set(struct icestate_s *con, const char *prop, const ch
 			else if (!con->dtlsstate && con->cred.peer.hash)
 			{
 				if (!con->peersctpoptional)
-				{
-					con->state = ICE_FAILED;
-					Con_Printf(CON_WARNING"WARNING: [%s]: peer is trying to use dtls.%s\n", con->friendlyname, net_enable_dtls.ival?"":" Set ^[/net_enable_dtls 1^].");
-				}
+					ICE_SetFailed(con, "peer is trying to use dtls.%s\n", net_enable_dtls.ival?"":" Set ^[/net_enable_dtls 1^].");
 			}
 #endif
 		}
@@ -2248,10 +2246,7 @@ static qboolean QDECL ICE_Set(struct icestate_s *con, const char *prop, const ch
 		if (oldstate != con->state && con->state == ICE_CONNECTED)
 		{
 			if (con->chosenpeer.type == NA_INVALID)
-			{
-				con->state = ICE_FAILED;
-				Con_Printf(CON_WARNING"[%s]: ICE failed. peer not valid.\n", con->friendlyname);
-			}
+				ICE_SetFailed(con, "ICE failed. peer not valid.\n");
 #ifndef CLIENTONLY
 			else if (con->proto == ICEP_QWSERVER && con->mode != ICEM_WEBRTC)
 			{
@@ -2412,6 +2407,18 @@ static qboolean QDECL ICE_Set(struct icestate_s *con, const char *prop, const ch
 	else
 		return false;
 	return true;
+}
+static qboolean ICE_SetFailed(struct icestate_s *con, const char *reasonfmt, ...)
+{
+	va_list		argptr;
+	char		string[256];
+
+	va_start (argptr, reasonfmt);
+	Q_vsnprintf (string,sizeof(string)-1, reasonfmt,argptr);
+	va_end (argptr);
+
+	Con_Printf(CON_WARNING"[%s]: %s\n", con->friendlyname, string);
+	return ICE_Set(con, "state", STRINGIFY(ICE_FAILED));	//does the disconnection stuff.
 }
 static char *ICE_CandidateToSDP(struct icecandidate_s *can, char *value, size_t valuelen)
 {
@@ -2988,7 +2995,7 @@ void ICE_Tick(void)
 				continue;
 			}
 			else if ((signed int)(curtime-con->icetimeout) > 0)
-				ICE_Set(con, "state", STRINGIFY(ICE_FAILED));	//with no broker context, if we're not trying to send anything then kill the link.
+				ICE_SetFailed(con, S_COLOR_GRAY"[%s]: ice timeout\n", con->friendlyname);
 		}
 
 		switch(con->mode)
@@ -3195,6 +3202,7 @@ struct sctp_chunk_s
 #define SCTP_TYPE_COOKIEECHO 10
 #define SCTP_TYPE_COOKIEACK 11
 #define SCTP_TYPE_SHUTDOWNDONE 14
+#define SCTP_TYPE_PAD 132
 #define SCTP_TYPE_FORWARDTSN 192
 	qbyte flags;
 	quint16_t length;
@@ -3712,6 +3720,7 @@ void SCTP_Decode(sctp_t *sctp, ftenet_connections_t *col)
 						sctp->cookie = Z_Malloc(sctp->cookiesize);
 						memcpy(sctp->cookie, p+1, sctp->cookiesize);
 						break;
+					case 32773:	//Padding
 					case 32776:	//ASCONF
 						break;
 					case 49152:
@@ -3720,6 +3729,12 @@ void SCTP_Decode(sctp_t *sctp, ftenet_connections_t *col)
 					default:
 						if (net_ice_debug.ival >= 2)
 							Con_Printf(S_COLOR_GRAY"[%s]: SCTP: Found unknown init parameter %i||%#x\n", sctp->friendlyname, ptype, ptype);
+
+						if (ptype&0x4000)
+							; //FIXME: SCTP_TYPE_ERROR(6,"Unrecognized Chunk Type")
+						if (!(ptype&0x8000))
+							return;	//'do not process nay further chunks'
+						//otherwise parse the next as normal.
 						break;
 					}
 					p = (void*)((qbyte*)p + ((plen+3)&~3));
@@ -3811,11 +3826,11 @@ void SCTP_Decode(sctp_t *sctp, ftenet_connections_t *col)
 		case SCTP_TYPE_ABORT:
 			SCTP_ErrorChunk(sctp, "Abort", (struct sctp_errorcause_s*)(c+1), clen-sizeof(*c));
 			if (sctp->icestate)
-				ICE_Set(sctp->icestate, "state", STRINGIFY(ICE_FAILED));
+				ICE_SetFailed(sctp->icestate, "SCTP Abort");
 			break;
 		case SCTP_TYPE_SHUTDOWN:	//FIXME. we should send an ack...
 			if (sctp->icestate)
-				ICE_Set(sctp->icestate, "state", STRINGIFY(ICE_FAILED));
+				ICE_SetFailed(sctp->icestate, "SCTP Shutdown");
 			if (net_ice_debug.ival >= 1)
 				Con_Printf(S_COLOR_GRAY"[%s]: SCTP: Shutdown\n", sctp->friendlyname);
 			break;
@@ -3849,6 +3864,9 @@ void SCTP_Decode(sctp_t *sctp, ftenet_connections_t *col)
 		case SCTP_TYPE_COOKIEACK:
 			sctp->o.writable = true;	//we know the other end is now open.
 			break;
+		case SCTP_TYPE_PAD:
+			//don't care.
+			break;
 		case SCTP_TYPE_FORWARDTSN:
 			if (clen >= sizeof(struct sctp_chunk_fwdtsn_s))
 			{
@@ -3874,6 +3892,24 @@ void SCTP_Decode(sctp_t *sctp, ftenet_connections_t *col)
 			//no idea what this chunk is, just ignore it...
 			if (net_ice_debug.ival >= 1)
 				Con_Printf(S_COLOR_GRAY"[%s]: SCTP: Unsupported chunk %i\n", sctp->friendlyname, c->type);
+
+			switch (c->type>>6)
+			{
+			case 0:
+				clen = (qbyte*)msgend - (qbyte*)c;	//'do not process any further chunks'
+				break;
+			case 1:
+				clen = (qbyte*)msgend - (qbyte*)c;	//'do not process any further chunks'
+				/*FIXME: SCTP_TYPE_ERROR(6,"Unrecognized Chunk Type")*/
+				break;
+			case 2:
+				//silently ignore it
+				break;
+			case 3:
+				//ignore-with-error
+				/*FIXME: SCTP_TYPE_ERROR(6,"Unrecognized Chunk Type")*/
+				break;
+			}
 			break;
 		}
 		c = (struct sctp_chunk_s*)((qbyte*)c + ((clen+3)&~3));	//next chunk is 4-byte aligned.
@@ -5015,7 +5051,7 @@ qboolean ICE_WasStun(ftenet_connections_t *col)
 							case NETERR_NOROUTE:
 								return false;	//not a dtls packet at all. don't de-ICE it when we're meant to be using ICE.
 							case NETERR_DISCONNECTED:	//dtls failure. ICE failed.
-								iceapi.Set(con, "state", STRINGIFY(ICE_FAILED));
+								ICE_SetFailed(con, "DTLS Failure");
 								return true;
 							default: //some kind of failure decoding the dtls packet. drop it.
 								return true;
@@ -5528,7 +5564,7 @@ handleerror:
 					b->serverid = cl;
 
 					if (net_ice_debug.ival)
-						Con_Printf(S_COLOR_GRAY"[%s]: Relay to server now open\n", b->ice?b->ice->friendlyname:"?");
+						Con_Printf(S_COLOR_GRAY"[%s]: Meta channel to game server now open\n", b->ice?b->ice->friendlyname:"?");
 				}
 				break;
 			case ICEMSG_OFFER:	//we received an offer from a client
@@ -5603,6 +5639,10 @@ handleerror:
 						iceapi.Set(b->ice, "sdp", data);
 					}
 				}
+				break;
+			default:
+				if (net_ice_debug.ival)
+					Con_Printf(S_COLOR_GRAY"[%s]: Broker send unknown packet: %i\n", b->ice?b->ice->friendlyname:"?", cmd);
 				break;
 			}
 			break;
@@ -5765,9 +5805,9 @@ void SVC_ICE_Offer(void)
 	if (!sv.state)
 		return;	//err..?
 	if (net_from.prot != NP_DTLS && net_from.prot != NP_WSS && net_from.prot != NP_TLS)
-	{	//a) dtls provides a challenge.
+	{	//a) dtls provides a challenge (ensuring we can at least ban them).
 		//b) this contains the caller's ips. We'll be pinging them anyway, but hey. also it'll be too late at this point but it keeps the other side honest.
-		Con_ThrottlePrintf(&throttletimer, 0, CON_WARNING"%s: ice handshake via %s was unencrypted\n", NET_AdrToString (buf, sizeof(buf), &net_from));
+		Con_ThrottlePrintf(&throttletimer, 0, CON_WARNING"%s: ice handshake from %s was unencrypted\n", NET_AdrToString (buf, sizeof(buf), &net_from), clientaddr);
 		return;
 	}
 

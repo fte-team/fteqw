@@ -169,10 +169,10 @@ static net_masterlist_t net_masterlist[] = {
 //	{MP_QUAKEWORLD, CVARFC("net_qwmasterextraHistoric",	"master.teamdamage.com:27000",				CVAR_NOSAVE, Net_Masterlist_Callback),	"master.teamdamage.com"},
 
 	//Total conversions will need to define their own in defaults.cfg or whatever.
-	{MP_DPMASTER,	CVARFC("net_masterextra1",		"master.frag-net.com:27950 198.58.111.37:27950",								CVAR_NOSAVE, Net_Masterlist_Callback)}, //admin: Eukara
-//	{MP_DPMASTER,	CVARFC("net_masterextra1",		""/*"ghdigital.com:27950 207.55.114.154:27950"*/,								CVAR_NOSAVE, Net_Masterlist_Callback)}, //(was 69.59.212.88) admin: LordHavoc
-	{MP_DPMASTER,	CVARFC("net_masterextra2",		"dpmaster.deathmask.net:27950 107.161.23.68:27950 [2604:180::4ac:98c1]:27950",	CVAR_NOSAVE, Net_Masterlist_Callback)}, //admin: Willis
-	{MP_DPMASTER,	CVARFC("net_masterextra3",		"dpmaster.tchr.no:27950 92.62.40.73:27950",										CVAR_NOSAVE, Net_Masterlist_Callback)}, //admin: tChr
+	{MP_DPMASTER,	CVARFC("net_masterextra1",		"master.frag-net.com:27950",					CVAR_NOSAVE, Net_Masterlist_Callback)}, //admin: Eukara
+//	{MP_DPMASTER,	CVARFC("net_masterextra1",		""/*"ghdigital.com:27950"*/,					CVAR_NOSAVE, Net_Masterlist_Callback)}, //(was 69.59.212.88) admin: LordHavoc
+	{MP_DPMASTER,	CVARFC("net_masterextra2",		"dpmaster.deathmask.net:27950",					CVAR_NOSAVE, Net_Masterlist_Callback)}, //admin: Willis
+	{MP_DPMASTER,	CVARFC("net_masterextra3",		"dpmaster.tchr.no:27950",						CVAR_NOSAVE, Net_Masterlist_Callback)}, //admin: tChr
 #else
 	{MP_DPMASTER,	CVARFC("net_masterextra1",		"",												CVAR_NOSAVE, Net_Masterlist_Callback)},
 	{MP_DPMASTER,	CVARFC("net_masterextra2",		"",												CVAR_NOSAVE, Net_Masterlist_Callback)},
@@ -376,8 +376,8 @@ static void SV_Master_SingleHeartbeat(net_masterlist_t *master)
 					{
 						COM_Parse(master->cv.string);
 						Con_TPrintf (S_COLOR_GRAY"Sending heartbeat to %s (%s)\n", NET_AdrToString (adr, sizeof(adr), na), com_token);
+						master->announced = true;
 					}
-					master->announced = true;
 				}
 				break;
 			case NETERR_NOROUTE:
@@ -387,8 +387,8 @@ static void SV_Master_SingleHeartbeat(net_masterlist_t *master)
 					{
 						COM_Parse(master->cv.string);
 						Con_TPrintf (CON_WARNING"No route for heartbeat to %s (%s)\n", NET_AdrToString (adr, sizeof(adr), na), com_token);
+						master->announced = true;
 					}
-					master->announced = true;
 				}
 				break;
 			default:
@@ -401,8 +401,8 @@ static void SV_Master_SingleHeartbeat(net_masterlist_t *master)
 					{
 						COM_Parse(master->cv.string);
 						Con_TPrintf (CON_ERROR"Failed to send heartbeat to %s (%s)\n", NET_AdrToString (adr, sizeof(adr), na), com_token);
+						master->announced = true;
 					}
-					master->announced = true;
 				}
 				break;
 			}
@@ -663,6 +663,17 @@ static void SV_Master_Add(int type, char *stringadr)
 {
 	int i;
 
+	//don't do dupes...
+	for (i = 0; net_masterlist[i].cv.name; i++)
+	{
+		if (net_masterlist[i].protocol == type)
+			if (!strcmp(net_masterlist[i].cv.string, stringadr))
+			{
+				svs.last_heartbeat = -99999;
+				return;
+			}
+	}
+
 	for (i = 0; net_masterlist[i].cv.name; i++)
 	{
 		if (net_masterlist[i].protocol != type)
@@ -680,6 +691,7 @@ static void SV_Master_Add(int type, char *stringadr)
 	}
 
 	Cvar_Set(&net_masterlist[i].cv, stringadr);
+	Con_Printf(CON_WARNING"setting %s to \"%s\"\n", net_masterlist[i].cv.name, stringadr);
 
 	svs.last_heartbeat = -99999;
 }
@@ -693,6 +705,8 @@ static void SV_Master_ClearType(int type)
 		{
 			if (net_masterlist[i].cv.flags & CVAR_NOSAVE)
 				continue;	//ignore our extras
+			if (*net_masterlist[i].cv.string)
+				Con_Printf(CON_WARNING"clearing %s (was \"%s\")\n", net_masterlist[i].cv.name, net_masterlist[i].cv.string);
 			Cvar_Set(&net_masterlist[i].cv, "");
 		}
 	}
@@ -733,7 +747,8 @@ static void SV_SetMaster_f (void)
 		return;
 	}
 
-	Cvar_Set(&sv_public, "1");	//go public.
+	if (sv_public.ival < 1)
+		Con_Printf(CON_WARNING"%s used on private server (sv_public is \"%s\")\n", Cmd_Argv(0), sv_public.string);
 	if (!strcmp(Cmd_Argv(1), "default"))
 	{
 		for (i = 0; net_masterlist[i].cv.name; i++)
@@ -741,8 +756,12 @@ static void SV_SetMaster_f (void)
 		return;
 	}
 
-	SV_Master_ClearType(MP_QUAKEWORLD);
-	for (i=1 ; i<Cmd_Argc() ; i++)
+	i = 1;
+	if (!strcmp(Cmd_Argv(1), "add"))
+		i++;
+	else
+		SV_Master_ClearType(MP_QUAKEWORLD);
+	for ( ; i<Cmd_Argc() ; i++)
 	{
 		SV_Master_Add(MP_QUAKEWORLD, Cmd_Argv(i));
 	}
@@ -2738,7 +2757,7 @@ static void MasterInfo_ProcessHTTP(struct dl_download *dl)
 			infostring = NULL;
 
 		if (!strncmp(s, "ice:///", 7) || !strncmp(s, "ices:///", 8) || !strncmp(s, "rtc:///", 7) || !strncmp(s, "rtcs:///", 8))
-		{
+		{	//implicitly using the ip:port of the responder, instead of that being specified (giving a consistent route to it instead of it having to guess what hostname we used).
 			brokerid = s+((s[4]==':')?7:6);
 			adr = brokeradr;
 			if (!*brokerid)
@@ -2749,6 +2768,13 @@ static void MasterInfo_ProcessHTTP(struct dl_download *dl)
 			brokerid = s;
 			adr = brokeradr;
 		}
+#ifndef HAVE_PACKET
+		else if ((*s=='[' || (*s >= '0' && *s <= '9')) && infostring)
+		{	//if we don't have support for udp packets here, convert any raw address to an rtc:///udp/ADDRESS one instead, via this master's brokering services... hopefully.
+			brokerid = va("/udp/%s", s);
+			adr = brokeradr;
+		}
+#endif
 		else
 		{
 			if (!NET_StringToAdr2(s, 80, &adr, 1, &brokerid))
@@ -3752,6 +3778,7 @@ void CL_MasterListParse(netadrtype_t adrtype, int type, qboolean slashpad)
 	firstserver = last;
 }
 #else
+void Master_QueryServer(serverinfo_t *server){}
 qboolean CL_QueryServers(void)
 {
 	master_t *mast;

@@ -2958,7 +2958,7 @@ static void *QDECL capture_raw_begin (char *streamname, int videorate, int width
 	else
 		Q_strncpyz(ctx->videonameextension, "tga", sizeof(ctx->videonameextension));
 
-	if (!FS_NativePath(va("%s", streamname), FS_GAMEONLY, ctx->videonameprefix, sizeof(ctx->videonameprefix)))
+	if (!FS_SystemPath(va("%s", streamname), FS_GAMEONLY, ctx->videonameprefix, sizeof(ctx->videonameprefix)))
 	{
 		Z_Free(ctx);
 		return NULL;
@@ -2970,8 +2970,7 @@ static void *QDECL capture_raw_begin (char *streamname, int videorate, int width
 	}
 	ctx->fsroot = FS_SYSTEM;
 
-	if (FS_NativePath(ctx->videonameprefix, ctx->fsroot, filename, sizeof(filename)))
-		FS_CreatePath(filename, ctx->fsroot);
+	FS_CreatePath(ctx->videonameprefix, ctx->fsroot);
 
 	ctx->audio = NULL;
 	if (*sndkhz)
@@ -3012,7 +3011,7 @@ static void QDECL capture_raw_video (void *vctx, int frame, void *data, int stri
 	{
 		char base[MAX_QPATH];
 		Q_strncpyz(base, ctx->videonameprefix, sizeof(base));
-		if (FS_NativePath(base, ctx->fsroot, filename, sizeof(filename)))
+		if (FS_SystemPath(base, ctx->fsroot, filename, sizeof(filename)))
 		{
 			quint64_t diskfree = 0;
 			if (Sys_GetFreeDiskSpace(filename, &diskfree))
@@ -3111,7 +3110,7 @@ static void *QDECL capture_avi_begin (char *streamname, int videorate, int width
 	COM_StripExtension(streamname, aviname, sizeof(aviname));
 	COM_DefaultExtension (aviname, ".avi", sizeof(aviname));
 	/*find the system location of that*/
-	FS_NativePath(aviname, FS_GAMEONLY, nativepath, sizeof(nativepath));
+	FS_SystemPath(aviname, FS_GAMEONLY, nativepath, sizeof(nativepath));
 
 	//wipe it.
 	f = fopen(nativepath, "rb");

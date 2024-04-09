@@ -209,9 +209,11 @@ m*_t structures are in-memory
 #define	QWEF_FLAG1	 			(1<<4)	//only applies to qw player entities
 #define	NQEF_NODRAW				(1<<4)	//so packet entities are free to get this instead
 #define REEF_QUADLIGHT			(1<<4)
+#define TENEBRAEEF_FULLDYNAMIC	(1<<4)
 #define	QWEF_FLAG2	 			(1<<5)	//only applies to qw player entities
 #define	NQEF_ADDITIVE			(1<<5)	//so packet entities are free to get this instead
 #define REEF_PENTLIGHT			(1<<5)
+#define TENEBRAEEF_GREEN		(1<<5)
 #define	EF_BLUE					(1<<6)
 #define REEF_CANDLELIGHT		(1<<6)
 #define	EF_RED					(1<<7)
@@ -602,7 +604,7 @@ void Q1BSP_GenerateShadowMesh(struct model_s *model, struct dlight_s *dl, const 
 
 void BSPX_LightGridLoad(struct model_s *model, bspx_header_t *bspx, qbyte *mod_base);	//for q1 or q2 models.
 void BSPX_LoadEnvmaps(struct model_s *mod, bspx_header_t *bspx, void *mod_base);
-void *BSPX_FindLump(bspx_header_t *bspxheader, void *mod_base, char *lumpname, int *lumpsize);
+void *BSPX_FindLump(bspx_header_t *bspxheader, void *mod_base, char *lumpname, size_t *lumpsize);
 bspx_header_t *BSPX_Setup(struct model_s *mod, char *filebase, size_t filelen, lump_t *lumps, size_t numlumps);
 
 typedef struct fragmentdecal_s fragmentdecal_t;
@@ -1107,8 +1109,9 @@ typedef struct model_s
 			//internally, we still use integers for lighting, with .7 bits of extra precision.
 			LM_L8,
 			LM_RGB8,
-			LM_E5BGR9
+			LM_E5BGR9,
 		} fmt;
+		enum uploadfmt prebaked;
 		qboolean deluxemapping;	//lightmaps are interleaved with deluxemap data (lightmap indicies should only be even values)
 		qboolean deluxemapping_modelspace; //deluxemaps are in modelspace - we need different glsl.
 	} lightmaps;
@@ -1180,6 +1183,7 @@ unsigned int Heightmap_PointContents(model_t *model, const vec3_t axis[3], const
 struct fragmentdecal_s;
 void Terrain_ClipDecal(struct fragmentdecal_s *dec, float *center, float radius, model_t *model);
 qboolean Terr_DownloadedSection(char *fname);
+shader_t *Terr_GetShader(struct model_s *mod, struct trace_s *trace);
 
 void CL_Parse_BrushEdit(void);
 qboolean SV_Parse_BrushEdit(void);

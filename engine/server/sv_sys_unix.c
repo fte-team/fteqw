@@ -1339,7 +1339,7 @@ static qboolean Sys_DoInstall(void)
 	FS_CreateBasedir(NULL);
 #else
 	char basedir[MAX_OSPATH];
-	if (!FS_NativePath("", FS_ROOT, basedir, sizeof(basedir)))
+	if (!FS_SystemPath("", FS_ROOT, basedir, sizeof(basedir)))
 		return true;
 	FS_CreateBasedir(basedir);
 #endif

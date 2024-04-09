@@ -221,15 +221,15 @@ static void CSQC_FindGlobals(qboolean nofuncs)
 #undef globalstring
 #undef globalfunction
 
-#define ensurefloat(name)	if (!csqcg.name) csqcg.name = &junk._float;
-#define ensureint(name)		if (!csqcg.name) csqcg.name = &junk._int;
-#define ensurevector(name)	if (!csqcg.name) csqcg.name = junk._vector;
-#define ensureentity(name)	if (!csqcg.name) csqcg.name = &junk.edict;
+#define ensurefloat(name)	do{if (!csqcg.name) csqcg.name = &junk._float;}while(0)
+#define ensureint(name)		do{if (!csqcg.name) csqcg.name = &junk._int;  }while(0)
+#define ensurevector(name)	do{if (!csqcg.name) csqcg.name = junk._vector;}while(0)
+#define ensureentity(name)	do{if (!csqcg.name) csqcg.name = &junk.edict; }while(0)
 
-#define ensureprivfloat(name)	if (!csqcg.name) {static pvec_t f; csqcg.name = &f;}
-#define ensureprivint(name)		if (!csqcg.name) {static pint_t i; csqcg.name = &i;}
-#define ensureprivvector(name)	if (!csqcg.name) {static pvec3_t v; csqcg.name = v;}
-#define ensurepriventity(name)	if (!csqcg.name) {static pint_t e; csqcg.name = &e;}
+#define ensureprivfloat(name)	do{if (!csqcg.name) {static pvec_t f; csqcg.name = &f;}}while(0)
+#define ensureprivint(name)		do{if (!csqcg.name) {static pint_t i; csqcg.name = &i;}}while(0)
+#define ensureprivvector(name)	do{if (!csqcg.name) {static pvec3_t v; csqcg.name = v;}}while(0)
+#define ensurepriventity(name)	do{if (!csqcg.name) {static pint_t e; csqcg.name = &e;}}while(0)
 
 	if (csqc_nogameaccess)
 	{
@@ -698,6 +698,8 @@ static int CS_FindModel(const char *name, int *free)
 	}
 	for (i = 1; i < MAX_PRECACHE_MODELS; i++)
 	{
+		if (!cl.model_name[i])
+			break;
 		if (!strcmp(cl.model_name[i], name))
 			return i;
 	}
@@ -2733,43 +2735,46 @@ static void QCBUILTIN PF_R_RenderScene(pubprogfuncs_t *prinst, struct globalvars
 	else
 		scissored = false;
 
-	R_DrawNameTags();
-#ifdef RTLIGHTS
-	R_EditLights_DrawInfo();
-#endif
-
-	if (r_refdef.drawsbar)
+	if (!vrui.enabled)	//when we're using the vrui, this stuff needs to be part of the scene, drawn seperately for each eye
 	{
-#ifdef PLUGINS
-		Plug_SBar (r_refdef.playerview);
-#else
-		if (Sbar_ShouldDraw(r_refdef.playerview))
-		{
-			SCR_TileClear (sb_lines);
-			Sbar_Draw (r_refdef.playerview);
-			Sbar_DrawScoreboard (r_refdef.playerview);
-		}
-		else
-			SCR_TileClear (0);
+		R_DrawNameTags();
+#ifdef RTLIGHTS
+		R_EditLights_DrawInfo();
 #endif
 
-		if (!Key_Dest_Has(kdm_menu|kdm_cwindows))
+		if (r_refdef.drawsbar)
 		{
-			if (cl.intermissionmode == IM_NQFINALE || cl.intermissionmode == IM_NQCUTSCENE || cl.intermissionmode == IM_H2FINALE)
+#ifdef PLUGINS
+			Plug_SBar (r_refdef.playerview);
+#else
+			if (Sbar_ShouldDraw(r_refdef.playerview))
 			{
-				SCR_CheckDrawCenterString ();
+				SCR_TileClear (sb_lines);
+				Sbar_Draw (r_refdef.playerview);
+				Sbar_DrawScoreboard (r_refdef.playerview);
 			}
-			else if (cl.intermissionmode != IM_NONE)
+			else
+				SCR_TileClear (0);
+#endif
+
+			if (!Key_Dest_Has(kdm_menu|kdm_cwindows))
 			{
-				Sbar_IntermissionOverlay (r_refdef.playerview);
+				if (cl.intermissionmode == IM_NQFINALE || cl.intermissionmode == IM_NQCUTSCENE || cl.intermissionmode == IM_H2FINALE)
+				{
+					SCR_CheckDrawCenterString ();
+				}
+				else if (cl.intermissionmode != IM_NONE)
+				{
+					Sbar_IntermissionOverlay (r_refdef.playerview);
+				}
 			}
+
+			SCR_ShowPics_Draw();
 		}
 
-		SCR_ShowPics_Draw();
+		if (r_refdef.drawcrosshair)
+			R2D_DrawCrosshair();
 	}
-
-	if (r_refdef.drawcrosshair)
-		R2D_DrawCrosshair();
 
 	if (scissored)
 	{
@@ -3100,7 +3105,7 @@ static model_t *csqc_setmodel(pubprogfuncs_t *prinst, csqcedict_t *ent, int mode
 	}
 	else
 	{
-		if (modelindex >= MAX_PRECACHE_MODELS)
+		if (modelindex >= MAX_PRECACHE_MODELS || !cl.model_name[modelindex])
 			return NULL;
 		prinst->SetStringField(prinst, (void*)ent, &ent->v->model, cl.model_name[modelindex], true);
 		model = cl.model_precache[modelindex];
@@ -3180,7 +3185,7 @@ static int PF_cs_PrecacheModel_Internal(pubprogfuncs_t *prinst, const char *mode
 
 	for (i = 1; i < MAX_PRECACHE_MODELS; i++)	//Make sure that the server specified model is loaded..
 	{
-		if (!*cl.model_name[i])
+		if (!cl.model_name[i])
 			break;
 		if (!strcmp(cl.model_name[i], modelname))
 		{
@@ -3231,7 +3236,7 @@ static void QCBUILTIN PF_cs_getsoundindex (pubprogfuncs_t *prinst, struct global
 	//look for the server's names first...
 	for (i = 1; i < MAX_PRECACHE_SOUNDS; i++)
 	{
-		if (!*cl.sound_name[i])
+		if (!cl.sound_name[i])
 			break;
 		if (!strcmp(cl.sound_name[i], s))
 		{
@@ -3265,7 +3270,7 @@ static void QCBUILTIN PF_cs_ModelnameForIndex(pubprogfuncs_t *prinst, struct glo
 
 	if (modelindex < 0 && (-modelindex) < MAX_CSMODELS)
 		G_INT(OFS_RETURN) = (int)PR_SetString(prinst, cl.model_csqcname[-modelindex]);
-	else if (modelindex >= 0 && modelindex < MAX_PRECACHE_MODELS)
+	else if (modelindex >= 0 && modelindex < MAX_PRECACHE_MODELS && cl.model_name[modelindex])
 		G_INT(OFS_RETURN) = (int)PR_SetString(prinst, cl.model_name[modelindex]);
 	else
 		G_INT(OFS_RETURN) = 0;
@@ -3275,7 +3280,7 @@ static void QCBUILTIN PF_cs_SoundnameForIndex(pubprogfuncs_t *prinst, struct glo
 	int soundindex = G_FLOAT(OFS_PARM0);
 
 	//FIXME: no private indexes. still useful for sending sound names from the ssqc via indexes.
-	if (soundindex >= 0 && soundindex < MAX_PRECACHE_SOUNDS)
+	if (soundindex >= 0 && soundindex < MAX_PRECACHE_SOUNDS && cl.sound_name[soundindex])
 		G_INT(OFS_RETURN) = (int)PR_SetString(prinst, cl.sound_name[soundindex]);
 	else
 		G_INT(OFS_RETURN) = 0;
@@ -5616,6 +5621,8 @@ static void QCBUILTIN PF_cs_registercommand (pubprogfuncs_t *prinst, struct glob
 {
 	const char *str = PR_GetStringOfs(prinst, OFS_PARM0);
 	const char *desc = (prinst->callargc>1)?PR_GetStringOfs(prinst, OFS_PARM1):NULL;
+	if (desc && !*desc)
+		desc = NULL;
 	if (!Cmd_Exists(str))
 		Cmd_AddCommandD(str, CS_ConsoleCommand_f, desc);
 }
@@ -6026,7 +6033,7 @@ static void QCBUILTIN PF_DeltaListen(pubprogfuncs_t *prinst, struct globalvars_s
 	{
 		for (i = 1; i < MAX_PRECACHE_MODELS; i++)
 		{
-			if (!*cl.model_name[i])
+			if (!cl.model_name[i])
 				break;
 			if (!strcmp(cl.model_name[i], mname))
 			{
@@ -6648,13 +6655,13 @@ static void QCBUILTIN PF_resourcestatus(pubprogfuncs_t *prinst, struct globalvar
 		if (idx < 0)
 		{
 			mod = cl.model_csqcprecache[-idx];
-			if (!cl.model_csqcprecache[-idx] && doload)
+			if (!cl.model_csqcprecache[-idx] && doload && cl.model_csqcname[-idx])
 				mod = cl.model_csqcprecache[-idx] = Mod_ForName(Mod_FixName(cl.model_csqcname[-idx], cl.model_name[1]), MLV_WARN);
 		}
 		else if (idx > 0)
 		{
 			mod = cl.model_precache[idx];
-			if (!cl.model_precache[idx] && doload)
+			if (!cl.model_precache[idx] && doload && cl.model_name[idx])
 				mod = cl.model_precache[idx] = Mod_ForName(Mod_FixName(cl.model_name[idx], cl.model_name[1]), MLV_WARN);
 		}
 		else
@@ -7119,8 +7126,8 @@ static struct {
 	{"processmodelevents",		PF_processmodelevents,	0},
 	{"getnextmodelevent",		PF_getnextmodelevent,	0},
 	{"getmodeleventidx",		PF_getmodeleventidx,	0},
-	{"getlocationname",			PF_getlocationname,		0},
 
+	{"getlocationname",			PF_getlocationname,		0},
 	{"crossproduct",			PF_crossproduct,		0},
 	{"pushmove", 				PF_pushmove, 			0},
 #ifdef TERRAIN
@@ -7312,6 +7319,7 @@ static struct {
 
 	{"memalloc",				PF_memalloc,				384},
 	{"memfree",					PF_memfree,					385},
+	{"memcmp",					PF_memcmp,					0},
 	{"memcpy",					PF_memcpy,					386},
 	{"memfill8",				PF_memfill8,				387},
 	{"memgetval",				PF_memgetval,				388},
@@ -7854,6 +7862,24 @@ static void QDECL CSQC_World_GetFrameState(world_t *w, wedict_t *win, framestate
 	cs_getframestate(in, in->xv->renderflags, out);
 }
 
+static qboolean CSQC_GenerateMaterial(struct shaderparsestate_s *ps, const char *materialname, void (*LoadMaterialString)(struct shaderparsestate_s *ps, const char *script))
+{
+	COM_AssertMainThread("CSQC_GenerateMaterial");
+	if (csqcg.CSQC_GenerateMaterial)
+	{
+		void *pr_globals = PR_globals(csqcprogs, PR_CURRENT);
+		(((string_t *)pr_globals)[OFS_PARM0] = PR_TempString(csqcprogs, materialname));
+		PR_ExecuteProgram(csqcprogs, csqcg.CSQC_GenerateMaterial);
+		if (G_INT(OFS_RETURN))
+		{	//we got the script, now pass it to our material system to parse it.
+			LoadMaterialString(ps, PR_GetStringOfs(csqcprogs, OFS_RETURN));
+			return true;
+		}
+	}
+	return false;
+}
+static plugmaterialloaderfuncs_t csqcmaterialloader = {"csqc", CSQC_GenerateMaterial};
+
 void CSQC_Shutdown(void)
 {
 	int i;
@@ -7861,6 +7887,8 @@ void CSQC_Shutdown(void)
 	{
 		if (csqcg.CSQC_Shutdown)
 			PR_ExecuteProgram(csqcprogs, csqcg.CSQC_Shutdown);
+
+		Material_RegisterLoader(&csqc_world, NULL);
 
 		key_dest_absolutemouse &= ~kdm_game;
 		CSQC_ForgetThreads();
@@ -7949,11 +7977,11 @@ static void *CSQC_FindMainProgs(size_t *sz, const char *name, unsigned int check
 
 	if (!file)
 	{
-		const char *progsname = InfoBuf_ValueForKey(&cl.serverinfo, "*csprogsname");
+		const char *progsname = cls.state?InfoBuf_ValueForKey(&cl.serverinfo, "*csprogsname"):"csprogs.dat";
 		flocation_t loc={0};
 		vfsfile_t *f;
 		qboolean found = false;
-		if (!found && *progsname && cls.state)
+		if (!found && *progsname)
 			found = FS_FLocateFile(progsname, FSLF_IGNOREPURE, &loc);
 		if (!found && strcmp(progsname, "csprogs.dat"))
 		{
@@ -7972,7 +8000,11 @@ static void *CSQC_FindMainProgs(size_t *sz, const char *name, unsigned int check
 				if (checksum && !csprogs_promiscuous)
 				{
 					if (!CSQC_ValidateMainCSProgs(file, *sz, checksum, checksize))
-						file = NULL;
+					{	//its not a match... maybe we can get a better one from the pure paths instead...
+						file = COM_LoadTempFile (progsname, 0, sz);
+						if (!CSQC_ValidateMainCSProgs(file, *sz, checksum, checksize))
+							file = NULL;
+					}
 
 					//we write the csprogs into our archive if it was loaded from outside of there.
 					//this is to ensure that demos will play on the same machine later on...
@@ -8429,6 +8461,9 @@ qboolean CSQC_Init (qboolean anycsqc, const char *csprogsname, unsigned int chec
 
 		csqcentsize = PR_InitEnts(csqcprogs, pr_csqc_maxedicts.value);
 
+		if (csqcg.CSQC_GenerateMaterial)
+			Material_RegisterLoader(&csqc_world, &csqcmaterialloader);
+
 		//world edict becomes readonly
 		worldent = (csqcedict_t *)EDICT_NUM_PB(csqcprogs, 0);
 		worldent->ereftype = ER_ENTITY;
@@ -8455,7 +8490,7 @@ qboolean CSQC_Init (qboolean anycsqc, const char *csprogsname, unsigned int chec
 			char *s = InfoBuf_ValueForKey(&cl.serverinfo, "map");
 			if (!*s)
 				s = cl.model_name[1];
-			if (!*s)
+			if (!s || !*s)
 				s = "unknown";
 			*str = PR_NewString(csqcprogs, s);
 		}

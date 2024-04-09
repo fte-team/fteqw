@@ -36,6 +36,7 @@ static const cvar_t dpcompat_console = {0};
 int	Cmd_ExecLevel;
 qboolean cmd_didwait;
 qboolean cmd_blockwait;
+static qboolean cmd_stuffedcmdline;
 
 void Cmd_ForwardToServer (void);
 
@@ -590,68 +591,67 @@ quake -nosound +cmd amlev1
 */
 void Cmd_StuffCmds (void)
 {
-	int		i, j;
+	int		i;
 	int		s;
-	char	*text, *build, c;
+	char	*text;
+	const char	*arg;
+	int		pluscmd = false;
 
+	if (cmd_stuffedcmdline)
+		return;	//don't do it multiple times
 
 // build the combined string to parse from
-	s = 0;
+	s = 2;
 	for (i=1 ; i<com_argc ; i++)
 	{
 		if (!com_argv[i])
 			continue;		// NEXTSTEP nulls out -NXHost
-		s += Q_strlen (com_argv[i]) + 3;
+		s += Q_strlen (com_argv[i])*2 + 4;
 	}
 	if (!s)
 		return;
 
-	text = (char*)Z_Malloc (s+1);
+	text = (char*)Z_Malloc (s+2);
 	text[0] = 0;
 	for (i=1 ; i<com_argc ; i++)
 	{
 		if (!com_argv[i])
 			continue;		// NEXTSTEP nulls out -NXHost
-		if (strchr(com_argv[i], ' ') || strchr(com_argv[i], '\t') || strchr(com_argv[i], '@') || strchr(com_argv[i], '/') || strchr(com_argv[i], '\\'))
+		arg = com_argv[i];
+		if ((*arg == '+' || *arg == '-') && !(arg[1] >= '0' && arg[1] <= '9'))	//we only really want the '+foo arg' commands, split by +/- prefixes. if its a -1 or +1 then that's a numerical parameter, not a separate command!
 		{
-			Q_strcat (text,"\"");
-			Q_strcat (text,com_argv[i]);
-			Q_strcat (text,"\"");
+			if (*text)
+			{
+				Q_strcat (text, "\n");
+				Cbuf_AddText (text, RESTRICT_LOCAL);
+				*text = 0;
+			}
+			pluscmd = *arg++ == '+';
 		}
-		else
-			Q_strcat (text,com_argv[i]);
-		if (i != com_argc-1)
-			Q_strcat (text, " ");
+
+		if (pluscmd)
+		{
+			if (*text)
+				Q_strcat (text, " ");
+			if (strchr(arg, ' ') || strchr(arg, '\t') || strchr(arg, '@') || strchr(arg, '/') || strchr(arg, '\\'))
+				COM_QuotedString(arg, text+strlen(text),s-strlen(text), false);
+			else
+				Q_strcat (text,arg);
+		}
 	}
 
-// pull out the commands
-	build = (char*)Z_Malloc (s+1);
-	build[0] = 0;
-
-	for (i=0 ; i<s-1 ; i++)
+	if (*text)
 	{
-		if (text[i] == '+')
-		{
-			i++;
-
-			for (j=i ; ((text[j-1] != ' ') || ((text[j] != '+') && (text[j] != '-'))) && (text[j] != 0) ; j++)
-				;
-
-			c = text[j];
-			text[j] = 0;
-
-			Q_strcat (build, text+i);
-			Q_strcat (build, "\n");
-			text[j] = c;
-			i = j-1;
-		}
+		Q_strcat (text, "\n");
+		Cbuf_AddText (text, RESTRICT_LOCAL);
 	}
-
-	if (build[0])
-		Cbuf_AddText (build, RESTRICT_LOCAL);
 
 	Z_Free (text);
-	Z_Free (build);
+
+	cmd_stuffedcmdline = true;	//don't add multiple times.
+
+	//and exec anything added.
+	Cbuf_Execute ();
 }
 
 #if defined(HAVE_LEGACY) && defined(HAVE_CLIENT)
@@ -784,8 +784,8 @@ static void Cmd_Exec_f (void)
 						char fulldefault[MAX_OSPATH];
 						char fullconfig[MAX_OSPATH];
 						*fulldefault = *fullconfig = 0;
-						FS_NativePath("default.cfg", FS_GAME, fulldefault, sizeof(fulldefault));
-						FS_NativePath(name, FS_GAME, fullconfig, sizeof(fullconfig));
+						FS_DisplayPath("default.cfg", FS_GAME, fulldefault, sizeof(fulldefault));
+						FS_DisplayPath(name, FS_GAME, fullconfig, sizeof(fullconfig));
 						Con_Printf("Refusing to execute \"%s\", superceded by %s\n", fullconfig, fulldefault);
 					}
 					return;
@@ -802,8 +802,8 @@ static void Cmd_Exec_f (void)
 						char fulldefault[MAX_OSPATH];
 						char fullconfig[MAX_OSPATH];
 						*fulldefault = *fullconfig = 0;
-						FS_NativePath("default.cfg", FS_GAME, fulldefault, sizeof(fulldefault));
-						FS_NativePath(name, FS_GAME, fullconfig, sizeof(fullconfig));
+						FS_DisplayPath("default.cfg", FS_GAME, fulldefault, sizeof(fulldefault));
+						FS_DisplayPath(name, FS_GAME, fullconfig, sizeof(fullconfig));
 						Con_Printf("Refusing to execute \"%s\", superceded by %s\n", fullconfig, fulldefault);
 					}
 					return;
@@ -4137,7 +4137,7 @@ static void Cmd_WriteConfig_f(void)
 	vfsfile_t *f;
 	char *filename;
 	char fname[MAX_QPATH];
-	char sysname[MAX_OSPATH];
+	char displayname[MAX_OSPATH];
 	qboolean all = true;
 
 	//special variation that only saves if an archived cvar was actually modified.
@@ -4154,7 +4154,7 @@ static void Cmd_WriteConfig_f(void)
 		MasterInfo_WriteServers();
 #endif
 
-		f = FS_OpenWithFriends(fname, sysname, sizeof(sysname), 4, "quake.rc", "hexen.rc", "*.cfg", "configs/*.cfg", "dlcache/*.pk3*");
+		f = FS_OpenWithFriends(fname, displayname, sizeof(displayname), 4, "quake.rc", "hexen.rc", "*.cfg", "configs/*.cfg", "dlcache/*.pk3*");
 
 		all = cfg_save_all.ival;
 	}
@@ -4170,7 +4170,7 @@ static void Cmd_WriteConfig_f(void)
 			return;
 		}
 
-		FS_NativePath(fname, FS_BASEGAMEONLY, sysname, sizeof(sysname));
+		FS_DisplayPath(fname, FS_BASEGAMEONLY, displayname, sizeof(displayname));
 		FS_CreatePath(fname, FS_BASEGAMEONLY);
 		f = FS_OpenVFS(fname, "wbp", FS_BASEGAMEONLY);
 
@@ -4192,7 +4192,7 @@ static void Cmd_WriteConfig_f(void)
 		Q_snprintfz(fname, sizeof(fname), "configs/%s", filename);
 		COM_DefaultExtension(fname, ".cfg", sizeof(fname));
 
-		FS_NativePath(fname, FS_BASEGAMEONLY, sysname, sizeof(sysname));
+		FS_DisplayPath(fname, FS_BASEGAMEONLY, displayname, sizeof(displayname));
 		FS_CreatePath(fname, FS_BASEGAMEONLY);
 		f = FS_OpenVFS(fname, "wbp", FS_BASEGAMEONLY);
 
@@ -4200,7 +4200,7 @@ static void Cmd_WriteConfig_f(void)
 	}
 	if (!f)
 	{
-		Con_Printf (CON_ERROR "Couldn't write config %s\n", sysname);
+		Con_Printf (CON_ERROR "Couldn't write config %s\n", displayname);
 		return;
 	}
 
@@ -4237,7 +4237,7 @@ static void Cmd_WriteConfig_f(void)
 
 	Cvar_Saved();
 
-	Con_Printf ("Wrote %s\n",sysname);
+	Con_Printf ("Wrote %s\n",displayname);
 }
 
 static void Cmd_Reset_f(void)
@@ -4426,6 +4426,7 @@ Cmd_Init
 */
 void Cmd_Init (void)
 {
+	cmd_stuffedcmdline = false;
 	macro_count = 0;	
 //
 // register our commands

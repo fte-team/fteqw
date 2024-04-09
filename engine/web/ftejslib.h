@@ -17,7 +17,7 @@ unsigned int emscriptenfte_buf_getsize(int handle);			//get the size of the file
 int emscriptenfte_buf_read(int handle, int offset, void *data, int len);//read data
 int emscriptenfte_buf_write(int handle, int offset, const void *data, int len);//write data. no access checks.
 void emscritenfte_buf_enumerate(void (*Sys_EnumeratedFile)(void *ctx, size_t fsize), void *ctx, size_t namesize);
-
+void emscriptenfte_openfile(void);
 
 //websocket is implemented in javascript because there is no usable C api (emscripten's javascript implementation is shite and has fatal errors).
 int emscriptenfte_ws_connect(const char *url, const char *wsprotocol);	//open a websocket connection to a specific host
@@ -40,6 +40,7 @@ NORETURN void emscriptenfte_abortmainloop(const char *caller, int fatal);
 //to use such textures/sounds, we can just 'directly' load them via webgl
 void emscriptenfte_gl_loadtexturefile(int gltexid, int *width, int *height, void *data, int datasize, const char *fname, int premul, int genmips);
 void emscriptenfte_al_loadaudiofile(int al_buf, void *data, int datasize);
+int emscriptenfte_pcm_loadaudiofile(void *ctx, void(*callbackfunc)(void *ctx, void *dataptr, int frames, int channels, float rate), void *dataptr, size_t datasize, int snd_speed);
 
 //avoid all of emscripten's sdl emulation.
 //this resolves input etc issues.
@@ -57,11 +58,26 @@ int emscriptenfte_setupcanvas(
 	int(*Keyboard)(unsigned int devid, int down, int keycode, int unicode),
 	void(*LoadFile)(char *url, char *mime, int filehandle),
 	void(*CbufAdd)(const char *text),
-	void(*buttonevent)(unsigned int joydev, int button, int ispressed, int isstandard),
-	void(*axisevent)(unsigned int joydev, int axis, float value, int isstandard),
+	void(*buttonevent)(int joydev, int button, int ispressed, int isstandard),
+	void(*axisevent)(int joydev, int axis, float value, int isstandard),
+	void(*orientation)(int joydev, float px,float py,float pz, float qx,float qy,float qz,float qw),
 	int (*ShouldSwitchToFullscreen)(void)
 	);
 
-int emscriptenfte_getvrframedata(void);
-int emscriptenfte_getvreyedata(int eye, float *projectionmatrix, float *viewmatrix);
-
+struct webxrinfo_s {
+	int fbo;	//panic!
+	int viewport[4];
+	float projmatrix[16];
+	float transform[16];
+};
+int emscriptenfte_xr_geteyeinfo(int maxeyes, struct webxrinfo_s *vreyes);
+unsigned int emscriptenfte_xr_issupported(void);		//0 for can't support it, -1 for unknown support, otherwise bitmask of supported modes
+int emscriptenfte_xr_isactive(void);	//true if we're actually using webvr or not.
+void emscriptenfte_xr_setup(int mode);
+	#define WXRM_TOGGLE -3
+	#define WXRM_AUTO -2
+	#define WXRM_DISABLE -1
+	#define WXRM_INLINE 0
+	#define WXRM_VR 1
+	#define WXRM_AR 2
+void emscriptenfte_xr_shutdown(void);

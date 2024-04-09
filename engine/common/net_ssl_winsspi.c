@@ -765,7 +765,7 @@ static PCCERT_CONTEXT SSPI_GetServerCertificate(void)
 		);
 	}
 	if (!ret)
-		Con_Printf(CON_ERROR"Certificate generation failed...\n");
+		Con_Printf(CON_ERROR"SChannel: Certificate generation failed...\n");	//happens in wine.
 	else
 	{
 		//this is stupid and redundant, yet apparently still needed.

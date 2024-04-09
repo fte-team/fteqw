@@ -437,7 +437,7 @@ static void	MPQ_BuildHash(searchpathfuncs_t *handle, int depth, void (QDECL *Add
 	}
 }
 
-static int		MPQ_GeneratePureCRC (searchpathfuncs_t *handle, int seed, int usepure)
+static int		MPQ_GeneratePureCRC (searchpathfuncs_t *handle, const int *seed)
 {
 	return 0;
 }

@@ -394,6 +394,44 @@ static void J_JoystickButton(SDL_JoystickID jid, int button, qboolean pressed)
 	}
 }
 
+int INS_GetControllerType(int id)
+{
+#if SDL_VERSION_ATLEAST(2,0,12)
+	int i;
+	for (i = 0; i < MAX_JOYSTICKS; i++)
+	{
+		if (sdljoy[i].qdevid == id)
+		{
+			switch(SDL_GameControllerTypeForIndex(sdljoy[i].id))
+			{
+			default:	//for the future...
+#if SDL_VERSION_ATLEAST(2,0,14)
+			case SDL_CONTROLLER_TYPE_VIRTUAL:	//don't really know... assume steaminput and thus steamdeck and thus xbox-like.
+#endif
+				return 1;
+			case SDL_CONTROLLER_TYPE_UNKNOWN:
+				return 0;
+			case SDL_CONTROLLER_TYPE_XBOX360:
+			case SDL_CONTROLLER_TYPE_XBOXONE:
+#if SDL_VERSION_ATLEAST(2,0,16)
+			case SDL_CONTROLLER_TYPE_GOOGLE_STADIA:	//close enough
+			case SDL_CONTROLLER_TYPE_AMAZON_LUNA:	//it'll do. I guess we're starting to see a standard here.
+#endif
+				return 1;	//a on bottom, b('cancel') to right
+			case SDL_CONTROLLER_TYPE_PS3:
+			case SDL_CONTROLLER_TYPE_PS4:
+#if SDL_VERSION_ATLEAST(2,0,14)
+			case SDL_CONTROLLER_TYPE_PS5:
+#endif
+				return 2;	//weird indecipherable shapes.
+			case SDL_CONTROLLER_TYPE_NINTENDO_SWITCH_PRO:
+				return 3;	//b on bottom, a('cancel') to right
+			}
+		}
+	}
+#endif
+	return 0;
+}
 void INS_Rumble(int id, quint16_t amp_low, quint16_t amp_high, quint32_t duration)
 {
 #if SDL_VERSION_ATLEAST(2,0,9)
@@ -459,7 +497,8 @@ void INS_SetLEDColor(int id, vec3_t color)
 void INS_SetTriggerFX(int id, const void *data, size_t size)
 {
 #if SDL_VERSION_ATLEAST(2,0,15)
-	for (int i = 0; i < MAX_JOYSTICKS; i++)
+	int i;
+	for (i = 0; i < MAX_JOYSTICKS; i++)
 	{
 		if (sdljoy[i].qdevid == id)
 		{

@@ -171,7 +171,7 @@ qboolean FS_Remove (const char *path, enum fs_relative relativeto)
 		return false;
 	return true;
 }
-qboolean FS_NativePath(const char *fname, enum fs_relative relativeto, char *out, int outlen)
+qboolean FS_SystemPath(const char *fname, enum fs_relative relativeto, char *out, int outlen)
 {
 	Q_strncpyz(out, fname, outlen);
 	return true;
@@ -1305,7 +1305,7 @@ static struct pendingtextureinfo *ImgTool_DecodeMiptex(struct opts_s *args, mipt
 
 	out->encoding = PTI_INVALID;
 
-	Con_DPrintf("%s: width %i, height %i\n", mip->name, mip->width, mip->height);
+	Con_DPrintf("%s: width %u, height %u, size %u\n", mip->name, mip->width, mip->height, (unsigned int)size);
 
 	//header [legacymip0 legacymip1 legacymip2] [extsize extcode extdata]*n [legacymip3]
 	//extcode NAME: extdata-8 bytes of replacement name
@@ -1315,10 +1315,10 @@ static struct pendingtextureinfo *ImgTool_DecodeMiptex(struct opts_s *args, mipt
 	//legacy-only data is densely packed or whatever.
 	//half-life palette data might be glued onto the end. we don't care to handle that.
 	Con_DPrintf("%i bytes of extended data\n", (unsigned)(dataend-data));
-	Con_DPrintf("offset[0]: %i\n", mip->offsets[0]);
-	Con_DPrintf("offset[1]: %i\n", mip->offsets[1]);
-	Con_DPrintf("offset[2]: %i\n", mip->offsets[2]);
-	Con_DPrintf("offset[3]: %i\n", mip->offsets[3]);
+	Con_DPrintf("offset[0]: %u\n", mip->offsets[0]);
+	Con_DPrintf("offset[1]: %u\n", mip->offsets[1]);
+	Con_DPrintf("offset[2]: %u\n", mip->offsets[2]);
+	Con_DPrintf("offset[3]: %u\n", mip->offsets[3]);
 	if (data+4 < dataend && data[0]==0x00 && data[1]==0xfb&&data[2]==0x2b&&data[3]==0xaf)	//magic id to say that there's actually extensions here...
 	{
 		data+=4;
@@ -1447,8 +1447,15 @@ static struct pendingtextureinfo *ImgTool_DecodeMiptex(struct opts_s *args, mipt
 				out->mip[out->mipcount].width = mip->width>>out->mipcount;
 				out->mip[out->mipcount].height = mip->height>>out->mipcount;
 				out->mip[out->mipcount].depth = 1;
-				out->mip[out->mipcount].datasize = out->mip[out->mipcount].width*out->mip[out->mipcount].height*out->mip[out->mipcount].depth;
+				out->mip[out->mipcount].datasize = out->mip[out->mipcount].width*(size_t)out->mip[out->mipcount].height*out->mip[out->mipcount].depth;
 				out->mip[out->mipcount].data = (char*)mip + mip->offsets[out->mipcount];
+
+				if (mip->offsets[out->mipcount]+out->mip[out->mipcount].datasize > size)
+				{
+					out->mip[out->mipcount].data = mip;
+					out->mip[out->mipcount].datasize = 0;
+					Con_Printf("%s: Mip%i offsets/size exceed size of texture\n", mip->name, out->mipcount);
+				}
 			}
 		}
 	}
@@ -1461,7 +1468,10 @@ static struct pendingtextureinfo *ImgTool_DecodeMiptex(struct opts_s *args, mipt
 			continue;
 		if (out->mip[i].data < (void*)mip ||
 			(char*)out->mip[i].data+out->mip[i].datasize > (char*)mip+size)
+		{
+			Con_Printf("%s: Corrupt mip %i\n", mip->name, i);
 			return NULL;
+		}
 	}
 
 	if (args)
@@ -1534,39 +1544,52 @@ static void ImgTool_Enumerate(struct opts_s *args, const char *inname, void(*cal
 					unsigned int w=0;
 					unsigned int h=0;
 					in = NULL;
-					if (sz >= 8)
-					{
-						w = (indata[e->offset+0]<<0)|(indata[e->offset+1]<<8)|(indata[e->offset+2]<<16)|(indata[e->offset+3]<<24);
-						h = (indata[e->offset+4]<<0)|(indata[e->offset+5]<<8)|(indata[e->offset+6]<<16)|(indata[e->offset+7]<<24);
-					}
-					if (sz == w*h+8)
-					{	//quake
+					if (!strcasecmp(e->name, "CONCHARS") && (e->size==128*128 || e->size==128*128+8))
+					{	//special hack for buggy conchars, which is listed as a miptex for some reason, with no qpic header (it not being a qpic lump)
+						printf("\t%16.16s: corrupt CONCHARS lump - wrongly marked as qpic. Treating as a legacy engine would...\n", e->name);
 						in = Z_Malloc(sizeof(*in));
-						in->encoding = PTI_P8;
-						in->mip[0].data = indata+e->offset+8;
-						in->mip[0].datasize = w*h;
-					}
-					else if (((sz+3)&~3) == (((w*h+10+768+3)&~3)))
-					{	//halflife
-						const unsigned char *src = indata+e->offset+8;
-						const unsigned char *pal = indata+e->offset+8+w*h+2, *p;
-						unsigned char *dst;
-						sz = w*h;
-						in = Z_Malloc(sizeof(*in)+w*h*3);
-						in->encoding = PTI_RGB8;
-						in->mip[0].data = dst = (unsigned char*)(in+1);
-						in->mip[0].datasize = sz*3;
-
-						while (sz --> 0)
-						{
-							p = pal+*src++*3;
-							*dst++ = *p++;
-							*dst++ = *p++;
-							*dst++ = *p++;
-						}
+						in->encoding = TF_H2_TRANS8_0;
+						in->mip[0].data = indata+e->offset;
+						in->mip[0].datasize = 128*128;
+						w = 128;
+						h = 128;
 					}
 					else
-						printf("\t%16.16s: missized qpic (%u %u, %u bytes)\n", e->name, w, h, (unsigned int)sz);
+					{
+						if (sz >= 8)
+						{
+							w = (indata[e->offset+0]<<0)|(indata[e->offset+1]<<8)|(indata[e->offset+2]<<16)|(indata[e->offset+3]<<24);
+							h = (indata[e->offset+4]<<0)|(indata[e->offset+5]<<8)|(indata[e->offset+6]<<16)|(indata[e->offset+7]<<24);
+						}
+						if (sz == w*h+8)
+						{	//quake
+							in = Z_Malloc(sizeof(*in));
+							in->encoding = TF_TRANS8;
+							in->mip[0].data = indata+e->offset+8;
+							in->mip[0].datasize = w*h;
+						}
+						else if (((sz+3)&~3) == (((w*h+10+768+3)&~3)))
+						{	//halflife
+							const unsigned char *src = indata+e->offset+8;
+							const unsigned char *pal = indata+e->offset+8+w*h+2, *p;
+							unsigned char *dst;
+							sz = w*h;
+							in = Z_Malloc(sizeof(*in)+w*h*3);
+							in->encoding = PTI_RGB8;
+							in->mip[0].data = dst = (unsigned char*)(in+1);
+							in->mip[0].datasize = sz*3;
+
+							while (sz --> 0)
+							{
+								p = pal+*src++*3;
+								*dst++ = *p++;
+								*dst++ = *p++;
+								*dst++ = *p++;
+							}
+						}
+						else
+							printf("\t%16.16s: missized qpic (%u %u, %u bytes)\n", e->name, w, h, (unsigned int)sz);
+					}
 					if (in)
 					{
 //						printf("\n");
@@ -3119,10 +3142,11 @@ static void ImgTool_View(const char *inname, struct pendingtextureinfo *in)
 	qboolean outformats[PTI_MAX] = {false};
 	struct sdlwindow_s *wc;
 	SDL_Event ev;
-	uploadfmt_t origencoding = in->encoding;
+	uploadfmt_t origencoding;
 
-	if (in->mipcount < 1 || in->mip[0].width <= 0 || in->mip[0].height <= 0)
+	if (!in || in->mipcount < 1 || in->mip[0].width <= 0 || in->mip[0].height <= 0)
 		return;
+	origencoding = in->encoding;
 
 	if (!SDLL_Setup())
 	{
@@ -3245,7 +3269,7 @@ static void ImgTool_View(const char *inname, struct pendingtextureinfo *in)
 		}
 		else
 		{
-			printf("Unable to create texture\n");
+			printf("Unable to create texture %s %u*%u\n", Image_FormatName(in->encoding), in->mip[0].width, in->mip[0].height);
 			BZ_Free(wc->tex[wc->texcount].name);
 		}
 	}

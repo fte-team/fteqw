@@ -49,20 +49,27 @@ typedef struct galiasevent_s
 	char *data;
 } galiasevent_t;
 
+typedef struct galiasrefpose_s
+{
+	vec4_t quat;
+	vec3_t org;
+	vec3_t scale;
+} galiasrefpose_t;
+
 //a frame group (aka: animation)
 typedef struct galiasanimation_s
 {
 #ifdef SKELETALMODELS
 	skeltype_t skeltype;	//for models with transforms, states that bones need to be transformed from their parent.
 							//this is actually bad, and can result in bones shortening as they interpolate.
-	float *(QDECL *GetRawBones)(const struct galiasinfo_s *mesh, const struct galiasanimation_s *a, float time, float *bonematrixstorage, int numbones);
+	float *(QDECL *GetRawBones)(const struct galiasinfo_s *mesh, const struct galiasanimation_s *a, float time, float *bonematrixstorage, const struct galiasbone_s *boneinf, int numbones);
 	void *boneofs;	//numposes*12*numbones
 #endif
 	qboolean loop;
 	int numposes;
 	//float *poseendtime;	//first starts at 0, anim duration is poseendtime[numposes-1]
 	float rate;				//average framerate of animation.
-	int action;
+	int action;				//-1 for none.
 	float actionweight;
 #ifdef NONSKELETALMODELS
 	galiaspose_t *poseofs;
@@ -76,9 +83,15 @@ typedef struct galiasbone_s galiasbone_t;
 struct galiasbone_s
 {
 	char name[64];
+#if MAX_BONES>32767
 	int parent;
+#else
+	short parent;
+#endif
+	unsigned char group;
 //	float radius;
 	float inverse[12];
+	galiasrefpose_t ref;
 };
 
 typedef struct
@@ -180,10 +193,10 @@ typedef struct galiasinfo_s
 
 #ifdef SKELETALMODELS
 	boneidx_t *bonemap;		//filled in automatically if our mesh has more gpu bones than we can support
-	unsigned int mappedbones;
+	unsigned int mappedbones;	//number of private per-mesh bones.
 	unsigned int nummorphs;	//extra data after the xyz/norm/stvect arrays
-	const float *(QDECL *AnimateMorphs)(const struct galiasinfo_s *surf, const framestate_t *framestate);
-	int meshrootbone;
+	const float *(QDECL *AnimateMorphs)(const struct galiasinfo_s *surf, const framestate_t *framestate, float *resultmorphs);	//returns a float weight[nummorphs] array (base verts have an implicit weight of 1, so these are purely additive)
+	int meshrootbone;		//unused by engine. for loader callbacks to (ab)use
 
 	float *baseframeofs;	/*non-heirachical*/
 	int numbones;
@@ -246,6 +259,7 @@ typedef struct modplugfuncs_s
 	void (QDECL *VectorAngles)(const float *forward, const float *up, float *result, qboolean meshpitch);
 	void (QDECL *AngleVectors)(const vec3_t angles, vec3_t forward, vec3_t right, vec3_t up);
 	void (QDECL *GenMatrixPosQuat4Scale)(const vec3_t pos, const vec4_t quat, const vec3_t scale, float result[12]);
+	void (QDECL *QuaternionSlerp)(const vec4_t p, vec4_t q, float t, vec4_t qt);
 
 	//bone stuff
 	void (QDECL *ForceConvertBoneData)(skeltype_t sourcetype, const float *sourcedata, size_t bonecount, galiasbone_t *bones, skeltype_t desttype, float *destbuffer, size_t destbonecount);
@@ -267,13 +281,10 @@ typedef struct modplugfuncs_s
 	void (*RenderDynamicLightmaps) (struct msurface_s *surf);
 	entity_t *(*NewSceneEntity) (void);
 	void (*EndSubmodelLoad)(struct model_s *submod, int modelloadstate);
-#if sizeof_index_t==2
-	#define plugmodfuncs_name "Models"
-#else
-	#define plugmodfuncs_name "Models_IDX" STRINGIFY(sizeof_index_t)
-#endif
+	#define plugmodfuncs_name_idxpostfix "_IDX" STRINGIFY(sizeof_index_t)
+#define plugmodfuncs_name "Models" plugmodfuncs_name_idxpostfix
 } plugmodfuncs_t;
-#define MODPLUGFUNCS_VERSION 3
+#define MODPLUGFUNCS_VERSION 4
 
 #ifdef SKELETALMODELS
 void Alias_TransformVerticies(float *bonepose, galisskeletaltransforms_t *weights, int numweights, vecV_t *xyzout, vec3_t *normout);

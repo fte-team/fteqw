@@ -2651,7 +2651,7 @@ static void P_ExportAllEffects_f(void)
 	outf = FS_OpenVFS(fname, "wb", FS_GAMEONLY);
 	if (!outf)
 	{
-		FS_NativePath(fname, FS_GAMEONLY, effect, sizeof(effect));
+		FS_DisplayPath(fname, FS_GAMEONLY, effect, sizeof(effect));
 		Con_TPrintf("Unable to open file %s\n", effect);
 		return;
 	}
@@ -2679,7 +2679,7 @@ static void P_ExportAllEffects_f(void)
 	}
 	VFS_CLOSE(outf);
 
-	FS_NativePath(fname, FS_GAMEONLY, effect, sizeof(effect));
+	FS_DisplayPath(fname, FS_GAMEONLY, effect, sizeof(effect));
 	Con_Printf("Written %s\n", effect);
 }
 #endif
@@ -3398,7 +3398,7 @@ static void P_ConvertEffectInfo_f(void)
 	outf = FS_OpenVFS(fname, "wb", FS_GAMEONLY);
 	if (!outf)
 	{
-		FS_NativePath(fname, FS_GAMEONLY, effect, sizeof(effect));
+		FS_DisplayPath(fname, FS_GAMEONLY, effect, sizeof(effect));
 		Con_TPrintf("Unable to open file %s\n", effect);
 		return;
 	}
@@ -3435,7 +3435,7 @@ static void P_ConvertEffectInfo_f(void)
 	}
 	VFS_CLOSE(outf);
 
-	FS_NativePath(fname, FS_GAMEONLY, effect, sizeof(effect));
+	FS_DisplayPath(fname, FS_GAMEONLY, effect, sizeof(effect));
 	Con_Printf("Written %s\n", effect);
 }
 #endif
@@ -3534,10 +3534,10 @@ static void PScript_Shutdown (void)
 	Cmd_RemoveCommand("r_exportbuiltinparticles");
 	Cmd_RemoveCommand("r_importeffectinfo");
 
-#if _DEBUG
+//#if _DEBUG
 	Cmd_RemoveCommand("r_partinfo");
 	Cmd_RemoveCommand("r_beaminfo");
-#endif
+//#endif
 
 	pe_default			= P_INVALID;
 	pe_size2			= P_INVALID;
@@ -3809,7 +3809,7 @@ static void QDECL R_ParticleDesc_Callback(struct cvar_s *var, char *oldvalue)
 			if (failure)
 			P_LoadParticleSet("high", true, true);
 
-		if (cls.state)
+		if (cls.state && cl.model_name[1])
 		{
 			//per-map configs. because we can.
 			memcpy(token, "map_", 4);

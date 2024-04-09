@@ -1372,7 +1372,7 @@ static void SVFTE_WriteUpdate(unsigned int bits, entity_state_t *state, sizebuf_
 	if (bits & UF_DRAWFLAGS)
 	{
 		MSG_WriteByte(msg, state->hexen2flags);
-		if ((state->hexen2flags & MLS_MASK) == MLS_ABSLIGHT)
+		if ((state->hexen2flags & MLS_MASK) >= MLS_ADDLIGHT)
 			MSG_WriteByte(msg, state->abslight);
 	}
 	if (bits & UF_TAGINFO)
@@ -2541,6 +2541,11 @@ qboolean Cull_Traceline(float *timestamp, pvscamera_t *cameras, edict_t *seen)
 	vec3_t end, amin, size;
 	int c;
 
+	//don't cull inline models like this. too big, too weird.
+	model_t *mod = sv.world.Get_CModel(&sv.world, seen->v->modelindex);
+	if (mod && *mod->name == '*')
+		return false;
+	//don't cull external models either. unless they're progs/b_*.mdl which SHOULD get culled this way. its awkward okay?
 	if (seen->v->solid == SOLID_BSP)
 		return false;	//bsp ents are never culled this way (typically far too large to care, often with large parts inside walls)
 
@@ -3623,9 +3628,6 @@ void SV_Snapshot_BuildStateQ1(entity_state_t *state, edict_t *ent, client_t *cli
 	if (state->effects & DPEF_LOWPRECISION)
 		state->effects &= ~DPEF_LOWPRECISION;	//we don't support it, nor does dp any more. strip it.
 
-	if (state->effects & EF_FULLBRIGHT)	//wrap the field for fte clients (this is horrible)
-		state->hexen2flags |= MLS_FULLBRIGHT;
-
 	if (ent->v->nextthink>sv.world.physicstime)
 		state->lerpend = ent->v->nextthink;
 
@@ -3697,14 +3699,14 @@ void SV_Snapshot_BuildStateQ1(entity_state_t *state, edict_t *ent, client_t *cli
 			}
 			else if (progstype == PROG_TENEBRAE)
 			{
-				if (state->effects & 16)	//tenebrae's EF_FULLDYNAMIC
+				if (state->effects & TENEBRAEEF_FULLDYNAMIC)	//tenebrae's EF_FULLDYNAMIC
 				{
-					state->effects &= ~16;
+					state->effects &= ~TENEBRAEEF_FULLDYNAMIC;
 					state->lightpflags |= PFLAGS_FULLDYNAMIC;
 				}
-				if (state->effects & 32)	//tenebrae's EF_GREEN
+				if (state->effects & TENEBRAEEF_GREEN)	//tenebrae's EF_GREEN
 				{
-					state->effects &= ~32;
+					state->effects &= ~TENEBRAEEF_GREEN;
 					state->effects |= EF_GREEN;
 				}
 			}
@@ -4200,7 +4202,7 @@ void SV_Snapshot_SetupPVS(client_t *client, pvscamera_t *camera)
 			SV_AddCameraEntity(camera, PROG_TO_EDICT(svprogfuncs, client->edict->xv->view2), NULL);
 	}
 
-	//hack for skyrooms, open up the pvs.
+	//hack for skyrooms, open up the pvs. FIXME: only do this if 'the' viewleaf can see sky.
 	if (sv.skyroom_pos_known)
 		SV_AddCameraEntity(camera, NULL, sv.skyroom_pos);
 }

@@ -491,7 +491,7 @@ void IN_Commands(void)
 			Key_Event(ev->devid, ev->keyboard.scancode, ev->keyboard.unicode, true);
 			break;
 		case IEV_JOYAXIS:
-			if (ev->devid < MAXJOYSTICKS && ev->joy.axis < MAXJOYAXIS)
+			if (ev->devid < MAXJOYSTICKS && ev->joy.axis>=0 && ev->joy.axis<MAXJOYAXIS)
 			{
 				if (topmenu && topmenu->joyaxis && topmenu->joyaxis(topmenu, ev->devid, ev->joy.axis, ev->joy.value))
 					joy[ev->devid].axis[ev->joy.axis] = 0;
@@ -884,6 +884,9 @@ void IN_MoveMouse(struct mouse_s *mouse, float *movements, int pnum, float frame
 		return;
 	}
 
+	if (r_xflip.ival)
+		mouse_x *= -1;
+
 // add mouse X/Y movement to cmd
 	if (strafe_x)
 		movements[1] += m_side.value * mouse_x;
@@ -1040,6 +1043,8 @@ void IN_MoveJoystick(struct joy_s *joy, float *movements, int pnum, float framet
 		VectorClear(jlook);
 		VectorClear(jstrafe);
 	}
+	if (r_xflip.ival)
+		jlook[0] *= -1, jstrafe[0] *= -1;
 
 	if (in_speed.state[pnum] & 1)
 	{

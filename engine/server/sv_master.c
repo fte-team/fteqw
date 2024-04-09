@@ -209,7 +209,9 @@ qboolean SVM_FixupServerAddress(netadr_t *adr, struct dtlspeercred_s *cred)
 		cred->hash = &hash_sha2_512;
 	else
 		return false;	//just no.
-	memset(cred->digest+b, 0, cred->hash->digestsize-b); //make sure its -terminated, in case the provided size was wrong
+	if (b > cred->hash->digestsize)
+		return false;	//err...
+	memset(cred->digest+b, 0, cred->hash->digestsize-b); //make sure its 0-terminated, in case the provided size was wrong
 	return true;
 }
 
@@ -833,8 +835,8 @@ vfsfile_t *SVM_Generate_Rawlist(const char **mimetype, const char *masteraddr, c
 			prot = va("%i", server->protover);
 		if (server->brokerid)
 			VFS_PRINTF(f, "rtc://%s/%s \\protocol\\%s\\maxclients\\%u\\clients\\%u\\bots\\%u\\hostname\\%s\\modname\\%s\\mapname\\%s\\needpass\\%i\n", masteraddr, server->brokerid, prot, server->maxclients, server->clients, server->bots, *server->hostname?server->hostname:"unnamed", *server->gamedir?server->gamedir:"-", *server->mapname?server->mapname:"-", server->needpass?1:0);
-		else if ((fp = Info_ValueForKey(server->rules, "*fp")))
-			VFS_PRINTF(f, "rtc://%s/udp/%s \\protocol\\%s\\maxclients\\%u\\clients\\%u\\bots\\%u\\hostname\\%s\\modname\\%s\\mapname\\%s\\needpass\\%i\\*fp\\%s\n", masteraddr, NET_AdrToString(tmpbuf, sizeof(tmpbuf), &server->adr), prot, server->maxclients, server->clients, server->bots, *server->hostname?server->hostname:"unnamed", *server->gamedir?server->gamedir:"-", *server->mapname?server->mapname:"-", server->needpass?1:0, fp);
+		else if (*(fp = Info_ValueForKey(server->rules, "*fp")))
+			VFS_PRINTF(f, "%s \\protocol\\%s\\maxclients\\%u\\clients\\%u\\bots\\%u\\hostname\\%s\\modname\\%s\\mapname\\%s\\needpass\\%i\\*fp\\%s\n", NET_AdrToString(tmpbuf, sizeof(tmpbuf), &server->adr), prot, server->maxclients, server->clients, server->bots, *server->hostname?server->hostname:"unnamed", *server->gamedir?server->gamedir:"-", *server->mapname?server->mapname:"-", server->needpass?1:0, fp);
 		else
 			VFS_PRINTF(f, "%s\n", NET_AdrToString(tmpbuf, sizeof(tmpbuf), &server->adr));
 	}
@@ -1728,7 +1730,7 @@ static qboolean SVM_FoundManifest(void *usr, ftemanifest_t *man, enum modsourcet
 static void SVM_Begin(void)
 {	//called once filesystem etc stuff is started.
 	SVM_FoundManifest(NULL, fs_manifest, MST_UNKNOWN);
-	FS_EnumerateKnownGames(SVM_FoundManifest, NULL);
+	FS_EnumerateKnownGames(SVM_FoundManifest, NULL, false);
 
 	Cvar_ForceCallback(&sv_masterport);
 	Cvar_ForceCallback(&sv_masterport_tcp);
@@ -1818,10 +1820,6 @@ void SV_Init (struct quakeparms_s *parms)
 	NET_Init ();
 	COM_Init ();
 
-#ifdef WEBSERVER
-	IWebInit();
-#endif
-
 	Cmd_AddCommand ("quit", SV_Quit_f);
 	Cmd_AddCommand ("status", SVM_Status_f);
 
@@ -1837,7 +1835,6 @@ void SV_Init (struct quakeparms_s *parms)
 		FS_ChangeGame(NULL, true, true);
 
 	Cmd_StuffCmds();
-	Cbuf_Execute ();
 
 	SVM_Begin();
 

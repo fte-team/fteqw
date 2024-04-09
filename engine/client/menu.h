@@ -131,7 +131,12 @@ typedef enum
 	PROMPT_NO		= 1,
 	PROMPT_CANCEL	= -1,
 } promptbutton_t;
+#ifdef HAVE_CLIENT
 void Menu_Prompt (void (*callback)(void *, promptbutton_t), void *ctx, const char *messages, const char *optionyes, const char *optionno, const char *optioncancel, qboolean highpri);
+#define Menu_PromptOrPrint(messages,optioncancel,highpri) Menu_Prompt(NULL, NULL, messages, NULL, NULL, optioncancel, highpri)
+#else
+#define Menu_PromptOrPrint(messages,optioncancel,highpri) Con_Printf("%s", messages)
+#endif
 
 #ifndef NOBUILTINMENUS
 

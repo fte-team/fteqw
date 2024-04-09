@@ -74,6 +74,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 	#define PEXT_Q3BSP			PEXT_Q3BSP_
 #endif
 #define PEXT1_HIDEPROTOCOLS		(PEXT_Q3BSP_|PEXT_Q2BSP_|PEXT_HLBSP)	//These are hints for the server, and not useful to the client (they can figure stuff out themselves)
+//#define	PEXT1_DEPRECATED			(PEXT_SCALE|PEXT_TRANS|PEXT_ACCURATETIMINGS|PEXT_SOUNDDBL|PEXT_FATNESS|PEXT_HULLSIZE|PEXT_MODELDBL|PEXT_ENTITYDBL|PEXT_ENTITYDBL2|PEXT_COLOURMOD|PEXT_SPAWNSTATIC2|PEXT_256PACKETENTITIES|PEXT_SETATTACHMENT|PEXT_DPFLAGS)	//deprecated by replacementdeltas
+#define PEXT1_MVDSUPPORT			(PEXT1_CLIENTSUPPORT&~PEXT1_DEPRECATED&~PEXT1_HIDEPROTOCOLS)	//pext2 extensions to use when recording mvds.
 
 #define PEXT2_PRYDONCURSOR			0x00000001
 #define PEXT2_VOICECHAT				0x00000002
@@ -88,13 +90,27 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define PEXT2_LERPTIME				0x00000400	//fitz-bloat parity. redefines UF_16BIT as UF_LERPEND in favour of length coding.
 #define PEXT2_SERVERADVERTISE		~0u
 #define PEXT2_CLIENTSUPPORT			(PEXT2_PRYDONCURSOR|PEXT2_VOICECHAT|PEXT2_SETANGLEDELTA|PEXT2_REPLACEMENTDELTAS|PEXT2_MAXPLAYERS|PEXT2_PREDINFO|PEXT2_NEWSIZEENCODING|PEXT2_INFOBLOBS|PEXT2_STUNAWARE|PEXT2_VRINPUTS|PEXT2_LERPTIME) //warn if we see bits not listed here.
+#define PEXT2_DEPRECATEDORNEW		(PEXT2_INFOBLOBS|PEXT2_VRINPUTS|PEXT2_LERPTIME) //extensions that are outdated
+#define PEXT2_MVDSUPPORT			(PEXT2_CLIENTSUPPORT&~PEXT2_DEPRECATED&~PEXT2_STUNAWARE)	//pext2 extensions to use when recording mvds.
 
 //EzQuake/Mvdsv extensions. (use ezquake name, to avoid confusion about .mvd format and its protocol differences)
 #define EZPEXT1_FLOATENTCOORDS		0x00000001	//quirky - doesn't apply to broadcasts, just players+ents. this gives more precision, but will bug out if you try using it to increase map bounds in ways that may not be immediately apparent. iiuc this was added instead of fixing some inconsistent rounding...
 #define EZPEXT1_SETANGLEREASON		0x00000002	//specifies the reason for an svc_setangles call. the mvdsv implementation will fuck over any mods that writebyte them. we'd need to modify our preparse stuff to work around the issue.
-#define EZPEXT1_SERVERADVERTISE		EZPEXT1_FLOATENTCOORDS/* - implemented, but interactions with replacementdeltas is not defined*/ /*EZPEXT1_SETANGLEREASON - potentially causes compat issues with mods that stuffcmd it (common in nq)*/
+//#define EZPEXT1_SERVERSIDEWEAPON	0x00000004	//looks half-baked. would be better to predict grabs clientside (oh noes! backpack knowledge!).
+//#define EZPEXT1_DEBUG_WEAPON		0x00000008	//debug? not gonna bother.
+//#define EZPEXT1_DEBUG_ANTILAG		0x00000010	//debug? not gonna bother.
+#define EZPEXT1_HIDDEN_MESSAGES		0x00000020	//mvd bloat. shouldn't be seen on actual servers.
+
+
+//#define MVD_PEXT1_SERVERSIDEWEAPON  (1 <<  2) // Server-side weapon selection
+#define MVD_PEXT1_DEBUG_WEAPON      (1 <<  3) // Send weapon-choice explanation to server for logging
+#define MVD_PEXT1_DEBUG_ANTILAG     (1 <<  4) // Send predicted positions to server (compare to antilagged positions)
+#define MVD_PEXT1_HIDDEN_MESSAGES   (1 <<  5) // dem_multiple(0) packets are in format (<length> <type-id>+ <packet-data>)*
+
+
+#define EZPEXT1_SERVERADVERTISE		(EZPEXT1_FLOATENTCOORDS/* - implemented, but interactions with replacementdeltas is not defined*/ /*|EZPEXT1_SETANGLEREASON - potentially causes compat issues with mods that stuffcmd it (common in nq)*/)
 #define EZPEXT1_CLIENTADVERTISE		EZPEXT1_FLOATENTCOORDS			//might as well ask for it, as a way around mvdsv's writecoord/PM_NudgePosition rounding difference bug.
-#define EZPEXT1_CLIENTSUPPORT		(EZPEXT1_FLOATENTCOORDS|EZPEXT1_SETANGLEREASON)	//ones we can support in demos. warning if other bits.
+#define EZPEXT1_CLIENTSUPPORT		(EZPEXT1_FLOATENTCOORDS|EZPEXT1_SETANGLEREASON|EZPEXT1_HIDDEN_MESSAGES)	//ones we can support in demos. warning if other bits.
 
 //ZQuake transparent protocol extensions.
 #define Z_EXT_PM_TYPE		(1<<0)	// basic PM_TYPE functionality (reliable jump_held)
@@ -555,12 +571,12 @@ enum {
 
 //==============================================
 
-#define DLERR_FILENOTFOUND	-1	//server cannot serve the file
-#define DLERR_PERMISSIONS	-2	//server refuses to serve the file
-#define DLERR_UNKNOWN		-3	//server bugged out while trying to serve the request
-#define DLERR_REDIRECTFILE	-4	//client should download the specified file instead.
-#define DLERR_REDIRECTPACK	-5	//client should download the specified package instead.
-#define DLERR_PACKAGE		-6	//not networked. packages require special file access.
+#define DLERR_FILENOTFOUND		-1	//server cannot serve the file
+#define DLERR_PERMISSIONS		-2	//server refuses to serve the file
+#define DLERR_UNKNOWN			-3	//server bugged out while trying to serve the request
+#define DLERR_REDIRECTFILE		-4	//client should download the specified file instead.
+#define DLERR_SV_REDIRECTPACK	-5	//client should download the specified package instead. may also be an http(s):// location.
+#define DLERR_SV_PACKAGE		-6	//not networked. packages require special file access.
 
 #define DLBLOCKSIZE			1024 //chunked downloads use fixed-size chunks (which I somewhat regret, but too late now I guess, really ought to use ranges.).
 
@@ -1854,15 +1870,15 @@ typedef struct q1usercmd_s
 #define MAX_MAP_AREA_BYTES		32
 
 // edict->drawflags (hexen2 stuff)
-#define MLS_MASK				7	// Model Light Style
+#define MLS_MASK				7
 #define MLS_NONE				0
-#define MLS_FULLBRIGHT			1
-#define MLS_POWERMODE			2
-#define MLS_TORCH				3
-#define MLS_TOTALDARK			4
-#define MLS_UNUSED				4
-#define MLS_ADDLIGHT			6
-#define MLS_ABSLIGHT			(MLS_MASK)
+#define MLS_LIGHTSTYLE25		1	//indexes style 25 instead of using real lighting info
+#define MLS_LIGHTSTYLE26		2	//indexes style 26
+#define MLS_LIGHTSTYLE27		3	//27
+#define MLS_LIGHTSTYLE28		4	//...
+#define MLS_LIGHTSTYLE29		5	//duh
+#define MLS_ADDLIGHT			6	//adds abslight to normal lighting
+#define MLS_ABSLIGHT			(MLS_MASK)	//uses abslight specifically.
 #define SCALE_TYPE_MASK			(SCALE_TYPE_UNIFORM|SCALE_TYPE_XYONLY|SCALE_TYPE_ZONLY)
 #define SCALE_TYPE_UNIFORM		0	// Scale X, Y, and Z
 #define SCALE_TYPE_XYONLY		8	// Scale X and Y
@@ -1873,7 +1889,7 @@ typedef struct q1usercmd_s
 #define SCALE_ORIGIN_BOTTOM		32	// Scaling origin at object bottom
 #define SCALE_ORIGIN_TOP		64	// Scaling origin at object top
 #define SCALE_ORIGIN_ORIGIN		(SCALE_ORIGIN_TOP|SCALE_ORIGIN_BOTTOM)	// Scaling origin at object origin
-#define DRF_TRANSLUCENT			128
+#define DRF_TRANSLUCENT			128	//alpha is controlled by r_wateralpha
 
 
 //TENEBRAE_GFX_DLIGHTS

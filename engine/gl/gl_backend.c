@@ -221,8 +221,6 @@ static void BE_PrintDrawCall(const char *msg)
 {
 	char shadername[512];
 	char modelname[512];
-	int num;
-
 	Q_snprintfz(shadername, sizeof(shadername), "^[%-16s\\tipimg\\%s\\tipimgtype\\%i\\tip\\%s^]",
 			shaderstate.curshader->name,
 			shaderstate.curshader->name,shaderstate.curshader->usageflags,
@@ -230,7 +228,9 @@ static void BE_PrintDrawCall(const char *msg)
 
 	if (shaderstate.curbatch && shaderstate.curbatch->ent)
 	{
-		num = shaderstate.curbatch->ent->keynum;
+#ifdef HAVE_SERVER
+		int num = shaderstate.curbatch->ent->keynum;
+#endif
 		if (shaderstate.curbatch->ent->model)
 			Q_snprintfz(modelname, sizeof(modelname), " - ^[%s\\modelviewer\\%s^]",
 				shaderstate.curbatch->ent->model->name, shaderstate.curbatch->ent->model->name);

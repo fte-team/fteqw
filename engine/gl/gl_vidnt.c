@@ -838,6 +838,25 @@ static qboolean Win32VK_AttachVulkan (rendererstate_t *info)
 
 	return VK_Init(info, extnames, Win32VK_CreateSurface, Win32VK_Present);
 }
+static qboolean Win32VK_EnumerateDevices(void *usercontext, void(*callback)(void *context, const char *devicename, const char *outputname, const char *desc))
+{
+	qboolean ret = false;
+#ifdef VK_NO_PROTOTYPES
+	PFN_vkGetInstanceProcAddr vkGetInstanceProcAddr;
+	dllfunction_t func[] =
+	{
+		{(void*)&vkGetInstanceProcAddr,		"vkGetInstanceProcAddr"},
+		{NULL,							NULL}
+	};
+
+	if (!hInstVulkan)
+		hInstVulkan = Sys_LoadLibrary("vulkan-1.dll", func);
+	if (!hInstVulkan)
+		return false;
+#endif
+	ret = VK_EnumerateDevices(usercontext, callback, "Vulkan-", vkGetInstanceProcAddr);
+	return ret;
+}
 #endif
 
 
@@ -3160,30 +3179,39 @@ static LONG WINAPI GLMainWndProc (
 			break;
 
 		case WM_DROPFILES:
-		{
-			HDROP p = (HDROP)wParam;
-			wchar_t fnamew[MAX_PATH];
-			char fname[MAX_PATH];
-			vfsfile_t *f;
-			int i, count = DragQueryFile(p, ~0, NULL, 0);
-			for(i = 0; i < count; i++)
 			{
-				if (WinNT)
+				HDROP p = (HDROP)wParam;
+				wchar_t fnamew[MAX_PATH];
+				char fname[MAX_PATH];
+				vfsfile_t *f;
+				int i, count = DragQueryFile(p, ~0, NULL, 0);
+				for(i = 0; i < count; i++)
 				{
-					DragQueryFileW(p, i, fnamew, countof(fnamew));
-					narrowen(fname, sizeof(fname), fnamew);
+					if (WinNT)
+					{
+						DragQueryFileW(p, i, fnamew, countof(fnamew));
+						narrowen(fname, sizeof(fname), fnamew);
+					}
+					else
+						DragQueryFileA(p, i, fname, countof(fname));
+					f = FS_OpenVFS(fname, "rb", FS_SYSTEM);
+					if (f)
+						Host_RunFile(fname, strlen(fname), f);
 				}
-				else
-					DragQueryFileA(p, i, fname, countof(fname));
-				f = FS_OpenVFS(fname, "rb", FS_SYSTEM);
-				if (f)
-					Host_RunFile(fname, strlen(fname), f);
+				DragFinish(p);
 			}
-			DragFinish(p);
 			return 0;	//An application should return zero if it processes this message.
-		}
-		break;
 
+		case WM_SYSCOMMAND:	//this only works when we're the active app. which is fine.
+			if (GET_SC_WPARAM(wParam)==SC_SCREENSAVE)
+				lRet = 0;	//try to block sscreensavers, if enabled... will likely fail due to passwords and security stuff etc...
+			else if (GET_SC_WPARAM(wParam)==SC_MONITORPOWER && (lParam == 1 || lParam == 2))
+				lRet = 0;	//try to block monitor power saving.
+			else if (WinNT)
+				lRet = DefWindowProcW (hWnd, uMsg, wParam, lParam);
+			else
+				lRet = DefWindowProcA (hWnd, uMsg, wParam, lParam);
+			break;
 #ifdef HAVE_CDPLAYER
 		case MM_MCINOTIFY:
 #ifdef WTHREAD
@@ -3453,7 +3481,10 @@ rendererinfo_t vkrendererinfo =
 
 	VKBE_RenderToTextureUpdate2d,
 
-	"no more"
+	"no more",
+	NULL,	//getpriority
+	NULL,	//enummodes
+	Win32VK_EnumerateDevices,	//enumdevices
 };
 
 
@@ -3517,7 +3548,10 @@ rendererinfo_t nvvkrendererinfo =
 
 	VKBE_RenderToTextureUpdate2d,
 
-	"no more"
+	"no more",
+	NULL,
+	NULL,
+	NULL,	//reminder that this is the OPENGL device to init.
 };
 #endif
 #endif

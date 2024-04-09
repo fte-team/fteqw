@@ -570,6 +570,7 @@ typedef struct tcpconnect_s
 	SOCKET sock;
 	wsrbuf_t websocket;
 	netadr_t peeraddr;
+	char *initialstreamname;
 
 	unsigned char inbuffer[MAX_PROXY_INBUFFER];
 	unsigned int inbuffersize;	//amount of data available.
@@ -918,7 +919,7 @@ void ParseMessage(sv_t *tv, void *buffer, int length, int to, int mask);
 void BuildServerData(sv_t *tv, netmsg_t *msg, int servercount, viewer_t *spectatorflag);
 void BuildNQServerData(sv_t *tv, netmsg_t *msg, qboolean mvd, int servercount);
 void QW_UpdateUDPStuff(cluster_t *qtv);
-void QW_TCPConnection(cluster_t *cluster, SOCKET sock, wsrbuf_t ws);
+void QW_TCPConnection(cluster_t *cluster, oproxy_t *sock, char *initialstringname/*strduped*/);
 unsigned int Sys_Milliseconds(void);
 void Prox_SendInitialEnts(sv_t *qtv, oproxy_t *prox, netmsg_t *msg);
 qboolean QTV_ConnectStream(sv_t *qtv, char *serverurl);
@@ -1009,7 +1010,7 @@ void Fwd_SayToDownstream(sv_t *qtv, char *message);
 
 
 //httpsv.c
-void HTTPSV_GetMethod(cluster_t *cluster, oproxy_t *pend);
+char *HTTPSV_GetMethod(cluster_t *cluster, oproxy_t *pend);	//if a websocket request, return value is the stream name
 void HTTPSV_PostMethod(cluster_t *cluster, oproxy_t *pend, char *postdata);
 void tobase64(unsigned char *out, int outlen, unsigned char *in, int inlen);
 

@@ -1376,7 +1376,10 @@ void M_Menu_Preset_f (void)
 	emenu_t *menu;
 	int y;
 	menuoption_t *presetoption[7];
-	extern cvar_t r_nolerp, sv_nqplayerphysics, r_loadlits;
+	extern cvar_t r_nolerp, r_loadlits;
+#ifdef HAVE_SERVER
+	extern cvar_t sv_nqplayerphysics;
+#endif
 #if defined(RTLIGHTS) && (defined(GLQUAKE) || defined(VKQUAKE))
 	extern cvar_t r_bloom, r_shadow_realtime_world_importlightentitiesfrommap;
 #endif
@@ -2608,7 +2611,9 @@ static const char *mapoptions_h2[] =
 
 qboolean M_Apply_SP_Cheats_H2 (union menuoption_s *op,struct emenu_s *menu,int key)
 {
+#ifdef HAVE_SERVER
 	singleplayerh2info_t *info = menu->data;
+#endif
 
 	if (key != K_ENTER && key != K_KP_ENTER && key != K_GP_DIAMOND_CONFIRM && key != K_MOUSE1 && key != K_TOUCHTAP)
 		return false;
@@ -2642,21 +2647,20 @@ qboolean M_Apply_SP_Cheats_H2 (union menuoption_s *op,struct emenu_s *menu,int k
 
 void M_Menu_Singleplayer_Cheats_Hexen2 (void)
 {
-	static const char *skilloptions[] =
-	{
-		"Easy",
-		"Normal",
-		"Hard",
-		"Nightmare",
-		"None Set",
-		NULL
-	};
-
 	singleplayerh2info_t *info;
 	int cursorpositionY;
-	int currentmap;
 	#ifdef HAVE_SERVER
+		int currentmap;
 		int currentskill;
+		static const char *skilloptions[] =
+		{
+			"Easy",
+			"Normal",
+			"Hard",
+			"Nightmare",
+			"None Set",
+			NULL
+		};
 		extern cvar_t sv_gravity, sv_cheats, sv_maxspeed, skill;
 	#endif
 	int y;
@@ -3382,6 +3386,7 @@ typedef struct
 
 	char modelname[MAX_QPATH];
 	char skinname[MAX_QPATH];
+	char animname[MAX_QPATH];
 
 	char shaderfile[MAX_QPATH];
 	char *shadertext;
@@ -3498,12 +3503,14 @@ static void M_ModelViewerDraw(int x, int y, struct menucustom_s *c, struct emenu
 	skinfile_t *skin;
 	texnums_t *texnums;
 	qboolean boneanimsonly;
+	model_t *animmodel = NULL;
 
 	if (R2D_Flush)
 		R2D_Flush();
 
 	memset(&pv, 0, sizeof(pv));
 
+	Alias_FlushCache();	//doesn't like us using stack...
 	CL_DecayLights ();
 	CL_ClearEntityLists();
 	V_ClearRefdef(&pv);
@@ -3571,7 +3578,12 @@ static void M_ModelViewerDraw(int x, int y, struct menucustom_s *c, struct emenu
 		return;	//panic!
 
 	if (ent.model->type == mod_alias)	//should we even bother with this here?
+	{
+		if (*mods->animname)
+			animmodel = Mod_ForName(mods->animname, MLV_WARN);
+
 		AngleVectorsMesh(ent.angles, ent.axis[0], ent.axis[1], ent.axis[2]);
+	}
 	else
 		AngleVectors(ent.angles, ent.axis[0], ent.axis[1], ent.axis[2]);
 	VectorInverse(ent.axis[1]);
@@ -3608,7 +3620,14 @@ static void M_ModelViewerDraw(int x, int y, struct menucustom_s *c, struct emenu
 	ent.framestate.g[FS_REG].frametime[0] = ent.framestate.g[FS_REG].frametime[1] = realtime - mods->framechangetime;
 	ent.framestate.g[FS_REG].endbone = 0x7fffffff;
 	if (*mods->skinname)
+	{
 		ent.customskin = Mod_RegisterSkinFile(mods->skinname);	//explicit .skin file to use
+		if (!ent.customskin)
+		{
+			Con_Printf(CON_WARNING"Named skinfile not loaded\n");
+			*mods->skinname = 0;	//don't spam.
+		}
+	}
 	else
 	{
 		ent.customskin = Mod_RegisterSkinFile(va("%s_%i.skin", mods->modelname, ent.skinnum));
@@ -3699,6 +3718,18 @@ static void M_ModelViewerDraw(int x, int y, struct menucustom_s *c, struct emenu
 		rag_updatedeltaent(&mods->ragworld, &ent, &mods->ragent);
 	}
 #endif
+
+	if (animmodel)// && Mod_GetNumBones(ent.model, false)==Mod_GetNumBones(animmodel, false))
+	{
+		int numbones = Mod_GetNumBones(ent.model, false);
+		galiasbone_t *boneinfo = Mod_GetBoneInfo(ent.model, &numbones);
+		float *bonematrix = alloca(numbones*sizeof(*bonematrix)*12);
+		ent.framestate.bonecount = Mod_GetBoneRelations(animmodel, 0, numbones, boneinfo, &ent.framestate, bonematrix);
+		ent.framestate.bonestate = bonematrix;
+		ent.framestate.skeltype = SKEL_RELATIVE;
+	}
+	else
+		animmodel = ent.model;	//not using it. sorry. warn?
 
 
 	if (mods->mode == MV_NORMALS)
@@ -3898,8 +3929,10 @@ static void M_ModelViewerDraw(int x, int y, struct menucustom_s *c, struct emenu
 		float duration = 0;
 		qboolean loop = false;
 		int act = -1;
-		if (!Mod_FrameInfoForNum(ent.model, mods->surfaceidx, mods->framegroup, &fname, &numframes, &duration, &loop, &act))
+		if (!Mod_FrameInfoForNum(animmodel, mods->surfaceidx, mods->framegroup, &fname, &numframes, &duration, &loop, &act))
 			fname = "Unknown Sequence";
+		if (animmodel != ent.model)
+			fname = va("^[%s^] %s", animmodel->name, fname);	//tag it properly if its from our animmodel
 		if (act != -1)
 			Draw_FunString(0, y, va("Frame%i[%i]: %s (%i poses, %f of %f secs, %s)", mods->framegroup, act, fname, numframes, ent.framestate.g[FS_REG].frametime[0], duration, loop?"looped":"unlooped"));
 		else
@@ -4032,17 +4065,18 @@ static void M_ModelViewerDraw(int x, int y, struct menucustom_s *c, struct emenu
 			char *data = NULL;
 			Draw_FunString(0, y, va("Events: "));
 			y+=8;
-			for (i = 0; Mod_GetModelEvent(ent.model, mods->framegroup, i, &timestamp, &code, &data); y+=8, i++)
+			for (i = 0; Mod_GetModelEvent(animmodel, mods->framegroup, i, &timestamp, &code, &data); y+=8, i++)
 			{
 				Draw_FunString(0, y, va("%i %f: %i %s", i, timestamp, code, data));
 			}
-			Draw_FunString(0, y, va("%f: <end of animation>", Mod_GetFrameDuration(ent.model, 0, mods->framegroup)));
+			Draw_FunString(0, y, va("%f: <end of animation>", Mod_GetFrameDuration(animmodel, 0, mods->framegroup)));
 		}
 		break;
 	case MV_SHADER:
 		{
 			if (!mods->shadertext)
 			{
+				char *cr;
 				char *body = Shader_GetShaderBody(Mod_ShaderForSkin(ent.model, mods->surfaceidx, mods->skingroup, r_refdef.time, &texnums), mods->shaderfile, sizeof(mods->shaderfile));
 				if (!body)
 				{
@@ -4052,9 +4086,12 @@ static void M_ModelViewerDraw(int x, int y, struct menucustom_s *c, struct emenu
 				if (*mods->shaderfile)
 					mods->shadertext = Z_StrDupf("\n\nPress space to view+edit the shader\n\n%s", body);
 				else
-					mods->shadertext = Z_StrDupf("{%s",body);
+					mods->shadertext = Z_StrDupf("{ %s",body);
+
+				while ((cr = strchr(mods->shadertext, '\r')))
+					*cr = ' ';
 			}
-			R_DrawTextField(r_refdef.grect.x, r_refdef.grect.y+16, r_refdef.grect.width, r_refdef.grect.height-16, mods->shadertext, CON_WHITEMASK, CPRINT_TALIGN|CPRINT_LALIGN, font_default, fs);
+			R_DrawTextField(r_refdef.grect.x, r_refdef.grect.y+24, r_refdef.grect.width, r_refdef.grect.height-16, mods->shadertext, CON_WHITEMASK, CPRINT_TALIGN|CPRINT_LALIGN, font_default, fs);
 
 			//fixme: draw the shader's textures.
 		}
@@ -4333,6 +4370,12 @@ void M_Menu_ModelViewer_f(void)
 	menucustom_t *c;
 	emenu_t *menu;
 
+	if (!*Cmd_Argv(1))
+	{
+		Con_Printf("modelviewer <MODELNAME> [SKINFILE] [ANIMATIONFILE]\n");
+		return;
+	}
+
 	menu = M_CreateMenu(sizeof(*mv));
 	menu->menu.persist = true;
 	mv = menu->data;
@@ -4345,6 +4388,7 @@ void M_Menu_ModelViewer_f(void)
 	mv->dist = 150;
 	Q_strncpyz(mv->modelname, Cmd_Argv(1), sizeof(mv->modelname));
 	Q_strncpyz(mv->skinname, Cmd_Argv(2), sizeof(mv->skinname));
+	Q_strncpyz(mv->animname, Cmd_Argv(3), sizeof(mv->animname));
 
 	mv->framechangetime = realtime;
 	mv->skinchangetime = realtime;
@@ -4406,42 +4450,57 @@ static void Mods_Draw(int x, int y, struct menucustom_s *c, struct emenu_s *m)
 {
 	int i = c->dint;
 	struct modlist_s *mod = Mods_GetMod(i);
-	c->common.width = vid.width - x - 16;
 
 	if (!mod && !i)
 	{
 		float scale[] = {8,8};
-		R_DrawTextField(0, y, vid.width, vid.height - y,
+
+		m->height = vid.height;
+
+		if (y==0)
+		{	//just take the full screen.
+			y = m->ypos;
+			c->common.posy = 0;
+			c->common.height = m->height;
+
+			m->dontexpand = true;
+			m->xpos = x = 0;
+			m->width = vid.width;
+		}
+		else
+		{	//at least expand it.
+			c->common.height = m->height - c->common.posy;
+		}
+
+		//take the full width of the menu
+		x = m->xpos;
+		c->common.posx = 0;
+		c->common.width = m->width;
+
+		R_DrawTextField(x, y, c->common.width, c->common.height,
 					va(
 					"No games or mods known.\n"
-#if defined(FTE_TARGET_WEB)
-					"Connection issue or bad server config.\n"
+#ifdef FTE_TARGET_WEB
+					"Try providing packages/gamedirs via drag+drop.\n"
+					"%s", Cmd_Exists("sys_openfile")?"Or click to add a package\n":""
 #else
 	#ifndef ANDROID
 					"You may need to use -basedir $PATHTOGAME on the commandline.\n"
 	#endif
 					"\nExpected data path:\n^a%s", com_gamepath
 #endif
-					), CON_WHITEMASK, 0, font_console, scale);
+					), CON_WHITEMASK, 0, font_default, scale);
 		return;
 	}
+	c->common.height = 8;
+	c->common.width = vid.width - x - 16;
 
 	if (!mod)
 		return;
 	if (mod->manifest)
-	{
-		if (m->selecteditem == (menuoption_t*)c)
-			Draw_AltFunString(x, y, mod->manifest->formalname);
-		else
-			Draw_FunString(x, y, mod->manifest->formalname);
-	}
+		Draw_FunStringWidth(x, y, mod->manifest->formalname, c->common.width, 0, m->selecteditem == (menuoption_t*)c);
 	else
-	{
-		if (m->selecteditem == (menuoption_t*)c)
-			Draw_AltFunString(x, y, mod->gamedir);
-		else
-			Draw_FunString(x, y, mod->gamedir);
-	}
+		Draw_FunStringWidth(x, y, mod->gamedir, c->common.width, 0, m->selecteditem == (menuoption_t*)c);
 }
 static qboolean Mods_Key(struct menucustom_s *c, struct emenu_s *m, int key, unsigned int unicode)
 {
@@ -4450,7 +4509,11 @@ static qboolean Mods_Key(struct menucustom_s *c, struct emenu_s *m, int key, uns
 	{
 		qboolean wasgameless = !*FS_GetGamedir(false);
 		if (!Mods_GetMod(c->dint))
+		{
+			if (Cmd_Exists("sys_openfile"))
+				Cbuf_AddText("sys_openfile\n", RESTRICT_LOCAL);
 			return false;
+		}
 		M_RemoveMenu(m);
 
 		Cbuf_AddText(va("\nfs_changegame %u\n", gameidx+1), RESTRICT_LOCAL);
@@ -4471,6 +4534,7 @@ void M_Menu_Mods_f (void)
 	menucustom_t *c;
 	emenu_t *menu;
 	size_t i;
+	int y;
 
 	//FIXME: sort by mtime?
 
@@ -4479,20 +4543,23 @@ void M_Menu_Mods_f (void)
 	{
 		MC_AddPicture(menu, 16, 4, 32, 144, "gfx/qplaque.lmp");
 		MC_AddCenterPicture(menu, 0, 24, "gfx/p_option.lmp");
+		y = 32;
 	}
+	else
+		y = 0;
 
-	MC_AddFrameStart(menu, 32);
+	MC_AddFrameStart(menu, y);
 	for (i = 0; i<1 || Mods_GetMod(i); i++)
 	{
 		struct modlist_s *mod = Mods_GetMod(i);
-		c = MC_AddCustom(menu, 64, 32+i*8, menu->data, i, (mod&&mod->manifest)?mod->manifest->basedir:NULL);
+		c = MC_AddCustom(menu, 64, y+i*8, menu->data, i, (mod&&mod->manifest)?mod->manifest->basedir:NULL);
 //		if (!menu->selecteditem)
 //			menu->selecteditem = (menuoption_t*)c;
 		c->common.height = 8;
 		c->draw = Mods_Draw;
 		c->key = Mods_Key;
 	}
-	MC_AddFrameEnd(menu, 32);
+	MC_AddFrameEnd(menu, y);
 }
 
 #if 0
@@ -4532,7 +4599,7 @@ static qboolean Installer_Go(menuoption_t *opt, menu_t *menu, int key)
 
 #ifdef _WIN32
 		GetModuleFileNameW(NULL, exepath, sizeof(exepath));
-		FS_NativePath(va("%s.exe", fs_manifest->installation), FS_ROOT, newexepath, sizeof(newexepath));
+		FS_SystemPath(va("%s.exe", fs_manifest->installation), FS_ROOT, newexepath, sizeof(newexepath));
 		CopyFileW(exepath, newexepath, FALSE);
 
 //		SetHookState(false);

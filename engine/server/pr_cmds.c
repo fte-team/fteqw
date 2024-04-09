@@ -835,16 +835,16 @@ void PR_Deinit(void)
 		sv.world.progs = NULL;
 		memset(&gfuncs, 0, sizeof(gfuncs));
 		svprogfuncs=NULL;
-
-		for (i = 0; i < sv.maxlightstyles; i++)
-		{
-			BZ_Free((void*)sv.lightstyles[i].str);
-			sv.lightstyles[i].str = NULL;
-		}
-		BZ_Free(sv.lightstyles);
-		sv.lightstyles = NULL;
-		sv.maxlightstyles = 0;
 	}
+
+	for (i = 0; i < sv.maxlightstyles; i++)
+	{
+		BZ_Free((void*)sv.lightstyles[i].str);
+		sv.lightstyles[i].str = NULL;
+	}
+	BZ_Free(sv.lightstyles);
+	sv.lightstyles = NULL;
+	sv.maxlightstyles = 0;
 
 	World_Destroy(&sv.world);
 
@@ -2680,6 +2680,8 @@ static void QCBUILTIN PF_sv_registercommand (pubprogfuncs_t *prinst, struct glob
 {
 	const char *str = PR_GetStringOfs(prinst, OFS_PARM0);
 	const char *desc = (prinst->callargc>1)?PR_GetStringOfs(prinst, OFS_PARM1):NULL;
+	if (desc && !*desc)
+		desc = NULL;
 	if (!Cmd_Exists(str))
 		Cmd_AddCommandD(str, PR_ConsoleCommand_f, desc);
 }
@@ -6486,7 +6488,7 @@ char *PF_infokey_Internal (int entnum, const char *key)
 				{
 					certsize = NET_GetConnectionCertificate(svs.sockets, &controller->netchan.remote_address, QCERT_PEERCERTIFICATE, buf, sizeof(buf));
 					if (certsize > 0)
-						Base64_EncodeBlockURI(digest,CalcHash(&hash_sha1, digest, sizeof(digest), buf, certsize), ov, sizeof(ov));
+						Base64_EncodeBlockURI(digest,CalcHash(funcs[i].func, digest, sizeof(digest), buf, certsize), ov, sizeof(ov));
 					break;
 				}
 			}
@@ -7458,12 +7460,16 @@ static void QCBUILTIN PF_builtinsupported (pubprogfuncs_t *prinst, struct global
 //mvdsv builtins.
 void QCBUILTIN PF_ExecuteCommand  (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)	//83		//void() exec;
 {
+	int osc = svs.spawncount;
 	int old_other, old_self; // mod_consolecmd will be executed, so we need to store this
 
 	old_self = pr_global_struct->self;
 	old_other = pr_global_struct->other;
 
 	Cbuf_Execute();
+
+	if (osc != svs.spawncount)
+		Host_EndGame("PF_ExecuteCommand: gamecode pulled out from under us");
 
 	pr_global_struct->self = old_self;
 	pr_global_struct->other = old_other;
@@ -12016,6 +12022,7 @@ static BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 
 	{"memalloc",		PF_memalloc,		0,		0,		0,		384,	D("__variant*(int size)", "Allocate an arbitary block of memory")},
 	{"memfree",			PF_memfree,			0,		0,		0,		385,	D("void(__variant *ptr)", "Frees a block of memory that was allocated with memfree")},
+	{"memcmp",			PF_memcmp,			0,		0,		0,		0,		D("int(__variant *dst, __variant *src, int size, optional int dstoffset, int srcoffset)", "Compares two blocks of memory. Returns 0 if equal.")},
 	{"memcpy",			PF_memcpy,			0,		0,		0,		386,	D("void(__variant *dst, __variant *src, int size, optional int dstoffset, int srcoffset)", "Copys memory from one location to another")},
 	{"memfill8",		PF_memfill8,		0,		0,		0,		387,	D("void(__variant *dst, int val, int size, optional int offset)", "Sets an entire block of memory to a specified value. Pretty much always 0.")},
 	{"memgetval",		PF_memgetval,		0,		0,		0,		388,	D("__variant(__variant *dst, float ofs)", "Looks up the 32bit value stored at a pointer-with-offset.")},
@@ -12293,25 +12300,25 @@ static BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"findkeysforcommand_dp",PF_Fixme,		0,		0,		0,		610,	"DEP string(string command, optional float bindmap)"},
 	{"keynumtostring",	PF_Fixme,			0,		0,		0,		609,	D("string(float keynum)", "Converts a qscancode key number into a mostly-human-readable name, matching the bind command.")},	//normal name is for menuqc standard.
 	{"findkeysforcommand",PF_Fixme,			0,		0,		0,		610,	"string(string command, optional float bindmap)"},
-	{"gethostcachevalue",PF_Fixme,			0,		0,		0,		611,	"float(float type)"},
-	{"gethostcachestring",PF_Fixme,			0,		0,		0,		612,	"string(float type, float hostnr)"},
+	{"gethostcachevalue",PF_Fixme,			0,		0,		0,		611,	D("float(float type)", "Obtains one of SLIST_ values.")},
+	{"gethostcachestring",PF_Fixme,			0,		0,		0,		612,	D("string(float fld, float hostnr)", "Reads the value of a serverinfo key from the specified server (up to gethostcachevalue(SLIST_HOSTCACHEVIEWCOUNT)).")},
 	{"parseentitydata",	PF_parseentitydata,	0,		0,		0,		613,	D("float(entity e, string s, optional float offset)", "Reads a single entity's fields into an already-spawned entity. s should contain field pairs like in a saved game: {\"foo1\" \"bar\" \"foo2\" \"5\"}. Returns <=0 on failure, otherwise returns the offset in the string that was read to.")},
 	{"generateentitydata",PF_generateentitydata,0,	0,		0,		0,		D("string(entity e)", "Dumps the entities fields into a string which can later be parsed with parseentitydata.")},
 	{"stringtokeynum",	PF_Fixme,			0,		0,		0,		614,	D("float(string key)", "Returns the qscancode of a key from its name. Names are identical to the bind command. ctrl/shift/alt modifiers are ignored.")},
-	{"stringtokeynum_menu",	PF_Fixme,		0,		0,		0,		614,	"float(string key)"},
-	{"resethostcachemasks",PF_Fixme,		0,		0,		0,		615,	"void()"},
-	{"sethostcachemaskstring",PF_Fixme,		0,		0,		0,		616,	"void(float mask, float fld, string str, float op)"},
-	{"sethostcachemasknumber",PF_Fixme,		0,		0,		0,		617,	"void(float mask, float fld, float num, float op)"},
-	{"resorthostcache",	PF_Fixme,			0,		0,		0,		618,	"void()"},
-	{"sethostcachesort",PF_Fixme,			0,		0,		0,		619,	"void(float fld, float descending)"},
-	{"refreshhostcache",PF_Fixme,			0,		0,		0,		620,	"void(optional float dopurge)"},
-	{"gethostcachenumber",PF_Fixme,			0,		0,		0,		621,	"float(float fld, float hostnr)"},
-	{"gethostcacheindexforkey",PF_Fixme,	0,		0,		0,		622,	"float(string key)"},
-	{"addwantedhostcachekey",PF_Fixme,		0,		0,		0,		623,	"void(string key)"},
-	{"getextresponse",	PF_Fixme,			0,		0,		0,		624,	"string()"},
-	{"netaddress_resolve",PF_netaddress_resolve,0,	0,		0,		625,	"string(string dnsname, optional float defport)"},
+	{"stringtokeynum_menu",	PF_Fixme,		0,		0,		0,		614,	D("float(string key)", "Looks up a single key name in the same way that the bind command would, returning the keycode for that key")},
+	{"resethostcachemasks",PF_Fixme,		0,		0,		0,		615,	D("void()", "Resets filters set by sethostcachemask*")},
+	{"sethostcachemaskstring",PF_Fixme,		0,		0,		0,		616,	D("void(float mask, float fld, string str, float op)", "Adds a filter rule for the server queries.")},
+	{"sethostcachemasknumber",PF_Fixme,		0,		0,		0,		617,	D("void(float mask, float fld, float num, float op)", "sethostcachemaskstring, but with a numeric reference value instead of using string comparisons")},
+	{"resorthostcache",	PF_Fixme,			0,		0,		0,		618,	D("void()", "Reevalutes whether each server should be visible. Resorts servers. server ids passed to gethostcachestring are likely to change, and may become out of bounds.")},
+	{"sethostcachesort",PF_Fixme,			0,		0,		0,		619,	D("void(float fld, float descending)", "Specifies which field to sort the server list by, and whether it should be ascending or descending. You will need to resorthostcache() for this to take effect.")},
+	{"refreshhostcache",PF_Fixme,			0,		0,		0,		620,	D("void(optional float dopurge)", "Starts a new ping sequence")},
+	{"gethostcachenumber",PF_Fixme,			0,		0,		0,		621,	D("float(float fld, float hostnr)", "An alternative to gethostcachestring, for reading numeric values")},
+	{"gethostcacheindexforkey",PF_Fixme,	0,		0,		0,		622,	D("float(string key)", "Obtains a handle to a named key (to avoid string lookups). The return value can be used in place of the fld arg in related builtins")},
+	{"addwantedhostcachekey",PF_Fixme,		0,		0,		0,		623,	D("void(string key)", "Asks the engine to track a custom serverinfo key.")},
+	{"getextresponse",	PF_Fixme,			0,		0,		0,		624,	D("string()", "Stub.")},
+	{"netaddress_resolve",PF_netaddress_resolve,0,	0,		0,		625,	D("string(string dnsname, optional float defport)", "Performs a dna lookup and returns the first result as a string, which could be in a whole range of formats. Also blocks until completion.")},
 	{"getgamedirinfo",	PF_Fixme,			0,		0,		0,		626,	D("string(float n, float prop)", "Queries properties about an indexed gamedir (or -1 for the current gamedir). Returns null strings when out of bounds. Use the GDDI_* constants for the prop arg.")},
-	{"getpackagemanagerinfo",PF_Fixme,		0,		0,		0,		0,		D("string(int n, int prop)", "Queries information about a package from the engine's package manager subsystem. Actions can be taken via the pkg console command.")},
+	{"getpackagemanagerinfo",PF_Fixme,		0,		0,		0,		0,		D("string(int n, int prop)", "Queries information about a package from the engine's package manager subsystem. Actions can be taken via the pkg console command. prop must be one of the GPMI_ constants.")},
 	{"sprintf",			PF_sprintf,			0,		0,		0,		627,	D("string(string fmt, ...)",	"'prints' to a formatted temp-string. Mostly acts as in C, however %d assumes floats (fteqcc has arg checking. Use it.).\ntype conversions: l=arg is an int, h=arg is a float, and will work as a prefix for any float or int representation.\nfloat representations: d=decimal, e,E=exponent-notation, f,F=floating-point notation, g,G=terse float, c=char code, x,X=hex\nother representations: i=int, s=string, S=quoted and marked-up string, v=vector, p=pointer\nso %ld will accept an int arg, while %hi will expect a float arg.\nentities, fields, and functions will generally need to be printed as ints with %i.")},
 	{"getsurfacenumtriangles",PF_getsurfacenumtriangles,0,0,0,		628,	"float(entity e, float s)"},
 	{"getsurfacetriangle",PF_getsurfacetriangle,0,	0,		0,		629,	"vector(entity e, float s, float n)"},
@@ -13443,6 +13450,7 @@ void PR_DumpPlatform_f(void)
 		{"CSQC_InputEvent",			"float(float evtype, float scanx, float chary, float devid)", CS, "Called whenever a key is pressed, the mouse is moved, etc. evtype will be one of the IE_* constants. The other arguments vary depending on the evtype. Key presses are not guarenteed to have both scan and unichar values set at the same time."},
 		{"CSQC_Input_Frame",		"__used void()", CS, "Called just before each time clientcommandframe is updated. You can edit the input_* globals in order to apply your own player inputs within csqc, which may allow you a convienient way to pass certain info to ssqc."},
 		{"CSQC_RendererRestarted",	"void(string rendererdescription)", CS, "Called by the engine after the video was restarted. This serves to notify the CSQC that any render targets that it may have cached were purged, and will need to be regenerated."},
+		{"CSQC_GenerateMaterial",	"string(string shadername)", CS, "Returns the material text to use for the named material, for automatically importing foreign materials."},
 		{"CSQC_ConsoleCommand",		"float(string cmd)", CS, "Called if the user uses any console command registed via registercommand."},
 		{"CSQC_ConsoleLink",		"float(string text, string info)", CS, "Called if the user clicks a ^[text\\infokey\\infovalue^] link. Use infoget to read/check each supported key. Return true if you wish the engine to not attempt to handle the link itself.\nWARNING: link text can potentially come from other players, so be careful about what you allow to be changed."},
 		{"CSQC_Ent_Spawn",			"void(float entnum)", CS, "Clumsily defined function for compat with DP. Should call spawn, set that ent's entnum field, and return the entity inside the 'self' global which will then be used for fllowing Ent_Updates. MUST NOT PARSE ANY NETWORK DATA (which makes it kinda useless)."},
@@ -14028,6 +14036,21 @@ void PR_DumpPlatform_f(void)
 		{"GGDI_ICON",			"const float", CS|MENU, D("The mod's Icon path, ready for drawpic."), GGDI_ICON},
 		{"GGDI_GAMEDIRLIST",	"const float", CS|MENU, D("A semi-colon delimited list of gamedirs that the mod's content can be loaded through."), GGDI_ALLGAMEDIRS},
 
+		{"GPMI_NAME",			"const int", CS|MENU, D("Used with getpackagemanagerinfo. Refers to the package's name."), GPMI_NAME},
+		{"GPMI_CATEGORY",		"const int", CS|MENU, D("Refers to the package's category."), GPMI_CATEGORY},
+		{"GPMI_TITLE",			"const int", CS|MENU, D("The human-readable title of the mod with spaces and things."), GPMI_TITLE},
+		{"GPMI_VERSION",		"const int", CS|MENU, D("The package's version. There may be multiple packages with the same name."), GPMI_VERSION},
+		{"GPMI_DESCRIPTION",	"const int", CS|MENU, D("Fairly long textural description of the package which may include gotchas/warnings and other fairly important info."), GPMI_DESCRIPTION},
+		{"GPMI_LICENSE",		"const int", CS|MENU, D("The approximate name of the license the package is covered by, if known."), GPMI_LICENSE},
+		{"GPMI_AUTHOR",			"const int", CS|MENU, D("Who owns the respective (additional) copyrights."), GPMI_AUTHOR},
+		{"GPMI_WEBSITE",		"const int", CS|MENU, D("Website associated with the third-party package."), GPMI_WEBSITE},
+		{"GPMI_INSTALLED",		"const int", CS|MENU, D("Reports the package's installation status. May be enabled(fully installed and active), present(previously installed, but not currently in use), corrupt(enabling will delete+redownload), pending(queued for installation), or a percentage(currently downloading). If empty means the user does not have a copy nor do they currently intend to install it."), GPMI_INSTALLED},
+		{"GPMI_ACTION",			"const int", CS|MENU, D("The action that will be carried out when a 'pkg apply' command is issued(and confirmed)."), GPMI_ACTION},
+		{"GPMI_AVAILABLE",		"const int", CS|MENU, D("Specifies whether the package may be downloaded."), GPMI_AVAILABLE},
+		{"GPMI_FILESIZE",		"const int", CS|MENU, D("The download size of the package."), GPMI_FILESIZE},
+		{"GPMI_GAMEDIR",		"const int", CS|MENU, D("Which gamedir this package will be installed into."), GPMI_GAMEDIR},
+		{"GPMI_MAPS",			"const int", CS|MENU, D("Retrieves a tokenisable list of map names provided in this package, loadable via `map pkgname:mapname`."), GPMI_MAPS},
+
 		{"CLIENTTYPE_DISCONNECTED","const float", QW|NQ, D("Return value from clienttype() builtin. This entity is a player slot that is currently empty."), CLIENTTYPE_DISCONNECTED},
 		{"CLIENTTYPE_REAL",		"const float", QW|NQ, D("This is a real player, and not a bot."), CLIENTTYPE_REAL},
 		{"CLIENTTYPE_BOT",		"const float", QW|NQ, D("This player slot does not correlate to a real player, any messages sent to this client will be ignored."), CLIENTTYPE_BOT},
@@ -14209,7 +14232,7 @@ void PR_DumpPlatform_f(void)
 	if (!*fname)
 		fname = "fteextensions";
 	fname = va("%s/%s.qc", pr_sourcedir.string, fname);
-	FS_NativePath(fname, FS_GAMEONLY, dbgfname, sizeof(dbgfname));
+	FS_DisplayPath(fname, FS_GAMEONLY, dbgfname, sizeof(dbgfname));
 	FS_CreatePath(fname, FS_GAMEONLY);
 	f = FS_OpenVFS(fname, "wb", FS_GAMEONLY);
 	if (!f)
@@ -14333,7 +14356,7 @@ void PR_DumpPlatform_f(void)
 		VFS_PRINTF(f, "#define DEP_CSQC DEP\n");
 	if (targ&(NQ|QW|H2))
 	{	//DEP_SSQC means deprecated in ssqc only, but NOT in the CSQC.
-		VFS_PRINTF(f,	"#if defined(SSQC)"
+		VFS_PRINTF(f,	"#if defined(SSQC)\n"
 							"\t#define DEP_SSQC DEP\n"
 						"#else\n"
 							"\t#define DEP_SSQC\n"

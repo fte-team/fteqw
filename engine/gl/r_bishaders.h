@@ -688,8 +688,7 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "n = texture2D(s_normalmap, ntc).xyz - 0.5;\n"
 "#else\n"
 //apply q1-style warp, just for kicks
-"ntc.s = tc.s + sin(tc.t+e_time)*0.125;\n"
-"ntc.t = tc.t + sin(tc.s+e_time)*0.125;\n"
+"ntc = tc + sin(tc.ts+e_time)*0.125;\n"
 
 //generate the two wave patterns from the normalmap
 "n = (texture2D(s_normalmap, vec2(TXSCALE1)*tc + vec2(e_time*0.1, 0.0)).xyz);\n"
@@ -3293,10 +3292,16 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "s = normalize(s);\n"
 "t = normalize(t);\n"
 "#ifndef PBR\n"
+"#ifdef EIGHTBIT\n"
+//doesn't darken in the shade, only gets brighter in the light (overbrighting)
+"light.rgb += max(0.0,dot(n,e_light_dir)) * e_light_mul;\n"
+"#else\n"
+//_DOES_ get darker in the shade, despite the light not lighting it at all....
 "float d = dot(n,e_light_dir);\n"
-"if (d < 0.0)  //vertex shader. this might get ugly, but I don't really want to make it per vertex.\n"
-"d = 0.0; //this avoids the dark side going below the ambient level.\n"
-"light.rgb += (d*e_light_mul);\n"
+"if (d < 0)\n"
+"d *= 13.0/44.0; //a wtfery factor to approximate glquake's anorm_dots.h\n"
+"light.rgb += d * e_light_mul;\n"
+"#endif\n"
 "#else\n"
 "light.rgb = vec3(1.0);\n"
 "#endif\n"
@@ -4894,6 +4899,7 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "!!samps reflectcube\n"
 "!!cvardf r_skyfog=0.5\n"
 "!!cvard4 r_glsl_skybox_orientation=0 0 0 0\n"
+"!!cvardf r_glsl_skybox_autorotate=1\n"
 "#include \"sys/defs.h\"\n"
 "#include \"sys/fog.h\"\n"
 
@@ -4903,10 +4909,12 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "#ifdef VERTEX_SHADER\n"
 "mat3 rotateAroundAxis(vec4 axis) //xyz axis, with angle in w\n"
 "{\n"
-"#define skyang axis.w*(3.14/180.0)*e_time\n"
+"if (bool(r_glsl_skybox_autorotate))\n"
+"axis.w *= e_time;\n"
+"axis.w *= (3.14/180.0);\n"
 "axis.xyz = normalize(axis.xyz);\n"
-"float s = sin(skyang);\n"
-"float c = cos(skyang);\n"
+"float s = sin(axis.w);\n"
+"float c = cos(axis.w);\n"
 "float oc = 1.0 - c;\n"
 
 "return mat3(oc * axis.x * axis.x + c, oc * axis.x * axis.y - axis.z * s, oc * axis.z * axis.x + axis.y * s,\n"
@@ -5855,7 +5863,7 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 #endif
 #ifdef D3D11QUAKE
 {QR_DIRECT3D11, 11, "defaultsprite",
-"!!samps diffuse\n"
+"!!samps 1\n"
 
 "struct a2v\n"
 "{\n"
@@ -5913,7 +5921,8 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "!!permu SPECULAR\n"
 "!!permu REFLECTCUBEMASK\n"
 "!!permu FAKESHADOWS\n"
-"!!cvarf r_glsl_offsetmapping_scale\n"
+"!!cvardf r_glsl_offsetmapping_scale\n"
+"!!cvardf r_glsl_emissive=1\n"
 "!!cvardf r_glsl_pcf\n"
 "!!cvardf r_tessellation_level=5\n"
 "!!samps diffuse\n"
@@ -5983,6 +5992,9 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "invsurface = mat3(v_svector, v_tvector, v_normal);\n"
 "#endif\n"
 "tc = v_texcoord;\n"
+"#ifdef FLOWV\n"
+"tc.st += e_time * vec2(FLOWV);\n"
+"#endif\n"
 "#ifdef FLOW\n"
 "tc.s += e_time * -0.5;\n"
 "#endif\n"
@@ -6303,6 +6315,8 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 
 "#ifdef REFLECTCUBEMASK\n"
 "vec3 rtc = reflect(normalize(-eyevector), norm);\n"
+//todo: parallax correction: https://seblagarde.wordpress.com/2012/09/29/image-based-lighting-approaches-and-parallax-corrected-cubemap/
+//norm (and also eyevector) are in tangentspace but our cubemap wants worldspace, so convert.
 "rtc = rtc.x*invsurface[0] + rtc.y*invsurface[1] + rtc.z*invsurface[2];\n"
 "rtc = (m_model * vec4(rtc.xyz,0.0)).xyz;\n"
 "col.rgb += texture2D(s_reflectmask, tc).rgb * textureCube(s_reflectcube, rtc).rgb;\n"
@@ -6317,10 +6331,15 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "col.b = texture2D(s_colourmap, vec2(pal, 1.0-lightmaps.b)).b; //without lits, it should be identical.\n"
 "#else\n"
 //now we have our diffuse+specular terms, modulate by lightmap values.
+"#if defined(FULLBRIGHT)\n"
+"vec4 fb = texture2D(s_fullbright, tc);\n"
+"#if r_glsl_emissive==0 //q2e-like mask that gets darker when lights get overbright.\n"
+"col.rgb *= mix(lightmaps.rgb, vec3(1.0), fb.rgb*fb.a);\n"
+"#else //actually emissive layer\n"
+"col.rgb = col.rgb * lightmaps.rgb + fb.rgb*fb.a;\n"
+"#endif\n"
+"#else\n"
 "col.rgb *= lightmaps.rgb;\n"
-//add on the fullbright
-"#ifdef FULLBRIGHT\n"
-"col.rgb += texture2D(s_fullbright, tc).rgb;\n"
 "#endif\n"
 "#endif\n"
 
@@ -7350,6 +7369,9 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "void main ()\n"
 "{\n"
 "tc = v_texcoord.st;\n"
+"#ifdef FLOWV\n"
+"tc.st += e_time * vec2(FLOWV);\n"
+"#endif\n"
 "#ifdef FLOW\n"
 "tc.s += e_time * -0.5;\n"
 "#endif\n"
@@ -7362,9 +7384,7 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "#ifdef FRAGMENT_SHADER\n"
 "void main ()\n"
 "{\n"
-"vec2 ntc;\n"
-"ntc.s = tc.s + sin(tc.t+e_time)*0.125;\n"
-"ntc.t = tc.t + sin(tc.s+e_time)*0.125;\n"
+"vec2 ntc = tc + sin(tc.ts+e_time)*0.125;\n"
 "vec3 ts = vec3(texture2D(s_diffuse, ntc));\n"
 
 "#ifdef LIT\n"
@@ -7727,9 +7747,7 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "sampler s_diffuse;\n"
 "float4 main (v2f inp) : COLOR0\n"
 "{\n"
-"float2 ntc;\n"
-"ntc.x = inp.tc.x + sin(inp.tc.y+e_time)*0.125;\n"
-"ntc.y = inp.tc.y + sin(inp.tc.x+e_time)*0.125;\n"
+"float2 ntc = inp.tc + sin(inp.tc.yx+e_time)*0.125;\n"
 "float3 ts = tex2D(s_diffuse, ntc).xyz;\n"
 
 "#ifdef ALPHA\n"
@@ -7778,10 +7796,8 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "Texture2D t_diffuse;\n"
 "float4 main (v2f inp) : SV_TARGET\n"
 "{\n"
-"float2 ntc;\n"
+"float2 ntc = inp.tc + sin(inp.tc.yx+e_time)*0.125;\n"
 "float4 r;\n"
-"ntc.x = inp.tc.x + sin(inp.tc.y+e_time)*0.125;\n"
-"ntc.y = inp.tc.y + sin(inp.tc.x+e_time)*0.125;\n"
 "r = t_diffuse.Sample(s_diffuse, ntc);\n"
 "#ifdef ALPHA\n"
 "r.a = float(ALPHA);\n"

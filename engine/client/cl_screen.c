@@ -2445,7 +2445,7 @@ void SCR_ImageName (const char *mapname)
 	strcpy(levelshotname, "levelshots/");
 	COM_FileBase(mapname, levelshotname + strlen(levelshotname), sizeof(levelshotname)-strlen(levelshotname));
 
-	if (qrenderer && scr_loadingscreen_aspect.ival >= 0)
+	if (qrenderer && scr_loadingscreen_aspect.ival >= 0 && *mapname)
 	{
 		R_LoadHiResTexture(levelshotname, NULL, IF_NOWORKER|IF_UIPIC|IF_NOPICMIP|IF_NOMIPMAP|IF_CLAMP);
 
@@ -2624,7 +2624,7 @@ SCR_ScreenShot_f
 */
 static void SCR_ScreenShot_f (void)
 {
-	char			sysname[1024];
+	char			displayname[1024];
 	char            pcxname[MAX_QPATH];
 	int                     i;
 	vfsfile_t *vfs;
@@ -2672,7 +2672,7 @@ static void SCR_ScreenShot_f (void)
 		}
 	}
 
-	FS_NativePath(pcxname, FS_GAMEONLY, sysname, sizeof(sysname));
+	FS_DisplayPath(pcxname, FS_GAMEONLY, displayname, sizeof(displayname));
 
 	rgbbuffer = VID_GetRGBInfo(&stride, &width, &height, &fmt);
 	if (rgbbuffer)
@@ -2680,12 +2680,12 @@ static void SCR_ScreenShot_f (void)
 		//regarding metadata - we don't really know what's on the screen, so don't write something that may be wrong (eg: if there's only a console, don't claim that its a 360 image)
 		if (SCR_ScreenShot(pcxname, FS_GAMEONLY, &rgbbuffer, 1, stride, width, height, fmt, false))
 		{
-			Con_Printf ("Wrote %s\n", sysname);
+			Con_Printf ("Wrote %s\n", displayname);
 			BZ_Free(rgbbuffer);
 			return;
 		}
 		BZ_Free(rgbbuffer);
-		Con_Printf (CON_ERROR "Couldn't write %s\n", sysname);
+		Con_Printf (CON_ERROR "Couldn't write %s\n", displayname);
 	}
 	else
 		Con_Printf (CON_ERROR "Couldn't get colour buffer for screenshot\n");
@@ -2881,9 +2881,9 @@ static void SCR_ScreenShot_Mega_f(void)
 	{
 		if (SCR_ScreenShot(filename, FS_GAMEONLY, buffers, numbuffers, stride[0], width[0], height[0], fmt[0], true))
 		{
-			char			sysname[1024];
-			FS_NativePath(filename, FS_GAMEONLY, sysname, sizeof(sysname));
-			Con_Printf ("Wrote %s\n", sysname);
+			char			displayname[1024];
+			FS_DisplayPath(filename, FS_GAMEONLY, displayname, sizeof(displayname));
+			Con_Printf ("Wrote %s\n", displayname);
 		}
 	}
 	else
@@ -3040,9 +3040,9 @@ static void SCR_ScreenShot_VR_f(void)
 		Con_Printf ("Unable to capture suitable screen image\n");
 	else if (SCR_ScreenShot(filename, FS_GAMEONLY, buffer, (stereo?2:1), stride, width, height*(stereo?1:2), TF_BGRX32, true))
 	{
-		char			sysname[1024];
-		FS_NativePath(filename, FS_GAMEONLY, sysname, sizeof(sysname));
-		Con_Printf ("Wrote %s\n", sysname);
+		char			displayname[1024];
+		FS_DisplayPath(filename, FS_GAMEONLY, displayname, sizeof(displayname));
+		Con_Printf ("Wrote %s\n", displayname);
 	}
 
 	BZ_Free(buffer[0]);
@@ -3058,7 +3058,7 @@ void SCR_ScreenShot_Cubemap_f(void)
 	int stride, fbwidth, fbheight;
 	uploadfmt_t fmt;
 	char filename[MAX_QPATH];
-	char			sysname[1024];
+	char displayname[1024];
 	char *fname = Cmd_Argv(1);
 	int i, firstside;
 	char olddrawviewmodel[64];	//hack, so we can set r_drawviewmodel to 0 so that it doesn't appear in screenshots even if the csqc is generating new data.
@@ -3189,8 +3189,8 @@ void SCR_ScreenShot_Cubemap_f(void)
 			{
 				if (Image_WriteDDSFile(filename, FS_GAMEONLY, &mips))
 				{
-					FS_NativePath(filename, FS_GAMEONLY, sysname, sizeof(sysname));
-					Con_Printf ("Wrote %s\n", sysname);
+					FS_DisplayPath(filename, FS_GAMEONLY, displayname, sizeof(displayname));
+					Con_Printf ("Wrote %s\n", displayname);
 				}
 			}
 #endif
@@ -3199,8 +3199,8 @@ void SCR_ScreenShot_Cubemap_f(void)
 			{
 				if (Image_WriteKTXFile(filename, FS_GAMEONLY, &mips))
 				{
-					FS_NativePath(filename, FS_GAMEONLY, sysname, sizeof(sysname));
-					Con_Printf ("Wrote %s\n", sysname);
+					FS_DisplayPath(filename, FS_GAMEONLY, displayname, sizeof(displayname));
+					Con_Printf ("Wrote %s\n", displayname);
 				}
 			}
 #endif
@@ -3249,13 +3249,13 @@ void SCR_ScreenShot_Cubemap_f(void)
 
 				if (SCR_ScreenShot(filename, FS_GAMEONLY, &buffer, 1, stride, fbwidth, fbheight, fmt, false))
 				{
-					FS_NativePath(filename, FS_GAMEONLY, sysname, sizeof(sysname));
-					Con_Printf ("Wrote %s\n", sysname);
+					FS_DisplayPath(filename, FS_GAMEONLY, displayname, sizeof(displayname));
+					Con_Printf ("Wrote %s\n", displayname);
 				}
 				else
 				{
-					FS_NativePath(filename, FS_GAMEONLY, sysname, sizeof(sysname));
-					Con_Printf ("Failed to write %s\n", sysname);
+					FS_DisplayPath(filename, FS_GAMEONLY, displayname, sizeof(displayname));
+					Con_Printf ("Failed to write %s\n", displayname);
 				}
 				BZ_Free(buffer);
 			}

@@ -840,7 +840,10 @@ static qboolean initD3D11Device(HWND hWnd, rendererstate_t *info, PFN_D3D11_CREA
 		Con_Printf("D3D11 Adaptor: %S\n", adesc.Description);
 	}
 	else
+	{
 		adapt = NULL;
+		Con_Printf("D3D11 Adaptor: %s\n", "Unspecified");
+	}
 
 	if (FAILED(func(adapt, drivertype, NULL, flags,
 				flevels, sizeof(flevels)/sizeof(flevels[0]),
@@ -1018,6 +1021,9 @@ static void initD3D11(HWND hWnd, rendererstate_t *info)
 			Con_Printf("CreateDXGIFactory1 failed: %s\n", D3D_NameForResult(hr));
 		if (fact)
 		{
+			ULONGLONG devid = strtoull(info->subrenderer, NULL, 16);
+			vrsetup.deviceid[0] = (devid    )&0xffffffff;
+			vrsetup.deviceid[1] = (devid>>32)&0xffffffff;
 			if (info->vr)
 			{
 				if (!info->vr->Prepare(&vrsetup))
@@ -1025,22 +1031,22 @@ static void initD3D11(HWND hWnd, rendererstate_t *info)
 					info->vr->Shutdown();
 					info->vr = NULL;
 				}
-				else
-				{
-					int id = 0;
-					while (S_OK==IDXGIFactory1_EnumAdapters(fact, id++, &adapt))
-					{
-						DXGI_ADAPTER_DESC desc;
-						IDXGIAdapter_GetDesc(adapt, &desc);
-						if (desc.AdapterLuid.LowPart == vrsetup.deviceid[0] && desc.AdapterLuid.HighPart == vrsetup.deviceid[1])
-							break;
-						IDXGIAdapter_Release(adapt);
-						adapt = NULL;
-					}
-				}
 			}
 
-			if (!adapt)
+			if (vrsetup.deviceid[0] || vrsetup.deviceid[1])
+			{
+				int id = 0;
+				while (S_OK==IDXGIFactory1_EnumAdapters(fact, id++, &adapt))
+				{
+					DXGI_ADAPTER_DESC desc;
+					IDXGIAdapter_GetDesc(adapt, &desc);
+					if (desc.AdapterLuid.LowPart == vrsetup.deviceid[0] && desc.AdapterLuid.HighPart == vrsetup.deviceid[1])
+						break;
+					IDXGIAdapter_Release(adapt);
+					adapt = NULL;
+				}
+			}
+			else
 				IDXGIFactory1_EnumAdapters(fact, 0, &adapt);
 		}
 	}
@@ -1059,6 +1065,54 @@ static void initD3D11(HWND hWnd, rendererstate_t *info)
 		//IDXGIFactory1_MakeWindowAssociation(fact, hWnd, DXGI_MWA_NO_WINDOW_CHANGES|DXGI_MWA_NO_ALT_ENTER|DXGI_MWA_NO_PRINT_SCREEN);
 		IDXGIFactory1_Release(fact);
 	}
+}
+
+static qboolean D3D11_VID_EnumerateDevices(void *usercontext, void(*callback)(void *context, const char *devicename, const char *outputname, const char *desc))
+{
+	static dllhandle_t *dxgi;
+	static HRESULT (WINAPI *pCreateDXGIFactory1)(IID *riid, void **ppFactory);
+	static IID factiid = {0x770aae78, 0xf26f, 0x4dba, {0xa8, 0x29, 0x25, 0x3c, 0x83, 0xd1, 0xb3, 0x87}};
+	IDXGIFactory1 *fact = NULL;
+	dllfunction_t dxgifuncs[] =
+	{
+		{(void**)&pCreateDXGIFactory1, "CreateDXGIFactory1"},
+		{NULL}
+	};
+
+	if (!dxgi)
+		dxgi = Sys_LoadLibrary("dxgi", dxgifuncs);
+	if (!dxgi)
+		return true;
+
+	if (pCreateDXGIFactory1)
+	{
+		HRESULT hr;
+		hr = pCreateDXGIFactory1(&factiid, (void**)&fact);
+		if (FAILED(hr))
+			Con_Printf("CreateDXGIFactory1 failed: %s\n", D3D_NameForResult(hr));
+		if (fact)
+		{
+			IDXGIAdapter *adapt = NULL;
+			int id = 0;
+			char devname[128*4];
+			char dev[128*4];
+			DXGI_ADAPTER_DESC desc;
+			while (S_OK==IDXGIFactory1_EnumAdapters(fact, id++, &adapt))
+			{
+				IDXGIAdapter_GetDesc(adapt, &desc);
+
+				Q_snprintfz(devname,sizeof(devname), "Direct3D11 - %s", narrowen(dev,sizeof(dev), desc.Description));
+				Q_snprintfz(dev,sizeof(dev), "%"PRIx64, ((ULONGLONG)desc.AdapterLuid.HighPart<<32)|desc.AdapterLuid.LowPart);
+				callback(usercontext, dev, ""/*FIXME*/, devname);
+
+				IDXGIAdapter_Release(adapt);
+				adapt = NULL;
+			}
+
+			IDXGIFactory1_Release(fact);
+		}
+	}
+	return true;
 }
 
 static qboolean D3D11_VID_Init(rendererstate_t *info, unsigned char *palette)
@@ -1556,18 +1610,19 @@ static void D3D11_SetupViewPort(void)
 		fovv_y *= 1 + (((sin(cl.time * 3.0) + 1) * 0.015) * r_waterwarp.value);
 	}
 
+	if (r_xflip.ival)
+	{
+		fov_x *= -1;
+		r_refdef.flipcull ^= SHADER_CULL_FLIP;
+		fovv_x *= -1;
+	}
+
 	/*view matrix*/
 	Matrix4x4_CM_ModelViewMatrixFromAxis(r_refdef.m_view, vpn, vright, vup, r_refdef.vieworg);
-	if (r_refdef.maxdist)
-	{
-		Matrix4x4_CM_Projection_Far(r_refdef.m_projection_std, fov_x, fov_y, r_refdef.mindist, r_refdef.maxdist, false);
-		Matrix4x4_CM_Projection_Far(r_refdef.m_projection_view, fovv_x, fovv_y, r_refdef.mindist, r_refdef.maxdist, false);
-	}
-	else
-	{
-		Matrix4x4_CM_Projection_Inf(r_refdef.m_projection_std, fov_x, fov_y, r_refdef.mindist, false);
-		Matrix4x4_CM_Projection_Inf(r_refdef.m_projection_view, fovv_x, fovv_y, r_refdef.mindist, false);
-	}
+
+	/*projection matricies (main game, and viewmodel)*/
+	Matrix4x4_CM_Projection_Offset(r_refdef.m_projection_std,  -fov_x/2, fov_x/2, -fov_y/2, fov_y/2, r_refdef.mindist, r_refdef.maxdist, true);
+	Matrix4x4_CM_Projection_Offset(r_refdef.m_projection_view, -fovv_x/2, fovv_x/2, -fovv_y/2, fovv_y/2, r_refdef.mindist, r_refdef.maxdist, true);
 }
 
 static void	(D3D11_R_RenderView)				(void)
@@ -1575,6 +1630,7 @@ static void	(D3D11_R_RenderView)				(void)
 	float x, x2, y, y2;
 	double time1 = 0, time2 = 0;
 	qboolean dofbo = *r_refdef.rt_destcolour[0].texname || *r_refdef.rt_depth.texname;
+	int cull = r_refdef.flipcull;
 //	texid_t colourrt[1];
 
 	if (!r_norefresh.value)
@@ -1623,11 +1679,6 @@ static void	(D3D11_R_RenderView)				(void)
 
 		R_SetFrustum (r_refdef.m_projection_std, r_refdef.m_view);
 		RQ_BeginFrame();
-	//	if (!(r_refdef.flags & Q2RDF_NOWORLDMODEL))
-	//	{
-	//		if (cl.worldmodel)
-	//			P_DrawParticles ();
-	//	}
 		
 		if (!(r_refdef.flags & RDF_NOWORLDMODEL))
 			if (!r_worldentity.model || r_worldentity.model->loadstate != MLS_LOADED || !cl.worldmodel)
@@ -1637,12 +1688,20 @@ static void	(D3D11_R_RenderView)				(void)
 				R2D_FillBlock(r_refdef.vrect.x, r_refdef.vrect.y, r_refdef.vrect.width, r_refdef.vrect.height);
 				R2D_ImageColours(1, 1, 1, 1);
 
+				r_refdef.flipcull = cull;
 				if (dofbo)
 					D3D11_ApplyRenderTargets(false);
 				return;
 			}
+//		if (!(r_refdef.flags & RDF_NOWORLDMODEL))
+//		{
+//			if (!r_refdef.recurse && !(r_refdef.flags & RDF_DISABLEPARTICLES))
+//				P_DrawParticles ();
+//		}
 		Surf_DrawWorld();
 		RQ_RenderBatchClear();
+
+		r_refdef.flipcull = cull;
 
 		if (r_speeds.ival)
 		{
@@ -1739,6 +1798,9 @@ rendererinfo_t d3d11rendererinfo =
 
 	D3D11BE_RenderToTextureUpdate2d,
 
-	"no more"
+	"no more",
+	NULL,	//VID_GetPriority
+	NULL,	//VID_EnumerateVideoModes
+	D3D11_VID_EnumerateDevices
 };
 #endif

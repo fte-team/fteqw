@@ -402,6 +402,8 @@ void main ()
 
 #ifdef REFLECTCUBEMASK
 	vec3 rtc = reflect(normalize(-eyevector), norm);
+	//todo: parallax correction: https://seblagarde.wordpress.com/2012/09/29/image-based-lighting-approaches-and-parallax-corrected-cubemap/
+	//norm (and also eyevector) are in tangentspace but our cubemap wants worldspace, so convert.
 	rtc = rtc.x*invsurface[0] + rtc.y*invsurface[1] + rtc.z*invsurface[2];
 	rtc = (m_model * vec4(rtc.xyz,0.0)).xyz;
 	col.rgb += texture2D(s_reflectmask, tc).rgb * textureCube(s_reflectcube, rtc).rgb;

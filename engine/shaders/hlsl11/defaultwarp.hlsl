@@ -33,10 +33,8 @@ struct v2f
 	Texture2D t_diffuse;
 	float4 main (v2f inp) : SV_TARGET
 	{
-		float2 ntc;
+		float2 ntc = inp.tc + sin(inp.tc.yx+e_time)*0.125;
 		float4 r;
-		ntc.x = inp.tc.x + sin(inp.tc.y+e_time)*0.125;
-		ntc.y = inp.tc.y + sin(inp.tc.x+e_time)*0.125;
 		r = t_diffuse.Sample(s_diffuse, ntc);
 #ifdef ALPHA
 		r.a = float(ALPHA);

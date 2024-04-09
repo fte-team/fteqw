@@ -1021,14 +1021,14 @@ static trace_t World_ClipMoveToEntity (world_t *w, wedict_t *ent, vec3_t eorg, v
 		case Q1CONTENTS_LAVA:			forcedcontents = FTECONTENTS_LAVA;			break;
 		case Q1CONTENTS_SKY:			forcedcontents = FTECONTENTS_SKY;			break;
 		case Q1CONTENTS_LADDER:			forcedcontents = FTECONTENTS_LADDER;		break;
-		case Q1CONTENTS_CLIP:			forcedcontents = FTECONTENTS_PLAYERCLIP|FTECONTENTS_MONSTERCLIP;break;
-		case Q1CONTENTS_CURRENT_0:		forcedcontents = FTECONTENTS_WATER|Q2CONTENTS_CURRENT_0;		break;
-		case Q1CONTENTS_CURRENT_90:		forcedcontents = FTECONTENTS_WATER|Q2CONTENTS_CURRENT_90;		break;
-		case Q1CONTENTS_CURRENT_180:	forcedcontents = FTECONTENTS_WATER|Q2CONTENTS_CURRENT_180;		break;
-		case Q1CONTENTS_CURRENT_270:	forcedcontents = FTECONTENTS_WATER|Q2CONTENTS_CURRENT_270;		break;
-		case Q1CONTENTS_CURRENT_UP:		forcedcontents = FTECONTENTS_WATER|Q2CONTENTS_CURRENT_UP;		break;
-		case Q1CONTENTS_CURRENT_DOWN:	forcedcontents = FTECONTENTS_WATER|Q2CONTENTS_CURRENT_DOWN;		break;
-		case Q1CONTENTS_TRANS:			forcedcontents = FTECONTENTS_SOLID;			break;
+		case HLCONTENTS_CLIP:			forcedcontents = FTECONTENTS_PLAYERCLIP|FTECONTENTS_MONSTERCLIP;break;
+		case HLCONTENTS_CURRENT_0:		forcedcontents = FTECONTENTS_WATER|Q2CONTENTS_CURRENT_0;		break;
+		case HLCONTENTS_CURRENT_90:		forcedcontents = FTECONTENTS_WATER|Q2CONTENTS_CURRENT_90;		break;
+		case HLCONTENTS_CURRENT_180:	forcedcontents = FTECONTENTS_WATER|Q2CONTENTS_CURRENT_180;		break;
+		case HLCONTENTS_CURRENT_270:	forcedcontents = FTECONTENTS_WATER|Q2CONTENTS_CURRENT_270;		break;
+		case HLCONTENTS_CURRENT_UP:		forcedcontents = FTECONTENTS_WATER|Q2CONTENTS_CURRENT_UP;		break;
+		case HLCONTENTS_CURRENT_DOWN:	forcedcontents = FTECONTENTS_WATER|Q2CONTENTS_CURRENT_DOWN;		break;
+		case HLCONTENTS_TRANS:			forcedcontents = FTECONTENTS_EMPTY;			break;
 		case Q1CONTENTS_MONSTERCLIP:	forcedcontents = FTECONTENTS_MONSTERCLIP;	break;
 		case Q1CONTENTS_PLAYERCLIP:		forcedcontents = FTECONTENTS_PLAYERCLIP;	break;
 		case Q1CONTENTS_CORPSE:scorpse: forcedcontents = FTECONTENTS_CORPSE;		break;
@@ -1890,14 +1890,14 @@ static unsigned int World_ContentsOfLinks (world_t *w, areagridlink_t *node, vec
 			case Q1CONTENTS_SLIME:			forcedcontents = FTECONTENTS_SLIME;			break;
 			case Q1CONTENTS_LAVA:			forcedcontents = FTECONTENTS_LAVA;			break;
 			case Q1CONTENTS_SKY:			forcedcontents = FTECONTENTS_SKY;			break;
-			case Q1CONTENTS_CLIP:			forcedcontents = FTECONTENTS_PLAYERCLIP|FTECONTENTS_MONSTERCLIP;	break;
-			case Q1CONTENTS_CURRENT_0:		forcedcontents = FTECONTENTS_WATER|Q2CONTENTS_CURRENT_0;			break;
-			case Q1CONTENTS_CURRENT_90:		forcedcontents = FTECONTENTS_WATER|Q2CONTENTS_CURRENT_90;			break;
-			case Q1CONTENTS_CURRENT_180:	forcedcontents = FTECONTENTS_WATER|Q2CONTENTS_CURRENT_180;			break;
-			case Q1CONTENTS_CURRENT_270:	forcedcontents = FTECONTENTS_WATER|Q2CONTENTS_CURRENT_270;			break;
-			case Q1CONTENTS_CURRENT_UP:		forcedcontents = FTECONTENTS_WATER|Q2CONTENTS_CURRENT_UP;			break;
-			case Q1CONTENTS_CURRENT_DOWN:	forcedcontents = FTECONTENTS_WATER|Q2CONTENTS_CURRENT_DOWN;			break;
-			case Q1CONTENTS_TRANS:			forcedcontents = FTECONTENTS_SOLID;			break;
+			case HLCONTENTS_CLIP:			forcedcontents = FTECONTENTS_PLAYERCLIP|FTECONTENTS_MONSTERCLIP;	break;
+			case HLCONTENTS_CURRENT_0:		forcedcontents = FTECONTENTS_WATER|Q2CONTENTS_CURRENT_0;			break;
+			case HLCONTENTS_CURRENT_90:		forcedcontents = FTECONTENTS_WATER|Q2CONTENTS_CURRENT_90;			break;
+			case HLCONTENTS_CURRENT_180:	forcedcontents = FTECONTENTS_WATER|Q2CONTENTS_CURRENT_180;			break;
+			case HLCONTENTS_CURRENT_270:	forcedcontents = FTECONTENTS_WATER|Q2CONTENTS_CURRENT_270;			break;
+			case HLCONTENTS_CURRENT_UP:		forcedcontents = FTECONTENTS_WATER|Q2CONTENTS_CURRENT_UP;			break;
+			case HLCONTENTS_CURRENT_DOWN:	forcedcontents = FTECONTENTS_WATER|Q2CONTENTS_CURRENT_DOWN;			break;
+			case HLCONTENTS_TRANS:			forcedcontents = FTECONTENTS_EMPTY;			break;
 			case Q1CONTENTS_LADDER:			forcedcontents = FTECONTENTS_LADDER;		break;
 			case Q1CONTENTS_MONSTERCLIP:	forcedcontents = FTECONTENTS_MONSTERCLIP;	break;
 			case Q1CONTENTS_PLAYERCLIP:		forcedcontents = FTECONTENTS_PLAYERCLIP;	break;
@@ -2142,11 +2142,15 @@ static void World_ClipToNetwork (world_t *w, moveclip_t *clip)
 	if ((clip->type & MOVE_ENTCHAIN) || !pe)
 		return;
 
-	skip = ((csqcedict_t*)clip->passedict)->xv->entnum;
-
 	//lets say that ssqc ents are in dimension 0x1, as far as the csqc can see.
-	if (clip->passedict && !((int)clip->passedict->xv->dimension_hit & 1))
-		return;
+	if (clip->passedict)
+	{
+		if (!((int)clip->passedict->xv->dimension_hit & 1))
+			return;
+		skip = ((csqcedict_t*)clip->passedict)->xv->entnum;
+	}
+	else
+		skip = 0;
 
 	for (i = 0; i < pe->num_entities; i++)
 	{
@@ -2187,21 +2191,21 @@ static void World_ClipToNetwork (world_t *w, moveclip_t *clip)
 			{
 			case Q1CONTENTS_EMPTY:			touchcontents = 0;							break;
 			case Q1CONTENTS_SOLID:			touchcontents = FTECONTENTS_SOLID;			break;
-			case Q1CONTENTS_LADDER:			touchcontents = FTECONTENTS_LADDER;			break;
-			case Q1CONTENTS_SKY:			touchcontents = FTECONTENTS_SKY;			break;
-			case Q1CONTENTS_LAVA:			touchcontents = FTECONTENTS_LAVA;			break;
-			case Q1CONTENTS_SLIME:			touchcontents = FTECONTENTS_SLIME;			break;
 			case Q1CONTENTS_WATER:			touchcontents = FTECONTENTS_WATER;			break;
-			case Q1CONTENTS_PLAYERCLIP:		touchcontents = FTECONTENTS_PLAYERCLIP;		break;
+			case Q1CONTENTS_SLIME:			touchcontents = FTECONTENTS_SLIME;			break;
+			case Q1CONTENTS_LAVA:			touchcontents = FTECONTENTS_LAVA;			break;
+			case Q1CONTENTS_SKY:			touchcontents = FTECONTENTS_SKY;			break;
+			case HLCONTENTS_CLIP:			touchcontents = FTECONTENTS_PLAYERCLIP|FTECONTENTS_MONSTERCLIP;	break;
+			case HLCONTENTS_CURRENT_0:		touchcontents = FTECONTENTS_WATER|Q2CONTENTS_CURRENT_0;			break;
+			case HLCONTENTS_CURRENT_90:		touchcontents = FTECONTENTS_WATER|Q2CONTENTS_CURRENT_90;		break;
+			case HLCONTENTS_CURRENT_180:	touchcontents = FTECONTENTS_WATER|Q2CONTENTS_CURRENT_180;		break;
+			case HLCONTENTS_CURRENT_270:	touchcontents = FTECONTENTS_WATER|Q2CONTENTS_CURRENT_270;		break;
+			case HLCONTENTS_CURRENT_UP:		touchcontents = FTECONTENTS_WATER|Q2CONTENTS_CURRENT_UP;		break;
+			case HLCONTENTS_CURRENT_DOWN:	touchcontents = FTECONTENTS_WATER|Q2CONTENTS_CURRENT_DOWN;		break;
+			case HLCONTENTS_TRANS:			touchcontents = FTECONTENTS_EMPTY;								break;
+			case Q1CONTENTS_LADDER:			touchcontents = FTECONTENTS_LADDER;			break;
 			case Q1CONTENTS_MONSTERCLIP:	touchcontents = FTECONTENTS_MONSTERCLIP;	break;
-			case Q1CONTENTS_CLIP:			touchcontents = FTECONTENTS_PLAYERCLIP|FTECONTENTS_MONSTERCLIP;	break;
-			case Q1CONTENTS_TRANS:			touchcontents = FTECONTENTS_WINDOW;								break;
-			case Q1CONTENTS_CURRENT_0:		touchcontents = FTECONTENTS_WATER|Q2CONTENTS_CURRENT_0;			break;
-			case Q1CONTENTS_CURRENT_90:		touchcontents = FTECONTENTS_WATER|Q2CONTENTS_CURRENT_90;		break;
-			case Q1CONTENTS_CURRENT_180:	touchcontents = FTECONTENTS_WATER|Q2CONTENTS_CURRENT_180;		break;
-			case Q1CONTENTS_CURRENT_270:	touchcontents = FTECONTENTS_WATER|Q2CONTENTS_CURRENT_270;		break;
-			case Q1CONTENTS_CURRENT_UP:		touchcontents = FTECONTENTS_WATER|Q2CONTENTS_CURRENT_UP;		break;
-			case Q1CONTENTS_CURRENT_DOWN:	touchcontents = FTECONTENTS_WATER|Q2CONTENTS_CURRENT_DOWN;		break;
+			case Q1CONTENTS_PLAYERCLIP:		touchcontents = FTECONTENTS_PLAYERCLIP;		break;
 			case Q1CONTENTS_CORPSE:			touchcontents = FTECONTENTS_CORPSE;			break;
 			safedefault:					touchcontents = ~0;							break;	//could be anything... :(
 			}

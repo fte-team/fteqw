@@ -579,6 +579,7 @@ void QCBUILTIN PF_base64decode(pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 
 void QCBUILTIN PF_memalloc	(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 void QCBUILTIN PF_memfree	(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_memcmp	(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 void QCBUILTIN PF_memcpy	(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 void QCBUILTIN PF_memfill8	(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 void QCBUILTIN PF_memgetval	(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
@@ -930,6 +931,7 @@ enum packagemanagerinfo_e
 	GPMI_AVAILABLE,		//whether it may be downloaded or not.
 	GPMI_FILESIZE,		//whether it may be downloaded or not.
 	GPMI_GAMEDIR,		//so you know which mod(s) its relevant for
+	GPMI_MAPS,		//so you know which mod(s) its relevant for
 };
 
 #ifdef TERRAIN
@@ -1060,6 +1062,7 @@ enum
 	globalfunction(CSQC_InputEvent,			"float(float evtype, float scanx, float chary, float devid)")	\
 	globalfunction(CSQC_Input_Frame,		"void()")/*EXT_CSQC_1*/	\
 	globalfunction(CSQC_RendererRestarted,	"void(string rendererdescription)")	\
+	globalfunction(CSQC_GenerateMaterial,	"string(string shadername)")	\
 	globalfunction(CSQC_ConsoleCommand,		"float(string cmd)")	\
 	globalfunction(CSQC_ConsoleLink,		"float(string text, string info)")	\
 	globalfunction(GameCommand,				"void(string cmdtext)")	/*DP extension*/\

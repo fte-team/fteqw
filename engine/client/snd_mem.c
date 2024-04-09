@@ -37,10 +37,6 @@ typedef struct
 
 static wavinfo_t GetWavinfo (char *name, qbyte *wav, int wavlength);
 
-int			cache_full_cycle;
-
-qbyte *S_Alloc (int size);
-
 #define LINEARUPSCALE(in, inrate, insamps, out, outrate, outlshift, outrshift) \
 	{ \
 		scale = inrate / (double)outrate; \
@@ -822,9 +818,54 @@ static qboolean QDECL S_LoadWavSound (sfx_t *s, qbyte *data, size_t datalen, int
 	return ResampleSfx (s, info.rate, info.numchannels, format, info.samples, info.loopstart, data + info.dataofs);
 }
 
-qboolean QDECL S_LoadOVSound (sfx_t *s, qbyte *data, size_t datalen, int sndspeed, qboolean forcedecode);
-
 #ifdef FTE_TARGET_WEB
+#if 1
+void S_BrowserDecoded (void *ctx, void *dataptr, int frames, int channels, float rate)
+{
+	sfx_t *sfx = ctx;
+
+	//make sure we were not restarting at the time... FIXME: make stricter?
+	extern sfx_t		*known_sfx;
+	extern int			num_sfx;
+	int id = sfx-known_sfx;
+	if (id < 0 || id >= num_sfx || sfx != &known_sfx[id])
+		return; //err... don't crash out!
+
+	sfx->loopstart = -1;
+	if (dataptr)
+	{	//okay, something loaded. woo.
+		Z_Free(sfx->decoder.buf);
+		sfx->decoder.buf = NULL;
+		sfx->decoder.decodedata = NULL;
+		ResampleSfx (sfx, rate, channels, QAF_S16, frames, -1, dataptr);
+	}
+	else
+	{
+		Con_Printf(CON_WARNING"Failed to decode %s\n", sfx->name);
+		sfx->loadstate = SLS_FAILED;
+	}
+}
+static qboolean QDECL S_LoadBrowserFile (sfx_t *s, qbyte *data, size_t datalen, int sndspeed, qboolean forcedecode)
+{
+	struct sfxcache_s *buf;
+
+	if (datalen > 4 && !strncmp(data, "RIFF", 4))
+		return false;	//do NOT use this code for wav files. we have no way to read the looping flags which would break things in certain situations. we MUST fall back on our normal loader.
+
+	s->decoder.buf = buf = Z_Malloc(sizeof(*buf)+128);
+	//fill with a placeholder
+	buf->length = 128;
+	buf->speed = snd_speed;
+	buf->format = QAF_S8; //something basic
+	buf->numchannels=1;
+	buf->soundoffset = 0;
+	buf->data = (qbyte*)(buf+1);
+
+	s->loopstart = 0; //keep looping silence until it actually loads something.
+
+	return emscriptenfte_pcm_loadaudiofile(s, S_BrowserDecoded, data, datalen, sndspeed);
+}
+#else
 //web browsers contain their own decoding libraries that our openal stuff can use.
 static qboolean QDECL S_LoadBrowserFile (sfx_t *s, qbyte *data, size_t datalen, int sndspeed, qboolean forcedecode)
 {
@@ -842,6 +883,9 @@ static qboolean QDECL S_LoadBrowserFile (sfx_t *s, qbyte *data, size_t datalen, 
 	return true;
 }
 #endif
+#endif
+
+qboolean QDECL S_LoadOVSound (sfx_t *s, qbyte *data, size_t datalen, int sndspeed, qboolean forcedecode);
 
 //highest priority is last.
 static struct

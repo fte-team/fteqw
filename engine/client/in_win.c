@@ -34,8 +34,6 @@ void INS_Accumulate (void);
 
 #define AVAIL_XINPUT
 #ifdef AVAIL_XINPUT
-//#define AVAIL_XINPUT_DLL "xinput9_1_0.dll"
-#define AVAIL_XINPUT_DLL "xinput1_3.dll"
 typedef struct _XINPUT_GAMEPAD {
 	WORD  wButtons;
 	BYTE  bLeftTrigger;
@@ -55,7 +53,9 @@ typedef struct _XINPUT_VIBRATION {
 } XINPUT_VIBRATION, *PXINPUT_VIBRATION;
 DWORD (WINAPI *pXInputGetState)(DWORD dwUserIndex, XINPUT_STATE *pState);
 DWORD (WINAPI *pXInputSetState)(DWORD dwUserIndex, XINPUT_VIBRATION *pState);
-DWORD (WINAPI *pXInputGetDSoundAudioDeviceGuids)(DWORD dwUserIndex, GUID* pDSoundRenderGuid, GUID* pDSoundCaptureGuid);
+DWORD (WINAPI *pXInputGetDSoundAudioDeviceGuids)(DWORD dwUserIndex, GUID* pDSoundRenderGuid, GUID* pDSoundCaptureGuid);	//xi 1.3
+DWORD (WINAPI *pXInputGetAudioDeviceIds)(DWORD dwUserIndex, LPWSTR pRenderDeviceId, UINT *pRenderCount, LPWSTR pCaptureDeviceId, UINT *pCaptureCount); //xi 1.4
+
 enum
 {
 	XINPUT_GAMEPAD_DPAD_UP			= 0x0001,
@@ -382,6 +382,51 @@ static const int mmjbuttons[32] =
 	K_JOY8
 };
 
+
+static HANDLE	powercontext = INVALID_HANDLE_VALUE;
+static qboolean	powersaveblocked = false;
+static HANDLE	(WINAPI *pPowerCreateRequest)	(REASON_CONTEXT *Context);
+static BOOL		(WINAPI *pPowerSetRequest)		(HANDLE Context,	POWER_REQUEST_TYPE RequestType);
+static BOOL		(WINAPI *pPowerClearRequest)	(HANDLE Context,	POWER_REQUEST_TYPE RequestType);
+static void INS_ScreenSaver_Init(void)
+{
+	dllfunction_t functable[] =
+	{
+		{(void*)&pPowerCreateRequest,	"PowerCreateRequest"},
+		{(void*)&pPowerSetRequest,		"PowerSetRequest"},
+		{(void*)&pPowerClearRequest,	"PowerClearRequest"},
+		{NULL}
+	};
+
+	if (Sys_LoadLibrary("kernel32.dll", functable))
+	{	//we don't do microsoft's interpretation of localisation, so this is lame.
+		REASON_CONTEXT reason = {POWER_REQUEST_CONTEXT_VERSION, POWER_REQUEST_CONTEXT_SIMPLE_STRING};
+		reason.Reason.SimpleReasonString = L"Demo Playback";
+		powercontext = pPowerCreateRequest(&reason);
+
+		//FIXME: be prepared to regenerate the reason when our lang changes...
+	}
+}
+static void INS_ScreenSaver_UpdateBlock(qboolean block)
+{
+	if (powercontext != INVALID_HANDLE_VALUE && block != powersaveblocked)
+	{
+		powersaveblocked = block;
+		if (block)
+		{
+			pPowerSetRequest(powercontext, PowerRequestDisplayRequired);	//keep the screen on...
+			pPowerSetRequest(powercontext, PowerRequestSystemRequired);		//and don't go to sleep mid-video, too...
+		}
+		else
+		{
+			pPowerClearRequest(powercontext, PowerRequestSystemRequired);
+			pPowerClearRequest(powercontext, PowerRequestDisplayRequired);
+		}
+	}
+}
+
+
+
 // forward-referenced functions
 void INS_StartupJoystick (void);
 void INS_JoyMove (void);
@@ -705,6 +750,8 @@ void INS_RestoreOriginalMouseState (void)
 void INS_UpdateGrabs(int fullscreen, int activeapp)
 {
 	int grabmouse;
+
+	INS_ScreenSaver_UpdateBlock(cls.demoplayback && activeapp);
 
 	if (!activeapp)
 		grabmouse = false;
@@ -1376,6 +1423,8 @@ void INS_Init (void)
 	Cvar_Register (&in_rawinput_keyboard, "Input Controls");
 	Cvar_Register (&in_rawinput_rdp, "Input Controls");
 #endif
+
+	INS_ScreenSaver_Init();
 }
 
 /*
@@ -1854,25 +1903,35 @@ static void IN_XInput_SetupAudio(struct wjoy_s *joy)
 	if (joy->devid == DEVID_UNSET)
 		return;
 
-	if (pXInputGetDSoundAudioDeviceGuids(joy->id, &gplayback, &gcapture) != ERROR_SUCCESS)
-		return;	//probably not plugged in
+	if (pXInputGetDSoundAudioDeviceGuids)
+	{
+		if (pXInputGetDSoundAudioDeviceGuids(joy->id, &gplayback, &gcapture) != ERROR_SUCCESS)
+			return;	//probably not plugged in
 
-	if (!memcmp(&gplayback, &GUID_NULL, sizeof(gplayback)))
-		return;	//we have a controller, but no headset.
+		if (!memcmp(&gplayback, &GUID_NULL, sizeof(gplayback)))
+			return;	//we have a controller, but no headset.
 
-	StringFromGUID2(&gplayback, mssuck, sizeof(mssuck)/sizeof(mssuck[0]));
-	narrowen(audiodevicename, sizeof(audiodevicename), mssuck);
-	Con_Printf("Controller %i uses audio device %s\n", joy->id, audiodevicename);
-	joy->audiodev = S_SetupDeviceSeat("DirectSound", audiodevicename, joy->devid);
+		StringFromGUID2(&gplayback, mssuck, sizeof(mssuck)/sizeof(mssuck[0]));
+		narrowen(audiodevicename, sizeof(audiodevicename), mssuck);
+		Con_Printf("Controller %i uses directsound device %s\n", joy->id, audiodevicename);
+		joy->audiodev = S_SetupDeviceSeat("DirectSound", audiodevicename, joy->devid);
+	}
+	else if (pXInputGetAudioDeviceIds)
+	{
+		UINT wccount = countof(mssuck);
+		if (!FAILED(pXInputGetAudioDeviceIds(joy->id, mssuck, &wccount, NULL,NULL/*we don't have separate mics, sadly, which also makes config awkward*/)))
+		{
+	        narrowen(audiodevicename, sizeof(audiodevicename), mssuck);
+			Con_Printf("Controller %i uses xaudio2 device %s\n", joy->id, audiodevicename);
+			joy->audiodev = S_SetupDeviceSeat("XAudio2", audiodevicename, joy->devid);
+		}
+	}
 #endif
 }
 void INS_SetupControllerAudioDevices(qboolean enabled)
 {
 #ifdef AVAIL_XINPUT
 	int i;
-
-	if (!pXInputGetDSoundAudioDeviceGuids)
-		return;
 
 	xinput_useaudio = enabled;
 	for (i = 0; i < joy_count; i++)
@@ -1891,6 +1950,12 @@ void INS_StartupJoystick (void)
 	if (in_xinput.ival)
 	{
 		static dllhandle_t *xinput;
+		static const char *dllnames[] =
+		{
+			"xinput1_4.dll",	//win8+ only. does xaudio2 instead of dsound.
+			"xinput1_3.dll",	//dxsdk (vista+). does dsound stuff.
+			"xinput9_1_0.dll"	//vista+. doesn't do audio stuff.
+		};
 		if (!xinput)
 		{
 			dllfunction_t funcs[] =
@@ -1899,10 +1964,17 @@ void INS_StartupJoystick (void)
 				{(void**)&pXInputSetState, "XInputSetState"},
 				{NULL}
 			};
-			xinput = Sys_LoadLibrary(AVAIL_XINPUT_DLL, funcs);
+			pXInputGetDSoundAudioDeviceGuids = NULL;
+			pXInputGetAudioDeviceIds = NULL;
+			for (id = 0; id < countof(dllnames); id++)
+			{
+				xinput = Sys_LoadLibrary(dllnames[id], funcs);
+				if (xinput)
+					break;
+			}
 
-			if (xinput)
-				pXInputGetDSoundAudioDeviceGuids = Sys_GetAddressForName(xinput, "XInputGetDSoundAudioDeviceGuids");
+			pXInputGetDSoundAudioDeviceGuids = xinput?Sys_GetAddressForName(xinput, "XInputGetDSoundAudioDeviceGuids"):NULL;
+			pXInputGetAudioDeviceIds = xinput?Sys_GetAddressForName(xinput, "XInputGetAudioDeviceIds"):NULL;
 		}
 		if (pXInputGetState)
 		{
@@ -1925,7 +1997,7 @@ void INS_StartupJoystick (void)
 			Con_DPrintf("XInput is enabled (%i controllers found)\n", numdevs);
 		}
 		else
-			Con_Printf("XInput not installed\n");
+			Con_Printf("XInput (%s) not installed\n", dllnames[1]);
 	}
 #endif
 

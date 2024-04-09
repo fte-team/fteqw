@@ -2216,22 +2216,20 @@ void	VK_R_DeInit					(void)
 	Image_Shutdown();
 }
 
-void VK_SetupViewPortProjection(qboolean flipy, vec3_t *eyeangorg, float *fovoverrides)
+void VK_SetupViewPortProjection(qboolean flipy, const float eyematrix[12], const float fovoverrides[4], const float projmatrix[16])
 {
 	float fov_x, fov_y;
 	float fovv_x, fovv_y;
 
 	float fov_l, fov_r, fov_d, fov_u;
 
-	if (eyeangorg)
+	if (eyematrix)
 	{
 		extern cvar_t in_vraim;
 		matrix3x4 basematrix;
-		matrix3x4 eyematrix;
 		matrix3x4 viewmatrix;
 		vec3_t newa;
 
-		Matrix3x4_RM_FromAngles(eyeangorg[0], eyeangorg[1], eyematrix[0]);
 		if (r_refdef.base_known)
 		{	//mod is specifying its own base ang+org.
 			Matrix3x4_RM_FromAngles(r_refdef.base_angles, r_refdef.base_origin, basematrix[0]);
@@ -2245,7 +2243,7 @@ void VK_SetupViewPortProjection(qboolean flipy, vec3_t *eyeangorg, float *fovove
 				newa[1] -= SHORT2ANGLE(r_refdef.playerview->vrdev[VRDEV_HEAD].angles[YAW]);
 			Matrix3x4_RM_FromAngles(newa, r_refdef.vieworg, basematrix[0]);
 		}
-		Matrix3x4_Multiply(eyematrix[0], basematrix[0], viewmatrix[0]);
+		Matrix3x4_Multiply(eyematrix, basematrix[0], viewmatrix[0]);
 		Matrix3x4_RM_ToVectors(viewmatrix[0], vpn, vright, vup, r_origin);
 		VectorNegate(vright, vright);
 
@@ -2273,41 +2271,58 @@ void VK_SetupViewPortProjection(qboolean flipy, vec3_t *eyeangorg, float *fovove
 		r_refdef.flipcull = 0;
 	}
 
-	fov_x = r_refdef.fov_x;//+sin(cl.time)*5;
-	fov_y = r_refdef.fov_y;//-sin(cl.time+1)*5;
-	fovv_x = r_refdef.fovv_x;
-	fovv_y = r_refdef.fovv_y;
-	if ((r_refdef.flags & RDF_UNDERWATER) && !(r_refdef.flags & RDF_WATERWARP))
+	if (projmatrix)
 	{
-		fov_x *= 1 + (((sin(cl.time * 4.7) + 1) * 0.015) * r_waterwarp.value);
-		fov_y *= 1 + (((sin(cl.time * 3.0) + 1) * 0.015) * r_waterwarp.value);
-		fovv_x *= 1 + (((sin(cl.time * 4.7) + 1) * 0.015) * r_waterwarp.value);
-		fovv_y *= 1 + (((sin(cl.time * 3.0) + 1) * 0.015) * r_waterwarp.value);
-	}
-	if (fovoverrides)
-	{
-		fov_l = fovoverrides[0];
-		fov_r = fovoverrides[1];
-		fov_d = fovoverrides[2];
-		fov_u = fovoverrides[3];
-
-		fov_x = fov_r-fov_l;
-		fov_y = fov_u-fov_d;
-
-		fovv_x = fov_x;
-		fovv_y = fov_y;
-		r_refdef.flipcull = ((fov_u < fov_d)^(fov_r < fov_l))?SHADER_CULL_FLIP:0;
+		memcpy(r_refdef.m_projection_std, projmatrix, sizeof(r_refdef.m_projection_std));
+		memcpy(r_refdef.m_projection_view, projmatrix, sizeof(r_refdef.m_projection_std));
 	}
 	else
 	{
-		fov_l = -fov_x / 2;
-		fov_r = fov_x / 2;
-		fov_d = -fov_y / 2;
-		fov_u = fov_y / 2;
-	}
+		fov_x = r_refdef.fov_x;//+sin(cl.time)*5;
+		fov_y = r_refdef.fov_y;//-sin(cl.time+1)*5;
+		fovv_x = r_refdef.fovv_x;
+		fovv_y = r_refdef.fovv_y;
+		if ((r_refdef.flags & RDF_UNDERWATER) && !(r_refdef.flags & RDF_WATERWARP))
+		{
+			fov_x *= 1 + (((sin(cl.time * 4.7) + 1) * 0.015) * r_waterwarp.value);
+			fov_y *= 1 + (((sin(cl.time * 3.0) + 1) * 0.015) * r_waterwarp.value);
+			fovv_x *= 1 + (((sin(cl.time * 4.7) + 1) * 0.015) * r_waterwarp.value);
+			fovv_y *= 1 + (((sin(cl.time * 3.0) + 1) * 0.015) * r_waterwarp.value);
+		}
+		if (fovoverrides)
+		{
+			fov_l = fovoverrides[0];
+			fov_r = fovoverrides[1];
+			fov_d = fovoverrides[2];
+			fov_u = fovoverrides[3];
 
-	Matrix4x4_CM_Projection_Offset(r_refdef.m_projection_std, fov_l, fov_r, fov_d, fov_u, r_refdef.mindist, r_refdef.maxdist, false);
-	Matrix4x4_CM_Projection_Offset(r_refdef.m_projection_view, -fovv_x/2, fovv_x/2, -fovv_y/2, fovv_y/2, r_refdef.mindist, r_refdef.maxdist, false);
+			fov_x = fov_r-fov_l;
+			fov_y = fov_u-fov_d;
+
+			fovv_x = fov_x;
+			fovv_y = fov_y;
+			r_refdef.flipcull = ((fov_u < fov_d)^(fov_r < fov_l))?SHADER_CULL_FLIP:0;
+		}
+		else
+		{
+			fov_l = -fov_x / 2;
+			fov_r = fov_x / 2;
+			fov_d = -fov_y / 2;
+			fov_u = fov_y / 2;
+		}
+
+		if (r_xflip.ival)
+		{
+			float t = fov_l;
+			fov_l = fov_r;
+			fov_r = t;
+			r_refdef.flipcull ^= SHADER_CULL_FLIP;
+			fovv_x *= -1;
+		}
+
+		Matrix4x4_CM_Projection_Offset(r_refdef.m_projection_std, fov_l, fov_r, fov_d, fov_u, r_refdef.mindist, r_refdef.maxdist, false);
+		Matrix4x4_CM_Projection_Offset(r_refdef.m_projection_view, -fovv_x/2, fovv_x/2, -fovv_y/2, fovv_y/2, r_refdef.mindist, r_refdef.maxdist, false);
+	}
 
 	r_refdef.m_projection_view[2+4*0] *= 0.333;
 	r_refdef.m_projection_view[2+4*1] *= 0.333;
@@ -2380,6 +2395,7 @@ void VK_Set2D(void)
 
 	VKBE_Set2D(true);
 
+	r_refdef.flipcull = 0;
 	if (0)
 		Matrix4x4_CM_Orthographic(r_refdef.m_projection_std, 0, vid.fbvwidth, 0, vid.fbvheight, -99999, 99999);
 	else
@@ -2718,7 +2734,7 @@ static qboolean VK_R_RenderScene_Cubemap(struct vk_rendertarg *fb)
 		r_refdef.viewangles[2] = saveang[2]+ang[i][2];
 
 
-		VK_SetupViewPortProjection(true, NULL, NULL);
+		VK_SetupViewPortProjection(true, NULL, NULL, NULL);
 
 		/*if (!vk.rendertarg->depthcleared)
 		{
@@ -2742,11 +2758,11 @@ static qboolean VK_R_RenderScene_Cubemap(struct vk_rendertarg *fb)
 
 		R_SetFrustum (r_refdef.m_projection_std, r_refdef.m_view);
 		RQ_BeginFrame();
-		if (!(r_refdef.flags & RDF_NOWORLDMODEL))
-		{
-			if (cl.worldmodel)
-				P_DrawParticles ();
-		}
+//		if (!(r_refdef.flags & RDF_NOWORLDMODEL))
+//		{
+//			if (cl.worldmodel)
+//				P_DrawParticles ();
+//		}
 		Surf_DrawWorld();
 		RQ_RenderBatchClear();
 
@@ -2799,11 +2815,11 @@ static qboolean VK_R_RenderScene_Cubemap(struct vk_rendertarg *fb)
 	return true;
 }
 
-void VK_R_RenderEye(texid_t image, vec4_t fovoverride, vec3_t eyeangorg[2])
+void VK_R_RenderEye(texid_t image, const pxrect_t *viewport, const vec4_t fovoverride, const float projmatrix[16], const float eyematrix[12])
 {
 	struct vk_rendertarg *rt;
 
-	VK_SetupViewPortProjection(false, eyeangorg, fovoverride);
+	VK_SetupViewPortProjection(false, eyematrix, fovoverride, projmatrix);
 
 	rt = &postproc[postproc_buf++%countof(postproc)];
 	rt->rpassflags |= RP_VR;
@@ -2833,11 +2849,11 @@ void VK_R_RenderEye(texid_t image, vec4_t fovoverride, vec3_t eyeangorg[2])
 
 	R_SetFrustum (r_refdef.m_projection_std, r_refdef.m_view);
 	RQ_BeginFrame();
-	if (!(r_refdef.flags & RDF_NOWORLDMODEL))
-	{
-		if (cl.worldmodel)
-			P_DrawParticles ();
-	}
+//	if (!(r_refdef.flags & RDF_NOWORLDMODEL))
+//	{
+//		if (cl.worldmodel)
+//			P_DrawParticles ();
+//	}
 	Surf_DrawWorld();
 	RQ_RenderBatchClear();
 
@@ -2984,7 +3000,7 @@ void	VK_R_RenderView				(void)
 	}
 	else
 	{
-		VK_SetupViewPortProjection(false, NULL, NULL);
+		VK_SetupViewPortProjection(false, NULL, NULL, NULL);
 
 		if (rt != rtscreen)
 			VKBE_RT_Begin(rt);
@@ -3028,11 +3044,11 @@ void	VK_R_RenderView				(void)
 
 		R_SetFrustum (r_refdef.m_projection_std, r_refdef.m_view);
 		RQ_BeginFrame();
-		if (!(r_refdef.flags & RDF_NOWORLDMODEL))
-		{
-			if (cl.worldmodel)
-				P_DrawParticles ();
-		}
+//		if (!(r_refdef.flags & RDF_NOWORLDMODEL))
+//		{
+//			if (cl.worldmodel)
+//				P_DrawParticles ();
+//		}
 		Surf_DrawWorld();
 		RQ_RenderBatchClear();
 

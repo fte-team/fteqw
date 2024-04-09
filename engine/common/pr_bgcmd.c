@@ -1019,8 +1019,8 @@ void QCBUILTIN PF_getsurfacenormal(pubprogfuncs_t *prinst, struct globalvars_s *
 
 	model = w->Get_CModel(w, ent->v->modelindex);
 
-	if (!model || model->type != mod_brush || surfnum >= model->nummodelsurfaces)
-	{
+	if (!model || model->type != mod_brush || surfnum >= model->nummodelsurfaces || !model->surfaces[model->firstmodelsurface+surfnum].plane)
+	{	//non-planar surfs don't always have a single plane... return nothing instead of breaking.
 		G_FLOAT(OFS_RETURN+0) = 0;
 		G_FLOAT(OFS_RETURN+1) = 0;
 		G_FLOAT(OFS_RETURN+2) = 0;
@@ -1053,11 +1053,23 @@ void QCBUILTIN PF_getsurfacetexture(pubprogfuncs_t *prinst, struct globalvars_s 
 	if (!model || model->type != mod_brush)
 		return;
 
-	if (surfnum < 0 || surfnum >= model->nummodelsurfaces)
+	if (surfnum >= model->nummodelsurfaces)
 		return;
-	surfnum += model->firstmodelsurface;
-	surf = &model->surfaces[surfnum];
-	G_INT(OFS_RETURN) = PR_TempString(prinst, surf->texinfo->texture->name);
+	if (surfnum < 0)
+	{
+		surfnum = -1-surfnum;
+		if ((unsigned)surfnum >= (unsigned)model->numtextures)
+			return;	//nope, outta range.
+		if (!model->textures[surfnum])
+			return;	//some maps are just broken.
+		G_INT(OFS_RETURN) = PR_TempString(prinst, model->textures[surfnum]->name);
+	}
+	else
+	{
+		surfnum += model->firstmodelsurface;
+		surf = &model->surfaces[surfnum];
+		G_INT(OFS_RETURN) = PR_TempString(prinst, surf->texinfo->texture->name);
+	}
 }
 #define TriangleNormal(a,b,c,n) ( \
 	(n)[0] = ((a)[1] - (b)[1]) * ((c)[2] - (b)[2]) - ((a)[2] - (b)[2]) * ((c)[1] - (b)[1]), \
@@ -2039,6 +2051,28 @@ void QCBUILTIN PF_memfree (pubprogfuncs_t *prinst, struct globalvars_s *pr_globa
 	void *cptr = prinst->stringtable + G_INT(OFS_PARM0);
 	if (qcptr)
 		prinst->AddressableFree(prinst, cptr);
+}
+void QCBUILTIN PF_memcmp (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	int qcdst = G_INT(OFS_PARM0);
+	int qcsrc = G_INT(OFS_PARM1);
+	int size = G_INT(OFS_PARM2);
+	int srcoffset = (prinst->callargc>3)?G_INT(OFS_PARM3):0;
+	int dstoffset = (prinst->callargc>4)?G_INT(OFS_PARM4):0;
+	G_INT(OFS_RETURN) = 0;
+	if (size < 0)
+		PR_BIError(prinst, "PF_memcmp: invalid size\n");
+	else if (size)
+	{
+		void *dst = PR_PointerToNative_MoInvalidate(prinst, qcdst, dstoffset, size);
+		void *src = PR_PointerToNative_MoInvalidate(prinst, qcsrc, srcoffset, size);
+		if (!dst)
+			PR_BIError(prinst, "PF_memcmp: invalid dest\n");
+		else if (!src)
+			PR_BIError(prinst, "PF_memcmp: invalid source\n");
+		else
+			G_INT(OFS_RETURN) = memcmp(dst, src, size);
+	}
 }
 void QCBUILTIN PF_memcpy (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {

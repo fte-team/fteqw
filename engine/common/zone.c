@@ -829,6 +829,10 @@ void Memory_Init (void)
 	mainzone = Hunk_AllocName ( zonesize, "zone" );
 	Z_ClearZone (mainzone, zonesize);
 #endif
+
+#ifdef MULTITHREAD
+	Sys_ThreadsInit();
+#endif
 }
 
 void Memory_DeInit(void)

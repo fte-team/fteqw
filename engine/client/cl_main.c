@@ -73,7 +73,8 @@ cvar_t	cl_nolerp	= CVARD("cl_nolerp", "0", "Disables interpolation. If set, miss
 cvar_t	cl_nolerp_netquake = CVARD("cl_nolerp_netquake", "0", "Disables interpolation when connected to an NQ server. Does affect players, even the local player. You probably don't want to set this.");
 static cvar_t	cl_fullpitch_nq = CVARAFD("cl_fullpitch", "0", "pq_fullpitch", CVAR_SEMICHEAT, "When set, attempts to unlimit the default view pitch. Note that some servers will screw over your angles if you use this, resulting in terrible gameplay, while some may merely clamp your angle serverside. This is also considered a cheat in quakeworld, ^1so this will not function there^7. For the equivelent in quakeworld, use serverinfo minpitch+maxpitch instead, which applies to all players fairly.");
 #endif
-static cvar_t	cl_forcevrui = CVARD("cl_forcevrui", "0", "Force the use of VR UIs, even with no VR headset active.");
+static cvar_t	cl_vrui_force = CVARD("cl_vrui_force", "0", "Force the use of VR UIs, even with no VR headset active.");
+cvar_t	cl_vrui_lock = CVARD("cl_vrui_lock", "1", "Controls how the UI is positioned when using VR/XR. 0: Repositioned infront of the head when the console/menus are toggled. 1: Locked infront of the reference position (which may require the user to turn around to find it).");
 cvar_t	*hud_tracking_show;
 cvar_t	*hud_miniscores_show;
 extern cvar_t net_compress;
@@ -119,14 +120,18 @@ cvar_t	cl_noblink = CVARD("cl_noblink", "0", "Disable the ^^b text blinking feat
 cvar_t	cl_servername = CVARFD("cl_servername", "", CVAR_NOSET, "The hostname of the last server you connected to");
 cvar_t	cl_serveraddress = CVARD("cl_serveraddress", "none", "The address of the last server you connected to");
 cvar_t	qtvcl_forceversion1 = CVAR("qtvcl_forceversion1", "0");
-cvar_t	qtvcl_eztvextensions = CVAR("qtvcl_eztvextensions", "0");
+cvar_t	qtvcl_eztvextensions = CVAR("qtvcl_eztvextensions", "1");
 
 cvar_t	record_flush = CVARD("record_flush", "0", "If set, explicitly flushes demo data to disk while recording. This may be inefficient, depending on how your operating system is configured.");
 cvar_t cl_demospeed = CVARF("cl_demospeed", "1", 0);
 cvar_t	cl_demoreel = CVARFD("cl_demoreel", "0", CVAR_SAVE, "When enabled, the engine will begin playing a demo loop on startup.");
 
 cvar_t cl_loopbackprotocol = CVARD("cl_loopbackprotocol", "qw", "Which protocol to use for single-player/the internal client. Should be one of: qw, qwid, nqid, nq, fitz, bjp3, dp6, dp7, auto. If 'auto', will use qw protocols for qw mods, and nq protocols for nq mods.");
+#ifdef FTE_TARGET_WEB
+static cvar_t cl_verify_urischeme = CVARAFD("cl_verify_urischeme", "2", "cl_verify_qwprotocol"/*ezquake, inappropriate for misc schemes*/, CVAR_NOSAVE/*checked at startup, so its only really default.cfg that sets it*/, "0: Do nothing.\n1: Check whether our protocol scheme is registered and prompt the user to register associations.\n2: Always re-register on every startup, without prompting. Sledgehammer style.");
+#else
 static cvar_t cl_verify_urischeme = CVARAFD("cl_verify_urischeme", "0", "cl_verify_qwprotocol"/*ezquake, inappropriate for misc schemes*/, CVAR_NOSAVE/*checked at startup, so its only really default.cfg that sets it*/, "0: Do nothing.\n1: Check whether our protocol scheme is registered and prompt the user to register associations.\n2: Always re-register on every startup, without prompting. Sledgehammer style.");
+#endif
 
 
 cvar_t	cl_threadedphysics = CVARD("cl_threadedphysics", "0", "When set, client input frames are generated and sent on a worker thread");
@@ -192,7 +197,6 @@ cvar_t	cl_sendguid				= CVARD("cl_sendguid", "", "Send a randomly generated 'glo
 cvar_t	cl_downloads			= CVARAFD("cl_downloads", "1", /*q3*/"cl_allowDownload", CVAR_NOTFROMSERVER|CVAR_ARCHIVE, "Allows you to block all automatic downloads.");
 cvar_t	cl_download_csprogs		= CVARFD("cl_download_csprogs", "1", CVAR_NOTFROMSERVER|CVAR_ARCHIVE, "Download updated client gamecode if available. Warning: If you clear this to avoid downloading vm code, you should also clear cl_download_packages.");
 cvar_t	cl_download_redirection	= CVARFD("cl_download_redirection", "2", CVAR_NOTFROMSERVER|CVAR_ARCHIVE, "Follow download redirection to download packages instead of individual files. Also allows the server to send nearly arbitary download commands.\n2: allows redirection only to named packages files (and demos/*.mvd), which is a bit safer.");
-cvar_t  cl_download_mapsrc		= CVARFD("cl_download_mapsrc", "", CVAR_ARCHIVE, "Specifies an http location prefix for map downloads. EG: \"http://example.com/path/gamemaps/\"");
 cvar_t	cl_download_packages	= CVARFD("cl_download_packages", "1", CVAR_NOTFROMSERVER, "0=Do not download packages simply because the server is using them. 1=Download and load packages as needed (does not affect games which do not use this package). 2=Do download and install permanently (use with caution!)");
 cvar_t	requiredownloads		= CVARAFD("cl_download_wait", "1", /*old*/"requiredownloads", CVAR_ARCHIVE, "0=join the game before downloads have even finished (might be laggy). 1=wait for all downloads to complete before joining.");
 cvar_t	mod_precache			= CVARD("mod_precache","1", "Controls when models are loaded.\n0: Load them only when they're actually needed.\n1: Load them upfront.\n2: Lazily load them to shorten load times at the risk of brief stuttering during only the start of the map.");
@@ -302,7 +306,7 @@ static struct
 	} ext;
 	int					qport;
 	int					challenge;		//tracked as part of guesswork based upon what replies we get.
-	int					clchallenge;
+	int					clchallenge;	//generated by the client, to ensure the response wasn't spoofed/spammed.
 	double				time;			//for connection retransmits
 	qboolean			clogged;		//ignore time...
 	enum coninfomode_e
@@ -361,7 +365,10 @@ void VRUI_SnapAngle(void)
 {
 //	VectorCopy(cl.playerview[0].viewangles, vrui.angles);
 	vrui.angles[0] = 0;
-	vrui.angles[1] = cl.playerview[0].aimangles[1];
+	if (cl_vrui_lock.ival)	//if its locked, then its locked infront of the unpitched player entity
+		vrui.angles[1] = cl.playerview[0].viewangles[1];
+	else	//otherwise its moved to infront of the player's head any time the menu is displayed.
+		vrui.angles[1] = cl.playerview[0].aimangles[1];
 	vrui.angles[2] = 0;
 }
 
@@ -796,6 +803,8 @@ static void CL_SendConnectPacket (netadr_t *to)
 		//cl.splitclients = 1;
 		if (q3)
 			q3->cl.SendConnectPacket(cls.sockets, to, connectinfo.challenge, connectinfo.qport, cls.userinfo);
+		else
+			CL_ConnectAbort("Q3 plugin not loaded, cannot connect to q3 servers without it.\n");
 		return;
 	}
 #endif
@@ -926,7 +935,7 @@ char *CL_TryingToConnect(void)
 	return cls.servername;
 }
 
-#ifdef NQPROT
+#if defined(NQPROT) && defined(HAVE_SERVER)
 static void CL_NullReadPacket(void)
 {	//just drop it all
 }
@@ -942,9 +951,7 @@ struct resolvectx_s
 };
 static void CL_ResolvedServer(void *vctx, void *data, size_t a, size_t b)
 {
-#ifdef HAVE_DTLS
 	size_t i;
-#endif
 	struct resolvectx_s *ctx = vctx;
 
 	//something screwed us over...
@@ -971,7 +978,7 @@ static void CL_ResolvedServer(void *vctx, void *data, size_t a, size_t b)
 	if (connectinfo.mode == CIM_Q2EONLY)
 	{
 		for (i = 0; i < ctx->found; i++)
-		{	//if we've already established a dtls connection, stick with it
+		{	//if we've already established a dtls connection, stick with it, otherwise 'upgrade' from udp to 'kexlan' transport layer.
 			if (ctx->adr[i].prot == NP_DGRAM)
 				ctx->adr[i].prot = NP_KEXLAN;
 		}
@@ -986,8 +993,12 @@ static void CL_ResolvedServer(void *vctx, void *data, size_t a, size_t b)
 static void CL_ResolveServer(void *vctx, void *data, size_t a, size_t b)
 {
 	struct resolvectx_s *ctx = vctx;
+
+	//stupid logic for targ@prox2@prox1 chaining. just disable it if there's weird ws:// or whatever in there.
+	//FIXME: really shouldn't be in there
+	const char *res = strrchr(ctx->servername, '/');
 	const char *host = strrchr(ctx->servername+1, '@');
-	if (host)
+	if (host && !res)
 		host++;
 	else
 		host = ctx->servername;
@@ -1464,8 +1475,10 @@ void CL_CheckForResend (void)
 	if (contype & 1)
 	{
 		char tmp[256];
-		//vanilla: Q_snprintfz (data, sizeof(data), "%c%c%c%cgetchallenge\n", 255, 255, 255, 255);
-		Q_snprintfz (data, sizeof(data), "%c%c%c%cgetchallenge %i %s\n", 255, 255, 255, 255, connectinfo.clchallenge, COM_QuotedString(com_protocolname.string, tmp, sizeof(tmp), false));
+		if (strrchr(cls.servername, '@'))	//if we're apparently using qwfwd then strictly adhere to vanilla's protocol so that qwfwd does not bug out. this will pollute gamedirs if stuff starts autodownloading from the wrong type of server, and probably show up vanilla-vs-rerelease glitches everywhere..
+			Q_snprintfz (data, sizeof(data), "%c%c%c%cgetchallenge\n", 255, 255, 255, 255);
+		else
+			Q_snprintfz (data, sizeof(data), "%c%c%c%cgetchallenge %i %s\n", 255, 255, 255, 255, connectinfo.clchallenge, COM_QuotedString(com_protocolname.string, tmp, sizeof(tmp), false));
 		switch(NET_SendPacket (cls.sockets, strlen(data), data, to))
 		{
 		case NETERR_CLOGGED:	//temporary failure
@@ -1511,7 +1524,7 @@ void CL_CheckForResend (void)
 				if (*e)
 					pwd = CalcHashInt(&hash_md4, password.string, strlen(password.string));
 			}
-			MSG_WriteByte(&sb, 1); /*'mod'*/
+			MSG_WriteByte(&sb, MOD_PROQUAKE); /*'mod'*/
 			MSG_WriteByte(&sb, 34); /*'mod' version*/
 			MSG_WriteByte(&sb, 0); /*flags*/
 			MSG_WriteLong(&sb, pwd); /*password*/
@@ -1584,9 +1597,9 @@ static void CL_BeginServerConnect(char *host, int port, qboolean noproxy, enum c
 
 		//the scheme is either a network scheme in which case we use it directly, or a game-specific scheme.
 		scheme = NET_IsURIScheme(schemestart);
-		if (scheme->prot == NP_INVALID)
+		if (scheme && scheme->prot == NP_INVALID)
 			scheme = NULL;	//qw:// or q3:// something that's just noise here.
-		if (scheme->flags&URISCHEME_NEEDSRESOURCE)
+		if (scheme && scheme->flags&URISCHEME_NEEDSRESOURCE)
 		{
 			Q_strncpyz (cls.servername, schemestart, sizeof(cls.servername));	//oh. will probably be okay then
 			arglist = NULL;
@@ -1611,6 +1624,13 @@ static void CL_BeginServerConnect(char *host, int port, qboolean noproxy, enum c
 					else if (spec != CIS_OBSERVE)
 						Con_Printf("Ignoring 'join'\n");
 					memmove(sl, sl+5, strlen(sl+5)+1);
+				}
+				else if (!strncmp(sl, "/qtvplay", 5))
+				{
+					char buf[256];
+					*sl = 0;
+					Cmd_ExecuteString(va("qtvplay %s\n", COM_QuotedString(schemeend+3, buf,sizeof(buf), false)), RESTRICT_LOCAL);
+					return;
 				}
 				else if (!strncmp(sl, "/", 1) && (sl[1] == 0 || sl[1]=='?'))
 				{
@@ -1649,6 +1669,7 @@ static void CL_BeginServerConnect(char *host, int port, qboolean noproxy, enum c
 	connectinfo.protocol = CP_UNKNOWN;
 	connectinfo.mode = mode;
 	connectinfo.spec = spec;
+	connectinfo.clchallenge = rand()^(rand()<<16);
 
 	connectinfo.peercred.name = cls.servername;
 	if (arglist)
@@ -1716,6 +1737,7 @@ void CL_BeginServerReconnect(void)
 	connectinfo.time = 0;
 	connectinfo.tries = 0;	//re-ensure routes.
 	connectinfo.nextadr = 0; //should at least be consistent, other than packetloss. yay.
+	connectinfo.clchallenge = rand()^(rand()<<16);
 
 	NET_InitClient(false);
 }
@@ -1785,11 +1807,11 @@ static void CL_Connect_f (void)
 	server = Cmd_Argv (1);
 	server = strcpy(alloca(strlen(server)+1), server);
 
-#ifdef HAVE_SERVER
+/*#ifdef HAVE_SERVER
 	if (sv.state == ss_clustermode)
 		CL_Disconnect (NULL);
 	else
-#endif
+#endif*/
 		CL_Disconnect_f ();
 
 	CL_BeginServerConnect(server, 0, false, CIM_DEFAULT, CIS_DEFAULT);
@@ -1821,11 +1843,11 @@ static void CL_ConnectBestRoute_f (void)
 	else
 		Con_TPrintf ("Routing table favours chaining through %i proxies (%ims vs %ims)\n", proxies, chainedcost, directcost);
 
-#ifdef HAVE_SERVER
+/*#ifdef HAVE_SERVER
 	if (sv.state == ss_clustermode)
 		CL_Disconnect (NULL);
 	else
-#endif
+#endif*/
 		CL_Disconnect_f ();
 	CL_BeginServerConnect(server, 0, true, CIM_DEFAULT, CIS_DEFAULT);
 }
@@ -2265,6 +2287,17 @@ void CL_ClearState (qboolean gamestart)
 			if (cl.particle_csname[i])
 				free(cl.particle_csname[i]);
 	}
+	for (i = 0; i < countof(cl.model_name); i++)
+		if (cl.model_name[i])
+			BZ_Free(cl.model_name[i]);
+#ifdef HAVE_LEGACY
+	for (i = 0; i < countof(cl.model_name_vwep); i++)
+		if (cl.model_name_vwep[i])
+			BZ_Free(cl.model_name_vwep[i]);
+#endif
+	for (i = 0; i < countof(cl.sound_name); i++)
+		if (cl.sound_name[i])
+			BZ_Free(cl.sound_name[i]);
 #ifdef Q2CLIENT
 	for (i = 0; i < Q2MAX_IMAGES; i++)
 		if (cl.image_name[i])
@@ -2521,6 +2554,13 @@ void CL_Disconnect (const char *reason)
 	cls.findtrack = false;
 	cls.realserverip.type = NA_INVALID;
 
+	while (cls.qtvviewers)
+	{
+		struct qtvviewers_s *v = cls.qtvviewers;
+		cls.qtvviewers = v->next;
+		Z_Free(v);
+	}
+
 #ifdef TCPCONNECT
 	//disconnects it, without disconnecting the others.
 	FTENET_AddToCollection(cls.sockets, "conn", NULL, NA_INVALID, NP_DGRAM);
@@ -2618,6 +2658,7 @@ void CL_Users_f (void)
 {
 	int		i;
 	int		c;
+	struct qtvviewers_s *v;
 
 	c = 0;
 	Con_TPrintf ("userid frags name\n");
@@ -2629,6 +2670,11 @@ void CL_Users_f (void)
 			Con_TPrintf ("%6i %4i ^[%s\\player\\%i^]\n", cl.players[i].userid, cl.players[i].frags, cl.players[i].name, i);
 			c++;
 		}
+	}
+
+	for (v = cls.qtvviewers; v; v = v->next)
+	{
+		Con_Printf ("%6s %4s ^[%s^]\n", "", "-", v->name);
 	}
 
 	Con_TPrintf ("%i total users\n", c);
@@ -2927,7 +2973,7 @@ void CL_PakDownloads(int mode)
 	mode&4 download even packages that are not referenced.
 	*/
 	char local[256];
-	char *pname;
+	char *pname, *sep;
 	char *s = cl.serverpackhashes;
 	int i;
 
@@ -2945,6 +2991,10 @@ void CL_PakDownloads(int mode)
 			pname++;
 		else if (!(mode & 4))
 			continue;
+
+		sep = strchr(pname, '/');
+		if (!sep || strchr(sep+1, '/'))
+			continue;	//don't try downloading weird ones here... paks inside paks is screwy stuff!
 
 		if ((mode&3) != 2)
 		{
@@ -3773,6 +3823,7 @@ void CL_Reconnect_f (void)
 
 static void CL_ConnectionlessPacket_Connection(char *tokens)
 {
+	unsigned int ncflags;
 	int qportsize = -1;
 	if (net_from.type == NA_INVALID)
 		return;	//I've found a qizmo demo that contains one of these. its best left ignored.
@@ -3848,19 +3899,16 @@ static void CL_ConnectionlessPacket_Connection(char *tokens)
 	cls.fteprotocolextensions2 = connectinfo.ext.fte2;
 	cls.ezprotocolextensions1 = connectinfo.ext.ez1;
 	cls.challenge = connectinfo.challenge;
-	Netchan_Setup (NS_CLIENT, &cls.netchan, &net_from, connectinfo.qport);
+	ncflags = NCF_CLIENT;
+	if (connectinfo.ext.mtu)
+		ncflags |= NCF_FRAGABLE;
+	if (connectinfo.ext.fte2&PEXT2_STUNAWARE)
+		ncflags |= NCF_STUNAWARE;
+	Netchan_Setup (ncflags, &cls.netchan, &net_from, connectinfo.qport, connectinfo.ext.mtu);
 	cls.protocol_q2 = (cls.protocol == CP_QUAKE2)?connectinfo.subprotocol:0;
 	if (qportsize>=0)
 		cls.netchan.qportsize = qportsize;
-	cls.netchan.pext_fragmentation = connectinfo.ext.mtu?true:false;
-	cls.netchan.pext_stunaware = !!(connectinfo.ext.fte2&PEXT2_STUNAWARE);
-	if (connectinfo.ext.mtu >= 64)
-	{
-		cls.netchan.mtu = connectinfo.ext.mtu;
-		cls.netchan.message.maxsize = sizeof(cls.netchan.message_buf);
-	}
-	else
-		cls.netchan.mtu = MAX_QWMSGLEN;
+
 #ifdef HUFFNETWORK
 	cls.netchan.compresstable = Huff_CompressionCRC(connectinfo.ext.compresscrc);
 #else
@@ -4069,7 +4117,7 @@ void CL_ConnectionlessPacket (void)
 
 		if (!strcmp(com_token, "hallengeResponse"))
 		{
-			/*Quake3*/
+			/*Quake3 - "\xff\xff\xff\xffchallengeResponse challenge [clchallenge protover]" (no \n)*/
 #ifdef Q3CLIENT
 			if (connectinfo.protocol == CP_QUAKE3 || connectinfo.protocol == CP_UNKNOWN)
 			{
@@ -4262,12 +4310,12 @@ void CL_ConnectionlessPacket (void)
 #ifdef HAVE_DTLS
 		if ((candtls && net_enable_dtls.ival) && net_from.prot == NP_DGRAM && (net_enable_dtls.ival>1 || candtls > 1) && !NET_IsEncrypted(&net_from))
 		{
-			//c2s getchallenge			<no client details
+			//c2s getchallenge			<no client details, only leaks that its quakelike, something you can maybe guess from port numbers>
 			//s2c c%u\0DTLS=$candtls	<may leak server details>
 			//<<YOU ARE HERE>>
 			//c2s dtlsconnect %u [REALTARGET]	<FIXME: target server is plain text, not entirely unlike tls1.2, but still worse than a vpn and could be improved>
 			//s2c dtlsopened			<no details at all, other than that the server is now willing to accept dtls handshakes etc>
-			//c2s DTLS(getchallenge)
+			//c2s DTLS(getchallenge)	<start here if you're using dtls:// scheme>
 			//DTLS(etc)
 
 			//NOTE: the dtlsconnect/dtlsopened parts are redundant and the non-dtls parts are now entirely optional (and should be skipped if the client requries/knows the server supports dtls)
@@ -4284,7 +4332,7 @@ void CL_ConnectionlessPacket (void)
 				char *pkt;
 				//qwfwd proxy routing. it doesn't support it yet, but hey, if its willing to forward the dtls packets its all good.
 				char *at;
-				if ((at = strrchr(cls.servername, '@')))
+				if ((at = strrchr(cls.servername, '@')) && !strchr(cls.servername, '/'))
 				{
 					*at = 0;
 					pkt = va("%c%c%c%c""dtlsconnect %i %s", 255, 255, 255, 255, connectinfo.challenge, cls.servername);
@@ -4391,7 +4439,7 @@ void CL_ConnectionlessPacket (void)
 			}
 
 			Validation_Apply_Ruleset();
-			Netchan_Setup(NS_CLIENT, &cls.netchan, &net_from, connectinfo.qport);
+			Netchan_Setup(NCF_CLIENT, &cls.netchan, &net_from, connectinfo.qport, 0);
 			CL_ParseEstablished();
 
 			cls.netchan.isnqprotocol = true;
@@ -4674,7 +4722,7 @@ void CLNQ_ConnectionlessPacket(void)
 		cls.fteprotocolextensions = connectinfo.ext.fte1;
 		cls.fteprotocolextensions2 = connectinfo.ext.fte2;
 		cls.ezprotocolextensions1 = connectinfo.ext.ez1;
-		Netchan_Setup (NS_CLIENT, &cls.netchan, &net_from, connectinfo.qport);
+		Netchan_Setup (NCF_CLIENT, &cls.netchan, &net_from, connectinfo.qport, 0);
 		CL_ParseEstablished();
 		cls.netchan.isnqprotocol = true;
 		cls.netchan.compresstable = NULL;
@@ -4767,7 +4815,7 @@ void CL_ReadPacket(void)
 		return;	//ignore it. We arn't connected.
 	}
 
-	if (net_message.cursize < 6 && (cls.demoplayback != DPB_MVD && cls.demoplayback != DPB_EZTV)) //MVDs don't have the whole sequence header thing going on
+	if (net_message.cursize < 6 && cls.demoplayback != DPB_MVD) //MVDs don't have the whole sequence header thing going on
 	{
 		char adr[MAX_ADR_SIZE];
 		if (net_message.cursize == 1 && net_message.data[0] == A2A_ACK)
@@ -4791,7 +4839,7 @@ void CL_ReadPacket(void)
 		return;
 	}
 
-	if (cls.netchan.pext_stunaware)	//should be safe to do this here.
+	if (cls.netchan.flags&NCF_STUNAWARE)	//should be safe to do this here.
 		if (NET_WasSpecialPacket(cls.sockets))
 			return;
 
@@ -4836,7 +4884,7 @@ void CL_ReadPacket(void)
 #endif
 		break;
 	case CP_QUAKEWORLD:
-		if (cls.demoplayback == DPB_MVD || cls.demoplayback == DPB_EZTV)
+		if (cls.demoplayback == DPB_MVD)
 		{
 			MSG_BeginReading(&net_message, cls.netchan.netprim);
 			cls.netchan.last_received = realtime;
@@ -4891,7 +4939,7 @@ void CL_ReadPackets (void)
 		}
 	}
 
-	if (cls.demoplayback == DPB_MVD || cls.demoplayback == DPB_EZTV)
+	if (cls.demoplayback == DPB_MVD)
 	{
 		CL_MVDUpdateSpectator();
 	}
@@ -4908,7 +4956,7 @@ qboolean CL_AllowArbitaryDownload(const char *oldname, const char *localfile)
 		strstr(localfile, "\\") || strstr(localfile, "..") || strstr(localfile, "./") || strstr(localfile, ":") || strstr(localfile, "//") ||	//certain path patterns are just bad
 		Q_strcasestr(localfile, ".qvm") || Q_strcasestr(localfile, ".dll") || Q_strcasestr(localfile, ".so") || Q_strcasestr(localfile, ".dylib"))	//disallow any native code
 	{	//yes, I know the user can use a different progs from the one that is specified. If you leave it blank there will be no problem. (server isn't allowed to stuff progs cvar)
-		Con_Printf("Ignoring arbitary download to \"%s\" due to possible security risk\n", localfile);
+		Con_Printf("Ignoring arbitrary download to \"%s\" due to possible security risk\n", localfile);
 		return false;
 	}
 	allow = cl_download_redirection.ival;
@@ -4941,10 +4989,12 @@ static void CL_Curl_f(void)
 	int i, argc = Cmd_Argc();
 	const char *arg, *gamedir, *localterse/*no dlcache*/= NULL;
 	char localname[MAX_QPATH];
+	char localnametmp[MAX_QPATH];
 	int usage = 0;
 	qboolean alreadyhave = false;
 	extern char *cl_dp_packagenames;
 	unsigned int dlflags = DLLF_VERBOSE|DLLF_ALLOWWEB;
+	const char *ext;
 	if (argc < 2)
 	{
 		Con_Printf("%s: No args\n", Cmd_Argv(0));
@@ -5016,11 +5066,28 @@ static void CL_Curl_f(void)
 	arg = Cmd_Argv(argc-1);
 	if (!localterse)
 	{
+		char *t;
+		localterse = strrchr(arg, '/');
+		if (!localterse)
+			localterse = arg;
+		t = strchr(localterse, '?');
+		if (t)
+			*t = 0;
+		if (t-localterse < countof(localnametmp))
+		{
+			memcpy(localnametmp, localterse, t-localterse);
+			localnametmp[t-localterse] = 0;
+			localterse = localnametmp;
+		}
+	}
+	if (!localterse)
+	{
 		//for compat, we should look for the last / and truncate on a ?.
 		Con_Printf("%s: skipping download of %s, as the local name was not explicitly given\n", Cmd_Argv(0), arg);
 		return;
 	}
-	if (usage == 1)
+	ext = COM_GetFileExtension(localterse, NULL);
+	if (usage == 1 && (!strcmp(ext, ".pk3") || !strcmp(ext, ".pak")))
 	{
 		dlflags |= DLLF_NONGAME;
 		gamedir = FS_GetGamedir(true);
@@ -5084,7 +5151,7 @@ void CL_Download_f (void)
 	if (!*localname)
 		localname = url;
 
-	if ((cls.state == ca_disconnected || cls.demoplayback) && cls.demoplayback != DPB_EZTV)
+	if ((cls.state == ca_disconnected || cls.demoplayback) && !(cls.demoplayback == DPB_MVD && (cls.demoeztv_ext&EZTV_DOWNLOAD)))
 	{
 		Con_TPrintf ("Must be connected.\n");
 		return;
@@ -5134,14 +5201,14 @@ void CL_DownloadSize_f(void)
 	size = Cmd_Argv(2);
 	if (!strcmp(size, "e"))
 	{
-		Con_Printf("Download of \"%s\" failed. Not found.\n", rname);
+		Con_Printf(CON_ERROR"Download of \"%s\" failed. Not found.\n", rname);
 		CL_DownloadFailed(rname, NULL, DLFAIL_SERVERFILE);
 	}
 	else if (!strcmp(size, "p"))
 	{
 		if (cls.download && stricmp(cls.download->remotename, rname))
 		{
-			Con_Printf("Download of \"%s\" failed. Not allowed.\n", rname);
+			Con_Printf(CON_ERROR"Download of \"%s\" failed. Not allowed.\n", rname);
 			CL_DownloadFailed(rname, NULL, DLFAIL_SERVERCVAR);
 		}
 	}
@@ -5359,21 +5426,11 @@ void CL_Fog_f(void)
 #ifdef _DEBUG
 void CL_FreeSpace_f(void)
 {
+	char buf[32];
 	quint64_t freespace;
 	const char *freepath = Cmd_Argv(1);
 	if (Sys_GetFreeDiskSpace(freepath, &freespace))
-	{
-		if (freespace > 512.0*1024*1024*1024)
-			Con_Printf("%s: %g tb available\n", freepath, freespace/(1024.0*1024*1024*1024));
-		else if (freespace > 512.0*1024*1024)
-			Con_Printf("%s: %g gb available\n", freepath, freespace/(1024.0*1024*1024));
-		else if (freespace > 512.0*1024)
-			Con_Printf("%s: %g mb available\n", freepath, freespace/(1024.0*1024));
-		else if (freespace > 512.0)
-			Con_Printf("%s: %g kb available\n", freepath, freespace/1024.0);
-		else
-			Con_Printf("%s: %"PRIu64" bytes available\n", freepath, freespace);
-	}
+		Con_Printf("%s: %s available\n", freepath, FS_AbbreviateSize(buf,sizeof(buf),freespace));
 	else
 		Con_Printf("%s: disk free not queryable\n", freepath);
 }
@@ -5434,7 +5491,24 @@ void CL_Status_f(void)
 
 	if (cls.state)
 	{
+		char cert[8192];
+		qbyte fp[DIGEST_MAXSIZE+1];
+		char b64[(DIGEST_MAXSIZE*4)/3+1];
+		if (NET_GetConnectionCertificate(cls.sockets, &cls.netchan.remote_address, QCERT_ISENCRYPTED, NULL, 0))
+			Q_strncpyz(b64, "<UNENCRYPTED>", sizeof(b64));
+		else
+		{
+			int sz = NET_GetConnectionCertificate(cls.sockets, &cls.netchan.remote_address, QCERT_PEERCERTIFICATE, cert, sizeof(cert));
+			if (sz<0)
+				Q_strncpyz(b64, "<UNAVAILABLE>", sizeof(b64));
+			else
+			{
+				sz = Base64_EncodeBlockURI(fp, CalcHash(&hash_certfp, fp,sizeof(fp), cert, sz), b64, sizeof(b64));
+				b64[sz] = 0;
+			}
+		}
 		Con_Printf("Server address   : %s\n", NET_AdrToString(adr, sizeof(adr), &cls.netchan.remote_address));	//not relevent as a limit.
+		Con_Printf("Server cert fp   : %s\n", b64);	//not relevent as a limit.
 		switch(cls.protocol)
 		{
 		default:
@@ -5465,6 +5539,9 @@ void CL_Status_f(void)
 				break;
 			case CPNQ_BJP3:
 				Con_Printf("Network Protocol : BJP3\n");
+				break;
+			case CPNQ_H2MP:
+				Con_Printf("Network Protocol : H2MP\n");
 				break;
 			case CPNQ_FITZ666:
 				Con_Printf("Network Protocol : FitzQuake\n");
@@ -5555,10 +5632,10 @@ void CL_Status_f(void)
 			count++;
 		}
 		Con_Printf("csqc entities    : %i/%i/%i (mem: %.1f%%)\n", count, csqc_world.num_edicts, csqc_world.max_edicts, 100*(float)(csqc_world.progs->stringtablesize/(double)csqc_world.progs->stringtablemaxsize));
-		for (count = 1; count < MAX_PRECACHE_MODELS; count++)
+		for (count = 1; count < MAX_CSMODELS; count++)
 			if (!*cl.model_csqcname[count])
 				break;
-		Con_Printf("csqc models      : %i/%i\n", count, MAX_PRECACHE_MODELS);
+		Con_Printf("csqc models      : %i/%i\n", count, MAX_CSMODELS);
 		Con_Printf("client sounds    : %i\n", num_sfx);	//there is a limit, its just private. :(
 
 		for (count = 1; count < MAX_SSPARTICLESPRE; count++)
@@ -5678,7 +5755,8 @@ void CL_Init (void)
 	Cvar_Register (&cl_idlefps, cl_screengroup);
 	Cvar_Register (&cl_yieldcpu, cl_screengroup);
 	Cvar_Register (&cl_timeout, cl_controlgroup);
-	Cvar_Register (&cl_forcevrui, cl_controlgroup);
+	Cvar_Register (&cl_vrui_force, cl_controlgroup);
+	Cvar_Register (&cl_vrui_lock, cl_controlgroup);
 	Cvar_Register (&lookspring, cl_inputgroup);
 	Cvar_Register (&lookstrafe, cl_inputgroup);
 	Cvar_Register (&sensitivity, cl_inputgroup);
@@ -5794,7 +5872,6 @@ void CL_Init (void)
 	Cvar_Register (&cl_threadedphysics,				cl_controlgroup);
 	hud_tracking_show = Cvar_Get("hud_tracking_show", "1", 0, "statusbar");
 	hud_miniscores_show = Cvar_Get("hud_miniscores_show", "1", 0, "statusbar");
-	Cvar_Register (&cl_download_mapsrc,				cl_controlgroup);
 
 	Cvar_Register (&cl_dlemptyterminate,				cl_controlgroup);
 
@@ -5863,7 +5940,6 @@ void CL_Init (void)
 	Cmd_AddCommandAD ("connectbr", CL_ConnectBestRoute_f, CL_Connect_c, "connect address:port\nConnect to a qw server using the best route we can detect.");
 #endif
 	Cmd_AddCommandAD("connect", CL_Connect_f, CL_Connect_c, "connect scheme://address:port\nConnect to a server. "
-
 #if defined(FTE_TARGET_WEB)
 		"Use a scheme of rtc[s]://broker/gamename to connect via a webrtc broker."
 		"Use a scheme of ws[s]://server to connect via websockets."
@@ -5896,16 +5972,22 @@ void CL_Init (void)
 	Cmd_AddCommandD ("cl_transfer", CL_Transfer_f, "Connect to a different server, disconnecting from the current server only when the new server replies.");
 #ifdef TCPCONNECT
 	Cmd_AddCommandAD ("connecttcp", CL_TCPConnect_f, CL_Connect_c, "Connect to a server using the tcp:// prefix");
+	Cmd_AddCommandAD ("tcpconnect", CL_TCPConnect_f, CL_Connect_c, "Connect to a server using the tcp:// prefix");
 #endif
 #ifdef IRCCONNECT
 	Cmd_AddCommand ("connectirc", CL_IRCConnect_f);
 #endif
 #ifdef NQPROT
 	Cmd_AddCommandD ("connectnq", CLNQ_Connect_f, "Connects to the specified server, defaulting to port "STRINGIFY(PORT_NQSERVER)". Also disables QW/Q2/Q3/DP handshakes preventing them from being favoured, so should only be used when you actually want NQ protocols specifically.");
+	#ifdef HAVE_DTLS
 	Cmd_AddCommandD ("connectqe", CLNQ_Connect_f, "Connects to the specified server, defaulting to port "STRINGIFY(PORT_NQSERVER)". Also forces the use of DTLS and QE-specific handshakes. You will also need to ensure the dtls_psk_* cvars are set properly or the server will refuse the connection.");
+	#endif
 #endif
 #ifdef Q2CLIENT
-	Cmd_AddCommandD ("connectq2e", CLQ2E_Connect_f, "Connects to the specified server, defaulting to port "STRINGIFY(PORT_Q2ESERVER)".");
+	Cmd_AddCommandD ("connectq2e", CLQ2E_Connect_f, "Connects to the specified server, defaulting to port "STRINGIFY(PORT_Q2EXSERVER)".");
+#endif
+#ifdef HAVE_LEGACY
+	Cmd_AddCommandAD("qwurl", CL_Connect_f, CL_Connect_c, "For compat with ezquake.");
 #endif
 	Cmd_AddCommand ("reconnect", CL_Reconnect_f);
 	Cmd_AddCommandAD ("join", CL_Join_f, CL_Connect_c, "Switches away from spectator mode, optionally connecting to a different server.");
@@ -5924,7 +6006,7 @@ void CL_Init (void)
 
 	Cmd_AddCommandAD ("color", CL_Color_f, CL_Color_c, NULL);
 #if defined(NQPROT) && defined(HAVE_LEGACY)
-	Cmd_AddCommand ("curl",	CL_Curl_f);
+	Cmd_AddCommandD ("curl",	CL_Curl_f, "For use by xonotic.");
 #endif
 	Cmd_AddCommand ("download", CL_Download_f);
 	Cmd_AddCommandD ("dlsize", CL_DownloadSize_f, "For internal use");
@@ -6074,7 +6156,7 @@ void Host_WriteConfiguration (void)
 		f = FS_OpenVFS(savename, "wb", FS_GAMEONLY);
 		if (!f)
 		{
-			FS_NativePath(savename, FS_GAMEONLY, sysname, sizeof(sysname));
+			FS_DisplayPath(savename, FS_GAMEONLY, sysname, sizeof(sysname));
 			Con_TPrintf (CON_ERROR "Couldn't write %s.\n", sysname);
 			return;
 		}
@@ -6084,7 +6166,7 @@ void Host_WriteConfiguration (void)
 
 		VFS_CLOSE (f);
 
-		FS_NativePath(savename, FS_GAMEONLY, sysname, sizeof(sysname));
+		FS_DisplayPath(savename, FS_GAMEONLY, sysname, sizeof(sysname));
 		Con_Printf("Wrote %s\n", savename);
 	}
 }
@@ -6118,15 +6200,6 @@ qboolean Host_SimulationTime(float time)
 }
 #endif
 
-void Host_RunFileNotify(struct dl_download *dl)
-{
-	if (dl->file)
-	{
-		Host_RunFile(dl->url, strlen(dl->url), dl->file);
-		dl->file = NULL;
-	}
-}
-
 #include "fs.h"
 #define HRF_OVERWRITE	(1<<0)
 #define HRF_NOOVERWRITE	(1<<1)
@@ -6136,7 +6209,7 @@ void Host_RunFileNotify(struct dl_download *dl)
 #define HRF_OPENED		(1<<4)
 #define HRF_DOWNLOADED	(1<<5)	//file was actually downloaded, and not from the local system
 #define HRF_WAITING		(1<<6)	//file looks important enough that we should wait for it to start to download or something before we try doing other stuff.
-//						(1<<7)
+#define HRF_DECOMPRESS	(1<<7)	//need to degzip it, which prevents streaming.
 
 #define HRF_DEMO_MVD	(1<<8)
 #define HRF_DEMO_QWD	(1<<9)
@@ -6165,7 +6238,7 @@ typedef struct {
 
 extern int waitingformanifest;
 void Host_DoRunFile(hrf_t *f);
-void CL_PlayDemoStream(vfsfile_t *file, char *filename, qboolean issyspath, int demotype, float bufferdelay);
+void CL_PlayDemoStream(vfsfile_t *file, char *filename, qboolean issyspath, int demotype, float bufferdelay, unsigned int eztv_ext);
 void CL_ParseQTVDescriptor(vfsfile_t *f, const char *name);
 
 //guesses the file type based upon its file extension. mdl/md3/iqm distinctions are not important, so we can usually get away with this in the context of quake.
@@ -6201,13 +6274,13 @@ unsigned int Host_GuessFileType(const char *mimetype, const char *filename)
 		{
 			//demo formats
 			{HRF_DEMO_QWD, "qwd"},
-			{HRF_DEMO_QWD, "qwd.gz"},
+			{HRF_DEMO_QWD|HRF_DECOMPRESS, "qwd.gz"},
 			{HRF_DEMO_MVD, "mvd"},
-			{HRF_DEMO_MVD, "mvd.gz"},
+			{HRF_DEMO_MVD|HRF_DECOMPRESS, "mvd.gz"},
 			{HRF_DEMO_DM2, "dm2"},
-			{HRF_DEMO_DM2, "dm2.gz"},
+			{HRF_DEMO_DM2|HRF_DECOMPRESS, "dm2.gz"},
 			{HRF_DEMO_DEM, "dem"},
-			{HRF_DEMO_DEM, "dem.gz"},
+			{HRF_DEMO_DEM|HRF_DECOMPRESS, "dem.gz"},
 			{HRF_QTVINFO, "qtv"},
 			//other stuff
 			{HRF_MANIFEST, "fmf"},
@@ -6215,6 +6288,7 @@ unsigned int Host_GuessFileType(const char *mimetype, const char *filename)
 			{HRF_BSP, "map"},
 			{HRF_CONFIG, "cfg"},
 			{HRF_CONFIG, "rc"},
+			{HRF_PACKAGE, "kpf"},
 			{HRF_PACKAGE, "pak"},
 			{HRF_PACKAGE, "pk3"},
 			{HRF_PACKAGE, "pk4"},
@@ -6319,20 +6393,29 @@ qboolean Host_BeginFileDownload(struct dl_download *dl, char *mimetype)
 		}
 	}
 
+#ifdef AVAIL_GZDEC
 	//seeking means we can rewind
-	if (f->flags & HRF_DEMO_QWD)
-		CL_PlayDemoStream((dl->file = VFSPIPE_Open(2, true)), f->fname, true, DPB_QUAKEWORLD, 0);
+	if (f->flags & HRF_DECOMPRESS)
+	{	//if its a gzip, we'll probably need to decompress it ourselves... in case the server doesn't use content-encoding:gzip
+		//our demo playback should decompress it when its fin ally available.
+		dl->file = VFSPIPE_Open(1, true);
+		return true;
+	}
+	else
+#endif
+		 if (f->flags & HRF_DEMO_QWD)
+		CL_PlayDemoStream((dl->file = VFSPIPE_Open(2, true)), f->fname, true, DPB_QUAKEWORLD, 0, 0);
 	else if (f->flags & HRF_DEMO_MVD)
-		CL_PlayDemoStream((dl->file = VFSPIPE_Open(2, true)), f->fname, true, DPB_MVD, 0);
+		CL_PlayDemoStream((dl->file = VFSPIPE_Open(2, true)), f->fname, true, DPB_MVD, 0, 0);
 #ifdef Q2CLIENT
 	else if (f->flags & HRF_DEMO_DM2)
-		CL_PlayDemoStream((dl->file = VFSPIPE_Open(2, true)), f->fname, true, DPB_QUAKE2, 0);
+		CL_PlayDemoStream((dl->file = VFSPIPE_Open(2, true)), f->fname, true, DPB_QUAKE2, 0, 0);
 #endif
 #ifdef NQPROT
 	else if (f->flags & HRF_DEMO_DEM)
 	{	//fixme: the demo code can't handle the cd track with streamed/missing-so-far writes.
 		dl->file = VFSPIPE_Open(1, true);	//make sure the reader will be seekable, so we can rewind.
-//		CL_PlayDemoStream((dl->file = VFSPIPE_Open(2, true)), f->fname, DPB_NETQUAKE, 0);
+//		CL_PlayDemoStream((dl->file = VFSPIPE_Open(2, true)), f->fname, DPB_NETQUAKE, 0, 0);
 	}
 #endif
 	else if (f->flags & (HRF_MANIFEST | HRF_QTVINFO))
@@ -6402,6 +6485,7 @@ static qboolean isurl(char *url)
 #endif
 
 qboolean FS_FixupGamedirForExternalFile(char *input, char *filename, size_t fnamelen);
+void CL_PlayDemoFile(vfsfile_t *f, char *demoname, qboolean issyspath);
 
 void Host_DoRunFile(hrf_t *f)
 {
@@ -6466,7 +6550,7 @@ done:
 		//if we still don't know what it is, give up.
 		if (!(f->flags & HRF_FILETYPES))
 		{
-			Con_Printf("Host_DoRunFile: unknown filetype\n");
+			Con_Printf("Host_DoRunFile: unknown filetype for \"%s\"\n", f->fname);
 			goto done;
 		}
 
@@ -6485,18 +6569,22 @@ done:
 		if (f->srcfile)
 		{
 			VFS_SEEK(f->srcfile, 0);
+#ifdef AVAIL_GZDEC
+			f->srcfile = FS_DecompressGZip(f->srcfile, NULL);
+#endif
+
 			if (f->flags & HRF_DEMO_QWD)
-				CL_PlayDemoStream(f->srcfile, f->fname, true, DPB_QUAKEWORLD, 0);
+				CL_PlayDemoStream(f->srcfile, f->fname, true, DPB_QUAKEWORLD, 0, 0);
 #ifdef Q2CLIENT
 			else if (f->flags & HRF_DEMO_DM2)
-				CL_PlayDemoStream(f->srcfile, f->fname, true, DPB_QUAKE2, 0);
+				CL_PlayDemoStream(f->srcfile, f->fname, true, DPB_QUAKE2, 0, 0);
 #endif
 #ifdef NQPROT
 			else if (f->flags & HRF_DEMO_DEM)
-				CL_PlayDemoStream(f->srcfile, f->fname, true, DPB_NETQUAKE, 0);
+				CL_PlayDemoFile(f->srcfile, f->fname, true);	//should be able to handle the cd-track header.
 #endif
 			else //if (f->flags & HRF_DEMO_MVD)
-				CL_PlayDemoStream(f->srcfile, f->fname, true, DPB_MVD, 0);
+				CL_PlayDemoStream(f->srcfile, f->fname, true, DPB_MVD, 0, 0);
 			f->srcfile = NULL;
 		}
 		else
@@ -6657,8 +6745,12 @@ done:
 	if (f->flags & HRF_PACKAGE)
 	{
 #ifdef PACKAGEMANAGER
-		Z_Free(f->packageinfo);
+		if (f->packageinfo)
+			Z_Free(f->packageinfo);	//sucks that we have to do this again, to recompute the proper qname+qroot
+		Q_strncpyz(qname, COM_SkipPath(f->fname), sizeof(qname));
 		f->packageinfo = PM_GeneratePackageFromMeta(f->srcfile, qname,sizeof(qname), &qroot);
+		if (!f->packageinfo)
+			goto done;
 #endif
 	}
 	else if (f->flags & HRF_MANIFEST)
@@ -6718,7 +6810,10 @@ done:
 		}
 		else if (isnew)
 		{
-			Menu_Prompt(Host_RunFilePrompted, f, va(localtext("File appears new.\nWould you like to install\n%s\n"), displayname), "Install!", "", "Cancel", true);
+			if (f->packageinfo && strstr(f->packageinfo, "\nguessed"))
+				Menu_Prompt(Host_RunFilePrompted, f, va(localtext("File appears new.\nWould you like to install\n%s\n"CON_ERROR"File contains no metadata so will be installed to\n%s"), displayname, qname), "Install!", "", "Cancel", true);
+			else
+				Menu_Prompt(Host_RunFilePrompted, f, va(localtext("File appears new.\nWould you like to install\n%s\n"), displayname), "Install!", "", "Cancel", true);
 			return;
 		}
 		else
@@ -6729,9 +6824,9 @@ done:
 	}
 	else if (f->flags & HRF_OVERWRITE)
 	{
-		char buffer[8192];
+		char buffer[65536];
 		int len;
-		f->dstfile = FS_OpenVFS(qname, "wb", qroot);
+		f->dstfile = FS_OpenVFS(qname, (f->flags & HRF_PACKAGE)?"wbp":"wb", qroot);
 		if (f->dstfile)
 		{
 #ifdef FTE_TARGET_WEB
@@ -6753,10 +6848,13 @@ done:
 
 #ifdef PACKAGEMANAGER
 		if (f->flags & HRF_PACKAGE)
-			PM_FileInstalled(COM_SkipPath(f->fname), qroot, f->packageinfo, true);
+			PM_FileInstalled(qname, qroot, f->packageinfo, true);
 #endif
 
-		Cbuf_AddText(loadcommand, RESTRICT_LOCAL);
+		if (!strcmp(loadcommand, "fs_restart\n"))
+			FS_ReloadPackFiles();
+		else
+			Cbuf_AddText(loadcommand, RESTRICT_LOCAL);
 	}
 
 	goto done;
@@ -6779,6 +6877,8 @@ qboolean Host_RunFile(const char *fname, int nlen, vfsfile_t *file)
 		if (!Sys_ResolveFileURL(fname, nlen, utf8, sizeof(utf8)))
 		{
 			Con_Printf("Cannot resolve file url\n");
+			if(file)
+				VFS_CLOSE(file);
 			return false;
 		}
 		fname = utf8;
@@ -6892,7 +6992,11 @@ qboolean Host_RunFile(const char *fname, int nlen, vfsfile_t *file)
 	if (file)
 		f->flags |= HRF_OPENED;
 
-	Con_TPrintf("Opening external file: %s\n", f->fname);
+	{
+		char dpath[MAX_OSPATH];
+		FS_DisplayPath(f->fname, FS_SYSTEM, dpath,sizeof(dpath));
+		Con_TPrintf("Opening external file: %s\n", dpath);
+	}
 
 	Host_DoRunFile(f);
 	return true;
@@ -6924,7 +7028,7 @@ double Host_Frame (double time)
 	qboolean idle;
 	extern int r_blockvidrestart;
 	static qboolean hadwork;
-	qboolean vrsync;
+	unsigned int vrflags;
 	qboolean mustrenderbeforeread;
 
 	RSpeedLocals();
@@ -6934,7 +7038,7 @@ double Host_Frame (double time)
 		return 0;			// something bad happened, or the server disconnected
 	}
 
-	vrsync = vid.vr?vid.vr->SyncFrame(&time):false;				//fiddle with frame timings
+	vrflags = vid.vr?vid.vr->SyncFrame(&time):0;				//fiddle with frame timings
 	newrealtime = Media_TweekCaptureFrameTime(realtime, time);	//fiddle with time some more
 
 	time = newrealtime - realtime;
@@ -6978,7 +7082,7 @@ double Host_Frame (double time)
 	if (!cls.timedemo)
 		CL_ReadPackets ();
 
-	if (idle && cl_idlefps.value > 0 && !vrsync)
+	if (idle && cl_idlefps.value > 0 && !(vrflags&VRF_OVERRIDEFRAMETIME))
 	{
 		double idlesec = 1.0 / cl_idlefps.value;
 		if (idlesec > 0.1)
@@ -7053,7 +7157,7 @@ double Host_Frame (double time)
 #ifdef HAVE_MEDIA_ENCODER
 		&& Media_Capturing() != 2
 #endif
-		&& !vrsync)
+		&& !(vrflags&VRF_OVERRIDEFRAMETIME))
 	{
 		spare = CL_FilterTime((realtime - oldrealtime)*1000, maxfps, 1.5, maxfpsignoreserver);
 		if (!spare)
@@ -7128,7 +7232,7 @@ double Host_Frame (double time)
 
 	CL_UseIndepPhysics(cls.state != ca_disconnected && !!cl_threadedphysics.ival);	//starts/stops the input frame thread.
 
-	cl.do_lerp_players = cl_lerp_players.ival || (cls.demoplayback==DPB_MVD || cls.demoplayback == DPB_EZTV) || (cls.demoplayback && !cl_nolerp.ival && !cls.timedemo);
+	cl.do_lerp_players = cl_lerp_players.ival || cls.demoplayback==DPB_MVD || (cls.demoplayback && !cl_nolerp.ival && !cls.timedemo);
 	CL_AllowIndependantSendCmd(false);
 
 	mustrenderbeforeread = cls.protocol == CP_QUAKE2;	//FIXME: quake2 MUST render a frame (or a later one) before it can read any acks from the server, otherwise its prediction screws up. I'm too lazy to rewrite that right now.
@@ -7213,6 +7317,8 @@ double Host_Frame (double time)
 			Con_Printf("R2D_Flush was set outside of SCR_UpdateScreen\n");
 		}
 
+		cl.mouseplayerview = NULL;
+		cl.mousenewtrackplayer = -1;
 		for (i = 0; i < MAX_SPLITS; i++)
 		{
 			cl.playerview[i].audio.defaulted = true;
@@ -7235,7 +7341,7 @@ double Host_Frame (double time)
 			{
 				RSpeedMark();
 				vid.ime_allow = false;
-				vrui.enabled = cl_forcevrui.ival;
+				vrui.enabled |= cl_vrui_force.ival || (vrflags&VRF_UIACTIVE);
 				if (SCR_UpdateScreen())
 					fps_count++;
 				if (R2D_Flush)
@@ -7350,6 +7456,7 @@ void CL_StartCinematicOrMenu(void)
 		startuppending = true;
 		return;
 	}
+	Cmd_StuffCmds();
 	if (startuppending)
 	{
 		if (startuppending == 2)	//installer finished.
@@ -7379,7 +7486,7 @@ void CL_StartCinematicOrMenu(void)
 	}
 
 	if (!sv_state && !cls.demoinfile && !cls.state && !*cls.servername)
-	{
+	{	//this is so default.cfg can define startup commands to exec if the engine starts up with no +connect / +map etc arg
 		TP_ExecTrigger("f_startup", true);
 		Cbuf_Execute ();
 	}
@@ -7590,6 +7697,7 @@ static void Host_URIPrompt(void *ctx, promptbutton_t btn)
 
 void Host_FinishLoading(void)
 {
+	int i;
 	extern qboolean r_forceheadless;
 	extern int	r_blockvidrestart;
 	if (r_blockvidrestart == true)
@@ -7615,8 +7723,7 @@ void Host_FinishLoading(void)
 
 		Con_History_Load();
 
-		Cmd_StuffCmds();
-		Cbuf_Execute ();
+		r_blockvidrestart = 2;
 
 		CL_ArgumentOverrides();
 	#ifdef HAVE_SERVER
@@ -7641,14 +7748,15 @@ void Host_FinishLoading(void)
 			Sys_Quit();
 	#endif
 
-		r_blockvidrestart = 2;
-
 		Menu_Download_Update();
 
 #ifdef IPLOG
 		IPLog_Merge_File("iplog.txt");
 		IPLog_Merge_File("iplog.dat");	//legacy crap, for compat with proquake
 #endif
+
+		if (!PM_IsApplying())
+			Cmd_StuffCmds();
 	}
 
 	if (PM_IsApplying() == 1)
@@ -7657,6 +7765,16 @@ void Host_FinishLoading(void)
 		Sys_Sleep(0.1);
 #endif
 		return;
+	}
+
+	//open any files specified on the commandline (urls, paks, models, I dunno).
+	for (i = 1; i < com_argc; i++)
+	{
+		if (!com_argv[i])
+			continue;
+		if (*com_argv[i] == '+' || *com_argv[i] == '-')
+			break;
+		Host_RunFile(com_argv[i], strlen(com_argv[i]), NULL);
 	}
 
 	//android may find that it has no renderer at various points.

@@ -14,6 +14,8 @@ enum : int
 	GPMI_ACTION,		//desired state
 	GPMI_AVAILABLE,		//whether it may be downloaded or not.
 	GPMI_FILESIZE,		//whether it may be downloaded or not.
+	GPMI_GAMEDIR,		//whether it may be downloaded or not.
+	GPMI_MAPS,			//whether it may be downloaded or not.
 };
 
 class mitem_updategrid : mitem_grid

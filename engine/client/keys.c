@@ -944,7 +944,7 @@ void Key_DefaultLinkClicked(console_t *con, char *text, char *info)
 			if (*cl.players[player].ip)
 				Con_Footerf(con, true, "\n%s", cl.players[player].ip);
 
-			if (cl.playerview[0].spectator || cls.demoplayback==DPB_MVD||cls.demoplayback==DPB_EZTV)
+			if (cl.playerview[0].spectator || cls.demoplayback==DPB_MVD)
 			{
 				//we're spectating, or an mvd
 				Con_Footerf(con, true, " ^[Spectate\\player\\%i\\action\\spec^]", player);
@@ -3079,7 +3079,7 @@ void Key_Event (unsigned int devid, int key, unsigned int unicode, qboolean down
 //
 // during demo playback, most keys bring up the main menu
 //
-	if (cls.demoplayback && cls.demoplayback != DPB_MVD && cls.demoplayback != DPB_EZTV && conkey && !Key_Dest_Has(~kdm_game))
+	if (cls.demoplayback && cls.demoplayback != DPB_MVD && conkey && !Key_Dest_Has(~kdm_game))
 	{
 		switch (key)
 		{	//these keys don't force the menu to appear while playing the demo reel
@@ -3243,6 +3243,8 @@ defaultedbind:
 	if (key == K_TOUCH || (key == K_MOUSE1 && IN_Touch_MouseIsAbs(devid)))
 	{
 		const char *button = SCR_ShowPics_ClickCommand(mousecursor_x, mousecursor_y, key == K_TOUCH);
+		if (!button && cl.mouseplayerview && cl.mousenewtrackplayer>=0)
+			Cam_Lock(cl.mouseplayerview, cl.mousenewtrackplayer);
 		if (button)
 		{
 			dc = button;

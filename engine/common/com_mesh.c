@@ -85,7 +85,7 @@ qboolean Mod_DoCRC(model_t *mod, char *buffer, int buffersize)
 
 extern cvar_t gl_part_flame, r_fullbrightSkins, r_fb_models;
 extern cvar_t r_noaliasshadows;
-extern cvar_t r_skin_overlays;
+//extern cvar_t r_skin_overlays;
 extern cvar_t mod_md3flags;
 
 
@@ -1020,7 +1020,7 @@ typedef struct
 	float		*pose[FRAME_BLENDS*2];	//pointer to the raw frame data for bone 0.
 	void		*needsfree[FRAME_BLENDS*2];
 } skellerps_t;
-static qboolean Alias_BuildSkelLerps(skellerps_t *lerps, const struct framestateregion_s *fs, int numbones, const galiasinfo_t *inf)
+static qboolean Alias_BuildSkelLerps(skellerps_t *lerps, const struct framestateregion_s *fs, const galiasbone_t *boneinf, int numbones, const galiasinfo_t *inf)
 {
 	int frame1;	//signed, because frametime might be negative...
 	int frame2;
@@ -1066,7 +1066,7 @@ static qboolean Alias_BuildSkelLerps(skellerps_t *lerps, const struct framestate
 			{
 				lerps->frac[l] = fs->lerpweight[b];
 				lerps->needsfree[l] = BZ_Malloc(sizeof(float)*12*numbones);
-				lerps->pose[l] = g->GetRawBones(inf, g, time, lerps->needsfree[l], numbones);
+				lerps->pose[l] = g->GetRawBones(inf, g, time, lerps->needsfree[l], boneinf, numbones);
 				if (lerps->pose[l])
 					l++;
 				else
@@ -1107,14 +1107,14 @@ static qboolean Alias_BuildSkelLerps(skellerps_t *lerps, const struct framestate
 			{
 				totalweight += lerps->frac[l];
 				lerps->needsfree[l] = NULL;
-				lerps->pose[l++] = (float*)g->boneofs + numbones*12*frame1;
+				lerps->pose[l++] = (float*)g->boneofs + inf->numbones*12*frame1;
 			}
 			lerps->frac[l] = (mlerp)*fs->lerpweight[b];
 			if (lerps->frac[l]>0)
 			{
 				totalweight += lerps->frac[l];
 				lerps->needsfree[l] = NULL;
-				lerps->pose[l++] = (float*)g->boneofs + numbones*12*frame2;
+				lerps->pose[l++] = (float*)g->boneofs + inf->numbones*12*frame2;
 			}
 		}
 	}
@@ -1153,15 +1153,12 @@ static qboolean Alias_BuildSkelLerps(skellerps_t *lerps, const struct framestate
 /*
 finds the various blend info. returns number of bone blocks used.
 */
-static int Alias_FindRawSkelData(galiasinfo_t *inf, const framestate_t *fstate, skellerps_t *lerps, size_t firstbone, size_t lastbone)
+static int Alias_FindRawSkelData(galiasinfo_t *inf, const framestate_t *fstate, skellerps_t *lerps, size_t firstbone, size_t lastbone, const galiasbone_t *boneinfo)
 {
 	int bonegroup;
 	int cbone = 0;
 	int endbone;
 	int numbonegroups=0;
-
-	if (lastbone > inf->numbones)
-		lastbone = inf->numbones;
 
 	for (bonegroup = 0; bonegroup < FS_COUNT; bonegroup++)
 	{
@@ -1176,7 +1173,7 @@ static int Alias_FindRawSkelData(galiasinfo_t *inf, const framestate_t *fstate, 
 			if (lerps->firstbone == lerps->endbone)
 				continue;
 
-			if (!inf->numanimations || !Alias_BuildSkelLerps(lerps, &fstate->g[bonegroup], inf->numbones, inf))	//if there's no animations in this model, use the base pose instead.
+			if (!inf->numanimations || !Alias_BuildSkelLerps(lerps, &fstate->g[bonegroup], boneinfo, lerps->endbone, inf))	//if there's no animations in this model, use the base pose instead.
 			{
 				if (!inf->baseframeofs)
 					continue;	//nope, not happening.
@@ -1200,11 +1197,11 @@ static int Alias_FindRawSkelData(galiasinfo_t *inf, const framestate_t *fstate, 
 	return value is the lastbone argument, or less if the model simply doesn't have that many bones.
 	_always_ writes into result
 */
-static int Alias_BlendBoneData(galiasinfo_t *inf, framestate_t *fstate, float *result, skeltype_t skeltype, int firstbone, int lastbone)
+static int Alias_BlendBoneData(galiasinfo_t *inf, const framestate_t *fstate, float *result, skeltype_t skeltype, int firstbone, int lastbone, const galiasbone_t *boneinfo)
 {
 	skellerps_t lerps[FS_COUNT], *lerp;
 	size_t bone, endbone = 0;
-	size_t numgroups = Alias_FindRawSkelData(inf, fstate, lerps, firstbone, lastbone);
+	size_t numgroups = Alias_FindRawSkelData(inf, fstate, lerps, firstbone, lastbone, boneinfo);
 
 	float *pose, *matrix;
 	int k, b;
@@ -1219,7 +1216,7 @@ static int Alias_BlendBoneData(galiasinfo_t *inf, framestate_t *fstate, float *r
 				memcpy(result+bone*12, lerp->pose[0]+bone*12, (endbone-bone)*12*sizeof(float));
 			else
 			{
-				//set up the identity matrix
+				//blend each influence
 				for (; bone < endbone; bone++)
 				{
 					pose = result + 12*bone;
@@ -1247,7 +1244,7 @@ static int Alias_BlendBoneData(galiasinfo_t *inf, framestate_t *fstate, float *r
 only writes targetbuffer if needed. the return value is the only real buffer result.
 assumes that all blended types are the same. probably buggy, but meh.
 */
-static const float *Alias_GetBoneInformation(galiasinfo_t *inf, const framestate_t *framestate, skeltype_t targettype, float *targetbuffer, float *targetbufferalt, size_t maxbufferbones)
+static const float *Alias_GetBoneInformation(galiasinfo_t *inf, const framestate_t *framestate, skeltype_t targettype, float *targetbuffer, float *targetbufferalt, size_t numbones, const galiasbone_t *boneinfo)
 {
 	skellerps_t lerps[FS_COUNT], *lerp;
 	size_t numgroups;
@@ -1256,7 +1253,7 @@ static const float *Alias_GetBoneInformation(galiasinfo_t *inf, const framestate
 
 	lerps[0].skeltype = SKEL_IDENTITY; //just in case.
 #ifdef SKELETALOBJECTS
-	if (framestate->bonestate && framestate->bonecount >= inf->numbones)
+	if (framestate->bonestate && framestate->bonecount >= numbones)
 	{
 		lerps[0].skeltype = framestate->skeltype;
 		lerps[0].firstbone = 0;
@@ -1270,13 +1267,18 @@ static const float *Alias_GetBoneInformation(galiasinfo_t *inf, const framestate
 	else
 #endif
 	{
-		numgroups = Alias_FindRawSkelData(inf, framestate, lerps, 0, inf->numbones);
+		numgroups = Alias_FindRawSkelData(inf, framestate, lerps, 0, numbones, boneinfo);
 	}
 
 	//try to return data in-place.
 	if (numgroups==1 && lerps[0].lerpcount == 1)
 	{
-		ret = Alias_ConvertBoneData(lerps[0].skeltype, lerps[0].pose[0], min(lerps[0].endbone, inf->numbones), inf->ofsbones, targettype, targetbuffer, targetbufferalt, maxbufferbones);
+		ret = Alias_ConvertBoneData(lerps[0].skeltype, lerps[0].pose[0], min(lerps[0].endbone, inf->numbones), inf->ofsbones, targettype, targetbuffer, targetbufferalt, numbones);
+		if (ret == lerps[0].needsfree[0])
+		{	//bum
+			memcpy(targetbuffer, ret, sizeof(float)*min(lerps[0].endbone, numbones)*12);
+			ret = targetbuffer;
+		}
 		BZ_Free(lerps[0].needsfree[0]);
 		return ret;
 	}
@@ -1365,7 +1367,7 @@ static const float *Alias_GetBoneInformation(galiasinfo_t *inf, const framestate
 		}
 	}
 
-	return Alias_ConvertBoneData(lerps[0].skeltype, targetbuffer, inf->numbones, inf->ofsbones, targettype, targetbuffer, targetbufferalt, maxbufferbones);
+	return Alias_ConvertBoneData(lerps[0].skeltype, targetbuffer, inf->numbones, inf->ofsbones, targettype, targetbuffer, targetbufferalt, numbones);
 }
 
 static void Alias_BuildSkeletalMesh(mesh_t *mesh, framestate_t *framestate, galiasinfo_t *inf)
@@ -1375,9 +1377,9 @@ static void Alias_BuildSkeletalMesh(mesh_t *mesh, framestate_t *framestate, gali
 	const float *morphweights;
 
 	if (meshcache.bonecachetype != SKEL_INVERSE_ABSOLUTE)
-		meshcache.usebonepose = Alias_GetBoneInformation(inf, framestate, meshcache.bonecachetype=SKEL_INVERSE_ABSOLUTE, meshcache.boneposebuffer1, meshcache.boneposebuffer2, MAX_BONES);
+		meshcache.usebonepose = Alias_GetBoneInformation(inf, framestate, meshcache.bonecachetype=SKEL_INVERSE_ABSOLUTE, meshcache.boneposebuffer1, meshcache.boneposebuffer2, inf->numbones, NULL);
 
-	morphweights = inf->AnimateMorphs?inf->AnimateMorphs(inf, framestate):NULL;
+	morphweights = inf->AnimateMorphs?inf->AnimateMorphs(inf, framestate, alloca(sizeof(*morphweights)*inf->nummorphs)):NULL;
 	if (morphweights)
 	{
 		size_t m,v;
@@ -1820,6 +1822,7 @@ qboolean Alias_GAliasBuildMesh(mesh_t *mesh, vbo_t **vbop, galiasinfo_t *inf, in
 	{
 		//if we have skeletal xyz info, but no skeletal weights, then its a partial model that cannot possibly be animated.
 		meshcache.usebonepose = NULL;
+		meshcache.bonecachetype = -1;
 		mesh->xyz_array = inf->ofs_skel_xyz;
 		mesh->xyz2_array = NULL;
 		mesh->normals_array = inf->ofs_skel_norm;
@@ -1875,7 +1878,7 @@ qboolean Alias_GAliasBuildMesh(mesh_t *mesh, vbo_t **vbop, galiasinfo_t *inf, in
 			else
 			{
 				if (meshcache.bonecachetype != SKEL_ABSOLUTE)
-					meshcache.usebonepose = Alias_GetBoneInformation(inf, &e->framestate, meshcache.bonecachetype=SKEL_ABSOLUTE, meshcache.boneposebuffer1, meshcache.boneposebuffer2, MAX_BONES);
+					meshcache.usebonepose = Alias_GetBoneInformation(inf, &e->framestate, meshcache.bonecachetype=SKEL_ABSOLUTE, meshcache.boneposebuffer1, meshcache.boneposebuffer2, MAX_BONES, NULL);
 #ifndef SERVERONLY
 				if (inf->shares_bones != surfnum && qrenderer)
 					Alias_DrawSkeletalBones(inf->ofsbones, (const float *)meshcache.usebonepose, inf->numbones, e->framestate.g[0].endbone);
@@ -1885,7 +1888,7 @@ qboolean Alias_GAliasBuildMesh(mesh_t *mesh, vbo_t **vbop, galiasinfo_t *inf, in
 		else
 		{
 			if (meshcache.bonecachetype != SKEL_INVERSE_ABSOLUTE)
-				meshcache.usebonepose = Alias_GetBoneInformation(inf, &e->framestate, meshcache.bonecachetype=SKEL_INVERSE_ABSOLUTE, meshcache.boneposebuffer1, meshcache.boneposebuffer2, MAX_BONES);
+				meshcache.usebonepose = Alias_GetBoneInformation(inf, &e->framestate, meshcache.bonecachetype=SKEL_INVERSE_ABSOLUTE, meshcache.boneposebuffer1, meshcache.boneposebuffer2, MAX_BONES, NULL);
 
 			//hardware bone animation
 			mesh->xyz_array = inf->ofs_skel_xyz;
@@ -2632,7 +2635,7 @@ static qboolean Mod_Trace(model_t *model, int forcehullnum, const framestate_t *
 				if (curbonesurf != mod->shares_bones)
 				{
 					curbonesurf = mod->shares_bones;
-					bonepose = Alias_GetBoneInformation(mod, framestate, SKEL_INVERSE_ABSOLUTE, buffer, bufferalt, MAX_BONES);
+					bonepose = Alias_GetBoneInformation(mod, framestate, SKEL_INVERSE_ABSOLUTE, buffer, bufferalt, MAX_BONES, NULL);
 				}
 				posedata = alloca(mod->numverts*sizeof(vecV_t));
 				Alias_TransformVerticies_V(bonepose, mod->numverts, mod->ofs_skel_idx[0], mod->ofs_skel_weight[0], mod->ofs_skel_xyz[0], posedata[0]);
@@ -3170,7 +3173,7 @@ static void Mod_GenerateMeshVBO(model_t *mod, galiasinfo_t *galias)
 			}
 		}
 		else
-			Con_DPrintf("\"%s\":\"%s\" exceeds gpu bone limit and will be software-skinned - %i > %i\n", mod->name, galias->surfacename, k, sh_config.max_gpu_bones);
+			Con_DPrintf(CON_WARNING"PERF: \"%s\":\"%s\" exceeds gpu bone limit and will be software-skinned - %i > %i\n", mod->name, galias->surfacename, k, sh_config.max_gpu_bones);
 	}
 	if (galias->mappedbones)
 	{
@@ -3834,8 +3837,6 @@ static void Mod_FloodFillSkin( qbyte *skin, int skinwidth, int skinheight )
 static void *Q1MDL_LoadSkins_GL (galiasinfo_t *galias, dmdl_t *pq1inmodel, model_t *loadmodel, daliasskintype_t *pskintype, uploadfmt_t skintranstype)
 {
 	skinframe_t *frames;
-	char skinname[MAX_QPATH];
-	char alttexpath[MAX_QPATH];
 	int i;
 	int s, t;
 	float sinter;
@@ -3843,8 +3844,6 @@ static void *Q1MDL_LoadSkins_GL (galiasinfo_t *galias, dmdl_t *pq1inmodel, model
 	daliasskininterval_t *intervals;
 	qbyte *data, *saved;
 	galiasskin_t *outskin = galias->ofsskins;
-	const char *slash;
-	unsigned int texflags;
 
 	s = pq1inmodel->skinwidth*pq1inmodel->skinheight;
 	for (i = 0; i < pq1inmodel->numskins; i++)
@@ -3857,37 +3856,15 @@ static void *Q1MDL_LoadSkins_GL (galiasinfo_t *galias, dmdl_t *pq1inmodel, model
 
 //but only preload it if we have no replacement.
 			outskin->numframes=1;
-			if (1 || /*!TEXVALID(texture) ||*/ (loadmodel->engineflags & MDLF_NOTREPLACEMENTS))
-			{
-				//we're not using 24bits
-				frames = ZG_Malloc(&loadmodel->memgroup, sizeof(*frames)+s);
-				saved = (qbyte*)(frames+1);
-				frames[0].texels = saved;
-				memcpy(saved, pskintype+1, s);
-				if (i == 0) //Vanilla bug: ONLY skin 0 is flood-filled (the vanilla code operates on a cached 'skin' variable that does NOT get updated between skins reflooding skin 0). We still don't like flood fills either. Hexen2 has the same issue.
-					Mod_FloodFillSkin(saved, outskin->skinwidth, outskin->skinheight);
-			}
-			else
-			{
-				frames = ZG_Malloc(&loadmodel->memgroup, sizeof(*frames));
 
-				Q_snprintfz(skinname, sizeof(skinname), "%s_%i.lmp", slash, i);
-				frames[0].texnums.base = R_LoadReplacementTexture(skinname, alttexpath, texflags, frames[0].texels, outskin->skinwidth, outskin->skinheight, skintranstype);
-				if (r_fb_models.ival)
-				{
-					Q_snprintfz(skinname, sizeof(skinname), "%s_%i_luma.lmp", slash, i);
-					frames[0].texnums.fullbright = R_LoadReplacementTexture(skinname, alttexpath, texflags, frames[0].texels, outskin->skinwidth, outskin->skinheight, TF_TRANS8_FULLBRIGHT);
-				}
-				if (r_loadbumpmapping)
-				{
-					Q_snprintfz(skinname, sizeof(skinname), "%s_%i_norm.lmp", slash, i);
-					frames[0].texnums.bump = R_LoadReplacementTexture(skinname, alttexpath, texflags|IF_TRYBUMP|IF_NOSRGB, frames[0].texels, outskin->skinwidth, outskin->skinheight, TF_HEIGHT8PAL);
-				}
-				Q_snprintfz(skinname, sizeof(skinname), "%s_%i_shirt.lmp", slash, i);
-				frames[0].texnums.upperoverlay = R_LoadReplacementTexture(skinname, alttexpath, texflags, NULL, outskin->skinwidth, outskin->skinheight, TF_INVALID);
-				Q_snprintfz(skinname, sizeof(skinname), "%s_%i_pants.lmp", slash, i);
-				frames[0].texnums.loweroverlay = R_LoadReplacementTexture(skinname, alttexpath, texflags, NULL, outskin->skinwidth, outskin->skinheight, TF_INVALID);
-			}
+			//the actual texture gets loaded after the shader.
+			frames = ZG_Malloc(&loadmodel->memgroup, sizeof(*frames)+s);
+			saved = (qbyte*)(frames+1);
+			frames[0].texels = saved;
+			memcpy(saved, pskintype+1, s);
+			if (i == 0) //Vanilla bug: ONLY skin 0 is flood-filled (the vanilla code operates on a cached 'skin' variable that does NOT get updated between skins reflooding skin 0). We still don't like flood fills either. Hexen2 has the same issue.
+				Mod_FloodFillSkin(saved, outskin->skinwidth, outskin->skinheight);
+
 			Q_snprintfz(frames[0].shadername, sizeof(frames[0].shadername), "%s_%i.lmp", loadmodel->name, i);
 			frames[0].shader = NULL;
 			frames[0].defaultshader = NULL;
@@ -5135,11 +5112,11 @@ int Mod_GetNumBones(model_t *model, qboolean allowtags)
 	return 0;
 }
 
-int Mod_GetBoneRelations(model_t *model, int firstbone, int lastbone, framestate_t *fstate, float *result)
+int Mod_GetBoneRelations(model_t *model, int firstbone, int lastbone, const galiasbone_t *boneinfo, const framestate_t *fstate, float *result)
 {
 #ifdef SKELETALMODELS
 	if (model && model->type == mod_alias)
-		return Alias_BlendBoneData(Mod_Extradata(model), fstate, result, SKEL_RELATIVE, firstbone, lastbone);
+		return Alias_BlendBoneData(Mod_Extradata(model), fstate, result, SKEL_RELATIVE, firstbone, lastbone, boneinfo);
 #endif
 #ifdef HALFLIFEMODELS
 	if (model && model->type == mod_halflife)
@@ -5156,7 +5133,10 @@ galiasbone_t *Mod_GetBoneInfo(model_t *model, int *numbones)
 
 
 	if (!model || model->type != mod_alias)
+	{
+		*numbones = 0;
 		return NULL;
+	}
 
 	inf = Mod_Extradata(model);
 
@@ -5252,7 +5232,7 @@ qboolean Mod_GetTag(model_t *model, int tagnum, framestate_t *fstate, float *res
 			}
 			else //try getting the data from the frame state
 			{
-				numbones = Mod_GetBoneRelations(model, 0, tagnum+1, fstate, relatives);
+				numbones = Mod_GetBoneRelations(model, 0, tagnum+1, NULL, fstate, relatives);
 				lerps = relatives;
 			}
 
@@ -5323,7 +5303,7 @@ qboolean Mod_GetTag(model_t *model, int tagnum, framestate_t *fstate, float *res
 
 			//try getting the data from the frame state
 			if (!numbonegroups)
-				numbonegroups = Alias_FindRawSkelData(inf, fstate, lerps, 0, inf->numbones);
+				numbonegroups = Alias_FindRawSkelData(inf, fstate, lerps, 0, inf->numbones, NULL);
 
 			//try base pose?
 			if (!numbonegroups && inf->baseframeofs)
@@ -5677,7 +5657,7 @@ const char *Mod_FrameNameForNum(model_t *model, int surfaceidx, int num)
 		while(surfaceidx-->0 && inf)
 			inf = inf->nextsurf;
 
-		if (!inf || num >= inf->numanimations)
+		if (!inf || (unsigned)num >= (unsigned)inf->numanimations)
 			return NULL;
 		group = inf->ofsanimations;
 		return group[num].name;

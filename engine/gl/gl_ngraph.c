@@ -244,7 +244,10 @@ void R_FrameTimeGraph (float frametime, float scale)
 #ifdef LOADERTHREAD
 	extern int com_hadwork[WG_COUNT];
 #endif
-	extern double server_frametime, r_loaderstalltime;
+	extern double r_loaderstalltime;
+#ifdef HAVE_SERVER
+	extern double server_frametime;
+#endif
 
 	history[findex&NET_TIMINGSMASK].time[0] = max(0,frametime);	//server band
 #ifdef HAVE_SERVER

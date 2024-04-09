@@ -37,14 +37,14 @@ typedef struct
 
 
 
-extern cvar_t gl_part_flame, r_fullbrightSkins, r_fb_models, ruleset_allow_fbmodels;
+extern cvar_t gl_part_flame, r_fullbrightSkins, r_fb_models, ruleset_allow_fbmodels, gl_overbright_models;
 extern cvar_t r_noaliasshadows;
 extern cvar_t r_lodscale, r_lodbias;
 
 extern cvar_t gl_ati_truform;
 extern cvar_t r_vertexdlights;
 extern cvar_t mod_md3flags;
-extern cvar_t r_skin_overlays;
+//extern cvar_t r_skin_overlays;
 extern cvar_t r_globalskin_first, r_globalskin_count;
 
 #ifndef SERVERONLY
@@ -1373,25 +1373,27 @@ qboolean R_CalcModelLighting(entity_t *e, model_t *clmodel)
 		return e->light_known-1;
 
 	e->light_dir[0] = 0; e->light_dir[1] = 1; e->light_dir[2] = 0;
-	if ((clmodel->engineflags & MDLF_FLAME) || r_fullbright.ival)
-	{
-		e->light_avg[0] = e->light_avg[1] = e->light_avg[2] = 1;
-		e->light_range[0] = e->light_range[1] = e->light_range[2] = 0;
-		e->light_known = 2;
-		return e->light_known-1;
-	}
-	if (
 #ifdef HEXEN2
-		(e->drawflags & MLS_MASK) == MLS_FULLBRIGHT ||
-#endif
-		(e->flags & RF_FULLBRIGHT))
-	{
-		e->light_avg[0] = e->light_avg[1] = e->light_avg[2] = 1;
-		e->light_range[0] = e->light_range[1] = e->light_range[2] = 0;
+	if ((e->drawflags & MLS_MASK) == MLS_ABSLIGHT)
+	{	//per-entity fixed lighting
+		e->light_range[0] = e->light_range[1] = e->light_range[2] =
+		e->light_avg[0] = e->light_avg[1] = e->light_avg[2] = e->abslight/255.f;
 		e->light_known = 2;
 		return e->light_known-1;
 	}
-	if (r_fb_models.ival == 1 && ruleset_allow_fbmodels.ival && (clmodel->engineflags & MDLF_EZQUAKEFBCHEAT) && cls.protocol == CP_QUAKEWORLD && cl.deathmatch)
+	if ((e->drawflags & MLS_MASK) && (e->drawflags & MLS_MASK) != MLS_ADDLIGHT)
+	{	//these use some qc-defined lightstyles.
+		i = 24 + (e->drawflags & MLS_MASK); //saves knowing the proper patterns at least.
+		VectorScale(cl_lightstyle[i].colours, d_lightstylevalue[i]/255.f, e->light_range);
+		VectorScale(cl_lightstyle[i].colours, d_lightstylevalue[i]/255.f, e->light_avg);
+		e->light_known = 2;
+		return e->light_known-1;
+	}
+#endif
+	if ((clmodel->engineflags & MDLF_FLAME) ||	//stuff on fire should generally have enough light...
+		r_fullbright.ival ||	//vanila cheat
+		(e->flags & RF_FULLBRIGHT) ||	//DP feature
+		(r_fb_models.ival == 1 && ruleset_allow_fbmodels.ival && (clmodel->engineflags & MDLF_EZQUAKEFBCHEAT) && cls.protocol == CP_QUAKEWORLD && cl.deathmatch))	//ezquake cheat
 	{
 		e->light_avg[0] = e->light_avg[1] = e->light_avg[2] = 1;
 		e->light_range[0] = e->light_range[1] = e->light_range[2] = 0;
@@ -1432,21 +1434,24 @@ qboolean R_CalcModelLighting(entity_t *e, model_t *clmodel)
 	}
 
 #ifdef HEXEN2
-	if ((e->drawflags & MLS_MASK) == MLS_ABSLIGHT)
+	if ((e->drawflags & MLS_MASK) == MLS_ADDLIGHT)
 	{
-		shadelight[0] = shadelight[1] = shadelight[2] = e->abslight;
-		ambientlight[0] = ambientlight[1] = ambientlight[2] = e->abslight;
+		ambientlight[0] += e->abslight;
+		ambientlight[1] += e->abslight;
+		ambientlight[2] += e->abslight;
+		shadelight[0] += e->abslight;
+		shadelight[1] += e->abslight;
+		shadelight[2] += e->abslight;
 	}
-	else
 #endif
 
-		if (r_softwarebanding)
+	if (r_softwarebanding)
 	{
 		//mimic software rendering as closely as possible
 		lightdir[2] = 0;	//horizontal light only.
 
-		VectorMA(vec3_origin, 0.5, shadelight, ambientlight);
-		VectorCopy(ambientlight, shadelight);
+//		VectorMA(vec3_origin, 0.5, shadelight, ambientlight);
+//		VectorCopy(ambientlight, shadelight);
 
 		if (!r_vertexdlights.ival && r_dynamic.ival > 0)
 		{
@@ -1495,17 +1500,6 @@ qboolean R_CalcModelLighting(entity_t *e, model_t *clmodel)
 	}
 	else
 	{
-#ifdef HEXEN2
-		if ((e->drawflags & MLS_MASK) == MLS_ADDLIGHT)
-		{
-			ambientlight[0] += e->abslight;
-			ambientlight[1] += e->abslight;
-			ambientlight[2] += e->abslight;
-			shadelight[0] += e->abslight;
-			shadelight[1] += e->abslight;
-			shadelight[2] += e->abslight;
-		}
-#endif
 		if (!r_vertexdlights.ival && r_dynamic.ival > 0)
 		{
 			float *org = e->origin;
@@ -1621,6 +1615,20 @@ qboolean R_CalcModelLighting(entity_t *e, model_t *clmodel)
 		}
 
 
+#if 1	//match quakespasm here.
+		if (gl_overbright_models.value > 0.f && ruleset_allow_fbmodels.ival)
+		{
+			m = (96*6) / (shadelight[0]+shadelight[1]+shadelight[2]+ambientlight[0]+ambientlight[1]+ambientlight[2]);
+			if (m > 1.0)
+				m = 1;	//we only want to let it darken here.
+			m *= 1 + min(1,gl_overbright_models.value);
+		}
+		else
+			m = 1;
+		m /= 200.0/255;	//a legacy quake fudge-factor.
+		VectorScale(shadelight, m, shadelight);
+		VectorScale(ambientlight, m, ambientlight);
+#else
 		for (i = 0; i < 3; i++)
 		{
 			if (ambientlight[i] > 128)
@@ -1629,6 +1637,7 @@ qboolean R_CalcModelLighting(entity_t *e, model_t *clmodel)
 			shadelight[i] /= 200.0/255;
 			ambientlight[i] /= 200.0/255;
 		}
+#endif
 
 		if ((e->model->flags & MF_ROTATE) && cl.hexen2pickups)
 		{
@@ -1674,6 +1683,11 @@ qboolean R_CalcModelLighting(entity_t *e, model_t *clmodel)
 	{	//overbright the models.
 		VectorScale(ambientlight, 2, e->light_avg);
 		VectorScale(shadelight, 2, e->light_range);
+	}
+	else if (1)
+	{	//calculate average and range, to allow for negative lighting dotproducts
+		VectorCopy(shadelight, e->light_avg);
+		VectorCopy(ambientlight, e->light_range);
 	}
 	else
 	{	//calculate average and range, to allow for negative lighting dotproducts

@@ -107,8 +107,7 @@ void main (void)
 	n = texture2D(s_normalmap, ntc).xyz - 0.5;
 #else
 	//apply q1-style warp, just for kicks
-	ntc.s = tc.s + sin(tc.t+e_time)*0.125;
-	ntc.t = tc.t + sin(tc.s+e_time)*0.125;
+	ntc = tc + sin(tc.ts+e_time)*0.125;
 
 	//generate the two wave patterns from the normalmap
 	n = (texture2D(s_normalmap, vec2(TXSCALE1)*tc + vec2(e_time*0.1, 0.0)).xyz);

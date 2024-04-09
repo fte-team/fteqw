@@ -948,7 +948,6 @@ int QDECL main(int argc, char **argv)
 {
 	float time, newtime, oldtime;
 	quakeparms_t	parms;
-	int i;
 
 	memset(&parms, 0, sizeof(parms));
 
@@ -974,15 +973,6 @@ int QDECL main(int argc, char **argv)
 	Host_Init (&parms);
 
 	oldtime = Sys_DoubleTime ();
-
-	for (i = 1; i < parms.argc; i++)
-	{
-		if (!parms.argv[i])
-			continue;
-		if (*parms.argv[i] == '+' || *parms.argv[i] == '-')
-			break;
-		Host_RunFile(parms.argv[i], strlen(parms.argv[i]), NULL);
-	}
 
 //client console should now be initialized.
 

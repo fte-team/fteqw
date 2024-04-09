@@ -265,8 +265,8 @@ static struct {
 	{"logrcon",		" frags"},
 };
 
-void Log_Logfile_f (void)
-{
+static void Log_Logfile_f (void)
+{	//these legacy commands are just toggles. not args (other than the commandname to know which log type to toggle)
 	size_t logtype;
 	const char *cmd = Cmd_Argv(0);
 	for (logtype = 0; logtype < countof(legacylog); logtype++)
@@ -293,7 +293,7 @@ void Log_Logfile_f (void)
 		else
 			f = va("%s.log", f);
 
-		if (FS_NativePath(f, log_root, syspath, sizeof(syspath)))
+		if (FS_DisplayPath(f, log_root, syspath, sizeof(syspath)))
 			Con_Printf("%s", va("Logging%s to %s\n", legacylog[logtype].desc, syspath));
 		else
 			Con_Printf("%s", va("Logging%s to %s\n", legacylog[logtype].desc, f));
@@ -301,44 +301,6 @@ void Log_Logfile_f (void)
 	}
 
 }
-/*
-void SV_Fraglogfile_f (void)
-{
-	char	name[MAX_QPATH];
-	int		i;
-
-	if (sv_fraglogfile)
-	{
-		Con_TPrintf ("Frag file logging off.\n");
-		VFS_CLOSE (sv_fraglogfile);
-		sv_fraglogfile = NULL;
-		return;
-	}
-
-	// find an unused name
-	for (i=0 ; i<1000 ; i++)
-	{
-		sprintf (name, "frag_%i.log", i);
-		sv_fraglogfile = FS_OpenVFS(name, "rb", FS_GAME);
-		if (!sv_fraglogfile)
-		{	// can't read it, so create this one
-			sv_fraglogfile = FS_OpenVFS (name, "wb", FS_GAME);
-			if (!sv_fraglogfile)
-				i=1000;	// give error
-			break;
-		}
-		VFS_CLOSE (sv_fraglogfile);
-	}
-	if (i==1000)
-	{
-		Con_TPrintf ("Can't open any logfiles.\n");
-		sv_fraglogfile = NULL;
-		return;
-	}
-
-	Con_TPrintf ("Logging frags to %s.\n", name);
-}
-*/
 #endif
 
 #ifdef IPLOG
@@ -605,10 +567,10 @@ static int IPLog_Dump(const char *fname)
 }
 static void IPLog_Dump_f(void)
 {
-	char native[MAX_OSPATH];
+	char displaypath[MAX_OSPATH];
 	const char *fname = Cmd_Argv(1);
-	if (FS_NativePath(fname, FS_GAMEONLY, native, sizeof(native)))
-		Q_strncpyz(native, fname, sizeof(native));
+	if (FS_DisplayPath(fname, FS_GAMEONLY, displaypath, sizeof(displaypath)))
+		Q_strncpyz(displaypath, fname, sizeof(displaypath));
 	IPLog_Merge_File(fname);	//merge from the existing file, so that we're hopefully more robust if multiple processes are poking the same file.
 	switch (IPLog_Dump(fname))
 	{
@@ -617,7 +579,7 @@ static void IPLog_Dump_f(void)
 		break;
 	default:
 	case 1:
-		Con_Printf("wrote %s\n", native);
+		Con_Printf("wrote %s\n", displaypath);
 		break;
 	case 2:
 		Con_Printf("nothing to write\n");
@@ -814,7 +776,7 @@ qboolean CertLog_ConnectOkay(const char *hostname, void *cert, size_t certsize, 
 		//(but do pin so we at least know when its MITMed after the fact)
 		Con_Printf(CON_WARNING"Auto-Pinning certificate for %s."CON_DEFAULT" ^[/seta %s 2^]+ for actual security.\n", hostname, net_enable_dtls.name);
 		if (certsize)
-			Base64_EncodeBlockURI(digest, CalcHash(&hash_sha1, digest, sizeof(digest), cert, certsize), fp, sizeof(fp));
+			Base64_EncodeBlockURI(digest, CalcHash(&hash_certfp, digest, sizeof(digest), cert, certsize), fp, sizeof(fp));
 		else
 			strcpy(fp, "<No Certificate>");
 		Con_Printf(S_COLOR_GRAY"  fp: %s\n", fp);
@@ -824,7 +786,7 @@ qboolean CertLog_ConnectOkay(const char *hostname, void *cert, size_t certsize, 
 	else if (!l || l->certsize != certsize || memcmp(l->cert, cert, certsize) || (trusted && !l->trusted))
 	{	//new or different
 		if (certsize)
-			Base64_EncodeBlockURI(digest, CalcHash(&hash_sha1, digest, sizeof(digest), cert, certsize), fp, sizeof(fp));
+			Base64_EncodeBlockURI(digest, CalcHash(&hash_certfp, digest, sizeof(digest), cert, certsize), fp, sizeof(fp));
 		else
 			strcpy(fp, "<No Certificate>");
 		if (qrenderer)
@@ -1062,9 +1024,8 @@ void Log_Init(void)
 		Cvar_Register (&log_enable[i], CONLOGGROUP);
 		Cvar_Register (&log_name[i], CONLOGGROUP);
 		log_newline[i] = true;
-#ifdef IPLOG
-		Cmd_AddCommand(legacylog[i].commandname, IPLog_Merge_f);
-#endif
+
+		Cmd_AddCommand(legacylog[i].commandname, Log_Logfile_f);
 	}
 	Cvar_Register (&log_dir_var, CONLOGGROUP);
 	Cvar_Register (&log_readable, CONLOGGROUP);

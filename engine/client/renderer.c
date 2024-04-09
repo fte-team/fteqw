@@ -161,8 +161,9 @@ cvar_t r_fb_bmodels							= CVARAFD("r_fb_bmodels", "1",
 													"gl_fb_bmodels", CVAR_SEMICHEAT|CVAR_RENDERERLATCH, "Enables loading lumas on the map, as well as any external bsp models.");
 cvar_t r_fb_models							= CVARAFD  ("r_fb_models", "1",
 													"gl_fb_models", CVAR_SEMICHEAT, "Enables the use of lumas on models. Note that if ruleset_allow_fbmodels is enabled, then all models are unconditionally fullbright in deathmatch, because cheaters would set up their models like that anyway, hurrah for beating them at their own game. QuakeWorld players suck.");
-cvar_t r_skin_overlays						= CVARF  ("r_skin_overlays", "1",
-													CVAR_SEMICHEAT|CVAR_RENDERERLATCH);
+cvar_t gl_overbright_models					= CVARFD("gl_overbright_models", "0", CVAR_SEMICHEAT|CVAR_ARCHIVE, "Doubles the brightness of models, to match QuakeSpasm's misfeature of the same name.");
+//cvar_t r_skin_overlays						= CVARF  ("r_skin_overlays", "1",
+//													CVAR_SEMICHEAT|CVAR_RENDERERLATCH);
 cvar_t r_globalskin_first					= CVARFD  ("r_globalskin_first", "100", CVAR_RENDERERLATCH, "Specifies the first .skin value that is a global skin. Entities within this range will use the shader/image called 'gfx/skinSKIN.lmp' instead of their regular skin. See also: r_globalskin_count.");
 cvar_t r_globalskin_count					= CVARFD  ("r_globalskin_count", "10", CVAR_RENDERERLATCH, "Specifies how many globalskins there are.");
 cvar_t r_coronas							= CVARFD ("r_coronas", "0",	CVAR_ARCHIVE, "Draw coronas on realtime lights. Overrides glquake-esque flashblends.");
@@ -322,6 +323,8 @@ cvar_t vid_dpi_y							= CVARFD ("vid_dpi_y", "0", CVAR_NOSET, "For mods that ne
 cvar_t	r_stereo_separation					= CVARD("r_stereo_separation", "4", "How far apart your eyes are, in quake units. A non-zero value will enable stereoscoping rendering. You might need some of them retro 3d glasses. Hardware support is recommended, see r_stereo_context.");
 cvar_t	r_stereo_convergence				= CVARD("r_stereo_convergence", "0", "Nudges the angle of each eye inwards when using stereoscopic rendering.");
 cvar_t	r_stereo_method						= CVARFD("r_stereo_method", "0", CVAR_ARCHIVE, "Value 0 = Off.\nValue 1 = Attempt hardware acceleration. Requires vid_restart.\nValue 2 = red/cyan.\nValue 3 = red/blue.\nValue 4=red/green.\nValue 5=eye strain.");
+
+cvar_t	r_xflip = CVAR("leftisright", "0");
 
 extern cvar_t r_dodgytgafiles;
 extern cvar_t r_dodgypcxfiles;
@@ -580,10 +583,6 @@ void GLRenderer_Init(void)
 	Cvar_Register (&gl_motionblurscale, GLRENDEREROPTIONS);
 
 	Cvar_Register (&gl_smoothcrosshair, GRAPHICALNICETIES);
-
-#ifdef R_XFLIP
-	Cvar_Register (&r_xflip, GLRENDEREROPTIONS);
-#endif
 
 //	Cvar_Register (&gl_lightmapmode, GLRENDEREROPTIONS);
 
@@ -943,6 +942,7 @@ void Renderer_Init(void)
 	Cvar_Register (&scr_allowsnap, SCREENOPTIONS);
 	Cvar_Register (&scr_consize, SCREENOPTIONS);
 	Cvar_Register (&scr_centersbar, SCREENOPTIONS);
+	Cvar_Register (&r_xflip, GLRENDEREROPTIONS);
 
 	Cvar_Register(&r_bloodstains, GRAPHICALNICETIES);
 
@@ -1002,8 +1002,9 @@ void Renderer_Init(void)
 
 	Cvar_Register (&r_fb_bmodels, GRAPHICALNICETIES);
 	Cvar_Register (&r_fb_models, GRAPHICALNICETIES);
+	Cvar_Register (&gl_overbright_models, GRAPHICALNICETIES);
 //	Cvar_Register (&r_fullbrights, GRAPHICALNICETIES);	//dpcompat: 1 if r_fb_bmodels&&r_fb_models
-	Cvar_Register (&r_skin_overlays, GRAPHICALNICETIES);
+//	Cvar_Register (&r_skin_overlays, GRAPHICALNICETIES);
 	Cvar_Register (&r_globalskin_first, GRAPHICALNICETIES);
 	Cvar_Register (&r_globalskin_count, GRAPHICALNICETIES);
 	Cvar_Register (&r_shadows, GRAPHICALNICETIES);
@@ -1824,7 +1825,7 @@ TRACE(("dbg: R_ApplyRenderer: starting on client state\n"));
 TRACE(("dbg: R_ApplyRenderer: reloading ALL models\n"));
 		for (i=1 ; i<MAX_PRECACHE_MODELS ; i++)
 		{
-			if (!cl.model_name[i][0])
+			if (!cl.model_name[i])
 				break;
 
 			TRACE(("dbg: R_ApplyRenderer: reloading model %s\n", cl.model_name[i]));
@@ -1846,7 +1847,7 @@ TRACE(("dbg: R_ApplyRenderer: reloading ALL models\n"));
 #ifdef HAVE_LEGACY
 		for (i=0; i < MAX_VWEP_MODELS; i++)
 		{
-			if (*cl.model_name_vwep[i])
+			if (cl.model_name_vwep[i])
 				cl.model_precache_vwep[i] = Mod_ForName (cl.model_name_vwep[i], MLV_SILENT);
 			else
 				cl.model_precache_vwep[i] = NULL;
@@ -2201,7 +2202,8 @@ void R_RestartRenderer (rendererstate_t *newr)
 	rendererstate_t oldr;
 	if (r_blockvidrestart)
 	{
-		Con_TPrintf("Ignoring vid_restart from config\n");
+		if (r_blockvidrestart != 2)
+			Con_TPrintf("Unable to restart renderer at this time\n");
 		return;
 	}
 
@@ -2323,6 +2325,13 @@ void R_RestartRenderer_f (void)
 {
 	double time;
 	rendererstate_t newr;
+
+	if (r_blockvidrestart)
+	{
+		if (r_blockvidrestart!=2)
+			Con_TPrintf("Ignoring vid_restart from config\n");
+		return;
+	}
 
 	Cvar_ApplyLatches(CVAR_VIDEOLATCH|CVAR_RENDERERLATCH, false);
 	if (!R_BuildRenderstate(&newr, vid_renderer.string))
@@ -2557,72 +2566,6 @@ mspriteframe_t *R_GetSpriteFrame (entity_t *currententity)
 
 	return pspriteframe;
 }
-
-/*
-void MYgluPerspective(double fovx, double fovy, double zNear, double zFar)
-{
-	Matrix4_Projection_Far(r_refdef.m_projection, fovx, fovy, zNear, zFar);
-}
-
-void GL_InfinatePerspective(double fovx, double fovy,
-		     double zNear)
-{
-	// nudge infinity in just slightly for lsb slop
-    float nudge = 1;// - 1.0 / (1<<23);
-
-	double xmin, xmax, ymin, ymax;
-
-	ymax = zNear * tan( fovy * M_PI / 360.0 );
-	ymin = -ymax;
-
-	xmax = zNear * tan( fovx * M_PI / 360.0 );
-	xmin = -xmax;
-
-	r_projection_matrix[0] = (2*zNear) / (xmax - xmin);
-	r_projection_matrix[4] = 0;
-	r_projection_matrix[8] = (xmax + xmin) / (xmax - xmin);
-	r_projection_matrix[12] = 0;
-
-	r_projection_matrix[1] = 0;
-	r_projection_matrix[5] = (2*zNear) / (ymax - ymin);
-	r_projection_matrix[9] = (ymax + ymin) / (ymax - ymin);
-	r_projection_matrix[13] = 0;
-
-	r_projection_matrix[2] = 0;
-	r_projection_matrix[6] = 0;
-	r_projection_matrix[10] = -1  * nudge;
-	r_projection_matrix[14] = -2*zNear * nudge;
-
-	r_projection_matrix[3] = 0;
-	r_projection_matrix[7] = 0;
-	r_projection_matrix[11] = -1;
-	r_projection_matrix[15] = 0;
-}
-
-void GL_ParallelPerspective(double xmin, double xmax, double ymax, double ymin,
-		     double znear, double zfar)
-{
-	r_projection_matrix[0] = 2/(xmax-xmin);
-	r_projection_matrix[4] = 0;
-	r_projection_matrix[8] = 0;
-	r_projection_matrix[12] = (xmax+xmin)/(xmax-xmin);
-
-	r_projection_matrix[1] = 0;
-	r_projection_matrix[5] = 2/(ymax-ymin);
-	r_projection_matrix[9] = 0;
-	r_projection_matrix[13] = (ymax+ymin)/(ymax-ymin);
-
-	r_projection_matrix[2] = 0;
-	r_projection_matrix[6] = 0;
-	r_projection_matrix[10] = -2/(zfar-znear);
-	r_projection_matrix[14] = (zfar+znear)/(zfar-znear);
-
-	r_projection_matrix[3] = 0;
-	r_projection_matrix[7] = 0;
-	r_projection_matrix[11] = 0;
-	r_projection_matrix[15] = 1;
-}
-*/
 
 
 /*

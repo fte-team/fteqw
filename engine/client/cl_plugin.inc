@@ -638,7 +638,6 @@ static void QDECL Plug_GetServerInfoRaw(char *outptr, size_t outlen)
 	case DPB_NONE:
 		break;
 	case DPB_MVD:
-	case DPB_EZTV:
 		Q_strncatz(outptr, "\\demotype\\mvd", outlen);
 		break;
 	case DPB_QUAKEWORLD:
@@ -692,7 +691,6 @@ static size_t QDECL Plug_GetServerInfoBlob(const char *key, void *outptr, size_t
 			case DPB_NONE:
 				break;
 			case DPB_MVD:
-			case DPB_EZTV:
 				blob = "mvd";
 				break;
 			case DPB_QUAKEWORLD:
@@ -888,7 +886,7 @@ static size_t QDECL Plug_GetTeamInfo(teamplayerinfo_t *players, size_t maxplayer
 			players->health = cl.playerview[seat].statsf[STAT_HEALTH];
 			Q_strncpyz(players->nick, "", sizeof(players->nick));
 		}
-		else if (cls.demoplayback == DPB_MVD || cls.demoplayback == DPB_EZTV)
+		else if (cls.demoplayback == DPB_MVD)
 		{	//scrape it from the mvd (assuming there is one...
 			players->items = cl.players[i].stats[STAT_ITEMS];
 			players->armor = cl.players[i].statsf[STAT_ARMOR];

@@ -20,6 +20,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "quakedef.h"
 #include "pr_common.h"
 #include "fs.h"
+#include "netinc.h"
 
 #ifndef CLIENTONLY
 
@@ -495,6 +496,8 @@ static void SV_MapList_f(void)
 {
 	searchpathfuncs_t *spath = NULL;
 	COM_EnumerateFilesReverse("maps/*.*", ShowMapList, &spath);
+	COM_EnumerateFilesReverse("maps/*/*.*", ShowMapList, &spath);
+	COM_EnumerateFilesReverse("maps/*/*/*.*", ShowMapList, &spath);
 }
 
 static int QDECL CompleteMapList (const char *name, qofs_t flags, time_t mtime, void *parm, searchpathfuncs_t *spath)
@@ -567,7 +570,7 @@ static void SV_Map_c(int argn, const char *partial, struct xcommandargcompletion
 	}
 }
 
-#if defined(HAVE_CLIENT) && defined(WEBCLIENT)
+#ifdef WEBCLIENT
 static char *uri_escape(const char *in, char *out, size_t outsize)
 {
 	static const char *hex = "0123456789ABCDEF";
@@ -591,35 +594,79 @@ static char *uri_escape(const char *in, char *out, size_t outsize)
 	*o = 0;
 	return out;
 }
+static void SV_Map_DownloadCanceled(const char *mapname)
+{
+#ifdef HAVE_SERVER
+	if (SSV_IsSubServer() && !sv.state)	//subservers don't leave defunct servers with no maps lying around.
+		Cbuf_AddText("\nquit\n", RESTRICT_LOCAL);
+	if (isDedicated && !sv.state && !COM_CheckParm("-allowmapless"))
+		SV_Error (CON_ERROR"Couldn't download map %s.", mapname);
+#endif
+#ifdef HAVE_CLIENT
+	SCR_SetLoadingStage(LS_NONE);
+#endif
+}
 static void SV_Map_Downloaded(struct dl_download *dl)
 {
+	char buf[1024];
+#ifdef HAVE_CLIENT
 	SCR_SetLoadingStage(LS_NONE);
+#endif
 	if (dl->status == DL_FINISHED)
 	{
-		char buf[1024];
 		Cbuf_AddText(va("map %s\n", COM_QuotedString(dl->user_ctx, buf, sizeof(buf), false)), RESTRICT_LOCAL);
 	}
 	else
-		Con_Printf("Unable to download\n");
+	{
+		Con_Printf("Unable to download map %s\n", COM_QuotedString(dl->user_ctx, buf, sizeof(buf), false));
+		SV_Map_DownloadCanceled(dl->user_ctx);
+	}
 	Z_Free(dl->user_ctx);
 }
 extern cvar_t cl_download_mapsrc;
+static qboolean SV_Map_DownloadStart(char *mapname/*must be duped*/)
+{
+	char buf[512];
+	struct dl_download *dl = HTTP_CL_Get(va("%s%s.bsp", cl_download_mapsrc.string, uri_escape(mapname, buf, sizeof(buf))), va("maps/%s.bsp", mapname), SV_Map_Downloaded);
+	if (dl)
+	{
+		dl->user_ctx = mapname;
+		DL_CreateThread(dl, NULL, NULL);	//allows it to run at its own rate. yay speedups.
+		return true;
+	}
+	Z_Free(mapname);
+	return false;
+}
+#ifdef HAVE_CLIENT
 static void SV_Map_DownloadPrompted(void *ctx, promptbutton_t buttn)
 {
-	const char *mapname=ctx;
 	if (buttn == PROMPT_YES)
 	{
-		char buf[512];
-		struct dl_download *dl = HTTP_CL_Get(va("%s%s.bsp", cl_download_mapsrc.string, uri_escape(mapname, buf, sizeof(buf))), va("maps/%s.bsp", mapname), SV_Map_Downloaded);
-		if (dl)
-		{
-			dl->user_ctx = ctx;
-			DL_CreateThread(dl, NULL, NULL);	//allows it to run at its own rate. yay speedups.
+		if (SV_Map_DownloadStart(ctx))
 			return;
-		}
+		SV_Map_DownloadCanceled(ctx);
 	}
-	SCR_SetLoadingStage(LS_NONE);
-	Z_Free(ctx);
+	else
+	{
+		SV_Map_DownloadCanceled(ctx);
+		Z_Free(ctx);
+	}
+}
+#endif
+static qboolean SV_Map_DownloadPrompt(const char *mapname)
+{
+#ifdef HAVE_SERVER
+	if (isDedicated)
+	{
+		return SV_Map_DownloadStart(Z_StrDup(mapname));
+	}
+#endif
+#ifdef HAVE_CLIENT
+	Menu_Prompt(SV_Map_DownloadPrompted, Z_StrDup(mapname), va(localtext("Download map %s from "S_COLOR_BLUE "%s" S_COLOR_WHITE"?"), mapname, cl_download_mapsrc.string), "Download", NULL, "Cancel", true);
+	return true;
+#else
+	return false;
+#endif
 }
 #endif
 
@@ -944,15 +991,15 @@ void SV_Map_f (void)
 			{
 #ifdef HAVE_CLIENT
 				SCR_SetLoadingStage(LS_NONE);
+#endif
 #ifdef WEBCLIENT
 				if (*cl_download_mapsrc.string &&
-					!strcmp(cmd, "map") && !startspot &&
-					!isDedicated && Cmd_ExecLevel==RESTRICT_LOCAL && !strchr(level, '.'))
+						!strcmp(cmd, "map") && !startspot &&
+						Cmd_ExecLevel==RESTRICT_LOCAL && !strchr(level, '.'))
 				{
-					Menu_Prompt(SV_Map_DownloadPrompted, Z_StrDup(level), va(localtext("Download map %s from "S_COLOR_BLUE "%s" S_COLOR_WHITE"?"), level, cl_download_mapsrc.string), "Download", NULL, "Cancel", true);
-					return;
+					if (SV_Map_DownloadPrompt(level))
+						return;
 				}
-#endif
 #endif
 
 				// FTE is still a Quake engine so report BSP missing
@@ -2287,14 +2334,39 @@ static void SV_Status_f (void)
 		if (sv_listen_q3.ival) Con_Printf(" Q3");
 #endif
 #ifdef HAVE_DTLS
-		if (net_enable_dtls.ival >= 3)
-			Con_TPrintf(" ^[DTLS-only\\tip\\Insecure clients (those without support for DTLS) will be barred from connecting.^]");
-		else if (net_enable_dtls.ival)
-			Con_TPrintf(" ^[DTLS\\tip\\Clients may optionally connect via DTLS for added security^]");
+		if (svs.sockets && svs.sockets->dtlsfuncs)
+		{
+			if (net_enable_dtls.ival >= 3)
+				Con_TPrintf(" ^[DTLS-only\\tip\\Insecure clients (those without support for DTLS) will be barred from connecting.^]");
+			else if (net_enable_dtls.ival)
+				Con_TPrintf(" ^[DTLS\\tip\\Clients may optionally connect via DTLS for added security^]");
+		}
 #endif
 		Con_Printf("\n");
 #if defined(TCPCONNECT) && !defined(CLIENTONLY)
 		Con_TPrintf("tcp services     :");
+
+		if (svs.sockets)
+		{
+			int i, m;
+			netadr_t	addr[64];
+			struct ftenet_generic_connection_s			*con[sizeof(addr)/sizeof(addr[0])];
+			int			flags[sizeof(addr)/sizeof(addr[0])];
+			const char *params[sizeof(addr)/sizeof(addr[0])];
+			m = NET_EnumerateAddresses(svs.sockets, con, flags, addr, params, sizeof(addr)/sizeof(addr[0]));
+			for (i = 0; i < m; i++)
+			{
+				if (!con[i]->islisten)
+					continue;	//wut?
+				if (addr[i].prot == NP_STREAM)
+					break;
+			}
+			if (i == m)
+			{
+				Con_Printf(S_COLOR_GRAY" <No TCP ports open>\n");
+				break;
+			}
+		}
 #if defined(HAVE_SSL)
 		if (net_enable_tls.ival)
 			Con_TPrintf(" ^[TLS\\tip\\Clients are able to connect with Transport Layer Security for the other services, allowing for the use of tls://, wss:// or https:// schemes when their underlaying protocol is enabled.^]");
@@ -2356,7 +2428,10 @@ static void SV_Status_f (void)
 		if (count!=1)
 			Con_TPrintf("particles        : %i/%i\n", count, MAX_SSPARTICLESPRE);
 	}
-	Con_TPrintf("gamedir          : %s\n", FS_GetGamedir(true));
+	if (!strcmp(FS_GetGamedir(true), InfoBuf_ValueForKey(&svs.info, "*gamedir")))
+		Con_TPrintf("gamedir          : %s\n", FS_GetGamedir(true));
+	else
+		Con_TPrintf("gamedir          : %s"S_COLOR_GRAY" (%s)\n", FS_GetGamedir(true), InfoBuf_ValueForKey(&svs.info, "*gamedir"));
 	if (sv_csqcdebug.ival)
 		Con_TPrintf("csqc debug       : true\n");
 #ifdef MVD_RECORDING
@@ -2872,7 +2947,7 @@ void SV_User_f (void)
 		if (certsize <= 0)
 			strcpy(buf, "<no certificate>");
 		else
-			Base64_EncodeBlockURI(digest,CalcHash(&hash_sha1, digest, sizeof(digest), buf, certsize), buf, sizeof(buf));
+			Base64_EncodeBlockURI(digest,CalcHash(&hash_certfp, digest, sizeof(digest), buf, certsize), buf, sizeof(buf));
 		Con_Printf("fp: %s\n", buf);
 		if (NET_GetConnectionCertificate(svs.sockets, &cl->netchan.remote_address, QCERT_PEERSUBJECT, buf, sizeof(buf)) < 0)
 			strcpy(buf, "<unavailable>");

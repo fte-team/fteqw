@@ -633,7 +633,7 @@ void CL_CalcClientTime(void)
 		//qw code can drift (but oh noes! my latency!)
 		//FIXME: nq code should be able to drift, but is apparently buggy somewhere and ends up uncomfortably stuttery right now.
 		//default is to drift in demos+SP but not live (oh noes! added latency!)
-		if (cls.protocol == CP_QUAKE2 || cls.protocol==CP_NETQUAKE/*FIXME*/ || (cls.protocol != CP_QUAKE3 && (!cl_lerp_smooth.ival || (cl_lerp_smooth.ival == 2 && !(cls.demoplayback || cl.allocated_client_slots == 1 || cl.playerview[0].spectator))) && cls.demoplayback != DPB_MVD))
+		if (cls.protocol == CP_QUAKE2 || cls.protocol==CP_NETQUAKE/*FIXME*/ || (cls.protocol != CP_QUAKE3 && (!cl_lerp_smooth.ival || (cl_lerp_smooth.ival == 2 && !(cls.demoplayback || cl.allocated_client_slots == 1 || cl.playerview[0].spectator))) && cls.demoplayback!=DPB_MVD))
 		{	//no drift logic
 			double f;
 			extern cvar_t cl_demospeed;
@@ -1018,7 +1018,7 @@ void CL_PredictMovePNum (int seat)
 	}
 #endif
 
-	if (cl.paused && !(cls.demoplayback!=DPB_MVD && cls.demoplayback!=DPB_EZTV) && pv->cam_state == CAM_FREECAM)
+	if (cl.paused && !(cls.demoplayback!=DPB_MVD) && pv->cam_state == CAM_FREECAM)
 		return;
 
 	if (!cl.validsequence)
@@ -1086,7 +1086,7 @@ void CL_PredictMovePNum (int seat)
 		nopred = true;
 
 	//these things also force-disable prediction
-	if ((cls.demoplayback==DPB_MVD || cls.demoplayback == DPB_EZTV) ||
+	if (cls.demoplayback==DPB_MVD ||
 		cl.intermissionmode != IM_NONE || cl.paused || pv->pmovetype == PM_NONE || pv->pmovetype == PM_FREEZE || CAM_ISLOCKED(pv))
 	{
 		nopred = true;
@@ -1169,7 +1169,7 @@ void CL_PredictMovePNum (int seat)
 	}
 	else
 	{
-		if (cls.demoplayback==DPB_MVD || cls.demoplayback == DPB_EZTV)
+		if (cls.demoplayback==DPB_MVD)
 		{
 			pv->nolocalplayer = false;
 			from.state = &cl.inframes[cl.ackedmovesequence & UPDATE_MASK].playerstate[pv->playernum];

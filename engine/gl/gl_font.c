@@ -2616,12 +2616,18 @@ struct font_s *Font_LoadFont(const char *fontfilename, float vheight, float scal
 
 			if (!success && !TEXLOADED(f->singletexture) && *start)
 			{
-				f->singletexture = R_LoadHiResTexture(start, "fonts:charsets", IF_PREMULTIPLYALPHA|(r_font_linear.ival?IF_LINEAR:IF_NEAREST)|IF_UIPIC|IF_NOPICMIP|IF_NOMIPMAP|IF_NOPURGE|IF_LOADNOW);
-				if (f->singletexture->status == TEX_LOADING)
-					COM_WorkerPartialSync(f->singletexture, &f->singletexture->status, TEX_LOADING);
+				const char *ext = COM_GetFileExtension(start, NULL);
+				if (!Q_strcasecmp(ext, ".ttf") || !Q_strcasecmp(ext, ".otf"))
+					;	//no, don't try loading it as an image-based font. just let it fail.
+				else
+				{
+					f->singletexture = R_LoadHiResTexture(start, "fonts:charsets", IF_PREMULTIPLYALPHA|(r_font_linear.ival?IF_LINEAR:IF_NEAREST)|IF_UIPIC|IF_NOPICMIP|IF_NOMIPMAP|IF_NOPURGE|IF_LOADNOW);
+					if (f->singletexture->status == TEX_LOADING)
+						COM_WorkerPartialSync(f->singletexture, &f->singletexture->status, TEX_LOADING);
 
-				if (!TEXLOADED(f->singletexture) && f->faces < MAX_FACES)
-					Font_LoadFontLump(f, start);
+					if (!TEXLOADED(f->singletexture) && f->faces < MAX_FACES)
+						Font_LoadFontLump(f, start);
+				}
 			}
 
 			if (end)

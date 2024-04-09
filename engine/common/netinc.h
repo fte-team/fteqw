@@ -394,7 +394,7 @@ typedef struct ftecrypto_s
 	const struct dtlsfuncs_s *(*DTLS_InitServer)(void);	//returns NULL if there's no cert available.
 
 	//digital signature stuff. note: uses sha2_512
-	enum hashvalidation_e (*VerifyHash)(const qbyte *hashdata, size_t hashsize, const qbyte *certdata, size_t certsize, const qbyte *signdata, size_t signsize);
+	enum hashvalidation_e (*VerifyHash)(const qbyte *hashdata, size_t hashsize, const qbyte *certdata, size_t certsize, const qbyte *signdata, size_t signsize); //expect the cert in PEM format.
 	int (*GenerateSignature)(const qbyte *hashdata, size_t hashsize, qbyte *signdata, size_t signsizemax);
 } ftecrypto_t;
 #define cryptolib_count 6
@@ -448,8 +448,8 @@ enum icemsgtype_s
 	ICEMSG_PEERLOST=0,	//other side dropped connection
 	ICEMSG_GREETING=1,	//master telling us our unique game name
 	ICEMSG_NEWPEER=2,	//relay established, send an offer now.
-	ICEMSG_OFFER=3,		//peer's initial details
-	ICEMSG_CANDIDATE=4,	//candidate updates. may arrive late as new ones are discovered.
+	ICEMSG_OFFER=3,		//peer->peer - peer's offer or answer details
+	ICEMSG_CANDIDATE=4,	//peer->peer - candidate updates. may arrive late as new ones are discovered.
 	ICEMSG_ACCEPT=5,	//go go go (response from offer)
 	ICEMSG_SERVERINFO=6,//server->broker (for advertising the server properly)
 	ICEMSG_SERVERUPDATE=7,//broker->browser (for querying available server lists)

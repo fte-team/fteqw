@@ -137,18 +137,20 @@ endif
 ifneq (,$(findstring DLINK_QUAKE3,$(FTE_CONFIG_EXTRA)))
     LINK_QUAKE3=1
 endif
+ifeq ($(findstring web,$(FTE_TARGET)),)	#the web target uses javascript/browser loaders for common audio+image files instead of needing to embed our own, which keeps sizes down slightly.
 ifeq (,$(findstring DNO_VORBISFILE,$(FTE_CONFIG_EXTRA)))
     USE_VORBISFILE=1
-endif
-ifneq (,$(findstring DLINK_FREETYPE,$(FTE_CONFIG_EXTRA)))
-    LINK_FREETYPE=1
-    LINK_ZLIB=1
-    LINK_PNG=1
 endif
 ifneq (,$(findstring DLINK_JPEG,$(FTE_CONFIG_EXTRA)))
     LINK_JPEG=1
 endif
 ifneq (,$(findstring DLINK_PNG,$(FTE_CONFIG_EXTRA)))
+    LINK_ZLIB=1
+    LINK_PNG=1
+endif
+endif
+ifneq (,$(findstring DLINK_FREETYPE,$(FTE_CONFIG_EXTRA)))
+    LINK_FREETYPE=1
     LINK_ZLIB=1
     LINK_PNG=1
 endif
@@ -163,6 +165,12 @@ endif
 ifneq (,$(findstring DLINK_INTERNAL_BULLET,$(FTE_CONFIG_EXTRA)))
 	#bullet plugin will be built into the exe itself
     INTERNAL_BULLET=1
+endif
+ifneq (,$(findstring DLINK_EZHUD,$(FTE_CONFIG_EXTRA)))
+    LINK_EZHUD=1
+endif
+ifneq (,$(findstring DLINK_OPENSSL,$(FTE_CONFIG_EXTRA)))
+    LINK_OPENSSL=1
 endif
 
 ifeq ($(BITS),64)
@@ -249,8 +257,9 @@ DO_CMAKE=cmake -DCMAKE_C_COMPILER="$(firstword $(CC))" -DCMAKE_C_FLAGS="$(wordli
 
 ifeq ($(DROID_ARCH),)
 	#armeabi armeabi-v7a arm64-v8a x86 x86_64 mips mips64
-	DROID_ARCH=armeabi-v7a
-	DROID_ARCH+=x86
+	DROID_ARCH+=armeabi-v7a	#old 32bit android. yucky.
+	DROID_ARCH+=arm64-v8a	#modern android devices are 64bit-only. urgh.
+	DROID_ARCH+=x86			#mostly for testing...
 	#DROID_ARCH+=x86_64	#starting with DROID_API_LEVEL 21
 endif
 ifeq ($(FTE_TARGET),droid)
@@ -632,8 +641,6 @@ ifeq (win,$(findstring cyg,$(FTE_TARGET))$(findstring win,$(FTE_TARGET)))
 #	OGGVORBISLDFLAGS=$(MINGW_LIBS_DIR)/libvorbisfile.a $(MINGW_LIBS_DIR)/libvorbis.a $(MINGW_LIBS_DIR)/libogg.a
 endif
 
-OGGVORBISLDFLAGS ?= -lvorbisfile -lvorbis -logg
-
 #BASELDFLAGS=-lm  -lz
 XLDFLAGS=-L$(ARCHLIBS) $(IMAGELDFLAGS)
 
@@ -987,8 +994,8 @@ ifeq (1,$(LINK_QUAKE3))
 		l_struct.o	
 endif
 
-COMMONLIBFLAGS=
-COMMONLDDEPS=
+COMMONLIBFLAGS?=
+COMMONLDDEPS?=
 CLIENTLIBFLAGS=$(COMMONLIBFLAGS) $(LIBOPUS_STATIC) $(LIBSPEEX_STATIC) $(OGGVORBISFILE_STATIC)
 SERVERLIBFLAGS=$(COMMONLIBFLAGS)
 CLIENTLDDEPS=$(COMMONLDDEPS) $(LIBOPUS_LDFLAGS) $(LIBSPEEX_LDFLAGS) $(OGGVORBISLDFLAGS)
@@ -997,14 +1004,17 @@ ifeq (1,$(USE_OPUS))
     LIBOPUS_STATIC=-DOPUS_STATIC
     LIBOPUS_LDFLAGS=-lopus
     ALL_CFLAGS+=-I/usr/include/opus
+    MAKELIBS+=libs-$(ARCH)/libopus.a
 endif
 ifeq (1,$(USE_SPEEX))
     LIBSPEEX_STATIC=-DSPEEX_STATIC
     LIBSPEEX_LDFLAGS=-lspeex -lspeexdsp
+    MAKELIBS+=libs-$(ARCH)/libspeex.a libs-$(ARCH)/libspeexdsp.a
 endif
 
 ifeq (1,$(USE_VORBISFILE))
     OGGVORBISFILE_STATIC=-DLIBVORBISFILE_STATIC
+    OGGVORBISLDFLAGS ?= -lvorbisfile -lvorbis -logg
 else
     OGGVORBISLDFLAGS=
     OGGVORBISFILE_STATIC=
@@ -1062,6 +1072,34 @@ ifeq (1,$(strip $(INTERNAL_BULLET)))
     LDCC=$(CXX)
     MAKELIBS+=libs-$(ARCH)/libBulletDynamics.a
 endif
+ifeq (1,$(LINK_EZHUD))
+    VPATH := $(VPATH) : $(BASE_DIR)/../plugins/ezhud
+    ALL_CFLAGS+=-DSTATIC_EZHUD #let the plugins code know it needs to add the appropriate entry.
+    CLIENT_OBJS += \
+		ezquakeisms.o	\
+		hud.o			\
+		hud_common.o	\
+		hud_editor.o
+endif
+ifeq (1,$(LINK_OPENSSL))
+    ifeq (1,$(shell $(PKGCONFIG) --version-atleast 3 openssl && echo 1))	#must exist... and if its not openssl3 then its not gpl3-compatible so refuse to use it.
+        VPATH := $(VPATH) : $(BASE_DIR)/../plugins
+        ALL_CFLAGS+=-DSTATIC_OPENSSL #let the plugins code know it needs to add the appropriate entry.
+        COMMON_OBJS += \
+            net_ssl_openssl.o
+        ALL_DFLAGS+=$(shell $(PKGCONFIG) openssl --cflags --silence-errors)
+        COMMONLDDEPS+=$(shell $(PKGCONFIG) openssl --libs --silence-errors)
+    endif
+endif
+
+ifeq (1,$(shell $(PKGCONFIG) --exists gnutls && echo 1))
+    ALL_CFLAGS+=$(shell $(PKGCONFIG) gnutls --cflags --silence-errors)
+    #ALL_CFLAGS+=-DGNUTLS_STATIC
+    #COMMONLDDEPS+=$(shell $(PKGCONFIG) gnutls --static --libs --silence-errors)	#we soft-link, so we don't need the -lgnutls stuff.
+else
+    ALL_CFLAGS+=-DNO_GNUTLS
+endif
+
 
 #the defaults for sdl come first
 #CC_MACHINE:=$(shell $(CC) -dumpmachine)
@@ -1761,13 +1799,14 @@ ifeq ($(FTE_TARGET),web)
 	#GLCL_OBJS=$(GL_OBJS) $(D3DGL_OBJS) $(GLQUAKE_OBJS) cd_null.o
 	#GL_LDFLAGS=$(GLLDFLAGS)
 	GLB_DIR=gl_web
+	GLCL_DIR=glcl_web
 	GL_EXE_NAME=../ftewebgl.js
+	GLCL_EXE_NAME=../ftewebglcl.js
 
 	GL_LDFLAGS=$(GLLDFLAGS) $(IMAGELDFLAGS)
-	GL_CFLAGS=$(GLCFLAGS)
+	GL_CFLAGS=$(GLCFLAGS) $(CLIENTLIBFLAGS)
 
 	IMAGELDFLAGS=
-	CLIENTLDDEPS=
 	SERVERLDDEPS=
 
 	#generate deps properly
@@ -2074,17 +2113,24 @@ qccgui-scintilla: scintilla$(BITS)_static
 	@LTO= $(MAKE) _qcc-tmp TYPE=_out-rel REQDIR=reldir EXE_NAME="../fteqccgui$(BITS)" OUT_DIR="$(RELEASE_DIR)/$(QCC_DIR)scin" SOBJS="qccgui.o qccguistuff.o packager.o decomp.o fteqcc.o" WCFLAGS="$(WCFLAGS) -DSCISTATIC" LDFLAGS="$(LDFLAGS) $(RELEASE_DIR)/scintilla$(BITS).a -static -luuid -lole32 -limm32 -lstdc++ -loleaut32 -lcomdlg32 -lcomctl32 -lshlwapi -mwindows"
 
 ifdef windir
-debugdir:
+outdir:
+ifneq "$(OUT_DIR)" ""
 	@-mkdir -p "$(subst /,\, $(OUT_DIR))"
-reldir:
-	@-mkdir -p "$(subst /,\, $(OUT_DIR))"
+endif
+debugdir: outdir
+	@-mkdir -p "$(subst /,\, $(RELEASE_DIR))"
+reldir: outdir
+	@-mkdir -p "$(subst /,\, $(DEBUG_DIR))"
 else
-reldir:
+outdir:
+ifneq "$(OUT_DIR)" ""
+	@-mkdir -p "$(OUT_DIR)"
+endif
+debugdir: outdir
+reldir: outdir
 	@-mkdir -p "$(RELEASE_DIR)"
-	@-mkdir -p "$(OUT_DIR)"
-debugdir:
+debugdir: outdir
 	@-mkdir -p "$(DEBUG_DIR)"
-	@-mkdir -p "$(OUT_DIR)"
 endif
 
 plugins-dbg:
@@ -2172,15 +2218,23 @@ else
 endif
 
 web-rel:
-	@PATH="$(EMSCRIPTENPATH)" $(MAKE) gl-rel FTE_TARGET=web CC="$(EMCC)"
-	cp $(BASE_DIR)/web/fteshell.html $(RELEASE_DIR)/ftewebgl.html
+	@PATH="$(EMSCRIPTENPATH)" $(MAKE) makelibs FTE_TARGET=web CC="$(EMCC)" && PATH="$(EMSCRIPTENPATH)" $(MAKE) gl-rel FTE_TARGET=web CC="$(EMCC)"
+	@cp $(BASE_DIR)/web/fteshell.html $(RELEASE_DIR)/ftewebgl.html
 	@gzip -kf $(RELEASE_DIR)/ftewebgl.html
 	@gzip -kf $(RELEASE_DIR)/ftewebgl.js
 	@gzip -kf $(RELEASE_DIR)/ftewebgl.wasm
+webcl-rel:
+	@PATH="$(EMSCRIPTENPATH)" $(MAKE) makelibs FTE_TARGET=web CC="$(EMCC)" && PATH="$(EMSCRIPTENPATH)" $(MAKE) glcl-rel FTE_TARGET=web CC="$(EMCC)"
+	@cp $(BASE_DIR)/web/fteshell.html $(RELEASE_DIR)/ftewebglcl.html
+	@sed -i 's/ftewebgl.js/ftewebglcl.js/g' release/ftewebglcl.html	#swap out the .js filename for the client-only one.
+	@gzip -kf $(RELEASE_DIR)/ftewebglcl.html
+	@gzip -kf $(RELEASE_DIR)/ftewebglcl.js
+	@gzip -kf $(RELEASE_DIR)/ftewebglcl.wasm
+
 
 web-dbg:
 	@PATH="$(EMSCRIPTENPATH)" $(MAKE) gl-dbg FTE_TARGET=web CC="$(EMCC)"
-	cp $(BASE_DIR)/web/fteshell.html $(DEBUG_DIR)/ftewebgl.html
+	@cp $(BASE_DIR)/web/fteshell.html $(DEBUG_DIR)/ftewebgl.html
 	@gzip -kf $(DEBUG_DIR)/ftewebgl.html
 	@gzip -kf $(DEBUG_DIR)/ftewebgl.js
 	@gzip -kf $(DEBUG_DIR)/ftewebgl.wasm
@@ -2288,23 +2342,26 @@ AR?=$(ARCH)-ar
 CONFIGARGS+= -host=$(ARCH) --enable-shared=no CC="$(CC)"
 CONFIGARGS:= $(CONFIGARGS)
 #--disable-silent-rules
+OPUSCONFIGARGS=$(CONFIGARGS)
 
 TOOLOVERRIDES+=CFLAGS="$$CFLAGS -Os"
+TOOLCONGIGUREOVERRIDES=$(TOOLOVERRIDES)
+TOOLMAKEOVERRIDES=$(TOOLOVERRIDES)
+ifeq (web,$(FTE_TARGET))
+  TOOLCONFIGUREOVERRIDES=emconfigure
+  TOOLMAKEOVERRIDES=emmake
+  OPUSCONFIGARGS=--disable-rtcd --disable-hardening --enable-stack-protector=no --enable-shared=no
+  CONFIGARGS=--enable-shared=no
+endif
 
 
 libs-$(ARCH)/libjpeg.a:
 	test -f jpegsrc.v$(JPEGVER).tar.gz || wget http://www.ijg.org/files/jpegsrc.v$(JPEGVER).tar.gz
-	-test -f libs-$(ARCH)/libjpeg.a || (mkdir -p libs-$(ARCH) && cd libs-$(ARCH) && tar -xvzf ../jpegsrc.v$(JPEGVER).tar.gz && cd jpeg-$(JPEGVER) && $(TOOLOVERRIDES) ./configure $(CONFIGARGS) && $(TOOLOVERRIDES) $(MAKE) && cp .libs/libjpeg.a ../ && $(TOOLOVERRIDES) $(AR) -s ../libjpeg.a && cp jconfig.h jerror.h jmorecfg.h jpeglib.h jversion.h ../ )
+	test -f libs-$(ARCH)/libjpeg.a || (mkdir -p libs-$(ARCH) && cd libs-$(ARCH) && tar -xvzf ../jpegsrc.v$(JPEGVER).tar.gz && cd jpeg-$(JPEGVER) && $(CONFIGUREOVERRIDES) ./configure $(CONFIGARGS) && $(TOOLOVERRIDES) $(MAKE) && cp .libs/libjpeg.a ../ && $(TOOLOVERRIDES) $(AR) -s ../libjpeg.a && cp jconfig.h jerror.h jmorecfg.h jpeglib.h jversion.h ../ )
 
-ifeq ($(FTE_TARGET),web)
 libs-$(ARCH)/libz.a libs-$(ARCH)/libz.pc:
 	test -f zlib-$(ZLIBVER).tar.gz || wget http://zlib.net/fossils/zlib-$(ZLIBVER).tar.gz
-	-test -f libs-$(ARCH)/libz.a || (mkdir -p libs-$(ARCH) && cd libs-$(ARCH) && tar -xvzf ../zlib-$(ZLIBVER).tar.gz && cd zlib-$(ZLIBVER) && emconfigure ./configure --static && emmake $(MAKE) libz.a CC="$(CC) $(W32_CFLAGS) -fPIC" && cp libz.a ../ && $(TOOLOVERRIDES) $(AR) -s ../libz.a && cp zlib.h zconf.h zutil.h zlib.pc ../ )
-else
-libs-$(ARCH)/libz.a libs-$(ARCH)/libz.pc:
-	test -f zlib-$(ZLIBVER).tar.gz || wget http://zlib.net/fossils/zlib-$(ZLIBVER).tar.gz
-	-test -f libs-$(ARCH)/libz.a || (mkdir -p libs-$(ARCH) && cd libs-$(ARCH) && tar -xvzf ../zlib-$(ZLIBVER).tar.gz && cd zlib-$(ZLIBVER) && $(TOOLOVERRIDES) ./configure --static && $(TOOLOVERRIDES) $(MAKE) libz.a CC="$(CC) $(W32_CFLAGS) -fPIC" && cp libz.a ../ && $(TOOLOVERRIDES) $(AR) -s ../libz.a && cp zlib.h zconf.h zutil.h zlib.pc ../ )
-endif
+	test -f libs-$(ARCH)/libz.a || (mkdir -p libs-$(ARCH) && cd libs-$(ARCH) && tar -xvzf ../zlib-$(ZLIBVER).tar.gz && cd zlib-$(ZLIBVER) && $(TOOLCONFIGUREOVERRIDES) ./configure --static && $(TOOLMAKEOVERRIDES) $(MAKE) libz.a CC="$(CC) $(W32_CFLAGS) -fPIC" && cp libz.a ../ && $(TOOLOVERRIDES) $(AR) -s ../libz.a && cp zlib.h zconf.h zutil.h zlib.pc ../ )
 libs-$(ARCH)/libz9.a: libs-$(ARCH)/libz.a
 	(cd libs-$(ARCH)/zlib-$(ZLIBVER) && \
 		$(CC) -o contrib/infback9/infback9.o -c contrib/infback9/infback9.c -I.	&& \
@@ -2315,35 +2372,35 @@ libs-$(ARCH)/libz9.a: libs-$(ARCH)/libz.a
 
 libs-$(ARCH)/libpng.a libs-$(ARCH)/libpng.pc: libs-$(ARCH)/libz.a libs-$(ARCH)/libz.pc
 	test -f libpng-$(PNGVER).tar.gz || wget http://prdownloads.sourceforge.net/libpng/libpng-$(PNGVER).tar.gz?download -O libpng-$(PNGVER).tar.gz
-	-test -f libs-$(ARCH)/libpng.a || (mkdir -p libs-$(ARCH) && cd libs-$(ARCH) && tar -xvzf ../libpng-$(PNGVER).tar.gz && cd libpng-$(PNGVER) && $(TOOLOVERRIDES) ./configure CPPFLAGS=-I$(NATIVE_ABSBASE_DIR)/libs-$(ARCH)/ LDFLAGS=-L$(NATIVE_ABSBASE_DIR)/libs-$(ARCH)/ $(CONFIGARGS) --enable-static && $(TOOLOVERRIDES) $(MAKE) && cp .libs/libpng16.a ../libpng.a && cp libpng.pc png*.h ../ )
+	test -f libs-$(ARCH)/libpng.a || (mkdir -p libs-$(ARCH) && cd libs-$(ARCH) && tar -xvzf ../libpng-$(PNGVER).tar.gz && cd libpng-$(PNGVER) && $(TOOLOVERRIDES) ./configure CPPFLAGS=-I$(NATIVE_ABSBASE_DIR)/libs-$(ARCH)/ LDFLAGS=-L$(NATIVE_ABSBASE_DIR)/libs-$(ARCH)/ $(CONFIGARGS) --enable-static && $(TOOLOVERRIDES) $(MAKE) && cp .libs/libpng16.a ../libpng.a && cp libpng.pc png*.h ../ )
 
 libs-$(ARCH)/libogg.a:
 	test -f libogg-$(OGGVER).tar.gz || wget http://downloads.xiph.org/releases/ogg/libogg-$(OGGVER).tar.gz
-	-test -f libs-$(ARCH)/libogg.a || (mkdir -p libs-$(ARCH) && cd libs-$(ARCH) && tar -xvzf ../libogg-$(OGGVER).tar.gz && cd libogg-$(OGGVER) && $(TOOLOVERRIDES) ./configure $(CONFIGARGS) && $(TOOLOVERRIDES) $(MAKE) && cp src/.libs/libogg.a ../ && $(TOOLOVERRIDES) $(AR) -s ../libogg.a && mkdir ../ogg && cp include/ogg/*.h ../ogg)
+	test -f libs-$(ARCH)/libogg.a || (mkdir -p libs-$(ARCH) && cd libs-$(ARCH) && tar -xvzf ../libogg-$(OGGVER).tar.gz && cd libogg-$(OGGVER) && $(TOOLOVERRIDES) ./configure $(CONFIGARGS) && $(TOOLOVERRIDES) $(MAKE) && cp src/.libs/libogg.a ../ && $(TOOLOVERRIDES) $(AR) -s ../libogg.a && mkdir ../ogg && cp include/ogg/*.h ../ogg)
 
 libs-$(ARCH)/libvorbis.a: libs-$(ARCH)/libogg.a
 	test -f libvorbis-$(VORBISVER).tar.gz || wget http://downloads.xiph.org/releases/vorbis/libvorbis-$(VORBISVER).tar.gz
-	-test -f libs-$(ARCH)/libvorbisfile.a || (mkdir -p libs-$(ARCH) && cd libs-$(ARCH) && tar -xvzf ../libvorbis-$(VORBISVER).tar.gz && cd libvorbis-$(VORBISVER) && $(TOOLOVERRIDES) ./configure PKG_CONFIG= $(CONFIGARGS) --disable-oggtest --with-ogg-libraries=.. --with-ogg-includes=$(NATIVE_ABSBASE_DIR)/libs-$(ARCH)/libogg-$(OGGVER)/include && $(TOOLOVERRIDES) $(MAKE) && cp lib/.libs/libvorbis.a ../ && cp lib/.libs/libvorbisfile.a ../  && mkdir ../vorbis && cp include/vorbis/*.h ../vorbis)
+	test -f libs-$(ARCH)/libvorbisfile.a || (mkdir -p libs-$(ARCH) && cd libs-$(ARCH) && tar -xvzf ../libvorbis-$(VORBISVER).tar.gz && cd libvorbis-$(VORBISVER) && $(TOOLOVERRIDES) ./configure PKG_CONFIG= $(CONFIGARGS) --disable-oggtest --with-ogg-libraries=.. --with-ogg-includes=$(NATIVE_ABSBASE_DIR)/libs-$(ARCH)/libogg-$(OGGVER)/include && $(TOOLOVERRIDES) $(MAKE) && cp lib/.libs/libvorbis.a ../ && cp lib/.libs/libvorbisfile.a ../  && mkdir ../vorbis && cp include/vorbis/*.h ../vorbis)
 
 libs-$(ARCH)/libopus.a:
 	test -f opus-$(OPUSVER).tar.gz || wget https://archive.mozilla.org/pub/opus/opus-$(OPUSVER).tar.gz
-	-test -f libs-$(ARCH)/libopus.a || (mkdir -p libs-$(ARCH) && cd libs-$(ARCH) && tar -xvzf ../opus-$(OPUSVER).tar.gz && cd opus-$(OPUSVER) && CFLAGS="-D_FORTIFY_SOURCE=0 $(CFLAGS) -Os" $(TOOLOVERRIDES) ./configure $(CONFIGARGS) && $(TOOLOVERRIDES) $(MAKE) && cp .libs/libopus.a ../ && cp include/opus*.h ../)
+	test -f libs-$(ARCH)/libopus.a || (mkdir -p libs-$(ARCH) && cd libs-$(ARCH) && tar -xvzf ../opus-$(OPUSVER).tar.gz && cd opus-$(OPUSVER) && CFLAGS="-D_FORTIFY_SOURCE=0 $(CFLAGS) -Os" $(TOOLCONFIGUREOVERRIDES) ./configure $(OPUSCONFIGARGS) --disable-extra-programs && $(TOOLMAKEOVERRIDES) $(MAKE) && cp .libs/libopus.a ../ && cp include/opus*.h ../)
 
 libs-$(ARCH)/libspeex.a:
 	test -f speex-$(SPEEXVER).tar.gz || wget http://downloads.us.xiph.org/releases/speex/speex-$(SPEEXVER).tar.gz
-	-test -f libs-$(ARCH)/libspeex.a || (mkdir -p libs-$(ARCH)/speex && cd libs-$(ARCH) && tar -xvzf ../speex-$(SPEEXVER).tar.gz && cd speex-$(SPEEXVER) && CFLAGS="$(CFLAGS) -Os" $(TOOLOVERRIDES) ./configure $(CONFIGARGS) && $(TOOLOVERRIDES) $(MAKE) && cp libspeex/.libs/libspeex.a ../ && cp -r include/speex/*.h ../speex/)
+	test -f libs-$(ARCH)/libspeex.a || (mkdir -p libs-$(ARCH)/speex && cd libs-$(ARCH) && tar -xvzf ../speex-$(SPEEXVER).tar.gz && cd speex-$(SPEEXVER) && CFLAGS="$(CFLAGS) -Os" $(TOOLCONFIGUREOVERRIDES) ./configure $(CONFIGARGS) --disable-binaries && $(TOOLMAKEOVERRIDES) $(MAKE) && cp libspeex/.libs/libspeex.a ../ && cp -r include/speex/*.h ../speex/)
 
 libs-$(ARCH)/libspeexdsp.a:
 	test -f speexdsp-$(SPEEXDSPVER).tar.gz || wget http://downloads.xiph.org/releases/speex/speexdsp-$(SPEEXDSPVER).tar.gz
-	-test -f libs-$(ARCH)/libspeexdsp.a || (mkdir -p libs-$(ARCH)/speex && cd libs-$(ARCH) && tar -xvzf ../speexdsp-$(SPEEXDSPVER).tar.gz && cd speexdsp-$(SPEEXDSPVER) && CFLAGS="$(CFLAGS) -Os" $(TOOLOVERRIDES) ./configure $(CONFIGARGS) && $(TOOLOVERRIDES) $(MAKE) && cp libspeexdsp/.libs/libspeexdsp.a ../ && cp -r include/speex/*.h ../speex/)
+	test -f libs-$(ARCH)/libspeexdsp.a || (mkdir -p libs-$(ARCH)/speex && cd libs-$(ARCH) && tar -xvzf ../speexdsp-$(SPEEXDSPVER).tar.gz && cd speexdsp-$(SPEEXDSPVER) && CFLAGS="$(CFLAGS) -Os" $(TOOLCONFIGUREOVERRIDES) ./configure $(CONFIGARGS) && $(TOOLMAKEOVERRIDES) $(MAKE) && cp libspeexdsp/.libs/libspeexdsp.a ../ && cp -r include/speex/*.h ../speex/)
 
 libs-$(ARCH)/libfreetype.a libs-$(ARCH)/ft2build.h: libs-$(ARCH)/libpng.a libs-$(ARCH)/libpng.pc
 	test -f freetype-$(FREETYPEVER).tar.gz || wget https://download-mirror.savannah.gnu.org/releases/freetype/freetype-$(FREETYPEVER).tar.gz
-	-test -f libs-$(ARCH)/libfreetype.a || (mkdir -p libs-$(ARCH) && cd libs-$(ARCH) && tar -xvzf ../freetype-$(FREETYPEVER).tar.gz && cd freetype-$(FREETYPEVER) && PKG_CONFIG_LIBDIR=$(NATIVE_ABSBASE_DIR)/libs-$(ARCH) CFLAGS="$(CFLAGS) -Os" $(TOOLOVERRIDES) ./configure CPPFLAGS=-I$(NATIVE_ABSBASE_DIR)/libs-$(ARCH)/ LDFLAGS=-L$(NATIVE_ABSBASE_DIR)/libs-$(ARCH)/ $(CONFIGARGS) --with-zlib=yes --with-png=yes --with-bzip2=no --with-harfbuzz=no && $(TOOLOVERRIDES) $(MAKE) && cp objs/.libs/libfreetype.a ../ && cp -r include/* ../)
+	test -f libs-$(ARCH)/libfreetype.a || (mkdir -p libs-$(ARCH) && cd libs-$(ARCH) && tar -xvzf ../freetype-$(FREETYPEVER).tar.gz && cd freetype-$(FREETYPEVER) && PKG_CONFIG_LIBDIR=$(NATIVE_ABSBASE_DIR)/libs-$(ARCH) CFLAGS="$(CFLAGS) -Os" $(TOOLOVERRIDES) ./configure CPPFLAGS=-I$(NATIVE_ABSBASE_DIR)/libs-$(ARCH)/ LDFLAGS=-L$(NATIVE_ABSBASE_DIR)/libs-$(ARCH)/ $(CONFIGARGS) --with-zlib=yes --with-png=yes --with-bzip2=no --with-harfbuzz=no && $(TOOLOVERRIDES) $(MAKE) && cp objs/.libs/libfreetype.a ../ && cp -r include/* ../)
 
 libs-$(ARCH)/libBulletDynamics.a:
 	test -f bullet3-$(BULLETVER).tar.gz || wget https://github.com/bulletphysics/bullet3/archive/$(BULLETVER).tar.gz -O bullet3-$(BULLETVER).tar.gz
-	-test -f libs-$(ARCH)/libBulletDynamics.a || (mkdir -p libs-$(ARCH) && cd libs-$(ARCH) && tar -xvzf ../bullet3-$(BULLETVER).tar.gz && cd bullet3-$(BULLETVER) && CFLAGS="$(CFLAGS) -Os" $(TOOLOVERRIDES) $(DO_CMAKE) . && $(TOOLOVERRIDES) $(MAKE) LinearMath BulletDynamics BulletCollision && cp src/LinearMath/libLinearMath.a src/BulletDynamics/libBulletDynamics.a src/BulletCollision/libBulletCollision.a src/btBulletCollisionCommon.h src/btBulletDynamicsCommon.h ..)
+	test -f libs-$(ARCH)/libBulletDynamics.a || (mkdir -p libs-$(ARCH) && cd libs-$(ARCH) && tar -xvzf ../bullet3-$(BULLETVER).tar.gz && cd bullet3-$(BULLETVER) && CFLAGS="$(CFLAGS) -Os" $(TOOLOVERRIDES) $(DO_CMAKE) . && $(TOOLOVERRIDES) $(MAKE) LinearMath BulletDynamics BulletCollision && cp src/LinearMath/libLinearMath.a src/BulletDynamics/libBulletDynamics.a src/BulletCollision/libBulletCollision.a src/btBulletCollisionCommon.h src/btBulletDynamicsCommon.h ..)
 
 libs-$(ARCH)/vulkan/vulkan.h:
 	test -f vulkan-sdk-$(VULKANVER).tar.gz || wget https://github.com/KhronosGroup/Vulkan-Headers/archive/refs/tags/vulkan-sdk-$(VULKANVER).tar.gz  
@@ -2380,13 +2437,13 @@ $(RELEASE_DIR)/imgtool$(BITS)$(EXEPOSTFIX): $(IMGTOOL_OBJECTS)
 imgtool-rel: $(RELEASE_DIR)/imgtool$(BITS)$(EXEPOSTFIX)
 imgtool: imgtool-rel
 
-MASTER_OBJECTS=server/sv_sys_unix.c common/sys_linux_threads.c common/net_ssl_gnutls.c server/sv_master.c common/net_wins.c common/net_ice.c common/cvar.c common/cmd.c common/sha1.c http/httpclient.c common/log.c common/fs.c common/fs_stdio.c common/common.c common/translate.c common/zone.c qclib/hash.c
+MASTER_OBJECTS=server/sv_sys_unix.c common/sys_linux_threads.c common/net_ssl_gnutls.c server/sv_master.c common/net_wins.c common/net_ice.c common/cvar.c common/cmd.c common/sha1.c common/sha2.c http/httpclient.c common/log.c common/fs.c common/fs_stdio.c common/common.c common/translate.c common/zone.c qclib/hash.c
 $(RELEASE_DIR)/ftemaster$(BITS)$(EXEPOSTFIX): $(MASTER_OBJECTS)
 	$(CC) -o $@ $(MASTER_OBJECTS) -flto=jobserver -fvisibility=hidden -Icommon -Iclient -Iqclib -Igl -Iserver -DMASTERONLY -Dstricmp=strcasecmp -Dstrnicmp=strncasecmp -lm -ldl -lz $(RELEASE_CFLAGS) $(RELEASE_LDFLAGS)
 $(DEBUG_DIR)/ftemaster$(BITS)$(EXEPOSTFIX): $(MASTER_OBJECTS)
 	$(CC) -o $@ $(MASTER_OBJECTS) -Icommon -Iclient -Iqclib -Igl -Iserver -DMASTERONLY -Dstricmp=strcasecmp -Dstrnicmp=strncasecmp -lm -ldl -lz $(DEBUG_CFLAGS) $(DEBUG_LDFLAGS)
-master-rel: $(RELEASE_DIR)/ftemaster$(BITS)$(EXEPOSTFIX)
-master-dbg: $(DEBUG_DIR)/ftemaster$(BITS)$(EXEPOSTFIX)
+master-rel: reldir $(RELEASE_DIR)/ftemaster$(BITS)$(EXEPOSTFIX)
+master-dbg: dbgdir $(DEBUG_DIR)/ftemaster$(BITS)$(EXEPOSTFIX)
 master: master-rel
 
 QTV_OBJECTS=	\

@@ -794,12 +794,12 @@ void SV_MulticastProtExt(vec3_t origin, multicast_t to, int dimension_mask, int 
 				Con_Printf("Skipping multicast for q3 client\n");
 				break;
 
-#ifdef NQPROT
 			case SCP_NETQUAKE:
 			case SCP_BJP3:
 			case SCP_FITZ666:
 			case SCP_DARKPLACES6:
 			case SCP_DARKPLACES7:	//extra prediction stuff
+#ifdef NQPROT
 				if (reliable)
 				{
 					ClientReliableCheckBlock(client, sv.nqmulticast.cursize);
@@ -807,11 +807,10 @@ void SV_MulticastProtExt(vec3_t origin, multicast_t to, int dimension_mask, int 
 				}
 				else
 					SZ_Write (&client->datagram, sv.nqmulticast.data, sv.nqmulticast.cursize);
-
-				break;
 #endif
-#ifdef Q2SERVER
+				break;
 			case SCP_QUAKE2:
+#ifdef Q2SERVER
 				if (reliable)
 				{
 					ClientReliableCheckBlock(client, sv.q2multicast[0].cursize);
@@ -819,8 +818,10 @@ void SV_MulticastProtExt(vec3_t origin, multicast_t to, int dimension_mask, int 
 				}
 				else
 					SZ_Write (&client->datagram, sv.q2multicast[0].data, sv.q2multicast[0].cursize);
+#endif
 				break;
 			case SCP_QUAKE2EX:
+#ifdef Q2SERVER
 				if (reliable)
 				{
 					ClientReliableCheckBlock(client, sv.q2multicast[1].cursize);
@@ -828,8 +829,8 @@ void SV_MulticastProtExt(vec3_t origin, multicast_t to, int dimension_mask, int 
 				}
 				else
 					SZ_Write (&client->datagram, sv.q2multicast[1].data, sv.q2multicast[1].cursize);
-				break;
 #endif
+				break;
 			case SCP_QUAKEWORLD:
 				if (reliable)
 				{
@@ -2644,21 +2645,13 @@ qboolean SV_SendClientDatagram (client_t *client)
 		client->edict->v->goalentity = 0;
 	}
 
-	if (client->netchan.pext_fragmentation)
-	{
-		if (client->netchan.remote_address.type == NA_LOOPBACK)
-			clientlimit = countof(buf);	//biiiig...
-		else
-			clientlimit = client->netchan.mtu;	//try not to overflow
-	}
-	else if (client->netchan.remote_address.type == NA_LOOPBACK && ISNQCLIENT(client))
-		clientlimit = countof(buf);			//go wild. demos don't care about reliable/unreliable.
-	else if (client->netchan.mtu)
-		clientlimit = client->netchan.mtu;
-	else if (client->protocol == SCP_NETQUAKE)
-		clientlimit = MAX_NQDATAGRAM;				//vanilla client is limited.
-	else
-		clientlimit = MAX_DATAGRAM;			//udp limit, ish.
+	clientlimit = Netchan_GetMaxUnreliable(&client->netchan);
+	if (clientlimit < 1024)
+		clientlimit = 1024;	//ignore what the netchan wants. it'll have to fragment it.
+
+	if (client->protocol == SCP_NETQUAKE && clientlimit > MAX_NQDATAGRAM && client->netchan.remote_address.type != NA_LOOPBACK && !client->pextknown)
+		clientlimit = MAX_NQDATAGRAM;	//vanilla clients are limited. don't crash them.
+
 	if (clientlimit > countof(buf))
 		clientlimit = countof(buf);
 	msg.maxsize = clientlimit - client->datagram.cursize;
@@ -2808,7 +2801,7 @@ void SV_FlushBroadcasts (void)
 #ifdef NQPROT
 		if (ISNQCLIENT(client))
 		{
-			if (client->pextknown)
+			if (client->pextknown)	//hacky check - means 'has sent an svc_serverdata'
 			{
 				ClientReliableCheckBlock(client, sv.nqreliable_datagram.cursize);
 				ClientReliableWrite_SZ(client, sv.nqreliable_datagram.data, sv.nqreliable_datagram.cursize);
@@ -3490,13 +3483,12 @@ void SV_SendClientMessages (void)
 				SV_PreRunCmd();
 				stepmsec = 13;
 				cmd.msec = stepmsec;
-
-				c->hoverms += cmd.msec;
+				c->hoverms += cmd.msec;	//sv_showpredloss shows this later when we do get the next packet, instead of potentially spamming every frame while they lag.
 				VectorCopy(c->lastcmd.angles, cmd.angles);
 				cmd.buttons = c->lastcmd.buttons;
 				SV_RunCmd (&cmd, true);
 				SV_PostRunCmd();
-				c->lastruncmd = sv.time*1000-c->msecs;
+				c->lastruncmd = (unsigned int)(sv.time*1000)-c->msecs;
 				if (stepmsec > c->msecs)
 					c->msecs = 0;
 				else

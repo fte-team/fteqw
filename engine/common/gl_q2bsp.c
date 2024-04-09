@@ -231,18 +231,6 @@ static unsigned char q2_palette[256*3];
 #endif
 
 
-/*
-typedef struct q2csurface_s
-{
-	char		name[16];
-	int			flags;
-	int			value;
-} q2csurface_t;
-*/
-
-
-
-
 
 
 typedef struct {
@@ -1679,7 +1667,8 @@ static qboolean CModQ2_LoadFaces (model_t *mod, qbyte *mod_base, lump_t *l, lump
 	int			style;
 
 	struct decoupled_lm_info_s *decoupledlm;
-	unsigned int dcsize, lofs;
+	size_t dcsize;
+	unsigned int lofs;
 
 	unsigned short lmshift, lmscale;
 	char buf[64];
@@ -4061,7 +4050,8 @@ static void CModQ3_LoadLighting (model_t *loadmodel, qbyte *mod_base, lump_t *l)
 	extern cvar_t gl_overbright;
 	float scale = (1<<(2-gl_overbright.ival));
 
-	loadmodel->lightmaps.fmt = LM_L8;
+	loadmodel->lightmaps.fmt = LM_RGB8;
+	loadmodel->lightmaps.prebaked = PTI_RGB8;
 
 	//round up the samples, in case the last one is partial.
 	maps = ((samples+mapsize-1)&~(mapsize-1)) / mapsize;
@@ -4078,8 +4068,6 @@ static void CModQ3_LoadLighting (model_t *loadmodel, qbyte *mod_base, lump_t *l)
 
 	if (!samples)
 		return;
-
-	loadmodel->lightmaps.fmt = LM_RGB8;
 
 	if (loadmodel->lightmaps.deluxemapping)
 		maps /= 2;
@@ -5359,6 +5347,7 @@ static int		CM_LeafArea (model_t *model, int leafnum)
 //=======================================================================
 
 #define PlaneDiff(point,plane) (((plane)->type < 3 ? (point)[(plane)->type] : DotProduct((point), (plane)->normal)) - (plane)->dist)
+#define PlaneDiffPush(point,plane,pushdist) (((plane)->type < 3 ? (point)[(plane)->type] : DotProduct((point), (plane)->normal)) - (plane)->dist - pushdist)
 
 static mplane_t			box_planes[6];
 static model_t			box_model;
@@ -5660,10 +5649,14 @@ static unsigned int CM_NativeContents(struct model_s *model, int hulloverride, c
 		mleaf_t			*leaf;
 		q2cbrush_t		*brush;
 		q2cbrushside_t	*brushside;
+		vec3_t absmin, absmax, ofs;
 
 		int leaflist[64];
 
-		k = CM_BoxLeafnums (model, point, point, leaflist, 64, NULL);
+		VectorAdd(point, mins, absmin);
+		VectorAdd(point, maxs, absmax);
+
+		k = CM_BoxLeafnums (model, absmin, absmax, leaflist, 64, NULL);
 
 		contents = 0;
 		for (k--; k >= 0; k--)
@@ -5680,10 +5673,18 @@ static unsigned int CM_NativeContents(struct model_s *model, int hulloverride, c
 						continue;
 					}
 
+
 					brushside = brush->brushside;
 					for ( j = 0; j < brush->numsides; j++, brushside++ )
 					{
-						if (PlaneDiff (point, brushside->plane) > 0 )
+						for (j=0 ; j<3 ; j++)
+						{
+							if (brushside->plane->normal[j] < 0)
+								ofs[j] = maxs[j];
+							else
+								ofs[j] = mins[j];
+						}
+						if (PlaneDiffPush (point, brushside->plane, DotProduct (ofs, brushside->plane->normal)) > 0)
 							break;
 					}
 

@@ -242,12 +242,12 @@ void S_ResetFailedLoad(void);
 #ifdef PEXT2_VOICECHAT
 void S_Voip_Parse(void);
 #endif
+int S_Voip_ClientLoudness(unsigned int plno);
 #ifdef VOICECHAT
 extern cvar_t snd_voip_showmeter;
 void S_Voip_Transmit(unsigned char clc, sizebuf_t *buf);
 void S_Voip_MapChange(void);
 int S_Voip_Loudness(qboolean ignorevad);	//-1 for not capturing, otherwise between 0 and 100
-int S_Voip_ClientLoudness(unsigned int plno);
 qboolean S_Voip_Speaking(unsigned int plno);
 void S_Voip_Ignore(unsigned int plno, qboolean ignore);
 #else

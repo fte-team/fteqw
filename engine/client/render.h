@@ -586,7 +586,7 @@ struct llightinfo_s;
 void LightPlane (struct relight_ctx_s *ctx, struct llightinfo_s *threadctx, lightstyleindex_t surf_styles[MAXCPULIGHTMAPS], unsigned int *surf_expsamples, qbyte *surf_rgbsamples, qbyte *surf_deluxesamples, vec4_t surf_plane, vec4_t surf_texplanes[2], vec2_t exactmins, vec2_t exactmaxs, int texmins[2], int texsize[2], float lmscale);	//special version that doesn't know what a face is or anything.
 struct relight_ctx_s *LightStartup(struct relight_ctx_s *ctx, struct model_s *model, qboolean shadows, qboolean skiplit);
 void LightReloadEntities(struct relight_ctx_s *ctx, const char *entstring, qboolean ignorestyles);
-void LightShutdown(struct relight_ctx_s *ctx);
+void LightShutdown(struct relight_ctx_s *ctx, struct model_s *model);
 extern const size_t lightthreadctxsize;
 
 qboolean RelightSetup (struct model_s *model, size_t lightsamples, qboolean generatelit);
@@ -699,9 +699,7 @@ extern	qboolean r_softwarebanding;
 extern	cvar_t r_lightprepass_cvar;
 extern	int r_lightprepass;	//0=off,1=16bit,2=32bit
 
-#ifdef R_XFLIP
 extern cvar_t	r_xflip;
-#endif
 
 extern cvar_t gl_mindist, gl_maxdist;
 extern	cvar_t	r_clear;

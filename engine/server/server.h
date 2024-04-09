@@ -1161,6 +1161,7 @@ float SV_Frame (void);
 void SV_ReadPacket(void);
 void SV_FinalMessage (char *message);
 void SV_DropClient (client_t *drop);
+void SV_DropClient_ByAddress (netadr_t *addr);
 struct quakeparms_s;
 void SV_Init (struct quakeparms_s *parms);
 void SV_ExecInitialConfigs(char *defaultexec);
@@ -1256,6 +1257,7 @@ void SSV_Send(const char *dest, const char *src, const char *cmd, const char *ms
 qboolean MSV_ClusterLogin(svconnectinfo_t *info);
 void MSV_PollSlaves(void);
 qboolean MSV_ForwardToAutoServer(void);	//forwards console command to a default subserver. ie: whichever one our client is on.
+void MSV_SendCvarChange(cvar_t *var);	//when autooffloading, replicates the client's cvar changes to the server
 void MSV_Status(void);
 void MSV_OpenUserDatabase(void);
 #else
@@ -1265,6 +1267,7 @@ void MSV_OpenUserDatabase(void);
 #define MSV_OpenUserDatabase()
 #define MSV_PollSlaves()
 #define MSV_ForwardToAutoServer() false
+#define MSV_SendCvarChange(v)
 #endif
 
 //

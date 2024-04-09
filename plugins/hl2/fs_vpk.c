@@ -186,7 +186,7 @@ static int QDECL FSVPK_EnumerateFiles (searchpathfuncs_t *handle, const char *ma
 	return true;
 }
 
-static int QDECL FSVPK_GeneratePureCRC(searchpathfuncs_t *handle, int seed, int crctype)
+static int QDECL FSVPK_GeneratePureCRC(searchpathfuncs_t *handle, const int *seed)
 {
 	vpk_t *pak = (void*)handle;
 

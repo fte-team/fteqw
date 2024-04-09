@@ -32,9 +32,7 @@ void main ()
 #ifdef FRAGMENT_SHADER
 void main ()
 {
-	vec2 ntc;
-	ntc.s = tc.s + sin(tc.t+e_time)*0.125;
-	ntc.t = tc.t + sin(tc.s+e_time)*0.125;
+	vec2 ntc = tc + sin(tc.ts+e_time)*0.125;
 	vec3 ts = vec3(texture2D(s_diffuse, ntc));
 
 #ifdef LIT

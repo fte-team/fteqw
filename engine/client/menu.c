@@ -21,6 +21,9 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "winquake.h"
 #include "shader.h"
 #include "cl_master.h"
+#ifdef FTE_TARGET_WEB
+#include <emscripten/emscripten.h>
+#endif
 
 menu_t *topmenu;
 menu_t *promptmenu;
@@ -1302,10 +1305,8 @@ void M_Menu_Quit_f (void)
 	switch(mode)
 	{
 	case 0:
-#ifndef FTE_TARGET_WEB
 		CL_Disconnect (NULL);
 		Sys_Quit ();
-#endif
 		break;
 	case 2:
 		Menu_Prompt (M_Menu_DoQuitSave, NULL, localtext("You have unsaved settings\nWould you like to\nsave them now?"), "Yes", "No", "Cancel", true);

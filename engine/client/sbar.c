@@ -2401,7 +2401,7 @@ void Sbar_DrawScoreboard (playerview_t *pv)
 #endif
 
 	isdead = false;
-	if (pv->spectator && (cls.demoplayback == DPB_MVD || cls.demoplayback == DPB_EZTV))
+	if (pv->spectator && cls.demoplayback == DPB_MVD)
 	{
 		int t = pv->cam_spec_track;
 		if (t >= 0 && CAM_ISLOCKED(pv) && cl.players[t].statsf[STAT_HEALTH] <= 0)
@@ -3544,14 +3544,14 @@ ping time frags name
 		sprintf(num, S_COLOR_WHITE"%4i", p);			\
 	else												\
 		sprintf(num, S_COLOR_GREEN"%4i", p);							\
-	Draw_FunStringWidth(x, y, num, 4*8, false, false);	\
+	Draw_FunStringWidth(x, y, num, 4*8+4, false, highlight);	\
 },NOFILL)
 
 #define COLUMN_PL COLUMN(pl, 2*8,						\
 {														\
 	int p = s->pl;										\
 	sprintf(num, "%2i", p);								\
-	Draw_FunStringWidth(x, y, num, 2*8, false, false);	\
+	Draw_FunStringWidth(x, y, num, 2*8+4, false, highlight);	\
 },NOFILL)
 #define COLUMN_TIME COLUMN(time, 4*8,					\
 {														\
@@ -3563,14 +3563,14 @@ ping time frags name
 		minutes = (int)total/60;						\
 		sprintf (num, "%4i", minutes);					\
 	}													\
-	Draw_FunStringWidth(x, y, num, 4*8, false, false);	\
+	Draw_FunStringWidth(x, y, num, 4*8+4, false, highlight);	\
 },NOFILL)
 #define COLUMN_FRAGS COLUMN(frags, 5*8,					\
 {	\
 	int cx; int cy;										\
 	if (s->spectator && s->spectator != 2)				\
 	{													\
-		Draw_FunStringWidth(x, y, "spectator", 5*8, false, false);	\
+		Draw_FunStringWidth(x, y, "spectator", 5*8+4, false, false);	\
 	}													\
 	else												\
 	{													\
@@ -3607,7 +3607,7 @@ ping time frags name
 {														\
 	if (!s->spectator)									\
 	{													\
-		Draw_FunStringWidth(x, y, s->team, 4*8, false, false);			\
+		Draw_FunStringWidth(x, y, s->team, 4*8+4, false, highlight);			\
 	}													\
 },NOFILL)
 #define COLUMN_STAT(title, width, code, fill) COLUMN(title, width, {	\
@@ -3616,13 +3616,13 @@ ping time frags name
 		code															\
 	}																	\
 }, fill)
-#define COLUMN_RULESET COLUMN(ruleset, 8*8,	{Draw_FunStringWidth(x, y, s->ruleset, 8*8, false, false);},NOFILL)
-#define COLUMN_NAME COLUMN(name, namesize,	{Draw_FunStringWidth(x, y, s->name, namesize, false, false);},NOFILL)
-#define COLUMN_KILLS COLUMN_STAT(kils, 4*8, {Draw_FunStringWidth(x, y, va("%4i", Stats_GetKills(k)), 4*8, false, false);},NOFILL)
-#define COLUMN_TKILLS COLUMN_STAT(tkil, 4*8, {Draw_FunStringWidth(x, y, va("%4i", Stats_GetTKills(k)), 4*8, false, false);},NOFILL)
-#define COLUMN_DEATHS COLUMN_STAT(dths, 4*8, {Draw_FunStringWidth(x, y, va("%4i", Stats_GetDeaths(k)), 4*8, false, false);},NOFILL)
-#define COLUMN_TOUCHES COLUMN_STAT(tchs, 4*8, {Draw_FunStringWidth(x, y, va("%4i", Stats_GetTouches(k)), 4*8, false, false);},NOFILL)
-#define COLUMN_CAPS COLUMN_STAT(caps, 4*8, {Draw_FunStringWidth(x, y, va("%4i", Stats_GetCaptures(k)), 4*8, false, false);},NOFILL)
+#define COLUMN_RULESET COLUMN(ruleset, 8*8,	{Draw_FunStringWidth(x, y, s->ruleset, 8*8+4, false, false);},NOFILL)
+#define COLUMN_NAME COLUMN(name, namesize,	{Draw_FunStringWidth(x, y, s->name, namesize, false, highlight);},NOFILL)
+#define COLUMN_KILLS COLUMN_STAT(kils, 4*8, {Draw_FunStringWidth(x, y, va("%4i", Stats_GetKills(k)), 4*8+4, false, false);},NOFILL)
+#define COLUMN_TKILLS COLUMN_STAT(tkil, 4*8, {Draw_FunStringWidth(x, y, va("%4i", Stats_GetTKills(k)), 4*8+4, false, false);},NOFILL)
+#define COLUMN_DEATHS COLUMN_STAT(dths, 4*8, {Draw_FunStringWidth(x, y, va("%4i", Stats_GetDeaths(k)), 4*8+4, false, false);},NOFILL)
+#define COLUMN_TOUCHES COLUMN_STAT(tchs, 4*8, {Draw_FunStringWidth(x, y, va("%4i", Stats_GetTouches(k)), 4*8+4, false, false);},NOFILL)
+#define COLUMN_CAPS COLUMN_STAT(caps, 4*8, {Draw_FunStringWidth(x, y, va("%4i", Stats_GetCaptures(k)), 4*8+4, false, false);},NOFILL)
 #define COLUMN_AFK COLUMN(afk, 0, {int cs = atoi(InfoBuf_ValueForKey(&s->userinfo, "chat")); if (cs)Draw_FunStringWidth(x+4, y, (cs&2)?"afk":"msg", 4*8, false, false);},NOFILL)
 
 
@@ -3658,12 +3658,13 @@ void Sbar_DeathmatchOverlay (playerview_t *pv, int start)
 
 	int pages;
 	int linesperpage, firstline, lastline;
+	int highlight;
 
 	if (!pv)
 		return;
 
 // request new ping times every two second
-	if (realtime - cl.last_ping_request > 2	&& cls.demoplayback != DPB_EZTV)
+	if (realtime - cl.last_ping_request > 2	&& !cls.demoplayback)
 	{
 		if (cls.protocol == CP_QUAKEWORLD)
 		{
@@ -3944,6 +3945,18 @@ if (showcolumns & (1<<COLUMN##title)) \
 			isme =	(pv->cam_state == CAM_FREECAM && k == pv->playernum) ||
 					(pv->cam_state != CAM_FREECAM && k == pv->cam_spec_track);
 
+			if ((key_dest_absolutemouse & key_dest_mask & ~kdm_game) &&
+				!Key_Dest_Has(~kdm_game) &&
+				mousecursor_x >= startx && mousecursor_x < startx+rank_width &&
+				mousecursor_y >= y && mousecursor_y < y+skip)
+			{
+				highlight = 2;
+				cl.mouseplayerview = pv;
+				cl.mousenewtrackplayer = k;
+			}
+			else
+				highlight = 0;
+
 			x = startx;
 #define COLUMN(title, width, code, fills) \
 if (showcolumns & (1<<COLUMN##title)) \
@@ -4017,6 +4030,9 @@ static void Sbar_MiniDeathmatchOverlay (playerview_t *pv)
 	// draw ping
 		top = Sbar_TopColour(s);
 		bottom = Sbar_BottomColour(s);
+
+		if (S_Voip_Speaking(k))
+			Sbar_FillPCDark (x, py, ((cl.teamplay && !consistentteams)?40:0)+48+MAX_DISPLAYEDNAME*8, 8, 0x00ff00, scr_scoreboard_backgroundalpha.value*scr_scoreboard_fillalpha.value);
 
 		Sbar_FillPC ( x, py+1, 40, 3, top);
 		Sbar_FillPC ( x, py+4, 40, 4, bottom);

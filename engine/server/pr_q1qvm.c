@@ -1627,11 +1627,13 @@ static qintptr_t QVM_ReadCmd (void *offset, quintptr_t mask, const qintptr_t *ar
 
 	SV_BeginRedirect(RD_OBLIVION, TL_FindLanguage(""));
 	Cbuf_Execute();
+	if (svs.spawncount != spawncount || sv.state < ss_loading)
+	{
+		SV_EndRedirect();
+		Host_EndGame("QVM_ReadCmd: Map changed after reading");
+	}
 	Q_strncpyz(output, sv_redirected_buf, outputlen);
 	SV_EndRedirect();
-
-	if (svs.spawncount != spawncount || sv.state < ss_loading)
-		Host_EndGame("QVM_ReadCmd: Map changed after reading");
 
 	if (old != RD_NONE)
 		SV_BeginRedirect(old, oldl);
@@ -1644,7 +1646,7 @@ Con_DPrintf("PF_readcmd: %s\n%s", s, output);
 
 
 static void QVM_RedirectCmdCallback(struct frameendtasks_s *task)
-{	//called at the end of the frame when there's no qc running
+{	//called at the end of the frame when there's no gamecode running
 	host_client = svs.clients + task->ctxint;
 	if (host_client->state >= cs_connected)
 	{

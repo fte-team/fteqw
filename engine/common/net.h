@@ -68,8 +68,6 @@ typedef enum {
 	NP_INVALID
 } netproto_t;
 
-typedef enum {NS_CLIENT, NS_SERVER} netsrc_t;
-
 typedef struct netadr_s
 {
 	netadrtype_t	type;
@@ -91,7 +89,7 @@ typedef struct netadr_s
 		} irc;
 #endif
 #ifdef SUPPORT_ICE
-		char icename[16];
+		char icename[64];
 #endif
 #ifdef HAVE_WEBSOCKCL
 		char websocketurl[64];
@@ -243,7 +241,7 @@ qboolean NET_RegisterCrypto(void *module, struct ftecrypto_s *driver);
 
 #define	OLD_AVG		0.99		// total = oldtotal*OLD_AVG + new*(1-OLD_AVG)
 
-#define	MAX_LATENT	32
+//#define	MAX_LATENT	32
 #define MAX_ADR_SIZE	64
 
 typedef struct
@@ -256,11 +254,25 @@ typedef struct
 	float		nqreliable_resendtime;//force nqreliable_allowed, thereby forcing a resend of anything n
 	qbyte		nqunreliableonly;	//nq can't cope with certain reliables some times. if 2, we have a reliable that result in a block (that should be sent). if 1, we are blocking. if 0, we can send reliables freely. if 3, then we just want to ignore clc_moves
 #endif
-	qboolean	pext_fragmentation;	//fte's packet fragmentation extension, to avoid issues with low mtus.
-	qboolean	pext_stunaware;		//prevent the two lead-bits of packets from being either 0(stun), so stray stun packets cannot mess things up for us.
+	unsigned int flags;	//NCF_ bitmask
+			#define NCF_CLIENT		(1u<<0)	//clientside sends the qport.
+			#define NCF_SERVER		(0u<<0)	//serverside reads the qport.
+			#define NCF_FRAGABLE	(1u<<1)	//fte's packet fragmentation extension, to avoid issues with low mtus.
+			#define NCF_STUNAWARE	(1u<<2)	//prevent the two lead-bits of packets from being either 0(stun), so stray stun packets cannot mess things up for us.
 	struct netprim_s netprim;
-	int			mtu;				//the path mtu, if known
 	int			dupe;				//how many times to dupe packets
+
+	//Packetisation Layer Path MTU Discovery (PLPMTUD / RFC4821)
+	int			mtu_cur;				//the path mtu, if known
+	int			mtu_min;				//minimum mtu to drop to. lower values being abusive.
+	int			mtu_max;				//the size the user specified.
+	int			mtu_resends;			//number of times we had to resend a reliable.
+	int			mtu_overhead;			//extra slop vs a
+	int			outgoing_mtu_probe;		//sequence number that was a probe. if its acked we can send a new one straight away to grow fast. if its not acked, we back off.
+	int			mtu_probes;				//number of probes sent without success. give up if we get no growth.
+	double		mtu_reprobetime;		//send an extra mtu probe every 30ish secs to see if it grew
+	unsigned short sentsizes[64];		//to bump known mtu if an oversized packet got received.
+	int			outgoing_sequence_last;	//to detect gaps in outgoing sequences (servers get forced to match client's)
 
 	float		last_received;		// for timeouts
 
@@ -270,13 +282,11 @@ typedef struct
 	float		frame_rate;
 
 	int			drop_count;			// dropped packets, cleared each level
-	int			good_count;			// cleared each level
 
 	int			bytesin;
 	int			bytesout;
 
 	netadr_t	remote_address;
-	netsrc_t	sock;
 	int			qport;
 	int			qportsize;
 
@@ -307,8 +317,8 @@ typedef struct
 	qbyte		reliable_buf[MAX_OVERALLMSGLEN];	// unacked reliable message
 
 // time and size data to calculate bandwidth
-	int			outgoing_size[MAX_LATENT];
-	double		outgoing_time[MAX_LATENT];
+//	int			outgoing_size[MAX_LATENT];
+//	double		outgoing_time[MAX_LATENT];
 	struct huffman_s	*compresstable;
 
 	//nq servers must recieve truncated packets.
@@ -322,12 +332,13 @@ extern	int	net_drop;		// packets dropped before this one
 void Net_Master_Init(void);
 
 void Netchan_Init (void);
+size_t Netchan_GetMaxUnreliable(netchan_t *chan);
 int Netchan_Transmit (netchan_t *chan, int length, qbyte *data, int rate);
-void Netchan_OutOfBand (netsrc_t sock, netadr_t *adr, int length, const qbyte *data);
-void VARGS Netchan_OutOfBandPrint (netsrc_t sock, netadr_t *adr, char *format, ...) LIKEPRINTF(3);
-void VARGS Netchan_OutOfBandTPrintf (netsrc_t sock, netadr_t *adr, int language, translation_t text, ...);
+void Netchan_OutOfBand (unsigned int ncflags, netadr_t *adr, int length, const qbyte *data);
+void VARGS Netchan_OutOfBandPrint (unsigned int ncflags, netadr_t *adr, char *format, ...) LIKEPRINTF(3);
+void VARGS Netchan_OutOfBandTPrintf (unsigned int ncflags, netadr_t *adr, int language, translation_t text, ...);
 qboolean Netchan_Process (netchan_t *chan);
-void Netchan_Setup (netsrc_t sock, netchan_t *chan, netadr_t *adr, int qport);
+void Netchan_Setup (unsigned int ncflags, netchan_t *chan, netadr_t *adr, int qport, unsigned int mtu);
 unsigned int Net_PextMask(unsigned int protover, qboolean fornq);
 extern cvar_t net_mtu;
 

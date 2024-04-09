@@ -3629,7 +3629,7 @@ static qboolean Sys_DoInstall(void)
 
 	GetModuleFileNameW(NULL, wide, countof(wide));
 	narrowen(exepath, sizeof(exepath), wide);
-	FS_NativePath(va("%s.exe", fs_gamename.string), FS_ROOT, newexepath, sizeof(newexepath));
+	FS_SystemPath(va("%s.exe", fs_gamename.string), FS_ROOT, newexepath, sizeof(newexepath));
 	CopyFileU(exepath, newexepath, FALSE);
 
 	/*the game can now be run (using regular autoupdate stuff), but most installers are expected to install the data instead of just more downloaders, so lets do that with a 'nice' progress box*/
@@ -4346,16 +4346,6 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 #endif
 
 		oldtime = Sys_DoubleTime ();
-
-		if (qtvfile)
-		{
-			if (!Host_RunFile(qtvfile, strlen(qtvfile), NULL))
-			{
-				SetHookState(false);
-				Host_Shutdown ();
-				return EXIT_FAILURE;
-			}
-		}
 
 	//client console should now be initialized.
 

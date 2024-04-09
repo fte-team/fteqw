@@ -1792,7 +1792,7 @@ error:
 
 int Image_WritePNG (const char *filename, enum fs_relative fsroot, int compression, void **buffers, int numbuffers, qintptr_t bufferstride, int width, int height, enum uploadfmt fmt, qboolean writemetadata)
 {
-	char name[MAX_OSPATH];
+	char systemname[MAX_OSPATH];	//FIXME: replace with png_set_write_fn
 	int i;
 	FILE *fp;
 	png_structp png_ptr;
@@ -1882,7 +1882,7 @@ int Image_WritePNG (const char *filename, enum fs_relative fsroot, int compressi
 	}
 	Image_BlockSizeForEncoding(fmt, &pxsize, &bw, &bh, &bd);
 
-	if (!FS_NativePath(filename, fsroot, name, sizeof(name)))
+	if (!FS_SystemPath(filename, fsroot, systemname, sizeof(systemname)))
 		return false;
 
 	if (numbuffers == 2)
@@ -1898,10 +1898,10 @@ int Image_WritePNG (const char *filename, enum fs_relative fsroot, int compressi
 	if (!LibPNG_Init())
 		return false;
 
-	if (!(fp = fopen (name, "wb")))
+	if (!(fp = fopen (systemname, "wb")))
 	{
-		FS_CreatePath (filename, FS_GAMEONLY);
-		if (!(fp = fopen (name, "wb")))
+		FS_CreatePath (systemname, FS_SYSTEM);
+		if (!(fp = fopen (systemname, "wb")))
 			return false;
 	}
 
@@ -7176,6 +7176,7 @@ static struct pendingtextureinfo *Image_ReadBLPFile(unsigned int flags, const ch
 //This is for the version command
 void Image_PrintInputFormatVersions(void)
 {
+	int i;
 #ifndef S_COLOR_YELLOW
 	#define S_COLOR_YELLOW ""
 	#define S_COLOR_WHITE ""
@@ -7185,6 +7186,9 @@ void Image_PrintInputFormatVersions(void)
 
 	#ifdef IMAGEFMT_DDS
 		Con_Printf(" dds");
+		#ifndef DECOMPRESS_S3TC
+			Con_Printf("(hw-only)");
+		#endif
 	#endif
 	#ifdef IMAGEFMT_KTX
 		Con_Printf(" ktx");
@@ -7231,6 +7235,9 @@ void Image_PrintInputFormatVersions(void)
 	#endif
 	#ifdef IMAGEFMT_ASTC
 		Con_Printf(" astc");
+		#ifndef DECOMPRESS_ASTC
+			Con_Printf("(hw-only)");
+		#endif
 	#endif
 	#ifdef IMAGEFMT_PKM
 		Con_Printf(" pkm");
@@ -7277,6 +7284,10 @@ void Image_PrintInputFormatVersions(void)
 	#ifdef IMAGEFMT_LMP
 		Con_Printf(" lmp");
 	#endif
+
+	//now properly registered ones.
+	for (i = 0; i < imageloader_count;  i++)
+		Con_Printf(" ^[%s^]", imageloader[i].funcs->loadername);
 
 	Con_Printf("\n");
 }
@@ -13757,10 +13768,10 @@ qboolean Image_LocateHighResTexture(image_t *tex, flocation_t *bestloc, char *be
 		{
 			COM_FileExtension(altname, nicename, sizeof(nicename));
 			e = 0;
-			if (strcmp(nicename, "lmp") && strcmp(nicename, "wal"))
+			if (Q_strcasecmp(nicename, "lmp") && Q_strcasecmp(nicename, "wal"))
 				for (; e < tex_extensions_count; e++)
 				{
-					if (!strcmp(nicename, (*tex_extensions[e].name=='.')?tex_extensions[e].name+1:tex_extensions[e].name))
+					if (!Q_strcasecmp(nicename, (*tex_extensions[e].name=='.')?tex_extensions[e].name+1:tex_extensions[e].name))
 						break;
 				}
 		}
@@ -13844,7 +13855,7 @@ qboolean Image_LocateHighResTexture(image_t *tex, flocation_t *bestloc, char *be
 						for (e = firstex; e < tex_extensions_count; e++)
 						{
 							if (tex->flags & IF_NOPCX)
-								if (!strcmp(tex_extensions[e].name, ".pcx"))
+								if (!Q_strcasecmp(tex_extensions[e].name, ".pcx"))
 									continue;
 							Q_snprintfz(fname, sizeof(fname), tex_path[i].path, subpath, basename, tex_extensions[e].name);
 							depth = FS_FLocateFile(fname, locflags, &loc);
@@ -13863,7 +13874,7 @@ qboolean Image_LocateHighResTexture(image_t *tex, flocation_t *bestloc, char *be
 					for (e = firstex; e < tex_extensions_count; e++)
 					{
 						if (tex->flags & IF_NOPCX)
-							if (!strcmp(tex_extensions[e].name, ".pcx"))
+							if (!Q_strcasecmp(tex_extensions[e].name, ".pcx"))
 								continue;
 						Q_snprintfz(fname, sizeof(fname), tex_path[i].path, nicename, tex_extensions[e].name);
 						depth = FS_FLocateFile(fname, locflags, &loc);
@@ -13906,7 +13917,7 @@ qboolean Image_LocateHighResTexture(image_t *tex, flocation_t *bestloc, char *be
 						*b = 0;
 						for (e = firstex; e < tex_extensions_count; e++)
 						{
-							if (!strcmp(tex_extensions[e].name, ".tga"))
+							if (!Q_strcasecmp(tex_extensions[e].name, ".tga"))
 							{
 								Q_snprintfz(fname, sizeof(fname), tex_path[i].path, bumpname, tex_extensions[e].name);
 								depth = FS_FLocateFile(fname, locflags, &loc);
@@ -14747,7 +14758,10 @@ void Image_Formats_f(void)
 		}
 		Image_BlockSizeForEncoding(i, &blockbytes, &blockwidth, &blockheight, &blockdepth);
 		bpp = blockbytes*8.0/(blockwidth*blockheight*blockdepth);
-		Con_Printf("%20s: %s"S_COLOR_GRAY" (%s%.3g-bpp)\n", Image_FormatName(i), sh_config.texfmt[i]?S_COLOR_GREEN"Enabled":S_COLOR_RED"Disabled", (blockdepth!=1)?"3d, ":"", bpp);
+		if (blockbytes)
+			Con_Printf("%20s: %s"S_COLOR_GRAY" (%s%.3g-bpp)\n", Image_FormatName(i), sh_config.texfmt[i]?S_COLOR_GREEN"Enabled":S_COLOR_RED"Disabled", (blockdepth!=1)?"3d, ":"", bpp);
+		else
+			Con_Printf("%20s: %s\n", Image_FormatName(i), sh_config.texfmt[i]?S_COLOR_GREEN"Enabled":S_COLOR_RED"Disabled");
 	}
 }
 

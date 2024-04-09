@@ -208,7 +208,7 @@ extern "C" {
 #endif
 
 #if defined(Q3CLIENT) || defined(Q3SERVER)
-#include "q3api.h"
+#include "../common/q3api.h"
 #endif
 
 #ifdef __cplusplus

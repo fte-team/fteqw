@@ -839,7 +839,7 @@ qboolean Plug_Init(void)
 {
 	filefuncs = plugfuncs->GetEngineInterface(plugfsfuncs_name, sizeof(*filefuncs));
 	modfuncs = plugfuncs->GetEngineInterface(plugmodfuncs_name, sizeof(*modfuncs));
-	if (modfuncs && modfuncs->version < MODPLUGFUNCS_VERSION)
+	if (modfuncs && modfuncs->version != MODPLUGFUNCS_VERSION)
 		modfuncs = NULL;
 
 	if (modfuncs && filefuncs)

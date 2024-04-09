@@ -8,15 +8,16 @@ basegame data
 basegame *ftedata	//so stuff gets written here instead.
 
 //xonotic 0.8.5 packages.
-package "data/font-unifont-20220627.pk3"			crc 0xa39ce3ad mirror "unzip:Xonotic/data/font-unifont-20220627.pk3,https://github.com/garymoon/xonotic/releases/download/xonotic-v0.8.5/xonotic-0.8.5.zip"
-package "data/font-xolonium-20220627.pk3"			crc 0x9553d8a4 mirror "unzip:Xonotic/data/font-xolonium-20220627.pk3,https://github.com/garymoon/xonotic/releases/download/xonotic-v0.8.5/xonotic-0.8.5.zip"
-package "data/xonotic-20220627-data.pk3"			crc 0x57a1ba9c mirror "unzip:Xonotic/data/xonotic-20220627-data.pk3,https://github.com/garymoon/xonotic/releases/download/xonotic-v0.8.5/xonotic-0.8.5.zip"
-package "data/xonotic-20220627-maps.pk3"			crc 0x1d3d7cf1 mirror "unzip:Xonotic/data/xonotic-20220627-maps.pk3,https://github.com/garymoon/xonotic/releases/download/xonotic-v0.8.5/xonotic-0.8.5.zip"
-package "data/xonotic-20220627-music.pk3"			crc 0x5d1dd373 mirror "unzip:Xonotic/data/xonotic-20220627-music.pk3,https://github.com/garymoon/xonotic/releases/download/xonotic-v0.8.5/xonotic-0.8.5.zip"
-package "data/xonotic-20220627-nexcompat.pk3"		crc 0x83f613b9 mirror "unzip:Xonotic/data/xonotic-20220627-nexcompat.pk3,https://github.com/garymoon/xonotic/releases/download/xonotic-v0.8.5/xonotic-0.8.5.zip"
+//package "data/font-unifont-20220627.pk3"			crc 0xa39ce3ad mirror "unzip:Xonotic/data/font-unifont-20220627.pk3,https://github.com/garymoon/xonotic/releases/download/xonotic-v0.8.5/xonotic-0.8.5.zip"
+//package "data/font-xolonium-20220627.pk3"			crc 0x9553d8a4 mirror "unzip:Xonotic/data/font-xolonium-20220627.pk3,https://github.com/garymoon/xonotic/releases/download/xonotic-v0.8.5/xonotic-0.8.5.zip"
+//package "data/xonotic-20220627-data.pk3"			crc 0x57a1ba9c mirror "unzip:Xonotic/data/xonotic-20220627-data.pk3,https://github.com/garymoon/xonotic/releases/download/xonotic-v0.8.5/xonotic-0.8.5.zip"
+//package "data/xonotic-20220627-maps.pk3"			crc 0x1d3d7cf1 mirror "unzip:Xonotic/data/xonotic-20220627-maps.pk3,https://github.com/garymoon/xonotic/releases/download/xonotic-v0.8.5/xonotic-0.8.5.zip"
+//package "data/xonotic-20220627-music.pk3"			crc 0x5d1dd373 mirror "unzip:Xonotic/data/xonotic-20220627-music.pk3,https://github.com/garymoon/xonotic/releases/download/xonotic-v0.8.5/xonotic-0.8.5.zip"
+//package "data/xonotic-20220627-nexcompat.pk3"		crc 0x83f613b9 mirror "unzip:Xonotic/data/xonotic-20220627-nexcompat.pk3,https://github.com/garymoon/xonotic/releases/download/xonotic-v0.8.5/xonotic-0.8.5.zip"
 
 //This sucks. overrides the *.dat files to work around gmqcc bugs (also smaller dat files at runtime, but still stupid and annoying and means compat hits the fan when using the standard csprogs on dp servers)
-package "data/xonotic-fixups-0.8.5.pk3"	crc 0xe27b8ad3 //mirror "xonotic-fixups-0.8.5.pk3"
+//  cd qcsrc && make QCC=fteqcc QCCFLAGS_WERROR= && zip xonotic-fixups-9.8.5.pk3 ../*.dat ../*.lno
+//package "data/xonotic-fixups-0.8.5.pk3"	crc 0xe27b8ad3 //mirror "xonotic-fixups-0.8.5.pk3"
 //-set pr_fixbrokenqccarrays 2	//this can be used instead, but can cause its own problems.
 
 

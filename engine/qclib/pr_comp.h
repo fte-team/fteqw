@@ -563,6 +563,8 @@ enum qcop_e {
 	//special/fake opcodes used by the decompiler.
 	OPD_GOTO_FORSTART,
 	OPD_GOTO_WHILE1,
+	OPD_GOTO_BREAK,
+	OPD_GOTO_DEFAULT,
 
 	OP_NUMOPS,
 #define OP_BIT_BREAKPOINT 0x8000

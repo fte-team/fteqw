@@ -78,6 +78,7 @@ void CL_StopPlayback (void)
 	cls.demoplayback = DPB_NONE;
 	cls.demoseeking = false;	//just in case
 	cls.demotrack = -1;
+	cls.demoeztv_ext = 0;
 
 	if (cls.timedemo)
 		CL_FinishTimeDemo ();
@@ -215,7 +216,7 @@ int demo_preparsedemo(unsigned char *buffer, int bytes)
 	int ofs;
 	unsigned int length;
 #define dem_mask 7
-	if (cls.demoplayback != DPB_MVD && cls.demoplayback != DPB_EZTV)
+	if (cls.demoplayback != DPB_MVD)
 		return bytes;	//no need if its not an mvd (this simplifies it a little)
 
 	while (bytes>2)
@@ -407,6 +408,12 @@ void CL_DemoJump_f(void)
 		return;
 	}
 
+	if (!*cls.lastdemoname)
+	{
+		Con_Printf("unable to seak in qtv streams.\n");
+		return;	//can't seek live streams...
+	}
+
 	if (*s == '+' || *s == '-')
 	{
 		if (colon)
@@ -465,6 +472,12 @@ void CL_DemoNudge_f(void)
 		return;
 	}
 
+	if (!*cls.lastdemoname)
+	{
+		Con_Printf("unable to seak in qtv streams.\n");
+		return;	//can't seek live streams...
+	}
+
 	if (!move)
 		move = 1;
 
@@ -519,6 +532,7 @@ qboolean CL_GetDemoMessage (void)
 	q1usercmd_t q1cmd;
 	int demopos = 0;
 	int msglength;
+	static float throttle;
 
 	if (endofdemo)
 	{
@@ -667,7 +681,7 @@ readnext:
 	}
 
 	// read the time from the packet
-	if (cls.demoplayback == DPB_MVD || cls.demoplayback == DPB_EZTV)
+	if (cls.demoplayback == DPB_MVD)
 	{
 		if (demtime < 0)
 		{
@@ -681,7 +695,9 @@ readnext:
 
 		if (readdemobytes(&demopos, &msecsadded, sizeof(msecsadded)) != sizeof(msecsadded))
 		{
-			Con_DPrintf("Not enough buffered\n");
+			Con_ThrottlePrintf(&throttle, 1, "Not enough buffered\n");
+			olddemotime = demtime+1;
+
 			demotime = olddemotime;
 			nextdemotime = demotime;
 			return 0;
@@ -696,7 +712,7 @@ readnext:
 	{
 		if (readdemobytes(&demopos, &demotime, sizeof(demotime)) != sizeof(demotime))
 		{
-			Con_DPrintf("Not enough buffered\n");
+			Con_ThrottlePrintf(&throttle, 1, "Not enough buffered\n");
 			olddemotime = demtime;	//if we ran out of buffered demo, delay the demo parsing a little
 			return 0;
 		}
@@ -763,15 +779,10 @@ readnext:
 	else
 		demtime = demotime; // we're warping
 
-	if (cls.demoplayback == DPB_MVD || cls.demoplayback == DPB_EZTV)
+	if (cls.demoplayback == DPB_MVD)
 	{
 		if ((msecsadded || cls.netchan.incoming_sequence < 2) && olddemotime != demotime)
 		{
-			if (!(cls.fteprotocolextensions2 & PEXT2_REPLACEMENTDELTAS))
-			{
-				cls.netchan.incoming_sequence++;
-				cls.netchan.incoming_acknowledged++;
-			}
 			cls.netchan.frame_latency = 0;
 			cls.netchan.last_received = realtime; // just to happy timeout check
 		}
@@ -783,7 +794,7 @@ readnext:
 	// get the msg type
 	if (readdemobytes (&demopos, &c, sizeof(c)) != sizeof(c))
 	{
-		Con_DPrintf("Not enough buffered\n");
+		Con_ThrottlePrintf(&throttle, 1, "Not enough buffered\n");
 		olddemotime = demtime+1;
 		return 0;
 	}
@@ -805,7 +816,7 @@ readnext:
 			r = readdemobytes (&demopos, &q1cmd, sizeof(q1cmd));
 			if (r != sizeof(q1cmd))
 			{
-				Con_DPrintf("Not enough buffered\n");
+				Con_ThrottlePrintf(&throttle, 1, "Not enough buffered\n");
 				olddemotime = demtime+1;
 				CL_StopPlayback ();
 				return 0;
@@ -843,7 +854,7 @@ readit:
 		// get the next message
 		if (readdemobytes (&demopos, &msglength, 4) != 4)
 		{
-			Con_DPrintf("Not enough buffered\n");
+			Con_ThrottlePrintf(&throttle, 1, "Not enough buffered\n");
 			olddemotime = demtime+1;
 			return 0;
 		}
@@ -857,20 +868,27 @@ readit:
 		}
 		if (readdemobytes (&demopos, net_message.data, msglength) != msglength)
 		{
-			Con_DPrintf("Not enough buffered\n");
+			Con_ThrottlePrintf(&throttle, 1, "Not enough buffered\n");
 			olddemotime = demtime+1;
 			return 0;
 		}
 		NET_UpdateRates(cls.sockets, true, msglength);	//keep any rate calcs sane
 		net_message.cursize = msglength;
 
-		if (cls.demoplayback == DPB_MVD || cls.demoplayback == DPB_EZTV)
+		if (cls.demoplayback == DPB_MVD)
 		{
 			int seat;
 			cl.defaultnetsplit = 0;
 			switch(cls_lasttype)
 			{
 			case dem_multiple:
+				if (!cls_lastto && (cls.ezprotocolextensions1 & EZPEXT1_HIDDEN_MESSAGES))
+				{	//an 'mvdsv hidden message' packet.
+					MSG_BeginReading(&net_message, cls.netchan.netprim);
+					CLEZ_ParseHiddenDemoMessage();
+					olddemotime = demotime;
+					goto readnext;
+				}
 				for (seat = 0; seat < cl.splitclients; seat++)
 				{
 					tracknum = cl.playerview[seat].cam_spec_track;
@@ -939,7 +957,7 @@ readit:
 
 		NET_UpdateRates(cls.sockets, false, demopos);	//keep any rate calcs sane
 
-		if (cls.demoplayback == DPB_MVD || cls.demoplayback == DPB_EZTV)
+		if (cls.demoplayback == DPB_MVD)
 			cls.netchan.incoming_acknowledged = cls.netchan.incoming_sequence;
 		goto readnext;
 
@@ -975,8 +993,21 @@ readit:
 	}
 	demo_flushbytes(demopos);
 
-	olddemotime = demotime;
+	if (cls.demoplayback == DPB_MVD)
+	{
+		if ((msecsadded || cls.netchan.incoming_sequence < 2) && olddemotime != demotime)
+		{
+			if (!(cls.fteprotocolextensions2 & PEXT2_REPLACEMENTDELTAS))
+			{
+				cls.netchan.incoming_sequence++;
+				cls.netchan.incoming_acknowledged++;
+			}
+			cls.netchan.frame_latency = 0;
+			cls.netchan.last_received = realtime; // just to happy timeout check
+		}
+	}
 
+	olddemotime = demotime;
 	net_from.type = NA_INVALID;
 	return 1;
 }
@@ -1009,6 +1040,7 @@ void CL_Stop_f (void)
 	}
 	else
 #endif
+	if (cls.demorecording == DPB_QUAKEWORLD)
 	{
 		SZ_Clear (&net_message);
 		MSG_WriteLong (&net_message, -1);	// -1 sequence means out of band
@@ -1139,12 +1171,16 @@ void CL_RecordMap_f (void)
 	CL_Disconnect_f();
 
 	SV_SpawnServer (mapname, NULL, false, false, 0);
+	if (!sv.state)
+		return;
 
 #ifdef MVD_RECORDING
-	COM_DefaultExtension(demoname, ".mvd", sizeof(demoname));
-#else
-	COM_DefaultExtension(demoname, ".dem", sizeof(demoname));
+	if (svs.allocated_client_slots > 1)
+		COM_DefaultExtension(demoname, ".mvd", sizeof(demoname));
+	else
 #endif
+		COM_DefaultExtension(demoname, ".qwd", sizeof(demoname));
+
 	COM_FileExtension(demoname, demoext, sizeof(demoext));
 
 #if defined(AVAIL_GZDEC) && !defined(CLIENTONLY)
@@ -1166,6 +1202,19 @@ void CL_RecordMap_f (void)
 	else
 #endif
 	{
+#ifdef NQPROT
+		if (!strcmp(demoext, "dem"))
+			cls.demorecording = DPB_NETQUAKE;
+		else
+#endif
+		if (!strcmp(demoext, "qwd"))
+			cls.demorecording = DPB_QUAKEWORLD;
+		else
+		{
+			CL_Disconnect_f();
+			return;
+		}
+
 		cls.demooutfile = FS_OpenVFS (demoname, "wb", FS_GAME);
 		if (!cls.demooutfile)
 		{
@@ -1176,16 +1225,10 @@ void CL_RecordMap_f (void)
 		if (!Q_strcasecmp(".gz", COM_GetFileExtension(demoname, NULL)))
 			cls.demooutfile = FS_GZ_WriteFilter(cls.demooutfile, true, true);
 #endif
-
 #ifdef NQPROT
-		if (!strcmp(demoext, "dem"))
-		{
-			cls.demorecording = DPB_NETQUAKE;
+		if (cls.demorecording == DPB_NETQUAKE)
 			VFS_PUTS(cls.demooutfile, "-1\n");
-		}
-		else
 #endif
-			cls.demorecording = DPB_QUAKEWORLD;
 		CL_WriteSetDemoMessage();
 	}
 }
@@ -1384,11 +1427,11 @@ void CLNQ_WriteServerData(sizebuf_t *buf)	//for demo recording
 	MSG_WriteByte (buf, cl.deathmatch?GAME_DEATHMATCH:GAME_COOP);
 	MSG_WriteString (buf, cl.levelname);
 
-	for (i = 1; *cl.model_name[i] && i < MAX_PRECACHE_MODELS; i++)
+	for (i = 1; cl.model_name[i] && i < MAX_PRECACHE_MODELS; i++)
 		MSG_WriteString (buf, cl.model_name[i]);
 	MSG_WriteByte (buf, 0);
 
-	for (i = 1; *cl.sound_name[i] && i < MAX_PRECACHE_SOUNDS ; i++)
+	for (i = 1; cl.sound_name[i] && i < MAX_PRECACHE_SOUNDS ; i++)
 		MSG_WriteString (buf, cl.sound_name[i]);
 	MSG_WriteByte (buf, 0);
 }
@@ -2284,7 +2327,7 @@ void CL_PlayDemo_f (void)
 }
 
 //dl is provided so that we can receive files via chunked/gziped http downloads and on systems that don't provide sockets etc. its tracked so we can cancel the download if the client aborts playback early.
-void CL_PlayDemoStream(vfsfile_t *file, char *filename, qboolean issyspath, int demotype, float bufferdelay)
+void CL_PlayDemoStream(vfsfile_t *file, char *filename, qboolean issyspath, int demotype, float bufferdelay, unsigned int eztv_ext)
 {
 	int protocol = CP_UNKNOWN;
 
@@ -2295,7 +2338,6 @@ void CL_PlayDemoStream(vfsfile_t *file, char *filename, qboolean issyspath, int 
 
 	switch(demotype)
 	{
-	case DPB_EZTV:
 	case DPB_MVD:
 	case DPB_QUAKEWORLD:
 		protocol = CP_QUAKEWORLD;
@@ -2345,13 +2387,14 @@ void CL_PlayDemoStream(vfsfile_t *file, char *filename, qboolean issyspath, int 
 		Con_Printf ("Playing demo from %s.\n", filename);
 	}
 
-	cls.findtrack = (demotype == DPB_MVD || demotype == DPB_EZTV);
+	cls.findtrack = (demotype == DPB_MVD);
 
 	cls.demoplayback = demotype;
+	cls.demoeztv_ext = eztv_ext;
 	cls.protocol = protocol;
 	cls.state = ca_demostart;
 	net_message.packing = SZ_RAWBYTES;
-	Netchan_Setup (NS_CLIENT, &cls.netchan, &net_from, 0);
+	Netchan_Setup (NCF_CLIENT, &cls.netchan, &net_from, 0, 0);
 
 	demtime = -bufferdelay;
 	cls.demostarttime = 0;
@@ -2391,20 +2434,20 @@ void CL_PlayDemoFile(vfsfile_t *f, char *demoname, qboolean issyspath)
 	if (!Q_strcasecmp(demoname + strlen(demoname) - 3, "dm2") ||
 		!Q_strcasecmp(demoname + strlen(demoname) - 6, "dm2.gz"))
 	{
-		CL_PlayDemoStream(f, demoname, issyspath, DPB_QUAKE2, 0);
+		CL_PlayDemoStream(f, demoname, issyspath, DPB_QUAKE2, 0, 0);
 		return;
 	}
 #endif
 	if (!Q_strcasecmp(demoname + strlen(demoname) - 3, "mvd") ||
 		!Q_strcasecmp(demoname + strlen(demoname) - 6, "mvd.gz"))
 	{
-		CL_PlayDemoStream(f, demoname, issyspath, DPB_MVD, 0);
+		CL_PlayDemoStream(f, demoname, issyspath, DPB_MVD, 0, 0);
 		return;
 	}
 	if (!Q_strcasecmp(demoname + strlen(demoname) - 3, "qwd") ||
 		!Q_strcasecmp(demoname + strlen(demoname) - 6, "qwd.gz"))
 	{
-		CL_PlayDemoStream(f, demoname, issyspath, DPB_QUAKEWORLD, 0);
+		CL_PlayDemoStream(f, demoname, issyspath, DPB_QUAKEWORLD, 0, 0);
 		return;
 	}
 
@@ -2436,7 +2479,7 @@ void CL_PlayDemoFile(vfsfile_t *f, char *demoname, qboolean issyspath)
 			else
 				cls.demotrack = -1;
 
-			CL_PlayDemoStream(f, demoname, issyspath, DPB_NETQUAKE, 0);
+			CL_PlayDemoStream(f, demoname, issyspath, DPB_NETQUAKE, 0, 0);
 			return;
 		}
 		VFS_SEEK(f, start);
@@ -2477,7 +2520,7 @@ void CL_PlayDemoFile(vfsfile_t *f, char *demoname, qboolean issyspath)
 				if (protocol >= PROTOCOL_VERSION_Q2_DEMO_MIN && protocol <= PROTOCOL_VERSION_Q2_DEMO_MAX)
 				{
 					VFS_SEEK(f, start);
-					CL_PlayDemoStream(f, demoname, issyspath, DPB_QUAKE2, 0);
+					CL_PlayDemoStream(f, demoname, issyspath, DPB_QUAKE2, 0, 0);
 					return;
 				}
 				break;
@@ -2493,7 +2536,7 @@ void CL_PlayDemoFile(vfsfile_t *f, char *demoname, qboolean issyspath)
 	//could also be .qwz or .dmz or whatever that nq extension is. we don't support either.
 
 	//mvd and qwd have no identifying markers, other than the extension.
-	CL_PlayDemoStream(f, demoname, issyspath, DPB_QUAKEWORLD, 0);
+	CL_PlayDemoStream(f, demoname, issyspath, DPB_QUAKEWORLD, 0, 0);
 }
 #ifdef WEBCLIENT
 void CL_PlayDownloadedDemo(struct dl_download *dl)
@@ -2566,7 +2609,7 @@ void CL_Demo_ClientCommand(char *commandtext)
 #ifdef warningmsg
 #pragma warningmsg("this needs buffering safely")
 #endif
-	if (cls.demoplayback == DPB_EZTV)
+	if (cls.demoplayback == DPB_MVD && cls.demoeztv_ext)
 	{
 		VFS_WRITE(cls.demoinfile, &len, sizeof(len));
 		VFS_WRITE(cls.demoinfile, &b, sizeof(b));
@@ -2947,8 +2990,9 @@ fail:
 				//eztv extensions to v1.0
 				else if (!strcmp(s, "QTV_EZQUAKE_EXT"))
 				{
-					iseztv = true;
-					Con_Printf("Warning: eztv extensions %s\n", colon);
+					iseztv = atoi(colon);
+					if (iseztv & ~(EZTV_DOWNLOAD|EZTV_SETINFO|EZTV_QTVUSERLIST))
+						Con_Printf(CON_WARNING"Warning: unknown eztv extensions %s\n", colon);
 				}
 
 				//v1.1 sourcelist response includes SRCSRV, SRCHOST, SRCPLYRS, SRCVIEWS, SRCID
@@ -3013,7 +3057,7 @@ fail:
 				Con_Printf("streaming \"%s\" from qtv\n", streamavailable);
 			else
 				Con_Printf("qtv connection established to %s\n", qtv->hostname);
-			CL_PlayDemoStream(qtv->stream, NULL, false, iseztv?DPB_EZTV:DPB_MVD, BUFFERTIME);
+			CL_PlayDemoStream(qtv->stream, NULL, false, DPB_MVD, BUFFERTIME, iseztv);
 			qtv->stream = NULL;
 			demo_resetcache(qtv->requestsize - (tail-qtv->requestbuffer), tail);
 			*link = qtv->next;
@@ -3194,8 +3238,8 @@ void CL_QTVPlay_f (void)
 		if (qtvcl_eztvextensions.ival)
 		{
 			Q_snprintfz(msg+msglen, sizeof(msg)-msglen,
-					"QTV_EZQUAKE_EXT: 3\n"
-					"USERINFO: ");
+					"QTV_EZQUAKE_EXT: %u\n"
+					"USERINFO: ", EZTV_DOWNLOAD|EZTV_SETINFO|EZTV_QTVUSERLIST);
 			msglen += strlen(msg+msglen);
 			InfoBuf_ToString(&cls.userinfo[0], msg+msglen, sizeof(msg)-msglen-1, basicuserinfos, NULL, NULL, NULL, NULL);
 			msglen += strlen(msg+msglen);

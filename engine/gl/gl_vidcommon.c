@@ -1409,6 +1409,9 @@ static qboolean GL_CheckExtensions (void *(*getglfunction) (char *name))
 		qglGenVertexArrays = NULL;
 		qglBindVertexArray = NULL;
 	}
+
+	Cvar_LockUnsupportedRendererCvar(&r_halfrate, "0");
+	Cvar_LockUnsupportedRendererCvar(&r_shadow_raytrace, "0");
 	return true;	//all okay.
 }
 

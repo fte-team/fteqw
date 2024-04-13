@@ -785,7 +785,7 @@ static void MenuDrawItems(int xpos, int ypos, menuoption_t *option, emenu_t *men
 
 				if (option->check.text)
 				{
-					Draw_FunStringWidth(x, y, option->check.text, option->check.textwidth, true, !menu->cursoritem && menu->selecteditem == option);
+					Draw_FunStringWidth(x, y, option->check.text, option->check.textwidth, true, (!menu->cursoritem && menu->selecteditem == option) | ((option->check.var && (option->check.var->flags&CVAR_RENDEREROVERRIDE))?4:0));
 					x += option->check.textwidth + 3*8;
 				}
 #if 0

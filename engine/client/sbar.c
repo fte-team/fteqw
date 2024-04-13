@@ -233,7 +233,10 @@ void Draw_FunStringWidthFont(struct font_s *font, float x, float y, const void *
 	//be generous and round up, to avoid too many issues with truncations
 	width = ceil((width*(float)vid.rotpixelwidth)/vid.width);
 
-	codeflags = (highlight&1)?CON_ALTMASK:CON_WHITEMASK;
+	if (highlight&4)
+		codeflags = COLOR_GREY<<CON_FGSHIFT;
+	else
+		codeflags = (highlight&1)?CON_ALTMASK:CON_WHITEMASK;
 	if (highlight&2)
 		codeflags |= CON_BLINKTEXT;
 	COM_ParseFunString(codeflags, str, buffer, sizeof(buffer), false);

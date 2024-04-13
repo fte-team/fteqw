@@ -267,7 +267,10 @@ float(string key) mitem::isvalid =
 	if (this.item_parent)
 		return this.item_parent.isvalid(key);
 	else	//no parent, just assume its a cvar.
-		return cvar_type(key);
+	{
+		float t = cvar_type(key);
+		return (t & CVAR_TYPEFLAG_EXISTS) && !(t & CVAR_TYPEFLAG_READONLY);
+	}
 };
 
 

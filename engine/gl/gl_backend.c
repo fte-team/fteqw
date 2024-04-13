@@ -88,8 +88,8 @@ static struct {
 //		int vbo_texcoords[SHADER_PASS_MAX];
 //		int vbo_deforms;	//holds verticies... in case you didn't realise.
 
-		const shader_t *shader_light[1u<<LSHADER_MODES];
-		qboolean inited_shader_light[1u<<LSHADER_MODES];
+		const shader_t *shader_light[LSHADER_MODES];
+		qboolean inited_shader_light[LSHADER_MODES];
 
 		const shader_t *crepskyshader;
 		const shader_t *crepopaqueshader;

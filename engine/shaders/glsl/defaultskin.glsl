@@ -89,7 +89,7 @@ void main ()
 		#else
 			//_DOES_ get darker in the shade, despite the light not lighting it at all....
 			float d = dot(n,e_light_dir);
-			if (d < 0)
+			if (d < 0.0)
 				d *= 13.0/44.0;	//a wtfery factor to approximate glquake's anorm_dots.h
 			light.rgb += d * e_light_mul;
 		#endif

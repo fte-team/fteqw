@@ -11,7 +11,6 @@ class options_effects : mitem_exmenu
 	{
 		if (key == "r_replacemodels")	//convert from boolean to some arbitrary list.
 			newval = stof(newval)?"iqm md5mesh md3":"";
-
 		super::set(key, newval);
 	};
 };
@@ -83,6 +82,8 @@ nonstatic void(mitem_desktop desktop) M_Options_Effects =
 		fr.add(menuitemcheck_spawn(_("Relief Mapping"),		"r_glsl_offsetmapping", 	'280 8'),	fl, [0, pos], [0, 8]); pos += 8;
 		fr.add(menuitemcheck_spawn(_("RT Dynamic Lights"),	"r_shadow_realtime_dlight", '280 8'),	fl, [0, pos], [0, 8]); pos += 8;
 		fr.add(menuitemcheck_spawn(_("RT World Lighting"),	"r_shadow_realtime_world", 	'280 8'),	fl, [0, pos], [0, 8]); pos += 8;
+		fr.add(menuitemcheck_spawn(_("Raytraced Shadows"),	"r_shadow_raytrace",		'280 8'),	fl, [0, pos], [0, 8]); pos += 8;
+		fr.add(menuitemcheck_spawn(_("Half-Rate Shading"),	"r_halfrate",				'280 8'),	fl, [0, pos], [0, 8]); pos += 8;
 
 		fr.add(menuitemcombo_spawn(_("Water Effects"),			"r_waterstyle",			'280 8', _(
 																			"1	\"Classic\" "

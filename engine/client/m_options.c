@@ -1613,7 +1613,7 @@ void M_Menu_FPS_f (void)
 	emenu_t *menu;
 //	fpsmenuinfo_t *info;
 
-	extern cvar_t v_contentblend, show_fps, cl_r2g, cl_gibfilter, cl_expsprite, cl_deadbodyfilter, cl_lerp_players, cl_nolerp, cl_maxfps, cl_yieldcpu;
+	extern cvar_t v_contentblend, show_fps, cl_r2g, cl_gibfilter, cl_expsprite, cl_deadbodyfilter, cl_lerp_players, cl_nolerp, cl_maxfps, cl_yieldcpu, r_halfrate;
 	static menuresel_t resel;
 	int y;
 	menu = M_Options_Title(&y, 0);
@@ -1633,6 +1633,7 @@ void M_Menu_FPS_f (void)
 			MB_COMBOCVAR("Show FPS", show_fps, fpsopts, fpsvalues, "Display FPS or frame millisecond values on screen. Settings except immediate are for values across 1 second."),
 			MB_EDITCVARSLIM("Framerate Limiter", cl_maxfps.name, "Limits the maximum framerate. Set to 0 for none."),
 			MB_CHECKBOXCVARTIP("Yield CPU", cl_yieldcpu, 1, "Reduce CPU usage between frames.\nShould probably be off when using vsync."),
+			MB_CHECKBOXCVARTIP("Half-Rate Shading", r_halfrate, 0, "Reduce the number of shader invocations to save gpu time (doesn't harm edges)."),
 			MB_COMBOCVAR("Player lerping", cl_lerp_players, playerlerpopts, values_0_1, "Smooth movement of other players, but will increase effective latency. Does not affect all network protocols."),
 			MB_COMBOCVAR("Entity lerping", cl_nolerp, entlerpopts, values_0_1_2, "Smooth movement of entities, but will increase effective latency."),
 			MB_CHECKBOXCVAR("Content Blend", v_contentblend, 0),
@@ -2089,6 +2090,9 @@ void M_Menu_Lighting_f (void)
 			MB_COMBORETURN("Lighting Mode", lightingopts, lightselect, info->lightcombo, "Selects method used for world lighting. Realtime lighting requires appropriate realtime lighting files for maps."),
 			MB_COMBORETURN("Dynamic Lighting Mode", dlightopts, dlightselect, info->dlightcombo, "Selects method used for dynamic lighting such as explosion lights and muzzle flashes."),
 #ifdef RTLIGHTS
+#ifdef VKQUAKE
+			MB_CHECKBOXCVARTIP("Raytrace Shadows", r_shadow_raytrace, 0, "Enables raytraced shadows when supported by hardware+drivers. Consider combining with half-rate shading."),
+#endif
 			MB_CHECKBOXCVARTIP("Soft Shadows", r_shadow_shadowmapping, 0, "Enables softer shadows instead of course-edged pixelated shadows."),
 			MB_CMD("Apply Lighting", M_VideoApplyShadowLighting, "Applies set lighting modes and restarts video."),
 			MB_SPACING(4),
@@ -3030,7 +3034,7 @@ void M_Menu_Video_f (void)
 		"OpenGL",
 #endif
 #ifdef VKQUAKE
-		"Vulkan (Experimental)",
+		"Vulkan",
 #endif
 #ifdef D3D8QUAKE
 		"Direct3D 8 (limited)",

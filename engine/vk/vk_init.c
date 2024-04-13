@@ -7,8 +7,6 @@
 
 #include "vr.h"
 
-#define VK_API_MAX_VERSION VK_API_VERSION_1_0
-
 extern qboolean vid_isfullscreen;
 
 cvar_t vk_stagingbuffers						= CVARFD ("vk_stagingbuffers",			"", CVAR_RENDERERLATCH, "Configures which dynamic buffers are copied into gpu memory for rendering, instead of reading from shared memory. Empty for default settings.\nAccepted chars are u(niform), e(lements), v(ertex), 0(none).");
@@ -27,6 +25,9 @@ static cvar_t vK_khr_fragment_shading_rate		= CVARFD("vK_khr_fragment_shading_ra
 #endif
 #ifdef VK_EXT_astc_decode_mode
 static cvar_t vk_ext_astc_decode_mode			= CVARFD("vk_ext_astc_decode_mode",		"",	CVAR_VIDEOLATCH, "Enables reducing texture cache sizes for LDR ASTC-compressed textures.");
+#endif
+#ifdef VK_KHR_ray_query
+static cvar_t vk_khr_ray_query					= CVARFD("vk_khr_ray_query",			"",	CVAR_VIDEOLATCH, "Required for the use of hardware raytraced shadows.");
 #endif
 extern cvar_t vid_srgb, vid_vsync, vid_triplebuffer, r_stereo_method, vid_multisample, vid_bpp;
 
@@ -54,6 +55,9 @@ void VK_RegisterVulkanCvars(void)
 #ifdef VK_EXT_astc_decode_mode
 	Cvar_Register (&vk_ext_astc_decode_mode,	VKRENDEREROPTIONS);
 #endif
+#ifdef VK_KHR_ray_query
+	Cvar_Register (&vk_khr_ray_query,			VKRENDEREROPTIONS);
+#endif
 }
 void R2D_Console_Resize(void);
 static void VK_DestroySampler(VkSampler s);
@@ -65,7 +69,7 @@ extern qboolean		scr_con_forcedraw;
 #define Sys_UnlockConditional(c)
 #endif
 
-const char *vklayerlist[] =
+static const char *vklayerlist[] =
 {
 #if 1
 	"VK_LAYER_KHRONOS_validation"
@@ -263,6 +267,9 @@ char *DebugAnnotObjectToString(VkObjectType t)
 	case VK_OBJECT_TYPE_VALIDATION_CACHE_EXT:			return "VK_OBJECT_TYPE_VALIDATION_CACHE_EXT";
 #ifdef VK_NV_ray_tracing
 	case VK_OBJECT_TYPE_ACCELERATION_STRUCTURE_NV:		return "VK_OBJECT_TYPE_ACCELERATION_STRUCTURE_NV";
+#endif
+#ifdef VK_KHR_acceleration_structure
+	case VK_OBJECT_TYPE_ACCELERATION_STRUCTURE_KHR:		return "VK_OBJECT_TYPE_ACCELERATION_STRUCTURE_KHR";
 #endif
 //	case VK_OBJECT_TYPE_RANGE_SIZE:
     case VK_OBJECT_TYPE_MAX_ENUM:
@@ -659,6 +666,7 @@ static qboolean VK_CreateSwapChain(void)
 			}
 
 			VkAssert(vkAllocateMemory(vk.device, &memAllocInfo, vkallocationcb, &memories[i]));
+			DebugSetName(VK_OBJECT_TYPE_DEVICE_MEMORY, (uint64_t)memories[i], "VK_CreateSwapChain");
 			VkAssert(vkBindImageMemory(vk.device, images[i], memories[i], 0));
 		}
 	}
@@ -1341,6 +1349,7 @@ qboolean VK_AllocatePoolMemory(uint32_t pooltype, VkDeviceSize memsize, VkDevice
 			Z_Free(p);
 			return false;
 		}
+		DebugSetName(VK_OBJECT_TYPE_DEVICE_MEMORY, (uint64_t)p->memory, "VK_AllocatePoolMemory");
 		p->next = vk.mempools;
 		vk.mempools = p;
 	}
@@ -1426,6 +1435,7 @@ qboolean VK_AllocateImageMemory(VkImage image, qboolean dedicated, vk_poolmem_t 
 		err = vkAllocateMemory(vk.device, &memAllocInfo, vkallocationcb, &mem->memory);
 		if (err != VK_SUCCESS)
 			return false;
+		DebugSetName(VK_OBJECT_TYPE_DEVICE_MEMORY, (uint64_t)mem->memory, "VK_AllocateImageMemory");
 		return true;
 	}
 }
@@ -2099,6 +2109,7 @@ qboolean VK_LoadTextureMips (texid_t tex, const struct pendingtextureinfo *mips)
 		VK_FencedSubmit(fence);
 		return false;	//some sort of oom error?
 	}
+	DebugSetName(VK_OBJECT_TYPE_DEVICE_MEMORY, (uint64_t)fence->stagingmemory, "VK_LoadTextureMips");
 	VkAssert(vkBindBufferMemory(vk.device, fence->stagingbuffer, fence->stagingmemory, 0));
 	VkAssert(vkMapMemory(vk.device, fence->stagingmemory, 0, bci.size, 0, &mapdata));
 	if (!mapdata)
@@ -3247,6 +3258,7 @@ void VKVID_QueueGetRGBData			(void (*gotrgbdata) (void *rgbdata, intptr_t bytest
 	if (memAllocInfo.memoryTypeIndex == ~0u)
 		memAllocInfo.memoryTypeIndex = vk_find_memory_require(mem_reqs.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT);
 	VkAssert(vkAllocateMemory(vk.device, &memAllocInfo, vkallocationcb, &capt->memory));
+	DebugSetName(VK_OBJECT_TYPE_DEVICE_MEMORY, (uint64_t)capt->memory, "VKVID_QueueGetRGBData");
 	VkAssert(vkBindBufferMemory(vk.device, capt->buffer, capt->memory, 0));
 
 	set_image_layout(vk.rendertarg->cbuf, vk.frame->backbuf->colour.image, VK_IMAGE_ASPECT_COLOR_BIT,
@@ -3334,6 +3346,7 @@ char	*VKVID_GetRGBInfo			(int *bytestride, int *truevidwidth, int *truevidheight
 		memAllocInfo.allocationSize = mem_reqs.size;
 		memAllocInfo.memoryTypeIndex = vk_find_memory_require(mem_reqs.memoryTypeBits, 0);
 		VkAssert(vkAllocateMemory(vk.device, &memAllocInfo, vkallocationcb, &tempmemory));
+		DebugSetName(VK_OBJECT_TYPE_DEVICE_MEMORY, (uint64_t)tempmemory, "VKVID_GetRGBInfo staging");
 		VkAssert(vkBindImageMemory(vk.device, tempimage, tempmemory, 0));
 
 		bci.flags = 0;
@@ -3344,12 +3357,14 @@ char	*VKVID_GetRGBInfo			(int *bytestride, int *truevidwidth, int *truevidheight
 		bci.pQueueFamilyIndices = NULL;
 
 		VkAssert(vkCreateBuffer(vk.device, &bci, vkallocationcb, &tempbuffer));
+		DebugSetName(VK_OBJECT_TYPE_BUFFER, (uint64_t)tempbuffer, "VKVID_GetRGBInfo buffer");
 		vkGetBufferMemoryRequirements(vk.device, tempbuffer, &mem_reqs);
 		memAllocInfo.allocationSize = mem_reqs.size;
 		memAllocInfo.memoryTypeIndex = vk_find_memory_try(mem_reqs.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT|VK_MEMORY_PROPERTY_HOST_CACHED_BIT);
 		if (memAllocInfo.memoryTypeIndex == ~0u)
 			memAllocInfo.memoryTypeIndex = vk_find_memory_require(mem_reqs.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT);
 		VkAssert(vkAllocateMemory(vk.device, &memAllocInfo, vkallocationcb, &tempbufmemory));
+		DebugSetName(VK_OBJECT_TYPE_DEVICE_MEMORY, (uint64_t)tempbufmemory, "VKVID_GetRGBInfo buffer");
 		VkAssert(vkBindBufferMemory(vk.device, tempbuffer, tempbufmemory, 0));
 
 
@@ -3732,8 +3747,6 @@ qboolean VK_SCR_GrabBackBuffer(void)
 		vkBeginCommandBuffer(vk.rendertarg->cbuf, &begininf);
 	}
 
-	VKBE_RestartFrame();
-
 //	VK_DebugFramerate();
 
 //	vkCmdWriteTimestamp(vk.frame->cbuf, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, querypool, vk.bufferidx*2+0);
@@ -3780,6 +3793,7 @@ qboolean VK_SCR_GrabBackBuffer(void)
 		imgbarrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
 		vkCmdPipelineBarrier(vk.rendertarg->cbuf, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, 0, 0, NULL, 0, NULL, 1, &imgbarrier);
 	}
+	VKBE_RestartFrame();
 
 	{
 		int rp = vk.frame->backbuf->rpassflags;
@@ -4649,7 +4663,7 @@ qboolean VK_EnumerateDevices (void *usercontext, void(*callback)(void *context, 
 	app.applicationVersion = revision_number(false);
 	app.pEngineName = "FTE Quake";
 	app.engineVersion = VK_MAKE_VERSION(FTE_VER_MAJOR, FTE_VER_MINOR, 0);
-	app.apiVersion = VK_API_MAX_VERSION;
+	app.apiVersion = VK_API_VERSION_1_0;	//make sure it works...
 
 	memset(&inst_info, 0, sizeof(inst_info));
 	inst_info.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
@@ -4737,6 +4751,13 @@ qboolean VK_Init(rendererstate_t *info, const char **sysextnames, qboolean (*cre
 #endif
 #ifdef VK_EXT_astc_decode_mode
 		{&vk.ext_astc_decode_mode,			VK_EXT_ASTC_DECODE_MODE_EXTENSION_NAME,			&vk_ext_astc_decode_mode,		true,  NULL, NULL},
+#endif
+#ifdef VK_KHR_acceleration_structure
+		{&vk.khr_deferred_host_operations,  VK_KHR_DEFERRED_HOST_OPERATIONS_EXTENSION_NAME,	&vk_khr_ray_query,				true,  NULL, NULL},	//dependancy of khr_acceleration_structure
+		{&vk.khr_acceleration_structure,	VK_KHR_ACCELERATION_STRUCTURE_EXTENSION_NAME,	&vk_khr_ray_query,				true,  NULL, NULL},
+#endif
+#ifdef VK_KHR_ray_query
+		{&vk.khr_ray_query,					VK_KHR_RAY_QUERY_EXTENSION_NAME,				&vk_khr_ray_query,				true,  NULL, NULL},
 #endif
 	};
 	size_t e;
@@ -4836,7 +4857,18 @@ qboolean VK_Init(rendererstate_t *info, const char **sysextnames, qboolean (*cre
 	app.applicationVersion = revision_number(false);
 	app.pEngineName = "FTE Quake";
 	app.engineVersion = VK_MAKE_VERSION(FTE_VER_MAJOR, FTE_VER_MINOR, 0);
-	app.apiVersion = VK_API_MAX_VERSION;
+	app.apiVersion = VK_API_VERSION_1_0;
+	if (vkEnumerateInstanceVersion)
+	{
+		vkEnumerateInstanceVersion(&app.apiVersion);
+#ifdef VK_API_VERSION_1_2
+		if (app.apiVersion > VK_API_VERSION_1_2)
+			app.apiVersion = VK_API_VERSION_1_2;
+#else
+		if (app.apiVersion > VK_API_VERSION_1_0)
+			app.apiVersion = VK_API_VERSION_1_0;
+#endif
+	}
 
 	memset(&inst_info, 0, sizeof(inst_info));
 	inst_info.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
@@ -5044,10 +5076,31 @@ qboolean VK_Init(rendererstate_t *info, const char **sysextnames, qboolean (*cre
 
 	{
 		char *vendor, *type;
-		VkPhysicalDeviceProperties props;
-		vkGetPhysicalDeviceProperties(vk.gpu, &props);
+#ifdef VK_API_VERSION_1_2
+		VkPhysicalDeviceVulkan12Properties props12 = {VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_PROPERTIES};
+		VkPhysicalDeviceProperties2 props = {VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2, &props12};
+#else
+		struct {VkPhysicalDeviceProperties properties;} props;
+#endif
+		vkGetPhysicalDeviceProperties(vk.gpu, &props.properties);	//legacy
+
+		vk.apiversion = props.properties.apiVersion;
+		if (vk.apiversion > app.apiVersion)
+			vk.apiversion = app.apiVersion;	//cap it to the instance version...
+
+#ifdef VK_API_VERSION_1_2
+		if (vk.apiversion >= VK_API_VERSION_1_2)
+		{
+			PFN_vkGetPhysicalDeviceProperties2 vkGetPhysicalDeviceProperties2 = (PFN_vkGetPhysicalDeviceProperties2)vkGetInstanceProcAddr(vk.instance, "vkGetPhysicalDeviceProperties2");
+			if (vkGetPhysicalDeviceProperties2)
+				vkGetPhysicalDeviceProperties2(vk.gpu, &props);
+		}
 	
-		switch(props.vendorID)
+		if (*props12.driverName)
+			vendor = props12.driverName;
+		else
+#endif
+		switch(props.properties.vendorID)
 		{
 		//explicit registered vendors
 		case 0x10001: vendor = "Vivante";		break;
@@ -5079,10 +5132,10 @@ qboolean VK_Init(rendererstate_t *info, const char **sysextnames, qboolean (*cre
 		case 0x11E2: vendor = "Samsung";	break;
 		case 0x1249: vendor = "Samsung";	break;
 		
-		default:	vendor = va("VEND_%x", props.vendorID); break;
+		default:	vendor = va("VEND_%x", props.properties.vendorID); break;
 		}
 
-		switch(props.deviceType)
+		switch(props.properties.deviceType)
 		{
 		default:
 		case VK_PHYSICAL_DEVICE_TYPE_OTHER:				type = "(other)"; break;
@@ -5092,10 +5145,24 @@ qboolean VK_Init(rendererstate_t *info, const char **sysextnames, qboolean (*cre
 		case VK_PHYSICAL_DEVICE_TYPE_CPU:				type = "software"; break;
 		}
 
-		Con_TPrintf("Vulkan %u.%u.%u: GPU%i %s %s %s (%u.%u.%u)\n", VK_VERSION_MAJOR(props.apiVersion), VK_VERSION_MINOR(props.apiVersion), VK_VERSION_PATCH(props.apiVersion),
-			gpuidx, type, vendor, props.deviceName,
-			VK_VERSION_MAJOR(props.driverVersion), VK_VERSION_MINOR(props.driverVersion), VK_VERSION_PATCH(props.driverVersion)
-			);
+#ifdef VK_API_VERSION_1_2
+		if (*props12.driverInfo)
+		{
+			Con_TPrintf("Vulkan Driver Name: %s\n"
+						"Vulkan Device (GPU%i): %s\n"
+						"Vulkan Driver Info: %s\n",
+						vendor,
+						gpuidx, props.properties.deviceName,
+						props12.driverInfo );
+		}
+		else
+#endif
+		{
+			Con_TPrintf("Vulkan %u.%u.%u: GPU%i %s %s %s (%u.%u.%u)\n", VK_VERSION_MAJOR(props.properties.apiVersion), VK_VERSION_MINOR(props.properties.apiVersion), VK_VERSION_PATCH(props.properties.apiVersion),
+				gpuidx, type, vendor, props.properties.deviceName,
+				VK_VERSION_MAJOR(props.properties.driverVersion), VK_VERSION_MINOR(props.properties.driverVersion), VK_VERSION_PATCH(props.properties.driverVersion)
+				);
+		}
 	}
 
 	//figure out which of the device's queue's we're going to use
@@ -5196,6 +5263,20 @@ qboolean VK_Init(rendererstate_t *info, const char **sysextnames, qboolean (*cre
 		}
 		free(ext);
 	}
+
+#ifdef VK_KHR_ray_query
+	if ((vk.khr_ray_query && !vk.khr_acceleration_structure) || vk.apiversion < VK_API_VERSION_1_2)
+		vk.khr_ray_query = false;	//doesn't make sense.
+#endif
+#ifdef VK_KHR_acceleration_structure
+	if ((vk.khr_acceleration_structure && !vk.khr_ray_query) || vk.apiversion < VK_API_VERSION_1_2)
+		vk.khr_acceleration_structure = false;	//not useful.
+#endif
+#ifdef VK_KHR_fragment_shading_rate
+	if (vk.apiversion < VK_API_VERSION_1_2)	//too lazy to check its requesite extensions. vk12 is enough.
+		vk.khr_fragment_shading_rate = false;
+#endif
+
 	{
 		const char *devextensions[1+countof(knowndevexts)];
 		size_t numdevextensions = 0;
@@ -5204,6 +5285,19 @@ qboolean VK_Init(rendererstate_t *info, const char **sysextnames, qboolean (*cre
 		VkDeviceCreateInfo devinf = {VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO};
 		VkPhysicalDeviceFeatures features;
 		VkPhysicalDeviceFeatures avail;
+		void *next = NULL;
+#ifdef VK_KHR_fragment_shading_rate
+		VkPhysicalDeviceFragmentShadingRateFeaturesKHR shadingrate = {VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FRAGMENT_SHADING_RATE_FEATURES_KHR};
+#endif
+#ifdef VK_KHR_ray_query
+		VkPhysicalDeviceRayQueryFeaturesKHR rayquery = {VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_QUERY_FEATURES_KHR};
+#endif
+#ifdef VK_KHR_acceleration_structure
+		VkPhysicalDeviceAccelerationStructureFeaturesKHR accelstruct = {VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ACCELERATION_STRUCTURE_FEATURES_KHR};
+#endif
+#ifdef VK_API_VERSION_1_2
+		VkPhysicalDeviceVulkan12Features vk12features = {VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES};
+#endif
 		memset(&features, 0, sizeof(features));
 
 		vkGetPhysicalDeviceFeatures(vk.gpu, &avail);
@@ -5280,6 +5374,47 @@ qboolean VK_Init(rendererstate_t *info, const char **sysextnames, qboolean (*cre
 		devinf.ppEnabledExtensionNames = devextensions;
 		devinf.pEnabledFeatures = &features;
 
+#ifdef VK_KHR_fragment_shading_rate
+		if (vk.khr_fragment_shading_rate)
+		{
+			shadingrate.pNext = next;
+			next = &shadingrate;	//now linked
+			shadingrate.pipelineFragmentShadingRate = true;
+			shadingrate.primitiveFragmentShadingRate = false;
+			shadingrate.attachmentFragmentShadingRate = false;
+		}
+#endif
+#ifdef VK_KHR_ray_query
+		if (vk.khr_ray_query)
+		{
+			rayquery.pNext = next;
+			next = &rayquery;	//now linked
+			rayquery.rayQuery = true;
+		}
+#endif
+#ifdef VK_KHR_acceleration_structure
+		if (vk.khr_acceleration_structure)
+		{
+			accelstruct.pNext = next;
+			next = &accelstruct;	//now linked
+			accelstruct.accelerationStructure = true;
+			accelstruct.accelerationStructureCaptureReplay = false;
+			accelstruct.accelerationStructureIndirectBuild = false;
+			accelstruct.accelerationStructureHostCommands = false;
+			accelstruct.descriptorBindingAccelerationStructureUpdateAfterBind = false;
+
+			vk12features.bufferDeviceAddress = true;	//we also need this feature.
+		}
+#endif
+#ifdef VK_API_VERSION_1_2
+		if (vk.apiversion >= VK_API_VERSION_1_2)
+		{
+			vk12features.pNext = next;
+			next = &vk12features;
+		}
+#endif
+		devinf.pNext = next;
+
 #if 0
 		if (vkEnumeratePhysicalDeviceGroupsKHR && vk_afr.ival)
 		{	
@@ -5342,6 +5477,9 @@ qboolean VK_Init(rendererstate_t *info, const char **sysextnames, qboolean (*cre
 	vkGetDeviceProcAddr = (PFN_vkGetDeviceProcAddr)vkGetInstanceProcAddr(vk.instance, "vkGetDeviceProcAddr");
 #define VKFunc(n) vk##n = (PFN_vk##n)vkGetDeviceProcAddr(vk.device, "vk"#n);
 	VKDevFuncs
+#ifdef VK_KHR_acceleration_structure
+	if (vk.khr_acceleration_structure) { VKAccelStructFuncs }
+#endif
 #undef VKFunc
 #endif
 
@@ -5448,6 +5586,12 @@ qboolean VK_Init(rendererstate_t *info, const char **sysextnames, qboolean (*cre
 	if (info->srgb > 0 && (vid.flags & VID_SRGB_FB))
 		vid.flags |= VID_SRGBAWARE;
 
+	Q_snprintfz(info->subrenderer, sizeof(info->subrenderer), "GPU%i", gpuidx);
+
+	if (!vk.khr_fragment_shading_rate)
+		Cvar_LockUnsupportedRendererCvar(&r_halfrate, "0");
+	if (!vk.khr_ray_query)
+		Cvar_LockUnsupportedRendererCvar(&r_shadow_raytrace, "0");
 	return true;
 }
 void VK_Shutdown(void)

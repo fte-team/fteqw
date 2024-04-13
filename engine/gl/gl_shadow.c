@@ -65,6 +65,7 @@ cvar_t r_shadow_realtime_dlight_ambient		= CVAR ("r_shadow_realtime_dlight_ambie
 cvar_t r_shadow_realtime_dlight_diffuse		= CVAR ("r_shadow_realtime_dlight_diffuse", "1");
 cvar_t r_shadow_realtime_dlight_specular	= CVAR ("r_shadow_realtime_dlight_specular", "4");	//excessive, but noticable. its called stylized, okay? shiesh, some people
 cvar_t r_shadow_playershadows				= CVARD ("r_shadow_playershadows", "1", "Controls the presence of shadows on the local player.");
+cvar_t r_shadow_raytrace					= CVARFD ("r_shadow_raytrace", "0", CVAR_ARCHIVE, "Enables use of hardware raytracing for shadows. Consider also using with r_halfrate.");
 cvar_t r_shadow_shadowmapping				= CVARFD ("r_shadow_shadowmapping", "1", CVAR_ARCHIVE, "Enables soft shadows instead of stencil shadows.");
 cvar_t r_shadow_shadowmapping_precision		= CVARD ("r_shadow_shadowmapping_precision", "1", "Scales the shadowmap detail level up or down.");
 static cvar_t r_shadow_shadowmapping_depthbits		= CVARD ("r_shadow_shadowmapping_depthbits", "16", "Shadowmap depth bits. 16, 24, or 32.");
@@ -3628,7 +3629,7 @@ qboolean Sh_CullLight(dlight_t *dl, qbyte *vvis)
 	return false;	//please draw this...
 }
 
-static void Sh_DrawShadowlessLight(dlight_t *dl, vec3_t colour, vec3_t axis[3], qbyte *vvis)
+static void Sh_DrawShadowlessLight(dlight_t *dl, vec3_t colour, vec3_t axis[3], qbyte *vvis, unsigned int lshaderflags)
 {
 	vec3_t mins, maxs;
 	srect_t rect;
@@ -3691,7 +3692,9 @@ static void Sh_DrawShadowlessLight(dlight_t *dl, vec3_t colour, vec3_t axis[3], 
 
 	RQuantAdd(RQUANT_RTLIGHT_DRAWN, 1);
 
-	BE_SelectDLight(dl, colour, axis, dl->fov?LSHADER_SPOT:LSHADER_STANDARD);
+	if (dl->fov)
+		lshaderflags |= LSHADER_SPOT;
+	BE_SelectDLight(dl, colour, axis, lshaderflags);
 	BE_SelectMode(BEM_LIGHT);
 	Sh_DrawEntLighting(dl, colour, vvis);
 }
@@ -3874,6 +3877,8 @@ void Sh_PreGenerateLights(void)
 
 				if (((!dl->die)?!r_shadow_realtime_world_shadows.ival:!r_shadow_realtime_dlight_shadows.ival) || (dl->flags & LFLAG_NOSHADOWS))
 					shadowtype = SMT_SHADOWLESS;
+				else if (r_shadow_raytrace.ival)
+					shadowtype = SMT_SHADOWLESS;	//shadows are done via acceleration structures set up by the backend. don't need to worry about them here, they're effectively shadowless.
 				else if (dl->flags & LFLAG_SHADOWMAP || r_shadow_shadowmapping.ival)
 					shadowtype = SMT_SHADOWMAP;
 				else
@@ -3917,7 +3922,8 @@ void Com_ParseVector(char *str, vec3_t out)
 void Sh_CheckSettings(void)
 {
 	extern cvar_t r_shadows;
-	qboolean canstencil = false, cansmap = false, canshadowless = false;
+	qboolean canstencil = false, cansmap = false, canshadowless = false, canraytrace = false;
+	r_shadow_raytrace.ival = r_shadow_raytrace.value;
 	r_shadow_shadowmapping.ival = r_shadow_shadowmapping.value;
 	r_shadow_realtime_world.ival = r_shadow_realtime_world.value;
 	r_shadow_realtime_dlight.ival = r_shadow_realtime_dlight.value;
@@ -3930,6 +3936,7 @@ void Sh_CheckSettings(void)
 	case QR_VULKAN:
 		canshadowless = true;
 		cansmap = vk.multisamplebits==VK_SAMPLE_COUNT_1_BIT; //FIXME - we need to render shadowmaps without needing to restart the current scene.
+		canraytrace = vk.khr_ray_query;
 		canstencil = false;
 		break;
 #endif
@@ -3982,28 +3989,35 @@ void Sh_CheckSettings(void)
 			Con_Printf("Missing rendering features: realtime %s lighting is not possible.\n", r_shadow_realtime_world.ival?"world":"dynamic");
 		r_shadow_realtime_world.ival = 0;
 		r_shadow_realtime_dlight.ival = 0;
+		r_shadow_raytrace.ival = 0;
 	}
 	else if (!canstencil && !cansmap)
 	{
-		//no shadow methods available at all.
-		if ((r_shadow_realtime_world.ival&&r_shadow_realtime_world_shadows.ival)||(r_shadow_realtime_dlight.ival&&r_shadow_realtime_dlight_shadows.ival))
-			Con_Printf("Missing rendering features: realtime shadows are not possible.\n");
-		r_shadow_realtime_world_shadows.ival = 0;
-		r_shadow_realtime_dlight_shadows.ival = 0;
-	}
-	else if (!canstencil || !cansmap)
-	{
-		//only one shadow method
-		if (!!r_shadow_shadowmapping.ival != cansmap)
+		if (canraytrace)	//just silently force raytrace on if we're not allowed stencil nor shadowmaps, but can use rt...
+			r_shadow_raytrace.ival = true;
+		else
 		{
-			if (r_shadow_shadowmapping.ival && ((r_shadow_realtime_world.ival&&r_shadow_realtime_world_shadows.ival)||(r_shadow_realtime_dlight.ival&&r_shadow_realtime_dlight_shadows.ival)))
-				Con_Printf("Missing rendering features: forcing shadowmapping %s.\n", cansmap?"on":"off");
-			r_shadow_shadowmapping.ival = cansmap;
+			//no shadow methods available at all.
+			if ((r_shadow_realtime_world.ival&&r_shadow_realtime_world_shadows.ival)||(r_shadow_realtime_dlight.ival&&r_shadow_realtime_dlight_shadows.ival))
+				Con_Printf("Missing rendering features: realtime shadows are not possible.\n");
+			r_shadow_realtime_world_shadows.ival = 0;
+			r_shadow_realtime_dlight_shadows.ival = 0;
+			r_shadow_raytrace.ival = 0;
 		}
 	}
 	else
 	{
-		//both shadow methods available.
+		r_shadow_raytrace.ival = r_shadow_raytrace.ival && canraytrace;
+		if (!canstencil || !cansmap)
+		{
+			//only one shadow method
+			if (!!r_shadow_shadowmapping.ival != cansmap)
+			{
+				if (!r_shadow_raytrace.ival && r_shadow_shadowmapping.ival && ((r_shadow_realtime_world.ival&&r_shadow_realtime_world_shadows.ival)||(r_shadow_realtime_dlight.ival&&r_shadow_realtime_dlight_shadows.ival)))
+					Con_Printf("Missing rendering features: forcing shadowmapping %s.\n", cansmap?"on":"off");
+				r_shadow_shadowmapping.ival = cansmap;
+			}
+		}
 	}
 
 	cansmap = cansmap && (r_shadows.ival==2);
@@ -4234,8 +4248,10 @@ void Sh_DrawLights(qbyte *vis)
 			((i >= RTL_FIRST)?!r_shadow_realtime_world_shadows.ival:!r_shadow_realtime_dlight_shadows.ival) || //force shadowless when configured that way...
 			ignoreflags==LFLAG_LIGHTMAP)	//scenecache fallback...
 		{
-			Sh_DrawShadowlessLight(dl, colour, axis, vis);
+			Sh_DrawShadowlessLight(dl, colour, axis, vis, LSHADER_STANDARD);
 		}
+		else if (r_shadow_raytrace.ival)
+			Sh_DrawShadowlessLight(dl, colour, axis, vis, LSHADER_RAYQUERY);
 		else if ((dl->flags & LFLAG_SHADOWMAP) || r_shadow_shadowmapping.ival)
 		{
 			Sh_DrawShadowMapLight(dl, colour, axis, vis);
@@ -4322,6 +4338,7 @@ void Sh_RegisterCvars(void)
 	Cvar_Register (&r_shadow_realtime_dlight_shadows,	REALTIMELIGHTING);
 	Cvar_Register (&r_shadow_realtime_world_lightmaps,	REALTIMELIGHTING);
 	Cvar_Register (&r_shadow_playershadows,				REALTIMELIGHTING);
+	Cvar_Register (&r_shadow_raytrace,					REALTIMELIGHTING);
 	Cvar_Register (&r_shadow_shadowmapping,				REALTIMELIGHTING);
 	Cvar_Register (&r_shadow_shadowmapping_precision,	REALTIMELIGHTING);
 	Cvar_Register (&r_shadow_shadowmapping_nearclip,	REALTIMELIGHTING);

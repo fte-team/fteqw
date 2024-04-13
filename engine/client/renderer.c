@@ -1506,6 +1506,8 @@ qboolean R_ApplyRenderer_Load (rendererstate_t *newr)
 	vid.dpi_x = 96;
 	vid.dpi_y = 96;
 
+	Cvar_ApplyLatches(CVAR_RENDEREROVERRIDE, true);
+
 #ifndef CLIENTONLY
 	sv.world.lastcheckpvs = NULL;
 #endif
@@ -2355,6 +2357,8 @@ static void R_EnumeratedRenderer(void *ctx, const char *devname, const char *out
 	rendererinfo_t *r = ctx;
 	char quoteddesc[1024];
 
+	qboolean iscurrent = (currentrendererstate.renderer == r && (!*devname || !strcmp(devname, currentrendererstate.subrenderer)));
+
 	const char *dev;
 	if (*outputname)
 		dev = va("%s %s %s", r->name[0], devname, outputname);
@@ -2368,14 +2372,14 @@ static void R_EnumeratedRenderer(void *ctx, const char *devname, const char *out
 		Con_Printf("^[%s (%s, %s)\\type\\/setrenderer %s^]^7: %s%s\n",
 			r->name[0], devname, outputname,	//link text
 			dev,	//link itself.
-			desc, (currentrendererstate.renderer == r)?" ^2(current)":"");
+			desc, iscurrent?" ^2(current)":"");
 	else if (*devname)
 		Con_Printf("^[%s (%s)\\type\\/setrenderer %s^]^7: %s%s\n",
 			r->name[0], devname,	//link text
 			dev,	//link itself.
-			desc, (currentrendererstate.renderer == r)?" ^2(current)":"");
+			desc, iscurrent?" ^2(current)":"");
 	else
-		Con_Printf("^[%s\\type\\/setrenderer %s^]^7: %s%s\n", r->name[0], dev, r->description, (currentrendererstate.renderer == r)?" ^2(current)":"");
+		Con_Printf("^[%s\\type\\/setrenderer %s^]^7: %s%s\n", r->name[0], dev, r->description, iscurrent?" ^2(current)":"");
 }
 
 void R_SetRenderer_f (void)

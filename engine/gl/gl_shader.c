@@ -24,6 +24,9 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "quakedef.h"
 #ifndef SERVERONLY
 #include "glquake.h"
+#ifdef VKQUAKE
+#include "../vk/vkrenderer.h"
+#endif
 #include "shader.h"
 
 #include "hash.h"
@@ -46,7 +49,7 @@ cvar_t r_forceprogramify = CVARAFD("r_forceprogramify", "0", "dpcompat_makeshitu
 cvar_t dpcompat_nopremulpics = CVARFD("dpcompat_nopremulpics", "0", CVAR_SHADERSYSTEM, "By default FTE uses premultiplied alpha for hud/2d images, while DP does not (which results in halos with low-res content). Unfortunately DDS files would need to be recompressed, resulting in visible issues.");
 #endif
 cvar_t r_glsl_precache = CVARFD("r_glsl_precache", "0", CVAR_SHADERSYSTEM, "Force all relevant glsl permutations to load upfront.");
-cvar_t r_halfrate = CVARFD("r_halfrate", "0", CVAR_SHADERSYSTEM, "Use half-rate shading (where supported by gpu).");
+cvar_t r_halfrate = CVARFD("r_halfrate", "0", CVAR_ARCHIVE|CVAR_SHADERSYSTEM, "Use half-rate shading (where supported by gpu).");
 
 extern cvar_t r_glsl_offsetmapping_reliefmapping;
 extern cvar_t r_drawflat;
@@ -1569,18 +1572,17 @@ static qboolean Shader_LoadPermutations(char *name, program_t *prog, char *scrip
 	size_t offset = 0;
 #endif
 
-#ifdef VKQUAKE
-	if (qrenderer == QR_VULKAN && (qrtype == QR_VULKAN || qrtype == QR_OPENGL))
-	{	//vulkan can potentially load glsl, f it has the extensions enabled.
-		if (qrtype == QR_VULKAN && VK_LoadBlob(prog, script, name))
-			return true;
-	}
-	else
-#endif
 	if (qrenderer != qrtype)
 	{
 		return false;
 	}
+
+#ifdef VKQUAKE
+	if (qrenderer == QR_VULKAN && qrtype == QR_VULKAN)
+	{	//vulkan 'scripts' are just blobs. could maybe base64 the spirv but eww.
+		return VK_LoadBlob(prog, script, name);
+	}
+#endif
 
 #if defined(GLQUAKE) || defined(D3DQUAKE)
 	ver = 0;
@@ -1597,6 +1599,7 @@ static qboolean Shader_LoadPermutations(char *name, program_t *prog, char *scrip
 	prog->name = Z_StrDup(name);
 	prog->geom = false;
 	prog->tess = false;
+	prog->rayquery = false;
 	prog->calcgens = false;
 	prog->numsamplers = 0;
 	prog->defaulttextures = 0;
@@ -2852,11 +2855,17 @@ static void Shader_BEMode(parsestate_t *ps, const char **ptr)
 		//shorthand for rtlights
 		for (mode = 0; mode < LSHADER_MODES; mode++)
 		{
+			if ((mode & LSHADER_RAYQUERY) && !r_shadow_raytrace.ival)
+				continue;	//no. just no.
+			if ((mode & LSHADER_SMAP) && r_shadow_raytrace.ival)
+				continue;	//don't waste time.
 			if ((mode & LSHADER_CUBE) && (mode & (LSHADER_SPOT|LSHADER_ORTHO)))
 				continue;	//cube projections don't make sense when the light isn't projecting a cube
 			if ((mode & LSHADER_ORTHO) && (mode & LSHADER_SPOT))
 				continue;	//ortho+spot are mutually exclusive.
-			Q_snprintfz(subname, sizeof(subname), "%s%s%s%s%s%s", tokencopy,
+			Q_snprintfz(subname, sizeof(subname), "%s%s%s%s%s%s%s",
+																(mode & LSHADER_RAYQUERY)?"rq_":"",
+																tokencopy,
 																(mode & LSHADER_SMAP)?"#PCF":"",
 																(mode & LSHADER_SPOT)?"#SPOT":"",
 																(mode & LSHADER_CUBE)?"#CUBE":"",

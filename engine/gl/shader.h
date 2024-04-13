@@ -544,6 +544,7 @@ typedef struct programshared_s
 	unsigned explicitsyms:1;	//avoid defining symbol names that'll conflict with other glsl (any fte-specific names must have an fte_ prefix)
 	unsigned tess:1;			//has a tessellation control+evaluation shader
 	unsigned geom:1;			//has a geometry shader
+	unsigned rayquery:1;		//needs a top-level acceleration structure.
 	unsigned warned:1;			//one of the permutations of this shader has already been warned about. don't warn about all of them because that's potentially spammy.
 	unsigned short numsamplers;	//shader system can strip any passes above this
 	unsigned int defaulttextures;	//diffuse etc
@@ -577,12 +578,13 @@ enum
 	LSHADER_CUBE=1u<<0,		//has a cubemap filter (FIXME: use custom 2d filter on spot lights)
 	LSHADER_SMAP=1u<<1,		//filter based upon a shadowmap instead of stencil/unlit
 	LSHADER_SPOT=1u<<2,		//filter based upon a single spotlight shadowmap
+	LSHADER_RAYQUERY=1u<<3,	//hardware raytrace.
 #ifdef LFLAG_ORTHO
-	LSHADER_ORTHO=1u<<3,	//uses a parallel projection(ortho) matrix, with the light source being an entire plane instead of a singular point. which is weird. read: infinitely far away sunlight
-	LSHADER_MODES=1u<<4,
+	LSHADER_ORTHO=1u<<4,	//uses a parallel projection(ortho) matrix, with the light source being an entire plane instead of a singular point. which is weird. read: infinitely far away sunlight
+	LSHADER_MODES=1u<<5,
 #else
 	LSHADER_ORTHO=0,	//so bitmasks return false
-	LSHADER_MODES=1u<<3,
+	LSHADER_MODES=1u<<4,
 #endif
 
 	LSHADER_FAKESHADOWS=1u<<10,	//special 'light' type that isn't a light but still needs a shadowmap. ignores world+bsp shadows.

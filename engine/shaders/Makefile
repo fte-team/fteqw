@@ -16,6 +16,7 @@ ALLNAMES:=$(realpath $(ALLNAMES))
 
 VKNAMES=$(realpath $(foreach v,$(NAMES),vulkan/$v.glsl))
 VKNAMES+=postproc_fisheye
+VKNAMES+=rq_rtlight
 VKNAMES:=$(foreach v,$(VKNAMES),vulkanblobs/$(notdir $(basename $v)).fvb)
 ALLNAMES+=$(VKNAMES)
 
@@ -25,8 +26,11 @@ generatebuiltinsl: generatebuiltinsl.c
 makevulkanblob: makevulkanblob.c
 	$(CC) $< -o $@
 
+vulkanblobs/rq_%.fvb: vulkan/%.glsl makevulkanblob vulkan/sys/defs.h vulkan/sys/fog.h vulkan/sys/offsetmapping.h vulkan/sys/skeletal.h
+	@echo Making $@ from $<
+	@PATH=$(PATH):$(VKSDKPATH) ./makevulkanblob $< $@ rq
 vulkanblobs/%.fvb: vulkan/%.glsl makevulkanblob vulkan/sys/defs.h vulkan/sys/fog.h vulkan/sys/offsetmapping.h vulkan/sys/skeletal.h
-	@echo Making $<
+	@echo Making $@ from $<
 	@PATH=$(PATH):$(VKSDKPATH) ./makevulkanblob $< $@
 
 #vulkanblobs/%.fvb: glsl/%.glsl makevulkanblob vulkan/sys/defs.h vulkan/sys/fog.h vulkan/sys/offsetmapping.h vulkan/sys/skeletal.h

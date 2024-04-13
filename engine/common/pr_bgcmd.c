@@ -1949,7 +1949,7 @@ void QCBUILTIN PF_cvar_type (pubprogfuncs_t *prinst, struct globalvars_s *pr_glo
 			ret |= CVAR_TYPEFLAG_ENGINE;
 		if (v->description)
 			ret |= CVAR_TYPEFLAG_HASDESCRIPTION;
-		if (v->flags & CVAR_NOSET)
+		if (v->flags & (CVAR_NOSET|CVAR_RENDEREROVERRIDE))
 			ret |= CVAR_TYPEFLAG_READONLY;
 	}
 	G_FLOAT(OFS_RETURN) = ret;

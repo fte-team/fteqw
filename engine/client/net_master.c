@@ -187,9 +187,9 @@ static net_masterlist_t net_masterlist[] = {
 #ifdef Q2CLIENT
 //	{MP_QUAKE2,		CVARFC("net_q2masterextra1",	"satan.idsoftware.com:27900",					CVAR_NOSAVE, Net_Masterlist_Callback),	"Official Quake2 master server"},
 //	{MP_QUAKE2,		CVARFC("net_q2masterextra1",	"master.planetgloom.com:27900",					CVAR_NOSAVE, Net_Masterlist_Callback)},	//?
-//	{MP_QUAKE2,		CVARFC("net_q2masterextra1",	"master.q2servers.com:27900",					CVAR_NOSAVE, Net_Masterlist_Callback)},	//?
 	{MP_QUAKE2,		CVARFC("net_q2masterextra1",	"netdome.biz:27900",							CVAR_NOSAVE, Net_Masterlist_Callback)},	//?
 	{MP_QUAKE2,		CVARFC("net_q2masterextra2",	"master.quakeservers.net:27900",				CVAR_NOSAVE, Net_Masterlist_Callback)},	//?
+	{MP_QUAKE2,		CVARFC("net_q2masterextra3",	"master.q2servers.com:27900",					CVAR_NOSAVE, Net_Masterlist_Callback)},	//fucked. server doesn't give responses... but we DO want to send it heartbeats so we can at least get listed to eg q2rtx. maybe they'll fix their bugs.
 #endif
 
 #ifdef Q3CLIENT
@@ -3032,6 +3032,7 @@ void MasterInfo_Refresh(qboolean doreset)
 #endif
 #ifdef Q2CLIENT
 //		Master_AddMasterHTTP("http://www.gameaholic.com/servers/qspy-quake2",		MT_MASTERHTTP,		MP_QUAKE2, "gameaholic's Q2 master");
+		Master_AddMasterHTTP("http://q2servers.com/?raw=1",							MT_MASTERHTTP,		MP_QUAKE2, "q2servers.com");	//https is fucked. binary version is defective as it has no way to represent ipv6, so don't use that.
 		Master_AddMaster("255.255.255.255:27910",									MT_BCAST,			MP_QUAKE2, "Nearby Quake2 UDP servers.");
 #endif
 #ifdef Q3CLIENT

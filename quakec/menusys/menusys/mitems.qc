@@ -70,6 +70,14 @@ __strip var float dp_workarounds;
 #define MENUBACK_ALPHA 0.8
 #endif
 
+//input helpers - gamepads need 3 different 'keys' for natural movement through menus. :(
+#define ISUPARROW(scan)   (scan == K_UPARROW || scan == K_GP_DPAD_UP || scan == K_GP_LTHUMB_UP || scan == K_GP_RTHUMB_UP)
+#define ISDOWNARROW(scan) (scan == K_DOWNARROW || scan == K_GP_DPAD_DOWN || scan == K_GP_LTHUMB_DOWN || scan == K_GP_RTHUMB_DOWN)
+#define ISLEFTARROW(scan) (scan == K_LEFTARROW || scan == K_GP_DPAD_LEFT || scan == K_GP_LTHUMB_LEFT || scan == K_GP_RTHUMB_LEFT)
+#define ISRIGHTARROW(scan) (scan == K_RIGHTARROW || scan == K_GP_DPAD_RIGHT || scan == K_GP_LTHUMB_RIGHT || scan == K_GP_RTHUMB_RIGHT)
+#define ISCONFIRMKEY(scan) (scan == K_ENTER || scan == K_GP_A || scan == K_GP_START)
+#define ISCANCELKEY(scan) (scan == K_ENTER || scan == K_GP_B || scan == K_GP_VIEW)
+
 //#ifdef TARGET_FTE
 //#pragma TARGET FTE
 //#endif

@@ -18,14 +18,14 @@ class mitem_exmenu : mitem_frame
 		if (!ret && down)
 		{
 			ret = TRUE;
-			if (scan == K_MOUSE2 || scan == K_ESCAPE)
+			if (scan == K_MOUSE2 || scan == K_TOUCHLONG || scan == K_ESCAPE || scan == K_GP_BACK || scan == K_GP_B)
 			{
 				localcmd(strcat(item_command, "\n"));	//console command to exec if someone clicks the close button.
 				item_remove();
 			}
-			else if (scan == K_UPARROW && down)
+			else if (ISUPARROW(scan))
 				menu_selectnextitem(this, TRUE);
-			else if (scan == K_DOWNARROW && down)
+			else if (ISDOWNARROW(scan))
 				menu_selectnextitem(this, FALSE);
 			else if (scan >= K_F1 && scan <= K_F12)	//allow f1-f12 to work, but every other button event gets canceled.
 				ret = FALSE;

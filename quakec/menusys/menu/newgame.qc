@@ -269,13 +269,14 @@ class mitem_maplist : mitem_grid
 	};
 	virtual float(vector pos, float scan, float chr, float down, float idx) grid_keypress =
 	{
-		if ((scan == K_ENTER || scan == K_MOUSE1) && down)
-		{
-			string map = bufstr_get(names, idx);
-			map = enginemapname(map);
-			set("map", map);
-			return TRUE;
-		}
+		if (down)
+			if (ISCONFIRMKEY(scan) || ((scan == K_MOUSE1 || scan == K_TOUCHTAP) && mouseinbox(pos, this.item_size)))
+			{
+				string map = bufstr_get(names, idx);
+				map = enginemapname(map);
+				set("map", map);
+				return TRUE;
+			}
 		return FALSE;
 	};
 //	virtual void(float olditem, float newitem) grid_selectionchanged;

@@ -133,11 +133,16 @@ nonstatic void(mitem_desktop desktop) M_Main =
 	local string it = (random()<0.9)?"progs/quaddama.mdl":"progs/invulner.mdl";
 	m.add(spawn (mitem_spinnymodel, item_text: it), RS_X_MIN_PARENT_MID|RS_Y_MIN_PARENT_MID | RS_X_MAX_PARENT_MID|RS_Y_MAX_PARENT_MID, [-160, 12*-16/2], [0, 12*16/2]);
 
-
-#ifdef CSQC
-	m.add(spawn(mitem_text, item_text:strcat("CSQC: ", cvar_string("pr_engine")), item_scale:8), RS_X_MIN_PARENT_MIN|RS_Y_MIN_PARENT_MAX|RS_X_MAX_PARENT_MAX|RS_Y_MAX_PARENT_MAX,[0,-8],[0,0]);
+#ifdef REVISION
+	#define MENUSYS_REVISION REVISION
 #else
-	m.add(spawn(mitem_text, item_text:strcat("MQC: ", cvar_string("pr_engine")), item_scale:8), RS_X_MIN_PARENT_MIN|RS_Y_MIN_PARENT_MAX|RS_X_MAX_PARENT_MAX|RS_Y_MAX_PARENT_MAX,[0,-8],[0,0]);
+	#define MENUSYS_REVISION "<UNKNOWN>"
 #endif
+#ifdef CSQC
+	#define MODLEPOSTFIX "-CSQC"
+#else
+	#define MODLEPOSTFIX "-MQC"
+#endif
+	m.add(spawn(mitem_text, item_text:strcat("MenuSys "MENUSYS_REVISION MODLEPOSTFIX"; ", cvar_string("pr_engine")), item_scale:8), RS_X_MIN_PARENT_MIN|RS_Y_MIN_PARENT_MAX|RS_X_MAX_PARENT_MAX|RS_Y_MAX_PARENT_MAX,[0,-8],[0,0]);
 	addmenuback(m);
 };

@@ -68,7 +68,7 @@ float(vector pos, float scan, float char, float down) mitem_hslider::item_keypre
 	if (down&2)
 	{
 		//we have grabs, and mouse was released?
-		if (scan == K_MOUSE1 && !(down&1))
+		if ((scan == K_TOUCHTAP || scan == K_MOUSE1) && !(down&1))
 		{	//we're done here.
 			ui.mgrabs = __NULL__;
 			return TRUE;
@@ -83,7 +83,7 @@ float(vector pos, float scan, float char, float down) mitem_hslider::item_keypre
 			if (ui.mousepos[0] > pos_x + item_size[0]/2)
 				scan = ((scan == K_MWHEELDOWN)?K_LEFTARROW:K_RIGHTARROW);
 		}
-		if (scan == K_MOUSE1 && down)
+		if ((scan == K_TOUCHTAP || scan == K_MOUSE1) && down)
 		{
 			pos_x += item_size_x / 2;
 			if (ui.mousepos[0] < pos_x)
@@ -95,23 +95,23 @@ float(vector pos, float scan, float char, float down) mitem_hslider::item_keypre
 			set(item_command, sprintf("%g", curval));
 			ui.mgrabs = this;
 		}
-		else if (scan == K_DEL && down && cvar_type(item_command))
+		else if ((scan == K_DEL || scan == K_GP_Y) && down && cvar_type(item_command))
 			set(item_command, cvar_defstring(item_command));
-		else if ((scan == K_LEFTARROW || scan == K_MWHEELUP) && down)
+		else if ((ISLEFTARROW(scan) || scan == K_MWHEELUP) && down)
 		{
 			if (item_slidercontrols_x > item_slidercontrols_y)
 				set(item_command, sprintf("%g", min(curval - item_slidercontrols_z, item_slidercontrols_x)));
 			else
 				set(item_command, sprintf("%g", max(curval - item_slidercontrols_z, item_slidercontrols_x)));
 		}
-		else if ((scan == K_RIGHTARROW || scan == K_MWHEELDOWN) && down)
+		else if ((ISRIGHTARROW(scan) || scan == K_MWHEELDOWN) && down)
 		{
 			if (item_slidercontrols_x > item_slidercontrols_y)
 				set(item_command, sprintf("%g", max(curval + item_slidercontrols_z, item_slidercontrols_y)));
 			else
 				set(item_command, sprintf("%g", min(curval + item_slidercontrols_z, item_slidercontrols_y)));
 		}
-		else if ((scan == K_ENTER || scan == K_SPACE) && down)
+		else if ((ISCONFIRMKEY(scan) || scan == K_SPACE) && down)
 		{
 //keyenter:
 			if (item_slidercontrols_x > item_slidercontrols_y)
@@ -133,7 +133,7 @@ float(vector pos, float scan, float char, float down) mitem_hslider::item_keypre
 			return FALSE;
 		return TRUE;
 	}
-	else if (scan == K_MOUSE1 && ui.mgrabs == this)
+	else if ((scan == K_TOUCHTAP || scan == K_MOUSE1) && ui.mgrabs == this)
 		ui.mgrabs = __NULL__;
 	return FALSE;
 };

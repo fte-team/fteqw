@@ -170,9 +170,9 @@ class mitem_servers : mitem
 		/*just sink all inputs*/
 		if (!down)
 			return FALSE;
-		if (scan != K_MOUSE1)
+		if (scan != K_MOUSE1 && scan != K_TOUCHTAP)
 			dbltime = cltime - 10;
-		if (scan == K_MOUSE1)
+		if (scan == K_MOUSE1 || scan == K_TOUCHTAP)
 		{
 			float news = ui.mousepos[1] - (pos_y+8);
 			news = floor(news / 8);
@@ -217,25 +217,25 @@ class mitem_servers : mitem
 	
 			dbltime = cltime + 0.5;
 		}
-		else if (scan == K_ENTER)
+		else if (ISCONFIRMKEY(scan))
 		{	//connect normally
 			addr = gethostcachestring(gethostcacheindexforkey("cname"), server_selected);
 			if (addr)
 				localcmd(sprintf("m_pop;%sconnect \"%s\"\n", getgamedircmd(), addr));
 		}
-		else if (scan == 's')
+		else if (scan == 's' || scan == K_GP_X)
 		{	//s = join as a spectator
 			addr = gethostcachestring(gethostcacheindexforkey("cname"), server_selected);
 			if (addr)
 				localcmd(sprintf("m_pop;%sobserve \"%s\"\n", getgamedircmd(), addr));
 		}
 		else if (scan == 'j')
-		{	//s = join as a spectator
+		{	//j = join as a player
 			addr = gethostcachestring(gethostcacheindexforkey("cname"), server_selected);
 			if (addr)
 				localcmd(sprintf("m_pop;%sjoin \"%s\"\n", getgamedircmd(), addr));
 		}
-		else if (scan == K_UPARROW || scan == K_MWHEELUP)
+		else if (ISUPARROW(scan) || scan == K_MWHEELUP)
 		{
 			this.server_selected -= 1;
 			if (this.server_selected < 0)
@@ -246,7 +246,7 @@ class mitem_servers : mitem
 			}
 			dobound = TRUE;
 		}
-		else if (scan == K_DOWNARROW || scan == K_MWHEELDOWN)
+		else if (ISDOWNARROW(scan) || scan == K_MWHEELDOWN)
 		{
 			this.server_selected += 1;
 			if (this.server_selected >= gethostcachevalue(SLIST_HOSTCACHEVIEWCOUNT))
@@ -287,7 +287,7 @@ class mitem_servers : mitem
 				this.server_selected = 0;
 			dobound = TRUE;
 		}
-		else if (char == 'r' || char == 'R' || scan == K_F5)
+		else if (char == 'r' || char == 'R' || scan == K_F5 || scan == K_GP_Y)
 		{
 			refreshhostcache();
 			resorthostcache();

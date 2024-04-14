@@ -33,7 +33,7 @@ nonstatic void(mitem_desktop desktop) M_Quit =
 	{
 		m.add(spawn(mitem_text, item_text:"Really Quit?", item_scale:16, item_flags:IF_CENTERALIGN), RS_X_MIN_PARENT_MID|RS_Y_MIN_PARENT_MID | RS_X_MAX_PARENT_MID|RS_Y_MAX_PARENT_MID, [-160, pos-(8+16)], [0, pos-8]);	pos += 16;
 
-		m.add(spawn(mitem_text, item_text:"Yes, I'm late for work.", item_command:"m_pop;quit", item_scale:16, item_flags:IF_CENTERALIGN), RS_X_MIN_PARENT_MID|RS_Y_MIN_PARENT_MID | RS_X_MAX_PARENT_MID|RS_Y_MAX_PARENT_MID, [-160, pos], [0, pos+16]);	pos += 16;
+		m.add(spawn(mitem_text, item_text:"Yes, I'm a quitter.", item_command:"m_pop;quit", item_scale:16, item_flags:IF_CENTERALIGN), RS_X_MIN_PARENT_MID|RS_Y_MIN_PARENT_MID | RS_X_MAX_PARENT_MID|RS_Y_MAX_PARENT_MID, [-160, pos], [0, pos+16]);	pos += 16;
 		m.add(spawn(mitem_text, item_text:"No, keep playing!", item_command:"m_pop;m_main", item_scale:16, item_flags:IF_CENTERALIGN), RS_X_MIN_PARENT_MID|RS_Y_MIN_PARENT_MID | RS_X_MAX_PARENT_MID|RS_Y_MAX_PARENT_MID, [-160, pos], [0, pos+16]);	pos += 16;
 	}
 

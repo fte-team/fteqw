@@ -35,6 +35,10 @@ nonstatic void(mitem_desktop desktop) M_Options_Effects =
 
 	fr.add(menuitemcheck_spawn(_("Show Framerate"),			cv3("showfps", "scr_showfps", "show_fps"), 		'280 8'),	fl, [0, pos], [0, 8]); pos += 8;
 	fr.add(menuitemcheck_spawn(_("High Res Textures"),		"gl_load24bit", 			'280 8'),	fl, [0, pos], [0, 8]); pos += 8;
+	fr.add(menuitemcombo_spawn(_("Replacement Models"),		"r_replacemodels",			'280 8', _(
+																			"\"\" \"Off\""
+																			"\"md3 md2 md5mesh\" \"On\""
+																)),	fl, [0, pos], [0, 8]); pos += 8;
 
 	fr.add(menuitemcombo_spawn(_("Texture Mode"),		"gl_texturemode",			'280 8', _(
 																			"GL_NEAREST	\"Nearest\" "

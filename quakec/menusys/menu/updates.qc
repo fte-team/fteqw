@@ -117,7 +117,7 @@ void(vector pos, float idx) mitem_updategrid::grid_draw =
 		text = strcat("pkg quiet_", action, " \"", text, "\"\n");
 		localcmd(text);
 	}
-	else if (scan == K_RIGHTARROW || scan==K_ENTER || scan == K_MOUSE1)
+	else if (scan == K_RIGHTARROW || scan==K_ENTER || scan == K_MOUSE1 || scan == K_TOUCHTAP)
 	{
 		text = getpackagemanagerinfo(idx, GPMI_NAME);
 		if (!text)

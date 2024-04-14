@@ -20,9 +20,9 @@ class mitem_tab : mitem_frame
 {
 	virtual float(vector pos, float scan, float char, float down) item_keypress =
 	{
-		if (scan == K_UPARROW && down)
+		if (down && ISUPARROW(scan))
 			menu_selectnextitem(this, TRUE);
-		else if (scan == K_DOWNARROW && down)
+		else if (down && ISDOWNARROW(scan))
 			menu_selectnextitem(this, FALSE);
 		else if (super::item_keypress(pos, scan, char, down))
 			return TRUE;
@@ -99,7 +99,7 @@ float(vector pos, float scan, float char, float down) mitem_tabs::item_keypress 
 	local vector sz;
 	local float result;
 
-	if (down && (scan == K_MOUSE1 || scan == K_MOUSE2 || scan == K_MOUSE3))
+	if (down && (scan == K_TOUCHTAP || scan == K_MOUSE1 || scan == K_MOUSE2 || scan == K_MOUSE3))
 	{
 		sz = [8,16];
 		//to highlight the active tab, we draw the top line 1 pixel higher, and no bottom line
@@ -121,7 +121,7 @@ float(vector pos, float scan, float char, float down) mitem_tabs::item_keypress 
 		result = ch.item_keypress(pos + [item_framesize[0], item_framesize[1]] + ch.item_position, scan, char, down);
 		if (!result && down)
 		{
-			if (scan == K_TAB || scan == K_RIGHTARROW)
+			if ((scan == K_TAB && !ui.shiftheld) || scan == K_GP_RSHOULDER || scan == K_RIGHTARROW)
 			{
 				ch = ch.item_next;
 				if (!ch)
@@ -129,7 +129,7 @@ float(vector pos, float scan, float char, float down) mitem_tabs::item_keypress 
 				item_focuschange(ch, IF_KFOCUSED);
 				result = TRUE;
 			}
-//			else if (scan == K_LEFTARROW)
+//			else if ((scan == K_TAB && ui.shiftheld) || scan == K_GP_LSHOULDER || scan == K_LEFTARROW)
 //			{
 //				ch = ch.item_next;
 //				if (!ch)

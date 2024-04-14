@@ -69,7 +69,11 @@ void(vector screensize) m_draw =
 		cltime = gettime(0);
 	items_draw(desktop, screensize);
 };
-float(float evtype, float scanx, float chary, float devid) Menu_InputEvent = {return items_keypress(desktop, evtype, scanx, chary, devid);};
+float(float evtype, float scanx, float chary, float devid) Menu_InputEvent = {
+	if (scanx == K_TOUCH)
+		return TRUE;	//always report this as handled. we'll not get fake mouse events then, and can handle K_TOUCHLONG/K_TOUCHTAP/etc without worry of conflicts.
+	return items_keypress(desktop, evtype, scanx, chary, devid);
+};
 void(float scan, float chr) m_keydown = {ui.mousepos = getmousepos();queryscreensize();items_keypress(desktop, IE_KEYDOWN, scan, chr, 0);};	//for DP compat.
 void(float scan, float chr) m_keyup = {ui.mousepos = getmousepos();queryscreensize();items_keypress(desktop, IE_KEYUP, scan, chr, 0);};		//for DP compat.
 void(float mode) m_toggle

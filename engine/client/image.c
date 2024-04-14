@@ -7516,6 +7516,46 @@ qbyte *ReadRawImageFile(qbyte *buf, int len, int *width, int *height, uploadfmt_
 	}
 #endif
 
+#ifdef Q2BSPS
+	if (len >= sizeof(q2miptex_t))	//.lmp has no magic id. guess at it.
+	{
+		const q2miptex_t *wal = (const q2miptex_t *)buf;
+		size_t w = LittleLong(wal->width), h = LittleLong(wal->height);
+		size_t sz = sizeof(*wal) +
+					(w>>0)*(h>>0) +
+					(w>>1)*(h>>1) +
+					(w>>2)*(h>>2) +
+					(w>>3)*(h>>3);
+		if (sz == len)
+		{
+			if (force_rgba8)
+			{
+				qboolean foundalpha = false;
+				qbyte *in = buf+sizeof(*wal);
+				data = BZ_Malloc(w * h * sizeof(int));
+				for (i = 0; i < w * h; i++)
+				{
+//					if (in[i] == 255)
+//						foundalpha = true;
+					((unsigned int*)data)[i] = d_8to24rgbtable[in[i]];
+				}
+				*width = w;
+				*height = h;
+				*format = foundalpha?PTI_RGBA8:PTI_RGBX8;
+			}
+			else
+			{
+				data = BZ_Malloc(w * h);
+				memcpy(data, buf+sizeof(*wal), w*h);
+				*width = w;
+				*height = h;
+				*format = TF_SOLID8;
+			}
+			return data;
+		}
+	}
+#endif
+
 	TRACE(("dbg: Read32BitImageFile: life sucks\n"));
 
 	return NULL;

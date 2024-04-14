@@ -1585,7 +1585,8 @@ static int QDECL COM_Dir_List(const char *name, qofs_t size, time_t mtime, void 
 		else if (!Q_strcasecmp(ext, "tga") || !Q_strcasecmp(ext, "png") || !Q_strcasecmp(ext, "jpg") || !Q_strcasecmp(ext, "jpeg")|| !Q_strcasecmp(ext, "lmp") || !Q_strcasecmp(ext, "ico") ||
 				 !Q_strcasecmp(ext, "pcx") || !Q_strcasecmp(ext, "bmp") || !Q_strcasecmp(ext, "dds") || !Q_strcasecmp(ext, "ktx") || !Q_strcasecmp(ext, "ktx2")|| !Q_strcasecmp(ext, "vtf") ||
 				 !Q_strcasecmp(ext, "astc")|| !Q_strcasecmp(ext, "htga")|| !Q_strcasecmp(ext, "exr") || !Q_strcasecmp(ext, "xcf") || !Q_strcasecmp(ext, "psd") || !Q_strcasecmp(ext, "iwi") ||
-				 !Q_strcasecmp(ext, "pbm") || !Q_strcasecmp(ext, "ppm") || !Q_strcasecmp(ext, "pgm") || !Q_strcasecmp(ext, "pam") || !Q_strcasecmp(ext, "pfm") || !Q_strcasecmp(ext, "hdr") )
+				 !Q_strcasecmp(ext, "pbm") || !Q_strcasecmp(ext, "ppm") || !Q_strcasecmp(ext, "pgm") || !Q_strcasecmp(ext, "pam") || !Q_strcasecmp(ext, "pfm") || !Q_strcasecmp(ext, "hdr") ||
+				 !Q_strcasecmp(ext, "wal") )
 		{
 			//FIXME: image replacements are getting in the way here.
 			Q_snprintfz(link, sizeof(link), "\\tiprawimg\\%s\\tip\\(note: image replacement rules are context-dependant, including base path, sub path, extension, or complete replacement via a shader)", name);

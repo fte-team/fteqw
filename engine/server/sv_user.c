@@ -570,7 +570,7 @@ void SVNQ_New_f (void)
 	if (host_client->drop)
 		return;
 
-	if (!host_client->pextknown && sv_listen_nq.ival != 1 && !host_client->qex)	//1 acts as a legacy mode, used for clients that can't cope with cmd before serverdata (either because they crash out or because they refuse to send reliables until after they got the first serverdata)
+	if (!host_client->pextknown && (sv_listen_nq.ival != 1||host_client->supportedprotocols&(1u<<SCP_FITZ666)) && !host_client->qex)	//1 acts as a legacy mode, used for clients that can't cope with cmd before serverdata (either because they crash out or because they refuse to send reliables until after they got the first serverdata)
 	{
 		if (!host_client->supportedprotocols && host_client->netchan.remote_address.type != NA_LOOPBACK)
 		{	//don't override cl_loopbackprotocol's choice
@@ -1241,14 +1241,6 @@ void SV_SendClientPrespawnInfo(client_t *client)
 			}
 			else if (client->prespawn_idx == 3)
 			{
-				if (ISNQCLIENT(client) && (client->fteprotocolextensions2 & PEXT2_PREDINFO))
-				{
-					ClientReliableWrite_Begin(client, svcnq_signonnum, 2);
-					ClientReliableWrite_Byte (client, 1);
-				}
-			}
-			else if (client->prespawn_idx == 4)
-			{
 				int track = 0;
 				const char *noise = "";
 
@@ -1264,7 +1256,9 @@ void SV_SendClientPrespawnInfo(client_t *client)
 					noise = PR_GetString(svprogfuncs, ((edict_t*)sv.world.edicts)->v->noise);
 				}
 
-				if (track == -1 && *noise)
+				if (track == -2)
+					; //don't change it at all
+				else if (track == -1 && *noise)
 					SV_StuffcmdToClient(client, va("cd loop \"%s\"\n", noise));
 				else
 				{
@@ -1278,7 +1272,7 @@ void SV_SendClientPrespawnInfo(client_t *client)
 #endif
 				}
 			}
-			else if (client->prespawn_idx == 5)
+			else if (client->prespawn_idx == 4)
 			{
 				ClientReliableWrite_Begin(client, svc_setpause, 2);
 				ClientReliableWrite_Byte (client, sv.oldpaused!=0);
@@ -1588,6 +1582,15 @@ void SV_SendClientPrespawnInfo(client_t *client)
 		}
 		else
 			client->prespawn_stage++;
+	}
+	if (client->prespawn_stage == PRESPAWN_NQSIGNON1)
+	{
+		if (ISNQCLIENT(client) && (client->fteprotocolextensions2 & PEXT2_PREDINFO))
+		{	//wasn't sent earlier...
+			ClientReliableWrite_Begin(client, svcnq_signonnum, 2);
+			ClientReliableWrite_Byte (client, 1);
+		}
+		client->prespawn_stage++;
 	}
 
 	if (client->prespawn_stage == PRESPAWN_MAPCHECK)
@@ -6229,32 +6232,45 @@ static void SVNQ_NQInfo_f (void)
 static void SVNQ_NQColour_f (void)
 {
 	char *val;
-	int top;
-	int bottom;
+	unsigned int top;
+	unsigned int bottom;
+
+	val = Cmd_Argv(1);
+	if (!strncmp(val, "0x", 2))
+		top = 0xff000000|strtoul(val+2, NULL, 16);
+	else
+		top = atoi(val)&15;
 
 	if (Cmd_Argc() == 2)
-		top = bottom = atoi(Cmd_Argv(1));
+		bottom = top;
 	else
 	{
-		top = atoi(Cmd_Argv(1));
-		bottom = atoi(Cmd_Argv(2));
+		val = Cmd_Argv(2);
+		if (!strncmp(val, "0x", 2))
+			bottom = 0xff000000|strtoul(val+2, NULL, 16);
+		else
+			bottom = atoi(val)&15;
 	}
 
-	top &= 15;
-	if (top > 13)
+	if (top < 16 && top > 13)
 		top = 13;
-	bottom &= 15;
-	if (bottom > 13)
+	if (bottom < 16 && bottom > 13)
 		bottom = 13;
 
 	if (progstype != PROG_QW && host_client->edict)
 		host_client->edict->v->team = bottom + 1;
 
-	val = va("%i", top);
+	if (top < 16)
+		val = va("%i", top);
+	else
+		val = va("%#x", top&0xffffff);
 	if (InfoBuf_SetValueForKey(&host_client->userinfo, "topcolor", val))
 		SV_BroadcastUserinfoChange(host_client, true, "topcolor", NULL);
 
-	val = va("%i", bottom);
+	if (top < 16)
+		val = va("%i", bottom);
+	else
+		val = va("%#x", bottom&0xffffff);
 	if (InfoBuf_SetValueForKey(&host_client->userinfo, "bottomcolor", val))
 		SV_BroadcastUserinfoChange(host_client, true, "bottomcolor", NULL);
 
@@ -8196,7 +8212,7 @@ done:
 		SV_ClientPrintf(host_client, PRINT_HIGH, "qcrequest \"%s\" not supported\n", fname);
 }
 
-static double SVFTE_ExecuteClientMove(client_t *controller)
+static double SVFTE_ExecuteClientMove(client_t *controller, unsigned int moveseq)
 {
 	client_t *split = controller;
 	unsigned int flags = MSG_ReadUInt64();
@@ -8249,7 +8265,6 @@ static double SVFTE_ExecuteClientMove(client_t *controller)
 		sv_player = split->edict;
 
 		split->lossage = loss;
-		split->localtime = loss;
 
 		//all sorts of reasons why we might not want to do physics here and now.
 		split->isindependant = !(sv_nqplayerphysics.ival || split->state < cs_spawned || SV_PlayerPhysicsQC || sv.paused || !sv.world.worldmodel || sv.world.worldmodel->loadstate != MLS_LOADED);
@@ -8260,7 +8275,7 @@ static double SVFTE_ExecuteClientMove(client_t *controller)
 		for (frame = 0; frame < frames; frame++)
 		{
 			MSGFTE_ReadDeltaUsercmd(&oldcmd, &newcmd);
-			newcmd.sequence = controller->netchan.outgoing_sequence - (frames-frame-1);
+			newcmd.sequence = moveseq - (frames-frame-1);
 			oldcmd = newcmd;
 
 			if (newcmd.sequence <= dropsequence)
@@ -8474,7 +8489,7 @@ void SV_ExecuteClientMessage (client_t *cl)
 			break;
 
 		case clcfte_move:
-			frame->ping_time -= SVFTE_ExecuteClientMove(cl);
+			frame->ping_time -= SVFTE_ExecuteClientMove(cl, host_client->netchan.incoming_sequence);
 			break;
 		case clc_move:
 			if (split == cl)
@@ -9133,7 +9148,10 @@ void SVNQ_ReadClientMove (qboolean forceangle16, qboolean quakeex)
 	cmd.buttons &= ~((1u<<30)|(1u<<31));
 
 	//figure out ping
-	frame->ping_time = sv.time - cmd.fservertime;
+	if ((host_client->fteprotocolextensions2 & PEXT2_PREDINFO) && host_client->delta_sequence >= 0 && host_client->delta_sequence == host_client->frameunion.frames[host_client->delta_sequence & UPDATE_MASK].sequence)
+		frame->ping_time = realtime - host_client->frameunion.frames[host_client->delta_sequence & UPDATE_MASK].senttime;
+	else
+		frame->ping_time = sv.time - cmd.fservertime;
 
 	//figure out how far we moved.
 	timesincelast = cmd.fservertime - from->fservertime;
@@ -9317,13 +9335,15 @@ void SVNQ_ExecuteClientMessage (client_t *cl)
 				int seq = (unsigned short)MSG_ReadShort ();
 
 				unsigned int oldservertime = cl->lastcmd.servertime;
-				float delay = SVFTE_ExecuteClientMove(cl);
+				float delay;
 				client_frame_t *frame;
 
 				//this is the input sequence that we'll need to ack later (no
 				if (seq < (host_client->last_sequence&0xffff))
 					host_client->last_sequence += 0x10000;	//wrapped
 				host_client->last_sequence = (host_client->last_sequence&0xffff0000) | seq;
+
+				delay = SVFTE_ExecuteClientMove(cl, host_client->last_sequence);
 
 				if (cl->lastsequence_acknowledged>0 && cl->netchan.incoming_sequence-cl->lastsequence_acknowledged<UPDATE_BACKUP)
 				{

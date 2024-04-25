@@ -778,6 +778,7 @@ void Shader_NeedReload(qboolean rescanfs);
 void Shader_WriteOutGenerics_f(void);
 void Shader_RemapShader_f(void);
 void Shader_ShowShader_f(void);
+void Shader_ShaderList_f(void);
 
 program_t *Shader_FindGeneric(char *name, int qrtype);
 struct programpermu_s *Shader_LoadPermutation(program_t *prog, unsigned int p);

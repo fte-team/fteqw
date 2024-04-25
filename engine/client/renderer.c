@@ -249,27 +249,27 @@ cvar_t r_lightmap_average					= CVARFD ("gl_lightmap_average", "0", CVAR_ARCHIVE
 cvar_t r_lightmap_format					= CVARFCD ("r_lightmap_format", "", CVAR_ARCHIVE, R_Lightmap_Format_Changed, "Overrides the default texture format used for lightmaps. rgb9e5 is a good choice for HDR.");
 
 //otherwise it would defeat the point.
-cvar_t scr_allowsnap						= CVARF ("scr_allowsnap", "1",
-												CVAR_NOTFROMSERVER);
+cvar_t scr_allowsnap						= CVARFD ("scr_allowsnap", "0",
+												CVAR_NOTFROMSERVER, "Whether to allow server-requested screenshot requests to check for gpu driver hacks.");
 cvar_t scr_centersbar						= CVAR  ("scr_centersbar", "2");
-cvar_t scr_centertime						= CVAR  ("scr_centertime", "2");
+cvar_t scr_centertime						= CVARD  ("scr_centertime", "2", "Centerprint messages will be displayed for this long before disappearing.");
 cvar_t scr_logcenterprint					= CVARD  ("con_logcenterprint", "1", "Specifies whether to print centerprints on the console.\n0: never\n1: single-player or coop only.\n2: always.");
-cvar_t scr_conalpha							= CVARC ("scr_conalpha", "0.7",
-												Cvar_Limiter_ZeroToOne_Callback);
-cvar_t scr_consize							= CVAR  ("scr_consize", "0.5");
-cvar_t scr_conspeed							= CVAR  ("scr_conspeed", "2000");
+cvar_t scr_conalpha							= CVARCD ("scr_conalpha", "0.7",
+												Cvar_Limiter_ZeroToOne_Callback, "How opaque the console should be when there's still stuff going on behind.");
+cvar_t scr_consize							= CVARD  ("scr_consize", "0.5", "Proportion of the screen to be covered by the console when its focused. Valid range is 0ish to 1.");
+cvar_t scr_conspeed							= CVARD  ("scr_conspeed", "2000", "How fast the console careers onto the screen.");
 cvar_t scr_fov_mode							= CVARFD  ("scr_fov_mode", "4", CVAR_ARCHIVE, "Controls what the fov cvar actually controls:\n0: largest axis (ultra-wide monitors means less height will be visible).\n1: smallest axis (ultra-wide monitors will distort at the edges).\n2: horizontal axis.\n3: vertical axis.\n4: 4:3 horizontal axis, padded for wider resolutions (for a more classic fov)");
 cvar_t scr_fov								= CVARFCD("fov", "90", CVAR_ARCHIVE, SCR_Fov_Callback,
 												"field of vision, 1-170 degrees, standard fov is 90, nquake defaults to 108.");
 cvar_t scr_fov_viewmodel					= CVARFD("r_viewmodel_fov", "", CVAR_ARCHIVE,
 												"field of vision, 1-170 degrees, standard fov is 90, nquake defaults to 108.");
-cvar_t scr_printspeed						= CVAR  ("scr_printspeed", "16");
+cvar_t scr_printspeed						= CVARD  ("scr_printspeed", "16", "How rapidly each character is displayed during outro messages.");
 cvar_t scr_showpause						= CVAR  ("showpause", "1");
 cvar_t scr_showturtle						= CVARD  ("showturtle", "0", "Enables a low-framerate indicator.");
 cvar_t scr_turtlefps						= CVAR  ("scr_turtlefps", "10");
-cvar_t scr_sshot_compression				= CVAR  ("scr_sshot_compression", "75");
+cvar_t scr_sshot_compression				= CVARD  ("scr_sshot_compression", "75", "Requsted compression ratio as a percentage. For jpeg this is the quantisation quality and has a direct impact on image quality vs size. For png this ranges between 0 for best and 100 for worst with final image quality being unchanged because png is loseless.");
 cvar_t scr_sshot_type						= CVARD  ("scr_sshot_type", "png", "This specifies the default extension(and thus file format) for screenshots.\nKnown extensions are: png, jpg/jpeg, bmp, pcx, tga, ktx, dds.");
-cvar_t scr_sshot_prefix						= CVAR  ("scr_sshot_prefix", "screenshots/fte-"); 
+cvar_t scr_sshot_prefix						= CVARF  ("scr_sshot_prefix", "screenshots/fte-", CVAR_NOTFROMSERVER);
 cvar_t scr_viewsize							= CVARFC("viewsize", "100", CVAR_ARCHIVE, SCR_Viewsize_Callback);
 
 #ifdef ANDROID
@@ -281,11 +281,11 @@ cvar_t vid_conautoscale						= CVARAFD ("vid_conautoscale", "0",
 #endif
 cvar_t vid_baseheight						= CVARD ("vid_baseheight", "", "Specifies a mod's target height and used only when the 2d scale is not otherwise forced. Unlike vid_conheight the size is not fixed and will be padded to avoid inconsistent filtering.");
 cvar_t vid_minsize							= CVARFD ("vid_minsize", "320 200",
-												CVAR_NOTFROMSERVER, "Specifies a mod's minimum virtual size.");
-cvar_t vid_conheight						= CVARF ("vid_conheight", "0",
-												CVAR_ARCHIVE);
-cvar_t vid_conwidth							= CVARF ("vid_conwidth", "0",
-												CVAR_ARCHIVE | CVAR_RENDERERCALLBACK);
+												0, "Specifies a mod's minimum virtual size (to be set inside the mod's default.cfg file). The virtual size will always be at least this big. Windows may not be resized below this value either (which may reduce video mode options), but might require a vid_restart to take effect when switching between mods.");
+cvar_t vid_conheight						= CVARFD ("vid_conheight", "0",
+												CVAR_ARCHIVE, "Specifies the virtual height of the screen. If 0, will be inferred by vid_conwidth or other settings, according to aspect etc.");
+cvar_t vid_conwidth							= CVARFD ("vid_conwidth", "0",
+												CVAR_ARCHIVE | CVAR_RENDERERCALLBACK, "Specifies the virtual width of the screen. Should generally be left as 0 to allow the correct aspect to be used despite video mode changes.");
 //see R_RestartRenderer_f for the effective default 'if (newr.renderer == -1)'.
 cvar_t vid_renderer							= CVARFD ("vid_renderer", "",
 													 CVAR_ARCHIVE | CVAR_VIDEOLATCH, "Specifies which backend is used. Values that might work are: sv (dedicated server), headless (null renderer), vk (vulkan), gl (opengl), egl (opengl es), d3d9 (direct3d 9), d3d11 (direct3d 11, with default hardware rendering), d3d11 warp (direct3d 11, with software rendering).");
@@ -768,6 +768,7 @@ void Renderer_Init(void)
 	Cmd_AddCommand("r_dumpshaders", Shader_WriteOutGenerics_f);
 	Cmd_AddCommand("r_remapshader", Shader_RemapShader_f);
 	Cmd_AddCommand("r_showshader", Shader_ShowShader_f);
+	Cmd_AddCommandD("r_shaderlist", Shader_ShaderList_f, "Prints out a list of the currently-loaded shaders.");
 
 #ifdef _DEBUG
 	Cmd_AddCommand("r_showbatches", R_ShowBatches_f);

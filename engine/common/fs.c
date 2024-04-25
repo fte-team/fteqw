@@ -520,6 +520,7 @@ void FS_Manifest_Free(ftemanifest_t *man)
 	}
 	for (i = 0; i < sizeof(man->package) / sizeof(man->package[0]); i++)
 	{
+		Z_Free(man->package[i].packagename);
 		Z_Free(man->package[i].path);
 		Z_Free(man->package[i].prefix);
 		Z_Free(man->package[i].condition);
@@ -578,6 +579,8 @@ static ftemanifest_t *FS_Manifest_Clone(ftemanifest_t *oldm)
 		newm->package[i].type = oldm->package[i].type;
 		newm->package[i].crc = oldm->package[i].crc;
 		newm->package[i].crcknown = oldm->package[i].crcknown;
+		if (oldm->package[i].packagename)
+			newm->package[i].packagename = Z_StrDup(oldm->package[i].packagename);
 		if (oldm->package[i].path)
 			newm->package[i].path = Z_StrDup(oldm->package[i].path);
 		if (oldm->package[i].prefix)
@@ -694,6 +697,8 @@ static void FS_Manifest_Print(ftemanifest_t *man)
 				Con_Printf("package ");
 			Con_Printf("%s", COM_QuotedString(man->package[i].path, buffer, sizeof(buffer), false));
 			if (man->package[i].prefix)
+				Con_Printf(" name %s", COM_QuotedString(man->package[i].packagename, buffer, sizeof(buffer), false));
+			if (man->package[i].prefix)
 				Con_Printf(" prefix %s", COM_QuotedString(man->package[i].prefix, buffer, sizeof(buffer), false));
 			if (man->package[i].condition)
 				Con_Printf(" condition %s", COM_QuotedString(man->package[i].condition, buffer, sizeof(buffer), false));
@@ -769,6 +774,7 @@ static qboolean FS_Manifest_ParsePackage(ftemanifest_t *man, int packagetype)
 	char *path = "";
 	unsigned int crc = 0;
 	qboolean crcknown = false;
+	char *packagename = NULL;
 	char *legacyextractname = NULL;
 	char *condition = NULL;
 	char *prefix = NULL;
@@ -783,30 +789,35 @@ static qboolean FS_Manifest_ParsePackage(ftemanifest_t *man, int packagetype)
 	char *a;
 
 	a = Cmd_Argv(0);
-	if (!Q_strcasecmp(a, "filedependancies") || !Q_strcasecmp(a, "archiveddependancies"))
-		arch = Cmd_Argv(arg++);
+	if (!Q_strcasecmp(a, "managedpackage"))
+		;
+	else
+	{
+		if (!Q_strcasecmp(a, "filedependancies") || !Q_strcasecmp(a, "archiveddependancies"))
+			arch = Cmd_Argv(arg++);
 
-	path = Cmd_Argv(arg++);
+		path = Cmd_Argv(arg++);
 
 #ifdef HAVE_LEGACY
-	a = Cmd_Argv(arg);
-	if (!strcmp(a, "-"))
-	{
-		arg++;
-	}
-	else if (*a)
-	{
-		crc = strtoul(a, &a, 0);
-		if (!*a)
+		a = Cmd_Argv(arg);
+		if (!strcmp(a, "-"))
 		{
-			crcknown = true;
 			arg++;
 		}
-	}
+		else if (*a)
+		{
+			crc = strtoul(a, &a, 0);
+			if (!*a)
+			{
+				crcknown = true;
+				arg++;
+			}
+		}
 
-	if (!strncmp(Cmd_Argv(0), "archived", 8))
-		legacyextractname = Cmd_Argv(arg++);
+		if (!strncmp(Cmd_Argv(0), "archived", 8))
+			legacyextractname = Cmd_Argv(arg++);
 #endif
+	}
 
 	while (arg < Cmd_Argc())
 	{
@@ -826,6 +837,8 @@ static qboolean FS_Manifest_ParsePackage(ftemanifest_t *man, int packagetype)
 			signature = Cmd_Argv(arg++);
 		else if (!strcmp(a, "sha512"))
 			sha512 = Cmd_Argv(arg++);
+		else if (!strcmp(a, "name"))
+			packagename = Cmd_Argv(arg++);
 		else if (!strcmp(a, "filesize")||!strcmp(a, "size"))
 			filesize = strtoull(Cmd_Argv(arg++), NULL, 0);
 		else if (!strcmp(a, "mirror"))
@@ -876,6 +889,7 @@ mirror:
 					break;
 				}
 			}
+			man->package[i].packagename = packagename?Z_StrDup(packagename):NULL;
 			man->package[i].type = packagetype;
 			man->package[i].path = Z_StrDup(path);
 			man->package[i].prefix = prefix?Z_StrDup(prefix):NULL;
@@ -4639,15 +4653,18 @@ void COM_Gamedir (const char *dir, const struct gamepacks *packagespaths)
 	}
 
 	man = FS_Manifest_ChangeGameDir(dir);
-	while(packagespaths && packagespaths->path)
+	while(packagespaths && (packagespaths->package || packagespaths->path))
 	{
 		char quot[MAX_QPATH];
 		char quot2[MAX_OSPATH];
 		char quot3[MAX_OSPATH];
-		if (packagespaths->url)
-			Cmd_TokenizeString(va("package %s prefix %s %s", COM_QuotedString(packagespaths->path, quot, sizeof(quot), false), COM_QuotedString(packagespaths->subpath?packagespaths->subpath:"", quot3, sizeof(quot3), false), COM_QuotedString(packagespaths->url, quot2, sizeof(quot2), false)), false, false);
-		else
-			Cmd_TokenizeString(va("package %s prefix %s", COM_QuotedString(packagespaths->path, quot, sizeof(quot), false), COM_QuotedString(packagespaths->subpath?packagespaths->subpath:"", quot3, sizeof(quot3), false)), false, false);
+		char quot4[MAX_OSPATH];
+		Cmd_TokenizeString(va("package %s %s%s %s%s %s%s",
+					COM_QuotedString(packagespaths->path, quot, sizeof(quot), false),	//name
+					packagespaths->subpath?"prefix ":"", packagespaths->subpath?COM_QuotedString(packagespaths->subpath, quot2, sizeof(quot2), false):"",	//prefix
+					packagespaths->url    ?"mirror ":"", packagespaths->url    ?COM_QuotedString(packagespaths->url, quot3, sizeof(quot3), false):"",	//mirror
+					packagespaths->package?"name "  :"", packagespaths->package?COM_QuotedString(packagespaths->package, quot4, sizeof(quot4), false):""	//
+				), false, false);
 		FS_Manifest_ParseTokens(man);
 		packagespaths++;
 	}
@@ -7410,7 +7427,15 @@ static qboolean Mods_AddManifest(void *usr, ftemanifest_t *man, enum modsourcety
 				best = p;
 		}
 	if (best < 0)
-		return false; //no gamedirs? wut?
+	{
+		modlist = BZ_Realloc(modlist, (i+1) * sizeof(*modlist));
+		modlist[i].manifest = man;
+		modlist[i].sourcetype = sourcetype;
+		modlist[i].gamedir = Z_StrDup("?");
+		modlist[i].description = man->formalname?Z_StrDup(man->formalname):NULL;
+		nummods = i+1;
+		return true; //no gamedirs? wut? some partially-defined game we don't recognise?
+	}
 
 	modlist = BZ_Realloc(modlist, (i+1) * sizeof(*modlist));
 	modlist[i].manifest = man;

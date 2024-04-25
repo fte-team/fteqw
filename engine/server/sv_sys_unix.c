@@ -407,8 +407,8 @@ void Sys_Printf (char *fmt, ...)
 #ifdef SUBSERVERS
 		if (SSV_IsSubServer())
 		{
-			SSV_PrintToMaster(msg);
-			return;
+			if (SSV_PrintToMaster(msg))
+				return;
 		}
 #endif
 

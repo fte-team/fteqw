@@ -3072,13 +3072,13 @@ char *particle_set_h2part =
 "{\n"
 "model models/boneshot.mdl 0 1 1 1\n"
 "rotationspeed 425\n"
-"veladd 2\n"
+"veladd 777\n"	//something's getting normalised, so this is an aproximation.
 "}\n"
 "r_part ce_boneshrapnel\n"
 "{\n"
 "model models/boneshrd.mdl 0 1 1 1\n"
 "rotationspeed 425\n"
-"veladd 2\n"
+"veladd 777\n"
 "}\n"
 
 "r_part ce_chunk_greystone\n"

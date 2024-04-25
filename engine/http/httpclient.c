@@ -615,8 +615,9 @@ static qboolean HTTP_DL_Work(struct dl_download *dl)
 
 			if (con->contentlength != -1 && con->contentlength > dl->sizelimit)
 			{
+				char s1[32],s2[32];
 				dl->replycode = 413;	//413 Payload Too Large 
-				Con_Printf("HTTP: request exceeds size limit\n");
+				Con_Printf(CON_WARNING"Request exceeds size limit - %s (%s vs %s)\n", dl->url, FS_AbbreviateSize(s1,sizeof(s1),con->contentlength), FS_AbbreviateSize(s2,sizeof(s2),dl->sizelimit));
 				return false;	//something went wrong.
 			}
 
@@ -751,8 +752,9 @@ firstread:
 			con->totalreceived+=con->chunked;
 			if (con->totalreceived > dl->sizelimit)
 			{
+				char s1[32],s2[32];
 				dl->replycode = 413;	//413 Payload Too Large 
-				Con_Printf("HTTP: request exceeds size limit\n");
+				Con_Printf(CON_WARNING"Request exceeds size limit - %s (%s vs %s)\n", dl->url, FS_AbbreviateSize(s1,sizeof(s1),con->totalreceived), FS_AbbreviateSize(s2,sizeof(s2),dl->sizelimit));
 				return false;	//something went wrong.
 			}
 			if (con->file && con->chunked)	//we've got a chunk in the buffer
@@ -778,8 +780,9 @@ firstread:
 			con->totalreceived+=chunk;
 			if (con->totalreceived > dl->sizelimit)
 			{
+				char s1[32], s2[32];
 				dl->replycode = 413;	//413 Payload Too Large 
-				Con_Printf("HTTP: request exceeds size limit\n");
+				Con_Printf(CON_WARNING"Request exceeds size limit - %s (%s vs %s)\n", dl->url, FS_AbbreviateSize(s1,sizeof(s1),con->totalreceived), FS_AbbreviateSize(s2,sizeof(s2),dl->sizelimit));
 				return false;	//something went wrong.
 			}
 			if (con->file)	//we've got a chunk in the buffer

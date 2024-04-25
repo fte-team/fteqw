@@ -2375,7 +2375,6 @@ void CL_UpdateSeats(void)
 CL_SendCmd
 =================
 */
-vec3_t accum[MAX_SPLITS];
 qboolean CL_WriteDeltas (int plnum, sizebuf_t *buf)
 {
 	int i;

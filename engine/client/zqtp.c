@@ -2967,6 +2967,8 @@ void TP_CheckPickupSound (char *s, vec3_t org, int seat)
 	//if we're spectating, we don't want to do any actual triggers, so pretend it was someone else.
 	if (pv->spectator)
 		seat = -1;
+	if (!s)
+		return;
 
 	//FIXME: on items/itembk2.wav kill relevant item timer.
 

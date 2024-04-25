@@ -1150,32 +1150,46 @@ qboolean WriteTGA(const char *filename, enum fs_relative fsroot, const qbyte *ft
 	vfsfile_t *vfs;
 	int ipx,opx;
 	qboolean rgb;
+	static const unsigned char footer[26] =
+	{	//added in v2, just makes it clear that it is actually a tga
+		0,0,0,0,//extension area offset
+		0,0,0,0,//developer area offset
+		'T','R','U','E','V','I','S','I','O','N','-','X','F','I','L','E', //the truth is out there
+		'.', 0
+	};
 	unsigned char header[18];
 	memset (header, 0, 18);
 
 	if (fmt == PTI_RGBA16F)
 	{
-		header[2] = 0x82;
+		header[2] = 0x82;	//uncompressed RGB half-float
 		opx = 8;
 		ipx = 8;
 		rgb = true;
 	}
 	else if (fmt == PTI_R16F)
 	{
-		header[2] = 0x83;
+		header[2] = 0x83;	//uncompressed greyscale half-float
 		opx = 2;
 		ipx = 2;
 		rgb = false;
 	}
 	else
 	{
-		header[2] = 2;			// uncompressed type
-		if (fmt == PTI_RGBA8 || fmt == PTI_BGRA8)
+		header[2] = 2;			// uncompressed true-colour type
+		if (fmt == PTI_ARGB1555)
+		{
+			rgb = false;
+			ipx = 2;
+			opx = 2;
+			header[17] |= 1&0xf;	//1bit alpha.
+		}
+		else if (fmt == PTI_RGBA8 || fmt == PTI_BGRA8)
 		{
 			rgb = fmt==TF_RGBA32;
 			ipx = 4;
 			opx = 4;
-			header[17] = 8;
+			header[17] |= 8&0xf;	//alpha is 8bit
 		}
 		else if (fmt == PTI_RGBX8 || fmt == PTI_BGRX8)
 		{
@@ -1201,7 +1215,7 @@ qboolean WriteTGA(const char *filename, enum fs_relative fsroot, const qbyte *ft
 			ipx = 4;
 			opx = 2;
 			header[2] = 3;			// greyscale
-			header[17] = 8;			// with alpha
+			header[17] |= 8&0xf;			// with alpha
 		}
 		else if (fmt==PTI_LLLX8)
 		{
@@ -1223,7 +1237,7 @@ qboolean WriteTGA(const char *filename, enum fs_relative fsroot, const qbyte *ft
 			ipx = 2;
 			opx = 2;
 			header[2] = 3;			// greyscale
-			header[17] = 8;			//with alpha
+			header[17] |= 8&0xf;			//with alpha
 		}
 		else
 			return false;
@@ -1249,12 +1263,12 @@ qboolean WriteTGA(const char *filename, enum fs_relative fsroot, const qbyte *ft
 		else	//our data is top-down, set up the header to also be top-down.
 			header[17] |= 0x20;
 
+		VFS_WRITE(vfs, header, sizeof(header));
 		if (ipx == opx && !rgb)
 		{	//can just directly write it
 			//bgr24, bgra24
 			c = (size_t)width*height*opx;
 
-			VFS_WRITE(vfs, header, sizeof(header));
 			VFS_WRITE(vfs, rgb_buffer, c);
 		}
 		else
@@ -1320,10 +1334,10 @@ qboolean WriteTGA(const char *filename, enum fs_relative fsroot, const qbyte *ft
 			}
 			c *= opx;
 
-			VFS_WRITE(vfs, header, sizeof(header));
 			VFS_WRITE(vfs, rgb_out, c);
 			free(rgb_out);
 		}
+		VFS_WRITE(vfs, footer, sizeof(footer));
 
 		success = VFS_CLOSE(vfs);
 	}
@@ -14645,6 +14659,7 @@ void Image_List_f(void)
 	unsigned int loadflags;
 	char fname[MAX_QPATH];
 	const char *filter = Cmd_Argv(1);
+	qboolean hasdupes;
 	for (tex = imagelist; tex; tex = tex->next)
 	{
 		total++;
@@ -14655,6 +14670,10 @@ void Image_List_f(void)
 			failed++;
 			continue;
 		}
+
+		a = Hash_GetInsensitive(&imagetable, tex->ident);
+		hasdupes = (a != tex || Hash_GetNextInsensitive(&imagetable, tex->ident, a));
+
 		if (((tex->flags&IF_TEXTYPEMASK)>>IF_TEXTYPESHIFT) == PTI_2D || ((tex->flags&IF_TEXTYPEMASK)>>IF_TEXTYPESHIFT) == PTI_CUBE)
 			Con_Printf("^[\\imgptr\\%#"PRIxSIZE"^]", (size_t)tex);
 		if (tex->subpath)
@@ -14669,9 +14688,9 @@ void Image_List_f(void)
 				*bullshit = '/';
 
 			if (((tex->flags&IF_TEXTYPEMASK)>>IF_TEXTYPESHIFT) == PTI_2D||((tex->flags&IF_TEXTYPEMASK)>>IF_TEXTYPESHIFT) == PTI_CUBE || tex->format == PTI_P8)
-				Con_Printf("^[%s\\tip\\%s/%s\\tipimgptr\\%#"PRIxSIZE"^]: ", tex->ident, defuck, fname, (size_t)tex);
+				Con_Printf("^[%s\\tip\\%s/%s\n\n%gkb\\tipimgptr\\%#"PRIxSIZE"^]: ", tex->ident, defuck, fname, loc.len/1024.0f, (size_t)tex);
 			else
-				Con_Printf("^[%s\\tip\\%s/%s^]: ", tex->ident, defuck, fname);
+				Con_Printf("^[%s\\tip\\%s/%s\n\n%gkb^]: ", tex->ident, defuck, fname, loc.len/1024.0f);
 		}
 		else
 		{
@@ -14685,6 +14704,48 @@ void Image_List_f(void)
 				Con_Printf("^3^h(%s)^h%s: ", a->subpath, a->ident);
 			else
 				Con_Printf("^3%s: ", a->ident);
+		}
+
+		if (developer.ival || hasdupes)
+		{
+			if (tex->flags & IF_CLAMP)			Con_Printf("^[^8CLAMP\\tip\\clamp to edge^] ");
+			if (tex->flags & IF_NOMIPMAP)		Con_Printf("^[^8NOMIPMAP\\tip\\disable mipmaps.^] ");
+			if (tex->flags & IF_NEAREST)		Con_Printf("^[^8NEAREST\\tip\\force nearest^] ");
+			if (tex->flags & IF_LINEAR)			Con_Printf("^[^8LINEAR\\tip\\force linear^] ");
+			if (tex->flags & IF_UIPIC)			Con_Printf("^[^8UIPIC\\tip\\subject to texturemode2d^] ");
+			if (tex->flags & IF_SRGB)			Con_Printf("^[^8SRGB\\tip\\texture data is srgb (read-as-linear)^] ");
+			if (tex->flags & IF_NOPICMIP)		Con_Printf("^[^8NOPICMIP\\tip\\ignores picmip settings^] ");
+			if (tex->flags & IF_NOALPHA)		Con_Printf("^[^8NOALPHA\\tip\\hint rather than requirement^] ");
+			if (tex->flags & IF_NOGAMMA)		Con_Printf("^[^8NOGAMMA\\tip\\do not apply legacy texture-based gamma^] ");
+			switch((tex->flags&IF_TEXTYPEMASK)>>IF_TEXTYPESHIFT)
+			{
+			case PTI_2D:						Con_Printf("^[^82D\\tip\\image is a standard 2d image^] ");break;
+			case PTI_3D:						Con_Printf("^[^83D\\tip\\image is a 3d image^] ");break;
+			case PTI_CUBE:						Con_Printf("^[^8CUBE\\tip\\image is a cubemap^] ");break;
+			case PTI_2D_ARRAY:					Con_Printf("^[^82D_ARRAY\\tip\\image is an array of 2d images^] ");break;
+			case PTI_CUBE_ARRAY:				Con_Printf("^[^8CUBE_ARRAY\\tip\\image is an array of cubemaps^] ");break;
+			case PTI_ANY:						Con_Printf("^[^8ANY\\tip\\image type is unspecified, allowing any^] ");break;
+			default:							Con_Printf("^[^8<ERROR>\\tip\\image type not defined^] ");break;
+			}
+			if (tex->flags & IF_MIPCAP)			Con_Printf("^[^8MIPCAP\\tip\\allow the use of d_mipcap^] ");
+			if (tex->flags & IF_PREMULTIPLYALPHA)Con_Printf("^[^8PREMULTIPLYALPHA\\tip\\rgb *= alpha^] ");
+			if (tex->flags & IF_UNUSED15)		Con_Printf("^[^8UNUSED15\\tip\\...^] ");
+			if (tex->flags & IF_UNUSED16)		Con_Printf("^[^8UNUSED16\\tip\\...^] ");
+			if (tex->flags & IF_INEXACT)		Con_Printf("^[^8INEXACT\\tip\\subdir info isn't to be used for matching^] ");
+			if (tex->flags & IF_WORLDTEX)		Con_Printf("^[^8WORLDTEX\\tip\\gl_picmip_world^] ");
+			if (tex->flags & IF_SPRITETEX)		Con_Printf("^[^8SPRITETEX\\tip\\gl_picmip_sprites^] ");
+			if (tex->flags & IF_NOSRGB)			Con_Printf("^[^8NOSRGB\\tip\\ignore srgb when loading. this is guarenteed to be linear, for normalmaps etc.^] ");
+			if (tex->flags & IF_PALETTIZE)		Con_Printf("^[^8PALETTIZE\\tip\\convert+load it as an RTI_P8 texture for the current palette/colourmap^] ");
+			if (tex->flags & IF_NOPURGE)		Con_Printf("^[^8NOPURGE\\tip\\texture is not flushed when no more shaders refer to it (for C code that holds a permanant reference to it - still purged on vid_reloads though)^] ");
+			if (tex->flags & IF_HIGHPRIORITY)	Con_Printf("^[^8HIGHPRIORITY\\tip\\pushed to start of worker queue instead of end...^] ");
+			if (tex->flags & IF_LOWPRIORITY)	Con_Printf("^[^8LOWPRIORITY\\tip\\load slowly to favour others instead^] ");
+			if (tex->flags & IF_LOADNOW)		Con_Printf("^[^8LOADNOW\\tip\\hit the disk now, and delay the gl load until its actually needed. this is used only so that the width+height are known in advance. valid on worker threads.^] ");
+			if (tex->flags & IF_NOPCX)			Con_Printf("^[^8NOPCX\\tip\\block pcx format. meaning qw skins can use team colours and cropping^] ");
+			if (tex->flags & IF_TRYBUMP)		Con_Printf("^[^8TRYBUMP\\tip\\attempt to load _bump if the specified _norm texture wasn't found^] ");
+			if (tex->flags & IF_RENDERTARGET)	Con_Printf("^[^8RENDERTARGET\\tip\\never loaded from disk, loading can't fail^] ");
+			if (tex->flags & IF_EXACTEXTENSION)	Con_Printf("^[^8EXACTEXTENSION\\tip\\don't mangle extensions, use what is specified and ONLY that^] ");
+			if (tex->flags & IF_NOREPLACE)		Con_Printf("^[^8NOREPLACE\\tip\\don't load a replacement, for some reason^] ");
+			if (tex->flags & IF_NOWORKER)		Con_Printf("^[^8NOWORKER\\tip\\don't pass the work to a loader thread. this gives fully synchronous loading. only valid from the main thread.^] ");
 		}
 
 		if (tex->status == TEX_LOADED)
@@ -14704,10 +14765,13 @@ void Image_List_f(void)
 			}
 			if (!(tex->flags & IF_NOMIPMAP))
 				imgmem += imgmem/3;	//mips take about a third extra mem.
+
+			//FIXME: not showing sizes here, because they show the '8bit' size rather than any replacementment's size.
+
 			if (tex->depth != 1)
-				Con_Printf("^2loaded (%s%i*%i*%i ^4%s^2, %3fKB->%3fKB)\n", type, tex->width, tex->height, tex->depth, Image_FormatName(tex->format), loc.len/(1024.0), imgmem/(1024.0));
+				Con_Printf("^2loaded (%s%i*%i*%i ^[^4%s\\tip\\%g bits per texel^])\n", type, tex->width, tex->height, tex->depth, Image_FormatName(tex->format), (8.f*blockbytes)/(blockwidth*blockheight*blockdepth));
 			else
-				Con_Printf("^2loaded (%s%i*%i ^4%s^2, %3fKB->%3fKB)\n", type, tex->width, tex->height, Image_FormatName(tex->format), loc.len/(1024.0), imgmem/(1024.0));
+				Con_Printf("^2loaded (%s%i*%i ^[^4%s\\tip\\%g bits per texel^])\n", type, tex->width, tex->height, Image_FormatName(tex->format), (8.f*blockbytes)/(blockwidth*blockheight*blockdepth));
 			if (tex->aliasof)
 			{
 				aliasedmem += imgmem;

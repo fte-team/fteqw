@@ -929,9 +929,10 @@ enum packagemanagerinfo_e
 	GPMI_INSTALLED,		//current state
 	GPMI_ACTION,		//desired state
 	GPMI_AVAILABLE,		//whether it may be downloaded or not.
-	GPMI_FILESIZE,		//whether it may be downloaded or not.
+	GPMI_FILESIZE,		//size of the download.
 	GPMI_GAMEDIR,		//so you know which mod(s) its relevant for
-	GPMI_MAPS,		//so you know which mod(s) its relevant for
+	GPMI_MAPS,			//list of maps provided by this package (can be used with the `map $PackageName:$MapName` command).
+	GPMI_PREVIEWIMG,	//a uri usable with drawpic etc
 };
 
 #ifdef TERRAIN
@@ -1145,31 +1146,31 @@ enum
 	globalfloat (input_buttons)				/*float		filled by getinputstate, read by runplayerphysics*/ \
 	globalfloat (input_impulse)				/*float		filled by getinputstate, read by runplayerphysics*/ \
 	globalfloat (input_lightlevel)			/*unused float		filled by getinputstate, read by runplayerphysics*/ \
-	globaluint  (input_weapon)				/*unused float		filled by getinputstate, read by runplayerphysics*/ \
+	globaluint64(input_weapon)				/*unused float		filled by getinputstate, read by runplayerphysics*/ \
 	globalfloat (input_servertime)			/*float		filled by getinputstate, read by runplayerphysics*/ \
 	globalfloat (input_clienttime)			/*float		filled by getinputstate, read by runplayerphysics*/ \
 	globalvector(input_cursor_screen)		/*float		filled by getinputstate*/ \
 	globalvector(input_cursor_trace_start)	/*float		filled by getinputstate*/ \
 	globalvector(input_cursor_trace_endpos)	/*float		filled by getinputstate*/ \
 	globalfloat (input_cursor_entitynumber)	/*float		filled by getinputstate*/ \
-	globaluint  (input_head_status)			/*filled by getinputstate, for vr*/ \
+	globaluint64(input_head_status)			/*filled by getinputstate, for vr*/ \
 	globalvector(input_head_origin)			/*filled by getinputstate, for vr*/ \
 	globalvector(input_head_angles)			/*filled by getinputstate, for vr*/ \
 	globalvector(input_head_velocity)		/*filled by getinputstate, for vr*/ \
 	globalvector(input_head_avelocity)		/*filled by getinputstate, for vr*/ \
-	globaluint  (input_head_weapon)			/*filled by getinputstate, for vr*/ \
-	globaluint  (input_left_status)			/*filled by getinputstate, for vr*/ \
+	globaluint64(input_head_weapon)			/*filled by getinputstate, for vr*/ \
+	globaluint64(input_left_status)			/*filled by getinputstate, for vr*/ \
 	globalvector(input_left_origin)			/*filled by getinputstate, for vr*/ \
 	globalvector(input_left_angles)			/*filled by getinputstate, for vr*/ \
 	globalvector(input_left_velocity)		/*filled by getinputstate, for vr*/ \
 	globalvector(input_left_avelocity)		/*filled by getinputstate, for vr*/ \
-	globaluint  (input_left_weapon)			/*filled by getinputstate, for vr*/ \
-	globaluint  (input_right_status)		/*filled by getinputstate, for vr*/ \
+	globaluint64(input_left_weapon)			/*filled by getinputstate, for vr*/ \
+	globaluint64(input_right_status)		/*filled by getinputstate, for vr*/ \
 	globalvector(input_right_origin)		/*filled by getinputstate, for vr*/ \
 	globalvector(input_right_angles)		/*filled by getinputstate, for vr*/ \
 	globalvector(input_right_velocity)		/*filled by getinputstate, for vr*/ \
 	globalvector(input_right_avelocity)		/*filled by getinputstate, for vr*/ \
-	globaluint  (input_right_weapon)		/*filled by getinputstate, for vr*/ \
+	globaluint64(input_right_weapon)		/*filled by getinputstate, for vr*/ \
 	\
 	globalvector(global_gravitydir)			/*vector	used when .gravitydir is 0 0 0 */ \
 	globalfloat (dimension_default)			/*float		default value for dimension_hit+dimension_solid*/ \

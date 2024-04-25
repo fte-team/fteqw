@@ -807,6 +807,7 @@ typedef struct
 	struct manpack_s	//FIXME: this struct should be replaced with packagemanager info instead.
 	{
 		enum manifestdeptype_e type;
+		char *packagename;	//"package:arch=ver"
 		char *path;			//the 'pure' name
 		char *prefix;
 		qboolean crcknown;	//if the crc was specified
@@ -836,6 +837,7 @@ qboolean FS_GameIsInitialised(void);
 void FS_Shutdown(void);
 struct gamepacks
 {
+	char *package;
 	char *path;
 	char *url;
 	char *subpath;	//within the package (for zips)

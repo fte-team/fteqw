@@ -3915,6 +3915,12 @@ static void CLNQ_ParseProtoVersion(void)
 		Con_DPrintf("RMQ extensions to FitzQuake's protocol\n");
 		fl = MSG_ReadLong();
 
+		if (((fl & RMQFL_SHORTANGLE) && (fl & RMQFL_FLOATANGLE)) ||
+			((fl & RMQFL_24BITCOORD) && (fl & RMQFL_INT32COORD)) ||
+			((fl & RMQFL_24BITCOORD) && (fl & RMQFL_FLOATCOORD)) ||
+			((fl & RMQFL_INT32COORD) && (fl & RMQFL_FLOATCOORD)) )
+			Host_EndGame("Server is using conflicting RMQ protocol bits - %#x\n", fl);
+
 		if (fl & RMQFL_SHORTANGLE)
 			netprim.anglesize = 2;
 		if (fl & RMQFL_FLOATANGLE)
@@ -3925,8 +3931,10 @@ static void CLNQ_ParseProtoVersion(void)
 			netprim.coordtype = COORDTYPE_FIXED_28_4;
 		if (fl & RMQFL_FLOATCOORD)
 			netprim.coordtype = COORDTYPE_FLOAT_32;
-		if (fl & ~(RMQFL_SHORTANGLE|RMQFL_FLOATANGLE|RMQFL_24BITCOORD|RMQFL_INT32COORD|RMQFL_FLOATCOORD|RMQFL_EDICTSCALE))
-			Con_Printf("WARNING: Server is using unsupported RMQ extensions\n");
+
+		fl &= ~(RMQFL_SHORTANGLE|RMQFL_FLOATANGLE|RMQFL_24BITCOORD|RMQFL_INT32COORD|RMQFL_FLOATCOORD|RMQFL_EDICTSCALE);
+		if (fl)
+			Host_EndGame("Server is using unsupported RMQ extensions - %#x\n", fl);
 	}
 	else if (protover == PROTOCOL_VERSION_DP5)
 	{
@@ -4999,6 +5007,8 @@ qboolean CL_CheckBaselines (int size)
 	for (i = cl_baselines_count; i < size; i++)
 	{
 		memcpy(cl_baselines + i, &nullentitystate, sizeof(*cl_baselines));
+		if (cls.protocol == CP_NETQUAKE && cls.protocol_nq == CPNQ_H2MP)
+			cl_baselines[i].hexen2flags = 0;
 	}
 
 	cl_baselines_count = size;
@@ -5036,7 +5046,7 @@ static void CL_ParseBaseline (entity_state_t *es, int baselinetype2)
 
 	if (cls.protocol == CP_NETQUAKE && cls.protocol_nq == CPNQ_H2MP)
 	{
-		es->scale = MSG_ReadByte();
+		es->scale = (MSG_ReadByte()/100.0)*16;
 		es->hexen2flags = MSG_ReadByte();
 		es->abslight = MSG_ReadByte();
 	}
@@ -6141,7 +6151,7 @@ static void CL_SetStatNumeric (int pnum, int stat, int ivalue, float fvalue)
 #endif
 
 #ifdef NQPROT
-	if (cls.protocol == CP_NETQUAKE && CPNQ_IS_DP)
+	if (cls.protocol == CP_NETQUAKE && (CPNQ_IS_DP || (cls.fteprotocolextensions2 & PEXT2_PREDINFO)))
 	{
 		if (cls.fteprotocolextensions2 & PEXT2_PREDINFO)
 			CL_SetStatMovevar(pnum, stat, ivalue, fvalue);
@@ -9267,6 +9277,7 @@ void CLNQ_ParseServerMessage (void)
 	char		*s;
 	int			i, j;
 	vec3_t		ang;
+	unsigned int cmdstart;
 
 //	cl.last_servermessage = realtime;
 	CL_ClearProjectiles ();
@@ -9291,6 +9302,7 @@ void CLNQ_ParseServerMessage (void)
 			break;
 		}
 
+		cmdstart = MSG_GetReadCount();
 		cmd = MSG_ReadByte ();
 
 		if (cmd == -1)
@@ -9303,7 +9315,10 @@ void CLNQ_ParseServerMessage (void)
 		if (cls.protocol_nq == CPNQ_H2MP)
 		{
 			if (CLH2_ParseServerSubMessage(cmd))
+			{
+				packetusage_pending[cmd] += MSG_GetReadCount()-cmdstart;
 				continue;
+			}
 			//handle as a regular nq packet.
 		}
 		else
@@ -9313,6 +9328,7 @@ void CLNQ_ParseServerMessage (void)
 			{
 				SHOWNET("fast update");
 				CLNQ_ParseEntity(cmd&127);
+				packetusage_pending[128] += MSG_GetReadCount()-cmdstart;
 				continue;
 			}
 
@@ -9829,6 +9845,28 @@ void CLNQ_ParseServerMessage (void)
 				MSG_ReadString();
 				break;
 			}
+#ifdef HAVE_LEGACY
+			if (!memcmp(net_message.data+cmdstart+1, "ACH_", 4))
+			{	//HIDEOUS UGLY HACK!
+				int l = 0;
+				char *s = net_message.data+cmdstart+5;
+				while (*s)
+				{
+					if ((*s >= 'A' && *s <= 'Z') || *s == '_')
+					{
+						s++;
+						l++;
+					}
+					else break;
+				}
+				if (!*s && l >= 8) //'ACH_PACIFIST' seems the shortest existing one.
+				{	//got to the end of the string and found only capitals... good chance its qe debris
+					s = MSG_ReadString();
+					Con_Printf(CON_WARNING "Got svcnq_effect - assuming stray svcqe_achievement(%s)\n", s);
+					break;
+				}
+			}
+#endif
 			CL_ParseEffect(false);
 			break;
 		case svcnq_effect2:
@@ -9953,6 +9991,7 @@ void CLNQ_ParseServerMessage (void)
 			goto badsvc;
 		}
 
+		packetusage_pending[cmd] += MSG_GetReadCount()-cmdstart;
 	}
 }
 #endif

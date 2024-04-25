@@ -353,7 +353,7 @@ skinid_t Mod_ReadSkinFile(const char *skinname, const char *skintext)
 		}
 		else if (!strcmp(com_token, "geomset") || !strcmp(com_token, "meshgroup"))
 		{
-			int set;
+			unsigned int set;
 			skintext = COM_ParseToken(skintext, NULL);
 			set = atoi(com_token);
 
@@ -3019,7 +3019,7 @@ void BE_GenModelBatches(batch_t **batches, const dlight_t *dl, unsigned int bemo
 				if (r_drawentities.ival == 2 && cls.allow_cheats)	//2 is considered a cheat, because it can be used as a wallhack (whereas mdls are not normally considered as occluding).
 					continue;
 				if (emodel->lightmaps.maxstyle >= cl_max_lightstyles)
-					continue;
+					R_BumpLightstyles(emodel->lightmaps.maxstyle);
 				Surf_GenBrushBatches(batches, ent);
 				break;
 			case mod_alias:

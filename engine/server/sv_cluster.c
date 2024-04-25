@@ -92,7 +92,7 @@ typedef struct {
 
 static pubsubserver_t *subservers;
 static link_t clusterplayers;
-qboolean	isClusterSlave;
+enum clusterslavemode_e	isClusterSlave;
 static vfsfile_t *controlconnection = NULL;
 static unsigned int nextserverid;
 
@@ -355,6 +355,8 @@ qboolean MSV_NewNetworkedNode(vfsfile_t *stream, qbyte *reqstart, qbyte *buffere
 			else
 				Con_Printf("Server node at %s rejected - bad password\n", remoteaddr);
 		}
+		else
+			Con_Printf("Server node at %s rejected - not in cluster mode\n", remoteaddr);
 
 		VFS_CLOSE(stream);
 	}
@@ -402,14 +404,19 @@ static pubsubserver_t *MSV_Loop_GetLocalServer(void)
 	return s;
 }
 //called at startup to let us know the control connection to read/write
-void SSV_SetupControlPipe(vfsfile_t *f)
+void SSV_SetupControlPipe(vfsfile_t *f, qboolean remote)
 {
 	if (!isDedicated)
 		Sys_Error("Subserver in non-dedicated server?");
 	if (controlconnection)
 		VFS_CLOSE(controlconnection);
 	controlconnection = f;
-	isClusterSlave = !!f;
+	if (!f)
+		isClusterSlave = CLSV_no;
+	else if (remote)
+		isClusterSlave = CLSV_remote;
+	else
+		isClusterSlave = CLSV_forked;
 }
 
 static pubsubserver_t *MSV_StartSubServer(unsigned int id, const char *mapname)
@@ -556,7 +563,7 @@ void MSV_MapCluster_Setup(const char *landingmap, qboolean use_database, qboolea
 	ClearLink(&clusterplayers);
 
 	//and for legacy clients, we need some server stuff inited.
-	SV_SetupNetworkBuffers(false);	
+	SV_SetupNetworkBuffers(false);
 
 	if (sv_playerslots.ival > 0)
 		plslots = sv_playerslots.ival;
@@ -611,24 +618,25 @@ void MSV_Shutdown(void)
 	}
 }
 
-void SSV_PrintToMaster(char *s)
+qboolean SSV_PrintToMaster(char *s)
 {
 	sizebuf_t send;
 	char send_buf[8192];
 	static qboolean norecurse;
-	if (norecurse)
-		return;
+	if (!norecurse)
+	{
+		memset(&send, 0, sizeof(send));
+		send.data = send_buf;
+		send.maxsize = sizeof(send_buf);
+		send.cursize = 2;
 
-	memset(&send, 0, sizeof(send));
-	send.data = send_buf;
-	send.maxsize = sizeof(send_buf);
-	send.cursize = 2;
-
-	MSG_WriteByte(&send, ccmd_print);
-	MSG_WriteString(&send, s);
-	norecurse = true;
-	SSV_InstructMaster(&send);
-	norecurse = false;
+		MSG_WriteByte(&send, ccmd_print);
+		MSG_WriteString(&send, s);
+		norecurse = true;
+		SSV_InstructMaster(&send);
+		norecurse = false;
+	}
+	return isClusterSlave==CLSV_forked;	//only swallow when forked from a server. we (probably) still have our own private stdout, so use it.
 }
 
 void MSV_Status(void)
@@ -637,20 +645,22 @@ void MSV_Status(void)
 	char bufmem[1024];
 	pubsubserver_t *s;
 	clusterplayer_t *pl;
+	Con_Printf("Nodes:\n");
 	for (s = subservers; s; s = s->next)
 	{
-		Con_Printf("^["S_COLOR_SUBSERVER"%i: %s\\ssv\\%u^]", s->id, s->name, s->id);
+		Con_Printf(" ^["S_COLOR_SUBSERVER"%i: %s\\ssv\\%u^]", s->id, *s->name?s->name:"<NO MAP>", s->id);
 		if (s->addrv4.type != NA_INVALID)
-			Con_Printf(" %s", NET_AdrToString(bufmem, sizeof(bufmem), &s->addrv4));
+			Con_Printf(S_COLOR_GRAY" %s", NET_AdrToString(bufmem, sizeof(bufmem), &s->addrv4));
 		if (s->addrv6.type != NA_INVALID)
-			Con_Printf(" %s", NET_AdrToString(bufmem, sizeof(bufmem), &s->addrv6));
+			Con_Printf(S_COLOR_GRAY" %s", NET_AdrToString(bufmem, sizeof(bufmem), &s->addrv6));
 		Con_Printf("\n");
 	}
 
+	Con_Printf("Players:\n");
 	FOR_EACH_LINK(l, clusterplayers)
 	{
 		pl = STRUCT_FROM_LINK(l, clusterplayer_t, allplayers);
-		Con_Printf("^[%i(%s)\\ssv\\%u^]: (%s) %s (%s)\n", pl->playerid, pl->server->name, pl->server->id, pl->guid, pl->name, pl->address);
+		Con_Printf(" ^[%i(%s)\\ssv\\%u^]: (%s) %s "S_COLOR_GRAY"(%s)\n", pl->playerid, pl->server->name, pl->server->id, *pl->guid?pl->guid:"<NO GUID>", pl->name, pl->address);
 	}
 }
 
@@ -710,7 +720,7 @@ static void MSV_SubConsole_Update(pubsubserver_t *s)
 static void MSV_SubConsole_Show(pubsubserver_t *s, qboolean show)
 {
 	console_t *con = s->console;
-	if (!con)
+	if (!con && !isDedicated)
 	{
 		for (con = con_head; con; con = con->next)
 		{
@@ -766,7 +776,7 @@ void MSV_SubServerCommand_f(void)
 		Con_Printf("Active servers on this cluster:\n");
 		for (s = subservers; s; s = s->next)
 		{
-			Con_Printf("^[%i: %s %i+%i\\ssv\\%u^]", s->id, s->name, s->activeplayers, s->transferingplayers, s->id);
+			Con_Printf("^[%i: %s %i+%i\\ssv\\%u^]", s->id, *s->name?s->name:"<NO MAP>", s->activeplayers, s->transferingplayers, s->id);
 			if (s->addrv4.type != NA_INVALID)
 				Con_Printf(" %s", NET_AdrToString(bufmem, sizeof(bufmem), &s->addrv4));
 			if (s->addrv6.type != NA_INVALID)
@@ -908,7 +918,7 @@ static void MSV_PrintFromSubServer(pubsubserver_t *s, const char *newtext)
 	}
 }
 
-void MSV_ReadFromSubServer(pubsubserver_t *s)
+qboolean MSV_ReadFromSubServer(pubsubserver_t *s)
 {
 	sizebuf_t	send;
 	qbyte		send_buf[MAX_QWMSGLEN];
@@ -923,8 +933,8 @@ void MSV_ReadFromSubServer(pubsubserver_t *s)
 	{
 	default:
 	case ccmd_bad:
-		Sys_Error("Corrupt message (%i) from SubServer %i:%s", c, s->id, s->name);
-		break;
+		Con_Printf(CON_ERROR"Corrupt message (%i) from SubServer %i:%s\n", c, s->id, s->name);
+		return false;
 	case ccmd_print:
 		MSV_PrintFromSubServer(s, MSG_ReadString());
 		break;
@@ -943,11 +953,11 @@ void MSV_ReadFromSubServer(pubsubserver_t *s)
 			if (!pl)
 			{
 				Con_Printf("player %u(%s) does not exist!\n", plid, s->name);
-				return;
+				return true;	//ignore it.
 			}
 			//player already got taken by a different server, don't save stale data.
 			if (reason && pl->server != s)
-				return;
+				return true;	//ignore it.
 
 			MSV_UpdatePlayerStats(plid, s->id, numstats, stats);
 
@@ -1234,7 +1244,11 @@ void MSV_ReadFromSubServer(pubsubserver_t *s)
 		break;
 	}
 	if (MSG_GetReadCount() != net_message.cursize || msg_badread)
-		Sys_Error("Master: Readcount isn't right (%i)\n", net_message.data[0]);
+	{
+		Con_Printf(CON_ERROR"Master(%i): Readcount isn't right (%i)\n", s->id, net_message.data[0]);
+		return false;
+	}
+	return true;
 }
 
 void MSV_PollSlaves(void)
@@ -1245,7 +1259,7 @@ void MSV_PollSlaves(void)
 	{
 		static unsigned inbuffersize;
 		static qbyte inbuffer[8192];
-		qboolean error = false;
+		int error = NETERR_SENT;
 
 		for (;;)
 		{
@@ -1253,7 +1267,7 @@ void MSV_PollSlaves(void)
 			{
 				int r = VFS_READ(controlconnection, inbuffer+inbuffersize, 2-inbuffersize);
 				if (r < 0)
-					error = true;
+					error = r;
 				else
 					inbuffersize += r;
 			}
@@ -1267,7 +1281,7 @@ void MSV_PollSlaves(void)
 				{
 					r = VFS_READ(controlconnection, inbuffer+inbuffersize, size-inbuffersize);
 					if (r < 0)
-						error = true;
+						error = r;
 					else
 						inbuffersize += r;
 				}
@@ -1288,12 +1302,21 @@ void MSV_PollSlaves(void)
 		if (error)
 		{
 			error = isClusterSlave;
-			SSV_SetupControlPipe(NULL);
+			SSV_SetupControlPipe(NULL, false);
 			inbuffersize = 0;
 
 			if (error)
 			{
-				SV_FinalMessage("Cluster shut down\n");
+				if (error == NETERR_NOROUTE)
+					SV_FinalMessage("No rotue to cluster controller\n");
+				else if (error == NETERR_DISCONNECTED)
+					SV_FinalMessage("Lost connection to cluster controller\n");
+				else if (error == NETERR_DISCONNECTED)
+					SV_FinalMessage("MTU error from cluster controller\n");
+				else if (error == NETERR_CLOGGED)
+					SV_FinalMessage("Conjestion error from cluster controller\n");
+				else
+					SV_FinalMessage("Unknown cluster controller connection error\n");
 				Cmd_ExecuteString("quit\n", RESTRICT_LOCAL);
 			}
 		}
@@ -1312,22 +1335,16 @@ void MSV_PollSlaves(void)
 
 	for (link = &subservers; (s=*link); )
 	{
-		switch(MSV_SubServerRead(s))
+		int avail = MSV_SubServerRead(s);
+		if (!avail)
+			link = &s->next;	//no messages, move on to the next.
+		else if (avail < 0 || !MSV_ReadFromSubServer(s))
 		{
-		case -1:
 			//error - server is dead and needs to be freed.
 			*link = s->next;
 			MSV_ServerCrashed(s);
-			break;
-		case 0:
-			//no messages
-			link = &s->next;
-			break;
-		default:
-			//got a message. read it and see if there's more.
-			MSV_ReadFromSubServer(s);
-			break;
 		}
+		//else read something, there may be more pending.
 	}
 }
 
@@ -1355,7 +1372,7 @@ void SSV_ReadFromControlServer(void)
 	default:
 		SV_Error("Invalid message from cluster (%i)\n", c);
 		break;
-	
+
 	//console command (entered via the cluster host, either broadcast or uni)
 	case ccmd_stuffcmd:
 		s = MSG_ReadString();
@@ -1784,7 +1801,7 @@ qboolean MSV_ClusterLoginReply(netadr_t *legacyclientredirect, unsigned int serv
 		InsertLinkBefore(&pl->allplayers, &clusterplayers);
 		pl->server = s;
 		s->activeplayers++;
-		
+
 		MSG_WriteByte(&send, ccmd_takeplayer);
 		MSG_WriteLong(&send, playerid);
 		MSG_WriteString(&send, pl->name);

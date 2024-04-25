@@ -1133,7 +1133,7 @@ void Key_DefaultLinkClicked(console_t *con, char *text, char *info)
 	c = Info_ValueForKey(info, "playaudio");
 	if (*c && !strchr(c, ';') && !strchr(c, '\n'))
 	{
-		Cbuf_AddText(va("\nplay \"%s\"\n", c), RESTRICT_LOCAL);
+		S_StartSound(0, INT_MAX-1, S_PrecacheSound(c), NULL, NULL, 1, ATTN_NONE, 0, 0, CF_NOSPACIALISE);
 		return;
 	}
 	c = Info_ValueForKey(info, "desc");

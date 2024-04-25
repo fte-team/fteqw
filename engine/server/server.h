@@ -403,6 +403,7 @@ enum
 	PRESPAWN_VWEPMODELLIST,		//qw ugly extension.
 #endif
 	PRESPAWN_MODELLIST,
+	PRESPAWN_NQSIGNON1,		//gotta send all the trickled model+sounds before this is sent.
 	PRESPAWN_MAPCHECK,			//wait for old prespawn command
 	PRESPAWN_PARTICLES,
 	PRESPAWN_CUSTOMTENTS,
@@ -1235,7 +1236,7 @@ void SSV_UpdateAddresses(void);
 void SSV_InitiatePlayerTransfer(client_t *cl, const char *newserver);
 void SSV_InstructMaster(sizebuf_t *cmd);
 void SSV_CheckFromMaster(void);
-void SSV_PrintToMaster(char *s);
+qboolean SSV_PrintToMaster(char *s);
 void SSV_ReadFromControlServer(void);
 void SSV_SavePlayerStats(client_t *cl, int reason);	//initial, periodic (in case of node crashes), part
 void SSV_RequestShutdown(void); //asks the cluster to not send us new players
@@ -1244,8 +1245,14 @@ vfsfile_t *Sys_ForkServer(void);
 vfsfile_t *Sys_GetStdInOutStream(void);		//obtains a bi-directional pipe for reading/writing via stdin/stdout. make sure the system code won't be using it.
 
 qboolean MSV_NewNetworkedNode(vfsfile_t *stream, qbyte *reqstart, qbyte *buffered, size_t buffersize, const char *remoteaddr);	//call to register a pipe to a newly discovered node.
-void SSV_SetupControlPipe(vfsfile_t *stream);	//call to register the pipe.
-extern qboolean isClusterSlave;
+void SSV_SetupControlPipe(vfsfile_t *stream, qboolean remote);	//call to register the pipe.
+enum clusterslavemode_e
+{
+	CLSV_no,
+	CLSV_forked,
+	CLSV_remote
+};
+extern enum clusterslavemode_e isClusterSlave;
 #define SSV_IsSubServer() isClusterSlave
 
 

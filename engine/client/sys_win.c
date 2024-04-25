@@ -4292,7 +4292,7 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 #ifdef _DEBUG
 			MessageBox(0, "New cluster slave starting\nAttach to process now, if desired.", "FTEQW Debug Build", 0);
 #endif
-			SSV_SetupControlPipe(Sys_GetStdInOutStream());
+			SSV_SetupControlPipe(Sys_GetStdInOutStream(), false);
 		}
 	#endif
 #endif

@@ -10750,7 +10750,7 @@ static QCC_ref_t *QCC_PR_RefTerm (QCC_ref_t *retbuf, unsigned int exprflags)
 				int sz = 0;
 				int oldstcount = numstatements;
 				QCC_ref_t refbuf, *r;
-				r = QCC_PR_RefExpression(&refbuf, TOP_PRIORITY, 0);
+				r = QCC_PR_RefExpression(&refbuf, TOP_PRIORITY, EXPR_DISALLOW_COMMA);
 				if (r->type == REF_ARRAYHEAD)
 					sz = r->base.sym->arraysize;
 				else if (r->cast == type_string)
@@ -10759,6 +10759,8 @@ static QCC_ref_t *QCC_PR_RefTerm (QCC_ref_t *retbuf, unsigned int exprflags)
 					const QCC_eval_t *c = QCC_SRef_EvalConst(d);
 					if (c)
 						sz = strlen(&strings[c->string]);	//_length("hello") does NOT include the null (like strlen), but is bytes not codepoints
+					else
+						QCC_PR_ParseError (ERR_TYPEMISMATCHPARM, "_length(string) requires an initialised constant");
 				}
 				else if (r->cast == type_vector)
 					sz = 3;	//might as well. considering that vectors can be indexed as an array.
@@ -15545,6 +15547,8 @@ void QCC_Marshal_Locals(int firststatement, int laststatement)
 					continue;	//static variables are actually globals
 				if (local->constant && local->initialized)
 					continue;	//as are initialised consts, because its pointless otherwise.
+				if (local->symbolheader && local->symbolheader->scope != local->scope)
+					continue;
 
 				//FIXME: check for uninitialised locals.
 				//these matter when the function goes recursive (and locals marshalling counts as recursive every time).

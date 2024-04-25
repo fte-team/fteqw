@@ -7671,6 +7671,11 @@ static shader_t *R_LoadShader (model_t *mod, const char *name, unsigned int usag
 			s->uses++;
 			return s;
 		}
+		if (s->generator == Shader_DefaultScript)
+		{	//if someone shaderfornamed and then needed a different usageflag later, just borrow from the existing one.
+			defaultgen = s->generator;
+			genargs = s->genargs;
+		}
 		s = Hash_GetNext(&shader_active_hash, cleanname, s);
 	}
 
@@ -8232,6 +8237,23 @@ void Shader_ShowShader_f(void)
 		Con_Printf("Shader \"%s\" is not loaded\n", sourcename);
 }
 
+void Shader_ShaderList_f(void)
+{
+	unsigned int i;
+	// not loaded, find a free slot
+	for (i = 0; i < r_numshaders; i++)
+	{
+		if (!r_shaders[i])
+			continue;	//gap?
+		Con_Printf("^[\\img\\%s\\imgtype\\%i\\s\\64^] ^2%s^7 [%i]", r_shaders[i]->name, r_shaders[i]->usageflags, r_shaders[i]->name, r_shaders[i]->usageflags);
+		if (r_shaders[i]->width || r_shaders[i]->height)
+			Con_Printf(" Size:%ix%i", r_shaders[i]->width, r_shaders[i]->height);
+		if (r_shaders[i]->model)
+			Con_Printf(" ^[%s\\modelviewer\\%s^]", r_shaders[i]->model->name, r_shaders[i]->model->name);
+		Con_Printf("\n");
+	}
+}
+
 void Shader_TouchTexnums(texnums_t *t)
 {
 	if (t->base)
@@ -8467,6 +8489,23 @@ void R_RemapShader(const char *sourcename, const char *destname, float timeoffse
 					Q_strncpyz(cleandstname, destname, sizeof(cleandstname));
 					COM_CleanUpPath(cleandstname);
 					n = Hash_Get(&shader_active_hash, cleandstname);
+
+					// if one of our shaders is made for lightmaps, check through the rest until we find one more suitable
+					if ((n->usageflags ^ o->usageflags) & SUF_LIGHTMAP)
+					{
+						shader_t *n_f = n;
+						while (n)
+						{
+							if (!((n->usageflags ^ o->usageflags) & SUF_LIGHTMAP))
+								break;
+
+							n = Hash_GetNext(&shader_active_hash, cleandstname, n);
+						}
+
+						if (!n)
+							n = n_f;
+					}
+
 					if (!n || !n->uses)
 						n = o;
 				}

@@ -359,6 +359,7 @@ nonstatic void Hud_Draw(float hudtype, float scoreboard, float width, float heig
 
 	pos_x = (screensize_x-320)/2;
 	pos_y = screensize_y;
+	pos_z = 0;
 
 	stat_items = getstatbits(STAT_ITEMS, 0, 23);
 	stat_items2 = getstatbits(STAT_ITEMS, 23, 9);

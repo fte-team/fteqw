@@ -1007,8 +1007,7 @@ void SV_Map_f (void)
 #endif
 
 				// FTE is still a Quake engine so report BSP missing
-				snprintf (expanded, sizeof(expanded), exts[1], level);
-				Con_TPrintf ("Can't find %s\n", expanded);
+				Con_TPrintf ("Can't find %s\n", COM_QuotedString(va("maps/%s.bsp", level), expanded, sizeof(expanded), false));
 
 				if (SSV_IsSubServer() && !sv.state)	//subservers don't leave defunct servers with no maps lying around.
 					Cbuf_AddText("\nquit\n", RESTRICT_LOCAL);
@@ -2301,8 +2300,11 @@ static void SV_Status_f (void)
 		cpu = 100*svs.stats.latched_active/cpu;
 
 	Con_TPrintf("cpu utilization  : %3i%%\n",(int)cpu);
-	Con_TPrintf("avg response time: %i ms (%i max)\n",(int)(1000*svs.stats.latched_active/svs.stats.latched_count), (int)(1000*svs.stats.latched_maxresponse));
-	Con_TPrintf("packets/frame    : %5.2f (%i max)\n", (float)svs.stats.latched_packets/svs.stats.latched_count, svs.stats.latched_maxpackets);	//not relevent as a limit.
+	if (sv.state == ss_active)
+	{
+		Con_TPrintf("avg response time: %i ms (%i max)\n",(int)(1000*svs.stats.latched_active/svs.stats.latched_count), (int)(1000*svs.stats.latched_maxresponse));
+		Con_TPrintf("packets/frame    : %5.2f (%i max)\n", (float)svs.stats.latched_packets/svs.stats.latched_count, svs.stats.latched_maxpackets);	//not relevent as a limit.
+	}
 	if (NET_GetRates(svs.sockets, &pi, &po, &bi, &bo))
 		Con_TPrintf("packets,bytes/sec: in: %g %g  out: %g %g\n", pi, bi, po, bo);	//not relevent as a limit.
 	Con_TPrintf("server uptime    : %s\n", ShowTime(realtime));
@@ -2332,7 +2334,7 @@ static void SV_Status_f (void)
 	default:
 		Con_TPrintf("client types     :%s", sv_listen_qw.ival?" ^[QW\\tip\\This is "FULLENGINENAME"'s standard protocol.^]":"");
 #ifdef NQPROT
-		Con_TPrintf("%s%s", (sv_listen_nq.ival==2)?" ^[-NQ\\tip\\Allows 'Net'/'Normal' Quake clients to connect, with cookies and extensions that might confuse some old clients^]":(sv_listen_nq.ival?" ^[NQ\\tip\\Vanilla/Normal Quake protocol with maximum compatibility^]":""), sv_listen_dp.ival?" ^[DP\\tip\\Explicitly recognise connection requests from DP clients.^]":"");
+		Con_TPrintf("%s%s", (sv_listen_nq.ival==2)?" ^[NQ+\\tip\\Allows 'Net'/'Normal' Quake clients to connect, with cookies and extensions that might confuse some old clients^]":(sv_listen_nq.ival?" ^[NQ(15)\\tip\\Vanilla/Normal Quake protocol with maximum compatibility^]":""), sv_listen_dp.ival?" ^[DP\\tip\\Explicitly recognise connection requests from DP clients, no handshakes.^]":"");
 #endif
 #ifdef QWOVERQ3
 		if (sv_listen_q3.ival) Con_Printf(" Q3");
@@ -3399,7 +3401,7 @@ void SV_PrecacheList_f(void)
 		for (i = 0; i < sizeof(sv.strings.vw_model_precache)/sizeof(sv.strings.vw_model_precache[0]); i++)
 		{
 			if (sv.strings.vw_model_precache[i])
-				Con_Printf("vwep  %u: %s\n", i, sv.strings.vw_model_precache[i]);
+				Con_Printf("vwep  %u: ^[%s\\modelviewer\\%s^]\n", i, sv.strings.vw_model_precache[i], sv.strings.vw_model_precache[i]);
 		}
 	}
 #endif
@@ -3408,7 +3410,7 @@ void SV_PrecacheList_f(void)
 		for (i = 0; i < MAX_PRECACHE_MODELS; i++)
 		{
 			if (sv.strings.model_precache[i])
-				Con_Printf("model %u: ^[%s\\modelviewer\\%s^]\n", i, sv.strings.model_precache[i], sv.strings.model_precache[i]);
+				Con_Printf("model %u: ^[%s\\modelviewer\\%s^]\n", i, sv.strings.model_precache[i], Mod_FixName(sv.strings.model_precache[i], sv.strings.model_precache[1]));
 		}
 	}
 	if (!*group || !strncmp(group, "sound", 5))
@@ -3416,7 +3418,7 @@ void SV_PrecacheList_f(void)
 		for (i = 0; i < MAX_PRECACHE_SOUNDS; i++)
 		{
 			if (sv.strings.sound_precache[i])
-				Con_Printf("sound %u: %s\n", i, sv.strings.sound_precache[i]);
+				Con_Printf("sound %u: ^[%s\\playaudio\\%s^]\n", i, sv.strings.sound_precache[i], sv.strings.sound_precache[i]);
 		}
 	}
 	if (!*group || !strncmp(group, "part", 4))

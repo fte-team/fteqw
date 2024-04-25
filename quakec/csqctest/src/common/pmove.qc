@@ -5,6 +5,13 @@ If you want to release your csqc mod free from the GPL, do not define OWNPLAYERP
 
 */
 
+enumflags
+{
+	PMF_JUMP_HELD,
+	PMF_RESERVED,
+	PMF_ONGROUND
+};
+
 #ifdef OWNPLAYERPHYSICS
 
 /*
@@ -32,13 +39,6 @@ Any fields that are read need to be the same between csqc and ssqc code somehow.
 #endif
 .entity groundentity;
 static vector groundnormal;
-
-enumflags
-{
-	PMF_JUMP_HELD,
-	PMF_RESERVED,
-	PMF_ONGROUND
-};
 
 static void(entity tother) dotouch =
 {

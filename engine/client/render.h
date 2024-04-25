@@ -164,7 +164,7 @@ typedef struct entity_s
 #endif
 } entity_t;
 
-#define MAX_GEOMSETS 32
+#define MAX_GEOMSETS 32u
 #define Q1UNSPECIFIED 0x00ffffff	//0xffRRGGBB or 0x0000000V are both valid values. so this is an otherwise-illegal value to say its not been set.
 typedef struct
 {

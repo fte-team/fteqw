@@ -10531,8 +10531,10 @@ void NET_Init (void)
 			vfsfile_t *f = FS_OpenTCP(com_argv[i+1], PORT_DEFAULTSERVER, true);
 			if (!f)
 				Sys_Error("Unable to resolve/connect to cluster host address \"%s\"\n", com_argv[i+1]);
-			VFS_PRINTF(f, "NODE\r\nPassword: \"%s\"\r\n", com_argv[i+2]);
-			SSV_SetupControlPipe(f);
+			VFS_PRINTF(f, "NODE\r\nPassword: \"%s\"\r\n\r\n", com_argv[i+2]);
+			SSV_SetupControlPipe(f, true);
+			Con_Printf("Connecting to remote node...\n");
+			Con_Printf(CON_WARNING"This gives rcon access to the remote node!\n");
 			return;
 		}
 	}

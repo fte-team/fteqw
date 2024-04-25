@@ -5364,6 +5364,16 @@ skipwhite:
 				case 'r':
 					c = '\r';
 					break;
+				case 'x':
+					c = 0;
+					if (ishexcode(*data))
+						c |= dehex(*data++);
+					if (ishexcode(*data))
+					{
+						c <<= 4;
+						c |= dehex(*data++);
+					}
+					break;
 				case '$':
 				case '\\':
 				case '\'':

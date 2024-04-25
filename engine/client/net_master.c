@@ -1222,7 +1222,7 @@ qboolean Master_PassesMasks(serverinfo_t *a)
 
 	for (i = 0; i < numvisrules; i++)
 	{
-		switch(visrules[i].fieldindex)
+		safeswitch(visrules[i].fieldindex)
 		{
 		case SLKEY_PING:
 			res = Master_CompareInteger(a->ping, visrules[i].operandi, visrules[i].compareop);
@@ -1280,8 +1280,23 @@ qboolean Master_PassesMasks(serverinfo_t *a)
 		case SLKEY_CATEGORY:
 			res = Master_CompareInteger(a->qccategory, visrules[i].operandi, visrules[i].compareop);
 			break;
-		default:
-			continue;
+		case SLKEY_ISFAVORITE:
+			res = Master_CompareInteger(a->special&SS_FAVORITE, visrules[i].operandi, visrules[i].compareop);
+			break;
+		case SLKEY_ISLOCAL:
+			res = Master_CompareInteger(a->special&SS_LOCAL, visrules[i].operandi, visrules[i].compareop);
+			break;
+		case SLKEY_ISPROXY:
+			res = Master_CompareInteger(a->special&SS_PROXY, visrules[i].operandi, visrules[i].compareop);
+			break;
+		case SLKEY_ADDRESS:		//not convinced its useful, but hey...
+		case SLKEY_SERVERINFO:	//not really the sort of thing you sort.
+		case SLKEY_TOOMANY:		//not real
+		case SLKEY_PLAYER0://...SLKEY_CUSTOM
+		case SLKEY_CUSTOM:
+		safedefault:
+			res = Master_CompareString(Master_ReadKeyString(a, visrules[i].fieldindex), visrules[i].operands, visrules[i].compareop);
+			break;
 		}
 		if (visrules[i].or)
 			val |= res;
@@ -1305,6 +1320,7 @@ void Master_SetMaskString(qboolean or, hostcachekey_t field, const char *param, 
 	visrules[numvisrules].fieldindex = field;
 	visrules[numvisrules].compareop = testop;
 	visrules[numvisrules].operands = param;
+	visrules[numvisrules].operandi = atof(param);
 	visrules[numvisrules].or = or;
 	numvisrules++;
 }
@@ -1316,6 +1332,7 @@ void Master_SetMaskInteger(qboolean or, hostcachekey_t field, int param, slist_t
 	visrules[numvisrules].fieldindex = field;
 	visrules[numvisrules].compareop = testop;
 	visrules[numvisrules].operandi = param;
+	visrules[numvisrules].operands = "";	//don't crash if they used the wrong arg type.
 	visrules[numvisrules].or = or;
 	numvisrules++;
 }
@@ -1549,7 +1566,9 @@ char *Master_ReadKeyString(serverinfo_t *server, unsigned int keynum)
 		case SLKEY_QCSTATUS:
 			return server->qcstatus;
 		case SLKEY_SERVERINFO:
-			return server->moreinfo->info;
+			if (server->moreinfo)
+				return server->moreinfo->info;
+			return "";
 
 		default:
 			{
@@ -2671,7 +2690,7 @@ static void MasterInfo_ProcessHTTPInfo(serverinfo_t *srv, const char *info)
 		srv->maxplayers = atoi(Info_ValueForKey(info, "maxclients"));
 
 		if (!MasterInfo_ReadProtocol(srv, info))
-			srv->special = (srv->special&~SS_PROTOCOLMASK)|SS_QUAKEWORLD;	//assume its an older fteqw server.
+			srv->special = (srv->special&~SS_PROTOCOLMASK)|SS_UNKNOWN;	//assume its an older fteqw server.
 
 		srv->numbots = 0;
 		srv->numhumans = srv->players - srv->numbots;
@@ -2799,7 +2818,7 @@ static void MasterInfo_ProcessHTTP(struct dl_download *dl)
 			if (protocoltype == MP_QUAKEWORLD)
 				info->special |= SS_QUAKEWORLD;
 			else if (protocoltype == MP_DPMASTER)	//actually ftemaster... so assume fteqw servers not ftenq ones unless otherwise indicated.
-				info->special |= SS_QUAKEWORLD|SS_GETINFO;
+				info->special |= SS_UNKNOWN|SS_GETINFO;
 #if defined(Q2CLIENT) || defined(Q2SERVER)
 			else if (protocoltype == MP_QUAKE2)
 				info->special |= SS_QUAKE2;

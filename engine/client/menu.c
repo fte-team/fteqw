@@ -937,7 +937,7 @@ void M_Menu_Keys_f (void)
 	{
 #ifdef Q2CLIENT
 	case MGT_QUAKE2:
-		MC_AddCenterPicture(menu, 0, 60, "pics/m_banner_customize.pcx");
+		MC_AddCenterPicture(menu, 0, 24, "pics/m_banner_customize.pcx");
 		y = 48;
 		bindnames = q2bindnames;
 		break;

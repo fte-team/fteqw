@@ -3519,13 +3519,14 @@ void SVC_DirectConnect(int expectedreliablesequence)
 				{"666",				1u<<SCP_FITZ666},	//dp doesn't support this, but this is for potential compat if other engines use this handshake
 				{"RMQ",				1u<<SCP_FITZ666},	//fte doesn't distinguish, but assumes clients will support both
 				{"999",				1u<<SCP_FITZ666},	//fte doesn't distinguish, but assumes clients will support both
+				{"DP8",				0},	//unsupported, cloudwalk's attempt to fix some stuff (still unfinalised).
 				{"DP7",				1u<<SCP_DARKPLACES7},
 				{"DP6",				1u<<SCP_DARKPLACES6},
-				{"DP5",				0},
-				{"DP4",				0},
-				{"DP3",				0},
-				{"DP2",				0},
-				{"DP1",				0},
+				{"DP5",				0},	//unsupported serverside
+				{"DP4",				0},	//unsupported
+				{"DP3",				0},	//unsupported
+				{"DP2",				0},	//unsupported
+				{"DP1",				0},	//unsupported
 				{"QW",				0},	//mixing protocols doesn't make sense, and would just confuse the client.
 				{"QUAKEDP",			1u<<SCP_NETQUAKE},
 				{"QUAKE",			1u<<SCP_NETQUAKE},
@@ -3548,7 +3549,7 @@ void SVC_DirectConnect(int expectedreliablesequence)
 				}
 			}
 			if (p == countof(dpnames))
-				Con_DPrintf("DP client reporting unknown protocol \"%s\"\n", com_token);
+				Con_DPrintf("'DP' client reporting unknown protocol \"%s\"\n", com_token);
 		}
 
 		info.protocol = SCP_DARKPLACES7;

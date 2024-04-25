@@ -734,7 +734,7 @@ A 0 length will still generate a packet and deal with the reliable messages.
 */
 int Netchan_Transmit (netchan_t *chan, int length, qbyte *data, int rate)
 {
-	sizebuf_t	send;
+	sizebuf_t	send = {false};
 	qbyte		send_buf[MAX_OVERALLMSGLEN + PACKET_HEADER];
 	qboolean	send_reliable;
 	char		remote_adr[MAX_ADR_SIZE];

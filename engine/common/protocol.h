@@ -1318,7 +1318,7 @@ struct vrdevinfo_s
 	short			avelocity[3];
 	vec3_t			origin;
 	vec3_t			velocity;
-	unsigned int	weapon;
+	quint64_t		weapon;
 #define VRDEV_LEFT	0
 #define VRDEV_RIGHT	1
 #define VRDEV_HEAD	2
@@ -1328,13 +1328,13 @@ typedef struct usercmd_s
 {
 	short	angles[3];
 	signed int		forwardmove,sidemove,upmove;
-	unsigned int	impulse;
+	quint64_t	impulse;
 	unsigned int	lightlevel;
 
 	unsigned int	sequence;	// just for debugging prints
 	float	msec;		//replace msec, but with more precision
-	unsigned int buttons;	//replaces buttons, but with more bits.
-	unsigned int weapon;//q3 has a separate weapon field to supplement impulse.
+	quint64_t buttons;	//replaces buttons, but with more bits.
+	quint64_t weapon;//q3 has a separate weapon field to supplement impulse.
 	unsigned int servertime;	//q3 networks the time in order to calculate msecs
 	double	fservertime;//used as part of nq msec calcs
 	double	fclienttime;//not used?

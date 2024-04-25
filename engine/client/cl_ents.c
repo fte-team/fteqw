@@ -1896,15 +1896,6 @@ void CLH2_ParseEntities(void)
 	(void)frame;
 	(void)seq;
 
-	//server->client sequence
-//	if (cl.numackframes == sizeof(cl.ackframes)/sizeof(cl.ackframes[0]))
-//		cl.numackframes--;
-//	cl.ackframes[cl.numackframes++] = MSG_ReadLong(); /*server sequence to be acked*/
-
-	//client->server sequence ack
-//	if (cls.protocol_nq >= CPNQ_DP7)
-//		CL_AckedInputFrame(cls.netchan.incoming_sequence, MSG_ReadLong(), true); /*client input sequence which has been acked*/
-
 	if (cl.validsequence)
 		oldpack = &cl.inframes[(cl.validsequence)&UPDATE_MASK].packet_entities;
 	else
@@ -2005,7 +1996,7 @@ void CLH2_ParseEntities(void)
 		if (bits & UH2_ANGLE2)	to->angles[1] = MSG_ReadAngle();
 		if (bits & UH2_ORIGIN3)	to->origin[2] = MSG_ReadCoord();
 		if (bits & UH2_ANGLE3)	to->angles[2] = MSG_ReadAngle();
-		if (bits & UH2_SCALE)	to->scale = MSG_ReadByte()*(16.0/100);
+		if (bits & UH2_SCALE)	to->scale = (MSG_ReadByte()/100.0)*16;
 		if (bits & UH2_SCALE)	to->abslight = MSG_ReadByte();
 
 		to->sequence = cls.netchan.incoming_sequence;

@@ -1226,7 +1226,15 @@ static const char *PM_ParsePackage(struct packagesourceinfo_s *source, const cha
 			else if (!strcmp(key, "author"))
 				Z_StrDupPtr(&p->author, val);
 			else if (!strcmp(key, "preview"))
-				Z_StrDupPtr(&p->previewimage, val);
+			{
+				if (source->nummirrors && !(!strncmp(val, "http://", 7) || !strncmp(val, "https://", 8)))
+				{
+					Z_Free(p->previewimage);
+					p->previewimage = Z_StrDupf("%s%s", source->mirror[0], val);
+				}
+				else
+					Z_StrDupPtr(&p->previewimage, val);
+			}
 			else if (!strcmp(key, "website"))
 				Z_StrDupPtr(&p->website, val);
 			else if (!strcmp(key, "unzipfile"))
@@ -1375,6 +1383,12 @@ static const char *PM_ParsePackage(struct packagesourceinfo_s *source, const cha
 			{
 				for (m = 0; m < source->nummirrors; m++)
 					p->mirror[m] = Z_StrDupf("%s%s%s", source->mirror[m], relurl, ext);
+
+				if (!file && p->extract != EXTRACT_ZIP && source->nummirrors)
+				{
+					FS_PathURLCache(p->mirror[0], pathname, sizeof(pathname));
+					PM_AddDep(p, DEP_CACHEFILE, pathname+10);
+				}
 			}
 		}
 
@@ -3866,6 +3880,8 @@ static void PM_Download_Got(int iarg, void *data)
 			if (archive)
 			{
 				p->flags &= ~(DPF_NATIVE|DPF_CACHED|DPF_CORRUPT|DPF_ENABLED);
+				//FIXME: add an EnumerateAllFiles function or something.
+				//can't scan for directories - paks don't have em, zips don't guarentee em either.
 				archive->EnumerateFiles(archive, "*", PM_ExtractFiles, p);
 				archive->EnumerateFiles(archive, "*/*", PM_ExtractFiles, p);
 				archive->EnumerateFiles(archive, "*/*/*", PM_ExtractFiles, p);
@@ -4219,6 +4235,10 @@ static size_t PM_AddFilePackage(const char *packagename, struct gamepacks *gp, s
 
 	if (found < numgp)
 	{
+		if (p->arch)
+			gp[found].package = Z_StrDupf("%s:%s=%s", p->name, p->arch, p->version);
+		else
+			gp[found].package = Z_StrDupf("%s=%s", p->name, p->version);
 		gp[found].path = NULL;
 		gp[found].url = p->mirror[0];	//FIXME: random mirror.
 		for (dep = p->deps; dep; dep = dep->next)
@@ -4255,9 +4275,7 @@ static void PM_DownloadsCompleted(int iarg, void *data)
 			pm_onload.map = NULL;
 
 			usedpacks = PM_AddFilePackage(pm_onload.package, packs, countof(packs)-1);
-			packs[usedpacks].path = NULL;
-			packs[usedpacks].subpath = NULL;
-			packs[usedpacks].url = NULL;
+			memset(&packs[usedpacks], 0, sizeof(packs[usedpacks]));
 
 			Z_Free(pm_onload.package);
 			pm_onload.package = NULL;
@@ -5430,7 +5448,7 @@ void PM_AddManifestPackages(ftemanifest_t *man, qboolean mayapply)
 	for (p = availablepackages; p; p = p->next)
 		p->flags &= ~DPF_MANIMARKED;
 
-	PM_RevertChanges();
+	PM_RevertChanges();	//we'll be force-applying, so make sure there's no unconfirmed pending stuff.
 
 	for (idx = 0; idx < countof(man->package); idx++)
 	{
@@ -5445,7 +5463,17 @@ void PM_AddManifestPackages(ftemanifest_t *man, qboolean mayapply)
 				continue;	//ignore it
 		}
 
-		if (pack->mirrors[0])
+		if (pack->packagename)
+		{
+			p = PM_FindPackage(pack->packagename);
+			if (p)
+			{
+				PM_MarkPackage(p, DPF_MANIMARKED);
+				continue;
+			}
+		}
+
+		/*if (pack->mirrors[0])
 		{
 			for (p = availablepackages; p; p = p->next)
 			{
@@ -5457,15 +5485,37 @@ void PM_AddManifestPackages(ftemanifest_t *man, qboolean mayapply)
 				PM_MarkPackage(p, DPF_MANIMARKED);
 				continue;
 			}
-		}
+		}*/
 
 		p = Z_Malloc(sizeof(*p));
-		p->name = Z_StrDup(pack->path);
+		strcpy(p->version, "");
+		if (pack->packagename)
+		{
+			char *arch;
+			char *ver;
+			p->name = Z_StrDup(pack->packagename);
+			ver = strchr(p->name, '=');
+			arch = strchr(p->name, ':');
+			if (*ver)
+			{
+				*ver++ = 0;
+				Q_strncpyz(p->version, ver, sizeof(p->version));
+			}
+			if (*arch)
+			{
+				*arch++ = 0;
+				p->arch = Z_StrDup(arch);
+			}
+		}
+		else
+		{
+			p->name = Z_StrDup(pack->path);
+			strcpy(p->version, "");
+		}
 		p->title = Z_StrDup(pack->path);
 		p->category = Z_StrDupf("%s/", man->formalname);
 		p->priority = PM_DEFAULTPRIORITY;
 		p->fsroot = FS_ROOT;
-		strcpy(p->version, "");
 		p->flags = DPF_FORGETONUNINSTALL|DPF_MANIFEST|DPF_GUESSED;
 		p->qhash = pack->crcknown?Z_StrDupf("%#x", pack->crc):NULL;
 		dtype = DEP_FILE;
@@ -5697,6 +5747,10 @@ void QCBUILTIN PF_cl_getpackagemanagerinfo(pubprogfuncs_t *prinst, struct global
 					Z_Free(maps);
 				}
 			}
+			break;
+		case GPMI_PREVIEWIMG:
+			if (p->previewimage)
+				RETURN_TSTRING(p->previewimage);
 			break;
 		}
 		return;

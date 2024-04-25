@@ -6679,6 +6679,7 @@ done:
 		memset(packagespaths, 0, sizeof(packagespaths));
 		packagespaths[0].url = f->fname;
 		packagespaths[0].path = cachename;
+		packagespaths[0].package = NULL;
 		if (FS_PathURLCache(f->fname, cachename, sizeof(cachename)))
 		{
 			COM_Gamedir("", packagespaths);

@@ -933,6 +933,7 @@ void QCBUILTIN PF_CL_readimage (pubprogfuncs_t *prinst, struct globalvars_s *pr_
 	G_INT(OFS_RETURN) = 0;	//assume the worst
 	G_INT(OFS_PARM1) = 0;	//out width
 	G_INT(OFS_PARM2) = 0;	//out height
+	G_INT(OFS_PARM3) = 0;	//out format
 
 	filedata = FS_LoadMallocFile(filename, &filesize);
 

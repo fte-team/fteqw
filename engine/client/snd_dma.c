@@ -125,8 +125,13 @@ cvar_t snd_speakers				= CVARAFD(	"s_numspeakers", "2",
 											"snd_numspeakers", CVAR_ARCHIVE, "Number of hardware audio channels to use. "FULLENGINENAME" supports up to 6.");
 cvar_t snd_buffersize			= CVARAF(	"s_buffersize", "0",
 											"snd_buffersize", 0);
+#if defined(MIXER_F32) && defined(FTE_TARGET_WEB)	//let emscripten have float audio
+cvar_t snd_samplebits			= CVARAF(	"s_bits", "32",
+											"snd_samplebits", CVAR_ARCHIVE);
+#else
 cvar_t snd_samplebits			= CVARAF(	"s_bits", "16",
 											"snd_samplebits", CVAR_ARCHIVE);
+#endif
 cvar_t snd_playersoundvolume	= CVARAFD(	"s_localvolume", "1",
 											"snd_localvolume", CVAR_ARCHIVE,
 											"Sound level for sounds local or originating from the player such as firing and pain sounds.");	//sugested by crunch

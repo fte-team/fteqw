@@ -177,8 +177,8 @@ void Sys_Printf (char *fmt, ...)
 		va_start (argptr,fmt);
 		vsnprintf (text,sizeof(text)-1, fmt,argptr);
 		va_end (argptr);
-		SSV_PrintToMaster(text);
-		return;
+		if (SSV_PrintToMaster(text))
+			return;
 	}
 #endif
 
@@ -1480,7 +1480,7 @@ int main (int c, const char **v)
 	{
 		isDedicated = true;
 		nostdout = noconinput = true;
-		SSV_SetupControlPipe(Sys_GetStdInOutStream());
+		SSV_SetupControlPipe(Sys_GetStdInOutStream(), false);
 	}
 #endif
 	if (COM_CheckParm("-dedicated"))
@@ -1527,8 +1527,8 @@ int main (int c, const char **v)
 	}
 //end
 
-	if (parms.binarydir)
-		Sys_Printf("Binary is located at \"%s\"\n", parms.binarydir);
+//	if (parms.binarydir)
+//		Sys_Printf("Binary is located at \"%s\"\n", parms.binarydir);
 
 #ifndef CLIENTONLY
 	if (isDedicated)    //compleate denial to switch to anything else - many of the client structures are not initialized.

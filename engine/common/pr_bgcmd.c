@@ -7946,6 +7946,7 @@ void PR_ProgsAdded(pubprogfuncs_t *prinst, int newprogs, const char *modulename)
 	QCLoadBreakpoints("", modulename);
 }
 
+//rpd provides its own version of many of the earlier protocols, so stuff might work even without those.
 static qboolean check_pext_rpd				(extcheck_t *extcheck, unsigned int pext1) {return (extcheck->pext1 & pext1) || (extcheck->pext2&PEXT2_REPLACEMENTDELTAS);}
 
 static qboolean check_pext_setview			(extcheck_t *extcheck) {return !!(extcheck->pext1 & PEXT_SETVIEW);}
@@ -8012,7 +8013,6 @@ qc_extension_t QSG_Extensions[] = {
 #endif
 	{"DP_CSQC_ROTATEMOVES"},
 	{"DP_EF_ADDITIVE",					check_notrerelease},
-	{"DP_ENT_ALPHA",					check_pext_trans},			//transparent entites
 	{"DP_EF_BLUE",						check_notrerelease},						//hah!! This is QuakeWorld!!!
 	{"DP_EF_FULLBRIGHT"},				//Rerouted to hexen2 support.
 	{"DP_EF_NODEPTHTEST"},				//for cheats
@@ -8020,6 +8020,7 @@ qc_extension_t QSG_Extensions[] = {
 	{"DP_EF_NOGUNBOB"},					//nogunbob. sane people should use csqc instead.
 	{"DP_EF_NOSHADOW"},
 	{"DP_EF_RED",						check_notrerelease},
+	{"DP_ENT_ALPHA",					check_pext_trans},			//transparent entites
 	{"DP_ENT_COLORMOD",					check_pext_colourmod},
 	{"DP_ENT_CUSTOMCOLORMAP"},
 	{"DP_ENT_EXTERIORMODELTOCLIENT"},
@@ -8109,7 +8110,6 @@ qc_extension_t QSG_Extensions[] = {
 	{"DP_SV_DRAWONLYTOCLIENT"},
 	{"DP_SV_DROPCLIENT",				NULL,	1,{"dropclient"}, "Equivelent to quakeworld's stuffcmd(self,\"disconnect\\n\"); hack"},
 	{"DP_SV_EFFECT",					NULL,	1,{"effect"}},
-	{"DP_SV_EXTERIORMODELFORCLIENT"},
 	{"DP_SV_NODRAWTOCLIENT"},		//I prefer my older system. Guess I might as well remove that older system at some point.
 	{"DP_SV_PLAYERPHYSICS",				NULL,	0,{NULL}, "Allows reworking parts of NQ player physics. USE AT OWN RISK - this necessitates NQ physics and is thus guarenteed to break prediction."},
 //	{"DP_SV_POINTPARTICLES",			check_pext_pointparticle,	3,{"particleeffectnum", "pointparticles", "trailparticles"}, "Specifies that pointparticles (and trailparticles) exists in ssqc as well as csqc (and that dp's trailparticles argument fuckup will normally work). ssqc values can be passed to csqc for use, the reverse is not true. Does NOT mean that DP's effectinfo.txt is supported, only that ssqc has functionality equivelent to csqc."},

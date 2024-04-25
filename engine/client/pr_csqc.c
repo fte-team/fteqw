@@ -105,6 +105,7 @@ typedef struct {
 #define globalfloat(name) float *name;
 #define globalint(name) int *name;
 #define globaluint(name) unsigned int *name;
+#define globaluint64(name) puint64_t *name;
 #define globalvector(name) float *name;
 #define globalentity(name) int *name;
 #define globalstring(name) string_t *name;
@@ -116,6 +117,7 @@ typedef struct {
 #undef globalfloat
 #undef globalint
 #undef globaluint
+#undef globaluint64
 #undef globalvector
 #undef globalentity
 #undef globalstring
@@ -203,9 +205,11 @@ static void CSQC_FindGlobals(qboolean nofuncs)
 	static float csphysicsmode = 0;
 	static float dimension_default = 255;
 	static vec3_t defaultgravity = {0, 0, -1};
+	etype_t typ;
 #define globalfloat(name) csqcg.name = (float*)PR_FindGlobal(csqcprogs, #name, 0, NULL);
 #define globalint(name) csqcg.name = (int*)PR_FindGlobal(csqcprogs, #name, 0, NULL);
 #define globaluint(name) csqcg.name = (unsigned int*)PR_FindGlobal(csqcprogs, #name, 0, NULL);
+#define globaluint64(name) csqcg.name = (puint64_t*)PR_FindGlobal(csqcprogs, #name, 0, &typ); if ((typ&0xfff) != ev_uint64 && csqcg.name) {Con_Printf(CON_WARNING"csqc global "#name" wrongly defined as type %i\n", typ&0xfff); csqcg.name = NULL;}
 #define globalvector(name) csqcg.name = (float*)PR_FindGlobal(csqcprogs, #name, 0, NULL);
 #define globalentity(name) csqcg.name = (int*)PR_FindGlobal(csqcprogs, #name, 0, NULL);
 #define globalstring(name) csqcg.name = (string_t*)PR_FindGlobal(csqcprogs, #name, 0, NULL);
@@ -216,6 +220,7 @@ static void CSQC_FindGlobals(qboolean nofuncs)
 #undef globalfloat
 #undef globalint
 #undef globaluint
+#undef globaluint64
 #undef globalvector
 #undef globalentity
 #undef globalstring
@@ -4138,6 +4143,7 @@ static void QCBUILTIN PF_cs_getinputstate (pubprogfuncs_t *prinst, struct global
 		if (!cmd->msec)
 			*cmd = cl.outframes[(f-1)&UPDATE_MASK].cmd[seat];
 		cmd->msec = (realtime - cl.outframes[(f-1)&UPDATE_MASK].senttime)*1000;
+		cmd->sequence = f;
 
 		//make sure we have the latest info...
 		cmd->vr[VRDEV_LEFT] = csqc_playerview->vrdev[VRDEV_LEFT];

@@ -79,7 +79,37 @@ typedef struct {
 	statmessage_t *message;
 } fragstats_t;
 
-cvar_t r_tracker_frags = CVARD("r_tracker_frags", "0", "0: like vanilla quake\n1: shows only your kills/deaths\n2: shows all kills\n");
+static void TrackerCallback(struct cvar_s *var, char *oldvalue);
+static cvar_t r_tracker_frags = CVARD("r_tracker_frags", "0", "0: like vanilla quake\n1: shows only your kills/deaths\n2: shows all kills\n");
+static cvar_t r_tracker_time = CVARCD("r_tracker_time", "4", TrackerCallback, "how long it takes for r_tracker messages to start fading\n");
+static cvar_t r_tracker_fadetime = CVARCD("r_tracker_fadetime", "1", TrackerCallback, "how long it takes for r_tracker messages to fully fade once they start fading\n");
+static cvar_t r_tracker_x = CVARCD("r_tracker_x", "0.5", TrackerCallback, "left position of the r_tracker messages, as a fraction of the screen's width, eg 0.5\n");
+static cvar_t r_tracker_y = CVARCD("r_tracker_y", "0.333", TrackerCallback, "top position of the r_tracker messages, as a fraction of the screen's height, eg 0.333\n");
+static cvar_t r_tracker_w = CVARCD("r_tracker_w", "0.5", TrackerCallback, "width of the r_tracker messages, as a fraction of the screen's width, eg 0.5\n");
+static cvar_t r_tracker_lines = CVARCD("r_tracker_lines", "8", TrackerCallback, "number of r_tracker messages to display\n");
+static void Tracker_Update(console_t *tracker)
+{
+	tracker->notif_l = tracker->maxlines = max(1,r_tracker_lines.ival);
+	tracker->notif_x = r_tracker_x.value;
+	tracker->notif_y = r_tracker_y.value;
+	tracker->notif_w = max(0,r_tracker_w.value);
+	tracker->notif_t = max(0,r_tracker_time.value);
+	tracker->notif_fade = max(0,r_tracker_fadetime.value);
+
+	//if its mostly on one side of the screen, align it accordingly.
+	if (tracker->notif_x + tracker->notif_w*0.5 >= 0.5)
+		tracker->flags |= CONF_NOTIFY_RIGHT;
+	else
+		tracker->flags &= ~(CONF_NOTIFY_RIGHT);
+}
+static void TrackerCallback(struct cvar_s *var, char *oldvalue)
+{
+	console_t *tracker = Con_FindConsole("tracker");
+	if (tracker)
+		Tracker_Update(tracker);
+}
+
+
 static fragstats_t fragstats;
 
 int Stats_GetKills(int playernum)
@@ -286,14 +316,8 @@ void Stats_FragMessage(int p1, int wid, int p2, qboolean teamkill)
 	tracker = Con_FindConsole("tracker");
 	if (!tracker)
 	{
-		tracker = Con_Create("tracker", CONF_HIDDEN|CONF_NOTIFY|CONF_NOTIFY_RIGHT|CONF_NOTIFY_BOTTOM);
-		//this stuff should be configurable
-		tracker->notif_l = tracker->maxlines = 8;
-		tracker->notif_x = 0.5;
-		tracker->notif_y = 0.333;
-		tracker->notif_w = 1-tracker->notif_x;
-		tracker->notif_t = 4;
-		tracker->notif_fade = 1;
+		tracker = Con_Create("tracker", CONF_HIDDEN|CONF_NOTIFY|CONF_NOTIFY_BOTTOM);
+		Tracker_Update(tracker);
 	}
 	Con_PrintCon(tracker, message, tracker->parseflags);
 }
@@ -606,6 +630,12 @@ void Stats_Clear(void)
 void Stats_Init(void)
 {
 	Cvar_Register(&r_tracker_frags, NULL);
+	Cvar_Register(&r_tracker_time, NULL);
+	Cvar_Register(&r_tracker_fadetime, NULL);
+	Cvar_Register(&r_tracker_x, NULL);
+	Cvar_Register(&r_tracker_y, NULL);
+	Cvar_Register(&r_tracker_w, NULL);
+	Cvar_Register(&r_tracker_lines, NULL);
 }
 static void Stats_LoadFragFile(char *name)
 {

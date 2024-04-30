@@ -3740,9 +3740,6 @@ qboolean TP_SuppressMessage(char *buf) {
 	char *s;
 	unsigned int seat;
 
-	if (cls.demoplayback)
-		return false;
-
 	for (s = buf; *s && *s != 0x7f; s++)
 		;
 
@@ -3750,10 +3747,10 @@ qboolean TP_SuppressMessage(char *buf) {
 		*s++ = '\n';
 		*s++ = 0;
 
-		for (seat = 0; seat < cl.splitclients; seat++)
-			if (!cl.playerview[seat].spectator && *s - 'A' == cl.playerview[seat].playernum)
-				return true;
-
+		if (!cls.demoplayback)
+			for (seat = 0; seat < cl.splitclients; seat++)
+				if (!cl.playerview[seat].spectator && *s - 'A' == cl.playerview[seat].playernum)
+					return true;
 	}
 	return false;
 }

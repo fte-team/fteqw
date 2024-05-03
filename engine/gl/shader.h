@@ -502,7 +502,7 @@ struct programpermu_s
 	#ifdef GLQUAKE
 		struct
 		{
-			int handle;
+			unsigned int handle;
 			qboolean usetesselation;
 		} glsl;
 	#endif

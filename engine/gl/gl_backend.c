@@ -940,7 +940,7 @@ void GLBE_SetupVAO(vbo_t *vbo, unsigned int vaodynamic, unsigned int vaostatic)
 	}
 }
 
-void GL_SelectProgram(int program)
+void GL_SelectProgram(GLuint program)
 {
 	if (shaderstate.currentprogram != program)
 	{

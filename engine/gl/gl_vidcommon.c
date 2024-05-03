@@ -84,11 +84,11 @@ void (APIENTRY *qglDeleteFramebuffersEXT)(GLsizei n, const GLuint* ids);
 void (APIENTRY *qglBindFramebufferEXT)(GLenum target, GLuint id);
 void (APIENTRY *qglDeleteRenderbuffersEXT)(GLsizei n, const GLuint* ids);
 void (APIENTRY *qglFramebufferTexture2DEXT)(GLenum target, GLenum attachmentPoint, GLenum textureTarget, GLuint textureId, GLint  level);
-FTEPFNGLVERTEXATTRIBPOINTER			qglVertexAttribPointer;
-FTEPFNGLVERTEXATTRIB4FARBPROC		qglVertexAttrib4f;
-FTEPFNGLGETVERTEXATTRIBIV			qglGetVertexAttribiv;
-FTEPFNGLENABLEVERTEXATTRIBARRAY		qglEnableVertexAttribArray;
-FTEPFNGLDISABLEVERTEXATTRIBARRAY	qglDisableVertexAttribArray;
+FTEPFNGLVERTEXATTRIBPOINTERPROC			qglVertexAttribPointer;
+FTEPFNGLVERTEXATTRIB4FPROC				qglVertexAttrib4f;
+FTEPFNGLGETVERTEXATTRIBIVPROC			qglGetVertexAttribiv;
+FTEPFNGLENABLEVERTEXATTRIBARRAYPROC		qglEnableVertexAttribArray;
+FTEPFNGLDISABLEVERTEXATTRIBARRAYPROC	qglDisableVertexAttribArray;
 void (APIENTRY *qglStencilOpSeparate) (GLenum face, GLenum fail, GLenum zfail, GLenum zpass);
 void (APIENTRY *qglGetFramebufferAttachmentParameteriv)(GLenum  target,  GLenum  attachment,  GLenum  pname,  GLint * params);
 void (APIENTRY *qglGetVertexAttribPointerv) (GLuint index, GLenum pname, GLvoid* *pointer);
@@ -99,35 +99,35 @@ BINDTEXFUNCPTR qglBindTexture;
 /*glslang - arb_shader_objects
 gl core uses different names/distinctions from the extension
 */
-FTEPFNGLCREATEPROGRAMOBJECTARBPROC	qglCreateProgramObjectARB;
-FTEPFNGLDELETEOBJECTARBPROC			qglDeleteProgramObject_;
-FTEPFNGLDELETEOBJECTARBPROC			qglDeleteShaderObject_;
-FTEPFNGLUSEPROGRAMOBJECTARBPROC		qglUseProgramObjectARB;
-FTEPFNGLCREATESHADEROBJECTARBPROC	qglCreateShaderObjectARB;
-FTEPFNGLSHADERSOURCEARBPROC			qglShaderSourceARB;
-FTEPFNGLCOMPILESHADERARBPROC		qglCompileShaderARB;
-FTEPFNGLGETOBJECTPARAMETERIVARBPROC	qglGetShaderParameteriv_;
-FTEPFNGLGETOBJECTPARAMETERIVARBPROC	qglGetProgramParameteriv_;
-FTEPFNGLATTACHOBJECTARBPROC			qglAttachObjectARB;
-FTEPFNGLGETINFOLOGARBPROC			qglGetShaderInfoLog_;
-FTEPFNGLGETINFOLOGARBPROC			qglGetProgramInfoLog_;
-FTEPFNGLLINKPROGRAMARBPROC			qglLinkProgramARB;
-FTEPFNGLBINDATTRIBLOCATIONARBPROC	qglBindAttribLocationARB;
-FTEPFNGLGETATTRIBLOCATIONARBPROC	qglGetAttribLocationARB;
-FTEPFNGLGETUNIFORMLOCATIONARBPROC	qglGetUniformLocationARB;
-FTEPFNGLUNIFORMMATRIXPROC			qglUniformMatrix4fvARB;
-FTEPFNGLUNIFORMMATRIXPROC			qglUniformMatrix3fvARB;
-FTEPFNGLUNIFORM4FARBPROC			qglUniform4fARB;
-FTEPFNGLUNIFORM4FVARBPROC			qglUniform4fvARB;
-FTEPFNGLUNIFORM3FARBPROC			qglUniform3fARB;
-FTEPFNGLUNIFORM3FVARBPROC			qglUniform3fvARB;
-FTEPFNGLUNIFORM4FVARBPROC			qglUniform2fvARB;
-FTEPFNGLUNIFORM1IARBPROC			qglUniform1iARB;
-FTEPFNGLUNIFORM1FARBPROC			qglUniform1fARB;
-FTEPFNGLGETSHADERSOURCEARBPROC		qglGetShaderSource;
+FTEPFNGLCREATEPROGRAMPROC	qglCreateProgramObjectARB;
+FTEPFNGLDELETEPROGRAMPROC			qglDeleteProgramObject_;
+FTEPFNGLDELETESHADERPROC			qglDeleteShaderObject_;
+FTEPFNGLUSEPROGRAMPROC		qglUseProgramObjectARB;
+FTEPFNGLCREATESHADERPROC	qglCreateShaderObjectARB;
+FTEPFNGLSHADERSOURCEPROC			qglShaderSourceARB;
+FTEPFNGLCOMPILESHADERPROC		qglCompileShaderARB;
+FTEPFNGLGETSHADERIVPROC	qglGetShaderParameteriv_;
+FTEPFNGLGETPROGRAMIVPROC	qglGetProgramParameteriv_;
+FTEPFNGLATTACHSHADERPROC			qglAttachObjectARB;
+FTEPFNGLGETSHADERINFOLOGPROC			qglGetShaderInfoLog_;
+FTEPFNGLGETPROGRAMINFOLOGPROC			qglGetProgramInfoLog_;
+FTEPFNGLLINKPROGRAMPROC			qglLinkProgramARB;
+FTEPFNGLBINDATTRIBLOCATIONPROC	qglBindAttribLocationARB;
+FTEPFNGLGETATTRIBLOCATIONPROC	qglGetAttribLocationARB;
+FTEPFNGLGETUNIFORMLOCATIONPROC	qglGetUniformLocationARB;
+FTEPFNGLUNIFORMMATRIX4FVPROC			qglUniformMatrix4fvARB;
+FTEPFNGLUNIFORMMATRIX3FVPROC			qglUniformMatrix3fvARB;
+FTEPFNGLUNIFORM4FPROC			qglUniform4fARB;
+FTEPFNGLUNIFORM4FVPROC			qglUniform4fvARB;
+FTEPFNGLUNIFORM3FPROC			qglUniform3fARB;
+FTEPFNGLUNIFORM3FVPROC			qglUniform3fvARB;
+FTEPFNGLUNIFORM4FVPROC			qglUniform2fvARB;
+FTEPFNGLUNIFORM1IPROC			qglUniform1iARB;
+FTEPFNGLUNIFORM1FPROC			qglUniform1fARB;
+FTEPFNGLGETSHADERSOURCEPROC		qglGetShaderSource;
 #endif
-FTEPFNGLUNIFORMMATRIXPROC			qglUniformMatrix3x4fv;
-FTEPFNGLUNIFORMMATRIXPROC			qglUniformMatrix4x3fv;
+FTEPFNGLUNIFORMMATRIX3X4FVPROC			qglUniformMatrix3x4fv;
+FTEPFNGLUNIFORMMATRIX4X3FVPROC			qglUniformMatrix4x3fv;
 
 
 //GL_ARB_occlusion_query
@@ -1120,7 +1120,9 @@ static qboolean GL_CheckExtensions (void *(*getglfunction) (char *name))
 		else
 			Con_Printf(CON_ERROR"GL version specifies GLSL support, but GLSL functions are not available\n");
 	}
-	else if (GL_CheckExtension("GL_ARB_fragment_shader")
+#ifdef GL_ARB_shader_objects
+	else if (sizeof(GLhandleARB) == sizeof(GLuint)	//buggy when __APPLE__ is defined.
+		&& GL_CheckExtension("GL_ARB_fragment_shader")
 		&& GL_CheckExtension("GL_ARB_vertex_shader")
 		&& GL_CheckExtension("GL_ARB_shader_objects"))
 	{
@@ -1162,6 +1164,7 @@ static qboolean GL_CheckExtensions (void *(*getglfunction) (char *name))
 
 		Con_DPrintf("GLSL available\n");
 	}
+#endif
 #endif
 
 	if (Cvar_Get("gl_blacklist_invariant", "0", CVAR_VIDEOLATCH, "gl blacklists")->ival)
@@ -2245,9 +2248,9 @@ static qboolean GLSlang_GenerateIncludes(struct glslparts_s *glsl, const char *s
 // glslang helper api function definitions
 // type should be GL_FRAGMENT_SHADER_ARB or GL_VERTEX_SHADER_ARB
 //doesn't check to see if it was okay. use FinishShader for that.
-static GLhandleARB GLSlang_CreateShader (program_t *prog, const char *name, int ver, const char **precompilerconstants, const char *shadersource, GLenum shadertype, qboolean silent)
+static GLuint GLSlang_CreateShader (program_t *prog, const char *name, int ver, const char **precompilerconstants, const char *shadersource, GLenum shadertype, qboolean silent)
 {
-	GLhandleARB shader;
+	GLuint shader;
 	int i;
 	struct glslparts_s glsl;
 	char verline[64];
@@ -2508,7 +2511,7 @@ static GLhandleARB GLSlang_CreateShader (program_t *prog, const char *name, int 
 
 	if (developer.ival)
 	{
-		GLcharARB *combined;
+		GLchar *combined;
 		int totallen = 1;
 		for (i = 0; i < glsl.strings; i++)
 			totallen += glsl.len[i] + 64 + (glsl.file[i]?strlen(glsl.file[i]):0);
@@ -2540,7 +2543,7 @@ static GLhandleARB GLSlang_CreateShader (program_t *prog, const char *name, int 
 			totallen += glsl.len[i];
 			combined[totallen] = 0;
 		}
-		qglShaderSourceARB(shader, 1, (const GLcharARB**)&combined, NULL);
+		qglShaderSourceARB(shader, 1, (const GLchar*const*)&combined, NULL);
 		free(combined);
 	}
 	else if (gl_workaround_ati_shadersource.ival)
@@ -2563,7 +2566,7 @@ static GLhandleARB GLSlang_CreateShader (program_t *prog, const char *name, int 
 			totallen += glsl.len[i];
 			combined[totallen] = 0;
 		}
-		qglShaderSourceARB(shader, 1, (const GLcharARB**)&combined, NULL);
+		qglShaderSourceARB(shader, 1, (const GLcharARB*const*)&combined, NULL);
 		free(combined);
 	}
 	else
@@ -2575,7 +2578,7 @@ static GLhandleARB GLSlang_CreateShader (program_t *prog, const char *name, int 
 
 //called after CreateShader. Checks for success.
 //Splitting creation allows for both vertex+fragment shaders to be processed simultaneously if the driver threads glCompileShaderARB.
-static GLhandleARB GLSlang_FinishShader(GLhandleARB shader, const char *name, GLenum shadertype, qboolean *silent)
+static GLuint GLSlang_FinishShader(GLuint shader, const char *name, GLenum shadertype, qboolean *silent)
 {
 	GLint	compiled;
 	int loglen;
@@ -2682,10 +2685,10 @@ static GLhandleARB GLSlang_FinishShader(GLhandleARB shader, const char *name, GL
 	return shader;
 }
 
-GLhandleARB GLSlang_CreateProgramObject (program_t *prog, const char *name, GLhandleARB vert, GLhandleARB cont, GLhandleARB eval, GLhandleARB geom, GLhandleARB frag)
+GLuint GLSlang_CreateProgramObject (program_t *prog, const char *name, GLuint vert, GLuint cont, GLuint eval, GLuint geom, GLuint frag)
 {
 	int i;
-	GLhandleARB	program;
+	GLuint	program;
 
 	program = qglCreateProgramObjectARB();
 	if (vert) qglAttachObjectARB(program, vert);
@@ -2729,7 +2732,7 @@ qboolean GLSlang_ValidateProgram(union programhandle_u *h, const char *name, qbo
 		qglDeleteProgramObject_(h->glsl.handle);
 		h->glsl.handle = 0;
 
-		return (GLhandleARB)0;
+		return false;
 	}
 
 	if (h->glsl.handle && blobfile && qglGetProgramBinary)
@@ -2759,11 +2762,11 @@ qboolean GLSlang_ValidateProgram(union programhandle_u *h, const char *name, qbo
 union programhandle_u GLSlang_CreateProgram(program_t *prog, const char *name, int ver, const char **precompilerconstants, const char *vert, const char *cont, const char *eval, const char *geom, const char *frag, qboolean silent, vfsfile_t *blobfile)
 {
 	union programhandle_u ret;
-	GLhandleARB vs;
-	GLhandleARB gs;
-	GLhandleARB fs;
-	GLhandleARB cs;
-	GLhandleARB es;
+	GLuint vs;
+	GLuint gs;
+	GLuint fs;
+	GLuint cs;
+	GLuint es;
 	const char *nullconstants = NULL;
 
 	memset(&ret, 0, sizeof(ret));
@@ -2862,7 +2865,7 @@ qboolean GLSlang_CreateProgramPermu(program_t *prog, struct programpermu_s *perm
 	return false;
 }
 
-GLint GLSlang_GetUniformLocation (int prog, char *name)
+GLint GLSlang_GetUniformLocation (GLuint prog, char *name)
 {
 	int i = qglGetUniformLocationARB(prog, name);
 	if (i == -1)

@@ -1018,6 +1018,7 @@ void SV_SpawnServer (const char *server, const char *startspot, qboolean noents,
 		flocation_t loc;
 		time_t filetime;
 		char *mod = NULL;
+		Q_snprintfz (sv.modelname, sizeof(sv.modelname), exts[1], server);	// `map foo.map` can bypass earlier checks, so don't get too screwed up by that.
 		if (bestdepth == FDEPTH_MISSING)
 		{	//not an exact name, scan the maps subdir.
 			for (i = 0; exts[i]; i++)

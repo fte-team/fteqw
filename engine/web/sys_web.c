@@ -352,10 +352,13 @@ static void Sys_Register_File_Associations_f(void)
 	for (s = schemes; (s=COM_ParseOut(s,scheme,sizeof(scheme)));)
 	{
 		EM_ASM({
+			try{
+			if (navigator.registerProtocolHandler)
 			navigator.registerProtocolHandler(
 				UTF8ToString($0),
 				document.location.origin+document.location.pathname+"?%s"+document.location.hash,
 				UTF8ToString($1));
+			} catch(e){}
 			}, va("%s%s", strncmp(scheme,"web+",4)?"web+":"", scheme), fs_manifest->formalname?fs_manifest->formalname:fs_manifest->installation);
 	}
 }

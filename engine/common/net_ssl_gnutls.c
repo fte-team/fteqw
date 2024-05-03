@@ -1220,7 +1220,12 @@ static qboolean SSL_InitConnection(gnutlsfile_t *newf, qboolean isserver, qboole
 		qgnutls_credentials_set (newf->session, GNUTLS_CRD_ANON, anoncred[isserver]);
 #else
 #ifdef HAVE_DTLS
+
+#if defined(MASTERONLY)
+		qgnutls_certificate_server_set_request(newf->session, GNUTLS_CERT_IGNORE);	//don't request a cert. masters don't really need it and chrome bugs out if you connect to a websocket server that offers for the client to provide one. chrome users will just have to stick to webrtc.
+#else
 		qgnutls_certificate_server_set_request(newf->session, GNUTLS_CERT_REQUEST);	//request a cert, we'll use it for fingerprints.
+#endif
 
 		if (datagram && !isserver)
 		{	//do psk as needed. we can still do the cert stuff if the server isn't doing psk.

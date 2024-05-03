@@ -79,6 +79,7 @@ cvar_t	pkg_autoupdate = CVARFD("pkg_autoupdate", "-1", CVAR_NOTFROMSERVER|CVAR_N
 #define DPF_SIGNATUREACCEPTED		(1u<<18)	//signature is good (required for dll/so/exe files)
 #define DPF_SIGNATUREUNKNOWN		(1u<<19)	//signature is unknown
 #define DPF_HIDEUNLESSPRESENT		(1u<<20)	//hidden in the ui, unless present.
+#define DPF_PENDING					(1u<<21)	//started a download (required due to threading sillyness).
 
 #define DPF_MARKED					(DPF_USERMARKED|DPF_AUTOMARKED)	//flags that will enable it
 #define DPF_ALLMARKED				(DPF_USERMARKED|DPF_AUTOMARKED|DPF_MANIMARKED)	//flags that will download it without necessarily enabling it.
@@ -181,7 +182,7 @@ typedef struct package_s {
 	} *deps;
 
 #ifdef WEBCLIENT
-	struct dl_download *download;
+	struct dl_download *curdownload;
 	unsigned int trymirrors;
 #endif
 
@@ -290,10 +291,10 @@ static void PM_FreePackage(package_t *p)
 	}
 
 #ifdef WEBCLIENT
-	if (p->download)
+	if (p->curdownload)
 	{	//if its currently downloading, cancel it.
-		DL_Close(p->download);
-		p->download = NULL;
+		DL_Close(p->curdownload);
+		p->curdownload = NULL;
 	}
 
 	for (i = 0; i < countof(p->mirror); i++)
@@ -864,7 +865,7 @@ static package_t *PM_InsertPackage(package_t *p)
 			}
 			else
 			{
-				if ((p->flags & DPF_GUESSED) && (prev->flags & DPF_PRESENT))
+				if (((p->flags & DPF_GUESSED) && (prev->flags & (DPF_USERMARKED|DPF_MANIMARKED|DPF_PENDING))) || prev->curdownload)
 				{	//the new one was also guessed. just return the existing package instead.
 					prev->flags |= p->flags&(DPF_PRESENT|DPF_ALLMARKED|DPF_ENABLED);
 					PM_FreePackage(p);
@@ -2555,11 +2556,12 @@ static void PM_UnmarkPackage(package_t *package, unsigned int markflag)
 #ifdef WEBCLIENT
 		//Is this safe?
 		package->trymirrors = 0;	//if its enqueued, cancel that quickly...
-		if (package->download)
+		if (package->curdownload)
 		{					//if its currently downloading, cancel it.
-			DL_Close(package->download);
-			package->download = NULL;
+			DL_Close(package->curdownload);
+			package->curdownload = NULL;
 		}
+		package->flags &= ~DPF_PENDING;
 #endif
 
 		//remove stuff that depends on us
@@ -3852,11 +3854,12 @@ static void PM_Download_Got(int iarg, void *data)
 
 	if (p)
 	{
-		p->download = NULL;
+		p->flags &= ~DPF_PENDING;
+		p->curdownload = NULL;	//just in case.
 
 		if (!successful)
 		{
-			Con_Printf("Couldn't download %s (from %s)\n", p->name, info->url);
+			Con_Printf(CON_ERROR"Couldn't download %s (from %s)\n", p->name, info->url);
 			FS_Remove (tempname, temproot);
 			Z_Free(tempname);
 			PM_StartADownload();
@@ -3924,7 +3927,7 @@ static void PM_Download_Got(int iarg, void *data)
 				if (success)
 				for (p2 = availablepackages; p2; p2=p2->next)
 				{
-					if (p2->download ||	//only if they've not already started downloading separately...
+					if ((p2->flags&DPF_PENDING) ||	//only if they've not already started downloading separately...
 						!p2->trymirrors	//ignore ones that are not pending.
 						)
 						continue;
@@ -3959,10 +3962,10 @@ static void PM_Download_Got(int iarg, void *data)
 				return;
 			}
 		}
-		Con_Printf("menu_download: %s has no filename info\n", p->name);
+		Con_Printf(CON_ERROR"PM_Download_Got: %s has no filename info\n", p->name);
 	}
 	else
-		Con_Printf("menu_download: Can't figure out where %s came from (url: %s)\n", info->localname, info->url);
+		Con_Printf(CON_ERROR"PM_Download_Got: Can't figure out where \"%s\"(%s) came from (url: %s)\n", info->localname, tempname, info->url);
 
 	FS_Remove (tempname, temproot);
 	Z_Free(tempname);
@@ -3983,9 +3986,9 @@ static void PM_Download_PreliminaryGot(struct dl_download *dl)
 
 	for (info.p = availablepackages; info.p ; info.p=info.p->next)
 	{
-		if (info.p->download == dl)
+		if (info.p->curdownload == dl)
 		{
-			info.p->download = NULL;
+			info.p->curdownload = NULL;	//have to clear it here, because this pointer will no longer be valid after (which could result in segfaults)
 			break;
 		}
 	}
@@ -4294,7 +4297,7 @@ static unsigned int PM_DownloadingCount(void)
 	unsigned int count = 0;
 	for (p = availablepackages; p ; p=p->next)
 	{
-		if (p->download)
+		if (p->flags&DPF_PENDING)
 			count++;
 	}
 	return count;
@@ -4313,7 +4316,7 @@ static void PM_StartADownload(void)
 
 	for (p = availablepackages; p && simultaneous > PM_DownloadingCount(); p=p->next)
 	{
-		if (p->download)
+		if (p->curdownload)
 			downloading = true;
 		else if (p->trymirrors)
 		{	//flagged for a (re?)download
@@ -4375,7 +4378,7 @@ static void PM_StartADownload(void)
 			{	//don't allow multiple of these at a time... so we can download a single file and extract two packages from it.
 				package_t *p2;
 				for (p2 = availablepackages; p2; p2=p2->next)
-					if (p2->download)	//only skip if the other one is already downloading.
+					if (p2->flags&DPF_PENDING)	//only skip if the other one is already downloading.
 						if (PM_DownloadSharesSource(p2, p))
 							break;
 				if (p2)
@@ -4427,8 +4430,8 @@ static void PM_StartADownload(void)
 
 			if (tmpfile)
 			{
-				p->download = HTTP_CL_Get(mirror, NULL, PM_Download_PreliminaryGot);
-				if (!p->download)
+				p->curdownload = HTTP_CL_Get(mirror, NULL, PM_Download_PreliminaryGot);
+				if (!p->curdownload)
 					Con_Printf("Unable to download %s (%s)\n", p->name, mirror);
 			}
 			else
@@ -4437,18 +4440,20 @@ static void PM_StartADownload(void)
 				Con_Printf("Unable to write %s. Fix permissions before trying to download %s\n", FS_DisplayPath(temp, temproot, displaypath, sizeof(displaypath))?displaypath:p->name, p->name);
 				p->trymirrors = 0;	//don't bother trying other mirrors if we can't write the file or understand its type.
 			}
-			if (p->download)
+			if (p->curdownload)
 			{
 				Con_Printf("Downloading %s\n", p->name);
-				p->download->file = tmpfile;
-				p->download->user_ctx = temp;
-				p->download->user_num = temproot;
+				p->flags |= DPF_PENDING;
+				p->curdownload->file = tmpfile;
+				p->curdownload->user_ctx = temp;
+				p->curdownload->user_num = temproot;
 
-				DL_CreateThread(p->download, NULL, NULL);
+				DL_CreateThread(p->curdownload, NULL, NULL);
 				downloading = true;
 			}
 			else
 			{
+				p->flags &= ~DPF_PENDING;
 				p->flags &= ~DPF_MARKED;	//can't do it.
 				if (tmpfile)
 					VFS_CLOSE(tmpfile);
@@ -4536,7 +4541,7 @@ void PM_ApplyChanges(void)
 	{
 		p = *link;
 #ifdef WEBCLIENT
-		if (p->download)
+		if (p->flags&DPF_PENDING)
 			; //erk, dude, don't do two!
 		else
 #endif
@@ -4665,7 +4670,7 @@ void PM_ApplyChanges(void)
 	//and flag any new/updated ones for a download
 	for (p = availablepackages; p ; p=p->next)
 	{
-		if (!p->download)
+		if (!(p->flags & DPF_PENDING))
 			if (((p->flags & DPF_MANIMARKED) && !(p->flags&DPF_PRESENT)) ||	//satisfying a manifest merely requires that it be present, not actually enabled.
 				((p->flags&DPF_MARKED) && !(p->flags&DPF_ENABLED)))			//actually enabled stuff requires actual enablement
 			{
@@ -4985,13 +4990,15 @@ static void PM_Pkg_ListPackage(package_t *p, const char **category)
 	else
 		Con_Printf(" ^&0EUnsigned");
 
-	if (p->download)
+	if (p->curdownload)
 	{
-		if (p->download->totalsize==0)
-			Con_Printf(" Downloading %s/unknown", FS_AbbreviateSize(quoted,sizeof(quoted), p->download->completed));
+		if (p->curdownload->totalsize==0)
+			Con_Printf(" Downloading %s/unknown", FS_AbbreviateSize(quoted,sizeof(quoted), p->curdownload->completed));
 		else
-			Con_Printf(" Downloading %i%% (%s total)", (int)(100*(double)p->download->completed/(double)p->download->totalsize), FS_AbbreviateSize(quoted,sizeof(quoted), p->download->totalsize));
+			Con_Printf(" Downloading %i%% (%s total)", (int)(100*(double)p->curdownload->completed/(double)p->curdownload->totalsize), FS_AbbreviateSize(quoted,sizeof(quoted), p->curdownload->totalsize));
 	}
+	else if (p->flags & DPF_PENDING)
+		Con_Printf(" Finalising...");
 	else if (p->trymirrors)
 		Con_Printf(" Pending...");
 
@@ -5691,13 +5698,15 @@ void QCBUILTIN PF_cl_getpackagemanagerinfo(pubprogfuncs_t *prinst, struct global
 			else if (p->flags & DPF_PRESENT)
 				RETURN_SSTRING("present");	//its there (but ignored)
 #ifdef WEBCLIENT
-			else if (p->download)
+			else if (p->curdownload)
 			{	//we're downloading it
-				if (p->download->qdownload.sizeunknown&&cls.download->size==0 && p->filesize>0 && p->extract==EXTRACT_COPY)
-					RETURN_TSTRING(va("%i%%", (int)((100*p->download->qdownload.completedbytes)/p->filesize)));	//server didn't report total size, but we know how big its meant to be.
+				if (p->curdownload->qdownload.sizeunknown&&cls.download->size==0 && p->filesize>0 && p->extract==EXTRACT_COPY)
+					RETURN_TSTRING(va("%i%%", (int)((100*p->curdownload->qdownload.completedbytes)/p->filesize)));	//server didn't report total size, but we know how big its meant to be.
 				else
-					RETURN_TSTRING(va("%i%%", (int)p->download->qdownload.percent));	//we're downloading it.
+					RETURN_TSTRING(va("%i%%", (int)p->curdownload->qdownload.percent));	//we're downloading it.
 			}
+			else if (p->flags & DPF_PENDING)
+				RETURN_TSTRING("100%");	//finalising shouldn't stay in this state long...
 			else if (p->trymirrors)
 				RETURN_SSTRING("pending");	//its queued.
 #endif
@@ -5836,9 +5845,9 @@ static void MD_Draw (int x, int y, struct menucustom_s *c, struct emenu_s *m)
 		}
 		else
 #ifdef WEBCLIENT
-		if (p->download)
-			Draw_FunStringWidth (x, y, va("%i%%", (int)p->download->qdownload.percent), 48, 2, false);
-		else if (p->trymirrors)
+		if (p->curdownload)
+			Draw_FunStringWidth (x, y, va("%i%%", (int)p->curdownload->qdownload.percent), 48, 2, false);
+		else if (p->trymirrors || (p->flags&DPF_PENDING))
 			Draw_FunStringWidth (x, y, "PND", 48, 2, false);
 		else
 #endif
@@ -6582,7 +6591,7 @@ static void MD_Download_UpdateStatus(struct emenu_s *m)
 
 		totalpackages++;
 #ifdef WEBCLIENT
-		if (p->download || p->trymirrors)
+		if ((p->flags&DPF_PENDING) || p->trymirrors)
 			downloads++;	//downloading or pending
 #endif
 		if (p->flags & DPF_MARKED)

@@ -2711,7 +2711,9 @@ void M_Menu_Main_f (void)
 		y = 36;
 		mainm->selecteditem = (menuoption_t *)
 		//skip menu_single if we don't seem to have any content.
+#ifdef CL_MASTER
 		MC_AddConsoleCommandQBigFont	(mainm, 72, y,	localtext("Join server"),	"menu_servers\n");	y += 20;
+#endif
 		MC_AddConsoleCommandQBigFont	(mainm, 72, y,	localtext("^bOptions"),		"menu_options\n");	y += 20;
 		y = M_Main_AddExtraOptions(mainm, y);
 		MC_AddConsoleCommandQBigFont	(mainm, 72, y,	localtext("Quit"),			"menu_quit\n");		y += 20;

@@ -7059,6 +7059,7 @@ double Host_Frame (double time)
 
 	if (r_blockvidrestart)
 	{
+		Cbuf_Execute();
 		if (waitingformanifest)
 		{
 			COM_MainThreadWork();

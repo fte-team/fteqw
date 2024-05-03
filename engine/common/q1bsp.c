@@ -84,9 +84,9 @@ int Fragment_ClipPolyToPlane(float *inverts, float *outverts, int incount, float
 size_t Fragment_ClipPlaneToBrush(vecV_t *points, size_t maxpoints, void *planes, size_t planestride, size_t numplanes, vec4_t face)
 {
 	int p, a;
-	vec4_t verts[MAXFRAGMENTVERTS];
-	vec4_t verts2[MAXFRAGMENTVERTS];
-	vec4_t *cverts;
+	vecV_t verts[MAXFRAGMENTVERTS];
+	vecV_t verts2[MAXFRAGMENTVERTS];
+	vecV_t *cverts;
 	int flip;
 //	vec3_t d1, d2, n;
 	size_t numverts;

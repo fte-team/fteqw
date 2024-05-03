@@ -435,25 +435,29 @@ mergeInto(LibraryManager.library,
 	{
 		//with events, we can do unplug stuff properly.
 		//otherwise hot unplug might be buggy.
-		var gamepads;
+		let gamepads;
 //		if (FTEH.gamepads !== undefined)
 //			gamepads = FTEH.gamepads;
 //		else
+		try
+		{
 			gamepads = navigator.getGamepads ? navigator.getGamepads() : [];
+		}
+		catch(e){}
 
 		if (gamepads !== undefined)
 		{
-			for (var i = 0; i < gamepads.length; i+=1)
+			for (let i = 0; i < gamepads.length; i+=1)
 			{
 				const gp = gamepads[i];
 				if (gp === undefined)
 					continue;
 				if (gp == null)
 					continue;	//xbox controllers tend to have 4 and exactly 4. on the plus side indexes won't change.
-				for (var j = 0; j < gp.buttons.length; j+=1)
+				for (let j = 0; j < gp.buttons.length; j+=1)
 				{
-					var b = gp.buttons[j];
-					var p;
+					const b = gp.buttons[j];
+					let p;
 					if (typeof(b) == "object")
 						p = b.pressed;	//.value is a fractional thing. oh well.
 					else
@@ -465,7 +469,7 @@ mergeInto(LibraryManager.library,
 						{{{makeDynCall('viiii','FTEC.evcb.jbutton')}}}(gp.index, j, p, gp.mapping=="standard");
 					}
 				}
-				for (var j = 0; j < gp.axes.length; j+=1)
+				for (let j = 0; j < gp.axes.length; j+=1)
 					{{{makeDynCall('viifi','FTEC.evcb.jaxis')}}}(gp.index, j, gp.axes[j], gp.mapping=="standard");
 			}
 		}
@@ -473,12 +477,12 @@ mergeInto(LibraryManager.library,
 		if (FTEC.xrsession != null && FTEC.xrframe != null && FTEC.referenceSpace != null)
 		{
 			//try and figure out the head angles according to where we're told the eyes are
-			var count = 0;
-			var org={x:0,y:0,z:0}, quat={x:0,y:0,z:0,w:0};
+			let count = 0;
+			let org={x:0,y:0,z:0}, quat={x:0,y:0,z:0,w:0};
 			const pose = FTEC.xrframe.getViewerPose(FTEC.referenceSpace);
 			if (pose)
 			{
-				for (var view of pose.views)
+				for (let view of pose.views)
 				{
 					org.x += view.transform.position.x;
 					org.y += view.transform.position.y;
@@ -511,7 +515,7 @@ mergeInto(LibraryManager.library,
 					continue;
 
 				//webxr doesn't really do indexes, so make em up from hands..
-				var idx;
+				let idx;
 				if (is.handedness == "right")	//is.targetRayMode=="tracked-pointer"
 					idx = -1;
 				else if (is.handedness == "left")	//is.targetRayMode=="tracked-pointer"
@@ -540,10 +544,10 @@ mergeInto(LibraryManager.library,
 				if (gp.mapping != "xr-standard")
 					continue;
 
-				for (var j = 0; j < gp.buttons.length; j+=1)
+				for (let j = 0; j < gp.buttons.length; j+=1)
 				{
-					var b = gp.buttons[j];
-					var p;
+					const b = gp.buttons[j];
+					let p;
 					p = b.pressed;	//.value is a fractional thing. oh well.
 
 					if (b.lastframe != p)
@@ -553,7 +557,7 @@ console.log("jbutton dev:" + idx + " btn:"+j+" dn:"+p+" mapping:"+gp.mapping);
 						{{{makeDynCall('viiii','FTEC.evcb.jbutton')}}}(idx, j, p, gp.mapping=="standard");
 					}
 				}
-				for (var j = 0; j < gp.axes.length; j+=1)
+				for (let j = 0; j < gp.axes.length; j+=1)
 				{
 console.log("jaxis dev:" + idx + " axis:"+j+" val:"+gp.axes[j]+" mapping:"+gp.mapping);
 					{{{makeDynCall('viifi','FTEC.evcb.jaxis')}}}(idx, j, gp.axes[j], gp.mapping=="standard");

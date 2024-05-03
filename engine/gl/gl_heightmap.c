@@ -6302,7 +6302,7 @@ static brushes_t *Terr_Brush_Insert(model_t *model, heightmap_t *hm, brushes_t *
 			}
 
 			//generate points now (so we know the correct mins+maxs for the brush, and whether the plane is relevent)
-			numpoints = Fragment_ClipPlaneToBrush(facepoints, sizeof(facepoints)/sizeof(facepoints[0]), brush->planes, sizeof(*brush->planes), brush->numplanes, brush->planes[iface]);
+			numpoints = Fragment_ClipPlaneToBrush(facepoints, countof(facepoints), brush->planes, sizeof(*brush->planes), brush->numplanes, brush->planes[iface]);
 			if (!numpoints)
 			{
 				Con_DPrintf("redundant face\n");

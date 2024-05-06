@@ -603,6 +603,8 @@ extern plugcorefuncs_t *plugfuncs;
 extern plugcmdfuncs_t *cmdfuncs;
 extern plugcvarfuncs_t *cvarfuncs;
 
+#define Q_snprintf (void)Q_snprintfz
+#define Q_vsnprintf (void)Q_vsnprintfz
 #ifdef FTEENGINE
 extern plugcorefuncs_t plugcorefuncs;
 #else
@@ -612,8 +614,6 @@ void Q_strlcat(char *d, const char *s, int n);
 
 qboolean VARGS Q_vsnprintfz (char *dest, size_t size, const char *fmt, va_list argptr);
 qboolean VARGS Q_snprintfz (char *dest, size_t size, const char *fmt, ...) LIKEPRINTF(3);
-#define Q_snprintf (void)Q_snprintfz
-#define Q_vsnprintf (void)Q_vsnprintfz
 
 char	*va(const char *format, ...);
 qboolean Plug_Init(void);

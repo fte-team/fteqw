@@ -16,7 +16,6 @@ struct q3gamecode_s *q3;
 static struct plugin_s *q3plug;
 #endif
 
-#define Q_snprintf Q_snprintfz
 #define Q_strlcpy Q_strncpyz
 #define Q_strlcat Q_strncatz
 #define Sys_Errorf Sys_Error
@@ -28,9 +27,14 @@ static struct plugin_s *q3plug;
 	#include "../engine/common/com_phys_ode.c"
 #endif
 
+#ifdef STATIC_EZHUD    //if its statically linked and loading by default then block it by default and let configs reenable it. The defaults must be maintained for deltaing configs to work, yet they're defective and should never be used in that default configuration
+cvar_t plug_sbar = CVARD("plug_sbar", "0", "Controls whether plugins are allowed to draw the hud, rather than the engine (when allowed by csqc). This is typically used to permit the ezhud plugin without needing to bother unloading it.\n=0: never use hud plugins.\n&1: Use hud plugins in deathmatch.\n&2: Use hud plugins in singleplayer/coop.\n=3: Always use hud plugins (when loaded).");
+#else
 cvar_t plug_sbar = CVARD("plug_sbar", "3", "Controls whether plugins are allowed to draw the hud, rather than the engine (when allowed by csqc). This is typically used to permit the ezhud plugin without needing to bother unloading it.\n=0: never use hud plugins.\n&1: Use hud plugins in deathmatch.\n&2: Use hud plugins in singleplayer/coop.\n=3: Always use hud plugins (when loaded).");
+#endif
 cvar_t plug_loaddefault = CVARD("plug_loaddefault", "1", "0: Load plugins only via explicit plug_load commands\n1: Load built-in plugins and those selected via the package manager\n2: Scan for misc plugins, loading all that can be found, but not built-ins.\n3: Scan for plugins, and then load any built-ins");
 
+extern qboolean Plug_EZHud_Init(void);
 extern qboolean Plug_Q3_Init(void);
 extern qboolean Plug_Bullet_Init(void);
 extern qboolean Plug_ODE_Init(void);
@@ -49,7 +53,9 @@ static struct
 #if defined(MODELFMT_GLTF)
 	{"GLTF", Plug_GLTF_Init},
 #endif
-
+#ifdef STATIC_EZHUD
+	{"EZHud_internal", Plug_EZHud_Init},
+#endif
 #ifdef STATIC_Q3
 	{"quake3", Plug_Q3_Init},
 #endif
@@ -2009,6 +2015,7 @@ static void *QDECL PlugBI_GetEngineInterface(const char *interfacename, size_t s
 		if (structsize == sizeof(funcs))
 			return &funcs;
 	}
+#ifdef HAVE_PACKET
 	if (!strcmp(interfacename, plugnetfuncs_name))
 	{
 		static plugnetfuncs_t funcs =
@@ -2022,7 +2029,6 @@ static void *QDECL PlugBI_GetEngineInterface(const char *interfacename, size_t s
 			Plug_Net_Close,
 			Plug_Net_SetTLSClient,
 			Plug_Net_GetTLSBinding,
-
 			Sys_RandomBytes,
 #ifdef HAVE_DTLS
 			TLS_GetKnownCertificate,
@@ -2038,6 +2044,7 @@ static void *QDECL PlugBI_GetEngineInterface(const char *interfacename, size_t s
 		if (structsize == sizeof(funcs))
 			return &funcs;
 	}
+#endif
 	if (!strcmp(interfacename, plugworldfuncs_name))
 	{
 		static plugworldfuncs_t funcs =
@@ -2265,6 +2272,7 @@ static void *QDECL PlugBI_GetEngineInterface(const char *interfacename, size_t s
 			return &funcs;
 	}
 
+#if defined(CL_MASTER)
 	if (!strcmp(interfacename, plugmasterfuncs_name))
 	{
 		static plugmasterfuncs_t funcs =
@@ -2285,6 +2293,7 @@ static void *QDECL PlugBI_GetEngineInterface(const char *interfacename, size_t s
 		if (structsize == sizeof(funcs))
 			return &funcs;
 	}
+#endif
 	if (!strcmp(interfacename, plugimagefuncs_name))
 	{
 		static plugimagefuncs_t funcs =

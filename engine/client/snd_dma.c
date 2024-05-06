@@ -1770,6 +1770,10 @@ void S_Voip_Parse(void)
 	bytes = MSG_ReadShort();
 	MSG_ReadSkip(bytes);
 }
+int S_Voip_ClientLoudness(unsigned int plno)
+{
+	return -1;
+}
 #endif
 
 

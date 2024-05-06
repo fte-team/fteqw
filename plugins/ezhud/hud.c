@@ -19,7 +19,6 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 // HUD commands
 //
 
-#include "../plugin.h"
 #include "ezquakeisms.h"
 //#include "common_draw.h"
 //#include "keys.h"
@@ -804,14 +803,14 @@ void HUD_Export_f(void)
 
 	snprintf(line, sizeof(line), "configs/hud_%s.cfg", fname);
 
-	if (filefuncs->Open(line, &handle, 2) < 0)
+	if (ez_fsfuncs->Open(line, &handle, 2) < 0)
 		Com_Printf("Couldn't open %s\n", line);
 	else
 	{
 		//FIXME: should print the result of an flocate, but plugins are not really aware of that stuff.
 		Com_Printf("Writing %s\n", line);
 		snprintf(line, sizeof(line), "//desc:%s\n\n//hud cvar settings, for use with FTEQW's ezhud plugin.\n", fdesc);
-		filefuncs->Write(handle, line, strlen(line));
+		ez_fsfuncs->Write(handle, line, strlen(line));
 
 		for (hud = hud_huds; hud; hud = hud->next)
 		{
@@ -820,11 +819,11 @@ void HUD_Export_f(void)
 				var = hud->params[i];
 				//fixme: deal with " and \n
 				snprintf(line, sizeof(line), "set %s \"%s\"\n", var->name, var->string);
-				filefuncs->Write(handle, line, strlen(line));
+				ez_fsfuncs->Write(handle, line, strlen(line));
 			}
 		}
 
-		filefuncs->Close(handle);
+		ez_fsfuncs->Close(handle);
 	}
 }
 

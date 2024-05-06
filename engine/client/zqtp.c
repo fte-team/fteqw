@@ -76,92 +76,92 @@ static void QDECL TP_EnemyColor_CB (struct cvar_s *var, char *oldvalue);
 #define TP_SKIN_CVARS	\
 	TP_CVARAC(cl_teamskin,		"", teamskin, TP_SkinCvar_Callback);	\
 	TP_CVARAC(cl_enemyskin,		"", enemyskin, TP_SkinCvar_Callback);	\
-	TP_CVARC(enemycolor,		"off", TP_EnemyColor_CB);	\
-	TP_CVARC(teamcolor,			"off", TP_TeamColor_CB);
+	static TP_CVARC(enemycolor,		"off", TP_EnemyColor_CB);	\
+	static TP_CVARC(teamcolor,			"off", TP_TeamColor_CB);
 #else
 #define TP_SKIN_CVARS
 #endif
 
 #ifdef QUAKESTATS
 #define TP_NAME_CVARS	\
-	TP_CVAR(tp_name_none,		"");	\
-	TP_CVAR(tp_name_axe,		"axe");	\
-	TP_CVAR(tp_name_sg,			"sg");	\
-	TP_CVAR(tp_name_ssg,		"ssg");	\
-	TP_CVAR(tp_name_ng,			"ng");	\
-	TP_CVAR(tp_name_sng,		"sng");	\
-	TP_CVAR(tp_name_gl,			"gl");	\
-	TP_CVAR(tp_name_rl,			"rl");	\
-	TP_CVAR(tp_name_lg,			"lg");	\
-	TP_CVAR(tp_name_ra,			"ra");	\
-	TP_CVAR(tp_name_ya,			"ya");	\
-	TP_CVAR(tp_name_ga,			"ga");	\
-	TP_CVAR(tp_name_quad,		"quad");	\
-	TP_CVAR(tp_name_pent,		"pent");	\
-	TP_CVAR(tp_name_ring,		"ring");	\
-	TP_CVAR(tp_name_suit,		"suit");	\
-	TP_CVAR(tp_name_shells,		"shells");	\
-	TP_CVAR(tp_name_nails,		"nails");	\
-	TP_CVAR(tp_name_rockets,	"rockets");	\
-	TP_CVAR(tp_name_cells,		"cells");	\
-	TP_CVAR(tp_name_mh,			"mega");	\
-	TP_CVAR(tp_name_health,		"health");	\
-	TP_CVAR(tp_name_backpack,	"pack");	\
-	TP_CVAR(tp_name_flag,		"flag");	\
-	TP_CVAR(tp_name_nothing,	"nothing");	\
-	TP_CVAR(tp_name_at,			"at");	\
-	TP_CVAR(tp_need_ra,			"50");	\
-	TP_CVAR(tp_need_ya,			"50");	\
-	TP_CVAR(tp_need_ga,			"50");	\
-	TP_CVAR(tp_need_health,		"50");	\
-	TP_CVAR(tp_need_weapon,		"35687");	\
-	TP_CVAR(tp_need_rl,			"1");	\
-	TP_CVAR(tp_need_rockets,	"5");	\
-	TP_CVAR(tp_need_cells,		"20");	\
-	TP_CVAR(tp_need_nails,		"40");	\
-	TP_CVAR(tp_need_shells,		"10");	\
-	TP_CVAR(tp_name_disp,		"dispenser");	\
-	TP_CVAR(tp_name_sentry,		"sentry gun");	\
-	TP_CVAR(tp_name_rune_1,		"resistance rune");	\
-	TP_CVAR(tp_name_rune_2,		"strength rune");	\
-	TP_CVAR(tp_name_rune_3,		"haste rune");	\
-	TP_CVAR(tp_name_rune_4,		"regeneration rune");	\
+	static TP_CVAR(tp_name_none,            "");    \
+	static TP_CVAR(tp_name_axe,             "axe"); \
+	TP_CVAR(tp_name_sg,                     "sg");  \
+	TP_CVAR(tp_name_ssg,                    "ssg"); \
+	TP_CVAR(tp_name_ng,                     "ng");  \
+	TP_CVAR(tp_name_sng,                    "sng"); \
+	TP_CVAR(tp_name_gl,                     "gl");  \
+	TP_CVAR(tp_name_rl,                     "rl");  \
+	TP_CVAR(tp_name_lg,                     "lg");  \
+	static TP_CVAR(tp_name_ra,              "ra");  \
+	static TP_CVAR(tp_name_ya,              "ya");  \
+	static TP_CVAR(tp_name_ga,              "ga");  \
+	static TP_CVAR(tp_name_quad,            "quad");    \
+	static TP_CVAR(tp_name_pent,            "pent");    \
+	static TP_CVAR(tp_name_ring,            "ring");    \
+	static TP_CVAR(tp_name_suit,            "suit");    \
+	static TP_CVAR(tp_name_shells,          "shells");  \
+	static TP_CVAR(tp_name_nails,           "nails");   \
+	static TP_CVAR(tp_name_rockets,         "rockets"); \
+	static TP_CVAR(tp_name_cells,           "cells");   \
+	static TP_CVAR(tp_name_mh,              "mega");    \
+	static TP_CVAR(tp_name_health,          "health");  \
+	static TP_CVAR(tp_name_backpack,        "pack");    \
+	static TP_CVAR(tp_name_flag,            "flag");    \
+	static TP_CVAR(tp_name_nothing,         "nothing"); \
+	static TP_CVAR(tp_name_at,              "at");  \
+	static TP_CVAR(tp_need_ra,              "50");  \
+	static TP_CVAR(tp_need_ya,              "50");  \
+	static TP_CVAR(tp_need_ga,              "50");  \
+	static TP_CVAR(tp_need_health,          "50");  \
+	static TP_CVAR(tp_need_weapon,          "35687");   \
+	static TP_CVAR(tp_need_rl,              "1");   \
+	static TP_CVAR(tp_need_rockets,         "5");   \
+	static TP_CVAR(tp_need_cells,           "20");  \
+	static TP_CVAR(tp_need_nails,           "40");  \
+	static TP_CVAR(tp_need_shells,          "10");  \
+	static TP_CVAR(tp_name_disp,            "dispenser");   \
+	static TP_CVAR(tp_name_sentry,          "sentry gun");  \
+	static TP_CVAR(tp_name_rune_1,          "resistance rune"); \
+	static TP_CVAR(tp_name_rune_2,          "strength rune");   \
+	static TP_CVAR(tp_name_rune_3,          "haste rune");  \
+	static TP_CVAR(tp_name_rune_4,          "regeneration rune");   \
 	\
-	TP_CVAR(tp_name_status_red,		"$R");	\
-	TP_CVAR(tp_name_status_green,	"$G");	\
-	TP_CVAR(tp_name_status_yellow,	"$Y");	\
-	TP_CVAR(tp_name_status_blue,	"$B");	\
+	static TP_CVAR(tp_name_status_red,      "$R");  \
+	static TP_CVAR(tp_name_status_green,    "$G");  \
+	static TP_CVAR(tp_name_status_yellow,   "$Y");  \
+	static TP_CVAR(tp_name_status_blue,     "$B");  \
 	\
-	TP_CVAR(tp_name_armortype_ga,	"g");	\
-	TP_CVAR(tp_name_armortype_ya,	"y");	\
-	TP_CVAR(tp_name_armortype_ra,	"r");	\
-	TP_CVAR(tp_name_armor,			"armor");	\
-	TP_CVAR(tp_name_weapon,			"weapon");	\
-	TP_CVAR(tp_weapon_order,		"78654321");	\
+	static TP_CVAR(tp_name_armortype_ga,    "g");   \
+	static TP_CVAR(tp_name_armortype_ya,    "y");   \
+	static TP_CVAR(tp_name_armortype_ra,    "r");   \
+	static TP_CVAR(tp_name_armor,           "armor");   \
+	static TP_CVAR(tp_name_weapon,          "weapon");  \
+	static TP_CVAR(tp_weapon_order,         "78654321");    \
 	\
-  	TP_CVAR(tp_name_quaded,			"quaded");	\
-	TP_CVAR(tp_name_pented,			"pented");	\
-	TP_CVAR(tp_name_separator,		"/");	\
+	static TP_CVAR(tp_name_quaded,          "quaded");  \
+	static TP_CVAR(tp_name_pented,          "pented");  \
+	static TP_CVAR(tp_name_separator,       "/");   \
 	\
-	TP_CVAR(tp_name_enemy,			"enemy");	\
-	TP_CVAR(tp_name_teammate,		"");	\
-	TP_CVAR(tp_name_eyes,			"eyes");	\
+	static TP_CVAR(tp_name_enemy,           "enemy");   \
+	static TP_CVAR(tp_name_teammate,        "");    \
+	static TP_CVAR(tp_name_eyes,            "eyes");    \
 	\
-	TP_CVAR(loc_name_separator,		"-");	\
-	TP_CVAR(loc_name_ssg,		"ssg");	\
-	TP_CVAR(loc_name_ng,		"ng");	\
-	TP_CVAR(loc_name_sng,		"sng");	\
-	TP_CVAR(loc_name_gl,		"gl");	\
-	TP_CVAR(loc_name_rl,		"rl");	\
-	TP_CVAR(loc_name_lg,		"lg");	\
-	TP_CVAR(loc_name_ga,		"ga");	\
-	TP_CVAR(loc_name_ya,		"ya");	\
-	TP_CVAR(loc_name_ra,		"ra");	\
-	TP_CVAR(loc_name_mh,		"mh");	\
-	TP_CVAR(loc_name_quad,		"quad");	\
-	TP_CVAR(loc_name_pent,		"pent");	\
-	TP_CVAR(loc_name_ring,		"ring");	\
-	TP_CVAR(loc_name_suit,		"suit");
+	static TP_CVAR(loc_name_separator,      "-");   \
+	static TP_CVAR(loc_name_ssg,            "ssg"); \
+	static TP_CVAR(loc_name_ng,             "ng");  \
+	static TP_CVAR(loc_name_sng,            "sng"); \
+	static TP_CVAR(loc_name_gl,             "gl");  \
+	static TP_CVAR(loc_name_rl,             "rl");  \
+	static TP_CVAR(loc_name_lg,             "lg");  \
+	static TP_CVAR(loc_name_ga,             "ga");  \
+	static TP_CVAR(loc_name_ya,             "ya");  \
+	static TP_CVAR(loc_name_ra,             "ra");  \
+	static TP_CVAR(loc_name_mh,             "mh");  \
+	static TP_CVAR(loc_name_quad,           "quad");    \
+	static TP_CVAR(loc_name_pent,           "pent");    \
+	static TP_CVAR(loc_name_ring,           "ring");    \
+	static TP_CVAR(loc_name_suit,           "suit");
 #else
 	#define TP_NAME_CVARS
 #endif
@@ -171,16 +171,16 @@ static void QDECL TP_EnemyColor_CB (struct cvar_s *var, char *oldvalue);
 #define TP_CVARS \
 	TP_SKIN_CVARS \
 	TP_NAME_CVARS \
-	TP_CVAR(cl_fakename,		"");	\
+	static TP_CVAR(cl_fakename,		"");	\
 	TP_CVAR(cl_parseSay,		"1");	\
 	TP_CVAR(cl_parseFunChars,		"1");	\
 	TP_CVAR(cl_triggers,		"1");	\
-	TP_CVAR(tp_autostatus,		"");	/* things which will not always change, but are useful */ \
+	static TP_CVAR(tp_autostatus,		"");	/* things which will not always change, but are useful */ \
 	TP_CVAR(tp_forceTriggers,		"0");	\
 	TP_CVAR(tp_loadlocs,		"1");	\
-	TP_CVAR(tp_soundtrigger,		"~");	\
+	static TP_CVAR(tp_soundtrigger,		"~");	\
 	\
-	TP_CVAR(tp_name_someplace,	"someplace")
+	static TP_CVAR(tp_name_someplace,	"someplace")
 
 //create the globals for all the TP cvars.
 #define TP_CVAR(name,def) cvar_t	name = CVAR(#name, def)
@@ -3710,7 +3710,9 @@ void TP_Init (void)
 #define TP_CVAR(name,def) Cvar_Register (&name,	TEAMPLAYVARS);
 #define TP_CVARC(name,def,callback) Cvar_Register (&name, TEAMPLAYVARS);
 #define TP_CVARAC(name,def,name2,callback) Cvar_Register (&name, TEAMPLAYVARS);
+#define static
 	TP_CVARS;
+#undef static
 #undef TP_CVAR
 #undef TP_CVARC
 #undef TP_CVARAC

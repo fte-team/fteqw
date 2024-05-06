@@ -1,11 +1,17 @@
 //ezquake likes this
+#ifndef FTEPLUGIN
+#include "quakedef.h"
+#define FTEENGINE  //we're getting statically linked. lucky us.
+#define FTEPLUGIN
+#endif
+#include "../plugin.h"
 #include <assert.h>
 #include <ctype.h>
 
-extern plug2dfuncs_t *drawfuncs;
-extern plugfsfuncs_t *filefuncs;
-extern plugclientfuncs_t *clientfuncs;
-extern pluginputfuncs_t *inputfuncs;
+extern plug2dfuncs_t *ez_drawfuncs;
+extern plugfsfuncs_t *ez_fsfuncs;
+extern plugclientfuncs_t *ez_clientfuncs;
+extern pluginputfuncs_t *ez_inputfuncs;
 
 //ezquake sucks. I'd fix these, but that'd make diffs more messy.
 #ifdef __GNUC__
@@ -22,6 +28,7 @@ extern pluginputfuncs_t *inputfuncs;
 #define Cvar_Find(n) cvarfuncs->GetNVFDG(n,NULL,0,NULL,NULL)
 #define Cvar_SetValue(var,val) cvarfuncs->SetFloat(var->name,val)
 #define Cvar_Set(var,val) cvarfuncs->SetString(var->name,val)
+#define Cmd_AddCommand(nam,ptr) cmdfuncs->AddCommand(nam,ptr,NULL)
 #define Cmd_Argc cmdfuncs->Argc
 #define Cbuf_AddText(x) cmdfuncs->AddText(x,false)
 #define Sys_Error(x) plugfuncs->Error(x)
@@ -31,8 +38,24 @@ extern pluginputfuncs_t *inputfuncs;
 #define Q_free free
 #define Q_rint(x) ((int)(x+0.5))
 #define Q_atoi atoi
-#define strlcpy Q_strlcpy
-#define strlcat Q_strlcat
+#ifdef FTEENGINE
+   #define strlcpy Q_strncpyz
+   #define strlcat Q_strncatz
+#else
+   #define strlcpy Q_strlcpy
+   #define strlcat Q_strlcat
+#endif
+
+//ezhud has a number of common symbol conflicts, which matter when sttatically linking into the engine
+#define Cmd_Argv           ezCmd_Argv
+#define TP_LocationName        ezTP_LocationName
+#define TP_ParseFunChars   ezTP_ParseFunChars
+#define Sbar_ColorForMap   ezSbar_ColorForMap
+#define scr_vrect          ezscr_vrect
+#define sb_lines           ezsb_lines
+#define keydown                ezkeydown
+#define scr_con_current        ezscr_con_current
+
 
 #undef mpic_t
 #define mpic_t void
@@ -102,7 +125,7 @@ void Draw_Fill(float x, float y, float w, float h, qbyte pal);
 const char *ColorNameToRGBString (const char *newval);
 byte *StringToRGB(const char *str);
 
-#define Draw_String					drawfuncs->String
+#define Draw_String					ez_drawfuncs->String
 
 void Draw_EZString(float x, float y, char *str, float scale, qboolean red);
 #define Draw_Alt_String(x,y,s)			Draw_EZString(x,y,s,8,true)
@@ -130,8 +153,12 @@ mpic_t *Draw_CacheWadPic(const char *name);
 
 int Sbar_TopColor(player_info_t *pi);
 int Sbar_BottomColor(player_info_t *pi);
-char *TP_ParseFunChars(char*, qbool chat);
+char *TP_ParseFunChars(char*);
 char *TP_ItemName(unsigned int itbit);
+char *TP_LocationName (const vec3_t location);
+
+char *Cmd_Argv(int arg);
+extern float           scr_con_current;    //current console lines shown
 
 #define Util_SkipChars(src,strip,dst,dstlen) strlcpy(dst,src,dstlen)
 #define Util_SkipEZColors(src,dst,dstlen) strlcpy(dst,src,dstlen)
@@ -141,7 +168,7 @@ void Replace_In_String(char *string, size_t strsize, char leadchar, int patterns
 #define Utils_RegExpMatch(regexp,term) (true)
 
 #define clamp(v,min,max) v=bound(min,v,max)
-#define strlen_color(line) (drawfuncs->StringWidth(8, 0, line)/8.0)
+#define strlen_color(line) (ez_drawfuncs->StringWidth(8, 0, line)/8.0)
 
 #define TIMETYPE_CLOCK 0
 #define TIMETYPE_GAMECLOCK 1
@@ -158,12 +185,12 @@ typedef struct
 	qbyte c[4];
 } clrinfo_t;
 void Draw_ColoredString3(float x, float y, const char *str, clrinfo_t *clr, int huh, int wut);
-void UI_PrintTextBlock();
+void UI_PrintTextBlock(float x, float y, float w, float h, char *str, int flags);
 void Draw_AlphaRectangleRGB(int x, int y, int w, int h, int foo, int bar, byte r, byte g, byte b, byte a);
 void Draw_AlphaLineRGB(float x1, float y1, float x2, float y2, float width, byte r, byte g, byte b, byte a);
 void Draw_Polygon(int x, int y, vec3_t *vertices, int num_vertices, qbool fill, byte r, byte g, byte b, byte a);
 
-#undef sb_lines	//just in case.
+extern int         sb_lines;           // scan lines to draw
 #ifndef SBAR_HEIGHT
 #define SBAR_HEIGHT 24
 #define STAT_HEALTH			0

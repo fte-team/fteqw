@@ -21,7 +21,6 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 	Initial concept code jogihoogi, rewritten by Cokeman, Feb 2007
 */
 
-#include "../plugin.h"
 #include "ezquakeisms.h"
 
 //#include "qsound.h"
@@ -2438,7 +2437,7 @@ void HUD_Editor_Toggle_f(void)
 	{
 		// Start HUD Editor.
 
-		inputfuncs->SetMenuFocus(true, "", 0, 0, 0);
+		ez_inputfuncs->SetMenuFocus(true, "", 0, 0, 0);
 		HUD_Editor_SetMode(hud_editmode_normal);
 
 		// Set planmode by default.
@@ -2452,7 +2451,7 @@ void HUD_Editor_Toggle_f(void)
 	{
 		// Exit the HUD Editor.
 
-		inputfuncs->SetMenuFocus(false, "", 0, 0, 0);
+		ez_inputfuncs->SetMenuFocus(false, "", 0, 0, 0);
 		HUD_Editor_SetMode(hud_editmode_off);
 		scr_cursor_icon = NULL;
 

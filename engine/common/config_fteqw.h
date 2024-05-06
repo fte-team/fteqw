@@ -227,5 +227,9 @@
 -DLINK_ODE
 #endif
 
+#if defined(PLUGINS)
+//-DLINK_EZHUD     //uncomment this line to statically link the ezhud plugin (eg for the web-rel target).
+#endif
+
 //-Os		//optimise for size instead of speed. less cpu cache needed means that its sometimes faster anyway.
 #endif

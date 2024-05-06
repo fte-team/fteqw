@@ -288,12 +288,14 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 	#undef VOICECHAT	//too lazy to compile opus
 	#undef HLCLIENT		//dlls...
 	#undef HLSERVER		//dlls...
-//	#undef CL_MASTER	//bah. use the site to specify the servers.
+	#undef CL_MASTER	//bah. use the site to specify the servers.
 	#undef SV_MASTER	//yeah, because that makes sense in a browser
 	#undef RAGDOLL		//no ode
 	#undef TCPCONNECT	//err...
 	#undef IRCCONNECT	//not happening
-	#undef PLUGINS		//pointless
+	#if !defined(USE_INTERNAL_BULLET) && !defined(USE_INTERNAL_ODE) && !defined(MODELFMT_GLTF) && !defined(STATIC_EZHUD) && !defined(STATIC_OPENSSL) && !defined(STATIC_Q3)
+		#undef PLUGINS      //pointless
+	#endif
 	#undef VM_Q1		//no dlls
 	#undef MAP_PROC		//meh
 //	#undef HALFLIFEMODELS	//blurgh

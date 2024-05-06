@@ -19,8 +19,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 // common HUD elements
 // like clock etc..
 //
-
-#include "../plugin.h"
+#include "ezquakeisms.h"
 /*
 #include "common_draw.h"
 #include "mp3_player.h"
@@ -39,7 +38,6 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include "teamplay.h"
 #include "mvd_utils.h"
 */
-#include "ezquakeisms.h"
 #include "hud.h"
 
 //#define WITH_PNG	//more WITH_RADAR than anything else.
@@ -154,7 +152,7 @@ plugnetinfo_t *GetNetworkInfo(void)
 	if (uc != host_screenupdatecount)
 	{
 		uc = host_screenupdatecount;
-		clientfuncs->GetNetworkInfo(&ni, sizeof(ni));
+		ez_clientfuncs->GetNetworkInfo(&ni, sizeof(ni));
 	}
 	return &ni;
 }
@@ -2600,7 +2598,7 @@ void Draw_AMFStatLoss (int stat, hud_t* hud) {
 	else
 		alpha = 0;
 
-	drawfuncs->Colour4f(1,1,1,alpha);
+	ez_drawfuncs->Colour4f(1, 1, 1, alpha);
 	{
 		static cvar_t *scale[2] = {NULL}, *style[2], *digits[2], *align[2];
 		if (scale[elem] == NULL)  // first time called
@@ -2613,7 +2611,7 @@ void Draw_AMFStatLoss (int stat, hud_t* hud) {
 		SCR_HUD_DrawNum (hud, abs(*vxdmgcnt), 1,
             scale[elem]->value, style[elem]->value, digits[elem]->ival, align[elem]->string);
 	}
-	drawfuncs->Colour4f(1,1,1,1);
+	ez_drawfuncs->Colour4f(1, 1, 1, 1);
 }
 
 static void SCR_HUD_DrawHealthDamage(hud_t *hud)
@@ -2766,7 +2764,7 @@ static void SCR_HUD_NetProblem (hud_t *hud) {
 
 	float picwidth = 64;
 	float picheight = 64;
-	drawfuncs->ImageSize((intptr_t)sb_net, &picwidth, &picheight);
+	ez_drawfuncs->ImageSize((intptr_t)sb_net, &picwidth, &picheight);
 
 	if(scale == NULL)
 		scale = HUD_FindVar(hud, "scale");
@@ -2810,7 +2808,7 @@ void SCR_HUD_DrawGroup(hud_t *hud, int width, int height, mpic_t *pic, int pic_s
 	float picwidth = 64;
 	float picheight = 64;
 
-	if (pic && drawfuncs->ImageSize((intptr_t)pic, &picwidth, &picheight) <= 0)
+	if (pic && ez_drawfuncs->ImageSize((intptr_t)pic, &picwidth, &picheight) <= 0)
 	{
 		pic = NULL;
 		picwidth = 64;
@@ -3591,7 +3589,7 @@ int TeamFrags_DrawExtraSpecInfo(int num, int px, int py, int width, int height, 
 {
 	float rl_width, rl_height;
 	mpic_t *pic = sb_weapons[0][5];
-	drawfuncs->ImageSize((intptr_t)pic, &rl_width, &rl_height);
+	ez_drawfuncs->ImageSize((intptr_t)pic, &rl_width, &rl_height);
 
 	// Only allow this for spectators.
 	if (!(cls.demoplayback || cl.spectator)
@@ -3701,7 +3699,7 @@ static int Frags_DrawExtraSpecInfo(player_info_t *info,
 	int		health_spacing = 1;
 	int		weapon_width = 24;
 
-	drawfuncs->ImageSize((intptr_t)rl_picture, &rl_width, &rl_height);
+	ez_drawfuncs->ImageSize((intptr_t)rl_picture, &rl_width, &rl_height);
 
 	// Only allow this for spectators.
 	if (!(cls.demoplayback || cl.spectator))
@@ -3972,7 +3970,7 @@ void SCR_HUD_DrawFrags(hud_t *hud)
 
 	mpic_t *rl_picture = sb_weapons[0][5];
 	float rl_width, rl_height;
-	drawfuncs->ImageSize((intptr_t)rl_picture, &rl_width, &rl_height);
+	ez_drawfuncs->ImageSize((intptr_t)rl_picture, &rl_width, &rl_height);
 
     if (hud_frags_cell_width == NULL)    // first time
     {
@@ -4402,7 +4400,7 @@ void SCR_HUD_DrawTeamFrags(hud_t *hud)
 
 	mpic_t *rl_picture = sb_weapons[0][5];
 	float rl_width, rl_height;
-	drawfuncs->ImageSize((intptr_t)rl_picture, &rl_width, &rl_height);
+	ez_drawfuncs->ImageSize((intptr_t)rl_picture, &rl_width, &rl_height);
 
     if (hud_teamfrags_cell_width == 0)    // first time
     {
@@ -5659,16 +5657,16 @@ static void SCR_HUD_DrawTeamInfo(hud_t *hud)
 //	if ( CURRVIEW != 1 && CURRVIEW != 0)
 //		return;
 
-	slots_num = clientfuncs->GetTeamInfo?clientfuncs->GetTeamInfo(ti_clients, countof(ti_clients), hud_teaminfo_show_enemies->ival, hud_teaminfo_show_self->ival?-1:0):0;
+	slots_num = ez_clientfuncs->GetTeamInfo ? ez_clientfuncs->GetTeamInfo(ti_clients, countof(ti_clients), hud_teaminfo_show_enemies->ival, hud_teaminfo_show_self->ival ? -1 : 0) : 0;
 
 	// fill data we require to draw teaminfo
 	for ( maxloc = maxname = i = 0; i < slots_num; i++ ) {
 		// dynamically guess max length of name/location
 		nick = (ti_clients[i].nick[0] ? ti_clients[i].nick : cl.players[i].name); // we use nick or name
-		maxname = max(maxname, strlen(TP_ParseFunChars(nick, false)));
+		maxname = max(maxname, strlen(TP_ParseFunChars(nick)));
 
 		strlcpy(tmp, TP_LocationName(ti_clients[i].org), sizeof(tmp));
-		maxloc  = max(maxloc,  strlen(TP_ParseFunChars(tmp,  false)));
+		maxloc  = max(maxloc,  strlen(TP_ParseFunChars(tmp)));
 	}
 
 	// well, better use fixed loc length
@@ -5702,7 +5700,7 @@ static void SCR_HUD_DrawTeamInfo(hud_t *hud)
 		while (sorted_teams[k].name)
 		{
 			Draw_SString (x, _y, sorted_teams[k].name, hud_teaminfo_scale->value);
-			sprintf(tmp,"%s %i",TP_ParseFunChars("$.",false), sorted_teams[k].frags);
+			sprintf(tmp,"%s %i",TP_ParseFunChars("$."), sorted_teams[k].frags);
 			Draw_SString (x+(strlen(sorted_teams[k].name)+1)*FONTWIDTH, _y, tmp, hud_teaminfo_scale->value);
 			_y += FONTWIDTH * hud_teaminfo_scale->value;
 			for ( j = 0; j < slots_num; j++ ) 
@@ -5793,7 +5791,7 @@ static int SCR_HudDrawTeamInfoPlayer(teamplayerinfo_t *ti_cl, int x, int y, int 
 
 	// this limit len of string because TP_ParseFunChars() do not check overflow
 	strlcpy(tmp2, HUD_FindVar(hud, "layout")->string , sizeof(tmp2));
-	strlcpy(tmp2, TP_ParseFunChars(tmp2, false), sizeof(tmp2));
+	strlcpy(tmp2, TP_ParseFunChars(tmp2), sizeof(tmp2));
 	s = tmp2;
 
 	//
@@ -5810,7 +5808,7 @@ static int SCR_HudDrawTeamInfoPlayer(teamplayerinfo_t *ti_cl, int x, int y, int 
 			case 'n': // draw name
 
 				if(!width_only) {
-					char *nick = TP_ParseFunChars(ti_cl->nick[0] ? ti_cl->nick : cl.players[i].name, false);
+					char *nick = TP_ParseFunChars(ti_cl->nick[0] ? ti_cl->nick : cl.players[i].name);
 					str_align_right(tmp, sizeof(tmp), nick, maxname);
 					Draw_SString (x, y, tmp, scale);
 				}
@@ -5936,7 +5934,7 @@ static int SCR_HudDrawTeamInfoPlayer(teamplayerinfo_t *ti_cl, int x, int y, int 
 					if (!loc[0])
 						loc = "unknown";
 
-					str_align_right(tmp, sizeof(tmp), TP_ParseFunChars(loc, false), maxloc);
+					str_align_right(tmp, sizeof(tmp), TP_ParseFunChars(loc), maxloc);
 					Draw_SString (x, y, tmp, scale);
 				}
 				x += maxloc * FONTWIDTH * scale;
@@ -6357,7 +6355,7 @@ void SCR_HUD_DrawScoresBar(hud_t *hud)
 	{
 		// Big
 		case 1:
-			in = TP_ParseFunChars(format_big->string, false);
+			in = TP_ParseFunChars(format_big->string);
 			buf[0] = 0;
 			out = buf;
 
@@ -6443,7 +6441,7 @@ void SCR_HUD_DrawScoresBar(hud_t *hud)
 		// Small
 		case 0:	
 		default:
-			in = TP_ParseFunChars(format_small->string, false);
+			in = TP_ParseFunChars(format_small->string);
 			buf[0] = 0;
 			out = buf;
 
@@ -6648,8 +6646,8 @@ void SCR_HUD_DrawOwnFrags(hud_t *hud)
 		strcpy(ownfragtext, "Own Frags");
 		age = 0;
 	}
-	else if (clientfuncs->GetTrackerOwnFrags)
-		age = clientfuncs->GetTrackerOwnFrags(0, ownfragtext, sizeof(ownfragtext));
+	else if (ez_clientfuncs->GetTrackerOwnFrags)
+		age = ez_clientfuncs->GetTrackerOwnFrags(0, ownfragtext, sizeof(ownfragtext));
 	else
 		age = 999999;
 	width = strlen(ownfragtext)*8;
@@ -6671,9 +6669,9 @@ void SCR_HUD_DrawOwnFrags(hud_t *hud)
 	if (!HUD_PrepareDraw(hud, width, height, &x, &y))
 		return;
 
-	drawfuncs->Colour4f(1, 1, 1, alpha);
+	ez_drawfuncs->Colour4f(1, 1, 1, alpha);
 	Draw_SString(x, y, ownfragtext, hud_ownfrags_scale->value);
-	drawfuncs->Colour4f(1, 1, 1, 1);
+	ez_drawfuncs->Colour4f(1, 1, 1, 1);
 }
 
 #ifdef QUAKEHUD
@@ -6698,7 +6696,7 @@ static void SCR_HUD_DrawWeaponStats(hud_t *hud)
 
 	int ws;
 	struct wstats_s wstats[16];
-	ws = clientfuncs->GetWeaponStats?clientfuncs->GetWeaponStats(-1, wstats, countof(wstats)):0;
+	ws = ez_clientfuncs->GetWeaponStats ? ez_clientfuncs->GetWeaponStats(-1, wstats, countof(wstats)) : 0;
 
 	if (hud_editor)
 	{
@@ -6787,7 +6785,7 @@ void SCR_HUD_DrawKeys(hud_t *hud)
 	float scale;
 
 	memset(&b, 0, sizeof(b));
-	clientfuncs->GetLastInputFrame(0, &b);
+	ez_clientfuncs->GetLastInputFrame(0, &b);
 
 	if (!vscale) {
 		vscale = HUD_FindVar(hud, "scale");

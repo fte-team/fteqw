@@ -1060,6 +1060,15 @@ ifeq (1,$(strip $(INTERNAL_BULLET)))
     LDCC=$(CXX)
     MAKELIBS+=libs-$(ARCH)/libBulletDynamics.a
 endif
+ifeq (1,$(LINK_EZHUD))
+    VPATH := $(VPATH) : $(BASE_DIR)/../plugins/ezhud
+    ALL_CFLAGS+=-DSTATIC_EZHUD #let the plugins code know it needs to add the appropriate entry.
+    CLIENT_OBJS += \
+       ezquakeisms.o   \
+       hud.o           \
+       hud_common.o    \
+       hud_editor.o
+endif
 
 #the defaults for sdl come first
 #CC_MACHINE:=$(shell $(CC) -dumpmachine)

@@ -4309,15 +4309,15 @@ void CL_LinkPacketEntities (void)
 		else
 		{
 			timerlink = &(*timerlink)->next;
-			if (timer->entnum)
+/*			if (timer->entnum>0)
 			{
-				if (timer->entnum >= cl.maxlerpents)
-					continue;
-				le = &cl.lerpents[timer->entnum];
-				if (le->sequence != cl.lerpentssequence)
-					continue;
-//				VectorCopy(le->origin, timer->origin);
-			}
+				if (timer->entnum < cl.maxlerpents)
+				{
+					le = &cl.lerpents[timer->entnum];
+					if (le->sequence == cl.lerpentssequence)
+						VectorCopy(le->origin, timer->origin);
+				}
+			}*/
 			R_AddItemTimer(timer->origin, cl.time*90 + timer->origin[0] + timer->origin[1] + timer->origin[2], timer->radius, (cl.time - timer->start) / timer->duration, timer->rgb);
 		}
 	}

@@ -6906,8 +6906,6 @@ static void CL_ParseItemTimer(void)
 	}
 
 	VectorCopy(org, timer->origin);
-	timer->start = cl.time;
-	timer->duration = timeout;
 	timer->radius = radius;
 	timer->duration = timeout;
 	timer->entnum = entnum;

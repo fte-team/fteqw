@@ -1439,7 +1439,7 @@ void CL_CheckForResend (void)
 		connectinfo.clogged = false;
 
 	if (connectinfo.tries == 0 && connectinfo.nextadr < connectinfo.numadr)
-		if (!NET_EnsureRoute(cls.sockets, "conn", &connectinfo.peercred, to, true))
+		if (!NET_EnsureRoute(cls.sockets, "conn", &connectinfo.peercred, cls.servername, to, true))
 		{
 			CL_ConnectAbort ("Unable to establish connection to %s\n", cls.servername);
 			return;
@@ -3580,7 +3580,7 @@ void CL_Packet_f (void)
 
 	if (!cls.sockets)
 		NET_InitClient(false);
-	if (!NET_EnsureRoute(cls.sockets, "packet", &cred, &adr, true))
+	if (!NET_EnsureRoute(cls.sockets, "packet", &cred, Cmd_Argv(1), &adr, true))
 		return;
 	NET_SendPacket (cls.sockets, out-send, send, &adr);
 
@@ -4037,7 +4037,7 @@ void CL_ConnectionlessPacket (void)
 				if (CL_IsPendingServerAddress(&net_from))
 				{
 					struct dtlspeercred_s cred = {cls.servername}; //FIXME
-					if (!NET_EnsureRoute(cls.sockets, "redir", &cred, &adr, true))
+					if (!NET_EnsureRoute(cls.sockets, "redir", &cred, data, &adr, true))
 						Con_Printf (CON_ERROR"Unable to redirect to %s\n", data);
 					else
 					{

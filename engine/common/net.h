@@ -153,7 +153,7 @@ int			NET_LocalAddressForRemote(struct ftenet_connections_s *collection, netadr_
 void		NET_PrintAddresses(struct ftenet_connections_s *collection);
 qboolean	NET_AddressSmellsFunny(netadr_t *a);
 struct dtlspeercred_s;
-qboolean	NET_EnsureRoute(struct ftenet_connections_s *collection, char *routename, const struct dtlspeercred_s *peerinfo, netadr_t *adr, qboolean outgoing);
+qboolean	NET_EnsureRoute(struct ftenet_connections_s *collection, char *routename, const struct dtlspeercred_s *peerinfo, const char *adrstring, netadr_t *adr, qboolean outgoing);
 void		NET_TerminateRoute(struct ftenet_connections_s *collection, netadr_t *adr);
 void		NET_PrintConnectionsStatus(struct ftenet_connections_s *collection);
 

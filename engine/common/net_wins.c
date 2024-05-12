@@ -80,7 +80,7 @@ FTE_ALIGN(4) qbyte		net_message_buffer[MAX_OVERALLMSGLEN];
 #if (defined(Q2CLIENT) || defined(Q2SERVER)) && (defined(HAVE_CLIENT) || defined(HAVE_SERVER)) && defined(HAVE_DTLS) && defined(HAVE_PACKET)	//q2e's lobby/tunnel crap
 	#define KEXLOBBY "q2e"	//enables the feature, and defines the name of the sceme we use for it.
 #ifdef HAVE_SERVER
-cvar_t	net_enable_kexlobby			= CVARD("net_enable_"KEXLOBBY,			"0", "If enabled, accept connection requests from the quake2-remaster engine on our listening udp ports.\nNote that this defaults to disabled due to it being highly vulnerable to applification attacks.");
+static cvar_t	net_enable_kexlobby			= CVARD("net_enable_"KEXLOBBY,			"0", "If enabled, accept connection requests from the quake2-remaster engine on our listening udp ports.\nNote that this defaults to disabled due to it being highly vulnerable to applification attacks.");
 #endif
 #endif
 
@@ -2871,7 +2871,7 @@ static void FTENET_Loop_Close(ftenet_generic_connection_t *con)
 	Z_Free(con);
 }
 
-static ftenet_generic_connection_t *FTENET_Loop_EstablishConnection(ftenet_connections_t *col, const char *address, netadr_t adr)
+static ftenet_generic_connection_t *FTENET_Loop_EstablishConnection(ftenet_connections_t *col, const char *address, netadr_t adr, const struct dtlspeercred_s *peerinfo)
 {
 	ftenet_generic_connection_t *newcon;
 	int sock;
@@ -2914,23 +2914,23 @@ ftenet_connections_t *FTENET_CreateCollection(qboolean listen, void(*ReadPacket)
 	return col;
 }
 #if defined(HAVE_CLIENT) && defined(HAVE_SERVER)
-static ftenet_generic_connection_t *FTENET_Loop_EstablishConnection(ftenet_connections_t *col, const char *address, netadr_t adr);
+static ftenet_generic_connection_t *FTENET_Loop_EstablishConnection(ftenet_connections_t *col, const char *address, netadr_t adr, const struct dtlspeercred_s *peerinfo);
 #endif
 #ifdef HAVE_PACKET
-ftenet_generic_connection_t *FTENET_Datagram_EstablishConnection(ftenet_connections_t *col, const char *address, netadr_t adr);
+ftenet_generic_connection_t *FTENET_Datagram_EstablishConnection(ftenet_connections_t *col, const char *address, netadr_t adr, const struct dtlspeercred_s *peerinfo);
 #endif
 #ifdef TCPCONNECT
-static ftenet_generic_connection_t *FTENET_TCP_EstablishConnection(ftenet_connections_t *col, const char *address, netadr_t adr);
+static ftenet_generic_connection_t *FTENET_TCP_EstablishConnection(ftenet_connections_t *col, const char *address, netadr_t adr, const struct dtlspeercred_s *peerinfo);
 #endif
 #ifdef HAVE_WEBSOCKCL
-static ftenet_generic_connection_t *FTENET_WebSocket_EstablishConnection(ftenet_connections_t *col, const char *address, netadr_t adr);
-static ftenet_generic_connection_t *FTENET_WebRTC_EstablishConnection(ftenet_connections_t *col, const char *address, netadr_t adr);
+static ftenet_generic_connection_t *FTENET_WebSocket_EstablishConnection(ftenet_connections_t *col, const char *address, netadr_t adr, const struct dtlspeercred_s *peerinfo);
+static ftenet_generic_connection_t *FTENET_WebRTC_EstablishConnection(ftenet_connections_t *col, const char *address, netadr_t adr, const struct dtlspeercred_s *peerinfo);
 #endif
 #ifdef IRCCONNECT
-static ftenet_generic_connection_t *FTENET_IRCConnect_EstablishConnection(ftenet_connections_t *col, const char *address, netadr_t adr);
+static ftenet_generic_connection_t *FTENET_IRCConnect_EstablishConnection(ftenet_connections_t *col, const char *address, netadr_t adr, const struct dtlspeercred_s *peerinfo);
 #endif
 #ifdef HAVE_NATPMP
-static ftenet_generic_connection_t *FTENET_NATPMP_EstablishConnection(ftenet_connections_t *col, const char *address, netadr_t adr);
+static ftenet_generic_connection_t *FTENET_NATPMP_EstablishConnection(ftenet_connections_t *col, const char *address, netadr_t adr, const struct dtlspeercred_s *peerinfo);
 #endif
 
 #ifdef HAVE_NATPMP
@@ -3168,7 +3168,7 @@ void FTENET_NATPMP_Close(struct ftenet_generic_connection_s *con)
 	Z_Free(con);
 }
 //qboolean Net_OpenUDPPort(char *privateip, int privateport, char *publicip, size_t publiciplen, int *publicport);
-ftenet_generic_connection_t *FTENET_NATPMP_EstablishConnection(ftenet_connections_t *col, const char *address, netadr_t pmpadr)
+ftenet_generic_connection_t *FTENET_NATPMP_EstablishConnection(ftenet_connections_t *col, const char *address, netadr_t pmpadr, const struct dtlspeercred_s *peerinfo)
 {
 	pmpcon_t *pmp;
 
@@ -3484,7 +3484,7 @@ int NET_GetConnectionCertificate(struct ftenet_connections_s *col, netadr_t *a, 
 
 
 
-static qboolean FTENET_AddToCollection_Ptr(ftenet_connections_t *col, const char *name, ftenet_generic_connection_t *(*establish)(ftenet_connections_t *col, const char *address, netadr_t adr), const char *address, netadr_t *adr)
+static qboolean FTENET_AddToCollection_Ptr(ftenet_connections_t *col, const char *name, const char *address, netadr_t *adr, const struct dtlspeercred_s *peerinfo)
 {
 	int count = 0;
 	int i;
@@ -3511,20 +3511,75 @@ static qboolean FTENET_AddToCollection_Ptr(ftenet_connections_t *col, const char
 		}
 	}
 
-	if (adr && establish)
+	if (adr)
 	{
-		for (i = 0; i < MAX_CONNECTIONS; i++)
+		//FIXME: combine with urischemes somehow
+		ftenet_generic_connection_t *(*establish)(ftenet_connections_t *col, const char *address, netadr_t adr, const struct dtlspeercred_s *peerinfo);
+#ifdef HAVE_WEBSOCKCL
+		if (adr->prot == NP_WS && adr->type == NA_WEBSOCKET)	establish = FTENET_WebSocket_EstablishConnection; else
+		if (adr->prot == NP_WSS && adr->type == NA_WEBSOCKET)	establish = FTENET_WebSocket_EstablishConnection; else
+		if (adr->prot == NP_RTC_TCP)							establish = FTENET_WebRTC_EstablishConnection; else
+		if (adr->prot == NP_RTC_TLS)							establish = FTENET_WebRTC_EstablishConnection; else
+#endif
+#ifdef HAVE_NATPMP
+		if (adr->prot == NP_NATPMP && adr->type == NA_IP)		establish = FTENET_NATPMP_EstablishConnection; else
+#endif
+#if defined(HAVE_CLIENT) && defined(HAVE_SERVER)
+		if (adr->prot == NP_DGRAM && adr->type == NA_LOOPBACK)	establish = FTENET_Loop_EstablishConnection; else
+#endif
+#ifdef HAVE_IPV4
+		if ((adr->prot == NP_DGRAM) && adr->type == NA_IP)		establish = FTENET_Datagram_EstablishConnection;	else
+#endif
+#ifdef HAVE_IPV6
+		if ((adr->prot == NP_DGRAM) && adr->type == NA_IPV6)	establish = FTENET_Datagram_EstablishConnection;	else
+#endif
+#ifdef HAVE_IPX
+		if (adr->prot == NP_DGRAM && adr->type == NA_IPX)		establish = FTENET_Datagram_EstablishConnection;	else
+#endif
+#ifdef UNIXSOCKETS
+		if (adr->prot == NP_DGRAM && adr->type == NA_UNIX)		establish = FTENET_Datagram_EstablishConnection;	else
+	#if defined(TCPCONNECT)
+		if (adr->prot == NP_STREAM&& adr->type == NA_UNIX)		establish = FTENET_TCP_EstablishConnection;	else
+		if (adr->prot == NP_WS    && adr->type == NA_UNIX)		establish = FTENET_TCP_EstablishConnection;	else
+		if (adr->prot == NP_TLS    && adr->type == NA_UNIX)		establish = FTENET_TCP_EstablishConnection;	else
+	#endif
+#endif
+#if defined(TCPCONNECT) && defined(HAVE_IPV4)
+		if (adr->prot == NP_WS	&& adr->type == NA_IP)			establish = FTENET_TCP_EstablishConnection;	else
+		if (adr->prot == NP_WSS	&& adr->type == NA_IP)			establish = FTENET_TCP_EstablishConnection;	else
+		if (adr->prot == NP_STREAM&& adr->type == NA_IP)		establish = FTENET_TCP_EstablishConnection;	else
+		if (adr->prot == NP_TLS	&& adr->type == NA_IP)			establish = FTENET_TCP_EstablishConnection;	else
+#endif
+#if defined(TCPCONNECT) && defined(HAVE_IPV6)
+		if (adr->prot == NP_WS	&& adr->type == NA_IPV6)		establish = FTENET_TCP_EstablishConnection;	else
+		if (adr->prot == NP_WSS	&& adr->type == NA_IPV6)		establish = FTENET_TCP_EstablishConnection;	else
+		if (adr->prot == NP_STREAM&& adr->type == NA_IPV6)		establish = FTENET_TCP_EstablishConnection;	else
+		if (adr->prot == NP_TLS	&& adr->type == NA_IPV6)		establish = FTENET_TCP_EstablishConnection;	else
+#endif
+#ifdef SUPPORT_ICE
+		if (adr->prot == NP_RTC_TCP)							establish = FTENET_ICE_EstablishConnection;	else
+		if (adr->prot == NP_RTC_TLS)							establish = FTENET_ICE_EstablishConnection;	else
+#endif
+#ifdef IRCCONNECT
+		if (adr->prot == NP_TLS && adr->type == NA_IRC)			establish = FTENET_IRCConnect_EstablishConnection;	else
+#endif
+			establish = NULL;
+
+		if (establish)
 		{
-			if (!col->conn[i])
+			for (i = 0; i < MAX_CONNECTIONS; i++)
 			{
-				col->conn[i] = establish(col, address, *adr);
 				if (!col->conn[i])
+				{
+					col->conn[i] = establish(col, address, *adr, peerinfo);
+					if (!col->conn[i])
+						break;
+					col->conn[i]->connum = i+1;
+					if (name)
+						Q_strncpyz(col->conn[i]->name, name, sizeof(col->conn[i]->name));
+					count++;
 					break;
-				col->conn[i]->connum = i+1;
-				if (name)
-					Q_strncpyz(col->conn[i]->name, name, sizeof(col->conn[i]->name));
-				count++;
-				break;
+				}
 			}
 		}
 	}
@@ -3533,7 +3588,6 @@ static qboolean FTENET_AddToCollection_Ptr(ftenet_connections_t *col, const char
 qboolean FTENET_AddToCollection(ftenet_connections_t *col, const char *name, const char *addresslist, netadrtype_t addrtype, netproto_t addrprot)
 {
 	netadr_t adr[8];
-	ftenet_generic_connection_t *(*establish[countof(adr)])(ftenet_connections_t *col, const char *address, netadr_t adr);
 	char address[countof(adr)][256];
 	unsigned int i, j;
 	qboolean success = false;
@@ -3552,66 +3606,17 @@ qboolean FTENET_AddToCollection(ftenet_connections_t *col, const char *name, con
 			if (!NET_PortToAdr(addrtype, addrprot, address[i], &adr[i]))
 				return false;
 		}
-#ifdef HAVE_WEBSOCKCL
-		if (adr[i].prot == NP_WS && adr[i].type == NA_WEBSOCKET)	establish[i] = FTENET_WebSocket_EstablishConnection; else
-		if (adr[i].prot == NP_WSS && adr[i].type == NA_WEBSOCKET)	establish[i] = FTENET_WebSocket_EstablishConnection; else
-		if (adr[i].prot == NP_RTC_TCP)								establish[i] = FTENET_WebRTC_EstablishConnection; else
-		if (adr[i].prot == NP_RTC_TLS)								establish[i] = FTENET_WebRTC_EstablishConnection; else
-#endif
-#ifdef HAVE_NATPMP
-		if (adr[i].prot == NP_NATPMP && adr[i].type == NA_IP)	establish[i] = FTENET_NATPMP_EstablishConnection; else
-#endif
-#if defined(HAVE_CLIENT) && defined(HAVE_SERVER)
-		if (adr[i].prot == NP_DGRAM && adr[i].type == NA_LOOPBACK)	establish[i] = FTENET_Loop_EstablishConnection; else
-#endif
-#ifdef HAVE_IPV4
-		if ((adr[i].prot == NP_DGRAM) && adr[i].type == NA_IP)	establish[i] = FTENET_Datagram_EstablishConnection;	else
-#endif
-#ifdef HAVE_IPV6
-		if ((adr[i].prot == NP_DGRAM) && adr[i].type == NA_IPV6)	establish[i] = FTENET_Datagram_EstablishConnection;	else
-#endif
-#ifdef HAVE_IPX
-		if (adr[i].prot == NP_DGRAM && adr[i].type == NA_IPX)	establish[i] = FTENET_Datagram_EstablishConnection;	else
-#endif
-#ifdef UNIXSOCKETS
-		if (adr[i].prot == NP_DGRAM && adr[i].type == NA_UNIX)	establish[i] = FTENET_Datagram_EstablishConnection;	else
-	#if defined(TCPCONNECT)
-		if (adr[i].prot == NP_STREAM&& adr[i].type == NA_UNIX)	establish[i] = FTENET_TCP_EstablishConnection;	else
-		if (adr[i].prot == NP_WS    && adr[i].type == NA_UNIX)	establish[i] = FTENET_TCP_EstablishConnection;	else
-		if (adr[i].prot == NP_TLS    && adr[i].type == NA_UNIX)	establish[i] = FTENET_TCP_EstablishConnection;	else
-	#endif
-#endif
-#if defined(TCPCONNECT) && defined(HAVE_IPV4)
-		if (adr[i].prot == NP_WS	&& adr[i].type == NA_IP)	establish[i] = FTENET_TCP_EstablishConnection;	else
-		if (adr[i].prot == NP_WSS	&& adr[i].type == NA_IP)	establish[i] = FTENET_TCP_EstablishConnection;	else
-		if (adr[i].prot == NP_STREAM&& adr[i].type == NA_IP)	establish[i] = FTENET_TCP_EstablishConnection;	else
-		if (adr[i].prot == NP_TLS	&& adr[i].type == NA_IP)	establish[i] = FTENET_TCP_EstablishConnection;	else
-#endif
-#if defined(TCPCONNECT) && defined(HAVE_IPV6)
-		if (adr[i].prot == NP_WS	&& adr[i].type == NA_IPV6)	establish[i] = FTENET_TCP_EstablishConnection;	else
-		if (adr[i].prot == NP_WSS	&& adr[i].type == NA_IPV6)	establish[i] = FTENET_TCP_EstablishConnection;	else
-		if (adr[i].prot == NP_STREAM&& adr[i].type == NA_IPV6)	establish[i] = FTENET_TCP_EstablishConnection;	else
-		if (adr[i].prot == NP_TLS	&& adr[i].type == NA_IPV6)	establish[i] = FTENET_TCP_EstablishConnection;	else
-#endif
-#ifdef SUPPORT_ICE
-		if (adr[i].prot == NP_RTC_TCP)		establish[i] = FTENET_ICE_EstablishConnection;	else
-		if (adr[i].prot == NP_RTC_TLS)		establish[i] = FTENET_ICE_EstablishConnection;	else
-#endif
-#ifdef IRCCONNECT
-		if (adr[i].prot == NP_TLS)								establish[i] = FTENET_IRCConnect_EstablishConnection;	else
-#endif
-			establish[i] = NULL;
 	}
 	if (i == 1)
 	{
-		success |= FTENET_AddToCollection_Ptr(col, name, establish[0], address[0], &adr[0]);
+		success |= FTENET_AddToCollection_Ptr(col, name, address[0], &adr[0], NULL);
 		i = 0;
 	}
 	else
 		success |= FTENET_AddToCollection_Ptr(col, name, NULL, NULL, NULL);
 
 	for (j = 0; j < i; j++)
-		success |= FTENET_AddToCollection_Ptr(col, va("%s:%i", name, j), establish[j], address[j], &adr[j]);
+		success |= FTENET_AddToCollection_Ptr(col, va("%s:%i", name, j), address[j], &adr[j], NULL);
 	for (; j < countof(adr); j++)
 		success |= FTENET_AddToCollection_Ptr(col, va("%s:%i", name, j), NULL, NULL, NULL);
 	return success;
@@ -4163,7 +4168,7 @@ static void FTENET_Datagram_Polled(epollctx_t *ctx, unsigned int events)
 }
 #endif
 
-ftenet_generic_connection_t *FTENET_Datagram_EstablishConnection(ftenet_connections_t *col, const char *address, netadr_t adr)
+ftenet_generic_connection_t *FTENET_Datagram_EstablishConnection(ftenet_connections_t *col, const char *address, netadr_t adr, const struct dtlspeercred_s *peerinfo)
 {
 #ifndef HAVE_PACKET
 	return NULL;
@@ -6537,7 +6542,7 @@ static const char *FTENET_TCP_ParseHTTPRequest(ftenet_tcp_connection_t *con, fte
 							if (st->webrtc.target.prot == NP_DGRAM)
 								st->webrtc.target.prot = NP_DTLS;
 							if (st->webrtc.target.prot == NP_DTLS)	//don't make expensive tcp connections!
-								NET_EnsureRoute(con->generic.owner, NULL, &cred, &st->webrtc.target, true);
+								NET_EnsureRoute(con->generic.owner, NULL, &cred, idstart+4, &st->webrtc.target, true);
 
 							//we'll sythesise some rdp when we get an offer.
 							net_message_buffer[0] = ICEMSG_NEWPEER;
@@ -7966,7 +7971,7 @@ static int FTENET_TCP_SetFDSets(ftenet_generic_connection_t *gcon, fd_set *readf
 }
 #endif
 
-ftenet_generic_connection_t *FTENET_TCP_EstablishConnection(ftenet_connections_t *col, const char *address, netadr_t adr)
+ftenet_generic_connection_t *FTENET_TCP_EstablishConnection(ftenet_connections_t *col, const char *address, netadr_t adr, const struct dtlspeercred_s *peerinfo)
 {
 	//this is written to support either ipv4 or ipv6, depending on the remote addr.
 	ftenet_tcp_connection_t *newcon;
@@ -8078,7 +8083,7 @@ ftenet_generic_connection_t *FTENET_TCP_EstablishConnection(ftenet_connections_t
 #ifdef HAVE_SSL
 			if (newcon->tls)	//if we're meant to be using tls, wrap the stream in a tls connection
 			{	//remove any markup junk, get just the hostname out of it.
-				newcon->tcpstreams->clientstream = FS_OpenSSL(hostonly, newcon->tcpstreams->clientstream, false);
+				newcon->tcpstreams->clientstream = FS_OpenSSL((peerinfo && peerinfo->name)?peerinfo->name:hostonly, newcon->tcpstreams->clientstream, false);
 				if (!newcon->tcpstreams->clientstream)
 					return NULL;
 			}
@@ -9223,7 +9228,7 @@ static qboolean FTENET_WebRTC_ChangeLocalAddress(struct ftenet_generic_connectio
 //	return false;
 }
 
-static ftenet_generic_connection_t *FTENET_WebSocket_EstablishConnection(ftenet_connections_t *col, const char *address, netadr_t adr)
+static ftenet_generic_connection_t *FTENET_WebSocket_EstablishConnection(ftenet_connections_t *col, const char *address, netadr_t adr, const struct dtlspeercred_s *peerinfo)
 {
 	qboolean isserver = col->islisten;
 	ftenet_websocket_connection_t *newcon;
@@ -9270,7 +9275,7 @@ static ftenet_generic_connection_t *FTENET_WebSocket_EstablishConnection(ftenet_
 	return NULL;
 }
 
-static ftenet_generic_connection_t *FTENET_WebRTC_EstablishConnection(ftenet_connections_t *col, const char *address, netadr_t adr)
+static ftenet_generic_connection_t *FTENET_WebRTC_EstablishConnection(ftenet_connections_t *col, const char *address, netadr_t adr, const struct dtlspeercred_s *peerinfo)
 {
 	qboolean isserver = col->islisten;
 	ftenet_websocket_connection_t *newcon;
@@ -9574,8 +9579,9 @@ neterr_t NET_SendPacket (ftenet_connections_t *collection, int length, const voi
 	return NET_SendPacketCol (collection, length, data, to);
 }
 
-qboolean NET_EnsureRoute(ftenet_connections_t *collection, char *routename, const struct dtlspeercred_s *peerinfo, netadr_t *adr, qboolean outgoing)
+qboolean NET_EnsureRoute(ftenet_connections_t *collection, char *routename, const struct dtlspeercred_s *peerinfo, const char *adrstring, netadr_t *adr, qboolean outgoing)
 {
+	char temp[MAX_QPATH];
 	switch(adr->prot)
 	{
 	case NP_DGRAM:
@@ -9590,7 +9596,7 @@ qboolean NET_EnsureRoute(ftenet_connections_t *collection, char *routename, cons
 	case NP_DTLS:
 #ifdef HAVE_DTLS
 		adr->prot = NP_DGRAM;
-		if (NET_EnsureRoute(collection, routename, peerinfo, adr, outgoing))
+		if (NET_EnsureRoute(collection, routename, peerinfo, adrstring, adr, outgoing))
 		{
 			dtlscred_t cred;
 			memset(&cred, 0, sizeof(cred));
@@ -9607,7 +9613,7 @@ qboolean NET_EnsureRoute(ftenet_connections_t *collection, char *routename, cons
 #ifdef KEXLOBBY
 	case NP_KEXLAN:
 		adr->prot = NP_DGRAM;
-		if (NET_EnsureRoute(collection, routename, peerinfo, adr, outgoing))
+		if (NET_EnsureRoute(collection, routename, peerinfo, adrstring, adr, outgoing))
 		{
 			if (NET_KexLobby_Create(collection, adr, outgoing))
 			{
@@ -9623,14 +9629,18 @@ qboolean NET_EnsureRoute(ftenet_connections_t *collection, char *routename, cons
 	case NP_WSS:
 	case NP_TLS:
 	case NP_STREAM:
-		if (!FTENET_AddToCollection(collection, routename, peerinfo->name, adr->type, adr->prot))
+		if (!adrstring)
+			adrstring = NET_AdrToString(temp, sizeof(temp), adr);	//urgh
+		if (!FTENET_AddToCollection_Ptr(collection, routename, adrstring, adr, peerinfo))
 			return false;
-		Con_Printf("Establishing connection to %s\n", peerinfo->name);
+		Con_Printf("Establishing connection to %s\n", temp);
 		break;
 #if defined(SUPPORT_ICE) || defined(FTE_TARGET_WEB)
 	case NP_RTC_TCP:
 	case NP_RTC_TLS:
-		if (!FTENET_AddToCollection(collection, routename, peerinfo->name, adr->type, adr->prot))
+		if (!adrstring)
+			adrstring = NET_AdrToString(temp, sizeof(temp), adr);	//urgh
+		if (!FTENET_AddToCollection_Ptr(collection, routename, adrstring, adr, peerinfo))
 			return false;
 		break;
 #endif

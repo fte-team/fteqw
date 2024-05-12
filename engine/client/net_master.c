@@ -499,7 +499,7 @@ static void SV_Master_Worker_Resolved(void *ctx, void *data, size_t a, size_t b)
 					if (NET_AddrIsReliable(na))
 					{
 						struct dtlspeercred_s cred = {master->cv.string};
-						NET_EnsureRoute(svs.sockets, master->cv.name, &cred, na, true);
+						NET_EnsureRoute(svs.sockets, master->cv.name, &cred, NULL, na, true);
 					}
 
 					//q2+qw masters are given a ping to verify that they're still up

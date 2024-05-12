@@ -5712,7 +5712,7 @@ static qboolean FTENET_ICE_ChangeLocalAddress(struct ftenet_generic_connection_s
 	return true;
 }
 
-ftenet_generic_connection_t *FTENET_ICE_EstablishConnection(ftenet_connections_t *col, const char *address, netadr_t adr)
+ftenet_generic_connection_t *FTENET_ICE_EstablishConnection(ftenet_connections_t *col, const char *address, netadr_t adr, const struct dtlspeercred_s *peerinfo)
 {
 	ftenet_ice_connection_t *newcon;
 	const char *path;

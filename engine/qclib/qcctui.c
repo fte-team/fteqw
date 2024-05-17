@@ -296,6 +296,7 @@ int main (int argc, const char **argv)
 #else
 	pbool writelog = false;	//other systems are sane.
 #endif
+	pbool halp = false;
 	int colours = 2;	//auto
 	int ziparg = -1;
 	progexterns_t ext;
@@ -318,6 +319,8 @@ int main (int argc, const char **argv)
 			writelog = true;
 		else if (!strcmp(argv[i], "-nolog"))
 			writelog = false;
+		else if (!strcmp(argv[i], "-help") || !strcmp(argv[i], "--help"))
+			halp = true;
 
 		//arg consistency with ls
 		else if (!strcmp(argv[i], "--color=always") || !strcmp(argv[i], "--color"))
@@ -359,7 +362,22 @@ int main (int argc, const char **argv)
 	(void)colours;
 #endif
 
-	if (ziparg >= 0)
+	if (halp)
+	{
+		logprintf("Archiving args:\n");
+		logprintf(" -l PACKAGE : List files within a pak or pk3\n");
+		logprintf(" -x PACKAGE [FILENAMES]: Extract files from pak or pk3\n");
+		logprintf(" -p PACKAGE FILENAME: Pipe files from a pak or pk3 to the stdout\n");
+		logprintf(" -z DIRECTORY : Create a spanned pk3 from a 'foo.pk3dir' subdir.\n");
+		logprintf("     the pk3 itself contains just the file table, actual data will reside in external .p## files which will NOT be overwritten and can be referenced by future revisions to reduce redundancy on future updates\n");
+		logprintf(" -0 DIRECTORY : Create a hybrid pak (uncompressed)\n");
+		logprintf("     such pak files can also be read with any zip tool without needing special tools to extract (but should not be edited)\n");
+		logprintf(" -9 DIRECTORY : Create a standard pk3\n");
+		logprintf("     regular compressed zip with limited feature set for greater engine compat\n");
+		logprintf("Decompiling args:\n");
+		logprintf(" -d FILENAME : decompile a progs (into working directory)\n");
+	}
+	else if (ziparg >= 0)
 	{
 		if (ziparg+1 >= argc)
 		{
@@ -447,9 +465,9 @@ int main (int argc, const char **argv)
 
 			{	//exe -0 foo.pk3dir
 				enum pkgtype_e t;
-				if (argv[1][1] == '9')
+				if (argv[ziparg][1] == '9')
 					t = PACKAGER_PK3;
-				else if (argv[1][1] == '0')
+				else if (argv[ziparg][1] == '0')
 					t = PACKAGER_PAK;	//not really any difference but oh well
 				else
 					t = PACKAGER_PK3_SPANNED;

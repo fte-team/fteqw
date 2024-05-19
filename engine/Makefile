@@ -1143,9 +1143,8 @@ ifeq (win_SDL,$(findstring win,$(FTE_TARGET))$(findstring _SDL,$(FTE_TARGET)))
 
 	EXEPOSTFIX=.exe
 
-	CC_MACHINE:=$(shell $(CC) -dumpmachine)
-	ARCH_PREDEP=$(BASE_DIR)/libs/SDL2-$(SDL2VER)/$(CC_MACHINE)/bin/sdl2-config
-	SDLCONFIG=$(ARCH_PREDEP) --prefix=$(BASE_DIR)/libs/SDL2-$(SDL2VER)/$(CC_MACHINE)
+	ARCH_PREDEP=$(BASE_DIR)/libs-$(ARCH)/SDL2-$(SDL2VER)/$(ARCH)/bin/sdl2-config
+	SDLCONFIG=$(ARCH_PREDEP) --prefix=$(BASE_DIR)/libs-$(ARCH)/SDL2-$(SDL2VER)/$(ARCH)
 	ARCH_CFLAGS=`$(SDLCONFIG) --cflags`
 	
 	#the defaults for sdl come first
@@ -2271,11 +2270,11 @@ droid-help:
 	@-echo
 	@-echo "Note that 'make droid-rel' will automatically generate a keystore. If you forget the password, just do a 'make dist-clean'."
 
-$(BASE_DIR)/libs/SDL2-$(SDL2VER)/i686-w64-mingw32/bin/sdl2-config:
+$(BASE_DIR)/libs-$(ARCH)/SDL2-$(SDL2VER)/i686-w64-mingw32/bin/sdl2-config:
 	wget http://www.libsdl.org/release/SDL2-devel-$(SDL2VER)-mingw.tar.gz -O $(BASE_DIR)/sdl2.tar.gz
-	cd $(BASE_DIR)/libs && tar -xvzf $(BASE_DIR)/sdl2.tar.gz
+	cd $(BASE_DIR)/libs-$(ARCH) && tar -xvzf $(BASE_DIR)/sdl2.tar.gz
 	rm $(BASE_DIR)/sdl2.tar.gz
-$(BASE_DIR)/libs/SDL2-$(SDL2VER)/x86_64-w64-mingw32/bin/sdl2-config: $(BASE_DIR)/libs/SDL2-$(SDL2VER)/i686-w64-mingw32/bin/sdl2-config
+$(BASE_DIR)/libs-$(ARCH)/SDL2-$(SDL2VER)/x86_64-w64-mingw32/bin/sdl2-config: $(BASE_DIR)/libs-$(ARCH)/SDL2-$(SDL2VER)/i686-w64-mingw32/bin/sdl2-config
 
 
 

@@ -3193,14 +3193,8 @@ static void GetEvent(void)
 				char *protname = x11.pXGetAtomName(vid_dpy, event.xclient.data.l[0]);
 				if (!strcmp(protname, "WM_DELETE_WINDOW"))
 				{
-					Key_Dest_Remove(kdm_console);
-					if (Cmd_Exists("menu_quit") || Cmd_AliasExist("menu_quit", RESTRICT_LOCAL))
-						Cmd_ExecuteString("menu_quit prompt", RESTRICT_LOCAL);
-					else if (Cmd_Exists("m_quit") || Cmd_AliasExist("m_quit", RESTRICT_LOCAL))
-						Cmd_ExecuteString("m_quit", RESTRICT_LOCAL);
-					else
-						Cmd_ExecuteString("quit", RESTRICT_LOCAL);
-					x11.pXSetInputFocus(vid_dpy, vid_window, RevertToParent, CurrentTime);
+					x11.pXSetInputFocus(vid_dpy, vid_window, RevertToParent, CurrentTime); //make it easier to pick an option. FIXME: bring to top is a separate thing.
+					M_Window_ClosePrompt();
 				}
 				else if (!strcmp(protname, "_NET_WM_PING"))
 				{

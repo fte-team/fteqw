@@ -598,13 +598,8 @@ void xdg_toplevel_handle_configure(void *data, struct xdg_toplevel *xdg_toplevel
 }
 void xdg_toplevel_handle_close(void *data, struct xdg_toplevel *xdg_toplevel)
 {
-	Key_Dest_Remove(kdm_console);
-	if (Cmd_Exists("menu_quit") || Cmd_AliasExist("menu_quit", RESTRICT_LOCAL))
-		Cmd_ExecuteString("menu_quit prompt", RESTRICT_LOCAL);
-	else if (Cmd_Exists("m_quit") || Cmd_AliasExist("m_quit", RESTRICT_LOCAL))
-		Cmd_ExecuteString("m_quit", RESTRICT_LOCAL);
-	else
-		Cmd_ExecuteString("quit", RESTRICT_LOCAL);
+	//fixme: steal focus, bring to top, or just hope the compositor is doing that for us when the user right-clicked the task bar of our minimised app or whatever.
+	M_Window_ClosePrompt();
 }
 static struct xdg_toplevel_listener {
     void (*configure)(void *data, struct xdg_toplevel *xdg_toplevel, int32_t width, int32_t height, struct wl_array *states);

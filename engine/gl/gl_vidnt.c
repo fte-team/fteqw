@@ -2854,7 +2854,7 @@ void MainThreadWndProc(void *ctx, void *data, size_t msg, size_t ex)
 		Z_Free(data);
 		break;
 	case WM_CLOSE:
-		Cbuf_AddText("\nquit\n", RESTRICT_LOCAL);
+		M_Window_ClosePrompt();
 		break;
 	case WM_SIZE:
 	case WM_MOVE:
@@ -3110,6 +3110,14 @@ static LONG WINAPI GLMainWndProc (
 		case WM_CLOSE:
 			if (!vid_initializing)
 			{
+#if 1
+	#ifdef WTHREAD
+				COM_AddWork(WG_MAIN, MainThreadWndProc, NULL, NULL, uMsg, 0);
+	#else
+				M_Window_ClosePrompt();
+	#endif
+				SetFocus(hWnd);
+#else
 				if (wantquit)
 				{
 					//urr, this would be the second time that they've told us to quit.
@@ -3133,6 +3141,7 @@ static LONG WINAPI GLMainWndProc (
 #endif
 					wantquit = true;
 				}
+#endif
 			}
 			break;
 

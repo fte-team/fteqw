@@ -150,6 +150,7 @@ void M_Menu_Mods_f (void);	//used at startup if the current gamedirs look dodgy.
 void M_Menu_Installer (void);	//given an embedded manifest, this displays an install menu for said game.
 mpic_t	*M_CachePic (char *path);
 void M_Menu_Quit_f (void);
+void M_Window_ClosePrompt (void);	//called when the window was requested to be closed. displays whatever quit menu is appropriate.
 void menufixme(void); //REMOVE REMOVE REMOVE
 typedef struct emenu_s emenu_t;
 

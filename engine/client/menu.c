@@ -1577,6 +1577,18 @@ void M_Init (void)
 }
 #endif
 
+void M_Window_ClosePrompt(void)
+{	//someone clicked our window's 'close' button or system menu or alt+f4 or etc. we blocked it for now, but don't just ignore it...
+	COM_AssertMainThread("M_Window_ClosePrompt");
+	Key_Dest_Remove(kdm_console);
+	if (Cmd_Exists("menu_quit") || Cmd_AliasExist("menu_quit", RESTRICT_LOCAL))
+		Cmd_ExecuteString("menu_quit prompt", RESTRICT_LOCAL);	//our builtin menus use this form
+	else if (Cmd_Exists("m_quit") || Cmd_AliasExist("m_quit", RESTRICT_LOCAL))
+		Cmd_ExecuteString("m_quit", RESTRICT_LOCAL);	//some menuqc mods use a different name for the command to avoid conflicts.
+	else
+		Cmd_ExecuteString("quit", RESTRICT_LOCAL);	//fall back to the engine's version
+}
+
 
 // Generic function to choose which game menu to draw
 int M_GameType (void)

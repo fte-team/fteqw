@@ -510,6 +510,23 @@ static int Joy_AllocateDevID(void)
 	}
 }
 
+enum controllertype_e INS_GetControllerType(int id)
+{
+	int j;
+	for (j = 0; j < joy_count; j++)
+	{
+		if (wjoy[j].devid == id)
+		{
+			if (wjoy[j].devstate == DS_NOTPRESENT)
+				return CONTROLLER_NONE;
+			if (wjoy[j].isxinput)
+				return CONTROLLER_XBOX;	//we don't really know, but we're using it through an xbox-specific api, so...
+			return CONTROLLER_UNKNOWN;	//the legacy joy API.
+		}
+	}
+	return CONTROLLER_NONE;	//no idea what you're talking about.
+}
+
 void INS_Rumble(int id, quint16_t amp_low, quint16_t amp_high, quint32_t duration)
 {
 	//Con_DPrintf(CON_WARNING "Rumble is unavailable on this platform\n");

@@ -12019,8 +12019,10 @@ static BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"applycustomskin",	PF_Fixme,	0,		0,		0,		378,	D("void(entity e, float skinobj)", "Updates the entity's custom skin (refcounted).")},
 	{"releasecustomskin",PF_Fixme,	0,		0,		0,		379,	D("void(float skinobj)", "Lets the engine know that the skin will no longer be needed. Thanks to refcounting any ents with the skin already applied will retain their skin until later changed. It is valid to destroy a skin just after applying it to an ent in the same function that it was created in, as the skin will only be destroyed once its refcount rops to 0.")},
 
-	{"gp_rumble",	PF_Fixme,	0,		0,		0,		0,		D("void(float devid, float amp_low, float amp_high, float duration)", "Sends a single rumble event to the game-pad specified in devid. Every time you call this, the previous effect is cancelled out.")},
-	{"gp_rumbletriggers",	PF_Fixme,	0,		0,		0,		0,		D("void(float devid, float left, float right, float duration)", "Makes the analog triggers rumble of the specified game-pad, like gp_rumble() one call cancels out the previous one on the device.")},
+	{"gp_getbuttontype",PF_Fixme,	0,		0,		0,		0,		D("enum controllertype : float\n{\n\tCONTROLLER_NONE,\n\tCONTROLLER_UNKNOWN,\n\tCONTROLLER_XBOX,\n\tCONTROLLER_PLAYSTATION,\n\tCONTROLLER_NINTENDO,\n\tCONTROLLER_VIRTUAL};\n"
+																		"json_type_e(float devid)", "Sends a single rumble event to the game-pad specified in devid. Every time you call this, the previous effect is cancelled out.")},
+	{"gp_rumble",		PF_Fixme,	0,		0,		0,		0,		D("void(float devid, float amp_low, float amp_high, float duration)", "Sends a single rumble event to the game-pad specified in devid. Every time you call this, the previous effect is cancelled out.")},
+	{"gp_rumbletriggers",PF_Fixme,	0,		0,		0,		0,		D("void(float devid, float left, float right, float duration)", "Makes the analog triggers rumble of the specified game-pad, like gp_rumble() one call cancels out the previous one on the device.")},
 	{"gp_setledcolor",	PF_Fixme,	0,		0,		0,		0,		D("void(float devid, vector color)", "Updates the game-pad LED color.")},
 	{"gp_settriggerfx",	PF_Fixme,	0,		0,		0,		0,		D("void(float devid, /*const*/ void *data, int size)", "Sends a specific effect packet to the controller. On the PlayStation 5's DualSense that can adjust the tension on the analog triggers.")},
 //END EXT_CSQC
@@ -12351,6 +12353,43 @@ static BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"fexists",			PF_fexists,			0,		0,		0,		653,	D("float(string fname)",	"Returns true if it exists inside the default writable path. Use whichpack for greater portability.")},
 	{"rmtree",			PF_rmtree,			0,		0,		0,		654,	D("float(string path)",		"Dangerous, but sandboxed to data/")},
 	{"walkmovedist",	PF_walkmovedist,	0,		0,		0,		655,	D("DEP float(float yaw, float dist, optional float settraceglobals)", "Attempt to walk the entity at a given angle for a given distance.\nif settraceglobals is set, the trace_* globals will be set, showing the results of the movement.\nThis function will trigger touch events."), true},
+	{"timescale",		PF_Fixme,			0,		0,		0,		656,	"DEP void(float f)" STUB},
+	{"nodegraph_graphset_clear",							PF_Fixme,0,0,0,700,	"DEP float()" STUB},	//Wrath's EXT_NODEGRAPH
+	{"nodegraph_graphset_load",								PF_Fixme,0,0,0,701,	"DEP float()" STUB},
+	{"nodegraph_graphset_save",								PF_Fixme,0,0,0,702,	"DEP float()" STUB},
+	{"nodegraph_graph_clear",								PF_Fixme,0,0,0,703,	"DEP float(float graphid)" STUB},
+	{"nodegraph_graph_nodes_count",							PF_Fixme,0,0,0,704,	"DEP float(float graphid)" STUB},
+	{"nodegraph_graph_add_node",							PF_Fixme,0,0,0,705,	"DEP float(float graphid, vector node)" STUB},
+	{"nodegraph_graph_remove_node",							PF_Fixme,0,0,0,706,	"DEP float(float graphid, float nodeid)" STUB},
+	{"nodegraph_graph_is_node_valid",						PF_Fixme,0,0,0,707,	"DEP float(float graphid, float nodeid)" STUB},
+	{"nodegraph_graph_get_node",							PF_Fixme,0,0,0,708,	"DEP vector(float graphid, float nodeid)" STUB},
+	{"nodegraph_graph_add_link",							PF_Fixme,0,0,0,709,	"DEP float(float graphid, float nodeidfrom, float nodeidto)" STUB},
+	{"nodegraph_graph_remove_link",							PF_Fixme,0,0,0,710,	"DEP float(float graphid, float nodeidfrom, float nodeidto)" STUB},
+	{"nodegraph_graph_does_link_exist",						PF_Fixme,0,0,0,711,	"DEP float(float graphid, float nodeidfrom, float nodeidto)" STUB},
+	{"nodegraph_graph_find_nearest_nodeid",					PF_Fixme,0,0,0,712,	"DEP float(float graphid, vector position)" STUB},
+	{"nodegraph_graph_query_path",							PF_Fixme,0,0,0,713,	"DEP float(float graphid, float nodeidfrom, float nodeidto)" STUB},
+	{"nodegraph_graph_query_nodes_linked",					PF_Fixme,0,0,0,714,	"DEP float(float graphid, float nodeid)" STUB},
+	{"nodegraph_graph_query_nodes_in_radius",				PF_Fixme,0,0,0,715,	"DEP float(float graphid, vector position, float radius)" STUB},
+	{"nodegraph_query_release",								PF_Fixme,0,0,0,716,	"DEP float(float graphid)" STUB},
+	{"nodegraph_query_entries_count",						PF_Fixme,0,0,0,717,	"DEP float(float graphid)" STUB},
+	{"nodegraph_query_is_valid",							PF_Fixme,0,0,0,718,	"DEP float(float graphid)" STUB},
+	{"nodegraph_query_get_graphid",							PF_Fixme,0,0,0,719,	"DEP float(float graphid)" STUB},
+	{"nodegraph_query_get_nodeid",							PF_Fixme,0,0,0,720,	"DEP float(float graphid, float entryid)" STUB},
+	{"nodegraph_moveprobe_fly",								PF_Fixme,0,0,0,721,	"DEP float(vector nodefrom, vector nodeto, vector mins, vector maxs, float type)" STUB},
+	{"nodegraph_moveprobe_walk",							PF_Fixme,0,0,0,722,	"DEP float(vector nodefrom, vector nodeto, vector mins, vector maxs, float stepheight, float dropheight)" STUB},
+	{"nodegraph_graph_query_nodes_in_radius_fly_reachable",	PF_Fixme,0,0,0,723,	"DEP float(float graphid, vector position, float radius, vector mins, vector maxs, float type)" STUB},
+	{"nodegraph_graph_query_nodes_in_radius_walk_reachable",PF_Fixme,0,0,0,724,	"DEP float(float graphid, vector position, float radius, vector mins, vector maxs, float stepheight, float dropheight)" STUB},
+	{"nodegraph_graphset_remove",							PF_Fixme,0,0,0,725,	"DEP float()" STUB},
+	{"stachievement_unlock",								PF_Fixme,0,0,0,730,	"DEP void(string achievement_id)" STUB},		//(csqc) EXT_STEAM_REKI
+	{"stachievement_query",									PF_Fixme,0,0,0,731,	"DEP void(string achievement_id)" STUB},		//(csqc) EXT_STEAM_REKI
+	{"ststat_setvalue",										PF_Fixme,0,0,0,732,	"DEP void(string stat_id, float value)" STUB},	//(csqc) EXT_STEAM_REKI
+	{"ststat_increment",									PF_Fixme,0,0,0,733,	"DEP void(string stat_id, float value)" STUB},	//(csqc) EXT_STEAM_REKI
+	{"ststat_query",										PF_Fixme,0,0,0,734,	"DEP void(string stat_id)" STUB},				//(csqc) EXT_STEAM_REKI
+	{"stachievement_register",								PF_Fixme,0,0,0,735,	"DEP void(string achievement_id)" STUB},		//(csqc) EXT_STEAM_REKI
+	{"ststat_register",										PF_Fixme,0,0,0,736,	"DEP void(string stat_id)" STUB},				//(csqc) EXT_STEAM_REKI
+	{"controller_query",									PF_Fixme,0,0,0,740,	"DEP void(float index)" STUB},					//(csqc) EXT_CONTROLLER_REKI
+	{"controller_rumble",									PF_Fixme,0,0,0,741,	"DEP void(float index, float lowmult, float highmult, float )" STUB},		//(csqc) EXT_CONTROLLER_REKI
+	{"controller_rumbletriggers",							PF_Fixme,0,0,0,742,	"DEP void(float index, float leftmult, float rightmult, float msec)" STUB},	//(csqc) EXT_CONTROLLER_REKI
 	//end wrath extras
 
 	{"getrmqeffectsversion",PF_Ignore,		0,		0,		0,		666,	"DEP float()" STUB},

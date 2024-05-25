@@ -2631,12 +2631,18 @@ static struct {
 //	{NULL,						PF_Fixme,					346},
 //	{NULL,						PF_Fixme,					347},
 //	{NULL,						PF_Fixme,					348},
+	{"setlocaluserinfo",		PF_cl_setlocaluserinfo,			0},
+	{"getlocaluserinfo",		PF_cl_getlocaluserinfostring,	0},
+	{"setlocaluserinfoblob",	PF_cl_setlocaluserinfo,			0},
+	{"getlocaluserinfoblob",	PF_cl_getlocaluserinfoblob,		0},
 	{"isdemo",					PF_isdemo,					349},
 //	{NULL,						PF_Fixme,					350},
 //	{NULL,						PF_Fixme,					351},
 	{"registercommand",			PF_menu_registercommand,	352},
 	{"wasfreed",				PF_WasFreed,				353},
-//	{NULL,						PF_Fixme,					354},
+	{"serverkey",				PF_cl_serverkey,			354},	// #354 string(string key) serverkey;
+	{"serverkeyfloat",			PF_cl_serverkeyfloat,		0},		// #0 float(string key) serverkeyfloat;
+	{"serverkeyblob",			PF_cl_serverkeyblob,		0},
 #ifdef HAVE_MEDIA_DECODER
 	{"videoplaying",			PF_cs_media_getstate,		355},
 #endif
@@ -2839,11 +2845,22 @@ static struct {
 	{"fexists",					PF_fexists,					653},
 	{"rmtree",					PF_rmtree,					654},
 
+	{"stachievement_unlock",	PF_Fixme,					730},	// EXT_STEAM_REKI
+	{"stachievement_query",		PF_Fixme,					731},	// EXT_STEAM_REKI
+	{"ststat_setvalue",			PF_Fixme,					732},	// EXT_STEAM_REKI
+	{"ststat_increment",		PF_Fixme,					733},	// EXT_STEAM_REKI
+	{"ststat_query",			PF_Fixme,					734},	// EXT_STEAM_REKI
+	{"stachievement_register",	PF_Fixme,					735},	// EXT_STEAM_REKI
+	{"ststat_register",			PF_Fixme,					736},	// EXT_STEAM_REKI
+	{"controller_query",		PF_cl_gp_querywithcb,		740},	// EXT_CONTROLLER_REKI
+	{"controller_rumble",		PF_cl_gp_rumble,			741},	// EXT_CONTROLLER_REKI
+	{"controller_rumbletriggers",PF_cl_gp_rumbletriggers,	742},	// EXT_CONTROLLER_REKI
 
-	{"setlocaluserinfo",		PF_cl_setlocaluserinfo,			0},
-	{"getlocaluserinfo",		PF_cl_getlocaluserinfostring,	0},
-	{"setlocaluserinfoblob",	PF_cl_setlocaluserinfo,			0},
-	{"getlocaluserinfoblob",	PF_cl_getlocaluserinfoblob,		0},
+	{"gp_getlayout",			PF_cl_gp_getbuttontype,		0}, // #0 float(float devid) gp_getbuttontype
+	{"gp_rumble",				PF_cl_gp_rumble,			0}, // #0 void(float devid, float amp_low, float amp_high, float duration) gp_rumble
+	{"gp_rumbletriggers",		PF_cl_gp_rumbletriggers,	0}, // #0 void(float devid, float left, float right, float duration) gp_rumbletriggers
+	{"gp_setledcolor",			PF_cl_gp_setledcolor,		0}, // #0 void(float devid, float red, float green, float blue) gp_setledcolor
+	{"gp_settriggerfx",			PF_cl_gp_settriggerfx,		0}, // #0 void(float devid, const void *data, int size) gp_settriggerfx
 
 	{NULL}
 };

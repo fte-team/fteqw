@@ -5083,6 +5083,10 @@ void INS_EnumerateDevices(void *ctx, void(*callback)(void *ctx, const char *type
 #endif
 }
 
+enum controllertype_e INS_GetControllerType(int id)
+{
+	return CONTROLLER_NONE;
+}
 /* doubt this will ever happen to begin with */
 void INS_Rumble(int id, quint16_t amp_low, quint16_t amp_high, quint32_t duration)
 {

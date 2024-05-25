@@ -649,6 +649,16 @@ void INS_EnumerateDevices(void *ctx, void(*callback)(void *ctx, const char *type
 	}
 }
 
+enum controllertype_e INS_GetControllerType(int id)
+{
+	size_t i;
+	for (i = 0; i < countof(gamepaddeviceids); i++)
+	{
+		if (id == gamepaddeviceids[i])
+			return CONTROLLER_UNKNOWN;	//browsers don't really like providing more info, to thwart fingerprinting. shame. you should just use generic glyphs.
+	}
+	return CONTROLLER_NONE;	//nuffin here. yay fingerprinting?
+}
 void INS_Rumble(int joy, quint16_t amp_low, quint16_t amp_high, quint32_t duration)
 {
 }

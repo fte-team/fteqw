@@ -52,7 +52,7 @@ void emscriptenfte_settitle(const char *text);
 int emscriptenfte_setupcanvas(
 	int width,
 	int height,
-	void(*Resized)(int newwidth, int newheight),
+	void(*Resized)(int newwidth, int newheight, float scale),
 	void(*Mouse)(unsigned int devid,int abs,float x,float y,float z,float size),
 	void(*Button)(unsigned int devid, int down, int mbutton),
 	int(*Keyboard)(unsigned int devid, int down, int keycode, int unicode),

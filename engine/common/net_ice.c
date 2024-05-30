@@ -1020,9 +1020,22 @@ static qboolean ICE_SendSpam(struct icestate_s *con)
 			break;
 		case NETERR_CLOGGED:	//oh well... we retry anyway.
 			break;
+
+		case NETERR_NOROUTE:
+			if (net_ice_debug.ival >= 2)
+				Con_Printf(S_COLOR_GRAY"ICE NETERR_NOROUTE to %s:%i(%s)\n", bestpeer->info.addr, bestpeer->info.port, candtype);
+			break;
+		case NETERR_DISCONNECTED:
+			if (net_ice_debug.ival >= 2)
+				Con_Printf(S_COLOR_GRAY"ICE NETERR_DISCONNECTED to %s:%i(%s)\n", bestpeer->info.addr, bestpeer->info.port, candtype);
+			break;
+		case NETERR_MTU:
+			if (net_ice_debug.ival >= 2)
+				Con_Printf(S_COLOR_GRAY"ICE NETERR_MTU to %s:%i(%s) (%i bytes)\n", bestpeer->info.addr, bestpeer->info.port, candtype, buf.cursize);
+			break;
 		default:
 			if (net_ice_debug.ival >= 2)
-				Con_Printf("ICE send error to %s:%i(%s)\n", bestpeer->info.addr, bestpeer->info.port, candtype);
+				Con_Printf(S_COLOR_GRAY"ICE send error(%i) to %s:%i(%s)\n", err, bestpeer->info.addr, bestpeer->info.port, candtype);
 			break;
 		}
 		return true;
@@ -1548,6 +1561,8 @@ static void MDNS_ProcessPacket(qbyte *inmsg, size_t inmsgsize, netadr_t *source)
 					((struct sockaddr_in*)&dest)->sin_addr.s_addr = inet_addr("224.0.0.251");
 				}
 				sendto(mdns_socket, resp, o-resp, 0, (struct sockaddr*)&dest, sz);
+				if (net_ice_debug.ival)
+					Con_Printf(S_COLOR_GRAY"%s: Answering mdns (%s)\n", NET_AdrToString(resp, sizeof(resp), source), a.name);
 			}
 		}
 	}
@@ -2414,10 +2429,13 @@ static qboolean ICE_SetFailed(struct icestate_s *con, const char *reasonfmt, ...
 	char		string[256];
 
 	va_start (argptr, reasonfmt);
-	Q_vsnprintf (string,sizeof(string)-1, reasonfmt,argptr);
+	Q_vsnprintfz (string,sizeof(string)-1, reasonfmt,argptr);
 	va_end (argptr);
 
-	Con_Printf(CON_WARNING"[%s]: %s\n", con->friendlyname, string);
+	if (con->state == ICE_FAILED)
+		Con_Printf(S_COLOR_GRAY"[%s]: %s\n", con->friendlyname, string);	//we were probably already expecting this. don't show it as a warning.
+	else
+		Con_Printf(CON_WARNING"[%s]: %s\n", con->friendlyname, string);
 	return ICE_Set(con, "state", STRINGIFY(ICE_FAILED));	//does the disconnection stuff.
 }
 static char *ICE_CandidateToSDP(struct icecandidate_s *can, char *value, size_t valuelen)
@@ -2443,6 +2461,8 @@ static char *ICE_CandidateToSDP(struct icecandidate_s *can, char *value, size_t 
 		{
 			if (*can->info.reladdr)
 				Q_strncatz(value, va(" raddr %s", can->info.reladdr), valuelen);
+			else
+				Q_strncatz(value, " raddr 0.0.0.0", valuelen);
 			Q_strncatz(value, va(" rport %i", can->info.relport), valuelen);
 		}
 	}
@@ -2615,6 +2635,8 @@ static qboolean QDECL ICE_Get(struct icestate_s *con, const char *prop, char *va
 		for (can = con->lc; can; can = can->next)
 		{
 			char canline[256];
+			if (ICE_LCandidateIsPrivate(can))
+				continue;	//ignore it.
 			can->dirty = false;	//doesn't matter now.
 			ICE_CandidateToSDP(can, canline, sizeof(canline));
 			Q_strncatz(value, canline, valuelen);
@@ -4210,7 +4232,9 @@ qboolean ICE_WasStun(ftenet_connections_t *col)
 					for (i = 0; i < con->servers; i++)
 					{
 						s = &con->server[i];
-						if (NET_CompareAdr(&net_from, &s->addr))
+						if (NET_CompareAdr(&net_from, &s->addr) &&	s->stunrnd[0] == stun->transactid[0] &&
+																	s->stunrnd[1] == stun->transactid[1] &&
+																	s->stunrnd[2] == stun->transactid[2])
 						{	//check to see if this is a new server-reflexive address, which happens when the peer is behind a nat.
 							for (rc = con->lc; rc; rc = rc->next)
 							{
@@ -4610,6 +4634,8 @@ qboolean ICE_WasStun(ftenet_connections_t *col)
 							len = sizeof(errmsg)-1;
 						memcpy(errmsg, &((qbyte*)attr)[8], len);
 						errmsg[len] = 0;
+						if (!len)
+							Q_strncpyz(errmsg, "<no description>", len);
 						if (err==0)
 							err = (((qbyte*)attr)[6]*100) + (((qbyte*)attr)[7]%100);
 					}
@@ -5051,7 +5077,7 @@ qboolean ICE_WasStun(ftenet_connections_t *col)
 							case NETERR_NOROUTE:
 								return false;	//not a dtls packet at all. don't de-ICE it when we're meant to be using ICE.
 							case NETERR_DISCONNECTED:	//dtls failure. ICE failed.
-								ICE_SetFailed(con, "DTLS Failure");
+								ICE_SetFailed(con, "DTLS Terminated");
 								return true;
 							default: //some kind of failure decoding the dtls packet. drop it.
 								return true;
@@ -5271,13 +5297,45 @@ static void FTENET_ICE_Heartbeat(ftenet_ice_connection_t *b)
 		}
 
 		*info = 0;
-		Info_SetValueForKey(info, "protocol", SV_GetProtocolVersionString(), sizeof(info));
-		Info_SetValueForKey(info, "maxclients", maxclients.string, sizeof(info));
-		Info_SetValueForKey(info, "clients", va("%i", numclients), sizeof(info));
-		Info_SetValueForKey(info, "hostname", hostname.string, sizeof(info));
-		Info_SetValueForKey(info, "modname", FS_GetGamedir(true), sizeof(info));
-		Info_SetValueForKey(info, "mapname", InfoBuf_ValueForKey(&svs.info, "map"), sizeof(info));
-		Info_SetValueForKey(info, "needpass", InfoBuf_ValueForKey(&svs.info, "needpass"), sizeof(info));
+
+		//first line contains the serverinfo, or some form of it
+		{
+			char *resp = info;
+			const char *ignorekeys[] = {
+				"maxclients", "map", "*gamedir", "*z_ext",	//this is a DP protocol query, so some QW fields are not needed
+				"gamename", "modname", "protocol", "clients", "sv_maxclients", "mapname", "qcstatus", "challenge", NULL};	//and we need to add some
+			const char *prioritykeys[] = {"hostname", NULL}; //make sure we include these before we start overflowing
+			char protocolname[64];
+			const char *gamestatus;
+
+			COM_ParseOut(com_protocolname.string, protocolname, sizeof(protocolname));	//we can only report one, so report the first.
+			if (svprogfuncs)
+			{
+				eval_t *v = PR_FindGlobal(svprogfuncs, "worldstatus", PR_ANY, NULL);
+				if (v)
+					gamestatus = PR_GetString(svprogfuncs, v->string);
+				else
+					gamestatus = "";
+			}
+			else
+				gamestatus = "";
+
+			Info_SetValueForKey(resp, "gamename", protocolname, sizeof(info) - (resp-info));//distinguishes it from other types of games
+			Info_SetValueForKey(resp, "protocol", SV_GetProtocolVersionString(), sizeof(info) - (resp-info));
+			Info_SetValueForKey(resp, "modname", FS_GetGamedir(true), sizeof(info) - (resp-info));
+			Info_SetValueForKey(resp, "clients", va("%d", numclients), sizeof(info) - (resp-info));
+			Info_SetValueForKey(resp, "sv_maxclients", maxclients.string, sizeof(info) - (resp-info));
+			Info_SetValueForKey(resp, "mapname", InfoBuf_ValueForKey(&svs.info, "map"), sizeof(info) - (resp-info));
+			resp += strlen(resp);
+			//now include the full/regular serverinfo
+			resp += InfoBuf_ToString(&svs.info, resp, sizeof(info) - (resp-info), prioritykeys, ignorekeys, NULL, NULL, NULL);
+			*resp = 0;
+			//and any possibly-long qc status string
+			if (*gamestatus)
+				Info_SetValueForKey(resp, "qcstatus", gamestatus, sizeof(info) - (resp-info));
+			resp += strlen(resp);
+			*resp++ = 0;
+		}
 
 		FTENET_ICE_SplurgeCmd(b, ICEMSG_SERVERINFO, -1, info);
 	}
@@ -5354,9 +5412,11 @@ static void FTENET_ICE_Refresh(ftenet_ice_connection_t *b, int cl, struct icesta
 }
 static qboolean FTENET_ICE_GetPacket(ftenet_generic_connection_t *gcon)
 {
+	json_t *json;
 	ftenet_ice_connection_t *b = (void*)gcon;
 	int ctrl, len, cmd, cl, ofs;
-	char *data, n;
+	const char *data;
+	char n;
 
 	if (!b->broker)
 	{
@@ -5568,18 +5628,10 @@ handleerror:
 				}
 				break;
 			case ICEMSG_OFFER:	//we received an offer from a client
-				if (!strncmp(data, "{\"type\":\"offer\",\"sdp\":\"", 23))
-				{
-					data += 22;
-					COM_ParseCString(data, com_token, sizeof(com_token), NULL);
-					data = com_token;
-				}
-				else if (!strncmp(data, "{\"type\":\"answer\",\"sdp\":\"", 24))
-				{
-					data += 23;
-					COM_ParseCString(data, com_token, sizeof(com_token), NULL);
-					data = com_token;
-				}
+				json = JSON_Parse(data);
+				if (json)
+					//should probably also verify the type.
+					data = JSON_GetString(json, "sdp", com_token,sizeof(com_token), NULL);
 				if (b->generic.islisten)
 				{
 					if (cl >= 0 && cl < b->numclients && b->clients[cl].ice)
@@ -5590,10 +5642,8 @@ handleerror:
 						iceapi.Set(b->clients[cl].ice, "state", STRINGIFY(ICE_CONNECTING));
 
 						FTENET_ICE_SendOffer(b, cl, b->clients[cl].ice, "sdpanswer");
-						break;
 					}
-
-					if (net_ice_debug.ival)
+					else if (net_ice_debug.ival)
 						Con_Printf(S_COLOR_GRAY"[%s]: Got bad offer/answer:\n%s\n", b->clients[cl].ice?b->clients[cl].ice->friendlyname:"?", data);
 				}
 				else
@@ -5604,21 +5654,21 @@ handleerror:
 							Con_Printf(S_COLOR_GRAY"[%s]: Got answer:\n%s\n", b->ice?b->ice->friendlyname:"?", data);
 						iceapi.Set(b->ice, "sdpanswer", data);
 						iceapi.Set(b->ice, "state", STRINGIFY(ICE_CONNECTING));
-						break;
 					}
-
-					if (net_ice_debug.ival)
+					else if (net_ice_debug.ival)
 						Con_Printf(S_COLOR_GRAY"[%s]: Got bad offer/answer:\n%s\n", b->ice?b->ice->friendlyname:"?", data);
 				}
+				JSON_Destroy(json);
 				break;
 			case ICEMSG_CANDIDATE:
-				if (!strncmp(data, "{\"candidate\":\"", 14))
+				json = JSON_Parse(data);
+				if (json)
 				{
-					data += 13;
+					data = com_token;
 					com_token[0]='a';
 					com_token[1]='=';
-					COM_ParseCString(data, com_token+2, sizeof(com_token)-2, NULL);
-					data = com_token;
+					com_token[2]=0;
+					JSON_GetString(json, "candidate", com_token+2,sizeof(com_token)-2, NULL);
 				}
 //				Con_Printf("Candidate update: %s\n", data);
 				if (b->generic.islisten)
@@ -5639,6 +5689,7 @@ handleerror:
 						iceapi.Set(b->ice, "sdp", data);
 					}
 				}
+				JSON_Destroy(json);
 				break;
 			default:
 				if (net_ice_debug.ival)
@@ -5796,12 +5847,13 @@ void SVC_ICE_Offer(void)
 	extern cvar_t net_ice_servers;
 	struct icestate_s *ice;
 	static float throttletimer;
-	char *sdp, *s;
+	const char *sdp, *s;
 	char buf[1400];
 	int sz;
 	char *clientaddr = Cmd_Argv(1);	//so we can do ip bans on the client's srflx address
 	char *brokerid = Cmd_Argv(2);	//specific id to identify the pairing on the broker.
 	netadr_t adr;
+	json_t *json;
 	if (!sv.state)
 		return;	//err..?
 	if (net_from.prot != NP_DTLS && net_from.prot != NP_WSS && net_from.prot != NP_TLS)
@@ -5833,12 +5885,9 @@ void SVC_ICE_Offer(void)
 		iceapi.Set(ice, "server", com_token);
 
 	sdp = MSG_ReadString();
-	if (!strncmp(sdp, "{\"type\":\"offer\",\"sdp\":\"", 23))
-	{	//browsers are poo
-		sdp += 22;
-		COM_ParseCString(sdp, buf, sizeof(buf), NULL);
-		sdp = buf;
-	}
+	json = JSON_Parse(sdp);	//browsers are poo
+	if (json)
+		sdp = JSON_GetString(json, "sdp", buf,sizeof(buf), "");
 
 	if (iceapi.Set(ice, "sdpoffer", sdp))
 	{
@@ -5853,14 +5902,16 @@ void SVC_ICE_Offer(void)
 			NET_SendPacket(svs.sockets, sz, buf, &net_from);
 		}
 	}
+	JSON_Destroy(json);
 
 	//and because we won't have access to its broker, disconnect it from any persistent state to let it time out.
 	iceapi.Close(ice, false);
 }
 void SVC_ICE_Candidate(void)
-{
+{	//handles an 'ice_ccand' udp message from a broker
 	struct icestate_s *ice;
-	char *sdp;
+	json_t *json;
+	const char *sdp;
 	char buf[1400];
 	char *brokerid = Cmd_Argv(1);	//specific id to identify the pairing on the broker.
 	unsigned int seq = atoi(Cmd_Argv(2));	//their seq, to ack and prevent dupes
@@ -5882,15 +5933,17 @@ void SVC_ICE_Candidate(void)
 		if (seq++ < ice->u.inseq)
 			continue;
 		ice->u.inseq++;
-		if (!strncmp(sdp, "{\"candidate\":\"", 14))
-		{	//dewebify
-			sdp += 13;
+		json = JSON_Parse(sdp);
+		if (json)
+		{
+			sdp = buf;
 			buf[0]='a';
 			buf[1]='=';
-			COM_ParseCString(sdp, buf+2, sizeof(buf)-2, NULL);
-			sdp = buf;
+			buf[2]=0;
+			JSON_GetString(json, "candidate", buf+2,sizeof(buf)-2, NULL);
 		}
 		iceapi.Set(ice, "sdp", sdp);
+		JSON_Destroy(json);
 	}
 
 	while (ack > ice->u.outseq)
@@ -5911,7 +5964,10 @@ void SVC_ICE_Candidate(void)
 
 	//check for new candidates to include
 	while (iceapi.GetLCandidateSDP(ice, buf, sizeof(buf)))
+	{
 		Z_StrCat(&ice->u.text, buf);
+		Z_StrCat(&ice->u.text, "\n");
+	}
 
 	Q_snprintfz(buf, sizeof(buf), "\xff\xff\xff\xff""ice_scand %s %u %u\n%s", brokerid, ice->u.outseq, ice->u.inseq, ice->u.text?ice->u.text:"");
 	NET_SendPacket(svs.sockets, strlen(buf), buf, &net_from);

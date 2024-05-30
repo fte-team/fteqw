@@ -553,13 +553,13 @@ mergeInto(LibraryManager.library,
 					if (b.lastframe != p)
 					{	//cache it to avoid spam
 						b.lastframe = p;
-console.log("jbutton dev:" + idx + " btn:"+j+" dn:"+p+" mapping:"+gp.mapping);
+//console.log("jbutton dev:" + idx + " btn:"+j+" dn:"+p+" mapping:"+gp.mapping);
 						{{{makeDynCall('viiii','FTEC.evcb.jbutton')}}}(idx, j, p, gp.mapping=="standard");
 					}
 				}
 				for (let j = 0; j < gp.axes.length; j+=1)
 				{
-console.log("jaxis dev:" + idx + " axis:"+j+" val:"+gp.axes[j]+" mapping:"+gp.mapping);
+//console.log("jaxis dev:" + idx + " axis:"+j+" val:"+gp.axes[j]+" mapping:"+gp.mapping);
 					{{{makeDynCall('viifi','FTEC.evcb.jaxis')}}}(idx, j, gp.axes[j], gp.mapping=="standard");
 				}
 			}
@@ -1485,6 +1485,7 @@ console.log("jaxis dev:" + idx + " axis:"+j+" val:"+gp.axes[j]+" mapping:"+gp.ma
 			}
 			s.pc.addIceCandidate(desc);
 		} catch(err) { console.log(err); }
+		return 0;
 	},
 
 	emscriptenfte_async_wget_data2 : function(url, ctx, onload, onerror, onprogress)

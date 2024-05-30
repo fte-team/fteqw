@@ -7232,6 +7232,7 @@ restart:	//gotos are evil. I am evil. live with it.
 					SVM_AddBrokerGame(st->webrtc.resource, st->inbuffer+payoffs+3);
 					st->inbuffer[payoffs+paylen] = old;
 #endif
+					net_message.cursize = 0;
 				}
 				else if ((st->clienttype == TCPC_WEBRTC_CLIENT || st->clienttype == TCPC_WEBRTC_HOST) && paylen >= 3)
 				{	//we're brokering a client+server. all messages should be unicasts between a client and its host, matched by resource.
@@ -7258,6 +7259,8 @@ restart:	//gotos are evil. I am evil. live with it.
 						ftenet_tcp_stream_t *o;
 						int clnum = (st->inbuffer[payoffs+1]<<0)|(st->inbuffer[payoffs+2]<<8);
 						int type = (st->clienttype != TCPC_WEBRTC_CLIENT)?TCPC_WEBRTC_CLIENT:TCPC_WEBRTC_HOST;
+						if (clnum == 0xffff)
+							clnum = -1;
 						for (o = con->tcpstreams; o; o = o->next)
 						{
 							if (o->clienttype == type && clnum == o->webrtc.clientnum && !strcmp(o->webrtc.resource, st->webrtc.resource))
@@ -9076,15 +9079,19 @@ static qboolean FTENET_WebRTC_GetPacket(ftenet_generic_connection_t *gcon)
 			break;
 		case ICEMSG_CANDIDATE:
 			s = MSG_ReadString();	//either json or raw sdp
+			if (s[0] == 'a' && s[1] == '=')
+				s+=2;
 			if (wsc->generic.islisten)
 			{
 				if (cl < wsc->numclients && wsc->clients[cl].datasock != INVALID_SOCKET)
-					emscriptenfte_rtc_candidate(wsc->clients[cl].datasock, s);
+					if (emscriptenfte_rtc_candidate(wsc->clients[cl].datasock, s) < 0)
+						Con_Printf("ICEMSG_CANDIDATE(%s): error\n", s);
 			}
 			else
 			{
 				if (wsc->datasock != INVALID_SOCKET)
-					emscriptenfte_rtc_candidate(wsc->datasock, s);
+					if (emscriptenfte_rtc_candidate(wsc->datasock, s) < 0)
+						Con_Printf("ICEMSG_CANDIDATE(%s): error\n", s);
 			}
 			break;
 		}

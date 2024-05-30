@@ -83,7 +83,7 @@ static long OSSL_Bio_FCtrl(BIO *h, int cmd, long arg1, void *arg2)
 		VFS_FLUSH(f);
 		return 1;
 	default:
-		Con_Printf("OSSL_Bio_FCtrl: unknown cmd %i\n", cmd);
+//		Con_Printf("OSSL_Bio_FCtrl: unknown cmd %i\n", cmd);
 	case BIO_CTRL_PUSH:
 	case BIO_CTRL_POP:
 		return 0;
@@ -95,7 +95,7 @@ static long OSSL_Bio_FOtherCtrl(BIO *h, int cmd, BIO_info_cb *cb)
 	switch(cmd)
 	{
 	default:
-		Con_Printf("OSSL_Bio_FOtherCtrl unknown cmd %i\n", cmd);
+//		Con_Printf("OSSL_Bio_FOtherCtrl unknown cmd %i\n", cmd);
 		return 0;
 	}
 	return 0;	//failure
@@ -664,7 +664,7 @@ static long OSSL_Bio_DCtrl(BIO *h, int cmd, long arg1, void *arg2)
 
 
 	default:
-		Con_Printf("OSSL_Bio_DCtrl: unknown cmd %i\n", cmd);
+//		Con_Printf("OSSL_Bio_DCtrl: unknown cmd %i\n", cmd);
 	case BIO_CTRL_PUSH:
 	case BIO_CTRL_POP:
 		return 0;
@@ -676,7 +676,7 @@ static long OSSL_Bio_DOtherCtrl(BIO *h, int cmd, BIO_info_cb *cb)
 	switch(cmd)
 	{
 	default:
-		Con_Printf("OSSL_Bio_DOtherCtrl unknown cmd %i\n", cmd);
+//		Con_Printf("OSSL_Bio_DOtherCtrl unknown cmd %i\n", cmd);
 		return 0;
 	}
 	return 0;	//failure

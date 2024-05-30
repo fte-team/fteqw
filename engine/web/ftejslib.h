@@ -28,7 +28,7 @@ int emscriptenfte_ws_recv(int sockid, void *data, int len);				//receive data fr
 
 int emscriptenfte_rtc_create(int clientside, void *ctxp, int ctxi, void(*cb)(void *ctxp, int ctxi, int type, const char *data), const char *json_config);					//open a webrtc connection to a specific broker url
 void emscriptenfte_rtc_offer(int sock, const char *offer, const char *sdptype);//sets the remote sdp.
-void emscriptenfte_rtc_candidate(int sock, const char *offer);				//adds a remote candidate.
+int emscriptenfte_rtc_candidate(int sock, const char *offer);				//adds a remote candidate.
 
 //misc stuff for printf replacements
 void emscriptenfte_alert(const char *msg);

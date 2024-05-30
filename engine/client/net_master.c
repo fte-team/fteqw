@@ -650,8 +650,10 @@ void SV_Master_Heartbeat (void)
 	{
 		const char *s = net_ice_broker.string;
 		struct thr_res *work = Z_Malloc(sizeof(*work) + strlen(s));
-		if (!strncmp(s, "tls://", 6) || !strncmp(s, "tcp://", 6))
+		if (!strncmp(s, "tls://", 6) || !strncmp(s, "tcp://", 6) || !strncmp(s, "wss://", 6))
 			s+=6;	//ignore weird prefixes here
+		else if (!strncmp(s, "ws://", 5))
+			s+=5;	//ignore dumb prefixes here
 		strcpy(work->str, s);
 		COM_AddWork(WG_MAIN, SV_Master_Worker_Resolve, NULL, work, ~(size_t)0, 0);
 	}

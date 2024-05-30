@@ -134,7 +134,7 @@
 	GNUTLS_FUNC(gnutls_bye,int,(gnutls_session_t session, gnutls_close_request_t how))	\
 	GNUTLS_FUNC(gnutls_alert_get,gnutls_alert_description_t,(gnutls_session_t session)) \
 	GNUTLS_FUNC(gnutls_alert_get_name,const char *,(gnutls_alert_description_t alert)) \
-	GNUTLS_FUNC(gnutls_perror,void,(int error))	\
+	GNUTLS_FUNC(gnutls_strerror,const char *,(int error))	\
 	GNUTLS_FUNC(gnutls_handshake,int,(gnutls_session_t session))	\
 	GNUTLS_FUNC(gnutls_transport_set_ptr,void,(gnutls_session_t session, gnutls_transport_ptr_t ptr))	\
 	GNUTLS_FUNC(gnutls_transport_set_push_function,void,(gnutls_session_t session, gnutls_push_func push_func))	\
@@ -585,8 +585,10 @@ static int SSL_DoHandshake(gnutlsfile_t *file)
 				Con_Printf(CON_ERROR"GNU%sTLS: %s: %s(%i)\n", file->datagram?"D":"", file->certname, qgnutls_alert_get_name(desc), desc);
 			}
 			else
+			{
 				//we didn't like the peer.
-				qgnutls_perror (err);
+				Con_Printf(CON_ERROR"GNU%sTLS: %s: %s(%i)\n", file->datagram?"D":"", file->certname, qgnutls_strerror(err), err);
+			}
 		}
 
 //		Con_Printf("%s: abort\n", file->certname);
@@ -1579,9 +1581,14 @@ static neterr_t GNUDTLS_Received(void *ctx, sizebuf_t *message)
 		}
 		if (qgnutls_error_is_fatal(ret))
 		{
-//			Sys_Printf("DTLS_Received fail error\n");
+			if (ret == GNUTLS_E_FATAL_ALERT_RECEIVED)
+				Con_DPrintf(CON_ERROR"GNUDTLS_Received: fatal alert %s\n", qgnutls_alert_get_name(qgnutls_alert_get(f->session)));
+			else
+				Con_DPrintf(CON_ERROR"GNUDTLS_Received fatal error %s\n", qgnutls_strerror(ret));
 			return NETERR_DISCONNECTED;
 		}
+		if (ret == GNUTLS_E_WARNING_ALERT_RECEIVED)
+			Con_DPrintf(CON_WARNING"GNUDTLS_Received: alert %s\n", qgnutls_alert_get_name(qgnutls_alert_get(f->session)));
 //		Sys_Printf("DTLS_Received temp error\n");
 		return NETERR_CLOGGED;
 	}

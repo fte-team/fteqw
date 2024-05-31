@@ -1186,7 +1186,8 @@ char *HTTPSV_GetMethod(cluster_t *cluster, oproxy_t *pend)
 			for (ctx = NULL; HTTPSV_GetHeaderCommaField((char*)pend->inbuffer, &ctx, "Sec-WebSocket-Protocol", wsprot, sizeof(wsprot)); )
 			{
 				//if (!strcmp(wsprot, "quake"))	//webquake. we don't support this! (no OOB and missing header flags and some screwy sequence numbers)
-				if (!strcmp(wsprot, "fteqw"))
+				if (!strcmp(wsprot, "fteqw") ||	//as a client
+					(!strcmp(wsprot, "faketcp") && !urilen))	//as a qtv proxy (eztv style, but websocked). we are NOT proxying tcp. require a qtv handshake over the resulting websocket connection.
 					break;	//break out on the first one we know. this is the recommended way...
 			}
 
@@ -1233,7 +1234,10 @@ char *HTTPSV_GetMethod(cluster_t *cluster, oproxy_t *pend)
 				pend->drop = false;
 
 				uri[urilen] = 0;	//make sure its null terminated
-				return strdup(uri+1);
+				if (!strcmp(wsprot, "faketcp"))
+					return NULL;	//we're using websockets, don't treat it as a client
+				else
+					return strdup(uri+1);	//its a client, track the url as the initial stream.
 			}
 			return NULL;
 		}

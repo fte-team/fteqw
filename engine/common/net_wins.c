@@ -11149,6 +11149,114 @@ vfsfile_t *FS_OpenTCP(const char *name, int defaultport, qboolean assumetls)
 	else
 		return NULL;
 }
+#elif defined(FTE_TARGET_WEB)
+typedef struct {
+	vfsfile_t funcs;
+
+	int id;
+	int readbuffered;
+	char readbuffer[65536];
+} wsfile_t;
+int QDECL VFSWS_ReadBytes (struct vfsfile_s *file, void *buffer, int bytestoread)
+{
+	wsfile_t *f = (wsfile_t*)file;
+	int len;
+	int trying;
+
+	//websockets are pseudo-packetised. tcp isn't.
+	while (f->readbuffered < bytestoread)
+	{
+		trying = sizeof(f->readbuffer) - f->readbuffered;
+		if (trying < sizeof(f->readbuffer)/2)
+			break;	//don't try to fill the entire buffer, if we grab too much we'll truncate a message.
+		len = emscriptenfte_ws_recv(f->id, f->readbuffer + f->readbuffered, trying);
+		if (len == 0)
+			break;	//no more left to read
+		else if (len < 0)
+		{
+			if (!f->readbuffered)
+				return VFS_ERROR_EOF;	//not gonna give any more.
+			break;	//will find it next time.
+		}
+		else f->readbuffered += len;
+	}
+
+	len = min(bytestoread, f->readbuffered);
+	memcpy(buffer, f->readbuffer, len);
+	f->readbuffered -= len;
+	memmove(f->readbuffer, f->readbuffer+len, f->readbuffered);
+	return len;
+}
+int QDECL VFSWS_WriteBytes (struct vfsfile_s *file, const void *buffer, int bytestowrite)
+{
+	wsfile_t *f = (wsfile_t*)file;
+	int len;
+
+	len = emscriptenfte_ws_send(f->id, buffer, bytestowrite);
+	if (len < 0)
+		return VFS_ERROR_EOF;	//its dead jim.
+	//if len == 0 //couldn't write yet
+	return len;	//would have been the full packet.
+}
+qboolean QDECL VFSWS_Seek (struct vfsfile_s *file, qofs_t pos)
+{
+	return false;
+}
+static qofs_t QDECL VFSWS_Tell (struct vfsfile_s *file)
+{
+	return 0;
+}
+static qofs_t QDECL VFSWS_GetLen (struct vfsfile_s *file)
+{
+	return 0;
+}
+static qboolean QDECL VFSWS_Close (struct vfsfile_s *file)
+{
+	wsfile_t *f = (wsfile_t *)file;
+	emscriptenfte_ws_close(f->id);
+	f->id = -1;
+	Z_Free(f);
+	return true;
+}
+
+vfsfile_t *FS_OpenTCP(const char *name, int defaultport, qboolean assumetls)
+{
+	wsfile_t *newf;
+	int id;
+	if (!strncmp(name, "./", 2) ||	//relative-to-page
+		!strncmp(name, "/", 1) ||	//relative-to-host
+		!strncmp(name, "wss://", 6) ||	//what we'd rather be using...
+		!strncmp(name, "ws://", 5))		//what we're probably going to be able to use
+		;
+	else
+	{
+		//bad prefix... probably just a real hostname. don't get confused with relative-to-page uris.
+		//FIXME: we should probably be trying to handle the defaultport. oh well.
+		if (assumetls)
+			name = va("wss://%s", name);
+		else
+		{
+			Con_Printf(CON_WARNING"FS_OpenTCP(%s): Assuming insecure\n", name);
+			name = va("ws://%s", name);	//urgh. will probably fail when browsers block it on https pages.
+		}
+	}
+	id = emscriptenfte_ws_connect(name, "faketcp");
+	if (id < 0)
+		return NULL;
+
+	newf = Z_Malloc(sizeof(*newf));
+	newf->id = id;
+	newf->funcs.Close = VFSWS_Close;
+	newf->funcs.Flush = NULL;
+	newf->funcs.GetLen = VFSWS_GetLen;
+	newf->funcs.ReadBytes = VFSWS_ReadBytes;
+	newf->funcs.Seek = VFSWS_Seek;
+	newf->funcs.Tell = VFSWS_Tell;
+	newf->funcs.WriteBytes = VFSWS_WriteBytes;
+	newf->funcs.seekstyle = SS_UNSEEKABLE;
+
+	return &newf->funcs;
+}
 #else
 vfsfile_t *FS_OpenTCP(const char *name, int defaultport, qboolean assumetls)
 {

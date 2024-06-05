@@ -1519,7 +1519,7 @@ MSV_OpenUserDatabase();
 
 		// serverflags are for cross level information (sigils)
 		pr_global_struct->serverflags = svs.serverflags;
-		pr_global_struct->time = 0.1;	//HACK!!!! A few QuakeC mods expect time to be non-zero in spawn funcs - like prydon gate...
+		pr_global_struct->time = 1.0;	//match nq behaviour
 
 #ifdef HEXEN2
 		if (progstype == PROG_H2)

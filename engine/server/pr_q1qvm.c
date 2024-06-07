@@ -1872,15 +1872,24 @@ static qintptr_t QVM_VisibleTo (void *offset, quintptr_t mask, const qintptr_t *
 	unsigned int first = VM_LONG(arg[1]);
 	unsigned int count = VM_LONG(arg[2]);
 	qbyte		 *results = VM_POINTER(arg[3]);
-	unsigned int i, e, last = first + count;
+	unsigned int e, last = first + count;
 	unsigned int ret = 0;
+
+	memset(results, 0, count);	//assume the worst...
 	if (viewernum < sv.world.num_edicts && !VM_OOB(arg[3], count) && first < last && last <= sv.world.num_edicts)
 	{
-		pvscache_t *viewer = &q1qvmprogfuncs.edicttable[viewernum]->pvsinfo;
-		pvscache_t *viewee;
+		edict_t *viewer = q1qvmprogfuncs.edicttable[viewernum];
 		edict_t *ed;
-		int areas[] = {2,viewer->areanum, viewer->areanum2};
-		memset(results, 0, count);	//assume the worst...
+		static pvsbuffer_t pvs;	//bit of a leak. but only one allocation.
+		vec3_t org;
+		int areas[] = {2,viewer->pvsinfo.areanum, viewer->pvsinfo.areanum2};
+
+		if (ED_ISFREE(viewer))
+			return ret;
+
+		//FIXME: make a FatPVS that uses a pvscache_t
+		VectorAdd(viewer->v->origin, viewer->v->view_ofs, org);
+		sv.world.worldmodel->funcs.FatPVS(sv.world.worldmodel, org, &pvs, false);
 		for (e = first; e < last; e++)
 		{
 			ed = q1qvmprogfuncs.edicttable[e];
@@ -1888,16 +1897,12 @@ static qintptr_t QVM_VisibleTo (void *offset, quintptr_t mask, const qintptr_t *
 				continue;	//free ents can't be visible (should not be linked, but oh well)
 			if (e >= 1 && e <= sv.allocated_client_slots && svs.clients[e - 1].state != cs_spawned)
 				continue;	//player ents are weird, skip them for mods that do weird stuff.
-			viewee = &ed->pvsinfo;
-			for (i = 0; i < viewer->num_leafs; i++)
-			{
-				qbyte *pvs = sv.world.worldmodel->funcs.ClusterPVS(sv.world.worldmodel, viewer->leafnums[i], NULL, PVM_FAST);
-				if (sv.world.worldmodel->funcs.EdictInFatPVS(sv.world.worldmodel, viewee, pvs, areas))
-				{	//one of the viewer's clusters can see the viewee.
-					results[e - first] = true;
-					ret+=1;
-					break;
-				}
+
+			if (sv.world.worldmodel->funcs.EdictInFatPVS(sv.world.worldmodel, &ed->pvsinfo, pvs.buffer, areas))
+			{	//one of the viewer's clusters can see the viewee.
+				results[e - first] = true;
+				ret+=1;
+				break;
 			}
 		}
 	}

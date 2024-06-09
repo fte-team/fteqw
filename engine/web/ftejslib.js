@@ -374,7 +374,7 @@ mergeInto(LibraryManager.library,
 					break;
 				case 'gamepadconnected':
 					{
-						const gp = e.gamepad;
+						const gp = event.gamepad;
 						if (FTEH.gamepads === undefined)
 							FTEH.gamepads = [];
 						FTEH.gamepads[gp.index] = gp;
@@ -383,7 +383,7 @@ mergeInto(LibraryManager.library,
 					break;
 				case 'gamepaddisconnected':
 					{
-						const gp = e.gamepad;
+						const gp = event.gamepad;
 						delete FTEH.gamepads[gp.index];
 						if (FTEC.evcb.jaxis)	//try and clear out the axis when released.
 							for (let j = 0; j < 6; j+=1)

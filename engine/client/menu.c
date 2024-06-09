@@ -1032,7 +1032,7 @@ void M_UnbindCommand (const char *command)
 
 	l = strlen(command);
 
-	for (j=0 ; j<256 ; j++)
+	for (j=0 ; j<K_MAX ; j++)
 	{	//FIXME: not sure what to do about bindmaps here. oh well.
 		for (m = 0; m < KEY_MODIFIERSTATES; m++)
 		{

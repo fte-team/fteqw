@@ -12,7 +12,14 @@ extern qboolean vid_isfullscreen;
 qboolean mouseactive;
 extern qboolean mouseusedforgui;
 
-static int gamepaddeviceids[] = {DEVID_UNSET,DEVID_UNSET,DEVID_UNSET,DEVID_UNSET,DEVID_UNSET,DEVID_UNSET,DEVID_UNSET,DEVID_UNSET};
+static struct
+{
+	int id;
+	unsigned axistobuttonp;	//bitmask of whether we're currently reporting each axis as pressed. without saving values.
+	unsigned axistobuttonn;
+	int repeatkey;
+    float repeattime;
+} gamepaddevices[] = {{DEVID_UNSET},{DEVID_UNSET},{DEVID_UNSET},{DEVID_UNSET},{DEVID_UNSET},{DEVID_UNSET},{DEVID_UNSET},{DEVID_UNSET}};
 static int keyboardid[] = {0};
 static int mouseid[] = {0};
 
@@ -190,6 +197,23 @@ static void *GLVID_getwebglfunction(char *functionname)
 	return NULL;
 }
 
+//the enumid is the value for the open function rather than the working id.
+static int J_AllocateDevID(void)
+{
+    extern cvar_t in_skipplayerone;
+    unsigned int id = (in_skipplayerone.ival?1:0), j;
+    for (j = 0; j < countof(gamepaddevices);)
+    {
+        if (gamepaddevices[j++].id == id)
+        {
+            j = 0;
+            id++;
+        }
+    }
+
+	return id;
+}
+
 static void IN_GamePadButtonEvent(int joydevid, int button, int ispressed, int isstandardmapping)
 {
 	//note that the gamepad API handles 'buttons' as float values, so triggers are here instead of as 'axis' values (unlike other APIs). on the plus side, we're no longer responsible for figuring out the required threshold value to denote a 'press', but we're not tracking half-presses and that's our fault and we don't care.
@@ -198,8 +222,8 @@ static void IN_GamePadButtonEvent(int joydevid, int button, int ispressed, int i
 		//however, the quake button codes should be the same. I really ought to define some K_ aliases for them.
 		K_GP_A,
 		K_GP_B,
-		K_GP_X,
 		K_GP_Y,
+		K_GP_X,
 		K_GP_LEFT_SHOULDER,
 		K_GP_RIGHT_SHOULDER,
 		K_GP_LEFT_TRIGGER,
@@ -238,7 +262,7 @@ static void IN_GamePadButtonEvent(int joydevid, int button, int ispressed, int i
 		else
 			return; //err...
 
-		joydevid = countof(gamepaddeviceids)-1;
+		joydevid = countof(gamepaddevices)-1;
 	}
 	else if (isstandardmapping && button < countof(standardmapping))
 		button = standardmapping[button];
@@ -247,23 +271,66 @@ static void IN_GamePadButtonEvent(int joydevid, int button, int ispressed, int i
 	else
 		return;	//err...
 
-	if (joydevid < countof(gamepaddeviceids))
+	if (joydevid < countof(gamepaddevices))
 	{
-		if (joydevid == gamepaddeviceids[joydevid])
+		if (DEVID_UNSET == gamepaddevices[joydevid].id)
 		{
 			if (!ispressed)
 				return;	//don't send axis events until its enabled.
-			gamepaddeviceids[joydevid] = joydevid;
+			gamepaddevices[joydevid].id = J_AllocateDevID();
 		}
-		joydevid = gamepaddeviceids[joydevid];
+		if (ispressed)
+		{
+			gamepaddevices[joydevid].repeatkey = button;
+			gamepaddevices[joydevid].repeattime = 1.0;
+		}
+		else if (gamepaddevices[joydevid].repeatkey == button)
+			gamepaddevices[joydevid].repeatkey = 0;
+		joydevid = gamepaddevices[joydevid].id;
 	}
 
 	IN_KeyEvent(joydevid, ispressed, button, 0);
 }
+static void IN_GamePadButtonRepeats(void)
+{
+	int j;
+	for (j = 0; j < countof(gamepaddevices); j++)
+	{
+		if (gamepaddevices[j].id == DEVID_UNSET)
+			continue;
+		if (!gamepaddevices[j].repeatkey)
+			continue;
+		gamepaddevices[j].repeattime -= host_frametime;
+		if (gamepaddevices[j].repeattime < 0)
+		{	//it is time!
+			gamepaddevices[j].repeattime = 0.25; //faster re-repeat than the initial delay.
+			IN_KeyEvent(gamepaddevices[j].id, true, gamepaddevices[j].repeatkey, 0);	//an extra down. no ups.
+		}
+	}
+}
 
 static void IN_GamePadAxisEvent(int joydevid, int axis, float value, int isstandardmapping)
 {
-	static const int standardmapping[] = {GPAXIS_LT_RIGHT,GPAXIS_LT_DOWN,GPAXIS_RT_RIGHT,GPAXIS_RT_DOWN};
+	static const struct
+	{
+		int axis;
+		int poskey;	//mostly for navigating menus, but oh well.
+		int negkey;
+	} standardmapping[] =
+	{
+		{GPAXIS_LT_RIGHT,	K_GP_LEFT_THUMB_RIGHT,	K_GP_LEFT_THUMB_LEFT},
+		{GPAXIS_LT_DOWN,	K_GP_LEFT_THUMB_DOWN,	K_GP_LEFT_THUMB_UP},
+		{GPAXIS_RT_RIGHT,	K_GP_RIGHT_THUMB_RIGHT,	K_GP_RIGHT_THUMB_LEFT},
+		{GPAXIS_RT_DOWN,	K_GP_RIGHT_THUMB_DOWN,	K_GP_RIGHT_THUMB_UP},
+
+		//this seems fucked. only 4 axis are defined as part of the standard mapping. triggers are implemented as buttons with a .value (instead of .pressed) but they don't seem to work at all.
+		//emulating here should be giving dupes, but I don't know how else to get this shite to work properly.
+		{GPAXIS_LT_AUX,		K_GP_LEFT_TRIGGER,0},
+		{GPAXIS_RT_AUX,		K_GP_RIGHT_TRIGGER,0},
+	};
+	int qdevid;
+	int pos=0, neg=0;
+	int qaxis;
 	if (joydevid < 0)
 	{
 		static const int standardxrmapping[] =
@@ -276,30 +343,78 @@ static void IN_GamePadAxisEvent(int joydevid, int axis, float value, int isstand
 
 			//'Additional inputs may be exposed after', which should be in some pseudo-prioritised order with the awkward ones last.
 		};
-		axis = axis*2 + (joydevid != -1);	//munge them into a single array cos I cba with all the extra conditionals
-		if (axis < countof(standardxrmapping))
-			axis = standardxrmapping[axis];
+		qaxis = axis*2 + (joydevid != -1);	//munge them into a single array cos I cba with all the extra conditionals
+		if (qaxis < countof(standardxrmapping))
+			qaxis = standardxrmapping[qaxis];
 		else
 			return; //err...
 
-		joydevid = countof(gamepaddeviceids)-1;
+		joydevid = countof(gamepaddevices)-1;
 	}
 	else if (isstandardmapping)
 	{
-		if (axis < countof(standardmapping))
-			axis = standardmapping[axis];
+		if (axis >= 0 && axis < countof(standardmapping))
+		{
+			pos = standardmapping[axis].poskey;
+			neg = standardmapping[axis].negkey;
+			qaxis = standardmapping[axis].axis;
+		}
+		else
+			qaxis = axis;
 	}
 	else
 		return;	//random mappings? erk?
 
-	if (joydevid < countof(gamepaddeviceids))
+	if (joydevid < countof(gamepaddevices))
 	{
-		joydevid = gamepaddeviceids[joydevid];
-		if (joydevid == DEVID_UNSET)
+		qdevid = gamepaddevices[joydevid].id;
+		if (qdevid == DEVID_UNSET)
+		{
+			if (value < -0.9 || value > 0.9)
+				gamepaddevices[joydevid].id = J_AllocateDevID();
 			return;	//don't send axis events until its enabled.
+		}
+
+		if (value > 0.5 && pos)
+		{
+			if (!(gamepaddevices[joydevid].axistobuttonp & (1u<<axis)))
+			{
+				IN_KeyEvent(qdevid, true, pos, 0);
+				gamepaddevices[joydevid].repeatkey = pos;
+				gamepaddevices[joydevid].repeattime = 1.0;
+			}
+			gamepaddevices[joydevid].axistobuttonp |= 1u<<axis;
+		}
+		else if (gamepaddevices[joydevid].axistobuttonp & (1u<<axis))
+		{
+			IN_KeyEvent(qdevid, false, pos, 0);
+			gamepaddevices[joydevid].axistobuttonp &= ~(1u<<axis);
+			if (gamepaddevices[joydevid].repeatkey == pos)
+				gamepaddevices[joydevid].repeatkey = 0;
+		}
+
+		if (value < -0.5 && neg)
+		{
+			if (!(gamepaddevices[joydevid].axistobuttonn & (1u<<axis)))
+			{
+				IN_KeyEvent(qdevid, true, neg, 0);
+				gamepaddevices[joydevid].repeatkey = neg;
+				gamepaddevices[joydevid].repeattime = 1.0;
+			}
+			gamepaddevices[joydevid].axistobuttonn |= 1u<<axis;
+		}
+		else if (gamepaddevices[joydevid].axistobuttonn & (1u<<axis))
+		{
+			IN_KeyEvent(qdevid, false, neg, 0);
+			gamepaddevices[joydevid].axistobuttonn &= ~(1u<<axis);
+			if (gamepaddevices[joydevid].repeatkey == neg)
+				gamepaddevices[joydevid].repeatkey = 0;
+		}
 	}
 	else
-		IN_JoystickAxisEvent(joydevid, axis, value);
+		qdevid = joydevid;
+
+	IN_JoystickAxisEvent(qdevid, qaxis, value);
 }
 
 static void IN_GamePadOrientationEvent(int joydevid, float px,float py,float pz, float qx,float qy,float qz,float qw)
@@ -613,6 +728,8 @@ void Sys_SendKeyEvents(void)
 	qboolean shouldbefree = Key_MouseShouldBeFree();
 	emscriptenfte_updatepointerlock(in_windowed_mouse.ival && !shouldbefree, shouldbefree);
 	emscriptenfte_polljoyevents();
+
+	IN_GamePadButtonRepeats();
 }
 /*various stuff for joysticks, which we don't support in this port*/
 void INS_Shutdown (void)
@@ -639,10 +756,10 @@ void INS_EnumerateDevices(void *ctx, void(*callback)(void *ctx, const char *type
 {
 	size_t i;
 	char foobar[64];
-	for (i = 0; i < countof(gamepaddeviceids); i++)
+	for (i = 0; i < countof(gamepaddevices); i++)
 	{
 		Q_snprintfz(foobar, sizeof(foobar), "gp%i", (int)i);
-		callback(ctx, "gamepad", foobar, &gamepaddeviceids[i]);
+		callback(ctx, "gamepad", foobar, &gamepaddevices[i].id);
 	}
 	for (i = 0; i < countof(mouseid); i++)
 	{
@@ -659,9 +776,9 @@ void INS_EnumerateDevices(void *ctx, void(*callback)(void *ctx, const char *type
 enum controllertype_e INS_GetControllerType(int id)
 {
 	size_t i;
-	for (i = 0; i < countof(gamepaddeviceids); i++)
+	for (i = 0; i < countof(gamepaddevices); i++)
 	{
-		if (id == gamepaddeviceids[i])
+		if (id == gamepaddevices[i].id)
 			return CONTROLLER_UNKNOWN;	//browsers don't really like providing more info, to thwart fingerprinting. shame. you should just use generic glyphs.
 	}
 	return CONTROLLER_NONE;	//nuffin here. yay fingerprinting?

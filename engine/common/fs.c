@@ -67,7 +67,7 @@ static char *vidfilenames[] =	//list of filenames to check to see if graphics st
 #define HEX2CFG "//schemes hexen2\n" "set v_gammainverted 1\nset com_parseutf8 -1\nset gl_font gfx/hexen2\nset in_builtinkeymap 0\nset_calc cl_playerclass int (random * 5) + 1\nset cl_forwardspeed 200\nset cl_backspeed 200\ncl_sidespeed 225\nset sv_maxspeed 640\ncl_run 0\nset watervis 1\nset r_lavaalpha 1\nset r_lavastyle -2\nset r_wateralpha 0.5\nset sv_pupglow 1\ngl_shaftlight 0.5\nsv_mintic 0.05\nset r_meshpitch -1\nset r_meshroll -1\nr_sprite_backfacing 1\nset mod_warnmodels 0\nset cl_model_bobbing 1\nsv_sound_watersplash \"misc/hith2o.wav\"\nsv_sound_land \"fx/thngland.wav\"\nset sv_walkpitch 0\n"
 /*yay q2!*/
 #define Q2CFG "//schemes quake2\n" "set v_gammainverted 1\nset com_parseutf8 0\ncom_gamedirnativecode 1\nset sv_bigcoords 0\nsv_port "STRINGIFY(PORT_Q2SERVER)" "STRINGIFY(PORT_Q2EXSERVER)"\ncl_defaultport "STRINGIFY(PORT_Q2SERVER)"\n"	\
-	"set r_replacemodels " IFMINIMAL("","md3 md5/md5mesh")"\n"	\
+	"set r_replacemodels " IFMINIMAL("","md3 md5mesh")"\n"	\
 	"set r_glsl_emissive 0\n" /*work around the _glow textures not being meant to glow*/
 /*Q3's ui doesn't like empty model/headmodel/handicap cvars, even if the gamecode copes*/
 #define Q3CFG "//schemes quake3\n" "set v_gammainverted 0\nset snd_ignorecueloops 1\nsetfl g_gametype 0 s\nset gl_clear 1\nset r_clearcolour 0 0 0\nset com_parseutf8 0\ngl_overbright "FORWEB("0","2")"\nseta model sarge\nseta headmodel sarge\nseta handicap 100\ncom_gamedirnativecode 1\nsv_port "STRINGIFY(PORT_Q3SERVER)"\ncl_defaultport "STRINGIFY(PORT_Q3SERVER)"\ncom_protocolversion 68\n"
@@ -1710,6 +1710,10 @@ static void COM_CalcHash_Thread(void *ctx, void *fname, size_t a, size_t b)
 	} hashes[] =
 	{
 //		{"crc16", &hash_crc16},
+//		{"md4", &hash_md4},
+#if defined(HAVE_SERVER) || defined(HAVE_CLIENT)
+		{"md5", &hash_md5},
+#endif
 		{"sha1", &hash_sha1},
 #if defined(HAVE_SERVER) || defined(HAVE_CLIENT)
 //		{"sha224", &hash_sha2_224},

@@ -5725,9 +5725,12 @@ static void QCBUILTIN PF_digest_internal (pubprogfuncs_t *prinst, struct globalv
 	unsigned char digest[64];
 	unsigned char hexdig[sizeof(digest)*2+1];
 
-	if (!strcmp(hashtype, "MD4"))
+	if (0)
+		;
+	else if (!strcmp(hashtype, "MD4"))
 		digestsize = CalcHash(&hash_md4, digest, sizeof(digest), str, len);
-	//md5?
+	else if (!strcmp(hashtype, "MD5"))
+		digestsize = CalcHash(&hash_md5, digest, sizeof(digest), str, len);
 	else if (!strcmp(hashtype, "SHA1"))
 		digestsize = CalcHash(&hash_sha1, digest, sizeof(digest), str, len);
 	else if (!strcmp(hashtype, "SHA2-224") || !strcmp(hashtype, "SHA224"))

@@ -973,6 +973,7 @@ typedef struct
 	void (*terminate) (unsigned char *digest, void *context);
 } hashfunc_t;
 extern hashfunc_t hash_md4;			//required for vanilla qw mapchecks
+extern hashfunc_t hash_md5;			//required for turn/etc
 extern hashfunc_t hash_sha1;		//required for websockets, and ezquake's crypted rcon
 extern hashfunc_t hash_sha2_224;
 extern hashfunc_t hash_sha2_256;	//required for webrtc

@@ -932,6 +932,7 @@ COMMON_OBJS = \
 	mathlib.o 		\
 	huff.o		\
 	md4.o 		\
+	md5.o 		\
 	sha1.o		\
 	sha2.o		\
 	log.o 		\

@@ -502,8 +502,6 @@ static qboolean TURN_AddXorAddressAttrib(sizebuf_t *buf, unsigned int attr, neta
 		MSG_WriteByte(buf, ((qbyte*)&to->address)[aofs+i] ^ (buf->data+4)[i]);
 	return true;
 }
-#define FTEENGINE
-#include "../../plugins/emailnot/md5.c"
 static qboolean TURN_AddAuth(sizebuf_t *buf, struct iceserver_s *srv)
 {	//adds auth info to a stun packet
 	unsigned short len;
@@ -538,7 +536,7 @@ static qboolean TURN_AddAuth(sizebuf_t *buf, struct iceserver_s *srv)
 	//but the hash is to the start of the attribute's header
 	{	//long-term credentials do stuff weird.
 		char *tmpkey = va("%s:%s:%s", srv->user, srv->realm, srv->auth);
-		MD5_ToBinary(tmpkey, strlen(tmpkey), integrity, 16);
+		CalcHash(&hash_md5, integrity,16, tmpkey, strlen(tmpkey));
 	}
 	CalcHMAC(&hash_sha1, integrity, sizeof(integrity), buf->data, buf->cursize, integrity,16);
 	MSG_WriteShort(buf, BigShort(STUNATTR_MESSAGEINTEGRITIY));

@@ -802,7 +802,7 @@ static qintptr_t QVM_GetEntityToken (void *offset, quintptr_t mask, const qintpt
 		char *ret = VM_POINTER(arg[0]);
 		q1qvmentstring = COM_Parse(q1qvmentstring);
 		Q_strncpyz(ret, com_token, VM_LONG(arg[1]));
-		return *com_token != 0;
+		return q1qvmentstring != NULL;
 	}
 	else
 	{

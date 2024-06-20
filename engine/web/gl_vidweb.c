@@ -21,7 +21,7 @@ static struct
     float repeattime;
 } gamepaddevices[] = {{DEVID_UNSET},{DEVID_UNSET},{DEVID_UNSET},{DEVID_UNSET},{DEVID_UNSET},{DEVID_UNSET},{DEVID_UNSET},{DEVID_UNSET}};
 static int keyboardid[] = {0};
-static int mouseid[] = {0};
+static int mouseid[] = {0,1,2,3,4,5,6,7};
 
 static cvar_t *xr_enable;	//refrains from starting up when 0 and closes it too, and forces it off too
 static cvar_t *xr_metresize;
@@ -526,7 +526,7 @@ static int DOM_KeyEvent(unsigned int devid, int down, int scan, int uni)
 }
 static int RemapTouchId(int id, qboolean final)
 {
-	static int touchids[8];
+	static int touchids[countof(mouseid)];
 	int i;
 	if (!id)
 		return id;
@@ -535,14 +535,16 @@ static int RemapTouchId(int id, qboolean final)
 		{
 			if (final)	
 				touchids[i] = 0;
-			return i;
+			return mouseid[i];
 		}
 	for (i = 1; i < countof(touchids); i++)
 		if (touchids[i] == 0)
 		{
 			if (!final)
 				touchids[i] = id;
-			return i;
+			if (mouseid[i] == DEVID_UNSET)
+				mouseid[i] = i;
+			return mouseid[i];
 		}
 	return id;
 }
@@ -554,14 +556,14 @@ static void DOM_ButtonEvent(unsigned int devid, int down, int button)
 		//fixme: the event is a float. we ignore that.
 		while(button < 0)
 		{
-			IN_KeyEvent(mouseid[devid], true, K_MWHEELUP, 0);
-			IN_KeyEvent(mouseid[devid], false, K_MWHEELUP, 0);
+			IN_KeyEvent(devid, true, K_MWHEELUP, 0);
+			IN_KeyEvent(devid, false, K_MWHEELUP, 0);
 			button += 1;
 		}
 		while(button > 0)
 		{
-			IN_KeyEvent(mouseid[devid], true, K_MWHEELDOWN, 0);
-			IN_KeyEvent(mouseid[devid], false, K_MWHEELUP, 0);
+			IN_KeyEvent(devid, true, K_MWHEELDOWN, 0);
+			IN_KeyEvent(devid, false, K_MWHEELUP, 0);
 			button -= 1;
 		}
 	}
@@ -577,13 +579,13 @@ static void DOM_ButtonEvent(unsigned int devid, int down, int button)
 			button = K_TOUCH;
 		else
 			button += K_MOUSE1;
-		IN_KeyEvent(mouseid[devid], down, button, 0);
+		IN_KeyEvent(devid, down, button, 0);
 	}
 }
 static void DOM_MouseMove(unsigned int devid, int abs, float x, float y, float z, float size)
 {
 	devid = RemapTouchId(devid, false);
-	IN_MouseMove(mouseid[devid], abs, x, y, z, size);
+	IN_MouseMove(devid, abs, x, y, z, size);
 }
 
 static void DOM_LoadFile(char *loc, char *mime, int handle)

@@ -347,7 +347,7 @@ mergeInto(LibraryManager.library,
 						{
 							if (event.type == 'touchstart')
 								{{{makeDynCall('viii','FTEC.evcb.button')}}}(t.identifier+1, 1, -1);
-							else if (event.type != 'touchmove')
+							else if (event.type != 'touchmove')	//cancel/end/leave...
 								{{{makeDynCall('viii','FTEC.evcb.button')}}}(t.identifier+1, 0, -1);
 						}
 					}
@@ -459,7 +459,7 @@ mergeInto(LibraryManager.library,
 					const b = gp.buttons[j];
 					let p;
 					if (typeof(b) == "object")
-						p = b.pressed;	//.value is a fractional thing. oh well.
+						p = b.pressed || (b.value > 0.5);	//.value is a fractional thing. oh well.
 					else
 						p = b > 0.5;	//old chrome bug
 
@@ -596,7 +596,7 @@ mergeInto(LibraryManager.library,
 						'focus', 'blur'];   //try to fix alt-tab
 			events.forEach(function(event)
 			{
-				Module['canvas'].addEventListener(event, FTEC.handleevent, true);
+				Module['canvas'].addEventListener(event, FTEC.handleevent, {capture:true, passive:false});
 			});
 
 			var docevents = ['keypress', 'keydown', 'keyup',
@@ -894,6 +894,8 @@ mergeInto(LibraryManager.library,
 		}
 		else if (Module["close"])
 			Module["close"]();
+		else if (Module["quiturl"])
+			document.location.replace(Module["quiturl"]);
 		else
 		{
 			try

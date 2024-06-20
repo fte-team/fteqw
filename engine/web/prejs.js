@@ -51,6 +51,8 @@ if (typeof Module['files'] !== "undefined" && Object.keys(Module['files']).lengt
 	{
 		Module['loadcachedfiles']();
 
+		Module['curfile'] = undefined;
+
 		let files = Module['files'];
 		let names = Object.keys(files);
 		for (let i = 0; i < names.length; i++)
@@ -66,6 +68,8 @@ if (typeof Module['files'] !== "undefined" && Object.keys(Module['files']).lengt
 				xhr.open("GET", ab);
 				xhr.onload = function ()
 				{
+					if (curfile == n)
+						curfile = undefined;
 					if (this.status >= 200 && this.status < 300)
 					{
 						let b = FTEH.h[_emscriptenfte_buf_createfromarraybuf(this.response)];
@@ -78,11 +82,15 @@ if (typeof Module['files'] !== "undefined" && Object.keys(Module['files']).lengt
 				};
 				xhr.onprogress = function(e)
 				{
-					if (Module['setStatus'])
+					if (typeof Module['curfile'] == "undefined")
+						Module['curfile'] = n;	//take it.
+					if (Module['setStatus'] && curfile==n)
 				        Module['setStatus'](n + ' (' + e.loaded + '/' + e.total + ')');
 				};
 				xhr.onerror = function ()
 				{
+					if (Module['curfile'] == n)
+						Module['curfile'] = undefined;
 					removeRunDependency(n);
 				};
 				xhr.send();
@@ -114,21 +122,22 @@ if (typeof Module['files'] !== "undefined" && Object.keys(Module['files']).lengt
 		}
 	}
 }
-else if (typeof man == "undefined")
+else if (!Module['manifest'])
 {
-	var man = window.location.protocol + "//" + window.location.host + window.location.pathname;
+	let man = window.location.protocol + "//" + window.location.host + window.location.pathname;
 	if (man.substr(-1) != '/')
 		man += ".fmf";
 	else
 		man += "index.fmf";
+	Module['manifest'] = man;
+	
+	if (window.location.hash != "")
+		Module['manifest'] = window.location.hash.substring(1);
 }
 
 if (!Module['arguments'])	//the html can be explicit about its args if it sets this to an empty array or w/e
 {
 	Module['arguments'] = [];
-
-	if (window.location.hash != "")
-		man = window.location.hash.substring(1);
 
 	// use query string in URL as command line
 	const qstrings = decodeURIComponent(window.location.search.substring(1));
@@ -149,8 +158,8 @@ if (!Module['arguments'])	//the html can be explicit about its args if it sets t
 		}
 	}
 
-	if (typeof man != "undefined")
-		Module['arguments'] = Module['arguments'].concat(['-manifest', man]);
+	if (Module['manifest'] != "")
+		Module['arguments'] = Module['arguments'].concat(['-manifest', Module['manifest']]);
 
 	//registerProtocolHandler needs to be able to pass it through to us... so only allow it if we're parsing args from the url.
 	Module['mayregisterscemes'] = true;

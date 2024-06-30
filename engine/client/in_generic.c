@@ -1052,9 +1052,9 @@ void IN_MoveJoystick(struct joy_s *joy, float *movements, int pnum, float framet
 		return;
 
 	//angle changes
-	cl.playerview[pnum].viewanglechange[PITCH] += joy_anglesens[0].value * jlook[0];
-	cl.playerview[pnum].viewanglechange[YAW] -= joy_anglesens[1].value * jlook[1];
-	cl.playerview[pnum].viewanglechange[ROLL] += joy_anglesens[2].value * jlook[2];
+	cl.playerview[pnum].viewanglechange[PITCH] += joy_anglesens[0].value * jlook[0] * in_sensitivityscale;
+	cl.playerview[pnum].viewanglechange[YAW] -= joy_anglesens[1].value * jlook[1] * in_sensitivityscale;
+	cl.playerview[pnum].viewanglechange[ROLL] += joy_anglesens[2].value * jlook[2] * in_sensitivityscale;
 
 	if (in_mlook.state[pnum] & 1)
 		V_StopPitchDrift (&cl.playerview[pnum]);

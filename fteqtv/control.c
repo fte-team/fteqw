@@ -130,14 +130,14 @@ unsigned char *FS_ReadFile(char *gamedir, char *filename, unsigned int *size)
 #endif
 int _cdecl SortFilesByDate(const void *a, const void *b)
 {
-	if (((availdemo_t*)a)->time < ((availdemo_t*)b)->time)
+	if (((const availdemo_t*)a)->time < ((const availdemo_t*)b)->time)
 		return 1;
-	if (((availdemo_t*)a)->time > ((availdemo_t*)b)->time)
+	if (((const availdemo_t*)a)->time > ((const availdemo_t*)b)->time)
 		return -1;
 
-	if (((availdemo_t*)a)->smalltime < ((availdemo_t*)b)->smalltime)
+	if (((const availdemo_t*)a)->smalltime < ((const availdemo_t*)b)->smalltime)
 		return 1;
-	if (((availdemo_t*)a)->smalltime > ((availdemo_t*)b)->smalltime)
+	if (((const availdemo_t*)a)->smalltime > ((const availdemo_t*)b)->smalltime)
 		return -1;
 	return 0;
 }
@@ -263,6 +263,8 @@ void Cluster_Run(cluster_t *cluster, qboolean dowait)
 			}
 		}
 
+		TURN_AddFDs(cluster, &socketset, &m);
+
 		for (pend = cluster->pendingproxies; pend; pend = pend->next)
 		{
 			if (pend->sock != INVALID_SOCKET && pend->sock < FD_SETSIZE)
@@ -376,6 +378,8 @@ void Cluster_Run(cluster_t *cluster, qboolean dowait)
 		sv = sv->next;
 		QTV_Run(old);
 	}
+
+	TURN_CheckFDs(cluster);
 
 	SV_FindProxies(cluster->tcpsocket[0], cluster, NULL);	//look for any other proxies wanting to muscle in on the action.
 	SV_FindProxies(cluster->tcpsocket[1], cluster, NULL);	//look for any other proxies wanting to muscle in on the action.
@@ -515,6 +519,20 @@ int main(int argc, char **argv)
 		strcpy(cluster->hostname, DEFAULT_HOSTNAME);
 		cluster->maxproxies = -1;
 
+		//master protocol setup
+		cluster->protocolname = strdup("FTE-Quake");
+		cluster->protocolver = 3;
+		strlcpy(cluster->master, "master.frag-net.com:27950", sizeof(cluster->master));	//default to eukara's master server.
+		cluster->mastersendtime = cluster->curtime;
+
+		cluster->relayenabled = true;		//allow qtv
+		cluster->pingtreeenabled = false;	//spammy.
+		cluster->turnenabled = false;		//leave turn off by default. we need to know a usable inbound port range, we can't depend on just outgoing ephemerial ones. misconfigured relays will result in failures so don't default this to on.
+
+#ifdef HAVE_EPOLL
+		cluster->epfd = epoll_create1(0);
+#endif
+
 		strcpy(cluster->demodir, "qw/demos/");
 
 		Sys_Printf(cluster, "QTV "QTV_VERSION_STRING"\n");
@@ -538,7 +556,7 @@ int main(int argc, char **argv)
 			Net_TCPListen(cluster, 1, SG_UNIX);
 
 			Sys_Printf(cluster, "\n"
-				"Welcome to FTEQTV\n"
+				"Welcome to QTV\n"
 				"Please type\n"
 				"qtv server:port\n"
 				" to connect to a tcp server.\n"

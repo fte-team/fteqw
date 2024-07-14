@@ -1051,7 +1051,7 @@ void IN_MoveJoystick(struct joy_s *joy, float *movements, int pnum, float framet
 		VectorScale(jlook, 360*cl_movespeedkey.value, jlook);
 		VectorScale(jstrafe, 360*cl_movespeedkey.value, jstrafe);
 	}
-	VectorScale(jlook, 360*frametime, jlook);
+	VectorScale(jlook, 360*frametime*in_sensitivityscale, jlook);
 
 	if (!movements)	//if this is null, gamecode should still get inputs, just no camera looking or anything.
 		return;

@@ -938,6 +938,7 @@ void Master_SetupSockets(void)
 
 static void CL_MasterListParse(netadrtype_t adrtype, int type, qboolean slashpad);
 static int CL_ReadServerInfo(char *msg, enum masterprotocol_e prototype, qboolean favorite);
+static void CL_ReadPingList(void);
 #else
 void Master_SetupSockets(void)
 {
@@ -2392,6 +2393,12 @@ void Master_CheckPollSockets(void)
 				continue;
 			}
 #endif
+			if (!strncmp(s, "pinglist", 8))	//parse a bit more...
+			{
+				net_message.currentbit = (c+8-1)<<3;
+				CL_ReadPingList();
+				continue;
+			}
 
 			net_message.currentbit = c;
 
@@ -2632,6 +2639,23 @@ static qboolean MasterInfo_ReadProtocol(serverinfo_t *info, const char *infostri
 					info->special |= SS_NETQUAKE;
 				else if (*token == 'x')
 					info->special |= SS_QEPROT;
+
+				else if (*token == 't')
+					info->special |= SS_PROXY;	//qtv
+				else if (*token == 'r')
+				{
+#if POLLTOTALSOCKETS>0
+					char *msg = "\xff\xff\xff\xffpingstatus ext";
+					if (info->peers)
+					{	//forget the old, to let them timeout.
+						Z_Free(info->peers);
+						info->peers = NULL;
+						info->numpeers = 0;
+					}
+					NET_SendPollPacket(strlen(msg), msg, info->adr);
+#endif
+					info->special |= SS_PROXY|SS_RELAY;	//qwfwd relay, ask it for its pinglist
+				}
 				else
 					continue;
 				break;
@@ -3297,6 +3321,86 @@ void MasterInfo_AddPlayer(netadr_t *serveradr, char *name, int ping, int frags, 
 	mplayers = p;
 }
 
+static void CL_ReadPingListEntry(serverinfo_t *info, netadrtype_t type, size_t *maxpeers)
+{
+	serverinfo_t *peer;
+	unsigned short ping;
+	int i;
+	netadr_t pa;
+	char adr[MAX_ADR_SIZE];
+	memset(&pa, 0, sizeof(pa));
+
+	pa.type = type;
+	if (type == NA_IP)
+	{
+		for (i = 0; i < countof(pa.address.ip); i++)
+			pa.address.ip[i] = MSG_ReadByte();
+	}
+	else if (type == NA_IPV6)
+	{
+		for (i = 0; i < countof(pa.address.ip6); i++)
+			pa.address.ip6[i] = MSG_ReadByte();
+	}
+	else
+	{
+		Sys_Error("CL_ReadPingListEntry: Unsupported netadrtype_t\n");
+		return;	//error...
+	}
+	pa.port = htons(MSG_ReadShort());	//little endian... stored into a network-endian variable...
+	ping  = MSG_ReadShort();
+
+	if (NET_ClassifyAddress(&pa, NULL) >= ASCOPE_NET)
+	{
+		peer = Master_InfoForServer(&pa, NULL);
+		if (!peer)
+		{
+			//generate some lame peer node that we can use.
+			peer = Z_Malloc(sizeof(serverinfo_t));
+			peer->adr = pa;
+			peer->sends = 1;
+			peer->special = SS_QUAKEWORLD;
+			peer->refreshtime = 0;
+			peer->ping = PING_DEAD;
+			Q_snprintfz(peer->name, sizeof(peer->name), "%s p", Master_ServerToString(adr, sizeof(adr), peer));
+			peer->next = firstserver;
+			firstserver = peer;
+		}
+
+		for (i = 0; i < info->numpeers; i++)
+		{
+			if (info->peers[i].peer == peer)
+				break;
+		}
+		if (i == *maxpeers)
+		{	//need a new one
+			info->numpeers = i+1;
+			Z_ReallocElements((void**)&info->peers, maxpeers, info->numpeers+64, sizeof(*info->peers));
+		}
+		info->peers[i].peer = peer;
+		info->peers[i].ping = ping;
+	}
+}
+static void CL_ReadPingList(void)
+{
+	serverinfo_t *info = Master_InfoForServer(&net_from, NULL);
+	size_t count = info->numpeers;
+	for(;;)
+	{
+		int type = MSG_ReadByte();
+		if (type == '\\')
+			CL_ReadPingListEntry(info, NA_IP, &count);
+		else if (type == '/')
+			CL_ReadPingListEntry(info, NA_IPV6, &count);
+		else
+			break;	//don't know, don't corrupt it.
+	}
+	if (count > info->numpeers)
+	{	//trim it...
+		Z_ReallocElements((void**)&info->peers, &count, info->numpeers, sizeof(*info->peers));
+		info->numpeers = count;
+	}
+}
+
 //we got told about a server, parse it's info
 static int CL_ReadServerInfo(char *msg, enum masterprotocol_e prototype, qboolean favorite)
 {
@@ -3361,52 +3465,12 @@ static int CL_ReadServerInfo(char *msg, enum masterprotocol_e prototype, qboolea
 		if (!*Info_ValueForKey(msg, "hostname"))
 		{	//qq, you suck
 			//this is a proxy peer list, not an actual serverinfo update.
-			unsigned char *ptr = net_message.data + 5;
-			int remaining = net_message.cursize - 5;
-			struct peers_s *peer;
-			netadr_t pa;
-			memset(&pa, 0, sizeof(pa));
-			remaining /= 8;
-
-			//Master_ServerToString(adr, sizeof(adr), info);
-
-			Z_Free(info->peers);
-			info->numpeers = 0;
-			peer = info->peers = Z_Malloc(sizeof(*peer)*remaining);
-
+			size_t count = info->numpeers;
+			int remaining = (net_message.cursize - 5) / 8;
+			net_message.currentbit = (5)<<3;
 			while (remaining --> 0)
-			{
-				pa.type = NA_IP;
-				pa.address.ip[0] = *ptr++;
-				pa.address.ip[1] = *ptr++;
-				pa.address.ip[2] = *ptr++;
-				pa.address.ip[3] = *ptr++;
-
-				pa.port  = *ptr++<<8;
-				pa.port |= *ptr++;
-				peer->ping  = *ptr++;
-				peer->ping |= *ptr++<<8;
-
-				if (NET_ClassifyAddress(&pa, NULL) >= ASCOPE_NET)
-				{
-					peer->peer = Master_InfoForServer(&pa, NULL);
-					if (!peer->peer)
-					{
-						//generate some lame peer node that we can use.
-						peer->peer = Z_Malloc(sizeof(serverinfo_t));
-						peer->peer->adr = pa;
-						peer->peer->sends = 1;
-						peer->peer->special = SS_QUAKEWORLD;
-						peer->peer->refreshtime = 0;
-						peer->peer->ping = PING_DEAD;
-						peer->peer->next = firstserver;
-						Q_snprintfz(peer->peer->name, sizeof(peer->peer->name), "%s p", Master_ServerToString(adr, sizeof(adr), peer->peer));
-						firstserver = peer->peer;
-					}
-					peer++;
-					info->numpeers++;
-				}
-			}
+				CL_ReadPingListEntry(info, NA_IP, &count);
+			info->numpeers = count;
 			return false;
 		}
 	}
@@ -3456,16 +3520,21 @@ static int CL_ReadServerInfo(char *msg, enum masterprotocol_e prototype, qboolea
 
 	if (*Info_ValueForKey(msg, "*qtv") || *Info_ValueForKey(msg, "*QTV"))
 		info->special |= SS_PROXY|SS_FTESERVER;	//qtv
-	if (!strcmp(Info_ValueForKey(msg, "*progs"), "666") && !strcmp(Info_ValueForKey(msg, "*version"), "2.91"))
+	else if (!strcmp(Info_ValueForKey(msg, "*progs"), "666") && !strcmp(Info_ValueForKey(msg, "*version"), "2.91"))
 		info->special |= SS_PROXY;	//qizmo
-	if (!Q_strncmp(Info_ValueForKey(msg, "*version"), "qwfwd", 5))
+	else if (!Q_strncmp(Info_ValueForKey(msg, "*version"), "qwfwd", 5))
 	{
-		char *msg = "\xff\xff\xff\xffpingstatus";
+		char *msg = "\xff\xff\xff\xffpingstatus ext";
 		NET_SendPollPacket(strlen(msg), msg, info->adr);
-
-		info->special |= SS_PROXY;	//qwfwd
+		if (info->peers)
+		{	//let em time out
+			Z_Free(info->peers);
+			info->peers = NULL;
+			info->numpeers = 0;
+		}
+		info->special |= SS_PROXY|SS_RELAY;	//qwfwd
 	}
-	if (!Q_strncasecmp(Info_ValueForKey(msg, "*version"), "qtv ", 4))
+	else if (!Q_strncasecmp(Info_ValueForKey(msg, "*version"), "qtv ", 4))
 		info->special |= SS_PROXY;	//eztv
 
 	token = Info_ValueForKey(msg, "map");

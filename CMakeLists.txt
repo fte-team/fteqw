@@ -1143,7 +1143,9 @@ ELSE()
 			fteqtv/source.c
 			fteqtv/bsp.c
 			fteqtv/rcon.c
+			fteqtv/relay.c
 			fteqtv/mdfour.c
+			engine/common/md5.c
 			fteqtv/crc.c
 			fteqtv/control.c
 			fteqtv/forward.c
@@ -1155,9 +1157,9 @@ ELSE()
 		)
 		SET_TARGET_PROPERTIES(qtv PROPERTIES COMPILE_DEFINITIONS "${FTE_REVISON}")
 		IF(WIN32)
-			TARGET_LINK_LIBRARIES(qtv ws2_32 winmm ${SYS_LIBS})
+			TARGET_LINK_LIBRARIES(qtv ws2_32 winmm ${SYS_LIBS} ${ZLIB_LIBRARIES})
 		ELSE()
-			TARGET_LINK_LIBRARIES(qtv ${SYS_LIBS})
+			TARGET_LINK_LIBRARIES(qtv ${SYS_LIBS} ${ZLIB_LIBRARIES})
 		ENDIF()
 		SET(INSTALLTARGS ${INSTALLTARGS} qtv)
 	ENDIF()

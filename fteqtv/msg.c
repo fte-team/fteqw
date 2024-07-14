@@ -25,6 +25,14 @@ unsigned short ReadShort(netmsg_t *b)
 
 	return b1 | (b2<<8);
 }
+unsigned short ReadBigShort(netmsg_t *b)
+{
+	int b1, b2;
+	b1 = ReadByte(b);
+	b2 = ReadByte(b);
+
+	return (b1<<8) | b2;
+}
 unsigned int ReadLong(netmsg_t *b)
 {
 	int s1, s2;
@@ -32,6 +40,14 @@ unsigned int ReadLong(netmsg_t *b)
 	s2 = ReadShort(b);
 
 	return s1 | (s2<<16);
+}
+unsigned int ReadBigLong(netmsg_t *b)
+{
+	unsigned int s1, s2;
+	s1 = ReadBigShort(b);
+	s2 = ReadBigShort(b);
+
+	return (s1<<16) | s2;
 }
 
 unsigned int BigLong(unsigned int val)
@@ -117,12 +133,24 @@ void WriteShort(netmsg_t *b, unsigned short l)
 	WriteByte(b, (l&0x00ff)>>0);
 	WriteByte(b, (l&0xff00)>>8);
 }
+void WriteBigShort(netmsg_t *b, unsigned short l)
+{
+	WriteByte(b, (l&0xff00)>>8);
+	WriteByte(b, (l&0x00ff)>>0);
+}
 void WriteLong(netmsg_t *b, unsigned int l)
 {
 	WriteByte(b, (l&0x000000ff)>>0);
 	WriteByte(b, (l&0x0000ff00)>>8);
 	WriteByte(b, (l&0x00ff0000)>>16);
 	WriteByte(b, (l&0xff000000)>>24);
+}
+void WriteBigLong(netmsg_t *b, unsigned int l)
+{
+	WriteByte(b, (l&0xff000000)>>24);
+	WriteByte(b, (l&0x00ff0000)>>16);
+	WriteByte(b, (l&0x0000ff00)>>8);
+	WriteByte(b, (l&0x000000ff)>>0);
 }
 void WriteFloat(netmsg_t *b, float f)
 {
@@ -168,7 +196,7 @@ void WriteData(netmsg_t *b, const void *data, int length)
 		return;
 	buf = (unsigned char*)b->data+b->cursize;
 	for (i = 0; i < length; i++)
-		*buf++ = ((unsigned char*)data)[i];
+		*buf++ = ((const unsigned char*)data)[i];
 	b->cursize+=length;
 }
 void WriteCoordf(netmsg_t *b, unsigned int pext, float fl)

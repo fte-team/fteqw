@@ -68,8 +68,8 @@ if (typeof Module['files'] !== "undefined" && Object.keys(Module['files']).lengt
 				xhr.open("GET", ab);
 				xhr.onload = function ()
 				{
-					if (curfile == n)
-						curfile = undefined;
+					if (Module['curfile'] == n)
+						Module['curfile'] = undefined;
 					if (this.status >= 200 && this.status < 300)
 					{
 						let b = FTEH.h[_emscriptenfte_buf_createfromarraybuf(this.response)];
@@ -84,7 +84,7 @@ if (typeof Module['files'] !== "undefined" && Object.keys(Module['files']).lengt
 				{
 					if (typeof Module['curfile'] == "undefined")
 						Module['curfile'] = n;	//take it.
-					if (Module['setStatus'] && curfile==n)
+					if (Module['setStatus'] && Module['curfile']==n)
 				        Module['setStatus'](n + ' (' + e.loaded + '/' + e.total + ')');
 				};
 				xhr.onerror = function ()
@@ -158,7 +158,7 @@ if (!Module['arguments'])	//the html can be explicit about its args if it sets t
 		}
 	}
 
-	if (Module['manifest'] != "")
+	if (Module['manifest'] != undefined)
 		Module['arguments'] = Module['arguments'].concat(['-manifest', Module['manifest']]);
 
 	//registerProtocolHandler needs to be able to pass it through to us... so only allow it if we're parsing args from the url.

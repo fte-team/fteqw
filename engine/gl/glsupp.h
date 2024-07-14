@@ -571,7 +571,7 @@ typedef GLboolean (APIENTRYP PFNGLISPROGRAMARBPROC) (GLuint program);
 #define GL_SAMPLER_2D_RECT_ARB			0x8B63
 #define GL_SAMPLER_2D_RECT_SHADOW_ARB	0x8B64
 // dont know if these two should go somewhere better:
-#if 1//def __APPLE__
+#ifdef __APPLE__
 typedef void *GLhandleARB; //Royally Fucked.
 #else
 typedef unsigned int GLhandleARB;

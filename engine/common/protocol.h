@@ -93,6 +93,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define PEXT2_DEPRECATEDORNEW		(PEXT2_INFOBLOBS|PEXT2_VRINPUTS|PEXT2_LERPTIME) //extensions that are outdated
 #define PEXT2_MVDSUPPORT			(PEXT2_CLIENTSUPPORT&~PEXT2_DEPRECATED&~PEXT2_STUNAWARE)	//pext2 extensions to use when recording mvds.
 
+#define PEXT2_LONGINDEXES			0	//boosts the maximum player+stat index.
+
 //EzQuake/Mvdsv extensions. (use ezquake name, to avoid confusion about .mvd format and its protocol differences)
 #define EZPEXT1_FLOATENTCOORDS		0x00000001	//quirky - doesn't apply to broadcasts, just players+ents. this gives more precision, but will bug out if you try using it to increase map bounds in ways that may not be immediately apparent. iiuc this was added instead of fixing some inconsistent rounding...
 #define EZPEXT1_SETANGLEREASON		0x00000002	//specifies the reason for an svc_setangles call. the mvdsv implementation will fuck over any mods that writebyte them. we'd need to modify our preparse stuff to work around the issue.
@@ -1265,7 +1267,7 @@ typedef struct entity_state_s
 	qbyte glowcolour;
 
 	qbyte	scale;	//4.4 precision
-	char	fatness;
+	char	fatness; //1/16th
 	qbyte	hexen2flags;
 	qbyte	abslight;
 
@@ -1902,7 +1904,7 @@ typedef struct q1usercmd_s
 #define RENDER_VIEWMODEL 4
 #define RENDER_EXTERIORMODEL 8
 #define RENDER_LOWPRECISION 16 // send as low precision coordinates to save bandwidth
-#define RENDER_COLORMAPPED 32
+#define RENDER_COLORMAPPED 32	//networked colormap field is a direct (top<<4)|bottom value rather than a player slot (the |1024 thing d does)
 //#define RENDER_WORLDOBJECT 64
 #define RENDER_COMPLEXANIMATION 128
 

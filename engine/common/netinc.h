@@ -443,6 +443,7 @@ qboolean ICE_WasStun(ftenet_connections_t *col);
 void QDECL ICE_AddLCandidateConn(ftenet_connections_t *col, netadr_t *addr, int type);
 void QDECL ICE_AddLCandidateInfo(struct icestate_s *con, netadr_t *adr, int adrno, int type);
 ftenet_generic_connection_t *FTENET_ICE_EstablishConnection(ftenet_connections_t *col, const char *address, netadr_t adr, const struct dtlspeercred_s *peerinfo);
+extern ftenet_generic_connection_t *FTENET_Datagram_EstablishConnection(ftenet_connections_t *col, const char *address, netadr_t adr, const struct dtlspeercred_s *peerinfo);
 enum icemsgtype_s
 {	//shared by rtcpeers+broker
 	ICEMSG_PEERLOST=0,	//other side dropped connection

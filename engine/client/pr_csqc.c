@@ -622,6 +622,10 @@ static void QCBUILTIN PF_Fixme (pubprogfuncs_t *prinst, struct globalvars_s *pr_
 	prinst->RunError(prinst, "\nBuiltin %i:%s not implemented.\nCSQC is not compatible.", binum, fname);
 	PR_BIError (prinst, "bulitin not implemented");
 }
+static void QCBUILTIN PF_Ignore (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	G_INT(OFS_RETURN) = 0;
+}
 static void QCBUILTIN PF_NoCSQC (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	int binum;
@@ -647,7 +651,7 @@ static void QCBUILTIN PF_checkbuiltin (pubprogfuncs_t *prinst, struct globalvars
 	{	//qc defines the function at least. nothing weird there...
 		if (builtinno > 0 && builtinno < prinst->parms->numglobalbuiltins)
 		{
-			if (!prinst->parms->globalbuiltins[builtinno] || prinst->parms->globalbuiltins[builtinno] == PF_Fixme || prinst->parms->globalbuiltins[builtinno] == PF_NoCSQC)
+			if (!prinst->parms->globalbuiltins[builtinno] || prinst->parms->globalbuiltins[builtinno] == PF_Fixme || prinst->parms->globalbuiltins[builtinno] == PF_Ignore || prinst->parms->globalbuiltins[builtinno] == PF_NoCSQC)
 				G_FLOAT(OFS_RETURN) = false;	//the builtin with that number isn't defined.
 			else
 			{
@@ -837,7 +841,10 @@ static qboolean CopyCSQCEdictToEntity(csqcedict_t *fte_restrict in, entity_t *ft
 	{
 		VectorCopy(in->v->angles, out->angles);
 		if (model && model->type == mod_alias)
+		{
 			out->angles[0] *= r_meshpitch.value;
+			out->angles[2] *= r_meshroll.value;
+		}
 		AngleVectors(out->angles, out->axis[0], out->axis[1], out->axis[2]);
 		VectorInverse(out->axis[1]);
 
@@ -2712,6 +2719,8 @@ static void QCBUILTIN PF_R_RenderScene(pubprogfuncs_t *prinst, struct globalvars
 		World_RBE_Shutdown(&csqc_world);
 		World_RBE_Start(&csqc_world);
 	}
+
+	R2D_ImageColours(1,1,1,1);	//apparently does matter.
 
 	if (cl.worldmodel)
 		R_PushDlights ();

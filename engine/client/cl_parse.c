@@ -27,7 +27,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 void CL_GetNumberedEntityInfo (int num, float *org, float *ang);
 void CLDP_ParseDarkPlaces5Entities(void);
 void CLH2_ParseEntities(void);
-static void CL_SetStatNumeric (int pnum, int stat, int ivalue, float fvalue);
+static void CL_SetStatNumeric (int pnum, unsigned int stat, int ivalue, float fvalue);
 #define CL_SetStatInt(pnum,stat,ival) do{int thevalue=ival; CL_SetStatNumeric(pnum,stat,thevalue,thevalue);}while(0)
 #define CL_SetStatFloat(pnum,stat,fval) do{float thevalue=fval; CL_SetStatNumeric(pnum,stat,thevalue,thevalue);}while(0)
 static qboolean CL_CheckModelResources (char *name);
@@ -37,7 +37,10 @@ static char *CLNQ_ParseProQuakeMessage (char *s);
 static void DLC_Poll(qdownload_t *dl);
 static void CL_ProcessUserInfo (int slot, player_info_t *player);
 static void CL_ParseStuffCmd(char *msg, int destsplit);
-static void Con_HexDump(qbyte *packet, size_t len, size_t badoffset);
+void Con_HexDump(qbyte *packet, size_t len, size_t badoffset);
+
+#define MSG_ReadBigIndex() ((cls.fteprotocolextensions2&PEXT2_LONGINDEXES)?(unsigned int)MSG_ReadUInt64():MSG_ReadByte ())
+#define MSG_ReadPlayer() MSG_ReadBigIndex()
 
 #ifdef NQPROT
 char *cl_dp_packagenames;
@@ -3412,9 +3415,12 @@ static void CLQW_ParseServerData (void)
 
 		if (cls.fteprotocolextensions2 & PEXT2_MAXPLAYERS)
 		{
-			cl.allocated_client_slots = MSG_ReadByte();
+			cl.allocated_client_slots = MSG_ReadPlayer();
 			if (cl.allocated_client_slots > MAX_CLIENTS)
+			{
+				Con_Printf(CON_ERROR"Server has too many client slots (%u > %u)\n", cl.allocated_client_slots, MAX_CLIENTS);
 				cl.allocated_client_slots = MAX_CLIENTS;
+			}
 		}
 
 		cl.gametime = MSG_ReadFloat();
@@ -3441,7 +3447,7 @@ static void CLQW_ParseServerData (void)
 	else if (cls.fteprotocolextensions2 & PEXT2_MAXPLAYERS)
 	{
 //		qboolean spec = false;
-		cl.allocated_client_slots = MSG_ReadByte();
+		cl.allocated_client_slots = MSG_ReadPlayer();
 		if (cl.allocated_client_slots > MAX_CLIENTS)
 		{
 			Con_Printf(CON_ERROR"Server has too many client slots (%u > %u)\n", cl.allocated_client_slots, MAX_CLIENTS);
@@ -4041,14 +4047,14 @@ static void CLNQ_ParseServerData(void)		//Doesn't change gamedir - use with caut
 
 	if (cls.qex)
 	{
-		cl.allocated_client_slots = MSG_ReadByte();
+		cl.allocated_client_slots = MSG_ReadPlayer();
 		str = MSG_ReadString();
 	}
 	else
 	{
 		if (cls.fteprotocolextensions2 & PEXT2_PREDINFO)
 			str = MSG_ReadString();
-		cl.allocated_client_slots = MSG_ReadByte();
+		cl.allocated_client_slots = MSG_ReadPlayer();
 	}
 	if (str)
 	{
@@ -5847,10 +5853,10 @@ CL_UpdateUserinfo
 */
 static void CL_UpdateUserinfo (void)
 {
-	int		slot;
+	unsigned int		slot;
 	player_info_t	*player;
 
-	slot = MSG_ReadByte ();
+	slot = MSG_ReadPlayer();
 	if (slot >= MAX_CLIENTS)
 		Host_EndGame ("CL_ParseServerMessage: svc_updateuserinfo > MAX_SCOREBOARD");
 
@@ -5874,7 +5880,7 @@ static void CL_UpdateUserinfo (void)
 
 static void CL_ParseSetInfoBlob (void)
 {
-	qbyte slot = MSG_ReadByte();
+	unsigned int slot = MSG_ReadPlayer();
 	char *key = MSG_ReadString();
 	size_t keysize;
 	unsigned int offset = MSG_ReadLong();
@@ -5918,12 +5924,12 @@ CL_SetInfo
 */
 static void CL_ParseSetInfo (void)
 {
-	int		slot;
+	unsigned int		slot;
 	player_info_t	*player;
 	char *val;
 	char key[512];
 
-	slot = MSG_ReadByte ();
+	slot = MSG_ReadPlayer ();
 
 	MSG_ReadStringBuffer(key, sizeof(key));
 	val = MSG_ReadString();
@@ -6100,7 +6106,7 @@ static void CL_SetStatMovevar(int pnum, int stat, int ivalue, float value)
 #endif
 
 //the two values are expected to be the same, they're just both provided for precision.
-static void CL_SetStatNumeric (int pnum, int stat, int ivalue, float fvalue)
+static void CL_SetStatNumeric (int pnum, unsigned int stat, int ivalue, float fvalue)
 {
 	if (stat < 0 || stat >= MAX_CL_STATS)
 		return;
@@ -6188,6 +6194,84 @@ static void CL_SetStatString (int pnum, int stat, const char *value)
 		cl.playerview[pnum].statsstr[stat] = Z_StrDup(value);
 	}
 }
+
+/*
+//if we're going to 'spend' another byte for longer indexes, we might as well spend an extra 4 bits on the type too, allowing for 64bit types etc.
+static void CL_ParseExtendedStat(int destsplit)
+{
+//float/double/sint/uint
+//string
+	quint64_t id = MSG_ReadUInt64();
+	unsigned int type;
+	type = id&0xf;
+	id>>=4;	//we're never going to have that many stats.
+	switch(type)
+	{
+	case ev_void:	//might as well.
+		CL_SetStatNumeric(destsplit, id, 0, 0);
+		break;
+	case ev_string:
+		CL_SetStatString(destsplit, id, MSG_ReadString());
+		break;
+	case ev_float:
+		{
+			float f = MSG_ReadFloat();
+			CL_SetStatNumeric(destsplit, id, f, f);
+		}
+		break;
+	case ev_vector:
+		{
+			float f;
+			f = MSG_ReadFloat();CL_SetStatNumeric(destsplit, id+0, f, f);
+			f = MSG_ReadFloat();CL_SetStatNumeric(destsplit, id+1, f, f);
+			f = MSG_ReadFloat();CL_SetStatNumeric(destsplit, id+2, f, f);
+		}
+		break;
+	case ev_entity:
+		{
+			unsigned int i = MSGCL_ReadEntity();
+			CL_SetStatNumeric(destsplit, id, i, i);
+		}
+		break;
+//	case ev_field:
+//	case ev_function:
+//	case ev_pointer:
+	case ev_integer:
+		{
+			signed int i = MSG_ReadLong();
+			CL_SetStatNumeric(destsplit, id, i, i);
+		}
+		break;
+	case ev_uint:
+		{
+			unsigned int i = MSG_ReadLong();
+			CL_SetStatNumeric(destsplit, id, i, i);
+		}
+		break;
+	case ev_int64:
+		{
+			qint64_t i = MSG_ReadInt64();
+			CL_SetStatNumeric(destsplit, id, i, i);
+		}
+		break;
+	case ev_uint64:
+		{
+			quint64_t i = MSG_ReadUInt64();
+			CL_SetStatNumeric(destsplit, id, i, i);
+		}
+		break;
+	case ev_double:
+		{
+			double f = MSG_ReadDouble();
+			CL_SetStatNumeric(destsplit, id, f, f);
+		}
+		break;
+	default:
+		Host_EndGame("CL_ParseExtendedStat: type %i is unsupported", type);
+		break;
+	}
+}*/
+
 /*
 ==============
 CL_MuzzleFlash
@@ -7293,7 +7377,7 @@ static void CL_ParsePrecache(void)
 	}
 }
 
-static void Con_HexDump(qbyte *packet, size_t len, size_t badoffset)
+void Con_HexDump(qbyte *packet, size_t len, size_t badoffset)
 {
 	int i;
 	int pos;
@@ -7514,6 +7598,7 @@ void CLEZ_ParseHiddenDemoMessage(void)
 	}
 }
 
+
 #define SHOWNETEOM(x) if(cl_shownet.value>=2)Con_Printf ("%3i:%s\n", MSG_GetReadCount(), x);
 #define SHOWNET(x) if(cl_shownet.value>=2)Con_Printf ("%3i:%s\n", MSG_GetReadCount()-1, x);
 #define SHOWNET2(x, y) if(cl_shownet.value>=2)Con_Printf ("%3i:%3i:%s\n", MSG_GetReadCount()-1, y, x);
@@ -7526,6 +7611,7 @@ void CLQW_ParseServerMessage (void)
 {
 	int			cmd;
 	char		*s;
+	unsigned int u;
 	int			i, j;
 	int			destsplit;
 	vec3_t ang;
@@ -7652,7 +7738,8 @@ void CLQW_ParseServerMessage (void)
 			}
 			else if (cls.demoplayback)
 			{
-				CL_Disconnect_f();
+				CL_Disconnect(NULL);
+				CL_NextDemo();
 				return;
 			}
 			else if (cls.state == ca_connected)
@@ -7832,32 +7919,32 @@ void CLQW_ParseServerMessage (void)
 
 		case svc_updatefrags:
 			Sbar_Changed ();
-			i = MSG_ReadByte ();
-			if (i >= MAX_CLIENTS)
+			u = MSG_ReadPlayer();
+			if (u >= MAX_CLIENTS)
 				Host_EndGame ("CL_ParseServerMessage: svc_updatefrags > MAX_SCOREBOARD");
-			cl.players[i].frags = MSG_ReadShort ();
+			cl.players[u].frags = MSG_ReadShort ();
 			break;
 
 		case svc_updateping:
-			i = MSG_ReadByte ();
-			if (i >= MAX_CLIENTS)
+			u = MSG_ReadPlayer();
+			if (u >= MAX_CLIENTS)
 				Host_EndGame ("CL_ParseServerMessage: svc_updateping > MAX_SCOREBOARD");
-			cl.players[i].ping = MSG_ReadShort ();
+			cl.players[u].ping = MSG_ReadShort ();
 			break;
 
 		case svc_updatepl:
-			i = MSG_ReadByte ();
-			if (i >= MAX_CLIENTS)
+			u = MSG_ReadPlayer();
+			if (u >= MAX_CLIENTS)
 				Host_EndGame ("CL_ParseServerMessage: svc_updatepl > MAX_SCOREBOARD");
-			cl.players[i].pl = MSG_ReadByte ();
+			cl.players[u].pl = MSG_ReadByte ();
 			break;
 
 		case svc_updateentertime:
 		// time is sent over as seconds ago
-			i = MSG_ReadByte ();
-			if (i >= MAX_CLIENTS)
+			u = MSG_ReadPlayer();
+			if (u >= MAX_CLIENTS)
 				Host_EndGame ("CL_ParseServerMessage: svc_updateentertime > MAX_SCOREBOARD");
-			cl.players[i].realentertime = realtime - MSG_ReadFloat ();
+			cl.players[u].realentertime = realtime - MSG_ReadFloat ();
 			break;
 
 		case svc_spawnbaseline:
@@ -7938,6 +8025,9 @@ void CLQW_ParseServerMessage (void)
 			f = MSG_ReadFloat();
 			CL_SetStatNumeric (destsplit, i, f, f);
 			break;
+/*		case svcfte_updatebigstat:
+			CL_ParseExtendedStat();
+			break;*/
 
 		case svc_spawnstaticsound:
 			CL_ParseStaticSound (false);
@@ -8967,7 +9057,7 @@ static qboolean CLNQ_ParseNQPrints(char *s)
 	return false;
 }
 
-static void CLNQ_CheckPlayerIsSpectator(int i)
+static void CLNQ_CheckPlayerIsSpectator(unsigned int i)
 {
 	cl.players[i].spectator =
 		(cl.players[i].frags==-999) ||	//DP mods tend to use -999
@@ -9002,6 +9092,7 @@ static void CLNQ_CheckPlayerIsSpectator(int i)
 static qboolean CLH2_ParseServerSubMessage (int cmd)
 {
 	const int destsplit = 0;
+	unsigned int u;
 	int i,j;
 	const int svch2_first = svch2_particle2;
 	static const char *svc_h2strings[] =
@@ -9150,10 +9241,10 @@ static qboolean CLH2_ParseServerSubMessage (int cmd)
 		MSG_ReadByte();	//handle
 		break;
 	case svch2_updateclass:
-		i = MSG_ReadByte();
+		u = MSG_ReadPlayer();
 		j = MSG_ReadByte();
-		if (i < MAX_CLIENTS)
-			InfoBuf_SetValueForKey(&cl.players[i].userinfo, "cl_playerclass", va("%i", j));
+		if (u < MAX_CLIENTS)
+			InfoBuf_SetValueForKey(&cl.players[u].userinfo, "cl_playerclass", va("%i", j));
 		break;
 	case svch2_updateinv:
 		cmd = MSG_ReadByte();
@@ -9273,6 +9364,7 @@ void CLNQ_ParseServerMessage (void)
 	const int	destsplit = 0;
 	int			cmd;
 	char		*s;
+	unsigned int u;
 	int			i, j;
 	vec3_t		ang;
 	unsigned int cmdstart;
@@ -9363,7 +9455,8 @@ void CLNQ_ParseServerMessage (void)
 			break;
 
 		case svc_disconnect:
-			CL_Disconnect("Server disconnected");
+			CL_Disconnect(cls.demoplayback?NULL:"Server disconnected");	//don't show any errors on end-of-demo.
+			CL_NextDemo();
 			return;
 
 		case svc_centerprint:
@@ -9575,57 +9668,57 @@ void CLNQ_ParseServerMessage (void)
 
 		case svc_updatename:
 			Sbar_Changed ();
-			i = MSG_ReadByte ();
-			if (i >= MAX_CLIENTS)
+			u = MSG_ReadPlayer ();
+			if (u >= MAX_CLIENTS)
 				MSG_ReadString();
 			else
 			{
-				strcpy(cl.players[i].name, MSG_ReadString());
-				if (*cl.players[i].name)
-					cl.players[i].userid = i+1;
-				InfoBuf_SetValueForKey(&cl.players[i].userinfo, "name", cl.players[i].name);
+				strcpy(cl.players[u].name, MSG_ReadString());
+				if (*cl.players[u].name)
+					cl.players[u].userid = u+1;
+				InfoBuf_SetValueForKey(&cl.players[u].userinfo, "name", cl.players[u].name);
 				if (!cl.nqplayernamechanged)
 					cl.nqplayernamechanged = realtime+2;
 
-				CLNQ_CheckPlayerIsSpectator(i);
+				CLNQ_CheckPlayerIsSpectator(u);
 			}
 			break;
 
 		case svc_updatefrags:
 			Sbar_Changed ();
-			i = MSG_ReadByte ();
-			if (i >= MAX_CLIENTS)
+			u = MSG_ReadPlayer ();
+			if (u >= MAX_CLIENTS)
 				MSG_ReadShort();
 			else
 			{
-				cl.players[i].frags = MSG_ReadShort();
-				CLNQ_CheckPlayerIsSpectator(i);
+				cl.players[u].frags = MSG_ReadShort();
+				CLNQ_CheckPlayerIsSpectator(u);
 			}
 			break;
 		case svc_updatecolors:
 			{
 				int a;
-				i = MSG_ReadByte ();
+				u = MSG_ReadPlayer ();
 				a = MSG_ReadByte ();
-				if (i < cl.allocated_client_slots)
+				if (u < cl.allocated_client_slots)
 				{
-//					cl.players[i].rtopcolor = a&0x0f;
-//					cl.players[i].rbottomcolor = (a&0xf0)>>4;
-//					sprintf(cl.players[i].team, "%2d", cl.players[i].rbottomcolor);
+//					cl.players[u].rtopcolor = a&0x0f;
+//					cl.players[u].rbottomcolor = (a&0xf0)>>4;
+//					sprintf(cl.players[u].team, "%2d", cl.players[u].rbottomcolor);
 
-					InfoBuf_SetValueForKey(&cl.players[i].userinfo, "topcolor", va("%i", (a&0xf0)>>4));
-					InfoBuf_SetValueForKey(&cl.players[i].userinfo, "bottomcolor", va("%i", (a&0x0f)));
-					InfoBuf_SetValueForKey(&cl.players[i].userinfo, "team", va("%i", (a&0x0f)+1));
-					CL_ProcessUserInfo (i, &cl.players[i]);
+					InfoBuf_SetValueForKey(&cl.players[u].userinfo, "topcolor", va("%i", (a&0xf0)>>4));
+					InfoBuf_SetValueForKey(&cl.players[u].userinfo, "bottomcolor", va("%i", (a&0x0f)));
+					InfoBuf_SetValueForKey(&cl.players[u].userinfo, "team", va("%i", (a&0x0f)+1));
+					CL_ProcessUserInfo (u, &cl.players[u]);
 
-//					CLNQ_CheckPlayerIsSpectator(i);
+//					CLNQ_CheckPlayerIsSpectator(u);
 
 #ifdef QWSKINS
 					if (cls.state == ca_active)
-						Skin_Find (&cl.players[i]);
-					if (i == cl.playerview[destsplit].playernum)
+						Skin_Find (&cl.players[u]);
+					if (u == cl.playerview[destsplit].playernum)
 						Skin_FlushPlayers();
-					CL_NewTranslation (i);
+					CL_NewTranslation (u);
 #endif
 					Sbar_Changed ();
 				}

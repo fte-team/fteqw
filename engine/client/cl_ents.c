@@ -623,7 +623,7 @@ void CLFTE_ReadDelta(unsigned int entnum, entity_state_t *news, entity_state_t *
 {
 	unsigned int predbits = 0;
 	unsigned int bits;
-	
+
 	bits = MSG_ReadByte();
 	if (bits & UF_EXTEND1)
 		bits |= MSG_ReadByte()<<8;
@@ -4507,10 +4507,9 @@ void CL_LinkPacketEntities (void)
 			//DP extension. .modelflags (which is sent in the high parts of effects) allows to specify exactly the q1-compatible flags.
 			//the extra bit allows for setting to 0.
 			//note that hexen2 has additional flags which cannot be expressed.
-			if (state->effects & 0xff800000)
-				modelflags = state->effects>>24;
-			else
-				modelflags = model->flags;
+			modelflags = state->effects>>24;
+			if (!(state->effects & EF_NOMODELFLAGS))
+				modelflags |= model->flags;
 		}
 
 #ifdef HAVE_LEGACY
@@ -4990,7 +4989,6 @@ CL_ParsePlayerinfo
 */
 extern int parsecountmod, oldparsecountmod;
 extern double parsecounttime;
-int lastplayerinfo;
 
 void CL_ParseClientdata (void);
 void CL_MVDUpdateSpectator(void)
@@ -5005,12 +5003,15 @@ void CLQW_ParsePlayerinfo (void)
 	unsigned int			flags;
 	player_info_t	*info;
 	player_state_t	*state, *oldstate;
-	int			num;
+	unsigned int			num;
 	int			i;
 	int newf;
 	vec3_t		org, dist;
 
-	lastplayerinfo = num = MSG_ReadByte ();
+	if (cls.fteprotocolextensions2&PEXT2_LONGINDEXES)
+		num = MSG_ReadUInt64 ();
+	else
+		num = MSG_ReadByte ();
 	if (num >= MAX_CLIENTS)
 		Host_EndGame ("CL_ParsePlayerinfo: bad num");
 

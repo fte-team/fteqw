@@ -281,7 +281,6 @@ void (APIENTRY *qglPatchParameteriARB)(GLenum pname, GLint value);	//core in gl4
 FTEPFNGLACTIVESTENCILFACEEXTPROC qglActiveStencilFaceEXT;
 
 
-#define GLchar char
 #if defined(_DEBUG) && !defined(DEBUG)
 #define DEBUG
 #endif

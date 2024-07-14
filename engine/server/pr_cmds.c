@@ -2637,6 +2637,7 @@ void PR_LocalInfoChanged(char *name, char *oldivalue, char *newvalue)
 }
 void PR_PreShutdown(void)
 {
+	sv.mapchangelocked = true;	//don't let the mod fuck over stuff like `disconnect`. its meant to be shutting down, not switching maps.
 	if (svprogfuncs && gfuncs.SV_Shutdown && sv.state)
 	{
 		func_t f = gfuncs.SV_Shutdown;
@@ -7431,7 +7432,7 @@ static void QCBUILTIN PF_checkbuiltin (pubprogfuncs_t *prinst, struct globalvars
 	{	//qc defines the function at least. nothing weird there...
 		if (builtinno > 0 && builtinno < prinst->parms->numglobalbuiltins)
 		{
-			if (!prinst->parms->globalbuiltins[builtinno] || prinst->parms->globalbuiltins[builtinno] == PF_Fixme)
+			if (!prinst->parms->globalbuiltins[builtinno] || prinst->parms->globalbuiltins[builtinno] == PF_Fixme || prinst->parms->globalbuiltins[builtinno] == PF_Ignore)
 				G_FLOAT(OFS_RETURN) = false;	//the builtin with that number isn't defined.
 			else
 			{
@@ -11243,7 +11244,7 @@ static BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"cos",				PF_Fixme,			0,		0,		0,		39,	"float(float)"},
 	{"sqrt",			PF_Fixme,			0,		0,		0,		40,	"float(float)"},
 	{"randomvector",	PF_Fixme,			0,		0,		0,		41,	"vector()"},
-	{"registercvar",	PF_Fixme,			0,		0,		0,		42,	D("float(string name, string value, float flags)", "Creates the cvar if it didn't already exist. This presents issues for setting those cvars via startup configs of course, and autocvars are easier but I suppose they don't get any flags (which are ignored anyway, of course).")},
+	{"registercvar",	PF_Fixme,			0,		0,		0,		42,	D("float(string name, string value, optional float flags)", "Creates the cvar if it didn't already exist. This presents issues for setting those cvars via startup configs of course, and autocvars are easier but I suppose they don't get any flags (which are ignored anyway, of course).")},
 	{"min",				PF_Fixme,			0,		0,		0,		43,	"float(float,...)"},
 	{"max",				PF_Fixme,			0,		0,		0,		44,	"float(float,...)"},
 	{"bound",			PF_Fixme,			0,		0,		0,		45,	"float(float min,float value,float max)"},
@@ -11572,7 +11573,7 @@ static BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 
 	{"randomvec",		PF_randomvector,	0,		0,		0,		91,	D("vector()", "Returns a vector with random values. Each axis is independantly a value between -1 and 1 inclusive.")},
 	{"getlight",		PF_sv_getlight,		0,		0,		0,		92, D("DEP_SSQC(\"Broken on dedicated servers, ignores rtlights/etc\") vector(vector org)", "Computes the RGB lighting at the specified position.")},// (DP_QC_GETLIGHT),
-	{"registercvar",	PF_registercvar,	0,		0,		0,		93,	D("float(string cvarname, string defaultvalue)", "Creates a new cvar on the fly. If it does not already exist, it will be given the specified value. If it does exist, this is a no-op.\nThis builtin has the limitation that it does not apply to configs or commandlines. Such configs will need to use the set or seta command causing this builtin to be a noop.\nIn engines that support it, you will generally find the autocvar feature easier and more efficient to use.")},
+	{"registercvar",	PF_registercvar,	0,		0,		0,		93,	D("float(string cvarname, string defaultvalue, optional float flags)", "Creates a new cvar on the fly. If it does not already exist, it will be given the specified value. If it does exist, this is a no-op.\nThis builtin has the limitation that it does not apply to configs or commandlines. Such configs will need to use the set or seta command causing this builtin to be a noop.\nIn engines that support it, you will generally find the autocvar feature easier and more efficient to use.")},
 	{"min",				PF_min,				0,		0,		0,		94,	D("float(float a, float b, ...)", "Returns the lowest value of its arguments.")},// (DP_QC_MINMAXBOUND)
 	{"max",				PF_max,				0,		0,		0,		95,	D("float(float a, float b, ...)", "Returns the highest value of its arguments.")},// (DP_QC_MINMAXBOUND)
 	{"bound",			PF_bound,			0,		0,		0,		96,	D("float(float minimum, float val, float maximum)", "Returns val, unless minimum is higher, or maximum is less.")},// (DP_QC_MINMAXBOUND)
@@ -12265,8 +12266,8 @@ static BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 //	{"particlethemefree",PF_Fixme,			0,		0,		0,		526,	D("void()","Resets the particle theme slot to defaults, and marks it as uninitialised (so themesave might reallocate it)")},
 //	{"particle",		PF_Fixme,			0,		0,		0,		527,	D("float(vector org, vector vel, optional float theme)","Spawns a particle at the specified position+speed. If theme is specified the other properties come from a theme slot, otherwise they're read from globals.")},
 //	{"delayedparticle",	PF_Fixme,			0,		0,		0,		528,	D("float(vector org, vector vel, float delay, float collisiondelay, optional float theme)","Basically just extra args for 'particle'.")},
-	{"loadfromdata",	PF_loadfromdata,	0,		0,		0,		529,	D("void(string s)", "Reads a set of entities from the given string. This string should have the same format as a .ent file or a saved game. Entities will be spawned as required. If you need to see the entities that were created, you should use parseentitydata instead.")},
-	{"loadfromfile",	PF_loadfromfile,	0,		0,		0,		530,	D("void(string s)", "Reads a set of entities from the named file. This file should have the same format as a .ent file or a saved game. Entities will be spawned as required. If you need to see the entities that were created, you should use parseentitydata instead.")},
+	{"loadfromdata",	PF_loadfromdata,	0,		0,		0,		529,	D("void(string s)", "Reads a set of entities from the given string. This string should have the same format as a .ent file or a saved game. Entities will be spawned as required. If you need to see the entities that were created, you should use parseentitydata instead. No spawn functions will be called.")},
+	{"loadfromfile",	PF_loadfromfile,	0,		0,		0,		530,	D("void(string s)", "Reads a set of entities from the named file. This file should have the same format as a .ent file or a saved game. Entities will be spawned as required. If you need to see the entities that were created, you should use parseentitydata instead. No spawn functions will be called.")},
 	{"setpause",		PF_setpause,		0,		0,		0,		531,	D("void(float pause)",	"SSQC: Sets whether the server should or should not be paused.\n"
 																									"CSQC: Only works in singleplayer, suitable for menu auto-pause. To pause in multiplayer use eg localcmd(\"cmd pause\n\") to ask the server side to pause.\n"
 																									"Pause state between modules will be ORed, along with engine reasons for auto pausing.")},

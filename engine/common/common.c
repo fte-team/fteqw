@@ -5662,39 +5662,150 @@ static void COM_Version_f (void)
 	Con_Printf("%s\n", version_string());
 
 #ifdef FTE_BRANCH
-	Con_Printf("Branch: "STRINGIFY(FTE_BRANCH)"\n");
-	Con_Printf("Revision: %s - %s\n",STRINGIFY(SVNREVISION), STRINGIFY(SVNDATE));
+	Con_Printf("^3Branch:^7 "STRINGIFY(FTE_BRANCH)"\n");
+	Con_Printf("^3Revision:^7 %s - %s\n",STRINGIFY(SVNREVISION), STRINGIFY(SVNDATE));
 #elif defined(SVNREVISION) && defined(SVNDATE)
 	if (!strncmp(STRINGIFY(SVNREVISION), "git-", 4))
-		Con_Printf("GIT Revision: %s - %s\n",STRINGIFY(SVNREVISION), STRINGIFY(SVNDATE));
+		Con_Printf("^3GIT Revision:^7 %s - %s\n",STRINGIFY(SVNREVISION), STRINGIFY(SVNDATE));
 	else
-		Con_Printf("SVN Revision: %s - %s\n",STRINGIFY(SVNREVISION), STRINGIFY(SVNDATE));
+		Con_Printf("^3SVN Revision:^7 %s - %s\n",STRINGIFY(SVNREVISION), STRINGIFY(SVNDATE));
 #else
-	Con_TPrintf ("Exe: %s %s\n", __DATE__, __TIME__);
+	Con_TPrintf ("^3Exe:^7 %s %s\n", __DATE__, __TIME__);
 #ifdef SVNREVISION
 	if (!strncmp(STRINGIFY(SVNREVISION), "git-", 4))
-		Con_Printf("GIT Revision: %s\n",STRINGIFY(SVNREVISION));
+		Con_Printf("^3GIT Revision:^7 %s\n",STRINGIFY(SVNREVISION));
 	else if (strcmp(STRINGIFY(SVNREVISION), "-"))
-		Con_Printf("SVN Revision: %s\n",STRINGIFY(SVNREVISION));
+		Con_Printf("^3SVN Revision:^7 %s\n",STRINGIFY(SVNREVISION));
 #endif
 #endif
 #ifdef CONFIG_FILE_NAME
-	Con_Printf("Build config: %s\n\n", COM_SkipPath(STRINGIFY(CONFIG_FILE_NAME)));
+	Con_Printf("^3Build config:^7 %s\n\n", COM_SkipPath(STRINGIFY(CONFIG_FILE_NAME)));
 #endif
 
-#ifdef _DEBUG
-	Con_Printf("debug build\n");
-#endif
+	Con_Printf("^3Build type:^7");
 #ifdef MINIMAL
-	Con_Printf("minimal build\n");
+	Con_Printf("minimal\n");
 #endif
 #ifdef CLIENTONLY
-	Con_Printf("client-only build\n");
+	Con_Printf(" client-only\n");
 #endif
 #ifdef SERVERONLY
-	Con_Printf("dedicated server build\n");
+	Con_Printf(" dedicated\n");
+#endif
+#ifdef _DEBUG
+	Con_Printf(" debug");
 #else
-	Con_Printf("Renderers:");
+	Con_Printf(" release");
+#endif
+	Con_Printf("\n");
+
+#ifdef FTE_SDL
+	Con_Printf("^3SDL version:^7 %d.%d.%d\n", SDL_MAJOR_VERSION, SDL_MINOR_VERSION, SDL_PATCHLEVEL);
+#endif
+
+// Don't print both as a 64bit MinGW built client
+#if defined(__MINGW32__)
+	Con_Printf("Compiled with MinGW32/64 version: %i.%i\n",__MINGW32_MAJOR_VERSION, __MINGW32_MINOR_VERSION);
+#endif
+
+#ifdef __CYGWIN__
+	Con_Printf("Compiled with Cygwin\n");
+#endif
+
+#ifdef FTE_TARGET_WEB
+	Con_Printf("Compiled with emscripten %i.%i.%i\n", __EMSCRIPTEN_major__, __EMSCRIPTEN_minor__, __EMSCRIPTEN_tiny__);
+#endif
+
+#ifdef __clang__
+	Con_Printf("^3Compiler:^7 clang %i.%i.%i (%s)\n",__clang_major__, __clang_minor__, __clang_patchlevel__, __VERSION__);
+#elif defined(__GNUC__)
+	Con_Printf("^3Compiler:^7 GCC %i.%i.%i (%s)\n",__GNUC__, __GNUC_MINOR__, __GNUC_PATCHLEVEL__, __VERSION__);
+
+	#ifdef __OPTIMIZE__
+		#ifdef __OPTIMIZE_SIZE__
+			Con_Printf("Optimized for size\n");
+		#else
+			Con_Printf("Optimized for speed\n");
+		#endif
+	#endif
+
+	#ifdef __NO_INLINE__
+		Con_Printf("^3GCC Optimization:^7 Functions currently not inlined into their callers\n");
+	#else
+		Con_Printf("^3GCC Optimization:^7 Functions currently inlined into their callers\n");
+	#endif
+#elif defined(_MSC_VER)
+	if (_MSC_VER == 600) {		Con_Printf(	"^3Compiler:^7 C Compiler version 6.0\n"); }
+	else if (_MSC_VER == 700) { Con_Printf(	"^3Compiler:^7 C/C++ compiler version 7.0\n"); }
+	else if (_MSC_VER == 800) { Con_Printf(	"^3Compiler:^7 Visual C++, Windows, version 1.0 or Visual C++, 32-bit, version 1.0\n"); }
+	else if (_MSC_VER == 900) { Con_Printf(	"^3Compiler:^7 Visual C++, Windows, version 2.0 or Visual C++, 32-bit, version 2.x\n"); }
+	else if (_MSC_VER == 1000) { Con_Printf("^3Compiler:^7 Visual C++, 32-bit, version 4.0\n"); }
+	else if (_MSC_VER == 1020) { Con_Printf("^3Compiler:^7 Visual C++, 32-bit, version 4.2\n"); }
+	else if (_MSC_VER == 1100) { Con_Printf("^3Compiler:^7 Visual C++, 32-bit, version 5.0\n"); }
+	else if (_MSC_VER == 1200) { Con_Printf("^3Compiler:^7 Visual C++, 32-bit, version 6.0\n"); }
+	else if (_MSC_VER == 1300) { Con_Printf("^3Compiler:^7 Visual C++, version 7.0\n"); }
+	else if (_MSC_VER == 1310) { Con_Printf("^3Compiler:^7 Visual C++ 2003, version 7.1\n"); }
+	else if (_MSC_VER == 1400) { Con_Printf("^3Compiler:^7 Visual C++ 2005, version 8.0\n"); }
+	else if (_MSC_VER == 1500) { Con_Printf("^3Compiler:^7 Visual C++ 2008, version 9.0\n"); }
+	else if (_MSC_VER == 1600) { Con_Printf("^3Compiler:^7 Visual C++ 2010, version 10.0\n"); }
+	else if (_MSC_VER == 1700) { Con_Printf("^3Compiler:^7 Visual C++ 2012, version 11.0\n"); }
+	else if (_MSC_VER == 1800) { Con_Printf("^3Compiler:^7 Visual C++ 2013, version 12.0\n"); }
+	else if (_MSC_VER == 1900) { Con_Printf("^3Compiler:^7 Visual C++ 2015, version 14.0\n"); }
+	else if (_MSC_VER >= 1910 && _MSC_VER < 1920) { Con_Printf("^3Compiler:^7 Visual C++ 2017, version 14.1x\n"); }
+	else if (_MSC_VER >= 1920 && _MSC_VER < 1930) { Con_Printf("^3Compiler:^7 Visual C++ 2019, version 14.2x\n"); }
+	else
+	{
+#ifdef _MSC_BUILD
+		Con_Printf("^3Compiler:^7 Unknown Microsoft C++ compiler: %i %i %i\n",_MSC_VER, _MSC_FULL_VER, _MSC_BUILD);
+#else
+		Con_Printf("^3Compiler:^7 Unknown Microsoft C++ compiler: %i %i\n",_MSC_VER, _MSC_FULL_VER);
+#endif
+	}
+#endif
+
+	Con_Printf("^3CPU Arch:^7 " PLATFORM " " ARCH_CPU_POSTFIX
+#ifdef ARCH_ALTCPU_POSTFIX
+		"/"ARCH_ALTCPU_POSTFIX
+#endif
+	);
+#ifdef __AVX512F__
+	Con_Printf(" AVX512");
+#elif defined(__AVX2__)
+	Con_Printf(" AVX2");
+#elif defined (__AVX__)
+	Con_Printf(" AVX");
+#elif defined (__SSE4_2__)
+	Con_Printf(" SSE4.2");
+#elif defined (__SSE4_1__)
+	Con_Printf(" SSE4.1");
+#elif defined (__SSE3__)
+	Con_Printf(" SSE3");
+#elif defined(_M_IX86_FP) && _M_IX86_FP == 2 	//32bit only - always enabled for amd64
+	Con_Printf(" SSE2");
+#elif defined(_M_IX86_FP) && _M_IX86_FP == 1 	//32bit only - always enabled for amd64
+	Con_Printf(" SSE");
+#elif defined(_M_IX86_FP) && _M_IX86_FP == 0 	//32bit only - always enabled for amd64
+	Con_Printf(" x87");
+#endif
+	Con_Printf("\n");
+
+#ifdef _M_IX86
+	Con_Printf("^3x86 optimized for:^7 ");
+
+	if (_M_IX86 == 600) { Con_Printf("Blend or Pentium Pro, Pentium II and Pentium III"); }
+	else if (_M_IX86 == 500) { Con_Printf("Pentium"); }
+	else if (_M_IX86 == 400) { Con_Printf("486"); }
+	else if (_M_IX86 == 300) { Con_Printf("386"); }
+	else
+	{
+		Con_Printf("Unknown (%i)\n",_M_IX86);
+	}
+
+	Con_Printf("\n");
+#endif
+
+#ifdef HAVE_CLIENT
+	Con_Printf("^3Renderers:^7");
 #ifdef GLQUAKE
 #ifdef GLESONLY
 	#ifdef FTE_TARGET_WEB	//shuld we be just asking the video code for a list?...
@@ -5724,120 +5835,14 @@ static void COM_Version_f (void)
 	Con_Printf("\n");
 #endif
 
-#ifdef QCJIT
-	Con_Printf("QuakeC just-in-time compiler (QCJIT) enabled\n");
-#endif
-
-#ifdef FTE_SDL
-	Con_Printf("SDL version: %d.%d.%d\n", SDL_MAJOR_VERSION, SDL_MINOR_VERSION, SDL_PATCHLEVEL);
-#endif
-
-// Don't print both as a 64bit MinGW built client
-#if defined(__MINGW32__)
-	Con_Printf("Compiled with MinGW32/64 version: %i.%i\n",__MINGW32_MAJOR_VERSION, __MINGW32_MINOR_VERSION);
-#endif
-
-#ifdef __CYGWIN__
-	Con_Printf("Compiled with Cygwin\n");
-#endif
-
-#ifdef FTE_TARGET_WEB
-	Con_Printf("Compiled with emscripten %i.%i.%i\n", __EMSCRIPTEN_major__, __EMSCRIPTEN_minor__, __EMSCRIPTEN_tiny__);
-#endif
-
-#ifdef __clang__
-	Con_Printf("Compiled with clang version: %i.%i.%i (%s)\n",__clang_major__, __clang_minor__, __clang_patchlevel__, __VERSION__);
-#elif defined(__GNUC__)
-	Con_Printf("Compiled with GCC version: %i.%i.%i (%s)\n",__GNUC__, __GNUC_MINOR__, __GNUC_PATCHLEVEL__, __VERSION__);
-
-	#ifdef __OPTIMIZE__
-		#ifdef __OPTIMIZE_SIZE__
-			Con_Printf("Optimized for size\n");
-		#else
-			Con_Printf("Optimized for speed\n");
-		#endif
-	#endif
-
-	#ifdef __NO_INLINE__
-		Con_Printf("GCC Optimization: Functions currently not inlined into their callers\n");
-	#else
-		Con_Printf("GCC Optimization: Functions currently inlined into their callers\n");
-	#endif
-#endif
-
-#ifdef _WIN64
-		Con_Printf("Compiled for 64bit windows\n");
-#endif
-#if defined(_M_AMD64) || defined(__amd64__) || defined(__x86_64__)
-	#ifdef __ILP32__
-		Con_Printf("Compiled for AMD64 compatible cpus (x32)\n");
-	#else
-		Con_Printf("Compiled for AMD64 compatible cpus\n");
-	#endif
-#endif
-
-#ifdef _M_IX86
-	Con_Printf("x86 optimized for: ");
-
-	if (_M_IX86 == 600) { Con_Printf("Blend or Pentium Pro, Pentium II and Pentium III"); }
-	else if (_M_IX86 == 500) { Con_Printf("Pentium"); }
-	else if (_M_IX86 == 400) { Con_Printf("486"); }
-	else if (_M_IX86 == 300) { Con_Printf("386"); }
-	else
-	{
-		Con_Printf("Unknown (%i)\n",_M_IX86);
-	}
-
-	Con_Printf("\n");
-#endif
-
-#ifdef _M_IX86_FP
-	if (_M_IX86_FP == 0) { Con_Printf("SSE & SSE2 instructions disabled\n"); }
-	else if (_M_IX86_FP == 1) { Con_Printf("SSE instructions enabled\n"); }
-	else if (_M_IX86_FP == 2) { Con_Printf("SSE2 instructions enabled\n"); }
-	else
-	{
-		Con_Printf("Unknown Arch specified: %i\n",_M_IX86_FP);
-	}
-#endif
-
-#ifdef _MSC_VER
-	if (_MSC_VER == 600) { Con_Printf("C Compiler version 6.0\n"); }
-	else if (_MSC_VER == 700) { Con_Printf("C/C++ compiler version 7.0\n"); }
-	else if (_MSC_VER == 800) { Con_Printf("Visual C++, Windows, version 1.0 or Visual C++, 32-bit, version 1.0\n"); }
-	else if (_MSC_VER == 900) { Con_Printf("Visual C++, Windows, version 2.0 or Visual C++, 32-bit, version 2.x\n"); }
-	else if (_MSC_VER == 1000) { Con_Printf("Visual C++, 32-bit, version 4.0\n"); }
-	else if (_MSC_VER == 1020) { Con_Printf("Visual C++, 32-bit, version 4.2\n"); }
-	else if (_MSC_VER == 1100) { Con_Printf("Visual C++, 32-bit, version 5.0\n"); }
-	else if (_MSC_VER == 1200) { Con_Printf("Visual C++, 32-bit, version 6.0\n"); }
-	else if (_MSC_VER == 1300) { Con_Printf("Visual C++, version 7.0\n"); }
-	else if (_MSC_VER == 1310) { Con_Printf("Visual C++ 2003, version 7.1\n"); }
-	else if (_MSC_VER == 1400) { Con_Printf("Visual C++ 2005, version 8.0\n"); }
-	else if (_MSC_VER == 1500) { Con_Printf("Visual C++ 2008, version 9.0\n"); }
-	else if (_MSC_VER == 1600) { Con_Printf("Visual C++ 2010, version 10.0\n"); }
-	else if (_MSC_VER == 1700) { Con_Printf("Visual C++ 2012, version 11.0\n"); }
-	else if (_MSC_VER == 1800) { Con_Printf("Visual C++ 2013, version 12.0\n"); }
-	else if (_MSC_VER == 1900) { Con_Printf("Visual C++ 2015, version 14.0\n"); }
-	else if (_MSC_VER >= 1910 && _MSC_VER < 1920) { Con_Printf("Visual C++ 2017, version 14.1x\n"); }
-	else if (_MSC_VER >= 1920 && _MSC_VER < 1930) { Con_Printf("Visual C++ 2019, version 14.2x\n"); }
-	else
-	{
-#ifdef _MSC_BUILD
-		Con_Printf("Unknown Microsoft C++ compiler: %i %i %i\n",_MSC_VER, _MSC_FULL_VER, _MSC_BUILD);
-#else
-		Con_Printf("Unknown Microsoft C++ compiler: %i %i\n",_MSC_VER, _MSC_FULL_VER);
-#endif
-	}
-#endif
-
 #ifdef MULTITHREAD
 #ifdef LOADERTHREAD
-	Con_Printf("multithreading: enabled (loader enabled)\n");
+	Con_Printf("^3multithreading:^7 enabled (loader enabled)\n");
 #else
-	Con_Printf("multithreading: enabled (no loader)\n");
+	Con_Printf("^3multithreading:^7 enabled (no loader)\n");
 #endif
 #else
-	Con_Printf("multithreading: disabled\n");
+	Con_Printf("^3multithreading^7: disabled\n");
 #endif
 
 	//print out which libraries are disabled
@@ -5886,7 +5891,7 @@ static void COM_Version_f (void)
 
 	Con_Printf("^3Audio Decoders:^7");
 	#ifdef FTE_TARGET_WEB
-		Con_DPrintf(" javascript");
+		Con_Printf(" Browser");
 	#endif
 	#ifndef AVAIL_OGGVORBIS
 		Con_DPrintf(" ^h(disabled: Ogg Vorbis)^7");
@@ -5950,6 +5955,9 @@ static void COM_Version_f (void)
 #endif
 #ifdef ENGINE_ROUTING
 	Con_Printf(" routing");
+#endif
+#ifdef QCJIT
+	Con_Printf(" qcjit");
 #endif
 	Con_Printf("\n");
 

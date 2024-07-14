@@ -5,8 +5,6 @@
 //FIXME: !!permu FOG
 !!samps shadowmap 2
 
-#define USE_ARB_SHADOW
-
 #include "sys/defs.h"
 #include "sys/pcf.h"
 
@@ -66,7 +64,6 @@ void main ()
 	//fixme: cubemap filters
 
 	float shadows = ShadowmapFilter(s_shadowmap, cubeaxis);
-	lightColour *= atten;
 
 	out_diff = vec4(lightColour * (l_lightcolourscale.x + l_lightcolourscale.y*lightDiffuse*shadows), 1.0);
 	out_spec = vec4(lightColour * l_lightcolourscale.z*spec*shadows, 1.0);

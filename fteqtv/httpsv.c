@@ -1187,7 +1187,7 @@ char *HTTPSV_GetMethod(cluster_t *cluster, oproxy_t *pend)
 			{
 				//if (!strcmp(wsprot, "quake"))	//webquake. we don't support this! (no OOB and missing header flags and some screwy sequence numbers)
 				if (!strcmp(wsprot, "fteqw") ||	//as a client
-					(!strcmp(wsprot, "faketcp") && !urilen))	//as a qtv proxy (eztv style, but websocked). we are NOT proxying tcp. require a qtv handshake over the resulting websocket connection.
+					(!strcmp(wsprot, "faketcp") && urilen==1&&!strncmp(uri,"/",1)))	//as a qtv proxy (eztv style, but websocked). we are NOT proxying tcp. require a qtv handshake over the resulting websocket connection.
 					break;	//break out on the first one we know. this is the recommended way...
 			}
 

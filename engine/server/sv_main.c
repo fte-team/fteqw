@@ -2195,7 +2195,7 @@ void SV_ClientProtocolExtensionsChanged(client_t *client)
 		extern cvar_t pext_ezquake_nochunks;
 		extern cvar_t pext_ezquake_verfortrans;
 		s = InfoBuf_ValueForKey(&client->userinfo, "*client");
-		if (!strncmp(s, "ezQuake", 7) || !strncmp(s, "FortressOne", 11))
+		if (!strncmp(s, "ezQuake", 7))
 		{
 			s = COM_Parse(s);	//skip name-of-fork
 			COM_Parse(s);	//tokenize the version
@@ -5860,7 +5860,11 @@ void SV_InitLocal (void)
 	static cvar_t qws_fullname	= CVARF("qws_fullname", FULLENGINENAME,			CVAR_NOSET );
 	static cvar_t qws_version	= CVARF("qws_version",	STRINGIFY(FTE_VER_MAJOR)"."STRINGIFY(FTE_VER_MINOR),CVAR_NOSET );
 	static cvar_t qws_buildnum	= CVARF("qws_buildnum",	STRINGIFY(SVNREVISION),	CVAR_NOSET );
+#ifdef FTE_TARGET_WEB
+	static cvar_t qws_platform	= CVARF("qws_platform",	PLATFORM,				CVAR_NOSET );
+#else
 	static cvar_t qws_platform	= CVARF("qws_platform",	PLATFORM "-" ARCH_CPU_POSTFIX,				CVAR_NOSET );
+#endif
 	static cvar_t qws_builddate	= CVARF("qws_builddate",STRINGIFY(SVNDATE),		CVAR_NOSET );
 	static cvar_t qws_homepage	= CVARF("qws_homepage",	ENGINEWEBSITE,		CVAR_NOSET );
 	Cvar_Register(&qws_name,		"Server Info");

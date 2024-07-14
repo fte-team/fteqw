@@ -2174,28 +2174,29 @@ void CL_Record_f (void)
 static int QDECL CompleteDemoList (const char *name, qofs_t flags, time_t mtime, void *parm, searchpathfuncs_t *spath)
 {
 	struct xcommandargcompletioncb_s *ctx = parm;
-	ctx->cb(name, NULL, NULL, ctx);
+	const char *ext = NULL;
+	ext = COM_GetFileExtension(name, ext);
+	if (!Q_strcasecmp(ext, ".gz"))
+		ext = COM_GetFileExtension(name, ext);
+	if (
+#ifdef NQPROT
+		!Q_strcasecmp(ext, ".dem") || !Q_strcasecmp(ext, ".dem.gz") ||
+#endif
+#ifdef Q2CLIENT
+		!Q_strcasecmp(ext, ".dm2") || !Q_strcasecmp(ext, ".dm2.gz") ||
+#endif
+		!Q_strcasecmp(ext, ".qwd") || !Q_strcasecmp(ext, ".qwd.gz") ||
+		!Q_strcasecmp(ext, ".mvd") || !Q_strcasecmp(ext, ".mvd.gz"))
+//FIXME: enumerate .zip and .dz files too.
+	{
+		ctx->cb(name, NULL, NULL, ctx);
+	}
 	return true;
 }
 void CL_DemoList_c(int argn, const char *partial, struct xcommandargcompletioncb_s *ctx)
 {
 	if (argn == 1)
-	{
-		COM_EnumerateFiles(va("%s*.qwd", partial), CompleteDemoList, ctx);
-		COM_EnumerateFiles(va("%s*.qwd.gz", partial), CompleteDemoList, ctx);
-#ifdef NQPROT
-		COM_EnumerateFiles(va("%s*.dem", partial), CompleteDemoList, ctx);
-		COM_EnumerateFiles(va("%s*.dem.gz", partial), CompleteDemoList, ctx);
-#endif
-		COM_EnumerateFiles(va("%s*.mvd", partial), CompleteDemoList, ctx);
-		COM_EnumerateFiles(va("%s*.mvd.gz", partial), CompleteDemoList, ctx);
-
-		COM_EnumerateFiles(va("%s*.dm2", partial), CompleteDemoList, ctx);
-		COM_EnumerateFiles(va("%s*.dm2.gz", partial), CompleteDemoList, ctx);
-
-		//fixme: show files in both .zip and .dz
-//		COM_EnumerateFiles(va("%s*.dz", partial), CompleteDemoList, ctx);
-	}
+		COM_EnumerateFiles(va("%s*", partial), CompleteDemoList, ctx);
 }
 /*
 ====================
@@ -2302,6 +2303,8 @@ void CL_PlayDemo_f (void)
 
 	if (cls.state == ca_demostart)
 		cls.state = ca_disconnected;
+	else
+		cls.demonum = -1;	//not via CL_NextDemo, don't confuse the user by playing random other demos.
 
 #ifdef WEBCLIENT
 #if 1
@@ -3321,6 +3324,8 @@ void CL_TimeDemo_f (void)
 		Con_Printf ("timedemo <demoname> : gets demo speeds\n");
 		return;
 	}
+
+	cls.demonum = -1;	//stop the demo reel. the user will probably want to read the results.
 
 	CL_PlayDemo_f ();
 

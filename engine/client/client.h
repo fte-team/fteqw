@@ -375,7 +375,7 @@ typedef struct
 
 typedef enum {
 ca_disconnected, 	// full screen console with no connection
-ca_demostart,		// starting up a demo
+ca_demostart,		// waiting to start up a demo (still disconnected but there should be a playdemo command in the cbuf somewhere so don't do other stuff)
 ca_connected,		// netchan_t established, waiting for svc_serverdata
 ca_onserver,		// processing data lists, donwloading, etc
 ca_active			// everything is in, so frames can be rendered

@@ -874,7 +874,7 @@ static void Cmd_Exec_f (void)
 		s+=3;
 	}
 
-	if (!strcmp(name, "config.cfg") || !strcmp(name, "q3config.cfg") || !strcmp(name, fs_manifest->mainconfig))
+	if (!strcmp(name, "config.cfg") || !strcmp(name, "q3config.cfg") || (*fs_manifest->mainconfig && !strcmp(name, fs_manifest->mainconfig)))
 	{
 		char *restart;
 		//if the config is from id1 and the default.cfg was from some mod, make sure the default.cfg overrides the config.
@@ -4148,7 +4148,10 @@ static void Cmd_WriteConfig_f(void)
 	filename = Cmd_Argv(1);
 	if (!*filename)
 	{
-		Q_strncpyz(fname, fs_manifest->mainconfig, sizeof(fname));
+		if (*fs_manifest->mainconfig)
+			Q_strncpyz(fname, fs_manifest->mainconfig, sizeof(fname));
+		else
+			Q_strncpyz(fname, "config.cfg", sizeof(fname));	//write SOMETHING.
 
 #if defined(CL_MASTER) && defined(HAVE_CLIENT)
 		MasterInfo_WriteServers();

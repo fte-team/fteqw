@@ -3008,7 +3008,7 @@ void M_Menu_Video_f (void)
 	static const char *srgbvalues[] = { "0", "1", "2", "-1", NULL};
 
 
-#ifdef ANDROID
+#if defined(ANDROID) && !defined(FTE_SDL)
 	extern cvar_t sys_orientation;
 	static const char *orientationopts[] = {
 		"Auto",
@@ -3027,6 +3027,15 @@ void M_Menu_Video_f (void)
 		NULL
 	};
 #else
+	extern cvar_t vid_fullscreen;
+	static const char *fullscreenopts[] = {
+		"Windowed",
+		"Fullscreen",
+		"Borderless Windowed",
+		NULL
+	};
+	static const char *fullscreenvalues[] = {"0", "1", "2", NULL};
+#endif
 	extern cvar_t vid_renderer;
 	static const char *rendererops[] =
 	{
@@ -3086,16 +3095,6 @@ void M_Menu_Video_f (void)
 #endif
 		NULL
 	};
-
-	extern cvar_t vid_fullscreen;
-	static const char *fullscreenopts[] = {
-		"Windowed",
-		"Fullscreen",
-		"Borderless Windowed",
-		NULL
-	};
-	static const char *fullscreenvalues[] = {"0", "1", "2", NULL};
-#endif
 
 	static const char *aaopts[] = {
 		"1x",
@@ -3245,10 +3244,10 @@ void M_Menu_Video_f (void)
 			MB_TEXT("^Ue080^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue082", true),
 			MB_CMD("Apply Settings", M_VideoApply, "Restart video and apply renderer, display, and 2D resolution options."),
 			MB_SPACING(4),
-#ifdef ANDROID
+			MB_COMBOCVAR("Renderer", vid_renderer, rendererops, renderervalues, NULL),
+#if defined(ANDROID) && !defined(FTE_SDL)
 			MB_COMBOCVAR("Orientation", sys_orientation, orientationopts, orientationvalues, NULL),
 #else
-			MB_COMBOCVAR("Renderer", vid_renderer, rendererops, renderervalues, NULL),
 			MB_COMBOCVARRETURN("Display Mode", vid_fullscreen, fullscreenopts, fullscreenvalues, info->dispmode, vid_fullscreen.description),
 #endif
 			MB_COMBOCVAR("MSAA", vid_multisample, aaopts, aavalues, NULL),

@@ -673,6 +673,10 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 			#define FTE_LITTLE_ENDIAN
 		#endif
 	#endif
+#elif defined(__LITTLE_ENDIAN__)
+	#define FTE_LITTLE_ENDIAN
+#elif defined(__BIG_ENDIAN__)
+	#define FTE_BIG_ENDIAN
 #endif
 
 #ifdef _MSC_VER

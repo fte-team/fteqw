@@ -978,7 +978,7 @@ void CLQ3_SendAuthPacket(struct ftenet_connections_s *socket, netadr_t *gameserv
 
 //send the auth packet
 //this should be the right code, but it doesn't work.
-	if (gameserver->type == NA_IP)
+	if (gameserver->type == NA_IP && gameserver->prot == NP_DGRAM)
 	{
 		char *key = cvarfuncs->GetNVFDG("cl_cdkey", "", CVAR_ARCHIVE, "Quake3 auth", "Q3 Compat")->string;
 		netadr_t authaddr;

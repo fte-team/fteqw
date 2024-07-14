@@ -2007,8 +2007,9 @@ typedef struct {
 	} eval;
 	int statnum;
 } qcstat_t;
-qcstat_t qcstats[MAX_CL_STATS];
-int numqcstats;
+static qcstat_t qcstats[MAX_CL_STATS];
+static unsigned int numqcstats;
+static unsigned int highestqcstat;
 static void SV_QCStatEval(int type, const char *name, evalc_t *field, eval_t *global, int statnum)
 {
 	int i;
@@ -2100,6 +2101,7 @@ void SV_QCStatFieldIdx(int type, unsigned int fieldindex, int statnum)
 void SV_ClearQCStats(void)
 {
 	numqcstats = 0;
+	highestqcstat = MAX_QW_STATS;
 }
 
 extern cvar_t dpcompat_stats;
@@ -2163,8 +2165,9 @@ void SV_UpdateQCStats(edict_t	*ent, int *statsi, char const** statss, float *sta
 }
 
 /*this function calculates the current stat values for the given client*/
-void SV_CalcClientStats(client_t *client, int statsi[MAX_CL_STATS], float statsf[MAX_CL_STATS], const char **statss)
+static unsigned int SV_CalcClientStats(client_t *client, int statsi[MAX_CL_STATS], float statsf[MAX_CL_STATS], const char **statss)
 {
+	unsigned int m = highestqcstat;
 	edict_t *ent;
 	ent = client->edict;
 	memset (statsi, 0, sizeof(int)*MAX_CL_STATS);
@@ -2289,11 +2292,15 @@ void SV_CalcClientStats(client_t *client, int statsi[MAX_CL_STATS], float statsf
 			statsfi[STAT_MOVEVARS_STEPHEIGHT]					= *sv_stepheight.string?sv_stepheight.value:PM_DEFAULTSTEPHEIGHT;
 			statsfi[STAT_MOVEVARS_AIRACCEL_QW]					= 1;		//we're a quakeworld engine...
 			statsfi[STAT_MOVEVARS_AIRACCEL_SIDEWAYS_FRICTION]	= 0;
+
+			if (m < 256)
+				m = 256;
 		}
 #endif
 
 		SV_UpdateQCStats(ent, statsi, statss, statsf);
 	}
+	return m;
 }
 
 /*
@@ -2309,14 +2316,14 @@ void SV_UpdateClientStats (client_t *client, int pnum, sizebuf_t *msg, client_fr
 	int		statsi[MAX_CL_STATS];
 	float	statsf[MAX_CL_STATS];
 	const char	*statss[MAX_CL_STATS];
-	int		i, m;
+	unsigned int		i, m;
 
 	/*figure out what the stat values should be*/
-	SV_CalcClientStats(client, statsi, statsf, statss);
-
-	m = MAX_QW_STATS;
+	m = SV_CalcClientStats(client, statsi, statsf, statss);
 	if ((client->fteprotocolextensions & (PEXT_HEXEN2|PEXT_CSQC)) || client->protocol == SCP_DARKPLACES6 || client->protocol == SCP_DARKPLACES7)
-		m = MAX_CL_STATS;
+		m = min(m,256);
+	else
+		m = min(m,MAX_QW_STATS);
 
 	if (client->fteprotocolextensions2 & PEXT2_REPLACEMENTDELTAS)
 	{
@@ -3759,10 +3766,6 @@ void SV_SendMVDMessage(void)
 	msg.allowoverflow = true;
 	msg.overflowed = false;
 
-	m = MAX_QW_STATS;
-	if (demo.recorder.fteprotocolextensions & (PEXT_HEXEN2|PEXT_CSQC))
-		m = MAX_CL_STATS;
-
 	for (i=0, c = svs.clients ; i<svs.allocated_client_slots && i < 32; i++, c++)
 	{
 		if (c->state != cs_spawned)
@@ -3772,7 +3775,11 @@ void SV_SendMVDMessage(void)
 			continue;
 
 		/*figure out what the stat values should be*/
-		SV_CalcClientStats(c, statsi, statsf, statss);
+		m = SV_CalcClientStats(c, statsi, statsf, statss);
+		if (demo.recorder.fteprotocolextensions & (PEXT_HEXEN2|PEXT_CSQC))
+			m = min(m,MAX_CL_STATS);
+		else
+			m = min(m,MAX_QW_STATS);
 
 		//FIXME we should do something about the packet overhead here. each MVDWrite_Begin is a separate packet!
 

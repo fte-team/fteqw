@@ -48,8 +48,8 @@ endif
 
 ifeq ($(SVNREVISION),)
 	#try subversion firstly...
-    SVN_VERSION:=$(shell test -d $(BASE_DIR)/../.svn && svnversion $(BASE_DIR))
-    SVN_DATE:=$(shell test -d $(BASE_DIR)/../.svn && cd $(BASE_DIR) && svn info --show-item last-changed-date --no-newline)
+#    SVN_VERSION:=$(shell test -d $(BASE_DIR)/../.svn && svnversion $(BASE_DIR))
+#    SVN_DATE:=$(shell test -d $(BASE_DIR)/../.svn && cd $(BASE_DIR) && svn info --show-item last-changed-date --no-newline)
 #    ifeq (,$(SVN_VERSION))
 #        #grab the svn version from git-svn (assuming no other modifications). this fails when there's extra commits (probably a good thing).
 #        SVN_VERSION=$(shell test -d $(BASE_DIR)/../.git && git svn find-rev `git rev-parse HEAD`)
@@ -86,7 +86,7 @@ PNGVER=1.6.40
 OGGVER=1.3.4
 VORBISVER=1.3.7
 VULKANVER=1.3.275.0
-SDL2VER=2.26.4
+SDL2VER=2.30.4
 SCINTILLAVER=373
 OPUSVER=1.3.1
 SPEEXVER=1.2.0
@@ -1053,6 +1053,7 @@ endif
 ifeq (1,$(LINK_ZLIB))
     CLIENTLIBFLAGS+=-DZLIB_STATIC
     CLIENTLDDEPS+=-lz
+	SERVERLDDEPS+=-lz
 
     #and deflate64, because why not.
     ifneq ("$(wildcard $(ARCHLIBS)/infback9.h)","")
@@ -1122,7 +1123,7 @@ GLCL_OBJS=$(GL_OBJS) $(D3DGL_OBJS) $(GLQUAKE_OBJS) gl_vidsdl.o snd_sdl.o cd_sdl.
 GL_EXE_NAME=../$(EXE_NAME)-gl$(FTE_FULLTARGET)
 GLCL_EXE_NAME=../$(EXE_NAME)cl-gl$(FTE_FULLTARGET)
 
-#SDLCONFIG:=libs/sdl2_mingw/$(CC_MACHINE)/bin/sdl2-config --prefix=libs/sdl2_mingw/$(CC_MACHINE)
+#SDLCONFIG:=libs-$(ARCH)/sdl2_mingw/$(CC_MACHINE)/bin/sdl2-config --prefix=libs-$(ARCH)/sdl2_mingw/$(CC_MACHINE)
 ifdef windir
 	GL_LDFLAGS=$(GLLDFLAGS) -lmingw32 -lws2_32 `$(SDLCONFIG) --static-libs`
 	VK_LDFLAGS=$(VKLDFLAGS) -lmingw32 -lws2_32 `$(SDLCONFIG) --static-libs`
@@ -1163,11 +1164,12 @@ M_CFLAGS=-DFTE_SDL $(VKCFLAGS) $(GLCFLAGS) -DMULTITHREAD `$(SDLCONFIG) --cflags`
 QCC_DIR=qcc$(BITS)
 
 ifeq (,$(findstring NO_ZLIB,$(CFLAGS)))
-	SV_LDFLAGS+=-lz
-	GL_LDFLAGS+=-lz
-	VK_LDFLAGS+=-lz
-	M_LDFLAGS+=-lz
-	QCC_LDFLAGS+=-L$(ARCHLIBS) -lz
+    SV_LDFLAGS+=-lz
+    GL_LDFLAGS+=-lz
+    VK_LDFLAGS+=-lz
+    M_LDFLAGS+=-lz
+    QCC_LDFLAGS+=-L$(ARCHLIBS) -lz
+    QTV_LDFLAGS+=-lz
 endif
 
 
@@ -1176,80 +1178,87 @@ endif
 
 #FTE_TARGET=win32_SDL | FTE_TARGET=win64_SDL (MinGW32 + SDL | MinGW64 + SDL)
 ifeq (win_SDL,$(findstring win,$(FTE_TARGET))$(findstring _SDL,$(FTE_TARGET)))
-	DO_CMAKE+=-DCMAKE_SYSTEM_NAME=Windows -DCMAKE_FIND_ROOT_PATH_MODE_PROGRAM="NEVER"
+    DO_CMAKE+=-DCMAKE_SYSTEM_NAME=Windows -DCMAKE_FIND_ROOT_PATH_MODE_PROGRAM="NEVER"
 
-	ifneq (,$(findstring win64,$(FTE_TARGET)))
-		BITS=64
-	endif
+    ifneq (,$(findstring win64,$(FTE_TARGET)))
+        BITS=64
+    endif
 
-	EXEPOSTFIX=.exe
+    EXEPOSTFIX=.exe
 
-	CC_MACHINE:=$(shell $(CC) -dumpmachine)
-	ARCH_PREDEP=$(BASE_DIR)/libs/SDL2-$(SDL2VER)/$(CC_MACHINE)/bin/sdl2-config
-	SDLCONFIG=$(ARCH_PREDEP) --prefix=$(BASE_DIR)/libs/SDL2-$(SDL2VER)/$(CC_MACHINE)
-	ARCH_CFLAGS=`$(SDLCONFIG) --cflags`
+    CC_MACHINE:=$(shell $(CC) -dumpmachine)
+    ARCH_PREDEP=$(BASE_DIR)/libs-$(ARCH)/SDL2-$(SDL2VER)/$(CC_MACHINE)/bin/sdl2-config
+    SDLCONFIG=$(ARCH_PREDEP) --prefix=$(BASE_DIR)/libs-$(ARCH)/SDL2-$(SDL2VER)/$(CC_MACHINE)
+    CLIENTLIBFLAGS+=`$(SDLCONFIG) --cflags`
 	
-	#the defaults for sdl come first
-	GLCL_OBJS=$(GL_OBJS) $(D3DGL_OBJS) $(GLQUAKE_OBJS) gl_vidsdl.o snd_sdl.o cd_sdl.o sys_sdl.o in_sdl.o snd_directx.o $(LTO_END) resources.o $(LTO_START)
-	GL_EXE_NAME=../$(EXE_NAME)-sdl-gl$(BITS)$(EXEPOSTFIX)
-	GLCL_EXE_NAME=../$(EXE_NAME)-sdl-glcl$(BITS)$(EXEPOSTFIX)
-	ifdef windir
-		GL_LDFLAGS=$(GLLDFLAGS) -lmingw32 -lws2_32 `$(SDLCONFIG) --static-libs`
-		VK_LDFLAGS=$(GLLDFLAGS) -lmingw32 -lws2_32 `$(SDLCONFIG) --static-libs`
-		M_LDFLAGS=$(MLDFLAGS) -lmingw32 -lws2_32 `$(SDLCONFIG) --static-libs`
-		SV_LDFLAGS=-lm -lmingw32 -lws2_32 -lwinmm `$(SDLCONFIG) --static-libs`
-		QCC_LDFLAGS=
-	else
-		GL_LDFLAGS=$(IMAGELDFLAGS) -lws2_32 -lmingw32 $(SDL_LDFLAGS) -mwindows -ldxguid -lwinmm -lole32 $(GLLDFLAGS) `$(SDLCONFIG) --libs` 
-		VK_LDFLAGS=$(IMAGELDFLAGS) -lws2_32 -lmingw32 $(SDL_LDFLAGS) -mwindows -ldxguid -lwinmm -lole32 $(GLLDFLAGS) `$(SDLCONFIG) --libs` 
-		M_LDFLAGS=$(IMAGELDFLAGS) -lws2_32 -lmingw32 $(SDL_LDFLAGS) -mwindows -ldxguid -lwinmm -lole32 $(MLDFLAGS) `$(SDLCONFIG) --libs`
-		SV_LDFLAGS=-lm -lmingw32 -lws2_32 -lwinmm `$(SDLCONFIG) --libs`
-		QCC_LDFLAGS=
-	endif
-	
-	GL_CFLAGS=-DFTE_SDL $(GLCFLAGS) $(CLIENTLIBFLAGS) $(DX7SDK)
-	
-	GLB_DIR=gl_mgw_sdl$(BITS)
-	GLCL_DIR=glcl_mgw_sdl$(BITS)
-	
-	SV_OBJS=$(COMMON_OBJS) $(SERVER_OBJS) $(PROGS_OBJS) $(WINDOWSSERVERONLY_OBJS) $(LTO_END) resources.o $(LTO_START)
-	SV_EXE_NAME=../$(EXE_NAME)-sdl-sv$(BITS)$(EXEPOSTFIX)
-	SV_CFLAGS=$(SERVER_ONLY_CFLAGS) -DFTE_SDL
+    #the defaults for sdl come first
+    GLCL_OBJS=$(GL_OBJS) $(D3DGL_OBJS) $(GLQUAKE_OBJS) gl_vidsdl.o snd_sdl.o cd_sdl.o sys_sdl.o in_sdl.o snd_directx.o $(LTO_END) resources.o $(LTO_START)
+    GL_EXE_NAME=../$(EXE_NAME)-sdl-gl$(BITS)$(EXEPOSTFIX)
+    GLCL_EXE_NAME=../$(EXE_NAME)-sdl-glcl$(BITS)$(EXEPOSTFIX)
+    ifneq ($(SDL_STATIC),0)
+		#statically link by default. dlls suck.
+        GL_LDFLAGS=$(GLLDFLAGS) -lmingw32 -lws2_32 `$(SDLCONFIG) --static-libs`
+        VK_LDFLAGS=$(GLLDFLAGS) -lmingw32 -lws2_32 `$(SDLCONFIG) --static-libs`
+        M_LDFLAGS=$(MLDFLAGS) -lmingw32 -lws2_32 `$(SDLCONFIG) --static-libs`
+		D3D_LDFLAGS=$(MLDFLAGS) -lmingw32 -lws2_32 `$(SDLCONFIG) --static-libs`
+        SV_LDFLAGS=-lm -lmingw32 -lws2_32 -lwinmm `$(SDLCONFIG) --static-libs`
+        QCC_LDFLAGS=
+    else
+		#or dynamically link when SDL_STATIC=0
+        GL_LDFLAGS=$(IMAGELDFLAGS) -lws2_32 -lmingw32 $(SDL_LDFLAGS) -mwindows -ldxguid -lwinmm -lole32 $(GLLDFLAGS) `$(SDLCONFIG) --libs` 
+        VK_LDFLAGS=$(IMAGELDFLAGS) -lws2_32 -lmingw32 $(SDL_LDFLAGS) -mwindows -ldxguid -lwinmm -lole32 $(GLLDFLAGS) `$(SDLCONFIG) --libs` 
+        M_LDFLAGS=$(IMAGELDFLAGS) -lws2_32 -lmingw32 $(SDL_LDFLAGS) -mwindows -ldxguid -lwinmm -lole32 $(MLDFLAGS) `$(SDLCONFIG) --libs`
+		D3D_LDFLAGS=$(IMAGELDFLAGS) -lws2_32 -lmingw32 $(SDL_LDFLAGS) -mwindows -ldxguid -lwinmm -lole32 $(MLDFLAGS) `$(SDLCONFIG) --libs`
+        SV_LDFLAGS=-lm -lmingw32 -lws2_32 -lwinmm `$(SDLCONFIG) --libs`
+        QCC_LDFLAGS=
+    endif
 
-	MINGL_DIR=mingl_sdlwin$(BITS)
-	MINGL_EXE_NAME=../$(EXE_NAME)-sdl-mingl$(BITS)$(EXEPOSTFIX)
+    GL_CFLAGS=-DFTE_SDL $(GLCFLAGS) $(CLIENTLIBFLAGS) $(DX7SDK)
 
-	MB_DIR=m_mgw_sdl$(BITS)
-	M_EXE_NAME=../$(EXE_NAME)-sdl$(BITS)$(EXEPOSTFIX)
+    GLB_DIR=gl_mgw_sdl$(BITS)
+    GLCL_DIR=glcl_mgw_sdl$(BITS)
+	
+	#don't use sdl at all for dedicated servers. it'd break running it as a console program etc. its not officially supported, but included anyway for ease of use.
+	SV_DIR=sv_winsdl$(BITS)
+    SV_OBJS=$(COMMON_OBJS) $(SERVER_OBJS) $(PROGS_OBJS) $(WINDOWSSERVERONLY_OBJS) fs_win32.o $(LTO_END) resources.o $(LTO_START)
+    SV_EXE_NAME=../$(EXE_NAME)-sdl-sv$(BITS)$(EXEPOSTFIX)
+	SV_LDFLAGS=-lm -lole32 -lws2_32 -lwinmm
+    SV_CFLAGS=$(SERVER_ONLY_CFLAGS) -mconsole #-DFTE_SDL
+
+    MINGL_DIR=mingl_sdlwin$(BITS)
+    MINGL_EXE_NAME=../$(EXE_NAME)-sdl-mingl$(BITS)$(EXEPOSTFIX)
+
+    MB_DIR=m_mgw_sdl$(BITS)
+    M_EXE_NAME=../$(EXE_NAME)-sdl$(BITS)$(EXEPOSTFIX)
 #with d3d...
-	#MCL_OBJS=$(D3DGL_OBJS) $(GLQUAKE_OBJS) $(SOFTWARE_OBJS) $(D3DQUAKE_OBJS) gl_vidsdl.o snd_sdl.o cd_sdl.o sys_sdl.o in_sdl.o snd_directx.o $(LTO_END) resources.o $(LTO_START)
-	#M_CFLAGS=$(D3DCFLAGS) $(VKCFLAGS) $(GLCFLAGS) -DFTE_SDL $(CLIENTLIBFLAGS) $(DX7SDK)
+    #MCL_OBJS=$(D3DGL_OBJS) $(GLQUAKE_OBJS) $(SOFTWARE_OBJS) $(D3DQUAKE_OBJS) gl_vidsdl.o snd_sdl.o cd_sdl.o sys_sdl.o in_sdl.o snd_directx.o $(LTO_END) resources.o $(LTO_START)
+    #M_CFLAGS=$(D3DCFLAGS) $(VKCFLAGS) $(GLCFLAGS) -DFTE_SDL $(CLIENTLIBFLAGS) $(DX7SDK)
 #without d3d...
-	MCL_OBJS=$(D3DGL_OBJS) $(GLQUAKE_OBJS) $(SOFTWARE_OBJS) gl_vidsdl.o snd_sdl.o cd_sdl.o sys_sdl.o in_sdl.o snd_directx.o $(LTO_END) resources.o $(LTO_START)
-	M_CFLAGS=$(VKCFLAGS) $(GLCFLAGS) -DFTE_SDL $(CLIENTLIBFLAGS) $(DX7SDK)
+    MCL_OBJS=$(D3DGL_OBJS) $(GLQUAKE_OBJS) $(SOFTWARE_OBJS) gl_vidsdl.o snd_sdl.o cd_sdl.o sys_sdl.o in_sdl.o snd_directx.o $(LTO_END) resources.o $(LTO_START)
+    M_CFLAGS=$(VKCFLAGS) $(GLCFLAGS) -DFTE_SDL $(CLIENTLIBFLAGS) $(DX7SDK)
 
-	D3DCL_OBJS=$(D3DQUAKE_OBJS) snd_sdl.o cd_sdl.o sys_sdl.o in_sdl.o snd_directx.o $(D3DGL_OBJS) $(LTO_END) resources.o $(LTO_START)
-	D3D_EXE_NAME=../$(EXE_NAME)-sdl-d3d$(BITS)$(EXEPOSTFIX)
-	D3DCL_EXE_NAME=../$(EXE_NAME)-sdl-d3dcl$(BITS)$(EXEPOSTFIX)
-	D3D_LDFLAGS=$(IMAGELDFLAGS) -lws2_32 -lmingw32 $(SDL_LDFLAGS) -mwindows -ldxguid -lwinmm -lole32
-	D3D_CFLAGS=$(D3DCFLAGS) -DFTE_SDL -DNO_XFLIP $(CLIENTLIBFLAGS) $(DX7SDK)
-	D3DB_DIR=sdl_d3d_mgw$(BITS)
-	D3DCL_DIR=sdl_d3dcl_mgw$(BITS)
+	#unsupported, video code has winmsg/input junk in it.
+    D3DCL_OBJS=$(D3DQUAKE_OBJS) snd_sdl.o cd_sdl.o sys_sdl.o in_sdl.o snd_directx.o $(D3DGL_OBJS) $(LTO_END) resources.o $(LTO_START)
+    D3D_EXE_NAME=../$(EXE_NAME)-sdl-d3d$(BITS)$(EXEPOSTFIX)
+    D3DCL_EXE_NAME=../$(EXE_NAME)-sdl-d3dcl$(BITS)$(EXEPOSTFIX)
+    D3D_CFLAGS=$(D3DCFLAGS) -DFTE_SDL -DNO_XFLIP $(CLIENTLIBFLAGS) $(DX7SDK)
+    D3DB_DIR=sdl_d3d_mgw$(BITS)
+    D3DCL_DIR=sdl_d3dcl_mgw$(BITS)
 
 
-	VKCL_OBJS=$(VKQUAKE_OBJS) gl_bloom.o gl_vidsdl.o snd_sdl.o cd_sdl.o sys_sdl.o in_sdl.o snd_directx.o $(D3DGL_OBJS) $(LTO_END) resources.o $(LTO_START)
-	VK_EXE_NAME=../$(EXE_NAME)-sdl-vk$(BITS)$(EXEPOSTFIX)
-	VKCL_EXE_NAME=../$(EXE_NAME)-sdl-vkcl$(BITS)$(EXEPOSTFIX)
-	VK_CFLAGS=$(VKCFLAGS) -DFTE_SDL -DNO_XFLIP $(CLIENTLIBFLAGS) $(DX7SDK)
-	VKB_DIR=sdl_vk_mgw$(BITS)
-	VKCL_DIR=sdl_vkcl_mgw$(BITS)
+    VKCL_OBJS=$(VKQUAKE_OBJS) gl_bloom.o gl_vidsdl.o snd_sdl.o cd_sdl.o sys_sdl.o in_sdl.o snd_directx.o $(D3DGL_OBJS) $(LTO_END) resources.o $(LTO_START)
+    VK_EXE_NAME=../$(EXE_NAME)-sdl-vk$(BITS)$(EXEPOSTFIX)
+    VKCL_EXE_NAME=../$(EXE_NAME)-sdl-vkcl$(BITS)$(EXEPOSTFIX)
+    VK_CFLAGS=$(VKCFLAGS) -DFTE_SDL -DNO_XFLIP $(CLIENTLIBFLAGS) $(DX7SDK)
+    VKB_DIR=sdl_vk_mgw$(BITS)
+    VKCL_DIR=sdl_vkcl_mgw$(BITS)
 	
-	ifeq ($(shell echo $(FTE_TARGET)|grep -E -i -v "win32.*sdl"),)
-		GL_CFLAGS+= -D_MINGW_VFPRINTF
-		VK_CFLAGS+= -D_MINGW_VFPRINTF
-		D3D_CFLAGS+= -D_MINGW_VFPRINTF
-		M_CFLAGS+= -D_MINGW_VFPRINTF
-	endif
+    ifeq ($(shell echo $(FTE_TARGET)|grep -E -i -v "win32.*sdl"),)
+        GL_CFLAGS+= -D_MINGW_VFPRINTF
+        VK_CFLAGS+= -D_MINGW_VFPRINTF
+        D3D_CFLAGS+= -D_MINGW_VFPRINTF
+        M_CFLAGS+= -D_MINGW_VFPRINTF
+    endif
 endif
 
 #FTE_TARGET=vc (Visual C)
@@ -1417,7 +1426,7 @@ ifeq (win,$(findstring win,$(FTE_TARGET))$(findstring _SDL,$(FTE_TARGET)))
 	BASELDFLAGS+=-lcomctl32
 	EXEPOSTFIX=.exe
 
-	QTV_LDFLAGS=-lws2_32 -lwinmm
+	QTV_LDFLAGS+=-lws2_32 -lwinmm
 
 	SV_EXE_NAME=../$(EXE_NAME)sv$(BITS)$(EXEPOSTFIX)
 	SV_LDFLAGS=-lws2_32 -lwinmm -lole32
@@ -2191,7 +2200,6 @@ clean:
 
 distclean: clean
 	-rm -f droid/ftekeystore
-	-rm -f -r libs/SDL2-$(SDL2VER)
 
 
 
@@ -2328,11 +2336,11 @@ droid-help:
 	@-echo
 	@-echo "Note that 'make droid-rel' will automatically generate a keystore. If you forget the password, just do a 'make dist-clean'."
 
-$(BASE_DIR)/libs/SDL2-$(SDL2VER)/i686-w64-mingw32/bin/sdl2-config:
+$(BASE_DIR)/libs-$(ARCH)/SDL2-$(SDL2VER)/i686-w64-mingw32/bin/sdl2-config:
 	wget http://www.libsdl.org/release/SDL2-devel-$(SDL2VER)-mingw.tar.gz -O $(BASE_DIR)/sdl2.tar.gz
-	cd $(BASE_DIR)/libs && tar -xvzf $(BASE_DIR)/sdl2.tar.gz
+	cd $(BASE_DIR)/libs-$(ARCH) && tar -xvzf $(BASE_DIR)/sdl2.tar.gz
 	rm $(BASE_DIR)/sdl2.tar.gz
-$(BASE_DIR)/libs/SDL2-$(SDL2VER)/x86_64-w64-mingw32/bin/sdl2-config: $(BASE_DIR)/libs/SDL2-$(SDL2VER)/i686-w64-mingw32/bin/sdl2-config
+$(BASE_DIR)/libs-$(ARCH)/SDL2-$(SDL2VER)/x86_64-w64-mingw32/bin/sdl2-config: $(BASE_DIR)/libs-$(ARCH)/SDL2-$(SDL2VER)/i686-w64-mingw32/bin/sdl2-config
 
 
 
@@ -2456,9 +2464,11 @@ QTV_OBJECTS=	\
 	bsp.c		\
 	rcon.c		\
 	mdfour.c	\
+	md5.c		\
 	crc.c		\
 	control.c	\
 	forward.c	\
+	relay.c		\
 	pmove.c		\
 	menu.c		\
 	msg.c		\

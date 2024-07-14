@@ -10,6 +10,9 @@
 #else
 #include <unistd.h>
 #endif
+#ifdef FTE_SDL
+#include <SDL.h>
+#endif
 
 static void Headless_Draw_Init(void)
 {
@@ -172,7 +175,9 @@ static qboolean	Headless_SCR_UpdateScreen			(void)
 {
 	if (!cls.timedemo)
 	{
-#if defined(_WIN32) && !defined(FTE_SDL)
+#ifdef FTE_SDL
+		SDL_Delay(100);		
+#elif defined(_WIN32)
 		Sleep(100);
 #else
 		usleep(100*1000);

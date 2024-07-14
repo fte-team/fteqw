@@ -407,7 +407,7 @@ static void PM_ValidateAuthenticity(package_t *p, enum hashvalidation_e validate
 	//this is temporary code and should be removed once everything else has been fixed.
 	//ignore the signature (flag as accepted) for any packages with all mirrors on our own update site.
 	//we can get away with this because we enforce a known certificate for the download.
-	if (!COM_CheckParm("-notlstrust"))
+	if (!COM_CheckParm("-notlstrust") && p->mirror[0])
 	{
 		conchar_t musite[256], *e;
 		char site[256];
@@ -962,7 +962,7 @@ static qboolean PM_CheckFeature(const char *feature, const char **featurename, c
 	if (!strcmp(feature, "24bit"))
 		return *featurename="24bit Textures", *concommand="seta gl_load24bit 1\n", gl_load24bit.ival;
 	if (!strcmp(feature, "md3"))
-		return *featurename="Replacement Models", *concommand="seta r_replacemodels md3 md2\n", !!strstr(r_replacemodels.string, "md3");
+		return *featurename="Replacement Models", *concommand="seta r_replacemodels md3 md2 md5mesh\n", !!strstr(r_replacemodels.string, "md3");
 	if (!strcmp(feature, "rtlights"))
 		return *featurename="Realtime Dynamic Lights", *concommand="seta r_shadow_realtime_dlight 1\n", r_shadow_realtime_dlight.ival||r_shadow_realtime_world.ival;
 	if (!strcmp(feature, "rtworld"))

@@ -316,6 +316,53 @@ void M_Menu_Load_f (void)
 
 #endif
 
+static qboolean M_SingleParseMapDBEpisodes(emenu_t *menu, int *y, qboolean bigfont)
+{	//use the remaster's episode selection lists.
+	size_t sz;
+	char *file = FS_LoadMallocFile("mapdb.json", &sz);
+	if (file)
+	{
+		json_t *j = JSON_Parse(file);
+		json_t *episodes = JSON_FindChild(j, "episodes"), *e;
+		int i = 0;
+		while ((e=JSON_GetIndexed(episodes, i++)))
+		{
+			char namebuf[MAX_QPATH];
+			char cmdbuf[MAX_QPATH];
+			const char *command = JSON_GetString(e, "command", cmdbuf,sizeof(cmdbuf), NULL);
+			const char *name = JSON_GetString(e, "name", namebuf,sizeof(namebuf), NULL);
+			if (!command)
+			{
+				command = JSON_GetString(e, "dir", cmdbuf,sizeof(cmdbuf), NULL);
+				if (command)
+					command = va("gamedir %s; map start", command);
+			}
+			if (!command)
+				continue;
+			name = TL_Translate(com_language, name);
+			if (name && command)
+			{
+				menubutton_t *b;
+				if (bigfont)
+					b = MC_AddConsoleCommandQBigFont(menu, 72, *y,	name,  va("closemenu;disconnect;maxclients 1;spectator \"\";samelevel \"\";deathmatch \"\";set_calc coop ($cl_splitscreen>0);%s\n", command)), *y += 20-8;
+				else if (JSON_GetInteger(e, "needsClassSelect", false))
+					b = MC_AddConsoleCommand		(menu, 64, 260, *y,	name,		va("menu_single class %s\n", command));
+				else if (JSON_GetInteger(e, "needsSkillSelect", false))
+					b = MC_AddConsoleCommand		(menu, 64, 260, *y,	name,		va("menu_single skill %s\n", command));
+				else
+					b = MC_AddConsoleCommand		(menu, 64, 260, *y,	name,		va("closemenu; skill 0;deathmatch 0; set_calc coop ($cl_splitscreen>0);%s\n",command));
+				*y+=8;
+				if (!menu->selecteditem)
+					menu->selecteditem = (menuoption_t*)b;
+			}
+		}
+		JSON_Destroy(j);
+		FS_FreeFile(file);
+		return true;
+	}
+	return false;
+}
+
 void M_Menu_SinglePlayer_f (void)
 {
 	emenu_t *menu;
@@ -347,25 +394,41 @@ void M_Menu_SinglePlayer_f (void)
 	{
 #ifdef Q2CLIENT
 	case MGT_QUAKE2:
-		menu = M_CreateMenu(0);
+		{
+			int y = 40;
+			const char *command = "newgame";
+			menu = M_CreateMenu(0);
 
-		MC_AddCenterPicture(menu, 4, 24, "pics/m_banner_game");
+			MC_AddCenterPicture(menu, 4, 24, "pics/m_banner_game");
 
-		//quake2 uses the 'newgame' alias, which controls the intro video and then start map.
-		menu->selecteditem = (menuoption_t*)
-		MC_AddConsoleCommand	(menu, 64, 170, 40,	"Easy",		va("closemenu; skill 0;deathmatch 0; set_calc coop ($cl_splitscreen>0);newgame\n"));
-		MC_AddConsoleCommand	(menu, 64, 170, 48,	"Medium",	va("closemenu; skill 1;deathmatch 0; set_calc coop ($cl_splitscreen>0);newgame\n"));
-		MC_AddConsoleCommand	(menu, 64, 170, 56,	"Hard",		va("closemenu; skill 2;deathmatch 0; set_calc coop ($cl_splitscreen>0);newgame\n"));
+			if (!strncmp(Cmd_Argv(1), "skill", 5))
+				command = Cmd_Argv(2);
+			else
+				M_SingleParseMapDBEpisodes(menu, &y, false);
+
+			if (!menu->selecteditem)
+			{ 	//quake2 uses the 'newgame' alias, which controls the intro video and then start map.
+				menu->selecteditem = (menuoption_t*)
+				MC_AddConsoleCommand	(menu, 64, 170, y,	"Easy",		va("closemenu; skill 0;deathmatch 0; set_calc coop ($cl_splitscreen>0);%s\n",command)); y+=8;
+				MC_AddConsoleCommand	(menu, 64, 170, y,	"Medium",	va("closemenu; skill 1;deathmatch 0; set_calc coop ($cl_splitscreen>0);%s\n",command)); y+=8;
+				MC_AddConsoleCommand	(menu, 64, 170, y,	"Hard",		va("closemenu; skill 2;deathmatch 0; set_calc coop ($cl_splitscreen>0);%s\n",command)); y+=8;
+			}
+			if (strncmp(Cmd_Argv(1), "skill", 5))
+			{
 #ifdef SAVEDGAMES
-		MC_AddConsoleCommand	(menu, 64, 170, 72,	"Load Game", "menu_load\n");
-		MC_AddConsoleCommand	(menu, 64, 170, 80,	"Save Game", "menu_save\n");
+				y+=8;
+				MC_AddConsoleCommand	(menu, 64, 170, y,	"Load Game", "menu_load\n"); y+=8;
+				MC_AddConsoleCommand	(menu, 64, 170, y,	"Save Game", "menu_save\n"); y+=8;
 #endif
 
 #if MAX_SPLITS > 1
-		b = (menubutton_t*)MC_AddCvarCombo(menu, 72, 170, 96, localtext("Splitscreen"), &cl_splitscreen, splitopts, splitvals);
+				y+=8;
+				MC_AddCvarCombo(menu, 72, 170, y, localtext("Splitscreen"), &cl_splitscreen, splitopts, splitvals);
 #endif
+			}
 
-		menu->cursoritem = (menuoption_t*)MC_AddWhiteText(menu, 48, 0, 40, NULL, false);
+			menu->cursoritem = (menuoption_t*)MC_AddWhiteText(menu, 48, 0, 40, NULL, false);
+		}
 		return;
 #endif
 #ifdef HEXEN2
@@ -510,15 +573,21 @@ void M_Menu_SinglePlayer_f (void)
 	default:
 		if (QBigFontWorks())
 		{
+			int y = 32;
 			menu = M_CreateMenu(0);
 			MC_AddPicture(menu, 16, 4, 32, 144, "gfx/qplaque.lmp");
 			MC_AddCenterPicture(menu, 4, 24, "gfx/ttl_sgl.lmp");
 
-			menu->selecteditem = (menuoption_t*)
-			MC_AddConsoleCommandQBigFont	(menu, 72, 32,	"New Game",  "closemenu;disconnect;maxclients 1;spectator \"\";samelevel \"\";deathmatch \"\";set_calc coop ($cl_splitscreen>0);startmap_sp\n");
+			if (M_SingleParseMapDBEpisodes(menu, &y, true))
+				y += 20;
+			else
+			{
+				menu->selecteditem = (menuoption_t*)
+				MC_AddConsoleCommandQBigFont	(menu, 72, y,	"New Game",  "closemenu;disconnect;maxclients 1;spectator \"\";samelevel \"\";deathmatch \"\";set_calc coop ($cl_splitscreen>0);startmap_sp\n"); y += 20;
+			}
 #ifdef SAVEDGAMES
-			MC_AddConsoleCommandQBigFont	(menu, 72, 52,	"Load Game", "menu_load\n");
-			MC_AddConsoleCommandQBigFont	(menu, 72, 72,	"Save Game", "menu_save\n");
+			MC_AddConsoleCommandQBigFont	(menu, 72, y,	"Load Game", "menu_load\n"); y+=20;
+			MC_AddConsoleCommandQBigFont	(menu, 72, y,	"Save Game", "menu_save\n"); y+=20;
 #endif
 
 			menu->cursoritem = (menuoption_t*)MC_AddCursor(menu, &resel, 54, 32);

@@ -86,7 +86,7 @@ static cvar_t r_tracker_fadetime = CVARCD("r_tracker_fadetime", "1", TrackerCall
 static cvar_t r_tracker_x = CVARCD("r_tracker_x", "0.5", TrackerCallback, "left position of the r_tracker messages, as a fraction of the screen's width, eg 0.5\n");
 static cvar_t r_tracker_y = CVARCD("r_tracker_y", "0.333", TrackerCallback, "top position of the r_tracker messages, as a fraction of the screen's height, eg 0.333\n");
 static cvar_t r_tracker_w = CVARCD("r_tracker_w", "0.5", TrackerCallback, "width of the r_tracker messages, as a fraction of the screen's width, eg 0.5\n");
-static cvar_t r_tracker_lines = CVARCD("r_tracker_lines", "8", TrackerCallback, "number of r_tracker messages to display\n");
+static cvar_t r_tracker_lines = CVARAFCD("r_tracker_lines", "8", "r_tracker_messages", 0, TrackerCallback, "number of r_tracker messages to display\n");
 static void Tracker_Update(console_t *tracker)
 {
 	tracker->notif_l = tracker->maxlines = max(1,r_tracker_lines.ival);

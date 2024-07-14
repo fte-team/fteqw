@@ -645,7 +645,7 @@ void R_GenDlightBatches(batch_t *batches[])
 							"deferredlight\n"
 							"surfaceparm nodlight\n"
 							"{\n"
-								"program lpp_light\n"
+								"program lpp_light#USE_ARB_SHADOW\n"
 								"blendfunc gl_one gl_one\n"
 								"nodepthtest\n"
 								"map $gbuffer0\n"	//depth

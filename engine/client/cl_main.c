@@ -44,6 +44,7 @@ static void CL_ForceStopDownload (qboolean finish);
 
 qboolean	noclip_anglehack;		// remnant from old quake
 int startuppending;
+extern int	r_blockvidrestart;
 
 void Host_FinishLoading(void);
 
@@ -926,12 +927,20 @@ char *CL_TryingToConnect(void)
 	if (!connectinfo.trying)
 		return NULL;
 
-	if (connectinfo.numadr >= 1 && connectinfo.adr[0].prot == NP_KEXLAN)
+	if (connectinfo.numadr < 1)
+		;
+	else if (connectinfo.adr[0].prot == NP_KEXLAN
+#ifdef SUPPORT_ICE
+			|| connectinfo.adr[0].type == NA_ICE
+#endif
+			)
 	{
 		char status[1024];
 		if (NET_GetConnectionCertificate(cls.sockets, &connectinfo.adr[0], QCERT_LOBBYSTATUS, status, sizeof(status))>0)
 			return va("%s\n%s", cls.servername, status);
 	}
+	else if (connectinfo.adr[0].prot == NP_RTC_TCP || connectinfo.adr[0].prot == NP_RTC_TLS)
+		return va("%s\n%s", cls.servername, "Waiting for broker connection");
 	return cls.servername;
 }
 
@@ -994,11 +1003,11 @@ static void CL_ResolveServer(void *vctx, void *data, size_t a, size_t b)
 {
 	struct resolvectx_s *ctx = vctx;
 
-	//stupid logic for targ@prox2@prox1 chaining. just disable it if there's weird ws:// or whatever in there.
+	//stupid logic for targ@prox2@[ws[s]://]prox1 chaining. just disable it if there's weird ws:// or whatever in there.
 	//FIXME: really shouldn't be in there
 	const char *res = strrchr(ctx->servername, '/');
 	const char *host = strrchr(ctx->servername+1, '@');
-	if (host && !res)
+	if (host && (!res || res > host))
 		host++;
 	else
 		host = ctx->servername;
@@ -1038,7 +1047,6 @@ void CL_CheckForResend (void)
 	double t1, t2;
 	int contype = 0;
 	qboolean keeptrying = true;
-	extern int	r_blockvidrestart;
 	netadr_t *to;
 
 #ifdef HAVE_SERVER
@@ -1355,7 +1363,7 @@ void CL_CheckForResend (void)
 			Cvar_ForceSet(&cl_servername, "");
 		return;
 	}
-	if (startuppending || r_blockvidrestart)
+	if (startuppending || r_blockvidrestart || FS_DownloadingPackage())
 		return;	//don't send connect requests until we've actually initialised fully. this isn't a huge issue, but makes the startup prints a little more sane.
 
 	if (connectinfo.time && realtime - connectinfo.time < 5.0)
@@ -1406,7 +1414,7 @@ void CL_CheckForResend (void)
 
 	Cvar_ForceSet(&cl_servername, cls.servername);
 
-	if (!connectinfo.numadr || !cls.sockets)
+	if (!connectinfo.numadr || !cls.sockets || connectinfo.resolving)
 		return;	//nothing to do yet...
 	if (!connectinfo.clogged)
 		connectinfo.time = realtime+t2-t1;	// for retransmit requests
@@ -1439,11 +1447,22 @@ void CL_CheckForResend (void)
 		connectinfo.clogged = false;
 
 	if (connectinfo.tries == 0 && connectinfo.nextadr < connectinfo.numadr)
-		if (!NET_EnsureRoute(cls.sockets, "conn", &connectinfo.peercred, cls.servername, to, true))
+	{
+		//stupid logic for targ@prox2@[ws[s]://]prox1 chaining. just disable it if there's weird ws:// or whatever in there.
+		//FIXME: really shouldn't be in there
+		const char *res = strrchr(cls.servername, '/');
+		const char *host = strrchr(cls.servername+1, '@');
+		if (host && (!res || res > host))
+			host++;
+		else
+			host = cls.servername;
+
+		if (!NET_EnsureRoute(cls.sockets, "conn", &connectinfo.peercred, host, to, true))
 		{
 			CL_ConnectAbort ("Unable to establish connection to %s\n", cls.servername);
 			return;
 		}
+	}
 
 	if (to->prot == NP_DGRAM)
 		connectinfo.nextadr++;	//cycle hosts with each ping (if we got multiple).
@@ -1577,13 +1596,31 @@ void CL_CheckForResend (void)
 	}
 }
 
-static void CL_BeginServerConnect(char *host, int port, qboolean noproxy, enum coninfomode_e mode, enum coninfospec_e spec)
+static void CL_BeginServerConnect(char *chain, int port, qboolean noproxy, enum coninfomode_e mode, enum coninfospec_e spec)
 {
-	const char *schemeend = strstr(host, "://");
-	char *arglist;
+	const char *host = chain;
+	const char *schemeend;
+	char *arglist, *c;
+	size_t presize;
 
-	Q_strncpyz(cls.serverurl, host, sizeof(cls.serverurl));
+	Q_strncpyz(cls.serverurl, chain, sizeof(cls.serverurl));
 
+	for (c = chain; *c; c++)
+	{
+		if (*c == '@')
+			host=c+1;
+		else if (*c == '/' || *c == '?')
+			break;	//stop if we find some path weirdness (like an authority).
+	}
+	presize = host-chain;
+	if (presize >= sizeof(cls.servername))
+	{
+		CL_ConnectAbort("server address too long");
+		return;	//no, get lost. panic.
+	}
+	memcpy(cls.servername, chain, presize);
+
+	schemeend = strstr(host, "://");
 	if (schemeend)
 	{
 		//"qw:tcp://host/observe"
@@ -1601,7 +1638,7 @@ static void CL_BeginServerConnect(char *host, int port, qboolean noproxy, enum c
 			scheme = NULL;	//qw:// or q3:// something that's just noise here.
 		if (scheme && scheme->flags&URISCHEME_NEEDSRESOURCE)
 		{
-			Q_strncpyz (cls.servername, schemestart, sizeof(cls.servername));	//oh. will probably be okay then
+			Q_strncpyz (cls.servername+presize, schemestart, sizeof(cls.servername)-presize);	//oh. will probably be okay then
 			arglist = NULL;
 		}
 		else
@@ -1639,9 +1676,9 @@ static void CL_BeginServerConnect(char *host, int port, qboolean noproxy, enum c
 				}
 			}
 			if (scheme)	//preserve the scheme, the netchan cares.
-				Q_strncpyz (cls.servername, schemestart, sizeof(cls.servername));	//probably some game-specific mess that we don't know
+				Q_strncpyz (cls.servername+presize, schemestart, sizeof(cls.servername)-presize);	//probably some game-specific mess that we don't know
 			else
-				Q_strncpyz (cls.servername, schemeend+3, sizeof(cls.servername));	//probably some game-specific mess that we don't know
+				Q_strncpyz (cls.servername+presize, schemeend+3, sizeof(cls.servername)-presize);	//probably some game-specific mess that we don't know
 			arglist = strchr(cls.servername, '?');
 		}
 	}
@@ -1650,10 +1687,10 @@ static void CL_BeginServerConnect(char *host, int port, qboolean noproxy, enum c
 		if (!strncmp(host, "localhost", 9))
 			noproxy = true;	//FIXME: resolve the address here or something so that we don't end up using a proxy for lan addresses.
 
-		if (strstr(host, "://") || !*cl_proxyaddr.string || noproxy)
-			Q_strncpyz (cls.servername, host, sizeof(cls.servername));
+		if (strstr(host, "://") || *host == '/' || !*cl_proxyaddr.string || noproxy)
+			Q_strncpyz (cls.servername+presize, host, sizeof(cls.servername)-presize);
 		else
-			Q_snprintfz(cls.servername, sizeof(cls.servername), "%s@%s", host, cl_proxyaddr.string);
+			Q_snprintfz(cls.servername+presize, sizeof(cls.servername)-presize, "%s@%s", host, cl_proxyaddr.string);
 		arglist = strchr(cls.servername, '?');
 	}
 
@@ -3486,6 +3523,10 @@ Contents allows \n escape character
 */
 void CL_Packet_f (void)
 {
+#ifdef FTE_TARGET_WEB
+	//either this creates some expensive alternative rtc connection that screws us over, or just generally fails. don't allow it.
+	Con_Printf (CON_WARNING "Ignoring 'packet %s' request.\n", Cmd_Argv(1));
+#else
 	char	send[2048];
 	int		i, l;
 	char	*in, *out;
@@ -3593,6 +3634,7 @@ void CL_Packet_f (void)
 		cls.realip_ident = atoi(Cmd_Argv(2));
 		Z_Free(temp);
 	}
+#endif
 }
 
 
@@ -3681,6 +3723,8 @@ void CL_Startdemos_f (void)
 
 	for (i=1 ; i<c+1 ; i++)
 		Q_strncpyz (cls.demos[i-1], Cmd_Argv(i), sizeof(cls.demos[0]));
+	for ( ; i<MAX_DEMOS ; i++)
+		Q_strncpyz (cls.demos[i-1], "", sizeof(cls.demos[0]));
 
 	cls.demonum = -1;
 	//don't start it here - we might have been given a +connect or whatever argument.
@@ -4213,13 +4257,12 @@ void CL_ConnectionlessPacket (void)
 			return;
 		}
 
+		s = COM_Parse(s);	//read the challenge.
 		/*throttle connect requests*/
-		if (curtime - lasttime < 500 && NET_CompareAdr(&net_from, &lastadr))
+		if (curtime - lasttime < 500 && NET_CompareAdr(&net_from, &lastadr) && connectinfo.challenge == atoi(com_token))
 			return;
 		lasttime = curtime;
 		lastadr = net_from;
-
-		s = COM_Parse(s);
 		connectinfo.challenge = atoi(com_token);
 		memset(&connectinfo.ext, 0, sizeof(connectinfo.ext));
 
@@ -4308,7 +4351,7 @@ void CL_ConnectionlessPacket (void)
 		}
 
 #ifdef HAVE_DTLS
-		if ((candtls && net_enable_dtls.ival) && net_from.prot == NP_DGRAM && (net_enable_dtls.ival>1 || candtls > 1) && !NET_IsEncrypted(&net_from))
+		if ((candtls && net_enable_dtls.ival) && net_from.prot == NP_DGRAM && (connectinfo.peercred.hash || net_enable_dtls.ival>1 || candtls > 1) && !NET_IsEncrypted(&net_from))
 		{
 			//c2s getchallenge			<no client details, only leaks that its quakelike, something you can maybe guess from port numbers>
 			//s2c c%u\0DTLS=$candtls	<may leak server details>
@@ -4640,7 +4683,8 @@ void CL_ConnectionlessPacket (void)
 //happens in demos
 	if (c == svc_disconnect && cls.demoplayback != DPB_NONE && net_from.type == NA_INVALID)
 	{
-		Host_EndGame ("End of Demo");
+		CL_NextDemo();
+		Host_EndGame (NULL);	//end of demo.
 		return;
 	}
 
@@ -5405,13 +5449,13 @@ void CL_Fog_f(void)
 			cl.fog[ftype].time += 1;
 
 		//fitz:
-		//if (Cmd_Argc() >= 6) cl.fog_time += atof(Cmd_Argv(5));
+		//if (Cmd_Argc() >= 6) cl.fog[ftype].time += atof(Cmd_Argv(5));
 		//dp:
 		if (Cmd_Argc() >= 6) cl.fog[ftype].alpha = atof(Cmd_Argv(5));
 		if (Cmd_Argc() >= 7) cl.fog[ftype].depthbias = atof(Cmd_Argv(6));
-		//if (Cmd_Argc() >= 8) cl.fog.end = atof(Cmd_Argv(7));
-		//if (Cmd_Argc() >= 9) cl.fog.height = atof(Cmd_Argv(8));
-		//if (Cmd_Argc() >= 10) cl.fog.fadedepth = atof(Cmd_Argv(9));
+		//if (Cmd_Argc() >= 8) cl.fog[ftype].end = atof(Cmd_Argv(7));
+		//if (Cmd_Argc() >= 9) cl.fog[ftype].height = atof(Cmd_Argv(8));
+		//if (Cmd_Argc() >= 10) cl.fog[ftype].fadedepth = atof(Cmd_Argv(9));
 
 		if (Cmd_FromGamecode())
 			cl.fog_locked = !!cl.fog[ftype].density;
@@ -5924,8 +5968,8 @@ void CL_Init (void)
 	Cmd_AddCommandD ("showpic", SCR_ShowPic_Script_f, 	"showpic <imagename> <placename> <x> <y> <zone> [width] [height] [touchcommand]\nDisplays an image onscreen, that potentially has a key binding attached to it when clicked/touched.\nzone should be one of: TL, TR, BL, BR, MM, TM, BM, ML, MR. This serves as an extra offset to move the image around the screen without any foreknowledge of the screen resolution.");
 	Cmd_AddCommandD ("showpic_removeall", SCR_ShowPic_Remove_f, 	"removes any pictures inserted with the showpic command.");
 
-	Cmd_AddCommand ("startdemos", CL_Startdemos_f);
-	Cmd_AddCommand ("demos", CL_Demos_f);
+	Cmd_AddCommandD ("startdemos", CL_Startdemos_f, "Sets the demoreel list, but does not start playing them (use the 'demos' command for that)");
+	Cmd_AddCommandD ("demos", CL_Demos_f, "Starts playing the demo reel.");
 	Cmd_AddCommand ("stopdemo", CL_Stopdemo_f);
 
 	Cmd_AddCommand ("skins", Skin_Skins_f);
@@ -6074,16 +6118,24 @@ NORETURN void VARGS Host_EndGame (const char *message, ...)
 	va_list		argptr;
 	char		string[1024];
 
-	va_start (argptr,message);
-	vsnprintf (string,sizeof(string)-1, localtext(message),argptr);
-	va_end (argptr);
+	if (message)
+	{
+		va_start (argptr,message);
+		vsnprintf (string,sizeof(string)-1, localtext(message),argptr);
+		va_end (argptr);
+	}
+	else
+		*string = 0;
 
 	COM_AssertMainThread(string);
 
 	SCR_EndLoadingPlaque();
 
-	Con_TPrintf ("^&C0Host_EndGame: %s\n", string);
-	Con_Printf ("\n");
+	if (message)
+	{
+		Con_TPrintf ("^&C0Host_EndGame: %s\n", string);
+		Con_Printf ("\n");
+	}
 
 	SCR_EndLoadingPlaque();
 
@@ -7027,7 +7079,6 @@ double Host_Frame (double time)
 	float maxfps;
 	qboolean maxfpsignoreserver;
 	qboolean idle;
-	extern int r_blockvidrestart;
 	static qboolean hadwork;
 	unsigned int vrflags;
 	qboolean mustrenderbeforeread;
@@ -7668,7 +7719,9 @@ void CL_ExecInitialConfigs(char *resetcommand, qboolean fullvidrestart)
 	com_parseutf8.ival = com_parseutf8.value;
 
 	//if the renderer is already up and running, be prepared to reload content to match the new conback/font/etc
-	if (fullvidrestart)
+	if (r_blockvidrestart)
+		;
+	else if (fullvidrestart)
 		Cbuf_AddText ("vid_restart\n", RESTRICT_LOCAL);
 	else if (qrenderer != QR_NONE)
 		Cbuf_AddText ("vid_reload\n", RESTRICT_LOCAL);
@@ -7701,7 +7754,6 @@ void Host_FinishLoading(void)
 {
 	int i;
 	extern qboolean r_forceheadless;
-	extern int	r_blockvidrestart;
 	if (r_blockvidrestart == true)
 	{
 		//1 means we need to init the filesystem

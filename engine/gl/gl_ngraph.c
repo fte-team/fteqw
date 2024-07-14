@@ -163,7 +163,7 @@ void R_NetGraph (void)
 		COM_ParseFunString(CON_WHITEMASK, va("   in: %.1f %.0fb\n", pi, bi), line, sizeof(line), false);
 		Draw_ExpandedString(font_console, x, y, line);
 		y += Font_CharVHeight(font_console);
-		COM_ParseFunString(CON_WHITEMASK, va("  out: %.1f %.0fb\n", po, bo), line, sizeof(line), false);
+		COM_ParseFunString(CON_WHITEMASK, va("  out: %.1f %.0fb   mtu:%u\n", po, bo, cls.netchan.mtu_cur), line, sizeof(line), false);
 		Draw_ExpandedString(font_console, x, y, line);
 		y += Font_CharVHeight(font_console);
 	}

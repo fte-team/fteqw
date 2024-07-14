@@ -72,7 +72,6 @@ extern cvar_t r_tessellation;
 extern cvar_t gl_ati_truform_type;
 extern cvar_t r_tessellation_level;
 
-extern cvar_t gl_blendsprites;
 extern cvar_t r_portaldrawplanes;
 extern cvar_t r_portalonly;
 

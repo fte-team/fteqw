@@ -188,7 +188,11 @@ qboolean SV_CheckRealIP(client_t *client, qboolean force)
 	if (client->realip_status == -1)
 		return true;	//this client timed out.
 
-	if (realtime - client->connection_started > sv_realip_timeout.value)
+	//if they're using some weird protocol just give up right away.
+	if (realtime - client->connection_started > sv_realip_timeout.value ||
+		client->netchan.remote_address.prot != NP_DGRAM || !(
+		(client->netchan.remote_address.type == NA_IP&&*sv_realiphostname_ipv4.string) ||
+		(client->netchan.remote_address.type == NA_IPV6&&sv_realiphostname_ipv6.string)))
 	{
 		if (client->realip_status > 0)
 			SV_PrintToClient(client, PRINT_HIGH, "Couldn't verify your real ip\n");

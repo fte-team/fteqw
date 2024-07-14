@@ -1737,6 +1737,18 @@ static void VARGS Cef_Key (void *ctx, int code, int unicode, int event)
 		return;
 	}
 
+	if (code == K_TOUCH)
+	{	//FIXME
+		cef_release(host);
+		return;
+	}
+	if (code == K_TOUCHSLIDE || code == K_TOUCHTAP || code == K_TOUCHLONG)
+	{
+		cef_release(host);
+		return;	//has to do its own
+	}
+
+
 	//handle mouse wheels
 	if (code == K_MWHEELUP || code == K_MWHEELDOWN)
 	{

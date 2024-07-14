@@ -10,6 +10,8 @@
 //translate is english->lang
 //untranslate is lang->english for console commands.
 
+static void FilterPurge(void);
+static void FilterInit(const char *file);
 
 int com_language;
 char sys_language[64] = "";
@@ -23,8 +25,14 @@ static void QDECL TL_LanguageChanged(struct cvar_s *var, char *oldvalue)
 
 cvar_t language = CVARAFCD("lang", sys_language, "prvm_language", CVAR_USERINFO|CVAR_NORESET/*otherwise gamedir switches will be annoying*/, TL_LanguageChanged, "This cvar contains the language_dialect code of your language, used to find localisation strings.");
 
+static void Filter_Reload_f(void)
+{
+
+//	FilterInit(
+}
 void TranslateInit(void)
 {
+	Cmd_AddCommand("com_reloadfilter", Filter_Reload_f);
 	Cvar_Register(&language, "Internationalisation");
 }
 
@@ -44,6 +52,7 @@ void TL_Shutdown(void)
 		PO_Close(languages[j].po_qex);
 		languages[j].po_qex = NULL;
 	}
+	FilterPurge();
 }
 
 static int TL_LoadLanguage(char *lang)
@@ -680,4 +689,141 @@ void TL_Reformat(int language, char *out, size_t outsize, size_t numargs, const 
 			*out++ = *fmt++, outsize--;
 	}
 	*out = 0;
+}
+
+#include <ctype.h>
+static qbyte *filter[256]; //one list per lead char, simple optimisation instead of some big decision tree.
+static qbyte *filtermem;
+static int FilterCompareWords(const void *v1, const void *v2)
+{
+	const char *s1 = *(const char*const*)v1;
+	const char *s2 = *(const char*const*)v2;
+	return strcmp(s2,s1);
+}
+static void FilterPurge(void)
+{
+	memset(filter, 0, sizeof(filter));
+	free(filtermem);
+	filtermem = NULL;
+}
+static void FilterInit(const char *file)
+{
+	qbyte *tempmem = malloc(strlen(file)+1);
+	qbyte *tempmemstart = tempmem;
+	const char **words;
+	size_t count = 1, i, l;
+	size_t bytes;
+	const char *c;
+
+	FilterPurge();
+
+	for (c = file; *c; c++)
+		if (*c == '\n')
+			count++;
+
+	words = malloc(sizeof(qbyte*)*count);
+	count = 0;
+	for (c = file; *c; )
+	{
+		while (*c == '\n')
+			c++;	//don't add 0-byte strings...
+		words[count] = tempmem;
+		for (; *c; c++)
+		{
+			if (*c == ' ')
+				continue; //block even if they omit the spaces.
+			if (*c == '\n')
+				break;
+			*tempmem++ = tolower(*c);
+		}
+		*tempmem++ = 0;
+		count++;
+	}
+	qsort(words, count, sizeof(words[0]), FilterCompareWords);	//sort by lead byte... and longest first...
+	i = 0;
+	for (i = 0, bytes = 0; i < count; i++)
+		bytes += strlen(words[i]);
+	bytes += countof(filter);
+	filtermem = malloc(bytes);
+
+	for (l = countof(filter), i = 0; l-- > 0; )
+	{
+		if (i < count && words[i][0] == l)
+		{
+			filter[l] = filtermem;
+			while (i < count && *words[i] == l)
+			{	//second copy... urgh. can forget the first char and replace with a length.
+				*filtermem++ = strlen(words[i]+1);
+				memcpy(filtermem, words[i]+1, filtermem[-1]);	//just the text, no null needed. tighly packed.
+				filtermem += filtermem[-1];
+				i++;
+			}
+			*filtermem++ = 0;
+		}
+		else
+			filter[l] = NULL;
+	}
+	free(tempmemstart);
+	free(words);
+}
+#define whiteish(c) (c == ',' || c == '.' || c == ' ' || c == '\t' || c == '\r' || c == '\n')
+char *FilterObsceneString(const qbyte *in, char *outbuf, size_t bufsize)
+{	//input must be utf-8... if there's any ^ crap in there then strip it first. no bypassing filters with colour codes.
+	char *ret = outbuf;
+	if (strlen(in) >= bufsize)
+		Sys_Error("output buffer too small!");
+restart:
+	while (*in)
+	{
+		qbyte c = tolower(*in);
+		if (filter[c])
+		{
+			qbyte *m = filter[c];
+			while (*m)
+			{	//for each word starting with this letter...
+				const qbyte *test = in+1;
+				qbyte len = *m;
+				const qbyte *match = m+1;
+				m += 1+len;
+				while (*test)
+				{	//don't let 'foo bar' through when 'foobar' is a bad word.
+					if (whiteish(*test))
+					{
+						test++;
+						continue;
+					}
+
+					if (tolower(*test) == *match)
+					{
+						test++, match++;
+						if (--len == 0)
+						{	//a match.
+							if (*test && !whiteish(*test))
+								break;	//assassinate!
+							while (test > in)
+							{	//censor it.
+								*outbuf = "#*@$"[(outbuf-ret)&3];
+								outbuf++;
+								in++;
+							}
+							goto restart; //double breaks suck
+						}
+						continue;
+					}
+					break;
+				}
+			}
+		}
+		while (*in)
+		{
+			if (whiteish(*in))
+			{
+				*outbuf++ = *in++;
+				break;
+			}
+			*outbuf++ = *in++;
+		}
+	}
+	*outbuf++ = 0;	//make sure its null terminated.
+	return ret;
 }

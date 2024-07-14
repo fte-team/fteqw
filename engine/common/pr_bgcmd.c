@@ -924,19 +924,19 @@ void QCBUILTIN PF_json_find_object_child(pubprogfuncs_t *prinst, struct globalva
 
 #ifdef FTE_TARGET_WEB
 #include <emscripten.h>
-#endif
+//FIXME: make sure the module is signed/'local'/trusted
 void QCBUILTIN PF_js_run_script(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-#ifdef FTE_TARGET_WEB
 	const char *jscript = PR_GetStringOfs(prinst, OFS_PARM0);
 	const char *ret;
 	ret = emscripten_run_script_string(jscript);
 	if (ret)
 		G_INT(OFS_RETURN) = PR_TempString(prinst, ret);
 	else
-#endif
 		G_INT(OFS_RETURN) = 0;
 }
+#endif
+
 
 ////////////////////////////////////////////////////
 //model functions
@@ -2002,24 +2002,31 @@ void QCBUILTIN PF_cvar_setf (pubprogfuncs_t *prinst, struct globalvars_s *pr_glo
 //float(string name, string value) registercvar
 void QCBUILTIN PF_registercvar (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
-	const char *name, *value;
-	int flags = (prinst->callargc>2)?G_FLOAT(OFS_PARM2):0;
-	value = PR_GetStringOfs(prinst, OFS_PARM0);
+	const char *name = PR_GetStringOfs(prinst, OFS_PARM0);
+	const char *value = (prinst->callargc>2)?PR_GetStringOfs(prinst, OFS_PARM1):"";
+	int dpflags = (prinst->callargc>2)?G_FLOAT(OFS_PARM2):0;
+	int realflags = 0;
+	name = PR_GetStringOfs(prinst, OFS_PARM0);
 
-	if (Cvar_FindVar(value))
+	if (dpflags)
+	{	//this is a DP extension, so uses DP's internal cvar flags.
+		//which is stupid when cvar_type reports a different set of flags.
+		//if (dpflags & (1<<0)) dpflags &= ~(1<<0), blocked from realflags |= avialable only to ;
+		if (dpflags & (1<<4)) dpflags &= ~(1<<4), realflags |= CVAR_CHEAT;
+		if (dpflags & (1<<5)) dpflags &= ~(1<<5), realflags |= CVAR_ARCHIVE;
+		if (dpflags & (1<<8)) dpflags &= ~(1<<8), realflags |= CVAR_SERVERINFO;
+		if (dpflags & (1<<9)) dpflags &= ~(1<<9), realflags |= CVAR_USERINFO;
+		if (dpflags & (1<<11)) dpflags &= ~(1<<11), realflags |= CVAR_NOUNSAFEEXPAND;
+		if (dpflags)
+			Con_Printf(CON_WARNING"WARNING: Unknown flags passed to registercvar(\"%s\", \"%s\", %x)\n", name, value, dpflags);
+	}
+
+	if (Cvar_FindVar(name))
 		G_FLOAT(OFS_RETURN) = 0;
 	else
 	{
-		name = value;
-		if (prinst->callargc > 1)
-			value = PR_GetStringOfs(prinst, OFS_PARM1);
-		else
-			value = "";
-
-		flags &= CVAR_ARCHIVE;
-
 	// archive?
-		if (Cvar_Get(name, value, CVAR_USERCREATED|flags, "QC created vars"))
+		if (Cvar_Get(name, value, CVAR_USERCREATED|realflags, "QC created vars"))
 			G_FLOAT(OFS_RETURN) = 1;
 		else
 			G_FLOAT(OFS_RETURN) = 0;

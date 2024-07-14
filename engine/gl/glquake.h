@@ -125,6 +125,10 @@ void ModBrush_LoadGLStuff(void *ctx, void *data, size_t a, size_t b);	//data ===
 
 void GL_InitFogTexture(void);
 
+#ifndef GL_VERSION_2_0
+#define GLchar char
+#endif
+
 // Function prototypes for the Texture Object Extension routines
 typedef GLboolean (APIENTRY *ARETEXRESFUNCPTR)(GLsizei, const GLuint *,
                     const GLboolean *);

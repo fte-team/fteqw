@@ -2537,7 +2537,12 @@ void SCR_SetUpToDrawConsole (void)
 				else
 				{	//nothing happening, make sure the console is visible or something.
 					if (!scr_drawloading)
-						Key_Dest_Add(kdm_console);
+					{
+						if (SCR_GetLoadingStage() == LS_NONE && CL_TryingToConnect())	//if we're trying to connect, make sure there's a loading/connecting screen showing instead of forcing the menu visible
+							SCR_SetLoadingStage(LS_CONNECTION);
+						else
+							Key_Dest_Add(kdm_console);
+					}
 					legacyfullscreen = true;
 				}
 			}

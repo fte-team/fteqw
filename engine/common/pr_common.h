@@ -225,6 +225,7 @@ enum
 	CVAR_TYPEFLAG_ENGINE		=1u<<3, //cvar was created by the engine itself (not user/mod created)
 	CVAR_TYPEFLAG_HASDESCRIPTION=1u<<4, //cvar_description will return something (hopefully) useful
 	CVAR_TYPEFLAG_READONLY		=1u<<5, //cvar may not be changed by qc.
+	//any extras added here should be shared with DP.
 };
 void QCBUILTIN PF_cvar_type (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 void QCBUILTIN PF_uri_escape  (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
@@ -584,7 +585,11 @@ void QCBUILTIN PF_json_find_object_child	(pubprogfuncs_t *prinst, struct globalv
 void QCBUILTIN PF_json_get_length			(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 void QCBUILTIN PF_json_get_child_at_index	(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 void QCBUILTIN PF_json_get_name				(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+#ifdef FTE_TARGET_WEB
 void QCBUILTIN PF_js_run_script				(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+#else
+#define PF_js_run_script PF_Ignore
+#endif
 void QCBUILTIN PF_base64encode(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 void QCBUILTIN PF_base64decode(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 

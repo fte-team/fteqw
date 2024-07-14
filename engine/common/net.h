@@ -73,7 +73,7 @@ typedef struct netadr_s
 	netadrtype_t	type;
 	netproto_t		prot;
 
-	unsigned short	port;
+	unsigned short	port;	//stored as network-endian.
 	unsigned short	connum;	//which quake connection/socket the address is talking about. 1-based. 0 is unspecified. this is NOT used for address equivelency.
 	unsigned int scopeid;	//ipv6 interface id thing.
 

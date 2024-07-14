@@ -1013,7 +1013,7 @@ void SV_SpawnServer (const char *server, const char *startspot, qboolean noents,
 	{
 		//.map is commented out because quite frankly, they're a bit annoying when the engine loads the gpled start.map when really you wanted to just play the damn game intead of take it apart.
 		//if you want to load a .map, just use 'map foo.map' instead.
-		char *exts[] = {"%s", "maps/%s", "maps/%s.bsp", "maps/%s.d3dbsp", "maps/%s.cm", "maps/%s.hmp", /*"maps/%s.map",*/ "maps/%s.bsp.gz", "maps/%s.bsp.xz", NULL}, *e;
+		char *exts[] = {"%s", "maps/%s", "maps/%s.bsp", "maps/%s.d3dbsp", "maps/%s.cm", "maps/%s.hmp", "maps/%s.bsp.gz", "maps/%s.bsp.xz", "maps/%s.map", NULL}, *e;
 		int depth, bestdepth = FDEPTH_MISSING;
 		flocation_t loc;
 		time_t filetime;
@@ -1057,7 +1057,6 @@ void SV_SpawnServer (const char *server, const char *startspot, qboolean noents,
 					mod = NULL;
 			}
 		}
-
 		if (!strncmp(sv.modelname, "maps/", 5))
 			Q_strncpyz (svs.name, sv.modelname+5, sizeof(svs.name));
 		else
@@ -1583,7 +1582,10 @@ MSV_OpenUserDatabase();
 	else
 		InfoBuf_SetValueForStarKey(&svs.info, "*entfile", "");
 
-	file = Mod_GetEntitiesString(sv.world.worldmodel);
+	if (usecinematic)
+		file = NULL;
+	else
+		file = Mod_GetEntitiesString(sv.world.worldmodel);
 	if (!file)
 		file = "";
 

@@ -23,6 +23,7 @@
 #else
 	SDL_Surface *sdlsurf;
 #endif
+void INS_SetOSK(int osk);
 
 #include "vr.h"
 
@@ -659,7 +660,7 @@ void GLVID_DeInit (void)
 	vid.activeapp = false;
 
 	IN_DeactivateMouse();
-
+	INS_SetOSK(false);
 
 #if SDL_VERSION_ATLEAST(2,0,0)
 	SDL_SetWindowGammaRamp(sdlwindow, NULL, NULL, NULL);

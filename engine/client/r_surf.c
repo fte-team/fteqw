@@ -2355,7 +2355,7 @@ void Surf_GenBrushBatches(batch_t **batches, entity_t *ent)
 	}
 
 #ifdef BEF_PUSHDEPTH
-	if (r_pushdepth)
+	if (r_pushdepth && model->submodelof == r_worldentity.model)
 		bef = BEF_PUSHDEPTH;
 	else
 		bef = 0;

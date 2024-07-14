@@ -1594,8 +1594,8 @@ static const struct urischeme_s urischemes[] =
 {
 #ifdef HAVE_PACKET
 	{"udp://",	NP_DGRAM,	NA_INVALID},	//placeholder for dgram rather than an actual family.
-	{"udp4//",	NP_DGRAM,	NA_IP},
-	{"udp6//",	NP_DGRAM,	NA_IPV6},
+	{"udp4://",	NP_DGRAM,	NA_IP},
+	{"udp6://",	NP_DGRAM,	NA_IPV6},
 	{"ipx://",	NP_DGRAM,	NA_IPX},
 
 	//compat with qtv. we don't have any way to exclude specific protocols though.
@@ -1612,40 +1612,40 @@ static const struct urischeme_s urischemes[] =
 
 #ifdef TCPCONNECT
 	{"tcp://",	NP_STREAM,	NA_INVALID},	//placeholder for dgram rather than an actual family.
-	{"tcp4//",	NP_STREAM,	NA_IP},
-	{"tcp6//",	NP_STREAM,	NA_IPV6},
+	{"tcp4://",	NP_STREAM,	NA_IP},
+	{"tcp6://",	NP_STREAM,	NA_IPV6},
 	{"spx://",	NP_STREAM,	NA_IPX},
 
-	{"ws://",	NP_WS,		NA_INVALID,	true},
+	{"ws://",	NP_WS,		NA_INVALID,	URISCHEME_NEEDSRESOURCE},
 	#ifdef HAVE_SSL
-	{"wss://",	NP_WSS,		NA_INVALID,	true},
+	{"wss://",	NP_WSS,		NA_INVALID,	URISCHEME_NEEDSRESOURCE},
 	{"tls://",	NP_TLS,		NA_INVALID},
 	#endif
 #elif defined(HAVE_WEBSOCKCL)
-	{"ws://",	NP_WS,		NA_WEBSOCKET, true},
-	{"wss://",	NP_WSS,		NA_WEBSOCKET, true},
-	{"tcp://",	NP_WS,		NA_WEBSOCKET, true},	//fake it
-	{"tls://",	NP_WSS,		NA_WEBSOCKET, true},	//fake it
+	{"ws://",	NP_WS,		NA_WEBSOCKET, URISCHEME_NEEDSRESOURCE},
+	{"wss://",	NP_WSS,		NA_WEBSOCKET, URISCHEME_NEEDSRESOURCE},
+	{"tcp://",	NP_WS,		NA_WEBSOCKET, URISCHEME_NEEDSRESOURCE},	//fake it
+	{"tls://",	NP_WSS,		NA_WEBSOCKET, URISCHEME_NEEDSRESOURCE},	//fake it
 #endif
 #ifdef HAVE_DTLS
 	{"dtls://",	NP_DTLS,	NA_INVALID},
 #endif
 
 #if defined(SUPPORT_ICE) || defined(HAVE_WEBSOCKCL)
-	{"ice://",	NP_RTC_TCP,	NA_INVALID, true},
-	{"rtc://",	NP_RTC_TCP,	NA_INVALID, true},
-	{"ices://",	NP_RTC_TLS,	NA_INVALID,	true},
-	{"rtcs://",	NP_RTC_TLS,	NA_INVALID,	true},
+	{"ice://",	NP_RTC_TCP,	NA_INVALID, URISCHEME_NEEDSRESOURCE},
+	{"rtc://",	NP_RTC_TCP,	NA_INVALID, URISCHEME_NEEDSRESOURCE},
+	{"ices://",	NP_RTC_TLS,	NA_INVALID,	URISCHEME_NEEDSRESOURCE},
+	{"rtcs://",	NP_RTC_TLS,	NA_INVALID,	URISCHEME_NEEDSRESOURCE},
 #endif
 
 #ifdef IRCCONNECT
-	{"irc://",	NP_IRC,		NA_INVALID,	true},	//should have been handled explicitly, if supported.
+	{"irc://",	NP_IRC,		NA_INVALID,	URISCHEME_NEEDSRESOURCE},	//should have been handled explicitly, if supported.
 #endif
 
 #ifdef UNIXSOCKETS
-	{"udg://",	NP_DGRAM,	NA_UNIX, true},
+	{"udg://",	NP_DGRAM,	NA_UNIX, URISCHEME_NEEDSRESOURCE},
 	#ifdef TCPCONNECT
-	{"unix://",	NP_STREAM,	NA_UNIX, true},
+	{"unix://",	NP_STREAM,	NA_UNIX, URISCHEME_NEEDSRESOURCE},
 	#endif
 #endif
 };
@@ -6033,10 +6033,23 @@ qboolean FTENET_TCP_HTTPResponse(ftenet_tcp_stream_t *st, httparg_t arg[WCATTR_C
 	return true;
 }
 
+static int FTENET_TCP_WebRTCIncludeRelay(char *buffer, size_t bufsize,  ftenet_tcp_stream_t *list, ftenet_tcp_stream_t *receipient)
+{
+	int len;
+	*buffer = 0;
+#ifdef SV_MASTER
+	SVM_SelectRelay(&receipient->remoteaddr, receipient->webrtc.resource, buffer,bufsize);
+#endif
+	len = strlen(buffer);
+	buffer[len++] = 0;	//always add a null to end the list.
+	return len;
+}
+
 void FTENET_TCP_WebRTCServerAssigned(ftenet_tcp_stream_t *list, ftenet_tcp_stream_t *client, ftenet_tcp_stream_t *server)
 {
 	qbyte buffer[256];
 	int trynext = 0;
+	int len = 0;
 	ftenet_tcp_stream_t *o;
 	if (client->webrtc.clientnum < 0)
 		client->webrtc.clientnum = 0;
@@ -6054,23 +6067,37 @@ void FTENET_TCP_WebRTCServerAssigned(ftenet_tcp_stream_t *list, ftenet_tcp_strea
 
 	if (server)
 	{	//and tell them both, if the server is actually up
-		int o = client->remoteaddr.prot;
-		buffer[0] = ICEMSG_NEWPEER;
-		buffer[1] = (client->webrtc.clientnum>>0)&0xff;
-		buffer[2] = (client->webrtc.clientnum>>8)&0xff;
-//		buffer[3] = (client->webrtc.clientnum>>16)&0xff;
-//		buffer[4] = (client->webrtc.clientnum>>24)&0xff;
-		client->remoteaddr.prot = 0;
-		NET_BaseAdrToString(buffer+3, sizeof(buffer)-3, &client->remoteaddr);	//let the server know who's trying to connect to them. for ip bans.
-		client->remoteaddr.prot = o;
-		FTENET_TCP_WebSocket_Splurge(server, WS_PACKETTYPE_BINARYFRAME, buffer, 3+strlen(buffer+3));
+		buffer[len++] = ICEMSG_NEWPEER;
+		buffer[len++] = (client->webrtc.clientnum>>0)&0xff;
+		buffer[len++] = (client->webrtc.clientnum>>8)&0xff;
+//		buffer[len++] = (client->webrtc.clientnum>>16)&0xff;
+//		buffer[len++] = (client->webrtc.clientnum>>24)&0xff;
 
-		buffer[0] = ICEMSG_NEWPEER;
-		buffer[1] = 0xff;
-		buffer[2] = 0xff;
-//		buffer[3] = 0xff;
-//		buffer[4] = 0xff;
-		FTENET_TCP_WebSocket_Splurge(client, WS_PACKETTYPE_BINARYFRAME, buffer, 3);
+		//write the client's address, kinda
+		if (client->remoteaddr.type == NA_IP)	//anonymise it. hopefully still enough of an address to ban.
+			Q_snprintfz(buffer+len, sizeof(buffer)-len, "%i.%i", client->remoteaddr.address.ip[0], client->remoteaddr.address.ip[1]);
+		else if (client->remoteaddr.type == NA_IPV6)	//anonymise it. we don't really know how big an allocation their router got... so include the first 4 bytes and hash the rest to compensate somewhat. most of it'll probably random though. this is messy. the server will be identifying connections more by index.
+			Q_snprintfz(buffer+len, sizeof(buffer)-len, "%04x:%04x-%04x", client->remoteaddr.address.ip6[0]|client->remoteaddr.address.ip6[1], client->remoteaddr.address.ip6[2]|client->remoteaddr.address.ip6[3], 0xffffu&CalcHashInt(&hash_sha1, client->remoteaddr.address.ip6+4, sizeof(client->remoteaddr.address.ip6)-4));
+		else
+		{	//generically shove the client's address into the broker->server packet
+			int o = client->remoteaddr.prot;
+			client->remoteaddr.prot = 0;
+			NET_BaseAdrToString(buffer+len, sizeof(buffer)-len, &client->remoteaddr);	//let the server know who's trying to connect to them. for ip bans.
+			client->remoteaddr.prot = o;
+		}
+		len += strlen(buffer+len)+1;
+		len += FTENET_TCP_WebRTCIncludeRelay(buffer+len,sizeof(buffer)-len, list, server);
+		FTENET_TCP_WebSocket_Splurge(server, WS_PACKETTYPE_BINARYFRAME, buffer, len);
+
+		len = 0;
+		buffer[len++] = ICEMSG_NEWPEER;
+		buffer[len++] = 0xff;
+		buffer[len++] = 0xff;
+//		buffer[len++] = 0xff;
+//		buffer[len++] = 0xff;
+		buffer[len++] = 0;	//no remote peer name info...
+		len += FTENET_TCP_WebRTCIncludeRelay(buffer+len,sizeof(buffer)-len, list, server);
+		FTENET_TCP_WebSocket_Splurge(client, WS_PACKETTYPE_BINARYFRAME, buffer, len);
 	}
 }
 
@@ -7272,7 +7299,7 @@ restart:	//gotos are evil. I am evil. live with it.
 							}
 						}
 						if (!o)
-							Con_DPrintf("Unable to relay\n");
+							Con_DPrintf("Unable to relay p%i to %s\n", st->inbuffer[payoffs+0], (st->clienttype == TCPC_WEBRTC_CLIENT)?"server":"client");
 					}
 					net_message.cursize = 0;
 				}
@@ -8838,7 +8865,50 @@ static void FTENET_WebRTC_Callback(void *ctxp, int ctxi, int/*enum icemsgtype_s*
 	//Con_Printf("To Broker: %i %i %s\n", evtype, ctxi, data);
 	emscriptenfte_ws_send(wsc->brokersock, net_message_buffer, o-net_message_buffer);
 }
-static int FTENET_WebRTC_Create(qboolean initiator, ftenet_websocket_connection_t *wsc, int clid)
+static void FTENET_WebRTC_AddICEServer(char *config, size_t sizeofconfig, qboolean *first, const char *uri)
+{
+	//we don't do the ?foo stuff properly (RFCs say only ?transport= and only for stun)
+	char *s = strchr(uri, '?'), *next;
+	const char *transport = NULL;
+	const char *user = NULL;
+	const char *auth = NULL;
+	char tmp[256];
+	for (;s;s=next)
+	{
+		*s++ = 0;
+		next = strchr(s, '?');
+		if (next)
+			*next = 0;
+
+		if (!strncmp(s, "transport=", 10))
+			transport = s+10;
+		else if (!strncmp(s, "user=", 5))
+			user = s+5;
+		else if (!strncmp(s, "auth=", 5))
+			auth = s+5;
+		else if (!strncmp(s, "fam=", 4))
+			;
+	}
+
+	if (!strncmp(uri, "turn:", 5) || !strncmp(uri, "turns:", 6))
+		if (!user || !auth)
+			return;
+
+	if (*first)
+		*first = false;
+	else
+		Q_strncatz(config, ",", sizeofconfig);
+	if (transport)
+		Q_strncatz(config, va("\n{\"urls\":[\"%s?transport=%s\"]", COM_QuotedString(uri, tmp,sizeof(tmp), true), transport), sizeofconfig);
+	else
+		Q_strncatz(config, va("\n{\"urls\":[\"%s\"]", COM_QuotedString(uri, tmp,sizeof(tmp), true)), sizeofconfig);
+	if (user)
+		Q_strncatz(config, va(",\"username\":\"%s\"", COM_QuotedString(user, tmp,sizeof(tmp), true)), sizeofconfig);
+	if (auth)
+		Q_strncatz(config, va(",\"credential\":\"%s\"", COM_QuotedString(auth, tmp,sizeof(tmp), true)), sizeofconfig);
+	Q_strncatz(config, "}", sizeofconfig);
+}
+static int FTENET_WebRTC_Create(qboolean initiator, ftenet_websocket_connection_t *wsc, int clid, const char *relays)
 {
 	int fd;
 	char config[4096], tmp[256];
@@ -8889,48 +8959,14 @@ static int FTENET_WebRTC_Create(qboolean initiator, ftenet_websocket_connection_
 			Q_strncatz(config, va("{\"urls\":[\"stun:%s\"]}", COM_QuotedString(com_token, tmp,sizeof(tmp), true)), sizeof(config));
 	}
 
+	//add any user-specified ice servers
 	for(servers = net_ice_servers.string; (servers=COM_Parse(servers)); )
-	{
-		//we don't do the ?foo stuff properly (RFCs say only ?transport= and only for stun)
-		char *s = strchr(com_token, '?'), *next;
-		const char *transport = NULL;
-		const char *user = NULL;
-		const char *auth = NULL;
-		for (;s;s=next)
-		{
-			*s++ = 0;
-			next = strchr(s, '?');
-			if (next)
-				*next = 0;
+		FTENET_WebRTC_AddICEServer(config, sizeof(config), &first, com_token);
 
-			if (!strncmp(s, "transport=", 10))
-				transport = s+10;
-			else if (!strncmp(s, "user=", 5))
-				user = s+5;
-			else if (!strncmp(s, "auth=", 5))
-				auth = s+5;
-			else if (!strncmp(s, "fam=", 4))
-				;
-		}
+	//add any auto-config ones.
+	for(servers = relays; (servers=COM_Parse(servers)); )
+		FTENET_WebRTC_AddICEServer(config, sizeof(config), &first, com_token);
 
-		if (!strncmp(com_token, "turn:", 5) || !strncmp(com_token, "turns:", 6))
-			if (!user || !auth)
-				continue;
-
-		if (first)
-			first = false;
-		else
-			Q_strncatz(config, ",", sizeof(config));
-		if (transport)
-			Q_strncatz(config, va("\n{\"urls\":[\"%s?transport=%s\"]", COM_QuotedString(com_token, tmp,sizeof(tmp), true), transport), sizeof(config));
-		else
-			Q_strncatz(config, va("\n{\"urls\":[\"%s\"]", COM_QuotedString(com_token, tmp,sizeof(tmp), true)), sizeof(config));
-		if (user)
-			Q_strncatz(config, va(",\"username\":\"%s\"", COM_QuotedString(user, tmp,sizeof(tmp), true)), sizeof(config));
-		if (auth)
-			Q_strncatz(config, va(",\"credential\":\"%s\"", COM_QuotedString(auth, tmp,sizeof(tmp), true)), sizeof(config));
-		Q_strncatz(config, "}", sizeof(config));
-	}
 	Q_strncatz(config, va("]"
 //		",\"bundlePolicy\":\"max-bundle\""
 		",\"iceTransportPolicy\":\"%s\""
@@ -8946,6 +8982,7 @@ static qboolean FTENET_WebRTC_GetPacket(ftenet_generic_connection_t *gcon)
 {
 	ftenet_websocket_connection_t *wsc = (void*)gcon;
 	size_t i;
+	char id[256];
 
 	if (wsc->heartbeat < realtime)
 		FTENET_WebRTC_Heartbeat(wsc);
@@ -8983,7 +9020,7 @@ static qboolean FTENET_WebRTC_GetPacket(ftenet_generic_connection_t *gcon)
 	{
 		int cmd;
 		short cl;
-		const char *s;
+		const char *s, *relays;
 		char *p;
 
 		MSG_BeginReading(&net_message, msg_nullnetprim);
@@ -9032,6 +9069,9 @@ static qboolean FTENET_WebRTC_GetPacket(ftenet_generic_connection_t *gcon)
 			Con_Printf("Listening on %s\n", wsc->remoteadr.address.websocketurl);
 			break;
 		case ICEMSG_NEWPEER:	//connection established with a new peer
+			/*peer*/ MSG_ReadString();
+			relays = MSG_ReadString();
+
 			if (wsc->generic.islisten)
 			{
 				if (cl < 1024 && cl >= wsc->numclients)
@@ -9047,21 +9087,20 @@ static qboolean FTENET_WebRTC_GetPacket(ftenet_generic_connection_t *gcon)
 				}
 				if (cl < wsc->numclients)
 				{
-					char id[256];
 					Q_snprintfz(id, sizeof(id), "/%i_%x", cl+1, rand());
 					if (wsc->clients[cl].datasock != INVALID_SOCKET)
 						emscriptenfte_ws_close(wsc->clients[cl].datasock);
 					memcpy(&wsc->clients[cl].remoteadr, &wsc->remoteadr, sizeof(netadr_t));
 					Q_strncatz(wsc->clients[cl].remoteadr.address.websocketurl, id, sizeof(wsc->clients[cl].remoteadr.address.websocketurl));
 					wsc->clients[cl].remoteadr.port = htons(cl+1);
-					wsc->clients[cl].datasock = FTENET_WebRTC_Create(false, wsc, cl);
+					wsc->clients[cl].datasock = FTENET_WebRTC_Create(false, wsc, cl, relays);
 				}
 			}
 			else
 			{
 				if (wsc->datasock != INVALID_SOCKET)
 					emscriptenfte_ws_close(wsc->datasock);
-				wsc->datasock = FTENET_WebRTC_Create(true, wsc, cl);
+				wsc->datasock = FTENET_WebRTC_Create(true, wsc, cl, relays);
 			}
 			break;
 		case ICEMSG_OFFER:	//we received an offer from a client
@@ -9636,11 +9675,11 @@ qboolean NET_EnsureRoute(ftenet_connections_t *collection, char *routename, cons
 	case NP_WSS:
 	case NP_TLS:
 	case NP_STREAM:
-		if (!adrstring)
+		if (!adrstring || !*adrstring)
 			adrstring = NET_AdrToString(temp, sizeof(temp), adr);	//urgh
 		if (!FTENET_AddToCollection_Ptr(collection, routename, adrstring, adr, peerinfo))
 			return false;
-		Con_Printf("Establishing connection to %s\n", temp);
+		Con_Printf("Establishing connection to \"%s\"\n", adrstring);
 		break;
 #if defined(SUPPORT_ICE) || defined(FTE_TARGET_WEB)
 	case NP_RTC_TCP:

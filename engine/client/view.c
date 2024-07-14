@@ -517,7 +517,7 @@ void V_ParseDamage (playerview_t *pv)
 	if (count < 10)
 		count = 10;
 
-#ifdef ANDROID
+#if defined(ANDROID) && !defined(FTE_SDL)
 	//later versions of android might support strength values, but the simple standard interface is duration only.
 	Sys_Vibrate(count);
 #endif

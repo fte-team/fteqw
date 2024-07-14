@@ -224,22 +224,21 @@ unsigned int Net_PextMask(unsigned int protover, qboolean fornq)
 			mask |= PEXT2_REPLACEMENTDELTAS;
 			if (/*fornq &&*/ pext_predinfo.ival)
 				mask |= PEXT2_PREDINFO;
+
+			if (pext_vrinputs.ival)
+				mask |= PEXT2_VRINPUTS;
+
+			if (pext_lerptime.ival)
+				mask |= PEXT2_LERPTIME;
+
+			mask |= PEXT2_NEWSIZEENCODING;	//use if we can
 		}
 
 		if (pext_infoblobs.ival)
 			mask |= PEXT2_INFOBLOBS;
 
-		if (pext_vrinputs.ival)
-			mask |= PEXT2_VRINPUTS;
-
-		if (pext_lerptime.ival)
-			mask |= PEXT2_LERPTIME;
-
 		if (MAX_CLIENTS != QWMAX_CLIENTS)
 			mask |= PEXT2_MAXPLAYERS;
-
-		if (mask & PEXT2_REPLACEMENTDELTAS)
-			mask |= PEXT2_NEWSIZEENCODING;	//use if we can
 
 		mask |= PEXT2_STUNAWARE;
 

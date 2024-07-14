@@ -2885,7 +2885,15 @@ void SV_WritePlayersToClient (client_t *client, client_frame_t *frame, edict_t *
 			vent = ent;
 
 
-
+		if (vent->xv->customizeentityforclient)
+		{
+			globalvars_t *pr_globals = PR_globals(svprogfuncs, PR_CURRENT);
+			pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, vent);
+			pr_global_struct->other = (clent?EDICT_TO_PROG(svprogfuncs, clent):0);
+			PR_ExecuteProgram(svprogfuncs, vent->xv->customizeentityforclient);
+			if(!G_FLOAT(OFS_RETURN))
+				continue;
+		}
 
 
 #ifdef NQPROT

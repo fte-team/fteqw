@@ -2349,6 +2349,10 @@ struct font_s *Font_LoadFont(const char *fontfilename, float vheight, float scal
 	f = Z_Malloc(sizeof(*f));
 	f->outline = outline;
 	f->scale = scale;
+	if (height < 1)	//doesn't make sense. especially negatives...
+		height = 1;
+	if (height > 128)
+		height = 128;	//limit possible damage... we use alloca a bit so don't let the stack get abused too much.
 	f->charheight = height;
 	f->truecharheight = height;
 	f->flags = flags;

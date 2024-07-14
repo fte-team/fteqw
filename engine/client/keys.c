@@ -1133,7 +1133,7 @@ void Key_DefaultLinkClicked(console_t *con, char *text, char *info)
 	c = Info_ValueForKey(info, "playaudio");
 	if (*c && !strchr(c, ';') && !strchr(c, '\n'))
 	{
-		S_StartSound(0, INT_MAX-1, S_PrecacheSound(c), NULL, NULL, 1, ATTN_NONE, 0, 0, CF_NOSPACIALISE);
+		S_StartSound(0, 0x7ffffffe, S_PrecacheSound(c), NULL, NULL, 1, ATTN_NONE, 0, 0, CF_NOSPACIALISE);
 		return;
 	}
 	c = Info_ValueForKey(info, "desc");
@@ -3081,21 +3081,40 @@ void Key_Event (unsigned int devid, int key, unsigned int unicode, qboolean down
 //
 	if (cls.demoplayback && cls.demoplayback != DPB_MVD && conkey && !Key_Dest_Has(~kdm_game))
 	{
-		switch (key)
-		{	//these keys don't force the menu to appear while playing the demo reel
-		case K_LSHIFT:
-		case K_RSHIFT:
-		case K_LALT:
-		case K_RALT:
-		case K_LCTRL:
-//		case K_RCTRL:
-			break;
-		default:
-			dc = keybindings[key][modifierstate];
-			//toggleconsole or +showFOO keys should do their regular bind action
-			//demo_jump/demo_setspeed/demo_nudge should be allowed too.
-			if (!dc || (strcmp(dc, "toggleconsole") && strncmp(dc, "+show", 5) && strncmp(dc, "demo_", 5)))
-			{
+		dc = keybindings[key][modifierstate];
+		if (!dc || (strcmp(dc, "toggleconsole") && strncmp(dc, "+show", 5) && strncmp(dc, "demo_", 5)))
+		{
+			extern cvar_t cl_demospeed;
+			switch (key)
+			{	//these keys don't force the menu to appear while playing the demo reel
+			case K_LSHIFT:
+			case K_RSHIFT:
+			case K_LALT:
+			case K_RALT:
+			case K_LCTRL:
+	//		case K_RCTRL:
+				break;
+			//demo modifiers...
+			case K_DOWNARROW:
+			case K_GP_DPAD_DOWN:
+				Cvar_SetValue(&cl_demospeed, max(cl_demospeed.value - 0.1, 0));
+				Con_Printf("playback speed: %g%%\n", cl_demospeed.value*100);
+				return;
+			case K_UPARROW:
+			case K_GP_DPAD_UP:
+				Cvar_SetValue(&cl_demospeed, min(cl_demospeed.value + 0.1, 10));
+				Con_Printf("playback speed: %g%%\n", cl_demospeed.value*100);
+				return;
+			case K_LEFTARROW:
+			case K_GP_DPAD_LEFT:
+				Cbuf_AddText("demo_jump -10", RESTRICT_LOCAL);	//expensive.
+				return;
+			case K_RIGHTARROW:
+			case K_GP_DPAD_RIGHT:
+				Cbuf_AddText("demo_jump +10", RESTRICT_LOCAL);
+				return;
+			//any other key
+			default:
 				M_ToggleMenu_f ();
 				return;
 			}

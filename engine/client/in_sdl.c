@@ -1127,26 +1127,11 @@ static unsigned int tbl_sdltoquakemouse[] =
 #include <SDL_misc.h>
 static qboolean usesteamosk;
 #endif
-#endif
-void Sys_SendKeyEvents(void)
-{
-	SDL_Event event;
-	int axis, j;
 
-#ifdef HAVE_SDL_TEXTINPUT
+void INS_SetOSK(int osk)
+{
 	static SDL_bool active = false;
-	SDL_bool osk = Key_Dest_Has(kdm_console|kdm_cwindows|kdm_message);
-	if (Key_Dest_Has(kdm_prompt|kdm_menu))
-	{
-		j = Menu_WantOSK();
-		if (j < 0)
-			osk |= sys_osk.ival;
-		else
-			osk |= j;
-	}
-	else if (Key_Dest_Has(kdm_game))
-		osk |= sys_osk.ival;
-	if (osk)
+	if (osk && sdlwindow)
 	{
 		SDL_Rect rect;
 		rect.x = 0;
@@ -1181,8 +1166,41 @@ void Sys_SendKeyEvents(void)
 //			Con_Printf("OSK shown... killed\n");
 		}
 	}
+}
+#else
+void INS_SetOSK(int osk)
+{
+}
+#endif
+void Sys_SendKeyEvents(void)
+{
+	SDL_Event event;
+	int axis, j;
+
+#ifdef HAVE_SERVER
+	if (isDedicated)
+	{
+		SV_GetConsoleCommands ();
+		return;
+	}
 #endif
 
+#ifdef HAVE_SDL_TEXTINPUT
+	{
+		SDL_bool osk = Key_Dest_Has(kdm_console|kdm_cwindows|kdm_message);
+		if (Key_Dest_Has(kdm_prompt|kdm_menu))
+		{
+			j = Menu_WantOSK();
+			if (j < 0)
+				osk |= sys_osk.ival;
+			else
+				osk |= j;
+		}
+		else if (Key_Dest_Has(kdm_game))
+			osk |= sys_osk.ival;
+		INS_SetOSK(osk);
+	}
+#endif
 
 	while(SDL_PollEvent(&event))
 	{
@@ -1202,9 +1220,10 @@ void Sys_SendKeyEvents(void)
 					SDL_Vulkan_GetDrawableSize(sdlwindow, &window_width, &window_height);	//get the proper physical size.
 					if (vid.pixelwidth != window_width || vid.pixelheight != window_height)
 						vk.neednewswapchain = true;
+					break;
 				}
-				else
 #endif
+				if (qrenderer == QR_OPENGL)
 				{
 					#if SDL_VERSION_ATLEAST(2,0,1)
 						SDL_GL_GetDrawableSize(sdlwindow, &vid.pixelwidth, &vid.pixelheight);	//get the proper physical size.

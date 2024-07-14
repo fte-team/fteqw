@@ -3588,7 +3588,7 @@ static qboolean Sh_DrawStencilLight(dlight_t *dl, vec3_t colour, vec3_t axis[3],
 	return true;
 }
 #else
-#define Sh_DrawStencilLight Sh_DrawShadowlessLight
+#define Sh_DrawStencilLight(dl,rgb,axis,vvis) Sh_DrawShadowlessLight(dl,rgb,axis,vvis,LSHADER_STANDARD)
 #endif
 
 qboolean Sh_CullLight(dlight_t *dl, qbyte *vvis)

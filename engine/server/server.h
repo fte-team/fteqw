@@ -1401,6 +1401,7 @@ vfsfile_t *SVM_GenerateIndex(const char *requesthost, const char *fname, const c
 void SVM_AddBrokerGame(const char *brokerid, const char *info);
 void SVM_RemoveBrokerGame(const char *brokerid);
 qboolean SVM_FixupServerAddress(netadr_t *adr, struct dtlspeercred_s *cred);
+void SVM_SelectRelay(netadr_t *benefitiary, const char *brokerid, char *out, size_t outsize);
 void FTENET_TCP_ICEResponse(struct ftenet_connections_s *col, int type, const char *cid, const char *sdp);
 
 

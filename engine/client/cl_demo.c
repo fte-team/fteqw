@@ -533,6 +533,7 @@ qboolean CL_GetDemoMessage (void)
 	int demopos = 0;
 	int msglength;
 	static float throttle;
+	static qboolean newseq;
 
 	if (endofdemo)
 	{
@@ -783,6 +784,7 @@ readnext:
 	{
 		if ((msecsadded || cls.netchan.incoming_sequence < 2) && olddemotime != demotime)
 		{
+			newseq = true;
 			cls.netchan.frame_latency = 0;
 			cls.netchan.last_received = realtime; // just to happy timeout check
 		}
@@ -995,8 +997,9 @@ readit:
 
 	if (cls.demoplayback == DPB_MVD)
 	{
-		if ((msecsadded || cls.netchan.incoming_sequence < 2) && olddemotime != demotime)
+		if (/*(msecsadded || cls.netchan.incoming_sequence < 2) && olddemotime != demotime ||*/ newseq)
 		{
+			newseq = false;
 			if (!(cls.fteprotocolextensions2 & PEXT2_REPLACEMENTDELTAS))
 			{
 				cls.netchan.incoming_sequence++;

@@ -611,6 +611,7 @@ short LerpAngles16(short to, short from, float frac)
 
 void CL_CalcClientTime(void)
 {
+	extern cvar_t cl_demospeed;
 	if (!cls.state)
 	{
 		if (!cl.implicitpause)
@@ -649,6 +650,7 @@ void CL_CalcClientTime(void)
 		else
 		{	//funky magic drift logic. we be behind the most recent frame in order to attempt to cover network congestions (which is apparently common in germany).
 			float min, max;
+			float r;
 
 //			oldst = cl.servertime;
 
@@ -659,14 +661,13 @@ void CL_CalcClientTime(void)
 			if (max < min)
 				max = min;
 
+			if (cls.demoplayback && cl_demospeed.value > 0 && cls.state == ca_active)
+				r = cl_demospeed.value;
+			else
+				r = 1;
+
 			if (max)
-			{
-				extern cvar_t cl_demospeed;
-				if (cls.demoplayback && cl_demospeed.value > 0 && cls.state == ca_active)
-					cl.servertime += host_frametime*cl_demospeed.value;
-				else
-					cl.servertime += host_frametime;
-			}
+				cl.servertime += host_frametime*r;
 			else
 				cl.servertime = 0;
 
@@ -681,7 +682,7 @@ void CL_CalcClientTime(void)
 				}
 				else
 				{
-					cl.servertime -= 0.02*(max - cl.servertime);
+					cl.servertime -= 0.02*(max - cl.servertime)*r;
 					if (cl.servertime < cl.time)
 						cl.servertime = cl.time;
 				}
@@ -695,12 +696,12 @@ void CL_CalcClientTime(void)
 				}
 				else if (cl.servertime < min-0.3)
 				{
-					cl.servertime += 0.02*(min - cl.servertime);
+					cl.servertime += 0.02*(min - cl.servertime)*r;
 //					Con_Printf("running really slow\n");
 				}
 				else
 				{
-					cl.servertime += 0.01*(min - cl.servertime);
+					cl.servertime += 0.01*(min - cl.servertime)*r;
 //					Con_Printf("running slow\n");
 				}
 			}

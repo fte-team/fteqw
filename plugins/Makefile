@@ -249,16 +249,16 @@ ODE_ARCH=$(FTE_TARGET)
 ifeq ($(ODE_ARCH),)
   ODE_ARCH=unknown
 endif
-ODE_VER=0.16.2
+ODE_VER=0.16.5
 ODE_URL=https://bitbucket.org/odedevs/ode/downloads/ode-$(ODE_VER).tar.gz
-ODE_BASE=$(OUT_DIR)/../ode-$(ODE_VER)_$(ODE_ARCH)/
+ODE_BASE=$(ARCHLIBS)/ode-$(ODE_VER)_$(ODE_ARCH)/
 ODE_LIB=$(ODE_BASE)ode-$(ODE_VER)/ode/src/.libs/libode.a
 $(OUT_DIR)/../ode-$(ODE_VER).tar.gz:
 	mkdir -p $(ODE_BASE)
 	cd $(OUT_DIR)/.. && wget -N $(ODE_URL)
 $(ODE_LIB): $(OUT_DIR)/../ode-$(ODE_VER).tar.gz
 	mkdir -p $(ODE_BASE) && cd $(ODE_BASE) && tar xvfz $<
-	cd $(ODE_BASE)ode-$(ODE_VER)/ && ./bootstrap && ./configure --enable-double-precision --disable-demos --without-x --with-pic CC="$(CC) $(PLUG_CXXFLAGS)" CXX="$(CC) $(PLUG_CXXFLAGS)" --host=`$(CC) -dumpmachine` && make
+	cd $(ODE_BASE)ode-$(ODE_VER)/ && ./bootstrap && ./configure --enable-double-precision --disable-demos --without-x --with-pic CC="$(CC) $(PLUG_CXXFLAGS)" CXX="$(CC) $(PLUG_CXXFLAGS)" --host=`$(CC) -dumpmachine` && $(MAKE)
 
 ODE_FILES=../engine/common/com_phys_ode.c ../engine/common/mathlib.c plugin.c $(ODE_LIB)
 $(PLUG_PREFIX)ode$(PLUG_NATIVE_EXT): $(ODE_FILES)

@@ -2315,6 +2315,10 @@ void SV_Begin_Core(client_t *split)
 		return;
 	}
 	split->spawned = true;
+	split->lastcmd.cursor_entitynumber = 0;	//make sure this doesn't get reapplied between maps...
+	split->lastcmd.buttons = 0;
+	split->lastcmd.impulse = 0;
+	split->lastcmd.weapon = 0;
 
 #ifdef Q2SERVER
 	if (ge)

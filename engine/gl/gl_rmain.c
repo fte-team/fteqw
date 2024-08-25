@@ -1978,7 +1978,8 @@ texid_t R_RenderPostProcess (texid_t sourcetex, texid_t sourcedepth, int type, s
 			GLBE_FBO_Sources(sourcetex, sourcedepth);
 			sourcetex = R2D_RT_Configure(restexname, w, h, TF_RGBA32, RT_IMAGEFLAGS);
 			GLBE_FBO_Update(&fbo_postproc, 0, &sourcetex, 1, r_nulltex, w, h, 0);
-			R2D_ScalePic(0, 0, r_refdef.vrect.width, r_refdef.vrect.height, shader);
+			qglViewport(0,0,w,h);
+			R2D_ScalePic(0, 0, vid.fbvwidth, vid.fbvheight, shader);
 			if (R2D_Flush)
 				R2D_Flush();
 			GLBE_RenderToTextureUpdate2d(true);

@@ -1127,7 +1127,7 @@ static shader_t *GL_ChooseSkin(galiasinfo_t *inf, model_t *model, int surfnum, e
 
 
 					cm->texnum.paletted = R_LoadTexture(va("paletted$%x$%x$%i$%i$%i$%s", tc, bc, cm->skinnum, subframe, pc, cm->name),
-								scaled_width, scaled_height, PTI_P8, pixels8, IF_NEAREST|IF_NOMIPMAP);
+								scaled_width, scaled_height, PTI_P8, pixels8, IF_PALETTIZE|IF_NEAREST|IF_NOMIPMAP);
 
 				}
 

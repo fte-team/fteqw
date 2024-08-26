@@ -2069,6 +2069,13 @@ void SV_AcceptMessage(client_t *newcl)
 		strcpy(string, "accept");
 		len = strlen(string);
 		break;
+#else
+	case SCP_NETQUAKE:
+	case SCP_BJP3:
+	case SCP_FITZ666:
+	case SCP_DARKPLACES6:
+	case SCP_DARKPLACES7:
+		return;
 #endif
 
 	case SCP_QUAKE3:

@@ -1024,8 +1024,9 @@ void Log_Init(void)
 		Cvar_Register (&log_enable[i], CONLOGGROUP);
 		Cvar_Register (&log_name[i], CONLOGGROUP);
 		log_newline[i] = true;
-
+#ifdef HAVE_LEGACY
 		Cmd_AddCommand(legacylog[i].commandname, Log_Logfile_f);
+#endif
 	}
 	Cvar_Register (&log_dir_var, CONLOGGROUP);
 	Cvar_Register (&log_readable, CONLOGGROUP);

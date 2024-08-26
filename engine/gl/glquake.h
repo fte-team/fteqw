@@ -355,7 +355,7 @@ void GL_ForceDepthWritable(void);
 //
 #ifdef GLQUAKE
 texid_tf GL_LoadPicTexture (qpic_t *pic);
-void GL_Set2D (qboolean flipped);
+void GL_Set2D (unsigned int flags);
 #endif
 
 //

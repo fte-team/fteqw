@@ -2336,7 +2336,7 @@ void GLR_RenderView (void)
 		GLBE_FBO_Pop(oldfbo);
 
 	GLBE_RenderToTextureUpdate2d(false);
-	GL_Set2D (false);
+	GL_Set2D (2);
 
 	// SCENE POST PROCESSING
 
@@ -2367,6 +2367,9 @@ void GLR_RenderView (void)
 
 	if (gl_motionblur.value>0 && gl_motionblur.value < 1 && qglCopyTexImage2D)
 		R_RenderMotionBlur();
+
+	if (gl_screenangle.value)
+		GL_Set2D (false);	//make sure any hud stuff is rotated properly.
 
 	checkglerror();
 }

@@ -5447,6 +5447,14 @@ static void CLQ2_ParseStartSoundPacket(void)
 }
 #endif
 
+//returns the player if they're not spectating. 
+static int CL_TryTrackNum(playerview_t *pv)
+{
+	if (pv->spectator && pv->cam_state != CAM_FREECAM && pv->cam_spec_track >= 0)
+		return pv->cam_spec_track;
+	return pv->playernum;
+}
+
 #if defined(NQPROT) || defined(PEXT_SOUNDDBL)
 static void CLNQ_ParseStartSoundPacket(void)
 {
@@ -5744,14 +5752,6 @@ void CL_NewTranslation (int slot)
 	player->tbottomcolor = bottom;
 }
 #endif
-
-//returns the player if they're not spectating. 
-static int CL_TryTrackNum(playerview_t *pv)
-{
-	if (pv->spectator && pv->cam_state != CAM_FREECAM && pv->cam_spec_track >= 0)
-		return pv->cam_spec_track;
-	return pv->playernum;
-}
 
 /*
 ==============

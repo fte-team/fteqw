@@ -23,8 +23,8 @@
 #note: cross compiling will typically require 'make makelibs FTE_TARGET=mytarget', which avoids installing lots of extra system packages.
 
 #
-CC=gcc
-WINDRES=windres
+CC?=gcc
+WINDRES?=windres
 STRIP?=strip
 
 STRIPFLAGS=--strip-unneeded --remove-section=.comment

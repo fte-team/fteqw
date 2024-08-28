@@ -1186,11 +1186,10 @@ ifeq (win_SDL,$(findstring win,$(FTE_TARGET))$(findstring _SDL,$(FTE_TARGET)))
 
     EXEPOSTFIX=.exe
 
-    CC_MACHINE:=$(shell $(CC) -dumpmachine)
-    ARCH_PREDEP=$(BASE_DIR)/libs-$(ARCH)/SDL2-$(SDL2VER)/$(CC_MACHINE)/bin/sdl2-config
-    SDLCONFIG=$(ARCH_PREDEP) --prefix=$(BASE_DIR)/libs-$(ARCH)/SDL2-$(SDL2VER)/$(CC_MACHINE)
+    ARCH_PREDEP=$(BASE_DIR)/libs-$(ARCH)/SDL2-$(SDL2VER)/$(ARCH)/bin/sdl2-config
+    SDLCONFIG=$(ARCH_PREDEP) --prefix=$(BASE_DIR)/libs-$(ARCH)/SDL2-$(SDL2VER)/$(ARCH)
     CLIENTLIBFLAGS+=`$(SDLCONFIG) --cflags`
-	
+
     #the defaults for sdl come first
     GLCL_OBJS=$(GL_OBJS) $(D3DGL_OBJS) $(GLQUAKE_OBJS) gl_vidsdl.o snd_sdl.o cd_sdl.o sys_sdl.o in_sdl.o snd_directx.o $(LTO_END) resources.o $(LTO_START)
     GL_EXE_NAME=../$(EXE_NAME)-sdl-gl$(BITS)$(EXEPOSTFIX)

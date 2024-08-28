@@ -457,14 +457,15 @@ nonstatic void(float isnew) ParsePlayer =
 		self.frame = f;
 	}
 
-	self.angles_x = readbyte()*(360/256);
+	//note: this could/should be compressed. this original code predated SendFlags.
+	self.angles_x = readbyte()*(360/256);	//not really needed for ourselves, but useful when its showing a different player.
 	self.angles_y = readbyte()*(360/256);
 	self.origin_x = readcoord();
 	self.origin_y = readcoord();
 	self.origin_z = readcoord();
-	self.velocity_x = readshort();
-	self.velocity_y = readshort();
-	self.velocity_z = readshort();
+	self.velocity_x = readshort()/8;
+	self.velocity_y = readshort()/8;
+	self.velocity_z = readshort()/8;
 	self.colormap = self.entnum;
 
 	self.sveffects = readbyte();

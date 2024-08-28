@@ -125,6 +125,10 @@ void ModBrush_LoadGLStuff(void *ctx, void *data, size_t a, size_t b);	//data ===
 
 void GL_InitFogTexture(void);
 
+#ifndef GL_VERSION_2_0
+#define GLchar char
+#endif
+
 // Function prototypes for the Texture Object Extension routines
 typedef GLboolean (APIENTRY *ARETEXRESFUNCPTR)(GLsizei, const GLuint *,
                     const GLboolean *);
@@ -142,33 +146,39 @@ typedef void (APIENTRY *FTEPFNGLPNTRIANGLESIATIPROC)(GLenum pname, GLint param);
 typedef void (APIENTRY *FTEPFNGLPNTRIANGLESFATIPROC)(GLenum pname, GLfloat param);
 typedef void (APIENTRY *FTEPFNGLACTIVESTENCILFACEEXTPROC) (GLenum face);
 
-typedef GLhandleARB	(APIENTRYP FTEPFNGLCREATEPROGRAMOBJECTARBPROC)	(void);
-typedef void		(APIENTRYP FTEPFNGLDELETEOBJECTARBPROC)		(GLhandleARB obj);
-typedef void		(APIENTRYP FTEPFNGLUSEPROGRAMOBJECTARBPROC)	(GLhandleARB programObj);
-typedef GLhandleARB	(APIENTRYP FTEPFNGLCREATESHADEROBJECTARBPROC)	(GLenum shaderType);
-typedef void		(APIENTRYP FTEPFNGLSHADERSOURCEARBPROC)		(GLhandleARB shaderObj, GLsizei count, const GLcharARB* *string, const GLint *length);
-typedef void		(APIENTRYP FTEPFNGLCOMPILESHADERARBPROC)		(GLhandleARB shaderObj);
-typedef void        (APIENTRYP FTEPFNGLGETOBJECTPARAMETERIVARBPROC) (GLhandleARB obj, GLenum pname, GLint *params);
-typedef void		(APIENTRYP FTEPFNGLATTACHOBJECTARBPROC)		(GLhandleARB containerObj, GLhandleARB obj);
-typedef void		(APIENTRYP FTEPFNGLGETINFOLOGARBPROC)			(GLhandleARB obj, GLsizei maxLength, GLsizei *length, GLcharARB *infoLog);
-typedef void		(APIENTRYP FTEPFNGLLINKPROGRAMARBPROC)			(GLhandleARB programObj);
-typedef void        (APIENTRYP FTEPFNGLBINDATTRIBLOCATIONARBPROC)   (GLhandleARB programObj, GLuint index, GLcharARB *name);
-typedef GLint		(APIENTRYP FTEPFNGLGETATTRIBLOCATIONARBPROC)	(GLhandleARB programObj, const GLcharARB *name);
-typedef void		(APIENTRYP FTEPFNGLVERTEXATTRIBPOINTER)			(GLuint index, GLint size, GLenum type, GLboolean normalized, GLsizei stride, const GLvoid *pointer);
-typedef void		(APIENTRYP FTEPFNGLVERTEXATTRIB4FARBPROC)		(GLuint index, GLfloat x, GLfloat y, GLfloat z, GLfloat w);
-typedef void		(APIENTRYP FTEPFNGLENABLEVERTEXATTRIBARRAY)		(GLuint index);
-typedef void		(APIENTRYP FTEPFNGLDISABLEVERTEXATTRIBARRAY)	(GLuint index);
-typedef GLint		(APIENTRYP FTEPFNGLGETUNIFORMLOCATIONARBPROC)	(GLhandleARB programObj, const GLcharARB *name);
-typedef void		(APIENTRYP FTEPFNGLGETVERTEXATTRIBIV)			(GLuint index, GLenum pname, GLint *params);
-typedef void		(APIENTRYP FTEPFNGLUNIFORM4FARBPROC)			(GLint location, GLfloat v0, GLfloat v1, GLfloat v2, GLfloat v3);
-typedef void		(APIENTRYP FTEPFNGLUNIFORMMATRIXPROC)		(GLint location, GLsizei count, GLboolean transpose, const GLfloat *value);
-typedef void		(APIENTRYP FTEPFNGLUNIFORM4FVARBPROC)			(GLint location, GLsizei count, const GLfloat *value);
-typedef void		(APIENTRYP FTEPFNGLUNIFORM3FARBPROC)			(GLint location, GLfloat v0, GLfloat v1, GLfloat v2);
-typedef void		(APIENTRYP FTEPFNGLUNIFORM3FVARBPROC)			(GLint location, GLsizei count, const GLfloat *value);
-typedef void		(APIENTRYP FTEPFNGLUNIFORM2FVARBPROC)			(GLint location, GLsizei count, const GLfloat *value);
-typedef void		(APIENTRYP FTEPFNGLUNIFORM1IARBPROC)			(GLint location, GLint v0);
-typedef void		(APIENTRYP FTEPFNGLUNIFORM1FARBPROC)			(GLint location, GLfloat v0);
-typedef void		(APIENTRYP FTEPFNGLGETSHADERSOURCEARBPROC)		(GLhandleARB obj, GLsizei maxLength, GLsizei *length, GLcharARB *source);
+typedef GLuint		(APIENTRYP FTEPFNGLCREATEPROGRAMPROC)		(void);
+typedef void		(APIENTRYP FTEPFNGLDELETEPROGRAMPROC)		(GLuint obj);
+typedef void		(APIENTRYP FTEPFNGLDELETESHADERPROC)		(GLuint obj);
+typedef void		(APIENTRYP FTEPFNGLUSEPROGRAMPROC)			(GLuint programObj);
+typedef GLuint		(APIENTRYP FTEPFNGLCREATESHADERPROC)		(GLenum shaderType);
+typedef void		(APIENTRYP FTEPFNGLSHADERSOURCEPROC)		(GLuint shaderObj, GLsizei count, const GLchar* const*string, const GLint *length);
+typedef void		(APIENTRYP FTEPFNGLCOMPILESHADERPROC)		(GLuint shaderObj);
+typedef void        (APIENTRYP FTEPFNGLGETPROGRAMIVPROC)		(GLuint obj, GLenum pname, GLint *params);
+typedef void        (APIENTRYP FTEPFNGLGETSHADERIVPROC)			(GLuint obj, GLenum pname, GLint *params);
+typedef void		(APIENTRYP FTEPFNGLATTACHSHADERPROC)		(GLuint containerObj, GLuint obj);
+typedef void		(APIENTRYP FTEPFNGLGETPROGRAMINFOLOGPROC)	(GLuint obj, GLsizei maxLength, GLsizei *length, GLchar *infoLog);
+typedef void		(APIENTRYP FTEPFNGLGETSHADERINFOLOGPROC)	(GLuint obj, GLsizei maxLength, GLsizei *length, GLchar *infoLog);
+typedef void		(APIENTRYP FTEPFNGLLINKPROGRAMPROC)			(GLuint programObj);
+typedef void        (APIENTRYP FTEPFNGLBINDATTRIBLOCATIONPROC)	(GLuint programObj, GLuint index, const GLchar *name);
+typedef GLint		(APIENTRYP FTEPFNGLGETATTRIBLOCATIONPROC)	(GLuint programObj, const GLchar *name);
+typedef void		(APIENTRYP FTEPFNGLVERTEXATTRIBPOINTERPROC)	(GLuint index, GLint size, GLenum type, GLboolean normalized, GLsizei stride, const GLvoid *pointer);
+typedef void		(APIENTRYP FTEPFNGLVERTEXATTRIB4FPROC)		(GLuint index, GLfloat x, GLfloat y, GLfloat z, GLfloat w);
+typedef void		(APIENTRYP FTEPFNGLENABLEVERTEXATTRIBARRAYPROC)	(GLuint index);
+typedef void		(APIENTRYP FTEPFNGLDISABLEVERTEXATTRIBARRAYPROC)(GLuint index);
+typedef GLint		(APIENTRYP FTEPFNGLGETUNIFORMLOCATIONPROC)	(GLuint programObj, const GLchar *name);
+typedef void		(APIENTRYP FTEPFNGLGETVERTEXATTRIBIVPROC)	(GLuint index, GLenum pname, GLint *params);
+typedef void		(APIENTRYP FTEPFNGLUNIFORM4FPROC)			(GLint location, GLfloat v0, GLfloat v1, GLfloat v2, GLfloat v3);
+typedef void		(APIENTRYP FTEPFNGLUNIFORMMATRIX4FVPROC)	(GLint location, GLsizei count, GLboolean transpose, const GLfloat *value);
+typedef void		(APIENTRYP FTEPFNGLUNIFORMMATRIX3FVPROC)	(GLint location, GLsizei count, GLboolean transpose, const GLfloat *value);
+typedef void		(APIENTRYP FTEPFNGLUNIFORMMATRIX4X3FVPROC)		(GLint location, GLsizei count, GLboolean transpose, const GLfloat *value);
+typedef void		(APIENTRYP FTEPFNGLUNIFORMMATRIX3X4FVPROC)		(GLint location, GLsizei count, GLboolean transpose, const GLfloat *value);
+typedef void		(APIENTRYP FTEPFNGLUNIFORM4FVPROC)			(GLint location, GLsizei count, const GLfloat *value);
+typedef void		(APIENTRYP FTEPFNGLUNIFORM3FPROC)			(GLint location, GLfloat v0, GLfloat v1, GLfloat v2);
+typedef void		(APIENTRYP FTEPFNGLUNIFORM3FVPROC)			(GLint location, GLsizei count, const GLfloat *value);
+typedef void		(APIENTRYP FTEPFNGLUNIFORM2FVPROC)			(GLint location, GLsizei count, const GLfloat *value);
+typedef void		(APIENTRYP FTEPFNGLUNIFORM1IPROC)			(GLint location, GLint v0);
+typedef void		(APIENTRYP FTEPFNGLUNIFORM1FPROC)			(GLint location, GLfloat v0);
+typedef void		(APIENTRYP FTEPFNGLGETSHADERSOURCEPROC)		(GLuint obj, GLsizei maxLength, GLsizei *length, GLchar *source);
 
 typedef void (APIENTRY * FTEPFNGLLOCKARRAYSEXTPROC) (GLint first, GLsizei count);
 typedef void (APIENTRY * FTEPFNGLUNLOCKARRAYSEXTPROC) (void);
@@ -345,7 +355,7 @@ void GL_ForceDepthWritable(void);
 //
 #ifdef GLQUAKE
 texid_tf GL_LoadPicTexture (qpic_t *pic);
-void GL_Set2D (qboolean flipped);
+void GL_Set2D (unsigned int flags);
 #endif
 
 //
@@ -664,36 +674,38 @@ extern GLenum (APIENTRY *qglCheckFramebufferStatusEXT)(GLenum target);
 extern void (APIENTRY *qglGetFramebufferAttachmentParameteriv)(GLenum  target,  GLenum  attachment,  GLenum  pname,  GLint * params);
 
 //glslang - arb_shader_objects
-extern FTEPFNGLCREATEPROGRAMOBJECTARBPROC	qglCreateProgramObjectARB;
-extern FTEPFNGLDELETEOBJECTARBPROC         qglDeleteProgramObject_;
-extern FTEPFNGLDELETEOBJECTARBPROC         qglDeleteShaderObject_;
-extern FTEPFNGLUSEPROGRAMOBJECTARBPROC		qglUseProgramObjectARB;
-extern FTEPFNGLCREATESHADEROBJECTARBPROC	qglCreateShaderObjectARB;
-extern FTEPFNGLSHADERSOURCEARBPROC			qglShaderSourceARB;
-extern FTEPFNGLCOMPILESHADERARBPROC		qglCompileShaderARB;
-extern FTEPFNGLGETOBJECTPARAMETERIVARBPROC	qglGetProgramParameteriv_;
-extern FTEPFNGLGETOBJECTPARAMETERIVARBPROC	qglGetShaderParameteriv_;
-extern FTEPFNGLATTACHOBJECTARBPROC			qglAttachObjectARB;
-extern FTEPFNGLGETINFOLOGARBPROC			qglGetProgramInfoLog_;
-extern FTEPFNGLGETINFOLOGARBPROC			qglGetShaderInfoLog_;
-extern FTEPFNGLLINKPROGRAMARBPROC			qglLinkProgramARB;
-extern FTEPFNGLBINDATTRIBLOCATIONARBPROC   qglBindAttribLocationARB;
-extern FTEPFNGLGETATTRIBLOCATIONARBPROC		qglGetAttribLocationARB;
-extern FTEPFNGLGETUNIFORMLOCATIONARBPROC	qglGetUniformLocationARB;
-extern FTEPFNGLUNIFORMMATRIXPROC		qglUniformMatrix4fvARB;
-extern FTEPFNGLUNIFORMMATRIXPROC		qglUniformMatrix3fvARB;
-extern FTEPFNGLUNIFORM4FARBPROC			qglUniform4fARB;
-extern FTEPFNGLUNIFORM4FVARBPROC			qglUniform4fvARB;
-extern FTEPFNGLUNIFORM3FARBPROC			qglUniform3fARB;
-extern FTEPFNGLUNIFORM3FVARBPROC			qglUniform3fvARB;
-extern FTEPFNGLUNIFORM2FVARBPROC			qglUniform2fvARB;
-extern FTEPFNGLUNIFORM1IARBPROC			qglUniform1iARB;
-extern FTEPFNGLUNIFORM1FARBPROC			qglUniform1fARB;
-extern FTEPFNGLVERTEXATTRIB4FARBPROC		qglVertexAttrib4f;
-extern FTEPFNGLVERTEXATTRIBPOINTER			qglVertexAttribPointer;
-extern FTEPFNGLGETVERTEXATTRIBIV			qglGetVertexAttribiv;
-extern FTEPFNGLENABLEVERTEXATTRIBARRAY		qglEnableVertexAttribArray;
-extern FTEPFNGLDISABLEVERTEXATTRIBARRAY	qglDisableVertexAttribArray;
+extern FTEPFNGLCREATEPROGRAMPROC			qglCreateProgramObjectARB;
+extern FTEPFNGLDELETEPROGRAMPROC			qglDeleteProgramObject_;
+extern FTEPFNGLDELETESHADERPROC				qglDeleteShaderObject_;
+extern FTEPFNGLUSEPROGRAMPROC				qglUseProgramObjectARB;
+extern FTEPFNGLCREATESHADERPROC				qglCreateShaderObjectARB;
+extern FTEPFNGLSHADERSOURCEPROC				qglShaderSourceARB;
+extern FTEPFNGLCOMPILESHADERPROC			qglCompileShaderARB;
+extern FTEPFNGLGETPROGRAMIVPROC				qglGetProgramParameteriv_;
+extern FTEPFNGLGETSHADERIVPROC				qglGetShaderParameteriv_;
+extern FTEPFNGLATTACHSHADERPROC				qglAttachObjectARB;
+extern FTEPFNGLGETPROGRAMINFOLOGPROC		qglGetProgramInfoLog_;
+extern FTEPFNGLGETSHADERINFOLOGPROC			qglGetShaderInfoLog_;
+extern FTEPFNGLLINKPROGRAMPROC				qglLinkProgramARB;
+extern FTEPFNGLBINDATTRIBLOCATIONPROC		qglBindAttribLocationARB;
+extern FTEPFNGLGETATTRIBLOCATIONPROC		qglGetAttribLocationARB;
+extern FTEPFNGLGETUNIFORMLOCATIONPROC		qglGetUniformLocationARB;
+extern FTEPFNGLUNIFORMMATRIX4FVPROC			qglUniformMatrix4fvARB;
+extern FTEPFNGLUNIFORMMATRIX3FVPROC			qglUniformMatrix3fvARB;
+extern FTEPFNGLUNIFORMMATRIX4X3FVPROC		qglUniformMatrix4x3fvARB;	//gl2.1+
+extern FTEPFNGLUNIFORMMATRIX3X4FVPROC		qglUniformMatrix3x4fvARB;	//gl2.1+
+extern FTEPFNGLUNIFORM4FPROC				qglUniform4fARB;
+extern FTEPFNGLUNIFORM4FVPROC				qglUniform4fvARB;
+extern FTEPFNGLUNIFORM3FPROC				qglUniform3fARB;
+extern FTEPFNGLUNIFORM3FVPROC				qglUniform3fvARB;
+extern FTEPFNGLUNIFORM2FVPROC				qglUniform2fvARB;
+extern FTEPFNGLUNIFORM1IPROC				qglUniform1iARB;
+extern FTEPFNGLUNIFORM1FPROC				qglUniform1fARB;
+extern FTEPFNGLVERTEXATTRIB4FPROC			qglVertexAttrib4f;
+extern FTEPFNGLVERTEXATTRIBPOINTERPROC		qglVertexAttribPointer;
+extern FTEPFNGLGETVERTEXATTRIBIVPROC		qglGetVertexAttribiv;
+extern FTEPFNGLENABLEVERTEXATTRIBARRAYPROC	qglEnableVertexAttribArray;
+extern FTEPFNGLDISABLEVERTEXATTRIBARRAYPROC	qglDisableVertexAttribArray;
 
 extern void (APIENTRY *qglGenBuffersARB)(GLsizei n, GLuint* ids);
 extern void (APIENTRY *qglDeleteBuffersARB)(GLsizei n, GLuint* ids);
@@ -1000,8 +1012,8 @@ extern void (APIENTRY *qglTexSubImage3D) (GLenum target, GLint level, GLint xoff
 extern void (APIENTRY *qglTranslated) (GLdouble x, GLdouble y, GLdouble z);
 extern void (APIENTRY *qglTranslatef) (GLfloat x, GLfloat y, GLfloat z);
 
-extern FTEPFNGLUNIFORMMATRIXPROC		qglUniformMatrix4x3fv;
-extern FTEPFNGLUNIFORMMATRIXPROC		qglUniformMatrix3x4fv;
+extern FTEPFNGLUNIFORMMATRIX4X3FVPROC		qglUniformMatrix4x3fv;
+extern FTEPFNGLUNIFORMMATRIX3X4FVPROC		qglUniformMatrix3x4fv;
 
 extern FTEPFNGLCOMPRESSEDTEXIMAGE3DARBPROC qglCompressedTexImage3D;
 extern void (APIENTRY *qglCompressedTexSubImage3D) (GLenum target, GLint level, GLint xoffset, GLint yoffset, GLint zoffset, GLsizei width, GLsizei height, GLsizei depth, GLenum format, GLsizei imageSize, const void *data);	//gl1.3
@@ -1071,8 +1083,8 @@ extern void (APIENTRY *qglTexStorage3D)(GLenum target, GLsizei levels, GLenum in
 //glslang helper api
 struct programshared_s;
 union programhandle_u GLSlang_CreateProgram(struct programshared_s *prog, const char *name, int ver, const char **precompilerconstants, const char *vert, const char *cont, const char *eval, const char *geom, const char *frag, qboolean silent, vfsfile_t *blobfile);
-GLint GLSlang_GetUniformLocation (int prog, char *name);
-void GL_SelectProgram(int program);
+GLint GLSlang_GetUniformLocation (GLuint prog, char *name);
+void GL_SelectProgram(GLuint program);
 #define GLSlang_UseProgram(prog) GL_SelectProgram(prog)
 #define GLSlang_SetUniform1i(uni, parm0) qglUniform1iARB(uni, parm0)
 #define GLSlang_SetUniform1f(uni, parm0) qglUniform1fARB(uni, parm0)

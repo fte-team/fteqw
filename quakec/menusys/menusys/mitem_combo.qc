@@ -241,7 +241,7 @@ void(vector pos) mitem_combo_popup::item_draw =
 };
 float(vector pos, float scan, float char, float down) mitem_combo_popup::item_keypress =
 {
-	if (pslider && scan == K_MOUSE1)
+	if (pslider && (scan == K_TOUCHTAP || scan == K_MOUSE1))
 	{
 		vector sliderpos = pos + [item_size_x-pslider.item_size_x,0];
 		if (mouseinbox(pos + [item_size_x-pslider.item_size_x,0], pslider.item_size))
@@ -269,7 +269,7 @@ float(vector pos, float scan, float char, float down) mitem_combo::item_keypress
 		}
 	}
 
-	if (scan == K_ESCAPE || scan == K_MOUSE2)
+	if (scan == K_ESCAPE || scan == K_MOUSE2 || scan == K_GP_B || scan == K_GP_BACK)
 	{
 		if (cpopup)
 		{
@@ -278,28 +278,28 @@ float(vector pos, float scan, float char, float down) mitem_combo::item_keypress
 		}
 		return FALSE;
 	}
-	else if (scan == K_MWHEELUP || (scan == K_UPARROW && cpopup))
+	else if (scan == K_MWHEELUP || (cpopup && ISUPARROW(scan)) || (!cpopup && spos < 0 && ISLEFTARROW(scan)))
 	{
 		i -= 2;
 		if (i < 0)
 			i = c - 2;
 		curval = argv(i);
 	}
-	else if (scan == K_MWHEELDOWN || (scan == K_DOWNARROW && cpopup))
+	else if (scan == K_MWHEELDOWN || (cpopup && ISDOWNARROW(scan)) || (!cpopup && spos < 0 && ISRIGHTARROW(scan)))
 	{
 		i += 2;
 		if (i >= c)
 			i = 0;
 		curval = argv(i);
 	}
-	else if (scan == K_MOUSE1 || scan == K_ENTER)
+	else if (scan == K_TOUCHTAP || scan == K_MOUSE1 || ISCONFIRMKEY(scan))
 	{
-		if (scan == K_ENTER && cpopup)
+		if (ISCONFIRMKEY(scan) && cpopup)
 		{
 			cpopup.item_remove();
 			return TRUE;
 		}
-		
+
 		visrows = ((c>18)?18/2:c/2);
 		if (!cpopup)
 		{
@@ -321,7 +321,7 @@ float(vector pos, float scan, float char, float down) mitem_combo::item_keypress
 		cpopup.item_flags |= IF_SELECTABLE;
 		cpopup.totop();
 
-		if (scan == K_MOUSE1 && (cpopup.item_flags & IF_MFOCUSED))
+		if ((scan == K_TOUCHTAP || scan == K_MOUSE1) && (cpopup.item_flags & IF_MFOCUSED))
 		{
 			//if they clicked inside the popup, change the selected item.
 			f = ui.mousepos[1] - (pos_y + item_size_y);
@@ -334,7 +334,7 @@ float(vector pos, float scan, float char, float down) mitem_combo::item_keypress
 				cpopup.item_flags &~= IF_SELECTABLE;
 				cpopup.item_size = cpopup.maxs = '0 0';
 				item_parent.item_focuschange(this, IF_MFOCUSED|IF_KFOCUSED);
-				
+
 				cpopup.item_remove();
 			}
 		}

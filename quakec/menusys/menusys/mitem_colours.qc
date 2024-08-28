@@ -237,7 +237,7 @@ float(vector pos, float scan, float char, float down) mitem_colours::item_keypre
 
 
 	local float curval = rgbtohsv(hextorgb(get(item_command)))[0];
-	if (scan == K_MOUSE1)
+	if (scan == K_TOUCHTAP || scan == K_MOUSE1)
 	{
 		float width = item_size_x / 2;
 		pos_x += width;
@@ -256,11 +256,11 @@ float(vector pos, float scan, float char, float down) mitem_colours::item_keypre
 			set(item_command, rgbtohex(hsvtorgb([(curval), 1, 1])));
 		ui.mgrabs = this;
 	}
-	else if (scan == K_LEFTARROW || scan == K_SPACE)
+	else if (ISLEFTARROW(scan) || scan == K_SPACE)
 	{
 		set(item_command, rgbtohex(hsvtorgb([curval - (1/64.0), 1, 1])));	//yay autorepeat
 	}
-	else if (scan == K_RIGHTARROW || scan == K_ENTER)
+	else if (ISRIGHTARROW(scan) || scan == K_ENTER)
 	{
 		set(item_command, rgbtohex(hsvtorgb([curval + (1/64.0), 1, 1])));
 	}

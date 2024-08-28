@@ -38,41 +38,41 @@
 
 static void *alsasharedobject;
 
-int (*psnd_pcm_open)				(snd_pcm_t **pcm, const char *name, snd_pcm_stream_t stream, int mode);
-int (*psnd_pcm_close)				(snd_pcm_t *pcm);
-int (*psnd_config_update_free_global)(void);
-const char *(*psnd_strerror)			(int errnum);
-int (*psnd_pcm_hw_params_any)			(snd_pcm_t *pcm, snd_pcm_hw_params_t *params);
-int (*psnd_pcm_hw_params_set_access)		(snd_pcm_t *pcm, snd_pcm_hw_params_t *params, snd_pcm_access_t _access);
-int (*psnd_pcm_hw_params_set_format)		(snd_pcm_t *pcm, snd_pcm_hw_params_t *params, snd_pcm_format_t val);
-int (*psnd_pcm_hw_params_set_channels)		(snd_pcm_t *pcm, snd_pcm_hw_params_t *params, unsigned int val);
-int (*psnd_pcm_hw_params_set_rate_near)		(snd_pcm_t *pcm, snd_pcm_hw_params_t *params, unsigned int *val, int *dir);
-int (*psnd_pcm_hw_params_set_period_size_near)	(snd_pcm_t *pcm, snd_pcm_hw_params_t *params, snd_pcm_uframes_t *val, int *dir);
-int (*psnd_pcm_hw_params)			(snd_pcm_t *pcm, snd_pcm_hw_params_t *params);
-int (*psnd_pcm_sw_params_current)		(snd_pcm_t *pcm, snd_pcm_sw_params_t *params);
-int (*psnd_pcm_sw_params_set_start_threshold)	(snd_pcm_t *pcm, snd_pcm_sw_params_t *params, snd_pcm_uframes_t val);
-int (*psnd_pcm_sw_params_set_stop_threshold)	(snd_pcm_t *pcm, snd_pcm_sw_params_t *params, snd_pcm_uframes_t val);
-int (*psnd_pcm_sw_params)			(snd_pcm_t *pcm, snd_pcm_sw_params_t *params);
-int (*psnd_pcm_hw_params_get_buffer_size)	(const snd_pcm_hw_params_t *params, snd_pcm_uframes_t *val);
-int (*psnd_pcm_hw_params_set_buffer_size_near)	(snd_pcm_t *pcm, snd_pcm_hw_params_t *params, snd_pcm_uframes_t *val);
-int (*psnd_pcm_set_params)			(snd_pcm_t *pcm, snd_pcm_format_t format, snd_pcm_access_t access, unsigned int channels, unsigned int rate, int soft_resample, unsigned int latency);
-snd_pcm_sframes_t (*psnd_pcm_avail_update)	(snd_pcm_t *pcm);
-snd_pcm_state_t (*psnd_pcm_state)		(snd_pcm_t *pcm);
-int (*psnd_pcm_start)				(snd_pcm_t *pcm);
-int (*psnd_pcm_recover)				(snd_pcm_t *pcm, int err, int silent);
+static int (*psnd_pcm_open)				(snd_pcm_t **pcm, const char *name, snd_pcm_stream_t stream, int mode);
+static int (*psnd_pcm_close)				(snd_pcm_t *pcm);
+static int (*psnd_config_update_free_global)(void);
+static const char *(*psnd_strerror)			(int errnum);
+static int (*psnd_pcm_hw_params_any)			(snd_pcm_t *pcm, snd_pcm_hw_params_t *params);
+static int (*psnd_pcm_hw_params_set_access)		(snd_pcm_t *pcm, snd_pcm_hw_params_t *params, snd_pcm_access_t _access);
+static int (*psnd_pcm_hw_params_set_format)		(snd_pcm_t *pcm, snd_pcm_hw_params_t *params, snd_pcm_format_t val);
+static int (*psnd_pcm_hw_params_set_channels)		(snd_pcm_t *pcm, snd_pcm_hw_params_t *params, unsigned int val);
+static int (*psnd_pcm_hw_params_set_rate_near)		(snd_pcm_t *pcm, snd_pcm_hw_params_t *params, unsigned int *val, int *dir);
+static int (*psnd_pcm_hw_params_set_period_size_near)	(snd_pcm_t *pcm, snd_pcm_hw_params_t *params, snd_pcm_uframes_t *val, int *dir);
+static int (*psnd_pcm_hw_params)			(snd_pcm_t *pcm, snd_pcm_hw_params_t *params);
+static int (*psnd_pcm_sw_params_current)		(snd_pcm_t *pcm, snd_pcm_sw_params_t *params);
+static int (*psnd_pcm_sw_params_set_start_threshold)	(snd_pcm_t *pcm, snd_pcm_sw_params_t *params, snd_pcm_uframes_t val);
+static int (*psnd_pcm_sw_params_set_stop_threshold)	(snd_pcm_t *pcm, snd_pcm_sw_params_t *params, snd_pcm_uframes_t val);
+static int (*psnd_pcm_sw_params)			(snd_pcm_t *pcm, snd_pcm_sw_params_t *params);
+static int (*psnd_pcm_hw_params_get_buffer_size)	(const snd_pcm_hw_params_t *params, snd_pcm_uframes_t *val);
+static int (*psnd_pcm_hw_params_set_buffer_size_near)	(snd_pcm_t *pcm, snd_pcm_hw_params_t *params, snd_pcm_uframes_t *val);
+static int (*psnd_pcm_set_params)			(snd_pcm_t *pcm, snd_pcm_format_t format, snd_pcm_access_t access, unsigned int channels, unsigned int rate, int soft_resample, unsigned int latency);
+static snd_pcm_sframes_t (*psnd_pcm_avail_update)	(snd_pcm_t *pcm);
+static snd_pcm_state_t (*psnd_pcm_state)		(snd_pcm_t *pcm);
+static int (*psnd_pcm_start)				(snd_pcm_t *pcm);
+static int (*psnd_pcm_recover)				(snd_pcm_t *pcm, int err, int silent);
 
-size_t (*psnd_pcm_hw_params_sizeof)		(void);
-size_t (*psnd_pcm_sw_params_sizeof)		(void);
+static size_t (*psnd_pcm_hw_params_sizeof)		(void);
+static size_t (*psnd_pcm_sw_params_sizeof)		(void);
 
-int (*psnd_pcm_mmap_begin)			(snd_pcm_t *pcm, const snd_pcm_channel_area_t **areas, snd_pcm_uframes_t *offset, snd_pcm_uframes_t *frames);
-snd_pcm_sframes_t (*psnd_pcm_mmap_commit)	(snd_pcm_t *pcm, snd_pcm_uframes_t offset, snd_pcm_uframes_t frames);
+static int (*psnd_pcm_mmap_begin)			(snd_pcm_t *pcm, const snd_pcm_channel_area_t **areas, snd_pcm_uframes_t *offset, snd_pcm_uframes_t *frames);
+static snd_pcm_sframes_t (*psnd_pcm_mmap_commit)	(snd_pcm_t *pcm, snd_pcm_uframes_t offset, snd_pcm_uframes_t frames);
 
-snd_pcm_sframes_t (*psnd_pcm_writei)		(snd_pcm_t *pcm, const void *buffer, snd_pcm_uframes_t size);
-int (*psnd_pcm_prepare)				(snd_pcm_t *pcm);
+static snd_pcm_sframes_t (*psnd_pcm_writei)		(snd_pcm_t *pcm, const void *buffer, snd_pcm_uframes_t size);
+static int (*psnd_pcm_prepare)				(snd_pcm_t *pcm);
 
-int 	(*psnd_device_name_hint)		(int card, const char *iface, void ***hints);
-char * 	(*psnd_device_name_get_hint)	(const void *hint, const char *id);
-int		(*psnd_device_name_free_hint)	(void **hints);
+static int 	(*psnd_device_name_hint)		(int card, const char *iface, void ***hints);
+static char * 	(*psnd_device_name_get_hint)	(const void *hint, const char *id);
+static int		(*psnd_device_name_free_hint)	(void **hints);
 
 
 static unsigned int ALSA_MMap_GetDMAPos (soundcardinfo_t *sc)

@@ -4,7 +4,9 @@
 #include "fs.h"
 #include <assert.h>
 
-#include "../../engine/libs/zlib.h"
+#ifdef AVAIL_ZLIB
+	#include <zlib.h>
+#endif
 #include "blast.h"
 
 //http://bazaar.launchpad.net/~jeanfrancois.roy/mpqkit/trunk/files
@@ -435,7 +437,7 @@ static void	MPQ_BuildHash(searchpathfuncs_t *handle, int depth, void (QDECL *Add
 	}
 }
 
-static int		MPQ_GeneratePureCRC (searchpathfuncs_t *handle, int seed, int usepure)
+static int		MPQ_GeneratePureCRC (searchpathfuncs_t *handle, const int *seed)
 {
 	return 0;
 }
@@ -581,7 +583,9 @@ static int mpqf_blastout(void *how, unsigned char *buf, unsigned len)
 }
 static void MPQF_decompress(qboolean legacymethod, void *outdata, unsigned int outlen, void *indata, unsigned int inlen)
 {
+#ifdef AVAIL_ZLIB
 	int ret;
+#endif
 
 	int methods;
 	if (legacymethod)
@@ -598,6 +602,7 @@ static void MPQF_decompress(qboolean legacymethod, void *outdata, unsigned int o
 		struct blastdata_s args = {outdata, outlen, indata, inlen};
 		blast(mpqf_blastin, &args, mpqf_blastout, &args);
 	}
+#ifdef AVAIL_ZLIB
 	else if (methods == 2)
 	{
 		z_stream strm =
@@ -651,6 +656,7 @@ static void MPQF_decompress(qboolean legacymethod, void *outdata, unsigned int o
 
 		inflateEnd(&strm);
 	}
+#endif
 	else
 	{
 		Con_Printf("mpq: unsupported decompression method - %x\n", methods);

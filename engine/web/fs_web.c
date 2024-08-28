@@ -2,8 +2,6 @@
 #include "fs.h"
 
 #if defined(FTE_TARGET_WEB)
-#include "ftejslib.h"
-
 #define FSWEB_OpenPath VFSOS_OpenPath
 #define FSWEB_OpenTemp FS_OpenTemp
 

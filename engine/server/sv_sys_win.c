@@ -1664,7 +1664,7 @@ int main (int argc, char **argv)
 #ifdef SUBSERVERS
 		isClusterSlave = COM_CheckParm("-clusterslave");
 		if (isClusterSlave)
-            SSV_SetupControlPipe(Sys_GetStdInOutStream());
+            SSV_SetupControlPipe(Sys_GetStdInOutStream(), false);
 #endif
 #ifdef USESERVICE
 		if (!SSV_IsSubServer() && StartServiceCtrlDispatcher( DispatchTable))

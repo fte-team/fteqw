@@ -65,6 +65,16 @@ void INS_Commands (void);	//final chance to call IN_MouseMove/IN_KeyEvent each f
 void INS_EnumerateDevices(void *ctx, void(*callback)(void *ctx, const char *type, const char *devicename, unsigned int *qdevid));
 void INS_SetupControllerAudioDevices(qboolean enabled);	//creates audio devices for each controller (where controllers have their own audio devices)
 
+enum controllertype_e
+{
+	CONTROLLER_NONE,
+	CONTROLLER_UNKNOWN,		//its all just numbers. could be anything
+	CONTROLLER_XBOX,		//ABXY
+	CONTROLLER_PLAYSTATION,	//XOSqareTriangle
+	CONTROLLER_NINTENDO,	//BAYX...
+	CONTROLLER_VIRTUAL		//its fucked. no idea what mappings they're using at all. could be keyboard.
+};
+enum controllertype_e INS_GetControllerType(int id);
 void INS_Rumble(int joy, quint16_t amp_low, quint16_t amp_high, quint32_t duration);
 void INS_RumbleTriggers(int joy, quint16_t left, quint16_t right, quint32_t duration);
 void INS_SetLEDColor(int id, vec3_t color);

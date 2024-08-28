@@ -1298,7 +1298,7 @@ iwboolean FTP_ServerThinkForConnection(FTPclient_t *cl)
 			if (!stricmp(mode, "RMD"))
 			{
 				char path[MAX_OSPATH];
-				if (FS_NativePath(resource, FS_GAMEONLY, path, sizeof(path)) && Sys_rmdir(path))
+				if (FS_SystemPath(resource, FS_GAMEONLY, path, sizeof(path)) && Sys_rmdir(path))
 					QueueMessage (cl, "250 Success.\r\n");
 				else
 					QueueMessage (cl, "550 Requested action not taken.\r\n");

@@ -1956,7 +1956,8 @@ static int Con_DrawProgress(int left, int right, int y)
 				sprintf(progresspercenttext, " (%ukB/s)", CL_DownloadRate()/1000);
 			else
 			{
-				sprintf(progresspercenttext, " (%u%sKiB)", (int)(total/1024), extra?"+":"");
+				char tmp[64];
+				sprintf(progresspercenttext, " (%s%s)", FS_AbbreviateSize(tmp,sizeof(tmp), total), extra?"+":"");
 			}
 
 			//do some marquee thing, so the user gets the impression that SOMETHING is happening.

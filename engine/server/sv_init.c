@@ -752,6 +752,8 @@ void SV_SetupNetworkBuffers(qboolean bigcoords)
 	for (i = 0; i < svs.allocated_client_slots; i++)
 	{
 		svs.clients[i].netchan.netprim = svs.netprim;
+		if (svs.clients[i].protocol == SCP_QUAKE2EX)
+			svs.clients[i].netchan.netprim.coordtype = COORDTYPE_FLOAT_32; //forced to floats. we have multiple multicast buffers. woo.
 
 		//make sure those are kept up to date too.
 		svs.clients[i].datagram.prim =
@@ -789,18 +791,13 @@ void SV_SetupNetworkBuffers(qboolean bigcoords)
 #endif
 
 #ifdef Q2SERVER
-	sv.q2datagram.maxsize = sizeof(sv.q2datagram_buf);
-	sv.q2datagram.data = sv.q2datagram_buf;
-	sv.q2datagram.allowoverflow = true;
-	sv.q2datagram.prim = svs.netprim;
-
-	sv.q2reliable_datagram.maxsize = sizeof(sv.q2reliable_datagram_buf);
-	sv.q2reliable_datagram.data = sv.q2reliable_datagram_buf;
-	sv.q2reliable_datagram.prim = svs.netprim;
-
-	sv.q2multicast.maxsize = sizeof(sv.q2multicast_buf);
-	sv.q2multicast.data = sv.q2multicast_buf;
-	sv.q2multicast.prim = svs.netprim;
+	sv.q2multicast[0].maxsize = sizeof(sv.q2multicast_lcbuf);
+	sv.q2multicast[0].data = sv.q2multicast_lcbuf;
+	sv.q2multicast[0].prim = svs.netprim;
+	sv.q2multicast[1].maxsize = sizeof(sv.q2multicast_bcbuf);
+	sv.q2multicast[1].data = sv.q2multicast_bcbuf;
+	sv.q2multicast[1].prim = svs.netprim;
+	sv.q2multicast[1].prim.coordtype = COORDTYPE_FLOAT_32;
 #endif
 
 	sv.master.maxsize = sizeof(sv.master_buf);
@@ -1016,11 +1013,12 @@ void SV_SpawnServer (const char *server, const char *startspot, qboolean noents,
 	{
 		//.map is commented out because quite frankly, they're a bit annoying when the engine loads the gpled start.map when really you wanted to just play the damn game intead of take it apart.
 		//if you want to load a .map, just use 'map foo.map' instead.
-		char *exts[] = {"%s", "maps/%s", "maps/%s.bsp", "maps/%s.cm", "maps/%s.hmp", /*"maps/%s.map",*/ "maps/%s.bsp.gz", "maps/%s.bsp.xz", NULL}, *e;
+		char *exts[] = {"%s", "maps/%s", "maps/%s.bsp", "maps/%s.d3dbsp", "maps/%s.cm", "maps/%s.hmp", "maps/%s.bsp.gz", "maps/%s.bsp.xz", "maps/%s.map", NULL}, *e;
 		int depth, bestdepth = FDEPTH_MISSING;
 		flocation_t loc;
 		time_t filetime;
 		char *mod = NULL;
+		Q_snprintfz (sv.modelname, sizeof(sv.modelname), exts[1], server);	// `map foo.map` can bypass earlier checks, so don't get too screwed up by that.
 		if (bestdepth == FDEPTH_MISSING)
 		{	//not an exact name, scan the maps subdir.
 			for (i = 0; exts[i]; i++)
@@ -1059,7 +1057,6 @@ void SV_SpawnServer (const char *server, const char *startspot, qboolean noents,
 					mod = NULL;
 			}
 		}
-
 		if (!strncmp(sv.modelname, "maps/", 5))
 			Q_strncpyz (svs.name, sv.modelname+5, sizeof(svs.name));
 		else
@@ -1325,7 +1322,7 @@ MSV_OpenUserDatabase();
 			sv.strings.configstring[Q2CS_AIRACCEL] = Z_StrDup("0");
 
 		// init map checksum config string but only for Q2/Q3 maps
-		sv.strings.configstring[Q2CS_MAPCHECKSUM] = Z_StrDupf("%i", sv.world.worldmodel->checksum);
+		sv.strings.configstring[Q2CS_MAPCHECKSUM] = Z_StrDupf("%i %i", sv.world.worldmodel->checksum, sv.world.worldmodel->checksum2);
 
 		subs = sv.world.worldmodel->numsubmodels;
 		if (subs > MAX_PRECACHE_MODELS-1)
@@ -1521,7 +1518,7 @@ MSV_OpenUserDatabase();
 
 		// serverflags are for cross level information (sigils)
 		pr_global_struct->serverflags = svs.serverflags;
-		pr_global_struct->time = 0.1;	//HACK!!!! A few QuakeC mods expect time to be non-zero in spawn funcs - like prydon gate...
+		pr_global_struct->time = 1.0;	//match nq behaviour
 
 #ifdef HEXEN2
 		if (progstype == PROG_H2)
@@ -1585,7 +1582,10 @@ MSV_OpenUserDatabase();
 	else
 		InfoBuf_SetValueForStarKey(&svs.info, "*entfile", "");
 
-	file = Mod_GetEntitiesString(sv.world.worldmodel);
+	if (usecinematic)
+		file = NULL;
+	else
+		file = Mod_GetEntitiesString(sv.world.worldmodel);
 	if (!file)
 		file = "";
 

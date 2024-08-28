@@ -109,8 +109,8 @@ qboolean	NET_StringToAddr (char *s, netadr_t *sadr, int defaultport)
 	}
 	else
 #endif
-#if 0//def IPPROTO_IPV6
-		if (getaddrinfo)
+#ifndef _WIN32
+		if (1)
 	{//ipv6 method (can return ipv4 addresses too)
 		struct addrinfo *addrinfo, *pos;
 		struct addrinfo udp6hint;
@@ -124,12 +124,30 @@ qboolean	NET_StringToAddr (char *s, netadr_t *sadr, int defaultport)
 		udp6hint.ai_socktype = SOCK_DGRAM;
 		udp6hint.ai_protocol = IPPROTO_UDP;
 
-		port = s + strlen(s);
-		while(port >= s)
+		if (*s == '[')
 		{
-			if (*port == ':')
-			break;
-			port--;
+			s++;
+			colon = strchr(s, ']');
+			if (!colon || colon-s >= sizeof(copy))
+				return false;	//too long to handle.
+			memcpy(copy, s, colon-s);
+			copy[colon-s] = 0;
+			colon++;
+			if (*colon == ':')
+				port = colon;
+			else
+				port = NULL;
+			s = copy;
+		}
+		else
+		{
+			port = s + strlen(s);
+			while(port >= s)
+			{
+				if (*port == ':')
+				break;
+				port--;
+			}
 		}
 
 		if (port == s)
@@ -137,30 +155,31 @@ qboolean	NET_StringToAddr (char *s, netadr_t *sadr, int defaultport)
 		if (port)
 		{
 			len = port - s;
-			if (len > sizeof(dupbase))
-				len = sizeof(dupbase);
-			strlcpy(dupbase, s, len);
+			if (len > sizeof(dupbase)-1)
+				len = sizeof(dupbase)-1;
+			memcpy(dupbase, s, len);
+			dupbase[len] = 0;
 			error = getaddrinfo(dupbase, port+1, &udp6hint, &addrinfo);
 		}
 		else
-			error = EAI_NONAME;
+			error = EAI_NONAME, addrinfo=NULL;
 		if (error)	//failed, try string with no port.
 			error = getaddrinfo(s, NULL, &udp6hint, &addrinfo);	//remember, this func will return any address family that could be using the udp protocol... (ip4 or ip6)
 		if (error)
 		{
 			return false;
 		}
-		((struct sockaddr*)sadr)->sa_family = 0;
+		((struct sockaddr*)sadr->sockaddr)->sa_family = 0;
 		for (pos = addrinfo; pos; pos = pos->ai_next)
 		{
 			switch(pos->ai_family)
 			{
 			case AF_INET6:
-				if (((struct sockaddr_in *)sadr)->sin_family == AF_INET6)
+				if (((struct sockaddr_in *)sadr->sockaddr)->sin_family == AF_INET6)
 					break;	//first one should be best...
 				//fallthrough
 			case AF_INET:
-				memcpy(sadr, addrinfo->ai_addr, addrinfo->ai_addrlen);
+				memcpy(sadr->sockaddr, addrinfo->ai_addr, addrinfo->ai_addrlen);
 				if (pos->ai_family == AF_INET)
 					goto dblbreak;	//don't try finding any more, this is quake, they probably prefer ip4...
 				break;
@@ -168,7 +187,7 @@ qboolean	NET_StringToAddr (char *s, netadr_t *sadr, int defaultport)
 		}
 dblbreak:
 		pfreeaddrinfo (addrinfo);
-		if (!((struct sockaddr*)sadr)->sa_family)	//none suitablefound
+		if (!((struct sockaddr*)sadr->sockaddr)->sa_family)	//none suitablefound
 			return false;
 	}
 	else
@@ -209,7 +228,37 @@ qboolean Net_CompareAddress(netadr_t *s1, netadr_t *s2, int qp1, int qp2)
 {
 	struct sockaddr *g1=(void*)s1->sockaddr, *g2=(void*)s2->sockaddr;
 	if (g1->sa_family != g2->sa_family)
+	{	//urgh...
+		if (g1->sa_family == AF_INET6 && g2->sa_family == AF_INET && (
+			((unsigned int*)&((struct sockaddr_in6 *)g1)->sin6_addr)[0] == 0 &&
+			((unsigned int*)&((struct sockaddr_in6 *)g1)->sin6_addr)[1] == 0 &&
+			((unsigned short*)&((struct sockaddr_in6 *)g1)->sin6_addr)[4] == 0 &&
+			((unsigned short*)&((struct sockaddr_in6 *)g1)->sin6_addr)[5] == 0xffff))
+		{
+			struct sockaddr_in6 *i1=(void*)s1->sockaddr;
+			struct sockaddr_in *i2=(void*)s2->sockaddr;
+			if (((unsigned int*)&i1->sin6_addr)[3] != *(unsigned int*)&i2->sin_addr)
+				return false;
+			if (i1->sin6_port != i2->sin_port && qp1 != qp2)	//allow qports to match instead of ports, if required.
+				return false;
+			return true;
+		}
+		if (g1->sa_family == AF_INET && g2->sa_family == AF_INET6 && (
+			((unsigned int*)&((struct sockaddr_in6 *)g2)->sin6_addr)[0] == 0 &&
+			((unsigned int*)&((struct sockaddr_in6 *)g2)->sin6_addr)[1] == 0 &&
+			((unsigned short*)&((struct sockaddr_in6 *)g2)->sin6_addr)[4] == 0 &&
+			((unsigned short*)&((struct sockaddr_in6 *)g2)->sin6_addr)[5] == 0xffff))
+		{
+			struct sockaddr_in6 *i1=(void*)s2->sockaddr;
+			struct sockaddr_in *i2=(void*)s1->sockaddr;
+			if (((unsigned int*)&i1->sin6_addr)[3] != *(unsigned int*)&i2->sin_addr)
+				return false;
+			if (i1->sin6_port != i2->sin_port && qp1 != qp2)	//allow qports to match instead of ports, if required.
+				return false;
+			return true;
+		}
 		return false;
+	}
 	switch(g1->sa_family)
 	{
 	default:
@@ -2410,7 +2459,11 @@ void QTV_Run(sv_t *qtv)
 			switch(qtv->buffer[1]&dem_mask)
 			{
 			case dem_multiple:
-				ParseMessage(qtv, buffer+lengthofs+4, length, qtv->buffer[1]&dem_mask, (buffer[lengthofs-4]<<0) + (buffer[lengthofs-3]<<8) + (buffer[lengthofs-2]<<16) + (buffer[lengthofs-1]<<24));
+				if ((qtv->pexte&PEXTE_HIDDENMESSAGES) &&
+					0 == (buffer[lengthofs-4]<<0) + (buffer[lengthofs-3]<<8) + (buffer[lengthofs-2]<<16) + (buffer[lengthofs-1]<<24))
+					;	//fucked hidden message crap. don't trip up on it.
+				else
+					ParseMessage(qtv, buffer+lengthofs+4, length, qtv->buffer[1]&dem_mask, (buffer[lengthofs-4]<<0) + (buffer[lengthofs-3]<<8) + (buffer[lengthofs-2]<<16) + (buffer[lengthofs-1]<<24));
 				break;
 			case dem_single:
 			case dem_stats:

@@ -24,6 +24,9 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "quakedef.h"
 #ifndef SERVERONLY
 #include "glquake.h"
+#ifdef VKQUAKE
+#include "../vk/vkrenderer.h"
+#endif
 #include "shader.h"
 
 #include "hash.h"
@@ -46,7 +49,7 @@ cvar_t r_forceprogramify = CVARAFD("r_forceprogramify", "0", "dpcompat_makeshitu
 cvar_t dpcompat_nopremulpics = CVARFD("dpcompat_nopremulpics", "0", CVAR_SHADERSYSTEM, "By default FTE uses premultiplied alpha for hud/2d images, while DP does not (which results in halos with low-res content). Unfortunately DDS files would need to be recompressed, resulting in visible issues.");
 #endif
 cvar_t r_glsl_precache = CVARFD("r_glsl_precache", "0", CVAR_SHADERSYSTEM, "Force all relevant glsl permutations to load upfront.");
-cvar_t r_halfrate = CVARFD("r_halfrate", "0", CVAR_SHADERSYSTEM, "Use half-rate shading (where supported by gpu).");
+cvar_t r_halfrate = CVARFD("r_halfrate", "0", CVAR_ARCHIVE|CVAR_SHADERSYSTEM, "Use half-rate shading (where supported by gpu).");
 
 extern cvar_t r_glsl_offsetmapping_reliefmapping;
 extern cvar_t r_drawflat;
@@ -236,6 +239,7 @@ typedef struct shaderparsestate_s
 	const char *forcedshader;
 	unsigned int parseflags;	//SPF_*
 	qboolean droppass;
+	unsigned int oldflags;	//shader flags to revert to if the pass is dropped.
 
 	//for dpwater compat, used to generate a program
 	int dpwatertype;
@@ -1568,18 +1572,17 @@ static qboolean Shader_LoadPermutations(char *name, program_t *prog, char *scrip
 	size_t offset = 0;
 #endif
 
-#ifdef VKQUAKE
-	if (qrenderer == QR_VULKAN && (qrtype == QR_VULKAN || qrtype == QR_OPENGL))
-	{	//vulkan can potentially load glsl, f it has the extensions enabled.
-		if (qrtype == QR_VULKAN && VK_LoadBlob(prog, script, name))
-			return true;
-	}
-	else
-#endif
 	if (qrenderer != qrtype)
 	{
 		return false;
 	}
+
+#ifdef VKQUAKE
+	if (qrenderer == QR_VULKAN && qrtype == QR_VULKAN)
+	{	//vulkan 'scripts' are just blobs. could maybe base64 the spirv but eww.
+		return VK_LoadBlob(prog, script, name);
+	}
+#endif
 
 #if defined(GLQUAKE) || defined(D3DQUAKE)
 	ver = 0;
@@ -1596,6 +1599,7 @@ static qboolean Shader_LoadPermutations(char *name, program_t *prog, char *scrip
 	prog->name = Z_StrDup(name);
 	prog->geom = false;
 	prog->tess = false;
+	prog->rayquery = false;
 	prog->calcgens = false;
 	prog->numsamplers = 0;
 	prog->defaulttextures = 0;
@@ -2851,11 +2855,17 @@ static void Shader_BEMode(parsestate_t *ps, const char **ptr)
 		//shorthand for rtlights
 		for (mode = 0; mode < LSHADER_MODES; mode++)
 		{
+			if ((mode & LSHADER_RAYQUERY) && !r_shadow_raytrace.ival)
+				continue;	//no. just no.
+			if ((mode & LSHADER_SMAP) && r_shadow_raytrace.ival)
+				continue;	//don't waste time.
 			if ((mode & LSHADER_CUBE) && (mode & (LSHADER_SPOT|LSHADER_ORTHO)))
 				continue;	//cube projections don't make sense when the light isn't projecting a cube
 			if ((mode & LSHADER_ORTHO) && (mode & LSHADER_SPOT))
 				continue;	//ortho+spot are mutually exclusive.
-			Q_snprintfz(subname, sizeof(subname), "%s%s%s%s%s%s", tokencopy,
+			Q_snprintfz(subname, sizeof(subname), "%s%s%s%s%s%s%s",
+																(mode & LSHADER_RAYQUERY)?"rq_":"",
+																tokencopy,
 																(mode & LSHADER_SMAP)?"#PCF":"",
 																(mode & LSHADER_SPOT)?"#SPOT":"",
 																(mode & LSHADER_CUBE)?"#CUBE":"",
@@ -3160,6 +3170,8 @@ shaderpass_t *Shaderpass_DefineMap(parsestate_t *ps, shaderpass_t *pass)
 			memset(pass, 0, sizeof(*pass));
 		}
 	}
+	else if (pass->numMergedPasses>1)
+		pass = ps->s->passes+ps->s->numpasses-1;	//nextbundle stuff.
 	else
 		pass->numMergedPasses = 1;
 	return pass;
@@ -3177,6 +3189,14 @@ static void Shaderpass_Map (parsestate_t *ps, const char **ptr)
 	pass->anim_frames[0] = r_nulltex;
 
 	token = Shader_ParseSensString (ptr);
+
+	/*cod compat*/
+	if (!stricmp(token, "clamp"))
+		token = Shader_ParseSensString (ptr);
+	else if (!stricmp(token, "clampx"))
+		token = Shader_ParseSensString (ptr);
+	else if (!stricmp(token, "clampy"))
+		token = Shader_ParseSensString (ptr);
 
 	flags = Shader_SetImageFlags (ps, pass, &token, 0);
 	if (!Shaderpass_MapGen(ps, pass, token))
@@ -3350,6 +3370,92 @@ static void Shaderpass_RTCW_AnimMap_nos3tc (parsestate_t *ps, const char **ptr)
 		Shaderpass_AnimMap(ps, ptr);
 }
 
+static void Shader_BeginPass(parsestate_t *ps);
+static void Shader_EndPass(parsestate_t *ps);
+static void Shaderpass_CoD_NextBundle (parsestate_t *ps, const char **ptr)
+{	//in a pass... end it and start the next. cos annoying.
+	shaderpass_t *basepass = ps->pass;
+	shaderpass_t *newpass;
+	if (!basepass->numMergedPasses)
+		basepass->numMergedPasses = 1;	//its explicit...
+	if (ps->s->numpasses == SHADER_PASS_MAX || ps->s->numpasses == SHADER_TMU_MAX)
+		ps->droppass = true;
+	else
+	{
+		basepass->numMergedPasses++;
+		ps->s->numpasses++;
+	}
+	newpass = ps->s->passes+ps->s->numpasses-1;
+	memset(newpass, 0, sizeof(*newpass));
+	newpass->numMergedPasses++;
+
+	newpass->tcgen = TC_GEN_UNSPECIFIED;
+	newpass->shaderbits |= SBITS_SRCBLEND_DST_COLOR | SBITS_DSTBLEND_ZERO;
+	newpass->shaderbits |= SBITS_DEPTHFUNC_EQUAL;
+/*
+	qboolean depthwrite = !!(ps->pass->shaderbits & SBITS_MISC_DEPTHWRITE);
+	qboolean dropping = ps->droppass;
+	Shader_EndPass(ps);
+
+	Shader_BeginPass(ps);
+	ps->droppass = dropping;
+	//make it modulate.
+	ps->pass->shaderbits |= SBITS_SRCBLEND_DST_COLOR | SBITS_DSTBLEND_ZERO;
+	if (depthwrite)	//and if the last one is doing weird alphatest crap, copy its depthfunc status.
+		ps->pass->shaderbits |= SBITS_DEPTHFUNC_EQUAL;
+*/
+}
+static void Shaderpass_CoD_Requires (parsestate_t *ps, const char **ptr)
+{
+	if (!Shader_EvaluateCondition(ps->s, ptr))
+		ps->droppass = true;
+}
+static void Shaderpass_CoD_texEnvCombine (parsestate_t *ps, const char **ptr)
+{
+	int depth = 0;
+	char *token;
+	while (*(token = COM_ParseExt (&ps->ptr, true, true)))
+	{	//extra parsing to even out this unexpected brace without extra warnings.
+		if (token[0] == '}')
+			depth--;
+		else if (token[0] == '{')
+			depth++;	//crap.
+		if (!depth)
+			break;
+	}
+	ps->droppass = true;
+}
+static void Shaderpass_CoD_nvRegCombiners (parsestate_t *ps, const char **ptr)
+{
+	int depth = 0;
+	char *token;
+	while (*(token = COM_ParseExt (&ps->ptr, true, true)))
+	{	//extra parsing to even out this unexpected brace without extra warnings.
+		if (token[0] == '}')
+			depth--;
+		else if (token[0] == '{')
+			depth++;	//crap.
+		if (!depth)
+			break;
+	}
+	ps->droppass = true;
+}
+static void Shaderpass_CoD_atiFragmentShader (parsestate_t *ps, const char **ptr)
+{
+	int depth = 0;
+	char *token;
+	while (*(token = COM_ParseExt (&ps->ptr, true, true)))
+	{	//extra parsing to even out this unexpected brace without extra warnings.
+		if (token[0] == '}')
+			depth--;
+		else if (token[0] == '{')
+			depth++;	//crap.
+		if (!depth)
+			break;
+	}
+	ps->droppass = true;
+}
+
 static void Shaderpass_SLProgramName (shader_t *shader, shaderpass_t *pass, const char **ptr, int qrtype)
 {
 	/*accepts:
@@ -3433,7 +3539,8 @@ static void Shaderpass_RGBGen (parsestate_t *ps, const char **ptr)
 		pass->rgbgen = RGB_GEN_ENTITY_LIGHTING_DIFFUSE;
 	else if (!Q_stricmp (token, "exactvertex"))
 		pass->rgbgen = RGB_GEN_VERTEX_EXACT;
-	else if (!Q_stricmp (token, "const") || !Q_stricmp (token, "constant"))
+	else if (!Q_stricmp (token, "const") || !Q_stricmp (token, "constant")
+		|| !Q_stricmp (token, "constLighting"))
 	{
 		pass->rgbgen = RGB_GEN_CONST;
 		pass->rgbgen_func.type = SHADER_FUNC_CONSTANT;
@@ -3587,6 +3694,9 @@ static void Shaderpass_BlendFunc (parsestate_t *ps, const char **ptr)
 	shaderpass_t *pass = ps->pass;
 	char		*token;
 
+	if (pass->numMergedPasses>1)
+		pass = ps->s->passes+ps->s->numpasses-1;	//nextbundle stuff.
+
 	//reset to defaults
 	pass->shaderbits &= ~(SBITS_BLEND_BITS);
 	pass->stagetype = ST_AMBIENT;
@@ -3698,6 +3808,9 @@ static void Shaderpass_TcMod (parsestate_t *ps, const char **ptr)
 	int i;
 	tcmod_t *tcmod;
 	char *token;
+
+	if (pass->numMergedPasses>1)
+		pass = ps->s->passes+ps->s->numpasses-1;	//nextbundle stuff.
 
 	if (pass->numtcmods >= SHADER_MAX_TC_MODS)
 	{
@@ -3852,6 +3965,9 @@ static void Shaderpass_TcGen (parsestate_t *ps, const char **ptr)
 	shader_t *shader = ps->s;
 	shaderpass_t *pass = ps->pass;
 	char *token;
+
+	if (pass->numMergedPasses>1)
+		pass = ps->s->passes+ps->s->numpasses-1;	//nextbundle stuff.
 
 	token = Shader_ParseString ( ptr );
 	if ( !Q_stricmp (token, "base") ) {
@@ -4072,6 +4188,12 @@ static shaderkey_t shaderpasskeys[] =
 //	{"grayscale",	Shaderpass_QF_Greyscale,	"qf"},
 //	{"greyscale",	Shaderpass_QF_Greyscale,	"qf"},
 //	{"skip",		Shaderpass_QF_Skip,			"qf"},
+
+	{"nextbundle",			Shaderpass_CoD_NextBundle,			"cod"},
+	{"requires",			Shaderpass_CoD_Requires,			"cod"},
+	{"texEnvCombine",		Shaderpass_CoD_texEnvCombine,		"cod"},
+	{"nvRegCombiners",		Shaderpass_CoD_nvRegCombiners,		"cod"},
+	{"atiFragmentShader",	Shaderpass_CoD_atiFragmentShader,	"cod"},
 
 	{NULL,			NULL}
 };
@@ -4775,14 +4897,12 @@ static qboolean Shader_Conditional_Read(parsestate_t *ps, struct scondinfo_s *co
 	return true;
 }
 
-static void Shader_Readpass (parsestate_t *ps)
+static void Shader_BeginPass(parsestate_t *ps)
 {
 	shader_t *shader = ps->s;
-	const char *token;
 	shaderpass_t *pass;
 	static shader_t dummy;
-	struct scondinfo_s cond = {0};
-	unsigned int oldflags = shader->flags;
+	ps->oldflags = shader->flags;
 
 	if ( shader->numpasses >= SHADER_PASS_MAX )
 	{
@@ -4812,25 +4932,11 @@ static void Shader_Readpass (parsestate_t *ps)
 		pass->flags |= SHADER_PASS_NOMIPMAP;
 
 	ps->pass = pass;
-
-	while ( ps->ptr )
-	{
-		token = COM_ParseExt (&ps->ptr, true, true);
-
-		if ( !token[0] )
-		{
-			continue;
-		}
-		else if (!Shader_Conditional_Read(ps, &cond, token, &ps->ptr))
-		{
-			if ( token[0] == '}' )
-				break;
-			else if (token[0] == '{')
-				Con_Printf(CON_WARNING"%s: unexpected indentation in %s\n", ps->sourcename, shader->name);
-			else if ( Shader_Parsetok (ps, shaderpasskeys, token) )
-				break;
-		}
-	}
+}
+static void Shader_EndPass(parsestate_t *ps)
+{
+	shader_t *shader = ps->s;
+	shaderpass_t *pass = ps->pass;
 
 	if (pass->alphagen == ALPHA_GEN_UNDEFINED)
 		pass->alphagen = ALPHA_GEN_IDENTITY;
@@ -4838,11 +4944,6 @@ static void Shader_Readpass (parsestate_t *ps)
 	//if there was no texgen, then its too late now.
 	if (!pass->numMergedPasses)
 		pass->numMergedPasses = 1;
-
-	if (cond.depth)
-	{
-		Con_Printf("if statements without endif in shader %s\n", shader->name);
-	}
 
 	if (pass->tcgen == TC_GEN_UNSPECIFIED)
 		pass->tcgen = TC_GEN_BASE;
@@ -4926,9 +5027,56 @@ static void Shader_Readpass (parsestate_t *ps)
 			Shader_FreePass (pass+--pass->numMergedPasses);
 			shader->numpasses--;
 		}
-		shader->flags = oldflags;
+		shader->flags = ps->oldflags;
 	}
 	ps->pass = NULL;
+}
+static void Shader_Readpass (parsestate_t *ps)
+{
+	shader_t *shader = ps->s;
+	const char *token;
+	struct scondinfo_s cond = {0};
+
+	Shader_BeginPass(ps);
+
+	while ( ps->ptr )
+	{
+		token = COM_ParseExt (&ps->ptr, true, true);
+
+		if ( !token[0] )
+		{
+			continue;
+		}
+		else if (!Shader_Conditional_Read(ps, &cond, token, &ps->ptr))
+		{
+			if ( token[0] == '}' )
+				break;
+			else if (token[0] == '{')
+			{
+				int depth = 1;
+				Con_Printf(CON_WARNING"%s: unexpected indentation in %s\n", ps->sourcename, shader->name);
+				while (*(token = COM_ParseExt (&ps->ptr, true, true)))
+				{	//extra parsing to even out this unexpected brace without extra warnings.
+					if (token[0] == '}')
+					{
+						if (depth--==0)
+							break;
+					}
+					else if (token[0] == '{')
+						depth++;	//crap.
+				}
+			}
+			else if ( Shader_Parsetok (ps, shaderpasskeys, token) )
+				break;
+		}
+	}
+
+	if (cond.depth)
+	{
+		Con_Printf("if statements without endif in shader %s\n", shader->name);
+	}
+
+	Shader_EndPass(ps);
 }
 
 //we've read the first token, now make sense of it and any args
@@ -5013,7 +5161,7 @@ static void Shader_SetPassFlush (shaderpass_t *pass, shaderpass_t *pass2)
 		return;
 
 	/*rgbgen must be identity too except if the later pass is identity_ligting, in which case all is well and we can switch the first pass to identity_lighting instead*/
-	if (pass2->rgbgen == RGB_GEN_IDENTITY_LIGHTING && (pass2->blendmode == PBM_OVERBRIGHT || pass2->blendmode == PBM_MODULATE) && pass->rgbgen == RGB_GEN_IDENTITY)
+	if (pass2->rgbgen == RGB_GEN_IDENTITY_LIGHTING && (pass2->blendmode == PBM_OVERBRIGHT || pass2->blendmode == PBM_MODULATE) && (pass->rgbgen == RGB_GEN_IDENTITY||pass->rgbgen == RGB_GEN_VERTEX_EXACT))
 	{
 		if (pass->blendmode == PBM_REPLACE)
 			pass->blendmode = PBM_REPLACELIGHT;
@@ -5961,7 +6109,7 @@ void QDECL R_BuildDefaultTexnums(texnums_t *src, shader_t *shader, unsigned int 
 	unsigned int a, aframes;
 	strcpy(imagename, shader->name);
 	h = strchr(imagename, '#');
-	if (h)
+	if (h && !strchr(imagename, '@'))
 		*h = 0;
 	if (*imagename == '/' || strchr(imagename, ':'))
 	{	//this is not security. this is anti-spam for the verbose security in the filesystem code.
@@ -6409,7 +6557,7 @@ shader_t *Mod_RegisterBasicShader(struct model_s *mod, const char *texname, unsi
 	char mapbase[64];
 	if (shadertext)
 		s = R_RegisterShader(texname, usageflags, shadertext);
-	else if (mod->type == mod_brush)
+	else if (mod->type != mod_brush)
 		s = R_RegisterCustom(mod, texname, usageflags, Shader_DefaultSkin, NULL);
 	else
 		s = R_RegisterCustom(mod, texname, usageflags, Shader_DefaultBSPLM, NULL);
@@ -7410,7 +7558,8 @@ static qboolean Shader_ParseShader(parsestate_t *ps, const char *parsename)
 	const char *buf = NULL;
 	shadercachefile_t *sourcefile = NULL;
 	const char *file;
-	const char *token;
+	const char *token=".";
+	size_t i;
 
 	if (!strchr(parsename, ':'))
 	{
@@ -7419,7 +7568,6 @@ static qboolean Shader_ParseShader(parsestate_t *ps, const char *parsename)
 		if (!strcmp(token, ".mat") || !*token)
 		{
 			char shaderfile[MAX_QPATH];
-			size_t i;
 			if (!*token)
 			{
 				for (i = 0; i < materialloader_count; i++)
@@ -7471,6 +7619,15 @@ static qboolean Shader_ParseShader(parsestate_t *ps, const char *parsename)
 		}
 	}
 
+	if (*token)
+	{
+		for (i = 0; i < materialloader_count; i++)
+		{
+			if (materialloader[i].funcs->ReadMaterial(ps, parsename, Shader_LoadMaterialString))
+				return true;
+		}
+	}
+
 	return false;
 }
 void R_UnloadShader(shader_t *shader)
@@ -7513,6 +7670,11 @@ static shader_t *R_LoadShader (model_t *mod, const char *name, unsigned int usag
 				break;
 			s->uses++;
 			return s;
+		}
+		if (s->generator == Shader_DefaultScript)
+		{	//if someone shaderfornamed and then needed a different usageflag later, just borrow from the existing one.
+			defaultgen = s->generator;
+			genargs = s->genargs;
 		}
 		s = Hash_GetNext(&shader_active_hash, cleanname, s);
 	}
@@ -8075,6 +8237,23 @@ void Shader_ShowShader_f(void)
 		Con_Printf("Shader \"%s\" is not loaded\n", sourcename);
 }
 
+void Shader_ShaderList_f(void)
+{
+	unsigned int i;
+	// not loaded, find a free slot
+	for (i = 0; i < r_numshaders; i++)
+	{
+		if (!r_shaders[i])
+			continue;	//gap?
+		Con_Printf("^[\\img\\%s\\imgtype\\%i\\s\\64^] ^2%s^7 [%i]", r_shaders[i]->name, r_shaders[i]->usageflags, r_shaders[i]->name, r_shaders[i]->usageflags);
+		if (r_shaders[i]->width || r_shaders[i]->height)
+			Con_Printf(" Size:%ix%i", r_shaders[i]->width, r_shaders[i]->height);
+		if (r_shaders[i]->model)
+			Con_Printf(" ^[%s\\modelviewer\\%s^]", r_shaders[i]->model->name, r_shaders[i]->model->name);
+		Con_Printf("\n");
+	}
+}
+
 void Shader_TouchTexnums(texnums_t *t)
 {
 	if (t->base)
@@ -8310,6 +8489,23 @@ void R_RemapShader(const char *sourcename, const char *destname, float timeoffse
 					Q_strncpyz(cleandstname, destname, sizeof(cleandstname));
 					COM_CleanUpPath(cleandstname);
 					n = Hash_Get(&shader_active_hash, cleandstname);
+
+					// if one of our shaders is made for lightmaps, check through the rest until we find one more suitable
+					if ((n->usageflags ^ o->usageflags) & SUF_LIGHTMAP)
+					{
+						shader_t *n_f = n;
+						while (n)
+						{
+							if (!((n->usageflags ^ o->usageflags) & SUF_LIGHTMAP))
+								break;
+
+							n = Hash_GetNext(&shader_active_hash, cleandstname, n);
+						}
+
+						if (!n)
+							n = n_f;
+					}
+
 					if (!n || !n->uses)
 						n = o;
 				}

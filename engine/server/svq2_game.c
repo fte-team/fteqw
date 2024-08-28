@@ -14,6 +14,7 @@ int svq2_maxclients;
 dllhandle_t *q2gamedll;
 void SVQ2_UnloadGame (void)
 {
+	ge = NULL;
 	if (q2gamedll)
 		Sys_CloseLibrary(q2gamedll);
 	q2gamedll = NULL;
@@ -138,6 +139,7 @@ Sends the contents of the mutlicast buffer to a single client
 static void VARGS PFQ2_Unicast (q2edict_t *ent, qboolean reliable)
 {
 	int		p;
+	int ctype;
 	client_t	*client;
 
 	if (!ent)
@@ -151,6 +153,7 @@ static void VARGS PFQ2_Unicast (q2edict_t *ent, qboolean reliable)
 
 	if (client->state < cs_connected)
 		return;
+	ctype = client->netchan.message.prim.coordtype==COORDTYPE_FLOAT_32;
 
 	if (client->controller)
 	{
@@ -162,20 +165,30 @@ static void VARGS PFQ2_Unicast (q2edict_t *ent, qboolean reliable)
 		}
 		client = client->controller;
 
-		//svcq2_playerinfo is not normally valid except within the svc_frame message.
-		//this means its 'free' to repurpose for things like splitscreen. woot.
-		MSG_WriteShort(&sv.q2multicast, 0);
-		memmove(sv.q2multicast.data+2, sv.q2multicast.data, sv.q2multicast.cursize-2);
-		sv.q2multicast.data[0] = svcq2_playerinfo;
-		sv.q2multicast.data[1] = p;
+		MSG_WriteShort(&sv.q2multicast[ctype], 0);
+		memmove(sv.q2multicast[ctype].data+2, sv.q2multicast[ctype].data, sv.q2multicast[ctype].cursize-2);
+		if (client->protocol == SCP_QUAKE2EX)
+		{
+			//has a dedicated svc. seats are 1-based.
+			sv.q2multicast[ctype].data[0] = svcq2ex_splitclient;
+			sv.q2multicast[ctype].data[1] = p+1;
+		}
+		else
+		{
+			//svcq2_playerinfo is not normally valid except within the svc_frame message.
+			//this means its 'free' to repurpose for things like splitscreen. woot.
+			sv.q2multicast[ctype].data[0] = svcq2_playerinfo;
+			sv.q2multicast[ctype].data[1] = p;
+		}
 	}
 
 	if (reliable)
-		SZ_Write (&client->netchan.message, sv.q2multicast.data, sv.q2multicast.cursize);
+		SZ_Write (&client->netchan.message, sv.q2multicast[ctype].data, sv.q2multicast[ctype].cursize);
 	else
-		SZ_Write (&client->datagram, sv.q2multicast.data, sv.q2multicast.cursize);
+		SZ_Write (&client->datagram, sv.q2multicast[ctype].data, sv.q2multicast[ctype].cursize);
 
-	SZ_Clear (&sv.q2multicast);
+	SZ_Clear (&sv.q2multicast[0]);
+	SZ_Clear (&sv.q2multicast[1]);
 }
 
 
@@ -263,8 +276,10 @@ static void VARGS PFQ2_centerprintf (q2edict_t *ent, const char *fmt, ...)
 	vsprintf (msg, fmt, argptr);
 	va_end (argptr);
 
-	MSG_WriteByte (&sv.q2multicast,svcq2_centerprint);
-	MSG_WriteString (&sv.q2multicast,msg);
+	MSG_WriteByte (&sv.q2multicast[0],svcq2_centerprint);
+	MSG_WriteString (&sv.q2multicast[0],msg);
+	MSG_WriteByte (&sv.q2multicast[1],svcq2_centerprint);
+	MSG_WriteString (&sv.q2multicast[1],msg);
 	PFQ2_Unicast (ent, true);
 }
 
@@ -288,6 +303,8 @@ static void VARGS PFQ2_error (const char *fmt, ...)
 	SV_Error("Game Error: %s", msg);
 }
 
+
+
 /*
 ===============
 PF_Configstring
@@ -296,11 +313,40 @@ PF_Configstring
 */
 void VARGS PFQ2_Configstring (int i, const char *val)
 {
+	int msgsize;
+	int j;
+	int q2exremap;
+	client_t *cl;
 	if (i < 0 || i >= Q2MAX_CONFIGSTRINGS)
-		Sys_Error ("configstring: bad index %i\n", i);
+		Host_EndGame ("configstring: bad index %i\n", i);
 
 	if (!val)
 		val = "";
+	msgsize = 3+ strlen(val)+1;
+
+	{	//remap from vanilla to q2e
+#define PASTE(a,b) (a##b)
+#define REMAPR(n,l) 		if (i >= Q2CS_##n && i < Q2CS_##n+Q2MAX_##l) q2exremap = i-Q2CS_##n+Q2EXCS_##n; else
+#define REMAPS(n)			if (i == PASTE(Q2CS_,n)) q2exremap = i-PASTE(Q2CS_,n)+PASTE(Q2EXCS_,n); else
+#define Q2MAX_STATUSBAR (Q2CS_AIRACCEL-Q2CS_STATUSBAR)
+		REMAPS(NAME)
+		REMAPS(CDTRACK)
+		REMAPS(SKY)
+		REMAPS(SKYAXIS)
+		REMAPS(SKYROTATE)
+		REMAPR(STATUSBAR, STATUSBAR)
+		REMAPS(AIRACCEL)
+		REMAPS(MAXCLIENTS)
+		REMAPS(MAPCHECKSUM)
+		REMAPR(MODELS, MODELS)
+		REMAPR(SOUNDS, SOUNDS)
+		REMAPR(IMAGES, IMAGES)
+		REMAPR(LIGHTS, LIGHTSTYLES)
+		REMAPR(ITEMS, ITEMS)
+		REMAPR(PLAYERSKINS, CLIENTS)
+		REMAPR(GENERAL, GENERAL)
+		Host_EndGame ("configstring %i > Q2MAX_CONFIGSTRINGS", i);
+	}
 
 	Z_Free((char*)sv.strings.configstring[i]);
 	sv.strings.configstring[i] = Z_StrDup(val);
@@ -310,12 +356,25 @@ void VARGS PFQ2_Configstring (int i, const char *val)
 
 	if (sv.state != ss_loading)
 	{	// send the update to everyone
-		SZ_Clear (&sv.q2multicast);
-		MSG_WriteChar (&sv.q2multicast, svcq2_configstring);
-		MSG_WriteShort (&sv.q2multicast, i);
-		MSG_WriteString (&sv.q2multicast, val);
-
-		SV_Multicast (vec3_origin, MULTICAST_ALL_R);
+		for (j = 0, cl = svs.clients; j < sv.allocated_client_slots; j++, cl++)
+		{
+			if (cl->state != cs_spawned)
+				continue;
+			if (cl->controller)
+				continue;
+			if (cl->protocol == SCP_QUAKE2)
+			{
+				ClientReliableWrite_Begin(cl, svcq2_configstring, msgsize);
+				ClientReliableWrite_Short(cl, i);
+				ClientReliableWrite_String(cl, val);
+			}
+			else if (cl->protocol == SCP_QUAKE2EX)
+			{
+				ClientReliableWrite_Begin(cl, svcq2_configstring, msgsize);
+				ClientReliableWrite_Short(cl, q2exremap);
+				ClientReliableWrite_String(cl, val);
+			}
+		}
 	}
 }
 
@@ -341,6 +400,7 @@ static int SVQ2_FindIndex (const char *name, int start, int max, int overflowtyp
 		if (overflowtype)
 		{
 			const char **overflowstrings;
+			int startq2e;
 			switch(overflowtype)
 			{
 			case 1:
@@ -348,15 +408,18 @@ static int SVQ2_FindIndex (const char *name, int start, int max, int overflowtyp
 				max = countof(sv.strings.q2_extramodels);
 				i++;	//do not allow 255 to be allocated, ever. just live with the gap (255 means special things).
 				start = 0x8000;
+				startq2e = Q2EXCS_MODELS;
 				break;
 			case 2:
 				overflowstrings = sv.strings.q2_extrasounds;
 				max = countof(sv.strings.q2_extrasounds);
 				start = 0x8000|0x4000;
+				startq2e = Q2EXCS_SOUNDS;
 				break;
 			default:
 				overflowstrings = NULL;	//ssh
 				max = i;
+				startq2e=0;//just to kill warnings
 				break;
 			}
 
@@ -368,10 +431,14 @@ static int SVQ2_FindIndex (const char *name, int start, int max, int overflowtyp
 					overflowstrings[i] = Z_StrDup(name);
 					if (sv.state != ss_loading)
 					{
-						SZ_Clear (&sv.q2multicast);
-						MSG_WriteChar (&sv.q2multicast, svcq2_configstring);
-						MSG_WriteShort (&sv.q2multicast, start+i);
-						MSG_WriteString (&sv.q2multicast, name);
+						SZ_Clear (&sv.q2multicast[0]);
+						MSG_WriteChar (&sv.q2multicast[0], svcq2_configstring);
+						MSG_WriteShort (&sv.q2multicast[0], start+i);
+						MSG_WriteString (&sv.q2multicast[0], name);
+						SZ_Clear (&sv.q2multicast[1]);
+						MSG_WriteChar (&sv.q2multicast[1], svcq2_configstring);
+						MSG_WriteShort (&sv.q2multicast[1], startq2e+i);
+						MSG_WriteString (&sv.q2multicast[1], name);
 						SV_Multicast (vec3_origin, MULTICAST_ALL_R);
 					}
 					return i;
@@ -380,7 +447,7 @@ static int SVQ2_FindIndex (const char *name, int start, int max, int overflowtyp
 					return i;
 			}
 		}
-		Sys_Error ("*Index: overflow");
+		Host_EndGame ("*Index: overflow");
 	}
 
 	PFQ2_Configstring(start + i, name);
@@ -453,18 +520,21 @@ static qboolean	CMQ2_Q1BSP_SetAreaPortalState (int portalnum, qboolean open)
 	return true;
 }*/
 
-static void VARGS PFQ2_WriteChar (int c) {MSG_WriteChar (&sv.q2multicast, c & 0xff);}
-static void VARGS PFQ2_WriteByte (int c) {MSG_WriteByte (&sv.q2multicast, c & 0xff);}
-static void VARGS PFQ2_WriteShort (int c) {MSG_WriteShort (&sv.q2multicast, c & 0xffff);}
-static void VARGS PFQ2_WriteLong (int c) {MSG_WriteLong (&sv.q2multicast, c);}
-static void VARGS PFQ2_WriteFloat (float f) {MSG_WriteFloat (&sv.q2multicast, f);}
-static void VARGS PFQ2_WriteString (const char *s) {MSG_WriteString (&sv.q2multicast, s);}
-static void VARGS PFQ2_WriteAngle (float f) {MSG_WriteAngle (&sv.q2multicast, f);}
-static void VARGS PFQ2_WritePos (vec3_t pos) {	MSG_WriteCoord (&sv.q2multicast, pos[0]);
-									MSG_WriteCoord (&sv.q2multicast, pos[1]);
-									MSG_WriteCoord (&sv.q2multicast, pos[2]);
-								}
-static void VARGS PFQ2_WriteDir (vec3_t dir)	{MSG_WriteDir (&sv.q2multicast, dir);}
+static void VARGS PFQ2_WriteChar (int c)	{c&=0xff;MSG_WriteChar (&sv.q2multicast[0], c);MSG_WriteChar (&sv.q2multicast[1], c);}
+static void VARGS PFQ2_WriteByte (int c)	{c&=0xff;MSG_WriteByte (&sv.q2multicast[0], c);MSG_WriteByte (&sv.q2multicast[1], c);}
+static void VARGS PFQ2_WriteShort (int c)	{c&=0xffff;MSG_WriteShort (&sv.q2multicast[0], c);MSG_WriteShort (&sv.q2multicast[1], c);}
+static void VARGS PFQ2_WriteLong (int c)	{MSG_WriteLong (&sv.q2multicast[0], c);MSG_WriteLong (&sv.q2multicast[1], c);}
+static void VARGS PFQ2_WriteFloat (float f) {MSG_WriteFloat (&sv.q2multicast[0], f);MSG_WriteFloat (&sv.q2multicast[1], f);}
+static void VARGS PFQ2_WriteString (const char *s) {MSG_WriteString (&sv.q2multicast[0], s);MSG_WriteString (&sv.q2multicast[1], s);}
+static void VARGS PFQ2_WriteAngle (float f)		{MSG_WriteAngle (&sv.q2multicast[0], f);MSG_WriteAngle (&sv.q2multicast[1], f);}
+static void VARGS PFQ2_WritePos (vec3_t pos) {	MSG_WriteCoord (&sv.q2multicast[0], pos[0]);
+												MSG_WriteCoord (&sv.q2multicast[0], pos[1]);
+												MSG_WriteCoord (&sv.q2multicast[0], pos[2]);
+												MSG_WriteCoord (&sv.q2multicast[1], pos[0]);
+												MSG_WriteCoord (&sv.q2multicast[1], pos[1]);
+												MSG_WriteCoord (&sv.q2multicast[1], pos[2]);
+											}
+static void VARGS PFQ2_WriteDir (vec3_t dir)	{MSG_WriteDir (&sv.q2multicast[0], dir);MSG_WriteDir (&sv.q2multicast[1], dir);}
 
 /*
 =================
@@ -546,6 +616,7 @@ static void VARGS SVQ2_StartSound (vec3_t origin, q2edict_t *entity, int channel
 	vec3_t		origin_v;
 	qboolean	use_phs;
 	unsigned int needext = 0;
+	qboolean q2e;
 
 	if (volume < 0 || volume > 1.0)
 		Sys_Error ("SV_StartSound: volume = %f", volume);
@@ -575,7 +646,7 @@ static void VARGS SVQ2_StartSound (vec3_t origin, q2edict_t *entity, int channel
 		flags |= Q2SND_ATTENUATION;
 	if (soundindex > 0xff)
 	{
-		flags |= Q2SND_LARGEIDX;
+		flags |= Q2SNDFTE_LARGEIDX;
 		needext |= PEXT_SOUNDDBL;
 	}
 
@@ -605,49 +676,50 @@ static void VARGS SVQ2_StartSound (vec3_t origin, q2edict_t *entity, int channel
 		{
 			VectorCopy (entity->s.origin, origin_v);
 		}
+	}
+
+	for(q2e=0; ; q2e++)
+	{
+		MSG_WriteByte (&sv.q2multicast[q2e], svcq2_sound);
+		MSG_WriteByte (&sv.q2multicast[q2e], flags);
+		if (q2e || (flags & Q2SNDFTE_LARGEIDX))
+			MSG_WriteShort (&sv.q2multicast[q2e], soundindex);
+		else
+			MSG_WriteByte (&sv.q2multicast[q2e], soundindex);
+
+		if (flags & Q2SND_VOLUME)
+			MSG_WriteByte (&sv.q2multicast[q2e], volume*255);
+		if (flags & Q2SND_ATTENUATION)
+			MSG_WriteByte (&sv.q2multicast[q2e], attenuation*64);
+		if (flags & Q2SND_OFFSET)
+			MSG_WriteByte (&sv.q2multicast[q2e], timeofs*1000);
+
+		if (flags & Q2SND_ENT)
+		{
+			if (q2e && (flags & Q2SNDEX_LARGEENT))
+				MSG_WriteLong (&sv.q2multicast[q2e], sendchan);
+			else
+				MSG_WriteShort (&sv.q2multicast[q2e], sendchan);
+		}
 
 		if (flags & Q2SND_POS)
 		{
-			for (i=0 ; i<3 ; i++)
-				if (-32768/8.0 > origin_v[i] || origin_v[i] > 32767/8.0)
-				{
-					flags |= Q2SND_LARGEPOS;
-					needext |= PEXT_FLOATCOORDS;
-					break;
-				}
+			MSG_WriteCoord (&sv.q2multicast[q2e], origin[0]);
+			MSG_WriteCoord (&sv.q2multicast[q2e], origin[1]);
+			MSG_WriteCoord (&sv.q2multicast[q2e], origin[2]);
 		}
-	}
 
-	MSG_WriteByte (&sv.q2multicast, svcq2_sound);
-	MSG_WriteByte (&sv.q2multicast, flags);
-	if (flags & Q2SND_LARGEIDX)
-		MSG_WriteShort (&sv.q2multicast, soundindex);
-	else
-		MSG_WriteByte (&sv.q2multicast, soundindex);
-
-	if (flags & Q2SND_VOLUME)
-		MSG_WriteByte (&sv.q2multicast, volume*255);
-	if (flags & Q2SND_ATTENUATION)
-		MSG_WriteByte (&sv.q2multicast, attenuation*64);
-	if (flags & Q2SND_OFFSET)
-		MSG_WriteByte (&sv.q2multicast, timeofs*1000);
-
-	if (flags & Q2SND_ENT)
-		MSG_WriteShort (&sv.q2multicast, sendchan);
-
-	if (flags & Q2SND_POS)
-	{
-		if (flags & Q2SND_LARGEPOS)
-		{
-			MSG_WriteFloat (&sv.q2multicast, origin[0]);
-			MSG_WriteFloat (&sv.q2multicast, origin[1]);
-			MSG_WriteFloat (&sv.q2multicast, origin[2]);
-		}
+		if (q2e)
+			break;
 		else
 		{
-			MSG_WriteCoord (&sv.q2multicast, origin[0]);
-			MSG_WriteCoord (&sv.q2multicast, origin[1]);
-			MSG_WriteCoord (&sv.q2multicast, origin[2]);
+			flags &= ~(Q2SNDFTE_LARGEIDX|Q2SNDEX_LARGEENT);
+			if (origin)
+				flags |= Q2SNDEX_EXPLICITPOS;
+			flags |= Q2SND_POS;		//always sends a pos to avoid issues when the ent is not in the client's phs
+
+			if (sendchan > 0xffff)
+				flags |= Q2SNDEX_LARGEENT;
 		}
 	}
 
@@ -895,7 +967,8 @@ qboolean SVQ2_InitGameProgs(void)
 		return false;
 	if (ge->apiversion != Q2GAME_API_VERSION)
 	{
-		Con_Printf("game is version %i, not %i", ge->apiversion, Q2GAME_API_VERSION);
+		Con_Printf(CON_ERROR "game is version %i, not %i\n", ge->apiversion, Q2GAME_API_VERSION);
+		ge = NULL;
 		SVQ2_UnloadGame ();
 		return false;
 	}

@@ -70,6 +70,8 @@ struct
 
 extern qbyte *host_basepal;
 
+static float throttle;
+
 extern int PClassic_PointFile(int c, vec3_t point);
 extern particleengine_t pe_classic;
 particleengine_t *fallback = NULL; //does this really need to be 'extern'?
@@ -314,7 +316,8 @@ typedef struct part_type_s {
 		SM_UNICIRCLE, //unicircle = uniform circle
 		SM_FIELD, //field = synced field (brightfield, etc)
 		SM_DISTBALL, // uneven distributed ball
-		SM_MESHSURFACE //distributed roughly evenly over the surface of the mesh
+		SM_MESHSURFACE, //distributed roughly evenly over the surface of the mesh
+		SM_FIXMEWARNING,	//for people to use to mark placeholder effects.
 	} spawnmode;
 
 	float gravity;
@@ -1924,6 +1927,8 @@ parsefluid:
 				ptype->looks.blendmode = BM_BLEND;	//fallback
 			}
 		}
+		else if (!strcmp(var, "placeholder"))
+			ptype->spawnmode = SM_FIXMEWARNING;
 		else if (!strcmp(var, "spawnmode"))
 		{
 			if (!strcmp(value, "circle"))
@@ -2525,6 +2530,9 @@ qboolean PScript_Query(int typenum, int body, char *outstr, int outstrlen)
 		case SM_MESHSURFACE:
 			Q_strncatz(outstr, va("spawnmode meshsurface\n"), outstrlen);
 			break;
+		case SM_FIXMEWARNING:
+			Q_strncatz(outstr, va("placeholder\n"), outstrlen);
+			break;
 		}
 		if (ptype->spawnvel || ptype->spawnvelvert || all)
 			Q_strncatz(outstr, va("spawnvel %g %g\n", ptype->spawnvel, ptype->spawnvelvert), outstrlen);
@@ -2643,7 +2651,7 @@ static void P_ExportAllEffects_f(void)
 	outf = FS_OpenVFS(fname, "wb", FS_GAMEONLY);
 	if (!outf)
 	{
-		FS_NativePath(fname, FS_GAMEONLY, effect, sizeof(effect));
+		FS_DisplayPath(fname, FS_GAMEONLY, effect, sizeof(effect));
 		Con_TPrintf("Unable to open file %s\n", effect);
 		return;
 	}
@@ -2671,7 +2679,7 @@ static void P_ExportAllEffects_f(void)
 	}
 	VFS_CLOSE(outf);
 
-	FS_NativePath(fname, FS_GAMEONLY, effect, sizeof(effect));
+	FS_DisplayPath(fname, FS_GAMEONLY, effect, sizeof(effect));
 	Con_Printf("Written %s\n", effect);
 }
 #endif
@@ -3390,7 +3398,7 @@ static void P_ConvertEffectInfo_f(void)
 	outf = FS_OpenVFS(fname, "wb", FS_GAMEONLY);
 	if (!outf)
 	{
-		FS_NativePath(fname, FS_GAMEONLY, effect, sizeof(effect));
+		FS_DisplayPath(fname, FS_GAMEONLY, effect, sizeof(effect));
 		Con_TPrintf("Unable to open file %s\n", effect);
 		return;
 	}
@@ -3427,7 +3435,7 @@ static void P_ConvertEffectInfo_f(void)
 	}
 	VFS_CLOSE(outf);
 
-	FS_NativePath(fname, FS_GAMEONLY, effect, sizeof(effect));
+	FS_DisplayPath(fname, FS_GAMEONLY, effect, sizeof(effect));
 	Con_Printf("Written %s\n", effect);
 }
 #endif
@@ -3526,10 +3534,10 @@ static void PScript_Shutdown (void)
 	Cmd_RemoveCommand("r_exportbuiltinparticles");
 	Cmd_RemoveCommand("r_importeffectinfo");
 
-#if _DEBUG
+//#if _DEBUG
 	Cmd_RemoveCommand("r_partinfo");
 	Cmd_RemoveCommand("r_beaminfo");
-#endif
+//#endif
 
 	pe_default			= P_INVALID;
 	pe_size2			= P_INVALID;
@@ -3801,7 +3809,7 @@ static void QDECL R_ParticleDesc_Callback(struct cvar_s *var, char *oldvalue)
 			if (failure)
 			P_LoadParticleSet("high", true, true);
 
-		if (cls.state)
+		if (cls.state && cl.model_name[1])
 		{
 			//per-map configs. because we can.
 			memcpy(token, "map_", 4);
@@ -4484,27 +4492,6 @@ static void PScript_ApplyOrgVel(vec3_t oorg, vec3_t ovel, vec3_t eforg, vec3_t a
 static void PScript_EffectSpawned(part_type_t *ptype, vec3_t org, vec3_t axis[3], int dlkey, float countscale)
 {
 	extern cvar_t r_lightflicker;
-	if (ptype->nummodels)
-	{
-		int count = ptype->countextra + countscale*(ptype->count+ptype->countrand*frandom());
-		int i;
-		partmodels_t *mod;
-		if (!ptype->countextra && !ptype->count)
-			count = countscale;
-		for (i = 0; i < count; i++)
-		{
-			mod = &ptype->models[rand() % ptype->nummodels];
-			if (!mod->model)
-				mod->model = Mod_ForName(mod->name, MLV_WARN);
-			if (mod->model)
-			{
-				vec3_t morg, mdir;
-				float scale = frandom() * (mod->scalemax-mod->scalemin) + mod->scalemin;
-				PScript_ApplyOrgVel(morg, mdir, org, axis, i, count, ptype);
-				CL_SpawnSpriteEffect(morg, mdir, (mod->rflags&RF_USEORIENTATION)?axis[2]:NULL, mod->model, mod->framestart, mod->framecount, mod->framerate?mod->framerate:10, mod->alpha?mod->alpha:1, scale, ptype->rotationmin*180/M_PI, ptype->gravity, mod->traileffect, mod->rflags & ~RF_USEORIENTATION, mod->skin);
-			}
-		}
-	}
 	if (ptype->dl_radius[0] || ptype->dl_radius[1])// && r_rocketlight.value)
 	{
 		float radius;
@@ -4857,6 +4844,7 @@ static int PScript_RunParticleEffectState (vec3_t org, vec3_t dir, float count, 
 			ptype = &part_type[ptype->assoc];
 			continue;
 		}
+
 		// init spawn specific variables
 		b = bfirst = NULL;
 		spawnspc = 8;
@@ -4916,6 +4904,9 @@ static int PScript_RunParticleEffectState (vec3_t org, vec3_t dir, float count, 
 //			area = 0;
 //			tri = -1;
 //			break;
+		case SM_FIXMEWARNING:
+			Con_ThrottlePrintf(&throttle, 0, CON_WARNING"Particle effect %s.%s is marked as a placeholder\n", ptype->config, ptype->name);
+			return 1;
 		default:	//others don't need intitialisation
 			break;
 		}
@@ -4936,307 +4927,328 @@ static int PScript_RunParticleEffectState (vec3_t org, vec3_t dir, float count, 
 			break;
 		}
 
-		/*this is a hack, use countextra=1, count=0*/
-		if (!ptype->die && ptype->count == 1 && ptype->countrand == 0 && pcount < 1)
-			pcount = 1;
-
-		// particle spawning loop
-		for (i = 0; i < pcount; i++)
-		{
-			if (!free_particles)
-				break;
-			p = free_particles;
-			if (ptype->looks.type == PT_BEAM||ptype->looks.type == PT_VBEAM)
+		if (ptype->nummodels)
+		{	//model spawning loop
+			partmodels_t *mod;
+			if (ptype->count == 0 && ptype->countrand == 0 && ptype->countextra == 0)
+				pcount = count;	//if they just gave some models with no counts at all, assume they meant count=1.
+			for (i = 0; i < pcount; i++)
 			{
-				if (!free_beams)
-					break;
-				if (b)
+				mod = &ptype->models[rand() % ptype->nummodels];
+				if (!mod->model)
+					mod->model = Mod_ForName(mod->name, MLV_WARN);
+				if (mod->model)
 				{
-					b = b->next = free_beams;
-					free_beams = free_beams->next;
+					vec3_t morg, mdir;
+					float scale = frandom() * (mod->scalemax-mod->scalemin) + mod->scalemin;
+					PScript_ApplyOrgVel(morg, mdir, org, axis, i, count, ptype);
+					CL_SpawnSpriteEffect(morg, mdir, (mod->rflags&RF_USEORIENTATION)?axis[2]:NULL, mod->model, mod->framestart, mod->framecount, mod->framerate?mod->framerate:10, mod->alpha?mod->alpha:1, scale, ptype->rotationmin*180/M_PI, ptype->gravity, mod->traileffect, mod->rflags & ~RF_USEORIENTATION, mod->skin);
+				}
+			}
+		}
+		else
+		{
+			/*this is a hack, use countextra=1, count=0*/
+			if (!ptype->die && ptype->count == 1 && ptype->countrand == 0 && pcount < 1)
+				pcount = 1;
+			for (i = 0; i < pcount; i++)
+			{	// particle spawning loop
+
+				if (!free_particles)
+					break;
+				p = free_particles;
+				if (ptype->looks.type == PT_BEAM||ptype->looks.type == PT_VBEAM)
+				{
+					if (!free_beams)
+						break;
+					if (b)
+					{
+						b = b->next = free_beams;
+						free_beams = free_beams->next;
+					}
+					else
+					{
+						b = bfirst = free_beams;
+						free_beams = free_beams->next;
+					}
+					b->texture_s = i; // TODO: FIX THIS NUMBER
+					b->flags = 0;
+					b->p = p;
+					VectorClear(b->dir);
+				}
+				free_particles = p->next;
+				p->next = ptype->particles;
+				ptype->particles = p;
+
+				p->die = ptype->randdie*frandom();
+				p->scale = ptype->scale+ptype->scalerand*frandom();
+				if (ptype->die)
+					p->rgba[3] = ptype->alpha+p->die*ptype->alphachange;
+				else
+					p->rgba[3] = ptype->alpha;
+				p->rgba[3] += ptype->alpharand*frandom();
+				// p->color = 0;
+				if (ptype->emittime < 0)
+					p->state.trailstate = trailkey_null;
+				else
+					p->state.nextemit = particletime + ptype->emitstart - p->die;
+
+				p->rotationspeed = ptype->rotationmin + frandom()*ptype->rotationrand;
+				p->angle = ptype->rotationstartmin + frandom()*ptype->rotationstartrand;
+				p->s1 = ptype->s1;
+				p->t1 = ptype->t1;
+				p->s2 = ptype->s2;
+				p->t2 = ptype->t2;
+				if (ptype->randsmax!=1)
+				{
+					m = ptype->texsstride * (rand()%ptype->randsmax);
+					p->s1 += m;
+					p->s2 += m;
+				}
+
+				if (ptype->colorindex >= 0)
+				{
+					int cidx;
+					cidx = ptype->colorrand > 0 ? rand() % ptype->colorrand : 0;
+					cidx = ptype->colorindex + cidx;
+					if (cidx > 255)
+						p->rgba[3] = p->rgba[3] / 2; // Hexen 2 style transparency
+					cidx = (cidx & 0xff) * 3;
+					p->rgba[0] = host_basepal[cidx] * (1/255.0);
+					p->rgba[1] = host_basepal[cidx+1] * (1/255.0);
+					p->rgba[2] = host_basepal[cidx+2] * (1/255.0);
+				}
+				else
+					VectorCopy(ptype->rgb, p->rgba);
+
+				// use org temporarily for rgbsync
+				p->org[2] = frandom();
+				p->org[0] = p->org[2]*ptype->rgbrandsync[0] + frandom()*(1-ptype->rgbrandsync[0]);
+				p->org[1] = p->org[2]*ptype->rgbrandsync[1] + frandom()*(1-ptype->rgbrandsync[1]);
+				p->org[2] = p->org[2]*ptype->rgbrandsync[2] + frandom()*(1-ptype->rgbrandsync[2]);
+
+				p->rgba[0] += p->org[0]*ptype->rgbrand[0] + ptype->rgbchange[0]*p->die;
+				p->rgba[1] += p->org[1]*ptype->rgbrand[1] + ptype->rgbchange[1]*p->die;
+				p->rgba[2] += p->org[2]*ptype->rgbrand[2] + ptype->rgbchange[2]*p->die;
+
+#if 0
+				PScript_ApplyOrgVel(p->org, p->vel, org, axis, i, pcount, ptype);
+#else
+				p->vel[0] = 0;
+				p->vel[1] = 0;
+				p->vel[2] = 0;
+
+				// handle spawn modes (org/vel)
+				switch (ptype->spawnmode)
+				{
+/*				case SM_MESHSURFACE:
+					if (area <= 0)
+					{
+						tri++;
+						area += calcarea(tri);
+						arsvec[] = calcnormal(tri);
+					}
+
+					ofsvec[] = randompointintriangle(tri);
+
+					area -= density;
+					break;
+*/
+				case SM_BOX:
+					ofsvec[0] = crandom();
+					ofsvec[1] = crandom();
+					ofsvec[2] = crandom();
+
+					arsvec[0] = ofsvec[0]*ptype->areaspread;
+					arsvec[1] = ofsvec[1]*ptype->areaspread;
+					arsvec[2] = ofsvec[2]*ptype->areaspreadvert;
+					break;
+				case SM_TELEBOX:
+					ofsvec[0] = k;
+					ofsvec[1] = j;
+					ofsvec[2] = l+4;
+					VectorNormalize(ofsvec);
+					VectorScale(ofsvec, 1.0-(frandom())*m, ofsvec);
+
+					// org is just like the original
+					arsvec[0] = j + (rand()%spawnspc);
+					arsvec[1] = k + (rand()%spawnspc);
+					arsvec[2] = l + (rand()%spawnspc);
+
+					// advance telebox loop
+					j += spawnspc;
+					if (j >= ptype->areaspread)
+					{
+						j = -ptype->areaspread;
+						k += spawnspc;
+						if (k >= ptype->areaspread)
+						{
+							k = -ptype->areaspread;
+							l += spawnspc;
+							if (l >= ptype->areaspreadvert)
+								l = -ptype->areaspreadvert;
+						}
+					}
+					break;
+				case SM_LAVASPLASH:
+					// calc directions, org with temp vector
+					ofsvec[0] = k + (rand()%spawnspc);
+					ofsvec[1] = j + (rand()%spawnspc);
+					ofsvec[2] = 256;
+
+					arsvec[0] = ofsvec[0];
+					arsvec[1] = ofsvec[1];
+					arsvec[2] = frandom()*ptype->areaspreadvert;
+
+					VectorNormalize(ofsvec);
+					VectorScale(ofsvec, 1.0-(frandom())*m, ofsvec);
+
+					// advance splash loop
+					j += spawnspc;
+					if (j >= ptype->areaspread)
+					{
+						j = -ptype->areaspread;
+						k += spawnspc;
+						if (k >= ptype->areaspread)
+							k = -ptype->areaspread;
+					}
+					break;
+				case SM_UNICIRCLE:
+					ofsvec[0] = cos(m*i);
+					ofsvec[1] = sin(m*i);
+					ofsvec[2] = 0;
+					VectorScale(ofsvec, ptype->areaspread, arsvec);
+					break;
+				case SM_FIELD:
+					arsvec[0] = (cl.time * avelocities[i][0]) + m;
+					arsvec[1] = (cl.time * avelocities[i][1]) + m;
+					arsvec[2] = cos(arsvec[1]);
+
+					ofsvec[0] = arsvec[2]*cos(arsvec[0]);
+					ofsvec[1] = arsvec[2]*sin(arsvec[0]);
+					ofsvec[2] = -sin(arsvec[1]);
+
+//					arsvec[0] = r_avertexnormals[j][0]*ptype->areaspread + ofsvec[0]*BEAMLENGTH;
+//					arsvec[1] = r_avertexnormals[j][1]*ptype->areaspread + ofsvec[1]*BEAMLENGTH;
+//					arsvec[2] = r_avertexnormals[j][2]*ptype->areaspreadvert + ofsvec[2]*BEAMLENGTH;
+
+					orgadd = ptype->spawnparam2 * sin(cl.time+j+m);
+					arsvec[0] = r_avertexnormals[j][0]*(ptype->areaspread+orgadd) + ofsvec[0]*ptype->spawnparam1;
+					arsvec[1] = r_avertexnormals[j][1]*(ptype->areaspread+orgadd) + ofsvec[1]*ptype->spawnparam1;
+					arsvec[2] = r_avertexnormals[j][2]*(ptype->areaspreadvert+orgadd) + ofsvec[2]*ptype->spawnparam1;
+
+					VectorNormalize(ofsvec);
+
+					j++;
+					if (j >= NUMVERTEXNORMALS)
+					{
+						j = 0;
+						m += 0.1762891; // some BS number to try to "randomize" things
+					}
+					break;
+				case SM_DISTBALL:
+					{
+						float rdist;
+
+						rdist = ptype->spawnparam2 - crandom()*(1-(crandom() * ptype->spawnparam1));
+
+						// this is a strange spawntype, which is based on the fact that
+						// crandom()*crandom() provides something similar to an exponential
+						// probability curve
+						ofsvec[0] = hrandom();
+						ofsvec[1] = hrandom();
+						if (ptype->areaspreadvert)
+							ofsvec[2] = hrandom();
+						else
+							ofsvec[2] = 0;
+
+						VectorNormalize(ofsvec);
+						VectorScale(ofsvec, rdist, ofsvec);
+
+						arsvec[0] = ofsvec[0]*ptype->areaspread;
+						arsvec[1] = ofsvec[1]*ptype->areaspread;
+						arsvec[2] = ofsvec[2]*ptype->areaspreadvert;
+					}
+					break;
+				default: // SM_BALL, SM_CIRCLE
+					{
+						ofsvec[0] = hrandom();
+						ofsvec[1] = hrandom();
+						if (ptype->areaspreadvert)
+							ofsvec[2] = hrandom();
+						else
+							ofsvec[2] = 0;
+
+						VectorNormalize(ofsvec);
+						if (ptype->spawnmode != SM_CIRCLE)
+							VectorScale(ofsvec, frandom(), ofsvec);
+
+						arsvec[0] = ofsvec[0]*ptype->areaspread;
+						arsvec[1] = ofsvec[1]*ptype->areaspread;
+						arsvec[2] = ofsvec[2]*ptype->areaspreadvert;
+					}
+					break;
+				}
+
+				// apply arsvec+ofsvec
+				orgadd = ptype->orgadd + frandom()*ptype->randomorgadd;
+				veladd = ptype->veladd + frandom()*ptype->randomveladd;
+#if 1
+				if (dir)
+					veladd *= VectorLength(dir);
+				VectorMA(p->vel, ofsvec[0]*ptype->spawnvel, axis[0], p->vel);
+				VectorMA(p->vel, ofsvec[1]*ptype->spawnvel, axis[1], p->vel);
+				VectorMA(p->vel, veladd+ofsvec[2]*ptype->spawnvelvert, axis[2], p->vel);
+
+				VectorMA(org, arsvec[0], axis[0], p->org);
+				VectorMA(p->org, arsvec[1], axis[1], p->org);
+				VectorMA(p->org, orgadd+arsvec[2], axis[2], p->org);
+#else
+				p->org[0] = org[0] + arsvec[0];
+				p->org[1] = org[1] + arsvec[1];
+				p->org[2] = org[2] + arsvec[2];
+				if (dir)
+				{
+					p->vel[0] += dir[0]*veladd+ofsvec[0]*ptype->spawnvel;
+					p->vel[1] += dir[1]*veladd+ofsvec[1]*ptype->spawnvel;
+					p->vel[2] += dir[2]*veladd+ofsvec[2]*ptype->spawnvelvert;
+
+					p->org[0] += dir[0]*orgadd;
+					p->org[1] += dir[1]*orgadd;
+					p->org[2] += dir[2]*orgadd;
 				}
 				else
 				{
-					b = bfirst = free_beams;
-					free_beams = free_beams->next;
+					p->vel[0] += ofsvec[0]*ptype->spawnvel;
+					p->vel[1] += ofsvec[1]*ptype->spawnvel;
+					p->vel[2] += ofsvec[2]*ptype->spawnvelvert - veladd;
+
+					p->org[2] -= orgadd;
 				}
-				b->texture_s = i; // TODO: FIX THIS NUMBER
-				b->flags = 0;
-				b->p = p;
-				VectorClear(b->dir);
-			}
-			free_particles = p->next;
-			p->next = ptype->particles;
-			ptype->particles = p;
-
-			p->die = ptype->randdie*frandom();
-			p->scale = ptype->scale+ptype->scalerand*frandom();
-			if (ptype->die)
-				p->rgba[3] = ptype->alpha+p->die*ptype->alphachange;
-			else
-				p->rgba[3] = ptype->alpha;
-			p->rgba[3] += ptype->alpharand*frandom();
-			// p->color = 0;
-			if (ptype->emittime < 0)
-				p->state.trailstate = trailkey_null;
-			else
-				p->state.nextemit = particletime + ptype->emitstart - p->die;
-
-			p->rotationspeed = ptype->rotationmin + frandom()*ptype->rotationrand;
-			p->angle = ptype->rotationstartmin + frandom()*ptype->rotationstartrand;
-			p->s1 = ptype->s1;
-			p->t1 = ptype->t1;
-			p->s2 = ptype->s2;
-			p->t2 = ptype->t2;
-			if (ptype->randsmax!=1)
-			{
-				m = ptype->texsstride * (rand()%ptype->randsmax);
-				p->s1 += m;
-				p->s2 += m;
-			}
-
-			if (ptype->colorindex >= 0)
-			{
-				int cidx;
-				cidx = ptype->colorrand > 0 ? rand() % ptype->colorrand : 0;
-				cidx = ptype->colorindex + cidx;
-				if (cidx > 255)
-					p->rgba[3] = p->rgba[3] / 2; // Hexen 2 style transparency
-				cidx = (cidx & 0xff) * 3;
-				p->rgba[0] = host_basepal[cidx] * (1/255.0);
-				p->rgba[1] = host_basepal[cidx+1] * (1/255.0);
-				p->rgba[2] = host_basepal[cidx+2] * (1/255.0);
-			}
-			else
-				VectorCopy(ptype->rgb, p->rgba);
-
-			// use org temporarily for rgbsync
-			p->org[2] = frandom();
-			p->org[0] = p->org[2]*ptype->rgbrandsync[0] + frandom()*(1-ptype->rgbrandsync[0]);
-			p->org[1] = p->org[2]*ptype->rgbrandsync[1] + frandom()*(1-ptype->rgbrandsync[1]);
-			p->org[2] = p->org[2]*ptype->rgbrandsync[2] + frandom()*(1-ptype->rgbrandsync[2]);
-
-			p->rgba[0] += p->org[0]*ptype->rgbrand[0] + ptype->rgbchange[0]*p->die;
-			p->rgba[1] += p->org[1]*ptype->rgbrand[1] + ptype->rgbchange[1]*p->die;
-			p->rgba[2] += p->org[2]*ptype->rgbrand[2] + ptype->rgbchange[2]*p->die;
-
-#if 0
-			PScript_ApplyOrgVel(p->org, p->vel, org, axis, i, pcount, ptype);
-#else
-			p->vel[0] = 0;
-			p->vel[1] = 0;
-			p->vel[2] = 0;
-
-			// handle spawn modes (org/vel)
-			switch (ptype->spawnmode)
-			{
-/*			case SM_MESHSURFACE:
-				if (area <= 0)
+#endif
+				if (ptype->flags & PT_WORLDSPACERAND)
 				{
-					tri++;
-					area += calcarea(tri);
-					arsvec[] = calcnormal(tri);
-				}
-
-				ofsvec[] = randompointintriangle(tri);
-
-				area -= density;
-				break;
-*/
-			case SM_BOX:
-				ofsvec[0] = crandom();
-				ofsvec[1] = crandom();
-				ofsvec[2] = crandom();
-
-				arsvec[0] = ofsvec[0]*ptype->areaspread;
-				arsvec[1] = ofsvec[1]*ptype->areaspread;
-				arsvec[2] = ofsvec[2]*ptype->areaspreadvert;
-				break;
-			case SM_TELEBOX:
-				ofsvec[0] = k;
-				ofsvec[1] = j;
-				ofsvec[2] = l+4;
-				VectorNormalize(ofsvec);
-				VectorScale(ofsvec, 1.0-(frandom())*m, ofsvec);
-
-				// org is just like the original
-				arsvec[0] = j + (rand()%spawnspc);
-				arsvec[1] = k + (rand()%spawnspc);
-				arsvec[2] = l + (rand()%spawnspc);
-
-				// advance telebox loop
-				j += spawnspc;
-				if (j >= ptype->areaspread)
-				{
-					j = -ptype->areaspread;
-					k += spawnspc;
-					if (k >= ptype->areaspread)
+					do
 					{
-						k = -ptype->areaspread;
-						l += spawnspc;
-						if (l >= ptype->areaspreadvert)
-							l = -ptype->areaspreadvert;
-					}
+						ofsvec[0] = crand();
+						ofsvec[1] = crand();
+						ofsvec[2] = crand();
+					} while(DotProduct(ofsvec,ofsvec)>1);	//crap, but I'm trying to mimic dp
+					p->org[0] += ofsvec[0] * ptype->orgwrand[0];
+					p->org[1] += ofsvec[1] * ptype->orgwrand[1];
+					p->org[2] += ofsvec[2] * ptype->orgwrand[2];
+					p->vel[0] += ofsvec[0] * ptype->velwrand[0];
+					p->vel[1] += ofsvec[1] * ptype->velwrand[1];
+					p->vel[2] += ofsvec[2] * ptype->velwrand[2];
+					VectorAdd(p->vel, ptype->velbias, p->vel);
 				}
-				break;
-			case SM_LAVASPLASH:
-				// calc directions, org with temp vector
-				ofsvec[0] = k + (rand()%spawnspc);
-				ofsvec[1] = j + (rand()%spawnspc);
-				ofsvec[2] = 256;
-
-				arsvec[0] = ofsvec[0];
-				arsvec[1] = ofsvec[1];
-				arsvec[2] = frandom()*ptype->areaspreadvert;
-
-				VectorNormalize(ofsvec);
-				VectorScale(ofsvec, 1.0-(frandom())*m, ofsvec);
-
-				// advance splash loop
-				j += spawnspc;
-				if (j >= ptype->areaspread)
-				{
-					j = -ptype->areaspread;
-					k += spawnspc;
-					if (k >= ptype->areaspread)
-						k = -ptype->areaspread;
-				}
-				break;
-			case SM_UNICIRCLE:
-				ofsvec[0] = cos(m*i);
-				ofsvec[1] = sin(m*i);
-				ofsvec[2] = 0;
-				VectorScale(ofsvec, ptype->areaspread, arsvec);
-				break;
-			case SM_FIELD:
-				arsvec[0] = (cl.time * avelocities[i][0]) + m;
-				arsvec[1] = (cl.time * avelocities[i][1]) + m;
-				arsvec[2] = cos(arsvec[1]);
-
-				ofsvec[0] = arsvec[2]*cos(arsvec[0]);
-				ofsvec[1] = arsvec[2]*sin(arsvec[0]);
-				ofsvec[2] = -sin(arsvec[1]);
-
-//				arsvec[0] = r_avertexnormals[j][0]*ptype->areaspread + ofsvec[0]*BEAMLENGTH;
-//				arsvec[1] = r_avertexnormals[j][1]*ptype->areaspread + ofsvec[1]*BEAMLENGTH;
-//				arsvec[2] = r_avertexnormals[j][2]*ptype->areaspreadvert + ofsvec[2]*BEAMLENGTH;
-
-				orgadd = ptype->spawnparam2 * sin(cl.time+j+m);
-				arsvec[0] = r_avertexnormals[j][0]*(ptype->areaspread+orgadd) + ofsvec[0]*ptype->spawnparam1;
-				arsvec[1] = r_avertexnormals[j][1]*(ptype->areaspread+orgadd) + ofsvec[1]*ptype->spawnparam1;
-				arsvec[2] = r_avertexnormals[j][2]*(ptype->areaspreadvert+orgadd) + ofsvec[2]*ptype->spawnparam1;
-
-				VectorNormalize(ofsvec);
-
-				j++;
-				if (j >= NUMVERTEXNORMALS)
-				{
-					j = 0;
-					m += 0.1762891; // some BS number to try to "randomize" things
-				}
-				break;
-			case SM_DISTBALL:
-				{
-					float rdist;
-
-					rdist = ptype->spawnparam2 - crandom()*(1-(crandom() * ptype->spawnparam1));
-
-					// this is a strange spawntype, which is based on the fact that
-					// crandom()*crandom() provides something similar to an exponential
-					// probability curve
-					ofsvec[0] = hrandom();
-					ofsvec[1] = hrandom();
-					if (ptype->areaspreadvert)
-						ofsvec[2] = hrandom();
-					else
-						ofsvec[2] = 0;
-
-					VectorNormalize(ofsvec);
-					VectorScale(ofsvec, rdist, ofsvec);
-
-					arsvec[0] = ofsvec[0]*ptype->areaspread;
-					arsvec[1] = ofsvec[1]*ptype->areaspread;
-					arsvec[2] = ofsvec[2]*ptype->areaspreadvert;
-				}
-				break;
-			default: // SM_BALL, SM_CIRCLE
-				{
-					ofsvec[0] = hrandom();
-					ofsvec[1] = hrandom();
-					if (ptype->areaspreadvert)
-						ofsvec[2] = hrandom();
-					else
-						ofsvec[2] = 0;
-
-					VectorNormalize(ofsvec);
-					if (ptype->spawnmode != SM_CIRCLE)
-						VectorScale(ofsvec, frandom(), ofsvec);
-
-					arsvec[0] = ofsvec[0]*ptype->areaspread;
-					arsvec[1] = ofsvec[1]*ptype->areaspread;
-					arsvec[2] = ofsvec[2]*ptype->areaspreadvert;
-				}
-				break;
-			}
-
-			// apply arsvec+ofsvec
-			orgadd = ptype->orgadd + frandom()*ptype->randomorgadd;
-			veladd = ptype->veladd + frandom()*ptype->randomveladd;
-#if 1
-			if (dir)
-				veladd *= VectorLength(dir);
-			VectorMA(p->vel, ofsvec[0]*ptype->spawnvel, axis[0], p->vel);
-			VectorMA(p->vel, ofsvec[1]*ptype->spawnvel, axis[1], p->vel);
-			VectorMA(p->vel, veladd+ofsvec[2]*ptype->spawnvelvert, axis[2], p->vel);
-
-			VectorMA(org, arsvec[0], axis[0], p->org);
-			VectorMA(p->org, arsvec[1], axis[1], p->org);
-			VectorMA(p->org, orgadd+arsvec[2], axis[2], p->org);
-#else
-			p->org[0] = org[0] + arsvec[0];
-			p->org[1] = org[1] + arsvec[1];
-			p->org[2] = org[2] + arsvec[2];
-			if (dir)
-			{
-				p->vel[0] += dir[0]*veladd+ofsvec[0]*ptype->spawnvel;
-				p->vel[1] += dir[1]*veladd+ofsvec[1]*ptype->spawnvel;
-				p->vel[2] += dir[2]*veladd+ofsvec[2]*ptype->spawnvelvert;
-
-				p->org[0] += dir[0]*orgadd;
-				p->org[1] += dir[1]*orgadd;
-				p->org[2] += dir[2]*orgadd;
-			}
-			else
-			{
-				p->vel[0] += ofsvec[0]*ptype->spawnvel;
-				p->vel[1] += ofsvec[1]*ptype->spawnvel;
-				p->vel[2] += ofsvec[2]*ptype->spawnvelvert - veladd;
-
-				p->org[2] -= orgadd;
-			}
-#endif
-			if (ptype->flags & PT_WORLDSPACERAND)
-			{
-				do
-				{
-					ofsvec[0] = crand();
-					ofsvec[1] = crand();
-					ofsvec[2] = crand();
-				} while(DotProduct(ofsvec,ofsvec)>1);	//crap, but I'm trying to mimic dp
-				p->org[0] += ofsvec[0] * ptype->orgwrand[0];
-				p->org[1] += ofsvec[1] * ptype->orgwrand[1];
-				p->org[2] += ofsvec[2] * ptype->orgwrand[2];
-				p->vel[0] += ofsvec[0] * ptype->velwrand[0];
-				p->vel[1] += ofsvec[1] * ptype->velwrand[1];
-				p->vel[2] += ofsvec[2] * ptype->velwrand[2];
-				VectorAdd(p->vel, ptype->velbias, p->vel);
-			}
-			VectorAdd(p->org, ptype->orgbias, p->org);
+				VectorAdd(p->org, ptype->orgbias, p->org);
 #endif
 
-			p->die = particletime + ptype->die - p->die;
+				p->die = particletime + ptype->die - p->die;
 
-			VectorCopy(p->org, p->oldorg);
+				VectorCopy(p->org, p->oldorg);
+			}
 		}
 
 		// update beam list
@@ -5633,6 +5645,9 @@ static void P_ParticleTrailSpawn (vec3_t startpos, vec3_t end, part_type_t *ptyp
 		ts = NULL; // clear trailstate so we don't save length/lastseg
 	}
 
+	if (ptype->nummodels)
+		return;	//counts are too screwy.
+
 	// random chance for trails
 	if (ptype->spawnchance < frandom())
 		return; // don't spawn but return success
@@ -5702,18 +5717,24 @@ static void P_ParticleTrailSpawn (vec3_t startpos, vec3_t end, part_type_t *ptyp
 //	VectorAdd(start, ptype->orgbias, start);
 
 	// spawn mode precalculations
-	if (ptype->spawnmode == SM_SPIRAL)
+	switch(ptype->spawnmode)
 	{
+	case SM_SPIRAL:
 		VectorVectors(vec, right, up);
 
 		// precalculate degree of rotation
 		if (ptype->spawnparam1)
 			tdegree = 2.0*M_PI/ptype->spawnparam1; /* distance per rotation inversed */
 		sdegree = ptype->spawnparam2*(M_PI/180);
-	}
-	else if (ptype->spawnmode == SM_CIRCLE)
-	{
+		break;
+	case SM_CIRCLE:
 		VectorVectors(vec, right, up);
+		break;
+	case SM_FIXMEWARNING:
+		Con_ThrottlePrintf(&throttle, 0, CON_WARNING"Particle effect %s.%s is marked as a placeholder\n", ptype->config, ptype->name);
+		return;
+	default:
+		break;
 	}
 
 	if (ptype->flags & PT_NOSPREADFIRST)
@@ -5728,7 +5749,26 @@ static void P_ParticleTrailSpawn (vec3_t startpos, vec3_t end, part_type_t *ptyp
 
 	b = bfirst = NULL;
 
-	while (count-->0)//len < stop)
+	if (ptype->nummodels)
+	{	//model spawning loop
+		partmodels_t *mod;
+		int i;
+		for (i = 0; i < count; i++)
+		{
+			mod = &ptype->models[rand() % ptype->nummodels];
+			if (!mod->model)
+				mod->model = Mod_ForName(mod->name, MLV_WARN);
+			if (mod->model)
+			{
+				vec3_t morg, mdir;
+				float scale = frandom() * (mod->scalemax-mod->scalemin) + mod->scalemin;
+				PScript_ApplyOrgVel(morg, mdir, start, dlaxis, i, count, ptype);
+				CL_SpawnSpriteEffect(morg, mdir, (mod->rflags&RF_USEORIENTATION)?dlaxis[2]:NULL, mod->model, mod->framestart, mod->framecount, mod->framerate?mod->framerate:10, mod->alpha?mod->alpha:1, scale, ptype->rotationmin*180/M_PI, ptype->gravity, mod->traileffect, mod->rflags & ~RF_USEORIENTATION, mod->skin);
+			}
+			VectorAdd (start, vstep, start);
+		}
+	}
+	else while (count-->0)//len < stop)
 	{
 		len += step;
 

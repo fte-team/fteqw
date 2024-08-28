@@ -480,7 +480,7 @@ static qboolean M_MouseMoved(emenu_t *menu)
 					if (opt2->common.posy + opt2->common.height > maxy)
 						maxy = opt2->common.posy + opt2->common.height;
 				}
-				maxy -= vid.height-8;
+				maxy -= vid.height;
 				framescroll += option->frame.frac * maxy;
 				ypos -= option->frame.frac * maxy;
 			}
@@ -682,16 +682,16 @@ static void MenuDrawItems(int xpos, int ypos, menuoption_t *option, emenu_t *men
 				int maxy = option->frame.common.posy;
 				option->frame.common.width = 16;
 				option->frame.common.posx = vid.width - option->frame.common.width - xpos;
-				option->frame.common.height = vid.height-8-maxy - ypos;
+				option->frame.common.height = vid.height-maxy - ypos;
 				for (opt2 = option->common.next; opt2; opt2 = opt2->common.next)
 				{
 					if (opt2->common.posy + opt2->common.height > maxy)
 						maxy = opt2->common.posy + opt2->common.height;
 				}
-				maxy -= vid.height-8;
+				maxy -= vid.height;
 				framescrollheight = maxy;
 
-				if (maxy < 0)
+				if (maxy <= 0)
 				{
 					option->frame.mousedown = false;
 					option->frame.frac = 0;
@@ -785,7 +785,7 @@ static void MenuDrawItems(int xpos, int ypos, menuoption_t *option, emenu_t *men
 
 				if (option->check.text)
 				{
-					Draw_FunStringWidth(x, y, option->check.text, option->check.textwidth, true, !menu->cursoritem && menu->selecteditem == option);
+					Draw_FunStringWidth(x, y, option->check.text, option->check.textwidth, true, (!menu->cursoritem && menu->selecteditem == option) | ((option->check.var && (option->check.var->flags&CVAR_RENDEREROVERRIDE))?4:0));
 					x += option->check.textwidth + 3*8;
 				}
 #if 0
@@ -892,7 +892,10 @@ static void MenuDrawItems(int xpos, int ypos, menuoption_t *option, emenu_t *men
 static void MenuDraw(emenu_t *menu)
 {
 	if (!menu->dontexpand)
-		menu->xpos = ((vid.width - 320)>>1);
+	{
+		menu->width = min(vid.width,320);
+		menu->xpos = ((vid.width - menu->width)>>1);
+	}
 	if (menu->predraw)
 		menu->predraw(menu);
 	if (menu->selecteditem && menu->selecteditem->common.type == mt_text)
@@ -1771,8 +1774,8 @@ void MC_CheckBox_Key(menucheck_t *option, emenu_t *menu, int key)
 			else
 				Cvar_SetValue(option->var, !option->var->value);
 		}
-		S_LocalSound ("misc/menu2.wav");
 	}
+	S_LocalSound ("misc/menu2.wav");
 }
 
 void MC_EditBox_Key(menuedit_t *edit, int key, unsigned int unicode)
@@ -1873,6 +1876,21 @@ static qboolean M_KeyEvent(menu_t *m, qboolean isdown, unsigned int devid, int k
 	{
 		if (key == K_MOUSE1 || key == K_TOUCHTAP)	//mouse clicks are deferred until the release event. this is for touch screens and aiming.
 		{
+
+			if (menu->mouseitem && menu->selecteditem != menu->mouseitem)
+			{
+				menu->selecteditem = menu->mouseitem;
+#ifdef HEXEN2
+				if (M_GameType() == MGT_HEXEN2)
+					S_LocalSound ("raven/menu1.wav");
+				else
+#endif
+					S_LocalSound ("misc/menu1.wav");
+
+				if (menu->cursoritem)
+					menu->cursoritem->common.posy = menu->selecteditem->common.posy + (menu->selecteditem->common.height-menu->cursoritem->common.height)/2;
+			}
+
 			if (menu->mouseitem && menu->mouseitem->common.type == mt_frameend)
 				menu->mouseitem->frame.mousedown = true;
 			else
@@ -2272,7 +2290,7 @@ void M_Complex_Key(emenu_t *currentmenu, int key, int unicode)
 			break;
 		if (currentmenu->mouseitem && currentmenu->selecteditem != currentmenu->mouseitem)
 		{
-			currentmenu->selecteditem = currentmenu->mouseitem;
+/*			currentmenu->selecteditem = currentmenu->mouseitem;
 #ifdef HEXEN2
 			if (M_GameType() == MGT_HEXEN2)
 				S_LocalSound ("raven/menu1.wav");
@@ -2282,7 +2300,7 @@ void M_Complex_Key(emenu_t *currentmenu, int key, int unicode)
 
 			if (currentmenu->cursoritem)
 				currentmenu->cursoritem->common.posy = currentmenu->selecteditem->common.posy + (currentmenu->selecteditem->common.height-currentmenu->cursoritem->common.height)/2;
-			break;	//require a double-click when selecting...
+*/			break;	//require a double-click when selecting... too easy to miss, and a touble-tap at least makes it easier to clarify what you meant.
 		}
 		//fall through
 	default:
@@ -2350,7 +2368,17 @@ qboolean MC_Main_Key (emenu_t *menu, int key, unsigned int unicode)	//here purly
 		//don't spam menu open+close events if we're not going to be allowing the console to appear
 		if (con_stayhidden.ival && cls.state == ca_disconnected)
 			if (!CL_TryingToConnect())
+			{
+				extern cvar_t cl_demoreel;
+				if (cl_demoreel.ival)
+				{	//start a demo instead. this should probably be on a timer...
+					cls.demonum = MAX_DEMOS;
+					CL_NextDemo();
+					if (cls.state)
+						return false;
+				}
 				return true;
+			}
 	}
 	return false;
 }
@@ -2376,10 +2404,15 @@ static int M_Main_AddExtraOptions(emenu_t *mainm, int y)
 #endif
 	}
 	if (Cmd_Exists("menu_mods"))
-	{
-		MC_AddConsoleCommandQBigFont(mainm, 72, y,	localtext("Mods          "), "menu_mods\n");	y += 20;
-		y += 20;
-	}
+		{MC_AddConsoleCommandQBigFont(mainm, 72, y,	localtext("Mods          "), "menu_mods\n");	y += 20;}
+
+	if (Cmd_Exists("sys_openfile"))
+		{MC_AddConsoleCommandQBigFont(mainm, 72, y,	localtext("Open File     "), "sys_openfile\n");	y += 20;}
+
+#ifdef FTE_TARGET_WEB
+	if (Cmd_Exists("xr_toggle"))
+		{MC_AddConsoleCommandQBigFont(mainm, 72, y,	localtext("Toggle WebXR  "), "xr_toggle\n");	y += 20;}
+#endif
 
 	return y;
 }
@@ -2678,7 +2711,9 @@ void M_Menu_Main_f (void)
 		y = 36;
 		mainm->selecteditem = (menuoption_t *)
 		//skip menu_single if we don't seem to have any content.
+#ifdef CL_MASTER
 		MC_AddConsoleCommandQBigFont	(mainm, 72, y,	localtext("Join server"),	"menu_servers\n");	y += 20;
+#endif
 		MC_AddConsoleCommandQBigFont	(mainm, 72, y,	localtext("^bOptions"),		"menu_options\n");	y += 20;
 		y = M_Main_AddExtraOptions(mainm, y);
 		MC_AddConsoleCommandQBigFont	(mainm, 72, y,	localtext("Quit"),			"menu_quit\n");		y += 20;
@@ -2691,8 +2726,10 @@ void M_Menu_Main_f (void)
 	b = NULL;
 	if (!b && !m_preset_chosen.ival)
 		b = M_FindButton(mainm, "menu_options\n");
+#ifdef PACKAGEMANAGER
 	if (!b && PM_AreSourcesNew(false))
 		b = M_FindButton(mainm, "menu_download\n");
+#endif
 	if (b)
 	{
 		mainm->selecteditem = (menuoption_t*)b;

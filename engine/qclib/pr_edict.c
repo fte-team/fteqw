@@ -2021,8 +2021,6 @@ char *PDECL PR_SaveEnts(pubprogfuncs_t *ppf, char *buf, size_t *bufofs, size_t b
 #undef AddS
 }
 
-int header_crc;
-
 //if 'general' block is found, this is a compleate state, otherwise, we should spawn entities like
 int PDECL PR_LoadEnts(pubprogfuncs_t *ppf, const char *file, void *ctx, void (PDECL *memoryreset) (pubprogfuncs_t *progfuncs, void *ctx), void (PDECL *entspawned) (pubprogfuncs_t *progfuncs, struct edict_s *ed, void *ctx, const char *entstart, const char *entend), pbool(PDECL *extendedterm)(pubprogfuncs_t *progfuncs, void *ctx, const char **extline))
 {
@@ -2043,7 +2041,6 @@ int PDECL PR_LoadEnts(pubprogfuncs_t *ppf, const char *file, void *ctx, void (PD
 
 	extern edictrun_t tempedict;
 
-	int crc = 1;
 	int entsize = 0;
 	int numents = 0;
 	pbool maphacks = false;
@@ -2172,7 +2169,6 @@ int PDECL PR_LoadEnts(pubprogfuncs_t *ppf, const char *file, void *ctx, void (PD
 
 
 			filename[0] = '\0';
-			header_crc = 0;
 
 			while(1)
 			{
@@ -2183,7 +2179,7 @@ int PDECL PR_LoadEnts(pubprogfuncs_t *ppf, const char *file, void *ctx, void (PD
 				if (!strcmp("filename", qcc_token))	//check key get and save values
 					{file = QCC_COM_Parse(file); strcpy(filename, qcc_token);}
 				else if (!strcmp("crc", qcc_token))
-					{file = QCC_COM_Parse(file); header_crc = atoi(qcc_token);}
+					{file = QCC_COM_Parse(file); /*header_crc = atoi(qcc_token);*/}
 				else if (!strcmp("numbuiltins", qcc_token))	//no longer supported.
 					{file = QCC_COM_Parse(file); /*qcc_token unused*/}
 				else if (qcc_token[0] == '}')	//end of block
@@ -2444,7 +2440,6 @@ int PDECL PR_LoadEnts(pubprogfuncs_t *ppf, const char *file, void *ctx, void (PD
 	}
 	if (resethunk)
 	{
-		header_crc = crc;
 		if (externs->loadcompleate)
 			externs->loadcompleate(entsize);
 

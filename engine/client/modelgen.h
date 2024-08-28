@@ -53,7 +53,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 typedef enum {ST_SYNC=0, ST_RAND } synctype_t;
 #endif
 
-typedef enum { ALIAS_SINGLE=0, ALIAS_GROUP, ALIAS_GROUP_SWAPPED=16777216 } aliasframetype_t;
+typedef enum { ALIAS_SINGLE=0, ALIAS_GROUP, ALIAS_GROUP_SWAPPED=0x01000000 } aliasframetype_t;
 
 typedef enum { ALIAS_SKIN_SINGLE=0, ALIAS_SKIN_GROUP } aliasskintype_t;
 

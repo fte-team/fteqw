@@ -5,6 +5,8 @@
 #include "iweb.h"
 #include "netinc.h"
 
+qboolean HTTP_ServerPoll(qboolean httpserverwanted, int portnum);
+
 #ifdef WEBSVONLY	//we need some functions from quake
 
 char *NET_SockadrToString(char *s, int slen, struct sockaddr_qstorage *addr, size_t sizeofaddr)
@@ -827,7 +829,7 @@ qboolean FS_Remove(const char *fname, enum fs_relative relativeto)
 {
 	return false;
 }
-qboolean FS_NativePath(const char *fname, enum fs_relative relativeto, char *out, int outlen)
+qboolean FS_SystemPath(const char *fname, enum fs_relative relativeto, char *out, int outlen)
 {
 	Q_strncpyz(out, fname, outlen);
 	if (*out == '/' || strstr(out, ".."))

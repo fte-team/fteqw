@@ -168,9 +168,7 @@
 #undef Q3SERVER		/* q3 server stuff */
 #undef HEXEN2		/* runs hexen2 gamecode, supports hexen2 file formats */
 #undef NQPROT		/* act as an nq client/server, with nq gamecode */
-#undef WEBSERVER	/* sv_ftp + sv_http cvars */
 #undef RUNTIMELIGHTING	/* automatic generation of .lit files */
-#undef R_XFLIP		/* old silly thing */
 #undef TEXTEDITOR	/* because emacs */
 #undef TCPCONNECT	/* support for playing over tcp sockets, instead of just udp. compatible with qizmo */
 #undef IRCCONNECT	/* lame support for routing game packets via irc server. not a good idea */

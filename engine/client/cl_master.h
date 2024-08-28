@@ -34,6 +34,7 @@ enum masterprotocol_e
 #define SS_KEEPINFO		(1<<6u)
 #define SS_GETINFO		(1<<7u)	//explicitly query via getinfo
 #define SS_PROXY		(1<<8u)	//qizmo/qwfwd/qtv/eztv
+#define SS_RELAY		(1<<9u)	//supports the \prx\nexthop relay thing, and pingstatus requests for connectbr.
 
 #define PING_DEAD		0xffff	//default ping value to denote servers that are not responding.
 #define PING_UNKNOWN	0xfffe	//these servers are considered up, but we can't query them directly so can't determine the final ping from here.

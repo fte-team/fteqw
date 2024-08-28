@@ -1,6 +1,7 @@
 #include "quakedef.h"
 #include "glquake.h"
-#include "web/ftejslib.h"
+#include "vr.h"
+#include "shader.h"
 vfsfile_t *FSWEB_OpenTempHandle(int f);
 
 extern cvar_t gl_lateswap;
@@ -11,24 +12,218 @@ extern qboolean vid_isfullscreen;
 qboolean mouseactive;
 extern qboolean mouseusedforgui;
 
-static int gamepaddeviceids[] = {DEVID_UNSET,DEVID_UNSET,DEVID_UNSET,DEVID_UNSET,DEVID_UNSET,DEVID_UNSET,DEVID_UNSET,DEVID_UNSET};
+static struct
+{
+	int id;
+	unsigned axistobuttonp;	//bitmask of whether we're currently reporting each axis as pressed. without saving values.
+	unsigned axistobuttonn;
+	int repeatkey;
+    float repeattime;
+} gamepaddevices[] = {{DEVID_UNSET},{DEVID_UNSET},{DEVID_UNSET},{DEVID_UNSET},{DEVID_UNSET},{DEVID_UNSET},{DEVID_UNSET},{DEVID_UNSET}};
 static int keyboardid[] = {0};
-static int mouseid[] = {0};
+static int mouseid[] = {0,1,2,3,4,5,6,7};
 
-static void *GLVID_getsdlglfunction(char *functionname)
+static cvar_t *xr_enable;	//refrains from starting up when 0 and closes it too, and forces it off too
+static cvar_t *xr_metresize;
+static cvar_t *xr_skipregularview;
+
+static void WebXR_Toggle_f(void)
+{
+	emscriptenfte_xr_setup(-3);	//toggle it.
+}
+static void WebXR_Start_f(void)
+{
+	emscriptenfte_xr_setup(-2);	//start it (any mode)
+}
+static void WebXR_End_f(void)
+{
+	emscriptenfte_xr_setup(-1);	//end it (if running)
+}
+static void WebXR_Start_Inline_f(void)
+{
+	emscriptenfte_xr_setup(-1);	//end it (if running)
+	emscriptenfte_xr_setup(0);	//start it (inline mode)
+}
+static void WebXR_Start_VR_f(void)
+{
+	emscriptenfte_xr_setup(-1);	//end it (if running)
+	emscriptenfte_xr_setup(1);	//start it (inline mode)
+}
+static void WebXR_Start_AR_f(void)
+{
+	emscriptenfte_xr_setup(-1);	//end it (if running)
+	emscriptenfte_xr_setup(2);	//start it (inline mode)
+}
+static void WebXR_Info_f(void)
+{
+	int modes = emscriptenfte_xr_issupported();
+	if (modes == 0)
+	{
+		Con_Printf(S_COLOR_RED"WebXR is unavailable\n");
+		return;
+	}
+	if (modes < 0)
+		Con_Printf("WebXR availability is unknown\n");
+	else
+	{
+		Con_Printf("WebXR-inline is %savailable\n",			(modes & (1<<0))?S_COLOR_GREEN:S_COLOR_RED"un");
+		Con_Printf("WebXR-immersive-vr is %savailable\n",	(modes & (1<<1))?S_COLOR_GREEN:S_COLOR_RED"un");
+		Con_Printf("WebXR-immersive-ar is %savailable\n",	(modes & (1<<2))?S_COLOR_GREEN:S_COLOR_RED"un");
+
+		if (emscriptenfte_xr_isactive())
+			Con_Printf("WebXR is active\n");
+		else
+			Con_Printf("WebXR is inactive\n");
+	}
+}
+
+static qboolean	WebXR_Prepare	(vrsetup_t *setupinfo)
+{	//called before graphics context init. basically just checks if we can do vr.
+	xr_enable			= Cvar_Get2("xr_enable",			"1",			CVAR_SEMICHEAT,	"Controls whether to use webxr rendering or not.",			"WebXR configuration");
+	xr_metresize		= Cvar_Get2("xr_metresize",			"26.24671916",	CVAR_ARCHIVE,	"Size of a metre in game units",							"WebXR configuration");
+	xr_skipregularview	= Cvar_Get2("xr_skipregularview",	"1",			CVAR_ARCHIVE,	"Skip rendering the regular view when OpenXR is active",	"WebXR configuration");
+
+	return xr_enable->ival;//emscriptenfte_xr_issupported() != 0;
+}
+static qboolean	WebXR_Init		(vrsetup_t *setupinfo, rendererstate_t *info)
+{	//called after graphics context init.
+	Cmd_AddCommand("xr_toggle", WebXR_Toggle_f);
+	Cmd_AddCommand("xr_start",	WebXR_Start_f);
+	Cmd_AddCommand("xr_end",	WebXR_End_f);
+	Cmd_AddCommand("xr_start_inline", WebXR_Start_Inline_f);
+	Cmd_AddCommand("xr_start_vr", WebXR_Start_VR_f);
+	Cmd_AddCommand("xr_start_ar", WebXR_Start_AR_f);
+	Cmd_AddCommand("xr_info", WebXR_Info_f);
+	return true;	//we don't have much control here, so we have no failure paths here. probably the session isn't even created.
+}
+static unsigned int	WebXR_SyncFrame	(double *frametime)
+{	//called in the client's main loop, to block/tweak frame times. True means the game should render as fast as possible.
+	return emscriptenfte_xr_isactive();	//we're using openxr's session's sync stuff when this is active.
+}
+static void WebXR_MatrixToQuake(const float in[16], float out[12])
+{
+	float tempmat[16], tempmat2[16];
+	const float fixupmat[16]	= { 0, 0, -1, 0,   -1,  0,  0,  0,    0,  1,  0,  0,    0,  0,  0,  1};
+	const float reorient[16]	= { 0, -1, 0, 0,    0,  0,  1,  0,   -1,  0,  0,  0,    0,  0,  0,  1};
+
+	Matrix4_Multiply(in, fixupmat, tempmat2);//we want z-up...
+	Matrix4_Multiply(reorient, tempmat2, tempmat);//rotate it.
+
+	//transpose it cos smaller? urgh.
+	out[ 0] = tempmat[0];
+	out[ 1] = tempmat[4];
+	out[ 2] = tempmat[8];
+	out[ 3] = tempmat[12];
+	out[ 4] = tempmat[1];
+	out[ 5] = tempmat[5];
+	out[ 6] = tempmat[9];
+	out[ 7] = tempmat[13];
+	out[ 8] = tempmat[2];
+	out[ 9] = tempmat[6];
+	out[10] = tempmat[10];
+	out[11] = tempmat[14];
+
+	//fix up offset scaling parts
+	out[3] *= xr_metresize->value;
+	out[7] *= xr_metresize->value;
+	out[11]*= xr_metresize->value;
+}
+static qboolean	WebXR_Render	(void(*rendereye)(texid_t tex, const pxrect_t *viewport, const vec4_t fovoverride, const float projmatrix[16], const float eyematrix[12]))
+{	//calls rendereye for each view we're meant to be drawing.
+	//webxr uses separate viewpoints on the same fbo
+	struct webxrinfo_s eye[16];
+	fbostate_t fbo;
+	int oldfbo = 0;
+	float eyematrix[12];
+	pxrect_t vp;
+
+	int e, eyes = emscriptenfte_xr_geteyeinfo(countof(eye), eye);
+	if (!eyes)
+		return false;	//erk? lets just do normal drawing.
+
+	for (e = 0; e < eyes; e++)
+	{
+		fbo.fbo = eye[e].fbo;
+		if (!e)
+			oldfbo = GLBE_FBO_Push(&fbo);
+		else
+			GLBE_FBO_Push(&fbo);
+
+		if (!eye[e].viewport[2] || !eye[e].viewport[3])
+			continue;	//no pixels getting drawn... don't waste time (emulators that feel an urge to give a dodgy eye to report two eyes instead of one)
+
+		vp.x		= eye[e].viewport[0];
+		vp.width	= eye[e].viewport[2];
+		vp.height	= eye[e].viewport[3];
+		vp.maxheight = vp.y+vp.height;	//negatives suck.
+		vp.y = vp.maxheight-eye[e].viewport[1]-vp.height;	//opengl sucks
+
+		WebXR_MatrixToQuake(eye[e].transform, eyematrix);
+
+		//really just a pointer to R_RenderEyeScene...
+		rendereye(NULL, &vp, NULL, eye[e].projmatrix, eyematrix);
+	}
+	GLBE_FBO_Pop(oldfbo);
+
+	if (!xr_enable->ival)
+		emscriptenfte_xr_shutdown();
+
+	if (eye[e].fbo==0)
+		return true;	//always skip the non-vr screen when we're fighting over the same FB.
+	return xr_skipregularview->ival;	//skip non-vr rendering.
+}
+static void		WebXR_Shutdown	(void)
+{
+	Cmd_RemoveCommand("xr_toggle");
+	Cmd_RemoveCommand("xr_start");
+	Cmd_RemoveCommand("xr_end");
+	Cmd_RemoveCommand("xr_start_inline");
+	Cmd_RemoveCommand("xr_start_vr");
+	Cmd_RemoveCommand("xr_start_ar");
+	Cmd_RemoveCommand("xr_info");
+	emscriptenfte_xr_shutdown();
+}
+static struct plugvrfuncs_s webxrfuncs = {
+	"WebXR",
+	WebXR_Prepare,
+	WebXR_Init,
+	WebXR_SyncFrame,
+	WebXR_Render,
+	WebXR_Shutdown,
+};
+
+static void *GLVID_getwebglfunction(char *functionname)
 {
 	return NULL;
 }
 
-static void IN_GamePadButtonEvent(unsigned int joydevid, int button, int ispressed, int isstandardmapping)
+//the enumid is the value for the open function rather than the working id.
+static int J_AllocateDevID(void)
 {
+    extern cvar_t in_skipplayerone;
+    unsigned int id = (in_skipplayerone.ival?1:0), j;
+    for (j = 0; j < countof(gamepaddevices);)
+    {
+        if (gamepaddevices[j++].id == id)
+        {
+            j = 0;
+            id++;
+        }
+    }
+
+	return id;
+}
+
+static void IN_GamePadButtonEvent(int joydevid, int button, int ispressed, int isstandardmapping)
+{
+	//note that the gamepad API handles 'buttons' as float values, so triggers are here instead of as 'axis' values (unlike other APIs). on the plus side, we're no longer responsible for figuring out the required threshold value to denote a 'press', but we're not tracking half-presses and that's our fault and we don't care.
 	static const int standardmapping[] =
 	{	//the order of these keys is different from that of xinput
 		//however, the quake button codes should be the same. I really ought to define some K_ aliases for them.
 		K_GP_A,
 		K_GP_B,
-		K_GP_X,
 		K_GP_Y,
+		K_GP_X,
 		K_GP_LEFT_SHOULDER,
 		K_GP_RIGHT_SHOULDER,
 		K_GP_LEFT_TRIGGER,
@@ -45,53 +240,228 @@ static void IN_GamePadButtonEvent(unsigned int joydevid, int button, int ispress
 		//K_GP_UNKNOWN
 	};
 
-	if (joydevid < countof(gamepaddeviceids))
+	if (joydevid < 0)
 	{
-		if (joydevid == gamepaddeviceids[joydevid])
+		static const int standardxrmapping[] =
+		{
+			//Right					Left
+			K_GP_RIGHT_TRIGGER,		K_GP_LEFT_TRIGGER,	//Primary trigger/button
+			K_GP_RIGHT_SHOULDER,	K_GP_LEFT_SHOULDER,	//Primary squeeze
+			K_GP_TOUCHPAD,			K_GP_MISC1,			//Primary touchpad
+			K_GP_RIGHT_STICK,		K_GP_LEFT_STICK,	//Primary thumbstick
+
+			//'Additional inputs may be exposed after', which should be in some pseudo-prioritised order with the awkward ones last.
+			K_GP_A,					K_GP_DPAD_DOWN,
+			K_GP_B,					K_GP_DPAD_RIGHT,
+			K_GP_X,					K_GP_DPAD_LEFT,
+			K_GP_Y,					K_GP_DPAD_UP,
+		};
+		button = button*2 + (joydevid != -1);	//munge them into a single array cos I cba with all the extra conditionals
+		if (button < countof(standardxrmapping))
+			button = standardxrmapping[button];
+		else
+			return; //err...
+
+		joydevid = countof(gamepaddevices)-1;
+	}
+	else if (isstandardmapping && button < countof(standardmapping))
+		button = standardmapping[button];
+	else if (button < 32+4)
+		button = K_JOY1+button;
+	else
+		return;	//err...
+
+	if (joydevid < countof(gamepaddevices))
+	{
+		if (DEVID_UNSET == gamepaddevices[joydevid].id)
 		{
 			if (!ispressed)
 				return;	//don't send axis events until its enabled.
-			gamepaddeviceids[joydevid] = joydevid;
+			gamepaddevices[joydevid].id = J_AllocateDevID();
 		}
-		joydevid = gamepaddeviceids[joydevid];
+		if (ispressed)
+		{
+			gamepaddevices[joydevid].repeatkey = button;
+			gamepaddevices[joydevid].repeattime = 1.0;
+		}
+		else if (gamepaddevices[joydevid].repeatkey == button)
+			gamepaddevices[joydevid].repeatkey = 0;
+		joydevid = gamepaddevices[joydevid].id;
 	}
 
-	if (isstandardmapping)
-	{
-		if (button < countof(standardmapping))
-			IN_KeyEvent(joydevid, ispressed, standardmapping[button], 0);
-	}
-	else
-	{
-		if (button < 32+4)
-			IN_KeyEvent(joydevid, ispressed, K_JOY1+button, 0);
-	}
+	IN_KeyEvent(joydevid, ispressed, button, 0);
 }
-
-static void IN_GamePadAxisEvent(unsigned int joydevid, int axis, float value, int isstandardmapping)
+static void IN_GamePadButtonRepeats(void)
 {
-	if (joydevid < countof(gamepaddeviceids))
+	int j;
+	for (j = 0; j < countof(gamepaddevices); j++)
 	{
-		joydevid = gamepaddeviceids[joydevid];
-		if (joydevid == DEVID_UNSET)
-			return;	//don't send axis events until its enabled.
+		if (gamepaddevices[j].id == DEVID_UNSET)
+			continue;
+		if (!gamepaddevices[j].repeatkey)
+			continue;
+		gamepaddevices[j].repeattime -= host_frametime;
+		if (gamepaddevices[j].repeattime < 0)
+		{	//it is time!
+			gamepaddevices[j].repeattime = 0.25; //faster re-repeat than the initial delay.
+			IN_KeyEvent(gamepaddevices[j].id, true, gamepaddevices[j].repeatkey, 0);	//an extra down. no ups.
+		}
 	}
-	if (isstandardmapping)
-	{
-		int axismap[] = {GPAXIS_LT_RIGHT,GPAXIS_LT_DOWN,GPAXIS_RT_RIGHT,GPAXIS_RT_DOWN};
-		if (axis < countof(axismap))
-			IN_JoystickAxisEvent(joydevid, axismap[axis], value);
-	}
-	else
-		IN_JoystickAxisEvent(joydevid, axis, value);
 }
 
-static void VID_Resized(int width, int height)
+static void IN_GamePadAxisEvent(int joydevid, int axis, float value, int isstandardmapping)
+{
+	static const struct
+	{
+		int axis;
+		int poskey;	//mostly for navigating menus, but oh well.
+		int negkey;
+	} standardmapping[] =
+	{
+		{GPAXIS_LT_RIGHT,	K_GP_LEFT_THUMB_RIGHT,	K_GP_LEFT_THUMB_LEFT},
+		{GPAXIS_LT_DOWN,	K_GP_LEFT_THUMB_DOWN,	K_GP_LEFT_THUMB_UP},
+		{GPAXIS_RT_RIGHT,	K_GP_RIGHT_THUMB_RIGHT,	K_GP_RIGHT_THUMB_LEFT},
+		{GPAXIS_RT_DOWN,	K_GP_RIGHT_THUMB_DOWN,	K_GP_RIGHT_THUMB_UP},
+
+		//this seems fucked. only 4 axis are defined as part of the standard mapping. triggers are implemented as buttons with a .value (instead of .pressed) but they don't seem to work at all.
+		//emulating here should be giving dupes, but I don't know how else to get this shite to work properly.
+		{GPAXIS_LT_AUX,		K_GP_LEFT_TRIGGER,0},
+		{GPAXIS_RT_AUX,		K_GP_RIGHT_TRIGGER,0},
+	};
+	int qdevid;
+	int pos=0, neg=0;
+	int qaxis;
+	if (joydevid < 0)
+	{
+		static const int standardxrmapping[] =
+		{
+			//Right					Left
+			-1,						-1,					//Primary touchpad X
+			-1,						-1,					//Primary touchpad Y
+			GPAXIS_RT_RIGHT,		GPAXIS_LT_RIGHT,	//Primary thumbstick X
+			GPAXIS_RT_DOWN,			GPAXIS_LT_DOWN,		//Primary thumbstick Y
+
+			//'Additional inputs may be exposed after', which should be in some pseudo-prioritised order with the awkward ones last.
+		};
+		qaxis = axis*2 + (joydevid != -1);	//munge them into a single array cos I cba with all the extra conditionals
+		if (qaxis < countof(standardxrmapping))
+			qaxis = standardxrmapping[qaxis];
+		else
+			return; //err...
+
+		joydevid = countof(gamepaddevices)-1;
+	}
+	else if (isstandardmapping)
+	{
+		if (axis >= 0 && axis < countof(standardmapping))
+		{
+			pos = standardmapping[axis].poskey;
+			neg = standardmapping[axis].negkey;
+			qaxis = standardmapping[axis].axis;
+		}
+		else
+			qaxis = axis;
+	}
+	else
+		return;	//random mappings? erk?
+
+	if (joydevid < countof(gamepaddevices))
+	{
+		qdevid = gamepaddevices[joydevid].id;
+		if (qdevid == DEVID_UNSET)
+		{
+			if (value < -0.9 || value > 0.9)
+				gamepaddevices[joydevid].id = J_AllocateDevID();
+			return;	//don't send axis events until its enabled.
+		}
+
+		if (value > 0.5 && pos)
+		{
+			if (!(gamepaddevices[joydevid].axistobuttonp & (1u<<axis)))
+			{
+				IN_KeyEvent(qdevid, true, pos, 0);
+				gamepaddevices[joydevid].repeatkey = pos;
+				gamepaddevices[joydevid].repeattime = 1.0;
+			}
+			gamepaddevices[joydevid].axistobuttonp |= 1u<<axis;
+		}
+		else if (gamepaddevices[joydevid].axistobuttonp & (1u<<axis))
+		{
+			IN_KeyEvent(qdevid, false, pos, 0);
+			gamepaddevices[joydevid].axistobuttonp &= ~(1u<<axis);
+			if (gamepaddevices[joydevid].repeatkey == pos)
+				gamepaddevices[joydevid].repeatkey = 0;
+		}
+
+		if (value < -0.5 && neg)
+		{
+			if (!(gamepaddevices[joydevid].axistobuttonn & (1u<<axis)))
+			{
+				IN_KeyEvent(qdevid, true, neg, 0);
+				gamepaddevices[joydevid].repeatkey = neg;
+				gamepaddevices[joydevid].repeattime = 1.0;
+			}
+			gamepaddevices[joydevid].axistobuttonn |= 1u<<axis;
+		}
+		else if (gamepaddevices[joydevid].axistobuttonn & (1u<<axis))
+		{
+			IN_KeyEvent(qdevid, false, neg, 0);
+			gamepaddevices[joydevid].axistobuttonn &= ~(1u<<axis);
+			if (gamepaddevices[joydevid].repeatkey == neg)
+				gamepaddevices[joydevid].repeatkey = 0;
+		}
+	}
+	else
+		qdevid = joydevid;
+
+	IN_JoystickAxisEvent(qdevid, qaxis, value);
+}
+
+static void IN_GamePadOrientationEvent(int joydevid, float px,float py,float pz, float qx,float qy,float qz,float qw)
+{	//(some) vr controllers only
+	vec3_t org, ang;
+	const char *dev;
+
+	const float sqw = qw * qw;
+	const float sqx = qx * qx;
+	const float sqy = qy * qy;
+	const float sqz = qz * qz;
+
+	ang[PITCH] = -asin(-2 * (qy * qz - qw * qx)) * (180/M_PI);
+	ang[YAW] = atan2(2 * (qx * qz + qw * qy), sqw - sqx - sqy + sqz) * (180/M_PI);
+	ang[ROLL] = -atan2(2 * (qx * qy + qw * qz), sqw - sqx + sqy - sqz) * (180/M_PI);
+
+	org[0] = -pz * xr_metresize->value;
+	org[1] = -px * xr_metresize->value;
+	org[2] = py * xr_metresize->value;
+
+	if (joydevid == -1)
+		dev = "right";
+	else if (joydevid == -2)
+		dev = "left";
+	else if (joydevid == -3)
+		dev = "head";
+	else if (joydevid == -4)
+		dev = "gaze";
+	else
+		return;
+
+	IN_SetHandPosition(dev, org, ang, NULL, NULL);
+}
+
+static void VID_Resized(int width, int height, float scale)
 {
 	extern cvar_t vid_conautoscale, vid_conwidth;
+	extern cvar_t vid_dpi_x, vid_dpi_y;
 	vid.pixelwidth = width;
 	vid.pixelheight = height;
 //Con_Printf("Resized: %i %i\n", vid.pixelwidth, vid.pixelheight);
+
+	//if you're zooming in, it should stay looking like its zoomed.
+	vid.dpi_x = 96*scale;
+	vid.dpi_y = 96*scale;
+	Cvar_ForceSetValue(&vid_dpi_x, vid.dpi_x);
+	Cvar_ForceSetValue(&vid_dpi_y, vid.dpi_y);
 
 	Cvar_ForceCallback(&vid_conautoscale);
 	Cvar_ForceCallback(&vid_conwidth);
@@ -131,55 +501,17 @@ static unsigned int domkeytoquake(unsigned int code)
 //	Con_DPrintf("You just pressed dom key %u, which is quake key %u\n", code, tab[code]);
 	return tab[code];
 }
-static unsigned int domkeytoshift(unsigned int code)
-{
-	static const unsigned short tab[256] =
-	{
-		/*  0*/ 0,0,0,0,0,0,0,0,                K_BACKSPACE,K_TAB,0,0,0,K_ENTER,0,0,
-		/* 16*/ K_SHIFT,K_CTRL,K_ALT,K_PAUSE,K_CAPSLOCK,0,0,0,0,0,0,K_ESCAPE,0,0,0,0,
-		/* 32*/ ' ',K_PGUP,K_PGDN,K_END,K_HOME,K_LEFTARROW,K_UPARROW,K_RIGHTARROW,              K_DOWNARROW,0,0,0,K_PRINTSCREEN,K_INS,K_DEL,0,
-		/* 48*/ ')','!','\"',0xA3/*poundsign*/,'$','%','^','&',                '*','(',0,':',0,'+',0,0,
-
-		/* 64*/ 0,'A','B','C','D','E','F','G',          'H','I','J','K','L','M','N','O',
-		/* 80*/ 'P','Q','R','S','T','U','V','W',                'X','Y','Z',K_LWIN,K_RWIN,K_APP,0,0,
-		/* 96*/ K_KP_INS,K_KP_END,K_KP_DOWNARROW,K_KP_PGDN,K_KP_LEFTARROW,K_KP_5,K_KP_RIGHTARROW,K_KP_HOME,             K_KP_UPARROW,K_KP_PGDN,K_KP_STAR,K_KP_PLUS,0,K_KP_MINUS,K_KP_DEL,K_KP_SLASH,
-		/*112*/ K_F1,K_F2,K_F3,K_F4,K_F5,K_F6,K_F7,K_F8,K_F9,K_F10,K_F11,K_F12,0,0,0,0,
-		/*128*/ 0,0,0,0,0,0,0,0,                0,0,0,0,0,0,0,0,
-		/*144*/ K_KP_NUMLOCK,K_SCRLCK,0,0,0,0,0,0,              0,0,0,0,0,0,0,0,
-		/*160*/ 0,0,0,'~',0,0,0,0,                0,0,0,0,0,'_',0,0,
-		/*176*/ 0,0,0,0,0,0,0,0,                0,0,':','+','<','_','>','?',
-		/*192*/ '`',0,0,0,0,0,0,0,             0,0,0,0,0,0,0,0,
-		/*208*/ 0,0,0,0,0,0,0,0,                0,0,0,'{','|','}','@','`',
-		/*224*/ 0,0,0,0,0,0,0,0,                0,0,0,0,0,0,0,0,
-		/*240*/ 0,0,0,0,0,0,0,0,                0,0,0,0,0,0,0,0,
-	};
-	if (!code)
-		return 0;
-	if (code >= sizeof(tab)/sizeof(tab[0]))
-	{
-		Con_DPrintf("You just pressed key %u, but I don't know what its meant to be\n", code);
-		return 0;
-	}
-	if (!tab[code])
-		Con_DPrintf("You just pressed key %u, but I don't know what its meant to be\n", code);
-
-//	Con_DPrintf("You just pressed dom key %u, which is quake key %u\n", code, tab[code]);
-	return tab[code];
-}
 static int DOM_KeyEvent(unsigned int devid, int down, int scan, int uni)
 {
 	extern int		shift_down;
 //	Con_Printf("Key %s %i %i:%c\n", down?"down":"up", scan, uni, uni?(char)uni:' ');
 	if (shift_down)
 	{
-//		uni = domkeytoshift(scan);
 		scan = domkeytoquake(scan);
-//		uni = (uni >= 32 && uni <= 127)?uni:0;
 	}
 	else
 	{
 		scan = domkeytoquake(scan);
-//		uni = (scan >= 32 && scan <= 127)?scan:0;
 	}
 	IN_KeyEvent(keyboardid[devid], down, scan, uni);
 	//Chars which don't map to some printable ascii value get preventDefaulted.
@@ -194,7 +526,7 @@ static int DOM_KeyEvent(unsigned int devid, int down, int scan, int uni)
 }
 static int RemapTouchId(int id, qboolean final)
 {
-	static int touchids[8];
+	static int touchids[countof(mouseid)];
 	int i;
 	if (!id)
 		return id;
@@ -203,14 +535,16 @@ static int RemapTouchId(int id, qboolean final)
 		{
 			if (final)	
 				touchids[i] = 0;
-			return i;
+			return mouseid[i];
 		}
 	for (i = 1; i < countof(touchids); i++)
 		if (touchids[i] == 0)
 		{
 			if (!final)
 				touchids[i] = id;
-			return i;
+			if (mouseid[i] == DEVID_UNSET)
+				mouseid[i] = i;
+			return mouseid[i];
 		}
 	return id;
 }
@@ -222,12 +556,14 @@ static void DOM_ButtonEvent(unsigned int devid, int down, int button)
 		//fixme: the event is a float. we ignore that.
 		while(button < 0)
 		{
-			IN_KeyEvent(mouseid[devid], true, K_MWHEELUP, 0);
+			IN_KeyEvent(devid, true, K_MWHEELUP, 0);
+			IN_KeyEvent(devid, false, K_MWHEELUP, 0);
 			button += 1;
 		}
 		while(button > 0)
 		{
-			IN_KeyEvent(mouseid[devid], true, K_MWHEELDOWN, 0);
+			IN_KeyEvent(devid, true, K_MWHEELDOWN, 0);
+			IN_KeyEvent(devid, false, K_MWHEELUP, 0);
 			button -= 1;
 		}
 	}
@@ -243,13 +579,13 @@ static void DOM_ButtonEvent(unsigned int devid, int down, int button)
 			button = K_TOUCH;
 		else
 			button += K_MOUSE1;
-		IN_KeyEvent(mouseid[devid], down, button, 0);
+		IN_KeyEvent(devid, down, button, 0);
 	}
 }
 static void DOM_MouseMove(unsigned int devid, int abs, float x, float y, float z, float size)
 {
 	devid = RemapTouchId(devid, false);
-	IN_MouseMove(mouseid[devid], abs, x, y, z, size);
+	IN_MouseMove(devid, abs, x, y, z, size);
 }
 
 static void DOM_LoadFile(char *loc, char *mime, int handle)
@@ -311,6 +647,7 @@ qboolean GLVID_Init (rendererstate_t *info, unsigned char *palette)
 		DOM_CbufAddText,
 		IN_GamePadButtonEvent,
 		IN_GamePadAxisEvent,
+		IN_GamePadOrientationEvent,
 		VID_ShouldSwitchToFullscreen
 		))
 	{
@@ -320,12 +657,18 @@ qboolean GLVID_Init (rendererstate_t *info, unsigned char *palette)
 
 	vid.activeapp = true;
 
-	if (!GL_Init(info, GLVID_getsdlglfunction))
+	if (info->vr && !info->vr->Prepare(NULL))
+		info->vr = NULL;	//not available.
+
+	if (!GL_Init(info, GLVID_getwebglfunction))
+		return false;		
+	if (info->vr && !info->vr->Init(NULL, info))
 		return false;
+	vid.vr = info->vr;
 
 	qglViewport (0, 0, vid.pixelwidth, vid.pixelheight);
 
-	VID_Resized(vid.pixelwidth, vid.pixelheight);
+	VID_Resized(vid.pixelwidth, vid.pixelheight, 1);
 
 	mouseactive = false;
 
@@ -336,7 +679,7 @@ void GLVID_DeInit (void)
 {
 	vid.activeapp = false;
 
-	emscriptenfte_setupcanvas(-1, -1, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL);
+	emscriptenfte_setupcanvas(-1, -1, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL);
 
 	GL_ForgetPointers();
 }
@@ -387,6 +730,8 @@ void Sys_SendKeyEvents(void)
 	qboolean shouldbefree = Key_MouseShouldBeFree();
 	emscriptenfte_updatepointerlock(in_windowed_mouse.ival && !shouldbefree, shouldbefree);
 	emscriptenfte_polljoyevents();
+
+	IN_GamePadButtonRepeats();
 }
 /*various stuff for joysticks, which we don't support in this port*/
 void INS_Shutdown (void)
@@ -400,6 +745,8 @@ void INS_Move(void)
 }
 void INS_Init (void)
 {
+	//mneh, handy enough
+	R_RegisterVRDriver(NULL, &webxrfuncs);
 }
 void INS_Accumulate(void)
 {
@@ -411,10 +758,10 @@ void INS_EnumerateDevices(void *ctx, void(*callback)(void *ctx, const char *type
 {
 	size_t i;
 	char foobar[64];
-	for (i = 0; i < countof(gamepaddeviceids); i++)
+	for (i = 0; i < countof(gamepaddevices); i++)
 	{
 		Q_snprintfz(foobar, sizeof(foobar), "gp%i", (int)i);
-		callback(ctx, "gamepad", foobar, &gamepaddeviceids[i]);
+		callback(ctx, "gamepad", foobar, &gamepaddevices[i].id);
 	}
 	for (i = 0; i < countof(mouseid); i++)
 	{
@@ -428,6 +775,16 @@ void INS_EnumerateDevices(void *ctx, void(*callback)(void *ctx, const char *type
 	}
 }
 
+enum controllertype_e INS_GetControllerType(int id)
+{
+	size_t i;
+	for (i = 0; i < countof(gamepaddevices); i++)
+	{
+		if (id == gamepaddevices[i].id)
+			return CONTROLLER_UNKNOWN;	//browsers don't really like providing more info, to thwart fingerprinting. shame. you should just use generic glyphs.
+	}
+	return CONTROLLER_NONE;	//nuffin here. yay fingerprinting?
+}
 void INS_Rumble(int joy, quint16_t amp_low, quint16_t amp_high, quint32_t duration)
 {
 }

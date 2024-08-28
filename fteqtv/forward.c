@@ -216,7 +216,8 @@ void Net_TryFlushProxyBuffer(cluster_t *cluster, oproxy_t *prox)
 		prox->flushing = false;
 		break;
 	case -1:
-		if (qerrno != NET_EWOULDBLOCK && qerrno != NET_EAGAIN)	//not a problem, so long as we can flush it later.
+		length = qerrno;
+		if (length != NET_EWOULDBLOCK && length != NET_EAGAIN)	//not a problem, so long as we can flush it later.
 		{
 			Sys_Printf(cluster, "network error from client proxy\n");
 			prox->drop = true;	//drop them if we get any errors
@@ -866,6 +867,8 @@ qboolean SV_ReadPendingProxy(cluster_t *cluster, oproxy_t *pend)
 			closesocket(pend->sock);
 		free(pend);
 		cluster->numproxies--;
+
+		//REMEMBER TO PUT ANY CLEANUP INSIDE QW_TCPConnection TOO!
 		return true;
 	}
 #define QTVSVHEADER "QTVSV 1.1\n"
@@ -892,7 +895,7 @@ qboolean SV_ReadPendingProxy(cluster_t *cluster, oproxy_t *pend)
 			if (space > MAX_PROXY_BUFFER - 
 			fread(prox->buffer + pend->buffersize, 1, space, pend->srcfile);
 #else
-			if (pend->bufferpos == pend->buffersize)
+			while (pend->bufferpos == pend->buffersize)
 			{
 				char buffer[MAX_PROXY_BUFFER/2];
 				pend->droptime = cluster->curtime + 5*1000;
@@ -901,8 +904,10 @@ qboolean SV_ReadPendingProxy(cluster_t *cluster, oproxy_t *pend)
 				{
 					fclose(pend->srcfile);
 					pend->srcfile = NULL;
+					break;
 				}
 				Net_ProxySend(cluster, pend, buffer, len);
+				Net_TryFlushProxyBuffer(cluster, pend);
 			}
 #endif
 			return false;	//don't try reading anything yet
@@ -928,6 +933,7 @@ qboolean SV_ReadPendingProxy(cluster_t *cluster, oproxy_t *pend)
 	if (len == 0)
 	{
 		pend->drop = true;
+		printf("pending EOF\n");
 		return false;
 	}
 	else if (len > 0)
@@ -944,34 +950,10 @@ qboolean SV_ReadPendingProxy(cluster_t *cluster, oproxy_t *pend)
 	{
 		if (!strncmp(pend->inbuffer, "qizmo\n", 6))
 		{
-			wsrbuf_t ws = pend->websocket;
-			SOCKET sock;
 			//carries unreliable packets
 			printf("tcpconnect\n");
-			if (pend->srcfile)
-				fclose(pend->srcfile);
-			sock = pend->sock;
-			free(pend);
-			cluster->numproxies--;
-
-			send(sock, "qizmo\n", 6, 0);
-			QW_TCPConnection(cluster, sock, ws);
-
-			return true;
-		}
-		if (pend->websocket.websocket && !strncmp(pend->inbuffer, "\xff\xff\xff\xff", 4))
-		{
-			wsrbuf_t ws = pend->websocket;
-			SOCKET sock;
-			//carries unreliable packets
-			printf("wsconnect\n");
-			if (pend->srcfile)
-				fclose(pend->srcfile);
-			sock = pend->sock;
-			free(pend);
-			cluster->numproxies--;
-
-			QW_TCPConnection(cluster, sock, ws);
+			send(pend->sock, "qizmo\n", 6, 0);
+			QW_TCPConnection(cluster, pend, NULL);
 
 			return true;
 		}
@@ -1016,10 +998,18 @@ qboolean SV_ReadPendingProxy(cluster_t *cluster, oproxy_t *pend)
 	else if (!ustrncmp(pend->inbuffer, "GET ", 4))
 	{
 		pend->drop = true;
-		HTTPSV_GetMethod(cluster, pend);
+		colon = HTTPSV_GetMethod(cluster, pend);
 		pend->flushing = true;
 		memmove(pend->inbuffer, pend->inbuffer+headersize, pend->inbuffersize-headersize);
 		pend->inbuffersize -= headersize;
+
+		if (colon)
+		{
+			//carries unreliable packets
+			printf("wsconnect\n");
+			QW_TCPConnection(cluster, pend, colon);
+			return true;
+		}
 		return SV_ReadPendingProxy(cluster, pend);
 	}
 

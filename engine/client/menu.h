@@ -131,7 +131,12 @@ typedef enum
 	PROMPT_NO		= 1,
 	PROMPT_CANCEL	= -1,
 } promptbutton_t;
+#ifdef HAVE_CLIENT
 void Menu_Prompt (void (*callback)(void *, promptbutton_t), void *ctx, const char *messages, const char *optionyes, const char *optionno, const char *optioncancel, qboolean highpri);
+#define Menu_PromptOrPrint(messages,optioncancel,highpri) Menu_Prompt(NULL, NULL, messages, NULL, NULL, optioncancel, highpri)
+#else
+#define Menu_PromptOrPrint(messages,optioncancel,highpri) Con_Printf("%s", messages)
+#endif
 
 #ifndef NOBUILTINMENUS
 
@@ -145,6 +150,7 @@ void M_Menu_Mods_f (void);	//used at startup if the current gamedirs look dodgy.
 void M_Menu_Installer (void);	//given an embedded manifest, this displays an install menu for said game.
 mpic_t	*M_CachePic (char *path);
 void M_Menu_Quit_f (void);
+void M_Window_ClosePrompt (void);	//called when the window was requested to be closed. displays whatever quit menu is appropriate.
 void menufixme(void); //REMOVE REMOVE REMOVE
 typedef struct emenu_s emenu_t;
 
@@ -543,7 +549,7 @@ int M_GameType(void);
 
 //plugin functions
 #ifdef PLUGINS
-qboolean	Plug_CenterPrintMessage(char *buffer, int clientnum);
+qboolean	Plug_CenterPrintMessage(const char *buffer, int clientnum);
 qboolean	Plug_ChatMessage(char *buffer, int talkernum, int tpflags);
 void		Plug_Command_f(void);
 int			Plug_ConnectionlessClientPacket(char *buffer, int size);

@@ -44,6 +44,7 @@ char shaders[][64] =
 	"menutint",
 	"terrain",
 	"rtlight",
+	"rq_rtlight",
 	""
 };
 

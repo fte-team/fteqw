@@ -4645,8 +4645,6 @@ static void QCC_PR_CommandLinePrecompilerOptions (void)
 				keyword_double = keyword_long = keyword_short = keyword_char = keyword_signed = keyword_unsigned = true;
 				keyword_thinktime = keyword_until = keyword_loop = false;
 
-				keyword_integer = true;
-
 				opt_logicops = true;		//early out like C.
 				flag_assumevar = true;		//const only if explicitly const.
 				pr_subscopedlocals = true;	//locals shadow other locals rather than being the same one.
@@ -4974,6 +4972,8 @@ static void QCC_PR_CommandLinePrecompilerOptions (void)
 			externs->Printf("%s\n", QCC_VersionString());
 			exit(EXIT_SUCCESS);
 		}
+		else if ( !strcmp(myargv[i], "--help") || !strcmp(myargv[i], "-help") )
+			;	//hacks... checked later. *sigh*
 		else if (*myargv[i] == '-' || WINDOWSARG(*myargv[i] == '/'))
 			QCC_PR_Warning(WARN_BADPARAMS, "cmdline", 0, "Unrecognised parameter (%s)", myargv[i]);
 		else
@@ -5508,24 +5508,34 @@ memset(pr_immediate_string, 0, sizeof(pr_immediate_string));
 
 	if ( QCC_CheckParm ("/?") || QCC_CheckParm ("?") || QCC_CheckParm ("-?") || QCC_CheckParm ("-help") || QCC_CheckParm ("--help"))
 	{
-		externs->Printf ("qcc looks for progs.src in the current directory.\n");
-		externs->Printf ("to look in a different directory: qcc -src <directory>\n");
+		externs->Printf ("Compile args:\n");
 //		externs->Printf ("to build a clean data tree: qcc -copy <srcdir> <destdir>\n");
 //		externs->Printf ("to build a clean pak file: qcc -pak <srcdir> <packfile>\n");
 //		externs->Printf ("to bsp all bmodels: qcc -bspmodels <gamedir>\n");
-		externs->Printf ("-Fwasm causes FTEQCC to dump all asm to qc.asm\n");
-		externs->Printf ("-O0 to disable optimisations\n");
-		externs->Printf ("-O1 to optimise for size\n");
-		externs->Printf ("-O2 to optimise more - some behaviours may change\n");
-		externs->Printf ("-O3 to optimise lots - experimental or non-future-proof\n");
-		externs->Printf ("-Oname to enable an optimisation\n");
-		externs->Printf ("-Ono-name to disable optimisations\n");
-		externs->Printf ("-Kkeyword to activate keyword\n");
-		externs->Printf ("-Kno-keyword to disable keyword\n");
-		externs->Printf ("-Wall to give a stupid number of warnings\n");
-		externs->Printf ("-Ttarget to set a output format\n");
-		externs->Printf ("-Fautoproto to enable automatic prototyping\n");
-		externs->Printf ("-Fsubscope to make locals specific to their subscope\n");
+		externs->Printf (" -src <DIRECTORY> : look for the progs.src and qc files in a different directory\n");
+		externs->Printf (" -srcfile <PATH> : explicit path for your starting .src file\n");
+		externs->Printf (" -O0 : disable optimisations\n");
+		externs->Printf (" -O1 : optimise for size\n");
+		externs->Printf (" -O2 : optimise more - some behaviours may change\n");
+		externs->Printf (" -O3 : optimise lots - experimental or non-future-proof\n");
+		externs->Printf (" -O<NAME> : enable an optimisation\n");
+		externs->Printf (" -Ono-<NAME> : disable optimisations\n");
+		externs->Printf (" -K[no-]<KEYWORD> : activate or deactivate a keyword\n");
+		externs->Printf ("     note that inactive keywords can still be used via __keyword\n");
+		externs->Printf (" -Wall : give a stupid number of warnings\n");
+		externs->Printf (" -T<TARGET> : set an output format\n");
+		externs->Printf ("     q1, h2, qtest, fte_5768, dp, kk7\n");
+		externs->Printf (" -F[no-]<FLAG> : Enable or disable some flagged setting\n");
+		externs->Printf ("     wasm : causes FTEQCC to dump all asm to qc.asm\n");
+		externs->Printf ("     autoproto : enable automatic prototyping\n");
+		externs->Printf ("     subscope : make locals specific to their subscope\n");
+		externs->Printf ("     assumeint : don't force immediates to floats, preserving precision\n");
+		externs->Printf ("     dumpautocvars : write a .cfg containing all autocvars, to be inserted into your mod's default.cfg file\n");
+		externs->Printf ("     dumplocalisation : write a localisation template file\n");
+		externs->Printf (" -D<MACRO>=<VALUE> : define a preprocessor macro via the commandline\n");
+		externs->Printf (" -I<PATH> : specify an alternative path to search for includes\n");
+		externs->Printf (" -std=<STD> : change default settings to be more accepting of code for other compilers\n");
+		externs->Printf ("     qcc(vanilla), hcc(hexen2), C, qccx, reacc(for nehahra)\n");
 
 		qcc_compileactive = false;
 		return true;

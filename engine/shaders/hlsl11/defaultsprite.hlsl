@@ -1,4 +1,4 @@
-!!samps diffuse
+!!samps 1
 
 struct a2v
 {

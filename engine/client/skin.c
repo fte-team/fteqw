@@ -469,6 +469,7 @@ void Skin_NextDownload (void)
 		int j;
 		char *slash;
 		char *skinname;
+		char *dogtag;
 		for (i = 0; i != MAX_CLIENTS; i++)
 		{
 			sc = &cl.players[i];
@@ -479,20 +480,25 @@ void Skin_NextDownload (void)
 			if (slash)
 			{
 				*slash = 0;
+
+				dogtag = strchr(slash+1, '\\');	//q2e
+				if (dogtag)
+					*dogtag++ = 0;
+
 				CL_CheckOrEnqueDownloadFile(va("players/%s/tris.md2", skinname), NULL, 0);
 				for (j = 1; j < MAX_PRECACHE_MODELS; j++)
 				{
+					if (!cl.model_name[j])
+						break;
 					if (cl.model_name[j][0] == '#')
 						CL_CheckOrEnqueDownloadFile(va("players/%s/%s", skinname, cl.model_name[j]+1), NULL, 0);
-					if (!*cl.model_name[j])
-						break;
 				}
 				for (j = 1; j < MAX_PRECACHE_SOUNDS; j++)
 				{
+					if (!cl.sound_name[j])
+						break;
 					if (cl.sound_name[j][0] == '*')
 						CL_CheckOrEnqueDownloadFile(va("players/%s/%s", skinname, cl.sound_name[j]+1), NULL, 0);
-					if (!*cl.sound_name[j])
-						break;
 				}
 				*slash = '/';
 				CL_CheckOrEnqueDownloadFile(va("players/%s.pcx", skinname), NULL, 0);

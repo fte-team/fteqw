@@ -17,6 +17,9 @@ varying vec2 lm0;
 void main ()
 {
 	tc = v_texcoord.st;
+	#ifdef FLOWV
+	tc.st += e_time * vec2(FLOWV);
+	#endif
 	#ifdef FLOW
 	tc.s += e_time * -0.5;
 	#endif
@@ -29,9 +32,7 @@ void main ()
 #ifdef FRAGMENT_SHADER
 void main ()
 {
-	vec2 ntc;
-	ntc.s = tc.s + sin(tc.t+e_time)*0.125;
-	ntc.t = tc.t + sin(tc.s+e_time)*0.125;
+	vec2 ntc = tc + sin(tc.ts+e_time)*0.125;
 	vec3 ts = vec3(texture2D(s_diffuse, ntc));
 
 #ifdef LIT

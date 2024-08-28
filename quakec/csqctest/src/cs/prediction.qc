@@ -78,7 +78,6 @@ nonstatic void(entity ent) Pred_PlayerUpdated =
 	//reset the prediction to last-known-good state
 	Pred_ResetPlayerPrediction(ent);
 	Pred_RunMovement(ent, servercommandframe+1);
-	player_pmflags = ent.pmove_flags;
 
 	player_step = pmove_step;
 	player_steptime = pmove_steptime;
@@ -87,6 +86,7 @@ nonstatic void(entity ent) Pred_PlayerUpdated =
 	player_org = o;
 	player_vel = v;
 	player_sequence = servercommandframe;
+	player_pmflags = pmf;
 
 	if (noerror)
 	{
@@ -121,6 +121,7 @@ nonstatic void(entity ent) Pred_PlayerUpdated =
 
 void(entity ent, float endframe) Pred_RunMovement =
 {
+	vector oorg;
 	if (servercommandframe >= player_sequence+63)
 	{
 		//we're meant to be updating the player faster than this
@@ -141,8 +142,7 @@ void(entity ent, float endframe) Pred_RunMovement =
 		pmoveframe = clientcommandframe;
 		//just update the angles
 		if (!getinputstate(pmoveframe-1))
-		{
-		}
+			dprint(sprintf("Bad sequence %g\n", pmoveframe-1));
 		return;	//dead, so don't run prediction. :D
 	}
 
@@ -151,25 +151,33 @@ void(entity ent, float endframe) Pred_RunMovement =
 		pmoveframe = clientcommandframe;
 		//just update the angles
 		if (!getinputstate(pmoveframe-1))
-		{
-		}
+			dprint(sprintf("Bad sequence %g\n", pmoveframe-1));
 		input_angles = view_angles;
 		return;
 	}
 
-	if (getinputstate(pmoveframe-1))
-		self.pmove_flags = PMF_JUMP_HELD;
+//	if (getinputstate(pmoveframe-1))
+//		ent.pmove_flags = PMF_JUMP_HELD;
 	while(pmoveframe <= endframe)
 	{
 		if (!getinputstate(pmoveframe))
 		{
+			dprint(sprintf("Bad sequence %g\n", pmoveframe));
 			break;
 		}
+		if (pmoveframe==clientcommandframe)
+			CSQC_Input_Frame();	//manipulate it like we would if we actually sent it...
+		oorg = ent.origin;
 #ifdef OWNPLAYERPHYSICS
 		PMove(ent);
 #else
 		runstandardplayerphysics(ent);
 #endif
+		if (input_buttons & ((pmoveframe == clientcommandframe)?128:64))
+		{   //some debugging info, to match up to the client. server's sequence will have no gaps.
+			print(sprintf("after input_sequence:%g(%g-%g), msecs:%g, aim:%v, move:%v%s\n", input_sequence, servercommandframe, clientcommandframe, input_timelength*1000, input_angles, input_movevalues, (pmoveframe == clientcommandframe)?" \spartial":""));
+			print(sprintf("  origin: %v <- %v, velocity %v\n", ent.origin, oorg, ent.velocity));
+		}
 
 		pmoveframe++;
 	}

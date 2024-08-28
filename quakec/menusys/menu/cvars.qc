@@ -128,7 +128,7 @@ float(vector pos, float scan, float char, float down, float idx) mitem_cvargrid:
 		cursorpos = max(cursorpos-1, 0);
 	else if (scan == K_RIGHTARROW && cursorpos>=0)
 		cursorpos+=1;
-	else if (scan == K_MOUSE1)
+	else if (scan == K_MOUSE1 || scan == K_TOUCHTAP)
 	{
 		startedit(idx);
 		if (cursorpos>=0)

@@ -28,9 +28,7 @@ struct v2f {
 	sampler s_diffuse;
 	float4 main (v2f inp) : COLOR0
 	{
-		float2 ntc;
-		ntc.x = inp.tc.x + sin(inp.tc.y+e_time)*0.125;
-		ntc.y = inp.tc.y + sin(inp.tc.x+e_time)*0.125;
+		float2 ntc = inp.tc + sin(inp.tc.yx+e_time)*0.125;
 		float3 ts = tex2D(s_diffuse, ntc).xyz;
 
 #ifdef ALPHA

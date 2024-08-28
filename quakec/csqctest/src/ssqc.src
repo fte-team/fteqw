@@ -3,7 +3,11 @@
 //#define QWSSQC
 #define SSQC
 optsall.qc
+#if defined(QSS) || defined(DP)
 ssqc_api.qc
+#else
+fteextensions.qc
+#endif
 
 ss/defs.qc
 common/econstants.qc

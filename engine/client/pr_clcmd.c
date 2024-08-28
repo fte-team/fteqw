@@ -542,7 +542,6 @@ void QCBUILTIN PF_cl_playingdemo (pubprogfuncs_t *prinst, struct globalvars_s *p
 		G_FLOAT(OFS_RETURN) = 0;
 		break;
 	case DPB_MVD:
-	case DPB_EZTV:
 		G_FLOAT(OFS_RETURN) = 2;
 		break;
 	default:
@@ -1274,5 +1273,233 @@ void QCBUILTIN PF_cl_SendPacket(pubprogfuncs_t *prinst, struct globalvars_s *pr_
 	}
 }
 
+
+void QCBUILTIN PF_cl_gp_querywithcb(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{	//for wrath compat, which isn't allowed to just return it for some reason.
+	int device = G_FLOAT(OFS_PARM0);
+	enum controllertype_e type = INS_GetControllerType(device);
+
+	func_t f = PR_FindFunction (prinst, "Controller_Type", PR_CURRENT);
+	if (f)
+	{
+		G_FLOAT(OFS_PARM0) = device;
+		G_FLOAT(OFS_PARM1) = type;
+		PR_ExecuteProgram (prinst, f);
+	}
+}
+void QCBUILTIN PF_cl_gp_getbuttontype(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	int device = G_FLOAT(OFS_PARM0);
+	G_FLOAT(OFS_RETURN) = INS_GetControllerType(device);
+}
+void QCBUILTIN PF_cl_gp_rumble(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	int device = G_FLOAT(OFS_PARM0);
+	quint16_t amp_low = G_FLOAT(OFS_PARM1);
+	quint16_t amp_high = G_FLOAT(OFS_PARM2);
+	quint32_t duration = G_FLOAT(OFS_PARM3);
+	INS_Rumble(device, amp_low, amp_high, duration);
+}
+void QCBUILTIN PF_cl_gp_rumbletriggers(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	int device = G_FLOAT(OFS_PARM0);
+	quint16_t left = G_FLOAT(OFS_PARM1);
+	quint16_t right = G_FLOAT(OFS_PARM2);
+	quint32_t duration = G_FLOAT(OFS_PARM3);
+	INS_RumbleTriggers(device, left, right, duration);
+}
+void QCBUILTIN PF_cl_gp_setledcolor(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	int device = G_FLOAT(OFS_PARM0);
+	INS_SetLEDColor(device, G_VECTOR(OFS_PARM1));
+}
+void QCBUILTIN PF_cl_gp_settriggerfx(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	int device = G_FLOAT(OFS_PARM0);
+	int size = G_INT(OFS_PARM2);
+	const void *fxptr = PR_GetReadQCPtr(prinst, G_INT(OFS_PARM1), size);
+
+	if (!fxptr)
+		PR_BIError(prinst, "PF_cl_gp_settriggerfx: invalid pointer/size\n");
+	else
+		INS_SetTriggerFX(device, fxptr, size);
+}
+
+const char *PF_cl_serverkey_internal(const char *keyname)
+{
+	char *ret;
+	static char adr[MAX_ADR_SIZE];
+
+	if (!strcmp(keyname, "ip"))
+	{
+		if (cls.demoplayback)
+			ret = cls.lastdemoname;
+		else
+			ret = NET_AdrToString(adr, sizeof(adr), &cls.netchan.remote_address);
+	}
+	else if (!strcmp(keyname, "servername"))
+		ret = cls.servername;
+	else if (!strcmp(keyname, "constate"))
+	{
+		if (cls.state == ca_disconnected
+#ifndef CLIENTONLY
+			&& !sv.state
+#endif
+				)
+			ret = "disconnected";
+		else if (cls.state == ca_active)
+			ret = "active";
+		else
+			ret = "connecting";
+	}
+	else if (!strcmp(keyname, "loadstate"))
+	{
+		extern int			total_loading_size, current_loading_size, loading_stage;
+		extern char			levelshotname[MAX_QPATH];
+		ret = va("%i %u %u \"%s\"", loading_stage, current_loading_size, total_loading_size, levelshotname);
+	}
+	else if (!strcmp(keyname, "transferring"))
+	{
+		ret = CL_TryingToConnect();
+		if (!ret)
+			ret = "";
+	}
+	else if (!strcmp(keyname, "maxplayers"))
+	{
+		ret = va("%i", cl.allocated_client_slots);
+	}
+	else if (!strcmp(keyname, "dlstate"))
+	{
+		if (!cl.downloadlist && !cls.download)
+			ret = "";	//nothing being downloaded right now
+		else
+		{
+			unsigned int fcount;
+			qofs_t tsize;
+			qboolean sizeextra;
+			CL_GetDownloadSizes(&fcount, &tsize, &sizeextra);
+			if (cls.download)	//downloading something
+				ret = va("%u %g %u \"%s\" \"%s\" %g %i %g %g", fcount, (float)tsize, sizeextra?1u:0u, cls.download->localname, cls.download->remotename, cls.download->percent, cls.download->rate, (float)cls.download->completedbytes, (float)cls.download->size);
+			else	//not downloading anything right now
+				ret = va("%u %g %u", fcount, (float)tsize, sizeextra?1u:0u);
+		}
+	}
+	else if (!strcmp(keyname, "pausestate"))
+		ret = cl.paused?"1":"0";
+	else if (!strcmp(keyname, "protocol"))
+	{	//using this is pretty acedemic, really. Not particuarly portable.
+		switch (cls.protocol)
+		{	//a tokenizable string
+			//first is the base game qw/nq
+			//second is branch (custom engine name)
+			//third is protocol version.
+		default:
+		case CP_UNKNOWN:
+			ret = "Unknown";
+			break;
+		case CP_QUAKEWORLD:
+			if (cls.fteprotocolextensions||cls.fteprotocolextensions2)
+				ret = "QuakeWorld FTE";
+			else if (cls.z_ext)
+				ret = "QuakeWorld ZQuake";
+			else
+				ret = "QuakeWorld";
+			break;
+		case CP_NETQUAKE:
+			switch (cls.protocol_nq)
+			{
+			default:
+				ret = "NetQuake";
+				break;
+			case CPNQ_FITZ666:
+				ret = "Fitz666";
+				break;
+			case CPNQ_DP5:
+				ret = "NetQuake DarkPlaces 5";
+				break;
+			case CPNQ_DP6:
+				ret = "NetQuake DarkPlaces 6";
+				break;
+			case CPNQ_DP7:
+				ret = "NetQuake DarkPlaces 7";
+				break;
+			}
+			break;
+		case CP_QUAKE2:
+			ret = "Quake2";
+			break;
+		case CP_QUAKE3:
+			ret = "Quake3";
+			break;
+		case CP_PLUGIN:
+			ret = "External";
+			break;
+		}
+	}
+	else if (!strcmp(keyname, "challenge"))
+	{
+		ret = va("%u", cls.challenge);
+	}
+	else
+	{
+#ifndef CLIENTONLY
+		if (sv.state >= ss_loading)
+		{
+			ret = InfoBuf_ValueForKey(&svs.info, keyname);
+			if (!*ret)
+				ret = InfoBuf_ValueForKey(&svs.localinfo, keyname);
+		}
+		else
+#endif
+			ret = InfoBuf_ValueForKey(&cl.serverinfo, keyname);
+	}
+	return ret;
+}
+//string(string keyname)
+void QCBUILTIN PF_cl_serverkey (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	const char *keyname = PF_VarString(prinst, 0, pr_globals);
+	const char *ret = PF_cl_serverkey_internal(keyname);
+	if (*ret)
+		RETURN_TSTRING(ret);
+	else
+		G_INT(OFS_RETURN) = 0;
+}
+void QCBUILTIN PF_cl_serverkeyfloat (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	const char *keyname = PR_GetStringOfs(prinst, OFS_PARM0);
+	const char *ret = PF_cl_serverkey_internal(keyname);
+	if (*ret)
+		G_FLOAT(OFS_RETURN) = strtod(ret, NULL);
+	else
+		G_FLOAT(OFS_RETURN) = (prinst->callargc >= 2)?G_FLOAT(OFS_PARM1):0;
+}
+void QCBUILTIN PF_cl_serverkeyblob (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	const char *keyname = PR_GetStringOfs(prinst, OFS_PARM0);
+	int qcptr = G_INT(OFS_PARM1);
+	int qcsize = G_INT(OFS_PARM2);
+	void *ptr;
+	size_t blobsize = 0;
+	const char *blob;
+
+	if (qcptr < 0 || qcptr+qcsize >= prinst->stringtablesize)
+	{
+		PR_BIError(prinst, "PF_cs_serverkeyblob: invalid pointer\n");
+		return;
+	}
+	ptr = (prinst->stringtable + qcptr);
+
+	blob = InfoBuf_BlobForKey(&cl.serverinfo, keyname, &blobsize, NULL);
+
+	if (qcptr)
+	{
+		blobsize = min(blobsize, qcsize);
+		memcpy(ptr, blob, blobsize);
+		G_INT(OFS_RETURN) = blobsize;
+	}
+	else
+		G_INT(OFS_RETURN) = blobsize;
+}
 
 #endif

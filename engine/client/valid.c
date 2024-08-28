@@ -1437,6 +1437,9 @@ void Validation_Auto_Response(int playernum, char *s)
 	static float cmdlineresponsetime;
 	static float scriptsresponsetime;
 
+	if (cls.demoplayback)
+		return;	//noone gives a shit about qtv spectator versions that can't even play without reconnecting.
+
 	//quakeworld tends to use f_*
 	//netquake uses the slightly more guessable q_* form
 	if (!strncmp(s, "f_", 2))

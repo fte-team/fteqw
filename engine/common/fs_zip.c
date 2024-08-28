@@ -4,6 +4,36 @@
 //#define AVAIL_BZLIB
 //#define DYNAMIC_BZLIB
 
+
+
+//supported ZIP features:
+//zip64 for huge zips
+//utf-8 encoding support (non-utf-8 is always ibm437)
+//symlink flag
+//compression mode: store
+//compression mode: deflate (via zlib)
+//compression mode: deflate64 (via zlib's unofficial extras)
+//compression mode: bzip2 (via libbz2)
+//bigendian cpus. everything misaligned.
+//weak/original file encryption (set fs_zip_password)
+//split archives (see specific notes)
+
+//NOT supported:
+//other compression modes
+//strong/aes encryption
+//if central dir is crypted/compressed, the archive will fail to open
+//crc verification (if present then the local header must match the central dir, but the file data itself will not be verified in part because that'd require decoding the entire file upfront first)
+//infozip utf-8 name override.
+//other 'extra' fields.
+
+//split archives:
+//the central directory must be stored exclusively inside the initial zip/pk3 file.
+//additional volumes will use the first letter of the extension and then at least two base-10 digits denoting the volume index (eg pak0.pk3 + pak0.p00 + pak0.p01).
+//individual files must not be split over files (no rollover on truncation)
+//fteqcc has a feature to generate versioned centraldir-only zips using external volumes for the actual data. This can be used to avoid downloading redundant data when connecting to servers using older revisions, but such revisions must be centrally managed.
+
+
+
 #ifdef AVAIL_BZLIB
 #	include <bzlib.h>
 #	ifdef DYNAMIC_BZLIB
@@ -46,14 +76,6 @@
 	#define ZEXPORT VARGS
 # endif
 # include <zlib.h>
-
-# ifdef _MSC_VER
-#  ifdef _WIN64
-#   pragma comment(lib, MSVCLIBSPATH "zlib64.lib")
-#  else
-#   pragma comment(lib, MSVCLIBSPATH "zlib.lib")
-#  endif
-# endif
 
 # ifdef DYNAMIC_ZLIB
 #  define ZLIB_LOADED() (zlib_handle!=NULL)
@@ -292,13 +314,42 @@ vfsfile_t *FS_DecompressGZip(vfsfile_t *infile, vfsfile_t *outfile)
 }
 
 
+size_t ZLib_CompressBuffer(const qbyte *in, size_t insize, qbyte *out, size_t maxoutsize)
+{	//compresses... returns 0 if the data would have grown.
+	z_stream strm = {
+		(qbyte*)in,
+		insize,
+		0,
 
-size_t ZLib_DecompressBuffer(qbyte *in, size_t insize, qbyte *out, size_t maxoutsize)
+		out,
+		maxoutsize,
+		0,
+
+		NULL,
+		NULL,
+
+		NULL,
+		NULL,
+		NULL,
+
+		Z_UNKNOWN,
+		0,
+		0
+	};
+
+	qdeflateInit2(&strm, Z_BEST_COMPRESSION, Z_DEFLATED, MAX_WBITS, MAX_MEM_LEVEL, Z_DEFAULT_STRATEGY);
+	if (qdeflate(&strm, Z_FINISH) != Z_STREAM_END)
+		strm.total_out = 0; //some sort of failure. probably needs more output buffer
+	qdeflateEnd(&strm);
+
+	return strm.total_out;
+}
+size_t ZLib_DecompressBuffer(const qbyte *in, size_t insize, qbyte *out, size_t maxoutsize)
 {
 	int ret;
 
 	z_stream strm = {
-		in,
+		(qbyte*)in,
 		insize,
 		0,
 
@@ -772,7 +823,7 @@ static int QDECL FSZIP_EnumerateFiles (searchpathfuncs_t *handle, const char *ma
 	return true;
 }
 
-static int QDECL FSZIP_GeneratePureCRC(searchpathfuncs_t *handle, int seed, int crctype)
+static int QDECL FSZIP_GeneratePureCRC(searchpathfuncs_t *handle, const int *seed)
 {
 	zipfile_t *zip = (void*)handle;
 
@@ -782,7 +833,8 @@ static int QDECL FSZIP_GeneratePureCRC(searchpathfuncs_t *handle, int seed, int 
 	int i;
 
 	filecrcs = BZ_Malloc((zip->numfiles+1)*sizeof(int));
-	filecrcs[numcrcs++] = seed;
+	if (seed)
+		filecrcs[numcrcs++] = *seed;
 
 	for (i = 0; i < zip->numfiles; i++)
 	{
@@ -790,10 +842,7 @@ static int QDECL FSZIP_GeneratePureCRC(searchpathfuncs_t *handle, int seed, int 
 			filecrcs[numcrcs++] = zip->files[i].crc;
 	}
 
-	if (crctype || numcrcs < 1)
-		result = CalcHashInt(&hash_md4, filecrcs, numcrcs*sizeof(int));
-	else
-		result = CalcHashInt(&hash_md4, filecrcs+1, (numcrcs-1)*sizeof(int));
+	result = CalcHashInt(&hash_md4, filecrcs, numcrcs*sizeof(int));
 
 	BZ_Free(filecrcs);
 	return result;
@@ -1579,30 +1628,6 @@ static vfsfile_t *QDECL FSZIP_OpenVFS(searchpathfuncs_t *handle, flocation_t *lo
 	FTE_Atomic32_Inc(&zip->references);
 	return (vfsfile_t*)vfsz;
 }
-
-
-//ZIP features:
-//zip64 for huge zips
-//utf-8 encoding support (non-utf-8 is always ibm437)
-//symlink flag
-//compression mode: store
-//compression mode: deflate (via zlib)
-//bigendian cpus. everything misaligned.
-
-//NOT supported:
-//compression mode: deflate64
-//other compression modes
-//split archives
-//if central dir is crypted/compressed, the archive will fail to open
-//if a file is crypted/compressed, the file will (internally) be marked as corrupt
-//crc verification
-//infozip utf-8 name override.
-//other 'extra' fields.
-
-//split archives:
-//central directory must be stored exclusively inside the initial zip.
-//files on other parts will fail to load.
-//individual files must not be split over files
 
 struct zipinfo
 {

@@ -165,7 +165,7 @@ cvar_t	sv_csqc_progname	= CVARAF("sv_csqc_progname", "csprogs.dat", /*dp*/"csqc_
 cvar_t pausable				= CVAR("pausable", "");
 cvar_t sv_banproxies		= CVARD("sv_banproxies", "0", "If enabled, anyone connecting via known proxy software will be refused entry. This should aid with blocking aimbots, but is only reliable for certain public proxies.");
 cvar_t	sv_specprint		= CVARD("sv_specprint", "3",	"Bitfield that controls which player events spectators see when tracking that player.\n&1: spectators will see centerprints.\n&2: spectators will see sprints (pickup messages etc).\n&4: spectators will receive console commands, this is potentially risky.\nIndividual spectators can use 'setinfo sp foo' to limit this setting.");
-cvar_t	sv_protocol				= CVARD("sv_protocol", "", "Specifies which protocol extensions to force. recognised values: csqc");
+cvar_t	sv_protocol				= CVARD("sv_protocol", "", "Specifies which protocol extensions to force. Clients which do not support the named protocols will be kicked. Recognised values: fte1 fte2 csqc.");
 
 //
 // game rules mirrored in svs.info
@@ -307,10 +307,6 @@ void SV_Shutdown (void)
 
 	InfoBuf_Clear(&svs.info, true);
 	InfoBuf_Clear(&svs.localinfo, true);
-
-#ifdef WEBSERVER
-	IWebShutdown();
-#endif
 
 	COM_BiDi_Shutdown();
 	TL_Shutdown();
@@ -507,6 +503,7 @@ void SV_DropClient (client_t *drop)
 			switch (drop->protocol)
 			{
 			case SCP_QUAKE2:
+			case SCP_QUAKE2EX:
 				MSG_WriteByte (&drop->netchan.message, svcq2_disconnect);
 				break;
 			case SCP_QUAKEWORLD:
@@ -756,6 +753,21 @@ void SV_DropClient (client_t *drop)
 	}
 }
 
+//called when someone's connection goes away.
+void SV_DropClient_ByAddress (netadr_t *addr)
+{	//just flag em, its easier on stack...
+	int i;
+	for (i = 0; i < svs.allocated_client_slots; i++)
+	{
+		if (!svs.clients[i].drop && svs.clients[i].state >= cs_connected)
+			if (NET_CompareAdr(&svs.clients[i].netchan.remote_address, addr))
+			{
+				SV_BroadcastTPrintf (PRINT_HIGH, "%s lost connection\n", svs.clients[i].name);
+				svs.clients[i].drop = true;
+			}
+	}
+}
+
 
 //====================================================================
 
@@ -764,8 +776,8 @@ typedef struct pinnedmessages_s {
 	char setby[64];
 	char message[1024];
 } pinnedmessages_t;
-pinnedmessages_t *pinned;
-qboolean dopinnedload = true;
+static pinnedmessages_t *pinned;
+static qboolean dopinnedload = true;
 void PIN_DeleteOldestMessage(void);
 void PIN_MakeMessage(char *from, char *msg);
 
@@ -917,13 +929,11 @@ int SV_CalcPing (client_t *cl, qboolean forcecalc)
 	if (!cl->frameunion.frames)
 		return 0;
 
-	switch (cl->protocol)
+	safeswitch (cl->protocol)
 	{
-	default:
-	case SCP_BAD:
-		break;
-#ifdef Q2SERVER
 	case SCP_QUAKE2:
+	case SCP_QUAKE2EX:
+#ifdef Q2SERVER
 		{
 			q2client_frame_t *frame;
 			ping = 0;
@@ -968,6 +978,9 @@ int SV_CalcPing (client_t *cl, qboolean forcecalc)
 			ping /= count;
 		}
 		return ping*1000;
+	case SCP_BAD:
+	safedefault:
+		break;
 	}
 	return 0;
 }
@@ -1127,21 +1140,23 @@ const char *SV_ProtocolNameForClient(client_t *cl)
 	case SCP_QUAKEWORLD:
 		if (cl->fteprotocolextensions2 & PEXT2_REPLACEMENTDELTAS)
 			return "fteqw";	//changes enough to be significant. assumed to include csqc.
-		return "quakeworld";
+		return "qw";
 	case SCP_BAD:
 		return "bot";
 	case SCP_QUAKE2:
-		return "quake2";
+		return "q2";
+	case SCP_QUAKE2EX:
+		return "q2ex";
 	case SCP_QUAKE3:
-		return "quake3";
+		return "q3";
 	case SCP_NETQUAKE:
 		if (cl->fteprotocolextensions2 & PEXT2_REPLACEMENTDELTAS)
 			return "ftenq";	//changes enough to be significant. assumed to include csqc.
 		if (cl->qex)
 			return "qex";
 		if (cl->proquake_angles_hack)
-			return "proquake";
-		return "vanilla";
+			return "pq";
+		return "nq";
 	case SCP_BJP3:
 		return "bjp3";
 	case SCP_FITZ666:
@@ -1158,7 +1173,7 @@ const char *SV_ProtocolNameForClient(client_t *cl)
 	case SCP_DARKPLACES7:
 		return "dp7";
 	safedefault:
-		return "unknown";
+		return "unk";
 	}
 }
 
@@ -1335,11 +1350,6 @@ static void SVC_GetInfo (const char *challenge, int fullstatus)
 	const char *gamestatus;
 	eval_t *v;
 
-#ifdef NQPROT
-	if (!sv_listen_nq.ival && !sv_listen_dp.ival)
-		return;
-#endif
-
 	for (i=0 ; i<svs.allocated_client_slots ; i++)
 	{
 		cl = &svs.clients[i];
@@ -1471,7 +1481,7 @@ static void SVC_InfoQ2 (void)
 		snprintf (string, sizeof(string), "%16s %8s %2i/%2i\n", hostname.string, svs.name, count, (int)maxclients.value);
 	}
 
-	Netchan_OutOfBandPrint (NS_SERVER, &net_from, "info\n%s", string);
+	Netchan_OutOfBandPrint (NCF_SERVER, &net_from, "info\n%s", string);
 }
 #endif
 
@@ -1644,7 +1654,7 @@ qboolean SVC_GetChallenge (qboolean respond_dp)
 	const qboolean respond_qwoverq3 = false;
 #endif
 
-	//ioq3clchallenge = atoi(Cmd_Argv(1));
+	int ioq3clchallenge = atoi(Cmd_Argv(1));
 	const char *protocols = Cmd_Argv(2);
 	if (*protocols)
 	{
@@ -1666,7 +1676,7 @@ qboolean SVC_GetChallenge (qboolean respond_dp)
 		{
 			COM_ParseOut(com_protocolname.string, oprot,sizeof(oprot));
 			pname = va("print\nGame mismatch: This is a %s server\n", oprot);
-			Netchan_OutOfBand(NS_SERVER, &net_from, strlen(pname), pname);
+			Netchan_OutOfBand(NCF_SERVER, &net_from, strlen(pname), pname);
 			return false;
 		}
 	}
@@ -1729,12 +1739,12 @@ qboolean SVC_GetChallenge (qboolean respond_dp)
 	{
 #ifdef Q3SERVER
 	case GT_QUAKE3:	//q3 servers
-		buf = va("challengeResponse %i", challenge);
+		buf = va("challengeResponse %i %i %i", challenge, ioq3clchallenge, com_protocolversion.ival);
 		break;
 #endif
 #ifdef Q2SERVER
 	case GT_QUAKE2:
-		buf = va("challenge %i", challenge);	//quake 2 servers give a different challenge response
+		buf = va("challenge %i p="STRINGIFY(PROTOCOL_VERSION_Q2EX), challenge);	//quake 2 servers give a different challenge response
 		break;
 #endif
 	default:
@@ -1857,11 +1867,11 @@ qboolean SVC_GetChallenge (qboolean respond_dp)
 			dp = va("challenge FTE%i", challenge);	//an FTE prefix will cause FTE clients to ignore the packet, to give preference to the qw challenge + protocols
 		else
 			dp = va("challenge %iDP", challenge);	//we still need to add a postfix to prevent it from being interpreted as a Q2 server
-		Netchan_OutOfBand(NS_SERVER, &net_from, strlen(dp)+1, dp);
+		Netchan_OutOfBand(NCF_SERVER, &net_from, strlen(dp)+1, dp);
 	}
 
 	if (respond_std)
-		Netchan_OutOfBand(NS_SERVER, &net_from, over-buf, buf);
+		Netchan_OutOfBand(NCF_SERVER, &net_from, over-buf, buf);
 
 #ifdef QWOVERQ3
 	if (svs.gametype == GT_PROGS || svs.gametype == GT_Q1QVM)
@@ -1897,7 +1907,7 @@ static void VARGS SV_OutOfBandPrintf (int q2, netadr_t *adr, char *format, ...)
 	va_end (argptr);
 
 
-	Netchan_OutOfBand (NS_SERVER, adr, strlen(string), (qbyte *)string);
+	Netchan_OutOfBand (NCF_SERVER, adr, strlen(string), (qbyte *)string);
 }
 static void VARGS SV_OutOfBandTPrintf (int q2, netadr_t *adr, int language, translation_t text, ...)
 {
@@ -1919,7 +1929,7 @@ static void VARGS SV_OutOfBandTPrintf (int q2, netadr_t *adr, int language, tran
 	va_end (argptr);
 
 
-	Netchan_OutOfBand (NS_SERVER, adr, strlen(string), (qbyte *)string);
+	Netchan_OutOfBand (NCF_SERVER, adr, strlen(string), (qbyte *)string);
 }
 #endif
 
@@ -1943,7 +1953,7 @@ qboolean SV_ChallengePasses(int challenge)
 //this means that DP clients tend to connect as generic NQ clients.
 //and because DP _REQUIRES_ sv_bigcoords, they tend to end up being given fitz/rmq protocols
 //thus we don't respond to the connect if sv_listen_dp is 1, and we had a recent getchallenge request. recent is 2 secs.
-static qboolean SV_ChallengeRecent(void)
+qboolean SV_ChallengeRecent(void)
 {
 	int curtime = realtime;	//yeah, evil. sue me. consitent with challenges.
 	int i;
@@ -2003,7 +2013,7 @@ void VARGS SV_RejectMessage(enum serverprotocols_e protocol, char *format, ...)
 	}
 	va_end (argptr);
 
-	Netchan_OutOfBand (NS_SERVER, &net_from, len, (qbyte *)string);
+	Netchan_OutOfBand (NCF_SERVER, &net_from, len, (qbyte *)string);
 }
 
 void SV_AcceptMessage(client_t *newcl)
@@ -2019,7 +2029,7 @@ void SV_AcceptMessage(client_t *newcl)
 	sb.maxsize = sizeof(string);
 	sb.data = string;
 
-	switch(newcl->protocol)
+	safeswitch(newcl->protocol)
 	{
 #ifdef NQPROT
 	case SCP_NETQUAKE:
@@ -2059,6 +2069,13 @@ void SV_AcceptMessage(client_t *newcl)
 		strcpy(string, "accept");
 		len = strlen(string);
 		break;
+#else
+	case SCP_NETQUAKE:
+	case SCP_BJP3:
+	case SCP_FITZ666:
+	case SCP_DARKPLACES6:
+	case SCP_DARKPLACES7:
+		return;
 #endif
 
 	case SCP_QUAKE3:
@@ -2066,11 +2083,16 @@ void SV_AcceptMessage(client_t *newcl)
 		len = strlen(string);
 		break;
 	case SCP_QUAKE2:
-	default:
-		strcpy(string, "client_connect\n");
+	case SCP_QUAKE2EX:
+		Q_snprintfz(string, sizeof(string), "client_connect%s%s\n",
+			(newcl->protocol==SCP_QUAKE2EX)?" "STRINGIFY(PROTOCOL_VERSION_Q2EX):"",
+			(*fs_dlURL.string?va(" dlserver=%s", fs_dlURL.string):"")	//q2pro's dlserver hint
+			);
 		len = strlen(string);
 		break;
 
+	safedefault:
+	case SCP_BAD:
 	case SCP_QUAKEWORLD:
 		string[0] = S2C_CONNECTION;
 		string[1] = '\n';
@@ -2079,7 +2101,7 @@ void SV_AcceptMessage(client_t *newcl)
 		break;
 	}
 
-	Netchan_OutOfBand (NS_SERVER, &net_from, len, (qbyte *)string);
+	Netchan_OutOfBand (NCF_SERVER, &net_from, len, (qbyte *)string);
 }
 
 #if !defined(_DEBUG) || defined(_WIN32) || defined(FTE_TARGET_WEB)
@@ -2126,7 +2148,7 @@ void SV_ClientProtocolExtensionsChanged(client_t *client)
 					 | PEXT2_MAXPLAYERS			/*not supporting the extra players is bad*/
 					 | PEXT2_PREDINFO			/*fixes some repdelta issues (especially for nq)*/
 					 | PEXT2_NEWSIZEENCODING	/*more accurate sizes, for awkward mods*/
-					 | PEXT2_INFOBLOBS			/*allows mods to send infoblobs to csqc (for avatar images or whatever)*/
+//					 | PEXT2_INFOBLOBS			/*allows mods to send infoblobs to csqc (for avatar images or whatever)*/
 					 ;
 		}
 		if (!strcasecmp(com_token, "fte1"))
@@ -2180,7 +2202,7 @@ void SV_ClientProtocolExtensionsChanged(client_t *client)
 		extern cvar_t pext_ezquake_nochunks;
 		extern cvar_t pext_ezquake_verfortrans;
 		s = InfoBuf_ValueForKey(&client->userinfo, "*client");
-		if (!strncmp(s, "ezQuake", 7) || !strncmp(s, "FortressOne", 11))
+		if (!strncmp(s, "ezQuake", 7))
 		{
 			s = COM_Parse(s);	//skip name-of-fork
 			COM_Parse(s);	//tokenize the version
@@ -2413,12 +2435,6 @@ client_t *SV_AddSplit(client_t *controller, char *info, int id)
 	unsigned int clients = 0, spectators = 0;
 	qboolean asspec;
 
-	if (!(controller->fteprotocolextensions & PEXT_SPLITSCREEN))
-	{
-		SV_PrintToClient(controller, PRINT_HIGH, "Your client doesn't support splitscreen\n");
-		return NULL;
-	}
-
 	for (curclients = 0, prev = cl = controller; cl; cl = cl->controlled)
 	{
 		prev = cl;
@@ -2634,6 +2650,7 @@ void SV_DoDirectConnect(svconnectinfo_t *fte_restrict info)
 	char		basic[80];
 	qboolean	redirect = false;
 	qboolean	preserveparms = false;
+	unsigned int	ncflags;
 
 #ifdef NQPROT
 	extern cvar_t sv_protocol_nq;
@@ -2649,7 +2666,7 @@ void SV_DoDirectConnect(svconnectinfo_t *fte_restrict info)
 	// check for password or spectator_password
 	if (svprogfuncs)
 	{
-		s = Info_ValueForKey (info->userinfo, "spectator");
+		s = Info_ValueForKey (info->seat[0].info, "spectator");
 		if (s[0] && strcmp(s, "0"))
 		{
 			if (spectator_password.string[0] &&
@@ -2661,8 +2678,8 @@ void SV_DoDirectConnect(svconnectinfo_t *fte_restrict info)
 				SV_RejectMessage (info->protocol, "requires a spectator password\n\n");
 				return;
 			}
-			Info_RemoveKey (info->userinfo, "spectator"); // remove key
-			Info_SetValueForStarKey (info->userinfo, "*spectator", "1", sizeof(info->userinfo));
+			Info_RemoveKey (info->seat[0].info, "spectator"); // remove key
+			Info_SetValueForStarKey (info->seat[0].info, "*spectator", "1", sizeof(info->seat[0].info));
 			spectator = true;
 		}
 		else
@@ -2674,7 +2691,7 @@ void SV_DoDirectConnect(svconnectinfo_t *fte_restrict info)
 			else if (info->protocol == SCP_NETQUAKE)
 			{	//if its a proquake client then use numeric passwords, which take a bit of processing
 				char *e;
-				int got = strtol(Info_ValueForKey (info->userinfo, "password"), NULL, 0);
+				int got = strtol(Info_ValueForKey (info->seat[0].info, "password"), NULL, 0);
 				int need = strtol(password.string, &e, 0);
 				if (*e)
 					need = CalcHashInt(&hash_md4, password.string, strlen(password.string));
@@ -2687,7 +2704,7 @@ void SV_DoDirectConnect(svconnectinfo_t *fte_restrict info)
 			}
 			else
 			{
-				s = Info_ValueForKey (info->userinfo, "password");
+				s = Info_ValueForKey (info->seat[0].info, "password");
 				if (strcmp(password.string, s))
 				{
 					Con_TPrintf ("%s:password failed\n", NET_AdrToString (adrbuf, sizeof(adrbuf), &info->adr));
@@ -2696,8 +2713,8 @@ void SV_DoDirectConnect(svconnectinfo_t *fte_restrict info)
 				}
 			}
 			spectator = false;
-			Info_RemoveKey (info->userinfo, "password"); // remove passwd
-			Info_RemoveKey (info->userinfo, "*spectator"); // remove key
+			Info_RemoveKey (info->seat[0].info, "password"); // remove passwd
+			Info_RemoveKey (info->seat[0].info, "*spectator"); // remove key
 		}
 	}
 	else
@@ -2756,7 +2773,7 @@ void SV_DoDirectConnect(svconnectinfo_t *fte_restrict info)
 	newcl->fteprotocolextensions2 = info->ftepext2;
 	newcl->ezprotocolextensions1 = info->ezpext1;
 	newcl->protocol = info->protocol;
-	newcl->pextknown = info->ftepext1||info->ftepext2;
+	newcl->pextknown = info->ftepext1||info->ftepext2||info->ezpext1;
 	Q_strncpyz(newcl->guid, info->guid, sizeof(newcl->guid));
 
 //	Con_TPrintf("%s:%s:connect\n", sv.name, NET_AdrToString (adrbuf, sizeof(adrbuf), &adr));
@@ -2805,7 +2822,7 @@ void SV_DoDirectConnect(svconnectinfo_t *fte_restrict info)
 		}
 	}
 
-	name = Info_ValueForKey (info->userinfo, "name");
+	name = Info_ValueForKey (info->seat[0].info, "name");
 
 	/*
 	if (sv.world.worldmodel && info->protocol == SCP_QUAKEWORLD &&!atoi(Info_ValueForKey (info->userinfo, "iknow")))
@@ -3043,7 +3060,7 @@ void SV_DoDirectConnect(svconnectinfo_t *fte_restrict info)
 		temp.edict = ent;
 
 		{
-			const char *reject = SV_CheckRejectConnection(&info->adr, info->userinfo, info->protocol, info->ftepext1, info->ftepext2, info->ezpext1, info->guid);
+			const char *reject = SV_CheckRejectConnection(&info->adr, info->seat[0].info, info->protocol, info->ftepext1, info->ftepext2, info->ezpext1, info->guid);
 			if (reject)
 			{
 				SV_RejectMessage(info->protocol, "%s", reject);
@@ -3056,7 +3073,7 @@ void SV_DoDirectConnect(svconnectinfo_t *fte_restrict info)
 
 #ifdef Q2SERVER
 	case GT_QUAKE2:
-		if (info->protocol != SCP_QUAKE2)
+		if (info->protocol != SCP_QUAKE2 && info->protocol != SCP_QUAKE2EX)
 		{
 			SV_RejectMessage(info->protocol, "This is a %s server.", fs_manifest->formalname);
 			Con_DPrintf ("* Rejected non-q2 client.\n");
@@ -3066,9 +3083,9 @@ void SV_DoDirectConnect(svconnectinfo_t *fte_restrict info)
 		temp.edict = NULL;
 		temp.q2edict = q2ent;
 
-		if (!ge->ClientConnect(q2ent, info->userinfo))
+		if (!ge->ClientConnect(q2ent, info->seat[0].info))
 		{
-			const char *reject = Info_ValueForKey(info->userinfo, "rejmsg");
+			const char *reject = Info_ValueForKey(info->seat[0].info, "rejmsg");
 			if (*reject)
 				SV_RejectMessage(info->protocol, "%s\nConnection Refused.", reject);
 			else
@@ -3077,7 +3094,7 @@ void SV_DoDirectConnect(svconnectinfo_t *fte_restrict info)
 			return;
 		}
 
-		ge->ClientUserinfoChanged(q2ent, info->userinfo);
+		ge->ClientUserinfoChanged(q2ent, info->seat[0].info);
 
 
 		break;
@@ -3100,7 +3117,7 @@ void SV_DoDirectConnect(svconnectinfo_t *fte_restrict info)
 	*newcl = temp;
 	newcl->userinfo.ChangeCB = svs.info.ChangeCB;
 	newcl->userinfo.ChangeCTX = &newcl->userinfo;
-	InfoBuf_FromString(&newcl->userinfo, info->userinfo, false);
+	InfoBuf_FromString(&newcl->userinfo, info->seat[0].info, false);
 
 	newcl->challenge = info->challenge;
 	newcl->zquake_extensions = atoi(InfoBuf_ValueForKey(&newcl->userinfo, "*z_ext"));
@@ -3111,7 +3128,13 @@ void SV_DoDirectConnect(svconnectinfo_t *fte_restrict info)
 	}
 	newcl->zquake_extensions &= SERVER_SUPPORTED_Z_EXTENSIONS;
 
-	Netchan_Setup (NS_SERVER, &newcl->netchan, &info->adr, info->qport);
+	ncflags = NCF_SERVER;
+	if (info->mtu)
+		ncflags |= NCF_FRAGABLE;
+	if (info->ftepext2&PEXT2_STUNAWARE)
+		ncflags |= NCF_STUNAWARE;
+	Netchan_Setup (ncflags, &newcl->netchan, &info->adr, info->qport,
+					info->mtu?info->mtu:atoi(Info_ValueForKey (info->seat[0].info, "mtu")));
 
 #ifdef HUFFNETWORK
 	if (info->huffcrc)
@@ -3119,37 +3142,6 @@ void SV_DoDirectConnect(svconnectinfo_t *fte_restrict info)
 	else
 #endif
 		newcl->netchan.compresstable = NULL;
-	newcl->netchan.pext_fragmentation = info->mtu?true:false;
-	newcl->netchan.pext_stunaware = !!(info->ftepext2&PEXT2_STUNAWARE);
-	//this is the upper bound of the mtu, if its too high we'll get EMSGSIZE and we'll reduce it.
-	//however, if it drops below newcl->netchan.message.maxsize then we'll start to see undeliverable reliables, which means dropped clients.
-	newcl->netchan.mtu = MAX_DATAGRAM;	//vanilla qw clients are assumed to have an mtu of this size.
-	if (info->mtu >= 300)	//anything smaller is someone being intentionally malicious.
-	{	//if we support application fragmenting, then we can send massive reliables without too much issue
-		newcl->netchan.mtu = info->mtu;
-		newcl->netchan.message.maxsize = sizeof(newcl->netchan.message_buf);
-
-#ifdef HAVE_ICE
-		if (info->adr.type == NA_ICE)
-			newcl->netchan.mtu -= 48+12;	//dtls+sctp overhead
-		else
-#endif
-		if (info->adr.prot == NP_DTLS || info->adr.prot == NP_TLS)
-			newcl->netchan.mtu -= 48;		//dtls overhead
-	}
-	else
-	{	//otherwise we can't fragment the packets, and the only way to honour the mtu is to send less data. yay for more round-trips.
-		int mtu;
-		mtu = atoi(Info_ValueForKey (info->userinfo, "mtu"));
-		if (mtu)
-			newcl->netchan.mtu = mtu;	//locked mtu size, because not everyone has a working connection (we need icmp would-fragment responses for mtu detection)
-		else						//if its not set then use some 'safe' fallback.
-			mtu = MAX_BACKBUFLEN;	//MAX_BACKBUFLEN of 1200 is < ipv6 required segment size so should always work for reliables.
-		//enforce some boundaries
-		mtu = bound(512-8, mtu, sizeof(newcl->netchan.message_buf));
-		newcl->netchan.message.maxsize = mtu;
-	}
-	Con_DLPrintf(2, "MTU size: %i - %i\n", newcl->netchan.message.maxsize, newcl->netchan.mtu);
 
 	newcl->protocol = info->protocol;
 #ifdef NQPROT
@@ -3164,15 +3156,27 @@ void SV_DoDirectConnect(svconnectinfo_t *fte_restrict info)
 #endif
 	newcl->datagram.allowoverflow = true;
 	newcl->datagram.data = newcl->datagram_buf;
-	if (info->mtu >= 64)
+	if (newcl->netchan.flags&NCF_FRAGABLE)
 		newcl->datagram.maxsize = sizeof(newcl->datagram_buf);
 	else
 		newcl->datagram.maxsize = MAX_DATAGRAM;
 
-	newcl->netchan.netprim =
-	newcl->datagram.prim =
-	newcl->backbuf.prim =
-	newcl->netchan.message.prim = svs.netprim;
+#ifdef Q2SERVER
+	if (newcl->protocol == SCP_QUAKE2EX)
+	{
+		newcl->netchan.netprim =
+		newcl->datagram.prim =
+		newcl->backbuf.prim =
+		newcl->netchan.message.prim = sv.q2multicast[1].prim;
+	}
+	else
+#endif
+	{
+		newcl->netchan.netprim =
+		newcl->datagram.prim =
+		newcl->backbuf.prim =
+		newcl->netchan.message.prim = svs.netprim;
+	}
 
 	SV_ClientProtocolExtensionsChanged(newcl);
 
@@ -3262,13 +3266,13 @@ void SV_DoDirectConnect(svconnectinfo_t *fte_restrict info)
 			else	//measure this guy in minuites.
 				s = va(langtext("Welcome back %s. You have previously spent %i mins connected\n", newcl->language), newcl->name, (int)(rs.timeonserver/60));
 
-			SV_OutOfBandPrintf (info->protocol == SCP_QUAKE2, &info->adr, s);
+			SV_OutOfBandPrintf (ISQ2CLIENT(info), &info->adr, s);
 		}
 		else if (!preserveparms)
 		{
 			SV_GetNewSpawnParms(newcl);
 
-			SV_OutOfBandTPrintf (info->protocol == SCP_QUAKE2, &info->adr, newcl->language, "Welcome %s. Your time on this server is being logged and ranked\n", newcl->name, (int)rs.timeonserver);
+			SV_OutOfBandTPrintf (ISQ2CLIENT(info), &info->adr, newcl->language, "Welcome %s. Your time on this server is being logged and ranked\n", newcl->name, (int)rs.timeonserver);
 		}
 		//else loaded players already have their initial parms set
 	}
@@ -3369,7 +3373,30 @@ void SV_DoDirectConnect(svconnectinfo_t *fte_restrict info)
 	if (sv_use_dns.ival)
 		NET_AdrToStringResolve(&info->adr, SV_UserDNSResolved, NULL, newcl-svs.clients, newcl->userid);
 
+	for (i = 1; i < info->seats; i++)
+		SV_AddSplit(newcl, info->seat[i].info, i);
 }
+
+#ifdef Q2SERVER
+void Q2EFixupInfo(void *vctx, const char *key, const char *value)
+{
+	int seat = -1;
+	svconnectinfo_t *ctx = vctx;
+	int l = strlen(key);
+	if (l > 2 && key[l-2] == '_' && key[l-1] >= '0' && key[l-1] < '0'+MAX_SPLITS)
+	{
+		seat = key[l-1]-'0';
+		((char*)key)[l-2] = 0;	//strip out the annoying _0s
+	}
+	if (seat < 0)
+	{
+		for(seat = 0; seat < ctx->seats; seat++)
+			Info_SetValueForStarKey(ctx->seat[seat].info, key, value, sizeof(ctx->seat[seat].info));
+	}
+	else
+		Info_SetValueForStarKey(ctx->seat[seat].info, key, value, sizeof(ctx->seat[seat].info));
+}
+#endif
 
 /*
 ==================
@@ -3409,7 +3436,7 @@ void SVC_DirectConnect(int expectedreliablesequence)
 	info.ftepext2 = 0;
 	info.ezpext1 = 0;
 	*info.guid = 0;
-
+	info.seats = 1;
 	if (*Cmd_Argv(1) == '\\')
 	{	//q3: connect "\key\val"
 #ifndef QWOVERQ3
@@ -3475,9 +3502,9 @@ void SVC_DirectConnect(int expectedreliablesequence)
 			Con_TPrintf ("* rejected connect from dp client (because of hexen2)\n");
 			return;
 		}
-		Q_strncpyz (info.userinfo, net_message.data + 11, sizeof(info.userinfo)-1);
+		Q_strncpyz (info.seat[0].info, net_message.data + 11, sizeof(info.seat[0].info)-1);
 
-		if (strcmp(Info_ValueForKey(info.userinfo, "protocol"), "darkplaces "STRINGIFY(NQ_NETCHAN_VERSION)))
+		if (strcmp(Info_ValueForKey(info.seat[0].info, "protocol"), "darkplaces "STRINGIFY(NQ_NETCHAN_VERSION)))
 		{
 			SV_RejectMessage (SCP_BAD, "Server is %s.\n", version_string());
 			Con_TPrintf ("* rejected connect from incompatible client\n");
@@ -3485,7 +3512,7 @@ void SVC_DirectConnect(int expectedreliablesequence)
 		}
 		//it's a darkplaces client.
 
-		s = Info_ValueForKey(info.userinfo, "protocols");
+		s = Info_ValueForKey(info.seat[0].info, "protocols");
 
 		while(s && *s)
 		{
@@ -3499,13 +3526,14 @@ void SVC_DirectConnect(int expectedreliablesequence)
 				{"666",				1u<<SCP_FITZ666},	//dp doesn't support this, but this is for potential compat if other engines use this handshake
 				{"RMQ",				1u<<SCP_FITZ666},	//fte doesn't distinguish, but assumes clients will support both
 				{"999",				1u<<SCP_FITZ666},	//fte doesn't distinguish, but assumes clients will support both
+				{"DP8",				0},	//unsupported, cloudwalk's attempt to fix some stuff (still unfinalised).
 				{"DP7",				1u<<SCP_DARKPLACES7},
 				{"DP6",				1u<<SCP_DARKPLACES6},
-				{"DP5",				0},
-				{"DP4",				0},
-				{"DP3",				0},
-				{"DP2",				0},
-				{"DP1",				0},
+				{"DP5",				0},	//unsupported serverside
+				{"DP4",				0},	//unsupported
+				{"DP3",				0},	//unsupported
+				{"DP2",				0},	//unsupported
+				{"DP1",				0},	//unsupported
 				{"QW",				0},	//mixing protocols doesn't make sense, and would just confuse the client.
 				{"QUAKEDP",			1u<<SCP_NETQUAKE},
 				{"QUAKE",			1u<<SCP_NETQUAKE},
@@ -3528,29 +3556,59 @@ void SVC_DirectConnect(int expectedreliablesequence)
 				}
 			}
 			if (p == countof(dpnames))
-				Con_DPrintf("DP client reporting unknown protocol \"%s\"\n", com_token);
+				Con_DPrintf("'DP' client reporting unknown protocol \"%s\"\n", com_token);
 		}
 
 		info.protocol = SCP_DARKPLACES7;
 
-		s = Info_ValueForKey(info.userinfo, "challenge");
+		s = Info_ValueForKey(info.seat[0].info, "challenge");
 		if (!strncmp(s, "FTE", strlen("FTE")))	//cope with our mangling of the challenge.
 			info.challenge = atoi(s+strlen("FTE"));
 		else
 			info.challenge = atoi(s);
 
-		Info_RemoveKey(info.userinfo, "protocol");
-		Info_RemoveKey(info.userinfo, "protocols");
-		Info_RemoveKey(info.userinfo, "challenge");
+		Info_RemoveKey(info.seat[0].info, "protocol");
+		Info_RemoveKey(info.seat[0].info, "protocols");
+		Info_RemoveKey(info.seat[0].info, "challenge");
 
-		s = Info_ValueForKey(info.userinfo, "name");
+		s = Info_ValueForKey(info.seat[0].info, "name");
 		if (!*s)
-			Info_SetValueForKey(info.userinfo, "name", "CONNECTING", sizeof(info.userinfo));
+			Info_SetValueForKey(info.seat[0].info, "name", "CONNECTING", sizeof(info.seat[0].info));
 
 		info.qport = 0;
 		info.proquakeanglehack = false;	//NOTE: DP clients fuck up here due to a DP client bug.
 									//DP clients will use 16bit angles if it has previously connected to a proquake-handshake server,
 									//and 8bit angles otherwise (or a non-proquake/non-dp/non-qw server more recently than the proquake one).
+	}
+#endif
+#ifdef Q2SERVER
+	else if (atoi(Cmd_Argv(1)) == PROTOCOL_VERSION_Q2EX)
+	{
+		int i, numseats;
+		info.seats = numseats = atoi(Cmd_Argv(2));
+		version = atoi(Cmd_Argv(1));
+		info.protocol = SCP_QUAKE2EX;
+		info.seats = bound(1, numseats, countof(info.seat));
+		if (info.seats < 1 || info.seats > MAX_SPLITS)
+		{	//no splitscreen(yet)
+			SV_RejectMessage (info.protocol, "bad number of seats\n", PROTOCOL_VERSION_Q2, version);
+			Con_TPrintf ("* rejected connect from version %i\n", version);
+			return;
+		}
+		Q_strncpyz(info.guid, Cmd_Argv(3), sizeof(info.guid));
+		//Socials - Cmd_Argv(3 ... 3+numseats-1); fuck that spyware
+		for (i = 0; i < info.seats; i++)
+			*info.seat[i].info = 0;
+		Info_Enumerate(va("\\%s", Cmd_Argv(3+numseats)), &info, Q2EFixupInfo);
+
+		//hide a challenge in there, in case we're not using the lobby stuff.
+		info.challenge = atoi(Info_ValueForKey(info.seat[0].info, "challenge"));
+		info.qport = atoi(Info_ValueForKey(info.seat[0].info, "qport"));
+		for (i = 0; i < info.seats; i++)
+		{
+			Info_RemoveKey(info.seat[i].info, "challenge");
+			Info_RemoveKey(info.seat[i].info, "qport");
+		}
 	}
 #endif
 	else
@@ -3568,7 +3626,7 @@ void SVC_DirectConnect(int expectedreliablesequence)
 		}*/
 
 		version = atoi(Cmd_Argv(1));
-		if (version >= 31 && version <= 34)
+		if (version >= PROTOCOL_VERSION_Q2_MIN && version <= PROTOCOL_VERSION_Q2)
 			info.protocol = SCP_QUAKE2;
 #ifdef NQPROT
 		else if (version == NQ_NETCHAN_VERSION)
@@ -3609,12 +3667,12 @@ void SVC_DirectConnect(int expectedreliablesequence)
 		info.challenge = atoi(Cmd_Argv(3));
 
 		// note an extra qbyte is needed to replace spectator key
-		Q_strncpyz (info.userinfo, Cmd_Argv(4), sizeof(info.userinfo)-1);
+		Q_strncpyz (info.seat[0].info, Cmd_Argv(4), sizeof(info.seat[0].info)-1);
 		if (info.protocol >= SCP_NETQUAKE)
 		{
-			Info_RemoveKey(info.userinfo, "mod");	//its served its purpose.
-			Info_RemoveKey(info.userinfo, "modver");	//its served its purpose.
-			Info_RemoveKey(info.userinfo, "flags");	//its served its purpose.
+			Info_RemoveKey(info.seat[0].info, "mod");	//its served its purpose.
+			Info_RemoveKey(info.seat[0].info, "modver");	//its served its purpose.
+			Info_RemoveKey(info.seat[0].info, "flags");	//its served its purpose.
 		}
 	}
 
@@ -3648,11 +3706,13 @@ void SVC_DirectConnect(int expectedreliablesequence)
 		}
 	}
 
+	// see if the challenge is valid.
 	if (net_from.type == NA_LOOPBACK)	//normal rules don't apply
 		;
+	else if (net_from.prot != NP_DGRAM)
+		;	//challenge checks are irrelevant when we've alread passed a challenge in a lower network layer.
 	else
 	{
-	// see if the challenge is valid
 		if (!SV_ChallengePasses(info.challenge))
 		{
 			if (sv_listen_dp.ival && !info.challenge && info.protocol == SCP_QUAKEWORLD)
@@ -3669,19 +3729,19 @@ void SVC_DirectConnect(int expectedreliablesequence)
 	if (sv_banproxies.ival)
 	{
 		//FIXME: allow them to spectate but not join
-		if (*Info_ValueForKey(info.userinfo, "*qwfwd"))
+		if (*Info_ValueForKey(info.seat[0].info, "*qwfwd"))
 		{
 			SV_RejectMessage (info.protocol, "Proxies are not permitted on this server.\n");
 			Con_TPrintf ("* rejected connect from qwfwd proxy\n");
 			return;
 		}
-		if (*Info_ValueForKey(info.userinfo, "Qizmo"))
+		if (*Info_ValueForKey(info.seat[0].info, "Qizmo"))
 		{
 			SV_RejectMessage (info.protocol, "Proxies are not permitted on this server.\n");
 			Con_TPrintf ("* rejected connect from qizmo proxy\n");
 			return;
 		}
-		if (*Info_ValueForKey(info.userinfo, "*qtv"))
+		if (*Info_ValueForKey(info.seat[0].info, "*qtv"))
 		{
 			SV_RejectMessage (info.protocol, "Proxies are not permitted on this server.\n");
 			Con_TPrintf ("* rejected connect from qtv proxy (udp)\n");
@@ -4055,7 +4115,7 @@ void SVC_ACK (void)
 				}
 				else
 				{
-					Netchan_OutOfBandPrint(NS_SERVER, &net_from, "realip not accepted. Please stop hacking.\n");
+					Netchan_OutOfBandPrint(NCF_SERVER, &net_from, "realip not accepted. Please stop hacking.\n");
 				}
 				return;
 			}
@@ -4148,7 +4208,7 @@ static qboolean SV_DetectAmplificationDDOS (void)
 					}
 					else	//extend by a smidge...
 						dosattacker[at].timeout += dosattacker_period/(double)dosattacker_limit;
-					return true;
+					return false;
 				}
 				break;
 			}
@@ -4282,7 +4342,7 @@ qboolean SV_ConnectionlessPacket (void)
 
 		if (secure.value)	//FIXME: possible problem for nq clients when enabled
 		{
-			Netchan_OutOfBandTPrintf (NS_SERVER, &net_from, com_language, "%c\nThis server requires client validation.\nPlease use the "FULLENGINENAME" validation program\n", A2C_PRINT);
+			Netchan_OutOfBandTPrintf (NCF_SERVER, &net_from, com_language, "%c\nThis server requires client validation.\nPlease use the "FULLENGINENAME" validation program\n", A2C_PRINT);
 		}
 		else
 		{
@@ -4311,7 +4371,7 @@ qboolean SV_ConnectionlessPacket (void)
 				{
 					//NET_DTLS_Disconnect(svs.sockets, &net_from);
 					if (NET_DTLS_Create(svs.sockets, &net_from, NULL, false))
-						Netchan_OutOfBandPrint(NS_SERVER, &net_from, "dtlsopened");
+						Netchan_OutOfBandPrint(NCF_SERVER, &net_from, "dtlsopened");
 					else
 						SV_RejectMessage (SCP_QUAKEWORLD, "DTLS driver failure.\n");
 				}
@@ -4614,7 +4674,7 @@ qboolean SVNQ_ConnectionlessPacket(void)
 					stricmp(password.string, "none"))
 				{	//make sure we don't get crippled because of being unable to specify the actual password with proquake's stuff.
 					char *e;
-					intmax_t svpass = strtoll(password.string, &e, 0);
+					qintmax_t svpass = strtoll(password.string, &e, 0);
 					if (*e)	//something ain't numeric... hash it so they have a chance of getting it right...
 						svpass = CalcHashInt(&hash_md4, password.string, strlen(password.string));
 					if (passwd != svpass)
@@ -4825,7 +4885,7 @@ void SV_OpenRoute_f(void)
 	{
 		sprintf(data, "\xff\xff\xff\xff%c", S2C_CONNECTION);
 
-		Netchan_OutOfBandPrint(NS_SERVER, &to, "hello");
+		Netchan_OutOfBandPrint(NCF_SERVER, &to, "hello");
 //		NET_SendPacket (strlen(data)+1, data, to);
 	}
 }
@@ -4850,9 +4910,9 @@ void SV_ReadPacket(void)
 			if (ct - lt > 5*1000)
 			{
 				if (*banreason)
-					Netchan_OutOfBandTPrintf(NS_SERVER, &net_from, com_language, "You are banned: %s\n", banreason);
+					Netchan_OutOfBandTPrintf(NCF_SERVER, &net_from, com_language, "You are banned: %s\n", banreason);
 				else
-					Netchan_OutOfBandTPrintf(NS_SERVER, &net_from, com_language, "You are banned\n");
+					Netchan_OutOfBandTPrintf(NCF_SERVER, &net_from, com_language, "You are banned\n");
 			}
 			return;
 		}
@@ -4899,7 +4959,7 @@ void SV_ReadPacket(void)
 	// check for packets from connected clients
 	for (i=0, cl=svs.clients ; i<svs.allocated_client_slots ; i++,cl++)
 	{
-		if (cl->state == cs_free)
+		if (cl->state == cs_free || cl->controller)
 			continue;
 		if (!NET_CompareBaseAdr (&net_from, &cl->netchan.remote_address))
 			continue;
@@ -4938,8 +4998,16 @@ void SV_ReadPacket(void)
 			continue;
 #endif
 
-		if (cl->netchan.qport != qport)
-			continue;
+		if (cl->netchan.qportsize == 0)
+		{	//no qports... use the actual port.
+			if (cl->netchan.remote_address.port != net_from.port)
+				continue;
+		}
+		else
+		{
+			if (cl->netchan.qport != qport)
+				continue;
+		}
 		if (cl->netchan.remote_address.port != net_from.port)
 		{
 			Con_DPrintf ("SV_ReadPackets: fixing up a translated port\n");
@@ -4992,7 +5060,7 @@ dominping:
 					cl->send_message = true;	// reply at end of frame
 
 #ifdef Q2SERVER
-				if (cl->protocol == SCP_QUAKE2)
+				if (ISQ2CLIENT(cl))
 					SVQ2_ExecuteClientMessage(cl);
 				else
 #endif
@@ -5105,7 +5173,7 @@ qboolean SV_ReadPackets (float *delay)
 								cl->send_message = true;	// reply at end of frame
 
 		#ifdef Q2SERVER
-							if (cl->protocol == SCP_QUAKE2)
+							if (ISQ2CLIENT(cl))
 								SVQ2_ExecuteClientMessage(cl);
 							else
 		#endif
@@ -5544,11 +5612,6 @@ float SV_Frame (void)
 		}
 	}
 
-
-#ifdef WEBSERVER
-	IWebRun();
-#endif
-
 #ifdef SV_MASTER
 	if (sv_master.ival)
 		SVM_Think();
@@ -5804,9 +5867,13 @@ void SV_InitLocal (void)
 	static cvar_t qws_fullname	= CVARF("qws_fullname", FULLENGINENAME,			CVAR_NOSET );
 	static cvar_t qws_version	= CVARF("qws_version",	STRINGIFY(FTE_VER_MAJOR)"."STRINGIFY(FTE_VER_MINOR),CVAR_NOSET );
 	static cvar_t qws_buildnum	= CVARF("qws_buildnum",	STRINGIFY(SVNREVISION),	CVAR_NOSET );
+#ifdef FTE_TARGET_WEB
+	static cvar_t qws_platform	= CVARF("qws_platform",	PLATFORM,				CVAR_NOSET );
+#else
 	static cvar_t qws_platform	= CVARF("qws_platform",	PLATFORM "-" ARCH_CPU_POSTFIX,				CVAR_NOSET );
+#endif
 	static cvar_t qws_builddate	= CVARF("qws_builddate",STRINGIFY(SVNDATE),		CVAR_NOSET );
-	static cvar_t qws_homepage	= CVARF("qws_homepage",	"https://sourceforge.net/projects/fteqw/",		CVAR_NOSET );
+	static cvar_t qws_homepage	= CVARF("qws_homepage",	ENGINEWEBSITE,		CVAR_NOSET );
 	Cvar_Register(&qws_name,		"Server Info");
 	Cvar_Register(&qws_fullname,	"Server Info");
 	Cvar_Register(&qws_version,		"Server Info");
@@ -6427,7 +6494,10 @@ void SV_ArgumentOverrides(void)
 	if (!p)
 		p = COM_CheckParm ("-port");
 	if (p && p < com_argc)
+	{
 		Cvar_Set(Cvar_FindVar("sv_port"), com_argv[p+1]);
+		Cvar_Set(Cvar_FindVar("sv_port_tcp"), com_argv[p+1]);
+	}
 }
 
 void SV_ExecInitialConfigs(char *defaultexec)
@@ -6465,6 +6535,89 @@ void SV_ExecInitialConfigs(char *defaultexec)
 	SV_ArgumentOverrides();
 }
 
+static void SV_StartInitialMap(void)
+{
+	// if a map wasn't specified on the command line, spawn start.map
+	//aliases require that we flush the cbuf in order to actually see the results.
+	if (sv.state == ss_dead && Cmd_AliasExist("dedicated_start", RESTRICT_LOCAL))
+	{
+		Cbuf_AddText("dedicated_start", RESTRICT_LOCAL);	//Q2 feature
+		Cbuf_Execute();
+	}
+	if (sv.state == ss_dead && Cmd_AliasExist("startmap_dm", RESTRICT_LOCAL))
+	{
+		Cbuf_AddText("startmap_dm", RESTRICT_LOCAL);	//DP extension
+		Cbuf_Execute();
+	}
+	if (sv.state == ss_dead && Cmd_AliasExist("startmap_sp", RESTRICT_LOCAL))
+	{
+		Cbuf_AddText("startmap_sp", RESTRICT_LOCAL);	//DP extension
+		Cbuf_Execute();
+	}
+	if (sv.state == ss_dead && COM_FCheckExists("maps/start.bsp"))
+		Cmd_ExecuteString ("map start", RESTRICT_LOCAL);	//regular q1
+#ifdef HEXEN2
+	if (sv.state == ss_dead && COM_FCheckExists("maps/demo1.bsp"))
+		Cmd_ExecuteString ("map demo1", RESTRICT_LOCAL);	//regular h2 sp
+#endif
+#ifdef Q2SERVER
+	if (sv.state == ss_dead && COM_FCheckExists("maps/base1.bsp"))
+		Cmd_ExecuteString ("map base1", RESTRICT_LOCAL);	//regular q2 sp
+#endif
+#ifdef Q3SERVER
+	if (sv.state == ss_dead && COM_FCheckExists("maps/q3dm1.bsp"))
+		Cmd_ExecuteString ("map q3dm1", RESTRICT_LOCAL);	//regular q3 'sp'
+#endif
+#ifdef HLSERVER
+	if (sv.state == ss_dead && COM_FCheckExists("maps/c0a0.bsp"))
+		Cmd_ExecuteString ("map c0a0", RESTRICT_LOCAL);	//regular hl sp
+#endif
+}
+
+static void SV_CheckMapless(int iarg, void *data)
+{	//kills the server if we're dead
+	static int wtf;
+	if (sv.state != ss_dead)
+		return;	//yay, the situation got resolved!
+	else if (HTTP_CL_GetActiveDownloads())
+		;	//we still have hope. check again later.
+	else
+	{
+#ifdef PACKAGEMANAGER
+		if (!FS_GameIsInitialised())
+			wtf = -1;
+		if (wtf == 0)
+		{
+			Cmd_ExecuteString("pkg listenabledsources", RESTRICT_LOCAL);
+			Cmd_ExecuteString("pkg refresh", RESTRICT_LOCAL);
+		}
+		else if (wtf == 1)
+		{
+			Cmd_ExecuteString("pkg upgrade", RESTRICT_LOCAL);
+			Cmd_ExecuteString("pkg apply", RESTRICT_LOCAL);
+		}
+		else if (wtf == 2)
+			Cmd_ExecuteString("fs_restart", RESTRICT_LOCAL);	//just in case...
+		else if (wtf == 3)
+			SV_StartInitialMap();	//we should be fully up and running, so try starting that initial map again.
+		else
+#endif
+		{
+			Cmd_ExecuteString("path", RESTRICT_LOCAL);
+			if (COM_CheckParm("-allowmapless"))
+			{	//this is risky and mustn't be on by default. there's a load of scripts that check for success or w/e, so best to not make them arbitrarily fail.
+				Con_Printf(CON_ERROR"Couldn't load a map. You may need to use the -basedir argument or to install some packages.\n");
+				Con_Printf(CON_ERROR"Use the ^[/fs_changegame^] to select the proper basedir/game, or use the ^[/pkg^] command to install required packages, or ^[/quit^] out\n");
+			}
+			else
+				SV_Error (CON_ERROR"Couldn't load a map. You may need to use the -basedir argument.");
+			return;
+		}
+		wtf++;
+	}
+	Cmd_AddTimer(0.1, SV_CheckMapless, 0, NULL,0);	//we still have hope. check again later.
+}
+
 void SV_Init (quakeparms_t *parms)
 {
 	if (isDedicated)
@@ -6475,7 +6628,6 @@ void SV_Init (quakeparms_t *parms)
 		host_parms = *parms;
 
 		Cvar_Init();
-
 		Memory_Init();
 
 		Sys_Init();
@@ -6513,10 +6665,6 @@ void SV_Init (quakeparms_t *parms)
 
 	SV_InitLocal ();
 
-#ifdef WEBSERVER
-	IWebInit();
-#endif
-
 #ifdef SERVER_DEMO_PLAYBACK
 	SV_Demo_Init();
 #endif
@@ -6547,7 +6695,6 @@ void SV_Init (quakeparms_t *parms)
 			FS_ChangeGame(NULL, true, true);
 
 		Cmd_StuffCmds();
-		Cbuf_Execute ();
 
 		Menu_Download_Update();
 
@@ -6573,48 +6720,8 @@ void SV_Init (quakeparms_t *parms)
 		IPLog_Merge_File("iplog.dat");	//legacy crap, for compat with proquake
 #endif
 
-		// if a map wasn't specified on the command line, spawn start.map
-		//aliases require that we flush the cbuf in order to actually see the results.
-		if (sv.state == ss_dead && Cmd_AliasExist("dedicated_start", RESTRICT_LOCAL))
-		{
-			Cbuf_AddText("dedicated_start", RESTRICT_LOCAL);	//Q2 feature
-			Cbuf_Execute();
-		}
-		if (sv.state == ss_dead && Cmd_AliasExist("startmap_dm", RESTRICT_LOCAL))
-		{
-			Cbuf_AddText("startmap_dm", RESTRICT_LOCAL);	//DP extension
-			Cbuf_Execute();
-		}
-		if (sv.state == ss_dead && Cmd_AliasExist("startmap_sp", RESTRICT_LOCAL))
-		{
-			Cbuf_AddText("startmap_sp", RESTRICT_LOCAL);	//DP extension
-			Cbuf_Execute();
-		}
-		if (sv.state == ss_dead && COM_FCheckExists("maps/start.bsp"))
-			Cmd_ExecuteString ("map start", RESTRICT_LOCAL);	//regular q1
-	#ifdef HEXEN2
-		if (sv.state == ss_dead && COM_FCheckExists("maps/demo1.bsp"))
-			Cmd_ExecuteString ("map demo1", RESTRICT_LOCAL);	//regular h2 sp
-	#endif
-	#ifdef Q2SERVER
-		if (sv.state == ss_dead && COM_FCheckExists("maps/base1.bsp"))
-			Cmd_ExecuteString ("map base1", RESTRICT_LOCAL);	//regular q2 sp
-	#endif
-	#ifdef Q3SERVER
-		if (sv.state == ss_dead && COM_FCheckExists("maps/q3dm1.bsp"))
-			Cmd_ExecuteString ("map q3dm1", RESTRICT_LOCAL);	//regular q3 'sp'
-	#endif
-	#ifdef HLSERVER
-		if (sv.state == ss_dead && COM_FCheckExists("maps/c0a0.bsp"))
-			Cmd_ExecuteString ("map c0a0", RESTRICT_LOCAL);	//regular hl sp
-	#endif
-
-		if (sv.state == ss_dead)
-		{
-			Cmd_ExecuteString("path", RESTRICT_LOCAL);
-			SV_Error ("Couldn't load a map. You may need to use the -basedir argument.");
-		}
-
+		SV_StartInitialMap();
+		SV_CheckMapless(0,NULL);	//restarts a timer, kill the server only when the pending downloads have ended.
 	}
 }
 

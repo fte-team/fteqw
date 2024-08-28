@@ -225,6 +225,7 @@ enum
 	CVAR_TYPEFLAG_ENGINE		=1u<<3, //cvar was created by the engine itself (not user/mod created)
 	CVAR_TYPEFLAG_HASDESCRIPTION=1u<<4, //cvar_description will return something (hopefully) useful
 	CVAR_TYPEFLAG_READONLY		=1u<<5, //cvar may not be changed by qc.
+	//any extras added here should be shared with DP.
 };
 void QCBUILTIN PF_cvar_type (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 void QCBUILTIN PF_uri_escape  (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
@@ -538,6 +539,17 @@ void QCBUILTIN PF_cl_SendPacket(pubprogfuncs_t *prinst, struct globalvars_s *pr_
 void QCBUILTIN PF_cl_getlocaluserinfoblob (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 void QCBUILTIN PF_cl_getlocaluserinfostring (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 void QCBUILTIN PF_cl_setlocaluserinfo (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+const char *PF_cl_serverkey_internal(const char *keyname);
+void QCBUILTIN PF_cl_serverkey (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_cl_serverkeyfloat (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_cl_serverkeyblob (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+
+void QCBUILTIN PF_cl_gp_querywithcb(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_cl_gp_getbuttontype(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_cl_gp_rumble(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_cl_gp_rumbletriggers(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_cl_gp_setledcolor(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_cl_gp_settriggerfx(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 
 void search_close_progs(pubprogfuncs_t *prinst, qboolean complain);
 
@@ -573,12 +585,17 @@ void QCBUILTIN PF_json_find_object_child	(pubprogfuncs_t *prinst, struct globalv
 void QCBUILTIN PF_json_get_length			(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 void QCBUILTIN PF_json_get_child_at_index	(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 void QCBUILTIN PF_json_get_name				(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+#ifdef FTE_TARGET_WEB
 void QCBUILTIN PF_js_run_script				(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+#else
+#define PF_js_run_script PF_Ignore
+#endif
 void QCBUILTIN PF_base64encode(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 void QCBUILTIN PF_base64decode(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 
 void QCBUILTIN PF_memalloc	(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 void QCBUILTIN PF_memfree	(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_memcmp	(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 void QCBUILTIN PF_memcpy	(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 void QCBUILTIN PF_memfill8	(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 void QCBUILTIN PF_memgetval	(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
@@ -928,8 +945,10 @@ enum packagemanagerinfo_e
 	GPMI_INSTALLED,		//current state
 	GPMI_ACTION,		//desired state
 	GPMI_AVAILABLE,		//whether it may be downloaded or not.
-	GPMI_FILESIZE,		//whether it may be downloaded or not.
+	GPMI_FILESIZE,		//size of the download.
 	GPMI_GAMEDIR,		//so you know which mod(s) its relevant for
+	GPMI_MAPS,			//list of maps provided by this package (can be used with the `map $PackageName:$MapName` command).
+	GPMI_PREVIEWIMG,	//a uri usable with drawpic etc
 };
 
 #ifdef TERRAIN
@@ -1060,6 +1079,7 @@ enum
 	globalfunction(CSQC_InputEvent,			"float(float evtype, float scanx, float chary, float devid)")	\
 	globalfunction(CSQC_Input_Frame,		"void()")/*EXT_CSQC_1*/	\
 	globalfunction(CSQC_RendererRestarted,	"void(string rendererdescription)")	\
+	globalfunction(CSQC_GenerateMaterial,	"string(string shadername)")	\
 	globalfunction(CSQC_ConsoleCommand,		"float(string cmd)")	\
 	globalfunction(CSQC_ConsoleLink,		"float(string text, string info)")	\
 	globalfunction(GameCommand,				"void(string cmdtext)")	/*DP extension*/\
@@ -1142,31 +1162,31 @@ enum
 	globalfloat (input_buttons)				/*float		filled by getinputstate, read by runplayerphysics*/ \
 	globalfloat (input_impulse)				/*float		filled by getinputstate, read by runplayerphysics*/ \
 	globalfloat (input_lightlevel)			/*unused float		filled by getinputstate, read by runplayerphysics*/ \
-	globaluint  (input_weapon)				/*unused float		filled by getinputstate, read by runplayerphysics*/ \
+	globaluint64(input_weapon)				/*unused float		filled by getinputstate, read by runplayerphysics*/ \
 	globalfloat (input_servertime)			/*float		filled by getinputstate, read by runplayerphysics*/ \
 	globalfloat (input_clienttime)			/*float		filled by getinputstate, read by runplayerphysics*/ \
 	globalvector(input_cursor_screen)		/*float		filled by getinputstate*/ \
 	globalvector(input_cursor_trace_start)	/*float		filled by getinputstate*/ \
 	globalvector(input_cursor_trace_endpos)	/*float		filled by getinputstate*/ \
 	globalfloat (input_cursor_entitynumber)	/*float		filled by getinputstate*/ \
-	globaluint  (input_head_status)			/*filled by getinputstate, for vr*/ \
+	globaluint64(input_head_status)			/*filled by getinputstate, for vr*/ \
 	globalvector(input_head_origin)			/*filled by getinputstate, for vr*/ \
 	globalvector(input_head_angles)			/*filled by getinputstate, for vr*/ \
 	globalvector(input_head_velocity)		/*filled by getinputstate, for vr*/ \
 	globalvector(input_head_avelocity)		/*filled by getinputstate, for vr*/ \
-	globaluint  (input_head_weapon)			/*filled by getinputstate, for vr*/ \
-	globaluint  (input_left_status)			/*filled by getinputstate, for vr*/ \
+	globaluint64(input_head_weapon)			/*filled by getinputstate, for vr*/ \
+	globaluint64(input_left_status)			/*filled by getinputstate, for vr*/ \
 	globalvector(input_left_origin)			/*filled by getinputstate, for vr*/ \
 	globalvector(input_left_angles)			/*filled by getinputstate, for vr*/ \
 	globalvector(input_left_velocity)		/*filled by getinputstate, for vr*/ \
 	globalvector(input_left_avelocity)		/*filled by getinputstate, for vr*/ \
-	globaluint  (input_left_weapon)			/*filled by getinputstate, for vr*/ \
-	globaluint  (input_right_status)		/*filled by getinputstate, for vr*/ \
+	globaluint64(input_left_weapon)			/*filled by getinputstate, for vr*/ \
+	globaluint64(input_right_status)		/*filled by getinputstate, for vr*/ \
 	globalvector(input_right_origin)		/*filled by getinputstate, for vr*/ \
 	globalvector(input_right_angles)		/*filled by getinputstate, for vr*/ \
 	globalvector(input_right_velocity)		/*filled by getinputstate, for vr*/ \
 	globalvector(input_right_avelocity)		/*filled by getinputstate, for vr*/ \
-	globaluint  (input_right_weapon)		/*filled by getinputstate, for vr*/ \
+	globaluint64(input_right_weapon)		/*filled by getinputstate, for vr*/ \
 	\
 	globalvector(global_gravitydir)			/*vector	used when .gravitydir is 0 0 0 */ \
 	globalfloat (dimension_default)			/*float		default value for dimension_hit+dimension_solid*/ \
@@ -1174,6 +1194,84 @@ enum
 	globalfloat (autocvar_vid_conheight)	/*float		hackfix for dp mods*/	\
 	globalfloat (cycle_wrapped)	\
 	ENDLIST
+
+
+//note: doesn't even have to match the clprogs.dat :)
+typedef struct {
+
+#define comfieldfloat(csqcname,desc) float csqcname;
+#define comfieldvector(csqcname,desc) vec3_t csqcname;
+#define comfieldentity(csqcname,desc) int csqcname;
+#define comfieldstring(csqcname,desc) string_t csqcname;
+#define comfieldfunction(csqcname, typestr,desc) func_t csqcname;
+comqcfields
+#undef comfieldfloat
+#undef comfieldvector
+#undef comfieldentity
+#undef comfieldstring
+#undef comfieldfunction
+
+#ifdef VM_Q1
+} csqcentvars_t;
+typedef struct {
+#endif
+
+#define comfieldfloat(name,desc) float name;
+#define comfieldint(name,desc) int name;
+#define comfieldvector(name,desc) vec3_t name;
+#define comfieldentity(name,desc) int name;
+#define comfieldstring(name,desc) string_t name;
+#define comfieldfunction(name, typestr,desc) func_t name;
+comextqcfields
+csqcextfields
+#undef comfieldfloat
+#undef comfieldint
+#undef comfieldvector
+#undef comfieldentity
+#undef comfieldstring
+#undef comfieldfunction
+
+#ifdef VM_Q1
+} csqcextentvars_t;
+#else
+} csqcentvars_t;
+#endif
+
+typedef struct csqcedict_s
+{
+	enum ereftype_e	ereftype;
+	float			freetime; // sv.time when the object was freed
+	int				entnum;
+	unsigned int	fieldsize;
+	pbool			readonly;	//world
+#ifdef VM_Q1
+	csqcentvars_t	*v;
+	csqcextentvars_t	*xv;
+#else
+	union {
+		csqcentvars_t	*v;
+		csqcentvars_t	*xv;
+	};
+#endif
+	/*the above is shared with qclib*/
+#ifdef USEAREAGRID
+	areagridlink_t	gridareas[AREAGRIDPERENT];	//on overflow, use the inefficient overflow list.
+	size_t			gridareasequence;	//used to avoid iterrating the same ent twice.
+#else
+	link_t	area;
+#endif
+	pvscache_t pvsinfo;
+	int lastruntime;
+	int solidsize;
+#ifdef USERBE
+	entityrbe_t rbe;
+#endif
+	/*the above is shared with ssqc*/
+
+	//add whatever you wish here
+	trailkey_t trailstate;
+	int		skinobject;
+} csqcedict_t;
 
 
 #ifdef __cplusplus

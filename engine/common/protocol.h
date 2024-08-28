@@ -74,6 +74,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 	#define PEXT_Q3BSP			PEXT_Q3BSP_
 #endif
 #define PEXT1_HIDEPROTOCOLS		(PEXT_Q3BSP_|PEXT_Q2BSP_|PEXT_HLBSP)	//These are hints for the server, and not useful to the client (they can figure stuff out themselves)
+//#define	PEXT1_DEPRECATED			(PEXT_SCALE|PEXT_TRANS|PEXT_ACCURATETIMINGS|PEXT_SOUNDDBL|PEXT_FATNESS|PEXT_HULLSIZE|PEXT_MODELDBL|PEXT_ENTITYDBL|PEXT_ENTITYDBL2|PEXT_COLOURMOD|PEXT_SPAWNSTATIC2|PEXT_256PACKETENTITIES|PEXT_SETATTACHMENT|PEXT_DPFLAGS)	//deprecated by replacementdeltas
+#define PEXT1_MVDSUPPORT			(PEXT1_CLIENTSUPPORT&~PEXT1_DEPRECATED&~PEXT1_HIDEPROTOCOLS)	//pext2 extensions to use when recording mvds.
 
 #define PEXT2_PRYDONCURSOR			0x00000001
 #define PEXT2_VOICECHAT				0x00000002
@@ -88,13 +90,29 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define PEXT2_LERPTIME				0x00000400	//fitz-bloat parity. redefines UF_16BIT as UF_LERPEND in favour of length coding.
 #define PEXT2_SERVERADVERTISE		~0u
 #define PEXT2_CLIENTSUPPORT			(PEXT2_PRYDONCURSOR|PEXT2_VOICECHAT|PEXT2_SETANGLEDELTA|PEXT2_REPLACEMENTDELTAS|PEXT2_MAXPLAYERS|PEXT2_PREDINFO|PEXT2_NEWSIZEENCODING|PEXT2_INFOBLOBS|PEXT2_STUNAWARE|PEXT2_VRINPUTS|PEXT2_LERPTIME) //warn if we see bits not listed here.
+#define PEXT2_DEPRECATEDORNEW		(PEXT2_INFOBLOBS|PEXT2_VRINPUTS|PEXT2_LERPTIME) //extensions that are outdated
+#define PEXT2_MVDSUPPORT			(PEXT2_CLIENTSUPPORT&~PEXT2_DEPRECATED&~PEXT2_STUNAWARE)	//pext2 extensions to use when recording mvds.
+
+#define PEXT2_LONGINDEXES			0	//boosts the maximum player+stat index.
 
 //EzQuake/Mvdsv extensions. (use ezquake name, to avoid confusion about .mvd format and its protocol differences)
 #define EZPEXT1_FLOATENTCOORDS		0x00000001	//quirky - doesn't apply to broadcasts, just players+ents. this gives more precision, but will bug out if you try using it to increase map bounds in ways that may not be immediately apparent. iiuc this was added instead of fixing some inconsistent rounding...
 #define EZPEXT1_SETANGLEREASON		0x00000002	//specifies the reason for an svc_setangles call. the mvdsv implementation will fuck over any mods that writebyte them. we'd need to modify our preparse stuff to work around the issue.
-#define EZPEXT1_SERVERADVERTISE		EZPEXT1_FLOATENTCOORDS/* - implemented, but interactions with replacementdeltas is not defined*/ /*EZPEXT1_SETANGLEREASON - potentially causes compat issues with mods that stuffcmd it (common in nq)*/
+//#define EZPEXT1_SERVERSIDEWEAPON	0x00000004	//looks half-baked. would be better to predict grabs clientside (oh noes! backpack knowledge!).
+//#define EZPEXT1_DEBUG_WEAPON		0x00000008	//debug? not gonna bother.
+//#define EZPEXT1_DEBUG_ANTILAG		0x00000010	//debug? not gonna bother.
+#define EZPEXT1_HIDDEN_MESSAGES		0x00000020	//mvd bloat. shouldn't be seen on actual servers.
+
+
+//#define MVD_PEXT1_SERVERSIDEWEAPON  (1 <<  2) // Server-side weapon selection
+#define MVD_PEXT1_DEBUG_WEAPON      (1 <<  3) // Send weapon-choice explanation to server for logging
+#define MVD_PEXT1_DEBUG_ANTILAG     (1 <<  4) // Send predicted positions to server (compare to antilagged positions)
+#define MVD_PEXT1_HIDDEN_MESSAGES   (1 <<  5) // dem_multiple(0) packets are in format (<length> <type-id>+ <packet-data>)*
+
+
+#define EZPEXT1_SERVERADVERTISE		(EZPEXT1_FLOATENTCOORDS/* - implemented, but interactions with replacementdeltas is not defined*/ /*|EZPEXT1_SETANGLEREASON - potentially causes compat issues with mods that stuffcmd it (common in nq)*/)
 #define EZPEXT1_CLIENTADVERTISE		EZPEXT1_FLOATENTCOORDS			//might as well ask for it, as a way around mvdsv's writecoord/PM_NudgePosition rounding difference bug.
-#define EZPEXT1_CLIENTSUPPORT		(EZPEXT1_FLOATENTCOORDS|EZPEXT1_SETANGLEREASON)	//ones we can support in demos. warning if other bits.
+#define EZPEXT1_CLIENTSUPPORT		(EZPEXT1_FLOATENTCOORDS|EZPEXT1_SETANGLEREASON|EZPEXT1_HIDDEN_MESSAGES)	//ones we can support in demos. warning if other bits.
 
 //ZQuake transparent protocol extensions.
 #define Z_EXT_PM_TYPE		(1<<0)	// basic PM_TYPE functionality (reliable jump_held)
@@ -136,6 +154,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define	PROTOCOL_VERSION_Q2_DEMO_MIN	26	//we can parse this server
 #define	PROTOCOL_VERSION_Q2_MIN			31	//we can join these outdated servers
 #define	PROTOCOL_VERSION_Q2				34	//we host this
+#define	PROTOCOL_VERSION_Q2EXDEMO		2022
+#define	PROTOCOL_VERSION_Q2EX			2023
 #define	PROTOCOL_VERSION_R1Q2			35
 #define	PROTOCOL_VERSION_Q2PRO			36
 
@@ -153,6 +173,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define PORT_Q2MASTER	27900
 #define PORT_Q2CLIENT	27901
 #define PORT_Q2SERVER	27910
+#define PORT_Q2EXSERVER	5069
 #define PORT_Q3MASTER	27950
 #define PORT_Q3SERVER	27960
 #define PORT_ICEBROKER	PORT_DPMASTER
@@ -467,6 +488,20 @@ enum svcq2_ops_e
 	svcq2_deltapacketentities,//19	// [...]
 	svcq2_frame,			//20 (the bastard to implement.)
 
+	svcq2ex_splitclient = 21,
+	svcq2ex_configblast = 22,
+	svcq2ex_spawnbaselineblast = 23,
+	svcq2ex_levelrestart = 24,
+	svcq2ex_danage = 25,
+	svcq2ex_locprint = 26,
+	svcq2ex_fog = 27,
+	svcq2ex_waiting = 28,
+	svcq2ex_botchat = 29,
+	svcq2ex_mapmarker = 30,
+	svcq2ex_routemarker = 31,
+	svcq2ex_muzzleflash3 = 32,
+	svcq2ex_achievement = 33,
+
 
 	svcr1q2_zpacket = 21,
 	svcr1q2_zdownload = 22,
@@ -538,12 +573,12 @@ enum {
 
 //==============================================
 
-#define DLERR_FILENOTFOUND	-1	//server cannot serve the file
-#define DLERR_PERMISSIONS	-2	//server refuses to serve the file
-#define DLERR_UNKNOWN		-3	//server bugged out while trying to serve the request
-#define DLERR_REDIRECTFILE	-4	//client should download the specified file instead.
-#define DLERR_REDIRECTPACK	-5	//client should download the specified package instead.
-#define DLERR_PACKAGE		-6	//not networked. packages require special file access.
+#define DLERR_FILENOTFOUND		-1	//server cannot serve the file
+#define DLERR_PERMISSIONS		-2	//server refuses to serve the file
+#define DLERR_UNKNOWN			-3	//server bugged out while trying to serve the request
+#define DLERR_REDIRECTFILE		-4	//client should download the specified file instead.
+#define DLERR_SV_REDIRECTPACK	-5	//client should download the specified package instead. may also be an http(s):// location.
+#define DLERR_SV_PACKAGE		-6	//not networked. packages require special file access.
 
 #define DLBLOCKSIZE			1024 //chunked downloads use fixed-size chunks (which I somewhat regret, but too late now I guess, really ought to use ranges.).
 
@@ -891,19 +926,19 @@ enum {
 
 
 
-#define	Q2U_ORIGIN1	(1<<0)
-#define	Q2U_ORIGIN2	(1<<1)
-#define	Q2U_ANGLE2	(1<<2)
-#define	Q2U_ANGLE3	(1<<3)
-#define	Q2U_FRAME8	(1<<4)		// frame is a qbyte
+#define	Q2U_ORIGIN1		(1<<0)
+#define	Q2U_ORIGIN2		(1<<1)
+#define	Q2U_ANGLE2		(1<<2)
+#define	Q2U_ANGLE3		(1<<3)
+#define	Q2U_FRAME8		(1<<4)		// frame is a qbyte
 #define	Q2U_EVENT		(1<<5)
-#define	Q2U_REMOVE	(1<<6)		// REMOVE this entity, don't add it
+#define	Q2U_REMOVE		(1<<6)		// REMOVE this entity, don't add it
 #define	Q2U_MOREBITS1	(1<<7)		// read one additional qbyte
 
 // second qbyte
 #define	Q2U_NUMBER16	(1<<8)		// NUMBER8 is implicit if not set
-#define	Q2U_ORIGIN3	(1<<9)
-#define	Q2U_ANGLE1	(1<<10)
+#define	Q2U_ORIGIN3		(1<<9)
+#define	Q2U_ANGLE1		(1<<10)
 #define	Q2U_MODEL		(1<<11)
 #define Q2U_RENDERFX8	(1<<12)		// fullbright, etc
 #define Q2UX_ANGLE16	(1<<13)
@@ -911,24 +946,28 @@ enum {
 #define	Q2U_MOREBITS2	(1<<15)		// read one additional qbyte
 
 // third qbyte
-#define	Q2U_SKIN8		(1<<16)
-#define	Q2U_FRAME16	(1<<17)		// frame is a short
-#define	Q2U_RENDERFX16 (1<<18)	// 8 + 16 = 32
-#define	Q2U_EFFECTS16	(1<<19)		// 8 + 16 = 32
-#define	Q2U_MODEL2	(1<<20)		// weapons, flags, etc
-#define	Q2U_MODEL3	(1<<21)
-#define	Q2U_MODEL4	(1<<22)
-#define	Q2U_MOREBITS3	(1<<23)		// read one additional qbyte
+#define	Q2U_SKIN8			(1<<16)
+#define	Q2U_FRAME16			(1<<17)		// frame is a short
+#define	Q2U_RENDERFX16		(1<<18)		// 8 + 16 = 32
+#define	Q2U_EFFECTS16		(1<<19)		// 8 + 16 = 32
+#define	Q2U_MODEL2			(1<<20)		// weapons, flags, etc
+#define	Q2U_MODEL3			(1<<21)
+#define	Q2U_MODEL4			(1<<22)
+#define	Q2U_MOREBITS3		(1<<23)		// read one additional qbyte
 
 // fourth qbyte
-#define	Q2U_OLDORIGIN	(1<<24)		// FIXME: get rid of this
-#define	Q2U_SKIN16	(1<<25)
-#define	Q2U_SOUND		(1<<26)
-#define	Q2U_SOLID		(1<<27)
-#define Q2UX_INDEX16	(1<<28)		//model or sound is 16bit
-#define Q2UX_UNUSED3	(1<<29)
-#define Q2UX_UNUSED2	(1<<30)
-#define Q2UX_UNUSED1	(1<<31)
+#define	Q2U_OLDORIGIN		(1<<24)		// FIXME: get rid of this
+#define	Q2U_SKIN16			(1<<25)
+#define	Q2U_SOUND			(1<<26)
+#define	Q2U_SOLID			(1<<27)
+#define Q2UX_INDEX16		(1<<28)		//model or sound is 16bit
+#define Q2UEX_EFFECTS64		(1<<29)
+#define Q2UEX_ALPHA			(1<<30)
+#define Q2UEX_MOREBITS4		(1u<<31)
+#define Q2UEX_SCALE			(1ull<<32)
+#define Q2UEX_INSTANCE		(1ull<<33)
+#define Q2UEX_OWNER			(1ull<<34)
+#define Q2UEX_OLDFRAME		(1ull<<35)
 
 #define Q2UX_UNUSED		(Q2UX_UNUSED1|Q2UX_UNUSED2|Q2UX_UNUSED3|Q2UX_UNUSED4)
 
@@ -1172,13 +1211,16 @@ typedef struct entity_state_s
 #if defined(Q2CLIENT) || defined(Q2SERVER)
 		struct
 		{
-			int		renderfx;		//q2
+			unsigned int		renderfx;		//q2
 			vec3_t	old_origin;		//q2/q3
 
 			unsigned short		modelindex3;	//q2
 			unsigned short		modelindex4;	//q2
 			unsigned short		sound;			//q2
 			qbyte				event;			//q2
+			qbyte				instance;		//q2ex (splitcreen, so specific seats see it or not)
+			unsigned short		owner;			//q2ex for splitscreen prediction I guess (can't just network it as non-solid).
+			unsigned short		oldframe;		//q2ex
 		} q2;
 #endif
 		struct
@@ -1206,7 +1248,17 @@ typedef struct entity_state_s
 
 	unsigned short		baseframe;
 	qbyte				basebone;
-	qbyte				pad;
+	qbyte				solidtype;
+#define EST_FTE		0	//q2pro/r1q2, also used for fte's replacement deltas etc.
+#define EST_Q2EX	1	//q2ex packs it differently.
+#define EST_Q2		2	//16bit
+
+	unsigned int solidsize;
+#define ES_SOLID_NOT 0
+#define ES_SOLID_BSP 31
+#define ES_SOLID_HULL1 0x80201810
+#define ES_SOLID_HULL2 0x80401820
+#define ES_SOLID_HAS_EXTRA_BITS(solid) ((solid&0x0707) || (((solid>>16)-32768+32) & 7))	//needs to be 32bit.
 
 	unsigned int		skinnum; /*for q2 this often contains rgba*/
 
@@ -1215,7 +1267,7 @@ typedef struct entity_state_s
 	qbyte glowcolour;
 
 	qbyte	scale;	//4.4 precision
-	char	fatness;
+	char	fatness; //1/16th
 	qbyte	hexen2flags;
 	qbyte	abslight;
 
@@ -1234,13 +1286,6 @@ typedef struct entity_state_s
 	unsigned short tagindex;	//~0 == weird portal thing.
 
 	unsigned int tagentity;
-
-	unsigned int solidsize;
-#define ES_SOLID_NOT 0
-#define ES_SOLID_BSP 31
-#define ES_SOLID_HULL1 0x80201810
-#define ES_SOLID_HULL2 0x80401820
-#define ES_SOLID_HAS_EXTRA_BITS(solid) ((solid&0x0707) || (((solid>>16)-32768+32) & 7))
 } entity_state_t;
 extern entity_state_t nullentitystate;
 
@@ -1275,7 +1320,7 @@ struct vrdevinfo_s
 	short			avelocity[3];
 	vec3_t			origin;
 	vec3_t			velocity;
-	unsigned int	weapon;
+	quint64_t		weapon;
 #define VRDEV_LEFT	0
 #define VRDEV_RIGHT	1
 #define VRDEV_HEAD	2
@@ -1285,13 +1330,13 @@ typedef struct usercmd_s
 {
 	short	angles[3];
 	signed int		forwardmove,sidemove,upmove;
-	unsigned int	impulse;
+	quint64_t	impulse;
 	unsigned int	lightlevel;
 
 	unsigned int	sequence;	// just for debugging prints
 	float	msec;		//replace msec, but with more precision
-	unsigned int buttons;	//replaces buttons, but with more bits.
-	unsigned int weapon;//q3 has a separate weapon field to supplement impulse.
+	quint64_t buttons;	//replaces buttons, but with more bits.
+	quint64_t weapon;//q3 has a separate weapon field to supplement impulse.
 	unsigned int servertime;	//q3 networks the time in order to calculate msecs
 	double	fservertime;//used as part of nq msec calcs
 	double	fclienttime;//not used?
@@ -1364,6 +1409,41 @@ typedef struct q1usercmd_s
 #define	Q2MAX_CONFIGSTRINGS		(Q2CS_GENERAL	+Q2MAX_GENERAL)
 
 
+#define	Q2EXMAX_CLIENTS			Q2MAX_CLIENTS		// absolute limit
+#define	Q2EXMAX_EDICTS			8192	// must change protocol to increase more
+#define	Q2EXMAX_LIGHTSTYLES		256
+#define	Q2EXMAX_RTLIGHTS		256
+#define	Q2EXMAX_MODELS			8192		// these are sent over the net as bytes
+#define	Q2EXMAX_SOUNDS			2048		// so they cannot be blindly increased
+#define	Q2EXMAX_IMAGES			512
+#define	Q2EXMAX_ITEMS			256
+#define	Q2EXMAX_WWHEEL			32
+#define Q2EXMAX_GENERAL			(Q2EXMAX_CLIENTS*2)	// general config strings
+
+#define	Q2EXCS_NAME				Q2CS_NAME
+#define	Q2EXCS_CDTRACK			Q2CS_CDTRACK
+#define	Q2EXCS_SKY				Q2CS_SKY
+#define	Q2EXCS_SKYAXIS			Q2CS_SKYAXIS		// %f %f %f format
+#define	Q2EXCS_SKYROTATE		Q2CS_SKYROTATE
+#define	Q2EXCS_STATUSBAR		Q2CS_STATUSBAR		// display program string
+#define Q2EXCS_AIRACCEL			59		// air acceleration control
+#define	Q2EXCS_MAXCLIENTS		60
+#define	Q2EXCS_MAPCHECKSUM		61		// for catching cheater maps
+#define	Q2EXCS_MODELS			62
+#define	Q2EXCS_SOUNDS			(Q2EXCS_MODELS			+Q2EXMAX_MODELS)
+#define	Q2EXCS_IMAGES			(Q2EXCS_SOUNDS			+Q2EXMAX_SOUNDS)
+#define	Q2EXCS_LIGHTS			(Q2EXCS_IMAGES			+Q2EXMAX_IMAGES)
+#define	Q2EXCS_RTLIGHTS			(Q2EXCS_LIGHTS			+Q2EXMAX_LIGHTSTYLES)
+#define	Q2EXCS_ITEMS			(Q2EXCS_RTLIGHTS		+Q2EXMAX_RTLIGHTS)
+#define	Q2EXCS_PLAYERSKINS		(Q2EXCS_ITEMS			+Q2EXMAX_ITEMS)
+#define Q2EXCS_GENERAL			(Q2EXCS_PLAYERSKINS		+Q2EXMAX_CLIENTS)
+#define	Q2ECS_WHEEL_WEAPONS		(Q2EXCS_GENERAL			+Q2EXMAX_GENERAL)	//item|icon|ammotype|minammo|powerup|sortid|warnammo|droppable
+#define	Q2ECS_WHEEL_AMMO		(Q2ECS_WHEEL_WEAPONS	+Q2EXMAX_WWHEEL)	//item|icon
+#define	Q2ECS_WHEEL_POWERUPS	(Q2ECS_WHEEL_AMMO		+Q2EXMAX_WWHEEL)	//item|icon|toggled|sortid|droppable|ammotype
+#define	Q2ECS_CD_LOOP_COUNT		(Q2ECS_WHEEL_POWERUPS	+Q2EXMAX_WWHEEL)
+#define	Q2ECS_GAME_STYLE		(Q2ECS_CD_LOOP_COUNT	+1)
+#define	Q2EXMAX_CONFIGSTRINGS	(Q2ECS_GAME_STYLE		+1)
+
 // player_state->stats[] indexes
 #define Q2STAT_HEALTH_ICON		0
 #define	Q2STAT_HEALTH				1
@@ -1404,8 +1484,10 @@ typedef struct q1usercmd_s
 #define	Q2PS_WEAPONFRAME		(1<<13)
 #define	Q2PS_RDFLAGS			(1<<14)
 #define	Q2PS_EXTRABITS			(1<<15)
-#define Q2PS_INDEX16			(1<<16)
-#define Q2PS_CLIENTNUM			(1<<17)
+#define Q2FTEPS_INDEX16			(1<<16)
+#define Q2EXPS_DAMAGEBLEND		(1<<16)
+#define Q2FTEPS_CLIENTNUM		(1<<17)
+#define Q2EXPS_TEAMID			(1<<17)
 #define Q2PS_UNUSED6			(1<<18)
 #define Q2PS_UNUSED5			(1<<19)
 #define Q2PS_UNUSED4			(1<<20)
@@ -1432,27 +1514,36 @@ typedef struct q1usercmd_s
 #define	RF_TRANSLUCENT			(1u<<5)		//forces shader sort order and BEF_FORCETRANSPARENT
 #define	Q2RF_FRAMELERP			(1u<<6)		//q2only
 #define Q2RF_BEAM				(1u<<7)		//mostly q2only
-
+//
 #define	Q2RF_CUSTOMSKIN			(1u<<8)		//not even in q2		skin is an index in image_precache
 #define	Q2RF_GLOW				(1u<<9)		//i		pulse lighting for bonus items
 #define Q2RF_SHELL_RED			(1u<<10)	//q2only
 #define	Q2RF_SHELL_GREEN		(1u<<11)	//q2only
 #define Q2RF_SHELL_BLUE			(1u<<12)	//q2only
-
-//ROGUE
+//
+#define RF_NOSHADOW				(1u<<13)
+#define Q2REX_CASTSHADOW		(1u<<14)
+//ROGUE start
 #define Q2RF_IR_VISIBLE			(1u<<15)	// shows red with Q2RDF_IRGOGGLES
 #define	Q2RF_SHELL_DOUBLE		(1u<<16)	//q2only
 #define	Q2RF_SHELL_HALF_DAM		(1u<<17)	//q2only
 #define Q2RF_USE_DISGUISE		(1u<<18)	//ni	entity is displayed with skin 'players/$MODEL/disguise.pcx' instead
-//ROGUE
+//ROGUE end
+//#define Q2EXRF_SHELL_LITE_GREEN	(1u<<19)
+#define Q2EXRF_CUSTOM_LIGHT		(1u<<20)
+#define Q2EXRF_FLARE			(1u<<21)	//changes the interpretation of a lot of fields, basically replacing the entire ent.
+//#define Q2EXRF_OLD_FRAME_LERP	(1u<<22)	//This flag signals that `s.old_frame` should be used for the next frame and respected by the client. This can be used for custom frame interpolation; its use in this engine is specific to fixing interpolation bugs on certain monster animations.
+//#define Q2EXRF_BLOB_SHADOW		(1u<<23)	//
+//#define Q2EXRF_LOW_PRIORITY		(1u<<24)	//
+//#define Q2EXRF_NO_LOD				(1u<<25)	//
+//#define Q2EXRF_STAIRSTEP			(1u<<26)	//
 
-#define RF_ADDITIVE				(1u<<19)	//forces shader sort order and BEF_FORCEADDITIVE
-#define RF_NOSHADOW				(1u<<20)	//disables shadow casting
-#define RF_NODEPTHTEST			(1u<<21)	//forces shader sort order and BEF_FORCENODEPTH
-#define RF_FORCECOLOURMOD		(1u<<22)	//forces BEF_FORCECOLOURMOD
-#define RF_WEAPONMODELNOBOB		(1u<<23)
-#define RF_FIRSTPERSON			(1u<<24)	//only draw through eyes
-#define	RF_XFLIP				(1u<<25)	//flip horizontally (for q2's left-handed weapons)
+#define RF_ADDITIVE				(1u<<27)	//forces shader sort order and BEF_FORCEADDITIVE
+#define RF_NODEPTHTEST			(1u<<28)	//forces shader sort order and BEF_FORCENODEPTH
+#define RF_FORCECOLOURMOD		(1u<<29)	//forces BEF_FORCECOLOURMOD
+#define RF_WEAPONMODELNOBOB		(1u<<30)
+#define RF_FIRSTPERSON			(1u<<31)	//only draw through eyes
+#define	RF_XFLIP				Q2EXRF_FLARE	//flip horizontally (for q2's left-handed weapons)
 
 // player_state_t->refdef flags
 #define	RDF_UNDERWATER			(1u<<0)		// warp the screen as apropriate (fov trick)
@@ -1484,8 +1575,9 @@ typedef struct q1usercmd_s
 #define	Q2SND_POS			(1u<<2)		// three coordinates
 #define	Q2SND_ENT			(1u<<3)		// a short 0-2: channel, 3-12: entity
 #define	Q2SND_OFFSET		(1u<<4)		// a qbyte, msec offset from frame start
-#define Q2SND_LARGEIDX		(1u<<5)		// idx is a short
-#define Q2SND_LARGEPOS		(1u<<6)		// float coord
+#define Q2SNDFTE_LARGEIDX	(1u<<5)		// idx is a short
+#define Q2SNDEX_EXPLICITPOS	(1u<<5)		// ?
+#define Q2SNDEX_LARGEENT	(1u<<6)		// 32bit index
 #define Q2SND_EXTRABITS		(1u<<7)		// unused for now, reserved.
 
 #define Q2DEFAULT_SOUND_PACKET_VOLUME	1.0
@@ -1524,7 +1616,7 @@ typedef struct q1usercmd_s
 
 //ROGUE
 #define Q2MZ_ETF_RIFLE		30
-#define Q2MZ_UNUSED			31
+//#define Q2MZ_UNUSED			31
 #define Q2MZ_SHOTGUN2			32
 #define Q2MZ_HEATBEAM			33
 #define Q2MZ_BLASTER2			34
@@ -1534,6 +1626,12 @@ typedef struct q1usercmd_s
 #define	Q2MZ_NUKE4			38
 #define	Q2MZ_NUKE8			39
 //ROGUE
+
+#define Q2EXMZ_BFG2		19
+#define Q2EXMZ_PHALANX2		20
+#define Q2EXMZ_PROX		31
+#define Q2EXMZ_ETF_RIFLE_2		32
+
 
 //
 // monster muzzle flashes
@@ -1774,15 +1872,15 @@ typedef struct q1usercmd_s
 #define MAX_MAP_AREA_BYTES		32
 
 // edict->drawflags (hexen2 stuff)
-#define MLS_MASK				7	// Model Light Style
+#define MLS_MASK				7
 #define MLS_NONE				0
-#define MLS_FULLBRIGHT			1
-#define MLS_POWERMODE			2
-#define MLS_TORCH				3
-#define MLS_TOTALDARK			4
-#define MLS_UNUSED				4
-#define MLS_ADDLIGHT			6
-#define MLS_ABSLIGHT			(MLS_MASK)
+#define MLS_LIGHTSTYLE25		1	//indexes style 25 instead of using real lighting info
+#define MLS_LIGHTSTYLE26		2	//indexes style 26
+#define MLS_LIGHTSTYLE27		3	//27
+#define MLS_LIGHTSTYLE28		4	//...
+#define MLS_LIGHTSTYLE29		5	//duh
+#define MLS_ADDLIGHT			6	//adds abslight to normal lighting
+#define MLS_ABSLIGHT			(MLS_MASK)	//uses abslight specifically.
 #define SCALE_TYPE_MASK			(SCALE_TYPE_UNIFORM|SCALE_TYPE_XYONLY|SCALE_TYPE_ZONLY)
 #define SCALE_TYPE_UNIFORM		0	// Scale X, Y, and Z
 #define SCALE_TYPE_XYONLY		8	// Scale X and Y
@@ -1793,7 +1891,7 @@ typedef struct q1usercmd_s
 #define SCALE_ORIGIN_BOTTOM		32	// Scaling origin at object bottom
 #define SCALE_ORIGIN_TOP		64	// Scaling origin at object top
 #define SCALE_ORIGIN_ORIGIN		(SCALE_ORIGIN_TOP|SCALE_ORIGIN_BOTTOM)	// Scaling origin at object origin
-#define DRF_TRANSLUCENT			128
+#define DRF_TRANSLUCENT			128	//alpha is controlled by r_wateralpha
 
 
 //TENEBRAE_GFX_DLIGHTS
@@ -1806,7 +1904,7 @@ typedef struct q1usercmd_s
 #define RENDER_VIEWMODEL 4
 #define RENDER_EXTERIORMODEL 8
 #define RENDER_LOWPRECISION 16 // send as low precision coordinates to save bandwidth
-#define RENDER_COLORMAPPED 32
+#define RENDER_COLORMAPPED 32	//networked colormap field is a direct (top<<4)|bottom value rather than a player slot (the |1024 thing d does)
 //#define RENDER_WORLDOBJECT 64
 #define RENDER_COMPLEXANIMATION 128
 

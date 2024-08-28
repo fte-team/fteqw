@@ -1109,7 +1109,7 @@ eval_t *PR_GetWriteTempStringPtr(progfuncs_t *progfuncs, string_t str, size_t of
 	return NULL;
 }
 
-//returns null for invalid accesses.
+//returns null for invalid accesses. WARNING: invalidates any other pointers to the same tempstring so use this before getting any read pointers (or strings!).
 void *PR_PointerToNative_Resize(pubprogfuncs_t *inst, pint_t ptr, size_t offset, size_t datasize)
 {
 	progfuncs_t *progfuncs = (progfuncs_t*)inst;
@@ -1135,6 +1135,32 @@ void *PR_PointerToNative_Resize(pubprogfuncs_t *inst, pint_t ptr, size_t offset,
 				memset(newtemp->value+temp->size, 0, newsize-temp->size);
 				progfuncs->funcs.parms->memfree(temp);
 				prinst.tempstrings[i] = temp = newtemp;
+			}
+			return (eval_t*)(temp->value + offset);
+		}
+		return NULL;	//nothing not allocated.
+	}
+	else
+	{	//regular pointer
+		offset += ptr;
+		if (datasize > inst->stringtablesize || offset >= inst->stringtablesize-datasize || !offset)
+			return NULL;	//can't autoresize these. just fail.
+		return inst->stringtable + ptr;
+	}
+	return NULL;
+}
+void *PR_PointerToNative_MoInvalidate(pubprogfuncs_t *inst, pint_t ptr, size_t offset, size_t datasize)
+{
+	progfuncs_t *progfuncs = (progfuncs_t*)inst;
+	if (((unsigned int)ptr & STRING_SPECMASK) == STRING_TEMP)
+	{	//buffer. these auto-upsize.
+		unsigned int i = ptr & ~STRING_SPECMASK;
+		tempstr_t *temp;
+		if (i < prinst.maxtempstrings && (temp=prinst.tempstrings[i]))
+		{
+			if (datasize > temp->size || offset >= temp->size-datasize)
+			{	//access is beyond the current size. we're not allowed to break any other pointers though, so just fail and let the caller handle that.
+				return NULL;	//gotta have a cut-off point somewhere.
 			}
 			return (eval_t*)(temp->value + offset);
 		}

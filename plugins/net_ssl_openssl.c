@@ -1,3 +1,12 @@
+#ifndef FTEPLUGIN
+#include "quakedef.h"
+#define FTEENGINE	//we're getting statically linked. lucky us.
+#define FTEPLUGIN
+#define Plug_Init Plug_OpenSSL_Init
+
+#define Q_strlcpy Q_strncpyz
+#endif
+
 #include "plugin.h"
 #include "netinc.h"
 
@@ -74,7 +83,7 @@ static long OSSL_Bio_FCtrl(BIO *h, int cmd, long arg1, void *arg2)
 		VFS_FLUSH(f);
 		return 1;
 	default:
-		Con_Printf("OSSL_Bio_FCtrl: unknown cmd %i\n", cmd);
+//		Con_Printf("OSSL_Bio_FCtrl: unknown cmd %i\n", cmd);
 	case BIO_CTRL_PUSH:
 	case BIO_CTRL_POP:
 		return 0;
@@ -86,7 +95,7 @@ static long OSSL_Bio_FOtherCtrl(BIO *h, int cmd, BIO_info_cb *cb)
 	switch(cmd)
 	{
 	default:
-		Con_Printf("OSSL_Bio_FOtherCtrl unknown cmd %i\n", cmd);
+//		Con_Printf("OSSL_Bio_FOtherCtrl unknown cmd %i\n", cmd);
 		return 0;
 	}
 	return 0;	//failure
@@ -655,7 +664,7 @@ static long OSSL_Bio_DCtrl(BIO *h, int cmd, long arg1, void *arg2)
 
 
 	default:
-		Con_Printf("OSSL_Bio_DCtrl: unknown cmd %i\n", cmd);
+//		Con_Printf("OSSL_Bio_DCtrl: unknown cmd %i\n", cmd);
 	case BIO_CTRL_PUSH:
 	case BIO_CTRL_POP:
 		return 0;
@@ -667,7 +676,7 @@ static long OSSL_Bio_DOtherCtrl(BIO *h, int cmd, BIO_info_cb *cb)
 	switch(cmd)
 	{
 	default:
-		Con_Printf("OSSL_Bio_DOtherCtrl unknown cmd %i\n", cmd);
+//		Con_Printf("OSSL_Bio_DOtherCtrl unknown cmd %i\n", cmd);
 		return 0;
 	}
 	return 0;	//failure
@@ -1025,8 +1034,8 @@ returncert:
 			size_t blobsize = i2d_X509(cert, NULL);
 			qbyte *end = out;
 			if (blobsize <= outsize)
-				i2d_X509(cert, &end);
-			return end-(qbyte*)out;
+				return i2d_X509(cert, &end);
+			return -1;	//caller didn't pass a big enough buffer.
 		}
 		return -1;
 	case QCERT_PEERSUBJECT:
@@ -1046,22 +1055,27 @@ returncert:
 		}
 		return -1;
 	safedefault:
+	case QCERT_LOBBYSTATUS:		//for special-case lobby wrappers.
+	case QCERT_LOBBYSENDCHAT:	//to send chat via the stupid lobby instead of the game itself.
 		return -1;
 	}
 }
 static qboolean OSSL_GenTempCertificate(const char *subject, struct dtlslocalcred_s *cred)
 {
+	qbyte *ffs;
+#if OPENSSL_API_LEVEL >= 30000
+	EVP_PKEY *pkey = EVP_RSA_gen(4096);
+#else
 	EVP_PKEY*pkey = EVP_PKEY_new();
 	RSA		*rsa = RSA_new();
 	BIGNUM	*pkexponent = BN_new();
-	qbyte *ffs;
 	//The pseudo-random number generator must be seeded prior to calling RSA_generate_key_ex().
 	BN_set_word(pkexponent, RSA_F4);
 	RSA_generate_key_ex(rsa, 2048, pkexponent, NULL);
 	BN_free(pkexponent);
 
 	EVP_PKEY_assign_RSA(pkey, rsa);
-
+#endif
 	cred->keysize = i2d_PrivateKey(pkey, NULL);
 	cred->key = ffs = plugfuncs->Malloc(cred->keysize);
 	cred->keysize = i2d_PrivateKey(pkey, &ffs);
@@ -1190,7 +1204,7 @@ static qboolean OSSL_Init(void)
 }
 
 static enum hashvalidation_e OSSL_VerifyHash(const qbyte *hashdata, size_t hashsize, const qbyte *pubkeydata, size_t pubkeysize, const qbyte *signdata, size_t signsize)
-{
+{	//accepts either DER or PEM certs
 	int result = VH_UNSUPPORTED;
 	BIO *bio_pubkey = BIO_new_mem_buf(pubkeydata, pubkeysize);
 	if (bio_pubkey)
@@ -1201,14 +1215,17 @@ static enum hashvalidation_e OSSL_VerifyHash(const qbyte *hashdata, size_t hashs
 			EVP_PKEY *evp_pubkey = X509_get_pubkey(x509_pubkey);
 			if (evp_pubkey)
 			{
-				RSA *rsa_pubkey = EVP_PKEY_get1_RSA(evp_pubkey);
-				if (rsa_pubkey)
+				EVP_PKEY_CTX *ctx = EVP_PKEY_CTX_new(evp_pubkey, NULL);
+				if (ctx)
 				{
-					if (1 == RSA_verify(NID_sha512, hashdata, hashsize,	signdata, signsize, rsa_pubkey))
+					EVP_PKEY_verify_init(ctx);
+					EVP_PKEY_CTX_set_rsa_padding(ctx, RSA_PKCS1_PADDING);
+					EVP_PKEY_CTX_set_signature_md(ctx, EVP_sha512());
+					if (1 == EVP_PKEY_verify(ctx, signdata, signsize, hashdata, hashsize))
 						result = VH_CORRECT;
 					else
 						result = VH_INCORRECT;
-					RSA_free(rsa_pubkey);
+					EVP_PKEY_CTX_free(ctx);
 				}
 				EVP_PKEY_free(evp_pubkey);
 			}
@@ -1216,7 +1233,6 @@ static enum hashvalidation_e OSSL_VerifyHash(const qbyte *hashdata, size_t hashs
 		}
 		BIO_free(bio_pubkey);
 	}
-
 	return result;
 }
 

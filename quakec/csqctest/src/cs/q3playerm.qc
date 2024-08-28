@@ -508,7 +508,7 @@ nonstatic void() Anim_Draw =
 		//if they're still alive
 		//animate the legs a bit so they turn to the player, but not for 1-degree turns. little more realism there.
 
-		ang_y = self.angles_y;
+		ang = [0,self.angles_y,0];
 		if (self.velocity_x||self.velocity_y)
 		{
 			makevectors(ang);
@@ -638,11 +638,11 @@ nonstatic void() Anim_Draw =
 	}
 
 	//add a dynamic light around the player if they have any powerups.
+	ang = '0 0 0';
 	if (self.sveffects & SVE_QUAD)
 		ang_z = 1;
 	if (self.sveffects & SVE_GOD)
 		ang_x = 1;
-	ang_y = 0;
 	if (ang != '0 0 0')
 	{
 		dynamiclight_add(self.origin, 400, ang);
@@ -1252,6 +1252,9 @@ float(float channel, string soundname, vector org, float vol, float attenuation,
 //version that lets the qc handle any ent fixups.
 float(float sventnum, float channel, string soundname, float vol, float att, vector org, float pitchmod, float flags) CSQC_Event_Sound =
 {
+	if (autocvar(developer, 0))
+		print(sprintf("CSQC_Event_Sound(%S): chan:%g\n", soundname, channel));
+
 	self = findfloat(world, entnum, sventnum);
 	if (self)
 		return ServerSoundStartRequest(channel, soundname, org, vol, att, flags);

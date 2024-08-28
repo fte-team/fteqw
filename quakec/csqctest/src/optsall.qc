@@ -1,9 +1,9 @@
 //which engines do we want to support?
 #define FTE
-#define QSS
+//#define QSS
 //#define DP
 
-#define OWNPLAYERPHYSICS	//run our own prediction code, instead of the engine-supplied default
+//#define OWNPLAYERPHYSICS	//run our own prediction code, instead of the engine-supplied default
 
 #define AUTOCVAR
 
@@ -21,7 +21,7 @@
 #ifdef DP
 	#define WORKINDP	//do various workarounds for DP. don't use any opcode extensions
 #elifdef QSS
-	#pragma TARGET QSS	//FTE also supports this.
+//	#pragma TARGET QSS	//FTE also supports this.
 	#define NOT_DP		//mute deprecation warnings about DP, we don't care.
 #else
 	#pragma TARGET FTE	//neither of the other engines are targetted, go crazy with it.

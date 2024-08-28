@@ -83,15 +83,26 @@ static const char	*q2efnames[] =
 	"TEQ2_EXPLOSION1_NP",
 	"TEQ2_FLECHETTE",
 
+//RERELEASE
+	"TEQ2EX_BLUEHYPERBLASTER",
+	"TEQ2EX_BFGZAP",
+	"TEQ2EX_BERSERK_SLAM",
+	"TEQ2EX_GRAPPLE_CABLE_2",
+	"TEQ2EX_POWER_SPLASH",
+	"TEQ2EX_LIGHTNING_BEAM",
+	"TEQ2EX_EXPLOSION1_NL",
+	"TEQ2EX_EXPLOSION2_NL",
+//RERELEASE
 
-	NULL,//"TEQ2_CR_LEADERBLASTER",
-	NULL,//"TEQ2_CR_BLASTER_MUZZLEFLASH",
-	NULL,//"TEQ2_CR_BLUE_MUZZLEFLASH",
-	NULL,//"TEQ2_CR_SMART_MUZZLEFLASH",
-	NULL,//"TEQ2_CR_LEADERFIELD",
-	NULL,//"TEQ2_CR_DEATHFIELD",
-	NULL,//"TEQ2_CR_BLASTERBEAM",
-	NULL,//"TEQ2_CR_STAIN",
+
+//	NULL,//"TEQ2_CR_LEADERBLASTER",
+//	NULL,//"TEQ2_CR_BLASTER_MUZZLEFLASH",
+//	NULL,//"TEQ2_CR_BLUE_MUZZLEFLASH",
+//	NULL,//"TEQ2_CR_SMART_MUZZLEFLASH",
+//	NULL,//"TEQ2_CR_LEADERFIELD",
+//	NULL,//"TEQ2_CR_DEATHFIELD",
+//	NULL,//"TEQ2_CR_BLASTERBEAM",
+//	NULL,//"TEQ2_CR_STAIN",
 	NULL,//"TEQ2_CR_FIRE",
 	NULL,//"TEQ2_CR_CABLEGUT",
 	NULL,//"TEQ2_CR_SMOKE",
@@ -106,6 +117,7 @@ static const char	*q2efnames[] =
 	"te_splashslime",
 	"te_splashlava",
 	"te_splashblood",
+	"te_splashelect",
 
 	"TR_BLASTERTRAIL",
 	"TR_BLASTERTRAIL2",
@@ -131,6 +143,8 @@ static const char	*q2efnames[] =
 	"ev_item_respawn",
 	"ev_player_teleport",
 	"ev_footstep",
+	"ev_other_footstep",
+	"ev_ladder_step",
 };
 int pt_q2[sizeof(q2efnames)/sizeof(q2efnames[0])];
 #endif
@@ -761,40 +775,37 @@ beam_t	*CL_NewBeam (int entity, int tag, tentmodels_t *btype)
 	{
 		for (i=0, b=cl_beams; i < beams_running; i++, b++)
 			if (b->entity == entity && b->tag == tag)
-			{
-				b->info = btype;
-				return b;
-			}
+				goto found;
 	}
 
 // find a free beam
 	for (i=0, b=cl_beams; i < beams_running; i++, b++)
 	{
 		if (!b->info)
-		{
-			b->info = btype;
-			return b;
-		}
+			goto found;
 	}
 
-//	if (i == beams_running && i < cl_maxbeams.ival)
+
+//	if (i >= cl_maxbeams.ival)
+//		return NULL;
+	if (i == cl_beams_max)
 	{
-		if (i == cl_beams_max)
-		{
-			int nm = (i+1)*2;
-			CL_ClearTEntParticleState();
+		int nm = (i+1)*2;
+		CL_ClearTEntParticleState();
 
-			cl_beams = BZ_Realloc(cl_beams, nm*sizeof(*cl_beams));
-			memset(cl_beams + cl_beams_max, 0, sizeof(*cl_beams)*(nm-cl_beams_max));
-			cl_beams_max = nm;
-		}
-
-		beams_running++;
-		cl_beams[i].info = btype;
-		return &cl_beams[i];
+		cl_beams = BZ_Realloc(cl_beams, nm*sizeof(*cl_beams));
+		memset(cl_beams + cl_beams_max, 0, sizeof(*cl_beams)*(nm-cl_beams_max));
+		cl_beams_max = nm;
 	}
 
-	return NULL;
+	beams_running++;
+	b = &cl_beams[i];
+
+found:
+	b->info = btype;
+	b->bflags = 0;
+	VectorClear(b->offset);
+	return b;
 }
 #define	STREAM_ATTACHTOPLAYER	1	//if owned by the viewentity then attach to camera (but don't for other entities).
 #define STREAM_JITTER			2	//moves up to 30qu forward/back (40qu per sec)
@@ -1964,8 +1975,6 @@ void CL_ParseTEnt_Sized (void)
 	}
 }
 
-void MSG_ReadPos (vec3_t pos);
-void MSG_ReadDir (vec3_t dir);
 typedef struct {
 	char name[64];
 	int netstyle;
@@ -2632,14 +2641,22 @@ void CLQ2_ParseTEnt (void)
 	int		r;
 	int		ent;
 //	int		magnitude;
-	explosion_t	*ex;
+//	explosion_t	*ex;
 
 	type = MSG_ReadByte ();
 
 	if (type <= Q2TE_MAX)
+	{
+		if (cl_shownet.ival > 1)
+			Con_Printf("\t%s\n", q2efnames[type]);
 		pt = pt_q2[type];
+	}
 	else
+	{
+		if (cl_shownet.ival > 1)
+			Con_Printf("\tTE%u\n", type);
 		pt = P_INVALID;
+	}
 	switch (type)
 	{
 	case Q2TE_GUNSHOT:	//grey tall thing with smoke+sparks
@@ -2672,9 +2689,12 @@ void CLQ2_ParseTEnt (void)
 	case Q2TE_DEBUGTRAIL:	//long lived blue trail
 	case Q2TE_BUBBLETRAIL2:	//grey rising trail
 	case Q2TE_BLUEHYPERBLASTER:	//TE_BLASTER without model+light
+	case Q2TEEX_RAILTRAIL2:
+	case Q2TEEX_BFGZAP:
 		MSG_ReadPos (pos);
 		MSG_ReadPos (pos2);
 		P_ParticleTrail(pos, pos2, pt, 1, 0, NULL, NULL);
+		P_RunParticleEffectTypeString(pos2, NULL, 1, va("%s_end", q2efnames[type]));
 		break;
 	case Q2TE_EXPLOSION1:	//column
 	case Q2TE_EXPLOSION2:	//splits
@@ -2774,16 +2794,38 @@ void CLQ2_ParseTEnt (void)
 		Con_Printf("FIXME: Q2TE_WIDOWBEAMOUT not implemented\n");
 		break;
 
-	case Q2TE_RAILTRAIL2:		/*not implemented in vanilla*/
+	//case Q2TE_RAILTRAIL2:		/*not implemented in vanilla*/
 	case Q2TE_FLAME:			/*not implemented in vanilla*/
 		Host_EndGame ("CLQ2_ParseTEnt: bad/non-implemented type %i", type);
 		break;
 
+	case Q2TEEX_BLUEHYPERBLASTER:
+	case Q2TEEX_BERSERK_SLAM:
+		MSG_ReadPos (pos);
+		MSG_ReadDir (pos2);
+		P_RunParticleEffectType(pos, dir, 1, pt);
+		break;
 
+	case Q2TEEX_GRAPPLE_CABLE_2:
+		CL_ParseBeam (BT_Q2GRAPPLE);
+		break;
+
+	case Q2TEEX_POWER_SPLASH:
+		MSGCL_ReadEntity();
+		MSG_ReadByte();
+		break;
+	case Q2TEEX_LIGHTNING_BEAM:
+		CL_ParseBeam (BT_Q2LIGHTNING);
+		break;
+	case Q2TEEX_EXPLOSION1_NL:
+	case Q2TEEX_EXPLOSION2_NL:
+		MSG_ReadPos (pos);
+		P_RunParticleEffectType(pos, NULL, 1, pt);
+		break;
 
 
 	//My old attempt at running AlienArena years ago. probably not enough now. Other engines will have other effects.
-	case CRTE_LEADERBLASTER:
+/*	case CRTE_LEADERBLASTER:
 		Host_EndGame ("CLQ2_ParseTEnt: bad/non-implemented type %i", type);
 	case CRTE_BLASTER_MUZZLEFLASH:
 		MSG_ReadPos (pos);
@@ -2825,7 +2867,7 @@ void CLQ2_ParseTEnt (void)
 		MSG_ReadPos (pos2);
 		P_ParticleTrail(pos, pos2, P_FindParticleType("q2part.TR_BLASTERTRAIL2"), 1, 0, NULL, NULL);
 		break;
-/*	case CRTE_STAIN:
+	case CRTE_STAIN:
 		Host_EndGame ("CLQ2_ParseTEnt: bad/non-implemented type %i", type);
 	case CRTE_FIRE:
 		Host_EndGame ("CLQ2_ParseTEnt: bad/non-implemented type %i", type);

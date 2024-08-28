@@ -2958,7 +2958,7 @@ static void *QDECL capture_raw_begin (char *streamname, int videorate, int width
 	else
 		Q_strncpyz(ctx->videonameextension, "tga", sizeof(ctx->videonameextension));
 
-	if (!FS_NativePath(va("%s", streamname), FS_GAMEONLY, ctx->videonameprefix, sizeof(ctx->videonameprefix)))
+	if (!FS_SystemPath(va("%s", streamname), FS_GAMEONLY, ctx->videonameprefix, sizeof(ctx->videonameprefix)))
 	{
 		Z_Free(ctx);
 		return NULL;
@@ -2970,8 +2970,7 @@ static void *QDECL capture_raw_begin (char *streamname, int videorate, int width
 	}
 	ctx->fsroot = FS_SYSTEM;
 
-	if (FS_NativePath(ctx->videonameprefix, ctx->fsroot, filename, sizeof(filename)))
-		FS_CreatePath(filename, ctx->fsroot);
+	FS_CreatePath(ctx->videonameprefix, ctx->fsroot);
 
 	ctx->audio = NULL;
 	if (*sndkhz)
@@ -3012,7 +3011,7 @@ static void QDECL capture_raw_video (void *vctx, int frame, void *data, int stri
 	{
 		char base[MAX_QPATH];
 		Q_strncpyz(base, ctx->videonameprefix, sizeof(base));
-		if (FS_NativePath(base, ctx->fsroot, filename, sizeof(filename)))
+		if (FS_SystemPath(base, ctx->fsroot, filename, sizeof(filename)))
 		{
 			quint64_t diskfree = 0;
 			if (Sys_GetFreeDiskSpace(filename, &diskfree))
@@ -3111,7 +3110,7 @@ static void *QDECL capture_avi_begin (char *streamname, int videorate, int width
 	COM_StripExtension(streamname, aviname, sizeof(aviname));
 	COM_DefaultExtension (aviname, ".avi", sizeof(aviname));
 	/*find the system location of that*/
-	FS_NativePath(aviname, FS_GAMEONLY, nativepath, sizeof(nativepath));
+	FS_SystemPath(aviname, FS_GAMEONLY, nativepath, sizeof(nativepath));
 
 	//wipe it.
 	f = fopen(nativepath, "rb");
@@ -5202,7 +5201,7 @@ void Media_Init(void)
 	#endif
 
 	Cmd_AddCommandD("capture", Media_RecordFilm_f, "Captures realtime action to a named video file. Check the capture* cvars to control driver/codecs/rates.");
-	Cmd_AddCommandD("capturedemo", Media_RecordDemo_f, "capuuredemo foo.dem foo.avi - Captures a named demo to a named video file.\nDemo capturing is performed offscreen when possible, allowing arbitrary video sizes or smooth captures on underpowered hardware.");
+	Cmd_AddCommandD("capturedemo", Media_RecordDemo_f, "capturedemo foo.dem foo.avi - Captures a named demo to a named video file.\nDemo capturing is performed offscreen when possible, allowing arbitrary video sizes or smooth captures on underpowered hardware.");
 	Cmd_AddCommandD("capturestop", Media_StopRecordFilm_f, "Aborts the current video capture.");
 	Cmd_AddCommandD("capturepause", Media_CapturePause_f, "Pauses the video capture, allowing you to avoid capturing uninteresting parts. This is a toggle, so reuse the same command to resume capturing again.");
 

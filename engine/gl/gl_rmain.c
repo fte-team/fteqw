@@ -72,13 +72,8 @@ extern cvar_t r_tessellation;
 extern cvar_t gl_ati_truform_type;
 extern cvar_t r_tessellation_level;
 
-extern cvar_t gl_blendsprites;
 extern cvar_t r_portaldrawplanes;
 extern cvar_t r_portalonly;
-
-#ifdef R_XFLIP
-cvar_t	r_xflip = CVAR("leftisright", "0");
-#endif
 
 extern	cvar_t	scr_fov;
 
@@ -432,7 +427,7 @@ void R_RotateForEntity (float *m, float *modelview, const entity_t *e, const mod
 R_SetupGL
 =============
 */
-static void R_SetupGL (vec3_t eyeangorg[2], vec4_t fovoverrides, float projmatrix[16]/*for webvr*/, texid_t fbo)
+static void R_SetupGL (const float eyematrix[12]/*can be null*/, const vec4_t fovoverrides/*can be null*/, const float projmatrix[16]/*can be null*/, const pxrect_t *viewport/*can be null*/, texid_t fbo/*can be null*/)
 {
 	int		x, x2, y2, y, w, h;
 	vec3_t newa;
@@ -447,18 +442,16 @@ static void R_SetupGL (vec3_t eyeangorg[2], vec4_t fovoverrides, float projmatri
 		newa[0] = r_refdef.viewangles[0];
 		newa[1] = r_refdef.viewangles[1];
 		newa[2] = r_refdef.viewangles[2] + gl_screenangle.value;
-		if (eyeangorg)
+		if (eyematrix)
 		{
 			extern cvar_t in_vraim;
 			matrix3x4 basematrix;
-			matrix3x4 eyematrix;
 			matrix3x4 viewmatrix;
 
-			Matrix3x4_RM_FromAngles(eyeangorg[0], eyeangorg[1], eyematrix[0]);
 			if (r_refdef.base_known)
 			{	//mod is specifying its own base ang+org.
 				Matrix3x4_RM_FromAngles(r_refdef.base_angles, r_refdef.base_origin, basematrix[0]);
-				Matrix3x4_Multiply(eyematrix[0], basematrix[0], viewmatrix[0]);
+				Matrix3x4_Multiply(eyematrix, basematrix[0], viewmatrix[0]);
 				Matrix3x4_RM_ToVectors(viewmatrix[0], vpn, vright, vup, r_origin);
 				VectorNegate(vright, vright);
 			}
@@ -469,7 +462,7 @@ static void R_SetupGL (vec3_t eyeangorg[2], vec4_t fovoverrides, float projmatri
 				if (in_vraim.ival)
 					newa[1] -= SHORT2ANGLE(r_refdef.playerview->vrdev[VRDEV_HEAD].angles[YAW]);
 				Matrix3x4_RM_FromAngles(newa, r_refdef.vieworg, basematrix[0]);
-				Matrix3x4_Multiply(eyematrix[0], basematrix[0], viewmatrix[0]);
+				Matrix3x4_Multiply(eyematrix, basematrix[0], viewmatrix[0]);
 				Matrix3x4_RM_ToVectors(viewmatrix[0], vpn, vright, vup, r_origin);
 				VectorNegate(vright, vright);
 			}
@@ -485,7 +478,11 @@ static void R_SetupGL (vec3_t eyeangorg[2], vec4_t fovoverrides, float projmatri
 		//
 		// set up viewpoint
 		//
-		if (fbo)
+		if (viewport)
+		{
+			r_refdef.pxrect = *viewport;
+		}
+		else if (fbo)
 		{
 			//with VR fbo postprocessing, we disable all viewport.
 			r_refdef.pxrect.x = 0;
@@ -605,6 +602,15 @@ static void R_SetupGL (vec3_t eyeangorg[2], vec4_t fovoverrides, float projmatri
 				fov_u = fov_y / 2;
 			}
 
+			if (r_xflip.ival)
+			{
+				float t = fov_l;
+				fov_l = fov_r;
+				fov_r = t;
+				r_refdef.flipcull ^= SHADER_CULL_FLIP;
+				fovv_x *= -1;
+			}
+
 			if (r_refdef.useperspective)
 			{
 				float maxdist = r_refdef.maxdist;
@@ -623,9 +629,8 @@ static void R_SetupGL (vec3_t eyeangorg[2], vec4_t fovoverrides, float projmatri
 				Matrix4x4_CM_Orthographic(r_refdef.m_projection_std, -fov_x/2, fov_x/2, -fov_y/2, fov_y/2, r_refdef.mindist, r_refdef.maxdist?r_refdef.maxdist:9999);
 				memcpy(r_refdef.m_projection_view, r_refdef.m_projection_std, sizeof(r_refdef.m_projection_view));
 			}
-
-			Matrix4x4_CM_ModelViewMatrixFromAxis(r_refdef.m_view, vpn, vright, vup, r_origin);
 		}
+		Matrix4x4_CM_ModelViewMatrixFromAxis(r_refdef.m_view, vpn, vright, vup, r_origin);
 
 		//bias the viewmodel depth range to a third: -1 through -0.333 (instead of -1 to 1)
 		r_refdef.m_projection_view[2+4*0] *= 0.333;
@@ -722,6 +727,10 @@ static void R_RenderScene_Internal(void)
 		vec3_t diff;
 		float d;
 		vec3_t ctrlang, ctrlorg, aimdir;
+		extern cvar_t cl_vrui_lock;
+
+		if (cl_vrui_lock.ival)
+			VRUI_SnapAngle();
 
 //		extern usercmd_t cl_pendingcmd[MAX_SPLITS];
 		AngleVectors(vrui.angles, uifwd, uiright, uiup);
@@ -785,7 +794,7 @@ static void R_RenderScene_Internal(void)
 		GL_SetShaderState2D(false);
 	}
 }
-static void R_RenderEyeScene (texid_t rendertarget, vec4_t fovoverride, vec3_t eyeangorg[2])
+static void R_RenderEyeScene (texid_t rendertarget, const pxrect_t *viewport, const vec4_t fovoverride, const float projmatrix[16], const float eyematrix[12])
 {
 	extern qboolean depthcleared;
 	refdef_t refdef = r_refdef;
@@ -809,7 +818,7 @@ static void R_RenderEyeScene (texid_t rendertarget, vec4_t fovoverride, vec3_t e
 		vid.fbpheight = rendertarget->height;
 	}
 
-	R_SetupGL (eyeangorg, fovoverride, NULL, rendertarget);
+	R_SetupGL (eyematrix, fovoverride, projmatrix, viewport, rendertarget);
 	R_RenderScene_Internal();
 
 	if (rendertarget)
@@ -832,6 +841,7 @@ static void R_RenderScene (void)
 	int cull = r_refdef.flipcull;
 	unsigned int colourmask = r_refdef.colourmask;
 	vec3_t eyeangorg[2];
+	float eyematrix[12];
 	extern qboolean		depthcleared;
 
 	r_refdef.colourmask = 0u;
@@ -867,7 +877,7 @@ static void R_RenderScene (void)
 		GL_ForceDepthWritable();
 		qglClear (GL_DEPTH_BUFFER_BIT);
 
-		R_SetupGL (NULL, NULL, NULL, NULL);
+		R_SetupGL (NULL, NULL, NULL, NULL, NULL);
 		R_RenderScene_Internal();
 	}
 	else for (i = 0; i < stereoframes; i++)
@@ -930,7 +940,8 @@ static void R_RenderScene (void)
 		eyeangorg[0][1] = r_stereo_convergence.value * (i?0.5:-0.5);
 		eyeangorg[0][2] = 0;
 		VectorSet(eyeangorg[1], 0, stereooffset[i], 0);
-		R_SetupGL (eyeangorg, NULL, NULL, NULL);
+		Matrix3x4_RM_FromAngles(eyeangorg[0], eyeangorg[1], eyematrix);
+		R_SetupGL (eyematrix, NULL, NULL, NULL, NULL);
 		R_RenderScene_Internal ();
 	}
 
@@ -1951,7 +1962,7 @@ qboolean R_RenderScene_Cubemap(void)
 }
 #endif
 
-texid_t R_RenderPostProcess (texid_t sourcetex, int type, shader_t *shader, char *restexname)
+texid_t R_RenderPostProcess (texid_t sourcetex, texid_t sourcedepth, int type, shader_t *shader, char *restexname)
 {
 	if (r_refdef.flags & type)
 	{
@@ -1964,10 +1975,11 @@ texid_t R_RenderPostProcess (texid_t sourcetex, int type, shader_t *shader, char
 			int h = (r_refdef.vrect.height * vid.pixelheight) / vid.height;
 			if (R2D_Flush)
 				R2D_Flush();
-			GLBE_FBO_Sources(sourcetex, r_nulltex);
+			GLBE_FBO_Sources(sourcetex, sourcedepth);
 			sourcetex = R2D_RT_Configure(restexname, w, h, TF_RGBA32, RT_IMAGEFLAGS);
 			GLBE_FBO_Update(&fbo_postproc, 0, &sourcetex, 1, r_nulltex, w, h, 0);
-			R2D_ScalePic(0, 0, r_refdef.vrect.width, r_refdef.vrect.height, shader);
+			qglViewport(0,0,w,h);
+			R2D_ScalePic(0, 0, vid.fbvwidth, vid.fbvheight, shader);
 			if (R2D_Flush)
 				R2D_Flush();
 			GLBE_RenderToTextureUpdate2d(true);
@@ -1977,7 +1989,7 @@ texid_t R_RenderPostProcess (texid_t sourcetex, int type, shader_t *shader, char
 			//update stuff now that we're not rendering the 3d scene
 			if (R2D_Flush)
 				R2D_Flush();
-			GLBE_FBO_Sources(sourcetex, r_nulltex);
+			GLBE_FBO_Sources(sourcetex, sourcedepth);
 			R2D_ScalePic(r_refdef.vrect.x, r_refdef.vrect.y, r_refdef.vrect.width, r_refdef.vrect.height, shader);
 			if (R2D_Flush)
 				R2D_Flush();
@@ -1999,10 +2011,12 @@ void GLR_RenderView (void)
 	int dofbo = *r_refdef.rt_destcolour[0].texname || *r_refdef.rt_depth.texname;
 	double	time1 = 0, time2;
 	texid_t sourcetex = r_nulltex;
+	texid_t sourcedepth = r_nulltex;
 	shader_t *custompostproc = NULL;
 	float renderscale;	//extreme, but whatever
 	int oldfbo = 0;
 	qboolean forcedfb = false;
+	qboolean fbdepth = false;
 
 	checkglerror();
 
@@ -2086,6 +2100,16 @@ void GLR_RenderView (void)
 
 		if (r_hdr_framebuffer.ival && !(vid.flags & VID_FP16))	//primary use of this cvar is to fix q3shader overbrights (so bright lightmaps can oversaturate then drop below 1 by modulation with the lightmap
 			forcedfb = true;
+		if (custompostproc)
+		{
+			int i;
+			for (i = 0; i < custompostproc->numpasses; i++)
+				if (custompostproc->passes[i].texgen == T_GEN_SOURCEDEPTH)
+				{
+					fbdepth = true;
+					break;
+				}
+		}
 		if (vid_hardwaregamma.ival == 4 && (v_gamma.value != 1 || v_contrast.value != 1 || v_contrastboost.value != 1|| v_brightness.value != 0))
 			r_refdef.flags |= RDF_SCENEGAMMA;
 	}
@@ -2159,6 +2183,7 @@ void GLR_RenderView (void)
 	{
 		unsigned int rtflags = IF_NOMIPMAP|IF_CLAMP|IF_RENDERTARGET|IF_NOSRGB;
 		enum uploadfmt fmt;
+		unsigned int fboflags = 0;
 
 		r_refdef.flags |= RDF_RENDERSCALE;
 
@@ -2213,8 +2238,24 @@ void GLR_RenderView (void)
 		}
 
 		sourcetex = R2D_RT_Configure("rt/$lastgameview", vid.fbpwidth, vid.fbpheight, fmt, rtflags);
+		if (fbdepth)
+		{
+			if (sh_config.texfmt[PTI_DEPTH24_8] && !r_shadow_shadowmapping.ival)
+				fmt = PTI_DEPTH24_8;
+			else if (sh_config.texfmt[PTI_DEPTH32])
+				fmt = PTI_DEPTH32;
+			else
+				fmt = PTI_DEPTH16;
+		}
+		else
+			fmt = PTI_INVALID;
+		sourcedepth = (fmt != PTI_INVALID)?R2D_RT_Configure("rt/$lastgameviewdepth", vid.fbpwidth, vid.fbpheight, fmt, rtflags):r_nulltex;
+		if (sourcedepth)
+			fboflags = FBO_TEX_DEPTH;
+		else
+			fboflags = FBO_RB_DEPTH;
 
-		oldfbo = GLBE_FBO_Update(&fbo_gameview, FBO_RB_DEPTH, &sourcetex, 1, r_nulltex, vid.fbpwidth, vid.fbpheight, 0);
+		oldfbo = GLBE_FBO_Update(&fbo_gameview, fboflags, &sourcetex, 1, sourcedepth, vid.fbpwidth, vid.fbpheight, 0);
 		dofbo = true;
 	}
 	else if (vid.framebuffer)
@@ -2295,13 +2336,13 @@ void GLR_RenderView (void)
 		GLBE_FBO_Pop(oldfbo);
 
 	GLBE_RenderToTextureUpdate2d(false);
-	GL_Set2D (false);
+	GL_Set2D (2);
 
 	// SCENE POST PROCESSING
 
 	if (forcedfb && !(r_refdef.flags & RDF_ALLPOSTPROC))
 	{
-		GLBE_FBO_Sources(sourcetex, r_nulltex);
+		GLBE_FBO_Sources(sourcetex, sourcedepth);
 		R2D_Image(r_refdef.vrect.x, r_refdef.vrect.y, r_refdef.vrect.width, r_refdef.vrect.height, 0, 1, 1, 0, scenepp_rescaled);
 	}
 	else
@@ -2309,12 +2350,12 @@ void GLR_RenderView (void)
 		if (r_refdef.flags & RDF_SCENEGAMMA)
 		{
 			R2D_ImageColours (v_gammainverted.ival?v_gamma.value:(1/v_gamma.value), v_contrast.value, v_brightness.value, v_contrastboost.value);
-			sourcetex = R_RenderPostProcess (sourcetex, RDF_SCENEGAMMA, scenepp_gamma, "rt/$gammaed");
+			sourcetex = R_RenderPostProcess (sourcetex, sourcedepth, RDF_SCENEGAMMA, scenepp_gamma, "rt/$gammaed");
 			R2D_ImageColours (1, 1, 1, 1);
 		}
-		sourcetex = R_RenderPostProcess (sourcetex, RDF_WATERWARP, scenepp_waterwarp, "rt/$waterwarped");
-		sourcetex = R_RenderPostProcess (sourcetex, RDF_CUSTOMPOSTPROC, custompostproc, "rt/$postproced");
-		sourcetex = R_RenderPostProcess (sourcetex, RDF_ANTIALIAS, scenepp_antialias, "rt/$antialiased");
+		sourcetex = R_RenderPostProcess (sourcetex, sourcedepth, RDF_WATERWARP, scenepp_waterwarp, "rt/$waterwarped");
+		sourcetex = R_RenderPostProcess (sourcetex, sourcedepth, RDF_CUSTOMPOSTPROC, custompostproc, "rt/$postproced");
+		sourcetex = R_RenderPostProcess (sourcetex, sourcedepth, RDF_ANTIALIAS, scenepp_antialias, "rt/$antialiased");
 		if (r_refdef.flags & RDF_BLOOM)
 			R_BloomBlend(sourcetex, r_refdef.vrect.x, r_refdef.vrect.y, r_refdef.vrect.width, r_refdef.vrect.height);
 	}
@@ -2326,6 +2367,9 @@ void GLR_RenderView (void)
 
 	if (gl_motionblur.value>0 && gl_motionblur.value < 1 && qglCopyTexImage2D)
 		R_RenderMotionBlur();
+
+	if (gl_screenangle.value)
+		GL_Set2D (false);	//make sure any hud stuff is rotated properly.
 
 	checkglerror();
 }

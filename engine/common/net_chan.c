@@ -98,9 +98,10 @@ cvar_t	pext_lerptime = CVARD("_pext_lerptime", "0", "RENAME ME WHEN STABLE. Send
 cvar_t	pext_infoblobs = CVARD("_pext_infoblobs", "0", "RENAME ME WHEN STABLE. Enables the use of very large infokeys containing potentially invalid chars. Note that the userinfo is still limited by sv_userinfo_bytelimit and sv_userinfo_keylimit.");
 cvar_t	pext_replacementdeltas = CVARD("pext_replacementdeltas", "1", "Enables the use of alternative nack-based entity deltas");
 cvar_t	pext_predinfo = CVARD("pext_predinfo", "1", "Enables some extra things to support prediction over NQ protocols.");
+extern cvar_t net_fakemtu;
 
 #if defined(HAVE_CLIENT) && defined(HAVE_SERVER)
-#define NET_SendPacket(c,s,d,t) NET_SendPacket(((c)!=NS_CLIENT)?svs.sockets:cls.sockets,s,d,t)
+#define NET_SendPacket(c,s,d,t) NET_SendPacket((c&NCF_CLIENT)?cls.sockets:svs.sockets,s,d,t)
 #elif defined(HAVE_SERVER)
 #define NET_SendPacket(c,s,d,t) NET_SendPacket(svs.sockets,s,d,t)
 #else
@@ -223,22 +224,21 @@ unsigned int Net_PextMask(unsigned int protover, qboolean fornq)
 			mask |= PEXT2_REPLACEMENTDELTAS;
 			if (/*fornq &&*/ pext_predinfo.ival)
 				mask |= PEXT2_PREDINFO;
+
+			if (pext_vrinputs.ival)
+				mask |= PEXT2_VRINPUTS;
+
+			if (pext_lerptime.ival)
+				mask |= PEXT2_LERPTIME;
+
+			mask |= PEXT2_NEWSIZEENCODING;	//use if we can
 		}
 
 		if (pext_infoblobs.ival)
 			mask |= PEXT2_INFOBLOBS;
 
-		if (pext_vrinputs.ival)
-			mask |= PEXT2_VRINPUTS;
-
-		if (pext_lerptime.ival)
-			mask |= PEXT2_LERPTIME;
-
 		if (MAX_CLIENTS != QWMAX_CLIENTS)
 			mask |= PEXT2_MAXPLAYERS;
-
-		if (mask & PEXT2_REPLACEMENTDELTAS)
-			mask |= PEXT2_NEWSIZEENCODING;	//use if we can
 
 		mask |= PEXT2_STUNAWARE;
 
@@ -303,7 +303,7 @@ Netchan_OutOfBand
 Sends an out-of-band datagram
 ================
 */
-void Netchan_OutOfBand (netsrc_t sock, netadr_t *adr, int length, const qbyte *data)
+void Netchan_OutOfBand (unsigned int ncflags, netadr_t *adr, int length, const qbyte *data)
 {
 	sizebuf_t	send;
 	qbyte		send_buf[MAX_QWMSGLEN + PACKET_HEADER];
@@ -322,7 +322,7 @@ void Netchan_OutOfBand (netsrc_t sock, netadr_t *adr, int length, const qbyte *d
 #ifndef SERVERONLY
 	if (!cls.demoplayback)
 #endif
-		NET_SendPacket (sock, send.cursize, send.data, adr);
+		NET_SendPacket (ncflags, send.cursize, send.data, adr);
 }
 
 /*
@@ -332,7 +332,7 @@ Netchan_OutOfBandPrint
 Sends a text message in an out-of-band datagram
 ================
 */
-void VARGS Netchan_OutOfBandPrint (netsrc_t sock, netadr_t *adr, char *format, ...)
+void VARGS Netchan_OutOfBandPrint (unsigned int ncflags, netadr_t *adr, char *format, ...)
 {
 	va_list		argptr;
 	static char		string[8192];		// ??? why static?
@@ -342,10 +342,10 @@ void VARGS Netchan_OutOfBandPrint (netsrc_t sock, netadr_t *adr, char *format, .
 	va_end (argptr);
 
 
-	Netchan_OutOfBand (sock, adr, strlen(string), (qbyte *)string);
+	Netchan_OutOfBand (ncflags, adr, strlen(string), (qbyte *)string);
 }
 #ifndef CLIENTONLY
-void VARGS Netchan_OutOfBandTPrintf (netsrc_t sock, netadr_t *adr, int language, translation_t text, ...)
+void VARGS Netchan_OutOfBandTPrintf (unsigned int ncflags, netadr_t *adr, int language, translation_t text, ...)
 {
 	va_list		argptr;
 	static char		string[8192];		// ??? why static?
@@ -359,9 +359,44 @@ void VARGS Netchan_OutOfBandTPrintf (netsrc_t sock, netadr_t *adr, int language,
 	va_end (argptr);
 
 
-	Netchan_OutOfBand (sock, adr, strlen(string), (qbyte *)string);
+	Netchan_OutOfBand (ncflags, adr, strlen(string), (qbyte *)string);
 }
 #endif
+
+size_t Netchan_GetMaxUnreliable(netchan_t *chan)
+{	//returns the maximum unreliable size we should be aiming for
+
+
+#ifdef HAVE_SERVER
+	//debug prints
+	if (!(chan->flags&NCF_CLIENT) && chan == &svs.clients[0].netchan)
+	{
+		static int oldmtu;
+		if (oldmtu != chan->mtu_cur)
+		{
+			Con_DPrintf("Player0 MTU changed %i->%i\n", oldmtu, chan->mtu_cur);
+			oldmtu = chan->mtu_cur;
+		}
+	}
+#endif
+
+//	if (chan->remote_address.type == NA_LOOPBACK)
+//		return ~0u;	//our client supports big stuff. demos don't really care either so its fine.
+
+
+	if (chan->incoming_acknowledged > chan->last_reliable_sequence
+		&& chan->incoming_reliable_acknowledged != chan->reliable_sequence)
+	{	//we want to send a reliable...
+		if (chan->reliable_length)	//one will be resent
+			return chan->mtu_cur - chan->reliable_length;
+		if (chan->message.cursize)	//a new one will go out
+			return chan->mtu_cur - chan->message.cursize;
+	}
+
+
+	return chan->mtu_cur;
+}
+
 /*
 ==============
 Netchan_Setup
@@ -369,25 +404,75 @@ Netchan_Setup
 called to open a channel to a remote system
 ==============
 */
-void Netchan_Setup (netsrc_t sock, netchan_t *chan, netadr_t *adr, int qport)
+void Netchan_Setup (unsigned int flags, netchan_t *chan, netadr_t *adr, int qport, unsigned int mtu)
 {
 	memset (chan, 0, sizeof(*chan));
 
-	chan->sock = sock;
+	chan->flags = flags;
 	chan->remote_address = *adr;
 	chan->last_received = realtime;
 #ifdef NQPROT
 	chan->nqreliable_allowed = true;
 #endif
 	chan->incoming_unreliable = -1;
-	
-	chan->message.data = chan->message_buf;
-	chan->message.allowoverflow = true;
-	chan->message.maxsize = MAX_QWMSGLEN;
 
+	if (flags&NCF_CLIENT)
+		chan->outgoing_sequence = 1;	//so the first one doesn't get dropped.
+
+	if (adr->prot == NP_KEXLAN)
+		chan->qportsize = 0;
+	else
+		chan->qportsize = 2;
 	chan->qport = qport;
 
-	chan->qportsize = 2;
+
+
+	//input mtu is the expected 'udp data size'
+	if (mtu<64 || mtu > 0xffff)
+		mtu = MAX_QWMSGLEN;
+	mtu = max(mtu, 508);
+
+	//compute the minimum mtu for the address type
+	if (adr->type == NA_IP)
+		chan->mtu_min = 508;	//576 - 20..60(IP header) - 8(udp header)
+	else if (adr->type == NA_IPV6)
+		chan->mtu_min = 1200;
+	else if (adr->type == NA_IPX)
+		chan->mtu_min = 1450;
+#ifdef SUPPORT_ICE
+	else if (adr->type == NA_ICE)
+		chan->mtu_min = 508;	//match ipv4 here...
+#endif
+	else if (adr->type == NA_LOOPBACK)
+		chan->mtu_min = 8192;
+	else
+		chan->mtu_min = 1450;
+	if (chan->mtu_min < 1024)
+		chan->mtu_min = 1200;	//the internet is ethernet. if you can't deal with ipv6's limit then your connection is seriously dodgy. plus this lets us be a bit more agressive.
+
+	mtu -= PACKET_HEADER;	//Note: This is not considered in vanilla - meaning net_mtu should be 1458 to match it (which will probably cause PTB issues).
+	if (flags&NCF_CLIENT)
+		mtu -= chan->qportsize;
+	if (flags&NCF_FRAGABLE)
+		mtu -= 2;
+#ifdef SUPPORT_ICE
+	if (adr->type == NA_ICE)
+		mtu -= 48+12;	//fixme: check if we're actually using the dtls and sctp layers or not.
+	else
+#endif
+	{
+		if (adr->prot == NP_DTLS || adr->prot == NP_TLS)
+			mtu -= 48;
+	}
+
+	chan->mtu_min = min(mtu, chan->mtu_min);
+	chan->mtu_cur = mtu;	//try to use the requested size to begin with. if it fails (probably on the realibles) then we'll allow it to drop
+	chan->mtu_max = mtu;	//don't grow beyond what the user set. we're not aware of multiple paths nor are we tracking packetloss rates so if its partly wrong they'll get a load more loss, so don't be agressive here. let the user do that themselves!
+	chan->mtu_reprobetime = realtime;	//try and grow the effective mtu after a bit (route may have changed)
+
+	chan->message.data = chan->message_buf;
+	chan->message.allowoverflow = true;
+	chan->message.maxsize = min(chan->mtu_cur, sizeof(chan->message_buf));
 }
 
 
@@ -478,9 +563,8 @@ enum nqnc_packettype_e NQNetChan_Process(netchan_t *chan)
 		//note: its zlib rather than raw deflate (wasting a further 6 bytes...).
 		net_message.cursize = ZLib_DecompressBuffer(net_message.data+8, net_message.cursize-8, tmp, 0xffff);
 		if (net_message.cursize < PACKET_HEADER)
-#endif
 		{
-			if (chan->sock == NS_CLIENT)
+			if (chan->flags&NCF_CLIENT)
 			{	//clients can just throw an error. the server will appear dead if we try to just ignore it.
 				Host_EndGame("QuakeEx netchan decompression error");
 				return NQNC_IGNORED;
@@ -496,6 +580,15 @@ enum nqnc_packettype_e NQNetChan_Process(netchan_t *chan)
 
 		MSG_BeginReading (&net_message, chan->netprim);
 		header = LongSwap(MSG_ReadLong());	//re-read the now-decompressed copy of the header for the real flags
+#else
+		if (chan->flags&NCF_CLIENT)
+			Host_EndGame("NQNetChan_Process: zlib not enabled at compile time");
+		else
+			Con_Printf("QuakeEx netchan decompression error");
+		net_message.data[8] = (chan->flags&NCF_CLIENT)?svc_disconnect:clc_disconnect;
+		net_message.cursize = 9;
+		return NQNC_RELIABLE;
+#endif
 	}
 #endif
 	if (net_message.cursize != (header & NETFLAG_LENGTH_MASK))
@@ -531,7 +624,7 @@ enum nqnc_packettype_e NQNetChan_Process(netchan_t *chan)
 
 		if (showpackets.value)
 			Con_Printf ("in  %s a=%i %i\n"
-						, chan->sock != NS_SERVER?"s2c":"c2s"
+						, (chan->flags&NCF_CLIENT)?"s2c":"c2s"
 						, sequence
 						, 0);
 
@@ -565,11 +658,10 @@ enum nqnc_packettype_e NQNetChan_Process(netchan_t *chan)
 		chan->last_received = realtime;
 
 		chan->incoming_acknowledged++;
-		chan->good_count++;
 
 		if (showpackets.value)
 			Con_Printf ("in  %s u=%i %i\n"
-						, chan->sock != NS_SERVER?"s2c":"c2s"
+						, (chan->flags&NCF_CLIENT)?"c2s":"s2c"
 						, chan->incoming_unreliable
 						, net_message.cursize);
 		return NQNC_UNRELIABLE;
@@ -580,10 +672,10 @@ enum nqnc_packettype_e NQNetChan_Process(netchan_t *chan)
 		//always reply. a stale sequence probably means our ack got lost.
 		runt[0] = BigLong(NETFLAG_ACK | 8);
 		runt[1] = BigLong(sequence);
-		NET_SendPacket (chan->sock, 8, runt, &net_from);
+		NET_SendPacket (chan->flags, 8, runt, &net_from);
 		if (showpackets.value)
 			Con_Printf ("out %s a=%i %i\n"
-						, chan->sock == NS_SERVER?"s2c":"c2s"
+						, (chan->flags&NCF_CLIENT)?"c2s":"s2c"
 						, sequence
 						, 0);
 
@@ -610,7 +702,7 @@ enum nqnc_packettype_e NQNetChan_Process(netchan_t *chan)
 
 				if (showpackets.value)
 					Con_Printf ("in  %s r=%i %i\n"
-								, chan->sock != NS_SERVER?"s2c":"c2s"
+								, (chan->flags&NCF_CLIENT)?"s2c":"c2s"
 								, sequence
 								, net_message.cursize);
 				return NQNC_RELIABLE;	//we can read it now
@@ -641,16 +733,18 @@ A 0 length will still generate a packet and deal with the reliable messages.
 */
 int Netchan_Transmit (netchan_t *chan, int length, qbyte *data, int rate)
 {
-	sizebuf_t	send;
+	sizebuf_t	send = {false};
 	qbyte		send_buf[MAX_OVERALLMSGLEN + PACKET_HEADER];
 	qboolean	send_reliable;
 	char		remote_adr[MAX_ADR_SIZE];
-	unsigned	w1, w2;
+	unsigned	w1, w2, mtuseq;
 	int			i;
 	neterr_t e;
 
+	qboolean ismtuprobe;
 	int dupes = chan->dupe;
 	int availbytes = Netchan_CanBytes(chan, rate);
+	int hsz;
 	availbytes = max(0, availbytes); //make sure it can't go negative (clientside doesn't check rate limits much)
 
 #ifdef NQPROT
@@ -685,7 +779,7 @@ int Netchan_Transmit (netchan_t *chan, int length, qbyte *data, int rate)
 				MSG_WriteLong(&send, LongSwap(chan->reliable_sequence));
 
 				//limit the payload length to nq's datagram max size.
-				//relax the limitation if its reliable (ie: over tcp) where its assumed to have no real limit
+				//relax the limitation if its reliable (ie: over tcp) where its assumed to have no real limit (beware tunnels)
 				if (i > MAX_NQDATAGRAM && !NET_AddrIsReliable(&chan->remote_address))
 					i = MAX_NQDATAGRAM;
 
@@ -708,13 +802,13 @@ int Netchan_Transmit (netchan_t *chan, int length, qbyte *data, int rate)
 				sentsize += send.cursize;
 				if (showpackets.value)
 					Con_Printf ("out %s r s=%i %i\n"
-						, chan->sock == NS_SERVER?"s2c":"c2s"
+						, (chan->flags&NCF_CLIENT)?"c2s":"s2c"
 						, chan->reliable_sequence
 						, send.cursize);
 				chan->nqreliable_allowed = false;
-				chan->nqreliable_resendtime = realtime + 0.3;	//resend reliables after 0.3 seconds. nq transports suck.
+				chan->nqreliable_resendtime = realtime + 0.3;	//resend reliables after 0.3 seconds. nq transports suck. FIXME: reduce to pingtime
 
-				if (NET_SendPacket (chan->sock, send.cursize, send.data, &chan->remote_address) == NETERR_SENT && (
+				if (NET_SendPacket (chan->flags, send.cursize, send.data, &chan->remote_address) == NETERR_SENT && (
 					NET_AddrIsReliable(&chan->remote_address) || chan->nqunreliableonly==3	))
 				{	//if over tcp (or we're dropping the connection), everything is assumed to be reliable. pretend it got acked now.
 					//if we get an ack later, then who cares.
@@ -743,17 +837,17 @@ int Netchan_Transmit (netchan_t *chan, int length, qbyte *data, int rate)
 
 			*(int*)send_buf = BigLong(NETFLAG_UNRELIABLE | send.cursize);
 			for (i = -1, e = NETERR_SENT; i < dupes && e == NETERR_SENT; i++)
-				e = NET_SendPacket (chan->sock, send.cursize, send.data, &chan->remote_address);
+				e = NET_SendPacket (chan->flags, send.cursize, send.data, &chan->remote_address);
 			sentsize += send.cursize*i;
-			if (e == NETERR_MTU && chan->mtu > 560)
-			{
-				Con_Printf("Reducing MSS to %i\n", chan->mtu);
-				chan->mtu -= 10;
+			if (e == NETERR_MTU && chan->mtu_cur > chan->mtu_min)
+			{	//yay, router works properly. unfortunately we don't know the exact size so keep retrying with a slightly smaller value until it goes through...
+				chan->mtu_cur = max(chan->mtu_min, chan->mtu_cur-10);
+				Con_Printf("Reducing MSS to %i\n", chan->mtu_cur);
 			}
 
 			if (showpackets.value)
 				Con_Printf ("out %s u=%i %i\n"
-						, chan->sock == NS_SERVER?"s2c":"c2s"
+						, (chan->flags&NCF_CLIENT)?"c2s":"s2c"
 						, chan->outgoing_unreliable-1
 						, send.cursize);
 			send.cursize = 0;
@@ -778,7 +872,7 @@ int Netchan_Transmit (netchan_t *chan, int length, qbyte *data, int rate)
 
 	if (chan->incoming_acknowledged > chan->last_reliable_sequence
 	&& chan->incoming_reliable_acknowledged != chan->reliable_sequence)
-		send_reliable = true;
+		send_reliable = true;	//they acked a later packet without acking the reliable...
 
 // if the reliable transmit buffer is empty, copy the current message out
 	if (!chan->reliable_length && chan->message.cursize)
@@ -788,17 +882,46 @@ int Netchan_Transmit (netchan_t *chan, int length, qbyte *data, int rate)
 		chan->message.cursize = 0;
 		chan->reliable_sequence ^= 1;
 		send_reliable = true;
+
+		chan->mtu_resends=0;
+	}
+
+	if (send_reliable && chan->remote_address.prot == NP_KEXLAN)	//FIXME: use with webrtc too - sctp can avoid the round-trip delay.
+#ifndef SERVERONLY
+	if (!cls.demoplayback)
+#endif
+	{
+		if (chan->reliable_length)
+		{
+			send.data = send_buf;
+			send.maxsize = sizeof(send_buf);
+			send.cursize = 0;
+
+			MSG_WriteLong (&send, 1u<<31);
+			MSG_WriteLong (&send, 1u<<31);
+			SZ_Write (&send, chan->reliable_buf, chan->reliable_length);
+
+			if (NETERR_SENT == NET_SendPacket (chan->flags, send.cursize, send.data, &chan->remote_address))
+				chan->reliable_length = 0;	//the lower layer will handle any retransmission for us.
+		}
+		send_reliable = 0;
+		chan->incoming_reliable_sequence = 0;
 	}
 
 // write the packet header
 	send.data = send_buf;
-	send.maxsize = (chan->mtu?chan->mtu:MAX_QWMSGLEN) + PACKET_HEADER;
+	send.maxsize = PACKET_HEADER + ((chan->flags&NCF_CLIENT)?chan->qportsize:0) + ((chan->flags&NCF_FRAGABLE)?2:0);
+	send.maxsize += chan->mtu_cur;
 	send.cursize = 0;
+
+	mtuseq = chan->outgoing_sequence&(countof(chan->sentsizes)-1);
+	for (; (chan->outgoing_sequence_last&(countof(chan->sentsizes)-1)) != mtuseq; chan->outgoing_sequence_last++)
+		chan->sentsizes[chan->outgoing_sequence_last&(countof(chan->sentsizes)-1)] = 0;	//lost c2s or something, gaps now.
 
 	w1 = chan->outgoing_sequence | (send_reliable<<31);
 	w2 = chan->incoming_sequence | (chan->incoming_reliable_sequence<<31);
 
-	if (chan->pext_stunaware)
+	if (chan->flags&NCF_STUNAWARE)
 	{
 		w1 = BigLong(w1+ANTISTUNBIAS);
 		w2 = BigLong(w2);
@@ -808,23 +931,26 @@ int Netchan_Transmit (netchan_t *chan, int length, qbyte *data, int rate)
 
 	MSG_WriteLong (&send, w1);
 	MSG_WriteLong (&send, w2);
+	hsz = 8;
 
 	// send the qport if we are a client
 #ifndef SERVERONLY
-	if (chan->sock == NS_CLIENT)
+	if (chan->flags&NCF_CLIENT)
 	{
 		if (chan->qportsize == 2)
 			MSG_WriteShort (&send, chan->qport);
 		else if (chan->qportsize == 1)
 			MSG_WriteByte (&send, chan->qport&0xff);
+		hsz += chan->qportsize;
 	}
 #endif
 
-	if (chan->pext_fragmentation)
+	if (chan->flags&NCF_FRAGABLE)
 	{
 		//allow the max size to be bigger, sending everything available
-		send.maxsize = MAX_OVERALLMSGLEN + PACKET_HEADER;
+		send.maxsize = MAX_OVERALLMSGLEN-100;
 		MSG_WriteShort(&send, 0);
+		hsz += 2;
 	}
 
 // copy the reliable message to the packet first
@@ -843,22 +969,70 @@ int Netchan_Transmit (netchan_t *chan, int length, qbyte *data, int rate)
 		}
 		SZ_Write (&send, chan->reliable_buf, chan->reliable_length);
 		chan->last_reliable_sequence = chan->outgoing_sequence;
+
+		if (chan->mtu_resends > 5)
+		{	//getting blackholed?
+			if (chan->mtu_cur > chan->mtu_min)
+			{	//reset the mtu, and re-enable probes to get it back up to something usable.
+				chan->mtu_cur = chan->mtu_min;
+//				chan->mtu_cur = max(chan->mtu_min, min(send.cursize, chan->mtu_cur-16));
+				Con_DPrintf("Reliables Blackholed? Reducing MSS to %i\n", chan->mtu_cur);
+				chan->mtu_probes = 0;	//and try and grow it again.
+			}
+			//chan->mtu_resends = 0;
+		}
+		chan->mtu_resends++;
 	}
-	
+
+	if (chan->outgoing_sequence - chan->incoming_acknowledged > 128 && chan->mtu_cur > chan->mtu_min)
+	{
+		chan->mtu_cur = chan->mtu_min;
+//		chan->mtu_cur = max(chan->mtu_min, min(send.cursize, chan->mtu_cur-16));
+		Con_DPrintf("MTU blackhole? Reducing MSS to %i\n", chan->mtu_cur);
+		chan->mtu_probes = 0;	//and try and grow it again.
+	}
+
 // add the unreliable part if space is available
 	if (send.maxsize - send.cursize >= length)
 		SZ_Write (&send, data, length);
 
+	ismtuprobe = false;
+	if (chan->mtu_reprobetime < realtime)
+	{
+		chan->mtu_probes = min(chan->mtu_probes,4);
+		chan->mtu_reprobetime = realtime + 30;
+	}
+	if (!send_reliable/*reliables depend on round trip times, don't risk losing them*/ &&
+		chan->incoming_acknowledged >= chan->outgoing_mtu_probe+chan->mtu_probes/*not still waiting for one, slow down a bit if they're dropping.*/ &&
+		chan->mtu_cur < chan->mtu_max && chan->mtu_probes < 5/*give up if its just not growing*/)
+	{
+		int targsize = min(chan->mtu_max, chan->mtu_cur+16);
+		int padsize = (hsz+targsize)-send.cursize;
+		if (padsize > 0 && targsize <= send.maxsize)
+		{
+			if (chan->flags&NCF_CLIENT)
+				Q_memset (SZ_GetSpace(&send,padsize),clc_nop,padsize);
+			else
+				Q_memset (SZ_GetSpace(&send,padsize),svc_nop,padsize);
+			ismtuprobe = true;	//don't do our fragmentation stuff.
+			chan->mtu_probes++;
+			chan->outgoing_mtu_probe = chan->outgoing_sequence;
+			chan->mtu_reprobetime = realtime + 30;
+			Con_DPrintf("Sending mtu probe\n");
+		}
+	}
+
+
 // send the datagram
-	i = chan->outgoing_sequence & (MAX_LATENT-1);
-	chan->outgoing_size[i] = send.cursize;
-	chan->outgoing_time[i] = realtime;
+//	i = chan->outgoing_sequence & (MAX_LATENT-1);
+//	chan->outgoing_size[i] = send.cursize;
+//	chan->outgoing_time[i] = realtime;
 
 #ifdef HUFFNETWORK
 	if (chan->compresstable)
 	{
 		//int oldsize = send.cursize;
-		Huff_CompressPacket(chan->compresstable, &send, 8 + ((chan->sock == NS_CLIENT)?2:0) + (chan->pext_fragmentation?2:0));
+		Huff_CompressPacket(chan->compresstable, &send, 8 + ((chan->flags&NCF_CLIENT)?2:0) + (chan->flags&NCF_FRAGABLE?2:0));
 //		Con_Printf("%i becomes %i\n", oldsize, send.cursize);
 //		Huff_DecompressPacket(&send, (chan->sock == NS_CLIENT)?10:8);
 	}
@@ -870,23 +1044,25 @@ int Netchan_Transmit (netchan_t *chan, int length, qbyte *data, int rate)
 	if (!cls.demoplayback)
 #endif
 	{
-		int hsz = 10 + ((chan->sock == NS_CLIENT)?chan->qportsize:0); /*header size, if fragmentation is in use*/
 		dupes = min(chan->dupe, availbytes / send.cursize);
 
-		if ((!chan->pext_fragmentation))// || send.cursize < ((chan->mtu - hsz)&~7))
+		if (ismtuprobe || !(chan->flags&NCF_FRAGABLE))// || send.cursize < ((chan->mtu - hsz)&~7))
 		{	//vanilla sends
 			for (i = -1; i < dupes && e == NETERR_SENT; i++)
-				e = NET_SendPacket (chan->sock, send.cursize, send.data, &chan->remote_address);
-			send.cursize += send.cursize * i;
+				e = NET_SendPacket (chan->flags, send.cursize, send.data, &chan->remote_address);
 
 			//ipv4 'guarentees' mtu sizes of at least 560ish.
 			//our reliable/backbuf messages are limited to 1024 bytes.
 			//this means that large reliables may be unsendable.
-			if (e == NETERR_MTU && chan->mtu > 560)
+			if (e == NETERR_MTU && send.cursize-hsz > chan->mtu_min)
 			{
-				Con_Printf("Reducing MSS to %i\n", chan->mtu);
-				chan->mtu -= 10;
+				chan->mtu_cur = max(chan->mtu_min, send.cursize-hsz-10);
+				chan->mtu_max = min(chan->mtu_max, chan->mtu_cur);	//don't try growing past it
+				Con_Printf("Reducing MSS to %i\n", chan->mtu_cur);
 			}
+			chan->sentsizes[mtuseq] = send.cursize-hsz;
+
+			send.cursize += send.cursize * i;
 		}
 		else
 		{	//fte's fragmentaton protocol
@@ -900,14 +1076,15 @@ int Netchan_Transmit (netchan_t *chan, int length, qbyte *data, int rate)
 			/*send the additional parts, adding new headers within the previous packet*/
 			do
 			{
-				no = offset + chan->mtu - hsz;
+				no = offset + chan->mtu_cur - hsz;
+
 				if (no < send.cursize-hsz)
 				{
 					no &= ~7;
 					more = true;
 				}
 				else
-				{
+				{	//this is the last...
 					no = send.cursize-hsz;
 					more = false;
 				}
@@ -915,7 +1092,7 @@ int Netchan_Transmit (netchan_t *chan, int length, qbyte *data, int rate)
 				*(int*)&send.data[(offset) + 0] = LittleLong(w1);
 				*(int*)&send.data[(offset) + 4] = LittleLong(w2);
 #ifndef SERVERONLY
-				if (chan->sock == NS_CLIENT)
+				if (chan->flags&NCF_CLIENT)
 				{
 					if (chan->qportsize == 2)
 						*(short*)&send.data[offset + hsz-4] = LittleShort(chan->qport);
@@ -930,16 +1107,20 @@ int Netchan_Transmit (netchan_t *chan, int length, qbyte *data, int rate)
 					for (i = -1; i < dupes && e == NETERR_SENT; i++)
 					{
 						fragbytes = (no - offset) + hsz;
-						e = NET_SendPacket (chan->sock, fragbytes, send.data + offset, &chan->remote_address);
-						outbytes += fragbytes;
-						if (e == NETERR_MTU && !offset && chan->mtu > 560)
+						e = NET_SendPacket (chan->flags, fragbytes, send.data + offset, &chan->remote_address);
+						if (e == NETERR_MTU && !offset && chan->mtu_cur > chan->mtu_min)
 						{
-							chan->mtu -= 16;
-							Con_Printf("Reducing MSS to %i\n", chan->mtu);
+							chan->mtu_cur = max(chan->mtu_min, chan->mtu_cur-16);
+							chan->mtu_max = min(chan->mtu_max, chan->mtu_cur);	//don't try growing past it
+							Con_Printf("Reducing MSS to %i\n", chan->mtu_cur);
 							no = offset;
 							more = true;
+							e = NETERR_SENT; //... keep trying...
 							break;
 						}
+						if (!offset)
+							chan->sentsizes[mtuseq] = fragbytes-hsz;
+						outbytes += fragbytes;
 					}
 				}
 				offset = no;
@@ -950,6 +1131,9 @@ int Netchan_Transmit (netchan_t *chan, int length, qbyte *data, int rate)
 
 	if (e == NETERR_SENT)
 	{
+		if (send_reliable && NET_AddrIsReliable(&chan->remote_address))
+			chan->reliable_length = 0;	//we know the peer will receive it. don't worry about waiting for their acks.
+
 		chan->bytesout += send.cursize;
 		Netchan_Block(chan, send.cursize, rate);
 	}
@@ -972,7 +1156,7 @@ int Netchan_Transmit (netchan_t *chan, int length, qbyte *data, int rate)
 		}
 		Con_Printf ("%f %s --> s=%i(%i) a=%i(%i) %i%s\n"
 			, Sys_DoubleTime()
-			, chan->sock == NS_SERVER?"s2c":"c2s"
+			, (chan->flags&NCF_CLIENT)?"c2s":"s2c"
 			, chan->outgoing_sequence
 			, send_reliable
 			, chan->incoming_sequence
@@ -998,6 +1182,7 @@ qboolean Netchan_Process (netchan_t *chan)
 	unsigned		reliable_ack, reliable_message;
 	char			adr[MAX_ADR_SIZE];
 	int offset;
+	int oob_reliable;
 
 	if (
 #ifndef SERVERONLY
@@ -1013,7 +1198,7 @@ qboolean Netchan_Process (netchan_t *chan)
 	sequence = MSG_ReadLong ();
 	sequence_ack = MSG_ReadLong ();
 
-	if (chan->pext_stunaware)
+	if (chan->flags&NCF_STUNAWARE)
 	{
 		sequence = BigLong(sequence);
 		if (!(sequence&ANTISTUNBIAS))
@@ -1022,13 +1207,15 @@ qboolean Netchan_Process (netchan_t *chan)
 		sequence_ack = BigLong(sequence_ack);
 	}
 
+	oob_reliable = (sequence == (1u<<31) && sequence_ack == (1u<<31));
+
 	// skip over the qport if we are a server (its handled elsewhere)
 #ifndef CLIENTONLY
-	if (chan->sock == NS_SERVER)
-		MSG_ReadShort ();
+	if (!(chan->flags&NCF_CLIENT))
+		MSG_ReadSkip (chan->qportsize);
 #endif
 
-	if (chan->pext_fragmentation)
+	if (chan->flags&NCF_FRAGABLE)
 		offset = (unsigned short)MSG_ReadShort();
 	else
 		offset = 0;
@@ -1042,7 +1229,7 @@ qboolean Netchan_Process (netchan_t *chan)
 	if (showpackets.value)
 		Con_Printf ("%f %s <-- s=%i(%i) a=%i(%i) %i%s\n"
 			, Sys_DoubleTime()
-			, chan->sock == NS_SERVER?"c2s":"s2c"
+			, (chan->flags&NCF_CLIENT)?"s2c":"c2s"
 			, sequence
 			, reliable_message
 			, sequence_ack
@@ -1083,15 +1270,42 @@ qboolean Netchan_Process (netchan_t *chan)
 //
 // discard stale or duplicated packets
 //
-	if (sequence <= (unsigned)chan->incoming_sequence)
-	{
-		if (showdrop.value)
-			Con_TPrintf ("%s:Out of order packet %i at %i\n"
+	if (oob_reliable)
+	{	//if its an oob reliable then its sequence numbers are screwy and bypass the dupe/etc check.
+		if (NET_AddrIsReliable(&chan->remote_address))
+			;	//mostly for NP_KEXLAN.
+		else
+		{
+			Con_TPrintf ("%s:Unexpected out-of-band reliable at %i\n"
 				, NET_AdrToString (adr, sizeof(adr), &chan->remote_address)
-				,  sequence
 				, chan->incoming_sequence);
-		return false;
+			return false;
+		}
 	}
+	else
+	{
+		int ssize = 0;
+		if (sequence <= (unsigned)chan->incoming_sequence &&
+			!(reliable_message && chan->remote_address.prot == NP_KEXLAN))	//*sigh* reliables don't work properly here.
+		{
+			if (showdrop.value)
+				Con_TPrintf ("%s:Out of order packet %i at %i\n"
+					, NET_AdrToString (adr, sizeof(adr), &chan->remote_address)
+					,  sequence
+					, chan->incoming_sequence);
+			return false;
+		}
+
+		if (chan->outgoing_sequence-sequence_ack < countof(chan->sentsizes)-2)
+			ssize = chan->sentsizes[sequence_ack&(countof(chan->sentsizes)-1)];
+		if (ssize && ssize > chan->mtu_cur)
+		{
+			chan->mtu_cur = ssize;
+			Con_DPrintf("MTU confirmed to %i\n", chan->mtu_cur);
+			chan->mtu_probes = 0;	//start growing again.
+		}
+	}
+
 
 	if (offset)
 	{
@@ -1180,11 +1394,16 @@ qboolean Netchan_Process (netchan_t *chan)
 //
 // if this message contains a reliable message, bump incoming_reliable_sequence 
 //
-	chan->incoming_sequence = sequence;
-	chan->incoming_acknowledged = sequence_ack;
-	chan->incoming_reliable_acknowledged = reliable_ack;
-	if (reliable_message)
-		chan->incoming_reliable_sequence ^= 1;
+	if (oob_reliable)	//*sigh* reliables don't work properly here.
+		;	//don't corrupt sequences/acks/etc.
+	else
+	{
+		chan->incoming_sequence = sequence;
+		chan->incoming_acknowledged = sequence_ack;
+		chan->incoming_reliable_acknowledged = reliable_ack;
+		if (reliable_message)
+			chan->incoming_reliable_sequence ^= 1;
+	}
 
 //
 // the message can now be read from the current message pointer
@@ -1194,7 +1413,6 @@ qboolean Netchan_Process (netchan_t *chan)
 		+ (chan->outgoing_sequence-sequence_ack)*(1.0-OLD_AVG);
 	chan->frame_rate = chan->frame_rate*OLD_AVG
 		+ (realtime-chan->last_received)*(1.0-OLD_AVG);		
-	chan->good_count += 1;
 
 	chan->last_received = realtime;
 

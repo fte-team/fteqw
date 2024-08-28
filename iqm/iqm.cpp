@@ -1,7 +1,9 @@
 #ifdef IQMTOOL
 	//building as part of fte. we can pull in fte components for extra features.
 	#define FTEPLUGIN
-	#define GLQUAKE	//this is shit, but ensures index sizes come out the right size
+	#ifndef GLQUAKE
+		#define GLQUAKE	//this is shit, but ensures index sizes come out the right size
+	#endif
 	#include "../plugins/plugin.h"
 	#include "com_mesh.h"
 
@@ -4211,7 +4213,7 @@ namespace fte
 						float time = f/anim.rate;
 						float *bonedata;
 						if (anim.GetRawBones)
-							bonedata = anim.GetRawBones(surf, &anim, time, bonebuf.reserve(surf->numbones)[0], surf->numbones);
+							bonedata = anim.GetRawBones(surf, &anim, time, bonebuf.reserve(surf->numbones)[0], NULL, surf->numbones);
 						else if (anim.boneofs)
 							bonedata = (float*)anim.boneofs;
 						else

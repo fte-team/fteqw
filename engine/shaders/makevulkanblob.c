@@ -74,7 +74,7 @@ void generateprogsblob(struct blobheader *prototype, FILE *out, FILE *vert, FILE
 }
 
 
-int generatevulkanblobs(struct blobheader *blob, size_t maxblobsize, const char *glslname)
+int generatevulkanblobs(struct blobheader *blob, size_t maxblobsize, const char *glslname, int rayquery)
 {
 	char command[1024];
 	char tempname[256];
@@ -101,6 +101,7 @@ int generatevulkanblobs(struct blobheader *blob, size_t maxblobsize, const char 
 	const char *tmppath = "/tmp/";
 
 	char customsamplerlines[16][256];
+	FILE *glsl, *temp;
 
 	snprintf(tempname, sizeof(tempname), "%stemp.tmp", tmppath);
 	snprintf(tempvert, sizeof(tempvert), "%stemp.vert", tmppath);
@@ -120,13 +121,19 @@ int generatevulkanblobs(struct blobheader *blob, size_t maxblobsize, const char 
 	blob->cvarsoffset = sizeof(*blob);
 	blob->cvarslength = 0;
 
-	FILE *glsl = fopen(glslname, "rt");
+	if (!strncmp(glslname, "rq_", 3))
+	{	//hack, to avoid copypasta
+		rayquery = 2;
+		glsl = fopen(glslname+3, "rt");
+	}
+	else
+		glsl = fopen(glslname, "rt");
 	if (!glsl)
 	{
 		printf("Unable to read %s\n", glslname);
 		return 0;
 	}
-	FILE *temp = fopen(tempname, "wt");
+	temp = fopen(tempname, "wt");
 	if (!temp)
 		printf("Unable to write %s\n", tempname);
 	while(fgets(command, sizeof(command), glsl))
@@ -194,6 +201,12 @@ int generatevulkanblobs(struct blobheader *blob, size_t maxblobsize, const char 
 				blob->cvarslength = cb - ((unsigned char*)blob + blob->cvarsoffset);
 				constid += size;
 			}
+			else if (!strncmp(command, "!!tess", 6))
+				printf("!!tess not supported\n");
+			else if (!strncmp(command, "!!geom", 6))
+				printf("!!geom not supported\n");
+			else if (!strncmp(command, "!!rayquery", 6))
+				rayquery = true;
 			else if (!strncmp(command, "!!permu", 7))
 			{
 				char *arg = strtok(command+7, " ,\r\n");
@@ -324,12 +337,18 @@ int generatevulkanblobs(struct blobheader *blob, size_t maxblobsize, const char 
 				"uniform sampler2D s_deluxmap2;\n",
 				"uniform sampler2D s_deluxmap3;\n"
 			};
-			int binding = 2;
+			int binding = 2;	//defined in sys/defs.h
 			inheader = 0;
+			if (rayquery == 2)
+				blob->defaulttextures &= ~(1u<<S_SHADOWMAP);	//part of the earlier hack.
+			if (rayquery)
+				fprintf(temp, "#define RAY_QUERY\n");
 			fprintf(temp, "#define s_deluxmap s_deluxemap\n");
 			fprintf(temp, "#define OFFSETMAPPING (cvar_r_glsl_offsetmapping>0)\n");
 			fprintf(temp, "#define SPECULAR (cvar_gl_specular>0)\n");
 			fprintf(temp, "#ifdef FRAGMENT_SHADER\n");
+			if (rayquery)
+				fprintf(temp, "layout(set=0, binding=%u) uniform accelerationStructureEXT toplevelaccel;\n", binding++);
 			for (i = 0; i < sizeof(specialnames)/sizeof(specialnames[0]); i++)
 			{
 				if (blob->defaulttextures & (1u<<i))
@@ -454,31 +473,31 @@ int generatevulkanblobs(struct blobheader *blob, size_t maxblobsize, const char 
 	fclose(temp);
 	fclose(glsl);
 
+	temp = fopen(tempvert, "wt");
+	fprintf(temp, "#version 460 core\n");
+	fclose(temp);
+
+	temp = fopen(tempfrag, "wt");
+	fprintf(temp, "#version 460 core\n");
+	if (rayquery)
+		fprintf(temp, "#extension GL_EXT_ray_query : require\n");
+	fclose(temp);
+
 	snprintf(command, sizeof(command),
 		/*preprocess the vertex shader*/
-#ifdef _WIN32
-		"echo #version 450 core > %s && "
-#else
-		"echo \"#version 450 core\" > %s && "
-#endif
 		"cpp %s -I%s -DVULKAN -DVERTEX_SHADER -P >> %s && "
 
 		/*preprocess the fragment shader*/
-#ifdef _WIN32
-		"echo #version 450 core > %s && "
-#else
-		"echo \"#version 450 core\" > %s && "
-#endif
 		"cpp %s -I%s -DVULKAN -DFRAGMENT_SHADER -P >> %s && "
 
 		/*convert to spir-v (annoyingly we have no control over the output file names*/
-		"glslangValidator -V -l -d %s %s"
+		"glslangValidator -g0 -V -l -d %s %s"
 
 		/*strip stuff out, so drivers don't glitch out from stuff that we don't use*/
 //		" && spirv-remap -i vert.spv frag.spv -o vulkan/remap"
 
-		,tempvert, tempname, incpath, tempvert	//vertex shader args
-		,tempfrag, tempname, incpath, tempfrag	//fragment shader args
+		,tempname, incpath, tempvert	//vertex shader args
+		,tempname, incpath, tempfrag	//fragment shader args
 		,tempvert, tempfrag);			//compile/link args.
 
 	system(command);
@@ -487,6 +506,8 @@ int generatevulkanblobs(struct blobheader *blob, size_t maxblobsize, const char 
 //	remove(tempvert);
 //	remove(tempfrag);
 
+	if (rayquery)
+		blob->permutations |= 1u<<31;
 	return 1;
 }
 
@@ -497,6 +518,7 @@ int main(int argc, const char **argv)
 	FILE *v, *f, *o;
 	char proto[8192];
 	char line[256];
+	int rayquery = (argc>=4)?!!strstr(argv[3], "rq"):0;
 	int r = 1;
 
 	if (argc == 1)
@@ -505,7 +527,7 @@ int main(int argc, const char **argv)
 		return 1;
 	}
 
-	if (!generatevulkanblobs((struct blobheader*)proto, sizeof(proto), inname))
+	if (!generatevulkanblobs((struct blobheader*)proto, sizeof(proto), inname, rayquery))
 		return 1;
 	//should have generated two files
 	v = fopen("vert.spv", "rb");

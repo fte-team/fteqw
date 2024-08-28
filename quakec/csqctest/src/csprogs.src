@@ -2,7 +2,11 @@
 
 #define CSQC
 optsall.qc
+#if defined(QSS) || defined(DP)
 csqc_api.qc
+#else
+fteextensions.qc
+#endif
 cs/defs.qc
 
 common/classes.qc

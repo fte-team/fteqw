@@ -88,8 +88,8 @@ static struct {
 //		int vbo_texcoords[SHADER_PASS_MAX];
 //		int vbo_deforms;	//holds verticies... in case you didn't realise.
 
-		const shader_t *shader_light[1u<<LSHADER_MODES];
-		qboolean inited_shader_light[1u<<LSHADER_MODES];
+		const shader_t *shader_light[LSHADER_MODES];
+		qboolean inited_shader_light[LSHADER_MODES];
 
 		const shader_t *crepskyshader;
 		const shader_t *crepopaqueshader;
@@ -221,8 +221,6 @@ static void BE_PrintDrawCall(const char *msg)
 {
 	char shadername[512];
 	char modelname[512];
-	int num;
-
 	Q_snprintfz(shadername, sizeof(shadername), "^[%-16s\\tipimg\\%s\\tipimgtype\\%i\\tip\\%s^]",
 			shaderstate.curshader->name,
 			shaderstate.curshader->name,shaderstate.curshader->usageflags,
@@ -230,7 +228,9 @@ static void BE_PrintDrawCall(const char *msg)
 
 	if (shaderstate.curbatch && shaderstate.curbatch->ent)
 	{
-		num = shaderstate.curbatch->ent->keynum;
+#ifdef HAVE_SERVER
+		int num = shaderstate.curbatch->ent->keynum;
+#endif
 		if (shaderstate.curbatch->ent->model)
 			Q_snprintfz(modelname, sizeof(modelname), " - ^[%s\\modelviewer\\%s^]",
 				shaderstate.curbatch->ent->model->name, shaderstate.curbatch->ent->model->name);
@@ -940,7 +940,7 @@ void GLBE_SetupVAO(vbo_t *vbo, unsigned int vaodynamic, unsigned int vaostatic)
 	}
 }
 
-void GL_SelectProgram(int program)
+void GL_SelectProgram(GLuint program)
 {
 	if (shaderstate.currentprogram != program)
 	{

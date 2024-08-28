@@ -233,7 +233,10 @@ void Draw_FunStringWidthFont(struct font_s *font, float x, float y, const void *
 	//be generous and round up, to avoid too many issues with truncations
 	width = ceil((width*(float)vid.rotpixelwidth)/vid.width);
 
-	codeflags = (highlight&1)?CON_ALTMASK:CON_WHITEMASK;
+	if (highlight&4)
+		codeflags = COLOR_GREY<<CON_FGSHIFT;
+	else
+		codeflags = (highlight&1)?CON_ALTMASK:CON_WHITEMASK;
 	if (highlight&2)
 		codeflags |= CON_BLINKTEXT;
 	COM_ParseFunString(codeflags, str, buffer, sizeof(buffer), false);
@@ -295,27 +298,30 @@ static char		*q2sb_nums[2][11] =
 
 static mpic_t *Sbar_Q2CachePic(char *name)
 {
-	mpic_t *pic = R2D_SafeCachePic(va("pics/%s.pcx", name));
+	mpic_t *pic = R2D_SafeCachePic(strncmp(name, "../", 3)?va("pics/%s.pcx", name):va("%s.pcx", name+3));
 #if defined(IMAGEFMT_PCX)
-	int xmin,ymin,swidth,sheight;
-	size_t length;
-	pcx_t *pcx = (pcx_t*)COM_LoadTempFile(va("pics/%s.pcx", name), 0, &length);
-	if (pcx && length >= sizeof(*pcx))
+	if (pic->width == 0 && pic->height == 0)
 	{
-		xmin = LittleShort(pcx->xmin);
-		ymin = LittleShort(pcx->ymin);
-		swidth = LittleShort(pcx->xmax)-xmin+1;
-		sheight = LittleShort(pcx->ymax)-ymin+1;
-
-		if (pcx->manufacturer == 0x0a
-			&& pcx->version == 5
-			&& pcx->encoding == 1
-			&& pcx->bits_per_pixel == 8
-			&& swidth <= 1024
-			&& sheight <= 1024)
+		int xmin,ymin,swidth,sheight;
+		size_t length;
+		pcx_t *pcx = (pcx_t*)COM_LoadTempFile(strncmp(name, "../", 3)?va("pics/%s.pcx", name):va("%s.pcx", name+3), 0, &length);
+		if (pcx && length >= sizeof(*pcx))
 		{
-			pic->width = swidth;
-			pic->height = sheight;
+			xmin = LittleShort(pcx->xmin);
+			ymin = LittleShort(pcx->ymin);
+			swidth = LittleShort(pcx->xmax)-xmin+1;
+			sheight = LittleShort(pcx->ymax)-ymin+1;
+
+			if (pcx->manufacturer == 0x0a
+				&& pcx->version == 5
+				&& pcx->encoding == 1
+				&& pcx->bits_per_pixel == 8
+				&& swidth <= 1024
+				&& sheight <= 1024)
+			{
+				pic->width = swidth;
+				pic->height = sheight;
+			}
 		}
 	}
 #endif
@@ -398,7 +404,7 @@ void Sbar_ExecuteLayoutString (char *s, int seat)
 	int pw, ph;
 //	q2clientinfo_t	*ci;
 	mpic_t *p;
-	q2player_state_t *ps = &cl.q2frame.playerstate[seat];
+	q2player_state_t *ps = &cl.q2frame.seat[seat].playerstate;
 
 	if (cls.state != ca_active)
 		return;
@@ -561,8 +567,9 @@ void Sbar_ExecuteLayoutString (char *s, int seat)
 			s = COM_Parse (s);
 			index = atoi(com_token);
 			if (index < 0 || index >= countof(ps->stats))
-				Host_EndGame ("Bad stat index");
-			value = ps->stats[index];
+				value = 0;
+			else
+				value = ps->stats[index];
 			SCR_DrawField (x, y, 0, width, value);
 			continue;
 		}
@@ -680,8 +687,9 @@ void Sbar_ExecuteLayoutString (char *s, int seat)
 			s = COM_Parse (s);
 			index = atoi(com_token);
 			if (index < 0 || index >= countof(ps->stats))
-				Host_EndGame ("Bad stat index");
-			value = ps->stats[index];
+				value = 0;
+			else
+				value = ps->stats[index];
 			if (!value)
 			{	// skip to endif
 				while (s && strcmp(com_token, "endif") )
@@ -710,13 +718,14 @@ static void Sbar_Q2DrawInventory(int seat)
 	int keys[1], keymods[1];
 	char cmd[1024];
 	const char *boundkey;
-	q2player_state_t *ps = &cl.q2frame.playerstate[seat];
+	q2player_state_t *ps = &cl.q2frame.seat[seat].playerstate;
 	unsigned int validlist[Q2MAX_ITEMS], rows, i, item, selected = ps->stats[Q2STAT_SELECTED_ITEM];
 	int first;
 	unsigned int maxrows = ((240-24*2-8*2)/8);
 	//draw background
 	float x = sbar_rect.x + (sbar_rect.width - 256)/2;
 	float y = sbar_rect.y + (sbar_rect.height - 240)/2;
+	int deflang = TL_FindLanguage("");	//ffs... read: english
 	if (y < sbar_rect.y)
 		y = sbar_rect.y;	//try to fix small-res 3-way splitscreen slightly
 	R2D_ScalePic(x, y, 256, 240, Sbar_Q2CachePic("inventory"));
@@ -745,13 +754,13 @@ static void Sbar_Q2DrawInventory(int seat)
 	{
 		item = validlist[i];
 
-		Q_snprintfz(cmd, sizeof(cmd), "use %s", Get_Q2ConfigString(Q2CS_ITEMS+item));
+		Q_snprintfz(cmd, sizeof(cmd), "use %s", TL_Translate(deflang, Get_Q2ConfigString(Q2CS_ITEMS+item)));
 		if (!M_FindKeysForCommand(0, 0, cmd, keys, keymods, countof(keys)))
 			boundkey = "";	//we don't actually know which ones can be selected at all.
 		else
 			boundkey = Key_KeynumToString(keys[0], keymods[0]);
 
-		Q_snprintfz(cmd, sizeof(cmd), "%6s %3i %s", boundkey, cl.inventory[seat][item], Get_Q2ConfigString(Q2CS_ITEMS+item));
+		Q_snprintfz(cmd, sizeof(cmd), "%6s %3i %s", boundkey, cl.inventory[seat][item], TL_Translate(com_language, Get_Q2ConfigString(Q2CS_ITEMS+item)));
 		Draw_FunStringWidth(x, y, cmd, 256-24*2+8, false, item != selected);	y+=8;
 	}
 }
@@ -2395,7 +2404,7 @@ void Sbar_DrawScoreboard (playerview_t *pv)
 #endif
 
 	isdead = false;
-	if (pv->spectator && (cls.demoplayback == DPB_MVD || cls.demoplayback == DPB_EZTV))
+	if (pv->spectator && cls.demoplayback == DPB_MVD)
 	{
 		int t = pv->cam_spec_track;
 		if (t >= 0 && CAM_ISLOCKED(pv) && cl.players[t].statsf[STAT_HEALTH] <= 0)
@@ -3052,9 +3061,9 @@ void Sbar_Draw (playerview_t *pv)
 		R2D_ImageColours(1, 1, 1, 1);
 		if (*cl.q2statusbar)
 			Sbar_ExecuteLayoutString(cl.q2statusbar, seat);
-		if (cl.q2frame.playerstate[seat].stats[Q2STAT_LAYOUTS] & 1)
+		if (*cl.q2layout && (cl.q2frame.seat[seat].playerstate.stats[Q2STAT_LAYOUTS] & 1))
 			Sbar_ExecuteLayoutString(cl.q2layout[seat], seat);
-		if (cl.q2frame.playerstate[seat].stats[Q2STAT_LAYOUTS] & 2)
+		if (cl.q2frame.seat[seat].playerstate.stats[Q2STAT_LAYOUTS] & 2)
 			Sbar_Q2DrawInventory(seat);
 		return;
 	}
@@ -3538,14 +3547,14 @@ ping time frags name
 		sprintf(num, S_COLOR_WHITE"%4i", p);			\
 	else												\
 		sprintf(num, S_COLOR_GREEN"%4i", p);							\
-	Draw_FunStringWidth(x, y, num, 4*8, false, false);	\
+	Draw_FunStringWidth(x, y, num, 4*8+4, false, highlight);	\
 },NOFILL)
 
 #define COLUMN_PL COLUMN(pl, 2*8,						\
 {														\
 	int p = s->pl;										\
 	sprintf(num, "%2i", p);								\
-	Draw_FunStringWidth(x, y, num, 2*8, false, false);	\
+	Draw_FunStringWidth(x, y, num, 2*8+4, false, highlight);	\
 },NOFILL)
 #define COLUMN_TIME COLUMN(time, 4*8,					\
 {														\
@@ -3557,14 +3566,14 @@ ping time frags name
 		minutes = (int)total/60;						\
 		sprintf (num, "%4i", minutes);					\
 	}													\
-	Draw_FunStringWidth(x, y, num, 4*8, false, false);	\
+	Draw_FunStringWidth(x, y, num, 4*8+4, false, highlight);	\
 },NOFILL)
 #define COLUMN_FRAGS COLUMN(frags, 5*8,					\
 {	\
 	int cx; int cy;										\
 	if (s->spectator && s->spectator != 2)				\
 	{													\
-		Draw_FunStringWidth(x, y, "spectator", 5*8, false, false);	\
+		Draw_FunStringWidth(x, y, "spectator", 5*8+4, false, false);	\
 	}													\
 	else												\
 	{													\
@@ -3601,7 +3610,7 @@ ping time frags name
 {														\
 	if (!s->spectator)									\
 	{													\
-		Draw_FunStringWidth(x, y, s->team, 4*8, false, false);			\
+		Draw_FunStringWidth(x, y, s->team, 4*8+4, false, highlight);			\
 	}													\
 },NOFILL)
 #define COLUMN_STAT(title, width, code, fill) COLUMN(title, width, {	\
@@ -3610,13 +3619,13 @@ ping time frags name
 		code															\
 	}																	\
 }, fill)
-#define COLUMN_RULESET COLUMN(ruleset, 8*8,	{Draw_FunStringWidth(x, y, s->ruleset, 8*8, false, false);},NOFILL)
-#define COLUMN_NAME COLUMN(name, namesize,	{Draw_FunStringWidth(x, y, s->name, namesize, false, false);},NOFILL)
-#define COLUMN_KILLS COLUMN_STAT(kils, 4*8, {Draw_FunStringWidth(x, y, va("%4i", Stats_GetKills(k)), 4*8, false, false);},NOFILL)
-#define COLUMN_TKILLS COLUMN_STAT(tkil, 4*8, {Draw_FunStringWidth(x, y, va("%4i", Stats_GetTKills(k)), 4*8, false, false);},NOFILL)
-#define COLUMN_DEATHS COLUMN_STAT(dths, 4*8, {Draw_FunStringWidth(x, y, va("%4i", Stats_GetDeaths(k)), 4*8, false, false);},NOFILL)
-#define COLUMN_TOUCHES COLUMN_STAT(tchs, 4*8, {Draw_FunStringWidth(x, y, va("%4i", Stats_GetTouches(k)), 4*8, false, false);},NOFILL)
-#define COLUMN_CAPS COLUMN_STAT(caps, 4*8, {Draw_FunStringWidth(x, y, va("%4i", Stats_GetCaptures(k)), 4*8, false, false);},NOFILL)
+#define COLUMN_RULESET COLUMN(ruleset, 8*8,	{Draw_FunStringWidth(x, y, s->ruleset, 8*8+4, false, false);},NOFILL)
+#define COLUMN_NAME COLUMN(name, namesize,	{Draw_FunStringWidth(x, y, s->name, namesize, false, highlight);},NOFILL)
+#define COLUMN_KILLS COLUMN_STAT(kils, 4*8, {Draw_FunStringWidth(x, y, va("%4i", Stats_GetKills(k)), 4*8+4, false, false);},NOFILL)
+#define COLUMN_TKILLS COLUMN_STAT(tkil, 4*8, {Draw_FunStringWidth(x, y, va("%4i", Stats_GetTKills(k)), 4*8+4, false, false);},NOFILL)
+#define COLUMN_DEATHS COLUMN_STAT(dths, 4*8, {Draw_FunStringWidth(x, y, va("%4i", Stats_GetDeaths(k)), 4*8+4, false, false);},NOFILL)
+#define COLUMN_TOUCHES COLUMN_STAT(tchs, 4*8, {Draw_FunStringWidth(x, y, va("%4i", Stats_GetTouches(k)), 4*8+4, false, false);},NOFILL)
+#define COLUMN_CAPS COLUMN_STAT(caps, 4*8, {Draw_FunStringWidth(x, y, va("%4i", Stats_GetCaptures(k)), 4*8+4, false, false);},NOFILL)
 #define COLUMN_AFK COLUMN(afk, 0, {int cs = atoi(InfoBuf_ValueForKey(&s->userinfo, "chat")); if (cs)Draw_FunStringWidth(x+4, y, (cs&2)?"afk":"msg", 4*8, false, false);},NOFILL)
 
 
@@ -3652,12 +3661,13 @@ void Sbar_DeathmatchOverlay (playerview_t *pv, int start)
 
 	int pages;
 	int linesperpage, firstline, lastline;
+	int highlight;
 
 	if (!pv)
 		return;
 
 // request new ping times every two second
-	if (realtime - cl.last_ping_request > 2	&& cls.demoplayback != DPB_EZTV)
+	if (realtime - cl.last_ping_request > 2	&& !cls.demoplayback)
 	{
 		if (cls.protocol == CP_QUAKEWORLD)
 		{
@@ -3938,6 +3948,18 @@ if (showcolumns & (1<<COLUMN##title)) \
 			isme =	(pv->cam_state == CAM_FREECAM && k == pv->playernum) ||
 					(pv->cam_state != CAM_FREECAM && k == pv->cam_spec_track);
 
+			if ((key_dest_absolutemouse & key_dest_mask & ~kdm_game) &&
+				!Key_Dest_Has(~kdm_game) &&
+				mousecursor_x >= startx && mousecursor_x < startx+rank_width &&
+				mousecursor_y >= y && mousecursor_y < y+skip)
+			{
+				highlight = 2;
+				cl.mouseplayerview = pv;
+				cl.mousenewtrackplayer = k;
+			}
+			else
+				highlight = 0;
+
 			x = startx;
 #define COLUMN(title, width, code, fills) \
 if (showcolumns & (1<<COLUMN##title)) \
@@ -4011,6 +4033,9 @@ static void Sbar_MiniDeathmatchOverlay (playerview_t *pv)
 	// draw ping
 		top = Sbar_TopColour(s);
 		bottom = Sbar_BottomColour(s);
+
+		if (S_Voip_Speaking(k))
+			Sbar_FillPCDark (x, py, ((cl.teamplay && !consistentteams)?40:0)+48+MAX_DISPLAYEDNAME*8, 8, 0x00ff00, scr_scoreboard_backgroundalpha.value*scr_scoreboard_fillalpha.value);
 
 		Sbar_FillPC ( x, py+1, 40, 3, top);
 		Sbar_FillPC ( x, py+4, 40, 4, bottom);

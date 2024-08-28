@@ -5,6 +5,7 @@
 
 FTEManifestVer 1
 game quake
+name Quake
 
 //the shareware license requires distribution in whole... so we'll just download the whole shareware zip and extract only what we need - assuming the user does not already have a copy.
 archivedpackage id1/pak0.pak 0x4f069cac id1/pak0.pak https://fte.triptohell.info/moodles/live/QUAKE_SW.zip

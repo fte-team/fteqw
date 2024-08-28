@@ -55,11 +55,11 @@ float(vector pos, float scan, float char, float down) mitem_grid::item_keypress 
 	float ch;
 	float handled = FALSE;
 
-	if (scan >= K_MOUSE1 && scan <= K_MOUSE5 && scan != K_MWHEELUP && scan != K_MWHEELDOWN)
+	if (scan >= K_MOUSE1 && scan <= K_MOUSE5 && scan != K_MWHEELUP && scan != K_MWHEELDOWN && scan != K_TOUCHTAP)
 	{
 		ch = grid_mactive;
 		if (ch != grid_kactive)
-		if (down && scan == K_MOUSE1)	//keyboard focus follows on mouse click.
+		if (down && (scan == K_TOUCHTAP || scan == K_MOUSE1))	//keyboard focus follows on mouse click.
 		{
 			item_focuschange((ch>=0)?__NULL__:vslider, IF_KFOCUSED);
 			grid_selectionchanged(grid_kactive, ch);
@@ -116,9 +116,15 @@ float(vector pos, float scan, float char, float down) mitem_grid::item_keypress 
 			ch = min(grid_numchildren-1, grid_kactive+5);
 			break;
 		case K_UPARROW:
+		case K_GP_DPAD_UP:
+		case K_GP_LTHUMB_UP:
+		case K_GP_RTHUMB_UP:
 			ch = max(grid_kactive-1, 0);
 			break;
 		case K_DOWNARROW:
+		case K_GP_DPAD_DOWN:
+		case K_GP_LTHUMB_DOWN:
+		case K_GP_RTHUMB_DOWN:
 			ch = min(grid_kactive+1, grid_numchildren-1);
 			break;
 		}

@@ -48,6 +48,7 @@ struct decctx
 	AVFrame         *pVFrame;
 	int64_t num, denum;
 	int64_t lasttime;
+	int64_t timeoffset;	//timestamp of first video frame
 
 	uint8_t *rgb_data;
 	int rgb_linesize;
@@ -288,6 +289,11 @@ having them tied to the libavformat network IO.
 				ctx->num = ctx->pFormatCtx->streams[ctx->videoStream]->time_base.num;
 				ctx->denum = ctx->pFormatCtx->streams[ctx->videoStream]->time_base.den;
 
+				if (ctx->pFormatCtx->streams[ctx->videoStream]->start_time != AV_NOPTS_VALUE)
+					ctx->timeoffset = ctx->pFormatCtx->streams[ctx->videoStream]->start_time;
+				else
+					ctx->timeoffset = 0;	//should probably guess.
+
 				// Open codec
 				if(pCodec!=NULL && avcodec_open2(ctx->pVCodecCtx, pCodec, NULL) >= 0)
 				{
@@ -325,10 +331,11 @@ static qboolean VARGS AVDec_DisplayFrame(void *vctx, qboolean nosound, qboolean 
 	
 	while (1)
 	{
-		if (ctx->lasttime > curtime)
+		if (ctx->lasttime >= curtime)
 			break;
 
 		// We're ahead of the previous frame. try and read the next.
+		//FIXME: when streaming, av_read_frame will _block_ and that sucks big hairy donkey balls.
 		if (av_read_frame(ctx->pFormatCtx, &packet) < 0)
 		{
 			if (repainted)
@@ -347,7 +354,13 @@ static qboolean VARGS AVDec_DisplayFrame(void *vctx, qboolean nosound, qboolean 
 				ctx->pScaleCtx = sws_getCachedContext(ctx->pScaleCtx, ctx->pVCodecCtx->width, ctx->pVCodecCtx->height, ctx->pVCodecCtx->pix_fmt, ctx->width, ctx->height, AV_PIX_FMT_BGRA, SWS_POINT, 0, 0, 0);
 				sws_scale(ctx->pScaleCtx, (void*)ctx->pVFrame->data, ctx->pVFrame->linesize, 0, ctx->pVCodecCtx->height, &ctx->rgb_data, &ctx->rgb_linesize);
 
-				ctx->lasttime = ctx->pVFrame->best_effort_timestamp;
+				ctx->lasttime = ctx->pVFrame->best_effort_timestamp-ctx->timeoffset;
+
+				if (!ctx->file && curtime - ctx->lasttime > (1 * ctx->denum) / ctx->num)
+				{
+					ctx->timeoffset = ctx->pVFrame->best_effort_timestamp-curtime;
+					ctx->lasttime = curtime;
+				}
 				repainted = true;
 			}
 		}

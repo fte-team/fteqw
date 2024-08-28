@@ -126,6 +126,7 @@ static void ParseServerData(sv_t *tv, netmsg_t *m, int to, unsigned int playerma
 
 	tv->pext1 = 0;
 	tv->pext2 = 0;
+	tv->pexte = 0;
 
 	//when it comes to QTV, the proxy 'blindly' forwards the data after parsing the header, so we need to support EVERYTHING the original server might.
 	//and if we don't, then we might have troubles.
@@ -209,6 +210,12 @@ static void ParseServerData(sv_t *tv, netmsg_t *m, int to, unsigned int playerma
 			if (protocol & ~supported)
 				Sys_Printf(tv->cluster, "ParseMessage: PROTOCOL_VERSION_FTE2 (%x) not supported\n", protocol & ~supported);
 			continue;
+		case PROTOCOL_VERSION_EZQUAKE1:
+			tv->pexte = protocol = ReadLong(m);
+			supported = PEXTE_HIDDENMESSAGES;
+			if (protocol & ~supported)
+				Sys_Printf(tv->cluster, "ParseMessage: Unsupported MVD1 protocol flags %#x\n", protocol);
+			continue;
 		case PROTOCOL_VERSION_HUFFMAN:
 			Sys_Printf(tv->cluster, "ParseMessage: PROTOCOL_VERSION_HUFFMAN not supported\n");
 			ParseError(m);
@@ -240,7 +247,7 @@ static void ParseServerData(sv_t *tv, netmsg_t *m, int to, unsigned int playerma
 			ParseError(m);
 			return;
 		default:
-			Sys_Printf(tv->cluster, "ParseMessage: Unknown protocol version %x\n", protocol);
+			Sys_Printf(tv->cluster, "ParseMessage: Unknown protocol version %#x\n", protocol);
 			ParseError(m);
 			return;
 		}
@@ -1743,6 +1750,7 @@ void ParseMessage(sv_t *tv, void *buffer, int length, int to, int mask)
 #ifndef _MSC_VER
 	#warning QTV is meant to disconnect when servers tells it to.
 #endif
+				QTV_Printf(tv, "Maliciously ignoring svc_disconnect from upstream...\n");	//ideally the client would be the one to close() the socket first so its the one that gets stuck in TIME_WAIT instead of the server.
 				// FIXME: Servers are today sending the svc_disconnect in a non-standard way, which makes QTV drop when it shouldn't.
 				// Tell the server developers to fix the servers.
 				//tv->drop = true;

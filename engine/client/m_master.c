@@ -1105,7 +1105,7 @@ static void CalcFilters(emenu_t *menu)
 	Master_ClearMasks();
 
 //	Master_SetMaskInteger(false, SLKEY_PING, 0, SLIST_TEST_GREATEREQUAL);
-	Master_SetMaskInteger(false, SLKEY_BASEGAME, SS_UNKNOWN, SLIST_TEST_NOTEQUAL);
+//	Master_SetMaskInteger(false, SLKEY_BASEGAME, SS_UNKNOWN, SLIST_TEST_NOTEQUAL);
 	if (info->filter[SLFILTER_HIDENETQUAKE] && info->filter[SLFILTER_HIDEQUAKEWORLD])
 		Master_SetMaskInteger(false, SLKEY_FLAGS, SS_PROXY, SLIST_TEST_CONTAINS);	//show only proxies
 	else

@@ -184,7 +184,7 @@ qboolean GLSCR_UpdateScreen (void)
 #endif
 		else
 		{
-			if ((r_worldentity.model && cls.state == ca_active) || vid.vr || vrui.enabled)
+			if ((r_worldentity.model && cls.state == ca_active) || vrui.enabled)
 				V_RenderView (nohud);
 			else
 				noworld = true;

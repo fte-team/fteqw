@@ -134,7 +134,7 @@
 	GNUTLS_FUNC(gnutls_bye,int,(gnutls_session_t session, gnutls_close_request_t how))	\
 	GNUTLS_FUNC(gnutls_alert_get,gnutls_alert_description_t,(gnutls_session_t session)) \
 	GNUTLS_FUNC(gnutls_alert_get_name,const char *,(gnutls_alert_description_t alert)) \
-	GNUTLS_FUNC(gnutls_perror,void,(int error))	\
+	GNUTLS_FUNC(gnutls_strerror,const char *,(int error))	\
 	GNUTLS_FUNC(gnutls_handshake,int,(gnutls_session_t session))	\
 	GNUTLS_FUNC(gnutls_transport_set_ptr,void,(gnutls_session_t session, gnutls_transport_ptr_t ptr))	\
 	GNUTLS_FUNC(gnutls_transport_set_push_function,void,(gnutls_session_t session, gnutls_push_func push_func))	\
@@ -155,8 +155,8 @@
 	GNUTLS_FUNC(gnutls_certificate_set_verify_function,void,(gnutls_certificate_credentials_t cred, gnutls_certificate_verify_function *func))	\
 	GNUTLS_FUNC(gnutls_session_get_ptr,void*,(gnutls_session_t session))	\
 	GNUTLS_FUNC(gnutls_session_set_ptr,void,(gnutls_session_t session, void *ptr))	\
-	GNUTLS_FUNCPTR(gnutls_malloc,void*,(size_t))	\
-	GNUTLS_FUNCPTR(gnutls_free,void,(void * ptr))	\
+	GNUTLS_FUNCPTR(gnutls_malloc,void*,(size_t sz),(sz))	\
+	GNUTLS_FUNCPTR(gnutls_free,void,(void *ptr),(ptr))	\
 	GNUTLS_FUNC(gnutls_server_name_set,int,(gnutls_session_t session, gnutls_server_name_type_t type, const void * name, size_t name_length))	\
 	GNUTLS_TRUSTFUNCS	\
 	GNUTLS_VERIFYFUNCS	\
@@ -166,10 +166,10 @@
 
 #ifdef GNUTLS_DYNAMIC
 	#define GNUTLS_FUNC(n,ret,args) static ret (VARGS *q##n)args;
-	#define GNUTLS_FUNCPTR(n,ret,args) static ret (VARGS **q##n)args;
+	#define GNUTLS_FUNCPTR(n,ret,arglist,callargs) static ret (VARGS **q##n)arglist;
 #else
 	#define GNUTLS_FUNC(n,ret,args) static ret (VARGS *q##n)args = n;
-	#define GNUTLS_FUNCPTR(n,ret,args) static ret (VARGS **q##n)args = &n;
+	#define GNUTLS_FUNCPTR(n,ret,arglist,callargs) static ret VARGS q##n arglist {return n(callargs);};
 #endif
 
 #ifdef HAVE_DTLS
@@ -198,11 +198,10 @@ static struct
 static qboolean Init_GNUTLS(void)
 {
 #ifdef GNUTLS_DYNAMIC
-
 	dllfunction_t functable[] =
 	{
 #define GNUTLS_FUNC(nam,ret,args) {(void**)&q##nam, #nam},
-#define GNUTLS_FUNCPTR(nam,ret,args) {(void**)&q##nam, #nam},
+#define GNUTLS_FUNCPTR(nam,ret,arglist,calllist) {(void**)&q##nam, #nam},
 		GNUTLS_FUNCS
 #undef GNUTLS_FUNC
 #undef GNUTLS_FUNCPTR
@@ -434,7 +433,7 @@ static int QDECL SSL_CheckCert(gnutls_session_t session)
 #ifdef _DEBUG
 				for (j = 0, offset = 0; j < certcount; j++)
 					offset += certlist[j].size;
-				Con_Printf("%s cert %zu bytes (chain %u)\n", file->certname, offset, certcount);
+				Con_Printf("%s cert %"PRIuSIZE" bytes (chain %u)\n", file->certname, offset, certcount);
 				Con_Printf("/*%s*/\"", file->certname);
 				for (j = 0; file->certname[j]; j++)
 					Con_Printf("\\x%02x", file->certname[j]^0xff);
@@ -551,8 +550,10 @@ static int QDECL SSL_CheckFingerprint(gnutls_session_t session)
 
 		if (!memcmp(digest, file->peerdigest, file->peerhashfunc->digestsize))
 			return 0;
+		Con_Printf(CON_ERROR "%s: certificate chain (%i) does not match fingerprint\n", *file->certname?file->certname:"<anon>", certcount);
 	}
-	Con_Printf(CON_ERROR "%s: rejecting certificate\n", file->certname);
+	else
+		Con_Printf(CON_ERROR "%s: peer did not provide any certificate\n", *file->certname?file->certname:"<anon>");
 	return GNUTLS_E_CERTIFICATE_ERROR;
 }
 #endif
@@ -584,8 +585,10 @@ static int SSL_DoHandshake(gnutlsfile_t *file)
 				Con_Printf(CON_ERROR"GNU%sTLS: %s: %s(%i)\n", file->datagram?"D":"", file->certname, qgnutls_alert_get_name(desc), desc);
 			}
 			else
+			{
 				//we didn't like the peer.
-				qgnutls_perror (err);
+				Con_Printf(CON_ERROR"GNU%sTLS: %s: %s(%i)\n", file->datagram?"D":"", file->certname, qgnutls_strerror(err), err);
+			}
 		}
 
 //		Con_Printf("%s: abort\n", file->certname);
@@ -822,22 +825,23 @@ static qboolean	servercertfail;
 static gnutls_datum_t cookie_key;
 #endif
 
-static vfsfile_t *SSL_OpenPrivKey(char *nativename, size_t nativesize)
+static vfsfile_t *SSL_OpenPrivKey(char *displayname, size_t displaysize)
 {
 #define privname "privkey.pem"
 	vfsfile_t *privf;
-	const char *mode = nativename?"wb":"rb";
+	const char *mode = displayname?"wb":"rb";
 	int i = COM_CheckParm("-privkey");
 	if (i++)
 	{
-		if (nativename)
-			Q_strncpyz(nativename, com_argv[i], nativesize);
+		if (displayname)
+			if (!FS_DisplayPath(com_argv[i], FS_SYSTEM, displayname, displaysize))
+				Q_strncpyz(displayname, com_argv[i], displaysize);
 		privf = FS_OpenVFS(com_argv[i], mode, FS_SYSTEM);
 	}
 	else
 	{
-		if (nativename)
-			if (!FS_NativePath(privname, FS_ROOT, nativename, nativesize))
+		if (displayname)
+			if (!FS_DisplayPath(privname, FS_ROOT, displayname, displaysize))
 				return NULL;
 
 		privf = FS_OpenVFS(privname, mode, FS_ROOT);
@@ -845,24 +849,24 @@ static vfsfile_t *SSL_OpenPrivKey(char *nativename, size_t nativesize)
 	return privf;
 #undef privname
 }
-static vfsfile_t *SSL_OpenPubKey(char *nativename, size_t nativesize)
+static vfsfile_t *SSL_OpenPubKey(char *displayname, size_t displaysize)
 {
 #define fullchainname "fullchain.pem"
 #define pubname "cert.pem"
 	vfsfile_t *pubf = NULL;
-	const char *mode = nativename?"wb":"rb";
+	const char *mode = displayname?"wb":"rb";
 	int i = COM_CheckParm("-pubkey");
 	if (i++)
 	{
-		if (nativename)
-			Q_strncpyz(nativename, com_argv[i], nativesize);
+		if (displayname)
+			Q_strncpyz(displayname, com_argv[i], displaysize);
 		pubf = FS_OpenVFS(com_argv[i], mode, FS_SYSTEM);
 	}
 	else
 	{
-		if (!pubf && (!nativename || FS_NativePath(fullchainname, FS_ROOT, nativename, nativesize)))
+		if (!pubf && (!displayname || FS_DisplayPath(fullchainname, FS_ROOT, displayname, displaysize)))
 			pubf = FS_OpenVFS(fullchainname, mode, FS_ROOT);
-		if (!pubf && (!nativename || FS_NativePath(pubname, FS_ROOT, nativename, nativesize)))
+		if (!pubf && (!displayname || FS_DisplayPath(pubname, FS_ROOT, displayname, displaysize)))
 			pubf = FS_OpenVFS(pubname, mode, FS_ROOT);
 	}
 	return pubf;
@@ -957,24 +961,24 @@ static qboolean SSL_LoadPrivateCert(gnutls_certificate_credentials_t cred)
 
 		if (priv.size && pub.size)
 		{
-			char fullname[MAX_OSPATH];
-			privf = SSL_OpenPrivKey(fullname, sizeof(fullname));
+			char displayname[MAX_OSPATH];
+			privf = SSL_OpenPrivKey(displayname, sizeof(displayname));
 			if (privf)
 			{
 				VFS_WRITE(privf, priv.data, priv.size);
 				VFS_CLOSE(privf);
-				Con_Printf("Wrote %s\n", fullname);
+				Con_Printf("Wrote %s\n", displayname);
 			}
 //			memset(priv.data, 0, priv.size);
 			(*qgnutls_free)(priv.data);
 			memset(&priv, 0, sizeof(priv));
 
-			pubf = SSL_OpenPubKey(fullname, sizeof(fullname));
+			pubf = SSL_OpenPubKey(displayname, sizeof(displayname));
 			if (pubf)
 			{
 				VFS_WRITE(pubf, pub.data, pub.size);
 				VFS_CLOSE(pubf);
-				Con_Printf("Wrote %s\n", fullname);
+				Con_Printf("Wrote %s\n", displayname);
 			}
 			(*qgnutls_free)(pub.data);
 			memset(&pub, 0, sizeof(pub));
@@ -1085,8 +1089,8 @@ qboolean SSL_InitGlobal(qboolean isserver)
 			char keyfile[MAX_OSPATH];
 			char certfile[MAX_OSPATH];
 			*keyfile = *certfile = 0;
-			if (FS_NativePath("key.pem", FS_ROOT, keyfile, sizeof(keyfile)))
-				if (FS_NativePath("cert.pem", FS_ROOT, certfile, sizeof(certfile)))
+			if (FS_SystemPath("key.pem", FS_ROOT, keyfile, sizeof(keyfile)))
+				if (FS_SystemPath("cert.pem", FS_ROOT, certfile, sizeof(certfile)))
 					ret = qgnutls_certificate_set_x509_key_file(xcred[isserver], certfile, keyfile, GNUTLS_X509_FMT_PEM);
 			if (ret < 0)
 			{
@@ -1127,6 +1131,13 @@ void GnuTLS_Shutdown(void)
 
 			qgnutls_global_deinit();	//refcounted.
 		}
+#ifdef HAVE_DTLS
+	if (cookie_key.data)
+	{
+		(*qgnutls_free)(cookie_key.data);
+		memset(&cookie_key, 0, sizeof(cookie_key));
+	}
+#endif
 #ifdef GNUTLS_DYNAMIC
 	if (gnutls.hmod)
 		Sys_CloseLibrary(gnutls.hmod);
@@ -1211,7 +1222,12 @@ static qboolean SSL_InitConnection(gnutlsfile_t *newf, qboolean isserver, qboole
 		qgnutls_credentials_set (newf->session, GNUTLS_CRD_ANON, anoncred[isserver]);
 #else
 #ifdef HAVE_DTLS
+
+#if defined(MASTERONLY)
+		qgnutls_certificate_server_set_request(newf->session, GNUTLS_CERT_IGNORE);	//don't request a cert. masters don't really need it and chrome bugs out if you connect to a websocket server that offers for the client to provide one. chrome users will just have to stick to webrtc.
+#else
 		qgnutls_certificate_server_set_request(newf->session, GNUTLS_CERT_REQUEST);	//request a cert, we'll use it for fingerprints.
+#endif
 
 		if (datagram && !isserver)
 		{	//do psk as needed. we can still do the cert stuff if the server isn't doing psk.
@@ -1565,9 +1581,14 @@ static neterr_t GNUDTLS_Received(void *ctx, sizebuf_t *message)
 		}
 		if (qgnutls_error_is_fatal(ret))
 		{
-//			Sys_Printf("DTLS_Received fail error\n");
+			if (ret == GNUTLS_E_FATAL_ALERT_RECEIVED)
+				Con_DPrintf(CON_ERROR"GNUDTLS_Received: fatal alert %s\n", qgnutls_alert_get_name(qgnutls_alert_get(f->session)));
+			else
+				Con_DPrintf(CON_ERROR"GNUDTLS_Received fatal error %s\n", qgnutls_strerror(ret));
 			return NETERR_DISCONNECTED;
 		}
+		if (ret == GNUTLS_E_WARNING_ALERT_RECEIVED)
+			Con_DPrintf(CON_WARNING"GNUDTLS_Received: alert %s\n", qgnutls_alert_get_name(qgnutls_alert_get(f->session)));
 //		Sys_Printf("DTLS_Received temp error\n");
 		return NETERR_CLOGGED;
 	}
@@ -1713,6 +1734,9 @@ static int GNUDTLS_GetPeerCertificate(void *ctx, enum certprops_e prop, char *ou
 				return cert->size;
 			}
 		}
+		return -1;
+	case QCERT_LOBBYSTATUS:
+	case QCERT_LOBBYSENDCHAT:
 		return -1;
 	safedefault:
 		return -1; //dunno what you want from me.

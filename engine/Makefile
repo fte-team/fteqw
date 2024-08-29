@@ -27,7 +27,7 @@ CC?=gcc
 WINDRES?=windres
 STRIP?=strip
 
-STRIPFLAGS=--strip-unneeded --remove-section=.comment
+STRIPFLAGS?=--strip-unneeded --remove-section=.comment
 
 VISIBILITY_FLAGS=-fvisibility=hidden	#just assume this for sanities sake. disable only for compilers that error.
 CPUOPTIMIZATIONS=-Os

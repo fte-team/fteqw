@@ -2351,6 +2351,7 @@ CONFIGARGS+= -host=$(ARCH) --enable-shared=no CC="$(CC)"
 CONFIGARGS:= $(CONFIGARGS)
 #--disable-silent-rules
 OPUSCONFIGARGS=$(CONFIGARGS)
+SPEEXDSPCONFIGARGS=$(CONFIGARGS)
 
 TOOLOVERRIDES+=CFLAGS="$$CFLAGS -Os"
 TOOLCONGIGUREOVERRIDES=$(TOOLOVERRIDES)
@@ -2358,8 +2359,9 @@ TOOLMAKEOVERRIDES=$(TOOLOVERRIDES)
 ifeq (web,$(FTE_TARGET))
   TOOLCONFIGUREOVERRIDES=emconfigure
   TOOLMAKEOVERRIDES=emmake
-  OPUSCONFIGARGS=--disable-rtcd --disable-hardening --enable-stack-protector=no --enable-shared=no
-  CONFIGARGS=--enable-shared=no
+  OPUSCONFIGARGS=--disable-rtcd --disable-hardening --enable-stack-protector=no --enable-shared=no --host=none
+  SPEEXDSPCONFIGARGS=--disable-neon --host=none
+  CONFIGARGS=--enable-shared=no --host=none
 endif
 
 
@@ -2400,7 +2402,7 @@ libs-$(ARCH)/libspeex.a:
 
 libs-$(ARCH)/libspeexdsp.a:
 	test -f speexdsp-$(SPEEXDSPVER).tar.gz || wget http://downloads.xiph.org/releases/speex/speexdsp-$(SPEEXDSPVER).tar.gz
-	test -f libs-$(ARCH)/libspeexdsp.a || (mkdir -p libs-$(ARCH)/speex && cd libs-$(ARCH) && tar -xvzf ../speexdsp-$(SPEEXDSPVER).tar.gz && cd speexdsp-$(SPEEXDSPVER) && CFLAGS="$(CFLAGS) -Os" $(TOOLCONFIGUREOVERRIDES) ./configure $(CONFIGARGS) && $(TOOLMAKEOVERRIDES) $(MAKE) && cp libspeexdsp/.libs/libspeexdsp.a ../ && cp -r include/speex/*.h ../speex/)
+	test -f libs-$(ARCH)/libspeexdsp.a || (mkdir -p libs-$(ARCH)/speex && cd libs-$(ARCH) && tar -xvzf ../speexdsp-$(SPEEXDSPVER).tar.gz && cd speexdsp-$(SPEEXDSPVER) && CFLAGS="$(CFLAGS) -Os" $(TOOLCONFIGUREOVERRIDES) ./configure $(SPEEXDSPCONFIGARGS) && $(TOOLMAKEOVERRIDES) $(MAKE) && cp libspeexdsp/.libs/libspeexdsp.a ../ && cp -r include/speex/*.h ../speex/)
 
 libs-$(ARCH)/libfreetype.a libs-$(ARCH)/ft2build.h: libs-$(ARCH)/libpng.a libs-$(ARCH)/libpng.pc
 	test -f freetype-$(FREETYPEVER).tar.gz || wget https://download-mirror.savannah.gnu.org/releases/freetype/freetype-$(FREETYPEVER).tar.gz

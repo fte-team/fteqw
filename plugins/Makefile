@@ -3,7 +3,7 @@
 ifeq ($(FTE_TARGET),win32)
 	PLUG_NATIVE_EXT=_x86.dll
 	PLUG_LDFLAGS= -static-libgcc
-	PLUG_LDFLAGS_ZLIB=-L../engine/libs/mingw-libs -lzlib
+	PLUG_LDFLAGS_ZLIB=-L../engine/libs/mingw-libs -lz
 	BITS=32
 	PLUG_LDFLAGS_DL=
 	CMAKERULES=$(OUT_DIR)/toolchain_$(FTE_TARGET).cmake

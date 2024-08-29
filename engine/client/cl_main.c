@@ -7229,7 +7229,7 @@ double Host_Frame (double time)
 	}
 	else
 		spare = 0;
-	host_frametime = (realtime - oldrealtime)*cl.gamespeed;
+	host_frametime = (realtime-spare - oldrealtime)*cl.gamespeed;
 	oldrealtime = realtime-spare;
 
 	if (host_speeds.ival)

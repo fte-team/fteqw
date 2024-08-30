@@ -4,12 +4,12 @@
 
 #ifdef FTEENGINE
 #define Plug_Init Plug_EZHud_Init
-#else
+#endif
+
 plug2dfuncs_t *drawfuncs;
 plugclientfuncs_t *clientfuncs;
 plugfsfuncs_t *filefuncs;
 pluginputfuncs_t *inputfuncs;
-#endif
 
 struct ezcl_s cl;
 struct ezcls_s cls;

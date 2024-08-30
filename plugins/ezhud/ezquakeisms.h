@@ -8,6 +8,13 @@
 #include <assert.h>
 #include <ctype.h>
 
+#ifdef FTEENGINE
+#define drawfuncs ezhud_drawfuncs
+#define filefuncs ezhud_filefuncs
+#define clientfuncs ezhud_clientfuncs
+#define inputfuncs ezhud_inputfuncs
+#endif
+
 extern plug2dfuncs_t *drawfuncs;
 extern plugfsfuncs_t *filefuncs;
 extern plugclientfuncs_t *clientfuncs;

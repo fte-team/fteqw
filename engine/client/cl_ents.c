@@ -5028,16 +5028,16 @@ void CLQW_ParsePlayerinfo (void)
 		static struct {
 			const char *vmdl;
 			const char *vwep;
-		} haxx[] =
+		} vwep_mapping[] =
 		{
-			{"progs/v_axe.mdl",		"w_axe"},
-			{"progs/v_shot.mdl",	"w_shot"},
-			{"progs/v_shot2.mdl",	"w_shot2"},
-			{"progs/v_nail.mdl",	"w_nail"},
-			{"progs/v_nail2.mdl",	"w_nail2"},
-			{"progs/v_rock.mdl",	"w_rock"},
-			{"progs/v_rock2.mdl",	"w_rock2"},
-			{"progs/v_light.mdl",	"w_light"},
+			{"progs/v_axe.mdl",	"progs/w_axe.mdl"},
+			{"progs/v_shot.mdl",	"progs/w_shot.mdl"},
+			{"progs/v_shot2.mdl",	"progs/w_shot2.mdl"},
+			{"progs/v_nail.mdl",	"progs/w_nail.mdl"},
+			{"progs/v_nail2.mdl",	"progs/w_nail2.mdl"},
+			{"progs/v_rock.mdl",	"progs/w_rock.mdl"},
+			{"progs/v_rock2.mdl",	"progs/w_rock2.mdl"},
+			{"progs/v_light.mdl",	"progs/w_light.mdl"},
 		};
 #endif
 		player_state_t	dummy;
@@ -5074,11 +5074,11 @@ void CLQW_ParsePlayerinfo (void)
 			viewmodel = cl.model_name[i];
 		if(viewmodel)
 		{
-			for (i = 0; i < countof(haxx); i++)
+			for (i = 0; i < countof(vwep_mapping); i++)
 			{
-				if (!strcmp(viewmodel, haxx[i].vmdl))
+				if (!strcmp(viewmodel, vwep_mapping[i].vmdl))
 				{
-					viewmodel = haxx[i].vwep;
+					viewmodel = vwep_mapping[i].vwep;
 					for (i = 1; i < countof(cl.model_name_vwep); i++)
 					{
 						if (!cl.model_name_vwep[i])

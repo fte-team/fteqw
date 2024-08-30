@@ -4699,7 +4699,7 @@ static void CL_ParseModellist (qboolean lots)
 
 #ifdef QUAKESTATS
 	if (cls.demoplayback == DPB_MVD && !cl.model_name_vwep[0] && !(cls.fteprotocolextensions2&PEXT2_REPLACEMENTDELTAS))
-		CL_ParseStuffCmd("//vwep vwplayer w_axe w_shot w_shot2 w_nail w_nail2 w_rock w_rock2 w_light", 0);
+		CL_ParseStuffCmd("//vwep vwplayer w_axe w_shot w_shot2 w_nail w_nail2 w_rock w_rock2 w_light\n", 0);
 #endif
 
 	SCR_SetLoadingFile("loading data");

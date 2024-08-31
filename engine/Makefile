@@ -2347,7 +2347,7 @@ $(BASE_DIR)/libs-$(ARCH)/SDL2-$(SDL2VER)/x86_64-w64-mingw32/bin/sdl2-config: $(B
 AR?=$(ARCH)-ar
 
 
-CONFIGARGS+= -host=$(ARCH) --enable-shared=no CC="$(CC)"
+CONFIGARGS+= --host=$(ARCH) --enable-shared=no CC="$(CC)"
 CONFIGARGS:= $(CONFIGARGS)
 #--disable-silent-rules
 OPUSCONFIGARGS=$(CONFIGARGS)

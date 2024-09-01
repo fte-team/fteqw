@@ -11243,7 +11243,7 @@ static BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"sin",				PF_Fixme,			0,		0,		0,		38,	"float(float)"},
 	{"cos",				PF_Fixme,			0,		0,		0,		39,	"float(float)"},
 	{"sqrt",			PF_Fixme,			0,		0,		0,		40,	"float(float)"},
-	{"randomvector",	PF_Fixme,			0,		0,		0,		41,	"vector()"},
+	{"randomvec",		PF_Fixme,			0,		0,		0,		41,	D("vector()", "Returns a random vector with length <= 1 (each axis may be negative).")},
 	{"registercvar",	PF_Fixme,			0,		0,		0,		42,	D("float(string name, string value, optional float flags)", "Creates the cvar if it didn't already exist. This presents issues for setting those cvars via startup configs of course, and autocvars are easier but I suppose they don't get any flags (which are ignored anyway, of course).")},
 	{"min",				PF_Fixme,			0,		0,		0,		43,	"float(float,...)"},
 	{"max",				PF_Fixme,			0,		0,		0,		44,	"float(float,...)"},
@@ -11571,7 +11571,7 @@ static BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 
 	{"tracebox",		PF_traceboxdp,		0,		0,		0,		90,	D("void(vector start, vector mins, vector maxs, vector end, float nomonsters, entity ent)", "Exactly like traceline, but a box instead of a uselessly thin point. Acceptable sizes are limited by bsp format, q1bsp has strict acceptable size values.")},
 
-	{"randomvec",		PF_randomvector,	0,		0,		0,		91,	D("vector()", "Returns a vector with random values. Each axis is independantly a value between -1 and 1 inclusive.")},
+	{"randomvec",		PF_randomvector,	0,		0,		0,		91,	D("vector()", "Returns a random vector with length <= 1 (each axis may be negative).")},
 	{"getlight",		PF_sv_getlight,		0,		0,		0,		92, D("DEP_SSQC(\"Broken on dedicated servers, ignores rtlights/etc\") vector(vector org)", "Computes the RGB lighting at the specified position.")},// (DP_QC_GETLIGHT),
 	{"registercvar",	PF_registercvar,	0,		0,		0,		93,	D("float(string cvarname, string defaultvalue, optional float flags)", "Creates a new cvar on the fly. If it does not already exist, it will be given the specified value. If it does exist, this is a no-op.\nThis builtin has the limitation that it does not apply to configs or commandlines. Such configs will need to use the set or seta command causing this builtin to be a noop.\nIn engines that support it, you will generally find the autocvar feature easier and more efficient to use.")},
 	{"min",				PF_min,				0,		0,		0,		94,	D("float(float a, float b, ...)", "Returns the lowest value of its arguments.")},// (DP_QC_MINMAXBOUND)

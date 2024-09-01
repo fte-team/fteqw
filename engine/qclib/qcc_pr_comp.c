@@ -2045,7 +2045,7 @@ static QCC_sref_t QCC_SupplyConversion(QCC_sref_t  var, etype_t wanted, pbool fa
 	if (o == 0) //type already matches
 		return var;
 	if (flag_typeexplicit)// && !QCC_SRef_IsNull(var))
-		QCC_PR_ParseErrorPrintSRef(ERR_TYPEMISMATCH, var, "Implicit type mismatch. Needed %s, got %s.", basictypenames[wanted], basictypenames[var.cast->type]);
+		QCC_PR_ParseErrorPrintSRef(ERR_TYPEMISMATCH, var, "Automatic type conversions disabled. Needed %s, got %s.", basictypenames[wanted], basictypenames[var.cast->type]);
 	if (o < 0)
 	{
 		if (fatal && wanted != ev_variant && var.cast->type != ev_variant)
@@ -7926,6 +7926,7 @@ static QCC_sref_t QCC_PR_ParseFunctionCall (QCC_ref_t *funcref)	//warning, the f
 				if (scale.cast)
 				{
 					QCC_PR_SimpleStatement(&pr_opcodes[OP_MUL_F], x, scale, x, false);
+					scale.sym->referenced = true;
 					scale.ofs--;
 					scale.cast = type_vector;
 					QCC_FreeTemp(scale);

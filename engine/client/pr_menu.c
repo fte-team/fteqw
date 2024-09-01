@@ -2475,7 +2475,7 @@ static struct {
 	{"sin",						PF_Sin,						38},
 	{"cos",						PF_Cos,						39},
 	{"sqrt",					PF_Sqrt,					40},
-	{"randomvector",			PF_randomvector,			41},
+	{"randomvec",				PF_randomvector,			41},
 	{"registercvar",			PF_registercvar,			42},
 	{"min",						PF_min,						43},
 	{"max",						PF_max,						44},

@@ -715,8 +715,19 @@ static qboolean VK_CreateSwapChain(void)
 			swapinfo.minImageCount = surfcaps.maxImageCount;
 		if (swapinfo.minImageCount < surfcaps.minImageCount)
 			swapinfo.minImageCount = surfcaps.minImageCount;
-		swapinfo.imageExtent.width = surfcaps.currentExtent.width;
-		swapinfo.imageExtent.height = surfcaps.currentExtent.height;
+
+		// With offscreen rendering, the size is not known at first
+		if (surfcaps.currentExtent.width == UINT32_MAX && surfcaps.currentExtent.height == UINT32_MAX)
+		{
+			swapinfo.imageExtent.width = bound(surfcaps.minImageExtent.width, vid.pixelwidth, surfcaps.maxImageExtent.width);
+			swapinfo.imageExtent.height = bound(surfcaps.minImageExtent.height, vid.pixelheight, surfcaps.maxImageExtent.height);
+		}
+		else
+		{
+			swapinfo.imageExtent.width = surfcaps.currentExtent.width;
+			swapinfo.imageExtent.height = surfcaps.currentExtent.height;
+		}
+
 		swapinfo.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT|VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
 		swapinfo.preTransform = surfcaps.currentTransform;//VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR;
 		if (surfcaps.supportedCompositeAlpha & VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR)

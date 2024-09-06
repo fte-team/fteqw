@@ -1489,7 +1489,14 @@ static void WL_SwapBuffers(void)
 		}
 		break;
 #endif
-	case QR_VULKAN: 	//the vulkan stuff handles this itself. FIXME: are we still receiving inputs? no idea!
+	case QR_VULKAN:
+		if (pwl_display_dispatch_pending(w.display) < 0)
+		{
+			Con_Printf(CON_ERROR "wayland connection was lost. Restarting video\n");
+			Cbuf_InsertText("vid_restart", RESTRICT_LOCAL, true);
+			return;
+		}
+		break;
 	default:
 		break;
 	}

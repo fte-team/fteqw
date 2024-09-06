@@ -27,7 +27,7 @@ CC?=gcc
 WINDRES?=windres
 STRIP?=strip
 
-STRIPFLAGS=--strip-unneeded --remove-section=.comment
+STRIPFLAGS?=--strip-unneeded --remove-section=.comment
 
 VISIBILITY_FLAGS=-fvisibility=hidden	#just assume this for sanities sake. disable only for compilers that error.
 CPUOPTIMIZATIONS=-Os
@@ -1084,7 +1084,7 @@ ifeq (1,$(LINK_EZHUD))
 		hud_editor.o
 endif
 ifeq (1,$(LINK_OPENSSL))
-    ifeq (1,$(shell $(PKGCONFIG) --version-atleast 3 openssl && echo 1))	#must exist... and if its not openssl3 then its not gpl3-compatible so refuse to use it.
+    ifeq (1,$(shell $(PKGCONFIG) --atleast-version 3 openssl && echo 1))	#must exist... and if its not openssl3 then its not gpl3-compatible so refuse to use it.
         VPATH := $(VPATH) : $(BASE_DIR)/../plugins
         ALL_CFLAGS+=-DSTATIC_OPENSSL #let the plugins code know it needs to add the appropriate entry.
         COMMON_OBJS += \
@@ -2347,10 +2347,11 @@ $(BASE_DIR)/libs-$(ARCH)/SDL2-$(SDL2VER)/x86_64-w64-mingw32/bin/sdl2-config: $(B
 AR?=$(ARCH)-ar
 
 
-CONFIGARGS+= -host=$(ARCH) --enable-shared=no CC="$(CC)"
+CONFIGARGS+= --host=$(ARCH) --enable-shared=no CC="$(CC)"
 CONFIGARGS:= $(CONFIGARGS)
 #--disable-silent-rules
 OPUSCONFIGARGS=$(CONFIGARGS)
+SPEEXDSPCONFIGARGS=$(CONFIGARGS)
 
 TOOLOVERRIDES+=CFLAGS="$$CFLAGS -Os"
 TOOLCONGIGUREOVERRIDES=$(TOOLOVERRIDES)
@@ -2358,8 +2359,9 @@ TOOLMAKEOVERRIDES=$(TOOLOVERRIDES)
 ifeq (web,$(FTE_TARGET))
   TOOLCONFIGUREOVERRIDES=emconfigure
   TOOLMAKEOVERRIDES=emmake
-  OPUSCONFIGARGS=--disable-rtcd --disable-hardening --enable-stack-protector=no --enable-shared=no
-  CONFIGARGS=--enable-shared=no
+  OPUSCONFIGARGS=--disable-rtcd --disable-hardening --enable-stack-protector=no --enable-shared=no --host=none
+  SPEEXDSPCONFIGARGS=--disable-neon --host=none
+  CONFIGARGS=--enable-shared=no --host=none
 endif
 
 
@@ -2400,7 +2402,7 @@ libs-$(ARCH)/libspeex.a:
 
 libs-$(ARCH)/libspeexdsp.a:
 	test -f speexdsp-$(SPEEXDSPVER).tar.gz || wget http://downloads.xiph.org/releases/speex/speexdsp-$(SPEEXDSPVER).tar.gz
-	test -f libs-$(ARCH)/libspeexdsp.a || (mkdir -p libs-$(ARCH)/speex && cd libs-$(ARCH) && tar -xvzf ../speexdsp-$(SPEEXDSPVER).tar.gz && cd speexdsp-$(SPEEXDSPVER) && CFLAGS="$(CFLAGS) -Os" $(TOOLCONFIGUREOVERRIDES) ./configure $(CONFIGARGS) && $(TOOLMAKEOVERRIDES) $(MAKE) && cp libspeexdsp/.libs/libspeexdsp.a ../ && cp -r include/speex/*.h ../speex/)
+	test -f libs-$(ARCH)/libspeexdsp.a || (mkdir -p libs-$(ARCH)/speex && cd libs-$(ARCH) && tar -xvzf ../speexdsp-$(SPEEXDSPVER).tar.gz && cd speexdsp-$(SPEEXDSPVER) && CFLAGS="$(CFLAGS) -Os" $(TOOLCONFIGUREOVERRIDES) ./configure $(SPEEXDSPCONFIGARGS) && $(TOOLMAKEOVERRIDES) $(MAKE) && cp libspeexdsp/.libs/libspeexdsp.a ../ && cp -r include/speex/*.h ../speex/)
 
 libs-$(ARCH)/libfreetype.a libs-$(ARCH)/ft2build.h: libs-$(ARCH)/libpng.a libs-$(ARCH)/libpng.pc
 	test -f freetype-$(FREETYPEVER).tar.gz || wget https://download-mirror.savannah.gnu.org/releases/freetype/freetype-$(FREETYPEVER).tar.gz

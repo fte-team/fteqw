@@ -27,7 +27,7 @@ static struct plugin_s *q3plug;
 	#include "../engine/common/com_phys_ode.c"
 #endif
 
-#ifdef STATIC_EZHUD	//if its statically linked and loading by default then block it by default and let configs reenable it. The defaults must be maintained for deltaing configs to work, yet they're defective and should never be used in that default configuration
+#if defined(HAVE_CLIENT) && defined(STATIC_EZHUD)	//if its statically linked and loading by default then block it by default and let configs reenable it. The defaults must be maintained for deltaing configs to work, yet they're defective and should never be used in that default configuration
 cvar_t plug_sbar = CVARD("plug_sbar", "0", "Controls whether plugins are allowed to draw the hud, rather than the engine (when allowed by csqc). This is typically used to permit the ezhud plugin without needing to bother unloading it.\n=0: never use hud plugins.\n&1: Use hud plugins in deathmatch.\n&2: Use hud plugins in singleplayer/coop.\n=3: Always use hud plugins (when loaded).");
 #else
 cvar_t plug_sbar = CVARD("plug_sbar", "3", "Controls whether plugins are allowed to draw the hud, rather than the engine (when allowed by csqc). This is typically used to permit the ezhud plugin without needing to bother unloading it.\n=0: never use hud plugins.\n&1: Use hud plugins in deathmatch.\n&2: Use hud plugins in singleplayer/coop.\n=3: Always use hud plugins (when loaded).");
@@ -37,7 +37,9 @@ cvar_t plug_loaddefault = CVARD("plug_loaddefault", "1", "0: Load plugins only v
 extern qboolean Plug_Q3_Init(void);
 extern qboolean Plug_Bullet_Init(void);
 extern qboolean Plug_ODE_Init(void);
+#if defined(HAVE_CLIENT) && defined(STATIC_EZHUD)
 extern qboolean Plug_EZHud_Init(void);
+#endif
 extern qboolean Plug_OpenSSL_Init(void);
 static struct
 {
@@ -58,7 +60,7 @@ static struct
 #ifdef STATIC_OPENSSL
 	{"openssl_internal", Plug_OpenSSL_Init},
 #endif
-#ifdef STATIC_EZHUD
+#if defined(HAVE_CLIENT) && defined(STATIC_EZHUD)
 	{"EZHud_internal", Plug_EZHud_Init},
 #endif
 #ifdef STATIC_Q3

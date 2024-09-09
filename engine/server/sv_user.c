@@ -8051,6 +8051,10 @@ static void SV_ReadPrydonCursor(usercmd_t *cmd)
 	cmd->cursor_impact[2] = MSG_ReadFloat();
 	cmd->cursor_entitynumber = MSGSV_ReadEntity(host_client);
 
+	/* client is sending junk or trying to crash us -eukara */
+	if (cmd->cursor_entitynumber < 0 || cmd->cursor_entitynumber >= sv.world.num_edicts) {
+		cmd->cursor_entitynumber = 0;
+	}
 
 	if (svprogfuncs)
 	{

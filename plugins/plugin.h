@@ -47,6 +47,12 @@
 #	define strnicmp strncasecmp
 #endif
 
+// Define these mostly for cod but could apply to other game tech
+// Used this for guidance: https://github.com/xtnded/codextended - Brad
+extern long xtn_LittleLong( long l );
+extern short xtn_LittleShort( short s );
+extern float xtn_LittleFloat( float f );
+
 #include <string.h>
 #include <stdlib.h>
 #include <stdarg.h>

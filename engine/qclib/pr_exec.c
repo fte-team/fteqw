@@ -12,6 +12,8 @@
 
 #if defined(_WIN32) || defined(__DJGPP__)
 	#include <malloc.h>
+#elif defined(__unix__) && !defined(__linux__) // quick hack for the bsds and other unix systems
+	#include<stdlib.h>
 #elif !defined(alloca)	//alloca.h isn't present on bsd (stdlib.h should define it to __builtin_alloca, and we can check for that here).
 	#include <alloca.h>
 #endif
@@ -361,9 +363,9 @@ static void PDECL PR_PrintRelevantLocals(progfuncs_t *progfuncs)
 			else
 				fdef = ED_FieldAtOfs(progfuncs, ((eval_t *)&pr_globals[st16[st].b])->_int);
 			if (fdef)
-				externs->Printf("    %s.%s: %s\n", PR_StringToNative(&progfuncs->funcs, ent->s_name), PR_StringToNative(&progfuncs->funcs, fld->s_name), PR_ValueString(progfuncs, fdef->type, ptr, false));
+				externs->Printf("	 %s.%s: %s\n", PR_StringToNative(&progfuncs->funcs, ent->s_name), PR_StringToNative(&progfuncs->funcs, fld->s_name), PR_ValueString(progfuncs, fdef->type, ptr, false));
 			else
-				externs->Printf("    %s.%s: BAD FIELD DEF - %#x\n", PR_StringToNative(&progfuncs->funcs, ent->s_name), PR_StringToNative(&progfuncs->funcs, fld->s_name), ptr->_int);
+				externs->Printf("	 %s.%s: BAD FIELD DEF - %#x\n", PR_StringToNative(&progfuncs->funcs, ent->s_name), PR_StringToNative(&progfuncs->funcs, fld->s_name), ptr->_int);
 		}
 	}
 }
@@ -452,20 +454,20 @@ void PDECL PR_StackTrace (pubprogfuncs_t *ppf, int showlocals)
 						{
 							if (f->parm_size[arg] == 3)
 							{	//looks like a vector. print it as such
-								externs->Printf("    arg%i(%i): [%g, %g, %g]\n", arg, f->parm_start+ofs, *(float *)(globalbase+ofs), *(float *)(globalbase+ofs+1), *(float *)(globalbase+ofs+2));
+								externs->Printf("	 arg%i(%i): [%g, %g, %g]\n", arg, f->parm_start+ofs, *(float *)(globalbase+ofs), *(float *)(globalbase+ofs+1), *(float *)(globalbase+ofs+2));
 								ofs += 2;
 							}
 							else
-								externs->Printf("    arg%i(%i): %g===%i\n", arg, f->parm_start+ofs, *(float *)(globalbase+ofs), *(int *)(globalbase+ofs) );
+								externs->Printf("	 arg%i(%i): %g===%i\n", arg, f->parm_start+ofs, *(float *)(globalbase+ofs), *(int *)(globalbase+ofs) );
 						}
 						else
 						{
-							externs->Printf("     unk(%i): %g===%i\n", f->parm_start+ofs, *(float *)(globalbase+ofs), *(int *)(globalbase+ofs) );
+							externs->Printf("	  unk(%i): %g===%i\n", f->parm_start+ofs, *(float *)(globalbase+ofs), *(int *)(globalbase+ofs) );
 						}
 					}
 					else
 					{
-						externs->Printf("    %s: %s\n", PR_StringToNative(ppf, local->s_name), PR_ValueString(progfuncs, local->type, (eval_t*)(globalbase+ofs), false));
+						externs->Printf("	 %s: %s\n", PR_StringToNative(ppf, local->s_name), PR_ValueString(progfuncs, local->type, (eval_t*)(globalbase+ofs), false));
 						if (local->type == ev_vector)
 							ofs+=2;
 					}

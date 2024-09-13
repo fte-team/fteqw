@@ -140,7 +140,7 @@
 		#include <libc.h>
 	#endif
 
-	#ifdef __linux__
+	#if defined(__unix__) && !defined(__CYGWIN__)
 		//requires linux 2.6.27 up (and equivelent libc)
 		//note that BSD does tend to support the api, but emulated.
 		//this works around the select FD limit, and supposedly has better performance.

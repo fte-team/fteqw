@@ -26,6 +26,10 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include <sys/stat.h>	//to delete the file/socket.
 #endif
 
+#if defined(__unix__) && !defined(__linux__) && !defined(__APPLE__) && !defined(__CYGWIN__)
+#include <sys/epoll.h>
+#endif
+
 extern ftemanifest_t	*fs_manifest;
 
 // Eww, eww. This is hacky but so is netinc.h, so bite me
@@ -41,7 +45,7 @@ extern ftemanifest_t	*fs_manifest;
 	#define ntohl BigLong
 #endif
 
-#if defined(_WIN32) || defined(__linux__) && !defined(ANDROID)
+#if defined(_WIN32) || defined(__unix__) && !defined(ANDROID)
 	#define USE_GETHOSTNAME_LOCALLISTING
 #endif
 

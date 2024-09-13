@@ -305,4 +305,3 @@ qboolean NATIVEEXPORT FTEPlug_Init(plugcorefuncs_t *corefuncs)
 
 	return Plug_Init();
 }
-

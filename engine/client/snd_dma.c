@@ -1841,7 +1841,7 @@ extern sounddriver_t XAUDIO2_Output;
 extern sounddriver_t DSOUND_Output;
 #endif
 sounddriver_t fte_weakstruct SDL_Output;
-#ifdef __linux__
+#if defined(__unix__) && !defined(__APPLE__) // Alsa, OSS and PulseAudio can all be installed on most Unixes these days; They can fall back to OSS_Output if needed - Brad
 extern sounddriver_t ALSA_Output;
 extern sounddriver_t Pulse_Output;
 #endif

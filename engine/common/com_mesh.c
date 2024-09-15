@@ -4695,13 +4695,13 @@ static qboolean QDECL Mod_LoadQ2Model (model_t *mod, void *buffer, size_t fsize)
 
 	Mod_ClampModelSize(mod);
 	Mod_ParseModelEvents(mod, galias->ofsanimations, galias->numanimations);
+	Mesh_HandleFramegroupsFile(mod, galias);
 
 	mod->meshinfo = galias;
 	mod->numframes = galias->numanimations;
 	mod->type = mod_alias;
 
 	mod->funcs.NativeTrace = Mod_Trace;
-
 	return true;
 }
 

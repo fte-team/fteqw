@@ -843,7 +843,7 @@ int DecompileReadData(const char *srcfilename, char *buf, size_t bufsize)
 			}
 			QC_snprintfz(name, sizeof(name), "function%i", i);
 			name[strlen(name)] = 0;
-			p = malloc(strlen(name + 1));
+			p = malloc(strlen(name) + 1);
 			strcpy(p, name);
 			functions[i].s_name = (char *)p - strings;
 		}

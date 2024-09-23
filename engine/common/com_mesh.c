@@ -4349,9 +4349,8 @@ static qboolean QDECL Mod_LoadQ1Model (model_t *mod, void *buffer, size_t fsize)
 
 	mod->type = mod_alias;
 	Mod_ClampModelSize(mod);
-	Mod_ParseModelEvents(mod, galias->ofsanimations, galias->numanimations);
-
 	Mesh_HandleFramegroupsFile(mod, galias);
+	Mod_ParseModelEvents(mod, galias->ofsanimations, galias->numanimations);
 
 	mod->numframes = galias->numanimations;
 	mod->meshinfo = galias;
@@ -4694,8 +4693,8 @@ static qboolean QDECL Mod_LoadQ2Model (model_t *mod, void *buffer, size_t fsize)
 	*/
 
 	Mod_ClampModelSize(mod);
-	Mod_ParseModelEvents(mod, galias->ofsanimations, galias->numanimations);
 	Mesh_HandleFramegroupsFile(mod, galias);
+	Mod_ParseModelEvents(mod, galias->ofsanimations, galias->numanimations);
 
 	mod->meshinfo = galias;
 	mod->numframes = galias->numanimations;
@@ -5069,6 +5068,7 @@ static qboolean QDECL Mod_LoadKingpinModel (model_t *mod, void *buffer, size_t f
 
 	mod->radius = RadiusFromBounds(mod->mins, mod->maxs);
 	Mod_ClampModelSize(mod);
+	Mesh_HandleFramegroupsFile(mod, galias);
 	Mod_ParseModelEvents(mod, root->ofsanimations, root->numanimations);
 
 	mod->meshinfo = root;

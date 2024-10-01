@@ -2899,6 +2899,7 @@ static ftenet_generic_connection_t *FTENET_Loop_EstablishConnection(ftenet_conne
 #endif
 
 		newcon->islisten = col->islisten;
+		newcon->prot = adr.prot;
 		newcon->addrtype[0] = NA_LOOPBACK;
 		newcon->addrtype[1] = NA_INVALID;
 
@@ -4387,6 +4388,7 @@ ftenet_generic_connection_t *FTENET_Datagram_EstablishConnection(ftenet_connecti
 
 		newcon->owner = col;
 		newcon->islisten = isserver;
+		newcon->prot = adr.prot;
 		if (hybrid)
 		{
 			newcon->addrtype[0] = NA_IP;
@@ -7867,6 +7869,7 @@ static qboolean FTENET_TCP_ChangeLocalAddress(struct ftenet_generic_connection_s
 				n.scopeid = adr->scopeid;
 				addrsize2 = NetadrToSockadr(&n, &cur);
 
+				con->prot = NP_STREAM;
 				if ((bind(newsocket, (struct sockaddr *)&cur, addrsize2) != INVALID_SOCKET) &&
 					(listen(newsocket, 2) != INVALID_SOCKET) &&
 					ioctlsocket (newsocket, FIONBIO, &_true) != -1)
@@ -8026,6 +8029,7 @@ ftenet_generic_connection_t *FTENET_TCP_EstablishConnection(ftenet_connections_t
 	newcon = Z_Malloc(sizeof(*newcon));
 	newcon->generic.thesocket = newsocket = INVALID_SOCKET;
 
+	newcon->generic.prot = adr.prot;
 	newcon->generic.addrtype[0] = adr.type;
 	newcon->generic.addrtype[1] = NA_INVALID;
 
@@ -8732,6 +8736,7 @@ struct ftenet_generic_connection_s *FTENET_IRCConnect_EstablishConnection(qboole
 		newcon->generic.Close = FTENET_IRCConnect_Close;
 
 		newcon->generic.islisten = isserver;
+		newcon->generic.prot = adr.prot;
 		newcon->generic.addrtype[0] = NA_IRC;
 		newcon->generic.addrtype[1] = NA_INVALID;
 
@@ -9309,6 +9314,7 @@ static ftenet_generic_connection_t *FTENET_WebSocket_EstablishConnection(ftenet_
 		newcon->generic.Close = FTENET_WebSocket_Close;
 
 		newcon->generic.islisten = isserver;
+		newcon->generic.prot = adr.prot;
 		newcon->generic.addrtype[0] = NA_WEBSOCKET;
 		newcon->generic.addrtype[1] = NA_INVALID;
 
@@ -9360,6 +9366,7 @@ static ftenet_generic_connection_t *FTENET_WebRTC_EstablishConnection(ftenet_con
 		newcon->generic.Close = FTENET_WebSocket_Close;
 
 		newcon->generic.islisten = isserver;
+		newcon->generic.prot = adr.prot;
 		newcon->generic.addrtype[0] = NA_WEBSOCKET;
 		newcon->generic.addrtype[1] = NA_INVALID;
 

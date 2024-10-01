@@ -4404,7 +4404,7 @@ qboolean SV_ConnectionlessPacket (void)
 	{	//q3/dpmaster support
 		if (sv_public.ival >= 0)
 		{
-			const char *chal = Cmd_Args();
+			const char *chal = Cmd_Argv(1);
 			SV_Master_HeartbeatResponse(&net_from, chal);
 
 			if (SV_DetectAmplificationDDOS())

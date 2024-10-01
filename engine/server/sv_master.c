@@ -1408,7 +1408,10 @@ static void SVM_ProcessUDPPacket(void)
 			sb.maxsize = sizeof(net_message_buffer);
 			sb.data = net_message_buffer;
 			MSG_WriteLong(&sb, -1);
-			MSG_WriteString(&sb, va("getinfo %s %s\n", ourchallenge,cookie));
+			if (*cookie)
+				MSG_WriteString(&sb, va("getinfo %s %s\n", ourchallenge,cookie));
+			else
+				MSG_WriteString(&sb, va("getinfo %s\n", ourchallenge));
 			sb.cursize--;
 			NET_SendPacket(svm_sockets, sb.cursize, sb.data, &net_from);
 
@@ -1474,6 +1477,14 @@ static void SVM_ProcessUDPPacket(void)
 					const char *v = Info_ValueForKey(s, "deathmatch");
 					srv->type = *v && !atoi(v);
 				}
+				Q_strncpyz(srv->hostname, Info_ValueForKey(s, "hostname"), sizeof(srv->hostname));
+				Q_strncpyz(srv->gamedir, Info_ValueForKey(s, "modname"), sizeof(srv->gamedir));
+				Q_strncpyz(srv->mapname, Info_ValueForKey(s, "mapname"), sizeof(srv->mapname));
+				Q_strncpyz(srv->version, Info_ValueForKey(s, "version"), sizeof(srv->version));
+				if (!*srv->version)
+					Q_strncpyz(srv->version, Info_ValueForKey(s, "*version"), sizeof(srv->version));
+				if (!*srv->version)
+					Q_strncpyz(srv->version, Info_ValueForKey(s, "ver"), sizeof(srv->version));
 				srv->protover = strtol(Info_ValueForKey(s, "protocol"), &s, 0);
 				for (; *s; s++)
 				{
@@ -1484,14 +1495,6 @@ static void SVM_ProcessUDPPacket(void)
 				}
 				if (*Info_ValueForKey(srv->rules, "_turnkey"))
 					srv->type |= 8;
-				Q_strncpyz(srv->hostname, Info_ValueForKey(s, "hostname"), sizeof(srv->hostname));
-				Q_strncpyz(srv->gamedir, Info_ValueForKey(s, "modname"), sizeof(srv->gamedir));
-				Q_strncpyz(srv->mapname, Info_ValueForKey(s, "mapname"), sizeof(srv->mapname));
-				Q_strncpyz(srv->version, Info_ValueForKey(s, "version"), sizeof(srv->version));
-				if (!*srv->version)
-					Q_strncpyz(srv->version, Info_ValueForKey(s, "*version"), sizeof(srv->version));
-				if (!*srv->version)
-					Q_strncpyz(srv->version, Info_ValueForKey(s, "ver"), sizeof(srv->version));
 			}
 		}
 	}

@@ -1047,19 +1047,23 @@ qboolean SV_ReadPendingProxy(cluster_t *cluster, oproxy_t *pend)
 								if (clientversion > 1)
 								{
 									int plyrs = 0;
+									int prox = 0;
 									int i;
+									oproxy_t *o;
 									for (i = 0; i < MAX_CLIENTS; i++)
 									{
 										if (*qtv->map.players[i].userinfo)
 											plyrs++;
 									}
+									for (o = qtv->proxies; o; o = o->next)
+										prox++;
 									sprintf(tempbuf, "SRCSRV: %s\n", qtv->server);
 									Net_ProxySendString(cluster, pend, tempbuf);
 									sprintf(tempbuf, "SRCHOST: %s\n", qtv->map.hostname);
 									Net_ProxySendString(cluster, pend, tempbuf);
 									sprintf(tempbuf, "SRCPLYRS: %i\n", plyrs);
 									Net_ProxySendString(cluster, pend, tempbuf);
-									sprintf(tempbuf, "SRCVIEWS: %i\n", qtv->numviewers);
+									sprintf(tempbuf, "SRCVIEWS: %i\n", qtv->numviewers+prox);
 									Net_ProxySendString(cluster, pend, tempbuf);
 									sprintf(tempbuf, "SRCID: %i\n", qtv->streamid);	//final part of each source
 									Net_ProxySendString(cluster, pend, tempbuf);

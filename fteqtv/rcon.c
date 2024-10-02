@@ -161,7 +161,13 @@ void Info_RemoveKey (char *s, const char *key)
 
 		if (!strcmp (key, pkey) )
 		{
-			strcpy (start, s);	// remove this part
+			//strip out the value by copying the next string over the top of this one
+			//(we were using strcpy, but valgrind moaned)
+			while(*s)
+			{
+				*start++ = *s++;
+			}
+			*start = 0;
 			return;
 		}
 

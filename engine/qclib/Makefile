@@ -1,5 +1,5 @@
 COMMON_OBJS=comprout.o hash.o qcc_cmdlib.o qcd_main.o
-QCC_OBJS=qccmain.o qcc_pr_comp.o qcc_pr_lex.o packager.o
+QCC_OBJS=qccmain.o qcc_pr_comp.o qcc_pr_lex.o packager.o decomp.o
 VM_OBJS=pr_exec.o pr_edict.o pr_multi.o initlib.o qcdecomp.o
 GTKGUI_OBJS=qcc_gtk.o qccguistuff.o
 WIN32GUI_OBJS=qccgui.o qccguistuff.o packager.o

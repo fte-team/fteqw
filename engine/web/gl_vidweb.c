@@ -222,8 +222,8 @@ static void IN_GamePadButtonEvent(int joydevid, int button, int ispressed, int i
 		//however, the quake button codes should be the same. I really ought to define some K_ aliases for them.
 		K_GP_A,
 		K_GP_B,
-		K_GP_Y,
 		K_GP_X,
+		K_GP_Y,
 		K_GP_LEFT_SHOULDER,
 		K_GP_RIGHT_SHOULDER,
 		K_GP_LEFT_TRIGGER,

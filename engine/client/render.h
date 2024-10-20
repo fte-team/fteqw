@@ -236,11 +236,12 @@ typedef enum {
 typedef enum
 {
 	PROJ_STANDARD			= 0,
-	PROJ_STEREOGRAPHIC		= 1,	//aka panini
+	PROJ_STEREOGRAPHIC		= 1,
 	PROJ_FISHEYE			= 2,	//standard fisheye
 	PROJ_PANORAMA			= 3,	//for nice panoramas
 	PROJ_LAEA				= 4,	//lambert azimuthal equal-area 
-	PROJ_EQUIRECTANGULAR	= 5		//projects a sphere into 2d. used by vr screenshots.
+	PROJ_EQUIRECTANGULAR	= 5,	//projects a sphere into 2d. used by vr screenshots.
+	PROJ_PANINI       = 6		//like stereographic, but vertical lines stay straight.
 } qprojection_t;
 
 typedef struct {

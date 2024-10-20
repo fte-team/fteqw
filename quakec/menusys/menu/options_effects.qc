@@ -96,11 +96,12 @@ nonstatic void(mitem_desktop desktop) M_Options_Effects =
 																)),	fl, [0, pos], [0, 8]); pos += 8;
 		fr.add(menuitemcombo_spawn(_("View Projection"),		"r_projection",			'280 8', _(
 																			"0	\"Standard\" "
-																			"1	\"Stereographic / Pannini\" "
+																			"1	\"Stereographic\" "
 																			"2	\"Fish-Eye\" "
 																			"3	\"Panoramic\" "
 																			"4	\"Lambert Azimuthal Equal-Area\" "
 																			"5	\"Equirectangular\" "
+																			"6	\"Panini\" "
 																)),	fl, [0, pos], [0, 8]); pos += 8;
 		fr.add(menuitemcombo_spawn(_("View Projection Fov"),		"ffov",				'280 8', _(
 																			"90	\"Normal\" "

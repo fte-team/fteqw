@@ -2687,6 +2687,26 @@ static qboolean VK_R_RenderScene_Cubemap(struct vk_rendertarg *fb)
 		}
 #endif
 		break;
+	case PROJ_PANINI:
+		shader = R_RegisterShader("postproc_panini", SUF_NONE,
+				"{\n"
+					"program postproc_panini\n"
+					"{\n"
+						"map $sourcecube\n"
+					"}\n"
+				"}\n"
+				);
+
+		facemask |= 1<<4; /*front view*/
+		if (ffov.value > 70)
+		{
+			facemask |= (1<<0) | (1<<1); /*side/top*/
+			if (ffov.value > 85)
+				facemask |= (1<<2) | (1<<3); /*bottom views*/
+			if (ffov.value > 300)
+				facemask |= 1<<5; /*back view*/
+		}
+		break;
 	}
 
 	if (!shader || !shader->prog)

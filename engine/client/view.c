@@ -27,7 +27,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #include <ctype.h> // for isdigit();
 
-cvar_t r_projection = CVARD("r_projection", "0", "0: regular perspective.\n1: stereographic (aka: pannini).\n2: fisheye.\n3: panoramic.\n4: lambert azimuthal equal-area.\n5: Equirectangular");
+cvar_t r_projection = CVARD("r_projection", "0", "0: regular perspective.\n1: stereographic.\n2: fisheye.\n3: panoramic.\n4: lambert azimuthal equal-area.\n5: equirectangular.\n6: panini.");
 cvar_t ffov = CVARFD("ffov", "", 0, "Allows you to set a specific field of view for when a custom projection is specified. If empty, will use regular fov cvar, which might get messy.");
 #if defined(_WIN32) && !defined(MINIMAL)
 //amusing gimmick / easteregg.

@@ -2583,6 +2583,8 @@ static struct {
 	{"processmodelevents",		PF_processmodelevents,		0},
 	{"getnextmodelevent",		PF_getnextmodelevent,		0},
 	{"getmodeleventidx",		PF_getmodeleventidx,		0},
+	{"frametoname",				PF_frametoname,				0},//string(float modidx, float framenum) frametoname
+	{"modelframecount",			PF_modelframecount,			0},
 															//gap
 	{"hash_createtab",			PF_hash_createtab,			287},
 	{"hash_destroytab",			PF_hash_destroytab,			288},

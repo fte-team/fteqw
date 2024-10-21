@@ -433,6 +433,7 @@ static searchpathfuncs_t *QDECL FSVPK_LoadArchive (vfsfile_t *file, searchpathfu
 	int				read;
 	qbyte			*tree;
 	unsigned int	frag;
+	unsigned int tablesize;
 
 	packhandle = file;
 	if (packhandle == NULL)
@@ -454,21 +455,30 @@ static searchpathfuncs_t *QDECL FSVPK_LoadArchive (vfsfile_t *file, searchpathfu
 	if (read < 12 || header.magic != 0x55aa1234 || header.tablesize <= 0)
 	{	//this will include the non-dir files too.
 //		Con_Printf("%s is not a vpk\n", desc);
-		return NULL;
-	}
-	i = LittleLong(header.version);
-	if (i == 2)
-		;//VFS_SEEK(packhandle, 7*sizeof(int));
-	else if (i == 1)
-		VFS_SEEK(packhandle, 3*sizeof(int));
-	else
-	{
-		Con_Printf("vpk %s is version %x (unspported)\n", desc, i);
-		return NULL;
-	}
 
-	tree = plugfuncs->Malloc(header.tablesize);
-	read = VFS_READ(packhandle, tree, header.tablesize);
+		/* HACK: pre 2009 Left4Dead */
+		if (header.magic == 7630198) {
+			VFS_SEEK(packhandle, 0);
+			tablesize = 1313113;
+		} else {
+			return NULL;
+		}
+	} else {
+		i = LittleLong(header.version);
+		if (i == 2)
+			;//VFS_SEEK(packhandle, 7*sizeof(int));
+		else if (i == 1)
+			VFS_SEEK(packhandle, 3*sizeof(int));
+		else
+		{
+			Con_Printf("vpk %s is version %x (unspported)\n", desc, i);
+			return NULL;
+		}
+		tablesize = header.tablesize;
+	}
+	
+	tree = plugfuncs->Malloc(tablesize);
+	read = VFS_READ(packhandle, tree, tablesize);
 
 	numpackfiles = FSVPK_WalkTree(NULL, tree, tree+read);
 

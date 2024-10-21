@@ -9,13 +9,16 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "!!permu FOG\n"
 "!!permu BUMP\n"
 "!!permu LIGHTSTYLED\n"
+"!!permu FULLBRIGHT\n"
 "!!permu REFLECTCUBEMASK\n"
+"!!permu NOFOG\n"
 "!!samps diffuse\n"
 
 "!!samps lightmap\n"
 "!!samps =LIGHTSTYLED lightmap1 lightmap2 lightmap3\n"
 
 "!!samps =BUMP normalmap\n"
+"!!samps =FULLBRIGHT fullbright\n"
 
 // envmaps only
 "!!samps =REFLECTCUBEMASK reflectmask reflectcube\n"
@@ -105,18 +108,6 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "#else\n"
 "lightmaps  = LIGHTMAP * e_lmscale.rgb;\n"
 "#endif\n"
-
-/* the light we're getting is always too bright */
-"lightmaps *= 0.75;\n"
-
-/* clamp at 1.5 */
-"if (lightmaps.r > 1.5)\n"
-"lightmaps.r = 1.5;\n"
-"if (lightmaps.g > 1.5)\n"
-"lightmaps.g = 1.5;\n"
-"if (lightmaps.b > 1.5)\n"
-"lightmaps.b = 1.5;\n"
-
 "return lightmaps;\n"
 "}\n"
 
@@ -125,6 +116,7 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "vec4 diffuse_f;\n"
 
 "diffuse_f = texture2D(s_diffuse, tex_c);\n"
+"diffuse_f.rgb *= e_colourident.rgb;\n"
 
 "#ifdef MASKLT\n"
 "if (diffuse_f.a < float(MASK))\n"
@@ -144,11 +136,12 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "#ifdef BUMP\n"
 /* Source's normalmaps are in the DX format where the green channel is flipped */
 "vec4 normal_f = texture2D(s_normalmap, tex_c);\n"
-"normal_f.g *= -1.0;\n"
+"normal_f.g = 1.0 - normal_f.g;\n"
 "normal_f.rgb = normalize(normal_f.rgb - 0.5);\n"
 "#else\n"
 "vec4 normal_f = vec4(0.0,0.0,1.0,0.0);\n"
 "#endif\n"
+
 
 "#if defined(ENVFROMMASK)\n"
 /* We have a dedicated reflectmask */
@@ -158,17 +151,31 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "#if defined(ENVFROMBASE) || !defined(BUMP)\n"
 "#define refl 1.0 - diffuse_f.a\n"
 "#else\n"
-"#define refl normal_f.a * 0.5\n"
+/* when ENVFROMNORM is set, we don't invert the refl */
+"#if defined(ENVFROMNORM)\n"
+"#define refl texture2D(s_normalmap, tex_c).a\n"
+"#else\n"
+"#define refl 1.0 - texture2D(s_normalmap, tex_c).a\n"
+"#endif\n"
 "#endif\n"
 "#endif\n"
 
-"vec3 cube_c = reflect(normalize(-eyevector), normal_f.rgb);\n"
+
+"vec3 cube_c = reflect(-eyevector, normal_f.rgb);\n"
 "cube_c = cube_c.x * invsurface[0] + cube_c.y * invsurface[1] + cube_c.z * invsurface[2];\n"
 "cube_c = (m_model * vec4(cube_c.xyz, 0.0)).xyz;\n"
 "diffuse_f.rgb += (textureCube(s_reflectcube, cube_c).rgb * vec3(refl,refl,refl));\n"
 "#endif\n"
 
+"#ifdef FULLBRIGHT\n"
+"diffuse_f.rgb += texture2D(s_fullbright, tex_c).rgb * texture2D(s_fullbright, tex_c).a;\n"
+"#endif\n"
+
+"#ifdef NOFOG\n"
+"gl_FragColor = diffuse_f;\n"
+"#else\n"
 "gl_FragColor = fog4(diffuse_f);\n"
+"#endif\n"
 "}\n"
 "#endif\n"
 },
@@ -176,10 +183,10 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 #ifdef GLQUAKE
 {QR_OPENGL, 110, "vmt/refract",
 "!!ver 110\n"
+"!!permu BUMP\n"
 "!!samps diffuse\n"
 "!!samps =BUMP normalmap\n"
-"!!samps =REFLECTCUBEMASK reflectmask reflectcube\n"
-"!!samps refraction=0\n"
+"!!samps refraction=0 dudvmap=1\n"
 
 "#include \"sys/defs.h\"\n"
 
@@ -206,18 +213,20 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "{\n"
 "vec2 refl_c;\n"
 "vec3 refr_f;\n"
-"vec3 norm_f;\n"
+"vec3 dudv_f;\n"
 "vec4 out_f = vec4( 1.0, 1.0, 1.0, 1.0 );\n"
 
-"norm_f = ( texture2D( s_normalmap, tex_c).xyz);\n"
-"norm_f.g *= -1.0;\n"
-"norm_f = normalize( norm_f );\n"
+"dudv_f = ( texture2D( s_dudvmap, tex_c).xyz);\n"
+"dudv_f += ( texture2D( s_dudvmap, tex_c).xyz);\n"
+"dudv_f -= 1.0 - ( 4.0 / 256.0 );\n"
+"dudv_f = normalize( dudv_f );\n"
 
 // Reflection/View coordinates
 "refl_c = ( 1.0 + ( tf_c.xy / tf_c.w ) ) * 0.5;\n"
 
-"refr_f = texture2D(s_refraction, refl_c + (norm_f.st) ).rgb;\n"
-"out_f.rgb = refr_f * texture2D(s_diffuse, tex_c).rgb;\n"
+"refr_f = texture2D( s_refraction, refl_c + ( dudv_f.st) ).rgb;\n"
+"out_f.rgb = refr_f;\n"
+"out_f.rgb *= texture2D( s_diffuse, tex_c).rgb;\n"
 
 "gl_FragColor = out_f;\n"
 "}\n"
@@ -363,18 +372,27 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "#ifdef BUMP\n"
 /* Source's normalmaps are in the DX format where the green channel is flipped */
 "vec4 normal_f = texture2D(s_normalmap, tex_c);\n"
-"normal_f.g *= -1.0;\n"
+"normal_f.g = 1.0 - normal_f.g;\n"
 "normal_f.rgb = normalize(normal_f.rgb - 0.5);\n"
 "#else\n"
 "vec4 normal_f = vec4(0.0,0.0,1.0,0.0);\n"
 "#endif\n"
 
+"#if defined(ENVFROMMASK)\n"
+/* We have a dedicated reflectmask */
+"#define refl texture2D(s_reflectmask, tex_c).r\n"
+"#else\n"
 /* when ENVFROMBASE is set or a normal isn't present, we're getting the reflectivity info from the diffusemap's alpha channel */
 "#if defined(ENVFROMBASE) || !defined(BUMP)\n"
-/* since we're sampling from the diffuse = 1.0 fully visible, 0.0 = fully reflective */
 "#define refl 1.0 - diffuse_f.a\n"
 "#else\n"
-"#define refl normal_f.a * 0.5\n"
+/* when ENVFROMNORM is set, we don't invert the refl */
+"#if defined(ENVFROMNORM)\n"
+"#define refl texture2D(s_normalmap, tex_c).a\n"
+"#else\n"
+"#define refl 1.0 - texture2D(s_normalmap, tex_c).a\n"
+"#endif\n"
+"#endif\n"
 "#endif\n"
 
 "vec3 cube_c = reflect(normalize(-eyevector), normal_f.rgb);\n"
@@ -424,13 +442,18 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 #endif
 #ifdef GLQUAKE
 {QR_OPENGL, 110, "vmt/vertexlit",
-"!!ver 110\n"
+"!!ver 100 150\n"
 "!!permu FRAMEBLEND\n"
 "!!permu BUMP\n"
 "!!permu FOG\n"
+"!!permu NOFOG\n"
 "!!permu SKELETAL\n"
+"!!permu FULLBRIGHT\n"
 "!!permu AMBIENTCUBE\n"
-"!!samps diffuse fullbright normalmap\n"
+"!!permu REFLECTCUBEMASK\n"
+"!!samps diffuse\n"
+"!!samps =BUMP normalmap\n"
+"!!samps =FULLBRIGHT fullbright\n"
 "!!permu FAKESHADOWS\n"
 "!!cvardf r_glsl_pcf\n"
 "!!samps =FAKESHADOWS shadowmap\n"
@@ -444,6 +467,7 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 
 "varying vec2 tex_c;\n"
 "varying vec3 norm;\n"
+"varying vec4 light;\n"
 
 /* CUBEMAPS ONLY */
 "#ifdef REFLECTCUBEMASK\n"
@@ -458,25 +482,52 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "#ifdef VERTEX_SHADER\n"
 "#include \"sys/skeletal.h\"\n"
 
+"float lambert(vec3 normal, vec3 dir)\n"
+"{\n"
+"return dot(normal, dir);\n"
+"}\n"
+
+"float halflambert(vec3 normal, vec3 dir)\n"
+"{\n"
+"return (dot(normal, dir) * 0.5) + 0.5;\n"
+"}\n"
+
 "void main (void)\n"
 "{\n"
 "vec3 n, s, t, w;\n"
 "tex_c = v_texcoord;\n"
 "gl_Position = skeletaltransform_wnst(w,n,s,t);\n"
-"norm = n;\n"
+"norm = n = normalize(n);\n"
+"s = normalize(s);\n"
+"t = normalize(t);\n"
+"light.rgba = vec4(e_light_ambient, 1.0);\n"
+
+"#ifdef AMBIENTCUBE\n"
+//no specular effect here. use rtlights for that.
+"vec3 nn = norm*norm; //FIXME: should be worldspace normal.\n"
+"light.rgb = nn.x * e_light_ambientcube[(norm.x<0.0)?1:0] +\n"
+"nn.y * e_light_ambientcube[(norm.y<0.0)?3:2] +\n"
+"nn.z * e_light_ambientcube[(norm.z<0.0)?5:4];\n"
+"#else\n"
+"#ifdef HALFLAMBERT\n"
+"light.rgb += max(0.0,halflambert(n,e_light_dir)) * e_light_mul;\n"
+"#else\n"
+"light.rgb += max(0.0,dot(n,e_light_dir)) * e_light_mul;\n"
+"#endif\n"
+"#endif\n"
 
 /* CUBEMAPS ONLY */
 "#ifdef REFLECTCUBEMASK\n"
-"invsurface = mat3(v_svector, v_tvector, v_normal);\n"
+"invsurface = mat3(s, t, n);\n"
 
-"vec3 eyeminusvertex = e_eyepos - v_position.xyz;\n"
-"eyevector.x = dot(eyeminusvertex, v_svector.xyz);\n"
-"eyevector.y = dot(eyeminusvertex, v_tvector.xyz);\n"
-"eyevector.z = dot(eyeminusvertex, v_normal.xyz);\n"
+"vec3 eyeminusvertex = e_eyepos - w.xyz;\n"
+"eyevector.x = dot(eyeminusvertex, s.xyz);\n"
+"eyevector.y = dot(eyeminusvertex, t.xyz);\n"
+"eyevector.z = dot(eyeminusvertex, n.xyz);\n"
 "#endif\n"
 
 "#ifdef FAKESHADOWS\n"
-"vtexprojcoord = (l_cubematrix*vec4(v_position.xyz, 1.0));\n"
+"vtexprojcoord = (l_cubematrix*vec4(w.xyz, 1.0));\n"
 "#endif\n"
 "}\n"
 "#endif\n"
@@ -486,20 +537,9 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "#include \"sys/fog.h\"\n"
 "#include \"sys/pcf.h\"\n"
 
-"float lambert(vec3 normal, vec3 dir)\n"
-"{\n"
-"return max(dot(normal, dir), 0.0);\n"
-"}\n"
-
-"float halflambert(vec3 normal, vec3 dir)\n"
-"{\n"
-"return (lambert(normal, dir) * 0.5) + 0.5;\n"
-"}\n"
-
 "void main (void)\n"
 "{\n"
 "vec4 diffuse_f = texture2D(s_diffuse, tex_c);\n"
-"vec3 light;\n"
 
 "#ifdef MASKLT\n"
 "if (diffuse_f.a < float(MASK))\n"
@@ -510,7 +550,7 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "#ifdef BUMP\n"
 /* Source's normalmaps are in the DX format where the green channel is flipped */
 "vec3 normal_f = texture2D(s_normalmap, tex_c).rgb;\n"
-"normal_f.g *= -1.0;\n"
+"normal_f.g = 1.0 - normal_f.g;\n"
 "normal_f = normalize(normal_f.rgb - 0.5);\n"
 "#else\n"
 "vec3 normal_f = vec3(0.0,0.0,1.0);\n"
@@ -518,50 +558,46 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 
 /* CUBEMAPS ONLY */
 "#ifdef REFLECTCUBEMASK\n"
+
+"#if defined(ENVFROMMASK)\n"
+/* We have a dedicated reflectmask */
+"#define refl texture2D(s_reflectmask, tex_c).r\n"
+"#else\n"
 /* when ENVFROMBASE is set or a normal isn't present, we're getting the reflectivity info from the diffusemap's alpha channel */
 "#if defined(ENVFROMBASE) || !defined(BUMP)\n"
 "#define refl 1.0 - diffuse_f.a\n"
 "#else\n"
+/* when ENVFROMNORM is set, we don't invert the refl */
+"#if defined(ENVFROMNORM)\n"
 "#define refl texture2D(s_normalmap, tex_c).a\n"
+"#else\n"
+"#define refl 1.0 - texture2D(s_normalmap, tex_c).a\n"
 "#endif\n"
-"vec3 cube_c = reflect(normalize(-eyevector), normal_f.rgb);\n"
+"#endif\n"
+"#endif\n"
+
+"vec3 cube_c = reflect(-eyevector, normal_f.rgb);\n"
 "cube_c = cube_c.x * invsurface[0] + cube_c.y * invsurface[1] + cube_c.z * invsurface[2];\n"
 "cube_c = (m_model * vec4(cube_c.xyz, 0.0)).xyz;\n"
 "diffuse_f.rgb += (textureCube(s_reflectcube, cube_c).rgb * vec3(refl,refl,refl));\n"
 "#endif\n"
 
-"#ifdef AMBIENTCUBE\n"
-//no specular effect here. use rtlights for that.
-"vec3 nn = norm*norm; //FIXME: should be worldspace normal.\n"
-"light = nn.x * e_light_ambientcube[(norm.x<0.0)?1:0] +\n"
-"nn.y * e_light_ambientcube[(norm.y<0.0)?3:2] +\n"
-"nn.z * e_light_ambientcube[(norm.z<0.0)?5:4];\n"
-"#else\n"
-"#ifdef HALFLAMBERT\n"
-"light = e_light_ambient + (e_light_mul * halflambert(norm, e_light_dir));\n"
-"#else\n"
-"light = e_light_ambient + (e_light_mul * lambert(norm, e_light_dir));\n"
-"#endif\n"
-
-/* the light we're getting is always too bright */
-"light *= 0.75;\n"
-
-/* clamp at 1.5 */
-"if (light.r > 1.5)\n"
-"light.r = 1.5;\n"
-"if (light.g > 1.5)\n"
-"light.g = 1.5;\n"
-"if (light.b > 1.5)\n"
-"light.b = 1.5;\n"
-"#endif\n"
-
-"diffuse_f.rgb *= light;\n"
+"diffuse_f.rgb *= light.rgb * e_colourident.rgb;\n"
 
 "#ifdef FAKESHADOWS\n"
 "diffuse_f.rgb *= ShadowmapFilter(s_shadowmap, vtexprojcoord);\n"
 "#endif\n"
 
-"gl_FragColor = fog4(diffuse_f * e_colourident) * e_lmscale;\n"
+"#ifdef FULLBRIGHT\n"
+"diffuse_f.rgb += texture2D(s_fullbright, tex_c).rgb * texture2D(s_fullbright, tex_c).a;\n"
+"#endif\n"
+
+
+"#if 1\n"
+"gl_FragColor = diffuse_f;\n"
+"#else\n"
+"gl_FragColor = fog4(diffuse_f);\n"
+"#endif\n"
 "}\n"
 "#endif\n"
 },
@@ -570,10 +606,11 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 {QR_OPENGL, 110, "vmt/water",
 "!!cvardf r_glsl_turbscale_reflect=1 //simpler scaler\n"
 "!!cvardf r_glsl_turbscale_refract=1 //simpler scaler\n"
+"!!permu REFLECTCUBEMASK\n"
 "!!samps diffuse normalmap\n"
 "!!samps refract=0 //always present\n"
-"!!samps =REFLECT reflect=1\n"
-"!!samps !REFLECT reflectcube\n"
+"!!samps reflect=1\n"
+"!!samps =REFLECTCUBEMASK reflectcube\n"
 "!!permu FOG\n"
 
 "#include \"sys/defs.h\"\n"
@@ -604,7 +641,7 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "#define TINT 0.7,0.8,0.7\n"
 "#endif\n"
 "#ifndef STRENGTH\n"
-"#define STRENGTH 0.1\n"
+"#define STRENGTH 0.25\n"
 "#endif\n"
 "#ifndef TXSCALE\n"
 "#define TXSCALE 1\n"
@@ -612,7 +649,7 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 
 //current values (referring to legacy defaults where needed)
 "#ifndef FRESNEL_EXP\n"
-"#define FRESNEL_EXP 4.0\n"
+"#define FRESNEL_EXP 5.0\n"
 "#endif\n"
 "#ifndef FRESNEL_MIN\n"
 "#define FRESNEL_MIN 0.0\n"
@@ -646,6 +683,7 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "varying vec4 tf;\n"
 "varying vec3 norm;\n"
 "varying vec3 eye;\n"
+
 "#ifdef VERTEX_SHADER\n"
 "void main (void)\n"
 "{\n"
@@ -656,6 +694,7 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "gl_Position = ftetransform();\n"
 "}\n"
 "#endif\n"
+
 "#ifdef FRAGMENT_SHADER\n"
 "#include \"sys/fog.h\"\n"
 
@@ -729,11 +768,10 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "refr = mix(refr, vec3(FOGTINT), min(depth/4096.0, 1.0));\n"
 "#endif\n"
 
-"#ifdef REFLECT\n"
-//reflection/diffuse
-"refl = texture2D(s_reflect, stc - n.st*float(STRENGTH_REFL)*float(r_glsl_turbscale_reflect)).rgb * vec3(TINT_REFL);\n"
-"#else\n"
+"#ifdef LQWATER\n"
 "refl = textureCube(s_reflectcube, n).rgb;// * vec3(TINT_REFL);\n"
+"#else\n"
+"refl = texture2D(s_reflect, stc - n.st*float(STRENGTH_REFL)*float(r_glsl_turbscale_reflect)).rgb * vec3(TINT_REFL);\n"
 "#endif\n"
 
 //interplate by fresnel
@@ -749,6 +787,34 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 
 //done
 "gl_FragColor = vec4(refr, 1.0);\n"
+"}\n"
+"#endif\n"
+},
+#endif
+#ifdef GLQUAKE
+{QR_OPENGL, 110, "vmt/rt",
+"!!ver 110\n"
+"!!permu FOG\n"
+"!!samps diffuse=0\n"
+
+"#include \"sys/defs.h\"\n"
+"#include \"sys/fog.h\"\n"
+
+"varying vec2 tex_c;\n"
+
+"#ifdef VERTEX_SHADER\n"
+"void main ()\n"
+"{\n"
+"tex_c = v_texcoord;\n"
+"gl_Position = ftetransform();\n"
+"}\n"
+"#endif\n"
+
+"#ifdef FRAGMENT_SHADER\n"
+"void main ()\n"
+"{\n"
+"vec4 diffuse_f = texture2D( s_diffuse, fract(tex_c) );\n"
+"gl_FragColor = fog4( diffuse_f );\n"
 "}\n"
 "#endif\n"
 },

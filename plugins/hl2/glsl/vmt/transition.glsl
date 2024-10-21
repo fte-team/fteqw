@@ -135,18 +135,27 @@ varying vec2 lm1, lm2, lm3;
 	#ifdef BUMP
 		/* Source's normalmaps are in the DX format where the green channel is flipped */
 		vec4 normal_f = texture2D(s_normalmap, tex_c);
-		normal_f.g *= -1.0;
+		normal_f.g = 1.0 - normal_f.g;
 		normal_f.rgb = normalize(normal_f.rgb - 0.5);
 	#else
 		vec4 normal_f = vec4(0.0,0.0,1.0,0.0);
 	#endif
 
-	/* when ENVFROMBASE is set or a normal isn't present, we're getting the reflectivity info from the diffusemap's alpha channel */
-	#if defined(ENVFROMBASE) || !defined(BUMP)
-		/* since we're sampling from the diffuse = 1.0 fully visible, 0.0 = fully reflective */
-		#define refl 1.0 - diffuse_f.a
+	#if defined(ENVFROMMASK)
+		/* We have a dedicated reflectmask */
+		#define refl texture2D(s_reflectmask, tex_c).r
 	#else
-		#define refl normal_f.a * 0.5
+		/* when ENVFROMBASE is set or a normal isn't present, we're getting the reflectivity info from the diffusemap's alpha channel */
+		#if defined(ENVFROMBASE) || !defined(BUMP)
+			#define refl 1.0 - diffuse_f.a
+		#else
+			/* when ENVFROMNORM is set, we don't invert the refl */
+			#if defined(ENVFROMNORM)
+				#define refl texture2D(s_normalmap, tex_c).a
+			#else
+				#define refl 1.0 - texture2D(s_normalmap, tex_c).a
+			#endif
+		#endif
 	#endif
 
 		vec3 cube_c = reflect(normalize(-eyevector), normal_f.rgb);

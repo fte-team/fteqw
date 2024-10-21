@@ -302,6 +302,10 @@ and the extension fields are added on the end and can have extra vm-specific stu
 	comfieldfloat(mass,NULL)/*DP_...PHYSICS*/\
 	comfieldfloat(bouncefactor,NULL)/*DP_...PHYSICS*/\
 	comfieldfloat(bouncestop,NULL)/*DP_...PHYSICS*/\
+	comfieldfloat(damp_linear,NULL)/*FTE_...PHYSICS*/\
+	comfieldfloat(damp_angular,NULL)/*FTE_...PHYSICS*/\
+	comfieldfloat(max_angular,NULL)/*FTE_...PHYSICS*/\
+	comfieldfloat(jointgroup,NULL)/*FTE_...PHYSICS*/\
 	comfieldfloat(idealpitch,NULL)/*DP_QC_CHANGEPITCH (inconsistant naming)*/\
 	comfieldfloat(pitch_speed,NULL)/*DP_QC_CHANGEPITCH*/\
 	comextqcfieldshexen2	\
@@ -562,6 +566,7 @@ typedef struct
 	qboolean physics;
 	rbebody_t body;
 	rbejoint_t joint;
+	int jointgroup;
 	float *vertex3f;
 	int *element3i;
 	int numvertices;

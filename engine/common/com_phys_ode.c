@@ -415,16 +415,16 @@ int             (ODE_API *dBodyGetGravityMode)(dBodyID b);
 //dGeomID         (ODE_API *dBodyGetNextGeom)(dGeomID g);
 //void            (ODE_API *dBodySetDampingDefaults)(dBodyID b);
 //dReal           (ODE_API *dBodyGetLinearDamping)(dBodyID b);
-//void            (ODE_API *dBodySetLinearDamping)(dBodyID b, dReal scale);
+void            (ODE_API *dBodySetLinearDamping)(dBodyID b, dReal scale);
 //dReal           (ODE_API *dBodyGetAngularDamping)(dBodyID b);
-//void            (ODE_API *dBodySetAngularDamping)(dBodyID b, dReal scale);
+void            (ODE_API *dBodySetAngularDamping)(dBodyID b, dReal scale);
 //void            (ODE_API *dBodySetDamping)(dBodyID b, dReal linear_scale, dReal angular_scale);
 //dReal           (ODE_API *dBodyGetLinearDampingThreshold)(dBodyID b);
 //void            (ODE_API *dBodySetLinearDampingThreshold)(dBodyID b, dReal threshold);
 //dReal           (ODE_API *dBodyGetAngularDampingThreshold)(dBodyID b);
 //void            (ODE_API *dBodySetAngularDampingThreshold)(dBodyID b, dReal threshold);
 //dReal           (ODE_API *dBodyGetMaxAngularSpeed)(dBodyID b);
-//void            (ODE_API *dBodySetMaxAngularSpeed)(dBodyID b, dReal max_speed);
+void            (ODE_API *dBodySetMaxAngularSpeed)(dBodyID b, dReal max_speed);
 //int             (ODE_API *dBodyGetGyroscopicMode)(dBodyID b);
 //void            (ODE_API *dBodySetGyroscopicMode)(dBodyID b, int enabled);
 dJointID        (ODE_API *dJointCreateBall)(dWorldID, dJointGroupID);
@@ -885,16 +885,16 @@ static dllfunction_t odefuncs[] =
 //	{"dBodyGetNextGeom",							(void **) &dBodyGetNextGeom},
 //	{"dBodySetDampingDefaults",						(void **) &dBodySetDampingDefaults},
 //	{"dBodyGetLinearDamping",						(void **) &dBodyGetLinearDamping},
-//	{"dBodySetLinearDamping",						(void **) &dBodySetLinearDamping},
+	{"dBodySetLinearDamping",						(void **) &dBodySetLinearDamping},
 //	{"dBodyGetAngularDamping",						(void **) &dBodyGetAngularDamping},
-//	{"dBodySetAngularDamping",						(void **) &dBodySetAngularDamping},
+	{"dBodySetAngularDamping",						(void **) &dBodySetAngularDamping},
 //	{"dBodySetDamping",								(void **) &dBodySetDamping},
 //	{"dBodyGetLinearDampingThreshold",				(void **) &dBodyGetLinearDampingThreshold},
 //	{"dBodySetLinearDampingThreshold",				(void **) &dBodySetLinearDampingThreshold},
 //	{"dBodyGetAngularDampingThreshold",				(void **) &dBodyGetAngularDampingThreshold},
 //	{"dBodySetAngularDampingThreshold",				(void **) &dBodySetAngularDampingThreshold},
 //	{"dBodyGetMaxAngularSpeed",						(void **) &dBodyGetMaxAngularSpeed},
-//	{"dBodySetMaxAngularSpeed",						(void **) &dBodySetMaxAngularSpeed},
+	{"dBodySetMaxAngularSpeed",						(void **) &dBodySetMaxAngularSpeed},
 //	{"dBodyGetGyroscopicMode",						(void **) &dBodyGetGyroscopicMode},
 //	{"dBodySetGyroscopicMode",						(void **) &dBodySetGyroscopicMode},
 	{(void **) &dJointCreateBall,					"dJointCreateBall"},
@@ -1515,13 +1515,16 @@ static void World_ODE_Frame_BodyToEntity(world_t *world, wedict_t *ed)
 	rbefuncs->LinkEdict(world, ed, true);
 }
 
+static int ragGroups = 0;
 static void World_ODE_Frame_JointFromEntity(world_t *world, wedict_t *ed)
 {
 	struct odectx_s *ctx = (struct odectx_s*)world->rbe;
 	dJointID j = 0;
 	dBodyID b1 = 0;
 	dBodyID b2 = 0;
+	dJointGroupID jgid = 0;
 	int movetype = 0;
+	int jointgroup = 0;
 	int jointtype = 0;
 	int enemy = 0, aiment = 0;
 	wedict_t *o;
@@ -1535,6 +1538,7 @@ static void World_ODE_Frame_JointFromEntity(world_t *world, wedict_t *ed)
 	jointtype = (int)ed->xv->jointtype;
 	enemy = ed->v->enemy;
 	aiment = ed->v->aiment;
+	jointgroup = ed->xv->jointgroup;
 	VectorCopy(ed->v->origin, origin);
 	VectorCopy(ed->v->velocity, velocity);
 	VectorCopy(ed->v->angles, angles);
@@ -1580,26 +1584,40 @@ static void World_ODE_Frame_JointFromEntity(world_t *world, wedict_t *ed)
 	}
 	if(jointtype == ed->rbe.joint_type && VectorCompare(origin, ed->rbe.joint_origin) && VectorCompare(velocity, ed->rbe.joint_velocity) && VectorCompare(angles, ed->rbe.joint_angles) && enemy == ed->rbe.joint_enemy && aiment == ed->rbe.joint_aiment && VectorCompare(movedir, ed->rbe.joint_movedir))
 		return; // nothing to do
+
+	/* we're part of a joint group */
+	if (jointgroup > 0) {
+		/* we're unaware of it, let's create it */
+		if (jointgroup > ragGroups) {
+			jgid = dJointGroupCreate(0);
+			ragGroups = jointgroup;
+		} else {
+			jgid = (dJointGroupID)jointgroup;
+		}
+
+		ed->rbe.jointgroup = jgid;
+	}
+
 	AngleVectorsFLU(angles, forward, left, up);
 	switch(jointtype)
 	{
 		case JOINTTYPE_POINT:
-			j = dJointCreateBall(ctx->dworld, 0);
+			j = dJointCreateBall(ctx->dworld, jgid);
 			break;
 		case JOINTTYPE_HINGE:
-			j = dJointCreateHinge(ctx->dworld, 0);
+			j = dJointCreateHinge(ctx->dworld, jgid);
 			break;
 		case JOINTTYPE_SLIDER:
-			j = dJointCreateSlider(ctx->dworld, 0);
+			j = dJointCreateSlider(ctx->dworld, jgid);
 			break;
 		case JOINTTYPE_UNIVERSAL:
-			j = dJointCreateUniversal(ctx->dworld, 0);
+			j = dJointCreateUniversal(ctx->dworld, jgid);
 			break;
 		case JOINTTYPE_HINGE2:
-			j = dJointCreateHinge2(ctx->dworld, 0);
+			j = dJointCreateHinge2(ctx->dworld, jgid);
 			break;
 		case JOINTTYPE_FIXED:
-			j = dJointCreateFixed(ctx->dworld, 0);
+			j = dJointCreateFixed(ctx->dworld, jgid);
 			break;
 		case 0:
 		default:
@@ -1635,6 +1653,7 @@ static void World_ODE_Frame_JointFromEntity(world_t *world, wedict_t *ed)
 		{
 			case JOINTTYPE_POINT:
 				dJointSetBallAnchor(j, origin[0], origin[1], origin[2]);
+				dJointSetBallAnchor2(j, velocity[0], velocity[1], velocity[2]);
 				break;
 			case JOINTTYPE_HINGE:
 				dJointSetHingeAnchor(j, origin[0], origin[1], origin[2]);
@@ -1698,6 +1717,7 @@ static void World_ODE_Frame_JointFromEntity(world_t *world, wedict_t *ed)
 				dJointSetHinge2Param(j, dParamVel2, Vel);
 				break;
 			case JOINTTYPE_FIXED:
+				dJointSetFixed(j);
 				break;
 			case 0:
 			default:
@@ -2035,6 +2055,9 @@ static void World_ODE_Frame_BodyFromEntity(world_t *world, wedict_t *ed)
 	vec_t f;
 	vec_t length;
 	vec_t massval = 1.0f;
+	dReal dampLinear;
+	dReal dampAngular;
+	dReal maxAngularSpeed;
 	vec_t movelimit;
 	vec_t radius;
 	vec_t scale;
@@ -2048,6 +2071,9 @@ static void World_ODE_Frame_BodyFromEntity(world_t *world, wedict_t *ed)
 	solid = (int)ed->v->solid;
 	movetype = (int)ed->v->movetype;
 	scale = ed->xv->scale?ed->xv->scale:1;
+	dampLinear = (ed->xv->damp_linear >= 0.0f) ? ed->xv->damp_linear : 0.0f;
+	dampAngular = (ed->xv->damp_angular >= 0.0f) ? ed->xv->damp_angular : 0.0f;
+	maxAngularSpeed = (ed->xv->max_angular > 0.0f) ? ed->xv->max_angular : dInfinity;
 	modelindex = 0;
 	model = NULL;
 
@@ -2443,6 +2469,9 @@ static void World_ODE_Frame_BodyFromEntity(world_t *world, wedict_t *ed)
 				dBodySetLinearVel(body, velocity[0], velocity[1], velocity[2]);
 				dBodySetAngularVel(body, spinvelocity[0], spinvelocity[1], spinvelocity[2]);
 				dBodySetGravityMode(body, gravity);
+				dBodySetLinearDamping(body, dampLinear);
+				dBodySetAngularDamping(body, dampAngular);
+				dBodySetMaxAngularSpeed(body, maxAngularSpeed);
 			}
 			else
 			{
@@ -2452,6 +2481,9 @@ static void World_ODE_Frame_BodyFromEntity(world_t *world, wedict_t *ed)
 				dBodySetLinearVel(body, velocity[0], velocity[1], velocity[2]);
 				dBodySetAngularVel(body, spinvelocity[0], spinvelocity[1], spinvelocity[2]);
 				dBodySetGravityMode(body, gravity);
+				dBodySetLinearDamping(body, dampLinear);
+				dBodySetAngularDamping(body, dampAngular);
+				dBodySetMaxAngularSpeed(body, maxAngularSpeed);
 				dGeomSetBody(ed->rbe.body.geom, 0);
 			}
 		}
@@ -2508,6 +2540,10 @@ static void VARGS nearCallback (void *data, dGeomID o1, dGeomID o2)
 	float bouncestop1 = 60.0f / 800.0f;
 	float bouncefactor2 = 0.0f;
 	float bouncestop2 = 60.0f / 800.0f;
+	float dampLinear1 = 1.0f;
+	float dampAngular1 = 1.0f;
+	float dampLinear2 = 1.0f;
+	float dampAngular2 = 1.0f;
 	float erp;
 	dVector3 grav;
 	wedict_t *ed1, *ed2;
@@ -2619,20 +2655,28 @@ static void VARGS nearCallback (void *data, dGeomID o1, dGeomID o2)
 	// add these contact points to the simulation
 	for (i = 0;i < numcontacts;i++)
 	{
-		contact[i].surface.mode =	(physics_ode_contact_mu->value != -1 ? dContactApprox1 : 0) |
+		contact[i].surface.mode =	dContactApprox1 |
 									(physics_ode_contact_erp->value != -1 ? dContactSoftERP : 0) |
 									(physics_ode_contact_cfm->value != -1 ? dContactSoftCFM : 0) |
 									(bouncefactor1 > 0 ? dContactBounce : 0);
-		contact[i].surface.mu = physics_ode_contact_mu->value;
-		if (ed1->xv->friction)
-			contact[i].surface.mu *= ed1->xv->friction;
-		if (ed2->xv->friction)
-			contact[i].surface.mu *= ed2->xv->friction;
+
+		if (physics_ode_contact_mu->value != -1) {
+			contact[i].surface.mu = physics_ode_contact_mu->value;
+
+			if (ed1->xv->friction)
+				contact[i].surface.mu *= ed1->xv->friction;
+			if (ed2->xv->friction)
+				contact[i].surface.mu *= ed2->xv->friction;
+		} else {
+			contact[i].surface.mu = dInfinity;
+		}
+
 		contact[i].surface.mu2 = 0;
 		contact[i].surface.soft_erp = physics_ode_contact_erp->value + erp;
 		contact[i].surface.soft_cfm = physics_ode_contact_cfm->value;
 		contact[i].surface.bounce = bouncefactor1;
 		contact[i].surface.bounce_vel = bouncestop1;
+
 		c = dJointCreateContact(ctx->dworld, ctx->contactgroup, contact + i);
 		dJointAttach(c, b1, b2);
 	}

@@ -141,6 +141,7 @@ typedef struct cvar_group_s
 #define CVAR_WATCHED		(1<<22)	//report any attempts to change this cvar.
 #define CVAR_VIDEOLATCH		(1<<23)
 #define CVAR_WARNONCHANGE	(1<<24)	//print a warning when changed to a value other than its default.
+#define CVAR_RENDEREROVERRIDE	(1<<25)	//the renderer has forced the cvar to indicate that only that value is supported
 
 #define CVAR_LASTFLAG CVAR_VIDEOLATCH
 
@@ -154,6 +155,7 @@ cvar_t *Cvar_Get2 (const char *var_name, const char *value, int flags, const cha
 #define Cvar_Get(n,v,f,g) Cvar_Get2(n,v,f,NULL,g)
 
 void Cvar_LockFromServer(cvar_t *var, const char *str);
+void Cvar_LockUnsupportedRendererCvar(cvar_t *var, const char *str);
 
 qboolean 	Cvar_Register (cvar_t *variable, const char *cvargroup);
 // registers a cvar that already has the name, string, and optionally the

@@ -394,6 +394,52 @@ static void J_JoystickButton(SDL_JoystickID jid, int button, qboolean pressed)
 	}
 }
 
+enum controllertype_e INS_GetControllerType(int id)
+{
+#if SDL_VERSION_ATLEAST(2,0,12)
+	int i;
+	for (i = 0; i < MAX_JOYSTICKS; i++)
+	{
+		if (sdljoy[i].qdevid == id)
+		{
+			switch(SDL_GameControllerTypeForIndex(sdljoy[i].id))
+			{
+			default:	//for the future...
+			case SDL_CONTROLLER_TYPE_UNKNOWN:
+				return CONTROLLER_UNKNOWN;
+#if SDL_VERSION_ATLEAST(2,0,14)
+			case SDL_CONTROLLER_TYPE_VIRTUAL:	//don't really know... assume steaminput and thus steamdeck and thus xbox-like.
+				return CONTROLLER_VIRTUAL;
+#endif
+			case SDL_CONTROLLER_TYPE_XBOX360:
+			case SDL_CONTROLLER_TYPE_XBOXONE:
+#if SDL_VERSION_ATLEAST(2,0,16)
+			case SDL_CONTROLLER_TYPE_GOOGLE_STADIA:	//close enough
+			case SDL_CONTROLLER_TYPE_AMAZON_LUNA:	//it'll do. I guess we're starting to see a standard here.
+#endif
+#if SDL_VERSION_ATLEAST(2,0,24)
+			case SDL_CONTROLLER_TYPE_NVIDIA_SHIELD:
+#endif
+				return CONTROLLER_XBOX;	//a on bottom, b('cancel') to right
+			case SDL_CONTROLLER_TYPE_PS3:
+			case SDL_CONTROLLER_TYPE_PS4:
+#if SDL_VERSION_ATLEAST(2,0,14)
+			case SDL_CONTROLLER_TYPE_PS5:
+#endif
+				return CONTROLLER_PLAYSTATION;	//weird indecipherable shapes.
+			case SDL_CONTROLLER_TYPE_NINTENDO_SWITCH_PRO:
+#if SDL_VERSION_ATLEAST(2,0,24)
+			case SDL_CONTROLLER_TYPE_NINTENDO_SWITCH_JOYCON_LEFT:
+			case SDL_CONTROLLER_TYPE_NINTENDO_SWITCH_JOYCON_RIGHT:
+			case SDL_CONTROLLER_TYPE_NINTENDO_SWITCH_JOYCON_PAIR:
+#endif
+				return CONTROLLER_NINTENDO;	//b on bottom, a('cancel') to right
+			}
+		}
+	}
+#endif
+	return 0;
+}
 void INS_Rumble(int id, quint16_t amp_low, quint16_t amp_high, quint32_t duration)
 {
 #if SDL_VERSION_ATLEAST(2,0,9)
@@ -459,7 +505,8 @@ void INS_SetLEDColor(int id, vec3_t color)
 void INS_SetTriggerFX(int id, const void *data, size_t size)
 {
 #if SDL_VERSION_ATLEAST(2,0,15)
-	for (int i = 0; i < MAX_JOYSTICKS; i++)
+	int i;
+	for (i = 0; i < MAX_JOYSTICKS; i++)
 	{
 		if (sdljoy[i].qdevid == id)
 		{
@@ -1080,26 +1127,11 @@ static unsigned int tbl_sdltoquakemouse[] =
 #include <SDL_misc.h>
 static qboolean usesteamosk;
 #endif
-#endif
-void Sys_SendKeyEvents(void)
-{
-	SDL_Event event;
-	int axis, j;
 
-#ifdef HAVE_SDL_TEXTINPUT
+void INS_SetOSK(int osk)
+{
 	static SDL_bool active = false;
-	SDL_bool osk = Key_Dest_Has(kdm_console|kdm_cwindows|kdm_message);
-	if (Key_Dest_Has(kdm_prompt|kdm_menu))
-	{
-		j = Menu_WantOSK();
-		if (j < 0)
-			osk |= sys_osk.ival;
-		else
-			osk |= j;
-	}
-	else if (Key_Dest_Has(kdm_game))
-		osk |= sys_osk.ival;
-	if (osk)
+	if (osk && sdlwindow)
 	{
 		SDL_Rect rect;
 		rect.x = 0;
@@ -1134,8 +1166,41 @@ void Sys_SendKeyEvents(void)
 //			Con_Printf("OSK shown... killed\n");
 		}
 	}
+}
+#else
+void INS_SetOSK(int osk)
+{
+}
+#endif
+void Sys_SendKeyEvents(void)
+{
+	SDL_Event event;
+	int axis, j;
+
+#ifdef HAVE_SERVER
+	if (isDedicated)
+	{
+		SV_GetConsoleCommands ();
+		return;
+	}
 #endif
 
+#ifdef HAVE_SDL_TEXTINPUT
+	{
+		SDL_bool osk = Key_Dest_Has(kdm_console|kdm_cwindows|kdm_message);
+		if (Key_Dest_Has(kdm_prompt|kdm_menu))
+		{
+			j = Menu_WantOSK();
+			if (j < 0)
+				osk |= sys_osk.ival;
+			else
+				osk |= j;
+		}
+		else if (Key_Dest_Has(kdm_game))
+			osk |= sys_osk.ival;
+		INS_SetOSK(osk);
+	}
+#endif
 
 	while(SDL_PollEvent(&event))
 	{
@@ -1155,9 +1220,10 @@ void Sys_SendKeyEvents(void)
 					SDL_Vulkan_GetDrawableSize(sdlwindow, &window_width, &window_height);	//get the proper physical size.
 					if (vid.pixelwidth != window_width || vid.pixelheight != window_height)
 						vk.neednewswapchain = true;
+					break;
 				}
-				else
 #endif
+				if (qrenderer == QR_OPENGL)
 				{
 					#if SDL_VERSION_ATLEAST(2,0,1)
 						SDL_GL_GetDrawableSize(sdlwindow, &vid.pixelwidth, &vid.pixelheight);	//get the proper physical size.

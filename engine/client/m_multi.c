@@ -845,6 +845,7 @@ void M_Menu_GameOptions_f (void)
 
 void M_Menu_Teamplay_f (void)
 {
+#ifdef QWSKINS
 	static const char *noskinsoptions[] =
 	{
 		"Enabled",
@@ -859,6 +860,7 @@ void M_Menu_Teamplay_f (void)
 		"2",
 		NULL
 	};
+#endif
 
 	extern cvar_t cl_parseSay, cl_triggers, tp_forceTriggers, tp_loadlocs, cl_parseFunChars, cl_noblink, noskins;
 	int y;
@@ -866,7 +868,9 @@ void M_Menu_Teamplay_f (void)
 	{
 		MB_REDTEXT("Teamplay Options", true),
 		MB_TEXT("^Ue080^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue081^Ue082", true),
+#ifdef QWSKINS
 		MB_COMBOCVAR("Skins", noskins, noskinsoptions, noskinsvalues, "Enable or disable player skin usage. No download will use skins but will not download them from the server."),
+#endif
 		MB_EDITCVARTIP("Enemy Skin", "cl_enemyskin", "Override enemy skin with this."),
 		MB_EDITCVARTIP("Team Skin", "cl_teamskin", "Override teammate skin with this."),
 		MB_EDITCVARTIP("Fake Name", "cl_fakename", "Name that appears in teamplay messages"),

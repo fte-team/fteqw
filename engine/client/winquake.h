@@ -128,7 +128,8 @@ extern qboolean	mouseinitialized;
 //extern HANDLE	hinput, houtput;
 
 extern HCURSOR	hArrowCursor, hCustomCursor;
-void *WIN_CreateCursor(const qbyte *imagedata, int width, int height, uploadfmt_t format, float hotx, float hoty, float scale);
+enum uploadfmt;
+void *WIN_CreateCursor(const qbyte *imagedata, int width, int height, enum uploadfmt format, float hotx, float hoty, float scale);
 qboolean WIN_SetCursor(void *cursor);
 void WIN_DestroyCursor(void *cursor);
 void WIN_WindowCreated(HWND window);

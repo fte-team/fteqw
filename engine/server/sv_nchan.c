@@ -282,14 +282,7 @@ void ClientReliableWrite_SZ(client_t *cl, const void *data, int len)
 
 
 #ifdef PEXT_ZLIBDL
-
-#ifdef WIN32
-#define ZEXPORT VARGS
-#include "../zip/zlib.h"
-//# pragma comment (lib, "zip/zlib.lib") 
-#else
 #include <zlib.h>
-#endif
 
 void ClientReliableWrite_ZLib(client_t *cl, void *data, int len)
 {

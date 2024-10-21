@@ -89,12 +89,9 @@ void() Q4PM_Draw =
 	}
 
 	ideal = anglequadrant();
-	aimang_y = self.angles_y;
-	aimang_z = self.angles_x*-3;
+	aimang = [0, self.angles_y, self.angles_x*-3];
 
-	self.angles_x = 0;
-	self.angles_y = self.rangle;
-	self.angles_z = 0;
+	self.angles = [0, self.rangle, 0];
 	mychangeyaw(ideal, 360);
 	self.rangle = self.angles_y;
 

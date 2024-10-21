@@ -38,12 +38,14 @@ char shaders[][64] =
 	"postproc_laea",
 	"postproc_stereographic",
 	"postproc_equirectangular",
+	"postproc_panini",
 	"postproc_ascii",
 	"fxaa",
 	"underwaterwarp",
 	"menutint",
 	"terrain",
 	"rtlight",
+	"rq_rtlight",
 	""
 };
 

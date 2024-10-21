@@ -287,8 +287,6 @@ typedef struct dispinfo_s
         float alpha;
     } *verts;
     //unsigned short *flags;
-
-    q2csurface_t csurface;  //collision info for q2 gamecode.
 } dispinfo_t;
 
 typedef struct vbspinfo_s
@@ -1801,7 +1799,7 @@ static qboolean VBSP_LoadFaces (model_t *mod, qbyte *mod_base, vlump_t *lumps, i
 
 		if (out->texinfo->flags & TI_SKY)
 		{
-			out->flags |= SURF_DRAWSKY;
+			out->flags |= SURF_DRAWSKY|SURF_DRAWTILED;
 		}
 		if (out->texinfo->flags & TI_WARP)
 		{
@@ -4157,7 +4155,7 @@ qboolean VBSP_Init(void)
 {
 	filefuncs = plugfuncs->GetEngineInterface(plugfsfuncs_name, sizeof(*filefuncs));
 	modfuncs = plugfuncs->GetEngineInterface(plugmodfuncs_name, sizeof(*modfuncs));
-	if (modfuncs && modfuncs->version < MODPLUGFUNCS_VERSION)
+	if (modfuncs && modfuncs->version != MODPLUGFUNCS_VERSION)
 		modfuncs = NULL;
 	threadfuncs = plugfuncs->GetEngineInterface(plugthreadfuncs_name, sizeof(*threadfuncs));
 

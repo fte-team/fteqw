@@ -132,13 +132,10 @@ static void sha2trunc_init (void *context)
   hd->count = 0;
 }
 
-#if defined(__GNUC__) && (__GNUC__==10)
-	__attribute__((optimize("no-tree-bit-ccp")))	//gcc (Debian 10.2.1-6) 10.2.1 20210110 miscompiles without this (eg: test webrtc compat with a browser)
-#endif
 fte_inlinestatic u64
 ROTR (u64 x, u64 n)
 {
-  return ((x >> n) | (x << (64 - n)));
+  return ((x >> n) | (x << (sizeof(u64)*8 - n)));
 }
 
 fte_inlinestatic u64
@@ -531,6 +528,24 @@ hashfunc_t hash_sha2_256 =
 	sha2_write,
 	sha256_finish
 };
+
+/*#if defined(HAVE_SERVER) && !defined(HAVE_CLIENT)
+__attribute__((constructor)) void sha2_256_unit_test(void)
+{
+	qbyte digest[256/8];
+	qbyte need[sizeof(digest)];
+
+	CalcHash(&hash_sha2_256, digest, sizeof(digest), (qbyte*)(volatile qbyte*)"", 0);
+	Base16_DecodeBlock("e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", need, sizeof(need));
+	if (memcmp(digest, need, sizeof(digest)))
+		printf("%s %i fail\n", __func__, __LINE__), abort();
+
+	CalcHash(&hash_sha2_256, digest, sizeof(digest), (qbyte*)(volatile qbyte*)"abc", 3);
+	Base16_DecodeBlock("ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad", need, sizeof(need));
+	if (memcmp(digest, need, sizeof(digest)))
+		printf("%s %i fail\n", __func__, __LINE__), abort();
+}
+#endif*/
 #endif
 #if SHA2==512
 static void sha384_finish (qbyte *digest, void *context)

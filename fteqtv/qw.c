@@ -20,8 +20,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #include "qtv.h"
 #include <string.h>
-
-#include "bsd_string.h"
+#include <time.h>
 
 static const filename_t ConnectionlessModelList[] = {{""}, {"maps/start.bsp"}, {"progs/player.mdl"}, {""}};
 static const filename_t ConnectionlessSoundList[] = {{""}, {""}};
@@ -182,6 +181,11 @@ void BuildServerData(sv_t *tv, netmsg_t *msg, int servercount, viewer_t *viewer)
 		{
 			WriteLong(msg, PROTOCOL_VERSION_FTE2);
 			WriteLong(msg, tv->pext2);
+		}
+		if (tv->pexte)
+		{
+			WriteLong(msg, PROTOCOL_VERSION_EZQUAKE1);
+			WriteLong(msg, tv->pexte);
 		}
 	}
 	WriteLong(msg, PROTOCOL_VERSION);
@@ -710,13 +714,40 @@ void QW_SetViewersServer(cluster_t *cluster, viewer_t *viewer, sv_t *sv)
 }
 
 //fixme: will these want to have state?..
-int NewChallenge(netadr_t *addr)
+int NewChallenge(cluster_t *cluster, netadr_t *addr)
 {
-	return 4;
+	unsigned int r = 0, l;
+	unsigned char *digest;
+	void *ctx;
+	hashfunc_t *func = &hash_sha1;
+	static time_t t;
+
+	//reminder: Challenges exist so clients can't spoof their source address and waste our ram without us being able to ban them without banning everyone.
+	size_t sz = 0;
+	if (((struct sockaddr*)addr->sockaddr)->sa_family == AF_INET)
+		sz = sizeof(struct sockaddr_in);
+	else if (((struct sockaddr*)addr->sockaddr)->sa_family == AF_INET6)
+		sz = sizeof(struct sockaddr_in6);
+	//else error
+
+	ctx = alloca(func->contextsize);
+	func->init(ctx);
+	if (!t)	//must be constant, so only do this if its still 0.
+		t = time(NULL);
+	func->process(ctx, addr, sz);		//hash their address primarily.
+	func->process(ctx, cluster->turnkey, sizeof(cluster->turnkey));	//might not be set...
+	func->process(ctx, &t, sizeof(t));	//extra privacy, sizeof doesn't matter as its only our process that cares
+	//func->process(ctx, cluster, sizeof(cluster));	//a random pointer too, because zomgwtf
+
+	digest = alloca(func->digestsize);
+	func->terminate(digest, ctx);
+	for (l = 0; l < func->digestsize; l++)
+		r ^= digest[l]<<((l%sizeof(r))*8);
+	return r;
 }
-qboolean ChallengePasses(netadr_t *addr, int challenge)
+qboolean ChallengePasses(cluster_t *cluster, netadr_t *addr, int challenge)
 {
-	if (challenge == 4)
+	if (challenge == NewChallenge(cluster, addr))
 		return true;
 	return false;
 }
@@ -725,7 +756,27 @@ void NewClient(cluster_t *cluster, viewer_t *viewer)
 {
 	sv_t *initialserver;
 	initialserver = NULL;
-	if (*cluster->autojoinadr)
+
+	if (viewer->netchan.remote_address.tcpcon)
+	{
+		tcpconnect_t *dest;
+		for (dest = cluster->tcpconnects; dest; dest = dest->next)
+		{
+			if (dest == viewer->netchan.remote_address.tcpcon)
+				break;
+		}
+
+		if (*dest->initialstreamname)
+		{
+			initialserver = QTV_NewServerConnection(cluster, 0, dest->initialstreamname, "", false, AD_WHENEMPTY, true, false);
+			if (initialserver && initialserver->sourcetype == SRC_UDP)
+				initialserver->controller = viewer;
+		}
+	}
+
+	if (initialserver)
+		;	//already picked it via websocket resources.
+	else if (*cluster->autojoinadr)
 	{
 		initialserver = QTV_NewServerConnection(cluster, 0, cluster->autojoinadr, "", false, AD_WHENEMPTY, true, false);
 		if (initialserver && initialserver->sourcetype == SRC_UDP)
@@ -916,7 +967,8 @@ void NewQWClient(cluster_t *cluster, netadr_t *addr, char *connectmessage)
 
 	char qport[32];
 	char challenge[32];
-	char infostring[256];
+	char infostring[1024];
+	char prx[256];
 	int i;
 
 	connectmessage+=11;
@@ -925,9 +977,16 @@ void NewQWClient(cluster_t *cluster, netadr_t *addr, char *connectmessage)
 	connectmessage = COM_ParseToken(connectmessage, challenge, sizeof(challenge), "");
 	connectmessage = COM_ParseToken(connectmessage, infostring, sizeof(infostring), "");
 
-	if (!ChallengePasses(addr, atoi(challenge)))
+	if (!ChallengePasses(cluster, addr, atoi(challenge)))
 	{
 		Netchan_OutOfBandPrint(cluster, *addr, "n" "Bad challenge");
+		return;
+	}
+
+	Info_ValueForKey(infostring, "prx", prx,sizeof(prx));
+	if (*prx)
+	{
+		Fwd_NewQWFwd(cluster, addr, prx);
 		return;
 	}
 
@@ -1149,6 +1208,109 @@ void QTV_Status(cluster_t *cluster, netadr_t *from)
 	WriteByte(&msg, 0);
 	NET_SendPacket(cluster, NET_ChooseSocket(cluster->qwdsocket, from, *from), msg.cursize, msg.data, *from);
 }
+static void QTV_GetInfo(cluster_t *cluster, netadr_t *from, char *args)
+{
+	//ftemaster support
+	char challenge[256], tmp[64];
+	char protocolname[MAX_QPATH];
+	char buffer[8192];
+	netmsg_t msg;
+	qboolean authed = false;
+	InitNetMsg(&msg, buffer, sizeof(buffer));
+
+	args = COM_ParseToken(args, challenge, sizeof(challenge), "");
+	while((args = COM_ParseToken(args, tmp, sizeof(tmp), "")))
+	{
+		if (!strncmp(tmp, "c=",2) && !strcmp(tmp+2, cluster->chalkey))
+			authed = true;	//they're able to read our outgoing packets. assume not intercepted (at least blocks spoofed packets). should really use (d)tls. this is more to protect our resources than anything else though, so doesn't need to be strong.
+		else if (!strncmp(tmp, "a=",2) && authed)
+		{
+			netadr_t adr;
+			if (NET_StringToAddr(tmp+2, &adr, 0))
+			{	//master told us our IP. we can use that to report to turn clients
+				if (((struct sockaddr*)&adr.sockaddr)->sa_family == AF_INET)
+					memcpy(cluster->turn_ipv4, &((struct sockaddr_in*)&adr.sockaddr)->sin_addr, 4);
+				else if (((struct sockaddr*)&adr.sockaddr)->sa_family == AF_INET6)
+					memcpy(cluster->turn_ipv6, &((struct sockaddr_in6*)&adr.sockaddr)->sin6_addr, 16);
+			}
+		}
+	}
+	COM_ParseToken(cluster->protocolname?cluster->protocolname:"FTE-Quake", protocolname, sizeof(protocolname), "");	//we can only report one, so report the first.
+
+	//response packet header
+	WriteLong(&msg, ~0u);
+//	if (fullstatus)
+//		WriteString2(&msg, "statusResponse\n");
+//	else
+		WriteString2(&msg, "infoResponse\n");
+
+	//first line contains the serverinfo, or some form of it
+	WriteString2(&msg, "\\*QTV\\");				WriteString2(&msg, QTV_VERSION_STRING);
+//	WriteString2(&msg, "\\*fp\\");				WriteString2(&msg, hash(cert));
+	if (authed)
+	{	//only reported to the master server to generate time-based auth tokens.
+		tobase64(tmp,sizeof(tmp), cluster->turnkey, sizeof(cluster->turnkey));
+		WriteString2(&msg, "\\_turnkey\\");			WriteString2(&msg, tmp);
+	}
+	WriteString2(&msg, "\\challenge\\");		WriteString2(&msg, challenge);
+	WriteString2(&msg, "\\gamename\\");			WriteString2(&msg, protocolname);
+	snprintf(tmp, sizeof(tmp), "%i%s", cluster->protocolname?cluster->protocolver:3, "t"); //'w':quakeworld, 'n'/'d':netquake, 'x':qe, 't':qtv, 'r':turnrelay, 'f':fwd
+	WriteString2(&msg, "\\protocol\\");			WriteString2(&msg, tmp);
+	WriteString2(&msg, "\\clients\\");			WriteString2(&msg, "0");
+	WriteString2(&msg, "\\sv_maxclients\\");	WriteString2(&msg, "0");
+	WriteString2(&msg, "\\modname\\");			WriteString2(&msg, "QTV");
+	WriteString2(&msg, "\\mapname\\");			WriteString2(&msg, "QTV");
+	WriteString2(&msg, "\\hostname\\");			WriteString2(&msg, cluster->hostname);
+	snprintf(tmp, sizeof(tmp), "%i", cluster->tcplistenportnum);
+	WriteString2(&msg, "\\sv_port_tcp\\");		WriteString2(&msg, tmp);
+
+	/*if (fullstatus)
+	{
+		client_t *cl;
+		char *start = resp;
+
+		if (resp != response+sizeof(response))
+		{
+			resp[-1] = '\n';	//replace the null terminator that we already wrote
+
+			//on the following lines we have an entry for each client
+			for (i=0 ; i<svs.allocated_client_slots ; i++)
+			{
+				cl = &svs.clients[i];
+				if ((cl->state == cs_connected || cl->state == cs_spawned || cl->name[0]) && !cl->spectator)
+				{
+					Q_strncpyz(resp, va(
+									"%d %d \"%s\" \"%s\"\n"
+									,
+									cl->old_frags,
+									SV_CalcPing(cl, false),
+									cl->team,
+									cl->name
+									), sizeof(response) - (resp-response));
+					resp += strlen(resp);
+				}
+			}
+
+			*resp++ = 0;	//this might not be a null
+			if (resp == response+sizeof(response))
+			{
+				//we're at the end of the buffer, it's full. bummer
+				//replace 12 bytes with infoResponse
+				memcpy(response+4, "infoResponse", 12);
+				//move down by len(statusResponse)-len(infoResponse) bytes
+				memmove(response+4+12, response+4+14, resp-response-(4+14));
+				start -= 14-12; //fix this pointer
+
+				resp = start;
+				resp[-1] = 0;	//reset the \n
+			}
+		}
+	}*/
+
+	WriteByte(&msg, 0);
+
+	NET_SendPacket(cluster, NET_ChooseSocket(cluster->qwdsocket, from, *from), msg.cursize, msg.data, *from);
+}
 
 void QTV_StatusResponse(cluster_t *cluster, char *msg, netadr_t *from)
 {
@@ -1264,10 +1426,21 @@ void ConnectionlessPacket(cluster_t *cluster, netadr_t *from, netmsg_t *m)
 		QTV_Status(cluster, from);
 		return;
 	}
+	if (!strncmp(buffer, "getinfo", 7))
+	{
+		QTV_GetInfo(cluster, from, buffer+7);
+		return;
+	}
 	if (!strncmp(buffer, "getchallenge", 12))
 	{
-		i = NewChallenge(from);
-		Netchan_OutOfBandPrint(cluster, *from, "c%i", i);
+		i = NewChallenge(cluster, from);
+		if (!cluster->relayenabled)
+			Netchan_OutOfBandPrint(cluster, *from, "c%i", i);
+		else
+		{	//special response to say we don't support dtls, but can proxy it, so use dtlsconnect without needing to send any private info until the final target is determined.
+			snprintf(buffer, sizeof(buffer), "c%i%cDTLS\xff\xff\xff\xff", i, 0);	//PROTOCOL_VERSION_DTLSUPGRADE
+			Netchan_OutOfBand(cluster, *from, strlen(buffer)+9, buffer);
+		}
 		return;
 	}
 	if (!strncmp(buffer, "connect 28 ", 11))
@@ -1276,6 +1449,57 @@ void ConnectionlessPacket(cluster_t *cluster, netadr_t *from, netmsg_t *m)
 			Netchan_OutOfBandPrint(cluster, *from, "n" "Sorry, proxy is full.\n");
 		else
 			NewQWClient(cluster, from, buffer);
+		return;
+	}
+	if (!strncmp(buffer, "getserversExtResponse", 21) && cluster->pingtreeenabled)
+	{	//q3-style serverlist response
+		m->readpos = 4+21;
+		Fwd_ParseServerList(cluster, m, -1);
+		return;
+	}
+	if (!strncmp(buffer, "d\n", 2) && cluster->pingtreeenabled)
+	{	//legacy qw serverlist response
+		m->readpos = 4+2;
+		Fwd_ParseServerList(cluster, m, AF_INET);
+		return;
+	}
+	if (!strcmp(buffer, "l") && cluster->pingtreeenabled)
+	{	//qw ping response
+		Fwd_PingResponse(cluster, from);
+		return;
+	}
+	if (!strncmp(buffer, "pingstatus", 10) && cluster->pingtreeenabled)
+	{
+		int ext = false;
+		char arg[64];
+		if (buffer[10] == ' ')
+		{
+			char *s = buffer + 11;
+			while (*s)
+			{
+				s = COM_ParseToken(s, arg,sizeof(arg), "");	//
+				if (!strcmp(arg, "ext"))
+					ext = true;
+			}
+		}
+		Fwd_PingStatus(cluster, from, ext);
+		return;
+	}
+	if (!strncmp(buffer, "dtlsconnect ", 12) && cluster->relayenabled)
+	{	//dtlsconnect challenge [finalip@middleip@targetip]
+		char challenge[64];
+		char *s = COM_ParseToken(buffer+12, challenge,sizeof(challenge), "");	//
+		if (ChallengePasses(cluster, from, atoi(challenge)))
+		{
+			while(*s == ' ')
+				s++;
+			Fwd_NewQWFwd(cluster, from, s);	//will send a challenge to the target.
+			//the relay code will pass the response to the client triggering a new dtlsconnect.
+			//eventually punching all the way through to the target which will respond with a dtlsopened.
+			//the client will then be free to send its dtls handshakes, with the server's certificate matched against the fingerprint reported by the master.
+			//this should ensure there's no tampering.
+			//note that we cannot read any disconnect hints when they're encrypted, so we'll be depending on timeouts (which also avoids malicious disconnect spoofs, yay?)
+		}
 		return;
 	}
 //	if (buffer[0] == 'l' && (!buffer[1] || buffer[1] == '\n'))
@@ -2728,7 +2952,7 @@ I've removed the following from this function as it covered the menu (~Moodles):
 	else if (!strcmp(command, "guidemos"))
 	{
 		int maxshowndemos;
-		char sizestr[7];
+		char sizestr[11];
 		int start;
 		int i;
 
@@ -2776,13 +3000,13 @@ I've removed the following from this function as it covered the menu (~Moodles):
 			if (i >= cluster->availdemoscount)
 				break;
 			if (cluster->availdemos[i].size < 1024)
-				sprintf(sizestr, "%4ib", cluster->availdemos[i].size);
+				snprintf(sizestr, sizeof(sizestr), "%4ib", cluster->availdemos[i].size);
 			else if (cluster->availdemos[i].size < 1024*1024)
-				sprintf(sizestr, "%4ikb", cluster->availdemos[i].size/1024);
+				snprintf(sizestr, sizeof(sizestr), "%4ikb", cluster->availdemos[i].size/1024);
 			else if (cluster->availdemos[i].size < 1024*1024*1024)
-				sprintf(sizestr, "%4imb", cluster->availdemos[i].size/(1024*1024));
+				snprintf(sizestr, sizeof(sizestr), "%4imb", cluster->availdemos[i].size/(1024*1024));
 			else// if (cluster->availdemos[i].size < 1024*1024*1024*1024)
-				sprintf(sizestr, "%4igb", cluster->availdemos[i].size/(1024*1024*1024));
+				snprintf(sizestr, sizeof(sizestr), "%4igb", cluster->availdemos[i].size/(1024*1024*1024));
 //			else
 //				*sizestr = 0;
 			QW_StuffcmdToViewer(v, "menutext 32 %i \"%6s %-30s\" \"demo %s\"\n", (i-start)*8 + 52+16, sizestr, cluster->availdemos[i].name, cluster->availdemos[i].name);
@@ -3743,6 +3967,10 @@ void ParseQWC(cluster_t *cluster, sv_t *qtv, viewer_t *v, netmsg_t *m)
 				if (v->server && v->server->controller == v)
 					SendClientCommand(v->server, "%s", buf+4);
 			}
+			else if (iscont && !strncmp(buf, "pext ", 5))
+			{	//FIXME: include ones we can parse properly...
+				SendClientCommand(v->server, "pext");
+			}
 			else if (!iscont && !strcmp(buf, "new"))
 			{
 				if (qtv && qtv->parsingconnectiondata)
@@ -4253,6 +4481,10 @@ void QW_ProcessUDPPacket(cluster_t *cluster, netmsg_t *m, netadr_t from)
 
 	if (*(int*)m->data == -1)
 	{	//connectionless message
+		if (TURN_IsRequest(cluster, m, &from))
+			return;
+		m->readpos = 0;
+
 		ConnectionlessPacket(cluster, &from, m);
 		return;
 	}
@@ -4273,7 +4505,7 @@ void QW_ProcessUDPPacket(cluster_t *cluster, netmsg_t *m, netadr_t from)
 	{
 		if (v->netchan.isnqprotocol)
 		{
-			if (Net_CompareAddress(&v->netchan.remote_address, &from, 0, 0))
+			if (Net_CompareAddress(&v->netchan.remote_address, &from, 0, 1))
 			{
 				if (NQNetchan_Process(cluster, &v->netchan, m))
 				{
@@ -4290,6 +4522,7 @@ void QW_ProcessUDPPacket(cluster_t *cluster, netmsg_t *m, netadr_t from)
 						QTV_Run(v->server);
 					}
 				}
+				return;
 			}
 		}
 		else
@@ -4331,15 +4564,20 @@ void QW_ProcessUDPPacket(cluster_t *cluster, netmsg_t *m, netadr_t from)
 						QTV_Run(v->server);
 					}
 				}
-				break;
+				return;
 			}
 		}
 	}
-	if (!v && cluster->allownqclients)
+	m->readpos = 0;
+
+	if (TURN_IsRequest(cluster, m, &from))
+		return;
+	m->readpos = 0;
+
+	if (cluster->allownqclients)
 	{
 		unsigned int ctrl;
 		//NQ connectionless packet?
-		m->readpos = 0;
 		ctrl = ReadLong(m);
 		ctrl = SwapLong(ctrl);
 		if (ctrl & NETFLAG_CTL)
@@ -4386,7 +4624,7 @@ void QW_ProcessUDPPacket(cluster_t *cluster, netmsg_t *m, netadr_t from)
 						{
 							if (v->netchan.isnqprotocol)
 							{
-								if (Net_CompareAddress(&v->netchan.remote_address, &from, 0, 0))
+								if (Net_CompareAddress(&v->netchan.remote_address, &from, 0, 1))
 								{
 									Sys_Printf(cluster, "Dup connect from %s\n", v->name);
 									v->drop = true;
@@ -4404,29 +4642,51 @@ void QW_ProcessUDPPacket(cluster_t *cluster, netmsg_t *m, netadr_t from)
 	}
 }
 
-void QW_TCPConnection(cluster_t *cluster, SOCKET sock, wsrbuf_t ws)
+void QW_TCPConnection(cluster_t *cluster, oproxy_t *sock, char *initialstreamname)
 {
 	int alen;
 	tcpconnect_t *tc;
-	tc = malloc(sizeof(*tc));
+
+	//clean up the pending source a bit...
+	if (sock->srcfile) fclose(sock->srcfile), sock->srcfile = NULL;
+
+	if (sock->drop)
+		tc = NULL;	//FIXME
+	else
+		tc = malloc(sizeof(*tc));
 	if (!tc)
 	{
-		closesocket(sock);
-		return;
+		closesocket(sock->sock);
+		free(initialstreamname);
 	}
-	tc->sock = sock;
-	tc->websocket = ws;
-	tc->inbuffersize = 0;
-	tc->outbuffersize = 0;
+	else
+	{	//okay, we're adding this as a client
+		//try and disable nagle, we don't really want to be wasting time not sending anything.
+		int _true = 1;
+		setsockopt(sock->sock, IPPROTO_TCP, TCP_NODELAY, (char *)&_true, sizeof(_true));
 
-	memset(&tc->peeraddr, 0, sizeof(tc->peeraddr));
-	tc->peeraddr.tcpcon = tc;
+		tc->sock = sock->sock;
+		tc->websocket = sock->websocket;	//copy it over
 
-	alen = sizeof(tc->peeraddr.sockaddr);
-	getpeername(sock, (struct sockaddr*)&tc->peeraddr.sockaddr, &alen);
+		tc->inbuffersize = sock->inbuffersize;
+		memcpy(tc->inbuffer, sock->inbuffer, tc->inbuffersize);
+		tc->outbuffersize = sock->buffersize;
+		memcpy(tc->outbuffer, sock->buffer+sock->bufferpos, tc->outbuffersize);
 
-	tc->next = cluster->tcpconnects;
-	cluster->tcpconnects = tc;
+		memset(&tc->peeraddr, 0, sizeof(tc->peeraddr));
+		tc->peeraddr.tcpcon = tc;
+
+		alen = sizeof(tc->peeraddr.sockaddr);
+		getpeername(sock->sock, (struct sockaddr*)&tc->peeraddr.sockaddr, &alen);
+
+		tc->initialstreamname = initialstreamname;
+		tc->next = cluster->tcpconnects;
+		cluster->tcpconnects = tc;
+	}
+
+	//okay, we're done with it.
+	free(sock);
+	cluster->numproxies--;
 }
 
 void QW_UpdateUDPStuff(cluster_t *cluster)
@@ -4445,7 +4705,12 @@ void QW_UpdateUDPStuff(cluster_t *cluster)
 	{
 		if (NET_StringToAddr(cluster->master, &from, 27000))
 		{
-			sprintf(buffer, "a\n%i\n0\n", cluster->mastersequence++);	//fill buffer with a heartbeat
+			if (cluster->turnenabled)
+				sprintf(buffer, "\377\377\377\377""heartbeat FTEMaster c=%s\n", cluster->chalkey);	//fill buffer with a heartbeat
+			else if (cluster->protocolname)
+				sprintf(buffer, "\377\377\377\377""heartbeat Darkplaces\n");	//older, broader compatibility.
+			else
+				sprintf(buffer, "a\n%i\n0\n", cluster->mastersequence++);	//fill buffer with a heartbeat
 //why is there no \xff\xff\xff\xff ?..
 			NET_SendPacket(cluster, NET_ChooseSocket(cluster->qwdsocket, &from, from), strlen(buffer), buffer, from);
 		}
@@ -4468,8 +4733,8 @@ void QW_UpdateUDPStuff(cluster_t *cluster)
 				break;
 			continue;
 		}
-		from.tcpcon = NULL;
-		read = recvfrom(cluster->qwdsocket[socketno], buffer, sizeof(buffer), 0, (struct sockaddr*)&from.sockaddr, (unsigned*)&fromsize);
+		memset(&from, 0, sizeof(from));
+		read = recvfrom(cluster->qwdsocket[socketno], buffer, sizeof(buffer)-1, 0, (struct sockaddr*)&from.sockaddr, (unsigned*)&fromsize);
 
 		if (read < 0)	//it's bad.
 		{
@@ -4481,14 +4746,38 @@ void QW_UpdateUDPStuff(cluster_t *cluster)
 
 		if (read <= 5)	//otherwise it's a runt or bad.
 		{
-			continue;
+			if (read == 1 && *buffer == 'l')
+			{	//ffs. easier to just fix it up here.
+				buffer[0] =
+				buffer[1] =
+				buffer[2] =
+				buffer[3] = 0xff;
+				buffer[4] = 'l';
+				read = 5;
+			}
+			else
+				continue;
 		}
 
 		m.cursize = read;
 		m.data = buffer;
 		m.readpos = 0;
 
+		buffer[m.cursize] = 0;	//make sure its null terminated.
 		QW_ProcessUDPPacket(cluster, &m, from);
+	}
+
+	for (tc = cluster->tcpconnects; tc; tc = tc->next)
+	{
+		if (tc->outbuffersize)
+		{
+			int clen = send(tc->sock, tc->outbuffer, tc->outbuffersize, 0);
+			if (clen > 0)
+			{
+				memmove(tc->outbuffer, tc->outbuffer+clen, tc->outbuffersize-clen);
+				tc->outbuffersize-=clen;
+			}
+		}
 	}
 
 	for (l = &cluster->tcpconnects; *l; )
@@ -4504,7 +4793,9 @@ void QW_UpdateUDPStuff(cluster_t *cluster)
 			if (read == 0 || qerrno != NET_EWOULDBLOCK)
 			{
 				*l = tc->next;
-				closesocket(tc->sock);
+				if (tc->sock != INVALID_SOCKET)
+					closesocket(tc->sock);
+				free(tc->initialstreamname);
 				free(tc);
 				continue;
 			}

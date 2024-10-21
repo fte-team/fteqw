@@ -1,9 +1,7 @@
 //Populate our filesystem from Module['files']
 FTEH = {h: [],
 		f: {}};
-
-if (!Module["arguments"])
-	Module['arguments'] = ['-nohome'];
+FTE_SW=null;
 
 if (!Module['canvas'])
 {	//we need a canvas to throw our webgl crap at...
@@ -18,10 +16,43 @@ if (!Module['canvas'])
 	}
 }
 
+Module['loadcachedfiles'] = function()
+{	//recover any previously saved files they might have drag+dropped.
+	addRunDependency("loadcachedfiles");
+	try
+	{
+		caches.open('user').then((c)=>{Module['cache']=c;return c.keys();}).then((keys)=>{
+			const cache = Module['cache'];
+			for(var r of keys)
+			{
+				const idx = r.url.indexOf("/_/")
+				if (idx < 0)
+					continue;	//wtf? that entry should not have been in this cache object.
+				const fn = r.url.substr(idx+3);
+				addRunDependency(fn);
+				const response = cache.match(r).then((response)=>{return response.arrayBuffer();}).then((buffer)=>{
+					let b = FTEH.h[_emscriptenfte_buf_createfromarraybuf(buffer)];
+					b.n = fn;
+					FTEH.f[b.n] = b;
+				}).finally(()=>{removeRunDependency(fn);});
+			}
+		}).finally(()=>{removeRunDependency("loadcachedfiles");});
+	}
+	catch(e)
+	{
+		removeRunDependency("loadcachedfiles");
+	}
+};
+
+Module['preRun'] = Module['loadcachedfiles'];
 if (typeof Module['files'] !== "undefined" && Object.keys(Module['files']).length>0)
 {
 	Module['preRun'] = function()
 	{
+		Module['loadcachedfiles']();
+
+		Module['curfile'] = undefined;
+
 		let files = Module['files'];
 		let names = Object.keys(files);
 		for (let i = 0; i < names.length; i++)
@@ -37,6 +68,8 @@ if (typeof Module['files'] !== "undefined" && Object.keys(Module['files']).lengt
 				xhr.open("GET", ab);
 				xhr.onload = function ()
 				{
+					if (Module['curfile'] == n)
+						Module['curfile'] = undefined;
 					if (this.status >= 200 && this.status < 300)
 					{
 						let b = FTEH.h[_emscriptenfte_buf_createfromarraybuf(this.response)];
@@ -49,11 +82,15 @@ if (typeof Module['files'] !== "undefined" && Object.keys(Module['files']).lengt
 				};
 				xhr.onprogress = function(e)
 				{
-					if (Module['setStatus'])
+					if (typeof Module['curfile'] == "undefined")
+						Module['curfile'] = n;	//take it.
+					if (Module['setStatus'] && Module['curfile']==n)
 				        Module['setStatus'](n + ' (' + e.loaded + '/' + e.total + ')');
 				};
 				xhr.onerror = function ()
 				{
+					if (Module['curfile'] == n)
+						Module['curfile'] = undefined;
 					removeRunDependency(n);
 				};
 				xhr.send();
@@ -85,31 +122,45 @@ if (typeof Module['files'] !== "undefined" && Object.keys(Module['files']).lengt
 		}
 	}
 }
-else if (typeof man == "undefined")
+else if (!Module['manifest'])
 {
-	var man = window.location.protocol + "//" + window.location.host + window.location.pathname;
+	let man = window.location.protocol + "//" + window.location.host + window.location.pathname;
 	if (man.substr(-1) != '/')
 		man += ".fmf";
 	else
 		man += "index.fmf";
+	Module['manifest'] = man;
+	
+	if (window.location.hash != "")
+		Module['manifest'] = window.location.hash.substring(1);
 }
 
-if (window.location.hash != "")
-	man = window.location.hash.substring(1);
-
-if (typeof man != "undefined")
-	Module['arguments'] = Module['arguments'].concat(['-manifest', man]);
-
-// use query string in URL as command line
-qstring = decodeURIComponent(window.location.search.substring(1)).split(" ");
-for (let i = 0; i < qstring.length; i++)
+if (!Module['arguments'])	//the html can be explicit about its args if it sets this to an empty array or w/e
 {
-	if ((qstring[i] == '+sv_port_rtc' || qstring[i] == '+connect' || qstring[i] == '+join' || qstring[i] == '+observe' || qstring[i] == '+qtvplay') && i+1 < qstring.length)
-	{
-		Module['arguments'] = Module['arguments'].concat(qstring[i+0], qstring[i+1]);
-		i++;
-	}
-	else if (!document.referrer)
-		Module['arguments'] = Module['arguments'].concat(qstring[i]);
-}
+	Module['arguments'] = [];
 
+	// use query string in URL as command line
+	const qstrings = decodeURIComponent(window.location.search.substring(1));
+	if (qstrings != "")
+	{
+		const qstring = qstrings.split(" ");
+		for (let i = 0; i < qstring.length; i++)
+		{
+			if (qstring[i] == '-manifest')
+				man = undefined; //don't do double manifest args...
+			if ((qstring[i] == '+sv_port_rtc' || qstring[i] == '+connect' || qstring[i] == '+join' || qstring[i] == '+observe' || qstring[i] == '+qtvplay') && i+1 < qstring.length)
+			{
+				Module['arguments'] = Module['arguments'].concat(qstring[i+0], qstring[i+1]);
+				i++;
+			}
+			else if (!document.referrer)	//ignore args from referers in order to try to protect against dodgy srgs a little.
+				Module['arguments'] = Module['arguments'].concat(qstring[i]);
+		}
+	}
+
+	if (Module['manifest'] != undefined)
+		Module['arguments'] = Module['arguments'].concat(['-manifest', Module['manifest']]);
+
+	//registerProtocolHandler needs to be able to pass it through to us... so only allow it if we're parsing args from the url.
+	Module['mayregisterscemes'] = true;
+}

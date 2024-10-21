@@ -173,10 +173,10 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 	#define DISTRIBUTIONLONG "Forethought Entertainment"	//effectively the 'company' name
 #endif
 #ifndef FULLENGINENAME
-	#define FULLENGINENAME "FTE Quake"	//the posh name for the engine
+	#define FULLENGINENAME "FTE QW"	//the posh name for the engine, note that 'Quake' is trademarked so we should not be using it here.
 #endif
 #ifndef ENGINEWEBSITE
-	#define ENGINEWEBSITE "^8http://^4fte^8.^4triptohell^8.^4info"	//url for program
+	#define ENGINEWEBSITE "^8https://^4fte^8.^4triptohell^8.^4info"	//url for program
 #endif
 
 #if !defined(_WIN32) || defined(WINRT)
@@ -187,9 +187,9 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 	#undef AVAIL_WASAPI
 #endif
 
-#if !(defined(__linux__) || defined(__CYGWIN__)) || defined(ANDROID)
-	#undef HAVE_GNUTLS
-#endif
+//#if !(defined(__linux__) || defined(__CYGWIN__)) || defined(ANDROID)
+//	#undef HAVE_GNUTLS
+//#endif
 #if !defined(_WIN32) || (defined(_MSC_VER) && (_MSC_VER < 1300)) || defined(FTE_SDL)
 	#undef HAVE_WINSSPI
 #endif
@@ -253,7 +253,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 	#undef Q2BSPS
 	#undef Q3BSPS
 	#undef RFBSPS
-	#undef WEBSERVER		//http server
 	#undef FTPSERVER		//ftp server
 	#undef WEBCLIENT		//http client.
 	#undef FTPCLIENT		//ftp client.
@@ -285,7 +284,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 	#undef HAVE_PACKET	//no udp support
 
 	//try to trim the fat
-	#undef VOICECHAT	//too lazy to compile opus
+//	#undef VOICECHAT	//too lazy to compile opus
 	#undef HLCLIENT		//dlls...
 	#undef HLSERVER		//dlls...
 //	#undef CL_MASTER	//bah. use the site to specify the servers.
@@ -293,7 +292,9 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 	#undef RAGDOLL		//no ode
 	#undef TCPCONNECT	//err...
 	#undef IRCCONNECT	//not happening
-	#undef PLUGINS		//pointless
+	#if !defined(USE_INTERNAL_BULLET) && !defined(USE_INTERNAL_ODE) && !defined(MODELFMT_GLTF) && !defined(STATIC_EZHUD) && !defined(STATIC_OPENSSL) && !defined(STATIC_Q3)
+		#undef PLUGINS		//pointless
+	#endif
 	#undef VM_Q1		//no dlls
 	#undef MAP_PROC		//meh
 //	#undef HALFLIFEMODELS	//blurgh
@@ -392,15 +393,18 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #ifdef NO_GNUTLS
 	#undef HAVE_GNUTLS
 #endif
+#ifdef NO_WINSSPI
+	#undef HAVE_WINSSPI
+#endif
 #ifdef NO_OPENGL
 	#undef GLQUAKE
 	#undef USE_EGL
 #endif
 
-#if defined(HAVE_GNUTLS) || defined(HAVE_WINSSPI)
+#if (defined(HAVE_GNUTLS) || defined(HAVE_WINSSPI) || defined(PLUGINS)) && !defined(FTE_TARGET_WEB)
 	#define HAVE_SSL
 #endif
-#if defined(HAVE_GNUTLS) || defined(HAVE_WINSSPI) || defined(HAVE_PLUGINS)
+#if (defined(HAVE_GNUTLS) || defined(HAVE_WINSSPI) || defined(PLUGINS)) && !defined(FTE_TARGET_WEB)
 	//FIXME: HAVE_WINSSPI does not work as a server.
 	//FIXME: advertising dtls without a valid certificate will probably bug out if a client tries to auto-upgrade.
 	//FIXME: we don't cache server certs
@@ -456,7 +460,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #ifndef HAVE_TCP
 	#undef TCPCONNECT
 	#undef IRCCONNECT
-	#undef WEBSERVER		//http server
 	#undef FTPSERVER		//ftp server
 	#undef FTPCLIENT		//ftp client.
 	#if !defined(FTE_TARGET_WEB)
@@ -488,7 +491,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 	#undef Q2SERVER
 	#undef Q3SERVER
 	#undef HLSERVER
-	#undef WEBSERVER
 	#undef FTPSERVER
 	#undef SUBSERVERS
 	#undef VM_Q1
@@ -557,6 +559,11 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 	#define IFMINIMAL(x,y) x
 #else
 	#define IFMINIMAL(x,y) y
+#endif
+#ifdef FTE_TARGET_WEB
+	#define IFWEB(x,y) x
+#else
+	#define IFWEB(x,y) y
 #endif
 
 // defs common to client and server
@@ -666,6 +673,10 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 			#define FTE_LITTLE_ENDIAN
 		#endif
 	#endif
+#elif defined(__LITTLE_ENDIAN__)
+	#define FTE_LITTLE_ENDIAN
+#elif defined(__BIG_ENDIAN__)
+	#define FTE_BIG_ENDIAN
 #endif
 
 #ifdef _MSC_VER
@@ -902,8 +913,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #define	MAX_NET_LIGHTSTYLES		(INVALID_LIGHTSTYLE+1)		// 16bit. the last index MAY be used to signify an invalid lightmap in the bsp, but is still valid for rtlights.
 #define MAX_STANDARDLIGHTSTYLES 64
-#define	MAX_PRECACHE_MODELS		4096		// 14bit.
-#define	MAX_PRECACHE_SOUNDS		2048		// 14bit.
+#define	MAX_PRECACHE_MODELS		16384		// 14bit.
+#define	MAX_PRECACHE_SOUNDS		4096		// 14bit.
 #define MAX_SSPARTICLESPRE 1024				// 14bit. precached particle effect names, for server-side pointparticles/trailparticles.
 #define MAX_VWEP_MODELS 32
 

@@ -21,6 +21,13 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 // console
 //
 
+// undefine this to solve build issues with epoll-shim - Brad
+#if defined(__unix__) && !defined(__linux__) && !defined(__CYGWIN__)
+#ifdef close
+#undef close
+#endif
+#endif
+
 #define MAXCONCOLOURS 16
 typedef struct {
 	float fr, fg, fb;
@@ -95,6 +102,9 @@ extern conchar_t q3codemasks[MAXQ3COLOURS];
 #define CON_WARNING "^&E0"
 #define CON_ERROR   "^&C0"
 #define CON_NOTICE  "^&-1"
+#if defined(_DEBUG) || defined(FTE_TARGET_WEB)/*urgh...*/
+#define CON_DEBUG	CON_WARNING __FILE__":"STRINGIFY(__LINE__)" "
+#endif
 
 #define isextendedcode(x) ((x >= '0' && x <= '9') || (x >= 'A' && x <= 'F') || x == '-')
 #define ishexcode(x) ((x >= '0' && x <= '9') || (x >= 'A' && x <= 'F') || (x >= 'a' && x <= 'f'))
@@ -245,7 +255,7 @@ void VARGS Con_Printf (const char *fmt, ...) LIKEPRINTF(1);
 void VARGS Con_TPrintf (translation_t text, ...);
 void VARGS Con_DPrintf (const char *fmt, ...) LIKEPRINTF(1);	//developer>=1, for stuff that's probably actually slightly useful
 void VARGS Con_DLPrintf (int level, const char *fmt, ...) LIKEPRINTF(2);	//developer>=2, for spammy stuff
-void VARGS Con_ThrottlePrintf (float *timer, int developerlevel, const char *fmt, ...); //for spammed warnings, so they don't spam prints with every single frame/call. the timer arg should be a static local.
+void VARGS Con_ThrottlePrintf (float *timer, int developerlevel, const char *fmt, ...) LIKEPRINTF(3); //for spammed warnings, so they don't spam prints with every single frame/call. the timer arg should be a static local.
 void VARGS Con_SafePrintf (const char *fmt, ...) LIKEPRINTF(1);
 void Con_Footerf(console_t *con, qboolean append, const char *fmt, ...) LIKEPRINTF(3); 
 void Con_Clear_f (void);

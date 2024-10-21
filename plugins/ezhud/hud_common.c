@@ -20,7 +20,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 // like clock etc..
 //
 
-#include "../plugin.h"
+#include "ezquakeisms.h"
 /*
 #include "common_draw.h"
 #include "mp3_player.h"
@@ -39,7 +39,6 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include "teamplay.h"
 #include "mvd_utils.h"
 */
-#include "ezquakeisms.h"
 #include "hud.h"
 
 //#define WITH_PNG	//more WITH_RADAR than anything else.
@@ -5665,10 +5664,10 @@ static void SCR_HUD_DrawTeamInfo(hud_t *hud)
 	for ( maxloc = maxname = i = 0; i < slots_num; i++ ) {
 		// dynamically guess max length of name/location
 		nick = (ti_clients[i].nick[0] ? ti_clients[i].nick : cl.players[i].name); // we use nick or name
-		maxname = max(maxname, strlen(TP_ParseFunChars(nick, false)));
+		maxname = max(maxname, strlen(TP_ParseFunChars(nick)));
 
 		strlcpy(tmp, TP_LocationName(ti_clients[i].org), sizeof(tmp));
-		maxloc  = max(maxloc,  strlen(TP_ParseFunChars(tmp,  false)));
+		maxloc  = max(maxloc,  strlen(TP_ParseFunChars(tmp)));
 	}
 
 	// well, better use fixed loc length
@@ -5702,7 +5701,7 @@ static void SCR_HUD_DrawTeamInfo(hud_t *hud)
 		while (sorted_teams[k].name)
 		{
 			Draw_SString (x, _y, sorted_teams[k].name, hud_teaminfo_scale->value);
-			sprintf(tmp,"%s %i",TP_ParseFunChars("$.",false), sorted_teams[k].frags);
+			sprintf(tmp,"%s %i",TP_ParseFunChars("$."), sorted_teams[k].frags);
 			Draw_SString (x+(strlen(sorted_teams[k].name)+1)*FONTWIDTH, _y, tmp, hud_teaminfo_scale->value);
 			_y += FONTWIDTH * hud_teaminfo_scale->value;
 			for ( j = 0; j < slots_num; j++ ) 
@@ -5793,7 +5792,7 @@ static int SCR_HudDrawTeamInfoPlayer(teamplayerinfo_t *ti_cl, int x, int y, int 
 
 	// this limit len of string because TP_ParseFunChars() do not check overflow
 	strlcpy(tmp2, HUD_FindVar(hud, "layout")->string , sizeof(tmp2));
-	strlcpy(tmp2, TP_ParseFunChars(tmp2, false), sizeof(tmp2));
+	strlcpy(tmp2, TP_ParseFunChars(tmp2), sizeof(tmp2));
 	s = tmp2;
 
 	//
@@ -5810,7 +5809,7 @@ static int SCR_HudDrawTeamInfoPlayer(teamplayerinfo_t *ti_cl, int x, int y, int 
 			case 'n': // draw name
 
 				if(!width_only) {
-					char *nick = TP_ParseFunChars(ti_cl->nick[0] ? ti_cl->nick : cl.players[i].name, false);
+					char *nick = TP_ParseFunChars(ti_cl->nick[0] ? ti_cl->nick : cl.players[i].name);
 					str_align_right(tmp, sizeof(tmp), nick, maxname);
 					Draw_SString (x, y, tmp, scale);
 				}
@@ -5936,7 +5935,7 @@ static int SCR_HudDrawTeamInfoPlayer(teamplayerinfo_t *ti_cl, int x, int y, int 
 					if (!loc[0])
 						loc = "unknown";
 
-					str_align_right(tmp, sizeof(tmp), TP_ParseFunChars(loc, false), maxloc);
+					str_align_right(tmp, sizeof(tmp), TP_ParseFunChars(loc), maxloc);
 					Draw_SString (x, y, tmp, scale);
 				}
 				x += maxloc * FONTWIDTH * scale;
@@ -6357,7 +6356,7 @@ void SCR_HUD_DrawScoresBar(hud_t *hud)
 	{
 		// Big
 		case 1:
-			in = TP_ParseFunChars(format_big->string, false);
+			in = TP_ParseFunChars(format_big->string);
 			buf[0] = 0;
 			out = buf;
 
@@ -6443,7 +6442,7 @@ void SCR_HUD_DrawScoresBar(hud_t *hud)
 		// Small
 		case 0:	
 		default:
-			in = TP_ParseFunChars(format_small->string, false);
+			in = TP_ParseFunChars(format_small->string);
 			buf[0] = 0;
 			out = buf;
 
@@ -7969,8 +7968,8 @@ static void SCR_HUD_DrawNotImplemented(hud_t *hud)
 	width = 8 * strlen(line1);
 	height = 8;
 
-    if (!HUD_PrepareDraw(hud, width, height, &x, &y))
-        return;
+	if (!HUD_PrepareDraw(hud, width, height, &x, &y))
+		return;
 
 	Draw_SString(x, y, line1, 1);
 }

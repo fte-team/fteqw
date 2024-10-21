@@ -47,7 +47,9 @@ extern cvar_t vid_conautoscale;
 //protocol names...
 #define WP_POINTER_CONSTRAINTS_NAME "zwp_pointer_constraints_v1"
 #define WP_RELATIVE_POINTER_MANAGER_NAME "zwp_relative_pointer_manager_v1"
-#define ORG_KDE_KWIN_SERVER_DECORATION_MANAGER_NAME "org_kde_kwin_server_decoration_manager" //comment out to disable once XDG_SHELL_DESKTOP
+#define ORG_KDE_KWIN_SERVER_DECORATION_MANAGER_NAME "org_kde_kwin_server_decoration_manager" //comment out to disable once the XDG version is tested.
+//FIXME: needs testing. #define XDG_DECORATION_MANAGER_NAME "zxdg_decoration_manager_v1"
+
 //#define XDG_SHELL_UNSTABLE
 #ifdef XDG_SHELL_UNSTABLE
 #define XDG_SHELL_NAME "zxdg_shell_v6"
@@ -351,6 +353,10 @@ static struct wdisplay_s
 	qboolean waylandisblocking;
 
 	//belated sanity stuff
+#ifdef XDG_DECORATION_MANAGER_NAME
+	struct zxdg_toplevel_decoration_v1 *xdg_decoration;
+	struct zxdg_decoration_manager_v1 *xdg_decoration_manager;
+#endif
 #ifdef ORG_KDE_KWIN_SERVER_DECORATION_MANAGER_NAME
 	struct org_kde_kwin_server_decoration *kwin_decoration;
 	struct org_kde_kwin_server_decoration_manager *kwin_decoration_manager;
@@ -592,13 +598,8 @@ void xdg_toplevel_handle_configure(void *data, struct xdg_toplevel *xdg_toplevel
 }
 void xdg_toplevel_handle_close(void *data, struct xdg_toplevel *xdg_toplevel)
 {
-	Key_Dest_Remove(kdm_console);
-	if (Cmd_Exists("menu_quit") || Cmd_AliasExist("menu_quit", RESTRICT_LOCAL))
-		Cmd_ExecuteString("menu_quit prompt", RESTRICT_LOCAL);
-	else if (Cmd_Exists("m_quit") || Cmd_AliasExist("m_quit", RESTRICT_LOCAL))
-		Cmd_ExecuteString("m_quit", RESTRICT_LOCAL);
-	else
-		Cmd_ExecuteString("quit", RESTRICT_LOCAL);
+	//fixme: steal focus, bring to top, or just hope the compositor is doing that for us when the user right-clicked the task bar of our minimised app or whatever.
+	M_Window_ClosePrompt();
 }
 static struct xdg_toplevel_listener {
     void (*configure)(void *data, struct xdg_toplevel *xdg_toplevel, int32_t width, int32_t height, struct wl_array *states);
@@ -1226,7 +1227,8 @@ static const struct wl_seat_listener seat_listener =
 };
 
 
-#if 0
+#ifdef XDG_DECORATION_MANAGER_NAME
+static const struct wl_interface *pzxdg_toplevel_decoration_v1_interface;
 static void WL_BindDecorationManager(struct wl_registry *registry, uint32_t id)
 {	/*oh hey, I wrote lots of code! pay me more! fuck that shit.*/
 	static const struct wl_interface *types[3];
@@ -1257,9 +1259,34 @@ static void WL_BindDecorationManager(struct wl_registry *registry, uint32_t id)
 	types[1] = &zxdg_toplevel_decoration_v1_interface;
 	types[2] = pxdg_toplevel_interface;
 
-//	pzxdg_toplevel_decoration_v1_interface = &zxdg_toplevel_decoration_v1_interface;
-	w.decoration_manager = pwl_registry_bind(registry, id, &zxdg_decoration_manager_v1_interface, 1);
+	pzxdg_toplevel_decoration_v1_interface = &zxdg_toplevel_decoration_v1_interface;
+	w.xdg_decoration_manager = pwl_registry_bind(registry, id, &zxdg_decoration_manager_v1_interface, 1);
 }
+
+enum xdg_decoration_manager_mode {
+    ZXDG_TOPLEVEL_DECORATION_V1_MODE_CLIENT_SIDE = 1,
+    ZXDG_TOPLEVEL_DECORATION_V1_MODE_SERVER_SIDE = 2,
+};
+#define ZXDG_DECORATION_MANAGER_V1_GET_TOPLEVEL_DECORATION 1
+static inline struct zxdg_toplevel_decoration_v1 *zxdg_decoration_manager_v1_get_toplevel_decoration(struct zxdg_decoration_manager_v1 *zxdg_decoration_manager_v1, struct xdg_toplevel *toplevel)		{ return (struct zxdg_toplevel_decoration_v1 *) pwl_proxy_marshal_constructor((struct wl_proxy *) zxdg_decoration_manager_v1, ZXDG_DECORATION_MANAGER_V1_GET_TOPLEVEL_DECORATION, pzxdg_toplevel_decoration_v1_interface, NULL, toplevel); }
+
+#define ZXDG_TOPLEVEL_DECORATION_V1_SET_MODE 1
+struct zxdg_toplevel_decoration_v1_listener {
+    void (*configure)(void *data, struct zxdg_toplevel_decoration_v1 *zxdg_toplevel_decoration_v1, uint32_t mode);
+};
+static inline void zxdg_toplevel_decoration_v1_set_mode(struct zxdg_toplevel_decoration_v1 *xdg_decoration, uint32_t mode)		{ pwl_proxy_marshal((struct wl_proxy *) xdg_decoration, ZXDG_TOPLEVEL_DECORATION_V1_SET_MODE, mode); }
+static inline int zxdg_toplevel_decoration_v1_add_listener(struct zxdg_toplevel_decoration_v1 *zxdg_toplevel_decoration_v1, const struct zxdg_toplevel_decoration_v1_listener *listener, void *data)	{ return pwl_proxy_add_listener((struct wl_proxy *) zxdg_toplevel_decoration_v1, (void (**)(void)) listener, data); }
+
+static void xdg_decoration_mode(void *data, struct zxdg_toplevel_decoration_v1 *xdg_decoration, uint32_t mode)
+{
+	struct wdisplay_s *d = data;
+	d->hasssd = (mode != ZXDG_TOPLEVEL_DECORATION_V1_MODE_CLIENT_SIDE);
+}
+static const struct zxdg_toplevel_decoration_v1_listener myxdg_decoration_listener =
+{
+	xdg_decoration_mode
+};
+
 #endif
 
 #ifdef ORG_KDE_KWIN_SERVER_DECORATION_MANAGER_NAME
@@ -1344,6 +1371,10 @@ Con_DLPrintf(0, "Wayland Interface %s id %u version %u\n", interface, id, versio
 		d->seat = pwl_registry_bind(registry, id, pwl_seat_interface, 1);
 		pwl_seat_add_listener(d->seat, &seat_listener, d);
 	}
+#ifdef XDG_DECORATION_MANAGER_NAME
+	else if (strcmp(interface, XDG_DECORATION_MANAGER_NAME) == 0)
+		WL_BindDecorationManager(registry, id);
+#endif
 #ifdef ORG_KDE_KWIN_SERVER_DECORATION_MANAGER_NAME
 	else if (strcmp(interface, ORG_KDE_KWIN_SERVER_DECORATION_MANAGER_NAME) == 0)
 		WL_BindKWinDecorationManager(registry, id);
@@ -1458,7 +1489,14 @@ static void WL_SwapBuffers(void)
 		}
 		break;
 #endif
-	case QR_VULKAN: 	//the vulkan stuff handles this itself. FIXME: are we still receiving inputs? no idea!
+	case QR_VULKAN:
+		if (pwl_display_dispatch_pending(w.display) < 0)
+		{
+			Con_Printf(CON_ERROR "wayland connection was lost. Restarting video\n");
+			Cbuf_InsertText("vid_restart", RESTRICT_LOCAL, true);
+			return;
+		}
+		break;
 	default:
 		break;
 	}
@@ -1634,6 +1672,20 @@ static qboolean WL_Init (rendererstate_t *info, unsigned char *palette)
 	}
 
 	WL_SetCaption("FTE Quake");
+#ifdef XDG_DECORATION_MANAGER_NAME
+	if (w.xdg_decoration_manager)
+	{	//decorate it!
+		w.xdg_decoration = zxdg_decoration_manager_v1_get_toplevel_decoration(w.xdg_decoration_manager, w.xdg_toplevel);
+		if (w.xdg_decoration)
+		{
+			zxdg_toplevel_decoration_v1_add_listener(w.xdg_decoration, &myxdg_decoration_listener, &w);
+			zxdg_toplevel_decoration_v1_set_mode(w.xdg_decoration, ZXDG_TOPLEVEL_DECORATION_V1_MODE_SERVER_SIDE);
+		}
+	}
+#endif
+#if defined(XDG_DECORATION_MANAGER_NAME) && defined(ORG_KDE_KWIN_SERVER_DECORATION_MANAGER_NAME)
+	else
+#endif
 #ifdef ORG_KDE_KWIN_SERVER_DECORATION_MANAGER_NAME
 	if (w.kwin_decoration_manager)
 	{	//decorate it!
@@ -1865,6 +1917,31 @@ rendererinfo_t rendererinfo_wayland_gl =
 #endif
 
 #ifdef VKQUAKE
+static qboolean WLVK_EnumerateDevices(void *usercontext, void(*callback)(void *context, const char *devicename, const char *outputname, const char *desc))
+{
+	qboolean ret = false;
+#ifdef VK_NO_PROTOTYPES
+	PFN_vkGetInstanceProcAddr vkGetInstanceProcAddr;
+	void *lib = NULL;
+	dllfunction_t func[] =
+	{
+		{(void*)&vkGetInstanceProcAddr,		"vkGetInstanceProcAddr"},
+		{NULL,							NULL}
+	};
+
+	if (!lib)
+		lib = Sys_LoadLibrary("libvulkan.so.1", func);
+	if (!lib)
+		lib = Sys_LoadLibrary("libvulkan.so", func);
+	if (!lib)
+		return false;
+#endif
+	ret = VK_EnumerateDevices(usercontext, callback, "Vulkan-Wayland-", vkGetInstanceProcAddr);
+#ifdef VK_NO_PROTOTYPES
+	Sys_CloseLibrary(lib);
+#endif
+	return ret;
+}
 rendererinfo_t rendererinfo_wayland_vk =
 {
     "Vulkan (Wayland)",
@@ -1924,7 +2001,9 @@ rendererinfo_t rendererinfo_wayland_vk =
     VKBE_RenderToTextureUpdate2d,
 
     "",
-	WL_GetPriority
+	WL_GetPriority,
+	NULL,
+	WLVK_EnumerateDevices
 };
 #endif
 

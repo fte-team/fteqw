@@ -466,6 +466,9 @@ static qboolean VMT_ReadVMT(const char *fname, vmtstate_t *st)
 	char token[MAX_QPATH];
 	char *prefix="", *postfix="";
 
+	if (strstr(fname, "://"))
+		return false;	//don't try to handle urls.
+
 	//don't dupe the mandatory materials/ prefix
 	if (strncmp(fname, "materials/", 10))
 		prefix = "materials/";

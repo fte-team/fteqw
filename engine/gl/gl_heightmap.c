@@ -86,22 +86,18 @@ void validatelinks2(link_t *firstnode, link_t *panic)
 }
 
 
-#ifndef SERVERONLY
-static void ted_dorelight(model_t *m, heightmap_t *hm);
-static void Terr_WorkerLoadedSectionLightmap(void *ctx, void *data, size_t a, size_t b);
-static qboolean Terr_Collect(heightmap_t *hm);
-#endif
 static hmsection_t *QDECL Terr_GetSection(heightmap_t *hm, int x, int y, unsigned int flags);
 static void Terr_LoadSectionWorker(void *ctx, void *data, size_t a, size_t b);
 static void Terr_WorkerLoadedSection(void *ctx, void *data, size_t a, size_t b);
 static void Terr_WorkerFailedSection(void *ctx, void *data, size_t a, size_t b);
 
 static void Terr_Brush_DeleteIdx(heightmap_t *hm, size_t idx);
-#ifndef SERVERONLY
+#ifdef HAVE_CLIENT
+static void ted_dorelight(model_t *m, heightmap_t *hm);
+static void Terr_WorkerLoadedSectionLightmap(void *ctx, void *data, size_t a, size_t b);
+static qboolean Terr_Collect(heightmap_t *hm);
 static void Terr_Brush_Draw(heightmap_t *hm, batch_t **batches, entity_t *e);
-#endif
 
-#ifndef SERVERONLY
 static texid_t Terr_LoadTexture(char *name)
 {
 	extern texid_t missing_texture;
@@ -121,9 +117,9 @@ static texid_t Terr_LoadTexture(char *name)
 }
 #endif
 
-static void QDECL Terr_LoadSectionTextures(hmsection_t *s)
+static void Terr_LoadSectionTextures(hmsection_t *s)
 {
-#ifndef SERVERONLY
+#ifdef HAVE_CLIENT
 	extern texid_t missing_texture;
 	struct hmwater_s *w;
 	if (isDedicated)
@@ -161,7 +157,7 @@ static void QDECL Terr_LoadSectionTextures(hmsection_t *s)
 
 static qboolean QDECL Terr_InitLightmap(hmsection_t *s, qboolean initialise)
 {
-#ifdef SERVERONLY
+#ifndef HAVE_CLIENT
 	return false;
 #else
 	heightmap_t *hm = s->hmmod;
@@ -283,7 +279,7 @@ static char *Terr_DiskSectionName(heightmap_t *hm, int sx, int sy, char *out, si
 	Q_snprintfz(out, outsize, "maps/%s/sect_%03x_%03x.hms", hm->path, sx, sy);
 	return out;
 }
-#ifndef SERVERONLY
+#ifdef HAVE_CLIENT
 static char *Terr_TempDiskSectionName(heightmap_t *hm, int sx, int sy)
 {
 	sx -= CHUNKBIAS;
@@ -295,6 +291,7 @@ static char *Terr_TempDiskSectionName(heightmap_t *hm, int sx, int sy)
 }
 #endif
 
+#ifdef HAVE_SERVER
 static int dehex_e(int i, qboolean *error)
 {
 	if      (i >= '0' && i <= '9')
@@ -357,6 +354,7 @@ static qboolean Terr_IsSectionFName(heightmap_t *hm, const char *fname, int *sx,
 		return false;
 	return true;
 }
+#endif
 
 static int QDECL Terr_GenerateSections(heightmap_t *hm, int sx, int sy, int count, hmsection_t **sects)
 {
@@ -381,7 +379,7 @@ static int QDECL Terr_GenerateSections(heightmap_t *hm, int sx, int sy, int coun
 			{
 				s = Z_Malloc(sizeof(*s));
 				s->loadstate = TSLS_LOADING0;
-#ifndef SERVERONLY
+#ifdef HAVE_CLIENT
 				s->lightmap = -1;
 #endif
 				s->numents = 0;
@@ -395,7 +393,7 @@ static int QDECL Terr_GenerateSections(heightmap_t *hm, int sx, int sy, int coun
 
 				hm->loadingsections+=1;
 			}
-#ifndef SERVERONLY
+#ifdef HAVE_CLIENT
 			else if (s->loadstate == TSLS_LOADED && s->lightmap < 0)
 				;	//it lost its lightmap. the main thread won't be drawing with it, nor do any loaders.
 					//FIXME: might be used by tracelines on a worker (eg lightmap generation)
@@ -438,11 +436,8 @@ static hmsection_t *QDECL Terr_GenerateSection(heightmap_t *hm, int sx, int sy, 
 #endif
 			return NULL;
 		}
-#ifndef SERVERONLY
+#ifdef HAVE_CLIENT
 		s->lightmap = -1;
-#endif
-		
-#ifndef SERVERONLY
 		s->numents = 0;
 #endif
 
@@ -508,7 +503,7 @@ static void *QDECL Terr_GenerateWater(hmsection_t *s, float maxheight)
 //embeds a mesh
 static void QDECL Terr_AddMesh(heightmap_t *hm, int loadflags, model_t *mod, const char *modelname, vec3_t epos, vec3_t axis[3], float scale)
 {
-#ifndef SERVERONLY
+#ifdef HAVE_CLIENT
 	struct hmentity_s *e, *f = NULL;
 	hmsection_t *s;
 	int min[2], max[2], coord[2];
@@ -639,7 +634,7 @@ static void QDECL Terr_AddMesh(heightmap_t *hm, int loadflags, model_t *mod, con
 
 static void *Terr_ReadV1(heightmap_t *hm, hmsection_t *s, void *ptr, int len)
 {
-#ifndef SERVERONLY
+#ifdef HAVE_CLIENT
 	dsmesh_v1_t *dm;
 	float *colours;
 	qbyte *lmstart;
@@ -670,7 +665,7 @@ static void *Terr_ReadV1(heightmap_t *hm, hmsection_t *s, void *ptr, int len)
 
 	ptr = ds+1;
 
-#ifndef SERVERONLY
+#ifdef HAVE_CLIENT
 	/*deal with textures*/
 	Q_strncpyz(s->texname[0], ds->texname[0], sizeof(s->texname[0]));
 	Q_strncpyz(s->texname[1], ds->texname[1], sizeof(s->texname[1]));
@@ -760,7 +755,7 @@ static char *Terr_Read_String(struct terrstream_s *strm, char *val, int maxlen)
 	strm->pos += len+1;
 	return val;
 }
-#ifndef SERVERONLY
+#ifdef HAVE_CLIENT
 static void Terr_Write_SInt(struct terrstream_s *strm, int val)
 {
 	val = LittleLong(val);
@@ -998,7 +993,7 @@ static void Terr_SaveV2(heightmap_t *hm, hmsection_t *s, vfsfile_t *f, int sx, i
 	VFS_WRITE(f, strm.buffer, strm.pos);
 	strm.pos = 0;
 }
-#ifndef SERVERONLY
+#ifdef HAVE_CLIENT
 static void Terr_WorkerLoadedSectionLightmap(void *ctx, void *data, size_t a, size_t b)
 {
 	heightmap_t *hm = ctx;
@@ -1027,7 +1022,7 @@ static void Terr_WorkerLoadedSectionLightmap(void *ctx, void *data, size_t a, si
 #endif
 static void *Terr_ReadV2(heightmap_t *hm, hmsection_t *s, void *ptr, int len)
 {
-#ifndef SERVERONLY
+#ifdef HAVE_CLIENT
 	char modelname[MAX_QPATH];
 	qbyte last;
 	int y;
@@ -1100,7 +1095,7 @@ static void *Terr_ReadV2(heightmap_t *hm, hmsection_t *s, void *ptr, int len)
 
 	//dedicated server can stop reading here.
 
-#ifndef SERVERONLY
+#ifdef HAVE_CLIENT
 	if (flags & TSF_HASCOLOURS)
 	{
 		for (i = 0; i < SECTHEIGHTSIZE*SECTHEIGHTSIZE; i++)
@@ -1226,7 +1221,7 @@ static void Terr_GenerateDefault(heightmap_t *hm, hmsection_t *s)
 
 	memset(s->holes, 0, sizeof(s->holes));
 
-#ifndef SERVERONLY
+#ifdef HAVE_CLIENT
 	Q_strncpyz(s->texname[0], "", sizeof(s->texname[0]));
 	Q_strncpyz(s->texname[1], "", sizeof(s->texname[1]));
 	Q_strncpyz(s->texname[2], "", sizeof(s->texname[2]));
@@ -1416,7 +1411,7 @@ static hmsection_t *Terr_ReadSection(heightmap_t *hm, hmsection_t *s, int ver, v
 	return s;
 }
 
-#ifndef SERVERONLY
+#ifdef HAVE_CLIENT
 qboolean Terr_DownloadedSection(char *fname)
 {
 /*
@@ -1450,7 +1445,7 @@ qboolean Terr_DownloadedSection(char *fname)
 }
 #endif
 
-#ifndef SERVERONLY
+#ifdef HAVE_CLIENT
 static void Terr_LoadSection(heightmap_t *hm, hmsection_t *s, int sx, int sy, unsigned int flags)
 {
 	//when using networked terrain, the client will never load a section from disk, but will only load it from the server
@@ -1561,7 +1556,7 @@ static void Terr_LoadSectionWorker(void *ctx, void *data, size_t a, size_t b)
 	Terr_ReadSection(hm, s, 0, NULL, 0);
 }
 
-#ifndef SERVERONLY
+#ifdef HAVE_CLIENT
 static void Terr_SaveV1(heightmap_t *hm, hmsection_t *s, vfsfile_t *f, int sx, int sy)
 {
 	int i;
@@ -1681,7 +1676,7 @@ static void Terr_Save(heightmap_t *hm, hmsection_t *s, vfsfile_t *f, int sx, int
 //doesn't clear edited/dirty flags or anything
 static qboolean Terr_SaveSection(heightmap_t *hm, hmsection_t *s, int sx, int sy, qboolean blocksave)
 {
-#ifdef SERVERONLY
+#ifndef HAVE_CLIENT
 	return true;
 #else
 	vfsfile_t *f;
@@ -1804,7 +1799,7 @@ static hmsection_t *QDECL Terr_GetSection(heightmap_t *hm, int x, int y, unsigne
 			section = Terr_GenerateSection(hm, x, y, true);
 		}
 	}
-#ifndef SERVERONLY
+#ifdef HAVE_CLIENT
 	//when using networked terrain, the client will never load a section from disk, but only loading it from the server
 	//this means we need to send a new request to download the section if it was flagged as modified.
 	if (!(flags & TGS_NODOWNLOAD))
@@ -1893,7 +1888,7 @@ int Heightmap_Save(heightmap_t *hm)
 	return sectionssaved;
 }
 
-#ifndef CLIENTONLY
+#ifdef HAVE_SERVER
 //on servers, we can get requests to download current map sections. if so, give them it.
 qboolean Terrain_LocateSection(const char *name, flocation_t *loc)
 {
@@ -1958,7 +1953,7 @@ void Terr_DestroySection(heightmap_t *hm, hmsection_t *s, qboolean lightmapreusa
 
 	Terr_ClearSection(s);
 
-#ifndef SERVERONLY
+#ifdef HAVE_CLIENT
 	if (s->lightmap >= 0)
 	{
 		struct lmsect_s *lms;
@@ -2014,14 +2009,14 @@ void Terr_DestroySection(heightmap_t *hm, hmsection_t *s, qboolean lightmapreusa
 	validatelinks(&hm->recycle);
 }
 
-#ifndef SERVERONLY
+#ifdef HAVE_CLIENT
 //dedicated servers do not support editing. no lightmap info causes problems.
 
 //when a terrain section has the notify flag set on the server, the server needs to go through and set out notifications to replicate it to the various clients
 //so the clients know to re-download the section.
 static void Terr_DoEditNotify(heightmap_t *hm)
 {
-#ifndef CLIENTONLY
+#ifdef HAVE_SERVER
 	int i;
 	char *cmd;
 	hmsection_t *s;
@@ -2141,7 +2136,7 @@ validatelinks(&hm->recycle);
 			else if (lightmapsonly)
 			{
 				numremaining++;
-#ifndef SERVERONLY
+#ifdef HAVE_CLIENT
 				s->lightmap = -1;
 #endif
 			}
@@ -2160,7 +2155,7 @@ validatelinks(&hm->recycle);
 		}
 	}
 	validatelinks(&hm->recycle);
-#ifndef SERVERONLY
+#ifdef HAVE_CLIENT
 	if (!lightmapreusable)
 	{
 		while (hm->unusedlmsects)
@@ -2196,7 +2191,7 @@ void Terr_FreeModel(model_t *mod)
 		while(hm->brushtextures)
 		{
 			brushtex_t *bt = hm->brushtextures;
-#ifndef SERVERONLY
+#ifdef HAVE_CLIENT
 			brushbatch_t *bb;
 			while((bb = bt->batches))
 			{
@@ -2211,7 +2206,7 @@ void Terr_FreeModel(model_t *mod)
 		}
 #ifdef RUNTIMELIGHTING
 		if (hm->relightcontext)
-			LightShutdown(hm->relightcontext);
+			LightShutdown(hm->relightcontext, mod);
 		if (hm->lightthreadmem && !hm->inheritedlightthreadmem)
 			BZ_Free(hm->lightthreadmem);
 #endif
@@ -2230,7 +2225,7 @@ void Terr_FreeModel(model_t *mod)
 	}
 }
 
-#ifndef SERVERONLY
+#ifdef HAVE_CLIENT
 void Terr_DrawTerrainWater(heightmap_t *hm, float *mins, float *maxs, struct hmwater_s *w)
 {
 	scenetris_t *t;
@@ -3451,6 +3446,38 @@ typedef struct {
 #endif
 } hmtrace_t;
 
+#ifdef HAVE_CLIENT
+shader_t *Terr_GetShader(model_t *mod, trace_t *trace)
+{
+
+	heightmap_t		*hm				= mod?mod->terrain:NULL;
+	unsigned int	brushid			= trace->brush_id;
+	unsigned int	fa, i;
+	brushes_t		*br;
+
+	if (!brushid)
+		return NULL;
+
+	if (!hm)
+		return NULL;
+
+	for (i = 0; i < hm->numbrushes; i++)
+	{
+		br = &hm->wbrushes[i];
+		if (br->id == trace->brush_id)
+		{
+			if (br->patch)
+				return br->patch->tex->shader;
+			fa = trace->brush_face-1;
+			if (fa >= br->numplanes)
+				return NULL;
+			return br->faces[fa].tex->shader;
+		}
+	}
+	return NULL;
+}
+#endif
+
 static int Heightmap_Trace_Brush(hmtrace_t *tr, vec4_t *planes, int numplanes, brushes_t *brushinfo)
 {
 	qboolean startout;
@@ -4405,7 +4432,7 @@ unsigned int Heightmap_FatPVS		(model_t *mod, const vec3_t org, pvsbuffer_t *fte
 	return sizeof(*hmpvs);
 }
 
-#ifndef CLIENTONLY
+#ifdef HAVE_SERVER
 qboolean Heightmap_EdictInFatPVS	(model_t *mod, const struct pvscache_s *edict, const qbyte *pvsdata, const int *areas)
 {
 	heightmap_t *hm = mod->terrain;
@@ -4472,7 +4499,7 @@ int	Heightmap_ClusterForPoint	(model_t *model, const vec3_t point, int *area)
 	return -1;
 }
 
-#ifndef SERVERONLY
+#ifdef HAVE_CLIENT
 static unsigned char *QDECL Terr_GetLightmap(hmsection_t *s, int idx, qboolean edit)
 {
 	int x = idx % SECTTEXSIZE, y = idx / SECTTEXSIZE;
@@ -5070,7 +5097,7 @@ void QCBUILTIN PF_terrain_edit(pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 					mod->entityinfo[idx].id = 0;
 			}
 
-#ifndef CLIENTONLY
+#ifdef HAVE_SERVER
 			if (sv_state && modelindex > 0)
 			{
 				MSG_WriteByte(&sv.multicast, svcfte_brushedit);
@@ -5086,7 +5113,7 @@ void QCBUILTIN PF_terrain_edit(pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 			}
 			else
 #endif
-#ifndef SERVERONLY
+#ifdef HAVE_CLIENT
 			if (cls.state && modelindex > 0)
 			{
 				MSG_WriteByte(&cls.netchan.message, clcfte_brushedit);
@@ -5494,7 +5521,7 @@ void Terr_ParseEntityLump(model_t *mod, heightmap_t *heightmap)
 
 void Terr_FinishTerrain(model_t *mod)
 {
-#ifndef SERVERONLY
+#ifdef HAVE_CLIENT
 	heightmap_t *hm = mod->terrain;
 	if (qrenderer != QR_NONE)
 	{
@@ -5595,7 +5622,7 @@ void Terr_FinishTerrain(model_t *mod)
 #endif
 }
 
-#ifndef SERVERONLY
+#ifdef HAVE_CLIENT
 void Terr_Brush_Draw(heightmap_t *hm, batch_t **batches, entity_t *e)
 {
 	batch_t *b;
@@ -5738,7 +5765,7 @@ void Terr_Brush_Draw(heightmap_t *hm, batch_t **batches, entity_t *e)
 		{
 			if (br->faces[j].relight && dorelight)
 			{
-				lightstyleindex_t styles[4] = {0,INVALID_LIGHTSTYLE,INVALID_LIGHTSTYLE,INVALID_LIGHTSTYLE};
+				lightstyleindex_t styles[max(2,MAXCPULIGHTMAPS)] = {0,INVALID_LIGHTSTYLE};
 				int texsize[2] = {br->faces[j].lmextents[0]-1, br->faces[j].lmextents[1]-1};
 				vec2_t exactmins, exactmaxs;
 				int m, k;
@@ -6275,7 +6302,7 @@ static brushes_t *Terr_Brush_Insert(model_t *model, heightmap_t *hm, brushes_t *
 			}
 
 			//generate points now (so we know the correct mins+maxs for the brush, and whether the plane is relevent)
-			numpoints = Fragment_ClipPlaneToBrush(facepoints, sizeof(facepoints)/sizeof(facepoints[0]), brush->planes, sizeof(*brush->planes), brush->numplanes, brush->planes[iface]);
+			numpoints = Fragment_ClipPlaneToBrush(facepoints, countof(facepoints), brush->planes, sizeof(*brush->planes), brush->numplanes, brush->planes[iface]);
 			if (!numpoints)
 			{
 				Con_DPrintf("redundant face\n");
@@ -6401,7 +6428,7 @@ static brushes_t *Terr_Brush_Insert(model_t *model, heightmap_t *hm, brushes_t *
 		do
 		{
 			out->id = (++hm->brushidseq)&0x00ffffff;
-#ifndef SERVERONLY
+#ifdef HAVE_CLIENT
 			if (cls.state)	//avoid networking conflicts by having each node generating its own private ids
 				out->id |= (cl.playerview[0].playernum+1)<<24;
 #endif
@@ -6687,7 +6714,7 @@ static qboolean Brush_Deserialise(heightmap_t *hm, brushes_t *br, void *mem)
 }
 
 
-#ifndef SERVERONLY
+#ifdef HAVE_CLIENT
 heightmap_t	*CL_BrushEdit_ForceContext(model_t *mod)
 {
 	heightmap_t *hm = mod?mod->terrain:NULL;
@@ -6719,10 +6746,10 @@ void CL_Parse_BrushEdit(void)
 	model_t			*mod			= (modelindex<countof(cl.model_precache))?cl.model_precache[modelindex]:NULL;
 	heightmap_t		*hm				= mod?mod->terrain:NULL;
 
-#ifdef CLIENTONLY
-	const qboolean		ignore = false;
-#else
+#ifdef HAVE_SERVER
 	const qboolean		ignore = (sv_state>=ss_loading);	//if we're the server then we already have this info. don't break anything (this info is present for demos).
+#else
+	const qboolean		ignore = false;
 #endif
 
 	if (cmd == hmcmd_brush_delete)
@@ -6828,7 +6855,7 @@ void CL_Parse_BrushEdit(void)
 		Host_EndGame("CL_Parse_BrushEdit: unknown command %i\n", cmd);
 }
 #endif
-#ifndef CLIENTONLY
+#ifdef HAVE_SERVER
 qboolean SV_Prespawn_Brushes(sizebuf_t *msg, unsigned int *modelindex, unsigned int *lastid)
 {
 	//lastid starts at 0
@@ -7268,7 +7295,7 @@ void QCBUILTIN PF_brush_create(pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 	//if we're creating one that already exists, then assume that its a move.
 	if (brushid && Terr_Brush_DeleteId(hm, brushid))
 	{
-#ifndef CLIENTONLY
+#ifdef HAVE_SERVER
 		if (sv.state && modelindex > 0)
 		{
 			MSG_WriteByte(&sv.multicast, svcfte_brushedit);
@@ -7279,7 +7306,7 @@ void QCBUILTIN PF_brush_create(pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 		}
 		else
 #endif
-#ifndef SERVERONLY
+#ifdef HAVE_CLIENT
 		if (cls.state && modelindex > 0)
 		{
 			MSG_WriteByte(&cls.netchan.message, clcfte_brushedit);
@@ -7306,6 +7333,10 @@ void QCBUILTIN PF_brush_create(pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 		faces[i].stdir[0][3] = in_faces[i].sbias;
 		VectorCopy(in_faces[i].tdir, faces[i].stdir[1]);
 		faces[i].stdir[1][3] = in_faces[i].tbias;
+
+		//these are for compat with (q2/)q3 so as to not be lossy even if they're not really used.
+		faces[i].surfaceflags = 0;
+		faces[i].surfacevalue = 0;
 	}
 
 	//now emit it
@@ -7321,7 +7352,7 @@ void QCBUILTIN PF_brush_create(pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 		if (nb)
 		{
 			G_INT(OFS_RETURN) = nb->id;
-#ifndef CLIENTONLY
+#ifdef HAVE_SERVER
 			if (sv.state && modelindex > 0)
 			{
 				MSG_WriteByte(&sv.multicast, svcfte_brushedit);
@@ -7332,7 +7363,7 @@ void QCBUILTIN PF_brush_create(pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 				return;
 			}
 #endif
-#ifndef SERVERONLY
+#ifdef HAVE_CLIENT
 			if (cls.state && modelindex > 0)
 			{
 				MSG_WriteByte(&cls.netchan.message, clcfte_brushedit);
@@ -7383,7 +7414,7 @@ void QCBUILTIN PF_patch_create(pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 	//if we're creating one that already exists, then assume that its a move.
 	if (brushid && Terr_Brush_DeleteId(hm, brushid))
 	{
-#ifndef CLIENTONLY
+#ifdef HAVE_SERVER
 		if (sv.state && modelindex > 0)
 		{
 			MSG_WriteByte(&sv.multicast, svcfte_brushedit);
@@ -7394,7 +7425,7 @@ void QCBUILTIN PF_patch_create(pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 		}
 		else
 #endif
-#ifndef SERVERONLY
+#ifdef HAVE_CLIENT
 		if (cls.state && modelindex > 0)
 		{
 			MSG_WriteByte(&cls.netchan.message, clcfte_brushedit);
@@ -7435,7 +7466,7 @@ void QCBUILTIN PF_patch_create(pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 		if (nb)
 		{
 			G_INT(OFS_RETURN) = nb->id;
-#ifndef CLIENTONLY
+#ifdef HAVE_SERVER
 			if (sv.state && modelindex > 0)
 			{
 				MSG_WriteByte(&sv.multicast, svcfte_brushedit);
@@ -7446,7 +7477,7 @@ void QCBUILTIN PF_patch_create(pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 				return;
 			}
 #endif
-#ifndef SERVERONLY
+#ifdef HAVE_CLIENT
 			if (cls.state && modelindex > 0)
 			{
 				MSG_WriteByte(&cls.netchan.message, clcfte_brushedit);
@@ -7473,7 +7504,7 @@ void QCBUILTIN PF_brush_delete(pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 
 	Terr_Brush_DeleteId(hm, brushid);
 
-#ifndef CLIENTONLY
+#ifdef HAVE_SERVER
 	if (sv.state && modelindex > 0)
 	{
 		MSG_WriteByte(&sv.multicast, svcfte_brushedit);
@@ -7484,7 +7515,7 @@ void QCBUILTIN PF_brush_delete(pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 		return;
 	}
 #endif
-#ifndef SERVERONLY
+#ifdef HAVE_CLIENT
 	if (cls.state && modelindex > 0)
 	{
 		MSG_WriteByte(&cls.netchan.message, clcfte_brushedit);
@@ -7919,7 +7950,8 @@ void Terr_WriteMapFile(vfsfile_t *file, model_t *mod)
 			else
 				entities = COM_ParseOut(entities, token, sizeof(token));
 		}
-		VFS_WRITE(file, start, entities - start);
+		if (entities)
+			VFS_WRITE(file, start, entities - start);
 		start = entities;
 	}
 }
@@ -7936,7 +7968,7 @@ void Mod_Terrain_Save_f(void)
 	}
 	if (*mapname)
 		mod = Mod_FindName(va("maps/%s", mapname));
-#ifndef SERVERONLY
+#ifdef HAVE_CLIENT
 	else if (cls.state)
 		mod = cl.worldmodel;
 #endif
@@ -8030,7 +8062,16 @@ qboolean Terr_ReformEntitiesLump(model_t *mod, heightmap_t *hm, char *entities)
 	{
 		start = entities;
 		entities = COM_ParseTokenOut(entities, brushpunct, token, sizeof(token), NULL);
-		if (token[0] == '}' && token[1] == 0)
+		if (!entities)
+		{
+			if (inbrush || nest)
+			{
+				Con_Printf(CON_ERROR "%s: File truncated?\n", mod->name);
+				return false;
+			}
+			break;
+		}
+		else if (token[0] == '}' && token[1] == 0)
 		{
 			nest--;
 			if (inbrush)
@@ -8076,6 +8117,7 @@ qboolean Terr_ReformEntitiesLump(model_t *mod, heightmap_t *hm, char *entities)
 					if (submodelnum)
 					{
 						Q_snprintfz(token, sizeof(token), "*%i", submodelnum);
+						*out++ = '\n';
 						*out++ = 'm';
 						*out++ = 'o';
 						*out++ = 'd';
@@ -8108,7 +8150,7 @@ qboolean Terr_ReformEntitiesLump(model_t *mod, heightmap_t *hm, char *entities)
 							submod->funcs.MarkLights			= Heightmap_MarkLights;
 							submod->funcs.ClusterForPoint		= Heightmap_ClusterForPoint;
 							submod->funcs.ClusterPVS			= Heightmap_ClusterPVS;
-#ifndef CLIENTONLY
+#ifdef HAVE_SERVER
 							submod->funcs.FindTouchedLeafs		= Heightmap_FindTouchedLeafs;
 							submod->funcs.EdictInFatPVS			= Heightmap_EdictInFatPVS;
 							submod->funcs.FatPVS				= Heightmap_FatPVS;
@@ -8117,7 +8159,8 @@ qboolean Terr_ReformEntitiesLump(model_t *mod, heightmap_t *hm, char *entities)
 							submod->pvsbytes = sizeof(hmpvs_t);
 
 #ifdef RUNTIMELIGHTING
-							subhm->relightcontext = LightStartup(hm->relightcontext, submod, false, false);
+							if (hm->relightcontext)
+								subhm->relightcontext = LightStartup(hm->relightcontext, submod, false, false);
 							subhm->lightthreadmem = hm->lightthreadmem;
 							subhm->inheritedlightthreadmem = true;
 #endif
@@ -8135,6 +8178,11 @@ qboolean Terr_ReformEntitiesLump(model_t *mod, heightmap_t *hm, char *entities)
 				inbrush = true;
 				continue;
 			}
+		}
+		else if (!nest)
+		{
+			Con_Printf(CON_ERROR "%s: junk found\n", mod->name);
+			return false;
 		}
 		else if (inbrush && (!strcmp(token, "patchDef2")   || !strcmp(token, "patchDef3") ||
 							 !strcmp(token, "patchDef2WS") || !strcmp(token, "patchDef3WS")))
@@ -8247,11 +8295,11 @@ qboolean Terr_ReformEntitiesLump(model_t *mod, heightmap_t *hm, char *entities)
 			//Quake:             ( -0 -0 16 ) ( -0 -0 32 ) ( 64 -0 16 )                         texname soffset toffset     rotation sscale tscale
 			//Hexen2:            ( -0 -0 16 ) ( -0 -0 32 ) ( 64 -0 16 )                         texname soffset toffset     rotation sscale tscale surfvalue
 			//Valve:             ( -0 -0 16 ) ( -0 -0 32 ) ( 64 -0 16 )                         texname [x y z d] [x y z d] rotation sscale tscale
-			//FTE  :             ( px py pz pd )                                                texname [x y z d] [x y z d] rotation sscale tscale
+			//FTE  :             ( px py pz pd )                                                texname [x y z d] [x y z d] rotation sscale tscale contents surfflags surfvalue
 			//Quake2:            ( -0 -0 16 ) ( -0 -0 32 ) ( 64 -0 16 )                         texname soffset toffset     rotation sscale tscale contents surfflags surfvalue
-			//Quake3:            ( -0 -0 16 ) ( -0 -0 32 ) ( 64 -0 16 )                         texname soffset toffset     rotation sscale tscale contents surfflags surfvalue
-			//Q3 BP: brushDef {  ( -0 -0 16 ) ( -0 -0 32 ) ( 64 -0 16 ) ( ( x y o ) ( x y o ) ) texname                                            contents surfflags surfvalue } //generate tangent+bitangent from the normal to generate base texcoords, then transform by the given 2*3 matrix. I prefer valve's way - it rotates more cleanly.
-			//Doom3: brushDef3 { ( px py pz pd )                        ( ( x y o ) ( x y o ) ) texname                                            contents surfflags surfvalue }
+			//Quake3:            ( -0 -0 16 ) ( -0 -0 32 ) ( 64 -0 16 )                         texname soffset toffset     rotation sscale tscale detailfl surfflags surfvalue
+			//Q3 BP: brushDef {  ( -0 -0 16 ) ( -0 -0 32 ) ( 64 -0 16 ) ( ( x y o ) ( x y o ) ) texname                                            detailfl surfflags surfvalue } //generate tangent+bitangent from the normal to generate base texcoords, then transform by the given 2*3 matrix. I prefer valve's way - it rotates more cleanly.
+			//Doom3: brushDef3 { ( px py pz pd )                        ( ( x y o ) ( x y o ) ) texname                                            detailfl surfflags surfvalue }
 			//hexen2's extra surfvalue is completely unused, and should normally be -1
 			//q3 ignores all contents except detail, as well surfaceflags and surfacevalue
 			//220 ignores rotation, provided only for UI info, scale is still used
@@ -8346,25 +8394,6 @@ qboolean Terr_ReformEntitiesLump(model_t *mod, heightmap_t *hm, char *entities)
 			}
 
 			bt = Terr_Brush_FindTexture(subhm, token);
-			if (*token == '*')
-			{
-				if (!Q_strncasecmp(token, "*lava", 5))
-					brushcontents = FTECONTENTS_LAVA;
-				else if (!Q_strncasecmp(token, "*slime", 5))
-					brushcontents = FTECONTENTS_SLIME;
-				else
-					brushcontents = FTECONTENTS_WATER;
-			}
-			else if (!Q_strncasecmp(token, "*sky", 4))
-				brushcontents = FTECONTENTS_SKY;
-			else if (!Q_strcasecmp(token, "clip"))
-				brushcontents = FTECONTENTS_PLAYERCLIP|FTECONTENTS_MONSTERCLIP;
-			else if (!Q_strcasecmp(token, "hint"))
-				brushcontents = 0;
-			else if (!Q_strcasecmp(token, "skip"))
-				;//brushcontents = 0;
-			else
-				brushcontents = FTECONTENTS_SOLID;
 
 			if (textype != TEXTYPE_BP)
 			{
@@ -8424,6 +8453,7 @@ qboolean Terr_ReformEntitiesLump(model_t *mod, heightmap_t *hm, char *entities)
 			//The contents conveys only CONTENTS_DETAIL. which is awkward as it varies somewhat by game, but we assume q2/q3.
 			faces[numplanes].surfaceflags = 0;
 			faces[numplanes].surfacevalue = 0;
+
 			while (*entities == ' ' || *entities == '\t')
 				entities++;
 			if (*entities == '-' || (*entities >= '0' && *entities <= '9'))
@@ -8448,10 +8478,8 @@ qboolean Terr_ReformEntitiesLump(model_t *mod, heightmap_t *hm, char *entities)
 					ex3 = atoi(token);
 					//if we got this far, then its q3 format.
 					//q3 is weird. the first extra arg is contents. but only the detail contents is used.
-					if (ex1 & Q3CONTENTS_DETAIL)
-					{
-						brushcontents |= Q3CONTENTS_DETAIL;
-					}
+					//ex1 &= Q3CONTENTS_DETAIL;
+					brushcontents |= ex1;
 
 					//propagate these, in case someone tries editing a q2bsp.
 					faces[numplanes].surfaceflags = ex2;
@@ -8474,6 +8502,39 @@ qboolean Terr_ReformEntitiesLump(model_t *mod, heightmap_t *hm, char *entities)
 				planes[numplanes][3] = DotProduct(points[1], planes[numplanes]);
 			}
 			faces[numplanes].tex = bt;
+
+			/*
+			shader_t *shader = R_RegisterCustom(NULL, bt->shadername, SUF_LIGHTMAP, NULL, NULL);
+			if (shader)
+			{
+				brushcontents &= Q3CONTENTS_DETAIL;
+				brushcontents |= shader->contentbits&~Q3CONTENTS_DETAIL;
+				faces[numplanes].surfaceflags = shader->surfacebits;
+			}
+			else
+			*/
+			if (bt && !numplanes)
+			{
+				if (*bt->shadername == '*')
+				{
+					if (!Q_strncasecmp(bt->shadername, "*lava", 5))
+						brushcontents |= FTECONTENTS_LAVA;
+					else if (!Q_strncasecmp(bt->shadername, "*slime", 5))
+						brushcontents |= FTECONTENTS_SLIME;
+					else
+						brushcontents |= FTECONTENTS_WATER;
+				}
+				else if (!Q_strncasecmp(bt->shadername, "*sky", 4))
+					brushcontents |= FTECONTENTS_SKY;
+				else if (!Q_strcasecmp(bt->shadername, "clip"))
+					brushcontents |= FTECONTENTS_PLAYERCLIP|FTECONTENTS_MONSTERCLIP;
+				else if (!Q_strcasecmp(bt->shadername, "hint"))
+					brushcontents |= 0;
+				else if (!Q_strcasecmp(bt->shadername, "skip"))	//skip should not force content values if paired with lava etc.
+					;//brushcontents = 0;
+				else
+					brushcontents |= FTECONTENTS_SOLID;
+			}
 
 			if (textype == TEXTYPE_BP)
 			{
@@ -8540,9 +8601,9 @@ qboolean Terr_ReformEntitiesLump(model_t *mod, heightmap_t *hm, char *entities)
 		}
 		else
 		{
-			if (!strcmp(token, "classname"))
+			/*if (!strcmp(token, "classname"))
 				entities = COM_ParseTokenOut(entities, brushpunct, token, sizeof(token), NULL);
-			else
+			else*/
 				entities = COM_ParseTokenOut(entities, brushpunct, token, sizeof(token), NULL);
 		}
 		while(start < entities)
@@ -8642,7 +8703,7 @@ qboolean QDECL Terr_LoadTerrainModel (model_t *mod, void *buffer, size_t bufsize
 	mod->funcs.ClusterForPoint		= Heightmap_ClusterForPoint;
 	mod->funcs.ClusterPVS			= Heightmap_ClusterPVS;
 
-#ifndef CLIENTONLY
+#ifdef HAVE_SERVER
 	mod->funcs.FindTouchedLeafs		= Heightmap_FindTouchedLeafs;
 	mod->funcs.EdictInFatPVS		= Heightmap_EdictInFatPVS;
 	mod->funcs.FatPVS				= Heightmap_FatPVS;
@@ -8725,7 +8786,7 @@ void *Mod_LoadTerrainInfo(model_t *mod, char *loadname, qboolean force)
 	return hm;
 }
 
-#ifndef SERVERONLY
+#ifdef HAVE_CLIENT
 #if 0 //not yet ready
 struct ted_import_s
 {
@@ -9020,7 +9081,7 @@ void Mod_Terrain_Create_f(void)
 //reads in the terrain a tile at a time, and writes it out again.
 //the new version will match our current format version.
 //this is mostly so I can strip out old format revisions...
-#ifndef SERVERONLY
+#ifdef HAVE_CLIENT
 void Mod_Terrain_Convert_f(void)
 {
 	model_t *mod;
@@ -9097,7 +9158,7 @@ void Mod_Terrain_Reload_f(void)
 	heightmap_t *hm;
 	if (Cmd_Argc() >= 2)
 		mod = Mod_FindName(va("maps/%s.hmp", Cmd_Argv(1)));
-#ifndef SERVERONLY
+#ifdef HAVE_CLIENT
 	else if (cls.state)
 		mod = cl.worldmodel;
 #endif
@@ -9131,10 +9192,10 @@ plugterrainfuncs_t *Terr_GetTerrainFuncs(size_t structsize)
 {
 	if (structsize != sizeof(plugterrainfuncs_t))
 		return NULL;
-#ifdef SERVERONLY
-	return NULL;	//dedicated server builds have all the visual stuff stripped, which makes APIs too inconsistent. Generate then save. Or fix up the API...
-#else
+#ifdef HAVE_CLIENT
 	return &terrainfuncs;
+#else
+	return NULL;	//dedicated server builds have all the visual stuff stripped, which makes APIs too inconsistent. Generate then save. Or fix up the API...
 #endif
 }
 
@@ -9153,7 +9214,7 @@ void Terr_Init(void)
 	Cvar_Register(&mod_terrain_savever, "Terrain");
 	Cmd_AddCommand("mod_terrain_save", Mod_Terrain_Save_f);
 	Cmd_AddCommand("mod_terrain_reload", Mod_Terrain_Reload_f);
-#ifndef SERVERONLY
+#ifdef HAVE_CLIENT
 //	Cmd_AddCommandD("mod_terrain_export", Mod_Terrain_Export_f, "Export a raw heightmap");
 //	Cmd_AddCommandD("mod_terrain_import", Mod_Terrain_Import_f, "Import a raw heightmap");
 	Cmd_AddCommand("mod_terrain_create", Mod_Terrain_Create_f);

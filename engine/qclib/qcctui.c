@@ -198,11 +198,33 @@ int qcc_wildcmp(const char *wild, const char *string)
 	return !*wild;
 }
 
+void AddSourceFile(const char *parentpath, const char *filename){}	//used in the gui to insert extra stuff into the file list. irrelevant here.
+void compilecb(void){}	//... used in the gui to repaint things while busy, so a pointless stub here.
+static void DoDecompileProgsDat(const char *name, void *blob, size_t blobsize)
+{
+//	extern pbool qcc_vfiles_changed;
+	extern vfile_t *qcc_vfiles;
+	vfile_t *f;
+	DecompileProgsDat(name, blob, blobsize);
 
+	for (f = qcc_vfiles; f; f = f->next)
+	{
+		int h;
+		h = SafeOpenWrite(f->filename, -1);
+		if (h >= 0)
+		{
+			SafeWrite(h, f->file, f->size);
+			SafeClose(h);
+		}
+		else
+			externs->Printf("%s: write failure\n", f->filename);
+	}
+}
 
 static const char *extractonly;	//the file we're looking for
 static pbool extractonlyfound;	//for errors.
 static pbool extractecho;	//print the file to stdout instead of writing it.
+static pbool extractdecomp;	//print the file to stdout instead of writing it.
 static void QCC_FileExtract(const char *name, const void *compdata, size_t compsize, int method, size_t plainsize)
 {
 	if (method < 0)
@@ -228,7 +250,9 @@ static void QCC_FileExtract(const char *name, const void *compdata, size_t comps
 		void *buffer = malloc(plainsize);
 		if (buffer && QC_decode(progfuncs, compsize, plainsize, method, compdata, buffer))
 		{
-			if (extractecho)
+			if (extractdecomp)
+				DoDecompileProgsDat(name, buffer, plainsize);
+			else if (extractecho)
 			{
 				externs->Printf("\n");
 				fwrite(buffer, 1, plainsize, stdout);
@@ -272,6 +296,7 @@ int main (int argc, const char **argv)
 #else
 	pbool writelog = false;	//other systems are sane.
 #endif
+	pbool halp = false;
 	int colours = 2;	//auto
 	int ziparg = -1;
 	progexterns_t ext;
@@ -294,6 +319,8 @@ int main (int argc, const char **argv)
 			writelog = true;
 		else if (!strcmp(argv[i], "-nolog"))
 			writelog = false;
+		else if (!strcmp(argv[i], "-help") || !strcmp(argv[i], "--help"))
+			halp = true;
 
 		//arg consistency with ls
 		else if (!strcmp(argv[i], "--color=always") || !strcmp(argv[i], "--color"))
@@ -302,7 +329,8 @@ int main (int argc, const char **argv)
 			colours = 0;
 		else if (!strcmp(argv[i], "--color=auto"))
 			colours = 2;
-		else if (!strcmp(argv[i], "-l") ||
+		else if (!strcmp(argv[i], "-d") || //o.O
+				 !strcmp(argv[i], "-l") ||
 				 !strcmp(argv[i], "-x") ||
 				 !strcmp(argv[i], "-p") ||
 				 !strcmp(argv[i], "-z") ||
@@ -334,7 +362,22 @@ int main (int argc, const char **argv)
 	(void)colours;
 #endif
 
-	if (ziparg >= 0)
+	if (halp)
+	{
+		logprintf("Archiving args:\n");
+		logprintf(" -l PACKAGE : List files within a pak or pk3\n");
+		logprintf(" -x PACKAGE [FILENAMES]: Extract files from pak or pk3\n");
+		logprintf(" -p PACKAGE FILENAME: Pipe files from a pak or pk3 to the stdout\n");
+		logprintf(" -z DIRECTORY : Create a spanned pk3 from a 'foo.pk3dir' subdir.\n");
+		logprintf("     the pk3 itself contains just the file table, actual data will reside in external .p## files which will NOT be overwritten and can be referenced by future revisions to reduce redundancy on future updates\n");
+		logprintf(" -0 DIRECTORY : Create a hybrid pak (uncompressed)\n");
+		logprintf("     such pak files can also be read with any zip tool without needing special tools to extract (but should not be edited)\n");
+		logprintf(" -9 DIRECTORY : Create a standard pk3\n");
+		logprintf("     regular compressed zip with limited feature set for greater engine compat\n");
+		logprintf("Decompiling args:\n");
+		logprintf(" -d FILENAME : decompile a progs (into working directory)\n");
+	}
+	else if (ziparg >= 0)
 	{
 		if (ziparg+1 >= argc)
 		{
@@ -343,6 +386,33 @@ int main (int argc, const char **argv)
 		}
 		switch(argv[ziparg][1])
 		{
+		case 'd':	//decompile...
+			{
+				size_t blobsize;
+				void *blob = QCC_ReadFile(argv[ziparg+1], NULL, NULL, &blobsize, false);
+				if (!blob)
+					logprintf("Unable to read %s\n", argv[ziparg+1]);
+				else if (!strncmp(blob, "PACK", 4) || !strncmp(blob, "PK", 2))
+				{	//.pak or .pk3... probably.
+					extractonly = (ziparg+2 < argc)?argv[ziparg+2]:"progs.dat";
+					extractdecomp = true;
+					extractonlyfound = false;
+					QC_EnumerateFilesFromBlob(blob, blobsize, QCC_FileExtract);
+					if (!extractonlyfound)
+						externs->Printf("Unable to find file %s inside %s\n", extractonly, argv[ziparg+1]);
+					else
+						return EXIT_SUCCESS;
+					extractonly = NULL;
+				}
+				else if (blob)
+				{	//directly a .dat
+					DoDecompileProgsDat(argv[ziparg+1], blob, blobsize);
+					free(blob);
+					return EXIT_SUCCESS;
+				}
+				return EXIT_FAILURE;
+			}
+			break;
 		case 'l':	//list all files.
 			{
 				size_t blobsize;
@@ -395,9 +465,9 @@ int main (int argc, const char **argv)
 
 			{	//exe -0 foo.pk3dir
 				enum pkgtype_e t;
-				if (argv[1][1] == '9')
+				if (argv[ziparg][1] == '9')
 					t = PACKAGER_PK3;
-				else if (argv[1][1] == '0')
+				else if (argv[ziparg][1] == '0')
 					t = PACKAGER_PAK;	//not really any difference but oh well
 				else
 					t = PACKAGER_PK3_SPANNED;

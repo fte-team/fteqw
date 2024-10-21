@@ -34,10 +34,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "../../plugins/plugin.h"
 #include "../../plugins/engine.h"
 
-#ifndef HAVE_LEGACY
-#undef USERBE
-#endif
-
 #define DEG2RAD(d) (d * M_PI * (1/180.0f))
 #define RAD2DEG(d) ((d*180) / M_PI)
 

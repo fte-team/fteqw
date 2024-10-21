@@ -20,7 +20,7 @@ void M_Script_Option (emenu_t *menu, char *optionvalue, qboolean isexplicit)
 
 	Cbuf_AddText("wait\n", execlevel);
 
-	if (!*scriptname)
+	if (!scriptname || !*scriptname)
 	{
 		if (isexplicit)
 			Cbuf_AddText(va("%s\n", optionvalue), execlevel);

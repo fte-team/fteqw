@@ -8,14 +8,14 @@ class mitem_check : mitem
 		if (!down)
 			return FALSE;
 	
-		if (scan == K_ENTER || scan == K_SPACE || scan == K_LEFTARROW || scan == K_RIGHTARROW || scan == K_MOUSE1)
+		if (ISCONFIRMKEY(scan) || scan == K_SPACE || ISLEFTARROW(scan) || ISRIGHTARROW(scan) || scan == K_MOUSE1 || scan == K_TOUCHTAP)
 		{
 			pos_x += this.item_size_x / 2;
 //			if (ui.mousepos[0] > pos_x || scan != K_MOUSE1)	//don't do anything if they clicked the bit on the left to select it
 				set(item_command, ftos(!stof(get(item_command))));
 			return TRUE;
 		}
-		else if (scan == K_DEL && down && cvar_type(item_command))
+		else if ((scan == K_DEL || scan == K_GP_Y) && down && cvar_type(item_command))
 			set(item_command, cvar_defstring(item_command));
 		return FALSE;
 	};

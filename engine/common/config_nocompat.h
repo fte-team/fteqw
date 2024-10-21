@@ -36,7 +36,6 @@
 #define PSET_SCRIPT				//scriptable particles (both fte's and importing effectinfo)
 #define RTLIGHTS
 //#define RUNTIMELIGHTING		//automatic generation of .lit files
-//#define R_XFLIP				//old silly thing
 
 //Extra misc features.
 //#define CLIENTONLY			//
@@ -191,7 +190,6 @@
 ////#define QTERM				//qterm... adds a console command that allows running programs from within quake - bit like xterm.
 //#define SVCHAT				//ancient lame builtin to support NPC-style chat...
 ////#define SV_MASTER			//Support running the server as a master server. Should probably not be used.
-////#define WEBSERVER			//outdated sv_http cvar. new stuff acts via sv_port_tcp instead (which also gives https).
 ////#define QUAKESPYAPI			//define this if you want the engine to be usable via gamespy/quakespy, which has been dead for a long time now. forces the client to use a single port for all outgoing connections, which hurts reconnects.
 
 

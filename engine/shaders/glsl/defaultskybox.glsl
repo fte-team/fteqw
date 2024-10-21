@@ -2,6 +2,7 @@
 !!samps reflectcube
 !!cvardf r_skyfog=0.5
 !!cvard4 r_glsl_skybox_orientation=0 0 0 0
+!!cvardf r_glsl_skybox_autorotate=1
 #include "sys/defs.h"
 #include "sys/fog.h"
 
@@ -11,10 +12,12 @@ varying vec3 pos;
 #ifdef VERTEX_SHADER
 mat3 rotateAroundAxis(vec4 axis) //xyz axis, with angle in w
 {
-#define skyang axis.w*(3.14/180.0)*e_time
+	if (bool(r_glsl_skybox_autorotate))
+		axis.w *= e_time;
+	axis.w *= (3.14/180.0);
 	axis.xyz = normalize(axis.xyz);
-	float s = sin(skyang);
-	float c = cos(skyang);
+	float s = sin(axis.w);
+	float c = cos(axis.w);
 	float oc = 1.0 - c;
 
 	return mat3(oc * axis.x * axis.x + c, oc * axis.x * axis.y - axis.z * s, oc * axis.z * axis.x + axis.y * s,

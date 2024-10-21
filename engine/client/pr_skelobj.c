@@ -1625,7 +1625,7 @@ void rag_updatedeltaent(world_t *w, entity_t *ent, lerpents_t *le)
 			sko->numanimated = 0;
 		else if (sko->doll)
 			sko->numanimated = sko->doll->numdefaultanimated;
-		Mod_GetBoneRelations(mod, 0, skorel.numbones, &ent->framestate, skorel.bonematrix);
+		Mod_GetBoneRelations(mod, 0, skorel.numbones, NULL, &ent->framestate, skorel.bonematrix);
 		skorel.modelindex = sko->modelindex;
 		skorel.model = sko->model;
 		if (sko->numanimated || sko->doll != mod->dollinfo)
@@ -1932,6 +1932,7 @@ void QCBUILTIN PF_skel_build(pubprogfuncs_t *prinst, struct globalvars_s *pr_glo
 	framestate_t fstate;
 	skelobject_t *skelobj;
 	model_t *model;
+	galiasbone_t *boneinfo;
 
 	//default to failure
 	G_FLOAT(OFS_RETURN) = 0;
@@ -1946,18 +1947,26 @@ void QCBUILTIN PF_skel_build(pubprogfuncs_t *prinst, struct globalvars_s *pr_glo
 	fstate.bonecount = 0;
 	fstate.bonestate = NULL;
 
-	numbones = Mod_GetNumBones(model, false);
-	if (!numbones)
-	{
-		return;	//this isn't a skeletal model.
-	}
-
 	if (!skelidx)
+	{
+		numbones = Mod_GetNumBones(model, false);
+		if (!numbones)
+		{
+			return;	//this isn't a skeletal model.
+		}
 		skelobj = skel_create(w, numbones);
+	}
 	else
 		skelobj = skel_get(w, skelidx);
 	if (!skelobj)
 		return;	//couldn't get one, ran out of memory or something?
+
+	if (skelobj->model)
+		boneinfo = Mod_GetBoneInfo(skelobj->model, &numbones);
+	else
+		boneinfo = NULL;
+	numbones = skelobj->numbones;
+
 
 	if (lastbone < 0)
 		lastbone = numbones;
@@ -1980,15 +1989,15 @@ void QCBUILTIN PF_skel_build(pubprogfuncs_t *prinst, struct globalvars_s *pr_glo
 
 	if (retainfrac == 0)
 	{
-		if (addition == 1) /*replace everything*/
-			Mod_GetBoneRelations(model, firstbone, lastbone, &fstate, skelobj->bonematrix);
-		else if (addition == 0) /*wipe it*/
+		if (addition == 0) /*wipe it*/
 			memset(skelobj->bonematrix + firstbone*12, 0, sizeof(float)*12*(lastbone-firstbone));
+		else if (addition == 1) /*replace everything*/
+			Mod_GetBoneRelations(model, firstbone, lastbone, boneinfo, &fstate, skelobj->bonematrix);
 		else
 		{
 			//scale new
 			float relationsbuf[MAX_BONES*12];
-			Mod_GetBoneRelations(model, firstbone, lastbone, &fstate, relationsbuf);
+			Mod_GetBoneRelations(model, firstbone, lastbone, boneinfo, &fstate, relationsbuf);
 			for (i = firstbone; i < lastbone; i++)
 			{
 				for (j = 0; j < 12; j++)
@@ -1998,6 +2007,8 @@ void QCBUILTIN PF_skel_build(pubprogfuncs_t *prinst, struct globalvars_s *pr_glo
 	}
 	else
 	{
+		float relationsbuf[MAX_BONES*12];
+
 		if (retainfrac != 1)
 		{
 			//rescale the existing bones
@@ -2007,22 +2018,19 @@ void QCBUILTIN PF_skel_build(pubprogfuncs_t *prinst, struct globalvars_s *pr_glo
 					skelobj->bonematrix[i*12+j] *= retainfrac;
 			}
 		}
+
+		//just add
+		Mod_GetBoneRelations(model, firstbone, lastbone, boneinfo, &fstate, relationsbuf);
 		if (addition == 1)
 		{
-			//just add
-			float relationsbuf[MAX_BONES*12];
-			Mod_GetBoneRelations(model, firstbone, lastbone, &fstate, relationsbuf);
 			for (i = firstbone; i < lastbone; i++)
 			{
 				for (j = 0; j < 12; j++)
 					skelobj->bonematrix[i*12+j] += relationsbuf[i*12+j];
 			}
 		}
-		else if (addition)
+		else
 		{
-			//add+scale
-			float relationsbuf[MAX_BONES*12];
-			Mod_GetBoneRelations(model, firstbone, lastbone, &fstate, relationsbuf);
 			for (i = firstbone; i < lastbone; i++)
 			{
 				for (j = 0; j < 12; j++)
@@ -2068,6 +2076,7 @@ void QCBUILTIN PF_skel_build_ptr(pubprogfuncs_t *prinst, struct globalvars_s *pr
 	int numbones, firstbone, lastbone;
 	model_t *model;
 	qboolean noadd;
+	const galiasbone_t *boneinfo = NULL;
 
 	//default to failure
 	G_FLOAT(OFS_RETURN) = 0;
@@ -2170,7 +2179,7 @@ void QCBUILTIN PF_skel_build_ptr(pubprogfuncs_t *prinst, struct globalvars_s *pr
 			}
 		}
 		else if (blends->prescale == 0) //new data only. directly replace the existing data
-			Mod_GetBoneRelations(model, firstbone, lastbone, &fstate, skelobj->bonematrix);
+			Mod_GetBoneRelations(model, firstbone, lastbone, boneinfo, &fstate, skelobj->bonematrix);
 		else
 		{
 			if (blends->prescale != 1)
@@ -2183,7 +2192,7 @@ void QCBUILTIN PF_skel_build_ptr(pubprogfuncs_t *prinst, struct globalvars_s *pr
 				}
 			}
 
-			Mod_GetBoneRelations(model, firstbone, lastbone, &fstate, relationsbuf);
+			Mod_GetBoneRelations(model, firstbone, lastbone, boneinfo, &fstate, relationsbuf);
 			for (i = firstbone; i < lastbone; i++)
 			{
 				for (j = 0; j < 12; j++)
@@ -2671,10 +2680,10 @@ void QCBUILTIN PF_frametoname (pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 {
 	world_t *w = prinst->parms->user;
 	int modelindex = G_FLOAT(OFS_PARM0);
-	unsigned int skinnum = G_FLOAT(OFS_PARM1);
+	unsigned int animnum = G_FLOAT(OFS_PARM1);
 	int surfaceidx = 0;
 	model_t *mod = w->Get_CModel(w, modelindex);
-	const char *n = Mod_FrameNameForNum(mod, surfaceidx, skinnum);
+	const char *n = Mod_FrameNameForNum(mod, surfaceidx, animnum);
 
 	if (n)
 		RETURN_TSTRING(n);

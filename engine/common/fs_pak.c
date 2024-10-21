@@ -12,7 +12,7 @@ typedef struct
 	fsbucket_t bucket;
 
 	char	name[MAX_QPATH];
-	int		filepos, filelen;
+	unsigned int		filepos, filelen;
 } mpackfile_t;
 
 typedef struct pack_s
@@ -24,7 +24,7 @@ typedef struct pack_s
 
 	void		*mutex;
 	vfsfile_t	*handle;
-	unsigned int filepos;	//the pos the subfiles left it at (to optimize calls to vfs_seek)
+	qofs_t		filepos;	//the pos the subfiles left it at (to optimize calls to vfs_seek)
 	qatomic32_t references;	//seeing as all vfiles from a pak file use the parent's vfsfile, we need to keep the parent open until all subfiles are closed.
 } pack_t;
 
@@ -34,27 +34,27 @@ typedef struct pack_s
 typedef struct
 {
 	char	name[56];
-	int		filepos, filelen;
+	unsigned int		filepos, filelen;
 } dpackfile_t;
 
 typedef struct
 {
-	int		filepos, filelen;
+	unsigned int		filepos, filelen;
 	char	name[8];
 } dwadfile_t;
 
 typedef struct
 {
 	char	id[4];
-	int		dirofs;
-	int		dirlen;
+	unsigned int		dirofs;
+	unsigned int		dirlen;
 } dpackheader_t;
 
 typedef struct
 {
 	char	id[4];
-	int		dirlen;
-	int		dirofs;
+	unsigned int		dirlen;
+	unsigned int		dirofs;
 } dwadheader_t;
 
 #define	MAX_FILES_IN_PACK	2048
@@ -129,7 +129,7 @@ static unsigned int QDECL FSPAK_FLocate(searchpathfuncs_t *handle, flocation_t *
 		if (loc)
 		{
 			loc->fhandle = pf;
-			snprintf(loc->rawname, sizeof(loc->rawname), "%s", pak->descname);
+			Q_snprintfz(loc->rawname, sizeof(loc->rawname), "%s", pak->descname);
 			loc->offset = pf->filepos;
 			loc->len = pf->filelen;
 		}
@@ -155,7 +155,7 @@ static int QDECL FSPAK_EnumerateFiles (searchpathfuncs_t *handle, const char *ma
 	return true;
 }
 
-static int QDECL FSPAK_GeneratePureCRC(searchpathfuncs_t *handle, int seed, int crctype)
+static int QDECL FSPAK_GeneratePureCRC(searchpathfuncs_t *handle, const int *seed)
 {	//this is really weak. :(
 	pack_t *pak = (void*)handle;
 
@@ -165,7 +165,8 @@ static int QDECL FSPAK_GeneratePureCRC(searchpathfuncs_t *handle, int seed, int 
 	int i;
 
 	filecrcs = BZ_Malloc((pak->numfiles+1)*sizeof(int));
-	filecrcs[numcrcs++] = seed;
+	if (seed)	//so exploiters can't cache it in purity replies.
+		filecrcs[numcrcs++] = *seed;
 
 	for (i = 0; i < pak->numfiles; i++)
 	{
@@ -175,10 +176,7 @@ static int QDECL FSPAK_GeneratePureCRC(searchpathfuncs_t *handle, int seed, int 
 		}
 	}
 
-	if (crctype)
-		result = CalcHashInt(&hash_md4, filecrcs, numcrcs*sizeof(int));
-	else
-		result = CalcHashInt(&hash_md4, filecrcs+1, (numcrcs-1)*sizeof(int));
+	result = CalcHashInt(&hash_md4, filecrcs, numcrcs*sizeof(int));
 
 	BZ_Free(filecrcs);
 	return result;
@@ -307,7 +305,7 @@ of the list so they override previous pack files.
 */
 searchpathfuncs_t *QDECL FSPAK_LoadArchive (vfsfile_t *file, searchpathfuncs_t *parent, const char *filename, const char *desc, const char *prefix)
 {
-	dpackheader_t	header;
+	dpackheader_t	header = {};
 	int				i;
 	mpackfile_t		*newfiles;
 	int				numpackfiles;
@@ -327,7 +325,8 @@ searchpathfuncs_t *QDECL FSPAK_LoadArchive (vfsfile_t *file, searchpathfuncs_t *
 	if (read < sizeof(header) || header.id[0] != 'P' || header.id[1] != 'A'
 	|| header.id[2] != 'C' || header.id[3] != 'K')
 	{
-		Con_Printf("%s is not a pak - %c%c%c%c\n", desc, header.id[0], header.id[1], header.id[2], header.id[3]);
+		header.dirofs = 0;
+		Con_Printf("%s is not a pak - \"%s\"\n", desc, header.id);
 		return NULL;
 	}
 	header.dirofs = LittleLong (header.dirofs);
@@ -389,7 +388,7 @@ searchpathfuncs_t *QDECL FSPAK_LoadArchive (vfsfile_t *file, searchpathfuncs_t *
 }
 
 #ifdef PACKAGE_DOOMWAD
-searchpathfuncs_t *QDECL FSDWD_LoadArchive (vfsfile_t *packhandle, const char *desc, const char *prefix)
+searchpathfuncs_t *QDECL FSDWD_LoadArchive (vfsfile_t *packhandle, searchpathfuncs_t *parent, const char *wadname, const char *desc, const char *prefix)
 {
 	dwadheader_t	header;
 	int				i;
@@ -484,7 +483,7 @@ newsection:
 					newfiles[i].filelen = 4;
 					break;
 				}
-				if (!strncmp(filename, "gl_", 3) && ((filename[4] == 'e' && filename[5] == 'm') || !strncmp(filename+3, "map", 3)))
+				if (!Q_strncmp(filename, "gl_", 3) && ((filename[3] == 'e' && filename[5] == 'm') || !strncmp(filename+3, "map", 3)))
 				{	//this is the start of a beutiful new map
 					section = 5;
 					strcpy(sectionname, filename+3);
@@ -523,7 +522,8 @@ newsection:
 			}
 			sprintf (newfiles[i].name, "maps/%s%s.%s", neatwadname, sectionname, filename);
 			break;
-		case 2:	//sprite section
+		case 2:	//sprite section. sprites use the first 4 letters to identify the name of the sprite, and the last 4 to define its frame+dir [+ xflipped frame+dir]
+			//FIXME: inject a '.dsp' file for filesystem accountability when we see an a0 (or a1) postfix.
 			if (!strcmp(filename, "s_end"))
 			{
 				section = 0;
@@ -531,7 +531,7 @@ newsection:
 			}
 			sprintf (newfiles[i].name, "sprites/%s", filename);
 			break;
-		case 3:	//patches section
+		case 3:	//patches section. they need the textures1/2 lump in order to position correctly as actual textures.
 			if (!strcmp(filename, "p_end"))
 			{
 				section = 0;
@@ -539,7 +539,7 @@ newsection:
 			}
 			sprintf (newfiles[i].name, "patches/%s.pat", filename);
 			break;
-		case 4:	//flats section
+		case 4:	//flats section. note that these are raw p8 64*64 images
 			if (!strcmp(filename, "f_end"))
 			{
 				section = 0;

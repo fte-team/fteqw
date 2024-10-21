@@ -164,7 +164,7 @@ typedef struct entity_s
 #endif
 } entity_t;
 
-#define MAX_GEOMSETS 32
+#define MAX_GEOMSETS 32u
 #define Q1UNSPECIFIED 0x00ffffff	//0xffRRGGBB or 0x0000000V are both valid values. so this is an otherwise-illegal value to say its not been set.
 typedef struct
 {
@@ -178,6 +178,7 @@ typedef struct
 	struct qwskin_s *qwskin;
 	unsigned int q1upper;	//Q1UNSPECIFIED
 	unsigned int q1lower;	//Q1UNSPECIFIED
+	unsigned int h2class;	//Q1UNSPECIFIED. urgh.
 #endif
 	struct
 	{
@@ -235,11 +236,12 @@ typedef enum {
 typedef enum
 {
 	PROJ_STANDARD			= 0,
-	PROJ_STEREOGRAPHIC		= 1,	//aka panini
+	PROJ_STEREOGRAPHIC		= 1,
 	PROJ_FISHEYE			= 2,	//standard fisheye
 	PROJ_PANORAMA			= 3,	//for nice panoramas
 	PROJ_LAEA				= 4,	//lambert azimuthal equal-area 
-	PROJ_EQUIRECTANGULAR	= 5		//projects a sphere into 2d. used by vr screenshots.
+	PROJ_EQUIRECTANGULAR	= 5,	//projects a sphere into 2d. used by vr screenshots.
+	PROJ_PANINI       = 6		//like stereographic, but vertical lines stay straight.
 } qprojection_t;
 
 typedef struct {
@@ -582,10 +584,10 @@ void Mod_SubmodelLoaded(struct model_s *mod, int state);
 #ifdef RUNTIMELIGHTING
 struct relight_ctx_s;
 struct llightinfo_s;
-void LightPlane (struct relight_ctx_s *ctx, struct llightinfo_s *threadctx, lightstyleindex_t surf_styles[4], unsigned int *surf_expsamples, qbyte *surf_rgbsamples, qbyte *surf_deluxesamples, vec4_t surf_plane, vec4_t surf_texplanes[2], vec2_t exactmins, vec2_t exactmaxs, int texmins[2], int texsize[2], float lmscale);	//special version that doesn't know what a face is or anything.
+void LightPlane (struct relight_ctx_s *ctx, struct llightinfo_s *threadctx, lightstyleindex_t surf_styles[MAXCPULIGHTMAPS], unsigned int *surf_expsamples, qbyte *surf_rgbsamples, qbyte *surf_deluxesamples, vec4_t surf_plane, vec4_t surf_texplanes[2], vec2_t exactmins, vec2_t exactmaxs, int texmins[2], int texsize[2], float lmscale);	//special version that doesn't know what a face is or anything.
 struct relight_ctx_s *LightStartup(struct relight_ctx_s *ctx, struct model_s *model, qboolean shadows, qboolean skiplit);
 void LightReloadEntities(struct relight_ctx_s *ctx, const char *entstring, qboolean ignorestyles);
-void LightShutdown(struct relight_ctx_s *ctx);
+void LightShutdown(struct relight_ctx_s *ctx, struct model_s *model);
 extern const size_t lightthreadctxsize;
 
 qboolean RelightSetup (struct model_s *model, size_t lightsamples, qboolean generatelit);
@@ -673,7 +675,9 @@ extern	cvar_t	r_shadow_realtime_dlight_diffuse;
 extern	cvar_t	r_shadow_realtime_dlight_specular;
 extern	cvar_t	r_shadow_realtime_world, r_shadow_realtime_world_shadows, r_shadow_realtime_world_lightmaps, r_shadow_realtime_world_importlightentitiesfrommap;
 extern	float r_shadow_realtime_world_lightmaps_force;
+extern	cvar_t	r_shadow_raytrace;
 extern	cvar_t	r_shadow_shadowmapping;
+extern	cvar_t	r_halfrate;
 extern	cvar_t	r_mirroralpha;
 extern	cvar_t	r_wateralpha;
 extern	cvar_t	r_lavaalpha;
@@ -698,9 +702,7 @@ extern	qboolean r_softwarebanding;
 extern	cvar_t r_lightprepass_cvar;
 extern	int r_lightprepass;	//0=off,1=16bit,2=32bit
 
-#ifdef R_XFLIP
 extern cvar_t	r_xflip;
-#endif
 
 extern cvar_t gl_mindist, gl_maxdist;
 extern	cvar_t	r_clear;

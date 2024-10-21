@@ -842,7 +842,7 @@ int SQL_NewServer(void *owner, const char *driver, const char **paramstr)
 		{
 			//anything else is sandboxed into a subdir/database.
 			char *qname = va("sqlite/%s.db", paramstr[3]);
-			if (!FS_NativePath(qname, FS_GAMEONLY, nativepath, sizeof(nativepath)))
+			if (!FS_SystemPath(qname, FS_GAMEONLY, nativepath, sizeof(nativepath)))
 				return -1;
 			paramstr[3] = nativepath;
 			FS_CreatePath(qname, FS_GAMEONLY);

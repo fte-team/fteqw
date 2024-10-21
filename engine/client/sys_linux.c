@@ -66,6 +66,10 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #undef malloc
 
+#if defined(__unix__) && !defined(__CYGWIN__)
+#include <sys/epoll.h>
+#endif
+
 static int noconinput = 0;
 static int nostdout = 0;
 
@@ -177,8 +181,8 @@ void Sys_Printf (char *fmt, ...)
 		va_start (argptr,fmt);
 		vsnprintf (text,sizeof(text)-1, fmt,argptr);
 		va_end (argptr);
-		SSV_PrintToMaster(text);
-		return;
+		if (SSV_PrintToMaster(text))
+			return;
 	}
 #endif
 
@@ -452,7 +456,7 @@ static void Sys_Register_File_Associations_f(void)
 		if (!strcmp(iconname, "afterquake") || !strcmp(iconname, "nq"))	//hacks so that we don't need to create icons.
 			iconname = "quake";
 
-		if (FS_NativePath("icon.png", FS_PUBBASEGAMEONLY, iconsyspath, sizeof(iconsyspath)))
+		if (FS_SystemPath("icon.png", FS_PUBBASEGAMEONLY, iconsyspath, sizeof(iconsyspath)))
 			iconname = iconsyspath;
 
 		s = va("%s/applications/fte-%s.desktop", xdgbase, fs_manifest->installation);
@@ -1215,7 +1219,7 @@ static void DoSign(const char *fname, int signtype)
 		searchpathfuncs_t *search = FS_OpenPackByExtension(f, NULL, fname, fname, prefix);
 		if (search)
 		{
-			printf("%#08x", search->GeneratePureCRC(search, 0, 0));
+			printf("%#08x", search->GeneratePureCRC(search, NULL));
 			search->ClosePath(search);
 		}
 		else
@@ -1480,7 +1484,7 @@ int main (int c, const char **v)
 	{
 		isDedicated = true;
 		nostdout = noconinput = true;
-		SSV_SetupControlPipe(Sys_GetStdInOutStream());
+		SSV_SetupControlPipe(Sys_GetStdInOutStream(), false);
 	}
 #endif
 	if (COM_CheckParm("-dedicated"))
@@ -1527,8 +1531,8 @@ int main (int c, const char **v)
 	}
 //end
 
-	if (parms.binarydir)
-		Sys_Printf("Binary is located at \"%s\"\n", parms.binarydir);
+//	if (parms.binarydir)
+//		Sys_Printf("Binary is located at \"%s\"\n", parms.binarydir);
 
 #ifndef CLIENTONLY
 	if (isDedicated)    //compleate denial to switch to anything else - many of the client structures are not initialized.
@@ -1550,15 +1554,6 @@ int main (int c, const char **v)
 #endif
 
 	Host_Init(&parms);
-
-	for (i = 1; i < parms.argc; i++)
-	{
-		if (!parms.argv[i])
-			continue;
-		if (*parms.argv[i] == '+' || *parms.argv[i] == '-')
-			break;
-		Host_RunFile(parms.argv[i], strlen(parms.argv[i]), NULL);
-	}
 
 	oldtime = Sys_DoubleTime ();
 	while (1)

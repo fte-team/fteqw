@@ -5,6 +5,8 @@
 
 #if defined(_WIN32) || defined(__DJGPP__)
 	#include <malloc.h>
+#elif defined(__unix__) && !defined(__linux__) // quick hack for the bsds and other unix systems
+    #include<stdlib.h>
 #elif !defined(alloca)	//alloca.h isn't present on bsd (stdlib.h should define it to __builtin_alloca, and we can check for that here).
 	#include <alloca.h>
 #endif
@@ -894,6 +896,8 @@ QCC_opcode_t pr_opcodes[] =
 
  {0, NULL, "OPD_GOTO_FORSTART"},
  {0, NULL, "OPD_GOTO_WHILE1"},
+ {0, NULL, "OPD_GOTO_BREAK"},
+ {0, NULL, "OPD_GOTO_DEFAULT"},
 
  {0, NULL}
 };
@@ -1382,6 +1386,8 @@ static pbool QCC_OPCodeValidForTarget(qcc_targetformat_t targfmt, unsigned int q
 			return (qcc_targetversion>=5768);
 		if (num >= OP_STOREP_B)	//byte
 			return (qcc_targetversion>=5744);
+		//storep_* offsets 5712
+		//	return (qcc_targetversion>=5744);
 		if (num >= OP_STOREF_V)	//field stores
 			return (qcc_targetversion>=5698);
 		if (num >= OP_IF_F)		//iffloat fixes
@@ -2700,7 +2706,7 @@ QCC_sref_t QCC_PR_StatementFlags ( QCC_opcode_t *op, QCC_sref_t var_a, QCC_sref_
 	char typea[256], typeb[256];
 	QCC_statement_t	*statement;
 	QCC_sref_t			var_c=nullsref;
-
+	pbool nan_eq_cond, sym_cmp;
 
 	if (var_a.sym)
 	{
@@ -3618,7 +3624,8 @@ QCC_sref_t QCC_PR_StatementFlags ( QCC_opcode_t *op, QCC_sref_t var_a, QCC_sref_
 
 	// self-comparison that is impacted when NaN
 	// e.g. NaN == NaN, NaN != NaN, [NaN, 0, 0] == [NaN, 0, 0], etc.
-	pbool nan_eq_cond = false;
+	nan_eq_cond = false;
+
 	switch (op - pr_opcodes)
 	{
 	case OP_STATE:
@@ -3840,7 +3847,7 @@ QCC_sref_t QCC_PR_StatementFlags ( QCC_opcode_t *op, QCC_sref_t var_a, QCC_sref_
 			QCC_PR_ParseWarning(WARN_STRICTTYPEMISMATCH, "'%s' type mismatch: %s with %s", op->name, typea, typeb);
 		}
 
-		pbool sym_cmp = !nan_eq_cond && var_a.sym == var_b.sym && var_a.ofs == var_b.ofs;
+		sym_cmp = !nan_eq_cond && var_a.sym == var_b.sym && var_a.ofs == var_b.ofs;
 
 		if ((var_a.sym->constant && var_b.sym->constant && !var_a.sym->temp && !var_b.sym->temp) || sym_cmp)
 		{
@@ -6247,7 +6254,7 @@ nolength:
 
 			if (reqtype)
 			{
-				QCC_PR_ParseWarning(WARN_FORMATSTRING, "%s: %s%s%s requires %s at arg %i (got %s%s%s)", funcname, col_name, formatbuf, col_none, reqtype, thisarg+1, col_type, TypeName(ARGCTYPE(thisarg), temp, sizeof(temp)), col_none);
+				QCC_PR_ParseWarning(WARN_FORMATSTRING, "%s: %s%s%s requires %s%s%s at arg %i (got %s%s%s)", funcname, col_name,formatbuf,col_none, col_type,reqtype,col_none, thisarg+1, col_type,TypeName(ARGCTYPE(thisarg), temp, sizeof(temp)),col_none);
 				switch(ARGCTYPE(thisarg)->type)
 				{
 				case ev_string:
@@ -7329,7 +7336,7 @@ QCC_sref_t QCC_PR_GenerateFunctionCallRef (QCC_sref_t newself, QCC_sref_t func, 
 					asz = 3-(ofs%3);
 					if (ofs+asz > arglist[i]->cast->size)
 						asz = arglist[i]->cast->size-ofs;
-					while (!copyop[asz-1] || !QCC_OPCodeValid(&pr_opcodes[copyop[asz-1]]))
+					while (asz > 3 || !copyop[asz-1] || (asz>1&&!QCC_OPCodeValid(&pr_opcodes[copyop[asz-1]])))
 						asz--;	//can't do that size...
 
 					if (copyop[0] == OP_STORE_F)
@@ -9259,7 +9266,7 @@ QCC_ref_t *QCC_PR_ParseRefArrayPointer (QCC_ref_t *retbuf, QCC_ref_t *r, pbool a
 				else
 				{
 					/*automatic runtime bounds checks on strings, I'm not going to check this too much...*/
-					r = QCC_PR_BuildRef(retbuf, REF_STRING, QCC_RefToDef(r, true), tmp, type_float, r->readonly);
+					r = QCC_PR_BuildRef(retbuf, REF_STRING, QCC_RefToDef(r, true), tmp, (tmp.cast->type != ev_float)?type_integer:type_float, r->readonly);
 					return QCC_PR_ParseRefArrayPointer(retbuf, r, allowarrayassign, makearraypointers);
 				}
 			}
@@ -10745,7 +10752,7 @@ static QCC_ref_t *QCC_PR_RefTerm (QCC_ref_t *retbuf, unsigned int exprflags)
 				int sz = 0;
 				int oldstcount = numstatements;
 				QCC_ref_t refbuf, *r;
-				r = QCC_PR_RefExpression(&refbuf, TOP_PRIORITY, 0);
+				r = QCC_PR_RefExpression(&refbuf, TOP_PRIORITY, EXPR_DISALLOW_COMMA);
 				if (r->type == REF_ARRAYHEAD)
 					sz = r->base.sym->arraysize;
 				else if (r->cast == type_string)
@@ -10754,6 +10761,8 @@ static QCC_ref_t *QCC_PR_RefTerm (QCC_ref_t *retbuf, unsigned int exprflags)
 					const QCC_eval_t *c = QCC_SRef_EvalConst(d);
 					if (c)
 						sz = strlen(&strings[c->string]);	//_length("hello") does NOT include the null (like strlen), but is bytes not codepoints
+					else
+						QCC_PR_ParseError (ERR_TYPEMISMATCHPARM, "_length(string) requires an initialised constant");
 				}
 				else if (r->cast == type_vector)
 					sz = 3;	//might as well. considering that vectors can be indexed as an array.
@@ -11375,8 +11384,9 @@ QCC_sref_t QCC_LoadFromArray(QCC_sref_t base, QCC_sref_t index, QCC_type_t *t, p
 	int flags;
 	int accel;
 
-	//dp-style opcodes take integer indicies, and thus often need type conversions
-	//h2-style opcodes take float indicies, but have a built in boundscheck that wrecks havoc with vectors and structs (and thus sucks when the types don't match)
+	//1: hexen2's FETCH_GBL opcodes take float indicies, but have a built in boundscheck that wrecks havoc with vectors and structs (and thus sucks when the types don't match)
+	//2: fte's LOADA opcodes use ints without hidden boundcheck (engine will still ensure it reads an actual global), and vectors are not special(needs a separate *3 opcode) so they're struct friendly.
+	//3: dp's GLOAD opcodes -- like fte's but without any offsetting so you need an extra addition.
 
 	if (index.cast->type != ev_float || t->type != base.cast->type)
 		accel = 2;
@@ -11384,9 +11394,9 @@ QCC_sref_t QCC_LoadFromArray(QCC_sref_t base, QCC_sref_t index, QCC_type_t *t, p
 		accel = 1;
 
 	if (accel == 2 && !QCC_OPCodeValid(&pr_opcodes[OP_LOADA_F]))
-		accel = QCC_OPCodeValid(&pr_opcodes[OP_GLOAD_F])&&!base.sym->temp?3:1;
+		accel = QCC_OPCodeValid(&pr_opcodes[OP_GLOAD_F])&&!base.sym->temp?3:1;	//chose best for ints
 	if (accel == 1 && (!base.sym->arraylengthprefix || !QCC_OPCodeValid(&pr_opcodes[OP_FETCH_GBL_F])))
-		accel = QCC_OPCodeValid(&pr_opcodes[OP_LOADA_F])?2:0;
+		accel = QCC_OPCodeValid(&pr_opcodes[OP_LOADA_F])?2:0;	//chose best for floats
 
 	if (accel == 3)
 	{	//dp-style, somewhat annoying.
@@ -11917,7 +11927,7 @@ QCC_sref_t QCC_RefToDef(QCC_ref_t *ref, pbool freetemps)
 	case REF_FIELD:
 		return QCC_PR_ExpandField(ref->base, ref->index, ref->cast, freetemps?0:(STFL_PRESERVEA|STFL_PRESERVEB));
 	case REF_STRING:
-		if (ref->index.cast->type == ev_float)
+		if (ref->cast->type == ev_float)
 		{
 			idx = QCC_SupplyConversion(ref->index, ev_float, true);
 			return QCC_PR_StatementFlags(&pr_opcodes[OP_LOADP_C], ref->base, idx, NULL, freetemps?0:(STFL_PRESERVEA|STFL_PRESERVEB));
@@ -15539,6 +15549,8 @@ void QCC_Marshal_Locals(int firststatement, int laststatement)
 					continue;	//static variables are actually globals
 				if (local->constant && local->initialized)
 					continue;	//as are initialised consts, because its pointless otherwise.
+				if (local->symbolheader && local->symbolheader->scope != local->scope)
+					continue;
 
 				//FIXME: check for uninitialised locals.
 				//these matter when the function goes recursive (and locals marshalling counts as recursive every time).

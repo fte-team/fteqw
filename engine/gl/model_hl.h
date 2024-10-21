@@ -18,6 +18,8 @@
 #define HLMDLFL_FLAT		0x0001
 #define HLMDLFL_CHROME		0x0002
 #define HLMDLFL_FULLBRIGHT	0x0004
+#define HLMDLFL_MASKED		0x0040
+#define HLMDLFL_ALPHASOLID	0x0800
 
 #define HLSHADER_FULLBRIGHT \
 		"{\n" \
@@ -34,6 +36,16 @@
 				"map $diffuse\n" \
 				"tcgen environment\n" \
 				"rgbgen lightingdiffuse\n" \
+			"}\n" \
+		"}\n"
+
+#define HLSHADER_MASKED \
+		"{\n" \
+			"program defaultskin#MASK=0.5\n" \
+			"{\n" \
+				"map $diffuse\n" \
+				"rgbgen lightingdiffuse\n" \
+				"alphaFunc GE128\n" \
 			"}\n" \
 		"}\n"
 

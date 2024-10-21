@@ -80,6 +80,7 @@ qboolean QVM_LoadDLL(vm_t *vm, const char *name, qboolean binroot, void **vmMain
 
 	char fname[MAX_OSPATH*2];
 	char gpath[MAX_OSPATH];
+	char displaypath[MAX_OSPATH*2];
 	void *iterator;
 
 	dllfunction_t funcs[] =
@@ -102,49 +103,53 @@ qboolean QVM_LoadDLL(vm_t *vm, const char *name, qboolean binroot, void **vmMain
 		while (!hVM && COM_IteratePaths(&iterator, NULL, 0, gpath, sizeof(gpath)))
 		{
 #ifndef ANDROID
-			if (!hVM && FS_NativePath(va("%s_%s_"ARCH_CPU_POSTFIX ARCH_DL_POSTFIX, name, gpath), FS_BINARYPATH, fname, sizeof(fname)))
+			if (!hVM && FS_SystemPath(va("%s_%s_"ARCH_CPU_POSTFIX ARCH_DL_POSTFIX, name, gpath), FS_BINARYPATH, fname, sizeof(fname)))
 			{
-				Con_DLPrintf(2, "Loading native: %s\n", fname);
+				if (FS_DisplayPath(fname, FS_SYSTEM, displaypath, sizeof(displaypath)))
+					Con_DLPrintf(2, "Loading native: %s\n", displaypath);
 				hVM = Sys_LoadLibrary(fname, funcs);
 			}
 #endif
-			if (!hVM && FS_NativePath(va("%s_%s"ARCH_DL_POSTFIX, name, gpath), FS_BINARYPATH, fname, sizeof(fname)))
+			if (!hVM && FS_SystemPath(va("%s_%s"ARCH_DL_POSTFIX, name, gpath), FS_BINARYPATH, fname, sizeof(fname)))
 			{
-				Con_DLPrintf(2, "Loading native: %s\n", fname);
+				if (FS_DisplayPath(fname, FS_SYSTEM, displaypath, sizeof(displaypath)))
+					Con_DLPrintf(2, "Loading native: %s\n", displaypath);
 				hVM = Sys_LoadLibrary(fname, funcs);
 			}
 
 #ifndef ANDROID
-			if (!hVM && FS_NativePath(va("%s_%s_"ARCH_CPU_POSTFIX ARCH_DL_POSTFIX, name, gpath), FS_ROOT, fname, sizeof(fname)))
+			if (!hVM && FS_SystemPath(va("%s_%s_"ARCH_CPU_POSTFIX ARCH_DL_POSTFIX, name, gpath), FS_ROOT, fname, sizeof(fname)))
 			{
-				Con_DLPrintf(2, "Loading native: %s\n", fname);
+				if (FS_DisplayPath(fname, FS_SYSTEM, displaypath, sizeof(displaypath)))
+					Con_DLPrintf(2, "Loading native: %s\n", displaypath);
 				hVM = Sys_LoadLibrary(fname, funcs);
 			}
 #endif
-			if (!hVM && FS_NativePath(va("%s_%s"ARCH_DL_POSTFIX, name, gpath), FS_ROOT, fname, sizeof(fname)))
+			if (!hVM && FS_SystemPath(va("%s_%s"ARCH_DL_POSTFIX, name, gpath), FS_ROOT, fname, sizeof(fname)))
 			{
-				Con_DLPrintf(2, "Loading native: %s\n", fname);
+				if (FS_DisplayPath(fname, FS_SYSTEM, displaypath, sizeof(displaypath)))
+					Con_DLPrintf(2, "Loading native: %s\n", displaypath);
 				hVM = Sys_LoadLibrary(fname, funcs);
 			}
 		}
 
 #ifdef ANDROID
-		if (!hVM && FS_NativePath(va("%s" ARCH_DL_POSTFIX, name), FS_BINARYPATH, fname, sizeof(fname)))
+		if (!hVM && FS_SystemPath(va("%s" ARCH_DL_POSTFIX, name), FS_BINARYPATH, fname, sizeof(fname)))
 			hVM = Sys_LoadLibrary(fname, funcs);
 #else
 
-		if (!hVM && FS_NativePath(va("%s_"ARCH_CPU_POSTFIX ARCH_DL_POSTFIX, name), FS_BINARYPATH, fname, sizeof(fname)))
+		if (!hVM && FS_SystemPath(va("%s_"ARCH_CPU_POSTFIX ARCH_DL_POSTFIX, name), FS_BINARYPATH, fname, sizeof(fname)))
 			hVM = Sys_LoadLibrary(fname, funcs);
-		if (!hVM && FS_NativePath(va("%s"ARCH_CPU_POSTFIX ARCH_DL_POSTFIX, name), FS_BINARYPATH, fname, sizeof(fname)))
+		if (!hVM && FS_SystemPath(va("%s"ARCH_CPU_POSTFIX ARCH_DL_POSTFIX, name), FS_BINARYPATH, fname, sizeof(fname)))
 			hVM = Sys_LoadLibrary(fname, funcs);
-		if (!hVM && FS_NativePath(va("%s" ARCH_DL_POSTFIX, name), FS_BINARYPATH, fname, sizeof(fname)))
+		if (!hVM && FS_SystemPath(va("%s" ARCH_DL_POSTFIX, name), FS_BINARYPATH, fname, sizeof(fname)))
 			hVM = Sys_LoadLibrary(fname, funcs);
 
-		if (!hVM && FS_NativePath(va("%s_"ARCH_CPU_POSTFIX ARCH_DL_POSTFIX, name), FS_ROOT, fname, sizeof(fname)))
+		if (!hVM && FS_SystemPath(va("%s_"ARCH_CPU_POSTFIX ARCH_DL_POSTFIX, name), FS_ROOT, fname, sizeof(fname)))
 			hVM = Sys_LoadLibrary(fname, funcs);
-		if (!hVM && FS_NativePath(va("%s"ARCH_CPU_POSTFIX ARCH_DL_POSTFIX, name), FS_ROOT, fname, sizeof(fname)))
+		if (!hVM && FS_SystemPath(va("%s"ARCH_CPU_POSTFIX ARCH_DL_POSTFIX, name), FS_ROOT, fname, sizeof(fname)))
 			hVM = Sys_LoadLibrary(fname, funcs);
-		if (!hVM && FS_NativePath(va("%s" ARCH_DL_POSTFIX, name), FS_ROOT, fname, sizeof(fname)))
+		if (!hVM && FS_SystemPath(va("%s" ARCH_DL_POSTFIX, name), FS_ROOT, fname, sizeof(fname)))
 			hVM = Sys_LoadLibrary(fname, funcs);
 #endif
 	}
@@ -160,13 +165,15 @@ qboolean QVM_LoadDLL(vm_t *vm, const char *name, qboolean binroot, void **vmMain
 			if (!hVM)
 			{
 				snprintf (fname, sizeof(fname), "%s%s_"ARCH_CPU_POSTFIX ARCH_DL_POSTFIX, gpath, name);
-				Con_DLPrintf(2, "Loading native: %s\n", fname);
+				if (FS_DisplayPath(fname, FS_SYSTEM, displaypath, sizeof(displaypath)))
+					Con_DLPrintf(2, "Loading native: %s\n", displaypath);
 				hVM = Sys_LoadLibrary(fname, funcs);
 			}
 			if (!hVM)
 			{
 				snprintf (fname, sizeof(fname), "%s%s"ARCH_CPU_POSTFIX ARCH_DL_POSTFIX, gpath, name);
-				Con_DLPrintf(2, "Loading native: %s\n", fname);
+				if (FS_DisplayPath(fname, FS_SYSTEM, displaypath, sizeof(displaypath)))
+					Con_DLPrintf(2, "Loading native: %s\n", displaypath);
 				hVM = Sys_LoadLibrary(fname, funcs);
 			}
 
@@ -174,13 +181,15 @@ qboolean QVM_LoadDLL(vm_t *vm, const char *name, qboolean binroot, void **vmMain
 			if (!hVM)
 			{
 				snprintf (fname, sizeof(fname), "%s%s_"ARCH_ALTCPU_POSTFIX ARCH_DL_POSTFIX, gpath, name);
-				Con_DLPrintf(2, "Loading native: %s\n", fname);
+				if (FS_DisplayPath(fname, FS_SYSTEM, displaypath, sizeof(displaypath)))
+					Con_DLPrintf(2, "Loading native: %s\n", displaypath);
 				hVM = Sys_LoadLibrary(fname, funcs);
 			}
 			if (!hVM)
 			{
 				snprintf (fname, sizeof(fname), "%s%s"ARCH_ALTCPU_POSTFIX ARCH_DL_POSTFIX, gpath, name);
-				Con_DLPrintf(2, "Loading native: %s\n", fname);
+				if (FS_DisplayPath(fname, FS_SYSTEM, displaypath, sizeof(displaypath)))
+					Con_DLPrintf(2, "Loading native: %s\n", displaypath);
 				hVM = Sys_LoadLibrary(fname, funcs);
 			}
 #endif
@@ -188,7 +197,8 @@ qboolean QVM_LoadDLL(vm_t *vm, const char *name, qboolean binroot, void **vmMain
 			if (!hVM)
 			{
 				snprintf (fname, sizeof(fname), "%s%s"ARCH_DL_POSTFIX, gpath, name);
-				Con_DLPrintf(2, "Loading native: %s\n", fname);
+				if (FS_DisplayPath(fname, FS_SYSTEM, displaypath, sizeof(displaypath)))
+					Con_DLPrintf(2, "Loading native: %s\n", displaypath);
 				hVM = Sys_LoadLibrary(fname, funcs);
 			}
 		}

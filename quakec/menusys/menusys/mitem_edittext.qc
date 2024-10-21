@@ -62,6 +62,7 @@ float(vector pos, float scan, float chr, float down) mitem_edit::item_keypress =
 
 	if (scan == K_ESCAPE)
 		return FALSE;
+	//FIXME: onscreen keyboard?
 	else if (scan == K_LEFTARROW)
 		spos = max(spos-1, 0);
 	else if (scan == K_RIGHTARROW)
@@ -70,7 +71,7 @@ float(vector pos, float scan, float chr, float down) mitem_edit::item_keypress =
 		spos = 0;
 	else if (scan == K_END)
 		spos = strlen(curval);
-	else if (scan == K_MOUSE1)
+	else if (scan == K_TOUCHTAP || scan == K_MOUSE1)
 	{
 		float valuepos = pos_x+(item_size_x/2)+1;
 		if (ui.mousepos[0] > valuepos-8)

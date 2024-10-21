@@ -17,6 +17,10 @@ typedef struct {
 } roq_cell;
 
 typedef struct {
+	char p[16];
+} roq_cell_rgba;
+
+typedef struct {
 	int idx[4];
 } roq_qcell;
 
@@ -26,13 +30,14 @@ typedef struct roq_info_s {
 	int buf_size;
 	unsigned char *buf;
 	roq_cell cells[256];
+	roq_cell_rgba cells_rgba[256];
 	roq_qcell qcells[256];
 	short snd_sqr_arr[256];
 	qofs_t roq_start, aud_pos, vid_pos;
 	long *frame_offset;
 	unsigned long num_frames, num_audio_bytes;
 	int width, height, frame_num, audio_channels;
-	unsigned char *y[2], *u[2], *v[2];
+	byte_vec4_t *rgba[2];
 	long stream_length;
 	int audio_buf_size, audio_size;
 	unsigned char *audio;

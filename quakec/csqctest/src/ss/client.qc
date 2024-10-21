@@ -490,23 +490,21 @@ float(entity to, float fl) SendPlayer =
 	if (self.items & IT_QUAD)
 		ef |= 32;
 //and the final bit takes an indication to switch off prediction.
-	mt = self.movetype;
-	if (self.pmove_flags&1)
-		mt |= 128;
+	mt = self.movetype | (self.pmove_flags<<6);
 	if (mt != MOVETYPE_WALK)
 		ef |= 16;
 
 
 	WriteByte(MSG_ENTITY, CLASS_PLAYER);
 	WriteByte(MSG_ENTITY, self.frame);	//for clientside animation selection, in a way compatable with not having csqc.
-	WriteByte(MSG_ENTITY, self.angles_x*(256/360));
-	WriteByte(MSG_ENTITY, self.angles_y*(256/360));
+	WriteChar(MSG_ENTITY, self.angles_x*(256/360));
+	WriteChar(MSG_ENTITY, self.angles_y*(256/360));
 	WriteCoord(MSG_ENTITY, self.origin_x);
 	WriteCoord(MSG_ENTITY, self.origin_y);
 	WriteCoord(MSG_ENTITY, self.origin_z);
-	WriteShort(MSG_ENTITY, self.velocity_x);
-	WriteShort(MSG_ENTITY, self.velocity_y);
-	WriteShort(MSG_ENTITY, self.velocity_z);
+	WriteShort(MSG_ENTITY, self.velocity_x*8);
+	WriteShort(MSG_ENTITY, self.velocity_y*8);
+	WriteShort(MSG_ENTITY, self.velocity_z*8);
 	WriteByte(MSG_ENTITY, ef);
 	if (ef & 16)
 		WriteByte(MSG_ENTITY, mt);
@@ -817,7 +815,7 @@ void() PlayerJump =
 	
 	self.button2 = 0;
 // player jumping sound
-	sound (self, CHAN_BODY, "player/plyrjmp8.wav", 1, ATTN_NORM);
+	sound (self, 64/*CHAN_BODY*/, "player/plyrjmp8.wav", 1, ATTN_NORM, 0, 0, 0);
 
 //pmove code predicts this
 //	self.velocity_z = self.velocity_z + 270;
@@ -913,7 +911,7 @@ void() WaterMove =
 //		self.velocity = self.velocity - 0.8*self.waterlevel*frametime*self.velocity;
 };
 
-void() CheckWaterJump =
+/*void() CheckWaterJump =
 {
 	local vector start, end;
 
@@ -940,7 +938,7 @@ void() CheckWaterJump =
 			return;
 		}
 	}
-};
+};*/
 
 
 /*
@@ -968,8 +966,8 @@ void() PlayerPreThink =
 	CheckRules ();
 	WaterMove ();
 
-	if (self.waterlevel == 2)
-		CheckWaterJump ();
+//	if (self.waterlevel == 2)
+//		CheckWaterJump ();
 
 	if (self.deadflag >= DEAD_DEAD)
 	{
@@ -1079,9 +1077,9 @@ void() CheckPowerups =
 			self.invincible_finished = 0;
 		}
 		if (self.invincible_finished > time)
-			self.effects = self.effects | EF_DIMLIGHT;
+			self.effects = self.effects | EF_DIMLIGHT|EF_RED;
 		else
-			self.effects = self.effects - (self.effects & EF_DIMLIGHT);
+			self.effects = self.effects - (self.effects & (EF_DIMLIGHT|EF_RED));
 	}
 
 // super damage
@@ -1114,9 +1112,9 @@ void() CheckPowerups =
 			self.super_time = 0;
 		}
 		if (self.super_damage_finished > time)
-			self.effects = self.effects | EF_DIMLIGHT;
+			self.effects = self.effects | EF_DIMLIGHT | EF_BLUE;
 		else
-			self.effects = self.effects - (self.effects & EF_DIMLIGHT);
+			self.effects = self.effects - (self.effects & (EF_DIMLIGHT | EF_BLUE));
 	}	
 
 // suit	
@@ -1560,12 +1558,19 @@ void(entity targ, entity attacker) ClientObituary =
 
 void() SV_RunClientCommand =
 {
+	vector oorg = self.origin;
 	//should match the one used by csqc.
 #ifdef OWNPLAYERPHYSICS
 	PMove(self);
 #else
 	runstandardplayerphysics(self);
 #endif
+
+	if (input_buttons&32)
+	{	//some debugging info, to match up to the client. server's sequence will have no gaps.
+		sprint(self, sprintf("\safter \sinput_sequence:%g, msecs:%g, aim:%v, move:%v\n", input_sequence, input_timelength*1000, input_angles, input_movevalues));
+		sprint(self, sprintf("  origin: %v <- %v, velocity %v\n", self.origin, oorg, self.velocity));
+	}
 };
 
 void(string cmd) SV_ParseClientCommand =

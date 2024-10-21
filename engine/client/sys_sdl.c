@@ -58,10 +58,24 @@ void Sys_RecentServer(char *command, char *target, char *title, char *desc)
 {
 }
 
+#if defined(__linux__) || defined(BSD)
+qboolean Sys_RandomBytes(qbyte *string, int len)
+{
+	qboolean res = false;
+	int fd = open("/dev/urandom", 0);
+	if (fd != -1)
+	{
+		res = (read(fd, string, len) == len);
+		close(fd);
+	}
+	return res;
+}
+#else
 qboolean Sys_RandomBytes(qbyte *string, int len)
 {
 	return false;
 }
+#endif
 
 static void ApplyColour(unsigned int chrflags)
 {
@@ -786,6 +800,9 @@ int Sys_EnumerateFiles (const char *gpath, const char *match, int (*func)(const 
 //blink window if possible (it's not)
 void Sys_ServerActivity(void)
 {
+#if SDL_VERSION_ATLEAST(2,0,16)
+	SDL_FlashWindow(sdlwindow, SDL_FLASH_BRIEFLY);
+#endif
 }
 
 void Sys_CloseLibrary(dllhandle_t *lib)
@@ -909,9 +926,129 @@ int VARGS Sys_DebugLog(char *file, char *fmt, ...)
 };
 
 
+#ifdef _WIN32
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
 
+#include <windows.h>
+#endif
+
+#ifdef _WIN32
+static qboolean gotconsole;
+static HANDLE con_stdin;
 qboolean Sys_InitTerminal(void)
 {
+	gotconsole = AllocConsole();	//failure is okay if we already had one.
+	con_stdin = CreateFile("CONIN$", GENERIC_READ|GENERIC_WRITE, FILE_SHARE_READ|FILE_SHARE_WRITE, NULL, OPEN_EXISTING, 0, NULL);
+	freopen("CON", "w", stdout);	//unfuck the stdout too.
+    return true;
+}
+char *Sys_ConsoleInput(void)
+{	//NET_Sleep won't sleep on this handle, so expect it to be sluggish.
+	DWORD numevents, i;
+	while (GetNumberOfConsoleInputEvents(con_stdin, &numevents) && numevents>0)
+	{
+		static char text[256];
+		static int textlen;
+		INPUT_RECORD event[1];	//longer might miss presses. especially with delays.
+		if (numevents > countof(event))
+			numevents = countof(event);
+		if (ReadConsoleInputW(con_stdin, event, numevents, &numevents))
+		{
+			for(i = 0; i < numevents; i++)
+			{
+				if (event[i].EventType == KEY_EVENT && event[i].Event.KeyEvent.bKeyDown && event[i].Event.KeyEvent.uChar.UnicodeChar)
+				{
+					if (textlen >= countof(text))
+						textlen = countof(text)-1;	//don't overflow.
+					text[textlen] = event[i].Event.KeyEvent.uChar.UnicodeChar;
+					if (text[textlen] == '\r')
+					{
+						text[textlen] = 0;	//caller will add its own \n
+						printf("\r]%s\n", text);
+						textlen = 0; //start from the start
+						fflush(stdout);
+						return text;
+					}
+					textlen++;
+					text[textlen] = 0;	//caller will add its own \n
+					printf("\r]%s", text);
+					fflush(stdout);
+				}
+			}
+		}
+	}
+	return NULL;
+}
+void Sys_CloseTerminal (void)
+{
+	if (gotconsole)
+	{	//don't close our initial one. don't detach that way.
+		FreeConsole();
+		gotconsole = false;
+	}
+	if (con_stdin)
+	{
+		CloseHandle(con_stdin);
+		con_stdin = NULL;
+	}
+}
+#elif defined(__unix__) && !defined(__ANDROID__)
+static qbyte noconinput;
+qboolean Sys_InitTerminal(void)
+{
+	if (COM_CheckParm("-nostdin"))
+		noconinput = true;
+	if (noconinput)
+		return true;	//they okayed it, let it start regardless.
+	if (isatty(STDIN_FILENO))
+		return true;
+	Con_Printf(CON_WARNING"Sys_InitTerminal: not started from a tty\n"); //no easy way to kill it otherwise.
+	return false;
+}
+char *Sys_ConsoleInput(void)
+{
+	static char text[256];
+	char *nl;
+
+	if (noconinput)
+		return NULL;
+
+#if defined(__linux__) && defined(_DEBUG)
+	{
+		int fl = fcntl (STDIN_FILENO, F_GETFL, 0);
+		if (!(fl & FNDELAY))
+		{
+			fcntl(STDIN_FILENO, F_SETFL, fl | FNDELAY);
+//          Sys_Printf(CON_WARNING "stdin flags became blocking - gdb bug?\n");
+		}
+	}
+#endif
+
+	if (!fgets(text, sizeof(text), stdin))
+	{
+		if (errno == EIO)
+		{
+			Sys_Printf(CON_WARNING "Backgrounded, ignoring stdin\n");
+			noconinput |= 2;
+		}
+		return NULL;
+	}
+	nl = strchr(text, '\n');
+	if (!nl)    //err? wut?
+		return NULL;
+	*nl = 0;
+
+	return text;
+}
+void Sys_CloseTerminal (void)
+{
+}
+#else
+qboolean Sys_InitTerminal(void)
+{
+	Con_Printf(CON_WARNING"Sys_InitTerminal: not implemented in this build.\n");
     return false;	//Sys_ConsoleInput cannot work, so return false here.
 }
 char *Sys_ConsoleInput(void)
@@ -921,13 +1058,6 @@ char *Sys_ConsoleInput(void)
 void Sys_CloseTerminal (void)
 {
 }
-
-#ifdef _WIN32
-#ifndef WIN32_LEAN_AND_MEAN
-#define WIN32_LEAN_AND_MEAN
-#endif
-
-#include <windows.h>
 #endif
 
 #ifdef FTE_TARGET_WEB
@@ -948,7 +1078,6 @@ int QDECL main(int argc, char **argv)
 {
 	float time, newtime, oldtime;
 	quakeparms_t	parms;
-	int i;
 
 	memset(&parms, 0, sizeof(parms));
 
@@ -971,18 +1100,35 @@ int QDECL main(int argc, char **argv)
 
 	if (parms.binarydir)
 		Sys_Printf("Binary is located at \"%s\"\n", parms.binarydir);
+
+#ifdef HAVE_CLIENT
+	if (COM_CheckParm ("-dedicated"))
+		isDedicated = true;
+	if (isDedicated)    //compleate denial to switch to anything else - many of the client structures are not initialized.
+	{
+		float delay;
+
+		SV_Init (&parms);
+
+		if (!Sys_InitTerminal())
+			Con_Printf(CON_WARNING"Stdin unavailable\n");
+
+		delay = SV_Frame();
+		while (1)
+		{
+			if (!isDedicated)
+				Sys_Error("Dedicated was cleared");
+			NET_Sleep(delay, false);
+			delay = SV_Frame();
+		}
+		return EXIT_FAILURE;
+	}
+#endif
+
+
 	Host_Init (&parms);
 
 	oldtime = Sys_DoubleTime ();
-
-	for (i = 1; i < parms.argc; i++)
-	{
-		if (!parms.argv[i])
-			continue;
-		if (*parms.argv[i] == '+' || *parms.argv[i] == '-')
-			break;
-		Host_RunFile(parms.argv[i], strlen(parms.argv[i]), NULL);
-	}
 
 //client console should now be initialized.
 

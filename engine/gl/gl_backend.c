@@ -88,8 +88,8 @@ static struct {
 //		int vbo_texcoords[SHADER_PASS_MAX];
 //		int vbo_deforms;	//holds verticies... in case you didn't realise.
 
-		const shader_t *shader_light[1u<<LSHADER_MODES];
-		qboolean inited_shader_light[1u<<LSHADER_MODES];
+		const shader_t *shader_light[LSHADER_MODES];
+		qboolean inited_shader_light[LSHADER_MODES];
 
 		const shader_t *crepskyshader;
 		const shader_t *crepopaqueshader;
@@ -221,8 +221,6 @@ static void BE_PrintDrawCall(const char *msg)
 {
 	char shadername[512];
 	char modelname[512];
-	int num;
-
 	Q_snprintfz(shadername, sizeof(shadername), "^[%-16s\\tipimg\\%s\\tipimgtype\\%i\\tip\\%s^]",
 			shaderstate.curshader->name,
 			shaderstate.curshader->name,shaderstate.curshader->usageflags,
@@ -230,7 +228,9 @@ static void BE_PrintDrawCall(const char *msg)
 
 	if (shaderstate.curbatch && shaderstate.curbatch->ent)
 	{
-		num = shaderstate.curbatch->ent->keynum;
+#ifdef HAVE_SERVER
+		int num = shaderstate.curbatch->ent->keynum;
+#endif
 		if (shaderstate.curbatch->ent->model)
 			Q_snprintfz(modelname, sizeof(modelname), " - ^[%s\\modelviewer\\%s^]",
 				shaderstate.curbatch->ent->model->name, shaderstate.curbatch->ent->model->name);
@@ -940,7 +940,7 @@ void GLBE_SetupVAO(vbo_t *vbo, unsigned int vaodynamic, unsigned int vaostatic)
 	}
 }
 
-void GL_SelectProgram(int program)
+void GL_SelectProgram(GLuint program)
 {
 	if (shaderstate.currentprogram != program)
 	{
@@ -2289,7 +2289,7 @@ static void colourgen(const shaderpass_t *pass, int cnt, vec4_t *src, vec4_t *ds
 }
 #endif
 
-static qboolean BE_GenTempMeshVBO(vbo_t **vbo, mesh_t *m);
+static void BE_GenTempMeshVBO(vbo_t **vbo, mesh_t *m);
 static void DeformGen_Text(int stringid, int cnt, vecV_t *src, vecV_t *dst, const mesh_t *mesh)
 {
 #define maxlen 32
@@ -2361,8 +2361,8 @@ static void DeformGen_Text(int stringid, int cnt, vecV_t *src, vecV_t *dst, cons
 	textmesh.numindexes = i*6;
 	textmesh.numvertexes = i*4;
 
-	if (!BE_GenTempMeshVBO(&shaderstate.sourcevbo, &textmesh))
-		return;
+	BE_GenTempMeshVBO(&shaderstate.sourcevbo, &textmesh);
+
 	shaderstate.meshcount = 1;
 	shaderstate.meshes = &meshptr;
 #undef maxlen
@@ -4908,7 +4908,7 @@ static void DrawMeshes(void)
 	}
 }
 
-static qboolean BE_GenTempMeshVBO(vbo_t **vbo, mesh_t *m)
+static void BE_GenTempMeshVBO(vbo_t **vbo, mesh_t *m)
 {
 	*vbo = &shaderstate.dummyvbo;
 
@@ -5093,10 +5093,6 @@ static qboolean BE_GenTempMeshVBO(vbo_t **vbo, mesh_t *m)
 	}
 	shaderstate.dummyvbo.bones = m->bones;
 	shaderstate.dummyvbo.numbones = m->numbones;
-	shaderstate.meshcount = 1;
-	shaderstate.meshes = &m;
-
-	return true;
 }
 
 void GLBE_DrawMesh_List(shader_t *shader, int nummeshes, mesh_t **meshlist, vbo_t *vbo, texnums_t *texnums, unsigned int beflags)
@@ -5123,8 +5119,7 @@ void GLBE_DrawMesh_List(shader_t *shader, int nummeshes, mesh_t **meshlist, vbo_
 		{
 			m = *meshlist++;
 
-			if (!BE_GenTempMeshVBO(&shaderstate.sourcevbo, m))
-				continue;
+			BE_GenTempMeshVBO(&shaderstate.sourcevbo, m);
 
 			shaderstate.meshcount = 1;
 			shaderstate.meshes = &m;
@@ -5172,8 +5167,7 @@ void GLBE_SubmitBatch(batch_t *batch)
 	else
 	{
 		//we're only allowed one mesh per batch if there's no vbo info.
-		if (!BE_GenTempMeshVBO(&shaderstate.sourcevbo, batch->mesh[0]))
-			return;
+		BE_GenTempMeshVBO(&shaderstate.sourcevbo, batch->mesh[0]);
 	}
 
 	sh = batch->shader;

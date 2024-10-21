@@ -125,21 +125,39 @@ static void ParseEpair (mentity_t *mapent, char *key, char *value)
 	}
 }
 
-void LightShutdown(struct relight_ctx_s *ctx)
+void LightShutdown(struct relight_ctx_s *ctx, model_t *model)
 {
-	Z_Free(ctx->entities);
-	Z_Free(ctx);
+	unsigned int u;
+	for (u = 0; u < ctx->nummodels; u++)
+		if (ctx->models[u] == model)
+		{
+			if (u < ctx->nummodels-1)	//swap it out.
+				ctx->models[u] = ctx->models[ctx->nummodels-1];
+			ctx->nummodels -= 1;
+
+			if (ctx->nummodels)
+				return;	//other models still refer to it!
+
+			Z_Free(ctx->entities);
+			Z_Free(ctx);
+			break;
+		}
 }
 struct relight_ctx_s *LightStartup(struct relight_ctx_s *ctx, model_t *model, qboolean shadows, qboolean skiplit)
 {
+	unsigned int u;
 	if (!ctx)
 	{
 		ctx = Z_Malloc(sizeof(*ctx));
 		ctx->shadows = shadows;
 		ctx->skiplit = skiplit;
 	}
-	if (ctx->nummodels < countof(ctx->models))
-		ctx->models[ctx->nummodels++] = model;
+	for (u = 0; u < ctx->nummodels; u++)
+		if (ctx->models[u] == model)
+			break;
+	if (u == ctx->nummodels)
+		if (ctx->nummodels < countof(ctx->models))
+			ctx->models[ctx->nummodels++] = model;
 	ctx->starttime = Sys_DoubleTime();
 	return ctx;
 }
@@ -1127,7 +1145,7 @@ void RelightTerminate(model_t *mod)
 		else
 			Con_Printf("Relighting aborted before completion\n");
 
-		LightShutdown(lightcontext);
+		LightShutdown(lightcontext, mod);
 		lightcontext = NULL;
 	}
 }

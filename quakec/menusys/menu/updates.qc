@@ -14,6 +14,8 @@ enum : int
 	GPMI_ACTION,		//desired state
 	GPMI_AVAILABLE,		//whether it may be downloaded or not.
 	GPMI_FILESIZE,		//whether it may be downloaded or not.
+	GPMI_GAMEDIR,		//whether it may be downloaded or not.
+	GPMI_MAPS,			//whether it may be downloaded or not.
 };
 
 class mitem_updategrid : mitem_grid
@@ -115,7 +117,7 @@ void(vector pos, float idx) mitem_updategrid::grid_draw =
 		text = strcat("pkg quiet_", action, " \"", text, "\"\n");
 		localcmd(text);
 	}
-	else if (scan == K_RIGHTARROW || scan==K_ENTER || scan == K_MOUSE1)
+	else if (scan == K_RIGHTARROW || scan==K_ENTER || scan == K_MOUSE1 || scan == K_TOUCHTAP)
 	{
 		text = getpackagemanagerinfo(idx, GPMI_NAME);
 		if (!text)

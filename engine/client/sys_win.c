@@ -124,7 +124,7 @@ double Sys_DoubleTime (void)
 void Sys_Quit (void)
 {
 	Host_Shutdown ();
-	exit(0);
+	exit(EXIT_SUCCESS);
 }
 
 void Sys_mkdir (const char *path)
@@ -900,7 +900,7 @@ DWORD CrashExceptionHandler (qboolean iswatchdog, DWORD exceptionCode, LPEXCEPTI
 				case IDYES:
 					break;	//take a dump.
 				case IDNO:
-					exit(0);
+					exit(EXIT_FAILURE);
 				default:	//cancel = run the exception handler, which means we reset the watchdog.
 					return EXCEPTION_EXECUTE_HANDLER;
 				}
@@ -950,7 +950,7 @@ LONG CALLBACK nonmsvc_CrashExceptionHandler(PEXCEPTION_POINTERS ExceptionInfo)
 	foo = CrashExceptionHandler(false, ExceptionInfo->ExceptionRecord->ExceptionCode, ExceptionInfo);
 	//we have no handler. thus we handle it by exiting.
 	if (foo == EXCEPTION_EXECUTE_HANDLER)
-		exit(1);
+		exit(EXIT_FAILURE);
 	return foo;
 }
 
@@ -1687,7 +1687,7 @@ void VARGS Sys_Error (const char *error, ...)
 		OutputDebugStringA("Leaks detected\n");
 #endif
 
-	exit (1);
+	exit (EXIT_FAILURE);
 }
 
 void VARGS Sys_Printf (char *fmt, ...)
@@ -1753,6 +1753,21 @@ void VARGS Sys_Printf (char *fmt, ...)
 			//win95 doesn't support wide chars *sigh*. blank consoles suck. this conversion might loose stuff if the multibytes are too long.
 			WriteConsole(houtput, text, WideCharToMultiByte(CP_ACP, 0, wide, wlen, text, sizeof(text), NULL, NULL), &dummy, NULL);
 		}
+	}
+}
+
+static unsigned int sys_interrupt_freq;
+static void Sys_ClockPrecision_Changed(cvar_t *var, char *oldval)
+{
+	if (sys_interrupt_freq)
+		timeEndPeriod(sys_interrupt_freq);
+	sys_interrupt_freq = 0;
+
+	if (var && var->ival > 0)
+	{
+		sys_interrupt_freq = var->ival;
+		if (TIMERR_NOERROR != timeBeginPeriod(sys_interrupt_freq) && oldval)
+			Con_Printf(CON_ERROR"%s: timeBeginPeriod(%u) failed.\n", var->name, sys_interrupt_freq);
 	}
 }
 
@@ -1864,6 +1879,8 @@ static void Sys_InitClock(void)
 	//calibrate it, and apply.
 	timer_basetime = Sys_GetClock(&freq);
 	Sys_ClockType_Changed(&sys_clocktype, NULL);
+
+	Sys_ClockPrecision_Changed(&sys_clocktype, NULL);
 }
 double Sys_DoubleTime (void)
 {
@@ -1875,21 +1892,6 @@ unsigned int Sys_Milliseconds (void)
 	quint64_t denum, num = Sys_GetClock(&denum);
 	num *= 1000;
 	return num / denum;
-}
-
-static unsigned int sys_interrupt_freq;
-static void Sys_ClockPrecision_Changed(cvar_t *var, char *oldval)
-{
-	if (sys_interrupt_freq)
-		timeEndPeriod(sys_interrupt_freq);
-	sys_interrupt_freq = 0;
-
-	if (var && var->ival > 0)
-	{
-		sys_interrupt_freq = var->ival;
-		if (TIMERR_NOERROR != timeBeginPeriod(sys_interrupt_freq))
-			Con_Printf(CON_ERROR"%s: timeBeginPeriod(%u) failed.\n", var->name, sys_interrupt_freq);
-	}
 }
 
 void Sys_Quit (void)
@@ -1918,7 +1920,7 @@ void Sys_Quit (void)
 		OutputDebugStringA("Leaks detected\n");
 #endif
 
-	exit(1);
+	exit(EXIT_SUCCESS);
 }
 
 
@@ -3627,7 +3629,7 @@ static qboolean Sys_DoInstall(void)
 
 	GetModuleFileNameW(NULL, wide, countof(wide));
 	narrowen(exepath, sizeof(exepath), wide);
-	FS_NativePath(va("%s.exe", fs_gamename.string), FS_ROOT, newexepath, sizeof(newexepath));
+	FS_SystemPath(va("%s.exe", fs_gamename.string), FS_ROOT, newexepath, sizeof(newexepath));
 	CopyFileU(exepath, newexepath, FALSE);
 
 	/*the game can now be run (using regular autoupdate stuff), but most installers are expected to install the data instead of just more downloaders, so lets do that with a 'nice' progress box*/
@@ -4009,7 +4011,7 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 
 	/* previous instances do not exist in Win32 */
 	if (hPrevInstance)
-		return 0;
+		return EXIT_FAILURE;
 
 	/* determine if we're on nt early, so we don't do the wrong thing when checking commandlines */
 	{
@@ -4127,7 +4129,7 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 					return thefunc();
 			}
 			MessageBox(NULL, "Unable to start up plugin wrapper", FULLENGINENAME, 0);
-			return 0;
+			return EXIT_FAILURE;
 		}
 #endif
 
@@ -4152,7 +4154,7 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 		if (c)
 		{
 			Sys_DoFileAssociations(1, (c+1 < com_argc)?com_argv[c+1]:NULL);
-			return true;
+			return EXIT_SUCCESS;
 		}
 		/*
 		else if (!isPlugin)
@@ -4183,7 +4185,7 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 		if (COM_CheckParm("--version") || COM_CheckParm("-v"))
 		{
 			printf("version: %s\n", version_string());
-			return true;
+			return EXIT_SUCCESS;
 		}
 		if (COM_CheckParm("-outputdebugstring"))
 			debugout = true;
@@ -4206,7 +4208,7 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 		if (c)
 		{
 			Sys_MakeInstaller(parms.argv[c+1]);
-			return true;
+			return EXIT_SUCCESS;
 		}
 		parms.manifest = Sys_FindManifest();
 #endif
@@ -4238,14 +4240,14 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 						if (SendMessage(old, WM_COPYDATA, (WPARAM)GetDesktopWindow(), (LPARAM)&cds))
 						{
 							Sleep(10*1000);	//sleep for 10 secs so the real engine has a chance to open it, if the program that gave it is watching to see if we quit.
-							return 0;	//message sent.
+							return EXIT_SUCCESS;	//message sent.
 						}
 					}
 				}
 				else
 				{
 					MessageBox(NULL, va("Invalid commandline:\n%s", lpCmdLine), FULLENGINENAME, 0);
-					return 0;
+					return EXIT_FAILURE;
 				}
 
 				GetModuleFileName(NULL, cwd, sizeof(cwd)-1);
@@ -4290,7 +4292,7 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 #ifdef _DEBUG
 			MessageBox(0, "New cluster slave starting\nAttach to process now, if desired.", "FTEQW Debug Build", 0);
 #endif
-			SSV_SetupControlPipe(Sys_GetStdInOutStream());
+			SSV_SetupControlPipe(Sys_GetStdInOutStream(), false);
 		}
 	#endif
 #endif
@@ -4327,7 +4329,7 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 				NET_Sleep(delay, false);
 				delay = SV_Frame();
 			}
-			return TRUE;
+			return EXIT_FAILURE;
 		}
 #endif
 
@@ -4344,16 +4346,6 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 #endif
 
 		oldtime = Sys_DoubleTime ();
-
-		if (qtvfile)
-		{
-			if (!Host_RunFile(qtvfile, strlen(qtvfile), NULL))
-			{
-				SetHookState(false);
-				Host_Shutdown ();
-				return TRUE;
-			}
-		}
 
 	//client console should now be initialized.
 
@@ -4416,13 +4408,13 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 #ifdef MSVC_SEH
 	__except (CrashExceptionHandler(false, GetExceptionCode(), GetExceptionInformation()))
 	{
-		return 1;
+		return EXIT_FAILURE;
 	}
 #endif
 #endif
 
 	/* return success of application */
-	return TRUE;
+	return EXIT_FAILURE;
 }
 #ifdef _MSC_VER
 #pragma optimize( "", on)	//revert back to default optimisations again.

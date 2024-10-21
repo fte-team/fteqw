@@ -9,12 +9,16 @@
 
 #if defined(_WIN32) || defined(__DJGPP__)
 #include <malloc.h>
+#elif defined(__unix__) && !defined(__linux__) // quick hack for the bsds and other unix systems
+#include<stdlib.h>
 #else
 #include <alloca.h>
 #endif
 
-#undef printf
-#define printf GUIprintf
+#define	DEF_H2ARRAY 		(1<<16)	//[-1] is length.
+
+//#undef printf
+//#define printf GUIprintf
 
 #define OP_MARK_END_DO		0x00010000	//do{
 #define OP_MARK_END_ELSE	0x00000400	//}
@@ -68,20 +72,18 @@ const char *GetString(dstring_t str)
 
 extern QCC_opcode_t pr_opcodes [];
 
-int endofsystemfields;
-int debug_offs = 0;
-int assumeglobals = 0;	//unknown globals are assumed to be actual globals and NOT unlocked temps
-int assumelocals = 0;	//unknown locals are assumed to be actual locals and NOT locked temps
+static int debug_offs = 0;
+static int assumeglobals = 0;	//unknown globals are assumed to be actual globals and NOT unlocked temps
+static int assumelocals = 0;	//unknown locals are assumed to be actual locals and NOT locked temps
 
-vfile_t *Decompileofile;
-vfile_t *Decompileprogssrc;
-vfile_t *Decompileprofile;
-char **DecompileProfiles;//[MAX_FUNCTIONS];
+static vfile_t *Decompileofile;
+static vfile_t *Decompileprogssrc;
+static char **DecompileProfiles;//[MAX_FUNCTIONS];
 static char **rettypes;//[MAX_FUNCTIONS];
 
 extern int quakeforgeremap[];
 
-char *type_names[] =
+static char *type_names[] =
 {
 	"void",
 	"string",
@@ -564,7 +566,7 @@ char *ReadProgsCopyright(char *buf, size_t bufsize)
 	return NULL;
 }
 
-int DecompileReadData(char *srcfilename, char *buf, size_t bufsize)
+int DecompileReadData(const char *srcfilename, char *buf, size_t bufsize)
 {
 	dprograms_t progs;
 	int i, j;
@@ -633,12 +635,16 @@ int DecompileReadData(char *srcfilename, char *buf, size_t bufsize)
 
 			if (statements[i].op == OP_IF_I || statements[i].op == OP_IFNOT_I ||
 				statements[i].op == OP_IF_F || statements[i].op == OP_IFNOT_F ||
-				statements[i].op == OP_IF_S || statements[i].op == OP_IFNOT_S)
+				statements[i].op == OP_IF_S || statements[i].op == OP_IFNOT_S ||
+				statements[i].op == OP_CASE || statements[i].op == OP_SWITCH_F)
 				statements[i].b = (signed short)statements6[i].b;
 			else
 				statements[i].b = (unsigned short)statements6[i].b;
 
-			statements[i].c = (unsigned short)statements6[i].c;
+			if (statements[i].op == OP_CASERANGE)
+				statements[i].c = (signed short)statements6[i].c;
+			else
+				statements[i].c = (unsigned short)statements6[i].c;
 		}
 	}
 	else if (stsz == -16)
@@ -656,12 +662,16 @@ int DecompileReadData(char *srcfilename, char *buf, size_t bufsize)
 
 			if (statements[i].op == OP_IF_I || statements[i].op == OP_IFNOT_I ||
 				statements[i].op == OP_IF_F || statements[i].op == OP_IFNOT_F ||
-				statements[i].op == OP_IF_S || statements[i].op == OP_IFNOT_S)
+				statements[i].op == OP_IF_S || statements[i].op == OP_IFNOT_S ||
+				statements[i].op == OP_CASE || statements[i].op == OP_SWITCH_F)
 				statements[i].b = (signed short)statements3[i].b;
 			else
 				statements[i].b = (unsigned short)statements3[i].b;
 
-			statements[i].c = (unsigned short)statements3[i].c;
+			if (statements[i].op == OP_CASERANGE)
+				statements[i].c = (signed short)statements3[i].c;
+			else
+				statements[i].c = (unsigned short)statements3[i].c;
 		}
 	}
 	else
@@ -745,7 +755,7 @@ int DecompileReadData(char *srcfilename, char *buf, size_t bufsize)
 
 	printf("Decompiling...\n");
 	printf("Read Data from %s:\n", srcfilename);
-	printf("Total Size is %6i\n", bufsize);
+	printf("Total Size is %6i\n", (unsigned int)bufsize);
 	printf("Version Code is %i\n", progs.version);
 	printf("CRC is %i\n", progs.crc);
 	printf("%6i strofs\n", strofs);
@@ -847,21 +857,26 @@ int DecompileReadData(char *srcfilename, char *buf, size_t bufsize)
 	return progs.version;
 }
 
-int 
-DecompileGetFunctionIdxByName(const char *name)
+static void DecompileDetermineArrays(void)
 {
-
-	int i;
-
-	for (i = 1; i < numfunctions; i++)
-		if (!strcmp(name, GetString(functions[i].s_name)))
+	int i, j;
+	for (i = 0; i < numstatements; i++)
+	{
+		if (statements[i].op >= OP_FETCH_GBL_F && statements[i].op <= OP_FETCH_GBL_FNC)
 		{
-			return i;
+			for (j = 1; j < numglobaldefs; j++)
+			{
+				if (globals[j].ofs == statements[i].a)
+				{
+					globals[j].type |= DEF_H2ARRAY;
+					break;
+				}
+			}
 		}
-	return 0;
+	}
 }
 
-const etype_t DecompileGetFieldTypeByDef(QCC_ddef_t *def)
+static etype_t DecompileGetFieldTypeByDef(QCC_ddef_t *def)
 {
 	int i;
 	int ofs = ((int*)pr_globals)[def->ofs];
@@ -874,7 +889,7 @@ const etype_t DecompileGetFieldTypeByDef(QCC_ddef_t *def)
 		}
 	return ev_void;
 }
-const char *DecompileGetFieldNameIdxByFinalOffset(int ofs)
+static const char *DecompileGetFieldNameIdxByFinalOffset(int ofs)
 {
 	int i;
 
@@ -1293,7 +1308,7 @@ char *DecompileGlobal(dfunction_t *df, gofs_t ofs, QCC_type_t * req_t)
 	{
 		const char *defname = GetString(def->s_name);
 
-		if (!strcmp(defname, "IMMEDIATE") || !strcmp(defname, ".imm") || !def->s_name)
+		if (!strcmp(defname, "IMMEDIATE") || !strcmp(defname, ".imm") || !strcmp(defname, "I+") || !def->s_name)
 		{
 			etype_t ty;
 			if (!req_t)
@@ -1730,6 +1745,7 @@ void DecompileOpcode(dfunction_t *df, int a, int b, int c, char *opcode, QCC_typ
 	}
 }
 
+static dstatement_t *jumptable;
 void DecompileDecompileStatement(dfunction_t * df, dstatement_t * s, int *indent)
 {
 	static char line[8192];
@@ -1748,6 +1764,35 @@ void DecompileDecompileStatement(dfunction_t * df, dstatement_t * s, int *indent
 
 	line[0] = '\0';
 	fnam[0] = '\0';
+
+	if (jumptable)
+	{	//FIXME: the default case is the final jump, which will be misordered. flag the statement as needing to check them all or something.
+		//FIXME: we need to push/pop these jumptables when switches are nested.
+		doc = jumptable->op%OP_MARK_END_ELSE;
+		if ((doc == OP_CASE				&& s == jumptable + (signed int)jumptable->b) ||
+			(doc == OP_CASERANGE		&& s == jumptable + (signed int)jumptable->c) ||
+			(doc == OPD_GOTO_DEFAULT	&& s == jumptable + (signed int)jumptable->a))
+		{
+			DecompileIndent(*indent-1);
+			if (doc == OPD_GOTO_DEFAULT)
+				QCC_CatVFile(Decompileofile, "default:\n");
+			else if (doc == OP_CASERANGE)
+			{
+				arg1 = DecompileGet(df, jumptable->a, type_float);
+				arg2 = DecompileGet(df, jumptable->b, type_float);
+				QCC_CatVFile(Decompileofile, "case %s .. %s:\n", arg1, arg2);
+			}
+			else
+			{
+				arg1 = DecompileGet(df, jumptable->a, type_float);
+				QCC_CatVFile(Decompileofile, "case %s:\n", arg1);
+			}
+			jumptable++;
+			doc = jumptable->op%OP_MARK_END_ELSE;
+			if (doc != OP_CASE && doc!= OP_CASERANGE && doc != OPD_GOTO_DEFAULT)
+				jumptable = NULL;
+		}
+	}
 
 	dom = s->op;
 
@@ -1963,8 +2008,8 @@ void DecompileDecompileStatement(dfunction_t * df, dstatement_t * s, int *indent
 		if (parmtype)
 			arg1 = DecompileGet(df, s->a, parmtype);
 		else
-			arg1 = DecompileGet(df, s->a, typ1);
-		arg3 = DecompileGlobal(df, s->b, typ2);
+			arg1 = DecompileGet(df, s->a, typ2);	//types are backwards. *sigh*
+		arg3 = DecompileGlobal(df, s->b, typ1);
 
 		if (arg3)
 		{
@@ -2026,6 +2071,42 @@ void DecompileDecompileStatement(dfunction_t * df, dstatement_t * s, int *indent
 		QC_snprintfz(line, sizeof(line), "random(%s, %s)", arg1, arg2);
 		DecompileImmediate_Insert(df, ofs_return, line, type_float);
 	}
+	else if (OP_RANDV0 == s->op)
+	{
+		DecompileImmediate_Insert(df, ofs_return, "randomv()", type_vector);
+	}
+	else if (OP_RANDV1 == s->op)
+	{
+		arg1 = DecompileGet(df, s->a, typ1);
+		QC_snprintfz(line, sizeof(line), "randomv(%s)", arg1);
+		DecompileImmediate_Insert(df, ofs_return, line, type_vector);
+	}
+	else if (OP_RANDV2 == s->op)
+	{
+		arg1 = DecompileGet(df, s->a, typ1);
+		arg2 = DecompileGet(df, s->b, typ2);
+		QC_snprintfz(line, sizeof(line), "randomv(%s, %s)", arg1, arg2);
+		DecompileImmediate_Insert(df, ofs_return, line, type_vector);
+	}
+	else if (OP_FETCH_GBL_F <= s->op && s->op <= OP_FETCH_GBL_FNC)
+	{
+		if (s->op == OP_FETCH_GBL_F)
+			typ3 = type_float;
+		else if (s->op == OP_FETCH_GBL_V)
+			typ3 = type_vector;
+		else if (s->op == OP_FETCH_GBL_S)
+			typ3 = type_string;
+		else if (s->op == OP_FETCH_GBL_E)
+			typ3 = type_entity;
+		else if (s->op == OP_FETCH_GBL_FNC)
+			typ3 = type_function;
+		else
+			typ3 = NULL;
+		arg1 = DecompileGet(df, s->a, typ1);
+		arg2 = DecompileGet(df, s->b, typ2);
+		QC_snprintfz(line, sizeof(line), "%s[%s]", arg1, arg2);
+		DecompileImmediate_Insert(df, s->c, line, typ3);
+	}
 	else if (pr_opcodes[s->op].flags & OPF_STDUNARY)
 	{
 		arg1 = DecompileGet(df, s->a, typ1);
@@ -2048,9 +2129,9 @@ void DecompileDecompileStatement(dfunction_t * df, dstatement_t * s, int *indent
 
 			typ1 = NULL;
 
-			if (i == 0 && OP_CALL1H <= s->op && s->op <= OP_CALL8H)
+			if (i == 0 && ((OP_CALL1H <= s->op && s->op <= OP_CALL8H) || s->b))
 				j = s->b;
-			else if (i == 1 && OP_CALL1H <= s->op && s->op <= OP_CALL8H)
+			else if (i == 1 && ((OP_CALL1H <= s->op && s->op <= OP_CALL8H) || s->c))
 				j = s->c;
 			else
 				j = ofs_parms[i];
@@ -2261,6 +2342,19 @@ void DecompileDecompileStatement(dfunction_t * df, dstatement_t * s, int *indent
 		}
 
 	}
+	else if (s->op == OP_SWITCH_F)
+	{
+		arg1 = DecompileGet(df, s->a, type_float);	//FIXME: this isn't quite accurate...
+		jumptable = s+(signed int)s->b;
+		DecompileIndent(*indent);
+		QCC_CatVFile(Decompileofile, "switch (%s)\n", arg1);
+		DecompileIndent(*indent);
+		QCC_CatVFile(Decompileofile, "{\n");
+		(*indent)++;
+	}
+	else if (s->op == OP_CASE || s->op == OP_CASERANGE || s->op == OPD_GOTO_DEFAULT)
+	{	//shoulda been handled as part of the jumptable handling.
+	}
 	else if (s->op == OPD_GOTO_FORSTART)
 	{
 		DecompileIndent(*indent);
@@ -2274,6 +2368,11 @@ void DecompileDecompileStatement(dfunction_t * df, dstatement_t * s, int *indent
 		(*indent)--;
 		DecompileIndent(*indent);
 		QCC_CatVFile(Decompileofile, "} while(1);\n");
+	}
+	else if (s->op == OPD_GOTO_BREAK)
+	{
+		DecompileIndent(*indent);
+		QCC_CatVFile(Decompileofile, "break;\n");
 	}
 	else if (s->op == OP_GOTO)
 	{
@@ -2308,6 +2407,14 @@ void DecompileDecompileStatement(dfunction_t * df, dstatement_t * s, int *indent
 
 		}
 
+	}
+	else if (s->op == OP_THINKTIME)
+	{
+		arg1 = DecompileGet(df, s->a, type_entity);
+		arg2 = DecompileGet(df, s->b, type_float);
+
+		DecompileIndent(*indent);
+		QCC_CatVFile(Decompileofile, "__thinktime %s : %s;\n", arg1, arg2);
 	}
 	else
 	{
@@ -2356,8 +2463,10 @@ pbool DecompileDecompileFunction(dfunction_t * df, dstatement_t *altdone)
 
 	indent = 1;
 
+	jumptable = NULL;
+
 	ds = statements + df->first_statement;
-	if(ds->op == OP_STATE)
+	if(ds->op == OP_STATE || ds->op == OP_CSTATE || ds->op == OP_CWSTATE)
 		ds++;
 	while (1) 
 	{
@@ -2506,7 +2615,7 @@ char *DecompilePrintParameter(QCC_ddef_t * def)
 	{
 		QC_snprintfz(line, sizeof(line), "%s _p_%i%s", type_name(def), def->ofs, debug);
 	}
-	else if (!strcmp(GetString(def->s_name), "IMMEDIATE") || !strcmp(GetString(def->s_name), ".imm"))
+	else if (!strcmp(GetString(def->s_name), "IMMEDIATE") || !strcmp(GetString(def->s_name), ".imm") || !strcmp(GetString(def->s_name), "I+"))
 	{
 		QC_snprintfz(line, sizeof(line), "%s%s", DecompileValueString((etype_t)(def->type), &pr_globals[def->ofs]), debug);
 	}
@@ -2643,6 +2752,8 @@ void DecompilePreceedingGlobals(int start, int end, const char *name)
 	int j;
 	QCC_ddef_t *ef;
 	static char line[8192];
+	char asize[64];
+	int arraysize;
 
 	const char *matchingfield;
 
@@ -2654,12 +2765,20 @@ void DecompilePreceedingGlobals(int start, int end, const char *name)
 
 		if (par)
 		{
+			if (par->type & DEF_H2ARRAY)
+			{
+				arraysize = ((int*)pr_globals)[par->ofs-1]+1;
+				QC_snprintfz(asize, sizeof(asize), "[%i]", arraysize);
+				par->type -= DEF_H2ARRAY;
+			}
+			else
+				arraysize = *asize = 0;
 			if (par->type & DEF_SAVEGLOBAL)
 				par->type -= DEF_SAVEGLOBAL;
 
 			if (par->type == ev_function)
 			{
-				if (strcmp(GetString(par->s_name), "IMMEDIATE") && strcmp(GetString(par->s_name), ".imm"))
+				if (strcmp(GetString(par->s_name), "IMMEDIATE") && strcmp(GetString(par->s_name), ".imm") && strcmp(GetString(par->s_name), "I+"))
 				{
 					if (strcmp(GetString(par->s_name), name))
 					{
@@ -2671,7 +2790,7 @@ void DecompilePreceedingGlobals(int start, int end, const char *name)
 							//happens with void() func = otherfunc;
 							//such functions thus don't have their own type+body
 							*s = 0;
-							QCC_CatVFile(Decompileofile, "var %s %s = %s;\n", DecompileProfiles[f], GetString(par->s_name), s+1);
+							QCC_CatVFile(Decompileofile, "var %s %s%s = %s;\n", DecompileProfiles[f], GetString(par->s_name), asize, s+1);
 							*s = ' ';
 						}
 						else
@@ -2681,7 +2800,7 @@ void DecompilePreceedingGlobals(int start, int end, const char *name)
 			}
 			else if (par->type != ev_pointer)
 			{
-				if (strcmp(GetString(par->s_name), "IMMEDIATE") && strcmp(GetString(par->s_name), ".imm") && par->s_name)
+				if (strcmp(GetString(par->s_name), "IMMEDIATE") && strcmp(GetString(par->s_name), ".imm") && strcmp(GetString(par->s_name), "I+") && par->s_name)
 				{
 
 					if (par->type == ev_field)
@@ -2691,7 +2810,7 @@ void DecompilePreceedingGlobals(int start, int end, const char *name)
 
 						if (!ef)
 						{
-							QCC_CatVFile(Decompileofile, "var .unknowntype %s;\n", GetString(par->s_name));
+							QCC_CatVFile(Decompileofile, "var .unknowntype %s%s;\n", GetString(par->s_name), asize);
 							printf("Fatal Error: Could not locate a field named \"%s\"\n", GetString(par->s_name));
 						}
 						else
@@ -2710,9 +2829,9 @@ void DecompilePreceedingGlobals(int start, int end, const char *name)
 #endif
 							{
 								if (matchingfield)
-									QCC_CatVFile(Decompileofile, "var .%s %s = %s;\n", type_name(ef), GetString(ef->s_name), matchingfield);
+									QCC_CatVFile(Decompileofile, "var .%s %s%s = %s;\n", type_name(ef), GetString(ef->s_name), asize, matchingfield);
 								else
-									QCC_CatVFile(Decompileofile, ".%s %s;\n", type_name(ef), GetString(ef->s_name));
+									QCC_CatVFile(Decompileofile, ".%s %s%s;\n", type_name(ef), GetString(ef->s_name), asize);
 
 //								fprintf(Decompileofile, "//%i %i %i %i\n", ef->ofs, ((int*)pr_globals)[ef->ofs], par->ofs, ((int*)pr_globals)[par->ofs]);
 							}
@@ -2727,25 +2846,43 @@ void DecompilePreceedingGlobals(int start, int end, const char *name)
 						if (par->type == ev_entity || par->type == ev_void)
 						{
 
-							QCC_CatVFile(Decompileofile, "%s %s;\n", type_name(par), GetString(par->s_name));
+							QCC_CatVFile(Decompileofile, "%s %s%s;\n", type_name(par), GetString(par->s_name), asize);
 
 						}
 						else
 						{
 
 							line[0] = '\0';
-							QC_snprintfz(line, sizeof(line), "%s", DecompileValueString((etype_t)(par->type), &pr_globals[par->ofs]));
 
 							if (IsConstant(par))
 							{
-								QCC_CatVFile(Decompileofile, "%s %s    = %s;\n", type_name(par), GetString(par->s_name), line);
+								if (*asize)
+								{
+									int k;
+									QCC_CatVFile(Decompileofile, "%s %s%s    = {", type_name(par), GetString(par->s_name), asize);
+									for (k = 0; k < arraysize; k++)
+										QCC_CatVFile(Decompileofile, "%s%s", DecompileValueString((etype_t)(par->type), &pr_globals[par->ofs+type_size[par->type]*k]), (k+1)==arraysize?"":", ");
+									QCC_CatVFile(Decompileofile, "};\n");
+								}
+								else
+								{
+									QC_snprintfz(line, sizeof(line), "%s", DecompileValueString((etype_t)(par->type), &pr_globals[par->ofs]));
+									QCC_CatVFile(Decompileofile, "%s %s%s    = %s;\n", type_name(par), GetString(par->s_name), asize, line);
+								}
 							}
 							else
 							{
-								if (pr_globals[par->ofs] != 0)
-									QCC_CatVFile(Decompileofile, "%s %s /* = %s */;\n", type_name(par), GetString(par->s_name), line);
+								int k;
+								for (k = 0; k < type_size[par->type]; k++)
+									if (pr_globals[par->ofs+k] != 0)
+										break;
+								if (k != type_size[par->type])
+								{
+									QC_snprintfz(line, sizeof(line), "%s", DecompileValueString((etype_t)(par->type), &pr_globals[par->ofs]));
+									QCC_CatVFile(Decompileofile, "%s %s%s /* = %s */;\n", type_name(par), GetString(par->s_name), asize, line);
+								}
 								else
-									QCC_CatVFile(Decompileofile, "%s %s;\n", type_name(par), GetString(par->s_name), line);
+									QCC_CatVFile(Decompileofile, "%s %s%s;\n", type_name(par), GetString(par->s_name), asize);
 							}
 						}
 					}
@@ -2853,6 +2990,21 @@ void DecompileFunction(const char *name, int *lastglobal)
 					ts->op += OP_MARK_END_DO;
 				}
 			}
+		}
+		else if (dom == OP_SWITCH_F && (signed int)ds->b > 0)
+		{	//essentially a goto that jumps to the OP_CASE lines. any gotos within that block which jump to the end of those cases are breaks.
+			ts = ds + (signed int)ds->b;
+			for (k = (ds+1); k < ts; k++)
+			{
+				tom = k->op % OP_MARK_END_ELSE;
+				if (tom == OP_GOTO && k+(signed int)k->a > ts)
+					k->op += OPD_GOTO_BREAK-OP_GOTO;
+			}
+			ts->op += OP_MARK_END_ELSE;
+			while ((ts->op%OP_MARK_END_ELSE) == OP_CASE || (ts->op%OP_MARK_END_ELSE) == OP_CASERANGE)
+				ts++;
+			if ((ts->op%OP_MARK_END_ELSE) == OP_GOTO && (signed int)ts->a < 0 && ts+(signed int)ts->a > ds)
+				ts->op += OPD_GOTO_DEFAULT-OP_GOTO;
 		}
 		else if (dom == OP_IFNOT_I || dom == OP_IFNOT_F || dom == OP_IFNOT_S)
 		{
@@ -2983,6 +3135,25 @@ void DecompileFunction(const char *name, int *lastglobal)
 		free(arg2);
 
 	}
+	else if (ds->op == OP_CSTATE || ds->op == OP_CWSTATE)
+	{
+		pbool backwards = false;
+		char *e1,*e2;
+		char *arg1 = DecompileGet(df, ds->a, type_float);
+		arg2 = DecompileGet(df, ds->b, type_float);
+		if (!arg2)
+		{
+			printf("Fatal Error - No state parameter with offset %i.", ds->b);
+			exit(1);
+		}
+
+		if (strtod(arg1, &e1) > strtod(arg2, &e2) && !*e1 && !*e2)
+			backwards = true;	//doesn't really make any difference, but does trigger an error.
+
+		QCC_CatVFile(Decompileofile, " = [%s%s %s .. %s ]", backwards?"--":"++", (ds->op==OP_CWSTATE)?"(W)":"", arg1, arg2);
+
+		free(arg2);
+	}
 	else
 	{
 		QCC_CatVFile(Decompileofile, " =");
@@ -3040,7 +3211,7 @@ void DecompileFunction(const char *name, int *lastglobal)
 				}
 				else
 				{
-					if (!strcmp(GetString(par->s_name), "IMMEDIATE") || !strcmp(GetString(par->s_name), ".imm"))
+					if (!strcmp(GetString(par->s_name), "IMMEDIATE") || !strcmp(GetString(par->s_name), ".imm") || !strcmp(GetString(par->s_name), "I+"))
 						continue; // immediates don't belong
 
 					if (!GetString(par->s_name))
@@ -3085,8 +3256,8 @@ void DecompileFunction(const char *name, int *lastglobal)
 }
 
 extern pbool safedecomp;
-int fake_name;
-char synth_name[1024]; // fake name part2
+static int fake_name;
+static char synth_name[1024]; // fake name part2
 
 pbool TrySynthName(const char *first)
 {
@@ -3222,7 +3393,7 @@ void DecompileDecompileFunctions(const char *origcopyright)
 	}
 }
 
-void DecompileProgsDat(char *name, void *buf, size_t bufsize)
+void DecompileProgsDat(const char *name, void *buf, size_t bufsize)
 {
 	char *c = ReadProgsCopyright(buf, bufsize);
 	if (c)
@@ -3256,6 +3427,7 @@ void DecompileProgsDat(char *name, void *buf, size_t bufsize)
 	type_invalid = QCC_PR_NewType("invalid", ev_void, false);
 
 	DecompileReadData(name, buf, bufsize);
+	DecompileDetermineArrays();
 	DecompileDecompileFunctions(c);
 
 	printf("Done.\n");
@@ -3308,7 +3480,7 @@ char *DecompileGlobalString(gofs_t ofs)
 		{
 
 			line[0] = '0';
-			if (!strcmp(GetString(def->s_name), "IMMEDIATE") || !strcmp(GetString(def->s_name), ".imm"))
+			if (!strcmp(GetString(def->s_name), "IMMEDIATE") || !strcmp(GetString(def->s_name), ".imm") || !strcmp(GetString(def->s_name), "I+"))
 			{
 				s = PR_ValueString((etype_t)(def->type), &pr_globals[ofs]);
 				QC_snprintfz(line, sizeof(line), "%i(%s)", def->ofs, s);
@@ -3389,3 +3561,95 @@ void DecompilePrintFunction(char *name)
 }
 
 
+pbool qcc_vfiles_changed;
+vfile_t *qcc_vfiles;
+void QCC_CloseAllVFiles(void)
+{
+	vfile_t *f;
+
+	while(qcc_vfiles)
+	{
+		f = qcc_vfiles;
+		qcc_vfiles = f->next;
+
+		free(f->file);
+		free(f);
+	}
+	qcc_vfiles_changed = false;
+}
+vfile_t *QCC_FindVFile(const char *name)
+{
+	vfile_t *f;
+	for (f = qcc_vfiles; f; f = f->next)
+	{
+		if (!strcmp(f->filename, name))
+			return f;
+	}
+	//give it another go, for case
+	for (f = qcc_vfiles; f; f = f->next)
+	{
+		if (!QC_strcasecmp(f->filename, name))
+			return f;
+	}
+	return NULL;
+}
+vfile_t *QCC_AddVFile(const char *name, void *data, size_t size)
+{
+	vfile_t *f = QCC_FindVFile(name);
+	if (!f)
+	{
+		f = malloc(sizeof(vfile_t) + strlen(name));
+		f->next = qcc_vfiles;
+		strcpy(f->filename, name);
+		qcc_vfiles = f;
+	}
+	else
+		free(f->file);
+	f->file = malloc(size);
+	f->type = FT_CODE;
+	memcpy(f->file, data, size);
+	f->size = f->bufsize = size;
+
+	qcc_vfiles_changed = true;
+	return f;
+}
+void QCC_CatVFile(vfile_t *f, const char *fmt, ...)
+{
+	va_list argptr;
+	char msg[65536];
+	size_t n;
+
+	va_start (argptr,fmt);
+	QC_vsnprintf (msg,sizeof(msg)-1, fmt, argptr);
+	va_end (argptr);
+
+	n = strlen(msg);
+	if (f->size+n > f->bufsize)
+	{
+		size_t msize = f->bufsize + n + 8192;
+		f->file = realloc(f->file, msize);
+		f->bufsize = msize;
+	}
+	memcpy((char*)f->file+f->size, msg, n);
+	f->size += n;
+}
+void QCC_InsertVFile(vfile_t *f, size_t pos, const char *fmt, ...)
+{
+	va_list argptr;
+	char msg[65536];
+	size_t n;
+	va_start (argptr,fmt);
+	QC_vsnprintf (msg,sizeof(msg)-1, fmt, argptr);
+	va_end (argptr);
+
+	n = strlen(msg);
+	if (f->size+n > f->bufsize)
+	{
+		size_t msize = f->bufsize + n + 8192;
+		f->file = realloc(f->file, msize);
+		f->bufsize = msize;
+	}
+	memmove((char*)f->file+pos+n, (char*)f->file+pos, f->size-pos);
+	f->size += n;
+	memcpy((char*)f->file+pos, msg, n);
+}

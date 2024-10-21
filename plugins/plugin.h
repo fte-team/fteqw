@@ -47,6 +47,12 @@
 #	define strnicmp strncasecmp
 #endif
 
+// Define these mostly for cod but could apply to other game tech
+// Used this for guidance: https://github.com/xtnded/codextended - Brad
+extern long xtn_LittleLong( long l );
+extern short xtn_LittleShort( short s );
+extern float xtn_LittleFloat( float f );
+
 #include <string.h>
 #include <stdlib.h>
 #include <stdarg.h>
@@ -603,6 +609,8 @@ extern plugcorefuncs_t *plugfuncs;
 extern plugcmdfuncs_t *cmdfuncs;
 extern plugcvarfuncs_t *cvarfuncs;
 
+#define Q_snprintf (void)Q_snprintfz
+#define Q_vsnprintf (void)Q_vsnprintfz
 #ifdef FTEENGINE
 extern plugcorefuncs_t plugcorefuncs;
 #else
@@ -612,8 +620,6 @@ void Q_strlcat(char *d, const char *s, int n);
 
 qboolean VARGS Q_vsnprintfz (char *dest, size_t size, const char *fmt, va_list argptr);
 qboolean VARGS Q_snprintfz (char *dest, size_t size, const char *fmt, ...) LIKEPRINTF(3);
-#define Q_snprintf (void)Q_snprintfz
-#define Q_vsnprintf (void)Q_vsnprintfz
 
 char	*va(const char *format, ...);
 qboolean Plug_Init(void);

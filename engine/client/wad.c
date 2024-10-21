@@ -927,6 +927,10 @@ void Mod_ParseInfoFromEntityLump(model_t *wmodel)	//actually, this should be in 
 		{
 			cl.skyrotate = atof(token);
 		}
+		else if (!strcmp("skyautorotate", key))	//q2ex feature
+		{
+			cl.skyautorotate = atof(token);
+		}
 		else if (!strcmp("skyaxis", key))	//q2 feature
 		{
 			char *s;
@@ -955,6 +959,7 @@ void Mod_ParseInfoFromEntityLump(model_t *wmodel)	//actually, this should be in 
 	}
 	else
 		Cvar_Set(&r_skybox_orientation, "");
+	Cvar_SetValue(&r_skybox_autorotate, cl.skyautorotate);
 
 	if (wmodel)
 	{

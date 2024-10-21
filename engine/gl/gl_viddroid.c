@@ -301,6 +301,14 @@ void GLVID_SetCaption(const const char *caption)
 	// :(
 }
 
+static int GLES1VID_GetPriority(void)
+{	//assumed 1 when not defined.
+	return 1;	//gles1 sucks, and lacks lots of features.
+}
+static int GLES2VID_GetPriority(void)
+{   //assumed 1 when not defined.
+	return 2;	//urgh, betterer than gles1 at least.
+}
 void VID_Register(void)
 {
 	//many android devices have drivers for both gles1 AND gles2.
@@ -311,6 +319,8 @@ void VID_Register(void)
 	gles1rendererinfo.description = "OpenGL ES 1";
 	memset(&gles1rendererinfo.name, 0, sizeof(gles1rendererinfo.name));	//make sure there's no 'gl' etc names.
 	gles1rendererinfo.name[0] = "gles1";
+	gles1rendererinfo.VID_GetPriority = GLES1VID_GetPriority;
+	openglrendererinfo.VID_GetPriority = GLES2VID_GetPriority;
 	R_RegisterRenderer(NULL, &gles1rendererinfo);
 }
 
@@ -320,7 +330,7 @@ void VID_Register(void)
 static qboolean VKVID_CreateSurface(void)
 {
 	VkResult err;
-	VkAndroidSurfaceCreateInfoKHR createInfo = {VK_STRUCTURE_TYPE_WIN32_SURFACE_CREATE_INFO_KHR};
+	VkAndroidSurfaceCreateInfoKHR createInfo = {VK_STRUCTURE_TYPE_ANDROID_SURFACE_CREATE_INFO_KHR};
 	createInfo.flags = 0;
 	createInfo.window = sys_nativewindow;
 	err = vkCreateAndroidSurfaceKHR(vk.instance, &createInfo, NULL, &vk.surface);
@@ -372,6 +382,10 @@ static void VKVID_SwapBuffers(void)
 	// :(
 }
 
+static int VKVID_GetPriority(void)
+{	//assumed 1 when not defined.
+	return 3;	//make it a higher priority than our opengles implementation, because of the infamous black-screens bug that has been plaguing us for years.
+}
 rendererinfo_t vkrendererinfo =
 {
 	"Vulkan",
@@ -426,6 +440,7 @@ rendererinfo_t vkrendererinfo =
 
 	VKBE_RenderToTextureUpdate2d,
 
-	"no more"
+	"no more",
+	VKVID_GetPriority,
 };
 #endif

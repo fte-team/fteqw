@@ -27,7 +27,7 @@ float(string fontname, string fontmaps, string sizes, float slot, optional float
 void() mitem_desktop::mitem_desktop =
 {
 #define menu_font_win 		autocvar(menu_font_win, "cour")
-#define menu_font		autocvar(menu_font, "cour")
+#define menu_font		autocvar(menu_font, "Courier New")
 #define menu_font_fallback	autocvar(gl_font, "")
 	queryscreensize();
 
@@ -93,7 +93,7 @@ float(vector pos, float scan, float char, float down) mitem_desktop::item_keypre
 	{
 		down &= 1;
 		//if we're grabbing, then cancel if they press escape, otherwise block other items from taking the keys.
-		if (scan >= K_MOUSE1 && scan <= K_MOUSE5)
+		if (scan == K_TOUCHTAP || (scan >= K_MOUSE1 && scan <= K_MOUSE5))
 			return 2;	//block other wigits, don't cancel the event so the engine still does its thing
 		else
 		{
@@ -125,7 +125,7 @@ float(vector pos, float scan, float char, float down) mitem_desktop::item_keypre
 	if (mitem_frame::item_keypress(pos, scan, char, down))
 		return TRUE;
 
-	if (scan == K_MOUSE1 && down)
+	if ((scan == K_TOUCHTAP || scan == K_MOUSE1) && down)
 	{
 #if defined(CSQC) && defined(FTE_SPLITSCREEN)
 		__using(numclientseats)
@@ -290,6 +290,11 @@ void(float force) items_updategrabs =
 				setcursormode(TRUE, autocvar(cl_cursor, "gfx/cursor.lmp"), autocvar(cl_cursorbias, 4.0)*'1 1', autocvar(cl_cursorscale, 1.0));	//because we can
 			else
 				setcursormode(TRUE);	//because DP sucks.
+
+			//evilness. make sure we fit the screen by forcing the screen size upwards. this may also affect reported video mode choices as well as being just extra scaling.
+			if (autocvar(vid_minsize,   '640 480').x < 640 ||
+				autocvar(vid_minsize,   '640 480').y < 480)
+				cvar_set("vid_minsize", "640 480");
 		}
 	}
 	else if (oldgrabstate || force)
@@ -371,7 +376,7 @@ float(mitem_desktop desktop, float evtype, float scanx, float chary, float devid
 			return TRUE;
 		}
 #endif
-		if (scanx >= K_MOUSE1 && scanx <= K_MOUSE5)
+		if (scanx == K_TOUCHTAP || (scanx >= K_MOUSE1 && scanx <= K_MOUSE5))
 		{
 			if (ui.mgrabs)
 			{
@@ -400,7 +405,14 @@ float(mitem_desktop desktop, float evtype, float scanx, float chary, float devid
 		}
 		if (desktop && desktop.item_keypress)
 			result = desktop.item_keypress(desktop.item_position, scanx, chary, evtype == IE_KEYDOWN||evtype == IE_PASTE);
-		if (scanx >= K_MOUSE1 && scanx <= K_MOUSE5)
+		if (scanx == K_TOUCHTAP)
+		{
+			if (evtype == IE_KEYDOWN)
+				ui.mousedown |= 1<<23;
+			else
+				ui.mousedown &~= 1<<23;
+		}
+		else if (scanx >= K_MOUSE1 && scanx <= K_MOUSE5)
 		{
 			if (evtype == IE_KEYDOWN)
 				ui.mousedown |= pow(1, scanx-K_MOUSE1);

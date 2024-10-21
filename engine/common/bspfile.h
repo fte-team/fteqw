@@ -177,19 +177,19 @@ enum q1contents_e
 	Q1CONTENTS_SLIME		= -4,
 	Q1CONTENTS_LAVA			= -5,
 	Q1CONTENTS_SKY			= -6,
-//#define Q1CONTENTS_ORIGIN	  -7	/*not known to engine - origin or something*/
-	Q1CONTENTS_CLIP			= -8,	/*solid to players+monsters, but not tracelines*/
-	Q1CONTENTS_CURRENT_0	= -9,	/*moves player*/
-	Q1CONTENTS_CURRENT_90	= -10,	/*moves player*/
-	Q1CONTENTS_CURRENT_180	= -11,	/*moves player*/
-	Q1CONTENTS_CURRENT_270	= -12,	/*moves player*/
-	Q1CONTENTS_CURRENT_UP	= -13,	/*moves player*/
-	Q1CONTENTS_CURRENT_DOWN	= -14,	/*moves player*/
-	Q1CONTENTS_TRANS		= -15,	/*should be solid I guess*/
+//#define HLCONTENTS_ORIGIN	  -7	/*not known to engine - origin or something*/
+	HLCONTENTS_CLIP			= -8,	/*solid to players+monsters, but not tracelines*/
+	HLCONTENTS_CURRENT_0	= -9,	/*moves player*/
+	HLCONTENTS_CURRENT_90	= -10,	/*moves player*/
+	HLCONTENTS_CURRENT_180	= -11,	/*moves player*/
+	HLCONTENTS_CURRENT_270	= -12,	/*moves player*/
+	HLCONTENTS_CURRENT_UP	= -13,	/*moves player*/
+	HLCONTENTS_CURRENT_DOWN	= -14,	/*moves player*/
+	HLCONTENTS_TRANS		= -15,	/*empty, but blocks pvs (for opaque non-solid windows, like vanilla-q1 water)*/
 	Q1CONTENTS_LADDER		= -16,	/*player can climb up/down*/
 	Q1CONTENTS_MONSTERCLIP	= -17,	/*solid to monster movement*/
 	Q1CONTENTS_PLAYERCLIP	= -18,	/*solid to player movement*/
-	Q1CONTENTS_CORPSE		= -19,	/*solid to tracelines*/
+	Q1CONTENTS_CORPSE		= -19,	/*solid to tracelines but not boxes*/
 };
 
 // !!! if this is changed, it must be changed in asm_i386.h too !!!
@@ -397,7 +397,7 @@ typedef struct q2miptex_s
 #define SANITY_MAX_MAP_BRUSHES (~0u/sizeof(*out))
 #define	SANITY_MAX_MAP_LEAFFACES	262144		//sanity only
 
-#define	MAX_Q2MAP_AREAS		256
+#define	MAX_Q2MAP_AREAS		(MAX_MAP_AREA_BYTES*8)
 #define	MAX_Q2MAP_AREAPORTALS	1024
 //#define	MAX_Q2MAP_VERTS		MAX_MAP_VERTS
 //#define	MAX_Q2MAP_FACES		MAX_MAP_FACES
@@ -572,7 +572,7 @@ typedef struct
 #define	Q2CONTENTS_ORIGIN								  0x01000000	// removed before bsping an entity
 #define	Q2CONTENTS_MONSTER		FTECONTENTS_BODY		//0x02000000	// should never be on a brush, only in game
 #define	Q2CONTENTS_DEADMONSTER	FTECONTENTS_CORPSE		//0x04000000
-#define	Q2CONTENTS_DETAIL								  0x08000000	// brushes to be added after vis leafs
+#define	Q2CONTENTS_DETAIL		FTECONTENTS_DETAIL		// 0x08000000	// brushes to be added after vis leafs
 #define	Q2CONTENTS_TRANSLUCENT							  0x10000000	// auto set if any surface has trans
 #define	Q2CONTENTS_LADDER								  0x20000000
 														//0x40000000
@@ -606,7 +606,7 @@ typedef struct
 #define	Q3CONTENTS_ORIGIN		Q2CONTENTS_ORIGIN		//0x01000000
 #define	Q3CONTENTS_BODY			FTECONTENTS_BODY		//0x02000000
 #define	Q3CONTENTS_CORPSE		FTECONTENTS_CORPSE		//0x04000000
-#define	Q3CONTENTS_DETAIL		Q2CONTENTS_DETAIL		//0x08000000
+#define	Q3CONTENTS_DETAIL		FTECONTENTS_DETAIL		//0x08000000
 #define	Q3CONTENTS_STRUCTURAL							  0x10000000
 #define Q3CONTENTS_TRANSLUCENT							  0x20000000
 #define	Q3CONTENTS_TRIGGER								  0x40000000
@@ -648,6 +648,12 @@ typedef struct
 //#define TI_KINGPIN_MIRROR		0x2000
 //#define TI_KINGPIN_WNDW33		0x4000
 //#define TI_KINGPIN_WNDW64		0x8000
+
+#define TI_Q2EX_ALPHATEST	(1u<<25)	//seems to be a thing in other pre q2e engines too.
+#define TI_N64_UV			(1u<<28)	//2 qu per texel instead of 1... (still 16qu per luxel)
+#define TI_N64_SCROLL_X		(1u<<29)	//scrolls fully right each second.
+#define TI_N64_SCROLL_Y		(1u<<30)	//scrolls fully down each second.
+#define TI_N64_SCROLL_FLIP	(1u<<31)	//reverses the scroll dirs.
 
 //Surface flags
 //#define Q3SURFACEFLAG_NODAMAGE	0x1		// never give falling damage
@@ -693,7 +699,7 @@ typedef struct
 	short		maxs[3];
 	unsigned short	firstface;
 	unsigned short	numfaces;	// counting both sides
-} q2dnode_t;
+} q2dsnode_t;
 
 typedef struct
 {
@@ -730,7 +736,23 @@ typedef struct
 
 	unsigned short	firstleafbrush;
 	unsigned short	numleafbrushes;
-} q2dleaf_t;
+} q2dsleaf_t;
+typedef struct
+{
+	int				contents;			// OR of all brushes (not needed?)
+
+	int			cluster;
+	int			area;
+
+	float			mins[3];			// for frustum culling
+	float			maxs[3];
+
+	unsigned int	firstleafface;
+	unsigned int	numleaffaces;
+
+	unsigned int	firstleafbrush;
+	unsigned int	numleafbrushes;
+} q2dlleaf_t;
 
 typedef struct
 {
@@ -749,7 +771,12 @@ typedef struct
 {
 	unsigned short	planenum;		// facing out of the leaf
 	short	texinfo;
-} q2dbrushside_t;
+} q2dsbrushside_t;
+typedef struct
+{
+	unsigned int	planenum;		// facing out of the leaf
+	int	texinfo;
+} q2dlbrushside_t;
 
 typedef struct
 {

@@ -1214,7 +1214,7 @@ static int QDECL FSDZ_EnumerateFiles (searchpathfuncs_t *handle, const char *mat
 	return true;
 }
 
-static int QDECL FSDZ_GeneratePureCRC(searchpathfuncs_t *handle, int seed, int crctype)
+static int QDECL FSDZ_GeneratePureCRC(searchpathfuncs_t *handle, const int *seed)
 {
 	dzarchive_t *pak = (void*)handle;
 
@@ -1224,7 +1224,8 @@ static int QDECL FSDZ_GeneratePureCRC(searchpathfuncs_t *handle, int seed, int c
 	int i;
 
 	filecrcs = BZ_Malloc((pak->numfiles+1)*sizeof(int));
-	filecrcs[numcrcs++] = seed;
+	if (seed)
+		filecrcs[numcrcs++] = *seed;
 
 	for (i = 0; i < pak->numfiles; i++)
 	{
@@ -1234,10 +1235,7 @@ static int QDECL FSDZ_GeneratePureCRC(searchpathfuncs_t *handle, int seed, int c
 		}
 	}
 
-	if (crctype)
-		result = CalcHashInt(&hash_md4, filecrcs, numcrcs*sizeof(int));
-	else
-		result = CalcHashInt(&hash_md4, filecrcs+1, (numcrcs-1)*sizeof(int));
+	result = CalcHashInt(&hash_md4, filecrcs, numcrcs*sizeof(int));
 
 	BZ_Free(filecrcs);
 	return result;

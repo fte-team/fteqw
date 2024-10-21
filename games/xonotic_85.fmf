@@ -2,21 +2,22 @@
 //+prefixed lines are inserted AFTER default.cfg and will thus conflict/override the mod's own settings
 
 game xonotic
-name "FTE Xonotic (0.8.5)"
+name "FTEized Xonotic (0.8.5)"
 protocolname "Xonotic"
 basegame data
 basegame *ftedata	//so stuff gets written here instead.
 
 //xonotic 0.8.5 packages.
-package "data/font-unifont-20220627.pk3"			crc 0xa39ce3ad mirror "unzip:Xonotic/data/font-unifont-20220627.pk3,https://github.com/garymoon/xonotic/releases/download/xonotic-v0.8.5/xonotic-0.8.5.zip"
-package "data/font-xolonium-20220627.pk3"			crc 0x9553d8a4 mirror "unzip:Xonotic/data/font-xolonium-20220627.pk3,https://github.com/garymoon/xonotic/releases/download/xonotic-v0.8.5/xonotic-0.8.5.zip"
-package "data/xonotic-20220627-data.pk3"			crc 0x57a1ba9c mirror "unzip:Xonotic/data/xonotic-20220627-data.pk3,https://github.com/garymoon/xonotic/releases/download/xonotic-v0.8.5/xonotic-0.8.5.zip"
-package "data/xonotic-20220627-maps.pk3"			crc 0x1d3d7cf1 mirror "unzip:Xonotic/data/xonotic-20220627-maps.pk3,https://github.com/garymoon/xonotic/releases/download/xonotic-v0.8.5/xonotic-0.8.5.zip"
-package "data/xonotic-20220627-music.pk3"			crc 0x5d1dd373 mirror "unzip:Xonotic/data/xonotic-20220627-music.pk3,https://github.com/garymoon/xonotic/releases/download/xonotic-v0.8.5/xonotic-0.8.5.zip"
-package "data/xonotic-20220627-nexcompat.pk3"		crc 0x83f613b9 mirror "unzip:Xonotic/data/xonotic-20220627-nexcompat.pk3,https://github.com/garymoon/xonotic/releases/download/xonotic-v0.8.5/xonotic-0.8.5.zip"
+//package "data/font-unifont-20220627.pk3"			crc 0xa39ce3ad mirror "unzip:Xonotic/data/font-unifont-20220627.pk3,https://github.com/garymoon/xonotic/releases/download/xonotic-v0.8.5/xonotic-0.8.5.zip"
+//package "data/font-xolonium-20220627.pk3"			crc 0x9553d8a4 mirror "unzip:Xonotic/data/font-xolonium-20220627.pk3,https://github.com/garymoon/xonotic/releases/download/xonotic-v0.8.5/xonotic-0.8.5.zip"
+//package "data/xonotic-20220627-data.pk3"			crc 0x57a1ba9c mirror "unzip:Xonotic/data/xonotic-20220627-data.pk3,https://github.com/garymoon/xonotic/releases/download/xonotic-v0.8.5/xonotic-0.8.5.zip"
+//package "data/xonotic-20220627-maps.pk3"			crc 0x1d3d7cf1 mirror "unzip:Xonotic/data/xonotic-20220627-maps.pk3,https://github.com/garymoon/xonotic/releases/download/xonotic-v0.8.5/xonotic-0.8.5.zip"
+//package "data/xonotic-20220627-music.pk3"			crc 0x5d1dd373 mirror "unzip:Xonotic/data/xonotic-20220627-music.pk3,https://github.com/garymoon/xonotic/releases/download/xonotic-v0.8.5/xonotic-0.8.5.zip"
+//package "data/xonotic-20220627-nexcompat.pk3"		crc 0x83f613b9 mirror "unzip:Xonotic/data/xonotic-20220627-nexcompat.pk3,https://github.com/garymoon/xonotic/releases/download/xonotic-v0.8.5/xonotic-0.8.5.zip"
 
 //This sucks. overrides the *.dat files to work around gmqcc bugs (also smaller dat files at runtime, but still stupid and annoying and means compat hits the fan when using the standard csprogs on dp servers)
-package "data/xonotic-fixups-0.8.5.zip"	crc 0xe27b8ad3 mirror "xonotic-fixups-0.8.5.pk3"
+//  cd qcsrc && make QCC=fteqcc QCCFLAGS_WERROR= && zip xonotic-fixups-9.8.5.pk3 ../*.dat ../*.lno
+//package "data/xonotic-fixups-0.8.5.pk3"	crc 0xe27b8ad3 //mirror "xonotic-fixups-0.8.5.pk3"
 //-set pr_fixbrokenqccarrays 2	//this can be used instead, but can cause its own problems.
 
 
@@ -38,7 +39,7 @@ package "data/xonotic-fixups-0.8.5.zip"	crc 0xe27b8ad3 mirror "xonotic-fixups-0.
 
 -if ($dedicated < 1) then set qport 654		//xonotic expects this cvar to exist only in clients (and uses it to detect client vs dedicated server). this entirely ignores 'setrenderer sv' of course. good luck with that one.
 
--set gl_info_extensions "GL_EXT_texture_compression_s3tc GL_ARB_texture_compression" //fte doesn't have a cvar that contains opengl extensions, in part because they don't apply to other renderers, thus making it kinda useless. and xonotic likes spamming warning messages, even though they're invalid half the time, and impossible for a user to work around the rest of the time.
+-set gl_info_extensions "GL_EXT_texture_compression_s3tc GL_ARB_texture_compression" //fte doesn't have a cvar that contains opengl extensions, in part because they don't apply to other renderers thus making it kinda useless. and xonotic likes spamming warning messages, even though they're invalid half the time, and impossible for a user to work around the rest of the time.
 
 -set cl_movement 1		//xonotic's physics are inconsistent with itself, but it judders even without prediction so we might as well enable it
 -set cl_movement_replay ""	//just to silence spam. actual value doesn't change anything in fte, and xonotic keeps changing it randomly anyway.

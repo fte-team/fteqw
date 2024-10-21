@@ -84,9 +84,9 @@ int Fragment_ClipPolyToPlane(float *inverts, float *outverts, int incount, float
 size_t Fragment_ClipPlaneToBrush(vecV_t *points, size_t maxpoints, void *planes, size_t planestride, size_t numplanes, vec4_t face)
 {
 	int p, a;
-	vec4_t verts[MAXFRAGMENTVERTS];
-	vec4_t verts2[MAXFRAGMENTVERTS];
-	vec4_t *cverts;
+	vecV_t verts[MAXFRAGMENTVERTS];
+	vecV_t verts2[MAXFRAGMENTVERTS];
+	vecV_t *cverts;
 	int flip;
 //	vec3_t d1, d2, n;
 	size_t numverts;
@@ -631,7 +631,7 @@ void Mod_ClipDecal(struct model_s *mod, vec3_t center, vec3_t normal, vec3_t tan
 		Q1BSP_ClipDecalToNodes(mod, &dec, mod->rootnode);
 #endif
 #ifdef Q3BSPS
-	else if (mod->fromgame == fg_quake3)
+	else if (mod->fromgame == fg_quake3 || mod->fromgame == fg_quake2)
 	{
 		if (mod->submodelof)
 		{
@@ -1339,14 +1339,14 @@ static unsigned int Q1BSP_TranslateContents(enum q1contents_e contents)
 	case Q1CONTENTS_LAVA:			return FTECONTENTS_LAVA;
 	case Q1CONTENTS_SKY:			return FTECONTENTS_SKY|FTECONTENTS_PLAYERCLIP|FTECONTENTS_MONSTERCLIP;
 	case Q1CONTENTS_LADDER:			return FTECONTENTS_LADDER;
-	case Q1CONTENTS_CLIP:			return FTECONTENTS_PLAYERCLIP|FTECONTENTS_MONSTERCLIP;
-	case Q1CONTENTS_CURRENT_0:		return FTECONTENTS_WATER|Q2CONTENTS_CURRENT_0;		//q2 is better than nothing, right?
-	case Q1CONTENTS_CURRENT_90:		return FTECONTENTS_WATER|Q2CONTENTS_CURRENT_90;
-	case Q1CONTENTS_CURRENT_180:	return FTECONTENTS_WATER|Q2CONTENTS_CURRENT_180;
-	case Q1CONTENTS_CURRENT_270:	return FTECONTENTS_WATER|Q2CONTENTS_CURRENT_270;
-	case Q1CONTENTS_CURRENT_UP:		return FTECONTENTS_WATER|Q2CONTENTS_CURRENT_UP;
-	case Q1CONTENTS_CURRENT_DOWN:	return FTECONTENTS_WATER|Q2CONTENTS_CURRENT_DOWN;
-	case Q1CONTENTS_TRANS:			return FTECONTENTS_SOLID;
+	case HLCONTENTS_CLIP:			return FTECONTENTS_PLAYERCLIP|FTECONTENTS_MONSTERCLIP;
+	case HLCONTENTS_CURRENT_0:		return FTECONTENTS_WATER|Q2CONTENTS_CURRENT_0;		//q2 is better than nothing, right?
+	case HLCONTENTS_CURRENT_90:		return FTECONTENTS_WATER|Q2CONTENTS_CURRENT_90;
+	case HLCONTENTS_CURRENT_180:	return FTECONTENTS_WATER|Q2CONTENTS_CURRENT_180;
+	case HLCONTENTS_CURRENT_270:	return FTECONTENTS_WATER|Q2CONTENTS_CURRENT_270;
+	case HLCONTENTS_CURRENT_UP:		return FTECONTENTS_WATER|Q2CONTENTS_CURRENT_UP;
+	case HLCONTENTS_CURRENT_DOWN:	return FTECONTENTS_WATER|Q2CONTENTS_CURRENT_DOWN;
+	case HLCONTENTS_TRANS:			return FTECONTENTS_EMPTY;
 	case Q1CONTENTS_MONSTERCLIP:	return FTECONTENTS_MONSTERCLIP;
 	case Q1CONTENTS_PLAYERCLIP:		return FTECONTENTS_PLAYERCLIP;
 	case Q1CONTENTS_CORPSE:			return FTECONTENTS_CORPSE;
@@ -1420,7 +1420,7 @@ void Q1BSP_LoadBrushes(model_t *model, bspx_header_t *bspx, void *mod_base)
 	q2cbrush_t *brush;
 	q2cbrushside_t *sides;	//grr!
 	mplane_t *planes;	//bulky?
-	unsigned int lumpsizeremaining;
+	size_t lumpsizeremaining;
 	unsigned int numplanes;
 
 	unsigned int srcver, srcmodelidx, modbrushes, modplanes;
@@ -2560,26 +2560,30 @@ BSPX Stuff
 
 typedef struct {
     char lumpname[24]; // up to 23 chars, zero-padded
-    int fileofs;  // from file start
-    int filelen;
+    unsigned int fileofs;  // from file start
+    unsigned int filelen;
 } bspx_lump_t;
 struct bspx_header_s {
     char id[4];  // 'BSPX'
-    int numlumps;
+    unsigned int numlumps;
 	bspx_lump_t lumps[1];
 };
-//supported lumps:
+//supported lumps (read specs/bspx.txt for more details):
 //RGBLIGHTING (.lit)
 //LIGHTING_E5BGR9 (hdr lit)
 //LIGHTINGDIR (.lux)
-//LMSHIFT (lightmap scaling)
-//LMOFFSET (lightmap scaling)
-//LMSTYLE (lightmap scaling)
+//LMSHIFT (lightmap scaling, obsoleted bby DECOUPLED_LM)
+//LMOFFSET (lightmap scaling, redundant without LMSHIFT)
+//LMSTYLE (for when 4 styles per face are not enough)
+//LMSTYLE16 (for when you need more than 256 different lightswitches)
 //VERTEXNORMALS (smooth specular)
 //BRUSHLIST (no hull size issues)
 //ENVMAP (cubemaps)
 //SURFENVMAP (cubemaps)
-void *BSPX_FindLump(bspx_header_t *bspxheader, void *mod_base, char *lumpname, int *lumpsize)
+//FACENORMALS (because Quetoo's normals were rejected by ericw for some reason)
+//DECOUPLED_LM (upgraded alternative to LM_SHIFT with float scaling and explicit lm sizes)
+//LIGHTGRID_OCTREE (lightgrid alternative to floor-based model lighting, but still stuck with 4 8bit ldr styles)
+void *BSPX_FindLump(bspx_header_t *bspxheader, void *mod_base, char *lumpname, size_t *lumpsize)
 {
 	int i;
 	*lumpsize = 0;
@@ -2751,12 +2755,12 @@ void BSPX_RenderEnvmaps(model_t *mod)
 					stride = -stride;
 				if (SCR_ScreenShot(filename, FS_GAMEONLY, &buffer, 1, stride, cubesize, cubesize, fmt))
 				{
-					FS_NativePath(filename, FS_GAMEONLY, sysname, sizeof(sysname));
+					FS_SystemPath(filename, FS_GAMEONLY, sysname, sizeof(sysname));
 					Con_Printf ("Wrote %s\n", sysname);
 				}
 				else
 				{
-					FS_NativePath(filename, FS_GAMEONLY, sysname, sizeof(sysname));
+					FS_SystemPath(filename, FS_GAMEONLY, sysname, sizeof(sysname));
 					Con_Printf ("Failed to write %s\n", sysname);
 				}
 				BZ_Free(buffer);
@@ -2772,11 +2776,11 @@ void BSPX_RenderEnvmaps(model_t *mod)
 void BSPX_LoadEnvmaps(model_t *mod, bspx_header_t *bspx, void *mod_base)
 {
 	unsigned int *envidx, idx;
-	int i;
+	size_t i;
 	char base[MAX_QPATH];
 	char imagename[MAX_QPATH];
 	menvmap_t *out;
-	int count;
+	size_t count;
 	denvmap_t *in = BSPX_FindLump(bspx, mod_base, "ENVMAP", &count);
 	mod->envmaps = NULL;
 	mod->numenvmaps = 0;
@@ -2801,7 +2805,7 @@ void BSPX_LoadEnvmaps(model_t *mod, bspx_header_t *bspx, void *mod_base)
 		out[i].cubesize = LittleLong(in[i].cubesize);
 
 		Q_snprintfz(imagename, sizeof(imagename), "textures/env/%s_%i_%i_%i", base, (int)mod->envmaps[i].origin[0], (int)mod->envmaps[i].origin[1], (int)mod->envmaps[i].origin[2]);
-		out[i].image = Image_GetTexture(imagename, NULL, IF_TEXTYPE_CUBE|IF_NOREPLACE, NULL, NULL, out[i].cubesize, out[i].cubesize, PTI_INVALID);
+		out[i].image = Image_GetTexture(imagename, NULL, IF_TEXTYPE_CUBE|IF_LINEAR|IF_NOREPLACE, NULL, NULL, out[i].cubesize, out[i].cubesize, PTI_INVALID);
 	}
 
 
@@ -2830,6 +2834,9 @@ struct bspxrw
 	size_t corelumps;
 	size_t totallumps;
 
+	void *archivedata;
+	qofs_t archivesize;
+
 	struct
 	{
 		char lumpname[24]; // up to 23 chars, zero-padded
@@ -2837,14 +2844,14 @@ struct bspxrw
 		qofs_t filelen;
 	} *lumps;
 };
-void Mod_BSPXRW_Free(struct bspxrw *ctx)
+static void Mod_BSPXRW_Free(struct bspxrw *ctx)
 {
 	FS_FreeFile(ctx->origfile);
 	Z_Free(ctx->lumps);
 	ctx->corelumps = ctx->totallumps = 0;
 	ctx->origfile = NULL;
 }
-void Mod_BSPXRW_Write(struct bspxrw *ctx)
+static void Mod_BSPXRW_Write(struct bspxrw *ctx)
 {
 #if 1
 	vfsfile_t *f = FS_OpenVFS(ctx->fname, "wb", FS_GAMEONLY);
@@ -2889,6 +2896,9 @@ void Mod_BSPXRW_Write(struct bspxrw *ctx)
 			VFS_WRITE(f, &paddata, pad);
 		}
 
+		//now reinsert any concatenated zip.
+		VFS_WRITE(f, ctx->archivedata, ctx->archivesize);
+
 		//now rewrite both sets of offsets.
 		VFS_SEEK(f, ctx->lumpofs);
 		VFS_WRITE(f, lumps, sizeof(lumps[0])*ctx->corelumps);
@@ -2901,16 +2911,18 @@ void Mod_BSPXRW_Write(struct bspxrw *ctx)
 	Mod_BSPXRW_Free(ctx);
 }
 
-void Mod_BSPXRW_SetLump(struct bspxrw *ctx, const char *lumpname, void *data, size_t datasize)
+static qboolean Mod_BSPXRW_SetLump(struct bspxrw *ctx, const char *lumpname, void *data, size_t datasize)
 {
 	int i;
 	for (i = 0; i < ctx->totallumps; i++)
 	{
 		if (!strcmp(ctx->lumps[i].lumpname, lumpname))
 		{	//replace the existing lump
+			if (ctx->lumps[i].filelen == datasize && !memcmp(ctx->lumps[i].data, data, datasize))
+				return false;	//nothing changed.
 			ctx->lumps[i].data = data;
 			ctx->lumps[i].filelen = datasize;
-			return;
+			return true;
 		}
 	}
 
@@ -2918,9 +2930,10 @@ void Mod_BSPXRW_SetLump(struct bspxrw *ctx, const char *lumpname, void *data, si
 	Q_strncpyz(ctx->lumps[i].lumpname, lumpname, sizeof(ctx->lumps[i].lumpname));
 	ctx->lumps[i].data = data;
 	ctx->lumps[i].filelen = datasize;
+	return true;
 }
 
-qboolean Mod_BSPXRW_Read(struct bspxrw *ctx, const char *fname)
+static qboolean Mod_BSPXRW_Read(struct bspxrw *ctx, const char *fname)
 {
 	int i;
 	lump_t *l;
@@ -2937,6 +2950,8 @@ qboolean Mod_BSPXRW_Read(struct bspxrw *ctx, const char *fname)
 	static const char *q2corelumpnames[Q2HEADER_LUMPS] = {"entities","planes","vertexes","visibility","nodes","texinfo","faces","lighting","leafs","leaffaces","leafbrushes","edges","surfedges","models","brushes","brushsides","pop","areas","areaportals"};
 #endif
 	static const char *q1corelumpnames[HEADER_LUMPS] = {"entities","planes","textures","vertexes","visibility","nodes","texinfo","faces","lighting","clipnodes","leafs","marksurfaces","edges","surfedges","models"};
+	ctx->archivedata = NULL;
+	ctx->archivesize = 0;
 	ctx->fname = fname;
 	ctx->origfile = FS_MallocFile(ctx->fname, FS_GAME, &ctx->origsize);
 	if (!ctx->origfile)
@@ -2944,7 +2959,10 @@ qboolean Mod_BSPXRW_Read(struct bspxrw *ctx, const char *fname)
 	ctx->lumps = 0;
 	ctx->totallumps = 0;
 
-	i = LittleLong(*(int*)ctx->origfile);
+	if (ctx->origsize < 4)
+		i = 0;
+	else
+		i = LittleLong(*(int*)ctx->origfile);
 	switch(i)
 	{
 	case 29:
@@ -2977,6 +2995,7 @@ qboolean Mod_BSPXRW_Read(struct bspxrw *ctx, const char *fname)
 #endif
 		default:
 			Mod_BSPXRW_Free(ctx);
+			Con_Printf(CON_ERROR"%s: Unknown 'IBSP' revision\n", fname);
 			return false;
 		}
 		break;
@@ -2987,19 +3006,21 @@ qboolean Mod_BSPXRW_Read(struct bspxrw *ctx, const char *fname)
 		ctx->lumpofs = 8;
 		switch(i)
 		{
-		case BSPVERSION_RBSP:
+		case BSPVERSION_RBSP:	//both rbsp+fbsp are version 1, with the only difference being lightmap sizes.
 			ctx->fg = fg_quake3;
 			ctx->corelumps = 18;
 			corelumpnames = q3corelumpnames;
 			break;
 		default:
 			Mod_BSPXRW_Free(ctx);
+			Con_Printf(CON_ERROR"%s: Unknown 'RBSP'/'FBSP' revision\n", fname);
 			return false;
 		}
 		break;
 #endif
 	default:
 		Mod_BSPXRW_Free(ctx);
+		Con_Printf(CON_ERROR"%s: Unknown file magic\n", fname);
 		return false;
 	}
 
@@ -3029,7 +3050,7 @@ qboolean Mod_BSPXRW_Read(struct bspxrw *ctx, const char *fname)
 	return true;
 }
 
-unsigned int Mod_NearestCubeForSurf(msurface_t *surf, denvmap_t *envmap, size_t nenvmap)
+static unsigned int Mod_NearestCubeForSurf(msurface_t *surf, denvmap_t *envmap, size_t nenvmap)
 {	//this is slow, yes.
 	size_t n, v;
 	unsigned int best = ~0;
@@ -3064,7 +3085,7 @@ unsigned int Mod_NearestCubeForSurf(msurface_t *surf, denvmap_t *envmap, size_t 
 	return best;
 }
 
-int QDECL envmapsort(const void *av, const void *bv)
+static int QDECL envmapsort(const void *av, const void *bv)
 {	//sorts cubemaps in order of size, to make texturearrays easier, if ever. The loader can then just make runs.
 	const denvmap_t *a=av, *b=bv;
 	if (a->cubesize == b->cubesize)
@@ -3073,7 +3094,7 @@ int QDECL envmapsort(const void *av, const void *bv)
 		return 1;
 	return -1;
 }
-void Mod_FindCubemaps_f(void)
+static void Mod_FindCubemaps_f(void)
 {
 	struct bspxrw bspctx;
 	if (Mod_BSPXRW_Read(&bspctx, cl.worldmodel->name))
@@ -3174,13 +3195,27 @@ void Mod_FindCubemaps_f(void)
 		Z_Free(envmap);
 	}
 }
-void Mod_Realign_f(void)
+static void Mod_Realign_f(void)
 {
 	struct bspxrw bspctx;
 	if (Mod_BSPXRW_Read(&bspctx, cl.worldmodel->name))
 		Mod_BSPXRW_Write(&bspctx);
 }
-void Mod_BSPX_List_f(void)
+static searchpathfuncs_t *Mod_BSPX_List_ArchiveFile_handle;
+static void QDECL Mod_BSPX_List_ArchiveFile(int depth, const char *fname, fsbucket_t *filehandle, void *pathhandle)
+{
+	searchpathfuncs_t *archive = Mod_BSPX_List_ArchiveFile_handle;
+	flocation_t loc;
+	time_t mtime;
+	char timestr[MAX_QPATH], sizestr[MAX_QPATH];
+	archive->FindFile(archive, &loc, fname, pathhandle);
+	archive->FileStat(archive, &loc, &mtime);
+
+	*timestr = 0;
+	strftime(timestr,sizeof(timestr), "%Y-%m-%d %H:%M:%S", localtime(&mtime));
+	Con_Printf("\t\t%20s: %-12s %s\n", fname, FS_AbbreviateSize(sizestr,sizeof(sizestr), loc.len), timestr);
+}
+static void Mod_BSPX_List_f(void)
 {
 	int i;
 	struct bspxrw ctx;
@@ -3190,10 +3225,27 @@ void Mod_BSPX_List_f(void)
 	if (Mod_BSPXRW_Read(&ctx, fname))
 	{
 		Con_Printf("%s:\n", fname);
-		for (i = 0; i < ctx.corelumps; i++)
-			Con_Printf("\t%s: %u\n", ctx.lumps[i].lumpname, (unsigned int)ctx.lumps[i].filelen);
-		for (     ; i < ctx.totallumps; i++)
-			Con_Printf("\t%s: %u\n", ctx.lumps[i].lumpname, (unsigned int)ctx.lumps[i].filelen);
+		for (i = 0; i < ctx.totallumps; i++)
+			Con_Printf("\t%20s: %-12"PRIuQOFS" csum:%08x\n", ctx.lumps[i].lumpname, ctx.lumps[i].filelen, LittleLong (CalcHashInt(&hash_md4, ctx.lumps[i].data, ctx.lumps[i].filelen)));
+		if (ctx.archivesize)
+		{
+			searchpathfuncs_t *f;
+			vfsfile_t *tmp = VFSPIPE_Open(1,true);
+			if (tmp)
+			{
+				VFS_WRITE(tmp, ctx.archivedata, ctx.archivesize);
+				f = FSZIP_LoadArchive(tmp, NULL, ctx.fname, ctx.fname, NULL);
+				if (!f)
+					VFS_CLOSE(tmp);
+				else
+				{
+					Con_Printf("\t%20s: %-12"PRIuQOFS"\n", "archive", ctx.archivesize);
+					Mod_BSPX_List_ArchiveFile_handle = f;
+					f->BuildHash(f, 0, Mod_BSPX_List_ArchiveFile);
+					f->ClosePath(f);
+				}
+			}
+		}
 		Mod_BSPXRW_Free(&ctx);
 	}
 }
@@ -3224,6 +3276,83 @@ void Mod_BSPX_Strip_f(void)
 	}
 }
 
+static qbyte *Mod_BSPX_Injest_Read(qofs_t *sz, char *name, char *fnamefmt, ...)
+{
+	va_list		argptr;
+	char		fname[MAX_QPATH];
+	int i;
+
+	va_start (argptr, fnamefmt);
+	if (Q_vsnprintfz (fname,sizeof(fname), fnamefmt,argptr))
+		*fname = 0;
+	va_end (argptr);
+	if (!*fname)
+		return NULL;
+
+	for (i = 2; i < Cmd_Argc(); i++)
+	{
+		if (!Q_strcasecmp(Cmd_Argv(i), "all") || !Q_strcasecmp(Cmd_Argv(i), name))
+			return FS_MallocFile(fname, FS_GAME, sz);
+	}
+	Con_Printf("%s not requested\n", name);
+	return NULL;
+}
+static void Mod_BSPX_Injest_f(void)
+{
+	qbyte *tmp;
+	struct bspxrw ctx;
+	qboolean found = false;
+	qofs_t sz;
+	if (Cmd_Argc() <= 2)
+		Con_Printf("%s FILENAME <all|LUMPNAMELIST>: inserts external supplementary resources into the bsp. "CON_WARNING"REMEMBER TO BACK-UP FIRST!\n", Cmd_Argv(0));
+	else if (Mod_BSPXRW_Read(&ctx, Cmd_Argv(1)))
+	{
+		char noext[MAX_QPATH];
+		COM_StripExtension(ctx.fname, noext,sizeof(noext));
+		if (ctx.fg == fg_quake)
+		{
+			tmp = Mod_BSPX_Injest_Read(&sz, "lit", "%s.lit", noext);
+			if (tmp)
+			{
+				if (sz == 8+ctx.lumps[LUMP_LIGHTING].filelen*3 && !memcmp(tmp, "QLIT\0x01\x00\x00\x00", 8))
+					Con_Printf("Injesting sdr lit file\n"), found|=Mod_BSPXRW_SetLump(&ctx, "RGBLIGHTING", tmp+8, sz-8);		//ldr
+				else if (sz == 8+ctx.lumps[LUMP_LIGHTING].filelen*4 && !memcmp(tmp, "QLIT\0x01\x00\x01\x00", 8))
+					Con_Printf("Injesting hdr lit file\n"), found|=Mod_BSPXRW_SetLump(&ctx, "LIGHTING_E5BGR9", tmp+8, sz-8);	//hdr
+				FS_FreeFile(tmp);
+			}
+
+			tmp = Mod_BSPX_Injest_Read(&sz, "lux", "%s.lux", noext);
+			if (tmp)
+			{
+				if (sz == 8+ctx.lumps[LUMP_LIGHTING].filelen*3 && !memcmp(tmp, "QLIT\0x01\x00\x00\x00", 8))
+					Con_Printf("Injesting lux file\n"), found|=Mod_BSPXRW_SetLump(&ctx, "LIGHTINGDIR", tmp+8, sz-8);
+				FS_FreeFile(tmp);
+			}
+
+			tmp = Mod_BSPX_Injest_Read(&sz, "ent", "%s.ent", noext);
+			if (tmp)
+			{
+				if (sz)
+					Con_Printf("Injesting ent file\n"), found|=Mod_BSPXRW_SetLump(&ctx, "entities", tmp, sz);
+				FS_FreeFile(tmp);
+			}
+
+//			tmp = Mod_BSPX_Injest_Read(&sz, "vis", "%s.vis", noext);
+//			tmp = Mod_BSPX_Injest_Read(&sz, "rtlights", "%s.rtlights", noext);
+//			tmp = Mod_BSPX_Injest_Read(&sz, "way", "%s.way", noext);
+			//fixme: cubemaps
+		}
+
+		if (found)
+			Mod_BSPXRW_Write(&ctx);
+		else
+		{
+			Mod_BSPXRW_Free(&ctx);
+			Con_Printf("%s \"%s\": nothing changed.\n", Cmd_Argv(0), Cmd_Argv(1));
+		}
+	}
+}
+
 image_t *Mod_CubemapForOrigin(model_t *wmodel, vec3_t org)
 {
 	int i;
@@ -3244,6 +3373,15 @@ image_t *Mod_CubemapForOrigin(model_t *wmodel, vec3_t org)
 		}
 	}
 	return ret;
+}
+
+void Mod_BSPX_Init(void)
+{
+	Cmd_AddCommandD("mod_findcubemaps", Mod_FindCubemaps_f, "Scans the entities of a map to find reflection env_cubemap sites and determines the nearest one to each surface.");
+	Cmd_AddCommandD("mod_realign", Mod_Realign_f, "Reads the named bsp and writes it back out with only alignment changes.");
+	Cmd_AddCommandD("mod_bspx_list", Mod_BSPX_List_f, "Lists all lumps (and their sizes) in the specified bsp.");
+	Cmd_AddCommandD("mod_bspx_strip", Mod_BSPX_Strip_f, "Strips a named extension lump from a bsp file.");
+	Cmd_AddCommandD("mod_bspx_injest", Mod_BSPX_Injest_f, "Injests supplemental files (like .lits) into a new bspx file. "CON_WARNING"REMEMBER TO BACK-UP FIRST!");
 }
 
 #endif

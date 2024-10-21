@@ -397,6 +397,11 @@ qboolean QDECL Mod_LoadHLModel (model_t *mod, void *buffer, size_t fsize)
 					Q_snprintfz(shaders[i].name, sizeof(shaders[i].name), "common/hlmodel_fullbright");
 				}
 			}
+			else if ( (tex[i].flags & HLMDLFL_MASKED) || (tex[i].flags & (HLMDLFL_MASKED | HLMDLFL_ALPHASOLID)))
+			{
+				shader = HLSHADER_MASKED;
+				Q_snprintfz(shaders[i].name, sizeof(shaders[i].name), "common/hlmodel_masked");
+			}
 			else if (tex[i].flags & HLMDLFL_CHROME)
 			{
 				shader = HLSHADER_CHROME;
@@ -548,6 +553,32 @@ qboolean QDECL Mod_LoadHLModel (model_t *mod, void *buffer, size_t fsize)
 			shaders[i].atlasid = j++;
 			Q_snprintfz(texname, sizeof(texname), "%s*%i", mod->name, shaders[i].atlasid);
 			shaders[i].defaulttex.base = Image_GetTexture(texname, "", IF_NOALPHA|IF_NOREPLACE, in, pal, tex[i].w, tex[i].h, TF_8PAL24);
+		}
+		else if (tex[i].flags & HLMDLFL_MASKED)
+		{
+			int k = 0;
+			qbyte *in = (qbyte *) texheader + tex[i].offset;
+			qbyte *pal = (qbyte *) texheader + tex[i].w * tex[i].h + tex[i].offset;
+			qbyte alphaPal[1024]; /* 256 color 32-bit palette */
+
+			for (k = 0; k < 255; k+= 1) {
+				int p = k * 4;
+				int x = k * 3;
+				alphaPal[p + 0] = pal[x + 0];
+				alphaPal[p + 1] = pal[x + 1];
+				alphaPal[p + 2] = pal[x + 2];
+				alphaPal[p + 3] = 255;
+			}
+
+			/* pal index 255 = always transparent ~eukara */
+			alphaPal[255*4+0] = 0;
+			alphaPal[255*4+1] = 0;
+			alphaPal[255*4+2] = 0;
+			alphaPal[255*4+3] = 0;
+
+			shaders[i].atlasid = j++;
+			Q_snprintfz(texname, sizeof(texname), "%s*%i", mod->name, shaders[i].atlasid);
+			shaders[i].defaulttex.base = Image_GetTexture(texname, "", IF_NOREPLACE, in, alphaPal, tex[i].w, tex[i].h, TF_8PAL32);
 		}
 	}
 

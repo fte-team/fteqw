@@ -40,6 +40,7 @@ static cvar_t gl_skyboxdist						= CVARD  ("gl_skyboxdist", "0", "The distance o
 static cvar_t r_skycloudalpha						= CVARFD ("r_skycloudalpha", "1", CVAR_RENDERERLATCH, "Controls how opaque the front layer of legacy scrolling skies should be.");
 cvar_t r_skyboxname							= CVARFC ("r_skybox", "", CVAR_RENDERERCALLBACK | CVAR_SHADERSYSTEM, R_SkyBox_Changed);
 cvar_t r_skybox_orientation					= CVARFD ("r_glsl_skybox_orientation", "0 0 0 0", CVAR_SHADERSYSTEM, "Defines the axis around which skyboxes will rotate (the first three values). The fourth value defines the speed the skybox rotates at, in degrees per second.");
+cvar_t r_skybox_autorotate					= CVARFD ("r_glsl_skybox_autorotate", "1", CVAR_SHADERSYSTEM, "Defines the axis around which skyboxes will rotate (the first three values). The fourth value defines the speed the skybox rotates at, in degrees per second.");
 cvar_t r_skyfog								= CVARD  ("r_skyfog", "0.5", "This controls an alpha-blend value for fog on skyboxes, cumulative with regular fog alpha.");
 
 static shader_t *forcedsky;
@@ -1344,6 +1345,7 @@ void R_Sky_Register(void)
 	Cvar_Register (&r_skyfog,				groupname);
 	Cvar_Register (&r_skyboxname,			groupname);
 	Cvar_Register (&r_skybox_orientation,	groupname);
+	Cvar_Register (&r_skybox_autorotate,	groupname);
 	Cvar_Register (&gl_skyboxdist,			groupname);
 
 	Cmd_AddCommandAD("sky", R_ForceSky_f, R_ForceSky_c, "For compat with Quakespasm, please use r_skybox.");	//QS compat

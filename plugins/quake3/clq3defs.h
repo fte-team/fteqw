@@ -360,7 +360,7 @@ typedef struct {
 } q3glconfig_t;
 
 
-void Netchan_SetupQ3(netsrc_t sock, netchan_t *chan, netadr_t *adr, int qport);
+void Netchan_SetupQ3(unsigned int flags, netchan_t *chan, netadr_t *adr, int qport);
 void Netchan_TransmitNextFragment(struct ftenet_connections_s *socket, netchan_t *chan);
 void Netchan_TransmitQ3(struct ftenet_connections_s *socket, netchan_t *chan, int length, const qbyte *data);
 qboolean Netchan_ProcessQ3 (netchan_t *chan, sizebuf_t *msg);

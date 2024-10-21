@@ -62,6 +62,7 @@
 #define VKInstFuncs \
 	VKFunc(EnumerateInstanceLayerProperties)		\
 	VKFunc(EnumerateInstanceExtensionProperties)	\
+	VKFunc(EnumerateInstanceVersion)				\
 	VKFunc(CreateInstance)
 
 //funcs specific to an instance
@@ -175,11 +176,25 @@
 	VKFunc(CreateImageView)				\
 	VKFunc(DestroyImageView)
 
+//funcs for ray query's acceleration structures
+#ifdef VK_KHR_acceleration_structure
+#define VKAccelStructFuncs \
+	VKFunc(GetBufferDeviceAddress)/*1.2*/				\
+	VKFunc(GetAccelerationStructureBuildSizesKHR)		\
+	VKFunc(CreateAccelerationStructureKHR)				\
+	VKFunc(GetAccelerationStructureDeviceAddressKHR)	\
+	VKFunc(DestroyAccelerationStructureKHR)				\
+	VKFunc(CmdBuildAccelerationStructuresKHR)
+#else
+#define VKAccelStructFuncs
+#endif
+
 //all vulkan funcs
 #define VKFuncs \
 	VKInstFuncs		\
 	VKInst2Funcs	\
 	VKDevFuncs		\
+	VKAccelStructFuncs \
 	VKFunc(GetInstanceProcAddr)\
 	VKFunc(GetDeviceProcAddr)
 
@@ -233,6 +248,12 @@ enum dynbuf_e
 	DB_EBO,
 	DB_UBO,
 	DB_STAGING,
+#ifdef VK_KHR_acceleration_structure
+	DB_ACCELERATIONSTRUCT,
+	DB_ACCELERATIONSCRATCH,
+	DB_ACCELERATIONMESHDATA,
+	DB_ACCELERATIONINSTANCE,
+#endif
 	DB_MAX
 };
 struct vk_rendertarg
@@ -280,14 +301,24 @@ extern struct vulkaninfo_s
 	qboolean		khr_dedicated_allocation;		//standardised version of the above where the driver decides whether a resource is worth a dedicated allocation.
 	qboolean		khr_push_descriptor;			//more efficient descriptor streaming
 	qboolean		amd_rasterization_order;		//allows primitives to draw in any order
+#ifdef VK_EXT_astc_decode_mode
 	qboolean		ext_astc_decode_mode;			//small perf boost
+#endif
 #ifdef VK_KHR_fragment_shading_rate
 	qboolean		khr_fragment_shading_rate;		//small perf boost. probably more useful for battery.
+#endif
+#ifdef VK_KHR_ray_query
+	qboolean		khr_ray_query;
+#endif
+#ifdef VK_KHR_acceleration_structure
+	qboolean		khr_acceleration_structure;
+	qboolean		khr_deferred_host_operations;	//need to enable it, we don't make use of it though.
 #endif
 
 	VkInstance instance;
 	VkDevice device;
 	VkPhysicalDevice gpu;
+	uint32_t apiversion;	//the device api, capped by instance version, capped by our own version... sigh
 	VkSurfaceKHR surface;
 	uint32_t queuefam[VQ_COUNT];
 	uint32_t queuenum[VQ_COUNT];

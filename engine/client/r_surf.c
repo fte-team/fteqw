@@ -876,7 +876,7 @@ static void Surf_StoreLightmap_RGB(qbyte *dest, unsigned int *bl, int smax, int 
 	switch(lm->fmt)
 	{
 	default:
-		Sys_Error("Bad lightmap_fmt\n");
+		Sys_Error("Surf_StoreLightmap_RGB: Bad format - %s\n", Image_FormatName(lm->fmt));
 		break;
 	case PTI_A2BGR10:
 		stride = (lm->width-smax)<<2;
@@ -1492,7 +1492,7 @@ static void Surf_BuildLightMap (model_t *model, msurface_t *surf, int map, int s
 // add all the lightmaps
 			if (src)
 			{
-				if (model->fromgame == fg_quake3)
+				if (model->lightmaps.prebaked)
 					Sys_Error("Surf_BuildLightMap: q3bsp");
 				switch(model->lightmaps.fmt)
 				{
@@ -1773,7 +1773,7 @@ static void Surf_BuildLightMap_Worker (model_t *wmodel, msurface_t *surf, int sh
 // add all the lightmaps
 			if (src)
 			{
-				if (wmodel->fromgame == fg_quake3)	//rgb
+				if (wmodel->lightmaps.prebaked)	//rgb
 				{
 					/*q3 lightmaps are meant to be pre-built
 					this code is misguided, and ought never be executed anyway.
@@ -1790,6 +1790,7 @@ static void Surf_BuildLightMap_Worker (model_t *wmodel, msurface_t *surf, int sh
 							bl+=3;
 						}
 					}
+					Sys_Error("Surf_BuildLightMap_Worker: q3bsp");
 				}
 				else switch(wmodel->lightmaps.fmt)
 				{
@@ -2055,7 +2056,11 @@ dynamic:
 
 #ifdef _DEBUG
 	if ((unsigned)fa->lightmaptexturenums[0] >= numlightmaps)
-		Sys_Error("Invalid lightmap index\n");
+	{
+		static float throttle;
+		Con_ThrottlePrintf(&throttle, 0, CON_WARNING"Invalid lightmap index\n");
+		return;
+	}
 #endif
 
 
@@ -2303,7 +2308,7 @@ void Surf_GenBrushBatches(batch_t **batches, entity_t *ent)
 
 // calculate dynamic lighting for bmodel if it's not an
 // instanced model
-	if (model->fromgame != fg_quake3 && model->fromgame != fg_doom3 && lightmap && !(webo_blocklightmapupdates&1))
+	if (!model->lightmaps.prebaked && lightmap && !(webo_blocklightmapupdates&1))
 	{
 		int k;
 
@@ -2350,7 +2355,7 @@ void Surf_GenBrushBatches(batch_t **batches, entity_t *ent)
 	}
 
 #ifdef BEF_PUSHDEPTH
-	if (r_pushdepth)
+	if (r_pushdepth && model->submodelof == r_worldentity.model)
 		bef = BEF_PUSHDEPTH;
 	else
 		bef = 0;
@@ -3094,7 +3099,7 @@ void Surf_DrawWorld (void)
 						gennew = true;	//generate an initial one, if we can.
 					else
 					{
-						if (!gennew && currentmodel->fromgame != fg_quake3)
+						if (!gennew && !currentmodel->lightmaps.prebaked)
 						{
 							int i = cl_max_lightstyles;
 							for (i = 0; i < cl_max_lightstyles; i++)
@@ -3449,6 +3454,8 @@ uploadfmt_t Surf_NameToFormat(const char *nam)
 uploadfmt_t Surf_LightmapMode(model_t *model)
 {
 	uploadfmt_t fmt = Surf_NameToFormat(r_lightmap_format.string);
+	if (model && model->lightmaps.prebaked && model->lightmaps.fmt!=LM_RGB8)
+		fmt = PTI_INVALID;	//don't let them force it away if we can't support it. this sucks.
 	if (!sh_config.texfmt[fmt])
 	{
 		qboolean hdr = (vid.flags&VID_SRGBAWARE), rgb = false;
@@ -3755,7 +3762,7 @@ void Surf_BuildModelLightmaps (model_t *m)
 
 	R_BumpLightstyles(m->lightmaps.maxstyle);	//should only really happen with lazy loading
 
-	if (m->submodelof && m->fromgame == fg_quake3)	//FIXME: should be all bsp formats
+	if (m->submodelof && m->lightmaps.prebaked)	//FIXME: should be all bsp formats
 	{
 		if (m->submodelof->loadstate != MLS_LOADED)
 			return;
@@ -3763,7 +3770,7 @@ void Surf_BuildModelLightmaps (model_t *m)
 	}
 	else
 	{
-		if (!m->lightdata && m->lightmaps.count && m->fromgame == fg_quake3)
+		if (!m->lightdata && m->lightmaps.count && m->lightmaps.prebaked)
 		{
 			char pattern[MAX_QPATH];
 			COM_StripAllExtensions(m->name, pattern, sizeof(pattern));
@@ -3787,7 +3794,7 @@ void Surf_BuildModelLightmaps (model_t *m)
 		}
 	}
 
-	if (m->fromgame == fg_quake3)
+	if (m->lightmaps.prebaked)
 	{
 		int j;
 		unsigned char *src, *stop;
@@ -3817,24 +3824,38 @@ void Surf_BuildModelLightmaps (model_t *m)
 		if (!m->submodelof)
 		for (i = 0; i < m->lightmaps.count; i++)
 		{
-			if (lightmap[newfirst+i]->external)
+			if (lightmap[newfirst+i]->external || !m->lightdata)
 				continue;
 
-			dst = lightmap[newfirst+i]->lightmaps;
-			src = m->lightdata + i*m->lightmaps.width*m->lightmaps.height*3;
-			stop = m->lightdata + (i+1)*m->lightmaps.width*m->lightmaps.height*3;
-			if (stop-m->lightdata > m->lightdatasize)
-				stop = m->lightdata + m->lightdatasize;
-			if (m->lightdata)
+			if (lightmap[newfirst+i]->fmt == m->lightmaps.prebaked)
 			{
+				unsigned int bb,bw,bh,bd;
+				Image_BlockSizeForEncoding(m->lightmaps.prebaked, &bb,&bw,&bh,&bd);
+
+				dst = lightmap[newfirst+i]->lightmaps;
+				src = m->lightdata + i*m->lightmaps.width*m->lightmaps.height*bb;
+				stop = m->lightdata + (i+1)*m->lightmaps.width*m->lightmaps.height*bb;
+				if (stop-m->lightdata > m->lightdatasize)
+					stop = m->lightdata + m->lightdatasize;
+				memcpy(dst, src, stop-src);
+			}
+			//FIXME: replace with Image_ChangeFormat here. but the data may be partial for the last mip.
+			else switch(m->lightmaps.fmt)
+			{
+			case LM_RGB8:
+				dst = lightmap[newfirst+i]->lightmaps;
+				src = m->lightdata + i*m->lightmaps.width*m->lightmaps.height*3;
+				stop = m->lightdata + (i+1)*m->lightmaps.width*m->lightmaps.height*3;
+				if (stop-m->lightdata > m->lightdatasize)
+					stop = m->lightdata + m->lightdatasize;
 				switch(lightmap[newfirst+i]->fmt)
 				{
 				default:
-					Sys_Error("Bad lightmap_fmt\n");
+					Sys_Error("Surf_BuildModelLightmaps: Bad format - %s\n", Image_FormatName(lightmap[newfirst+i]->fmt));
 					break;
 				case PTI_A2BGR10:
 					for (; src < stop; dst += 4, src += 3)
-						*(unsigned int*)dst = (0x3<<30) | (src[2]<<22) | (src[1]<<12) | (src[0]<<2);
+						*(unsigned int*)dst = (0x3u<<30) | (src[2]<<22) | (src[1]<<12) | (src[0]<<2);
 					break;
 				case PTI_E5BGR9:
 					for (; src < stop; dst += 4, src += 3)
@@ -3850,7 +3871,8 @@ void Surf_BuildModelLightmaps (model_t *m)
 						dst[3] = 255;
 					}
 					break;
-				/*case TF_RGBA32:
+				case PTI_RGBA8:
+				case PTI_RGBX8:
 					for (; src < stop; dst += 4, src += 3)
 					{
 						dst[0] = src[0];
@@ -3859,15 +3881,15 @@ void Surf_BuildModelLightmaps (model_t *m)
 						dst[3] = 255;
 					}
 					break;
-				case TF_BGR24:
+				case PTI_BGR8:
 					for (; src < stop; dst += 3, src += 3)
 					{
 						dst[0] = src[2];
 						dst[1] = src[1];
 						dst[2] = src[0];
 					}
-					break;*/
-				case TF_RGB24:
+					break;
+				case PTI_RGB8:
 					for (; src < stop; dst += 3, src += 3)
 					{
 						dst[0] = src[0];
@@ -3886,6 +3908,23 @@ void Surf_BuildModelLightmaps (model_t *m)
 					}
 					break;
 				}
+				break;
+
+			case LM_E5BGR9:
+				dst = lightmap[newfirst+i]->lightmaps;
+				src = m->lightdata + i*m->lightmaps.width*m->lightmaps.height*4;
+				stop = m->lightdata + (i+1)*m->lightmaps.width*m->lightmaps.height*4;
+				if (stop-m->lightdata > m->lightdatasize)
+					stop = m->lightdata + m->lightdatasize;
+
+				if (lightmap[newfirst+i]->fmt == PTI_E5BGR9)
+					memcpy(dst, src, stop-src);
+				else	//this can happen on older gpus...
+					Con_Printf(CON_WARNING"Unsupported lightmap format. set ^[/r_lightmap_format e5bgr9^]\n");
+				break;
+			default:
+				Con_Printf(CON_WARNING"Unsupported input lightmap format\n");
+				break;
 			}
 		}
 	}
@@ -4010,7 +4049,7 @@ void Surf_NewMap (model_t *worldmodel)
 
 	//evil haxx
 	r_dynamic.ival = r_dynamic.value;
-	if (r_dynamic.ival > 0 && (!cl.worldmodel || cl.worldmodel->fromgame == fg_quake3)) //quake3 has no lightmaps, disable r_dynamic
+	if (r_dynamic.ival > 0 && (!cl.worldmodel || cl.worldmodel->lightmaps.prebaked)) //quake3 has no lightmaps, disable r_dynamic
 		r_dynamic.ival = 0;
 
 	memset (&r_worldentity, 0, sizeof(r_worldentity));

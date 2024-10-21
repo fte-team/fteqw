@@ -1,10 +1,15 @@
-!!ver 110
+!!ver 100 150
 !!permu FRAMEBLEND
 !!permu BUMP
 !!permu FOG
+!!permu NOFOG
 !!permu SKELETAL
+!!permu FULLBRIGHT
 !!permu AMBIENTCUBE
-!!samps diffuse fullbright normalmap
+!!permu REFLECTCUBEMASK
+!!samps diffuse
+!!samps =BUMP normalmap
+!!samps =FULLBRIGHT fullbright
 !!permu FAKESHADOWS
 !!cvardf r_glsl_pcf
 !!samps =FAKESHADOWS shadowmap
@@ -18,6 +23,7 @@
 
 varying vec2 tex_c;
 varying vec3 norm;
+varying vec4 light;
 
 /* CUBEMAPS ONLY */
 #ifdef REFLECTCUBEMASK
@@ -32,25 +38,52 @@ varying vec3 norm;
 #ifdef VERTEX_SHADER
 	#include "sys/skeletal.h"
 
+	float lambert(vec3 normal, vec3 dir)
+	{
+		return dot(normal, dir);
+	}
+
+	float halflambert(vec3 normal, vec3 dir)
+	{
+		return (dot(normal, dir) * 0.5) + 0.5;
+	}
+
 	void main (void)
 	{
 		vec3 n, s, t, w;
 		tex_c = v_texcoord;
 		gl_Position = skeletaltransform_wnst(w,n,s,t);
-		norm = n;
+		norm = n = normalize(n);
+		s = normalize(s);
+		t = normalize(t);
+		light.rgba = vec4(e_light_ambient, 1.0);
+
+	#ifdef AMBIENTCUBE
+		//no specular effect here. use rtlights for that.
+		vec3 nn = norm*norm; //FIXME: should be worldspace normal.
+		light.rgb = nn.x * e_light_ambientcube[(norm.x<0.0)?1:0] +
+				nn.y * e_light_ambientcube[(norm.y<0.0)?3:2] +
+				nn.z * e_light_ambientcube[(norm.z<0.0)?5:4];
+	#else
+		#ifdef HALFLAMBERT
+			light.rgb += max(0.0,halflambert(n,e_light_dir)) * e_light_mul;
+		#else
+			light.rgb += max(0.0,dot(n,e_light_dir)) * e_light_mul;
+		#endif
+	#endif
 
 /* CUBEMAPS ONLY */
 #ifdef REFLECTCUBEMASK
-		invsurface = mat3(v_svector, v_tvector, v_normal);
+		invsurface = mat3(s, t, n);
 
-		vec3 eyeminusvertex = e_eyepos - v_position.xyz;
-		eyevector.x = dot(eyeminusvertex, v_svector.xyz);
-		eyevector.y = dot(eyeminusvertex, v_tvector.xyz);
-		eyevector.z = dot(eyeminusvertex, v_normal.xyz);
+		vec3 eyeminusvertex = e_eyepos - w.xyz;
+		eyevector.x = dot(eyeminusvertex, s.xyz);
+		eyevector.y = dot(eyeminusvertex, t.xyz);
+		eyevector.z = dot(eyeminusvertex, n.xyz);
 #endif
 		
 		#ifdef FAKESHADOWS
-		vtexprojcoord = (l_cubematrix*vec4(v_position.xyz, 1.0));
+		vtexprojcoord = (l_cubematrix*vec4(w.xyz, 1.0));
 		#endif
 	}
 #endif
@@ -60,20 +93,9 @@ varying vec3 norm;
 	#include "sys/fog.h"
 	#include "sys/pcf.h"
 
-	float lambert(vec3 normal, vec3 dir)
-	{
-		return max(dot(normal, dir), 0.0);
-	}
-
-	float halflambert(vec3 normal, vec3 dir)
-	{
-		return (lambert(normal, dir) * 0.5) + 0.5;
-	}
-
 	void main (void)
 	{
 		vec4 diffuse_f = texture2D(s_diffuse, tex_c);
-		vec3 light;
 
 #ifdef MASKLT
 		if (diffuse_f.a < float(MASK))
@@ -84,7 +106,7 @@ varying vec3 norm;
 #ifdef BUMP
 		/* Source's normalmaps are in the DX format where the green channel is flipped */
 		vec3 normal_f = texture2D(s_normalmap, tex_c).rgb;
-		normal_f.g *= -1.0;
+		normal_f.g = 1.0 - normal_f.g;
 		normal_f = normalize(normal_f.rgb - 0.5);
 #else
 		vec3 normal_f = vec3(0.0,0.0,1.0);
@@ -92,49 +114,45 @@ varying vec3 norm;
 
 /* CUBEMAPS ONLY */
 #ifdef REFLECTCUBEMASK
-	/* when ENVFROMBASE is set or a normal isn't present, we're getting the reflectivity info from the diffusemap's alpha channel */
-	#if defined(ENVFROMBASE) || !defined(BUMP)
-		#define refl 1.0 - diffuse_f.a
+
+	#if defined(ENVFROMMASK)
+		/* We have a dedicated reflectmask */
+		#define refl texture2D(s_reflectmask, tex_c).r
 	#else
-		#define refl texture2D(s_normalmap, tex_c).a
+		/* when ENVFROMBASE is set or a normal isn't present, we're getting the reflectivity info from the diffusemap's alpha channel */
+		#if defined(ENVFROMBASE) || !defined(BUMP)
+			#define refl 1.0 - diffuse_f.a
+		#else
+			/* when ENVFROMNORM is set, we don't invert the refl */
+			#if defined(ENVFROMNORM)
+				#define refl texture2D(s_normalmap, tex_c).a
+			#else
+				#define refl 1.0 - texture2D(s_normalmap, tex_c).a
+			#endif
+		#endif
 	#endif
-		vec3 cube_c = reflect(normalize(-eyevector), normal_f.rgb);
+	
+		vec3 cube_c = reflect(-eyevector, normal_f.rgb);
 		cube_c = cube_c.x * invsurface[0] + cube_c.y * invsurface[1] + cube_c.z * invsurface[2];
 		cube_c = (m_model * vec4(cube_c.xyz, 0.0)).xyz;
 		diffuse_f.rgb += (textureCube(s_reflectcube, cube_c).rgb * vec3(refl,refl,refl));
 #endif
 
-#ifdef AMBIENTCUBE
-		//no specular effect here. use rtlights for that.
-		vec3 nn = norm*norm; //FIXME: should be worldspace normal.
-		light = nn.x * e_light_ambientcube[(norm.x<0.0)?1:0] +
-				nn.y * e_light_ambientcube[(norm.y<0.0)?3:2] +
-				nn.z * e_light_ambientcube[(norm.z<0.0)?5:4];
-#else
-	#ifdef HALFLAMBERT
-		light = e_light_ambient + (e_light_mul * halflambert(norm, e_light_dir));
-	#else
-		light = e_light_ambient + (e_light_mul * lambert(norm, e_light_dir));
-	#endif
-
-		/* the light we're getting is always too bright */
-		light *= 0.75;
-
-		/* clamp at 1.5 */
-		if (light.r > 1.5)
-			light.r = 1.5;
-		if (light.g > 1.5)
-			light.g = 1.5;
-		if (light.b > 1.5)
-			light.b = 1.5;
-#endif
-
-		diffuse_f.rgb *= light;
+		diffuse_f.rgb *= light.rgb * e_colourident.rgb;
 
 	#ifdef FAKESHADOWS
 		diffuse_f.rgb *= ShadowmapFilter(s_shadowmap, vtexprojcoord);
 	#endif
 
-		gl_FragColor = fog4(diffuse_f * e_colourident) * e_lmscale;
+	#ifdef FULLBRIGHT
+		diffuse_f.rgb += texture2D(s_fullbright, tex_c).rgb * texture2D(s_fullbright, tex_c).a;
+	#endif
+
+
+	#if 1
+		gl_FragColor = diffuse_f;
+	#else
+		gl_FragColor = fog4(diffuse_f);
+	#endif
 	}
 #endif

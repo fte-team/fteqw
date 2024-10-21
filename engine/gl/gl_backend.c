@@ -1441,6 +1441,8 @@ void Shader_LightPass(struct shaderparsestate_s *ps, const char *shortname, cons
 	Shader_DefaultScript(ps, shortname, shadertext);
 }
 
+extern cvar_t r_fog_linear;
+extern cvar_t r_fog_exp2;
 void GenerateFogTexture(texid_t *tex, float density, float zscale)
 {
 #define FOGS 256
@@ -1460,12 +1462,15 @@ void GenerateFogTexture(texid_t *tex, float density, float zscale)
 			z = (float)s / (FOGS-1);
 			z *= zscale;
 
-			if (0)//q3
-				f = pow(z, 0.5);
-			else if (1)//GL_EXP
-				f = 1-exp(-density * z);
-			else //GL_EXP2
-				f = 1-exp(-(density*density) * z);
+			if (r_fog_linear.ival) {
+				f = 1.0 - ((density - z) / (density/* - r_refdef.globalfog.depthbias*/)); //pow(z, 0.5);
+			} else {
+				if (!r_fog_exp2.ival)//GL_EXP
+					f = 1-exp(-density * z);
+				else //GL_EXP2
+					f = 1-exp(-(density*density) * z);
+			}
+
 			if (f < 0)
 				f = 0;
 			if (f > 1)

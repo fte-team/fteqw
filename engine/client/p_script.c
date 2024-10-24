@@ -217,6 +217,7 @@ typedef struct {
 	float framecount;
 	float framerate;
 	float alpha;
+	vec3_t rgb;
 	float scalemin, scalemax;
 	int skin;
 	int traileffect;
@@ -1626,6 +1627,9 @@ parsefluid:
 			mod->traileffect = P_INVALID;
 			mod->rflags = RF_NOSHADOW;
 			mod->scalemin = mod->scalemax = 1;
+			mod->rgb[0] = 1.0f;
+			mod->rgb[1] = 1.0f;
+			mod->rgb[2] = 1.0f;
 
 			strtoul(Cmd_Argv(2), &e, 0);
 			while(*e == ' ' || *e == '\t')
@@ -1660,6 +1664,12 @@ parsefluid:
 						mod->scalemin = atof(e+9);
 					else if (!Q_strncasecmp(e, "scalemax=", 9))
 						mod->scalemax = atof(e+9);
+					else if (!Q_strncasecmp(e, "r=", 2))
+						mod->rgb[0] = atof(e+2);
+					else if (!Q_strncasecmp(e, "g=", 2))
+						mod->rgb[1] = atof(e+2);
+					else if (!Q_strncasecmp(e, "b=", 2))
+						mod->rgb[2] = atof(e+2);
 					else if (!Q_strncasecmp(e, "trail=", 6))
 					{
 						mod->traileffect = P_AllocateParticleType(config, e+6);//careful - this can realloc all the particle types
@@ -4942,7 +4952,7 @@ static int PScript_RunParticleEffectState (vec3_t org, vec3_t dir, float count, 
 					vec3_t morg, mdir;
 					float scale = frandom() * (mod->scalemax-mod->scalemin) + mod->scalemin;
 					PScript_ApplyOrgVel(morg, mdir, org, axis, i, count, ptype);
-					CL_SpawnSpriteEffect(morg, mdir, (mod->rflags&RF_USEORIENTATION)?axis[2]:NULL, mod->model, mod->framestart, mod->framecount, mod->framerate?mod->framerate:10, mod->alpha?mod->alpha:1, scale, ptype->rotationmin*180/M_PI, ptype->gravity, mod->traileffect, mod->rflags & ~RF_USEORIENTATION, mod->skin);
+					CL_SpawnSpriteEffect(morg, mdir, (mod->rflags&RF_USEORIENTATION)?axis[2]:NULL, mod->model, mod->framestart, mod->framecount, mod->framerate?mod->framerate:10, mod->alpha?mod->alpha:1, scale, ptype->rotationmin*180/M_PI, ptype->gravity, mod->traileffect, mod->rflags & ~RF_USEORIENTATION, mod->skin, mod->rgb[0], mod->rgb[1], mod->rgb[2]);
 				}
 			}
 		}
@@ -5763,7 +5773,7 @@ static void P_ParticleTrailSpawn (vec3_t startpos, vec3_t end, part_type_t *ptyp
 				vec3_t morg, mdir;
 				float scale = frandom() * (mod->scalemax-mod->scalemin) + mod->scalemin;
 				PScript_ApplyOrgVel(morg, mdir, start, dlaxis, i, count, ptype);
-				CL_SpawnSpriteEffect(morg, mdir, (mod->rflags&RF_USEORIENTATION)?dlaxis[2]:NULL, mod->model, mod->framestart, mod->framecount, mod->framerate?mod->framerate:10, mod->alpha?mod->alpha:1, scale, ptype->rotationmin*180/M_PI, ptype->gravity, mod->traileffect, mod->rflags & ~RF_USEORIENTATION, mod->skin);
+				CL_SpawnSpriteEffect(morg, mdir, (mod->rflags&RF_USEORIENTATION)?dlaxis[2]:NULL, mod->model, mod->framestart, mod->framecount, mod->framerate?mod->framerate:10, mod->alpha?mod->alpha:1, scale, ptype->rotationmin*180/M_PI, ptype->gravity, mod->traileffect, mod->rflags & ~RF_USEORIENTATION, mod->skin, mod->rgb[0], mod->rgb[1], mod->rgb[2]);
 			}
 			VectorAdd (start, vstep, start);
 		}

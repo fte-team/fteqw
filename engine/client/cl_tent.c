@@ -245,6 +245,7 @@ typedef struct
 	int		type;
 	vec3_t	angles;
 	vec3_t	avel;
+	vec3_t	rgb;
 	int		flags;
 	float	gravity;
 	float	startalpha;
@@ -672,6 +673,9 @@ static void CL_ClearExplosion(explosion_t *exp, vec3_t org)
 {
 	exp->endalpha = 0;
 	exp->startalpha = 1;
+	exp->rgb[0] = 1.0f;
+	exp->rgb[1] = 1.0f;
+	exp->rgb[2] = 1.0f;
 	exp->scale = 1;
 	exp->gravity = 0;
 	exp->flags = 0;
@@ -2473,7 +2477,7 @@ void CL_ParseParticleEffect4 (void)
 	P_RunParticleEffect4 (org, radius, color, effect, msgcount);
 }
 
-void CL_SpawnSpriteEffect(vec3_t org, vec3_t dir, vec3_t orientationup, model_t *model, int startframe, int framecount, float framerate, float alpha, float scale, float randspin, float gravity, int traileffect, unsigned int renderflags, int skinnum)
+void CL_SpawnSpriteEffect(vec3_t org, vec3_t dir, vec3_t orientationup, model_t *model, int startframe, int framecount, float framerate, float alpha, float scale, float randspin, float gravity, int traileffect, unsigned int renderflags, int skinnum, float red, float green, float blue)
 {
 	explosion_t	*ex;
 
@@ -2486,6 +2490,9 @@ void CL_SpawnSpriteEffect(vec3_t org, vec3_t dir, vec3_t orientationup, model_t 
 	ex->skinnum = skinnum;
 	ex->traileffect = traileffect;
 	ex->scale = scale;
+	ex->rgb[0] = red;
+	ex->rgb[1] = green;
+	ex->rgb[2] = blue;
 
 	ex->flags |= renderflags;
 
@@ -2568,7 +2575,7 @@ void CL_ParseEffect (qboolean effect2)
 	framerate = MSG_ReadByte();
 
 	mod = cl.model_precache[modelindex];
-	CL_SpawnSpriteEffect(org, NULL, NULL, mod, startframe, framecount, framerate, mod->type==mod_sprite?-1:1, 1, 0, 0, P_INVALID, 0, 0);
+	CL_SpawnSpriteEffect(org, NULL, NULL, mod, startframe, framecount, framerate, mod->type==mod_sprite?-1:1, 1, 0, 0, P_INVALID, 0, 0, 1.0f, 1.0f, 1.0f);
 }
 
 #ifdef Q2CLIENT
@@ -3302,6 +3309,9 @@ void CL_UpdateExplosions (float frametime)
 		ent->framestate.g[FS_REG].frame[0] = of+firstframe;
 		ent->framestate.g[FS_REG].lerpweight[1] = (f - (int)f);
 		ent->framestate.g[FS_REG].lerpweight[0] = 1-ent->framestate.g[FS_REG].lerpweight[1];
+		ent->shaderRGBAf[0] = ex->rgb[0];
+		ent->shaderRGBAf[1] = ex->rgb[1];
+		ent->shaderRGBAf[2] = ex->rgb[2];
 		ent->shaderRGBAf[3] = (1.0 - f/(numframes))*(ex->startalpha-ex->endalpha) + ex->endalpha;
 		ent->flags = ex->flags;
 		ent->scale = scale*ex->scale;

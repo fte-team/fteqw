@@ -743,6 +743,7 @@ void SV_Map_f (void)
 #endif
 	qboolean waschangelevel	= false;
 	qboolean mapeditor		= false;
+	qboolean forceCheats = false;
 	int i;
 	char *startspot;
 	const char *cmd = Cmd_Argv(0);
@@ -840,6 +841,7 @@ void SV_Map_f (void)
 	q2savetos0 = !strcmp(cmd, "gamemap") && !isDedicated;	//q2
 #endif
 	mapeditor = !strcmp(Cmd_Argv(0), "mapedit");
+	forceCheats = !strcmp(Cmd_Argv(0), "devmap");
 
 	sv.mapchangelocked = false;
 
@@ -1072,6 +1074,10 @@ void SV_Map_f (void)
 			SV_SaveLevelCache(NULL, false);
 	}
 #endif
+
+	if (forceCheats) {
+		Cvar_ForceSet(&sv_cheats, "1");
+	}
 
 #ifdef Q3SERVER
 	{
@@ -3587,8 +3593,8 @@ void SV_InitOperatorCommands (void)
 #ifdef Q3SERVER
 	Cmd_AddCommandAD ("spmap", SV_Map_f, SV_Map_c, "Loads a map in single-player mode, for Quake III compat.");
 	Cmd_AddCommandAD ("spdevmap", SV_Map_f, SV_Map_c, "Loads a map in single-player developer mode (sv_cheats 1), for Quake III compat.");
-	Cmd_AddCommandAD ("devmap", SV_Map_f, SV_Map_c, "Loads a map in developer mode (sv_cheats 1), for Quake III compat.");
 #endif
+	Cmd_AddCommandAD ("devmap", SV_Map_f, SV_Map_c, "Loads a map in developer mode (sv_cheats 1), for Quake III compat.");
 	Cmd_AddCommandAD ("gamemap", SV_Map_f, SV_Map_c, NULL);
 	Cmd_AddCommandAD ("changelevel", SV_Map_f, SV_Map_c, "Continues the game on a different map. The current map can be reentered later when a starting position for the new map is specified as a second argument.");
 	Cmd_AddCommandD ("map_restart", SV_Map_f, "Restarts the server and reloads the map while flushing level cache, for general use and Quake III compat.");	//from q3.

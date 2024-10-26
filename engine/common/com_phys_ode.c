@@ -1595,7 +1595,7 @@ static void World_ODE_Frame_JointFromEntity(world_t *world, wedict_t *ed)
 			jgid = (dJointGroupID)jointgroup;
 		}
 
-		ed->rbe.jointgroup = jgid;
+		ed->rbe.jointgroup = (int)jgid;
 	}
 
 	AngleVectorsFLU(angles, forward, left, up);

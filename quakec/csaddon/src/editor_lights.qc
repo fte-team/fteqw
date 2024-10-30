@@ -405,7 +405,7 @@ float(float keyc, float unic, vector m) editor_lights_key =
 			dynamiclight_set(selectedlight, LFIELD_ROTATION,	dynamiclight_get(oldl, LFIELD_ROTATION));
 		}else
 		{
-            /*reset the light's properties*/
+			/*reset the light's properties*/
 			dynamiclight_set(selectedlight, LFIELD_RADIUS, 300);
 			dynamiclight_set(selectedlight, LFIELD_COLOUR, '1 1 1');
 			dynamiclight_set(selectedlight, LFIELD_FOV, 0);

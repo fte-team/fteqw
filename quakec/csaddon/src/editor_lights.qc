@@ -387,7 +387,7 @@ float(float keyc, float unic, vector m) editor_lights_key =
 		float oldl = selectedlight;
 		selectedlight = dynamiclight_spawnstatic(trace_endpos + trace_plane_normal*4f, 300, '1 1 1');
 
-		if ((float)dynamiclight_get(oldl, LFIELD_RADIUS) != 0f)
+		if ((float)dynamiclight_get(oldl, LFIELD_RADIUS) != 0f && oldl != selectedlight)
 		{
 			//dupe the current light
 			dynamiclight_set(selectedlight, LFIELD_RADIUS,		dynamiclight_get(oldl, LFIELD_RADIUS));

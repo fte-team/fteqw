@@ -682,7 +682,7 @@ static qboolean VMT_ReadVMT(const char *fname, vmtstate_t *st)
 {
 	char *line, *file = NULL;
 	com_tokentype_t ttype;
-	char token[MAX_QPATH];
+	char token[MAX_QPATH*2];
 	char *prefix="", *postfix="";
 
 	if (strstr(fname, "://"))

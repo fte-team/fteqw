@@ -238,7 +238,8 @@ enum hllumps_e
 typedef struct {
 	unsigned int fileofs;
 	unsigned int filelen;
-	unsigned int foo[2];
+	unsigned int version;
+	unsigned int fourcc;
 } vlump_t;
 typedef struct {
 	unsigned int magic;

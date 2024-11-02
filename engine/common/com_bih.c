@@ -896,7 +896,7 @@ static void BIH_RecursiveTrace (struct bihtrace_s *fte_restrict tr, const struct
 
 			VectorSubtract (tr->startpos, node->data.mesh.tr->origin, start_l);
 			VectorSubtract (tr->endpos, node->data.mesh.tr->origin, end_l);
-			node->data.mesh.model->funcs.NativeTrace(node->data.mesh.model, 0, NULLFRAMESTATE, node->data.mesh.tr->axis, start_l, end_l, tr->size.min, tr->size.max, tr->shape==shape_iscapsule, tr->hitcontents, &sub);
+			submod->funcs.NativeTrace(submod, 0, NULLFRAMESTATE, node->data.mesh.tr->axis, start_l, end_l, tr->size.min, tr->size.max, tr->shape==shape_iscapsule, tr->hitcontents, &sub);
 
 			if (sub.truefraction < tr->trace.truefraction)
 			{

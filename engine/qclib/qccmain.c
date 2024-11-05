@@ -425,6 +425,7 @@ compiler_flag_t compiler_flag[] = {
 	{&flag_nopragmafileline,FLAG_MIDCOMPILE,"nofileline",	"Ignore #pragma file",	"Ignores #pragma file(foo) and #pragma line(foo), so that errors and symbols reflect the actual lines, instead of the original source."},
 //	{&flag_lno,				hidedefaultflag,"lno",			"Gen Debugging Info",	"Writes debugging info."},
 	{&flag_utf8strings,		FLAG_MIDCOMPILE,"utf8",			"Unicode",				"String immediates will use utf-8 encoding, instead of quake's encoding."},
+	{&flag_reciprocalmaths,	FLAG_MIDCOMPILE,"reciprocal-math","Reciprocal Maths",	"Optimise x/const as x*(1/const)."},
 
 	{&flag_embedsrc,		FLAG_MIDCOMPILE,"embedsrc",		"Embed Sources",		"Write the sourcecode into the output file. The resulting .dat can be opened as a standard zip archive (or by fteqccgui).\nGood for GPL compliance!"},
 //	{&flag_noreflection,	FLAG_MIDCOMPILE,"omitinternals","Omit Reflection Info",	"Keeps internal symbols private (equivelent to unix's hidden visibility). This has the effect of reducing filesize, thwarting debuggers, and breaking saved games. This allows you to use arrays without massively bloating the size of your progs.\nWARNING: The bit about breaking saved games was NOT a joke, but does not apply to menuqc or csqc. It also interferes with FTE_MULTIPROGS."},
@@ -4743,6 +4744,7 @@ static void QCC_PR_CommandLinePrecompilerOptions (void)
 				flag_dblstarexp = flag_attributes = flag_assumevar = pr_subscopedlocals = flag_cpriority = flag_allowuninit = true;
 				flag_boundchecks = false;	//gmqcc doesn't support dynamic bound checks, so xonotic is buggy shite. we don't want to generate code that will crash.
 				flag_macroinstrings = false;
+				flag_reciprocalmaths = true; //optimise x/y to x*(1/y) in constants.
 				opt_logicops = true;
 
 				//we have to disable some of these warnings, because xonotic insists on using -Werror. use -Wextra to override.

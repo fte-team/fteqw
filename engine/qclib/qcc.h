@@ -688,6 +688,7 @@ extern pbool flag_qcfuncs;
 extern pbool flag_embedsrc;
 extern pbool flag_nopragmafileline;
 extern pbool flag_utf8strings;
+extern pbool flag_reciprocalmaths;
 
 extern pbool opt_overlaptemps;
 extern pbool opt_shortenifnots;

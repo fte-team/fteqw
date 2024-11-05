@@ -156,6 +156,7 @@ pbool flag_allowuninit;		//ignore uninitialised locals, avoiding all private loc
 pbool flag_embedsrc;		//embed all source files inside the .dat (can be opened with any zip program)
 pbool flag_nopragmafileline;//ignore #pragma file and #pragma line, so that I can actually read+debug xonotic's code.
 pbool flag_utf8strings;		//strings default to u8"" string rules.
+pbool flag_reciprocalmaths;		//unsafe maths optimisations
 
 pbool opt_overlaptemps;		//reduce numpr_globals by reuse of temps. When they are not needed they are freed for reuse. The way this is implemented is better than frikqcc's. (This is the single most important optimisation)
 pbool opt_assignments;		//STORE_F isn't used if an operation wrote to a temp.
@@ -3572,10 +3573,33 @@ QCC_sref_t QCC_PR_StatementFlags ( QCC_opcode_t *op, QCC_sref_t var_a, QCC_sref_
 					return var_a;
 				}
 				break;
+			case OP_DIV_VF:
+				if (!eval_b->_float)
+					QCC_PR_ParseWarning(WARN_DIVISIONBY0, "Division by 0\n");
+				else if (flag_reciprocalmaths)
+				{
+					QCC_FreeTemp(var_b);
+					var_b = QCC_MakeFloatConst(1 / eval_b->_float);
+					return QCC_PR_StatementFlags(&pr_opcodes[OP_MUL_VF], var_a, var_b, outstatement, 0);
+				}
+				if (eval_b->_float == 1)
+				{
+					optres_constantarithmatic++;
+					QCC_FreeTemp(var_b);
+					return var_a;
+				}
+				break;
+
 			case OP_DIV_F:
 			case OP_DIV_IF:
 				if (!eval_b->_float)
 					QCC_PR_ParseWarning(WARN_DIVISIONBY0, "Division by 0\n");
+				else if (flag_reciprocalmaths)
+				{
+					QCC_FreeTemp(var_b);
+					var_b = QCC_MakeFloatConst(1 / eval_b->_float);
+					return QCC_PR_StatementFlags((op == &pr_opcodes[OP_ADD_FP])?&pr_opcodes[OP_MUL_F]:&pr_opcodes[OP_MUL_IF], var_a, var_b, outstatement, 0);
+				}
 				//fallthrough
 			case OP_MUL_F:
 			case OP_MUL_IF:

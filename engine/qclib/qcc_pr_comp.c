@@ -1382,6 +1382,7 @@ static pbool QCC_OPCodeValidForTarget(qcc_targetformat_t targfmt, unsigned int q
 	case QCF_FTEH2:
 	case QCF_FTE:
 	case QCF_FTEDEBUG:
+#define QCTARGVER_FTE_DEF	5768//5529
 #define QCTARGVER_FTE_MAX			   5768
 		if (num >= OP_LT_U)		//uint+double+int64+uint64 ops
 			return (qcc_targetversion>=5768);
@@ -1395,6 +1396,7 @@ static pbool QCC_OPCodeValidForTarget(qcc_targetformat_t targfmt, unsigned int q
 			return (qcc_targetversion>=3349);
 		return true;
 	case QCF_QSS:
+#define QCTARGVER_QSS_MAX	0
 		if (num < OP_MULSTORE_F)
 			return true;
 		switch(num)
@@ -1534,6 +1536,8 @@ static pbool QCC_OPCodeValidForTarget(qcc_targetformat_t targfmt, unsigned int q
 		}
 		return false;
 	case QCF_DARKPLACES:
+#define QCTARGVER_DP_DEF	12901
+#define QCTARGVER_DP_MAX	12901
 		//all id opcodes.
 		if (num < OP_MULSTORE_F)
 			return true;
@@ -1652,9 +1656,6 @@ static pbool QCC_OPCode_StorePOffset(void)
 	}
 }
 
-#define QCTARGVER_FTE_DEF	5529
-#define QCTARGVER_QSS_MAX	0
-#define QCTARGVER_DP_MAX	12901
 void QCC_OPCodeSetTarget(qcc_targetformat_t targfmt, unsigned int targver)
 {
 	size_t i;
@@ -1738,8 +1739,8 @@ static struct {
 
 	{QCF_FTE,		"quake2c",		5744},	//an alias for Paril's project, which does various pointer stuff. the revision should be high enough for str[int] ops.
 
-	{QCF_DARKPLACES,"darkplaces",	QCTARGVER_DP_MAX},
-	{QCF_DARKPLACES,"dp",			QCTARGVER_DP_MAX},
+	{QCF_DARKPLACES,"darkplaces",	QCTARGVER_DP_DEF},
+	{QCF_DARKPLACES,"dp",			QCTARGVER_DP_DEF},
 
 	{QCF_QTEST,		"qtest",		0},
 	{0,				NULL}
@@ -8723,6 +8724,19 @@ QCC_type_t *QCC_PointerTypeTo(QCC_type_t *type)
 	return newtype;
 }
 
+QCC_type_t *QCC_GenArrayType(QCC_type_t *type, unsigned int arraysize)
+{
+	struct QCC_typeparam_s *param = qccHunkAlloc(sizeof(*param));
+	param->type = type;
+	param->arraysize = arraysize;
+	param->paramname = NULL;
+	type = QCC_PR_NewType("array", ev_union, false);
+	type->params = param;
+	type->num_parms = 1;
+	type->size = param->type->size * param->arraysize;
+	return type;
+}
+
 QCC_type_t **basictypes[] =
 {
 	&type_void,
@@ -9212,6 +9226,7 @@ QCC_ref_t *QCC_PR_ParseRefArrayPointer (QCC_ref_t *retbuf, QCC_ref_t *r, pbool a
 	unsigned int arraysize;
 	unsigned int rewindpoint = numstatements;
 	pbool dereference = false;
+	const QCC_eval_t *eval;
 
 	t = r->cast;
 	if (r->type == REF_ARRAYHEAD && r->cast == r->base.cast && r->base.sym)
@@ -9225,7 +9240,7 @@ QCC_ref_t *QCC_PR_ParseRefArrayPointer (QCC_ref_t *retbuf, QCC_ref_t *r, pbool a
 		allowarray = false;
 		arraytype = (t->type == ev_union && t->num_parms == 1 && !t->params[0].paramname);	//FIXME
 		if (arraytype)
-			arraytype = true;
+			allowarray = true;
 		if (idx.cast)
 			allowarray = arraysize>0 ||
 						(t->type == ev_vector) ||
@@ -9322,16 +9337,24 @@ vectorarrayindex:
 			{
 				/*array notation on vector field*/
 fieldarrayindex:
-				if (tmp.sym->constant)
+				if ((eval=QCC_SRef_EvalConst(tmp)))
 				{
-					unsigned int i;
-					if (tmp.cast->type == ev_integer)
-						i = tmp.sym->symboldata[tmp.ofs]._int;
+					unsigned long i;
+					if (tmp.cast->type == ev_uint)
+						i = eval->_uint;
+					else if (tmp.cast->type == ev_integer)
+						i = eval->_int;
+					else if (tmp.cast->type == ev_uint64)
+						i = eval->u64;
+					else if (tmp.cast->type == ev_int64)
+						i = eval->i64;
 					else if (tmp.cast->type == ev_float)
-						i = tmp.sym->symboldata[tmp.ofs]._float;
+						i = eval->_float;
+					else if (tmp.cast->type == ev_double)
+						i = eval->_double;
 					else
 						i = -1;
-					if ((unsigned)i >= 3u)
+					if ((unsigned long)i >= 3u)
 						QCC_PR_ParseErrorPrintSRef(0, r->base, "(vector) array index out of bounds");
 				}
 				else if (QCC_OPCodeValid(&pr_opcodes[OP_BOUNDCHECK]) && flag_boundchecks)
@@ -9345,17 +9368,28 @@ fieldarrayindex:
 			{
 				QCC_PR_ParseErrorPrintSRef(0, r->base, "array index on non-array");
 			}
-			else if (tmp.sym->constant)
+			else if ((eval=QCC_SRef_EvalConst(tmp)))
 			{
-				unsigned int i;
-				if (tmp.cast->type == ev_integer)
-					i = tmp.sym->symboldata[tmp.ofs]._int;
+				unsigned long i;
+				if (tmp.cast->type == ev_uint)
+					i = eval->_uint;
+				else if (tmp.cast->type == ev_integer)
+					i = eval->_int;
+				else if (tmp.cast->type == ev_uint64)
+					i = eval->u64;
+				else if (tmp.cast->type == ev_int64)
+					i = eval->i64;
 				else if (tmp.cast->type == ev_float)
-					i = tmp.sym->symboldata[tmp.ofs]._float;
+					i = eval->_float;
+				else if (tmp.cast->type == ev_double)
+					i = eval->_double;
 				else
 					i = -1;
-				if ((unsigned)i >= (unsigned)arraysize)
-					QCC_PR_ParseErrorPrintSRef(0, r->base, "(constant) array index out of bounds (0 <= %i < %i)", i, arraysize);
+				if ((unsigned long)i >= (unsigned long)arraysize)
+				{
+					QCC_PR_ParseWarning(WARN_ERROR, "(constant) array index out of bounds (0 <= %i < %i)", i, arraysize);
+					QCC_PR_ParsePrintSRef(WARN_ERROR, r->base);
+				}
 			}
 			else
 			{
@@ -9483,7 +9517,7 @@ fieldarrayindex:
 			unsigned int ofs;
 			pbool fld = t->type == ev_field;
 			struct QCC_typeparam_s *p;
-			if (!idx.cast && t->type == ev_pointer && !arraysize)
+			if (t->type == ev_pointer && !arraysize)
 			{
 				t = t->aux_type;
 				dereference = true;
@@ -9502,7 +9536,18 @@ fieldarrayindex:
 					QCC_PR_ParseError(0, "%s was not defined yet", tname);
 			}
 			else
-				QCC_PR_ParseError(0, "indirection in something that is not a struct or union", tname);
+			{
+				char typea[256];
+				char typeb[256];
+				TypeName(t, typea, sizeof(typea));
+				if (idx.cast)
+				{
+					TypeName(idx.cast, typeb, sizeof(typeb));
+					QCC_PR_ParseError(0, "indirection in %s [%s %s] - not a struct or union", typea, typeb, idx.sym->name);
+				}
+				else
+					QCC_PR_ParseError(0, "indirection in %s - not a struct or union", typea);
+			}
 
 			mname = QCC_PR_ParseName();
 			p = QCC_PR_FindStructMember(t, mname, &ofs);
@@ -9580,27 +9625,9 @@ fieldarrayindex:
 
 		//okay, not a pointer, we'll have to read it in somehow
 		if (dereference)
-		{
 			r = QCC_PR_BuildRef(retbuf, REF_POINTER, base, idx, t, r->readonly);
-			r = QCC_PR_ParseRefArrayPointer(retbuf, r, allowarrayassign, makearraypointers);
-			r = QCC_PR_ParseField(retbuf, r);
-			return r;
-		}
-/*		else if (d->type->type == ev_vector && d->arraysize == 0)
-		{	//array notation on vectors (non-field)
-			d = QCC_PR_Statement(&pr_opcodes[OP_LOADA_F], d, QCC_SupplyConversion(idx, ev_integer, true), (QCC_statement_t **)0xffffffff);
-			d->type = type_float;
-		}
-*//*	else if (d->type->type == ev_field && d->type->aux_type->type == ev_vector && d->arraysize == 0)
-		{	//array notation on vectors (fields)
-			d = QCC_PR_Statement(&pr_opcodes[OP_LOADA_FLD], d, QCC_SupplyConversion(idx, ev_integer, true), (QCC_statement_t **)0xffffffff);
-			d->type = type_floatfield;
-		}
-*/		else
-		{
-			QCC_PR_BuildRef(retbuf, REF_ARRAY, base, idx, t, r->readonly);
-		}
-		r = retbuf;
+		else
+			r = QCC_PR_BuildRef(retbuf, REF_ARRAY, base, idx, t, r->readonly);
 
 		//parse recursively
 		r = QCC_PR_ParseRefArrayPointer(retbuf, r, allowarrayassign, makearraypointers);
@@ -10311,6 +10338,12 @@ static QCC_sref_t QCC_TryEvaluateCast(QCC_sref_t src, QCC_type_t *cast, pbool im
 		}
 		src.cast = cast;
 	}
+	//can cast any pointer type to void*
+	else if (totype == ev_pointer && tmp->aux_type->type == ev_void && (src.cast->type == ev_pointer || src.cast->type == ev_function))
+		src.cast = cast;
+	//can cast void* to any pointer type.
+	else if (src.cast->type == ev_pointer && src.cast->aux_type->type == ev_void && (totype == ev_pointer || totype == ev_function))
+		src.cast = cast;
 	else if (totype == ev_pointer && src.cast->type == ev_pointer)
 	{
 		if (implicit)
@@ -11425,16 +11458,17 @@ QCC_sref_t QCC_LoadFromArray(QCC_sref_t base, QCC_sref_t index, QCC_type_t *t, p
 
 	if (accel == 3)
 	{	//dp-style, somewhat annoying.
-		if (index.cast->type == ev_float)
-		{
-			flags = preserve?STFL_PRESERVEA:0;
-			index = QCC_PR_StatementFlags(&pr_opcodes[OP_CONV_FTOI], index, nullsref, NULL, preserve?STFL_PRESERVEA:0);
-		}
+		if (index.cast->type == ev_integer)
+			flags = preserve?STFL_PRESERVEA|STFL_PRESERVEB:0;
 		else
 		{
-			flags = preserve?STFL_PRESERVEA|STFL_PRESERVEB:0;
-			if (index.cast->type != ev_integer)
-				QCC_PR_ParseErrorPrintSRef(ERR_TYPEMISMATCH, base, "array index is not a single numeric value");
+			flags = preserve?STFL_PRESERVEA:0;
+			if (preserve)
+			{
+				flags = STFL_PRESERVEA;
+				QCC_UnFreeTemp(index);
+			}
+			QCC_SupplyConversion(index, ev_integer, true);
 		}
 
 		index = QCC_DP_GlobalAddress(base, index, flags);
@@ -11507,16 +11541,17 @@ QCC_sref_t QCC_LoadFromArray(QCC_sref_t base, QCC_sref_t index, QCC_type_t *t, p
 	}
 	else if (accel == 2)
 	{	//fte-style, simpler indexing.
-		if (index.cast->type == ev_float)
-		{
-			flags = preserve?STFL_PRESERVEA:0;
-			index = QCC_PR_StatementFlags(&pr_opcodes[OP_CONV_FTOI], index, nullsref, NULL, preserve?STFL_PRESERVEA:0);
-		}
+		if (index.cast->type == ev_integer)
+			flags = preserve?STFL_PRESERVEA|STFL_PRESERVEB:0;
 		else
 		{
-			flags = preserve?STFL_PRESERVEA|STFL_PRESERVEB:0;
-			if (index.cast->type != ev_integer)
-				QCC_PR_ParseErrorPrintSRef(ERR_TYPEMISMATCH, base, "array index is not a single numeric value");
+			flags = preserve?STFL_PRESERVEA:0;
+			if (preserve)
+			{
+				flags = STFL_PRESERVEA;
+				QCC_UnFreeTemp(index);
+			}
+			QCC_SupplyConversion(index, ev_integer, true);
 		}
 		switch(t->type)
 		{
@@ -11609,16 +11644,17 @@ QCC_sref_t QCC_LoadFromArray(QCC_sref_t base, QCC_sref_t index, QCC_type_t *t, p
 		if (base.sym->temp)
 			QCC_PR_ParseErrorPrintSRef(ERR_TYPEMISMATCH, base, "array lookup on a temp");
 
-		if (index.cast->type == ev_integer)
-		{
-			flags = preserve?STFL_PRESERVEA:0;
-			index = QCC_PR_StatementFlags(&pr_opcodes[OP_CONV_ITOF], index, nullsref, NULL, preserve?STFL_PRESERVEA:0);
-		}
+		if (index.cast->type == ev_float)
+			flags = preserve?STFL_PRESERVEA|STFL_PRESERVEB:0;
 		else
 		{
-			flags = preserve?STFL_PRESERVEA|STFL_PRESERVEB:0;
-			if (index.cast->type != ev_float)
-				QCC_PR_ParseErrorPrintSRef(ERR_TYPEMISMATCH, base, "array index is not a single numeric value");
+			flags = preserve?STFL_PRESERVEA:0;
+			if (preserve)
+			{
+				flags = STFL_PRESERVEA;
+				QCC_UnFreeTemp(index);
+			}
+			QCC_SupplyConversion(index, ev_float, true);
 		}
 
 		/*hexen2 format has opcodes to read arrays (but has no way to write)*/
@@ -14306,7 +14342,15 @@ void QCC_PR_ParseStatement (void)
 								e2 = QCC_PR_StatementFlags (&pr_opcodes[OP_EQ_P], e, dmin, NULL, STFL_PRESERVEA);
 								break;
 							case ev_integer:
+							case ev_uint:
 								e2 = QCC_PR_StatementFlags (&pr_opcodes[OP_EQ_I], e, dmin, NULL, STFL_PRESERVEA);
+								break;
+							case ev_int64:
+							case ev_uint64:
+								e2 = QCC_PR_StatementFlags (&pr_opcodes[OP_EQ_I64], e, dmin, NULL, STFL_PRESERVEA);
+								break;
+							case ev_double:
+								e2 = QCC_PR_StatementFlags (&pr_opcodes[OP_EQ_D], e, dmin, NULL, STFL_PRESERVEA);
 								break;
 							default:
 								QCC_PR_ParseError(ERR_BADSWITCHTYPE, "Bad switch type");
@@ -18662,7 +18706,8 @@ void QCC_PR_ParseDefs (const char *classname, pbool fatal_unused)
 
 	if (externfnc && !pr_scope && basetype->type != ev_function)
 	{
-		externs->Printf ("Only global functions may be defined as external (yet)\n");
+		if (flag_qcfuncs)
+			QCC_PR_ParseWarning(WARN_IGNOREDKEYWORD, "extern keyword may only apply to qc functions.");
 		externfnc=false;
 	}
 
@@ -18775,7 +18820,23 @@ void QCC_PR_ParseDefs (const char *classname, pbool fatal_unused)
 		}
 		else while (QCC_PR_CheckToken ("*"))
 			type = QCC_PointerTypeTo(type);
-		name = QCC_PR_ParseName ();
+
+		if (!flag_qcfuncs && QCC_PR_CheckToken ("("))
+		{
+			int isptr = 0;
+			while (QCC_PR_CheckToken("*"))
+				isptr++;
+			name = QCC_PR_ParseName ();
+			QCC_PR_Expect (")");
+			if (!istypedef)
+				isvar |= isptr>0;
+			if (QCC_PR_CheckToken ("("))
+				type = QCC_PR_ParseFunctionType(false, type);
+			while(isptr-- > 1)	//C's function pointers are basically the same as a qc function reference, though the definition is a bit different.
+				type = QCC_PointerTypeTo(type);
+		}
+		else
+			name = QCC_PR_ParseName ();
 
 		if (!istypedef && !classname && QCC_PR_CheckToken("::"))
 		{
@@ -18795,11 +18856,14 @@ void QCC_PR_ParseDefs (const char *classname, pbool fatal_unused)
 //check for an array
 
 		dynlength = nullsref;
-		if ( QCC_PR_CheckToken ("[") )
+		arraysize = 0;
+		while(!dynlength.cast && QCC_PR_CheckToken ("["))
 		{
 			char *oldprfile = pr_file_p;
 			int oldline = pr_source_line;
 			int depth;
+			if (arraysize)
+				type = QCC_GenArrayType(type, arraysize);
 			arraysize = 0;
 			if (QCC_PR_CheckToken("]"))
 			{
@@ -18870,8 +18934,6 @@ void QCC_PR_ParseDefs (const char *classname, pbool fatal_unused)
 				arraysize=1;	//grrr...
 			}
 		}
-		else
-			arraysize = 0;
 
 		if (QCC_PR_CheckToken("("))
 		{
@@ -18972,7 +19034,6 @@ void QCC_PR_ParseDefs (const char *classname, pbool fatal_unused)
 
 		if (dynlength.cast && !aliasof)
 		{
-#if 1//IAMNOTLAZY
 			def = QCC_PR_GetDef (QCC_PR_PointerType(type), name, pr_scope, allocatenew, 0, gd_flags);
 			dynlength = QCC_SupplyConversion(dynlength, ev_integer, true);
 			if (type->size != 1)
@@ -18980,9 +19041,6 @@ void QCC_PR_ParseDefs (const char *classname, pbool fatal_unused)
 			QCC_PR_SimpleStatement(&pr_opcodes[OP_PUSH], dynlength, nullsref, QCC_MakeSRef(def, 0, def->type), false);	//push *(int*)&a elements
 			QCC_FreeTemp(dynlength);
 			QCC_FreeDef(def);
-#else
-			QCC_PR_ParseError(ERR_NOTANAME, "%s is dynamically sized", name);
-#endif
 		}
 		else
 		{

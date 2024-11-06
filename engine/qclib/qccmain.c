@@ -267,6 +267,7 @@ struct {
 	{" field-redeclared", WARN_REMOVEDWARNING},
 	{" deprecated", WARN_DEPRECATEDVARIABLE},
 
+	{" unimplemented", WARN_IGNOREDKEYWORD},
 	{NULL}
 };
 

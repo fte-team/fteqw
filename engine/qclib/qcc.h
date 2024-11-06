@@ -745,6 +745,7 @@ void QCC_PR_Lex (void);
 
 QCC_type_t *QCC_PR_NewType (const char *name, int basictype, pbool typedefed);	//note: name must be hunk/immediate
 QCC_type_t *QCC_PointerTypeTo(QCC_type_t *type);
+QCC_type_t *QCC_GenArrayType(QCC_type_t *type, unsigned int arraysize);
 QCC_type_t *QCC_PR_ParseType (int newtype, pbool silentfail);
 QCC_sref_t QCC_PR_ParseDefaultInitialiser(QCC_type_t *type);
 extern pbool type_inlinefunction;

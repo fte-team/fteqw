@@ -1602,7 +1602,10 @@ int QCC_PR_LexEscapedCodepoint(void)
 		else if (d >= 'a' && d <= 'f')
 			c += d - 'a' + 10;
 		else
-			QCC_PR_ParseError(ERR_BADCHARACTERCODE, "Bad character code");
+		{	//oops. only one char valid...
+			c >>= 4;
+			pr_file_p --;
+		}
 	}
 	else if (c == '\\')
 		c = '\\';
@@ -4589,7 +4592,12 @@ int typecmp(QCC_type_t *a, QCC_type_t *b)
 	i = a->num_parms;
 	while(i-- > 0)
 	{
-		if (a->type != ev_function && STRCMP(a->params[i].paramname, b->params[i].paramname))
+		if (a->type == ev_union && (!a->params[i].paramname || !b->params[i].paramname))	//special array weirdness.
+		{
+			if (a->params[i].paramname || b->params[i].paramname)
+				return 1;
+		}
+		else if (a->type != ev_function && STRCMP(a->params[i].paramname, b->params[i].paramname))
 			return 1;
 		if (typecmp(a->params[i].type, b->params[i].type))
 			return 1;
@@ -5093,9 +5101,18 @@ QCC_type_t *QCC_PR_ParseFunctionType (int newtype, QCC_type_t *returntype)
 					break;
 				}
 				newtype = true;
-				name = QCC_PR_ParseName ();
-				paramlist[numparms].paramname = qccHunkAlloc(strlen(name)+1);
-				strcpy(paramlist[numparms].paramname, name);
+				if (QCC_PR_CheckToken("("))
+				{
+					QCC_PR_CheckToken("*");	//one is normal for a function pointer/ref. non-ptr makes no sense here.
+					name = QCC_PR_ParseName ();
+					QCC_PR_Expect(")");
+
+					QCC_PR_Expect("(");
+					paramlist[numparms].type = QCC_PR_ParseFunctionType(false, paramlist[numparms].type);
+				}
+				else
+					name = QCC_PR_ParseName ();
+				paramlist[numparms].paramname = name;
 				if (definenames)
 					strcpy (pr_parm_names[numparms], name);
 
@@ -6411,25 +6428,24 @@ QCC_type_t *QCC_PR_ParseType (int newtype, pbool silentfail)
 			}
 			else
 			{
-				parmname = qccHunkAlloc(strlen(pr_token)+1);
-				strcpy(parmname, pr_token);
-				QCC_PR_Lex();
-				definedsomething = true;
-				if (QCC_PR_CheckToken("["))
+				if (QCC_PR_CheckToken("("))
 				{
-					arraysize=QCC_PR_IntConstExpr();
-					if (!arraysize)
-						QCC_PR_ParseError(ERR_NOTANAME, "cannot cope with 0-sized arrays");
-					QCC_PR_Expect("]");
+					QCC_PR_CheckToken("*");	//this is fine...
+					parmname = QCC_PR_ParseName();
+					QCC_PR_Expect(")");
 				}
+				else
+					parmname = QCC_PR_ParseName();
+				definedsomething = true;
 				while (QCC_PR_CheckToken("["))
 				{
 					int nsize=QCC_PR_IntConstExpr();
+					if (arraysize)
+						type = QCC_GenArrayType(type, arraysize);
 					if (!nsize)
 						QCC_PR_ParseError(ERR_NOTANAME, "cannot cope with 0-sized arrays");
 					QCC_PR_Expect("]");
-					arraysize *= nsize;
-					QCC_PR_ParseWarning(WARN_IGNOREDKEYWORD, "multi-dimensional arrays are not supported. flattening to single array.");
+					arraysize = nsize;
 				}
 
 				if (QCC_PR_CheckToken("("))

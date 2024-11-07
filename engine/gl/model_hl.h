@@ -298,6 +298,7 @@ typedef struct	//this is stored as the cache. an hlmodel_t is generated when dra
 
 	hlmdl_header_t			*header;
 	hlmdl_bone_t			*bones;
+	struct galiasbone_s		*compatbones;
 	hlmdl_bonecontroller_t	*bonectls;
 	hlmdl_sequencefile_t	*animcache[MAX_ANIM_GROUPS];
 	zonegroup_t				*memgroup;

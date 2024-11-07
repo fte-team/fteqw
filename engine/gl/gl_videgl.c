@@ -582,7 +582,7 @@ static qboolean EGLHeadless_Init (rendererstate_t *info, unsigned char *palette)
 
 	if (GL_Init(info, &EGL_Proc))
 		return true;
-	Con_Printf(CON_ERROR "Unable to initialise opengl-on-wayland.\n");
+	Con_Printf(CON_ERROR "Unable to initialise egl_headless.\n");
 	return false;
 }
 static void EGLHeadless_DeInit(void)

@@ -1541,7 +1541,7 @@ static const char *glsl_hdrs[] =
 					"float		e_time;"
 				"};\n"
 				"#ifdef SKELETAL\n"
-					"layout(std140) unform u_bones\n"
+					"layout(std140) uniform u_bones\n"
 					"{\n"
 						"#ifdef PACKEDBONES\n"
 							"vec4 m_bones_packed[3*MAX_GPU_BONES];\n"
@@ -1648,7 +1648,7 @@ static const char *glsl_hdrs[] =
 						"wmat[2] += m_bones_packed[2+3*int(v_bone.y)] * v_weight.y;"
 						"wmat[2] += m_bones_packed[2+3*int(v_bone.z)] * v_weight.z;"
 						"wmat[2] += m_bones_packed[2+3*int(v_bone.w)] * v_weight.w;"
-						"wmat[3] = vec4(0.0,0.0,0.0,1.0);\n"
+						"wmat[3] = vec4(0.0,0.0,0.0,1.0);"
 						"return m_modelviewprojection * (vec4(v_position.xyz, 1.0) * wmat);"
 					"}\n"
 					"vec4 skeletaltransform_nst(out vec3 n, out vec3 t, out vec3 b)"
@@ -3663,6 +3663,21 @@ qboolean GL_Init(rendererstate_t *info, void *(*getglfunction) (char *name))
 
 	sh_config.progs_supported	= gl_config.arb_shader_objects;
 	sh_config.progs_required	= gl_config_nofixedfunc;
+
+	if (gl_config.glversion >= 4.1)
+	{
+		GLint maxuniformvecs = 256;	//minimum value... or 128 on webgl1(grr)
+		if (gl_config.glversion >= 4.1)
+			qglGetIntegerv(GL_MAX_VERTEX_UNIFORM_VECTORS, &maxuniformvecs);
+		else if (gl_config.glversion >= 2.0)
+		{
+			qglGetIntegerv(GL_MAX_VERTEX_UNIFORM_COMPONENTS, &maxuniformvecs);	//at least 1024, supposedly.
+			maxuniformvecs /= 4;
+		}
+
+		sh_config.max_gpu_bones	= (maxuniformvecs-64)/3;	//we don't know how many we're actually going to use for any specific bit of glsl, so make a generous guess and throw in a bit more for drivers that lie. we need 3 per bone matrix.
+		sh_config.max_gpu_bones = bound(0, sh_config.max_gpu_bones, MAX_BONES); //o.O
+	}
 
 	if (sh_config.progs_supported)
 	{

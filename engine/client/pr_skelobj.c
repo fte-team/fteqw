@@ -52,6 +52,8 @@ typedef struct doll_s
 	struct doll_s *next;
 
 	qboolean drawn:1;
+	int refanim; //-1 for skining pose. otherwise the first pose of the specified anim. probaly 0.
+	float refanimtime; //usually just 0
 	int numdefaultanimated;
 	int numbodies;
 	int numjoints;
@@ -349,6 +351,7 @@ static dollcreatectx_t *rag_createdoll(model_t *mod, const char *fname, int numb
 	ctx->d->next = dolllist;
 	ctx->d->name = strdup(fname);
 	ctx->d->model = mod;
+	ctx->d->refanim = -1;	//skin pose.
 	ctx->d->numbodies = 0;
 	ctx->d->body = NULL;
 	ctx->d->numjoints = 0;
@@ -376,6 +379,13 @@ static qboolean rag_dollline(dollcreatectx_t *ctx, int linenum)
 
 	if (!argc)
 	{
+	}
+	else if (argc == 2 && !stricmp(cmd, "refpose") && !strcmp(val, "skin"))
+		ctx->d->refanim = -1;
+	else if (argc == 3 && !stricmp(cmd, "refpose"))
+	{
+		ctx->d->refanim = atoi(val);
+		ctx->d->refanimtime = atoi(Cmd_Argv(2));
 	}
 	//create a new body
 	else if (argc == 3 && !stricmp(cmd, "body"))
@@ -911,7 +921,13 @@ void skel_generateragdoll_f(void)
 	if (i == 0)
 		VFS_PUTS(f, "//NO FRAME INFO\n");
 
-		//print background frame info.
+	VFS_PUTS(f, "\n//reference pose that offsets are defined in terms of\n");
+	if (mod->type == mod_halflife)
+		VFS_PUTS(f, "refpose 0 0.0 //use first anim's first pose\n");
+	else
+		VFS_PUTS(f, "refpose skin\n");
+
+	//print background frame info.
 	VFS_PUTS(f, "\n//skins are as follows:\n");
 	for (i = 0; i < 32768; i++)
 	{
@@ -1248,11 +1264,34 @@ static qboolean rag_instanciate(skelobject_t *sko, doll_t *doll, float *emat, we
 	int bone;
 	rbebody_t *body1, *body2;
 	rbejointinfo_t *j;
+	float *absolutes;
 	sko->numbodies = doll->numbodies;
 	sko->body = BZ_Malloc(sizeof(*sko->body) * sko->numbodies);
 	sko->doll = doll;
 	doll->uses++;
 	sko->numanimated = 0;
+
+	if (bones && doll->refanim)
+	{
+		framestate_t fstate = {0};
+		float *relatives = alloca(sizeof(float)*12*numbones*2);
+		fstate.g[FS_REG].frame[0] = doll->refanim;			//which anim we're using as the reference
+		fstate.g[FS_REG].frametime[0] = doll->refanimtime;	//first pose of the anim
+		fstate.g[FS_REG].lerpweight[0] = 1;
+		fstate.g[FS_REG].endbone = numbones;
+
+		absolutes = relatives+numbones*12;
+		numbones = Mod_GetBoneRelations(sko->model, 0, numbones, bones, &fstate, relatives);
+		for (i = 0; i < numbones; i++)
+		{	//compute the absolutes. not gonna make a bg3 reference here.
+			if (bones[i].parent>=0)
+				R_ConcatTransforms((void*)(absolutes+12*bones[i].parent), (void*)(relatives+12*i), (void*)(absolutes+12*i));
+			else
+				memcpy(absolutes+12*i, relatives+12*i, sizeof(float)*12);
+		}
+	}
+	else absolutes = NULL;
+
 	for (i = 0; i < sko->numbodies; i++)
 	{
 		memset(&sko->body[i], 0, sizeof(sko->body[i]));
@@ -1262,7 +1301,9 @@ static qboolean rag_instanciate(skelobject_t *sko, doll_t *doll, float *emat, we
 			sko->numanimated++;
 
 		//spawn the body in the base pose, so we can add joints etc (also ignoring the entity matrix, we'll fix all that up later).
-		if (1)
+		if (absolutes)	//we have a reference pose
+			memcpy(bodymat, absolutes+12*doll->body[i].bone, sizeof(float)*12);
+		else if (1)
 			Matrix3x4_Invert_Simple(bones[doll->body[i].bone].inverse, bodymat);
 		else
 			rag_genbodymatrix(sko, &doll->body[i], emat, bodymat);
@@ -1281,8 +1322,10 @@ static qboolean rag_instanciate(skelobject_t *sko, doll_t *doll, float *emat, we
 		bone = j->bonepivot;
 		bmat = sko->bonematrix + bone*12;
 
-		if (1)
-		{
+		if (absolutes)	//we have a reference pose
+			memcpy(worldmat, absolutes+12*doll->body[i].bone, sizeof(float)*12);
+		else if (1)
+		{	//FIXME: j->offset isn't actually used?!?
 			Matrix3x4_Invert_Simple(bones[j->bonepivot].inverse, worldmat);
 		}
 		else

@@ -3377,8 +3377,8 @@ typedef struct
 	int boneidx;
 	int bonebias;	//shift the bones menu down to ensure the boneidx stays visible
 	int textype;
-	double framechangetime;
-	double skinchangetime;
+	double frametime;
+	double skintime;
 
 	float pitch;
 	float yaw;
@@ -3394,6 +3394,7 @@ typedef struct
 	char shaderfile[MAX_QPATH];
 	char *shadertext;
 
+	qboolean paused;
 #ifdef RAGDOLL
 	lerpents_t ragent;
 	world_t ragworld;
@@ -3523,7 +3524,7 @@ static void M_ModelViewerDraw(int x, int y, struct menucustom_s *c, struct emenu
 	r_refdef.grect.height = vid.height;
 	r_refdef.grect.x = 0;
 	r_refdef.grect.y = 0;
-	r_refdef.time = realtime;
+	r_refdef.time = mods->skintime;
 
 	r_refdef.flags = RDF_NOWORLDMODEL;
 
@@ -3620,7 +3621,7 @@ static void M_ModelViewerDraw(int x, int y, struct menucustom_s *c, struct emenu
 	ent.shaderTime = 0;//realtime;
 	ent.framestate.g[FS_REG].lerpweight[0] = 1;
 	ent.framestate.g[FS_REG].frame[0] = mods->framegroup;
-	ent.framestate.g[FS_REG].frametime[0] = ent.framestate.g[FS_REG].frametime[1] = realtime - mods->framechangetime;
+	ent.framestate.g[FS_REG].frametime[0] = ent.framestate.g[FS_REG].frametime[1] = mods->frametime;
 	ent.framestate.g[FS_REG].endbone = 0x7fffffff;
 	if (*mods->skinname)
 	{
@@ -3651,6 +3652,12 @@ static void M_ModelViewerDraw(int x, int y, struct menucustom_s *c, struct emenu
 #endif
 
 	V_ApplyRefdef();
+
+	if (!mods->paused)
+	{
+		mods->frametime += host_frametime;
+		mods->skintime += host_frametime;
+	}
 /*
 	{
 		trace_t tr;
@@ -3707,9 +3714,8 @@ static void M_ModelViewerDraw(int x, int y, struct menucustom_s *c, struct emenu
 		ent.framestate.g[FS_REG].frame[0] |= 0x8000;
 	if (ent.model->dollinfo && mods->ragworld.rbe)
 	{
-		float rate = 1.0/60;
+		float rate = 1.0/60;	//try a fixed tick rate...
 		rag_doallanimations(&mods->ragworld);
-		mods->fixedrate += host_frametime;
 		if (mods->fixedrate > 1)
 			mods->fixedrate = 1;
 		while (mods->fixedrate >= rate)
@@ -3717,6 +3723,8 @@ static void M_ModelViewerDraw(int x, int y, struct menucustom_s *c, struct emenu
 			mods->ragworld.rbe->RunFrame(&mods->ragworld, rate, 800);
 			mods->fixedrate -= rate;
 		}
+		if (!mods->paused)
+			mods->fixedrate += host_frametime;
 
 		rag_updatedeltaent(&mods->ragworld, &ent, &mods->ragent);
 	}
@@ -4250,10 +4258,18 @@ static qboolean M_ModelViewerKey(struct menucustom_s *c, struct emenu_s *m, int 
 		case MV_NORMALS: mods->mode = MV_NONE;		break;
 		}
 	}
+	else if (key >= '1' && key <= '7')
+	{
+		Z_Free(mods->shadertext);
+		mods->shadertext = NULL;
+		mods->mode = MV_NONE + (key - '1');
+	}
+	else if (key == 'p')
+		mods->paused = !mods->paused;
 	else if (key == 'r')
 	{
-		mods->framechangetime = realtime;
-		mods->skinchangetime = realtime;
+		mods->frametime = 0;
+		mods->skintime = 0;
 	}
 #ifdef RAGDOLL
 	else if (key == 'f')
@@ -4290,28 +4306,28 @@ static qboolean M_ModelViewerKey(struct menucustom_s *c, struct emenu_s *m, int 
 	else if (key == K_END)
 	{
 		mods->skingroup = max(0, mods->skingroup-1);
-		mods->skinchangetime = realtime;
+		mods->skintime = 0;
 		Z_Free(mods->shadertext);
 		mods->shadertext = NULL;
 	}
 	else if (key == K_HOME)
 	{
 		mods->skingroup += 1;
-		mods->skinchangetime = realtime;
+		mods->skintime = 0;
 		Z_Free(mods->shadertext);
 		mods->shadertext = NULL;
 	}
 	else if (key == K_PGDN)
 	{
 		mods->framegroup = max(0, mods->framegroup-1);
-		mods->framechangetime = realtime;
+		mods->frametime = 0;
 		Z_Free(mods->shadertext);
 		mods->shadertext = NULL;
 	}
 	else if (key == K_PGUP)
 	{
 		mods->framegroup += 1;
-		mods->framechangetime = realtime;
+		mods->frametime = 0;
 	}
 	else if (key == K_DEL)
 	{
@@ -4393,8 +4409,8 @@ void M_Menu_ModelViewer_f(void)
 	Q_strncpyz(mv->skinname, Cmd_Argv(2), sizeof(mv->skinname));
 	Q_strncpyz(mv->animname, Cmd_Argv(3), sizeof(mv->animname));
 
-	mv->framechangetime = realtime;
-	mv->skinchangetime = realtime;
+	mv->frametime = 0;
+	mv->skintime = 0;
 #ifdef RAGDOLL
 	menu->menu.videoreset = M_Modelviewer_Reset;
 	menu->remove = M_Modelviewer_Shutdown;

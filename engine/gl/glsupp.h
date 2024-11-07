@@ -349,9 +349,12 @@ typedef void (APIENTRY * PFNGLACTIVESTENCILFACEEXTPROC) (GLenum face);
 #endif
 
 
-
-
-
+#ifndef GL_VERSION_4_1
+#define GL_MAX_VERTEX_UNIFORM_VECTORS     0x8DFB
+#endif
+#ifndef GL_VERSION_2_0
+#define GL_MAX_VERTEX_UNIFORM_COMPONENTS  0x8B4A
+#endif
 
 
 #ifndef GL_ARB_vertex_program

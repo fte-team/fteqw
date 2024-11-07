@@ -371,6 +371,31 @@ qboolean QDECL Mod_LoadHLModel (model_t *mod, void *buffer, size_t fsize)
 	model->bonectls = bonectls;
 
 #ifndef SERVERONLY
+	model->compatbones = ZG_Malloc(&mod->memgroup, header->numbones * sizeof(*model->compatbones));
+	for (i = 0; i < header->numbones; i++)
+	{
+		float matrix[12];
+		Q_strncpyz(model->compatbones[i].name, model->bones[i].name, sizeof(model->bones[i].name));
+		model->compatbones[i].parent = model->bones[i].parent;
+		model->compatbones[i].ref.org[0] = model->bones[i].value[0];
+		model->compatbones[i].ref.org[1] = model->bones[i].value[1];
+		model->compatbones[i].ref.org[2] = model->bones[i].value[2];
+		QuaternionGLAngle(model->bones[i].value+3, model->compatbones[i].ref.quat);
+		model->compatbones[i].ref.scale[0] = 1.0f;
+		model->compatbones[i].ref.scale[1] = 1.0f;
+		model->compatbones[i].ref.scale[2] = 1.0f;
+
+		//compute rel matrix
+		GenMatrixPosQuat4Scale(model->compatbones[i].ref.org, model->compatbones[i].ref.quat, model->compatbones[i].ref.scale, matrix);
+		//compute abs matrix.
+		if(model->bones[i].parent>=0)
+			R_ConcatTransforms((void*)transform_matrix[model->bones[i].parent], (void*)matrix, transform_matrix[i]);
+		else
+			memcpy(transform_matrix[i], matrix, 12 * sizeof(float));
+		//keep the ragdoll code happy with its insistance on using inverses.
+		Matrix3x4_Invert_Simple((const float*)transform_matrix[i], model->compatbones[i].inverse);
+	}
+
 	tex = (hlmdl_tex_t *) ((qbyte *) texheader + texheader->textures);
 
 	shaders = ZG_Malloc(&mod->memgroup, texheader->numtextures*sizeof(shader_t));
@@ -1192,7 +1217,7 @@ static int HLMDL_GetBoneData_Internal(hlmodel_t *model, int firstbone, int lastb
 			lastbone = model->header->numbones;
 		if (cbone >= lastbone)
 			continue;
-		HL_SetupBones(model, fstate->g[bgroup].frame[0], cbone, lastbone, fstate->g[bgroup].subblendfrac, fstate->g[bgroup].subblend2frac, fstate->g[bgroup].frametime[0], result);	/* Setup the bones */
+		HL_SetupBones(model, fstate->g[bgroup].frame[0] & ~0x8000, cbone, lastbone, fstate->g[bgroup].subblendfrac, fstate->g[bgroup].subblend2frac, fstate->g[bgroup].frametime[0], result);	/* Setup the bones */
 		cbone = lastbone;
 	}
 	return cbone;

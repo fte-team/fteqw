@@ -1031,27 +1031,28 @@ void Mod_ModelLoaded(void *ctx, void *data, size_t a, size_t b)
 	{
 		if (qrenderer != QR_NONE)
 			Mod_LoadAliasShaders(mod);
-
+	}
 
 #ifdef RAGDOLL
+	if (mod->type == mod_alias || mod->type == mod_halflife)
+	{
+		int numbones = Mod_GetNumBones(mod, false);
+		if (numbones)
 		{
-			int numbones = Mod_GetNumBones(mod, false);
-			if (numbones)
+			size_t filesize;
+			char *buf;
+			char dollname[MAX_QPATH];
+			Q_snprintfz(dollname, sizeof(dollname), "%s.doll", mod->name);
+			buf = FS_LoadMallocFile(dollname, &filesize);
+			if (buf)
 			{
-				size_t filesize;
-				char *buf;
-				char dollname[MAX_QPATH];
-				Q_snprintfz(dollname, sizeof(dollname), "%s.doll", mod->name);
-				buf = FS_LoadMallocFile(dollname, &filesize);
-				if (buf)
-				{
-					mod->dollinfo = rag_createdollfromstring(mod, dollname, numbones, buf);
-					BZ_Free(buf);
-				}
+				mod->dollinfo = rag_createdollfromstring(mod, dollname, numbones, buf);
+				BZ_Free(buf);
 			}
 		}
-#endif
 	}
+#endif
+
 #endif
 
 	switch(verbose)

@@ -2898,6 +2898,8 @@ static float *QDECL GLTF_AnimateBones(const galiasinfo_t *surf, const galiasanim
 	int j = 0, l;
 	const struct galiasanimation_gltf_s *a = anim->boneofs;
 
+	numbones = min(numbones, surf->numbones);	//if you're asking for more bones, then expect bugs.
+
 	if (anim->loop && time >= a->duration)
 		time = time - a->duration*floor(time/a->duration);
 

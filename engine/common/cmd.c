@@ -1465,9 +1465,9 @@ static void Cmd_AliasList_f (void)
 		if (!num)
 			Con_TPrintf("Alias list:\n");
 		if (cmd->execlevel)
-			Con_Printf("(%2i)(%2i) %s\n", (int)(cmd->restriction?cmd->restriction:rcon_level.ival), cmd->execlevel, cmd->name);
+			Con_Printf(S_COLOR_TRANS"(%2i)(%2i) "S_COLOR_WHITE"^[%s\\type\\/%s^]\n", (int)(cmd->restriction?cmd->restriction:rcon_level.ival), cmd->execlevel, cmd->name, cmd->name);
 		else
-			Con_Printf("(%2i)     %s\n", (int)(cmd->restriction?cmd->restriction:rcon_level.ival), cmd->name);
+			Con_Printf(S_COLOR_TRANS "(%2i)     "S_COLOR_WHITE"^[%s\\type\\/%s^]\n", (int)(cmd->restriction?cmd->restriction:rcon_level.ival), cmd->name, cmd->name);
 		num++;
 	}
 	if (num)
@@ -3739,7 +3739,7 @@ skipblock:
 				if (trueblock)
 					goto skipblock;	//we've had our true, all others are assumed to be false.
 				else
-					goto elseif;	//and have annother go.
+					goto elseif;	//and have another go.
 			}
 			else
 			{	//we got an else. This is the last block. Don't go through the normal way, cos that would let us follow up with a second else.

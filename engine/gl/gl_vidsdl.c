@@ -311,7 +311,7 @@ static void	SDLVID_EnumerateVideoModes (const char *driver, const char *output, 
 static qboolean SDLVID_Init (rendererstate_t *info, unsigned char *palette, r_qrenderer_t qrenderer)
 {
 	int flags = 0;
-#if SDL_MAJOR_VERSION >= 2
+#if SDL_VERSION_ATLEAST(2,0,0)
 	int display = -1;
 	SDL_DisplayMode modeinfo, *usemode;
 
@@ -361,7 +361,6 @@ static qboolean SDLVID_Init (rendererstate_t *info, unsigned char *palette, r_qr
 		if (info->stereo)
 			SDL_GL_SetAttribute(SDL_GL_STEREO, 1);
 
-	#if SDL_MAJOR_VERSION >= 2
 		if (info->srgb)
 			SDL_GL_SetAttribute(SDL_GL_FRAMEBUFFER_SRGB_CAPABLE, 1);
 
@@ -393,7 +392,6 @@ static qboolean SDLVID_Init (rendererstate_t *info, unsigned char *palette, r_qr
 			SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_COMPATIBILITY);
 		else
 			SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
-	#endif
 		if (info->multisample)
 		{
 			SDL_GL_SetAttribute(SDL_GL_MULTISAMPLESAMPLES, info->multisample);

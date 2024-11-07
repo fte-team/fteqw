@@ -3524,7 +3524,7 @@ void Media_RecordFrame (void)
 		Draw_FunString(0, y, capturemessage.string);
 	}
 
-	//time for annother frame?
+	//time for another frame?
 	if (!captureframeforce)
 	{
 		if (capturelastvideotime > realtime+1)

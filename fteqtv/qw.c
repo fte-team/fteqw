@@ -2952,7 +2952,7 @@ I've removed the following from this function as it covered the menu (~Moodles):
 	else if (!strcmp(command, "guidemos"))
 	{
 		int maxshowndemos;
-		char sizestr[11];
+		char sizestr[13];
 		int start;
 		int i;
 
@@ -4614,7 +4614,7 @@ void QW_ProcessUDPPacket(cluster_t *cluster, netmsg_t *m, netadr_t from)
 						/*int passwd =*/ ReadLong(m);
 
 						//fte extension, sent so that dual-protocol servers will not create connections for dual-protocol clients
-						//the nqconnect command disables this (as well as the qw hand shake) if you really want to use nq protocols with fte clients
+						//the connectnq command disables this (as well as the qw hand shake) if you really want to use nq protocols with fte clients
 						ReadString(m, tempbuffer, sizeof(tempbuffer));
 						if (!strncmp(tempbuffer, "getchallenge", 12))
 							break;

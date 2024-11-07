@@ -1289,7 +1289,7 @@ void NPP_NQWriteByte(int dest, qbyte data)	//replacement write func (nq to qw)
 			case TENQ_NQGUNSHOT:
 				multicastpos=3;
 				multicasttype=MULTICAST_PVS;
-				//we need to emit annother qbyte here. QuakeWorld has a number of particles.
+				//we need to emit another qbyte here. QuakeWorld has a number of particles.
 				//emit it here and we don't need to remember to play with temp_entity later
 				NPP_AddData(&data, sizeof(qbyte));
 				data = 1;

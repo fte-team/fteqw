@@ -6851,7 +6851,7 @@ void QCBUILTIN PF_Abort(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 	prinst->AbortStack(prinst);
 }
 
-//this func calls a function in annother progs
+//this func calls a function in another progs
 //it works in the same way as the above func, except that it calls by reference to a function, as opposed to by it's name
 //used for entity function variables - not actually needed anymore
 void QCBUILTIN PF_externrefcall (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
@@ -6868,20 +6868,28 @@ void QCBUILTIN PF_externrefcall (pubprogfuncs_t *prinst, struct globalvars_s *pr
 	PR_ExecuteProgram(prinst, f);
 }
 
-void QCBUILTIN PF_externset (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)	//set a value in annother progs
+void QCBUILTIN PF_externset (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)	//set a value in another progs
 {
 	int n = G_PROG(OFS_PARM0);
-	int v = G_INT(OFS_PARM1);
+	eval_t *v = (eval_t*)&G_INT(OFS_PARM1);
 	const char *varname = PF_VarString(prinst, 2, pr_globals);
 	eval_t *var;
+	etype_t t = ev_void;
 
-	var = PR_FindGlobal(prinst, varname, n, NULL);
+	var = PR_FindGlobal(prinst, varname, n, &t);
 
 	if (var)
-		var->_int = v;
+	{
+		if (t == ev_vector)
+			VectorCopy(v->_vector, var->_vector);
+		else if (t == ev_int64 || t == ev_uint64 || t == ev_double)
+			var->i64 = v->i64;
+		else
+			var->_int = v->_int;
+	}
 }
 
-void QCBUILTIN PF_externvalue (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)	//return a value in annother progs
+void QCBUILTIN PF_externvalue (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)	//return a value in another progs
 {
 	int n = G_PROG(OFS_PARM0);
 	const char *varname = PF_VarString(prinst, 1, pr_globals);
@@ -6914,7 +6922,7 @@ void QCBUILTIN PF_externvalue (pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 	}
 }
 
-void QCBUILTIN PF_externcall (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)	//this func calls a function in annother progs (by name)
+void QCBUILTIN PF_externcall (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)	//this func calls a function in another progs (by name)
 {
 	int progsnum;
 	const char *funcname;
@@ -8092,7 +8100,7 @@ qc_extension_t QSG_Extensions[] = {
 	{"DP_QC_TRACETOSS"},
 	{"DP_QC_TRACE_MOVETYPE_HITMODEL"},
 	{"DP_QC_TRACE_MOVETYPE_WORLDONLY"},
-	{"DP_QC_TRACE_MOVETYPES"},		//this one is just a lame excuse to add annother extension...
+	{"DP_QC_TRACE_MOVETYPES"},		//this one is just a lame excuse to add another extension...
 	{"DP_QC_UNLIMITEDTEMPSTRINGS",		NULL,	0,{NULL}, "Supersedes DP_QC_MULTIPLETEMPSTRINGS, superseded by FTE_QC_PERSISTENTTEMPSTRINGS. Specifies that all temp strings will be valid at least until the QCVM returns."},
 	{"DP_QC_URI_ESCAPE",				NULL,	2,{"uri_escape", "uri_unescape"}},
 #ifdef WEBCLIENT

@@ -130,7 +130,7 @@ typedef struct q2trace_s
 #define MOVE_WORLDONLY	(MOVE_NOMONSTERS|MOVE_MISSILE) //use MOVE_OTHERONLY instead
 #endif
 #define	MOVE_HITMODEL	(1<<2)
-#define MOVE_RESERVED	(1<<3)			//so we are less likly to get into tricky situations when we want to steal annother future DP extension.
+#define MOVE_RESERVED	(1<<3)			//so we are less likly to get into tricky situations when we want to steal another future DP extension.
 #define MOVE_TRIGGERS	(1<<4)			//triggers must be marked with FINDABLE_NONSOLID	(an alternative to solid-corpse)
 #define MOVE_EVERYTHING	(1<<5)			//can return triggers and non-solid items if they're marked with FINDABLE_NONSOLID (works even if the items are not properly linked)
 #define MOVE_LAGGED		(1<<6)			//trace touches current last-known-state, instead of actual ents (just affects players for now)

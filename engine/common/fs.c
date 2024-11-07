@@ -1464,6 +1464,9 @@ static void COM_Path_f (void)
 		return;
 	}
 
+	if (fs_hidesyspaths.ival)
+		Con_Printf("External paths are hidden, ^[click to unhide\\type\\set fs_hidesyspaths 0;path^]\n");
+
 	if (com_purepaths || fs_puremode)
 	{
 		Con_Printf ("Pure paths:\n");
@@ -2677,7 +2680,7 @@ static qboolean FS_NativePath(const char *fname, enum fs_relative relativeto, ch
 				Q_snprintfz(out, outlen, "$bindir/%s", fname+strlen(host_parms.binarydir));
 #ifdef FTE_LIBRARY_PATH
 			else if (!strncmp(fname, STRINGIFY(FTE_LIBRARY_PATH)"/", strlen(STRINGIFY(FTE_LIBRARY_PATH)"/")))	//FS_LIBRARYDIR
-				Q_snprintfz(out, outlen, "$libdir/%s", fname+strlen(host_parms.binarydir));
+				Q_snprintfz(out, outlen, "$libdir/%s", fname+strlen(STRINGIFY(FTE_LIBRARY_PATH)"/"));
 #endif
 			else	//should try bindir
 				Q_snprintfz(out, outlen, "$system/%s", COM_SkipPath(fname));			//FS_SYSTEM :(
@@ -2685,11 +2688,13 @@ static qboolean FS_NativePath(const char *fname, enum fs_relative relativeto, ch
 		else
 			Q_snprintfz(out, outlen, "%s", fname);
 
+#ifdef _WIN32
 		for (; *out; out++)
 		{
 			if (*out == '\\')
 				*out = '/';
 		}
+#endif
 		return true;
 	}
 

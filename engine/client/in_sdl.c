@@ -31,8 +31,8 @@ void IN_ActivateMouse(void)
 	SDL_ShowCursor(0);
 
 #if SDL_MAJOR_VERSION >= 2
-	SDL_SetRelativeMouseMode(true);
-	SDL_SetWindowGrab(sdlwindow, true);
+	SDL_SetRelativeMouseMode(SDL_TRUE);
+	SDL_SetWindowGrab(sdlwindow, SDL_TRUE);
 #else
 	SDL_WM_GrabInput(SDL_GRAB_ON);
 #endif
@@ -46,8 +46,8 @@ void IN_DeactivateMouse(void)
 	mouseactive = false;
 	SDL_ShowCursor(1);
 #if SDL_MAJOR_VERSION >= 2
-	SDL_SetRelativeMouseMode(false);
-	SDL_SetWindowGrab(sdlwindow, false);
+	SDL_SetRelativeMouseMode(SDL_FALSE);
+	SDL_SetWindowGrab(sdlwindow, SDL_FALSE);
 #else
 	SDL_WM_GrabInput(SDL_GRAB_OFF);
 #endif

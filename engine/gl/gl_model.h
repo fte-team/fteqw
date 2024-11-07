@@ -35,20 +35,24 @@ typedef struct bspx_header_s bspx_header_t;
 
 typedef enum {
 	SHADER_SORT_NONE,
-	SHADER_SORT_RIPPLE,
-	SHADER_SORT_DEFERREDLIGHT,
+	SHADER_SORT_RIPPLE,			//new
+	SHADER_SORT_DEFERREDLIGHT,	//new
 	SHADER_SORT_PORTAL,
-	SHADER_SORT_SKY,
+	SHADER_SORT_SKY,			//aka environment
 	SHADER_SORT_OPAQUE,
 	//fixme: occlusion tests
 	SHADER_SORT_DECAL,
 	SHADER_SORT_SEETHROUGH,
 	//then rtlights are drawn
-	SHADER_SORT_UNLITDECAL,
+	SHADER_SORT_UNLITDECAL,		//new
 	SHADER_SORT_BANNER,
+	//fog
 	SHADER_SORT_UNDERWATER,
 	SHADER_SORT_BLEND,
 	SHADER_SORT_ADDITIVE,
+	//blend2,3,6
+	//stencilshadow
+	//almostnearest
 	SHADER_SORT_NEAREST,
 
 

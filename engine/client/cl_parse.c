@@ -4219,7 +4219,7 @@ static void CLNQ_ParseServerData(void)		//Doesn't change gamedir - use with caut
 	CL_CheckServerInfo();
 
 	#if _MSC_VER > 1200
-	Sys_RecentServer("+nqconnect", cls.servername, cls.servername, "Join NQ Server");
+	Sys_RecentServer("+connectnq", cls.servername, cls.servername, "Join NQ Server");
 	#endif
 
 	if (CPNQ_IS_DP)	//DP's protocol requires client+server to have exactly the same data files. this is shit, but in the interests of compatibility...

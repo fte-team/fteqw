@@ -1,6 +1,6 @@
 //This file should be easily portable.
 //The biggest strength of this plugin system is that ALL interactions are performed via
-//named functions, this makes it *really* easy to port plugins from one engine to annother.
+//named functions, this makes it *really* easy to port plugins from one engine to another.
 
 #include "quakedef.h"
 #include "fs.h"

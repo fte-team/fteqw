@@ -1165,6 +1165,21 @@ static void Shader_SurfaceParm (parsestate_t *ps, const char **ptr)
 		Con_DLPrintf(2, "Shader %s, Unknown surface parm \"%s\"\n", ps->s->name, token);	//note that there are game-specific names used to override mod surfaceflags+contents
 }
 
+static void Shader_DP_Sort (parsestate_t *ps, const char **ptr)
+{
+	shader_t *shader = ps->s;
+	char *token;
+
+	token = Shader_ParseString ( ptr );
+
+	if (!Q_stricmp(token, "sky"))
+		shader->sort = SHADER_SORT_SKY;
+	else if (!Q_stricmp(token, "hud"))
+		shader->sort = SHADER_SORT_NEAREST;
+//	else if (!Q_stricmp(token, "distance"))
+//		shader->sort = SHADER_SORT_NONE;	//not really immplemented, could maybe force v_depthsortentities. just let q3 rules take over.
+}
+
 static void Shader_Sort (parsestate_t *ps, const char **ptr)
 {
 	shader_t *shader = ps->s;
@@ -1176,13 +1191,19 @@ static void Shader_Sort (parsestate_t *ps, const char **ptr)
 		Con_DPrintf("Shader %s, ignoring 'sort %s'\n", ps->s->name, token);
 		return;	//dp ignores 'sort' entirely.
 	}
+//	else if ( !Q_stricmp( token, "none" ) )
+//		shader->sort = SHADER_SORT_NONE;	//default, overwritten with an automatic choice.
+	else if ( !Q_stricmp( token, "ripple" ) )	//fte, weird. drawn only to the ripplemap.
+		shader->sort = SHADER_SORT_RIPPLE;
+	else if ( !Q_stricmp( token, "deferredlight" ) )	//fte, weird. drawn only to prelight buffer.
+		shader->sort = SHADER_SORT_DEFERREDLIGHT;
 	else if ( !Q_stricmp( token, "portal" ) )
 		shader->sort = SHADER_SORT_PORTAL;
 	else if( !Q_stricmp( token, "sky" ) )
 		shader->sort = SHADER_SORT_SKY;
 	else if( !Q_stricmp( token, "opaque" ) )
 		shader->sort = SHADER_SORT_OPAQUE;
-	else if( !Q_stricmp( token, "decal" ) ||  !Q_stricmp( token, "litdecal" ) )
+	else if( !Q_stricmp( token, "decal" ) || !Q_stricmp( token, "litdecal" ) )
 		shader->sort = SHADER_SORT_DECAL;
 	else if( !Q_stricmp( token, "seethrough" ) )
 		shader->sort = SHADER_SORT_SEETHROUGH;
@@ -1190,21 +1211,41 @@ static void Shader_Sort (parsestate_t *ps, const char **ptr)
 		shader->sort = SHADER_SORT_UNLITDECAL;
 	else if( !Q_stricmp( token, "banner" ) )
 		shader->sort = SHADER_SORT_BANNER;
-	else if( !Q_stricmp( token, "additive" ) )
-		shader->sort = SHADER_SORT_ADDITIVE;
 	else if( !Q_stricmp( token, "underwater" ) )
 		shader->sort = SHADER_SORT_UNDERWATER;
+	else if( !Q_stricmp( token, "blend" ))
+		shader->sort = SHADER_SORT_BLEND;
+	else if( !Q_stricmp( token, "additive" ) )
+		shader->sort = SHADER_SORT_ADDITIVE;
 	else if( !Q_stricmp( token, "nearest" ) )
 		shader->sort = SHADER_SORT_NEAREST;
-	else if( !Q_stricmp( token, "blend" ) )
-		shader->sort = SHADER_SORT_BLEND;
-	else if ( !Q_stricmp( token, "deferredlight" ) )
-		shader->sort = SHADER_SORT_DEFERREDLIGHT;
-	else if ( !Q_stricmp( token, "ripple" ) )
-		shader->sort = SHADER_SORT_RIPPLE;
 	else
 	{
-		shader->sort = atoi ( token );
+		int q3 = atoi ( token );
+		shadersort_t q3sorttofte[] =
+		{
+			/* 0*/SHADER_SORT_NONE,
+			/* 1*/SHADER_SORT_PORTAL,
+			/* 2*/SHADER_SORT_SKY,		//aka environment in q3
+			/* 3*/SHADER_SORT_OPAQUE,
+			/* 4*/SHADER_SORT_DECAL,
+			/* 5*/SHADER_SORT_SEETHROUGH,
+			/* 6*/SHADER_SORT_BANNER,
+			/* 7*/SHADER_SORT_UNDERWATER/*SHADER_SORT_FOG*/,
+			/* 8*/SHADER_SORT_UNDERWATER,
+			/* 9*/SHADER_SORT_BLEND,		//blend0 in q3
+			/*10*/SHADER_SORT_ADDITIVE,	//blend1 in q3
+			/*11*/SHADER_SORT_ADDITIVE/*SHADER_SORT_BLEND2*/,
+			/*12*/SHADER_SORT_ADDITIVE/*SHADER_SORT_BLEND3*/,
+			/*13*/SHADER_SORT_ADDITIVE/*SHADER_SORT_BLEND6*/, //yes, 4+5 missing in q3...
+			/*14*/SHADER_SORT_ADDITIVE/*SHADER_SORT_STENCIL*/,
+			/*15*/SHADER_SORT_NEAREST/*SHADER_SORT_ALMOSTNEAREST*/,
+			/*16*/SHADER_SORT_NEAREST
+		};
+		if (q3 >= 0 && q3 < countof(q3sorttofte))
+			shader->sort = q3sorttofte[q3];
+		else
+			shader->sort = SHADER_SORT_NONE;	// :(
 		clamp ( shader->sort, SHADER_SORT_NONE, SHADER_SORT_NEAREST );
 	}
 }
@@ -2952,6 +2993,7 @@ static shaderkey_t shaderkeys[] =
 	{"polygonoffset",		NULL,						"dp"},
 	{"glossintensitymod",	Shader_DP_GlossScale,		"dp"},	//scales r_shadow_glossintensity(=1), aka: gl_specular
 	{"glossexponentmod",	Shader_DP_GlossExponent,	"dp"},	//scales r_shadow_glossexponent(=32)
+	{"transparentsort",		Shader_DP_Sort,				"dp"},	//urgh...
 
 	/*doom3 compat*/
 	{"diffusemap",			Shader_DiffuseMap,			"doom3"},	//macro for "{\nstage diffusemap\nmap <map>\n}"
@@ -3940,7 +3982,7 @@ static void Shaderpass_Scroll (parsestate_t *ps, const char **ptr)
 	}
 	else
 	{
-		Con_Printf("Bad shader scale\n");
+		Con_DPrintf("Bad shader scroll value\n");
 		return;
 	}
 
@@ -3952,7 +3994,7 @@ static void Shaderpass_Scroll (parsestate_t *ps, const char **ptr)
 	}
 	else
 	{
-		Con_Printf("Bad shader scale\n");
+		Con_DPrintf("Bad shader scroll value\n");
 		return;
 	}
 

@@ -1321,8 +1321,8 @@ static VkAccelerationStructureKHR VKBE_GenerateBLAS(model_t *mod)
 	asbgi.type = asci.type;
 	asbgi.flags = VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_TRACE_BIT_KHR /* | VK_BUILD_ACCELERATION_STRUCTURE_ALLOW_UPDATE_BIT_KHR*/;
 	asbgi.mode = VK_BUILD_ACCELERATION_STRUCTURE_MODE_BUILD_KHR;
-	asbgi.srcAccelerationStructure = NULL; //ignored here
-	asbgi.dstAccelerationStructure = NULL; //filled in later
+	asbgi.srcAccelerationStructure = VK_NULL_HANDLE; //ignored here
+	asbgi.dstAccelerationStructure = VK_NULL_HANDLE; //filled in later
 	asbgi.geometryCount = countof(asg);
 	asbgi.pGeometries = asg;
 	asbgi.ppGeometries = NULL;	//too much indirection! oh noes!
@@ -1443,8 +1443,8 @@ static VkAccelerationStructureKHR VKBE_GenerateTLAS(void)
 	asbgi.type = asci.type;
 	asbgi.flags = VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_TRACE_BIT_KHR /* | VK_BUILD_ACCELERATION_STRUCTURE_ALLOW_UPDATE_BIT_KHR*/;
 	asbgi.mode = VK_BUILD_ACCELERATION_STRUCTURE_MODE_BUILD_KHR;
-	asbgi.srcAccelerationStructure = NULL; //ignored here
-	asbgi.dstAccelerationStructure = NULL; //filled in later
+	asbgi.srcAccelerationStructure = VK_NULL_HANDLE; //ignored here
+	asbgi.dstAccelerationStructure = VK_NULL_HANDLE; //filled in later
 	asbgi.geometryCount = countof(asg);
 	asbgi.pGeometries = asg;
 	asbgi.ppGeometries = NULL;	//too much indirection! oh noes!

@@ -2072,9 +2072,12 @@ void R_DrawNameTags(void)
 		else
 		{
 			shader = NULL;
+#ifdef TERRAIN
 			if (cl.worldmodel->terrain && trace.brush_id && (shader = Terr_GetShader(cl.worldmodel, &trace)))
 				shadername = shader->name;
-			else if ((surf = (trace.fraction == 1)?NULL:Mod_GetSurfaceNearPoint(cl.worldmodel, trace.endpos)))
+			else
+#endif
+				 if ((surf = (trace.fraction == 1)?NULL:Mod_GetSurfaceNearPoint(cl.worldmodel, trace.endpos)))
 			{
 				shadername = surf->texinfo->texture->name;
 				shader = surf->texinfo->texture->shader;

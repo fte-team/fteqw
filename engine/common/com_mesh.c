@@ -1811,8 +1811,8 @@ qboolean Alias_GAliasBuildMesh(mesh_t *mesh, vbo_t **vbop, galiasinfo_t *inf, in
 #endif
 	mesh->xyz_array = meshcache.coords;
 
-//we don't support meshes with one pose skeletal and annother not.
-//we don't support meshes with one group skeletal and annother not.
+//we don't support meshes with one pose skeletal and another not.
+//we don't support meshes with one group skeletal and another not.
 
 #ifdef SKELETALMODELS
 	meshcache.vbop = NULL;

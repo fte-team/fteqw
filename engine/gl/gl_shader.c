@@ -4815,7 +4815,9 @@ struct scondinfo_s
 static qboolean Shader_Conditional_Read(parsestate_t *ps, struct scondinfo_s *cond, const char *token, const char **ptr)
 {
 	shader_t *shader = ps->s;
-	if (!Q_stricmp(token, "if"))
+	if (ps->parseflags & SPF_DOOM3)
+		return false;	//doom materials have conditionals that remove passes, without endifs. don't misparse here.
+	else if (!Q_stricmp(token, "if"))
 	{
 		if (cond->depth+1 == countof(cond->level))
 		{

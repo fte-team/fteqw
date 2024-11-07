@@ -435,7 +435,7 @@ static int QDECL ShowMapList (const char *name, qofs_t flags, time_t mtime, void
 	if (!strcmp(ext, ".gz") || !strcmp(ext, ".xz"))
 		ext = COM_GetFileExtension (name+5, ext);	//.gz files should be listed too.
 
-	if (!strcmp(ext, ".bsp") || !Q_strcasecmp(ext, ".d3dbsp"))
+	if (!strcmp(ext, ".bsp") || !Q_strcasecmp(ext, ".d3dbsp") || !Q_strcasecmp(ext, ".cm"))
 	{
 		ext = "";	//hide it
 		cmd = stripped;	//omit it, might as well. should give less confusing mapname serverinfo etc.
@@ -446,10 +446,6 @@ static int QDECL ShowMapList (const char *name, qofs_t flags, time_t mtime, void
 		;	//cod2 compat. vile.
 #ifdef TERRAIN
 	else if (!Q_strcasecmp(ext, ".map") || !Q_strcasecmp(ext, ".map.gz") || !Q_strcasecmp(ext, ".hmp"))
-		;
-#endif
-#ifdef MAP_PROC
-	else if (!Q_strcasecmp(ext, ".cm"))
 		;
 #endif
 	else if (!Q_strcasecmp(ext, ".ent") && strchr(name+5, '#'))

@@ -781,6 +781,7 @@ SET(FTE_COMMON_FILES
 	engine/client/pr_skelobj.c
 	engine/client/m_download.c
 	engine/client/net_master.c
+	engine/client/r_d3.c
 	
 	#these are here because of hitmodel etc
 	engine/gl/gl_heightmap.c

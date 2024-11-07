@@ -3256,10 +3256,6 @@ void Surf_DrawWorld (void)
 		}
 		else if (currentmodel->type != mod_brush)
 			entvis = surfvis = NULL;
-#ifdef MAP_PROC
-		else if (currentmodel->fromgame == fg_doom3)
-			entvis = surfvis = D3_CalcVis(currentmodel, r_origin);
-#endif
 #ifdef MAP_DOOM
 		else if (currentmodel->fromgame == fg_doom)
 		{

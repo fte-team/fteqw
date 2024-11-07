@@ -398,8 +398,6 @@ void R_DoomWorld();
 #endif
 #ifdef MAP_PROC
 qboolean QDECL D3_LoadMap_CollisionMap(model_t *mod, void *buf, size_t bufsize);
-unsigned char *D3_CalcVis(model_t *mod, vec3_t org);
-void D3_GenerateAreas(model_t *mod);
 #endif
 
 //gl_bloom.c

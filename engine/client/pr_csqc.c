@@ -7714,7 +7714,10 @@ void CSQC_Shutdown(void)
 		csqc_world.progs = csqcprogs = NULL;
 	}
 	else
+	{
+		PR_Route_Shutdown (&csqc_world);
 		World_Destroy(&csqc_world);
+	}
 
 	Cmd_RemoveCommands(CS_ConsoleCommand_f);
 

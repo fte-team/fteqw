@@ -5970,6 +5970,7 @@ static void COM_Version_f (void)
 	#endif
 #endif
 
+#if defined(HAVE_SERVER) || defined(HAVE_CLIENT)
 	Con_Printf("^3Games:^7");
 #if defined(Q3SERVER) && defined(Q3CLIENT)
 	#ifdef BOTLIB_STATIC
@@ -6030,6 +6031,7 @@ static void COM_Version_f (void)
 	Con_Printf(" ssqc");
 #endif
 	Con_Printf("\n");
+#endif
 
 	Con_Printf("^3Networking:^7");
 #ifdef WEBCLIENT
@@ -6043,14 +6045,16 @@ static void COM_Version_f (void)
 #endif
 #if (defined(SUPPORT_ICE)&&defined(HAVE_DTLS)) || defined(FTE_TARGET_WEB)
 	Con_Printf(" WebRTC");
+#elif defined(SUPPORT_ICE)
+	Con_Printf(" ICE");
 #endif
 #ifdef FTE_TARGET_WEB
 	Con_Printf(" WebSocket/WSS");
 #else
 	#if defined(HAVE_TCP)
-	#ifdef TCPCONNECT
-		Con_Printf(" TCPConnect");
-	#endif
+		#ifdef TCPCONNECT
+			Con_Printf(" TCPConnect");
+		#endif
 	#else
 		Con_Printf(" ^h(disabled: TCP)");
 	#endif
@@ -6060,9 +6064,6 @@ static void COM_Version_f (void)
 #endif
 #ifdef HAVE_WINSSPI            //on windows
 	Con_Printf(" WINSSPI");
-#endif
-#ifdef SUPPORT_ICE
-	Con_Printf(" ICE");
 #endif
 	Con_Printf("\n");
 }

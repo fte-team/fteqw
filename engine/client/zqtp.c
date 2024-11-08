@@ -1788,7 +1788,10 @@ static void TP_LoadLocFile_f (void)
 
 	TP_LoadLocFile (Cmd_Argv(1), false);
 }
-
+qboolean TP_HaveLocations(void)
+{
+	return loc_numentries>0;
+}
 char *TP_LocationName (const vec3_t location)
 {
 	int		i, j, minnum;

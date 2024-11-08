@@ -2210,6 +2210,11 @@ static void Shader_LoadGeneric(sgeneric_t *g, int qrtype)
 	if (strchr(basicname, '/') || strchr(basicname, '.'))
 	{	//explicit path
 		FS_LoadFile(basicname, &file);
+		if (!file)
+		{	//well that failed. try fixing up the extension in case they omitted that.
+			Q_snprintfz(blobname, sizeof(blobname), COM_SkipPath(sh_config.progpath), basicname);
+			FS_LoadFile(blobname, &file);
+		}
 		*blobname = 0;
 	}
 	else if (ruleset_allow_shaders.ival)

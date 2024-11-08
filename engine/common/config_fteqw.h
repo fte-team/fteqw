@@ -21,6 +21,7 @@
 //#define GAME_DOWNLOADSURL		NULL			//url for the package manger to update from
 //#define GAME_DEFAULTCMDS		NULL			//a string containing the things you want to exec in order to override default.cfg 
 
+//#define ENGINE_HAS_ZIP	//when defined, the engine is effectively a self-extrating zip with the gamedata zipped onto the end (if it in turn contains nested packages then they should probably be STOREd pk3s)
 
 // Allowed renderers... There should ONLY be undefs here (other C files won't be pulled in automatically)
 //#undef GLQUAKE

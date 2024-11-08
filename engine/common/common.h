@@ -201,11 +201,11 @@ typedef enum {
 } sbpacking_t;
 typedef struct sizebuf_s
 {
-	qboolean	allowoverflow;	// if false, do a Sys_Error
-	qboolean	overflowed;		// set to true if the buffer size failed
 	qbyte		*data;
 	int			maxsize;	//storage size of data
 	int			cursize;	//assigned size of data
+	qboolean	allowoverflow;	// if false, do a Sys_Error
+	qboolean	overflowed;		// set to true if the buffer size failed
 	sbpacking_t	packing;	//required for q3
 	int			currentbit; //ignored for rawbytes
 

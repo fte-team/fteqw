@@ -416,8 +416,7 @@ void Netchan_Setup (unsigned int flags, netchan_t *chan, netadr_t *adr, int qpor
 #endif
 	chan->incoming_unreliable = -1;
 
-	if (flags&NCF_CLIENT)
-		chan->outgoing_sequence = 1;	//so the first one doesn't get dropped.
+	chan->outgoing_sequence = 1;	//so the first one doesn't get dropped.
 
 	if (adr->prot == NP_KEXLAN)
 		chan->qportsize = 0;
@@ -472,7 +471,11 @@ void Netchan_Setup (unsigned int flags, netchan_t *chan, netadr_t *adr, int qpor
 
 	chan->message.data = chan->message_buf;
 	chan->message.allowoverflow = true;
-	chan->message.maxsize = min(chan->mtu_cur, sizeof(chan->message_buf));
+
+	if ((flags&NCF_FRAGABLE) && NET_AddrIsReliable(adr))
+		chan->message.maxsize = sizeof(chan->message_buf);	//something big. might as well if its all tcp anyway.
+	else
+		chan->message.maxsize = min(chan->mtu_cur, sizeof(chan->message_buf));
 }
 
 

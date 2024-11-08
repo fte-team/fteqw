@@ -2965,7 +2965,7 @@ static void MasterInfo_Request(master_t *mast)
 			break;
 #endif
 		case MP_QUAKEWORLD:
-			NET_SendPollPacket (14, va("%c%c%c%cstatus 23\n", 255, 255, 255, 255), mast->adr);
+			NET_SendPollPacket (14, va("%c%c%c%cstatus %i\n", 255, 255, 255, 255, STATUS_QTVLIST|STATUS_SHOWTEAMS|STATUS_SPECTATORS|STATUS_PLAYERS|STATUS_SERVERINFO), mast->adr);
 			break;
 #ifdef NQPROT
 		case MP_NETQUAKE:
@@ -3151,7 +3151,7 @@ void Master_QueryServer(serverinfo_t *server)
 		return;
 #endif
 	case SS_QUAKEWORLD:
-		Q_snprintfz(data, sizeof(data), "%c%c%c%cstatus 23\n", 255, 255, 255, 255);
+		Q_snprintfz(data, sizeof(data), "%c%c%c%cstatus %i\n", 255, 255, 255, 255, STATUS_QTVLIST|STATUS_SHOWTEAMS|STATUS_SPECTATORS|STATUS_PLAYERS|STATUS_SERVERINFO);
 		break;
 	case SS_QUAKE2:
 		Q_snprintfz(data, sizeof(data), "%c%c%c%cstatus\n", 255, 255, 255, 255);
@@ -3577,12 +3577,34 @@ static int CL_ReadServerInfo(char *msg, enum masterprotocol_e prototype, qboolea
 		{
 			int clnum;
 
-			for (clnum=0; clnum < MAX_CLIENTS; clnum++)
+			for (clnum=0; ; clnum++)
 			{
 				nl = strchr(msg, '\n');
 				if (!nl)
 					break;
 				*nl = '\0';
+
+				if (!strncmp(msg, "qtv ", 4))
+				{	//qtv destnum "proxyname" "stream@host:port" viewercount
+					char proxstream[128];
+					char tokval[256];
+					token = msg+4;
+
+					token = COM_ParseOut(token, tokval,sizeof(tokval));
+					//destnum = atoi(tokval);
+					token = COM_ParseOut(token, tokval,sizeof(tokval));
+					//proxy name...
+					token = COM_ParseOut(token, proxstream,sizeof(proxstream));
+					token = COM_ParseOut(token, tokval,sizeof(tokval));
+					//viewercount = atoi(tokval);
+
+					if (*proxstream)
+						Info_SetValueForKey(details.info, "qtvstream", proxstream, sizeof(details.info));
+					continue;
+				}
+
+				if (clnum == MAX_CLIENTS)
+					break;
 
 				details.players[clnum].isspec = 0;
 				details.players[clnum].team[0] = 0;

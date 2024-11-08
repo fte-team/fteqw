@@ -33,6 +33,11 @@ static cvar_t scr_scoreboard_drawtitle = CVARD("scr_scoreboard_drawtitle", "1", 
 static cvar_t scr_scoreboard_forcecolors = CVARD("scr_scoreboard_forcecolors", "0", "Makes the scoreboard colours obey enemycolor/teamcolor rules.");	//damn americans
 static cvar_t scr_scoreboard_newstyle = CVARD("scr_scoreboard_newstyle", "1", "Display team colours and stuff in a style popularised by Electro. Looks more modern, but might not quite fit classic huds.");	// New scoreboard style ported from Electro, by Molgrum
 static cvar_t scr_scoreboard_showfrags = CVARD("scr_scoreboard_showfrags", "0", "Display kills+deaths+teamkills, as determined by fragfile.dat-based conprint parsing. These may be inaccurate if you join mid-game.");
+#ifdef QUAKESTATS
+static cvar_t scr_scoreboard_showlocation = CVARD("scr_scoreboard_showlocation", "1", "Display player location names when playing mvd/qtv streams, if available.");
+static cvar_t scr_scoreboard_showhealth = CVARD("scr_scoreboard_showhealth", "3", "Display health information when playing mvd/qtv streams.\n0: off\n1: on\n2: show armour too. 3: combined health ('+' says more armour than health allows).");
+static cvar_t scr_scoreboard_showweapon = CVARD("scr_scoreboard_showweapon", "1", "Display weapon information when playing mvd/qtv streams.");
+#endif
 static cvar_t scr_scoreboard_showflags = CVARD("scr_scoreboard_showflags", "2", "Display flag caps+touches on the scoreboard, where our fragfile.dat supports them.\n0: off\n1: on\n2: on only if someone appears to have interacted with a flag.");
 static cvar_t scr_scoreboard_fillalpha = CVARD("scr_scoreboard_fillalpha", "0.7", "Transparency amount for newstyle scoreboard.");
 static cvar_t scr_scoreboard_backgroundalpha = CVARD("scr_scoreboard_backgroundalpha", "0.5", "Further multiplier for the background alphas.");
@@ -1178,6 +1183,11 @@ void Sbar_Init (void)
 	Cvar_Register(&scr_scoreboard_forcecolors, "Scoreboard settings");
 	Cvar_Register(&scr_scoreboard_newstyle, "Scoreboard settings");
 	Cvar_Register(&scr_scoreboard_showfrags, "Scoreboard settings");
+#ifdef QUAKESTATS
+	Cvar_Register(&scr_scoreboard_showlocation, "Scoreboard settings");
+	Cvar_Register(&scr_scoreboard_showhealth, "Scoreboard settings");
+	Cvar_Register(&scr_scoreboard_showweapon, "Scoreboard settings");
+#endif
 	Cvar_Register(&scr_scoreboard_showflags, "Scoreboard settings");
 	Cvar_Register(&scr_scoreboard_showruleset, "Scoreboard settings");
 	Cvar_Register(&scr_scoreboard_afk, "Scoreboard settings");
@@ -3619,6 +3629,12 @@ ping time frags name
 		code															\
 	}																	\
 }, fill)
+#define COLUMN_STAT2(title, width, code, fill) COLUMN(title, width, {	\
+	if (!s->spectator)													\
+	{																	\
+		code															\
+	}																	\
+}, fill)
 #define COLUMN_RULESET COLUMN(ruleset, 8*8,	{Draw_FunStringWidth(x, y, s->ruleset, 8*8+4, false, false);},NOFILL)
 #define COLUMN_NAME COLUMN(name, namesize,	{Draw_FunStringWidth(x, y, s->name, namesize, false, highlight);},NOFILL)
 #define COLUMN_KILLS COLUMN_STAT(kils, 4*8, {Draw_FunStringWidth(x, y, va("%4i", Stats_GetKills(k)), 4*8+4, false, false);},NOFILL)
@@ -3626,11 +3642,46 @@ ping time frags name
 #define COLUMN_DEATHS COLUMN_STAT(dths, 4*8, {Draw_FunStringWidth(x, y, va("%4i", Stats_GetDeaths(k)), 4*8+4, false, false);},NOFILL)
 #define COLUMN_TOUCHES COLUMN_STAT(tchs, 4*8, {Draw_FunStringWidth(x, y, va("%4i", Stats_GetTouches(k)), 4*8+4, false, false);},NOFILL)
 #define COLUMN_CAPS COLUMN_STAT(caps, 4*8, {Draw_FunStringWidth(x, y, va("%4i", Stats_GetCaptures(k)), 4*8+4, false, false);},NOFILL)
+#ifdef QUAKESTATS
+	#define COLUMN_HEALTH COLUMN_STAT2(hlth, (scr_scoreboard_showhealth.ival==2)?7*8:4*8, {	\
+		float t;int c;	\
+		int a = cl.players[k].stats[STAT_ARMOR];		\
+		int h = cl.players[k].stats[STAT_HEALTH];	\
+		if		(cl.players[k].stats[STAT_ITEMS] & IT_ARMOR3)	{c='1';t = 0.8f;}\
+		else if (cl.players[k].stats[STAT_ITEMS] & IT_ARMOR2)	{c='3';t = 0.6f;}\
+		else if (cl.players[k].stats[STAT_ITEMS] & IT_ARMOR1)	{c='2';t = 0.3f;}\
+		else													{c='7';t = 0.f ;}\
+		if (h <= 0)  /*draw nothing*/  ;	\
+		else if (scr_scoreboard_showhealth.ival==3&&a>0)	{	int m = h/(1-t);	Draw_FunStringWidth(x, y, va(a>m?"^%c%+4i":"^%c%4i", c,h + bound(0, m, a)), 4*8+4, false, false); }	\
+		else if (scr_scoreboard_showhealth.ival==2)									Draw_FunStringWidth(x, y, (a>0)?va("^%c%3i^7/%-3i", c,a,h):va("---/%-3i", h), 7*8+4, false, false);	\
+		else																		Draw_FunStringWidth(x, y, va("%4i", h), 4*8+4, false, false);	\
+	},NOFILL)
+	#define COLUMN_BESTWEAPON COLUMN_STAT2(wep, 4*8, {	\
+		Draw_FunStringWidth(x, y, va("%s%s%s",		\
+			(cl.players[k].stats[STAT_ITEMS] & IT_LIGHTNING)?"^5L":" ",	\
+			(cl.players[k].stats[STAT_ITEMS] & IT_ROCKET_LAUNCHER)?"^1R":" ",	\
+			(cl.players[k].stats[STAT_ITEMS] & IT_GRENADE_LAUNCHER)?"^2G":" "	\
+		), 4*8+4, false, false);		\
+	},NOFILL)
+	#define COLUMN_LOCATION COLUMN_STAT2(loc, 8*8, {	\
+		lerpents_t *le;	\
+		const char *loc;	\
+		if (k+1 < cl.maxlerpents && cl.lerpentssequence && cl.lerpents[k+1].sequence == cl.lerpentssequence)	le = &cl.lerpents[k+1];	\
+		else if (cl.lerpentssequence && cl.lerpplayers[k].sequence == cl.lerpentssequence)						le = &cl.lerpplayers[k];\
+		else	le = NULL;\
+		loc = le?TP_LocationName(le->origin):"";	\
+		Draw_FunStringWidth(x, y, loc, 8*8+4, false, false);	\
+	},NOFILL)
+#else
+	#define COLUMN_HEALTH
+	#define COLUMN_BESTWEAPON
+	#define COLUMN_LOCATION
+#endif
 #define COLUMN_AFK COLUMN(afk, 0, {int cs = atoi(InfoBuf_ValueForKey(&s->userinfo, "chat")); if (cs)Draw_FunStringWidth(x+4, y, (cs&2)?"afk":"msg", 4*8, false, false);},NOFILL)
 
 
 //columns are listed here in display order
-#define ALLCOLUMNS COLUMN_PING COLUMN_PL COLUMN_TIME COLUMN_RULESET COLUMN_FRAGS COLUMN_TEAMNAME COLUMN_NAME COLUMN_KILLS COLUMN_TKILLS COLUMN_DEATHS COLUMN_TOUCHES COLUMN_CAPS COLUMN_AFK
+#define ALLCOLUMNS COLUMN_PING COLUMN_PL COLUMN_TIME COLUMN_RULESET COLUMN_FRAGS COLUMN_TEAMNAME COLUMN_NAME COLUMN_HEALTH COLUMN_BESTWEAPON COLUMN_LOCATION COLUMN_KILLS COLUMN_TKILLS COLUMN_DEATHS COLUMN_TOUCHES COLUMN_CAPS COLUMN_AFK
 
 enum
 {
@@ -3768,6 +3819,20 @@ void Sbar_DeathmatchOverlay (playerview_t *pv, int start)
 			COLUMN_TKILLS
 		}
 	}
+#ifdef QUAKESTATS
+	if (scr_scoreboard_showhealth.ival && cls.demoplayback==DPB_MVD)
+	{
+		COLUMN_HEALTH
+	}
+	if (scr_scoreboard_showweapon.ival && cls.demoplayback==DPB_MVD)
+	{
+		COLUMN_BESTWEAPON
+	}
+	if (scr_scoreboard_showlocation.ival && cls.demoplayback==DPB_MVD && TP_HaveLocations())
+	{
+		COLUMN_LOCATION
+	}
+#endif
 	if (scr_scoreboard_showflags.ival && cl.teamplay && Stats_HaveFlags(scr_scoreboard_showflags.ival&1))
 	{
 		COLUMN_TOUCHES

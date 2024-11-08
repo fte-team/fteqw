@@ -1087,6 +1087,7 @@ extern	cvar_t	sv_mintic, sv_maxtic, sv_limittics;
 extern	cvar_t	sv_maxspeed;
 extern	cvar_t	sv_antilag;
 extern	cvar_t	sv_antilag_frac;
+extern	cvar_t	sv_nqplayerphysics;
 
 void SV_Master_ReResolve(void);
 void SV_Master_Shutdown(void);

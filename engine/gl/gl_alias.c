@@ -1453,7 +1453,7 @@ qboolean R_CalcModelLighting(entity_t *e, model_t *clmodel)
 //		VectorMA(vec3_origin, 0.5, shadelight, ambientlight);
 //		VectorCopy(ambientlight, shadelight);
 
-		if (!r_vertexdlights.ival && r_dynamic.ival > 0)
+		if (!r_vertexdlights.ival && r_dlightlightmaps)
 		{
 			float *org = e->origin;
 			if (e->flags & RF_WEAPONMODEL)
@@ -1500,7 +1500,7 @@ qboolean R_CalcModelLighting(entity_t *e, model_t *clmodel)
 	}
 	else
 	{
-		if (!r_vertexdlights.ival && r_dynamic.ival > 0)
+		if (!r_vertexdlights.ival && r_dlightlightmaps)
 		{
 			float *org = e->origin;
 			if (e->flags & RF_WEAPONMODEL)

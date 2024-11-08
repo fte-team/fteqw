@@ -688,6 +688,7 @@ extern	cvar_t	r_lavastyle;
 extern	cvar_t	r_slimestyle;
 extern	cvar_t	r_telestyle;
 extern	cvar_t	r_dynamic;
+extern qboolean r_dlightlightmaps;
 extern	cvar_t	r_temporalscenecache;
 extern	cvar_t	r_novis;
 extern	cvar_t	r_netgraph;

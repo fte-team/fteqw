@@ -3596,8 +3596,8 @@ static void Mod_LoadMiptex(model_t *loadmodel, texture_t *tx, miptex_t *mt, int 
 			 mt->offsets[3] == mt->offsets[2]+(mt->width>>2)*(mt->height>>2))
 	{
 		extofs = mt->offsets[3]+(mt->width>>3)*(mt->height>>3);
-		if (loadmodel->fromgame == fg_halflife && *(short*)(ptr + mt->offsets[3] + (mt->width>>3)*(mt->height>>3)) == 256)
-		{
+		if (extofs + 2+256*3 <= miptexsize && *(short*)(ptr + extofs) == 256)
+		{	//space for a halflife paletted texture, with the right signature (note: usually padded).
 			pal = ptr + extofs+2;
 			extofs += 2+256*3;
 		}
@@ -4313,6 +4313,59 @@ static qboolean Mod_LoadFaces (model_t *loadmodel, bspx_header_t *bspx, qbyte *m
 //	*meshlist = ZG_Malloc(&loadmodel->memgroup, count*sizeof(**meshlist));
 	loadmodel->surfaces = out;
 	loadmodel->numsurfaces = count;
+
+	//dodgy guesses time...
+	if (loadmodel->fromgame == fg_quake //some halflife maps are misidentified as quake...
+		&& loadmodel->submodels[0].headnode[3] /*these do have crouch hulls. this'll save a LOT of modulo expense*/
+		&& subbsp == sb_none/*don't bother with bsp2... maybe halflife will get a remaster that uses/supports it?*/
+		&& ins && count /*yeah... just in case*/
+		&& !overrides.shifts /*would break expectations. fix your maps.*/
+		&& lightlump->filelen%3==0	/*hlbsp has rgb lighting so MUST be a multiple of 3*/
+		)
+	{
+		for (surfnum=0; surfnum<count; surfnum++)
+		{
+			lofs = LittleLong(ins[surfnum].lightofs);
+			if (lofs%3)
+				break;	//not a byte offset within rgb data
+			if (lofs != (unsigned int)-1 && ins[surfnum].styles[0]!=255)
+			{
+				//count styles
+				for (i = 0; i < countof(ins[surfnum].styles); i++)
+					if (ins[surfnum].styles[i] == 255)
+						break;
+				if (!i)
+					continue;	//no lightmap data here...
+
+				tn = LittleShort (ins->texinfo);
+				if (tn < 0 || tn >= loadmodel->numtexinfo)
+					break;
+				out->texinfo = loadmodel->texinfo + tn;
+				out->firstedge = LittleLong(ins->firstedge);
+				out->numedges = LittleShort(ins->numedges);
+				out->lmshift = lmshift;
+				CalcSurfaceExtents (loadmodel, out);
+				i *= (out->extents[0]>>out->lmshift)+1;	//width
+				i *= (out->extents[1]>>out->lmshift)+1;	//height
+				i *= 3; //for rgb
+				//'i' is now the size of our lightmap data, in bytes. phew.
+				lend = lofs + i;
+
+				//we now have a reference surface.
+				for (surfnum++; surfnum<count; surfnum++)
+				{
+					unsigned int checklofs = LittleLong(ins[surfnum].lightofs);
+					if (checklofs%3)
+						break;	//can't be hl
+					if (checklofs > lofs && checklofs < lend)
+						break;	//started before reference surf ended... reference surface can't have been using RGB lighting. so not a mislabled hlbsp.
+				}
+				break;
+			}
+		}
+		if (surfnum==count)
+			loadmodel->fromgame = fg_halflife;
+	}
 
 	Mod_LoadVertexNormals(loadmodel, bspx, mod_base, NULL);
 	Mod_LoadLighting (loadmodel, bspx, mod_base, lightlump, false, &overrides, subbsp);

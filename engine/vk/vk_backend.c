@@ -6122,23 +6122,11 @@ qboolean VKBE_BeginShadowmap(qboolean isspot, uint32_t width, uint32_t height)
 
 	sbuf = shad->seq++%countof(shad->buf);
 	shaderstate.currentshadowmap = &shad->buf[sbuf].qimage;
-/*
-	{
-		VkImageMemoryBarrier imgbarrier = {VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER};
-		imgbarrier.srcAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
-		imgbarrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
-		imgbarrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;	//we don't actually care because we'll be clearing it anyway, making this more of a no-op than anything else.
-		imgbarrier.newLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
-		imgbarrier.image = shad->buf[sbuf].vimage.image;
-		imgbarrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
-		imgbarrier.subresourceRange.baseMipLevel = 0;
-		imgbarrier.subresourceRange.levelCount = 1;
-		imgbarrier.subresourceRange.baseArrayLayer = sbuf;
-		imgbarrier.subresourceRange.layerCount = 1;
-		imgbarrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-		imgbarrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-		vkCmdPipelineBarrier(vk.rendertarg->cbuf, VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT|VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0, 0, NULL, 0, NULL, 1, &imgbarrier);
-	}
+
+/*	set_image_layout(vk.rendertarg->cbuf, shaderstate.currentshadowmap->vkimage->image, VK_IMAGE_ASPECT_DEPTH_BIT,
+		shaderstate.currentshadowmap->vkimage->layout,		VK_ACCESS_SHADER_READ_BIT,						VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+		VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,	VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT,	VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT|VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT);
+	shaderstate.currentshadowmap->vkimage->layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
 */
 	{
 		VkClearValue clearval;
@@ -6155,7 +6143,7 @@ qboolean VKBE_BeginShadowmap(qboolean isspot, uint32_t width, uint32_t height)
 		rpass.pClearValues = &clearval;
 		vkCmdBeginRenderPass(vk.rendertarg->cbuf, &rpass, VK_SUBPASS_CONTENTS_INLINE);
 	}
-	shaderstate.currentshadowmap->vkimage->layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+	shaderstate.currentshadowmap->vkimage->layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;	//renderpass should transition it for us.
 
 	//viewport+scissor will be done elsewhere
 	//that wasn't too painful, was it?...
@@ -6183,26 +6171,10 @@ void VKBE_DoneShadows(void)
 	}
 	else*/
 	{
-		/*
-		set_image_layout(vk.frame->cbuf, shad->image, VK_IMAGE_ASPECT_DEPTH_BIT, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL, VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT, VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL, VK_ACCESS_SHADER_READ_BIT);
-
-		{
-			VkImageMemoryBarrier imgbarrier = {VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER};
-			imgbarrier.srcAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
-			imgbarrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
-			imgbarrier.oldLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
-			imgbarrier.newLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL;
-			imgbarrier.image = image;
-			imgbarrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
-			imgbarrier.subresourceRange.baseMipLevel = 0;
-			imgbarrier.subresourceRange.levelCount = 1;
-			imgbarrier.subresourceRange.baseArrayLayer = 0;
-			imgbarrier.subresourceRange.layerCount = 1;
-			imgbarrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-			imgbarrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-			vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, 0, 0, NULL, 0, NULL, 1, &imgbarrier);
-		}
-		*/
+		set_image_layout(vk.rendertarg->cbuf, shaderstate.currentshadowmap->vkimage->image, VK_IMAGE_ASPECT_DEPTH_BIT,
+			shaderstate.currentshadowmap->vkimage->layout, VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT, VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT|VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT,
+			VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_ACCESS_SHADER_READ_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT);
+		shaderstate.currentshadowmap->vkimage->layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 
 		vkCmdBeginRenderPass(vk.rendertarg->cbuf, &vk.rendertarg->restartinfo, VK_SUBPASS_CONTENTS_INLINE);
 
@@ -6214,7 +6186,6 @@ void VKBE_DoneShadows(void)
 		viewport.maxDepth = 1;
 		vkCmdSetViewport(vk.rendertarg->cbuf, 0, 1, &viewport);
 	}
-	shaderstate.currentshadowmap->vkimage->layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 
 	VKBE_SelectEntity(&r_worldentity);
 }

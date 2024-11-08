@@ -2003,7 +2003,10 @@ void SCR_DrawFPS (void)
 		fps_count = 0;
 		lastupdatetime = t;
 
-		R_GetGPUUtilisation(&gpu, &gpumem);	//not all that accurate, but oh well.
+		if (developer.ival)
+			R_GetGPUUtilisation(&gpu, &gpumem);	//not all that accurate, but oh well.
+		else
+			gpu=gpumem=-1;
 	}
 	frametime = t - lastsystemtime;
 	lastsystemtime = t;

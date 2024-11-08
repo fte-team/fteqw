@@ -736,8 +736,8 @@ static void CL_SendConnectPacket (netadr_t *to)
 		}
 
 		connectinfo.ext.fte1 &= (PEXT_MODELDBL|PEXT_SOUNDDBL|PEXT_SPLITSCREEN);
-		connectinfo.ext.fte2 = 0;
-		connectinfo.ext.ez1 = 0;
+		connectinfo.ext.fte2 &= PEXT2_STUNAWARE;
+		connectinfo.ext.ez1 &= 0;
 	}
 #endif
 	else
@@ -5553,6 +5553,8 @@ void CL_Status_f(void)
 		}
 		Con_Printf("Server address   : %s\n", NET_AdrToString(adr, sizeof(adr), &cls.netchan.remote_address));	//not relevent as a limit.
 		Con_Printf("Server cert fp   : %s\n", b64);	//not relevent as a limit.
+
+		Con_Printf("Network MTU      : %u (max %u) %s\n", cls.netchan.mtu_cur, cls.netchan.mtu_max, (cls.netchan.flags&NCF_FRAGABLE)?"":" (strict)");	//not relevent as a limit.
 		switch(cls.protocol)
 		{
 		default:
@@ -5715,6 +5717,7 @@ static void CL_UserinfoChanged(void *ctx, const char *keyname)
 
 
 void CL_Skygroup_f(void);
+void WAD_ImageList_f(void);
 /*
 =================
 CL_Init
@@ -6090,6 +6093,7 @@ void CL_Init (void)
 	Cmd_AddCommandD ("waterfog", CL_Fog_f, "waterfog <density> <red> <green> <blue> <alpha> <depthbias>");
 	Cmd_AddCommandD ("skyroomfog", CL_Fog_f, "skyroomfog <density> <red> <green> <blue> <alpha> <depthbias>");
 	Cmd_AddCommandD ("skygroup", CL_Skygroup_f, "Provides a way to associate a skybox name with a series of maps, so that the requested skybox will override on a per-map basis.");
+	Cmd_AddCommandD ("r_imagelist_wad", WAD_ImageList_f, "displays the available wad images.");
 //
 //  Windows commands
 //

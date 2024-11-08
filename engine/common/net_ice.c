@@ -504,7 +504,6 @@ static qboolean TURN_AddXorAddressAttrib(sizebuf_t *buf, unsigned int attr, neta
 		MSG_WriteByte(buf, ((qbyte*)&to->address)[aofs+i] ^ (buf->data+4)[i]);
 	return true;
 }
-void Con_HexDump(qbyte *packet, size_t len, size_t badoffset);
 static qboolean TURN_AddAuth(sizebuf_t *buf, struct iceserver_s *srv)
 {	//adds auth info to a stun packet
 	unsigned short len;

@@ -239,7 +239,7 @@ void Draw_Hexen2BigFontString(int x, int y, const char *text)
 }
 #endif
 
-mpic_t *QBigFontWorks(void)
+void *QBigFontWorks(void)
 {
 	mpic_t *p;
 	int i;
@@ -250,14 +250,15 @@ mpic_t *QBigFontWorks(void)
 		"textures/mcharset.lmp",
 		NULL
 	};
+	if (font_menu)
+		return font_menu;
 	for (i = 0; names[i]; i++)
 	{
 		p = R2D_SafeCachePic (names[i]);
 		if (p && R_GetShaderSizes(p, NULL, NULL, true))
 			return p;
 	}
-
-	return (mpic_t*)font_menu;
+	return NULL;
 }
 void Draw_BigFontString(int x, int y, const char *text)
 {
@@ -598,7 +599,7 @@ static void MenuDrawItems(int xpos, int ypos, menuoption_t *option, emenu_t *men
 			}
 		}
 
-		if (&menu->menu == topmenu && menu->mouseitem == option && option->common.type != mt_frameend)
+		if (&menu->menu == topmenu && menu->mouseitem == option && option->common.type != mt_frameend && !Key_Dest_Has_Higher(kdm_menu))
 		{
 			float alphamax = 0.5, alphamin = 0.2;
 			R2D_ImageColours(.5,.4,0,(sin(realtime*2)+1)*0.5*(alphamax-alphamin)+alphamin);
@@ -608,12 +609,16 @@ static void MenuDrawItems(int xpos, int ypos, menuoption_t *option, emenu_t *men
 		switch(option->common.type)
 		{
 		case mt_menucursor:
+			if (Key_Dest_Has_Higher(kdm_menu))
+				break;
 			if ((int)(realtime*4)&1)
 				Draw_FunString(xpos+option->common.posx, ypos+option->common.posy, "^Ue00d");
 			break;
 		case mt_text:
 			if (!option->text.text)
 			{	//blinking cursor image hack (FIXME)
+				if (Key_Dest_Has_Higher(kdm_menu))
+					break;
 				if ((int)(realtime*4)&1)
 					Draw_FunString(xpos+option->common.posx, ypos+option->common.posy, "^Ue00d");
 			}
@@ -636,16 +641,18 @@ static void MenuDrawItems(int xpos, int ypos, menuoption_t *option, emenu_t *men
 			Draw_BigFontString(xpos+option->common.posx, ypos+option->common.posy, option->button.text);
 			break;
 		case mt_menudot:
+			if (Key_Dest_Has_Higher(kdm_menu))
+				break;
 			i = (int)(realtime * 10)%maxdots;
 			p = R2D_SafeCachePic(va(menudotstyle, i+mindot ));
-			if (R_GetShaderSizes(p, NULL, NULL, false)>0)
-				R2D_ScalePic(xpos+option->common.posx, ypos+option->common.posy+dotofs, option->common.width, option->common.height, p);
+			if (R_GetShaderSizes(p, &pw, &ph, false)>0)
+				R2D_ScalePic(xpos+option->common.posx, ypos+option->common.posy+dotofs, (pw/(float)ph)*option->common.width, option->common.height, p);
 			else if ((int)(realtime*4)&1)
 				Draw_FunString(xpos+option->common.posx, ypos+option->common.posy + (option->common.height-8)/2, "^a^Ue00d");
 			break;
 		case mt_picturesel:
 			p = NULL;
-			if (menu->selecteditem && menu->selecteditem->common.posx == option->common.posx && menu->selecteditem->common.posy == option->common.posy)
+			if (menu->selecteditem && menu->selecteditem->common.posx == option->common.posx && menu->selecteditem->common.posy == option->common.posy && !Key_Dest_Has_Higher(kdm_menu))
 			{
 				char selname[MAX_QPATH];
 				Q_strncpyz(selname, option->picture.picturename, sizeof(selname));
@@ -816,7 +823,7 @@ static void MenuDrawItems(int xpos, int ypos, menuoption_t *option, emenu_t *men
 					Draw_ApproxTextBox(x, y, 16*8, 8);
 				Draw_FunString(x, y, option->edit.text);
 
-				if (menu->selecteditem == option && (int)(realtime*4) & 1)
+				if (menu->selecteditem == option && (int)(realtime*4) & 1 && !Key_Dest_Has_Higher(kdm_menu))
 				{
 					vid.ime_allow = true;
 					vid.ime_position[0] = x;
@@ -904,7 +911,7 @@ static void MenuDraw(emenu_t *menu)
 		menu->menu.showosk = false;
 	MenuDrawItems(menu->xpos, menu->ypos, menu->options, menu);
 	// draw tooltip
-	if (menu->mouseitem && menu->tooltip && realtime > menu->tooltiptime)
+	if (menu->mouseitem && menu->tooltip && realtime > menu->tooltiptime && !Key_Dest_Has_Higher(kdm_menu))
 	{
 //		menuoption_t *option = menu->mouseitem;
 

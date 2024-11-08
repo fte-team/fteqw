@@ -36,6 +36,7 @@ int webo_blocklightmapupdates;	//0 no webo, &1=using threadedworld, &2=already u
 #ifdef BEF_PUSHDEPTH
 qboolean r_pushdepth;
 #endif
+qboolean r_dlightlightmaps; //updated each frame, says whether to do lightmap hack dlights.
 
 extern cvar_t		r_ambient;
 
@@ -2314,7 +2315,7 @@ void Surf_GenBrushBatches(batch_t **batches, entity_t *ent)
 
 		currententity = ent;
 		currentmodel = ent->model;
-		if (model->nummodelsurfaces != 0 && r_dynamic.ival > 0)
+		if (model->nummodelsurfaces != 0 && r_dlightlightmaps && model->funcs.MarkLights)
 		{
 			for (k=rtlights_first; k<RTL_FIRST; k++)
 			{
@@ -2999,7 +3000,7 @@ void Surf_DrawWorld (void)
 	currentmodel = cl.worldmodel;
 	currententity = &r_worldentity;
 
-	r_dynamic.ival = r_dynamic.value;
+	r_dlightlightmaps = !!r_dynamic.ival;
 
 	{
 #ifdef THREADEDWORLD
@@ -3026,8 +3027,8 @@ void Surf_DrawWorld (void)
 		{
 			r_dynamic.modified = false;
 			r_temporalscenecache.modified = false;
-#ifdef RTLIGHT
-			Sh_CheckSettings(); //fiddle with r_dynamic vs r_shadow_realtime_dlight.
+#ifdef RTLIGHTS
+//			Sh_CheckSettings(); //fiddle with r_dynamic vs r_shadow_realtime_dlight.
 #endif
 			COM_WorkerPartialSync(webogenerating, &webogeneratingstate, true);
 			while (webostates)
@@ -3219,7 +3220,7 @@ void Surf_DrawWorld (void)
 				if (webostate->cluster[0] == r_viewcluster && webostate->cluster[1] == r_viewcluster2)
 					VectorCopy(r_refdef.vieworg, webostate->lastpos);
 
-				r_dynamic.ival = -1;	//don't waste time on dlighting models.
+				r_dlightlightmaps = false;	//don't waste time on dlighting bmodels.
 
 				RSpeedEnd(RSPEED_WORLDNODE);
 
@@ -3242,9 +3243,9 @@ void Surf_DrawWorld (void)
 		}
 #endif
 
-#ifdef RTLIGHT
+#ifdef RTLIGHTS
 		if (r_shadow_realtime_dlight.ival || currentmodel->type != mod_brush || !(currentmodel->fromgame == fg_quake || currentmodel->fromgame == fg_halflife) || !currentmodel->funcs.MarkLights)
-			r_dynamic.ival = -1;
+			r_dlightlightmaps = false; //don't do double lighting.
 #endif
 
 		Surf_PushChains(currentmodel->batches);

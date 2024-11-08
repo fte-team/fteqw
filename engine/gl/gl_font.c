@@ -24,7 +24,7 @@
 		fmt=k	-- quake-style raster font with koi8-u codepage (apparently its somewhat common in the quake community)
 		fmt=h	-- halflife-style all-on-one-line raster font
 		aspect=0.5 -- raster font is squished horizontally
-		style	-- list of modifiets for inexact family font matching for system fonts
+		style	-- list of modifiers for inexact family font matching for system fonts
 */
 
 void Font_Init(void);

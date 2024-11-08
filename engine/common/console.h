@@ -251,6 +251,9 @@ char *Con_CopyConsole(console_t *con, qboolean nomarkup, qboolean onlyiflink, qb
 void Con_Print (const char *txt);
 void Con_CenterPrint(const char *txt);
 void Con_PrintFlags(const char *text, unsigned int setflags, unsigned int clearflags);
+#ifdef HAVE_CLIENT
+void Con_HexDump(qbyte *packet, size_t len, size_t badoffset, size_t stride);
+#endif
 void VARGS Con_Printf (const char *fmt, ...) LIKEPRINTF(1);
 void VARGS Con_TPrintf (translation_t text, ...);
 void VARGS Con_DPrintf (const char *fmt, ...) LIKEPRINTF(1);	//developer>=1, for stuff that's probably actually slightly useful

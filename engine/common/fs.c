@@ -66,7 +66,7 @@ static char *vidfilenames[] =	//list of filenames to check to see if graphics st
 /*set some stuff so our regular qw client appears more like hexen2. sv_mintic must be 0.015 to 'fix' the ravenstaff so that its projectiles don't impact upon each other, or even 0.05 to exactly match the hardcoded assumptions in obj_push. There's maps that depend on a low framerate via waterjump framerate-dependance too.*/
 #define HEX2CFG "//schemes hexen2\n" "set v_gammainverted 1\nset com_parseutf8 -1\nset gl_font gfx/hexen2\nset in_builtinkeymap 0\nset_calc cl_playerclass int (random * 5) + 1\nset cl_forwardspeed 200\nset cl_backspeed 200\ncl_sidespeed 225\nset sv_maxspeed 640\ncl_run 0\nset watervis 1\nset r_lavaalpha 1\nset r_lavastyle -2\nset r_wateralpha 0.5\nset sv_pupglow 1\ngl_shaftlight 0.5\nsv_mintic 0.05\nset r_meshpitch -1\nset r_meshroll -1\nr_sprite_backfacing 1\nset mod_warnmodels 0\nset cl_model_bobbing 1\nsv_sound_watersplash \"misc/hith2o.wav\"\nsv_sound_land \"fx/thngland.wav\"\nset sv_walkpitch 0\n"
 /*yay q2!*/
-#define Q2CFG "//schemes quake2\n" "set v_gammainverted 1\nset com_parseutf8 0\ncom_gamedirnativecode 1\nset sv_bigcoords 0\nsv_port "STRINGIFY(PORT_Q2SERVER)" "STRINGIFY(PORT_Q2EXSERVER)"\ncl_defaultport "STRINGIFY(PORT_Q2SERVER)"\n"	\
+#define Q2CFG "//schemes quake2\n" "set com_protocolversion "STRINGIFY(PROTOCOL_VERSION_Q2)"\nset v_gammainverted 1\nset com_parseutf8 0\ncom_gamedirnativecode 1\nset sv_bigcoords 0\nsv_port "STRINGIFY(PORT_Q2SERVER)" "STRINGIFY(PORT_Q2EXSERVER)"\ncl_defaultport "STRINGIFY(PORT_Q2SERVER)"\n"	\
 	"set r_replacemodels " IFMINIMAL("","md3 md5mesh")"\n"	\
 	"set r_glsl_emissive 0\n" /*work around the _glow textures not being meant to glow*/
 /*Q3's ui doesn't like empty model/headmodel/handicap cvars, even if the gamecode copes*/
@@ -1918,6 +1918,51 @@ static void FS_FlushFSHashReally(qboolean domutexes)
 	}
 }
 
+static void QDECL FS_AddFileHashUnsafe(int depth, const char *fname, fsbucket_t *filehandle, void *pathhandle)
+{
+	//threading stuff is fucked.
+	fsbucket_t *old;
+
+	old = Hash_GetInsensitiveBucket(&filesystemhash, fname);
+
+	if (old)
+	{
+		fs_hash_dups++;
+		if (depth >= old->depth)
+		{
+			return;
+		}
+
+		//remove the old version
+		//FIXME: needs to be atomic. just live with multiple in there.
+		//Hash_RemoveBucket(&filesystemhash, fname, &old->buck);
+	}
+
+	if (!filehandle)
+	{
+		int nlen = strlen(fname)+1;
+		int plen = sizeof(*filehandle)+nlen;
+		plen = (plen+fte_alignof(fsbucket_t)-1) & ~(fte_alignof(fsbucket_t)-1);
+		if (!fs_hash_filebuckets || fs_hash_filebuckets->used+plen > fs_hash_filebuckets->total)
+		{
+			void *o = fs_hash_filebuckets;
+			fs_hash_filebuckets = Z_Malloc(65536);
+			fs_hash_filebuckets->total = 65536 - sizeof(*fs_hash_filebuckets);
+			fs_hash_filebuckets->prev = o;
+		}
+		filehandle = (fsbucket_t*)(fs_hash_filebuckets->data+fs_hash_filebuckets->used);
+		fs_hash_filebuckets->used += plen;
+
+		if (!filehandle)
+			return;	//eep!
+		memcpy((char*)(filehandle+1), fname, nlen);
+		fname = (char*)(filehandle+1);
+	}
+	filehandle->depth = depth;
+
+	Hash_AddInsensitive(&filesystemhash, fname, pathhandle, &filehandle->buck);
+	fs_hash_files++;
+}
 static void QDECL FS_AddFileHash(int depth, const char *fname, fsbucket_t *filehandle, void *pathhandle)
 {
 	fsbucket_t *old;
@@ -4255,20 +4300,35 @@ static searchpath_t *FS_AddPathHandle(searchpath_t **oldpaths, const char *purep
 
 	if (flags & (SPF_TEMPORARY|SPF_SERVER))
 	{
+		int depth = 1;
+		searchpath_t *s;
 		//add at end. pureness will reorder if needed.
 		link = &com_searchpaths;
 		while(*link)
 		{
 			link = &(*link)->next;
 		}
+
+		if (com_purepaths)
+		{	//go for the pure paths first.
+			for (s = com_purepaths; s; s = s->nextpure)
+				depth++;
+		}
+		if (fs_puremode < 2)
+		{
+			for (s = com_searchpaths ; s ; s = s->next)
+				depth++;
+		}
 		*link = search;
+		search->handle->BuildHash(search->handle, depth, FS_AddFileHashUnsafe);
 	}
 	else
 	{
 		search->next = com_searchpaths;
 		com_searchpaths = search;
+
+		com_fschanged = true;	//depth values are screwy
 	}
-	com_fschanged = true;
 
 	return search;
 }
@@ -5189,6 +5249,19 @@ static void FS_ReloadPackFilesFlags(unsigned int reloadflags)
 	com_purepaths = NULL;
 	com_base_searchpaths = NULL;
 	gameonly_gamedir = gameonly_homedir = NULL;
+
+#if defined(ENGINE_HAS_ZIP) && defined(PACKAGE_PK3)
+	{
+		searchpathfuncs_t *pak;
+		vfsfile_t *vfs;
+		vfs = VFSOS_Open(com_argv[0], "rb");
+		pak = FSZIP_LoadArchive(vfs, NULL, com_argv[0], com_argv[0], "");
+		if (pak)	//logically should have SPF_EXPLICIT set, but that would give it a worse gamedir depth
+		{
+			FS_AddPathHandle(&oldpaths, "", com_argv[0], pak, "", SPF_COPYPROTECTED, reloadflags);
+		}
+	}
+#endif
 
 #if defined(HAVE_LEGACY) && defined(PACKAGE_PK3)
 	{
@@ -6513,6 +6586,41 @@ static ftemanifest_t *FS_ReadDefaultManifest(char *newbasedir, size_t newbasedir
 		if (man)
 			man->security = MANIFEST_SECURITY_DEFAULT;
 	}
+
+#if defined(ENGINE_HAS_ZIP) && defined(PACKAGE_PK3)
+	if (!man && game == -1)
+	{
+		searchpathfuncs_t *pak;
+		vfsfile_t *vfs;
+		vfs = VFSOS_Open(com_argv[0], "rb");
+		pak = FSZIP_LoadArchive(vfs, NULL, com_argv[0], com_argv[0], "");
+		if (pak)
+		{
+			flocation_t loc;
+			if (pak->FindFile(pak, &loc, "default.fmf", NULL))
+			{
+				f = pak->OpenVFS(pak, &loc, "rb");
+				if (f)
+				{
+					size_t len = VFS_GETLEN(f);
+					char *fdata = BZ_Malloc(len+1);
+					if (fdata)
+					{
+						VFS_READ(f, fdata, len);
+						fdata[len] = 0;
+						man = FS_Manifest_ReadMem(NULL, NULL, fdata);
+						if (man)
+							man->security = MANIFEST_SECURITY_DEFAULT;
+						BZ_Free(fdata);
+					}
+					VFS_CLOSE(f);
+				}
+			}
+			pak->ClosePath(pak);
+		}
+	}
+#endif
+
 
 	//-basepack is primarily an android feature
 	i = COM_CheckParm ("-basepack");

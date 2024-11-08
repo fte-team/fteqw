@@ -1538,7 +1538,7 @@ void SV_SendFixAngle(client_t *client, sizebuf_t *msg, int fixtype, qboolean rol
 
 	if (fixtype == FIXANGLE_AUTO)
 	{
-		if (client->lockanglesseq<controller->netchan.incoming_acknowledged && controller->delta_sequence != -1 && !client->viewent)
+		if (client->lockanglesseq<controller->netchan.incoming_acknowledged && controller->delta_sequence != -1 && !client->viewent && !sv_nqplayerphysics.ival)
 			fixtype = FIXANGLE_DELTA;
 		else
 			fixtype = FIXANGLE_FIXED;

@@ -364,7 +364,7 @@ menucheck_t *MC_AddCheckBox(emenu_t *menu, int tx, int cx, int y, const char *te
 menucheck_t *MC_AddCheckBoxFunc(emenu_t *menu, int tx, int cx, int y, const char *text, qboolean (*func) (menucheck_t *option, emenu_t *menu, chk_set_t set), int bits);
 menubutton_t *MC_AddConsoleCommand(emenu_t *menu, int lhs, int rhs, int y, const char *text, const char *command);
 menubutton_t *MC_AddConsoleCommandQBigFont(emenu_t *menu, int x, int y, const char *text, const char *command);
-mpic_t *QBigFontWorks(void);
+void *QBigFontWorks(void);	//treat as a boolean.
 menubutton_t *MC_AddConsoleCommandHexen2BigFont(emenu_t *menu, int x, int y, const char *text, const char *command);
 menubutton_t *VARGS MC_AddConsoleCommandf(emenu_t *menu, int lhs, int rhs, int y, int rightalign, const char *text, char *command, ...);
 menubutton_t *MC_AddCommand(emenu_t *menu, int lhs, int rhs, int y, const char *text, qboolean (*command) (union menuoption_s *,struct emenu_s *,int));

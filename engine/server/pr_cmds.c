@@ -10842,10 +10842,10 @@ static void QCBUILTIN PF_setpause(pubprogfuncs_t *prinst, struct globalvars_s *p
 	G_FLOAT(OFS_RETURN) = !!(sv.paused&PAUSE_EXPLICIT);
 	if (sv.paused != pause)
 	{
-		if (pause&PAUSE_EXPLICIT)
-			SV_BroadcastTPrintf (PRINT_HIGH, "game paused\n");
-		else
-			SV_BroadcastTPrintf (PRINT_HIGH, "game unpaused\n");
+//		if (pause&PAUSE_EXPLICIT)
+//			SV_BroadcastTPrintf (PRINT_HIGH, "game paused\n");
+//		else
+//			SV_BroadcastTPrintf (PRINT_HIGH, "game unpaused\n");
 
 		sv.paused = pause;
 		sv.pausedstart = Sys_DoubleTime();
@@ -11336,20 +11336,22 @@ static BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 #ifdef QCGC
 	{"findradius_list",	PF_findradius_list,	0,		0,		0,		0,	D("entity*(vector org, float rad, __out int foundcount, int sort=0)", "Finds all entities linked with a bbox within a distance of the 'org' specified, returning the list as a temp-array (world signifies the end). Unlike findradius, sv_gameplayfix_blowupfallenzombies is ignored (use FL_FINDABLE_NONSOLID instead), while sv_gameplayfix_findradiusdistancetobox and dpcompat_findradiusarealinks are force-enabled. The resulting buffer will automatically be cleaned up by the engine and does not need to be freed.")},
 #endif
+
 	//both bprint and sprint accept different arguments in QW vs NQ/H2
 	{"bprint",			PF_bprint,			23,		0,		23,		0,	D("void(string s, optional string s2, optional string s3, optional string s4, optional string s5, optional string s6, optional string s7, optional string s8)", "NQ: Concatenates all arguments, and prints the messsage on the console of all connected clients.")},
-	{"bprint",			PF_bprint,			0,		23,		0,		0,	D("void(float msglvl, string s, optional string s2, optional string s3, optional string s4, optional string s5, optional string s6, optional string s7)", "QW: Concatenates all string arguments, and prints the messsage on the console of only all clients who's 'msg' infokey is set lower or equal to the supplied 'msglvl' argument.")},
 	{"sprint",			PF_sprint,			24,		0,		24,		0,	D("void(entity client, string s, optional string s2, optional string s3, optional string s4, optional string s5, optional string s6, optional string s7)", "NQ: Concatenates all string arguments, and prints the messsage on the named client's console")},
+#ifdef HAVE_LEGACY	//see below
+	{"dprint",			PF_dprint,			25,		0,		25,		0,	D("void(string s, optional string s2, optional string s3, optional string s4, optional string s5, optional string s6, optional string s7, optional string s8)", "NQ: Prints the given message on the server's console, but only if the developer cvar is set. Arguments will be concatenated into a single message.")},
+#endif
 	{"sprint",			PF_sprint,			0,		24,		0,		0,	D("void(entity client, float msglvl, string s, optional string s2, optional string s3, optional string s4, optional string s5, optional string s6)", "QW: Concatenates all string arguments, and prints the messsage on the named client's console, but only if that client's 'msg' infokey is set lower or equal to the supplied 'msglvl' argument.")},
-
-#ifdef HAVE_LEGACY
-	//these have subtly different behaviour, and are implemented using different internal builtins, which is a bit weird in the extensions file. documentation is documentation.
-	{"dprint",			PF_dprint,			25,		0,		25,		0,	D("void(string s, ...)", "NQ: Prints the given message on the server's console, but only if the developer cvar is set. Arguments will be concatenated into a single message.")},
-	{"dprint",			PF_print,			0,		25,		0,		0,	D("void(string s, ...)", "QW: Unconditionally prints the given message on the server's console.  Arguments will be concatenated into a single message.")},
+	{"bprint",			PF_bprint,			0,		23,		0,		0,	D("void(float msglvl, string s, optional string s2, optional string s3, optional string s4, optional string s5, optional string s6, optional string s7)", "QW: Concatenates all string arguments, and prints the messsage on the console of only all clients who's 'msg' infokey is set lower or equal to the supplied 'msglvl' argument.")},
+#ifdef HAVE_LEGACY //these have subtly different behaviour, and are implemented using different internal builtins, which is a bit weird in the extensions file. documentation is documentation.
+	{"dprint",			PF_print,			0,		25,		0,		0,	D("void(string s, optional string s2, optional string s3, optional string s4, optional string s5, optional string s6, optional string s7, optional string s8)", "QW: Unconditionally prints the given message on the server's console.  Arguments will be concatenated into a single message.")},
 #else
 	//going forward, we have print and dprint
-	{"dprint",			PF_dprint,			25,		25,		25,		0,	D("void(string s, ...)", "NQ: Prints the given message on the server's console, but only if the developer cvar is set. Arguments will be concatenated into a single message.")},
+	{"dprint",			PF_dprint,			25,		25,		25,		0,	D("void(string s, optional string s2, optional string s3, optional string s4, optional string s5, optional string s6, optional string s7, optional string s8)", "Prints the given message on the server's console, but only if the developer cvar is set. Additional arguments will be concatenated into a single message. Use the print builtin if you want to print regardless of the developer builtin.")},
 #endif
+
 	{"ftos",			PF_ftos,			26,		26,		26,		0,	D("string(float val)", "Returns a tempstring containing a representation of the given float. Precision depends upon engine.")},
 	{"vtos",			PF_vtos,			27,		27,		27,		0,	D("string(vector val)", "Returns a tempstring containing a representation of the given vector. Precision depends upon engine.")},
 	{"coredump",		PF_coredump,		28,		28,		28,		0,	D("void()", "Writes out a coredump. This contains stack, globals, and field info for all ents. This can be handy for debugging.")},
@@ -11408,9 +11410,9 @@ static BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"bwriteentity",	PF_qtBroadcast_WriteEntity,		0,		0,		0,		0,	D("void(entity val)", NULL), true},	//66
 #endif
 
-	{"sin",				PF_Sin,				0,		0,		62,		60,	D("float(float angle)", "Forgive me father, for I have trigonometry homework.")},	//60
-	{"cos",				PF_Cos,				0,		0,		61,		61, D("float(float angle)", "Just cos.")},	//61
-	{"sqrt",			PF_Sqrt,			0,		0,		84,		62,	D("float(float value)", "Square Root. Use pow")},	//62
+	{"sin",				PF_Sin,				0,		0,		62,		60,	D("float(float angle)", "Forgive me father, for I have trigonometry homework. Uses radians.")},	//60
+	{"cos",				PF_Cos,				0,		0,		61,		61, D("float(float angle)", "Just cos. Uses radians.")},	//61
+	{"sqrt",			PF_Sqrt,			0,		0,		84,		62,	D("float(float value)", "Square Root. Use pow for other exponents.")},	//62
 	{"modulo",			PF_mod,				0,		0,		0,		0,	D("float(float dividend, float divisor)", "Returns the remainder of a division, so divisor must not be 0. fractional values will give different results... Or just use the % operator.")},
 
 	{"changepitch",		PF_changepitch,		0,		0,		0,		63,	"void(entity ent)"},

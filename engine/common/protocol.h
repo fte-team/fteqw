@@ -206,6 +206,17 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #define C2M_MASTER_REQUEST  'c'
 #define M2C_MASTER_REPLY	'd'	// + \n + qw server port list
+
+//for S2C 'status' packets.
+#define	STATUS_OLDSTYLE					0 //equivelent to STATUS_SERVERINFO|STATUS_PLAYERS
+#define	STATUS_SERVERINFO				1
+#define	STATUS_PLAYERS					2
+#define	STATUS_SPECTATORS				4
+#define	STATUS_SPECTATORS_AS_PLAYERS	8 //for ASE - change only frags: show as "S"
+#define	STATUS_SHOWTEAMS				16
+#define	STATUS_QTVLIST					32 //qtv destid "name" "streamid@host:port" numviewers
+#define STATUS_LOGININFO				64
+
 //==================
 // note that there are some defs.qc that mirror to these numbers
 // also related to svc_strings[] in cl_parse

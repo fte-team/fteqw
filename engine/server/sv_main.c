@@ -1188,15 +1188,6 @@ char *SV_PlayerPublicAddress(client_t *cl)
 	return va("prot %s %s", prot, ver);	//something so they can't confuse ip parsing so easily nor pass them off as some other protocol.
 }
 
-#define	STATUS_OLDSTYLE					0 //equivelent to STATUS_SERVERINFO|STATUS_PLAYERS
-#define	STATUS_SERVERINFO				1
-#define	STATUS_PLAYERS					2
-#define	STATUS_SPECTATORS				4
-#define	STATUS_SPECTATORS_AS_PLAYERS	8 //for ASE - change only frags: show as "S"
-#define	STATUS_SHOWTEAMS				16
-#define	STATUS_QTVLIST					32 //qtv destid "name" "streamid@host:port" numviewers
-#define STATUS_LOGININFO				64
-
 /*
 ================
 SVC_Status
@@ -1793,6 +1784,10 @@ qboolean SVC_GetChallenge (qboolean respond_dp)
 			memcpy(over, &lng, sizeof(lng));
 			over+=sizeof(lng);
 		}
+	}
+	if (svs.gametype == GT_PROGS || svs.gametype == GT_Q1QVM || svs.gametype == GT_QUAKE2)
+	{
+		unsigned int mask;
 		//report the mtu
 		if (*net_mtu.string)
 			mask = net_mtu.ival&~7;

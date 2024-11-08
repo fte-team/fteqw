@@ -1383,9 +1383,13 @@ void SSV_ReadFromControlServer(void)
 
 	case ccmd_setcvar:
 		{
-			cvar_t *var = Cvar_FindVar(MSG_ReadString());
+			char cvarname[256];
+			cvar_t *var = Cvar_FindVar(MSG_ReadStringBuffer(cvarname,sizeof(cvarname)));
 			const char *val = MSG_ReadString();
-			Con_DPrintf("Setting cvar \"%s\" to \"%s\"\n", var?var->name:"UNKNOWN", val);
+			if (var)
+				Con_DPrintf("Setting cvar \"%s\" to \"%s\"\n", var->name, val);
+			else
+				Con_DPrintf("Ignoring undefined cvar \"%s\", which would be set to \"%s\"\n", cvarname, val);
 			Cvar_Set(var, val);
 		}
 		break;

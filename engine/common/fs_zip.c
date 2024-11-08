@@ -2197,7 +2197,7 @@ static qboolean FSZIP_FindEndCentralDirectory(zipfile_t *zip, struct zipinfo *in
 	}
 
 	if (!result)
-		Con_Printf("zip: unable to find end-of-central-directory\n");
+		Con_Printf("%s: unable to find end-of-central-directory (not a zip?)\n", zip->filename);	//usually just not a zip.
 	else
 
 	//now look for a zip64 header.
@@ -2249,13 +2249,13 @@ static qboolean FSZIP_FindEndCentralDirectory(zipfile_t *zip, struct zipinfo *in
 			}
 			else
 			{
-				Con_Printf("zip: zip64 end-of-central directory at unknown offset.\n");
+				Con_Printf("%s: zip64 end-of-central directory at unknown offset.\n", zip->filename);
 				result = false;
 			}
 
 			if (info->diskcount < 1 || info->zip64_centraldirend_disk != info->thisdisk)
-			{
-				Con_Printf("zip: archive is spanned\n");
+			{	//must read the segment with the central directory.
+				Con_Printf("%s: archive is spanned\n", zip->filename);
 				return false;
 			}
 
@@ -2264,13 +2264,13 @@ static qboolean FSZIP_FindEndCentralDirectory(zipfile_t *zip, struct zipinfo *in
 	}
 
 	if (info->thisdisk != info->centraldir_startdisk || info->centraldir_numfiles_disk != info->centraldir_numfiles_all)
-	{
-		Con_Printf("zip: archive is spanned\n");
+	{	//must read the segment with the central directory.
+		Con_Printf("%s: archive is spanned\n", zip->filename);
 		result = false;
 	}
 	if (info->centraldir_compressionmethod || info->centraldir_algid)
 	{
-		Con_Printf("zip: encrypted centraldir\n");
+		Con_Printf("%s: encrypted centraldir\n", zip->filename);
 		result = false;
 	}
 

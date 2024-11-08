@@ -1802,7 +1802,7 @@ TRACE(("dbg: R_ApplyRenderer: starting on client state\n"));
 		memcpy(&currentrendererstate, newr, sizeof(currentrendererstate));
 
 	TRACE(("dbg: R_ApplyRenderer: S_Restart_f\n"));
-	if (!isDedicated)
+	if (!isDedicated && newr)
 		S_DoRestart(true);
 
 #ifdef VM_UI

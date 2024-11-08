@@ -37,7 +37,6 @@ static char *CLNQ_ParseProQuakeMessage (char *s);
 static void DLC_Poll(qdownload_t *dl);
 static void CL_ProcessUserInfo (int slot, player_info_t *player);
 static void CL_ParseStuffCmd(char *msg, int destsplit);
-void Con_HexDump(qbyte *packet, size_t len, size_t badoffset);
 
 #define MSG_ReadBigIndex() ((cls.fteprotocolextensions2&PEXT2_LONGINDEXES)?(unsigned int)MSG_ReadUInt64():MSG_ReadByte ())
 #define MSG_ReadPlayer() MSG_ReadBigIndex()
@@ -7040,7 +7039,7 @@ static void CL_ParseStuffCmd(char *msg, int destsplit)	//this protects stuffcmds
 		if (developer.ival)
 		{
 			Con_DPrintf("Proquake Message:\n");
-			Con_HexDump(msg, strlen(msg), 1);
+			Con_HexDump(msg, strlen(msg), 1, 16);
 		}
 		msg = CLNQ_ParseProQuakeMessage(msg);
 	}
@@ -7378,7 +7377,7 @@ static void CL_ParsePrecache(void)
 	}
 }
 
-void Con_HexDump(qbyte *packet, size_t len, size_t badoffset)
+void Con_HexDump(qbyte *packet, size_t len, size_t badoffset, size_t stride)
 {
 	int i;
 	int pos;
@@ -7387,7 +7386,7 @@ void Con_HexDump(qbyte *packet, size_t len, size_t badoffset)
 	while(pos < len)
 	{
 		Con_Printf("%5i ", pos);
-		for (i = 0; i < 16; i++)
+		for (i = 0; i < stride; i++)
 		{
 			if (pos >= len)
 				Con_Printf(" - ");
@@ -7397,8 +7396,8 @@ void Con_HexDump(qbyte *packet, size_t len, size_t badoffset)
 				Con_Printf("%2x ", packet[pos]);
 			pos++;
 		}
-		pos-=16;
-		for (i = 0; i < 16; i++)
+		pos-=stride;
+		for (i = 0; i < stride; i++)
 		{
 			if (pos >= len)
 				Con_Printf("X");
@@ -7424,7 +7423,7 @@ void Con_HexDump(qbyte *packet, size_t len, size_t badoffset)
 }
 void CL_DumpPacket(void)
 {
-	Con_HexDump(net_message.data, net_message.cursize, MSG_GetReadCount()-1);
+	Con_HexDump(net_message.data, net_message.cursize, MSG_GetReadCount()-1, 16);
 }
 
 static void CL_ParsePortalState(void)
@@ -7838,11 +7837,18 @@ void CLQW_ParseServerMessage (void)
 			else
 			{
 				inframe_t *inf = &cl.inframes[cls.netchan.incoming_sequence&UPDATE_MASK];
+				int fixtype = 2;
 				if (cls.ezprotocolextensions1 & EZPEXT1_SETANGLEREASON)
-					MSG_ReadByte();	//0=unknown, 1=tele, 2=spawn
+					fixtype = MSG_ReadByte();	//0=unknown, 1=tele, 2=spawn
 				for (i=0 ; i<3 ; i++)
 					ang[i] = MSG_ReadAngle();
-				if (!CSQC_Parse_SetAngles(destsplit, ang, false))
+				if (fixtype == 1)
+				{	//relative
+					VectorAdd(ang, cl.playerview[destsplit].viewangles, ang);
+					VectorSubtract(ang, cl.outframes[cls.netchan.incoming_sequence&UPDATE_MASK].cmd->angles, ang);
+				}
+				else fixtype = 2;	//snap
+				if (!CSQC_Parse_SetAngles(destsplit, ang, fixtype==1))
 				{
 					inf->packet_entities.fixangles[destsplit] = true;
 					VectorCopy (ang, cl.playerview[destsplit].viewangles);

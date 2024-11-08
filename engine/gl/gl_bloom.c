@@ -387,13 +387,12 @@ void R_BloomBlend (texid_t source, int x, int y, int w, int h)
 
 		intex = pingtex[0][i];
 	}
-	r_worldentity.glowmod[0] = 0;
-	r_worldentity.glowmod[1] = 0;
 
 	if (R2D_Flush)
 		R2D_Flush();
 
-	GL_Set2D(false);
+	r_worldentity.glowmod[0] = 0;
+	r_worldentity.glowmod[1] = 0;
 
 	bloomfinal->defaulttextures->base			= intex;
 	bloomfinal->defaulttextures->loweroverlay	= (i >= 2)?pingtex[0][i-2]:0;
@@ -402,6 +401,7 @@ void R_BloomBlend (texid_t source, int x, int y, int w, int h)
 	/*combine them onto the screen*/
 	GLBE_FBO_Pop(oldfbo);
 	GLBE_FBO_Sources(source, r_nulltex);
+	GL_Set2D(false);
 	R2D_ScalePic(x, y + h, w, -h, bloomfinal);
 }
 void R_BloomShutdown(void)

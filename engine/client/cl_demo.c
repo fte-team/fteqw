@@ -3037,7 +3037,7 @@ fail:
 						MC_AddCenterPicture(sourcesmenu, 4, 24, "gfx/p_option.lmp");
 					}
 					if (init_numplayers == true && init_numviewers == true)
-						MC_AddConsoleCommand(sourcesmenu, 42, 170, (sourcenum++)*8 + 32, va("%s (p%i, v%i)", srchost, numplayers, numviewers), va("qtvplay %s@%s\n", streamid, qtv->hostname));
+						MC_AddConsoleCommand(sourcesmenu, 42, 170, (sourcenum++)*8 + 32, va("%s (p%i, v%i)", *srchost?srchost:streamid, numplayers, numviewers), va("qtvplay %s@%s\n", streamid, qtv->hostname));
 					//else
 					//	FIXME: add error message here
 #else
@@ -3060,7 +3060,7 @@ fail:
 		if (streamavailable)
 		{
 			if (*streamavailable)
-				Con_Printf("streaming \"%s\" from qtv\n", streamavailable);
+				Con_Printf("streaming \"%s\" via \"%s\"\n", streamavailable, qtv->hostname);
 			else
 				Con_Printf("qtv connection established to %s\n", qtv->hostname);
 			CL_PlayDemoStream(qtv->stream, NULL, false, DPB_MVD, BUFFERTIME, iseztv);
@@ -3138,6 +3138,7 @@ void CL_QTVPlay_Establish (const char *host, const char *password, const char *c
 		return;
 	}
 
+	Q_strncpyz(qtv->hostname, host, sizeof(qtv->hostname));
 	Q_strncpyz(qtv->password, password, sizeof(qtv->password));
 
 	if (qtvcl_forceversion1.ival)

@@ -735,7 +735,7 @@ void R_PushDlights (void)
 		return;
 #endif
 
-	if (r_dynamic.ival <= 0|| !r_worldentity.model)
+	if (!r_dlightlightmaps || !r_worldentity.model)
 		return;
 
 	if (r_worldentity.model->loadstate != MLS_LOADED)

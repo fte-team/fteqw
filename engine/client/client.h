@@ -1579,6 +1579,7 @@ int			TP_CategorizeMessage (char *s, int *offset, player_info_t **plr);
 void		TP_ExecTrigger (char *s, qboolean indemos);		//executes one of the user's f_foo aliases from some engine-defined event.
 qboolean	TP_FilterMessage (char *s);
 void		TP_Init(void);
+qboolean	TP_HaveLocations(void);
 char*		TP_LocationName (const vec3_t location);
 void		TP_NewMap (void);
 qboolean	TP_CheckSoundTrigger (char *str);				//plays sound files when some substring exists in chat.

@@ -3847,7 +3847,7 @@ void Sh_PreGenerateLights(void)
 		{
 			r_shadow_realtime_world_lightmaps.value = 1;
 			if (!r_shadow_realtime_world_importlightentitiesfrommap.ival)
-				Con_Printf(CON_WARNING "No lights detected in map.\n");
+				Con_Printf(CON_WARNING "No lights detected in map, ^[[and importing is disabled]\\type\\r_shadow_realtime_world_importlightentitiesfrommap 1^].\n");
 			else
 				Con_DPrintf("No lights detected in map.\n");
 		}
@@ -4098,7 +4098,8 @@ void Sh_DrawLights(qbyte *vis)
 		r_shadow_realtime_world_importlightentitiesfrommap.modified ||
 		r_shadow_realtime_dlight.modified ||
 		r_shadow_realtime_dlight_shadows.modified ||
-		r_shadow_shadowmapping.modified || r_shadows.modified)
+		r_shadow_shadowmapping.modified || r_shadows.modified ||
+		r_shadow_raytrace.modified)
 	{
 		r_shadow_realtime_world.modified =
 		r_shadow_realtime_world_shadows.modified =
@@ -4106,6 +4107,7 @@ void Sh_DrawLights(qbyte *vis)
 		r_shadow_realtime_dlight_shadows.modified =
 		r_shadow_shadowmapping.modified =
 		r_shadows.modified =
+		r_shadow_raytrace.modified =
 				false;
 		Sh_CheckSettings();
 		//make sure the lighting is reloaded
@@ -4117,7 +4119,7 @@ void Sh_DrawLights(qbyte *vis)
 
 	ignoreflags = (r_shadow_realtime_world.ival?LFLAG_REALTIMEMODE:0)
 				| (r_shadow_realtime_dlight.ival?LFLAG_NORMALMODE:0);
-	if (r_dynamic.ival == -1 && r_dynamic.value > 0)
+	if (!r_dlightlightmaps)
 		ignoreflags |= LFLAG_LIGHTMAP;	//if we're using scenecache then we cannot use lightmap hacks for dlights, so draw them via rtlight code instead.
 	if (!ignoreflags)
 		return;

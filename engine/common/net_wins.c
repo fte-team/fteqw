@@ -93,7 +93,7 @@ static cvar_t	net_enable_kexlobby			= CVARD("net_enable_"KEXLOBBY,			"0", "If en
 //#endif
 
 #ifdef HAVE_EPOLL
-static int epoll_fd = -1;
+int epoll_fd = -1;
 #endif
 
 void NET_GetLocalAddress (int socket, netadr_t *out);

@@ -254,8 +254,7 @@ void Cmd_AddTimer(float delay, void(*callback)(int iarg, void *data), int iarg, 
 
 	n->timer = realtime + delay;
 
-	n->next = cmdtimers;
-	cmdtimers = n;
+	FTE_Atomic_Insert(cmdtimers, n, n->next);
 }
 static void Cmd_In_Callback(int iarg, void *data)
 {

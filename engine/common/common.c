@@ -6364,6 +6364,9 @@ static int COM_WorkerThread(void *arg)
 }
 static void Sys_ErrorThread(void *ctx, void *data, size_t a, size_t b)
 {
+	if (ctx)
+		COM_WorkerSync_WorkerStopped(ctx, NULL, a, b);
+
 	//posted to main thread from a worker.
 	Sys_Error("%s", (const char*)data);
 }
@@ -6383,12 +6386,12 @@ void COM_WorkerAbort(char *message)
 		if (com_worker[us].thread && Sys_IsThread(com_worker[us].thread))
 		{
 			group = WG_LOADER;
-			COM_AddWork(WG_MAIN, COM_WorkerSync_WorkerStopped, &com_worker[us], NULL, 0, group);
+			COM_InsertWork(WG_MAIN, Sys_ErrorThread, &com_worker[us], Z_StrDup(message), 0, group);
 			break;
 		}
 
-	//now tell the main thread that it should be crashing, and why.
-	COM_AddWork(WG_MAIN, Sys_ErrorThread, NULL, Z_StrDup(message), 0, 0);
+	if (us == WORKERTHREADS)	//don't know who it was.
+		COM_AddWork(WG_MAIN, Sys_ErrorThread, NULL, Z_StrDup(message), 0, 0);
 
 	Sys_ThreadAbort();
 }
@@ -6416,10 +6419,9 @@ void COM_DestroyWorkerThread(void)
 
 	while(COM_DoWork(WG_LOADER, false))	//finish any work that got posted to it that it neglected to finish.
 		;
+	COM_WorkerFullSync();
 	while(COM_DoWork(WG_MAIN, false))
 		;
-
-	COM_WorkerFullSync();
 
 	for (i = 0; i < WG_COUNT; i++)
 	{
@@ -6435,33 +6437,35 @@ void COM_DestroyWorkerThread(void)
 //Dangerous: stops workers WITHOUT flushing their queue. Be SURE to 'unlock' to start them up again.
 void COM_WorkerLock(void)
 {
+#define NOFLUSH 0x40000000
 	int i;
 	if (!com_liveworkers[WG_LOADER])
 		return;	//nothing to do.
 
-	//add a fake worker and ask workers to die
+	//don't let liveworkers become 0 (so the main thread doesn't flush any pending work) and ask workers to die
 	Sys_LockConditional(com_workercondition[WG_LOADER]);
-	com_liveworkers[WG_LOADER] += 1;
+	com_liveworkers[WG_LOADER] |= NOFLUSH;
 	for (i = 0; i < WORKERTHREADS; i++)
 		com_worker[i].request = WR_DIE;	//flag them all to die
 	Sys_ConditionBroadcast(com_workercondition[WG_LOADER]);	//and make sure they ALL wake up to check their new death values.
 	Sys_UnlockConditional(com_workercondition[WG_LOADER]);
 
 	//wait for the workers to stop (leaving their work, because of our fake worker)
-	while(com_liveworkers[WG_LOADER]>1)
+	while((com_liveworkers[WG_LOADER]&~NOFLUSH)>0)
 	{
 		if (!COM_DoWork(WG_MAIN, false))	//need to check this to know they're done.
 			COM_DoWork(WG_LOADER, false);	//might as well, while we're waiting.
 	}
 
-	//remove our fake worker now...
+	//remove our flush-blocker now...
 	Sys_LockConditional(com_workercondition[WG_LOADER]);
-	com_liveworkers[WG_LOADER] -= 1;
+	com_liveworkers[WG_LOADER] &= ~NOFLUSH;
 	Sys_UnlockConditional(com_workercondition[WG_LOADER]);
 }
 //called after COM_WorkerLock
 void COM_WorkerUnlock(void)
 {
+	qboolean restarted = false;
 	int i;
 	for (i = 0; i < WORKERTHREADS; i++)
 	{
@@ -6473,8 +6477,14 @@ void COM_WorkerUnlock(void)
 		{
 			com_worker[i].request = WR_NONE;
 			com_worker[i].thread = Sys_CreateThread(va("loadworker_%i", i), COM_WorkerThread, &com_worker[i], 0, 256*1024);
+			if (com_worker[i].thread)
+				restarted = true;
 		}
 	}
+
+	if (!restarted)
+		while (COM_DoWork(WG_LOADER, false))
+			;
 }
 
 //fully flushes ALL pending work.
@@ -6709,6 +6719,19 @@ static void COM_InitWorkerThread(void)
 	Cvar_ForceCallback(&worker_count);
 }
 
+qboolean FTE_AtomicPtr_ConditionalReplace(qint32_t *ptr, qint32_t old, qint32_t new)
+{
+	Sys_LockMutex(com_resourcemutex);
+	if (*ptr == old)
+	{
+		*ptr = new;
+		Sys_UnlockMutex(com_resourcemutex);
+		return true;
+	}
+	Sys_UnlockMutex(com_resourcemutex);
+	return false;
+}
+
 qint32_t FTE_Atomic32Mutex_Add(qint32_t *ptr, qint32_t change)
 {
 	qint32_t r;
@@ -6723,6 +6746,15 @@ qint32_t FTE_Atomic32Mutex_Add(qint32_t *ptr, qint32_t change)
 	qint32_t r;
 	r = (*ptr += change);
 	return r;
+}
+qboolean FTE_AtomicPtr_ConditionalReplace(qint32_t *ptr, qint32_t old, qint32_t new)
+{	//hope it ain't threaded
+	if (*ptr == old)
+	{
+		*ptr = new;
+		return true;
+	}
+	return false;
 }
 #endif
 

@@ -383,51 +383,42 @@ float(float keyc, float unic, vector m) editor_lights_key =
 	}
 	else if (unic == 'i' || unic == 'I')
 	{
+		traceline(o, t, TRUE, world);
 		float oldl = selectedlight;
-		for (selectedlight = 32; ; selectedlight+=1)
-		{
-			if (!(float)dynamiclight_get(selectedlight, LFIELD_RADIUS))
-			{
-				if (oldl >= 32 && (!((float)dynamiclight_get(selectedlight, LFIELD_RADIUS) > 50)))
-				{
-					/*dupe the current light*/
-					dynamiclight_set(selectedlight, LFIELD_RADIUS,		dynamiclight_get(oldl, LFIELD_RADIUS));
-					dynamiclight_set(selectedlight, LFIELD_COLOUR,		dynamiclight_get(oldl, LFIELD_COLOUR));
-					dynamiclight_set(selectedlight, LFIELD_FOV,		dynamiclight_get(oldl, LFIELD_FOV));
-					dynamiclight_set(selectedlight, LFIELD_STYLE,		dynamiclight_get(oldl, LFIELD_STYLE));
-					dynamiclight_set(selectedlight, LFIELD_ANGLES,		dynamiclight_get(oldl, LFIELD_ANGLES));
-					dynamiclight_set(selectedlight, LFIELD_FLAGS,		dynamiclight_get(oldl, LFIELD_FLAGS));
-					dynamiclight_set(selectedlight, LFIELD_AMBIENTSCALE,	dynamiclight_get(oldl, LFIELD_AMBIENTSCALE));
-					dynamiclight_set(selectedlight, LFIELD_DIFFUSESCALE,	dynamiclight_get(oldl, LFIELD_DIFFUSESCALE));
-					dynamiclight_set(selectedlight, LFIELD_SPECULARSCALE,	dynamiclight_get(oldl, LFIELD_SPECULARSCALE));
-					dynamiclight_set(selectedlight, LFIELD_CUBEMAPNAME,	dynamiclight_get(oldl, LFIELD_CUBEMAPNAME));
-					dynamiclight_set(selectedlight, LFIELD_CORONA,		dynamiclight_get(oldl, LFIELD_CORONA));
-					dynamiclight_set(selectedlight, LFIELD_CORONASCALE,	dynamiclight_get(oldl, LFIELD_CORONASCALE));
-					dynamiclight_set(selectedlight, LFIELD_ROTATION,	dynamiclight_get(oldl, LFIELD_ROTATION));
-				}
-				else
-				{
-					/*reset the light's properties*/
-					dynamiclight_set(selectedlight, LFIELD_RADIUS, 300);
-					dynamiclight_set(selectedlight, LFIELD_COLOUR, '1 1 1');
-					dynamiclight_set(selectedlight, LFIELD_FOV, 0);
-					dynamiclight_set(selectedlight, LFIELD_STYLE, 0);
-					dynamiclight_set(selectedlight, LFIELD_ANGLES, '0 0 0');
-					dynamiclight_set(selectedlight, LFIELD_FLAGS, LFLAG_REALTIMEMODE);
-					dynamiclight_set(selectedlight, LFIELD_AMBIENTSCALE, autocvar_r_editlights_import_ambient);
-					dynamiclight_set(selectedlight, LFIELD_DIFFUSESCALE, autocvar_r_editlights_import_diffuse);
-					dynamiclight_set(selectedlight, LFIELD_SPECULARSCALE, autocvar_r_editlights_import_specular);
-					dynamiclight_set(selectedlight, LFIELD_CUBEMAPNAME,	"");
-					dynamiclight_set(selectedlight, LFIELD_CORONA,		0);
-					dynamiclight_set(selectedlight, LFIELD_CORONASCALE,	1);
-					dynamiclight_set(selectedlight, LFIELD_ROTATION,	'0 0 0');
-				}
+		selectedlight = dynamiclight_spawnstatic(trace_endpos + trace_plane_normal*4f, 300, '1 1 1');
 
-				/*place it at the pointed location*/
-				traceline(o, t, TRUE, world);
-				dynamiclight_set(selectedlight, LFIELD_ORIGIN, trace_endpos + trace_plane_normal*4f);
-				break;
-			}
+		if ((float)dynamiclight_get(oldl, LFIELD_RADIUS) != 0f && oldl != selectedlight)
+		{
+			//dupe the current light
+			dynamiclight_set(selectedlight, LFIELD_RADIUS,		dynamiclight_get(oldl, LFIELD_RADIUS));
+			dynamiclight_set(selectedlight, LFIELD_COLOUR,		dynamiclight_get(oldl, LFIELD_COLOUR));
+			dynamiclight_set(selectedlight, LFIELD_FOV,		dynamiclight_get(oldl, LFIELD_FOV));
+			dynamiclight_set(selectedlight, LFIELD_STYLE,		dynamiclight_get(oldl, LFIELD_STYLE));
+			dynamiclight_set(selectedlight, LFIELD_ANGLES,		dynamiclight_get(oldl, LFIELD_ANGLES));
+			dynamiclight_set(selectedlight, LFIELD_FLAGS,		dynamiclight_get(oldl, LFIELD_FLAGS));
+			dynamiclight_set(selectedlight, LFIELD_AMBIENTSCALE,	dynamiclight_get(oldl, LFIELD_AMBIENTSCALE));
+			dynamiclight_set(selectedlight, LFIELD_DIFFUSESCALE,	dynamiclight_get(oldl, LFIELD_DIFFUSESCALE));
+			dynamiclight_set(selectedlight, LFIELD_SPECULARSCALE,	dynamiclight_get(oldl, LFIELD_SPECULARSCALE));
+			dynamiclight_set(selectedlight, LFIELD_CUBEMAPNAME,	dynamiclight_get(oldl, LFIELD_CUBEMAPNAME));
+			dynamiclight_set(selectedlight, LFIELD_CORONA,		dynamiclight_get(oldl, LFIELD_CORONA));
+			dynamiclight_set(selectedlight, LFIELD_CORONASCALE,	dynamiclight_get(oldl, LFIELD_CORONASCALE));
+			dynamiclight_set(selectedlight, LFIELD_ROTATION,	dynamiclight_get(oldl, LFIELD_ROTATION));
+		}else
+		{
+			/*reset the light's properties*/
+			dynamiclight_set(selectedlight, LFIELD_RADIUS, 300);
+			dynamiclight_set(selectedlight, LFIELD_COLOUR, '1 1 1');
+			dynamiclight_set(selectedlight, LFIELD_FOV, 0);
+			dynamiclight_set(selectedlight, LFIELD_STYLE, 0);
+			dynamiclight_set(selectedlight, LFIELD_ANGLES, '0 0 0');
+			dynamiclight_set(selectedlight, LFIELD_FLAGS, LFLAG_REALTIMEMODE);
+			dynamiclight_set(selectedlight, LFIELD_AMBIENTSCALE, autocvar_r_editlights_import_ambient);
+			dynamiclight_set(selectedlight, LFIELD_DIFFUSESCALE, autocvar_r_editlights_import_diffuse);
+			dynamiclight_set(selectedlight, LFIELD_SPECULARSCALE, autocvar_r_editlights_import_specular);
+			dynamiclight_set(selectedlight, LFIELD_CUBEMAPNAME,	"");
+			dynamiclight_set(selectedlight, LFIELD_CORONA,		0);
+			dynamiclight_set(selectedlight, LFIELD_CORONASCALE,	1);
+			dynamiclight_set(selectedlight, LFIELD_ROTATION,	'0 0 0');
 		}
 	}
 	else if (unic == '[')

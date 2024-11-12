@@ -7166,6 +7166,16 @@ void Shader_DefaultBSPQ1(parsestate_t *ps, const char *shortname, const void *ar
 			);
 	}
 
+	/* Half-Life requirement ~eukara */
+	if (!builtin && !strncmp(shortname, "scroll", 6))
+	{
+		builtin = (
+			"{\n"
+				"fte_program defaultwall#SCROLL\n"
+			"}\n"
+		);
+	}
+
 	if (builtin)
 		Shader_DefaultScript(ps, shortname, builtin);
 	else

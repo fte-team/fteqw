@@ -36,10 +36,6 @@ struct sockaddr;
 struct sockaddr_qstorage;
 int NetadrToSockadr (netadr_t *a, struct sockaddr_qstorage *s);
 
-#if defined(__unix__) && !defined(__CYGWIN__)
-#include <sys/epoll.h>
-#endif
-
 typedef qboolean iwboolean;
 
 typedef struct {

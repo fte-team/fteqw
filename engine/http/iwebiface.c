@@ -201,7 +201,7 @@ int COM_CheckParm(const char *parm)
 #include <signal.h>
 #endif
 
-#ifndef _WIN32
+#ifdef HAVE_EPOLL
 struct stun_ctx
 {
 	struct epollctx_s pub;
@@ -338,7 +338,9 @@ int main(int argc, char **argv)
 	WSADATA pointlesscrap;
 	WSAStartup(2, &pointlesscrap);
 #else
+#ifdef HAVE_EPOLL
 	int ep = epoll_create1(0);
+#endif
 	signal(SIGPIPE, SIG_IGN);	//so we don't crash out if a peer closes the socket half way through.
 #endif
 
@@ -416,7 +418,7 @@ int main(int argc, char **argv)
 	else
 		printf("Server is read only\n");
 
-#ifdef _WIN32
+#ifndef HAVE_EPOLL
 	while(1)
 	{
 		if (ftpport)
@@ -430,7 +432,6 @@ int main(int argc, char **argv)
 #endif
 	}
 #else
-
 	while (!HTTP_ServerInit(ep, httpport))
 		sleep(5);
 	PrepareStun(ep, httpport);

@@ -21,13 +21,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 // console
 //
 
-// undefine this to solve build issues with epoll-shim - Brad
-#if defined(__unix__) && !defined(__linux__) && !defined(__CYGWIN__)
-#ifdef close
-#undef close
-#endif
-#endif
-
 #define MAXCONCOLOURS 16
 typedef struct {
 	float fr, fg, fb;

@@ -53,21 +53,21 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #pragma warning(2:4032)		// function arg has different type from declaration
 #pragma warning(2:4092)		// 'sizeof' value too big
 #pragma warning(2:4132 4268)// const object not initialized
-//#pragma warning(2:4152)	  // pointer conversion between function and data
+//#pragma warning(2:4152)	// pointer conversion between function and data
 #pragma warning(2:4239)		// standard doesn't allow this conversion
 #pragma warning(2:4701)		// local variable used without being initialized
-//#pragma warning(2:4706)	  // if (a=b) instead of (if a==b)
+//#pragma warning(2:4706)	// if (a=b) instead of (if a==b)
 #pragma warning(2:4709)		// comma in array subscript
 #pragma warning(3:4061)		// not all enum values tested in switch statement
 #pragma warning(3:4710)		// inline function was not inlined
 #pragma warning(3:4121)		// space added for structure alignment
 #pragma warning(3:4505)		// unreferenced local function removed
 #pragma warning(3:4019)		// empty statement at global scope
-//#pragma warning(3:4057)	  // pointers refer to different base types
+//#pragma warning(3:4057)	// pointers refer to different base types
 #pragma warning(3:4125)		// decimal digit terminates octal escape
 #pragma warning(2:4131)		// old-style function declarator
 #pragma warning(3:4211)		// extern redefined as static
-//#pragma warning(3:4213)	  // cast on left side of = is non-standard
+//#pragma warning(3:4213)	// cast on left side of = is non-standard
 #pragma warning(3:4222)		// member function at file scope shouldn't be static
 #pragma warning(3:4234 4235)// keyword not supported or reserved for future
 #pragma warning(3:4504)		// type ambiguous; simplify code
@@ -131,10 +131,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 	#endif
 #endif
 #include <time.h>
-
-#if defined(__unix__) && !defined(__CYGWIN__)
-#include <sys/epoll.h>
-#endif
 
 #ifdef USE_MSVCRT_DEBUG
 	#define _CRTDBG_MAP_ALLOC
@@ -408,7 +404,7 @@ void COM_AssertMainThread(const char *msg);
 #endif
 
 extern qboolean		msg_suppress_1;		// suppresses resolution and cache size console output
-										//	an fullscreen DIB focus gain/loss
+										//  an fullscreen DIB focus gain/loss
 
 #ifndef HAVE_CLIENT
 #define isDedicated true

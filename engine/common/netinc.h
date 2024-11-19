@@ -140,7 +140,7 @@
 		#include <libc.h>
 	#endif
 
-	#if defined(__unix__) && !defined(__CYGWIN__)
+	#if defined(__linux__) || defined(HAVE_EPOLL)
 		//requires linux 2.6.27 up (and equivelent libc)
 		//note that BSD does tend to support the api, but emulated.
 		//this works around the select FD limit, and supposedly has better performance.
@@ -148,6 +148,13 @@
 		#ifdef EPOLL_CLOEXEC
 			#define HAVE_EPOLL
 		//#else too old, probably android...
+		#endif
+		#if defined(close)	//epoll-shim? stop it from breaking shit
+			#undef close
+			#undef fcntl
+			#define epoll_close epoll_shim_close
+		#else
+			#define epoll_close close
 		#endif
 	#endif
 

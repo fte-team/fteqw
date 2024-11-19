@@ -26,10 +26,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include <sys/stat.h>	//to delete the file/socket.
 #endif
 
-#if defined(__unix__) && !defined(__linux__) && !defined(__APPLE__) && !defined(__CYGWIN__)
-#include <sys/epoll.h>
-#endif
-
 extern ftemanifest_t	*fs_manifest;
 
 // Eww, eww. This is hacky but so is netinc.h, so bite me
@@ -10499,7 +10495,8 @@ NET_Init
 void NET_Init (void)
 {
 #ifdef HAVE_EPOLL
-	epoll_fd = epoll_create1(EPOLL_CLOEXEC);
+	if (epoll_fd < 0)
+		epoll_fd = epoll_create1(EPOLL_CLOEXEC);
 #endif
 
 	Cvar_Register(&net_enabled, "networking");
@@ -10898,7 +10895,7 @@ void	NET_Shutdown (void)
 
 #ifdef HAVE_EPOLL
 	if (epoll_fd >= 0)
-		close(epoll_fd);
+		epoll_close(epoll_fd);
 	epoll_fd = -1;
 	stdin_epolling = false;
 #endif

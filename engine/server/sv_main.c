@@ -1665,8 +1665,9 @@ qboolean SVC_GetChallenge (qboolean respond_dp)
 
 		if (!protocols)
 		{
+			COM_ParseOut(Cmd_Argv(2), tprot,sizeof(tprot));
 			COM_ParseOut(com_protocolname.string, oprot,sizeof(oprot));
-			pname = va("print\nGame mismatch: This is a %s server\n", oprot);
+			pname = va("print\nGame mismatch: This is a %s server but you are using %s\n", oprot, tprot);
 			Netchan_OutOfBand(NCF_SERVER, &net_from, strlen(pname), pname);
 			return false;
 		}

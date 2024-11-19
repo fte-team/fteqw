@@ -2040,6 +2040,8 @@ void QCBUILTIN PF_memalloc (pubprogfuncs_t *prinst, struct globalvars_s *pr_glob
 {
 	int size = G_INT(OFS_PARM0);
 	void *ptr;
+	if (!size)
+		size = 1; //return something free can free.
 	if (size <= 0 || size > 0x01000000)
 		ptr = NULL;	//don't let them abuse things too much. values that are too large might overflow.
 	else
@@ -2050,7 +2052,29 @@ void QCBUILTIN PF_memalloc (pubprogfuncs_t *prinst, struct globalvars_s *pr_glob
 		G_INT(OFS_RETURN) = (char*)ptr - prinst->stringtable;
 	}
 	else
+	{
 		G_INT(OFS_RETURN) = 0;
+		PR_BIError(prinst, "PF_memalloc: failure (size %i)\n", size);
+	}
+}
+void QCBUILTIN PF_memrealloc (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	void *oldcptr = prinst->stringtable + G_INT(OFS_PARM0);
+	int size = G_INT(OFS_PARM1);
+	void *ptr;
+	if (!size)
+		size = 1; //return something free can free.
+	if (size <= 0 || size > 0x01000000)
+		ptr = NULL;	//don't let them abuse things too much. values that are too large might overflow.
+	else
+		ptr = prinst->AddressableRealloc(prinst, oldcptr, size);
+	if (ptr)
+		G_INT(OFS_RETURN) = (char*)ptr - prinst->stringtable;
+	else
+	{
+		G_INT(OFS_RETURN) = 0;
+		PR_BIError(prinst, "PF_memrealloc: failure (size %i)\n", size);
+	}
 }
 void QCBUILTIN PF_memfree (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
@@ -3219,17 +3243,17 @@ void QCBUILTIN PF_fseek (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals
 	G_INT(OFS_RETURN) = -1;
 	if (fnum < 0 || fnum >= MAX_QC_FILES)
 	{
-		PF_Warningf(prinst, "PF_fread: File out of range\n");
+		PF_Warningf(prinst, "PF_fseek: File out of range\n");
 		return;	//out of range
 	}
 	if (!pf_fopen_files[fnum].prinst)
 	{
-		PF_Warningf(prinst, "PF_fread: File is not open\n");
+		PF_Warningf(prinst, "PF_fseek: File is not open\n");
 		return;	//not open
 	}
 	if (pf_fopen_files[fnum].prinst != prinst)
 	{
-		PF_Warningf(prinst, "PF_fread: File is from wrong instance\n");
+		PF_Warningf(prinst, "PF_fseek: File is from wrong instance\n");
 		return;	//this just isn't ours.
 	}
 
@@ -3414,7 +3438,7 @@ void QCBUILTIN PF_fexists (pubprogfuncs_t *prinst, struct globalvars_s *pr_globa
 void QCBUILTIN PF_rmtree (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	const char *fname = PR_GetStringOfs(prinst, OFS_PARM0);
-	Con_Printf("rmtree(\"%s\"): rmtree is not implemented at this\n", fname);
+	Con_Printf("rmtree(\"%s\"): rmtree is not implemented at this time\n", fname);
 
 	/*flocation_t loc;
 	G_FLOAT(OFS_RETURN) = -1; //error

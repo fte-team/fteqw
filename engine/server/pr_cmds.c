@@ -12031,6 +12031,7 @@ static BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 //END EXT_CSQC
 
 	{"memalloc",		PF_memalloc,		0,		0,		0,		384,	D("__variant*(int size)", "Allocate an arbitary block of memory")},
+	{"memrealloc",		PF_memrealloc,		0,		0,		0,		0,		D("__variant*(void *oldptr, int newsize)", "Allocate a new block of memory to replace an old one.")},
 	{"memfree",			PF_memfree,			0,		0,		0,		385,	D("void(__variant *ptr)", "Frees a block of memory that was allocated with memfree")},
 	{"memcmp",			PF_memcmp,			0,		0,		0,		0,		D("int(__variant *dst, __variant *src, int size, optional int dstoffset, int srcoffset)", "Compares two blocks of memory. Returns 0 if equal.")},
 	{"memcpy",			PF_memcpy,			0,		0,		0,		386,	D("void(__variant *dst, __variant *src, int size, optional int dstoffset, int srcoffset)", "Copys memory from one location to another")},

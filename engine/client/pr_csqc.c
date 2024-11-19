@@ -4839,7 +4839,13 @@ static void QCBUILTIN PF_getlightstylergb (pubprogfuncs_t *prinst, struct global
 		return;
 	}
 
-	if (stnum >= cl_max_lightstyles || !cl_lightstyle[stnum].length)
+	if (stnum >= cl_max_lightstyles)
+	{
+		value = ('m'-'a')*22 * r_lightstylescale.value;
+		G_VECTOR(OFS_RETURN)[0] = G_VECTOR(OFS_RETURN)[1] = G_VECTOR(OFS_RETURN)[2] = value*(1.0/256);
+		return;
+	}
+	else if (!cl_lightstyle[stnum].length)
 		value = ('m'-'a')*22 * r_lightstylescale.value;
 	else if (cl_lightstyle[stnum].map[0] == '=')
 		value = atof(cl_lightstyle[stnum].map+1)*256*r_lightstylescale.value;
@@ -4847,7 +4853,7 @@ static void QCBUILTIN PF_getlightstylergb (pubprogfuncs_t *prinst, struct global
 	{
 		int v1, v2, vd, i;
 		float f;
-		
+
 		f = (cl.time*r_lightstylespeed.value);
 		if (f < 0)
 			f = 0;
@@ -7120,6 +7126,7 @@ static struct {
 	{"releasecustomskin",		PF_cs_releasecustomskin,	379},
 
 	{"memalloc",				PF_memalloc,				384},
+	{"memrealloc",				PF_memrealloc,				0},
 	{"memfree",					PF_memfree,					385},
 	{"memcmp",					PF_memcmp,					0},
 	{"memcpy",					PF_memcpy,					386},

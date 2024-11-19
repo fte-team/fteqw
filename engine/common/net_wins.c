@@ -223,10 +223,16 @@ static void NET_TLS_Provider_Changed(struct cvar_s *var, char *oldvalue)
 	}
 	if (host_initialized && !var->ival)
 	{
-		Con_Printf("%s: \"%s\" not loaded, valid values are:", var->name, var->string);
+		int found = 0;
 		for (i = 0; i < cryptolib_count; i++)
 			if (cryptolib[i])
+			{
+				if (!found++)
+					Con_Printf("%s: \"%s\" not loaded, valid values are:", var->name, var->string);
 				Con_Printf(" ^[%s\\type\\%s %s^]", cryptolib[i]->drivername, var->name, cryptolib[i]->drivername);
+			}
+		if (!found)
+			Con_Printf("%s: no tls plugins loaded", var->name);
 		Con_Printf("\n");
 	}
 

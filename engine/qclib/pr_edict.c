@@ -1036,6 +1036,20 @@ char *PR_GlobalStringNoContents (progfuncs_t *progfuncs, int ofs)
 	return line;
 }
 
+char *PR_GlobalStringImmediate (progfuncs_t *progfuncs, int ofs)
+{
+	int		i;
+	static char	line[128];
+	sprintf (line,"%i", ofs);
+
+	i = strlen(line);
+	for ( ; i<20 ; i++)
+		strcat (line," ");
+	strcat (line," ");
+
+	return line;
+}
+
 /*
 =============
 ED_Print
@@ -2742,6 +2756,7 @@ pbool PR_ReallyLoadProgs (progfuncs_t *progfuncs, const char *filename, progstat
 	int reorg = prinst.reorganisefields || prinst.numfields;
 
 	int stringadjust;
+	int pointeradjust;
 
 	int *basictypetable;
 
@@ -3027,9 +3042,15 @@ retry:
 	glob = pr_globals = (float *)s;
 
 	if (progfuncs->funcs.stringtable)
+	{
 		stringadjust = pr_strings - progfuncs->funcs.stringtable;
+		pointeradjust = (char*)glob - progfuncs->funcs.stringtable;
+	}
 	else
+	{
 		stringadjust = 0;
+		pointeradjust = (char*)glob - pr_strings;
+	}
 
 	if (!pr_linenums)
 	{
@@ -3552,6 +3573,13 @@ retry:
 						((int *)glob)[gd16[i].ofs] |= progstype << 24;
 				}
 				break;
+			case ev_pointer:
+				if (((int *)glob)[gd16[i].ofs] & 0x80000000)
+				{
+					((int *)glob)[gd16[i].ofs] &= ~0x80000000;
+					((int *)glob)[gd16[i].ofs] += pointeradjust;
+				}
+				break;
 			}
 		}
 		break;
@@ -3588,6 +3616,13 @@ retry:
 			case ev_function:
 				if (((int *)glob)[pr_globaldefs32[i].ofs])	//don't change null funcs
 					((int *)glob)[pr_globaldefs32[i].ofs] |= progstype << 24;
+				break;
+			case ev_pointer:
+				if (((int *)glob)[pr_globaldefs32[i].ofs] & 0x80000000)
+				{
+					((int *)glob)[pr_globaldefs32[i].ofs] &= ~0x80000000;
+					((int *)glob)[pr_globaldefs32[i].ofs] += pointeradjust;
+				}
 				break;
 			}
 		}
@@ -3627,6 +3662,10 @@ retry:
 
 	if (progfuncs->funcs.stringtablesize + progfuncs->funcs.stringtable < pr_strings + pr_progs->numstrings)
 		progfuncs->funcs.stringtablesize = (pr_strings + pr_progs->numstrings) - progfuncs->funcs.stringtable;
+
+	//make sure the localstack is addressable to the qc, so we can OP_PUSH okay.
+	if (!prinst.localstack)
+		prinst.localstack = PRAddressableExtend(progfuncs, NULL, 0, sizeof(float)*LOCALSTACK_SIZE);
 
 	if (externs->MapNamedBuiltin)
 	{

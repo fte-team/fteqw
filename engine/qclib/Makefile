@@ -102,10 +102,10 @@ qcvm.a: $(QCC_OBJS) $(VM_OBJS) $(COMMON_OBJS)
 test.o: test.c
 	$(DO_CC)
 
-testapp.bin: test.o qcvm.a
-	$(CC) $(BASE_CFLAGS) $(CFLAGS) -o testapp.bin -O3 $(BASE_LDFLAGS) $^ -lm -lz
+qcvm: test.o qcvm.a
+	$(CC) $(BASE_CFLAGS) $(CFLAGS) -o qcvm -O3 $(BASE_LDFLAGS) $^ -lm -lz -ggdb
 
-tests: testapp.bin
+tests: qcvm
 	@echo Running Tests...
 	@$(foreach a,$(wildcard tests/*.src), echo TEST: $a; rm progs.dat; ./testapp.bin progs.dat -srcfile $a; echo; echo)
 	@echo Tests run.

@@ -140,10 +140,10 @@ pbool flag_msvcstyle;		//MSVC style warnings, so msvc's ide works properly
 pbool flag_debugmacros;		//Print out #defines as they are expanded, for debugging.
 pbool flag_assume_integer;	//5 - is that an integer or a float? qcc says float. but we support int too, so maybe we want that instead?
 pbool flag_assume_double;	//5.0 - is that single or double precision? QC says float, but C says double. should probably only be used with assume-int enabled too.
-pbool flag_filetimes;
+pbool flag_filetimes;		//only rebuild if files were modified.
 pbool flag_typeexplicit;	//no implicit type conversions, you must do the casts yourself.
-pbool flag_boundchecks;	//Disable generation of bound check instructions.
-pbool flag_guiannotate;
+pbool flag_boundchecks;		//Disable generation of bound check instructions.
+pbool flag_guiannotate;		//spit out lots of extra text that the gui can interpret to display some inline asm
 pbool flag_brokenarrays;	//return array; returns array[0] instead of &array;
 pbool flag_rootconstructor;	//if true, class constructors are ordered to call the super constructor first, rather than the child constructor
 pbool flag_qccx;			//accept qccx syntax. you may wish to disable warnings separately.
@@ -154,9 +154,13 @@ pbool flag_cpriority;		//operator precidence should adhere to C standards, inste
 pbool flag_qcfuncs;			//void() is a function type, and not a syntax error.
 pbool flag_allowuninit;		//ignore uninitialised locals, avoiding all private locals.
 pbool flag_embedsrc;		//embed all source files inside the .dat (can be opened with any zip program)
+pbool flag_noreflection;	//no reflection stuff, for smaller unsavable binaries.
 pbool flag_nopragmafileline;//ignore #pragma file and #pragma line, so that I can actually read+debug xonotic's code.
 pbool flag_utf8strings;		//strings default to u8"" string rules.
-pbool flag_reciprocalmaths;		//unsafe maths optimisations
+pbool flag_reciprocalmaths;	//unsafe maths optimisations
+pbool flag_ILP32;			//restrict long to 32 bits. long long still exists.
+pbool flag_undefwordsize;	//pointers are NOT always multiples of 4. sizeof becomes an error foo.length will still work though. pointer maths will resort to OP_ADD_PIW in order to still work (or just break). char and short types are unusable. casting between strings and pointers is an error (though you can still contrive casts past it). for compat with DP and its potential 64bit qcvm.
+pbool flag_pointerrelocs;	//engine accepts ev_pointer globaldefs and biases them by the in-memory globals.
 
 pbool opt_overlaptemps;		//reduce numpr_globals by reuse of temps. When they are not needed they are freed for reuse. The way this is implemented is better than frikqcc's. (This is the single most important optimisation)
 pbool opt_assignments;		//STORE_F isn't used if an operation wrote to a temp.
@@ -270,7 +274,7 @@ QCC_sref_t QCC_MakeInt64Const(longlong llvalue);
 QCC_sref_t QCC_MakeUInt64Const(unsigned longlong llvalue);
 static QCC_sref_t QCC_MakeUniqueConst(QCC_type_t *type, void *data);
 QCC_sref_t QCC_MakeVectorConst(pvec_t a, pvec_t b, pvec_t c);
-static QCC_sref_t QCC_MakeGAddress(QCC_type_t *type, QCC_def_t *relocof);
+static QCC_sref_t QCC_MakeGAddress(QCC_type_t *type, QCC_def_t *relocof, int idx);
 
 enum
 {
@@ -304,6 +308,7 @@ QCC_function_t	*pr_assumetermscope;
 unsigned int	pr_assumetermflags; //GDF_
 pbool			pr_ignoredeprecation;
 pbool	pr_dumpasm;
+const char		*s_unitn;
 const char		*s_filen;
 QCC_string_t	s_filed;			// filename for function definition
 
@@ -1383,7 +1388,10 @@ static pbool QCC_OPCodeValidForTarget(qcc_targetformat_t targfmt, unsigned int q
 	case QCF_FTE:
 	case QCF_FTEDEBUG:
 #define QCTARGVER_FTE_DEF	5768//5529
-#define QCTARGVER_FTE_MAX			   5768
+#define QCTARGVER_FTE_PRELOCS	6614//FIXME
+#define QCTARGVER_FTE_MAX			   QCTARGVER_FTE_PRELOCS
+		if (num == OP_PUSH)
+			return (qcc_targetversion>=QCTARGVER_FTE_PRELOCS);	//OP_PUSH was buggy before this.
 		if (num >= OP_LT_U)		//uint+double+int64+uint64 ops
 			return (qcc_targetversion>=5768);
 		if (num >= OP_STOREP_B)	//byte
@@ -1536,8 +1544,9 @@ static pbool QCC_OPCodeValidForTarget(qcc_targetformat_t targfmt, unsigned int q
 		}
 		return false;
 	case QCF_DARKPLACES:
-#define QCTARGVER_DP_DEF	12901
-#define QCTARGVER_DP_MAX	12901
+#define QCTARGVER_DP_DEF		   12901
+#define QCTARGVER_DP_POINTERS	20241108	//FIXME: set properly once https://github.com/DarkPlacesEngine/DarkPlaces/pull/215 is merged.
+#define QCTARGVER_DP_MAX		20241108
 		//all id opcodes.
 		if (num < OP_MULSTORE_F)
 			return true;
@@ -1545,6 +1554,24 @@ static pbool QCC_OPCodeValidForTarget(qcc_targetformat_t targfmt, unsigned int q
 		//extended opcodes.
 		switch(num)
 		{
+		case OP_ADD_PIW:
+		case OP_GLOBALADDRESS:
+		case OP_LOADA_F:
+		case OP_LOADA_V:
+		case OP_LOADA_S:
+		case OP_LOADA_ENT:
+		case OP_LOADA_FLD:
+		case OP_LOADA_FNC:
+		case OP_LOADA_I:
+		case OP_LOAD_P:
+		case OP_LOADP_F:
+		case OP_LOADP_V:
+		case OP_LOADP_S:
+		case OP_LOADP_ENT:
+		case OP_LOADP_FLD:
+		case OP_LOADP_FNC:
+		case OP_LOADP_I:
+			return (qcc_targetversion>=QCTARGVER_DP_POINTERS);
 		//opcodes that were buggy in DP.
 		case OP_ADD_IF:		//dp wrote these to ints, which doesn't match our defined opcodes. not really a problem.
 		case OP_SUB_IF:		//dp wrote these to ints, which doesn't match our defined opcodes. revert to _F.
@@ -1649,6 +1676,8 @@ static pbool QCC_OPCode_StorePOffset(void)
 	case QCF_FTEH2:
 	case QCF_FTEDEBUG:
 		return (qcc_targetversion>=5712);
+	case QCF_DARKPLACES:
+		return (qcc_targetversion>=QCTARGVER_DP_POINTERS);
 	case QCF_QSS:
 		return true;
 	default:
@@ -1661,6 +1690,8 @@ void QCC_OPCodeSetTarget(qcc_targetformat_t targfmt, unsigned int targver)
 	size_t i;
 	qcc_targetformat = targfmt;
 	qcc_targetversion = targver;
+	flag_undefwordsize = false;
+	flag_pointerrelocs = false;
 
 	switch(qcc_targetformat)
 	{
@@ -1673,8 +1704,11 @@ void QCC_OPCodeSetTarget(qcc_targetformat_t targfmt, unsigned int targver)
 				QCC_PR_ParseWarning(WARN_BADTARGET, "target revision %u is unknown, assuming revision %u", qcc_targetversion, QCTARGVER_FTE_MAX);
 			qcc_targetversion = QCTARGVER_FTE_MAX;
 		}
+
+		flag_pointerrelocs = qcc_targetversion >= QCTARGVER_FTE_PRELOCS;
 		break;
 	case QCF_DARKPLACES:
+		flag_undefwordsize = true;
 		if (qcc_targetversion > QCTARGVER_DP_MAX)
 		{
 			if (qcc_targetversion != ~0u)
@@ -1816,12 +1850,43 @@ static pbool QCC_SRef_IsNull(QCC_sref_t ref)
 //retrieves the data associated with the reference if its constant and thus readable at compile time.
 static const QCC_eval_t *QCC_SRef_EvalConst(QCC_sref_t ref)
 {
-	if (ref.sym && ref.sym->initialized && ref.sym->constant)
+	if (ref.sym && ref.sym->initialized && ref.sym->constant && !ref.sym->reloc)
 	{
 		ref.sym->referenced = true;
 		return (const QCC_eval_t*)&ref.sym->symboldata[ref.ofs];
 	}
 	return NULL;
+}
+
+//retrieves the int value associated with the reference if its constant and thus readable at compile time.
+static pint64_t QCC_Eval_Int(const QCC_eval_t *eval, QCC_type_t *type)
+{
+	if (!eval)
+	{
+		QCC_PR_ParseWarning(ERR_BADIMMEDIATETYPE, "Not an initialised constant");
+		return 0;
+	}
+	switch(type->type)
+	{
+	case ev_float:		return eval->_float;
+	case ev_double:		return eval->_double;
+	case ev_integer:	return eval->_int;
+//	case ev_function:
+//	case ev_entity:
+//	case ev_field:
+//	case ev_pointer:
+	case ev_uint:		return eval->_uint;
+	case ev_boolean:	return QCC_Eval_Int(eval, type->aux_type);	//bools are weird.
+	case ev_int64:		return eval->i64;
+	case ev_uint64:		return eval->u64;
+//	case ev_string:
+//	case ev_vector:
+	case ev_struct:
+	case ev_union:
+	default:
+		QCC_PR_ParseWarning(ERR_BADIMMEDIATETYPE, "Unable to evaluate to numeric constant");
+		return 0;
+	}
 }
 
 //retrieves the data associated with the reference if its constant and thus readable at compile time.
@@ -2309,6 +2374,15 @@ void QCC_PurgeTemps(void)
 	tempsused = 0;
 	aliases = NULL;
 	allaliases = NULL;
+
+
+	max_labels = 0;
+	max_gotos = 0;
+	free(pr_labels);
+	pr_labels = NULL;
+	free(pr_gotos);
+	pr_gotos = NULL;
+	num_gotos = num_labels = 0;
 }
 
 //temps that are still in use over a function call can be considered dodgy.
@@ -2530,6 +2604,11 @@ const char *QCC_VarAtOffset(QCC_sref_t ref)
 			type = !val?-1:ref.cast->type;
 			if (type == ev_variant)
 				type = ref.sym->type->type;
+			if (ref.sym->reloc)// && ref.cast->type == ev_pointer)
+			{
+				QC_snprintfz(message, sizeof(message), "&%s", ref.sym->reloc->name);
+				return message;
+			}
 			switch(type)
 			{
 			case ev_string:
@@ -2753,6 +2832,10 @@ QCC_sref_t QCC_PR_StatementFlags ( QCC_opcode_t *op, QCC_sref_t var_a, QCC_sref_
 				//both are constants
 				switch (op - pr_opcodes)	//improve some of the maths.
 				{
+//				case OP_GLOBALADDRESS:
+//					if (flag_pointerrelocs)
+//						return QCC_MakeGAddress(type_pointer, var_a.sym, var_a.ofs + QCC_Eval_Int(QCC_SRef_EvalConst(var_b), var_b.cast));
+//					break;
 				case OP_AND_ANY:
 //				case OP_AND_F:
 				case OP_AND_FI:
@@ -2977,9 +3060,11 @@ QCC_sref_t QCC_PR_StatementFlags ( QCC_opcode_t *op, QCC_sref_t var_a, QCC_sref_
 					return QCC_MakeFloatConst(eval_a->_float + eval_b->_int);
 
 				case OP_ADD_PIW:
+					if (flag_undefwordsize)
+						break;	//don't make assumptions.
 					QCC_FreeTemp(var_a); QCC_FreeTemp(var_b);
 					optres_constantarithmatic++;
-					return QCC_MakeIntConst(eval_a->_int + eval_b->_int*4);
+					return QCC_MakeIntConst(eval_a->_int + eval_b->_int*VMWORDSIZE);
 
 				case OP_SUB_IF:
 					QCC_FreeTemp(var_a); QCC_FreeTemp(var_b);
@@ -3349,7 +3434,7 @@ QCC_sref_t QCC_PR_StatementFlags ( QCC_opcode_t *op, QCC_sref_t var_a, QCC_sref_
 					{
 						pint64_t d = eval_a->_int;
 						if ((pint_t)d != eval_a->_int)
-							QCC_PR_ParseWarning(WARN_OVERFLOW, "Numerical truncation of %#"pPRIi" to %#"pPRIx64".", eval_a->_int, (pint64_t)d);
+							QCC_PR_ParseWarning(WARN_OVERFLOW, "Numerical truncation of %"pPRIi" to %#"pPRIx64".", eval_a->_int, (pint64_t)d);
 						return QCC_MakeInt64Const(d);
 					}
 				case OP_CONV_UI64:
@@ -3358,7 +3443,7 @@ QCC_sref_t QCC_PR_StatementFlags ( QCC_opcode_t *op, QCC_sref_t var_a, QCC_sref_
 					{
 						puint64_t d = eval_a->_uint;
 						if ((puint_t)d != eval_a->_uint)
-							QCC_PR_ParseWarning(WARN_OVERFLOW, "Numerical truncation of %#"pPRIu" to %#"pPRIx64".", eval_a->_uint, (pint64_t)d);
+							QCC_PR_ParseWarning(WARN_OVERFLOW, "Numerical truncation of %"pPRIu" to %#"pPRIx64".", eval_a->_uint, (pint64_t)d);
 						return QCC_MakeUInt64Const(d);
 					}
 				case OP_CONV_I64I:
@@ -3367,7 +3452,7 @@ QCC_sref_t QCC_PR_StatementFlags ( QCC_opcode_t *op, QCC_sref_t var_a, QCC_sref_
 					{
 						pint_t d = eval_a->i64;
 						if ((pint64_t)d != eval_a->i64)
-							QCC_PR_ParseWarning(WARN_OVERFLOW, "Numerical truncation of %#"pPRIx64" to %#"pPRIx".", eval_a->i64, (pint_t)d);
+							QCC_PR_ParseWarning(WARN_OVERFLOW, "Numerical truncation of %"pPRIx64" to %#"pPRIx".", eval_a->i64, (pint_t)d);
 						return QCC_MakeIntConst(d);
 					}
 
@@ -3486,6 +3571,10 @@ QCC_sref_t QCC_PR_StatementFlags ( QCC_opcode_t *op, QCC_sref_t var_a, QCC_sref_
 			//b is const, a is not
 			switch (op - pr_opcodes)
 			{
+				case OP_GLOBALADDRESS:
+					if (flag_pointerrelocs)
+						return QCC_MakeGAddress(type_pointer, var_a.sym, var_a.ofs + QCC_Eval_Int(QCC_SRef_EvalConst(var_b), var_b.cast));
+					break;
 				case OP_AND_ANY:
 				case OP_AND_F:
 				case OP_AND_FI:
@@ -3577,10 +3666,10 @@ QCC_sref_t QCC_PR_StatementFlags ( QCC_opcode_t *op, QCC_sref_t var_a, QCC_sref_
 			case OP_DIV_VF:
 				if (!eval_b->_float)
 					QCC_PR_ParseWarning(WARN_DIVISIONBY0, "Division by 0\n");
-				else if (flag_reciprocalmaths)
+				else if (flag_reciprocalmaths && eval_b->_int&(0xff<<23))
 				{
 					QCC_FreeTemp(var_b);
-					var_b = QCC_MakeFloatConst(1 / eval_b->_float);
+					var_b = QCC_MakeFloatConst(1.0 / eval_b->_float);
 					return QCC_PR_StatementFlags(&pr_opcodes[OP_MUL_VF], var_a, var_b, outstatement, 0);
 				}
 				if (eval_b->_float == 1)
@@ -3595,11 +3684,11 @@ QCC_sref_t QCC_PR_StatementFlags ( QCC_opcode_t *op, QCC_sref_t var_a, QCC_sref_
 			case OP_DIV_IF:
 				if (!eval_b->_float)
 					QCC_PR_ParseWarning(WARN_DIVISIONBY0, "Division by 0\n");
-				else if (flag_reciprocalmaths)
+				else if (flag_reciprocalmaths && eval_b->_int&(0xff<<23))
 				{
 					QCC_FreeTemp(var_b);
-					var_b = QCC_MakeFloatConst(1 / eval_b->_float);
-					return QCC_PR_StatementFlags((op == &pr_opcodes[OP_ADD_FP])?&pr_opcodes[OP_MUL_F]:&pr_opcodes[OP_MUL_IF], var_a, var_b, outstatement, 0);
+					var_b = QCC_MakeFloatConst(1.0 / eval_b->_float);
+					return QCC_PR_StatementFlags((op == &pr_opcodes[OP_DIV_F])?&pr_opcodes[OP_MUL_F]:&pr_opcodes[OP_MUL_IF], var_a, var_b, outstatement, 0);
 				}
 				//fallthrough
 			case OP_MUL_F:
@@ -3983,7 +4072,7 @@ QCC_sref_t QCC_PR_StatementFlags ( QCC_opcode_t *op, QCC_sref_t var_a, QCC_sref_
 				}
 			}
 		}
-		else if (op - pr_opcodes == OP_ADD_I && statements[numstatements-1].op == OP_MUL_I && opt_assignments)
+		else if (op - pr_opcodes == OP_ADD_I && statements[numstatements-1].op == OP_MUL_I && opt_assignments && !flag_undefwordsize)
 		{
 			//mul_i idx 4i tmp
 			//add_i tmp 2i out
@@ -3992,7 +4081,7 @@ QCC_sref_t QCC_PR_StatementFlags ( QCC_opcode_t *op, QCC_sref_t var_a, QCC_sref_
 //			const QCC_eval_t *eval_a = QCC_SRef_EvalConst(var_a);
 			const QCC_eval_t *eval_b = QCC_SRef_EvalConst(statements[numstatements-1].b);
 
-			if (eval_b && eval_b->_int == 4)
+			if (eval_b && eval_b->_int == VMWORDSIZE)
 			{
 				if (var_a.cast && var_a.sym == statements[numstatements-1].c.sym && var_a.ofs == statements[numstatements-1].c.ofs)
 					if (var_a.sym && var_b.sym && var_a.sym->temp && var_a.sym->refcount==1)
@@ -4115,11 +4204,20 @@ QCC_sref_t QCC_PR_StatementFlags ( QCC_opcode_t *op, QCC_sref_t var_a, QCC_sref_
 			if (op == &pr_opcodes[OP_SUB_PF])
 				var_b = QCC_SupplyConversion(var_b, ev_integer, true);	//FIXME: this should be an unconditional float->int conversion
 			if (var_c.cast->aux_type->type == ev_void)	//void* is treated as a byte type.
+			{
+				if (flag_undefwordsize)
+					QCC_PR_ParseWarning(ERR_BADEXTENSION, "void* maths was disabled.");
 				var_c = QCC_PR_StatementFlags(&pr_opcodes[OP_SUB_I], var_c, var_b, NULL, 0);
+			}
+			else if (1)
+			{
+				var_b = QCC_PR_StatementFlags(&pr_opcodes[OP_MUL_I], var_b, QCC_MakeIntConst(-var_c.cast->aux_type->size), NULL, 0);
+				var_c = QCC_PR_StatementFlags(&pr_opcodes[OP_ADD_PIW], var_c, var_b/*negative, making this a subtraction*/, NULL, 0);
+			}
 			else
 			{
-				//fixme: word size
-				var_b = QCC_PR_StatementFlags(&pr_opcodes[OP_MUL_I], var_b, QCC_MakeIntConst(var_c.cast->aux_type->size*4), NULL, 0);
+				QCC_sref_t idx = QCC_PR_Statement(&pr_opcodes[OP_ADD_PIW], QCC_MakeIntConst(0), QCC_MakeIntConst(var_c.cast->aux_type->size), NULL);
+				var_b = QCC_PR_StatementFlags(&pr_opcodes[OP_MUL_I], var_b, idx, NULL, 0);
 				var_c = QCC_PR_StatementFlags(&pr_opcodes[OP_SUB_I], var_c, var_b, NULL, 0);
 			}
 			var_c.cast = var_a.cast;
@@ -4130,9 +4228,13 @@ QCC_sref_t QCC_PR_StatementFlags ( QCC_opcode_t *op, QCC_sref_t var_a, QCC_sref_
 			//determine byte offset
 			var_c = QCC_PR_StatementFlags(&pr_opcodes[OP_SUB_I], var_a, var_b, NULL, 0);
 			if (var_a.cast->aux_type->type == ev_void)
+			{
+				if (flag_undefwordsize)
+					QCC_PR_ParseWarning(ERR_BADEXTENSION, "void* maths was disabled.");
 				return var_c;	//we're done if we're using void/bytes
-			//determine divisor (fixme: word size)
-			var_b = QCC_MakeIntConst(var_a.cast->aux_type->size*4);
+			}
+			//determine divisor
+			var_b = QCC_PR_Statement(&pr_opcodes[OP_ADD_PIW], QCC_MakeIntConst(0), QCC_MakeIntConst(var_a.cast->aux_type->size), NULL);
 			//divide the result
 			return QCC_PR_StatementFlags(&pr_opcodes[OP_DIV_I], var_c, var_b, NULL, 0);
 
@@ -4454,7 +4556,7 @@ QCC_sref_t QCC_PR_StatementFlags ( QCC_opcode_t *op, QCC_sref_t var_a, QCC_sref_
 					if (!var_c.cast)
 					{
 						//with denormals, 5.0 * 1i -> 5i, and 5i / 1i = 5.0
-						QCC_PR_ParseWarning(WARN_DENORMAL, "itof emulation: denormals are unsafe");
+						QCC_PR_ParseWarning(WARN_DENORMAL, "itof emulation: denormals are unsafe %s", var_a.sym->name);
 						var_a = QCC_PR_StatementFlags(&pr_opcodes[OP_DIV_F], var_a, QCC_MakeIntConst(1), NULL, 0);
 					}
 					else
@@ -5406,7 +5508,9 @@ QCC_sref_t QCC_PR_StatementFlags ( QCC_opcode_t *op, QCC_sref_t var_a, QCC_sref_
 			}
 			break;
 		case OP_ADD_PIW:
-			var_b = QCC_PR_StatementFlags(&pr_opcodes[OP_MUL_I], QCC_MakeIntConst(4), var_b, NULL, flags&STFL_PRESERVEB);
+			if (flag_undefwordsize)	//fine if its the engine's doing it, not so fine if we're assuming it in the qcc.
+				QCC_PR_ParseWarning(ERR_BADEXTENSION, "Making assumptions about pointer sizes was blocked.");
+			var_b = QCC_PR_StatementFlags(&pr_opcodes[OP_MUL_I], QCC_MakeIntConst(VMWORDSIZE), var_b, NULL, flags&STFL_PRESERVEB);
 			var_c = QCC_PR_StatementFlags(&pr_opcodes[OP_ADD_I], var_a, var_b, NULL, flags&~STFL_PRESERVEB);
 			var_c.cast = var_a.cast;
 			return var_c;
@@ -5475,7 +5579,17 @@ QCC_sref_t QCC_PR_StatementFlags ( QCC_opcode_t *op, QCC_sref_t var_a, QCC_sref_
 	}
 
 	if (!pr_scope)
-		QCC_PR_ParseError(ERR_BADEXTENSION, "Unable to generate statements at global scope.");
+	{
+		switch(op - pr_opcodes)
+		{
+		case OP_GLOBALADDRESS:
+			if (flag_pointerrelocs)
+				return QCC_MakeGAddress(type_pointer, var_a.sym, var_a.ofs + (var_b.cast?QCC_Eval_Int(QCC_SRef_EvalConst(var_b), var_b.cast):0));
+			break;
+		}
+
+		QCC_PR_ParseWarning(ERR_BADEXTENSION, "Unable to generate statements at global scope (%s).", op->opname);
+	}
 
 	if (op->type_c == &type_void || op->associative==ASSOC_RIGHT || op->type_c == NULL)
 	{
@@ -5748,6 +5862,8 @@ static QCC_ref_t *QCC_PR_GenerateAddressOf(QCC_ref_t *retbuf, QCC_ref_t *operand
 			else
 				QCC_PR_ParseError (ERR_BADEXTENSION, "Address-of operator is not supported in this form without extensions. Consider the use of: #pragma target fte");
 		}
+		if (operand->base.sym->scope && !operand->base.sym->isstatic)
+			QCC_PR_ParseWarning (WARN_NOTSTANDARDBEHAVIOUR, "Address-of operator on local");
 
 		//&foo (or &((&foo)[5]), which is basically an array). the result is a temp and thus cannot be assigned to (but should be possible to dereference further).
 		return QCC_PR_BuildRef(retbuf,
@@ -5781,7 +5897,7 @@ static QCC_ref_t *QCC_PR_GenerateAddressOf(QCC_ref_t *retbuf, QCC_ref_t *operand
 }
 QCC_sref_t QCC_DP_GlobalAddress(QCC_sref_t base, QCC_sref_t index, unsigned int flags)
 {
-	QCC_sref_t ptr = QCC_MakeGAddress(type_integer, base.sym);
+	QCC_sref_t ptr = QCC_MakeGAddress(type_integer, base.sym, 0);
 	base.sym->used = true;
 	if (!(flags&STFL_PRESERVEA))
 		QCC_FreeTemp(base);
@@ -5967,7 +6083,7 @@ static void QCC_VerifyFormatString (const char *funcname, QCC_ref_t **arglist, u
 		return;	//don't bother if its not relevant anyway.
 	s = strings + formatstring->string;
 
-#define ARGTYPE(a) (((a)>=firstarg && (a)<argcount) ? (arglist[a]->cast->type) : ev_void)
+#define ARGTYPE(a) (((a)>=firstarg && (a)<argcount) ? ((arglist[a]->cast->type==ev_boolean)?arglist[a]->cast->parentclass->type:arglist[a]->cast->type) : ev_void)
 #define ARGCTYPE(a) (((a)>=firstarg && (a)<argcount) ? (arglist[a]->cast) : type_void)
 
 	for(;;)
@@ -6365,7 +6481,7 @@ static void QCC_VerifyArgs_sendevent (const char *funcname, QCC_ref_t **arglist,
 		}
 		if (arg >= argcount)
 		{
-			QCC_PR_ParseWarning(WARN_ARGUMENTCHECK, "%s: arg type list", funcname, col_name, *argtypes, col_none);
+			QCC_PR_ParseWarning(WARN_ARGUMENTCHECK, "%s: arg type list longer than args", funcname);
 			break;
 		}
 		else if (!t)
@@ -7734,7 +7850,7 @@ static QCC_sref_t QCC_PR_ParseFunctionCall (QCC_ref_t *funcref)	//warning, the f
 			sz = QCC_PR_Statement(&pr_opcodes[OP_ADD_I], sz, QCC_MakeIntConst(3), NULL);
 			sz = QCC_PR_Statement(&pr_opcodes[OP_DIV_I], sz, QCC_MakeIntConst(4), NULL);
 			QCC_FreeTemp(sz);
-			ret = QCC_GetTemp(QCC_PointerTypeTo(type_variant));
+			ret = QCC_GetTemp(QCC_PointerTypeTo(type_void));
 			QCC_PR_SimpleStatement(&pr_opcodes[OP_PUSH], sz, nullsref, ret, false);	//push *(int*)&a elements
 			return ret;
 		}
@@ -7757,7 +7873,7 @@ static QCC_sref_t QCC_PR_ParseFunctionCall (QCC_ref_t *funcref)	//warning, the f
 			}
 			else
 			{
-				QCC_PR_ParseErrorPrintSRef (ERR_TYPEMISMATCHPARM, func, "_() intrinsic accepts only a string immediate", 1);
+				QCC_PR_ParseErrorPrintSRef (ERR_TYPEMISMATCHPARM, func, "_() intrinsic accepts only a string immediate");
 				d = nullsref;
 
 			}
@@ -7772,7 +7888,10 @@ static QCC_sref_t QCC_PR_ParseFunctionCall (QCC_ref_t *funcref)	//warning, the f
 			QCC_type_t *type;
 			va_list = QCC_PR_GetSRef(type_vector, "__va_list", pr_scope, false, 0, 0);
 			idx = QCC_PR_Expression (TOP_PRIORITY, EXPR_DISALLOW_COMMA);
-			idx = QCC_PR_Statement(&pr_opcodes[OP_MUL_F], idx, QCC_MakeFloatConst(3), NULL);
+			if (idx.cast->type == ev_float)
+				idx = QCC_PR_Statement(&pr_opcodes[OP_MUL_F], idx, QCC_MakeFloatConst(3), NULL);
+			else
+				idx = QCC_PR_Statement(&pr_opcodes[OP_MUL_I], QCC_SupplyConversion(idx, ev_integer, true), QCC_MakeIntConst(3), NULL);
 			QCC_PR_Expect(",");
 			type = QCC_PR_ParseType(false, false);
 			QCC_PR_Expect(")");
@@ -8566,7 +8685,7 @@ static QCC_sref_t QCC_MakeUniqueConst(QCC_type_t *type, void *data)
 	return QCC_MakeSRefForce(cn, 0, type);
 }
 
-static QCC_sref_t QCC_MakeGAddress(QCC_type_t *type, QCC_def_t *relocof)
+static QCC_sref_t QCC_MakeGAddress(QCC_type_t *type, QCC_def_t *relocof, int idx)
 {
 	QCC_def_t	*cn;
 
@@ -8592,9 +8711,11 @@ static QCC_sref_t QCC_MakeGAddress(QCC_type_t *type, QCC_def_t *relocof)
 	cn->symboldata = (QCC_eval_basic_t*)(cn+1);
 
 	cn->reloc = relocof;
-	relocof->gaddress = cn;
+	if (!idx)
+		relocof->gaddress = cn;
 
 	memset(cn->symboldata, 0, sizeof(pint_t) * type->size);
+	cn->symboldata->_int = idx;
 
 	return QCC_MakeSRefForce(cn, 0, type);
 }
@@ -9314,16 +9435,10 @@ QCC_ref_t *QCC_PR_ParseRefArrayPointer (QCC_ref_t *retbuf, QCC_ref_t *r, pbool a
 			{
 				/*array notation on vector*/
 vectorarrayindex:
-				if (tmp.sym->constant)
+				if ((eval=QCC_SRef_EvalConst(tmp)))
 				{
-					unsigned int i;
-					if (tmp.cast->type == ev_integer)
-						i = tmp.sym->symboldata[tmp.ofs]._int;
-					else if (tmp.cast->type == ev_float)
-						i = tmp.sym->symboldata[tmp.ofs]._float;
-					else
-						i = -1;
-					if ((unsigned)i >= 3u)
+					unsigned long i = QCC_Eval_Int(eval, tmp.cast);
+					if (i >= 3u)
 						QCC_PR_ParseErrorPrintSRef(0, r->base, "(vector) array index out of bounds");
 				}
 				else if (QCC_OPCodeValid(&pr_opcodes[OP_BOUNDCHECK]) && flag_boundchecks)
@@ -9339,22 +9454,8 @@ vectorarrayindex:
 fieldarrayindex:
 				if ((eval=QCC_SRef_EvalConst(tmp)))
 				{
-					unsigned long i;
-					if (tmp.cast->type == ev_uint)
-						i = eval->_uint;
-					else if (tmp.cast->type == ev_integer)
-						i = eval->_int;
-					else if (tmp.cast->type == ev_uint64)
-						i = eval->u64;
-					else if (tmp.cast->type == ev_int64)
-						i = eval->i64;
-					else if (tmp.cast->type == ev_float)
-						i = eval->_float;
-					else if (tmp.cast->type == ev_double)
-						i = eval->_double;
-					else
-						i = -1;
-					if ((unsigned long)i >= 3u)
+					unsigned long i = QCC_Eval_Int(eval, tmp.cast);
+					if (i >= 3u)
 						QCC_PR_ParseErrorPrintSRef(0, r->base, "(vector) array index out of bounds");
 				}
 				else if (QCC_OPCodeValid(&pr_opcodes[OP_BOUNDCHECK]) && flag_boundchecks)
@@ -9370,22 +9471,8 @@ fieldarrayindex:
 			}
 			else if ((eval=QCC_SRef_EvalConst(tmp)))
 			{
-				unsigned long i;
-				if (tmp.cast->type == ev_uint)
-					i = eval->_uint;
-				else if (tmp.cast->type == ev_integer)
-					i = eval->_int;
-				else if (tmp.cast->type == ev_uint64)
-					i = eval->u64;
-				else if (tmp.cast->type == ev_int64)
-					i = eval->i64;
-				else if (tmp.cast->type == ev_float)
-					i = eval->_float;
-				else if (tmp.cast->type == ev_double)
-					i = eval->_double;
-				else
-					i = -1;
-				if ((unsigned long)i >= (unsigned long)arraysize)
+				unsigned i = QCC_Eval_Int(eval, tmp.cast);
+				if (i >= (unsigned)arraysize)
 				{
 					QCC_PR_ParseWarning(WARN_ERROR, "(constant) array index out of bounds (0 <= %i < %i)", i, arraysize);
 					QCC_PR_ParsePrintSRef(WARN_ERROR, r->base);
@@ -9622,6 +9709,12 @@ fieldarrayindex:
 		}
 		else
 			base = QCC_RefToDef(r, true);
+
+		if (t->type == ev_union && t->num_parms == 1 && !t->params[0].paramname)	//FIXME
+		{
+			arraysize = t->params[0].arraysize;
+			t = t->params[0].type;
+		}
 
 		//okay, not a pointer, we'll have to read it in somehow
 		if (dereference)
@@ -10002,7 +10095,7 @@ QCC_ref_t	*QCC_PR_ParseRefValue (QCC_ref_t *refbuf, QCC_type_t *assumeclass, pbo
 		else
 			QCC_FreeTemp(d);
 		d = t;
-		QCC_PR_ParseWarning (WARN_SELFNOTTHIS, "'self' used inside OO function, use 'this'.", pr_scope->name);
+		QCC_PR_ParseWarning (WARN_SELFNOTTHIS, "'self' used inside OO function, use 'this'.");
 	}
 
 	if (!d.cast)
@@ -10338,6 +10431,11 @@ static QCC_sref_t QCC_TryEvaluateCast(QCC_sref_t src, QCC_type_t *cast, pbool im
 		}
 		src.cast = cast;
 	}
+	else if (flag_undefwordsize && ((totype == ev_pointer && src.cast->type == ev_string) || (totype == ev_pointer && src.cast->type == ev_string)))
+	{	//pointer<->string is blocked when pointers are not bytes. if words are 8 bytes then everything is screwed, or if pointers cannot store byte offsets...
+		QCC_PR_ParseWarning(ERR_BADEXTENSION, "pointer<->string casts were disabled.");
+		src.cast = cast;
+	}
 	//can cast any pointer type to void*
 	else if (totype == ev_pointer && tmp->aux_type->type == ev_void && (src.cast->type == ev_pointer || src.cast->type == ev_function))
 		src.cast = cast;
@@ -10385,9 +10483,7 @@ static QCC_sref_t QCC_TryEvaluateCast(QCC_sref_t src, QCC_type_t *cast, pbool im
 	/*these casts are acceptable but probably an error (so warn when implicit)*/
 	else if (
 		/*you may explicitly cast between pointers and ints (strings count as pointers - WARNING: some strings may not be expressable as pointers)*/
-		((totype == ev_pointer || totype == ev_string || totype == ev_integer) && (src.cast->type == ev_pointer || src.cast->type == ev_string || src.cast->type == ev_integer))
-		//functions can be explicitly cast from one to another
-		|| (totype == ev_function && src.cast->type == ev_function)
+		((totype == ev_pointer || totype == ev_string || totype == ev_integer || totype == ev_uint || totype == ev_function) && (src.cast->type == ev_pointer || src.cast->type == ev_string || src.cast->type == ev_integer || src.cast->type == ev_uint || src.cast->type == ev_function))
 		//ents->ints || ints->ents. WARNING: the integer value of ent types is engine specific.
 		|| (totype == ev_entity && src.cast->type == ev_integer)
 		|| (totype == ev_entity && src.cast->type == ev_float && flag_qccx)
@@ -10570,6 +10666,8 @@ static QCC_ref_t *QCC_PR_RefTerm (QCC_ref_t *retbuf, unsigned int exprflags)
 			}
 			else if (e.cast->type == ev_pointer)	//FIXME: arrays
 				return QCC_PR_BuildRef(retbuf, REF_POINTER, e, nullsref, e.cast->aux_type, false);
+			else if (e.cast->type == ev_string)	//FIXME: arrays
+				return QCC_PR_BuildRef(retbuf, REF_STRING, e, nullsref, type_integer, false);
 			else if (e.cast->accessors)
 			{
 				struct accessor_s *acc;
@@ -10733,7 +10831,9 @@ static QCC_ref_t *QCC_PR_RefTerm (QCC_ref_t *retbuf, unsigned int exprflags)
 					sz = strlen(&strings[QCC_SRef_EvalConst(r->base)->string]) + 1;	//sizeof("hello") includes the null, and is bytes not codepoints
 				else
 				{
-					sz = 4;	//4 bytes per word. we don't support char/short (our string type is logically char*)
+					if (flag_undefwordsize)
+						QCC_PR_ParseWarning(ERR_BADEXTENSION, "sizeof was disabled.");
+					sz = VMWORDSIZE;	//4 bytes per word. we don't support char/short (our string type is logically char*)
 					if (r->type == REF_ARRAYHEAD && !r->index.cast)
 						sz *= r->base.sym->arraysize;
 					sz *= r->cast->size;
@@ -11551,7 +11651,7 @@ QCC_sref_t QCC_LoadFromArray(QCC_sref_t base, QCC_sref_t index, QCC_type_t *t, p
 				flags = STFL_PRESERVEA;
 				QCC_UnFreeTemp(index);
 			}
-			QCC_SupplyConversion(index, ev_integer, true);
+			index = QCC_SupplyConversion(index, ev_integer, true);
 		}
 		switch(t->type)
 		{
@@ -11890,6 +11990,7 @@ QCC_sref_t QCC_RefToDef(QCC_ref_t *ref, pbool freetemps)
 		case ev_double:
 			QCC_StoreSRefToRef(ref, QCC_PR_StatementFlags(&pr_opcodes[OP_ADD_D], ret, QCC_MakeDoubleConst(inc), NULL, STFL_PRESERVEA), false, !freetemps);
 			break;
+		case ev_string:
 		case ev_integer:
 			QCC_StoreSRefToRef(ref, QCC_PR_StatementFlags(&pr_opcodes[OP_ADD_I], ret, QCC_MakeIntConst(inc), NULL, STFL_PRESERVEA), false, !freetemps);
 			break;
@@ -11990,12 +12091,12 @@ QCC_sref_t QCC_RefToDef(QCC_ref_t *ref, pbool freetemps)
 	case REF_STRING:
 		if (ref->cast->type == ev_float)
 		{
-			idx = QCC_SupplyConversion(ref->index, ev_float, true);
+			idx = ref->index.cast?QCC_SupplyConversion(ref->index, ev_float, true):nullsref;
 			return QCC_PR_StatementFlags(&pr_opcodes[OP_LOADP_C], ref->base, idx, NULL, freetemps?0:(STFL_PRESERVEA|STFL_PRESERVEB));
 		}
 		else
 		{
-			idx = QCC_SupplyConversion(ref->index, ev_integer, true);
+			idx = ref->index.cast?QCC_SupplyConversion(ref->index, ev_integer, true):nullsref;
 			return QCC_PR_StatementFlags(&pr_opcodes[OP_LOADP_B], ref->base, idx, NULL, freetemps?0:(STFL_PRESERVEA|STFL_PRESERVEB));
 		}
 	case REF_ACCESSOR:
@@ -12114,12 +12215,12 @@ QCC_sref_t QCC_StoreSRefToRef(QCC_ref_t *dest, QCC_sref_t source, pbool readable
 		switch(dest->type)
 		{
 		case REF_ARRAYHEAD:
-			QCC_PR_ParseWarning(ERR_PARSEERRORS, "left operand must be an l-value (add you mean %s[0]?)", QCC_GetSRefName(dest->base));
+			QCC_PR_ParseWarning(ERR_PARSEERRORS, "left operand must be an l-value (did you mean %s[0]?)", QCC_GetSRefName(dest->base));
 			if (!preservedest)
 				QCC_PR_DiscardRef(dest);
 			break;
 		default:
-			QCC_PR_ParseWarning(ERR_PARSEERRORS, "left operand must be an l-value (unsupported reference type)", QCC_GetSRefName(dest->base));
+			QCC_PR_ParseWarning(ERR_PARSEERRORS, "left operand must be an l-value (unsupported reference type)");
 			if (!preservedest)
 				QCC_PR_DiscardRef(dest);
 			break;
@@ -12174,17 +12275,23 @@ QCC_sref_t QCC_StoreSRefToRef(QCC_ref_t *dest, QCC_sref_t source, pbool readable
 		case REF_STRING:
 			{
 				QCC_sref_t addr;
+				int op = (source.cast->type==ev_float)?OP_STOREP_C:OP_STOREP_B;
+
+				if (op == OP_STOREP_C)
+					source = QCC_SupplyConversion(source, ev_float, true);
+				else
+					source = QCC_SupplyConversion(source, ev_integer, true);
 
 				if (dest->index.sym && !QCC_OPCode_StorePOffset())
 				{	//can't do an offset store yet... bake any index into the pointer.
 					addr = dest->base;
 					if (dest->index.cast)
 						addr = QCC_PR_Statement(&pr_opcodes[OP_ADD_I], addr, QCC_SupplyConversion(dest->index, ev_integer, true), NULL);
-					QCC_PR_StatementFlags(&pr_opcodes[OP_STOREP_C], source, addr, NULL, STFL_DISCARDRESULT|(preservedest?STFL_PRESERVEB:0)|(readable?STFL_PRESERVEA:0));
+					QCC_PR_StatementFlags(&pr_opcodes[op], source, addr, NULL, STFL_DISCARDRESULT|(preservedest?STFL_PRESERVEB:0)|(readable?STFL_PRESERVEA:0));
 				}
 				else
 				{
-					QCC_PR_SimpleStatement(&pr_opcodes[OP_STOREP_C], source, dest->base, QCC_SupplyConversion(dest->index, ev_integer, true), false);
+					QCC_PR_SimpleStatement(&pr_opcodes[op], source, dest->base, dest->index.cast?QCC_SupplyConversion(dest->index, ev_integer, true):nullsref, false);
 				}
 			}
 			break;
@@ -12377,6 +12484,7 @@ void QCC_PR_DiscardRef(QCC_ref_t *ref)
 		case ev_double:
 			oval = QCC_PR_StatementFlags(&pr_opcodes[OP_ADD_D], oval, QCC_MakeDoubleConst(inc), NULL, 0);
 			break;
+		case ev_string:
 		case ev_integer:
 			oval = QCC_PR_StatementFlags(&pr_opcodes[OP_ADD_I], oval, QCC_MakeIntConst(inc), NULL, 0);
 			break;
@@ -13940,6 +14048,10 @@ void QCC_PR_ParseStatement (void)
 			(				!STRCMP ("_Bool", pr_token)) ||
 			(keyword_static && !STRCMP ("static", pr_token)) ||
 			(keyword_class && !STRCMP ("class", pr_token)) ||
+			(keyword_struct && !STRCMP ("struct", pr_token)) ||
+			(keyword_union && !STRCMP ("union", pr_token)) ||
+			(keyword_enum && !STRCMP ("enum", pr_token)) ||
+			(keyword_extern && !STRCMP ("extern", pr_token)) ||
 			(keyword_typedef && !STRCMP ("typedef", pr_token)) ||
 			(keyword_const && !STRCMP ("const", pr_token)))
 		{
@@ -15832,6 +15944,7 @@ static QCC_function_t *QCC_PR_GenerateBuiltinFunction (QCC_def_t *def, int built
 		QCC_PR_ParseError(ERR_INTERNAL, "Too many functions - %i\nAdd '-max_functions %i' to the commandline", numfunctions, (numfunctions+4096)&~4095);
 	func = &functions[numfunctions++];
 	func->filen = s_filen;
+	func->unitn = s_unitn;
 	func->s_filed = s_filed;
 	func->line = def->s_line;	//FIXME
 	if (builtinname==def->name)
@@ -15904,6 +16017,7 @@ static QCC_function_t *QCC_PR_GenerateQCFunction (QCC_def_t *def, QCC_type_t *ty
 	if (!func)
 		func = &functions[numfunctions++];
 	func->filen = s_filen;
+	func->unitn = s_unitn;
 	func->s_filed = s_filed;
 	func->line = pr_source_line;//def?def->s_line:0;	//FIXME
 	func->name = def?def->name:"";
@@ -16910,6 +17024,7 @@ QCC_def_t *QCC_PR_DummyDef(QCC_type_t *type, const char *name, QCC_function_t *s
 		}
 
 		def->s_line = pr_source_line;
+		def->unitn = s_unitn;
 		def->filen = s_filen;
 		def->s_filed = s_filed;
 		if (a>=0)
@@ -17148,7 +17263,7 @@ QCC_def_t *QCC_PR_GetDef (QCC_type_t *type, const char *name, struct QCC_functio
 					QCC_PR_ParseErrorPrintDef (ERR_TYPEMISMATCHREDEC, def, "Type mismatch on redeclaration of %s%s%s. %s%s%s, should be %s%s%s",col_symbol,name,col_none, col_type,TypeName(type, typebuf1, sizeof(typebuf1)),col_none, col_type,TypeName(def->type, typebuf2, sizeof(typebuf2)),col_none);
 				}
 				if (def->arraysize != arraysize && arraysize>=0)
-					QCC_PR_ParseErrorPrintDef (ERR_TYPEMISMATCHARRAYSIZE, def, "Array sizes for redecleration of %s%s%s do not match",col_symbol,name,col_none);
+					QCC_PR_ParseErrorPrintDef (ERR_TYPEMISMATCHARRAYSIZE, def, "Array sizes for redecleration of %s%s%s do not match (%i -> %i)",col_symbol,name,col_none, def->arraysize,arraysize);
 				if (allocate && scope && !(flags & GDF_STATIC))
 				{
 					if (pr_subscopedlocals)
@@ -17192,7 +17307,7 @@ QCC_def_t *QCC_PR_GetDef (QCC_type_t *type, const char *name, struct QCC_functio
 			}
 
 			//ignore it if its static in some other file.
-			if (def->isstatic && strcmp(def->filen, scope?scope->filen:s_filen))
+			if (def->isstatic && strcmp(def->unitn, scope?scope->unitn:s_unitn))
 			{
 				if (!foundstatic)
 					foundstatic = def;	//save it off purely as a warning.
@@ -17254,8 +17369,10 @@ QCC_def_t *QCC_PR_GetDef (QCC_type_t *type, const char *name, struct QCC_functio
 						}
 						else
 						{
-							//unequal even when we're lax
-							QCC_PR_ParseErrorPrintDef (ERR_TYPEMISMATCHREDEC, def, "Type mismatch on redeclaration of %s%s%s. %s%s%s, should be %s%s%s",col_symbol,name,col_none, col_type,TypeName(type, typebuf1, sizeof(typebuf1)),col_none, col_type,TypeName(def->type, typebuf2, sizeof(typebuf2)),col_none);
+							if (type->type == ev_function && type->vargs && !type->num_parms && def->type->type == ev_function)
+								;	//c89-style dumb redeclarations...
+							else	//unequal even when we're lax
+								QCC_PR_ParseErrorPrintDef (ERR_TYPEMISMATCHREDEC, def, "Type mismatch on redeclaration of %s%s%s. %s%s%s, should be %s%s%s",col_symbol,name,col_none, col_type,TypeName(type, typebuf1, sizeof(typebuf1)),col_none, col_type,TypeName(def->type, typebuf2, sizeof(typebuf2)),col_none);
 						}
 					}
 				}
@@ -17279,7 +17396,7 @@ QCC_def_t *QCC_PR_GetDef (QCC_type_t *type, const char *name, struct QCC_functio
 				}
 			}
 			if (def->arraysize != arraysize && arraysize>=0)
-				QCC_PR_ParseErrorPrintDef(ERR_TYPEMISMATCHARRAYSIZE, def, "Array sizes for redecleration of %s do not match",name);
+				QCC_PR_ParseErrorPrintDef(ERR_TYPEMISMATCHARRAYSIZE, def, "Array sizes for redecleration of %s do not match (%i->%i)",name, def->arraysize,arraysize);
 			if (allocate && scope && !(flags & GDF_STATIC))
 			{
 				if (allocate == 2)
@@ -17518,15 +17635,35 @@ static pbool QCC_PR_GenerateInitializerType(QCC_def_t *basedef, QCC_sref_t tmp, 
 		else
 		{
 			tmp.sym->referenced = true;
-			if (!tmp.sym->initialized)
+			if (!basedef->scope && tmp.sym->reloc)
 			{
-				//FIXME: we NEED to support relocs somehow
-				QCC_PR_ParseWarning(WARN_UNINITIALIZED, "initializer is not initialised, %s will be treated as 0", QCC_GetSRefName(tmp));
-				QCC_PR_ParsePrintSRef(WARN_UNINITIALIZED, tmp);
+				QCC_def_t *dt;
+				if (!flag_pointerrelocs)
+					QCC_PR_ParseWarning(ERR_BADEXTENSION, "preinitialised pointer variables is disabled for this target");
+				dt = QCC_PR_DummyDef(type_pointer, "$reloc", basedef->scope, 0, def.sym, def.ofs, false, GDF_CONST);
+				dt->reloc = tmp.sym->reloc;
+				dt->referenced = true;
+				dt->constant = 1;
+				dt->initialized = 1;
+				dt->strip = true;	//engine does need to know it... but there should be some other def that we're mapping intohere.
+
+				for (i = 0; (unsigned)i < type->size; i++)
+					def.sym->symboldata[def.ofs+i]._int = tmp.ofs + tmp.sym->reloc->symbolheader->arraylengthprefix;
+
+				QCC_FreeTemp(tmp);
+				return ret;
 			}
 
 			if (basedef->initialized && !basedef->unused && !(flags & PIF_STRONGER))
-			{
+			{	//dupe initialisation. compare the two.
+
+				if (!tmp.sym->initialized)
+				{
+					//FIXME: we NEED to support relocs somehow
+					QCC_PR_ParseWarning(WARN_UNINITIALIZED, "initializer is not initialised, %s will be treated as 0", QCC_GetSRefName(tmp));
+					QCC_PR_ParsePrintSRef(WARN_UNINITIALIZED, tmp);
+				}
+
 				for (i = 0; (unsigned)i < type->size; i++)
 					if (def.sym->symboldata[def.ofs+i]._int != tmp.sym->symboldata[tmp.ofs+i]._int)
 					{
@@ -17551,10 +17688,29 @@ static pbool QCC_PR_GenerateInitializerType(QCC_def_t *basedef, QCC_sref_t tmp, 
 				const int *srcdata = (const void*)QCC_SRef_EvalConst(tmp);
 				if (!srcdata)
 				{
-					QCC_PR_ParseWarning(WARN_NOTCONSTANT, "initializer is not initialised yet, %s will be treated as 0", QCC_GetSRefName(tmp));
-					QCC_PR_ParsePrintSRef(WARN_NOTCONSTANT, tmp);
-					for (i = 0; (unsigned)i < type->size; i++)
-						def.sym->symboldata[def.ofs+i]._int = 0;
+					if ((!basedef->scope||basedef->isstatic) && def.cast->type == ev_function && def.sym->symboldata==basedef->symboldata)
+					{	//set to a function which is not yet initialised. insert a function reloc at this location, so we can update it once it is actually known.
+						for (i = 0; (unsigned)i < type->size; i++)
+						{
+							QCC_def_t *dt;
+							dt = QCC_PR_DummyDef(type_function, "$relocf", basedef->scope, 0, def.sym, def.ofs, false, GDF_CONST);
+							dt->reloc = tmp.sym;
+							dt->referenced = true;
+							dt->constant = 1;
+							dt->initialized = 1;
+							dt->strip = true;	//hide it. engine doesn't need to know.
+
+							def.sym->symboldata[def.ofs+i]._int = 0;
+						}
+					}
+					else
+					{
+						QCC_PR_ParseWarning(WARN_NOTCONSTANT, "initializer for %s is not initialised yet, %s will be treated as 0", QCC_GetSRefName(def), QCC_GetSRefName(tmp));
+						QCC_PR_ParsePrintSRef(WARN_NOTCONSTANT, tmp);
+
+						for (i = 0; (unsigned)i < type->size; i++)
+							def.sym->symboldata[def.ofs+i]._int = 0;
+					}
 				}
 				else
 				{
@@ -17705,21 +17861,39 @@ QCC_sref_t QCC_PR_ParseInitializerType_Internal(int arraysize, QCC_def_t *basede
 
 	if (arraysize)
 	{
-		//arrays go recursive
-		QCC_PR_Expect("{");
-		if (!QCC_PR_CheckToken("}"))
+		if (pr_token_type == tt_immediate && pr_immediate_type == type_string && def.cast->type == ev_integer/*fixme: char*/)
 		{
+			if (pr_immediate_strlen > arraysize)	//problem!
+				QCC_PR_ParseWarning (ERR_BADARRAYSIZE, "initializer-string too long");
+
 			for (i = 0; i < arraysize; i++)
 			{
-				ret &= QCC_PR_ParseInitializerType(0, basedef, def, flags);
+				tmp = QCC_MakeIntConst((i < pr_immediate_strlen)?pr_immediate_string[i]:0);
+				tmp = QCC_EvaluateCast(tmp, def.cast, true);
+			//	QCC_ForceUnFreeDef(tmp.sym);
+				ret &= QCC_PR_GenerateInitializerType(basedef, tmp, def, def.cast, flags);
 				def.ofs += def.cast->size;
-				if (!QCC_PR_CheckToken(","))
+			}
+			QCC_PR_Lex();
+		}
+		else
+		{
+			//arrays go recursive
+			QCC_PR_Expect("{");
+			if (!QCC_PR_CheckToken("}"))
+			{
+				for (i = 0; i < arraysize; i++)
 				{
-					QCC_PR_Expect("}");
-					break;
+					ret &= QCC_PR_ParseInitializerType(0, basedef, def, flags);
+					def.ofs += def.cast->size;
+					if (!QCC_PR_CheckToken(","))
+					{
+						QCC_PR_Expect("}");
+						break;
+					}
+					if (QCC_PR_CheckToken("}"))
+						break;
 				}
-				if (QCC_PR_CheckToken("}"))
-					break;
 			}
 		}
 	}
@@ -18141,7 +18315,7 @@ QCC_type_t *QCC_PR_ParseEnum(pbool flags)
 {
 	const char *name = NULL;
 	QCC_sref_t		sref;
-	unsigned longlong next_i = flags?1:0;
+	puint64_t next_i = flags?1:0;
 	double next_f = next_i;
 	struct accessor_s *acc;
 	QCC_type_t *enumtype = NULL, *basetype;
@@ -18289,7 +18463,7 @@ QCC_type_t *QCC_PR_ParseEnum(pbool flags)
 		if (flags)
 		{
 			int bits = 0;
-			unsigned longlong i;
+			puint64_t i;
 			if (basetype->type == ev_float)
 				i = (longlong)next_f;
 			else if (basetype->type == ev_double)
@@ -18315,7 +18489,7 @@ QCC_type_t *QCC_PR_ParseEnum(pbool flags)
 					i>>=1u;
 				}
 				if (bits > 1)	//be mute about 0.
-					QCC_PR_ParseWarning(WARN_ENUMFLAGS_NOTINTEGER, "enumflags - %#x(%i) has multiple bits set", next_i, next_i);
+					QCC_PR_ParseWarning(WARN_ENUMFLAGS_NOTINTEGER, "enumflags - %#"pPRIx64"(%"pPRIi64") has multiple bits set", next_i, next_i);
 			}
 		}
 
@@ -18377,6 +18551,122 @@ QCC_type_t *QCC_PR_ParseEnum(pbool flags)
 	return enumtype?enumtype:basetype;
 }
 
+QCC_sref_t QCC_PR_ParseDefArray(QCC_type_t **type, char *name, pbool istypedef)
+{
+	QCC_sref_t exr;
+	QCC_sref_t dynlength = nullsref;
+	size_t dim[16];
+	int dims = 0;
+	do
+	{
+		dim[dims] = 0;	//not known yet...
+
+		if (dims== 0 && QCC_PR_CheckToken("]"))
+		{
+			//not specified, but that may be okay... perhaps.
+		}
+		else
+		{
+			const QCC_eval_t *eval;
+			exr = QCC_PR_Expression(TOP_PRIORITY, 0);
+			eval = QCC_SRef_EvalConst(exr);
+			if (eval)
+			{
+				if (exr.cast->type == ev_integer)		dim[dims] = eval->_int;
+				else if (exr.cast->type == ev_uint)	dim[dims] = eval->_uint;
+				else if (exr.cast->type == ev_int64)	dim[dims] = eval->i64;
+				else if (exr.cast->type == ev_uint64)	dim[dims] = eval->u64;
+				else if (exr.cast->type == ev_float)
+				{
+					dim[dims] = eval->_float;
+					if ((float)dim[dims] != eval->_float)
+						QCC_PR_ParseWarning (ERR_BADARRAYSIZE, "Array has non-integral length");
+				}
+				else if (exr.cast->type == ev_double)
+				{
+					dim[dims] = eval->_double;
+					if ((double)dim[dims] != eval->_double)
+						QCC_PR_ParseWarning (ERR_BADARRAYSIZE, "Array has non-integral length");
+				}
+				else
+					QCC_PR_ParseError (ERR_BADARRAYSIZE, "Definition of array (%s) size is not of a numerical value", name);
+				QCC_FreeTemp(exr);
+			}
+			else if (!pr_scope)
+				dynlength = exr;
+			else if (dims)
+			{
+				QCC_PR_ParseWarning (ERR_BADARRAYSIZE, "Array has incomplete element");
+				QCC_FreeTemp(exr);
+			}
+			QCC_PR_Expect("]");
+		}
+		dims++;
+	} while(QCC_PR_CheckToken ("["));
+
+	if (dim[0] == 0 && !istypedef && !dynlength.cast)
+	{
+		char *oldprfile = pr_file_p;
+		int oldline = pr_token_line_last;
+		int oldsline = pr_source_line;
+		int depth;
+
+		//FIXME: preprocessor will hate this with a passion.
+		if (QCC_PR_CheckToken("="))
+		{
+			if (pr_token_type == tt_immediate && pr_immediate_type == type_string)
+				dim[0] = pr_immediate_strlen+1;
+			else
+			{
+				QCC_PR_Expect("{");
+				dim[0]++;
+				depth = 1;
+				while(1)
+				{
+					if(pr_token_type == tt_eof)
+					{
+						QCC_PR_ParseError (ERR_EOF, "EOF inside definition of %s", name);
+						break;
+					}
+					else if (depth == 1 && QCC_PR_CheckToken(","))
+					{
+						if (QCC_PR_CheckToken("}"))
+							break;
+						dim[0]++;
+					}
+					else if (QCC_PR_CheckToken("{") || QCC_PR_CheckToken("["))
+						depth++;
+					else if (QCC_PR_CheckToken("}") || QCC_PR_CheckToken("]"))
+					{
+						depth--;
+						if (depth == 0)
+							break;
+					}
+					else
+						QCC_PR_Lex();
+				}
+			}
+
+			pr_file_p = oldprfile;
+			pr_token_line = oldline;
+			pr_source_line = oldsline;
+
+			pr_token_type = tt_punct;
+			pr_immediate_type = type_void;
+			strcpy(pr_token, "=");
+		}
+	}
+
+	while (dims-- > 1)
+	{	//go backwards. last parsed is the innermost array.
+		*type = QCC_GenArrayType(*type, dim[dims]);
+	}
+
+	if (!dynlength.cast)
+		dynlength.ofs = dim[0];
+	return dynlength;
+}
+
 /*
 ================
 PR_ParseDefs
@@ -18408,6 +18698,7 @@ void QCC_PR_ParseDefs (const char *classname, pbool fatal_unused)
 	pbool doweak = false;
 	pbool forceused = false;
 	pbool accumulate = false;
+	pbool hadmodifier = false; //if true then its a def. and we assume int when the tye was omitted.
 	const char *deprecated = NULL;
 	int arraysize;
 	unsigned int gd_flags;
@@ -18696,11 +18987,17 @@ void QCC_PR_ParseDefs (const char *classname, pbool fatal_unused)
 		}
 		else
 			break;
+		hadmodifier = true;
 	}
 
-	basetype = QCC_PR_ParseType (false, false);
+	basetype = QCC_PR_ParseType (false, hadmodifier);
 	if (basetype == NULL)	//ignore
-		return;
+	{
+		if (hadmodifier)
+			basetype = type_integer;
+		else
+			return;
+	}
 
 	inlinefunction = type_inlinefunction;
 
@@ -18856,84 +19153,16 @@ void QCC_PR_ParseDefs (const char *classname, pbool fatal_unused)
 //check for an array
 
 		dynlength = nullsref;
-		arraysize = 0;
-		while(!dynlength.cast && QCC_PR_CheckToken ("["))
+		if (QCC_PR_CheckToken ("["))
 		{
-			char *oldprfile = pr_file_p;
-			int oldline = pr_source_line;
-			int depth;
-			if (arraysize)
-				type = QCC_GenArrayType(type, arraysize);
-			arraysize = 0;
-			if (QCC_PR_CheckToken("]"))
-			{
-				//FIXME: preprocessor will hate this with a passion.
-				if (!istypedef && QCC_PR_CheckToken("="))
-				{
-					QCC_PR_Expect("{");
-					arraysize++;
-					depth = 1;
-					while(1)
-					{
-						if(pr_token_type == tt_eof)
-						{
-							QCC_PR_ParseError (ERR_EOF, "EOF inside definition of %s", name);
-							break;
-						}
-						else if (depth == 1 && QCC_PR_CheckToken(","))
-						{
-							if (QCC_PR_CheckToken("}"))
-								break;
-							arraysize++;
-						}
-						else if (QCC_PR_CheckToken("{") || QCC_PR_CheckToken("["))
-							depth++;
-						else if (QCC_PR_CheckToken("}") || QCC_PR_CheckToken("]"))
-						{
-							depth--;
-							if (depth == 0)
-								break;
-						}
-						else
-							QCC_PR_Lex();
-					}
-				}
-				pr_file_p = oldprfile;
-				pr_source_line = oldline;
-				QCC_PR_Lex();
-			}
-			else
-			{
-				const QCC_eval_t *eval;
+			dynlength = QCC_PR_ParseDefArray(&type, name, istypedef);
+			if (dynlength.cast)
 				arraysize = 0;
-				dynlength = QCC_PR_Expression(TOP_PRIORITY, 0);
-				eval = QCC_SRef_EvalConst(dynlength);
-				if (eval)
-				{
-					if (dynlength.cast->type == ev_integer)
-						arraysize = eval->_int;
-					else if (dynlength.cast->type == ev_float)
-					{
-						int i = eval->_float;
-						if ((float)i == eval->_float)
-							arraysize = i;
-					}
-					else
-						QCC_PR_ParseError (ERR_BADARRAYSIZE, "Definition of array (%s) size is not of a numerical value", name);
-					QCC_FreeTemp(dynlength);
-					dynlength = nullsref;
-				}
-				else if (!pr_scope)
-					dynlength = nullsref;
-				QCC_PR_Expect("]");
-			}
-
-			if (arraysize < 1 && !dynlength.cast)
-			{
-				QCC_PR_ParseError (ERR_BADARRAYSIZE, "Definition of array (%s) size is not of a numerical value", name);
-				arraysize=1;	//grrr...
-			}
+			else
+				arraysize = dynlength.ofs;
 		}
+		else
+			arraysize = 0;
 
 		if (QCC_PR_CheckToken("("))
 		{
@@ -19131,7 +19360,7 @@ void QCC_PR_ParseDefs (const char *classname, pbool fatal_unused)
 			if (aliasof)
 				QCC_PR_ParseError (ERR_SHAREDINITIALISED, "alias %s may not be initialised", name);
 			if (def->shared)
-				QCC_PR_ParseError (ERR_SHAREDINITIALISED, "shared values may not be assigned an initial value", name);
+				QCC_PR_ParseError (ERR_SHAREDINITIALISED, "shared values may not be assigned an initial value");
 
 			//if weak, only use the first non-weak version of the function
 			if (autoprototype || dostrip || (def->initialized && doweak) || (!def->initialized && doweak && dowrap))
@@ -19347,7 +19576,7 @@ pbool	QCC_PR_CompileFile (char *string, char *filename)
 
 	compilingfile = filename;
 
-	s_filen = tmp = qccHunkAlloc(strlen(filename)+1);
+	s_unitn = s_filen = tmp = qccHunkAlloc(strlen(filename)+1);
 	strcpy(tmp, filename);
 	if (opt_filenames)
 	{
@@ -19522,11 +19751,12 @@ pbool	QCC_PR_CompileFile (char *string, char *filename)
 	return (pr_error_count == 0);
 }
 
-pbool QCC_Include(char *filename)
+pbool QCC_Include(char *filename, pbool newunit)
 {
 	char *newfile;
 	char fname[512];
 	char *opr_file_p;
+	const char *os_unitn;
 	const char *os_filen;
 	QCC_string_t os_filed;
 	int opr_source_line;
@@ -19534,6 +19764,7 @@ pbool QCC_Include(char *filename)
 	struct qcc_includechunk_s *oldcurrentchunk;
 
 	ocompilingfile = compilingfile;
+	os_unitn = s_unitn;
 	os_filen = s_filen;
 	os_filed = s_filed;
 	opr_source_line = pr_source_line;
@@ -19548,6 +19779,7 @@ pbool QCC_Include(char *filename)
 	currentchunk = oldcurrentchunk;
 
 	compilingfile = ocompilingfile;
+	s_unitn = os_unitn;
 	s_filen = os_filen;
 	s_filed = os_filed;
 	pr_source_line = opr_source_line;

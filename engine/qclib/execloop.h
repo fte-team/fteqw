@@ -1602,14 +1602,15 @@ reeval:
 			return s;
 */		}
 		break;
-	case OP_PUSH:
+	case OP_PUSH:	//note: OPA is words, not bytes.
 		OPC->_int = ENGINEPOINTER(&prinst.localstack[prinst.localstack_used+prinst.spushed]);
 		prinst.spushed += OPA->_int;
 		if (prinst.spushed + prinst.localstack_used >= LOCALSTACK_SIZE)
 		{
+			i = prinst.spushed;
 			prinst.spushed = 0;
 			prinst.pr_xstatement = st-pr_statements;
-			PR_RunError(&progfuncs->funcs, "Progs pushed too much");
+			PR_RunError(&progfuncs->funcs, "Progs pushed too much (%i bytes, %i parents, max %i)", i, prinst.localstack_used, LOCALSTACK_SIZE);
 		}
 		break;
 /*	case OP_POP:

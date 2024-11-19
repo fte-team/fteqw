@@ -1270,7 +1270,7 @@ long	QCC_LoadFile (char *filename, void **bufferptr)
 		else if (!mem[check])
 		{
 			if (!warned)
-				QCC_PR_Warning(WARN_UNEXPECTEDPUNCT, filename, line, "file contains null bytes %u/%u", check, len);
+				QCC_PR_Warning(WARN_UNEXPECTEDPUNCT, filename, line, "file contains null bytes %u/%"pPRIuSIZE, check, len);
 			warned = true;
 			//fixme: insert modified-utf-8 nulls instead.
 			mem[check] = ' ';

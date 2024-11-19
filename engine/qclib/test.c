@@ -13,6 +13,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdarg.h>
+#include <math.h>
 
 enum{false,true};
 
@@ -24,6 +25,93 @@ void PF_puts (pubprogfuncs_t *prinst, struct globalvars_s *gvars)
 	s = prinst->VarString(prinst, 0);
 
 	printf("%s", s);
+}
+void PF_strcat (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	G_INT(OFS_RETURN) = prinst->TempString(prinst, prinst->VarString(prinst, 0));
+}
+void PF_ftos (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	char temp[64];
+	sprintf(temp, "%g", G_FLOAT(OFS_PARM0));
+	G_INT(OFS_RETURN) = prinst->TempString(prinst, temp);
+}
+void PF_vtos (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	char temp[64];
+	sprintf(temp, "'%g %g %g'", G_VECTOR(OFS_PARM0)[0], G_VECTOR(OFS_PARM0)[1], G_VECTOR(OFS_PARM0)[2]);
+	G_INT(OFS_RETURN) = prinst->TempString(prinst, temp);
+}
+void PF_etos (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	char temp[64];
+	sprintf(temp, "%i", G_INT(OFS_PARM0));
+	G_INT(OFS_RETURN) = prinst->TempString(prinst, temp);
+}
+void PF_itos (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	char temp[64];
+	sprintf(temp, "%x", G_INT(OFS_PARM0));
+	G_INT(OFS_RETURN) = prinst->TempString(prinst, temp);
+}
+void PF_ltos (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	char temp[64];
+	sprintf(temp, "%"PRIx64, G_INT64(OFS_PARM0));
+	G_INT(OFS_RETURN) = prinst->TempString(prinst, temp);
+}
+void PF_dtos (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	char temp[64];
+	sprintf(temp, "%g", G_DOUBLE(OFS_PARM0));
+	G_INT(OFS_RETURN) = prinst->TempString(prinst, temp);
+}
+void PF_stof (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	G_FLOAT(OFS_RETURN) = strtod(PR_GetStringOfs(prinst, OFS_PARM0), NULL);
+}
+void PF_stov (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	sscanf(PR_GetStringOfs(prinst, OFS_PARM0), " ' %f %f %f ' ",
+		&G_FLOAT(OFS_RETURN+0),
+		&G_FLOAT(OFS_RETURN+1),
+		&G_FLOAT(OFS_RETURN+2));
+}
+void PF_strcmp (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	if (prinst->callargc >= 3)
+		G_FLOAT(OFS_RETURN) = strncmp(PR_GetStringOfs(prinst, OFS_PARM0), PR_GetStringOfs(prinst, OFS_PARM1), G_FLOAT(OFS_PARM2));
+	else
+		G_FLOAT(OFS_RETURN) = strcmp(PR_GetStringOfs(prinst, OFS_PARM0), PR_GetStringOfs(prinst, OFS_PARM1));
+}
+void PF_vlen (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	float *v = G_VECTOR(OFS_PARM0);
+	G_FLOAT(OFS_RETURN) = sqrt(v[0]*v[0]+v[1]*v[1]+v[2]*v[2]);
+}
+void PF_normalize (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	float *v = G_VECTOR(OFS_PARM0);
+	double l = sqrt(v[0]*v[0]+v[1]*v[1]+v[2]*v[2]);
+	if (l)
+		l = 1./l;
+	else
+		l = 0;
+	G_VECTOR(OFS_RETURN)[0] = v[0] * l;
+	G_VECTOR(OFS_RETURN)[1] = v[1] * l;
+	G_VECTOR(OFS_RETURN)[2] = v[2] * l;
+}
+void PF_floor (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	G_FLOAT(OFS_RETURN) = floor(G_FLOAT(OFS_PARM0));
+}
+void PF_pow (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	G_FLOAT(OFS_RETURN) = pow(G_FLOAT(OFS_PARM0), G_FLOAT(OFS_PARM1));
+}
+void PF_sqrt (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	G_FLOAT(OFS_RETURN) = sqrt(G_FLOAT(OFS_PARM0));
 }
 
 void PF_putv (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
@@ -391,12 +479,37 @@ void PF_printf (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 	printf("%s", outbuf);
 }
 
+struct edict_s
+{
+	enum ereftype_e	ereftype;
+	float			freetime;			// realtime when the object was freed
+	unsigned int	entnum;
+	unsigned int	fieldsize;
+	pbool			readonly;	//causes error when QC tries writing to it. (quake's world entity)
+	void			*fields;
+};
 void PF_spawn (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	struct edict_s	*ed;
 	ed = ED_Alloc(prinst, false, 0);
 	pr_globals = PR_globals(prinst, PR_CURRENT);
 	RETURN_EDICT(prinst, ed);
+}
+void PF_remove (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	struct edict_s *ed = (void*)G_EDICT(prinst, OFS_PARM0);
+	if (ed->ereftype == ER_FREE)
+	{
+		printf("Tried removing free entity\n");
+		PR_StackTrace(prinst, false);
+		return;
+	}
+	ED_Free (prinst, (void*)ed);
+}
+
+void PF_error(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	PF_puts(prinst, pr_globals);
 }
 
 void PF_bad (pubprogfuncs_t *prinst, struct globalvars_s *gvars)
@@ -407,10 +520,28 @@ void PF_bad (pubprogfuncs_t *prinst, struct globalvars_s *gvars)
 builtin_t builtins[] = {
 	PF_bad,
 	PF_puts,
+	PF_ftos,
+	PF_spawn,
+	PF_remove,
+	PF_vtos,
+	PF_error,
+	PF_vlen,
+	PF_etos,
+	PF_stof,
+	PF_strcat,
+	PF_strcmp,
+	PF_normalize,
+	PF_sqrt,
+	PF_floor,
+	PF_pow,
+	PF_stov,
+	PF_itos,
+	PF_ltos,
+	PF_dtos,
+	PF_puts,
 	PF_putv,
 	PF_putf,
 	PF_printf,
-	PF_spawn
 };
 
 
@@ -483,7 +614,120 @@ pbool Sys_WriteFile (const char *fname, void *data, int len)
 	return 1;
 }
 
-void runtest(const char *progsname)
+
+void ASMCALL StateOp(pubprogfuncs_t *prinst, float var, func_t func)
+{	//note: inefficient. stupid globals abuse and not making assumptions about fields
+	int *selfg = (int*)PR_FindGlobal(prinst, "self", 0, NULL);
+	struct edict_s *ed = PROG_TO_EDICT(prinst, selfg?*selfg:0);
+	float *time = (float*)PR_FindGlobal(prinst, "time", 0, NULL);
+	eval_t *think = prinst->GetEdictFieldValue(prinst, ed, "think", ev_function, NULL);
+	eval_t *nextthink = prinst->GetEdictFieldValue(prinst, ed, "nextthink", ev_float, NULL);
+	eval_t *frame = prinst->GetEdictFieldValue(prinst, ed, "frame", ev_float, NULL);
+	if (time && nextthink)
+		nextthink->_float = *time+0.1;
+	if (think)
+		think->function = func;
+	if (frame)
+		frame->_float = var;
+}
+void ASMCALL CStateOp(pubprogfuncs_t *progs, float first, float last, func_t currentfunc)
+{
+/*
+	float min, max;
+	float step;
+	float *vars = PROG_TO_WEDICT(progs, *w->g.self)->fields;
+	float frame = e->v->frame;
+
+//	if (progstype == PROG_H2)
+//		e->v->nextthink = *w->g.time+0.05;
+//	else
+		e->v->nextthink = *w->g.time+0.1;
+	e->v->think = currentfunc;
+
+	if (csqcg.cycle_wrapped)
+		*csqcg.cycle_wrapped = false;
+
+	if (first > last)
+	{	//going backwards
+		min = last;
+		max = first;
+		step = -1.0;
+	}
+	else
+	{	//forwards
+		min = first;
+		max = last;
+		step = 1.0;
+	}
+	if (frame < min || frame > max)
+		frame = first;	//started out of range, must have been a different animation
+	else
+	{
+		frame += step;
+		if (frame < min || frame > max)
+		{	//became out of range, must have wrapped
+			if (csqcg.cycle_wrapped)
+				*csqcg.cycle_wrapped = true;
+			frame = first;
+		}
+	}
+	e->v->frame = frame;
+*/
+}
+static void ASMCALL CWStateOp (pubprogfuncs_t *prinst, float first, float last, func_t currentfunc)
+{
+/*
+	float min, max;
+	float step;
+	world_t *w = prinst->parms->user;
+	wedict_t *e = PROG_TO_WEDICT(prinst, *w->g.self);
+	float frame = e->v->weaponframe;
+
+	e->v->nextthink = *w->g.time+0.1;
+	e->v->think = currentfunc;
+
+	if (csqcg.cycle_wrapped)
+		*csqcg.cycle_wrapped = false;
+
+	if (first > last)
+	{	//going backwards
+		min = last;
+		max = first;
+		step = -1.0;
+	}
+	else
+	{	//forwards
+		min = first;
+		max = last;
+		step = 1.0;
+	}
+	if (frame < min || frame > max)
+		frame = first;	//started out of range, must have been a different animation
+	else
+	{
+		frame += step;
+		if (frame < min || frame > max)
+		{	//became out of range, must have wrapped
+			if (csqcg.cycle_wrapped)
+				*csqcg.cycle_wrapped = true;
+			frame = first;
+		}
+	}
+	e->v->weaponframe = frame;
+*/
+}
+void ASMCALL ThinkTimeOp(pubprogfuncs_t *prinst, struct edict_s *ed, float var)
+{
+	float *self = (float*)PR_FindGlobal(prinst, "self", 0, NULL);
+	float *time = (float*)PR_FindGlobal(prinst, "time", 0, NULL);
+	int *nextthink = (int*)PR_FindGlobal(prinst, "nextthink", 0, NULL);
+	float *vars = PROG_TO_EDICT(prinst, self?*self:0)->fields;
+	if (time && nextthink)
+		vars[*nextthink] = *time+0.1;
+}
+
+
+void runtest(const char *progsname, const char **args)
 {
 	pubprogfuncs_t *pf;
 	func_t func;
@@ -497,6 +741,10 @@ void runtest(const char *progsname)
 	ext.FileSize= Sys_FileSize;
 	ext.Abort = Sys_Abort;
 	ext.Printf = printf;
+	ext.stateop = StateOp;
+	ext.cstateop = CStateOp;
+	ext.cwstateop = CWStateOp;
+	ext.thinktimeop = ThinkTimeOp;
 
 	ext.numglobalbuiltins = sizeof(builtins)/sizeof(builtins[0]);
 	ext.globalbuiltins = builtins;
@@ -520,15 +768,34 @@ void runtest(const char *progsname)
 		if (!func)
 			printf("Couldn't find function\n");
 		else
+		{	//feed it some complex args.
+			void *pr_globals = PR_globals(pf, PR_CURRENT);
+			int i;
+			const char *atypes = *args++;
+			for (i = 0; atypes[i]; i++) switch(atypes[i])
+			{
+			case 'f':
+				G_FLOAT(OFS_PARM0+i*3) = atof(*args++);
+				break;
+			case 'v':
+				sscanf(*args++, " %f %f %f ", &G_VECTOR(OFS_PARM0+i*3)[0], &G_VECTOR(OFS_PARM0+i*3)[1], &G_VECTOR(OFS_PARM0+i*3)[2]);
+				break;
+			case 's':
+				G_INT(OFS_PARM0+i*3) = pf->TempString(pf, *args++);
+				break;
+			}
+
 			pf->ExecuteProgram(pf, func);			//call the function
+		}
 	}
 	pf->Shutdown(pf);
 }
 
 //Run a compiler and nothing else.
 //Note that this could be done with an autocompile of PR_COMPILEALWAYS.
-void compile(int argc, const char **argv)
+pbool compile(int argc, const char **argv)
 {
+	pbool success = false;
 	pubprogfuncs_t *pf;
 
 	progparms_t ext;
@@ -565,25 +832,44 @@ void compile(int argc, const char **argv)
 		{
 			while(pf->ContinueCompile(pf) == 1)
 				;
+			success = true;
 		}
 		else
 			printf("compilation failed to start\n");
 	}
 	else
 		printf("no compiler in this qcvm build\n");
+
 	pf->Shutdown(pf);
+	return success;
 }
 
 int main(int argc, const char **argv)
 {
+	int i, a=0;
+	char atypes[9];
+	const char *args[9] = {atypes};
+	const char *dat = NULL;
 	if (argc < 2)
 	{
 		printf("Invalid arguments!\nPlease run as, for example:\n%s testprogs.dat -srcfile progs.src\nThe first argument is the name of the progs.dat to run, the remaining arguments are the qcc args to use", argv[0]);
 		return 0;
 	}
 
-	compile(argc-1, argv+1);
-	runtest(argv[1]);
+	for (i = 1; i < argc; i++)
+	{
+		if (!strcmp(argv[i], "-float"))			{atypes[a] = 'f'; args[++a] = argv[++i];}
+		else if (!strcmp(argv[i], "-vector"))	{atypes[a] = 'v'; args[++a] = argv[++i];}
+		else if (!strcmp(argv[i], "-string"))	{atypes[a] = 's'; args[++a] = argv[++i];}
+		else if (!strcmp(argv[i], "-srcfile"))	{if (!compile(argc-i, argv+i))return EXIT_FAILURE; break;}	//compile it, woo. consume the rest of the args, too
+		else if (!dat && argv[i][0] != '-')		{dat = argv[i];}
+		else									{printf("unknown arg %s\n", argv[i]); return EXIT_FAILURE;}
+	}
+	atypes[a] = 0;
+	if (dat)
+		runtest(dat, args);
+	else
+		printf("Nothing to run\n");
 
-	return 0;
+	return EXIT_SUCCESS;
 }

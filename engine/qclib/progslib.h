@@ -200,6 +200,7 @@ struct pubprogfuncs_s
 	char	*(PDECL *AddString)					(pubprogfuncs_t *prinst, const char *val, int minlength, pbool demarkup);	//dump a string into the progs memory (for setting globals and whatnot)
 	void	*(PDECL *Tempmem)					(pubprogfuncs_t *prinst, int ammount, char *whatfor);	//grab some mem for as long as the progs stays loaded
 	void *(PDECL *AddressableAlloc)				(pubprogfuncs_t *progfuncs, unsigned int ammount); /*returns memory within the qc block, use stringtoprogs to get a usable qc pointer/string*/
+	void *(PDECL *AddressableRealloc)			(pubprogfuncs_t *progfuncs, void *oldptr, unsigned int newammount); /*returns memory within the qc block, use stringtoprogs to get a usable qc pointer/string*/
 	void (PDECL *AddressableFree)				(pubprogfuncs_t *progfuncs, void *mem); /*frees a block of addressable memory*/
 	string_t (PDECL *TempString)				(pubprogfuncs_t *prinst, const char *str);
 	string_t (PDECL *AllocTempString)			(pubprogfuncs_t *prinst, char **str, unsigned int len);

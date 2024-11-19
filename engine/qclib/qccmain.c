@@ -409,7 +409,7 @@ compiler_flag_t compiler_flag[] = {
 	{&opt_logicops,			FLAG_MIDCOMPILE,"lo",			"Logic ops",			"This changes the behaviour of your code. It generates additional if operations to early-out in if statements. With this flag, the line if (0 && somefunction()) will never call the function. It can thus be considered an optimisation. However, due to the change of behaviour, it is not considered so by fteqcc. Note that due to inprecisions with floats, this flag can cause runaway loop errors within the player walk and run functions (without iffloat also enabled). This code is advised:\nplayer_stand1:\n    if (self.velocity_x || self.velocity_y)\nplayer_run\n    if (!(self.velocity_x || self.velocity_y))"},
 	{&flag_msvcstyle,		FLAG_MIDCOMPILE,"msvcstyle",	"MSVC-style errors",	"Generates warning and error messages in a format that msvc understands, to facilitate ide integration."},
 	{&flag_debugmacros,		FLAG_MIDCOMPILE,"debugmacros",	"Verbose Macro Expansion",	"Print out the contents of macros that are expanded. This can help look inside macros that are expanded and is especially handy if people are using preprocessor hacks."},
-	{&flag_filetimes,		0,				"filetimes",	"Check Filetimes",		"Recompiles the progs only if the file times are modified."},
+	{&flag_filetimes,		hideflag,		"filetimes",	"Check Filetimes",		"Recompiles the progs only if the file times are modified."},
 	{&flag_fasttrackarrays,	FLAG_MIDCOMPILE,"fastarrays",	"fast arrays where possible",	"Generates extra instructions inside array handling functions to detect engine and use extension opcodes only in supporting engines.\nAdds a global which is set by the engine if the engine supports the extra opcodes. Note that this applies to all arrays or none."},
 	{&flag_assume_integer,	FLAG_MIDCOMPILE,"assumeint",	"Assume Integers",		"Numerical constants are assumed to be integers, instead of floats."},
 	{&pr_subscopedlocals,	FLAG_MIDCOMPILE,"subscope",		"Subscoped Locals",		"Restrict the scope of locals to the block they are actually defined within, as in C."},
@@ -427,9 +427,12 @@ compiler_flag_t compiler_flag[] = {
 //	{&flag_lno,				hidedefaultflag,"lno",			"Gen Debugging Info",	"Writes debugging info."},
 	{&flag_utf8strings,		FLAG_MIDCOMPILE,"utf8",			"Unicode",				"String immediates will use utf-8 encoding, instead of quake's encoding."},
 	{&flag_reciprocalmaths,	FLAG_MIDCOMPILE,"reciprocal-math","Reciprocal Maths",	"Optimise x/const as x*(1/const)."},
+	{&flag_ILP32,			FLAG_MIDCOMPILE,"ILP32",		"ILP32 Data Model",		"Restricts the size of `long` to 32bits, consistent with pointers."},
+	{&flag_undefwordsize,	hideflag,		"undefwordsize","Undefined Word Size",	"Do not make assumptions about pointer types and word sizes. Block functionality that depends upon specific word sizes. Changed as part of target."},
+	{&flag_pointerrelocs,	hideflag,		"pointerrelocs","Initialised Pointers",	"Allow pointer types to be preinitialised at compile time, both at global scope and optimising local scope a little."},
+	{&flag_noreflection,	FLAG_MIDCOMPILE,"omitinternals","Omit Reflection Info",	"Keeps internal symbols private (equivelent to unix's hidden visibility). This has the effect of reducing filesize, thwarting debuggers, and breaking saved games. This allows you to use arrays without massively bloating the size of your progs.\nWARNING: The bit about breaking saved games was NOT a joke, but does not apply to menuqc or csqc. It also interferes with FTE_MULTIPROGS."},
 
 	{&flag_embedsrc,		FLAG_MIDCOMPILE,"embedsrc",		"Embed Sources",		"Write the sourcecode into the output file. The resulting .dat can be opened as a standard zip archive (or by fteqccgui).\nGood for GPL compliance!"},
-//	{&flag_noreflection,	FLAG_MIDCOMPILE,"omitinternals","Omit Reflection Info",	"Keeps internal symbols private (equivelent to unix's hidden visibility). This has the effect of reducing filesize, thwarting debuggers, and breaking saved games. This allows you to use arrays without massively bloating the size of your progs.\nWARNING: The bit about breaking saved games was NOT a joke, but does not apply to menuqc or csqc. It also interferes with FTE_MULTIPROGS."},
 	{&flag_dumpfilenames,	FLAG_MIDCOMPILE,"dumpfilenames","Write a .lst file",	"Writes a .lst file which contains a list of all file names that we can detect from the qc. This file list can then be passed into external compression tools."},
 	{&flag_dumpfields,		FLAG_MIDCOMPILE,"dumpfields",	"Write a .fld file",	"Writes a .fld file that shows which fields are defined, along with their offsets etc, for weird debugging."},
 	{&flag_dumpsymbols,		FLAG_MIDCOMPILE,"dumpsymbols",	"Write a .sym file",	"Writes a .sym file alongside the dat which contains a list of all global symbols defined in the code (before stripping)"},
@@ -1525,7 +1528,21 @@ static void QCC_FinaliseDef(QCC_def_t *def)
 	{
 		def->reloc->used = true;
 		QCC_FinaliseDef(def->reloc);
-		qcc_pr_globals[def->ofs]._int += def->reloc->ofs;
+		if (def->type->type == ev_function/*misordered inits/copies*/ || def->type->type == ev_integer/*dp-style global index*/)
+			qcc_pr_globals[def->ofs]._int += qcc_pr_globals[def->reloc->ofs]._int;
+		else if (def->type->type == ev_pointer/*signal to the engine to fix up the offset*/)
+		{
+			if (qcc_pr_globals[def->ofs]._int & 0x80000000)
+				QCC_Error(ERR_INTERNAL, "dupe reloc, type... %s", def->type->name);
+			else if (flag_undefwordsize)
+				QCC_PR_ParseWarning(ERR_BADEXTENSION, "pointer relocs are disabled for this target.");
+			qcc_pr_globals[def->ofs]._int += def->reloc->ofs;
+			qcc_pr_globals[def->ofs]._int *= VMWORDSIZE;
+
+			qcc_pr_globals[def->ofs]._int |= 0x80000000;
+		}
+		else
+			QCC_Error(ERR_INTERNAL, "unknown reloc type... %s", def->type->name);
 	}
 
 #ifdef DEBUG_DUMP_GLOBALMAP
@@ -1777,7 +1794,12 @@ static pbool QCC_WriteData (int crc)
 	if (i < numstatements)
 		bigjumps = QCC_FunctionForStatement(i);
 
-	QCC_PR_CRCMessages(crc);
+	if (!def)
+	{
+		QCC_PR_Warning(WARN_SYSTEMCRC, NULL, 0, "no end_sys_fields defined. system headers missing.");
+	}
+	else
+		QCC_PR_CRCMessages(crc);
 	switch (qcc_targetformat)
 	{
 	case QCF_HEXEN2:
@@ -1865,10 +1887,10 @@ static pbool QCC_WriteData (int crc)
 		if (compressoutput)		progs.blockscompressed |=128;	//types
 		//include a type block?
 		//types = debugtarget;
-		if (types && sizeof(char *) != sizeof(string_t))
+//		if (types && sizeof(char *) != sizeof(string_t))
 		{
 			//qcc_typeinfo_t has a char* inside it, which changes size
-			externs->Printf("AMD64 builds cannot write typeinfo structures\n");
+//			externs->Printf("64bit builds cannot write typeinfo structures\n");
 			types = false;
 		}
 
@@ -2198,7 +2220,11 @@ static pbool QCC_WriteData (int crc)
 			QCC_GenerateFieldDefs(def, def->name, 0, def->type->aux_type);
 			continue;
 		}
-		else if ((def->scope||def->constant) && (def->type->type != ev_string || (strncmp(def->name, "dotranslate_", 12) && opt_constant_names_strings)))
+		else if (def->type->type == ev_pointer && (def->symboldata[0]._int & 0x80000000))
+			def->name = "";	//reloc, can't strip it (engine needs to fix em up), but can clear its name.
+		else if (def->scope && !def->scope->privatelocals && !def->isstatic)
+			continue;	//def is a local, which got shared and should be 0...
+		else if ((def->scope||def->constant||flag_noreflection) && (def->type->type != ev_string || (strncmp(def->name, "dotranslate_", 12) && opt_constant_names_strings)))
 		{
 			if (opt_constant_names)
 			{
@@ -2209,9 +2235,11 @@ static pbool QCC_WriteData (int crc)
 
 #ifdef DEBUG_DUMP
 				if (def->scope)
-					externs->Printf("code: %s:%i: strip local %s %s@%i;\n", def->filen, def->s_line, def->type->name, def->name, def->ofs);
+					externs->Printf("code: %s:%i: strip local %s %s @%i;\n", def->filen, def->s_line, def->type->name, def->name, def->ofs);
 				else if (def->constant)
-					externs->Printf("code: %s:%i: strip const %s %s@%i;\n", def->filen, def->s_line, def->type->name, def->name, def->ofs);
+					externs->Printf("code: %s:%i: strip const %s %s @%i;\n", def->filen, def->s_line, def->type->name, def->name, def->ofs);
+				else
+					externs->Printf("code: %s:%i: strip globl %s %s @%i;\n", def->filen, def->s_line, def->type->name, def->name, def->ofs);
 #endif
 				continue;
 			}
@@ -2334,7 +2362,7 @@ static pbool QCC_WriteData (int crc)
 	for (i = 0; i < numsounds; i++)
 	{
 		if (!precache_sound[i].used)
-			dupewarncount+=QCC_PR_Warning(WARN_EXTRAPRECACHE, precache_sound[i].filename, precache_sound[i].fileline, (dupewarncount>10&&verbose < VERBOSE_STANDARD)?NULL:"Sound \"%s\" was precached but not directly used", precache_sound[i].name, dupewarncount?"":" (annotate the usage with the used_sound intrinsic to silence this warning)");
+			dupewarncount+=QCC_PR_Warning(WARN_EXTRAPRECACHE, precache_sound[i].filename, precache_sound[i].fileline, (dupewarncount>10&&verbose < VERBOSE_STANDARD)?NULL:"Sound \"%s\" was precached but not directly used%s", precache_sound[i].name, dupewarncount?"":" (annotate the usage with the used_sound intrinsic to silence this warning)");
 		else if (!precache_sound[i].block)
 			dupewarncount+=QCC_PR_Warning(WARN_NOTPRECACHED, precache_sound[i].filename, precache_sound[i].fileline, (dupewarncount>10&&verbose < VERBOSE_STANDARD)?NULL:"Sound \"%s\" was used but not directly precached", precache_sound[i].name);
 	}
@@ -3720,7 +3748,7 @@ static int QCC_PR_FinishCompilation (void)
 			{
 				if (!externokay)
 				{
-					QCC_PR_Warning(ERR_NOFUNC, d->filen, d->s_line, "extern is not supported with this target format",d->name);
+					QCC_PR_Warning(ERR_NOFUNC, d->filen, d->s_line, "extern is not supported with this target format");
 					QCC_PR_ParsePrintDef(ERR_NOFUNC, d);
 					errors = true;
 				}
@@ -3751,7 +3779,7 @@ static int QCC_PR_FinishCompilation (void)
 						continue;
 					}
 				}
-				if (d->unused)
+				if (d->unused && !d->used)
 				{
 					d->initialized = 1;
 					continue;
@@ -4647,20 +4675,22 @@ static void QCC_PR_CommandLinePrecompilerOptions (void)
 				keyword_double = keyword_long = keyword_short = keyword_char = keyword_signed = keyword_unsigned = true;
 				keyword_thinktime = keyword_until = keyword_loop = false;
 
+				flag_ILP32 = true;			//C code generally expects intptr_t==size_t==long, we'll get better compat if we don't give it surprises.
 				opt_logicops = true;		//early out like C.
 				flag_assumevar = true;		//const only if explicitly const.
 				pr_subscopedlocals = true;	//locals shadow other locals rather than being the same one.
 				flag_cpriority = true;		//fiddle with operator precedence.
 				flag_assume_integer = true;	//unqualified numeric constants are assumed to be ints, consistent with C.
 				flag_assume_double = true;	//and any immediates with a decimal points are assumed to be doubles, consistent with C.
-				flag_qcfuncs = false;
-				flag_macroinstrings = false;
+				flag_qcfuncs = false;		//there's a few parsing quirks where our attempt to parse qc functions will misparse valid C.
+				flag_macroinstrings = false;//hacky preqcc hack.
 
 				qccwarningaction[WARN_UNINITIALIZED] = WA_WARN;		//C doesn't like that, might as well warn here too.
 				qccwarningaction[WARN_TOOMANYPARAMS] = WA_ERROR;	//too many args to function is weeeeird.
 				qccwarningaction[WARN_TOOFEWPARAMS] = WA_ERROR;		//missing args should be fatal.
 				qccwarningaction[WARN_ASSIGNMENTTOCONSTANT] = WA_ERROR;		//const is const. at least its not const by default.
 				qccwarningaction[WARN_SAMENAMEASGLOBAL] = WA_IGNORE;		//shadowing of globals.
+				qccwarningaction[WARN_OCTAL_IMMEDIATE] = WA_IGNORE;			//0400!=400 is normal for C code.
 
 				if (!stricmp(myargv[i]+5, "c++"))
 				{
@@ -4746,6 +4776,7 @@ static void QCC_PR_CommandLinePrecompilerOptions (void)
 				flag_boundchecks = false;	//gmqcc doesn't support dynamic bound checks, so xonotic is buggy shite. we don't want to generate code that will crash.
 				flag_macroinstrings = false;
 				flag_reciprocalmaths = true; //optimise x/y to x*(1/y) in constants.
+				flag_undefwordsize = true;	//assume we're targetting DP and go into lame mode.
 				opt_logicops = true;
 
 				//we have to disable some of these warnings, because xonotic insists on using -Werror. use -Wextra to override.
@@ -4758,6 +4789,7 @@ static void QCC_PR_CommandLinePrecompilerOptions (void)
 				qccwarningaction[WARN_IFSTRING_USED] = WA_IGNORE;		//and many people would argue that this was a feature rather than a bug
 				qccwarningaction[WARN_UNINITIALIZED] = WA_IGNORE;		//all locals get 0-initialised anyway, and our checks are not quite up to scratch.
 				qccwarningaction[WARN_GMQCC_SPECIFIC] = WA_IGNORE;		//we shouldn't warn about gmqcc syntax when we're trying to be compatible with it. there's always -Wextra.
+				qccwarningaction[WARN_OCTAL_IMMEDIATE] = WA_IGNORE;		//we shouldn't warn about gmqcc syntax when we're trying to be compatible with it. there's always -Wextra.
 				qccwarningaction[WARN_SYSTEMCRC] = WA_IGNORE;			//lameness
 				qccwarningaction[WARN_SYSTEMCRC2] = WA_IGNORE;			//extra lameness
 				qccwarningaction[WARN_ARGUMENTCHECK] = WA_IGNORE;		//gmqcc is often used on DP mods, and DP is just too horrible to fix its problems. Also there's a good chance its using some undocumented/new thing.
@@ -5321,7 +5353,7 @@ pbool QCC_main (int argc, const char **argv)	//as part of the quake engine
 	pHash_Add = &Hash_Add;
 	pHash_RemoveData = &Hash_RemoveData;
 
-	MAX_REGS		= 1<<17;
+	MAX_REGS		= 1<<19;
 	MAX_STRINGS		= 1<<21;
 	MAX_GLOBALS		= 1<<17;
 	MAX_FIELDS		= 1<<13;
@@ -5803,7 +5835,7 @@ void QCC_ContinueCompile(void)
 	if(setjmp(pr_parse_abort))
 	{
 		if (++pr_error_count > MAX_ERRORS)
-			QCC_Error (ERR_PARSEERRORS, "Errors have occured\n");
+			QCC_Error (ERR_PARSEERRORS, "%i errors have occured\n", pr_error_count);
 		return;	//just try move onto the next file, gather errors.
 	}
 	else
@@ -5849,7 +5881,7 @@ void QCC_ContinueCompile(void)
 	QCC_LoadFile (qccmfilename, (void *)&qccmsrc2);
 
 	if (!QCC_PR_CompileFile (qccmsrc2, qccmfilename) )
-		QCC_Error (ERR_PARSEERRORS, "Errors have occured\n");
+		QCC_Error (ERR_PARSEERRORS, "%i errors have occured\n", pr_error_count);
 	*/
 }
 void QCC_FinishCompile(void)
@@ -6026,7 +6058,7 @@ void new_QCC_ContinueCompile(void)
 	{
 //		if (pr_error_count != 0)
 		{
-			QCC_Error (ERR_PARSEERRORS, "Errors have occured");
+			QCC_Error (ERR_PARSEERRORS, "%i errors have occured\n", pr_error_count);
 			return;
 		}
 		QCC_PR_SkipToSemicolon ();
@@ -6037,7 +6069,7 @@ void new_QCC_ContinueCompile(void)
 	if (pr_token_type == tt_eof)
 	{
 		if (pr_error_count)
-			QCC_Error (ERR_PARSEERRORS, "Errors have occured");
+			QCC_Error (ERR_PARSEERRORS, "%i errors have occured\n", pr_error_count);
 
 		if (autoprototype && !parseonly)
 		{

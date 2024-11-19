@@ -42,6 +42,7 @@ typedef unsigned int puint_t;
 	#define pPRIi64 "I64i"
 	#define pPRIu64 "I64u"
 	#define pPRIx64 "I64x"
+	#define pPRIuSIZE PRIxPTR
 #else
 	#include <inttypes.h>
 	typedef int64_t pint64_t QC_ALIGN(4);
@@ -54,6 +55,7 @@ typedef unsigned int puint_t;
 	#define pPRIi64 PRIi64
 	#define pPRIu64 PRIu64
 	#define pPRIx64 PRIx64
+	#define pPRIuSIZE PRIxPTR
 #endif
 #define QCVM_32
 #endif

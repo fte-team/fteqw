@@ -2662,6 +2662,7 @@ static struct {
 	{"setcustomskin",			PF_m_setcustomskin,			376},
 															//gap
 	{"memalloc",				PF_memalloc,				384},
+	{"memrealloc",				PF_memrealloc,				0},
 	{"memfree",					PF_memfree,					385},
 	{"memcmp",					PF_memcmp,					0},
 	{"memcpy",					PF_memcpy,					386},

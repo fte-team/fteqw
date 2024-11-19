@@ -49,6 +49,23 @@ extern progfuncs_t *qccprogfuncs;
 	#define STRINGIFY(s) STRINGIFY2(s)
 #endif
 
+#if (__GNUC__ > 3 || (__GNUC__ == 3 && __GNUC_MINOR__ >= 1))
+	#define FTE_DEPRECATED  __attribute__((__deprecated__))	//no idea about the actual gcc version
+	#if defined(_WIN32)
+		#include <stdio.h>
+		#ifdef __MINGW_PRINTF_FORMAT
+			#define LIKEPRINTF(x) __attribute__((format(__MINGW_PRINTF_FORMAT,x,x+1)))
+		#else
+			#define LIKEPRINTF(x) __attribute__((format(ms_printf,x,x+1)))
+		#endif
+	#else
+		#define LIKEPRINTF(x) __attribute__((format(printf,x,x+1)))
+	#endif
+#endif
+#ifndef LIKEPRINTF
+	#define LIKEPRINTF(x)
+#endif
+
 void *qccHunkAlloc(size_t mem);
 void qccClearHunk(void);
 
@@ -429,6 +446,7 @@ typedef struct QCC_def_s
 	int refcount;			//if 0, temp can be reused. tracked on globals too in order to catch bugs that would otherwise be a little too obscure.
 	int timescalled;	//part of the opt_stripfunctions optimisation.
 
+	const char *unitn;	//for static globals.
 	const char *filen;
 	int s_filed;
 	int s_line;
@@ -517,7 +535,8 @@ struct QCC_function_s
 	int					code;		// first statement. if -1, is a builtin.
 	dfunction_t			*merged;	// this function was merged. this is the index to use to ensure that the parms are sized correctly..
 	string_t			s_filed;	// source file with definition
-	const char			*filen;
+	const char			*filen;		// full scope, printed for debugging.
+	const char			*unitn; //scope for static variables.
 	int					line;
 	int					line_end;
 	char				*name;		//internal name of function
@@ -686,9 +705,13 @@ extern pbool flag_allowuninit;
 extern pbool flag_cpriority;
 extern pbool flag_qcfuncs;
 extern pbool flag_embedsrc;
+extern pbool flag_noreflection;
 extern pbool flag_nopragmafileline;
 extern pbool flag_utf8strings;
 extern pbool flag_reciprocalmaths;
+extern pbool flag_ILP32;
+extern pbool flag_undefwordsize;
+extern pbool flag_pointerrelocs;
 
 extern pbool opt_overlaptemps;
 extern pbool opt_shortenifnots;
@@ -771,14 +794,14 @@ void QCC_PR_Expect (const char *string);
 pbool QCC_PR_CheckKeyword(int keywordenabled, const char *string);
 #endif
 pbool QCC_PR_CheckTokenComment(const char *string, char **comment);
-NORETURN void VARGS QCC_PR_ParseError (int errortype, const char *error, ...);
-pbool VARGS QCC_PR_ParseWarning (int warningtype, const char *error, ...);
-pbool VARGS QCC_PR_Warning (int type, const char *file, int line, const char *error, ...);
-void VARGS QCC_PR_Note (int type, const char *file, int line, const char *error, ...);
+NORETURN void VARGS QCC_PR_ParseError (int errortype, const char *error, ...) LIKEPRINTF(2);
+pbool VARGS QCC_PR_ParseWarning (int warningtype, const char *error, ...) LIKEPRINTF(2);
+pbool VARGS QCC_PR_Warning (int type, const char *file, int line, const char *error, ...) LIKEPRINTF(4);
+void VARGS QCC_PR_Note (int type, const char *file, int line, const char *error, ...) LIKEPRINTF(4);
 void QCC_PR_ParsePrintDef (int warningtype, QCC_def_t *def);
 void QCC_PR_ParsePrintSRef (int warningtype, QCC_sref_t sref);
-NORETURN void VARGS QCC_PR_ParseErrorPrintDef (int errortype, QCC_def_t *def, const char *error, ...);
-NORETURN void VARGS QCC_PR_ParseErrorPrintSRef (int errortype, QCC_sref_t sref, const char *error, ...);
+NORETURN void VARGS QCC_PR_ParseErrorPrintDef (int errortype, QCC_def_t *def, const char *error, ...) LIKEPRINTF(3);
+NORETURN void VARGS QCC_PR_ParseErrorPrintSRef (int errortype, QCC_sref_t sref, const char *error, ...) LIKEPRINTF(3);
 
 QCC_type_t *QCC_PR_MakeThiscall(QCC_type_t *orig, QCC_type_t *thistype);
 
@@ -848,6 +871,7 @@ enum {
 	WARN_DEPRECACTEDSYNTAX,		//triggered when syntax is used that I'm trying to kill
 	WARN_DEPRECATEDVARIABLE,	//triggered from usage of a symbol that someone tried to kill
 	WARN_MUTEDEPRECATEDVARIABLE,	//triggered from usage of a symbol that someone tried to kill (without having been muted).
+	WARN_OCTAL_IMMEDIATE,	// 0400!=400... (not found in
 	WARN_GMQCC_SPECIFIC,	//extension created by gmqcc that conflicts or isn't properly implemented.
 	WARN_FTE_SPECIFIC,	//extension that only FTEQCC will have a clue about.
 	WARN_EXTENSION_USED,	//extension that frikqcc also understands
@@ -931,7 +955,6 @@ enum {
 	ERR_INITIALISEDLOCALFUNCTION,
 	ERR_NOTDEFINED,
 	ERR_ARRAYNEEDSSIZE,
-	ERR_ARRAYNEEDSBRACES,
 	ERR_TOOMANYINITIALISERS,
 	ERR_TYPEINVALIDINSTRUCT,
 	ERR_NOSHAREDLOCALS,
@@ -1029,6 +1052,7 @@ extern compiler_flag_t compiler_flag[];
 extern unsigned char qccwarningaction[WARN_MAX];
 
 extern	jmp_buf		pr_parse_abort;		// longjump with this on parse error
+extern const char	*s_unitn;			//used to track compilation units, for global statics.
 extern const char	*s_filen;			//name of the file we're currently compiling.
 extern QCC_string_t	s_filed;			//name of the file we're currently compiling, as seen by whoever reads the .dat
 extern	int			pr_source_line;
@@ -1045,6 +1069,8 @@ void *QCC_PR_Malloc (int size);
 #define	OFS_PARM3		13
 #define	OFS_PARM4		16
 #define	RESERVED_OFS	28
+
+#define VMWORDSIZE		4
 
 
 extern	struct QCC_function_s	*pr_scope;
@@ -1272,8 +1298,8 @@ typedef struct qcc_cachedsourcefile_s vfile_t;
 void QCC_CloseAllVFiles(void);
 vfile_t *QCC_FindVFile(const char *name);
 vfile_t *QCC_AddVFile(const char *name, void *data, size_t size);
-void QCC_CatVFile(vfile_t *, const char *fmt, ...);
-void QCC_InsertVFile(vfile_t *, size_t pos, const char *fmt, ...);
+void QCC_CatVFile(vfile_t *, const char *fmt, ...) LIKEPRINTF(2);
+void QCC_InsertVFile(vfile_t *, size_t pos, const char *fmt, ...) LIKEPRINTF(3);
 char *ReadProgsCopyright(char *buf, size_t bufsize);
 
 //void *QCC_ReadFile(const char *fname, unsigned char *(*buf_get)(void *ctx, size_t len), void *buf_ctx, size_t *out_size, pbool issourcefile);

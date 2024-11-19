@@ -445,6 +445,56 @@ static void PDECL PR_memfree (pubprogfuncs_t *ppf, void *memptr)
 	PR_memvalidate(progfuncs);
 }
 
+static void *PDECL PR_memrealloc (pubprogfuncs_t *ppf, void *memptr, unsigned int newsize)
+{
+	progfuncs_t *progfuncs = (progfuncs_t*)ppf;
+	qcmemusedblock_t *ub;
+	unsigned int ptr = memptr?((char*)memptr - progfuncs->funcs.stringtable):0;
+	void *newptr;
+	unsigned int oldsize;
+
+	/*freeing NULL is ignored*/
+	if (!ptr)	//realloc instead of malloc is accepted.
+		return PR_memalloc(ppf, newsize);
+	PR_memvalidate(progfuncs);
+	ptr -= sizeof(qcmemusedblock_t);
+	if (/*ptr < 0 ||*/ ptr >= prinst.addressableused)
+	{
+		ptr += sizeof(qcmemusedblock_t);
+		if (ptr < prinst.addressableused && !*(char*)memptr)
+		{
+			//the empty string is a point of contention. while we can detect it from fteqcc, its best to not give any special favours (other than nicer debugging, where possible)
+			//we might not actually spot it from other qccs, so warning about it where possible is probably a very good thing.
+			externs->Printf("PR_memrealloc: unable to free the non-null empty string constant at %x\n", ptr);
+		}
+		else
+			externs->Printf("PR_memrealloc: pointer invalid - out of range (%x >= %x)\n", ptr, (unsigned int)prinst.addressableused);
+		PR_StackTrace(&progfuncs->funcs, false);
+		return NULL;
+	}
+
+	//this is the used block that we're trying to free
+	ub = (qcmemusedblock_t*)(progfuncs->funcs.stringtable + ptr);
+	if (ub->marker != MARKER_USED || ub->size <= sizeof(*ub) || ptr + ub->size > (unsigned int)prinst.addressableused)
+	{
+		externs->Printf("PR_memrealloc: pointer lacks marker - double-freed?\n");
+		PR_StackTrace(&progfuncs->funcs, false);
+		return NULL;
+	}
+	oldsize = ub->size;
+	oldsize -= sizeof(qcmemusedblock_t);	//ignore the header.
+
+	newptr = PR_memalloc(ppf, newsize);
+	if (oldsize > newsize)
+		oldsize = newsize;		//don't copy it all.
+	memcpy(newptr, memptr, oldsize);
+	newsize -= oldsize;
+	memset((char*)newptr+oldsize, 0, newsize);	//clear out any extended part.
+	PR_memfree(ppf, memptr);	//free the old.
+
+	return newptr;
+}
+
 void PRAddressableFlush(progfuncs_t *progfuncs, size_t totalammount)
 {
 	prinst.addressableused = 0;
@@ -1685,6 +1735,7 @@ static pubprogfuncs_t deffuncs = {
 	ED_NewString,
 	QC_HunkAlloc,
 	PR_memalloc,
+	PR_memrealloc,
 	PR_memfree,
 	PR_AllocTempString,
 	PR_AllocTempStringLen,

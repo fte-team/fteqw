@@ -128,8 +128,8 @@ static void PR_PrintStatement (progfuncs_t *progfuncs, int statementnum)
 	if ( (unsigned)op < OP_NUMOPS)
 	{
 		int i;
-		externs->Printf ("%s ",  pr_opcodes[op].name);
-		i = strlen(pr_opcodes[op].name);
+		externs->Printf ("%s ",  pr_opcodes[op].opname);
+		i = strlen(pr_opcodes[op].opname);
 		for ( ; i<10 ; i++)
 			externs->Printf (" ");
 	}
@@ -141,16 +141,22 @@ static void PR_PrintStatement (progfuncs_t *progfuncs, int statementnum)
 #define TYPEHINT(a) NULL
 #endif
 
-	if (op == OP_IF_F || op == OP_IFNOT_F)
+	if (op == OP_IF_F || op == OP_IFNOT_F || op == OP_IF_I || op == OP_IFNOT_I || op == OP_IF_S || op == OP_IFNOT_S)
 		externs->Printf ("%sbranch %i",PR_GlobalString(progfuncs, arg[0], TYPEHINT(a)),arg[1]);
 	else if (op == OP_GOTO)
 	{
 		externs->Printf ("branch %i",arg[0]);
 	}
+	else if (op == OP_BOUNDCHECK)
+	{
+		externs->Printf ("%s",PR_GlobalString(progfuncs, arg[0], TYPEHINT(a)));
+		externs->Printf ("%s",PR_GlobalStringImmediate(progfuncs, arg[1]));
+		externs->Printf ("%s",PR_GlobalStringImmediate(progfuncs, arg[2]));
+	}
 	else if ( (unsigned)(op - OP_STORE_F) < 6)
 	{
 		externs->Printf ("%s",PR_GlobalString(progfuncs, arg[0], TYPEHINT(a)));
-		externs->Printf ("%s", PR_GlobalStringNoContents(progfuncs, arg[1]));
+		externs->Printf ("%s",PR_GlobalStringNoContents(progfuncs, arg[1]));
 	}
 	else
 	{
@@ -159,7 +165,7 @@ static void PR_PrintStatement (progfuncs_t *progfuncs, int statementnum)
 		if (arg[1])
 			externs->Printf ("%s",PR_GlobalString(progfuncs, arg[1], TYPEHINT(b)));
 		if (arg[2])
-			externs->Printf ("%s", PR_GlobalStringNoContents(progfuncs, arg[2]));
+			externs->Printf ("%s",PR_GlobalStringNoContents(progfuncs, arg[2]));
 	}
 	externs->Printf ("\n");
 }
@@ -1354,7 +1360,10 @@ static const char *lastfile = NULL;
 	{
 		PR_PrintStatement(progfuncs, statement);
 		if (fatal)
+		{
 			progfuncs->funcs.debug_trace = DEBUG_TRACE_ABORTERROR;
+			progfuncs->funcs.parms->Abort ("%s", fault?fault:"Debugger Abort");
+		}
 		return statement;
 	}
 

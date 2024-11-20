@@ -4839,7 +4839,7 @@ static void QCBUILTIN PF_getlightstylergb (pubprogfuncs_t *prinst, struct global
 		return;
 	}
 
-	if (stnum < cl_max_lightstyles || !cl_lightstyle[stnum].length)
+	if (stnum >= cl_max_lightstyles || !cl_lightstyle[stnum].length)
 		value = ('m'-'a')*22 * r_lightstylescale.value;
 	else if (cl_lightstyle[stnum].map[0] == '=')
 		value = atof(cl_lightstyle[stnum].map+1)*256*r_lightstylescale.value;

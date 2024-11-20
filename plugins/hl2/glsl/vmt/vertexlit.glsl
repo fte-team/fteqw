@@ -16,7 +16,6 @@
 
 // envmaps only
 !!samps =REFLECTCUBEMASK reflectmask reflectcube
-
 !!cvardf r_skipDiffuse
 
 #include "sys/defs.h"
@@ -29,7 +28,17 @@ varying vec4 light;
 #ifdef REFLECTCUBEMASK
 	varying vec3 eyevector;
 	varying mat3 invsurface;
+
 #endif
+
+#ifndef ENVTINT
+#define ENVTINT 1.0,1.0,1.0
+#endif
+
+#ifndef ENVSAT
+#define ENVSAT 1.0
+#endif
+
 
 #ifdef FAKESHADOWS
 	varying vec4 vtexprojcoord;
@@ -93,6 +102,11 @@ varying vec4 light;
 	#include "sys/fog.h"
 	#include "sys/pcf.h"
 
+	vec3 env_saturation(vec3 rgb, float adjustment) {
+	    vec3 intensity = vec3(dot(rgb, vec3(0.2126,0.7152,0.0722)));
+	    return mix(intensity, rgb, adjustment);
+	}
+
 	void main (void)
 	{
 		vec4 diffuse_f = texture2D(s_diffuse, tex_c);
@@ -133,9 +147,15 @@ varying vec4 light;
 	#endif
 	
 		vec3 cube_c = reflect(-eyevector, normal_f.rgb);
+		vec3 cube_tint = vec3(ENVTINT);
+		vec3 cube_sat = vec3(ENVSAT);
 		cube_c = cube_c.x * invsurface[0] + cube_c.y * invsurface[1] + cube_c.z * invsurface[2];
 		cube_c = (m_model * vec4(cube_c.xyz, 0.0)).xyz;
-		diffuse_f.rgb += (textureCube(s_reflectcube, cube_c).rgb * vec3(refl,refl,refl));
+		vec3 cube_t = env_saturation(textureCube(s_reflectcube, cube_c).rgb, cube_sat.r);
+		cube_t.r *= cube_tint.r;
+		cube_t.g *= cube_tint.g;
+		cube_t.b *= cube_tint.b;
+		diffuse_f.rgb += (cube_t * vec3(refl,refl,refl));
 #endif
 
 		diffuse_f.rgb *= light.rgb * e_colourident.rgb;

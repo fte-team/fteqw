@@ -27,6 +27,14 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "!!cvardf r_glsl_pcf\n"
 "!!samps =FAKESHADOWS shadowmap\n"
 
+"#ifndef ENVTINT\n"
+"#define ENVTINT 1.0,1.0,1.0\n"
+"#endif\n"
+
+"#ifndef ENVSAT\n"
+"#define ENVSAT 1.0,1.0,1.0\n"
+"#endif\n"
+
 "#include \"sys/defs.h\"\n"
 
 "varying vec2 tex_c;\n"
@@ -111,6 +119,11 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "return lightmaps;\n"
 "}\n"
 
+"vec3 env_saturation(vec3 rgb, float adjustment) {\n"
+"vec3 intensity = vec3(dot(rgb, vec3(0.2126,0.7152,0.0722)));\n"
+"return mix(intensity, rgb, adjustment);\n"
+"}\n"
+
 "void main (void)\n"
 "{\n"
 "vec4 diffuse_f;\n"
@@ -162,9 +175,15 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 
 
 "vec3 cube_c = reflect(-eyevector, normal_f.rgb);\n"
+"vec3 cube_tint = vec3(ENVTINT);\n"
+"vec3 cube_sat = vec3(ENVSAT);\n"
 "cube_c = cube_c.x * invsurface[0] + cube_c.y * invsurface[1] + cube_c.z * invsurface[2];\n"
 "cube_c = (m_model * vec4(cube_c.xyz, 0.0)).xyz;\n"
-"diffuse_f.rgb += (textureCube(s_reflectcube, cube_c).rgb * vec3(refl,refl,refl));\n"
+"vec3 cube_t = env_saturation(textureCube(s_reflectcube, cube_c).rgb, cube_sat.r);\n"
+"cube_t.r *= cube_tint.r;\n"
+"cube_t.g *= cube_tint.g;\n"
+"cube_t.b *= cube_tint.b;\n"
+"diffuse_f.rgb += (cube_t * vec3(refl,refl,refl));\n"
 "#endif\n"
 
 "#ifdef FULLBRIGHT\n"
@@ -460,7 +479,6 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 
 // envmaps only
 "!!samps =REFLECTCUBEMASK reflectmask reflectcube\n"
-
 "!!cvardf r_skipDiffuse\n"
 
 "#include \"sys/defs.h\"\n"
@@ -473,7 +491,17 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "#ifdef REFLECTCUBEMASK\n"
 "varying vec3 eyevector;\n"
 "varying mat3 invsurface;\n"
+
 "#endif\n"
+
+"#ifndef ENVTINT\n"
+"#define ENVTINT 1.0,1.0,1.0\n"
+"#endif\n"
+
+"#ifndef ENVSAT\n"
+"#define ENVSAT 1.0\n"
+"#endif\n"
+
 
 "#ifdef FAKESHADOWS\n"
 "varying vec4 vtexprojcoord;\n"
@@ -537,6 +565,11 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "#include \"sys/fog.h\"\n"
 "#include \"sys/pcf.h\"\n"
 
+"vec3 env_saturation(vec3 rgb, float adjustment) {\n"
+"vec3 intensity = vec3(dot(rgb, vec3(0.2126,0.7152,0.0722)));\n"
+"return mix(intensity, rgb, adjustment);\n"
+"}\n"
+
 "void main (void)\n"
 "{\n"
 "vec4 diffuse_f = texture2D(s_diffuse, tex_c);\n"
@@ -577,9 +610,15 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "#endif\n"
 
 "vec3 cube_c = reflect(-eyevector, normal_f.rgb);\n"
+"vec3 cube_tint = vec3(ENVTINT);\n"
+"vec3 cube_sat = vec3(ENVSAT);\n"
 "cube_c = cube_c.x * invsurface[0] + cube_c.y * invsurface[1] + cube_c.z * invsurface[2];\n"
 "cube_c = (m_model * vec4(cube_c.xyz, 0.0)).xyz;\n"
-"diffuse_f.rgb += (textureCube(s_reflectcube, cube_c).rgb * vec3(refl,refl,refl));\n"
+"vec3 cube_t = env_saturation(textureCube(s_reflectcube, cube_c).rgb, cube_sat.r);\n"
+"cube_t.r *= cube_tint.r;\n"
+"cube_t.g *= cube_tint.g;\n"
+"cube_t.b *= cube_tint.b;\n"
+"diffuse_f.rgb += (cube_t * vec3(refl,refl,refl));\n"
 "#endif\n"
 
 "diffuse_f.rgb *= light.rgb * e_colourident.rgb;\n"

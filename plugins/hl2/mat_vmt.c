@@ -24,6 +24,12 @@ typedef struct
 	char envfromnorm;
 	char halflambert;
 
+	float envmaptint_r;
+	float envmaptint_g;
+	float envmaptint_b;
+	float envmapsat_r;
+	float envmapsat_g;
+	float envmapsat_b;
 	float alphatestref;
 	char *blendfunc;
 	qboolean alphatest;
@@ -166,10 +172,7 @@ static char *VMT_ParseBlock(const char *fname, vmtstate_t *st, char *line)
 		else if (!Q_strcasecmp(key, "$basetexturetransform"))
 			;
 		else if (!Q_strcasecmp(key, "$bumpmap")) // same as normalmap ~eukara
-		{
 			Q_strlcpy(st->normalmap, value, sizeof(st->normalmap));
-			Con_DPrintf("%s: %s \"%s\"\n", fname, key, value);
-		}
 		else if (!Q_strcasecmp(key, "$dudvmap")) // refractions only
 		{
 			Q_strlcpy(st->dudvmap, value, sizeof(st->dudvmap));
@@ -237,9 +240,39 @@ static char *VMT_ParseBlock(const char *fname, vmtstate_t *st, char *line)
 		else if (!Q_strcasecmp(key, "$envmapcontrast"))
 			Con_DPrintf("%s: %s \"%s\"\n", fname, key, value);
 		else if (!Q_strcasecmp(key, "$envmaptint"))
-			Con_DPrintf("%s: %s \"%s\"\n", fname, key, value);
+		{
+			char tok[64];
+			char *tintline;
+			tintline = cmdfuncs->ParsePunctuation(value, "[", tok, sizeof(tok), 0);
+
+			if (!strcmp(tok, "[")) {
+				tintline = cmdfuncs->ParseToken(tintline, tok, sizeof(tok), 0);
+				st->envmaptint_r = strtof(tok, NULL);
+				tintline = cmdfuncs->ParseToken(tintline, tok, sizeof(tok), 0);
+				st->envmaptint_g = strtof(tok, NULL);
+				tintline = cmdfuncs->ParsePunctuation(tintline, "]", tok, sizeof(tok), 0);
+				st->envmaptint_b = strtof(tok, NULL);
+			} else {
+				st->envmaptint_r = st->envmaptint_g = st->envmaptint_b = atof(value);
+			}
+		}
 		else if (!Q_strcasecmp(key, "$envmapsaturation"))
-			Con_DPrintf("%s: %s \"%s\"\n", fname, key, value);
+		{
+			char tok[64];
+			char *tintline;
+			tintline = cmdfuncs->ParsePunctuation(value, "[", tok, sizeof(tok), 0);
+
+			if (!strcmp(tok, "[")) {
+				tintline = cmdfuncs->ParseToken(tintline, tok, sizeof(tok), 0);
+				st->envmapsat_r = strtof(tok, NULL);
+				tintline = cmdfuncs->ParseToken(tintline, tok, sizeof(tok), 0);
+				st->envmapsat_g = strtof(tok, NULL);
+				tintline = cmdfuncs->ParsePunctuation(tintline, "]", tok, sizeof(tok), 0);
+				st->envmapsat_b = strtof(tok, NULL);
+			} else {
+				st->envmapsat_r = st->envmapsat_g = st->envmapsat_b = atof(value);
+			}
+		}
 		else if (!Q_strcasecmp(key, "$basealphaenvmapmask"))
 			st->envfrombase=1;
 		else if (!Q_strcasecmp(key, "$normalmapalphaenvmapmask"))
@@ -346,6 +379,8 @@ static void Shader_GenerateFromVMT(parsestate_t *ps, vmtstate_t *st, const char 
 {
 	size_t offset = 0;
 	char script[8192];
+	char envmaptint[128];
+	char envmapsat[128];
 	char *progargs = "";
 
 	if (!*st->tex[0].name)	//fill in a default...
@@ -356,6 +391,20 @@ static void Shader_GenerateFromVMT(parsestate_t *ps, vmtstate_t *st, const char 
 
 	if (st->nofog)
 		progargs = "#NOFOG";
+
+	/* FIXME: check proper */
+	if (st->envmaptint_b > 0.0f) {
+		Q_snprintfz(envmaptint, sizeof(envmaptint), "#ENVTINT=%f,%f,%f", st->envmaptint_r, st->envmaptint_g, st->envmaptint_b);
+	} else {
+		Q_snprintfz(envmaptint, sizeof(envmaptint), "");
+	}
+
+	/* FIXME: check proper */
+	if (st->envmapsat_r > 0.0f) {
+		Q_snprintfz(envmapsat, sizeof(envmapsat), "#ENVSAT=%f,%f,%f", st->envmapsat_r, st->envmapsat_g, st->envmapsat_b);
+	} else {
+		Q_snprintfz(envmapsat, sizeof(envmapsat), "");
+	}
 
 	Q_strlcatfz(script, &offset, sizeof(script), "\n");
 
@@ -433,12 +482,16 @@ static void Shader_GenerateFromVMT(parsestate_t *ps, vmtstate_t *st, const char 
 	}
 	else if (!Q_strcasecmp(st->type, "DecalModulate"))
 	{
-		Q_strlcatfz(script, &offset, sizeof(script),
-			"\t{\n"
-				"\t\tprogram \"vmt/vertexlit%s\"\n"
-				"\t\tblendFunc gl_dst_color gl_one_minus_src_alpha\n"
-			"\t}\n", progargs);
-		Q_strlcatfz(script, &offset, sizeof(script),	"\tdiffusemap \"%s%s.vtf\"\n", strcmp(st->tex[0].name, "materials/")?"materials/":"", st->tex[0].name);
+		Q_strlcatfz(script, &offset, sizeof(script),	"\t{\n");
+		Q_strlcatfz(script, &offset, sizeof(script),	"\t\tmap \"%s%s.vtf\"\n", strcmp(st->tex[0].name, "materials/")?"materials/":"", st->tex[0].name);
+
+		if (!st->mod2x) {
+			Q_strlcatfz(script, &offset, sizeof(script),"\t\tblendFunc gl_dst_color gl_src_color\n");
+		} else {
+			Q_strlcatfz(script, &offset, sizeof(script),"\t\tblendFunc gl_dst_color gl_one_minus_src_alpha\n");
+		}
+
+		Q_strlcatfz(script, &offset, sizeof(script),	"\t}\n");
 		Q_strlcatfz(script, &offset, sizeof(script),	"\tpolygonOffset 1\n");
 	}
 	else if (!Q_strcasecmp(st->type, "Modulate"))
@@ -447,7 +500,7 @@ static void Shader_GenerateFromVMT(parsestate_t *ps, vmtstate_t *st, const char 
 		Q_strlcatfz(script, &offset, sizeof(script),	"\t{\n");
 		Q_strlcatfz(script, &offset, sizeof(script),	"\t\tmap \"%s%s.vtf\"\n", strcmp(st->tex[0].name, "materials/")?"materials/":"", st->tex[0].name);
 
-		if (st->mod2x) {
+		if (!st->mod2x) {
 			Q_strlcatfz(script, &offset, sizeof(script),"\t\tblendFunc gl_dst_color gl_src_color\n");
 		} else {
 			Q_strlcatfz(script, &offset, sizeof(script),"\t\tblendFunc gl_dst_color gl_one_minus_src_alpha\n");
@@ -519,7 +572,7 @@ static void Shader_GenerateFromVMT(parsestate_t *ps, vmtstate_t *st, const char 
 					Q_strlcpy(st->type, "vmt/vertexlit", sizeof(st->type));
 			}
 
-			Q_strlcatfz(script, &offset, sizeof(script),	"\tprogram \"%s%s\"\n", st->type, progargs);
+			Q_strlcatfz(script, &offset, sizeof(script),	"\tprogram \"%s%s%s%s\"\n", st->type, progargs, envmaptint, envmapsat);
 		}
 
 		Q_strlcatfz(script, &offset, sizeof(script),	"\tdiffusemap \"%s%s.vtf\"\n", strcmp(st->tex[0].name, "materials/")?"materials/":"", st->tex[0].name);
@@ -556,7 +609,7 @@ static void Shader_GenerateFromVMT(parsestate_t *ps, vmtstate_t *st, const char 
 			else /* take from normalmap */
 				Q_strlcpy(st->type, "vmt/lightmapped", sizeof(st->type));
 
-			Q_strlcatfz(script, &offset, sizeof(script),	"\tprogram \"%s%s\"\n", st->type, progargs);
+			Q_strlcatfz(script, &offset, sizeof(script),	"\tprogram \"%s%s%s%s\"\n", st->type, progargs, envmaptint, envmapsat);
 		}
 
 		Q_strlcatfz(script, &offset, sizeof(script),	"\tdiffusemap \"%s%s.vtf\"\n", strcmp(st->tex[0].name, "materials/")?"materials/":"", st->tex[0].name);

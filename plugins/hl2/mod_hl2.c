@@ -827,6 +827,72 @@ static void Mod_HL2_ReadPose(hl2parsecontext_t *ctx, const hl2mdlanim_t *anim, i
 		pose = (const hl2mdlpose_t*)((const qbyte*)pose + pose->next);
 	}
 }
+
+
+// matches engine Mod_InsertEvent from parses a foo.mdl.events file and inserts the events into the relevant animations
+static void Mod_InsertEvent(zonegroup_t *mem, galiasanimation_t *anims, unsigned int numanimations, unsigned int eventanimation, float eventpose, int eventcode, const char *eventdata)
+{
+	galiasevent_t *ev, **link;
+	if (eventanimation >= numanimations)
+	{
+		Con_Printf("Mod_InsertEvent: invalid frame index\n");
+		return;
+	}
+	ev = plugfuncs->GMalloc(mem, sizeof(*ev) + strlen(eventdata)+1);
+	ev->data = (char*)(ev+1);
+
+	ev->timestamp = eventpose;
+	ev->timestamp /= anims[eventanimation].rate;
+	ev->code = eventcode;
+	strcpy(ev->data, eventdata);
+	link = &anims[eventanimation].events;
+	while (*link && (*link)->timestamp <= ev->timestamp)
+		link = &(*link)->next;
+	ev->next = *link;
+	*link = ev;
+}
+
+// matches engine Mod_ParseModelEvents
+static qboolean Mod_ParseModelEvents(model_t *mod, galiasanimation_t *anims, unsigned int numanimations)
+{
+	unsigned int anim;
+	float pose;
+	int eventcode;
+
+	const char *modelname = mod->name;
+	zonegroup_t *mem = &mod->memgroup;
+	char fname[MAX_QPATH], tok[2048];
+	size_t fsize;
+	char *line, *file, *eol;
+	Q_snprintfz(fname, sizeof(fname), "%s.events", modelname);
+	line = file = filefuncs->LoadFile(fname, &fsize);
+	if (!file)
+		return false;
+	while(line && *line)
+	{
+		eol = strchr(line, '\n');
+		if (eol)
+			*eol = 0;
+
+		line = cmdfuncs->ParseToken(line, tok, sizeof(tok), 0);
+		anim = strtoul(tok, NULL, 0);
+		line = cmdfuncs->ParseToken(line, tok, sizeof(tok), 0);
+		pose = strtod(tok, NULL);
+		line = cmdfuncs->ParseToken(line, tok, sizeof(tok), 0);
+		eventcode = (long)strtol(tok, NULL, 0);
+		line = cmdfuncs->ParseToken(line, tok, sizeof(tok), 0);
+		Mod_InsertEvent(mem, anims, numanimations, anim, pose, eventcode, tok);
+
+		if (eol)
+			line = eol+1;
+		else
+			break;
+	}
+	plugfuncs->Free(file);
+	return true;
+}
+
+
 qboolean QDECL Mod_LoadHL2Model (model_t *mod, void *buffer, size_t fsize)
 {
 	hl2parsecontext_t ctx = {mod, buffer};
@@ -928,6 +994,8 @@ qboolean QDECL Mod_LoadHL2Model (model_t *mod, void *buffer, size_t fsize)
 
 	VectorCopy(ctx.header->mins, mod->mins);
 	VectorCopy(ctx.header->maxs, mod->maxs);
+	galiasinfo_t *galias = (galiasinfo_t*)mod->meshinfo;
+	Mod_ParseModelEvents(mod, galias->ofsanimations, galias->numanimations);
 
 	mod->type = mod_alias;
 	mod->radius = RadiusFromBounds(mod->mins, mod->maxs);
@@ -939,6 +1007,8 @@ qboolean MDL_Init(void)
 {
 	filefuncs = plugfuncs->GetEngineInterface(plugfsfuncs_name, sizeof(*filefuncs));
 	modfuncs = plugfuncs->GetEngineInterface(plugmodfuncs_name, sizeof(*modfuncs));
+	cmdfuncs = plugfuncs->GetEngineInterface(plugcmdfuncs_name, sizeof(*cmdfuncs));
+
 	if (modfuncs && modfuncs->version != MODPLUGFUNCS_VERSION)
 		modfuncs = NULL;
 

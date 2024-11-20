@@ -2179,6 +2179,7 @@ static qboolean VBSP_LoadStaticProps(model_t *mod, qbyte *offset, size_t size, i
 		ent->topcolour = TOP_DEFAULT;
 		ent->bottomcolour = BOTTOM_DEFAULT;
 		ent->scale = 1;
+		ent->flags = RF_NOSHADOW;
 		ent->shaderRGBAf[0] = 1;
 		ent->shaderRGBAf[1] = 1;
 		ent->shaderRGBAf[2] = 1;
@@ -2218,7 +2219,7 @@ static qboolean VBSP_LoadStaticProps(model_t *mod, qbyte *offset, size_t size, i
 			unsigned short minlev, maxlev;
 			minlev = LittleShort(*(unsigned short*)prop);				prop += sizeof(unsigned short);
 			maxlev = LittleShort(*(unsigned short*)prop);				prop += sizeof(unsigned short);
-			skip |= (minlev > dxlevel || dxlevel > maxlev);
+			skip |=  (minlev > 0) && ((minlev > dxlevel) || (dxlevel > maxlev));
 		}
 		if (version >= 7)
 		{

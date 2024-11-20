@@ -156,7 +156,7 @@ void Q1QVM_RunPlayerThink(void);
 void Q1QVM_PostThink(void);
 void Q1QVM_StartFrame(qboolean botsarespecialsnowflakes);
 void Q1QVM_Blocked(void);
-void Q1QVM_SendEntity(quint64_t sendflags);
+qboolean Q1QVM_SendEntity(quint64_t sendflags);
 void Q1QVM_SetNewParms(void);
 void Q1QVM_SetChangeParms(void);
 qboolean Q1QVM_ClientCommand(void);

@@ -332,6 +332,7 @@ void SV_EmitCSQCUpdate(client_t *client, sizebuf_t *msg, qbyte svcnumber)
 
 	for (en = 0, entnum = 0; en < csqcnuments; en++, entnum++)
 	{
+		int mod_result = 0;
 		ent = csqcent[en];
 
 		//add any entity removes on ents leading up to this entity
@@ -397,7 +398,7 @@ void SV_EmitCSQCUpdate(client_t *client, sizebuf_t *msg, qbyte svcnumber)
 		if (svs.gametype == GT_Q1QVM)
 		{
 			pr_global_struct->other = viewerent;
-			Q1QVM_SendEntity(bits);
+			mod_result = Q1QVM_SendEntity(bits >> SENDFLAGS_SHIFT);
 		}
 		else
 #endif
@@ -408,9 +409,10 @@ void SV_EmitCSQCUpdate(client_t *client, sizebuf_t *msg, qbyte svcnumber)
 			G_FLOAT(OFS_PARM1+1) = (int)((bits>>(SENDFLAGS_SHIFT+24)) & 0xffffff);
 			G_FLOAT(OFS_PARM1+2) = (int)((bits>>(SENDFLAGS_SHIFT+48)) & 0xffffff);
 			PR_ExecuteProgram(svprogfuncs, ent->xv->SendEntity);
+			mod_result = G_INT(OFS_RETURN);
 		}
 
-		if (G_INT(OFS_RETURN))	//0 means not to tell the client about it.
+		if (mod_result)	//0 means not to tell the client about it.
 		{
 			//FIXME: don't overflow MAX_DATAGRAM... unless its too big anyway...
 			if (msg->cursize + csqcmsgbuffer.cursize+5 >= msg->maxsize)

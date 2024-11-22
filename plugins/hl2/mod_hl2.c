@@ -123,7 +123,7 @@ typedef struct
 	unsigned int _0;
 	unsigned int name_ofs;
 	float fps;
-	unsigned int _12;
+	unsigned int loop;
 	unsigned int numframes;
 	unsigned int _20;
 	unsigned int _24;
@@ -942,7 +942,7 @@ qboolean QDECL Mod_LoadHL2Model (model_t *mod, void *buffer, size_t fsize)
 				modfuncs->ConcatTransforms((const void*)(ctx.basepose+in[i].parent*12), (const void*)pose, (void*)(ctx.basepose+i*12));
 			else
 				memcpy(ctx.basepose+12*i, pose, sizeof(float)*12);
-			modfuncs->M3x4_Invert(ctx.basepose+12*i, ctx.bones[i].inverse);
+			memcpy(ctx.bones[i].inverse, in[i].inverse, sizeof(float)*12);	//use the provided value, but should match modfuncs->M3x4_Invert(ctx.basepose+12*i, ctx.bones[i].inverse);
 		}
 
 		if (ctx.header->num_anims)
@@ -959,7 +959,7 @@ qboolean QDECL Mod_LoadHL2Model (model_t *mod, void *buffer, size_t fsize)
 				a->GetRawBones = NULL;	//FIXME: for delay loading the proper way...
 										//FIXME: replace Alias_FindRawSkelData instead, to handle bone controllers etc.
 				a->boneofs = plugfuncs->GMalloc(&mod->memgroup, sizeof(float)*a->numposes*12*ctx.header->num_bones);
-				a->loop = true;
+				a->loop = in->loop;
 				a->rate = in->fps;
 				a->action = -1;
 				a->actionweight = 0;

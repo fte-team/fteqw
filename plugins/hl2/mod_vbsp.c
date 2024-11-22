@@ -1950,10 +1950,10 @@ static void VBSP_BuildSurfMesh(model_t *mod, msurface_t *surf, builddata_t *bd)
 		}
 
 		//figure out the texture directions, for bumpmapping and stuff
-		if (surf->flags & SURF_PLANEBACK)
-			VectorNegate(surf->plane->normal, mesh->normals_array[i]);
-		else
-			VectorCopy(surf->plane->normal, mesh->normals_array[i]);
+// 		if (surf->flags & SURF_PLANEBACK)
+// 			VectorNegate(surf->plane->normal, mesh->normals_array[i]);
+// 		else
+		VectorCopy(surf->plane->normal, mesh->normals_array[i]);
 		VectorCopy(surf->texinfo->vecs[0], mesh->snormals_array[i]);
 		VectorNegate(surf->texinfo->vecs[1], mesh->tnormals_array[i]);
 		//the s+t vectors are axis-aligned, so fiddle them so they're normal aligned instead

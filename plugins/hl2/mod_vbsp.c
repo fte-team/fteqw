@@ -362,7 +362,6 @@ typedef struct vbspinfo_s
 	} *staticprops;
 
 	unsigned int contentsremap[32];
-	int summed;	//for the main thread to wait on.
 } vbspinfo_t;
 
 static q2mapsurface_t	nullsurface;
@@ -1349,6 +1348,7 @@ typedef struct
 	} light[6];
 	short pad;
 } hl2dleaf_t;
+
 static qboolean VBSP_LoadLeafs (model_t *mod, qbyte *mod_base, vlump_t *l, int ver)
 {
 	vbspinfo_t	*prv = (vbspinfo_t*)mod->meshinfo;
@@ -3161,9 +3161,6 @@ static void VBSP_BuildBIHMain(void *ctx, void *unusedp, size_t unuseda, size_t u
 	plugfuncs->Free(bihleaf);
 
 	mod->funcs.PointContents		= VBSP_PointContents;
-
-	//and make sure we finished checksumming, too.
-	threadfuncs->WaitForCompletion(mod, &prv->summed, false);
 }
 
 /*
@@ -3884,17 +3881,10 @@ static void VBSP_LoadLeafLight (model_t *mod, qbyte *mod_base, vlump_t *hdridx, 
 
 
 
-static void VBSP_ComputedChecksum(void *ctx, void *data, size_t sum, size_t b)
-{
-	model_t *mod = ctx;
-	vbspinfo_t *prv = mod->meshinfo;
-	mod->checksum = mod->checksum2 = sum;
-	prv->summed = true;
-}
-static void VBSP_ComputeChecksum(void *ctx, void *data, size_t length, size_t b)
+static void VBSP_ComputeChecksum(model_t *mod, void *data, size_t length)
 {
 	unsigned int checksum = LittleLong (filefuncs->BlockChecksum(data, length));
-	threadfuncs->AddWork(WG_LOADER, VBSP_ComputedChecksum, ctx, NULL, checksum, 0);
+	mod->checksum = mod->checksum2 = checksum;
 }
 
 static qboolean VBSP_LoadModel(model_t *mod, qbyte *mod_base, size_t filelen, char *loadname)
@@ -3909,8 +3899,6 @@ static qboolean VBSP_LoadModel(model_t *mod, qbyte *mod_base, size_t filelen, ch
 #endif
 
 	VBSP_TranslateContentBits_Setup(prv);
-
-	threadfuncs->AddWork(WG_LOADER, VBSP_ComputeChecksum, mod, mod_base, filelen, 0);
 
 	mod->lightmaps.width = LMBLOCK_SIZE_MAX;
 	mod->lightmaps.height = LMBLOCK_SIZE_MAX;
@@ -4148,6 +4136,9 @@ static qboolean VBSP_LoadMap (model_t *mod, void *filein, size_t filelen)
 
 	//urgh, we need to wait for models to load in order to get their sizes. that requires being on the main thread and the caller will think we're loaded on completion so we can't safely pingpong it back before generating the bih tree
 	threadfuncs->AddWork(WG_MAIN, VBSP_BuildBIHMain, wmod, NULL, 0, 0);
+
+	//main thread should have a load of work to do now. worker thread should now be free to compute the hash before its finally marked as loaded and the temp file memory goes away.
+	VBSP_ComputeChecksum(mod, filein, filelen);
 	return true;
 }
 

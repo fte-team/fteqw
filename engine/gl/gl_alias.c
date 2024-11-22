@@ -1461,7 +1461,7 @@ qboolean R_CalcModelLighting(entity_t *e, model_t *clmodel)
 			//don't do world lights, although that might be funny
 			for (i=rtlights_first; i<RTL_FIRST; i++)
 			{
-				if (cl_dlights[i].radius)
+				if (!(*cl_dlights[i].cubemapname) && cl_dlights[i].radius)
 				{
 					VectorSubtract (org,
 									cl_dlights[i].origin,
@@ -1509,7 +1509,7 @@ qboolean R_CalcModelLighting(entity_t *e, model_t *clmodel)
 			//don't do world lights, although that might be funny
 			for (i=rtlights_first; i<RTL_FIRST; i++)
 			{
-				if (cl_dlights[i].radius)
+				if (!(*cl_dlights[i].cubemapname) && cl_dlights[i].radius)
 				{
 					VectorSubtract (org,
 									cl_dlights[i].origin,

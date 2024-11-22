@@ -2275,9 +2275,11 @@ static qboolean VBSP_LoadStaticProps(model_t *mod, qbyte *offset, size_t size, i
 		}
 		//Hack: lighting is wrong.
 //		ent->light_type = ELT_UNKNOWN;
+#if 0
 		VectorSet(ent->light_dir, 0, 0.707, 0.707);
 		VectorSet(ent->light_avg, 0.75, 0.75, 0.75);
 		VectorSet(ent->light_range, 0.5, 0.5, 0.5);
+#endif
 
 		//not all props will be emitted, according to d3d levels...
 		prv->numstaticprops++;
@@ -3355,6 +3357,39 @@ static qbyte *VBSP_MarkLeaves (model_t *model, int clusters[2])
 	}
 	return vis;
 }
+
+qboolean HL2_CalcModelLighting(entity_t *e, model_t *clmodel, refdef_t *r_refdef, model_t *mod)
+{
+	vec3_t lightdir;
+	int i;
+	vec3_t dist;
+	float add, m;
+	vec3_t shadelight, ambientlight;
+
+	e->light_dir[0] = 0; e->light_dir[1] = 1; e->light_dir[2] = 0;
+	mod->funcs.LightPointValues(mod, e->origin, shadelight, ambientlight, lightdir);
+
+	e->light_dir[0] = DotProduct(lightdir, e->axis[0]);
+	e->light_dir[1] = DotProduct(lightdir, e->axis[1]);
+	e->light_dir[2] = DotProduct(lightdir, e->axis[2]);
+
+	VectorNormalize(e->light_dir);
+
+	shadelight[0] *= 1/255.0f;
+	shadelight[1] *= 1/255.0f;
+	shadelight[2] *= 1/255.0f;
+	ambientlight[0] *= 1/255.0f;
+	ambientlight[1] *= 1/255.0f;
+	ambientlight[2] *= 1/255.0f;
+
+	//calculate average and range, to allow for negative lighting dotproducts
+	VectorCopy(shadelight, e->light_avg);
+	VectorCopy(ambientlight, e->light_range);
+
+	e->light_known = 1;
+	return e->light_known-1;
+}
+
 static void VBSP_PrepareFrame(model_t *mod, refdef_t *r_refdef, int area, int clusters[2], pvsbuffer_t *vis, qbyte **entvis_out, qbyte **surfvis_out)
 {
 	vbspinfo_t	*prv = (vbspinfo_t*)mod->meshinfo;
@@ -3448,14 +3483,22 @@ static void VBSP_PrepareFrame(model_t *mod, refdef_t *r_refdef, int area, int cl
 					modfuncs->GetModel(src->model->publicname, MLV_WARN);	//we use threads, so these'll load in time.
 				continue;
 			}
-			/*if (!src->light_known)
+#if 1
+			if (!src->light_known)
 			{
 				vec3_t tmp;
 				VectorCopy(src->origin, tmp);
 				VectorCopy(sent->lightorg, src->origin);
-				R_CalcModelLighting(src, src->model);	//bake and cache, now everything else is working.
+				HL2_CalcModelLighting(src, src->model, r_refdef, mod);
 				VectorCopy(tmp, src->origin);
-			}*/
+
+				/* HACK: If it's dark, might as well sample the model pos directly. */
+				if (VectorLength(src->light_range) < 0.25)
+				{
+					HL2_CalcModelLighting(src, src->model, r_refdef, mod);
+				}
+			}
+#endif
 			if (src->pvscache.num_leafs==-2)
 			{
 				vec3_t absmin, absmax;
@@ -3595,7 +3638,7 @@ static void VBSP_WalkShadows (dlight_t *dl, void (*callback)(msurface_t *surf), 
 			if ((dot < 0) ^ !!(surf->flags & SURF_PLANEBACK))
 				continue;		// wrong side
 
-/*			if (surf->flags & (SURF_DRAWALPHA | SURF_DRAWTILED))
+			/*if (surf->flags & (SURF_DRAWALPHA | SURF_DRAWTILED))
 			{	// no shadows
 				continue;
 			}*/

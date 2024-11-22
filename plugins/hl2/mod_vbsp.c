@@ -1358,7 +1358,8 @@ static qboolean VBSP_LoadLeafs (model_t *mod, qbyte *mod_base, vlump_t *l, int v
 	int			count;
 	size_t		insize = sizeof(*in);
 	struct leaflightpoint_s *lightpoint = NULL;
-	if (ver < 20)
+
+	if (ver == 19)
 		insize = 56;	//older maps have some lighting info here.
 	else
 		insize = 32;
@@ -1389,7 +1390,7 @@ static qboolean VBSP_LoadLeafs (model_t *mod, qbyte *mod_base, vlump_t *l, int v
 	mod->leafs = out;
 	mod->numleafs = count;
 
-	if (ver < 20)
+	if (ver == 19)
 	{
 		prv->leaflight = plugfuncs->GMalloc(&mod->memgroup, sizeof(*out) * count);
 		lightpoint = plugfuncs->GMalloc(&mod->memgroup, sizeof(*lightpoint) * count);
@@ -3722,7 +3723,7 @@ static void VBSP_LoadLeafLight (model_t *mod, qbyte *mod_base, vlump_t *hdridx, 
 	unsigned short *in;
 	qbyte *inpoint;
 
-	if (version < 20)
+	if (version == 19)
 		return; //nope. this info is in the leafs.
 
 	if (hdridx && hdrvals)

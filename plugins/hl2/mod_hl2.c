@@ -13,6 +13,7 @@
 
 static plugfsfuncs_t *filefuncs;
 static plugmodfuncs_t *modfuncs;
+static plugfsfuncs_t *fsfuncs;
 
 //Utility functions. silly plugins.
 float Length(const vec3_t v) {return sqrt(DotProduct(v,v));}
@@ -422,7 +423,7 @@ static index_t *Mod_HL2_LoadIndexes(hl2parsecontext_t *ctx, unsigned int *idxcou
 static qboolean Mod_HL2_LoadVTX(hl2parsecontext_t *ctx, const void *buffer, size_t fsize)
 {	//horribly overcomplicated way to express this stuff.
 	const hl2mdlheader_t *mdl = ctx->header;
-	size_t totalsurfs = 0, b, s, l, m, t;
+	size_t totalsurfs = 0, b, s, l, m, t, z;
 	const hl2vtxheader_t *header = buffer;
 	const hl2vtxbody_t *vbody;
 	const hl2vtxsurf_t *vsurf;
@@ -473,16 +474,26 @@ static qboolean Mod_HL2_LoadVTX(hl2parsecontext_t *ctx, const void *buffer, size
 		m = *skinbind++;
 		if (mdl->texpath_count)
 		{
-			const hl2mdltexturepath_t *mpath = (const hl2mdltexturepath_t*)((const qbyte*)mdl + mdl->texpath_ofs);
-			Q_strlcpy(skinframe->shadername, (const char*)mdl+mpath->nameofs, sizeof(skinframe->shadername));
+			for (z = 0; z < mdl->texpath_count; z++) {
+				char fsTest[MAX_QPATH];
+				const hl2mdltexturepath_t *mpath = (const hl2mdltexturepath_t*)((const qbyte*)mdl + mdl->texpath_ofs + sizeof(hl2mdltexturepath_t) * z);
+				Q_strlcpy(skinframe->shadername, (const char*)mdl+mpath->nameofs, sizeof(skinframe->shadername));
+				Q_strlcat(skinframe->shadername, (const char*)&mtex[m]+mtex[m].nameofs, sizeof(skinframe->shadername));
+				Q_strlcat(skinframe->shadername, ".vmt", sizeof(skinframe->shadername));
+				Q_snprintfz(fsTest, sizeof(fsTest), "materials\\%s", skinframe->shadername);
+
+				if (fsfuncs->LocateFile(fsTest, FSLF_IFFOUND, NULL)) {
+					break;
+				}
+			}
 		}
 		else
 		{
 			modfuncs->StripExtension((const char*)ctx->mod->name, skinframe->shadername, sizeof(skinframe->shadername));
 			Q_strlcat(skinframe->shadername, "/", sizeof(skinframe->shadername));
+			Q_strlcat(skinframe->shadername, (const char*)&mtex[m]+mtex[m].nameofs, sizeof(skinframe->shadername));
+			Q_strlcat(skinframe->shadername, ".vmt", sizeof(skinframe->shadername));
 		}
-		Q_strlcat(skinframe->shadername, (const char*)&mtex[m]+mtex[m].nameofs, sizeof(skinframe->shadername));
-		Q_strlcat(skinframe->shadername, ".vmt", sizeof(skinframe->shadername));
 
 		ns->numframes = 1;	//no skingroups... not that kind anyway.
 		ns->skinspeed = 10;
@@ -1008,6 +1019,7 @@ qboolean MDL_Init(void)
 	filefuncs = plugfuncs->GetEngineInterface(plugfsfuncs_name, sizeof(*filefuncs));
 	modfuncs = plugfuncs->GetEngineInterface(plugmodfuncs_name, sizeof(*modfuncs));
 	cmdfuncs = plugfuncs->GetEngineInterface(plugcmdfuncs_name, sizeof(*cmdfuncs));
+	fsfuncs = plugfuncs->GetEngineInterface(plugfsfuncs_name, sizeof(*fsfuncs));
 
 	if (modfuncs && modfuncs->version != MODPLUGFUNCS_VERSION)
 		modfuncs = NULL;

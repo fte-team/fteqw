@@ -2595,13 +2595,22 @@ static void VARGS nearCallback (void *data, dGeomID o1, dGeomID o2)
 	numcontacts = dCollide(o1, o2, MAX_CONTACTS, &(contact[0].geom), sizeof(contact[0]));
 	if (numcontacts)
 	{
+		trace_t contactTrace;
+		memset ( &contactTrace, 0, sizeof ( trace_t ) );
+		contactTrace.endpos[0] = contact[0].geom.pos[0];
+		contactTrace.endpos[1] = contact[0].geom.pos[1];
+		contactTrace.endpos[2] = contact[0].geom.pos[2];
+		contactTrace.plane.normal[0] = contact[0].geom.normal[0];
+		contactTrace.plane.normal[1] = contact[0].geom.normal[1];
+		contactTrace.plane.normal[2] = contact[0].geom.normal[2];
+
 		if(ed1 && ed1->v->touch)
-		{	//no trace info here. you'll have to figure it out yourself or something.
-			world->Event_Touch(world, ed1, ed2, NULL);
+		{
+			world->Event_Touch(world, ed1, ed2, &contactTrace);
 		}
 		if(ed2 && ed2->v->touch)
 		{
-			world->Event_Touch(world, ed2, ed1, NULL);
+			world->Event_Touch(world, ed2, ed1, &contactTrace);
 		}
 
 		/* if either ent killed itself, don't collide */

@@ -1219,6 +1219,7 @@ static cvar_t *physics_ode_autodisable_time;
 static cvar_t *physics_ode_autodisable_threshold_linear;
 static cvar_t *physics_ode_autodisable_threshold_angular;
 static cvar_t *physics_ode_autodisable_threshold_samples;
+static cvar_t *physics_ode_maxspeed;
 
 struct odectx_s
 {
@@ -1297,6 +1298,7 @@ static qboolean World_ODE_Init(void)
 	physics_ode_iterationsperframe				= cvarfuncs->GetNVFDG("physics_ode_iterationsperframe",				"4",	0,	"divisor for time step, runs multiple physics steps per frame",														"ODE Physics Library");
 	physics_ode_movelimit						= cvarfuncs->GetNVFDG("physics_ode_movelimit",						"0.5",	0,	"clamp velocity if a single move would exceed this percentage of object thickness, to prevent flying through walls","ODE Physics Library");
 	physics_ode_spinlimit						= cvarfuncs->GetNVFDG("physics_ode_spinlimit",						"10000",0,	"reset spin velocity if it gets too large",																			"ODE Physics Library");
+	physics_ode_maxspeed						= cvarfuncs->GetNVFDG("physics_ode_maxspeed",						"0",	0,	"clamp absolute velocity","ODE Physics Library");
 	physics_ode_autodisable						= cvarfuncs->GetNVFDG("physics_ode_autodisable",						"1",	0,	"automatic disabling of objects which dont move for long period of time, makes object stacking a lot faster",		"ODE Physics Library");
 	physics_ode_autodisable_steps				= cvarfuncs->GetNVFDG("physics_ode_autodisable_steps",				"10",	0,	"how many steps object should be dormant to be autodisabled",		"ODE Physics Library");
 	physics_ode_autodisable_time				= cvarfuncs->GetNVFDG("physics_ode_autodisable_time",					"0",	0,	"how many seconds object should be dormant to be autodisabled",		"ODE Physics Library");
@@ -2501,17 +2503,44 @@ static void World_ODE_Frame_BodyFromEntity(world_t *world, wedict_t *ed)
 		// limit movement speed to prevent missed collisions at high speed
 		const dReal *ovelocity = dBodyGetLinearVel(body);
 		const dReal *ospinvelocity = dBodyGetAngularVel(body);
-		movelimit = ctx->movelimit * ctx->movelimit;
-		test = DotProduct(ovelocity,ovelocity);
-		if (test > movelimit*movelimit)
+
+		// simpler clamp as a last resort
+		if (physics_ode_maxspeed->value > 0)
 		{
-			// scale down linear velocity to the movelimit
-			// scale down angular velocity the same amount for consistency
-			f = movelimit / sqrt(test);
-			VectorScale(ovelocity, f, velocity);
-			VectorScale(ospinvelocity, f, spinvelocity);
-			dBodySetLinearVel(body, velocity[0], velocity[1], velocity[2]);
-			dBodySetAngularVel(body, spinvelocity[0], spinvelocity[1], spinvelocity[2]);
+			float highestAxis = physics_ode_maxspeed->value;
+			float scaleDiff = 1.0;
+
+			for (int i = 0; i < 3; i++)
+			{
+				if (velocity[i] > highestAxis)
+					highestAxis = velocity[i];
+
+				if (velocity[i] < -highestAxis)
+					highestAxis = -velocity[i];
+			}
+
+			scaleDiff = (physics_ode_maxspeed->value / highestAxis);
+
+			// if we should scale it down...
+			if (scaleDiff < 1.0f) {
+				VectorScale(ovelocity, scaleDiff, velocity);
+				dBodySetLinearVel(body, velocity[0], velocity[1], velocity[2]);
+			}
+		} else {
+			// this is probably more expensive
+			movelimit = ctx->movelimit * ctx->movelimit;
+
+			test = DotProduct(ovelocity,ovelocity);
+			if (test > movelimit*movelimit)
+			{
+				// scale down linear velocity to the movelimit
+				// scale down angular velocity the same amount for consistency
+				f = movelimit / sqrt(test);
+				VectorScale(ovelocity, f, velocity);
+				VectorScale(ospinvelocity, f, spinvelocity);
+				dBodySetLinearVel(body, velocity[0], velocity[1], velocity[2]);
+				dBodySetAngularVel(body, spinvelocity[0], spinvelocity[1], spinvelocity[2]);
+			}
 		}
 
 		// make sure the angular velocity is not exploding

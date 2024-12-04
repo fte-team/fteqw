@@ -1138,8 +1138,8 @@ typedef struct
 #define TIHL2_NOPORTAL		0x20
 #define TIHL2_TRIGGER		0x40
 #define TIHL2_NODRAW		TI_NODRAW
-//#define TIHL2_HINT		0x100
-//#define TIHL2_SKIP		0x200
+#define TIHL2_HINT		0x100
+#define TIHL2_SKIP		0x200
 #define TIHL2_NOLIGHT		0x400
 //#define TIHL2_BUMPLIGHT	0x800
 //#define TIHL2_NOSHADOWS	0x1000
@@ -1209,9 +1209,23 @@ static qboolean VBSP_LoadTexInfo (model_t *mod, qbyte *mod_base, vlump_t *lumps,
 //		else if (out->flags & (TIHL2_WARP))
 //			Q_strncatz(sname, "#ALPHA=1", sizeof(sname));
 
-		out->flags = 0;
+		if (flags & (TIHL2_SKYBOX|TIHL2_SKYROOM))
+			out->flags |= TI_SKY;
+
+		if (flags & (TIHL2_WARP))
+			out->flags |= TI_WARP;
+
 		if (flags & TIHL2_NOLIGHT)
 			out->flags |= TEX_SPECIAL;
+
+		if (flags & TIHL2_NODRAW)
+			out->flags |= TI_NODRAW;
+
+// 		if (flags & TIHL2_HINT)
+// 			out->flags |= TI_HINT;
+
+// 		if (flags & TIHL2_SKIP)
+// 			out->flags |= TI_SKIP;
 
 		//compact the textures.
 		for (j=0; j < texcount; j++)
@@ -1733,6 +1747,135 @@ typedef struct
 	unsigned short firstprim;
 	unsigned int smoothinggroup;
 } hl2dface_t;
+
+
+typedef struct
+{
+	int			padding[8];
+	short		planenum;
+	qbyte		side;
+	qbyte		onnode;	//o.O
+
+	int			firstedge;		// we must support > 64k edges
+	unsigned short		numedges;
+	unsigned short		texinfo;
+
+	unsigned short		dispinfo;
+	short		fogvolume;
+
+// lighting info
+	qbyte		styles[8];
+	qbyte		day[8];
+	qbyte		night[8];
+	int			lightofs;		// start of [numstyles*surfsize] samples
+	float		surfacearea;
+	int			extents_min[2];
+	int			extents_size[2];
+
+	int			origface;
+	unsigned int smoothinggroup;
+} vampiredface_t;
+
+static qboolean VBSP_LoadFaces_Vampire (model_t *mod, qbyte *mod_base, vlump_t *lumps, int version)
+{
+	vbspinfo_t	*prv = (vbspinfo_t*)mod->meshinfo;
+	vlump_t *l = &lumps[VLUMP_FACES_LDR];
+	vampiredface_t	*in;
+	msurface_t 	*out;
+	int			i, count, surfnum;
+	int			planenum;
+	int			ti, st;
+	int			lumpsize = sizeof(*in);
+
+	mesh_t		*meshes;
+
+	in = (void *)(mod_base + l->fileofs);
+	if (l->filelen % lumpsize)
+	{
+		Con_Printf ("VBSP_LoadFaces_Vampire: funny lump size in %s\n",mod->name);
+		return false;
+	}
+	count = l->filelen / lumpsize;
+	out = plugfuncs->GMalloc(&mod->memgroup, count*sizeof(*out));
+	prv->surfdisp = plugfuncs->GMalloc(&mod->memgroup, count * sizeof(*prv->surfdisp));
+
+	meshes = plugfuncs->GMalloc(&mod->memgroup, count*sizeof(*meshes));
+
+	mod->surfaces = out;
+	mod->numsurfaces = count;
+
+	mod->lightmaps.surfstyles = 1;
+
+	for ( surfnum=0 ; surfnum<count ; surfnum++, in = (void*)((qbyte*)in+lumpsize), out++)
+	{
+		out->firstedge = LittleLong(in->firstedge);
+		out->numedges = (unsigned short)LittleShort(in->numedges);
+		out->flags = 0;
+		out->mesh = meshes+surfnum;
+		out->mesh->numvertexes = out->numedges;
+		out->mesh->numindexes = (out->mesh->numvertexes-2)*3;
+
+		planenum = (unsigned short)LittleShort(in->planenum);
+		if (in->side)
+			out->flags |= SURF_PLANEBACK;
+		if (!in->onnode)
+			out->flags |= SURF_OFFNODE;
+
+		out->plane = mod->planes + planenum;
+
+		ti = (unsigned short)LittleShort (in->texinfo);
+		if (ti < 0 || ti >= mod->numtexinfo)
+		{
+			Con_Printf (CON_ERROR "VBSP_LoadFaces: bad texinfo number\n");
+			return false;
+		}
+		out->texinfo = mod->texinfo + ti;
+
+		if (out->texinfo->flags & TI_SKY)
+		{
+			out->flags |= SURF_DRAWSKY|SURF_DRAWTILED;
+		}
+		if (out->texinfo->flags & TI_WARP)
+		{
+			out->flags |= SURF_DRAWTURB|SURF_DRAWTILED;
+		}
+
+		out->lmshift = 0;
+		out->texturemins[0] = in->extents_min[0];
+		out->texturemins[1] = in->extents_min[1];
+		out->extents[0] = in->extents_size[0];
+		out->extents[1] = in->extents_size[1];
+
+	// lighting info
+
+		for (i=0 ; i<Q1Q2BSP_STYLESPERSURF ; i++)
+		{
+			st = in->styles[i];
+			if (st == 255)
+				st = INVALID_LIGHTSTYLE;
+			else if (mod->lightmaps.maxstyle < st)
+				mod->lightmaps.maxstyle = st;
+			out->styles[i] = st;
+		}
+		for (; i<MAXCPULIGHTMAPS ; i++)
+			out->styles[i] = INVALID_LIGHTSTYLE;
+		for (i = 0; i<MAXRLIGHTMAPS ; i++)
+			out->vlstyles[i] = INVALID_VLIGHTSTYLE;
+		i = LittleLong(in->lightofs);
+		if (i == -1 || !mod->lightdata)
+			out->samples = NULL;
+		else
+			out->samples = mod->lightdata + i;
+
+	// set the drawing flags
+
+		if (out->texinfo->flags & TI_WARP)
+			out->flags |= SURF_DRAWTURB;
+	}
+
+	return true;
+}
+
 static qboolean VBSP_LoadFaces (model_t *mod, qbyte *mod_base, vlump_t *lumps, int version)
 {
 	vbspinfo_t	*prv = (vbspinfo_t*)mod->meshinfo;
@@ -1746,6 +1889,11 @@ static qboolean VBSP_LoadFaces (model_t *mod, qbyte *mod_base, vlump_t *lumps, i
 	int			lumpsize = sizeof(*in);
 
 	mesh_t		*meshes;
+
+	if (version == 17)
+	{
+		return VBSP_LoadFaces_Vampire(mod, mod_base, lumps, version);
+	}
 
 	if (l2->filelen && !(hl2_favour_ldr->ival && lumps[VLUMP_LIGHTING_LDR].filelen))
 		l = l2;
@@ -3766,7 +3914,7 @@ static void VBSP_LoadLeafLight (model_t *mod, qbyte *mod_base, vlump_t *hdridx, 
 	unsigned short *in;
 	qbyte *inpoint;
 
-	if (version == 19)
+	if (version == 17 || version == 19)
 		return; //nope. this info is in the leafs.
 
 	if (hdridx && hdrvals)
@@ -4072,7 +4220,7 @@ static qboolean VBSP_LoadMap (model_t *mod, void *filein, size_t filelen)
 
 	switch(header.version)
 	{
-	//case 17:	//
+	case 17:	//vampire
 	case 18:	//beta
 	case 19:	//hl2,cs:s,hl2dm
 	case 20:	//portal, l4d, hl2ep2

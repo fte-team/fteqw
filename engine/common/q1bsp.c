@@ -631,7 +631,7 @@ void Mod_ClipDecal(struct model_s *mod, vec3_t center, vec3_t normal, vec3_t tan
 		Q1BSP_ClipDecalToNodes(mod, &dec, mod->rootnode);
 #endif
 #ifdef Q3BSPS
-	else if (mod->fromgame == fg_quake3 || mod->fromgame == fg_quake2)
+	else if (mod->fromgame == fg_quake3 || mod->fromgame == fg_quake2 || mod->fromgame == fg_new)
 	{
 		if (mod->submodelof)
 		{

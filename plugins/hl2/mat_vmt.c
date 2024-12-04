@@ -43,6 +43,7 @@ typedef struct
 	char additive;
 	char translucent;
 	char selfillum;
+	char decal;
 	char nofog;
 	char mod2x; /* modulate only */
 	char water_cheap; /* water only */
@@ -228,7 +229,7 @@ static char *VMT_ParseBlock(const char *fname, vmtstate_t *st, char *line)
 		else if (!Q_strcasecmp(key, "$vertexalpha"))
 			st->vertexalpha = 1;
 		else if (!Q_strcasecmp(key, "$decal"))
-			Con_DPrintf("%s: %s \"%s\"\n", fname, key, value);
+			st->decal = atoi(value);
 		else if (!Q_strcasecmp(key, "$decalscale"))
 			Con_DPrintf("%s: %s \"%s\"\n", fname, key, value);
 		else if (!Q_strcasecmp(key, "$decalsize"))
@@ -479,9 +480,11 @@ static void Shader_GenerateFromVMT(parsestate_t *ps, vmtstate_t *st, const char 
 		Q_strlcatfz(script, &offset, sizeof(script),	"\tprogram \"%s%s\"\n", st->type, progargs);
 		Q_strlcatfz(script, &offset, sizeof(script),	"\tdiffusemap \"%s%s.vtf\"\n", strcmp(st->tex[0].name, "materials/")?"materials/":"", st->tex[0].name);
 		Q_strlcatfz(script, &offset, sizeof(script),	"\tpolygonOffset 1\n");
+		st->decal = 0;
 	}
 	else if (!Q_strcasecmp(st->type, "DecalModulate"))
 	{
+		Q_strlcatfz(script, &offset, sizeof(script),	"\tpolygonOffset 1\n");
 		Q_strlcatfz(script, &offset, sizeof(script),	"\t{\n");
 		Q_strlcatfz(script, &offset, sizeof(script),	"\t\tmap \"%s%s.vtf\"\n", strcmp(st->tex[0].name, "materials/")?"materials/":"", st->tex[0].name);
 
@@ -492,7 +495,8 @@ static void Shader_GenerateFromVMT(parsestate_t *ps, vmtstate_t *st, const char 
 		}
 
 		Q_strlcatfz(script, &offset, sizeof(script),	"\t}\n");
-		Q_strlcatfz(script, &offset, sizeof(script),	"\tpolygonOffset 1\n");
+		st->decal = 0;
+		st->translucent = 0;
 	}
 	else if (!Q_strcasecmp(st->type, "Modulate"))
 	{
@@ -505,8 +509,10 @@ static void Shader_GenerateFromVMT(parsestate_t *ps, vmtstate_t *st, const char 
 		} else {
 			Q_strlcatfz(script, &offset, sizeof(script),"\t\tblendFunc gl_dst_color gl_one_minus_src_alpha\n");
 		}
+		Q_strlcatfz(script, &offset, sizeof(script),	"\trgbGen vertex\n");
 
 		Q_strlcatfz(script, &offset, sizeof(script),	"\t}\n");
+		st->translucent = 0;
 	}
 	else if (!Q_strcasecmp(st->type, "Water"))
 	{
@@ -541,15 +547,9 @@ static void Shader_GenerateFromVMT(parsestate_t *ps, vmtstate_t *st, const char 
 
 		Q_strlcatfz(script, &offset, sizeof(script),	"\tnormalmap \"%s%s.vtf\"\n", strcmp(st->normalmap, "materials/")?"materials/":"", st->normalmap);
 	}
-	else if (!Q_strcasecmp(st->type, "VertexlitGeneric"))
+	else if (!Q_strcasecmp(st->type, "VertexlitGeneric") || st->decal)
 	{
-		if (st->translucent) {
-			Q_strlcatfz(script, &offset, sizeof(script),
-				"\t{\n"
-					"\t\tprogram \"vmt/vertexlit%s\"\n"
-					"\t\tblendFunc gl_src_alpha gl_one_minus_src_alpha\n"
-				"\t}\n", progargs);
-		} else {
+
 			if (*st->envmap && st->envfrombase)
 			{
 				if (st->halflambert)
@@ -573,7 +573,7 @@ static void Shader_GenerateFromVMT(parsestate_t *ps, vmtstate_t *st, const char 
 			}
 
 			Q_strlcatfz(script, &offset, sizeof(script),	"\tprogram \"%s%s%s%s\"\n", st->type, progargs, envmaptint, envmapsat);
-		}
+
 
 		Q_strlcatfz(script, &offset, sizeof(script),	"\tdiffusemap \"%s%s.vtf\"\n", strcmp(st->tex[0].name, "materials/")?"materials/":"", st->tex[0].name);
 
@@ -593,13 +593,7 @@ static void Shader_GenerateFromVMT(parsestate_t *ps, vmtstate_t *st, const char 
 	else if (!Q_strcasecmp(st->type, "LightmappedGeneric"))
 	{
 		/* reflectmask from diffuse map alpha */
-		if (st->translucent) {
-			Q_strlcatfz(script, &offset, sizeof(script),
-				"\t{\n"
-					"\t\tprogram \"vmt/vertexlit%s\"\n"
-					"\t\tblendFunc gl_src_alpha gl_one_minus_src_alpha\n"
-				"\t}\n", progargs);
-		} else {
+
 			if (*st->envmap && st->envfrombase)
 				Q_strlcpy(st->type, "vmt/lightmapped#ENVFROMBASE", sizeof(st->type));
 			else if (*st->envmap && st->envfromnorm)
@@ -610,7 +604,7 @@ static void Shader_GenerateFromVMT(parsestate_t *ps, vmtstate_t *st, const char 
 				Q_strlcpy(st->type, "vmt/lightmapped", sizeof(st->type));
 
 			Q_strlcatfz(script, &offset, sizeof(script),	"\tprogram \"%s%s%s%s\"\n", st->type, progargs, envmaptint, envmapsat);
-		}
+
 
 		Q_strlcatfz(script, &offset, sizeof(script),	"\tdiffusemap \"%s%s.vtf\"\n", strcmp(st->tex[0].name, "materials/")?"materials/":"", st->tex[0].name);
 
@@ -635,6 +629,14 @@ static void Shader_GenerateFromVMT(parsestate_t *ps, vmtstate_t *st, const char 
 		}
 	}
 
+	if (st->translucent) {
+		st->blendfunc = "src_alpha one_minus_src_alpha";
+	}
+
+	if (st->decal) {
+		Q_strlcatfz(script, &offset, sizeof(script),	"\tpolygonOffset 1\n");
+		Q_strlcatfz(script, &offset, sizeof(script),	"\trgbGen vertex\n");
+	}
 
 	if (*st->fullbrightmap)
 		Q_strlcatfz(script, &offset, sizeof(script), "\tfullbrightmap \"%s%s.vtf\"\n", strcmp(st->fullbrightmap, "materials/")?"materials/":"", st->fullbrightmap);

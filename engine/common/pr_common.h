@@ -391,7 +391,12 @@ void QCBUILTIN PF_findchainfloat (pubprogfuncs_t *prinst, struct globalvars_s *p
 void QCBUILTIN PF_findchainflags (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 void QCBUILTIN PF_bitshift(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 
+struct qcstate_s *PR_CreateThread(pubprogfuncs_t *prinst, float retval, float resumetime, qboolean wait);
+void PR_ClearThreads(pubprogfuncs_t *prinst);
+void PR_RunThreads(world_t *world);
 void QCBUILTIN PF_Abort(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_Fork(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_Sleep(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 void QCBUILTIN PF_externcall (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 void QCBUILTIN PF_externrefcall (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 void QCBUILTIN PF_externvalue (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
@@ -1273,6 +1278,19 @@ typedef struct csqcedict_s
 	int		skinobject;
 } csqcedict_t;
 
+typedef struct qcstate_s
+{
+	float resumetime;
+	qboolean waiting;
+	struct qcthread_s *thread;
+	int self;
+	int selfid;
+	int other;
+	int otherid;
+	float returnval;
+
+	struct qcstate_s *next;
+} qcstate_t;
 
 #ifdef __cplusplus
 };

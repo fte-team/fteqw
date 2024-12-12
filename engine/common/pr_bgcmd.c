@@ -2113,15 +2113,15 @@ void QCBUILTIN PF_memcpy (pubprogfuncs_t *prinst, struct globalvars_s *pr_global
 	int srcoffset = (prinst->callargc>3)?G_INT(OFS_PARM3):0;
 	int dstoffset = (prinst->callargc>4)?G_INT(OFS_PARM4):0;
 	if (size < 0)
-		PR_BIError(prinst, "PF_memcpy: invalid size\n");
+		PR_BIError(prinst, "PF_memcpy: invalid size %#x\n", size);
 	else if (size)
 	{
 		void *dst = PR_PointerToNative_Resize(prinst, qcdst, dstoffset, size);
 		void *src = PR_PointerToNative_MoInvalidate(prinst, qcsrc, srcoffset, size);
 		if (!dst)
-			PR_BIError(prinst, "PF_memcpy: invalid dest\n");
+			PR_BIError(prinst, "PF_memcpy: invalid dest (%#x - %#x)\n", qcdst, qcdst+size);
 		else if (!src)
-			PR_BIError(prinst, "PF_memcpy: invalid source\n");
+			PR_BIError(prinst, "PF_memcpy: invalid source (%#x - %#x)\n", qcsrc, qcsrc+size);
 		else
 			memmove(dst, src, size);
 	}
@@ -5056,7 +5056,6 @@ void QCBUILTIN PF_strftime (pubprogfuncs_t *prinst, struct globalvars_s *pr_glob
 {
 	const char *in = PF_VarString(prinst, 1, pr_globals);
 	char result[8192];
-	char uresult[8192];
 
 	time_t ctime;
 	struct tm *tm;
@@ -5075,9 +5074,8 @@ void QCBUILTIN PF_strftime (pubprogfuncs_t *prinst, struct globalvars_s *pr_glob
 		in = "%Y-%m-%d";
 
 	strftime(result, sizeof(result), in, tm);
-	unicode_strtoupper(result, uresult, sizeof(uresult), VMUTF8MARKUP);
 
-	RETURN_TSTRING(uresult);
+	RETURN_TSTRING(result);
 }
 
 //String functions
@@ -6870,9 +6868,132 @@ void QCBUILTIN PF_rotatevectorsbymatrix (pubprogfuncs_t *prinst, struct globalva
 ////////////////////////////////////////////////////
 //Progs internals
 
+qcstate_t *PR_CreateThread(pubprogfuncs_t *prinst, float retval, float resumetime, qboolean wait)
+{
+	world_t *world = prinst->parms->user;
+	qcstate_t *state;
+	edict_t *ed;
+
+	state = prinst->parms->memalloc(sizeof(qcstate_t));
+	state->next = world->qcthreads;
+	world->qcthreads = state;
+	state->resumetime = resumetime;
+
+	if (prinst->edicttable_length)
+	{
+		ed = PROG_TO_EDICT(prinst, world->g.self?*world->g.self:0);
+		state->self = NUM_FOR_EDICT(prinst, ed);
+		state->selfid = (prinst==svprogfuncs&&ed->ereftype==ER_ENTITY)?ed->xv->uniquespawnid:0;
+		ed = PROG_TO_EDICT(prinst, world->g.self?*world->g.self:0);
+		state->other = NUM_FOR_EDICT(prinst, ed);
+		state->otherid = (prinst==svprogfuncs&&ed->ereftype==ER_ENTITY)?ed->xv->uniquespawnid:0;
+	}
+	else	//allows us to call this during init().
+		state->self = state->other = state->selfid = state->otherid = 0;
+	state->thread = prinst->Fork(prinst);
+	state->waiting = wait;
+	state->returnval = retval;
+	return state;
+}
+void PR_RunThreads(world_t *world)
+{
+	struct globalvars_s *pr_globals;
+	edict_t *ed;
+
+	qcstate_t *state = world->qcthreads, *next;
+	world->qcthreads = NULL;
+	while(state)
+	{
+		pubprogfuncs_t *prinst = world->progs;
+		next = state->next;
+
+		if (state->resumetime > (world->g.time?*world->g.time:0) || state->waiting)
+		{	//not time yet, reform original list.
+			state->next = world->qcthreads;
+			world->qcthreads = state;
+		}
+		else
+		{	//call it and forget it ever happened. The Sleep biltin will recreate if needed.
+			pr_globals = PR_globals(prinst, PR_CURRENT);
+
+			if (world->g.self)
+			{
+				//restore the thread's self variable, if applicable.
+				ed = PROG_TO_EDICT(prinst, state->self);
+				if ((prinst==svprogfuncs?ed->xv->uniquespawnid:0) != state->selfid)
+					ed = prinst->edicttable[0];
+				*world->g.self = EDICT_TO_PROG(prinst, ed);
+			}
+
+			if (world->g.other)
+			{
+				//restore the thread's other variable, if applicable
+				ed = PROG_TO_EDICT(prinst, state->other);
+				if ((prinst==svprogfuncs?ed->xv->uniquespawnid:0) != state->otherid)
+					ed = prinst->edicttable[0];
+				*world->g.other = EDICT_TO_PROG(prinst, ed);
+			}
+
+			G_FLOAT(OFS_RETURN) = state->returnval;	//return value of fork or sleep
+
+			prinst->RunThread(prinst, state->thread);
+			prinst->parms->memfree(state->thread);
+			prinst->parms->memfree(state);
+		}
+
+		state = next;
+	}
+}
+void PR_ClearThreads(pubprogfuncs_t *prinst)
+{
+	world_t *world;
+	qcstate_t *state, *next;
+	if (!prinst)
+		return; //shoo!
+	world = prinst->parms->user;
+	state = world->qcthreads;
+	world->qcthreads = NULL;
+	while(state)
+	{
+		next = state->next;
+
+		//free the memory.
+		prinst->parms->memfree(state->thread);
+		prinst->parms->memfree(state);
+
+		state = next;
+	}
+}
 void QCBUILTIN PF_Abort(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	prinst->AbortStack(prinst);
+}
+void QCBUILTIN PF_Sleep(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	world_t *world = prinst->parms->user;
+	float sleeptime;
+
+	sleeptime = G_FLOAT(OFS_PARM0);
+
+	PR_CreateThread(prinst, 1, (world->g.time?*world->g.time:0) + sleeptime, false);
+
+	prinst->AbortStack(prinst);
+}
+void QCBUILTIN PF_Fork(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	world_t *world = prinst->parms->user;
+	float sleeptime;
+
+	if (svprogfuncs->callargc >= 1)
+		sleeptime = G_FLOAT(OFS_PARM0);
+	else
+		sleeptime = 0;
+
+	PR_CreateThread(prinst, 1, (world->g.time?*world->g.time:0) + sleeptime, false);
+
+//	PRSV_RunThreads();
+
+	G_FLOAT(OFS_RETURN) = 0;
 }
 
 //this func calls a function in another progs
@@ -7739,6 +7860,7 @@ void QCBUILTIN PF_pushmove (pubprogfuncs_t *prinst, struct globalvars_s *pr_glob
 
 void PR_Common_Shutdown(pubprogfuncs_t *progs, qboolean errored)
 {
+	PR_ClearThreads(progs);
 #if defined(SKELETALOBJECTS) || defined(RAGDOLLS)
 	skel_reset(progs->parms->user);
 #endif

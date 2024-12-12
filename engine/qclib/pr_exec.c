@@ -2069,8 +2069,8 @@ void PDECL PR_ResumeThread (pubprogfuncs_t *ppf, struct qcthread_s *thread)
 //	thread->lstackused -= f->locals;	//the current function is the odd one out.
 
 	//add on the locals stack
-	memcpy(prinst.localstack+prinst.localstack_used, thread->lstack, sizeof(int)*thread->lstackused);
-	prinst.localstack_used += thread->lstackused;
+//	memcpy(prinst.localstack+prinst.localstack_used, thread->lstack, sizeof(int)*thread->lstackused);
+//	prinst.localstack_used += thread->lstackused;
 
 	//bung the locals of the current function on the stack.
 //	for (i=0 ; i < f->locals ; i++)

@@ -48,8 +48,6 @@ qboolean PR_ParseClusterEvent(const char *dest, const char *source, const char *
 qboolean PR_UserCmd(const char *cmd);
 qboolean PR_ConsoleCmd(const char *cmd);
 
-void PRSV_RunThreads(void);
-
 
 #define PR_MAINPROGS 0	//this is a constant that should really be phased out. But seeing as QCLIB requires some sort of master progs due to extern funcs...
 	//maybe go through looking for extern funcs, and remember which were not allocated. It would then be a first come gets priority. Not too bad I supppose.

@@ -2726,7 +2726,7 @@ qboolean SV_Physics (void)
 
 		SV_ProgStartFrame ();
 
-		PRSV_RunThreads();
+		PR_RunThreads(&sv.world);
 
 #ifdef USERBE
 		if (sv.world.rbe)

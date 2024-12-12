@@ -263,6 +263,7 @@ struct world_s
 		pvec_t *drawfont;
 		pvec_t *drawfontscale;
 	} g;
+	struct qcstate_s *qcthreads;
 
 #ifdef USERBE
 	qboolean rbe_hasphysicsents;

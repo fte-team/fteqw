@@ -116,28 +116,12 @@ int pr_teamfield;
 static unsigned int h2infoplaque[2];	/*hexen2 stat*/
 #endif
 
-static void PRSV_ClearThreads(void);
 void PR_fclose_progs(pubprogfuncs_t*);
 void PF_InitTempStrings(pubprogfuncs_t *prinst);
 static int PDECL PR_SSQC_MapNamedBuiltin(pubprogfuncs_t *progfuncs, int headercrc, const char *builtinname);
 static void QCBUILTIN PF_Fixme (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 
 void PR_DumpPlatform_f(void);
-
-typedef struct qcstate_s
-{
-	float resumetime;
-	qboolean waiting;
-	struct qcthread_s *thread;
-	int self;
-	int selfid;
-	int other;
-	int otherid;
-	float returnval;
-
-	struct qcstate_s *next;
-} qcstate_t;
-static qcstate_t *qcthreads;
 
 typedef struct {
 	//for func finding and swapping.
@@ -245,33 +229,6 @@ static struct
 
 void PR_RegisterFields(void);
 void PR_ResetBuiltins(progstype_t type);
-
-static qcstate_t *PR_CreateThread(pubprogfuncs_t *prinst, float retval, float resumetime, qboolean wait)
-{
-	qcstate_t *state;
-	edict_t *ed;
-
-	state = prinst->parms->memalloc(sizeof(qcstate_t));
-	state->next = qcthreads;
-	qcthreads = state;
-	state->resumetime = resumetime;
-
-	if (prinst->edicttable_length)
-	{
-		ed = PROG_TO_EDICT(prinst, pr_global_struct->self);
-		state->self = NUM_FOR_EDICT(prinst, ed);
-		state->selfid = (ed->ereftype==ER_ENTITY)?ed->xv->uniquespawnid:0;
-		ed = PROG_TO_EDICT(prinst, pr_global_struct->other);
-		state->other = NUM_FOR_EDICT(prinst, ed);
-		state->otherid = (ed->ereftype==ER_ENTITY)?ed->xv->uniquespawnid:0;
-	}
-	else	//allows us to call this during init().
-		state->self = state->other = state->selfid = state->otherid = 0;
-	state->thread = prinst->Fork(prinst);
-	state->waiting = wait;
-	state->returnval = retval;
-	return state;
-}
 
 void PDECL ED_Spawned (struct edict_s *ent, int loading)
 {
@@ -803,7 +760,7 @@ void Q_SetProgsParms(qboolean forcompiler)
 	sv.world.Event_ContentsTransition = SVPR_Event_ContentsTransition;
 	sv.world.Get_CModel = SVPR_GetCModel;
 	sv.world.Get_FrameState = SVPR_Get_FrameState;
-	PRSV_ClearThreads();
+	PR_ClearThreads(svprogfuncs);
 	PR_fclose_progs(svprogfuncs);
 
 //	svs.numprogs = 0;
@@ -814,7 +771,7 @@ void PR_Deinit(void)
 {
 	int i;
 
-	PRSV_ClearThreads();
+	PR_ClearThreads(svprogfuncs);
 #ifdef VM_Q1
 	Q1QVM_Shutdown(true);
 #endif
@@ -9236,91 +9193,6 @@ void QCBUILTIN PF_sv_pointparticles(pubprogfuncs_t *prinst, struct globalvars_s 
 	}
 	SV_MulticastProtExt(org, MULTICAST_PHS, pr_global_struct->dimension_send, PEXT_CSQC, 0);
 #endif
-}
-
-void PRSV_RunThreads(void)
-{
-	struct globalvars_s *pr_globals;
-	edict_t *ed;
-
-	qcstate_t *state = qcthreads, *next;
-	qcthreads = NULL;
-	while(state)
-	{
-		next = state->next;
-
-		if (state->resumetime > sv.time || state->waiting)
-		{	//not time yet, reform original list.
-			state->next = qcthreads;
-			qcthreads = state;
-		}
-		else
-		{	//call it and forget it ever happened. The Sleep biltin will recreate if needed.
-			pr_globals = PR_globals(svprogfuncs, PR_CURRENT);
-
-			//restore the thread's self variable, if applicable.
-			ed = PROG_TO_EDICT(svprogfuncs, state->self);
-			if (ed->xv->uniquespawnid != state->selfid)
-				ed = svprogfuncs->edicttable[0];
-			pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, ed);
-
-			//restore the thread's other variable, if applicable
-			ed = PROG_TO_EDICT(svprogfuncs, state->other);
-			if (ed->xv->uniquespawnid != state->otherid)
-				ed = svprogfuncs->edicttable[0];
-			pr_global_struct->other = EDICT_TO_PROG(svprogfuncs, ed);
-
-			G_FLOAT(OFS_RETURN) = state->returnval;	//return value of fork or sleep
-
-			svprogfuncs->RunThread(svprogfuncs, state->thread);
-			svprogfuncs->parms->memfree(state->thread);
-			svprogfuncs->parms->memfree(state);
-		}
-
-		state = next;
-	}
-}
-
-static void PRSV_ClearThreads(void)
-{
-	qcstate_t *state = qcthreads, *next;
-	qcthreads = NULL;
-	while(state)
-	{
-		next = state->next;
-
-		svprogfuncs->parms->memfree(state->thread);
-		svprogfuncs->parms->memfree(state);
-
-		state = next;
-	}
-}
-
-static void QCBUILTIN PF_Sleep(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
-{
-	float sleeptime;
-
-	sleeptime = G_FLOAT(OFS_PARM0);
-
-	PR_CreateThread(prinst, 1, sv.time + sleeptime, false);
-
-	prinst->AbortStack(prinst);
-}
-
-static void QCBUILTIN PF_Fork(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
-{
-	float sleeptime;
-
-	if (svprogfuncs->callargc >= 1)
-		sleeptime = G_FLOAT(OFS_PARM0);
-	else
-		sleeptime = 0;
-
-	PR_CreateThread(prinst, 1, sv.time + sleeptime, false);
-
-//	PRSV_RunThreads();
-
-	G_FLOAT(OFS_RETURN) = 0;
 }
 
 //DP_TE_STANDARDEFFECTBUILTINS

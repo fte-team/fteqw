@@ -6834,9 +6834,9 @@ static struct {
 	{"registertempent",			PF_NoCSQC,	208},//{"RegisterTempEnt", PF_RegisterTEnt,	0,		0,		0,		208},
 	{"customtempent",			PF_NoCSQC,	209},//{"CustomTempEnt",	PF_CustomTEnt,		0,		0,		0,		209},
 //210
-	{"fork",					PF_Fixme,	210},//{"fork",			PF_Fork,			0,		0,		0,		210},
+	{"fork",					PF_Fork,	210},//{"fork",			PF_Fork,			0,		0,		0,		210},
 	{"abort",					PF_Abort,	211}, //#211 void() abort (FTE_MULTITHREADED)
-	{"sleep",					PF_Fixme,	212},//{"sleep",			PF_Sleep,			0,		0,		0,		212},
+	{"sleep",					PF_Sleep,	212},//{"sleep",			PF_Sleep,			0,		0,		0,		212},
 	{"forceinfokey",			PF_NoCSQC,	213},//{"forceinfokey",	PF_ForceInfoKey,	0,		0,		0,		213},
 	{"forceinfokeyblob",		PF_NoCSQC,	0},//{"forceinfokey",	PF_ForceInfoKey,	0,		0,		0,		213},
 	{"chat",					PF_NoCSQC,	214},//{"chat",			PF_chat,			0,		0,		0,		214},// #214 void(string filename, float starttag, entity edict) SV_Chat (FTE_NPCCHAT)
@@ -8792,6 +8792,7 @@ qboolean CSQC_DrawView(void)
 	if (csqc_isdarkplaces && *csqc_world.g.physics_mode == 1)
 	{
 		csqc_world.physicstime = cl.servertime;
+		PR_RunThreads(&csqc_world);
 	}
 	else
 	{
@@ -8822,6 +8823,7 @@ qboolean CSQC_DrawView(void)
 			}
 #endif
 
+			PR_RunThreads(&csqc_world);
 			World_Physics_Frame(&csqc_world);
 			csqc_world.physicstime += host_frametime;
 		}

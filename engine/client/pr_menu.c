@@ -2551,7 +2551,9 @@ static struct {
 															//gap
 	{"getmodelindex",			PF_m_getmodelindex,			200},
 															//gap
+	{"fork",					PF_Fork,					210},
 	{"abort",					PF_Abort,					211},
+	{"sleep",					PF_Sleep,					212},
 															//gap
 	{"strstrofs",				PF_strstrofs,				221},
 	{"str2chr",					PF_str2chr,					222},
@@ -3555,6 +3557,8 @@ void MP_Draw(void)
 		*menu_world.g.frametime = host_frametime;
 
 	inmenuprogs++;
+	PR_RunThreads(&menu_world);
+
 	pr_globals = PR_globals(menu_world.progs, PR_CURRENT);
 
 	if (scr_drawloading||scr_disabled_for_loading)

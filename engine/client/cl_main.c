@@ -6218,7 +6218,7 @@ void Host_WriteConfiguration (void)
 		}
 
 		Key_WriteBindings (f);
-		Cvar_WriteVariables (f, false);
+		Cvar_WriteVariables (f, false, false);
 
 		VFS_CLOSE (f);
 

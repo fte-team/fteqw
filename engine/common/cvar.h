@@ -213,7 +213,7 @@ qboolean Cvar_Command (cvar_t *v, int level);
 // command.  Returns true if the command was a variable reference that
 // was handled. (print or change)
 
-void Cvar_WriteVariables (vfsfile_t *f, qboolean all);
+void Cvar_WriteVariables (vfsfile_t *f, qboolean all, qboolean nohidden);
 // Writes lines containing "set variable value" for all variables
 // with the archive flag set to true.
 

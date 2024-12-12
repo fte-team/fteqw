@@ -4141,6 +4141,7 @@ static void Cmd_WriteConfig_f(void)
 	char fname[MAX_QPATH];
 	char displayname[MAX_OSPATH];
 	qboolean all = true;
+	qboolean nohidden = false;
 
 	//special variation that only saves if an archived cvar was actually modified.
 	if (!Q_strcasecmp(Cmd_Argv(0), "cfg_save_ifmodified"))
@@ -4169,7 +4170,9 @@ static void Cmd_WriteConfig_f(void)
 		Q_snprintfz(fname, sizeof(fname), "%s", filename);
 		COM_RequireExtension(fname, ".cfg", sizeof(fname));
 
-		if (Cmd_IsInsecure() && strncmp(fname, "data/", 5))
+		if (!strncmp(fname, "data/", 5))
+			nohidden = true;	//we're writing to the data/ dir, which mods may potentially read. don't write any settings they're not allowed to see.
+		else if (Cmd_IsInsecure())
 		{
 			Con_Printf ("%s %s: not allowed\n", Cmd_Argv(0), Cmd_Args());
 			return;
@@ -4237,7 +4240,7 @@ static void Cmd_WriteConfig_f(void)
 #endif
 	if (cfg_save_aliases.ival)
 		Alias_WriteAliases (f);
-	Cvar_WriteVariables (f, all);
+	Cvar_WriteVariables (f, all, nohidden);
 	VFS_CLOSE(f);
 
 	Cvar_Saved();

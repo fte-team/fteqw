@@ -1687,7 +1687,7 @@ Writes lines containing "set variable value" for all variables
 with the archive flag set to true.
 ============
 */
-void Cvar_WriteVariables (vfsfile_t *f, qboolean all)
+void Cvar_WriteVariables (vfsfile_t *f, qboolean all, qboolean nohidden)
 {
 	qboolean writtengroupheader;
 	cvar_group_t *grp;
@@ -1704,6 +1704,8 @@ void Cvar_WriteVariables (vfsfile_t *f, qboolean all)
 			{
 				//yeah, don't force-save readonly cvars.
 				if (var->flags & (CVAR_NOSET|CVAR_NOSAVE))
+					continue;
+				if (nohidden && (var->flags & CVAR_NOUNSAFEEXPAND))
 					continue;
 
 				if (!writtengroupheader)

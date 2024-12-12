@@ -714,6 +714,9 @@ static const char *replacementq1binds =
 	"bind		F10	menu_quit\n"
 //	"bind		F11	+zoom\n"
 	"bind		F12	screenshot\n"
+
+	"bind		volup		\"if $volume < 0.9 then inc volume 0.1 else if $volume < 1.0 then set volume 1\"\n"
+	"bind		voldown		\"inc volume -0.1; if $volume < 0 then set volume 0\"\n"
 	;
 static const char *defaulttouchcfg =
 	"showpic_removeall\n"

@@ -7654,8 +7654,6 @@ void CL_ExecInitialConfigs(char *resetcommand, qboolean fullvidrestart)
 	Cbuf_Execute ();	//make sure any pending console commands are done with. mostly, anyway...
 	
 	Cbuf_AddText("unbindall\nshowpic_removeall\n", RESTRICT_LOCAL);
-	Cbuf_AddText("bind volup \"inc volume 0.1\"\n", RESTRICT_LOCAL);
-	Cbuf_AddText("bind voldown \"inc volume -0.1\"\n", RESTRICT_LOCAL);
 	Cbuf_AddText("alias restart_ents \"changelevel . .\"\n",RESTRICT_LOCAL);
 	Cbuf_AddText("alias restart map_restart\n",RESTRICT_LOCAL);
 	Cbuf_AddText("alias startmap_sp \"map start\"\n", RESTRICT_LOCAL);

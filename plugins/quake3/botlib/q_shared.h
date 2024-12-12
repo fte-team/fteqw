@@ -473,7 +473,7 @@ int Q_isnan(float x);
 
 #if idppc
 
-static ID_INLINE float Q_rsqrt( float number ) {
+ID_INLINE float Q_rsqrt( float number ) {
 		float x = 0.5f * number;
                 float y;
 #ifdef __GNUC__            
@@ -485,7 +485,7 @@ static ID_INLINE float Q_rsqrt( float number ) {
 	}
 
 #ifdef __GNUC__            
-static ID_INLINE float Q_fabs(float x) {
+ID_INLINE float Q_fabs(float x) {
     float abs_x;
     
     asm("fabs %0,%1" : "=f" (abs_x) : "f" (x));

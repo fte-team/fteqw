@@ -14062,6 +14062,8 @@ void PR_DumpPlatform_f(void)
 		{"IMGFMT_R4G4B4A4",		"const float", CS|MENU, D("Packed 16-bit colour pixel format, with alpha"), 12},
 		{"IMGFMT_R8G8",			"const float", CS|MENU, D("16-bit two-channel pixel format."), 13},
 		{"IMGFMT_R32G32B32F",	"const float", CS|MENU, D("A pixel format that matches QC's vector type."), 14},
+		{"IMGFMT_P8_RGB8",		"const float", CS|MENU, D("8bit paletted format, with 768 bytes of RGB8 palette directly following the image data. Exclusively for r_uploadimage."), 15},
+		{"IMGFMT_P8_RGBA8",		"const float", CS|MENU, D("8bit paletted format, with 1024 bytes of RGBA8 palette directly following the image data. Exclusively for r_uploadimage."), 16},
 
 		{"RF_VIEWMODEL",		"const float", CS, D("Specifies that the entity is a view model, and that its origin is relative to the current view position. These entities are also subject to viewweapon bob."), CSQCRF_VIEWMODEL},
 		{"RF_EXTERNALMODEL",	"const float", CS, D("Specifies that this entity should be displayed in mirrors (and may still cast shadows), but will not otherwise be visible."), CSQCRF_EXTERNALMODEL},

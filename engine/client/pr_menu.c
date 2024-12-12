@@ -901,17 +901,25 @@ void QCBUILTIN PF_CL_uploadimage (pubprogfuncs_t *prinst, struct globalvars_s *p
 	}
 	else
 	{
+		void *palette = NULL;
 		unsigned int blockbytes, blockwidth, blockheight, blockdepth;
 		//get format info
 		Image_BlockSizeForEncoding(format, &blockbytes, &blockwidth, &blockheight, &blockdepth);
 		//round up as appropriate
 		blockwidth = ((width+blockwidth-1)/blockwidth)*blockwidth;
 		blockheight = ((height+blockheight-1)/blockheight)*blockheight;
+
+		//we do allow palettes on the end.
+		if (format == TF_8PAL24)
+			size -= 768, palette = (qbyte*)imgptr+size, blockbytes=1;
+		else if (format == TF_8PAL32)
+			size -= 1024, palette = (qbyte*)imgptr+size, blockbytes=1;
+
 		if (size != blockwidth*blockheight*blockbytes)
 			G_INT(OFS_RETURN) = 0;	//size isn't right. which means the pointer might be invalid too.
 		else
 		{
-			Image_Upload(tid, format, imgptr, NULL, width, height, 1, RT_IMAGEFLAGS);
+			Image_Upload(tid, format, imgptr, palette, width, height, 1, RT_IMAGEFLAGS);
 			tid->width = width;
 			tid->height = height;
 			G_INT(OFS_RETURN) = 1;

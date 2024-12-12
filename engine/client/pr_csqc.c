@@ -2342,9 +2342,12 @@ uploadfmt_t PR_TranslateTextureFormat(int qcformat)
 	case 13: return PTI_RG8;
 	case 14: return PTI_RGB32F;
 
+	case 15: return TF_8PAL24;
+	case 16: return TF_8PAL32;
+
 	default:
 		qcformat = -qcformat;
-		if (qcformat < PTI_MAX)
+		if ((unsigned int)qcformat < PTI_MAX)
 			return qcformat;
 		return PTI_INVALID;
 	}
@@ -2370,6 +2373,9 @@ int PR_UnTranslateTextureFormat(uploadfmt_t pixelformat)
 	case PTI_RGBA4444:	return 12;
 	case PTI_RG8:		return 13;
 	case PTI_RGB32F:	return 14;
+
+	case TF_8PAL24:		return 15;
+	case TF_8PAL32:		return 16;
 
 	default:return -pixelformat;
 	}
@@ -2615,7 +2621,7 @@ void QCBUILTIN PF_R_SetViewFlag(pubprogfuncs_t *prinst, struct globalvars_s *pr_
 			Q_strncpyz(r_refdef.rt_destcolour[i].texname, PR_GetStringOfs(prinst, OFS_PARM1), sizeof(r_refdef.rt_destcolour[i].texname));
 			if (prinst->callargc >= 4 && *r_refdef.rt_destcolour[i].texname)
 			{
-				float fmt = G_FLOAT(OFS_PARM2);
+				int fmt = G_FLOAT(OFS_PARM2);
 				float *size = G_VECTOR(OFS_PARM3);
 				if (fmt < 0)
 					R2D_RT_Configure(r_refdef.rt_destcolour[i].texname, size[0], size[1], PR_TranslateTextureFormat(-fmt), (RT_IMAGEFLAGS&~IF_LINEAR)|IF_NEAREST);
@@ -2629,7 +2635,7 @@ void QCBUILTIN PF_R_SetViewFlag(pubprogfuncs_t *prinst, struct globalvars_s *pr_
 		Q_strncpyz(r_refdef.rt_sourcecolour.texname, PR_GetStringOfs(prinst, OFS_PARM1), sizeof(r_refdef.rt_sourcecolour));
 		if (prinst->callargc >= 4 && *r_refdef.rt_sourcecolour.texname)
 		{
-			float fmt = G_FLOAT(OFS_PARM2);
+			int fmt = G_FLOAT(OFS_PARM2);
 			float *size = G_VECTOR(OFS_PARM3);
 			if (fmt < 0)
 				R2D_RT_Configure(r_refdef.rt_sourcecolour.texname, size[0], size[1], PR_TranslateTextureFormat(-fmt), (RT_IMAGEFLAGS&~IF_LINEAR)|IF_NEAREST);
@@ -2642,7 +2648,7 @@ void QCBUILTIN PF_R_SetViewFlag(pubprogfuncs_t *prinst, struct globalvars_s *pr_
 		Q_strncpyz(r_refdef.rt_depth.texname, PR_GetStringOfs(prinst, OFS_PARM1), sizeof(r_refdef.rt_depth.texname));
 		if (prinst->callargc >= 4 && *r_refdef.rt_depth.texname)
 		{
-			float fmt = G_FLOAT(OFS_PARM2);
+			int fmt = G_FLOAT(OFS_PARM2);
 			float *size = G_VECTOR(OFS_PARM3);
 			if (fmt < 0)
 				R2D_RT_Configure(r_refdef.rt_depth.texname, size[0], size[1], PR_TranslateTextureFormat(-fmt), (RT_IMAGEFLAGS&~IF_LINEAR)|IF_NEAREST);
@@ -2655,7 +2661,7 @@ void QCBUILTIN PF_R_SetViewFlag(pubprogfuncs_t *prinst, struct globalvars_s *pr_
 		Q_strncpyz(r_refdef.rt_ripplemap.texname, PR_GetStringOfs(prinst, OFS_PARM1), sizeof(r_refdef.rt_ripplemap.texname));
 		if (prinst->callargc >= 4 && *r_refdef.rt_ripplemap.texname)
 		{
-			float fmt = G_FLOAT(OFS_PARM2);
+			int fmt = G_FLOAT(OFS_PARM2);
 			float *size = G_VECTOR(OFS_PARM3);
 			if (fmt < 0)
 				R2D_RT_Configure(r_refdef.rt_ripplemap.texname, size[0], size[1], PR_TranslateTextureFormat(-fmt), (RT_IMAGEFLAGS&~IF_LINEAR)|IF_NEAREST);

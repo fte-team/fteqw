@@ -2735,16 +2735,16 @@ static void Cmd_Apropos_f (void)
 		{
 			COM_QuotedString(var->latched_string, latchedvalue, sizeof(latchedvalue), false);
 			if (d)
-				Con_TPrintf("cvar ^2%s^7: %s (effective %s): ^3%s\n", name, latchedvalue, escapedvalue, d);
+				Con_TPrintf("cvar ^[^2%s\\type\\%s^]: %s (effective %s): ^3%s\n", name,name, latchedvalue, escapedvalue, d);
 			else
-				Con_TPrintf("cvar ^2%s^7: %s (effective %s): ^3no description\n", name, latchedvalue, escapedvalue);
+				Con_TPrintf("cvar ^[^2%s\\type\\%s^]: %s (effective %s): ^3no description\n", name,name, latchedvalue, escapedvalue);
 		}
 		else
 		{
 			if (d)
-				Con_TPrintf("cvar ^2%s^7: %s : ^3%s\n", name, escapedvalue, d);
+				Con_TPrintf("cvar ^[^2%s\\type\\%s^]: %s : ^3%s\n", name,name, escapedvalue, d);
 			else
-				Con_TPrintf("cvar ^2%s^7: %s : ^3no description\n", name, escapedvalue);
+				Con_TPrintf("cvar ^[^2%s\\type\\%s^]: %s : ^3no description\n", name,name, escapedvalue);
 		}
 	}
 
@@ -2759,9 +2759,9 @@ static void Cmd_Apropos_f (void)
 			continue;
 
 		if (d)
-			Con_TPrintf("command ^2%s^7: ^3%s\n", cmd->name, d);
+			Con_TPrintf("command ^[^2%s\\type\\%s^]: ^3%s\n", cmd->name,cmd->name, d);
 		else
-			Con_TPrintf("command ^2%s^7: ^3no description\n", cmd->name);
+			Con_TPrintf("command ^[^2%s\\type\\%s^]: ^3no description\n", cmd->name,cmd->name);
 	}
 	//FIXME: add aliases.
 }

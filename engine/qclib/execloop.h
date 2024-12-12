@@ -468,7 +468,7 @@ reeval:
 			ptr = QCPOINTERM(i);
 		*(unsigned char *)ptr = (char)OPA->_float;
 		break;
-	case OP_STOREP_B:	//store (byte) character in a string
+	case OP_STOREP_I8:	//store (byte) character in a string
 		i = OPB->_int + (OPC->_int)*sizeof(pbyte);
 		errorif (QCPOINTERWRITEFAIL(i, sizeof(pbyte)))
 		{
@@ -482,6 +482,21 @@ reeval:
 		else
 			ptr = QCPOINTERM(i);
 		*(pbyte *)ptr = (pbyte)OPA->_int;
+		break;
+	case OP_STOREP_I16:	//store short to a pointer
+		i = OPB->_int + (OPC->_int)*sizeof(short);
+		errorif (QCPOINTERWRITEFAIL(i, sizeof(short)))
+		{
+			if (!(ptr=PR_GetWriteTempStringPtr(progfuncs, OPB->_int, OPC->_int*sizeof(short), sizeof(short))))
+			{
+				if (i == -1)
+					break;
+				QCFAULT(&progfuncs->funcs, "bad pointer write in %s (%x >= %x)", PR_StringToNative(&progfuncs->funcs, prinst.pr_xfunction->s_name), i, prinst.addressableused);
+			}
+		}
+		else
+			ptr = QCPOINTERM(i);
+		*(short *)ptr = (short)OPA->_int;
 		break;
 
 	case OP_STOREF_F:
@@ -1106,7 +1121,7 @@ reeval:
 			ptr = QCPOINTERM(i);
 		OPC->_float = *(unsigned char *)ptr;
 		break;
-	case OP_LOADP_B:	//load character from a string/pointer
+	case OP_LOADP_U8:	//load character from a string/pointer
 		i = (unsigned int)OPA->_int + (int)OPB->_int;
 		errorif (QCPOINTERREADFAIL(i, sizeof(pbyte)))
 		{
@@ -1123,6 +1138,60 @@ reeval:
 		else
 			ptr = QCPOINTERM(i);
 		OPC->_int = *(pbyte *)ptr;
+		break;
+	case OP_LOADP_I8:	//load character from a string/pointer
+		i = (unsigned int)OPA->_int + (int)OPB->_int;
+		errorif (QCPOINTERREADFAIL(i, sizeof(pbyte)))
+		{
+			if (!(ptr=PR_GetReadTempStringPtr(progfuncs, OPA->_int, OPB->_int, sizeof(pbyte))))
+			{
+				if (i == -1)
+				{
+					OPC->_int = 0;
+					break;
+				}
+				QCFAULT(&progfuncs->funcs, "bad pointer read in %s (%i bytes into %s)", PR_StringToNative(&progfuncs->funcs, prinst.pr_xfunction->s_name), i, ptr);
+			}
+		}
+		else
+			ptr = QCPOINTERM(i);
+		OPC->_int = *(char *)ptr;
+		break;
+	case OP_LOADP_U16:	//load character from a string/pointer
+		i = (unsigned int)OPA->_int + (int)OPB->_int*2;
+		errorif (QCPOINTERREADFAIL(i, sizeof(short)))
+		{
+			if (!(ptr=PR_GetReadTempStringPtr(progfuncs, OPA->_int, OPB->_int*2, sizeof(short))))
+			{
+				if (i == -1)
+				{
+					OPC->_int = 0;
+					break;
+				}
+				QCFAULT(&progfuncs->funcs, "bad pointer read in %s (%i bytes into %s)", PR_StringToNative(&progfuncs->funcs, prinst.pr_xfunction->s_name), i, ptr);
+			}
+		}
+		else
+			ptr = QCPOINTERM(i);
+		OPC->_int = *(unsigned short *)ptr;
+		break;
+	case OP_LOADP_I16:	//load character from a string/pointer
+		i = (unsigned int)OPA->_int + (int)OPB->_int*2;
+		errorif (QCPOINTERREADFAIL(i, sizeof(short)))
+		{
+			if (!(ptr=PR_GetReadTempStringPtr(progfuncs, OPA->_int, OPB->_int*2, sizeof(short))))
+			{
+				if (i == -1)
+				{
+					OPC->_int = 0;
+					break;
+				}
+				QCFAULT(&progfuncs->funcs, "bad pointer read in %s (%i bytes into %s)", PR_StringToNative(&progfuncs->funcs, prinst.pr_xfunction->s_name), i, ptr);
+			}
+		}
+		else
+			ptr = QCPOINTERM(i);
+		OPC->_int = *(short *)ptr;
 		break;
 	case OP_LOADP_I:
 	case OP_LOADP_F:
@@ -1653,6 +1722,8 @@ reeval:
 	case OP_CONV_FI64:		OPC->i64     = OPA->_float;  break;
 	case OP_CONV_I64D:		OPC->_double = OPA->i64;     break;
 	case OP_CONV_DI64:		OPC->i64     = OPA->_double; break;
+	case OP_CONV_U64D:		OPC->_double = OPA->u64;     break;
+	case OP_CONV_DU64:		OPC->u64     = OPA->_double; break;
 	case OP_ADD_D:			OPC->_double = OPA->_double +  OPB->_double; break;
 	case OP_SUB_D:			OPC->_double = OPA->_double -  OPB->_double; break;
 	case OP_MUL_D:			OPC->_double = OPA->_double *  OPB->_double; break;
@@ -1662,8 +1733,11 @@ reeval:
 	case OP_EQ_D:			OPC->_int    = OPA->_double == OPB->_double; break;
 	case OP_NE_D:			OPC->_int    = OPA->_double != OPB->_double; break;
 
-
-
+	case OP_BITEXTEND_I:	OPC->_int    = (  signed int)(OPA->_int  << (32-(OPB->_uint&0xff)-(OPB->_uint>>8))) >> (32-(OPB->_uint&0xff)); break;	//shift it up and down. should sign extend.
+	case OP_BITEXTEND_U:	OPC->_uint   = (unsigned int)(OPA->_uint << (32-(OPB->_uint&0xff)-(OPB->_uint>>8))) >> (32-(OPB->_uint&0xff)); break;	//shift it up and down. should clear the bits.
+	case OP_BITCOPY_I:		i=((1<<(OPB->_uint&0xff))-1);OPC->_int=(OPC->_int&~(i<<(OPB->_uint>>8)))|(((OPA->_int&i)<<(OPB->_uint>>8)));break;			//replaces the specified bits (uses the same format bitextend uses to select its input to extend)
+	case OP_CONV_UF:		OPC->_float  = OPA->_uint;   break;
+	case OP_CONV_FU:		OPC->_uint   = OPA->_float;  break;
 
 	case OP_UNUSED:
 	case OP_POP:

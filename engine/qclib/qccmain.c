@@ -1372,7 +1372,7 @@ static void QCC_FinaliseDef(QCC_def_t *def)
 	}
 
 	if (def->symbolheader != def)
-	{
+	{	//finalise the parent/root symbol first.
 		def->symbolheader->used |= def->used;
 		QCC_FinaliseDef(def->symbolheader);
 		def->referenced = true;
@@ -1474,11 +1474,6 @@ static void QCC_FinaliseDef(QCC_def_t *def)
 	}
 	else
 	{
-/*		globalspertype[def->type->type].size += def->symbolsize;
-		globalspertype[def->type->type].entries += 1;
-		globalspertype[def->type->type].vars += !def->constant;
-		globalspertype[def->type->type].consts += def->constant;
-*/
 		if (def->ofs)
 		{
 			if (def->symbolheader == def)
@@ -1529,20 +1524,39 @@ static void QCC_FinaliseDef(QCC_def_t *def)
 		def->reloc->used = true;
 		QCC_FinaliseDef(def->reloc);
 		if (def->type->type == ev_function/*misordered inits/copies*/ || def->type->type == ev_integer/*dp-style global index*/)
-			qcc_pr_globals[def->ofs]._int += qcc_pr_globals[def->reloc->ofs]._int;
+		{
+//printf("func Reloc %s %s@%i==%x -> %s@%i==%x==%s\n", def->symbolheader->name, def->name,def->ofs, def->symboldata->_int, def->reloc->name,def->reloc->ofs, def->reloc->symboldata->_int, functions[def->reloc->symboldata->_int].name);
+			def->symboldata->_int += def->reloc->symboldata->_int;
+		}
 		else if (def->type->type == ev_pointer/*signal to the engine to fix up the offset*/)
 		{
-			if (qcc_pr_globals[def->ofs]._int & 0x80000000)
-				QCC_Error(ERR_INTERNAL, "dupe reloc, type... %s", def->type->name);
-			else if (flag_undefwordsize)
-				QCC_PR_ParseWarning(ERR_BADEXTENSION, "pointer relocs are disabled for this target.");
-			qcc_pr_globals[def->ofs]._int += def->reloc->ofs;
-			qcc_pr_globals[def->ofs]._int *= VMWORDSIZE;
+//printf("Reloc %s %s@%i==%x -> %s@%i==%x\n", def->symbolheader->name, def->name,def->ofs, def->symboldata->_int, def->reloc->name,def->reloc->ofs, def->symboldata->_int+def->reloc->ofs*VMWORDSIZE);
+			if (def->symboldata->_int & 0x80000000)
+				QCC_PR_ParseWarning(0, "dupe reloc, %s", def->type->name);
+			else
+			{
+				if (flag_undefwordsize)
+					QCC_PR_ParseWarning(ERR_BADEXTENSION, "pointer relocs are disabled for this target.");
+				def->symboldata->_int += def->reloc->ofs*VMWORDSIZE;
 
-			qcc_pr_globals[def->ofs]._int |= 0x80000000;
+				def->symboldata->_int |= 0x80000000;	//we're using this as a hint to the engine to let it know that there's no dupes.
+			}
 		}
 		else
 			QCC_Error(ERR_INTERNAL, "unknown reloc type... %s", def->type->name);
+	}
+
+	{
+		QCC_def_t *prev, *sub;
+		for (prev = def, sub = prev->next; sub && prev != def->deftail; sub = (prev=sub)->next)
+		{
+			if (sub->reloc && !sub->used)
+			{	//make sure any children are finalised properly if they're relocs.
+				sub->used = true;
+				sub->referenced = true;
+				QCC_FinaliseDef(sub);
+			}
+		}
 	}
 
 #ifdef DEBUG_DUMP_GLOBALMAP
@@ -2160,7 +2174,7 @@ static pbool QCC_WriteData (int crc)
 			if (def->symbolheader->used)
 			{
 				char typestr[256];
-				QCC_sref_t sr = {def, 0, def->type};
+				QCC_sref_t sr = {def, {0}, def->type};
 				QCC_PR_Warning(WARN_NOTREFERENCED, def->filen, def->s_line, "%s %s%s%s = %s used, but not referenced.", TypeName(def->type, typestr, sizeof(typestr)), col_symbol, def->name, col_none, QCC_VarAtOffset(sr));
 			}
 			/*if (opt_unreferenced && def->type->type != ev_field)
@@ -2224,7 +2238,7 @@ static pbool QCC_WriteData (int crc)
 			def->name = "";	//reloc, can't strip it (engine needs to fix em up), but can clear its name.
 		else if (def->scope && !def->scope->privatelocals && !def->isstatic)
 			continue;	//def is a local, which got shared and should be 0...
-		else if ((def->scope||def->constant||flag_noreflection) && (def->type->type != ev_string || (strncmp(def->name, "dotranslate_", 12) && opt_constant_names_strings)))
+		else if ((def->scope||def->constant||(flag_noreflection&&strncmp(def->name, "autocvar_", 9))) && (def->type->type != ev_string || (strncmp(def->name, "dotranslate_", 12) && opt_constant_names_strings)))
 		{
 			if (opt_constant_names)
 			{
@@ -3580,6 +3594,7 @@ QCC_type_t *QCC_PR_NewType (const char *name, int basictype, pbool typedefed)
 	qcc_typeinfo[numtypeinfos].params = NULL;
 	qcc_typeinfo[numtypeinfos].size = type_size[basictype];
 	qcc_typeinfo[numtypeinfos].typedefed = typedefed;
+	qcc_typeinfo[numtypeinfos].align = 32;	//assume this alignment for now. some types allow tighter alignment, though mostly only in structs.
 
 	qcc_typeinfo[numtypeinfos].filen = s_filen;
 	qcc_typeinfo[numtypeinfos].line = pr_source_line;
@@ -3621,21 +3636,26 @@ static void	QCC_PR_BeginCompilation (void *memory, int memsize)
 */
 
 	type_void = QCC_PR_NewType("void", ev_void, true);
-	type_string = QCC_PR_NewType("string", ev_string, true);
+	type_string = QCC_PR_NewType(flag_qcfuncs?"string":"__string", ev_string, true);
 	type_float = QCC_PR_NewType("float", ev_float, true);
 	type_double = QCC_PR_NewType("__double", ev_double, true);
-	type_vector = QCC_PR_NewType("vector", ev_vector, true);
-	type_entity = QCC_PR_NewType("entity", ev_entity, true);
+	type_vector = QCC_PR_NewType(flag_qcfuncs?"vector":"__vector", ev_vector, true);
+	type_entity = QCC_PR_NewType(flag_qcfuncs?"entity":"__entity", ev_entity, true);
 	type_field = QCC_PR_NewType("__field", ev_field, false);
 	type_field->aux_type = type_void;
 	type_function = QCC_PR_NewType("__function", ev_function, false);
 	type_function->aux_type = type_void;
 	type_pointer = QCC_PR_NewType("__pointer", ev_pointer, false);
-	type_integer = QCC_PR_NewType("__int", ev_integer, true);
-	type_uint = QCC_PR_NewType("__uint", ev_uint, true);
+	type_integer = QCC_PR_NewType("__int32", ev_integer, true);
+	type_uint = QCC_PR_NewType("__uint32", ev_uint, true);
 	type_int64 = QCC_PR_NewType("__int64", ev_int64, true);
 	type_uint64 = QCC_PR_NewType("__uint64", ev_uint64, true);
 	type_variant = QCC_PR_NewType("__variant", ev_variant, true);
+
+	type_sint8 = QCC_PR_NewType("__int8", ev_bitfld, true);		type_sint8 ->parentclass = type_integer;	type_sint8 ->size = type_sint8 ->parentclass->size; type_sint8 ->align = type_sint8 ->bits = 8;
+	type_uint8 = QCC_PR_NewType("__uint8", ev_bitfld, true);	type_uint8 ->parentclass = type_uint;		type_uint8 ->size = type_uint8 ->parentclass->size; type_uint8 ->align = type_uint8 ->bits = 8;
+	type_sint16 = QCC_PR_NewType("__int16", ev_bitfld, true);	type_sint16->parentclass = type_integer;	type_sint16->size = type_sint16->parentclass->size; type_sint16->align = type_sint16->bits = 16;
+	type_uint16 = QCC_PR_NewType("__uint16", ev_bitfld, true);	type_uint16->parentclass = type_uint;		type_uint16->size = type_uint16->parentclass->size; type_uint16->align = type_uint16->bits = 16;
 
 	type_invalid = QCC_PR_NewType("invalid", ev_void, false);
 
@@ -3650,10 +3670,8 @@ static void	QCC_PR_BeginCompilation (void *memory, int memsize)
 	type_floatfunction = QCC_PR_NewType("__floatfunction", ev_function, false);
 	type_floatfunction->aux_type = type_float;
 
-	type_bfloat = QCC_PR_NewType("__bfloat", ev_boolean, true);
-	type_bfloat->parentclass = type_float;
-	type_bint = QCC_PR_NewType("__bint", ev_boolean, true);
-	type_bint->parentclass = type_uint;
+	type_bfloat = QCC_PR_NewType("__bfloat", ev_boolean, true);	type_bfloat->parentclass = type_float;	//has value 0.0 or 1.0
+	type_bint = QCC_PR_NewType("__bint", ev_boolean, true);		type_bint->parentclass = type_uint;		//has value 0   or 1
 
 	//type_field->aux_type = type_float;
 
@@ -3662,6 +3680,11 @@ static void	QCC_PR_BeginCompilation (void *memory, int memsize)
 //	QCC_PR_NewType("__int", ev_integer, keyword_integer?true:false);
 
 	QCC_PR_NewType("variant", ev_variant, true);
+	if (*type_string->name != '_')	QCC_PR_NewType("__string", ev_string, true);	//make sure some core types __string always work with a double-underscore prefix
+	if (*type_vector->name != '_')	QCC_PR_NewType("__vector", ev_vector, true);	//make sure some core types __string always work with a double-underscore prefix
+	if (*type_entity->name != '_')	QCC_PR_NewType("__entity", ev_entity, true);	//make sure some core types __string always work with a double-underscore prefix
+	QCC_PR_NewType("__int", ev_integer, true);
+	QCC_PR_NewType("__uint", ev_uint, true);
 
 
 
@@ -4684,6 +4707,7 @@ static void QCC_PR_CommandLinePrecompilerOptions (void)
 				flag_assume_double = true;	//and any immediates with a decimal points are assumed to be doubles, consistent with C.
 				flag_qcfuncs = false;		//there's a few parsing quirks where our attempt to parse qc functions will misparse valid C.
 				flag_macroinstrings = false;//hacky preqcc hack.
+				flag_boundchecks = false;	//nope... not C's style.
 
 				qccwarningaction[WARN_UNINITIALIZED] = WA_WARN;		//C doesn't like that, might as well warn here too.
 				qccwarningaction[WARN_TOOMANYPARAMS] = WA_ERROR;	//too many args to function is weeeeird.
@@ -4706,6 +4730,8 @@ static void QCC_PR_CommandLinePrecompilerOptions (void)
 					val = "201112L";
 				else if (!stricmp(myargv[i]+5, "c17"))
 					val = "201710L";
+				else if (!stricmp(myargv[i]+5, "c23"))
+					val = "202311L";
 				else
 					val = NULL;
 				cnst = QCC_PR_DefineName("__STDC_VERSION__");
@@ -5448,7 +5474,7 @@ pbool QCC_main (int argc, const char **argv)	//as part of the quake engine
 
 	for (p = 0; compiler_flag[p].enabled; p++)
 	{
-		*compiler_flag[p].enabled = compiler_flag[p].flags & FLAG_ASDEFAULT;
+		*compiler_flag[p].enabled = !!(compiler_flag[p].flags & FLAG_ASDEFAULT);
 	}
 
 	parseonly = autoprototyped = autoprototype = false;

@@ -95,7 +95,8 @@ ev_union,	//not really sure why this is separate from struct
 ev_accessor,//some weird type to provide class-like functions over a basic type.
 ev_enum,	//just a numeric type
 ev_typedef,	//so typedefs can refer to their original type (primarily for structs).
-ev_boolean,	//exists to optimise if(-0) workarounds. engine just sees int/float.
+ev_boolean,	//exists to optimise if(-0) workarounds. engine just sees int/float. uses parentclass
+ev_bitfld,	//erk... structs only... converted to their parentclass on read.
 } etype_t;
 enum {
 	DEBUG_TRACE_OFF,		//debugging should be off.

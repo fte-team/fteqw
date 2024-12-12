@@ -562,6 +562,7 @@ static int ASMCALL PR_EnterFunction (progfuncs_t *progfuncs, mfunction_t *f, int
 	}
 
 	prinst.pr_xfunction = f;
+	prinst.spushed = 0;
 	return f->first_statement - 1;	// offset the s++
 }
 
@@ -1911,6 +1912,7 @@ typedef struct {
 	int fnum;
 	int progsnum;
 	int statement;
+	int spushed;
 } qcthreadstack_t;
 typedef struct qcthread_s {
 	int fstackdepth;
@@ -1947,6 +1949,7 @@ struct qcthread_s *PDECL PR_ForkStack(pubprogfuncs_t *ppf)
 		thread->fstack[i-ed].fnum = prinst.pr_stack[i].f - pr_progstate[prinst.pr_stack[i].progsnum].functions;
 		thread->fstack[i-ed].progsnum = prinst.pr_stack[i].progsnum;
 		thread->fstack[i-ed].statement = prinst.pr_stack[i].s;
+		thread->fstack[i-ed].spushed = prinst.pr_stack[i].pushed;
 
 		if (i+1 == prinst.pr_depth)
 			f = prinst.pr_xfunction;
@@ -1996,7 +1999,7 @@ void PDECL PR_ResumeThread (pubprogfuncs_t *ppf, struct qcthread_s *thread)
 {
 	progfuncs_t *progfuncs = (progfuncs_t*)ppf;
 	mfunction_t	*f, *oldf;
-	int		i,l,ls, olds;
+	int		i,l,ls, olds, oldp;
 	progsnum_t initial_progs;
 	int		oldexitdepth;
 	int		*glob;
@@ -2033,12 +2036,14 @@ void PDECL PR_ResumeThread (pubprogfuncs_t *ppf, struct qcthread_s *thread)
 			prinst.pr_stack[prinst.pr_depth].f = prinst.pr_xfunction;
 			prinst.pr_stack[prinst.pr_depth].s = prinst.pr_xstatement;
 			prinst.pr_stack[prinst.pr_depth].progsnum = initial_progs;
+			prinst.pr_stack[prinst.pr_depth].pushed = prinst.spushed;
 		}
 		else
 		{
 			prinst.pr_stack[prinst.pr_depth].progsnum = thread->fstack[i].progsnum;
 			prinst.pr_stack[prinst.pr_depth].f = pr_progstate[thread->fstack[i].progsnum].functions + thread->fstack[i].fnum;
 			prinst.pr_stack[prinst.pr_depth].s = thread->fstack[i].statement;
+			prinst.pr_stack[prinst.pr_depth].pushed = thread->fstack[i].spushed;
 		}
 
 		if (i+1 == thread->fstackdepth)
@@ -2080,6 +2085,7 @@ void PDECL PR_ResumeThread (pubprogfuncs_t *ppf, struct qcthread_s *thread)
 //	PR_EnterFunction (progfuncs, f, initial_progs);
 	oldf = prinst.pr_xfunction;
 	olds = prinst.pr_xstatement;
+	oldp = prinst.spushed;
 	prinst.pr_xfunction = f;
 	s = thread->xstatement;
 
@@ -2098,6 +2104,7 @@ void PDECL PR_ResumeThread (pubprogfuncs_t *ppf, struct qcthread_s *thread)
 	prinst.exitdepth = oldexitdepth;
 	prinst.pr_xfunction = oldf;
 	prinst.pr_xstatement = olds;
+	prinst.spushed = oldp;
 }
 
 void	PDECL PR_AbortStack			(pubprogfuncs_t *ppf)

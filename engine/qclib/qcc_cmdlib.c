@@ -39,6 +39,7 @@ const unsigned int		type_size[] = {1,	//void
 						0,	//ev_enum...
 						0,	//ev_typedef
 						1,	//ev_bool...
+						0,	//bitfld...
 						};
 
 char *basictypenames[] = {
@@ -60,7 +61,9 @@ char *basictypenames[] = {
 	"union",
 	"accessor",
 	"enum",
-	"bool"
+	"typedef",
+	"bool",
+	"bitfield",
 };
 
 /*

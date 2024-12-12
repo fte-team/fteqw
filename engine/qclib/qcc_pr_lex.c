@@ -93,9 +93,13 @@ QCC_type_t	*type_field;			//.void
 QCC_type_t	*type_function;			//void()
 QCC_type_t	*type_floatfunction;	//float()
 QCC_type_t	*type_pointer;			//??? * - careful with this one
+QCC_type_t	*type_sint8;				//char	- these small types are technically ev_bitfield, but typedefed and aligned.
+QCC_type_t	*type_uint8;			//unsigned char
+QCC_type_t	*type_sint16;			//short
+QCC_type_t	*type_uint16;			//unsigned short
 QCC_type_t	*type_integer;			//int32
 QCC_type_t	*type_uint;				//uint32
-QCC_type_t	*type_int64;				//int64
+QCC_type_t	*type_int64;			//int64
 QCC_type_t	*type_uint64;			//uint64
 QCC_type_t	*type_variant;			//__variant
 QCC_type_t	*type_invalid;			//technically void, but shouldn't really ever be used.
@@ -1611,8 +1615,33 @@ int QCC_PR_LexEscapedCodepoint(void)
 		c = '\\';
 	else if (c == '\'')
 		c = '\'';
-	else if (c >= '0' && c <= '9')	//WARNING: This is not octal, but uses 'yellow' numbers instead (as on hud).
-		c = 0xe012 + c - '0';
+	else if (c >= '0' && c <= '9')
+	{
+		if (flag_qcfuncs)
+			c = 0xe012 + c - '0';	//WARNING: This is not an octal code, but uses 'yellow' numbers instead (as on hud).
+		else	//C compat
+		{
+			int d = c, base = 8;
+			c = 0;
+
+			if (d >= '0' && d < '0'+base)
+				c = c*base + (d - '0');
+			else
+				QCC_PR_ParseError(ERR_BADCHARACTERCODE, "Bad character code \\%c", d);
+
+			d = (unsigned char)*pr_file_p++;
+			if (d >= '0' && d < '0'+base)
+				c = c*base + (d - '0');
+			else
+				pr_file_p --;	//oops. only one char valid...
+
+			d = (unsigned char)*pr_file_p++;
+			if (d >= '0' && d < '0'+base)
+				c = c*base + (d - '0');
+			else
+				pr_file_p --;	//oops. only twoish chars valid...
+		}
+	}
 	else if (c == '\r')
 	{	//sigh
 		c = *pr_file_p++;
@@ -2081,6 +2110,7 @@ static void QCC_PR_LexNumber (void)
 				}
 				else if (c == 'f' || c == 'F')
 				{
+					pr_immediate_type = type_float;
 					pr_file_p++;
 					break;
 				}
@@ -2139,7 +2169,7 @@ static void QCC_PR_LexNumber (void)
 			{	//length suffix was first.
 				//long-long?
 				if (*pr_file_p == c)
-					pr_token[tokenlen++] = *pr_file_p++;
+					islong++, pr_token[tokenlen++] = *pr_file_p++;
 				//check for signed suffix...
 				c = *pr_file_p;
 				isunsigned = (c == 'u')||(c=='U');
@@ -2157,13 +2187,13 @@ static void QCC_PR_LexNumber (void)
 					islong = true;
 					//long-long?
 					if (*pr_file_p == c)
-						pr_token[tokenlen++] = *pr_file_p++;
+						islong++, pr_token[tokenlen++] = *pr_file_p++;
 				}
 			}
 			pr_token[tokenlen++] = 0;
 			num *= sign;
-			if (islong)
-			{
+			if (islong >= (flag_ILP32?2:1))
+			{	//enough longs for our 64bit type.
 				pr_immediate_type = (isunsigned)?type_uint64:type_int64;
 				pr_immediate.i64 = num;
 			}
@@ -2190,7 +2220,16 @@ static void QCC_PR_LexNumber (void)
 	{
 		//float f = num;
 		if (flag_assume_integer)// || (base != 10 && sign > 0 && (long long)f != (long long)num))
-			pr_immediate_type = type_integer;
+		{
+			if (num > UINT64_C(0x7fffffffffffffff))
+				pr_immediate_type = type_uint64;
+			else if (num > 0xffffffffu)
+				pr_immediate_type = type_int64;
+			else if (num > 0x7fffffffu)
+				pr_immediate_type = type_uint;
+			else
+				pr_immediate_type = type_integer;
+		}
 		else if (flag_qccx && base == 16)
 		{
 			pr_immediate_type = type_float;
@@ -2200,9 +2239,10 @@ static void QCC_PR_LexNumber (void)
 			pr_immediate_type = type_float;
 	}
 
-	if (pr_immediate_type == type_integer)
+	if (pr_immediate_type == type_int64 || pr_immediate_type == type_uint64)
+		pr_immediate.i64 = num*sign;
+	else if (pr_immediate_type == type_integer || pr_immediate_type == type_uint)
 	{
-		pr_immediate_type = type_integer;
 qccxhex:
 		pr_immediate._int = num*sign;
 
@@ -3376,12 +3416,18 @@ static char *QCC_PR_CheckBuiltinCompConst(char *constname, char *retbuf, size_t 
 	}
 	if (!strcmp(constname, "__LINE__"))
 	{
-		QC_snprintfz(retbuf, retbufsize, "%i", pr_source_line);
+		int line = pr_source_line;
+		if (currentchunk && currentchunk->cnst)	//if we're in a macro, use the line the macro was on.
+			line = currentchunk->currentlinenumber;
+		QC_snprintfz(retbuf, retbufsize, "%i", line);
 		return retbuf;
 	}
 	if (!strcmp(constname, "__LINESTR__"))
 	{
-		QC_snprintfz(retbuf, retbufsize, "\"%i\"", pr_source_line);
+		int line = pr_source_line;
+		if (currentchunk && currentchunk->cnst)	//if we're in a macro, use the line the macro was on.
+			line = currentchunk->currentlinenumber;
+		QC_snprintfz(retbuf, retbufsize, "\"%i\"", line);
 		return retbuf;
 	}
 	if (!strcmp(constname, "__FUNC__") || !strcmp(constname, "__func__"))
@@ -4252,7 +4298,17 @@ Gets the next token
 void QCC_PR_Expect (const char *string)
 {
 	if (STRCMP (string, pr_token))
-		QCC_PR_ParseError (ERR_EXPECTED, "expected %s%s%s, found %s%s%s", col_location, string, col_none, col_name, pr_token, col_none);
+	{
+		if (pr_token_type == tt_immediate && pr_immediate_type == type_string)
+		{
+			if (pr_immediate_strlen > 32)
+				QCC_PR_ParseError (ERR_EXPECTED, "expected %s%s%s, found string immediate", col_location, string, col_none);
+			else
+				QCC_PR_ParseError (ERR_EXPECTED, "expected %s%s%s, found %s\"%s\"%s", col_location, string, col_none, col_name, pr_token, col_none);
+		}
+		else
+			QCC_PR_ParseError (ERR_EXPECTED, "expected %s%s%s, found %s%s%s", col_location, string, col_none, col_name, pr_token, col_none);
+	}
 	QCC_PR_Lex ();
 }
 #endif
@@ -4530,7 +4586,7 @@ static int typecmp_strict(QCC_type_t *a, QCC_type_t *b)
 	if (a->vargcount != b->vargcount)
 		return 1;
 
-	if (a->size != b->size)
+	if (a->size != b->size || a->bits != b->bits || a->align != b->align)
 		return 1;
 
 	if (a->accessors != b->accessors)
@@ -4579,7 +4635,7 @@ int typecmp(QCC_type_t *a, QCC_type_t *b)
 	if (a->vargcount != b->vargcount)
 		return 1;
 
-	if (a->size != b->size)
+	if (a->size != b->size || a->bits != b->bits)
 		return 1;
 
 	if ((a->type == ev_entity && a->parentclass) || a->type == ev_struct || a->type == ev_union)
@@ -4957,6 +5013,10 @@ void QCC_PR_SkipToSemicolon (void)
 	} while (pr_token_type != tt_eof);
 }
 
+qc_inlinestatic QCC_eval_t *QCC_SRef_Data(QCC_sref_t ref)
+{
+	return (QCC_eval_t*)&ref.sym->symboldata[ref.ofs];
+}
 
 /*
 ============
@@ -5033,7 +5093,7 @@ QCC_type_t *QCC_PR_ParseFunctionType (int newtype, QCC_type_t *returntype)
 
 			if (QCC_PR_CheckToken ("..."))
 			{
-				t = QCC_PR_ParseType(false, true);	//the evil things I do...
+				t = QCC_PR_ParseType(false, true, false);	//the evil things I do...
 				if (!t)
 				{
 					ftype->vargs = true;
@@ -5078,7 +5138,7 @@ QCC_type_t *QCC_PR_ParseFunctionType (int newtype, QCC_type_t *returntype)
 						break;
 				}
 
-				t = QCC_PR_ParseType(false, false);
+				t = QCC_PR_ParseType(false, false, false);
 			}
 			paramlist[numparms].defltvalue.cast = NULL;
 			paramlist[numparms].ofs = 0;
@@ -5225,7 +5285,7 @@ QCC_type_t *QCC_PR_ParseFunctionTypeReacc (int newtype, QCC_type_t *returntype)
 			{
 				name = QCC_PR_ParseName();
 				QCC_PR_Expect(":");
-				nptype = QCC_PR_ParseType(true, false);
+				nptype = QCC_PR_ParseType(true, false, false);
 			}
 
 			if (!nptype)
@@ -5238,6 +5298,7 @@ QCC_type_t *QCC_PR_ParseFunctionTypeReacc (int newtype, QCC_type_t *returntype)
 			paramlist[numparms].optional = false;
 			paramlist[numparms].isvirtual = false;
 			paramlist[numparms].ofs = 0;
+			paramlist[numparms].bitofs = 0;
 			paramlist[numparms].arraysize = 0;
 			paramlist[numparms].type = nptype;
 
@@ -5437,7 +5498,7 @@ struct accessor_s *QCC_PR_ParseAccessorMember(QCC_type_t *classtype, pbool isinl
 			f = QCC_PR_ParseImmediateStatements (def.sym, functype, false);
 			pr_classtype = NULL;
 			pr_scope = NULL;
-			def.sym->symboldata[def.ofs].function = f - functions;
+			QCC_SRef_Data(def)->function = f - functions;
 			f->def = def.sym;
 			def.sym->initialized = 1;
 		}
@@ -5495,7 +5556,7 @@ static QCC_type_t *QCC_PR_ParseStruct(etype_t structtype)
 	QCC_type_t *newt, *type, *newparm;
 	struct QCC_typeparam_s *parms = NULL, *oldparm;
 	int numparms = 0;
-	int ofs;
+	int ofs, bitofs;
 	unsigned int arraysize;
 	char *parmname;
 
@@ -5503,6 +5564,8 @@ static QCC_type_t *QCC_PR_ParseStruct(etype_t structtype)
 	pbool isstatic = false;
 	pbool isvirt = false;
 	pbool definedsomething = false;
+	unsigned int bitsize;
+	unsigned int bitalign = 0;	//alignment of largest element...
 
 	if (QCC_PR_CheckToken("{"))
 	{
@@ -5555,6 +5618,7 @@ static QCC_type_t *QCC_PR_ParseStruct(etype_t structtype)
 		newt->size = newt->parentclass->size;
 	else
 		newt->size=0;
+	bitsize = newt->size<<5;
 
 	type = NULL;
 
@@ -5624,7 +5688,7 @@ static QCC_type_t *QCC_PR_ParseStruct(etype_t structtype)
 //					isignored = true;
 
 			//now parse the actual type.
-			newparm = QCC_PR_ParseType(false, false);
+			newparm = QCC_PR_ParseType(false, false, true);
 			definedsomething = false;
 		}
 		type = newparm;
@@ -5679,8 +5743,26 @@ static QCC_type_t *QCC_PR_ParseStruct(etype_t structtype)
 
 		if (QCC_PR_CheckToken(":"))
 		{
-			QCC_PR_IntConstExpr();
-			QCC_PR_ParseWarning(WARN_IGNOREDKEYWORD, "bitfields are not supported");
+			int bits = QCC_PR_IntConstExpr();
+			if (bits > 64)
+				QCC_PR_ParseWarning(ERR_BADNOTTYPE, "too many bits");
+			else if (type->type == ev_integer || type->type == ev_uint || type->type == ev_int64 || type->type == ev_uint64)
+			{
+				QCC_type_t *bitfld;
+				//prmote to bigger if big.
+				if (bits > 32 && type->type == ev_integer)
+					type = type_int64;
+				if (bits > 32 && type->type == ev_uint)
+					type = type_uint64;
+				bitfld = QCC_PR_NewType("bitfld", ev_bitfld, false);
+				bitfld->bits = bits;
+				bitfld->size = type->size;
+				bitfld->parentclass = type;
+				bitfld->align = type->align;	//use the parent's alignment, for some reason.
+				type = bitfld;
+			}
+			else
+				QCC_PR_ParseWarning(ERR_BADNOTTYPE, "bitfields must be integer types");
 		}
 
 		if ((isnonvirt || isvirt) && type->type != ev_function)
@@ -5727,25 +5809,59 @@ static QCC_type_t *QCC_PR_ParseStruct(etype_t structtype)
 		}
 
 		parms = realloc(parms, sizeof(*parms) * (numparms+4));
-		oldparm = QCC_PR_FindStructMember(newt, parmname, &ofs);
+		oldparm = QCC_PR_FindStructMember(newt, parmname, &ofs, &bitofs);
+		if (type->align)
+		{
+			if (bitalign < type->align)
+				bitalign = type->align;	//bigger than that...
+		}
+		else
+			bitalign = 32;	//struct must be word aligned.
 		if (oldparm && oldparm->arraysize == arraysize && !typecmp_lax(oldparm->type, type))
 		{
+			ofs <<= 5;
+			ofs += bitofs;
 			if (!isvirt)
 				continue;
 		}
 		else if (structtype == ev_union)
 		{
 			ofs = 0;
-			if (type->size*(arraysize?arraysize:1) > newt->size)
-				newt->size = type->size*(arraysize?arraysize:1);
+			if (type->bits)
+			{
+				if (bitsize < type->bits*(arraysize?arraysize:1))
+					bitsize = type->bits*(arraysize?arraysize:1);
+			}
+			else
+			{
+				if (bitsize < 32*type->size*(arraysize?arraysize:1))
+					bitsize = 32*type->size*(arraysize?arraysize:1);
+			}
 		}
 		else
 		{
-			ofs = newt->size;
-			newt->size += type->size*(arraysize?arraysize:1);
+			if (type->bits)
+			{
+				if (type->bits < type->align && type->type == ev_bitfld)
+				{	//only realigns when it cross its parent's alignment boundary.
+					if ((bitsize&(type->align-1)) + type->bits > type->align)
+						bitsize = (bitsize+type->align-1)&~(type->align-1);	//these must be aligned, so we can take pointers etc.
+				}
+				else if (type->align)
+					bitsize = (bitsize+type->align-1)&~(type->align-1);	//these must be aligned, so we can take pointers etc.
+				ofs = bitsize;
+				bitsize += type->bits*(arraysize?arraysize:1);
+			}
+			else
+			{
+				bitsize = (bitsize+31)&~31;	//provide padding to keep non-bitfield stuff word aligned
+				ofs = bitsize;
+				bitsize += 32 * type->size*(arraysize?arraysize:1);
+			}
 		}
 
-		parms[numparms].ofs = ofs;
+		parms[numparms].ofs = ofs>>5;
+		parms[numparms].bitofs = ofs - (parms[numparms].ofs<<5);
 		parms[numparms].arraysize = arraysize;
 		parms[numparms].out = false;
 		parms[numparms].optional = false;
@@ -5756,7 +5872,7 @@ static QCC_type_t *QCC_PR_ParseStruct(etype_t structtype)
 		numparms++;
 
 		/*if (type->type == ev_vector && arraysize == 0)
-		{	//add in vec_x/y/z members too.
+		{	//add in vec_x/y/z members too...?
 			int c;
 			for (c = 0; c < 3; c++)
 			{
@@ -5773,6 +5889,17 @@ static QCC_type_t *QCC_PR_ParseStruct(etype_t structtype)
 			}
 		}*/
 	}
+
+	if (bitalign)	//compute tail padding.
+		bitsize = (bitsize+bitalign-1)&~(bitalign-1);
+
+	newt->size = (bitsize+31)>>5;	//FIXME: change to bytes, for pointers.
+	newt->align = bitalign;
+	if (bitalign&31)
+		newt->bits = bitsize;
+	else
+		newt->bits = 0;	//all word aligned. nothing special going on sizewise (maybe inside though).
+
 	if (!numparms)
 		QCC_PR_ParseError(ERR_NOTANAME, "%s %s has no members", structtype==ev_union?"union":"struct", newt->name);
 
@@ -5942,7 +6069,7 @@ QCC_type_t *QCC_PR_ParseEntClass(void)
 			continue;
 		}
 
-		basetype = QCC_PR_ParseType(false, false);
+		basetype = QCC_PR_ParseType(false, false, false);
 
 		if (!basetype)
 			QCC_PR_ParseError(ERR_INTERNAL, "In class %s, expected type, found %s", classname, pr_token);
@@ -6187,6 +6314,7 @@ QCC_type_t *QCC_PR_ParseEntClass(void)
 
 			parms = realloc(parms, sizeof(*parms) * (numparms+1));
 			parms[numparms].ofs = 0;
+			parms[numparms].bitofs = 0;
 			parms[numparms].out = false;
 			parms[numparms].optional = false;
 			parms[numparms].isvirtual = isvirt;
@@ -6376,7 +6504,7 @@ pbool type_inlinefunction;
 /*newtype=true: creates a new type always
   silentfail=true: function is permitted to return NULL if it was not given a type, otherwise never returns NULL
 */
-QCC_type_t *QCC_PR_ParseType (int newtype, pbool silentfail)
+QCC_type_t *QCC_PR_ParseType (int newtype, pbool silentfail, pbool ignoreptr)
 {
 	QCC_type_t	*newt;
 	QCC_type_t	*type;
@@ -6404,7 +6532,7 @@ QCC_type_t *QCC_PR_ParseType (int newtype, pbool silentfail)
 		QCC_PR_Lex ();
 
 		type = QCC_PR_NewType("FIELD_TYPE", ev_field, false);
-		type->aux_type = QCC_PR_ParseType (false, false);
+		type->aux_type = QCC_PR_ParseType (false, false, ignoreptr);
 		type->size = type->aux_type->size;
 
 		newt = QCC_PR_FindType (type);
@@ -6424,7 +6552,7 @@ QCC_type_t *QCC_PR_ParseType (int newtype, pbool silentfail)
 	if (QCC_PR_CheckToken (".."))	//so we don't end up with the user specifying '. .vector blah' (hexen2 added the .. token for array ranges)
 	{
 		newt = QCC_PR_NewType("FIELD_TYPE", ev_field, false);
-		newt->aux_type = QCC_PR_ParseType (false, false);
+		newt->aux_type = QCC_PR_ParseType (false, false, ignoreptr);
 
 		newt->size = newt->aux_type->size;
 
@@ -6448,7 +6576,7 @@ QCC_type_t *QCC_PR_ParseType (int newtype, pbool silentfail)
 		//however, we can't cope parsing that with regular types, so we support that ONLY when . was already specified.
 		//this is pretty much an evil syntax hack.
 		pbool ptr = QCC_PR_CheckToken ("*");
-		type = QCC_PR_ParseType(false, false);
+		type = QCC_PR_ParseType(false, false, ignoreptr);
 		if (!type)
 			QCC_PR_ParseError(0, "Expected type\n");
 		if (ptr)
@@ -6496,7 +6624,7 @@ QCC_type_t *QCC_PR_ParseType (int newtype, pbool silentfail)
 
 		if (QCC_PR_CheckToken(":"))
 		{
-			type = QCC_PR_ParseType(false, false);
+			type = QCC_PR_ParseType(false, false, false);
 			if (type)
 				TypeName(type, parentname, sizeof(parentname));
 			else
@@ -6667,9 +6795,9 @@ QCC_type_t *QCC_PR_ParseType (int newtype, pbool silentfail)
 						else if (bits > 32)
 							type = (isunsigned?type_uint64:type_int64);
 						else if (bits <= 8)
-							type = (isunsigned?type_uint:type_integer), QCC_PR_ParseWarning (WARN_IGNOREDKEYWORD, "chars are not supported, using int");	//permitted
+							type = (isunsigned?type_uint8:type_sint8);
 						else if (bits <= 16)
-							type = (isunsigned?type_uint:type_integer), QCC_PR_ParseWarning (WARN_IGNOREDKEYWORD, "shorts are not supported, using int");	//permitted
+							type = (isunsigned?type_uint16:type_sint16);
 						else
 							type = (isunsigned?type_uint:type_integer);
 					}
@@ -6689,11 +6817,14 @@ wasctype:
 	if (!type)
 		return NULL;
 
-	while (QCC_PR_CheckToken("*"))
+	if (!ignoreptr)
 	{
-		if (QCC_PR_CheckKeyword(keyword_const, "const"))
-			QCC_PR_ParseWarning (WARN_IGNOREDKEYWORD, "ignoring unsupported const keyword");
-		type = QCC_PointerTypeTo(type);
+		while (QCC_PR_CheckToken("*"))
+		{
+			if (QCC_PR_CheckKeyword(keyword_const, "const"))
+				QCC_PR_ParseWarning (WARN_IGNOREDKEYWORD, "ignoring unsupported const keyword");
+			type = QCC_PointerTypeTo(type);
+		}
 	}
 
 	if (flag_qcfuncs && QCC_PR_CheckToken ("("))	//this is followed by parameters. Must be a function.

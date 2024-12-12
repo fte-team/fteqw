@@ -13418,8 +13418,8 @@ void PR_DumpPlatform_f(void)
 #define globalfloat(need,name)			{#name, "float", QW|NQ, "ssqc global"},
 #define globalentity(need,name)			{#name, "entity", QW|NQ, "ssqc global"},
 #define globalint(need,name)			{#name, "int", QW|NQ, "ssqc global"},
-#define globaluint(need,name)			{#name, "unsigned int", QW|NQ, "ssqc global"},
-#define globaluint64(need,name)			{#name, "unsigned __long", QW|NQ, "ssqc global"},
+#define globaluint(need,name)			{#name, "__uint", QW|NQ, "ssqc global"},
+#define globaluint64(need,name)			{#name, "__uint64", QW|NQ, "ssqc global"},
 #define globalstring(need,name)			{#name, "string", QW|NQ, "ssqc global"},
 #define globalvec(need,name)			{#name, "vector", QW|NQ, "ssqc global"},
 #define globalfunc(need,name,typestr)	{#name, typestr, QW|NQ, "ssqc global"},
@@ -13440,8 +13440,8 @@ void PR_DumpPlatform_f(void)
 #define globalvector(name)				{#name, "vector", CS},
 #define globalstring(name)				{#name, "string", CS},
 #define globalint(name)					{#name, "int", CS},
-#define globaluint(name)				{#name, "unsigned int", CS},
-#define globaluint64(name)				{#name, "unsigned __long", CS},
+#define globaluint(name)				{#name, "__uint", CS},
+#define globaluint64(name)				{#name, "__uint64", CS},
 		csqcglobals
 #undef globalfunction
 #undef globalfloat

@@ -1259,6 +1259,19 @@ ELSE()
 		#SET(INSTALLTARGS ${INSTALLTARGS} httpserver)
 	ENDIF()
 
+	SET(FTE_TOOL_QCVM false CACHE BOOL "Compile standalone qcvm.")
+	IF(FTE_TOOL_QCVM)
+		ADD_EXECUTABLE(qcvm
+			engine/qclib/test.c
+
+			engine/qclib/hash.c
+			${FTE_QCVM_FILES}
+		)
+		SET_TARGET_PROPERTIES(qcvm PROPERTIES COMPILE_DEFINITIONS "${FTE_LIB_DEFINES};${FTE_REVISON}")
+		TARGET_LINK_LIBRARIES(qcvm ${FTEQCC_LIBS} ${SYS_LIBS})
+		SET(INSTALLTARGS ${INSTALLTARGS} qcvm)
+	ENDIF()
+
 	SET(FTE_TOOL_QCC true CACHE BOOL "Compile commandline qc compiler.")
 	IF(FTE_TOOL_QCC)
 		ADD_EXECUTABLE(fteqcc

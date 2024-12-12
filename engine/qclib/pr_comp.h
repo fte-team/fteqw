@@ -339,8 +339,8 @@ enum qcop_e {
 	OP_STOREF_I,	//1 non-string reference/int
 
 //r5744+
-	OP_STOREP_B,//((char*)b)[(int)c] = (int)a
-	OP_LOADP_B,	//(int)c = *(char*)
+	OP_STOREP_I8,	//((char*)b)[(int)c] = (int)a
+	OP_LOADP_U8,	//(int)c = *(unsigned char*)
 
 //r5768+
 //opcodes for 32bit uints
@@ -397,6 +397,18 @@ enum qcop_e {
 	OP_EQ_D,
 	OP_NE_D,
 
+//r6614+
+	OP_STOREP_I16, //((short*)b)[(int)c] = (int)a
+	OP_LOADP_I16,	//(int)c = *(signed short*)a   (sign extends)
+	OP_LOADP_U16,	//(unsigned int)c = *(unsigned short*)a
+	OP_LOADP_I8,	//(unsigned int)c = *(signed char*)a	(sign extends)
+	OP_BITEXTEND_I,	//sign extend (for signed bitfields)
+	OP_BITEXTEND_U,	//zero extend (for unsigned bitfields)
+	OP_BITCOPY_I,	//copy lower bits from the input to some part of the output
+	OP_CONV_UF,	//OPC.f=(float)OPA.i -- 0xffffffffu*0.5=0 otherwise.
+	OP_CONV_FU,	//OPC.i=(int)OPA.f
+	OP_CONV_U64D,	//OPC.d=(double)OPA.u64 -- useful mostly so decompilers don't do weird stuff.
+	OP_CONV_DU64,	//OPC.u64=(uint64_t)OPA.d
 
 	OP_NUMREALOPS,
 
@@ -531,8 +543,8 @@ enum qcop_e {
 	//uint64 opcodes. they match the int32 ones so emulation is basically swapping them over.
 	OP_BITNOT_I64,	//BITXOR ~0
 	OP_BITCLR_I64,
-	OP_GE_I64,	//LT_I64
-	OP_GT_I64,	//LE_I64
+	OP_GE_I64,	//LE_I64
+	OP_GT_I64,	//LT_I64
 
 	OP_ADD_U64,
 	OP_SUB_U64,
@@ -544,8 +556,8 @@ enum qcop_e {
 	OP_BITNOT_U64,	//BITXOR ~0
 	OP_BITCLR_U64,
 	OP_LSHIFT_U64I,
-	OP_GE_U64,	//LT_U64
-	OP_GT_U64,	//LE_U64
+	OP_GE_U64,	//LE_U64
+	OP_GT_U64,	//LT_U64
 	OP_EQ_U64,
 	OP_NE_U64,
 
@@ -557,6 +569,8 @@ enum qcop_e {
 	OP_BITCLR_D,
 	OP_LSHIFT_DI,
 	OP_RSHIFT_DI,
+	OP_GE_D,	//LE_D
+	OP_GT_D,	//LT_D
 
 	OP_WSTATE,	//for the 'w' part of CWSTATE. will probably never be used, but hey, hexen2...
 
@@ -618,7 +632,12 @@ typedef struct statement32_s
 typedef struct
 {
 	struct QCC_def_s *sym;
-	unsigned int ofs;
+	union
+	{
+		unsigned int ofs;
+//		unsigned int bofs;
+		signed int jumpofs;
+	};
 	struct QCC_type_s *cast;	//the entire sref is considered null if there is no cast, although it *MAY* have an ofs specified if its part of a jump instruction
 } QCC_sref_t;
 typedef struct qcc_statement_s

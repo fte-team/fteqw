@@ -66,6 +66,12 @@ extern progfuncs_t *qccprogfuncs;
 	#define LIKEPRINTF(x)
 #endif
 
+#if __STDC_VERSION__ >= 199901L
+	#define qc_inlinestatic static inline
+#else
+	#define qc_inlinestatic static
+#endif
+
 void *qccHunkAlloc(size_t mem);
 void qccClearHunk(void);
 
@@ -373,7 +379,8 @@ struct QCC_typeparam_s
 	pbool optional:1;	//argument may safely be omitted, for builtin functions. for qc functions use the defltvalue instead.
 	pbool isvirtual:1;	//const, with implicit initialisation only. valid for structs
 	unsigned char out;	//0=in,1==inout,2=out
-	unsigned int ofs;	//FIXME: make byte offsets, for bytes/shorts.
+	unsigned int ofs;	//word offset.
+	unsigned int bitofs;	//for bitfields (and chars/shorts).
 	unsigned int arraysize;
 	char *paramname;
 };
@@ -403,6 +410,8 @@ typedef struct QCC_type_s
 	pbool typedefed:1;	//name is in the typenames list.
 	pbool vargs:1;		//function has vargs
 	pbool vargcount:1;	//function has special varg count param
+	unsigned int bits;//valid for bitfields (and structs).
+	unsigned int align:7;
 	const char *name;
 	const char *aname;
 
@@ -487,6 +496,7 @@ struct temp_s {
 	unsigned int size;
 
 	struct QCC_function_s *lastfunc;
+	unsigned int lastline;
 	unsigned int laststatement;
 };
 extern size_t tempsused;
@@ -506,6 +516,7 @@ typedef struct
 	} type;
 
 	QCC_sref_t base;
+	unsigned int bitofs;	//for bitfields.
 	QCC_sref_t index;
 	QCC_type_t *cast;	//entity.float is float, not pointer.
 	struct accessor_s *accessor;	//the accessor field of base that we're trying to use
@@ -526,7 +537,7 @@ extern int QCC_packid;
 extern	const unsigned int		type_size[];
 //extern	QCC_def_t	*def_for_type[9];
 
-extern	QCC_type_t	*type_void, *type_string, *type_float, *type_double, *type_vector, *type_entity, *type_field, *type_function, *type_floatfunction, *type_pointer, *type_floatpointer, *type_intpointer, *type_bint, *type_bfloat, *type_integer, *type_uint, *type_int64, *type_uint64, *type_invalid, *type_variant, *type_floatfield;
+extern	QCC_type_t	*type_void, *type_string, *type_float, *type_double, *type_vector, *type_entity, *type_field, *type_function, *type_floatfunction, *type_pointer, *type_floatpointer, *type_intpointer, *type_bint, *type_bfloat, *type_sint8, *type_uint8, *type_sint16, *type_uint16, *type_integer, *type_uint, *type_int64, *type_uint64, *type_invalid, *type_variant, *type_floatfield;
 extern char *basictypenames[];
 
 struct QCC_function_s
@@ -769,7 +780,7 @@ void QCC_PR_Lex (void);
 QCC_type_t *QCC_PR_NewType (const char *name, int basictype, pbool typedefed);	//note: name must be hunk/immediate
 QCC_type_t *QCC_PointerTypeTo(QCC_type_t *type);
 QCC_type_t *QCC_GenArrayType(QCC_type_t *type, unsigned int arraysize);
-QCC_type_t *QCC_PR_ParseType (int newtype, pbool silentfail);
+QCC_type_t *QCC_PR_ParseType (int newtype, pbool silentfail, pbool ignoreptr);
 QCC_sref_t QCC_PR_ParseDefaultInitialiser(QCC_type_t *type);
 extern pbool type_inlinefunction;
 QCC_type_t *QCC_TypeForName(const char *name);
@@ -777,7 +788,7 @@ QCC_type_t *QCC_PR_ParseFunctionType (int newtype, QCC_type_t *returntype);
 QCC_type_t *QCC_PR_ParseFunctionTypeReacc (int newtype, QCC_type_t *returntype);
 QCC_type_t *QCC_PR_GenFunctionType (QCC_type_t *rettype, struct QCC_typeparam_s *args, int numargs);
 char *QCC_PR_ParseName (void);
-struct QCC_typeparam_s *QCC_PR_FindStructMember(QCC_type_t *t, const char *membername, unsigned int *out_ofs);
+struct QCC_typeparam_s *QCC_PR_FindStructMember(QCC_type_t *t, const char *membername, unsigned int *out_ofs, unsigned int *out_bitofs);
 QCC_type_t *QCC_PR_PointerType (QCC_type_t *pointsto);
 
 const char *QCC_VarAtOffset(QCC_sref_t ref);

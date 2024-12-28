@@ -68,6 +68,8 @@ static int needcleanup;
 
 //int		fatbytes;
 
+#define round64(size) ((size+7)&~7)
+
 void SV_ExpandNackFrames(client_t *client, int require, client_frame_t **currentframeptr)
 {
 	client_frame_t *newframes;
@@ -76,24 +78,25 @@ void SV_ExpandNackFrames(client_t *client, int require, client_frame_t **current
 	int maxlog = require * 2;	/*this is the max number of ents updated per frame. we can't track more, so...*/
 	if (maxlog > client->max_net_ents)
 		maxlog = client->max_net_ents;
-	ptr = Z_Malloc(	sizeof(client_frame_t)*UPDATE_BACKUP+
-					sizeof(*client->pendingdeltabits)*client->max_net_ents+
-					sizeof(*client->pendingcsqcbits)*client->max_net_ents+
-					sizeof(newframes[i].resend)*maxlog*UPDATE_BACKUP);
+	ptr = Z_Malloc(	round64(sizeof(client_frame_t)*UPDATE_BACKUP)+
+					round64(sizeof(*client->pendingdeltabits)*client->max_net_ents)+
+					round64(sizeof(*client->pendingcsqcbits)*client->max_net_ents)+
+					round64(sizeof(newframes[i].resend)*maxlog)*UPDATE_BACKUP);
 	newframes = (void*)ptr;
 	memcpy(newframes, client->frameunion.frames, sizeof(client_frame_t)*UPDATE_BACKUP);
-	ptr += sizeof(client_frame_t)*UPDATE_BACKUP;
+	ptr += round64(sizeof(client_frame_t)*UPDATE_BACKUP);
 	memcpy(ptr, client->pendingdeltabits, sizeof(*client->pendingdeltabits)*client->max_net_ents);
 	client->pendingdeltabits = (void*)ptr;
-	ptr += sizeof(*client->pendingdeltabits)*client->max_net_ents;
+	ptr += round64(sizeof(*client->pendingdeltabits)*client->max_net_ents);
 	memcpy(ptr, client->pendingcsqcbits, sizeof(*client->pendingcsqcbits)*client->max_net_ents);
 	client->pendingcsqcbits = (void*)ptr;
-	ptr += sizeof(*client->pendingcsqcbits)*client->max_net_ents;
+	ptr += round64(sizeof(*client->pendingcsqcbits)*client->max_net_ents);
 	for (i = 0; i < UPDATE_BACKUP; i++)
 	{
 		newframes[i].maxresend = maxlog;
 		newframes[i].qwentities.max_entities = 0;
 		newframes[i].resend = (void*)ptr;
+		ptr += round64(sizeof(newframes[i].resend)*maxlog);
 		newframes[i].numresend = client->frameunion.frames[i].numresend;
 		memcpy(newframes[i].resend, client->frameunion.frames[i].resend, sizeof(newframes[i].resend)*newframes[i].numresend);
 		newframes[i].senttime = realtime;

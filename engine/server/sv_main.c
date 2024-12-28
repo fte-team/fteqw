@@ -2341,25 +2341,26 @@ void SV_ClientProtocolExtensionsChanged(client_t *client)
 
 		if ((client->fteprotocolextensions2 & PEXT2_REPLACEMENTDELTAS) || ISDPCLIENT(client))
 		{
+#define round64(size) ((size+7)&~7)
 			char *ptr;
 			int maxents = maxpacketentities*4;	/*this is the max number of ents updated per frame. we can't track more, so...*/
 			if (maxents > client->max_net_ents)
 				maxents = client->max_net_ents;
-			ptr = Z_Malloc(	sizeof(client_frame_t)*UPDATE_BACKUP+
-							sizeof(*client->pendingdeltabits)*client->max_net_ents+
-							sizeof(*client->pendingcsqcbits)*client->max_net_ents+
-							sizeof(*client->frameunion.frames[i].resend)*maxents*UPDATE_BACKUP);
+			ptr = Z_Malloc(	round64(sizeof(client_frame_t)*UPDATE_BACKUP)+
+							round64(sizeof(*client->pendingdeltabits)*client->max_net_ents)+
+							round64(sizeof(*client->pendingcsqcbits)*client->max_net_ents)+
+							round64(sizeof(*client->frameunion.frames[i].resend)*maxents)*UPDATE_BACKUP);
 			client->frameunion.frames = (void*)ptr;
-			ptr += sizeof(*client->frameunion.frames)*UPDATE_BACKUP;
+			ptr += round64(sizeof(*client->frameunion.frames)*UPDATE_BACKUP);
 			client->pendingdeltabits = (void*)ptr;
-			ptr += sizeof(*client->pendingdeltabits)*client->max_net_ents;
+			ptr += round64(sizeof(*client->pendingdeltabits)*client->max_net_ents);
 			client->pendingcsqcbits = (void*)ptr;
-			ptr += sizeof(*client->pendingcsqcbits)*client->max_net_ents;
+			ptr += round64(sizeof(*client->pendingcsqcbits)*client->max_net_ents);
 			for (i = 0; i < UPDATE_BACKUP; i++)
 			{
 				client->frameunion.frames[i].maxresend = maxents;
 				client->frameunion.frames[i].resend = (void*)ptr;
-				ptr += sizeof(*client->frameunion.frames[i].resend)*maxents;
+				ptr += round64(sizeof(*client->frameunion.frames[i].resend)*maxents);
 				client->frameunion.frames[i].senttime = realtime;
 			}
 

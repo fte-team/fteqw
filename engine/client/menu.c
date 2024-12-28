@@ -1283,7 +1283,10 @@ void M_Menu_Quit_f (void)
 	else if (!strcmp(arg, "forcesave") || cfg_save_auto.ival)
 	{
 		Cmd_ExecuteString("cfg_save", RESTRICT_LOCAL);
-		mode = 0;
+		if (!strcmp(arg, "prompt"))
+			mode = 1;
+		else
+			mode = 0;
 	}
 	else if (!strcmp(arg, "save"))
 		mode = 2;

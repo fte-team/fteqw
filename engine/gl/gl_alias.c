@@ -1393,7 +1393,7 @@ qboolean R_CalcModelLighting(entity_t *e, model_t *clmodel)
 	if ((clmodel->engineflags & MDLF_FLAME) ||	//stuff on fire should generally have enough light...
 		r_fullbright.ival ||	//vanila cheat
 		(e->flags & RF_FULLBRIGHT) ||	//DP feature
-		(r_fb_models.ival == 1 && ruleset_allow_fbmodels.ival && (clmodel->engineflags & MDLF_EZQUAKEFBCHEAT) && cls.protocol == CP_QUAKEWORLD && cl.deathmatch))	//ezquake cheat
+		(r_fb_models.ival == 1 && ruleset_allow_fbmodels.ival && (clmodel->engineflags & MDLF_EZQUAKEFBCHEAT) && cls.protocol == CP_QUAKEWORLD && cl.deathmatch && cls.allow_fbskins>0))	//ezquake cheat
 	{
 		e->light_avg[0] = e->light_avg[1] = e->light_avg[2] = 1;
 		e->light_range[0] = e->light_range[1] = e->light_range[2] = 0;

@@ -3510,9 +3510,6 @@ static qbyte *VBSP_MarkLeaves (model_t *model, int clusters[2])
 qboolean HL2_CalcModelLighting(entity_t *e, model_t *clmodel, refdef_t *r_refdef, model_t *mod)
 {
 	vec3_t lightdir;
-	int i;
-	vec3_t dist;
-	float add, m;
 	vec3_t shadelight, ambientlight;
 
 	e->light_dir[0] = 0; e->light_dir[1] = 1; e->light_dir[2] = 0;

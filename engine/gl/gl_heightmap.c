@@ -5873,7 +5873,7 @@ void Terr_Brush_Draw(heightmap_t *hm, batch_t **batches, entity_t *e)
 					{
 						for (s = 0; s < br->faces[j].lmextents[0]; s++)
 						{
-							*(unsigned int*)out = (0x3<<30) | (in[2]<<22) | (in[1]<<12) | (in[0]<<2);
+							*(unsigned int*)out = (0x3u<<30) | (in[2]<<22) | (in[1]<<12) | (in[0]<<2);
 							out+=4;
 							in+=3;
 						}
@@ -6709,6 +6709,9 @@ static qboolean Brush_Deserialise(heightmap_t *hm, brushes_t *br, void *mem)
 		br->faces[i].stdir[1][1] = MSG_ReadFloat();
 		br->faces[i].stdir[1][2] = MSG_ReadFloat();
 		br->faces[i].stdir[1][3] = MSG_ReadFloat();
+
+		br->faces[i].surfaceflags = 0;	//used by q2
+		br->faces[i].surfacevalue = 0;	//used by q2 (generally light levels)
 	}
 	return true;
 }

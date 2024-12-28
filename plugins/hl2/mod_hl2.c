@@ -921,6 +921,7 @@ qboolean QDECL Mod_LoadHL2Model (model_t *mod, void *buffer, size_t fsize)
 	const char *vvdpostfixes[] = {
 		".vvd"
 	};
+	galiasinfo_t *galias;
 
 	for (i = 0; !vtx && i < countof(vtxpostfixes); i++)
 	{
@@ -1005,7 +1006,7 @@ qboolean QDECL Mod_LoadHL2Model (model_t *mod, void *buffer, size_t fsize)
 
 	VectorCopy(ctx.header->mins, mod->mins);
 	VectorCopy(ctx.header->maxs, mod->maxs);
-	galiasinfo_t *galias = (galiasinfo_t*)mod->meshinfo;
+	galias = (galiasinfo_t*)mod->meshinfo;
 	Mod_ParseModelEvents(mod, galias->ofsanimations, galias->numanimations);
 
 	mod->type = mod_alias;

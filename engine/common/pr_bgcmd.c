@@ -7250,7 +7250,7 @@ void QCBUILTIN PF_sprintf_internal (pubprogfuncs_t *prinst, struct globalvars_s 
 	formatbuf[0] = '%';
 
 #define GETARG_FLOAT(a) (((a)>=firstarg && (a)<prinst->callargc) ? (G_FLOAT(OFS_PARM0 + 3 * (a))) : 0)
-#define GETARG_DOUBLE(a) (((a)>=firstarg && (a)<prinst->callargc) ? (G_FLOAT(OFS_PARM0 + 3 * (a))) : 0)
+#define GETARG_DOUBLE(a) (((a)>=firstarg && (a)<prinst->callargc) ? (G_DOUBLE(OFS_PARM0 + 3 * (a))) : 0)
 #define GETARG_VECTOR(a) (((a)>=firstarg && (a)<prinst->callargc) ? (G_VECTOR(OFS_PARM0 + 3 * (a))) : dummyvec)
 #define GETARG_INT(a) (((a)>=firstarg && (a)<prinst->callargc) ? (G_INT(OFS_PARM0 + 3 * (a))) : 0)
 #define GETARG_INT64(a) (((a)>=firstarg && (a)<prinst->callargc) ? (G_INT64(OFS_PARM0 + 3 * (a))) : 0)

@@ -386,9 +386,9 @@ void(vector org, vector ang) editor_brushes_simpleclone =
 
 void() brushedit_subtract =
 {
-	int discard;
-	vector selnormals[tmp.faces.length];
-	float seldists[tmp.faces.length];
+	static int discard;
+	static vector selnormals[tmp.faces.length];
+	static float seldists[tmp.faces.length];
 	
 	for (int sb = 0; sb < selectedbrushcount; sb++)
 	{

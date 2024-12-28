@@ -838,8 +838,9 @@ restart:
 	*outbuf++ = 0;	//make sure its null terminated.
 	return ret;
 }
-void TL_FilterObsceneCCStringInplace(conchar_t *in, conchar_t *end)
+qboolean TL_FilterObsceneCCStringInplace(conchar_t *in, conchar_t *end)
 {	//FIXME: filters are meant to be utf-8, but our strings are not.
+	qboolean obscene = false;
 //	conchar_t *start = in;
 	conchar_t *next;
 	if (!filtermem)
@@ -885,8 +886,11 @@ restart:
 								if (*in & CON_LONGCHAR && !(*in & CON_RICHFORECOLOUR))
 									*in = CON_LONGCHAR;	//no other flags here.
 								else
+								{
 									//*in = "#@*$"[(in-start)&3] | CON_WHITEMASK;
 									*in	= 0x26a0 | CON_WHITEMASK | (*in&CON_HIDDEN);
+									obscene = true;
+								}
 								in++;
 							}
 							goto restart; //double breaks suck
@@ -904,4 +908,5 @@ restart:
 		}
 		in = next;
 	}
+	return obscene;
 }

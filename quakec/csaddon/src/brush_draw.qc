@@ -23,8 +23,8 @@ void(patchvert_t *cp, patchinfo_t info, vector col, float alpha) DrawQCPatchText
 void(int mod, int id, float alpha) DrawEngineBrushFaded =
 {	//draw one of the engine's brushes, but faded.
 	const vector col = '1 1 1';
-	int contents;
-	brushface_t faces[MAX_BRUSHFACES];
+	static int contents;
+	static brushface_t faces[MAX_BRUSHFACES];
 	int numfaces = brush_get(mod, id, &faces[0], faces.length, &contents);
 	if (!numfaces)	
 	{
@@ -32,7 +32,7 @@ void(int mod, int id, float alpha) DrawEngineBrushFaded =
 		if (numfaces)
 		{
 			patchvert_t *v = memalloc(sizeof(*v)*numfaces);
-			patchinfo_t patchinfo;
+			static patchinfo_t patchinfo;
 			patch_getmesh(mod, id, v, numfaces, &patchinfo);	//now we can actually get it
 			DrawQCPatchTextured(v, patchinfo, col, alpha);
 			memfree(v);

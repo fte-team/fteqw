@@ -465,6 +465,7 @@ static char *QuakeCharsToHTML(char *outhtml, size_t outsize, const char *quake, 
 	conchar_t chars[8192], *c=chars, *end;
 	unsigned int codeflags, codepoint, oldflags=CON_WHITEMASK;
 	unsigned int b;
+	qboolean obscene;
 
 	const char *htmlnames[16] = {
 		"#000000",	//black
@@ -489,7 +490,14 @@ static char *QuakeCharsToHTML(char *outhtml, size_t outsize, const char *quake, 
 		return NULL;	//no space for the null
 
 	end = COM_ParseFunString(oldflags, quake, chars, sizeof(chars), false);
-	TL_FilterObsceneCCStringInplace(chars, end);	//strip the swears without breaking cullers.
+	obscene = TL_FilterObsceneCCStringInplace(chars, end);	//strip the swears without breaking cullers.
+	if (obscene)
+	{
+		Q_snprintfz(outhtml, outsize, "<span title='The original string contained obscenities, which have been filtered out.'>");
+		b=strlen(outhtml);
+		outhtml += b;
+		outsize -= b;
+	}
 	while (c < end)
 	{
 		c = Font_Decode(c, &codeflags, &codepoint);
@@ -561,6 +569,13 @@ static char *QuakeCharsToHTML(char *outhtml, size_t outsize, const char *quake, 
 	if (oldflags != CON_WHITEMASK)
 	{
 		Q_strncpyz(outhtml, "</span>", outsize);
+		b=strlen(outhtml);
+		outhtml += b;
+		outsize -= b;
+	}
+	if (obscene)
+	{
+		Q_snprintfz(outhtml, outsize, "</span>");
 		b=strlen(outhtml);
 		outhtml += b;
 		outsize -= b;
@@ -654,21 +669,21 @@ vfsfile_t *SVM_Generate_Gamelist(const char **mimetype, const char *query)
 static void SVM_PrintServerPrefixes(vfsfile_t *stream, svm_server_t *server)
 {
 	if (server->secure)
-		VFS_PRINTF(stream,	"%s", "&#x1F6E1;");	//'shield'
+		VFS_PRINTF(stream,	"%s", "<span title='Supports encryption'>&#x1F6E1;</span>");	//'shield'
 	else
-		VFS_PRINTF(stream,	"%s", "&#x26A0;&#xFE0F;"); //(yellow) 'Warning'
+		VFS_PRINTF(stream,	"%s", "<span title='Does not support encryption'>&#x26A0;&#xFE0F;</span>"); //(yellow) 'Warning'
 	if (server->needpass&1)
-		VFS_PRINTF(stream,	"%s", "&#x1F512;");	//'Lock'
+		VFS_PRINTF(stream,	"%s", "<span title='Needs Password'>&#x1F512;</span>");	//'Lock'
 
 	if (server->stype&STYPE_COOP)
-		VFS_PRINTF(stream,	"%s", "&#x262E;");	//'Peace'
+		VFS_PRINTF(stream,	"%s", "<span title='Coop'>&#x262E;</span>");	//'Peace'
 	else if (server->stype&STYPE_QTV)
-		VFS_PRINTF(stream,	"%s", "&#x1F4FA;");	//'Television'
+		VFS_PRINTF(stream,	"%s", "<span title='QuakeTV'>&#x1F4FA;</span>");	//'Television'
 	else if (server->stype&STYPE_QWFWD)
-		VFS_PRINTF(stream,	"%s", "&#x1F6F0;");	//'Satellite'
+		VFS_PRINTF(stream,	"%s", "<span title='QWFwd'>&#x1F6F0;</span>");	//'Satellite'
 
 	if (server->stype&STYPE_NOMOUSE)
-		VFS_PRINTF(stream,	"%s", "&#x1F3AE;");	//'Video Game'(Controller)
+		VFS_PRINTF(stream,	"%s", "<span title='Controllers only'>&#x1F3AE;</span>");	//'Video Game'(Controller)
 }
 struct rulelist_s
 {

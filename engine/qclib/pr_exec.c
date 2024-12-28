@@ -1919,78 +1919,112 @@ typedef struct qcthread_s {
 	qcthreadstack_t fstack[MAX_STACK_DEPTH];
 	int lstackused;
 	int lstack[LOCALSTACK_SIZE];
-	int xstatement;
-	int xfunction;
-	progsnum_t xprogs;
 } qcthread_t;
 
 struct qcthread_s *PDECL PR_ForkStack(pubprogfuncs_t *ppf)
 {	//QC code can call builtins that call qc code.
 	//to get around the problems of restoring the builtins we simply don't save the thread over the builtin.
+	//this may be an error when OP_PUSH has been used.
+
 	progfuncs_t *progfuncs = (progfuncs_t*)ppf;
-	int i, l;
+	int i, pushed;
 	int ed = prinst.exitdepth;
 	int localsoffset, baselocalsoffset;
 	qcthread_t *thread = externs->memalloc(sizeof(qcthread_t));
 	const mfunction_t *f;
 
+	//notes:
+	//pr_stack[prinst.exitdepth] is a dummy entry, with null function refs. we don't care about it.
+	//pr_stack[pr_depth] is technically invalid but logically required - it refers to the current function instead. stoopid extra indirection.
+	//[pr_depth] is the qc function that called whichever builtin we're executing right now so we want that (logical) one. [0] is irrelevant though.
+	//entering a function copys its locals into the local stack for restoration on return, any OP_PUSHED stuff within the frame is then after that.
+	//OP_PUSH/'pushed' is the PARENT function's pushes. f->locals stuff is the CHILD function's pushes.
+
 	//copy out the functions stack.
-	for (i = 0,localsoffset=0; i < ed; i++)
+	for (i = 1,localsoffset=0; i <= ed; i++)
 	{
-		if (i+1 == prinst.pr_depth)
+		if (i == prinst.pr_depth)
+		{
+			localsoffset += prinst.spushed;
+
 			f = prinst.pr_xfunction;
+			localsoffset += f->locals;
+		}
 		else
-			f = prinst.pr_stack[i+1].f;
-		localsoffset += f->locals;	//this is where it crashes
+		{
+			localsoffset += prinst.pr_stack[i].pushed;
+
+			f = prinst.pr_stack[i].f;
+			if (f)
+				localsoffset += f->locals;
+		}
 	}
+	//now we can start copying the stack.
 	baselocalsoffset = localsoffset;
-	for (i = ed; i < prinst.pr_depth; i++)
+	thread->fstackdepth = 0;
+	for (; i <= prinst.pr_depth; i++)
 	{
-		thread->fstack[i-ed].fnum = prinst.pr_stack[i].f - pr_progstate[prinst.pr_stack[i].progsnum].functions;
-		thread->fstack[i-ed].progsnum = prinst.pr_stack[i].progsnum;
-		thread->fstack[i-ed].statement = prinst.pr_stack[i].s;
-		thread->fstack[i-ed].spushed = prinst.pr_stack[i].pushed;
+		if (i == prinst.pr_depth)
+		{	//top of the stack. whichever function called the builtin we're executing.
+			thread->fstack[thread->fstackdepth].fnum = prinst.pr_xfunction - current_progstate->functions;
+			thread->fstack[thread->fstackdepth].progsnum = prinst.pr_typecurrent;
+			thread->fstack[thread->fstackdepth].statement = prinst.pr_xstatement;
+			thread->fstack[thread->fstackdepth].spushed = prinst.spushed;
+			thread->fstackdepth++;
 
-		if (i+1 == prinst.pr_depth)
+			localsoffset += prinst.spushed;
 			f = prinst.pr_xfunction;
+			localsoffset += f->locals;
+		}
 		else
-			f = prinst.pr_stack[i+1].f;
-		localsoffset += f->locals;
+		{
+			thread->fstack[thread->fstackdepth].fnum = prinst.pr_stack[i].f - pr_progstate[prinst.pr_stack[i].progsnum].functions;
+			thread->fstack[thread->fstackdepth].progsnum = prinst.pr_stack[i].progsnum;
+			thread->fstack[thread->fstackdepth].statement = prinst.pr_stack[i].s;
+			thread->fstack[thread->fstackdepth].spushed = prinst.pr_stack[i].pushed;
+			thread->fstackdepth++;
+
+			localsoffset += prinst.pr_stack[i].pushed;
+			f = prinst.pr_stack[i].f;
+			localsoffset += f->locals;
+		}
 	}
-	thread->fstackdepth = prinst.pr_depth - ed;
 
-	for (i = prinst.pr_depth - 1; i >= ed ; i--)
+	//we now know how many locals we need... but life is not easy.
+	//preserving on entry means the definitive location is the pr_globals - and they'll have been 'corrupted' by any child functions.
+	//so we need to unwind(rewind) them here to find their proper 'current' values, so that resumption can rebuild the execution stack on resume to revert them properly to their prior values. messy.
+	for (i = prinst.pr_depth; i > ed ; i--)
 	{
-		if (i+1 == prinst.pr_depth)
-			f = prinst.pr_xfunction;
+		if (i == prinst.pr_depth)
+			f = prinst.pr_xfunction,	pushed = prinst.spushed;
 		else
-			f = prinst.pr_stack[i+1].f;
+			f = prinst.pr_stack[i].f,	pushed = prinst.pr_stack[i].pushed;
+
+		//preseve any OP_PUSH stuff
+		localsoffset -= pushed;
+		memcpy(&thread->lstack[localsoffset-baselocalsoffset],  prinst.localstack+localsoffset, pushed*sizeof(int));
+
+		//preserve the current locals
 		localsoffset -= f->locals;
-		for (l = 0; l < f->locals; l++)
-		{
-			thread->lstack[localsoffset-baselocalsoffset + l ] = ((int *)pr_globals)[f->parm_start + l];
-			((int *)pr_globals)[f->parm_start + l] = prinst.localstack[localsoffset+l];	//copy the old value into the globals (so the older functions have the correct locals.
-		}
+		memcpy(&thread->lstack[localsoffset-baselocalsoffset], ((int *)pr_globals)+f->parm_start, f->locals*sizeof(int));
+		//unwind the locals so parent functions we preserve have the proper current values.
+		memcpy(((int *)pr_globals)+f->parm_start, prinst.localstack+localsoffset, f->locals*sizeof(int));
 	}
 
-	for (i = ed; i < prinst.pr_depth ; i++)	//we need to get the locals back to how they were.
+	//rewind the locals so they don't get corrupt when returning from fork etc.
+	for (i = ed+1; i <= prinst.pr_depth ; i++)	//we need to get the locals back to how they were.
 	{
-		if (i+1 == prinst.pr_depth)
-			f = prinst.pr_xfunction;
+		if (i == prinst.pr_depth)
+			f = prinst.pr_xfunction,	pushed = prinst.spushed;
 		else
-			f = prinst.pr_stack[i+1].f;
+			f = prinst.pr_stack[i].f,	pushed = prinst.pr_stack[i].pushed;
 
-		for (l = 0; l < f->locals; l++)
-		{
-			((int *)pr_globals)[f->parm_start + l] = thread->lstack[localsoffset-baselocalsoffset + l];
-		}
+		memcpy(((int *)pr_globals)+f->parm_start, &thread->lstack[localsoffset-baselocalsoffset], f->locals*sizeof(int));
 		localsoffset += f->locals;
+
+		localsoffset += pushed;	//we didn't need to clobber this, just skip it to avoid corrupting.
 	}
 	thread->lstackused = localsoffset - baselocalsoffset;
-
-	thread->xstatement = prinst.pr_xstatement;
-	thread->xfunction = prinst.pr_xfunction - current_progstate->functions;
-	thread->xprogs = prinst.pr_typecurrent;
 
 	return thread;
 }
@@ -1998,19 +2032,16 @@ struct qcthread_s *PDECL PR_ForkStack(pubprogfuncs_t *ppf)
 void PDECL PR_ResumeThread (pubprogfuncs_t *ppf, struct qcthread_s *thread)
 {
 	progfuncs_t *progfuncs = (progfuncs_t*)ppf;
-	mfunction_t	*f, *oldf;
-	int		i,l,ls, olds, oldp;
-	progsnum_t initial_progs;
+	mfunction_t	*f;
+	int		i;
+	progsnum_t initial_progs = prinst.pr_typecurrent;
+	unsigned int initial_stack;
 	int		oldexitdepth;
 	int		*glob;
 
-	int s;
 #ifndef QCGC
 	int tempdepth;
 #endif
-
-	progsnum_t prnum = thread->xprogs;
-	int fnum = thread->xfunction;
 
 	if (prinst.localstack_used + thread->lstackused > LOCALSTACK_SIZE)
 		PR_RunError(&progfuncs->funcs, "Too many locals on resumtion of QC thread\n");
@@ -2020,79 +2051,48 @@ void PDECL PR_ResumeThread (pubprogfuncs_t *ppf, struct qcthread_s *thread)
 
 
 	//do progs switching stuff as appropriate. (fteqw only)
-	initial_progs = prinst.pr_typecurrent;
-	PR_SwitchProgsParms(progfuncs, prnum);
-
 
 	oldexitdepth = prinst.exitdepth;
 	prinst.exitdepth = prinst.pr_depth;
 
-	ls = 0;
+	initial_stack = prinst.localstack_used;
 	//add on the callstack.
 	for (i = 0; i < thread->fstackdepth; i++)
 	{
-		if (prinst.pr_depth == prinst.exitdepth)
-		{
-			prinst.pr_stack[prinst.pr_depth].f = prinst.pr_xfunction;
-			prinst.pr_stack[prinst.pr_depth].s = prinst.pr_xstatement;
-			prinst.pr_stack[prinst.pr_depth].progsnum = initial_progs;
-			prinst.pr_stack[prinst.pr_depth].pushed = prinst.spushed;
-		}
-		else
-		{
-			prinst.pr_stack[prinst.pr_depth].progsnum = thread->fstack[i].progsnum;
-			prinst.pr_stack[prinst.pr_depth].f = pr_progstate[thread->fstack[i].progsnum].functions + thread->fstack[i].fnum;
-			prinst.pr_stack[prinst.pr_depth].s = thread->fstack[i].statement;
-			prinst.pr_stack[prinst.pr_depth].pushed = thread->fstack[i].spushed;
-		}
-
-		if (i+1 == thread->fstackdepth)
-		{
-			f = &pr_cp_functions[fnum];
-			glob = (int*)pr_globals;
-		}
-		else
-		{
-			f = pr_progstate[thread->fstack[i+1].progsnum].functions + thread->fstack[i+1].fnum;
-			glob = (int*)pr_progstate[thread->fstack[i+1].progsnum].globals;
-		}
-		for (l = 0; l < f->locals; l++)
-		{
-			prinst.localstack[prinst.localstack_used++] = glob[f->parm_start + l];
-			glob[f->parm_start + l] = thread->lstack[ls++];
-		}
-
+		//make the new stack frame from the working values so stuff gets restored properly...
+		prinst.pr_stack[prinst.pr_depth].f = prinst.pr_xfunction;
+		prinst.pr_stack[prinst.pr_depth].s = prinst.pr_xstatement;
+		prinst.pr_stack[prinst.pr_depth].progsnum = initial_progs;
+		prinst.pr_stack[prinst.pr_depth].pushed = prinst.spushed;
 		prinst.pr_depth++;
+
+		//restore the OP_PUSH data
+		memcpy(&prinst.localstack[prinst.localstack_used], &thread->lstack[prinst.localstack_used-initial_stack], prinst.spushed*sizeof(int));
+		prinst.localstack_used += prinst.spushed;
+
+		//and refill the working values from the inbound stack
+		PR_SwitchProgs(progfuncs, thread->fstack[i].progsnum);
+		prinst.pr_xfunction = pr_progstate[thread->fstack[i].progsnum].functions + thread->fstack[i].fnum;
+		prinst.pr_xstatement = thread->fstack[i].statement;
+		prinst.spushed = thread->fstack[i].spushed;
+
+		f = pr_progstate[thread->fstack[i].progsnum].functions + thread->fstack[i].fnum;
+		glob = (int*)pr_progstate[thread->fstack[i].progsnum].globals;
+
+		//copy the 'new' function's current globals into the local stack for restoration
+		memcpy(&prinst.localstack[prinst.localstack_used], &glob[f->parm_start], sizeof(int)*f->locals);
+		//and overwrite them with the saved values.
+		memcpy(&glob[f->parm_start], &thread->lstack[prinst.localstack_used-initial_stack], sizeof(int)*f->locals);
+		prinst.localstack_used += f->locals;
 	}
 
-	if (ls != thread->lstackused)
+	if (prinst.localstack_used-initial_stack != thread->lstackused)
 		PR_RunError(&progfuncs->funcs, "Thread stores incorrect locals count\n");
-
-
-	f = &pr_cp_functions[fnum];
-
-//	thread->lstackused -= f->locals;	//the current function is the odd one out.
-
-	//add on the locals stack
-//	memcpy(prinst.localstack+prinst.localstack_used, thread->lstack, sizeof(int)*thread->lstackused);
-//	prinst.localstack_used += thread->lstackused;
-
-	//bung the locals of the current function on the stack.
-//	for (i=0 ; i < f->locals ; i++)
-//		((int *)pr_globals)[f->parm_start + i] = 0xff00ff00;//thread->lstack[thread->lstackused+i];
-
-
-//	PR_EnterFunction (progfuncs, f, initial_progs);
-	oldf = prinst.pr_xfunction;
-	olds = prinst.pr_xstatement;
-	oldp = prinst.spushed;
-	prinst.pr_xfunction = f;
-	s = thread->xstatement;
 
 #ifndef QCGC
 	tempdepth = prinst.numtempstringsstack;
 #endif
-	PR_ExecuteCode(progfuncs, s);
+	PR_ExecuteCode(progfuncs, prinst.pr_xstatement);
 
 
 	PR_SwitchProgsParms(progfuncs, initial_progs);
@@ -2102,9 +2102,6 @@ void PDECL PR_ResumeThread (pubprogfuncs_t *ppf, struct qcthread_s *thread)
 #endif
 
 	prinst.exitdepth = oldexitdepth;
-	prinst.pr_xfunction = oldf;
-	prinst.pr_xstatement = olds;
-	prinst.spushed = oldp;
 }
 
 void	PDECL PR_AbortStack			(pubprogfuncs_t *ppf)

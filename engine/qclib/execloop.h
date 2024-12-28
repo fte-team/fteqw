@@ -1673,7 +1673,7 @@ reeval:
 		break;
 	case OP_PUSH:	//note: OPA is words, not bytes.
 		OPC->_int = ENGINEPOINTER(&prinst.localstack[prinst.localstack_used+prinst.spushed]);
-		prinst.spushed += OPA->_int;
+		prinst.spushed += OPA->_uint;
 		if (prinst.spushed + prinst.localstack_used >= LOCALSTACK_SIZE)
 		{
 			i = prinst.spushed;
@@ -1683,7 +1683,7 @@ reeval:
 		}
 		break;
 /*	case OP_POP:
-		pr_spushed -= OPA->_int;
+		pr_spushed -= OPA->_uint;
 		if (pr_spushed < 0)
 		{
 			pr_spushed = 0;

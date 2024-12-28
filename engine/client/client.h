@@ -533,7 +533,13 @@ typedef struct
 		#define EZTV_SETINFO		(1u<<1)	//proxy wants setinfo + ptrack commands
 		#define EZTV_QTVUSERLIST	(1u<<2)	//'//qul cmd id [name]' commands from proxy.
 	qboolean	demohadkeyframe;	//q2 needs to wait for a packet with a key frame, supposedly.
-	qboolean	demoseeking;
+	enum
+	{
+		DEMOSEEK_NOT,
+		DEMOSEEK_TIME,	//stops one we reach demoseektime
+		DEMOSEEK_MARK,	//stops once we reach a '//demomark'
+		DEMOSEEK_INTERMISSION,	//stops once we reach an svc_intermission
+	} demoseeking;
 	float		demoseektime;
 	int			demotrack;
 	qboolean	timedemo;

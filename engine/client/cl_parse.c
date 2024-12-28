@@ -7312,6 +7312,11 @@ static void CL_ParseStuffCmd(char *msg, int destsplit)	//this protects stuffcmds
 			Plug_Command_f();
 		}
 #endif
+		else if (!strncmp(stufftext, "//demomark", 10) && (stufftext[10]==0||stufftext[10]==' ') && cls.demoseeking == DEMOSEEK_MARK)
+		{	//found the next marker. we're done seeking.
+			cls.demoseeking = DEMOSEEK_NOT;
+			//FIXME: pause it.
+		}
 		else
 		{
 			if (!strncmp(stufftext, "cmd ", 4))
@@ -8067,6 +8072,12 @@ void CLQW_ParseServerMessage (void)
 				cl.playerview[destsplit].simorg[i] = MSG_ReadCoord ();
 			for (i=0 ; i<3 ; i++)
 				cl.playerview[destsplit].intermissionangles[i] = MSG_ReadAngle ();
+
+			if (cls.demoseeking == DEMOSEEK_INTERMISSION)
+			{
+				cls.demoseeking = DEMOSEEK_NOT; //reached it.
+				//FIXME: pause it.
+			}
 			break;
 
 		case svc_finale:
@@ -9869,6 +9880,12 @@ void CLNQ_ParseServerMessage (void)
 				cl.completed_time = cl.gametime;
 			}
 			cl.intermissionmode = IM_NQSCORES;
+
+			if (cls.demoseeking == DEMOSEEK_INTERMISSION)
+			{
+				cls.demoseeking = DEMOSEEK_NOT; //reached it.
+				//FIXME: pause it.
+			}
 			break;
 
 		case svc_finale:

@@ -76,7 +76,7 @@ void CL_StopPlayback (void)
 	cls.demoinfile = NULL;
 	cls.state = ca_disconnected;
 	cls.demoplayback = DPB_NONE;
-	cls.demoseeking = false;	//just in case
+	cls.demoseeking = DEMOSEEK_NOT;	//just in case
 	cls.demotrack = -1;
 	cls.demoeztv_ext = 0;
 
@@ -393,7 +393,7 @@ void CL_ProgressDemoTime(void)
 void CL_DemoJump_f(void)
 {
 	float newtime;
-	char *s = Cmd_Argv(1);
+	char *s = (!strncmp(Cmd_Argv(0), "demo_jump_", 10))?Cmd_Argv(0)+10:Cmd_Argv(1);
 	char *colon = strchr(s, ':');
 
 	if (!cls.demoplayback)
@@ -412,6 +412,17 @@ void CL_DemoJump_f(void)
 	{
 		Con_Printf("unable to seak in qtv streams.\n");
 		return;	//can't seek live streams...
+	}
+
+	if (!strcmp(s, "intermission") || !strcmp(s, "end"))
+	{	//seeks until we see an svc_intermission
+		cls.demoseeking = DEMOSEEK_INTERMISSION;
+		return;
+	}
+	if (!strcmp(s, "mark"))
+	{	//seeks until we see an svc_stufftext `//demomark`
+		cls.demoseeking = DEMOSEEK_MARK;
+		return;
 	}
 
 	if (*s == '+' || *s == '-')
@@ -457,7 +468,7 @@ void CL_DemoJump_f(void)
 		//now fastparse it.
 		cls.demoseektime = newtime;
 	}
-	cls.demoseeking = true;
+	cls.demoseeking = DEMOSEEK_TIME;
 }
 
 void CL_DemoNudge_f(void)
@@ -610,11 +621,11 @@ qboolean CL_GetDemoMessage (void)
 				return 0;
 			}*/
 			cls.netchan.last_received = realtime;
-			if (cls.demoseeking)
+			if (cls.demoseeking == DEMOSEEK_TIME)
 			{
 				if (cl.gametime > cls.demoseektime)
 				{
-					cls.demoseeking = false;
+					cls.demoseeking = DEMOSEEK_NOT;
 					return 0;
 				}
 			}
@@ -731,11 +742,11 @@ readnext:
 
 
 // decide if it is time to grab the next message
-	if (cls.demoseeking)
+	if (cls.demoseeking != DEMOSEEK_NOT)
 	{
 		demtime = demotime;	//warp
-		if (demtime >= cls.demoseektime)
-			cls.demoseeking = false;
+		if (cls.demoseeking == DEMOSEEK_TIME && demtime >= cls.demoseektime)
+			cls.demoseeking = DEMOSEEK_NOT;
 	}
 	else if (cls.timedemo)
 	{

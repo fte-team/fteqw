@@ -1415,6 +1415,8 @@ const struct sh_defaultsamplers_s sh_defaultsamplers[] =
 	{"s_reflectmask",	1u<<S_REFLECTMASK},
 	{"s_displacement",	1u<<S_DISPLACEMENT},
 	{"s_occlusion",		1u<<S_OCCLUSION},
+	{"s_transmission",	1u<<S_TRANSMISSION},
+	{"s_thickness",		1u<<S_THICKNESS},
 	{"s_lightmap",		1u<<S_LIGHTMAP0},
 	{"s_deluxemap",		1u<<S_DELUXEMAP0},
 #if MAXRLIGHTMAPS > 1
@@ -2627,7 +2629,7 @@ static void Shader_ReflectCube(parsestate_t *ps, const char **ptr)
 static void Shader_ReflectMask(parsestate_t *ps, const char **ptr)
 {
 	char *token = Shader_ParseSensString(ptr);
-	unsigned int flags = Shader_SetImageFlags (ps, ps->pass, &token, 0);
+	unsigned int flags = Shader_SetImageFlags (ps, ps->pass, &token, IF_NOSRGB);
 	ps->s->defaulttextures->reflectmask = Shader_FindImage(ps, token, flags);
 }
 
@@ -2674,6 +2676,18 @@ static void Shader_DisplacementMap(parsestate_t *ps, const char **ptr)
 	char *token = Shader_ParseSensString(ptr);
 	unsigned int flags = Shader_SetImageFlags (ps, ps->pass, &token, IF_NOSRGB);
 	ps->s->defaulttextures->displacement = Shader_FindImage(ps, token, flags);
+}
+static void Shader_TransmissionMap(parsestate_t *ps, const char **ptr)
+{
+	char *token = Shader_ParseSensString(ptr);
+	unsigned int flags = Shader_SetImageFlags (ps, ps->pass, &token, IF_NOSRGB);
+	ps->s->defaulttextures->transmission = Shader_FindImage(ps, token, flags);
+}
+static void Shader_ThicknessMap(parsestate_t *ps, const char **ptr)
+{
+	char *token = Shader_ParseSensString(ptr);
+	unsigned int flags = Shader_SetImageFlags (ps, ps->pass, &token, IF_NOSRGB);
+	ps->s->defaulttextures->thickness = Shader_FindImage(ps, token, flags);
 }
 
 static void Shaderpass_QF_Material(parsestate_t *ps, const char **ptr)
@@ -2835,6 +2849,23 @@ static void Shader_FactorEmit(parsestate_t *ps, const char **ptr)
 	shader->factors[MATERIAL_FACTOR_EMIT][2] = Shader_ParseFloat(shader, ptr, 1);
 	shader->factors[MATERIAL_FACTOR_EMIT][3] = Shader_ParseFloat(shader, ptr, 1);
 }
+static void Shader_FactorTransmission(parsestate_t *ps, const char **ptr)
+{
+	shader_t *shader = ps->s;
+	shader->factors[MATERIAL_FACTOR_TRANSMISSION][0] = Shader_ParseFloat(shader, ptr, 1);
+//	shader->factors[MATERIAL_FACTOR_TRANSMISSION][1] = the volume distance;
+	shader->factors[MATERIAL_FACTOR_TRANSMISSION][2] = 0;
+	shader->factors[MATERIAL_FACTOR_TRANSMISSION][3] = 0;
+}
+static void Shader_FactorVolume(parsestate_t *ps, const char **ptr)
+{
+	shader_t *shader = ps->s;
+	shader->factors[MATERIAL_FACTOR_VOLUME][0] = Shader_ParseFloat(shader, ptr, 1);	//r
+	shader->factors[MATERIAL_FACTOR_VOLUME][1] = Shader_ParseFloat(shader, ptr, 1);	//g
+	shader->factors[MATERIAL_FACTOR_VOLUME][2] = Shader_ParseFloat(shader, ptr, 1);	//b
+	shader->factors[MATERIAL_FACTOR_VOLUME][3] = Shader_ParseFloat(shader, ptr, 1);	//factor
+	shader->factors[MATERIAL_FACTOR_TRANSMISSION][1] = Shader_ParseFloat(shader, ptr, 1);	//distance
+}
 
 static void Shader_BEMode(parsestate_t *ps, const char **ptr)
 {
@@ -2965,11 +2996,15 @@ static shaderkey_t shaderkeys[] =
 	{"lowermap",			Shader_LowerMap,			"fte"},
 	{"reflectmask",			Shader_ReflectMask,			"fte"},
 	{"displacementmap",		Shader_DisplacementMap,		"fte"},
+	{"transmissionmap",		Shader_TransmissionMap,		"fte"},
+	{"thicknessmap",		Shader_ThicknessMap,		"fte"},
 
 	{"portalfboscale",		Shader_PortalFBOScale,		"fte"},	//portal/mirror/refraction/reflection FBOs are resized by this scale
 	{"basefactor",			Shader_FactorBase,			"fte"},	//material scalers for glsl
 	{"specularfactor",		Shader_FactorSpec,			"fte"},	//material scalers for glsl
 	{"fullbrightfactor",	Shader_FactorEmit,			"fte"},	//material scalers for glsl
+	{"fte_transmissionfactor",Shader_FactorTransmission,"fte"},	//material scalers for glsl
+	{"fte_volumefactor",	Shader_FactorVolume,		"fte"},	//material scalers for glsl
 
 	//TODO: PBR textures...
 //	{"albedomap",			Shader_DiffuseMap,			"fte"},	//rgb(a)
@@ -4775,16 +4810,18 @@ static void Shader_FixupProgPasses(parsestate_t *ps, shaderpass_t *pass)
 		{T_GEN_REFLECTMASK,		0},						//10
 		{T_GEN_DISPLACEMENT,	SHADER_HASDISPLACEMENT},//11
 		{T_GEN_OCCLUSION,		0},						//12
+		{T_GEN_TRANSMISSION,	0},						//13
+		{T_GEN_THICKNESS,		0},						//14
 //			{T_GEN_REFLECTION,		SHADER_HASREFLECT},		//
 //			{T_GEN_REFRACTION,		SHADER_HASREFRACT},		//
 //			{T_GEN_REFRACTIONDEPTH,	SHADER_HASREFRACTDEPTH},//
 //			{T_GEN_RIPPLEMAP,		SHADER_HASRIPPLEMAP},	//
 
 		//batch
-		{T_GEN_LIGHTMAP,		SHADER_HASLIGHTMAP},	//13
-		{T_GEN_DELUXMAP,		0},						//14
-		//more lightmaps								//15,16,17
-		//mode deluxemaps								//18,19,20
+		{T_GEN_LIGHTMAP,		SHADER_HASLIGHTMAP},	//15
+		{T_GEN_DELUXMAP,		0},						//16
+		//more lightmaps								//17,18,19
+		//mode deluxemaps								//20,21,22
 	};
 
 #ifdef HAVE_MEDIA_DECODER
@@ -5976,16 +6013,18 @@ done:;
 			{T_GEN_REFLECTMASK,		0},						//10
 			{T_GEN_DISPLACEMENT,	SHADER_HASDISPLACEMENT},//11
 			{T_GEN_OCCLUSION,		0},						//12
+			{T_GEN_TRANSMISSION,	0},						//13
+			{T_GEN_THICKNESS,		0},						//14
 //			{T_GEN_REFLECTION,		SHADER_HASREFLECT},		//
 //			{T_GEN_REFRACTION,		SHADER_HASREFRACT},		//
 //			{T_GEN_REFRACTIONDEPTH,	SHADER_HASREFRACTDEPTH},//
 //			{T_GEN_RIPPLEMAP,		SHADER_HASRIPPLEMAP},	//
 
 			//batch
-			{T_GEN_LIGHTMAP,		SHADER_HASLIGHTMAP},	//13
-			{T_GEN_DELUXMAP,		0},						//14
-			//more lightmaps								//15,16,17
-			//mode deluxemaps								//18,19,20
+			{T_GEN_LIGHTMAP,		SHADER_HASLIGHTMAP},	//15
+			{T_GEN_DELUXMAP,		0},						//16
+			//more lightmaps								//17,18,19
+			//mode deluxemaps								//20,21,22
 		};
 
 #ifdef HAVE_MEDIA_DECODER
@@ -8086,6 +8125,8 @@ static char *Shader_DecomposeSubPass(char *o, shader_t *s, shaderpass_t *p, qboo
 	case T_GEN_REFLECTMASK:		Shader_DecomposeSubPassMap(o, s, "map $reflectmask", s->defaulttextures[0].reflectmask); break;
 	case T_GEN_DISPLACEMENT:	Shader_DecomposeSubPassMap(o, s, "map $displacement", s->defaulttextures[0].displacement); break;
 	case T_GEN_OCCLUSION:		Shader_DecomposeSubPassMap(o, s, "map $occlusion", s->defaulttextures[0].occlusion); break;
+	case T_GEN_TRANSMISSION:	Shader_DecomposeSubPassMap(o, s, "map $transmission", s->defaulttextures[0].transmission); break;
+	case T_GEN_THICKNESS:		Shader_DecomposeSubPassMap(o, s, "map $thickness", s->defaulttextures[0].thickness); break;
 	case T_GEN_CURRENTRENDER:	sprintf(o, "map $currentrender "); break;
 	case T_GEN_SOURCECOLOUR:	sprintf(o, "map $sourcecolour"); break;
 	case T_GEN_SOURCEDEPTH:		sprintf(o, "map $sourcedepth"); break;

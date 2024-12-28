@@ -1533,12 +1533,29 @@ static void GLTF_LoadMaterial(gltf_t *gltf, json_t *materialid, galiasskin_t *re
 	const char *t;
 
 	json_t *nam, *unlit, *pbrsg, *pbrmr, *blinn;
+	json_t *transmission, *volume;
 
 	nam = JSON_FindChild(mat, "name");
 	unlit = JSON_FindChild(mat, "extensions.KHR_materials_unlit");
 	pbrsg = JSON_FindChild(mat, "extensions.KHR_materials_pbrSpecularGlossiness");
 	pbrmr = JSON_FindChild(mat, "pbrMetallicRoughness");
 	blinn = JSON_FindChild(mat, "extensions.KHR_materials_cmnBlinnPhong");
+
+	transmission = JSON_FindChild(mat, "extensions.KHR_materials_transmission");
+	volume = JSON_FindChild(mat, "extensions.KHR_materials_volume");
+
+	if (volume && !transmission)
+	{
+		if (gltf->warnlimit --> 0)
+			Con_Printf(CON_WARNING"%s: KHR_materials_volume without KHR_materials_transmission\n", gltf->mod->name);
+		volume = NULL;
+	}
+	if (transmission && (unlit || pbrsg || blinn) && !pbrmr)
+	{
+		if (gltf->warnlimit --> 0)
+			Con_Printf(CON_WARNING"%s: KHR_materials_transmission without pbrMetallicRoughness\n", gltf->mod->name);
+		transmission = volume = NULL;
+	}
 
 	doubleSided = JSON_GetInteger(mat, "doubleSided", false);
 	alphaCutoff = JSON_GetFloat(mat, "alphaCutoff", 0.5);
@@ -1757,10 +1774,30 @@ static void GLTF_LoadMaterial(gltf_t *gltf, json_t *materialid, galiasskin_t *re
 		else	//else depend upon specularfactor
 			ret->frame->texnums.specular = modfuncs->GetTexture("$whiteimage", NULL, IF_NOMIPMAP|IF_NOPICMIP|IF_NEAREST|IF_NOGAMMA, NULL, NULL, 0, 0, TF_INVALID);
 
+		if (transmission)
+		{
+			n = JSON_FindChild(transmission, "transmissionTexture.index");	//.r = factor
+			if (n)
+				ret->frame->texnums.transmission = GLTF_LoadTexture(gltf, n, IF_NOSRGB);
+			else
+				ret->frame->texnums.transmission = modfuncs->GetTexture("$whiteimage", NULL, IF_NOMIPMAP|IF_NOPICMIP|IF_NEAREST|IF_NOGAMMA, NULL, NULL, 0, 0, TF_INVALID);
+
+			if (volume)
+			{
+				n = JSON_FindChild(volume, "thicknessTexture.index");	//.g = thicknessFactor
+				if (n)
+					ret->frame->texnums.transmission = GLTF_LoadTexture(gltf, n, IF_NOSRGB);
+				else
+					ret->frame->texnums.transmission = modfuncs->GetTexture("$whiteimage", NULL, IF_NOMIPMAP|IF_NOPICMIP|IF_NEAREST|IF_NOGAMMA, NULL, NULL, 0, 0, TF_INVALID);
+			}
+		}
+#ifndef INFINITY	//C99.
+#define INFINITY (1.0/0.0)
+#endif
 		Q_snprintf(shader, sizeof(shader),
 			"{\n"
 				"%s"//cull
-				"program defaultskin" "#ORM" "#VC" "#IOR=%.02f" "%s"/*occlude*/ "%s"/*alphatest*/ "\n"
+				"program defaultskin" "#ORM" "#VC" "#IOR=%.02f" "%s"/*occlude*/ "%s"/*transmission*/ "%s"/*volume*/ "%s"/*alphatest*/ "\n"
 				"{\n"
 					"map $diffuse\n"
 					"%s"	//blend
@@ -1769,11 +1806,16 @@ static void GLTF_LoadMaterial(gltf_t *gltf, json_t *materialid, galiasskin_t *re
 				"fte_basefactor %f %f %f %f\n"
 				"fte_specularfactor %f %f %f 1.0\n"
 				"fte_fullbrightfactor %f %f %f 1.0\n"
+				"fte_transmissionfactor %f\n"
+				"fte_volumefactor %f %f %f %f %f\n"
+
 				"bemode rtlight rtlight_orm\n"
 			"}\n",
 			doubleSided?"cull disable\n":"",
 			ior,
 			(!occ)?"#NOOCCLUDE":(strcmp(occname,mrtname)?"#OCCLUDE":""),
+			(transmission?"#USE_TRANSMISSION":""),
+			(volume?"#USE_VOLUME":""),
 			alphaCutoffmodifier,
 			(alphaMode==1)?"":(alphaMode==2)?"blendfunc blend\n":"",
 			vertexcolours?"rgbgen vertex\nalphagen vertex\n":"",
@@ -1786,7 +1828,13 @@ static void GLTF_LoadMaterial(gltf_t *gltf, json_t *materialid, galiasskin_t *re
 				JSON_GetFloat(pbrmr, "roughnessFactor", 1),
 			JSON_GetFloat(mat, "emissiveFactor.0", 0),
 				JSON_GetFloat(mat, "emissiveFactor.1", 0),
-				JSON_GetFloat(mat, "emissiveFactor.2", 0)
+				JSON_GetFloat(mat, "emissiveFactor.2", 0),
+			JSON_GetFloat(transmission, "transmissionFactor", 0),
+			JSON_GetFloat(volume, "attenuationColor.0", 1),
+				JSON_GetFloat(volume, "attenuationColor.1", 1),
+				JSON_GetFloat(volume, "attenuationColor.2", 1),
+				JSON_GetFloat(volume, "thicknessFactor", 0),
+				JSON_GetFloat(volume, "attenuationDistance", INFINITY)
 			);
 	}
 	if (!ret->frame->texnums.bump)
@@ -2970,14 +3018,18 @@ static qboolean GLTF_LoadModel(struct model_s *mod, char *json, size_t jsonsize,
 		{"KHR_materials_variants",					true,	false},
 		{"KHR_materials_ior",						true,	false},
 
+		{"KHR_materials_transmission",				true,	true},	//FIXME: requires glsl tweaks.
+		{"KHR_materials_volume",					true,	true},	//FOXME: requires glsl tweaks.
+
 #ifdef HAVE_DRACO
 		{"KHR_draco_mesh_compression",				true,	false},	//probably fatal
 #else
 		{"KHR_draco_mesh_compression",				false,	false},	//probably fatal
 #endif
-		{"KHR_texture_transform",					false,	false},	//requires glsl tweaks, per texmap. can't use tcmod if its only on the bumpmap etc.
-		{"KHR_materials_sheen",						false,	false},	//requires glsl tweaks, extra brdf layer in the middle for velvet.
-		{"KHR_materials_clearcoat",					false,	false},	//requires glsl tweaks, extra brdf layer over the top for varnish etc.
+		{"KHR_texture_transform",					false,	true},	//requires glsl tweaks, per texmap. can't use tcmod if its only on the bumpmap etc.
+		{"KHR_materials_sheen",						false,	true},	//requires glsl tweaks, extra brdf layer in the middle for velvet.
+		{"KHR_materials_clearcoat",					false,	true},	//requires glsl tweaks, extra brdf layer over the top for varnish etc.
+
 		{NULL}
 	}, *extensions;
 	gltf_t gltf;

@@ -1588,10 +1588,14 @@ static texid_t SelectPassTexture(const shaderpass_t *pass)
 			return r_blackcubeimage;	//FIXME
 	case T_GEN_REFLECTMASK:
 		return shaderstate.curtexnums->reflectmask;
-	case T_GEN_OCCLUSION:
-		return shaderstate.curtexnums->occlusion;
 	case T_GEN_DISPLACEMENT:
 		return shaderstate.curtexnums->displacement;
+	case T_GEN_OCCLUSION:
+		return shaderstate.curtexnums->occlusion;
+	case T_GEN_TRANSMISSION:
+		return shaderstate.curtexnums->transmission;
+	case T_GEN_THICKNESS:
+		return shaderstate.curtexnums->thickness;
 
 	case T_GEN_ANIMMAP:
 		return pass->anim_frames[(int)(pass->anim_fps * shaderstate.curtime) % pass->anim_numframes];
@@ -3172,6 +3176,10 @@ static qboolean BE_SetupMeshProgram(program_t *p, shaderpass_t *pass, unsigned i
 			BE_SetupTextureDescriptor(shaderstate.curtexnums->displacement, r_whiteimage, set, descs, desc++, img++);
 		if (p->defaulttextures & (1u<<S_OCCLUSION))
 			BE_SetupTextureDescriptor(shaderstate.curtexnums->occlusion, r_whiteimage, set, descs, desc++, img++);
+		if (p->defaulttextures & (1u<<S_TRANSMISSION))
+			BE_SetupTextureDescriptor(shaderstate.curtexnums->transmission, r_whiteimage, set, descs, desc++, img++);
+		if (p->defaulttextures & (1u<<S_THICKNESS))
+			BE_SetupTextureDescriptor(shaderstate.curtexnums->thickness, r_whiteimage, set, descs, desc++, img++);
 
 		//batch
 		if (p->defaulttextures & (1u<<S_LIGHTMAP0))

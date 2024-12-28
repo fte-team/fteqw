@@ -1307,6 +1307,18 @@ static void Shader_BindTextureForPass(int tmu, const shaderpass_t *pass)
 		else
 			t = r_whiteimage;
 		break;
+	case T_GEN_TRANSMISSION:
+		if (shaderstate.curtexnums && TEXLOADED(shaderstate.curtexnums->transmission))
+			t = shaderstate.curtexnums->transmission;
+		else
+			t = r_whiteimage;
+		break;
+	case T_GEN_THICKNESS:
+		if (shaderstate.curtexnums && TEXLOADED(shaderstate.curtexnums->thickness))
+			t = shaderstate.curtexnums->thickness;
+		else
+			t = r_whiteimage;
+		break;
 	case T_GEN_SHADOWMAP:
 		t = shaderstate.curshadowmap;
 		break;

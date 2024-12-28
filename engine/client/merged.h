@@ -388,6 +388,8 @@ typedef struct texnums_s {
 	texid_t reflectmask;	//2d,	defines how reflective it is (for cubemap reflections)
 	texid_t displacement;	//2d,	alternative to bump.a, eg R16[F] for offsetmapping or tessellation
 	texid_t occlusion;		//2d,	occlusion map... only red is used.
+	texid_t transmission;	//2d,	multiplier for transmissionfactor... only red is used.
+	texid_t thickness;		//2d,	multiplier for thicknessfactor... only green is used.
 
 	//the material's pushconstants. vulkan guarentees only 128 bytes. so 8 vec4s. note that lmscales should want 4 of them...
 	/*struct

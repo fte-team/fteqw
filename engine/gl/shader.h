@@ -274,6 +274,8 @@ typedef struct shaderpass_s {
 		T_GEN_REFLECTMASK,	//dpreflectcube mask
 		T_GEN_DISPLACEMENT,	//displacement texture (probably half-float or something so higher precision than normalmap.a)
 		T_GEN_OCCLUSION,	//occlusion mask (instead of baking it into the texture itself, required for correct pbr)
+		T_GEN_TRANSMISSION,	//.r fancy opacity mask (still contributes its own colour over the top, for KHR_materials_transmission)
+		T_GEN_THICKNESS,	//.g depth mask (could be replaced with raytracing, for KHR_materials_volume)
 
 		T_GEN_CURRENTRENDER,//copy the current screen to a texture, and draw that
 
@@ -698,7 +700,9 @@ struct shader_s
 #define MATERIAL_FACTOR_BASE 0
 #define MATERIAL_FACTOR_SPEC 1
 #define MATERIAL_FACTOR_EMIT 2
-#define MATERIAL_FACTOR_COUNT 3
+#define MATERIAL_FACTOR_TRANSMISSION 3
+#define MATERIAL_FACTOR_VOLUME 4
+#define MATERIAL_FACTOR_COUNT 5
 	vec4_t factors[MATERIAL_FACTOR_COUNT];
 
 	//arranged as a series of vec4s
@@ -877,15 +881,17 @@ enum
 	S_REFLECTMASK	= 10,
 	S_DISPLACEMENT	= 11,
 	S_OCCLUSION		= 12,
-	S_LIGHTMAP0		= 13,
-	S_DELUXEMAP0	= 14,
+	S_TRANSMISSION	= 13,
+	S_THICKNESS		= 14,
+	S_LIGHTMAP0		= 15,
+	S_DELUXEMAP0	= 16,
 #if MAXRLIGHTMAPS > 1
-	S_LIGHTMAP1		= 15,
-	S_LIGHTMAP2		= 16,
-	S_LIGHTMAP3		= 17,
-	S_DELUXEMAP1	= 18,
-	S_DELUXEMAP2	= 19,
-	S_DELUXEMAP3	= 20,
+	S_LIGHTMAP1		= 17,
+	S_LIGHTMAP2		= 18,
+	S_LIGHTMAP3		= 19,
+	S_DELUXEMAP1	= 20,
+	S_DELUXEMAP2	= 21,
+	S_DELUXEMAP3	= 22,
 #endif
 };
 extern const struct sh_defaultsamplers_s

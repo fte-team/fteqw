@@ -14,6 +14,8 @@
 !!samps !EIGHTBIT diffuse normalmap specular fullbright upper lower reflectmask reflectcube
 !!samps =EIGHTBIT paletted 1
 !!samps =OCCLUDE occlusion
+!!samps =USE_TRANSMISSION transmission	//only .r valid, multiplier for factor_transmission
+!!samps =USE_VOLUME thickness			//only .g valid, multiplier for factor_volume_thickness, combined with factor_volume_rgb+factor_volume_distance(average distance travelled in metres)
 //!!permu VC			// adds rgba vertex colour multipliers
 //!!permu SPECULAR		// auto-added when gl_specular>0
 //!!permu OFFSETMAPPING	// auto-added when r_glsl_offsetmapping is set

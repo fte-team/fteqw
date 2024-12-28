@@ -6728,7 +6728,7 @@ void compilecb(void)
 void Sys_Error(const char *text, ...);
 void RunCompiler(char *args, pbool quick)
 {
-	const char *argv[128];
+	const char *argv[256];
 	int argc;
 	progexterns_t ext;
 	progfuncs_t funcs;
@@ -6795,9 +6795,10 @@ void RunCompiler(char *args, pbool quick)
 	if (SplitterGet(outputbox))
 		SendMessage(outputbox, WM_SETREDRAW, FALSE, 0);
 
-	argc = GUI_BuildParms(args, argv, quick);
-
-	if (CompileParams(&funcs, outputbox?compilecb:NULL, argc, argv))
+	argc = GUI_BuildParms(args, argv, sizeof(argv)/sizeof(argv[0]), quick);
+	if (!argc)
+		ext.Printf("Too many args\n");
+	else if (CompileParams(&funcs, outputbox?compilecb:NULL, argc, argv))
 	{
 		if (!quick)
 		{

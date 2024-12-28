@@ -169,7 +169,7 @@ typedef struct prinst_s
 	int pr_depth;
 
 	//locals
-#define	LOCALSTACK_SIZE		65536	//in words
+#define	LOCALSTACK_SIZE		(65536*16)	//in words
 	int *localstack;
 	int localstack_used;
 	int spushed; //extra

@@ -939,7 +939,7 @@ void GUI_RevealOptions(void)
 
 
 
-int GUI_BuildParms(const char *args, const char **argv, pbool quick)//, char *forceoutputfile)
+int GUI_BuildParms(const char *args, const char **argv, int argv_size, pbool quick)//, char *forceoutputfile)
 {
 	static char param[2048];
 	int paramlen = 0;
@@ -1029,6 +1029,9 @@ int GUI_BuildParms(const char *args, const char **argv, pbool quick)//, char *fo
 	{
 		while (*args <= ' '&& *args)
 			args++;
+
+		if (argc >= argv_size)
+			return 0;
 
 		for (next = args; *next>' '; next++)
 			;

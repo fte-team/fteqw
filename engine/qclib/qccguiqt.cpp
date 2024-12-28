@@ -2093,7 +2093,7 @@ static int Dummyprintf(const char *msg, ...){return 0;}
 void RunCompiler(const char *args, pbool quick)
 {
 	static FILE *logfile;
-	const char *argv[128];
+	const char *argv[256];
 	int argc;
 
 	mainwnd->docs.saveAll();
@@ -2122,9 +2122,10 @@ void RunCompiler(const char *args, pbool quick)
 	else
 		logfile = NULL;
 
-	argc = GUI_BuildParms(args, argv, quick);
-
-	if (CompileParams(&guiprogfuncs, NULL, argc, argv))
+	argc = GUI_BuildParms(args, argv, sizeof(argv)/sizeof(argv[0]), quick);
+	if (!argc)
+		guiprogexterns.Printf("Too many args\n");
+	else if (CompileParams(&guiprogfuncs, NULL, argc, argv))
 	{
 		if (!quick)
 		{

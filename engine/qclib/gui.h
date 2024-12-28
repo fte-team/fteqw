@@ -3,7 +3,7 @@ int Grep(const char *filename, const char *string);
 void EditFile(const char *name, int line, pbool setcontrol);
 
 void GUI_SetDefaultOpts(void);
-int GUI_BuildParms(const char *args, const char **argv, pbool quick);
+int GUI_BuildParms(const char *args, const char **argv, int argv_size, pbool quick);
 
 //unsigned char *PDECL QCC_ReadFile (const char *fname, void *buffer, int len, size_t *sz);
 int QCC_RawFileSize (const char *fname);

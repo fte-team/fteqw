@@ -366,21 +366,18 @@ static int ParsePrecompilerIf(int level)
 		{	//simple token...
 			if (!strncmp(pr_file_p, "defined", 7))
 			{
+				pbool brackets;
 				pr_file_p+=7;
 				while (*pr_file_p == ' ' || *pr_file_p == '\t')
 					pr_file_p++;
-				if (*pr_file_p != '(')
-				{
-					eval = false;
-					QCC_PR_ParseError(ERR_EXPECTED, "no opening bracket after defined\n");
-				}
-				else
-				{
-					pr_file_p++;
+				brackets = *pr_file_p == '(';
+				pr_file_p += brackets;
 
-					QCC_PR_SimpleGetToken();
-					eval = !!QCC_PR_CheckCompConstDefined(pr_token);
+				QCC_PR_SimpleGetToken();
+				eval = !!QCC_PR_CheckCompConstDefined(pr_token);
 
+				if (brackets)
+				{
 					while (*pr_file_p == ' ' || *pr_file_p == '\t')
 						pr_file_p++;
 					if (*pr_file_p != ')')
@@ -986,6 +983,12 @@ static pbool QCC_PR_Precompiler(void)
 					break;
 				}
 
+				if (pr_error_count)	//if we had an error, don't keep including more stuff that'll hide the actual error.
+				{
+					pr_file_p = "";
+					QCC_PR_ParseError(0, NULL);
+				}
+
 				QCC_FindBestInclude(pr_token, compilingfile, true);
 
 				if (*pr_file_p == '\r')
@@ -1027,6 +1030,12 @@ static pbool QCC_PR_Precompiler(void)
 			}
 			msg[a] = 0;
 			pr_file_p++;
+
+			if (pr_error_count)	//if we had an error, don't keep including more stuff that'll hide the actual error.
+			{
+				pr_file_p = "";
+				QCC_PR_ParseError(0, NULL);
+			}
 
 			QCC_FindBestInclude(msg, compilingfile, false);
 
@@ -1613,6 +1622,8 @@ int QCC_PR_LexEscapedCodepoint(void)
 	}
 	else if (c == '\\')
 		c = '\\';
+	else if (c == '?')	//triglyphs are dumb.
+		c = '?';
 	else if (c == '\'')
 		c = '\'';
 	else if (c >= '0' && c <= '9')
@@ -2310,8 +2321,16 @@ static void QCC_PR_LexVector (void)
 	{//extended character constant
 		pr_file_p++;
 		pr_token_type = tt_immediate;
-		pr_immediate_type = type_float;
-		pr_immediate._float = QCC_PR_LexEscapedCodepoint();
+		if (flag_assume_integer)
+		{
+			pr_immediate_type = type_integer;
+			pr_immediate._int = QCC_PR_LexEscapedCodepoint();
+		}
+		else
+		{
+			pr_immediate_type = type_float;
+			pr_immediate._float = QCC_PR_LexEscapedCodepoint();
+		}
 		if (*pr_file_p != '\'')
 			QCC_PR_ParseError (ERR_INVALIDVECTORIMMEDIATE, "Bad character constant");
 		pr_file_p++;
@@ -2321,25 +2340,38 @@ static void QCC_PR_LexVector (void)
 	{
 		int b = utf8_check(pr_file_p, &pr_immediate._int);	//utf-8 codepoint.
 		pr_token_type = tt_immediate;
-		pr_immediate_type = type_float;
-		if (flag_qccx)
-			QCC_PR_ParseWarning(WARN_DENORMAL, "char constant: denormal");
+		if (flag_assume_integer)
+			pr_immediate_type = type_integer;
 		else
-			pr_immediate._float = pr_immediate._int;
+		{
+			pr_immediate_type = type_float;
+			if (flag_qccx)
+				QCC_PR_ParseWarning(WARN_DENORMAL, "char constant: denormal");
+			else
+				pr_immediate._float = pr_immediate._int;
+		}
 		pr_file_p+=b+1;
 		return;
 	}
 	else if (pr_file_p[1] == '\'')
 	{//character constant
 		pr_token_type = tt_immediate;
-		pr_immediate_type = type_float;
-		if (flag_qccx)
+		if (flag_assume_integer)
 		{
-			QCC_PR_ParseWarning(WARN_DENORMAL, "char constant: denormal");
-			pr_immediate._int = pr_file_p[0];
+			pr_immediate_type = type_integer;
+			pr_immediate._int = (unsigned char)pr_file_p[0];
 		}
 		else
-			pr_immediate._float = pr_file_p[0];
+		{
+			pr_immediate_type = type_float;
+			if (flag_qccx)
+			{
+				QCC_PR_ParseWarning(WARN_DENORMAL, "char constant: denormal");
+				pr_immediate._int = pr_file_p[0];
+			}
+			else
+				pr_immediate._float = pr_file_p[0];
+		}
 		pr_file_p+=2;
 		return;
 	}
@@ -2985,7 +3017,7 @@ void QCC_PR_PreProcessor_Define(pbool append)
 			{
 				int nl;
 				nl = pr_file_p-s;
-				while(qcc_iswhitesameline(s[nl]))
+				while(nl > 0 && qcc_iswhitesameline(s[nl-1]))
 					nl--;
 				if (cnst->numparams >= MAXCONSTANTPARAMS)
 					QCC_PR_ParseError(ERR_MACROTOOMANYPARMS, "May not have more than %i parameters to a macro", MAXCONSTANTPARAMS);
@@ -3166,6 +3198,9 @@ so if present, the preceeding \\\n and following \\\n must become an actual \n i
 		d++;
 		s++;
 	}
+
+	while (d>dbuf && qcc_iswhitesameline(d[-1]))
+		d--;
 	*d = '\0';
 
 	cnst->value = dbuf;
@@ -4601,7 +4636,12 @@ static int typecmp_strict(QCC_type_t *a, QCC_type_t *b)
 	i = a->num_parms;
 	while(i-- > 0)
 	{
-		if (STRCMP(a->params[i].paramname, b->params[i].paramname))
+		if (!a->params[i].paramname || !b->params[i].paramname)
+		{
+			if (a->params[i].paramname || b->params[i].paramname)
+				return 1;	//two array types getting compared?
+		}
+		else if (STRCMP(a->params[i].paramname, b->params[i].paramname))
 			return 1;
 		if (typecmp_strict(a->params[i].type, b->params[i].type))
 			return 1;
@@ -4779,10 +4819,13 @@ QCC_type_t *QCC_PR_DuplicateType(QCC_type_t *in, pbool recurse)
 	memcpy(out->params, in->params, sizeof(*out->params) * out->num_parms);
 	out->accessors = in->accessors;
 	out->size = in->size;
+	out->bits = in->bits;
+	out->align = in->align;
 	out->num_parms = in->num_parms;
 	out->name = in->name;
 	out->parentclass = in->parentclass;
 	out->vargs = in->vargs;
+	out->vargtodouble = in->vargtodouble;
 	out->vargcount = in->vargcount;
 
 	return out;
@@ -4873,6 +4916,8 @@ char *TypeName(QCC_type_t *type, char *buffer, int buffersize)
 		pbool vargs = type->vargs;
 		unsigned int i;
 		Q_strlcat(buffer, type->aux_type->name, buffersize);
+		if (type->vargtodouble)
+			Q_strlcat(buffer, "(*)", buffersize);	//make it distinctly C-ey
 		Q_strlcat(buffer, "(", buffersize);
 		for (i = 0; i < type->num_parms; )
 		{
@@ -5059,27 +5104,52 @@ QCC_type_t *QCC_PR_MakeThiscall(QCC_type_t *orig, QCC_type_t *thistype)
 	return orig;
 }
 
+QCC_type_t *QCC_PR_ParseArrayType(QCC_type_t *basetype, int *arraysize)
+{
+	int dims = 0;
+	unsigned long dim[64];
+	dim[0] = 0;
+	do
+	{
+		if (dims == sizeof(dim)/sizeof(dim[0]))
+			QCC_PR_ParseError(ERR_NOTANAME, "too many dimensions");
+		dim[dims] = QCC_PR_IntConstExpr();
+		if (!dim[dims])
+			QCC_PR_ParseError(ERR_NOTANAME, "cannot cope with 0-sized arrays");
+		dims++;
+		QCC_PR_Expect("]");
+	} while (QCC_PR_CheckToken("["));
+	while(dims-- > 1)
+		basetype = QCC_GenArrayType(basetype, dim[dims]);
+	*arraysize = dim[0];
+	return basetype;
+}
+
 //expects a ( to have already been parsed.
 QCC_type_t *QCC_PR_ParseFunctionType (int newtype, QCC_type_t *returntype)
 {
-	QCC_type_t	*ftype, *t;
+	QCC_type_t	*ftype = NULL, *t;
 	char	*name;
 	int definenames = !recursivefunctiontype;
 	int numparms = 0;
 	struct QCC_typeparam_s paramlist[MAX_PARMS+MAX_EXTRA_PARMS];
 
+	if (QCC_PR_PeekToken("*"))
+		return NULL;	//C pointer-to-function. this ain't the args.
+
 	recursivefunctiontype++;
-
-	ftype = QCC_PR_NewType(type_function->name, ev_function, false);
-
-	ftype->aux_type = returntype;	// return type
-	ftype->num_parms = 0;
 
 	if (definenames)
 		pr_parm_argcount_name = NULL;
 
 	if (QCC_PR_CheckToken (")"))
 	{
+		if (!ftype)
+		{
+			ftype = QCC_PR_NewType(type_function->name, ev_function, false);
+			ftype->aux_type = returntype;	// return type
+			ftype->num_parms = 0;
+		}
 		if (!flag_qcfuncs)
 			ftype->vargs = true;	//'void name()' is vargs/undefined in C89 (disallowed in c99, interpreted as void in c23).
 	}
@@ -5087,8 +5157,9 @@ QCC_type_t *QCC_PR_ParseFunctionType (int newtype, QCC_type_t *returntype)
 	{
 		do
 		{
-			pbool foundinout;
-			if (ftype->num_parms>=MAX_PARMS+MAX_EXTRA_PARMS)
+			int inout = -1;
+			pbool isopt = false;
+			if (numparms>=MAX_PARMS+MAX_EXTRA_PARMS)
 				QCC_PR_ParseError(ERR_TOOMANYTOTALPARAMETERS, "Too many parameters. Sorry. (limit is %i)\n", MAX_PARMS+MAX_EXTRA_PARMS);
 
 			if (QCC_PR_CheckToken ("..."))
@@ -5096,50 +5167,56 @@ QCC_type_t *QCC_PR_ParseFunctionType (int newtype, QCC_type_t *returntype)
 				t = QCC_PR_ParseType(false, true, false);	//the evil things I do...
 				if (!t)
 				{
+					if (!ftype)
+					{
+						ftype = QCC_PR_NewType(type_function->name, ev_function, false);
+						ftype->aux_type = returntype;	// return type
+						ftype->num_parms = 0;
+					}
 					ftype->vargs = true;
 					break;
 				}
 				else
-				{	//its a ... followed by a type... don't bug out...
+				{	//its a ... followed by a type...
+					//undo the damage from having parsed the ... already.
 					t = QCC_PR_FieldType(t);
 					t = QCC_PR_FieldType(t);
 					t = QCC_PR_FieldType(t);
-					paramlist[numparms].type = t;
-					foundinout = false;
 				}
 			}
 			else
 			{
-				foundinout = false;
-				paramlist[numparms].optional = false;
-				paramlist[numparms].isvirtual = false;
-				paramlist[numparms].out = false;
-
+				pbool maybename = numparms==0;
 				while(1)
 				{
-					if (!paramlist[numparms].optional && QCC_PR_CheckKeyword(keyword_optional, "optional"))
-						paramlist[numparms].optional = true;
-					else if (!foundinout && QCC_PR_CheckKeyword(keyword_inout, "inout"))
-					{
-						paramlist[numparms].out = true;
-						foundinout = true;
-					}
-					else if (!foundinout && QCC_PR_CheckKeyword(keyword_inout, "out"))
-					{
-						paramlist[numparms].out = 2;	//not really supported, but parsed for readability.
-						foundinout = true;
-					}
-					else if (!foundinout && QCC_PR_CheckKeyword(keyword_inout, "in"))
-					{
-						paramlist[numparms].out = false;
-						foundinout = true;
-					}
+					if (!isopt && QCC_PR_CheckKeyword(keyword_optional, "optional"))
+						isopt = true;
+					else if (inout<0 && QCC_PR_CheckKeyword(keyword_inout, "inout"))
+						inout = true;
+					else if (inout<0 && QCC_PR_CheckKeyword(keyword_inout, "out"))
+						inout = 2;
+					else if (inout<0 && QCC_PR_CheckKeyword(keyword_inout, "in"))
+						inout = false;
 					else
 						break;
+					maybename=false;	//if we parsed something meaningful then its not a `void(name)(type)` thing
 				}
 
-				t = QCC_PR_ParseType(false, false, false);
+				t = QCC_PR_ParseType(false, maybename, false);
+				if (!t)
+					return NULL;
 			}
+
+			if (!ftype)
+			{
+				ftype = QCC_PR_NewType(type_function->name, ev_function, false);
+				ftype->aux_type = returntype;	// return type
+				ftype->num_parms = 0;
+			}
+
+			paramlist[numparms].optional = isopt;
+			paramlist[numparms].isvirtual = false;
+			paramlist[numparms].out = inout>=0?inout:0;
 			paramlist[numparms].defltvalue.cast = NULL;
 			paramlist[numparms].ofs = 0;
 			paramlist[numparms].arraysize = 0;
@@ -5153,10 +5230,9 @@ QCC_type_t *QCC_PR_ParseFunctionType (int newtype, QCC_type_t *returntype)
 			if (paramlist[numparms].type->type == ev_void)
 				break; //float(void) has no actual args
 
-			if (!foundinout && QCC_PR_CheckToken("&"))
+			if (inout < 0 && QCC_PR_CheckToken("&"))
 			{	//accept c++ syntax, at least on arguments. its not quite the same, but it'll do.
 				paramlist[numparms].out = true;
-				foundinout = true;
 			}
 
 //			type->name = "FUNC PARAMETER";
@@ -5178,6 +5254,8 @@ QCC_type_t *QCC_PR_ParseFunctionType (int newtype, QCC_type_t *returntype)
 
 					QCC_PR_Expect("(");
 					paramlist[numparms].type = QCC_PR_ParseFunctionType(false, paramlist[numparms].type);
+					if (!paramlist[numparms].type)
+						QCC_PR_ParseError(ERR_BADNOTTYPE, "expected function arg list");
 				}
 				else
 					name = QCC_PR_ParseName ();
@@ -5194,11 +5272,20 @@ QCC_type_t *QCC_PR_ParseFunctionType (int newtype, QCC_type_t *returntype)
 					}
 					else
 					{	//proper array
-						paramlist[numparms].arraysize = QCC_PR_IntConstExpr();
-						if (!paramlist[numparms].arraysize)
-							QCC_PR_ParseError(ERR_NOTANAME, "cannot cope with 0-sized arrays");
-						QCC_PR_Expect("]");
+						int arraysize;
+						paramlist[numparms].type = QCC_PR_ParseArrayType(paramlist[numparms].type, &arraysize);
+
+						if (flag_qcfuncs)
+							paramlist[numparms].arraysize = arraysize;
+						else
+							paramlist[numparms].type = QCC_PointerTypeTo(paramlist[numparms].type);	//just turn it into a pointer and ditch the top-level size. C style.
 					}
+				}
+
+				if (!flag_qcfuncs)
+				{	//if its an array type, promote it to pointer here.
+					if (t->type == ev_union && t->num_parms == 1 && !t->params[0].paramname)
+						paramlist[numparms].type = QCC_PointerTypeTo(t->params[0].type);
 				}
 			}
 			else if (definenames)
@@ -5229,13 +5316,11 @@ QCC_type_t *QCC_PR_ParseFunctionType (int newtype, QCC_type_t *returntype)
 		else
 			QCC_PR_Expect (")");
 	}
+	ftype->vargtodouble = flag_assume_double;
 	ftype->num_parms = numparms;
 	ftype->params = qccHunkAlloc(sizeof(*ftype->params) * numparms);
 	memcpy(ftype->params, paramlist, sizeof(*ftype->params) * numparms);
 	recursivefunctiontype--;
-
-	if (returntype->size > 3 && !autoprototype)	//fixme: handle properly, without breaking __out
-		QCC_PR_ParseWarning(WARN_UNDESIRABLECONVENTION, "Unable to handle functions returning structures larger than a vector. Will truncate.");
 
 	if (newtype)
 		return ftype;
@@ -5720,19 +5805,15 @@ static QCC_type_t *QCC_PR_ParseStruct(etype_t structtype)
 			else
 				parmname = QCC_PR_ParseName();
 			definedsomething = true;
-			while (QCC_PR_CheckToken("["))
-			{
-				int nsize=QCC_PR_IntConstExpr();
-				if (arraysize)
-					type = QCC_GenArrayType(type, arraysize);
-				if (!nsize)
-					QCC_PR_ParseError(ERR_NOTANAME, "cannot cope with 0-sized arrays");
-				QCC_PR_Expect("]");
-				arraysize = nsize;
-			}
+			if (QCC_PR_CheckToken("["))
+				type = QCC_PR_ParseArrayType(type, &arraysize);	//Checks for [][y][x] arrays.
 
 			if (QCC_PR_CheckToken("("))
+			{
 				type = QCC_PR_ParseFunctionType(false, type);
+				if (!type)
+					QCC_PR_ParseError(ERR_BADNOTTYPE, "expected function arg list");
+			}
 		}
 
 		if (type == newt || ((type->type == ev_struct || type->type == ev_union) && !type->size))
@@ -6096,6 +6177,8 @@ QCC_type_t *QCC_PR_ParseEntClass(void)
 			else if (!flag_qcfuncs && basetype == newt && QCC_PR_CheckToken("("))
 			{
 				newparm = QCC_PR_ParseFunctionType(false, type_void);
+				if (!newparm)
+					QCC_PR_ParseError(ERR_BADNOTTYPE, "expected function arg list");
 				parmname = classname;
 				arraysize = 0;
 			}
@@ -6114,6 +6197,8 @@ QCC_type_t *QCC_PR_ParseEntClass(void)
 				{
 					//int fnc(), fld; is valid.
 					newparm = QCC_PR_ParseFunctionType(false, basetype);
+					if (!newparm)
+						QCC_PR_ParseError(ERR_BADNOTTYPE, "expected function arg list");
 				}
 				else
 					newparm = basetype;
@@ -6519,6 +6604,8 @@ QCC_type_t *QCC_PR_ParseType (int newtype, pbool silentfail, pbool ignoreptr)
 		QCC_PR_ParseWarning (WARN_IGNOREDKEYWORD, "ignoring unsupported const keyword");
 		silentfail = false;	//FIXME
 	}
+	if (QCC_PR_CheckKeyword(keyword_volatile, "volatile"))	//we don't really support this - everything is volatile.
+		silentfail = false;
 
 	if (QCC_PR_PeekToken ("...") )	//this is getting stupid
 	{
@@ -6735,6 +6822,8 @@ QCC_type_t *QCC_PR_ParseType (int newtype, pbool silentfail, pbool ignoreptr)
 	#define longlongbits 64
 	#define longbits (flag_ILP32?32:64)
 
+				if (QCC_PR_CheckKeyword(keyword_register, "register"))	//allow a leading register keyword. technically EVERYTHING is a register in qc, so we can just ignore this.
+					isokay = true;
 				while(true)
 				{
 					if (!isunsigned && !issigned && QCC_PR_CheckKeyword(keyword_signed, "signed"))
@@ -6831,6 +6920,8 @@ wasctype:
 	{
 		type_inlinefunction = true;
 		type = QCC_PR_ParseFunctionType(newtype, type);
+		if (!type)
+			QCC_PR_ParseError(ERR_BADNOTTYPE, "expected function arg list");
 	}
 	else
 	{

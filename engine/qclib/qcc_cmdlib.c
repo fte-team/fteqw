@@ -620,7 +620,7 @@ const char *QCC_ReadParm (const char *check)
 			return myargv[i+1];
 	}
 
-	return 0;
+	return NULL;
 }
 
 /*

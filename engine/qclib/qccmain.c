@@ -264,10 +264,14 @@ struct {
 	//Q618: Ran out of mem pointer space (malloc failure again)
 
 	//we can put longer alternative names here...
-	{" field-redeclared", WARN_REMOVEDWARNING},
-	{" deprecated", WARN_DEPRECATEDVARIABLE},
+	{" field-redeclared",	WARN_REMOVEDWARNING},
+	{" deprecated",		WARN_DEPRECATEDVARIABLE},
+	{" bounds",			WARN_BOUNDS},
 
-	{" unimplemented", WARN_IGNOREDKEYWORD},
+	{" octal",			WARN_OCTAL_IMMEDIATE},
+	{" unimplemented",	WARN_IGNOREDKEYWORD},
+	{" localptr",		WARN_UNSAFELOCALPOINTER},
+	{" largereturn",	WARN_SLOW_LARGERETURN},
 	{NULL}
 };
 
@@ -357,9 +361,12 @@ compiler_flag_t compiler_flag[] = {
 	{&keyword_char,			nondefaultkeyword, "char",		"Keyword: char",		"Disables the 'char' keyword."},
 	{&keyword_signed,		nondefaultkeyword, "signed",	"Keyword: signed",		"Disables the 'signed' keyword."},
 	{&keyword_unsigned,		defaultkeyword, "unsigned",		"Keyword: unsigned",	"Disables the 'unsigned' keyword."},
+	{&keyword_register,		nondefaultkeyword, "register",	"Keyword: register",	"Disables the 'register' keyword."},
+	{&keyword_volatile,		nondefaultkeyword, "volatile",	"Keyword: volatile",	"Disables the 'volatile' keyword."},
 	{&keyword_noref,		defaultkeyword, "noref",		"Keyword: noref",		"Disables the 'noref' keyword."},	//nowhere else references this, don't warn about it.
 	{&keyword_unused,		nondefaultkeyword, "unused",	"Keyword: unused",		"Disables the 'unused' keyword. 'unused' means that the variable is unused, you're aware that its unused, and you'd rather not know about all the warnings this results in."},
 	{&keyword_used,			nondefaultkeyword, "used",		"Keyword: used",		"Disables the 'used' keyword. 'used' means that the variable is used even if the qcc can't see how - thus preventing it from ever being stripped."},
+	{&keyword_local,		defaultkeyword, "local",		"Keyword: local",		"Disables the 'local' keyword."},
 	{&keyword_static,		defaultkeyword, "static",		"Keyword: static",		"Disables the 'static' keyword. 'static' means that a variable has altered scope. On globals, the variable is visible only to the current .qc file. On locals, the variable's value does not change between calls to the function. On class variables, specifies that the field is a scoped global instead of a local. On class functions, specifies that 'this' is expected to be invalid and that the function will access any memembers via it."},
 	{&keyword_nonstatic,	defaultkeyword, "nonstatic",	"Keyword: nonstatic",	"Disables the 'nonstatic' keyword. 'nonstatic' acts upon globals+functions, reverting the defaultstatic pragma on a per-variable basis. For use by people who prefer to keep their APIs explicit."},
 	{&keyword_ignore,		nondefaultkeyword, "ignore",	"Keyword: ignore",		"Disables the 'ignore' keyword. 'ignore' is expected to typically be hidden behind a 'csqconly' define, and in such a context can be used to conditionally compile functions a little more gracefully. The opposite of the 'used' keyword. These variables/functions/members are ALWAYS stripped, and effectively ignored."},
@@ -1546,9 +1553,10 @@ static void QCC_FinaliseDef(QCC_def_t *def)
 			QCC_Error(ERR_INTERNAL, "unknown reloc type... %s", def->type->name);
 	}
 
+	if (def->deftail)
 	{
 		QCC_def_t *prev, *sub;
-		for (prev = def, sub = prev->next; sub && prev != def->deftail; sub = (prev=sub)->next)
+		for (prev = def, sub = prev->next; prev != def->deftail; sub = (prev=sub)->next)
 		{
 			if (sub->reloc && !sub->used)
 			{	//make sure any children are finalised properly if they're relocs.
@@ -2025,7 +2033,7 @@ static pbool QCC_WriteData (int crc)
 					{
 						if (!local->used)
 						{	//all params should have been assigned space. logically we could have safely omitted the last ones, but blurgh.
-							QCC_PR_Warning(ERR_INTERNAL, local->filen, local->s_line, "Argument %s was not marked used.\n", local->name);
+							QCC_PR_Warning(ERR_INTERNAL, local->filen, local->s_line, "Argument %s was not marked used.", local->name);
 							continue;
 						}
 
@@ -2235,12 +2243,15 @@ static pbool QCC_WriteData (int crc)
 			continue;
 		}
 		else if (def->type->type == ev_pointer && (def->symboldata[0]._int & 0x80000000))
-			def->name = "";	//reloc, can't strip it (engine needs to fix em up), but can clear its name.
+		{
+			if (opt_constant_names && !def->nostrip)
+				def->name = "";	//reloc, can't strip it (engine needs to fix em up), but can clear its name.
+		}
 		else if (def->scope && !def->scope->privatelocals && !def->isstatic)
 			continue;	//def is a local, which got shared and should be 0...
-		else if ((def->scope||def->constant||(flag_noreflection&&strncmp(def->name, "autocvar_", 9))) && (def->type->type != ev_string || (strncmp(def->name, "dotranslate_", 12) && opt_constant_names_strings)))
+		else if (((opt_constant_names&&(def->scope||def->constant))||(flag_noreflection&&strncmp(def->name, "autocvar_", 9))) && (def->type->type != ev_string || (strncmp(def->name, "dotranslate_", 12) && opt_constant_names_strings)))
 		{
-			if (opt_constant_names)
+			if (!def->nostrip)
 			{
 				if (def->type->type == ev_string)
 					optres_constant_names_strings += strlen(def->name);
@@ -3671,7 +3682,7 @@ static void	QCC_PR_BeginCompilation (void *memory, int memsize)
 	type_floatfunction->aux_type = type_float;
 
 	type_bfloat = QCC_PR_NewType("__bfloat", ev_boolean, true);	type_bfloat->parentclass = type_float;	//has value 0.0 or 1.0
-	type_bint = QCC_PR_NewType("__bint", ev_boolean, true);		type_bint->parentclass = type_uint;		//has value 0   or 1
+	type_bint = QCC_PR_NewType("__bint", ev_boolean, true);		type_bint->parentclass = type_integer;		//has value 0   or 1
 
 	//type_field->aux_type = type_float;
 
@@ -4000,6 +4011,7 @@ static unsigned short QCC_PR_WriteProgdefs (char *filename)
 	int	f;
 	unsigned short		crc;
 //	int		c;
+	pbool hassystemfield = false;
 
 	file[0] = '\0';
 
@@ -4016,7 +4028,7 @@ static unsigned short QCC_PR_WriteProgdefs (char *filename)
 	ADD_CRC(" */\n\ntypedef struct");
 	ADD_ONLY(" globalvars_s");
 	ADD_CRC(qcva("\n{"));
-	ADD_ONLY("\tint pad;\n"
+	ADD_ONLY("\n\tint ofs_null;\n"
 		"\tint ofs_return[3];\n"	//makes it easier with the get globals func
 		"\tint ofs_parm0[3];\n"
 		"\tint ofs_parm1[3];\n"
@@ -4035,6 +4047,8 @@ static unsigned short QCC_PR_WriteProgdefs (char *filename)
 			continue;
 //		if (d->symbolheader->ofs<RESERVED_OFS)
 //			continue;
+		if (d->symbolheader != d)
+			continue;
 
 		switch (d->type->type)
 		{
@@ -4103,7 +4117,10 @@ static unsigned short QCC_PR_WriteProgdefs (char *filename)
 			ADD_CRC(qcva("\tint\t%s;\n",d->name));
 			break;
 		}
+		hassystemfield = true;
 	}
+	if (!hassystemfield)
+		ADD_ONLY(qcva("\tint\tplaceholder_; //no system fields\n"));
 	ADD_CRC("} entvars_t;\n\n");
 
 /*
@@ -4690,12 +4707,12 @@ static void QCC_PR_CommandLinePrecompilerOptions (void)
 				keyword_asm = false;
 				keyword_break = keyword_continue = keyword_for = keyword_goto = keyword_const = keyword_extern = keyword_static = true;
 				keyword_switch = keyword_case = keyword_default = true;
-				keyword_accessor = keyword_class = keyword_var = keyword_inout = keyword_optional = keyword_state = keyword_inline = keyword_nosave = keyword_shared = keyword_noref = keyword_unused = keyword_used = keyword_nonstatic = keyword_ignore = keyword_strip = false;
+				keyword_accessor = keyword_class = keyword_var = keyword_inout = keyword_optional = keyword_state = keyword_inline = keyword_nosave = keyword_shared = keyword_noref = keyword_unused = keyword_used = keyword_local = keyword_nonstatic = keyword_ignore = keyword_strip = false;
 
 				keyword_vector = keyword_entity = keyword_float = keyword_string = false;	//not to be confused with actual types, but rather the absence of the keyword local.
 				keyword_integer = keyword_enumflags = false;
 				keyword_float = keyword_int = keyword_typedef = keyword_struct = keyword_union = keyword_enum = true;
-				keyword_double = keyword_long = keyword_short = keyword_char = keyword_signed = keyword_unsigned = true;
+				keyword_double = keyword_long = keyword_short = keyword_char = keyword_signed = keyword_unsigned = keyword_register = keyword_volatile = true;
 				keyword_thinktime = keyword_until = keyword_loop = false;
 
 				flag_ILP32 = true;			//C code generally expects intptr_t==size_t==long, we'll get better compat if we don't give it surprises.
@@ -4781,6 +4798,7 @@ static void QCC_PR_CommandLinePrecompilerOptions (void)
 			}
 			else if (!strcmp(myargv[i]+5, "hcc") || !strcmp(myargv[i]+5, "hexenc"))
 			{
+				qcc_framerate = 20;
 				flag_ifvector = flag_vectorlogic = false;
 				flag_macroinstrings = false;
 
@@ -5162,6 +5180,7 @@ static void QCC_SetDefaultProperties (void)
 	qccwarningaction[WARN_NOTUTF8]					= WA_IGNORE;
 	qccwarningaction[WARN_UNINITIALIZED]			= WA_IGNORE;	//not sure about this being ignored by default.
 	qccwarningaction[WARN_SELFNOTTHIS]				= WA_IGNORE;
+	qccwarningaction[WARN_UNSAFELOCALPOINTER]		= WA_IGNORE;	//only an issue with recursion. and annoying.
 	qccwarningaction[WARN_EVILPREPROCESSOR]			= WA_ERROR;		//evil people do evil things. evil must be thwarted!
 	qccwarningaction[WARN_IDENTICALPRECOMPILER]		= WA_IGNORE;
 	qccwarningaction[WARN_DENORMAL]					= WA_ERROR;		//DAZ provides a speedup on modern machines, so any engine compiled for sse2+ will have problems with denormals, so make their use look serious.

@@ -751,7 +751,7 @@ void runtest(const char *progsname, const char **args)
 	ext.globalbuiltins = builtins;
 
 	pf = InitProgs(&ext);
-	pf->Configure(pf, 1024*1024, 1, false);	//memory quantity of 1mb. Maximum progs loadable into the instance of 1
+	pf->Configure(pf, 1024*1024*64, 1, false);	//memory quantity of 1mb. Maximum progs loadable into the instance of 1
 //If you support multiple progs types, you should tell the VM the offsets here, via RegisterFieldVar
 	pn = pf->LoadProgs(pf, progsname);	//load the progs.
 	if (pn < 0)
@@ -853,7 +853,7 @@ int main(int argc, const char **argv)
 	const char *dat = NULL;
 	if (argc < 2)
 	{
-		printf("Invalid arguments!\nPlease run as, for example:\n%s testprogs.dat -srcfile progs.src\nThe first argument is the name of the progs.dat to run, the remaining arguments are the qcc args to use", argv[0]);
+		printf("Invalid arguments!\nPlease run as, for example:\n%s testprogs.dat -srcfile progs.src\nThe first argument is the name of the progs.dat to run, the remaining arguments are the qcc args to use\n", argv[0]);
 		return 0;
 	}
 

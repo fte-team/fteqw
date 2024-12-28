@@ -409,9 +409,10 @@ typedef struct QCC_type_s
 	unsigned int size;	//FIXME: make bytes, for bytes+shorts
 	pbool typedefed:1;	//name is in the typenames list.
 	pbool vargs:1;		//function has vargs
+	pbool vargtodouble:1; //promote floats to double when passing vargs (set according to flag_assume_double, on the def's type, so it can be enabled/disabled as required to deal with builtins
 	pbool vargcount:1;	//function has special varg count param
-	unsigned int bits;//valid for bitfields (and structs).
 	unsigned int align:7;
+	unsigned int bits;//valid for bitfields (and structs).
 	const char *name;
 	const char *aname;
 
@@ -472,6 +473,7 @@ typedef struct QCC_def_s
 	pbool subscoped_away:1;		//this local is no longer linked into the locals hash table. don't do remove it twice.
 //	pbool followptr:1;			//float &foo;
 	pbool strip:1;				//info about this def should be stripped. it may still consume globals space however, and its storage can still be used, its just not visible.
+	pbool nostrip:1;			//don't strip reflection data for this symbol.
 	pbool allowinline:1;		//calls to this function will attempt to inline the specified function. requires const, supposedly.
 	pbool used:1;				//if it remains 0, it may be stripped. this is forced for functions and fields. commonly 0 on fields.
 	pbool unused:1;				//silently strip it if it wasn't referenced.
@@ -484,6 +486,8 @@ typedef struct QCC_def_s
 	pbool initialized:1;		//true when a declaration included "= immediate".
 	pbool isextern:1;			//fteqw-specific lump entry
 	pbool isparameter:1;		//its an engine parameter (thus preinitialised).
+	pbool addressed:1;			//warned about it once, back off now.
+	pbool autoderef:1;			//like C++'s int &foo; - probably local pointers to alloca memory.
 	const char *deprecated;		//reason its deprecated (or empty for no reason given)
 
 	int	fromstatement;		//statement that it is valid from.
@@ -506,10 +510,15 @@ typedef struct
 	enum{
 		REF_GLOBAL,	//(global.ofs)				- use vector[2] is an array ref or vector_z
 		REF_ARRAY,	//(global.ofs+wordoffset)	- constant offsets should be direct references, variable offsets will generally result in function calls
-		REF_ARRAYHEAD,//(global)				- like REF_ARRAY, but otherwise convert to a pointer.
-		REF_POINTER,//*(pointerdef+wordindex)	- maths...
+		REF_ARRAYHEAD,//(global)				- like REF_ARRAY, but otherwise convert to a pointer. check arraysize for length.
+
+		REF_POINTER,//*(pointerdef+alignindex)	- maths...
+		REF_POINTERARRAY,//(pointerdef+alignindex) - head of an array. &REF_POINTER but with array size info. cannot be directly assigned to.
+
 		REF_FIELD,	//(entity.field)			- reading is a single load, writing requires address+storep
+
 		REF_STRING,	//"hello"[1]=='e'			- special opcodes, or str2chr builtin, or something
+
 		REF_NONVIRTUAL,	//(global.ofs)			- identical to global except for function calls, where index can be used to provide the 'newself' for the call.
 		REF_THISCALL,	//(global.ofs)			- identical to global except for function calls, where index is used as the first argument.
 		REF_ACCESSOR //buf_create()[5]
@@ -519,6 +528,7 @@ typedef struct
 	unsigned int bitofs;	//for bitfields.
 	QCC_sref_t index;
 	QCC_type_t *cast;	//entity.float is float, not pointer.
+	unsigned int arraysize;	//for sizeof/boundchecks, not much else.
 	struct accessor_s *accessor;	//the accessor field of base that we're trying to use
 	int		postinc;	//+1 or -1
 	pbool	readonly;	//for whatever reason, like base being a const
@@ -656,6 +666,8 @@ extern pbool keyword_integer;
 extern pbool keyword_long;
 extern pbool keyword_signed;
 extern pbool keyword_unsigned;
+extern pbool keyword_register;
+extern pbool keyword_volatile;
 extern pbool keyword_state;
 extern pbool keyword_string;
 extern pbool keyword_struct;
@@ -683,6 +695,7 @@ extern pbool keyword_using;
 
 extern pbool keyword_unused;
 extern pbool keyword_used;
+extern pbool keyword_local;
 extern pbool keyword_static;
 extern pbool keyword_nonstatic;
 extern pbool keyword_ignore;
@@ -794,7 +807,7 @@ QCC_type_t *QCC_PR_PointerType (QCC_type_t *pointsto);
 const char *QCC_VarAtOffset(QCC_sref_t ref);
 
 void QCC_PrioritiseOpcodes(void);
-int QCC_PR_IntConstExpr(void);
+long QCC_PR_IntConstExpr(void);
 
 #ifndef COMMONINLINES
 pbool QCC_PR_CheckImmediate (const char *string);
@@ -876,6 +889,7 @@ enum {
 	WARN_DEADCODE,
 	WARN_UNREACHABLECODE,
 	WARN_NOTSTANDARDBEHAVIOUR,
+	WARN_BOUNDS,
 	WARN_DUPLICATEPRECOMPILER,
 	WARN_IDENTICALPRECOMPILER,
 	WARN_FORMATSTRING,		//sprintf
@@ -888,9 +902,11 @@ enum {
 	WARN_EXTENSION_USED,	//extension that frikqcc also understands
 	WARN_IFSTRING_USED,
 	WARN_IFVECTOR_DISABLED,	//if(vector) does if(vector_x) if ifvector is disabled
+	WARN_SLOW_LARGERETURN,			//just a perf warning. also requires working pointers but that'll give opcode errors
 	WARN_LAXCAST,	//some errors become this with a compiler flag
 	WARN_TYPEMISMATCHREDECOPTIONAL,
 	WARN_UNDESIRABLECONVENTION,
+	WARN_UNSAFELOCALPOINTER,
 	WARN_SAMENAMEASGLOBAL,
 	WARN_CONSTANTCOMPARISON,
 	WARN_DIVISIONBY0,
@@ -1100,6 +1116,8 @@ void QCC_PR_NewLine (pbool incomment);
 #define GDF_SCANLOCAL	256	//don't use the locals hash table
 #define GDF_POSTINIT	512	//field must be initialised at the end of the compile (allows arrays to be extended later)
 #define GDF_PARAMETER	1024
+#define GDF_AUTODEREF	2048	//for hidden pointers (alloca-ed locals)
+#define GDF_ALIAS		4096
 QCC_def_t *QCC_PR_GetDef (QCC_type_t *type, const char *name, struct QCC_function_s *scope, pbool allocate, int arraysize, unsigned int flags);
 QCC_sref_t QCC_PR_GetSRef (QCC_type_t *type, const char *name, struct QCC_function_s *scope, pbool allocate, int arraysize, unsigned int flags);
 void QCC_FreeTemp(QCC_sref_t t);

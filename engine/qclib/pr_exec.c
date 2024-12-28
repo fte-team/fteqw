@@ -1640,20 +1640,20 @@ static casecmprange_t casecmprange[] =
 	casecmprange_i	//func
 };
 
-#define RUNAWAYCHECK()							\
+#define RUNAWAYCHECK()								\
 	if (!--*runaway)								\
-	{											\
-		prinst.pr_xstatement = st-pr_statements;		\
+	{												\
+		prinst.pr_xstatement = st-pr_statements;	\
 		PR_RunError (&progfuncs->funcs, "runaway loop error\n");\
-		PR_StackTrace(&progfuncs->funcs,false);	\
-		externs->Printf ("runaway loop error\n");		\
-		while(prinst.pr_depth > prinst.exitdepth)		\
-			PR_LeaveFunction(progfuncs);		\
+		PR_StackTrace(&progfuncs->funcs,false);		\
+		externs->Printf ("runaway loop error\n");	\
+		while(prinst.pr_depth > prinst.exitdepth)	\
+			PR_LeaveFunction(progfuncs);			\
 		prinst.spushed = 0;							\
-		return -1;								\
+		return -1;									\
 	}
 
-#if defined(FTE_TARGET_WEB) || defined(SIMPLE_QCVM)
+#if defined(SIMPLE_QCVM)
 static int PR_NoDebugVM(progfuncs_t *fte_restrict progfuncs)
 {
 	char stack[4*1024];
@@ -1691,7 +1691,7 @@ static int PR_ExecuteCode16 (progfuncs_t *fte_restrict progfuncs, int s, int *ft
 	st = &pr_statements16[s];
 	while (progfuncs->funcs.debug_trace || prinst.watch_ptr || prinst.profiling)
 	{
-#if defined(FTE_TARGET_WEB) || defined(SIMPLE_QCVM)
+#if defined(SIMPLE_QCVM)
 		reeval16:
 		//this can generate huge functions, so disable it on systems that can't realiably cope with such things (IE initiates an unwanted denial-of-service attack when pointed our javascript, and firefox prints a warning too)
 		prinst.pr_xstatement = st-pr_statements16;
@@ -1716,7 +1716,7 @@ static int PR_ExecuteCode16 (progfuncs_t *fte_restrict progfuncs, int s, int *ft
 
 static int PR_ExecuteCode32 (progfuncs_t *fte_restrict progfuncs, int s, int *fte_restrict runaway)
 {
-#if defined(FTE_TARGET_WEB) ||defined(SIMPLE_QCVM)
+#if defined(SIMPLE_QCVM)
 	//this can generate huge functions, so disable it on systems that can't realiably cope with such things (IE initiates an unwanted denial-of-service attack when pointed our javascript, and firefox prints a warning too)
 	prinst.pr_xstatement = s;
 	PR_RunError (&progfuncs->funcs, "32bit qc statement support was disabled for this platform.\n");

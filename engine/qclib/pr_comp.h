@@ -475,10 +475,13 @@ enum qcop_e {
 	OP_ADD_FP,
 	OP_ADD_PI,
 	OP_ADD_IP,
+	OP_ADD_PU,
+	OP_ADD_UP,
 
 	OP_SUB_SI,
 	OP_SUB_PF,
 	OP_SUB_PI,
+	OP_SUB_PU,
 
 	OP_SUB_PP,
 

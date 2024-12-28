@@ -548,7 +548,7 @@ builtin_t builtins[] = {
 
 
 //Called when the qc library has some sort of serious error.
-void Sys_Abort(char *s, ...)
+void Sys_Abort(const char *s, ...)
 {	//quake handles this with a longjmp.
 	va_list ap;
 	va_start(ap, s);
@@ -739,6 +739,7 @@ void runtest(const char *progsname, const char **args)
 	ext.progsversion = PROGSTRUCT_VERSION;
 	ext.ReadFile = Sys_ReadFile;
 	ext.FileSize= Sys_FileSize;
+	ext.Sys_Error = Sys_Abort;
 	ext.Abort = Sys_Abort;
 	ext.Printf = printf;
 	ext.stateop = StateOp;

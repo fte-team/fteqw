@@ -1483,7 +1483,7 @@ static void PR_WatchPoint_f(void)
 				pr_global_struct->self = EDICT_TO_PROG(svprogfuncs, svs.clients[i].edict);
 		}
 	}
-	if (svprogfuncs->SetWatchPoint(svprogfuncs, variable))
+	if (svprogfuncs->SetWatchPoint(svprogfuncs, variable, variable))
 		Con_Printf("Watchpoint set\n");
 	else
 		Con_Printf("Watchpoint cleared\n");
@@ -11818,7 +11818,7 @@ static BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 
 	{"cprint",			PF_Fixme,	0,		0,		0,		338,	D("void(string s, ...)", "Print into the center of the screen just as ssqc's centerprint would appear.")},//(EXT_CSQC)
 	{"print",			PF_print,	0,		0,		0,		339,	D("void(string s, ...)", "Unconditionally print on the local system's console, even in ssqc (doesn't care about the value of the developer cvar).")},//(EXT_CSQC)
-
+	{"setwatchpoint",	PF_setwatchpoint,0,	0,		0,		0,		D("void(string name, float evaltype, void *ptr)", "For debugging. Set a watchpoint to monitor an address for changes. This is equivelent to using the watchpoint_* console command, but done from qc can be used on abitrary addresses.")},
 
 	{"keynumtostring",	PF_Fixme,	0,		0,		0,		340,	D("string(float keynum)", "Returns a hunam-readable name for the given keycode, as a tempstring.")},// (EXT_CSQC)
 	{"keynumtostring_csqc",PF_Fixme,0,		0,		0,		340,	D("DEP string(float keynum)", "Returns a hunam-readable name for the given keycode, as a tempstring.")},// (found in menuqc)

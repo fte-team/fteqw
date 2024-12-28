@@ -2631,6 +2631,7 @@ static struct {
 
 
 	{"print_csqc",				PF_print,					339},
+	{"setwatchpoint",			PF_setwatchpoint,			0},
 	{"keynumtostring_csqc",		PF_cl_keynumtostring,		340},
 	{"stringtokeynum_csqc",		PF_cl_stringtokeynum,		341},
 	{"getkeybind",				PF_cl_getkeybind,			342},
@@ -3131,7 +3132,7 @@ void *VARGS PR_CB_Malloc(int size);	//these functions should be tracked by the l
 void VARGS PR_CB_Free(void *mem);
 
 //Any menu builtin error or anything like that will come here.
-void VARGS Menu_Abort (char *format, ...)
+void VARGS Menu_Abort (const char *format, ...)
 {
 	va_list		argptr;
 	char		string[1024];
@@ -3444,7 +3445,7 @@ static void MP_Poke_f(void)
 		Con_TPrintf ("not supported.\n");
 }
 
-void MP_Breakpoint_f(void)
+static void MP_Breakpoint_f(void)
 {
 	int wasset;
 	int isset;
@@ -3468,17 +3469,41 @@ void MP_Breakpoint_f(void)
 
 	Cvar_Set(Cvar_FindVar("pr_debugger"), "1");
 }
+static void MP_Watchpoint_f(void)
+{
+	char *variable = Cmd_Argv(1);
+	if (!*variable)
+		variable = NULL;
+
+	if (!menu_world.progs)
+	{
+		Con_Printf("menuqc not running\n");
+		return;
+	}
+	if (menu_world.progs->SetWatchPoint(menu_world.progs, variable, variable))
+		Con_Printf("Watchpoint set\n");
+	else
+		Con_Printf("Watchpoint cleared\n");
+}
+static void MP_Profile_f(void)
+{
+	if (menu_world.progs && menu_world.progs->DumpProfile)
+		if (!menu_world.progs->DumpProfile(menu_world.progs, !atof(Cmd_Argv(1))))
+			Con_Printf("Enabled menuqc Profiling.\n");
+}
 
 void MP_RegisterCvarsAndCmds(void)
 {
 	Cmd_AddCommand("coredump_menuqc", MP_CoreDump_f);
 	Cmd_AddCommand("menu_cmd", MP_GameCommand_f);
-	Cmd_AddCommand("breakpoint_menu", MP_Breakpoint_f);
+	Cmd_AddCommand("breakpoint_menuqc", MP_Breakpoint_f);
+	Cmd_AddCommand("watchpoint_menuqc", MP_Watchpoint_f);
 #ifdef HAVE_LEGACY
 	Cmd_AddCommand("loadfont", CL_LoadFont_f);
 #endif
 
 	Cmd_AddCommand("poke_menuqc", MP_Poke_f);
+	Cmd_AddCommand("profile_menuqc", MP_Profile_f);
 
 
 	Cvar_Register(&forceqmenu, MENUPROGSGROUP);

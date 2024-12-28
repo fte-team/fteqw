@@ -7103,6 +7103,26 @@ void QCBUILTIN PF_externcall (pubprogfuncs_t *prinst, struct globalvars_s *pr_gl
 	}
 }
 
+void QCBUILTIN PF_setwatchpoint (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	const char *desc = PR_GetStringOfs(prinst, OFS_PARM0);
+	int type = G_FLOAT(OFS_PARM1);
+	int qcptr = G_INT(OFS_PARM2);
+	char variable[64];
+
+	if (type == ev_float)
+		Q_snprintfz(variable,sizeof(variable), "*(float*)%#x", qcptr);
+	else if (type == ev_string)
+		Q_snprintfz(variable,sizeof(variable), "*(string*)%#x", qcptr);
+	else
+		Q_snprintfz(variable,sizeof(variable), "*(int*)%#x", qcptr);
+
+	if (prinst->SetWatchPoint(prinst, desc, variable))
+		Con_DPrintf("Watchpoint set\n");
+	else
+		Con_Printf("Watchpoint failure\n");
+}
+
 void QCBUILTIN PF_traceon (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	prinst->debug_trace = DEBUG_TRACE_INTO;

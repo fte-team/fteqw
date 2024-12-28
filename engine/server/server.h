@@ -1157,7 +1157,7 @@ void SV_AutoBanSender (int duration, char *reason);	//bans net_from
 //
 // sv_main.c
 //
-NORETURN void VARGS SV_Error (char *error, ...) LIKEPRINTF(1);
+NORETURN void VARGS SV_Error (const char *error, ...) LIKEPRINTF(1);
 void SV_Shutdown (void);
 float SV_Frame (void);
 void SV_ReadPacket(void);

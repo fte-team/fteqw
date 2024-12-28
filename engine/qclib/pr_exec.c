@@ -715,6 +715,34 @@ pbool LocateDebugTerm(progfuncs_t *progfuncs, const char *key, eval_t **result, 
 	struct edictrun_s *ed;
 //	etype_t ptrtype = ev_void;
 
+	if (!strncmp(key, "*(float*)", 9))
+	{
+		fofs = strtoul(key+9, NULL, 0);
+		if (fofs < 0 || fofs+3 >= prinst.addressableused)
+			return false;
+		*result = (eval_t*)(pr_strings + fofs);
+		*rettype = ev_float;
+		return true;
+	}
+	if (!strncmp(key, "*(int*)", 7))
+	{
+		fofs = strtoul(key+7, NULL, 0);
+		if (fofs < 0 || fofs+3 >= prinst.addressableused)
+			return false;
+		*result = (eval_t*)(pr_strings + fofs);
+		*rettype = ev_integer;
+		return true;
+	}
+	if (!strncmp(key, "*(string*)", 7))
+	{
+		fofs = strtoul(key+7, NULL, 0);
+		if (fofs < 0 || fofs+3 >= prinst.addressableused)
+			return false;
+		*result = (eval_t*)(pr_strings + fofs);
+		*rettype = ev_string;
+		return true;
+	}
+
 	c = strchr(key, '.');
 	if (c) *c = '\0';
 	def = ED_FindLocalOrGlobal(progfuncs, key, &val);
@@ -797,14 +825,14 @@ pbool LocateDebugTerm(progfuncs_t *progfuncs, const char *key, eval_t **result, 
 	return true;
 }
 
-pbool PDECL PR_SetWatchPoint(pubprogfuncs_t *ppf, const char *key)
+pbool PDECL PR_SetWatchPoint(pubprogfuncs_t *ppf, const char *desc, const char *location)
 {
 	progfuncs_t *progfuncs = (progfuncs_t *)ppf;
 	eval_t *val;
 	eval_t fakeval;
 	etype_t type;
 
-	if (!key)
+	if (!location)
 	{
 		free(prinst.watch_name);
 		prinst.watch_name = NULL;
@@ -812,9 +840,9 @@ pbool PDECL PR_SetWatchPoint(pubprogfuncs_t *ppf, const char *key)
 		prinst.watch_type = ev_void;
 		return false;
 	}
-	if (!LocateDebugTerm(progfuncs, key, &val, &type, &fakeval))
+	if (!LocateDebugTerm(progfuncs, location, &val, &type, &fakeval))
 	{
-		externs->Printf("Unable to evaluate watch term \"%s\"\n", key);
+		externs->Printf("Unable to evaluate watch term \"%s\"\n", location);
 		return false;
 	}
 	if (val == &fakeval)
@@ -829,7 +857,7 @@ pbool PDECL PR_SetWatchPoint(pubprogfuncs_t *ppf, const char *key)
 	}
 
 	free(prinst.watch_name);
-	prinst.watch_name = strdup(key);
+	prinst.watch_name = strdup(desc);
 	prinst.watch_ptr = val;
 	prinst.watch_old = *prinst.watch_ptr;
 	prinst.watch_type = type &~ DEF_SAVEGLOBAL;

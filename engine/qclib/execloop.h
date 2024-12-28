@@ -57,9 +57,9 @@
 		//this will fire on the next instruction after the variable got changed.
 		prinst.pr_xstatement = s;
 		if (current_progstate->linenums)
-			externs->Printf("Watch point hit in %s:%u, \"%s\" changed", PR_StringToNative(&progfuncs->funcs, prinst.pr_xfunction->s_name), current_progstate->linenums[s-1], prinst.watch_name);
+			externs->Printf("^b^3Watch point hit in %s:%u, \"%s\" changed", PR_StringToNative(&progfuncs->funcs, prinst.pr_xfunction->s_name), current_progstate->linenums[s-1], prinst.watch_name);
 		else
-			externs->Printf("Watch point hit in %s, \"%s\" changed", PR_StringToNative(&progfuncs->funcs, prinst.pr_xfunction->s_name), prinst.watch_name);
+			externs->Printf("^b^3Watch point hit in %s, \"%s\" changed", PR_StringToNative(&progfuncs->funcs, prinst.pr_xfunction->s_name), prinst.watch_name);
 		switch(prinst.watch_type)
 		{
 		case ev_float:

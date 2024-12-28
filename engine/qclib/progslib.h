@@ -213,7 +213,7 @@ struct pubprogfuncs_s
 	void (PDECL *EntClear)						(pubprogfuncs_t *progfuncs, struct edict_s *e);
 	void (PDECL *FindPrefixGlobals)				(pubprogfuncs_t *progfuncs, int prnum, char *prefix, void (PDECL *found) (pubprogfuncs_t *progfuncs, char *name, union eval_s *val, etype_t type, void *ctx), void *ctx);	//calls the callback for each named global found
 
-	pbool (PDECL *SetWatchPoint)				(pubprogfuncs_t *prinst, const char *key);
+	pbool (PDECL *SetWatchPoint)				(pubprogfuncs_t *prinst, const char *desc, const char *location);
 
 	void (PDECL *AddSharedVar)					(pubprogfuncs_t *progfuncs, int start, int size);
 	void (PDECL *AddSharedFieldVar)				(pubprogfuncs_t *progfuncs, int num, char *relstringtable);
@@ -246,7 +246,7 @@ typedef struct progexterns_s {
 	int (VARGS *Printf)					(const char *, ...) LIKEPRINTF(1);
 	int (VARGS *DPrintf)				(const char *, ...) LIKEPRINTF(1);
 	void (VARGS *Sys_Error)				(const char *, ...) LIKEPRINTF(1);
-	void (VARGS *Abort)					(char *, ...) LIKEPRINTF(1);
+	void (VARGS *Abort)					(const char *, ...) LIKEPRINTF(1);
 	pbool (PDECL *CheckHeaderCrc)		(pubprogfuncs_t *inst, progsnum_t idx, int crc, const char *filename);
 
 	void (PDECL *entspawn)				(struct edict_s *ent, int loading);	//ent has been spawned, but may not have all the extra variables (that may need to be set) set

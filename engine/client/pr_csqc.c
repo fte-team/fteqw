@@ -127,7 +127,7 @@ static csqcglobals_t csqcg;
 
 playerview_t csqc_nullview;
 
-static void VARGS CSQC_Abort (char *format, ...);	//an error occured.
+static void VARGS CSQC_Abort (const char *format, ...);	//an error occured.
 static void cs_set_input_state (usercmd_t *cmd);
 
 //fixme: we should be using entity numbers, not view numbers.
@@ -7055,6 +7055,7 @@ static struct {
 
 	{"cprint",					PF_cl_cprint,					338},	// #338 void(string s) cprint (EXT_CSQC)
 	{"print",					PF_print,						339},	// #339 void(string s) print (EXT_CSQC)
+	{"setwatchpoint",			PF_setwatchpoint,				0},
 
 //340
 	{"keynumtostring",			PF_cl_keynumtostring,			340},	// #340 string(float keynum) keynumtostring (EXT_CSQC)
@@ -7522,7 +7523,7 @@ static progparms_t csqcprogparms;
 
 
 //Any menu builtin error or anything like that will come here.
-static void VARGS CSQC_Abort (char *format, ...)	//an error occured.
+static void VARGS CSQC_Abort (const char *format, ...)	//an error occured.
 {
 	va_list		argptr;
 	char		string[1024];
@@ -8679,7 +8680,7 @@ void CSQC_WatchPoint_f(void)
 		Con_Printf("csqc not running\n");
 		return;
 	}
-	if (csqcprogs->SetWatchPoint(csqcprogs, variable))
+	if (csqcprogs->SetWatchPoint(csqcprogs, variable, variable))
 		Con_Printf("Watchpoint set\n");
 	else
 		Con_Printf("Watchpoint cleared\n");

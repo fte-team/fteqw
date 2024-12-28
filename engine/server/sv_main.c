@@ -321,7 +321,7 @@ Sends a datagram to all the clients informing them of the server crash,
 then exits
 ================
 */
-void VARGS SV_Error (char *error, ...)
+void VARGS SV_Error (const char *error, ...)
 {
 	va_list		argptr;
 	static	char		string[1024];

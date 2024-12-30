@@ -2432,6 +2432,8 @@ static GLuint GLSlang_CreateShader (program_t *prog, const char *name, int ver, 
 				"uniform sampler2D s_reflectmask;\n",
 				"uniform sampler2D s_displacement;\n",
 				"uniform sampler2D s_occlusion;\n",
+				"uniform sampler2D s_transmission;\n",
+				"uniform sampler2D s_thickness;\n",
 				"uniform sampler2D s_lightmap;\n#define s_lightmap0 s_lightmap\n",
 				"uniform sampler2D s_deluxemap;\n#define s_deluxemap0 s_deluxemap\n",
 

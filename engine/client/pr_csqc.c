@@ -42,20 +42,10 @@ extern cvar_t sv_demo_write_csqc;
 
 static pubprogfuncs_t *csqcprogs;
 
-typedef struct csqctreadstate_s {
-	float resumetime;
-	struct qcthread_s *thread;
-	int self;
-	int other;
-
-	struct csqctreadstate_s *next;
-} csqctreadstate_t;
-
 static qboolean csprogs_promiscuous;
 static unsigned int csprogs_checksum;
 static size_t csprogs_checksize;
 static char csprogs_checkname[MAX_QPATH];
-static csqctreadstate_t *csqcthreads;
 qboolean csqc_resortfrags;
 world_t csqc_world;
 
@@ -5239,50 +5229,6 @@ static void QCBUILTIN PF_cl_te_particlesnow (pubprogfuncs_t *prinst, struct glob
 	P_RunParticleWeather(min, max, vel, howmany, colour, "snow");
 }
 
-void CSQC_RunThreads(void)
-{
-	csqctreadstate_t *state = csqcthreads, *next;
-	csqcthreads = NULL;
-	while(state)
-	{
-		next = state->next;
-
-		if (state->resumetime > cl.servertime)
-		{	//not time yet, reform original list.
-			state->next = csqcthreads;
-			csqcthreads = state;
-		}
-		else
-		{	//call it and forget it ever happened. The Sleep biltin will recreate if needed.
-
-
-			*csqcg.self = EDICT_TO_PROG(csqcprogs, EDICT_NUM_UB(csqcprogs, state->self));
-			*csqcg.other = EDICT_TO_PROG(csqcprogs, EDICT_NUM_UB(csqcprogs, state->other));
-
-			csqcprogs->RunThread(csqcprogs, state->thread);
-			csqcprogs->parms->memfree(state->thread);
-			csqcprogs->parms->memfree(state);
-		}
-
-		state = next;
-	}
-}
-
-static void QCBUILTIN PF_cs_addprogs (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
-{
-	const char *s = PR_GetStringOfs(prinst, OFS_PARM0);
-	int newp;
-	if (!s || !*s)
-		newp = -1;
-	else
-	{
-		newp = PR_LoadProgs(prinst, s);
-		if (newp >= 0)
-			PR_ProgsAdded(csqcprogs, newp, s);
-	}
-	G_FLOAT(OFS_RETURN) = newp;
-}
-
 static void QCBUILTIN PF_cs_OpenPortal (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	int state	= G_FLOAT(OFS_PARM1)!=0;
@@ -7546,21 +7492,6 @@ static void VARGS CSQC_Abort (const char *format, ...)	//an error occured.
 	Host_EndGame("csqc error");
 }
 
-static void CSQC_ForgetThreads(void)
-{
-	csqctreadstate_t *state = csqcthreads, *next;
-	csqcthreads = NULL;
-	while(state)
-	{
-		next = state->next;
-
-		csqcprogs->parms->memfree(state->thread);
-		csqcprogs->parms->memfree(state);
-
-		state = next;
-	}
-}
-
 static void PDECL CSQC_EntSpawn (struct edict_s *e, int loading)
 {
 	struct csqcedict_s *ent = (csqcedict_t*)e;
@@ -7720,7 +7651,6 @@ void CSQC_Shutdown(void)
 		Material_RegisterLoader(&csqc_world, NULL);
 
 		key_dest_absolutemouse &= ~kdm_game;
-		CSQC_ForgetThreads();
 		PR_ReleaseFonts(kdm_game);
 		PR_Common_Shutdown(csqcprogs, false);
 		World_Destroy(&csqc_world);
@@ -8884,8 +8814,6 @@ qboolean CSQC_DrawView(void)
 	DropPunchAngle (csqc_playerview);	//FIXME: this seems like the wrong place for this.
 	if (cl.worldmodel)
 		Surf_LessenStains();
-
-	CSQC_RunThreads();	//wake up any qc threads
 
 #ifdef HAVE_LEGACY
 	if (csqcg.autocvar_vid_conwidth)

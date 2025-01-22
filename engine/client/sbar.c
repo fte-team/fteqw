@@ -3725,12 +3725,15 @@ void Sbar_DeathmatchOverlay (playerview_t *pv, int start)
 			cl.last_ping_request = realtime;
 			CL_SendClientCommand(true, "pings");
 		}
+#ifdef NQPROT
 		else if (cls.protocol == CP_NETQUAKE && !cls.qex)
 		{
 			cl.last_ping_request = realtime;
 			CL_SendClientCommand(true, "ping");
 		}
+#endif
 	}
+#ifdef NQPROT
 	if (cls.protocol == CP_NETQUAKE && !cls.qex)
 	{
 		if (cl.nqplayernamechanged && cl.nqplayernamechanged < realtime)
@@ -3740,6 +3743,7 @@ void Sbar_DeathmatchOverlay (playerview_t *pv, int start)
 			CL_SendClientCommand(true, "status");
 		}
 	}
+#endif
 
 	if (start)
 		y = start;

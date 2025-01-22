@@ -1850,6 +1850,7 @@ void BIH_Build (model_t *mod, struct bihleaf_s *leafs, size_t numleafs)
 	mod->funcs.PointContents		= BIH_PointContents;
 	mod->funcs.NativeContents		= BIH_NativeContents;
 }
+#ifdef SKELETALMODELS
 void BIH_BuildAlias (model_t *mod, galiasinfo_t *meshes)
 {
 	size_t numleafs, i;
@@ -1883,3 +1884,4 @@ void BIH_BuildAlias (model_t *mod, galiasinfo_t *meshes)
 	}
 	BIH_Build(mod, leafs, leaf-leafs);
 }
+#endif

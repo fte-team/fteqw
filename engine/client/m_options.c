@@ -3506,7 +3506,9 @@ static void M_ModelViewerDraw(int x, int y, struct menucustom_s *c, struct emenu
 	modelview_t *mods = c->dptr;
 	skinfile_t *skin;
 	texnums_t *texnums;
+#ifdef SKELETALMODELS
 	qboolean boneanimsonly;
+#endif
 	model_t *animmodel = NULL;
 
 	if (R2D_Flush)
@@ -3730,6 +3732,7 @@ static void M_ModelViewerDraw(int x, int y, struct menucustom_s *c, struct emenu
 	}
 #endif
 
+#ifdef SKELETALMODELS
 	if (animmodel)// && Mod_GetNumBones(ent.model, false)==Mod_GetNumBones(animmodel, false))
 	{
 		int numbones = Mod_GetNumBones(ent.model, false);
@@ -3740,6 +3743,7 @@ static void M_ModelViewerDraw(int x, int y, struct menucustom_s *c, struct emenu
 		ent.framestate.skeltype = SKEL_RELATIVE;
 	}
 	else
+#endif
 		animmodel = ent.model;	//not using it. sorry. warn?
 
 
@@ -3850,6 +3854,7 @@ static void M_ModelViewerDraw(int x, int y, struct menucustom_s *c, struct emenu
 		}
 #endif
 	}
+#ifdef SKELETALMODELS
 	boneanimsonly = false;
 	if (ent.model && ent.model->loadstate == MLS_LOADED && ent.model->type == mod_alias)
 	{	//some models don't actually contain any mesh data, but exist as containers for skeletal animations that can be skel_built into a different model's anims.
@@ -3908,6 +3913,7 @@ static void M_ModelViewerDraw(int x, int y, struct menucustom_s *c, struct emenu
 			}
 		}
 	}
+#endif
 
 	V_AddAxisEntity(&ent);
 

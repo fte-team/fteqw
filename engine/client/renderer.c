@@ -1936,7 +1936,7 @@ TRACE(("dbg: R_ApplyRenderer: efrags\n"));
 
 void R_ReloadRenderer_f (void)
 {
-#if !defined(CLIENTONLY) && (defined(Q2BSPS) || defined(Q3BSPS))
+#if !defined(CLIENTONLY)
 	void *portalblob = NULL;
 	size_t portalsize = 0;
 #endif
@@ -2200,7 +2200,7 @@ static int QDECL R_SortRenderers(const void *av, const void *bv)
 
 void R_RestartRenderer (rendererstate_t *newr)
 {
-#if !defined(CLIENTONLY) && (defined(Q2BSPS) || defined(Q3BSPS))
+#if !defined(CLIENTONLY)
 	void *portalblob = NULL;
 	size_t portalsize = 0;
 #endif
@@ -2766,7 +2766,6 @@ int SignbitsForPlane (mplane_t *out)
 	}
 	return bits;
 }
-#if 1
 void R_SetFrustum (float projmat[16], float viewmat[16])
 {
 	float scale;
@@ -2873,47 +2872,6 @@ void R_SetFrustum (float projmat[16], float viewmat[16])
 		p->signbits  = SignbitsForPlane (p);
 	}
 }
-#else
-void R_SetFrustum (void)
-{
-	int		i;
-
-	if (r_novis.ival & 4)
-		return;
-
-	/*	removed - assumes fov_x == fov_y
-	if (r_refdef.fov_x == 90)
-	{
-		// front side is visible
-
-		VectorAdd (vpn, vright, frustum[0].normal);
-		VectorSubtract (vpn, vright, frustum[1].normal);
-
-		VectorAdd (vpn, vup, frustum[2].normal);
-		VectorSubtract (vpn, vup, frustum[3].normal);
-	}
-	else
-		*/
-	{
-
-		// rotate VPN right by FOV_X/2 degrees
-		RotatePointAroundVector( frustum[0].normal, vup, vpn, -(90-r_refdef.fov_x / 2 ) );
-		// rotate VPN left by FOV_X/2 degrees
-		RotatePointAroundVector( frustum[1].normal, vup, vpn, 90-r_refdef.fov_x / 2 );
-		// rotate VPN up by FOV_X/2 degrees
-		RotatePointAroundVector( frustum[2].normal, vright, vpn, 90-r_refdef.fov_y / 2 );
-		// rotate VPN down by FOV_X/2 degrees
-		RotatePointAroundVector( frustum[3].normal, vright, vpn, -( 90 - r_refdef.fov_y / 2 ) );
-	}
-
-	for (i=0 ; i<4 ; i++)
-	{
-		frustum[i].type = PLANE_ANYZ;
-		frustum[i].dist = DotProduct (r_origin, frustum[i].normal);
-		frustum[i].signbits = SignbitsForPlane (&frustum[i]);
-	}
-}
-#endif
 
 
 

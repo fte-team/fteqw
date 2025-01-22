@@ -44,6 +44,7 @@
 #define MULTITHREAD				//misc basic multithreading - dsound, downloads, basic stuff that's unlikely to have race conditions.
 #define LOADERTHREAD			//worker threads for loading misc stuff. falls back on main thread if not supported.
 #define AVAIL_DINPUT
+#define MAX_CLIENTS			32	//32 for vanilla qw. max 255.
 //#define SIDEVIEWS   4			//enable secondary/reverse views.
 //#define MAX_SPLITS 4u
 #define	VERTEXINDEXBYTES	2	//16bit indexes work everywhere but may break some file types, 32bit indexes are optional in gles<=2 and d3d<=9 and take more memory/copying but allow for bigger batches/models. Plugins need to be compiled the same way so this is no longer set per-renderer.

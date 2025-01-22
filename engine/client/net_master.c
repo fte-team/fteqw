@@ -3487,8 +3487,10 @@ static int CL_ReadServerInfo(char *msg, enum masterprotocol_e prototype, qboolea
 
 	if (!MasterInfo_ReadProtocol(info, msg))
 	{	//try and guess.
+		if (0)
+			;
 #ifdef Q2CLIENT
-		if (prototype == MP_QUAKE2)
+		else if (prototype == MP_QUAKE2)
 			info->special |= SS_QUAKE2;
 #endif
 #ifdef Q3CLIENT
@@ -3499,9 +3501,7 @@ static int CL_ReadServerInfo(char *msg, enum masterprotocol_e prototype, qboolea
 		else if (prototype == MP_NETQUAKE)
 			info->special |= SS_NETQUAKE;
 #endif
-#if defined(Q2CLIENT) || defined(Q3CLIENT) || defined(NQPROT)
 		else
-#endif
 			info->special |= SS_QUAKEWORLD;
 	}
 	if (favorite)	//was specifically named, not retrieved from a master.

@@ -854,8 +854,8 @@ qboolean IN_DrawWeaponWheel(int pnum)
 }
 void IN_WWheelDown (void)
 {
-#ifdef CSQC_DAT
 	int pnum = CL_TargettedSplit(false);
+#ifdef CSQC_DAT
 	if (CSQC_ConsoleCommand(pnum, Cmd_Argv(0)))
 		return;
 #endif

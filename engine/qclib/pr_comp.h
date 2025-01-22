@@ -247,7 +247,7 @@ enum qcop_e {
 	OP_LOADA_FNC,	//150
 	OP_LOADA_I,
 
-	OP_STORE_P,	//152... erm.. wait...
+	OP_STORE_P,
 	OP_LOAD_P,
 
 	OP_LOADP_F,
@@ -344,8 +344,8 @@ enum qcop_e {
 
 //r5768+
 //opcodes for 32bit uints
-	OP_LE_U,		//aka GT
-	OP_LT_U,		//aka GE
+	OP_LE_U,		//aka GE
+	OP_LT_U,		//aka GT
 	OP_DIV_U,		//don't need mul+add+sub
 	OP_RSHIFT_U,	//lshift is the same for signed+unsigned
 
@@ -359,13 +359,13 @@ enum qcop_e {
 	OP_BITXOR_I64,
 	OP_LSHIFT_I64I,
 	OP_RSHIFT_I64I,
-	OP_LE_I64,		//aka GT
-	OP_LT_I64,		//aka GE
+	OP_LE_I64,		//aka GE
+	OP_LT_I64,		//aka GT
 	OP_EQ_I64,
 	OP_NE_I64,
 //extra opcodes for 64bit uints
-	OP_LE_U64,		//aka GT
-	OP_LT_U64,		//aka GE
+	OP_LE_U64,		//aka GE
+	OP_LT_U64,		//aka GT
 	OP_DIV_U64,
 	OP_RSHIFT_U64I,
 
@@ -409,6 +409,8 @@ enum qcop_e {
 	OP_CONV_FU,	//OPC.i=(int)OPA.f
 	OP_CONV_U64D,	//OPC.d=(double)OPA.u64 -- useful mostly so decompilers don't do weird stuff.
 	OP_CONV_DU64,	//OPC.u64=(uint64_t)OPA.d
+	OP_CONV_U64F,	//OPC.f=(float)OPA.u64 -- useful mostly so decompilers don't do weird stuff.
+	OP_CONV_FU64,	//OPC.u64=(uint64_t)OPA.f
 
 	OP_NUMREALOPS,
 
@@ -647,6 +649,7 @@ typedef struct qcc_statement_s
 {
 	unsigned short		op;
 	#define STF_LOGICOP (1u<<0)	//do not bother following when looking for uninitialised variables.
+	#define STF_NOFOLD (1u<<1)	//do not allow changing its var_c to fold the following store.
 	unsigned short		flags;
 	QCC_sref_t			a, b, c;
 	unsigned int		linenum;

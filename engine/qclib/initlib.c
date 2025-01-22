@@ -1219,7 +1219,7 @@ void *PR_PointerToNative_MoInvalidate(pubprogfuncs_t *inst, pint_t ptr, size_t o
 	else
 	{	//regular pointer
 		offset += ptr;
-		if (datasize > inst->stringtablesize || offset >= inst->stringtablesize-datasize || !offset)
+		if (datasize > inst->stringtablesize || offset >= inst->stringtablesize-datasize || (!offset && datasize>1))
 			return NULL;	//can't autoresize these. just fail.
 		return inst->stringtable + ptr;
 	}
@@ -1424,6 +1424,8 @@ static string_t PDECL PR_AllocTempStringLen			(pubprogfuncs_t *ppf, char **str, 
 	}
 	prinst.nexttempstring = i;
 	prinst.livetemps++;
+
+	len = ((len+3)&~3);	//round up, primarily so its safe to use loadp_i to read the last few chars of the string
 
 	prinst.tempstrings[i] = progfuncs->funcs.parms->memalloc(sizeof(tempstr_t) - sizeof(((tempstr_t*)NULL)->value) + len);
 	prinst.tempstrings[i]->size = len;
@@ -1717,6 +1719,7 @@ static pubprogfuncs_t deffuncs = {
 	QC_Decompile,
 #endif
 	0,	//callargc
+	0,
 
 	0,	//string table(pointer base address)
 	0,		//string table size

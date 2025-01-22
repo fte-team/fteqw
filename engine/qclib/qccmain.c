@@ -370,6 +370,7 @@ compiler_flag_t compiler_flag[] = {
 	{&keyword_static,		defaultkeyword, "static",		"Keyword: static",		"Disables the 'static' keyword. 'static' means that a variable has altered scope. On globals, the variable is visible only to the current .qc file. On locals, the variable's value does not change between calls to the function. On class variables, specifies that the field is a scoped global instead of a local. On class functions, specifies that 'this' is expected to be invalid and that the function will access any memembers via it."},
 	{&keyword_nonstatic,	defaultkeyword, "nonstatic",	"Keyword: nonstatic",	"Disables the 'nonstatic' keyword. 'nonstatic' acts upon globals+functions, reverting the defaultstatic pragma on a per-variable basis. For use by people who prefer to keep their APIs explicit."},
 	{&keyword_ignore,		nondefaultkeyword, "ignore",	"Keyword: ignore",		"Disables the 'ignore' keyword. 'ignore' is expected to typically be hidden behind a 'csqconly' define, and in such a context can be used to conditionally compile functions a little more gracefully. The opposite of the 'used' keyword. These variables/functions/members are ALWAYS stripped, and effectively ignored."},
+	{&keyword_auto,			nondefaultkeyword, "auto",		"Keyword: auto",		"Disables the 'auto' keyword. This keyword denotes the variable as one that acts like C does, allowing locals to be passed recursively without screwing up the value. Can also be used on uninitialised globals to allocate at loadtime to reduce the size of the dat."},
 
 	{&keyword_nosave,		defaultkeyword, "nosave",		"Keyword: nosave",		"Disables the 'nosave' keyword."},	//don't write the def to the output.
 	{&keyword_inline,		defaultkeyword, "inline",		"Keyword: inline",		"Disables the 'inline' keyword."},	//don't write the def to the output.
@@ -557,7 +558,7 @@ int	QCC_CopyString (const char *str)
 	old = strofs;
 	len = strlen(str)+1;
 	if ( (strofs + len) > MAX_STRINGS)
-		QCC_Error(ERR_INTERNAL, "QCC_CopyString: stringtable size limit exceeded\n");
+		QCC_Error(ERR_INTERNAL, "QCC_CopyString: -max_strings %i limit exceeded\n", MAX_STRINGS);
 	memcpy (strings+strofs, str, len);
 	strofs += len;
 	return old;
@@ -574,7 +575,7 @@ int	QCC_CopyStringLength (const char *str, size_t length)
 
 	old = strofs;
 	if ( (strofs + length) > MAX_STRINGS)
-		QCC_Error(ERR_INTERNAL, "QCC_CopyString: stringtable size limit exceeded\n");
+		QCC_Error(ERR_INTERNAL, "QCC_CopyString: -max_strings %i limit exceeded\n", MAX_STRINGS);
 	memcpy (strings+strofs, str, length);
 	strings[strofs+length] = 0;
 	strofs += length+1;
@@ -701,10 +702,10 @@ static void QCC_DumpSymbolNames (const char *outputname)
 		{
 			if ((def->scope && !def->isstatic) || !strcmp(def->name, "IMMEDIATE"))
 				continue;
-			if (def->symbolheader != def && def->symbolheader->type != def->type)
+			if (def->symbolheader != def /*&& def->symbolheader->type != def->type*/)
 				continue;	//try to exclude vector components.
 
-			snprintf(line, sizeof(line), "%s\n", def->name);
+			snprintf(line, sizeof(line), "%s  %10i %s\n", def->initialized?"data":"bss ", def->symbolsize*(int)sizeof(float), def->name);
 			SafeWrite(h, line, strlen(line));
 		}
 		SafeClose(h);
@@ -1277,9 +1278,11 @@ static void QCC_InitData (void)
 	def_ret.constant = false;
 	def_ret.type	= NULL;
 	def_ret.symbolheader = &def_ret;
+	def_ret.symbolsize = type_size[ev_vector];
 	for (i=0 ; i<MAX_PARMS ; i++)
 	{
 		def_parms[i].symbolheader = &def_parms[i];
+		def_parms[i].symbolsize = type_size[ev_vector];
 		def_parms[i].temp = NULL;
 		def_parms[i].type = NULL;
 		def_parms[i].ofs = OFS_PARM0 + 3*i;
@@ -1403,7 +1406,7 @@ static void QCC_FinaliseDef(QCC_def_t *def)
 //				for (prev = def, sub = prev->next; prev != def->deftail; sub = (prev=sub)->next)
 //					sub->referenced = true;
 		}
-		else
+		else if (def->used)
 		{
 			//touch children to silence annoying warnings.
 			for (prev = def, sub = prev->next; prev != def->deftail; sub = (prev=sub)->next)
@@ -1530,7 +1533,7 @@ static void QCC_FinaliseDef(QCC_def_t *def)
 	{
 		def->reloc->used = true;
 		QCC_FinaliseDef(def->reloc);
-		if (def->type->type == ev_function/*misordered inits/copies*/ || def->type->type == ev_integer/*dp-style global index*/)
+		if (def->type->type == ev_function/*misordered inits/copies*/ || def->type->type == ev_integer/*dp-style global index*/ || def->type->type == ev_string/*immediates...*/)
 		{
 //printf("func Reloc %s %s@%i==%x -> %s@%i==%x==%s\n", def->symbolheader->name, def->name,def->ofs, def->symboldata->_int, def->reloc->name,def->reloc->ofs, def->reloc->symboldata->_int, functions[def->reloc->symboldata->_int].name);
 			def->symboldata->_int += def->reloc->symboldata->_int;
@@ -1598,6 +1601,9 @@ static void QCC_UnmarshalLocals(void)
 	QCC_def_t *d;
 	unsigned int onum, biggest, eog;
 	size_t i;
+
+	for (d = pr.def_head.next ; d ; d = d->next)
+		;
 
 	//finalise all the globals that we've seen so far
 	for (d = pr.def_head.next ; d ; d = d->next)
@@ -2243,13 +2249,30 @@ static pbool QCC_WriteData (int crc)
 			continue;
 		}
 		else if (def->type->type == ev_pointer && (def->symboldata[0]._int & 0x80000000))
-		{
+		{	//pointer relocs must never be stripped as we don't know the final addresses in advance. would screw stuff up.
 			if (opt_constant_names && !def->nostrip)
 				def->name = "";	//reloc, can't strip it (engine needs to fix em up), but can clear its name.
 		}
 		else if (def->scope && !def->scope->privatelocals && !def->isstatic)
 			continue;	//def is a local, which got shared and should be 0...
-		else if (((opt_constant_names&&(def->scope||def->constant))||(flag_noreflection&&strncmp(def->name, "autocvar_", 9))) && (def->type->type != ev_string || (strncmp(def->name, "dotranslate_", 12) && opt_constant_names_strings)))
+		else if ((def->type->type == ev_pointer || def->type->type == ev_string) && def->initialized && (def->symboldata[0]._int || !strncmp(def->name, "dotranslate_", 12)))
+		{	//string types in addons cannot be stripped - the engine needs to update offset to the new string table.
+			if (!def->nostrip && (def->scope||def->constant||flag_noreflection))
+			if (strncmp(def->name, "dotranslate_", 12) && strncmp(def->name, "autocvar_", 9))	//special crap.
+			{	//we can at least strip the name
+				if (opt_constant_names_strings)
+					continue; //drop entirely.
+				if (opt_constant_names)
+				{
+					optres_constant_names_strings += strlen(def->name);
+					/*char *n = qccHunkAlloc(7+strlen(def->name)+1);
+					sprintf(n, "STRIP_%s", def->name);
+					def->name = n;*/
+					def->name = "";
+				}
+			}
+		}
+		else if ((opt_constant_names&&(def->scope||def->constant))||(flag_noreflection&&strncmp(def->name, "autocvar_", 9)))// && (def->type->type != ev_string || (opt_constant_names_strings && strncmp(def->name, "dotranslate_", 12))))
 		{
 			if (!def->nostrip)
 			{
@@ -3815,7 +3838,7 @@ static int QCC_PR_FinishCompilation (void)
 				}
 				if (d->unused && !d->used)
 				{
-					d->initialized = 1;
+					//d->initialized = 1;
 					continue;
 				}
 				QCC_PR_Warning(ERR_NOFUNC, d->filen, d->s_line, "function %s has no body",d->name);
@@ -4547,7 +4570,6 @@ pbool QCC_RegisterSourceFile(const char *filename)
 
 static void QCC_PR_CommandLinePrecompilerOptions (void)
 {
-	CompilerConstant_t *cnst;
 	int             i, j, p;
 	const char *name, *val;
 	pbool werror = false;
@@ -4611,17 +4633,12 @@ static void QCC_PR_CommandLinePrecompilerOptions (void)
 				char *t = malloc(val-name+1);
 				memcpy(t, name, val-name);
 				t[val-name] = 0;
-				cnst = QCC_PR_DefineName(t);
-				free(t);
 				val++;
+				QCC_PR_DefineName(t, val);
+				free(t);
 			}
 			else
-				cnst = QCC_PR_DefineName(name);
-			if (val)
-			{
-				cnst->value = qccHunkAlloc(strlen(val)+1);
-				memcpy(cnst->value, val, strlen(val)+1);
-			}
+				QCC_PR_DefineName(name, NULL);
 		}
 		else if ( !strncmp(myargv[i], "-I", 2) )
 		{
@@ -4705,7 +4722,7 @@ static void QCC_PR_CommandLinePrecompilerOptions (void)
 			if (!stricmp(myargv[i]+5, "C") || !stricmp(myargv[i]+5, "c++") ||!stricmp(myargv[i]+5, "c89") || !stricmp(myargv[i]+5, "c90") || !stricmp(myargv[i]+5, "c99") || !stricmp(myargv[i]+5, "c11") || !stricmp(myargv[i]+5, "c17"))
 			{	//set up for greatest C compatibility... variations from C are bugs, not features.
 				keyword_asm = false;
-				keyword_break = keyword_continue = keyword_for = keyword_goto = keyword_const = keyword_extern = keyword_static = true;
+				keyword_break = keyword_continue = keyword_for = keyword_goto = keyword_const = keyword_extern = keyword_static = keyword_auto = true;
 				keyword_switch = keyword_case = keyword_default = true;
 				keyword_accessor = keyword_class = keyword_var = keyword_inout = keyword_optional = keyword_state = keyword_inline = keyword_nosave = keyword_shared = keyword_noref = keyword_unused = keyword_used = keyword_local = keyword_nonstatic = keyword_ignore = keyword_strip = false;
 
@@ -4725,6 +4742,7 @@ static void QCC_PR_CommandLinePrecompilerOptions (void)
 				flag_qcfuncs = false;		//there's a few parsing quirks where our attempt to parse qc functions will misparse valid C.
 				flag_macroinstrings = false;//hacky preqcc hack.
 				flag_boundchecks = false;	//nope... not C's style.
+				flag_iffloat = true;		//C code won't like this bug (and is mostly ints anyway, so emulation shouldn't be quite so expensive).
 
 				qccwarningaction[WARN_UNINITIALIZED] = WA_WARN;		//C doesn't like that, might as well warn here too.
 				qccwarningaction[WARN_TOOMANYPARAMS] = WA_ERROR;	//too many args to function is weeeeird.
@@ -4732,11 +4750,15 @@ static void QCC_PR_CommandLinePrecompilerOptions (void)
 				qccwarningaction[WARN_ASSIGNMENTTOCONSTANT] = WA_ERROR;		//const is const. at least its not const by default.
 				qccwarningaction[WARN_SAMENAMEASGLOBAL] = WA_IGNORE;		//shadowing of globals.
 				qccwarningaction[WARN_OCTAL_IMMEDIATE] = WA_IGNORE;			//0400!=400 is normal for C code.
+				qccwarningaction[WARN_POINTLESSSTATEMENT] = WA_IGNORE;		//common in C.
+
+
+				QCC_PR_DefineName("__STDC_HOSTED__", "0");
 
 				if (!stricmp(myargv[i]+5, "c++"))
 				{
 					keyword_class = /*keyword_new =*/ keyword_inline = true;
-					cnst = QCC_PR_DefineName("__cplusplus");
+					QCC_PR_DefineName("__cplusplus", NULL);
 					val = NULL;
 				}
 				else if (!stricmp(myargv[i]+5, "c89") || !stricmp(myargv[i]+5, "c90"))
@@ -4751,12 +4773,12 @@ static void QCC_PR_CommandLinePrecompilerOptions (void)
 					val = "202311L";
 				else
 					val = NULL;
-				cnst = QCC_PR_DefineName("__STDC_VERSION__");
 				if (val)
-				{
-					cnst->value = qccHunkAlloc(strlen(val)+1);
-					memcpy(cnst->value, val, strlen(val)+1);
-				}
+					QCC_PR_DefineName("__STDC_VERSION__", val);
+				QCC_PR_DefineName("__STDC_NO_THREADS__", val);	//added c11
+				QCC_PR_DefineName("__STDC_NO_ATOMICS__", val);	//added c11
+				QCC_PR_DefineName("__STDC_NO_COMPLEX__", val);	//optional in c11 (complex mandatory in c99).
+				QCC_PR_DefineName("__STDC_NO_VLA__", val);		//optional in c11 (vla mandatory in c99). we support vla only for the outer array.
 			}
 			else if (!strcmp(myargv[i]+5, "qccx"))
 			{
@@ -5108,8 +5130,8 @@ static void QCC_SetDefaultProperties (void)
 	*qccmsourcedir = 0;
 	QCC_PR_CloseProcessor();
 
-	QCC_PR_DefineName("FTEQCC");
-	QCC_PR_DefineName("__FTEQCC__");
+	QCC_PR_DefineName("FTEQCC", NULL);
+	QCC_PR_DefineName("__FTEQCC__", NULL);
 
 	if ((FWDSLASHARGS && QCC_CheckParm("/O0")) || QCC_CheckParm("-O0"))
 		level = 0;
@@ -5362,6 +5384,7 @@ pbool QCC_main (int argc, const char **argv)	//as part of the quake engine
 			qcccol[p] = "";
 
 	s_filen = "cmdline";
+	s_unitn = "";
 	s_filed = 0;
 	pr_source_line = 0;
 
@@ -5398,7 +5421,7 @@ pbool QCC_main (int argc, const char **argv)	//as part of the quake engine
 	pHash_Add = &Hash_Add;
 	pHash_RemoveData = &Hash_RemoveData;
 
-	MAX_REGS		= 1<<19;
+	MAX_REGS		= 1<<21;
 	MAX_STRINGS		= 1<<21;
 	MAX_GLOBALS		= 1<<17;
 	MAX_FIELDS		= 1<<13;

@@ -12,7 +12,6 @@ pbool QCC_PR_UndefineName(const char *name);
 const char *QCC_PR_CheckCompConstString(const char *def);
 CompilerConstant_t *QCC_PR_CheckCompConstDefined(const char *def);
 int QCC_PR_CheckCompConst(void);
-pbool QCC_Include(const char *filename);
 void QCC_FreeDef(QCC_def_t *def);
 void QCC_PR_LexComment(char **comment);
 
@@ -165,7 +164,7 @@ void QCC_PR_AddIncludePath(const char *newinc)
 		QCC_PR_ParseWarning(WARN_STRINGTOOLONG, "Too many include dirs. Ignoring and hoping the stars align.");
 	}
 }
-static void QCC_PR_IncludeChunkEx (char *data, pbool duplicate, char *filename, CompilerConstant_t *cnst)
+void QCC_PR_IncludeChunkEx (char *data, pbool duplicate, char *filename, CompilerConstant_t *cnst)
 {
 	qcc_includechunk_t *chunk = qccHunkAlloc(sizeof(qcc_includechunk_t));
 	chunk->prev = currentchunk;
@@ -311,7 +310,7 @@ void QCC_FindBestInclude(char *newfile, char *currentfile, pbool includetype)
 				externs->Printf("including %s\n", fullname);
 		}
 	}
-	QCC_Include(fullname);
+	QCC_Include(fullname, includetype);
 }
 
 pbool defaultnoref;
@@ -1036,10 +1035,10 @@ static pbool QCC_PR_Precompiler(void)
 				pr_file_p = "";
 				QCC_PR_ParseError(0, NULL);
 			}
+			QCC_PR_SkipToEndOfLine(true);
 
 			QCC_FindBestInclude(msg, compilingfile, false);
-
-			QCC_PR_SkipToEndOfLine(true);
+			QCC_PR_Precompiler();	//preprocessor directives normally require a leading newline to be considered a directive. we won't have one in the new file so lets just do it explicitly.
 		}
 		else if (!strncmp(directive, "datafile", 8))
 		{
@@ -2952,7 +2951,7 @@ pbool QCC_PR_UndefineName(const char *name)
 	return true;
 }
 
-CompilerConstant_t *QCC_PR_DefineName(const char *name)
+CompilerConstant_t *QCC_PR_DefineName(const char *name, const char *value)
 {
 	int i;
 	CompilerConstant_t *cnst;
@@ -2963,7 +2962,8 @@ CompilerConstant_t *QCC_PR_DefineName(const char *name)
 	cnst = pHash_Get(&compconstantstable, name);
 	if (cnst)
 	{
-		QCC_PR_ParseWarning(WARN_DUPLICATEDEFINITION, "Duplicate definition for Precompiler constant %s", name);
+		if (strcmp(cnst->value, value?value:"") || cnst->numparams!=-1 || cnst->varg)
+			QCC_PR_ParseWarning(WARN_DUPLICATEDEFINITION, "Duplicate definition for Precompiler constant %s", name);
 		Hash_Remove(&compconstantstable, name);
 	}
 
@@ -2979,6 +2979,9 @@ CompilerConstant_t *QCC_PR_DefineName(const char *name)
 		cnst->params[i][0] = '\0';
 
 	pHash_Add(&compconstantstable, cnst->name, cnst, qccHunkAlloc(sizeof(bucket_t)));
+
+	if (value && *value)
+		cnst->value = strcpy(qccHunkAlloc(strlen(value)+1), value);
 
 	return cnst;
 }
@@ -3002,7 +3005,7 @@ void QCC_PR_PreProcessor_Define(pbool append)
 	if (oldcnst)
 		Hash_Remove(&compconstantstable, oldcnst->name);
 
-	cnst = QCC_PR_DefineName(pr_token);
+	cnst = QCC_PR_DefineName(pr_token, NULL);
 
 	if (*pr_file_p == '(')
 	{
@@ -3341,6 +3344,10 @@ static const struct tm *QCC_CurrentTime(void)
 	return localtime(&t);
 }
 
+#if _POSIX_C_SOURCE >= 2 || defined(_WIN32)
+#define HAVE_POPEN
+#endif
+#ifdef HAVE_POPEN
 static char *QCC_PR_PopenMacro(const char *macroname, const char *cmd, char *retbuf, size_t retbufsize)
 {
 	char *ret = retbuf;
@@ -3393,6 +3400,7 @@ static char *QCC_PR_PopenMacro(const char *macroname, const char *cmd, char *ret
 #endif
 	return ret;
 }
+#endif
 
 static char *QCC_PR_CheckBuiltinCompConst(char *constname, char *retbuf, size_t retbufsize)
 {
@@ -3408,6 +3416,7 @@ static char *QCC_PR_CheckBuiltinCompConst(char *constname, char *retbuf, size_t 
 		strftime( retbuf, retbufsize,	"\"%a %d %b %Y\"", QCC_CurrentTime());
 		return retbuf;
 	}
+#ifdef HAVE_POPEN
 	if (!strcmp(constname, "__GITURL__"))
 		return QCC_PR_PopenMacro(constname, "git remote get-url origin", retbuf, retbufsize);	//some git url...
 	if (!strcmp(constname, "__GITHASH__"))
@@ -3418,6 +3427,7 @@ static char *QCC_PR_CheckBuiltinCompConst(char *constname, char *retbuf, size_t 
 		return QCC_PR_PopenMacro(constname, "git log -1 --format=%ci", retbuf, retbufsize);	//YYYY-MM-DD HH:MM:SS +TZ
 	if (!strcmp(constname, "__GITDESC__"))
 		return QCC_PR_PopenMacro(constname, "git describe", retbuf, retbufsize);
+#endif
 	if (!strcmp(constname, "__RAND__"))
 	{
 		QC_snprintfz(retbuf, retbufsize, "%i", rand());
@@ -4068,7 +4078,7 @@ void QCC_PR_ParsePrintDef (int type, QCC_def_t *def)
 				modifiers = "static ";
 
 
-			if (def && def->initialized && def->constant && !def->arraysize)
+			if (def && def->initialized && def->constant && !def->arraysize && def->symboldata)
 			{
 				const QCC_eval_t *ev = (const QCC_eval_t*)&def->symboldata[0];
 				switch(def->type->type)
@@ -4341,6 +4351,8 @@ void QCC_PR_Expect (const char *string)
 			else
 				QCC_PR_ParseError (ERR_EXPECTED, "expected %s%s%s, found %s\"%s\"%s", col_location, string, col_none, col_name, pr_token, col_none);
 		}
+		else if (pr_token_type == tt_eof)
+			QCC_PR_ParseError (ERR_EXPECTED, "expected %s%s%s, found %s%s%s", col_location, string, col_none, col_name, "<EOF>", col_none);
 		else
 			QCC_PR_ParseError (ERR_EXPECTED, "expected %s%s%s, found %s%s%s", col_location, string, col_none, col_name, pr_token, col_none);
 	}
@@ -5204,7 +5216,12 @@ QCC_type_t *QCC_PR_ParseFunctionType (int newtype, QCC_type_t *returntype)
 
 				t = QCC_PR_ParseType(false, maybename, false);
 				if (!t)
-					return NULL;
+				{
+					if (!flag_qcfuncs)
+						t = type_integer;	//c89 assumes int.
+					else
+						return NULL;
+				}
 			}
 
 			if (!ftype)
@@ -5227,9 +5244,6 @@ QCC_type_t *QCC_PR_ParseFunctionType (int newtype, QCC_type_t *returntype)
 			while (QCC_PR_CheckToken("*"))
 				paramlist[numparms].type = QCC_PointerTypeTo(paramlist[numparms].type);
 
-			if (paramlist[numparms].type->type == ev_void)
-				break; //float(void) has no actual args
-
 			if (inout < 0 && QCC_PR_CheckToken("&"))
 			{	//accept c++ syntax, at least on arguments. its not quite the same, but it'll do.
 				paramlist[numparms].out = true;
@@ -5238,58 +5252,65 @@ QCC_type_t *QCC_PR_ParseFunctionType (int newtype, QCC_type_t *returntype)
 //			type->name = "FUNC PARAMETER";
 
 			paramlist[numparms].paramname = "";
-			if (STRCMP(pr_token, ",") && STRCMP(pr_token, ")"))
+			if (QCC_PR_CheckToken ("..."))
 			{
-				if (QCC_PR_CheckToken ("..."))
-				{
-					ftype->vargs = true;
-					break;
-				}
-				newtype = true;
-				if (QCC_PR_CheckToken("("))
-				{
-					QCC_PR_CheckToken("*");	//one is normal for a function pointer/ref. non-ptr makes no sense here.
-					name = QCC_PR_ParseName ();
-					QCC_PR_Expect(")");
-
-					QCC_PR_Expect("(");
-					paramlist[numparms].type = QCC_PR_ParseFunctionType(false, paramlist[numparms].type);
-					if (!paramlist[numparms].type)
-						QCC_PR_ParseError(ERR_BADNOTTYPE, "expected function arg list");
-				}
-				else
-					name = QCC_PR_ParseName ();
-				paramlist[numparms].paramname = name;
-				if (definenames)
-					strcpy (pr_parm_names[numparms], name);
-
+				ftype->vargs = true;
+				break;
+			}
+			name = "";
+			if (QCC_PR_CheckToken("("))
+			{
+				QCC_PR_CheckToken("*");	//one is normal for a function pointer/ref. non-ptr makes no sense here.
+				name = QCC_PR_ParseName ();
 				if (QCC_PR_CheckToken("["))
 				{
-					if (QCC_PR_CheckToken("]"))	//length omitted. just treat it as a pointer...?
-					{
-						//QCC_PR_ParseWarning(ERR_BADARRAYSIZE, "unsized array argument");
-						paramlist[numparms].type = QCC_PointerTypeTo(paramlist[numparms].type);
-					}
-					else
-					{	//proper array
-						int arraysize;
-						paramlist[numparms].type = QCC_PR_ParseArrayType(paramlist[numparms].type, &arraysize);
-
-						if (flag_qcfuncs)
-							paramlist[numparms].arraysize = arraysize;
-						else
-							paramlist[numparms].type = QCC_PointerTypeTo(paramlist[numparms].type);	//just turn it into a pointer and ditch the top-level size. C style.
+					if (!QCC_PR_CheckToken("]"))
+					{	//don't really care, doesn't matter
+						paramlist[numparms].arraysize = QCC_PR_IntConstExpr();
+						QCC_PR_Expect("]");
 					}
 				}
+				QCC_PR_Expect(")");
 
-				if (!flag_qcfuncs)
-				{	//if its an array type, promote it to pointer here.
-					if (t->type == ev_union && t->num_parms == 1 && !t->params[0].paramname)
-						paramlist[numparms].type = QCC_PointerTypeTo(t->params[0].type);
+				QCC_PR_Expect("(");
+				paramlist[numparms].type = QCC_PR_ParseFunctionType(false, paramlist[numparms].type);
+				if (!paramlist[numparms].type)
+					QCC_PR_ParseError(ERR_BADNOTTYPE, "expected function arg list");
+			}
+			else if (pr_token_type == tt_name)
+				name = QCC_PR_ParseName ();
+			paramlist[numparms].paramname = name;
+			if (definenames)
+				strcpy (pr_parm_names[numparms], name);
+			if (*name)
+				newtype = true;
+			else if (paramlist[numparms].type->type == ev_void)
+				break; //float(void) has no actual args
+
+			if (!paramlist[numparms].arraysize && QCC_PR_CheckToken("["))
+			{
+				if (QCC_PR_CheckToken("]"))	//length omitted. just treat it as a pointer...?
+				{
+					//QCC_PR_ParseWarning(ERR_BADARRAYSIZE, "unsized array argument");
+					paramlist[numparms].type = QCC_PointerTypeTo(paramlist[numparms].type);
+				}
+				else
+				{	//proper array
+					int arraysize;
+					paramlist[numparms].type = QCC_PR_ParseArrayType(paramlist[numparms].type, &arraysize);
+
+					if (flag_qcfuncs)
+						paramlist[numparms].arraysize = arraysize;
+					else
+						paramlist[numparms].type = QCC_PointerTypeTo(paramlist[numparms].type);	//just turn it into a pointer and ditch the top-level size. C style.
 				}
 			}
-			else if (definenames)
-				strcpy (pr_parm_names[numparms], "");
+
+			if (!flag_qcfuncs)
+			{	//if its an array type, promote it to pointer here.
+				if (t->type == ev_union && t->num_parms == 1 && !t->params[0].paramname)
+					paramlist[numparms].type = QCC_PointerTypeTo(t->params[0].type);
+			}
 
 			if (QCC_PR_CheckToken("="))
 			{
@@ -5316,7 +5337,7 @@ QCC_type_t *QCC_PR_ParseFunctionType (int newtype, QCC_type_t *returntype)
 		else
 			QCC_PR_Expect (")");
 	}
-	ftype->vargtodouble = flag_assume_double;
+	ftype->vargtodouble = !flag_qcfuncs && flag_assume_double;
 	ftype->num_parms = numparms;
 	ftype->params = qccHunkAlloc(sizeof(*ftype->params) * numparms);
 	memcpy(ftype->params, paramlist, sizeof(*ftype->params) * numparms);
@@ -5638,7 +5659,7 @@ extern char *basictypenames[];
 extern QCC_type_t **basictypes[];
 static QCC_type_t *QCC_PR_ParseStruct(etype_t structtype)
 {
-	QCC_type_t *newt, *type, *newparm;
+	QCC_type_t *newt, *type, *newparm, *oldtype = NULL;
 	struct QCC_typeparam_s *parms = NULL, *oldparm;
 	int numparms = 0;
 	int ofs, bitofs;
@@ -5685,19 +5706,19 @@ static QCC_type_t *QCC_PR_ParseStruct(etype_t structtype)
 		else if (parenttype && newt->parentclass != parenttype)
 			QCC_PR_ParseError(ERR_NOTANAME, "Redeclaration of struct with different parent type");
 
-		if (newt->size)
-		{
-			if (QCC_PR_CheckToken("{"))
-				QCC_PR_ParseError(ERR_NOTANAME, "%s %s is already defined", structtype==ev_union?"union":"struct", newt->name);
-
-			return newt;
-		}
-
 		//struct declaration only, not definition.
 		if (parenttype)
 			QCC_PR_Expect("{");
 		else if (!QCC_PR_CheckToken("{"))
 			return newt;
+
+		if (newt->size)
+		{
+//			QCC_PR_ParseError(ERR_NOTANAME, "%s %s is already defined", structtype==ev_union?"union":"struct", newt->name);
+			oldtype = newt;
+			newt = QCC_PR_NewType(tname, ev_struct, false);
+			newt->parentclass = parenttype;
+		}
 	}
 	if (newt->parentclass)
 		newt->size = newt->parentclass->size;
@@ -5988,6 +6009,13 @@ static QCC_type_t *QCC_PR_ParseStruct(etype_t structtype)
 	newt->params = qccHunkAlloc(sizeof(*type->params) * numparms);
 	memcpy(newt->params, parms, sizeof(*type->params) * numparms);
 	free(parms);
+
+	if (oldtype)
+	{
+		if (typecmp_strict(newt, oldtype))
+			QCC_PR_ParseError(ERR_NOTANAME, "%s %s redeclared differently", structtype==ev_union?"union":"struct", newt->name);
+		newt = oldtype;
+	}
 
 	return newt;
 }

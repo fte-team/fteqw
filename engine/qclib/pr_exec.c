@@ -1839,6 +1839,10 @@ static void PR_ExecuteCode (progfuncs_t *progfuncs, int s)
 	}
 }
 
+#if defined(__GNUC__) && defined(__GLIBC__)
+#define __USE_GNU
+#include <dlfcn.h>
+#endif
 
 void PDECL PR_ExecuteProgram (pubprogfuncs_t *ppf, func_t fnum)
 {
@@ -1871,7 +1875,12 @@ void PDECL PR_ExecuteProgram (pubprogfuncs_t *ppf, func_t fnum)
 	{
 //		if (pr_global_struct->self)
 //			ED_Print (PROG_TO_EDICT(pr_global_struct->self));
-#if defined(__GNUC__) && !defined(FTE_TARGET_WEB)
+#if defined(__GNUC__) && defined(__GLIBC__)
+		Dl_info info;
+		void *caller = __builtin_return_address(0);
+		dladdr(caller, &info);
+		externs->Printf("PR_ExecuteProgram: NULL function from %s+%p(%s)\n", info.dli_fname, (void*)((intptr_t)caller - (intptr_t)info.dli_fbase), info.dli_sname?info.dli_sname:"<function not known>");
+#elif defined(__GNUC__) && !defined(FTE_TARGET_WEB)
 		externs->Printf("PR_ExecuteProgram: NULL function from exe (address %p)\n", __builtin_return_address(0));
 #else
 		externs->Printf("PR_ExecuteProgram: NULL function from exe\n");
@@ -1960,6 +1969,7 @@ struct qcthread_s *PDECL PR_ForkStack(pubprogfuncs_t *ppf)
 	int localsoffset, baselocalsoffset;
 	qcthread_t *thread = externs->memalloc(sizeof(qcthread_t));
 	const mfunction_t *f;
+	int curprogs = ppf->callprogs;
 
 	//notes:
 	//pr_stack[prinst.exitdepth] is a dummy entry, with null function refs. we don't care about it.
@@ -1994,8 +2004,8 @@ struct qcthread_s *PDECL PR_ForkStack(pubprogfuncs_t *ppf)
 	{
 		if (i == prinst.pr_depth)
 		{	//top of the stack. whichever function called the builtin we're executing.
-			thread->fstack[thread->fstackdepth].fnum = prinst.pr_xfunction - current_progstate->functions;
-			thread->fstack[thread->fstackdepth].progsnum = prinst.pr_typecurrent;
+			thread->fstack[thread->fstackdepth].fnum = prinst.pr_xfunction - pr_progstate[curprogs].functions;
+			thread->fstack[thread->fstackdepth].progsnum = curprogs;
 			thread->fstack[thread->fstackdepth].statement = prinst.pr_xstatement;
 			thread->fstack[thread->fstackdepth].spushed = prinst.spushed;
 			thread->fstackdepth++;
@@ -2090,7 +2100,7 @@ void PDECL PR_ResumeThread (pubprogfuncs_t *ppf, struct qcthread_s *thread)
 		//make the new stack frame from the working values so stuff gets restored properly...
 		prinst.pr_stack[prinst.pr_depth].f = prinst.pr_xfunction;
 		prinst.pr_stack[prinst.pr_depth].s = prinst.pr_xstatement;
-		prinst.pr_stack[prinst.pr_depth].progsnum = initial_progs;
+		prinst.pr_stack[prinst.pr_depth].progsnum = prinst.pr_typecurrent;
 		prinst.pr_stack[prinst.pr_depth].pushed = prinst.spushed;
 		prinst.pr_depth++;
 
@@ -2123,7 +2133,7 @@ void PDECL PR_ResumeThread (pubprogfuncs_t *ppf, struct qcthread_s *thread)
 	PR_ExecuteCode(progfuncs, prinst.pr_xstatement);
 
 
-	PR_SwitchProgsParms(progfuncs, initial_progs);
+	PR_SwitchProgsParms(progfuncs, initial_progs); //just in case
 #ifndef QCGC
 	PR_FreeTemps(progfuncs, tempdepth);
 	prinst.numtempstringsstack = tempdepth;

@@ -26,6 +26,16 @@
 	#define VARGS
 #endif
 
+#if __STDC_VERSION__ >= 202311L // c23
+	#define FALLTHROUGH  [[fallthrough]];
+#elif defined(__GNUC__) && __GNUC__ >= 7
+	#define FALLTHROUGH __attribute__((fallthrough));
+#elif defined(__clang__) && __clang_major__ >= 7
+	#define FALLTHROUGH __attribute__((fallthrough));
+#else
+	#define FALLTHROUGH
+#endif
+
 #if defined(_M_IX86) || defined(__i386__)	//supported arch
 	#if defined(__GNUC__) || defined(_MSC_VER)	//supported compilers (yay for inline asm)
 	//#define QCJIT
@@ -181,6 +191,7 @@ struct pubprogfuncs_s
 	pbool	(PDECL *Decompile)					(pubprogfuncs_t *prinst, const char *fname);
 
 	int		callargc;	//number of args of built-in call
+	int		callprogs;	//which progs it was called from...
 
 	char *stringtable;	//qc strings are all relative. add to a qc string. this is required for support of frikqcc progs that strip string immediates.
 	unsigned int stringtablesize;

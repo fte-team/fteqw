@@ -486,7 +486,7 @@ typedef struct QCC_def_s
 	pbool initialized:1;		//true when a declaration included "= immediate".
 	pbool isextern:1;			//fteqw-specific lump entry
 	pbool isparameter:1;		//its an engine parameter (thus preinitialised).
-	pbool addressed:1;			//warned about it once, back off now.
+	pbool addressedwarned:1;	//warned about it once, back off now.
 	pbool autoderef:1;			//like C++'s int &foo; - probably local pointers to alloca memory.
 	const char *deprecated;		//reason its deprecated (or empty for no reason given)
 
@@ -697,6 +697,7 @@ extern pbool keyword_unused;
 extern pbool keyword_used;
 extern pbool keyword_local;
 extern pbool keyword_static;
+extern pbool keyword_auto;
 extern pbool keyword_nonstatic;
 extern pbool keyword_ignore;
 
@@ -928,6 +929,7 @@ enum {
 	WARN_PARAMWITHNONAME,
 	WARN_ARGUMENTCHECK,
 	WARN_IGNOREDKEYWORD,		//use of a keyword that fteqcc does not support at this time.
+	WARN_WORDSIZEUNDEFINED,
 
 	ERR_PARSEERRORS,	//caused by qcc_pr_parseerror being called.
 
@@ -1105,19 +1107,19 @@ extern	int		pr_error_count, pr_warning_count;
 
 void QCC_PR_NewLine (pbool incomment);
 #define GDF_NONE		0
-#define GDF_SAVED		1
-#define GDF_STATIC		2
-#define GDF_CONST		4
-#define GDF_STRIP		8	//always stripped, regardless of optimisations. used for class member fields
-#define GDF_SILENT		16	//used by the gui, to suppress ALL warnings associated with querying the def.
-#define GDF_INLINE		32	//attempt to inline calls to this function
-#define GDF_USED		64	//don't strip this, ever.
-#define GDF_BASICTYPE	128	//don't care about #merge types not being known correctly.
-#define GDF_SCANLOCAL	256	//don't use the locals hash table
-#define GDF_POSTINIT	512	//field must be initialised at the end of the compile (allows arrays to be extended later)
-#define GDF_PARAMETER	1024
-#define GDF_AUTODEREF	2048	//for hidden pointers (alloca-ed locals)
-#define GDF_ALIAS		4096
+#define GDF_SAVED		(1<<0)
+#define GDF_STATIC		(1<<1)
+#define GDF_CONST		(1<<2)
+#define GDF_STRIP		(1<<3)	//always stripped, regardless of optimisations. used for class member fields
+#define GDF_SILENT		(1<<4)	//used by the gui, to suppress ALL warnings associated with querying the def.
+#define GDF_INLINE		(1<<5)	//attempt to inline calls to this function
+#define GDF_USED		(1<<6)	//don't strip this, ever.
+#define GDF_BASICTYPE	(1<<7)	//don't care about #merge types not being known correctly.
+#define GDF_SCANLOCAL	(1<<8)	//don't use the locals hash table
+#define GDF_POSTINIT	(1<<9)	//field must be initialised at the end of the compile (allows arrays to be extended later)
+#define GDF_PARAMETER	(1<<10)
+#define GDF_AUTODEREF	(1<<11)	//for hidden pointers (alloca-ed locals)
+#define GDF_ALIAS		(1<<12)	//symbol is a later alias within the root symbol rather than a core part of it - don't insert extra defs. generally paired with GDF_STRIP.
 QCC_def_t *QCC_PR_GetDef (QCC_type_t *type, const char *name, struct QCC_function_s *scope, pbool allocate, int arraysize, unsigned int flags);
 QCC_sref_t QCC_PR_GetSRef (QCC_type_t *type, const char *name, struct QCC_function_s *scope, pbool allocate, int arraysize, unsigned int flags);
 void QCC_FreeTemp(QCC_sref_t t);
@@ -1241,6 +1243,9 @@ typedef struct qcc_includechunk_s {
 } qcc_includechunk_t;
 extern qcc_includechunk_t *currentchunk;
 
+pbool QCC_Include(const char *filename, pbool newunit);
+void QCC_PR_IncludeChunkEx (char *data, pbool duplicate, char *filename, CompilerConstant_t *cnst);
+
 int	QCC_CopyString (const char *str);
 int	QCC_CopyStringLength (const char *str, size_t length);
 
@@ -1308,7 +1313,7 @@ static void inline QCC_PR_Expect (const char *string)
 }
 #endif
 
-CompilerConstant_t *QCC_PR_DefineName(const char *name);
+CompilerConstant_t *QCC_PR_DefineName(const char *name, const char *value);
 void editbadfile(const char *fname, int line);
 char *TypeName(QCC_type_t *type, char *buffer, int buffersize);
 void QCC_PR_AddIncludePath(const char *newinc);

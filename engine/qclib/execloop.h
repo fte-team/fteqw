@@ -40,6 +40,8 @@
 #define QCFAULT return (prinst.pr_xstatement=(st-pr_statements)-1),PR_HandleFault
 #define EVAL_FLOATISTRUE(ev) ((ev)->_int & 0x7fffffff) //mask away sign bit. This avoids using denormalized floats.
 
+#define A_RSHIFT_I(x,y) ((x < 0) ? ~(~(x) >> (y)) : ((x) >> (y)))	//C leaves it undefined whether signed rshift is arithmatic or logical. gcc should be smart enough to fold this to the proper signed instruction at least on x86.
+
 #ifdef __GNUC__
 #define errorif(x) if(__builtin_expect(x,0))
 #else
@@ -875,7 +877,6 @@ reeval:
 	case OP_CALL1:
 	case OP_CALL0:
 		{
-			int callerprogs;
 			int newpr;
 			unsigned int fnum;
 			RUNAWAYCHECK();
@@ -889,7 +890,7 @@ reeval:
 
 			glob = NULL;	//try to derestrict it.
 
-			callerprogs=prinst.pr_typecurrent;			//so we can revert to the right caller.
+			progfuncs->funcs.callprogs=prinst.pr_typecurrent;			//so we can revert to the right caller.
 			newpr = (fnum & 0xff000000)>>24;	//this is the progs index of the callee
 			fnum &= ~0xff000000;				//the callee's function index.
 
@@ -897,7 +898,7 @@ reeval:
 			errorif (!PR_SwitchProgsParms(progfuncs, newpr) || !fnum || fnum > pr_progs->numfunctions)
 			{
 				char *msg = fnum?"OP_CALL references invalid function in %s\n":"NULL function from qc (inside %s).\n";
-				PR_SwitchProgsParms(progfuncs, callerprogs);
+				PR_SwitchProgsParms(progfuncs, progfuncs->funcs.callprogs);
 
 				glob = pr_globals;
 				if (!progfuncs->funcs.debug_trace)
@@ -937,12 +938,12 @@ reeval:
 				}
 				else
 					PR_RunError (&progfuncs->funcs, "Bad builtin call number - %i", -newf->first_statement);
-				PR_SwitchProgsParms(progfuncs, (progsnum_t)callerprogs);
+				PR_SwitchProgsParms(progfuncs, (progsnum_t)progfuncs->funcs.callprogs);
 
 				//decide weather non debugger wants to start debugging.
 				return prinst.pr_xstatement;
 			}
-			s = PR_EnterFunction (progfuncs, newf, callerprogs);
+			s = PR_EnterFunction (progfuncs, newf, progfuncs->funcs.callprogs);
 			st = &pr_statements[s];
 		}
 		
@@ -1033,6 +1034,8 @@ reeval:
 	case OP_DIV_I:
 		if (OPB->_int == 0)	//no division by zero allowed...
 			OPC->_int = 0;
+		else if (OPB->_int == -1 && OPA->_int==(int)0x80000000)
+			OPC->_int = 0x7fffffff;
 		else
 			OPC->_int = OPA->_int / OPB->_int;
 		break;
@@ -1263,7 +1266,7 @@ reeval:
 		OPC->_int = OPA->_int ^ OPB->_int;
 		break;
 	case OP_RSHIFT_I:
-		OPC->_int = OPA->_int >> OPB->_int;
+		OPC->_int = A_RSHIFT_I(OPA->_int, OPB->_int);
 		break;
 	case OP_RSHIFT_U:
 		OPC->_uint = OPA->_uint >> OPB->_uint;
@@ -1703,7 +1706,7 @@ reeval:
 	case OP_BITOR_I64:		OPC->i64     = OPA->i64  |  OPB->i64;  break;
 	case OP_BITXOR_I64:		OPC->i64     = OPA->i64  ^  OPB->i64;  break;
 	case OP_LSHIFT_I64I:	OPC->i64     = OPA->i64  << OPB->_int; break;
-	case OP_RSHIFT_I64I:	OPC->i64     = OPA->i64  >> OPB->_int; break;
+	case OP_RSHIFT_I64I:	OPC->i64	 = A_RSHIFT_I(OPA->i64, OPB->_int);	break;
 	case OP_LT_I64:			OPC->_int    = OPA->i64  <  OPB->i64;  break;
 	case OP_LE_I64:			OPC->_int    = OPA->i64  <= OPB->i64;  break;
 	case OP_EQ_I64:			OPC->_int    = OPA->i64  == OPB->i64;  break;
@@ -1724,6 +1727,8 @@ reeval:
 	case OP_CONV_DI64:		OPC->i64     = OPA->_double; break;
 	case OP_CONV_U64D:		OPC->_double = OPA->u64;     break;
 	case OP_CONV_DU64:		OPC->u64     = OPA->_double; break;
+	case OP_CONV_U64F:		OPC->_float	 = OPA->u64;     break;
+	case OP_CONV_FU64:		OPC->u64     = OPA->_float;  break;
 	case OP_ADD_D:			OPC->_double = OPA->_double +  OPB->_double; break;
 	case OP_SUB_D:			OPC->_double = OPA->_double -  OPB->_double; break;
 	case OP_MUL_D:			OPC->_double = OPA->_double *  OPB->_double; break;
@@ -1733,9 +1738,9 @@ reeval:
 	case OP_EQ_D:			OPC->_int    = OPA->_double == OPB->_double; break;
 	case OP_NE_D:			OPC->_int    = OPA->_double != OPB->_double; break;
 
-	case OP_BITEXTEND_I:	OPC->_int    = (  signed int)(OPA->_int  << (32-(OPB->_uint&0xff)-(OPB->_uint>>8))) >> (32-(OPB->_uint&0xff)); break;	//shift it up and down. should sign extend.
+	case OP_BITEXTEND_I:	OPC->_int    = A_RSHIFT_I((  signed int)(OPA->_int  << (32-(OPB->_uint&0xff)-(OPB->_uint>>8))), (signed)(32-(OPB->_uint&0xff))); break;	//shift it up and down. should sign extend.
 	case OP_BITEXTEND_U:	OPC->_uint   = (unsigned int)(OPA->_uint << (32-(OPB->_uint&0xff)-(OPB->_uint>>8))) >> (32-(OPB->_uint&0xff)); break;	//shift it up and down. should clear the bits.
-	case OP_BITCOPY_I:		i=((1<<(OPB->_uint&0xff))-1);OPC->_int=(OPC->_int&~(i<<(OPB->_uint>>8)))|(((OPA->_int&i)<<(OPB->_uint>>8)));break;			//replaces the specified bits (uses the same format bitextend uses to select its input to extend)
+	case OP_BITCOPY_I:		i=((1<<(OPB->_uint&0xff))-1);OPC->_uint=(OPC->_uint&~(i<<(OPB->_uint>>8)))|(((OPA->_uint&i)<<(OPB->_uint>>8)));break;			//replaces the specified bits (uses the same format bitextend uses to select its input to extend)
 	case OP_CONV_UF:		OPC->_float  = OPA->_uint;   break;
 	case OP_CONV_FU:		OPC->_uint   = OPA->_float;  break;
 

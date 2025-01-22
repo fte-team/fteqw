@@ -3552,12 +3552,20 @@ retry:
 				if (reorg && !basictypetable)
 					QC_AddSharedFieldVar(&progfuncs->funcs, i, pr_strings - stringadjust);
 				break;
+			case ev_pointer:
+				if (((int *)glob)[gd16[i].ofs] & 0x80000000)
+				{
+					((int *)glob)[gd16[i].ofs] &= ~0x80000000;
+					((int *)glob)[gd16[i].ofs] += pointeradjust;
+					break;
+				}
+				FALLTHROUGH
 			case ev_string:
 				if (((unsigned int *)glob)[gd16[i].ofs]>=progstate->progs->numstrings)
 					externs->Printf("PR_LoadProgs: invalid string value (%x >= %x) in '%s'\n", ((unsigned int *)glob)[gd16[i].ofs], progstate->progs->numstrings, gd16[i].s_name+pr_strings-stringadjust);
 				else if (isfriked != -1)
 				{
-					if (pr_strings[((int *)glob)[gd16[i].ofs]])	//quakec uses string tables. 0 must remain null, or 'if (s)' can break.
+					if (((int *)glob)[gd16[i].ofs])	//quakec uses string tables. 0 must remain null, or 'if (s)' can break.
 					{
 						((int *)glob)[gd16[i].ofs] += stringadjust;
 						isfriked = false;
@@ -3571,13 +3579,6 @@ retry:
 				{
 //					if (fnc[((int *)glob)[gd16[i].ofs]].first_statement>=0)	//this is a hack. Make all builtins switch to the main progs first. Allows builtin funcs to cache vars from just the main progs.
 						((int *)glob)[gd16[i].ofs] |= progstype << 24;
-				}
-				break;
-			case ev_pointer:
-				if (((int *)glob)[gd16[i].ofs] & 0x80000000)
-				{
-					((int *)glob)[gd16[i].ofs] &= ~0x80000000;
-					((int *)glob)[gd16[i].ofs] += pointeradjust;
 				}
 				break;
 			}
@@ -3606,8 +3607,18 @@ retry:
 			case ev_field:
 				QC_AddSharedFieldVar(&progfuncs->funcs, i, pr_strings - stringadjust);
 				break;
+			case ev_pointer:
+				if (((int *)glob)[pr_globaldefs32[i].ofs] & 0x80000000)
+				{
+					((int *)glob)[pr_globaldefs32[i].ofs] &= ~0x80000000;
+					((int *)glob)[pr_globaldefs32[i].ofs] += pointeradjust;
+					break;
+				}
+				FALLTHROUGH
 			case ev_string:
-				if (pr_strings[((int *)glob)[pr_globaldefs32[i].ofs]])	//quakec uses string tables. 0 must remain null, or 'if (s)' can break.
+				if (((unsigned int *)glob)[pr_globaldefs32[i].ofs]>=progstate->progs->numstrings)
+					externs->Printf("PR_LoadProgs: invalid string value (%x >= %x) in '%s'\n", ((unsigned int *)glob)[pr_globaldefs32[i].ofs], progstate->progs->numstrings, pr_globaldefs32[i].s_name+pr_strings-stringadjust);
+				else if (((int *)glob)[pr_globaldefs32[i].ofs])	//quakec uses string tables. 0 must remain null, or 'if (s)' can break.
 				{
 					((int *)glob)[pr_globaldefs32[i].ofs] += stringadjust;
 					isfriked = false;
@@ -3616,13 +3627,6 @@ retry:
 			case ev_function:
 				if (((int *)glob)[pr_globaldefs32[i].ofs])	//don't change null funcs
 					((int *)glob)[pr_globaldefs32[i].ofs] |= progstype << 24;
-				break;
-			case ev_pointer:
-				if (((int *)glob)[pr_globaldefs32[i].ofs] & 0x80000000)
-				{
-					((int *)glob)[pr_globaldefs32[i].ofs] &= ~0x80000000;
-					((int *)glob)[pr_globaldefs32[i].ofs] += pointeradjust;
-				}
 				break;
 			}
 		}

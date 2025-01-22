@@ -8096,6 +8096,7 @@ void SV_ReadQCRequest(void)
 	globalvars_t *pr_globals;
 	client_t *cl = host_client;
 	edict_t *ed;
+	char *p;
 
 	if (!svprogfuncs)
 	{
@@ -8160,11 +8161,22 @@ void SV_ReadQCRequest(void)
 			break;
 		case ev_uint64:
 			args[i] = 'U';
-			G_UINT64(OFS_PARM0+i*3) = MSG_ReadInt64();
+			G_UINT64(OFS_PARM0+i*3) = MSG_ReadUInt64();
 			break;
 		case ev_string:
 			args[i] = 's';
 			G_INT(OFS_PARM0+i*3) = PR_TempString(svprogfuncs, MSG_ReadString());
+			break;
+		case ev_pointer:
+			args[i] = 'p';
+			if (i == 0 || args[i-1] != 'i')
+				break;	//requires the last to have been an int
+			e = G_UINT(OFS_PARM0+(i-1)*3);
+			if (e < 0 || e > 1<<16)
+				break;	//and not excessive
+			G_INT(OFS_PARM0+i*3) = svprogfuncs->AllocTempString(svprogfuncs, &p, e+1);
+			p[e] = 0; //always null terminate. because we can.
+			MSG_ReadData(p, e);
 			break;
 		case ev_entity:
 			args[i] = 'e';

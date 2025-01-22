@@ -2458,6 +2458,8 @@ static struct {
 	{"htos",					PF_htos,					0},
 	{"ftoi",					PF_ftoi,					0},
 	{"itof",					PF_itof,					0},
+	{"ftou",					PF_ftou,					0},
+	{"utof",					PF_utof,					0},
 
 	{"spawn",					PF_Spawn,					22},
 	{"remove",					PF_Remove_,					23},
@@ -2498,8 +2500,10 @@ static struct {
 	{"fputs",					PF_fputs,					51},
 	{"fread",					PF_fread,					0},
 	{"fwrite",					PF_fwrite,					0},
-	{"fseek",					PF_fseek,					0},
-	{"fsize",					PF_fsize,					0},
+	{"fseek",					PF_fseek32,					0},
+	{"fsize",					PF_fsize32,					0},
+	{"fseek64",					PF_fseek64,					0},
+	{"fsize64",					PF_fsize64,					0},
 	{"strlen",					PF_strlen,					52},
 	{"strcat",					PF_strcat,					53},
 	{"substring",				PF_substring,				54},
@@ -2518,7 +2522,8 @@ static struct {
 	{"changelevel",				PF_cl_changelevel,			64},						//void	changelevel(string map)  = #64;
 	{"localsound",				PF_cl_localsound,			65},
 	{"getmousepos",				PF_cl_getmousepos,			66},
-	{"gettime",					PF_gettime,					67},
+	{"gettime",					PF_gettimef,				67},
+	{"gettimed",				PF_gettimed,				0},
 	{"loadfromdata",			PF_loadfromdata,			68},
 	{"loadfromfile",			PF_loadfromfile,			69},
 	{"mod",						PF_mod,						70},
@@ -2550,6 +2555,10 @@ static struct {
 	{"setorigin",				PF_m_setorigin,				92},
 															//gap
 	{"getmodelindex",			PF_m_getmodelindex,			200},
+	{"externcall",				PF_externcall,				201},
+	{"addprogs",				PF_cl_addprogs,				202},
+	{"externvalue",				PF_externvalue,				203},
+	{"externset",				PF_externset,				204},
 															//gap
 	{"fork",					PF_Fork,					210},
 	{"abort",					PF_Abort,					211},
@@ -3304,7 +3313,7 @@ qboolean MP_Init (void)
 		menu_world.Get_FrameState = MP_Get_FrameState;
 
 		menu_world.progs = InitProgs(&menuprogparms);
-		PR_Configure(menu_world.progs, PR_ReadBytesString(pr_menu_memsize.string), 1, pr_enable_profiling.ival);
+		PR_Configure(menu_world.progs, PR_ReadBytesString(pr_menu_memsize.string), 16, pr_enable_profiling.ival);
 		mprogs = PR_LoadProgs(menu_world.progs, "menu.dat");
 		if (mprogs < 0) //no per-progs builtins.
 		{
@@ -3422,9 +3431,14 @@ qboolean MP_ConsoleCommand(const char *cmdtext)
 
 void MP_CoreDump_f(void)
 {
+	if (Cmd_IsInsecure())
+	{
+		Con_TPrintf("Refusing to execute insecure %s\n", Cmd_Argv(0));
+		return;
+	}
 	if (!menu_world.progs)
 	{
-		Con_Printf("Can't core dump, you need to be running the CSQC progs first.");
+		Con_Printf("Can't core dump, you need to be running the MenuQC progs first.");
 		return;
 	}
 
@@ -3439,9 +3453,11 @@ void MP_CoreDump_f(void)
 
 static void MP_Poke_f(void)
 {
-	/*if (!SV_MayCheat())
-		Con_TPrintf ("Please set sv_cheats 1 and restart the map first.\n");
-	else */if (menu_world.progs && menu_world.progs->EvaluateDebugString)
+	if (Cmd_IsInsecure())
+		Con_TPrintf("Refusing to execute insecure %s\n", Cmd_Argv(0));
+	/*else if (!SV_MayCheat())
+		Con_TPrintf ("Please set sv_cheats 1 and restart the map first.\n");*/
+	else if (menu_world.progs && menu_world.progs->EvaluateDebugString)
 		Con_TPrintf("Result: %s\n", menu_world.progs->EvaluateDebugString(menu_world.progs, Cmd_Args()));
 	else
 		Con_TPrintf ("not supported.\n");
@@ -3454,6 +3470,11 @@ static void MP_Breakpoint_f(void)
 	char *filename = Cmd_Argv(1);
 	int line = atoi(Cmd_Argv(2));
 
+	if (Cmd_IsInsecure())
+	{
+		Con_TPrintf("Refusing to execute insecure %s\n", Cmd_Argv(0));
+		return;
+	}
 	if (!menu_world.progs)
 	{
 		Con_Printf("Menu not running\n");
@@ -3477,6 +3498,11 @@ static void MP_Watchpoint_f(void)
 	if (!*variable)
 		variable = NULL;
 
+	if (Cmd_IsInsecure())
+	{
+		Con_TPrintf("Refusing to execute insecure %s\n", Cmd_Argv(0));
+		return;
+	}
 	if (!menu_world.progs)
 	{
 		Con_Printf("menuqc not running\n");
@@ -3489,6 +3515,11 @@ static void MP_Watchpoint_f(void)
 }
 static void MP_Profile_f(void)
 {
+	if (Cmd_IsInsecure())
+	{
+		Con_TPrintf("Refusing to execute insecure %s\n", Cmd_Argv(0));
+		return;
+	}
 	if (menu_world.progs && menu_world.progs->DumpProfile)
 		if (!menu_world.progs->DumpProfile(menu_world.progs, !atof(Cmd_Argv(1))))
 			Con_Printf("Enabled menuqc Profiling.\n");

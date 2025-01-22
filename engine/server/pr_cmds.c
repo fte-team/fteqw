@@ -2644,7 +2644,11 @@ static void QCBUILTIN PF_sv_registercommand (pubprogfuncs_t *prinst, struct glob
 	if (desc && !*desc)
 		desc = NULL;
 	if (!Cmd_Exists(str))
+	{
 		Cmd_AddCommandD(str, PR_ConsoleCommand_f, desc);
+		if (!gfuncs.ConsoleCmd) //wut? maybe we're an addon calling this...
+			gfuncs.ConsoleCmd = PR_FindFunction(svprogfuncs, "ConsoleCmd", PR_ANY);
+	}
 }
 
 
@@ -4315,7 +4319,11 @@ static void QCBUILTIN PF_Remove (pubprogfuncs_t *prinst, struct globalvars_s *pr
 	edict_t	*ed;
 
 	ed = G_EDICT(prinst, OFS_PARM0);
-
+	if (!ed)
+	{
+		Con_Printf("Tried removing invald entity at:\n");
+		PR_StackTrace(prinst, false);
+	}
 	if (ED_ISFREE(ed))
 	{
 		ED_CanFree(ed);	//fake it
@@ -11142,6 +11150,7 @@ static BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"localsound",		PF_Fixme,			0,		0,		0,		65,	D("void(string sample, optional float channel, optional float volume)", "Plays a sound, locally. precaching is optional, but recommended.")},
 	{"getmousepos",		PF_Fixme,			0,		0,		0,		66,	D("vector()", "Obsolete. Return values depend upon the current cursor mode. Implement Menu_InputEvent instead, so you can handle deltas as-is or absolutes if that's all the OS can provide.")},
 	{"gettime",			PF_Fixme,			0,		0,		0,		67,	"float(optional float timetype)"},
+	{"gettimed",		PF_Fixme,			0,		0,		0,		0,	"__double(optional int timetype)"},
 	{"loadfromdata",	PF_Fixme,			0,		0,		0,		68,	D("void(string s)", "Reads a set of entities from the given string. This string should have the same format as a .ent file or a saved game. Entities will be spawned as required. If you need to see the entities that were created, you should use parseentitydata instead.")},
 	{"loadfromfile",	PF_Fixme,			0,		0,		0,		69,	D("void(string s)", "Reads a set of entities from the named file. This file should have the same format as a .ent file or a saved game. Entities will be spawned as required. If you need to see the entities that were created, you should use parseentitydata instead.")},
 	{"mod",				PF_Fixme,			0,		0,		0,		70,	"float(float val, float m)"},
@@ -11482,8 +11491,10 @@ static BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"fputs",			PF_fputs,			0,		0,		0,		113, D("void(filestream fhandle, string s, optional string s2, optional string s3, optional string s4, optional string s5, optional string s6, optional string s7)", "Writes the given string(s) into the file. For compatibility with fgets, you should ensure that the string is terminated with a \\n - this will not otherwise be done for you. It is up to the engine whether dos or unix line endings are actually written.")},	// (FRIK_FILE)
 	{"fread",			PF_fread,			0,		0,		0,		0,	 D("int(filestream fhandle, void *ptr, int size, optional int offset)", "Reads binary data out of the file. Returns truncated lengths if the read exceeds the length of the file.")},
 	{"fwrite",			PF_fwrite,			0,		0,		0,		0,	 D("int(filestream fhandle, void *ptr, int size, optional int offset)", "Writes binary data out of the file.")},
-	{"fseek",			PF_fseek,			0,		0,		0,		0,	 D("#define ftell fseek //c compat\nint(filestream fhandle, optional int newoffset)", "Changes the current position of the file, if specified. Returns prior position, in bytes.")},
-	{"fsize",			PF_fsize,			0,		0,		0,		0,	 D("int(filestream fhandle, optional int newsize)", "Reports the total size of the file, in bytes. Can also be used to truncate/extend the file")},
+	{"fseek",			PF_fseek32,			0,		0,		0,		0,	 D("#define ftell fseek //c compat\nint(filestream fhandle, optional int newoffset)", "Changes the current position of the file, if specified. Returns prior position, in bytes.")},
+	{"fsize",			PF_fsize32,			0,		0,		0,		0,	 D("int(filestream fhandle, optional int newsize)", "Reports the total size of the file, in bytes. Can also be used to truncate/extend the file")},
+	{"fseek64",			PF_fseek64,			0,		0,		0,		0,	 D("int(filestream fhandle, optional __int64 newoffset)", "Changes the current position of the file, if specified. Returns prior position, in bytes.")},
+	{"fsize64",			PF_fsize64,			0,		0,		0,		0,	 D("__int64(filestream fhandle, optional __int64 newsize)", "Reports the total size of the file, in bytes. Can also be used to truncate/extend the file")},
 	{"strlen",			PF_strlen,			0,		0,		0,		114, D("float(string s)", "Returns the number of bytes in the string not including the null terminator. If utf8_enable is set then returns codepoints instead.")},	// (FRIK_FILE)
 	{"strcat",			PF_strcat,			0,		0,		0,		115, D("string(string s1, optional string s2, optional string s3, optional string s4, optional string s5, optional string s6, optional string s7, optional string s8)", "Concatenate up to 8 strings. You should consider using sprintf instead - it may be more readable and need fewer args. Returns a tempstring, which may cause issues in other engines.")},	// (FRIK_FILE)
 	{"substring",		PF_substring,		0,		0,		0,		116, D("string(string s, float start, float length)", "Returns a portion of the inputt string. If start is negative then will be treated as relative to the end, if length is negative then it will be interpretted relative to the end of the null terminator (eg -5 to skip the a 3-char filename extension including its dot) [Portability Note: these negative values are part of FTE_STRINGS, not FRIK_FILE et al]. Returns a tempstring, which may cause issues in other engines. When utf8_enable is set then operates on codepoints, but otherwise typically on bytes.")},	// (FRIK_FILE)
@@ -11628,6 +11639,8 @@ static BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"htos",			PF_htos,			0,		0,		0,		262,	D("string(int)", "Formats an integer as a base16 string, with leading 0s and no prefix. Always returns 8 characters.")},
 	{"ftoi",			PF_ftoi,			0,		0,		0,		0,		D("int(float)", "Converts the given float into a true integer without depending on extended qcvm instructions.")},
 	{"itof",			PF_itof,			0,		0,		0,		0,		D("float(int, optional float shift, float mask=24)", "Converts the given true integer into a float without depending on extended qcvm instructions. If shift and mask are specified then only specific parts of the integer will be cast to float.")},
+	{"ftou",			PF_ftou,			0,		0,		0,		0,		D("__uint(float)", "Converts the given float into a true integer without depending on extended qcvm instructions.")},
+	{"utof",			PF_utof,			0,		0,		0,		0,		D("float(__uint, optional float shift, float mask=24)", "Converts the given true integer into a float without depending on extended qcvm instructions. If shift and mask are specified then only specific parts of the integer will be cast to float.")},
 
 	#define qcskelblend				\
 	"typedef struct\n{\n"			\
@@ -12022,7 +12035,7 @@ static BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"cin_getstate",	PF_Fixme,			0,		0,		0,		464,	"float(string id)" STUB},
 	{"cin_restart",		PF_Fixme,			0,		0,		0, 		465,	"void(string file)" STUB},
 	{"drawline",		PF_Fixme,			0,		0,		0,		466,	"void(float width, vector pos1, vector pos2)"},// (EXT_CSQC)
-	{"drawstring",		PF_Fixme,			0,		0,		0,		467,	"float(vector position, string text, vector scale, vector rgb, float alpha, float flag)"},// #326
+	{"drawstring",		PF_Fixme,			0,		0,		0,		467,	"float(vector position, string text, vector scale, vector rgb, float alpha, float flag=0)"},// #326
 	{"stringwidth",		PF_Fixme,			0,		0,		0,		468,	"float(string text, float usecolours, vector fontsize='8 8')"},// EXT_CSQC_'DARKPLACES'
 	{"drawsubpic",		PF_Fixme,			0,		0,		0,		469,	"void(vector pos, vector sz, string pic, vector srcpos, vector srcsz, vector rgb, float alpha, float flag)"},// #328 EXT_CSQC_'DARKPLACES'
 	//end menu-only
@@ -12132,7 +12145,8 @@ static BuiltinList_t BuiltinList[] = {				//nq	qw		h2		ebfs
 	{"argv_end_index",	PF_argv_end_index,	0,		0,		0,		516,	D("float(float idx)", "Returns the character index that the tokenized arg stopped at.")},
 	{"buf_cvarlist",	PF_buf_cvarlist,	0,		0,		0,		517,	"void(strbuf strbuf, string pattern, string antipattern)"},
 	{"cvar_description",PF_cvar_description,0,		0,		0,		518,	D("string(string cvarname)", "Retrieves the description of a cvar, which might be useful for tooltips or help files. This may still not be useful.")},
-	{"gettime",			PF_gettime,			0,		0,		0,		519,	"float(optional float timetype)"},
+	{"gettime",			PF_gettimef,		0,		0,		0,		519,	"float(optional float timetype)"},
+	{"gettimed",		PF_gettimed,		0,		0,		0,		0,		"__double(optional int timetype)"},
 	{"keynumtostring_omgwtf",PF_Fixme,		0,		0,		0,		520,	"DEP string(float keynum)"},	//excessive third version in dp's csqc.
 	{"findkeysforcommand",PF_Fixme,			0,		0,		0,		521,	D("__deprecated(\"Does not support modifiers\") string(string command, optional float bindmap)", "Returns a list of keycodes that perform the given console command in a format that can only be parsed via tokenize (NOT tokenize_console). This only and always returns two values - if only one key is actually bound, -1 will be returned. The bindmap argument is listed for compatibility with dp-specific defs, but is ignored in FTE.")},
 	{"findkeysforcommandex",PF_Fixme,		0,		0,		0,		0,		D("string(string command, optional float bindmap)", "Returns a list of key bindings in keyname format instead of keynums. Use tokenize to parse. This list may contain modifiers. May return large numbers of keys.")},

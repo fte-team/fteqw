@@ -2964,8 +2964,9 @@ void Key_Event (unsigned int devid, int key, unsigned int unicode, qboolean down
 		}
 	}
 
-	//yes, csqc is allowed to steal the escape key.
-	if (key != '`' && (!down || key != K_ESCAPE || (!Key_Dest_Has(~kdm_game) && !shift_down)) &&
+	//yes, csqc is allowed to steal the escape key (unless shift).
+	//it is blocked from blocking backtick (unless shift).
+	if ((key != '`'||shift_down) && (!down || key != K_ESCAPE || (!Key_Dest_Has(~kdm_game) && !shift_down)) &&
 		!Key_Dest_Has(~kdm_game))
 	{
 #ifdef CSQC_DAT

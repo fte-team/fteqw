@@ -338,7 +338,7 @@ static void CSQC_FindGlobals(qboolean nofuncs)
 
 	if (!csqc_world.g.physics_mode)
 	{
-		csphysicsmode = 0;	/*note: dp handles think functions as part of addentity rather than elsewhere. if we're in a compat mode, we don't want to have to duplicate work*/
+		csphysicsmode = csqc_isdarkplaces?1:0;	/*note: dp handles think functions as part of addentity rather than elsewhere. if we're in a compat mode, we don't want to have to duplicate work*/
 		csqc_world.g.physics_mode = &csphysicsmode;
 	}
 
@@ -3810,6 +3810,16 @@ static void QCBUILTIN PF_cs_sendevent (pubprogfuncs_t *prinst, struct globalvars
 			MSG_WriteByte(&cls.netchan.message, ev_string);
 			MSG_WriteString(&cls.netchan.message, PR_GetStringOfs(prinst, OFS_PARM2+i*3));
 		}
+		else if (argtypes[i] == 'p' && i>0)
+		{
+			unsigned int len = G_UINT(OFS_PARM1+i*3);
+			unsigned int qcptr = G_UINT(OFS_PARM2+i*3);
+			char *p = prinst->stringtable + qcptr;
+			if (len >= prinst->stringtablesize || qcptr > prinst->stringtablesize-len)
+				break;
+			MSG_WriteByte(&cls.netchan.message, ev_pointer);
+			SZ_Write(&cls.netchan.message, p, len);
+		}
 		else if (argtypes[i] == 'f')
 		{
 			MSG_WriteByte(&cls.netchan.message, ev_float);
@@ -3838,7 +3848,7 @@ static void QCBUILTIN PF_cs_sendevent (pubprogfuncs_t *prinst, struct globalvars
 		else if (argtypes[i] == 'U')
 		{
 			MSG_WriteByte(&cls.netchan.message, ev_uint64);
-			MSG_WriteInt64(&cls.netchan.message, G_UINT64(OFS_PARM2+i*3));
+			MSG_WriteUInt64(&cls.netchan.message, G_UINT64(OFS_PARM2+i*3));
 		}
 		else if (argtypes[i] == 'v')
 		{
@@ -6751,8 +6761,10 @@ static struct {
 	{"fputs",					PF_fputs,	113},				// #113 void(float fnum, string str) fputs (FRIK_FILE)
 	{"fread",					PF_fread,	0},
 	{"fwrite",					PF_fwrite,	0},
-	{"fseek",					PF_fseek,	0},
-	{"fsize",					PF_fsize,	0},
+	{"fseek",					PF_fseek32,	0},
+	{"fsize",					PF_fsize32,	0},
+	{"fseek64",					PF_fseek64,	0},
+	{"fsize64",					PF_fsize64,	0},
 	{"strlen",					PF_strlen,	114},				// #114 float(string str) strlen (FRIK_FILE)
 
 	{"strcat",					PF_strcat,		115},			// #115 string(string str1, string str2, ...) strcat (FRIK_FILE)
@@ -6770,7 +6782,7 @@ static struct {
 	{"getmodelindex",			PF_cs_getmodelindex,	200},
 	{"getsoundindex",			PF_cs_getsoundindex,	0},
 	{"externcall",				PF_externcall,	201},
-	{"addprogs",				PF_cs_addprogs,	202},
+	{"addprogs",				PF_cl_addprogs,	202},
 	{"externvalue",				PF_externvalue,	203},
 	{"externset",				PF_externset,	204},
 
@@ -6863,6 +6875,8 @@ static struct {
 	{"htos",					PF_htos,			262},
 	{"ftoi",					PF_ftoi,			0},
 	{"itof",					PF_itof,			0},
+	{"ftou",					PF_ftou,			0},
+	{"utof",					PF_utof,			0},
 
 	{"skel_create",				PF_skel_create,			263},//float(float modlindex) skel_create = #263; // (FTE_CSQC_SKELETONOBJECTS)
 	{"skel_build",				PF_skel_build,			264},//float(float skel, entity ent, float modelindex, float retainfrac, float firstbone, float lastbone, optional float addition) skel_build = #264; // (FTE_CSQC_SKELETONOBJECTS)
@@ -7297,7 +7311,8 @@ static struct {
 	{"buf_cvarlist",			PF_buf_cvarlist,			517},
 	{"cvar_description",		PF_cvar_description,		518},
 
-	{"gettime",					PF_gettime,					519},
+	{"gettimef",				PF_gettimef,				519},
+	{"gettimed",				PF_gettimed,				0},
 
 	{"keynumtostring_omgwtf",	PF_cl_keynumtostring,		520},
 	{"findkeysforcommand",		PF_cl_findkeysforcommand,	521},
@@ -8722,12 +8737,27 @@ qboolean CSQC_DrawView(void)
 	csqc_dp_lastwas3d = false;
 
 	RSpeedRemark();
-	if (csqc_isdarkplaces && *csqc_world.g.physics_mode == 1)
+	if (*csqc_world.g.physics_mode == 0)
 	{
 		csqc_world.physicstime = cl.servertime;
+		// let the progs know that a new frame has started
+		if (csqcg.StartFrame)
+		{
+			*csqc_world.g.self = EDICT_TO_PROG(csqcprogs, csqc_world.edicts);
+			*csqc_world.g.other = EDICT_TO_PROG(csqcprogs, csqc_world.edicts);
+			*csqc_world.g.time = csqc_world.physicstime;
+			PR_ExecuteProgram (csqcprogs, csqcg.StartFrame);
+		}
 		PR_RunThreads(&csqc_world);
+		if (csqcg.EndFrame)
+		{	//consistency. or something.
+			*csqc_world.g.self = EDICT_TO_PROG(csqcprogs, csqc_world.edicts);
+			*csqc_world.g.other = EDICT_TO_PROG(csqcprogs, csqc_world.edicts);
+			*csqc_world.g.time = csqc_world.physicstime;
+			PR_ExecuteProgram (csqcprogs, csqcg.EndFrame);
+		}
 	}
-	else
+	else if (*csqc_world.g.physics_mode)
 	{
 #ifdef USERBE
 		if (csqc_world.rbe)
@@ -8746,6 +8776,15 @@ qboolean CSQC_DrawView(void)
 			if (host_frametime > maxtic)
 				host_frametime = maxtic;
 
+			// let the progs know that a new frame has started
+			if (csqcg.StartFrame)
+			{
+				*csqc_world.g.self = EDICT_TO_PROG(csqcprogs, csqc_world.edicts);
+				*csqc_world.g.other = EDICT_TO_PROG(csqcprogs, csqc_world.edicts);
+				*csqc_world.g.time = csqc_world.physicstime;
+				PR_ExecuteProgram (csqcprogs, csqcg.StartFrame);
+			}
+
 #ifdef USERBE
 			if (csqc_world.rbe)
 			{
@@ -8759,6 +8798,15 @@ qboolean CSQC_DrawView(void)
 			PR_RunThreads(&csqc_world);
 			World_Physics_Frame(&csqc_world);
 			csqc_world.physicstime += host_frametime;
+
+			//all thinks done. for consistency with the ssqc extension.
+			if (csqcg.EndFrame)
+			{
+				*csqc_world.g.self = EDICT_TO_PROG(csqcprogs, csqc_world.edicts);
+				*csqc_world.g.other = EDICT_TO_PROG(csqcprogs, csqc_world.edicts);
+				*csqc_world.g.time = csqc_world.physicstime;
+				PR_ExecuteProgram (csqcprogs, csqcg.EndFrame);
+			}
 		}
 	}
 	RSpeedEnd(RSPEED_CSQCPHYSICS);

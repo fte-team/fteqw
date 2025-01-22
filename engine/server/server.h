@@ -189,11 +189,11 @@ typedef struct server_s
 
 	// added to every client's reliable buffer each frame, then cleared
 	sizebuf_t	reliable_datagram;
-	qbyte		reliable_datagram_buf[MAX_QWMSGLEN];
+	qbyte		reliable_datagram_buf[MAX_QWMSGLEN*2];
 
 	// the multicast buffer is used to send a message to a set of clients
 	sizebuf_t	multicast;
-	qbyte		multicast_buf[MAX_QWMSGLEN];
+	qbyte		multicast_buf[MAX_QWMSGLEN*2];
 
 #ifdef NQPROT
 	sizebuf_t	nqdatagram;

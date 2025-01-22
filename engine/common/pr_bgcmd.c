@@ -2119,9 +2119,9 @@ void QCBUILTIN PF_memcpy (pubprogfuncs_t *prinst, struct globalvars_s *pr_global
 		void *dst = PR_PointerToNative_Resize(prinst, qcdst, dstoffset, size);
 		void *src = PR_PointerToNative_MoInvalidate(prinst, qcsrc, srcoffset, size);
 		if (!dst)
-			PR_BIError(prinst, "PF_memcpy: invalid dest (%#x - %#x)\n", qcdst, qcdst+size);
+			PR_BIError(prinst, "PF_memcpy: invalid dest (%#x[%#x...%#x]\n", qcdst, dstoffset, dstoffset+size-1);
 		else if (!src)
-			PR_BIError(prinst, "PF_memcpy: invalid source (%#x - %#x)\n", qcsrc, qcsrc+size);
+			PR_BIError(prinst, "PF_memcpy: invalid source (%#x[%#x...%#x]\n", qcsrc, srcoffset, srcoffset+size-1);
 		else
 			memmove(dst, src, size);
 	}
@@ -2656,16 +2656,24 @@ void QCBUILTIN PF_fopen (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals
 		if (!pf_fopen_files[i].prinst)
 			break;
 
+	G_FLOAT(OFS_RETURN) = -1; //assume an error
 	if (i == MAX_QC_FILES)	//too many already open
 	{
 		Con_Printf("qcfopen(\"%s\"): too many files open\n", name);
-		G_FLOAT(OFS_RETURN) = -1;
 		return;
 	}
 
 	if (fmode < 0 && (!strncmp(name, "tcp://", 6) || !strncmp(name, "tls://", 6)))
 	{
-		G_FLOAT(OFS_RETURN) = -1;
+		extern cvar_t pr_enable_uriget;
+#if defined(CSQC_DAT) && !defined(SERVERONLY)
+		extern world_t csqc_world;
+		if (prinst == csqc_world.progs)	//menuqc will refuse to load from untrusted sources. ssqc is the admin's choice. csqc is fundamentally untrusted though.
+			return;
+#endif
+		if (!pr_enable_uriget.ival)	//same cvar to block http requests.
+			return;
+
 		Q_strncpyz(pf_fopen_files[i].name, name, sizeof(pf_fopen_files[i].name));
 		pf_fopen_files[i].accessmode = FRIK_FILE_STREAM;
 		pf_fopen_files[i].bufferlen = 0;
@@ -2688,7 +2696,6 @@ void QCBUILTIN PF_fopen (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals
 	if (!QC_FixFileName(name, &name, &fallbackread))
 	{
 		Con_Printf("qcfopen(\"%s\"): Access denied\n", name);
-		G_FLOAT(OFS_RETURN) = -1;
 		return;
 	}
 
@@ -2724,10 +2731,7 @@ void QCBUILTIN PF_fopen (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals
 			}
 
 			if (!pf_fopen_files[i].data)
-			{
-				G_FLOAT(OFS_RETURN) = -1;
 				break;
-			}
 
 			pf_fopen_files[i].len = pf_fopen_files[i].bufferlen;
 			pf_fopen_files[i].ofs = 0;
@@ -2753,8 +2757,6 @@ void QCBUILTIN PF_fopen (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals
 				G_FLOAT(OFS_RETURN) = i + FIRST_QC_FILE_INDEX;
 				pf_fopen_files[i].prinst = prinst;
 			}
-			else
-				G_FLOAT(OFS_RETURN) = -1;
 		}
 		break;
 
@@ -2772,8 +2774,6 @@ void QCBUILTIN PF_fopen (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals
 			G_FLOAT(OFS_RETURN) = i + FIRST_QC_FILE_INDEX;
 			pf_fopen_files[i].prinst = prinst;
 		}
-		else
-			G_FLOAT(OFS_RETURN) = -1;
 
 		pf_fopen_files[i].bufferlen = pf_fopen_files[i].len = fsize;
 		pf_fopen_files[i].ofs = 0;
@@ -3237,10 +3237,10 @@ void QCBUILTIN PF_fread (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals
 
 	G_INT(OFS_RETURN) = PF_fread_internal (prinst, fnum, ptr, size);
 }
-void QCBUILTIN PF_fseek (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+void QCBUILTIN PF_fseek64 (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	int fnum = G_FLOAT(OFS_PARM0) - FIRST_QC_FILE_INDEX;
-	G_INT(OFS_RETURN) = -1;
+	G_INT64(OFS_RETURN) = -1;
 	if (fnum < 0 || fnum >= MAX_QC_FILES)
 	{
 		PF_Warningf(prinst, "PF_fseek: File out of range\n");
@@ -3269,23 +3269,29 @@ void QCBUILTIN PF_fseek (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals
 
 	if (pf_fopen_files[fnum].file)
 	{
-		G_INT(OFS_RETURN) = VFS_TELL(pf_fopen_files[fnum].file);
-		if (prinst->callargc>1 && G_INT(OFS_PARM1) >= 0)
-			VFS_SEEK(pf_fopen_files[fnum].file, G_INT(OFS_PARM1));
+		G_INT64(OFS_RETURN) = VFS_TELL(pf_fopen_files[fnum].file);
+		if (prinst->callargc>1 && G_INT64(OFS_PARM1) >= 0)
+			VFS_SEEK(pf_fopen_files[fnum].file, G_INT64(OFS_PARM1));
 	}
 	else
 	{
-		G_INT(OFS_RETURN) = pf_fopen_files[fnum].ofs;
-		if (prinst->callargc>1 && G_INT(OFS_PARM1) >= 0)
+		G_INT64(OFS_RETURN) = pf_fopen_files[fnum].ofs;
+		if (prinst->callargc>1 && G_INT64(OFS_PARM1) >= 0)
 		{
-			pf_fopen_files[fnum].ofs = G_INT(OFS_PARM1);
+			pf_fopen_files[fnum].ofs = G_INT64(OFS_PARM1);
 		}
 	}
 }
-void QCBUILTIN PF_fsize (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+void QCBUILTIN PF_fseek32 (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	G_INT64(OFS_PARM1) = G_INT(OFS_PARM1);
+	PF_fseek64(prinst, pr_globals);
+	G_INT(OFS_RETURN) = G_INT64(OFS_RETURN);
+}
+void QCBUILTIN PF_fsize64 (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	int fnum = G_FLOAT(OFS_PARM0) - FIRST_QC_FILE_INDEX;
-	G_INT(OFS_RETURN) = -1;
+	G_INT64(OFS_RETURN) = -1;
 	if (fnum < 0 || fnum >= MAX_QC_FILES)
 	{
 		PF_Warningf(prinst, "PF_fsize: File out of range\n");
@@ -3314,20 +3320,26 @@ void QCBUILTIN PF_fsize (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals
 
 	if (pf_fopen_files[fnum].file)
 	{
-		G_INT(OFS_RETURN) = VFS_GETLEN(pf_fopen_files[fnum].file);
-		if (prinst->callargc>1 && G_INT(OFS_PARM1) >= 0)
+		G_INT64(OFS_RETURN) = VFS_GETLEN(pf_fopen_files[fnum].file);
+		if (prinst->callargc>1 && G_INT64(OFS_PARM1) >= 0)
 			PF_Warningf(prinst, "PF_fsize: truncation/extension is not supported for stream file types\n");
 	}
 	else
 	{
-		G_INT(OFS_RETURN) = pf_fopen_files[fnum].len;
-		if (prinst->callargc>1 && G_INT(OFS_PARM1) >= 0)
+		G_INT64(OFS_RETURN) = pf_fopen_files[fnum].len;
+		if (prinst->callargc>1 && G_INT64(OFS_PARM1) >= 0)
 		{
-			size_t newlen = G_INT(OFS_PARM1);
+			size_t newlen = G_INT64(OFS_PARM1);
 			PF_fresizebuffer_internal(&pf_fopen_files[fnum], newlen);
 			pf_fopen_files[fnum].len = min(pf_fopen_files[fnum].bufferlen, newlen);
 		}
 	}
+}
+void QCBUILTIN PF_fsize32 (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	G_INT64(OFS_PARM1) = G_INT(OFS_PARM1);
+	PF_fsize64(prinst, pr_globals);
+	G_INT(OFS_RETURN) = G_INT64(OFS_RETURN);
 }
 
 void PF_fcloseall (pubprogfuncs_t *prinst)
@@ -4647,6 +4659,26 @@ void QCBUILTIN PF_ftos (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 	RETURN_TSTRING(pr_string_temp);
 }
 
+void QCBUILTIN PF_ftou (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	G_UINT(OFS_RETURN) = G_FLOAT(OFS_PARM0);
+}
+void QCBUILTIN PF_utof (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	if (prinst->callargc > 1)
+	{
+		unsigned int value = G_UINT(OFS_PARM0);
+		unsigned int shift = G_FLOAT(OFS_PARM1);
+		unsigned int count = G_FLOAT(OFS_PARM2);
+		value >>= shift;
+		if (count != 32)
+			value &= ((1u<<count)-1u);
+		G_FLOAT(OFS_RETURN) = value;
+	}
+	else
+		G_FLOAT(OFS_RETURN) = G_UINT(OFS_PARM0);
+}
+
 void QCBUILTIN PF_ftoi (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	G_INT(OFS_RETURN) = G_FLOAT(OFS_PARM0);
@@ -4658,7 +4690,10 @@ void QCBUILTIN PF_itof (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 		unsigned int value = G_INT(OFS_PARM0);
 		unsigned int shift = G_FLOAT(OFS_PARM1);
 		unsigned int count = G_FLOAT(OFS_PARM2);
-		G_FLOAT(OFS_RETURN) = (value >> shift) & ((1u<<count)-1u);
+		value >>= shift;
+		if (count != 32)
+			value &= ((1u<<count)-1u);
+		G_FLOAT(OFS_RETURN) = value;
 	}
 	else
 		G_FLOAT(OFS_RETURN) = G_INT(OFS_PARM0);
@@ -7048,6 +7083,8 @@ void QCBUILTIN PF_externvalue (pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 			G_INT(OFS_RETURN) = (char*)var - prinst->stringtable;
 		else
 			G_INT(OFS_RETURN) = 0;
+		G_INT(OFS_RETURN+1) = 0;
+		G_INT(OFS_RETURN+2) = 0;
 	}
 	else
 	{
@@ -7063,6 +7100,8 @@ void QCBUILTIN PF_externvalue (pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 		{
 			n = prinst->FindFunction(prinst, varname, n);
 			G_INT(OFS_RETURN) = n;
+			G_INT(OFS_RETURN+1) = 0;
+			G_INT(OFS_RETURN+2) = 0;
 		}
 	}
 }
@@ -7204,27 +7243,33 @@ void QCBUILTIN PF_localcmd (pubprogfuncs_t *prinst, struct globalvars_s *pr_glob
 		Cbuf_AddText (str, RESTRICT_INSECURE);
 }
 
-void QCBUILTIN PF_gettime (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
-{
-	int timer = (prinst->callargc > 0)?G_FLOAT(OFS_PARM0):0;
+void QCBUILTIN PF_gettimed (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{	//usng doubles is for longer uptimes rather than extra precision. we artificially limit precision to reduce spectre sidebands, though I'm not sure how useful it'd be.
+	int timer = (prinst->callargc > 0)?G_INT(OFS_PARM0):0;
 	switch(timer)
 	{
 	default:
 	case 0:		//cached time at start of frame
-		G_FLOAT(OFS_RETURN) = realtime;
+		G_DOUBLE(OFS_RETURN) = realtime;
 		break;
 	case 1:		//actual time, ish. we round to milliseconds to reduce spectre exposure
-		G_FLOAT(OFS_RETURN) = (qint64_t)Sys_Milliseconds()/1000.0;
+		G_DOUBLE(OFS_RETURN) = (qint64_t)Sys_Milliseconds()/1000.0;
 		break;
 	//case 2:	//highres.. looks like time into the frame
 	//case 3:	//uptime
 	//case 4:	//cd track
 #ifndef SERVERONLY
 	case 5:		//sim time
-		G_FLOAT(OFS_RETURN) = cl.time;
+		G_DOUBLE(OFS_RETURN) = cl.time;
 		break;
 #endif
 	}
+}
+void QCBUILTIN PF_gettimef (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	G_INT(OFS_PARM0) = G_FLOAT(OFS_PARM0);
+	PF_gettimed (prinst, pr_globals);
+	G_FLOAT(OFS_RETURN) = G_DOUBLE(OFS_RETURN);
 }
 
 void QCBUILTIN PF_calltimeofday (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)

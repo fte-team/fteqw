@@ -1203,7 +1203,7 @@ extern scenetris_t		*cl_stris;
 extern vecV_t			*fte_restrict cl_strisvertv;
 extern vec4_t			*fte_restrict cl_strisvertc;
 extern vec2_t			*fte_restrict cl_strisvertt;
-extern vec3_t			*fte_restrict cl_strisvertn[3];
+//extern vec3_t			*fte_restrict cl_strisvertn[3];
 extern index_t			*fte_restrict cl_strisidx;
 extern unsigned int cl_numstrisidx;
 extern unsigned int cl_maxstrisidx;

@@ -181,8 +181,10 @@ void QCBUILTIN PF_fputs (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals
 void QCBUILTIN PF_fgets (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 void QCBUILTIN PF_fwrite (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 void QCBUILTIN PF_fread (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
-void QCBUILTIN PF_fseek (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
-void QCBUILTIN PF_fsize (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_fseek32 (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_fsize32 (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_fseek64 (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_fsize64 (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 void QCBUILTIN PF_normalize (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 void QCBUILTIN PF_vlen (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 void QCBUILTIN PF_vhlen (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
@@ -238,6 +240,8 @@ void QCBUILTIN PF_stoh (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 void QCBUILTIN PF_htos (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 void QCBUILTIN PF_ftoi (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 void QCBUILTIN PF_itof (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_ftou (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_utof (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 void PR_fclose_progs (pubprogfuncs_t *prinst);
 const char *PF_VarString (pubprogfuncs_t *prinst, int	first, struct globalvars_s *pr_globals);
 void PR_ProgsAdded(pubprogfuncs_t *prinst, int newprogs, const char *modulename);
@@ -511,6 +515,7 @@ void QCBUILTIN PF_cl_playingdemo (pubprogfuncs_t *prinst, struct globalvars_s *p
 void QCBUILTIN PF_cl_runningserver (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 void QCBUILTIN PF_cl_getgamedirinfo (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 void QCBUILTIN PF_cl_getpackagemanagerinfo (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_cl_addprogs (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 void QCBUILTIN PF_cs_media_create (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 void QCBUILTIN PF_cs_media_destroy (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 void QCBUILTIN PF_cs_media_command (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
@@ -614,7 +619,8 @@ void QCBUILTIN PF_memstrsize(pubprogfuncs_t *prinst, struct globalvars_s *pr_glo
 
 void QCBUILTIN PF_soundlength (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 void QCBUILTIN PF_calltimeofday (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
-void QCBUILTIN PF_gettime (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_gettimef (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_gettimed (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 
 void QCBUILTIN PF_whichpack (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 
@@ -1103,6 +1109,8 @@ enum
 	globalfunction(CSQC_Parse_TempEntity,	"float()")/*EXT_CSQC_ABSOLUTLY_VILE*/	\
 	\
 	globalfunction(CSQC_MapEntityEdited,	"void(int entidx, string newentdata)")\
+	globalfunction(StartFrame,				"void()")\
+	globalfunction(EndFrame,				"void()")\
 	\
 	/*These are pointers to the csqc's globals.*/	\
 	globalfloat	(time)				/*float		The simulation(aka: smoothed server) time, speed drifts based upon latency*/	\

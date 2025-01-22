@@ -567,6 +567,20 @@ void QCBUILTIN PF_cl_runningserver (pubprogfuncs_t *prinst, struct globalvars_s 
 #endif
 }
 
+void QCBUILTIN PF_cl_addprogs (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	const char *s = PR_GetStringOfs(prinst, OFS_PARM0);
+	int newp;
+	if (!s || !*s)
+		newp = -1;
+	else
+	{
+		newp = PR_LoadProgs(prinst, s);
+		if (newp >= 0)
+			PR_ProgsAdded(prinst, newp, s);
+	}
+	G_FLOAT(OFS_RETURN) = newp;
+}
 
 
 #ifdef HAVE_MEDIA_DECODER

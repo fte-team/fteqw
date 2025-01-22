@@ -260,6 +260,10 @@ int generatevulkanblobs(struct blobheader *blob, size_t maxblobsize, const char 
 						blob->defaulttextures |= 1u<<S_DISPLACEMENT;
 					else if (!strcasecmp(arg, "occlusion"))
 						blob->defaulttextures |= 1u<<S_OCCLUSION;
+					else if (!strcasecmp(arg, "transmission"))
+						blob->defaulttextures |= 1u<<S_TRANSMISSION;
+					else if (!strcasecmp(arg, "thickness"))
+						blob->defaulttextures |= 1u<<S_THICKNESS;
 
 					//batch
 					else if (!strcasecmp(arg, "lightmap"))
@@ -326,6 +330,8 @@ int generatevulkanblobs(struct blobheader *blob, size_t maxblobsize, const char 
 				"uniform sampler2D s_reflectmask;\n",
 				"uniform sampler2D s_displacement;\n",
 				"uniform sampler2D s_occlusion;\n",
+				"uniform sampler2D s_transmission;\n",
+				"uniform sampler2D s_thickness;\n",
 
 				//batch
 				"uniform sampler2D s_lightmap;\n#define s_lightmap0 s_lightmap\n",

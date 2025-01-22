@@ -9,6 +9,7 @@
 !!cvarf r_glsl_offsetmapping_scale=0.04
 !!cvarf gl_specular=0
 !!cvarb r_fog_exp2=true
+!!cvarb r_fog_linear=false
 !!samps diffuse normalmap upper lower specular fullbright reflectcube reflectmask
 
 #include "sys/defs.h"

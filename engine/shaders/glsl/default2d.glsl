@@ -26,6 +26,10 @@ void main ()
 #ifdef PREMUL
 	f.rgb *= f.a;
 #endif
+#ifdef DECLAMP
+	vec2 ntc = fract(tc);
+#define tc ntc
+#endif
 	f *= texture2D(s_img, tc);
 	gl_FragColor = f;
 }

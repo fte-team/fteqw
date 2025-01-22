@@ -1,6 +1,7 @@
 !!permu FOG
 !!samps 2
 !!cvarb r_fog_exp2=true
+!!cvarb r_fog_linear=false
 
 #include "sys/defs.h"
 #include "sys/fog.h"

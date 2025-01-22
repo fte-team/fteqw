@@ -11,6 +11,7 @@
 !!argb cube=0
 !!permu FOG
 !!cvarb r_fog_exp2=true
+!!cvarb r_fog_linear=false
 //!!permu FRAMEBLEND
 //!!permu SKELETAL
 

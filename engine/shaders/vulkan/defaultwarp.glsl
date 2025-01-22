@@ -1,6 +1,7 @@
 !!permu FOG
 !!cvarf r_wateralpha=1
 !!cvarb r_fog_exp2=true
+!!cvarb r_fog_linear=false
 !!argf alpha=0
 !!argb lit=false
 !!samps diffuse lightmap

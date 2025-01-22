@@ -2050,12 +2050,12 @@ static qboolean Shader_LoadPermutations(char *name, program_t *prog, char *scrip
 		nopermutation |= PERMUTATION_SKELETAL;
 
 	//multiple lightmaps is kinda hacky. if any are set, all must be.
-#define ALTLIGHTMAPSAMP 16
-	if (prog->defaulttextures & ((1u<<(ALTLIGHTMAPSAMP+0)) | (1u<<(ALTLIGHTMAPSAMP+1)) | (1u<<(ALTLIGHTMAPSAMP+2))))
-		prog->defaulttextures |=((1u<<(ALTLIGHTMAPSAMP+0)) | (1u<<(ALTLIGHTMAPSAMP+1)) | (1u<<(ALTLIGHTMAPSAMP+2)));
-#define ALTDELUXMAPSAMP 19
-	if (prog->defaulttextures & ((1u<<(ALTDELUXMAPSAMP+0)) | (1u<<(ALTDELUXMAPSAMP+1)) | (1u<<(ALTDELUXMAPSAMP+2))))
-		prog->defaulttextures |=((1u<<(ALTDELUXMAPSAMP+0)) | (1u<<(ALTDELUXMAPSAMP+1)) | (1u<<(ALTDELUXMAPSAMP+2)));
+#if MAXRLIGHTMAPS > 1
+	if (prog->defaulttextures & ((1u<<S_LIGHTMAP1 ) | (1u<<S_LIGHTMAP2 ) | (1u<<S_LIGHTMAP3 )))
+		prog->defaulttextures |=((1u<<S_LIGHTMAP1 ) | (1u<<S_LIGHTMAP2 ) | (1u<<S_LIGHTMAP3 ));
+	if (prog->defaulttextures & ((1u<<S_DELUXEMAP1) | (1u<<S_DELUXEMAP2) | (1u<<S_DELUXEMAP3)))
+		prog->defaulttextures |=((1u<<S_DELUXEMAP1) | (1u<<S_DELUXEMAP2) | (1u<<S_DELUXEMAP3));
+#endif
 
 	for (end = *name?strchr(name+1, '#'):NULL; end && *end; )
 	{

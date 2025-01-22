@@ -715,9 +715,11 @@ static dir_t *Sys_listdemos (char *path, int ispublic, qboolean usesorting)
 {
 	const char *exts[] = {
 		".mvd", ".mvd.gz",
-		".qwz", ".qwz.gz",
+		".qwd", ".qwd.gz",
+		".qwz", ".qwz.gz",	//our client doesn't support them, but others do any they still might want to download them if there's any there...
 #ifdef NQPROT
 		".dem", ".dem.gz",
+		//don't bother with .dz, that's more of an archive format (and should at least show up with .dem files)
 #endif
 #if defined(Q2SERVER) || defined(Q2CLIENT)
 		".dm2", ".dm2.gz"
@@ -1626,7 +1628,9 @@ qboolean SV_MVD_Record (mvddest_t *dest)
 			demo.recorder.fteprotocolextensions = /*PEXT_CHUNKEDDOWNLOADS|*/PEXT_256PACKETENTITIES|/*PEXT_FLOATCOORDS|*/PEXT_MODELDBL|PEXT_ENTITYDBL|PEXT_ENTITYDBL2|PEXT_SPAWNSTATIC2;
 //			demo.recorder.fteprotocolextensions |= PEXT_HLBSP;	/*ezquake DOES have this, but it is pointless and should have been in some feature mask rather than protocol extensions*/
 //			demo.recorder.fteprotocolextensions |= PEXT_ACCURATETIMINGS;	/*ezquake does not support this any more. pointless in an mvd anyway*/
-			demo.recorder.fteprotocolextensions |= PEXT_TRANS;	/*ezquake has no support for .alpha*/
+			demo.recorder.fteprotocolextensions |= PEXT_TRANS;	/*ezquake's support for alpha is buggyaf on players, but mvd streams change svc_playerinfo which sidesteps the issue*/
+//			demo.recorder.fteprotocolextensions |= PEXT_COLOURMOD;	/*nano is working on adding this*/
+//			demo.recorder.fteprotocolextensions |= PEXT_DPFLAGS;	/*nano is working on adding this*/
 			demo.recorder.fteprotocolextensions2 = PEXT2_VOICECHAT;
 			demo.recorder.zquake_extensions = Z_EXT_PM_TYPE | Z_EXT_PM_TYPE_NEW | Z_EXT_VIEWHEIGHT | Z_EXT_SERVERTIME | Z_EXT_PITCHLIMITS | Z_EXT_JOIN_OBSERVE | Z_EXT_VWEP;
 		}
@@ -1637,7 +1641,7 @@ qboolean SV_MVD_Record (mvddest_t *dest)
 #ifdef PEXT_VIEW2
 			demo.recorder.fteprotocolextensions |= PEXT_VIEW2;
 #endif
-			demo.recorder.fteprotocolextensions2 = PEXT2_VOICECHAT | PEXT2_SETANGLEDELTA | /*PEXT2_PRYDONCURSOR |*/ (pext_replacementdeltas.ival?PEXT2_REPLACEMENTDELTAS:0) | PEXT2_PREDINFO | PEXT2_NEWSIZEENCODING;
+			demo.recorder.fteprotocolextensions2 = PEXT2_VOICECHAT | PEXT2_SETANGLEDELTA | /*PEXT2_PRYDONCURSOR |*/ (pext_replacementdeltas.ival?PEXT2_REPLACEMENTDELTAS|PEXT2_PREDINFO|PEXT2_NEWSIZEENCODING:0);
 			/*enable these, because we might as well (stat ones are always useful)*/
 			demo.recorder.zquake_extensions = Z_EXT_PM_TYPE | Z_EXT_PM_TYPE_NEW | Z_EXT_VIEWHEIGHT | Z_EXT_SERVERTIME | Z_EXT_PITCHLIMITS | Z_EXT_JOIN_OBSERVE | Z_EXT_VWEP;
 

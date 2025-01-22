@@ -1997,7 +1997,7 @@ void CL_Record_f (void)
 
 		n = 0;
 		s = cl.sound_name[n+1];
-		while (*s)
+		while (s && *s)
 		{
 			MSG_WriteString (&buf, s);
 			if (buf.cursize > buf.maxsize/2 && (n&0xff))
@@ -2035,7 +2035,7 @@ void CL_Record_f (void)
 
 		n = 0;
 		s = cl.model_name[n+1];
-		while (*s)
+		while (s && *s)
 		{
 			MSG_WriteString (&buf, s);
 			if (buf.cursize > buf.maxsize/2 && (n&0xff))

@@ -1183,7 +1183,8 @@ void M_Menu_Demos_f (void)
 {
 	char *demoexts[] = {
 		".mvd", ".mvd.gz",
-		".qwz", ".qwz.gz",
+		".qwd", ".qwd.gz",
+		//".qwz", ".qwz.gz",
 #ifdef NQPROT
 		".dem", ".dem.gz",
 #endif
@@ -1191,7 +1192,7 @@ void M_Menu_Demos_f (void)
 		".dm2", ".dm2.gz"
 #endif
 		//there are also qizmo demos (.qwz) out there...
-		//we don't support them, but if we were to ask quizmo to decode them for us, we could do.
+		//we don't support them, but if we were to ask qizmo to decode them for us, we could do.
 	};
 	char *archiveexts[] = {
 #ifdef PACKAGE_PK3

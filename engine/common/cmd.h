@@ -251,6 +251,7 @@ void Cmd_MessageTrigger (char *message, int type);
 
 void Cmd_ShiftArgs (int ammount, qboolean expandstring);
 
+const char *TP_ParseFunChars (const char *s);
 char *Cmd_ExpandString (const char *data, char *dest, int destlen, int *accesslevel, qboolean expandargs, qboolean expandcvars, qboolean expandmacros);
 qboolean If_EvaluateBoolean(const char *text, int restriction);
 

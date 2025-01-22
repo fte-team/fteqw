@@ -998,9 +998,10 @@ static cvar_t *Cvar_SetCore (cvar_t *var, const char *value, qboolean force)
 	if (var->flags & CVAR_USERINFO)
 	{
 		char *old = InfoBuf_ValueForKey(&cls.userinfo[0], var->name);
-		if (strcmp(old, value))	//only spam the server if it actually changed
+		const char *corruptval = TP_ParseFunChars(value);
+		if (strcmp(old, corruptval))	//only spam the server if it actually changed
 		{				//this helps with config execs
-			InfoBuf_SetKey (&cls.userinfo[0], var->name, value);
+			InfoBuf_SetKey (&cls.userinfo[0], var->name, corruptval);
 		}
 	}
 #endif

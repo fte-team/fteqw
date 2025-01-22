@@ -7045,7 +7045,7 @@ static void CL_ParseStuffCmd(char *msg, int destsplit)	//this protects stuffcmds
 	}
 #endif
 
-	strncat(stufftext, msg, sizeof(stufftext)-1);
+	Q_strncatz(stufftext, msg, sizeof(stufftext)-1);
 	while((msg = strchr(stufftext, '\n')))
 	{
 		*msg = '\0';

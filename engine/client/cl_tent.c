@@ -310,8 +310,9 @@ cvar_t  r_bluelight_colour = CVARFD("r_bluelight_colour", "0.5 0.5 3.0 200", CVA
 cvar_t  r_rocketlight_colour = CVARFD("r_rocketlight_colour", "2.0 1.0 0.25 200", CVAR_ARCHIVE, "This controls the RGB+radius values of MF_ROCKET effects.");
 cvar_t  r_muzzleflash_colour = CVARFD("r_muzzleflash_colour", "1.5 1.3 1.0 200", CVAR_ARCHIVE, "This controls the initial RGB+radius of EF_MUZZLEFLASH/svc_muzzleflash effects.");
 cvar_t  r_muzzleflash_fade = CVARFD("r_muzzleflash_fade", "1.5 0.75 0.375 1000", CVAR_ARCHIVE, "This controls the per-second RGB+radius decay of EF_MUZZLEFLASH/svc_muzzleflash effects.");
-cvar_t	cl_truelightning = CVARF("cl_truelightning", "0",	CVAR_SEMICHEAT);
-static cvar_t  cl_beam_trace = CVAR("cl_beam_trace", "0");
+cvar_t	cl_truelightning = CVARFD("cl_truelightning", "0",	CVAR_SEMICHEAT, "Manipulate the end position of the player's own beams, to hide lag. Can be set to fractional values to reduce the effect.");
+static cvar_t  cl_beam_trace = CVARD("cl_beam_trace", "0", "Clips the length of any beams according to any walls they may have impacted.");
+static cvar_t  cl_beam_alpha = CVARAFD("cl_beam_alpha", "1", "r_shaftalpha", 0, "Specifies the translucency of the lightning beam segments.");
 static cvar_t	cl_legacystains = CVARD("cl_legacystains", "1", "WARNING: this cvar will default to 0 and later removed at some point");	//FIXME: do as the description says!
 static cvar_t	cl_shaftlight = CVAR("gl_shaftlight", "0.8");
 static cvar_t	cl_part_density_fade_start = CVARD("cl_part_density_fade_start", "1024", "Specifies the distance at which ssqc's pointparticles will start to get less dense.");
@@ -454,6 +455,7 @@ void CL_InitTEnts (void)
 	Cvar_Register (&cl_expsprite, "Temporary entity control");
 	Cvar_Register (&cl_truelightning, "Temporary entity control");
 	Cvar_Register (&cl_beam_trace, "Temporary entity control");
+	Cvar_Register (&cl_beam_alpha, "Temporary entity control");
 	Cvar_Register (&r_explosionlight, "Temporary entity control");
 	Cvar_Register (&r_explosionlight_colour, "Temporary entity control");
 	Cvar_Register (&r_explosionlight_fade, "Temporary entity control");
@@ -905,7 +907,9 @@ beam_t *CL_AddBeam (enum beamtype_e tent, int ent, vec3_t start, vec3_t end)	//f
 	b->tag = -1;
 	b->bflags |= /*STREAM_ATTACHED|*/STREAM_ATTACHTOPLAYER;
 	b->endtime = cl.time + 0.2;
-	b->alpha = 1;
+	b->alpha = bound(0, cl_beam_alpha.value, 1);
+	if(b->alpha < 1)
+		b->rflags |= RF_TRANSLUCENT;
 	b->skin = 0;
 	VectorCopy (start, b->start);
 	VectorCopy (end, b->end);

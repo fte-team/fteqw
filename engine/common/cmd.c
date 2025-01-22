@@ -1040,11 +1040,11 @@ Cmd_Echo_f
 Just prints the rest of the line to the console
 ===============
 */
-char *TP_ParseFunChars (char *s);
 static void Cmd_Echo_f (void)
 {
 	char text[4096];
-	char extext[4096], *t;
+	char extext[4096];
+	const char *t;
 	int level = Cmd_ExecLevel;
 	int		i;
 	*text = 0;

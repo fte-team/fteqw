@@ -1529,16 +1529,16 @@ TP_ParseFunChars
 Doesn't check for overflows, so strlen(s) should be < MAX_MACRO_STRING
 ==============
 */
-char *TP_ParseFunChars (char *s)
+const char *TP_ParseFunChars (const char *s)
 {
 	static char	 buf[MAX_MACRO_STRING];
 	char		*out = buf;
 	int			 c;
 
-	if (!cl_parseFunChars.ival)
+	if (!cl_parseFunChars.ival || com_parseutf8.ival != 0)
 		return s;
 
-	while (*s) {
+	while (*s && out < buf+countof(buf)-1) {
 		if (*s == '$' && s[1] == 'x') {
 			int i;
 			// check for $x10, $x8a, etc

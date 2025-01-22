@@ -541,6 +541,8 @@ void QCBUILTIN PF_cl_sprint (pubprogfuncs_t *prinst, struct globalvars_s *pr_glo
 void QCBUILTIN PF_cl_bprint (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 void QCBUILTIN PF_cl_clientcount (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 void QCBUILTIN PF_cl_localsound(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_cl_queueaudio(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
+void QCBUILTIN PF_cl_getqueuedaudiotime(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 void QCBUILTIN PF_cl_SendPacket(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 void QCBUILTIN PF_cl_getlocaluserinfoblob (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);
 void QCBUILTIN PF_cl_getlocaluserinfostring (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals);

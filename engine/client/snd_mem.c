@@ -291,11 +291,11 @@ static wavinfo_t GetWavinfo (char *name, qbyte *wav, int wavlength);
 // SND_ResampleStream: takes a sound stream and converts with given parameters. Limited to
 // 8-16-bit signed conversions and mono-to-mono/stereo-to-stereo conversions.
 // Not an in-place algorithm.
-void SND_ResampleStream (void *in, int inrate, qaudiofmt_t informat, int inchannels, int insamps, void *out, int outrate, qaudiofmt_t outformat, int outchannels, int resampstyle)
+void SND_ResampleStream (const void *in, int inrate, qaudiofmt_t informat, int inchannels, int insamps, void *out, int outrate, qaudiofmt_t outformat, int outchannels, int resampstyle)
 {
 	double scale;
-	signed char *in8 = (signed char *)in;
-	short *in16 = (short *)in;
+	const signed char *in8 = (const signed char *)in;
+	const short *in16 = (const short *)in;
 	signed char *out8 = (signed char *)out;
 	short *out16 = (short *)out;
 	int outsamps, outnlsamps, outsampleft, outsampright;

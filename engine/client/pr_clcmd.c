@@ -1050,6 +1050,55 @@ void QCBUILTIN PF_cl_localsound(pubprogfuncs_t *prinst, struct globalvars_s *pr_
 
 	S_LocalSound2(s, chan, vol);
 }
+void QCBUILTIN PF_cl_queueaudio(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	world_t *world = prinst->parms->user;
+	int sourceid	= (world->keydestmask == kdm_menu)?SOURCEID_MENUQC:SOURCEID_CSQC;
+	int hz			= G_INT(OFS_PARM0);
+	int channels	= G_INT(OFS_PARM1);
+	int type		= G_INT(OFS_PARM2);
+	int qcptr		= G_INT(OFS_PARM3);
+	int numframes	= G_INT(OFS_PARM4);
+	int i;
+	const float volume = 1;
+	qaudiofmt_t fmt;
+	const void *data;
+	void *ndata;
+
+	if (hz < 1 || (channels != 1 && channels != 2) || numframes <= 0)
+	{	//dumb arg.
+		G_FLOAT(OFS_RETURN) = -1;
+		return;
+	}
+	switch(type)
+	{
+	case 8:			fmt = QAF_S8;	data = PR_GetReadQCPtr(prinst, qcptr, numframes*channels*QAF_BYTES(fmt));
+		ndata = alloca(sizeof(char)*numframes*channels);
+		for (i = numframes*channels; i --> 0; )
+			((char*)ndata)[i] = ((const qbyte*)data)[i]-128;
+		data = ndata;	break;
+	case -8:		fmt = QAF_S8;	data = PR_GetReadQCPtr(prinst, qcptr, numframes*channels*QAF_BYTES(fmt));	break;
+	case -16:		fmt = QAF_S16;	data = PR_GetReadQCPtr(prinst, qcptr, numframes*channels*QAF_BYTES(fmt));	break;
+//	case 16:		fmt = QAF_U16:	data = PR_GetReadQCPtr(prinst, qcptr, numframes*channels*QAF_BYTES(fmt));	break;
+#ifdef MIXER_F32
+	case 256|32:	fmt = QAF_F32;	data = PR_GetReadQCPtr(prinst, qcptr, numframes*channels*QAF_BYTES(fmt));	break;
+#endif
+	default:
+		G_FLOAT(OFS_RETURN) = -2;	//unsupported width.
+		return;
+	}
+
+	S_RawAudio(sourceid, data, hz, numframes*channels, channels, fmt, volume);
+
+	G_FLOAT(OFS_RETURN) = 1;
+}
+void QCBUILTIN PF_cl_getqueuedaudiotime(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	world_t *world = prinst->parms->user;
+	int sourceid	= (world->keydestmask == kdm_menu)?SOURCEID_MENUQC:SOURCEID_CSQC;
+
+	G_FLOAT(OFS_RETURN) = S_RawAudioQueued(sourceid);
+}
 
 void QCBUILTIN PF_cl_getlocaluserinfoblob (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {

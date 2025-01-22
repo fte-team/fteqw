@@ -4214,7 +4214,7 @@ typedef struct {
 	int length;
 	void *data;
 } streaming_t;
-#define MAX_RAW_SOURCES (MAX_CLIENTS+1)
+#define MAX_RAW_SOURCES (MAX_CLIENTS+3)
 streaming_t s_streamers[MAX_RAW_SOURCES];
 
 void S_ClearRaw(void)
@@ -4256,8 +4256,47 @@ void QDECL S_Raw_Purge(sfx_t *sfx)
 	memset(&sfx->decoder, 0, sizeof(sfx->decoder));
 }
 
+float S_RawAudioQueued(int sourceid)	//returns in seconds. we don't know what the original sample count was.
+{
+	soundcardinfo_t *si;
+	streaming_t *s;
+	int i;
+	float r;
+	ssamplepos_t highest, pos;
+	for (s = s_streamers, i = 0; i < MAX_RAW_SOURCES; i++, s++)
+	{
+		if (s->inuse && s->id == sourceid)
+		{
+			S_LockMixer();
+
+			highest = ((~(usamplepos_t)0)>>1);
+			for (si = sndcardinfo; si; si=si->next)	//make sure all cards are playing, and that we still get a prepad if just one is.
+			{
+				for (i = 0; i < si->total_chans; i++)
+					if (si->channel[i].sfx == s->sfx)
+					{
+						if (si->GetChannelPos)
+							pos = si->GetChannelPos(si, &si->channel[i]);
+						else
+							pos = si->channel[i].pos>>PITCHSHIFT;
+						if (highest > pos)
+							highest = pos;
+						break;
+					}
+			}
+			if (highest == ((~(usamplepos_t)0)>>1))
+				r = 0;	//nothing playing it... needs to be woken up. pretend nothing is there so it gets poked a bit.
+			else
+				r = (s->length - highest) / (float)snd_speed;
+			S_UnlockMixer();
+			return r;
+		}
+	}
+	return 0;	//not found
+}
+
 //streaming audio.	//this is useful when there is one source, and the sound is to be played with no attenuation
-void S_RawAudio(int sourceid, qbyte *data, int speed, int samples, int channels, qaudiofmt_t format, float volume)
+void S_RawAudio(int sourceid, const qbyte *data, int speed, int samples, int channels, qaudiofmt_t format, float volume)
 {
 	soundcardinfo_t *si;
 	int i;

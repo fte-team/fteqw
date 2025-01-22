@@ -7035,6 +7035,8 @@ static struct {
 
 	{"SetListener",				PF_cs_setlistener, 				351},	// #351 void(vector origin, vector forward, vector right, vector up) SetListener (EXT_CSQC)
 	{"setup_reverb",			PF_cs_setupreverb, 				0},
+	{"queueaudio",				PF_cl_queueaudio,				0},
+	{"getqueuedaudiotime",		PF_cl_getqueuedaudiotime,		0},
 	{"registercommand",			PF_cs_registercommand,			352},	// #352 void(string cmdname) registercommand (EXT_CSQC)
 	{"wasfreed",				PF_WasFreed,					353},	// #353 float(entity ent) wasfreed (EXT_CSQC) (should be availabe on server too)
 

@@ -2655,6 +2655,8 @@ static struct {
 	{"isdemo",					PF_isdemo,					349},
 //	{NULL,						PF_Fixme,					350},
 //	{NULL,						PF_Fixme,					351},
+	{"queueaudio",				PF_cl_queueaudio,			0},
+	{"getqueuedaudiotime",		PF_cl_getqueuedaudiotime,	0},
 	{"registercommand",			PF_menu_registercommand,	352},
 	{"wasfreed",				PF_WasFreed,				353},
 	{"serverkey",				PF_cl_serverkey,			354},	// #354 string(string key) serverkey;

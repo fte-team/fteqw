@@ -434,7 +434,8 @@ typedef struct
 		ALuint handle;
 		qbyte allocated;	//there is no guarenteed-unused handle (and I don't want to have to keep spamming alIsSource).
 		qbyte queuesize;
-		ALuint	queue[3];
+		ALuint		 queue_b[3];
+		usamplepos_t queue_f[3];
 	} *source;
 	size_t max_sources;
 
@@ -746,7 +747,7 @@ static qboolean OpenAL_ReclaimASource(soundcardinfo_t *sc)
 			{
 				palDeleteSources(1, &src);
 				if (oali->source[i].queuesize)
-					palDeleteBuffers(oali->source[i].queuesize, oali->source[i].queue);
+					palDeleteBuffers(oali->source[i].queuesize, oali->source[i].queue_b);
 				oali->source[i].queuesize = 0;
 				oali->source[i].handle = 0;
 				oali->source[i].allocated = false;
@@ -778,7 +779,7 @@ static qboolean OpenAL_ReclaimASource(soundcardinfo_t *sc)
 			i = furthest;
 			palDeleteSources(1, &oali->source[i].handle);
 			if (oali->source[i].queuesize)
-				palDeleteBuffers(oali->source[i].queuesize, oali->source[i].queue);
+				palDeleteBuffers(oali->source[i].queuesize, oali->source[i].queue_b);
 			oali->source[i].queuesize = 0;
 			oali->source[i].handle = 0;
 			oali->source[i].allocated = false;
@@ -802,7 +803,32 @@ static ssamplepos_t OpenAL_GetChannelPos(soundcardinfo_t *sc, channel_t *chan)
 
 	//alcMakeContextCurrent
 
-	palGetSourcei(src, AL_SAMPLE_OFFSET, &spos);
+	if (oali->source[chnum].queuesize)
+	{	//we're streaming, for whatever reason.
+		ssamplepos_t pos;
+		ALuint processed;
+		int i;
+		//reclaim any queued buffers
+		palGetSourcei(src, AL_BUFFERS_PROCESSED, &processed);	//get number of buffers
+		palGetSourcei(src, AL_SAMPLE_OFFSET, &spos);	//get our position within the current one.
+		if (processed)
+		{
+			palSourceUnqueueBuffers(src, processed, oali->source[chnum].queue_b);
+			palDeleteBuffers(processed, oali->source[chnum].queue_b);
+			oali->source[chnum].queuesize -= processed;
+			memmove(oali->source[chnum].queue_b, oali->source[chnum].queue_b+processed, oali->source[chnum].queuesize*sizeof(*oali->source[chnum].queue_b));
+			memmove(oali->source[chnum].queue_f, oali->source[chnum].queue_f+processed, oali->source[chnum].queuesize*sizeof(*oali->source[chnum].queue_f));
+		}
+
+		pos = chan->pos>>PITCHSHIFT; //this is the point of thedata that was already submitted to openal.
+		for (i = 0; i < oali->source[chnum].queuesize; i++)
+			pos -= oali->source[chnum].queue_f[i];
+		//pos is now 'chan->pos at start of current buffer'
+		pos += spos; //current playback position (should always be smaller than chan->pos originally was...)
+		return pos;
+	}
+	else
+		palGetSourcei(src, AL_SAMPLE_OFFSET, &spos);
 	return spos;	//FIXME: result is probably going to be wrong when streaming
 }
 
@@ -860,7 +886,7 @@ static void OpenAL_ChannelUpdate(soundcardinfo_t *sc, channel_t *chan, chanupdat
 		palSourceStop(src);
 		palSourcei(src, AL_BUFFER, 0);
 		if (oali->source[chnum].queuesize)
-			palDeleteBuffers(oali->source[chnum].queuesize, oali->source[chnum].queue);
+			palDeleteBuffers(oali->source[chnum].queuesize, oali->source[chnum].queue_b);
 		oali->source[chnum].queuesize = 0;
 
 	}
@@ -870,10 +896,11 @@ static void OpenAL_ChannelUpdate(soundcardinfo_t *sc, channel_t *chan, chanupdat
 		palGetSourcei(src, AL_BUFFERS_PROCESSED, &processed);
 		if (processed)
 		{
-			palSourceUnqueueBuffers(src, processed, oali->source[chnum].queue);
-			palDeleteBuffers(processed, oali->source[chnum].queue);
+			palSourceUnqueueBuffers(src, processed, oali->source[chnum].queue_b);
+			palDeleteBuffers(processed, oali->source[chnum].queue_b);
 			oali->source[chnum].queuesize -= processed;
-			memmove(oali->source[chnum].queue, oali->source[chnum].queue+processed, oali->source[chnum].queuesize*sizeof(*oali->source[chnum].queue));
+			memmove(oali->source[chnum].queue_b, oali->source[chnum].queue_b+processed, oali->source[chnum].queuesize*sizeof(*oali->source[chnum].queue_b));
+			memmove(oali->source[chnum].queue_f, oali->source[chnum].queue_f+processed, oali->source[chnum].queuesize*sizeof(*oali->source[chnum].queue_f));
 		}
 	}
 
@@ -902,7 +929,7 @@ static void OpenAL_ChannelUpdate(soundcardinfo_t *sc, channel_t *chan, chanupdat
 #else
 		palDeleteSources(1, &src);
 		if (oali->source[chnum].queuesize)
-			palDeleteBuffers(oali->source[chnum].queuesize, oali->source[chnum].queue);
+			palDeleteBuffers(oali->source[chnum].queuesize, oali->source[chnum].queue_b);
 		oali->source[chnum].queuesize = 0;
 		oali->source[chnum].handle = 0;
 		oali->source[chnum].allocated = false;
@@ -947,7 +974,7 @@ static void OpenAL_ChannelUpdate(soundcardinfo_t *sc, channel_t *chan, chanupdat
 			{
 				int offset;
 				sfxcache_t sbuf, *sc;
-				while (oali->source[chnum].queuesize < countof(oali->source[chnum].queue))
+				while (oali->source[chnum].queuesize < countof(oali->source[chnum].queue_b))
 				{	//decode periodically instead of all at the start.
 					int tryduration = snd_speed*0.5;
 					ssamplepos_t pos = chan->pos>>PITCHSHIFT;
@@ -985,7 +1012,9 @@ static void OpenAL_ChannelUpdate(soundcardinfo_t *sc, channel_t *chan, chanupdat
 							if (OpenAL_LoadCache(oali, &buf, &sbuf, max(1,cvolume), 0))
 							{
 								palSourceQueueBuffers(src, 1, &buf);
-								oali->source[chnum].queue[oali->source[chnum].queuesize++] = buf;
+								oali->source[chnum].queue_b[oali->source[chnum].queuesize] = buf;
+								oali->source[chnum].queue_f[oali->source[chnum].queuesize] = sbuf.length;
+								oali->source[chnum].queuesize++;
 							}
 						}
 						else
@@ -1000,7 +1029,9 @@ static void OpenAL_ChannelUpdate(soundcardinfo_t *sc, channel_t *chan, chanupdat
 							if (OpenAL_LoadCache(oali, &buf, &silence, 1, 0))
 							{
 								palSourceQueueBuffers(src, 1, &buf);
-								oali->source[chnum].queue[oali->source[chnum].queuesize++] = buf;
+								oali->source[chnum].queue_b[oali->source[chnum].queuesize] = buf;
+								oali->source[chnum].queue_f[oali->source[chnum].queuesize] = 0;	//don't count silence.
+								oali->source[chnum].queuesize++;
 							}
 						}
 
@@ -1031,7 +1062,9 @@ static void OpenAL_ChannelUpdate(soundcardinfo_t *sc, channel_t *chan, chanupdat
 							if (OpenAL_LoadCache(oali, &buf, &silence, 1, 0))
 							{
 								palSourceQueueBuffers(src, 1, &buf);
-								oali->source[chnum].queue[oali->source[chnum].queuesize++] = buf;
+								oali->source[chnum].queue_b[oali->source[chnum].queuesize] = buf;
+								oali->source[chnum].queue_f[oali->source[chnum].queuesize] = 0;	//don't count silence.
+								oali->source[chnum].queuesize++;
 								if (oali->can_source_spatialise)	//force spacialisation as desired, if supported (this solves browsers forcing stereo on mono files which should mean static audio is full volume...)
 									palSourcei(src, AL_SOURCE_SPATIALIZE_SOFT, !srcrel);
 							}

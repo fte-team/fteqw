@@ -18447,12 +18447,12 @@ QCC_def_t *QCC_PR_DummyDef(QCC_type_t *type, const char *name, QCC_function_t *s
 		else
 			def->symbolsize = (def->arraysize?def->arraysize:1) * type->size;
 
-		if (type->type == ev_struct && (!arraysize || a>=0))
+		if ((type->type == ev_struct||type->type == ev_union) && (!arraysize || a>=0))
 		{
 			unsigned int partnum;
 			QCC_type_t *parttype;
 			def->saved = false;	//struct headers don't get saved.
-			for (partnum = 0; partnum < type->num_parms; partnum++)
+			for (partnum = 0; partnum < (type->type == ev_union?max(1,type->num_parms):type->num_parms); partnum++)
 			{
 				parttype = type->params[partnum].type;
 				while (parttype->type == ev_accessor)
@@ -18487,7 +18487,10 @@ QCC_def_t *QCC_PR_DummyDef(QCC_type_t *type, const char *name, QCC_function_t *s
 				case ev_struct:
 				case ev_union:
 				case ev_variant:	//for lack of any better alternative
-					QC_snprintfz(newname, sizeof(newname), "%s.%s", def->name, type->params[partnum].paramname);
+					if (type->params[partnum].paramname)
+						QC_snprintfz(newname, sizeof(newname), "%s.%s", def->name, type->params[partnum].paramname);
+					else	//anon or something (eg array types).
+						QC_snprintfz(newname, sizeof(newname), "%s", def->name);
 					QCC_PR_DummyDef(parttype, newname, scope, type->params[partnum].arraysize, rootsymbol, def->ofs+type->params[partnum].ofs, false, flags);
 					break;
 

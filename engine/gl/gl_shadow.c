@@ -4118,9 +4118,8 @@ void Sh_DrawLights(qbyte *vis)
 		return;
 
 	ignoreflags = (r_shadow_realtime_world.ival?LFLAG_REALTIMEMODE:0)
-				| (r_shadow_realtime_dlight.ival?LFLAG_NORMALMODE:0);
-	if (!r_dlightlightmaps)
-		ignoreflags |= LFLAG_LIGHTMAP;	//if we're using scenecache then we cannot use lightmap hacks for dlights, so draw them via rtlight code instead.
+				| (r_shadow_realtime_dlight.ival?LFLAG_NORMALMODE:0)
+				| ((r_dynamic.ival&&!r_dlightlightmaps)?LFLAG_LIGHTMAP:0);	//if we're using scenecache and won't be updating lightmaps then we should still respect r_dynamic.
 	if (!ignoreflags)
 		return;
 

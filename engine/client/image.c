@@ -8819,6 +8819,34 @@ static void Image_Tr_RGBX8toPaletted(struct pendingtextureinfo *mips, int args)
 			*out++ = GetPaletteIndexRange(first, stop, in[0], in[1], in[2]);
 	}
 }
+static void Image_Tr_RGBA8toPaletted(struct pendingtextureinfo *mips, int args)
+{
+	unsigned int mip;
+	int first=args&0xffff;
+	int stop=(args>>16)&0xffff;
+	int tr = first?0:255;
+	for (mip = 0; mip < mips->mipcount; mip++)
+	{
+		qbyte *in = mips->mip[mip].data;
+		qbyte *out = mips->mip[mip].data;
+		unsigned int p = mips->mip[mip].width*mips->mip[mip].height*mips->mip[mip].depth;
+		unsigned short tmp;
+		if (!mips->mip[mip].needfree && !mips->extrafree)
+		{
+			mips->mip[mip].needfree = true;
+			mips->mip[mip].data = out = BZ_Malloc(sizeof(tmp)*p);
+		}
+		mips->mip[mip].datasize = p*sizeof(*out);
+
+		for(; p-->0; in += 4)
+		{
+			if (in[3] < 128)
+				*out++ = tr;
+			else
+				*out++ = GetPaletteIndexRange(first, stop, in[0], in[1], in[2]);
+		}
+	}
+}
 
 //may operate in place
 static void Image_Tr_8888toLuminence(struct pendingtextureinfo *mips, int channels)
@@ -12184,7 +12212,9 @@ static struct
 	{PTI_RG8,		PTI_RGBX8,		Image_Tr_RG8ToRGXX8},
 	{PTI_RGBX8,		PTI_P8,			Image_Tr_RGBX8toPaletted, 0|(256<<16)},
 	{PTI_RGBX8,		TF_H2_TRANS8_0,	Image_Tr_RGBX8toPaletted, 1|(256<<16)},
+	{PTI_RGBA8,		TF_H2_TRANS8_0,	Image_Tr_RGBA8toPaletted, 1|(256<<16)},
 	{PTI_RGBX8,		TF_TRANS8,		Image_Tr_RGBX8toPaletted, 0|(255<<16)},
+	{PTI_RGBA8,		TF_TRANS8,		Image_Tr_RGBA8toPaletted, 0|(255<<16)},
 	{PTI_P8,		PTI_RGBX8,		Image_Tr_PalettedtoRGBX8, -1},
 	{TF_SOLID8,		PTI_RGBX8,		Image_Tr_PalettedtoRGBX8, -1},
 	{TF_H2_TRANS8_0,PTI_RGBA8,		Image_Tr_PalettedtoRGBX8, 0},

@@ -2663,7 +2663,7 @@ void QCBUILTIN PF_fopen (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals
 		return;
 	}
 
-	if (fmode < 0 && (!strncmp(name, "tcp://", 6) || !strncmp(name, "tls://", 6)))
+	if (fmode < 0 && (!strncmp(name, "tcp://", 6) || !strncmp(name, "tls://", 6) || !strncmp(name, "ws:", 3) || !strncmp(name, "wss:", 4)))
 	{
 		extern cvar_t pr_enable_uriget;
 #if defined(CSQC_DAT) && !defined(SERVERONLY)

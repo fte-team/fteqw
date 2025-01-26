@@ -11162,12 +11162,513 @@ vfsfile_t *FS_WrapTCPSocket(SOCKET sock, qboolean conpending, const char *peerna
 
 	return &newf->funcs;
 }
-vfsfile_t *FS_OpenTCP(const char *name, int defaultport, qboolean assumetls)
+
+typedef struct {
+	vfsfile_t funcs;
+
+	vfsfile_t *stream;
+	int conpending;			//waiting for the proper handshake response, don't write past this.
+	unsigned int mask;		//xor masking, to make it harder to exploit buggy shit that's parsing streams (like magic packets or w/e).
+
+	char readbuffer[65536];
+	int readbufferofs;
+	int readbuffered;
+
+	char *pending;
+	int pendingofs;
+	int pendingsize;
+	int pendingmax;
+
+	int err;
+} websocketfile_t;
+static void VFSWS_Flush (websocketfile_t *f)
+{
+//try flushing it now. note: tls packet sizes can leak.
+	int i = f->conpending?f->conpending:f->pendingsize;
+	if (i == f->pendingofs)
+		return;	//nothing to flush.
+	i = VFS_WRITE(f->stream, f->pending+f->pendingofs, i-f->pendingofs);
+	if (i > 0)
+		f->pendingofs += i;
+	else if (i < 0)
+	{
+		f->err = i;
+		VFS_CLOSE(f->stream);	//close it.
+		f->stream = NULL;
+	}
+}
+static void VFSWS_Append (websocketfile_t *f, unsigned packettype, const unsigned char *data, size_t length)
+{
+	union
+	{
+		unsigned char b[4];
+		int i;
+	} mask;
+	unsigned short ctrl = 0x8000 | (packettype<<8);
+	quint64_t paylen = 0;
+	unsigned int payoffs = f->pendingsize;
+//	int i;
+	if (!f->stream)
+		return;	//can't do anything anyway...
+	switch((ctrl>>8) & 0xf)
+	{
+	/*case WS_PACKETTYPE_TEXTFRAME:
+		for (i = 0; i < length; i++)
+		{
+			paylen += (data[i] == 0 || data[i] >= 0x80)?2:1;
+		}
+		break;*/
+	default:
+		paylen = length;
+		break;
+	}
+	payoffs = 2;	//ctrl header
+	if (paylen >= (1<<16))
+		ctrl |= 127, payoffs+=8;	//64bit len... overkill
+	else if (paylen >= 126)
+		ctrl |= 126, payoffs+=2;	//16bit len.
+	else
+		ctrl |= paylen;	//smol
+	if (ctrl&0x80)
+		payoffs += 4;	//mask
+	payoffs += paylen;
+
+	if (f->pendingmax < f->pendingsize+payoffs)
+	{	//oh noes. wouldn't be space
+		if (f->pendingofs && !f->conpending/*don't get confused*/)
+		{	//move it down, we already sent that bit.
+			f->pendingsize -= f->pendingofs;
+			memmove(f->pending, f->pending + f->pendingofs, f->pendingsize);
+			f->pendingofs = 0;
+		}
+		if (f->pendingmax < f->pendingsize + payoffs)
+		{	//still too big. make the buffer bigger.
+			f->pendingmax = f->pendingsize + payoffs;
+			f->pending = realloc(f->pending, f->pendingmax);
+		}
+	}
+
+	payoffs = f->pendingsize;
+	f->pending[payoffs++] = ctrl>>8;
+	f->pending[payoffs++] = ctrl&0xff;
+	if ((ctrl&0x7f) == 127)
+	{
+		f->pending[payoffs++] = (paylen>>56)&0xff;
+		f->pending[payoffs++] = (paylen>>48)&0xff;
+		f->pending[payoffs++] = (paylen>>40)&0xff;
+		f->pending[payoffs++] = (paylen>>32)&0xff;
+		f->pending[payoffs++] = (paylen>>24)&0xff;
+		f->pending[payoffs++] = (paylen>>16)&0xff;
+		f->pending[payoffs++] = (paylen>> 8)&0xff;
+		f->pending[payoffs++] = (paylen>> 0)&0xff;
+	}
+	else if ((ctrl&0x7f) == 126)
+	{
+		f->pending[payoffs++] = (paylen>>8)&0xff;
+		f->pending[payoffs++] = (paylen>>0)&0xff;
+	}
+	if (ctrl&0x80)
+	{
+		mask.i = f->mask;
+		//'re-randomise' it a bit
+		f->mask = (f->mask<<4) | (f->mask>>(32-4));
+		f->mask += (payoffs<<16) + paylen;
+
+		f->pending[payoffs++] = mask.b[0];
+		f->pending[payoffs++] = mask.b[1];
+		f->pending[payoffs++] = mask.b[2];
+		f->pending[payoffs++] = mask.b[3];
+	}
+	switch((ctrl>>8) & 0xf)
+	{
+#if 0
+	case WS_PACKETTYPE_TEXTFRAME:/*utf8ify the data*/
+		for (i = 0; i < length; i++)
+		{
+			if (!data[i])
+			{	/*0 is encoded as 0x100 to avoid safety checks*/
+				f->pending[payoffs++] = 0xc0 | (0x100>>6);
+				f->pending[payoffs++] = 0x80 | (0x100&0x3f);
+			}
+			else if (data[i] >= 0x80)
+			{	/*larger bytes require markup*/
+				f->pending[payoffs++] = 0xc0 | (data[i]>>6);
+				f->pending[payoffs++] = 0x80 | (data[i]&0x3f);
+			}
+			else
+			{	/*lower 7 bits are as-is*/
+				f->pending[payoffs++] = data[i];
+			}
+		}
+		break;
+#endif
+	default: //raw data
+		memcpy(f->pending+payoffs, data, length);
+		payoffs += length;
+		break;
+	}
+	if (ctrl&0x80)
+	{
+		unsigned char *buf = f->pending+payoffs-paylen;
+		int i;
+		for (i = 0; i < paylen; i++)
+			buf[i] ^= mask.b[i&3];
+	}
+	f->pendingsize = payoffs;
+
+	//try flushing it now. note: tls packet sizes can leak.
+	VFSWS_Flush(f);
+}
+static qboolean QDECL VFSWS_Close (struct vfsfile_s *file)
+{
+	websocketfile_t *f = (websocketfile_t *)file;
+	qboolean success = f->stream != NULL;
+	if (f->stream != NULL)
+	{	//still open? o.O
+		VFSWS_Append(f, WS_PACKETTYPE_CLOSE, NULL, 0);	//let the other side know it was intended
+		VFS_WRITE(f->stream, f->pending+f->pendingofs, f->pendingsize-f->pendingofs);	//final flush
+		success = VFS_CLOSE(f->stream);	//close it.
+		f->stream = NULL;
+	}
+	free(f->pending);
+	f->pending = NULL;
+	Z_Free(f);
+	return success;
+}
+static int QDECL VFSWS_ReadBytes (struct vfsfile_s *file, void *buffer, int bytestoread)
+{
+	websocketfile_t *f = (websocketfile_t *)file;
+	int r;
+	int t;
+
+	VFSWS_Flush(f);	//flush any pending writes.
+
+	for(t = 0; t < 2; t++)
+	{
+		if (t==1 && !f->err)
+		{
+			if (f->readbufferofs >= 1024)
+			{
+				f->readbuffered -= f->readbufferofs;
+				memmove(f->readbuffer, f->readbuffer+f->readbufferofs, f->readbuffered);
+				f->readbufferofs = 0;
+			}
+			r = f->stream?VFS_READ(f->stream, f->readbuffer+f->readbuffered, sizeof(f->readbuffer)-f->readbuffered):-1;
+			if (r > 0)
+				f->readbuffered += r;
+			if (r < 0 && f->stream)
+				f->err = r;
+			if (r <= 0)
+				return f->err;	//needed more, couldn't get it.
+		}
+
+		if (f->conpending)
+		{	//look for \r\n\r\n
+			char *l, *e, *le;
+			char *upg=NULL, *con=NULL, *accept=NULL, *prot=NULL;
+			char tok[128];
+			if (!t)
+				continue;	//read the size
+
+			if (f->readbuffered < 13)
+				continue; //not nuff data for the basic header
+			if (strncmp(f->readbuffer, "HTTP/1.1 101 ", 13))
+			{
+				f->err = VFS_ERROR_UNSPECIFIED;
+				break;
+			}
+
+			l = f->readbuffer;
+			e = f->readbuffer+f->readbuffered;
+			for(;;)
+			{
+				for (le = l; le < e && *le != '\n'; le++)
+					;
+				if (le == e)
+					break;	//failed.
+				//track interesting lines as we parse.
+				if (!strncmp(l, "Upgrade:", 8))
+					upg = l+8;
+				else if (!strncmp(l, "Connection:", 11))
+					con = l+11;
+				else if (!strncmp(l, "Sec-WebSocket-Accept:", 21))
+					accept = l+21;
+				else if (!strncmp(l, "Sec-WebSocket-Protocol:", 23))
+					prot = l+23;
+				if (le[0] == '\n' && le[1] == '\r' && le[2] == '\n')
+				{
+					le += 3;
+
+					if (!con || !COM_ParseTokenOut(con, NULL, tok,sizeof(tok),NULL) || Q_strcasecmp(tok, "Upgrade"))
+						f->err = VFS_ERROR_UNSPECIFIED;	//wrong connection state...
+					else if (!upg || !COM_ParseTokenOut(upg, NULL, tok,sizeof(tok),NULL) || Q_strcasecmp(tok, "websocket"))
+						f->err = VFS_ERROR_UNSPECIFIED;	//wrong type of upgrade...
+					else if (!accept)
+						f->err = VFS_ERROR_UNSPECIFIED;	//wrong hash
+					else
+					{
+						COM_ParseTokenOut(prot, NULL, tok,sizeof(tok),NULL);
+						Con_Printf("websocket connection using protocol %s\n", prot);
+					}
+
+					f->conpending = false;
+					f->readbufferofs = le-f->readbuffer;
+					break;
+				}
+				l = le+1;
+			}
+			if (f->conpending)
+				continue;
+			if (f->err)
+				break;
+			//try and read the next thing.
+			t = 0;
+			continue;
+		}
+		else if (f->readbuffered-f->readbufferofs >= 2)
+		{	//try to make sense of the packet..
+			unsigned char *inbuffer = f->readbuffer + f->readbufferofs;
+			size_t inlen = f->readbuffered-f->readbufferofs;
+
+			unsigned short ctrl = inbuffer[0]<<8 | inbuffer[1];
+			unsigned long paylen;
+			unsigned int payoffs = 2;
+			unsigned int mask = 0;
+
+			if (ctrl & 0x7000)
+			{
+				f->err = VFS_ERROR_UNSPECIFIED;	//reserved bits set
+				break;
+			}
+			else if ((ctrl & 0x7f) == 127)
+			{
+				quint64_t ullpaylen;
+				//as a payload is not allowed to be encoded as too large a type, and quakeworld never used packets larger than 1450 bytes anyway, this code isn't needed (65k is the max even without this)
+				if (sizeof(ullpaylen) < 8)
+				{
+					f->err = VFS_ERROR_UNSPECIFIED;	//wut...
+					break;
+				}
+
+				if (payoffs + 8 > inlen)
+					continue;	//not enough buffered
+				ullpaylen =
+					(quint64_t)inbuffer[payoffs+0]<<56u |
+					(quint64_t)inbuffer[payoffs+1]<<48u |
+					(quint64_t)inbuffer[payoffs+2]<<40u |
+					(quint64_t)inbuffer[payoffs+3]<<32u |
+					(quint64_t)inbuffer[payoffs+4]<<24u |
+					(quint64_t)inbuffer[payoffs+5]<<16u |
+					(quint64_t)inbuffer[payoffs+6]<< 8u |
+					(quint64_t)inbuffer[payoffs+7]<< 0u;
+				if (ullpaylen < 0x10000)
+				{
+					f->err = VFS_ERROR_UNSPECIFIED;	//should have used a smaller encoding...
+					break;
+				}
+				if (ullpaylen > 0x40000)
+				{
+					f->err = VFS_ERROR_UNSPECIFIED;	//abusively large...
+					break;
+				}
+				paylen = ullpaylen;
+				payoffs += 8;
+			}
+			else if ((ctrl & 0x7f) == 126)
+			{
+				if (payoffs + 2 > inlen)
+					continue;	//not enough buffered
+				paylen =
+					inbuffer[payoffs+0]<<8 |
+					inbuffer[payoffs+1]<<0;
+				if (paylen < 126)
+				{
+					f->err = VFS_ERROR_UNSPECIFIED;	//should have used a smaller encoding...
+					break;
+				}
+				payoffs += 2;
+			}
+			else
+			{
+				paylen = ctrl & 0x7f;
+			}
+			if (ctrl & 0x80)
+			{
+				if (payoffs + 4 > inlen)
+					continue;
+				/*this might read data that isn't set yet, but should be safe*/
+				((unsigned char*)&mask)[0] = inbuffer[payoffs+0];
+				((unsigned char*)&mask)[1] = inbuffer[payoffs+1];
+				((unsigned char*)&mask)[2] = inbuffer[payoffs+2];
+				((unsigned char*)&mask)[3] = inbuffer[payoffs+3];
+				payoffs += 4;
+			}
+			/*if there isn't space, try again next time around*/
+			if (payoffs + paylen > inlen)
+			{
+				if (payoffs + paylen >= sizeof(inbuffer)-1)
+				{
+					f->err = VFS_ERROR_UNSPECIFIED;	//payload is too big for out in buffer
+					break;
+				}
+				continue;	//need more data
+			}
+
+			if (mask)
+			{
+				int i;
+				for (i = 0; i < paylen; i++)
+				{
+					inbuffer[i + payoffs] ^= ((unsigned char*)&mask)[i&3];
+				}
+			}
+
+			t = 0; //allow checking for new data again.
+			f->readbufferofs += payoffs + paylen;	//skip to end...
+			switch((ctrl>>8) & 0xf)
+			{
+			case WS_PACKETTYPE_CLOSE:
+				if (!f->err)
+				{
+					VFSWS_Flush(f);
+					f->err = VFS_ERROR_EOF;
+					if (f->pendingofs < f->pendingsize)
+						return VFS_ERROR_EOF;	//nothing more to read (might still have some to flush).
+				}
+				break;	//will kill it.
+			case WS_PACKETTYPE_CONTINUATION:
+				f->err = VFS_ERROR_UNSPECIFIED;	//a prior packet lacked the 'fin' flag. we don't support fragmentation though.
+				break;
+			case WS_PACKETTYPE_TEXTFRAME:	//we don't distinguish. use utf-8 data if you wanted that.
+			case WS_PACKETTYPE_BINARYFRAME:	//actual data
+				if (bytestoread >= paylen)
+				{	//caller passed a big enough buffer
+					memcpy(buffer, f->readbuffer+f->readbufferofs-paylen, paylen);
+					return paylen;
+				}
+				else
+					Con_Printf("websocket connection received %u-byte package. only %i requested\n", (unsigned)paylen, bytestoread);
+				continue;	//buffer too small... sorry
+			case WS_PACKETTYPE_PING:
+				VFSWS_Append(f, WS_PACKETTYPE_PONG, f->readbuffer+f->readbufferofs-paylen, paylen);	//send it back
+				continue;	//and look for more.
+			case WS_PACKETTYPE_PONG:	//wut? we didn't ask for this
+			default:
+				break;
+			}
+		}
+		else
+			continue;	//need more data
+
+		break;	//oops?
+	}
+
+	if (f->err)
+	{	//something bad happened
+		if (f->stream)
+			VFS_CLOSE(f->stream);
+		f->stream = NULL;
+		return f->err;
+	}
+	return VFS_ERROR_TRYLATER;
+}
+static int QDECL VFSWS_WriteBytes (struct vfsfile_s *file, const void *buffer, int bytestowrite)
+{	//websockets are a pseudo-packet protocol, so queue one packet at a time. there may still be extra data queued at a lower level.
+	websocketfile_t *f = (websocketfile_t *)file;
+	if (!f->stream)
+		return f->err;
+	if (f->pendingsize > 8192)
+		return VFS_ERROR_TRYLATER;	//something pending... don't queue excessively.
+
+	//okay, we're taking this packet. all or nothing.
+	VFSWS_Append(f, WS_PACKETTYPE_BINARYFRAME, buffer, bytestowrite);
+	return bytestowrite;
+}
+static vfsfile_t *Websocket_WrapStream(vfsfile_t *stream, const char *host, const char *resource, const char *proto)
+{	//this is kinda messy. Websocket_WrapStream(FS_OpenSSL(FS_WrapTCPSocket(TCP_OpenStream())))... *sigh*. wss uris kinda require all the extra layers.
+
+	websocketfile_t *newf;
+	char *hello;
+	if (!stream)
+		return NULL;
+
+	hello = va("GET %s HTTP/1.1\r\n"
+			"Host: %s\r\n"
+			"Connection: Upgrade\r\n"
+			"Upgrade: websocket\r\n"
+			"Sec-WebSocket-Version: 13\r\n"
+			"Sec-WebSocket-Protocol: %s\r\n"
+			"\r\n", resource, host, proto);
+
+	newf = Z_Malloc(sizeof(*newf) + strlen(host));
+	Sys_RandomBytes((void*)&newf->mask, sizeof(newf->mask));
+	newf->stream = stream;
+	newf->funcs.Close = VFSWS_Close;
+	newf->funcs.ReadBytes = VFSWS_ReadBytes;
+	newf->funcs.WriteBytes = VFSWS_WriteBytes;
+	newf->funcs.Flush = NULL;
+	newf->funcs.GetLen = VFSTCP_GetLen;
+	newf->funcs.Seek = VFSTCP_Seek;
+	newf->funcs.Tell = VFSTCP_Tell;
+	newf->funcs.seekstyle = SS_UNSEEKABLE;
+
+	//send the hello, the weird way.
+	newf->pending = strdup(hello);
+	newf->conpending = newf->pendingsize = newf->pendingmax = strlen(newf->pending);
+	VFSWS_Flush(newf);
+
+	return &newf->funcs;
+}
+
+vfsfile_t *FS_OpenTCP(const char *name, int defaultport, qboolean assumetls/*used when no scheme specified*/)
 {
 	netadr_t adr = {0};
-	if (NET_StringToAdr(name, defaultport, &adr))
+
+	const char *resource = "/";
+	const char *host = name;
+	const char *proto = NULL;
+	if (!strncmp(name, "ws:", 3))
+		assumetls = false, host += 3, defaultport=defaultport?defaultport:80;
+	else if (!strncmp(name, "wss:", 4))
+		assumetls = true, host += 4, defaultport=defaultport?defaultport:443;
+	else
+		host = name;
+	if (host != name && host[0] == '/' && host[1] == '/')
 	{
-		qboolean wanttls = (adr.prot == NP_TLS || (adr.prot != NP_STREAM && assumetls));
+		host += 2;
+		proto = "";	//not specified
+	}
+	else
+	{
+		proto = host;
+		host = strstr(host, "://");
+		if (host)
+		{
+			char *t = alloca(1+host-proto);
+			t[host-proto] = 0;
+			proto = memcpy(t, proto, host-proto);
+			host+=3;
+		}
+		else
+		{
+			host = name;
+			proto = "";
+		}
+	}
+
+	resource = strchr(host, '/');
+	if (!resource)
+		resource = "/";
+	else
+	{
+		char *t = alloca(1+resource-host);
+		t[resource-host] = 0;
+		host = memcpy(t, host, resource-host);
+	}
+
+	if (NET_StringToAdr(host, defaultport, &adr))
+	{
+		qboolean wanttls = (adr.prot == NP_WSS || adr.prot == NP_TLS || (adr.prot != NP_STREAM && assumetls));
 		vfsfile_t *f;
 #ifndef HAVE_SSL
 		if (wanttls)
@@ -11176,8 +11677,11 @@ vfsfile_t *FS_OpenTCP(const char *name, int defaultport, qboolean assumetls)
 		f = FS_WrapTCPSocket(TCP_OpenStream(&adr, name), true, name);
 #ifdef HAVE_SSL
 		if (f && wanttls)
-			f = FS_OpenSSL(name, f, false);
+			f = FS_OpenSSL(host, f, false);
 #endif
+
+		if (proto)
+			f = Websocket_WrapStream(f, host, resource, proto);
 		return f;
 	}
 	else
@@ -11187,6 +11691,7 @@ vfsfile_t *FS_OpenTCP(const char *name, int defaultport, qboolean assumetls)
 typedef struct {
 	vfsfile_t funcs;
 
+	qboolean packetmode;
 	int id;
 	int readbuffered;
 	char readbuffer[65536];
@@ -11196,6 +11701,14 @@ int QDECL VFSWS_ReadBytes (struct vfsfile_s *file, void *buffer, int bytestoread
 	wsfile_t *f = (wsfile_t*)file;
 	int len;
 	int trying;
+
+	if (f->packetmode)
+	{	//just grab the next packet.
+		len = emscriptenfte_ws_recv(f->id, buffer, bytestoread);
+		if (len < 0)
+			len = VFS_ERROR_EOF;
+		return len;
+	}
 
 	//websockets are pseudo-packetised. tcp isn't.
 	while (f->readbuffered < bytestoread)
@@ -11257,6 +11770,7 @@ vfsfile_t *FS_OpenTCP(const char *name, int defaultport, qboolean assumetls)
 {
 	wsfile_t *newf;
 	int id;
+	const char *proto = "faketcp";
 	if (!strncmp(name, "./", 2) ||	//relative-to-page
 		!strncmp(name, "/", 1) ||	//relative-to-host
 		!strncmp(name, "wss://", 6) ||	//what we'd rather be using...
@@ -11264,22 +11778,50 @@ vfsfile_t *FS_OpenTCP(const char *name, int defaultport, qboolean assumetls)
 		;
 	else
 	{
+		const char *host = name;
+		if (!strncmp(name, "ws:", 3))
+			assumetls = false, host += 3, defaultport=defaultport?defaultport:80;
+		else if (!strncmp(name, "wss:", 4))
+			assumetls = true, host += 4, defaultport=defaultport?defaultport:443;
+		else
+			host = name;
+		if (host == name)
+			;	//no scheme
+		else if (host != name && host[0] == '/' && host[1] == '/')
+			name = host+2;	//just ws:// without protocol name
+		else
+		{
+			proto = host;
+			host = strstr(host, "://");
+			if (host)
+			{
+				char *t = alloca(1+host-proto);
+				t[host-proto] = 0;
+				proto = memcpy(t, proto, host-proto);
+				name = host+3;
+			}
+			else
+				return NULL; //something screwy.
+		}
+
 		//bad prefix... probably just a real hostname. don't get confused with relative-to-page uris.
 		//FIXME: we should probably be trying to handle the defaultport. oh well.
 		if (assumetls)
 			name = va("wss://%s", name);
 		else
 		{
-			Con_Printf(CON_WARNING"FS_OpenTCP(%s): Assuming insecure\n", name);
+			if (host == name)
+				Con_Printf(CON_WARNING"FS_OpenTCP(%s): Assuming insecure\n", name);
 			name = va("ws://%s", name);	//urgh. will probably fail when browsers block it on https pages.
 		}
 	}
-	id = emscriptenfte_ws_connect(name, "faketcp");
+	id = emscriptenfte_ws_connect(name, proto);
 	if (id < 0)
 		return NULL;
 
 	newf = Z_Malloc(sizeof(*newf));
 	newf->id = id;
+	newf->packetmode = strcmp(proto, "faketcp");
 	newf->funcs.Close = VFSWS_Close;
 	newf->funcs.Flush = NULL;
 	newf->funcs.GetLen = VFSWS_GetLen;

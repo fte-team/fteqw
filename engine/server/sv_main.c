@@ -1328,19 +1328,21 @@ const char *SV_GetProtocolVersionString(void)
 	}
 	return ret;
 }
-static void SVC_GetInfo (const char *challenge, int fullstatus)
+
+void SV_GeneratePublicServerinfo(char *info, const char *endinfo)
 {
-	//dpmaster support
-	char response[MAX_UDP_PACKET];
-	char protocolname[MAX_QPATH];
-
-	client_t	*cl;
-	int numclients = 0;
-	int i;
-	char *resp;
+	char *resp = info;
+	const char *ignorekeys[] = {
+		"maxclients", "map", "*gamedir", "*z_ext",	//this is a DP protocol query, so some QW fields are not needed
+		"gamename", "modname", "protocol", "clients", "sv_maxclients", "mapname", "qcstatus", "challenge", NULL};	//and we need to add some
+	const char *prioritykeys[] = {"hostname", NULL}; //make sure we include these before we start overflowing
+	char protocolname[64];
 	const char *gamestatus;
-	eval_t *v;
 
+	extern cvar_t maxclients;
+	int i;
+	client_t *cl;
+	int numclients = 0;
 	for (i=0 ; i<svs.allocated_client_slots ; i++)
 	{
 		cl = &svs.clients[i];
@@ -1348,9 +1350,11 @@ static void SVC_GetInfo (const char *challenge, int fullstatus)
 			numclients++;
 	}
 
+	//first line contains the serverinfo, or some form of it
+	COM_ParseOut(com_protocolname.string, protocolname, sizeof(protocolname));	//we can only report one, so report the first.
 	if (svprogfuncs)
 	{
-		v = PR_FindGlobal(svprogfuncs, "worldstatus", PR_ANY, NULL);
+		eval_t *v = PR_FindGlobal(svprogfuncs, "worldstatus", PR_ANY, NULL);
 		if (v)
 			gamestatus = PR_GetString(svprogfuncs, v->string);
 		else
@@ -1359,7 +1363,30 @@ static void SVC_GetInfo (const char *challenge, int fullstatus)
 	else
 		gamestatus = "";
 
-	COM_ParseOut(com_protocolname.string, protocolname, sizeof(protocolname));	//we can only report one, so report the first.
+	*resp = 0;
+	Info_SetValueForKey(resp, "gamename", protocolname, endinfo - resp);//distinguishes it from other types of games
+	Info_SetValueForKey(resp, "protocol", SV_GetProtocolVersionString(), endinfo - resp);
+	Info_SetValueForKey(resp, "modname", FS_GetGamedir(true), endinfo - resp);
+	Info_SetValueForKey(resp, "clients", va("%d", numclients), endinfo - resp);
+	Info_SetValueForKey(resp, "sv_maxclients", maxclients.string, endinfo - resp);
+	Info_SetValueForKey(resp, "mapname", InfoBuf_ValueForKey(&svs.info, "map"), endinfo - resp);
+	resp += strlen(resp);
+	//now include the full/regular serverinfo
+	resp += InfoBuf_ToString(&svs.info, resp, endinfo - resp, prioritykeys, ignorekeys, NULL, NULL, NULL);
+	*resp = 0;
+	//and any possibly-long qc status string
+	if (*gamestatus)
+		Info_SetValueForKey(resp, "qcstatus", gamestatus, endinfo - resp);
+	resp += strlen(resp);
+	*resp++ = 0;
+}
+
+static void SVC_GetInfo (const char *challenge, int fullstatus)
+{
+	//dpmaster support
+	char response[MAX_UDP_PACKET];
+	int i;
+	char *resp;
 
 	resp = response;
 
@@ -1375,31 +1402,7 @@ static void SVC_GetInfo (const char *challenge, int fullstatus)
 	resp += strlen(resp);
 	*resp++ = '\n';
 
-	//first line contains the serverinfo, or some form of it
-	{
-		const char *ignorekeys[] = {
-			"maxclients", "map", "*gamedir", "*z_ext",	//this is a DP protocol query, so some QW fields are not needed
-			"gamename", "modname", "protocol", "clients", "sv_maxclients", "mapname", "qcstatus", "challenge", NULL};	//and we need to add some
-		const char *prioritykeys[] = {"hostname", NULL}; //make sure we include these before we start overflowing
-
-		*resp = 0;
-		Info_SetValueForKey(resp, "challenge", challenge, sizeof(response) - (resp-response));	//the challenge can be important for the master protocol to prevent poisoning
-		Info_SetValueForKey(resp, "gamename", protocolname, sizeof(response) - (resp-response));//distinguishes it from other types of games
-		Info_SetValueForKey(resp, "protocol", SV_GetProtocolVersionString(), sizeof(response) - (resp-response));
-		Info_SetValueForKey(resp, "modname", FS_GetGamedir(true), sizeof(response) - (resp-response));
-		Info_SetValueForKey(resp, "clients", va("%d", numclients), sizeof(response) - (resp-response));
-		Info_SetValueForKey(resp, "sv_maxclients", maxclients.string, sizeof(response) - (resp-response));
-		Info_SetValueForKey(resp, "mapname", InfoBuf_ValueForKey(&svs.info, "map"), sizeof(response) - (resp-response));
-		resp += strlen(resp);
-		//now include the full/regular serverinfo
-		resp += InfoBuf_ToString(&svs.info, resp, sizeof(response) - (resp-response), prioritykeys, ignorekeys, NULL, NULL, NULL);
-		*resp = 0;
-		//and any possibly-long qc status string
-		if (*gamestatus)
-			Info_SetValueForKey(resp, "qcstatus", gamestatus, sizeof(response) - (resp-response));
-		resp += strlen(resp);
-	}
-	*resp++ = 0;
+	SV_GeneratePublicServerinfo(resp, response+sizeof(response));
 
 	if (fullstatus)
 	{
@@ -1574,7 +1577,7 @@ SVC_Ping
 Just responds with an acknowledgement
 ================
 */
-void SVC_Ping (void)
+static void SVC_Ping (void)
 {
 	char	data;
 

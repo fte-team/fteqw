@@ -1173,6 +1173,7 @@ int SV_CalcPing (client_t *cl, qboolean forcecalc);
 void SV_FullClientUpdate (client_t *client, client_t *to);
 char *SV_PlayerPublicAddress(client_t *cl);
 
+void SV_GeneratePublicServerinfo(char *info, const char *endinfo);
 const char *SV_GetProtocolVersionString(void);	//decorate the protocol version field of server queries with extra features...
 qboolean SVC_GetChallenge (qboolean respond_dp);
 int SV_NewChallenge (void);

@@ -5372,59 +5372,8 @@ static void FTENET_ICE_Heartbeat(ftenet_ice_connection_t *b)
 #ifdef HAVE_SERVER
 	if (b->generic.islisten)
 	{
-		extern cvar_t maxclients;
 		char info[2048];
-		int i;
-		client_t *cl;
-		int numclients = 0;
-		for (i=0 ; i<svs.allocated_client_slots ; i++)
-		{
-			cl = &svs.clients[i];
-			if ((cl->state == cs_connected || cl->state == cs_spawned || cl->name[0]) && !cl->spectator)
-				numclients++;
-		}
-
-		*info = 0;
-
-		//first line contains the serverinfo, or some form of it
-		{
-			char *resp = info;
-			const char *ignorekeys[] = {
-				"maxclients", "map", "*gamedir", "*z_ext",	//this is a DP protocol query, so some QW fields are not needed
-				"gamename", "modname", "protocol", "clients", "sv_maxclients", "mapname", "qcstatus", "challenge", NULL};	//and we need to add some
-			const char *prioritykeys[] = {"hostname", NULL}; //make sure we include these before we start overflowing
-			char protocolname[64];
-			const char *gamestatus;
-
-			COM_ParseOut(com_protocolname.string, protocolname, sizeof(protocolname));	//we can only report one, so report the first.
-			if (svprogfuncs)
-			{
-				eval_t *v = PR_FindGlobal(svprogfuncs, "worldstatus", PR_ANY, NULL);
-				if (v)
-					gamestatus = PR_GetString(svprogfuncs, v->string);
-				else
-					gamestatus = "";
-			}
-			else
-				gamestatus = "";
-
-			Info_SetValueForKey(resp, "gamename", protocolname, sizeof(info) - (resp-info));//distinguishes it from other types of games
-			Info_SetValueForKey(resp, "protocol", SV_GetProtocolVersionString(), sizeof(info) - (resp-info));
-			Info_SetValueForKey(resp, "modname", FS_GetGamedir(true), sizeof(info) - (resp-info));
-			Info_SetValueForKey(resp, "clients", va("%d", numclients), sizeof(info) - (resp-info));
-			Info_SetValueForKey(resp, "sv_maxclients", maxclients.string, sizeof(info) - (resp-info));
-			Info_SetValueForKey(resp, "mapname", InfoBuf_ValueForKey(&svs.info, "map"), sizeof(info) - (resp-info));
-			resp += strlen(resp);
-			//now include the full/regular serverinfo
-			resp += InfoBuf_ToString(&svs.info, resp, sizeof(info) - (resp-info), prioritykeys, ignorekeys, NULL, NULL, NULL);
-			*resp = 0;
-			//and any possibly-long qc status string
-			if (*gamestatus)
-				Info_SetValueForKey(resp, "qcstatus", gamestatus, sizeof(info) - (resp-info));
-			resp += strlen(resp);
-			*resp++ = 0;
-		}
-
+		SV_GeneratePublicServerinfo(info, info+sizeof(info));
 		FTENET_ICE_SplurgeCmd(b, ICEMSG_SERVERINFO, -1, info);
 	}
 #endif

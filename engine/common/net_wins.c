@@ -8831,30 +8831,11 @@ static void FTENET_WebRTC_Heartbeat(ftenet_websocket_connection_t *b)
 #ifdef HAVE_SERVER
 	if (b->generic.islisten)
 	{
-		extern cvar_t maxclients;
 		char info[2048];
-		int i;
-		client_t *cl;
-		int numclients = 0;
-		for (i=0 ; i<svs.allocated_client_slots ; i++)
-		{
-			cl = &svs.clients[i];
-			if ((cl->state == cs_connected || cl->state == cs_spawned || cl->name[0]) && !cl->spectator)
-				numclients++;
-		}
-
 		info[0] = ICEMSG_SERVERINFO;
 		info[1] =
 		info[2] = 0xff;	//to the broker rather than any actual client
-		info[3] = 0;
-		Info_SetValueForKey(info+3, "protocol", SV_GetProtocolVersionString(), sizeof(info)-3);
-		Info_SetValueForKey(info+3, "maxclients", maxclients.string, sizeof(info)-3);
-		Info_SetValueForKey(info+3, "clients", va("%i", numclients), sizeof(info)-3);
-		Info_SetValueForKey(info+3, "hostname", hostname.string, sizeof(info)-3);
-		Info_SetValueForKey(info+3, "modname", FS_GetGamedir(true), sizeof(info)-3);
-		Info_SetValueForKey(info+3, "mapname", InfoBuf_ValueForKey(&svs.info, "map"), sizeof(info)-3);
-		Info_SetValueForKey(info+3, "needpass", InfoBuf_ValueForKey(&svs.info, "needpass"), sizeof(info)-3);
-
+		SV_GeneratePublicServerinfo(info+3, info+sizeof(info));
 		if (emscriptenfte_ws_send(b->brokersock, info, 3+strlen(info+3)) <= 0)
 			return;
 	}

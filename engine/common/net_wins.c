@@ -5479,7 +5479,7 @@ enum
 	WCATTR_ACCEPT_ENCODING,
 	WCATTR_TRANSFER_ENCODING
 };
-typedef char httparg_t[64];
+typedef char httparg_t[256];
 #include "fs.h"
 #ifdef _WIN32
 #include "resource.h"
@@ -5715,7 +5715,7 @@ qboolean FTENET_TCP_HTTPResponse(ftenet_tcp_stream_t *st, httparg_t arg[WCATTR_C
 								"{"
 									"if (Module['sched'] === undefined)"
 									"{"	//our main function failed to set up the main loop. ie: main didn't get called. panic.
-										"alert('Unable to initialise. You may need to restart your browser. If you get this often and inconsistently, consider using a 64bit browser instead.');"
+										"alert('Unable to initialise. You may need to restart your browser.');"
 										"Module.setStatus('Initialisation Failure');"
 									"}"
 								"}"
@@ -6121,7 +6121,7 @@ static const char *FTENET_TCP_ParseHTTPRequest(ftenet_tcp_connection_t *con, fte
 	int websocketver = 0;
 	qboolean acceptsgzip = false;
 	qboolean sendingweirdness = false;
-	char arg[WCATTR_COUNT][64];
+	httparg_t arg[WCATTR_COUNT];
 
 
 	if (!net_enable_http.ival && !net_enable_websockets.ival && !net_enable_rtcbroker.ival)
@@ -6138,7 +6138,7 @@ static const char *FTENET_TCP_ParseHTTPRequest(ftenet_tcp_connection_t *con, fte
 		arg[i][0] = 0;
 	for (i = 0; i < st->inlen; i++)
 	{
-		if (alen == 63)
+		if (alen >= sizeof(arg[attr])-1)
 		{
 			Con_Printf("http request overflow from %s\n", NET_AdrToString (adr, sizeof(adr), &st->remoteaddr));
 			//we need to respond, firefox will create 10 different connections if we just close it
@@ -6289,7 +6289,7 @@ static const char *FTENET_TCP_ParseHTTPRequest(ftenet_tcp_connection_t *con, fte
 						websocketver = atoi(&st->inbuffer[j]);
 						break;
 					default:
-						Q_strncpyz(arg[attr], &st->inbuffer[j], (i-j > 63)?64:(i - j + 1));
+						Q_strncpyz(arg[attr], &st->inbuffer[j], (i-j >= sizeof(arg[attr]))?sizeof(arg[attr]):(i - j + 1));
 						break;
 					}
 				}

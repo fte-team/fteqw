@@ -364,7 +364,7 @@ char *VFS_GETS(vfsfile_t *vf, char *buffer, size_t buflen)
 void VARGS VFS_PRINTF(vfsfile_t *vf, const char *format, ...)
 {
 	va_list		argptr;
-	char		string[1024];
+	char		string[2048];
 
 	va_start (argptr, format);
 	vsnprintf (string,sizeof(string)-1, format,argptr);
@@ -1119,7 +1119,7 @@ static qboolean FS_Manifest_ParseTokens(ftemanifest_t *man)
 					char *sl = strchr(newdir+6, '/');
 					if (!sl)
 						break;	//malformed steam link
-					man->gamepath[i].flags |= GAMEDIR_STEAMGAME;
+					man->gamepath[i].flags |= GAMEDIR_PRIVATE|GAMEDIR_STEAMGAME;
 					*sl = 0;
 					if (!FS_GamedirIsOkay(sl+1))
 						break;
@@ -4320,7 +4320,9 @@ static searchpath_t *FS_AddPathHandle(searchpath_t **oldpaths, const char *purep
 				depth++;
 		}
 		*link = search;
-		search->handle->BuildHash(search->handle, depth, FS_AddFileHashUnsafe);
+
+		if (filesystemhash.numbuckets)
+			search->handle->BuildHash(search->handle, depth, FS_AddFileHashUnsafe);
 	}
 	else
 	{

@@ -135,7 +135,7 @@ mergeInto(LibraryManager.library,
 
 			//do this first in the hope that it'll make firefox a smidge smoother.
 			if (FTEC.dovsync)
-				Browser.requestAnimationFrame(FTEC.step);
+				window.requestAnimationFrame(FTEC.step);
 			else
 				setTimeout(FTEC.step, 0, performance.now());
 

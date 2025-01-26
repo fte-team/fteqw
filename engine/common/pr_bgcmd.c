@@ -826,7 +826,7 @@ void QCBUILTIN PF_json_get_name(pubprogfuncs_t *prinst, struct globalvars_s *pr_
 void QCBUILTIN PF_json_get_integer(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	qcjson_t *handle = JSONFromQC(G_INT(OFS_PARM0));
-	switch (handle->type)
+	safeswitch (handle->type)
 	{
 	case json_type_number:
 	case json_type_true:
@@ -836,7 +836,10 @@ void QCBUILTIN PF_json_get_integer(pubprogfuncs_t *prinst, struct globalvars_s *
 	case json_type_string:
 		G_INT(OFS_RETURN) = atoi(PR_GetString(prinst, handle->u.strofs));
 		break;
-	default:
+	case json_type_object:
+	case json_type_array:
+	case json_type_null:
+	safedefault:
 		G_INT(OFS_RETURN) = 0;
 		break;
 	}
@@ -844,7 +847,7 @@ void QCBUILTIN PF_json_get_integer(pubprogfuncs_t *prinst, struct globalvars_s *
 void QCBUILTIN PF_json_get_float(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	qcjson_t *handle = JSONFromQC(G_INT(OFS_PARM0));
-	switch (handle->type)
+	safeswitch (handle->type)
 	{
 	case json_type_number:
 	case json_type_true:
@@ -854,7 +857,10 @@ void QCBUILTIN PF_json_get_float(pubprogfuncs_t *prinst, struct globalvars_s *pr
 	case json_type_string:
 		G_FLOAT(OFS_RETURN) = atof(PR_GetString(prinst, handle->u.strofs));
 		break;
-	default:
+	case json_type_object:
+	case json_type_array:
+	case json_type_null:
+	safedefault:
 		G_FLOAT(OFS_RETURN) = 0;
 		break;
 	}

@@ -404,6 +404,7 @@ static struct
 } trackerimages[256];
 static int numtrackerimages;
 #define TRACKERFIRST 0xe200
+#define TRACKERCOUNT  0x100	//an upper bound. so misused codepoints won't go weird.
 int Font_RegisterTrackerImage(const char *image)
 {
 	int i;
@@ -412,7 +413,7 @@ int Font_RegisterTrackerImage(const char *image)
 		if (!strcmp(trackerimages[i].name, image))
 			return TRACKERFIRST + i;
 	}
-	if (numtrackerimages == 256)
+	if (numtrackerimages == TRACKERCOUNT)
 		return 0;
 	trackerimages[i].image = NULL;	//actually load it elsewhere, because we're lazy.
 	Q_strncpyz(trackerimages[i].name, image, sizeof(trackerimages[i].name));
@@ -1546,7 +1547,7 @@ static struct charcache_s *Font_GetChar(font_t *f, unsigned int codepoint)
 	c = Font_GetCharIfLoaded(f, charidx);
 	if (!c)
 	{
-		if (charidx >= TRACKERFIRST && charidx < TRACKERFIRST+100)
+		if (charidx >= TRACKERFIRST && charidx < TRACKERFIRST+TRACKERCOUNT)
 		{
 			static struct charcache_s tc;
 			tc.texplane = TRACKERIMAGE;

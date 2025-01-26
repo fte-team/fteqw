@@ -733,8 +733,11 @@ static void CL_WebDownloadFinished(struct dl_download *dl)
 }
 #endif
 
-static void CL_SendDownloadStartRequest(char *filename, char *localname, unsigned int flags)
+static void CL_SendDownloadStartRequest(downloadlist_t *pending)
 {
+	char *filename = pending->rname;
+	char *localname = pending->localname;
+	unsigned int flags = pending->flags;
 	static int dlsequence;
 	qdownload_t *dl;
 
@@ -1670,7 +1673,6 @@ void CL_RequestNextDownload (void)
 		if (cl.downloadlist)
 		{
 			downloadlist_t *dl;
-			unsigned int fl;
 
 			//download required downloads first
 			for (dl = cl.downloadlist; dl; dl = dl->next)
@@ -1688,14 +1690,13 @@ void CL_RequestNextDownload (void)
 				if (!dl)
 					dl = cl.downloadlist;
 			}
-			fl = dl->flags;
 
 			/*if we don't require downloads don't queue requests until we're actually on the server, slightly more deterministic*/
-			if (cls.state == ca_active || (requiredownloads.value && !(cls.demoplayback && !(fl&DLLF_TRYWEB))) || (fl & DLLF_REQUIRED))
+			if (cls.state == ca_active || (requiredownloads.value && !(cls.demoplayback && !(dl->flags&DLLF_TRYWEB))) || (dl->flags & DLLF_REQUIRED))
 			{
-				if ((fl & DLLF_OVERWRITE) || !CL_CheckFile (dl->localname))
+				if ((dl->flags & DLLF_OVERWRITE) || !CL_CheckFile (dl->localname))
 				{
-					CL_SendDownloadStartRequest(dl->rname, dl->localname, fl);
+					CL_SendDownloadStartRequest(dl);
 					return;
 				}
 				else

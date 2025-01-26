@@ -383,22 +383,29 @@ typedef struct {
 	unsigned short	modelindex;
 	unsigned char	colormap;
 	unsigned char	skinnum;
+
 	float origin[3];
 	float angles[3];
+
 	unsigned short	effects;
-	unsigned char	alpha;
 	unsigned char	scale;
-//	unsigned char	fatness;
-//	unsigned char	abslight;
-//	unsigned char	h2flags;
-//	unsigned char	colormod[3];
-//	unsigned short	light[4];
-//	unsigned char	lightstyle;
-//	unsigned char	lightpflags;
-//	unsigned char	tagentity;
-//	unsigned char	tagindex;
+	unsigned char	fatness;
+
+	unsigned char	colormod[3];
+	unsigned char	alpha;
+
+	unsigned short	light[4];
+
+	unsigned char	lightstyle;
+	unsigned char	lightpflags;
+	unsigned char	abslight;
+	unsigned char	drawflags;
+
+	unsigned char	dpflags;
+	unsigned char	tagindex;	//networked as a short, should have been a byte to match dpp5+.
+	unsigned short	tagentity;
 } entity_state_t;
-typedef struct {
+typedef struct {	//qw does players weirdly.
 	unsigned char frame;
 	unsigned char modelindex;
 	//colormap

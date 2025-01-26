@@ -149,7 +149,7 @@ static void ParseServerData(sv_t *tv, netmsg_t *m, int to, unsigned int playerma
 //			supported |= PEXT_CHUNKEDDOWNLOADS;					//shouldn't be relevant...
 			supported |= PEXT_TRANS|PEXT_MODELDBL|PEXT_ENTITYDBL|PEXT_ENTITYDBL2|PEXT_SOUNDDBL;
 
-			//replaced by replacementdeltas. we parse these, but we don't actually forward the data right now
+			//replaced by replacementdeltas.
 			supported |= PEXT_SCALE|PEXT_TRANS|PEXT_FATNESS|PEXT_COLOURMOD|PEXT_HEXEN2|PEXT_SETATTACHMENT|PEXT_DPFLAGS;
 
 			//stuff that we ought to handle, but don't currently
@@ -163,7 +163,7 @@ static void ParseServerData(sv_t *tv, netmsg_t *m, int to, unsigned int playerma
 			//totally optional... so will probably never be added...
 			//PEXT_HULLSIZE			- bigger players... maybe. like anyone can depend on this... not supported with mvd players so w/e
 			//PEXT_CHUNKEDDOWNLOADS	- not sure there's much point
-			//PEXT_SPLITSCREEN		- irrelevant for mvds. might be useful as a qw client, but who cares.
+			//PEXT_SPLITSCREEN		- irrelevant for mvds. might be useful as a qw client, but who cares. not enough servers have it active.
 			//PEXT_SHOWPIC			- rare, lame, limited. just yuck.
 
 			if (protocol & ~supported)
@@ -919,34 +919,34 @@ static void ParseEntityDelta(sv_t *tv, netmsg_t *m, const entity_state_t *old, e
 	if (flags & UX_ALPHA)
 		new->alpha = ReadByte(m);
 	if (flags & UX_FATNESS)
-		/*new->fatness = (signed char)*/ReadByte(m);
+		new->fatness = (signed char)ReadByte(m);
 	if (flags & UX_DRAWFLAGS)
-		/*new->hexen2flags =*/ ReadByte(m);
+		new->drawflags = ReadByte(m);
 	if (flags & UX_ABSLIGHT)
-		/*new->abslight =*/ ReadByte(m);
+		new->abslight = ReadByte(m);
 	if (flags & UX_COLOURMOD)
 	{
-		/*new->colormod[0] =*/ ReadByte(m);
-		/*new->colormod[1] =*/ ReadByte(m);
-		/*new->colormod[2] =*/ ReadByte(m);
+		new->colormod[0] = ReadByte(m);
+		new->colormod[1] = ReadByte(m);
+		new->colormod[2] = ReadByte(m);
 	}
 	if (flags & UX_DPFLAGS)
 	{	// these are bits for the 'flags' field of the entity_state_t
-		/*new->dpflags =*/ ReadByte(m);
+		new->dpflags = ReadByte(m);
 	}
 	if (flags & UX_TAGINFO)
 	{
-		/*new->tagentity =*/ ReadShort(m);
-		/*new->tagindex =*/ ReadShort(m);
+		new->tagentity = ReadShort(m);
+		new->tagindex = ReadShort(m);
 	}
 	if (flags & UX_LIGHT)
 	{
-		/*new->light[0] =*/ ReadShort(m);
-		/*new->light[1] =*/ ReadShort(m);
-		/*new->light[2] =*/ ReadShort(m);
-		/*new->light[3] =*/ ReadShort(m);
-		/*new->lightstyle =*/ ReadByte(m);
-		/*new->lightpflags =*/ ReadByte(m);
+		new->light[0] = ReadShort(m);
+		new->light[1] = ReadShort(m);
+		new->light[2] = ReadShort(m);
+		new->light[3] = ReadShort(m);
+		new->lightstyle = ReadByte(m);
+		new->lightpflags = ReadByte(m);
 	}
 	if (flags & UX_EFFECTS16)
 		new->effects = (new->effects&0x00ff)|(ReadByte(m)<<8);

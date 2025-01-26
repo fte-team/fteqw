@@ -24,6 +24,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 static const filename_t ConnectionlessModelList[] = {{""}, {"maps/start.bsp"}, {"progs/player.mdl"}, {""}};
 static const filename_t ConnectionlessSoundList[] = {{""}, {""}};
+const entity_state_t nullentstate = {0};
+void SV_WriteDelta(int entnum, const entity_state_t *from, const entity_state_t *to, netmsg_t *msg, qboolean force, unsigned int pext);
 
 const intermission_t nullstreamspot = {{544, 288, 64}, {0, 90, 0}};
 
@@ -536,9 +538,17 @@ int SendCurrentBaselines(sv_t *tv, int cursize, netmsg_t *msg, int maxbuffersize
 
 		if (tv->map.entity[i].baseline.modelindex)
 		{
-			WriteByte(msg, svc_spawnbaseline);
-			WriteShort(msg, i);
-			WriteEntityState(msg, &tv->map.entity[i].baseline, tv->pext1);
+			if (tv->pext1 & PEXT_SPAWNSTATIC2)
+			{
+				WriteByte(msg, svcfte_spawnbaseline2);
+				SV_WriteDelta(i, &nullentstate, &tv->map.entity[i].baseline, msg, true, tv->pext1);
+			}
+			else
+			{
+				WriteByte(msg, svc_spawnbaseline);
+				WriteShort(msg, i);
+				WriteEntityState(msg, &tv->map.entity[i].baseline, tv->pext1);
+			}
 		}
 	}
 
@@ -600,8 +610,16 @@ int SendStaticEntities(sv_t *tv, int cursize, netmsg_t *msg, int maxbuffersize, 
 		if (!tv->map.spawnstatic[i].modelindex)
 			continue;
 
-		WriteByte(msg, svc_spawnstatic);
-		WriteEntityState(msg, &tv->map.spawnstatic[i], tv->pext1);
+		if (tv->pext1 & PEXT_SPAWNSTATIC2)
+		{
+			WriteByte(msg, svcfte_spawnstatic2);
+			SV_WriteDelta(i, &nullentstate, &tv->map.spawnstatic[i], msg, true, tv->pext1);
+		}
+		else
+		{
+			WriteByte(msg, svc_spawnstatic);
+			WriteEntityState(msg, &tv->map.spawnstatic[i], tv->pext1);
+		}
 	}
 
 	return i;
@@ -892,7 +910,7 @@ void NewNQClient(cluster_t *cluster, netadr_t *addr)
 	int len;
 	int i;
 	unsigned char buffer[64];
-	viewer_t *viewer = NULL;;
+	viewer_t *viewer = NULL;
 
 
 	if (cluster->numviewers >= cluster->maxviewers && cluster->maxviewers)
@@ -1549,12 +1567,45 @@ void SV_WriteDelta(int entnum, const entity_state_t *from, const entity_state_t 
 		bits |= U_FRAME;
 	if ((from->effects&0xff) != (to->effects&0xff))
 		bits |= U_EFFECTS;
-	if ((from->effects&0xff00) != (to->effects&0xff00))
+
+	if ((from->effects&0xff00) != (to->effects&0xff00) &&
+		pext & PEXT_DPFLAGS)
 		bits |= UX_EFFECTS16;
-	if (from->alpha != to->alpha)
+	if (from->alpha != to->alpha &&
+		pext & PEXT_TRANS)
 		bits |= UX_ALPHA;
-	if (from->scale != to->scale)
+	if (from->scale != to->scale &&
+		pext & PEXT_SCALE)
 		bits |= UX_SCALE;
+	if (from->fatness != to->fatness &&
+		pext & PEXT_FATNESS)
+		bits |= UX_FATNESS;
+	if (from->drawflags != to->drawflags &&
+		pext & PEXT_HEXEN2)
+		bits |= UX_DRAWFLAGS;
+	if (from->abslight != to->abslight &&
+		pext & PEXT_HEXEN2)
+		bits |= UX_ABSLIGHT;
+	if ((from->colormod[0]!= to->colormod[0] ||
+		from->colormod[1] != to->colormod[1] ||
+		from->colormod[2] != to->colormod[2]) &&
+		pext & PEXT_COLOURMOD)
+		bits |= UX_COLOURMOD;
+	if (from->dpflags != to->dpflags &&
+		pext & PEXT_DPFLAGS)
+		bits |= UX_DPFLAGS;
+	if ((from->tagentity != to->tagentity ||
+		from->tagindex != to->tagindex) &&
+		pext & PEXT_SETATTACHMENT)
+		bits |= UX_TAGINFO;
+	if ((from->light[0] != to->light[0] ||
+		from->light[1] != to->light[1] ||
+		from->light[2] != to->light[2] ||
+		from->light[3] != to->light[3] ||
+		from->lightstyle != to->lightstyle ||
+		from->lightpflags != to->lightpflags) &&
+		pext & PEXT_DPFLAGS)
+		bits |= UX_LIGHT;
 
 	if (bits & 0xff000000)
 		bits |= UX_YETMORE;
@@ -1608,10 +1659,10 @@ void SV_WriteDelta(int entnum, const entity_state_t *from, const entity_state_t 
 		WriteByte (msg, to->scale);
 	if (bits & UX_ALPHA)
 		WriteByte (msg, to->alpha);
-/*	if (bits & UX_FATNESS)
+	if (bits & UX_FATNESS)
 		WriteByte (msg, to->fatness);
 	if (bits & UX_DRAWFLAGS)
-		WriteByte (msg, to->hexen2flags);
+		WriteByte (msg, to->drawflags);
 	if (bits & UX_ABSLIGHT)
 		WriteByte (msg, to->abslight);
 	if (bits & UX_COLOURMOD)
@@ -1637,12 +1688,11 @@ void SV_WriteDelta(int entnum, const entity_state_t *from, const entity_state_t 
 		WriteShort (msg, to->light[3]);
 		WriteByte (msg, to->lightstyle);
 		WriteByte (msg, to->lightpflags);
-	}*/
+	}
 	if (bits & UX_EFFECTS16)
 		WriteByte (msg, to->effects>>8);
 }
 
-const entity_state_t nullentstate = {0};
 void SV_EmitPacketEntities (const sv_t *qtv, const viewer_t *v, const packet_entities_t *to, netmsg_t *msg)
 {
 	const entity_state_t *baseline;
@@ -2607,6 +2657,7 @@ void UpdateStats(sv_t *qtv, viewer_t *v)
 }
 
 //returns the next prespawn 'buffer' number to use, or -1 if no more
+//FIXME: viewer may support fewer/different extensions vs the the stream.
 int Prespawn(sv_t *qtv, int curmsgsize, netmsg_t *msg, int bufnum, int thisplayer)
 {
 	int r, ni;

@@ -73,7 +73,8 @@ static char *vidfilenames[] =	//list of filenames to check to see if graphics st
 #define Q3CFG "//schemes quake3\n" "set v_gammainverted 0\nset snd_ignorecueloops 1\nsetfl g_gametype 0 s\nset gl_clear 1\nset r_clearcolour 0 0 0\nset com_parseutf8 0\ngl_overbright "FORWEB("0","2")"\nseta model sarge\nseta headmodel sarge\nseta handicap 100\ncom_gamedirnativecode 1\nsv_port "STRINGIFY(PORT_Q3SERVER)"\ncl_defaultport "STRINGIFY(PORT_Q3SERVER)"\ncom_protocolversion 68\n"
 //#define RMQCFG "sv_bigcoords 1\n"
 
-#define HLCFG NULL
+#define HLCFG "plug_load ffmpeg"
+#define HL2CFG "plug_load ode;plug_load hl2"
 
 #ifndef UPDATEURL
 	#ifdef HAVE_SSL
@@ -204,8 +205,11 @@ static const gamemode_info_t gamemode_info[] = {
 	//for the luls
 //	{"-diablo2",	NULL,		"FTE-Diablo2",			{"d2music.mpq"},				NULL,	{"*",							"*fted2"},	"Diablo 2"},
 #endif
-	/* maintained by FreeHL ~eukara */
-	{"-halflife",	"halflife",	"FTE-HalfLife",			{"valve/liblist.gam"},			HLCFG,	{"logos", "valve"},							"Half-Life",						"https://www.frag-net.com/pkgs/list", "game_valve;fteplug_ffmpeg"},
+	/* maintained by frag-net.com ~eukara */
+	{"-halflife",	"halflife",	"Rad-Therapy",	{"valve/liblist.gam"},	HLCFG,	{"valve"},	"Rad-Therapy",	"https://www.frag-net.com/pkgs/halflife.txt", "valve-patch-radtherapy;fteplug_ffmpeg"},
+	{"-gunman",	"gunman",	"Rad-Therapy",		{"rewolf/liblist.gam"},	HLCFG,	{"rewolf"},	"Gunman Chronicles",	"https://www.gunmanchronicles.com/packages.txt", "rewolf-patch-gunman;fteplug_ffmpeg"},
+	{"-halflife2",	"halflife2",	"Rad-Therapy-II",	{"hl2/gameinfo.txt"},	HL2CFG,	{"hl2", "hl2mp"},	"Rad-Therapy II",						"https://www.frag-net.com/pkgs/halflife2.txt", "hl2-patch-radtherapy2;fteplug_ffmpeg;fteplug_ode;fteplug_hl2"},
+	{"-gmod9",	"halflife2",	"Rad-Therapy-II",	{"gmod9/gameinfo.txt"},	HL2CFG,	{"css", "hl2", "hl2mp", "gmod9"},	"Free Will",		"https://www.frag-net.com/pkgs/halflife2.txt", "hl2mp-mod-gmod9;fteplug_ffmpeg;fteplug_ode;fteplug_hl2"},
 #endif
 
 	{NULL}

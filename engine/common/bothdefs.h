@@ -295,7 +295,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 	#if !defined(USE_INTERNAL_BULLET) && !defined(USE_INTERNAL_ODE) && !defined(MODELFMT_GLTF) && !defined(STATIC_EZHUD) && !defined(STATIC_OPENSSL) && !defined(STATIC_Q3)
 		#undef PLUGINS		//pointless
 	#endif
-	#undef VM_Q1		//no dlls
 	#undef MAP_PROC		//meh
 //	#undef HALFLIFEMODELS	//blurgh
 	#undef SUPPORT_ICE	//requires udp, so not usable. webrtc could be used instead, but that logic is out of our hands.

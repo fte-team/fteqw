@@ -2070,7 +2070,7 @@ static qintptr_t QVM_pointerstat (void *offset, quintptr_t mask, const qintptr_t
 static qintptr_t QVM_SetSendNeeded(void *offset, quintptr_t mask, const qintptr_t *arg)
 {
 	unsigned int subject = VM_LONG(arg[0]);
-	quint64_t fl = arg[1];
+	quint64_t fl = arg[1] << SENDFLAGS_SHIFT;
 	unsigned int to = VM_LONG(arg[2]);
 	if (!to)
 	{	//broadcast
@@ -2852,9 +2852,9 @@ void Q1QVM_StartFrame(qboolean botsarespecialsnowflakes)
 	VM_Call(q1qvm, GAME_START_FRAME, (qintptr_t)(sv.time*1000), botsarespecialsnowflakes, 0, 0);
 }
 
-void Q1QVM_SendEntity(quint64_t sendflags)
+qboolean Q1QVM_SendEntity(quint64_t sendflags)
 {
-	VM_Call(q1qvm, GAME_EDICT_CSQCSEND, sendflags, 0, 0, 0);
+	return VM_Call(q1qvm, GAME_EDICT_CSQCSEND, sendflags, 0, 0, 0) > 0;
 }
 
 void Q1QVM_Blocked(void)

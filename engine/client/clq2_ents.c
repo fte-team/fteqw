@@ -2859,7 +2859,7 @@ static void CLQ2_AddViewWeapon (int seat, q2player_state_t *ps, q2player_state_t
 		return;
 
 	// don't draw gun if in wide angle view
-	if (ps->fov > 90)
+	if (ps->fov > 90 && !*scr_fov_viewmodel.string)
 		return;
 
 	//generate root matrix..

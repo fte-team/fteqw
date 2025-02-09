@@ -207,7 +207,7 @@ cvar_t r_menutint							= CVARF	("r_menutint", "0.68 0.4 0.13",
 cvar_t r_netgraph							= CVARD	("r_netgraph", "0", "Displays a graph of packet latency. A value of 2 will give additional info about what sort of data is being received from the server.");
 extern cvar_t r_lerpmuzzlehack;
 extern cvar_t mod_h2holey_bugged, mod_halftexel, mod_nomipmap;
-cvar_t r_nolerp								= CVARF	("r_nolerp", "0", CVAR_ARCHIVE);
+cvar_t r_nolerp								= CVARF	("r_nolerp", "0", CVAR_ARCHIVE, "Disables model interpolation.");
 cvar_t r_noframegrouplerp					= CVARF	("r_noframegrouplerp", "0", CVAR_ARCHIVE);
 cvar_t r_nolightdir							= CVARF	("r_nolightdir", "0", CVAR_ARCHIVE);
 cvar_t r_novis								= CVARF	("r_novis", "0", CVAR_ARCHIVE);

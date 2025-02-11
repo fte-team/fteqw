@@ -2839,6 +2839,7 @@ void Key_Init (void)
 	consolekeys[K_KP_UPARROW] = true;
 	consolekeys[K_KP_DOWNARROW] = true;
 	consolekeys[K_BACKSPACE] = true;
+	consolekeys[K_INS] = true;
 	consolekeys[K_DEL] = true;
 	consolekeys[K_KP_DEL] = true;
 	consolekeys[K_HOME] = true;

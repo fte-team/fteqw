@@ -101,6 +101,7 @@ void Sys_SendKeyEvents (void);
 int Sys_EnumerateFiles (const char *gpath, const char *match, int (QDECL *func)(const char *fname, qofs_t fsize, time_t modtime, void *parm, searchpathfuncs_t *spath), void *parm, searchpathfuncs_t *spath);
 
 void Sys_Vibrate(float count);
+struct searchpathfuncs_s *Sys_OpenTitleStore(void); //sdl3
 
 qboolean Sys_GetDesktopParameters(int *width, int *height, int *bpp, int *refreshrate);
 

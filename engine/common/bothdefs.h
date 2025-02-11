@@ -25,6 +25,10 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define FTE_VER_MAJOR 1
 #define FTE_VER_MINOR 7
 
+#if defined(FTE_SDL3) && !defined(FTE_SDL)	//sdl3 uses different include names, so we need two defines
+	#define FTE_SDL		//but I'm too lazy to constantly test both.
+#endif
+
 #if defined(__APPLE__) && defined(__MACH__)
 	#define MACOSX
 #endif
@@ -179,7 +183,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 	#define ENGINEWEBSITE "^8https://^4fte^8.^4triptohell^8.^4info"	//url for program
 #endif
 
-#if !defined(_WIN32) || defined(WINRT)
+#if !defined(_WIN32) || defined(WINRT) || defined(FTE_SDL)
 	#undef HAVE_SPEECHTOTEXT
 	#undef AVAIL_MP3_ACM
 	#undef AVAIL_DSOUND
@@ -194,7 +198,10 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 	#undef HAVE_WINSSPI
 #endif
 //subservers only has code for win32 threads and linux
-#if !((defined(_WIN32) && !defined(FTE_SDL) && !defined(WINRT)) || (defined(__linux__) && !defined(ANDROID) && !defined(FTE_SDL)))
+#if !(defined(FTE_SDL3) ||\
+	  (defined(_WIN32) && !defined(FTE_SDL) && !defined(WINRT)) ||\
+	  (defined(__linux__) && !defined(ANDROID) && !defined(FTE_SDL))\
+	)
 	#undef SUBSERVERS
 #endif
 

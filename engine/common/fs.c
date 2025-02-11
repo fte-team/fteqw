@@ -1434,7 +1434,10 @@ static void COM_PathLine(searchpath_t *s)
 		col = S_COLOR_BLUE;
 	else
 		col = S_COLOR_CYAN;
-	FS_DisplayPath(s->logicalpath, FS_SYSTEM, displaypath,sizeof(displaypath));
+	if (s->flags&SPF_VIRTUAL)
+		Q_strncpyz(displaypath, s->logicalpath, sizeof(displaypath));
+	else
+		FS_DisplayPath(s->logicalpath, FS_SYSTEM, displaypath,sizeof(displaypath));
 	Con_Printf(" %s" U8("%s")"  %s%s%s%s%s%s%s%s\n", col, displaypath,
 		(s->flags & SPF_REFERENCED)?"^[(ref)\\tip\\Referenced\\desc\\Package will auto-download to clients^]":"",
 		(s->flags & SPF_TEMPORARY)?"^[(temp)\\tip\\Temporary\\desc\\Flushed on map change^]":"",
@@ -4298,7 +4301,7 @@ static searchpath_t *FS_AddPathHandle(searchpath_t **oldpaths, const char *purep
 
 	//temp packages also do not nest
 	if (!(flags & SPF_TEMPORARY))
-		FS_AddDataFiles(oldpaths, purepath, logicalpath, search, flags&(SPF_COPYPROTECTED|SPF_UNTRUSTED|SPF_TEMPORARY|SPF_SERVER|SPF_PRIVATE|SPF_QSHACK), loadstuff);
+		FS_AddDataFiles(oldpaths, purepath, logicalpath, search, flags&(SPF_COPYPROTECTED|SPF_UNTRUSTED|SPF_TEMPORARY|SPF_SERVER|SPF_PRIVATE|SPF_QSHACK|SPF_VIRTUAL), loadstuff);
 
 	search->nextpure = (void*)0x1;	//mark as not linked
 
@@ -4562,7 +4565,7 @@ char *FS_GetManifestArgs(void)
 	return va("%s-game %s -basedir %s", homearg, pubgamedirfile, com_gamepath);
 }
 #ifdef SUBSERVERS
-int FS_GetManifestArgv(char **argv, int maxargs)
+int FS_GetManifestArgv(const char **argv, int maxargs)
 {
 	int c = 0;
 	if (maxargs < 5)
@@ -5269,6 +5272,14 @@ static void FS_ReloadPackFilesFlags(unsigned int reloadflags)
 	}
 #endif
 
+/*#ifdef FTE_SDL3
+	{	//FIXME: this is generally just $binarydir/
+		searchpathfuncs_t *pak = Sys_OpenTitleStore();
+		if (pak)
+			FS_AddPathHandle(&oldpaths, "", "$sdldata", pak, "", SPF_PRIVATE|SPF_COPYPROTECTED|SPF_VIRTUAL, reloadflags);
+	}
+#endif*/
+
 #if defined(HAVE_LEGACY) && defined(PACKAGE_PK3)
 	{
 		searchpathfuncs_t *pak;
@@ -5295,10 +5306,13 @@ static void FS_ReloadPackFilesFlags(unsigned int reloadflags)
 	{
 		const char *pakname = com_argv[i+1];
 		searchpathfuncs_t *pak;
+		const char *prefix = (i+2 >= com_argc)?NULL:com_argv[i+2];
 		vfsfile_t *vfs = VFSOS_Open(pakname, "rb");
-		pak = FS_OpenPackByExtension(vfs, NULL, pakname, pakname, "");
+		if (!prefix || *prefix == '-' || *prefix == '+')
+			prefix = NULL;	//some other came here.
+		pak = FS_OpenPackByExtension(vfs, NULL, pakname, pakname, prefix);
 		if (pak)	//logically should have SPF_EXPLICIT set, but that would give it a worse gamedir depth
-			FS_AddPathHandle(&oldpaths, "", pakname, pak, "", SPF_COPYPROTECTED, reloadflags);
+			FS_AddPathHandle(&oldpaths, "", pakname, pak, prefix, SPF_COPYPROTECTED, reloadflags);
 		i = COM_CheckNextParm ("-basepack", i);
 	}
 
@@ -6080,7 +6094,7 @@ qboolean Sys_FindGameData(const char *poshname, const char *gamename, char *base
 	else if (!strcmp(gamename, "quake2"))
 	{
 		if (Sys_SteamHasFile(basepath, basepathlen, "quake 2", "baseq2/pak0.pak"))
-				return true;
+			return true;
 	}
 	else if (!strcmp(gamename, "hexen2") || !strcmp(gamename, "h2mp") || !strcmp(gamename, "portals"))
 	{

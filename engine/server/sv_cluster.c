@@ -616,6 +616,14 @@ void MSV_Shutdown(void)
 		s->console = NULL;
 #endif
 	}
+
+	while(subservers)
+	{
+		s = subservers;
+		subservers = subservers->next;
+
+		MSV_ServerCrashed(s);
+	}
 }
 
 qboolean SSV_PrintToMaster(char *s)

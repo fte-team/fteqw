@@ -1742,8 +1742,8 @@ pwl_display_roundtrip(w.display);
 #ifdef VKQUAKE
 	case QR_VULKAN:
 		{
-			const char *extnames[] = {VK_KHR_WAYLAND_SURFACE_EXTENSION_NAME, NULL};
-			if (VK_Init(info, extnames, WLVK_SetupSurface, NULL))
+			const char *extnames[] = {VK_KHR_WAYLAND_SURFACE_EXTENSION_NAME};
+			if (VK_Init(info, extnames, countof(extnames), WLVK_SetupSurface, NULL))
 				return WL_NameAndShame();
 			Con_Printf(CON_ERROR "Unable to initialise vulkan-on-wayland.\n");
 			return false;

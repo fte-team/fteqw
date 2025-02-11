@@ -140,7 +140,7 @@ ENDIF()
 
 SET(FTE_BUILD_CONFIG ${PROJECT_SOURCE_DIR}/engine/common/config_fteqw.h CACHE FILEPATH "Which build config file to use to control supported features.")
 SET(FTE_LIB_DEFINES ${FTE_LIB_DEFINES};CONFIG_FILE_NAME=${FTE_BUILD_CONFIG})
-SET(FTE_USE_SDL false CACHE BOOL "Force the use of SDL instead of using native builds.")
+SET(FTE_USE_SDL false CACHE BOOL "Force the use of SDL2 instead of using native builds.")
 
 INCLUDE(GNUInstallDirs)
 SET(FTE_INSTALL_BINDIR games CACHE STRING "Binary dir to install to.")
@@ -369,7 +369,58 @@ IF(WIN32)
 	ENDIF()
 ENDIF()
 
-IF(${ANDROID})
+SET(FTE_DEP_SDL3 false CACHE BOOL "Use SDL3 if available (disabling many platform-specific behaviours).")
+IF(FTE_DEP_SDL3)
+	FIND_PACKAGE(SDL3 QUIET)
+ENDIF()
+IF(SDL3_FOUND)	#SDL3
+	MESSAGE(STATUS "SDL3 library found, woo, modern, for now.")
+
+#	FIND_PACKAGE(PkgConfig REQUIRED)
+#	PKG_SEARCH_MODULE(sdl3 REQUIRED sdl3)
+
+	FIND_PACKAGE(SDL3 REQUIRED)
+
+	INCLUDE_DIRECTORIES(${FREETYPE_INCLUDE_DIRS} ${SDL3_INCLUDE_DIRS})
+
+	SET(FTE_DEFINES ${FTE_DEFINES};FTE_SDL3;MULTITHREAD)
+	SET(FTE_LIBS ${FTE_LIBS} ${SYS_LIBS} ${CMAKE_DL_LIBS} ${SDL3_LIBRARIES})
+	SET(FTE_ARCH_FILES
+		engine/client/sys_sdl.c
+		engine/client/snd_al.c
+		engine/client/snd_sdl.c
+		engine/client/in_sdl.c
+		engine/client/cd_sdl.c
+		engine/gl/gl_vidsdl.c
+	)
+
+	SET(FTESV_DEFINES ${FTESV_DEFINES};MULTITHREAD)
+	SET(FTESV_LIBS ${FTESV_LIBS} ${SYS_LIBS} ${CMAKE_DL_LIBS} ${SDL3_LIBRARIES})
+
+	IF(WIN32)
+		SET(FTE_LIBS ${FTE_LIBS} wsock32 gdi32 ole32)
+		SET(FTE_DEFINES ${FTE_DEFINES})
+		SET(FTE_ARCH_FILES ${FTE_ARCH_FILES}
+			engine/client/winquake.rc
+			engine/common/net_ssl_winsspi.c
+		)
+		SET(FTESV_ARCH_FILES ${FTESV_ARCH_FILES}
+			engine/client/winquake.rc
+			engine/common/net_ssl_winsspi.c
+			engine/server/sv_sys_win.c
+		)
+	ELSE()
+		SET(FTE_ARCH_FILES ${FTE_ARCH_FILES}
+			engine/common/net_ssl_gnutls.c
+		)
+		SET(FTESV_ARCH_FILES ${FTESV_ARCH_FILES}
+			engine/common/net_ssl_gnutls.c
+			engine/common/sys_linux_threads.c
+			engine/server/sv_sys_unix.c
+		)
+		SET(FTESV_LIBS ${FTESV_LIBS} pthread)
+	ENDIF()
+ELSEIF(${ANDROID})
 #	FIND_PACKAGE(Freetype REQUIRED)
 
 #	INCLUDE_DIRECTORIES(	${FREETYPE_INCLUDE_DIRS} )
@@ -538,7 +589,7 @@ ELSEIF(UNIX AND NOT FTE_USE_SDL)	#linux(ish)
 	)
 	SET(FTESV_LIBS ${FTESV_LIBS} ${SYS_LIBS} ${CMAKE_DL_LIBS} pthread)
 
-ELSEIF(1)	#SDL
+ELSEIF(1)	#SDL2
 #	FIND_PACKAGE(Freetype REQUIRED)
 #	INCLUDE_DIRECTORIES(engine/libs engine/libs/freetype2/include)
 

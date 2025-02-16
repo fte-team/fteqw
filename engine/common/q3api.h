@@ -20,36 +20,36 @@ struct q3gamecode_s
 	struct
 	{
 		void			(*VideoRestarted)		(void);
-		int				(*Redraw)				(double time);
+		int			(*Redraw)			(double time);
 		qboolean		(*ConsoleCommand)		(void);
 		qboolean		(*KeyPressed)			(int key, int unicode, int down);
-		unsigned int	(*GatherLoopingSounds)	(vec3_t *positions, unsigned int *entnums, struct sfx_s **sounds, unsigned int max);
+		unsigned int		(*GatherLoopingSounds)		(vec3_t *positions, unsigned int *entnums, struct sfx_s **sounds, unsigned int max);
 	} cg;
 
 	struct
 	{
-		qboolean (*IsRunning)(void);
-		qboolean (*ConsoleCommand)(void);
-		void (*Start) (void);
-		qboolean (*OpenMenu)(void);
-		void (*Reset)(void);
+		qboolean 		(*IsRunning)			(void);
+		qboolean 		(*ConsoleCommand)		(void);
+		void 			(*Start) 			(void);
+		qboolean 		(*OpenMenu)			(void);
+		void 			(*Reset)			(void);
 	} ui;
 
 //server stuff
 	struct
 	{
 		void		(*ShutdownGame)				(qboolean restart);
-		qboolean	(*InitGame)					(struct server_static_s *server_state_static, struct server_s *server_state, qboolean restart);
+		qboolean	(*InitGame)				(struct server_static_s *server_state_static, struct server_s *server_state, qboolean restart);
 		qboolean	(*ConsoleCommand)			(void);
-		qboolean	(*PrefixedConsoleCommand)	(void);
+		qboolean	(*PrefixedConsoleCommand)		(void);
 		qboolean	(*HandleClient)				(netadr_t *from, sizebuf_t *msg);
 		void		(*DirectConnect)			(netadr_t *from, sizebuf_t *msg);
 		void		(*NewMapConnects)			(void);
 		void		(*DropClient)				(struct client_s *cl);
-		void		(*RunFrame)					(void);
+		void		(*RunFrame)				(void);
 		void		(*SendMessage)				(struct client_s  *client);
 		qboolean	(*RestartGamecode)			(void);
-		void		(*ServerinfoChanged)		(const char *key);
+		void		(*ServerinfoChanged)			(const char *key);
 	} sv;
 };
 

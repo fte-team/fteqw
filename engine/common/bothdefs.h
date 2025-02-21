@@ -861,36 +861,33 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 
 // !!! if this is changed, it must be changed in d_ifacea.h too !!!
-#define CACHE_SIZE	32		// used to align key data structures
+#define CACHE_SIZE              32              // used to align key data structures
 
-#define UNUSED(x)	(x = x)	// for pesky compiler / lint warnings
+#define UNUSED(x)	        (x = x)	        // for pesky compiler / lint warnings
 
 // up / down
-#define	PITCH	0
-
+#define	PITCH                   0
 // left / right
-#define	YAW		1
-
+#define	YAW                     1
 // fall over
-#define	ROLL	2
+#define	ROLL                    2
 
 
-#define	MAX_QPATH		128			// max length of a quake game pathname
-#define	MAX_OSPATH		1024		// max length of a filesystem pathname (260 on windows, but needs to be longer for utf8)
-#define OLD_MAX_QPATH	64			// it was baked into various file formats, which is unfortunate.
+#define	MAX_QPATH               128             // max length of a quake game pathname
+#define	MAX_OSPATH              1024            // max length of a filesystem pathname (260 on windows, but needs to be longer for utf8)
+#define OLD_MAX_QPATH           64              // it was baked into various file formats, which is unfortunate.
+#define	ON_EPSILON              0.1             // point on plane side epsilon
 
-#define	ON_EPSILON		0.1			// point on plane side epsilon
+#define	MAX_NQMSGLEN            65536           // max length of a reliable message. FIXME: should be 8000 to play safe with proquake
+#define MAX_Q2MSGLEN            1400
+#define MAX_QWMSGLEN            1450
+#define MAX_OVERALLMSGLEN       65536           // mvdsv sends packets this big
+#define	MAX_DATAGRAM            1450		// max length of unreliable message
+#define MAX_Q2DATAGRAM          MAX_Q2MSGLEN
+#define	MAX_NQDATAGRAM          1024            // max length of unreliable message with vanilla nq protocol
+#define MAX_OVERALLDATAGRAM     MAX_DATAGRAM
 
-#define	MAX_NQMSGLEN	65536		// max length of a reliable message. FIXME: should be 8000 to play safe with proquake
-#define MAX_Q2MSGLEN	1400
-#define MAX_QWMSGLEN	1450
-#define MAX_OVERALLMSGLEN	65536	// mvdsv sends packets this big
-#define	MAX_DATAGRAM	1450		// max length of unreliable message
-#define MAX_Q2DATAGRAM	MAX_Q2MSGLEN
-#define	MAX_NQDATAGRAM	1024		// max length of unreliable message with vanilla nq protocol
-#define MAX_OVERALLDATAGRAM MAX_DATAGRAM
-
-#define MAX_BACKBUFLEN	1200
+#define MAX_BACKBUFLEN          1200
 
 #ifdef Q1BSPS
 #define lightstyleindex_t unsigned short
@@ -898,108 +895,108 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define lightstyleindex_t qbyte
 #endif
 #define INVALID_LIGHTSTYLE ((lightstyleindex_t)(~0u))	//the style that's invalid, signifying to stop adding more.
-#define INVALID_VLIGHTSTYLE ((qbyte)(~0u))	//the style that's invalid for verticies, signifying to stop adding more.
+#define INVALID_VLIGHTSTYLE ((qbyte)(~0u))	        //the style that's invalid for verticies, signifying to stop adding more.
 
 //
 // per-level limits
 //
 #ifdef FTE_TARGET_WEB
-#define MAX_EDICTS		((1<<15)-1)
+#define MAX_EDICTS              ((1<<15)-1)
 #else
-#define	MAX_EDICTS		((1<<22)-1)			// expandable up to 22 bits
-//#define	MAX_EDICTS		((1<<18)-1)			// expandable up to 22 bits
+#define	MAX_EDICTS              ((1<<22)-1)             // expandable up to 22 bits
+//#define MAX_EDICTS              ((1<<18)-1)             // expandable up to 22 bits
 #endif
 
-#define	MAX_NET_LIGHTSTYLES		(INVALID_LIGHTSTYLE+1)		// 16bit. the last index MAY be used to signify an invalid lightmap in the bsp, but is still valid for rtlights.
+#define	MAX_NET_LIGHTSTYLES     (INVALID_LIGHTSTYLE+1)  // 16bit. the last index MAY be used to signify an invalid lightmap in the bsp, but is still valid for rtlights.
 #define MAX_STANDARDLIGHTSTYLES 64
-#define	MAX_PRECACHE_MODELS		16384		// 14bit.
-#define	MAX_PRECACHE_SOUNDS		4096		// 14bit.
-#define MAX_SSPARTICLESPRE 1024				// 14bit. precached particle effect names, for server-side pointparticles/trailparticles.
-#define MAX_VWEP_MODELS 32
+#define	MAX_PRECACHE_MODELS     16384                   // 14bit.
+#define	MAX_PRECACHE_SOUNDS     4096                    // 14bit.
+#define MAX_SSPARTICLESPRE      1024                    // 14bit. precached particle effect names, for server-side pointparticles/trailparticles.
+#define MAX_VWEP_MODELS         32
 
-#define	MAX_CSMODELS		2048			// these live entirly clientside
+#define	MAX_CSMODELS		2048                    // these live entirly clientside
 #define MAX_CSPARTICLESPRE	1024
 
 #define	SAVEGAME_COMMENT_LENGTH	39
 
-#define	MAX_STYLESTRING	64
+#define	MAX_STYLESTRING	        64
 
-#define MAX_Q2EDICTS 1024
+#define MAX_Q2EDICTS            1024
 
 //
 // stats are integers communicated to the client by the server
 //
-#define MAX_QW_STATS 32
+#define MAX_QW_STATS            32
 enum {
 #ifdef QUAKESTATS
-STAT_HEALTH			= 0,
-//STAT_FRAGS		= 1,
-STAT_WEAPONMODELI	= 2,
-STAT_AMMO			= 3,
-STAT_ARMOR			= 4,
-STAT_WEAPONFRAME	= 5,
-STAT_SHELLS			= 6,
-STAT_NAILS			= 7,
-STAT_ROCKETS		= 8,
-STAT_CELLS			= 9,
-STAT_ACTIVEWEAPON	= 10,
-STAT_TOTALSECRETS	= 11,
-STAT_TOTALMONSTERS	= 12,
-STAT_SECRETS		= 13,		// bumped on client side by svc_foundsecret
-STAT_MONSTERS		= 14,		// bumped by svc_killedmonster
-STAT_ITEMS			= 15,
-STAT_VIEWHEIGHT		= 16,	//same as zquake
-STAT_TIME			= 17,	//zquake
-STAT_MATCHSTARTTIME = 18,
-//STAT_UNUSED		= 19,
+STAT_HEALTH                   = 0,
+//STAT_FRAGS		      = 1,
+STAT_WEAPONMODELI             = 2,
+STAT_AMMO                     = 3,
+STAT_ARMOR                    = 4,
+STAT_WEAPONFRAME              = 5,
+STAT_SHELLS                   = 6,
+STAT_NAILS                    = 7,
+STAT_ROCKETS                  = 8,
+STAT_CELLS                    = 9,
+STAT_ACTIVEWEAPON             = 10,
+STAT_TOTALSECRETS             = 11,
+STAT_TOTALMONSTERS            = 12,
+STAT_SECRETS                  = 13,		// bumped on client side by svc_foundsecret
+STAT_MONSTERS                 = 14,		// bumped by svc_killedmonster
+STAT_ITEMS                    = 15,
+STAT_VIEWHEIGHT               = 16,	//same as zquake
+STAT_TIME                     = 17,	//zquake
+STAT_MATCHSTARTTIME           = 18,
+//STAT_UNUSED                 = 19,
 #ifdef SIDEVIEWS
-STAT_VIEW2			= 20,
+STAT_VIEW2                    = 20,
 #endif
-STAT_VIEWZOOM		= 21, // DP
+STAT_VIEWZOOM                 = 21, // DP
 #define STAT_VIEWZOOM_SCALE 255
-//STAT_UNUSED		= 22,
-//STAT_UNUSED		= 23,
-//STAT_UNUSED		= 24,
-STAT_IDEALPITCH		= 25,	//nq-emu
-STAT_PUNCHANGLE_X	= 26,	//nq-emu
-STAT_PUNCHANGLE_Y	= 27,	//nq-emu
-STAT_PUNCHANGLE_Z	= 28,	//nq-emu
-STAT_PUNCHVECTOR_X	= 29,
-STAT_PUNCHVECTOR_Y	= 30,
-STAT_PUNCHVECTOR_Z	= 31,
+//STAT_UNUSED                 = 22,
+//STAT_UNUSED                 = 23,
+//STAT_UNUSED                 = 24,
+STAT_IDEALPITCH               = 25,	//nq-emu
+STAT_PUNCHANGLE_X             = 26,	//nq-emu
+STAT_PUNCHANGLE_Y             = 27,	//nq-emu
+STAT_PUNCHANGLE_Z             = 28,	//nq-emu
+STAT_PUNCHVECTOR_X            = 29,
+STAT_PUNCHVECTOR_Y            = 30,
+STAT_PUNCHVECTOR_Z            = 31,
 
 #ifdef HEXEN2
 //these stats are used only when running a hexen2 mod/hud, and will never be used for a quake mod/hud/generic code.
-STAT_H2_LEVEL	= 32,				// changes stat bar
-STAT_H2_INTELLIGENCE,				// changes stat bar
-STAT_H2_WISDOM,						// changes stat bar
-STAT_H2_STRENGTH,					// changes stat bar
-STAT_H2_DEXTERITY,					// changes stat bar
-STAT_H2_BLUEMANA,					// changes stat bar
-STAT_H2_GREENMANA,					// changes stat bar
-STAT_H2_EXPERIENCE,					// changes stat bar
+STAT_H2_LEVEL                 = 32,             // changes stat bar
+STAT_H2_INTELLIGENCE,                           // changes stat bar
+STAT_H2_WISDOM,	                                // changes stat bar
+STAT_H2_STRENGTH,                               // changes stat bar
+STAT_H2_DEXTERITY,                              // changes stat bar
+STAT_H2_BLUEMANA,                               // changes stat bar
+STAT_H2_GREENMANA,                              // changes stat bar
+STAT_H2_EXPERIENCE,                             // changes stat bar
 #define STAT_H2_CNT_FIRST (STAT_H2_CNT_TORCH)
-STAT_H2_CNT_TORCH,					// changes stat bar
-STAT_H2_CNT_H_BOOST,				// changes stat bar
-STAT_H2_CNT_SH_BOOST,				// changes stat bar
-STAT_H2_CNT_MANA_BOOST,				// changes stat bar
-STAT_H2_CNT_TELEPORT,				// changes stat bar
-STAT_H2_CNT_TOME,					// changes stat bar
-STAT_H2_CNT_SUMMON,					// changes stat bar
-STAT_H2_CNT_INVISIBILITY,			// changes stat bar
-STAT_H2_CNT_GLYPH,					// changes stat bar
-STAT_H2_CNT_HASTE,					// changes stat bar
-STAT_H2_CNT_BLAST,					// changes stat bar
-STAT_H2_CNT_POLYMORPH,				// changes stat bar
-STAT_H2_CNT_FLIGHT,					// changes stat bar
-STAT_H2_CNT_CUBEOFFORCE,			// changes stat bar
-STAT_H2_CNT_INVINCIBILITY,			// changes stat bar
+STAT_H2_CNT_TORCH,                              // changes stat bar
+STAT_H2_CNT_H_BOOST,                            // changes stat bar
+STAT_H2_CNT_SH_BOOST,                           // changes stat bar
+STAT_H2_CNT_MANA_BOOST,                         // changes stat bar
+STAT_H2_CNT_TELEPORT,                           // changes stat bar
+STAT_H2_CNT_TOME,                               // changes stat bar
+STAT_H2_CNT_SUMMON,                             // changes stat bar
+STAT_H2_CNT_INVISIBILITY,                       // changes stat bar
+STAT_H2_CNT_GLYPH,                              // changes stat bar
+STAT_H2_CNT_HASTE,                              // changes stat bar
+STAT_H2_CNT_BLAST,                              // changes stat bar
+STAT_H2_CNT_POLYMORPH,                          // changes stat bar
+STAT_H2_CNT_FLIGHT,                             // changes stat bar
+STAT_H2_CNT_CUBEOFFORCE,                        // changes stat bar
+STAT_H2_CNT_INVINCIBILITY,                      // changes stat bar
 #define STAT_H2_CNT_LAST (STAT_H2_CNT_INVINCIBILITY)
 #define STAT_H2_CNT_COUNT (STAT_H2_CNT_LAST+1-STAT_H2_CNT_FIRST)
 STAT_H2_ARTIFACT_ACTIVE,
 STAT_H2_ARTIFACT_LOW,
 STAT_H2_MOVETYPE,
-STAT_H2_CAMERAMODE,	//entity
+STAT_H2_CAMERAMODE,                             //entity
 STAT_H2_HASTED,
 STAT_H2_INVENTORY,
 STAT_H2_RINGS_ACTIVE,
@@ -1030,128 +1027,141 @@ STAT_H2_OBJECTIVE1,	//integer
 STAT_H2_OBJECTIVE2,	//integer
 #endif
 
-STAT_MOVEVARS_AIRACCEL_QW_STRETCHFACTOR		= 220, // DP
-STAT_MOVEVARS_AIRCONTROL_PENALTY			= 221, // DP
-STAT_MOVEVARS_AIRSPEEDLIMIT_NONQW 			= 222, // DP
-STAT_MOVEVARS_AIRSTRAFEACCEL_QW 			= 223, // DP
-STAT_MOVEVARS_AIRCONTROL_POWER				= 224, // DP
-STAT_MOVEFLAGS								= 225, // DP
-STAT_MOVEVARS_WARSOWBUNNY_AIRFORWARDACCEL	= 226, // DP
-STAT_MOVEVARS_WARSOWBUNNY_ACCEL				= 227, // DP
-STAT_MOVEVARS_WARSOWBUNNY_TOPSPEED			= 228, // DP
-STAT_MOVEVARS_WARSOWBUNNY_TURNACCEL			= 229, // DP
-STAT_MOVEVARS_WARSOWBUNNY_BACKTOSIDERATIO	= 230, // DP
-STAT_MOVEVARS_AIRSTOPACCELERATE				= 231, // DP
-STAT_MOVEVARS_AIRSTRAFEACCELERATE			= 232, // DP
-STAT_MOVEVARS_MAXAIRSTRAFESPEED				= 233, // DP
-STAT_MOVEVARS_AIRCONTROL					= 234, // DP
-STAT_FRAGLIMIT								= 235, // DP
-STAT_TIMELIMIT								= 236, // DP
-STAT_MOVEVARS_WALLFRICTION					= 237, // DP
-STAT_MOVEVARS_FRICTION						= 238, // DP
-STAT_MOVEVARS_WATERFRICTION					= 239, // DP
-STAT_MOVEVARS_TICRATE						= 240, // DP
-STAT_MOVEVARS_TIMESCALE						= 241, // DP
-STAT_MOVEVARS_GRAVITY						= 242, // DP
-STAT_MOVEVARS_STOPSPEED						= 243, // DP
-STAT_MOVEVARS_MAXSPEED						= 244, // DP
-STAT_MOVEVARS_SPECTATORMAXSPEED				= 245, // DP
-STAT_MOVEVARS_ACCELERATE					= 246, // DP
-STAT_MOVEVARS_AIRACCELERATE					= 247, // DP
-STAT_MOVEVARS_WATERACCELERATE				= 248, // DP
-STAT_MOVEVARS_ENTGRAVITY					= 249, // DP
-STAT_MOVEVARS_JUMPVELOCITY					= 250, // DP
-STAT_MOVEVARS_EDGEFRICTION					= 251, // DP
-STAT_MOVEVARS_MAXAIRSPEED					= 252, // DP
-STAT_MOVEVARS_STEPHEIGHT					= 253, // DP
-STAT_MOVEVARS_AIRACCEL_QW					= 254, // DP
-STAT_MOVEVARS_AIRACCEL_SIDEWAYS_FRICTION	= 255, // DP
+STAT_MOVEVARS_AIRACCEL_QW_STRETCHFACTOR   = 220, // DP
+STAT_MOVEVARS_AIRCONTROL_PENALTY          = 221, // DP
+STAT_MOVEVARS_AIRSPEEDLIMIT_NONQW         = 222, // DP
+STAT_MOVEVARS_AIRSTRAFEACCEL_QW           = 223, // DP
+STAT_MOVEVARS_AIRCONTROL_POWER            = 224, // DP
+STAT_MOVEFLAGS                            = 225, // DP
+STAT_MOVEVARS_WARSOWBUNNY_AIRFORWARDACCEL = 226, // DP
+STAT_MOVEVARS_WARSOWBUNNY_ACCEL           = 227, // DP
+STAT_MOVEVARS_WARSOWBUNNY_TOPSPEED        = 228, // DP
+STAT_MOVEVARS_WARSOWBUNNY_TURNACCEL       = 229, // DP
+STAT_MOVEVARS_WARSOWBUNNY_BACKTOSIDERATIO = 230, // DP
+STAT_MOVEVARS_AIRSTOPACCELERATE           = 231, // DP
+STAT_MOVEVARS_AIRSTRAFEACCELERATE         = 232, // DP
+STAT_MOVEVARS_MAXAIRSTRAFESPEED           = 233, // DP
+STAT_MOVEVARS_AIRCONTROL                  = 234, // DP
+STAT_FRAGLIMIT                            = 235, // DP
+STAT_TIMELIMIT                            = 236, // DP
+STAT_MOVEVARS_WALLFRICTION                = 237, // DP
+STAT_MOVEVARS_FRICTION                    = 238, // DP
+STAT_MOVEVARS_WATERFRICTION               = 239, // DP
+STAT_MOVEVARS_TICRATE                     = 240, // DP
+STAT_MOVEVARS_TIMESCALE                   = 241, // DP
+STAT_MOVEVARS_GRAVITY                     = 242, // DP
+STAT_MOVEVARS_STOPSPEED                   = 243, // DP
+STAT_MOVEVARS_MAXSPEED                    = 244, // DP
+STAT_MOVEVARS_SPECTATORMAXSPEED           = 245, // DP
+STAT_MOVEVARS_ACCELERATE                  = 246, // DP
+STAT_MOVEVARS_AIRACCELERATE               = 247, // DP
+STAT_MOVEVARS_WATERACCELERATE             = 248, // DP
+STAT_MOVEVARS_ENTGRAVITY                  = 249, // DP
+STAT_MOVEVARS_JUMPVELOCITY                = 250, // DP
+STAT_MOVEVARS_EDGEFRICTION                = 251, // DP
+STAT_MOVEVARS_MAXAIRSPEED                 = 252, // DP
+STAT_MOVEVARS_STEPHEIGHT                  = 253, // DP
+STAT_MOVEVARS_AIRACCEL_QW                 = 254, // DP
+STAT_MOVEVARS_AIRACCEL_SIDEWAYS_FRICTION  = 255, // DP
 #endif
-	MAX_CL_STATS = 256
+MAX_CL_STATS = 256
 };
 
 #ifdef QUAKESTATS
 //
 // item flags
 //
-#define	IT_SHOTGUN				(1u<<0)
-#define	IT_SUPER_SHOTGUN		(1u<<1)
-#define	IT_NAILGUN				(1u<<2)
-#define	IT_SUPER_NAILGUN		(1u<<3)
-
-#define	IT_GRENADE_LAUNCHER		(1u<<4)
-#define	IT_ROCKET_LAUNCHER		(1u<<5)
-#define	IT_LIGHTNING			(1u<<6)
-#define	IT_SUPER_LIGHTNING		(1u<<7)
-
-#define	IT_SHELLS				(1u<<8)
-#define	IT_NAILS				(1u<<9)
-#define	IT_ROCKETS				(1u<<10)
-#define	IT_CELLS				(1u<<11)
-
-#define	IT_AXE					(1u<<12)
-
-#define	IT_ARMOR1				(1u<<13)
-#define	IT_ARMOR2				(1u<<14)
-#define	IT_ARMOR3				(1u<<15)
-
-#define	IT_SUPERHEALTH			(1u<<16)
-
-#define	IT_KEY1					(1u<<17)
-#define	IT_KEY2					(1u<<18)
-
-#define	IT_INVISIBILITY			(1u<<19)
-
-#define	IT_INVULNERABILITY		(1u<<20)
-#define	IT_SUIT					(1u<<21)
-#define	IT_QUAD					(1u<<22)
-
-#define	IT_SIGIL1				(1u<<28)
-
-#define	IT_SIGIL2				(1u<<29)
-#define	IT_SIGIL3				(1u<<30)
-#define	IT_SIGIL4				(1u<<31)
+enum {
+IT_SHOTGUN             = (1u<< 0),
+IT_SUPER_SHOTGUN       = (1u<< 1),
+IT_NAILGUN             = (1u<< 2),
+IT_SUPER_NAILGUN       = (1u<< 3),
+IT_GRENADE_LAUNCHER    = (1u<< 4),
+IT_ROCKET_LAUNCHER     = (1u<< 5),
+IT_LIGHTNING           = (1u<< 6),
+IT_SUPER_LIGHTNING     = (1u<< 7),
+IT_SHELLS              = (1u<< 8),
+IT_NAILS               = (1u<< 9),
+IT_ROCKETS             = (1u<<10),
+IT_CELLS               = (1u<<11),
+IT_AXE                 = (1u<<12),
+IT_ARMOR1              = (1u<<13),
+IT_ARMOR2              = (1u<<14),
+IT_ARMOR3              = (1u<<15),
+IT_SUPERHEALTH         = (1u<<16),
+IT_KEY1                = (1u<<17),
+IT_KEY2                = (1u<<18),
+IT_INVISIBILITY        = (1u<<19),
+IT_INVULNERABILITY     = (1u<<20),
+IT_SUIT                = (1u<<21),
+IT_QUAD                = (1u<<22),
+IT_SIGIL1              = (1u<<28),
+IT_SIGIL2              = (1u<<29),
+IT_SIGIL3              = (1u<<30),
+IT_SIGIL4              = (1u<<31),
+//rogue changed and added defines
+RIT_SHELLS             = (1u<< 7),
+RIT_NAILS              = (1u<< 8),
+RIT_ROCKETS            = (1u<< 9),
+RIT_CELLS              = (1u<<10),
+RIT_AXE                = (1u<<11),
+RIT_LAVA_NAILGUN       = (1u<<12),
+RIT_LAVA_SUPER_NAILGUN = (1u<<13),
+RIT_MULTI_GRENADE      = (1u<<14),
+RIT_MULTI_ROCKET       = (1u<<15),
+RIT_PLASMA_GUN         = (1u<<16),
+RIT_ARMOR1             = (1u<<23),
+RIT_ARMOR2             = (1u<<24),
+RIT_ARMOR3             = (1u<<25),
+RIT_LAVA_NAILS         = (1u<<26),
+RIT_PLASMA_AMMO        = (1u<<27),
+RIT_MULTI_ROCKETS      = (1u<<28),
+RIT_SHIELD             = (1u<<29),
+RIT_ANTIGRAV           = (1u<<30),
+RIT_SUPERHEALTH        = (1u<<31),
+//hipnotic added defines
+HIT_PROXIMITY_GUN_BIT  = (1u<< 4),
+HIT_MJOLNIR_BIT        = (7u<< 0),
+HIT_LASER_CANNON_BIT   = (23<< 0),
+HIT_PROXIMITY_GUN      = (1u<<HIT_PROXIMITY_GUN_BIT),
+HIT_MJOLNIR            = (1u<<HIT_MJOLNIR_BIT),
+HIT_LASER_CANNON       = (1u<<HIT_LASER_CANNON_BIT),
+HIT_WETSUIT            = (1u<<(23+2)),
+HIT_EMPATHY_SHIELDS    = (1u<<(23+3))
+};
 #endif
 
 //
 // print flags
 //
-#define	PRINT_LOW			0		// pickup messages
-#define	PRINT_MEDIUM		1		// death messages
-#define	PRINT_HIGH			2		// critical messages
-#define	PRINT_CHAT			3		// chat messages
-
-
+#define	PRINT_LOW     0 // pickup messages
+#define	PRINT_MEDIUM  1	// death messages
+#define	PRINT_HIGH    2	// critical messages
+#define	PRINT_CHAT    3	// chat messages
 
 //split screen stuff
 #ifndef MAX_SPLITS
 #define MAX_SPLITS 1u	//disabled, but must be defined for sanities sake.
 #endif
 
-
-
-
 //savegame vars
-#define	SAVEGAME_COMMENT_LENGTH		39
-#define	SAVEGAME_VERSION_NQ			5
-#define	SAVEGAME_VERSION_QW			6		//actually zQuake, but the functional difference is that its qw instead of nq.
-#define	SAVEGAME_VERSION_FTE_LEG	667		//found in .sav files. this is for legacy-like saved games with multiple players.
-#define SAVEGAME_VERSION_FTE_HUB	25000	//found in .fsv files. includes svs.gametype, so bumps should be large.
-#define CACHEGAME_VERSION_OLD		513		//lame ordering.
-#define CACHEGAME_VERSION_VERBOSE	514		//saved fields got names, making it more extensible.
-#define CACHEGAME_VERSION_MODSAVED	515		//qc is responsible for saving all they need to, and restoring it after.
+#define	SAVEGAME_COMMENT_LENGTH         39
+#define	SAVEGAME_VERSION_NQ             5
+#define	SAVEGAME_VERSION_QW             6     //actually zQuake, but the functional difference is that its qw instead of nq.
+#define	SAVEGAME_VERSION_FTE_LEG        667   //found in .sav files. this is for legacy-like saved games with multiple players.
+#define SAVEGAME_VERSION_FTE_HUB        25000 //found in .fsv files. includes svs.gametype, so bumps should be large.
+#define CACHEGAME_VERSION_OLD           513   //lame ordering.
+#define CACHEGAME_VERSION_VERBOSE       514   //saved fields got names, making it more extensible.
+#define CACHEGAME_VERSION_MODSAVED      515   //qc is responsible for saving all they need to, and restoring it after.
+#define PM_DEFAULTSTEPHEIGHT            18
 
-
-#define PM_DEFAULTSTEPHEIGHT	18
-
-
-#define dem_cmd			0
-#define dem_read		1
-#define dem_set			2
-#define dem_multiple	3
-#define	dem_single		4
-#define dem_stats		5
-#define dem_all			6
+#define dem_cmd      0
+#define dem_read     1
+#define dem_set      2
+#define dem_multiple 3
+#define	dem_single   4
+#define dem_stats    5
+#define dem_all      6
 
 
 #if 0 //fuck sake, just build it in an older chroot.

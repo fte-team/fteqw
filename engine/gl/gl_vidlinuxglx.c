@@ -312,8 +312,8 @@ static qboolean x11_initlib(void)
 		{(void**)&x11.pXSetSelectionOwner,	"XSetSelectionOwner"},
 		{(void**)&x11.pXSetWMNormalHints,	"XSetWMNormalHints"},
 		{(void**)&x11.pXSetWMProtocols,		"XSetWMProtocols"},
-		{(void**)&x11.pXStoreName,			"XStoreName"},
-		{(void**)&x11.pXSync,				"XSync"},
+		{(void**)&x11.pXStoreName,		"XStoreName"},
+		{(void**)&x11.pXSync,			"XSync"},
 		{(void**)&x11.pXUndefineCursor,		"XUndefineCursor"},
 		{(void**)&x11.pXUngrabKeyboard,		"XUngrabKeyboard"},
 		{(void**)&x11.pXUngrabPointer,		"XUngrabPointer"},
@@ -324,7 +324,7 @@ static qboolean x11_initlib(void)
 		{(void**)&x11.pXKeysymToString,		"XKeysymToString"},
 		{(void**)&x11.pXGetKeyboardMapping,	"XGetKeyboardMapping"},
 
-		{(void**)&x11.pXGrabServer,			"XGrabServer"},
+		{(void**)&x11.pXGrabServer,		"XGrabServer"},
 		{(void**)&x11.pXUngrabServer,		"XUngrabServer"},
 
 		{NULL, NULL}
@@ -343,31 +343,31 @@ static qboolean x11_initlib(void)
 		//these ones are extensions, and the reason we're doing this.
 		if (x11.lib)
 		{
-			x11.pXSetErrorHandler	= Sys_GetAddressForName(x11.lib, "XSetErrorHandler");
-			x11.pXGetErrorText	= Sys_GetAddressForName(x11.lib, "XGetErrorText");
+			x11.pXSetErrorHandler           = Sys_GetAddressForName(x11.lib, "XSetErrorHandler");
+			x11.pXGetErrorText              = Sys_GetAddressForName(x11.lib, "XGetErrorText");
 
 			if (x11.pXSetErrorHandler && x11.pXGetErrorText)
 				x11.pXSetErrorHandler(X11_ErrorHandler);
 
 			//raw input (yay mouse deltas)
-			x11.pXGetEventData		= Sys_GetAddressForName(x11.lib, "XGetEventData");
-			x11.pXFreeEventData		= Sys_GetAddressForName(x11.lib, "XFreeEventData");
+			x11.pXGetEventData              = Sys_GetAddressForName(x11.lib, "XGetEventData");
+			x11.pXFreeEventData             = Sys_GetAddressForName(x11.lib, "XFreeEventData");
 
 			//internationalisation
-			x11.pXSetLocaleModifiers = Sys_GetAddressForName(x11.lib, "XSetLocaleModifiers");
-			x11.pXSupportsLocale	= Sys_GetAddressForName(x11.lib, "XSupportsLocale");
-			x11.pXOpenIM			= Sys_GetAddressForName(x11.lib, "XOpenIM");
-			x11.pXGetIMValues		= Sys_GetAddressForName(x11.lib, "XGetIMValues");
-			x11.pXCreateIC			= Sys_GetAddressForName(x11.lib, "XCreateIC");
-			x11.pXSetICFocus		= Sys_GetAddressForName(x11.lib, "XSetICFocus");
-			x11.pXUnsetICFocus		= Sys_GetAddressForName(x11.lib, "XUnsetICFocus");
-			x11.pXGetICValues		= Sys_GetAddressForName(x11.lib, "XGetICValues");
-			x11.pXSetICValues		= Sys_GetAddressForName(x11.lib, "XSetICValues");
-			x11.pXFilterEvent		= Sys_GetAddressForName(x11.lib, "XFilterEvent");
-			x11.pXutf8LookupString	= Sys_GetAddressForName(x11.lib, "Xutf8LookupString");
-			x11.pXwcLookupString	= Sys_GetAddressForName(x11.lib, "XwcLookupString");
-			x11.pXDestroyIC			= Sys_GetAddressForName(x11.lib, "XDestroyIC");
-			x11.pXCloseIM			= Sys_GetAddressForName(x11.lib, "XCloseIM");
+			x11.pXSetLocaleModifiers        = Sys_GetAddressForName(x11.lib, "XSetLocaleModifiers");
+			x11.pXSupportsLocale            = Sys_GetAddressForName(x11.lib, "XSupportsLocale");
+			x11.pXOpenIM                    = Sys_GetAddressForName(x11.lib, "XOpenIM");
+			x11.pXGetIMValues               = Sys_GetAddressForName(x11.lib, "XGetIMValues");
+			x11.pXCreateIC                  = Sys_GetAddressForName(x11.lib, "XCreateIC");
+			x11.pXSetICFocus                = Sys_GetAddressForName(x11.lib, "XSetICFocus");
+			x11.pXUnsetICFocus              = Sys_GetAddressForName(x11.lib, "XUnsetICFocus");
+			x11.pXGetICValues               = Sys_GetAddressForName(x11.lib, "XGetICValues");
+			x11.pXSetICValues               = Sys_GetAddressForName(x11.lib, "XSetICValues");
+			x11.pXFilterEvent               = Sys_GetAddressForName(x11.lib, "XFilterEvent");
+			x11.pXutf8LookupString          = Sys_GetAddressForName(x11.lib, "Xutf8LookupString");
+			x11.pXwcLookupString            = Sys_GetAddressForName(x11.lib, "XwcLookupString");
+			x11.pXDestroyIC                 = Sys_GetAddressForName(x11.lib, "XDestroyIC");
+			x11.pXCloseIM                   = Sys_GetAddressForName(x11.lib, "XCloseIM");
 		}
 		else
 		{

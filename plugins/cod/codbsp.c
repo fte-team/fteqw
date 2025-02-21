@@ -23,7 +23,7 @@ typedef struct
 	{
 		mplane_t *plane;
 		int childnum[2];
-		ivec3_t mins, maxs;
+		vec3i_t mins, maxs;
 	} *nodes;
 	size_t numnodes;
 	struct codleaf_s
@@ -1431,8 +1431,8 @@ static qboolean CODBSP_LoadNodes (model_t *mod, qbyte *mod_base, lump_t *l)
 	struct codinlinemodel_s{
 		unsigned int plane;
 		int child[2]; //negative for leaf
-		ivec3_t mins;
-		ivec3_t maxs;
+		vec3i_t mins;
+		vec3i_t maxs;
 	} *in = (void*)((qbyte*)mod_base + l->fileofs);
 	size_t count = l->filelen / sizeof(*in);
 	size_t i;

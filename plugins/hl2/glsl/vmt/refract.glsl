@@ -42,7 +42,9 @@ varying vec3 eyeminusvertex;
 
 		refr_f = texture2D( s_refraction, refl_c + ( dudv_f.st) ).rgb;
 		out_f.rgb = refr_f;
-		out_f.rgb *= texture2D( s_diffuse, tex_c).rgb;
+#ifdef TINTTEXTURE
+		out_f.rgb *= texture2D( s_diffuse, tex_c ).rgb;
+#endif
 
 		gl_FragColor = out_f;
 	}

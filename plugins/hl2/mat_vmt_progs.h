@@ -245,7 +245,9 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 
 "refr_f = texture2D( s_refraction, refl_c + ( dudv_f.st) ).rgb;\n"
 "out_f.rgb = refr_f;\n"
-"out_f.rgb *= texture2D( s_diffuse, tex_c).rgb;\n"
+"#ifdef TINTTEXTURE\n"
+"out_f.rgb *= texture2D( s_diffuse, tex_c ).rgb;\n"
+"#endif\n"
 
 "gl_FragColor = out_f;\n"
 "}\n"

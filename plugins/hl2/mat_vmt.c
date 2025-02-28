@@ -536,6 +536,9 @@ static void Shader_GenerateFromVMT(parsestate_t *ps, vmtstate_t *st, const char 
 	}
 	else if (!Q_strcasecmp(st->type, "Refract"))
 	{
+		if (*st->refracttinttexture)
+			progargs = "#TINTTEXTURE";
+
 		Q_strlcatfz(script, &offset, sizeof(script),
 			"\t{\n"
 				"\t\tprogram \"vmt/refract%s\"\n"

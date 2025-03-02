@@ -403,10 +403,12 @@ IF(SDL3_FOUND)	#SDL3
 		SET(FTE_ARCH_FILES ${FTE_ARCH_FILES}
 			engine/client/winquake.rc
 			engine/common/net_ssl_winsspi.c
+			engine/common/fs_win32.c
 		)
 		SET(FTESV_ARCH_FILES ${FTESV_ARCH_FILES}
 			engine/client/winquake.rc
 			engine/common/net_ssl_winsspi.c
+			engine/common/fs_win32.c
 			engine/server/sv_sys_win.c
 		)
 	ELSE()
@@ -621,10 +623,12 @@ ELSEIF(1)	#SDL2
 		SET(FTE_ARCH_FILES ${FTE_ARCH_FILES}
 			engine/client/winquake.rc
 			engine/common/net_ssl_winsspi.c
+			engine/common/fs_win32.c
 		)
 		SET(FTESV_ARCH_FILES ${FTESV_ARCH_FILES}
 			engine/client/winquake.rc
 			engine/common/net_ssl_winsspi.c
+			engine/common/fs_win32.c
 			engine/server/sv_sys_win.c
 		)
 	ELSE()
@@ -1263,31 +1267,33 @@ ELSE()
 		SET(INSTALLTARGS ${INSTALLTARGS} qtv)
 	ENDIF()
 
-	SET(FTE_TOOL_MASTER true CACHE BOOL "Compile master server.")
+	IF(WIN32)
+		SET(FTE_TOOL_MASTER false CACHE BOOL "Compile master server.")
+	ELSE()
+		SET(FTE_TOOL_MASTER true CACHE BOOL "Compile master server.")
+	ENDIF()
 	IF(FTE_TOOL_MASTER)
-		IF(NOT WIN32)
-			ADD_EXECUTABLE(ftemaster
-				${FTESV_ARCH_FILES}
-				engine/server/sv_master.c
-				engine/common/net_ice.c		#for the stun responses.
-				engine/common/net_wins.c
-				engine/common/cvar.c
-				engine/common/cmd.c
-				engine/common/sha1.c		#for websockets
-				engine/common/sha2.c		#for fingerprints
-				engine/http/httpclient.c	#for the pipe stuff
-				engine/common/log.c
-				engine/common/fs.c
-				engine/common/fs_stdio.c
-				engine/common/common.c
-				engine/common/translate.c
-				engine/common/zone.c
-				engine/qclib/hash.c
-			)
-			SET_TARGET_PROPERTIES(ftemaster PROPERTIES COMPILE_DEFINITIONS "MASTERONLY;${FTE_LIB_DEFINES};${FTESV_DEFINES};${FTE_REVISON}")
-			TARGET_LINK_LIBRARIES(ftemaster ${FTESV_LIBS})
-			SET(INSTALLTARGS ${INSTALLTARGS} ftemaster)
-		ENDIF()
+		ADD_EXECUTABLE(ftemaster
+			${FTESV_ARCH_FILES}
+			engine/server/sv_master.c
+			engine/common/net_ice.c		#for the stun responses.
+			engine/common/net_wins.c
+			engine/common/cvar.c
+			engine/common/cmd.c
+			engine/common/sha1.c		#for websockets
+			engine/common/sha2.c		#for fingerprints
+			engine/http/httpclient.c	#for the pipe stuff
+			engine/common/log.c
+			engine/common/fs.c
+			engine/common/fs_stdio.c
+			engine/common/common.c
+			engine/common/translate.c
+			engine/common/zone.c
+			engine/qclib/hash.c
+		)
+		SET_TARGET_PROPERTIES(ftemaster PROPERTIES COMPILE_DEFINITIONS "MASTERONLY;${FTE_LIB_DEFINES};${FTESV_DEFINES};${FTE_REVISON}")
+		TARGET_LINK_LIBRARIES(ftemaster ${FTESV_LIBS})
+		SET(INSTALLTARGS ${INSTALLTARGS} ftemaster)
 	ENDIF()
 
 	SET(FTE_TOOL_HTTPSV true CACHE BOOL "Compile small http server.")

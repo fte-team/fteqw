@@ -156,8 +156,10 @@ static const gamemode_info_t gamemode_info[] = {
 #endif
 
 	//quake's mission packs technically have their own protocol (thanks to stat_items). copyrights mean its best to keep them separate, too.
-	{"-hipnotic",	"hipnotic",	"FTE-Hipnotic",		{"hipnotic/pak0.pak","hipnotic/gfx.wad"},QCFG,{"id1",	"qw",	"hipnotic",	"*fte"},	"Quake: Scourge of Armagon",		UPDATEURL(Q1)},
+	{"-hipnotic",	"hipnotic",	"FTE-Hipnotic",			{"hipnotic/pak0.pak","hipnotic/gfx.wad"},QCFG,{"id1","qw",	"hipnotic",	"*fte"},	"Quake: Scourge of Armagon",		UPDATEURL(Q1)},
 	{"-rogue",		"rogue",	"FTE-Rogue",			{"rogue/pak0.pak","rogue/gfx.wad"},QCFG,{"id1",		"qw",	"rogue",	"*fte"},	"Quake: Dissolution of Eternity",	UPDATEURL(Q1)},
+	{"-dopa",		NULL,		QUAKEPROT,				{"dopa/pak0.pak"},				KEXCFG,	{"id1",		"qw",	"dopa",		"*fte"},	"Quake: Dimensions of the Past",	UPDATEURL(Q1)},
+	{"-mg1",		NULL,		QUAKEPROT,				{"mga/pak0.pak"},				KEXCFG,	{"id1",		"qw",	"mg1",		"*fte"},	"Quake: Dimension of the Machine",	UPDATEURL(Q1)},
 
 	//various quake-dependant non-standalone mods that require hacks
 	//quoth needed an extra arg just to enable hipnotic hud drawing, it doesn't actually do anything weird, but most engines have a -quoth arg, so lets have one too.
@@ -248,7 +250,7 @@ int fs_finds;
 void COM_CheckRegistered (void);
 void Mods_FlushModList(void);
 static void FS_ReloadPackFilesFlags(unsigned int reloadflags);
-static qboolean Sys_SteamHasFile(char *basepath, int basepathlen, char *steamdir, char *fname);
+static qboolean Sys_SteamHasFile(char *steambasedir,size_t steambasedirsize, char *steamdir, char *fname);
 
 static void QDECL fs_game_callback(cvar_t *var, char *oldvalue)
 {
@@ -915,12 +917,13 @@ mirror:
 	return false;
 }
 
-qboolean FS_GamedirIsOkay(const char *path)
+static qboolean FS_GamedirIsOkay(const char *path, qboolean verbose)
 {
 	char tmp[MAX_QPATH];
 	if (!*path || strchr(path, '\n') || strchr(path, '\r') || !strcmp(path, ".") || !strcmp(path, "..") || strchr(path, ':') || strchr(path, '/') || strchr(path, '\\') || strchr(path, '$'))
 	{
-		Con_Printf(CON_WARNING"Illegal path specified: %s\n", path);
+		if (verbose)
+			Con_Printf(CON_WARNING"Illegal path specified: %s\n", path);
 		return false;
 	}
 
@@ -929,7 +932,8 @@ qboolean FS_GamedirIsOkay(const char *path)
 	if (!*path || *path == '.' || !strcmp(path, ".") || strstr(path, "..") || strstr(path, "/")
 		|| strstr(path, "\\") || strstr(path, ":") || strstr(path, "\""))
 	{
-		Con_Printf ("Gamedir should be a single filename, not \"%s\"\n", path);
+		if (verbose)
+			Con_Printf ("Gamedir should be a single filename, not \"%s\"\n", path);
 		return false;
 	}
 
@@ -940,14 +944,16 @@ qboolean FS_GamedirIsOkay(const char *path)
 		!Q_strncasecmp(path, "bin", 3) ||		//if scripts try executing stuff here then we want to make extra sure that we don't allow writing anything within it.
 		!Q_strncasecmp(path, "lib", 3))			//same deal
 	{
-		Con_Printf ("Gamedir should not be \"%s\"\n", path);
+		if (verbose)
+			Con_Printf ("Gamedir should not be \"%s\"\n", path);
 		return false;
 	}
 
 	//this checks for system-specific entries.
 	if (!FS_GetCleanPath(path, true, tmp, sizeof(tmp)))
 	{
-		Con_Printf ("Gamedir should not be \"%s\"\n", path);
+		if (verbose)
+			Con_Printf ("Gamedir should not be \"%s\"\n", path);
 		return false;
 	}
 
@@ -1125,14 +1131,14 @@ static qboolean FS_Manifest_ParseTokens(ftemanifest_t *man)
 						break;	//malformed steam link
 					man->gamepath[i].flags |= GAMEDIR_PRIVATE|GAMEDIR_STEAMGAME;
 					*sl = 0;
-					if (!FS_GamedirIsOkay(sl+1))
+					if (!FS_GamedirIsOkay(sl+1, true))
 						break;
 					*sl = '/';
 					man->gamepath[i].path = Z_StrDup(newdir);
 					break;
 				}
 
-				if (!FS_GamedirIsOkay(newdir))
+				if (!FS_GamedirIsOkay(newdir, true))
 					break;
 				man->gamepath[i].path = Z_StrDup(newdir);
 				break;
@@ -1472,7 +1478,12 @@ static void COM_Path_f (void)
 	}
 
 	if (fs_hidesyspaths.ival)
-		Con_Printf("External paths are hidden, ^[click to unhide\\type\\set fs_hidesyspaths 0;path^]\n");
+	{
+		if (isDedicated)
+			Con_Printf("External paths are hidden, ^[fs_hidesyspaths 0^7 to unhide\\type\\set fs_hidesyspaths 0;path^]\n");
+		else
+			Con_Printf("External paths are hidden, ^[click to unhide\\type\\set fs_hidesyspaths 0;path^]\n");
+	}
 
 	if (com_purepaths || fs_puremode)
 	{
@@ -3571,7 +3582,7 @@ searchpathfuncs_t *COM_EnumerateFilesPackage (char *matches, const char *package
 		if (sl)
 		{	//try to open the named package.
 			*sl = 0;
-			if (strchr(sl+1, '/') || !FS_GamedirIsOkay(package))
+			if (strchr(sl+1, '/') || !FS_GamedirIsOkay(package, true))
 				return NULL;
 			*sl = '/';
 
@@ -3594,7 +3605,7 @@ searchpathfuncs_t *COM_EnumerateFilesPackage (char *matches, const char *package
 		}
 		else
 		{	//we use NULLs for spath context here. caller will need to figure out which basedir to read it from.
-			if (!FS_GamedirIsOkay(package))
+			if (!FS_GamedirIsOkay(package, true))
 				return NULL;
 
 			if (com_homepathenabled)
@@ -4670,7 +4681,7 @@ static ftemanifest_t *FS_Manifest_ChangeGameDir(const char *newgamedir)
 {
 	ftemanifest_t *man;
 
-	if (*newgamedir && !FS_GamedirIsOkay(newgamedir))
+	if (*newgamedir && !FS_GamedirIsOkay(newgamedir, true))
 		return fs_manifest;
 
 	man = FS_Manifest_ReadMod(newgamedir);
@@ -4724,7 +4735,7 @@ void COM_Gamedir (const char *dir, const struct gamepacks *packagespaths)
 		FS_ChangeGame(NULL, true, false);
 
 	//we do allow empty here, for base.
-	if (*dir && !FS_GamedirIsOkay(dir))
+	if (*dir && !FS_GamedirIsOkay(dir, true))
 	{
 		Con_Printf ("Gamedir should be a single filename, not \"%s\"\n", dir);
 		return;
@@ -5369,7 +5380,7 @@ static void FS_ReloadPackFilesFlags(unsigned int reloadflags)
 			}
 			else
 			{
-				if (!FS_GamedirIsOkay(dir))
+				if (!FS_GamedirIsOkay(dir, true))
 					continue;
 				FS_AddGameDirectory(&oldpaths, dir, reloadflags, fl);
 			}
@@ -5415,7 +5426,7 @@ static void FS_ReloadPackFilesFlags(unsigned int reloadflags)
 			else
 			{
 				//don't use evil gamedir names.
-				if (!FS_GamedirIsOkay(dir))
+				if (!FS_GamedirIsOkay(dir, true))
 					continue;
 				FS_AddGameDirectory(&oldpaths, dir, reloadflags, fl);
 			}
@@ -5688,44 +5699,45 @@ static void FS_ReloadPackFiles_f(void)
 }
 
 #ifdef NOSTDIO
-qboolean Sys_DoDirectoryPrompt(char *basepath, size_t basepathsize, const char *poshname, const char *savedname)
+static qboolean Sys_DoDirectoryPrompt(char *basepath, size_t basepathsize, const char *poshname, const char *savedname)
 {
 	return false;
 }
-qboolean Sys_FindGameData(const char *poshname, const char *gamename, char *basepath, int basepathlen, qboolean allowprompts)
+static void Sys_FindBaseDirs(const char *poshname, const char *gamename, void (*callback) (void *ctx, const char *basepath), void *ctx, qboolean allowprompts)
+{
+}
+static qboolean Sys_SteamDirsWithFile(char *steamdir, char *fname, void(*callback)(void*ctx,const char*basepath),void*ctx)
 {
 	return false;
 }
-static qboolean Sys_SteamHasFile(char *basepath, int basepathlen, char *steamdir, char *fname)	//returns the base system path
-{
-	return false;
-}
-#elif defined(_WIN32) && !defined(FTE_SDL) && !defined(WINRT) && !defined(_XBOX)
+#elif defined(_WIN32) && !(defined(FTE_SDL)&&!defined(FTE_SDL3)) && !defined(WINRT) && !defined(_XBOX)
 #include "winquake.h"
 #ifdef MINGW
 #define byte BYTE	//some versions of mingw headers are broken slightly. this lets it compile.
 #endif
-static qboolean Sys_SteamHasFile(char *basepath, int basepathlen, char *steamdir, char *fname)
+static qboolean Sys_SteamDirsWithFile(char *steamdir, char *fname, void(*callback)(void*ctx,const char*basepath),void*ctx)
 {
 	/*
 	Find where Valve's Steam distribution platform is installed.
 	Then take a look at that location for the relevent installed app.
 	*/
-	FILE *f;
+	vfsfile_t *f;
 	DWORD resultlen;
 	HKEY key = NULL;
-	
+	char basepath[MAX_OSPATH];
+
 	if (RegOpenKeyExW(HKEY_CURRENT_USER, L"SOFTWARE\\Valve\\Steam", 0, STANDARD_RIGHTS_READ|KEY_QUERY_VALUE, &key) == ERROR_SUCCESS)
 	{
 		wchar_t suckysucksuck[MAX_OSPATH];
 		resultlen = sizeof(suckysucksuck);
 		RegQueryValueExW(key, L"SteamPath", NULL, NULL, (void*)suckysucksuck, &resultlen);
 		RegCloseKey(key);
-		narrowen(basepath, basepathlen, suckysucksuck);
-		Q_strncatz(basepath, va("/SteamApps/common/%s", steamdir), basepathlen);
-		if ((f = fopen(va("%s/%s", basepath, fname), "rb")))
+		narrowen(basepath,sizeof(basepath), suckysucksuck);
+		Q_strncatz(basepath, va("/SteamApps/common/%s", steamdir), sizeof(basepath));
+		if ((f = VFSOS_Open(va("%s/%s", basepath, fname), "rb")))
 		{
-			fclose(f);
+			VFS_CLOSE(f);
+			callback(ctx, fname);
 			return true;
 		}
 	}
@@ -5771,7 +5783,11 @@ static INT CALLBACK StupidBrowseCallbackProc(HWND hwnd, UINT uMsg, LPARAM lp, LP
 	}
 	return 0;
 }
+#ifdef FTE_SDL3
+#include <SDL3/SDL.h>
+#else
 int MessageBoxU(HWND hWnd, char *lpText, char *lpCaption, UINT uType);
+#endif
 #endif
 
 qboolean Sys_DoDirectoryPrompt(char *basepath, size_t basepathsize, const char *poshname, const char *savedname)
@@ -5790,8 +5806,10 @@ qboolean Sys_DoDirectoryPrompt(char *basepath, size_t basepathsize, const char *
 	widen(resultpath, sizeof(resultpath), poshname);
 	_snwprintf(title, countof(title), L"Please locate your existing %s installation", resultpath);
 
+#ifndef FTE_SDL
 	//force mouse to deactivate, so that we can actually see it.
 	INS_UpdateGrabs(false, false);
+#endif
 
 	bi.lpszTitle = title;
 
@@ -5808,7 +5826,24 @@ qboolean Sys_DoDirectoryPrompt(char *basepath, size_t basepathsize, const char *
 		narrowen(basepath, basepathsize, resultpath);
 		if (savedname)
 		{
+#ifdef FTE_SDL
+			extern SDL_Window *sdlwindow;
+			SDL_MessageBoxButtonData buttons[] = {
+				{SDL_MESSAGEBOX_BUTTON_RETURNKEY_DEFAULT, 1, "Preserve"},
+				{SDL_MESSAGEBOX_BUTTON_ESCAPEKEY_DEFAULT, 2, "Ask Later"},
+			};
+			int button=0;
+			struct SDL_MessageBoxData mbdata;
+			memset(&mbdata, 0, sizeof(mbdata));
+			mbdata.window = sdlwindow;
+			mbdata.title = "Save Instaltion path";
+			mbdata.message = va("Would you like to save the location of %s as:\n%s", poshname, basepath);
+			mbdata.numbuttons = countof(buttons);
+			mbdata.buttons = buttons;
+			if (SDL_ShowMessageBox(&mbdata, &button) && button==1)
+#else
 			if (MessageBoxU(mainwindow, va("Would you like to save the location of %s as:\n%s", poshname, basepath), "Save Instaltion path", MB_YESNO|MB_DEFBUTTON2) == IDYES)
+#endif
 				MyRegSetValue(HKEY_CURRENT_USER, "SOFTWARE\\" FULLENGINENAME "\\GamePaths", savedname, REG_SZ, basepath, strlen(basepath));
 		}
 		return true;
@@ -5823,21 +5858,26 @@ DWORD GetFileAttributesU(const char * lpFileName)
 	widen(wide, sizeof(wide), lpFileName);
 	return GetFileAttributesW(wide);
 }
-qboolean Sys_FindGameData(const char *poshname, const char *gamename, char *basepath, int basepathlen, qboolean allowprompts)
+static void Sys_FindBaseDirs(const char *poshname, const char *gamename, void (*callback) (void *ctx, const char *basepath), void *ctx)
 {
 #ifndef INVALID_FILE_ATTRIBUTES
 	#define INVALID_FILE_ATTRIBUTES ((DWORD)-1)
 #endif
+	char basepath[MAX_OSPATH];
 
 	//first, try and find it in our game paths location
-	if (MyRegGetStringValue(HKEY_CURRENT_USER, "SOFTWARE\\" FULLENGINENAME "\\GamePaths", gamename, basepath, basepathlen))
+	if (MyRegGetStringValue(HKEY_CURRENT_USER, "SOFTWARE\\" FULLENGINENAME "\\GamePaths", gamename, basepath, sizeof(basepath)))
 	{
 		if (GetFileAttributesU(basepath) != INVALID_FILE_ATTRIBUTES)
-			return true;
+		{
+			callback(ctx, basepath);
+			return;
+		}
 	}
 
-
-	if (!strcmp(gamename, "quake") || !strcmp(gamename, "afterquake") || !strcmp(gamename, "netquake") || !strcmp(gamename, "spasm") || !strcmp(gamename, "fitz") || !strcmp(gamename, "tenebrae"))
+	if (!strcmp(gamename, "quake_rerel"))
+		Sys_SteamDirsWithFile("Quake/rerelease", "id1/pak0.pak", callback,ctx);
+	else if (!strcmp(gamename, "quake") || !strcmp(gamename, "afterquake") || !strcmp(gamename, "netquake") || !strcmp(gamename, "spasm") || !strcmp(gamename, "fitz") || !strcmp(gamename, "tenebrae"))
 	{
 		char *prefix[] =
 		{
@@ -5860,100 +5900,91 @@ qboolean Sys_FindGameData(const char *poshname, const char *gamename, char *base
 		//reads HKEY_LOCAL_MACHINE\SOFTWARE\Valve\Steam\InstallPath
 		//append SteamApps\common\quake
 		//use it if we find winquake.exe there
-		if (Sys_SteamHasFile(basepath, basepathlen, "quake", "Winquake.exe"))
-			return true;
-		//well, okay, so they don't have quake installed from steam.
+		if (Sys_SteamDirsWithFile("quake", "Winquake.exe", callback,ctx))
+			callback(ctx, basepath);	//oh good, they have it.
 
-		//check various 'unadvertised' paths
+		//check various 'unadvertised' paths. it might be there too.
 		for (i = 0; prefix[i]; i++)
 		{
 			char syspath[MAX_OSPATH];
 			Q_snprintfz(syspath, sizeof(syspath), "%sid1/pak0.pak", prefix[i]);
 			if (GetFileAttributesU(syspath) != INVALID_FILE_ATTRIBUTES)
 			{
-				Q_strncpyz(basepath, prefix[i], basepathlen);
-				return true;
+				Q_strncpyz(basepath, prefix[i], sizeof(basepath));
+				callback(ctx, basepath);
+				continue;
 			}
 			Q_snprintfz(syspath, sizeof(syspath), "%squake.exe", prefix[i]);
 			if (GetFileAttributesU(syspath) != INVALID_FILE_ATTRIBUTES)
 			{
-				Q_strncpyz(basepath, prefix[i], basepathlen);
-				return true;
+				Q_strncpyz(basepath, prefix[i], sizeof(basepath));
+				callback(ctx, basepath);
+				continue;
 			}
 		}
 	}
 
-	if (!strcmp(gamename, "quake2"))
+	else if (!strcmp(gamename, "quake2"))
 	{
 		//look for HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\Quake2_exe\Path
-		if (MyRegGetStringValue(HKEY_LOCAL_MACHINE, "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\App Paths\\Quake2_exe", "Path", basepath, basepathlen))
+		if (MyRegGetStringValue(HKEY_LOCAL_MACHINE, "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\App Paths\\Quake2_exe", "Path", basepath, sizeof(basepath)))
 		{
 			if (GetFileAttributesU(va("%s/quake2.exe", basepath)) != INVALID_FILE_ATTRIBUTES)
-				return true;
+				callback(ctx, basepath);
 		}
 
-		if (Sys_SteamHasFile(basepath, basepathlen, "quake 2", "quake2.exe"))
-			return true;
+		if (Sys_SteamDirsWithFile("quake 2", "quake2.exe", callback,ctx))
+			callback(ctx, basepath);
 	}
 
-	if (!strcmp(gamename, "et"))
+	else if (!strcmp(gamename, "et"))
 	{
 		//reads HKEY_LOCAL_MACHINE\SOFTWARE\Activision\Wolfenstein - Enemy Territory
-		if (MyRegGetStringValue(HKEY_LOCAL_MACHINE, "SOFTWARE\\Activision\\Wolfenstein - Enemy Territory", "InstallPath", basepath, basepathlen))
+		if (MyRegGetStringValue(HKEY_LOCAL_MACHINE, "SOFTWARE\\Activision\\Wolfenstein - Enemy Territory", "InstallPath", basepath, sizeof(basepath)))
 		{
 //			if (GetFileAttributesU(va("%s/ET.exe", basepath) != INVALID_FILE_ATTRIBUTES)
-//				return true;
-			return true;
+//				...
+			callback(ctx, basepath);
 		}
 	}
 
-	if (!strcmp(gamename, "quake3"))
+	else if (!strcmp(gamename, "quake3"))
 	{
 		//reads HKEY_LOCAL_MACHINE\SOFTWARE\id\Quake III Arena\InstallPath
-		if (MyRegGetStringValue(HKEY_LOCAL_MACHINE, "SOFTWARE\\id\\Quake III Arena", "InstallPath", basepath, basepathlen))
+		if (MyRegGetStringValue(HKEY_LOCAL_MACHINE, "SOFTWARE\\id\\Quake III Arena", "InstallPath", basepath, sizeof(basepath)))
 		{
 			if (GetFileAttributesU(va("%s/quake3.exe", basepath)) != INVALID_FILE_ATTRIBUTES)
-				return true;
+				callback(ctx, basepath);
 		}
 
-		if (Sys_SteamHasFile(basepath, basepathlen, "quake 3 arena", "quake3.exe"))
-			return true;
+		if (Sys_SteamDirsWithFile("quake 3 arena", "quake3.exe", callback,ctx))
+			callback(ctx, basepath);
 	}
 
-	if (!strcmp(gamename, "wop"))
+	else if (!strcmp(gamename, "wop"))
 	{
-		if (MyRegGetStringValue(HKEY_LOCAL_MACHINE, "SOFTWARE\\World Of Padman", "Path", basepath, basepathlen))
-			return true;
+		if (MyRegGetStringValue(HKEY_LOCAL_MACHINE, "SOFTWARE\\World Of Padman", "Path", basepath, sizeof(basepath)))
+			callback(ctx, basepath);
 	}
 
 /*
-	if (!strcmp(gamename, "d3"))
+	else if (!strcmp(gamename, "d3"))
 	{
 		//reads HKEY_LOCAL_MACHINE\SOFTWARE\id\Doom 3\InstallPath
-		if (MyRegGetStringValue(HKEY_LOCAL_MACHINE, L"SOFTWARE\\id\\Doom 3", "InstallPath", basepath, basepathlen))
-			return true;
+		if (MyRegGetStringValue(HKEY_LOCAL_MACHINE, L"SOFTWARE\\id\\Doom 3", "InstallPath", basepath, sizeof(basepath)))
+			callback(ctx, basepath);
 	}
 */
 
-	if (!strcmp(gamename, "hexen2") || !strcmp(gamename, "h2mp"))
+	else if (!strcmp(gamename, "hexen2") || !strcmp(gamename, "h2mp"))
 	{
 		//append SteamApps\common\hexen 2
-		if (Sys_SteamHasFile(basepath, basepathlen, "hexen 2", "glh2.exe"))
-			return true;
+		if (Sys_SteamDirsWithFile("hexen 2", "glh2.exe", callback,ctx))
+			callback(ctx, basepath);
 	}
-
-#if defined(HAVE_CLIENT) //this is *really* unfortunate, but doing this crashes the browser
-	if (allowprompts && poshname && *gamename && !COM_CheckParm("-manifest"))
-	{
-		if (Sys_DoDirectoryPrompt(basepath, basepathlen, poshname, gamename))
-			return true;
-	}
-#endif
-
-	return false;
 }
 #else
-#if defined(__linux__) || defined(__unix__) || defined(__apple__)
+#if (defined(__linux__) || defined(__unix__) || defined(__apple__)) && !defined(ANDROID)
 #include <sys/stat.h>
 
 static qboolean Sys_SteamLibraryHasFile(char *basepath, int basepathlen, char *librarypath, char *steamdir, char *fname)	//returns the base system path
@@ -5963,11 +5994,12 @@ static qboolean Sys_SteamLibraryHasFile(char *basepath, int basepathlen, char *l
 		return true;
 	return false;
 }
-static qboolean Sys_SteamParseLibraries(char *basepath, int basepathlen, char *libraryfile, char *steamdir, char *fname)	//returns the base system path
+static qboolean Sys_SteamParseLibraries(void(*callback)(void*ctx,const char*basepath),void*ctx, char *libraryfile, char *steamdir, char *fname)	//returns the base system path
 {
 	qboolean success = false;
 	char key[1024], *end;
 	char value[1024];
+	char basepath[1024];
 	char *lib = libraryfile;
 	int depth = 0;
 	if (!libraryfile)
@@ -5996,59 +6028,73 @@ static qboolean Sys_SteamParseLibraries(char *basepath, int basepathlen, char *l
 				if (!*end)
 				{
 					//okay, its strictly base10
-					if (Sys_SteamLibraryHasFile(basepath, basepathlen, value, steamdir,fname))
-						success = true;
+					if (Sys_SteamLibraryHasFile(basepath,sizeof(basepath), value, steamdir,fname))
+						success = true, callback(ctx, basepath);
 				}
 			}
 			else if (depth == 2 && !strcmp(key, "path"))
 			{	//newer format...
-				if (Sys_SteamLibraryHasFile(basepath, basepathlen, value, steamdir,fname))
-					success = true;
+				if (Sys_SteamLibraryHasFile(basepath,sizeof(basepath), value, steamdir,fname))
+					success = true, callback(ctx, basepath);
 			}
 		}
 	}
 	FS_FreeFile(libraryfile);
 	return success;
 }
-static qboolean Sys_SteamHasFile(char *basepath, int basepathlen, char *steamdir, char *fname)	//returns the base system path
+static qboolean Sys_SteamDirsWithFile(char *steamdir, char *fname, void(*callback)(void*ctx,const char*basepath),void*ctx)	//returns the base system path
 {
 	/*
 	Find where Valve's Steam distribution platform is installed.
 	Then take a look at that location for the relevent installed app.
 	*/
-
+	char libdirs[MAX_OSPATH];
 	char *userhome = getenv("HOME");
 	if (userhome && *userhome)
 	{
-		Q_snprintfz(basepath, basepathlen, "%s/.steam/steam/steamapps/libraryfolders.vdf", userhome);
-		if (Sys_SteamParseLibraries(basepath, basepathlen, FS_MallocFile(basepath, FS_SYSTEM, NULL), steamdir, fname))
+		Q_snprintfz(libdirs,sizeof(libdirs), "%s/.steam/steam/steamapps/libraryfolders.vdf", userhome);
+		if (Sys_SteamParseLibraries(callback,ctx, FS_MallocFile(libdirs, FS_SYSTEM, NULL), steamdir, fname))
 			return true;
 
-		Q_snprintfz(basepath, basepathlen, "%s/.local/share/Steam/SteamApps/libraryfolders.vdf", userhome);
-		if (Sys_SteamParseLibraries(basepath, basepathlen, FS_MallocFile(basepath, FS_SYSTEM, NULL), steamdir, fname))
+		Q_snprintfz(libdirs,sizeof(libdirs), "%s/.local/share/Steam/SteamApps/libraryfolders.vdf", userhome);
+		if (Sys_SteamParseLibraries(callback,ctx, FS_MallocFile(libdirs, FS_SYSTEM, NULL), steamdir, fname))
 			return true;
 	}
 	return false;
 }
 #else
-static qboolean Sys_SteamHasFile(char *basepath, int basepathlen, char *steamdir, char *fname)	//returns the base system path
+static qboolean Sys_SteamDirsWithFile(char *steamdir, char *fname, void(*callback)(void*ctx,const char*basepath),void*ctx)	//returns the base system path
 {
 	return false;
 }
 #endif
 
-qboolean Sys_DoDirectoryPrompt(char *basepath, size_t basepathsize, const char *poshname, const char *savedname)
+#if defined(HAVE_CLIENT) //this is *really* unfortunate, but doing this crashes the browser
+static qboolean Sys_DoDirectoryPrompt(char *basepath, size_t basepathsize, const char *poshname, const char *savedname)
 {
 	return false;
 }
 //#define Sys_DoDirectoryPrompt(bp,bps,game,savename) false
+#endif
 
-#if defined(__linux__) || defined(__unix__) || defined(__apple__)
-static qboolean Sys_XDGHasDirectory(char *basepath, int basepathlen, const char *pregame, const char *gamename, const char *postgame)
+#if (defined(__linux__) || defined(__unix__) || defined(__apple__)) && !defined(ANDROID)
+static void Sys_XDGHasDirectory(const char *gamename, void (*callback) (void *ctx, const char *basepath), void *ctx)
 {	//returns true if the gamedir can be found, and fills in the basepath.
 	struct stat sb;
-	const char *dirs = getenv("XDG_DATA_DIRS"), *s;
+	const char *dirs = getenv("XDG_DATA_DIRS");
 	char dir[MAX_OSPATH];
+	char basedir[MAX_OSPATH];
+	int m;
+	struct
+	{
+		const char *pregame;
+		const char *postgame;
+	} fixups[] = {
+		{"games/",	""},		//debian likes extra subdirs.
+		{"",		""},
+		{"games/",	"-demo"},	//and demos sometimes get extra postfixes. its annoying.
+		{"",		"-demo"},
+	};
 	if (!dirs||!*dirs)
 		dirs = "/usr/local/share:/usr/share";
 
@@ -6056,74 +6102,105 @@ static qboolean Sys_XDGHasDirectory(char *basepath, int basepathlen, const char 
 	{
 		dirs = COM_ParseStringSetSep(dirs, ':', dir, sizeof(dir));
 
-		s = va("%s/%s%s%s/", dir, pregame, gamename, postgame);
-		if (stat(s, &sb) == 0)
+		for (m = 0; m < countof(fixups); m++)
 		{
-			if (S_ISDIR(sb.st_mode))
+			if (Q_snprintfz(basedir,sizeof(basedir), "%s/%s%s%s/", dir, fixups[m].pregame, gamename, fixups[m].postgame))
+				continue;	//overflow.
+			if (stat(basedir, &sb) == 0)
 			{
-				Q_strncpyz(basepath, s, basepathlen);
-				return true;
+				if (S_ISDIR(sb.st_mode))
+					callback(ctx, basedir);
 			}
 		}
 	}
-	return false;
+}
+#else
+static void Sys_XDGHasDirectory(const char *gamename, void (*callback) (void *ctx, const char *basepath), void *ctx)
+{
 }
 #endif
 
-//FIXME: replace with a callback version, for multiple results.
-qboolean Sys_FindGameData(const char *poshname, const char *gamename, char *basepath, int basepathlen, qboolean allowprompts)
+static void Sys_FindBaseDirs(const char *poshname, const char *gamename, void (*callback) (void *ctx, const char *basepath), void *ctx)
 {
-#if defined(__linux__) || defined(__unix__) || defined(__apple__)
 	if (!*gamename)
-		gamename = "quake";	//just a paranoia fallback, shouldn't be needed.
-	if (!strcmp(gamename, "quake_rerel"))
-		if (Sys_SteamHasFile(basepath, basepathlen, "Quake/rerelease", "id1/pak0.pak"))
-			return true;
-	if (!strcmp(gamename, "quake") || !strcmp(gamename, "afterquake") || !strcmp(gamename, "netquake") || !strcmp(gamename, "spasm") || !strcmp(gamename, "fitz") || !strcmp(gamename, "tenebrae"))
 	{
-		if (Sys_SteamHasFile(basepath, basepathlen, "Quake", "Id1/PAK0.PAK"))	//dos legacies need to die.
-			return true;
-		if (Sys_SteamHasFile(basepath, basepathlen, "Quake", "id1/PAK0.PAK"))	//dos legacies need to die.
-			return true;
-		if (Sys_SteamHasFile(basepath, basepathlen, "Quake", "id1/pak0.pak"))	//people may have tried to sanitise it already.
-			return true;
+#ifdef GAME_SHORTNAME
+		gamename = GAME_SHORTNAME;	//just a paranoia fallback, shouldn't be needed, but we ARE a whatever-this-is engine.
+#else
+		gamename = "quake";	//just a paranoia fallback, shouldn't be needed, but we ARE a quake engine.
+#endif
+	}
 
-		if (Sys_XDGHasDirectory(basepath, basepathlen, "", gamename, ""))
-			return true;
+	if (!strcmp(gamename, "quake_rerel"))
+	{
+		Sys_SteamDirsWithFile("Quake/rerelease", "id1/pak0.pak", callback,ctx);
+	}
+	else if (!strcmp(gamename, "quake") || !strcmp(gamename, "afterquake") || !strcmp(gamename, "netquake") || !strcmp(gamename, "spasm") || !strcmp(gamename, "fitz") || !strcmp(gamename, "tenebrae"))
+	{
+		if (!Sys_SteamDirsWithFile("Quake", "Id1/PAK0.PAK", callback,ctx))	//dos legacies need to die.
+		if (!Sys_SteamDirsWithFile("Quake", "id1/PAK0.PAK", callback,ctx))	//dos legacies need to die.
+			Sys_SteamDirsWithFile("Quake", "id1/pak0.pak", callback,ctx);	//people may have tried to sanitise it already.
+
+		if (strcmp(gamename, "quake"))
+		{
+			Sys_XDGHasDirectory(gamename, callback,ctx);
+			gamename = "quake";	//clean up aliases.
+		}
 	}
 	else if (!strcmp(gamename, "quake2"))
 	{
-		if (Sys_SteamHasFile(basepath, basepathlen, "quake 2", "baseq2/pak0.pak"))
-			return true;
+		Sys_SteamDirsWithFile("quake 2", "baseq2/pak0.pak", callback,ctx);
 	}
 	else if (!strcmp(gamename, "hexen2") || !strcmp(gamename, "h2mp") || !strcmp(gamename, "portals"))
 	{
-		if (Sys_SteamHasFile(basepath, basepathlen, "hexen 2", "data/pak0.pak"))
-			return true;
-		gamename = "hexen2";
+		Sys_SteamDirsWithFile("hexen 2", "data/pak0.pak", callback,ctx);
+
+		if (strcmp(gamename, "hexen2"))
+		{
+			Sys_XDGHasDirectory(gamename, callback,ctx);
+			gamename = "hexen2";	//clean up aliases.
+		}
 	}
 
-	if (Sys_XDGHasDirectory(basepath, basepathlen, "games/", gamename, ""))
-		return true;
-	if (Sys_XDGHasDirectory(basepath, basepathlen, "", gamename, ""))
-		return true;
-	if (Sys_XDGHasDirectory(basepath, basepathlen, "games/", gamename, "-demo"))
-		return true;
-	if (Sys_XDGHasDirectory(basepath, basepathlen, "", gamename, "-demo"))
-		return true;
-
-#if defined(HAVE_CLIENT) //this is *really* unfortunate, but doing this crashes the browser
-	if (allowprompts && poshname && *gamename && !COM_CheckParm("-manifest"))
-	{
-		if (Sys_DoDirectoryPrompt(basepath, basepathlen, poshname, gamename))
-			return true;
-	}
-#endif
-
-#endif
-	return false;
+	Sys_XDGHasDirectory(gamename, callback,ctx);
 }
 #endif
+
+struct sys_findgamedata_ctx_s
+{
+	char *basepath;
+	int basepathlen;
+	qboolean found;
+};
+static void Sys_FoundGameData (void *vctx, const char *basepath)
+{
+	struct sys_findgamedata_ctx_s *ctx = vctx;
+	if (ctx->found)	//use the first, not last.
+		return;
+	if (strlen(basepath) >= ctx->basepathlen)
+		return; //too long... just bail.
+	ctx->found = true;
+	Q_strncpyz(ctx->basepath, basepath, ctx->basepathlen);
+}
+static qboolean Sys_FindGameData(const char *poshname, const char *gamename, char *basepath, int basepathlen, qboolean allowprompts)
+{
+	struct sys_findgamedata_ctx_s ctx = {basepath, basepathlen, false};
+	Sys_FindBaseDirs(poshname, gamename, Sys_FoundGameData,&ctx);
+
+#if defined(HAVE_CLIENT) //this is *really* unfortunate, but doing this crashes the browser
+	if (!ctx.found && allowprompts && poshname && *gamename && !COM_CheckParm("-manifest"))
+	{
+		if (Sys_DoDirectoryPrompt(basepath,basepathlen, poshname, gamename))
+			return true;
+	}
+#endif
+	return ctx.found;
+}
+static qboolean Sys_SteamHasFile(char *steambasedir,size_t steambasedirsize, char *steamdir, char *fname)
+{
+	struct sys_findgamedata_ctx_s ctx = {steambasedir, steambasedirsize, false};
+	return Sys_SteamDirsWithFile(steamdir, fname, Sys_FoundGameData,&ctx);
+}
 
 static void FS_FreePaths(void)
 {
@@ -7243,6 +7320,7 @@ typedef struct
 	qboolean (*callback)(void *usr, ftemanifest_t *man, enum modsourcetype_e sourcetype);
 	enum modsourcetype_e sourcetype;
 	void *usr;
+	int legacyid;
 } fmfenums_t;
 static int QDECL FS_EnumeratedFMF(const char *fname, qofs_t fsize, time_t mtime, void *inf, searchpathfuncs_t *spath)
 {
@@ -7300,6 +7378,17 @@ static int QDECL FS_EnumeratedFMF(const char *fname, qofs_t fsize, time_t mtime,
 	}
 
 	return true;
+}
+
+static void FS_EnumeratedBasedir(void *vctx, const char *foundbasedir)
+{
+	fmfenums_t *e = vctx;
+	ftemanifest_t *man;
+	man = FS_GenerateLegacyManifest(e->legacyid, foundbasedir);
+	if (e->callback(e->usr, man, MST_INTRINSIC))
+		e->found++;
+	else
+		FS_Manifest_Free(man);
 }
 
 //callback must call FS_Manifest_Free or return false.
@@ -7383,14 +7472,18 @@ int FS_EnumerateKnownGames(qboolean (*callback)(void *usr, ftemanifest_t *man, e
 	{
 		Q_strncpyz(basedir, com_gamepath, sizeof(basedir));
 		if (gamemode_info[i].manifestfile ||
-			((gamemode_info[i].exename || (i>0&&gamemode_info[i].customexec&&gamemode_info[i-1].customexec&&strcmp(gamemode_info[i].customexec,gamemode_info[i-1].customexec))) && FS_DirHasGame(basedir, i)) ||
-			(e.anygamedir&&Sys_FindGameData(NULL, gamemode_info[i].argname+1, basedir, sizeof(basedir), false)))
+			((gamemode_info[i].exename || (i>0&&gamemode_info[i].customexec&&gamemode_info[i-1].customexec&&strcmp(gamemode_info[i].customexec,gamemode_info[i-1].customexec))) && FS_DirHasGame(basedir, i)))
 		{
 			man = FS_GenerateLegacyManifest(i, basedir);
 			if (e.callback(e.usr, man, MST_INTRINSIC))
 				e.found++;
 			else
 				FS_Manifest_Free(man);
+		}
+		else if (e.anygamedir)
+		{
+			e.legacyid = i;
+			Sys_FindBaseDirs(NULL, gamemode_info[i].argname+1, FS_EnumeratedBasedir,&e);
 		}
 	}
 	return e.found;
@@ -7608,11 +7701,15 @@ static int QDECL Mods_AddGamedir(const char *fname, qofs_t fsize, time_t mtime, 
 	int i, p;
 	char gamedir[MAX_QPATH];
 	const char *basedir = usr;
-	if (l && fname[l-1] == '/' && l < countof(gamedir))
+	if (l && fname[l-1] == '/' && l < countof(gamedir) && !strchr(fname, '\\')/*SDL3 seems buggy on windows - wildcards are not meant to match to '/'.. but windows uses '\' so far too much nesting.*/)
 	{
 		l--;
 		memcpy(gamedir, fname, l);
 		gamedir[l] = 0;
+
+		if (strchr(gamedir, ';') || !FS_GamedirIsOkay(gamedir, false))	//this is enumeration, so don't spam.
+			return true;	//don't list it if we can't use it anyway.
+
 		for (i = 0; i < nummods; i++)
 		{
 			//don't add dupes (can happen from basedir+homedir)
@@ -7657,12 +7754,6 @@ static int QDECL Mods_AddGamedir(const char *fname, qofs_t fsize, time_t mtime, 
 		else
 			return true;	//nothing interesting there... don't bother to list it
 
-		if (strchr(gamedir, ';') || !FS_GamedirIsOkay(gamedir))
-		{
-			Z_Free(desc);
-			return true;	//don't list it if we can't use it anyway
-		}
-
 		modlist = BZ_Realloc(modlist, (i+1) * sizeof(*modlist));
 		modlist[i].manifest = NULL;
 		modlist[i].gamedir = Z_StrDup(gamedir);
@@ -7701,7 +7792,7 @@ struct modlist_s *Mods_GetMod(size_t diridx)
 	{
 		int mancount;
 		modsinited = true;
-		FS_EnumerateKnownGames(Mods_AddManifest, NULL, true);
+		FS_EnumerateKnownGames(Mods_AddManifest, NULL, *fs_manifest->installation);
 		mancount = nummods;
 		if (*fs_manifest->installation)
 		{

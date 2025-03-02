@@ -844,7 +844,6 @@ struct gamepacks
 };
 void COM_Gamedir (const char *dir, const struct gamepacks *packagespaths);
 qboolean FS_PathURLCache(const char *url, char *path, size_t pathsize);	//converts a url to something that can be shoved into a filesystem
-qboolean FS_GamedirIsOkay(const char *path);
 char *FS_GetGamedir(qboolean publicpathonly);
 char *FS_GetManifestArgs(void);
 int FS_GetManifestArgv(const char **argv, int maxargs);

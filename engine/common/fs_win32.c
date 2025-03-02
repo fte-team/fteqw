@@ -2,6 +2,10 @@
 #include "fs.h"
 #include "winquake.h"
 
+#ifdef FTE_SDL
+#define WinNT true
+#endif
+
 //FIXME: find somewhere better for this win32 utility code.
 //(its here instead of sys_win.c because dedicated servers don't use sys_win.c)
 

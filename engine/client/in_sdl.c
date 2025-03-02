@@ -34,6 +34,8 @@ void IN_ActivateMouse(void)
 {
 	if (mouseactive)
 		return;
+	if (!vid.activeapp)
+		return;
 
 	mouseactive = true;
 #if SDL_VERSION_ATLEAST(3,0,0)
@@ -633,8 +635,8 @@ static void J_ControllerTouchPad(SDL_JoystickID jid, int pad, int finger, int fi
 	x *= vid.pixelwidth;
 	y *= vid.pixelheight;
 	IN_MouseMove(thefinger, true, x, y, 0, pressure);
-	if (finger)
-		IN_KeyEvent(thefinger, finger>0, K_MOUSE1, 0);
+	if (fingerstate)
+		IN_KeyEvent(thefinger, fingerstate>0, K_GP_TOUCHPAD, 0);
 }
 static void J_ControllerSensor(SDL_JoystickID jid, SDL_SensorType sensor, float *data)
 {

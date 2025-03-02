@@ -5485,7 +5485,7 @@ typedef char httparg_t[256];
 #include "resource.h"
 #endif
 void SV_UserCmdMVDList_HTML (vfsfile_t *pipe);
-qboolean FTENET_TCP_HTTPResponse(ftenet_tcp_stream_t *st, httparg_t arg[WCATTR_COUNT], qboolean allowgzip)
+qboolean FTENET_TCP_HTTPResponse(ftenet_tcp_connection_t *con, ftenet_tcp_stream_t *st, httparg_t arg[WCATTR_COUNT], qboolean allowgzip)
 {
 	char adr[256];
 	int i;
@@ -5635,7 +5635,7 @@ qboolean FTENET_TCP_HTTPResponse(ftenet_tcp_stream_t *st, httparg_t arg[WCATTR_C
 		}
 #endif
 #if defined(SV_MASTER)
-		else if (svm_sockets && st->con->generic.owner==svm_sockets && (st->dlfile=SVM_GenerateIndex(arg[WCATTR_HOST], name, &filetype, query)))
+		else if (svm_sockets && con->generic.owner==svm_sockets && (st->dlfile=SVM_GenerateIndex(arg[WCATTR_HOST], name, &filetype, query)))
 			;
 #endif
 #ifdef HAVE_SERVER
@@ -6632,7 +6632,7 @@ static const char *FTENET_TCP_ParseHTTPRequest(ftenet_tcp_connection_t *con, fte
 	{
 		if (!net_enable_http.ival)
 			return "http disabled";
-		if (FTENET_TCP_HTTPResponse(st, arg, acceptsgzip))
+		if (FTENET_TCP_HTTPResponse(con, st, arg, acceptsgzip))
 			return NULL;
 		else
 			return "http error";

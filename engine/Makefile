@@ -890,6 +890,23 @@ SERVER_OBJS = 		\
 	webgen.o		\
 	ftpserver.o		\
 	httpserver.o
+MASTER_OBJS=		\
+	server/sv_master.c	\
+	common/net_wins.c	\
+	common/net_ice.c 	\
+	common/cvar.c 		\
+	common/cmd.c 		\
+	common/sha1.c 		\
+	common/sha2.c		\
+	http/httpclient.c	\
+	common/log.c		\
+	common/fs.c			\
+	common/fs_stdio.c	\
+	common/common.c		\
+	common/translate.c	\
+	common/zone.c		\
+	qclib/hash.c		\
+	common/net_ssl_gnutls.c
 
 SERVERONLY_OBJS =		\
 	sv_sys_unix.o		\
@@ -1166,6 +1183,8 @@ MCL_EXE_NAME=../$(EXE_NAME)-cl$(FTE_FULLTARGET)
 MCL_OBJS=$(D3DGL_OBJS) $(GLQUAKE_OBJS) $(SOFTWARE_OBJS) gl_vidsdl.o snd_sdl.o cd_sdl.o sys_sdl.o in_sdl.o 
 M_CFLAGS=-DFTE_SDL $(VKCFLAGS) $(GLCFLAGS) -DMULTITHREAD `$(SDLCONFIG) --cflags`
 
+MASTER_OBJECTS=$(MASTER_OBJS) server/sv_sys_unix.c common/sys_linux_threads.c
+
 QCC_DIR=qcc$(BITS)
 
 ifeq (,$(findstring NO_ZLIB,$(CFLAGS)))
@@ -1201,10 +1220,11 @@ ifneq (,$(findstring SDL3,$(FTE_TARGET))$(findstring sdl3,$(FTE_TARGET)))
         NEEDMAKELIBS=1
       endif
     endif
+    CLIENTLIBFLAGS+=$(SDL3_CFLAGS)
 
-    GL_CFLAGS=-DFTE_SDL3 $(GLCFLAGS) -DMULTITHREAD $(SDL3_CFLAGS)
-    VK_CFLAGS=-DFTE_SDL3 $(VKCFLAGS) -DMULTITHREAD $(SDL3_CFLAGS)
-    M_CFLAGS=-DFTE_SDL3 $(VKCFLAGS) $(GLCFLAGS) -DMULTITHREAD $(SDL3_CFLAGS)
+    GL_CFLAGS=-DFTE_SDL3 $(GLCFLAGS) -DMULTITHREAD $(CLIENTLIBFLAGS)
+    VK_CFLAGS=-DFTE_SDL3 $(VKCFLAGS) -DMULTITHREAD $(CLIENTLIBFLAGS)
+    M_CFLAGS=-DFTE_SDL3 $(VKCFLAGS) $(GLCFLAGS) -DMULTITHREAD $(CLIENTLIBFLAGS)
     SV_CFLAGS=-DFTE_SDL3 -DMULTITHREAD $(SDL3_CFLAGS) $(SERVER_ONLY_CFLAGS)
     ifeq ($(BITS),32)	#we want ofs_t to actually be 64bit.
         CL_CFLAGS+=-D_LARGEFILE64_SOURCE
@@ -1257,6 +1277,8 @@ ifneq (,$(findstring SDL3,$(FTE_TARGET))$(findstring sdl3,$(FTE_TARGET)))
         BASELDFLAGS   += -lws2_32
         FTE_FULLTARGET =$(BITS)-sdl3
         EXEPOSTFIX     =.exe
+
+        COMMON_OBJS   += fs_win32.o net_ssl_winsspi.o
     endif
 
 $(SDL3_PC):
@@ -1278,6 +1300,8 @@ ifeq (win_SDL,$(findstring win,$(FTE_TARGET))$(findstring _SDL,$(FTE_TARGET))$(f
     ARCH_PREDEP=$(BASE_DIR)/libs-$(ARCH)/SDL2-$(SDL2VER)/$(ARCH)/bin/sdl2-config
     SDLCONFIG=$(ARCH_PREDEP) --prefix=$(BASE_DIR)/libs-$(ARCH)/SDL2-$(SDL2VER)/$(ARCH)
     CLIENTLIBFLAGS+=`$(SDLCONFIG) --cflags`
+
+    COMMON_OBJS   += fs_win32.o net_ssl_winsspi.o
 
     #the defaults for sdl come first
     GLCL_OBJS=$(GL_OBJS) $(D3DGL_OBJS) $(GLQUAKE_OBJS) gl_vidsdl.o snd_sdl.o cd_sdl.o sys_sdl.o in_sdl.o snd_directx.o $(LTO_END) resources.o $(LTO_START)
@@ -1522,6 +1546,7 @@ ifeq (win,$(findstring win,$(FTE_TARGET))$(findstring _SDL,$(FTE_TARGET)))
 	SV_OBJS=$(COMMON_OBJS) $(SERVER_OBJS) $(PROGS_OBJS) $(WINDOWSSERVERONLY_OBJS) fs_win32.o $(LTO_END) resources.o $(LTO_START)
 	SV_CFLAGS=$(SERVER_ONLY_CFLAGS) $(W32_CFLAGS)
 
+	MASTER_OBJECTS=$(MASTER_OBJS) server/sv_sys_win.c common/sys_win_threads.c common/net_ssl_winsspi.c
 
 	GLCL_OBJS=$(GL_OBJS) $(D3DGL_OBJS) $(GLQUAKE_OBJS) gl_vidnt.o $(WINDOWS_OBJS)
 	GL_EXE_NAME=../fteglqw$(BITS)$(EXEPOSTFIX)
@@ -2556,11 +2581,16 @@ $(RELEASE_DIR)/imgtool$(BITS)$(EXEPOSTFIX): $(IMGTOOL_OBJECTS)
 imgtool-rel: $(RELEASE_DIR)/imgtool$(BITS)$(EXEPOSTFIX)
 imgtool: imgtool-rel
 
-MASTER_OBJECTS=server/sv_sys_unix.c common/sys_linux_threads.c common/net_ssl_gnutls.c server/sv_master.c common/net_wins.c common/net_ice.c common/cvar.c common/cmd.c common/sha1.c common/sha2.c http/httpclient.c common/log.c common/fs.c common/fs_stdio.c common/common.c common/translate.c common/zone.c qclib/hash.c
+ifeq (win,$(findstring win,$(FTE_TARGET)))
+    MASTER_LDFLAGS=-lm -lz -lws2_32 -lwinmm -lole32
+    MASTER_OBJECTS+=common/fs_win32.c
+else
+    MASTER_LDFLAGS=-lm -ldl -lz
+endif
 $(RELEASE_DIR)/ftemaster$(BITS)$(EXEPOSTFIX): $(MASTER_OBJECTS)
-	$(CC) -o $@ $(MASTER_OBJECTS) -flto=jobserver -fvisibility=hidden -Icommon -Iclient -Iqclib -Igl -Iserver -DMASTERONLY -Dstricmp=strcasecmp -Dstrnicmp=strncasecmp -lm -ldl -lz $(RELEASE_CFLAGS) $(RELEASE_LDFLAGS)
+	$(CC) -o $@ $(MASTER_OBJECTS) -flto=jobserver -fvisibility=hidden -Icommon -Iclient -Iqclib -Igl -Iserver -DMASTERONLY -Dstricmp=strcasecmp -Dstrnicmp=strncasecmp $(MASTER_LDFLAGS) $(RELEASE_CFLAGS) $(RELEASE_LDFLAGS) $(ALL_CFLAGS)
 $(DEBUG_DIR)/ftemaster$(BITS)$(EXEPOSTFIX): $(MASTER_OBJECTS)
-	$(CC) -o $@ $(MASTER_OBJECTS) -Icommon -Iclient -Iqclib -Igl -Iserver -DMASTERONLY -Dstricmp=strcasecmp -Dstrnicmp=strncasecmp -lm -ldl -lz $(DEBUG_CFLAGS) $(DEBUG_LDFLAGS)
+	$(CC) -o $@ $(MASTER_OBJECTS) -Icommon -Iclient -Iqclib -Igl -Iserver -DMASTERONLY -Dstricmp=strcasecmp -Dstrnicmp=strncasecmp $(MASTER_LDFLAGS) $(DEBUG_CFLAGS) $(DEBUG_LDFLAGS)
 master-rel: reldir $(RELEASE_DIR)/ftemaster$(BITS)$(EXEPOSTFIX)
 master-dbg: dbgdir $(DEBUG_DIR)/ftemaster$(BITS)$(EXEPOSTFIX)
 master: master-rel

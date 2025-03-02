@@ -57,7 +57,28 @@ void Sys_RecentServer(char *command, char *target, char *title, char *desc)
 {
 }
 
-#if defined(__linux__) || defined(BSD)
+
+#if defined(_WIN32)
+#include <windows.h>
+#include <wincrypt.h>
+qboolean Sys_RandomBytes(qbyte *string, int len)
+{
+    HCRYPTPROV  prov;
+
+    if(!CryptAcquireContext( &prov, NULL, NULL, PROV_RSA_FULL, CRYPT_VERIFYCONTEXT))
+    {
+        return false;
+    }
+
+    if(!CryptGenRandom(prov, len, (BYTE *)string))
+    {
+        CryptReleaseContext( prov, 0);
+        return false;
+    }
+    CryptReleaseContext(prov, 0);
+    return true;
+}
+#elif defined(__linux__) || defined(BSD)
 qboolean Sys_RandomBytes(qbyte *string, int len)
 {
 	qboolean res = false;
@@ -449,6 +470,7 @@ qboolean Sys_Rename (const char *oldfname, const char *newfname)
 #endif
 }
 
+#ifndef _WIN32
 #if _POSIX_C_SOURCE >= 200112L
 	#include <sys/statvfs.h>
 #endif
@@ -480,9 +502,10 @@ void Sys_Quit (void)
 	exit (0);
 }
 
-#if SDL_VERSION_ATLEAST(3,0,0)
+#if SDL_VERSION_ATLEAST(3,0,0)&&!defined(_WIN32)
 int Sys_EnumerateFiles (const char *gpath, const char *match, int (*func)(const char *, qofs_t, time_t modtime, void *, searchpathfuncs_t *), void *parm, searchpathfuncs_t *spath)
 {	//SDL_GlobDirectory does seem to do wildcards in parent directories properly, at least on loonix.
+	//on wine it seems to do dumb slow shit ('*' crossing the '\\' directory seperator and enumerating the entire FS tree).
 	char file[MAX_OSPATH];
 	int i, count;
 	SDL_PathInfo st;
@@ -509,80 +532,10 @@ int Sys_EnumerateFiles (const char *gpath, const char *match, int (*func)(const 
 	return true;
 }
 
-
 //enumerate the files in a directory (of both gpath and match - match may not contain ..)
 //calls the callback for each one until the callback returns 0
 //SDL2 provides no file enumeration facilities.
 #elif defined(_WIN32)
-#include <windows.h>
-//outlen is the size of out in _BYTES_.
-wchar_t *widen(wchar_t *out, size_t outbytes, const char *utf8)
-{
-	size_t outlen;
-	wchar_t *ret = out;
-	//utf-8 to utf-16, not ucs-2.
-	unsigned int codepoint;
-	int error;
-	outlen = outbytes/sizeof(wchar_t);
-	if (!outlen)
-		return L"";
-	outlen--;
-	while (*utf8)
-	{
-		codepoint = utf8_decode(&error, utf8, (void*)&utf8);
-		if (error || codepoint > 0x10FFFFu)
-			codepoint = 0xFFFDu;
-		if (codepoint > 0xffff)
-		{
-			if (outlen < 2)
-				break;
-			outlen -= 2;
-			codepoint -= 0x10000u;
-			*out++ = 0xD800 | (codepoint>>10);
-			*out++ = 0xDC00 | (codepoint&0x3ff);
-		}
-		else
-		{
-			if (outlen < 1)
-				break;
-			outlen -= 1;
-			*out++ = codepoint;
-		}
-	}
-	*out = 0;
-	return ret;
-}
-char *narrowen(char *out, size_t outlen, wchar_t *wide)
-{
-	char *ret = out;
-	int bytes;
-	unsigned int codepoint;
-	if (!outlen)
-		return "";
-	outlen--;
-	//utf-8 to utf-16, not ucs-2.
-	while (*wide)
-	{
-		codepoint = *wide++;
-		if (codepoint >= 0xD800u && codepoint <= 0xDBFFu)
-		{ //handle utf-16 surrogates
-			if (*wide >= 0xDC00u && *wide <= 0xDFFFu)
-			{
-				codepoint = (codepoint&0x3ff)<<10;
-				codepoint |= *wide++ & 0x3ff;
-			}
-			else
-				codepoint = 0xFFFDu;
-		}
-		bytes = utf8_encode(out, codepoint, outlen);
-		if (bytes <= 0)
-			break;
-		out += bytes;
-		outlen -= bytes;
-	}
-	*out = 0;
-	return ret;
-}
 static int Sys_EnumerateFiles2 (const char *match, int matchstart, int neststart, int (QDECL *func)(const char *fname, qofs_t fsize, time_t mtime, void *parm, searchpathfuncs_t *spath), void *parm, searchpathfuncs_t *spath)
 {
 	qboolean go;
@@ -1322,6 +1275,7 @@ int VARGS Sys_DebugLog(char *file, char *fmt, ...)
 };
 
 
+static qbyte nostdin;
 #ifdef _WIN32
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
@@ -1392,12 +1346,11 @@ void Sys_CloseTerminal (void)
 }
 #elif defined(__unix__) && !defined(__ANDROID__)
 #include <errno.h>
-static qbyte noconinput;
 qboolean Sys_InitTerminal(void)
 {
 	if (COM_CheckParm("-nostdin"))
-		noconinput = true;
-	if (noconinput)
+		nostdin = true;
+	if (nostdin)
 		return true;	//they okayed it, let it start regardless.
 	if (isatty(STDIN_FILENO))
 		return true;
@@ -1409,7 +1362,7 @@ char *Sys_ConsoleInput(void)
 	static char text[256];
 	char *nl;
 
-	if (noconinput)
+	if (nostdin)
 		return NULL;
 
 #if defined(__linux__) && defined(_DEBUG)
@@ -1428,7 +1381,7 @@ char *Sys_ConsoleInput(void)
 		if (errno == EIO)
 		{
 			Sys_Printf(CON_WARNING "Backgrounded, ignoring stdin\n");
-			noconinput |= 2;
+			nostdin |= 2;
 		}
 		return NULL;
 	}
@@ -2013,6 +1966,7 @@ qboolean Sys_EngineMayUpdate(void)
 #endif
 
 #ifdef SUBSERVERS
+#include <errno.h>
 static int QDECL Sys_StdoutWrite (struct vfsfile_s *file, const void *buffer, int bytestowrite)
 {
 	ssize_t r = write(STDOUT_FILENO, buffer, bytestowrite);
@@ -2028,8 +1982,23 @@ static int QDECL Sys_StdoutWrite (struct vfsfile_s *file, const void *buffer, in
 }
 static int QDECL Sys_StdinRead (struct vfsfile_s *file, void *buffer, int bytestoread)
 {
+#ifdef _WIN32
+	DWORD avail;
+	HANDLE input = GetStdHandle(STD_INPUT_HANDLE);
+	if (!PeekNamedPipe(input, NULL, 0, NULL, &avail, NULL))
+		return -1;	//some kind of error? EOF? Hangup? just report it as an error.
+	if (avail)
+	{
+		if (avail > bytestoread)
+			avail = bytestoread;
+		if (!ReadFile(input, buffer, avail, &avail, NULL))
+			return -1;
+	}
+	return avail;
+#else
+	//standard posix
 	ssize_t r;
-#if defined(__linux__) && defined(_DEBUG)
+#if defined(__linux__) && defined(_DEBUG)	//this tends to g
 	int fl = fcntl (STDIN_FILENO, F_GETFL, 0);
 	if (!(fl & O_NONBLOCK))
 	{
@@ -2039,7 +2008,7 @@ static int QDECL Sys_StdinRead (struct vfsfile_s *file, void *buffer, int bytest
 #endif
 	r = read(STDIN_FILENO, buffer, bytestoread);
 	if (r == 0 && bytestoread)
-		return -1;	//eof
+		return VFS_ERROR_EOF;	//eof
 	if (r < 0)
 	{
 		int e = errno;
@@ -2047,6 +2016,7 @@ static int QDECL Sys_StdinRead (struct vfsfile_s *file, void *buffer, int bytest
 			return 0;
 	}
 	return r;
+#endif
 }
 static qboolean QDECL Sys_StdinOutClose(vfsfile_t *fs)
 {
@@ -2058,11 +2028,14 @@ vfsfile_t *Sys_GetStdInOutStream(void)
 {
 	vfsfile_t *stream = Z_Malloc(sizeof(*stream));	//not using extra state, so no need to subclass.
 
-	noconinput = true;	//detatch from stdin, read no more commands.
+	nostdin = true;	//detatch from stdin, read no more commands.
 
+#ifdef _WIN32
+#else
 	//make sure nothing bad is going to happen.
 	fcntl(STDIN_FILENO, F_SETFL, fcntl(STDIN_FILENO, F_GETFL, 0)|O_NONBLOCK);
 	fcntl(STDOUT_FILENO, F_SETFL, fcntl(STDOUT_FILENO, F_GETFL, 0)|O_NONBLOCK);
+#endif
 
 	stream->WriteBytes = Sys_StdoutWrite;
 	stream->ReadBytes = Sys_StdinRead;

@@ -194,7 +194,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 //#if !(defined(__linux__) || defined(__CYGWIN__)) || defined(ANDROID)
 //	#undef HAVE_GNUTLS
 //#endif
-#if !defined(_WIN32) || (defined(_MSC_VER) && (_MSC_VER < 1300)) || defined(FTE_SDL)
+#if !defined(_WIN32) || (defined(_MSC_VER) && (_MSC_VER < 1300))
 	#undef HAVE_WINSSPI
 #endif
 //subservers only has code for win32 threads and linux

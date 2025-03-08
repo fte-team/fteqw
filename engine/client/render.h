@@ -189,15 +189,6 @@ typedef struct
 	} mappings[1];
 } skinfile_t;
 
-// plane_t structure
-typedef struct mplane_s
-{
-	vec3_t	normal;
-	float	dist;
-	qbyte	type;			// for texture axis selection and fast side tests
-	qbyte	signbits;		// signx + signy<<1 + signz<<1
-	qbyte	pad[2];
-} mplane_t;
 #define MAXFRUSTUMPLANES 7	//4 side, 1 near, 1 far (fog), 1 water plane.
 
 typedef struct
@@ -235,13 +226,13 @@ typedef enum {
 
 typedef enum
 {
-	PROJ_STANDARD			= 0,
-	PROJ_STEREOGRAPHIC		= 1,
-	PROJ_FISHEYE			= 2,	//standard fisheye
-	PROJ_PANORAMA			= 3,	//for nice panoramas
-	PROJ_LAEA				= 4,	//lambert azimuthal equal-area 
-	PROJ_EQUIRECTANGULAR	= 5,	//projects a sphere into 2d. used by vr screenshots.
-	PROJ_PANINI       = 6		//like stereographic, but vertical lines stay straight.
+	PROJ_STANDARD           = 0,
+	PROJ_STEREOGRAPHIC      = 1, // stereographic glasses
+	PROJ_FISHEYE            = 2, // standard fisheye
+	PROJ_PANORAMA           = 3, // for nice panoramas
+	PROJ_LAEA               = 4, // lambert azimuthal equal-area 
+	PROJ_EQUIRECTANGULAR    = 5, // projects a sphere into 2d. used by vr screenshots.
+	PROJ_PANINI             = 6  // like stereographic, but vertical lines stay straight.
 } qprojection_t;
 
 typedef struct {

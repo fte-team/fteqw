@@ -51,44 +51,6 @@ static cvar_t sbar_teamstatus = CVARD("sbar_teamstatus", "1", "Display the last 
 
 static cvar_t cl_sbaralpha = CVARAFD("cl_sbaralpha", "0.75", "scr_sbaralpha", CVAR_ARCHIVE, "Specifies the transparency of the status bar. Only Takes effect when cl_sbar is set to 2.");	//with premultiplied alpha, this needs to affect the RGB values too.
 
-//===========================================
-//rogue changed and added defines
-#define RIT_SHELLS              (1u<<7)
-#define RIT_NAILS               (1u<<8)
-#define RIT_ROCKETS             (1u<<9)
-#define RIT_CELLS               (1u<<10)
-#define RIT_AXE                 (1u<<11)
-#define RIT_LAVA_NAILGUN        (1u<<12)
-#define RIT_LAVA_SUPER_NAILGUN  (1u<<13)
-#define RIT_MULTI_GRENADE       (1u<<14)
-#define RIT_MULTI_ROCKET        (1u<<15)
-#define RIT_PLASMA_GUN          (1u<<16)
-#define RIT_ARMOR1              (1u<<23)
-#define RIT_ARMOR2              (1u<<24)
-#define RIT_ARMOR3              (1u<<25)
-#define RIT_LAVA_NAILS          (1u<<26)
-#define RIT_PLASMA_AMMO         (1u<<27)
-#define RIT_MULTI_ROCKETS       (1u<<28)
-#define RIT_SHIELD              (1u<<29)
-#define RIT_ANTIGRAV            (1u<<30)
-#define RIT_SUPERHEALTH         (1u<<31)
-
-//===========================================
-//hipnotic added defines
-
-#define HIT_PROXIMITY_GUN_BIT 16
-#define HIT_MJOLNIR_BIT       7
-#define HIT_LASER_CANNON_BIT  23
-#define HIT_PROXIMITY_GUN   (1<<HIT_PROXIMITY_GUN_BIT)
-#define HIT_MJOLNIR         (1<<HIT_MJOLNIR_BIT)
-#define HIT_LASER_CANNON    (1<<HIT_LASER_CANNON_BIT)
-#define HIT_WETSUIT         (1<<(23+2))
-#define HIT_EMPATHY_SHIELDS (1<<(23+3))
-
-
-
-
-
 int			sb_updates;		// if >= vid.numpages, no update needed
 
 qboolean	sbar_parsingteamstatuses;	//so we don't eat it if its not displayed

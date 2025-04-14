@@ -8,11 +8,11 @@
 
 //FIXME: instead of switching rendertargets and back, we should be using an alternative queue.
 
-#define PERMUTATION_BEM_VR (1u<<11)
-#define PERMUTATION_BEM_FP16 (1u<<12)
+#define PERMUTATION_BEM_VR          (1u<<11)
+#define PERMUTATION_BEM_FP16        (1u<<12)
 #define PERMUTATION_BEM_MULTISAMPLE (1u<<13)
-#define PERMUTATION_BEM_DEPTHONLY (1u<<14)
-#define PERMUTATION_BEM_WIREFRAME (1u<<15)
+#define PERMUTATION_BEM_DEPTHONLY   (1u<<14)
+#define PERMUTATION_BEM_WIREFRAME   (1u<<15)
 
 #undef BE_Init
 #undef BE_SelectMode
@@ -143,36 +143,6 @@ static void FTable_Init(void)
 		r_sawtoothtable[i] = t;
 		r_inversesawtoothtable[i] = 1.0 - t;
 	}
-}
-
-typedef vec3_t mat3_t[3];
-static mat3_t axisDefault={{1, 0, 0},
-					{0, 1, 0},
-					{0, 0, 1}};
-
-static void Matrix3_Transpose (mat3_t in, mat3_t out)
-{
-	out[0][0] = in[0][0];
-	out[1][1] = in[1][1];
-	out[2][2] = in[2][2];
-
-	out[0][1] = in[1][0];
-	out[0][2] = in[2][0];
-	out[1][0] = in[0][1];
-	out[1][2] = in[2][1];
-	out[2][0] = in[0][2];
-	out[2][1] = in[1][2];
-}
-static void Matrix3_Multiply_Vec3 (const mat3_t a, const vec3_t b, vec3_t product)
-{
-	product[0] = a[0][0]*b[0] + a[0][1]*b[1] + a[0][2]*b[2];
-	product[1] = a[1][0]*b[0] + a[1][1]*b[1] + a[1][2]*b[2];
-	product[2] = a[2][0]*b[0] + a[2][1]*b[1] + a[2][2]*b[2];
-}
-
-static int Matrix3_Compare(const mat3_t in, const mat3_t out)
-{
-	return !memcmp(in, out, sizeof(mat3_t));
 }
 
 /*================================================*/
@@ -2767,63 +2737,63 @@ static void BE_CreatePipeline(program_t *p, unsigned int shaderflags, unsigned i
 		ms.rasterizationSamples = 1;
 //	ms.sampleShadingEnable = VK_TRUE;	//call the fragment shader multiple times, instead of just once per final pixel
 //	ms.minSampleShading = 0.25;
-	ds.depthTestEnable = (blendflags&SBITS_MISC_NODEPTHTEST)?VK_FALSE:VK_TRUE;
-	ds.depthWriteEnable = (blendflags&SBITS_MISC_DEPTHWRITE)?VK_TRUE:VK_FALSE;
+	ds.depthTestEnable  = (blendflags&SBITS_MISC_NODEPTHTEST)?VK_FALSE:VK_TRUE;
+	ds.depthWriteEnable = (blendflags&SBITS_MISC_DEPTHWRITE) ?VK_TRUE :VK_FALSE;
 	switch(blendflags & SBITS_DEPTHFUNC_BITS)
 	{
 	default:
-	case SBITS_DEPTHFUNC_CLOSEREQUAL:	ds.depthCompareOp = VK_COMPARE_OP_LESS_OR_EQUAL;	break;
-	case SBITS_DEPTHFUNC_EQUAL:			ds.depthCompareOp = VK_COMPARE_OP_EQUAL;			break;
-	case SBITS_DEPTHFUNC_CLOSER:		ds.depthCompareOp = VK_COMPARE_OP_LESS;				break;
-	case SBITS_DEPTHFUNC_FURTHER:		ds.depthCompareOp = VK_COMPARE_OP_GREATER;			break;
+	case SBITS_DEPTHFUNC_CLOSEREQUAL: ds.depthCompareOp = VK_COMPARE_OP_LESS_OR_EQUAL; break;
+	case SBITS_DEPTHFUNC_EQUAL      : ds.depthCompareOp = VK_COMPARE_OP_EQUAL;         break;
+	case SBITS_DEPTHFUNC_CLOSER     : ds.depthCompareOp = VK_COMPARE_OP_LESS;          break;
+	case SBITS_DEPTHFUNC_FURTHER    : ds.depthCompareOp = VK_COMPARE_OP_GREATER;       break;
 	}
 	ds.depthBoundsTestEnable = VK_FALSE;
-	ds.back.failOp = VK_STENCIL_OP_KEEP;
-	ds.back.passOp = VK_STENCIL_OP_KEEP;
-	ds.back.compareOp = VK_COMPARE_OP_NEVER;//VK_COMPARE_OP_ALWAYS;
-	ds.stencilTestEnable = VK_FALSE;
+	ds.back.failOp           = VK_STENCIL_OP_KEEP;
+	ds.back.passOp           = VK_STENCIL_OP_KEEP;
+	ds.back.compareOp        = VK_COMPARE_OP_NEVER;//VK_COMPARE_OP_ALWAYS;
+	ds.stencilTestEnable     = VK_FALSE;
 	ds.front = ds.back;
 	memset(att_state, 0, sizeof(att_state));
 	att_state[0].colorWriteMask =
-		((blendflags&SBITS_MASK_RED)?0:VK_COLOR_COMPONENT_R_BIT) |
+		((blendflags&SBITS_MASK_RED)  ?0:VK_COLOR_COMPONENT_R_BIT) |
 		((blendflags&SBITS_MASK_GREEN)?0:VK_COLOR_COMPONENT_G_BIT) |
-		((blendflags&SBITS_MASK_BLUE)?0:VK_COLOR_COMPONENT_B_BIT) |
+		((blendflags&SBITS_MASK_BLUE) ?0:VK_COLOR_COMPONENT_B_BIT) |
 		((blendflags&SBITS_MASK_ALPHA)?0:VK_COLOR_COMPONENT_A_BIT);
 
 	if ((blendflags & SBITS_BLEND_BITS) && (blendflags & SBITS_BLEND_BITS)!=(SBITS_SRCBLEND_ONE|SBITS_DSTBLEND_ZERO))
 	{
 		switch(blendflags & SBITS_SRCBLEND_BITS)
 		{
-		case SBITS_SRCBLEND_ZERO:					att_state[0].srcColorBlendFactor = VK_BLEND_FACTOR_ZERO;				att_state[0].srcAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;				break;
-		case SBITS_SRCBLEND_ONE:					att_state[0].srcColorBlendFactor = VK_BLEND_FACTOR_ONE;					att_state[0].srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;					break;
-		case SBITS_SRCBLEND_DST_COLOR:				att_state[0].srcColorBlendFactor = VK_BLEND_FACTOR_DST_COLOR;			att_state[0].srcAlphaBlendFactor = VK_BLEND_FACTOR_DST_ALPHA;			break;
-		case SBITS_SRCBLEND_ONE_MINUS_DST_COLOR:	att_state[0].srcColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_DST_COLOR;	att_state[0].srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_DST_ALPHA;	break;
-		case SBITS_SRCBLEND_SRC_ALPHA:				att_state[0].srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;			att_state[0].srcAlphaBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;			break;
-		case SBITS_SRCBLEND_ONE_MINUS_SRC_ALPHA:	att_state[0].srcColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;	att_state[0].srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;	break;
-		case SBITS_SRCBLEND_DST_ALPHA:				att_state[0].srcColorBlendFactor = VK_BLEND_FACTOR_DST_ALPHA;			att_state[0].srcAlphaBlendFactor = VK_BLEND_FACTOR_DST_ALPHA;			break;
-		case SBITS_SRCBLEND_ONE_MINUS_DST_ALPHA:	att_state[0].srcColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_DST_ALPHA;	att_state[0].srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_DST_ALPHA;	break;
-		case SBITS_SRCBLEND_ALPHA_SATURATE:			att_state[0].srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA_SATURATE;	att_state[0].srcAlphaBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA_SATURATE;	break;
+		case SBITS_SRCBLEND_ZERO:                att_state[0].srcColorBlendFactor = VK_BLEND_FACTOR_ZERO;                att_state[0].srcAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;                break;
+		case SBITS_SRCBLEND_ONE:                 att_state[0].srcColorBlendFactor = VK_BLEND_FACTOR_ONE;                 att_state[0].srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;                 break;
+		case SBITS_SRCBLEND_DST_COLOR:           att_state[0].srcColorBlendFactor = VK_BLEND_FACTOR_DST_COLOR;           att_state[0].srcAlphaBlendFactor = VK_BLEND_FACTOR_DST_ALPHA;           break;
+		case SBITS_SRCBLEND_ONE_MINUS_DST_COLOR: att_state[0].srcColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_DST_COLOR; att_state[0].srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_DST_ALPHA; break;
+		case SBITS_SRCBLEND_SRC_ALPHA:           att_state[0].srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;           att_state[0].srcAlphaBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;           break;
+		case SBITS_SRCBLEND_ONE_MINUS_SRC_ALPHA: att_state[0].srcColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA; att_state[0].srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA; break;
+		case SBITS_SRCBLEND_DST_ALPHA:           att_state[0].srcColorBlendFactor = VK_BLEND_FACTOR_DST_ALPHA;           att_state[0].srcAlphaBlendFactor = VK_BLEND_FACTOR_DST_ALPHA;           break;
+		case SBITS_SRCBLEND_ONE_MINUS_DST_ALPHA: att_state[0].srcColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_DST_ALPHA; att_state[0].srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_DST_ALPHA; break;
+		case SBITS_SRCBLEND_ALPHA_SATURATE:      att_state[0].srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA_SATURATE;	 att_state[0].srcAlphaBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA_SATURATE;	 break;
 		default:	Sys_Error("Bad shader blend src\n"); return;
 		}
 		switch(blendflags & SBITS_DSTBLEND_BITS)
 		{
-		case SBITS_DSTBLEND_ZERO:					att_state[0].dstColorBlendFactor = VK_BLEND_FACTOR_ZERO;				att_state[0].dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;				break;
-		case SBITS_DSTBLEND_ONE:					att_state[0].dstColorBlendFactor = VK_BLEND_FACTOR_ONE;					att_state[0].dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE;					break;
-		case SBITS_DSTBLEND_SRC_ALPHA:				att_state[0].dstColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;			att_state[0].dstAlphaBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;			break;
-		case SBITS_DSTBLEND_ONE_MINUS_SRC_ALPHA:	att_state[0].dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;	att_state[0].dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;	break;
-		case SBITS_DSTBLEND_DST_ALPHA:				att_state[0].dstColorBlendFactor = VK_BLEND_FACTOR_DST_ALPHA;			att_state[0].dstAlphaBlendFactor = VK_BLEND_FACTOR_DST_ALPHA;			break;
-		case SBITS_DSTBLEND_ONE_MINUS_DST_ALPHA:	att_state[0].dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_DST_ALPHA;	att_state[0].dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_DST_ALPHA;	break;
-		case SBITS_DSTBLEND_SRC_COLOR:				att_state[0].dstColorBlendFactor = VK_BLEND_FACTOR_SRC_COLOR;			att_state[0].dstAlphaBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;			break;
-		case SBITS_DSTBLEND_ONE_MINUS_SRC_COLOR:	att_state[0].dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_COLOR;	att_state[0].dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;	break;
+		case SBITS_DSTBLEND_ZERO:                 att_state[0].dstColorBlendFactor = VK_BLEND_FACTOR_ZERO;                att_state[0].dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;                break;
+		case SBITS_DSTBLEND_ONE:                  att_state[0].dstColorBlendFactor = VK_BLEND_FACTOR_ONE;                 att_state[0].dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE;                 break;
+		case SBITS_DSTBLEND_SRC_ALPHA:            att_state[0].dstColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;	          att_state[0].dstAlphaBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;           break;
+		case SBITS_DSTBLEND_ONE_MINUS_SRC_ALPHA:  att_state[0].dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA; att_state[0].dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA; break;
+		case SBITS_DSTBLEND_DST_ALPHA:            att_state[0].dstColorBlendFactor = VK_BLEND_FACTOR_DST_ALPHA;           att_state[0].dstAlphaBlendFactor = VK_BLEND_FACTOR_DST_ALPHA;           break;
+		case SBITS_DSTBLEND_ONE_MINUS_DST_ALPHA:  att_state[0].dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_DST_ALPHA; att_state[0].dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_DST_ALPHA; break;
+		case SBITS_DSTBLEND_SRC_COLOR:            att_state[0].dstColorBlendFactor = VK_BLEND_FACTOR_SRC_COLOR;           att_state[0].dstAlphaBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;           break;
+		case SBITS_DSTBLEND_ONE_MINUS_SRC_COLOR:  att_state[0].dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_COLOR; att_state[0].dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA; break;
 		default:	Sys_Error("Bad shader blend dst\n"); return;
 		}
 		att_state[0].colorBlendOp = VK_BLEND_OP_ADD;
 		att_state[0].alphaBlendOp = VK_BLEND_OP_ADD;
-		att_state[0].blendEnable = VK_TRUE;
+		att_state[0].blendEnable  = VK_TRUE;
 	}
 	else
 	{
-		att_state[0].blendEnable = VK_FALSE;
+		att_state[0].blendEnable  = VK_FALSE;
 	}
 	if (permu&PERMUTATION_BEM_DEPTHONLY)
 		cb.attachmentCount = 0;

@@ -130,68 +130,66 @@ void GL_InitFogTexture(void);
 #endif
 
 // Function prototypes for the Texture Object Extension routines
-typedef GLboolean (APIENTRY *ARETEXRESFUNCPTR)(GLsizei, const GLuint *,
-                    const GLboolean *);
-typedef void (APIENTRY *BINDTEXFUNCPTR)(GLenum, GLuint);
-typedef void (APIENTRY *DELTEXFUNCPTR)(GLsizei, const GLuint *);
-typedef void (APIENTRY *GENTEXFUNCPTR)(GLsizei, GLuint *);
-typedef GLboolean (APIENTRY *ISTEXFUNCPTR)(GLuint);
-typedef void (APIENTRY *PRIORTEXFUNCPTR)(GLsizei, const GLuint *,
-                    const GLclampf *);
-typedef void (APIENTRY *TEXSUBIMAGEPTR)(int, int, int, int, int, int, int, int, void *);
-typedef void (APIENTRY *FTEPFNGLCOMPRESSEDTEXIMAGE2DARBPROC)	(GLenum target, GLint level, GLint internalformat, GLsizei width, GLsizei height, GLint border, GLsizei imageSize, const GLvoid* data);
-typedef void (APIENTRY *FTEPFNGLCOMPRESSEDTEXIMAGE3DARBPROC)	(GLenum target, GLint level, GLenum internalformat, GLsizei width, GLsizei height, GLsizei depth, GLint border, GLsizei imageSize, const void *data);
-typedef void (APIENTRY *FTEPFNGLGETCOMPRESSEDTEXIMAGEARBPROC)	(GLenum target, GLint lod, const GLvoid* img);
-typedef void (APIENTRY *FTEPFNGLPNTRIANGLESIATIPROC)(GLenum pname, GLint param);
-typedef void (APIENTRY *FTEPFNGLPNTRIANGLESFATIPROC)(GLenum pname, GLfloat param);
-typedef void (APIENTRY *FTEPFNGLACTIVESTENCILFACEEXTPROC) (GLenum face);
+typedef GLboolean (APIENTRY *ARETEXRESFUNCPTR)                    (GLsizei, const GLuint *, const GLboolean *);
+typedef void      (APIENTRY *BINDTEXFUNCPTR)                      (GLenum, GLuint);
+typedef void      (APIENTRY *DELTEXFUNCPTR)                       (GLsizei, const GLuint *);
+typedef void      (APIENTRY *GENTEXFUNCPTR)                       (GLsizei, GLuint *);
+typedef GLboolean (APIENTRY *ISTEXFUNCPTR)                        (GLuint);
+typedef void      (APIENTRY *PRIORTEXFUNCPTR)                     (GLsizei, const GLuint *, const GLclampf *);
+typedef void      (APIENTRY *TEXSUBIMAGEPTR)                      (int, int, int, int, int, int, int, int, void *);
+typedef void      (APIENTRY *FTEPFNGLCOMPRESSEDTEXIMAGE2DARBPROC) (GLenum target, GLint level, GLint internalformat, GLsizei width, GLsizei height, GLint border, GLsizei imageSize, const GLvoid* data);
+typedef void      (APIENTRY *FTEPFNGLCOMPRESSEDTEXIMAGE3DARBPROC) (GLenum target, GLint level, GLenum internalformat, GLsizei width, GLsizei height, GLsizei depth, GLint border, GLsizei imageSize, const void *data);
+typedef void      (APIENTRY *FTEPFNGLGETCOMPRESSEDTEXIMAGEARBPROC)(GLenum target, GLint lod, const GLvoid* img);
+typedef void      (APIENTRY *FTEPFNGLPNTRIANGLESIATIPROC)         (GLenum pname, GLint param);
+typedef void      (APIENTRY *FTEPFNGLPNTRIANGLESFATIPROC)         (GLenum pname, GLfloat param);
+typedef void      (APIENTRY *FTEPFNGLACTIVESTENCILFACEEXTPROC)    (GLenum face);
 
-typedef GLuint		(APIENTRYP FTEPFNGLCREATEPROGRAMPROC)		(void);
-typedef void		(APIENTRYP FTEPFNGLDELETEPROGRAMPROC)		(GLuint obj);
-typedef void		(APIENTRYP FTEPFNGLDELETESHADERPROC)		(GLuint obj);
-typedef void		(APIENTRYP FTEPFNGLUSEPROGRAMPROC)			(GLuint programObj);
-typedef GLuint		(APIENTRYP FTEPFNGLCREATESHADERPROC)		(GLenum shaderType);
-typedef void		(APIENTRYP FTEPFNGLSHADERSOURCEPROC)		(GLuint shaderObj, GLsizei count, const GLchar* const*string, const GLint *length);
-typedef void		(APIENTRYP FTEPFNGLCOMPILESHADERPROC)		(GLuint shaderObj);
-typedef void        (APIENTRYP FTEPFNGLGETPROGRAMIVPROC)		(GLuint obj, GLenum pname, GLint *params);
-typedef void        (APIENTRYP FTEPFNGLGETSHADERIVPROC)			(GLuint obj, GLenum pname, GLint *params);
-typedef void		(APIENTRYP FTEPFNGLATTACHSHADERPROC)		(GLuint containerObj, GLuint obj);
-typedef void		(APIENTRYP FTEPFNGLGETPROGRAMINFOLOGPROC)	(GLuint obj, GLsizei maxLength, GLsizei *length, GLchar *infoLog);
-typedef void		(APIENTRYP FTEPFNGLGETSHADERINFOLOGPROC)	(GLuint obj, GLsizei maxLength, GLsizei *length, GLchar *infoLog);
-typedef void		(APIENTRYP FTEPFNGLLINKPROGRAMPROC)			(GLuint programObj);
-typedef void        (APIENTRYP FTEPFNGLBINDATTRIBLOCATIONPROC)	(GLuint programObj, GLuint index, const GLchar *name);
-typedef GLint		(APIENTRYP FTEPFNGLGETATTRIBLOCATIONPROC)	(GLuint programObj, const GLchar *name);
-typedef void		(APIENTRYP FTEPFNGLVERTEXATTRIBPOINTERPROC)	(GLuint index, GLint size, GLenum type, GLboolean normalized, GLsizei stride, const GLvoid *pointer);
-typedef void		(APIENTRYP FTEPFNGLVERTEXATTRIB4FPROC)		(GLuint index, GLfloat x, GLfloat y, GLfloat z, GLfloat w);
-typedef void		(APIENTRYP FTEPFNGLENABLEVERTEXATTRIBARRAYPROC)	(GLuint index);
-typedef void		(APIENTRYP FTEPFNGLDISABLEVERTEXATTRIBARRAYPROC)(GLuint index);
-typedef GLint		(APIENTRYP FTEPFNGLGETUNIFORMLOCATIONPROC)	(GLuint programObj, const GLchar *name);
-typedef void		(APIENTRYP FTEPFNGLGETVERTEXATTRIBIVPROC)	(GLuint index, GLenum pname, GLint *params);
-typedef void		(APIENTRYP FTEPFNGLUNIFORM4FPROC)			(GLint location, GLfloat v0, GLfloat v1, GLfloat v2, GLfloat v3);
-typedef void		(APIENTRYP FTEPFNGLUNIFORMMATRIX4FVPROC)	(GLint location, GLsizei count, GLboolean transpose, const GLfloat *value);
-typedef void		(APIENTRYP FTEPFNGLUNIFORMMATRIX3FVPROC)	(GLint location, GLsizei count, GLboolean transpose, const GLfloat *value);
-typedef void		(APIENTRYP FTEPFNGLUNIFORMMATRIX4X3FVPROC)		(GLint location, GLsizei count, GLboolean transpose, const GLfloat *value);
-typedef void		(APIENTRYP FTEPFNGLUNIFORMMATRIX3X4FVPROC)		(GLint location, GLsizei count, GLboolean transpose, const GLfloat *value);
-typedef void		(APIENTRYP FTEPFNGLUNIFORM4FVPROC)			(GLint location, GLsizei count, const GLfloat *value);
-typedef void		(APIENTRYP FTEPFNGLUNIFORM3FPROC)			(GLint location, GLfloat v0, GLfloat v1, GLfloat v2);
-typedef void		(APIENTRYP FTEPFNGLUNIFORM3FVPROC)			(GLint location, GLsizei count, const GLfloat *value);
-typedef void		(APIENTRYP FTEPFNGLUNIFORM2FVPROC)			(GLint location, GLsizei count, const GLfloat *value);
-typedef void		(APIENTRYP FTEPFNGLUNIFORM1IPROC)			(GLint location, GLint v0);
-typedef void		(APIENTRYP FTEPFNGLUNIFORM1FPROC)			(GLint location, GLfloat v0);
-typedef void		(APIENTRYP FTEPFNGLGETSHADERSOURCEPROC)		(GLuint obj, GLsizei maxLength, GLsizei *length, GLchar *source);
+typedef GLuint    (APIENTRYP FTEPFNGLCREATEPROGRAMPROC)           (void);
+typedef void      (APIENTRYP FTEPFNGLDELETEPROGRAMPROC)           (GLuint obj);
+typedef void      (APIENTRYP FTEPFNGLDELETESHADERPROC)            (GLuint obj);
+typedef void      (APIENTRYP FTEPFNGLUSEPROGRAMPROC)              (GLuint programObj);
+typedef GLuint    (APIENTRYP FTEPFNGLCREATESHADERPROC)            (GLenum shaderType);
+typedef void      (APIENTRYP FTEPFNGLSHADERSOURCEPROC)            (GLuint shaderObj, GLsizei count, const GLchar* const*string, const GLint *length);
+typedef void      (APIENTRYP FTEPFNGLCOMPILESHADERPROC)           (GLuint shaderObj);
+typedef void      (APIENTRYP FTEPFNGLGETPROGRAMIVPROC)            (GLuint obj, GLenum pname, GLint *params);
+typedef void      (APIENTRYP FTEPFNGLGETSHADERIVPROC)             (GLuint obj, GLenum pname, GLint *params);
+typedef void      (APIENTRYP FTEPFNGLATTACHSHADERPROC)            (GLuint containerObj, GLuint obj);
+typedef void      (APIENTRYP FTEPFNGLGETPROGRAMINFOLOGPROC)       (GLuint obj, GLsizei maxLength, GLsizei *length, GLchar *infoLog);
+typedef void      (APIENTRYP FTEPFNGLGETSHADERINFOLOGPROC)        (GLuint obj, GLsizei maxLength, GLsizei *length, GLchar *infoLog);
+typedef void      (APIENTRYP FTEPFNGLLINKPROGRAMPROC)             (GLuint programObj);
+typedef void      (APIENTRYP FTEPFNGLBINDATTRIBLOCATIONPROC)      (GLuint programObj, GLuint index, const GLchar *name);
+typedef GLint     (APIENTRYP FTEPFNGLGETATTRIBLOCATIONPROC)       (GLuint programObj, const GLchar *name);
+typedef void      (APIENTRYP FTEPFNGLVERTEXATTRIBPOINTERPROC)     (GLuint index, GLint size, GLenum type, GLboolean normalized, GLsizei stride, const GLvoid *pointer);
+typedef void      (APIENTRYP FTEPFNGLVERTEXATTRIB4FPROC)          (GLuint index, GLfloat x, GLfloat y, GLfloat z, GLfloat w);
+typedef void      (APIENTRYP FTEPFNGLENABLEVERTEXATTRIBARRAYPROC) (GLuint index);
+typedef void      (APIENTRYP FTEPFNGLDISABLEVERTEXATTRIBARRAYPROC)(GLuint index);
+typedef GLint     (APIENTRYP FTEPFNGLGETUNIFORMLOCATIONPROC)      (GLuint programObj, const GLchar *name);
+typedef void      (APIENTRYP FTEPFNGLGETVERTEXATTRIBIVPROC)       (GLuint index, GLenum pname, GLint *params);
+typedef void      (APIENTRYP FTEPFNGLUNIFORM4FPROC)               (GLint location, GLfloat v0, GLfloat v1, GLfloat v2, GLfloat v3);
+typedef void      (APIENTRYP FTEPFNGLUNIFORMMATRIX4FVPROC)        (GLint location, GLsizei count, GLboolean transpose, const GLfloat *value);
+typedef void      (APIENTRYP FTEPFNGLUNIFORMMATRIX3FVPROC)        (GLint location, GLsizei count, GLboolean transpose, const GLfloat *value);
+typedef void      (APIENTRYP FTEPFNGLUNIFORMMATRIX4X3FVPROC)      (GLint location, GLsizei count, GLboolean transpose, const GLfloat *value);
+typedef void      (APIENTRYP FTEPFNGLUNIFORMMATRIX3X4FVPROC)      (GLint location, GLsizei count, GLboolean transpose, const GLfloat *value);
+typedef void      (APIENTRYP FTEPFNGLUNIFORM4FVPROC)              (GLint location, GLsizei count, const GLfloat *value);
+typedef void      (APIENTRYP FTEPFNGLUNIFORM3FPROC)               (GLint location, GLfloat v0, GLfloat v1, GLfloat v2);
+typedef void      (APIENTRYP FTEPFNGLUNIFORM3FVPROC)              (GLint location, GLsizei count, const GLfloat *value);
+typedef void      (APIENTRYP FTEPFNGLUNIFORM2FVPROC)              (GLint location, GLsizei count, const GLfloat *value);
+typedef void      (APIENTRYP FTEPFNGLUNIFORM1IPROC)               (GLint location, GLint v0);
+typedef void      (APIENTRYP FTEPFNGLUNIFORM1FPROC)               (GLint location, GLfloat v0);
+typedef void      (APIENTRYP FTEPFNGLGETSHADERSOURCEPROC)         (GLuint obj, GLsizei maxLength, GLsizei *length, GLchar *source);
 
-typedef void (APIENTRY * FTEPFNGLLOCKARRAYSEXTPROC) (GLint first, GLsizei count);
-typedef void (APIENTRY * FTEPFNGLUNLOCKARRAYSEXTPROC) (void);
+typedef void      (APIENTRY * FTEPFNGLLOCKARRAYSEXTPROC)          (GLint first, GLsizei count);
+typedef void      (APIENTRY * FTEPFNGLUNLOCKARRAYSEXTPROC)        (void);
 
+extern void       (APIENTRY *qglPatchParameteriARB)               (GLenum pname, GLint value); //core in gl4
 #ifndef GL_STATIC
-extern	BINDTEXFUNCPTR qglBindTexture;
-extern	DELTEXFUNCPTR delTexFunc;
-extern	TEXSUBIMAGEPTR TexSubImage2DFunc;
-extern void (APIENTRY *qglStencilOpSeparate) (GLenum face, GLenum fail, GLenum zfail, GLenum zpass);
+extern void       (APIENTRY *qglStencilOpSeparate)                (GLenum face, GLenum fail, GLenum zfail, GLenum zpass);
+extern	BINDTEXFUNCPTR              qglBindTexture;
+extern	DELTEXFUNCPTR               delTexFunc;
+extern	TEXSUBIMAGEPTR              TexSubImage2DFunc;
 #endif
 extern	FTEPFNGLPNTRIANGLESIATIPROC qglPNTrianglesiATI;
 extern	FTEPFNGLPNTRIANGLESFATIPROC qglPNTrianglesfATI;
-extern void (APIENTRY *qglPatchParameteriARB)(GLenum pname, GLint value);	//core in gl4
 
 qboolean GL_CheckExtension(char *extname);
 
@@ -425,291 +423,291 @@ void R_NetGraph (void);
 #ifdef GL_STATIC
 //these are the functions that are valid in gles2.
 //other functions should never actually be used.
-#define qglActiveTextureARB glActiveTexture
-#define qglAttachShader glAttachShader
-#define qglBindAttribLocation glBindAttribLocation
-#define qglBindBuffer glBindBuffer
-#define qglBindFramebuffer glBindFramebuffer
-#define qglBindRenderbufferEXT glBindRenderbuffer
-#define qglBindTexture glBindTexture
-#define qglBlendColor glBlendColor
-#define qglBlendEquation glBlendEquation
-#define qglBlendEquationSeparate glBlendEquationSeparate
-#define qglBlendFunc glBlendFunc
-#define qglBlendFuncSeparate glBlendFuncSeparate
-#define qglBufferData glBufferData
-#define qglBufferSubData glBufferSubData
-#define qglCheckFramebufferStatusEXT glCheckFramebufferStatus
-#define qglClear glClear
-#define qglClearColor glClearColor
-#define qglClearDepthf glClearDepthf
-#define qglClearStencil glClearStencil
-#define qglColorMask glColorMask
-#define qglCompileShader glCompileShader
-#define qglCompressedTexImage2D glCompressedTexImage2D
-#define qglCompressedTexSubImage2D glCompressedTexSubImage2D
-#define qglCopyTexImage2D glCopyTexImage2D
-#define qglCopyTexSubImage2D glCopyTexSubImage2D
-#define qglCreateProgram glCreateProgram
-#define qglCreateShader glCreateShader
-#define qglCullFace glCullFace
-#define qglDeleteBuffers glDeleteBuffers
-#define qglDeleteFramebuffers glDeleteFramebuffers
-#define qglDeleteProgram glDeleteProgram
-#define qglDeleteRenderbuffers glDeleteRenderbuffers
-#define qglDeleteShader glDeleteShader
-#define qglDeleteTextures glDeleteTextures
-#define qglDepthFunc glDepthFunc
-#define qglDepthMask glDepthMask
-#define qglDepthRangef glDepthRangef
-#define qglDetachShader glDetachShader
-#define qglDisable glDisable
-#define qglDisableVertexAttribArray glDisableVertexAttribArray
-#define qglDrawArrays glDrawArrays
-#define qglDrawElements glDrawElements
-#define qglEnable glEnable
-#define qglEnableVertexAttribArray glEnableVertexAttribArray
-#define qglFinish glFinish
-#define qglFlush glFlush
-#define qglFramebufferRenderbufferEXT glFramebufferRenderbuffer
-#define qglFramebufferTexture2D glFramebufferTexture2D
-#define qglFrontFace glFrontFace
-#define qglGenBuffers glGenBuffers
-#define qglGenerateMipmap glGenerateMipmap
-#define qglGenFramebuffers glGenFramebuffers
-#define qglGenRenderbuffersEXT glGenRenderbuffers
-#define qglGenTextures glGenTextures
-#define qglGetActiveAttrib glGetActiveAttrib
-#define qglGetActiveUniform glGetActiveUniform
-#define qglGetAttachedShaders glGetAttachedShaders
-#define qglGetAttribLocation glGetAttribLocation
-#define qglGetBooleanv glGetBooleanv
-#define qglGetBufferParameteriv glGetBufferParameteriv
-#define qglGetError glGetError
-#define qglGetFloatv glGetFloatv
+#define qglActiveTextureARB                    glActiveTexture
+#define qglAttachShader                        glAttachShader
+#define qglBindAttribLocation                  glBindAttribLocation
+#define qglBindBuffer                          glBindBuffer
+#define qglBindFramebuffer                     glBindFramebuffer
+#define qglBindRenderbufferEXT                 glBindRenderbuffer
+#define qglBindTexture                         glBindTexture
+#define qglBlendColor                          glBlendColor
+#define qglBlendEquation                       glBlendEquation
+#define qglBlendEquationSeparate               glBlendEquationSeparate
+#define qglBlendFunc                           glBlendFunc
+#define qglBlendFuncSeparate                   glBlendFuncSeparate
+#define qglBufferData                          glBufferData
+#define qglBufferSubData                       glBufferSubData
+#define qglCheckFramebufferStatusEXT           glCheckFramebufferStatus
+#define qglClear                               glClear
+#define qglClearColor                          glClearColor
+#define qglClearDepthf                         glClearDepthf
+#define qglClearStencil                        glClearStencil
+#define qglColorMask                           glColorMask
+#define qglCompileShader                       glCompileShader
+#define qglCompressedTexImage2D                glCompressedTexImage2D
+#define qglCompressedTexSubImage2D             glCompressedTexSubImage2D
+#define qglCopyTexImage2D                      glCopyTexImage2D
+#define qglCopyTexSubImage2D                   glCopyTexSubImage2D
+#define qglCreateProgram                       glCreateProgram
+#define qglCreateShader                        glCreateShader
+#define qglCullFace                            glCullFace
+#define qglDeleteBuffers                       glDeleteBuffers
+#define qglDeleteFramebuffers                  glDeleteFramebuffers
+#define qglDeleteProgram                       glDeleteProgram
+#define qglDeleteRenderbuffers                 glDeleteRenderbuffers
+#define qglDeleteShader                        glDeleteShader
+#define qglDeleteTextures                      glDeleteTextures
+#define qglDepthFunc                           glDepthFunc
+#define qglDepthMask                           glDepthMask
+#define qglDepthRangef                         glDepthRangef
+#define qglDetachShader                        glDetachShader
+#define qglDisable                             glDisable
+#define qglDisableVertexAttribArray            glDisableVertexAttribArray
+#define qglDrawArrays                          glDrawArrays
+#define qglDrawElements                        glDrawElements
+#define qglEnable                              glEnable
+#define qglEnableVertexAttribArray             glEnableVertexAttribArray
+#define qglFinish                              glFinish
+#define qglFlush                               glFlush
+#define qglFramebufferRenderbufferEXT          glFramebufferRenderbuffer
+#define qglFramebufferTexture2D                glFramebufferTexture2D
+#define qglFrontFace                           glFrontFace
+#define qglGenBuffers                          glGenBuffers
+#define qglGenerateMipmap                      glGenerateMipmap
+#define qglGenFramebuffers                     glGenFramebuffers
+#define qglGenRenderbuffersEXT                 glGenRenderbuffers
+#define qglGenTextures                         glGenTextures
+#define qglGetActiveAttrib                     glGetActiveAttrib
+#define qglGetActiveUniform                    glGetActiveUniform
+#define qglGetAttachedShaders                  glGetAttachedShaders
+#define qglGetAttribLocation                   glGetAttribLocation
+#define qglGetBooleanv                         glGetBooleanv
+#define qglGetBufferParameteriv                glGetBufferParameteriv
+#define qglGetError                            glGetError
+#define qglGetFloatv                           glGetFloatv
 #define qglGetFramebufferAttachmentParameteriv glGetFramebufferAttachmentParameteriv
-#define qglGetIntegerv glGetIntegerv
-#define qglGetProgramiv glGetProgramiv
-#define qglGetProgramInfoLog glGetProgramInfoLog
-#define qglGetRenderbufferParameteriv glGetRenderbufferParameteriv
-#define qglGetShaderiv glGetShaderiv
-#define qglGetShaderInfoLog glGetShaderInfoLog
-#define qglGetShaderPrecisionFormat glGetShaderPrecisionFormat
-#define qglGetShaderSource glGetShaderSource
-#define qglGetString glGetString
-#define qglGetTexParameterfv glGetTexParameterfv
-#define qglGetTexParameteriv glGetTexParameteriv
-#define qglGetUniformfv glGetUniformfv
-#define qglGetUniformiv glGetUniformiv
-#define qglGetUniformLocation glGetUniformLocation
-#define qglGetVertexAttribfv glGetVertexAttribfv
-#define qglGetVertexAttribiv glGetVertexAttribiv
-#define qglGetVertexAttribPointerv glGetVertexAttribPointerv
-#define qglHint glHint
-#define qglIsBuffer glIsBuffer
-#define qglIsEnabled glIsEnabled
-#define qglIsFramebuffer glIsFramebuffer
-#define qglIsProgram glIsProgram
-#define qglIsRenderbuffer glIsRenderbuffer
-#define qglIsShader glIsShader
-#define qglIsTexture glIsTexture
-#define qglLineWidth glLineWidth
-#define qglLinkProgram glLinkProgram
-#define qglPixelStorei glPixelStorei
-#define qglPolygonOffset glPolygonOffset
-#define qglReadPixels glReadPixels
-#define qglReleaseShaderCompiler glReleaseShaderCompiler
-#define qglRenderbufferStorageEXT glRenderbufferStorage
-#define qglSampleCoverage glSampleCoverage
-#define qglScissor glScissor
-#define qglShaderBinary glShaderBinary
-#define qglShaderSource glShaderSource
-#define qglStencilFunc glStencilFunc
-#define qglStencilFuncSeparate glStencilFuncSeparate
-#define qglStencilMask glStencilMask
-#define qglStencilMaskSeparate glStencilMaskSeparate
-#define qglStencilOp glStencilOp
-#define qglStencilOpSeparate glStencilOpSeparate
-#define qglTexImage2D glTexImage2D
-#define qglTexParameterf glTexParameterf
-#define qglTexParameterfv glTexParameterfv
-#define qglTexParameteri glTexParameteri
-#define qglTexParameteriv glTexParameteriv
-#define qglTexSubImage2D glTexSubImage2D
-#define qglUniform1f glUniform1f
-#define qglUniform1fv glUniform1fv
-#define qglUniform1i glUniform1i
-#define qglUniform1iv glUniform1iv
-#define qglUniform2f glUniform2f
-#define qglUniform2fv glUniform2fv
-#define qglUniform2i glUniform2i
-#define qglUniform2iv glUniform2iv
-#define qglUniform3f glUniform3f
-#define qglUniform3fv glUniform3fv
-#define qglUniform3i glUniform3i
-#define qglUniform3iv glUniform3iv
-#define qglUniform4f glUniform4f
-#define qglUniform4fv glUniform4fv
-#define qglUniform4i glUniform4i
-#define qglUniform4iv glUniform4iv
-#define qglUniformMatrix2fv glUniformMatrix2fv
-#define qglUniformMatrix3fv glUniformMatrix3fv
-#define qglUniformMatrix4fv glUniformMatrix4fv
-#define qglUseProgram glUseProgram
-#define qglValidateProgram glValidateProgram
-#define qglVertexAttrib1f glVertexAttrib1f
-#define qglVertexAttrib1fv glVertexAttrib1fv
-#define qglVertexAttrib2f glVertexAttrib2f
-#define qglVertexAttrib2fv glVertexAttrib2fv
-#define qglVertexAttrib3f glVertexAttrib3f
-#define qglVertexAttrib3fv glVertexAttrib3fv
-#define qglVertexAttrib4f glVertexAttrib4f
-#define qglVertexAttrib4fv glVertexAttrib4fv
-#define qglVertexAttribPointer glVertexAttribPointer
+#define qglGetIntegerv                         glGetIntegerv
+#define qglGetProgramiv                        glGetProgramiv
+#define qglGetProgramInfoLog                   glGetProgramInfoLog
+#define qglGetRenderbufferParameteriv          glGetRenderbufferParameteriv
+#define qglGetShaderiv                         glGetShaderiv
+#define qglGetShaderInfoLog                    glGetShaderInfoLog
+#define qglGetShaderPrecisionFormat            glGetShaderPrecisionFormat
+#define qglGetShaderSource                     glGetShaderSource
+#define qglGetString                           glGetString
+#define qglGetTexParameterfv                   glGetTexParameterfv
+#define qglGetTexParameteriv                   glGetTexParameteriv
+#define qglGetUniformfv                        glGetUniformfv
+#define qglGetUniformiv                        glGetUniformiv
+#define qglGetUniformLocation                  glGetUniformLocation
+#define qglGetVertexAttribfv                   glGetVertexAttribfv
+#define qglGetVertexAttribiv                   glGetVertexAttribiv
+#define qglGetVertexAttribPointerv             glGetVertexAttribPointerv
+#define qglHint                                glHint
+#define qglIsBuffer                            glIsBuffer
+#define qglIsEnabled                           glIsEnabled
+#define qglIsFramebuffer                       glIsFramebuffer
+#define qglIsProgram                           glIsProgram
+#define qglIsRenderbuffer                      glIsRenderbuffer
+#define qglIsShader                            glIsShader
+#define qglIsTexture                           glIsTexture
+#define qglLineWidth                           glLineWidth
+#define qglLinkProgram                         glLinkProgram
+#define qglPixelStorei                         glPixelStorei
+#define qglPolygonOffset                       glPolygonOffset
+#define qglReadPixels                          glReadPixels
+#define qglReleaseShaderCompiler               glReleaseShaderCompiler
+#define qglRenderbufferStorageEXT              glRenderbufferStorage
+#define qglSampleCoverage                      glSampleCoverage
+#define qglScissor                             glScissor
+#define qglShaderBinary                        glShaderBinary
+#define qglShaderSource                        glShaderSource
+#define qglStencilFunc                         glStencilFunc
+#define qglStencilFuncSeparate                 glStencilFuncSeparate
+#define qglStencilMask                         glStencilMask
+#define qglStencilMaskSeparate                 glStencilMaskSeparate
+#define qglStencilOp                           glStencilOp
+#define qglStencilOpSeparate                   glStencilOpSeparate
+#define qglTexImage2D                          glTexImage2D
+#define qglTexParameterf                       glTexParameterf
+#define qglTexParameterfv                      glTexParameterfv
+#define qglTexParameteri                       glTexParameteri
+#define qglTexParameteriv                      glTexParameteriv
+#define qglTexSubImage2D                       glTexSubImage2D
+#define qglUniform1f                           glUniform1f
+#define qglUniform1fv                          glUniform1fv
+#define qglUniform1i                           glUniform1i
+#define qglUniform1iv                          glUniform1iv
+#define qglUniform2f                           glUniform2f
+#define qglUniform2fv                          glUniform2fv
+#define qglUniform2i                           glUniform2i
+#define qglUniform2iv                          glUniform2iv
+#define qglUniform3f                           glUniform3f
+#define qglUniform3fv                          glUniform3fv
+#define qglUniform3i                           glUniform3i
+#define qglUniform3iv                          glUniform3iv
+#define qglUniform4f                           glUniform4f
+#define qglUniform4fv                          glUniform4fv
+#define qglUniform4i                           glUniform4i
+#define qglUniform4iv                          glUniform4iv
+#define qglUniformMatrix2fv                    glUniformMatrix2fv
+#define qglUniformMatrix3fv                    glUniformMatrix3fv
+#define qglUniformMatrix4fv                    glUniformMatrix4fv
+#define qglUseProgram                          glUseProgram
+#define qglValidateProgram                     glValidateProgram
+#define qglVertexAttrib1f                      glVertexAttrib1f
+#define qglVertexAttrib1fv                     glVertexAttrib1fv
+#define qglVertexAttrib2f                      glVertexAttrib2f
+#define qglVertexAttrib2fv                     glVertexAttrib2fv
+#define qglVertexAttrib3f                      glVertexAttrib3f
+#define qglVertexAttrib3fv                     glVertexAttrib3fv
+#define qglVertexAttrib4f                      glVertexAttrib4f
+#define qglVertexAttrib4fv                     glVertexAttrib4fv
+#define qglVertexAttribPointer                 glVertexAttribPointer
 #define qglViewport glViewport
 
-#define qglGenFramebuffersEXT qglGenFramebuffers
-#define qglDeleteFramebuffersEXT qglDeleteFramebuffers
-#define qglBindFramebufferEXT qglBindFramebuffer
-#define qglFramebufferTexture2DEXT qglFramebufferTexture2D
-#define qglDeleteRenderbuffersEXT qglDeleteRenderbuffers
-//#define qglCompressedTexImage2DARB qglCompressedTexImage2D
+#define qglGenFramebuffersEXT                  qglGenFramebuffers
+#define qglDeleteFramebuffersEXT               qglDeleteFramebuffers
+#define qglBindFramebufferEXT                  qglBindFramebuffer
+#define qglFramebufferTexture2DEXT             qglFramebufferTexture2D
+#define qglDeleteRenderbuffersEXT              qglDeleteRenderbuffers
+//#define qglCompressedTexImage2DARB         qglCompressedTexImage2D
 
-#define qglCreateProgramObjectARB	glCreateProgram
-#define qglDeleteProgramObject_		glDeleteProgram
-#define qglDeleteShaderObject_		glDeleteShader
-#define qglUseProgramObjectARB		glUseProgram
-#define qglCreateShaderObjectARB	glCreateShader
-#define qglShaderSourceARB		glShaderSource
-#define qglCompileShaderARB		glCompileShader
-#define qglGetProgramParameteriv_	glGetProgramiv
-#define qglGetShaderParameteriv_	glGetShaderiv
-#define qglAttachObjectARB		glAttachShader
-#define qglGetProgramInfoLog_		glGetProgramInfoLog
-#define qglGetShaderInfoLog_		glGetShaderInfoLog
-#define qglLinkProgramARB		glLinkProgram
-#define qglBindAttribLocationARB	glBindAttribLocation
-#define qglGetAttribLocationARB		glGetAttribLocation
-#define qglGetUniformLocationARB	glGetUniformLocation
-#define qglUniformMatrix4fvARB		glUniformMatrix4fv
-#define qglUniformMatrix3fvARB		glUniformMatrix3fv
-#define qglUniform4fARB			glUniform4f
-#define qglUniform4fvARB		glUniform4fv
-#define qglUniform3fARB			glUniform3f
-#define qglUniform3fvARB		glUniform3fv
-#define qglUniform2fvARB		glUniform2fv
-#define qglUniform1iARB			glUniform1i
-#define qglUniform1fARB			glUniform1f
+#define qglCreateProgramObjectARB              glCreateProgram
+#define qglDeleteProgramObject_                glDeleteProgram
+#define qglDeleteShaderObject_                 glDeleteShader
+#define qglUseProgramObjectARB                 glUseProgram
+#define qglCreateShaderObjectARB               glCreateShader
+#define qglShaderSourceARB                     glShaderSource
+#define qglCompileShaderARB                    glCompileShader
+#define qglGetProgramParameteriv_              glGetProgramiv
+#define qglGetShaderParameteriv_               glGetShaderiv
+#define qglAttachObjectARB                     glAttachShader
+#define qglGetProgramInfoLog_                  glGetProgramInfoLog
+#define qglGetShaderInfoLog_                   glGetShaderInfoLog
+#define qglLinkProgramARB                      glLinkProgram
+#define qglBindAttribLocationARB               glBindAttribLocation
+#define qglGetAttribLocationARB                glGetAttribLocation
+#define qglGetUniformLocationARB               glGetUniformLocation
+#define qglUniformMatrix4fvARB                 glUniformMatrix4fv
+#define qglUniformMatrix3fvARB                 glUniformMatrix3fv
+#define qglUniform4fARB                        glUniform4f
+#define qglUniform4fvARB                       glUniform4fv
+#define qglUniform3fARB                        glUniform3f
+#define qglUniform3fvARB                       glUniform3fv
+#define qglUniform2fvARB                       glUniform2fv
+#define qglUniform1iARB                        glUniform1i
+#define qglUniform1fARB                        glUniform1f
 
-#define qglGenBuffersARB		glGenBuffers
-#define qglDeleteBuffersARB		glDeleteBuffers
-#define qglBindBufferARB		glBindBuffer
-#define qglBufferDataARB		glBufferData
-#define qglBufferSubDataARB		glBufferSubData
+#define qglGenBuffersARB                       glGenBuffers
+#define qglDeleteBuffersARB                    glDeleteBuffers
+#define qglBindBufferARB                       glBindBuffer
+#define qglBufferDataARB                       glBufferData
+#define qglBufferSubDataARB                    glBufferSubData
 
 #else
-extern void (APIENTRY *qglBindTexture) (GLenum target, GLuint texture);
-extern void (APIENTRY *qglBlendFunc) (GLenum sfactor, GLenum dfactor);
-extern void (APIENTRY *qglClear) (GLbitfield mask);
-extern void (APIENTRY *qglClearColor) (GLclampf red, GLclampf green, GLclampf blue, GLclampf alpha);
-extern void (APIENTRY *qglClearDepthf) (GLclampf depth);
-extern void (APIENTRY *qglClearStencil) (GLint s);
-extern void (APIENTRY *qglColorMask) (GLboolean red, GLboolean green, GLboolean blue, GLboolean alpha);
-extern void (APIENTRY *qglCopyTexImage2D) (GLenum target, GLint level, GLenum internalFormat, GLint x, GLint y, GLsizei width, GLsizei height, GLint border);
-extern void (APIENTRY *qglCopyTexSubImage2D) (GLenum target, GLint level, GLint xoffset, GLint yoffset, GLint x, GLint y, GLsizei width, GLsizei height);
-extern void (APIENTRY *qglCullFace) (GLenum mode);
-extern void (APIENTRY *qglDeleteTextures) (GLsizei n, const GLuint *textures);
-extern void (APIENTRY *qglDepthFunc) (GLenum func);
-extern void (APIENTRY *qglDepthMask) (GLboolean flag);
-extern void (APIENTRY *qglDepthRangef) (GLclampf zNear, GLclampf zFar);
-extern void (APIENTRY *qglDisable) (GLenum cap);
-extern void (APIENTRY *qglDrawArrays) (GLenum mode, GLint first, GLsizei count);
-extern void (APIENTRY *qglDrawElements) (GLenum mode, GLsizei count, GLenum type, const GLvoid *indices);
-extern void (APIENTRY *qglEnable) (GLenum cap);
-extern void (APIENTRY *qglFinish) (void);
-extern void (APIENTRY *qglFlush) (void);
-extern void (APIENTRY *qglFrontFace) (GLenum mode);
-extern void (APIENTRY *qglGenTextures) (GLsizei n, GLuint *textures);
-extern void (APIENTRY *qglGenerateMipmap)(GLenum target);
-extern void (APIENTRY *qglGetBooleanv) (GLenum pname, GLboolean *params);
-extern GLenum (APIENTRY *qglGetError) (void);
-extern void (APIENTRY *qglGetFloatv) (GLenum pname, GLfloat *params);
-extern void (APIENTRY *qglGetIntegerv) (GLenum pname, GLint *params);
-extern const GLubyte * (APIENTRY *qglGetString) (GLenum name);
-extern void (APIENTRY *qglGetTexParameterfv) (GLenum target, GLenum pname, GLfloat *params);
-extern void (APIENTRY *qglGetTexParameteriv) (GLenum target, GLenum pname, GLint *params);
-extern void (APIENTRY *qglHint) (GLenum target, GLenum mode);
-extern GLboolean (APIENTRY *qglIsEnabled) (GLenum cap);
-extern GLboolean (APIENTRY *qglIsTexture) (GLuint texture);
-extern void (APIENTRY *qglLineWidth) (GLfloat width);
-extern void (APIENTRY *qglPixelStorei) (GLenum pname, GLint param);
-extern void (APIENTRY *qglPolygonOffset) (GLfloat factor, GLfloat units);
-extern void (APIENTRY *qglReadPixels) (GLint x, GLint y, GLsizei width, GLsizei height, GLenum format, GLenum type, GLvoid *pixels);
-extern void (APIENTRY *qglScissor) (GLint x, GLint y, GLsizei width, GLsizei height);
-extern void (APIENTRY *qglStencilFunc) (GLenum func, GLint ref, GLuint mask);
-extern void (APIENTRY *qglStencilMask) (GLuint mask);
-extern void (APIENTRY *qglStencilOp) (GLenum fail, GLenum zfail, GLenum zpass);
-extern void (APIENTRY *qglTexImage2D) (GLenum target, GLint level, GLint internalformat, GLsizei width, GLsizei height, GLint border, GLenum format, GLenum type, const GLvoid *pixels);
-extern void (APIENTRY *qglTexParameterf) (GLenum target, GLenum pname, GLfloat param);
-extern void (APIENTRY *qglTexParameterfv) (GLenum target, GLenum pname, const GLfloat *params);
-extern void (APIENTRY *qglTexParameteri) (GLenum target, GLenum pname, GLint param);
-extern void (APIENTRY *qglTexParameteriv) (GLenum target, GLenum pname, const GLint *params);
-extern void (APIENTRY *qglTexSubImage2D) (GLenum target, GLint level, GLint xoffset, GLint yoffset, GLsizei width, GLsizei height, GLenum format, GLenum type, const GLvoid *pixels);
-extern void (APIENTRY *qglViewport) (GLint x, GLint y, GLsizei width, GLsizei height);
-extern FTEPFNGLCOMPRESSEDTEXIMAGE2DARBPROC qglCompressedTexImage2D;
-extern void (APIENTRY *qglCompressedTexSubImage2D) (GLenum target, GLint level, GLint xoffset, GLint yoffset, GLsizei width, GLsizei height, GLenum format, GLsizei imageSize, const void *data);	//gl1.3
+extern void            (APIENTRY *qglBindTexture)                        (GLenum target, GLuint texture);
+extern void            (APIENTRY *qglBlendFunc)                          (GLenum sfactor, GLenum dfactor);
+extern void            (APIENTRY *qglClear)                              (GLbitfield mask);
+extern void            (APIENTRY *qglClearColor)                         (GLclampf red, GLclampf green, GLclampf blue, GLclampf alpha);
+extern void            (APIENTRY *qglClearDepthf)                        (GLclampf depth);
+extern void            (APIENTRY *qglClearStencil)                       (GLint s);
+extern void            (APIENTRY *qglColorMask)                          (GLboolean red, GLboolean green, GLboolean blue, GLboolean alpha);
+extern void            (APIENTRY *qglCopyTexImage2D)                     (GLenum target, GLint level, GLenum internalFormat, GLint x, GLint y, GLsizei width, GLsizei height, GLint border);
+extern void            (APIENTRY *qglCopyTexSubImage2D)                  (GLenum target, GLint level, GLint xoffset, GLint yoffset, GLint x, GLint y, GLsizei width, GLsizei height);
+extern void            (APIENTRY *qglCullFace)                           (GLenum mode);
+extern void            (APIENTRY *qglDeleteTextures)                     (GLsizei n, const GLuint *textures);
+extern void            (APIENTRY *qglDepthFunc)                          (GLenum func);
+extern void            (APIENTRY *qglDepthMask)                          (GLboolean flag);
+extern void            (APIENTRY *qglDepthRangef)                        (GLclampf zNear, GLclampf zFar);
+extern void            (APIENTRY *qglDisable)                            (GLenum cap);
+extern void            (APIENTRY *qglDrawArrays)                         (GLenum mode, GLint first, GLsizei count);
+extern void            (APIENTRY *qglDrawElements)                       (GLenum mode, GLsizei count, GLenum type, const GLvoid *indices);
+extern void            (APIENTRY *qglEnable)                             (GLenum cap);
+extern void            (APIENTRY *qglFinish)                             (void);
+extern void            (APIENTRY *qglFlush)                              (void);
+extern void            (APIENTRY *qglFrontFace)                          (GLenum mode);
+extern void            (APIENTRY *qglGenTextures)                        (GLsizei n, GLuint *textures);
+extern void            (APIENTRY *qglGenerateMipmap)                     (GLenum target);
+extern void            (APIENTRY *qglGetBooleanv)                        (GLenum pname, GLboolean *params);
+extern GLenum          (APIENTRY *qglGetError)                           (void);
+extern void            (APIENTRY *qglGetFloatv)                          (GLenum pname, GLfloat *params);
+extern void            (APIENTRY *qglGetIntegerv)                        (GLenum pname, GLint *params);
+extern const GLubyte * (APIENTRY *qglGetString)                          (GLenum name);
+extern void            (APIENTRY *qglGetTexParameterfv)                  (GLenum target, GLenum pname, GLfloat *params);
+extern void            (APIENTRY *qglGetTexParameteriv)                  (GLenum target, GLenum pname, GLint *params);
+extern void            (APIENTRY *qglHint)                               (GLenum target, GLenum mode);
+extern GLboolean       (APIENTRY *qglIsEnabled)                          (GLenum cap);
+extern GLboolean       (APIENTRY *qglIsTexture)                          (GLuint texture);
+extern void            (APIENTRY *qglLineWidth)                          (GLfloat width);
+extern void            (APIENTRY *qglPixelStorei)                        (GLenum pname, GLint param);
+extern void            (APIENTRY *qglPolygonOffset)                      (GLfloat factor, GLfloat units);
+extern void            (APIENTRY *qglReadPixels)                         (GLint x, GLint y, GLsizei width, GLsizei height, GLenum format, GLenum type, GLvoid *pixels);
+extern void            (APIENTRY *qglScissor)                            (GLint x, GLint y, GLsizei width, GLsizei height);
+extern void            (APIENTRY *qglStencilFunc)                        (GLenum func, GLint ref, GLuint mask);
+extern void            (APIENTRY *qglStencilMask)                        (GLuint mask);
+extern void            (APIENTRY *qglStencilOp)                          (GLenum fail, GLenum zfail, GLenum zpass);
+extern void            (APIENTRY *qglTexImage2D)                         (GLenum target, GLint level, GLint internalformat, GLsizei width, GLsizei height, GLint border, GLenum format, GLenum type, const GLvoid *pixels);
+extern void            (APIENTRY *qglTexParameterf)                      (GLenum target, GLenum pname, GLfloat param);
+extern void            (APIENTRY *qglTexParameterfv)                     (GLenum target, GLenum pname, const GLfloat *params);
+extern void            (APIENTRY *qglTexParameteri)                      (GLenum target, GLenum pname, GLint param);
+extern void            (APIENTRY *qglTexParameteriv)                     (GLenum target, GLenum pname, const GLint *params);
+extern void            (APIENTRY *qglTexSubImage2D)                      (GLenum target, GLint level, GLint xoffset, GLint yoffset, GLsizei width, GLsizei height, GLenum format, GLenum type, const GLvoid *pixels);
+extern void            (APIENTRY *qglViewport)                           (GLint x, GLint y, GLsizei width, GLsizei height);
+extern void            (APIENTRY *qglCompressedTexSubImage2D)            (GLenum target, GLint level, GLint xoffset, GLint yoffset, GLsizei width, GLsizei height, GLenum format, GLsizei imageSize, const void *data);	//gl1.3
 
-extern void (APIENTRY *qglGenFramebuffersEXT)(GLsizei n, GLuint* ids);
-extern void (APIENTRY *qglDeleteFramebuffersEXT)(GLsizei n, const GLuint* ids);
-extern void (APIENTRY *qglBindFramebufferEXT)(GLenum target, GLuint id);
-extern void (APIENTRY *qglGenRenderbuffersEXT)(GLsizei n, GLuint* ids);
-extern void (APIENTRY *qglDeleteRenderbuffersEXT)(GLsizei n, const GLuint* ids);
-extern void (APIENTRY *qglBindRenderbufferEXT)(GLenum target, GLuint id);
-extern void (APIENTRY *qglRenderbufferStorageEXT)(GLenum target, GLenum internalFormat, GLsizei width, GLsizei height);
-extern void (APIENTRY *qglFramebufferTexture2DEXT)(GLenum target, GLenum attachmentPoint, GLenum textureTarget, GLuint textureId, GLint  level);
-extern void (APIENTRY *qglFramebufferRenderbufferEXT)(GLenum target, GLenum attachmentPoint, GLenum textureTarget, GLuint textureId);
-extern GLenum (APIENTRY *qglCheckFramebufferStatusEXT)(GLenum target);
-extern void (APIENTRY *qglGetFramebufferAttachmentParameteriv)(GLenum  target,  GLenum  attachment,  GLenum  pname,  GLint * params);
+extern void            (APIENTRY *qglGenFramebuffersEXT)                 (GLsizei n, GLuint* ids);
+extern void            (APIENTRY *qglDeleteFramebuffersEXT)              (GLsizei n, const GLuint* ids);
+extern void            (APIENTRY *qglBindFramebufferEXT)                 (GLenum target, GLuint id);
+extern void            (APIENTRY *qglGenRenderbuffersEXT)                (GLsizei n, GLuint* ids);
+extern void            (APIENTRY *qglDeleteRenderbuffersEXT)             (GLsizei n, const GLuint* ids);
+extern void            (APIENTRY *qglBindRenderbufferEXT)                (GLenum target, GLuint id);
+extern void            (APIENTRY *qglRenderbufferStorageEXT)             (GLenum target, GLenum internalFormat, GLsizei width, GLsizei height);
+extern void            (APIENTRY *qglFramebufferTexture2DEXT)            (GLenum target, GLenum attachmentPoint, GLenum textureTarget, GLuint textureId, GLint  level);
+extern void            (APIENTRY *qglFramebufferRenderbufferEXT)         (GLenum target, GLenum attachmentPoint, GLenum textureTarget, GLuint textureId);
+extern GLenum          (APIENTRY *qglCheckFramebufferStatusEXT)          (GLenum target);
+extern void            (APIENTRY *qglGetFramebufferAttachmentParameteriv)(GLenum  target,  GLenum  attachment,  GLenum  pname,  GLint * params);
 
 //glslang - arb_shader_objects
-extern FTEPFNGLCREATEPROGRAMPROC			qglCreateProgramObjectARB;
-extern FTEPFNGLDELETEPROGRAMPROC			qglDeleteProgramObject_;
-extern FTEPFNGLDELETESHADERPROC				qglDeleteShaderObject_;
-extern FTEPFNGLUSEPROGRAMPROC				qglUseProgramObjectARB;
-extern FTEPFNGLCREATESHADERPROC				qglCreateShaderObjectARB;
-extern FTEPFNGLSHADERSOURCEPROC				qglShaderSourceARB;
-extern FTEPFNGLCOMPILESHADERPROC			qglCompileShaderARB;
-extern FTEPFNGLGETPROGRAMIVPROC				qglGetProgramParameteriv_;
-extern FTEPFNGLGETSHADERIVPROC				qglGetShaderParameteriv_;
-extern FTEPFNGLATTACHSHADERPROC				qglAttachObjectARB;
-extern FTEPFNGLGETPROGRAMINFOLOGPROC		qglGetProgramInfoLog_;
-extern FTEPFNGLGETSHADERINFOLOGPROC			qglGetShaderInfoLog_;
-extern FTEPFNGLLINKPROGRAMPROC				qglLinkProgramARB;
-extern FTEPFNGLBINDATTRIBLOCATIONPROC		qglBindAttribLocationARB;
-extern FTEPFNGLGETATTRIBLOCATIONPROC		qglGetAttribLocationARB;
-extern FTEPFNGLGETUNIFORMLOCATIONPROC		qglGetUniformLocationARB;
-extern FTEPFNGLUNIFORMMATRIX4FVPROC			qglUniformMatrix4fvARB;
-extern FTEPFNGLUNIFORMMATRIX3FVPROC			qglUniformMatrix3fvARB;
-extern FTEPFNGLUNIFORMMATRIX4X3FVPROC		qglUniformMatrix4x3fvARB;	//gl2.1+
-extern FTEPFNGLUNIFORMMATRIX3X4FVPROC		qglUniformMatrix3x4fvARB;	//gl2.1+
-extern FTEPFNGLUNIFORM4FPROC				qglUniform4fARB;
-extern FTEPFNGLUNIFORM4FVPROC				qglUniform4fvARB;
-extern FTEPFNGLUNIFORM3FPROC				qglUniform3fARB;
-extern FTEPFNGLUNIFORM3FVPROC				qglUniform3fvARB;
-extern FTEPFNGLUNIFORM2FVPROC				qglUniform2fvARB;
-extern FTEPFNGLUNIFORM1IPROC				qglUniform1iARB;
-extern FTEPFNGLUNIFORM1FPROC				qglUniform1fARB;
-extern FTEPFNGLVERTEXATTRIB4FPROC			qglVertexAttrib4f;
-extern FTEPFNGLVERTEXATTRIBPOINTERPROC		qglVertexAttribPointer;
-extern FTEPFNGLGETVERTEXATTRIBIVPROC		qglGetVertexAttribiv;
-extern FTEPFNGLENABLEVERTEXATTRIBARRAYPROC	qglEnableVertexAttribArray;
-extern FTEPFNGLDISABLEVERTEXATTRIBARRAYPROC	qglDisableVertexAttribArray;
+extern FTEPFNGLCREATEPROGRAMPROC                qglCreateProgramObjectARB;
+extern FTEPFNGLDELETEPROGRAMPROC                qglDeleteProgramObject_;
+extern FTEPFNGLDELETESHADERPROC                 qglDeleteShaderObject_;
+extern FTEPFNGLUSEPROGRAMPROC                   qglUseProgramObjectARB;
+extern FTEPFNGLCREATESHADERPROC                 qglCreateShaderObjectARB;
+extern FTEPFNGLSHADERSOURCEPROC                 qglShaderSourceARB;
+extern FTEPFNGLCOMPILESHADERPROC                qglCompileShaderARB;
+extern FTEPFNGLGETPROGRAMIVPROC                 qglGetProgramParameteriv_;
+extern FTEPFNGLGETSHADERIVPROC                  qglGetShaderParameteriv_;
+extern FTEPFNGLATTACHSHADERPROC                 qglAttachObjectARB;
+extern FTEPFNGLGETPROGRAMINFOLOGPROC            qglGetProgramInfoLog_;
+extern FTEPFNGLGETSHADERINFOLOGPROC             qglGetShaderInfoLog_;
+extern FTEPFNGLLINKPROGRAMPROC                  qglLinkProgramARB;
+extern FTEPFNGLBINDATTRIBLOCATIONPROC           qglBindAttribLocationARB;
+extern FTEPFNGLGETATTRIBLOCATIONPROC            qglGetAttribLocationARB;
+extern FTEPFNGLGETUNIFORMLOCATIONPROC           qglGetUniformLocationARB;
+extern FTEPFNGLUNIFORMMATRIX4FVPROC             qglUniformMatrix4fvARB;
+extern FTEPFNGLUNIFORMMATRIX3FVPROC             qglUniformMatrix3fvARB;
+extern FTEPFNGLUNIFORMMATRIX4X3FVPROC           qglUniformMatrix4x3fvARB;	//gl2.1+
+extern FTEPFNGLUNIFORMMATRIX3X4FVPROC           qglUniformMatrix3x4fvARB;	//gl2.1+
+extern FTEPFNGLUNIFORM4FPROC                    qglUniform4fARB;
+extern FTEPFNGLUNIFORM4FVPROC                   qglUniform4fvARB;
+extern FTEPFNGLUNIFORM3FPROC                    qglUniform3fARB;
+extern FTEPFNGLUNIFORM3FVPROC                   qglUniform3fvARB;
+extern FTEPFNGLUNIFORM2FVPROC                   qglUniform2fvARB;
+extern FTEPFNGLUNIFORM1IPROC                    qglUniform1iARB;
+extern FTEPFNGLUNIFORM1FPROC                    qglUniform1fARB;
+extern FTEPFNGLVERTEXATTRIB4FPROC               qglVertexAttrib4f;
+extern FTEPFNGLVERTEXATTRIBPOINTERPROC          qglVertexAttribPointer;
+extern FTEPFNGLGETVERTEXATTRIBIVPROC            qglGetVertexAttribiv;
+extern FTEPFNGLENABLEVERTEXATTRIBARRAYPROC      qglEnableVertexAttribArray;
+extern FTEPFNGLDISABLEVERTEXATTRIBARRAYPROC     qglDisableVertexAttribArray;
+extern FTEPFNGLCOMPRESSEDTEXIMAGE2DARBPROC      qglCompressedTexImage2D;
 
-extern void (APIENTRY *qglGenBuffersARB)(GLsizei n, GLuint* ids);
-extern void (APIENTRY *qglDeleteBuffersARB)(GLsizei n, GLuint* ids);
-extern void (APIENTRY *qglBindBufferARB)(GLenum target, GLuint id);
-extern void (APIENTRY *qglBufferDataARB)(GLenum target, GLsizei size, const void* data, GLenum usage);
-extern void (APIENTRY *qglBufferSubDataARB)(GLenum target, GLint offset, GLsizei size, void* data);
+extern void            (APIENTRY *qglGenBuffersARB)                      (GLsizei n, GLuint* ids);
+extern void            (APIENTRY *qglDeleteBuffersARB)                   (GLsizei n, GLuint* ids);
+extern void            (APIENTRY *qglBindBufferARB)                      (GLenum target, GLuint id);
+extern void            (APIENTRY *qglBufferDataARB)                      (GLenum target, GLsizei size, const void* data, GLenum usage);
+extern void            (APIENTRY *qglBufferSubDataARB)                   (GLenum target, GLint offset, GLsizei size, void* data);
 #endif
 
 #define GLintptr qintptr_t

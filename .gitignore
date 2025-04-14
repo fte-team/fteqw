@@ -1,3 +1,8 @@
+#cmake build
+CMakeCache.txt
+CMakeFiles/
+install_manifest.txt
+cmake_install.cmake
 #misc build artifacts
 *.o
 *.o.d

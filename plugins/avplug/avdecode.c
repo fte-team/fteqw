@@ -370,8 +370,8 @@ static qboolean VARGS AVDec_DisplayFrame(void *vctx, qboolean nosound, qboolean 
 			while(0==avcodec_receive_frame(ctx->pACodecCtx, ctx->pAFrame))
 			{
 				int width = 2;
-				int channels = ctx->pACodecCtx->channels;
-				unsigned int auddatasize = av_samples_get_buffer_size(NULL, ctx->pACodecCtx->channels, ctx->pAFrame->nb_samples, ctx->pACodecCtx->sample_fmt, 1);
+				int channels = ctx->pACodecCtx->ch_layout.nb_channels;
+				unsigned int auddatasize = av_samples_get_buffer_size(NULL, channels, ctx->pAFrame->nb_samples, ctx->pACodecCtx->sample_fmt, 1);
 				void *auddata = ctx->pAFrame->data[0];
 				switch(ctx->pACodecCtx->sample_fmt)
 				{

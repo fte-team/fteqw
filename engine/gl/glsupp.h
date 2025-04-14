@@ -19,26 +19,26 @@ extern qlpSelTexFUNC	qglClientActiveTextureARB;
 #else
 
 #ifndef GL_TEXTURE_WIDTH
-#define GL_TEXTURE_WIDTH                  0x1000
+#define GL_TEXTURE_WIDTH							0x1000
 #endif
 #ifndef GL_TEXTURE_HEIGHT
-#define GL_TEXTURE_HEIGHT                 0x1001
+#define GL_TEXTURE_HEIGHT							0x1001
 #endif
 #ifndef GL_TEXTURE_INTERNAL_FORMAT
-#define GL_TEXTURE_INTERNAL_FORMAT		0x1003
+#define GL_TEXTURE_INTERNAL_FORMAT					0x1003
 #endif
 
 #ifndef GL_DEPTH_COMPONENT
-#define GL_DEPTH_COMPONENT                0x1902
+#define GL_DEPTH_COMPONENT							0x1902
 #endif
 
 //#ifndef GL_VERSION_1_2
-#define GL_CLAMP_TO_EDGE                  0x812F
+#define GL_CLAMP_TO_EDGE							0x812F
 //#endif
 
 
 #ifndef GL_MAX_ARRAY_TEXTURE_LAYERS
-#define GL_MAX_ARRAY_TEXTURE_LAYERS       0x88FF	/*opengl 3.0*/
+#define GL_MAX_ARRAY_TEXTURE_LAYERS					0x88FF	/*opengl 3.0*/
 #endif
 
 
@@ -50,233 +50,226 @@ extern qlpSelTexFUNC	qglClientActiveTextureARB;
 ./gl/gl_draw.c:3251: error: for each function it appears in.)
 */
 #ifndef GL_EXT_bgra
-#define GL_BGR_EXT							0x80E0	/*core in opengl 1.2*/
-#define GL_BGRA_EXT							0x80E1
+#define GL_BGR_EXT									0x80E0	/*core in opengl 1.2*/
+#define GL_BGRA_EXT									0x80E1
 #endif
 
 #ifndef GL_UNSIGNED_INT_8_8_8_8_REV
-#define GL_UNSIGNED_INT_8_8_8_8_REV			0x8367	/*opengl 1.2*/
+#define GL_UNSIGNED_INT_8_8_8_8_REV					0x8367	/*opengl 1.2*/
 #endif
 #ifndef GL_UNSIGNED_INT_2_10_10_10_REV
-#define GL_UNSIGNED_INT_2_10_10_10_REV		0x8368	/*opengl 1.2*/
+#define GL_UNSIGNED_INT_2_10_10_10_REV				0x8368	/*opengl 1.2*/
 #endif
 #ifndef GL_UNSIGNED_INT_5_9_9_9_REV
-#define GL_UNSIGNED_INT_5_9_9_9_REV			0x8C3E	/*opengl 3.0*/
+#define GL_UNSIGNED_INT_5_9_9_9_REV					0x8C3E	/*opengl 3.0*/
 #endif
 #ifndef GL_UNSIGNED_SHORT_4_4_4_4_REV
-#define GL_UNSIGNED_SHORT_4_4_4_4_REV		0x8365
+#define GL_UNSIGNED_SHORT_4_4_4_4_REV				0x8365
 #endif
 #ifndef GL_UNSIGNED_SHORT_1_5_5_5_REV
-#define GL_UNSIGNED_SHORT_1_5_5_5_REV		0x8366
+#define GL_UNSIGNED_SHORT_1_5_5_5_REV				0x8366
 #endif
 #ifndef GL_UNSIGNED_SHORT_4_4_4_4
-#define GL_UNSIGNED_SHORT_4_4_4_4			0x8033
+#define GL_UNSIGNED_SHORT_4_4_4_4					0x8033
 #endif
 #ifndef GL_UNSIGNED_SHORT_5_5_5_1
-#define GL_UNSIGNED_SHORT_5_5_5_1			0x8034
+#define GL_UNSIGNED_SHORT_5_5_5_1					0x8034
 #endif
 #ifndef GL_UNSIGNED_SHORT_5_6_5
-#define GL_UNSIGNED_SHORT_5_6_5				0x8363
+#define GL_UNSIGNED_SHORT_5_6_5						0x8363
 #endif
 #ifndef GL_HALF_FLOAT
-#define GL_HALF_FLOAT						0x140B		/*GL_ARB_half_float_pixel*/
+#define GL_HALF_FLOAT								0x140B		/*GL_ARB_half_float_pixel*/
 #endif
 #ifndef GL_HALF_FLOAT_OES
-#define GL_HALF_FLOAT_OES					0x8D61		/*GL_OES_texture_half_float*/
+#define GL_HALF_FLOAT_OES							0x8D61		/*GL_OES_texture_half_float*/
 #endif
 #ifndef GL_UNSIGNED_INT_24_8
-#define GL_UNSIGNED_INT_24_8              0x84FA
+#define GL_UNSIGNED_INT_24_8						0x84FA
 #endif
 
 #ifndef GL_ARB_multitexture
 #define GL_ARB_multitexture 1
-#define GL_TEXTURE0_ARB                   0x84C0
-#define GL_TEXTURE1_ARB                   0x84C1
-#define GL_TEXTURE2_ARB                   0x84C2
-#define GL_TEXTURE3_ARB                   0x84C3
-#define GL_TEXTURE4_ARB                   0x84C4
-#define GL_TEXTURE5_ARB                   0x84C5
-#define GL_TEXTURE6_ARB                   0x84C6
-#define GL_TEXTURE7_ARB                   0x84C7
-#define GL_TEXTURE8_ARB                   0x84C8
-#define GL_TEXTURE9_ARB                   0x84C9
-#define GL_TEXTURE10_ARB                  0x84CA
-#define GL_TEXTURE11_ARB                  0x84CB
-#define GL_TEXTURE12_ARB                  0x84CC
-#define GL_TEXTURE13_ARB                  0x84CD
-#define GL_TEXTURE14_ARB                  0x84CE
-#define GL_TEXTURE15_ARB                  0x84CF
-#define GL_TEXTURE16_ARB                  0x84D0
-#define GL_TEXTURE17_ARB                  0x84D1
-#define GL_TEXTURE18_ARB                  0x84D2
-#define GL_TEXTURE19_ARB                  0x84D3
-#define GL_TEXTURE20_ARB                  0x84D4
-#define GL_TEXTURE21_ARB                  0x84D5
-#define GL_TEXTURE22_ARB                  0x84D6
-#define GL_TEXTURE23_ARB                  0x84D7
-#define GL_TEXTURE24_ARB                  0x84D8
-#define GL_TEXTURE25_ARB                  0x84D9
-#define GL_TEXTURE26_ARB                  0x84DA
-#define GL_TEXTURE27_ARB                  0x84DB
-#define GL_TEXTURE28_ARB                  0x84DC
-#define GL_TEXTURE29_ARB                  0x84DD
-#define GL_TEXTURE30_ARB                  0x84DE
-#define GL_TEXTURE31_ARB                  0x84DF
-#define GL_ACTIVE_TEXTURE_ARB             0x84E0
-#define GL_CLIENT_ACTIVE_TEXTURE_ARB      0x84E1
-#define GL_MAX_TEXTURE_UNITS_ARB          0x84E2
+#define GL_TEXTURE0_ARB								0x84C0
+#define GL_TEXTURE1_ARB								0x84C1
+#define GL_TEXTURE2_ARB								0x84C2
+#define GL_TEXTURE3_ARB								0x84C3
+#define GL_TEXTURE4_ARB								0x84C4
+#define GL_TEXTURE5_ARB								0x84C5
+#define GL_TEXTURE6_ARB								0x84C6
+#define GL_TEXTURE7_ARB								0x84C7
+#define GL_TEXTURE8_ARB								0x84C8
+#define GL_TEXTURE9_ARB								0x84C9
+#define GL_TEXTURE10_ARB							0x84CA
+#define GL_TEXTURE11_ARB							0x84CB
+#define GL_TEXTURE12_ARB							0x84CC
+#define GL_TEXTURE13_ARB							0x84CD
+#define GL_TEXTURE14_ARB							0x84CE
+#define GL_TEXTURE15_ARB							0x84CF
+#define GL_TEXTURE16_ARB							0x84D0
+#define GL_TEXTURE17_ARB							0x84D1
+#define GL_TEXTURE18_ARB							0x84D2
+#define GL_TEXTURE19_ARB							0x84D3
+#define GL_TEXTURE20_ARB							0x84D4
+#define GL_TEXTURE21_ARB							0x84D5
+#define GL_TEXTURE22_ARB							0x84D6
+#define GL_TEXTURE23_ARB							0x84D7
+#define GL_TEXTURE24_ARB							0x84D8
+#define GL_TEXTURE25_ARB							0x84D9
+#define GL_TEXTURE26_ARB							0x84DA
+#define GL_TEXTURE27_ARB							0x84DB
+#define GL_TEXTURE28_ARB							0x84DC
+#define GL_TEXTURE29_ARB							0x84DD
+#define GL_TEXTURE30_ARB							0x84DE
+#define GL_TEXTURE31_ARB							0x84DF
+#define GL_ACTIVE_TEXTURE_ARB						0x84E0
+#define GL_CLIENT_ACTIVE_TEXTURE_ARB				0x84E1
+#define GL_MAX_TEXTURE_UNITS_ARB					0x84E2
 #endif
 
 #ifndef GL_ARB_texture_cube_map
 #define GL_ARB_texture_cube_map 1
-#define GL_NORMAL_MAP_ARB                 0x8511
-#define GL_REFLECTION_MAP_ARB             0x8512
-#define GL_TEXTURE_CUBE_MAP_ARB           0x8513
-#define GL_TEXTURE_BINDING_CUBE_MAP_ARB   0x8514
-#define GL_TEXTURE_CUBE_MAP_POSITIVE_X_ARB 0x8515
-#define GL_TEXTURE_CUBE_MAP_NEGATIVE_X_ARB 0x8516
-#define GL_TEXTURE_CUBE_MAP_POSITIVE_Y_ARB 0x8517
-#define GL_TEXTURE_CUBE_MAP_NEGATIVE_Y_ARB 0x8518
-#define GL_TEXTURE_CUBE_MAP_POSITIVE_Z_ARB 0x8519
-#define GL_TEXTURE_CUBE_MAP_NEGATIVE_Z_ARB 0x851A
-#define GL_PROXY_TEXTURE_CUBE_MAP_ARB     0x851B
-#define GL_MAX_CUBE_MAP_TEXTURE_SIZE_ARB  0x851C
+#define GL_NORMAL_MAP_ARB							0x8511
+#define GL_REFLECTION_MAP_ARB						0x8512
+#define GL_TEXTURE_CUBE_MAP_ARB						0x8513
+#define GL_TEXTURE_BINDING_CUBE_MAP_ARB				0x8514
+#define GL_TEXTURE_CUBE_MAP_POSITIVE_X_ARB			0x8515
+#define GL_TEXTURE_CUBE_MAP_NEGATIVE_X_ARB			0x8516
+#define GL_TEXTURE_CUBE_MAP_POSITIVE_Y_ARB			0x8517
+#define GL_TEXTURE_CUBE_MAP_NEGATIVE_Y_ARB			0x8518
+#define GL_TEXTURE_CUBE_MAP_POSITIVE_Z_ARB			0x8519
+#define GL_TEXTURE_CUBE_MAP_NEGATIVE_Z_ARB			0x851A
+#define GL_PROXY_TEXTURE_CUBE_MAP_ARB				0x851B
+#define GL_MAX_CUBE_MAP_TEXTURE_SIZE_ARB			0x851C
 #endif
 
 #ifndef GL_ARB_texture_cube_map_array
 #define GL_ARB_texture_cube_map_array 1
-#define GL_TEXTURE_CUBE_MAP_ARRAY_ARB     0x9009
-#define GL_TEXTURE_BINDING_CUBE_MAP_ARRAY_ARB 0x900A
-#define GL_PROXY_TEXTURE_CUBE_MAP_ARRAY_ARB 0x900B
-#define GL_SAMPLER_CUBE_MAP_ARRAY_ARB     0x900C
-#define GL_SAMPLER_CUBE_MAP_ARRAY_SHADOW_ARB 0x900D
-#define GL_INT_SAMPLER_CUBE_MAP_ARRAY_ARB 0x900E
-#define GL_UNSIGNED_INT_SAMPLER_CUBE_MAP_ARRAY_ARB 0x900F
+#define GL_TEXTURE_CUBE_MAP_ARRAY_ARB				0x9009
+#define GL_TEXTURE_BINDING_CUBE_MAP_ARRAY_ARB		0x900A
+#define GL_PROXY_TEXTURE_CUBE_MAP_ARRAY_ARB			0x900B
+#define GL_SAMPLER_CUBE_MAP_ARRAY_ARB				0x900C
+#define GL_SAMPLER_CUBE_MAP_ARRAY_SHADOW_ARB		0x900D
+#define GL_INT_SAMPLER_CUBE_MAP_ARRAY_ARB			0x900E
+#define GL_UNSIGNED_INT_SAMPLER_CUBE_MAP_ARRAY_ARB	0x900F
 #endif /* GL_ARB_texture_cube_map_array */
 
 #ifndef GL_TEXTURE_2D_ARRAY				//gl 3.0 or GL_EXT_texture_array
-#define GL_TEXTURE_2D_ARRAY				0x8C1A
+#define GL_TEXTURE_2D_ARRAY							0x8C1A
 #endif
 
 
 #ifndef GL_ARB_depth_texture
 #define GL_ARB_depth_texture
-#define GL_DEPTH_COMPONENT16_ARB          0x81A5
-#define GL_DEPTH_COMPONENT24_ARB          0x81A6
-#define GL_DEPTH_COMPONENT32_ARB          0x81A7
-#define GL_TEXTURE_DEPTH_SIZE_ARB         0x884A
-#define GL_DEPTH_TEXTURE_MODE_ARB         0x884B
+#define GL_DEPTH_COMPONENT16_ARB					0x81A5
+#define GL_DEPTH_COMPONENT24_ARB					0x81A6
+#define GL_DEPTH_COMPONENT32_ARB					0x81A7
+#define GL_TEXTURE_DEPTH_SIZE_ARB					0x884A
+#define GL_DEPTH_TEXTURE_MODE_ARB					0x884B
 #endif
 #ifndef GL_DEPTH_COMPONENT32F
-#define GL_DEPTH_COMPONENT32F	0x8CAC
+#define GL_DEPTH_COMPONENT32F						0x8CAC
 #endif
 
 //GL_OES_depth_texture adds this because gles otherwise lacks it.
 #ifndef GL_UNSIGNED_INT
-#define GL_UNSIGNED_INT						0x1405
+#define GL_UNSIGNED_INT								0x1405
 #endif
 
 #ifndef GL_EXT_packed_depth_stencil
-#define GL_DEPTH24_STENCIL8_EXT                           0x88F0
-#define GL_DEPTH_STENCIL_EXT                              0x84F9
-#define GL_UNSIGNED_INT_24_8_EXT                          0x84FA
+#define GL_DEPTH24_STENCIL8_EXT						0x88F0
+#define GL_DEPTH_STENCIL_EXT						0x84F9
+#define GL_UNSIGNED_INT_24_8_EXT					0x84FA
 #endif
 
 #ifndef GL_ARB_shadow
 #define GL_ARB_shadow
-#define GL_TEXTURE_COMPARE_MODE_ARB       0x884C
-#define GL_TEXTURE_COMPARE_FUNC_ARB       0x884D
-#define GL_COMPARE_R_TO_TEXTURE_ARB       0x884E
+#define GL_TEXTURE_COMPARE_MODE_ARB					0x884C
+#define GL_TEXTURE_COMPARE_FUNC_ARB					0x884D
+#define GL_COMPARE_R_TO_TEXTURE_ARB					0x884E
 #endif
 
 #ifndef GL_EXT_texture3D
 #define GL_EXT_texture3D 1
-#define GL_PACK_SKIP_IMAGES               0x806B
-#define GL_PACK_SKIP_IMAGES_EXT           0x806B
-#define GL_PACK_IMAGE_HEIGHT              0x806C
-#define GL_PACK_IMAGE_HEIGHT_EXT          0x806C
-#define GL_UNPACK_SKIP_IMAGES             0x806D
-#define GL_UNPACK_SKIP_IMAGES_EXT         0x806D
-#define GL_UNPACK_IMAGE_HEIGHT            0x806E
-#define GL_UNPACK_IMAGE_HEIGHT_EXT        0x806E
-#define GL_TEXTURE_3D                     0x806F
-#define GL_TEXTURE_3D_EXT                 0x806F
-#define GL_PROXY_TEXTURE_3D               0x8070
-#define GL_PROXY_TEXTURE_3D_EXT           0x8070
-#define GL_TEXTURE_DEPTH                  0x8071
-#define GL_TEXTURE_DEPTH_EXT              0x8071
-#define GL_TEXTURE_WRAP_R                 0x8072
-#define GL_TEXTURE_WRAP_R_EXT             0x8072
-#define GL_MAX_3D_TEXTURE_SIZE            0x8073
-#define GL_MAX_3D_TEXTURE_SIZE_EXT        0x8073
+#define GL_PACK_SKIP_IMAGES							0x806B
+#define GL_PACK_SKIP_IMAGES_EXT						0x806B	
+#define GL_PACK_IMAGE_HEIGHT						0x806C
+#define GL_PACK_IMAGE_HEIGHT_EXT					0x806C
+#define GL_UNPACK_SKIP_IMAGES						0x806D
+#define GL_UNPACK_SKIP_IMAGES_EXT					0x806D
+#define GL_UNPACK_IMAGE_HEIGHT						0x806E
+#define GL_UNPACK_IMAGE_HEIGHT_EXT					0x806E
+#define GL_TEXTURE_3D								0x806F
+#define GL_TEXTURE_3D_EXT							0x806F
+#define GL_PROXY_TEXTURE_3D							0x8070
+#define GL_PROXY_TEXTURE_3D_EXT						0x8070
+#define GL_TEXTURE_DEPTH							0x8071
+#define GL_TEXTURE_DEPTH_EXT						0x8071
+#define GL_TEXTURE_WRAP_R							0x8072
+#define GL_TEXTURE_WRAP_R_EXT						0x8072
+#define GL_MAX_3D_TEXTURE_SIZE						0x8073
+#define GL_MAX_3D_TEXTURE_SIZE_EXT					0x8073
 #endif
-
-
-
-
-
-
-
 
 //some of these were needed.
 //They were also not in the ones I could find on the web.
 //GL_ARB_texture_env_combine
-#define  GL_COMBINE_ARB					0x8570
-#define  GL_COMBINE_RGB_ARB				0x8571
-#define  GL_COMBINE_ALPHA_ARB			0x8572
-#define  GL_SOURCE0_RGB_ARB				0x8580
-#define  GL_SOURCE1_RGB_ARB				0x8581
-#define  GL_SOURCE2_RGB_ARB				0x8582
-#define  GL_SOURCE0_ALPHA_ARB			0x8588
-#define  GL_SOURCE1_ALPHA_ARB			0x8589
-#define  GL_SOURCE2_ALPHA_ARB			0x858A
-#define  GL_OPERAND0_RGB_ARB			0x8590
-#define  GL_OPERAND1_RGB_ARB			0x8591
-#define  GL_OPERAND2_RGB_ARB			0x8592
-#define  GL_OPERAND0_ALPHA_ARB			0x8598
-#define  GL_OPERAND1_ALPHA_ARB			0x8599
-#define  GL_OPERAND2_ALPHA_ARB			0x859A
-#define  GL_RGB_SCALE_ARB				0x8573
-#define  GL_ADD_SIGNED_ARB				0x8574
-#define  GL_INTERPOLATE_ARB				0x8575
-#define  GL_SUBTRACT_ARB				0x84E7
-#define  GL_CONSTANT_ARB				0x8576
-#define  GL_PRIMARY_COLOR_ARB			0x8577
-#define  GL_PREVIOUS_ARB				0x8578
+#define  GL_COMBINE_ARB								0x8570
+#define  GL_COMBINE_RGB_ARB							0x8571
+#define  GL_COMBINE_ALPHA_ARB						0x8572
+#define  GL_SOURCE0_RGB_ARB							0x8580
+#define  GL_SOURCE1_RGB_ARB							0x8581
+#define  GL_SOURCE2_RGB_ARB							0x8582
+#define  GL_SOURCE0_ALPHA_ARB						0x8588
+#define  GL_SOURCE1_ALPHA_ARB						0x8589
+#define  GL_SOURCE2_ALPHA_ARB						0x858A
+#define  GL_OPERAND0_RGB_ARB						0x8590
+#define  GL_OPERAND1_RGB_ARB						0x8591
+#define  GL_OPERAND2_RGB_ARB						0x8592
+#define  GL_OPERAND0_ALPHA_ARB						0x8598
+#define  GL_OPERAND1_ALPHA_ARB						0x8599
+#define  GL_OPERAND2_ALPHA_ARB						0x859A
+#define  GL_RGB_SCALE_ARB							0x8573
+#define  GL_ADD_SIGNED_ARB							0x8574
+#define  GL_INTERPOLATE_ARB							0x8575
+#define  GL_SUBTRACT_ARB							0x84E7
+#define  GL_CONSTANT_ARB							0x8576
+#define  GL_PRIMARY_COLOR_ARB						0x8577
+#define  GL_PREVIOUS_ARB							0x8578
 
 
-#define  GL_DOT3_RGB_ARB   0x86AE
-#define  GL_DOT3_RGBA_ARB   0x86AF
+#define  GL_DOT3_RGB_ARB							0x86AE
+#define  GL_DOT3_RGBA_ARB							0x86AF
 
 //GL_EXT_texture_env_combine
-#define  GL_COMBINE_EXT					0x8570
-#define  GL_COMBINE_RGB_EXT				0x8571
-#define  GL_COMBINE_ALPHA_EXT			0x8572
-#define  GL_SOURCE0_RGB_EXT				0x8580
-#define  GL_SOURCE1_RGB_EXT				0x8581
-#define  GL_SOURCE2_RGB_EXT				0x8582
-#define  GL_SOURCE0_ALPHA_EXT			0x8588
-#define  GL_SOURCE1_ALPHA_EXT			0x8589
-#define  GL_SOURCE2_ALPHA_EXT			0x858A
-#define  GL_OPERAND0_RGB_EXT			0x8590
-#define  GL_OPERAND1_RGB_EXT			0x8591
-#define  GL_OPERAND2_RGB_EXT			0x8592
-#define  GL_OPERAND0_ALPHA_EXT			0x8598
-#define  GL_OPERAND1_ALPHA_EXT			0x8599
-#define  GL_OPERAND2_ALPHA_EXT			0x859A
-#define  GL_RGB_SCALE_EXT				0x8573
-#define  GL_ADD_SIGNED_EXT				0x8574
-#define  GL_INTERPOLATE_EXT				0x8575
-#define  GL_CONSTANT_EXT				0x8576
-#define  GL_PRIMARY_COLOR_EXT			0x8577
-#define  GL_PREVIOUS_EXT				0x8578
+#define  GL_COMBINE_EXT								0x8570
+#define  GL_COMBINE_RGB_EXT							0x8571
+#define  GL_COMBINE_ALPHA_EXT						0x8572
+#define  GL_SOURCE0_RGB_EXT							0x8580
+#define  GL_SOURCE1_RGB_EXT							0x8581
+#define  GL_SOURCE2_RGB_EXT							0x8582
+#define  GL_SOURCE0_ALPHA_EXT						0x8588
+#define  GL_SOURCE1_ALPHA_EXT						0x8589
+#define  GL_SOURCE2_ALPHA_EXT						0x858A
+#define  GL_OPERAND0_RGB_EXT						0x8590
+#define  GL_OPERAND1_RGB_EXT						0x8591
+#define  GL_OPERAND2_RGB_EXT						0x8592
+#define  GL_OPERAND0_ALPHA_EXT						0x8598
+#define  GL_OPERAND1_ALPHA_EXT						0x8599
+#define  GL_OPERAND2_ALPHA_EXT						0x859A
+#define  GL_RGB_SCALE_EXT							0x8573
+#define  GL_ADD_SIGNED_EXT							0x8574
+#define  GL_INTERPOLATE_EXT							0x8575
+#define  GL_CONSTANT_EXT							0x8576
+#define  GL_PRIMARY_COLOR_EXT						0x8577
+#define  GL_PREVIOUS_EXT							0x8578
 
 //GL_NV_texture_env_combine4
-#define  GL_COMBINE4_NV					0x8503
-#define  GL_SOURCE3_RGB_NV				0x8583
-#define  GL_SOURCE3_ALPHA_NV			0x858B
-#define  GL_OPERAND3_RGB_NV				0x8593
-#define  GL_OPERAND3_ALPHA_NV			0x859B
+#define  GL_COMBINE4_NV								0x8503
+#define  GL_SOURCE3_RGB_NV							0x8583
+#define  GL_SOURCE3_ALPHA_NV						0x858B
+#define  GL_OPERAND3_RGB_NV							0x8593
+#define  GL_OPERAND3_ALPHA_NV						0x859B
 
 
 
@@ -284,17 +277,17 @@ extern qlpSelTexFUNC	qglClientActiveTextureARB;
 #ifndef GL_ARB_texture_compression
 #define GL_ARB_texture_compression 1
 
-#define GL_COMPRESSED_ALPHA_ARB                                 0x84E9
-#define GL_COMPRESSED_LUMINANCE_ARB                             0x84EA
-#define GL_COMPRESSED_LUMINANCE_ALPHA_ARB                       0x84EB
-#define GL_COMPRESSED_INTENSITY_ARB                             0x84EC
-#define GL_COMPRESSED_RGB_ARB                                   0x84ED
-#define GL_COMPRESSED_RGBA_ARB                                  0x84EE
-#define GL_TEXTURE_COMPRESSION_HINT_ARB                         0x84EF
-#define GL_TEXTURE_COMPRESSED_IMAGE_SIZE_ARB                    0x86A0
-#define GL_TEXTURE_COMPRESSED_ARB                               0x86A1
-#define GL_NUM_COMPRESSED_TEXTURE_FORMATS_ARB                   0x86A2
-#define GL_COMPRESSED_TEXTURE_FORMATS_ARB                       0x86A3
+#define GL_COMPRESSED_ALPHA_ARB						0x84E9
+#define GL_COMPRESSED_LUMINANCE_ARB					0x84EA
+#define GL_COMPRESSED_LUMINANCE_ALPHA_ARB			0x84EB
+#define GL_COMPRESSED_INTENSITY_ARB					0x84EC
+#define GL_COMPRESSED_RGB_ARB						0x84ED
+#define GL_COMPRESSED_RGBA_ARB						0x84EE
+#define GL_TEXTURE_COMPRESSION_HINT_ARB				0x84EF
+#define GL_TEXTURE_COMPRESSED_IMAGE_SIZE_ARB		0x86A0
+#define GL_TEXTURE_COMPRESSED_ARB					0x86A1
+#define GL_NUM_COMPRESSED_TEXTURE_FORMATS_ARB		0x86A2
+#define GL_COMPRESSED_TEXTURE_FORMATS_ARB			0x86A3
 
 typedef void (APIENTRY *PFNGLCOMPRESSEDTEXIMAGE3DARBPROC)	(GLenum target, GLint level, GLint internalformat, GLsizei width, GLsizei height, GLsizei depth, GLint border, GLsizei imageSize, const GLvoid* data);
 typedef void (APIENTRY *PFNGLCOMPRESSEDTEXIMAGE2DARBPROC)	(GLenum target, GLint level, GLint internalformat, GLsizei width, GLsizei height, GLint border, GLsizei imageSize, const GLvoid* data);
@@ -350,111 +343,111 @@ typedef void (APIENTRY * PFNGLACTIVESTENCILFACEEXTPROC) (GLenum face);
 
 
 #ifndef GL_VERSION_4_1
-#define GL_MAX_VERTEX_UNIFORM_VECTORS     0x8DFB
+#define GL_MAX_VERTEX_UNIFORM_VECTORS				0x8DFB
 #endif
 #ifndef GL_VERSION_2_0
-#define GL_MAX_VERTEX_UNIFORM_COMPONENTS  0x8B4A
+#define GL_MAX_VERTEX_UNIFORM_COMPONENTS			0x8B4A
 #endif
 
 
 #ifndef GL_ARB_vertex_program
-#define GL_COLOR_SUM_ARB                  0x8458
-#define GL_VERTEX_PROGRAM_ARB             0x8620
-#define GL_VERTEX_ATTRIB_ARRAY_ENABLED_ARB 0x8622
-#define GL_VERTEX_ATTRIB_ARRAY_SIZE_ARB   0x8623
-#define GL_VERTEX_ATTRIB_ARRAY_STRIDE_ARB 0x8624
-#define GL_VERTEX_ATTRIB_ARRAY_TYPE_ARB   0x8625
-#define GL_CURRENT_VERTEX_ATTRIB_ARB      0x8626
-#define GL_PROGRAM_LENGTH_ARB             0x8627
-#define GL_PROGRAM_STRING_ARB             0x8628
-#define GL_MAX_PROGRAM_MATRIX_STACK_DEPTH_ARB 0x862E
-#define GL_MAX_PROGRAM_MATRICES_ARB       0x862F
-#define GL_CURRENT_MATRIX_STACK_DEPTH_ARB 0x8640
-#define GL_CURRENT_MATRIX_ARB             0x8641
-#define GL_VERTEX_PROGRAM_POINT_SIZE_ARB  0x8642
-#define GL_VERTEX_PROGRAM_TWO_SIDE_ARB    0x8643
-#define GL_VERTEX_ATTRIB_ARRAY_POINTER_ARB 0x8645
-#define GL_PROGRAM_ERROR_POSITION_ARB     0x864B
-#define GL_PROGRAM_BINDING_ARB            0x8677
-#define GL_MAX_VERTEX_ATTRIBS_ARB         0x8869
-#define GL_VERTEX_ATTRIB_ARRAY_NORMALIZED_ARB 0x886A
-#define GL_PROGRAM_ERROR_STRING_ARB       0x8874
-#define GL_PROGRAM_FORMAT_ASCII_ARB       0x8875
-#define GL_PROGRAM_FORMAT_ARB             0x8876
-#define GL_PROGRAM_INSTRUCTIONS_ARB       0x88A0
-#define GL_MAX_PROGRAM_INSTRUCTIONS_ARB   0x88A1
-#define GL_PROGRAM_NATIVE_INSTRUCTIONS_ARB 0x88A2
-#define GL_MAX_PROGRAM_NATIVE_INSTRUCTIONS_ARB 0x88A3
-#define GL_PROGRAM_TEMPORARIES_ARB        0x88A4
-#define GL_MAX_PROGRAM_TEMPORARIES_ARB    0x88A5
-#define GL_PROGRAM_NATIVE_TEMPORARIES_ARB 0x88A6
-#define GL_MAX_PROGRAM_NATIVE_TEMPORARIES_ARB 0x88A7
-#define GL_PROGRAM_PARAMETERS_ARB         0x88A8
-#define GL_MAX_PROGRAM_PARAMETERS_ARB     0x88A9
-#define GL_PROGRAM_NATIVE_PARAMETERS_ARB  0x88AA
-#define GL_MAX_PROGRAM_NATIVE_PARAMETERS_ARB 0x88AB
-#define GL_PROGRAM_ATTRIBS_ARB            0x88AC
-#define GL_MAX_PROGRAM_ATTRIBS_ARB        0x88AD
-#define GL_PROGRAM_NATIVE_ATTRIBS_ARB     0x88AE
-#define GL_MAX_PROGRAM_NATIVE_ATTRIBS_ARB 0x88AF
-#define GL_PROGRAM_ADDRESS_REGISTERS_ARB  0x88B0
-#define GL_MAX_PROGRAM_ADDRESS_REGISTERS_ARB 0x88B1
-#define GL_PROGRAM_NATIVE_ADDRESS_REGISTERS_ARB 0x88B2
-#define GL_MAX_PROGRAM_NATIVE_ADDRESS_REGISTERS_ARB 0x88B3
-#define GL_MAX_PROGRAM_LOCAL_PARAMETERS_ARB 0x88B4
-#define GL_MAX_PROGRAM_ENV_PARAMETERS_ARB 0x88B5
-#define GL_PROGRAM_UNDER_NATIVE_LIMITS_ARB 0x88B6
-#define GL_TRANSPOSE_CURRENT_MATRIX_ARB   0x88B7
-#define GL_MATRIX0_ARB                    0x88C0
-#define GL_MATRIX1_ARB                    0x88C1
-#define GL_MATRIX2_ARB                    0x88C2
-#define GL_MATRIX3_ARB                    0x88C3
-#define GL_MATRIX4_ARB                    0x88C4
-#define GL_MATRIX5_ARB                    0x88C5
-#define GL_MATRIX6_ARB                    0x88C6
-#define GL_MATRIX7_ARB                    0x88C7
-#define GL_MATRIX8_ARB                    0x88C8
-#define GL_MATRIX9_ARB                    0x88C9
-#define GL_MATRIX10_ARB                   0x88CA
-#define GL_MATRIX11_ARB                   0x88CB
-#define GL_MATRIX12_ARB                   0x88CC
-#define GL_MATRIX13_ARB                   0x88CD
-#define GL_MATRIX14_ARB                   0x88CE
-#define GL_MATRIX15_ARB                   0x88CF
-#define GL_MATRIX16_ARB                   0x88D0
-#define GL_MATRIX17_ARB                   0x88D1
-#define GL_MATRIX18_ARB                   0x88D2
-#define GL_MATRIX19_ARB                   0x88D3
-#define GL_MATRIX20_ARB                   0x88D4
-#define GL_MATRIX21_ARB                   0x88D5
-#define GL_MATRIX22_ARB                   0x88D6
-#define GL_MATRIX23_ARB                   0x88D7
-#define GL_MATRIX24_ARB                   0x88D8
-#define GL_MATRIX25_ARB                   0x88D9
-#define GL_MATRIX26_ARB                   0x88DA
-#define GL_MATRIX27_ARB                   0x88DB
-#define GL_MATRIX28_ARB                   0x88DC
-#define GL_MATRIX29_ARB                   0x88DD
-#define GL_MATRIX30_ARB                   0x88DE
-#define GL_MATRIX31_ARB                   0x88DF
+#define GL_COLOR_SUM_ARB							0x8458
+#define GL_VERTEX_PROGRAM_ARB						0x8620
+#define GL_VERTEX_ATTRIB_ARRAY_ENABLED_ARB			0x8622
+#define GL_VERTEX_ATTRIB_ARRAY_SIZE_ARB				0x8623
+#define GL_VERTEX_ATTRIB_ARRAY_STRIDE_ARB			0x8624
+#define GL_VERTEX_ATTRIB_ARRAY_TYPE_ARB				0x8625
+#define GL_CURRENT_VERTEX_ATTRIB_ARB				0x8626
+#define GL_PROGRAM_LENGTH_ARB						0x8627
+#define GL_PROGRAM_STRING_ARB						0x8628
+#define GL_MAX_PROGRAM_MATRIX_STACK_DEPTH_ARB		0x862E
+#define GL_MAX_PROGRAM_MATRICES_ARB					0x862F
+#define GL_CURRENT_MATRIX_STACK_DEPTH_ARB			0x8640
+#define GL_CURRENT_MATRIX_ARB						0x8641
+#define GL_VERTEX_PROGRAM_POINT_SIZE_ARB			0x8642
+#define GL_VERTEX_PROGRAM_TWO_SIDE_ARB				0x8643
+#define GL_VERTEX_ATTRIB_ARRAY_POINTER_ARB 			0x8645
+#define GL_PROGRAM_ERROR_POSITION_ARB				0x864B
+#define GL_PROGRAM_BINDING_ARB						0x8677
+#define GL_MAX_VERTEX_ATTRIBS_ARB					0x8869
+#define GL_VERTEX_ATTRIB_ARRAY_NORMALIZED_ARB 		0x886A
+#define GL_PROGRAM_ERROR_STRING_ARB					0x8874
+#define GL_PROGRAM_FORMAT_ASCII_ARB					0x8875
+#define GL_PROGRAM_FORMAT_ARB						0x8876	
+#define GL_PROGRAM_INSTRUCTIONS_ARB					0x88A0
+#define GL_MAX_PROGRAM_INSTRUCTIONS_ARB				0x88A1
+#define GL_PROGRAM_NATIVE_INSTRUCTIONS_ARB			0x88A2
+#define GL_MAX_PROGRAM_NATIVE_INSTRUCTIONS_ARB		0x88A3
+#define GL_PROGRAM_TEMPORARIES_ARB					0x88A4
+#define GL_MAX_PROGRAM_TEMPORARIES_ARB				0x88A5
+#define GL_PROGRAM_NATIVE_TEMPORARIES_ARB			0x88A6
+#define GL_MAX_PROGRAM_NATIVE_TEMPORARIES_ARB 		0x88A7
+#define GL_PROGRAM_PARAMETERS_ARB					0x88A8
+#define GL_MAX_PROGRAM_PARAMETERS_ARB				0x88A9
+#define GL_PROGRAM_NATIVE_PARAMETERS_ARB			0x88AA
+#define GL_MAX_PROGRAM_NATIVE_PARAMETERS_ARB		0x88AB
+#define GL_PROGRAM_ATTRIBS_ARB						0x88AC
+#define GL_MAX_PROGRAM_ATTRIBS_ARB					0x88AD
+#define GL_PROGRAM_NATIVE_ATTRIBS_ARB				0x88AE
+#define GL_MAX_PROGRAM_NATIVE_ATTRIBS_ARB			0x88AF
+#define GL_PROGRAM_ADDRESS_REGISTERS_ARB			0x88B0
+#define GL_MAX_PROGRAM_ADDRESS_REGISTERS_ARB		0x88B1
+#define GL_PROGRAM_NATIVE_ADDRESS_REGISTERS_ARB		0x88B2
+#define GL_MAX_PROGRAM_NATIVE_ADDRESS_REGISTERS_ARB	0x88B3
+#define GL_MAX_PROGRAM_LOCAL_PARAMETERS_ARB			0x88B4
+#define GL_MAX_PROGRAM_ENV_PARAMETERS_ARB			0x88B5
+#define GL_PROGRAM_UNDER_NATIVE_LIMITS_ARB			0x88B6
+#define GL_TRANSPOSE_CURRENT_MATRIX_ARB				0x88B7
+#define GL_MATRIX0_ARB								0x88C0
+#define GL_MATRIX1_ARB								0x88C1
+#define GL_MATRIX2_ARB								0x88C2
+#define GL_MATRIX3_ARB								0x88C3
+#define GL_MATRIX4_ARB								0x88C4
+#define GL_MATRIX5_ARB								0x88C5
+#define GL_MATRIX6_ARB								0x88C6
+#define GL_MATRIX7_ARB								0x88C7
+#define GL_MATRIX8_ARB								0x88C8
+#define GL_MATRIX9_ARB								0x88C9
+#define GL_MATRIX10_ARB								0x88CA
+#define GL_MATRIX11_ARB								0x88CB
+#define GL_MATRIX12_ARB								0x88CC
+#define GL_MATRIX13_ARB								0x88CD
+#define GL_MATRIX14_ARB								0x88CE
+#define GL_MATRIX15_ARB								0x88CF
+#define GL_MATRIX16_ARB								0x88D0
+#define GL_MATRIX17_ARB								0x88D1
+#define GL_MATRIX18_ARB								0x88D2
+#define GL_MATRIX19_ARB								0x88D3
+#define GL_MATRIX20_ARB								0x88D4
+#define GL_MATRIX21_ARB								0x88D5
+#define GL_MATRIX22_ARB								0x88D6
+#define GL_MATRIX23_ARB								0x88D7
+#define GL_MATRIX24_ARB								0x88D8
+#define GL_MATRIX25_ARB								0x88D9
+#define GL_MATRIX26_ARB								0x88DA
+#define GL_MATRIX27_ARB								0x88DB
+#define GL_MATRIX28_ARB								0x88DC
+#define GL_MATRIX29_ARB								0x88DD
+#define GL_MATRIX30_ARB								0x88DE
+#define GL_MATRIX31_ARB								0x88DF
 #endif
 
 #ifndef GL_ARB_fragment_program
-#define GL_FRAGMENT_PROGRAM_ARB           0x8804
-#define GL_PROGRAM_ALU_INSTRUCTIONS_ARB   0x8805
-#define GL_PROGRAM_TEX_INSTRUCTIONS_ARB   0x8806
-#define GL_PROGRAM_TEX_INDIRECTIONS_ARB   0x8807
-#define GL_PROGRAM_NATIVE_ALU_INSTRUCTIONS_ARB 0x8808
-#define GL_PROGRAM_NATIVE_TEX_INSTRUCTIONS_ARB 0x8809
-#define GL_PROGRAM_NATIVE_TEX_INDIRECTIONS_ARB 0x880A
-#define GL_MAX_PROGRAM_ALU_INSTRUCTIONS_ARB 0x880B
-#define GL_MAX_PROGRAM_TEX_INSTRUCTIONS_ARB 0x880C
-#define GL_MAX_PROGRAM_TEX_INDIRECTIONS_ARB 0x880D
-#define GL_MAX_PROGRAM_NATIVE_ALU_INSTRUCTIONS_ARB 0x880E
-#define GL_MAX_PROGRAM_NATIVE_TEX_INSTRUCTIONS_ARB 0x880F
-#define GL_MAX_PROGRAM_NATIVE_TEX_INDIRECTIONS_ARB 0x8810
-#define GL_MAX_TEXTURE_COORDS_ARB         0x8871
-#define GL_MAX_TEXTURE_IMAGE_UNITS_ARB    0x8872
+#define GL_FRAGMENT_PROGRAM_ARB						0x8804
+#define GL_PROGRAM_ALU_INSTRUCTIONS_ARB				0x8805
+#define GL_PROGRAM_TEX_INSTRUCTIONS_ARB				0x8806
+#define GL_PROGRAM_TEX_INDIRECTIONS_ARB				0x8807
+#define GL_PROGRAM_NATIVE_ALU_INSTRUCTIONS_ARB		0x8808
+#define GL_PROGRAM_NATIVE_TEX_INSTRUCTIONS_ARB		0x8809
+#define GL_PROGRAM_NATIVE_TEX_INDIRECTIONS_ARB		0x880A
+#define GL_MAX_PROGRAM_ALU_INSTRUCTIONS_ARB			0x880B
+#define GL_MAX_PROGRAM_TEX_INSTRUCTIONS_ARB			0x880C
+#define GL_MAX_PROGRAM_TEX_INDIRECTIONS_ARB			0x880D
+#define GL_MAX_PROGRAM_NATIVE_ALU_INSTRUCTIONS_ARB	0x880E
+#define GL_MAX_PROGRAM_NATIVE_TEX_INSTRUCTIONS_ARB	0x880F
+#define GL_MAX_PROGRAM_NATIVE_TEX_INDIRECTIONS_ARB	0x8810
+#define GL_MAX_TEXTURE_COORDS_ARB					0x8871
+#define GL_MAX_TEXTURE_IMAGE_UNITS_ARB				0x8872
 #endif
 
 

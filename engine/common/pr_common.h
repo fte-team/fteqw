@@ -4,7 +4,7 @@
 extern "C" {
 #endif
 
-#include "progtype.h"
+#include <fteqw/math/vector.h>
 #include "progslib.h"
 
 #define AREAGRIDPERENT 16

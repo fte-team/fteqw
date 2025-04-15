@@ -47,7 +47,7 @@ typedef unsigned char pbyte;
 #define false 0
 #define true 1
 
-#include "progtype.h"
+#include <fteqw/math/vector.h>
 #include "progslib.h"
 
 #include "pr_comp.h"

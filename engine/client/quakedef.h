@@ -169,7 +169,7 @@ extern "C" {
 #include "vid.h"
 #include "../common/sys.h"
 #include "../common/zone.h"
-#include "../common/mathlib.h"
+#include <fteqw/math/vector.h>
 #include "../common/cvar.h"
 #include "../common/translate.h"
 #include "../common/net.h"
@@ -195,7 +195,6 @@ extern "C" {
 #include "cdaudio.h"
 #include "../common/pmove.h"
 
-#include "../qclib/progtype.h"
 #include "../server/progdefs.h"
 #include "../server/progs.h"
 #include "../common/world.h"

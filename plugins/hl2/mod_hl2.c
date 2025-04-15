@@ -591,12 +591,7 @@ static qboolean Mod_HL2_LoadVTX(hl2parsecontext_t *ctx, const void *buffer, size
 
 	return true;
 }
-void CrossProduct (const vec3_t v1, const vec3_t v2, vec3_t cross)
-{
-	cross[0] = v1[1]*v2[2] - v1[2]*v2[1];
-	cross[1] = v1[2]*v2[0] - v1[0]*v2[2];
-	cross[2] = v1[0]*v2[1] - v1[1]*v2[0];
-}
+
 static qboolean Mod_HL2_LoadVVD(hl2parsecontext_t *ctx, const void *buffer, size_t fsize)
 {
 	const hl2vvdheader_t *header = buffer;

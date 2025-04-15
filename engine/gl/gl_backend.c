@@ -1372,39 +1372,6 @@ static void Shader_BindTextureForPass(int tmu, const shaderpass_t *pass)
 	GL_LazyBind(tmu, t);
 }
 
-/*========================================== matrix functions =====================================*/
-
-typedef vec3_t mat3_t[3];
-static mat3_t axisDefault={{1, 0, 0},
-					{0, 1, 0},
-					{0, 0, 1}};
-
-static void Matrix3_Transpose (mat3_t in, mat3_t out)
-{
-	out[0][0] = in[0][0];
-	out[1][1] = in[1][1];
-	out[2][2] = in[2][2];
-
-	out[0][1] = in[1][0];
-	out[0][2] = in[2][0];
-	out[1][0] = in[0][1];
-	out[1][2] = in[2][1];
-	out[2][0] = in[0][2];
-	out[2][1] = in[1][2];
-}
-static void Matrix3_Multiply_Vec3 (const mat3_t a, const vec3_t b, vec3_t product)
-{
-	product[0] = a[0][0]*b[0] + a[0][1]*b[1] + a[0][2]*b[2];
-	product[1] = a[1][0]*b[0] + a[1][1]*b[1] + a[1][2]*b[2];
-	product[2] = a[2][0]*b[0] + a[2][1]*b[1] + a[2][2]*b[2];
-}
-
-static int Matrix3_Compare(const mat3_t in, const mat3_t out)
-{
-	return memcmp(in, out, sizeof(mat3_t));
-}
-
-//end matrix functions
 /*========================================== tables for deforms =====================================*/
 #define frand() (rand()*(1.0/RAND_MAX))
 #define FTABLE_SIZE		1024

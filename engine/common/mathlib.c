@@ -30,9 +30,9 @@ vec3_t vec3_origin = {0,0,0};
 
 static void ProjectPointOnPlane( vec3_t dst, const vec3_t p, const vec3_t normal )
 {
-	float d;
+	vec_t d;
 	vec3_t n;
-	float inv_denom;
+	vec_t inv_denom;
 
 	inv_denom = 1.0F / DotProduct( normal, normal );
 
@@ -54,7 +54,7 @@ void PerpendicularVector( vec3_t dst, const vec3_t src )
 {
 	int	pos;
 	int i;
-	float minelem = 1.0F;
+	vec_t minelem = 1.0F;
 	vec3_t tempvec;
 
 	/*
@@ -86,14 +86,13 @@ void PerpendicularVector( vec3_t dst, const vec3_t src )
 #pragma optimize( "", off )
 #endif
 
-
-void RotatePointAroundVector( vec3_t dst, const vec3_t dir, const vec3_t point, float degrees )
+void RotatePointAroundVector( vec3_t dst, const vec3_t dir, const vec3_t point, vec_t degrees )
 {
-	float	m[3][3];
-	float	im[3][3];
-	float	zrot[3][3];
-	float	tmpmat[3][3];
-	float	rot[3][3];
+	vec_t	m[3][3];
+	vec_t	im[3][3];
+	vec_t	zrot[3][3];
+	vec_t	tmpmat[3][3];
+	vec_t	rot[3][3];
 	int	i;
 	vec3_t vr, vup, vf;
 
@@ -148,7 +147,7 @@ void RotatePointAroundVector( vec3_t dst, const vec3_t dir, const vec3_t point, 
 
 /*-----------------------------------------------------------------*/
 
-float	anglemod(float a)
+vec_t	anglemod(vec_t a)
 {
 #if 0
 	if (a >= 0)
@@ -169,7 +168,7 @@ Returns 1, 2, or 1 + 2
 */
 int VARGS BoxOnPlaneSide (const vec3_t emins, const vec3_t emaxs, const mplane_t *p)
 {
-	float	dist1, dist2;
+	vec_t	dist1, dist2;
 	int		sides;
 
 #if 0	// this is done by the BOX_ON_PLANE_SIDE macro before calling this
@@ -264,9 +263,6 @@ if (sides == 0)
 	return sides;
 }
 
-
-
-
 static void VVPerpendicularVector(vec3_t dst, const vec3_t src)
 {
 	if (!src[0] && !src[1])
@@ -285,15 +281,16 @@ static void VVPerpendicularVector(vec3_t dst, const vec3_t src)
 		VectorNormalize(dst);
 	}
 }
+
 void VectorVectors(const vec3_t forward, vec3_t right, vec3_t up)
 {
 	VVPerpendicularVector(right, forward);
 	CrossProduct(right, forward, up);
 }
 
-void QDECL VectorAngles(const float *forward, const float *up, float *result, qboolean meshpitch)	//up may be NULL
+void QDECL VectorAngles(const vec_t *forward, const vec_t *up, vec_t *result, qboolean meshpitch)	//up may be NULL
 {
-	float	yaw, pitch, roll;	
+	vec_t	yaw, pitch, roll;	
 
 	if (forward[1] == 0 && forward[0] == 0)
 	{
@@ -353,8 +350,8 @@ void QDECL VectorAngles(const float *forward, const float *up, float *result, qb
 
 void QDECL AngleVectors (const vec3_t angles, vec3_t forward, vec3_t right, vec3_t up)
 {
-	float		angle;
-	float		sr, sp, sy, cr, cp, cy;
+	vec_t		angle;
+	vec_t		sr, sp, sy, cr, cp, cy;
 	
 	angle = angles[YAW] * (M_PI*2 / 360);
 	sy = sin(angle);
@@ -415,7 +412,7 @@ int Vector4Compare (const vec4_t v1, const vec4_t v2)
 	return 1;
 }
 /*
-void _VectorMA (const vec3_t veca, const float scale, const vec3_t vecb, vec3_t vecc)
+void _VectorMA (const vec3_t veca, const vec_t scale, const vec3_t vecb, vec3_t vecc)
 {
 	vecc[0] = veca[0] + scale*vecb[0];
 	vecc[1] = veca[1] + scale*vecb[1];
@@ -449,50 +446,43 @@ void _VectorCopy (vec3_t in, vec3_t out)
 	out[2] = in[2];
 }
 */
-void CrossProduct (const vec3_t v1, const vec3_t v2, vec3_t cross)
-{
-	cross[0] = v1[1]*v2[2] - v1[2]*v2[1];
-	cross[1] = v1[2]*v2[0] - v1[0]*v2[2];
-	cross[2] = v1[0]*v2[1] - v1[1]*v2[0];
-}
-
 vec_t Length(const vec3_t v)
 {
 	int		i;
-	float	length;
+	vec_t	length;
 	
 	length = 0;
 	for (i=0 ; i< 3 ; i++)
 		length += v[i]*v[i];
-	length = sqrt (length);		// FIXME
+	length = sqrt (length);                 // FIXME
 
 	return length;
 }
 
-float Q_rsqrt(float number)
+vec_t Q_rsqrt(vec_t number)
 {
 	int i;
-	float x2, y;
-	const float threehalfs = 1.5F;
+	vec_t x2, y;
+	const vec_t threehalfs = 1.5F;
 
 	x2 = number * 0.5F;
 	y  = number;
-	i  = * (int *) &y;						// evil floating point bit level hacking
-	i  = 0x5f3759df - (i >> 1);               // what the fuck?
-	y  = * (float *) &i;
+	i  = * (int *) &y;                      // evil floating point bit level hacking
+	i  = 0x5f3759df - (i >> 1);             // what the fuck?
+	y  = * (vec_t *) &i;
 	y  = y * (threehalfs - (x2 * y * y));   // 1st iteration
 //	y  = y * (threehalfs - (x2 * y * y));   // 2nd iteration, this can be removed
 
 	return y;
 }
 
-float QDECL VectorNormalize (vec3_t v)
+vec_t QDECL VectorNormalize (vec3_t v)
 {
-	float	length;
-	float	ilength;
+	vec_t	length;
+	vec_t	ilength;
 
 	length = v[0]*v[0] + v[1]*v[1] + v[2]*v[2];
-	length = sqrt (length);		// FIXME
+	length = sqrt (length);                 // FIXME
 
 	if (length)
 	{
@@ -507,7 +497,7 @@ float QDECL VectorNormalize (vec3_t v)
 
 void VectorNormalizeFast(vec3_t v)
 {
-	float ilength;
+	vec_t ilength;
 
 	ilength = Q_rsqrt(DotProduct(v, v));
 
@@ -538,7 +528,7 @@ int Q_log2(int val)
 R_ConcatRotations
 ================
 */
-void R_ConcatRotations (float in1[3][3], float in2[3][3], float out[3][3])
+void R_ConcatRotations (const matrix3x3 in1, const matrix3x3 in2, matrix3x3 out)
 {
 	out[0][0] = in1[0][0] * in2[0][0] + in1[0][1] * in2[1][0] + in1[0][2] * in2[2][0];
 	out[0][1] = in1[0][0] * in2[0][1] + in1[0][1] * in2[1][1] + in1[0][2] * in2[2][1];
@@ -556,7 +546,7 @@ void R_ConcatRotations (float in1[3][3], float in2[3][3], float out[3][3])
 R_ConcatTransforms
 ================
 */
-void QDECL R_ConcatTransforms (const float in1[3][4], const float in2[3][4], float out[3][4])
+void QDECL R_ConcatTransforms (const matrix3x4 in1, const matrix3x4 in2, matrix3x4 out)
 {
 	out[0][0] = in1[0][0] * in2[0][0] + in1[0][1] * in2[1][0] +
 				in1[0][2] * in2[2][0];
@@ -585,7 +575,7 @@ void QDECL R_ConcatTransforms (const float in1[3][4], const float in2[3][4], flo
 }
 
 //R_ConcatTransforms where there's no offset values, and a transposed axis
-void R_ConcatTransformsAxis (const float in1[3][3], const float in2[3][4], float out[3][4])
+void R_ConcatTransformsAxis (const matrix3x3 in1, const matrix3x4 in2, matrix3x4 out)
 {
 	out[0][0] = in1[0][0] * in2[0][0] + in1[1][0] * in2[1][0] +
 				in1[2][0] * in2[2][0];
@@ -614,7 +604,7 @@ void R_ConcatTransformsAxis (const float in1[3][3], const float in2[3][4], float
 }
 
 //R_ConcatTransforms where we don't care about the resulting offsets.
-void R_ConcatRotationsPad (float in1[3][4], float in2[3][4], float out[3][4])
+void R_ConcatRotationsPad (const matrix3x4 in1, const matrix3x4 in2, matrix3x4 out)
 {
 	out[0][0] = in1[0][0] * in2[0][0] + in1[0][1] * in2[1][0] +
 				in1[0][2] * in2[2][0];
@@ -638,7 +628,7 @@ void R_ConcatRotationsPad (float in1[3][4], float in2[3][4], float out[3][4])
 				in1[2][2] * in2[2][2];
 }
 
-void Matrix3x4_Multiply(const float *a, const float *b, float *out)
+void Matrix3x4_Multiply(const vec_t *a, const vec_t *b, vec_t *out)
 {
 	out[0]  = a[0] * b[0] + a[4] * b[1] + a[8] * b[2];
 	out[1]  = a[1] * b[0] + a[5] * b[1] + a[9] * b[2];
@@ -666,8 +656,7 @@ quotient must fit in 32 bits.
 ====================
 */
 
-void FloorDivMod (double numer, double denom, int *quotient,
-		int *rem)
+void FloorDivMod (double numer, double denom, int *quotient, int *rem)
 {
 	int		q, r;
 	double	x;
@@ -749,14 +738,6 @@ fixed16_t Invert24To16(fixed16_t val)
 			(((double)0x10000 * (double)0x1000000 / (double)val) + 0.5);
 }
 
-
-
-
-
-
-
-
-
 void VectorTransform (const vec3_t in1, const matrix3x4 in2, vec3_t out)
 {
 	out[0] = DotProduct(in1, in2[0]) + in2[0][3];
@@ -764,22 +745,22 @@ void VectorTransform (const vec3_t in1, const matrix3x4 in2, vec3_t out)
 	out[2] = DotProduct(in1, in2[2]) + in2[2][3];
 }
 
-void Bones_To_PosQuat4(int numbones, const float *matrix, short *result)
+void Bones_To_PosQuat4(int numbones, const vec_t *matrix, short *result)
 {	//I ripped this function out of DP. tweaked slightly.
 	//http://www.euclideanspace.com/maths/geometry/rotations/conversions/matrixToQuaternion/index.htm
-	float origininvscale = 64;
-	float origin[3];
-	float quat[4];
-	float quatscale;
+	vec_t origininvscale = 64;
+	vec_t origin[3];
+	vec_t quat[4];
+	vec_t quatscale;
 	while (numbones --> 0)
 	{
-		float trace = matrix[0*4+0] + matrix[1*4+1] + matrix[2*4+2];
+		vec_t trace = matrix[0*4+0] + matrix[1*4+1] + matrix[2*4+2];
 		origin[0] = matrix[0*4+3];
 		origin[1] = matrix[1*4+3];
 		origin[2] = matrix[2*4+3];
 		if(trace > 0)
 		{
-			float r = sqrt(1.0f + trace), inv = 0.5f / r;
+			vec_t r = sqrt(1.0f + trace), inv = 0.5f / r;
 			quat[0] = (matrix[2*4+1] - matrix[1*4+2]) * inv;
 			quat[1] = (matrix[0*4+2] - matrix[2*4+0]) * inv;
 			quat[2] = (matrix[1*4+0] - matrix[0*4+1]) * inv;
@@ -787,7 +768,7 @@ void Bones_To_PosQuat4(int numbones, const float *matrix, short *result)
 		}
 		else if(matrix[0*4+0] > matrix[1*4+1] && matrix[0*4+0] > matrix[2*4+2])
 		{
-			float r = sqrt(1.0f + matrix[0*4+0] - matrix[1*4+1] - matrix[2*4+2]), inv = 0.5f / r;
+			vec_t r = sqrt(1.0f + matrix[0*4+0] - matrix[1*4+1] - matrix[2*4+2]), inv = 0.5f / r;
 			quat[0] = 0.5f * r;
 			quat[1] = (matrix[1*4+0] + matrix[0*4+1]) * inv;
 			quat[2] = (matrix[0*4+2] + matrix[2*4+0]) * inv;
@@ -795,7 +776,7 @@ void Bones_To_PosQuat4(int numbones, const float *matrix, short *result)
 		}
 		else if(matrix[1*4+1] > matrix[2*4+2])
 		{
-			float r = sqrt(1.0f + matrix[1*4+1] - matrix[0*4+0] - matrix[2*4+2]), inv = 0.5f / r;
+			vec_t r = sqrt(1.0f + matrix[1*4+1] - matrix[0*4+0] - matrix[2*4+2]), inv = 0.5f / r;
 			quat[0] = (matrix[1*4+0] + matrix[0*4+1]) * inv;
 			quat[1] = 0.5f * r;
 			quat[2] = (matrix[2*4+1] + matrix[1*4+2]) * inv;
@@ -803,7 +784,7 @@ void Bones_To_PosQuat4(int numbones, const float *matrix, short *result)
 		}
 		else
 		{
-			float r = sqrt(1.0f + matrix[2*4+2] - matrix[0*4+0] - matrix[1*4+1]), inv = 0.5f / r;
+			vec_t r = sqrt(1.0f + matrix[2*4+2] - matrix[0*4+0] - matrix[1*4+1]), inv = 0.5f / r;
 			quat[0] = (matrix[0*4+2] + matrix[2*4+0]) * inv;
 			quat[1] = (matrix[2*4+1] + matrix[1*4+2]) * inv;
 			quat[2] = 0.5f * r;
@@ -828,11 +809,11 @@ void Bones_To_PosQuat4(int numbones, const float *matrix, short *result)
 	}
 }
 
-void QDECL GenMatrixPosQuat4Scale(const vec3_t pos, const vec4_t quat, const vec3_t scale, float result[12])
+void QDECL GenMatrixPosQuat4Scale(const vec3_t pos, const vec4_t quat, const vec3_t scale, vec_t result[12])
 {
-	float xx, xy, xz, xw, yy, yz, yw, zz, zw;
-	float x2, y2, z2;
-	float s;
+	vec_t xx, xy, xz, xw, yy, yz, yw, zz, zw;
+	vec_t x2, y2, z2;
+	vec_t s;
 	x2 = quat[0] + quat[0];
 	y2 = quat[1] + quat[1];
 	z2 = quat[2] + quat[2];
@@ -864,8 +845,8 @@ void QDECL GenMatrixPosQuat4Scale(const vec3_t pos, const vec4_t quat, const vec
 
 static void AngleQuaternion( const vec3_t angles, vec4_t quaternion )
 {
-	float		angle;
-	float		sr, sp, sy, cr, cp, cy;
+	vec_t		angle;
+	vec_t		sr, sp, sy, cr, cp, cy;
 
 	// FIXME: rescale the inputs to 1/2 angle
 	angle = angles[2] * 0.5;
@@ -884,7 +865,7 @@ static void AngleQuaternion( const vec3_t angles, vec4_t quaternion )
 	quaternion[3] = cr*cp*cy+sr*sp*sy; // W
 }
 
-static void QuaternionMatrix( const vec4_t quaternion, float (*matrix)[4] )
+static void QuaternionMatrix( const vec4_t quaternion, vec_t (*matrix)[4] )
 {
 
 	matrix[0][0] = 1.0 - 2.0 * quaternion[1] * quaternion[1] - 2.0 * quaternion[2] * quaternion[2];
@@ -900,14 +881,14 @@ static void QuaternionMatrix( const vec4_t quaternion, float (*matrix)[4] )
 	matrix[2][2] = 1.0 - 2.0 * quaternion[0] * quaternion[0] - 2.0 * quaternion[1] * quaternion[1];
 }
 #endif
-void QuaternionSlerp( const vec4_t p, vec4_t q, float t, vec4_t qt )
+void QuaternionSlerp( const vec4_t p, vec4_t q, vec_t t, vec4_t qt )
 {
 	int i;
-	float omega, cosom, sinom, sclp, sclq;
+	vec_t omega, cosom, sinom, sclp, sclq;
 
 	// decide if one of the quaternions is backwards
-	float a = 0;
-	float b = 0;
+	vec_t a = 0;
+	vec_t b = 0;
 	for (i = 0; i < 4; i++) {
 		a += (p[i]-q[i])*(p[i]-q[i]);
 		b += (p[i]+q[i])*(p[i]+q[i]);
@@ -949,11 +930,11 @@ void QuaternionSlerp( const vec4_t p, vec4_t q, float t, vec4_t qt )
 }
 
 //This function is GL stylie (use as 2nd arg to ML_MultMatrix4).
-float *Matrix4x4_CM_NewRotation(float a, float x, float y, float z)
+vec_t *Matrix4x4_CM_NewRotation(vec_t a, vec_t x, vec_t y, vec_t z)
 {
-	static float ret[16];
-	float c = cos(a* M_PI / 180.0);
-	float s = sin(a* M_PI / 180.0);
+	static vec_t ret[16];
+	vec_t c = cos(a* M_PI / 180.0);
+	vec_t s = sin(a* M_PI / 180.0);
 
 	ret[0] = x*x*(1-c)+c;
 	ret[4] = x*y*(1-c)-z*s;
@@ -978,9 +959,9 @@ float *Matrix4x4_CM_NewRotation(float a, float x, float y, float z)
 }
 
 //This function is GL stylie (use as 2nd arg to ML_MultMatrix4).
-float *Matrix4x4_CM_NewTranslation(float x, float y, float z)
+vec_t *Matrix4x4_CM_NewTranslation(vec_t x, vec_t y, vec_t z)
 {
-	static float ret[16];
+	static vec_t ret[16];
 	ret[0] = 1;
 	ret[4] = 0;
 	ret[8] = 0;
@@ -1004,7 +985,7 @@ float *Matrix4x4_CM_NewTranslation(float x, float y, float z)
 }
 
 //be aware that this generates two sorts of matricies depending on order of a+b
-void Matrix4_Multiply(const float *a, const float *b, float *out)
+void Matrix4_Multiply(const vec_t *a, const vec_t *b, vec_t *out)
 {
 	out[0]  = a[0] * b[0] + a[4] * b[1] + a[8] * b[2] + a[12] * b[3];
 	out[1]  = a[1] * b[0] + a[5] * b[1] + a[9] * b[2] + a[13] * b[3];
@@ -1027,13 +1008,13 @@ void Matrix4_Multiply(const float *a, const float *b, float *out)
 	out[15] = a[3] * b[12] + a[7] * b[13] + a[11] * b[14] + a[15] * b[15];
 }
 
-void Matrix3x4_RM_Transform3(const float *matrix, const float *vector, float *product)
+void Matrix3x4_RM_Transform3(const vec_t *matrix, const vec_t *vector, vec_t *product)
 {
 	product[0] = matrix[0]*vector[0] + matrix[1]*vector[1] + matrix[2]*vector[2] + matrix[3];
 	product[1] = matrix[4]*vector[0] + matrix[5]*vector[1] + matrix[6]*vector[2] + matrix[7];
 	product[2] = matrix[8]*vector[0] + matrix[9]*vector[1] + matrix[10]*vector[2] + matrix[11];
 }
-void Matrix3x4_RM_Transform3x3(const float *matrix, const float *vector, float *product)
+void Matrix3x4_RM_Transform3x3(const vec_t *matrix, const vec_t *vector, vec_t *product)
 {
 	product[0] = matrix[0]*vector[0] + matrix[1]*vector[1] + matrix[2]*vector[2];
 	product[1] = matrix[4]*vector[0] + matrix[5]*vector[1] + matrix[6]*vector[2];
@@ -1041,7 +1022,7 @@ void Matrix3x4_RM_Transform3x3(const float *matrix, const float *vector, float *
 }
 
 //transform 4d vector by a 4d matrix.
-void Matrix4x4_CM_Transform4(const float *matrix, const float *vector, float *product)
+void Matrix4x4_CM_Transform4(const vec_t *matrix, const vec_t *vector, vec4_t product)
 {
 	product[0] = matrix[0]*vector[0] + matrix[4]*vector[1] + matrix[8]*vector[2] + matrix[12]*vector[3];
 	product[1] = matrix[1]*vector[0] + matrix[5]*vector[1] + matrix[9]*vector[2] + matrix[13]*vector[3];
@@ -1050,7 +1031,7 @@ void Matrix4x4_CM_Transform4(const float *matrix, const float *vector, float *pr
 }
 
 //ignore the entire right+bottom row/column of the 4*4 matrix
-void Matrix4x4_CM_Transform3x3(const float *matrix, const float *vector, float *product)
+void Matrix4x4_CM_Transform3x3(const vec_t *matrix, const vec_t *vector, vec3_t product)
 {
 	product[0] = matrix[0]*vector[0] + matrix[4]*vector[1] + matrix[8]*vector[2];
 	product[1] = matrix[1]*vector[0] + matrix[5]*vector[1] + matrix[9]*vector[2];
@@ -1058,13 +1039,14 @@ void Matrix4x4_CM_Transform3x3(const float *matrix, const float *vector, float *
 }
 
 //disregard the extra bit of the matrix
-void Matrix4x4_CM_Transform3(const float *matrix, const float *vector, float *product)
+void Matrix4x4_CM_Transform3(const vec_t *matrix, const vec_t *vector, vec3_t product)
 {
 	product[0] = matrix[0]*vector[0] + matrix[4]*vector[1] + matrix[8]*vector[2] + matrix[12];
 	product[1] = matrix[1]*vector[0] + matrix[5]*vector[1] + matrix[9]*vector[2] + matrix[13];
 	product[2] = matrix[2]*vector[0] + matrix[6]*vector[1] + matrix[10]*vector[2] + matrix[14];
 }
-void Matrix4x4_CM_Transform34(const float *matrix, const vec3_t vector, vec4_t product)
+
+void Matrix4x4_CM_Transform34(const vec_t *matrix, const vec_t *vector, vec4_t product)
 {
 	//transform as though vector[3] == 1
 	product[0] = matrix[0]*vector[0] + matrix[4]*vector[1] + matrix[8]*vector[2] + matrix[12];
@@ -1073,16 +1055,16 @@ void Matrix4x4_CM_Transform34(const float *matrix, const vec3_t vector, vec4_t p
 	product[3] = matrix[3]*vector[0] + matrix[7]*vector[1] + matrix[11]*vector[2] + matrix[15];
 }
 
-void Matrix4x4_CM_ModelViewMatrix(float *modelview, const vec3_t viewangles, const vec3_t vieworg)
+void Matrix4x4_CM_ModelViewMatrix(vec_t *modelview, const vec3_t viewangles, const vec3_t vieworg)
 {
 #if 1
-	float *out = modelview;
-	float cp = cos(-viewangles[0] * M_PI / 180.0);
-	float sp = sin(-viewangles[0] * M_PI / 180.0);
-	float cy = cos(-viewangles[1] * M_PI / 180.0);
-	float sy = sin(-viewangles[1] * M_PI / 180.0);
-	float cr = cos(-viewangles[2] * M_PI / 180.0);
-	float sr = sin(-viewangles[2] * M_PI / 180.0);
+	vec_t *out = modelview;
+	vec_t cp = cos(-viewangles[0] * M_PI / 180.0);
+	vec_t sp = sin(-viewangles[0] * M_PI / 180.0);
+	vec_t cy = cos(-viewangles[1] * M_PI / 180.0);
+	vec_t sy = sin(-viewangles[1] * M_PI / 180.0);
+	vec_t cr = cos(-viewangles[2] * M_PI / 180.0);
+	vec_t sr = sin(-viewangles[2] * M_PI / 180.0);
 
 	out[0]  = -sr*sp*cy - cr*sy;
 	out[1]  = -cr*sp*cy + sr*sy;
@@ -1101,7 +1083,7 @@ void Matrix4x4_CM_ModelViewMatrix(float *modelview, const vec3_t viewangles, con
 	out[14] =   - out[2]*vieworg[0] - out[6]*vieworg[1] - out[10]*vieworg[2];
 	out[15] = 1 - out[3]*vieworg[0] - out[7]*vieworg[1] - out[11]*vieworg[2];
 #else
-	float tempmat[16];
+	vec_t tempmat[16];
 	//load identity.
 	memset(modelview, 0, sizeof(*modelview)*16);
 #if FULLYGL
@@ -1130,7 +1112,7 @@ void Matrix4x4_CM_ModelViewMatrix(float *modelview, const vec3_t viewangles, con
 #endif
 }
 
-void Matrix4x4_CM_CreateTranslate (float *out, float x, float y, float z)
+void Matrix4x4_CM_CreateTranslate (vec_t *out, vec_t x, vec_t y, vec_t z)
 {
 	out[0] = 1;
 	out[1] = 0;
@@ -1153,7 +1135,7 @@ void Matrix4x4_CM_CreateTranslate (float *out, float x, float y, float z)
 	out[15] = 1;
 }
 
-void Matrix4x4_RM_CreateTranslate (float *out, float x, float y, float z)
+void Matrix4x4_RM_CreateTranslate (vec_t *out, vec_t x, vec_t y, vec_t z)
 {
 	out[0] = 1;
 	out[4] = 0;
@@ -1176,7 +1158,7 @@ void Matrix4x4_RM_CreateTranslate (float *out, float x, float y, float z)
 	out[15] = 1;
 }
 
-void Matrix4x4_CM_LightMatrixFromAxis(float *modelview, const vec3_t px, const vec3_t py, const vec3_t pz, const vec3_t org)
+void Matrix4x4_CM_LightMatrixFromAxis(vec_t *modelview, const vec3_t px, const vec3_t py, const vec3_t pz, const vec3_t org)
 {
 	modelview[ 0] = px[0];
 	modelview[ 1] = py[0];
@@ -1196,9 +1178,9 @@ void Matrix4x4_CM_LightMatrixFromAxis(float *modelview, const vec3_t px, const v
 	modelview[15] = 1;
 }
 
-void Matrix4x4_CM_ModelViewMatrixFromAxis(float *modelview, const vec3_t pn, const vec3_t right, const vec3_t up, const vec3_t vieworg)
+void Matrix4x4_CM_ModelViewMatrixFromAxis(vec_t *modelview, const vec3_t pn, const vec3_t right, const vec3_t up, const vec3_t vieworg)
 {
-	float tempmat[16];
+	vec_t tempmat[16];
 
 	tempmat[ 0] = right[0];
 	tempmat[ 1] = up[0];
@@ -1221,10 +1203,10 @@ void Matrix4x4_CM_ModelViewMatrixFromAxis(float *modelview, const vec3_t pn, con
 }
 
 
-void Matrix3x4_RM_FromAngles(const vec3_t angles, const vec3_t origin, float *out)
+void Matrix3x4_RM_FromAngles(const vec3_t angles, const vec3_t origin, vec_t *out)
 {
-	float		angle;
-	float		sr, sp, sy, cr, cp, cy;
+	vec_t		angle;
+	vec_t		sr, sp, sy, cr, cp, cy;
 
 	angle = angles[YAW] * (M_PI*2 / 360);
 	sy = sin(angle);
@@ -1251,7 +1233,7 @@ void Matrix3x4_RM_FromAngles(const vec3_t angles, const vec3_t origin, float *ou
 	out[10] = cr*cp;
 	out[11] = origin[2];
 }
-void Matrix3x4_RM_ToVectors(const float *in, float vx[3], float vy[3], float vz[3], float t[3])
+void Matrix3x4_RM_ToVectors(const vec_t *in, vec3_t vx, vec3_t vy, vec3_t vz, vec3_t t)
 {
 	vx[0] = in[0];
 	vx[1] = in[4];
@@ -1270,7 +1252,7 @@ void Matrix3x4_RM_ToVectors(const float *in, float vx[3], float vy[3], float vz[
 	t [2] = in[11];
 }
 
-void Matrix4x4_RM_FromVectors(float *out, const float vx[3], const float vy[3], const float vz[3], const float t[3])
+void Matrix4x4_RM_FromVectors(vec_t *out, const vec3_t vx, const vec3_t vy, const vec3_t vz, const vec3_t t)
 {
 	out[0] = vx[0];
 	out[1] = vy[0];
@@ -1290,7 +1272,7 @@ void Matrix4x4_RM_FromVectors(float *out, const float vx[3], const float vy[3], 
 	out[15] = 1.0f;
 }
 
-void Matrix3x4_RM_FromVectors(float *out, const float vx[3], const float vy[3], const float vz[3], const float t[3])
+void Matrix3x4_RM_FromVectors(vec_t *out, const vec3_t vx, const vec3_t vy, const vec3_t vz, const vec3_t t)
 {
 	out[0] = vx[0];
 	out[1] = vy[0];
@@ -1306,9 +1288,9 @@ void Matrix3x4_RM_FromVectors(float *out, const float vx[3], const float vy[3], 
 	out[11] = t[2];
 }
 
-void Matrix4x4_CM_ModelMatrixFromAxis(float *modelview, const vec3_t pn, const vec3_t right, const vec3_t up, const vec3_t vieworg)
+void Matrix4x4_CM_ModelMatrixFromAxis(vec_t *modelview, const vec3_t pn, const vec3_t right, const vec3_t up, const vec3_t vieworg)
 {
-	float tempmat[16];
+	vec_t tempmat[16];
 
 	tempmat[ 0] = pn[0];
 	tempmat[ 1] = pn[1];
@@ -1330,9 +1312,9 @@ void Matrix4x4_CM_ModelMatrixFromAxis(float *modelview, const vec3_t pn, const v
 	Matrix4_Multiply(Matrix4x4_CM_NewTranslation(vieworg[0],  vieworg[1],  vieworg[2]), tempmat, modelview);	    // put Z going up
 }
 
-void Matrix4x4_CM_ModelMatrix(float *modelview, vec_t x, vec_t y, vec_t z, vec_t pitch, vec_t yaw, vec_t roll, vec_t scale)
+void Matrix4x4_CM_ModelMatrix(vec_t *modelview, vec_t x, vec_t y, vec_t z, vec_t pitch, vec_t yaw, vec_t roll, vec_t scale)
 {
-	float tempmat[16];
+	vec_t tempmat[16];
 	//load identity.
 	memset(modelview, 0, sizeof(*modelview)*16);
 #if FULLYGL
@@ -1360,7 +1342,7 @@ void Matrix4x4_CM_ModelMatrix(float *modelview, vec_t x, vec_t y, vec_t z, vec_t
 	Matrix4_Multiply(tempmat, Matrix4x4_CM_NewTranslation(x,  y,  z), modelview);
 }
 
-void Matrix4x4_Identity(float *outm)
+void Matrix4x4_Identity(vec_t *outm)
 {
 	outm[ 0] = 1;
 	outm[ 1] = 0;
@@ -1380,7 +1362,7 @@ void Matrix4x4_Identity(float *outm)
 	outm[15] = 1;
 }
 
-void Matrix4x4_CM_Projection_Offset(float *proj, float fovl, float fovr, float fovd, float fovu, float neard, float fard, qboolean d3d)
+void Matrix4x4_CM_Projection_Offset(vec_t *proj, vec_t fovl, vec_t fovr, vec_t fovd, vec_t fovu, vec_t neard, vec_t fard, qboolean d3d)
 {
 	double dn = (d3d?0:-1), df = 1;	//d3d outputs near as 0, opengl has near as -1. that's the only difference.
 	double ymax = tan( fovu * M_PI / 180.0 );
@@ -1436,7 +1418,7 @@ void Matrix4x4_CM_Projection_Offset(float *proj, float fovl, float fovr, float f
 	}
 }
 
-void Matrix4x4_CM_Projection_Far(float *proj, float fovx, float fovy, float neard, float fard, qboolean d3d)
+void Matrix4x4_CM_Projection_Far(vec_t *proj, vec_t fovx, vec_t fovy, vec_t neard, vec_t fard, qboolean d3d)
 {
 	double xmin, xmax, ymin, ymax;
 	double dn = (d3d?0:-1), df = 1;
@@ -1477,10 +1459,10 @@ void Matrix4x4_CM_Projection_Far(float *proj, float fovx, float fovy, float near
 	proj[15] = 0;
 }
 
-void Matrix4x4_CM_Projection_Inf(float *proj, float fovx, float fovy, float neard, qboolean d3d)
+void Matrix4x4_CM_Projection_Inf(vec_t *proj, vec_t fovx, vec_t fovy, vec_t neard, qboolean d3d)
 {
 //FIXME: glDepthRange(1,0) for reverse-z (with cull flipped). combine with arb_clip_control for 0-1. this should give much better depth precision with floating point depth buffers.
-	float xmin, xmax, ymin, ymax;
+	vec_t xmin, xmax, ymin, ymax;
 	double dn = (d3d?0:-1), df = 1;
 
 	//proj
@@ -1518,7 +1500,7 @@ void Matrix4x4_CM_Projection_Inf(float *proj, float fovx, float fovy, float near
 	}
 #elif 1
 	{	//mathematical target
-		const float fard = (1<<22);
+		const vec_t fard = (1<<22);
 		proj[2] = 0;
 		proj[6] = 0;
 		proj[10] = (fard*df-neard*dn)/(neard-fard);
@@ -1528,7 +1510,7 @@ void Matrix4x4_CM_Projection_Inf(float *proj, float fovx, float fovy, float near
 	//old logic
 	proj[2] = 0;
 	proj[6] = 0;
-	proj[10] = -1  * ((float)(1<<21)/(1<<22));
+	proj[10] = -1  * ((vec_t)(1<<21)/(1<<22));
 	proj[14] = -2*neard;
 #endif
 	
@@ -1537,10 +1519,10 @@ void Matrix4x4_CM_Projection_Inf(float *proj, float fovx, float fovy, float near
 	proj[11] = -1;
 	proj[15] = 0;
 }
-void Matrix4x4_CM_Projection2(float *proj, float fovx, float fovy, float neard)
+void Matrix4x4_CM_Projection2(vec_t *proj, vec_t fovx, vec_t fovy, vec_t neard)
 {
-	float xmin, xmax, ymin, ymax;
-	float nudge = 1;
+	vec_t xmin, xmax, ymin, ymax;
+	vec_t nudge = 1;
 
 	//proj
 	ymax = neard * tan( fovy * M_PI / 360.0 );
@@ -1570,8 +1552,8 @@ void Matrix4x4_CM_Projection2(float *proj, float fovx, float fovy, float neard)
 	proj[15] = 0;
 }
 
-void Matrix4x4_CM_Orthographic(float *proj, float xmin, float xmax, float ymin, float ymax,
-		     float znear, float zfar)
+void Matrix4x4_CM_Orthographic(vec_t *proj, vec_t xmin, vec_t xmax, vec_t ymin, vec_t ymax,
+		     vec_t znear, vec_t zfar)
 {
 	proj[0] = 2/(xmax-xmin);
 	proj[4] = 0;
@@ -1593,8 +1575,8 @@ void Matrix4x4_CM_Orthographic(float *proj, float xmin, float xmax, float ymin, 
 	proj[11] = 0;
 	proj[15] = 1;
 }
-void Matrix4x4_CM_OrthographicD3D(float *proj, float xmin, float xmax, float ymax, float ymin,
-		     float znear, float zfar)
+void Matrix4x4_CM_OrthographicD3D(vec_t *proj, vec_t xmin, vec_t xmax, vec_t ymax, vec_t ymin,
+		     vec_t znear, vec_t zfar)
 {
 	proj[0] = 2/(xmax-xmin);
 	proj[4] = 0;
@@ -1622,174 +1604,174 @@ void Matrix4x4_CM_OrthographicD3D(float *proj, float xmin, float xmax, float yma
  * Return true for success, false for failure (singular matrix)
  * This came to FTE via mesa's GLU.
  */
-qboolean Matrix4_Invert(const float *m, float *out)
+qboolean Matrix4_Invert(const vec_t *m, vec_t *out)
 {
 /* NB. OpenGL Matrices are COLUMN major. */
-#define SWAP_ROWS(a, b) { float *_tmp = a; (a)=(b); (b)=_tmp; }
+#define SWAP_ROWS(a, b) { vec_t *_tmp = a; (a)=(b); (b)=_tmp; }
 #define MAT(m,r,c) (m)[(c)*4+(r)]
 
-   float wtmp[4][8];
-   float m0, m1, m2, m3, s;
-   float *r0, *r1, *r2, *r3;
+	vec_t wtmp[4][8];
+	vec_t m0, m1, m2, m3, s;
+	vec_t *r0, *r1, *r2, *r3;
 
-   r0 = wtmp[0], r1 = wtmp[1], r2 = wtmp[2], r3 = wtmp[3];
+	r0 = wtmp[0], r1 = wtmp[1], r2 = wtmp[2], r3 = wtmp[3];
 
-   r0[0] = MAT(m, 0, 0), r0[1] = MAT(m, 0, 1),
-      r0[2] = MAT(m, 0, 2), r0[3] = MAT(m, 0, 3),
-      r0[4] = 1.0, r0[5] = r0[6] = r0[7] = 0.0,
-      r1[0] = MAT(m, 1, 0), r1[1] = MAT(m, 1, 1),
-      r1[2] = MAT(m, 1, 2), r1[3] = MAT(m, 1, 3),
-      r1[5] = 1.0, r1[4] = r1[6] = r1[7] = 0.0,
-      r2[0] = MAT(m, 2, 0), r2[1] = MAT(m, 2, 1),
-      r2[2] = MAT(m, 2, 2), r2[3] = MAT(m, 2, 3),
-      r2[6] = 1.0, r2[4] = r2[5] = r2[7] = 0.0,
-      r3[0] = MAT(m, 3, 0), r3[1] = MAT(m, 3, 1),
-      r3[2] = MAT(m, 3, 2), r3[3] = MAT(m, 3, 3),
-      r3[7] = 1.0, r3[4] = r3[5] = r3[6] = 0.0;
+	r0[0] = MAT(m, 0, 0), r0[1] = MAT(m, 0, 1),
+	r0[2] = MAT(m, 0, 2), r0[3] = MAT(m, 0, 3),
+	r0[4] = 1.0, r0[5] = r0[6] = r0[7] = 0.0,
+	r1[0] = MAT(m, 1, 0), r1[1] = MAT(m, 1, 1),
+	r1[2] = MAT(m, 1, 2), r1[3] = MAT(m, 1, 3),
+	r1[5] = 1.0, r1[4] = r1[6] = r1[7] = 0.0,
+	r2[0] = MAT(m, 2, 0), r2[1] = MAT(m, 2, 1),
+	r2[2] = MAT(m, 2, 2), r2[3] = MAT(m, 2, 3),
+	r2[6] = 1.0, r2[4] = r2[5] = r2[7] = 0.0,
+	r3[0] = MAT(m, 3, 0), r3[1] = MAT(m, 3, 1),
+	r3[2] = MAT(m, 3, 2), r3[3] = MAT(m, 3, 3),
+	r3[7] = 1.0, r3[4] = r3[5] = r3[6] = 0.0;
 
-   /* choose pivot - or die */
-   if (fabs(r3[0]) > fabs(r2[0]))
-      SWAP_ROWS(r3, r2);
-   if (fabs(r2[0]) > fabs(r1[0]))
-      SWAP_ROWS(r2, r1);
-   if (fabs(r1[0]) > fabs(r0[0]))
-      SWAP_ROWS(r1, r0);
-   if (0.0 == r0[0])
-      return false;
+	/* choose pivot - or die */
+	if (fabs(r3[0]) > fabs(r2[0]))
+		SWAP_ROWS(r3, r2);
+	if (fabs(r2[0]) > fabs(r1[0]))
+		SWAP_ROWS(r2, r1);
+	if (fabs(r1[0]) > fabs(r0[0]))
+		SWAP_ROWS(r1, r0);
+	if (0.0 == r0[0])
+		return false;
 
-   /* eliminate first variable     */
-   m1 = r1[0] / r0[0];
-   m2 = r2[0] / r0[0];
-   m3 = r3[0] / r0[0];
-   s = r0[1];
-   r1[1] -= m1 * s;
-   r2[1] -= m2 * s;
-   r3[1] -= m3 * s;
-   s = r0[2];
-   r1[2] -= m1 * s;
-   r2[2] -= m2 * s;
-   r3[2] -= m3 * s;
-   s = r0[3];
-   r1[3] -= m1 * s;
-   r2[3] -= m2 * s;
-   r3[3] -= m3 * s;
-   s = r0[4];
-   if (s != 0.0) {
-      r1[4] -= m1 * s;
-      r2[4] -= m2 * s;
-      r3[4] -= m3 * s;
-   }
-   s = r0[5];
-   if (s != 0.0) {
-      r1[5] -= m1 * s;
-      r2[5] -= m2 * s;
-      r3[5] -= m3 * s;
-   }
-   s = r0[6];
-   if (s != 0.0) {
-      r1[6] -= m1 * s;
-      r2[6] -= m2 * s;
-      r3[6] -= m3 * s;
-   }
-   s = r0[7];
-   if (s != 0.0) {
-      r1[7] -= m1 * s;
-      r2[7] -= m2 * s;
-      r3[7] -= m3 * s;
-   }
+	/* eliminate first variable     */
+	m1 = r1[0] / r0[0];
+	m2 = r2[0] / r0[0];
+	m3 = r3[0] / r0[0];
+	s = r0[1];
+	r1[1] -= m1 * s;
+	r2[1] -= m2 * s;
+	r3[1] -= m3 * s;
+	s = r0[2];
+	r1[2] -= m1 * s;
+	r2[2] -= m2 * s;
+	r3[2] -= m3 * s;
+	s = r0[3];
+	r1[3] -= m1 * s;
+	r2[3] -= m2 * s;
+	r3[3] -= m3 * s;
+	s = r0[4];
+	if (s != 0.0) {
+		r1[4] -= m1 * s;
+		r2[4] -= m2 * s;
+		r3[4] -= m3 * s;
+	}
+	s = r0[5];
+	if (s != 0.0) {
+		r1[5] -= m1 * s;
+		r2[5] -= m2 * s;
+		r3[5] -= m3 * s;
+	}
+	s = r0[6];
+	if (s != 0.0) {
+		r1[6] -= m1 * s;
+		r2[6] -= m2 * s;
+		r3[6] -= m3 * s;
+	}
+	s = r0[7];
+	if (s != 0.0) {
+		r1[7] -= m1 * s;
+		r2[7] -= m2 * s;
+		r3[7] -= m3 * s;
+	}
 
-   /* choose pivot - or die */
-   if (fabs(r3[1]) > fabs(r2[1]))
-      SWAP_ROWS(r3, r2);
-   if (fabs(r2[1]) > fabs(r1[1]))
-      SWAP_ROWS(r2, r1);
-   if (0.0 == r1[1])
-      return false;
+	/* choose pivot - or die */
+	if (fabs(r3[1]) > fabs(r2[1]))
+		SWAP_ROWS(r3, r2);
+	if (fabs(r2[1]) > fabs(r1[1]))
+		SWAP_ROWS(r2, r1);
+	if (0.0 == r1[1])
+		return false;
 
-   /* eliminate second variable */
-   m2 = r2[1] / r1[1];
-   m3 = r3[1] / r1[1];
-   r2[2] -= m2 * r1[2];
-   r3[2] -= m3 * r1[2];
-   r2[3] -= m2 * r1[3];
-   r3[3] -= m3 * r1[3];
-   s = r1[4];
-   if (0.0 != s) {
-      r2[4] -= m2 * s;
-      r3[4] -= m3 * s;
-   }
-   s = r1[5];
-   if (0.0 != s) {
-      r2[5] -= m2 * s;
-      r3[5] -= m3 * s;
-   }
-   s = r1[6];
-   if (0.0 != s) {
-      r2[6] -= m2 * s;
-      r3[6] -= m3 * s;
-   }
-   s = r1[7];
-   if (0.0 != s) {
-      r2[7] -= m2 * s;
-      r3[7] -= m3 * s;
-   }
+	/* eliminate second variable */
+	m2 = r2[1] / r1[1];
+	m3 = r3[1] / r1[1];
+	r2[2] -= m2 * r1[2];
+	r3[2] -= m3 * r1[2];
+	r2[3] -= m2 * r1[3];
+	r3[3] -= m3 * r1[3];
+	s = r1[4];
+	if (0.0 != s) {
+		r2[4] -= m2 * s;
+		r3[4] -= m3 * s;
+	}
+	s = r1[5];
+	if (0.0 != s) {
+		r2[5] -= m2 * s;
+		r3[5] -= m3 * s;
+	}
+	s = r1[6];
+	if (0.0 != s) {
+		r2[6] -= m2 * s;
+		r3[6] -= m3 * s;
+	}
+	s = r1[7];
+	if (0.0 != s) {
+		r2[7] -= m2 * s;
+		r3[7] -= m3 * s;
+	}
 
-   /* choose pivot - or die */
-   if (fabs(r3[2]) > fabs(r2[2]))
-      SWAP_ROWS(r3, r2);
-   if (0.0 == r2[2])
-      return false;
+	/* choose pivot - or die */
+	if (fabs(r3[2]) > fabs(r2[2]))
+		SWAP_ROWS(r3, r2);
+	if (0.0 == r2[2])
+		return false;
 
-   /* eliminate third variable */
-   m3 = r3[2] / r2[2];
-   r3[3] -= m3 * r2[3], r3[4] -= m3 * r2[4],
-      r3[5] -= m3 * r2[5], r3[6] -= m3 * r2[6], r3[7] -= m3 * r2[7];
+	/* eliminate third variable */
+	m3 = r3[2] / r2[2];
+	r3[3] -= m3 * r2[3], r3[4] -= m3 * r2[4],
+	r3[5] -= m3 * r2[5], r3[6] -= m3 * r2[6], r3[7] -= m3 * r2[7];
 
-   /* last check */
-   if (0.0 == r3[3])
-      return false;
+	/* last check */
+	if (0.0 == r3[3])
+		return false;
 
-   s = 1.0 / r3[3];             /* now back substitute row 3 */
-   r3[4] *= s;
-   r3[5] *= s;
-   r3[6] *= s;
-   r3[7] *= s;
+	s = 1.0 / r3[3];             /* now back substitute row 3 */
+	r3[4] *= s;
+	r3[5] *= s;
+	r3[6] *= s;
+	r3[7] *= s;
 
-   m2 = r2[3];                  /* now back substitute row 2 */
-   s = 1.0 / r2[2];
-   r2[4] = s * (r2[4] - r3[4] * m2), r2[5] = s * (r2[5] - r3[5] * m2),
-      r2[6] = s * (r2[6] - r3[6] * m2), r2[7] = s * (r2[7] - r3[7] * m2);
-   m1 = r1[3];
-   r1[4] -= r3[4] * m1, r1[5] -= r3[5] * m1,
-      r1[6] -= r3[6] * m1, r1[7] -= r3[7] * m1;
-   m0 = r0[3];
-   r0[4] -= r3[4] * m0, r0[5] -= r3[5] * m0,
-      r0[6] -= r3[6] * m0, r0[7] -= r3[7] * m0;
+	m2 = r2[3];                  /* now back substitute row 2 */
+	s = 1.0 / r2[2];
+	r2[4] = s * (r2[4] - r3[4] * m2), r2[5] = s * (r2[5] - r3[5] * m2),
+		r2[6] = s * (r2[6] - r3[6] * m2), r2[7] = s * (r2[7] - r3[7] * m2);
+	m1 = r1[3];
+	r1[4] -= r3[4] * m1, r1[5] -= r3[5] * m1,
+		r1[6] -= r3[6] * m1, r1[7] -= r3[7] * m1;
+	m0 = r0[3];
+	r0[4] -= r3[4] * m0, r0[5] -= r3[5] * m0,
+		r0[6] -= r3[6] * m0, r0[7] -= r3[7] * m0;
 
-   m1 = r1[2];                  /* now back substitute row 1 */
-   s = 1.0 / r1[1];
-   r1[4] = s * (r1[4] - r2[4] * m1), r1[5] = s * (r1[5] - r2[5] * m1),
-      r1[6] = s * (r1[6] - r2[6] * m1), r1[7] = s * (r1[7] - r2[7] * m1);
-   m0 = r0[2];
-   r0[4] -= r2[4] * m0, r0[5] -= r2[5] * m0,
-      r0[6] -= r2[6] * m0, r0[7] -= r2[7] * m0;
+	m1 = r1[2];                  /* now back substitute row 1 */
+	s = 1.0 / r1[1];
+	r1[4] = s * (r1[4] - r2[4] * m1), r1[5] = s * (r1[5] - r2[5] * m1),
+		r1[6] = s * (r1[6] - r2[6] * m1), r1[7] = s * (r1[7] - r2[7] * m1);
+	m0 = r0[2];
+	r0[4] -= r2[4] * m0, r0[5] -= r2[5] * m0,
+		r0[6] -= r2[6] * m0, r0[7] -= r2[7] * m0;
 
-   m0 = r0[1];                  /* now back substitute row 0 */
-   s = 1.0 / r0[0];
-   r0[4] = s * (r0[4] - r1[4] * m0), r0[5] = s * (r0[5] - r1[5] * m0),
-      r0[6] = s * (r0[6] - r1[6] * m0), r0[7] = s * (r0[7] - r1[7] * m0);
+	m0 = r0[1];                  /* now back substitute row 0 */
+	s = 1.0 / r0[0];
+	r0[4] = s * (r0[4] - r1[4] * m0), r0[5] = s * (r0[5] - r1[5] * m0),
+		r0[6] = s * (r0[6] - r1[6] * m0), r0[7] = s * (r0[7] - r1[7] * m0);
 
-   MAT(out, 0, 0) = r0[4];
-   MAT(out, 0, 1) = r0[5], MAT(out, 0, 2) = r0[6];
-   MAT(out, 0, 3) = r0[7], MAT(out, 1, 0) = r1[4];
-   MAT(out, 1, 1) = r1[5], MAT(out, 1, 2) = r1[6];
-   MAT(out, 1, 3) = r1[7], MAT(out, 2, 0) = r2[4];
-   MAT(out, 2, 1) = r2[5], MAT(out, 2, 2) = r2[6];
-   MAT(out, 2, 3) = r2[7], MAT(out, 3, 0) = r3[4];
-   MAT(out, 3, 1) = r3[5], MAT(out, 3, 2) = r3[6];
-   MAT(out, 3, 3) = r3[7];
+	MAT(out, 0, 0) = r0[4];
+	MAT(out, 0, 1) = r0[5], MAT(out, 0, 2) = r0[6];
+	MAT(out, 0, 3) = r0[7], MAT(out, 1, 0) = r1[4];
+	MAT(out, 1, 1) = r1[5], MAT(out, 1, 2) = r1[6];
+	MAT(out, 1, 3) = r1[7], MAT(out, 2, 0) = r2[4];
+	MAT(out, 2, 1) = r2[5], MAT(out, 2, 2) = r2[6];
+	MAT(out, 2, 3) = r2[7], MAT(out, 3, 0) = r3[4];
+	MAT(out, 3, 1) = r3[5], MAT(out, 3, 2) = r3[6];
+	MAT(out, 3, 3) = r3[7];
 
-   return true;
+	return true;
 
 #undef MAT
 #undef SWAP_ROWS
@@ -1826,7 +1808,7 @@ void Matrix3x3_RM_Invert_Simple (const vec3_t in1[3], vec3_t out[3])
 	out[2][2] = in1[2][2] * scale;
 }
 
-void Matrix3x4_Invert (const float *in1, float *out)
+void Matrix3x4_Invert (const vec_t *in1, vec_t *out)
 {
 	vec3_t a, b, c, trans;
 
@@ -1845,7 +1827,7 @@ void Matrix3x4_Invert (const float *in1, float *out)
 	Vector4Set (out+8, c[0], c[1], c[2], -DotProduct (c, trans));
 }
 
-void QDECL Matrix3x4_Invert_Simple (const float *in1, float *out)
+void QDECL Matrix3x4_Invert_Simple (const vec_t *in1, vec_t *out)
 {
 	// we only support uniform scaling, so assume the first row is enough
 	// (note the lack of sqrt here, because we're trying to undo the scaling,
@@ -1879,7 +1861,7 @@ void QDECL Matrix3x4_Invert_Simple (const float *in1, float *out)
 	out[11] = -(in1[3] * out[8] + in1[7] * out[9] + in1[11] * out[10]);
 }
 
-void Matrix3x4_InvertTo4x4_Simple (const float *in1, float *out)
+void Matrix3x4_InvertTo4x4_Simple (const vec_t *in1, vec_t *out)
 {
 	Matrix3x4_Invert_Simple(in1, out);
 	out[12] = 0;
@@ -1888,10 +1870,10 @@ void Matrix3x4_InvertTo4x4_Simple (const float *in1, float *out)
 	out[15] = 1;
 }
 
-void Matrix3x4_InvertTo3x3(const float *in, float *result)
+void Matrix3x4_InvertTo3x3(const vec_t *in, vec_t *result)
 {
-	float t1[16], tr[16];
-	memcpy(t1, in, sizeof(float)*12);
+	vec_t t1[16], tr[16];
+	memcpy(t1, in, sizeof(vec_t)*12);
 	t1[12] = 0;
 	t1[13] = 0;
 	t1[14] = 0;
@@ -1922,11 +1904,11 @@ void Matrix3x4_InvertTo3x3(const float *in, float *result)
 
 //screen->3d
 
-void Matrix4x4_CM_UnProject(const vec3_t in, vec3_t out, const vec3_t viewangles, const vec3_t vieworg, float fovx, float fovy)
+void Matrix4x4_CM_UnProject(const vec3_t in, vec3_t out, const vec3_t viewangles, const vec3_t vieworg, vec_t fovx, vec_t fovy)
 {
-	float modelview[16];
-	float proj[16];
-	float tempm[16];
+	vec_t modelview[16];
+	vec_t proj[16];
+	vec_t tempm[16];
 
 	Matrix4x4_CM_ModelViewMatrix(modelview, viewangles, vieworg);
 	Matrix4x4_CM_Projection_Inf(proj, fovx, fovy, 4, true);
@@ -1935,7 +1917,7 @@ void Matrix4x4_CM_UnProject(const vec3_t in, vec3_t out, const vec3_t viewangles
 	Matrix4_Invert(tempm, proj);
 
 	{
-		float v[4], tempv[4];
+		vec_t v[4], tempv[4];
 		v[0] = in[0]*2-1;
 		v[1] = in[1]*2-1;
 		v[2] = in[2];
@@ -1957,17 +1939,17 @@ void Matrix4x4_CM_UnProject(const vec3_t in, vec3_t out, const vec3_t viewangles
 //uses GL style rotations and translations and stuff.
 //3d -> screen (fixme: offscreen return values needed)
 //returns false if the 2d point is offscreen.
-qboolean Matrix4x4_CM_Project (const vec3_t in, vec3_t out, const vec3_t viewangles, const vec3_t vieworg, float fovx, float fovy)
+qboolean Matrix4x4_CM_Project (const vec3_t in, vec3_t out, const vec3_t viewangles, const vec3_t vieworg, vec_t fovx, vec_t fovy)
 {
 	qboolean result = true;
-	float modelview[16];
-	float proj[16];
+	vec_t modelview[16];
+	vec_t proj[16];
 
 	Matrix4x4_CM_ModelViewMatrix(modelview, viewangles, vieworg);
 	Matrix4x4_CM_Projection_Inf(proj, fovx, fovy, 4, true);
 
 	{
-		float v[4], tempv[4];
+		vec_t v[4], tempv[4];
 		v[0] = in[0];
 		v[1] = in[1];
 		v[2] = in[2];
@@ -1992,7 +1974,7 @@ qboolean Matrix4x4_CM_Project (const vec3_t in, vec3_t out, const vec3_t viewang
 }
 
 
-//I much prefer it to take float*...
+//I much prefer it to take vec_t*...
 void Matrix3_Multiply (vec3_t *in1, vec3_t *in2, vec3_t *out)
 {
 	out[0][0] = in1[0][0]*in2[0][0] + in1[0][1]*in2[1][0] + in1[0][2]*in2[2][0];
@@ -2008,7 +1990,7 @@ void Matrix3_Multiply (vec3_t *in1, vec3_t *in2, vec3_t *out)
 
 vec_t QDECL VectorNormalize2 (const vec3_t v, vec3_t out)
 {
-	float	length, ilength;
+	vec_t	length, ilength;
 
 	length = v[0]*v[0] + v[1]*v[1] + v[2]*v[2];
 	length = sqrt (length);
@@ -2026,9 +2008,9 @@ vec_t QDECL VectorNormalize2 (const vec3_t v, vec3_t out)
 		
 	return length;
 }
-float ColorNormalize (const vec3_t in, vec3_t out)
+vec_t ColorNormalize (const vec3_t in, vec3_t out)
 {
-	float f = max (max (in[0], in[1]), in[2]);
+	vec_t f = max (max (in[0], in[1]), in[2]);
 
 	if ( f > 1.0 ) {
 		f = 1.0 / f;
@@ -2046,7 +2028,7 @@ float ColorNormalize (const vec3_t in, vec3_t out)
 
 void MakeNormalVectors (const vec3_t forward, vec3_t right, vec3_t up)
 {
-	float		d;
+	vec_t		d;
 
 	// this rotate and negat guarantees a vector
 	// not colinear with the original

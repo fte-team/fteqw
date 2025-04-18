@@ -1533,6 +1533,20 @@ void SV_WriteDelta(int entnum, const entity_state_t *from, const entity_state_t 
 	unsigned int bits;
 
 	bits = 0;
+
+	if (entnum >= 2048)
+	{	//panic
+		if (!force)
+			return;
+		//erk! oh noes! woe is me!
+	}
+	else if (entnum >= 1024+512)
+		bits |= UX_ENTITYDBL|UX_ENTITYDBL2;
+	else if (entnum >= 1024)
+		bits |= UX_ENTITYDBL2;
+	else if (entnum >= 512)
+		bits |= UX_ENTITYDBL;
+
 	if (from->angles[0] != to->angles[0])
 		bits |= U_ANGLE1;
 	if (from->angles[1] != to->angles[1])

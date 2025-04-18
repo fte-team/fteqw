@@ -499,8 +499,9 @@ static qboolean SDLVID_Init (rendererstate_t *info, unsigned char *palette, r_qr
 	}
 	flags |= SDL_WINDOW_RESIZABLE;
 #if SDL_VERSION_ATLEAST(3,0,0)
-	flags |= SDL_WINDOW_MOUSE_GRABBED;
+//	flags |= SDL_WINDOW_MOUSE_GRABBED;
 	flags |= SDL_WINDOW_HIGH_PIXEL_DENSITY;
+	flags |= SDL_WINDOW_HIDDEN;
 #else
 	flags |= SDL_WINDOW_INPUT_GRABBED;
 	#if SDL_VERSION_ATLEAST(2,0,1)

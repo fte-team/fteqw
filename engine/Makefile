@@ -91,7 +91,7 @@ OGGVER=1.3.4
 VORBISVER=1.3.7
 VULKANVER=1.3.275.0
 SDL2VER=2.30.11
-SDL3VER=3.2.0
+SDL3VER=3.2.10
 SCINTILLAVER=373
 OPUSVER=1.3.1
 SPEEXVER=1.2.0
@@ -1205,7 +1205,7 @@ ifneq (,$(findstring SDL3,$(FTE_TARGET))$(findstring sdl3,$(FTE_TARGET)))
     DIRPOSTFIX=$(subst SDL3,sdl3,$(BITS)-$(FTE_TARGET))
 
     SDL3_PC=$(ARCHLIBS)/lib/pkgconfig/sdl3.pc
-    MAKELIBS=$(SDL3_PC)
+    MAKELIBS+=$(SDL3_PC)
     ifeq (1,$(shell $(PKGCONFIG) --exists $(SDL3_PC) sdl3 && echo 1))
         #use the makelibs one if its there
         SDL3_CFLAGS:=$(shell pkg-config --cflags $(SDL3_PC) sdl3)
@@ -1282,7 +1282,7 @@ ifneq (,$(findstring SDL3,$(FTE_TARGET))$(findstring sdl3,$(FTE_TARGET)))
     endif
 
 $(SDL3_PC):
-	wget -N http://www.libsdl.org/release/SDL3-$(SDL3VER).tar.gz
+	cd $(BASE_DIR) && wget -N http://www.libsdl.org/release/SDL3-$(SDL3VER).tar.gz
 	mkdir -p $(BASE_DIR)/libs-$(ARCH) && cd $(BASE_DIR)/libs-$(ARCH) && tar -xvzf $(BASE_DIR)/SDL3-$(SDL3VER).tar.gz
 	cd $(BASE_DIR)/libs-$(ARCH)/SDL3-$(SDL3VER) && CFLAGS="$(CFLAGS) -Os" $(TOOLOVERRIDES) $(DO_CMAKE) -DCMAKE_INSTALL_PREFIX=$(BASE_DIR)/libs-$(ARCH) -DSDL_TESTS=OFF -DSDL_EXAMPLES=OFF -DSDL_STATIC=ON -DSDL_SHARED=OFF -DSDL_RELOCATABLE=ON . && $(TOOLOVERRIDES) $(MAKE) install
 endif
@@ -2459,7 +2459,7 @@ droid-help:
 	@-echo "make droid-opt - compiles engine with optimisations, but does not sign package. Not useful."
 	@-echo "make droid-rel - compiles engine with optimisations, adds custom data files, signs with private key, requires password."
 	@-echo
-	@-echo "Android Settings:
+	@-echo "Android Settings:"
 	@-echo "DROID_PACKSC: specifies additional pak or pk3 files to compress into the package, which avoids extra configuration. Only used in release builds. You probably shouldn't use this except for really small packages. Any file seeks will give really poor performance."
 	@-echo "DROID_PACKSU: like DROID_PACKSC, but without compression. Faster loading times, but bigger. Use for anything that is already compressed (especially pk3s)."
 	@-echo "ANDROID_HOME: path to the android sdk install path."

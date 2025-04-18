@@ -80,8 +80,10 @@ static rbeplugfuncs_t *rbefuncs;
 // include files.
 #ifdef ODE_STATIC
 #undef ODE_DYNAMIC
-#define dDOUBLE
 #include "ode/ode.h"
+#ifdef dSINGLE
+#pragma warningmsg("note: ODE headers configured ODE for single-precision. this is not commonly tested and may result in ODE rashing out due to limited precision.")
+#endif
 #else
 #ifndef ODE_DYNAMIC
 #define ODE_DYNAMIC

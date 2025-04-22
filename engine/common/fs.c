@@ -73,8 +73,8 @@ static char *vidfilenames[] =	//list of filenames to check to see if graphics st
 #define Q3CFG "//schemes quake3\n" "set v_gammainverted 0\nset snd_ignorecueloops 1\nsetfl g_gametype 0 s\nset gl_clear 1\nset r_clearcolour 0 0 0\nset com_parseutf8 0\ngl_overbright "FORWEB("0","2")"\nseta model sarge\nseta headmodel sarge\nseta handicap 100\ncom_gamedirnativecode 1\nsv_port "STRINGIFY(PORT_Q3SERVER)"\ncl_defaultport "STRINGIFY(PORT_Q3SERVER)"\ncom_protocolversion 68\n"
 //#define RMQCFG "sv_bigcoords 1\n"
 
-#define HLCFG "plug_load ffmpeg"
-#define HL2CFG "plug_load ode;plug_load hl2"
+#define HLCFG "plug_load ffmpeg\n"
+#define HL2CFG "plug_load ode;plug_load hl2\n"
 
 #ifndef UPDATEURL
 	#ifdef HAVE_SSL

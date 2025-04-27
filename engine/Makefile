@@ -1780,6 +1780,7 @@ ifeq ($(FTE_TARGET),web)
 	EMCC_CFLAGS+= -s FILESYSTEM=0					#we have our own.
 	EMCC_CFLAGS+= -s ALLOW_MEMORY_GROWTH=1			#reduce crashes...
 	EMCC_CFLAGS+= -s MAX_WEBGL_VERSION=2			#make use of what we can.
+	EMCC_CFLAGS+= -s TOTAL_STACK=5MB			#big!
    	EMCC_LDFLAGS+=-s ERROR_ON_UNDEFINED_SYMBOLS=1	#fairly obvious. no runtime errors please.
 	RELEASE_CFLAGS=-DOMIT_QCC -DGL_STATIC $(EMCC_CFLAGS)
 	DEBUG_CFLAGS=-g4 -DOMIT_QCC -DGL_STATIC $(EMCC_CFLAGS)

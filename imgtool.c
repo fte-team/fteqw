@@ -462,7 +462,7 @@ void ImgTool_SetupPalette(void)
 	
 		if (fPAL != NULL)
 		{
-			Con_Printf("using user-specified palette\n");
+			Con_Printf("using user-specified palette for files using palette.lmp\n");
 			fread(cust_pal, 1, 768, fPAL);
 			fclose(fPAL);
 			host_basepal = cust_pal;
@@ -471,7 +471,7 @@ void ImgTool_SetupPalette(void)
 			Con_Printf("cannot find palette file %s\n", palette);
 	}
 	else
-		Con_Printf("using built-in Quake palette\n");
+		Con_Printf("using built-in Quake palette for files using palette.lmp\n");
 
 	for (i = 0; i < 256; i++)
 	{
@@ -2232,13 +2232,14 @@ static qbyte *Image_GenPalette(struct pendingtextureinfo *in, const char *name)
 	unsigned int t;
 	qbyte *pal = Z_Malloc(768);
 	qbyte *d;
+	qboolean hasalpha = false;
 	struct
 	{
 		qbyte r,g,b;
 		int count;
 	} *p = NULL;
 	size_t nump=0, maxp=0, i;
-	static qboolean mippixelformats[PTI_MAX] = {[PTI_RGBX8]=true};
+	static qboolean mippixelformats[PTI_MAX] = {[PTI_RGBA8]=true};
 	Image_ChangeFormat(in, mippixelformats, PTI_INVALID, name); //make sure its rgbx
 	t = in->mip[0].width*in->mip[0].height*in->mip[0].depth;
 	d = in->mip[0].data;
@@ -2283,6 +2284,13 @@ static qbyte *Image_GenPalette(struct pendingtextureinfo *in, const char *name)
 		pal[i*3+1] = p[i].g;
 		pal[i*3+2] = p[i].b;
 	}
+
+	if (hasalpha == true) {
+		pal[255*3+0] = 0;
+		pal[255*3+1] = 0;
+		pal[255*3+2] = 255;
+	}
+
 	free(p);
 	return pal;
 }
@@ -2447,12 +2455,19 @@ static qboolean ImgTool_MipExport(struct opts_s *args, vfsfile_t *outfile, struc
 		if (in->encoding != PTI_P8)
 		{
 			qbyte *basepal = host_basepal;
-			if (wadtype == 3)
+			if (wadtype == 3) {
 				pal = host_basepal = Image_GenPalette(in, mipname);
+			}
+
+			if (*mipname=='{') {
+				memset(mippixelformats, 0, sizeof(mippixelformats));
+				mippixelformats[TF_TRANS8] = true;
+			}
+
 			Image_ChangeFormat(in, mippixelformats, (*mipname=='{')?TF_TRANS8:PTI_INVALID, mipname);
 			host_basepal = basepal;
 		}
-		if (in->encoding != PTI_P8)
+		if (!(in->encoding == PTI_P8 || in->encoding == TF_TRANS8))
 		{	//erk! we failed to palettize...
 			ImgTool_FreeMips(in);
 			ImgTool_FreeMips(highcolour);

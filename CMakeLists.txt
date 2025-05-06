@@ -1523,6 +1523,7 @@ IF(FTE_PLUG_HL2)
 		plugins/plugin.c
 		plugins/hl2/hl2.c
 		plugins/hl2/fs_vpk.c
+		plugins/hl2/fs_vpk_vtmb.c
 		plugins/hl2/img_vtf.c
 		plugins/hl2/mod_hl2.c
 		plugins/hl2/mod_vbsp.c

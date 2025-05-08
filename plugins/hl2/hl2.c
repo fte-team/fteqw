@@ -1,4 +1,5 @@
 #include "../plugin.h"
+qboolean GMA_Init(void);
 qboolean VPK_Init(void);
 qboolean VTF_Init(void);
 qboolean MDL_Init(void);
@@ -12,6 +13,7 @@ qboolean Plug_Init(void)
 	strcpy(plugname, "hl2");
 	plugfuncs->GetPluginName(0, plugname, sizeof(plugname));
 
+	if (!GMA_Init())	Con_Printf(CON_ERROR"%s: GMA support unavailable\n", plugname);	else	somethingisokay = true;
 	if (!VPK_Init())	Con_Printf(CON_ERROR"%s: VPK support unavailable\n", plugname);	else	somethingisokay = true;
 	if (!VTF_Init())	Con_Printf(CON_ERROR"%s: VTF support unavailable\n", plugname);	else	somethingisokay = true;
 	if (!VMT_Init())	Con_Printf(CON_ERROR"%s: VMT support unavailable\n", plugname);	else	somethingisokay = true;

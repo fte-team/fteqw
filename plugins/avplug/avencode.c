@@ -331,8 +331,8 @@ static AVStream *add_audio_stream(struct encctx *ctx, AVCodec *codec, int *sampl
 	c->time_base.num = 1;
 	c->time_base.den = *samplerate;
 	c->sample_rate = *samplerate;
-	c->channels = channels;
-	c->channel_layout = av_get_default_channel_layout(c->channels);
+	c->ch_layout.nb_channels = channels;
+	av_channel_layout_default(&c->ch_layout, c->ch_layout.nb_channels);
 	c->sample_fmt = codec->sample_fmts[0];
 
 //	if (c->sample_fmt == AV_SAMPLE_FMT_FLTP || c->sample_fmt == AV_SAMPLE_FMT_FLT)
@@ -370,7 +370,7 @@ static void AVEnc_Audio (void *vctx, void *data, int bytes)
 
 	while (bytes)
 	{
-		int i, p, chans = ctx->audio_codec->channels;
+		int i, p, chans = ctx->audio_codec->ch_layout.nb_channels;
 		int blocksize = sizeof(float)*chans;
 		int count = bytes / blocksize;
 		int planesize = ctx->audio_codec->frame_size;
@@ -485,7 +485,7 @@ static void AVEnc_Audio (void *vctx, void *data, int bytes)
 		}
 
 		ctx->audio->nb_samples = ctx->audio_outcount;
-		avcodec_fill_audio_frame(ctx->audio, ctx->audio_codec->channels, ctx->audio_codec->sample_fmt, ctx->audio_outbuf, av_get_bytes_per_sample(ctx->audio_codec->sample_fmt)*ctx->audio_outcount*ctx->audio_codec->channels, 1);
+		avcodec_fill_audio_frame(ctx->audio, ctx->audio_codec->ch_layout.nb_channels, ctx->audio_codec->sample_fmt, ctx->audio_outbuf, av_get_bytes_per_sample(ctx->audio_codec->sample_fmt)*ctx->audio_outcount*ctx->audio_codec->ch_layout.nb_channels, 1);
 		ctx->audio->pts = ctx->audio_pts;
 		ctx->audio_pts += ctx->audio_outcount;
 		ctx->audio_outcount = 0;
@@ -677,7 +677,7 @@ static void *AVEnc_Begin (char *streamname, int videorate, int width, int height
 		sz = ctx->audio_codec->frame_size;
 		if (!sz)
 			sz = VARIABLE_AUDIO_FRAME_MAX_SIZE;
-		sz *= av_get_bytes_per_sample(ctx->audio_codec->sample_fmt) * ctx->audio_codec->channels;
+		sz *= av_get_bytes_per_sample(ctx->audio_codec->sample_fmt) * ctx->audio_codec->ch_layout.nb_channels;
 		ctx->audio_outbuf = av_malloc(sz);
 
 #if LIBAVCODEC_VERSION_INT >= AV_VERSION_INT(57, 48, 101)

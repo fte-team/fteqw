@@ -80,7 +80,6 @@ static rbeplugfuncs_t *rbefuncs;
 // include files.
 #ifdef ODE_STATIC
 #undef ODE_DYNAMIC
-#define dDOUBLE
 #include "ode/ode.h"
 #else
 #ifndef ODE_DYNAMIC

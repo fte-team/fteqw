@@ -246,6 +246,10 @@ searchpathfuncs_t *QDECL FSVVPK_LoadArchive(vfsfile_t *file, searchpathfuncs_t *
 	if (!file) return NULL;
 	if (prefix && *prefix) return NULL;
 
+	// last ditch check to make sure this is a vtmb vpk
+	if (strncasecmp(filename, "pack", 4) != 0)
+		return NULL;
+
 	// validate footer
 	fsize = VFS_GETLEN(file);
 	if (fsize < 9)

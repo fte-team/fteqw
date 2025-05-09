@@ -525,4 +525,14 @@ NATIVE_PLUGINS+=cod
 
 
 
+ifeq ($(findstring win,$(FTE_TARGET)),win)
+######################################
+#winamp ipc
+$(PLUG_PREFIX)winamp$(PLUG_NATIVE_EXT): winamp/winamp.c plugin.c
+	$(CC) $(BASE_CFLAGS) $(CFLAGS) -DFTEPLUGIN -o $@ -shared $(PLUG_CFLAGS) $^ $(PLUG_DEFFILE) $(PLUG_LDFLAGS)
+	$(call EMBEDMETA,winamp,$@,Winamp,Provides support for controlling Winamp.)
+NATIVE_PLUGINS+=winamp
+######################################
+endif
+
 all: $(foreach FOO,$(NATIVE_PLUGINS), $(PLUG_PREFIX)$(FOO)$(PLUG_NATIVE_EXT))

@@ -2,11 +2,11 @@
 //was origonally an mp3 track selector, now handles lots of media specific stuff - like q3 films!
 //should rename to m_media.c
 
-/*«11:56:05 am» «@Spikester» EBUILTIN(void, Menu_Control, (int mnum));
-«11:56:05 am» «@Spikester» #define MENU_CLEAR 0
-«11:56:05 am» «@Spikester» #define MENU_GRAB 1
-«11:56:05 am» «@Spikester» EBUILTIN(int, Key_GetKeyCode, (char *keyname));
-«11:56:13 am» «@Spikester» that's how you do menus. :)*/
+/*Â«11:56:05 amÂ» Â«@SpikesterÂ» EBUILTIN(void, Menu_Control, (int mnum));
+Â«11:56:05 amÂ» Â«@SpikesterÂ» #define MENU_CLEAR 0
+Â«11:56:05 amÂ» Â«@SpikesterÂ» #define MENU_GRAB 1
+Â«11:56:05 amÂ» Â«@SpikesterÂ» EBUILTIN(int, Key_GetKeyCode, (char *keyname));
+Â«11:56:13 amÂ» Â«@SpikesterÂ» that's how you do menus. :)*/
 
 #define BUILD 1
 
@@ -108,7 +108,7 @@ void Winamp_JumpTo_f(void) // input is a percentage
 
 	tracklength = SendMessage(hwnd_winamp,WM_WA_IPC,1,IPC_GETOUTPUTTIME);
 
-	Cmd_Argv(1,input,sizeof(input));
+	cmdfuncs->Argv(1,input,sizeof(input));
 
 	inputpercent = atoi(input);
 
@@ -126,7 +126,7 @@ void Winamp_JumpTo_f(void) // input is a percentage
 
 	if (res == 0)
 	{
-		Con_Printf("Successfully jumped to %s percent\n",input,trackpercent);
+		Con_Printf("Successfully jumped to %s percent\n",input);
 		return;
 	}
 	else if (res == -1)
@@ -154,7 +154,7 @@ void Winamp_GoToPlayListPosition_f(void) // the playlist selecter doesn't actual
 		return;
 	}
 
-	Cmd_Argv(1,input,sizeof(input));
+	cmdfuncs->Argv(1,input,sizeof(input));
 
 	inputnumber = atoi(input);
 
@@ -176,11 +176,11 @@ void Winamp_Volume_f(void) // I think this only works when the client did the wi
 		return;
 	}
 
-	Cmd_Argv(1,input,sizeof(input));
+	cmdfuncs->Argv(1,input,sizeof(input));
 
 	inputnumber = atoi(input);
 
-	if ((input == "") || (inputnumber > 255))
+	if ((!input[0]) || (inputnumber > 255))
 	{
 		Con_Printf("Choose a number between 0 and 255\n");
 		return;
@@ -202,11 +202,11 @@ void Winamp_ChannelPanning_f(void) // doesn't seem to work for me
 		return;
 	}
 
-	Cmd_Argv(1,input,sizeof(input));
+	cmdfuncs->Argv(1,input,sizeof(input));
 
 	inputnumber = atoi(input);
 
-	if ((input == "") || (inputnumber > 255))
+	if ((!input[0]) || (inputnumber > 255))
 	{
 		Con_Printf("Choose a number between 0 (left) and 255 (right). Center is about 127\n");
 		return;
@@ -315,7 +315,7 @@ void Winamp_Shuffle_f(void) //it works, thats all i can say lol
 
 	get = SendMessage(hwnd_winamp,WM_WA_IPC,0,IPC_GET_SHUFFLE);
 
-	Cmd_Argv(1,input,sizeof(input));
+	cmdfuncs->Argv(1,input,sizeof(input));
 
 	inputnumber2 = atoi(input);
 
@@ -362,7 +362,7 @@ void Winamp_Repeat_f(void) // it works, thats all i can say lol
 
 	get = SendMessage(hwnd_winamp,WM_WA_IPC,0,IPC_GET_REPEAT);
 
-	Cmd_Argv(1,input,sizeof(input));
+	cmdfuncs->Argv(1,input,sizeof(input));
 
 	inputnumber2 = atoi(input);
 
@@ -424,130 +424,29 @@ void Winamp_Rewind5Seconds_f(void)
 
 // End Moodles Attempt at Winamp Commands
 
-int Plug_ExecuteCommand(int *args)
-{
-	char cmd[256];
-	Cmd_Argv(0, cmd, sizeof(cmd));
-	if (!strcmp("winamp_play", cmd))
-	{
-		Winamp_Play_f();
-		return 1;
-	}
-	else if (!strcmp("winamp_version", cmd))
-	{
-		Winamp_Version_f();
-		return 1;
-	}
-	else if (!strcmp("winamp_timeleft", cmd))
-	{
-		Winamp_TimeLeft_f();
-		return 1;
-	}
-	else if (!strcmp("winamp_jumpto", cmd))
-	{
-		Winamp_JumpTo_f();
-		return 1;
-	}
-	else if (!strcmp("winamp_gotoplaylistposition", cmd))
-	{
-		Winamp_GoToPlayListPosition_f();
-		return 1;
-	}
-	else if (!strcmp("winamp_volume", cmd))
-	{
-		Winamp_Volume_f();
-		return 1;
-	}
-	else if (!strcmp("winamp_channelpanning", cmd))
-	{
-		Winamp_ChannelPanning_f();
-		return 1;
-	}
-	else if (!strcmp("winamp_playlistlength", cmd))
-	{
-		Winamp_PlayListLength_f();
-		return 1;
-	}
-	else if (!strcmp("winamp_playlistposition", cmd))
-	{
-		Winamp_PlayListPosition_f();
-		return 1;
-	}
-	else if (!strcmp("winamp_songinfo", cmd))
-	{
-		Winamp_SongInfo_f();
-		return 1;
-	}
-	else if (!strcmp("winamp_restart", cmd))
-	{
-		Winamp_Restart_f();
-		return 1;
-	}
-	else if (!strcmp("winamp_shuffle", cmd))
-	{
-		Winamp_Shuffle_f();
-		return 1;
-	}
-	else if (!strcmp("winamp_repeat", cmd))
-	{
-		Winamp_Repeat_f();
-		return 1;
-	}
-	else if (!strcmp("winamp_volumeup", cmd))
-	{
-		Winamp_VolumeUp_f();
-		return 1;
-	}
-	else if (!strcmp("winamp_volumedown", cmd))
-	{
-		Winamp_VolumeDown_f();
-		return 1;
-	}
-	else if (!strcmp("winamp_fastforward5seconds", cmd))
-	{
-		Winamp_FastForward5Seconds_f();
-		return 1;
-	}
-	else if (!strcmp("winamp_rewind5seconds", cmd))
-	{
-		Winamp_Rewind5Seconds_f();
-		return 1;
-	}
-	return 0;
-}
-
 void Winamp_InitCommands(void)
 {
-	Cmd_AddCommand("winamp_play");
-	Cmd_AddCommand("winamp_version", Winamp_Version_f);
-	Cmd_AddCommand("winamp_timeleft", Winamp_TimeLeft_f);
-	Cmd_AddCommand("winamp_jumpto", Winamp_JumpTo_f);
-	Cmd_AddCommand("winamp_gotoplaylistposition", Winamp_GoToPlayListPosition_f);
-	Cmd_AddCommand("winamp_volume", Winamp_Volume_f);
-	Cmd_AddCommand("winamp_channelpanning", Winamp_ChannelPanning_f);
-	Cmd_AddCommand("winamp_playlistlength", Winamp_PlayListLength_f);
-	Cmd_AddCommand("winamp_playlistposition", Winamp_PlayListPosition_f);
-	Cmd_AddCommand("winamp_songinfo", Winamp_SongInfo_f);
-	Cmd_AddCommand("winamp_restart", Winamp_Restart_f);
-	Cmd_AddCommand("winamp_shuffle", Winamp_Shuffle_f);
-	Cmd_AddCommand("winamp_repeat", Winamp_Repeat_f);
-	Cmd_AddCommand("winamp_volumeup", Winamp_VolumeUp_f);
-	Cmd_AddCommand("winamp_volumedown", Winamp_VolumeDown_f);
-	Cmd_AddCommand("winamp_fastforward5seconds", Winamp_FastForward5Seconds_f);
-	Cmd_AddCommand("winamp_rewind5seconds", Winamp_Rewind5Seconds_f);
+	cmdfuncs->AddCommand("winamp_play", Winamp_Play_f, "");
+	cmdfuncs->AddCommand("winamp_version", Winamp_Version_f, "");
+	cmdfuncs->AddCommand("winamp_timeleft", Winamp_TimeLeft_f, "");
+	cmdfuncs->AddCommand("winamp_jumpto", Winamp_JumpTo_f, "");
+	cmdfuncs->AddCommand("winamp_gotoplaylistposition", Winamp_GoToPlayListPosition_f, "");
+	cmdfuncs->AddCommand("winamp_volume", Winamp_Volume_f, "");
+	cmdfuncs->AddCommand("winamp_channelpanning", Winamp_ChannelPanning_f, "");
+	cmdfuncs->AddCommand("winamp_playlistlength", Winamp_PlayListLength_f, "");
+	cmdfuncs->AddCommand("winamp_playlistposition", Winamp_PlayListPosition_f, "");
+	cmdfuncs->AddCommand("winamp_songinfo", Winamp_SongInfo_f, "");
+	cmdfuncs->AddCommand("winamp_restart", Winamp_Restart_f, "");
+	cmdfuncs->AddCommand("winamp_shuffle", Winamp_Shuffle_f, "");
+	cmdfuncs->AddCommand("winamp_repeat", Winamp_Repeat_f, "");
+	cmdfuncs->AddCommand("winamp_volumeup", Winamp_VolumeUp_f, "");
+	cmdfuncs->AddCommand("winamp_volumedown", Winamp_VolumeDown_f, "");
+	cmdfuncs->AddCommand("winamp_fastforward5seconds", Winamp_FastForward5Seconds_f, "");
+	cmdfuncs->AddCommand("winamp_rewind5seconds", Winamp_Rewind5Seconds_f, "");
 }
 
-int Plug_Init(int *args)
+qboolean Plug_Init(void)
 {
-	if (Plug_Export("ExecuteCommand", Plug_ExecuteCommand))
-	{
-		Con_Printf("Winamp Plugin Build 1 by Moodles Loaded\n");
-	}
-	else
-	{
-		Con_Printf("Winamp Plugin failed\n");
-	}
-
 	Winamp_InitCommands();
-	return 1;
+	return true;
 }

@@ -71,7 +71,7 @@ static uploadfmt_t ImageVTF_VtfToFTE(fmtfmt_t f)
 		return PTI_INVALID;
 	}
 }
-static struct pendingtextureinfo *Image_ReadVTFFile(unsigned int flags, const char *fname, qbyte *filedata, size_t filesize)
+struct pendingtextureinfo *Image_ReadVTFFile(unsigned int flags, const char *fname, qbyte *filedata, size_t filesize)
 {
 	//FIXME: cba with endian.
 	struct vtf_s

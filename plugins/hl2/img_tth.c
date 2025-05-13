@@ -40,9 +40,9 @@ qboolean COM_RequireExtension(char *path, const char *extension, int maxlen)
 static struct pendingtextureinfo *Image_ReadTTHFile(unsigned int flags, const char *fname, qbyte *filedata, size_t filesize)
 {
 	uint8_t num_mipmaps; // number of mipmaps in this texture
-	int32_t len_vtf_chunk; // size of uncompressed vtf chunk in header
-	int32_t len_vtf_file; // total size of uncompressed vtf file
-	int32_t len_ttz_tail; // compressed size of accompanying ttz file
+	uint32_t len_vtf_chunk; // size of uncompressed vtf chunk in header
+	uint32_t len_vtf_file; // total size of uncompressed vtf file
+	uint32_t len_ttz_tail; // compressed size of accompanying ttz file
 	qbyte *vtf;
 	qbyte *tail = NULL;
 	size_t tailsize = 0;
@@ -58,11 +58,11 @@ static struct pendingtextureinfo *Image_ReadTTHFile(unsigned int flags, const ch
 	// grab other data
 	num_mipmaps = filedata[6];
 	// aspect_flag skipped
-	len_vtf_chunk = *(int32_t *)&filedata[8];
+	len_vtf_chunk = LittleLong(*(uint32_t *)&filedata[8]);
 
 	// skip past mipmap flags to grab other other data
-	len_vtf_file = *(int32_t *)(filedata + 12 + (num_mipmaps * sizeof(uint64_t)));
-	len_ttz_tail = *(int32_t *)(filedata + 12 + (num_mipmaps * sizeof(uint64_t)) + 4);
+	len_vtf_file = LittleLong(*(uint32_t *)(filedata + 12 + (num_mipmaps * sizeof(uint64_t))));
+	len_ttz_tail = LittleLong(*(uint32_t *)(filedata + 12 + (num_mipmaps * sizeof(uint64_t)) + 4));
 
 	// load tail if it exists
 	if (len_ttz_tail > 0)

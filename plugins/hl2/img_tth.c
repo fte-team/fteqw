@@ -70,7 +70,7 @@ static struct pendingtextureinfo *Image_ReadTTHFile(unsigned int flags, const ch
 		// change extension
 		char tailfilename[MAX_QPATH];
 		size_t tailfilenamelen;
-		strlcpy(tailfilename, fname, sizeof(tailfilename));
+		Q_strlcpy(tailfilename, fname, sizeof(tailfilename));
 
 		tailfilenamelen = strlen(tailfilename);
 		if (tailfilename[tailfilenamelen - 1] == 'h')

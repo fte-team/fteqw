@@ -189,15 +189,6 @@ typedef struct
 	} mappings[1];
 } skinfile_t;
 
-// plane_t structure
-typedef struct mplane_s
-{
-	vec3_t	normal;
-	float	dist;
-	qbyte	type;			// for texture axis selection and fast side tests
-	qbyte	signbits;		// signx + signy<<1 + signz<<1
-	qbyte	pad[2];
-} mplane_t;
 #define MAXFRUSTUMPLANES 7	//4 side, 1 near, 1 far (fog), 1 water plane.
 
 typedef struct

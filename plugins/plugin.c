@@ -291,6 +291,47 @@ qboolean ZF_ReallocElements(void **ptr, size_t *elements, size_t newelements, si
 #endif
 }
 
+// begin common.c
+short		ShortSwap	(short l)
+{
+	return	((l>> 8)&0x00ff)|
+			((l<< 8)&0xff00);
+}
+int			LongSwap	(int l)
+{
+	return	((l>>24)&0x000000ff)|
+			((l>> 8)&0x0000ff00)|
+			((l<< 8)&0x00ff0000)|
+			((l<<24)&0xff000000);
+}
+qint64_t    I64Swap		(qint64_t l)
+{
+	return	((l>>56)&        0x000000ff)|
+			((l>>40)&        0x0000ff00)|
+			((l>>24)&        0x00ff0000)|
+			((l>> 8)&        0xff000000)|
+			((l<< 8)&0x000000ff00000000)|
+			((l<<24)&0x0000ff0000000000)|
+			((l<<40)&0x00ff000000000000)|
+			((l<<56)&0xff00000000000000);
+}
+float FloatSwap (float f)
+{
+	union
+	{
+		float	f;
+		qbyte	b[4];
+	} dat1, dat2;
+
+
+	dat1.f = f;
+	dat2.b[0] = dat1.b[3];
+	dat2.b[1] = dat1.b[2];
+	dat2.b[2] = dat1.b[1];
+	dat2.b[3] = dat1.b[0];
+	return dat2.f;
+}
+// end common.c
 
 #ifdef __cplusplus
 extern "C"

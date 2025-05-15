@@ -238,7 +238,7 @@ $(PLUG_PREFIX)ffmpeg$(PLUG_NATIVE_EXT):
 	$(CC) $(BASE_CFLAGS) $(CFLAGS) -DFTEPLUGIN -s -o $@ -shared $(PLUG_CFLAGS) $(AV_CFLAGS) $(AVPLUG_OBJS) $(PLUG_DEFFILE) $(PLUG_LDFLAGS) $(AV_LDFLAGS)
 	$(call EMBEDMETA,ffmpeg,$@,FFMPEG Video Decoding Plugin,Provides support for more audio formats as well as video playback and better capture support.)
 endif
-
+NATIVE_PLUGINS+=ffmpeg
 ######################################
 
 ######################################

@@ -2,8 +2,9 @@
 #ifndef PROGSLIB_H
 #define PROGSLIB_H
 
-#include "progtype.h"
 #include <stdlib.h>
+#include <fteqw/math/vector.h>
+
 #ifdef _MSC_VER
 	#define VARGS __cdecl
 #endif

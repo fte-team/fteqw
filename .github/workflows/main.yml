@@ -29,6 +29,7 @@ jobs:
             libopenxr-dev                                               \
             libqscintilla2-qt5-dev                                      \
             libsdl2-dev                                                 \
+            libpng-dev                                                  \
             libvorbis-dev                                               \
             libvulkan-dev                                               \
             libwayland-dev                                              \
@@ -61,7 +62,7 @@ jobs:
             fte_target: linux64
             make_targets: "m-rel sv-rel qtv-rel qcc-rel"
             os: ubuntu-latest
-            packages: "libasound2-dev libgl-dev libegl1-mesa-dev libwayland-dev libxcursor-dev libxi-dev libxkbcommon-dev libxrandr-dev libxss-dev"
+            packages: "libpng-dev libasound2-dev libgl-dev libegl1-mesa-dev libwayland-dev libxcursor-dev libxi-dev libxkbcommon-dev libxrandr-dev libxss-dev"
           - name: win32
             fte_target: win32
             make_targets: "m-rel sv-rel qcc-rel"

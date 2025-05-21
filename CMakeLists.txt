@@ -1532,13 +1532,16 @@ IF(FTE_PLUG_HL2)
 		plugins/plugin.c
 		plugins/hl2/hl2.c
 		plugins/hl2/fs_vpk.c
+		plugins/hl2/fs_vpk_vtmb.c
+		plugins/hl2/fs_gma.c
+		plugins/hl2/img_tth.c
 		plugins/hl2/img_vtf.c
 		plugins/hl2/mod_hl2.c
 		plugins/hl2/mod_vbsp.c
 		plugins/hl2/mat_vmt.c
 	)
 	SET_TARGET_PROPERTIES(plug_hl2 PROPERTIES COMPILE_DEFINITIONS "FTEPLUGIN;MULTITHREAD;${FTE_LIB_DEFINES}")
-	TARGET_LINK_LIBRARIES(plug_hl2 ${SYS_LIBS})
+	TARGET_LINK_LIBRARIES(plug_hl2 ${SYS_LIBS} ${ZLIB_LIBRARIES})
 
 	EMBED_PLUGIN_META(hl2 "HalfLife2 Formats Plugin" "Adds support for reading various file formats used by HalfLife2. Requires mod support to be useful.")
 ENDIF()

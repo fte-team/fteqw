@@ -413,6 +413,8 @@ static unsigned int FSVPK_WalkTree(vpk_t *vpk, const char *start, const char *en
 	return files;
 }
 
+searchpathfuncs_t *QDECL FSVVPK_LoadArchive(vfsfile_t *file, searchpathfuncs_t *parent, const char *filename, const char *desc, const char *prefix);
+
 /*
 =================
 COM_LoadPackFile
@@ -461,7 +463,8 @@ static searchpathfuncs_t *QDECL FSVPK_LoadArchive (vfsfile_t *file, searchpathfu
 			VFS_SEEK(packhandle, 0);
 			tablesize = 1313113;
 		} else {
-			return NULL;
+			// try to load as vtmb vpk
+			return FSVVPK_LoadArchive(file, parent, filename, desc, prefix);
 		}
 	} else {
 		i = LittleLong(header.version);
@@ -539,6 +542,8 @@ static searchpathfuncs_t *QDECL FSVPK_LoadArchive (vfsfile_t *file, searchpathfu
 	return &vpk->pub;
 }
 
+qboolean VVPK_Init(void);
+
 qboolean VPK_Init(void)
 {
 	threading = plugfuncs->GetEngineInterface(plugthreadfuncs_name, sizeof(*threading));
@@ -546,6 +551,10 @@ qboolean VPK_Init(void)
 		return false;
 	filefuncs = plugfuncs->GetEngineInterface(plugfsfuncs_name, sizeof(*filefuncs));
 	if (!filefuncs)
+		return false;
+
+	// vtmb
+	if (!VVPK_Init())
 		return false;
 
 	//we can't cope with being closed randomly. files cannot be orphaned safely.

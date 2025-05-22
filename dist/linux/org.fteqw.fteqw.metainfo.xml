@@ -1,0 +1,119 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>org.fteqw.fteqw</id>
+  <name>FTEQW</name>
+  <developer id="org.fteqw.fteqw">
+    <name>Forethought Entertainment</name>
+    <url>https://github.com/fte-team/fteqw/graphs/contributors</url>
+  </developer>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>GPL-2.0</project_license>
+  <summary>Modern Quake source port</summary>
+  <launchable type="desktop-id">org.fteqw.fteqw.desktop</launchable>
+  <description>
+    <p>FTEQW is a highly versatile game engine originally based on QuakeWorld with support for
+      a number of Quake engine games.</p>
+    <p>Features:</p>
+    <ul>
+        <li>Single- and multiplayer support</li>
+        <li>Supports multiple games: Quake, QuakeWorld, Quake II, Quake III Arena, Hexen II, ...</li>
+        <li>A vast amount of map, model and image formats are supported</li>
+        <li>Advanced console, with descriptions and autocompletion</li>
+        <li>Plugin support, enabling use of FFMPEG, Bullet/ODE physics and more</li>
+        <li>Extensive suite of QuakeC/entity debugging features</li>
+        <li>Deep integration with FTEQCC, which can even be executed in-game</li>
+        <li>Support for split-screen local multiplayer</li>
+        <li>Voice-chat via Opus and Speex</li>
+        <li>Support for hundreds of players on a single server</li>
+        <li>Works on Windows, Linux, OpenBSD and more!</li>
+        <li>New features are added all the time in cooperation with modders!</li>
+    </ul>
+  </description>
+  <branding>
+    <color type="primary" scheme_preference="light">#c2a6f4</color>
+    <color type="primary" scheme_preference="dark">#1e191e</color>
+  </branding>
+  <provides>
+    <binary>fteqw</binary>
+    <binary>fteqcc</binary>
+    <binary>fteqccgui</binary>
+    <binary>ftemaster</binary>
+    <binary>qtv</binary>
+  </provides>
+  <supports>
+    <control>gamepad</control>
+  </supports>
+  <recommends>
+    <control>keyboard</control>
+    <control>pointing</control>
+  </recommends>
+  <keywords>
+    <keyword>retro</keyword>
+    <keyword>fps</keyword>
+    <keyword>shooter</keyword>
+    <keyword>sourceport</keyword>
+    <keyword>quake</keyword>
+  </keywords>
+  <url type="homepage">https://fteqw.org/</url>
+  <url type="bugtracker">https://github.com/fte-team/fteqw/issues</url>
+  <url type="contribute">https://github.com/fte-team/fteqw</url>
+  <screenshots>
+    <screenshot type="default">
+      <caption>Introduction level rendering in the default graphics setting via OpenGL</caption>
+      <image type="source">https://www.fteqw.org/img/q1/1.png</image>
+    </screenshot>
+    <screenshot>
+      <caption>Integrated server browser with filtering capabilities</caption>
+      <image type="source">https://www.fteqw.org/img/q1/2.png</image>
+    </screenshot>
+    <screenshot>
+      <caption>Graphics preset imitating a 256-colour software renderer</caption>
+      <image type="source">https://www.fteqw.org/img/q1/3.png</image>
+    </screenshot>
+    <screenshot>
+      <caption>More advanced graphics setting with real-time lights, advanced particle engine and light coronas</caption>
+      <image type="source">https://www.fteqw.org/img/q1/4.png</image>
+    </screenshot>
+    <screenshot>
+      <caption>EZHud plugin for user-defined HUDs</caption>
+      <image type="source">https://www.fteqw.org/img/qw/4.png</image>
+    </screenshot>
+    <screenshot>
+      <caption>Optimised multiplayer HUD and player name tags</caption>
+      <image type="source">https://www.fteqw.org/img/qw/3.png</image>
+    </screenshot>
+    <screenshot>
+      <caption>Action Quake II running in FTEQW</caption>
+      <image type="source">https://www.fteqw.org/img/q2/4.png</image>
+    </screenshot>
+    <screenshot>
+      <caption>Quake II</caption>
+      <image type="source">https://www.fteqw.org/img/q2/3.png</image>
+    </screenshot>
+    <screenshot>
+      <caption>Quake III Arena</caption>
+      <image type="source">https://www.fteqw.org/img/q3/2.png</image>
+    </screenshot>
+    <screenshot>
+      <caption>HeXen II</caption>
+      <image type="source">https://www.fteqw.org/img/h2/1.png</image>
+    </screenshot>
+    <screenshot>
+      <caption>HeXen II's particle system</caption>
+      <image type="source">https://www.fteqw.org/img/h2/3.png</image>
+    </screenshot>
+    <screenshot>
+      <caption>HeXen II with realtime shadows and lighting</caption>
+      <image type="source">https://www.fteqw.org/img/h2/4.png</image>
+    </screenshot>
+  </screenshots>
+  <content_rating type="oars-1.1">
+    <content_attribute id="violence-fantasy">intense</content_attribute>
+    <content_attribute id="violence-bloodshed">mild</content_attribute>
+    <content_attribute id="social-chat">intense</content_attribute>
+  </content_rating>
+  <releases>
+    <release version="latest" date="2025-05-14" />
+    <release version="6202" date="2022-03-01" />
+  </releases>
+</component>

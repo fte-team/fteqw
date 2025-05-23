@@ -296,12 +296,13 @@ size_t CalcHMAC(hashfunc_t *hashfunc, unsigned char *digest, size_t maxdigestsiz
 #include "protocol.h"
 
 
-
-
-#ifndef __cplusplus
+#if !defined(__cplusplus) && (!defined(__STDC_VERSION__) || (defined(__STDC_VERSION__) && (__STDC_VERSION__ < 202311L)))
 typedef enum {false, true} qboolean;
 #else
 typedef int qboolean;
+#endif
+
+#ifdef __cplusplus
 extern "C" {
 #endif
 

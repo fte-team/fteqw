@@ -3003,6 +3003,7 @@ static void GLTF_RewriteBoneTree(gltf_t *gltf)
 		for (j = 0; j < surf->numverts; j++)
 			for (n = 0; n < countof(surf->ofs_skel_idx[j]); n++)
 				surf->ofs_skel_idx[j][n] = gltf->bonemap[surf->ofs_skel_idx[j][n]];
+		surf->meshrootbone = gltf->bonemap[surf->meshrootbone];
 	}
 }
 

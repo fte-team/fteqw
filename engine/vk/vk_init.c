@@ -4635,26 +4635,35 @@ qboolean VK_CreateInstance(vrsetup_t *info, char *vrexts, void *result)
 	}
 
 	err = vkCreateInstance(&inst_info, vkallocationcb, &vk.instance);
+	if (err == VK_ERROR_LAYER_NOT_PRESENT && inst_info.enabledLayerCount>0 && !strcmp(inst_info.ppEnabledLayerNames[inst_info.enabledLayerCount-1], "VK_LAYER_KHRONOS_validation"))
+	{	//if we can't do debugging then just try to create a context without it.
+		Con_Printf(CON_WARNING"VK_ERROR_LAYER_NOT_PRESENT... trying again without debug layers\n");
+		inst_info.enabledLayerCount--;
+		err = vkCreateInstance(&inst_info, vkallocationcb, &vk.instance);
+	}
 	switch(err)
 	{
 	case VK_ERROR_INCOMPATIBLE_DRIVER:
-		Con_Printf("VK_ERROR_INCOMPATIBLE_DRIVER: please install an appropriate vulkan driver\n");
+		Con_Printf(CON_ERROR"VK_ERROR_INCOMPATIBLE_DRIVER: please install an appropriate vulkan driver\n");
 		return false;
 	case VK_ERROR_EXTENSION_NOT_PRESENT:
-		Con_Printf("VK_ERROR_EXTENSION_NOT_PRESENT: something on a system level is probably misconfigured\n");
+		Con_Printf(CON_ERROR"VK_ERROR_EXTENSION_NOT_PRESENT: something on a system level is probably misconfigured\n");
 		return false;
 	case VK_ERROR_LAYER_NOT_PRESENT:
-		Con_Printf("VK_ERROR_LAYER_NOT_PRESENT: requested layer is not known/usable\n");
+		Con_Printf(CON_ERROR"VK_ERROR_LAYER_NOT_PRESENT: requested layer is not known/usable\n");
 		return false;
 	default:
-		Con_Printf("Unknown vulkan instance creation error: %x\n", err);
+		Con_Printf(CON_ERROR"Unknown vulkan instance creation error: %x\n", err);
 		return false;
 	case VK_SUCCESS:
 		break;
 	}
 
 	if (result)
+	{
 		*(VkInstance*)result = vk.instance;
+		((VkInstanceCreateInfo*)info->userctx)->enabledLayerCount = inst_info.enabledLayerCount;
+	}
 	return true;
 }
 
@@ -5402,7 +5411,7 @@ qboolean VK_Init(rendererstate_t *info, const char **sysextnames, qboolean (*cre
 		free(queueprops);
 
 		devinf.pQueueCreateInfos = queueinf;
-		devinf.enabledLayerCount = vklayercount;
+		devinf.enabledLayerCount = inst_info.enabledLayerCount;//vklayercount;
 		devinf.ppEnabledLayerNames = vklayerlist;
 		devinf.enabledExtensionCount = numdevextensions;
 		devinf.ppEnabledExtensionNames = devextensions;

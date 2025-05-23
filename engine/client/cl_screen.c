@@ -1988,6 +1988,7 @@ void SCR_DrawFPS (void)
 	extern int fps_count;
 	static float lastfps;
 	char str[80];
+	extern cvar_t cl_fakeframes;
 
 	float frametime;
 
@@ -2015,7 +2016,10 @@ void SCR_DrawFPS (void)
 		R_FrameTimeGraph(frametime, 0);
 	else if (show_fps.value > 1)
 		R_FrameTimeGraph(frametime, show_fps.value-1);
-	sprintf(str, "%3.1f FPS", lastfps);
+	if (cl_fakeframes.ival!=0)
+		sprintf(str, "%3.1f FPS(x%i)", lastfps, max(0,cl_fakeframes.ival)+1);
+	else
+		sprintf(str, "%3.1f FPS", lastfps);
 	SCR_StringXY(str, show_fps_x.value, show_fps_y.value);
 
 	if (gpu>=0)

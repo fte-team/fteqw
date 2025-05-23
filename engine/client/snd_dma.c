@@ -568,7 +568,7 @@ static qboolean S_Speex_Init(void)
 #ifdef AVAIL_OPENAL
 extern snd_capture_driver_t OPENAL_Capture;
 #endif
-#ifdef _WIN32
+#ifdef AVAIL_DSOUND
 snd_capture_driver_t fte_weakstruct DSOUND_Capture;
 #endif
 snd_capture_driver_t fte_weakstruct OSS_Capture;
@@ -576,7 +576,7 @@ snd_capture_driver_t fte_weakstruct SDL_Capture;
 
 snd_capture_driver_t *capturedrivers[] =
 {
-#ifdef _WIN32
+#ifdef AVAIL_DSOUND
 	&DSOUND_Capture,
 #endif
 	&SDL_Capture,

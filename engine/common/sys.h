@@ -29,7 +29,6 @@ qboolean Sys_rmdir (const char *path);
 qboolean Sys_remove (const char *path);
 qboolean Sys_Rename (const char *oldfname, const char *newfname);
 qboolean Sys_GetFreeDiskSpace(const char *path, quint64_t *freespace);	//false for not-implemented or other error. path will be a system path, but may be relative (if basedir isn't properly known). path MAY be a file, or may be a slash-terminated directory.
-qboolean Sys_FindGameData(const char *poshname, const char *gamename, char *basepath, int basepathlen, qboolean allowprompts);
 
 //
 // memory protection
@@ -101,6 +100,7 @@ void Sys_SendKeyEvents (void);
 int Sys_EnumerateFiles (const char *gpath, const char *match, int (QDECL *func)(const char *fname, qofs_t fsize, time_t modtime, void *parm, searchpathfuncs_t *spath), void *parm, searchpathfuncs_t *spath);
 
 void Sys_Vibrate(float count);
+struct searchpathfuncs_s *Sys_OpenTitleStore(void); //sdl3
 
 qboolean Sys_GetDesktopParameters(int *width, int *height, int *bpp, int *refreshrate);
 

@@ -821,7 +821,7 @@ static void Win32VK_Present(struct vkframe *theframe)
 
 static qboolean Win32VK_AttachVulkan (rendererstate_t *info)
 {	//make sure we can get a valid renderer.
-	const char *extnames[] = {VK_KHR_WIN32_SURFACE_EXTENSION_NAME, NULL};
+	const char *extnames[] = {VK_KHR_WIN32_SURFACE_EXTENSION_NAME};
 #ifdef VK_NO_PROTOTYPES
 	hInstVulkan = NULL;
 	if (!hInstVulkan)
@@ -836,7 +836,7 @@ static qboolean Win32VK_AttachVulkan (rendererstate_t *info)
 	vkGetInstanceProcAddr = (PFN_vkGetInstanceProcAddr) GetProcAddress(hInstVulkan, "vkGetInstanceProcAddr");
 #endif
 
-	return VK_Init(info, extnames, Win32VK_CreateSurface, Win32VK_Present);
+	return VK_Init(info, extnames,countof(extnames), Win32VK_CreateSurface, Win32VK_Present);
 }
 static qboolean Win32VK_EnumerateDevices(void *usercontext, void(*callback)(void *context, const char *devicename, const char *outputname, const char *desc))
 {
@@ -945,7 +945,7 @@ static qboolean Win32NVVK_AttachVulkan (rendererstate_t *info)
 	if (!vkGetInstanceProcAddr)
 		vkGetInstanceProcAddr = nvvkGetInstanceProcAddr;
 //	qwglMakeCurrent(maindc, NULL);
-	return VK_Init(info, NULL, Win32NVVK_CreateSurface, Win32NVVK_Present);
+	return VK_Init(info, NULL,0, Win32NVVK_CreateSurface, Win32NVVK_Present);
 }
 #endif
 

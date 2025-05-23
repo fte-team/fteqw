@@ -481,7 +481,7 @@ uint32_t vk_find_memory_require(uint32_t typeBits, VkFlags requirements_mask);
 void VK_DoPresent(struct vkframe *theframe);
 
 qboolean VK_EnumerateDevices (void *usercontext, void(*callback)(void *context, const char *devicename, const char *outputname, const char *desc), const char *descprefix, PFN_vkGetInstanceProcAddr vk_GetInstanceProcAddr);
-qboolean VK_Init(rendererstate_t *info, const char **sysextname, qboolean (*createSurface)(void), void (*dopresent)(struct vkframe *theframe));
+qboolean VK_Init(rendererstate_t *info, const char *const*sysextname, unsigned int numsysext, qboolean (*createSurface)(void), void (*dopresent)(struct vkframe *theframe));
 void VK_Shutdown(void);
 
 void VK_R_BloomBlend (texid_t source, int x, int y, int w, int h);

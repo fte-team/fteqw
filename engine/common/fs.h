@@ -130,6 +130,7 @@ struct modlist_s *Mods_GetMod(size_t diridx);
 #define SPF_QSHACK			256		//a bit of a hack, allows scanning for $rootdir/quakespasm.pak
 #define SPF_SERVER			512		//a package that was loaded to match the server's packages
 #define SPF_ISDIR			1024	//is an actual directory (not itself a package).
+#define SPF_VIRTUAL			2048	//path is virtual in some form, and the logicalpath is NOT a path..
 qboolean FS_LoadPackageFromFile(vfsfile_t *vfs, char *pname, char *localname, int *crc, unsigned int flags);
 
 #ifdef AVAIL_XZDEC

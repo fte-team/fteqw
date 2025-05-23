@@ -179,24 +179,24 @@ typedef enum {
 	K_GP_VIEW, //aka back (near left stick)
 	K_GP_GUIDE,
 	K_GP_MENU,	//aka options/start (near right stick)
-	K_GP_LEFT_STICK,
-	K_GP_RIGHT_STICK,
-	K_GP_LEFT_SHOULDER,
-	K_GP_RIGHT_SHOULDER,
+	K_GP_LEFT_STICK,		//l3
+	K_GP_RIGHT_STICK,		//r3
+	K_GP_LEFT_SHOULDER,		//l1
+	K_GP_RIGHT_SHOULDER,	//r1
 	K_GP_DPAD_UP,
 	K_GP_DPAD_DOWN,
 	K_GP_DPAD_LEFT,
 	K_GP_DPAD_RIGHT,
 	K_GP_MISC1,    /* share/mic-mute button */
-	K_GP_PADDLE1,
-	K_GP_PADDLE2,
-	K_GP_PADDLE3,
-	K_GP_PADDLE4, 
+	K_GP_PADDLE1,	//r4
+	K_GP_PADDLE2,	//l4
+	K_GP_PADDLE3,	//r5
+	K_GP_PADDLE4,	//l5
 	K_GP_TOUCHPAD, /* when pressed */
 
 	/* emulated, we'll trigger these 'buttons' when we reach 50% pressed */
-	K_GP_LEFT_TRIGGER, 
-	K_GP_RIGHT_TRIGGER,
+	K_GP_LEFT_TRIGGER,	//l2
+	K_GP_RIGHT_TRIGGER,	//r2
 	K_GP_LEFT_THUMB_UP,
 	K_GP_LEFT_THUMB_DOWN,
 	K_GP_LEFT_THUMB_LEFT,

@@ -158,8 +158,7 @@ modules:
       - type: file
         path: org.fteqw.fteqw.sh
       - type: git
-        url: https://github.com/fpiesche/fteqw.git
-        # url: https://github.com/fte-team/fteqw.git
+        url: https://github.com/fte-team/fteqw.git
         branch: master
       # In an ideal world, fteqw would be built off of tagged releases so the Flatpak infra can auto-update:
       # - type: archive

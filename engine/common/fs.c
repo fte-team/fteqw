@@ -5703,7 +5703,7 @@ static qboolean Sys_DoDirectoryPrompt(char *basepath, size_t basepathsize, const
 {
 	return false;
 }
-static void Sys_FindBaseDirs(const char *poshname, const char *gamename, void (*callback) (void *ctx, const char *basepath), void *ctx, qboolean allowprompts)
+static void Sys_FindBaseDirs(const char *poshname, const char *gamename, void (*callback) (void *ctx, const char *basepath), void *ctx)
 {
 }
 static qboolean Sys_SteamDirsWithFile(char *steamdir, char *fname, void(*callback)(void*ctx,const char*basepath),void*ctx)

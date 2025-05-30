@@ -483,6 +483,81 @@ static qboolean GLTF_GetBufferViewData(gltf_t *gltf, json_t *bufferviewid, struc
 	GLTF_FlagExtras(bv);
 	return true;
 }
+
+static void GLTF_ExpandSparse(gltf_t *gltf, json_t *sparse, qbyte *data, unsigned int databytes, unsigned int datastride)
+{
+	qbyte *out;
+	size_t count = JSON_GetUInteger(sparse, "count", 0);
+	json_t *indices = JSON_FindChild(sparse, "indices");
+	struct gltf_bufferview idxv;
+	size_t idxofs = JSON_GetUInteger(indices, "byteOffset", 0);
+	int idxctype = JSON_GetUInteger(indices, "componentType", 0);
+	json_t *values = JSON_FindChild(sparse, "values");
+	struct gltf_bufferview valv;
+	size_t valofs = JSON_GetUInteger(values, "byteOffset", 0);
+	size_t idxstride;
+
+	if (!GLTF_GetBufferViewData(gltf, JSON_FindChild(indices, "bufferView"), &idxv))
+		return;
+	if (!GLTF_GetBufferViewData(gltf, JSON_FindChild(values, "bufferView"), &valv))
+		return;
+
+	switch(idxctype)
+	{
+	default:
+		if (gltf->warnlimit --> 0)
+			Con_Printf(CON_WARNING"GLTF_ExpandSparse: %s: glTF2 unsupported index componentType (%i)\n", gltf->mod->name, idxctype);
+		return;
+	case 5120:	//BYTE. signed values are bugs, but allow anyway.
+	case 5121:	//UNSIGNED_BYTE
+		idxstride = 1;
+		break;
+	case 5122: //SHORT. signed values are bugs, but allow anyway.
+	case 5123: //UNSIGNED_SHORT
+		idxstride = 2;
+		break;
+	case 5124: //INT. signed values are bugs, but allow anyway.
+	case 5125: //UNSIGNED_INT
+		idxstride = 4;
+		break;
+//	case 5126: //FLOAT. doesn't make sense as an index.
+	}
+
+	if (idxstride*count > idxv.length - idxofs || idxofs > idxv.length)
+	{
+		if (gltf->warnlimit --> 0)
+			Con_Printf(CON_WARNING"GLTF_ExpandSparse: %s: sparse indexes violates bufferView\n", gltf->mod->name);
+		return;
+	}
+	if (datastride*count > valv.length - valofs || valofs > valv.length)
+	{
+		if (gltf->warnlimit --> 0)
+			Con_Printf(CON_WARNING"GLTF_ExpandSparse: %s: sparse values violates bufferView\n", gltf->mod->name);
+		return;
+	}
+	idxv.data = (qbyte*)idxv.data + idxofs;
+	valv.data = (qbyte*)valv.data + valofs;
+
+	while(count --> 0)
+	{
+		switch(idxstride)
+		{
+		default: out = data; break;
+		case 1:	out = data + datastride * *(unsigned char *)idxv.data; break;
+		case 2:	out = data + datastride * *(unsigned short*)idxv.data; break;
+		case 4: out = data + datastride * *(unsigned int  *)idxv.data; break;
+		}
+		idxv.data = (char*)idxv.data + idxstride;
+
+		//out is meant to be higher each time, but we don't bother verifying that specifically.
+		if (out < data || out+datastride > data+databytes)
+			;	//don't write out of bounds.
+		else
+			memcpy(out, valv.data, datastride);
+		valv.data = (char*)valv.data + datastride;
+	}
+}
+
 //accessors are basically VAs blocks that refer inside a bufferview/VBO.
 struct gltf_accessor
 {
@@ -501,7 +576,7 @@ struct gltf_accessor
 static qboolean GLTF_GetAccessor(gltf_t *gltf, json_t *accessorid, struct gltf_accessor *out)
 {
 	struct gltf_bufferview bv;
-	json_t *a, *mins, *maxs;
+	json_t *a, *mins, *maxs, *sparse;
 	size_t offset;
 	int j;
 	memset(out, 0, sizeof(*out));
@@ -513,18 +588,21 @@ static qboolean GLTF_GetAccessor(gltf_t *gltf, json_t *accessorid, struct gltf_a
 	JSON_FlagAsUsed(a, "name");
 
 	if (!GLTF_GetBufferViewData(gltf, JSON_FindChild(a, "bufferView"), &bv))
-		return false;
-	offset = JSON_GetUInteger(a, "byteOffset", 0);
-	if (offset > bv.length)
-		return false;
-
-	if (JSON_FindChild(a, "sparse"))
-	{	//0-initialised, with separate index+values tables for ones that need an actual value.
-		if (gltf->warnlimit --> 0)
-			Con_Printf(CON_WARNING"%s: sparse accessors are not supported\n", gltf->mod->name);
-		return false;
+	{	//when this is omitted, the data is 0-filled, with sparse stuff overwriting it.
+		memset(&bv, 0, sizeof(bv));
+		offset = 0;
 	}
-	out->length = bv.length - offset;
+	else
+	{
+		offset = JSON_GetUInteger(a, "byteOffset", 0);
+		if (offset > bv.length)
+		{
+			if (gltf->warnlimit --> 0)
+				Con_Printf(CON_WARNING"%s: byteOffset+bufferView.length beyond buffer size\n", gltf->mod->name);
+			return false;
+		}
+	}
+
 	if (gltf->ver <= 1)
 		out->bytestride = JSON_GetInteger(a, "byteStride", 0);
 	else
@@ -575,6 +653,37 @@ static qboolean GLTF_GetAccessor(gltf_t *gltf, json_t *accessorid, struct gltf_a
 		}
 	}
 
+	if (bv.data)
+	{	//we had a proper bufferView.
+		out->length = bv.length - offset;
+		out->data = (char*)bv.data + offset;
+	}
+	else
+	{	//0-filled.
+		out->length = out->bytestride * out->count;
+		out->data = NULL;
+	}
+
+	sparse = JSON_FindChild(a, "sparse");
+	if (sparse)
+	{	//0-initialised, with separate index+values tables for ones that need an actual value.
+
+		if (out->data)
+		{	//we actually had some existing data... we're stomping over only parts of it, but make sure we don't corrupt anything else using the same bit of buffer.
+			void *old = out->data;
+			out->data = plugfuncs->GMalloc(&gltf->mod->memgroup, out->length);
+			memcpy(out->data, old, out->length);
+		}
+		else	//okay, was 0 filled. just malloc some mem to use.
+			out->data = plugfuncs->GMalloc(&gltf->mod->memgroup, out->length);
+
+		GLTF_ExpandSparse(gltf, sparse, out->data, out->length, out->bytestride);
+	}
+	else
+	{	//just nothing...
+		if (!out->data)
+			out->data = plugfuncs->GMalloc(&gltf->mod->memgroup, out->length);
+	}
 
 	mins = JSON_FindChild(a, "min");
 	maxs = JSON_FindChild(a, "max");
@@ -587,7 +696,6 @@ static qboolean GLTF_GetAccessor(gltf_t *gltf, json_t *accessorid, struct gltf_a
 //	JSON_WarnIfChild(a, "name");
 	GLTF_FlagExtras(a);
 
-	out->data = (char*)bv.data + offset;
 	return true;
 }
 
@@ -2895,6 +3003,7 @@ static void GLTF_RewriteBoneTree(gltf_t *gltf)
 		for (j = 0; j < surf->numverts; j++)
 			for (n = 0; n < countof(surf->ofs_skel_idx[j]); n++)
 				surf->ofs_skel_idx[j][n] = gltf->bonemap[surf->ofs_skel_idx[j][n]];
+		surf->meshrootbone = gltf->bonemap[surf->meshrootbone];
 	}
 }
 

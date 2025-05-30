@@ -3727,9 +3727,12 @@ static void QCBUILTIN PF_pointsound(pubprogfuncs_t *prinst, struct globalvars_s 
 {
 	VM_VECTORARG(origin, OFS_PARM0);
 	const char *sample = PR_GetStringOfs(prinst, OFS_PARM1);
-	float volume = G_FLOAT(OFS_PARM2);
+	float volume = G_FLOAT(OFS_PARM2)*255;
 	float attenuation = G_FLOAT(OFS_PARM3);
 	float pitchpct = (prinst->callargc > 4)?G_FLOAT(OFS_PARM4)*0.01:0;
+
+	if (volume > 255)
+		volume = 255;
 
 	SVQ1_StartSound (origin, sv.world.edicts, 0, sample, volume, attenuation, pitchpct, 0, 0);
 }

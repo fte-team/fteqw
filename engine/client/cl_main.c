@@ -134,6 +134,8 @@ static cvar_t cl_verify_urischeme = CVARAFD("cl_verify_urischeme", "2", "cl_veri
 static cvar_t cl_verify_urischeme = CVARAFD("cl_verify_urischeme", "0", "cl_verify_qwprotocol"/*ezquake, inappropriate for misc schemes*/, CVAR_NOSAVE/*checked at startup, so its only really default.cfg that sets it*/, "0: Do nothing.\n1: Check whether our protocol scheme is registered and prompt the user to register associations.\n2: Always re-register on every startup, without prompting. Sledgehammer style.");
 #endif
 
+cvar_t cl_fakeframes = CVARD("cl_fakeframes", "0", "Slow GPU? Want to see higher framerates get reported! Unleash the power of the lie to see much higher framerates! Many people said it couldn't be done, that the people wouldn't accept it, but to hell with the neighsayers and non-believers! WE WANT BIGGER NUMBERS AND WE'RE DAMN WELL GONNA GET THEM!... For best results, combine with an external tool like fluid motion frames...");
+
 
 cvar_t	cl_threadedphysics = CVARD("cl_threadedphysics", "0", "When set, client input frames are generated and sent on a worker thread");
 
@@ -5918,6 +5920,8 @@ void CL_Init (void)
 
 	Cvar_Register (&cl_splitscreen,					cl_controlgroup);
 
+	Cvar_Register (&cl_fakeframes,					cl_controlgroup);
+
 #ifndef SERVERONLY
 	Cvar_Register (&cl_loopbackprotocol,			cl_controlgroup);
 #endif
@@ -7410,7 +7414,7 @@ double Host_Frame (double time)
 				vid.ime_allow = false;
 				vrui.enabled |= cl_vrui_force.ival || (vrflags&VRF_UIACTIVE);
 				if (SCR_UpdateScreen())
-					fps_count++;
+					fps_count += 1+max(0, cl_fakeframes.ival);
 				if (R2D_Flush)
 					Sys_Error("update didn't flush 2d cache\n");
 				RSpeedEnd(RSPEED_TOTALREFRESH);

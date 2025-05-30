@@ -2776,7 +2776,7 @@ QCD_def_t *GetField(const char *name)
 QCD_def_t *DecompileGetParameter(gofs_t ofs)
 {
 	int i;
-	QCD_def_t *def;
+	QCD_def_t *def, *fb = NULL;
 
 	def = NULL;
 
@@ -2786,11 +2786,14 @@ QCD_def_t *DecompileGetParameter(gofs_t ofs)
 
 		if (def->ofs == ofs)
 		{
-			return def;
+			if (def->type > ev_variant)
+				fb = def;	//urgh, some weird one. see if its an alias.
+			else
+				return def;
 		}
 	}
 
-	return NULL;
+	return fb;
 }
 QCD_def_t *DecompileFindGlobal(const char *findname)
 {

@@ -4114,6 +4114,9 @@ static unsigned short QCC_PR_WriteProgdefs (char *filename)
 		if (d->type->type != ev_field)
 			continue;
 
+		if (d->symbolheader != d)
+			continue;
+
 		switch (d->type->aux_type->type)
 		{
 		case ev_float:

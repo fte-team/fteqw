@@ -1591,6 +1591,38 @@ void V_ClearRefdef(playerview_t *pv)
 
 /*
 ==================
+V_CalcFixedRefDef
+
+==================
+*/
+static void V_CalcFixedRefDef (playerview_t *pv)
+{
+	r_refdef.playerview = pv;
+
+	memset(&r_refdef.globalfog, 0, sizeof(r_refdef.globalfog));
+
+	r_refdef.time = cl.servertime;
+
+// refresh position from fixed origin
+	VectorCopy(r_refdef.fixedvieworg, r_refdef.vieworg);
+
+	r_refdef.useperspective = true;
+	r_refdef.mindist = bound(0.1, gl_mindist.value, 4);
+	r_refdef.maxdist = gl_maxdist.value;
+
+	VectorCopy(r_refdef.fixedviewangles, r_refdef.viewangles);
+
+	if (v_skyroom_set)
+	{
+		r_refdef.skyroom_enabled = true;
+		VectorMA(v_skyroom_origin, v_skyroom_origin[3], r_refdef.vieworg, r_refdef.skyroom_pos);
+		Vector4Copy(v_skyroom_orientation, r_refdef.skyroom_spin);
+		r_refdef.skyroom_spin[3] *= cl.time;
+	}
+}
+
+/*
+==================
 V_CalcRefdef
 
 ==================
@@ -1599,6 +1631,12 @@ void V_CalcRefdef (playerview_t *pv)
 {
 	float		bob;
 	float		viewheight;
+
+	if (r_refdef.fixedview)
+	{
+		V_CalcFixedRefDef (pv);
+		return;
+	}
 
 	r_refdef.playerview = pv;
 

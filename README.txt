@@ -1,3 +1,12 @@
+Problems?
+You can report problems on IRC or Discord.
+
+•IRC
+Join irc.quakenet.org #fte
+
+•Discord
+Join https://discord.gg/p2ag7x6Ca6
+
 Yay, you found out the secrit location to download the sauce code from!
 
 Right, urm, now what?

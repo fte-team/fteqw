@@ -1,3 +1,17 @@
+Problems?
+You can report problems on IRC or Discord.
+
+•IRC
+Join irc.quakenet.org #fte
+
+•Discord
+Join https://discord.gg/p2ag7x6Ca6
+
+If you refuse to use IRC, you can instead report issues to Spike via the inside3d.com forums, or the quakeone.com forums, depending on where you're able to create an account.
+Bug reports are (generally) always apreciated! :)
+
+
+
 Yay, you found out the secrit location to download the sauce code from!
 
 Right, urm, now what?
@@ -97,9 +111,3 @@ Alternatively, specify the h2/q2/q3 dir via -basedir.
 The engine will autodetect the game from its basedir, and reconfigure as appropriate if appropriate.
 
 
-Problems?
-You can report problems on IRC.
-Join irc.quakenet.org #fte
-
-If you refuse to use IRC, you can instead report issues to Spike via the inside3d.com forums, or the quakeone.com forums, depending on where you're able to create an account.
-Bug reports are (generally) always apreciated! :)

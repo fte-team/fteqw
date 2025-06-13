@@ -2622,6 +2622,14 @@ static void VARGS nearCallback (void *data, dGeomID o1, dGeomID o2)
 	if (!ed2->v->solid && ed1->v->solid != SOLID_BSP)
 		return;
 
+	if (ed1->entnum && ed2->entnum)
+	{
+		if (!((int)ed2->xv->dimension_solid & (int)ed1->xv->dimension_hit))
+			return;
+		if (!((int)ed1->xv->dimension_solid & (int)ed2->xv->dimension_hit))
+			return;
+	}
+
 	// generate contact points between the two non-space geoms
 	numcontacts = dCollide(o1, o2, MAX_CONTACTS, &(contact[0].geom), sizeof(contact[0]));
 	if (numcontacts)

@@ -11633,6 +11633,7 @@ vfsfile_t *FS_OpenTCP(const char *name, int defaultport, qboolean assumetls/*use
 		assumetls = true, host += 4, defaultport=defaultport?defaultport:443;
 	else
 		host = name;
+	if (name==host) proto = NULL; else
 	if (host != name && host[0] == '/' && host[1] == '/')
 	{
 		host += 2;

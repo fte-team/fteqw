@@ -11657,14 +11657,17 @@ vfsfile_t *FS_OpenTCP(const char *name, int defaultport, qboolean assumetls/*use
 		}
 	}
 
-	resource = strchr(host, '/');
-	if (!resource)
-		resource = "/";
-	else
+	if (proto)
 	{
-		char *t = alloca(1+resource-host);
-		t[resource-host] = 0;
-		host = memcpy(t, host, resource-host);
+		resource = strchr(host, '/');
+		if (!resource)
+			resource = "/";
+		else
+		{
+			char *t = alloca(1+resource-host);
+			t[resource-host] = 0;
+			host = memcpy(t, host, resource-host);
+		}
 	}
 
 	if (NET_StringToAdr(host, defaultport, &adr))

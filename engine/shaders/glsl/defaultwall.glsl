@@ -8,7 +8,8 @@
 !!permu SPECULAR
 !!permu REFLECTCUBEMASK
 !!permu FAKESHADOWS
-!!cvarf r_glsl_offsetmapping_scale
+!!cvardf r_glsl_offsetmapping_scale
+!!cvardf r_glsl_emissive=1
 !!cvardf r_glsl_pcf
 !!cvardf r_tessellation_level=5
 !!samps diffuse
@@ -78,6 +79,9 @@ void main ()
 	invsurface = mat3(v_svector, v_tvector, v_normal);
 #endif
 	tc = v_texcoord;
+#ifdef FLOWV
+	tc.st += e_time * vec2(FLOWV);
+#endif
 #ifdef FLOW
 	tc.s += e_time * -0.5;
 #endif
@@ -398,6 +402,8 @@ void main ()
 
 #ifdef REFLECTCUBEMASK
 	vec3 rtc = reflect(normalize(-eyevector), norm);
+	//todo: parallax correction: https://seblagarde.wordpress.com/2012/09/29/image-based-lighting-approaches-and-parallax-corrected-cubemap/
+	//norm (and also eyevector) are in tangentspace but our cubemap wants worldspace, so convert.
 	rtc = rtc.x*invsurface[0] + rtc.y*invsurface[1] + rtc.z*invsurface[2];
 	rtc = (m_model * vec4(rtc.xyz,0.0)).xyz;
 	col.rgb += texture2D(s_reflectmask, tc).rgb * textureCube(s_reflectcube, rtc).rgb;
@@ -412,11 +418,16 @@ void main ()
 	col.b = texture2D(s_colourmap, vec2(pal, 1.0-lightmaps.b)).b;	//without lits, it should be identical.
 #else
 	//now we have our diffuse+specular terms, modulate by lightmap values.
-	col.rgb *= lightmaps.rgb;
-//add on the fullbright
-#ifdef FULLBRIGHT
-	col.rgb += texture2D(s_fullbright, tc).rgb;
-#endif
+	#if defined(FULLBRIGHT)
+		vec4 fb = texture2D(s_fullbright, tc);
+		#if r_glsl_emissive==0	//q2e-like mask that gets darker when lights get overbright.
+			col.rgb *= mix(lightmaps.rgb, vec3(1.0), fb.rgb*fb.a);
+		#else	//actually emissive layer
+			col.rgb = col.rgb * lightmaps.rgb + fb.rgb*fb.a;
+		#endif
+	#else
+		col.rgb *= lightmaps.rgb;
+	#endif
 #endif
 
 //entity modifiers

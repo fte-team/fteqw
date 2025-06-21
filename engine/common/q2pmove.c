@@ -51,20 +51,20 @@ typedef struct
 	qboolean	ladder;
 } q2pml_t;
 
-q2pmove_t		*q2pm;
+static q2pmove_t		*q2pm;
 static q2pml_t	q2pml;
 
 
 // movement parameters
-float	pm_stopspeed = 100;
-float	pm_maxspeed = 300;
-float	pm_duckspeed = 100;
-float	pm_accelerate = 10;
+static float	pm_stopspeed = 100;
+static float	pm_maxspeed = 300;
+static float	pm_duckspeed = 100;
+static float	pm_accelerate = 10;
 float	pm_airaccelerate = 0;
-float	pm_wateraccelerate = 10;
-float	pm_friction = 6;
-float	pm_waterfriction = 1;
-float	pm_waterspeed = 400;
+static float	pm_wateraccelerate = 10;
+static float	pm_friction = 6;
+static float	pm_waterfriction = 1;
+static float	pm_waterspeed = 400;
 //float	pm_stepheight;
 
 /*

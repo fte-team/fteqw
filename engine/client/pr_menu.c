@@ -901,17 +901,25 @@ void QCBUILTIN PF_CL_uploadimage (pubprogfuncs_t *prinst, struct globalvars_s *p
 	}
 	else
 	{
+		void *palette = NULL;
 		unsigned int blockbytes, blockwidth, blockheight, blockdepth;
 		//get format info
 		Image_BlockSizeForEncoding(format, &blockbytes, &blockwidth, &blockheight, &blockdepth);
 		//round up as appropriate
 		blockwidth = ((width+blockwidth-1)/blockwidth)*blockwidth;
 		blockheight = ((height+blockheight-1)/blockheight)*blockheight;
+
+		//we do allow palettes on the end.
+		if (format == TF_8PAL24)
+			size -= 768, palette = (qbyte*)imgptr+size, blockbytes=1;
+		else if (format == TF_8PAL32)
+			size -= 1024, palette = (qbyte*)imgptr+size, blockbytes=1;
+
 		if (size != blockwidth*blockheight*blockbytes)
 			G_INT(OFS_RETURN) = 0;	//size isn't right. which means the pointer might be invalid too.
 		else
 		{
-			Image_Upload(tid, format, imgptr, NULL, width, height, 1, RT_IMAGEFLAGS);
+			Image_Upload(tid, format, imgptr, palette, width, height, 1, RT_IMAGEFLAGS);
 			tid->width = width;
 			tid->height = height;
 			G_INT(OFS_RETURN) = 1;
@@ -933,6 +941,7 @@ void QCBUILTIN PF_CL_readimage (pubprogfuncs_t *prinst, struct globalvars_s *pr_
 	G_INT(OFS_RETURN) = 0;	//assume the worst
 	G_INT(OFS_PARM1) = 0;	//out width
 	G_INT(OFS_PARM2) = 0;	//out height
+	G_INT(OFS_PARM3) = 0;	//out format
 
 	filedata = FS_LoadMallocFile(filename, &filesize);
 
@@ -1351,6 +1360,7 @@ static struct
 {
 	evalc_t chain;
 	evalc_t model;
+	evalc_t modelindex;
 	evalc_t mins;
 	evalc_t maxs;
 	evalc_t origin;
@@ -1364,6 +1374,7 @@ static struct
 	evalc_t frame2time;
 	evalc_t renderflags;
 	evalc_t skinobject;
+	evalc_t skelobject;
 	evalc_t colourmod;
 	evalc_t alpha;
 } menuc_eval;
@@ -1567,6 +1578,10 @@ void QCBUILTIN PF_clientstate (pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 		G_FLOAT(OFS_RETURN) = 1/*nq ca_disconnected*/;
 }
 
+static void QCBUILTIN PF_Ignore (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	G_INT(OFS_RETURN) = 0;
+}
 //too specific to the prinst's builtins.
 static void QCBUILTIN PF_Fixme (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
@@ -1592,7 +1607,7 @@ static void QCBUILTIN PF_checkbuiltin (pubprogfuncs_t *prinst, struct globalvars
 	{	//qc defines the function at least. nothing weird there...
 		if (builtinno > 0 && builtinno < prinst->parms->numglobalbuiltins)
 		{
-			if (!prinst->parms->globalbuiltins[builtinno] || prinst->parms->globalbuiltins[builtinno] == PF_Fixme)
+			if (!prinst->parms->globalbuiltins[builtinno] || prinst->parms->globalbuiltins[builtinno] == PF_Fixme || prinst->parms->globalbuiltins[builtinno] == PF_Ignore)
 				G_FLOAT(OFS_RETURN) = false;	//the builtin with that number isn't defined.
 			else
 			{
@@ -2034,6 +2049,23 @@ static void QCBUILTIN PF_m_precache_model(pubprogfuncs_t *prinst, struct globalv
 	const char *modelname = PR_GetStringOfs(prinst, OFS_PARM0);
 	Mod_ForName(modelname, MLV_WARN);
 }
+static model_t *QDECL MP_GetCModel(struct world_s *w, int modelindex)
+{
+	extern int		mod_numknown;
+	modelindex--;
+	if (modelindex < 0 || modelindex >= mod_numknown)
+		return NULL;
+	return &mod_known[modelindex];
+}
+static void QCBUILTIN PF_m_getmodelindex(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	const char *modelname = PR_GetStringOfs(prinst, OFS_PARM0);
+	model_t *m = Mod_ForName(modelname, MLV_WARN);
+	if (m)
+		G_FLOAT(OFS_RETURN) = (m-mod_known)+1;
+	else
+		G_FLOAT(OFS_RETURN) = 0;
+}
 static void QCBUILTIN PF_m_setmodel(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	menuedict_t *ent = (void*)G_EDICT(prinst, OFS_PARM0);
@@ -2041,6 +2073,7 @@ static void QCBUILTIN PF_m_setmodel(pubprogfuncs_t *prinst, struct globalvars_s 
 	eval_t *modelval = prinst->GetEdictFieldValue(prinst, (void*)ent, "model", ev_string, &menuc_eval.model);
 	eval_t *minsval = prinst->GetEdictFieldValue(prinst, (void*)ent, "mins", ev_vector, &menuc_eval.mins);
 	eval_t *maxsval = prinst->GetEdictFieldValue(prinst, (void*)ent, "maxs", ev_vector, &menuc_eval.maxs);
+	eval_t *modelidxval = prinst->GetEdictFieldValue(prinst, (void*)ent, "modelindex", ev_float, &menuc_eval.modelindex);
 	model_t *mod = Mod_ForName(modelname, MLV_WARN);
 	if (modelval)
 		modelval->string = G_INT(OFS_PARM1);	//lets hope garbage collection is enough.
@@ -2050,6 +2083,8 @@ static void QCBUILTIN PF_m_setmodel(pubprogfuncs_t *prinst, struct globalvars_s 
 	if (mod)
 		while(mod->loadstate == MLS_LOADING)
 			COM_WorkerPartialSync(mod, &mod->loadstate, MLS_LOADING);
+	if (modelidxval)
+		modelidxval->_float = mod?(mod-mod_known)+1:0;
 
 	if (mod && minsval)
 		VectorCopy(mod->mins, minsval->_vector);
@@ -2110,6 +2145,44 @@ static void QCBUILTIN PF_m_clearscene(pubprogfuncs_t *prinst, struct globalvars_
 	V_CalcRefdef(&menuview);	//set up the defaults
 	r_refdef.flags |= RDF_NOWORLDMODEL;
 }
+static void QDECL MP_Read_FrameState(pubprogfuncs_t *prinst, wedict_t *ent, framestate_t *fstate)
+{
+	eval_t *frame1val = prinst->GetEdictFieldValue(prinst, (void*)ent, "frame", ev_float, &menuc_eval.frame1);
+	eval_t *frame2val = prinst->GetEdictFieldValue(prinst, (void*)ent, "frame2", ev_float, &menuc_eval.frame2);
+	eval_t *lerpfracval = prinst->GetEdictFieldValue(prinst, (void*)ent, "lerpfrac", ev_float, &menuc_eval.lerpfrac);
+	eval_t *frame1timeval = prinst->GetEdictFieldValue(prinst, (void*)ent, "frame1time", ev_float, &menuc_eval.frame1time);
+	eval_t *frame2timeval = prinst->GetEdictFieldValue(prinst, (void*)ent, "frame2time", ev_float, &menuc_eval.frame2time);
+	eval_t *skelobjectval = prinst->GetEdictFieldValue(prinst, (void*)ent, "skeletonindex", ev_float, &menuc_eval.skelobject);
+
+	fstate->g[FST_BASE].endbone = 0;
+	fstate->g[FS_REG].endbone = 0x7fffffff;
+	fstate->g[FS_REG].frame[0] = frame1val?frame1val->_float:0;
+	fstate->g[FS_REG].frame[1] = frame2val?frame2val->_float:0;
+	fstate->g[FS_REG].lerpweight[1] = lerpfracval?lerpfracval->_float:0;
+	fstate->g[FS_REG].frametime[0] = frame1timeval?frame1timeval->_float:0;
+	fstate->g[FS_REG].frametime[1] = frame2timeval?frame2timeval->_float:0;
+
+#if FRAME_BLENDS >= 4
+	fstate->g[FS_REG].frame[2] = fstate->g[FS_REG].frame[0];
+	fstate->g[FS_REG].lerpweight[2] = 0;
+	fstate->g[FS_REG].frame[3] = fstate->g[FS_REG].frame[0];
+	fstate->g[FS_REG].lerpweight[3] = 0;
+	fstate->g[FS_REG].lerpweight[0] = 1-(fstate->g[FS_REG].lerpweight[1]+fstate->g[FS_REG].lerpweight[2]+fstate->g[FS_REG].lerpweight[3]);
+#else
+	fstate->g[FS_REG].lerpweight[0] = 1-fstate->g[FS_REG].lerpweight[1];
+#endif
+
+#if defined(SKELETALOBJECTS) || defined(RAGDOLL)
+	fstate->bonecount = 0;
+	fstate->bonestate = NULL;
+	if (skelobjectval && skelobjectval->_float)
+		skel_lookup(&menu_world, skelobjectval->_float, fstate);
+#endif
+}
+static void QDECL MP_Get_FrameState(struct world_s *w, wedict_t *ent, framestate_t *fstate)
+{
+	MP_Read_FrameState(w->progs, ent, fstate);
+}
 static qboolean CopyMenuEdictToEntity(pubprogfuncs_t *prinst, menuedict_t *in, entity_t *out)
 {
 	eval_t *modelval = prinst->GetEdictFieldValue(prinst, (void*)in, "model", ev_string, &menuc_eval.model);
@@ -2121,6 +2194,7 @@ static qboolean CopyMenuEdictToEntity(pubprogfuncs_t *prinst, menuedict_t *in, e
 	eval_t *lerpfracval = prinst->GetEdictFieldValue(prinst, (void*)in, "lerpfrac", ev_float, &menuc_eval.lerpfrac);
 	eval_t *frame1timeval = prinst->GetEdictFieldValue(prinst, (void*)in, "frame1time", ev_float, &menuc_eval.frame1time);
 	eval_t *frame2timeval = prinst->GetEdictFieldValue(prinst, (void*)in, "frame2time", ev_float, &menuc_eval.frame2time);
+	eval_t *skelobjectval = prinst->GetEdictFieldValue(prinst, (void*)in, "skeletonindex", ev_float, &menuc_eval.skelobject);
 	eval_t *colormapval = prinst->GetEdictFieldValue(prinst, (void*)in, "colormap", ev_float, &menuc_eval.colormap);
 	eval_t *renderflagsval = prinst->GetEdictFieldValue(prinst, (void*)in, "renderflags", ev_float, &menuc_eval.renderflags);
 	eval_t *skinobjectval = prinst->GetEdictFieldValue(prinst, (void*)in, "skinobject", ev_float, &menuc_eval.skinobject);
@@ -2148,6 +2222,13 @@ static qboolean CopyMenuEdictToEntity(pubprogfuncs_t *prinst, menuedict_t *in, e
 	out->framestate.g[FS_REG].lerpweight[0] = 1-out->framestate.g[FS_REG].lerpweight[1];
 	out->framestate.g[FS_REG].frametime[0] = frame1timeval?frame1timeval->_float:0;
 	out->framestate.g[FS_REG].frametime[1] = frame2timeval?frame2timeval->_float:0;
+
+#if defined(SKELETALOBJECTS) || defined(RAGDOLL)
+	out->framestate.bonecount = 0;
+	out->framestate.bonestate = NULL;
+	if (skelobjectval && skelobjectval->_float)
+		skel_lookup(&menu_world, skelobjectval->_float, &out->framestate);
+#endif
 
 	out->customskin = skinobjectval?skinobjectval->_float:0;
 
@@ -2285,6 +2366,8 @@ static void QCBUILTIN PF_menu_registercommand (pubprogfuncs_t *prinst, struct gl
 {
 	const char *str = PR_GetStringOfs(prinst, OFS_PARM0);
 	const char *desc = (prinst->callargc>1)?PR_GetStringOfs(prinst, OFS_PARM1):NULL;
+	if (desc && !*desc)
+		desc = NULL;
 	if (!Cmd_Exists(str))
 		Cmd_AddCommandD(str, MP_ConsoleCommand_f, desc);
 }
@@ -2375,6 +2458,8 @@ static struct {
 	{"htos",					PF_htos,					0},
 	{"ftoi",					PF_ftoi,					0},
 	{"itof",					PF_itof,					0},
+	{"ftou",					PF_ftou,					0},
+	{"utof",					PF_utof,					0},
 
 	{"spawn",					PF_Spawn,					22},
 	{"remove",					PF_Remove_,					23},
@@ -2400,7 +2485,7 @@ static struct {
 	{"sin",						PF_Sin,						38},
 	{"cos",						PF_Cos,						39},
 	{"sqrt",					PF_Sqrt,					40},
-	{"randomvector",			PF_randomvector,			41},
+	{"randomvec",				PF_randomvector,			41},
 	{"registercvar",			PF_registercvar,			42},
 	{"min",						PF_min,						43},
 	{"max",						PF_max,						44},
@@ -2415,8 +2500,10 @@ static struct {
 	{"fputs",					PF_fputs,					51},
 	{"fread",					PF_fread,					0},
 	{"fwrite",					PF_fwrite,					0},
-	{"fseek",					PF_fseek,					0},
-	{"fsize",					PF_fsize,					0},
+	{"fseek",					PF_fseek32,					0},
+	{"fsize",					PF_fsize32,					0},
+	{"fseek64",					PF_fseek64,					0},
+	{"fsize64",					PF_fsize64,					0},
 	{"strlen",					PF_strlen,					52},
 	{"strcat",					PF_strcat,					53},
 	{"substring",				PF_substring,				54},
@@ -2435,7 +2522,8 @@ static struct {
 	{"changelevel",				PF_cl_changelevel,			64},						//void	changelevel(string map)  = #64;
 	{"localsound",				PF_cl_localsound,			65},
 	{"getmousepos",				PF_cl_getmousepos,			66},
-	{"gettime",					PF_gettime,					67},
+	{"gettime",					PF_gettimef,				67},
+	{"gettimed",				PF_gettimed,				0},
 	{"loadfromdata",			PF_loadfromdata,			68},
 	{"loadfromfile",			PF_loadfromfile,			69},
 	{"mod",						PF_mod,						70},
@@ -2466,7 +2554,15 @@ static struct {
 	{"precache_model",			PF_m_precache_model,		91},
 	{"setorigin",				PF_m_setorigin,				92},
 															//gap
+	{"getmodelindex",			PF_m_getmodelindex,			200},
+	{"externcall",				PF_externcall,				201},
+	{"addprogs",				PF_cl_addprogs,				202},
+	{"externvalue",				PF_externvalue,				203},
+	{"externset",				PF_externset,				204},
+															//gap
+	{"fork",					PF_Fork,					210},
 	{"abort",					PF_Abort,					211},
+	{"sleep",					PF_Sleep,					212},
 															//gap
 	{"strstrofs",				PF_strstrofs,				221},
 	{"str2chr",					PF_str2chr,					222},
@@ -2483,6 +2579,31 @@ static struct {
 															//gap
 	{"shaderforname",			PF_shaderforname,			238},
 	{"sendpacket",				PF_cl_SendPacket,			242},
+															//gap
+	{"skel_create",				PF_skel_create,				263},//float(float modlindex) skel_create = #263; // (FTE_CSQC_SKELETONOBJECTS)
+	{"skel_build",				PF_skel_build,				264},//float(float skel, entity ent, float modelindex, float retainfrac, float firstbone, float lastbone, optional float addition) skel_build = #264; // (FTE_CSQC_SKELETONOBJECTS)
+	{"skel_build_ptr",			PF_skel_build_ptr,			0},//float(float skel, int numblends, __variant *blends, int blendsize) skel_build_ptr = #0;
+	{"skel_get_numbones",		PF_skel_get_numbones,		265},//float(float skel) skel_get_numbones = #265; // (FTE_CSQC_SKELETONOBJECTS)
+	{"skel_get_bonename",		PF_skel_get_bonename,		266},//string(float skel, float bonenum) skel_get_bonename = #266; // (FTE_CSQC_SKELETONOBJECTS) (returns tempstring)
+	{"skel_get_boneparent",		PF_skel_get_boneparent,		267},//float(float skel, float bonenum) skel_get_boneparent = #267; // (FTE_CSQC_SKELETONOBJECTS)
+	{"skel_find_bone",			PF_skel_find_bone,			268},//float(float skel, string tagname) skel_get_boneidx = #268; // (FTE_CSQC_SKELETONOBJECTS)
+	{"skel_get_bonerel",		PF_skel_get_bonerel,		269},//vector(float skel, float bonenum) skel_get_bonerel = #269; // (FTE_CSQC_SKELETONOBJECTS) (sets v_forward etc)
+	{"skel_get_boneabs",		PF_skel_get_boneabs,		270},//vector(float skel, float bonenum) skel_get_boneabs = #270; // (FTE_CSQC_SKELETONOBJECTS) (sets v_forward etc)
+	{"skel_set_bone",			PF_skel_set_bone,			271},//void(float skel, float bonenum, vector org) skel_set_bone = #271; // (FTE_CSQC_SKELETONOBJECTS) (reads v_forward etc)
+	{"skel_premul_bone",		PF_skel_premul_bone,		272},//void(float skel, float bonenum, vector org) skel_mul_bone = #272; // (FTE_CSQC_SKELETONOBJECTS) (reads v_forward etc)
+	{"skel_premul_bones",		PF_skel_premul_bones,		273},//void(float skel, float startbone, float endbone, vector org) skel_mul_bone = #273; // (FTE_CSQC_SKELETONOBJECTS) (reads v_forward etc)
+	{"skel_postmul_bone",		PF_skel_postmul_bone,		0},//void(float skel, float bonenum, vector org) skel_mul_bone = #272; // (FTE_CSQC_SKELETONOBJECTS) (reads v_forward etc)
+//	{"skel_postmul_bones",		PF_skel_postmul_bones,		0},//void(float skel, float startbone, float endbone, vector org) skel_mul_bone = #273; // (FTE_CSQC_SKELETONOBJECTS) (reads v_forward etc)
+	{"skel_copybones",			PF_skel_copybones,			274},//void(float skeldst, float skelsrc, float startbone, float entbone) skel_copybones = #274; // (FTE_CSQC_SKELETONOBJECTS)
+	{"skel_delete",				PF_skel_delete,				275},//void(float skel) skel_delete = #275; // (FTE_CSQC_SKELETONOBJECTS)
+	{"frameforname",			PF_frameforname,			276},//float(float modidx, string framename) frameforname = #276 (FTE_CSQC_SKELETONOBJECTS)
+	{"frameduration",			PF_frameduration,			277},//float(float modidx, float framenum) frameduration = #277 (FTE_CSQC_SKELETONOBJECTS)
+	{"frameforaction",			PF_frameforaction,			0},//float(float modidx, int actionid) frameforaction = #0
+	{"processmodelevents",		PF_processmodelevents,		0},
+	{"getnextmodelevent",		PF_getnextmodelevent,		0},
+	{"getmodeleventidx",		PF_getmodeleventidx,		0},
+	{"frametoname",				PF_frametoname,				0},//string(float modidx, float framenum) frametoname
+	{"modelframecount",			PF_modelframecount,			0},
 															//gap
 	{"hash_createtab",			PF_hash_createtab,			287},
 	{"hash_destroytab",			PF_hash_destroytab,			288},
@@ -2519,6 +2640,7 @@ static struct {
 
 
 	{"print_csqc",				PF_print,					339},
+	{"setwatchpoint",			PF_setwatchpoint,			0},
 	{"keynumtostring_csqc",		PF_cl_keynumtostring,		340},
 	{"stringtokeynum_csqc",		PF_cl_stringtokeynum,		341},
 	{"getkeybind",				PF_cl_getkeybind,			342},
@@ -2535,12 +2657,20 @@ static struct {
 //	{NULL,						PF_Fixme,					346},
 //	{NULL,						PF_Fixme,					347},
 //	{NULL,						PF_Fixme,					348},
+	{"setlocaluserinfo",		PF_cl_setlocaluserinfo,			0},
+	{"getlocaluserinfo",		PF_cl_getlocaluserinfostring,	0},
+	{"setlocaluserinfoblob",	PF_cl_setlocaluserinfo,			0},
+	{"getlocaluserinfoblob",	PF_cl_getlocaluserinfoblob,		0},
 	{"isdemo",					PF_isdemo,					349},
 //	{NULL,						PF_Fixme,					350},
 //	{NULL,						PF_Fixme,					351},
+	{"queueaudio",				PF_cl_queueaudio,			0},
+	{"getqueuedaudiotime",		PF_cl_getqueuedaudiotime,	0},
 	{"registercommand",			PF_menu_registercommand,	352},
 	{"wasfreed",				PF_WasFreed,				353},
-//	{NULL,						PF_Fixme,					354},
+	{"serverkey",				PF_cl_serverkey,			354},	// #354 string(string key) serverkey;
+	{"serverkeyfloat",			PF_cl_serverkeyfloat,		0},		// #0 float(string key) serverkeyfloat;
+	{"serverkeyblob",			PF_cl_serverkeyblob,		0},
 #ifdef HAVE_MEDIA_DECODER
 	{"videoplaying",			PF_cs_media_getstate,		355},
 #endif
@@ -2554,7 +2684,9 @@ static struct {
 	{"setcustomskin",			PF_m_setcustomskin,			376},
 															//gap
 	{"memalloc",				PF_memalloc,				384},
+	{"memrealloc",				PF_memrealloc,				0},
 	{"memfree",					PF_memfree,					385},
+	{"memcmp",					PF_memcmp,					0},
 	{"memcpy",					PF_memcpy,					386},
 	{"memfill8",				PF_memfill8,				387},
 	{"memgetval",				PF_memgetval,				388},
@@ -2742,11 +2874,22 @@ static struct {
 	{"fexists",					PF_fexists,					653},
 	{"rmtree",					PF_rmtree,					654},
 
+	{"stachievement_unlock",	PF_Fixme,					730},	// EXT_STEAM_REKI
+	{"stachievement_query",		PF_Fixme,					731},	// EXT_STEAM_REKI
+	{"ststat_setvalue",			PF_Fixme,					732},	// EXT_STEAM_REKI
+	{"ststat_increment",		PF_Fixme,					733},	// EXT_STEAM_REKI
+	{"ststat_query",			PF_Fixme,					734},	// EXT_STEAM_REKI
+	{"stachievement_register",	PF_Fixme,					735},	// EXT_STEAM_REKI
+	{"ststat_register",			PF_Fixme,					736},	// EXT_STEAM_REKI
+	{"controller_query",		PF_cl_gp_querywithcb,		740},	// EXT_CONTROLLER_REKI
+	{"controller_rumble",		PF_cl_gp_rumble,			741},	// EXT_CONTROLLER_REKI
+	{"controller_rumbletriggers",PF_cl_gp_rumbletriggers,	742},	// EXT_CONTROLLER_REKI
 
-	{"setlocaluserinfo",		PF_cl_setlocaluserinfo,			0},
-	{"getlocaluserinfo",		PF_cl_getlocaluserinfostring,	0},
-	{"setlocaluserinfoblob",	PF_cl_setlocaluserinfo,			0},
-	{"getlocaluserinfoblob",	PF_cl_getlocaluserinfoblob,		0},
+	{"gp_getlayout",			PF_cl_gp_getbuttontype,		0}, // #0 float(float devid) gp_getbuttontype
+	{"gp_rumble",				PF_cl_gp_rumble,			0}, // #0 void(float devid, float amp_low, float amp_high, float duration) gp_rumble
+	{"gp_rumbletriggers",		PF_cl_gp_rumbletriggers,	0}, // #0 void(float devid, float left, float right, float duration) gp_rumbletriggers
+	{"gp_setledcolor",			PF_cl_gp_setledcolor,		0}, // #0 void(float devid, float red, float green, float blue) gp_setledcolor
+	{"gp_settriggerfx",			PF_cl_gp_settriggerfx,		0}, // #0 void(float devid, const void *data, int size) gp_settriggerfx
 
 	{NULL}
 };
@@ -3000,7 +3143,7 @@ void *VARGS PR_CB_Malloc(int size);	//these functions should be tracked by the l
 void VARGS PR_CB_Free(void *mem);
 
 //Any menu builtin error or anything like that will come here.
-void VARGS Menu_Abort (char *format, ...)
+void VARGS Menu_Abort (const char *format, ...)
 {
 	va_list		argptr;
 	char		string[1024];
@@ -3163,10 +3306,14 @@ qboolean MP_Init (void)
 	menutime = Sys_DoubleTime();
 	if (!menu_world.progs)
 	{
+		vec3_t fwd,rht,up;
 		int mprogs;
 		Con_DPrintf("Initializing menu.dat\n");
+		menu_world.Get_CModel = MP_GetCModel;
+		menu_world.Get_FrameState = MP_Get_FrameState;
+
 		menu_world.progs = InitProgs(&menuprogparms);
-		PR_Configure(menu_world.progs, PR_ReadBytesString(pr_menu_memsize.string), 1, pr_enable_profiling.ival);
+		PR_Configure(menu_world.progs, PR_ReadBytesString(pr_menu_memsize.string), 16, pr_enable_profiling.ival);
 		mprogs = PR_LoadProgs(menu_world.progs, "menu.dat");
 		if (mprogs < 0) //no per-progs builtins.
 		{
@@ -3192,6 +3339,10 @@ qboolean MP_Init (void)
 		if (menu_world.g.time)
 			*menu_world.g.time = Sys_DoubleTime();
 		menu_world.g.frametime = (float*)PR_FindGlobal(menu_world.progs, "frametime", 0, NULL);
+
+		menu_world.g.v_forward	= (float*)PR_FindGlobal(menu_world.progs, "v_forward",	0, NULL); if (!menu_world.g.v_forward)	menu_world.g.v_forward = fwd;
+		menu_world.g.v_right	= (float*)PR_FindGlobal(menu_world.progs, "v_right",	0, NULL); if (!menu_world.g.v_right)	menu_world.g.v_right = rht;
+		menu_world.g.v_up		= (float*)PR_FindGlobal(menu_world.progs, "v_up",		0, NULL); if (!menu_world.g.v_up)		menu_world.g.v_up = up;
 
 		menu_world.g.drawfont = (float*)PR_FindGlobal(menu_world.progs, "drawfont", 0, NULL);
 		menu_world.g.drawfontscale = (float*)PR_FindGlobal(menu_world.progs, "drawfontscale", 0, NULL);
@@ -3280,9 +3431,14 @@ qboolean MP_ConsoleCommand(const char *cmdtext)
 
 void MP_CoreDump_f(void)
 {
+	if (Cmd_IsInsecure())
+	{
+		Con_TPrintf("Refusing to execute insecure %s\n", Cmd_Argv(0));
+		return;
+	}
 	if (!menu_world.progs)
 	{
-		Con_Printf("Can't core dump, you need to be running the CSQC progs first.");
+		Con_Printf("Can't core dump, you need to be running the MenuQC progs first.");
 		return;
 	}
 
@@ -3297,21 +3453,28 @@ void MP_CoreDump_f(void)
 
 static void MP_Poke_f(void)
 {
-	/*if (!SV_MayCheat())
-		Con_TPrintf ("Please set sv_cheats 1 and restart the map first.\n");
-	else */if (menu_world.progs && menu_world.progs->EvaluateDebugString)
+	if (Cmd_IsInsecure())
+		Con_TPrintf("Refusing to execute insecure %s\n", Cmd_Argv(0));
+	/*else if (!SV_MayCheat())
+		Con_TPrintf ("Please set sv_cheats 1 and restart the map first.\n");*/
+	else if (menu_world.progs && menu_world.progs->EvaluateDebugString)
 		Con_TPrintf("Result: %s\n", menu_world.progs->EvaluateDebugString(menu_world.progs, Cmd_Args()));
 	else
 		Con_TPrintf ("not supported.\n");
 }
 
-void MP_Breakpoint_f(void)
+static void MP_Breakpoint_f(void)
 {
 	int wasset;
 	int isset;
 	char *filename = Cmd_Argv(1);
 	int line = atoi(Cmd_Argv(2));
 
+	if (Cmd_IsInsecure())
+	{
+		Con_TPrintf("Refusing to execute insecure %s\n", Cmd_Argv(0));
+		return;
+	}
 	if (!menu_world.progs)
 	{
 		Con_Printf("Menu not running\n");
@@ -3329,17 +3492,51 @@ void MP_Breakpoint_f(void)
 
 	Cvar_Set(Cvar_FindVar("pr_debugger"), "1");
 }
+static void MP_Watchpoint_f(void)
+{
+	char *variable = Cmd_Argv(1);
+	if (!*variable)
+		variable = NULL;
+
+	if (Cmd_IsInsecure())
+	{
+		Con_TPrintf("Refusing to execute insecure %s\n", Cmd_Argv(0));
+		return;
+	}
+	if (!menu_world.progs)
+	{
+		Con_Printf("menuqc not running\n");
+		return;
+	}
+	if (menu_world.progs->SetWatchPoint(menu_world.progs, variable, variable))
+		Con_Printf("Watchpoint set\n");
+	else
+		Con_Printf("Watchpoint cleared\n");
+}
+static void MP_Profile_f(void)
+{
+	if (Cmd_IsInsecure())
+	{
+		Con_TPrintf("Refusing to execute insecure %s\n", Cmd_Argv(0));
+		return;
+	}
+	if (menu_world.progs && menu_world.progs->DumpProfile)
+		if (!menu_world.progs->DumpProfile(menu_world.progs, !atof(Cmd_Argv(1))))
+			Con_Printf("Enabled menuqc Profiling.\n");
+}
 
 void MP_RegisterCvarsAndCmds(void)
 {
 	Cmd_AddCommand("coredump_menuqc", MP_CoreDump_f);
 	Cmd_AddCommand("menu_cmd", MP_GameCommand_f);
-	Cmd_AddCommand("breakpoint_menu", MP_Breakpoint_f);
+	Cmd_AddCommand("breakpoint_menuqc", MP_Breakpoint_f);
+	Cmd_AddCommand("watchpoint_menuqc", MP_Watchpoint_f);
 #ifdef HAVE_LEGACY
 	Cmd_AddCommand("loadfont", CL_LoadFont_f);
 #endif
 
 	Cmd_AddCommand("poke_menuqc", MP_Poke_f);
+	Cmd_AddCommand("profile_menuqc", MP_Profile_f);
 
 
 	Cvar_Register(&forceqmenu, MENUPROGSGROUP);
@@ -3418,6 +3615,8 @@ void MP_Draw(void)
 		*menu_world.g.frametime = host_frametime;
 
 	inmenuprogs++;
+	PR_RunThreads(&menu_world);
+
 	pr_globals = PR_globals(menu_world.progs, PR_CURRENT);
 
 	if (scr_drawloading||scr_disabled_for_loading)

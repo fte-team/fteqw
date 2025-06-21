@@ -166,6 +166,70 @@ static void XR_PoseToAngOrg(const XrPosef *pose, vec3_t ang, vec3_t org)
 	org[2]  =     METRES_TO_QUAKE(pose->position.z);
 #endif
 }
+static void XR_PoseToMat12(const XrPosef *pose, float *out)
+{
+	vec3_t angles, origin;
+	float		angle;
+	float		sr, sp, sy, cr, cp, cy;
+
+	XR_PoseToAngOrg(pose, angles, origin);
+
+	angle = angles[YAW] * (M_PI*2 / 360);
+	sy = sin(angle);
+	cy = cos(angle);
+	angle = angles[PITCH] * (M_PI*2 / 360);
+	sp = sin(angle);
+	cp = cos(angle);
+	angle = angles[ROLL] * (M_PI*2 / 360);
+	sr = sin(angle);
+	cr = cos(angle);
+
+	out[0] = cp*cy;
+	out[1] = (sr*sp*cy+cr*-sy);
+	out[2] = (cr*sp*cy+-sr*-sy);
+	out[3] = origin[0];
+
+	out[4] = cp*sy;
+	out[5] = (sr*sp*sy+cr*cy);
+	out[6] = (cr*sp*sy+-sr*cy);
+	out[7] = origin[1];
+
+	out[8] = -sp;
+	out[9] = sr*cp;
+	out[10] = cr*cp;
+	out[11] = origin[2];
+}
+
+static void XR_Matrix3x4_RM_FromAngles(const vec3_t angles, const vec3_t origin, float *out)
+{
+	float		angle;
+	float		sr, sp, sy, cr, cp, cy;
+
+	angle = angles[YAW] * (M_PI*2 / 360);
+	sy = sin(angle);
+	cy = cos(angle);
+	angle = angles[PITCH] * (M_PI*2 / 360);
+	sp = sin(angle);
+	cp = cos(angle);
+	angle = angles[ROLL] * (M_PI*2 / 360);
+	sr = sin(angle);
+	cr = cos(angle);
+
+	out[0] = cp*cy;
+	out[1] = (sr*sp*cy+cr*-sy);
+	out[2] = (cr*sp*cy+-sr*-sy);
+	out[3] = origin[0];
+
+	out[4] = cp*sy;
+	out[5] = (sr*sp*sy+cr*cy);
+	out[6] = (cr*sp*sy+-sr*cy);
+	out[7] = origin[1];
+
+	out[8] = -sp;
+	out[9] = sr*cp;
+	out[10] = cr*cp;
+	out[11] = origin[2];
+}
 
 enum actset_e
 {
@@ -190,6 +254,7 @@ static struct
 	void *bindinginfo;		//appropriate XrGraphicsBinding*KHR struct so we can restart sessions.
 
 //session state
+	qboolean fake;
 	XrSession session;		//driver context
 	XrSessionState state;
 	qboolean beginning;
@@ -361,7 +426,9 @@ static const char *XR_StringForResult(XrResult res)
 	case XR_ERROR_ACTIONSETS_ALREADY_ATTACHED: return "XR_ERROR_ACTIONSETS_ALREADY_ATTACHED";
 	case XR_ERROR_LOCALIZED_NAME_DUPLICATED: return "XR_ERROR_LOCALIZED_NAME_DUPLICATED";
 	case XR_ERROR_LOCALIZED_NAME_INVALID: return "XR_ERROR_LOCALIZED_NAME_INVALID";
-//	case XR_ERROR_RUNTIME_UNAVAILABLE: return "XR_ERROR_RUNTIME_UNAVAILABLE";
+#if XR_CURRENT_API_VERSION >= XR_MAKE_VERSION(1, 0, 16)
+	case XR_ERROR_RUNTIME_UNAVAILABLE: return "XR_ERROR_RUNTIME_UNAVAILABLE";
+#endif
 	default:
 		return va("XrResult %i", res);
 	}
@@ -402,6 +469,11 @@ static qboolean XR_PreInit(vrsetup_t *qreqs)
 		return false;	//nope, get lost.
 	if (!strncasecmp(xr_formfactor->string, "none", 4))
 		qreqs->vrplatform = VR_HEADLESS;
+	if (!strncasecmp(xr_formfactor->string, "fake", 4))
+	{
+		xr.fake = true;
+		return true;
+	}
 	switch(qreqs->vrplatform)
 	{
 #ifdef XR_MND_HEADLESS_EXTENSION_NAME
@@ -796,6 +868,9 @@ static qboolean XR_PreInit(vrsetup_t *qreqs)
 
 static qboolean XR_Init(vrsetup_t *qreqs, rendererstate_t *info)
 {
+	if (xr.fake)
+		return true;	//nothing to do here.
+
 	xr.srgb = info->srgb;
 	switch(qreqs->vrplatform)
 	{
@@ -1939,17 +2014,24 @@ static void XR_ProcessEvents(void)
 		}
 	}
 }
-static qboolean XR_SyncFrame(double *frametime)
+static unsigned int XR_SyncFrame(double *frametime)
 {
+	unsigned int ret = 0;
 	XrResult res;
 
+	if (xr.fake)
+	{
+		xr.time += SECONDS_TO_NANOSECONDS(*frametime);
+		return VRF_UIACTIVE;	//not syncing here. let the engine run at its normal rate
+	}
+
 	if (!xr.instance)
-		return false;
+		return 0;
 
 	if (xr.needrender)
 	{	//something screwed up.
 //		*frametime = 0;
-		return true;
+		return VRF_UIACTIVE;
 	}
 
 	if (!xr.session)
@@ -1957,7 +2039,7 @@ static qboolean XR_SyncFrame(double *frametime)
 		if (xr_enable->ival && !XR_Begin())
 		{
 			XR_Shutdown();
-			return false;
+			return 0;
 		}
 	}
 	else
@@ -2025,6 +2107,10 @@ static qboolean XR_SyncFrame(double *frametime)
 			Con_Printf("xrWaitFrame: %s\n", XR_StringForResult(res));
 			return false;
 		}
+		ret |= VRF_OVERRIDEFRAMETIME;
+		if (xr.framestate.shouldRender)
+			ret |= VRF_UIACTIVE;
+
 		time = xr.framestate.predictedDisplayTime;
 		if (xr.timeknown)
 		{
@@ -2041,9 +2127,9 @@ static qboolean XR_SyncFrame(double *frametime)
 	if (xr.session)
 		XR_UpdateInputs(xr.framestate.predictedDisplayTime);
 
-	return true;
+	return ret;
 }
-static qboolean XR_Render(void(*rendereye)(texid_t tex, vec4_t fovoverride, vec3_t angorg[2]))
+static qboolean XR_Render(void(*rendereye)(texid_t tex, const pxrect_t *viewport, const vec4_t fovoverride, const float projmatrix[16], const float eyematrix[12]))
 {
 	XrFrameEndInfo endframeinfo = {XR_TYPE_FRAME_END_INFO};
 	unsigned int u;
@@ -2052,6 +2138,44 @@ static qboolean XR_Render(void(*rendereye)(texid_t tex, vec4_t fovoverride, vec3
 	XrCompositionLayerProjection proj = {XR_TYPE_COMPOSITION_LAYER_PROJECTION};
 	const XrCompositionLayerBaseHeader *projlist[] = {(XrCompositionLayerBaseHeader*)&proj};
 	XrCompositionLayerProjectionView projviews[MAX_VIEW_COUNT];
+
+	if (xr.fake)
+	{
+		static vec3_t newhax[3], oldhax[3];
+		static XrTime lastup;
+		vec3_t org, ang = {0, 0, 0};
+		float frac;
+		const float UPDATEFREQ=1.0;
+		float eyemat[12];
+
+		if ((xr.time - lastup) > SECONDS_TO_NANOSECONDS(UPDATEFREQ))
+		{
+			lastup = xr.time;
+			memcpy(oldhax, newhax, sizeof(oldhax));
+			newhax[0][0] = crandom()*10;
+			newhax[0][1] = crandom()*10;
+			newhax[0][2] = crandom()*10;
+			newhax[1][0] = crandom()*30;
+			newhax[1][1] = crandom()*30;
+			newhax[1][2] = crandom()*30;
+			newhax[2][0] = crandom()*30;
+			newhax[2][1] = crandom()*30;
+			newhax[2][2] = crandom()*30;
+		}
+		frac = NANOSECONDS_TO_SECONDS(xr.time - lastup)/UPDATEFREQ;
+
+		//randomly screw with these inputs. you'll have to handle the clicks separately. :(
+		VectorInterpolate(oldhax[0], frac, newhax[0], ang);
+		XR_Matrix3x4_RM_FromAngles(ang, org, eyemat);
+		inputfuncs->SetHandPosition("head", org, ang, NULL, NULL);
+		VectorInterpolate(oldhax[1], frac, newhax[1], ang);
+		inputfuncs->SetHandPosition("right", org, ang, NULL, NULL);
+		VectorInterpolate(oldhax[2], frac, newhax[2], ang);
+		inputfuncs->SetHandPosition("left", org, ang, NULL, NULL);
+
+		rendereye(NULL, NULL, NULL, NULL, eyemat);
+		return true;	//skip the main view.
+	}
 
 	if (!xr.instance)
 		return false;	//err... noooes!
@@ -2196,7 +2320,7 @@ static qboolean XR_Render(void(*rendereye)(texid_t tex, vec4_t fovoverride, vec3
 			vec4_t fovoverride;
 			XrSwapchainImageWaitInfo waitinfo = {XR_TYPE_SWAPCHAIN_IMAGE_WAIT_INFO};
 			unsigned int imgidx = 0;
-			vec3_t orientation[2];
+			float eyematrix[12];
 			res = xrAcquireSwapchainImage(xr.eye[u].swapchain, NULL, &imgidx);
 			if (XR_FAILED(res))
 				Con_Printf("xrAcquireSwapchainImage: %s\n", XR_StringForResult(res));
@@ -2207,7 +2331,7 @@ static qboolean XR_Render(void(*rendereye)(texid_t tex, vec4_t fovoverride, vec3
 			projviews[u].fov = eyeview[u].fov;
 			projviews[u].subImage = xr.eye[u].subimage;
 
-			XR_PoseToAngOrg(&eyeview[u].pose, orientation[0], orientation[1]);
+			XR_PoseToMat12(&eyeview[u].pose, eyematrix);
 
 			fovoverride[0] = eyeview[u].fov.angleLeft * (180/M_PI);
 			fovoverride[1] = eyeview[u].fov.angleRight * (180/M_PI);
@@ -2218,7 +2342,7 @@ static qboolean XR_Render(void(*rendereye)(texid_t tex, vec4_t fovoverride, vec3
 			res = xrWaitSwapchainImage(xr.eye[u].swapchain, &waitinfo);
 			if (XR_FAILED(res))
 				Con_Printf("xrWaitSwapchainImage: %s\n", XR_StringForResult(res));
-			rendereye(&xr.eye[u].swapimages[imgidx], fovoverride, orientation);
+			rendereye(&xr.eye[u].swapimages[imgidx], NULL, fovoverride, NULL/*we're given fov info instead*/, eyematrix);
 			//GL note: the OpenXR specification says NOTHING about the application having to glFlush or glFinish.
 			//	I take this to mean that the openxr runtime is responsible for setting up barriers or w/e inside ReleaseSwapchainImage.
 			//VK note: the OpenXR spec does say that it needs to be color_attachment_optimal+owned by queue. which it is.

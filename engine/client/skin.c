@@ -322,7 +322,7 @@ void Skin_WorkerLoad(void *skinptr, void *data, size_t a, size_t b)
 {
 	qwskin_t *skin = skinptr;
 	char	name[MAX_QPATH];
-	qbyte	*out;
+	qbyte	*out = NULL;
 	int		srcw = 0, srch = 0;
 
 	size_t	pcxsize = 0;
@@ -362,9 +362,14 @@ void Skin_WorkerLoad(void *skinptr, void *data, size_t a, size_t b)
 		Q_snprintfz (name, sizeof(name), "skins/%s.pcx", skin->name);
 		pcxfiledata = FS_LoadMallocFileFlags (name, FSLF_IGNOREPURE, &pcxsize);
 		if (!pcxfiledata)
-		{
-			//use 24bit skins even if gl_load24bit is failed
-			if (strcmp(skin->name, baseskin.string))
+		{	//FIXME: use 24bit skins even if gl_load24bit is failed
+			if (!strcmp(skin->name, "solid") || !strcmp(skin->name, "block"))
+			{	//allow block colour, even if the file isn't found.
+				srcw = srch = 1;
+				out = BZ_Malloc(srcw*srch);
+				memset(out, BOTTOM_DEFAULT | 15, srcw*srch);
+			}
+			else if (strcmp(skin->name, baseskin.string))
 			{
 				//if its not already the base skin, try the base (and warn if anything not base couldn't load).
 				Con_Printf ("Couldn't load skin %s\n", name);
@@ -374,15 +379,12 @@ void Skin_WorkerLoad(void *skinptr, void *data, size_t a, size_t b)
 					pcxfiledata = FS_LoadMallocFileFlags (name, FSLF_IGNOREPURE, &pcxsize);
 				}
 			}
-			if (!pcxfiledata)
-			{
-				Skin_WorkerDone(skin, NULL, 0, 0);
-				return;
-			}
 		}
 	}
 
-	if (pcxfiledata)
+	if (out)
+		;
+	else if (pcxfiledata)
 	{
 		out = Skin_ParsePCX(name, pcxfiledata, pcxsize, &srcw, &srch);
 		FS_FreeFile(pcxfiledata);
@@ -469,6 +471,7 @@ void Skin_NextDownload (void)
 		int j;
 		char *slash;
 		char *skinname;
+		char *dogtag;
 		for (i = 0; i != MAX_CLIENTS; i++)
 		{
 			sc = &cl.players[i];
@@ -479,20 +482,25 @@ void Skin_NextDownload (void)
 			if (slash)
 			{
 				*slash = 0;
+
+				dogtag = strchr(slash+1, '\\');	//q2e
+				if (dogtag)
+					*dogtag++ = 0;
+
 				CL_CheckOrEnqueDownloadFile(va("players/%s/tris.md2", skinname), NULL, 0);
 				for (j = 1; j < MAX_PRECACHE_MODELS; j++)
 				{
+					if (!cl.model_name[j])
+						break;
 					if (cl.model_name[j][0] == '#')
 						CL_CheckOrEnqueDownloadFile(va("players/%s/%s", skinname, cl.model_name[j]+1), NULL, 0);
-					if (!*cl.model_name[j])
-						break;
 				}
 				for (j = 1; j < MAX_PRECACHE_SOUNDS; j++)
 				{
+					if (!cl.sound_name[j])
+						break;
 					if (cl.sound_name[j][0] == '*')
 						CL_CheckOrEnqueDownloadFile(va("players/%s/%s", skinname, cl.sound_name[j]+1), NULL, 0);
-					if (!*cl.sound_name[j])
-						break;
 				}
 				*slash = '/';
 				CL_CheckOrEnqueDownloadFile(va("players/%s.pcx", skinname), NULL, 0);

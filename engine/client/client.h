@@ -99,17 +99,25 @@ typedef enum
 	Q2PM_GIB,		// different bounding box
 	Q2PM_FREEZE
 } q2pmtype_t;
+enum
+{	//urgh.
+	// can accelerate and turn
+	Q2EPM_NORMAL,
+	Q2EPM_GRAPPLE,
+	Q2EPM_SPECTATOR,
+	Q2EPM_SPECTATOR2,
+	// no acceleration or turning
+	Q2EPM_DEAD,
+	Q2EPM_GIB,		// different bounding box
+	Q2EPM_FREEZE
+};
 typedef struct
 {	//shared with q2 dll
 
 	q2pmtype_t	pm_type;
 
-#if 0
-	int		origin[3];		// 12.3
-#else
-	short		origin[3];		// 20.3
-#endif
-	short		velocity[3];	// 12.3
+	short		origin[3];		// 13.3
+	short		velocity[3];	// 13.3
 	qbyte		pm_flags;		// ducked, jump_held, etc
 	qbyte		pm_time;		// each unit = 8 ms
 	short		gravity;
@@ -266,9 +274,11 @@ typedef struct
 	int				serverframe;
 	int				servertime;		// server time the message is valid for (in msec)
 	int				deltaframe;
-	qbyte			areabits[MAX_Q2MAP_AREAS/8];		// portalarea visibility bits
-	q2player_state_t	playerstate[MAX_SPLITS];
-	int				clientnum[MAX_SPLITS];
+	struct {
+		qbyte				areabits[MAX_Q2MAP_AREAS/8];		// portalarea visibility bits
+		q2player_state_t	playerstate;
+		int					clientnum;
+	} seat[MAX_SPLITS];
 	int				num_entities;
 	int				parse_entities;	// non-masked index into cl_parse_entities array
 } q2frame_t;
@@ -307,8 +317,9 @@ typedef struct
 #define LFLAG_SHADOWMAP		(1<<9)
 #define LFLAG_CREPUSCULAR	(1<<10)	//weird type of sun light that gives god rays
 #define LFLAG_ORTHO			(1<<11)	//sun-style -light
+#define LFLAG_FORCECACHE	(1<<12)	//shadowmap/surfaces should be cached from one frame to the next.
 
-#define LFLAG_INTERNAL		(LFLAG_LIGHTMAP|LFLAG_FLASHBLEND)	//these are internal to FTE, and never written to disk (ie: .rtlights files shouldn't contain these)
+#define LFLAG_INTERNAL		(LFLAG_LIGHTMAP|LFLAG_FLASHBLEND|LFLAG_FORCECACHE)	//these are internal to FTE, and never written to disk (ie: .rtlights files shouldn't contain these)
 #define LFLAG_DYNAMIC (LFLAG_LIGHTMAP | LFLAG_FLASHBLEND | LFLAG_NORMALMODE)
 
 typedef struct dlight_s
@@ -364,7 +375,7 @@ typedef struct
 
 typedef enum {
 ca_disconnected, 	// full screen console with no connection
-ca_demostart,		// starting up a demo
+ca_demostart,		// waiting to start up a demo (still disconnected but there should be a playdemo command in the cbuf somewhere so don't do other stuff)
 ca_connected,		// netchan_t established, waiting for svc_serverdata
 ca_onserver,		// processing data lists, donwloading, etc
 ca_active			// everything is in, so frames can be rendered
@@ -464,6 +475,7 @@ typedef struct
 		CPNQ_BJP1,	//16bit models, strict 8bit sounds (otherwise based on nehahra)
 		CPNQ_BJP2,	//16bit models, strict 16bit sounds
 		CPNQ_BJP3,	//16bit models, flagged 16bit sounds, 8bit static sounds.
+		CPNQ_H2MP,	//urgh
 		CPNQ_FITZ666, /*and rmqe999 protocol, which is a strict superset*/
 		CPNQ_DP5,
 		CPNQ_DP6,
@@ -477,6 +489,7 @@ typedef struct
 #endif
 
 	int protocol_q2;
+	char downloadurl[MAX_OSPATH];	//where to download files from (for q2pro compat)
 
 	qboolean findtrack;
 
@@ -507,7 +520,7 @@ typedef struct
 // entering a map (and clearing client_state_t)
 	vfsfile_t	*demooutfile;
 
-	enum{DPB_NONE,DPB_QUAKEWORLD,DPB_MVD,DPB_EZTV,
+	enum{DPB_NONE,DPB_QUAKEWORLD,DPB_MVD,
 #ifdef NQPROT
 		DPB_NETQUAKE,
 #endif
@@ -515,18 +528,35 @@ typedef struct
 		DPB_QUAKE2
 #endif
 	}	demoplayback, demorecording;
+	unsigned int demoeztv_ext;
+		#define EZTV_DOWNLOAD		(1u<<0)	//also changes modellist/soundlist stuff to keep things synced
+		#define EZTV_SETINFO		(1u<<1)	//proxy wants setinfo + ptrack commands
+		#define EZTV_QTVUSERLIST	(1u<<2)	//'//qul cmd id [name]' commands from proxy.
 	qboolean	demohadkeyframe;	//q2 needs to wait for a packet with a key frame, supposedly.
-	qboolean	demoseeking;
+	enum
+	{
+		DEMOSEEK_NOT,
+		DEMOSEEK_TIME,	//stops one we reach demoseektime
+		DEMOSEEK_MARK,	//stops once we reach a '//demomark'
+		DEMOSEEK_INTERMISSION,	//stops once we reach an svc_intermission
+	} demoseeking;
 	float		demoseektime;
 	int			demotrack;
 	qboolean	timedemo;
-	char		lastdemoname[MAX_OSPATH];
+	char		lastdemoname[MAX_OSPATH];	//empty if is a qtv stream
 	qboolean	lastdemowassystempath;
 	vfsfile_t	*demoinfile;
 	float		td_lastframe;		// to meter out one message a frame
 	int			td_startframe;		// host_framecount at start
 	float		td_starttime;		// realtime at second frame of timedemo
 	float		demostarttime;		// the time of the first frame, so we don't get weird results with qw demos
+
+	struct qtvviewers_s
+	{	//(other) people on a qtv. in case people give a damn.
+		struct qtvviewers_s *next;
+		int			userid;
+		char		name[128];
+	} *qtvviewers;
 
 	int			challenge;
 
@@ -858,14 +888,14 @@ typedef struct
 	double		lastlinktime;	//cl.time from last frame.
 	double		mapstarttime;	//for computing csqc's cltime.
 
-	float servertime;	//current server time, bound between gametime and gametimemark
+	double servertime;	//current server time, bound between gametime and gametimemark
 	float mtime;		//server time as on the server when we last received a packet. not allowed to decrease.
 	float oldmtime;		//server time as on the server for the previously received packet.
 
-	float gametime;
-	float gametimemark;
-	float oldgametime;		//used as the old time to lerp cl.time from.
-	float oldgametimemark;	//if it's 0, cl.time will casually increase.
+	double gametime;
+	double gametimemark;
+	double oldgametime;		//used as the old time to lerp cl.time from.
+	double oldgametimemark;	//if it's 0, cl.time will casually increase.
 	float demogametimebias;	//mvd timings are weird.
 	int	  demonudge;		//
 	float demopausedtilltime;//demo is paused until realtime>this
@@ -892,12 +922,12 @@ typedef struct
 // information that is static for the entire time connected to a server
 //
 #ifdef HAVE_LEGACY
-	char				model_name_vwep[MAX_VWEP_MODELS][MAX_QPATH];
+	char				*model_name_vwep[MAX_VWEP_MODELS];
 	struct model_s		*model_precache_vwep[MAX_VWEP_MODELS];
 #endif
-	char				model_name[MAX_PRECACHE_MODELS][MAX_QPATH];
+	char				*model_name[MAX_PRECACHE_MODELS];
 	struct model_s		*model_precache[MAX_PRECACHE_MODELS];
-	char				sound_name[MAX_PRECACHE_SOUNDS][MAX_QPATH];
+	char				*sound_name[MAX_PRECACHE_SOUNDS];
 	struct sfx_s		*sound_precache[MAX_PRECACHE_SOUNDS];
 	char				*particle_ssname[MAX_SSPARTICLESPRE];
 	int					particle_ssprecache[MAX_SSPARTICLESPRE];	//these are actually 1-based, so 0 can be used to lazy-init them. I cheat.
@@ -924,6 +954,7 @@ typedef struct
 	//used for q2 sky/configstrings
 	char skyname[MAX_QPATH];
 	float skyrotate;
+	qboolean skyautorotate;
 	vec3_t skyaxis;
 
 	qboolean	fog_locked;			//FIXME: make bitmask
@@ -981,6 +1012,8 @@ typedef struct
 	float				currentpacktime;
 	qboolean			do_lerp_players;
 
+	playerview_t		*mouseplayerview;	//for mouse/scoreboard interaction when playing mvds.
+	int					mousenewtrackplayer;
 
 	int teamplay;
 	int deathmatch;
@@ -1170,7 +1203,7 @@ extern scenetris_t		*cl_stris;
 extern vecV_t			*fte_restrict cl_strisvertv;
 extern vec4_t			*fte_restrict cl_strisvertc;
 extern vec2_t			*fte_restrict cl_strisvertt;
-extern vec3_t			*fte_restrict cl_strisvertn[3];
+//extern vec3_t			*fte_restrict cl_strisvertn[3];
 extern index_t			*fte_restrict cl_strisidx;
 extern unsigned int cl_numstrisidx;
 extern unsigned int cl_maxstrisidx;
@@ -1350,6 +1383,7 @@ void CL_Parse_Disconnected(void);
 void CL_DumpPacket(void);
 void CL_ParseEstablished(void);
 void CLQW_ParseServerMessage (void);
+void CLEZ_ParseHiddenDemoMessage (void);
 void CLNQ_ParseServerMessage (void);
 #ifdef Q2CLIENT
 void CLQ2_ParseServerMessage (void);
@@ -1421,7 +1455,7 @@ void CL_ParseParticleEffect4 (void);
 int CL_TranslateParticleFromServer(int sveffect);
 void CL_ParseTrailParticles(void);
 void CL_ParsePointParticles(qboolean compact);
-void CL_SpawnSpriteEffect(vec3_t org, vec3_t dir, vec3_t orientationup, struct model_s *model, int startframe, int framecount, float framerate, float alpha, float scale, float randspin, float gravity, int traileffect, unsigned int renderflags, int skinnum);	/*called from the particlesystem*/
+void CL_SpawnSpriteEffect(vec3_t org, vec3_t dir, vec3_t orientationup, struct model_s *model, int startframe, int framecount, float framerate, float alpha, float scale, float randspin, float gravity, int traileffect, unsigned int renderflags, int skinnum, float red, float green, float blue);	/*called from the particlesystem*/
 
 //
 // cl_ents.c
@@ -1551,6 +1585,7 @@ int			TP_CategorizeMessage (char *s, int *offset, player_info_t **plr);
 void		TP_ExecTrigger (char *s, qboolean indemos);		//executes one of the user's f_foo aliases from some engine-defined event.
 qboolean	TP_FilterMessage (char *s);
 void		TP_Init(void);
+qboolean	TP_HaveLocations(void);
 char*		TP_LocationName (const vec3_t location);
 void		TP_NewMap (void);
 qboolean	TP_CheckSoundTrigger (char *str);				//plays sound files when some substring exists in chat.
@@ -1641,6 +1676,7 @@ void CLR1Q2_ParsePlayerUpdate(void);
 void CLQ2_ParseFrame (int extrabits);
 void CLQ2_ParseMuzzleFlash (void);
 void CLQ2_ParseMuzzleFlash2 (void);
+void CLQ2EX_ParseMuzzleFlash3 (void);
 void CLQ2_ParseInventory (int seat);
 int CLQ2_RegisterTEntModels (void);
 void CLQ2_WriteDemoBaselines(sizebuf_t *buf);
@@ -1670,6 +1706,8 @@ int CLNQ_GetMessage (void);
 #endif
 
 void CL_BeginServerReconnect(void);
+qboolean CL_IsPendingServerAddress(netadr_t *adr);
+void CL_Transfer(netadr_t *adr);
 
 void SV_User_f (void);	//called by client version of the function
 void SV_Serverinfo_f (void);

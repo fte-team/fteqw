@@ -3,7 +3,7 @@
 #It uses system libraries, so it will have dependancy issues with public releases where those dependancies are distro/version-specific.
 #Public builds are still built using the (overcomplicated) traditional (g)makefile.
 
-CMAKE_MINIMUM_REQUIRED(VERSION 3.0)
+CMAKE_MINIMUM_REQUIRED(VERSION 3.0...3.10)
 cmake_policy(SET CMP0063 NEW)
 
 PROJECT(FTEQuake)
@@ -17,7 +17,7 @@ INCLUDE_DIRECTORIES(
 	engine
 )
 
-IF (EXISTS ${CMAKE_SOURCE_DIR}/.svn)
+IF (EXISTS ${CMAKE_SOURCE_DIR}/.svn AND "${FTE_REVISON}" STREQUAL "")
 	EXECUTE_PROCESS(COMMAND
 		"svnversion"
 		WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
@@ -42,7 +42,7 @@ IF (EXISTS ${CMAKE_SOURCE_DIR}/.svn)
 		ENDIF()
 	ENDIF()
 ENDIF()
-IF (EXISTS ${CMAKE_SOURCE_DIR}/.git)
+IF (EXISTS ${CMAKE_SOURCE_DIR}/.git AND "${FTE_REVISON}" STREQUAL "")
 	EXECUTE_PROCESS(COMMAND
 		git describe --always --long --dirty
 		WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
@@ -78,7 +78,7 @@ IF (EXISTS ${CMAKE_SOURCE_DIR}/.git)
 			ERROR_QUIET OUTPUT_STRIP_TRAILING_WHITESPACE
 		)
 		MATH(EXPR SVNREVISION "${SVNREVISION} + 29") #not all svn commits managed to appear im the git repo, so we have a small bias to keep things consistent.
-		IF (FTE_BRANCH STREQUAL "master")
+		IF (FTE_BRANCH STREQUAL "master" OR FTE_BRANCH STREQUAL "")
 			SET(SVNREVISION "${SVNREVISION}-git-${FTE_REVISON_GIT}")
 		ELSE()
 			SET(SVNREVISION "${FTE_BRANCH}-${SVNREVISION}-git-${FTE_REVISON_GIT}") #weird branches get a different form of revision, to reduce confusion.
@@ -113,7 +113,32 @@ ELSE()
 	ENDIF()
 ENDIF()
 
-SET(FTE_BUILD_CONFIG ${CMAKE_HOME_DIRECTORY}/engine/common/config_fteqw.h CACHE FILEPATH "Which build config file to use to control supported features.")
+# Added these to solve some build issues I ran into - Brad
+IF(FTE_BIG_ENDIAN)
+	ADD_DEFINITIONS(-DFTE_BIG_ENDIAN)
+ENDIF()
+
+IF(FTE_LITTLE_ENDIAN)
+	ADD_DEFINITIONS(-DFTE_LITTLE_ENDIAN)
+ENDIF()
+
+# libepoll-shim needs to be installed on the BSDs and Mac OSX to get 
+# some of the server code to compile and work correctly on those platforms - Brad
+IF(CMAKE_SYSTEM_NAME MATCHES "BSD" OR CMAKE_SYSTEM_NAME MATCHES "Darwin")
+	INCLUDE(FetchContent)
+	FetchContent_Declare(
+		epoll-shim
+		GIT_REPOSITORY https://github.com/jiixyj/epoll-shim.git
+		GIT_TAG master
+	)
+	SET(epoll-shim BUILD_TESTS OFF CACHE INTERNAL "")
+	SET(epoll-shim BUILD_SHARED_LIBS OFF CACHE INTERNAL "")
+	FetchContent_MakeAvailable(epoll-shim)
+
+	SET(EPOLL_INC_DIR "${epoll-shim_SOURCE_DIR}/include")
+ENDIF()
+
+SET(FTE_BUILD_CONFIG ${PROJECT_SOURCE_DIR}/engine/common/config_fteqw.h CACHE FILEPATH "Which build config file to use to control supported features.")
 SET(FTE_LIB_DEFINES ${FTE_LIB_DEFINES};CONFIG_FILE_NAME=${FTE_BUILD_CONFIG})
 SET(FTE_USE_SDL false CACHE BOOL "Force the use of SDL instead of using native builds.")
 
@@ -127,18 +152,25 @@ ELSE()
 	SET(SYS_LIBS ${SYS_LIBS})
 ENDIF()
 
-FIND_PACKAGE(ZLIB)
+SET(FTE_DEP_ZLIB true CACHE BOOL "Link against zlib.")
+IF(FTE_DEP_ZLIB)
+	FIND_PACKAGE(ZLIB)
+ENDIF()
 IF(ZLIB_FOUND)
 	SET(FTE_LIB_DEFINES ${FTE_LIB_DEFINES};ZLIB_STATIC)
 	SET(FTE_LIBS ${FTE_LIBS} ${ZLIB_LIBRARIES})
 	SET(FTESV_LIBS ${FTESV_LIBS} ${ZLIB_LIBRARIES})
 	SET(FTEQCC_LIBS ${FTEQCC_LIBS} ${ZLIB_LIBRARIES})
+	SET(FTEQTV_LIBS ${FTEQTV_LIBS} ${ZLIB_LIBRARIES})
 ELSE()
-	MESSAGE(WARNING "libz library NOT available. compressed pk3 will not be available.")
+	MESSAGE(WARNING "libz library NOT available. compressed pk3, ICE, Q2E, etc etc, yada yada, blah blah will not be available.")
 	SET(FTE_LIB_DEFINES ${FTE_LIB_DEFINES};NO_ZLIB)
 ENDIF()
 
-FIND_PACKAGE(BZip2)
+SET(FTE_DEP_BZIP2 true CACHE BOOL "Link against libbzip2.")
+IF(FTE_DEP_BZIP2)
+	FIND_PACKAGE(BZip2)
+ENDIF()
 IF(BZIP2_FOUND)
 	SET(FTE_LIB_DEFINES ${FTE_LIB_DEFINES};AVAIL_BZLIB;BZLIB_STATIC)
 	SET(FTE_LIBS ${FTE_LIBS} bz2)
@@ -168,9 +200,27 @@ IF(JPEG_FOUND)
 ELSE()
 	MESSAGE(WARNING "libjpeg library NOT available. Who cares?")
 	SET(FTE_LIB_DEFINES ${FTE_LIB_DEFINES};NO_JPEG)
+	SET(JPEG_LIBRARIES)
 ENDIF()
 
-FIND_PACKAGE(PNG)
+IF(NOT ${WIN32})
+	SET(FTE_DEP_DBUS true CACHE BOOL "Link against libdbus.")
+	IF(FTE_DEP_DBUS)
+		FIND_PACKAGE(DBus1)
+	ENDIF()
+	IF(DBUS1_FOUND)
+		INCLUDE_DIRECTORIES( ${DBus1_INCLUDE_DIRS} )
+		SET(FTE_LIB_DEFINES ${FTE_LIB_DEFINES};HAVE_DBUS)
+		SET(FTE_LIBS ${FTE_LIBS} ${DBus1_LIBRARIES})
+	ELSE()
+		MESSAGE(WARNING "libdbus-1 library NOT available. Who cares?")
+	ENDIF()
+ENDIF()
+
+SET(FTE_DEP_PNG true CACHE BOOL "Link against libpng.")
+IF(FTE_DEP_PNG)
+	FIND_PACKAGE(PNG)
+ENDIF()
 IF(PNG_FOUND)
 	INCLUDE_DIRECTORIES( ${PNG_INCLUDE_DIRS} )
 	SET(FTE_LIB_DEFINES ${FTE_LIB_DEFINES};LIBPNG_STATIC)
@@ -178,9 +228,13 @@ IF(PNG_FOUND)
 ELSE()
 	MESSAGE(WARNING "libpng library NOT available. Good luck with screenshots.")
 	SET(FTE_LIB_DEFINES ${FTE_LIB_DEFINES};NO_PNG)
+	SET(PNG_LIBRARIES)
 ENDIF()
 
-FIND_PACKAGE(Freetype)
+SET(FTE_DEP_FREETYPE true CACHE BOOL "Link against libfreetype.")
+IF(FTE_DEP_FREETYPE)
+	FIND_PACKAGE(Freetype)
+ENDIF()
 IF(FREETYPE_FOUND)
 	INCLUDE_DIRECTORIES( ${FREETYPE_INCLUDE_DIRS} )
 	SET(FTE_LIB_DEFINES ${FTE_LIB_DEFINES};LIBFREETYPE_STATIC)
@@ -199,6 +253,7 @@ ELSE()
 	SET(FTE_LIB_DEFINES ${FTE_LIB_DEFINES};NO_FREETYPE)
 ENDIF()
 
+#this is just for headers.
 FIND_PATH(VULKAN_INCLUDE_DIR vulkan/vulkan.h)
 IF(VULKAN_INCLUDE_DIR)
 	INCLUDE_DIRECTORIES( ${VULKAN_INCLUDE_DIR} )
@@ -207,25 +262,40 @@ ELSE()
 	MESSAGE(WARNING "Vulkan headers NOT available.")
 ENDIF()
 
-FIND_LIBRARY(VORBISFILE_LIBRARY NAMES vorbisfile)
+SET(FTE_DEP_VORBISFILE true CACHE BOOL "Link against libvorbisfile.")
+IF(FTE_DEP_VORBISFILE)
+	FIND_LIBRARY(VORBISFILE_LIBRARY NAMES vorbisfile)
+ENDIF()
 IF(NOT VORBISFILE_LIBRARY)
 	INCLUDE_DIRECTORIES( ${VORBISFILE_INCLUDE_DIRS} )
 	MESSAGE(WARNING "libvorbisfile library NOT available. Who listens to the bgm anyway?")
 	SET(FTE_LIB_DEFINES ${FTE_LIB_DEFINES};NO_OGG)
 ENDIF()
 
+IF(CMAKE_BUILD_TYPE MATCHES "Debug")
+	SET(FTE_WERROR true CACHE BOOL "Warnings as errors.")
+ELSE()
+	SET(FTE_WERROR false CACHE BOOL "Warnings as errors.")
+ENDIF()
+IF(FTE_WERROR)
+	SET(FTE_WERROR_ARG "-Werror")
+ELSE()
+	SET(FTE_WERROR_ARG "")
+ENDIF()
+
 IF(CMAKE_C_COMPILER_ID MATCHES "Clang")
 	set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wno-pointer-sign")
 
 	IF(CMAKE_BUILD_TYPE MATCHES "Debug")
-		set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -Werror -Wno-pointer-sign -Wno-unknown-pragmas -Wno-format-zero-length -Wno-strict-aliasing -Wno-error=cpp")
+		set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall ${FTE_WERROR_ARG} -Wno-pointer-sign -Wno-unknown-pragmas -Wno-format-zero-length -Wno-strict-aliasing -Wno-error=cpp")
 	ELSE()
-		set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O3")
+		set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O3 ${FTE_WERROR_ARG}")
 	ENDIF()
 endif()
 IF(CMAKE_C_COMPILER_ID MATCHES "GNU")
 	SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wstrict-prototypes")			#
 	SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wold-style-definition")		#k&r c is weird and can't cope with 64bit types.
+	SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wmissing-parameter-type")		#k&r c is weird and can't cope with 64bit types.
 	SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wold-style-declaration")		#
 	SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wpointer-arith")				#void* stuff
 	SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wvla")							#msvc doesn't support vla
@@ -238,9 +308,9 @@ IF(CMAKE_C_COMPILER_ID MATCHES "GNU")
 	#might as well do this, public builds use the regular Makefile.
 	set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -march=native")
 	IF(CMAKE_BUILD_TYPE MATCHES "Debug")
-		set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -Werror -Wno-pointer-sign -Wno-unknown-pragmas -Wno-format-zero-length -Wno-strict-aliasing -Wno-error=cpp")
+		set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall ${FTE_WERROR_} -Wno-pointer-sign -Wno-unknown-pragmas -Wno-format-zero-length -Wno-strict-aliasing -Wno-error=cpp")
 	ELSE()
-		set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O3")
+		set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O3 ${FTE_WERROR_}")
 	ENDIF()
 	IF (NOT FTE_USE_SDL)
 		set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wl,--warn-common")
@@ -250,8 +320,8 @@ ENDIF()
 IF(CMAKE_BUILD_TYPE MATCHES "Debug")
 	IF(NOT ${WIN32})
 		set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fstack-protector-strong")
+		set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -std=gnu89")
 	ENDIF()
-	set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -std=gnu89")
 	set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -D_DEBUG")
 ENDIF()
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -D_FILE_OFFSET_BITS=64")
@@ -272,6 +342,32 @@ FUNCTION(EMBED_PLUGIN_META PLUGNAME PLUGTITLE PLUGDESC)
 		COMMAND cmake -E rm $<TARGET_FILE:plug_${PLUGNAME}>.zip
 		VERBATIM)
 ENDFUNCTION()
+
+SET(FTE_DEP_GNUTLS true CACHE BOOL "Link against gnutls")
+IF(FTE_DEP_GNUTLS)
+	FIND_PACKAGE(GnuTLS)
+	IF(NOT GNUTLS_FOUND)
+		MESSAGE(WARNING "gnutls library NOT available. HTTPS/DTLS will not be available.")
+		SET(FTE_LIB_DEFINES ${FTE_LIB_DEFINES};NO_GNUTLS)
+	ELSE()
+		IF(WIN32)
+			SET(GNUTLS_STATIC true CACHE BOOL "Link gnutls statically.") #usually as an .so though. :/
+		ELSE()
+			SET(GNUTLS_STATIC false CACHE BOOL "Link gnutls statically.") #usually as an .so though. :/
+		ENDIF()
+		IF(GNUTLS_STATIC)
+			SET(FTE_LIB_DEFINES ${FTE_LIB_DEFINES};GNUTLS_STATIC)
+			SET(FTE_LIBS ${FTE_LIBS} ${GNUTLS_LIBRARY})
+			SET(FTESV_LIBS ${FTESV_LIBS} ${GNUTLS_LIBRARY})
+		ENDIF()
+	ENDIF()
+ENDIF()
+IF(WIN32)
+	SET(FTE_DEP_WINSSPI true CACHE BOOL "Link against winsspi(schannel)")
+	IF(NOT FTE_DEP_WINSSPI)
+		SET(FTE_DEFINES ${FTE_DEFINES};NO_WINSSPI)
+	ENDIF()
+ENDIF()
 
 IF(${ANDROID})
 #	FIND_PACKAGE(Freetype REQUIRED)
@@ -299,6 +395,7 @@ ELSEIF(WIN32 AND NOT FTE_USE_SDL)
 		engine/client/winquake.rc
 		engine/common/sys_win_threads.c
 		engine/common/net_ssl_winsspi.c
+		engine/common/net_ssl_gnutls.c
 		engine/common/fs_win32.c
 		engine/client/cd_win.c
 		engine/client/in_win.c
@@ -329,24 +426,12 @@ ELSEIF(WIN32 AND NOT FTE_USE_SDL)
 		engine/client/winquake.rc
 		engine/common/sys_win_threads.c
 		engine/common/net_ssl_winsspi.c
+		engine/common/net_ssl_gnutls.c
 		engine/common/fs_win32.c
 		engine/server/sv_sys_win.c
 	)
 ELSEIF(UNIX AND NOT FTE_USE_SDL)	#linux(ish)
 				#openbsd will have issues with snd_linux.c
-
-	FIND_PACKAGE(GnuTLS)
-	IF(NOT GNUTLS_FOUND)
-		MESSAGE(WARNING "gnutls library NOT available. HTTPS/DTLS will not be available.")
-		SET(FTE_LIB_DEFINES ${FTE_LIB_DEFINES};NO_GNUTLS)
-	ELSE()
-		SET(GNUTLS_STATIC false CACHE BOOL "Link gnutls statically.") #usually as an .so though. :/
-		IF(GNUTLS_STATIC)
-			SET(FTE_LIB_DEFINES ${FTE_LIB_DEFINES};GNUTLS_STATIC)
-			SET(FTE_LIBS ${FTE_LIBS} ${GNUTLS_LIBRARY})
-			SET(FTESV_LIBS ${FTESV_LIBS} ${GNUTLS_LIBRARY})
-		ENDIF()
-	ENDIF()
 
 	#linux-only packages
 	FIND_PACKAGE(ALSA)
@@ -365,6 +450,10 @@ ELSEIF(UNIX AND NOT FTE_USE_SDL)	#linux(ish)
 		IF (NOT X11_Xrandr_FOUND)
 			SET(FTE_LIB_DEFINES ${FTE_LIB_DEFINES};NO_X11_RANDR)
 			MESSAGE(WARNING "Xrandr library NOT available.")
+		ENDIF()
+		IF (NOT X11_Xscreensaver_FOUND)
+			SET(FTE_LIB_DEFINES ${FTE_LIB_DEFINES};NO_X11_XSS)
+			MESSAGE(WARNING "Xss library NOT available.")
 		ENDIF()
 	ELSE()
 		MESSAGE(WARNING "x11 library NOT available.")
@@ -434,7 +523,14 @@ ELSEIF(UNIX AND NOT FTE_USE_SDL)	#linux(ish)
 		ENDIF()
 	ENDIF()
 
-	SET(FTESV_DEFINES MULTITHREAD)
+	IF(CMAKE_SYSTEM_NAME MATCHES "BSD" OR CMAKE_SYSTEM_NAME MATCHES "Darwin")
+		FIND_LIBRARY(epoll-shim REQUIRED)
+		INCLUDE_DIRECTORIES(${EPOLL_INC_DIR})
+		SET(FTESV_LIBS ${FTESV_LIBS} epoll-shim)
+		SET(FTESV_DEFINES ${FTESV_DEFINES};HAVE_EPOLL)
+	ENDIF()
+
+	SET(FTESV_DEFINES ${FTESV_DEFINES};MULTITHREAD)
 	SET(FTESV_ARCH_FILES ${FTESV_ARCH_FILES}
 		engine/server/sv_sys_unix.c
 		engine/common/sys_linux_threads.c
@@ -465,7 +561,7 @@ ELSEIF(1)	#SDL
 		engine/gl/gl_vidsdl.c
 	)
 
-	SET(FTESV_DEFINES FTE_SDL)
+	SET(FTESV_DEFINES ${FTESV_DEFINES};MULTITHREAD)
 	SET(FTESV_LIBS ${FTESV_LIBS} ${SYS_LIBS} ${CMAKE_DL_LIBS} ${SDL2_LIBRARIES})
 
 	IF(WIN32)
@@ -489,6 +585,7 @@ ELSEIF(1)	#SDL
 			engine/common/sys_linux_threads.c
 			engine/server/sv_sys_unix.c
 		)
+		SET(FTESV_LIBS ${FTESV_LIBS} pthread)
 	ENDIF()
 ELSE()
 #	engine/common/sys_linux_threads.c
@@ -585,6 +682,7 @@ SET(FTE_COMMON_FILES
 	engine/common/log.c
 	engine/common/mathlib.c
 	engine/common/md4.c
+	engine/common/md5.c
 	engine/common/net_chan.c
 	engine/common/net_ice.c
 	engine/common/net_wins.c
@@ -687,6 +785,7 @@ SET(FTE_COMMON_FILES
 	engine/client/pr_skelobj.c
 	engine/client/m_download.c
 	engine/client/net_master.c
+	engine/client/r_d3.c
 	
 	#these are here because of hitmodel etc
 	engine/gl/gl_heightmap.c
@@ -846,7 +945,7 @@ SET(FTE_Q3_FILES
 )
 
 #For annoying compressed gltf2 files.
-SET(FTE_DEP_DRACO false CACHE BOOL "Link against libdraco.")
+SET(FTE_DEP_DRACO false CACHE BOOL "Link against libdraco (apache2).")
 IF(FTE_DEP_DRACO)
 	FIND_LIBRARY(
 		DRACO_LIBRARY
@@ -875,20 +974,37 @@ IF(FTE_PLUG_QUAKE3)
 		#define the modules and make sure they're linked (one generic, one for server-only builds.
 		ADD_LIBRARY(quake3 STATIC ${FTE_Q3_FILES})
 		SET_TARGET_PROPERTIES(quake3 PROPERTIES COMPILE_DEFINITIONS "${FTE_LIB_DEFINES};${FTE_REVISON};BOTLIB;BOTLIB_STATIC;FTEPLUGIN;STATIC_Q3")
-		TARGET_LINK_LIBRARIES(quake3 m)
+		TARGET_LINK_LIBRARIES(quake3 ${SYS_LIBS})
 
 		#ADD_LIBRARY(q3sv STATIC EXCLUDE_FROM_ALL ${FTE_Q3_FILES})
 		#SET_TARGET_PROPERTIES(q3sv PROPERTIES COMPILE_DEFINITIONS "${FTE_LIB_DEFINES};${FTE_REVISON};BOTLIB;BOTLIB_STATIC;SERVERONLY")
 		#SET_TARGET_PROPERTIES(q3sv PROPERTIES LINK_FLAGS "-Wl,--no-undefined")
-		#TARGET_LINK_LIBRARIES(q3sv m)
+		#TARGET_LINK_LIBRARIES(q3sv ${SYS_LIBS})
 		#SET(FTESV_LIBS ${FTESV_LIBS} q3sv)
 	ELSE()
 		#define the modules and make sure they're linked (one generic, one for server-only builds.
 		ADD_LIBRARY(plug_quake3 MODULE ${FTE_Q3_FILES} plugins/plugin.c)
 		SET_TARGET_PROPERTIES(plug_quake3 PROPERTIES COMPILE_DEFINITIONS "${FTE_LIB_DEFINES};${FTE_REVISON};BOTLIB;BOTLIB_STATIC;FTEPLUGIN")
-		TARGET_LINK_LIBRARIES(plug_quake3 m)
+		TARGET_LINK_LIBRARIES(plug_quake3 ${SYS_LIBS})
 		EMBED_PLUGIN_META(quake3 "Quake3 Compat" "Provides compatability with Quake3's gamecode.")
 	ENDIF()
+ENDIF()
+
+#still a wip, so disabled by default
+SET(FTE_PLUG_COD true CACHE BOOL "Compile Call of Duty plugin.")
+IF(FTE_PLUG_COD)
+	ADD_LIBRARY(plug_cod MODULE
+		plugins/cod/codmod.c
+		plugins/cod/codbsp.c
+		plugins/cod/codmat.c
+		plugins/cod/codiwi.c
+		#plugins/cod/codff.c
+		plugins/plugin.c)
+	SET_TARGET_PROPERTIES(plug_cod PROPERTIES COMPILE_DEFINITIONS "${FTE_LIB_DEFINES};${FTE_REVISON};FTEPLUGIN")
+	TARGET_LINK_LIBRARIES(plug_cod ${SYS_LIBS}
+		#${ZLIB_LIBRARIES}
+		)
+	EMBED_PLUGIN_META(cod "CoD Formats" "Provides compatability with Call Of Duty's file formats.")
 ENDIF()
 
 FILE(STRINGS "${FTE_BUILD_CONFIG}" BULLET_INTERNAL REGEX "^#define[\t ]+USE_INTERNAL_BULLET")
@@ -921,7 +1037,7 @@ ELSE()
 ENDIF()
 
 #ODE Physics library plugin
-SET(FTE_PLUG_ODE true CACHE STRING "Compile ODE rigid body physics plugin.")
+SET(FTE_PLUG_ODE true CACHE BOOL "Compile ODE rigid body physics plugin.")
 SET_PROPERTY(CACHE FTE_PLUG_ODE PROPERTY STRINGS false true static)
 IF(FTE_PLUG_ODE)
 	FIND_PATH(LIBODE_INCLUDE_DIR ode/ode.h)
@@ -976,6 +1092,12 @@ ELSE()
 			${FTE_CLIENT_FILES}
 			${FTE_SERVER_FILES}
 		)
+		IF(CMAKE_SYSTEM_NAME MATCHES "BSD" OR CMAKE_SYSTEM_NAME MATCHES "Darwin")
+			FIND_LIBRARY(epoll-shim REQUIRED)
+			SET(FTE_INCLUDES ${FTE_INCLUDES} "${EPOLL_INC_DIR}")
+			SET(FTE_LIBS ${FTE_LIBS} epoll-shim)
+			SET(FTE_DEFINES ${FTE_DEFINES};HAVE_EPOLL)
+		ENDIF()
 		SET_TARGET_PROPERTIES(fteqw PROPERTIES COMPILE_DEFINITIONS "${FTE_LIB_DEFINES};${FTE_DEFINES};${FTE_REVISON}")
 		TARGET_INCLUDE_DIRECTORIES(fteqw PUBLIC ${FTE_INCLUDES})
 		TARGET_LINK_LIBRARIES(fteqw ${FTE_LIBS})
@@ -1036,8 +1158,8 @@ ELSE()
 			imgtool.c
 			iqm/iqm.h
 		)
-		SET_TARGET_PROPERTIES(iqmtool PROPERTIES COMPILE_DEFINITIONS "IQMTOOL;${DRACO_CFLAGS};${FTE_REVISON}")
-		TARGET_LINK_LIBRARIES(iqmtool ${CMAKE_DL_LIBS} ${DRACO_LIBRARY})
+		SET_TARGET_PROPERTIES(iqmtool PROPERTIES COMPILE_DEFINITIONS "IQMTOOL;${DRACO_CFLAGS};${FTE_LIB_DEFINES};${FTE_REVISON}")
+		TARGET_LINK_LIBRARIES(iqmtool ${CMAKE_DL_LIBS} ${DRACO_LIBRARY} ${JPEG_LIBRARIES} ${PNG_LIBRARIES})
 		SET(INSTALLTARGS ${INSTALLTARGS} iqmtool)
 	ENDIF()
 
@@ -1063,7 +1185,9 @@ ELSE()
 			fteqtv/source.c
 			fteqtv/bsp.c
 			fteqtv/rcon.c
+			fteqtv/relay.c
 			fteqtv/mdfour.c
+			engine/common/md5.c
 			fteqtv/crc.c
 			fteqtv/control.c
 			fteqtv/forward.c
@@ -1073,11 +1197,17 @@ ELSE()
 			fteqtv/libqtvc/glibc_sucks.c
 			engine/common/sha1.c
 		)
-		SET_TARGET_PROPERTIES(qtv PROPERTIES COMPILE_DEFINITIONS "${FTE_REVISON}")
+		SET_TARGET_PROPERTIES(qtv PROPERTIES COMPILE_DEFINITIONS "${FTE_REVISON};${FTE_LIB_DEFINES}")
 		IF(WIN32)
-			TARGET_LINK_LIBRARIES(qtv ws2_32 winmm ${SYS_LIBS})
+			TARGET_LINK_LIBRARIES(qtv ws2_32 winmm ${SYS_LIBS} ${FTEQTV_LIBS})
+		ELSEIF(CMAKE_SYSTEM_NAME MATCHES "BSD" OR CMAKE_SYSTEM_NAME MATCHES "Darwin")
+			# Add Epoll-shim for the kqueue Unixes here - Brad
+			FIND_LIBRARY(epoll-shim REQUIRED)
+			TARGET_INCLUDE_DIRECTORIES(qtv PUBLIC "${EPOLL_INC_DIR}")
+			TARGET_LINK_LIBRARIES(qtv epoll-shim ${SYS_LIBS} ${FTEQTV_LIBS})
+			SET_TARGET_PROPERTIES(qtv PROPERTIES COMPILE_DEFINITIONS "${FTE_REVISON};${FTE_LIB_DEFINES};HAVE_EPOLL")
 		ELSE()
-			TARGET_LINK_LIBRARIES(qtv ${SYS_LIBS})
+			TARGET_LINK_LIBRARIES(qtv ${SYS_LIBS} ${FTEQTV_LIBS})
 		ENDIF()
 		SET(INSTALLTARGS ${INSTALLTARGS} qtv)
 	ENDIF()
@@ -1120,8 +1250,26 @@ ELSE()
 		SET_TARGET_PROPERTIES(httpserver PROPERTIES COMPILE_DEFINITIONS "WEBSERVER;WEBSVONLY;${FTE_REVISON}")
 		IF(WIN32)
 			TARGET_LINK_LIBRARIES(httpserver ws2_32)
+		ELSEIF(CMAKE_SYSTEM_NAME MATCHES "BSD" OR CMAKE_SYSTEM_NAME MATCHES "Darwin")
+			FIND_LIBRARY(epoll-shim REQUIRED)
+			TARGET_INCLUDE_DIRECTORIES(httpserver PUBLIC "${EPOLL_INC_DIR}")
+			TARGET_LINK_LIBRARIES(httpserver epoll-shim)
+			SET_TARGET_PROPERTIES(httpserver PROPERTIES COMPILE_DEFINITIONS "WEBSERVER;WEBSVONLY;${FTE_REVISON};HAVE_EPOLL")
 		ENDIF()
 		#SET(INSTALLTARGS ${INSTALLTARGS} httpserver)
+	ENDIF()
+
+	SET(FTE_TOOL_QCVM false CACHE BOOL "Compile standalone qcvm.")
+	IF(FTE_TOOL_QCVM)
+		ADD_EXECUTABLE(qcvm
+			engine/qclib/test.c
+
+			engine/qclib/hash.c
+			${FTE_QCVM_FILES}
+		)
+		SET_TARGET_PROPERTIES(qcvm PROPERTIES COMPILE_DEFINITIONS "${FTE_LIB_DEFINES};${FTE_REVISON}")
+		TARGET_LINK_LIBRARIES(qcvm ${FTEQCC_LIBS} ${SYS_LIBS})
+		SET(INSTALLTARGS ${INSTALLTARGS} qcvm)
 	ENDIF()
 
 	SET(FTE_TOOL_QCC true CACHE BOOL "Compile commandline qc compiler.")
@@ -1135,6 +1283,7 @@ ELSE()
 			engine/qclib/qcc_pr_lex.c
 			engine/qclib/qccmain.c
 			engine/qclib/qcd_main.c
+			engine/qclib/decomp.c
 			engine/qclib/packager.c
 		)
 		SET_TARGET_PROPERTIES(fteqcc PROPERTIES COMPILE_DEFINITIONS "${FTE_LIB_DEFINES};${FTE_REVISON}")
@@ -1244,6 +1393,8 @@ SET(FTE_PLUG_OPENSSL false CACHE BOOL "Compile OpenSSL.")
 IF(FTE_PLUG_OPENSSL)
 	#the openssl license is incompatible with the GPL, so while we have code to use it distributing the binaries built with it is not a (legal) option.
 	#note that openssl 3.0.0 upwards are apache-2 licensed, which IS gpl-3 compatible (though not gpl-2). debian has not caught up with that yet, however.
+	#Crosscompile linux->win64: sudo ln -s ${pwd}/engine/libs-x86_64-w64-mingw32/openssl-openssl-3.0.1/ /usr/x86_64-w64-mingw32/OpenSSL
+	SET(OPENSSL_USE_STATIC_LIBS true CACHE BOOL "Link openssl statically.") #usually as an .so though. :/)
 	FIND_PACKAGE(OpenSSL)
 	IF(OPENSSL_VERSION_MAJOR LESS 3)
 		SET(FTE_PRIVATE_USE_ONLY false CACHE BOOL "Ignore license violations.")
@@ -1259,11 +1410,15 @@ IF(FTE_PLUG_OPENSSL)
 			MESSAGE(WARNING "Using openssl. Resulting plugin must be licensed as GPLv3.")
 		ENDIF()
 		SET(FTE_LIB_DEFINES ${FTE_LIB_DEFINES})
+		if (WIN32)
+			SET(OPENSSL_LIBRARIES ${OPENSSL_LIBRARIES} ws2_32)
+		ENDIF()
 
 		ADD_LIBRARY(plug_openssl MODULE
 			plugins/plugin.c
 			plugins/net_ssl_openssl.c
 		)
+		TARGET_INCLUDE_DIRECTORIES(plug_openssl PRIVATE ${OPENSSL_INCLUDE_DIR})
 		SET_TARGET_PROPERTIES(plug_openssl PROPERTIES COMPILE_DEFINITIONS "FTEPLUGIN;${FTE_LIB_DEFINES}")
 		TARGET_LINK_LIBRARIES(plug_openssl ${SYS_LIBS} ${OPENSSL_LIBRARIES})
 
@@ -1275,7 +1430,7 @@ ENDIF()
 #IF(FTE_PLUG_GNUTLS)
 #	FIND_PACKAGE(GnuTLS)
 #	IF(NOT GNUTLS_FOUND)
-#		MESSAGE(WARNING "openssl library NOT available. you'll have to use some other library.")
+#		MESSAGE(WARNING "gnutls library NOT available. you'll have to use some other library.")
 #	ELSE()
 #		SET(FTE_LIB_DEFINES ${FTE_LIB_DEFINES})
 #
@@ -1345,6 +1500,7 @@ IF(FTE_PLUG_IRC)
 	EMBED_PLUGIN_META(irc "IRC Plugin" "Allows you to chat on IRC without tabbing out.")
 ENDIF()
 
+IF(ZLIB_FOUND)
 #mpq package format plugin (blizzard games)
 SET(FTE_PLUG_MPQ false CACHE BOOL "Compile mpq junk.")
 IF(FTE_PLUG_MPQ)
@@ -1358,6 +1514,7 @@ IF(FTE_PLUG_MPQ)
 
 	EMBED_PLUGIN_META(irc "MPQ Archive Plugin" "Adds support for reading .mpq files. Not very useful...")
 ENDIF()
+ENDIF()
 
 #vpk package format plugin (halflife2)
 SET(FTE_PLUG_HL2 true CACHE BOOL "Compile support for hl2 file formats.")
@@ -1366,6 +1523,9 @@ IF(FTE_PLUG_HL2)
 		plugins/plugin.c
 		plugins/hl2/hl2.c
 		plugins/hl2/fs_vpk.c
+		plugins/hl2/fs_vpk_vtmb.c
+		plugins/hl2/fs_gma.c
+		plugins/hl2/img_tth.c
 		plugins/hl2/img_vtf.c
 		plugins/hl2/mod_hl2.c
 		plugins/hl2/mod_vbsp.c
@@ -1571,7 +1731,6 @@ IF(FTE_PLUG_CEF)
 	ENDIF()
 ENDIF()
 
-IF(NOT ANDROID)	#libresolv issues.
 SET(FTE_PLUG_XMPP true CACHE BOOL "Compile xmpp/jabber instant-messenger plugin.")
 IF(FTE_PLUG_XMPP)
 	#XMPP/jabber client plugin
@@ -1586,14 +1745,16 @@ IF(FTE_PLUG_XMPP)
 		plugins/emailnot/md5.c
 	)
 	SET_TARGET_PROPERTIES(plug_xmpp PROPERTIES COMPILE_DEFINITIONS "FTEPLUGIN;${FTE_LIB_DEFINES}")
-	IF(${WIN32})
+
+	#for SRV lookups, so we actually get the right server from account names/etc.
+	IF(ANDROID)	#libresolv issues.
+	ELSEIF(${WIN32}) #softlinks a dll
 	ELSE()
 		TARGET_LINK_LIBRARIES(plug_xmpp ${SYS_LIBS} resolv)
 	ENDIF()
 
 	EMBED_PLUGIN_META(xmpp "XMPP Plugin" "XMPP/Jabber instant messenger plugin for chatting without tabbing out.")
 ENDIF()
-ENDIF()	#android
 
 INSTALL(TARGETS ${INSTALLTARGS}
 	RUNTIME DESTINATION "${CMAKE_INSTALL_PREFIX}/${FTE_INSTALL_BINDIR}"
@@ -1611,8 +1772,9 @@ IF(FTE_MENU_SYS)
 		VERBATIM
 		DEPENDS fteqcc
 		WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/quakec/menusys/"
-		COMMAND fteqcc -srcfile "menu.src" -o "${CMAKE_CURRENT_BINARY_DIR}/menu.dat"
-		BYPRODUCTS "${CMAKE_CURRENT_BINARY_DIR}/menu.dat" "${CMAKE_CURRENT_BINARY_DIR}/menu.lno"
+		COMMAND fteqcc -srcfile "menu.src" -o "${CMAKE_CURRENT_BINARY_DIR}/menu.dat" -DREVISION="${SVNREVISION}" -DDATE="${FTE_DATE}" -DBRANCH="${FTE_BRANCH}"
+		COMMAND /bin/echo -e "{\\n	package fte_menusys\\n	ver \"${SVNREVISION}\"\\n	category Plugins\\n	title \"Replacement Menus\"\\n	gamedir \"id1\"\\n	desc \"Modern menus to replace the ancient quake ones\"\\n}" | zip -j -q -9 -fz- "${CMAKE_CURRENT_BINARY_DIR}/menusys.pk3" - "${CMAKE_CURRENT_BINARY_DIR}/menu.dat"
+		BYPRODUCTS "${CMAKE_CURRENT_BINARY_DIR}/menu.dat" "${CMAKE_CURRENT_BINARY_DIR}/menu.lno" "${CMAKE_CURRENT_BINARY_DIR}/menusys.pk3"
 		SOURCES
 			quakec/menusys/menu.src
 			quakec/menusys/fteextensions.qc
@@ -1649,12 +1811,8 @@ IF(FTE_MENU_SYS)
 			quakec/menusys/menu/quit.qc
 	)
 
-	ADD_CUSTOM_COMMAND(
-		TARGET menusys POST_BUILD
-		COMMAND /bin/echo -e "{\\n	package fte_menusys\\n	ver \"${SVNREVISION}\"\\n	category Plugins\\n	title \"Replacement Menus\"\\n	gamedir \"id1\"\\n	desc \"Modern menus to replace the ancient quake ones\"\\n}" | zip -q -9 -fz- menusys.pk3 - menu.dat
-		VERBATIM)
 	INSTALL(FILES
-		menusys.pk3
+		${CMAKE_CURRENT_BINARY_DIR}/menusys.pk3
 		DESTINATION "${CMAKE_INSTALL_DATAROOTDIR}/games/quake/id1/")
 ENDIF()
 
@@ -1665,7 +1823,8 @@ IF(FTE_CSADDON)
 		DEPENDS fteqcc
 		WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/quakec/csaddon/src/"
 		COMMAND fteqcc -srcfile "csaddon.src" -o "${CMAKE_CURRENT_BINARY_DIR}/csaddon.dat"
-		BYPRODUCTS "${CMAKE_CURRENT_BINARY_DIR}/csaddon.dat" "${CMAKE_CURRENT_BINARY_DIR}/csaddon.lno"
+		COMMAND /bin/echo -e "{\\n	package fte_csaddon\\n	ver \"${SVNREVISION}\"\\n	category Plugins\\n	title \"${PLUGTITLE}\"\\n	gamedir \"id1\"\\n	desc \"${PLUGDESC}\"\\n}" | zip -j -q -9 -fz- "${CMAKE_CURRENT_BINARY_DIR}/csaddon.pk3" - "${CMAKE_CURRENT_BINARY_DIR}/csaddon.dat"
+		BYPRODUCTS "${CMAKE_CURRENT_BINARY_DIR}/csaddon.dat" "${CMAKE_CURRENT_BINARY_DIR}/csaddon.lno" "${CMAKE_CURRENT_BINARY_DIR}/csaddon.pk3"
 		SOURCES
 			quakec/csaddon/src/csaddon.src
 
@@ -1688,11 +1847,7 @@ IF(FTE_CSADDON)
 			quakec/csaddon/src/csaddon.qc
 	)
 
-	ADD_CUSTOM_COMMAND(
-		TARGET csaddon POST_BUILD
-		COMMAND /bin/echo -e "{\\n	package fte_csaddon\\n	ver \"${SVNREVISION}\"\\n	category Plugins\\n	title \"${PLUGTITLE}\"\\n	gamedir \"id1\"\\n	desc \"${PLUGDESC}\"\\n}" | zip -q -9 -fz- csaddon.pk3 - csaddon.dat
-		VERBATIM)
 	INSTALL(FILES
-		csaddon.pk3
+		${CMAKE_CURRENT_BINARY_DIR}/csaddon.pk3
 		DESTINATION "${CMAKE_INSTALL_DATAROOTDIR}/games/quake/id1/")
 ENDIF()

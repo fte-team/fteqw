@@ -38,13 +38,13 @@
 //#define PSET_SCRIPT			//scriptable particles (both fte's and importing effectinfo)
 //#define RTLIGHTS
 //#define RUNTIMELIGHTING		//automatic generation of .lit files
-//#define R_XFLIP				//old silly thing
 
 //Extra misc features.
 //#define CLIENTONLY			//
 #define MULTITHREAD				//misc basic multithreading - dsound, downloads, basic stuff that's unlikely to have race conditions.
 #define LOADERTHREAD			//worker threads for loading misc stuff. falls back on main thread if not supported.
 #define AVAIL_DINPUT
+#define MAX_CLIENTS			32	//32 for vanilla qw. max 255.
 //#define SIDEVIEWS   4			//enable secondary/reverse views.
 //#define MAX_SPLITS 4u
 #define	VERTEXINDEXBYTES	2	//16bit indexes work everywhere but may break some file types, 32bit indexes are optional in gles<=2 and d3d<=9 and take more memory/copying but allow for bigger batches/models. Plugins need to be compiled the same way so this is no longer set per-renderer.
@@ -193,7 +193,6 @@
 ////#define QTERM				//qterm... adds a console command that allows running programs from within quake - bit like xterm.
 //#define SVCHAT				//ancient lame builtin to support NPC-style chat...
 ////#define SV_MASTER			//Support running the server as a master server. Should probably not be used.
-////#define WEBSERVER			//outdated sv_http cvar. new stuff acts via sv_port_tcp instead (which also gives https).
 ////#define QUAKESPYAPI			//define this if you want the engine to be usable via gamespy/quakespy, which has been dead for a long time now. forces the client to use a single port for all outgoing connections, which hurts reconnects.
 
 

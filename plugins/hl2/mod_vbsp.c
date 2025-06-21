@@ -238,7 +238,8 @@ enum hllumps_e
 typedef struct {
 	unsigned int fileofs;
 	unsigned int filelen;
-	unsigned int foo[2];
+	unsigned int version;
+	unsigned int fourcc;
 } vlump_t;
 typedef struct {
 	unsigned int magic;
@@ -287,8 +288,6 @@ typedef struct dispinfo_s
         float alpha;
     } *verts;
     //unsigned short *flags;
-
-    q2csurface_t csurface;  //collision info for q2 gamecode.
 } dispinfo_t;
 
 typedef struct vbspinfo_s
@@ -364,7 +363,6 @@ typedef struct vbspinfo_s
 	} *staticprops;
 
 	unsigned int contentsremap[32];
-	int summed;	//for the main thread to wait on.
 } vbspinfo_t;
 
 static q2mapsurface_t	nullsurface;
@@ -1141,8 +1139,8 @@ typedef struct
 #define TIHL2_NOPORTAL		0x20
 #define TIHL2_TRIGGER		0x40
 #define TIHL2_NODRAW		TI_NODRAW
-//#define TIHL2_HINT		0x100
-//#define TIHL2_SKIP		0x200
+#define TIHL2_HINT		0x100
+#define TIHL2_SKIP		0x200
 #define TIHL2_NOLIGHT		0x400
 //#define TIHL2_BUMPLIGHT	0x800
 //#define TIHL2_NOSHADOWS	0x1000
@@ -1212,9 +1210,23 @@ static qboolean VBSP_LoadTexInfo (model_t *mod, qbyte *mod_base, vlump_t *lumps,
 //		else if (out->flags & (TIHL2_WARP))
 //			Q_strncatz(sname, "#ALPHA=1", sizeof(sname));
 
-		out->flags = 0;
+		if (flags & (TIHL2_SKYBOX|TIHL2_SKYROOM))
+			out->flags |= TI_SKY;
+
+		if (flags & (TIHL2_WARP))
+			out->flags |= TI_WARP;
+
 		if (flags & TIHL2_NOLIGHT)
 			out->flags |= TEX_SPECIAL;
+
+		if (flags & TIHL2_NODRAW)
+			out->flags |= TI_NODRAW;
+
+// 		if (flags & TIHL2_HINT)
+// 			out->flags |= TI_HINT;
+
+// 		if (flags & TIHL2_SKIP)
+// 			out->flags |= TI_SKIP;
 
 		//compact the textures.
 		for (j=0; j < texcount; j++)
@@ -1351,6 +1363,7 @@ typedef struct
 	} light[6];
 	short pad;
 } hl2dleaf_t;
+
 static qboolean VBSP_LoadLeafs (model_t *mod, qbyte *mod_base, vlump_t *l, int ver)
 {
 	vbspinfo_t	*prv = (vbspinfo_t*)mod->meshinfo;
@@ -1360,7 +1373,8 @@ static qboolean VBSP_LoadLeafs (model_t *mod, qbyte *mod_base, vlump_t *l, int v
 	int			count;
 	size_t		insize = sizeof(*in);
 	struct leaflightpoint_s *lightpoint = NULL;
-	if (ver < 20)
+
+	if (ver == 19)
 		insize = 56;	//older maps have some lighting info here.
 	else
 		insize = 32;
@@ -1391,7 +1405,7 @@ static qboolean VBSP_LoadLeafs (model_t *mod, qbyte *mod_base, vlump_t *l, int v
 	mod->leafs = out;
 	mod->numleafs = count;
 
-	if (ver < 20)
+	if (ver == 19)
 	{
 		prv->leaflight = plugfuncs->GMalloc(&mod->memgroup, sizeof(*out) * count);
 		lightpoint = plugfuncs->GMalloc(&mod->memgroup, sizeof(*lightpoint) * count);
@@ -1734,6 +1748,135 @@ typedef struct
 	unsigned short firstprim;
 	unsigned int smoothinggroup;
 } hl2dface_t;
+
+
+typedef struct
+{
+	int			padding[8];
+	short		planenum;
+	qbyte		side;
+	qbyte		onnode;	//o.O
+
+	int			firstedge;		// we must support > 64k edges
+	unsigned short		numedges;
+	unsigned short		texinfo;
+
+	unsigned short		dispinfo;
+	short		fogvolume;
+
+// lighting info
+	qbyte		styles[8];
+	qbyte		day[8];
+	qbyte		night[8];
+	int			lightofs;		// start of [numstyles*surfsize] samples
+	float		surfacearea;
+	int			extents_min[2];
+	int			extents_size[2];
+
+	int			origface;
+	unsigned int smoothinggroup;
+} vampiredface_t;
+
+static qboolean VBSP_LoadFaces_Vampire (model_t *mod, qbyte *mod_base, vlump_t *lumps, int version)
+{
+	vbspinfo_t	*prv = (vbspinfo_t*)mod->meshinfo;
+	vlump_t *l = &lumps[VLUMP_FACES_LDR];
+	vampiredface_t	*in;
+	msurface_t 	*out;
+	int			i, count, surfnum;
+	int			planenum;
+	int			ti, st;
+	int			lumpsize = sizeof(*in);
+
+	mesh_t		*meshes;
+
+	in = (void *)(mod_base + l->fileofs);
+	if (l->filelen % lumpsize)
+	{
+		Con_Printf ("VBSP_LoadFaces_Vampire: funny lump size in %s\n",mod->name);
+		return false;
+	}
+	count = l->filelen / lumpsize;
+	out = plugfuncs->GMalloc(&mod->memgroup, count*sizeof(*out));
+	prv->surfdisp = plugfuncs->GMalloc(&mod->memgroup, count * sizeof(*prv->surfdisp));
+
+	meshes = plugfuncs->GMalloc(&mod->memgroup, count*sizeof(*meshes));
+
+	mod->surfaces = out;
+	mod->numsurfaces = count;
+
+	mod->lightmaps.surfstyles = 1;
+
+	for ( surfnum=0 ; surfnum<count ; surfnum++, in = (void*)((qbyte*)in+lumpsize), out++)
+	{
+		out->firstedge = LittleLong(in->firstedge);
+		out->numedges = (unsigned short)LittleShort(in->numedges);
+		out->flags = 0;
+		out->mesh = meshes+surfnum;
+		out->mesh->numvertexes = out->numedges;
+		out->mesh->numindexes = (out->mesh->numvertexes-2)*3;
+
+		planenum = (unsigned short)LittleShort(in->planenum);
+		if (in->side)
+			out->flags |= SURF_PLANEBACK;
+		if (!in->onnode)
+			out->flags |= SURF_OFFNODE;
+
+		out->plane = mod->planes + planenum;
+
+		ti = (unsigned short)LittleShort (in->texinfo);
+		if (ti < 0 || ti >= mod->numtexinfo)
+		{
+			Con_Printf (CON_ERROR "VBSP_LoadFaces: bad texinfo number\n");
+			return false;
+		}
+		out->texinfo = mod->texinfo + ti;
+
+		if (out->texinfo->flags & TI_SKY)
+		{
+			out->flags |= SURF_DRAWSKY|SURF_DRAWTILED;
+		}
+		if (out->texinfo->flags & TI_WARP)
+		{
+			out->flags |= SURF_DRAWTURB|SURF_DRAWTILED;
+		}
+
+		out->lmshift = 0;
+		out->texturemins[0] = in->extents_min[0];
+		out->texturemins[1] = in->extents_min[1];
+		out->extents[0] = in->extents_size[0];
+		out->extents[1] = in->extents_size[1];
+
+	// lighting info
+
+		for (i=0 ; i<Q1Q2BSP_STYLESPERSURF ; i++)
+		{
+			st = in->styles[i];
+			if (st == 255)
+				st = INVALID_LIGHTSTYLE;
+			else if (mod->lightmaps.maxstyle < st)
+				mod->lightmaps.maxstyle = st;
+			out->styles[i] = st;
+		}
+		for (; i<MAXCPULIGHTMAPS ; i++)
+			out->styles[i] = INVALID_LIGHTSTYLE;
+		for (i = 0; i<MAXRLIGHTMAPS ; i++)
+			out->vlstyles[i] = INVALID_VLIGHTSTYLE;
+		i = LittleLong(in->lightofs);
+		if (i == -1 || !mod->lightdata)
+			out->samples = NULL;
+		else
+			out->samples = mod->lightdata + i;
+
+	// set the drawing flags
+
+		if (out->texinfo->flags & TI_WARP)
+			out->flags |= SURF_DRAWTURB;
+	}
+
+	return true;
+}
+
 static qboolean VBSP_LoadFaces (model_t *mod, qbyte *mod_base, vlump_t *lumps, int version)
 {
 	vbspinfo_t	*prv = (vbspinfo_t*)mod->meshinfo;
@@ -1747,6 +1890,11 @@ static qboolean VBSP_LoadFaces (model_t *mod, qbyte *mod_base, vlump_t *lumps, i
 	int			lumpsize = sizeof(*in);
 
 	mesh_t		*meshes;
+
+	if (version == 17)
+	{
+		return VBSP_LoadFaces_Vampire(mod, mod_base, lumps, version);
+	}
 
 	if (l2->filelen && !(hl2_favour_ldr->ival && lumps[VLUMP_LIGHTING_LDR].filelen))
 		l = l2;
@@ -1801,7 +1949,7 @@ static qboolean VBSP_LoadFaces (model_t *mod, qbyte *mod_base, vlump_t *lumps, i
 
 		if (out->texinfo->flags & TI_SKY)
 		{
-			out->flags |= SURF_DRAWSKY;
+			out->flags |= SURF_DRAWSKY|SURF_DRAWTILED;
 		}
 		if (out->texinfo->flags & TI_WARP)
 		{
@@ -1951,10 +2099,10 @@ static void VBSP_BuildSurfMesh(model_t *mod, msurface_t *surf, builddata_t *bd)
 		}
 
 		//figure out the texture directions, for bumpmapping and stuff
-		if (surf->flags & SURF_PLANEBACK)
-			VectorNegate(surf->plane->normal, mesh->normals_array[i]);
-		else
-			VectorCopy(surf->plane->normal, mesh->normals_array[i]);
+// 		if (surf->flags & SURF_PLANEBACK)
+// 			VectorNegate(surf->plane->normal, mesh->normals_array[i]);
+// 		else
+		VectorCopy(surf->plane->normal, mesh->normals_array[i]);
 		VectorCopy(surf->texinfo->vecs[0], mesh->snormals_array[i]);
 		VectorNegate(surf->texinfo->vecs[1], mesh->tnormals_array[i]);
 		//the s+t vectors are axis-aligned, so fiddle them so they're normal aligned instead
@@ -2181,6 +2329,7 @@ static qboolean VBSP_LoadStaticProps(model_t *mod, qbyte *offset, size_t size, i
 		ent->topcolour = TOP_DEFAULT;
 		ent->bottomcolour = BOTTOM_DEFAULT;
 		ent->scale = 1;
+		ent->flags = RF_NOSHADOW;
 		ent->shaderRGBAf[0] = 1;
 		ent->shaderRGBAf[1] = 1;
 		ent->shaderRGBAf[2] = 1;
@@ -2220,7 +2369,7 @@ static qboolean VBSP_LoadStaticProps(model_t *mod, qbyte *offset, size_t size, i
 			unsigned short minlev, maxlev;
 			minlev = LittleShort(*(unsigned short*)prop);				prop += sizeof(unsigned short);
 			maxlev = LittleShort(*(unsigned short*)prop);				prop += sizeof(unsigned short);
-			skip |= (minlev > dxlevel || dxlevel > maxlev);
+			skip |=  (minlev > 0) && ((minlev > dxlevel) || (dxlevel > maxlev));
 		}
 		if (version >= 7)
 		{
@@ -2275,9 +2424,11 @@ static qboolean VBSP_LoadStaticProps(model_t *mod, qbyte *offset, size_t size, i
 		}
 		//Hack: lighting is wrong.
 //		ent->light_type = ELT_UNKNOWN;
+#if 0
 		VectorSet(ent->light_dir, 0, 0.707, 0.707);
 		VectorSet(ent->light_avg, 0.75, 0.75, 0.75);
 		VectorSet(ent->light_range, 0.5, 0.5, 0.5);
+#endif
 
 		//not all props will be emitted, according to d3d levels...
 		prv->numstaticprops++;
@@ -3162,9 +3313,6 @@ static void VBSP_BuildBIHMain(void *ctx, void *unusedp, size_t unuseda, size_t u
 	plugfuncs->Free(bihleaf);
 
 	mod->funcs.PointContents		= VBSP_PointContents;
-
-	//and make sure we finished checksumming, too.
-	threadfuncs->WaitForCompletion(mod, &prv->summed, false);
 }
 
 /*
@@ -3358,6 +3506,36 @@ static qbyte *VBSP_MarkLeaves (model_t *model, int clusters[2])
 	}
 	return vis;
 }
+
+qboolean HL2_CalcModelLighting(entity_t *e, model_t *clmodel, refdef_t *r_refdef, model_t *mod)
+{
+	vec3_t lightdir;
+	vec3_t shadelight, ambientlight;
+
+	e->light_dir[0] = 0; e->light_dir[1] = 1; e->light_dir[2] = 0;
+	mod->funcs.LightPointValues(mod, e->origin, shadelight, ambientlight, lightdir);
+
+	e->light_dir[0] = DotProduct(lightdir, e->axis[0]);
+	e->light_dir[1] = DotProduct(lightdir, e->axis[1]);
+	e->light_dir[2] = DotProduct(lightdir, e->axis[2]);
+
+	VectorNormalize(e->light_dir);
+
+	shadelight[0] *= 1/255.0f;
+	shadelight[1] *= 1/255.0f;
+	shadelight[2] *= 1/255.0f;
+	ambientlight[0] *= 1/255.0f;
+	ambientlight[1] *= 1/255.0f;
+	ambientlight[2] *= 1/255.0f;
+
+	//calculate average and range, to allow for negative lighting dotproducts
+	VectorCopy(shadelight, e->light_avg);
+	VectorCopy(ambientlight, e->light_range);
+
+	e->light_known = 1;
+	return e->light_known-1;
+}
+
 static void VBSP_PrepareFrame(model_t *mod, refdef_t *r_refdef, int area, int clusters[2], pvsbuffer_t *vis, qbyte **entvis_out, qbyte **surfvis_out)
 {
 	vbspinfo_t	*prv = (vbspinfo_t*)mod->meshinfo;
@@ -3451,14 +3629,22 @@ static void VBSP_PrepareFrame(model_t *mod, refdef_t *r_refdef, int area, int cl
 					modfuncs->GetModel(src->model->publicname, MLV_WARN);	//we use threads, so these'll load in time.
 				continue;
 			}
-			/*if (!src->light_known)
+#if 1
+			if (!src->light_known)
 			{
 				vec3_t tmp;
 				VectorCopy(src->origin, tmp);
 				VectorCopy(sent->lightorg, src->origin);
-				R_CalcModelLighting(src, src->model);	//bake and cache, now everything else is working.
+				HL2_CalcModelLighting(src, src->model, r_refdef, mod);
 				VectorCopy(tmp, src->origin);
-			}*/
+
+				/* HACK: If it's dark, might as well sample the model pos directly. */
+				if (VectorLength(src->light_range) < 0.25)
+				{
+					HL2_CalcModelLighting(src, src->model, r_refdef, mod);
+				}
+			}
+#endif
 			if (src->pvscache.num_leafs==-2)
 			{
 				vec3_t absmin, absmax;
@@ -3598,7 +3784,7 @@ static void VBSP_WalkShadows (dlight_t *dl, void (*callback)(msurface_t *surf), 
 			if ((dot < 0) ^ !!(surf->flags & SURF_PLANEBACK))
 				continue;		// wrong side
 
-/*			if (surf->flags & (SURF_DRAWALPHA | SURF_DRAWTILED))
+			/*if (surf->flags & (SURF_DRAWALPHA | SURF_DRAWTILED))
 			{	// no shadows
 				continue;
 			}*/
@@ -3726,7 +3912,7 @@ static void VBSP_LoadLeafLight (model_t *mod, qbyte *mod_base, vlump_t *hdridx, 
 	unsigned short *in;
 	qbyte *inpoint;
 
-	if (version < 20)
+	if (version == 17 || version == 19)
 		return; //nope. this info is in the leafs.
 
 	if (hdridx && hdrvals)
@@ -3885,17 +4071,10 @@ static void VBSP_LoadLeafLight (model_t *mod, qbyte *mod_base, vlump_t *hdridx, 
 
 
 
-static void VBSP_ComputedChecksum(void *ctx, void *data, size_t sum, size_t b)
-{
-	model_t *mod = ctx;
-	vbspinfo_t *prv = mod->meshinfo;
-	mod->checksum = mod->checksum2 = sum;
-	prv->summed = true;
-}
-static void VBSP_ComputeChecksum(void *ctx, void *data, size_t length, size_t b)
+static void VBSP_ComputeChecksum(model_t *mod, void *data, size_t length)
 {
 	unsigned int checksum = LittleLong (filefuncs->BlockChecksum(data, length));
-	threadfuncs->AddWork(WG_LOADER, VBSP_ComputedChecksum, ctx, NULL, checksum, 0);
+	mod->checksum = mod->checksum2 = checksum;
 }
 
 static qboolean VBSP_LoadModel(model_t *mod, qbyte *mod_base, size_t filelen, char *loadname)
@@ -3910,8 +4089,6 @@ static qboolean VBSP_LoadModel(model_t *mod, qbyte *mod_base, size_t filelen, ch
 #endif
 
 	VBSP_TranslateContentBits_Setup(prv);
-
-	threadfuncs->AddWork(WG_LOADER, VBSP_ComputeChecksum, mod, mod_base, filelen, 0);
 
 	mod->lightmaps.width = LMBLOCK_SIZE_MAX;
 	mod->lightmaps.height = LMBLOCK_SIZE_MAX;
@@ -4041,7 +4218,7 @@ static qboolean VBSP_LoadMap (model_t *mod, void *filein, size_t filelen)
 
 	switch(header.version)
 	{
-	//case 17:	//
+	case 17:	//vampire
 	case 18:	//beta
 	case 19:	//hl2,cs:s,hl2dm
 	case 20:	//portal, l4d, hl2ep2
@@ -4149,6 +4326,9 @@ static qboolean VBSP_LoadMap (model_t *mod, void *filein, size_t filelen)
 
 	//urgh, we need to wait for models to load in order to get their sizes. that requires being on the main thread and the caller will think we're loaded on completion so we can't safely pingpong it back before generating the bih tree
 	threadfuncs->AddWork(WG_MAIN, VBSP_BuildBIHMain, wmod, NULL, 0, 0);
+
+	//main thread should have a load of work to do now. worker thread should now be free to compute the hash before its finally marked as loaded and the temp file memory goes away.
+	VBSP_ComputeChecksum(mod, filein, filelen);
 	return true;
 }
 
@@ -4157,7 +4337,7 @@ qboolean VBSP_Init(void)
 {
 	filefuncs = plugfuncs->GetEngineInterface(plugfsfuncs_name, sizeof(*filefuncs));
 	modfuncs = plugfuncs->GetEngineInterface(plugmodfuncs_name, sizeof(*modfuncs));
-	if (modfuncs && modfuncs->version < MODPLUGFUNCS_VERSION)
+	if (modfuncs && modfuncs->version != MODPLUGFUNCS_VERSION)
 		modfuncs = NULL;
 	threadfuncs = plugfuncs->GetEngineInterface(plugthreadfuncs_name, sizeof(*threadfuncs));
 

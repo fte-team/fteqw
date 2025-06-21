@@ -302,6 +302,11 @@ typedef struct
 	texid_t currentshadowmap;
 
 	VkDescriptorSetLayout textureLayout;
+
+#ifdef VK_KHR_acceleration_structure
+	qboolean needtlas;	//frame delay, urgh...
+	VkAccelerationStructureKHR tlas;
+#endif
 } vkbackend_t;
 
 #define VERTEXSTREAMSIZE (1024*1024*2)	//2mb = 1 PAE jumbo page
@@ -439,7 +444,7 @@ static void VK_FinishProg(program_t *prog, const char *name)
 	{
 		VkDescriptorSetLayout desclayout;
 		VkDescriptorSetLayoutCreateInfo descSetLayoutCreateInfo = {VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO};
-		VkDescriptorSetLayoutBinding dbs[2+MAX_TMUS], *db = dbs;
+		VkDescriptorSetLayoutBinding dbs[3+MAX_TMUS], *db = dbs;
 		uint32_t i;
 		//VkSampler samp = VK_GetSampler(0);
 
@@ -456,6 +461,18 @@ static void VK_FinishProg(program_t *prog, const char *name)
 		db->stageFlags = VK_SHADER_STAGE_VERTEX_BIT|VK_SHADER_STAGE_FRAGMENT_BIT;
 		db->pImmutableSamplers = NULL;
 		db++;
+
+#ifdef VK_KHR_acceleration_structure
+		if (prog->rayquery)
+		{
+			db->binding = db-dbs;
+			db->descriptorType = VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR;
+			db->descriptorCount = 1;
+			db->stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+			db->pImmutableSamplers = NULL;
+			db++;
+		}
+#endif
 
 		for (i = 0; i < 32; i++)
 		{
@@ -515,12 +532,45 @@ qboolean VK_LoadBlob(program_t *prog, void *blobdata, const char *name)
 	unsigned char *cvardata;
 
 	if (blob->blobmagic[0] != 0xff || blob->blobmagic[1] != 'S' || blob->blobmagic[2] != 'P' || blob->blobmagic[3] != 'V')
+	{
+		Con_Printf(CON_ERROR"Blob %s is outdated\n", name);
 		return false;	//bad magic.
+	}
 	if (blob->blobversion != 1)
 	{
-		Con_Printf("Blob %s is outdated\n", name);
+		Con_Printf(CON_ERROR"Blob %s is outdated\n", name);
 		return false;
 	}
+
+	prog->supportedpermutations = blob->permutations;
+#define VKPERMUTATION_RAYQUERY			(1u<<31)
+	if (blob->permutations&~((PERMUTATIONS-1)|VKPERMUTATION_RAYQUERY))
+	{
+		Con_Printf("Blob %s has unknown permutations\n", name);
+		return false;
+	}
+	if (prog->supportedpermutations&VKPERMUTATION_RAYQUERY)
+	{	//not really a permutation.
+#ifndef VK_KHR_ray_query
+		Con_Printf(CON_ERROR"Blob %s requires vk_khr_ray_query\n", name);
+		return false;
+#else
+		if (!vk.khr_ray_query)
+		{	//the actual spv extension. let compiling catch it?
+			Con_Printf(CON_ERROR"Blob %s requires vk_khr_ray_query\n", name);
+			return false;
+		}
+		if (!vk.khr_acceleration_structure)
+		{	//what we're meant to be using to feed it... *sigh*
+			Con_Printf(CON_ERROR"Blob %s requires vk_khr_acceleration_structure\n", name);
+			return false;
+		}
+		prog->supportedpermutations&=~VKPERMUTATION_RAYQUERY;
+		prog->rayquery = true;
+#endif
+	}
+	else
+		prog->rayquery = false;
 
 	info.flags = 0;
 	info.codeSize = blob->vertlength;
@@ -538,7 +588,6 @@ qboolean VK_LoadBlob(program_t *prog, void *blobdata, const char *name)
 	prog->frag = frag;
 	prog->numsamplers = blob->numtextures;
 	prog->defaulttextures = blob->defaulttextures;
-	prog->supportedpermutations = blob->permutations;
 
 	if (blob->cvarslength)
 	{
@@ -681,6 +730,14 @@ static const char LIGHTPASS_SHADER[] = "\
 		blendfunc add\n\
 	}\n\
 }";
+static const char LIGHTPASS_SHADER_RQ[] = "\
+{\n\
+	program rq_rtlight\n\
+	{\n\
+		nodepth\n\
+		blendfunc add\n\
+	}\n\
+}";
 
 void VKBE_Init(void)
 {
@@ -791,17 +848,28 @@ static struct descpool *VKBE_CreateDescriptorPool(void)
 	struct descpool *np = Z_Malloc(sizeof(*np));
 	
 	VkDescriptorPoolCreateInfo dpi = {VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO};
-	VkDescriptorPoolSize dpisz[2];
+	VkDescriptorPoolSize dpisz[3];
 	dpi.flags = 0;
 	dpi.maxSets = np->totalsets = 512;
-	dpi.poolSizeCount = countof(dpisz);
+	dpi.poolSizeCount = 0;
 	dpi.pPoolSizes = dpisz;
 
-	dpisz[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-	dpisz[0].descriptorCount = 2*dpi.maxSets;
+	dpisz[dpi.poolSizeCount].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+	dpisz[dpi.poolSizeCount].descriptorCount = 2*dpi.maxSets;
+	dpi.poolSizeCount++;
 
-	dpisz[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-	dpisz[1].descriptorCount = MAX_TMUS*dpi.maxSets;
+	dpisz[dpi.poolSizeCount].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+	dpisz[dpi.poolSizeCount].descriptorCount = MAX_TMUS*dpi.maxSets;
+	dpi.poolSizeCount++;
+
+#ifdef VK_KHR_acceleration_structure
+	if (vk.khr_acceleration_structure)
+	{
+		dpisz[dpi.poolSizeCount].type = VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR;
+		dpisz[dpi.poolSizeCount].descriptorCount = dpi.maxSets;
+		dpi.poolSizeCount++;
+	}
+#endif
 
 	VkAssert(vkCreateDescriptorPool(vk.device, &dpi, NULL, &np->pool));
 
@@ -831,13 +899,32 @@ static VkDescriptorSet VKBE_TempDescriptorSet(VkDescriptorSetLayout layout)
 	return ret;
 }
 
-//creates a new dynamic buffer for us to use while streaming. because spoons.
-static struct dynbuffer *VKBE_AllocNewBuffer(struct dynbuffer **link, enum dynbuf_e type, VkDeviceSize minsize)
+static const struct
 {
-	VkBufferUsageFlags ufl[] = {VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, VK_BUFFER_USAGE_INDEX_BUFFER_BIT, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, VK_BUFFER_USAGE_TRANSFER_SRC_BIT};
+	const char *name;
+	VkBufferUsageFlags usage;
+	qboolean nomap;
+	VkDeviceSize align;
+} dynbuf_info[DB_MAX] =
+{	//FIXME: set alignment properly.
+	{"DB_VBO",	VK_BUFFER_USAGE_VERTEX_BUFFER_BIT},
+	{"DB_EBO",	VK_BUFFER_USAGE_INDEX_BUFFER_BIT},
+	{"DB_UBO",	VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT},
+	{"DB_STAGING",	VK_BUFFER_USAGE_TRANSFER_SRC_BIT},
+#ifdef VK_KHR_acceleration_structure
+	{"DB_ACCELERATIONSTRUCT",	VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_STORAGE_BIT_KHR|VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT, true, 256},
+	{"DB_ACCELERATIONSCRATCH",	VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, true},
+	{"DB_ACCELERATIONMESHDATA",	VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT},
+	{"DB_ACCELERATIONINSTANCE",	VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT},
+#endif
+};
+//creates a new dynamic buffer for us to use while streaming. because spoons.
+static struct dynbuffer *VKBE_AllocNewStreamingBuffer(struct dynbuffer **link, enum dynbuf_e type, VkDeviceSize minsize)
+{
 	VkBufferCreateInfo bufinf = {VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO};
 	VkMemoryRequirements mem_reqs;
 	VkMemoryAllocateInfo memAllocInfo = {VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO};
+	VkMemoryAllocateFlagsInfo memAllocFlagsInfo = {VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_FLAGS_INFO};
 	struct dynbuffer *n = Z_Malloc(sizeof(*n));
 	qboolean usestaging = (vk_usedynamicstaging & (1u<<type))!=0;
 
@@ -854,27 +941,31 @@ static struct dynbuffer *VKBE_AllocNewBuffer(struct dynbuffer **link, enum dynbu
 
 		n->size = bufinf.size;
 
+		bufinf.usage = dynbuf_info[type].usage;
 		if (type != DB_STAGING && usestaging)
 		{
 			//create two buffers, one staging/host buffer and one device buffer
-			bufinf.usage = ufl[type]|VK_BUFFER_USAGE_TRANSFER_DST_BIT;
+			bufinf.usage |= VK_BUFFER_USAGE_TRANSFER_DST_BIT;
 			vkCreateBuffer(vk.device, &bufinf, vkallocationcb, &n->devicebuf);
+			DebugSetName(VK_OBJECT_TYPE_BUFFER, (uint64_t)n->devicebuf, dynbuf_info[type].name);
 			bufinf.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
 			vkCreateBuffer(vk.device, &bufinf, vkallocationcb, &n->stagingbuf);
+			DebugSetName(VK_OBJECT_TYPE_BUFFER, (uint64_t)n->devicebuf, "DB_AUTOSTAGING");
 
 			vkGetBufferMemoryRequirements(vk.device, n->devicebuf, &mem_reqs);
 			n->align = mem_reqs.alignment-1;
 			memAllocInfo.allocationSize = mem_reqs.size;
 			memAllocInfo.memoryTypeIndex = vk_find_memory_require(mem_reqs.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 			VkAssert(vkAllocateMemory(vk.device, &memAllocInfo, vkallocationcb, &n->devicememory));
+			DebugSetName(VK_OBJECT_TYPE_DEVICE_MEMORY, (uint64_t)n->devicememory, "DB_AUTOSTAGING");
 			VkAssert(vkBindBufferMemory(vk.device, n->devicebuf, n->devicememory, 0));
 
 			n->renderbuf = n->devicebuf;
 		}
 		else
 		{	//single buffer. we'll write directly to the buffer.
-			bufinf.usage = ufl[type];
 			vkCreateBuffer(vk.device, &bufinf, vkallocationcb, &n->stagingbuf);
+			DebugSetName(VK_OBJECT_TYPE_BUFFER, (uint64_t)n->stagingbuf, dynbuf_info[type].name);
 
 			n->renderbuf = n->stagingbuf;
 		}
@@ -884,6 +975,8 @@ static struct dynbuffer *VKBE_AllocNewBuffer(struct dynbuffer **link, enum dynbu
 		n->align = mem_reqs.alignment-1;
 		memAllocInfo.allocationSize = mem_reqs.size;
 		memAllocInfo.memoryTypeIndex = ~0;
+		if (memAllocInfo.memoryTypeIndex == ~0 && dynbuf_info[type].nomap)
+			memAllocInfo.memoryTypeIndex = vk_find_memory_try(mem_reqs.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
 	//	if (memAllocInfo.memoryTypeIndex == ~0)
 	//		memAllocInfo.memoryTypeIndex = vk_find_memory_try(mem_reqs.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT|VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
 		if (memAllocInfo.memoryTypeIndex == ~0 && n->renderbuf == n->stagingbuf)	//probably won't get anything, but whatever.
@@ -898,22 +991,46 @@ static struct dynbuffer *VKBE_AllocNewBuffer(struct dynbuffer **link, enum dynbu
 			usestaging = true;
 			continue;
 		}
+		memAllocFlagsInfo.flags = 0;
+		if (bufinf.usage & VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT)
+			memAllocFlagsInfo.flags |= VK_MEMORY_ALLOCATE_DEVICE_ADDRESS_BIT;
+		if (memAllocFlagsInfo.flags)
+			memAllocInfo.pNext = &memAllocFlagsInfo;
 		VkAssert(vkAllocateMemory(vk.device, &memAllocInfo, vkallocationcb, &n->stagingmemory));
+		DebugSetName(VK_OBJECT_TYPE_DEVICE_MEMORY, (uint64_t)n->stagingmemory, dynbuf_info[type].name);
 		VkAssert(vkBindBufferMemory(vk.device, n->stagingbuf, n->stagingmemory, 0));
 
-		VkAssert(vkMapMemory(vk.device, n->stagingmemory, 0, n->size, 0, &n->ptr));	//persistent-mapped.
+		if (dynbuf_info[type].nomap)
+		{
+			n->ptr = NULL;	//don't want to map this.
+			n->stagingcoherent = true;
+		}
+		else
+		{
+			VkAssert(vkMapMemory(vk.device, n->stagingmemory, 0, n->size, 0, &n->ptr));	//persistent-mapped.
 
-		n->stagingcoherent = !!(vk.memory_properties.memoryTypes[memAllocInfo.memoryTypeIndex].propertyFlags & VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+			n->stagingcoherent = !!(vk.memory_properties.memoryTypes[memAllocInfo.memoryTypeIndex].propertyFlags & VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+		}
 		n->next = *link;
 		*link = n;
 		return n;
 	}
 }
-static void *fte_restrict VKBE_AllocateBufferSpace(enum dynbuf_e type, size_t datasize, VkBuffer *buf, VkDeviceSize *offset)
+static void *fte_restrict VKBE_AllocateStreamingSpace(enum dynbuf_e type, size_t datasize, VkBuffer *buf, VkDeviceSize *offset)
 {	//FIXME: ubos need alignment
 	struct dynbuffer *b = vk.dynbuf[type];
 	void *ret;
-	if (b->offset + datasize > b->size)
+	if (!b)
+	{
+		if (!vk.frame->dynbufs[type])
+			VKBE_AllocNewStreamingBuffer(&vk.frame->dynbufs[type], type, datasize);
+		b = vk.dynbuf[type] = vk.frame->dynbufs[type];
+		b->offset = b->flushed = 0;
+	}
+
+	if (offset?	//urgh...
+		b->offset + datasize > b->size:		//regular offsetable buffer...
+		(b->offset || datasize > b->size))	//stoopid buffer space that must have the whole buffer to itself for some reason.
 	{
 		//flush the old one, just in case.
 		if (!b->stagingcoherent)
@@ -937,17 +1054,23 @@ static void *fte_restrict VKBE_AllocateBufferSpace(enum dynbuf_e type, size_t da
 		}
 
 		if (!b->next)
-			VKBE_AllocNewBuffer(&b->next, type, datasize);
+			VKBE_AllocNewStreamingBuffer(&b->next, type, datasize);
 		b = vk.dynbuf[type] = b->next;
 		b->offset = 0;
 		b->flushed = 0;
 	}
 
 	*buf = b->renderbuf;
-	*offset = b->offset;
+	if (offset)
+		*offset = b->offset;
 
 	ret = (qbyte*)b->ptr + b->offset;
 	b->offset += datasize;	//FIXME: alignment
+	if (dynbuf_info[type].align)
+	{
+		b->offset += dynbuf_info[type].align;
+		b->offset &= ~(dynbuf_info[type].align-1);
+	}
 	return ret;
 }
 
@@ -957,10 +1080,7 @@ void VKBE_InitFramePools(struct vkframe *frame)
 {
 	uint32_t i;
 	for (i = 0; i < DB_MAX; i++)
-	{
 		frame->dynbufs[i] = NULL;
-		VKBE_AllocNewBuffer(&frame->dynbufs[i], i, 0);
-	}
 	frame->descpools = vk.khr_push_descriptor?NULL:VKBE_CreateDescriptorPool();
 
 
@@ -994,7 +1114,7 @@ void VKBE_FlushDynamicBuffers(void)
 	for (i = 0; i < DB_MAX; i++)
 	{
 		d = vk.dynbuf[i];
-		if (d->flushed == d->offset)
+		if (!d || d->flushed == d->offset)
 			continue;
 
 		if (!d->stagingcoherent)
@@ -1031,16 +1151,337 @@ void VKBE_Set2D(qboolean twodee)
 	shaderstate.curtime = realtime;
 }
 
+#ifdef VK_KHR_acceleration_structure
+static void VKBE_DestroyTLAS(void *ctx)
+{
+	VkAccelerationStructureKHR *tlas = ctx;
+	vkDestroyAccelerationStructureKHR(vk.device, *tlas, vkallocationcb);
+}
+static VkDeviceAddress VKBE_GetBufferDeviceAddress(VkBuffer buf)
+{
+	VkBufferDeviceAddressInfo info = {VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO, NULL, buf};
+	return vkGetBufferDeviceAddress(vk.device, &info);
+}
+
+struct blasgeom_s
+{
+	VkBuffer vertbuf;
+	VkBuffer idxbuf;
+	VkDeviceSize vertoffset;
+	VkDeviceSize idxoffset;
+	size_t numverts;
+	size_t numtris;
+};
+static qboolean VKBE_GenerateAccelerationMesh_BSP(model_t *mod, struct blasgeom_s *geom)
+{
+	unsigned int sno;
+	msurface_t *surf;
+	mesh_t *mesh;
+	unsigned int numverts;
+	unsigned int numindexes,i;
+	unsigned int *ptr_elements;
+	vec3_t *ptr_verts;
+
+	numverts = 0;
+	numindexes = 0;
+	for (sno = 0; sno < mod->nummodelsurfaces; sno++)
+	{
+		surf = &mod->surfaces[sno+mod->firstmodelsurface];
+		if (surf->flags & (SURF_DRAWSKY|SURF_DRAWTURB))
+			continue;
+
+		if (surf->mesh)
+		{
+			mesh = surf->mesh;
+			numverts += mesh->numvertexes;
+			numindexes += mesh->numindexes;
+		}
+		else if (surf->numedges > 2)
+		{
+			numverts += surf->numedges;
+			numindexes += (surf->numedges-2) * 3;
+		}
+	}
+	if (!numindexes)
+		return false;
+
+geom->idxoffset = geom->vertoffset = 0;
+	ptr_elements = VKBE_AllocateStreamingSpace(DB_ACCELERATIONMESHDATA, sizeof(*ptr_elements)*numindexes, &geom->idxbuf, &geom->idxoffset);
+	ptr_verts = VKBE_AllocateStreamingSpace(DB_ACCELERATIONMESHDATA, sizeof(*ptr_verts)*numverts, &geom->vertbuf, &geom->vertoffset);
+
+	numverts = 0;
+	numindexes = 0;
+
+	for (sno = 0; sno < mod->nummodelsurfaces; sno++)
+	{
+		surf = &mod->surfaces[sno+mod->firstmodelsurface];
+		if (surf->flags & (SURF_DRAWSKY|SURF_DRAWTURB))
+			continue;
+
+		if (surf->mesh)
+		{
+			mesh = surf->mesh;
+			for (i = 0; i < mesh->numvertexes; i++)
+				VectorCopy(mesh->xyz_array[i], ptr_verts[numverts+i]);
+			for (i = 0; i < mesh->numindexes; i+=3)
+			{
+				//flip the triangles as we go
+				ptr_elements[numindexes+i+0] = numverts+mesh->indexes[i+2];
+				ptr_elements[numindexes+i+1] = numverts+mesh->indexes[i+1];
+				ptr_elements[numindexes+i+2] = numverts+mesh->indexes[i+0];
+			}
+			numverts += mesh->numvertexes;
+			numindexes += i;
+		}
+		else if (surf->numedges > 2)
+		{
+			float *vec;
+			medge_t *edge;
+			int lindex;
+			for (i = 0; i < surf->numedges; i++)
+			{
+				lindex = mod->surfedges[surf->firstedge + i];
+
+				if (lindex > 0)
+				{
+					edge = &mod->edges[lindex];
+					vec = mod->vertexes[edge->v[0]].position;
+				}
+				else
+				{
+					edge = &mod->edges[-lindex];
+					vec = mod->vertexes[edge->v[1]].position;
+				}
+
+				VectorCopy(vec, ptr_verts[numverts+i]);
+			}
+			for (i = 2; i < surf->numedges; i++)
+			{
+				//quake is backwards, not ode
+				ptr_elements[numindexes++] = numverts+i;
+				ptr_elements[numindexes++] = numverts+i-1;
+				ptr_elements[numindexes++] = numverts;
+			}
+			numverts += surf->numedges;
+		}
+	}
+
+	geom->numverts = numverts;
+	geom->numtris = numindexes/3;
+	return true;
+}
+static VkAccelerationStructureKHR VKBE_GenerateBLAS(model_t *mod)
+{
+	struct blasgeom_s geom = {VK_NULL_HANDLE,VK_NULL_HANDLE,0,0};
+	VkAccelerationStructureCreateInfoKHR asci = {VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_CREATE_INFO_KHR};
+	VkAccelerationStructureBuildGeometryInfoKHR asbgi = {VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_GEOMETRY_INFO_KHR};
+	uint32_t maxPrimitiveCounts[1] = {0};
+	VkAccelerationStructureGeometryKHR asg[1];
+	VkAccelerationStructureBuildRangeInfoKHR asbri[1];
+	VkAccelerationStructureBuildRangeInfoKHR const *const asbrip = {asbri};
+
+	VkAccelerationStructureBuildSizesInfoKHR asbsi = {VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_SIZES_INFO_KHR};
+
+	VkBuffer transformbuf, scratchbuf;
+	VkDeviceSize transformoffset = 0;
+
+	//this is stupid. oh well.
+	VkTransformMatrixKHR *transform;
+	transform = VKBE_AllocateStreamingSpace(DB_ACCELERATIONINSTANCE, sizeof(*transform), &transformbuf, &transformoffset);
+	Vector4Set(transform->matrix[0], 1,0,0,0);
+	Vector4Set(transform->matrix[1], 0,1,0,0);
+	Vector4Set(transform->matrix[2], 0,0,1,0);
+
+	//FIXME: use of VKBE_AllocateStreamingSpace on the geomdata, transform, and blas storage itself mean we can only use this for a single frame, regenerating each time. which is wasteful for a blas that contains the entire worldmodel.
+	VKBE_GenerateAccelerationMesh_BSP(mod, &geom);
+
+	asg[0].sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_KHR;
+	asg[0].pNext = NULL;
+	asg[0].flags = VK_GEOMETRY_OPAQUE_BIT_KHR;
+	asg[0].geometryType = VK_GEOMETRY_TYPE_TRIANGLES_KHR;
+	asg[0].geometry.triangles.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_TRIANGLES_DATA_KHR;
+	asg[0].geometry.triangles.pNext = NULL;
+	asg[0].geometry.triangles.vertexFormat = VK_FORMAT_R32G32B32_SFLOAT;
+	asg[0].geometry.triangles.vertexData.deviceAddress = VKBE_GetBufferDeviceAddress(geom.vertbuf);
+	asg[0].geometry.triangles.vertexStride = sizeof(vec3_t);
+	asg[0].geometry.triangles.maxVertex = geom.numverts;
+	asg[0].geometry.triangles.indexType = VK_INDEX_TYPE_UINT32;
+	asg[0].geometry.triangles.indexData.deviceAddress = VKBE_GetBufferDeviceAddress(geom.idxbuf);
+	asg[0].geometry.triangles.transformData.deviceAddress = VKBE_GetBufferDeviceAddress(transformbuf);
+
+	asbri[0].firstVertex = geom.vertoffset/sizeof(vec3_t);
+	asbri[0].primitiveCount = maxPrimitiveCounts[0] = geom.numtris;
+	asbri[0].primitiveOffset = geom.idxoffset;
+	asbri[0].transformOffset = transformoffset;
+
+	asci.createFlags = 0;
+	asci.type = VK_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL_KHR;
+	asci.deviceAddress = 0;	//no overriding here.
+
+	asbgi.type = asci.type;
+	asbgi.flags = VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_TRACE_BIT_KHR /* | VK_BUILD_ACCELERATION_STRUCTURE_ALLOW_UPDATE_BIT_KHR*/;
+	asbgi.mode = VK_BUILD_ACCELERATION_STRUCTURE_MODE_BUILD_KHR;
+	asbgi.srcAccelerationStructure = VK_NULL_HANDLE; //ignored here
+	asbgi.dstAccelerationStructure = VK_NULL_HANDLE; //filled in later
+	asbgi.geometryCount = countof(asg);
+	asbgi.pGeometries = asg;
+	asbgi.ppGeometries = NULL;	//too much indirection! oh noes!
+
+	VKBE_FlushDynamicBuffers();
+
+	vkGetAccelerationStructureBuildSizesKHR(vk.device, VK_ACCELERATION_STRUCTURE_BUILD_TYPE_DEVICE_KHR, &asbgi, maxPrimitiveCounts, &asbsi);
+	VKBE_AllocateStreamingSpace(DB_ACCELERATIONSTRUCT, asci.size = asbsi.accelerationStructureSize, &asci.buffer, &asci.offset);
+	VKBE_AllocateStreamingSpace(DB_ACCELERATIONSCRATCH, asbsi.buildScratchSize, &scratchbuf, NULL);
+	asbgi.scratchData.deviceAddress = VKBE_GetBufferDeviceAddress(scratchbuf);
+
+	vkCreateAccelerationStructureKHR(vk.device, &asci, vkallocationcb, &asbgi.dstAccelerationStructure);
+	DebugSetName(VK_OBJECT_TYPE_ACCELERATION_STRUCTURE_KHR, (uint64_t)asbgi.dstAccelerationStructure, "ShadowBLAS");
+	vkCmdBuildAccelerationStructuresKHR(vk.rendertarg->cbuf, 1, &asbgi, &asbrip);
+
+	{
+		VkMemoryBarrier membarrier	= {VK_STRUCTURE_TYPE_MEMORY_BARRIER};
+		membarrier.srcAccessMask	= VK_ACCESS_ACCELERATION_STRUCTURE_WRITE_BIT_KHR;
+		membarrier.dstAccessMask	= VK_ACCESS_ACCELERATION_STRUCTURE_READ_BIT_KHR;
+		vkCmdPipelineBarrier(vk.rendertarg->cbuf, VK_PIPELINE_STAGE_ACCELERATION_STRUCTURE_BUILD_BIT_KHR, VK_PIPELINE_STAGE_ACCELERATION_STRUCTURE_BUILD_BIT_KHR, 0, 1, &membarrier, 0, NULL, 0, NULL);
+	}
+	return asbgi.dstAccelerationStructure;
+}
+static VkAccelerationStructureKHR VKBE_GenerateTLAS(void)
+{
+	VkAccelerationStructureKHR blas = VKBE_GenerateBLAS(r_worldentity.model);
+	VkAccelerationStructureDeviceAddressInfoKHR blasinfo = {VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_DEVICE_ADDRESS_INFO_KHR, NULL, blas};
+	VkAccelerationStructureCreateInfoKHR asci = {VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_CREATE_INFO_KHR};
+	VkAccelerationStructureBuildGeometryInfoKHR asbgi = {VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_GEOMETRY_INFO_KHR};
+	uint32_t maxPrimitiveCounts[1] = {0};
+	VkAccelerationStructureGeometryKHR asg[1];
+	VkAccelerationStructureBuildRangeInfoKHR asbri[1];
+	VkAccelerationStructureBuildRangeInfoKHR const *const asbrip = {asbri};
+
+	VkAccelerationStructureBuildSizesInfoKHR asbsi = {VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_SIZES_INFO_KHR};
+
+	VkBuffer instancesbuf, scratchbuf;
+	VkDeviceSize instancesofs = 0;
+	size_t numinstances = 1;
+	VkAccelerationStructureInstanceKHR *instances = VKBE_AllocateStreamingSpace(DB_ACCELERATIONINSTANCE, sizeof(*instances)*numinstances, &instancesbuf, &instancesofs);
+
+#if 0
+	batch_t **worldbatches = r_worldentity.model->batches; //FIXME
+	batch_t *batch;
+	int i, id = 0;
+	for (i = 0; i < SHADER_SORT_COUNT; i++)
+	{
+		if (worldbatches)
+		{
+			for (batch = worldbatches[i]; batch; batch = batch->next)
+			{
+				if (batch->meshes == batch->firstmesh)
+					continue;	//nothing to do...
+
+				if (batch->buildmeshes)
+					batch->buildmeshes(batch);
+
+				{
+					shader_t *shader = batch->shader;
+					unsigned int bf;
+					unsigned int nummeshes = batch->meshes - batch->firstmesh;
+					if (!nummeshes)
+						continue;
+
+					//ubo[id].stuff = ...;
+
+					VectorCopy(batch->ent->axis[0], instances->transform.matrix[0]);	instances->transform.matrix[0][3] = batch->ent->origin[0];
+					VectorCopy(batch->ent->axis[1], instances->transform.matrix[1]);	instances->transform.matrix[1][3] = batch->ent->origin[1];
+					VectorCopy(batch->ent->axis[2], instances->transform.matrix[2]);	instances->transform.matrix[2][3] = batch->ent->origin[2];
+					instances->instanceCustomIndex = id++;	//extra info
+					if (batch->shader->flags & SHADER_SKY)
+						instances->mask = 0x2;
+					else if (batch->shader->sort > SHADER_SORT_OPAQUE)
+						instances->mask = 0x4;
+					else
+						instances->mask = 0x1;
+					instances->instanceShaderBindingTableRecordOffset = shader->id;	//material id
+					if (shader->flags & SHADER_CULL_FRONT)
+						instances->flags = VK_GEOMETRY_INSTANCE_TRIANGLE_FRONT_COUNTERCLOCKWISE_BIT_KHR;
+					else if (shader->flags & SHADER_CULL_BACK)
+						instances->flags = 0;
+					else
+						instances->flags = VK_GEOMETRY_INSTANCE_TRIANGLE_FACING_CULL_DISABLE_BIT_KHR;
+					instances->accelerationStructureReference = batch->blas;	//no half measures
+				}
+			}
+		}
+		//and non-world too... may require temporary blas for lerping/skeletal models.
+	}
+#else
+	Vector4Set(instances->transform.matrix[0], 1,0,0,0);
+	Vector4Set(instances->transform.matrix[1], 0,1,0,0);
+	Vector4Set(instances->transform.matrix[2], 0,0,1,0);
+	instances->instanceCustomIndex = 0; //index into our ssbo... if we had one...
+	instances->mask = 0x01;
+	instances->instanceShaderBindingTableRecordOffset = 0;	//FIXME: alphamasked stuff needs a texture somehow
+	instances->flags = VK_GEOMETRY_INSTANCE_TRIANGLE_FACING_CULL_DISABLE_BIT_KHR; //FIXME: optimise
+	instances->accelerationStructureReference = vkGetAccelerationStructureDeviceAddressKHR(vk.device, &blasinfo);
+#endif
+	asg[0].sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_KHR;
+	asg[0].pNext = NULL;
+	asg[0].flags = VK_GEOMETRY_OPAQUE_BIT_KHR;
+	asg[0].geometryType = VK_GEOMETRY_TYPE_INSTANCES_KHR;
+	asg[0].geometry.instances.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_INSTANCES_DATA_KHR;
+	asg[0].geometry.instances.pNext = NULL;
+	asg[0].geometry.instances.arrayOfPointers = false;
+	asg[0].geometry.instances.data.deviceAddress = VKBE_GetBufferDeviceAddress(instancesbuf);
+
+	asbri[0].firstVertex = 0;
+	asbri[0].primitiveCount = maxPrimitiveCounts[0] = numinstances;
+	asbri[0].primitiveOffset = instancesofs;
+	asbri[0].transformOffset = 0;
+
+	asci.createFlags = 0;
+	asci.type = VK_ACCELERATION_STRUCTURE_TYPE_TOP_LEVEL_KHR;
+	asci.deviceAddress = 0;	//no overriding here.
+
+	asbgi.type = asci.type;
+	asbgi.flags = VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_TRACE_BIT_KHR /* | VK_BUILD_ACCELERATION_STRUCTURE_ALLOW_UPDATE_BIT_KHR*/;
+	asbgi.mode = VK_BUILD_ACCELERATION_STRUCTURE_MODE_BUILD_KHR;
+	asbgi.srcAccelerationStructure = VK_NULL_HANDLE; //ignored here
+	asbgi.dstAccelerationStructure = VK_NULL_HANDLE; //filled in later
+	asbgi.geometryCount = countof(asg);
+	asbgi.pGeometries = asg;
+	asbgi.ppGeometries = NULL;	//too much indirection! oh noes!
+
+	VKBE_FlushDynamicBuffers();
+	vkGetAccelerationStructureBuildSizesKHR(vk.device, VK_ACCELERATION_STRUCTURE_BUILD_TYPE_DEVICE_KHR, &asbgi, maxPrimitiveCounts, &asbsi);
+	VKBE_AllocateStreamingSpace(DB_ACCELERATIONSTRUCT, asci.size = asbsi.accelerationStructureSize, &asci.buffer, &asci.offset);
+	VKBE_AllocateStreamingSpace(DB_ACCELERATIONSCRATCH, asbsi.buildScratchSize, &scratchbuf, NULL);
+	asbgi.scratchData.deviceAddress = VKBE_GetBufferDeviceAddress(scratchbuf);
+
+	vkCreateAccelerationStructureKHR(vk.device, &asci, vkallocationcb, &asbgi.dstAccelerationStructure);
+	DebugSetName(VK_OBJECT_TYPE_ACCELERATION_STRUCTURE_KHR, (uint64_t)asbgi.dstAccelerationStructure, "ShadowTLAS");
+	vkCmdBuildAccelerationStructuresKHR(vk.rendertarg->cbuf, 1, &asbgi, &asbrip);
+	VK_AtFrameEnd(VKBE_DestroyTLAS, &asbgi.dstAccelerationStructure, sizeof(asbgi.dstAccelerationStructure));	//clean up the tlas, each frame gets a new one.
+	VK_AtFrameEnd(VKBE_DestroyTLAS, &blas, sizeof(blas));	//clean up the tlas, each frame gets a new one.
+
+	{
+		VkMemoryBarrier membarrier	= {VK_STRUCTURE_TYPE_MEMORY_BARRIER};
+		membarrier.srcAccessMask	= VK_ACCESS_ACCELERATION_STRUCTURE_WRITE_BIT_KHR;
+		membarrier.dstAccessMask	= VK_ACCESS_ACCELERATION_STRUCTURE_READ_BIT_KHR;
+		vkCmdPipelineBarrier(vk.rendertarg->cbuf, VK_PIPELINE_STAGE_ACCELERATION_STRUCTURE_BUILD_BIT_KHR, VK_PIPELINE_STAGE_ACCELERATION_STRUCTURE_BUILD_BIT_KHR, 0, 1, &membarrier, 0, NULL, 0, NULL);
+	}
+	//FIXME: use a compute cbuf, add a fence to block the rtlight queries until this BVH is done.
+	//vkResetEvent
+	//vkCmdSetEvent
+	//vkCmdPipelineBarrier
+	return asbgi.dstAccelerationStructure;
+}
+#endif
+
 //called at the start of each frame
 //resets the working dynamic buffers to this frame's storage, to avoid stepping on frames owned by the gpu
 void VKBE_RestartFrame(void)
 {
 	uint32_t i;
 	for (i = 0; i < DB_MAX; i++)
-	{
-		vk.dynbuf[i] = vk.frame->dynbufs[i];
-		vk.dynbuf[i]->offset = vk.dynbuf[i]->flushed = 0;
-	}
+		vk.dynbuf[i] = NULL;
 
 	shaderstate.rc.activepipeline = VK_NULL_HANDLE;
 	vk.descpool = vk.frame->descpools;
@@ -1049,6 +1490,14 @@ void VKBE_RestartFrame(void)
 		vkResetDescriptorPool(vk.device, vk.descpool->pool, 0);
 		vk.descpool->availsets = vk.descpool->totalsets;
 	}
+
+#ifdef VK_KHR_acceleration_structure
+	if (vk.khr_ray_query && r_worldentity.model && shaderstate.needtlas)
+		shaderstate.tlas = VKBE_GenerateTLAS();
+	else
+		shaderstate.tlas = VK_NULL_HANDLE;
+	shaderstate.needtlas = false;
+#endif
 }
 
 void VKBE_ShutdownFramePools(struct vkframe *frame)
@@ -1139,10 +1588,14 @@ static texid_t SelectPassTexture(const shaderpass_t *pass)
 			return r_blackcubeimage;	//FIXME
 	case T_GEN_REFLECTMASK:
 		return shaderstate.curtexnums->reflectmask;
-	case T_GEN_OCCLUSION:
-		return shaderstate.curtexnums->occlusion;
 	case T_GEN_DISPLACEMENT:
 		return shaderstate.curtexnums->displacement;
+	case T_GEN_OCCLUSION:
+		return shaderstate.curtexnums->occlusion;
+	case T_GEN_TRANSMISSION:
+		return shaderstate.curtexnums->transmission;
+	case T_GEN_THICKNESS:
+		return shaderstate.curtexnums->thickness;
 
 	case T_GEN_ANIMMAP:
 		return pass->anim_frames[(int)(pass->anim_fps * shaderstate.curtime) % pass->anim_numframes];
@@ -1671,7 +2124,7 @@ static void BE_GenerateColourMods(unsigned int vertcount, const shaderpass_t *pa
 			//we can at least ensure that the data is written in one go to aid cpu cache.
 			vec4_t *fte_restrict map;
 			unsigned int mno;
-			map = VKBE_AllocateBufferSpace(DB_VBO, vertcount * sizeof(vec4_t), buffer, offset);
+			map = VKBE_AllocateStreamingSpace(DB_VBO, vertcount * sizeof(vec4_t), buffer, offset);
 			if (m->colors4f_array[0])
 			{
 				for (mno = 0; mno < shaderstate.nummeshes; mno++)
@@ -1703,7 +2156,7 @@ static void BE_GenerateColourMods(unsigned int vertcount, const shaderpass_t *pa
 	{
 		vec4_t *fte_restrict map;
 		unsigned int mno;
-		map = VKBE_AllocateBufferSpace(DB_VBO, vertcount * sizeof(vec4_t), buffer, offset);
+		map = VKBE_AllocateStreamingSpace(DB_VBO, vertcount * sizeof(vec4_t), buffer, offset);
 		for (mno = 0; mno < shaderstate.nummeshes; mno++)
 		{
 			m = shaderstate.meshlist[mno];
@@ -2517,9 +2970,9 @@ static void BE_CreatePipeline(program_t *p, unsigned int shaderflags, unsigned i
 #ifdef VK_KHR_fragment_shading_rate
 	if (vk.khr_fragment_shading_rate)
 	{
-		//three ways to specify rates... we need to set which one wins here.
-		shadingrate.combinerOps[0] = VK_FRAGMENT_SHADING_RATE_COMBINER_OP_MAX_KHR;//pipeline vs primitive
-		shadingrate.combinerOps[1] = VK_FRAGMENT_SHADING_RATE_COMBINER_OP_MAX_KHR;//previous vs attachment
+		//three ways to specify rates... we need to set which one wins here. we only do pipeline rates.
+		shadingrate.combinerOps[0] = VK_FRAGMENT_SHADING_RATE_COMBINER_OP_KEEP_KHR;//pipeline vs primitive
+		shadingrate.combinerOps[1] = VK_FRAGMENT_SHADING_RATE_COMBINER_OP_KEEP_KHR;//previous vs attachment
 		if (blendflags & SBITS_MISC_FULLRATE)
 		{
 			shadingrate.fragmentSize.width = 1;
@@ -2619,6 +3072,24 @@ static void BE_SetupUBODescriptor(VkDescriptorSet set, VkWriteDescriptorSet *fir
 	desc->pBufferInfo = info;
 	desc->pTexelBufferView = NULL;
 }
+#ifdef VK_KHR_acceleration_structure
+static void BE_SetupAccelerationDescriptor(VkDescriptorSet set, VkWriteDescriptorSet *firstdesc, VkWriteDescriptorSet *desc, VkWriteDescriptorSetAccelerationStructureKHR *descas)
+{
+	desc->sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+	descas->sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET_ACCELERATION_STRUCTURE_KHR;
+	desc->pNext = descas;
+	descas->pNext = NULL;
+	desc->dstSet = set;
+	desc->dstBinding = desc-firstdesc;
+	desc->dstArrayElement = 0;
+	desc->descriptorCount = descas->accelerationStructureCount = 1;
+	desc->descriptorType = VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR;
+	desc->pImageInfo = NULL;
+	desc->pBufferInfo = NULL;
+	desc->pTexelBufferView = NULL;
+	descas->pAccelerationStructures = &shaderstate.tlas;
+}
+#endif
 
 static qboolean BE_SetupMeshProgram(program_t *p, shaderpass_t *pass, unsigned int shaderbits, unsigned int idxcount)
 {
@@ -2649,6 +3120,9 @@ static qboolean BE_SetupMeshProgram(program_t *p, shaderpass_t *pass, unsigned i
 	{
 		VkDescriptorSet set = shaderstate.rc.descriptorsets[0] = vk.khr_push_descriptor?VK_NULL_HANDLE:VKBE_TempDescriptorSet(p->desclayout);
 		VkWriteDescriptorSet descs[MAX_TMUS], *desc = descs;
+#ifdef VK_KHR_acceleration_structure
+		VkWriteDescriptorSetAccelerationStructureKHR descas;
+#endif
 		VkDescriptorImageInfo imgs[MAX_TMUS], *img = imgs;
 		unsigned int i;
 		texid_t t;
@@ -2657,6 +3131,15 @@ static qboolean BE_SetupMeshProgram(program_t *p, shaderpass_t *pass, unsigned i
 		//light / scene
 		BE_SetupUBODescriptor(set, descs, desc++, &shaderstate.ubo_entity);
 		BE_SetupUBODescriptor(set, descs, desc++, &shaderstate.ubo_light);
+#ifdef VK_KHR_acceleration_structure
+		if (p->rayquery)	//an alternative to shadowmaps...
+		{
+			shaderstate.needtlas = true;
+			if (!shaderstate.tlas)
+				return false;	//nope... maybe next frame
+			BE_SetupAccelerationDescriptor(set, descs, desc++, &descas);
+		}
+#endif
 		if (p->defaulttextures & (1u<<S_SHADOWMAP))
 			BE_SetupTextureDescriptor(shaderstate.currentshadowmap, r_whiteimage, set, descs, desc++, img++);
 		if (p->defaulttextures & (1u<<S_PROJECTIONMAP))
@@ -2693,6 +3176,10 @@ static qboolean BE_SetupMeshProgram(program_t *p, shaderpass_t *pass, unsigned i
 			BE_SetupTextureDescriptor(shaderstate.curtexnums->displacement, r_whiteimage, set, descs, desc++, img++);
 		if (p->defaulttextures & (1u<<S_OCCLUSION))
 			BE_SetupTextureDescriptor(shaderstate.curtexnums->occlusion, r_whiteimage, set, descs, desc++, img++);
+		if (p->defaulttextures & (1u<<S_TRANSMISSION))
+			BE_SetupTextureDescriptor(shaderstate.curtexnums->transmission, r_whiteimage, set, descs, desc++, img++);
+		if (p->defaulttextures & (1u<<S_THICKNESS))
+			BE_SetupTextureDescriptor(shaderstate.curtexnums->thickness, r_whiteimage, set, descs, desc++, img++);
 
 		//batch
 		if (p->defaulttextures & (1u<<S_LIGHTMAP0))
@@ -2867,7 +3354,7 @@ static void BE_DrawMeshChain_Internal(void)
 				m = shaderstate.meshlist[mno];
 				idxcount += m->numindexes;
 			}
-			map = VKBE_AllocateBufferSpace(DB_EBO, idxcount * sizeof(*map), &buf, &offset);
+			map = VKBE_AllocateStreamingSpace(DB_EBO, idxcount * sizeof(*map), &buf, &offset);
 			for (mno = 0; mno < shaderstate.nummeshes; mno++)
 			{
 				m = shaderstate.meshlist[mno];
@@ -2892,7 +3379,7 @@ static void BE_DrawMeshChain_Internal(void)
 			idxcount += m->numindexes;
 		}
 
-		map = VKBE_AllocateBufferSpace(DB_EBO, idxcount * sizeof(*map), &buf, &offset);
+		map = VKBE_AllocateStreamingSpace(DB_EBO, idxcount * sizeof(*map), &buf, &offset);
 		for (mno = 0, vertcount = 0; mno < shaderstate.nummeshes; mno++)
 		{
 			m = shaderstate.meshlist[mno];
@@ -2923,7 +3410,7 @@ static void BE_DrawMeshChain_Internal(void)
 		unsigned int mno;
 		unsigned int i;
 
-		map = VKBE_AllocateBufferSpace(DB_VBO, vertcount * sizeof(vecV_t), &vertexbuffers[VK_BUFF_POS], &vertexoffsets[VK_BUFF_POS]);
+		map = VKBE_AllocateStreamingSpace(DB_VBO, vertcount * sizeof(vecV_t), &vertexbuffers[VK_BUFF_POS], &vertexoffsets[VK_BUFF_POS]);
 		
 		if (vblends)
 		{
@@ -3010,7 +3497,7 @@ static void BE_DrawMeshChain_Internal(void)
 
 			if (shaderstate.meshlist[0]->normals_array[0])
 			{
-				vec4_t *fte_restrict map = VKBE_AllocateBufferSpace(DB_VBO, vertcount * sizeof(vec3_t), &vertexbuffers[VK_BUFF_NORM], &vertexoffsets[VK_BUFF_NORM]);
+				vec4_t *fte_restrict map = VKBE_AllocateStreamingSpace(DB_VBO, vertcount * sizeof(vec3_t), &vertexbuffers[VK_BUFF_NORM], &vertexoffsets[VK_BUFF_NORM]);
 				for (mno = 0; mno < shaderstate.nummeshes; mno++)
 				{
 					m = shaderstate.meshlist[mno];
@@ -3026,7 +3513,7 @@ static void BE_DrawMeshChain_Internal(void)
 
 			if (shaderstate.meshlist[0]->snormals_array[0])
 			{
-				vec4_t *fte_restrict map = VKBE_AllocateBufferSpace(DB_VBO, vertcount * sizeof(vec3_t), &vertexbuffers[VK_BUFF_SDIR], &vertexoffsets[VK_BUFF_SDIR]);
+				vec4_t *fte_restrict map = VKBE_AllocateStreamingSpace(DB_VBO, vertcount * sizeof(vec3_t), &vertexbuffers[VK_BUFF_SDIR], &vertexoffsets[VK_BUFF_SDIR]);
 				for (mno = 0; mno < shaderstate.nummeshes; mno++)
 				{
 					m = shaderstate.meshlist[mno];
@@ -3042,7 +3529,7 @@ static void BE_DrawMeshChain_Internal(void)
 
 			if (shaderstate.meshlist[0]->tnormals_array[0])
 			{
-				vec4_t *fte_restrict map = VKBE_AllocateBufferSpace(DB_VBO, vertcount * sizeof(vec3_t), &vertexbuffers[VK_BUFF_TDIR], &vertexoffsets[VK_BUFF_TDIR]);
+				vec4_t *fte_restrict map = VKBE_AllocateStreamingSpace(DB_VBO, vertcount * sizeof(vec3_t), &vertexbuffers[VK_BUFF_TDIR], &vertexoffsets[VK_BUFF_TDIR]);
 				for (mno = 0; mno < shaderstate.nummeshes; mno++)
 				{
 					m = shaderstate.meshlist[mno];
@@ -3058,7 +3545,7 @@ static void BE_DrawMeshChain_Internal(void)
 
 			if (shaderstate.meshlist[0]->colors4f_array[0])
 			{
-				vec4_t *fte_restrict map = VKBE_AllocateBufferSpace(DB_VBO, vertcount * sizeof(vec4_t), &vertexbuffers[VK_BUFF_COL], &vertexoffsets[VK_BUFF_COL]);
+				vec4_t *fte_restrict map = VKBE_AllocateStreamingSpace(DB_VBO, vertcount * sizeof(vec4_t), &vertexbuffers[VK_BUFF_COL], &vertexoffsets[VK_BUFF_COL]);
 				for (mno = 0; mno < shaderstate.nummeshes; mno++)
 				{
 					m = shaderstate.meshlist[mno];
@@ -3068,7 +3555,7 @@ static void BE_DrawMeshChain_Internal(void)
 			}
 			else if (shaderstate.meshlist[0]->colors4b_array)
 			{
-				vec4_t *fte_restrict map = VKBE_AllocateBufferSpace(DB_VBO, vertcount * sizeof(vec4_t), &vertexbuffers[VK_BUFF_COL], &vertexoffsets[VK_BUFF_COL]);
+				vec4_t *fte_restrict map = VKBE_AllocateStreamingSpace(DB_VBO, vertcount * sizeof(vec4_t), &vertexbuffers[VK_BUFF_COL], &vertexoffsets[VK_BUFF_COL]);
 				for (mno = 0; mno < shaderstate.nummeshes; mno++)
 				{
 					m = shaderstate.meshlist[mno];
@@ -3081,7 +3568,7 @@ static void BE_DrawMeshChain_Internal(void)
 			}
 			else
 			{	//FIXME: use some predefined buffer
-				vec4_t *fte_restrict map = VKBE_AllocateBufferSpace(DB_VBO, vertcount * sizeof(vec4_t), &vertexbuffers[VK_BUFF_COL], &vertexoffsets[VK_BUFF_COL]);
+				vec4_t *fte_restrict map = VKBE_AllocateStreamingSpace(DB_VBO, vertcount * sizeof(vec4_t), &vertexbuffers[VK_BUFF_COL], &vertexoffsets[VK_BUFF_COL]);
 				for (i = 0; i < vertcount; i++)
 				{
 					Vector4Set(map[i], 1, 1, 1, 1);
@@ -3090,8 +3577,8 @@ static void BE_DrawMeshChain_Internal(void)
 
 			if (shaderstate.meshlist[0]->lmst_array[0])
 			{
-				vec2_t *fte_restrict map = VKBE_AllocateBufferSpace(DB_VBO, vertcount * sizeof(vec2_t), &vertexbuffers[VK_BUFF_TC], &vertexoffsets[VK_BUFF_TC]);
-				vec2_t *fte_restrict lmmap = VKBE_AllocateBufferSpace(DB_VBO, vertcount * sizeof(vec2_t), &vertexbuffers[VK_BUFF_LMTC], &vertexoffsets[VK_BUFF_LMTC]);
+				vec2_t *fte_restrict map = VKBE_AllocateStreamingSpace(DB_VBO, vertcount * sizeof(vec2_t), &vertexbuffers[VK_BUFF_TC], &vertexoffsets[VK_BUFF_TC]);
+				vec2_t *fte_restrict lmmap = VKBE_AllocateStreamingSpace(DB_VBO, vertcount * sizeof(vec2_t), &vertexbuffers[VK_BUFF_LMTC], &vertexoffsets[VK_BUFF_LMTC]);
 				for (mno = 0; mno < shaderstate.nummeshes; mno++)
 				{
 					m = shaderstate.meshlist[mno];
@@ -3103,7 +3590,7 @@ static void BE_DrawMeshChain_Internal(void)
 			}
 			else
 			{
-				vec2_t *fte_restrict map = VKBE_AllocateBufferSpace(DB_VBO, vertcount * sizeof(vec2_t), &vertexbuffers[VK_BUFF_TC], &vertexoffsets[VK_BUFF_TC]);
+				vec2_t *fte_restrict map = VKBE_AllocateStreamingSpace(DB_VBO, vertcount * sizeof(vec2_t), &vertexbuffers[VK_BUFF_TC], &vertexoffsets[VK_BUFF_TC]);
 				for (mno = 0; mno < shaderstate.nummeshes; mno++)
 				{
 					m = shaderstate.meshlist[mno];
@@ -3152,7 +3639,7 @@ static void BE_DrawMeshChain_Internal(void)
 				else
 				{
 					float *map;
-					map = VKBE_AllocateBufferSpace(DB_VBO, vertcount * sizeof(vec2_t), &vertexbuffers[VK_BUFF_TC], &vertexoffsets[VK_BUFF_TC]);
+					map = VKBE_AllocateStreamingSpace(DB_VBO, vertcount * sizeof(vec2_t), &vertexbuffers[VK_BUFF_TC], &vertexoffsets[VK_BUFF_TC]);
 					BE_GenerateTCMods(p, map);
 
 					vertexbuffers[VK_BUFF_LMTC] = vertexbuffers[VK_BUFF_TC];
@@ -3192,7 +3679,7 @@ static void BE_DrawMeshChain_Internal(void)
 			else
 			{
 				float *map;
-				map = VKBE_AllocateBufferSpace(DB_VBO, vertcount * sizeof(vec2_t), &vertexbuffers[VK_BUFF_TC], &vertexoffsets[VK_BUFF_TC]);
+				map = VKBE_AllocateStreamingSpace(DB_VBO, vertcount * sizeof(vec2_t), &vertexbuffers[VK_BUFF_TC], &vertexoffsets[VK_BUFF_TC]);
 				BE_GenerateTCMods(p, map);
 			}
 
@@ -3271,7 +3758,15 @@ qboolean VKBE_GenerateRTLightShader(unsigned int lmode)
 {
 	if (!shaderstate.shader_rtlight[lmode])
 	{
-		shaderstate.shader_rtlight[lmode] = R_RegisterShader(va("rtlight%s%s%s", 
+#ifdef VK_KHR_acceleration_structure
+		if (lmode & LSHADER_RAYQUERY)
+			shaderstate.shader_rtlight[lmode] = R_RegisterShader(va("rq_rtlight%s%s",
+															(lmode & LSHADER_SPOT)?"#SPOT=1":"#SPOT=0",
+															(lmode & LSHADER_CUBE)?"#CUBE=1":"#CUBE=0")
+														, SUF_NONE, LIGHTPASS_SHADER_RQ);
+		else
+#endif
+			shaderstate.shader_rtlight[lmode] = R_RegisterShader(va("rtlight%s%s%s",
 															(lmode & LSHADER_SMAP)?"#PCF=1":"#PCF=0",
 															(lmode & LSHADER_SPOT)?"#SPOT=1":"#SPOT=0",
 															(lmode & LSHADER_CUBE)?"#CUBE=1":"#CUBE=0")
@@ -3335,6 +3830,7 @@ void *VKBE_CreateStagingBuffer(struct stagingbuf *n, size_t size, VkBufferUsageF
 		Sys_Error("Unable to allocate buffer memory");
 
 	VkAssert(vkAllocateMemory(vk.device, &memAllocInfo, vkallocationcb, &n->mem.memory));
+	DebugSetName(VK_OBJECT_TYPE_DEVICE_MEMORY, (uint64_t)n->mem.memory, "VKBE_CreateStagingBuffer");
 	VkAssert(vkBindBufferMemory(vk.device, n->buf, n->mem.memory, n->mem.offset));
 	VkAssert(vkMapMemory(vk.device, n->mem.memory, 0, n->size, 0, &ptr));
 
@@ -3405,6 +3901,7 @@ VkBuffer VKBE_FinishStaging(struct stagingbuf *n, vk_poolmem_t *mem)
 			mem->memory = VK_NULL_HANDLE;
 
 			VkAssert(vkAllocateMemory(vk.device, &memAllocInfo, vkallocationcb, &mem->memory));
+			DebugSetName(VK_OBJECT_TYPE_DEVICE_MEMORY, (uint64_t)mem->memory, "VKBE_FinishStaging");
 		}
 		VkAssert(vkBindBufferMemory(vk.device, retbuf, mem->memory, mem->offset));
 	}
@@ -3633,7 +4130,7 @@ void VK_UploadLightmap(lightmapinfo_t *lm)
 		size_t x = lm->rectchange.l, w = lm->rectchange.r - lm->rectchange.l;
 		size_t y = lm->rectchange.t, h = lm->rectchange.b - lm->rectchange.t, i;
 
-		data = VKBE_AllocateBufferSpace(DB_STAGING, w * h * 4, &buf, &bic.bufferOffset);
+		data = VKBE_AllocateStreamingSpace(DB_STAGING, w * h * 4, &buf, &bic.bufferOffset);
 		bic.bufferRowLength = w;
 		bic.bufferImageHeight = h;
 		bic.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
@@ -3773,7 +4270,7 @@ static void VKBE_SetupLightCBuffer(dlight_t *dl, vec3_t colour, vec3_t axis[3])
 #ifdef RTLIGHTS
 	extern cvar_t gl_specular;
 #endif
-	vkcbuf_light_t *cbl = VKBE_AllocateBufferSpace(DB_UBO, (sizeof(*cbl) + 0x0ff) & ~0xff, &shaderstate.ubo_light.buffer, &shaderstate.ubo_light.offset);
+	vkcbuf_light_t *cbl = VKBE_AllocateStreamingSpace(DB_UBO, (sizeof(*cbl) + 0x0ff) & ~0xff, &shaderstate.ubo_light.buffer, &shaderstate.ubo_light.offset);
 	shaderstate.ubo_light.range = sizeof(*cbl);
 
 	if (!dl)
@@ -3840,7 +4337,7 @@ static void BE_RotateForEntity (const entity_t *fte_restrict e, const model_t *f
 	float modelmatrix[16];
 	float *m = modelmatrix;
 	float *proj;
-	vkcbuf_entity_t *fte_restrict cbe = VKBE_AllocateBufferSpace(DB_UBO, (sizeof(*cbe) + 0x0ff) & ~0xff, &shaderstate.ubo_entity.buffer, &shaderstate.ubo_entity.offset);
+	vkcbuf_entity_t *fte_restrict cbe = VKBE_AllocateStreamingSpace(DB_UBO, (sizeof(*cbe) + 0x0ff) & ~0xff, &shaderstate.ubo_entity.buffer, &shaderstate.ubo_entity.offset);
 	shaderstate.ubo_entity.range = sizeof(*cbe);
 
 	shaderstate.curentity = e;
@@ -5429,11 +5926,11 @@ struct vk_shadowbuffer *VKBE_GenerateShadowBuffer(vecV_t *verts, int numverts, i
 		struct vk_shadowbuffer *buf = &tempbuf;
 		void *fte_restrict map;
 
-		map = VKBE_AllocateBufferSpace(DB_VBO, sizeof(*verts)*numverts, &buf->vbuffer, &buf->voffset);
+		map = VKBE_AllocateStreamingSpace(DB_VBO, sizeof(*verts)*numverts, &buf->vbuffer, &buf->voffset);
 		memcpy(map, verts, sizeof(*verts)*numverts);
 		buf->numverts = numverts;
 
-		map = VKBE_AllocateBufferSpace(DB_EBO, sizeof(*indicies)*numindicies, &buf->ibuffer, &buf->ioffset);
+		map = VKBE_AllocateStreamingSpace(DB_EBO, sizeof(*indicies)*numindicies, &buf->ibuffer, &buf->ioffset);
 		memcpy(map, indicies, sizeof(*indicies)*numindicies);
 		buf->numindicies = numindicies;
 		return buf;
@@ -5572,6 +6069,7 @@ qboolean VKBE_BeginShadowmap(qboolean isspot, uint32_t width, uint32_t height)
 			if (memAllocInfo.memoryTypeIndex == ~0)
 				memAllocInfo.memoryTypeIndex = vk_find_memory_require(mem_reqs.memoryTypeBits, 0);
 			VkAssert(vkAllocateMemory(vk.device, &memAllocInfo, vkallocationcb, &shad->memory));
+			DebugSetName(VK_OBJECT_TYPE_DEVICE_MEMORY, (uint64_t)shad->memory, "VKBE_BeginShadowmap");
 			VkAssert(vkBindImageMemory(vk.device, shad->image, shad->memory, 0));
 		}
 
@@ -5632,23 +6130,11 @@ qboolean VKBE_BeginShadowmap(qboolean isspot, uint32_t width, uint32_t height)
 
 	sbuf = shad->seq++%countof(shad->buf);
 	shaderstate.currentshadowmap = &shad->buf[sbuf].qimage;
-/*
-	{
-		VkImageMemoryBarrier imgbarrier = {VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER};
-		imgbarrier.srcAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
-		imgbarrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
-		imgbarrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;	//we don't actually care because we'll be clearing it anyway, making this more of a no-op than anything else.
-		imgbarrier.newLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
-		imgbarrier.image = shad->buf[sbuf].vimage.image;
-		imgbarrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
-		imgbarrier.subresourceRange.baseMipLevel = 0;
-		imgbarrier.subresourceRange.levelCount = 1;
-		imgbarrier.subresourceRange.baseArrayLayer = sbuf;
-		imgbarrier.subresourceRange.layerCount = 1;
-		imgbarrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-		imgbarrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-		vkCmdPipelineBarrier(vk.rendertarg->cbuf, VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT|VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 0, 0, NULL, 0, NULL, 1, &imgbarrier);
-	}
+
+/*	set_image_layout(vk.rendertarg->cbuf, shaderstate.currentshadowmap->vkimage->image, VK_IMAGE_ASPECT_DEPTH_BIT,
+		shaderstate.currentshadowmap->vkimage->layout,		VK_ACCESS_SHADER_READ_BIT,						VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+		VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,	VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT,	VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT|VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT);
+	shaderstate.currentshadowmap->vkimage->layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
 */
 	{
 		VkClearValue clearval;
@@ -5665,7 +6151,7 @@ qboolean VKBE_BeginShadowmap(qboolean isspot, uint32_t width, uint32_t height)
 		rpass.pClearValues = &clearval;
 		vkCmdBeginRenderPass(vk.rendertarg->cbuf, &rpass, VK_SUBPASS_CONTENTS_INLINE);
 	}
-	shaderstate.currentshadowmap->vkimage->layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+	shaderstate.currentshadowmap->vkimage->layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;	//renderpass should transition it for us.
 
 	//viewport+scissor will be done elsewhere
 	//that wasn't too painful, was it?...
@@ -5693,26 +6179,10 @@ void VKBE_DoneShadows(void)
 	}
 	else*/
 	{
-		/*
-		set_image_layout(vk.frame->cbuf, shad->image, VK_IMAGE_ASPECT_DEPTH_BIT, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL, VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT, VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL, VK_ACCESS_SHADER_READ_BIT);
-
-		{
-			VkImageMemoryBarrier imgbarrier = {VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER};
-			imgbarrier.srcAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
-			imgbarrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
-			imgbarrier.oldLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
-			imgbarrier.newLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL;
-			imgbarrier.image = image;
-			imgbarrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
-			imgbarrier.subresourceRange.baseMipLevel = 0;
-			imgbarrier.subresourceRange.levelCount = 1;
-			imgbarrier.subresourceRange.baseArrayLayer = 0;
-			imgbarrier.subresourceRange.layerCount = 1;
-			imgbarrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-			imgbarrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-			vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, 0, 0, NULL, 0, NULL, 1, &imgbarrier);
-		}
-		*/
+		set_image_layout(vk.rendertarg->cbuf, shaderstate.currentshadowmap->vkimage->image, VK_IMAGE_ASPECT_DEPTH_BIT,
+			shaderstate.currentshadowmap->vkimage->layout, VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT, VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT|VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT,
+			VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_ACCESS_SHADER_READ_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT);
+		shaderstate.currentshadowmap->vkimage->layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 
 		vkCmdBeginRenderPass(vk.rendertarg->cbuf, &vk.rendertarg->restartinfo, VK_SUBPASS_CONTENTS_INLINE);
 
@@ -5724,7 +6194,6 @@ void VKBE_DoneShadows(void)
 		viewport.maxDepth = 1;
 		vkCmdSetViewport(vk.rendertarg->cbuf, 0, 1, &viewport);
 	}
-	shaderstate.currentshadowmap->vkimage->layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 
 	VKBE_SelectEntity(&r_worldentity);
 }

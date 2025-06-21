@@ -5,6 +5,7 @@
 !!cvarf r_glsl_offsetmapping_scale=0.04
 !!cvarf gl_specular=0.3
 !!cvarb r_fog_exp2=true
+!!cvarb r_fog_linear=false
 !!samps diffuse normalmap specular fullbright lightmap
 !!samps deluxemap reflectmask reflectcube
 !!argb vertexlit=0

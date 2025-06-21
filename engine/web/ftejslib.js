@@ -72,6 +72,12 @@ mergeInto(LibraryManager.library,
 		clipboard:"",
 		linebuffer:'',
 		localstorefailure:false,
+		dovsync:false,
+		wakelock:null,
+		xrsupport:-1,
+		xrsession:null,
+		xrframe:null,
+		referenceSpace:null,
 		w: -1,
 		h: -1,
 		donecb:0,
@@ -84,6 +90,7 @@ mergeInto(LibraryManager.library,
 			cbufaddtext:0,
 			jbutton:0,
 			jaxis:0,
+			jorientation:0,
 			wantfullscreen:0,
 			frame:0
 		},
@@ -123,22 +130,45 @@ mergeInto(LibraryManager.library,
 
 		step : function(timestamp)
 		{
-			var dovsync = false;
 			if (FTEC.aborted)
 				return;
 
+			//do this first in the hope that it'll make firefox a smidge smoother.
+			if (FTEC.dovsync)
+				window.requestAnimationFrame(FTEC.step);
+			else
+				setTimeout(FTEC.step, 0, performance.now());
+
+			if (FTEC.xrsession)
+				return;	//keep ticking, cos its safer. :\
+
 			try	//this try is needed to handle Host_EndGame properly.
 			{
-				dovsync = {{{makeDynCall('if','FTEC.evcb.frame')}}}(timestamp);
+				FTEC.dovsync = {{{makeDynCall('if','FTEC.evcb.frame')}}}(timestamp);
 			}
 			catch(err)
 			{
 				console.log(err);
 			}
-			if (dovsync)
-				Browser.requestAnimationFrame(FTEC.step);
-			else
-				setTimeout(FTEC.step, 0, performance.now());
+		},
+		doxrframe : function(timestamp, frame)
+		{
+			if (FTEC.aborted || FTEC.xrsession == null)
+				return;
+
+			//do this first in the hope that it'll make firefox a smidge smoother.
+			FTEC.xrsession.requestAnimationFrame(FTEC.doxrframe);
+
+			FTEC.xrframe = frame;
+			try	//this try is needed to handle Host_EndGame properly.
+			{
+				FTEC.dovsync = {{{makeDynCall('if','FTEC.evcb.frame')}}}(timestamp);
+			}
+			catch(err)
+			{
+				console.log(err);
+			}
+			FTEC.xrframe = null;
 		},
 
 		handleevent : function(event)
@@ -182,9 +212,49 @@ mergeInto(LibraryManager.library,
 					break;
 				case 'mousedown':
 					window.focus();
-					//older browsers need fullscreen in order for requestPointerLock to work.
-					//newer browsers can still break pointer locks when alt-tabbing, even without breaking fullscreen.
-					//so lets spam requests for it
+					//Mozilla docs say do the pointerlock request first...
+					//older browsers only allowed pointer lock when fullscreen. maybe it'll need two clicks. sucks to be you.
+					if (FTEC.pointerwantlock != 0 && FTEC.pointerislocked == 0)
+					{
+						var v;
+						try
+						{
+							FTEC.pointerislocked = -1;  //don't repeat the request on every click. firefox has a fit at that, so require the mouse to leave the element or something before we retry.
+							v = Module['canvas'].requestPointerLock({unadjustedMovement: true});
+							if (v !== undefined)
+							{	//fuck sake, this is chrome being shitty.
+								//this is all bullshit.
+								//requestPointerLock spec does not return a promise. but chrome does it anyway, and returns its errors that way. and it eerrors a LOT, in system-specific ways, resulting in pointer locks failing entirely.
+								v.catch((e)=>
+								{
+									if (e.name == "NotSupportedError")
+									{
+										Module['canvas'].requestPointerLock().then(()=>{
+											console.log("Shitty browser forces mouse accel. Expect a shit experience.");
+										}).catch(()=>{
+											console.log("Your defective browser forces can't handle mouse look. Expect a truely dire experience. Give up now.");
+										});
+									}
+									else
+										console.log("Your defective browser forces can't handle mouse look. Expect a truely dire experience. Give up now.");
+								});
+							}
+						}
+						catch(e)
+						{
+							try {
+								Module['canvas'].requestPointerLock();
+								console.log("Your shitty browser doesn't support disabling mouse acceleration.");
+							}
+							catch(e)
+							{
+								console.log("Your shitty browser doesn't support mouse grabs.");
+								FTEC.pointerislocked = -1;  //don't repeat the request on every click. firefox has a fit at that, so require the mouse to leave the element or something before we retry.
+							}
+						}
+					}
+					//older browsers need fullscreen in order for requestPointerLock to work. Which seems to be deprecated cos of how shitty an experience it is whenever you hit escape to load a menu or w/e
+					//newer browsers can still break pointer locks when alt-tabbing, even without breaking fullscreen, so lets spam requests for it. enjoy.
 					if (!document.fullscreenElement)
 						if (FTEC.evcb.wantfullscreen != 0)
 							if ({{{makeDynCall('i','FTEC.evcb.wantfullscreen')}}}())
@@ -199,17 +269,6 @@ mergeInto(LibraryManager.library,
 									console.log(e);
 								}
 							}
-					if (FTEC.pointerwantlock != 0 && FTEC.pointerislocked == 0)
-					{
-						FTEC.pointerislocked = -1;  //don't repeat the request on every click. firefox has a fit at that, so require the mouse to leave the element or something before we retry.
-						Module['canvas'].requestPointerLock({unadjustedMovement: true}).catch(()=>{
-							Module['canvas'].requestPointerLock().then(()=>{
-								console.log("Your shitty browser doesn't support disabling mouse acceleration.");
-							}).catch(()=>{
-								FTEC.pointerislocked = 0;	//failure. no real idea why. try again next frame though...
-							});
-						});
-					}
 					//fallthrough
 				case 'mouseup':
 					if (FTEC.evcb.button != 0)
@@ -229,11 +288,17 @@ mergeInto(LibraryManager.library,
 				case 'mouseout':
 					if (FTEC.evcb.button != 0)
 					{
-						for (var i = 0; i < 8; i++)	
+						for (let i = 0; i < 8; i++)
 							{{{makeDynCall('viii','FTEC.evcb.button')}}}(0, false, i);
 					}
 					if (FTEC.pointerislocked == -1)
 						FTEC.pointerislocked = 0;
+					break;
+				case 'visibilitychange':
+					try{
+						if (!FTEC.wakelock && navigator.wakeLock && document.visibilityState === "visible")
+							navigator.wakeLock.request("screen").then((value)=>{FTEC.wakelock = value;value.addEventListener("release", ()=>{FTEC.wakelock=null;});}).catch(()=>{});
+					}catch(e){console.log(e);}
 					break;
 				case 'focus':
 				case 'blur':
@@ -260,7 +325,7 @@ mergeInto(LibraryManager.library,
 					//we don't steal that because its impossible to leave it again once used.
 					if (FTEC.evcb.key != 0 && event.keyCode != 122)
 					{
-						var codepoint = event.key.codePointAt(1)?0:event.key.codePointAt(0); // only if its a single codepoint - none of this 'Return' nonsense.
+						const codepoint = event.key.codePointAt(1)?0:event.key.codePointAt(0); // only if its a single codepoint - none of this 'Return' nonsense.
 						if (codepoint < ' ') codepoint = 0; //don't give a codepoint for c0 chars - like tab.
 						if ({{{makeDynCall('iiiii','FTEC.evcb.key')}}}(0, event.type=='keydown', event.keyCode, codepoint))
 							event.preventDefault();
@@ -272,17 +337,17 @@ mergeInto(LibraryManager.library,
 				case 'touchleave':
 				case 'touchmove':
 					event.preventDefault();
-					var touches = event.changedTouches;
-					for (var i = 0; i < touches.length; i++)
+					const touches = event.changedTouches;
+					for (let i = 0; i < touches.length; i++)
 					{
-						var t = touches[i];
+						const t = touches[i];
 						if (FTEC.evcb.mouse)
 							{{{makeDynCall('viiffff','FTEC.evcb.mouse')}}}(t.identifier+1, true, t.pageX, t.pageY, 0, Math.sqrt(t.radiusX*t.radiusX+t.radiusY*t.radiusY));
 						if (FTEC.evcb.button)
 						{
 							if (event.type == 'touchstart')
 								{{{makeDynCall('viii','FTEC.evcb.button')}}}(t.identifier+1, 1, -1);
-							else if (event.type != 'touchmove')
+							else if (event.type != 'touchmove')	//cancel/end/leave...
 								{{{makeDynCall('viii','FTEC.evcb.button')}}}(t.identifier+1, 0, -1);
 						}
 					}
@@ -295,35 +360,39 @@ mergeInto(LibraryManager.library,
 				case 'drop':
 					event.stopPropagation();
 					event.preventDefault();
-					var files = event.dataTransfer.files;
-					for (var i = 0; i < files.length; i++)
+					let files = event.dataTransfer.files;
+					for (let i = 0; i < files.length; i++)
 					{
-						var file = files[i];
-						var reader = new FileReader();
+						const file = files[i];
+						const reader = new FileReader();
 						reader.onload = function(evt)
 						{
-							FTEC.loadurl(file.name, "", evt.target.result);
+							FTEC.loadurl(files[i].name, "", evt.target.result);
 						};
 						reader.readAsArrayBuffer(file);
 					}
 					break;
 				case 'gamepadconnected':
-					var gp = e.gamepad;
-					if (FTEH.gamepads === undefined)
-						FTEH.gamepads = [];
-					FTEH.gamepads[gp.index] = gp;
-					console.log("Gamepad connected at index %d: %s. %d buttons, %d axes.", gp.index, gp.id, gp.buttons.length, gp.axes.length);
+					{
+						const gp = event.gamepad;
+						if (FTEH.gamepads === undefined)
+							FTEH.gamepads = [];
+						FTEH.gamepads[gp.index] = gp;
+						console.log("Gamepad connected at index %d: %s. %d buttons, %d axes.", gp.index, gp.id, gp.buttons.length, gp.axes.length);
+					}
 					break;
 				case 'gamepaddisconnected':
-					var gp = e.gamepad;
-					delete FTEH.gamepads[gp.index];
-					if (FTEC.evcb.jaxis)	//try and clear out the axis when released.
-						for (var j = 0; j < 6; j+=1)
-							{{{makeDynCall('viifi','FTEC.evcb.jaxis')}}}(gp.index, j, 0, true);
-					if (FTEC.evcb.jbutton)	//try and clear out the axis when released.
-						for (var j = 0; j < 32+4; j+=1)
-							{{{makeDynCall('viiii','FTEC.evcb.jbutton')}}}(gp.index, j, 0, true);
-					console.log("Gamepad disconnected from index %d: %s", gp.index, gp.id);
+					{
+						const gp = event.gamepad;
+						delete FTEH.gamepads[gp.index];
+						if (FTEC.evcb.jaxis)	//try and clear out the axis when released.
+							for (let j = 0; j < 6; j+=1)
+								{{{makeDynCall('viifi','FTEC.evcb.jaxis')}}}(gp.index, j, 0, true);
+						if (FTEC.evcb.jbutton)	//try and clear out the axis when released.
+							for (let j = 0; j < 32+4; j+=1)
+								{{{makeDynCall('viiii','FTEC.evcb.jbutton')}}}(gp.index, j, 0, true);
+						console.log("Gamepad disconnected from index %d: %s", gp.index, gp.id);
+					}
 					break;
 				case 'pointerlockerror':
 				case 'pointerlockchange':
@@ -332,7 +401,7 @@ mergeInto(LibraryManager.library,
 					FTEC.pointerislocked =	document.pointerLockElement === Module['canvas'] ||
 											document.mozPointerLockElement === Module['canvas'] ||
 											document.webkitPointerLockElement === Module['canvas'];
-					console.log("Pointer lock now " + FTEC.pointerislocked);
+//					console.log("Pointer lock now " + FTEC.pointerislocked);
 					break;
 					
 				case 'beforeunload':
@@ -366,41 +435,138 @@ mergeInto(LibraryManager.library,
 	{
 		//with events, we can do unplug stuff properly.
 		//otherwise hot unplug might be buggy.
-		var gamepads;
+		let gamepads;
 //		if (FTEH.gamepads !== undefined)
 //			gamepads = FTEH.gamepads;
 //		else
-			gamepads = navigator.getGamepads ? navigator.getGamepads() : (navigator.webkitGetGamepads ? navigator.webkitGetGamepads : []);
+		try
+		{
+			gamepads = navigator.getGamepads ? navigator.getGamepads() : [];
+		}
+		catch(e){}
 
 		if (gamepads !== undefined)
-		for (var i = 0; i < gamepads.length; i+=1)
 		{
-			var gp = gamepads[i];
-			if (gp === undefined)
-				continue;
-			if (gp == null)
-				continue;
-			for (var j = 0; j < gp.buttons.length; j+=1)
+			for (let i = 0; i < gamepads.length; i+=1)
 			{
-				var b = gp.buttons[j];
-				var p;
-				if (typeof(b) == "object")
-					p = b.pressed;	//.value is a fractional thing. oh well.
-				else
-					p = b > 0.5;	//old chrome bug
+				const gp = gamepads[i];
+				if (gp === undefined)
+					continue;
+				if (gp == null)
+					continue;	//xbox controllers tend to have 4 and exactly 4. on the plus side indexes won't change.
+				for (let j = 0; j < gp.buttons.length; j+=1)
+				{
+					const b = gp.buttons[j];
+					let p;
+					if (typeof(b) == "object")
+						p = b.pressed || (b.value > 0.5);	//.value is a fractional thing. oh well.
+					else
+						p = b > 0.5;	//old chrome bug
 
-				if (b.lastframe != p)
-				{	//cache it to avoid spam
-					b.lastframe = p;
-					{{{makeDynCall('viiii','FTEC.evcb.jbutton')}}}(gp.index, j, p, gp.mapping=="standard");
+					if (b.lastframe != p)
+					{	//cache it to avoid spam
+						b.lastframe = p;
+						{{{makeDynCall('viiii','FTEC.evcb.jbutton')}}}(gp.index, j, p, gp.mapping=="standard");
+					}
+				}
+				for (let j = 0; j < gp.axes.length; j+=1)
+					{{{makeDynCall('viifi','FTEC.evcb.jaxis')}}}(gp.index, j, gp.axes[j], gp.mapping=="standard");
+			}
+		}
+
+		if (FTEC.xrsession != null && FTEC.xrframe != null && FTEC.referenceSpace != null)
+		{
+			//try and figure out the head angles according to where we're told the eyes are
+			let count = 0;
+			let org={x:0,y:0,z:0}, quat={x:0,y:0,z:0,w:0};
+			const pose = FTEC.xrframe.getViewerPose(FTEC.referenceSpace);
+			if (pose)
+			{
+				for (let view of pose.views)
+				{
+					org.x += view.transform.position.x;
+					org.y += view.transform.position.y;
+					org.z += view.transform.position.z;
+					quat.x += view.transform.orientation.x;
+					quat.y += view.transform.orientation.y;
+					quat.z += view.transform.orientation.z;
+					quat.w += view.transform.orientation.w;
+					count++;
+				}
+				if (count)
+				{
+					org.x /= count;
+					org.y /= count;
+					org.z /= count;
+					quat.x /= count;
+					quat.y /= count;
+					quat.z /= count;
+					quat.w /= count;
+
+//const idx=-3;
+//console.log("jorientation dev:" + idx + " org:"+org.x+","+org.y+","+org.z+" quat:"+quat.x+","+quat.y+","+quat.z+","+quat.w);
+					{{{makeDynCall('vifffffff','FTEC.evcb.jorientation')}}}(-3, org.x,org.y,org.z, quat.x,quat.y,quat.z,quat.w);
 				}
 			}
-			for (var j = 0; j < gp.axes.length; j+=1)
-				{{{makeDynCall('viifi','FTEC.evcb.jaxis')}}}(gp.index, j, gp.axes[j], gp.mapping=="standard");
+
+			for (const is of FTEC.xrsession.inputSources)
+			{
+				if (is === undefined || is == null)
+					continue;
+
+				//webxr doesn't really do indexes, so make em up from hands..
+				let idx;
+				if (is.handedness == "right")	//is.targetRayMode=="tracked-pointer"
+					idx = -1;
+				else if (is.handedness == "left")	//is.targetRayMode=="tracked-pointer"
+					idx = -2;
+				//else if (is.handedness == "head")	//is.targetRayMode=="???"... handled above.
+				//	idx = -3;
+				else if (is.handedness == "none" && (is.targetRayMode=="gaze" || is.targetRayMode=="screen"))
+					idx = -4;
+				else
+					continue;	//wut?
+
+				//tell the engine its orientation.
+				const targetRayPose = FTEC.xrframe.getPose(is.targetRaySpace, FTEC.referenceSpace);
+				if (targetRayPose)
+				{
+					const org = targetRayPose.transform.position;
+					const quat = targetRayPose.transform.orientation;
+//console.log("jorientation dev:" + idx + " org:"+org.x+","+org.y+","+org.z+" quat:"+quat.x+","+quat.y+","+quat.z+","+quat.w);
+					{{{makeDynCall('vifffffff','FTEC.evcb.jorientation')}}}(idx, org.x,org.y,org.z, quat.x,quat.y,quat.z,quat.w);
+				}
+
+				//if it has a usable gamepad then use it.
+				const gp = is.gamepad;
+				if (gp == null)
+					continue;
+				if (gp.mapping != "xr-standard")
+					continue;
+
+				for (let j = 0; j < gp.buttons.length; j+=1)
+				{
+					const b = gp.buttons[j];
+					let p;
+					p = b.pressed;	//.value is a fractional thing. oh well.
+
+					if (b.lastframe != p)
+					{	//cache it to avoid spam
+						b.lastframe = p;
+//console.log("jbutton dev:" + idx + " btn:"+j+" dn:"+p+" mapping:"+gp.mapping);
+						{{{makeDynCall('viiii','FTEC.evcb.jbutton')}}}(idx, j, p, gp.mapping=="standard");
+					}
+				}
+				for (let j = 0; j < gp.axes.length; j+=1)
+				{
+//console.log("jaxis dev:" + idx + " axis:"+j+" val:"+gp.axes[j]+" mapping:"+gp.mapping);
+					{{{makeDynCall('viifi','FTEC.evcb.jaxis')}}}(idx, j, gp.axes[j], gp.mapping=="standard");
+				}
+			}
 		}
 	},
 	emscriptenfte_setupcanvas__deps: ['$FTEC', '$Browser', 'emscriptenfte_buf_createfromarraybuf'],
-	emscriptenfte_setupcanvas : function(nw,nh,evresize,evmouse,evmbutton,evkey,evfile,evcbufadd,evjbutton,evjaxis,evwantfullscreen)
+	emscriptenfte_setupcanvas : function(nw,nh,evresize,evmouse,evmbutton,evkey,evfile,evcbufadd,evjbutton,evjaxis,evjorientation,evwantfullscreen)
 	{
 		try
 		{
@@ -412,6 +578,7 @@ mergeInto(LibraryManager.library,
 		FTEC.evcb.cbufaddtext = evcbufadd;
 		FTEC.evcb.jbutton = evjbutton;
 		FTEC.evcb.jaxis = evjaxis;
+		FTEC.evcb.jorientation = evjorientation;
 		FTEC.evcb.wantfullscreen = evwantfullscreen;
 
 		if ('GamepadEvent' in window)
@@ -429,17 +596,17 @@ mergeInto(LibraryManager.library,
 						'focus', 'blur'];   //try to fix alt-tab
 			events.forEach(function(event)
 			{
-				Module['canvas'].addEventListener(event, FTEC.handleevent, true);
+				Module['canvas'].addEventListener(event, FTEC.handleevent, {capture:true, passive:false});
 			});
 
 			var docevents = ['keypress', 'keydown', 'keyup',
-							'pointerlockerror', 'pointerlockchange', 'mozpointerlockchange', 'webkitpointerlockchange'];
+							'pointerlockerror', 'pointerlockchange', 'mozpointerlockchange', 'webkitpointerlockchange', 'visibilitychange'];
 			docevents.forEach(function(event)
 			{
 				document.addEventListener(event, FTEC.handleevent, true);
 			});
 
-			var windowevents = ['message','gamepadconnected', 'gamepaddisconnected', 'beforeunload'];
+			var windowevents = ['message','gamepadconnected', 'gamepaddisconnected', 'beforeunload', 'focus', 'blur'];
 			windowevents.forEach(function(event)
 			{
 				window.addEventListener(event, FTEC.handleevent, true);
@@ -451,7 +618,7 @@ mergeInto(LibraryManager.library,
 //				});
 //			});
 		}
-		var ctx = Browser.createContext(Module['canvas'], true, true);
+		var ctx = Browser.createContext(Module['canvas'], true, true, {});
 		if (ctx == null)
 		{
 			var msg = "Unable to set up webgl context.\n\nPlease use a browser that supports it and has it enabled\nYour graphics drivers may also be blacklisted, so try updating those too. woo, might as well update your entire operating system while you're at it.\nIt'll be expensive, but hey, its YOUR money, not mine.\nYou can probably just disable the blacklist, but please don't moan at me when your computer blows up, seriously, make sure those drivers are not too buggy.\nI knew a guy once. True story. Boring, but true.\nYou're probably missing out on something right now. Don't you just hate it when that happens?\nMeh, its probably just tinkertoys, right?\n\nYou know, you could always try Internet Explorer, you never know, hell might have frozen over.\nDon't worry, I wasn't serious.\n\nTum te tum. Did you get it working yet?\nDude, fix it already.\n\nThis message was brought to you by Sleep Deprivation, sponsoring quake since I don't know when";
@@ -467,6 +634,9 @@ mergeInto(LibraryManager.library,
 
 		window.onresize = function()
 		{
+			let scale = window.devicePixelRatio;	//urgh. haxx.
+			if (scale <= 0)
+				scale = 1;
 			//emscripten's browser library will revert sizes wrongly or something when we're fullscreen, so make sure that doesn't happen.
 //			if (Browser.isFullScreen)
 //			{
@@ -475,11 +645,11 @@ mergeInto(LibraryManager.library,
 //			}
 //			else
 			{
-				var rect = Module['canvas'].getBoundingClientRect();
-				Browser.setCanvasSize(rect.width, rect.height, false);
+				let rect = Module['canvas'].getBoundingClientRect();
+				Browser.setCanvasSize(rect.width*scale, rect.height*scale, false);
 			}
 			if (FTEC.evcb.resize != 0)
-				{{{makeDynCall('vii','FTEC.evcb.resize')}}}(Module['canvas'].width, Module['canvas'].height);
+				{{{makeDynCall('viif','FTEC.evcb.resize')}}}(Module['canvas'].width, Module['canvas'].height, scale);
 		};
 		window.onresize();
 
@@ -490,14 +660,209 @@ mergeInto(LibraryManager.library,
 				FTEC.loadurl(location.hash.substring(1), "", undefined);
 			};
 		}
-		
-		_emscriptenfte_updatepointerlock(false, false);
+
+		//try to grab the mouse if we can
+		try{
+			_emscriptenfte_updatepointerlock(false, false);
+		}catch(e){console.log(e);}
+
+		//stop the screen from turning off.
+
+		try{
+			if (!FTEC.wakelock && navigator.wakeLock)
+				navigator.wakeLock.request("screen").then((value)=>{FTEC.wakelock = value;value.addEventListener("release", ()=>{FTEC.wakelock=null;});}).catch(()=>{});
+		}catch(e){console.log(e);}
+
 		} catch(e)
 		{
 		console.log(e);
 		}
 
+		FTEC.xrsupport = 0;
+		if (navigator.xr)
+		{
+			function rechecksupport()
+			{
+				navigator.xr.isSessionSupported("inline",		{}).then((works) => {FTEC.xrsupport = ((FTEC.xrsupport&~1)<<0)|(works<<0);});
+				navigator.xr.isSessionSupported("immersive-vr",	{}).then((works) => {FTEC.xrsupport = ((FTEC.xrsupport&~1)<<1)|(works<<1);});
+				navigator.xr.isSessionSupported("immersive-ar",	{}).then((works) => {FTEC.xrsupport = ((FTEC.xrsupport&~1)<<2)|(works<<2);});
+			};
+
+			//check it now
+			rechecksupport();
+
+			//and keep it up to date.
+			navigator.xr.addEventListener('devicechange', (e)=>{rechecksupport();});
+		}
+
 		return 1;
+	},
+	emscriptenfte_xr_issupported : function()
+	{
+		if (navigator.xr)
+			return FTEC.xrsupport;
+		return 0;
+	},
+	emscriptenfte_xr_isactive : function()
+	{
+		var ret = 0;
+		if (FTEC.xrsession!=null)
+		{
+			ret |= 1;
+
+			const pose = FTEC.xrframe.getViewerPose(FTEC.referenceSpace);
+			if (pose.views.length)
+				ret |= 2;
+		}
+		return ret;
+	},
+	emscriptenfte_xr_setup : function(mode)
+	{
+		if (mode == -3)
+			mode = ((FTEC.xrsession!=null)?-1:-2);
+		if (mode == -2)
+		{	//pick some suitable mode
+			if (FTEC.xrsupport & (1<<2))
+				mode = 2;	//ar
+			else if (FTEC.xrsupport & (1<<1))
+				mode = 1;	//vr
+			else if (FTEC.xrsupport & (1<<0))
+				mode = 0;	//inline
+		}
+		if (mode == -1)	//kill any current session.
+			_emscriptenfte_xr_shutdown();
+		else if (FTEC.xrsession == null && navigator.xr && mode >= 0 && mode < 3)
+		{
+			const modes = ["inline", "immersive-vr", "immersive-ar"];
+			navigator.xr.requestSession(modes[mode], {optionalFeatures:["local"]}).then((session) => {
+				FTEC.xrsession = session;
+
+				session.addEventListener('end', ()=>{console.log("Session ended"); _emscriptenfte_xr_shutdown();});
+				session.addEventListener('inputsourcechange', (e)=>{console.log("inputsourcechange", e);});
+				session.addEventListener('select', (e)=>{console.log("select", e);});
+				session.addEventListener('selectstart', (e)=>{console.log("selectstart", e);});
+				session.addEventListener('selectend', (e)=>{console.log("selectend", e);});
+				session.addEventListener('squeeze', (e)=>{console.log("squeeze", e);});
+				session.addEventListener('squeezestart', (e)=>{console.log("squeezestart", e);});
+				session.addEventListener('squeezeend', (e)=>{console.log("squeezeend", e);});
+
+				/*Module['canvas'].addEventListener("webglcontextlost", (event) => {
+					event.canceled = true;
+					console.log("webglcontextlost");
+				});
+				Module['canvas'].addEventListener("webglcontextrestored", (event) => {
+					console.log("webglcontextrestored");
+				});*/
+
+				var madecompatible = function()
+				{
+					session.updateRenderState({baseLayer: new XRWebGLLayer(session, Module.ctx), depthFar:8192, depthNear:1});
+
+					session.requestReferenceSpace("local").then((refspace) => {
+						FTEC.referenceSpace = refspace;
+						FTEC.xrsession.requestAnimationFrame(FTEC.doxrframe);
+					}).catch((e)=>{	//fall back to viewer if that failed.
+						session.requestReferenceSpace("viewer").then((refspace) => {
+							FTEC.referenceSpace = refspace;
+							FTEC.xrsession.requestAnimationFrame(FTEC.doxrframe);
+						}).catch((e)=>{console.error("requestReferenceSpace",e); _emscriptenfte_xr_shutdown();});	//and just in case...
+					});
+				};
+
+				if (mode == 0)
+					madecompatible();	//chrome88+ throws a hissy fit if we makeXRCompatible on an inline context.
+				else
+					Module.ctx.makeXRCompatible().then(madecompatible).catch((e)=>{console.error("makeXRCompatible", e);_emscriptenfte_xr_shutdown();});
+			}).catch((e)=>{console.error("requestSession", e);_emscriptenfte_xr_shutdown();});
+			return true;
+        }
+        return false;   //not really success, more that it can't possibly work.
+	},
+	emscriptenfte_xr_geteyeinfo : function(maxeyes, eyeptr)
+	{
+		if (!FTEC.xrframe || !FTEC.xrsession)
+			return 0;	//nope.
+
+		const pose = FTEC.xrframe.getViewerPose(FTEC.referenceSpace);
+		if (!pose)
+			return 0;	//nope.
+		const layer = FTEC.xrsession.renderState.baseLayer;
+		var e = 0;
+
+		if (!FTEC.xrfbo)	//make the fbo handle available to the C code
+			FTEC.xrfbo = GL.framebuffers.length;	//alloc a new one.
+		GL.framebuffers[FTEC.xrfbo] = layer.framebuffer;	//update it so the engine can actually use it...
+
+		eyeptr>>=2;
+		for (const view of pose.views)
+		{
+			if (e == maxeyes)
+				break;
+			const viewport = layer.getViewport(view);
+
+			HEAP32[eyeptr+0] = FTEC.xrfbo;
+			eyeptr+=1;
+
+			HEAP32[eyeptr+0] = viewport.x;
+			HEAP32[eyeptr+1] = viewport.y;
+			HEAP32[eyeptr+2] = viewport.width;
+			HEAP32[eyeptr+3] = viewport.height;
+			eyeptr+=4;
+
+			HEAPF32[eyeptr+ 0] = view.projectionMatrix[0];
+			HEAPF32[eyeptr+ 1] = view.projectionMatrix[1];
+			HEAPF32[eyeptr+ 2] = view.projectionMatrix[2];
+			HEAPF32[eyeptr+ 3] = view.projectionMatrix[3];
+			HEAPF32[eyeptr+ 4] = view.projectionMatrix[4];
+			HEAPF32[eyeptr+ 5] = view.projectionMatrix[5];
+			HEAPF32[eyeptr+ 6] = view.projectionMatrix[6];
+			HEAPF32[eyeptr+ 7] = view.projectionMatrix[7];
+			HEAPF32[eyeptr+ 8] = view.projectionMatrix[8];
+			HEAPF32[eyeptr+ 9] = view.projectionMatrix[9];
+			HEAPF32[eyeptr+10] = view.projectionMatrix[10];
+			HEAPF32[eyeptr+11] = view.projectionMatrix[11];
+			HEAPF32[eyeptr+12] = view.projectionMatrix[12];
+			HEAPF32[eyeptr+13] = view.projectionMatrix[13];
+			HEAPF32[eyeptr+14] = view.projectionMatrix[14];
+			HEAPF32[eyeptr+15] = view.projectionMatrix[15];
+			eyeptr+=16;
+
+			HEAPF32[eyeptr+ 0] = view.transform.matrix[0];
+			HEAPF32[eyeptr+ 1] = view.transform.matrix[1];
+			HEAPF32[eyeptr+ 2] = view.transform.matrix[2];
+			HEAPF32[eyeptr+ 3] = view.transform.matrix[3];
+			HEAPF32[eyeptr+ 4] = view.transform.matrix[4];
+			HEAPF32[eyeptr+ 5] = view.transform.matrix[5];
+			HEAPF32[eyeptr+ 6] = view.transform.matrix[6];
+			HEAPF32[eyeptr+ 7] = view.transform.matrix[7];
+			HEAPF32[eyeptr+ 8] = view.transform.matrix[8];
+			HEAPF32[eyeptr+ 9] = view.transform.matrix[9];
+			HEAPF32[eyeptr+10] = view.transform.matrix[10];
+			HEAPF32[eyeptr+11] = view.transform.matrix[11];
+			HEAPF32[eyeptr+12] = view.transform.matrix[12];
+			HEAPF32[eyeptr+13] = view.transform.matrix[13];
+			HEAPF32[eyeptr+14] = view.transform.matrix[14];
+			HEAPF32[eyeptr+15] = view.transform.matrix[15];
+			eyeptr+=16;
+
+			e++;
+		}
+		return e;
+	},
+	emscriptenfte_xr_shutdown : function()
+	{
+		if (FTEC.xrfbo)
+		{	//destroy that handle
+			GL.framebuffers[FTEC.xrfbo] = null;
+			FTEC.xrfbo = 0;
+		}
+
+		if (FTEC.xrsession)
+		{
+			FTEC.xrsession.end();
+			FTEC.xrsession = null;
+		}
+		FTEC.xrframe = null;
 	},
 	emscriptenfte_settitle : function(txt)
 	{
@@ -517,12 +882,34 @@ mergeInto(LibraryManager.library,
 	emscriptenfte_setupmainloop : function(fnc)
 	{
 		Module['noExitRuntime'] = true;
-		FTEC.aborted = false;
+		FTEC.aborted = fnc==0;
 
-		Module["sched"] = FTEC.step;
+		Module["sched"] = FTEC.step;	//this is stupid.
+
 		FTEC.evcb.frame = fnc;
-		//don't start it instantly, so we can distinguish between types of errors (emscripten sucks!).
-		setTimeout(FTEC.step, 1, performance.now());
+		if (fnc)
+		{
+			//don't start it instantly, so we can distinguish between types of errors (emscripten sucks!).
+			setTimeout(FTEC.step, 1, performance.now());
+		}
+		else if (Module["close"])
+			Module["close"]();
+		else if (Module["quiturl"])
+			document.location.replace(Module["quiturl"]);
+		else
+		{
+			try
+			{
+				if (history.length == 1)
+					window.close();
+				else
+					history.back();	//can't close. go back to the previous page though.
+			}
+			catch(e)
+			{
+			}
+		}
+		//else kill it?
 	},
 
 	emscriptenfte_ticks_ms : function()
@@ -532,6 +919,71 @@ mergeInto(LibraryManager.library,
 	emscriptenfte_uptime_ms : function()
 	{	//milliseconds...
 		return performance.now();
+	},
+
+	emscriptenfte_openfile : function()
+	{
+		if (FTEC.evcb.loadfile != 0)
+		{
+			window.showOpenFilePicker(
+				{	types:[
+						{
+							description: "Packages",
+							accept:{"text/*":[".pk3", ".pak", ".pk4", ".zip"]}
+						},
+						{
+							description: "Maps",
+							accept:{"text/*":[".bsp.gz", ".bsp", ".map", ".hmp"]}
+						},
+						{
+							description: "Demos",
+							accept:{"application/*":[".mvd.gz", ".qwd.gz", ".dem.gz", ".mvd", ".qwd", ".dem"]}	//dm2?
+						},
+						{
+							description: "QuakeTV Info",
+							accept:{"application/*":[".qtv"]}
+						},
+						{
+							description: "FTE Manifest",
+							accept:{"text/*":[".fmf"]}
+						},
+						//model formats?... nah, too many/weird. they can always
+						//audio formats?	eww
+						//image formats?	double eww!
+						{
+							description: "Configs",
+							accept:{"text/*":[".cfg", ".rc"]}
+						}],
+					excludeAcceptAllOption:false,	//let em pick anything. we actually support more than listed here (and bitrot...)
+					id:"openfile",	//remember the dir we were in for the next invocation
+					multiple:true	//does this make sense? not for a demo but does for *.pak or *.bsp
+				}).then((r)=>
+				{
+					for (let i of r)
+					{
+						i.getFile().then((f)=>
+						{
+							f.arrayBuffer().then((arraybuf)=>
+							{
+								if (FTEC.evcb.loadfile != 0)
+								{
+									const handle = _emscriptenfte_buf_createfromarraybuf(arraybuf);
+									let blen = lengthBytesUTF8(i.name)+1;
+									let urlptr = _malloc(blen);
+									stringToUTF8(f.name, urlptr, blen);
+									blen = lengthBytesUTF8(f.type)+1;
+									let mimeptr = _malloc(blen);
+									stringToUTF8(f.type, mimeptr,blen);
+									{{{makeDynCall('viii','FTEC.evcb.loadfile')}}}(urlptr, mimeptr, handle);
+									_free(mimeptr);
+									_free(urlptr);
+									window.focus();
+								}
+							});
+						}).catch((e)=>{console.error("getFile() failed:");console.error(e);});
+					}
+				}).catch((e)=>{console.log("showOpenFilePicker() aborted", e);});
+		}
 	},
 
 	emscriptenfte_buf_create__deps : ['emscriptenfte_handle_alloc'],
@@ -615,6 +1067,22 @@ mergeInto(LibraryManager.library,
 		FTEH.f[newname] = f;
 		delete FTEH.f[oldname];
 		f.n = newname;
+
+		if (Module['cache'])
+		{
+			Module['cache'].match("/_/"+oldname).then((oldresp)=>{
+				if (oldresp === undefined)
+					Module['cache'].delete("/_/"+newname);	//'overwrite' the new name.
+				else
+				{
+					Module['cache'].put("/_/"+newname, oldresp);
+					Module['cache'].delete("/_/"+oldname);
+				}
+			}).catch(()=>{
+				Module['cache'].delete("/_/"+oldname);
+				Module['cache'].delete("/_/"+newname);	//if we're overwriting with a file we don't have then just wipe the old one.
+			});
+		}
 		return 1;
 	},
 	emscriptenfte_buf_delete : function(name)
@@ -626,6 +1094,9 @@ mergeInto(LibraryManager.library,
 			delete FTEH.f[name];
 			f.n = null;
 			_emscriptenfte_buf_release(f.h);
+
+			if (Module['cache'])
+				Module['cache'].delete("/_/"+name);
 			return 1;
 		}
 		return 0;
@@ -654,7 +1125,17 @@ mergeInto(LibraryManager.library,
 		var len = b.l;
 		try
 		{
-			if (localStorage)
+			if (b.n.endsWith(".pak") || b.n.endsWith(".pk3") || b.n.endsWith(".kpf") || b.n.indexOf("/dlcache/")>0)
+			{
+				if (Module['cache'])
+				{
+					console.log("Saving "+b.n+" to cache ("+len+" bytes).");
+					Module['cache'].put("/_/"+b.n, new Response(data, {"headers":{"Content-Type":"application/octet-stream", "Content-Length":len}}));
+				}
+				else
+					console.log("cache not available");
+			}
+			else if (localStorage)
 			{
 				var foo = "";
 				//use a divide and conquer implementation instead for speed?
@@ -667,8 +1148,7 @@ mergeInto(LibraryManager.library,
 		}
 		catch (e)
 		{
-			console.log('exception while trying to save ' + b.n);
-			console.log(e);
+			console.log('exception while trying to save ' + b.n, e);
 		}
 	},
 	emscriptenfte_buf_release : function(handle)
@@ -770,7 +1250,7 @@ mergeInto(LibraryManager.library,
 			s.pc.close();
 			s.pc = null;	//make sure to avoid circular references
 		}
-		
+
 		if (s.broker != null)
 		{
 			s.broker.close();
@@ -831,9 +1311,9 @@ mergeInto(LibraryManager.library,
 		var s = {pc:null, ws:null, inq:[], err:0, con:0, isclient:clientside, callcb:
 			function(evtype,stringdata)
 			{	//private helper
-			
+
 //console.log("emscriptenfte_rtc_create callback: " + evtype);
-			
+
 				var stringlen = (stringdata.length*3)+1;
 				var dataptr = _malloc(stringlen);
 				stringToUTF8(stringdata, dataptr, stringlen);
@@ -872,7 +1352,7 @@ mergeInto(LibraryManager.library,
 				assert(typeof event.data !== 'string' && event.data.byteLength);
 				s.inq.push(new Uint8Array(event.data));
 			};
-			
+
 		s.pc.onicecandidate = function(e)
 			{
 				var desc;
@@ -985,7 +1465,7 @@ mergeInto(LibraryManager.library,
 						console.log(err);
 					});
 		} catch(err) { console.log(err); }
-		
+
 	},
 	emscriptenfte_rtc_candidate : function(sockid, offer)
 	{
@@ -1007,6 +1487,7 @@ mergeInto(LibraryManager.library,
 			}
 			s.pc.addIceCandidate(desc);
 		} catch(err) { console.log(err); }
+		return 0;
 	},
 
 	emscriptenfte_async_wget_data2 : function(url, ctx, onload, onerror, onprogress)
@@ -1070,7 +1551,7 @@ mergeInto(LibraryManager.library,
 		//match emscripten's openal support.
 		if (!buf)
 			return;
-	
+
 		var albuf = AL.buffers[buf];
 		AL.buffers[buf] = null; //alIsBuffer will report it as invalid now
 
@@ -1105,6 +1586,50 @@ mergeInto(LibraryManager.library,
 			console.log(e);
 			ctx.buffers[buf] = albuf;
 		}
+	},
+	emscriptenfte_pcm_loadaudiofile : function(ctx, callback, dataptr, datasize, snd_speed)
+	{
+		const successcb = function(buffer)
+		{
+			const frames = buffer.length;
+			const chans = buffer.numberOfChannels;
+			const rate = buffer.sampleRate;
+			const outptr = _malloc(2*frames*chans);
+			if (!outptr)
+				return; //it went away?
+			const dst = HEAP16.subarray(outptr>>1, (outptr+2*frames*chans)>>1);
+
+			/*if (buffer.numberOfChannels == 1)
+				dst.set(buffer.getChannelData(0));
+			else*/ for (let c = 0; c < buffer.numberOfChannels; c++)
+			{
+				const src = buffer.getChannelData(c);
+				for (let f = 0; f < frames; f++)
+					dst[f*chans+c] = 16384*src[f];	//docs imply it should be 32767 but I'm getting unhealthy clipping
+			}
+			{{{makeDynCall('viiif','callback')}}}(ctx, outptr, frames, chans, rate);
+			_free(outptr);
+		};
+		const failurecb = function(buffer)
+		{
+			{{{makeDynCall('viiif','callback')}}}(ctx, 0, 0, 0, 0);
+		};
+
+		try{
+
+			const abuf = new ArrayBuffer(datasize);
+			const rbuf = new Uint8Array(abuf);
+			rbuf.set(HEAPU8.subarray(dataptr, dataptr+datasize));
+			const ac = new AudioContext({sampleRate:snd_speed});
+			ac.decodeAudioData(abuf, successcb, failurecb);	//do the decode
+		
+			return true;
+		}
+		catch(e)
+		{
+			console.log("emscriptenfte_pcm_loadaudiofile failure :(");
+		}
+		return false;
 	},
 
 	emscriptenfte_gl_loadtexturefile : function(texid, widthptr, heightptr, dataptr, datasize, fname, dopremul, genmips)
@@ -1159,7 +1684,7 @@ mergeInto(LibraryManager.library,
 			GLctx.bindTexture(GLctx.TEXTURE_2D, oldtex);
 		};
 		img.crossorigin = true;
-		img.src = "data:image/png;base64," + encode64(HEAPU8.subarray(dataptr, dataptr+datasize));
+		img.src = "data:image/png;base64," + encode64(HEAPU8.subarray(dataptr, dataptr+datasize));	//png... jpeg... browsers don't seem to actually care
 	},
 
 	Sys_Clipboard_PasteText: function(cbt, callback, ctx)
@@ -1190,7 +1715,7 @@ mergeInto(LibraryManager.library,
 		catch(e)
 		{	//clipboard API not supported at all.
 			console.log(e);	//happens in firefox. lets print it so we know WHY its failing.
-			docallback(FTEC.clipboard);	
+			docallback(FTEC.clipboard);
 		}
 	},
 	Sys_SaveClipboard: function(cbt, text)

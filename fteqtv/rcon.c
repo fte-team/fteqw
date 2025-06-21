@@ -161,7 +161,11 @@ void Info_RemoveKey (char *s, const char *key)
 
 		if (!strcmp (key, pkey) )
 		{
-			strcpy (start, s);	// remove this part
+			//strip out the value by copying the next string over the top of this one
+			//(we were using strcpy, but valgrind moans and glibc fucks it up. they should not overlap... so use our own crappy inefficient alternative)
+			while(*s)
+				*start++ = *s++;
+			*start = 0;
 			return;
 		}
 
@@ -410,6 +414,7 @@ void Cmd_Master(cmdctxt_t *ctx)
 void Cmd_UDPPort(cmdctxt_t *ctx)
 {
 	int newp = atoi(Cmd_Argv(ctx, 1));
+	ctx->cluster->qwlistenportnum = newp;
 	NET_InitUDPSocket(ctx->cluster, newp, SG_IPV6);
 	NET_InitUDPSocket(ctx->cluster, newp, SG_IPV4);
 }
@@ -600,9 +605,13 @@ void Cmd_Say(cmdctxt_t *ctx)
 void Cmd_Status(cmdctxt_t *ctx)
 {
 	Cmd_Printf(ctx, "QTV Status:\n");
-	Cmd_Printf(ctx, " %i sources\n", ctx->cluster->numservers);
-	Cmd_Printf(ctx, " %i viewers\n", ctx->cluster->numviewers);
-	Cmd_Printf(ctx, " %i proxies\n", ctx->cluster->numproxies);
+	Cmd_Printf(ctx, " %i sources%s\n", ctx->cluster->numservers, ctx->cluster->nouserconnects?" (admin only)":" (user allowed)");
+	Cmd_Printf(ctx, " %i udp clients %s\n", ctx->cluster->numviewers, ctx->cluster->allownqclients?" (qw+nq)":" (qw only)");
+	if (ctx->cluster->maxproxies)
+		Cmd_Printf(ctx, " %i tcp clients (of %i)\n", ctx->cluster->numproxies, ctx->cluster->maxproxies);
+	else
+		Cmd_Printf(ctx, " %i tcp clients\n", ctx->cluster->numproxies);
+	TURN_RelayStatus(ctx);
 
 	Cmd_Printf(ctx, "Common Options:\n");
 	Cmd_Printf(ctx, " Hostname %s\n", ctx->cluster->hostname);
@@ -610,7 +619,7 @@ void Cmd_Status(cmdctxt_t *ctx)
 	if (ctx->cluster->chokeonnotupdated)
 		Cmd_Printf(ctx, " Choke\n");
 	if (ctx->cluster->lateforward)
-		Cmd_Printf(ctx, " Late forwarding\n");
+		Cmd_Printf(ctx, " Late forwarding (delayed streams)\n");
 	if (!ctx->cluster->notalking)
 		Cmd_Printf(ctx, " Talking allowed\n");
 	if (ctx->cluster->nobsp)
@@ -621,7 +630,6 @@ void Cmd_Status(cmdctxt_t *ctx)
 		Cmd_Printf(ctx, " tcp port %i\n", ctx->cluster->tcplistenportnum);
 	if (ctx->cluster->qwdsocket[SG_IPV4] != INVALID_SOCKET || ctx->cluster->qwdsocket[SG_IPV6] != INVALID_SOCKET)
 		Cmd_Printf(ctx, " udp port %i\n", ctx->cluster->qwlistenportnum);
-	Cmd_Printf(ctx, " user connections are %sallowed\n", ctx->cluster->nouserconnects?"NOT ":"");
 	Cmd_Printf(ctx, "\n");
 
 
@@ -1227,7 +1235,110 @@ void Cmd_Watch(cmdctxt_t *ctx)
 }
 #endif
 
+#ifdef __linux__
+#include <fcntl.h>
+qboolean Sys_RandomBytes(unsigned char *out, int len)
+{
+	qboolean res;
+	int fd = open("/dev/urandom", 0);
+	res = (read(fd, out, len) == len);
+	close(fd);
+	return res;
+}
+#else
+qboolean Sys_RandomBytes(unsigned char *out, int len)
+{
+	return false;
+}
+#endif
 
+static void Cmd_Turn(cmdctxt_t *ctx)
+{
+	if (Cmd_Argc(ctx) < 2)
+	{
+		if (ctx->cluster->turnenabled && ctx->cluster->turn_minport)
+			Cmd_Printf(ctx, "turn is enabled, using ports %i-%i\n", ctx->cluster->turn_minport, ctx->cluster->turn_maxport);
+		else if (ctx->cluster->turnenabled)
+			Cmd_Printf(ctx, "turn is enabled, using ephemerial ports\n");
+		else
+			Cmd_Printf(ctx, "turn is disabled\n");
+		return;
+	}
+	if (!Cmd_IsLocal(ctx))
+	{
+		Cmd_Printf(ctx, "turn support may not be configured remotely\n");
+		return;
+	}
+
+	if (Cmd_Argc(ctx) >= 3)
+	{	//two args - assume a two number range, so turn it on.
+		ctx->cluster->turnenabled = true;
+		ctx->cluster->turn_minport = atoi(Cmd_Argv(ctx, 1));
+		ctx->cluster->turn_maxport = atoi(Cmd_Argv(ctx, 2));
+	}
+	else if ( atoi(Cmd_Argv(ctx, 1)))	//a boolean. turn it back on..
+		ctx->cluster->turnenabled = true;	//switch it back on with whatever port range it previously had. probably 0-0 for ephemerial. probably bad for the relay's firewalls...
+	else
+		ctx->cluster->turnenabled = false;	//and off.
+
+	if (!*ctx->cluster->chalkey && ctx->cluster->turnenabled)
+	{
+		unsigned char chalkey[12];
+		if (!Sys_RandomBytes(chalkey, sizeof(chalkey)) ||
+			!Sys_RandomBytes(ctx->cluster->turnkey, sizeof(ctx->cluster->turnkey)))
+		{
+			Cmd_Printf(ctx, "no random generator\n");
+			ctx->cluster->turnenabled = false;
+			return;
+		}
+		tobase64(ctx->cluster->chalkey,sizeof(ctx->cluster->chalkey), chalkey, sizeof(chalkey));
+	}
+
+	if (ctx->cluster->turnenabled && ctx->cluster->turn_minport)
+		Cmd_Printf(ctx, "turn keys updated, using ports %i-%i\n", ctx->cluster->turn_minport, ctx->cluster->turn_maxport);
+	else if (ctx->cluster->turnenabled)
+		Cmd_Printf(ctx, "turn keys updated, using ephemerial ports\n");
+	else
+		Cmd_Printf(ctx, "turn disabled\n");
+}
+static void Cmd_Relay(cmdctxt_t *ctx)
+{
+	if (Cmd_Argc(ctx) >= 2)
+	{
+		if (Cmd_IsLocal(ctx))
+		{
+			Cmd_Printf(ctx, "relay support may not be configured remotely\n");
+			return;
+		}
+		switch(atoi(Cmd_Argv(ctx, 1)))
+		{
+		case 0:
+			ctx->cluster->relayenabled = ctx->cluster->pingtreeenabled = false;
+			Cmd_Printf(ctx, "turn disabled\n");
+			break;
+		case 1:
+			ctx->cluster->relayenabled = ctx->cluster->pingtreeenabled = true;
+			break;
+		default:
+			ctx->cluster->relayenabled = true;
+			ctx->cluster->pingtreeenabled = false;
+			break;
+		}
+	}
+
+	if (ctx->cluster->relayenabled && ctx->cluster->pingtreeenabled)
+		Cmd_Printf(ctx, "relay is enabled (with pinging)\n");
+	else if (ctx->cluster->relayenabled)
+		Cmd_Printf(ctx, "relay is enabled, WITHOUT pinging\n");
+	else
+		Cmd_Printf(ctx, "relay is disabled\n");
+}
+static void Cmd_ProtocolName(cmdctxt_t *ctx)
+{
+	free(ctx->cluster->protocolname);
+	ctx->cluster->protocolname = strdup(Cmd_Argv(ctx, 1));
+	ctx->cluster->protocolver = atoi(Cmd_Argv(ctx, 2));
+}
 
 typedef struct rconcommands_s {
 	char *name;
@@ -1300,6 +1411,11 @@ const rconcommands_t rconcommands[] =
 	{"allownq",		0, 1, Cmd_AllowNQ,	"permits nq clients to connect. This can be disabled as this code is less tested than the rest"},
 	{"initialdelay",0, 1, Cmd_InitialDelay, "Specifies the duration for which new connections will be buffered. Large values prevents players from spectating their enemies as a cheap wallhack."},
 	{"slowdelay",	0, 1, Cmd_SlowDelay,	"If a server is not sending enough data, the proxy will delay parsing for this long."},
+
+	{"turn",		0, 1, Cmd_Turn,			"Controls whether we accept turn requests."},
+	{"relay",		0, 1, Cmd_Relay,		"Controls whether we accept qwfwd-style relay requests."},
+	 {"qwfwd",		0, 1, Cmd_Relay},
+	{"protocolname",0, 1, Cmd_ProtocolName,	"Protocol Name:Version used to register with master."},
 
 
 	{"halt",		1, 0, Cmd_Halt,		"disables a stream, preventing it from reconnecting until someone tries watching it anew. Boots current spectators"},

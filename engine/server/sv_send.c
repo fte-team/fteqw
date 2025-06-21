@@ -165,6 +165,7 @@ void SV_PrintToClient(client_t *cl, int level, const char *string)
 	case SCP_BAD:	//bot
 		break;
 	case SCP_QUAKE2:
+	case SCP_QUAKE2EX:
 #ifdef Q2SERVER
 		ClientReliableWrite_Begin (cl, svcq2_print, strlen(string)+3);
 		ClientReliableWrite_Byte (cl, level);
@@ -206,6 +207,7 @@ void SV_StuffcmdToClient(client_t *cl, const char *string)
 	case SCP_BAD:	//bot
 		break;
 	case SCP_QUAKE2:
+	case SCP_QUAKE2EX:
 #ifdef Q2SERVER
 		ClientReliableWrite_Begin (cl, svcq2_stufftext, strlen(string)+3);
 		ClientReliableWrite_String (cl, string);
@@ -252,6 +254,7 @@ void SV_StuffcmdToClient_Unreliable(client_t *cl, const char *string)
 	case SCP_BAD:	//bot
 		break;
 	case SCP_QUAKE2:
+	case SCP_QUAKE2EX:
 #ifdef Q2SERVER
 		ClientReliableWrite_Begin (cl, svcq2_stufftext, strlen(string)+3);
 		ClientReliableWrite_String (cl, string);
@@ -604,7 +607,7 @@ void SV_MulticastProtExt(vec3_t origin, multicast_t to, int dimension_mask, int 
 		&& !sv.nqmulticast.cursize
 #endif
 #ifdef Q2SERVER
-		&& !sv.q2multicast.cursize
+		&& !sv.q2multicast[0].cursize
 #endif
 		)
 		return;
@@ -734,7 +737,7 @@ void SV_MulticastProtExt(vec3_t origin, multicast_t to, int dimension_mask, int 
 				{
 					if (oneclient != split)
 					{
-						if (andspecs && split->spectator && split->spec_track >= 0 && oneclient == &svs.clients[split->spec_track])
+						if (andspecs && split->spectator && split->spec_track > 0 && oneclient == &svs.clients[split->spec_track - 1])
 							;
 						else
 							continue;
@@ -780,23 +783,23 @@ void SV_MulticastProtExt(vec3_t origin, multicast_t to, int dimension_mask, int 
 			if (!split)
 				continue;
 
-			switch (client->protocol)
+			safeswitch (client->protocol)
 			{
 			case SCP_BAD:
 				continue;	//a bot.
-			default:
+			safedefault:
 				SV_Error("multicast: Client is using a bad protocol");
 
 			case SCP_QUAKE3:
 				Con_Printf("Skipping multicast for q3 client\n");
 				break;
 
-#ifdef NQPROT
 			case SCP_NETQUAKE:
 			case SCP_BJP3:
 			case SCP_FITZ666:
 			case SCP_DARKPLACES6:
 			case SCP_DARKPLACES7:	//extra prediction stuff
+#ifdef NQPROT
 				if (reliable)
 				{
 					ClientReliableCheckBlock(client, sv.nqmulticast.cursize);
@@ -804,20 +807,30 @@ void SV_MulticastProtExt(vec3_t origin, multicast_t to, int dimension_mask, int 
 				}
 				else
 					SZ_Write (&client->datagram, sv.nqmulticast.data, sv.nqmulticast.cursize);
-
-				break;
 #endif
-#ifdef Q2SERVER
+				break;
 			case SCP_QUAKE2:
+#ifdef Q2SERVER
 				if (reliable)
 				{
-					ClientReliableCheckBlock(client, sv.q2multicast.cursize);
-					ClientReliableWrite_SZ(client, sv.q2multicast.data, sv.q2multicast.cursize);
+					ClientReliableCheckBlock(client, sv.q2multicast[0].cursize);
+					ClientReliableWrite_SZ(client, sv.q2multicast[0].data, sv.q2multicast[0].cursize);
 				}
 				else
-					SZ_Write (&client->datagram, sv.q2multicast.data, sv.q2multicast.cursize);
-				break;
+					SZ_Write (&client->datagram, sv.q2multicast[0].data, sv.q2multicast[0].cursize);
 #endif
+				break;
+			case SCP_QUAKE2EX:
+#ifdef Q2SERVER
+				if (reliable)
+				{
+					ClientReliableCheckBlock(client, sv.q2multicast[1].cursize);
+					ClientReliableWrite_SZ(client, sv.q2multicast[1].data, sv.q2multicast[1].cursize);
+				}
+				else
+					SZ_Write (&client->datagram, sv.q2multicast[1].data, sv.q2multicast[1].cursize);
+#endif
+				break;
 			case SCP_QUAKEWORLD:
 				if (reliable)
 				{
@@ -901,7 +914,8 @@ void SV_MulticastProtExt(vec3_t origin, multicast_t to, int dimension_mask, int 
 	SZ_Clear (&sv.nqmulticast);
 #endif
 #ifdef Q2SERVER
-	SZ_Clear (&sv.q2multicast);
+	SZ_Clear (&sv.q2multicast[0]);
+	SZ_Clear (&sv.q2multicast[1]);
 #endif
 	SZ_Clear (&sv.multicast);
 }
@@ -1516,7 +1530,7 @@ void SV_SendFixAngle(client_t *client, sizebuf_t *msg, int fixtype, qboolean rol
 	client_t *controller = client->controller?client->controller:client;
 	edict_t *ent = client->edict;
 	pvec_t *ang;
-	if (!ent || client->protocol == SCP_QUAKE2)
+	if (!ent || ISQ2CLIENT(client))
 		return;
 	ang = ent->v->fixangle?ent->v->angles:ent->v->v_angle;	//angles is just WEIRD for mdls, but then quake sucks.
 	if (ent->v->movetype == MOVETYPE_6DOF)
@@ -1524,7 +1538,7 @@ void SV_SendFixAngle(client_t *client, sizebuf_t *msg, int fixtype, qboolean rol
 
 	if (fixtype == FIXANGLE_AUTO)
 	{
-		if (client->lockanglesseq<controller->netchan.incoming_acknowledged && controller->delta_sequence != -1 && !client->viewent)
+		if (client->lockanglesseq<controller->netchan.incoming_acknowledged && controller->delta_sequence != -1 && !client->viewent && !sv_nqplayerphysics.ival)
 			fixtype = FIXANGLE_DELTA;
 		else
 			fixtype = FIXANGLE_FIXED;
@@ -1993,8 +2007,9 @@ typedef struct {
 	} eval;
 	int statnum;
 } qcstat_t;
-qcstat_t qcstats[MAX_CL_STATS];
-int numqcstats;
+static qcstat_t qcstats[MAX_CL_STATS];
+static unsigned int numqcstats;
+static unsigned int highestqcstat;
 static void SV_QCStatEval(int type, const char *name, evalc_t *field, eval_t *global, int statnum)
 {
 	int i;
@@ -2086,6 +2101,7 @@ void SV_QCStatFieldIdx(int type, unsigned int fieldindex, int statnum)
 void SV_ClearQCStats(void)
 {
 	numqcstats = 0;
+	highestqcstat = MAX_QW_STATS;
 }
 
 extern cvar_t dpcompat_stats;
@@ -2149,8 +2165,9 @@ void SV_UpdateQCStats(edict_t	*ent, int *statsi, char const** statss, float *sta
 }
 
 /*this function calculates the current stat values for the given client*/
-void SV_CalcClientStats(client_t *client, int statsi[MAX_CL_STATS], float statsf[MAX_CL_STATS], const char **statss)
+static unsigned int SV_CalcClientStats(client_t *client, int statsi[MAX_CL_STATS], float statsf[MAX_CL_STATS], const char **statss)
 {
+	unsigned int m = highestqcstat;
 	edict_t *ent;
 	ent = client->edict;
 	memset (statsi, 0, sizeof(int)*MAX_CL_STATS);
@@ -2275,11 +2292,15 @@ void SV_CalcClientStats(client_t *client, int statsi[MAX_CL_STATS], float statsf
 			statsfi[STAT_MOVEVARS_STEPHEIGHT]					= *sv_stepheight.string?sv_stepheight.value:PM_DEFAULTSTEPHEIGHT;
 			statsfi[STAT_MOVEVARS_AIRACCEL_QW]					= 1;		//we're a quakeworld engine...
 			statsfi[STAT_MOVEVARS_AIRACCEL_SIDEWAYS_FRICTION]	= 0;
+
+			if (m < 256)
+				m = 256;
 		}
 #endif
 
 		SV_UpdateQCStats(ent, statsi, statss, statsf);
 	}
+	return m;
 }
 
 /*
@@ -2295,14 +2316,14 @@ void SV_UpdateClientStats (client_t *client, int pnum, sizebuf_t *msg, client_fr
 	int		statsi[MAX_CL_STATS];
 	float	statsf[MAX_CL_STATS];
 	const char	*statss[MAX_CL_STATS];
-	int		i, m;
+	unsigned int		i, m;
 
 	/*figure out what the stat values should be*/
-	SV_CalcClientStats(client, statsi, statsf, statss);
-
-	m = MAX_QW_STATS;
+	m = SV_CalcClientStats(client, statsi, statsf, statss);
 	if ((client->fteprotocolextensions & (PEXT_HEXEN2|PEXT_CSQC)) || client->protocol == SCP_DARKPLACES6 || client->protocol == SCP_DARKPLACES7)
-		m = MAX_CL_STATS;
+		m = min(m,256);
+	else
+		m = min(m,MAX_QW_STATS);
 
 	if (client->fteprotocolextensions2 & PEXT2_REPLACEMENTDELTAS)
 	{
@@ -2631,21 +2652,13 @@ qboolean SV_SendClientDatagram (client_t *client)
 		client->edict->v->goalentity = 0;
 	}
 
-	if (client->netchan.pext_fragmentation)
-	{
-		if (client->netchan.remote_address.type == NA_LOOPBACK)
-			clientlimit = countof(buf);	//biiiig...
-		else
-			clientlimit = client->netchan.mtu;	//try not to overflow
-	}
-	else if (client->netchan.remote_address.type == NA_LOOPBACK && ISNQCLIENT(client))
-		clientlimit = countof(buf);			//go wild. demos don't care about reliable/unreliable.
-	else if (client->netchan.mtu)
-		clientlimit = client->netchan.mtu;
-	else if (client->protocol == SCP_NETQUAKE)
-		clientlimit = MAX_NQDATAGRAM;				//vanilla client is limited.
-	else
-		clientlimit = MAX_DATAGRAM;			//udp limit, ish.
+	clientlimit = Netchan_GetMaxUnreliable(&client->netchan);
+	if (clientlimit < 1024)
+		clientlimit = 1024;	//ignore what the netchan wants. it'll have to fragment it.
+
+	if (client->protocol == SCP_NETQUAKE && clientlimit > MAX_NQDATAGRAM && client->netchan.remote_address.type != NA_LOOPBACK && !client->pextknown)
+		clientlimit = MAX_NQDATAGRAM;	//vanilla clients are limited. don't crash them.
+
 	if (clientlimit > countof(buf))
 		clientlimit = countof(buf);
 	msg.maxsize = clientlimit - client->datagram.cursize;
@@ -2792,24 +2805,10 @@ void SV_FlushBroadcasts (void)
 		if (client->protocol == SCP_BAD)
 			continue;	//botclient
 
-#ifdef Q2SERVER
-		if (ISQ2CLIENT(client))
-		{
-			ClientReliableCheckBlock(client, sv.q2reliable_datagram.cursize);
-			ClientReliableWrite_SZ(client, sv.q2reliable_datagram.data, sv.q2reliable_datagram.cursize);
-
-			if (client->state != cs_spawned)
-				continue;	// datagrams only go to spawned
-			SZ_Write (&client->datagram
-				, sv.q2datagram.data
-				, sv.q2datagram.cursize);
-		}
-		else
-#endif
 #ifdef NQPROT
-		if (!ISQWCLIENT(client))
+		if (ISNQCLIENT(client))
 		{
-			if (client->pextknown)
+			if (client->pextknown)	//hacky check - means 'has sent an svc_serverdata'
 			{
 				ClientReliableCheckBlock(client, sv.nqreliable_datagram.cursize);
 				ClientReliableWrite_SZ(client, sv.nqreliable_datagram.data, sv.nqreliable_datagram.cursize);
@@ -2845,10 +2844,6 @@ void SV_FlushBroadcasts (void)
 	SZ_Clear (&sv.nqreliable_datagram);
 	SZ_Clear (&sv.nqdatagram);
 #endif
-#ifdef Q2SERVER
-	SZ_Clear (&sv.q2reliable_datagram);
-	SZ_Clear (&sv.q2datagram);
-#endif
 }
 
 static qboolean SV_SyncInfoBuf(client_t *client)
@@ -2866,7 +2861,7 @@ static qboolean SV_SyncInfoBuf(client_t *client)
 	qboolean final;
 	sizebuf_t *buf;
 
-	if (client->protocol == SCP_QUAKE2)
+	if (ISQ2CLIENT(client))
 	{	//q2 gamecode is fully responsible for networking this via configstrings.
 		InfoSync_Clear(&client->infosync);
 		return false;
@@ -3169,6 +3164,7 @@ void SV_UpdateToReliableMessages (void)
 					{
 					case SCP_BAD:	//bots
 					case SCP_QUAKE2:
+					case SCP_QUAKE2EX:
 					case SCP_QUAKE3:
 						break;
 					default:
@@ -3272,10 +3268,6 @@ void SV_UpdateToReliableMessages (void)
 	if (sv.nqdatagram.overflowed)
 		SZ_Clear (&sv.nqdatagram);
 #endif
-#ifdef Q2SERVER
-	if (sv.q2datagram.overflowed)
-		SZ_Clear (&sv.q2datagram);
-#endif
 
 	SV_FlushBroadcasts();
 }
@@ -3301,68 +3293,74 @@ static void SV_SendUserinfoChange(client_t *to, client_t *about, qboolean isbasi
 	{
 		if (isbasic || (to->fteprotocolextensions & PEXT_BIGUSERINFOS))
 		{
-			if (ISQWCLIENT(to) && !strcmp(key, "*bothcolours")) 
-			{
-				newval = InfoBuf_ValueForKey(&about->userinfo, "topcolor");
-				ClientReliableWrite_Begin(to, svc_setinfo, 4+strlen(key)+strlen(newval));
-				ClientReliableWrite_Byte(to, playernum);
-				ClientReliableWrite_String(to, "topcolor");
-				ClientReliableWrite_String(to, InfoBuf_ValueForKey(&about->userinfo, "topcolor"));
-				
-				newval = InfoBuf_ValueForKey(&about->userinfo, "bottomcolor");
-				ClientReliableWrite_Begin(to, svc_setinfo, 4+strlen(key)+strlen(newval));
-				ClientReliableWrite_Byte(to, playernum);
-				ClientReliableWrite_String(to, "bottomcolor");
-				ClientReliableWrite_String(to, newval);
-			}
-			else
-			{
+			if (!strcmp(key, "*bothcolours"))
+			{	//hack to shorten sending vanilla nq colour updates
+				newval = InfoBuf_ValueForKey(&about->userinfo, key="topcolor");
 				ClientReliableWrite_Begin(to, svc_setinfo, 4+strlen(key)+strlen(newval));
 				ClientReliableWrite_Byte(to, playernum);
 				ClientReliableWrite_String(to, key);
-				ClientReliableWrite_String(to, newval);
+				ClientReliableWrite_String(to, InfoBuf_ValueForKey(&about->userinfo, "topcolor"));
+				
+				newval = InfoBuf_ValueForKey(&about->userinfo, key = "bottomcolor");
 			}
+
+			ClientReliableWrite_Begin(to, svc_setinfo, 4+strlen(key)+strlen(newval));
+			ClientReliableWrite_Byte(to, playernum);
+			ClientReliableWrite_String(to, key);
+			ClientReliableWrite_String(to, newval);
 		}
 	}
 #ifdef NQPROT
 	else if (ISNQCLIENT(to))
 	{
-		if (!strcmp(key, "*spectator"))
-		{	//nq does not support spectators, mods tend to use frags=-999 or -99 instead.
-			//yes, this breaks things.
-			ClientReliableWrite_Begin(to, svc_updatefrags, 4);
-			ClientReliableWrite_Byte(to, playernum);
-			if (atoi(newval) == 1)
-				ClientReliableWrite_Short(to, -999);
-			else
-				ClientReliableWrite_Short(to, about->old_frags);	//restore their true frag count
-		}
-		else if (!strcmp(key, "name"))
-		{
-			ClientReliableWrite_Begin(to, svc_updatename, 3+strlen(newval));
-			ClientReliableWrite_Byte(to, playernum);
-			ClientReliableWrite_String(to, newval);
-		}
-		else if (!strcmp(key, "topcolor") || !strcmp(key, "bottomcolor") || !strcmp(key, "*bothcolours"))
-		{	//due to these being combined, nq players get double colour change notifications...
-			int tc = atoi(InfoBuf_ValueForKey(&about->userinfo, "topcolor"));
-			int bc = atoi(InfoBuf_ValueForKey(&about->userinfo, "bottomcolor"));
-			if (tc < 0 || tc > 13)
-				tc = 0;
-			if (bc < 0 || bc > 13)
-				bc = 0;
-			ClientReliableWrite_Begin(to, svc_updatecolors, 3);
-			ClientReliableWrite_Byte(to, playernum);
-			ClientReliableWrite_Byte(to, 16*tc + bc);
-		}
-
 		if (to->fteprotocolextensions2 & PEXT2_PREDINFO)
-		{
+		{	//this client has an understanding of userinfo, using it instead of svc_updatename+svc_updatecolors.
 			char quotedkey[1024];
 			char quotedval[8192];
-			char *s = va("//ui %i %s %s\n", playernum, COM_QuotedString(key, quotedkey, sizeof(quotedkey), false), COM_QuotedString(newval, quotedval, sizeof(quotedval), false));
+			char *s;
+			if (!strcmp(key, "*bothcolours"))
+			{	//hack to shorten sending vanilla nq colour updates
+				newval = InfoBuf_ValueForKey(&about->userinfo, key="bottomcolor");
+				s = va("//ui %i %s %s\n", playernum, COM_QuotedString(key, quotedkey, sizeof(quotedkey), false), COM_QuotedString(newval, quotedval, sizeof(quotedval), false));
+				ClientReliableWrite_Begin(to, svc_stufftext, 2+strlen(s));
+				ClientReliableWrite_String(to, s);
+
+				newval = InfoBuf_ValueForKey(&about->userinfo, key="bottomcolor");
+			}
+			s = va("//ui %i %s %s\n", playernum, COM_QuotedString(key, quotedkey, sizeof(quotedkey), false), COM_QuotedString(newval, quotedval, sizeof(quotedval), false));
 			ClientReliableWrite_Begin(to, svc_stufftext, 2+strlen(s));
 			ClientReliableWrite_String(to, s);
+		}
+		else
+		{	//legacy client.
+			if (!strcmp(key, "*spectator"))
+			{	//nq does not support spectators, mods tend to use frags=-999 or -99 instead.
+				//yes, this breaks things.
+				ClientReliableWrite_Begin(to, svc_updatefrags, 4);
+				ClientReliableWrite_Byte(to, playernum);
+				if (atoi(newval) == 1)
+					ClientReliableWrite_Short(to, -999);
+				else
+					ClientReliableWrite_Short(to, about->old_frags);	//restore their true frag count
+			}
+			else if (!strcmp(key, "name"))
+			{
+				ClientReliableWrite_Begin(to, svc_updatename, 3+strlen(newval));
+				ClientReliableWrite_Byte(to, playernum);
+				ClientReliableWrite_String(to, newval);
+			}
+			else if (!strcmp(key, "topcolor") || !strcmp(key, "bottomcolor") || !strcmp(key, "*bothcolours"))
+			{	//due to these being combined, nq players get double colour change notifications...
+				int tc = atoi(InfoBuf_ValueForKey(&about->userinfo, "topcolor"));
+				int bc = atoi(InfoBuf_ValueForKey(&about->userinfo, "bottomcolor"));
+				if (tc < 0 || tc > 13)
+					tc = 0;
+				if (bc < 0 || bc > 13)
+					bc = 0;
+				ClientReliableWrite_Begin(to, svc_updatecolors, 3);
+				ClientReliableWrite_Byte(to, playernum);
+				ClientReliableWrite_Byte(to, 16*tc + bc);
+			}
 		}
 	}
 #endif
@@ -3498,13 +3496,12 @@ void SV_SendClientMessages (void)
 				SV_PreRunCmd();
 				stepmsec = 13;
 				cmd.msec = stepmsec;
-
-				c->hoverms += cmd.msec;
+				c->hoverms += cmd.msec;	//sv_showpredloss shows this later when we do get the next packet, instead of potentially spamming every frame while they lag.
 				VectorCopy(c->lastcmd.angles, cmd.angles);
 				cmd.buttons = c->lastcmd.buttons;
 				SV_RunCmd (&cmd, true);
 				SV_PostRunCmd();
-				c->lastruncmd = sv.time*1000-c->msecs;
+				c->lastruncmd = (unsigned int)(sv.time*1000)-c->msecs;
 				if (stepmsec > c->msecs)
 					c->msecs = 0;
 				else
@@ -3769,10 +3766,6 @@ void SV_SendMVDMessage(void)
 	msg.allowoverflow = true;
 	msg.overflowed = false;
 
-	m = MAX_QW_STATS;
-	if (demo.recorder.fteprotocolextensions & (PEXT_HEXEN2|PEXT_CSQC))
-		m = MAX_CL_STATS;
-
 	for (i=0, c = svs.clients ; i<svs.allocated_client_slots && i < 32; i++, c++)
 	{
 		if (c->state != cs_spawned)
@@ -3782,7 +3775,11 @@ void SV_SendMVDMessage(void)
 			continue;
 
 		/*figure out what the stat values should be*/
-		SV_CalcClientStats(c, statsi, statsf, statss);
+		m = SV_CalcClientStats(c, statsi, statsf, statss);
+		if (demo.recorder.fteprotocolextensions & (PEXT_HEXEN2|PEXT_CSQC))
+			m = min(m,MAX_CL_STATS);
+		else
+			m = min(m,MAX_QW_STATS);
 
 		//FIXME we should do something about the packet overhead here. each MVDWrite_Begin is a separate packet!
 

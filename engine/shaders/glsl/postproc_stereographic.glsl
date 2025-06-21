@@ -21,9 +21,9 @@ void main()
 varying vec2 texcoord;
 void main()
 {
-	vec3 tc;	
-	vec2 d;	
-	vec2 ang;	
+	vec3 tc;
+	vec2 d;
+	vec2 ang;
 	d = texcoord;	
 
 	//compute the 2d->3d projection

@@ -15,7 +15,7 @@ static void(vector sizes) drawwireframeview =
 {
 	//figure out the planes that we care about.
 	vector org = getviewprop(VF_ORIGIN);
-	vector vaxis[6];
+	static vector vaxis[6];
 	vaxis[0] = v_right;
 	vaxis[1] = v_up;
 	vaxis[2] = v_forward;
@@ -95,7 +95,7 @@ void(vector mousepos) editor_brushes_addentities =
 	int facenum;
 	float intensity = (sin(gettime(5)*4)+1)*0.05;
 	vector displace = 0;
-	vector mid;
+	static vector mid;
 	
 	autocvar_ca_brush_view = fabs(autocvar_ca_brush_view) % 4f;
 	if (autocvar_ca_brush_view)

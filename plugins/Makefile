@@ -3,7 +3,7 @@
 ifeq ($(FTE_TARGET),win32)
 	PLUG_NATIVE_EXT=_x86.dll
 	PLUG_LDFLAGS= -static-libgcc
-	PLUG_LDFLAGS_ZLIB=-L../engine/libs/mingw-libs -lzlib
+	PLUG_LDFLAGS_ZLIB=-L../engine/libs/mingw-libs -lz
 	BITS=32
 	PLUG_LDFLAGS_DL=
 	CMAKERULES=$(OUT_DIR)/toolchain_$(FTE_TARGET).cmake
@@ -98,6 +98,7 @@ ifeq ($(FTE_TARGET),droid)
 	PLUG_CFLAGS=-DANDROID
 	PLUG_CXXFLAGS=-DANDROID
 endif
+ARCHLIBS=../engine/libs-$(ARCH)
 
 #fallback
 PLUG_NATIVE_EXT?=.so
@@ -108,9 +109,9 @@ PLUG_CXXFLAGS?=-fPIC -Wl,--no-undefined -Bsymbolic -fvisibility=hidden -static-l
 PLUG_CMAKE?=-DCMAKE_POSITION_INDEPENDENT_CODE=ON -DCMAKE_C_COMPILER=$(CC) -DCMAKE_CXX_COMPILER=$(CXX)
 PLUG_LDFLAGS_ZLIB?=
 ARCH:=$(shell $(CC) -dumpmachine)
-PLUG_LDFLAGS:=-L../engine/libs-$(ARCH) $(PLUG_LDFLAGS)
-PLUG_CFLAGS:=-I../engine/libs-$(ARCH) $(PLUG_CFLAGS)
-PLUG_CXXFLAGS:=-I../engine/libs-$(ARCH) $(PLUG_CXXFLAGS)
+PLUG_LDFLAGS:=-L$(ARCHLIBS) $(PLUG_LDFLAGS)
+PLUG_CFLAGS:=-I$(ARCHLIBS) $(PLUG_CFLAGS)
+PLUG_CXXFLAGS:=-I$(ARCHLIBS) $(PLUG_CXXFLAGS)
 
 #$1 is the plugin name, $2 is its filename, $3 is title, $4 is description
 define EMBEDMETA
@@ -248,16 +249,16 @@ ODE_ARCH=$(FTE_TARGET)
 ifeq ($(ODE_ARCH),)
   ODE_ARCH=unknown
 endif
-ODE_VER=0.16.2
+ODE_VER=0.16.5
 ODE_URL=https://bitbucket.org/odedevs/ode/downloads/ode-$(ODE_VER).tar.gz
-ODE_BASE=$(OUT_DIR)/../ode-$(ODE_VER)_$(ODE_ARCH)/
+ODE_BASE=$(ARCHLIBS)/ode-$(ODE_VER)_$(ODE_ARCH)/
 ODE_LIB=$(ODE_BASE)ode-$(ODE_VER)/ode/src/.libs/libode.a
 $(OUT_DIR)/../ode-$(ODE_VER).tar.gz:
 	mkdir -p $(ODE_BASE)
 	cd $(OUT_DIR)/.. && wget -N $(ODE_URL)
 $(ODE_LIB): $(OUT_DIR)/../ode-$(ODE_VER).tar.gz
 	mkdir -p $(ODE_BASE) && cd $(ODE_BASE) && tar xvfz $<
-	cd $(ODE_BASE)ode-$(ODE_VER)/ && ./bootstrap && ./configure --enable-double-precision --disable-demos --without-x --with-pic CC="$(CC) $(PLUG_CXXFLAGS)" CXX="$(CC) $(PLUG_CXXFLAGS)" --host=`$(CC) -dumpmachine` && make
+	cd $(ODE_BASE)ode-$(ODE_VER)/ && ./bootstrap && ./configure --enable-double-precision --disable-demos --without-x --with-pic CC="$(CC) $(PLUG_CXXFLAGS)" CXX="$(CC) $(PLUG_CXXFLAGS)" --host=`$(CC) -dumpmachine` && $(MAKE)
 
 ODE_FILES=../engine/common/com_phys_ode.c ../engine/common/mathlib.c plugin.c $(ODE_LIB)
 $(PLUG_PREFIX)ode$(PLUG_NATIVE_EXT): $(ODE_FILES)
@@ -442,12 +443,15 @@ NATIVE_PLUGINS+=irc
 
 ######################################
 #OpenXR plugin, for use with VR headsets.
-$(PLUG_PREFIX)openxr$(PLUG_NATIVE_EXT): openxr.c plugin.c
+#the tar.gz has a stupid name
+OPENXRVER=1.0.33
+$(ARCHLIBS)/openxr/openxr.h:
+	cd $(ARCHLIBS)/.. && (test -f release-$(OPENXRVER).tar.gz || wget https://github.com/KhronosGroup/OpenXR-SDK/archive/refs/tags/release-$(OPENXRVER).tar.gz)
+	cd $(ARCHLIBS) && tar -xvzf ../release-$(OPENXRVER).tar.gz --strip-components=2 OpenXR-SDK-release-$(OPENXRVER)/include/openxr/
+$(PLUG_PREFIX)openxr$(PLUG_NATIVE_EXT): openxr.c plugin.c $(ARCHLIBS)/openxr/openxr.h
 	$(CC) $(BASE_CFLAGS) $(CFLAGS) -DFTEPLUGIN -o $@ -shared $(PLUG_CFLAGS) $^ $(PLUG_DEFFILE) $(PLUG_LDFLAGS) -DXR_NO_PROTOTYPES `$(PKGCONFIG) --cflags openxr` -DGLQUAKE -DVKQUAKE -DD3D11QUAKE
 	$(call EMBEDMETA,openxr,$@,OpenXR Support,Enables the use of Virtual Reality headsets and inputs.)
-ifeq ($(shell $(PKGCONFIG) --exists openxr && echo 1),1)
 NATIVE_PLUGINS+=openxr
-endif
 ######################################
 
 ######################################
@@ -478,7 +482,6 @@ endif
 #statically link openssl on the above systems (instead of depending on system libs)
 ifneq ($(OSSL_ARCH),)
 OSSL_VERSION=3.0.1
-ARCHLIBS=../engine/libs-$(ARCH)
 #../engine/libs-$(ARCH)/openssl-$(OSSL_VERSION).tar.gz:
 ../engine/openssl-$(OSSL_VERSION).tar.gz:
 	wget -O $@ -N https://github.com/openssl/openssl/archive/refs/tags/openssl-$(OSSL_VERSION).tar.gz
@@ -506,12 +509,30 @@ endif
 
 ######################################
 #for compat with half-life 2's file formats
-$(PLUG_PREFIX)hl2$(PLUG_NATIVE_EXT): hl2/fs_vpk.c hl2/img_vtf.c hl2/mod_hl2.c hl2/mat_vmt.c hl2/mod_vbsp.c hl2/hl2.c plugin.c
-	$(CC) $(BASE_CFLAGS) $(CFLAGS) -DFTEPLUGIN -DMULTITHREAD -o $@ -shared $(PLUG_CFLAGS) $^ $(PLUG_DEFFILE) $(PLUG_LDFLAGS)
+$(PLUG_PREFIX)hl2$(PLUG_NATIVE_EXT): hl2/fs_vpk.c hl2/fs_vpk_vtmb.c hl2/fs_gma.c hl2/img_tth.c hl2/img_vtf.c hl2/mod_hl2.c hl2/mat_vmt.c hl2/mod_vbsp.c hl2/hl2.c plugin.c
+	$(CC) $(BASE_CFLAGS) $(CFLAGS) -DFTEPLUGIN -DMULTITHREAD -o $@ -shared $(PLUG_CFLAGS) $^ $(PLUG_DEFFILE) $(PLUG_LDFLAGS_ZLIB) $(PLUG_LDFLAGS)
 	$(call EMBEDMETA,hl2,$@,HL2 Formats,Provides support for various formats used by Valve's Source engine.)
 NATIVE_PLUGINS+=hl2
 ######################################
 
+######################################
+#for compat with cod's file formats
+$(PLUG_PREFIX)cod$(PLUG_NATIVE_EXT): cod/codmod.c cod/codbsp.c cod/codmat.c cod/codiwi.c plugin.c
+	$(CC) $(BASE_CFLAGS) $(CFLAGS) -DFTEPLUGIN -DMULTITHREAD -o $@ -shared $(PLUG_CFLAGS) $^ $(PLUG_DEFFILE) $(PLUG_LDFLAGS)
+	$(call EMBEDMETA,cod,$@,CoD Formats,Provides support for various formats used by Call of Duty.)
+NATIVE_PLUGINS+=cod
+######################################
 
+
+
+ifeq ($(findstring win,$(FTE_TARGET)),win)
+######################################
+#winamp ipc
+$(PLUG_PREFIX)winamp$(PLUG_NATIVE_EXT): winamp/winamp.c plugin.c
+	$(CC) $(BASE_CFLAGS) $(CFLAGS) -DFTEPLUGIN -o $@ -shared $(PLUG_CFLAGS) $^ $(PLUG_DEFFILE) $(PLUG_LDFLAGS)
+	$(call EMBEDMETA,winamp,$@,Winamp,Provides support for controlling Winamp.)
+NATIVE_PLUGINS+=winamp
+######################################
+endif
 
 all: $(foreach FOO,$(NATIVE_PLUGINS), $(PLUG_PREFIX)$(FOO)$(PLUG_NATIVE_EXT))

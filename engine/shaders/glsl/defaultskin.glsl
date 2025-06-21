@@ -14,6 +14,8 @@
 !!samps !EIGHTBIT diffuse normalmap specular fullbright upper lower reflectmask reflectcube
 !!samps =EIGHTBIT paletted 1
 !!samps =OCCLUDE occlusion
+!!samps =USE_TRANSMISSION transmission	//only .r valid, multiplier for factor_transmission
+!!samps =USE_VOLUME thickness			//only .g valid, multiplier for factor_volume_thickness, combined with factor_volume_rgb+factor_volume_distance(average distance travelled in metres)
 //!!permu VC			// adds rgba vertex colour multipliers
 //!!permu SPECULAR		// auto-added when gl_specular>0
 //!!permu OFFSETMAPPING	// auto-added when r_glsl_offsetmapping is set
@@ -83,10 +85,16 @@ void main ()
 	s = normalize(s);
 	t = normalize(t);
 	#ifndef PBR
-		float d = dot(n,e_light_dir);
-		if (d < 0.0)		//vertex shader. this might get ugly, but I don't really want to make it per vertex.
-			d = 0.0;	//this avoids the dark side going below the ambient level.
-		light.rgb += (d*e_light_mul);
+		#ifdef EIGHTBIT
+			//doesn't darken in the shade, only gets brighter in the light (overbrighting)
+			light.rgb += max(0.0,dot(n,e_light_dir)) * e_light_mul;
+		#else
+			//_DOES_ get darker in the shade, despite the light not lighting it at all....
+			float d = dot(n,e_light_dir);
+			if (d < 0.0)
+				d *= 13.0/44.0;	//a wtfery factor to approximate glquake's anorm_dots.h
+			light.rgb += d * e_light_mul;
+		#endif
 	#else
 		light.rgb = vec3(1.0);
 	#endif

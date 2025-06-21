@@ -27,7 +27,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #include <ctype.h> // for isdigit();
 
-cvar_t r_projection = CVARD("r_projection", "0", "0: regular perspective.\n1: stereographic (aka: pannini).\n2: fisheye.\n3: panoramic.\n4: lambert azimuthal equal-area.\n5: Equirectangular");
+cvar_t r_projection = CVARD("r_projection", "0", "0: regular perspective.\n1: stereographic.\n2: fisheye.\n3: panoramic.\n4: lambert azimuthal equal-area.\n5: equirectangular.\n6: panini.");
 cvar_t ffov = CVARFD("ffov", "", 0, "Allows you to set a specific field of view for when a custom projection is specified. If empty, will use regular fov cvar, which might get messy.");
 #if defined(_WIN32) && !defined(MINIMAL)
 //amusing gimmick / easteregg.
@@ -94,8 +94,8 @@ static cvar_t	v_ipitch_level			= CVAR("v_ipitch_level", "0.3");
 static cvar_t	v_idlescale				= CVARD("v_idlescale", "0", "Enable swishing of the view (whether idle or otherwise). Often used for concussion effects.");
 
 cvar_t	crosshair				= CVARF("crosshair", "1", CVAR_ARCHIVE);
-cvar_t	crosshaircolor			= CVARF("crosshaircolor", "255 255 255", CVAR_ARCHIVE);
-cvar_t	crosshairsize			= CVARF("crosshairsize", "8", CVAR_ARCHIVE);
+cvar_t	crosshaircolor			= CVARF("crosshaircolor", "255 255 255", CVAR_ARCHIVE); //QSSM misnamed it...
+cvar_t	crosshairsize			= CVARF("crosshairsize", "8", CVAR_ARCHIVE);	//QS has scr_crosshairscale, but its a multiplier rather than (vritual) size.
 
 cvar_t	cl_crossx				= CVARF("cl_crossx", "0", CVAR_ARCHIVE);
 cvar_t	cl_crossy				= CVARF("cl_crossy", "0", CVAR_ARCHIVE);
@@ -517,7 +517,7 @@ void V_ParseDamage (playerview_t *pv)
 	if (count < 10)
 		count = 10;
 
-#ifdef ANDROID
+#if defined(ANDROID) && !defined(FTE_SDL)
 	//later versions of android might support strength values, but the simple standard interface is duration only.
 	Sys_Vibrate(count);
 #endif
@@ -1877,7 +1877,7 @@ static void SCR_DrawAutoID(vec3_t org, player_info_t *pl, qboolean isteam)
 	x = center[0]*r_refdef.vrect.width+r_refdef.vrect.x;
 	y = (1-center[1])*r_refdef.vrect.height+r_refdef.vrect.y;
 
-	if (cls.demoplayback == DPB_MVD || cls.demoplayback == DPB_EZTV)
+	if (cls.demoplayback == DPB_MVD)
 	{
 		health = pl->statsf[STAT_HEALTH];
 		armour = pl->statsf[STAT_ARMOR];
@@ -2050,6 +2050,10 @@ void R_DrawNameTags(void)
 		vec3_t targ;
 		vec2_t scale = {12,12};
 		msurface_t *surf;
+		shader_t *shader;
+		const char *shadername;
+		char *body;
+		char fname[MAX_QPATH];
 		VectorMA(r_refdef.vieworg, 8192, vpn, targ);
 #ifdef CSQC_DAT
 		if (csqc_world.progs)
@@ -2063,23 +2067,56 @@ void R_DrawNameTags(void)
 #endif
 			cl.worldmodel->funcs.NativeTrace(cl.worldmodel, 0, PE_FRAMESTATE, NULL, r_refdef.vieworg, targ, vec3_origin, vec3_origin, false, ~0, &trace);
 
-		surf = (trace.fraction == 1)?NULL:Mod_GetSurfaceNearPoint(cl.worldmodel, trace.endpos);
-		if (surf)
+		if (trace.fraction >= 1)
+			str = "hit nothing";
+		else
 		{
-			shader_t *shader = surf->texinfo->texture->shader;
-			char fname[MAX_QPATH];
-			char *body = shader?Shader_GetShaderBody(shader, fname, countof(fname)):NULL;
+			shader = NULL;
+#ifdef TERRAIN
+			if (cl.worldmodel->terrain && trace.brush_id && (shader = Terr_GetShader(cl.worldmodel, &trace)))
+				shadername = shader->name;
+			else
+#endif
+				 if ((surf = (trace.fraction == 1)?NULL:Mod_GetSurfaceNearPoint(cl.worldmodel, trace.endpos)))
+			{
+				shadername = surf->texinfo->texture->name;
+				shader = surf->texinfo->texture->shader;
+			}
+			else if (trace.surface && *trace.surface->name)
+			{
+				shadername = trace.surface->name;
+				shader = NULL;
+			}
+			else
+			{
+				shadername = "the unknown";
+				shader = NULL;
+			}
+
+			body = shader?Shader_GetShaderBody(shader, fname, countof(fname)):NULL;
 			if (body)
 			{
-//				Q_snprintfz(fname, sizeof(fname), "<default shader>");
-				str = va("^2%s^7\n%s%s\n{%s\n", fname, ruleset_allow_shaders.ival?"":CON_ERROR"WARNING: ruleset_allow_shaders disables external shaders"CON_DEFAULT"\n", surf->texinfo->texture->name, body);
+				int width, height;
+				char *cr;
+				const char *fl = "";
+				if (shader->usageflags & SUF_LIGHTMAP)
+					fl = S_COLOR_GRAY" (lightmapped)"S_COLOR_WHITE;
+				else if (shader->usageflags & SUF_2D)
+					fl = S_COLOR_GRAY" (2d)"S_COLOR_WHITE;
+				else //if (shader->usageflags & SUF_2D)
+					fl = S_COLOR_GRAY" (auto)"S_COLOR_WHITE;
+				if (R_GetShaderSizes(shader, &width, &height, false)>0)
+					fl = va("%s (%ix%i)", fl, width, height);
+
+				while((cr = strchr(body, '\r')))
+					*cr = ' ';
+
+				str = va(S_COLOR_GREEN"%s"S_COLOR_WHITE"\n%s%s%s\n{%s\n", fname, ruleset_allow_shaders.ival?"":CON_ERROR"WARNING: ruleset_allow_shaders disables external shaders"CON_DEFAULT"\n", shadername, fl, body);
 				Z_Free(body);
 			}
 			else
-				str = va("hit '%s'", surf->texinfo->texture->name);
+				str = va("hit '%s'", shadername);
 		}
-		else
-			str = "hit nothing";
 		R_DrawTextField(r_refdef.vrect.x + r_refdef.vrect.width/4, r_refdef.vrect.y, r_refdef.vrect.width/2, r_refdef.vrect.height, str, CON_WHITEMASK, CPRINT_LALIGN, font_console, scale);
 	}
 	else

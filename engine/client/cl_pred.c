@@ -38,7 +38,6 @@ extern entity_state_t	clq2_parse_entities[MAX_PARSE_ENTITIES];
 
 char *Get_Q2ConfigString(int i);
 
-#ifdef Q2BSPS
 void VARGS Q2_Pmove (q2pmove_t *pmove);
 #define	Q2PMF_DUCKED			1
 #define	Q2PMF_JUMP_HELD		2
@@ -47,9 +46,12 @@ void VARGS Q2_Pmove (q2pmove_t *pmove);
 #define	Q2PMF_TIME_LAND		16	// pm_time is time before rejump
 #define	Q2PMF_TIME_TELEPORT	32	// pm_time is non-moving time
 #define Q2PMF_NO_PREDICTION	64	// temporarily disables prediction (used for grappling hook)
-#endif
 
-vec3_t cl_predicted_origins[MAX_SPLITS][UPDATE_BACKUP];
+static struct
+{
+	vec3_t origin;
+	int seq;
+} cl_predictions[MAX_SPLITS][UPDATE_BACKUP];
 
 
 /*
@@ -57,7 +59,6 @@ vec3_t cl_predicted_origins[MAX_SPLITS][UPDATE_BACKUP];
 CL_CheckPredictionError
 ===================
 */
-#ifdef Q2BSPS
 void CLQ2_CheckPredictionError (void)
 {
 	int		frame;
@@ -70,18 +71,21 @@ void CLQ2_CheckPredictionError (void)
 
 	for (seat = 0; seat < cl.splitclients; seat++)
 	{
-		ps = &cl.q2frame.playerstate[seat];
+		ps = &cl.q2frame.seat[seat].playerstate;
 		pv = &cl.playerview[seat];
 
 		if (cl_nopred.value || (ps->pmove.pm_flags & Q2PMF_NO_PREDICTION))
 			continue;
 
 		// calculate the last usercmd_t we sent that the server has processed
-		frame = cls.netchan.incoming_acknowledged;
+		frame = cl.ackedmovesequence;
 		frame &= (UPDATE_MASK);
 
+		if (cl_predictions[seat][frame].seq != cl.ackedmovesequence)
+			continue;
+
 		// compare what the server returned with what we had predicted it to be
-		VectorSubtract (ps->pmove.origin, cl_predicted_origins[seat][frame], delta);
+		VectorSubtract (ps->pmove.origin, cl_predictions[seat][frame].origin, delta);
 
 		// save the prediction error for interpolation
 		len = abs(delta[0]) + abs(delta[1]) + abs(delta[2]);
@@ -95,7 +99,7 @@ void CLQ2_CheckPredictionError (void)
 //				Con_Printf ("prediction miss on %i: %i\n", cl.q2frame.serverframe,
 //				delta[0] + delta[1] + delta[2]);
 
-			VectorCopy (ps->pmove.origin, cl_predicted_origins[seat][frame]);
+			VectorCopy (ps->pmove.origin, cl_predictions[seat][frame].origin);
 
 			// save for error itnerpolation
 			for (i=0 ; i<3 ; i++)
@@ -223,7 +227,6 @@ int		VARGS CLQ2_PMpointcontents (vec3_t point)
 	return contents;
 }
 
-#endif
 /*
 =================
 CL_PredictMovement
@@ -244,16 +247,14 @@ static void CLQ2_UserCmdToQ2(q2usercmd_t *out, const usercmd_t *cmd)
 }
 static void CLQ2_PredictMovement (int seat)	//q2 doesn't support split clients.
 {
-#ifdef Q2BSPS
 	int			ack, current;
 	int			frame;
 	int			oldframe;
 	q2pmove_t	pm;
 	int			step;
 	int			oldz;
-#endif
 	int			i;
-	q2player_state_t *ps = &cl.q2frame.playerstate[seat];
+	q2player_state_t *ps = &cl.q2frame.seat[seat].playerstate;
 	playerview_t *pv = &cl.playerview[seat];
 
 	if (cls.state != ca_active)
@@ -262,9 +263,7 @@ static void CLQ2_PredictMovement (int seat)	//q2 doesn't support split clients.
 //	if (cl_paused->value)
 //		return;
 	
-#ifdef Q2BSPS
 	if (cl_nopred.value || cls.demoplayback || (ps->pmove.pm_flags & Q2PMF_NO_PREDICTION))
-#endif
 	{	// just set angles
 		for (i=0 ; i<3 ; i++)
 		{
@@ -272,9 +271,8 @@ static void CLQ2_PredictMovement (int seat)	//q2 doesn't support split clients.
 		}
 		return;
 	}
-#ifdef Q2BSPS
-	ack = cls.netchan.incoming_acknowledged;
-	current = cls.netchan.outgoing_sequence;
+	ack = cl.ackedmovesequence;	//index was received
+	current = cl.movesequence;	//count generated, [current] is thus invalid.
 
 	// if we are too far out of date, just freeze
 	if (current - ack >= UPDATE_MASK)
@@ -297,7 +295,7 @@ static void CLQ2_PredictMovement (int seat)	//q2 doesn't support split clients.
 
 	frame = 0;
 
-	predignoreentitynum = cl.q2frame.clientnum[seat]+1;//cl.playerview[seat].playernum+1;
+	predignoreentitynum = cl.q2frame.seat[seat].clientnum+1;//cl.playerview[seat].playernum+1;
 
 	// run frames
 	while (++ack < current)
@@ -307,7 +305,8 @@ static void CLQ2_PredictMovement (int seat)	//q2 doesn't support split clients.
 		Q2_Pmove (&pm);
 
 		// save for debug checking
-		VectorCopy (pm.s.origin, cl_predicted_origins[seat][frame]);
+		VectorCopy (pm.s.origin, cl_predictions[seat][frame].origin);
+		cl_predictions[seat][frame].seq = ack;
 	}
 
 	if (cl_pendingcmd[seat].msec)
@@ -317,7 +316,7 @@ static void CLQ2_PredictMovement (int seat)	//q2 doesn't support split clients.
 	}
 
 	oldframe = (ack-1) & (UPDATE_MASK);
-	oldz = cl_predicted_origins[seat][oldframe][2];
+	oldz = cl_predictions[seat][oldframe].origin[2];
 	step = pm.s.origin[2] - oldz;
 	if (step > 63 && step < 160 && (pm.s.pm_flags & Q2PMF_ON_GROUND) )
 	{
@@ -335,7 +334,6 @@ static void CLQ2_PredictMovement (int seat)	//q2 doesn't support split clients.
 
 	VectorScale (pm.s.velocity, 0.125, pv->simvel);
 	VectorCopy (pm.viewangles, pv->predicted_angles);
-#endif
 }
 
 /*
@@ -613,6 +611,7 @@ short LerpAngles16(short to, short from, float frac)
 
 void CL_CalcClientTime(void)
 {
+	extern cvar_t cl_demospeed;
 	if (!cls.state)
 	{
 		if (!cl.implicitpause)
@@ -635,19 +634,23 @@ void CL_CalcClientTime(void)
 		//qw code can drift (but oh noes! my latency!)
 		//FIXME: nq code should be able to drift, but is apparently buggy somewhere and ends up uncomfortably stuttery right now.
 		//default is to drift in demos+SP but not live (oh noes! added latency!)
-		if (cls.protocol == CP_QUAKE2 || cls.protocol==CP_NETQUAKE/*FIXME*/ || (cls.protocol != CP_QUAKE3 && (!cl_lerp_smooth.ival || (cl_lerp_smooth.ival == 2 && !(cls.demoplayback || cl.allocated_client_slots == 1 || cl.playerview[0].spectator))) && cls.demoplayback != DPB_MVD))
+		if (cls.protocol == CP_QUAKE2 || cls.protocol==CP_NETQUAKE/*FIXME*/ || (cls.protocol != CP_QUAKE3 && (!cl_lerp_smooth.ival || (cl_lerp_smooth.ival == 2 && !(cls.demoplayback || cl.allocated_client_slots == 1 || cl.playerview[0].spectator))) && cls.demoplayback!=DPB_MVD))
 		{	//no drift logic
-			float f;
+			double f;
+			extern cvar_t cl_demospeed;
 			f = cl.gametime - cl.oldgametime;
 			if (f > 0.1)
 				f = 0.1;
 			f = (realtime - cl.gametimemark) / (f);
+			if (cls.demoplayback && cl_demospeed.value > 0 && cls.state == ca_active)
+				f *= cl_demospeed.value;
 			f = bound(0, f, 1);
-			cl.servertime = cl.gametime*f + cl.oldgametime*(1-f);
+			cl.servertime = cl.oldgametime + f*(cl.gametime-cl.oldgametime);
 		}
 		else
 		{	//funky magic drift logic. we be behind the most recent frame in order to attempt to cover network congestions (which is apparently common in germany).
 			float min, max;
+			float r;
 
 //			oldst = cl.servertime;
 
@@ -658,14 +661,13 @@ void CL_CalcClientTime(void)
 			if (max < min)
 				max = min;
 
+			if (cls.demoplayback && cl_demospeed.value > 0 && cls.state == ca_active)
+				r = cl_demospeed.value;
+			else
+				r = 1;
+
 			if (max)
-			{
-				extern cvar_t cl_demospeed;
-				if (cls.demoplayback && cl_demospeed.value > 0 && cls.state == ca_active)
-					cl.servertime += host_frametime*cl_demospeed.value;
-				else
-					cl.servertime += host_frametime;
-			}
+				cl.servertime += host_frametime*r;
 			else
 				cl.servertime = 0;
 
@@ -680,7 +682,7 @@ void CL_CalcClientTime(void)
 				}
 				else
 				{
-					cl.servertime -= 0.02*(max - cl.servertime);
+					cl.servertime -= 0.02*(max - cl.servertime)*r;
 					if (cl.servertime < cl.time)
 						cl.servertime = cl.time;
 				}
@@ -694,12 +696,12 @@ void CL_CalcClientTime(void)
 				}
 				else if (cl.servertime < min-0.3)
 				{
-					cl.servertime += 0.02*(min - cl.servertime);
+					cl.servertime += 0.02*(min - cl.servertime)*r;
 //					Con_Printf("running really slow\n");
 				}
 				else
 				{
-					cl.servertime += 0.01*(min - cl.servertime);
+					cl.servertime += 0.01*(min - cl.servertime)*r;
 //					Con_Printf("running slow\n");
 				}
 			}
@@ -1017,7 +1019,7 @@ void CL_PredictMovePNum (int seat)
 	}
 #endif
 
-	if (cl.paused && !(cls.demoplayback!=DPB_MVD && cls.demoplayback!=DPB_EZTV) && pv->cam_state == CAM_FREECAM)
+	if (cl.paused && !(cls.demoplayback!=DPB_MVD) && pv->cam_state == CAM_FREECAM)
 		return;
 
 	if (!cl.validsequence)
@@ -1085,7 +1087,7 @@ void CL_PredictMovePNum (int seat)
 		nopred = true;
 
 	//these things also force-disable prediction
-	if ((cls.demoplayback==DPB_MVD || cls.demoplayback == DPB_EZTV) ||
+	if (cls.demoplayback==DPB_MVD ||
 		cl.intermissionmode != IM_NONE || cl.paused || pv->pmovetype == PM_NONE || pv->pmovetype == PM_FREEZE || CAM_ISLOCKED(pv))
 	{
 		nopred = true;
@@ -1168,7 +1170,7 @@ void CL_PredictMovePNum (int seat)
 	}
 	else
 	{
-		if (cls.demoplayback==DPB_MVD || cls.demoplayback == DPB_EZTV)
+		if (cls.demoplayback==DPB_MVD)
 		{
 			pv->nolocalplayer = false;
 			from.state = &cl.inframes[cl.ackedmovesequence & UPDATE_MASK].playerstate[pv->playernum];

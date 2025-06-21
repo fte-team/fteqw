@@ -623,7 +623,7 @@ void CLFTE_ReadDelta(unsigned int entnum, entity_state_t *news, entity_state_t *
 {
 	unsigned int predbits = 0;
 	unsigned int bits;
-	
+
 	bits = MSG_ReadByte();
 	if (bits & UF_EXTEND1)
 		bits |= MSG_ReadByte()<<8;
@@ -925,7 +925,7 @@ void CLFTE_ReadDelta(unsigned int entnum, entity_state_t *news, entity_state_t *
 	if (bits & UF_DRAWFLAGS)
 	{
 		news->hexen2flags = MSG_ReadByte();
-		if ((news->hexen2flags & MLS_MASK) == MLS_ABSLIGHT)
+		if ((news->hexen2flags & MLS_MASK) >= MLS_ADDLIGHT)
 			news->abslight = MSG_ReadByte();
 		else
 			news->abslight = 0;
@@ -1052,7 +1052,7 @@ void CLFTE_ParseEntities(void)
 //		Con_Printf("CL: Dropped %i\n", i);
 //	}
 
-	if (cls.demoplayback == DPB_MVD || cls.demoplayback == DPB_EZTV)
+	if (cls.demoplayback == DPB_MVD)
 	{
 		cls.netchan.incoming_sequence++;
 		cls.netchan.incoming_acknowledged++;
@@ -1291,7 +1291,7 @@ void CLQW_ParsePacketEntities (qboolean delta)
 	cl.inframes[newpacket].frameid = cls.netchan.incoming_sequence;
 	cl.inframes[newpacket].receivedtime = realtime;
 
-	if (cls.protocol == CP_QUAKEWORLD && (cls.demoplayback == DPB_MVD || cls.demoplayback == DPB_EZTV))
+	if (cls.protocol == CP_QUAKEWORLD && cls.demoplayback == DPB_MVD)
 	{
 		extern float olddemotime;	//time from the most recent demo packet
 		cl.oldgametime = cl.gametime;
@@ -1317,7 +1317,7 @@ void CLQW_ParsePacketEntities (qboolean delta)
 		from = MSG_ReadByte ();
 
 //		Con_Printf("%i %i from %i\n", cls.netchan.outgoing_sequence, cls.netchan.incoming_sequence, from);
-		if (cls.demoplayback == DPB_MVD || cls.demoplayback == DPB_EZTV)
+		if (cls.demoplayback == DPB_MVD)
 			from = oldpacket = cls.netchan.incoming_sequence - 1;
 		oldpacket = cl.inframes[from & UPDATE_MASK].frameid;
 
@@ -1850,6 +1850,200 @@ void CLDP_ParseDarkPlaces5Entities(void)	//the things I do.. :o(
 		}
 	}
 }
+
+#ifdef HEXEN2
+#define UH2_MOREBITS	(1u<<0)
+#define UH2_ORIGIN1		(1u<<1)
+#define UH2_ORIGIN2		(1u<<2)
+#define UH2_ORIGIN3		(1u<<3)
+#define UH2_ANGLE2		(1u<<4)
+#define UH2_STEP		(1u<<5)
+#define UH2_FRAME		(1u<<6)
+#define UH2_SIGNAL		(1u<<7)
+
+#define UH2_ANGLE1		(1u<<8)
+#define UH2_ANGLE3		(1u<<9)
+#define UH2_MODEL		(1u<<10)
+//#define UH2_			(1u<<11)
+//#define UH2_			(1u<<12)
+//#define UH2_			(1u<<13)
+#define UH2_LONGENTITY	(1u<<14)
+#define UH2_EVENMORE	(1u<<15)
+
+#define UH2_SKIN		(1u<<16)
+#define UH2_EFFECTS		(1u<<17)
+#define UH2_SCALE		(1u<<18)
+#define UH2_COLORMAP	(1u<<19)
+
+void CLH2_ParseEntities(void)
+{
+	//h2mp apparently uses some sort of delta compression
+	//there's three parts to this, the start, the updates, and the removes at the end.
+	//so we can be a bit lazy and parse the 'fast updates' here and assert they end with a final clear.
+	//entities are ordered.
+
+	packet_entities_t	*oldpack, *newpack;
+
+	entity_state_t		*to, *from;
+	unsigned int read, bits;
+	int oldi;
+	unsigned int removecount;
+
+	int frame = MSG_ReadByte();
+	int seq = MSG_ReadByte();
+
+	//not really sure what to do with this.
+	(void)frame;
+	(void)seq;
+
+	if (cl.validsequence)
+		oldpack = &cl.inframes[(cl.validsequence)&UPDATE_MASK].packet_entities;
+	else
+		oldpack = NULL;
+	cl.validsequence = cls.netchan.incoming_sequence;
+	cl.inframes[(cls.netchan.incoming_sequence)&UPDATE_MASK].receivedtime = realtime;
+	cl.inframes[(cls.netchan.incoming_sequence)&UPDATE_MASK].frameid = cls.netchan.incoming_sequence;
+	newpack = &cl.inframes[(cls.netchan.incoming_sequence)&UPDATE_MASK].packet_entities;
+	newpack->servertime = cl.gametime;
+
+	//copy old state to new state
+	if (newpack != oldpack)
+	{
+		if (oldpack)
+		{
+			newpack->num_entities = oldpack->num_entities;
+			newpack->max_entities = newpack->num_entities+16;	//for slop for new ents, to reduce reallocs
+			newpack->entities = BZ_Realloc(newpack->entities, sizeof(entity_state_t)*newpack->max_entities);
+			memcpy(newpack->entities, oldpack->entities, sizeof(entity_state_t)*newpack->num_entities);
+		}
+		else
+			newpack->num_entities = 0;
+		newpack->bonedatacur = 0;
+
+		//flag them all as having old bones
+		//they'll be renewed after parsing
+		for (oldi=0 ; oldi<newpack->num_entities ; oldi++)
+			newpack->entities[oldi].boneoffset |= 0x80000000;
+	}
+
+	for (;;)
+	{
+		bits = MSG_ReadByte();
+		if ((bits&0x80) == 0)
+			break;	//no fast-update bit!
+		if (bits & UH2_MOREBITS)
+			bits |= MSG_ReadByte()<<8;
+		if (bits & UH2_EVENMORE)
+			bits |= MSG_ReadByte()<<16;
+		if (bits & UH2_LONGENTITY)
+			read = MSG_ReadUInt16();
+		else
+			read = MSG_ReadByte();
+
+		if (msg_badread)
+			Host_EndGame("Corrupt entity message packet\n");
+
+		if (!read)
+			break;	//remove world signals end of packet.
+
+		if (read >= MAX_EDICTS)
+			Host_EndGame("Too many entities.\n");
+
+		if (!CL_CheckBaselines(read))
+			Host_EndGame("CLNQ_ParseEntity: check baselines failed with size %i", read);
+		from = &cl_baselines[read];
+		to = NULL;
+
+		for (oldi=0 ; oldi<newpack->num_entities ; oldi++)
+		{
+			if (read == newpack->entities[oldi].number)
+			{
+				from = &newpack->entities[oldi];
+				to = &newpack->entities[oldi];
+				break;
+			}
+		}
+
+		if (!to)
+		{	//okay, so this is new
+			if (newpack->num_entities==newpack->max_entities)
+			{
+				newpack->max_entities = newpack->num_entities+16;
+				newpack->entities = BZ_Realloc(newpack->entities, sizeof(entity_state_t)*newpack->max_entities);
+			}
+
+			to = &newpack->entities[newpack->num_entities];
+			newpack->num_entities++;
+
+			if (cl_shownet.ival >= 3)
+				Con_Printf("%3i:     New %i %x\n", MSG_GetReadCount(), to->number, bits);
+		}
+		else if (cl_shownet.ival >= 3)
+			Con_Printf("%3i:     Update %i %x\n", MSG_GetReadCount(), to->number, bits);
+
+		memcpy(to, from, sizeof(*to));
+		to->number = read;
+
+		if (bits & UH2_MODEL)	to->modelindex = MSG_ReadShort();
+		if (bits & UH2_FRAME)	to->frame = MSG_ReadByte();
+		if (bits & UH2_COLORMAP)to->colormap = MSG_ReadByte();
+		if (bits & UH2_SKIN)	to->skinnum = MSG_ReadByte();
+		if (bits & UH2_SKIN)	to->hexen2flags = MSG_ReadByte();	//yes, shared with skin
+		if (bits & UH2_EFFECTS)	to->effects = MSG_ReadByte();
+		if (bits & UH2_ORIGIN1)	to->origin[0] = MSG_ReadCoord();
+		if (bits & UH2_ANGLE1)	to->angles[0] = MSG_ReadAngle();
+		if (bits & UH2_ORIGIN2)	to->origin[1] = MSG_ReadCoord();
+		if (bits & UH2_ANGLE2)	to->angles[1] = MSG_ReadAngle();
+		if (bits & UH2_ORIGIN3)	to->origin[2] = MSG_ReadCoord();
+		if (bits & UH2_ANGLE3)	to->angles[2] = MSG_ReadAngle();
+		if (bits & UH2_SCALE)	to->scale = (MSG_ReadByte()/100.0)*16;
+		if (bits & UH2_SCALE)	to->abslight = MSG_ReadByte();
+
+		to->sequence = cls.netchan.incoming_sequence;
+		to->inactiveflag = 0;
+	}
+
+	//handle the removes
+	if (bits != 48)
+		Host_EndGame("Corrupt entity message packet\n");
+	removecount = (qbyte)MSG_ReadByte();
+	while (removecount --> 0)
+	{
+		read = MSG_ReadUInt16();
+		for (oldi=0 ; oldi<newpack->num_entities ; oldi++)
+		{
+			if (read == newpack->entities[oldi].number)
+			{
+				newpack->entities[oldi].inactiveflag = true;
+				break;
+			}
+		}
+	}
+
+	//sort them, just in case. the removes will bubble to the end.
+	qsort(newpack->entities, newpack->num_entities, sizeof(entity_state_t), CLDP_SortEntities);
+	while (newpack->num_entities)
+	{	//pop those removes.
+		if (newpack->entities[newpack->num_entities-1].inactiveflag)
+			newpack->num_entities--;
+		else
+			break;
+	}
+
+
+	//make sure any bone states are refreshed
+	for (oldi=0, to = newpack->entities; oldi<newpack->num_entities ; oldi++, to++)
+	{
+		if (to->bonecount && (to->boneoffset & 0x80000000))
+		{
+			unsigned int oldoffset = to->boneoffset & 0x7fffffff;
+			void *dest = AllocateBoneSpace(newpack, to->bonecount, &to->boneoffset);
+			void *src = GetBoneSpace(oldpack, oldoffset);
+			memcpy(dest, src, to->bonecount * sizeof(short)*7);
+		}
+	}
+}
+#endif
 
 void CLNQ_ParseEntity(unsigned int bits)
 {
@@ -3934,7 +4128,7 @@ static qboolean CL_ChooseInterpolationFrames(int *newf, int *oldf, float servert
 qboolean CL_MayLerp(void)
 {
 	//force lerping when playing low-framerate demos.
-	if (cls.demoplayback == DPB_MVD || cls.demoplayback == DPB_EZTV)
+	if (cls.demoplayback == DPB_MVD)
 		return true;
 #ifdef NQPROT
 	if (cls.demoplayback == DPB_NETQUAKE)
@@ -3956,13 +4150,13 @@ void CL_TransitionEntities (void)
 	qboolean nolerp;
 	float servertime, frac;
 
-	if (cls.protocol == CP_QUAKEWORLD && (cls.demoplayback == DPB_MVD || cls.demoplayback == DPB_EZTV))
+	if (cls.protocol == CP_QUAKEWORLD && cls.demoplayback == DPB_MVD)
 	{
 		nolerp = false;
 	}
 	else
 	{
-		nolerp = !CL_MayLerp() && cls.demoplayback != DPB_MVD && cls.demoplayback != DPB_EZTV;
+		nolerp = !CL_MayLerp() && cls.demoplayback != DPB_MVD;
 	}
 
 	if (cl.demonudge < 0)
@@ -4115,15 +4309,15 @@ void CL_LinkPacketEntities (void)
 		else
 		{
 			timerlink = &(*timerlink)->next;
-			if (timer->entnum)
+/*			if (timer->entnum>0)
 			{
-				if (timer->entnum >= cl.maxlerpents)
-					continue;
-				le = &cl.lerpents[timer->entnum];
-				if (le->sequence != cl.lerpentssequence)
-					continue;
-//				VectorCopy(le->origin, timer->origin);
-			}
+				if (timer->entnum < cl.maxlerpents)
+				{
+					le = &cl.lerpents[timer->entnum];
+					if (le->sequence == cl.lerpentssequence)
+						VectorCopy(le->origin, timer->origin);
+				}
+			}*/
 			R_AddItemTimer(timer->origin, cl.time*90 + timer->origin[0] + timer->origin[1] + timer->origin[2], timer->radius, (cl.time - timer->start) / timer->duration, timer->rgb);
 		}
 	}
@@ -4313,10 +4507,9 @@ void CL_LinkPacketEntities (void)
 			//DP extension. .modelflags (which is sent in the high parts of effects) allows to specify exactly the q1-compatible flags.
 			//the extra bit allows for setting to 0.
 			//note that hexen2 has additional flags which cannot be expressed.
-			if (state->effects & 0xff800000)
-				modelflags = state->effects>>24;
-			else
-				modelflags = model->flags;
+			modelflags = state->effects>>24;
+			if (!(state->effects & EF_NOMODELFLAGS))
+				modelflags |= model->flags;
 		}
 
 #ifdef HAVE_LEGACY
@@ -4796,7 +4989,6 @@ CL_ParsePlayerinfo
 */
 extern int parsecountmod, oldparsecountmod;
 extern double parsecounttime;
-int lastplayerinfo;
 
 void CL_ParseClientdata (void);
 void CL_MVDUpdateSpectator(void)
@@ -4811,12 +5003,15 @@ void CLQW_ParsePlayerinfo (void)
 	unsigned int			flags;
 	player_info_t	*info;
 	player_state_t	*state, *oldstate;
-	int			num;
+	unsigned int			num;
 	int			i;
 	int newf;
 	vec3_t		org, dist;
 
-	lastplayerinfo = num = MSG_ReadByte ();
+	if (cls.fteprotocolextensions2&PEXT2_LONGINDEXES)
+		num = MSG_ReadUInt64 ();
+	else
+		num = MSG_ReadByte ();
 	if (num >= MAX_CLIENTS)
 		Host_EndGame ("CL_ParsePlayerinfo: bad num");
 
@@ -4825,8 +5020,26 @@ void CLQW_ParsePlayerinfo (void)
 	oldstate = &cl.inframes[oldparsecountmod].playerstate[num];
 	state = &cl.inframes[parsecountmod].playerstate[num];
 
-	if (cls.demoplayback == DPB_MVD || cls.demoplayback == DPB_EZTV)
+	if (cls.demoplayback == DPB_MVD)
 	{
+#ifdef QUAKESTATS
+		int i;
+		const char *viewmodel = NULL;
+		static struct {
+			const char *vmdl;
+			const char *vwep;
+		} vwep_mapping[] =
+		{
+			{"progs/v_axe.mdl",	"progs/w_axe.mdl"},
+			{"progs/v_shot.mdl",	"progs/w_shot.mdl"},
+			{"progs/v_shot2.mdl",	"progs/w_shot2.mdl"},
+			{"progs/v_nail.mdl",	"progs/w_nail.mdl"},
+			{"progs/v_nail2.mdl",	"progs/w_nail2.mdl"},
+			{"progs/v_rock.mdl",	"progs/w_rock.mdl"},
+			{"progs/v_rock2.mdl",	"progs/w_rock2.mdl"},
+			{"progs/v_light.mdl",	"progs/w_light.mdl"},
+		};
+#endif
 		player_state_t	dummy;
 		if (!cl.parsecount || info->prevcount > cl.parsecount || cl.parsecount - info->prevcount >= UPDATE_BACKUP - 1)
 		{
@@ -4853,11 +5066,38 @@ void CLQW_ParsePlayerinfo (void)
 
 		state->messagenum = cl.parsecount;
 		state->command.msec = 0;
+		state->command.impulse = 0;
+
+#ifdef QUAKESTATS
+		i = cl.players[num].stats[STAT_WEAPONMODELI];
+		if (i>0&&i<MAX_PRECACHE_MODELS && cl.model_name_vwep[0])
+			viewmodel = cl.model_name[i];
+		if(viewmodel)
+		{
+			for (i = 0; i < countof(vwep_mapping); i++)
+			{
+				if (!strcmp(viewmodel, vwep_mapping[i].vmdl))
+				{
+					viewmodel = vwep_mapping[i].vwep;
+					for (i = 1; i < countof(cl.model_name_vwep); i++)
+					{
+						if (!cl.model_name_vwep[i])
+							break;
+						if (!strcmp(viewmodel, cl.model_name_vwep[i]))
+						{
+							state->command.impulse = i;
+							break;
+						}
+					}
+					break;
+				}
+			}
+		}
+#endif
 
 		state->frame = MSG_ReadByte ();
 
 		state->state_time = parsecounttime;
-		state->command.msec = 0;
 
 		for (i = 0; i < 3; i++)
 		{
@@ -5365,7 +5605,7 @@ void CL_LinkPlayers (void)
 	frame = &cl.inframes[displayseq&UPDATE_MASK];
 
 	predictplayers = cl_predict_players.ival;
-	if (cls.demoplayback == DPB_MVD || cls.demoplayback == DPB_EZTV)
+	if (cls.demoplayback == DPB_MVD)
 		predictplayers = false;
 
 	for (j=0, info=cl.players, state=frame->playerstate ; j < cl.allocated_client_slots
@@ -5658,21 +5898,30 @@ void CL_LinkViewModel(void)
 #ifdef Q2CLIENT
 	if (cls.protocol == CP_QUAKE2)
 	{
+		//generate root matrix..
+		VectorCopy(pv->simorg, r_refdef.weaponmatrix[3]);
+		AngleVectors(pv->simangles, r_refdef.weaponmatrix[0], r_refdef.weaponmatrix[1], r_refdef.weaponmatrix[2]);
+		VectorInverse(r_refdef.weaponmatrix[1]);
+		memcpy(r_refdef.weaponmatrix_bob, r_refdef.weaponmatrix, sizeof(r_refdef.weaponmatrix_bob));
+
 		V_ClearEntity(&ent);
 		ent.model = pv->vm.oldmodel;
 
 		ent.framestate.g[FS_REG].frame[0] = pv->vm.prevframe;
 		ent.framestate.g[FS_REG].frame[1] = pv->vm.oldframe;
-		ent.framestate.g[FS_REG].frametime[0] = pv->vm.lerptime;
-		ent.framestate.g[FS_REG].frametime[1] = pv->vm.oldlerptime;
-		ent.framestate.g[FS_REG].lerpweight[0] = 1 - cl.lerpfrac;
-		ent.framestate.g[FS_REG].lerpweight[1] = cl.lerpfrac;
+		ent.framestate.g[FS_REG].frametime[0] = cl.time-pv->vm.lerptime;
+		ent.framestate.g[FS_REG].frametime[1] = cl.time-pv->vm.oldlerptime;
+		ent.framestate.g[FS_REG].lerpweight[0] = (cl.time - pv->vm.lerptime)*10;
+		ent.framestate.g[FS_REG].lerpweight[1] = 1 - ent.framestate.g[FS_REG].lerpweight[0];
 
 		ent.flags |= RF_WEAPONMODEL|RF_DEPTHHACK|RF_NOSHADOW;
 		if (pv->handedness == 1)
 			ent.flags |= RF_XFLIP;
 		else if (pv->handedness == 2)
 			return;
+
+		ent.shaderRGBAf[0] = ent.shaderRGBAf[1] = ent.shaderRGBAf[2] = 1;
+		ent.shaderRGBAf[3] = bound(0, r_drawviewmodel.value, 1);
 
 		V_AddEntity (&ent);
 		return;

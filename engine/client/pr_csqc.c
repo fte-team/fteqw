@@ -42,20 +42,10 @@ extern cvar_t sv_demo_write_csqc;
 
 static pubprogfuncs_t *csqcprogs;
 
-typedef struct csqctreadstate_s {
-	float resumetime;
-	struct qcthread_s *thread;
-	int self;
-	int other;
-
-	struct csqctreadstate_s *next;
-} csqctreadstate_t;
-
 static qboolean csprogs_promiscuous;
 static unsigned int csprogs_checksum;
 static size_t csprogs_checksize;
 static char csprogs_checkname[MAX_QPATH];
-static csqctreadstate_t *csqcthreads;
 qboolean csqc_resortfrags;
 world_t csqc_world;
 
@@ -105,6 +95,7 @@ typedef struct {
 #define globalfloat(name) float *name;
 #define globalint(name) int *name;
 #define globaluint(name) unsigned int *name;
+#define globaluint64(name) puint64_t *name;
 #define globalvector(name) float *name;
 #define globalentity(name) int *name;
 #define globalstring(name) string_t *name;
@@ -116,6 +107,7 @@ typedef struct {
 #undef globalfloat
 #undef globalint
 #undef globaluint
+#undef globaluint64
 #undef globalvector
 #undef globalentity
 #undef globalstring
@@ -125,7 +117,7 @@ static csqcglobals_t csqcg;
 
 playerview_t csqc_nullview;
 
-static void VARGS CSQC_Abort (char *format, ...);	//an error occured.
+static void VARGS CSQC_Abort (const char *format, ...);	//an error occured.
 static void cs_set_input_state (usercmd_t *cmd);
 
 //fixme: we should be using entity numbers, not view numbers.
@@ -203,9 +195,11 @@ static void CSQC_FindGlobals(qboolean nofuncs)
 	static float csphysicsmode = 0;
 	static float dimension_default = 255;
 	static vec3_t defaultgravity = {0, 0, -1};
+	etype_t typ;
 #define globalfloat(name) csqcg.name = (float*)PR_FindGlobal(csqcprogs, #name, 0, NULL);
 #define globalint(name) csqcg.name = (int*)PR_FindGlobal(csqcprogs, #name, 0, NULL);
 #define globaluint(name) csqcg.name = (unsigned int*)PR_FindGlobal(csqcprogs, #name, 0, NULL);
+#define globaluint64(name) csqcg.name = (puint64_t*)PR_FindGlobal(csqcprogs, #name, 0, &typ); if ((typ&0xfff) != ev_uint64 && csqcg.name) {Con_Printf(CON_WARNING"csqc global "#name" wrongly defined as type %i\n", typ&0xfff); csqcg.name = NULL;}
 #define globalvector(name) csqcg.name = (float*)PR_FindGlobal(csqcprogs, #name, 0, NULL);
 #define globalentity(name) csqcg.name = (int*)PR_FindGlobal(csqcprogs, #name, 0, NULL);
 #define globalstring(name) csqcg.name = (string_t*)PR_FindGlobal(csqcprogs, #name, 0, NULL);
@@ -216,20 +210,21 @@ static void CSQC_FindGlobals(qboolean nofuncs)
 #undef globalfloat
 #undef globalint
 #undef globaluint
+#undef globaluint64
 #undef globalvector
 #undef globalentity
 #undef globalstring
 #undef globalfunction
 
-#define ensurefloat(name)	if (!csqcg.name) csqcg.name = &junk._float;
-#define ensureint(name)		if (!csqcg.name) csqcg.name = &junk._int;
-#define ensurevector(name)	if (!csqcg.name) csqcg.name = junk._vector;
-#define ensureentity(name)	if (!csqcg.name) csqcg.name = &junk.edict;
+#define ensurefloat(name)	do{if (!csqcg.name) csqcg.name = &junk._float;}while(0)
+#define ensureint(name)		do{if (!csqcg.name) csqcg.name = &junk._int;  }while(0)
+#define ensurevector(name)	do{if (!csqcg.name) csqcg.name = junk._vector;}while(0)
+#define ensureentity(name)	do{if (!csqcg.name) csqcg.name = &junk.edict; }while(0)
 
-#define ensureprivfloat(name)	if (!csqcg.name) {static pvec_t f; csqcg.name = &f;}
-#define ensureprivint(name)		if (!csqcg.name) {static pint_t i; csqcg.name = &i;}
-#define ensureprivvector(name)	if (!csqcg.name) {static pvec3_t v; csqcg.name = v;}
-#define ensurepriventity(name)	if (!csqcg.name) {static pint_t e; csqcg.name = &e;}
+#define ensureprivfloat(name)	do{if (!csqcg.name) {static pvec_t f; csqcg.name = &f;}}while(0)
+#define ensureprivint(name)		do{if (!csqcg.name) {static pint_t i; csqcg.name = &i;}}while(0)
+#define ensureprivvector(name)	do{if (!csqcg.name) {static pvec3_t v; csqcg.name = v;}}while(0)
+#define ensurepriventity(name)	do{if (!csqcg.name) {static pint_t e; csqcg.name = &e;}}while(0)
 
 	if (csqc_nogameaccess)
 	{
@@ -343,7 +338,7 @@ static void CSQC_FindGlobals(qboolean nofuncs)
 
 	if (!csqc_world.g.physics_mode)
 	{
-		csphysicsmode = 0;	/*note: dp handles think functions as part of addentity rather than elsewhere. if we're in a compat mode, we don't want to have to duplicate work*/
+		csphysicsmode = csqc_isdarkplaces?1:0;	/*note: dp handles think functions as part of addentity rather than elsewhere. if we're in a compat mode, we don't want to have to duplicate work*/
 		csqc_world.g.physics_mode = &csphysicsmode;
 	}
 
@@ -353,86 +348,6 @@ static void CSQC_FindGlobals(qboolean nofuncs)
 	if (csqcg.maxclients)
 		*csqcg.maxclients = cl.allocated_client_slots;
 }
-
-
-
-//note: doesn't even have to match the clprogs.dat :)
-typedef struct {
-
-#define comfieldfloat(csqcname,desc) float csqcname;
-#define comfieldvector(csqcname,desc) vec3_t csqcname;
-#define comfieldentity(csqcname,desc) int csqcname;
-#define comfieldstring(csqcname,desc) string_t csqcname;
-#define comfieldfunction(csqcname, typestr,desc) func_t csqcname;
-comqcfields
-#undef comfieldfloat
-#undef comfieldvector
-#undef comfieldentity
-#undef comfieldstring
-#undef comfieldfunction
-
-#ifdef VM_Q1
-} csqcentvars_t;
-typedef struct {
-#endif
-
-#define comfieldfloat(name,desc) float name;
-#define comfieldint(name,desc) int name;
-#define comfieldvector(name,desc) vec3_t name;
-#define comfieldentity(name,desc) int name;
-#define comfieldstring(name,desc) string_t name;
-#define comfieldfunction(name, typestr,desc) func_t name;
-comextqcfields
-csqcextfields
-#undef comfieldfloat
-#undef comfieldint
-#undef comfieldvector
-#undef comfieldentity
-#undef comfieldstring
-#undef comfieldfunction
-
-#ifdef VM_Q1
-} csqcextentvars_t;
-#else
-} csqcentvars_t;
-#endif
-
-typedef struct csqcedict_s
-{
-	enum ereftype_e	ereftype;
-	float			freetime; // sv.time when the object was freed
-	int				entnum;
-	unsigned int	fieldsize;
-	pbool			readonly;	//world
-#ifdef VM_Q1
-	csqcentvars_t	*v;
-	csqcextentvars_t	*xv;
-#else
-	union {
-		csqcentvars_t	*v;
-		csqcentvars_t	*xv;
-	};
-#endif
-	/*the above is shared with qclib*/
-#ifdef USEAREAGRID
-	areagridlink_t	gridareas[AREAGRIDPERENT];	//on overflow, use the inefficient overflow list.
-	size_t			gridareasequence;	//used to avoid iterrating the same ent twice.
-#else
-	link_t	area;
-#endif
-	pvscache_t pvsinfo;
-	int lastruntime;
-	int solidsize;
-#ifdef USERBE
-	entityrbe_t rbe;
-#endif
-	/*the above is shared with ssqc*/
-
-	//add whatever you wish here
-	trailkey_t trailstate;
-	int		skinobject;
-} csqcedict_t;
-
 
 static void CSQC_InitFields(void)
 {	//CHANGING THIS FUNCTION REQUIRES CHANGES TO csqcentvars_t
@@ -697,6 +612,10 @@ static void QCBUILTIN PF_Fixme (pubprogfuncs_t *prinst, struct globalvars_s *pr_
 	prinst->RunError(prinst, "\nBuiltin %i:%s not implemented.\nCSQC is not compatible.", binum, fname);
 	PR_BIError (prinst, "bulitin not implemented");
 }
+static void QCBUILTIN PF_Ignore (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
+{
+	G_INT(OFS_RETURN) = 0;
+}
 static void QCBUILTIN PF_NoCSQC (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	int binum;
@@ -722,7 +641,7 @@ static void QCBUILTIN PF_checkbuiltin (pubprogfuncs_t *prinst, struct globalvars
 	{	//qc defines the function at least. nothing weird there...
 		if (builtinno > 0 && builtinno < prinst->parms->numglobalbuiltins)
 		{
-			if (!prinst->parms->globalbuiltins[builtinno] || prinst->parms->globalbuiltins[builtinno] == PF_Fixme || prinst->parms->globalbuiltins[builtinno] == PF_NoCSQC)
+			if (!prinst->parms->globalbuiltins[builtinno] || prinst->parms->globalbuiltins[builtinno] == PF_Fixme || prinst->parms->globalbuiltins[builtinno] == PF_Ignore || prinst->parms->globalbuiltins[builtinno] == PF_NoCSQC)
 				G_FLOAT(OFS_RETURN) = false;	//the builtin with that number isn't defined.
 			else
 			{
@@ -778,6 +697,8 @@ static int CS_FindModel(const char *name, int *free)
 	}
 	for (i = 1; i < MAX_PRECACHE_MODELS; i++)
 	{
+		if (!cl.model_name[i])
+			break;
 		if (!strcmp(cl.model_name[i], name))
 			return i;
 	}
@@ -910,7 +831,10 @@ static qboolean CopyCSQCEdictToEntity(csqcedict_t *fte_restrict in, entity_t *ft
 	{
 		VectorCopy(in->v->angles, out->angles);
 		if (model && model->type == mod_alias)
+		{
 			out->angles[0] *= r_meshpitch.value;
+			out->angles[2] *= r_meshroll.value;
+		}
 		AngleVectors(out->angles, out->axis[0], out->axis[1], out->axis[2]);
 		VectorInverse(out->axis[1]);
 
@@ -1035,6 +959,13 @@ const char *CSQC_GetExtraFieldInfo(void *went, char *out, size_t outsize)
 			Q_snprintfz(out, e-out, "q1lower %#x\n", sk->q1lower);
 			out+=strlen(out);
 		}
+#ifdef HEXEN2
+		if (sk->h2class != Q1UNSPECIFIED)
+		{
+			Q_snprintfz(out, e-out, "h2class %i\n", sk->h2class);
+			out+=strlen(out);
+		}
+#endif
 #endif
 
 		return r;
@@ -2401,9 +2332,12 @@ uploadfmt_t PR_TranslateTextureFormat(int qcformat)
 	case 13: return PTI_RG8;
 	case 14: return PTI_RGB32F;
 
+	case 15: return TF_8PAL24;
+	case 16: return TF_8PAL32;
+
 	default:
 		qcformat = -qcformat;
-		if (qcformat < PTI_MAX)
+		if ((unsigned int)qcformat < PTI_MAX)
 			return qcformat;
 		return PTI_INVALID;
 	}
@@ -2429,6 +2363,9 @@ int PR_UnTranslateTextureFormat(uploadfmt_t pixelformat)
 	case PTI_RGBA4444:	return 12;
 	case PTI_RG8:		return 13;
 	case PTI_RGB32F:	return 14;
+
+	case TF_8PAL24:		return 15;
+	case TF_8PAL32:		return 16;
 
 	default:return -pixelformat;
 	}
@@ -2674,7 +2611,7 @@ void QCBUILTIN PF_R_SetViewFlag(pubprogfuncs_t *prinst, struct globalvars_s *pr_
 			Q_strncpyz(r_refdef.rt_destcolour[i].texname, PR_GetStringOfs(prinst, OFS_PARM1), sizeof(r_refdef.rt_destcolour[i].texname));
 			if (prinst->callargc >= 4 && *r_refdef.rt_destcolour[i].texname)
 			{
-				float fmt = G_FLOAT(OFS_PARM2);
+				int fmt = G_FLOAT(OFS_PARM2);
 				float *size = G_VECTOR(OFS_PARM3);
 				if (fmt < 0)
 					R2D_RT_Configure(r_refdef.rt_destcolour[i].texname, size[0], size[1], PR_TranslateTextureFormat(-fmt), (RT_IMAGEFLAGS&~IF_LINEAR)|IF_NEAREST);
@@ -2688,7 +2625,7 @@ void QCBUILTIN PF_R_SetViewFlag(pubprogfuncs_t *prinst, struct globalvars_s *pr_
 		Q_strncpyz(r_refdef.rt_sourcecolour.texname, PR_GetStringOfs(prinst, OFS_PARM1), sizeof(r_refdef.rt_sourcecolour));
 		if (prinst->callargc >= 4 && *r_refdef.rt_sourcecolour.texname)
 		{
-			float fmt = G_FLOAT(OFS_PARM2);
+			int fmt = G_FLOAT(OFS_PARM2);
 			float *size = G_VECTOR(OFS_PARM3);
 			if (fmt < 0)
 				R2D_RT_Configure(r_refdef.rt_sourcecolour.texname, size[0], size[1], PR_TranslateTextureFormat(-fmt), (RT_IMAGEFLAGS&~IF_LINEAR)|IF_NEAREST);
@@ -2701,7 +2638,7 @@ void QCBUILTIN PF_R_SetViewFlag(pubprogfuncs_t *prinst, struct globalvars_s *pr_
 		Q_strncpyz(r_refdef.rt_depth.texname, PR_GetStringOfs(prinst, OFS_PARM1), sizeof(r_refdef.rt_depth.texname));
 		if (prinst->callargc >= 4 && *r_refdef.rt_depth.texname)
 		{
-			float fmt = G_FLOAT(OFS_PARM2);
+			int fmt = G_FLOAT(OFS_PARM2);
 			float *size = G_VECTOR(OFS_PARM3);
 			if (fmt < 0)
 				R2D_RT_Configure(r_refdef.rt_depth.texname, size[0], size[1], PR_TranslateTextureFormat(-fmt), (RT_IMAGEFLAGS&~IF_LINEAR)|IF_NEAREST);
@@ -2714,7 +2651,7 @@ void QCBUILTIN PF_R_SetViewFlag(pubprogfuncs_t *prinst, struct globalvars_s *pr_
 		Q_strncpyz(r_refdef.rt_ripplemap.texname, PR_GetStringOfs(prinst, OFS_PARM1), sizeof(r_refdef.rt_ripplemap.texname));
 		if (prinst->callargc >= 4 && *r_refdef.rt_ripplemap.texname)
 		{
-			float fmt = G_FLOAT(OFS_PARM2);
+			int fmt = G_FLOAT(OFS_PARM2);
 			float *size = G_VECTOR(OFS_PARM3);
 			if (fmt < 0)
 				R2D_RT_Configure(r_refdef.rt_ripplemap.texname, size[0], size[1], PR_TranslateTextureFormat(-fmt), (RT_IMAGEFLAGS&~IF_LINEAR)|IF_NEAREST);
@@ -2779,6 +2716,8 @@ static void QCBUILTIN PF_R_RenderScene(pubprogfuncs_t *prinst, struct globalvars
 		World_RBE_Start(&csqc_world);
 	}
 
+	R2D_ImageColours(1,1,1,1);	//apparently does matter.
+
 	if (cl.worldmodel)
 		R_PushDlights ();
 
@@ -2806,43 +2745,46 @@ static void QCBUILTIN PF_R_RenderScene(pubprogfuncs_t *prinst, struct globalvars
 	else
 		scissored = false;
 
-	R_DrawNameTags();
-#ifdef RTLIGHTS
-	R_EditLights_DrawInfo();
-#endif
-
-	if (r_refdef.drawsbar)
+	if (!vrui.enabled)	//when we're using the vrui, this stuff needs to be part of the scene, drawn seperately for each eye
 	{
-#ifdef PLUGINS
-		Plug_SBar (r_refdef.playerview);
-#else
-		if (Sbar_ShouldDraw(r_refdef.playerview))
-		{
-			SCR_TileClear (sb_lines);
-			Sbar_Draw (r_refdef.playerview);
-			Sbar_DrawScoreboard (r_refdef.playerview);
-		}
-		else
-			SCR_TileClear (0);
+		R_DrawNameTags();
+#ifdef RTLIGHTS
+		R_EditLights_DrawInfo();
 #endif
 
-		if (!Key_Dest_Has(kdm_menu|kdm_cwindows))
+		if (r_refdef.drawsbar)
 		{
-			if (cl.intermissionmode == IM_NQFINALE || cl.intermissionmode == IM_NQCUTSCENE || cl.intermissionmode == IM_H2FINALE)
+#ifdef PLUGINS
+			Plug_SBar (r_refdef.playerview);
+#else
+			if (Sbar_ShouldDraw(r_refdef.playerview))
 			{
-				SCR_CheckDrawCenterString ();
+				SCR_TileClear (sb_lines);
+				Sbar_Draw (r_refdef.playerview);
+				Sbar_DrawScoreboard (r_refdef.playerview);
 			}
-			else if (cl.intermissionmode != IM_NONE)
+			else
+				SCR_TileClear (0);
+#endif
+
+			if (!Key_Dest_Has(kdm_menu|kdm_cwindows))
 			{
-				Sbar_IntermissionOverlay (r_refdef.playerview);
+				if (cl.intermissionmode == IM_NQFINALE || cl.intermissionmode == IM_NQCUTSCENE || cl.intermissionmode == IM_H2FINALE)
+				{
+					SCR_CheckDrawCenterString ();
+				}
+				else if (cl.intermissionmode != IM_NONE)
+				{
+					Sbar_IntermissionOverlay (r_refdef.playerview);
+				}
 			}
+
+			SCR_ShowPics_Draw();
 		}
 
-		SCR_ShowPics_Draw();
+		if (r_refdef.drawcrosshair)
+			R2D_DrawCrosshair();
 	}
-
-	if (r_refdef.drawcrosshair)
-		R2D_DrawCrosshair();
 
 	if (scissored)
 	{
@@ -3173,7 +3115,7 @@ static model_t *csqc_setmodel(pubprogfuncs_t *prinst, csqcedict_t *ent, int mode
 	}
 	else
 	{
-		if (modelindex >= MAX_PRECACHE_MODELS)
+		if (modelindex >= MAX_PRECACHE_MODELS || !cl.model_name[modelindex])
 			return NULL;
 		prinst->SetStringField(prinst, (void*)ent, &ent->v->model, cl.model_name[modelindex], true);
 		model = cl.model_precache[modelindex];
@@ -3253,7 +3195,7 @@ static int PF_cs_PrecacheModel_Internal(pubprogfuncs_t *prinst, const char *mode
 
 	for (i = 1; i < MAX_PRECACHE_MODELS; i++)	//Make sure that the server specified model is loaded..
 	{
-		if (!*cl.model_name[i])
+		if (!cl.model_name[i])
 			break;
 		if (!strcmp(cl.model_name[i], modelname))
 		{
@@ -3304,7 +3246,7 @@ static void QCBUILTIN PF_cs_getsoundindex (pubprogfuncs_t *prinst, struct global
 	//look for the server's names first...
 	for (i = 1; i < MAX_PRECACHE_SOUNDS; i++)
 	{
-		if (!*cl.sound_name[i])
+		if (!cl.sound_name[i])
 			break;
 		if (!strcmp(cl.sound_name[i], s))
 		{
@@ -3338,7 +3280,7 @@ static void QCBUILTIN PF_cs_ModelnameForIndex(pubprogfuncs_t *prinst, struct glo
 
 	if (modelindex < 0 && (-modelindex) < MAX_CSMODELS)
 		G_INT(OFS_RETURN) = (int)PR_SetString(prinst, cl.model_csqcname[-modelindex]);
-	else if (modelindex >= 0 && modelindex < MAX_PRECACHE_MODELS)
+	else if (modelindex >= 0 && modelindex < MAX_PRECACHE_MODELS && cl.model_name[modelindex])
 		G_INT(OFS_RETURN) = (int)PR_SetString(prinst, cl.model_name[modelindex]);
 	else
 		G_INT(OFS_RETURN) = 0;
@@ -3348,7 +3290,7 @@ static void QCBUILTIN PF_cs_SoundnameForIndex(pubprogfuncs_t *prinst, struct glo
 	int soundindex = G_FLOAT(OFS_PARM0);
 
 	//FIXME: no private indexes. still useful for sending sound names from the ssqc via indexes.
-	if (soundindex >= 0 && soundindex < MAX_PRECACHE_SOUNDS)
+	if (soundindex >= 0 && soundindex < MAX_PRECACHE_SOUNDS && cl.sound_name[soundindex])
 		G_INT(OFS_RETURN) = (int)PR_SetString(prinst, cl.sound_name[soundindex]);
 	else
 		G_INT(OFS_RETURN) = 0;
@@ -3388,9 +3330,9 @@ static void QCBUILTIN PF_cs_spriteframe(pubprogfuncs_t *prinst, struct globalvar
 			pspriteframe = psprite->frames[frame].frameptr;
 		else if (psprite->frames[frame].type == SPR_ANGLED)
 		{	//just take frametime as 0-1
-			int dir = frametime/8;
 			pspritegroup = (mspritegroup_t *)psprite->frames[frame].frameptr;
-			pspriteframe = pspritegroup->frames[dir&7];
+			i = frametime/pspritegroup->numframes;
+			pspriteframe = pspritegroup->frames[i%pspritegroup->numframes];
 		}
 		else
 		{
@@ -3868,6 +3810,16 @@ static void QCBUILTIN PF_cs_sendevent (pubprogfuncs_t *prinst, struct globalvars
 			MSG_WriteByte(&cls.netchan.message, ev_string);
 			MSG_WriteString(&cls.netchan.message, PR_GetStringOfs(prinst, OFS_PARM2+i*3));
 		}
+		else if (argtypes[i] == 'p' && i>0)
+		{
+			unsigned int len = G_UINT(OFS_PARM1+i*3);
+			unsigned int qcptr = G_UINT(OFS_PARM2+i*3);
+			char *p = prinst->stringtable + qcptr;
+			if (len >= prinst->stringtablesize || qcptr > prinst->stringtablesize-len)
+				break;
+			MSG_WriteByte(&cls.netchan.message, ev_pointer);
+			SZ_Write(&cls.netchan.message, p, len);
+		}
 		else if (argtypes[i] == 'f')
 		{
 			MSG_WriteByte(&cls.netchan.message, ev_float);
@@ -3896,7 +3848,7 @@ static void QCBUILTIN PF_cs_sendevent (pubprogfuncs_t *prinst, struct globalvars
 		else if (argtypes[i] == 'U')
 		{
 			MSG_WriteByte(&cls.netchan.message, ev_uint64);
-			MSG_WriteInt64(&cls.netchan.message, G_UINT64(OFS_PARM2+i*3));
+			MSG_WriteUInt64(&cls.netchan.message, G_UINT64(OFS_PARM2+i*3));
 		}
 		else if (argtypes[i] == 'v')
 		{
@@ -4206,6 +4158,7 @@ static void QCBUILTIN PF_cs_getinputstate (pubprogfuncs_t *prinst, struct global
 		if (!cmd->msec)
 			*cmd = cl.outframes[(f-1)&UPDATE_MASK].cmd[seat];
 		cmd->msec = (realtime - cl.outframes[(f-1)&UPDATE_MASK].senttime)*1000;
+		cmd->sequence = f;
 
 		//make sure we have the latest info...
 		cmd->vr[VRDEV_LEFT] = csqc_playerview->vrdev[VRDEV_LEFT];
@@ -4388,136 +4341,6 @@ static void CheckSendPings(void)
 	}
 }
 
-static const char *PF_cs_serverkey_internal(const char *keyname)
-{
-	char *ret;
-	static char adr[MAX_ADR_SIZE];
-
-	if (!strcmp(keyname, "ip"))
-	{
-		if (cls.demoplayback)
-			ret = cls.lastdemoname;
-		else
-			ret = NET_AdrToString(adr, sizeof(adr), &cls.netchan.remote_address);
-	}
-	else if (!strcmp(keyname, "servername"))
-		ret = cls.servername;
-	else if (!strcmp(keyname, "constate"))
-	{
-		if (cls.state == ca_disconnected
-#ifndef CLIENTONLY 
-			&& !sv.state
-#endif
-				)
-			ret = "disconnected";
-		else if (cls.state == ca_active)
-			ret = "active";
-		else
-			ret = "connecting";
-	}
-	else if (!strcmp(keyname, "loadstate"))
-	{
-		extern int			total_loading_size, current_loading_size, loading_stage;
-		extern char			levelshotname[MAX_QPATH];
-		ret = va("%i %u %u \"%s\"", loading_stage, current_loading_size, total_loading_size, levelshotname);
-	}
-	else if (!strcmp(keyname, "transferring"))
-	{
-		ret = CL_TryingToConnect();
-		if (!ret)
-			ret = "";
-	}
-	else if (!strcmp(keyname, "maxplayers"))
-	{
-		ret = va("%i", cl.allocated_client_slots);
-	}
-	else if (!strcmp(keyname, "dlstate"))
-	{
-		if (!cl.downloadlist && !cls.download)
-			ret = "";	//nothing being downloaded right now
-		else
-		{
-			unsigned int fcount;
-			qofs_t tsize;
-			qboolean sizeextra;
-			CL_GetDownloadSizes(&fcount, &tsize, &sizeextra);
-			if (cls.download)	//downloading something
-				ret = va("%u %g %u \"%s\" \"%s\" %g %i %g %g", fcount, (float)tsize, sizeextra?1u:0u, cls.download->localname, cls.download->remotename, cls.download->percent, cls.download->rate, (float)cls.download->completedbytes, (float)cls.download->size);
-			else	//not downloading anything right now
-				ret = va("%u %g %u", fcount, (float)tsize, sizeextra?1u:0u);
-		}
-	}
-	else if (!strcmp(keyname, "pausestate"))
-		ret = cl.paused?"1":"0";
-	else if (!strcmp(keyname, "protocol"))
-	{	//using this is pretty acedemic, really. Not particuarly portable.
-		switch (cls.protocol)
-		{	//a tokenizable string
-			//first is the base game qw/nq
-			//second is branch (custom engine name)
-			//third is protocol version.
-		default:
-		case CP_UNKNOWN:
-			ret = "Unknown";
-			break;
-		case CP_QUAKEWORLD:
-			if (cls.fteprotocolextensions||cls.fteprotocolextensions2)
-				ret = "QuakeWorld FTE";
-			else if (cls.z_ext)
-				ret = "QuakeWorld ZQuake";
-			else
-				ret = "QuakeWorld";
-			break;
-		case CP_NETQUAKE:
-			switch (cls.protocol_nq)
-			{
-			default:
-				ret = "NetQuake";
-				break;
-			case CPNQ_FITZ666:
-				ret = "Fitz666";
-				break;
-			case CPNQ_DP5:
-				ret = "NetQuake DarkPlaces 5";
-				break;
-			case CPNQ_DP6:
-				ret = "NetQuake DarkPlaces 6";
-				break;
-			case CPNQ_DP7:
-				ret = "NetQuake DarkPlaces 7";
-				break;
-			}
-			break;
-		case CP_QUAKE2:
-			ret = "Quake2";
-			break;
-		case CP_QUAKE3:
-			ret = "Quake3";
-			break;
-		case CP_PLUGIN:
-			ret = "External";
-			break;
-		}
-	}
-	else if (!strcmp(keyname, "challenge"))
-	{
-		ret = va("%u", cls.challenge);
-	}
-	else
-	{
-#ifndef CLIENTONLY
-		if (sv.state >= ss_loading)
-		{
-			ret = InfoBuf_ValueForKey(&svs.info, keyname);
-			if (!*ret)
-				ret = InfoBuf_ValueForKey(&svs.localinfo, keyname);
-		}
-		else
-#endif
-			ret = InfoBuf_ValueForKey(&cl.serverinfo, keyname);
-	}
-	return ret;
-}
 static const char *PF_cs_getplayerkey_internal (unsigned int pnum, const char *keyname)
 {
 	static char buffer[64];
@@ -4629,53 +4452,6 @@ static const char *PF_cs_getplayerkey_internal (unsigned int pnum, const char *k
 	return ret;
 }
 
-//string(string keyname)
-static void QCBUILTIN PF_cs_serverkey (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
-{
-	const char *keyname = PF_VarString(prinst, 0, pr_globals);
-	const char *ret = PF_cs_serverkey_internal(keyname);
-	if (*ret)
-		RETURN_TSTRING(ret);
-	else
-		G_INT(OFS_RETURN) = 0;
-}
-static void QCBUILTIN PF_cs_serverkeyfloat (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
-{
-	const char *keyname = PR_GetStringOfs(prinst, OFS_PARM0);
-	const char *ret = PF_cs_serverkey_internal(keyname);
-	if (*ret)
-		G_FLOAT(OFS_RETURN) = strtod(ret, NULL);
-	else
-		G_FLOAT(OFS_RETURN) = (prinst->callargc >= 2)?G_FLOAT(OFS_PARM1):0;
-}
-static void QCBUILTIN PF_cs_serverkeyblob (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
-{
-	const char *keyname = PR_GetStringOfs(prinst, OFS_PARM0);
-	int qcptr = G_INT(OFS_PARM1);
-	int qcsize = G_INT(OFS_PARM2);
-	void *ptr;
-	size_t blobsize = 0;
-	const char *blob;
-
-	if (qcptr < 0 || qcptr+qcsize >= prinst->stringtablesize)
-	{
-		PR_BIError(prinst, "PF_cs_serverkeyblob: invalid pointer\n");
-		return;
-	}
-	ptr = (prinst->stringtable + qcptr);
-
-	blob = InfoBuf_BlobForKey(&cl.serverinfo, keyname, &blobsize, NULL);
-
-	if (qcptr)
-	{
-		blobsize = min(blobsize, qcsize);
-		memcpy(ptr, blob, blobsize);
-		G_INT(OFS_RETURN) = blobsize;
-	}
-	else
-		G_INT(OFS_RETURN) = blobsize;
-}
-
 //string(float pnum, string keyname)
 static void QCBUILTIN PF_cs_getplayerkeystring (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
@@ -4776,7 +4552,7 @@ static void QCBUILTIN PF_cs_infokey (pubprogfuncs_t *prinst, struct globalvars_s
 	const char *keyname = PR_GetStringOfs(prinst, OFS_PARM1);
 	const char *ret;
 	if (!ent->entnum)
-		ret = PF_cs_serverkey_internal(keyname);
+		ret = PF_cl_serverkey_internal(keyname);
 	else
 	{
 		int pnum = ent->xv->entnum-1;	//figure out which ssqc entity this is meant to be
@@ -5010,7 +4786,7 @@ void QCBUILTIN PF_cl_effect(pubprogfuncs_t *prinst, struct globalvars_s *pr_glob
 
 	mdl = Mod_ForName(name, MLV_WARN);
 	if (mdl)
-		CL_SpawnSpriteEffect(org, NULL, NULL, mdl, startframe, endframe, framerate, mdl->type==mod_sprite?-1:1, 1, 0, 0, P_INVALID, 0, 0);
+		CL_SpawnSpriteEffect(org, NULL, NULL, mdl, startframe, endframe, framerate, mdl->type==mod_sprite?-1:1, 1, 0, 0, P_INVALID, 0, 0, 1.0f, 1.0f, 1.0f);
 	else
 		Con_Printf("PF_cl_effect: Couldn't load model %s\n", name);
 }
@@ -5069,7 +4845,13 @@ static void QCBUILTIN PF_getlightstylergb (pubprogfuncs_t *prinst, struct global
 		return;
 	}
 
-	if (stnum < cl_max_lightstyles || !cl_lightstyle[stnum].length)
+	if (stnum >= cl_max_lightstyles)
+	{
+		value = ('m'-'a')*22 * r_lightstylescale.value;
+		G_VECTOR(OFS_RETURN)[0] = G_VECTOR(OFS_RETURN)[1] = G_VECTOR(OFS_RETURN)[2] = value*(1.0/256);
+		return;
+	}
+	else if (!cl_lightstyle[stnum].length)
 		value = ('m'-'a')*22 * r_lightstylescale.value;
 	else if (cl_lightstyle[stnum].map[0] == '=')
 		value = atof(cl_lightstyle[stnum].map+1)*256*r_lightstylescale.value;
@@ -5077,7 +4859,7 @@ static void QCBUILTIN PF_getlightstylergb (pubprogfuncs_t *prinst, struct global
 	{
 		int v1, v2, vd, i;
 		float f;
-		
+
 		f = (cl.time*r_lightstylespeed.value);
 		if (f < 0)
 			f = 0;
@@ -5457,50 +5239,6 @@ static void QCBUILTIN PF_cl_te_particlesnow (pubprogfuncs_t *prinst, struct glob
 	P_RunParticleWeather(min, max, vel, howmany, colour, "snow");
 }
 
-void CSQC_RunThreads(void)
-{
-	csqctreadstate_t *state = csqcthreads, *next;
-	csqcthreads = NULL;
-	while(state)
-	{
-		next = state->next;
-
-		if (state->resumetime > cl.servertime)
-		{	//not time yet, reform original list.
-			state->next = csqcthreads;
-			csqcthreads = state;
-		}
-		else
-		{	//call it and forget it ever happened. The Sleep biltin will recreate if needed.
-
-
-			*csqcg.self = EDICT_TO_PROG(csqcprogs, EDICT_NUM_UB(csqcprogs, state->self));
-			*csqcg.other = EDICT_TO_PROG(csqcprogs, EDICT_NUM_UB(csqcprogs, state->other));
-
-			csqcprogs->RunThread(csqcprogs, state->thread);
-			csqcprogs->parms->memfree(state->thread);
-			csqcprogs->parms->memfree(state);
-		}
-
-		state = next;
-	}
-}
-
-static void QCBUILTIN PF_cs_addprogs (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
-{
-	const char *s = PR_GetStringOfs(prinst, OFS_PARM0);
-	int newp;
-	if (!s || !*s)
-		newp = -1;
-	else
-	{
-		newp = PR_LoadProgs(prinst, s);
-		if (newp >= 0)
-			PR_ProgsAdded(csqcprogs, newp, s);
-	}
-	G_FLOAT(OFS_RETURN) = newp;
-}
-
 static void QCBUILTIN PF_cs_OpenPortal (pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
 {
 	int state	= G_FLOAT(OFS_PARM1)!=0;
@@ -5689,6 +5427,8 @@ static void QCBUILTIN PF_cs_registercommand (pubprogfuncs_t *prinst, struct glob
 {
 	const char *str = PR_GetStringOfs(prinst, OFS_PARM0);
 	const char *desc = (prinst->callargc>1)?PR_GetStringOfs(prinst, OFS_PARM1):NULL;
+	if (desc && !*desc)
+		desc = NULL;
 	if (!Cmd_Exists(str))
 		Cmd_AddCommandD(str, CS_ConsoleCommand_f, desc);
 }
@@ -6099,7 +5839,7 @@ static void QCBUILTIN PF_DeltaListen(pubprogfuncs_t *prinst, struct globalvars_s
 	{
 		for (i = 1; i < MAX_PRECACHE_MODELS; i++)
 		{
-			if (!*cl.model_name[i])
+			if (!cl.model_name[i])
 				break;
 			if (!strcmp(cl.model_name[i], mname))
 			{
@@ -6721,13 +6461,13 @@ static void QCBUILTIN PF_resourcestatus(pubprogfuncs_t *prinst, struct globalvar
 		if (idx < 0)
 		{
 			mod = cl.model_csqcprecache[-idx];
-			if (!cl.model_csqcprecache[-idx] && doload)
+			if (!cl.model_csqcprecache[-idx] && doload && cl.model_csqcname[-idx])
 				mod = cl.model_csqcprecache[-idx] = Mod_ForName(Mod_FixName(cl.model_csqcname[-idx], cl.model_name[1]), MLV_WARN);
 		}
 		else if (idx > 0)
 		{
 			mod = cl.model_precache[idx];
-			if (!cl.model_precache[idx] && doload)
+			if (!cl.model_precache[idx] && doload && cl.model_name[idx])
 				mod = cl.model_precache[idx] = Mod_ForName(Mod_FixName(cl.model_name[idx], cl.model_name[1]), MLV_WARN);
 		}
 		else
@@ -6837,42 +6577,6 @@ static void QCBUILTIN PF_resourcestatus(pubprogfuncs_t *prinst, struct globalvar
 		G_FLOAT(OFS_RETURN) = RESSTATE_UNSUPPORTED;
 		break;
 	}
-}
-
-static void QCBUILTIN PF_cl_gp_rumble(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
-{
-	int device = G_FLOAT(OFS_PARM0);
-	quint16_t amp_low = G_FLOAT(OFS_PARM1);
-	quint16_t amp_high = G_FLOAT(OFS_PARM2);
-	quint32_t duration = G_FLOAT(OFS_PARM3);
-	INS_Rumble(device, amp_low, amp_high, duration);
-}
-
-static void QCBUILTIN PF_cl_gp_rumbletriggers(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
-{
-	int device = G_FLOAT(OFS_PARM0);
-	quint16_t left = G_FLOAT(OFS_PARM1);
-	quint16_t right = G_FLOAT(OFS_PARM2);
-	quint32_t duration = G_FLOAT(OFS_PARM3);
-	INS_RumbleTriggers(device, left, right, duration);
-}
-
-static void QCBUILTIN PF_cl_gp_setledcolor(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
-{
-	int device = G_FLOAT(OFS_PARM0);
-	INS_SetLEDColor(device, G_VECTOR(OFS_PARM1));
-}
-
-static void QCBUILTIN PF_cl_gp_settriggerfx(pubprogfuncs_t *prinst, struct globalvars_s *pr_globals)
-{
-	int device = G_FLOAT(OFS_PARM0);
-	int size = G_INT(OFS_PARM2);
-	const void *fxptr = PR_GetReadQCPtr(prinst, G_INT(OFS_PARM1), size);
-
-	if (!fxptr)
-		PR_BIError(prinst, "PF_cl_gp_settriggerfx: invalid pointer/size\n");
-	else
-		INS_SetTriggerFX(device, fxptr, size);
 }
 
 /*static void PF_cs_clipboard_got(void *ctx, const char *utf8)
@@ -7057,8 +6761,10 @@ static struct {
 	{"fputs",					PF_fputs,	113},				// #113 void(float fnum, string str) fputs (FRIK_FILE)
 	{"fread",					PF_fread,	0},
 	{"fwrite",					PF_fwrite,	0},
-	{"fseek",					PF_fseek,	0},
-	{"fsize",					PF_fsize,	0},
+	{"fseek",					PF_fseek32,	0},
+	{"fsize",					PF_fsize32,	0},
+	{"fseek64",					PF_fseek64,	0},
+	{"fsize64",					PF_fsize64,	0},
 	{"strlen",					PF_strlen,	114},				// #114 float(string str) strlen (FRIK_FILE)
 
 	{"strcat",					PF_strcat,		115},			// #115 string(string str1, string str2, ...) strcat (FRIK_FILE)
@@ -7076,7 +6782,7 @@ static struct {
 	{"getmodelindex",			PF_cs_getmodelindex,	200},
 	{"getsoundindex",			PF_cs_getsoundindex,	0},
 	{"externcall",				PF_externcall,	201},
-	{"addprogs",				PF_cs_addprogs,	202},
+	{"addprogs",				PF_cl_addprogs,	202},
 	{"externvalue",				PF_externvalue,	203},
 	{"externset",				PF_externset,	204},
 
@@ -7086,9 +6792,9 @@ static struct {
 	{"registertempent",			PF_NoCSQC,	208},//{"RegisterTempEnt", PF_RegisterTEnt,	0,		0,		0,		208},
 	{"customtempent",			PF_NoCSQC,	209},//{"CustomTempEnt",	PF_CustomTEnt,		0,		0,		0,		209},
 //210
-	{"fork",					PF_Fixme,	210},//{"fork",			PF_Fork,			0,		0,		0,		210},
+	{"fork",					PF_Fork,	210},//{"fork",			PF_Fork,			0,		0,		0,		210},
 	{"abort",					PF_Abort,	211}, //#211 void() abort (FTE_MULTITHREADED)
-	{"sleep",					PF_Fixme,	212},//{"sleep",			PF_Sleep,			0,		0,		0,		212},
+	{"sleep",					PF_Sleep,	212},//{"sleep",			PF_Sleep,			0,		0,		0,		212},
 	{"forceinfokey",			PF_NoCSQC,	213},//{"forceinfokey",	PF_ForceInfoKey,	0,		0,		0,		213},
 	{"forceinfokeyblob",		PF_NoCSQC,	0},//{"forceinfokey",	PF_ForceInfoKey,	0,		0,		0,		213},
 	{"chat",					PF_NoCSQC,	214},//{"chat",			PF_chat,			0,		0,		0,		214},// #214 void(string filename, float starttag, entity edict) SV_Chat (FTE_NPCCHAT)
@@ -7169,6 +6875,8 @@ static struct {
 	{"htos",					PF_htos,			262},
 	{"ftoi",					PF_ftoi,			0},
 	{"itof",					PF_itof,			0},
+	{"ftou",					PF_ftou,			0},
+	{"utof",					PF_utof,			0},
 
 	{"skel_create",				PF_skel_create,			263},//float(float modlindex) skel_create = #263; // (FTE_CSQC_SKELETONOBJECTS)
 	{"skel_build",				PF_skel_build,			264},//float(float skel, entity ent, float modelindex, float retainfrac, float firstbone, float lastbone, optional float addition) skel_build = #264; // (FTE_CSQC_SKELETONOBJECTS)
@@ -7192,8 +6900,8 @@ static struct {
 	{"processmodelevents",		PF_processmodelevents,	0},
 	{"getnextmodelevent",		PF_getnextmodelevent,	0},
 	{"getmodeleventidx",		PF_getmodeleventidx,	0},
-	{"getlocationname",			PF_getlocationname,		0},
 
+	{"getlocationname",			PF_getlocationname,		0},
 	{"crossproduct",			PF_crossproduct,		0},
 	{"pushmove", 				PF_pushmove, 			0},
 #ifdef TERRAIN
@@ -7307,6 +7015,7 @@ static struct {
 
 	{"cprint",					PF_cl_cprint,					338},	// #338 void(string s) cprint (EXT_CSQC)
 	{"print",					PF_print,						339},	// #339 void(string s) print (EXT_CSQC)
+	{"setwatchpoint",			PF_setwatchpoint,				0},
 
 //340
 	{"keynumtostring",			PF_cl_keynumtostring,			340},	// #340 string(float keynum) keynumtostring (EXT_CSQC)
@@ -7340,12 +7049,14 @@ static struct {
 
 	{"SetListener",				PF_cs_setlistener, 				351},	// #351 void(vector origin, vector forward, vector right, vector up) SetListener (EXT_CSQC)
 	{"setup_reverb",			PF_cs_setupreverb, 				0},
+	{"queueaudio",				PF_cl_queueaudio,				0},
+	{"getqueuedaudiotime",		PF_cl_getqueuedaudiotime,		0},
 	{"registercommand",			PF_cs_registercommand,			352},	// #352 void(string cmdname) registercommand (EXT_CSQC)
 	{"wasfreed",				PF_WasFreed,					353},	// #353 float(entity ent) wasfreed (EXT_CSQC) (should be availabe on server too)
 
-	{"serverkey",				PF_cs_serverkey,				354},	// #354 string(string key) serverkey;
-	{"serverkeyfloat",			PF_cs_serverkeyfloat,			0},		// #0 float(string key) serverkeyfloat;
-	{"serverkeyblob",			PF_cs_serverkeyblob,			0},
+	{"serverkey",				PF_cl_serverkey,				354},	// #354 string(string key) serverkey;
+	{"serverkeyfloat",			PF_cl_serverkeyfloat,			0},		// #0 float(string key) serverkeyfloat;
+	{"serverkeyblob",			PF_cl_serverkeyblob,			0},
 	{"getentitytoken",			PF_cs_getentitytoken,			355},	// #355 string() getentitytoken;
 	{"findfont",				PF_CL_findfont,					356},
 	{"loadfont",				PF_CL_loadfont,					357},
@@ -7384,7 +7095,9 @@ static struct {
 	{"releasecustomskin",		PF_cs_releasecustomskin,	379},
 
 	{"memalloc",				PF_memalloc,				384},
+	{"memrealloc",				PF_memrealloc,				0},
 	{"memfree",					PF_memfree,					385},
+	{"memcmp",					PF_memcmp,					0},
 	{"memcpy",					PF_memcpy,					386},
 	{"memfill8",				PF_memfill8,				387},
 	{"memgetval",				PF_memgetval,				388},
@@ -7598,7 +7311,8 @@ static struct {
 	{"buf_cvarlist",			PF_buf_cvarlist,			517},
 	{"cvar_description",		PF_cvar_description,		518},
 
-	{"gettime",					PF_gettime,					519},
+	{"gettimef",				PF_gettimef,				519},
+	{"gettimed",				PF_gettimed,				0},
 
 	{"keynumtostring_omgwtf",	PF_cl_keynumtostring,		520},
 	{"findkeysforcommand",		PF_cl_findkeysforcommand,	521},
@@ -7689,10 +7403,23 @@ static struct {
 	{"fremove",					PF_fremove,					652},
 	{"fexists",					PF_fexists,					653},
 	{"rmtree",					PF_rmtree,					654},
-	{"gp_rumble",					PF_cl_gp_rumble,				0}, // #0 void(float devid, float amp_low, float amp_high, float duration) gp_rumble
-	{"gp_rumbletriggers",				PF_cl_gp_rumbletriggers,			0}, // #0 void(float devid, float left, float right, float duration) gp_rumbletriggers
-	{"gp_setledcolor",				PF_cl_gp_setledcolor,				0}, // #0 void(float devid, float red, float green, float blue) gp_setledcolor
-	{"gp_settriggerfx",				PF_cl_gp_settriggerfx,				0}, // #0 void(float devid, const void *data, int size) gp_settriggerfx
+
+	{"stachievement_unlock",	PF_Fixme,					730},	// EXT_STEAM_REKI
+	{"stachievement_query",		PF_Fixme,					731},	// EXT_STEAM_REKI
+	{"ststat_setvalue",			PF_Fixme,					732},	// EXT_STEAM_REKI
+	{"ststat_increment",		PF_Fixme,					733},	// EXT_STEAM_REKI
+	{"ststat_query",			PF_Fixme,					734},	// EXT_STEAM_REKI
+	{"stachievement_register",	PF_Fixme,					735},	// EXT_STEAM_REKI
+	{"ststat_register",			PF_Fixme,					736},	// EXT_STEAM_REKI
+	{"controller_query",		PF_cl_gp_querywithcb,		740},	// EXT_CONTROLLER_REKI
+	{"controller_rumble",		PF_cl_gp_rumble,			741},	// EXT_CONTROLLER_REKI
+	{"controller_rumbletriggers",PF_cl_gp_rumbletriggers,	742},	// EXT_CONTROLLER_REKI
+
+	{"gp_getlayout",			PF_cl_gp_getbuttontype,		0}, // #0 float(float devid) gp_getbuttontype
+	{"gp_rumble",				PF_cl_gp_rumble,			0}, // #0 void(float devid, float amp_low, float amp_high, float duration) gp_rumble
+	{"gp_rumbletriggers",		PF_cl_gp_rumbletriggers,	0}, // #0 void(float devid, float left, float right, float duration) gp_rumbletriggers
+	{"gp_setledcolor",			PF_cl_gp_setledcolor,		0}, // #0 void(float devid, float red, float green, float blue) gp_setledcolor
+	{"gp_settriggerfx",			PF_cl_gp_settriggerfx,		0}, // #0 void(float devid, const void *data, int size) gp_settriggerfx
 
 	{NULL}
 };
@@ -7759,7 +7486,7 @@ static progparms_t csqcprogparms;
 
 
 //Any menu builtin error or anything like that will come here.
-static void VARGS CSQC_Abort (char *format, ...)	//an error occured.
+static void VARGS CSQC_Abort (const char *format, ...)	//an error occured.
 {
 	va_list		argptr;
 	char		string[1024];
@@ -7780,21 +7507,6 @@ static void VARGS CSQC_Abort (char *format, ...)	//an error occured.
 	}
 
 	Host_EndGame("csqc error");
-}
-
-static void CSQC_ForgetThreads(void)
-{
-	csqctreadstate_t *state = csqcthreads, *next;
-	csqcthreads = NULL;
-	while(state)
-	{
-		next = state->next;
-
-		csqcprogs->parms->memfree(state->thread);
-		csqcprogs->parms->memfree(state);
-
-		state = next;
-	}
 }
 
 static void PDECL CSQC_EntSpawn (struct edict_s *e, int loading)
@@ -7927,6 +7639,24 @@ static void QDECL CSQC_World_GetFrameState(world_t *w, wedict_t *win, framestate
 	cs_getframestate(in, in->xv->renderflags, out);
 }
 
+static qboolean CSQC_GenerateMaterial(struct shaderparsestate_s *ps, const char *materialname, void (*LoadMaterialString)(struct shaderparsestate_s *ps, const char *script))
+{
+	COM_AssertMainThread("CSQC_GenerateMaterial");
+	if (csqcg.CSQC_GenerateMaterial)
+	{
+		void *pr_globals = PR_globals(csqcprogs, PR_CURRENT);
+		(((string_t *)pr_globals)[OFS_PARM0] = PR_TempString(csqcprogs, materialname));
+		PR_ExecuteProgram(csqcprogs, csqcg.CSQC_GenerateMaterial);
+		if (G_INT(OFS_RETURN))
+		{	//we got the script, now pass it to our material system to parse it.
+			LoadMaterialString(ps, PR_GetStringOfs(csqcprogs, OFS_RETURN));
+			return true;
+		}
+	}
+	return false;
+}
+static plugmaterialloaderfuncs_t csqcmaterialloader = {"csqc", CSQC_GenerateMaterial};
+
 void CSQC_Shutdown(void)
 {
 	int i;
@@ -7935,8 +7665,9 @@ void CSQC_Shutdown(void)
 		if (csqcg.CSQC_Shutdown)
 			PR_ExecuteProgram(csqcprogs, csqcg.CSQC_Shutdown);
 
+		Material_RegisterLoader(&csqc_world, NULL);
+
 		key_dest_absolutemouse &= ~kdm_game;
-		CSQC_ForgetThreads();
 		PR_ReleaseFonts(kdm_game);
 		PR_Common_Shutdown(csqcprogs, false);
 		World_Destroy(&csqc_world);
@@ -7944,7 +7675,10 @@ void CSQC_Shutdown(void)
 		csqc_world.progs = csqcprogs = NULL;
 	}
 	else
+	{
+		PR_Route_Shutdown (&csqc_world);
 		World_Destroy(&csqc_world);
+	}
 
 	Cmd_RemoveCommands(CS_ConsoleCommand_f);
 
@@ -8022,11 +7756,11 @@ static void *CSQC_FindMainProgs(size_t *sz, const char *name, unsigned int check
 
 	if (!file)
 	{
-		const char *progsname = InfoBuf_ValueForKey(&cl.serverinfo, "*csprogsname");
+		const char *progsname = cls.state?InfoBuf_ValueForKey(&cl.serverinfo, "*csprogsname"):"csprogs.dat";
 		flocation_t loc={0};
 		vfsfile_t *f;
 		qboolean found = false;
-		if (!found && *progsname && cls.state)
+		if (!found && *progsname)
 			found = FS_FLocateFile(progsname, FSLF_IGNOREPURE, &loc);
 		if (!found && strcmp(progsname, "csprogs.dat"))
 		{
@@ -8045,7 +7779,11 @@ static void *CSQC_FindMainProgs(size_t *sz, const char *name, unsigned int check
 				if (checksum && !csprogs_promiscuous)
 				{
 					if (!CSQC_ValidateMainCSProgs(file, *sz, checksum, checksize))
-						file = NULL;
+					{	//its not a match... maybe we can get a better one from the pure paths instead...
+						file = COM_LoadTempFile (progsname, 0, sz);
+						if (!CSQC_ValidateMainCSProgs(file, *sz, checksum, checksize))
+							file = NULL;
+					}
 
 					//we write the csprogs into our archive if it was loaded from outside of there.
 					//this is to ensure that demos will play on the same machine later on...
@@ -8484,6 +8222,11 @@ qboolean CSQC_Init (qboolean anycsqc, const char *csprogsname, unsigned int chec
 
 		memset(csqcent, 0, sizeof(*csqcent)*maxcsqcentities);	//clear the server->csqc entity translations.
 
+		if (csqc_isdarkplaces)
+			CSQC_FindGlobals(true);
+		else
+			CSQC_FindGlobals(false);
+
 		for (i = 0; i < csqcprogs->numprogs; i++)
 		{
 			func_t f = PR_FindFunction (csqcprogs, "init", i);
@@ -8495,12 +8238,10 @@ qboolean CSQC_Init (qboolean anycsqc, const char *csprogsname, unsigned int chec
 			}
 		}
 
-		if (csqc_isdarkplaces)
-			CSQC_FindGlobals(true);
-		else
-			CSQC_FindGlobals(false);
-
 		csqcentsize = PR_InitEnts(csqcprogs, pr_csqc_maxedicts.value);
+
+		if (csqcg.CSQC_GenerateMaterial)
+			Material_RegisterLoader(&csqc_world, &csqcmaterialloader);
 
 		//world edict becomes readonly
 		worldent = (csqcedict_t *)EDICT_NUM_PB(csqcprogs, 0);
@@ -8528,7 +8269,7 @@ qboolean CSQC_Init (qboolean anycsqc, const char *csprogsname, unsigned int chec
 			char *s = InfoBuf_ValueForKey(&cl.serverinfo, "map");
 			if (!*s)
 				s = cl.model_name[1];
-			if (!*s)
+			if (!s || !*s)
 				s = "unknown";
 			*str = PR_NewString(csqcprogs, s);
 		}
@@ -8886,7 +8627,7 @@ void CSQC_WatchPoint_f(void)
 		Con_Printf("csqc not running\n");
 		return;
 	}
-	if (csqcprogs->SetWatchPoint(csqcprogs, variable))
+	if (csqcprogs->SetWatchPoint(csqcprogs, variable, variable))
 		Con_Printf("Watchpoint set\n");
 	else
 		Con_Printf("Watchpoint cleared\n");
@@ -8996,11 +8737,27 @@ qboolean CSQC_DrawView(void)
 	csqc_dp_lastwas3d = false;
 
 	RSpeedRemark();
-	if (csqc_isdarkplaces && *csqc_world.g.physics_mode == 1)
+	if (*csqc_world.g.physics_mode == 0)
 	{
 		csqc_world.physicstime = cl.servertime;
+		// let the progs know that a new frame has started
+		if (csqcg.StartFrame)
+		{
+			*csqc_world.g.self = EDICT_TO_PROG(csqcprogs, csqc_world.edicts);
+			*csqc_world.g.other = EDICT_TO_PROG(csqcprogs, csqc_world.edicts);
+			*csqc_world.g.time = csqc_world.physicstime;
+			PR_ExecuteProgram (csqcprogs, csqcg.StartFrame);
+		}
+		PR_RunThreads(&csqc_world);
+		if (csqcg.EndFrame)
+		{	//consistency. or something.
+			*csqc_world.g.self = EDICT_TO_PROG(csqcprogs, csqc_world.edicts);
+			*csqc_world.g.other = EDICT_TO_PROG(csqcprogs, csqc_world.edicts);
+			*csqc_world.g.time = csqc_world.physicstime;
+			PR_ExecuteProgram (csqcprogs, csqcg.EndFrame);
+		}
 	}
-	else
+	else if (*csqc_world.g.physics_mode)
 	{
 #ifdef USERBE
 		if (csqc_world.rbe)
@@ -9019,6 +8776,15 @@ qboolean CSQC_DrawView(void)
 			if (host_frametime > maxtic)
 				host_frametime = maxtic;
 
+			// let the progs know that a new frame has started
+			if (csqcg.StartFrame)
+			{
+				*csqc_world.g.self = EDICT_TO_PROG(csqcprogs, csqc_world.edicts);
+				*csqc_world.g.other = EDICT_TO_PROG(csqcprogs, csqc_world.edicts);
+				*csqc_world.g.time = csqc_world.physicstime;
+				PR_ExecuteProgram (csqcprogs, csqcg.StartFrame);
+			}
+
 #ifdef USERBE
 			if (csqc_world.rbe)
 			{
@@ -9029,8 +8795,18 @@ qboolean CSQC_DrawView(void)
 			}
 #endif
 
+			PR_RunThreads(&csqc_world);
 			World_Physics_Frame(&csqc_world);
 			csqc_world.physicstime += host_frametime;
+
+			//all thinks done. for consistency with the ssqc extension.
+			if (csqcg.EndFrame)
+			{
+				*csqc_world.g.self = EDICT_TO_PROG(csqcprogs, csqc_world.edicts);
+				*csqc_world.g.other = EDICT_TO_PROG(csqcprogs, csqc_world.edicts);
+				*csqc_world.g.time = csqc_world.physicstime;
+				PR_ExecuteProgram (csqcprogs, csqcg.EndFrame);
+			}
 		}
 	}
 	RSpeedEnd(RSPEED_CSQCPHYSICS);
@@ -9088,8 +8864,6 @@ qboolean CSQC_DrawView(void)
 	DropPunchAngle (csqc_playerview);	//FIXME: this seems like the wrong place for this.
 	if (cl.worldmodel)
 		Surf_LessenStains();
-
-	CSQC_RunThreads();	//wake up any qc threads
 
 #ifdef HAVE_LEGACY
 	if (csqcg.autocvar_vid_conwidth)

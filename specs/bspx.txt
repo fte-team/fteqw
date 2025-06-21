@@ -56,6 +56,7 @@ This allows a bsp to contain both scaled surfaces and unscaled ones, without loo
 LMSTYLE:
 (applies to fte, qss)
 This replaces the four lightstyle indexes of each surface lump entry. Normally only makes sense when used in conjunction with LMSHIFT.
+Obsoleted by DECOUPLED_LM.
 
 LMSTYLE16:
 (applies to fte, qss)
@@ -124,6 +125,46 @@ struct
 } persurface[];
 This provides each surface in the bsp with info about its most appropriate(nearest) envmap. if the index is ~0u, then no envmap is specified.
 
+DECOUPLED_LM:
+struct
+{
+	uint16_t lmsize[2];		//made explicit. beware MAX_
+	uint32_t lmoffset;		//replacement offset for vanilla compat.
+	vec4_t lmvecs[2]; 		//lmcoord[] = dotproduct3(vertexcoord, lmvecs[])+lmvecs[][3]
+} persurface[];
+Replaces LMSHIFT and LMOFFSET, but _NOT_ LMSTYLE(16). Allows the lightmap to be oriented+scaled entirely independantly, reducing seams between surfaces.
+
+LIGHTGRID_OCTREE:
+vec3_t  step;
+ivec3_t size;
+vec3_t  mins;
+byte    numstyles;	//WARNING: misaligns the rest of the data
+uint32_t rootnode;
+uint32_t numnodes;
+struct
+{
+	uint32_t mid[3];
+	uint32_t child[8];	//((z>=mid[2])<<0) | ((y>=mid[1])<<1) | ((x>=mid[0])<<2)
+		#define LGNODE_LEAF (1u<<31)
+		#define LGNODE_MISSING (1u<<30)
+} lgnode[numnodes];
+uint32_t numleafs;
+blob
+{
+	ivec3_t mins;
+	ivec3_t size;
+	blob
+	{
+		byte stylecount;	//compression...
+		struct
+		{
+			byte stylenum; 	//which lightstyle to scale the rgb values by
+			byte rgb[3];	//the actual sample
+		} [stylecount];
+	} perpoint[size[0]*size[1]*size[2]];
+} lgleaf[numleafs];
+The nodes exists to provide support for sparse data, allowing solid unplayable areas of the map to be omitted entirely. Convert the sample position you want into an index, walk the tree until either missing or leaf. If leaf then index and add up the weighted rgb values. If missing or stylecount is 0xff then there's no data at that point. You should sample the 8 points around your target position and weight+blend them - with the missing values compensated for by increasing the weight of the other samples so that an object next to a wall does not become black/fullbright/ugly.
+Misalignment and leaf compression means it must be repacked at load time for efficient access (which is likely to mean stylecount gets clamped to 4). Does not support HDR nor 16bit styles.
 
 Other features:
 FTE supports mipmaps with all four offsets set to 0 as external textures. Such texture will ignore gl_load24bit, treating it as always enabled. This saves space and simplifies copyright ownership without resulting in untextured maps (when the textures are actually available, anyway).

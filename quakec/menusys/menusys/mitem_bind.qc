@@ -74,7 +74,7 @@ float(vector pos, float scan, float char, float down) mitem_bind::item_keypress 
 
 	if (self.item_flags & IF_INTERACT)
 	{
-		if (scan == K_ESCAPE)
+		if (scan == K_ESCAPE || scan == K_GP_START)	//keys that cannot/shouldnot be bound can be used to cancel here.
 		{
 		}
 		else if (scan)
@@ -86,12 +86,12 @@ float(vector pos, float scan, float char, float down) mitem_bind::item_keypress 
 	}
 	else
 	{
-		if (scan == K_ENTER || (scan == K_MOUSE1 && mouseinbox(pos, self.item_size)))
+		if (scan == K_ENTER || scan == K_GP_A || ((scan == K_TOUCHTAP || scan == K_MOUSE1) && mouseinbox(pos, self.item_size)))
 		{
 			self.item_flags |= IF_INTERACT;
 			return TRUE;
 		}
-		if (scan == K_DEL || scan == K_BACKSPACE)
+		if (scan == K_DEL || scan == K_GP_Y || scan == K_BACKSPACE)
 		{
 #ifdef CSQC
 			float c = tokenize(findkeysforcommandex(self.item_command));

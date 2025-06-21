@@ -720,7 +720,7 @@ void PM_FlyMove (void)
 	}
 
 	PM_Accelerate (wishdir, wishspeed, movevars.accelerate);
-	
+
 	PM_StepSlideMove (false);
 }
 
@@ -849,7 +849,7 @@ void PM_AirMove (void)
 	else
 	{
 		int blocked;
-		
+
 		// not on ground, so little effect on velocity
 		PM_AirAccelerate (wishdir, wishspeed, movevars.accelerate);
 

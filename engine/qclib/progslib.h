@@ -26,6 +26,16 @@
 	#define VARGS
 #endif
 
+#if __STDC_VERSION__ >= 202311L // c23
+	#define FALLTHROUGH  [[fallthrough]];
+#elif defined(__GNUC__) && __GNUC__ >= 7
+	#define FALLTHROUGH __attribute__((fallthrough));
+#elif defined(__clang__) && __clang_major__ >= 7
+	#define FALLTHROUGH __attribute__((fallthrough));
+#else
+	#define FALLTHROUGH
+#endif
+
 #if defined(_M_IX86) || defined(__i386__)	//supported arch
 	#if defined(__GNUC__) || defined(_MSC_VER)	//supported compilers (yay for inline asm)
 	//#define QCJIT
@@ -95,7 +105,8 @@ ev_union,	//not really sure why this is separate from struct
 ev_accessor,//some weird type to provide class-like functions over a basic type.
 ev_enum,	//just a numeric type
 ev_typedef,	//so typedefs can refer to their original type (primarily for structs).
-ev_boolean,	//exists to optimise if(-0) workarounds. engine just sees int/float.
+ev_boolean,	//exists to optimise if(-0) workarounds. engine just sees int/float. uses parentclass
+ev_bitfld,	//erk... structs only... converted to their parentclass on read.
 } etype_t;
 enum {
 	DEBUG_TRACE_OFF,		//debugging should be off.
@@ -180,6 +191,7 @@ struct pubprogfuncs_s
 	pbool	(PDECL *Decompile)					(pubprogfuncs_t *prinst, const char *fname);
 
 	int		callargc;	//number of args of built-in call
+	int		callprogs;	//which progs it was called from...
 
 	char *stringtable;	//qc strings are all relative. add to a qc string. this is required for support of frikqcc progs that strip string immediates.
 	unsigned int stringtablesize;
@@ -200,6 +212,7 @@ struct pubprogfuncs_s
 	char	*(PDECL *AddString)					(pubprogfuncs_t *prinst, const char *val, int minlength, pbool demarkup);	//dump a string into the progs memory (for setting globals and whatnot)
 	void	*(PDECL *Tempmem)					(pubprogfuncs_t *prinst, int ammount, char *whatfor);	//grab some mem for as long as the progs stays loaded
 	void *(PDECL *AddressableAlloc)				(pubprogfuncs_t *progfuncs, unsigned int ammount); /*returns memory within the qc block, use stringtoprogs to get a usable qc pointer/string*/
+	void *(PDECL *AddressableRealloc)			(pubprogfuncs_t *progfuncs, void *oldptr, unsigned int newammount); /*returns memory within the qc block, use stringtoprogs to get a usable qc pointer/string*/
 	void (PDECL *AddressableFree)				(pubprogfuncs_t *progfuncs, void *mem); /*frees a block of addressable memory*/
 	string_t (PDECL *TempString)				(pubprogfuncs_t *prinst, const char *str);
 	string_t (PDECL *AllocTempString)			(pubprogfuncs_t *prinst, char **str, unsigned int len);
@@ -211,7 +224,7 @@ struct pubprogfuncs_s
 	void (PDECL *EntClear)						(pubprogfuncs_t *progfuncs, struct edict_s *e);
 	void (PDECL *FindPrefixGlobals)				(pubprogfuncs_t *progfuncs, int prnum, char *prefix, void (PDECL *found) (pubprogfuncs_t *progfuncs, char *name, union eval_s *val, etype_t type, void *ctx), void *ctx);	//calls the callback for each named global found
 
-	pbool (PDECL *SetWatchPoint)				(pubprogfuncs_t *prinst, const char *key);
+	pbool (PDECL *SetWatchPoint)				(pubprogfuncs_t *prinst, const char *desc, const char *location);
 
 	void (PDECL *AddSharedVar)					(pubprogfuncs_t *progfuncs, int start, int size);
 	void (PDECL *AddSharedFieldVar)				(pubprogfuncs_t *progfuncs, int num, char *relstringtable);
@@ -244,7 +257,7 @@ typedef struct progexterns_s {
 	int (VARGS *Printf)					(const char *, ...) LIKEPRINTF(1);
 	int (VARGS *DPrintf)				(const char *, ...) LIKEPRINTF(1);
 	void (VARGS *Sys_Error)				(const char *, ...) LIKEPRINTF(1);
-	void (VARGS *Abort)					(char *, ...) LIKEPRINTF(1);
+	void (VARGS *Abort)					(const char *, ...) LIKEPRINTF(1);
 	pbool (PDECL *CheckHeaderCrc)		(pubprogfuncs_t *inst, progsnum_t idx, int crc, const char *filename);
 
 	void (PDECL *entspawn)				(struct edict_s *ent, int loading);	//ent has been spawned, but may not have all the extra variables (that may need to be set) set

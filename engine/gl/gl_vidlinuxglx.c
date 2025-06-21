@@ -88,6 +88,9 @@ static qboolean XVK_SetupSurface_XCB(void);
 #ifndef NO_X11_RANDR
 	#define USE_XRANDR
 #endif
+#ifndef NO_X11_XSS
+	#define USE_XSS
+#endif
 
 #include <X11/keysym.h>
 #include <X11/cursorfont.h>
@@ -375,6 +378,63 @@ static qboolean x11_initlib(void)
 
 	return !!x11.lib;
 }
+
+#ifdef USE_XSS
+#include <X11/extensions/scrnsaver.h>
+static struct {
+	void *lib;
+	int event, error;
+	int major, minor;
+
+	Bool (*pXScreenSaverQueryExtension)(Display *dpy, int *event_base_return, int *error_base_return);
+	Status (*pXScreenSaverQueryVersion)(Display *dpy, int *major_version_return, int *minor_version_return);
+
+	void (*pXScreenSaverSuspend)(Display *dpy, Bool suspend);
+
+	qboolean cansuspend;
+	qboolean suspending;
+} x11xss;
+static qboolean X11Xss_Init(void)
+{
+	static dllfunction_t x11xss_functable[] =
+	{
+		{(void**)&x11xss.pXScreenSaverQueryExtension,	"XScreenSaverQueryExtension"},
+		{(void**)&x11xss.pXScreenSaverQueryVersion,		"XScreenSaverQueryVersion"},
+		{(void**)&x11xss.pXScreenSaverSuspend,			"XScreenSaverSuspend"},
+	};
+	if (!x11xss.lib)
+		x11xss.lib = Sys_LoadLibrary("libXss.so.1", x11xss_functable);
+	x11xss.cansuspend = false;
+	x11xss.suspending = false;	//must be recalled for each new dpy...
+	if (x11xss.lib)
+	{
+		if (x11xss.pXScreenSaverQueryExtension(vid_dpy, &x11xss.event, &x11xss.error))
+			if (x11xss.pXScreenSaverQueryVersion(vid_dpy, &x11xss.major, &x11xss.minor))
+				if (x11xss.major>1 || (x11xss.major==1&&x11xss.minor>=1))
+					x11xss.cansuspend = true;
+	}
+	return x11xss.cansuspend;
+}
+static void X11Xss_SuspendSaver(qboolean suspend)
+{
+	if (!x11xss.cansuspend)
+		return; //no can do, sorry
+	if (x11xss.suspending != suspend)
+	{
+		x11xss.suspending = suspend;
+		x11xss.pXScreenSaverSuspend(vid_dpy, suspend);	//this is refcounted, but we're asserting.
+	}
+}
+#else
+static qboolean X11Xss_Init(void)
+{
+	return false;
+}
+static void X11Xss_SuspendSaver(qboolean suspend)
+{
+}
+#endif
+
 
 #ifdef VK_USE_PLATFORM_XCB_KHR
 static struct
@@ -2784,6 +2844,8 @@ static void UpdateGrabs(void)
 		else
 			x11.pXUndefineCursor(vid_dpy, vid_window);
 	}
+
+	X11Xss_SuspendSaver(cls.demoplayback && vid.activeapp);
 }
 
 static void ClearAllStates (void)
@@ -3131,14 +3193,8 @@ static void GetEvent(void)
 				char *protname = x11.pXGetAtomName(vid_dpy, event.xclient.data.l[0]);
 				if (!strcmp(protname, "WM_DELETE_WINDOW"))
 				{
-					Key_Dest_Remove(kdm_console);
-					if (Cmd_Exists("menu_quit") || Cmd_AliasExist("menu_quit", RESTRICT_LOCAL))
-						Cmd_ExecuteString("menu_quit prompt", RESTRICT_LOCAL);
-					else if (Cmd_Exists("m_quit") || Cmd_AliasExist("m_quit", RESTRICT_LOCAL))
-						Cmd_ExecuteString("m_quit", RESTRICT_LOCAL);
-					else
-						Cmd_ExecuteString("quit", RESTRICT_LOCAL);
-					x11.pXSetInputFocus(vid_dpy, vid_window, RevertToParent, CurrentTime);
+					x11.pXSetInputFocus(vid_dpy, vid_window, RevertToParent, CurrentTime); //make it easier to pick an option. FIXME: bring to top is a separate thing.
+					M_Window_ClosePrompt();
 				}
 				else if (!strcmp(protname, "_NET_WM_PING"))
 				{
@@ -4466,6 +4522,7 @@ static qboolean X11VID_Init (rendererstate_t *info, unsigned char *palette, int 
 		Con_DPrintf("Using X11 mouse\n");
 	}
 	XCursor_Init();
+	X11Xss_Init();
 
 	if (fullscreenflags & FULLSCREEN_LEGACY)
 		x11.pXMoveResizeWindow(vid_dpy, vid_window, fullscreenx, fullscreeny, fullscreenwidth, fullscreenheight);
@@ -5020,6 +5077,10 @@ void INS_EnumerateDevices(void *ctx, void(*callback)(void *ctx, const char *type
 #endif
 }
 
+enum controllertype_e INS_GetControllerType(int id)
+{
+	return CONTROLLER_NONE;
+}
 /* doubt this will ever happen to begin with */
 void INS_Rumble(int id, quint16_t amp_low, quint16_t amp_high, quint32_t duration)
 {

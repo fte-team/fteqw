@@ -242,12 +242,12 @@ void S_ResetFailedLoad(void);
 #ifdef PEXT2_VOICECHAT
 void S_Voip_Parse(void);
 #endif
+int S_Voip_ClientLoudness(unsigned int plno);
 #ifdef VOICECHAT
 extern cvar_t snd_voip_showmeter;
 void S_Voip_Transmit(unsigned char clc, sizebuf_t *buf);
 void S_Voip_MapChange(void);
 int S_Voip_Loudness(qboolean ignorevad);	//-1 for not capturing, otherwise between 0 and 100
-int S_Voip_ClientLoudness(unsigned int plno);
 qboolean S_Voip_Speaking(unsigned int plno);
 void S_Voip_Ignore(unsigned int plno, qboolean ignore);
 #else
@@ -262,7 +262,7 @@ qboolean S_IsPlayingSomewhere(sfx_t *s);
 // picks a channel based on priorities, empty slots, number of channels
 channel_t *SND_PickChannel(soundcardinfo_t *sc, int entnum, int entchannel);
 
-void SND_ResampleStream (void *in, int inrate, qaudiofmt_t inwidth, int inchannels, int insamps, void *out, int outrate, qaudiofmt_t outwidth, int outchannels, int resampstyle);
+void SND_ResampleStream (const void *in, int inrate, qaudiofmt_t inwidth, int inchannels, int insamps, void *out, int outrate, qaudiofmt_t outwidth, int outchannels, int resampstyle);
 
 // restart entire sound subsystem (doesn't flush old sounds, so make sure that happens)
 void S_DoRestart (qboolean onlyifneeded);
@@ -270,7 +270,13 @@ void S_DoRestart (qboolean onlyifneeded);
 void S_Restart_f (void);
 
 //plays streaming audio
-void S_RawAudio(int sourceid, qbyte *data, int speed, int samples, int channels, qaudiofmt_t width, float volume);
+#define SOURCEID_MENUQC -3
+#define SOURCEID_CSQC -2
+#define SOURCEID_CINEMATIC -1
+#define SOURCEID_VOIP_FIRST 0
+#define SOURCEID_VOIP_MAX MAX_CLIENTS-1
+void S_RawAudio(int sourceid, const qbyte *data, int speed, int samples, int channels, qaudiofmt_t width, float volume);
+float S_RawAudioQueued(int sourceid);
 
 void CLVC_Poll (void);
 

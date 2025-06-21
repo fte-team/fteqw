@@ -79,7 +79,7 @@ cvar_t	pm_bunnyfriction	= CVARFD("pm_bunnyfriction", "", CVAR_SERVERINFO, "Repli
 cvar_t	pm_autobunny		= CVARFD("pm_autobunny", "", CVAR_SERVERINFO, "Players will continue jumping without needing to release the jump button.");
 cvar_t	pm_airstep			 = CVARAFD("pm_airstep", "", /*dp*/"sv_jumpstep", CVAR_SERVERINFO, "Allows players to step up while jumping. This makes stairs more graceful but also increases potential jump heights.");
 cvar_t	pm_pground			 = CVARFD("pm_pground", "", CVAR_SERVERINFO, "Use persisten onground state instead of recalculating every frame."CON_WARNING"Do NOT use with nq mods, as most nq mods will interfere with onground state, resulting in glitches.");
-cvar_t	pm_stepdown			 = CVARFD("pm_stepdown", "", CVAR_SERVERINFO, "Causes physics to stick to the ground, instead of constantly losing traction whiloe going down steps.");
+cvar_t	pm_stepdown			 = CVARFD("pm_stepdown", "", CVAR_SERVERINFO, "Causes physics to stick to the ground, instead of constantly losing traction while going down steps.");
 cvar_t	pm_walljump			 = CVARFD("pm_walljump", "", CVAR_SERVERINFO, "Allows the player to bounce off walls while arborne.");
 cvar_t	pm_edgefriction		 = CVARAFD("pm_edgefriction", "", /*nq*/"edgefriction", CVAR_SERVERINFO, "Increases friction when about to walk over a cliff, so you're less likely to plummet by mistake. When empty defaults to 2, but uses a tracebox instead of a traceline to detect the drop.");
 
@@ -1551,8 +1551,8 @@ static void WPhys_Physics_Step (world_t *w, wedict_t *ent)
 
 		if ( (int)ent->v->flags & FL_ONGROUND )	// just hit ground
 		{
-#ifdef HEXEN2
-			if (progstype == PROG_H2 && ((int)ent->v->flags & FL_MONSTER))
+#if defined(HEXEN2) && defined(HAVE_SERVER)
+			if (w==&sv.world && progstype == PROG_H2 && ((int)ent->v->flags & FL_MONSTER))
 				;	//hexen2 monsters do not make landing sounds.
 			else
 #endif
@@ -2726,7 +2726,7 @@ qboolean SV_Physics (void)
 
 		SV_ProgStartFrame ();
 
-		PRSV_RunThreads();
+		PR_RunThreads(&sv.world);
 
 #ifdef USERBE
 		if (sv.world.rbe)

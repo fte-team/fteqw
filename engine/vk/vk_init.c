@@ -7,8 +7,6 @@
 
 #include "vr.h"
 
-#define VK_API_MAX_VERSION VK_API_VERSION_1_0
-
 extern qboolean vid_isfullscreen;
 
 cvar_t vk_stagingbuffers						= CVARFD ("vk_stagingbuffers",			"", CVAR_RENDERERLATCH, "Configures which dynamic buffers are copied into gpu memory for rendering, instead of reading from shared memory. Empty for default settings.\nAccepted chars are u(niform), e(lements), v(ertex), 0(none).");
@@ -27,6 +25,9 @@ static cvar_t vK_khr_fragment_shading_rate		= CVARFD("vK_khr_fragment_shading_ra
 #endif
 #ifdef VK_EXT_astc_decode_mode
 static cvar_t vk_ext_astc_decode_mode			= CVARFD("vk_ext_astc_decode_mode",		"",	CVAR_VIDEOLATCH, "Enables reducing texture cache sizes for LDR ASTC-compressed textures.");
+#endif
+#ifdef VK_KHR_ray_query
+static cvar_t vk_khr_ray_query					= CVARFD("vk_khr_ray_query",			"",	CVAR_VIDEOLATCH, "Required for the use of hardware raytraced shadows.");
 #endif
 extern cvar_t vid_srgb, vid_vsync, vid_triplebuffer, r_stereo_method, vid_multisample, vid_bpp;
 
@@ -54,6 +55,9 @@ void VK_RegisterVulkanCvars(void)
 #ifdef VK_EXT_astc_decode_mode
 	Cvar_Register (&vk_ext_astc_decode_mode,	VKRENDEREROPTIONS);
 #endif
+#ifdef VK_KHR_ray_query
+	Cvar_Register (&vk_khr_ray_query,			VKRENDEREROPTIONS);
+#endif
 }
 void R2D_Console_Resize(void);
 static void VK_DestroySampler(VkSampler s);
@@ -65,7 +69,7 @@ extern qboolean		scr_con_forcedraw;
 #define Sys_UnlockConditional(c)
 #endif
 
-const char *vklayerlist[] =
+static const char *vklayerlist[] =
 {
 #if 1
 	"VK_LAYER_KHRONOS_validation"
@@ -97,12 +101,12 @@ const char *vklayerlist[] =
 #ifdef VK_NO_PROTOTYPES
 	#define VKFunc(n) PFN_vk##n vk##n;
 	#ifdef VK_EXT_debug_utils
-		VKFunc(CreateDebugUtilsMessengerEXT)
-		VKFunc(DestroyDebugUtilsMessengerEXT)
+		static VKFunc(CreateDebugUtilsMessengerEXT)
+		static VKFunc(DestroyDebugUtilsMessengerEXT)
 	#endif
 	#ifdef VK_EXT_debug_report
-		VKFunc(CreateDebugReportCallbackEXT)
-		VKFunc(DestroyDebugReportCallbackEXT)
+		static VKFunc(CreateDebugReportCallbackEXT)
+		static VKFunc(DestroyDebugReportCallbackEXT)
 	#endif
 	VKFuncs
 	#undef VKFunc
@@ -263,6 +267,9 @@ char *DebugAnnotObjectToString(VkObjectType t)
 	case VK_OBJECT_TYPE_VALIDATION_CACHE_EXT:			return "VK_OBJECT_TYPE_VALIDATION_CACHE_EXT";
 #ifdef VK_NV_ray_tracing
 	case VK_OBJECT_TYPE_ACCELERATION_STRUCTURE_NV:		return "VK_OBJECT_TYPE_ACCELERATION_STRUCTURE_NV";
+#endif
+#ifdef VK_KHR_acceleration_structure
+	case VK_OBJECT_TYPE_ACCELERATION_STRUCTURE_KHR:		return "VK_OBJECT_TYPE_ACCELERATION_STRUCTURE_KHR";
 #endif
 //	case VK_OBJECT_TYPE_RANGE_SIZE:
     case VK_OBJECT_TYPE_MAX_ENUM:
@@ -659,6 +666,7 @@ static qboolean VK_CreateSwapChain(void)
 			}
 
 			VkAssert(vkAllocateMemory(vk.device, &memAllocInfo, vkallocationcb, &memories[i]));
+			DebugSetName(VK_OBJECT_TYPE_DEVICE_MEMORY, (uint64_t)memories[i], "VK_CreateSwapChain");
 			VkAssert(vkBindImageMemory(vk.device, images[i], memories[i], 0));
 		}
 	}
@@ -707,8 +715,19 @@ static qboolean VK_CreateSwapChain(void)
 			swapinfo.minImageCount = surfcaps.maxImageCount;
 		if (swapinfo.minImageCount < surfcaps.minImageCount)
 			swapinfo.minImageCount = surfcaps.minImageCount;
-		swapinfo.imageExtent.width = surfcaps.currentExtent.width;
-		swapinfo.imageExtent.height = surfcaps.currentExtent.height;
+
+		// With offscreen rendering, the size is not known at first
+		if (surfcaps.currentExtent.width == UINT32_MAX && surfcaps.currentExtent.height == UINT32_MAX)
+		{
+			swapinfo.imageExtent.width = bound(surfcaps.minImageExtent.width, vid.pixelwidth, surfcaps.maxImageExtent.width);
+			swapinfo.imageExtent.height = bound(surfcaps.minImageExtent.height, vid.pixelheight, surfcaps.maxImageExtent.height);
+		}
+		else
+		{
+			swapinfo.imageExtent.width = surfcaps.currentExtent.width;
+			swapinfo.imageExtent.height = surfcaps.currentExtent.height;
+		}
+
 		swapinfo.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT|VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
 		swapinfo.preTransform = surfcaps.currentTransform;//VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR;
 		if (surfcaps.supportedCompositeAlpha & VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR)
@@ -1341,6 +1360,7 @@ qboolean VK_AllocatePoolMemory(uint32_t pooltype, VkDeviceSize memsize, VkDevice
 			Z_Free(p);
 			return false;
 		}
+		DebugSetName(VK_OBJECT_TYPE_DEVICE_MEMORY, (uint64_t)p->memory, "VK_AllocatePoolMemory");
 		p->next = vk.mempools;
 		vk.mempools = p;
 	}
@@ -1426,6 +1446,7 @@ qboolean VK_AllocateImageMemory(VkImage image, qboolean dedicated, vk_poolmem_t 
 		err = vkAllocateMemory(vk.device, &memAllocInfo, vkallocationcb, &mem->memory);
 		if (err != VK_SUCCESS)
 			return false;
+		DebugSetName(VK_OBJECT_TYPE_DEVICE_MEMORY, (uint64_t)mem->memory, "VK_AllocateImageMemory");
 		return true;
 	}
 }
@@ -2099,6 +2120,7 @@ qboolean VK_LoadTextureMips (texid_t tex, const struct pendingtextureinfo *mips)
 		VK_FencedSubmit(fence);
 		return false;	//some sort of oom error?
 	}
+	DebugSetName(VK_OBJECT_TYPE_DEVICE_MEMORY, (uint64_t)fence->stagingmemory, "VK_LoadTextureMips");
 	VkAssert(vkBindBufferMemory(vk.device, fence->stagingbuffer, fence->stagingmemory, 0));
 	VkAssert(vkMapMemory(vk.device, fence->stagingmemory, 0, bci.size, 0, &mapdata));
 	if (!mapdata)
@@ -2216,22 +2238,20 @@ void	VK_R_DeInit					(void)
 	Image_Shutdown();
 }
 
-void VK_SetupViewPortProjection(qboolean flipy, vec3_t *eyeangorg, float *fovoverrides)
+void VK_SetupViewPortProjection(qboolean flipy, const float eyematrix[12], const float fovoverrides[4], const float projmatrix[16])
 {
 	float fov_x, fov_y;
 	float fovv_x, fovv_y;
 
 	float fov_l, fov_r, fov_d, fov_u;
 
-	if (eyeangorg)
+	if (eyematrix)
 	{
 		extern cvar_t in_vraim;
 		matrix3x4 basematrix;
-		matrix3x4 eyematrix;
 		matrix3x4 viewmatrix;
 		vec3_t newa;
 
-		Matrix3x4_RM_FromAngles(eyeangorg[0], eyeangorg[1], eyematrix[0]);
 		if (r_refdef.base_known)
 		{	//mod is specifying its own base ang+org.
 			Matrix3x4_RM_FromAngles(r_refdef.base_angles, r_refdef.base_origin, basematrix[0]);
@@ -2245,7 +2265,7 @@ void VK_SetupViewPortProjection(qboolean flipy, vec3_t *eyeangorg, float *fovove
 				newa[1] -= SHORT2ANGLE(r_refdef.playerview->vrdev[VRDEV_HEAD].angles[YAW]);
 			Matrix3x4_RM_FromAngles(newa, r_refdef.vieworg, basematrix[0]);
 		}
-		Matrix3x4_Multiply(eyematrix[0], basematrix[0], viewmatrix[0]);
+		Matrix3x4_Multiply(eyematrix, basematrix[0], viewmatrix[0]);
 		Matrix3x4_RM_ToVectors(viewmatrix[0], vpn, vright, vup, r_origin);
 		VectorNegate(vright, vright);
 
@@ -2273,41 +2293,58 @@ void VK_SetupViewPortProjection(qboolean flipy, vec3_t *eyeangorg, float *fovove
 		r_refdef.flipcull = 0;
 	}
 
-	fov_x = r_refdef.fov_x;//+sin(cl.time)*5;
-	fov_y = r_refdef.fov_y;//-sin(cl.time+1)*5;
-	fovv_x = r_refdef.fovv_x;
-	fovv_y = r_refdef.fovv_y;
-	if ((r_refdef.flags & RDF_UNDERWATER) && !(r_refdef.flags & RDF_WATERWARP))
+	if (projmatrix)
 	{
-		fov_x *= 1 + (((sin(cl.time * 4.7) + 1) * 0.015) * r_waterwarp.value);
-		fov_y *= 1 + (((sin(cl.time * 3.0) + 1) * 0.015) * r_waterwarp.value);
-		fovv_x *= 1 + (((sin(cl.time * 4.7) + 1) * 0.015) * r_waterwarp.value);
-		fovv_y *= 1 + (((sin(cl.time * 3.0) + 1) * 0.015) * r_waterwarp.value);
-	}
-	if (fovoverrides)
-	{
-		fov_l = fovoverrides[0];
-		fov_r = fovoverrides[1];
-		fov_d = fovoverrides[2];
-		fov_u = fovoverrides[3];
-
-		fov_x = fov_r-fov_l;
-		fov_y = fov_u-fov_d;
-
-		fovv_x = fov_x;
-		fovv_y = fov_y;
-		r_refdef.flipcull = ((fov_u < fov_d)^(fov_r < fov_l))?SHADER_CULL_FLIP:0;
+		memcpy(r_refdef.m_projection_std, projmatrix, sizeof(r_refdef.m_projection_std));
+		memcpy(r_refdef.m_projection_view, projmatrix, sizeof(r_refdef.m_projection_std));
 	}
 	else
 	{
-		fov_l = -fov_x / 2;
-		fov_r = fov_x / 2;
-		fov_d = -fov_y / 2;
-		fov_u = fov_y / 2;
-	}
+		fov_x = r_refdef.fov_x;//+sin(cl.time)*5;
+		fov_y = r_refdef.fov_y;//-sin(cl.time+1)*5;
+		fovv_x = r_refdef.fovv_x;
+		fovv_y = r_refdef.fovv_y;
+		if ((r_refdef.flags & RDF_UNDERWATER) && !(r_refdef.flags & RDF_WATERWARP))
+		{
+			fov_x *= 1 + (((sin(cl.time * 4.7) + 1) * 0.015) * r_waterwarp.value);
+			fov_y *= 1 + (((sin(cl.time * 3.0) + 1) * 0.015) * r_waterwarp.value);
+			fovv_x *= 1 + (((sin(cl.time * 4.7) + 1) * 0.015) * r_waterwarp.value);
+			fovv_y *= 1 + (((sin(cl.time * 3.0) + 1) * 0.015) * r_waterwarp.value);
+		}
+		if (fovoverrides)
+		{
+			fov_l = fovoverrides[0];
+			fov_r = fovoverrides[1];
+			fov_d = fovoverrides[2];
+			fov_u = fovoverrides[3];
 
-	Matrix4x4_CM_Projection_Offset(r_refdef.m_projection_std, fov_l, fov_r, fov_d, fov_u, r_refdef.mindist, r_refdef.maxdist, false);
-	Matrix4x4_CM_Projection_Offset(r_refdef.m_projection_view, -fovv_x/2, fovv_x/2, -fovv_y/2, fovv_y/2, r_refdef.mindist, r_refdef.maxdist, false);
+			fov_x = fov_r-fov_l;
+			fov_y = fov_u-fov_d;
+
+			fovv_x = fov_x;
+			fovv_y = fov_y;
+			r_refdef.flipcull = ((fov_u < fov_d)^(fov_r < fov_l))?SHADER_CULL_FLIP:0;
+		}
+		else
+		{
+			fov_l = -fov_x / 2;
+			fov_r = fov_x / 2;
+			fov_d = -fov_y / 2;
+			fov_u = fov_y / 2;
+		}
+
+		if (r_xflip.ival)
+		{
+			float t = fov_l;
+			fov_l = fov_r;
+			fov_r = t;
+			r_refdef.flipcull ^= SHADER_CULL_FLIP;
+			fovv_x *= -1;
+		}
+
+		Matrix4x4_CM_Projection_Offset(r_refdef.m_projection_std, fov_l, fov_r, fov_d, fov_u, r_refdef.mindist, r_refdef.maxdist, false);
+		Matrix4x4_CM_Projection_Offset(r_refdef.m_projection_view, -fovv_x/2, fovv_x/2, -fovv_y/2, fovv_y/2, r_refdef.mindist, r_refdef.maxdist, false);
+	}
 
 	r_refdef.m_projection_view[2+4*0] *= 0.333;
 	r_refdef.m_projection_view[2+4*1] *= 0.333;
@@ -2380,6 +2417,7 @@ void VK_Set2D(void)
 
 	VKBE_Set2D(true);
 
+	r_refdef.flipcull = 0;
 	if (0)
 		Matrix4x4_CM_Orthographic(r_refdef.m_projection_std, 0, vid.fbvwidth, 0, vid.fbvheight, -99999, 99999);
 	else
@@ -2649,6 +2687,26 @@ static qboolean VK_R_RenderScene_Cubemap(struct vk_rendertarg *fb)
 		}
 #endif
 		break;
+	case PROJ_PANINI:
+		shader = R_RegisterShader("postproc_panini", SUF_NONE,
+				"{\n"
+					"program postproc_panini\n"
+					"{\n"
+						"map $sourcecube\n"
+					"}\n"
+				"}\n"
+				);
+
+		facemask |= 1<<4; /*front view*/
+		if (ffov.value > 70)
+		{
+			facemask |= (1<<0) | (1<<1); /*side/top*/
+			if (ffov.value > 85)
+				facemask |= (1<<2) | (1<<3); /*bottom views*/
+			if (ffov.value > 300)
+				facemask |= 1<<5; /*back view*/
+		}
+		break;
 	}
 
 	if (!shader || !shader->prog)
@@ -2718,7 +2776,7 @@ static qboolean VK_R_RenderScene_Cubemap(struct vk_rendertarg *fb)
 		r_refdef.viewangles[2] = saveang[2]+ang[i][2];
 
 
-		VK_SetupViewPortProjection(true, NULL, NULL);
+		VK_SetupViewPortProjection(true, NULL, NULL, NULL);
 
 		/*if (!vk.rendertarg->depthcleared)
 		{
@@ -2742,11 +2800,11 @@ static qboolean VK_R_RenderScene_Cubemap(struct vk_rendertarg *fb)
 
 		R_SetFrustum (r_refdef.m_projection_std, r_refdef.m_view);
 		RQ_BeginFrame();
-		if (!(r_refdef.flags & RDF_NOWORLDMODEL))
-		{
-			if (cl.worldmodel)
-				P_DrawParticles ();
-		}
+//		if (!(r_refdef.flags & RDF_NOWORLDMODEL))
+//		{
+//			if (cl.worldmodel)
+//				P_DrawParticles ();
+//		}
 		Surf_DrawWorld();
 		RQ_RenderBatchClear();
 
@@ -2799,11 +2857,11 @@ static qboolean VK_R_RenderScene_Cubemap(struct vk_rendertarg *fb)
 	return true;
 }
 
-void VK_R_RenderEye(texid_t image, vec4_t fovoverride, vec3_t eyeangorg[2])
+void VK_R_RenderEye(texid_t image, const pxrect_t *viewport, const vec4_t fovoverride, const float projmatrix[16], const float eyematrix[12])
 {
 	struct vk_rendertarg *rt;
 
-	VK_SetupViewPortProjection(false, eyeangorg, fovoverride);
+	VK_SetupViewPortProjection(false, eyematrix, fovoverride, projmatrix);
 
 	rt = &postproc[postproc_buf++%countof(postproc)];
 	rt->rpassflags |= RP_VR;
@@ -2833,11 +2891,11 @@ void VK_R_RenderEye(texid_t image, vec4_t fovoverride, vec3_t eyeangorg[2])
 
 	R_SetFrustum (r_refdef.m_projection_std, r_refdef.m_view);
 	RQ_BeginFrame();
-	if (!(r_refdef.flags & RDF_NOWORLDMODEL))
-	{
-		if (cl.worldmodel)
-			P_DrawParticles ();
-	}
+//	if (!(r_refdef.flags & RDF_NOWORLDMODEL))
+//	{
+//		if (cl.worldmodel)
+//			P_DrawParticles ();
+//	}
 	Surf_DrawWorld();
 	RQ_RenderBatchClear();
 
@@ -2891,9 +2949,12 @@ void	VK_R_RenderView				(void)
 
 	if (!r_refdef.globalfog.density)
 	{
+		extern cvar_t r_fog_linear;
+
 		int fogtype = ((r_refdef.flags & RDF_UNDERWATER) && cl.fog[FOGTYPE_WATER].density)?FOGTYPE_WATER:FOGTYPE_AIR;
 		CL_BlendFog(&r_refdef.globalfog, &cl.oldfog[fogtype], realtime, &cl.fog[fogtype]);
-		r_refdef.globalfog.density /= 64;	//FIXME
+		if (!r_fog_linear.ival)
+			r_refdef.globalfog.density /= 64;	//FIXME
 	}
 
 	custompostproc = NULL;
@@ -2984,7 +3045,7 @@ void	VK_R_RenderView				(void)
 	}
 	else
 	{
-		VK_SetupViewPortProjection(false, NULL, NULL);
+		VK_SetupViewPortProjection(false, NULL, NULL, NULL);
 
 		if (rt != rtscreen)
 			VKBE_RT_Begin(rt);
@@ -3028,11 +3089,11 @@ void	VK_R_RenderView				(void)
 
 		R_SetFrustum (r_refdef.m_projection_std, r_refdef.m_view);
 		RQ_BeginFrame();
-		if (!(r_refdef.flags & RDF_NOWORLDMODEL))
-		{
-			if (cl.worldmodel)
-				P_DrawParticles ();
-		}
+//		if (!(r_refdef.flags & RDF_NOWORLDMODEL))
+//		{
+//			if (cl.worldmodel)
+//				P_DrawParticles ();
+//		}
 		Surf_DrawWorld();
 		RQ_RenderBatchClear();
 
@@ -3231,6 +3292,7 @@ void VKVID_QueueGetRGBData			(void (*gotrgbdata) (void *rgbdata, intptr_t bytest
 	if (memAllocInfo.memoryTypeIndex == ~0u)
 		memAllocInfo.memoryTypeIndex = vk_find_memory_require(mem_reqs.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT);
 	VkAssert(vkAllocateMemory(vk.device, &memAllocInfo, vkallocationcb, &capt->memory));
+	DebugSetName(VK_OBJECT_TYPE_DEVICE_MEMORY, (uint64_t)capt->memory, "VKVID_QueueGetRGBData");
 	VkAssert(vkBindBufferMemory(vk.device, capt->buffer, capt->memory, 0));
 
 	set_image_layout(vk.rendertarg->cbuf, vk.frame->backbuf->colour.image, VK_IMAGE_ASPECT_COLOR_BIT,
@@ -3318,6 +3380,7 @@ char	*VKVID_GetRGBInfo			(int *bytestride, int *truevidwidth, int *truevidheight
 		memAllocInfo.allocationSize = mem_reqs.size;
 		memAllocInfo.memoryTypeIndex = vk_find_memory_require(mem_reqs.memoryTypeBits, 0);
 		VkAssert(vkAllocateMemory(vk.device, &memAllocInfo, vkallocationcb, &tempmemory));
+		DebugSetName(VK_OBJECT_TYPE_DEVICE_MEMORY, (uint64_t)tempmemory, "VKVID_GetRGBInfo staging");
 		VkAssert(vkBindImageMemory(vk.device, tempimage, tempmemory, 0));
 
 		bci.flags = 0;
@@ -3328,12 +3391,14 @@ char	*VKVID_GetRGBInfo			(int *bytestride, int *truevidwidth, int *truevidheight
 		bci.pQueueFamilyIndices = NULL;
 
 		VkAssert(vkCreateBuffer(vk.device, &bci, vkallocationcb, &tempbuffer));
+		DebugSetName(VK_OBJECT_TYPE_BUFFER, (uint64_t)tempbuffer, "VKVID_GetRGBInfo buffer");
 		vkGetBufferMemoryRequirements(vk.device, tempbuffer, &mem_reqs);
 		memAllocInfo.allocationSize = mem_reqs.size;
 		memAllocInfo.memoryTypeIndex = vk_find_memory_try(mem_reqs.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT|VK_MEMORY_PROPERTY_HOST_CACHED_BIT);
 		if (memAllocInfo.memoryTypeIndex == ~0u)
 			memAllocInfo.memoryTypeIndex = vk_find_memory_require(mem_reqs.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT);
 		VkAssert(vkAllocateMemory(vk.device, &memAllocInfo, vkallocationcb, &tempbufmemory));
+		DebugSetName(VK_OBJECT_TYPE_DEVICE_MEMORY, (uint64_t)tempbufmemory, "VKVID_GetRGBInfo buffer");
 		VkAssert(vkBindBufferMemory(vk.device, tempbuffer, tempbufmemory, 0));
 
 
@@ -3716,8 +3781,6 @@ qboolean VK_SCR_GrabBackBuffer(void)
 		vkBeginCommandBuffer(vk.rendertarg->cbuf, &begininf);
 	}
 
-	VKBE_RestartFrame();
-
 //	VK_DebugFramerate();
 
 //	vkCmdWriteTimestamp(vk.frame->cbuf, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, querypool, vk.bufferidx*2+0);
@@ -3764,6 +3827,7 @@ qboolean VK_SCR_GrabBackBuffer(void)
 		imgbarrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
 		vkCmdPipelineBarrier(vk.rendertarg->cbuf, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, 0, 0, NULL, 0, NULL, 1, &imgbarrier);
 	}
+	VKBE_RestartFrame();
 
 	{
 		int rp = vk.frame->backbuf->rpassflags;
@@ -4571,26 +4635,35 @@ qboolean VK_CreateInstance(vrsetup_t *info, char *vrexts, void *result)
 	}
 
 	err = vkCreateInstance(&inst_info, vkallocationcb, &vk.instance);
+	if (err == VK_ERROR_LAYER_NOT_PRESENT && inst_info.enabledLayerCount>0 && !strcmp(inst_info.ppEnabledLayerNames[inst_info.enabledLayerCount-1], "VK_LAYER_KHRONOS_validation"))
+	{	//if we can't do debugging then just try to create a context without it.
+		Con_Printf(CON_WARNING"VK_ERROR_LAYER_NOT_PRESENT... trying again without debug layers\n");
+		inst_info.enabledLayerCount--;
+		err = vkCreateInstance(&inst_info, vkallocationcb, &vk.instance);
+	}
 	switch(err)
 	{
 	case VK_ERROR_INCOMPATIBLE_DRIVER:
-		Con_Printf("VK_ERROR_INCOMPATIBLE_DRIVER: please install an appropriate vulkan driver\n");
+		Con_Printf(CON_ERROR"VK_ERROR_INCOMPATIBLE_DRIVER: please install an appropriate vulkan driver\n");
 		return false;
 	case VK_ERROR_EXTENSION_NOT_PRESENT:
-		Con_Printf("VK_ERROR_EXTENSION_NOT_PRESENT: something on a system level is probably misconfigured\n");
+		Con_Printf(CON_ERROR"VK_ERROR_EXTENSION_NOT_PRESENT: something on a system level is probably misconfigured\n");
 		return false;
 	case VK_ERROR_LAYER_NOT_PRESENT:
-		Con_Printf("VK_ERROR_LAYER_NOT_PRESENT: requested layer is not known/usable\n");
+		Con_Printf(CON_ERROR"VK_ERROR_LAYER_NOT_PRESENT: requested layer is not known/usable\n");
 		return false;
 	default:
-		Con_Printf("Unknown vulkan instance creation error: %x\n", err);
+		Con_Printf(CON_ERROR"Unknown vulkan instance creation error: %x\n", err);
 		return false;
 	case VK_SUCCESS:
 		break;
 	}
 
 	if (result)
+	{
 		*(VkInstance*)result = vk.instance;
+		((VkInstanceCreateInfo*)info->userctx)->enabledLayerCount = inst_info.enabledLayerCount;
+	}
 	return true;
 }
 
@@ -4633,7 +4706,7 @@ qboolean VK_EnumerateDevices (void *usercontext, void(*callback)(void *context, 
 	app.applicationVersion = revision_number(false);
 	app.pEngineName = "FTE Quake";
 	app.engineVersion = VK_MAKE_VERSION(FTE_VER_MAJOR, FTE_VER_MINOR, 0);
-	app.apiVersion = VK_API_MAX_VERSION;
+	app.apiVersion = VK_API_VERSION_1_0;	//make sure it works...
 
 	memset(&inst_info, 0, sizeof(inst_info));
 	inst_info.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
@@ -4705,7 +4778,7 @@ qboolean VK_Init(rendererstate_t *info, const char **sysextnames, qboolean (*cre
 		qboolean *flag;
 		const char *name;
 		cvar_t *var;
-		qboolean def;
+		qboolean def;				//default value when the cvar is empty.
 		qboolean *superseeded;		//if this is set then the extension will not be enabled after all
 		const char *warningtext;	//printed if the extension is requested but not supported by the device
 		qboolean supported;
@@ -4721,6 +4794,13 @@ qboolean VK_Init(rendererstate_t *info, const char **sysextnames, qboolean (*cre
 #endif
 #ifdef VK_EXT_astc_decode_mode
 		{&vk.ext_astc_decode_mode,			VK_EXT_ASTC_DECODE_MODE_EXTENSION_NAME,			&vk_ext_astc_decode_mode,		true,  NULL, NULL},
+#endif
+#ifdef VK_KHR_acceleration_structure
+		{&vk.khr_deferred_host_operations,  VK_KHR_DEFERRED_HOST_OPERATIONS_EXTENSION_NAME,	&vk_khr_ray_query,				true,  NULL, NULL},	//dependancy of khr_acceleration_structure
+		{&vk.khr_acceleration_structure,	VK_KHR_ACCELERATION_STRUCTURE_EXTENSION_NAME,	&vk_khr_ray_query,				true,  NULL, NULL},
+#endif
+#ifdef VK_KHR_ray_query
+		{&vk.khr_ray_query,					VK_KHR_RAY_QUERY_EXTENSION_NAME,				&vk_khr_ray_query,				true,  NULL, NULL},
 #endif
 	};
 	size_t e;
@@ -4820,7 +4900,18 @@ qboolean VK_Init(rendererstate_t *info, const char **sysextnames, qboolean (*cre
 	app.applicationVersion = revision_number(false);
 	app.pEngineName = "FTE Quake";
 	app.engineVersion = VK_MAKE_VERSION(FTE_VER_MAJOR, FTE_VER_MINOR, 0);
-	app.apiVersion = VK_API_MAX_VERSION;
+	app.apiVersion = VK_API_VERSION_1_0;
+	if (vkEnumerateInstanceVersion)
+	{
+		vkEnumerateInstanceVersion(&app.apiVersion);
+#ifdef VK_API_VERSION_1_2
+		if (app.apiVersion > VK_API_VERSION_1_2)
+			app.apiVersion = VK_API_VERSION_1_2;
+#else
+		if (app.apiVersion > VK_API_VERSION_1_0)
+			app.apiVersion = VK_API_VERSION_1_0;
+#endif
+	}
 
 	memset(&inst_info, 0, sizeof(inst_info));
 	inst_info.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
@@ -5028,10 +5119,31 @@ qboolean VK_Init(rendererstate_t *info, const char **sysextnames, qboolean (*cre
 
 	{
 		char *vendor, *type;
-		VkPhysicalDeviceProperties props;
-		vkGetPhysicalDeviceProperties(vk.gpu, &props);
+#ifdef VK_API_VERSION_1_2
+		VkPhysicalDeviceVulkan12Properties props12 = {VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_PROPERTIES};
+		VkPhysicalDeviceProperties2 props = {VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2, &props12};
+#else
+		struct {VkPhysicalDeviceProperties properties;} props;
+#endif
+		vkGetPhysicalDeviceProperties(vk.gpu, &props.properties);	//legacy
+
+		vk.apiversion = props.properties.apiVersion;
+		if (vk.apiversion > app.apiVersion)
+			vk.apiversion = app.apiVersion;	//cap it to the instance version...
+
+#ifdef VK_API_VERSION_1_2
+		if (vk.apiversion >= VK_API_VERSION_1_2)
+		{
+			PFN_vkGetPhysicalDeviceProperties2 vkGetPhysicalDeviceProperties2 = (PFN_vkGetPhysicalDeviceProperties2)vkGetInstanceProcAddr(vk.instance, "vkGetPhysicalDeviceProperties2");
+			if (vkGetPhysicalDeviceProperties2)
+				vkGetPhysicalDeviceProperties2(vk.gpu, &props);
+		}
 	
-		switch(props.vendorID)
+		if (*props12.driverName)
+			vendor = props12.driverName;
+		else
+#endif
+		switch(props.properties.vendorID)
 		{
 		//explicit registered vendors
 		case 0x10001: vendor = "Vivante";		break;
@@ -5063,10 +5175,10 @@ qboolean VK_Init(rendererstate_t *info, const char **sysextnames, qboolean (*cre
 		case 0x11E2: vendor = "Samsung";	break;
 		case 0x1249: vendor = "Samsung";	break;
 		
-		default:	vendor = va("VEND_%x", props.vendorID); break;
+		default:	vendor = va("VEND_%x", props.properties.vendorID); break;
 		}
 
-		switch(props.deviceType)
+		switch(props.properties.deviceType)
 		{
 		default:
 		case VK_PHYSICAL_DEVICE_TYPE_OTHER:				type = "(other)"; break;
@@ -5076,10 +5188,24 @@ qboolean VK_Init(rendererstate_t *info, const char **sysextnames, qboolean (*cre
 		case VK_PHYSICAL_DEVICE_TYPE_CPU:				type = "software"; break;
 		}
 
-		Con_TPrintf("Vulkan %u.%u.%u: GPU%i %s %s %s (%u.%u.%u)\n", VK_VERSION_MAJOR(props.apiVersion), VK_VERSION_MINOR(props.apiVersion), VK_VERSION_PATCH(props.apiVersion),
-			gpuidx, type, vendor, props.deviceName,
-			VK_VERSION_MAJOR(props.driverVersion), VK_VERSION_MINOR(props.driverVersion), VK_VERSION_PATCH(props.driverVersion)
-			);
+#ifdef VK_API_VERSION_1_2
+		if (*props12.driverInfo)
+		{
+			Con_TPrintf("Vulkan Driver Name: %s\n"
+						"Vulkan Device (GPU%i): %s\n"
+						"Vulkan Driver Info: %s\n",
+						vendor,
+						gpuidx, props.properties.deviceName,
+						props12.driverInfo );
+		}
+		else
+#endif
+		{
+			Con_TPrintf("Vulkan %u.%u.%u: GPU%i %s %s %s (%u.%u.%u)\n", VK_VERSION_MAJOR(props.properties.apiVersion), VK_VERSION_MINOR(props.properties.apiVersion), VK_VERSION_PATCH(props.properties.apiVersion),
+				gpuidx, type, vendor, props.properties.deviceName,
+				VK_VERSION_MAJOR(props.properties.driverVersion), VK_VERSION_MINOR(props.properties.driverVersion), VK_VERSION_PATCH(props.properties.driverVersion)
+				);
+		}
 	}
 
 	//figure out which of the device's queue's we're going to use
@@ -5180,6 +5306,20 @@ qboolean VK_Init(rendererstate_t *info, const char **sysextnames, qboolean (*cre
 		}
 		free(ext);
 	}
+
+#ifdef VK_KHR_ray_query
+	if ((vk.khr_ray_query && !vk.khr_acceleration_structure) || vk.apiversion < VK_API_VERSION_1_2)
+		vk.khr_ray_query = false;	//doesn't make sense.
+#endif
+#ifdef VK_KHR_acceleration_structure
+	if ((vk.khr_acceleration_structure && !vk.khr_ray_query) || vk.apiversion < VK_API_VERSION_1_2)
+		vk.khr_acceleration_structure = false;	//not useful.
+#endif
+#ifdef VK_KHR_fragment_shading_rate
+	if (vk.apiversion < VK_API_VERSION_1_2)	//too lazy to check its requesite extensions. vk12 is enough.
+		vk.khr_fragment_shading_rate = false;
+#endif
+
 	{
 		const char *devextensions[1+countof(knowndevexts)];
 		size_t numdevextensions = 0;
@@ -5188,6 +5328,19 @@ qboolean VK_Init(rendererstate_t *info, const char **sysextnames, qboolean (*cre
 		VkDeviceCreateInfo devinf = {VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO};
 		VkPhysicalDeviceFeatures features;
 		VkPhysicalDeviceFeatures avail;
+		void *next = NULL;
+#ifdef VK_KHR_fragment_shading_rate
+		VkPhysicalDeviceFragmentShadingRateFeaturesKHR shadingrate = {VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FRAGMENT_SHADING_RATE_FEATURES_KHR};
+#endif
+#ifdef VK_KHR_ray_query
+		VkPhysicalDeviceRayQueryFeaturesKHR rayquery = {VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_QUERY_FEATURES_KHR};
+#endif
+#ifdef VK_KHR_acceleration_structure
+		VkPhysicalDeviceAccelerationStructureFeaturesKHR accelstruct = {VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ACCELERATION_STRUCTURE_FEATURES_KHR};
+#endif
+#ifdef VK_API_VERSION_1_2
+		VkPhysicalDeviceVulkan12Features vk12features = {VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES};
+#endif
 		memset(&features, 0, sizeof(features));
 
 		vkGetPhysicalDeviceFeatures(vk.gpu, &avail);
@@ -5215,7 +5368,7 @@ qboolean VK_Init(rendererstate_t *info, const char **sysextnames, qboolean (*cre
 				devextensions[numdevextensions++] = knowndevexts[e].name;
 			}
 			else if (knowndevexts[e].var && knowndevexts[e].var->ival)
-				Con_Printf("unable to enable %s extension.%s\n", knowndevexts[e].name, knowndevexts[e].warningtext?knowndevexts[e].warningtext:"");
+				Con_Printf(CON_WARNING"unable to enable %s extension.%s\n", knowndevexts[e].name, knowndevexts[e].warningtext?knowndevexts[e].warningtext:"");
 			else if (knowndevexts[e].supported)
 				Con_DPrintf("Ignoring %s.\n", knowndevexts[e].name);
 			else
@@ -5258,11 +5411,52 @@ qboolean VK_Init(rendererstate_t *info, const char **sysextnames, qboolean (*cre
 		free(queueprops);
 
 		devinf.pQueueCreateInfos = queueinf;
-		devinf.enabledLayerCount = vklayercount;
+		devinf.enabledLayerCount = inst_info.enabledLayerCount;//vklayercount;
 		devinf.ppEnabledLayerNames = vklayerlist;
 		devinf.enabledExtensionCount = numdevextensions;
 		devinf.ppEnabledExtensionNames = devextensions;
 		devinf.pEnabledFeatures = &features;
+
+#ifdef VK_KHR_fragment_shading_rate
+		if (vk.khr_fragment_shading_rate)
+		{
+			shadingrate.pNext = next;
+			next = &shadingrate;	//now linked
+			shadingrate.pipelineFragmentShadingRate = true;
+			shadingrate.primitiveFragmentShadingRate = false;
+			shadingrate.attachmentFragmentShadingRate = false;
+		}
+#endif
+#ifdef VK_KHR_ray_query
+		if (vk.khr_ray_query)
+		{
+			rayquery.pNext = next;
+			next = &rayquery;	//now linked
+			rayquery.rayQuery = true;
+		}
+#endif
+#ifdef VK_KHR_acceleration_structure
+		if (vk.khr_acceleration_structure)
+		{
+			accelstruct.pNext = next;
+			next = &accelstruct;	//now linked
+			accelstruct.accelerationStructure = true;
+			accelstruct.accelerationStructureCaptureReplay = false;
+			accelstruct.accelerationStructureIndirectBuild = false;
+			accelstruct.accelerationStructureHostCommands = false;
+			accelstruct.descriptorBindingAccelerationStructureUpdateAfterBind = false;
+
+			vk12features.bufferDeviceAddress = true;	//we also need this feature.
+		}
+#endif
+#ifdef VK_API_VERSION_1_2
+		if (vk.apiversion >= VK_API_VERSION_1_2)
+		{
+			vk12features.pNext = next;
+			next = &vk12features;
+		}
+#endif
+		devinf.pNext = next;
 
 #if 0
 		if (vkEnumeratePhysicalDeviceGroupsKHR && vk_afr.ival)
@@ -5326,6 +5520,9 @@ qboolean VK_Init(rendererstate_t *info, const char **sysextnames, qboolean (*cre
 	vkGetDeviceProcAddr = (PFN_vkGetDeviceProcAddr)vkGetInstanceProcAddr(vk.instance, "vkGetDeviceProcAddr");
 #define VKFunc(n) vk##n = (PFN_vk##n)vkGetDeviceProcAddr(vk.device, "vk"#n);
 	VKDevFuncs
+#ifdef VK_KHR_acceleration_structure
+	if (vk.khr_acceleration_structure) { VKAccelStructFuncs }
+#endif
 #undef VKFunc
 #endif
 
@@ -5432,6 +5629,12 @@ qboolean VK_Init(rendererstate_t *info, const char **sysextnames, qboolean (*cre
 	if (info->srgb > 0 && (vid.flags & VID_SRGB_FB))
 		vid.flags |= VID_SRGBAWARE;
 
+	Q_snprintfz(info->subrenderer, sizeof(info->subrenderer), "GPU%i", gpuidx);
+
+	if (!vk.khr_fragment_shading_rate)
+		Cvar_LockUnsupportedRendererCvar(&r_halfrate, "0");
+	if (!vk.khr_ray_query)
+		Cvar_LockUnsupportedRendererCvar(&r_shadow_raytrace, "0");
 	return true;
 }
 void VK_Shutdown(void)

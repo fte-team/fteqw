@@ -39,6 +39,7 @@ const unsigned int		type_size[] = {1,	//void
 						0,	//ev_enum...
 						0,	//ev_typedef
 						1,	//ev_bool...
+						0,	//bitfld...
 						};
 
 char *basictypenames[] = {
@@ -60,7 +61,9 @@ char *basictypenames[] = {
 	"union",
 	"accessor",
 	"enum",
-	"bool"
+	"typedef",
+	"bool",
+	"bitfield",
 };
 
 /*
@@ -617,7 +620,7 @@ const char *QCC_ReadParm (const char *check)
 			return myargv[i+1];
 	}
 
-	return 0;
+	return NULL;
 }
 
 /*
@@ -1270,7 +1273,7 @@ long	QCC_LoadFile (char *filename, void **bufferptr)
 		else if (!mem[check])
 		{
 			if (!warned)
-				QCC_PR_Warning(WARN_UNEXPECTEDPUNCT, filename, line, "file contains null bytes %u/%u", check, len);
+				QCC_PR_Warning(WARN_UNEXPECTEDPUNCT, filename, line, "file contains null bytes %u/%"pPRIuSIZE, check, len);
 			warned = true;
 			//fixme: insert modified-utf-8 nulls instead.
 			mem[check] = ' ';

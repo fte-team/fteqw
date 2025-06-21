@@ -407,7 +407,7 @@ qboolean MN_Init(void)
 		VFS_GETS,
 		VFS_PRINTF,
 		COM_EnumerateFiles,
-		FS_NativePath,
+		FS_SystemPath,
 
 		// Drawing stuff
 		MN_DrawSetClipArea,

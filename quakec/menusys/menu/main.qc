@@ -107,32 +107,42 @@ nonstatic void(mitem_desktop desktop) M_Main =
 //a macro, in a desperate attempt at readability
 #define menuitemtext_cladd16(m,t,c,y) m.addm(spawn(mitem_text, item_text:t, item_command:c, item_scale:16, item_flags:IF_CENTERALIGN), [0, y], [160, y+16])
 
-	if (clientstate() == 2)				{menuitemtext_cladd16(m, _("Return To Game"), 			"m_pop",			y); y += 16;}
-	if (clientstate() == 2)				{menuitemtext_cladd16(m, isserver?_("End Game"):_("Disconnect"),"m_pop;disconnect",	y); y += 16;}
-	if (isserver() != 1 && checkbuiltin2(gethostcacheindexforkey,ISMENUQC))	{menuitemtext_cladd16(m, _("Join Server"),			"m_pop;m_servers",	y); y += 16;}
-	if (checkcommand2("map", TRUE))					{menuitemtext_cladd16(m, _("New Game"),				"m_pop;m_newgame",	y); y += 16;}
-	if (checkcommand2("menu_demo", FALSE))				{menuitemtext_cladd16(m, _("Demos"),				"m_pop;menu_demo",	y); y += 16;}
-	if (checkcommand2("save", TRUE) && (isserver()||dp_workarounds))	{menuitemtext_cladd16(m, _("Save"),				"m_pop;m_save",		y); y += 16;}
-	if (checkcommand2("load", TRUE))					{menuitemtext_cladd16(m, _("Load"),				"m_pop;m_load",		y); y += 16;}
+	if (clientstate() == 2)								{menuitemtext_cladd16(m, isdemo()?_("Return To Demo"):_("Return To Game"),
+																								 			"m_pop",				y); y += 16;}
+	if (clientstate() == 2)								{menuitemtext_cladd16(m, isdemo()?_("End Demo"):(isserver?_("End Game"):_("Disconnect")),
+																											"m_pop;disconnect",		y); y += 16;}
+	if (isserver() != 1 && checkbuiltin2(gethostcacheindexforkey,ISMENUQC))	{menuitemtext_cladd16(m, _("Join Server"),
+																											"m_pop;m_servers",		y); y += 16;}
+	if (checkcommand2("map", TRUE))						{menuitemtext_cladd16(m, _("New Game"),				"m_pop;m_newgame",		y); y += 16;}
+	if (checkcommand2("menu_demo", FALSE))				{menuitemtext_cladd16(m, _("Demos"),				"m_pop;menu_demo",		y); y += 16;}
+	if (checkcommand2("save", TRUE) && (isserver()||dp_workarounds))	{menuitemtext_cladd16(m, _("Save"),	"m_pop;m_save",			y); y += 16;}
+	if (checkcommand2("load", TRUE))					{menuitemtext_cladd16(m, _("Load"),					"m_pop;m_load",			y); y += 16;}
 	if (checkcommand2("cef", FALSE))					{menuitemtext_cladd16(m, _("Browser"),				"m_pop;cef google.com",	y); y += 16;}
-	if (checkcommand2("xmpp", FALSE))					{menuitemtext_cladd16(m, _("Social"),				"m_pop;xmpp",		y); y += 16;}
-	if (checkcommand2("irc", FALSE))					{menuitemtext_cladd16(m, _("IRC"),				"m_pop;irc /info",	y); y += 16;}
-	/*if (checkbuiltin2(getpackagemanagerinfo,FALSE))			{menuitemtext_cladd16(m, _("Updates+Packages"),			"m_pop;m_updates",	y); y += 16;}
-	else*/ if (checkcommand2("menu_download", FALSE))			{menuitemtext_cladd16(m, _("Updates+Packages"),			"m_pop;menu_download",	y); y += 16;}
-	if (checkcommand2("qi", FALSE))					{menuitemtext_cladd16(m, _("Quake Injector"),			"m_pop;qi",		y); y += 16;}
-	if (checkbuiltin2(getgamedirinfo,TRUE))					{menuitemtext_cladd16(m, _("Mods"),				"m_pop;m_mods",		y); y += 16;}
-										{menuitemtext_cladd16(m, _("Options"),				"m_pop;m_options",	y); y += 16;}
-										{menuitemtext_cladd16(m, _("Quit"), 				"m_pop;m_quit",		y); y += 16;}
+	if (checkcommand2("xmpp", FALSE))					{menuitemtext_cladd16(m, _("Social"),				"m_pop;xmpp",			y); y += 16;}
+	if (checkcommand2("irc", FALSE))					{menuitemtext_cladd16(m, _("IRC"),					"m_pop;irc /info",		y); y += 16;}
+	/*if (checkbuiltin2(getpackagemanagerinfo,FALSE))	{menuitemtext_cladd16(m, _("Updates+Packages"),		"m_pop;m_updates",		y); y += 16;}
+	else*/ if (checkcommand2("menu_download", FALSE))	{menuitemtext_cladd16(m, _("Updates+Packages"),		"m_pop;menu_download",	y); y += 16;}
+	if (checkcommand2("qi", FALSE))						{menuitemtext_cladd16(m, _("Quake Injector"),		"m_pop;qi",				y); y += 16;}
+	if (checkbuiltin2(getgamedirinfo,TRUE))				{menuitemtext_cladd16(m, _("Mods"),					"m_pop;m_mods",			y); y += 16;}
+	if (checkcommand2("sys_openfile", FALSE))			{menuitemtext_cladd16(m, _("Open/Add External File"),"m_pop;sys_openfile",	y); y += 16;}	//opens a file chooser dialog in eg chromium.
+	if (checkcommand2("xr_toggle", FALSE))				{menuitemtext_cladd16(m, _("Toggle VR"),			"m_pop;xr_toggle",		y); y += 16;}	//for webxr support
+														{menuitemtext_cladd16(m, _("Options"),				"m_pop;m_options",		y); y += 16;}
+														{menuitemtext_cladd16(m, _("Quit"), 				"m_pop;m_quit",			y); y += 16;}
 
 	//spinny quad/pent, for the luls
 	local string it = (random()<0.9)?"progs/quaddama.mdl":"progs/invulner.mdl";
 	m.add(spawn (mitem_spinnymodel, item_text: it), RS_X_MIN_PARENT_MID|RS_Y_MIN_PARENT_MID | RS_X_MAX_PARENT_MID|RS_Y_MAX_PARENT_MID, [-160, 12*-16/2], [0, 12*16/2]);
 
-
-#ifdef CSQC
-	m.add(spawn(mitem_text, item_text:strcat("CSQC: ", cvar_string("pr_engine")), item_scale:8), RS_X_MIN_PARENT_MIN|RS_Y_MIN_PARENT_MAX|RS_X_MAX_PARENT_MAX|RS_Y_MAX_PARENT_MAX,[0,-8],[0,0]);
+#ifdef REVISION
+	#define MENUSYS_REVISION REVISION
 #else
-	m.add(spawn(mitem_text, item_text:strcat("MQC: ", cvar_string("pr_engine")), item_scale:8), RS_X_MIN_PARENT_MIN|RS_Y_MIN_PARENT_MAX|RS_X_MAX_PARENT_MAX|RS_Y_MAX_PARENT_MAX,[0,-8],[0,0]);
+	#define MENUSYS_REVISION "<UNKNOWN>"
 #endif
+#ifdef CSQC
+	#define MODLEPOSTFIX "-CSQC"
+#else
+	#define MODLEPOSTFIX "-MQC"
+#endif
+	m.add(spawn(mitem_text, item_text:strcat("MenuSys "MENUSYS_REVISION MODLEPOSTFIX"; ", cvar_string("pr_engine")), item_scale:8), RS_X_MIN_PARENT_MIN|RS_Y_MIN_PARENT_MAX|RS_X_MAX_PARENT_MAX|RS_Y_MAX_PARENT_MAX,[0,-8],[0,0]);
 	addmenuback(m);
 };

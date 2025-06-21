@@ -193,7 +193,7 @@ static float(vertsoup_t *soup, int *idx, __out vector norm, __out float dist) pl
 
 void(vertsoup_t *soup, int drawit) Rebrushify =
 {
-	brushface_t faces[MAX_BRUSHFACES];
+	static brushface_t faces[MAX_BRUSHFACES];
 	int numfaces, f, point;
 	string shader = 0;
 	
@@ -209,8 +209,9 @@ void(vertsoup_t *soup, int drawit) Rebrushify =
 		if (drawit)
 		{
 			const int maxtessverts=64*64;
-			patchinfo_t tessinfo = patchinfo;
+			static patchinfo_t tessinfo;
 			patchvert_t *tessverts = memalloc(sizeof(*tessverts)*maxtessverts);
+			tessinfo = patchinfo;
 			if (patch_evaluate(patchvert, tessverts, maxtessverts, &tessinfo) <= maxtessverts)
 			{
 				//draw textured preview (yay for fullbright lighting being overbright)

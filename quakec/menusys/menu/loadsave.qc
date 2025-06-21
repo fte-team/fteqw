@@ -57,7 +57,7 @@ class mitem_saveoption : mitem_text
 	{
 		if (!down)
 			return FALSE;
-		if (scan == K_ENTER || (scan == K_MOUSE1 && mouseinbox(pos, this.item_size)))
+		if (ISCONFIRMKEY(scan) || ((scan == K_MOUSE1 || scan == K_TOUCHTAP) && mouseinbox(pos, this.item_size)))
 		{
 			if (item_flags & IF_KFOCUSED)
 			{

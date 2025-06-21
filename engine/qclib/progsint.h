@@ -167,12 +167,12 @@ typedef struct prinst_s
 #define	MAX_STACK_DEPTH		1024	//insanely high value requried for xonotic.
 	prstack_t pr_stack[MAX_STACK_DEPTH];
 	int pr_depth;
-	int spushed;
 
 	//locals
-#define	LOCALSTACK_SIZE		16384
-	int localstack[LOCALSTACK_SIZE];
+#define	LOCALSTACK_SIZE		(65536*16)	//in words
+	int *localstack;
 	int localstack_used;
+	int spushed; //extra
 
 	//step-by-step debug state
 	int debugstatement;
@@ -328,7 +328,7 @@ typedef struct edictrun_s
 int PDECL Comp_Begin(pubprogfuncs_t *progfuncs, int nump, const char **parms);
 int PDECL Comp_Continue(pubprogfuncs_t *progfuncs);
 
-pbool PDECL PR_SetWatchPoint(pubprogfuncs_t *progfuncs, const char *key);
+pbool PDECL PR_SetWatchPoint(pubprogfuncs_t *progfuncs, const char *desc, const char *location);
 char *PDECL PR_EvaluateDebugString(pubprogfuncs_t *progfuncs, const char *key);
 char *PDECL PR_SaveEnts(pubprogfuncs_t *progfuncs, char *mem, size_t *size, size_t maxsize, int mode);
 int PDECL PR_LoadEnts(pubprogfuncs_t *ppf, const char *file, void *ctx, void (PDECL *memoryreset) (pubprogfuncs_t *progfuncs, void *ctx), void (PDECL *entspawned) (pubprogfuncs_t *progfuncs, struct edict_s *ed, void *ctx, const char *entstart, const char *entend), pbool(PDECL *extendedterm)(pubprogfuncs_t *progfuncs, void *ctx, const char **extline));
@@ -557,6 +557,7 @@ const char *ASMCALL PR_StringToNative				(pubprogfuncs_t *inst, string_t str);
 
 char *PR_GlobalString (progfuncs_t *progfuncs, int ofs, struct QCC_type_s **typehint);
 char *PR_GlobalStringNoContents (progfuncs_t *progfuncs, int ofs);
+char *PR_GlobalStringImmediate (progfuncs_t *progfuncs, int ofs);
 
 pbool CompileFile(progfuncs_t *progfuncs, const char *filename);
 

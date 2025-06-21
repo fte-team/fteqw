@@ -222,6 +222,8 @@ static void Mod_TextureList_f(void)
 					char *cr;
 					while ((cr = strchr(body, '\r')))
 						*cr = ' ';
+					if (strlen(body) > 3000)
+						body[3000] = 0;	//arbitrary cut off, to avoid console glitches with big shaders.
 				}
 
 				if (preview)
@@ -634,10 +636,7 @@ void Mod_SetModifier(const char *modifier)
 }
 
 #ifndef SERVERONLY
-void Mod_FindCubemaps_f(void);
-void Mod_Realign_f(void);
-void Mod_BSPX_List_f(void);
-void Mod_BSPX_Strip_f(void);
+void Mod_BSPX_Init(void);
 #endif
 
 /*
@@ -689,10 +688,7 @@ void Mod_Init (qboolean initial)
 		Cvar_Register (&r_sprite_backfacing, NULL);
 #endif
 #ifndef SERVERONLY
-		Cmd_AddCommandD("mod_findcubemaps", Mod_FindCubemaps_f, "Scans the entities of a map to find reflection env_cubemap sites and determines the nearest one to each surface.");
-		Cmd_AddCommandD("mod_realign", Mod_Realign_f, "Reads the named bsp and writes it back out with only alignment changes.");
-		Cmd_AddCommandD("mod_bspx_list", Mod_BSPX_List_f, "Lists all lumps (and their sizes) in the specified bsp.");
-		Cmd_AddCommandD("mod_bspx_strip", Mod_BSPX_Strip_f, "Strips a named extension lump from a bsp file.");
+		Mod_BSPX_Init();
 #endif
 	}
 
@@ -708,18 +704,18 @@ void Mod_Init (qboolean initial)
 #endif
 
 		//q2/q3bsps
-#if defined(Q2BSPS) || defined(Q3BSPS)
-#ifndef Q2BSPS
-		Mod_RegisterModelFormatMagic(NULL, "Quake3 Map (bsp)",				IDBSPHEADER,							Mod_LoadQ2BrushModel);
-#elif !defined(Q3BSPS)
-		Mod_RegisterModelFormatMagic(NULL, "Quake2 Map (bsp)",				IDBSPHEADER,							Mod_LoadQ2BrushModel);
-#else
-		Mod_RegisterModelFormatMagic(NULL, "Quake2/Quake3 Map (bsp)",		IDBSPHEADER,							Mod_LoadQ2BrushModel);
+#ifdef Q3BSPS
+		Mod_RegisterModelFormatMagic(NULL, "RTCW Map (bsp)",				"IBSP\57\0\0\0",8,						Mod_LoadQ2BrushModel);
+		Mod_RegisterModelFormatMagic(NULL, "Quake3 Map (bsp)",				"IBSP\56\0\0\0",8,						Mod_LoadQ2BrushModel);
 #endif
+#ifdef Q2BSPS
+		Mod_RegisterModelFormatMagic(NULL, "Quake2 Map (bsp)",				"IBSP\46\0\0\0",8,						Mod_LoadQ2BrushModel);
+		Mod_RegisterModelFormatMagic(NULL, "Quake2World Map (bsp)",			"IBSP\105\0\0\0",8,						Mod_LoadQ2BrushModel);
+		Mod_RegisterModelFormatMagic(NULL, "Qbism (Quake2) Map (bsp)",		"QBSP\46\0\0\0",8,						Mod_LoadQ2BrushModel);
 #endif
 #ifdef RFBSPS
-		Mod_RegisterModelFormatMagic(NULL, "Raven Map (bsp)",				"RBSP",4,	Mod_LoadQ2BrushModel);
-		Mod_RegisterModelFormatMagic(NULL, "QFusion Map (bsp)",				"FBSP",4,	Mod_LoadQ2BrushModel);
+		Mod_RegisterModelFormatMagic(NULL, "Raven Map (bsp)",				"RBSP\1\0\0\0",8,	Mod_LoadQ2BrushModel);
+		Mod_RegisterModelFormatMagic(NULL, "QFusion Map (bsp)",				"FBSP\1\0\0\0",8,	Mod_LoadQ2BrushModel);
 #endif
 
 		//doom maps
@@ -1035,27 +1031,28 @@ void Mod_ModelLoaded(void *ctx, void *data, size_t a, size_t b)
 	{
 		if (qrenderer != QR_NONE)
 			Mod_LoadAliasShaders(mod);
-
+	}
 
 #ifdef RAGDOLL
+	if (mod->type == mod_alias || mod->type == mod_halflife)
+	{
+		int numbones = Mod_GetNumBones(mod, false);
+		if (numbones)
 		{
-			int numbones = Mod_GetNumBones(mod, false);
-			if (numbones)
+			size_t filesize;
+			char *buf;
+			char dollname[MAX_QPATH];
+			Q_snprintfz(dollname, sizeof(dollname), "%s.doll", mod->name);
+			buf = FS_LoadMallocFile(dollname, &filesize);
+			if (buf)
 			{
-				size_t filesize;
-				char *buf;
-				char dollname[MAX_QPATH];
-				Q_snprintfz(dollname, sizeof(dollname), "%s.doll", mod->name);
-				buf = FS_LoadMallocFile(dollname, &filesize);
-				if (buf)
-				{
-					mod->dollinfo = rag_createdollfromstring(mod, dollname, numbones, buf);
-					BZ_Free(buf);
-				}
+				mod->dollinfo = rag_createdollfromstring(mod, dollname, numbones, buf);
+				BZ_Free(buf);
 			}
 		}
-#endif
 	}
+#endif
+
 #endif
 
 	switch(verbose)
@@ -1205,8 +1202,20 @@ static void Mod_LoadModelWorker (void *ctx, void *data, size_t a, size_t b)
 
 		if (replstr)
 		{
-			char altname[MAX_QPATH];
-			Q_snprintfz(altname, sizeof(altname), "%s.%s", mdlbase, token);
+			char altname[MAX_QPATH], *sl;
+			sl = strchr(token, '/');
+			if (sl)
+			{	//models/name.mdl -> path/preslash/name.postslash
+				char *p = COM_SkipPath(mdlbase);
+				size_t ofs = (p-mdlbase) + (sl+1-token);
+				memcpy(altname, mdlbase, p-mdlbase);
+				memcpy(altname+(p-mdlbase), token, sl+1-token);
+				if (ofs + strlen(p)+strlen(sl+1)+2 > sizeof(altname))
+					continue;	//erk
+				Q_snprintfz(altname + ofs, sizeof(altname)-ofs, "%s.%s", p, sl+1);
+			}
+			else
+				Q_snprintfz(altname, sizeof(altname), "%s.%s", mdlbase, token);
 
 			if (COM_FDepthFile(altname, true) > basedepth)
 				continue;
@@ -1617,7 +1626,7 @@ void Mod_LoadLighting (model_t *loadmodel, bspx_header_t *bspx, qbyte *mod_base,
 	qbyte *litdata = NULL; //xyz8
 	qbyte *lumdata = NULL; //l8
 	qbyte *out;
-	unsigned int samples;
+	size_t samples;
 #ifdef RUNTIMELIGHTING
 	qboolean relighting = false;
 #endif
@@ -1839,7 +1848,7 @@ void Mod_LoadLighting (model_t *loadmodel, bspx_header_t *bspx, qbyte *mod_base,
 		exptmp = littmp = false;
 		if (!litdata && !expdata)
 		{
-			int size;
+			size_t size;
 			/*FIXME: bspx support for extents+lmscale, may require style+offset lumps too, not sure what to do here*/
 			expdata = BSPX_FindLump(bspx, mod_base, "LIGHTING_E5BGR9", &size);
 			exptmp = true;
@@ -1931,7 +1940,7 @@ void Mod_LoadLighting (model_t *loadmodel, bspx_header_t *bspx, qbyte *mod_base,
 		}
 		if (!luxdata)
 		{
-			int size;
+			size_t size;
 			luxdata = BSPX_FindLump(bspx, mod_base, "LIGHTINGDIR", &size);
 			if (size != samples*3)
 				luxdata = NULL;
@@ -2026,28 +2035,28 @@ void Mod_LoadLighting (model_t *loadmodel, bspx_header_t *bspx, qbyte *mod_base,
 
 	if (overrides && !overrides->shifts)
 	{
-		int size;
+		size_t size;
 		//if we have shifts, then we probably also have legacy data in the surfaces that we want to override
 		if (!overrides->offsets)
 		{
-			int size;
+			size_t size;
 			overrides->offsets = BSPX_FindLump(bspx, mod_base, "LMOFFSET", &size);
 			if (size != loadmodel->numsurfaces * sizeof(int))
 			{
 				if (size)
-					Con_Printf(CON_ERROR"BSPX LMOFFSET lump is wrong size, expected %u entries, found %u\n", loadmodel->numsurfaces, size/(unsigned int)sizeof(int));
+					Con_Printf(CON_ERROR"BSPX LMOFFSET lump is wrong size, expected %u entries, found %"PRIuSIZE"\n", loadmodel->numsurfaces, size/(unsigned int)sizeof(int));
 				overrides->offsets = NULL;
 			}
 		}
 		if (!overrides->styles8 && !overrides->styles16)
 		{	//16bit per-face lightmap styles index
-			int size;
+			size_t size;
 			overrides->styles16 = BSPX_FindLump(bspx, mod_base, "LMSTYLE16", &size);
 			overrides->stylesperface = size / (sizeof(*overrides->styles16)*loadmodel->numsurfaces); //rounding issues will be caught on the next line...
 			if (!overrides->stylesperface || size != loadmodel->numsurfaces * sizeof(*overrides->styles16)*overrides->stylesperface)
 			{
 				if (size)
-					Con_Printf(CON_ERROR"BSPX LMSTYLE16 lump is wrong size, expected %u*%u entries, found %u\n", loadmodel->numsurfaces, overrides->stylesperface, size/(unsigned int)sizeof(*overrides->styles16));
+					Con_Printf(CON_ERROR"BSPX LMSTYLE16 lump is wrong size, expected %u*%u entries, found %"PRIuSIZE"\n", loadmodel->numsurfaces, overrides->stylesperface, size/(unsigned int)sizeof(*overrides->styles16));
 				overrides->styles16 = NULL;
 			}
 			else if (overrides->stylesperface > MAXCPULIGHTMAPS)
@@ -2055,13 +2064,13 @@ void Mod_LoadLighting (model_t *loadmodel, bspx_header_t *bspx, qbyte *mod_base,
 		}
 		if (!overrides->styles8 && !overrides->styles16)
 		{	//16bit per-face lightmap styles index
-			int size;
+			size_t size;
 			overrides->styles8 = BSPX_FindLump(bspx, mod_base, "LMSTYLE", &size);
 			overrides->stylesperface = size / (sizeof(*overrides->styles8)*loadmodel->numsurfaces); //rounding issues will be caught on the next line...
 			if (!overrides->stylesperface || size != loadmodel->numsurfaces * sizeof(*overrides->styles8)*overrides->stylesperface)
 			{
 				if (size)
-					Con_Printf(CON_ERROR"BSPX LMSTYLE16 lump is wrong size, expected %u*%u entries, found %u\n", loadmodel->numsurfaces, overrides->stylesperface, size/(unsigned int)sizeof(*overrides->styles8));
+					Con_Printf(CON_ERROR"BSPX LMSTYLE16 lump is wrong size, expected %u*%u entries, found %"PRIuSIZE"\n", loadmodel->numsurfaces, overrides->stylesperface, size/(unsigned int)sizeof(*overrides->styles8));
 				overrides->styles8 = NULL;
 			}
 			else if (overrides->stylesperface > MAXCPULIGHTMAPS)
@@ -2073,7 +2082,7 @@ void Mod_LoadLighting (model_t *loadmodel, bspx_header_t *bspx, qbyte *mod_base,
 		{
 			if (size)
 			{	//ericw-tools is screwing up again. don't leave things screwed.
-				Con_Printf(CON_ERROR"BSPX LMSHIFT lump is wrong size, expected %u entries, found %u\n", loadmodel->numsurfaces, size);
+				Con_Printf(CON_ERROR"BSPX LMSHIFT lump is wrong size, expected %u entries, found %"PRIuSIZE"\n", loadmodel->numsurfaces, size);
 				overrides->styles16 = NULL;
 				overrides->styles8 = NULL;
 				overrides->offsets = NULL;
@@ -2278,7 +2287,7 @@ static void Mod_SaveEntFile_f(void)
 
 	if (COM_WriteFile(fname, FS_GAMEONLY, ents, strlen(ents)))
 	{
-		if (FS_NativePath(fname, FS_GAMEONLY, nname, sizeof(nname)))
+		if (FS_DisplayPath(fname, FS_GAMEONLY, nname, sizeof(nname)))
 			Con_Printf("Wrote %s\n", nname);
 	}
 	else
@@ -2413,7 +2422,7 @@ qboolean Mod_LoadVertexNormals (model_t *loadmodel, bspx_header_t *bspx, qbyte *
 {
 	float	*in;
 	float	*out;
-	int			i, count;
+	size_t	i, count;
 
 	if (l)
 	{
@@ -2430,7 +2439,7 @@ qboolean Mod_LoadVertexNormals (model_t *loadmodel, bspx_header_t *bspx, qbyte *
 	}
 	else
 	{	//ericw's thing
-		unsigned int size;
+		size_t size;
 		quint32_t t;
 		int *normcount;
 		struct surfedgenormals_s *sen;
@@ -2544,6 +2553,12 @@ void ModQ1_Batches_BuildQ1Q2Poly(model_t *mod, msurface_t *surf, builddata_t *co
 				mesh->st_array[i][0] /= surf->texinfo->texture->vwidth;
 			if (surf->texinfo->texture->vheight)
 				mesh->st_array[i][1] /= surf->texinfo->texture->vheight;
+
+			if (surf->texinfo->flags & TI_N64_UV)
+			{
+				mesh->st_array[i][0] /= 2;
+				mesh->st_array[i][1] /= 2;
+			}
 		}
 
 		if (flmv)
@@ -3170,7 +3185,6 @@ static void Mod_LightmapAllocSurf(lmalloc_t *lmallocator, msurface_t *surf, int 
 		(surf->texinfo->texture->shader && !(surf->texinfo->texture->shader->flags & SHADER_HASLIGHTMAP)) || //fte
 		(surf->flags & (SURF_DRAWSKY|SURF_DRAWTILED)) ||	//q1
 		(surf->texinfo->flags & TEX_SPECIAL) ||	//the original 'no lightmap'
-		(surf->texinfo->flags & (TI_SKY|TI_TRANS33|TI_TRANS66|TI_WARP)) ||	//q2 surfaces
 		smax > lmallocator->width || tmax > lmallocator->height || smax < 0 || tmax < 0)	//bugs/bounds/etc
 	{
 		surf->lightmaptexturenums[surfstyle] = -1;
@@ -3582,8 +3596,8 @@ static void Mod_LoadMiptex(model_t *loadmodel, texture_t *tx, miptex_t *mt, int 
 			 mt->offsets[3] == mt->offsets[2]+(mt->width>>2)*(mt->height>>2))
 	{
 		extofs = mt->offsets[3]+(mt->width>>3)*(mt->height>>3);
-		if (loadmodel->fromgame == fg_halflife && *(short*)(ptr + mt->offsets[3] + (mt->width>>3)*(mt->height>>3)) == 256)
-		{
+		if (extofs + 2+256*3 <= miptexsize && *(short*)(ptr + extofs) == 256)
+		{	//space for a halflife paletted texture, with the right signature (note: usually padded).
 			pal = ptr + extofs+2;
 			extofs += 2+256*3;
 		}
@@ -3670,7 +3684,7 @@ static void Mod_LoadMiptex(model_t *loadmodel, texture_t *tx, miptex_t *mt, int 
 			}
 			if (extsize != 16+sz)
 			{
-				Con_Printf("miptex %s has incomplete mipchain\n", Image_FormatName(newfmt));
+				Con_Printf(CON_WARNING"miptex %s (%s) has incomplete mipchain\n", tx->name, Image_FormatName(newfmt));
 				continue;
 			}
 
@@ -3750,7 +3764,7 @@ static void Mod_LoadMiptex(model_t *loadmodel, texture_t *tx, miptex_t *mt, int 
 	legacysize = 0;
 	for (m = 0; m < 4; m++)
 	{
-		if (mt->offsets[m])
+		if (mt->offsets[m] && (mt->offsets[m]+(mt->width>>m)*(mt->height>>m)<=miptexsize))
 			memcpy(tx->srcdata+legacysize, ptr + mt->offsets[m], (mt->width>>m)*(mt->height>>m));
 		else
 			memset(tx->srcdata+legacysize, 0, (mt->width>>m)*(mt->height>>m));
@@ -3820,6 +3834,7 @@ TRACE(("dbg: Mod_LoadTextures: inittexturedescs\n"));
 		o = LittleLong(m->dataofs[i]);
 		if (o >= l->filelen)	//e1m2, this happens
 		{
+badmip:
 			tx = ZG_Malloc(&loadmodel->memgroup, sizeof(texture_t));
 			memcpy(tx, r_notexture_mip, sizeof(texture_t));
 			sprintf(tx->name, "unnamed%i", i);
@@ -3852,6 +3867,12 @@ TRACE(("dbg: Mod_LoadTextures: inittexturedescs\n"));
 		}
 
 		TRACE(("dbg: Mod_LoadTextures: texture %s\n", mt->name));
+
+		if (mt->offsets[0] && (mt->width > 0xffff|| mt->height > 0xffff))
+		{
+			Con_Printf(CON_WARNING "%s: miptex %i is excessively large. probably corrupt\n", loadmodel->name, i);
+			goto badmip;
+		}
 
 		if (!*mt->name)	//I HATE MAPPERS!
 		{
@@ -4252,7 +4273,7 @@ static qboolean Mod_LoadFaces (model_t *loadmodel, bspx_header_t *bspx, qbyte *m
 	qboolean lightmapusable = false;
 
 	struct decoupled_lm_info_s *decoupledlm;
-	unsigned int dcsize;
+	size_t dcsize;
 
 	memset(&overrides, 0, sizeof(overrides));
 
@@ -4292,6 +4313,59 @@ static qboolean Mod_LoadFaces (model_t *loadmodel, bspx_header_t *bspx, qbyte *m
 //	*meshlist = ZG_Malloc(&loadmodel->memgroup, count*sizeof(**meshlist));
 	loadmodel->surfaces = out;
 	loadmodel->numsurfaces = count;
+
+	//dodgy guesses time...
+	if (loadmodel->fromgame == fg_quake //some halflife maps are misidentified as quake...
+		&& loadmodel->submodels[0].headnode[3] /*these do have crouch hulls. this'll save a LOT of modulo expense*/
+		&& subbsp == sb_none/*don't bother with bsp2... maybe halflife will get a remaster that uses/supports it?*/
+		&& ins && count /*yeah... just in case*/
+		&& !overrides.shifts /*would break expectations. fix your maps.*/
+		&& lightlump->filelen%3==0	/*hlbsp has rgb lighting so MUST be a multiple of 3*/
+		)
+	{
+		for (surfnum=0; surfnum<count; surfnum++)
+		{
+			lofs = LittleLong(ins[surfnum].lightofs);
+			if (lofs%3)
+				break;	//not a byte offset within rgb data
+			if (lofs != (unsigned int)-1 && ins[surfnum].styles[0]!=255)
+			{
+				//count styles
+				for (i = 0; i < countof(ins[surfnum].styles); i++)
+					if (ins[surfnum].styles[i] == 255)
+						break;
+				if (!i)
+					continue;	//no lightmap data here...
+
+				tn = LittleShort (ins->texinfo);
+				if (tn < 0 || tn >= loadmodel->numtexinfo)
+					break;
+				out->texinfo = loadmodel->texinfo + tn;
+				out->firstedge = LittleLong(ins->firstedge);
+				out->numedges = LittleShort(ins->numedges);
+				out->lmshift = lmshift;
+				CalcSurfaceExtents (loadmodel, out);
+				i *= (out->extents[0]>>out->lmshift)+1;	//width
+				i *= (out->extents[1]>>out->lmshift)+1;	//height
+				i *= 3; //for rgb
+				//'i' is now the size of our lightmap data, in bytes. phew.
+				lend = lofs + i;
+
+				//we now have a reference surface.
+				for (surfnum++; surfnum<count; surfnum++)
+				{
+					unsigned int checklofs = LittleLong(ins[surfnum].lightofs);
+					if (checklofs%3)
+						break;	//can't be hl
+					if (checklofs > lofs && checklofs < lend)
+						break;	//started before reference surf ended... reference surface can't have been using RGB lighting. so not a mislabled hlbsp.
+				}
+				break;
+			}
+		}
+		if (surfnum==count)
+			loadmodel->fromgame = fg_halflife;
+	}
 
 	Mod_LoadVertexNormals(loadmodel, bspx, mod_base, NULL);
 	Mod_LoadLighting (loadmodel, bspx, mod_base, lightlump, false, &overrides, subbsp);
@@ -4389,8 +4463,20 @@ static qboolean Mod_LoadFaces (model_t *loadmodel, bspx_header_t *bspx, qbyte *m
 			lofs = LittleLong(decoupledlm->lmoffset);
 			out->texturemins[0] = out->texturemins[1] = 0; // should be handled by the now-per-surface vecs[][3] value.
 			out->lmshift = 0;	//redundant.
-			out->extents[0] = (unsigned short)LittleShort(decoupledlm->lmsize[0]) - 1;
-			out->extents[1] = (unsigned short)LittleShort(decoupledlm->lmsize[1]) - 1;
+			if (!decoupledlm->lmsize[0] || !decoupledlm->lmsize[1])
+			{
+				decoupledlm->lmsize[0] = decoupledlm->lmsize[1] = 0;
+				if (lofs != (unsigned int)-1)
+				{	//we'll silently allow these buggy surfaces for now... but only if they've got no lightmap data at all. unsafe if they're the last otherwise.
+					lofs = -1;
+					Con_Printf(CON_WARNING"%s: Face %i has invalid extents\n", loadmodel->name, surfnum);
+				}
+			}
+			else
+			{
+				out->extents[0] = (unsigned short)LittleShort(decoupledlm->lmsize[0]) - 1;	//surfaces should NEVER have an extent of 0. even if the surface is omitted it should still have some padding...
+				out->extents[1] = (unsigned short)LittleShort(decoupledlm->lmsize[1]) - 1;
+			}
 			loadmodel->facelmvecs[surfnum].lmvecs[0][0] = LittleFloat(decoupledlm->lmvecs[0][0]);
 			loadmodel->facelmvecs[surfnum].lmvecs[0][1] = LittleFloat(decoupledlm->lmvecs[0][1]);
 			loadmodel->facelmvecs[surfnum].lmvecs[0][2] = LittleFloat(decoupledlm->lmvecs[0][2]);

@@ -1,8 +1,8 @@
 !!ver 110
+!!permu BUMP
 !!samps diffuse
 !!samps =BUMP normalmap
-!!samps =REFLECTCUBEMASK reflectmask reflectcube
-!!samps refraction=0
+!!samps refraction=0 dudvmap=1
 
 #include "sys/defs.h"
 
@@ -29,18 +29,22 @@ varying vec3 eyeminusvertex;
 	{
 		vec2 refl_c;
 		vec3 refr_f;
-		vec3 norm_f;
+		vec3 dudv_f;
 		vec4 out_f = vec4( 1.0, 1.0, 1.0, 1.0 );
 
-		norm_f = ( texture2D( s_normalmap, tex_c).xyz);
-		norm_f.g *= -1.0;
-		norm_f = normalize( norm_f );
+		dudv_f = ( texture2D( s_dudvmap, tex_c).xyz);
+		dudv_f += ( texture2D( s_dudvmap, tex_c).xyz);
+		dudv_f -= 1.0 - ( 4.0 / 256.0 );
+		dudv_f = normalize( dudv_f );
 
 		// Reflection/View coordinates
 		refl_c = ( 1.0 + ( tf_c.xy / tf_c.w ) ) * 0.5;
 
-		refr_f = texture2D(s_refraction, refl_c + (norm_f.st) ).rgb;
-		out_f.rgb = refr_f * texture2D(s_diffuse, tex_c).rgb;
+		refr_f = texture2D( s_refraction, refl_c + ( dudv_f.st) ).rgb;
+		out_f.rgb = refr_f;
+#ifdef TINTTEXTURE
+		out_f.rgb *= texture2D( s_diffuse, tex_c ).rgb;
+#endif
 
 		gl_FragColor = out_f;
 	}

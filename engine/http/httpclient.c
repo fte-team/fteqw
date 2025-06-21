@@ -1,7 +1,5 @@
 #include "quakedef.h"
 
-#include "iweb.h"
-
 #include "netinc.h"
 #include "fs.h"
 
@@ -9,9 +7,6 @@
 static struct dl_download *activedownloads;
 
 #if defined(FTE_TARGET_WEB)
-
-
-#include "web/ftejslib.h"
 
 vfsfile_t *FSWEB_OpenTempHandle(int f);
 
@@ -144,7 +139,7 @@ typedef struct cookie_s
 	char *name;
 	char *value;
 } cookie_t;
-cookie_t *cookies;
+static cookie_t *cookies;
 
 
 //set a specific cookie.
@@ -567,7 +562,7 @@ static qboolean HTTP_DL_Work(struct dl_download *dl)
 				if (nl)
 					*nl = '\0';
 				COM_TrimString(msg, trimmed, sizeof(trimmed));
-				Con_Printf("%s: %s %s (%s)\n", dl->url, buffer, trimmed, Location);
+				Con_Printf(S_COLOR_GRAY "%s: %s %s (%s)\n", dl->url, buffer, trimmed, Location);
 				if (!*Location)
 				{
 					Con_Printf("Server redirected to null location\n");
@@ -620,8 +615,9 @@ static qboolean HTTP_DL_Work(struct dl_download *dl)
 
 			if (con->contentlength != -1 && con->contentlength > dl->sizelimit)
 			{
+				char s1[32],s2[32];
 				dl->replycode = 413;	//413 Payload Too Large 
-				Con_Printf("HTTP: request exceeds size limit\n");
+				Con_Printf(CON_WARNING"Request exceeds size limit - %s (%s vs %s)\n", dl->url, FS_AbbreviateSize(s1,sizeof(s1),con->contentlength), FS_AbbreviateSize(s2,sizeof(s2),dl->sizelimit));
 				return false;	//something went wrong.
 			}
 
@@ -756,8 +752,9 @@ firstread:
 			con->totalreceived+=con->chunked;
 			if (con->totalreceived > dl->sizelimit)
 			{
+				char s1[32],s2[32];
 				dl->replycode = 413;	//413 Payload Too Large 
-				Con_Printf("HTTP: request exceeds size limit\n");
+				Con_Printf(CON_WARNING"Request exceeds size limit - %s (%s vs %s)\n", dl->url, FS_AbbreviateSize(s1,sizeof(s1),con->totalreceived), FS_AbbreviateSize(s2,sizeof(s2),dl->sizelimit));
 				return false;	//something went wrong.
 			}
 			if (con->file && con->chunked)	//we've got a chunk in the buffer
@@ -783,8 +780,9 @@ firstread:
 			con->totalreceived+=chunk;
 			if (con->totalreceived > dl->sizelimit)
 			{
+				char s1[32], s2[32];
 				dl->replycode = 413;	//413 Payload Too Large 
-				Con_Printf("HTTP: request exceeds size limit\n");
+				Con_Printf(CON_WARNING"Request exceeds size limit - %s (%s vs %s)\n", dl->url, FS_AbbreviateSize(s1,sizeof(s1),con->totalreceived), FS_AbbreviateSize(s2,sizeof(s2),dl->sizelimit));
 				return false;	//something went wrong.
 			}
 			if (con->file)	//we've got a chunk in the buffer
@@ -1675,4 +1673,44 @@ vfsfile_t *VFS_OpenPipeCallback(void (*callback)(void*ctx, vfsfile_t *file), voi
 vfsfile_t *VFSPIPE_Open(int refs, qboolean seekable)
 {
 	return VFS_OpenPipeInternal(refs, seekable, NULL, NULL);
+}
+
+static int QDECL VFSPIPE_WriteBytes_Pair(vfsfile_t *f, const void *buffer, int len)
+{
+	f = ((vfspipe_t*)f)->ctx;	//swap to its partner
+	if (!f)	//it got closed...
+		return VFS_ERROR_EOF;
+	return VFSPIPE_WriteBytes(f, buffer, len);	//read it directly.
+}
+static int QDECL VFSPIPE_ReadBytes_Pair(vfsfile_t *f, void *buffer, int len)
+{
+	f = ((vfspipe_t*)f)->ctx;	//swap to its partner
+	if (!f)	//it got closed...
+		return VFS_ERROR_EOF;
+	return VFSPIPE_WriteBytes(f, buffer, len);	//read it directly.
+}
+static qboolean QDECL VFSPIPE_Close_Pair(vfsfile_t *f)
+{
+	vfspipe_t *p = ((vfspipe_t*)f)->ctx;
+	if (p)
+		p->ctx = NULL;	//don't allow writes to a dead pipe...
+	return VFSPIPE_Close(f);
+}
+void VFSPIPE_OpenPair(vfsfile_t *pair[2])
+{
+	pair[0] = VFS_OpenPipeInternal(1, false, NULL, NULL);
+	pair[1] = VFS_OpenPipeInternal(1, false, NULL, NULL);
+
+	//cross-link them
+	((vfspipe_t*)pair[0])->ctx = pair[1];
+	((vfspipe_t*)pair[1])->ctx = pair[0];
+	pair[0]->Close = VFSPIPE_Close_Pair;
+	pair[1]->Close = VFSPIPE_Close_Pair;
+
+	pair[0]->WriteBytes = VFSPIPE_WriteBytes_Pair;
+	pair[1]->WriteBytes = VFSPIPE_WriteBytes_Pair;
+
+
+	pair[0]->ReadBytes = VFSPIPE_ReadBytes_Pair;
+	pair[1]->ReadBytes = VFSPIPE_ReadBytes_Pair;
 }

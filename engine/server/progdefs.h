@@ -111,30 +111,30 @@ typedef struct nqglobalvars_s
 	pvec3_t *input_angles;
 	pvec3_t *input_movevalues;
 	pvec_t *input_buttons;
-	puint_t *input_weapon;
+	puint64_t *input_weapon;
 	pvec_t *input_lightlevel;
 	pvec3_t *input_cursor_screen;
 	pvec3_t *input_cursor_trace_start;
 	pvec3_t *input_cursor_trace_endpos;
 	pvec_t *input_cursor_entitynumber;
-	puint_t *input_head_status;
+	puint64_t *input_head_status;
 	pvec3_t *input_head_origin;
 	pvec3_t *input_head_angles;
 	pvec3_t *input_head_velocity;
 	pvec3_t *input_head_avelocity;
-	puint_t *input_head_weapon;
-	puint_t *input_left_status;
+	puint64_t *input_head_weapon;
+	puint64_t *input_left_status;
 	pvec3_t *input_left_origin;
 	pvec3_t *input_left_angles;
 	pvec3_t *input_left_velocity;
 	pvec3_t *input_left_avelocity;
-	puint_t *input_left_weapon;
-	puint_t *input_right_status;
+	puint64_t *input_left_weapon;
+	puint64_t *input_right_status;
 	pvec3_t *input_right_origin;
 	pvec3_t *input_right_angles;
 	pvec3_t *input_right_velocity;
 	pvec3_t *input_right_avelocity;
-	puint_t *input_right_weapon;
+	puint64_t *input_right_weapon;
 
 	pvec3_t *global_gravitydir;
 	pvec_t *spawnparamglobals[NUM_SPAWN_PARMS];
@@ -302,6 +302,10 @@ and the extension fields are added on the end and can have extra vm-specific stu
 	comfieldfloat(mass,NULL)/*DP_...PHYSICS*/\
 	comfieldfloat(bouncefactor,NULL)/*DP_...PHYSICS*/\
 	comfieldfloat(bouncestop,NULL)/*DP_...PHYSICS*/\
+	comfieldfloat(damp_linear,NULL)/*FTE_...PHYSICS*/\
+	comfieldfloat(damp_angular,NULL)/*FTE_...PHYSICS*/\
+	comfieldfloat(max_angular,NULL)/*FTE_...PHYSICS*/\
+	comfieldfloat(jointgroup,NULL)/*FTE_...PHYSICS*/\
 	comfieldfloat(idealpitch,NULL)/*DP_QC_CHANGEPITCH (inconsistant naming)*/\
 	comfieldfloat(pitch_speed,NULL)/*DP_QC_CHANGEPITCH*/\
 	comextqcfieldshexen2	\
@@ -562,6 +566,7 @@ typedef struct
 	qboolean physics;
 	rbebody_t body;
 	rbejoint_t joint;
+	int jointgroup;
 	float *vertex3f;
 	int *element3i;
 	int numvertices;

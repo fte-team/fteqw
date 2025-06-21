@@ -151,7 +151,6 @@ static void WRITEHEADER(void)
 
 qboolean Rank_OpenRankings(void)
 {
-	char syspath[MAX_OSPATH];
 	size_t result;
 	qboolean created;
 	if (!rankfile)
@@ -160,9 +159,6 @@ qboolean Rank_OpenRankings(void)
 		{
 			return false;
 		}
-
-		if (!FS_NativePath(rank_filename.string, FS_GAMEONLY, syspath, sizeof(syspath)))
-			return false;
 
 		rankfile = FS_OpenVFS(rank_filename.string, "r+b", FS_GAMEONLY);
 		if (!rankfile)	//hmm... try creating

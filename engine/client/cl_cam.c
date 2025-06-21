@@ -68,7 +68,7 @@ void Cam_AutoTrack_Update(const char *mode)
 	autotrack_statsrule = NULL;
 	if (!*mode || !Q_strcasecmp(mode, "auto"))
 	{
-		if (cls.demoplayback == DPB_MVD || cls.demoplayback == DPB_EZTV)
+		if (cls.demoplayback == DPB_MVD)
 		{
 			autotrackmode = TM_STATS;
 			autotrack_statsrule = Z_StrDup("");	//default
@@ -501,7 +501,7 @@ static int CL_AutoTrack_Choose(int seat)
 		best = cl.autotrack_killer;
 	if (autotrackmode == TM_MODHINTS && seat == 0 && cl.autotrack_hint >= 0)
 		best = cl.autotrack_hint;
-	if (autotrackmode == TM_STATS && (cls.demoplayback == DPB_MVD || cls.demoplayback == DPB_EZTV))
+	if (autotrackmode == TM_STATS && cls.demoplayback == DPB_MVD)
 		best = CL_FindHighTrack(seat, autotrack_statsrule);
 	if (autotrackmode == TM_HIGHTRACK || best == -1)
 		best = CL_FindHighTrack(seat, "%f");
@@ -578,7 +578,7 @@ void Cam_Lock(playerview_t *pv, int playernum)
 	
 	Skin_FlushPlayers();
 
-	if (cls.demoplayback == DPB_MVD || cls.demoplayback == DPB_EZTV)
+	if (cls.demoplayback == DPB_MVD)
 	{
 		memcpy(&pv->stats, cl.players[playernum].stats, sizeof(pv->stats));
 //		pv->cam_state = CAM_;
@@ -955,7 +955,7 @@ void Cam_SetModAutoTrack(int userid)
 			return;
 		}
 	}
-	Con_Printf("//at: invalid userid\n");
+	Con_Printf("//at: invalid userid %i\n", userid);
 }
 
 /*static void Cam_TrackCrosshairedPlayer(playerview_t *pv)
@@ -1001,13 +1001,13 @@ void Cam_FinishMove(playerview_t *pv, usercmd_t *cmd)
 	if (cls.state != ca_active)
 		return;
 
-	if (!pv->spectator && (cls.demoplayback != DPB_MVD && cls.demoplayback != DPB_EZTV)) // only in spectator mode
+	if (!pv->spectator && cls.demoplayback != DPB_MVD) // only in spectator mode
 		return;
 
-	if (cls.demoplayback == DPB_MVD || cls.demoplayback == DPB_EZTV)
+	if (cls.demoplayback == DPB_MVD)
 	{
-		int nb;
-		nb = (cmd->sidemove<0)?4:0;
+		int nb = 0;
+		nb |= (cmd->sidemove<0)?4:0;
 		nb |= (cmd->sidemove>0)?8:0;
 		nb |= (cmd->forwardmove<0)?16:0;
 		nb |= (cmd->forwardmove>0)?32:0;
@@ -1015,18 +1015,21 @@ void Cam_FinishMove(playerview_t *pv, usercmd_t *cmd)
 		nb |= (cmd->upmove>0)?128:0;
 		if (Cam_TrackNum(pv) >= 0)
 		{
-			if (nb & (nb ^ pv->cam_oldbuttons) & 4)
-				Cvar_SetValue(&cl_demospeed, max(cl_demospeed.value - 0.1, 0));
-			if (nb & (nb ^ pv->cam_oldbuttons) & 8)
-				Cvar_SetValue(&cl_demospeed, min(cl_demospeed.value + 0.1, 10));
-			if (nb & (nb ^ pv->cam_oldbuttons) & (4|8))
-				Con_Printf("playback speed: %g%%\n", cl_demospeed.value*100);
-			if (nb & (nb ^ pv->cam_oldbuttons) & 16)
-				Cbuf_AddText("demo_jump +10", RESTRICT_LOCAL);
-			if (nb & (nb ^ pv->cam_oldbuttons) & 32)
-				Cbuf_AddText("demo_jump -10", RESTRICT_LOCAL);
-			if (nb & (nb ^ pv->cam_oldbuttons) & (4|8))
-				Con_Printf("playback speed: %g%%\n", cl_demospeed.value*100);
+			if (*cls.lastdemoname)
+			{	//changing rates or jumping doesn't make sense with mvds.
+				if (nb & (nb ^ pv->cam_oldbuttons) & 4)
+					Cvar_SetValue(&cl_demospeed, max(cl_demospeed.value - 0.1, 0));
+				if (nb & (nb ^ pv->cam_oldbuttons) & 8)
+					Cvar_SetValue(&cl_demospeed, min(cl_demospeed.value + 0.1, 10));
+				if (nb & (nb ^ pv->cam_oldbuttons) & (4|8))
+					Con_Printf("playback speed: %g%%\n", cl_demospeed.value*100);
+				if (nb & (nb ^ pv->cam_oldbuttons) & 16)
+					Cbuf_AddText("demo_jump +10", RESTRICT_LOCAL);
+				if (nb & (nb ^ pv->cam_oldbuttons) & 32)
+					Cbuf_AddText("demo_jump -10", RESTRICT_LOCAL);
+				if (nb & (nb ^ pv->cam_oldbuttons) & (4|8))
+					Con_Printf("playback speed: %g%%\n", cl_demospeed.value*100);
+			}
 			if (nb & (nb ^ pv->cam_oldbuttons) & 64)
 				Cvar_SetValue(&cl_splitscreen, max(cl_splitscreen.ival - 1, 0));
 			if (nb & (nb ^ pv->cam_oldbuttons) & 128)

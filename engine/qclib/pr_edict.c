@@ -1036,6 +1036,20 @@ char *PR_GlobalStringNoContents (progfuncs_t *progfuncs, int ofs)
 	return line;
 }
 
+char *PR_GlobalStringImmediate (progfuncs_t *progfuncs, int ofs)
+{
+	int		i;
+	static char	line[128];
+	sprintf (line,"%i", ofs);
+
+	i = strlen(line);
+	for ( ; i<20 ; i++)
+		strcat (line," ");
+	strcat (line," ");
+
+	return line;
+}
+
 /*
 =============
 ED_Print
@@ -2021,8 +2035,6 @@ char *PDECL PR_SaveEnts(pubprogfuncs_t *ppf, char *buf, size_t *bufofs, size_t b
 #undef AddS
 }
 
-int header_crc;
-
 //if 'general' block is found, this is a compleate state, otherwise, we should spawn entities like
 int PDECL PR_LoadEnts(pubprogfuncs_t *ppf, const char *file, void *ctx, void (PDECL *memoryreset) (pubprogfuncs_t *progfuncs, void *ctx), void (PDECL *entspawned) (pubprogfuncs_t *progfuncs, struct edict_s *ed, void *ctx, const char *entstart, const char *entend), pbool(PDECL *extendedterm)(pubprogfuncs_t *progfuncs, void *ctx, const char **extline))
 {
@@ -2043,7 +2055,6 @@ int PDECL PR_LoadEnts(pubprogfuncs_t *ppf, const char *file, void *ctx, void (PD
 
 	extern edictrun_t tempedict;
 
-	int crc = 1;
 	int entsize = 0;
 	int numents = 0;
 	pbool maphacks = false;
@@ -2172,7 +2183,6 @@ int PDECL PR_LoadEnts(pubprogfuncs_t *ppf, const char *file, void *ctx, void (PD
 
 
 			filename[0] = '\0';
-			header_crc = 0;
 
 			while(1)
 			{
@@ -2183,7 +2193,7 @@ int PDECL PR_LoadEnts(pubprogfuncs_t *ppf, const char *file, void *ctx, void (PD
 				if (!strcmp("filename", qcc_token))	//check key get and save values
 					{file = QCC_COM_Parse(file); strcpy(filename, qcc_token);}
 				else if (!strcmp("crc", qcc_token))
-					{file = QCC_COM_Parse(file); header_crc = atoi(qcc_token);}
+					{file = QCC_COM_Parse(file); /*header_crc = atoi(qcc_token);*/}
 				else if (!strcmp("numbuiltins", qcc_token))	//no longer supported.
 					{file = QCC_COM_Parse(file); /*qcc_token unused*/}
 				else if (qcc_token[0] == '}')	//end of block
@@ -2444,7 +2454,6 @@ int PDECL PR_LoadEnts(pubprogfuncs_t *ppf, const char *file, void *ctx, void (PD
 	}
 	if (resethunk)
 	{
-		header_crc = crc;
 		if (externs->loadcompleate)
 			externs->loadcompleate(entsize);
 
@@ -2747,6 +2756,7 @@ pbool PR_ReallyLoadProgs (progfuncs_t *progfuncs, const char *filename, progstat
 	int reorg = prinst.reorganisefields || prinst.numfields;
 
 	int stringadjust;
+	int pointeradjust;
 
 	int *basictypetable;
 
@@ -3032,9 +3042,15 @@ retry:
 	glob = pr_globals = (float *)s;
 
 	if (progfuncs->funcs.stringtable)
+	{
 		stringadjust = pr_strings - progfuncs->funcs.stringtable;
+		pointeradjust = (char*)glob - progfuncs->funcs.stringtable;
+	}
 	else
+	{
 		stringadjust = 0;
+		pointeradjust = (char*)glob - pr_strings;
+	}
 
 	if (!pr_linenums)
 	{
@@ -3536,12 +3552,20 @@ retry:
 				if (reorg && !basictypetable)
 					QC_AddSharedFieldVar(&progfuncs->funcs, i, pr_strings - stringadjust);
 				break;
+			case ev_pointer:
+				if (((int *)glob)[gd16[i].ofs] & 0x80000000)
+				{
+					((int *)glob)[gd16[i].ofs] &= ~0x80000000;
+					((int *)glob)[gd16[i].ofs] += pointeradjust;
+					break;
+				}
+				FALLTHROUGH
 			case ev_string:
 				if (((unsigned int *)glob)[gd16[i].ofs]>=progstate->progs->numstrings)
 					externs->Printf("PR_LoadProgs: invalid string value (%x >= %x) in '%s'\n", ((unsigned int *)glob)[gd16[i].ofs], progstate->progs->numstrings, gd16[i].s_name+pr_strings-stringadjust);
 				else if (isfriked != -1)
 				{
-					if (pr_strings[((int *)glob)[gd16[i].ofs]])	//quakec uses string tables. 0 must remain null, or 'if (s)' can break.
+					if (((int *)glob)[gd16[i].ofs])	//quakec uses string tables. 0 must remain null, or 'if (s)' can break.
 					{
 						((int *)glob)[gd16[i].ofs] += stringadjust;
 						isfriked = false;
@@ -3583,8 +3607,18 @@ retry:
 			case ev_field:
 				QC_AddSharedFieldVar(&progfuncs->funcs, i, pr_strings - stringadjust);
 				break;
+			case ev_pointer:
+				if (((int *)glob)[pr_globaldefs32[i].ofs] & 0x80000000)
+				{
+					((int *)glob)[pr_globaldefs32[i].ofs] &= ~0x80000000;
+					((int *)glob)[pr_globaldefs32[i].ofs] += pointeradjust;
+					break;
+				}
+				FALLTHROUGH
 			case ev_string:
-				if (pr_strings[((int *)glob)[pr_globaldefs32[i].ofs]])	//quakec uses string tables. 0 must remain null, or 'if (s)' can break.
+				if (((unsigned int *)glob)[pr_globaldefs32[i].ofs]>=progstate->progs->numstrings)
+					externs->Printf("PR_LoadProgs: invalid string value (%x >= %x) in '%s'\n", ((unsigned int *)glob)[pr_globaldefs32[i].ofs], progstate->progs->numstrings, pr_globaldefs32[i].s_name+pr_strings-stringadjust);
+				else if (((int *)glob)[pr_globaldefs32[i].ofs])	//quakec uses string tables. 0 must remain null, or 'if (s)' can break.
 				{
 					((int *)glob)[pr_globaldefs32[i].ofs] += stringadjust;
 					isfriked = false;
@@ -3632,6 +3666,10 @@ retry:
 
 	if (progfuncs->funcs.stringtablesize + progfuncs->funcs.stringtable < pr_strings + pr_progs->numstrings)
 		progfuncs->funcs.stringtablesize = (pr_strings + pr_progs->numstrings) - progfuncs->funcs.stringtable;
+
+	//make sure the localstack is addressable to the qc, so we can OP_PUSH okay.
+	if (!prinst.localstack)
+		prinst.localstack = PRAddressableExtend(progfuncs, NULL, 0, sizeof(float)*LOCALSTACK_SIZE);
 
 	if (externs->MapNamedBuiltin)
 	{

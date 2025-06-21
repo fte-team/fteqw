@@ -19,7 +19,6 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 // HUD commands
 //
 
-#include "../plugin.h"
 #include "ezquakeisms.h"
 //#include "common_draw.h"
 //#include "keys.h"

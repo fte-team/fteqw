@@ -65,6 +65,7 @@ void *qccHunkAlloc(size_t mem)
 void qccClearHunk(void)
 {
 	struct qcchunk_s *t;
+	QCC_PurgeTemps();
 	while (qcc_hunk)
 	{
 		t = qcc_hunk;

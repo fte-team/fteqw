@@ -88,8 +88,8 @@ static struct {
 //		int vbo_texcoords[SHADER_PASS_MAX];
 //		int vbo_deforms;	//holds verticies... in case you didn't realise.
 
-		const shader_t *shader_light[1u<<LSHADER_MODES];
-		qboolean inited_shader_light[1u<<LSHADER_MODES];
+		const shader_t *shader_light[LSHADER_MODES];
+		qboolean inited_shader_light[LSHADER_MODES];
 
 		const shader_t *crepskyshader;
 		const shader_t *crepopaqueshader;
@@ -221,8 +221,6 @@ static void BE_PrintDrawCall(const char *msg)
 {
 	char shadername[512];
 	char modelname[512];
-	int num;
-
 	Q_snprintfz(shadername, sizeof(shadername), "^[%-16s\\tipimg\\%s\\tipimgtype\\%i\\tip\\%s^]",
 			shaderstate.curshader->name,
 			shaderstate.curshader->name,shaderstate.curshader->usageflags,
@@ -230,7 +228,9 @@ static void BE_PrintDrawCall(const char *msg)
 
 	if (shaderstate.curbatch && shaderstate.curbatch->ent)
 	{
-		num = shaderstate.curbatch->ent->keynum;
+#ifdef HAVE_SERVER
+		int num = shaderstate.curbatch->ent->keynum;
+#endif
 		if (shaderstate.curbatch->ent->model)
 			Q_snprintfz(modelname, sizeof(modelname), " - ^[%s\\modelviewer\\%s^]",
 				shaderstate.curbatch->ent->model->name, shaderstate.curbatch->ent->model->name);
@@ -940,7 +940,7 @@ void GLBE_SetupVAO(vbo_t *vbo, unsigned int vaodynamic, unsigned int vaostatic)
 	}
 }
 
-void GL_SelectProgram(int program)
+void GL_SelectProgram(GLuint program)
 {
 	if (shaderstate.currentprogram != program)
 	{
@@ -1307,6 +1307,18 @@ static void Shader_BindTextureForPass(int tmu, const shaderpass_t *pass)
 		else
 			t = r_whiteimage;
 		break;
+	case T_GEN_TRANSMISSION:
+		if (shaderstate.curtexnums && TEXLOADED(shaderstate.curtexnums->transmission))
+			t = shaderstate.curtexnums->transmission;
+		else
+			t = r_whiteimage;
+		break;
+	case T_GEN_THICKNESS:
+		if (shaderstate.curtexnums && TEXLOADED(shaderstate.curtexnums->thickness))
+			t = shaderstate.curtexnums->thickness;
+		else
+			t = r_whiteimage;
+		break;
 	case T_GEN_SHADOWMAP:
 		t = shaderstate.curshadowmap;
 		break;
@@ -1441,6 +1453,8 @@ void Shader_LightPass(struct shaderparsestate_s *ps, const char *shortname, cons
 	Shader_DefaultScript(ps, shortname, shadertext);
 }
 
+extern cvar_t r_fog_linear;
+extern cvar_t r_fog_exp2;
 void GenerateFogTexture(texid_t *tex, float density, float zscale)
 {
 #define FOGS 256
@@ -1460,12 +1474,15 @@ void GenerateFogTexture(texid_t *tex, float density, float zscale)
 			z = (float)s / (FOGS-1);
 			z *= zscale;
 
-			if (0)//q3
-				f = pow(z, 0.5);
-			else if (1)//GL_EXP
-				f = 1-exp(-density * z);
-			else //GL_EXP2
-				f = 1-exp(-(density*density) * z);
+			if (r_fog_linear.ival) {
+				f = 1.0 - ((density - z) / (density/* - r_refdef.globalfog.depthbias*/)); //pow(z, 0.5);
+			} else {
+				if (!r_fog_exp2.ival)//GL_EXP
+					f = 1-exp(-density * z);
+				else //GL_EXP2
+					f = 1-exp(-(density*density) * z);
+			}
+
 			if (f < 0)
 				f = 0;
 			if (f > 1)

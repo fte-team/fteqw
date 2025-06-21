@@ -1,5 +1,12 @@
 #include "quakedef.h"
 
+/*struct jsonparsectx_s
+{
+	char const *const data;
+	const size_t size;
+	size_t pos;
+};*/
+
 //node destruction
 static void JSON_Orphan(json_t *t)
 {
@@ -125,45 +132,45 @@ static json_t *JSON_CreateNode(json_t *parent, const char *namestart, const char
 }
 
 //node parsing
-static void JSON_SkipWhite(const char *msg, int *pos, int max)
+static void JSON_SkipWhite(struct jsonparsectx_s *ctx)
 {
-	while (*pos < max)
+	while (ctx->pos < ctx->size)
 	{
 		//if its simple whitespace then keep skipping over it
-		if (msg[*pos] == ' ' ||
-			msg[*pos] == '\t' ||
-			msg[*pos] == '\r' ||
-			msg[*pos] == '\n' )
+		if (ctx->data[ctx->pos] == ' ' ||
+			ctx->data[ctx->pos] == '\t' ||
+			ctx->data[ctx->pos] == '\r' ||
+			ctx->data[ctx->pos] == '\n' )
 		{
-			*pos+=1;
+			ctx->pos+=1;
 			continue;
 		}
 
 		//BEGIN NON-STANDARD - Note that comments are NOT part of json, but people insist on using them anyway (c-style, like javascript).
-		else if (msg[*pos] == '/' && *pos+1 < max)
+		else if (ctx->data[ctx->pos] == '/' && ctx->pos+1 < ctx->size)
 		{
-			if (msg[*pos+1] == '/')
+			if (ctx->data[ctx->pos+1] == '/')
 			{	//C++ style single-line comments that continue till the next line break
-				*pos+=2;
-				while (*pos < max)
+				ctx->pos+=2;
+				while (ctx->pos < ctx->size)
 				{
-					if (msg[*pos] == '\r' || msg[*pos] == '\n')
+					if (ctx->data[ctx->pos] == '\r' || ctx->data[ctx->pos] == '\n')
 						break;	//ends on first line break (the break is then whitespace will will be skipped naturally)
-					*pos+=1;	//not yet
+					ctx->pos+=1;	//not yet
 				}
 				continue;
 			}
-			else if (msg[*pos+1] == '*')
+			else if (ctx->data[ctx->pos+1] == '*')
 			{	/*C style multi-line comment*/
-				*pos+=2;
-				while (*pos+1 < max)
+				ctx->pos+=2;
+				while (ctx->pos+1 < ctx->size)
 				{
-					if (msg[*pos] == '*' && msg[*pos+1] == '/')
+					if (ctx->data[ctx->pos] == '*' && ctx->data[ctx->pos+1] == '/')
 					{
-						*pos+=2;	//skip past the terminator ready for whitespace or trailing comments directly after
+						ctx->pos+=2;	//skip past the terminator ready for whitespace or trailing comments directly after
 						break;
 					}
-					*pos+=1;	//not yet
+					ctx->pos+=1;	//not yet
 				}
 				continue;
 			}
@@ -327,20 +334,20 @@ size_t JSON_ReadBody(json_t *t, char *out, size_t outsize)
 	return t->bodyend-t->bodystart;
 }
 
-static qboolean JSON_ParseString(char const*msg, int *pos, int max, char const**start, char const** end)
+static qboolean JSON_ParseString(struct jsonparsectx_s *ctx, char const**start, char const** end)
 {
-	if (*pos < max && msg[*pos] == '\"')
+	if (ctx->pos < ctx->size && ctx->data[ctx->pos] == '\"')
 	{	//quoted string
 		//FIXME: no handling of backslash followed by one of "\/bfnrtu
-		*pos+=1;
-		*start = msg+*pos;
-		while (*pos < max)
+		ctx->pos+=1;
+		*start = ctx->data+ctx->pos;
+		while (ctx->pos < ctx->size)
 		{
-			if (msg[*pos] == '\"')
+			if (ctx->data[ctx->pos] == '\"')
 				break;
-			if (msg[*pos] == '\\')
+			if (ctx->data[ctx->pos] == '\\')
 			{	//escapes are expanded elsewhere, we're just skipping over them here.
-				switch(msg[*pos+1])
+				switch(ctx->data[ctx->pos+1])
 				{
 				case '\"':
 				case '\\':
@@ -350,137 +357,137 @@ static qboolean JSON_ParseString(char const*msg, int *pos, int max, char const**
 				case 'n':
 				case 'r':
 				case 't':
-					*pos+=2;
+					ctx->pos+=2;
 					break;
 				case 'u':
-					*pos+=2;
+					ctx->pos+=2;
 					//*pos+=4; //4 hex digits, not escapes so just wait till later before parsing them properly.
 					break;
 				default:
 					//unknown escape. will warn when actually reading it.
-					*pos+=1;
+					ctx->pos+=1;
 					break;
 				}
 			}
 			else
-				*pos+=1;
+				ctx->pos+=1;
 		}
-		if (*pos < max && msg[*pos] == '\"')
+		if (ctx->pos < ctx->size && ctx->data[ctx->pos] == '\"')
 		{
-			*end = msg+*pos;
-			*pos+=1;
+			*end = ctx->data+ctx->pos;
+			ctx->pos+=1;
 			return true;
 		}
 	}
 	else
 	{	//name
-		*start = msg+*pos;
-		while (*pos < max
-			&& msg[*pos] != ' '
-			&& msg[*pos] != '\t'
-			&& msg[*pos] != '\r'
-			&& msg[*pos] != '\n'
-			&& msg[*pos] != ':'
-			&& msg[*pos] != ','
-			&& msg[*pos] != '}'
-			&& msg[*pos] != '{'
-			&& msg[*pos] != '['
-			&& msg[*pos] != ']')
+		*start = ctx->data+ctx->pos;
+		while (ctx->pos < ctx->size
+			&& ctx->data[ctx->pos] != ' '
+			&& ctx->data[ctx->pos] != '\t'
+			&& ctx->data[ctx->pos] != '\r'
+			&& ctx->data[ctx->pos] != '\n'
+			&& ctx->data[ctx->pos] != ':'
+			&& ctx->data[ctx->pos] != ','
+			&& ctx->data[ctx->pos] != '}'
+			&& ctx->data[ctx->pos] != '{'
+			&& ctx->data[ctx->pos] != '['
+			&& ctx->data[ctx->pos] != ']')
 		{
-			*pos+=1;
+			ctx->pos+=1;
 		}
-		*end = msg+*pos;
+		*end = ctx->data+ctx->pos;
 		if (*start != *end)
 			return true;
 	}
 	*end = *start;
 	return false;
 }
-json_t *JSON_ParseNode(json_t *t, const char *namestart, const char *nameend, const char *json, int *jsonpos, int jsonlen)
+json_t *JSON_ParseNode(json_t *t, const char *namestart, const char *nameend, struct jsonparsectx_s *ctx)
 {
 	const char *childstart, *childend;
-	JSON_SkipWhite(json, jsonpos, jsonlen);
+	JSON_SkipWhite(ctx);
 
-	if (*jsonpos < jsonlen)
+	if (ctx->pos < ctx->size)
 	{
-		if (json[*jsonpos] == '{')
+		if (ctx->data[ctx->pos] == '{')
 		{
-			*jsonpos+=1;
-			JSON_SkipWhite(json, jsonpos, jsonlen);
+			ctx->pos+=1;
+			JSON_SkipWhite(ctx);
 
 			t = JSON_CreateNode(t, namestart, nameend, NULL, NULL, json_type_object);
 
-			while (*jsonpos < jsonlen && json[*jsonpos] == '\"')
+			while (ctx->pos < ctx->size && ctx->data[ctx->pos] == '\"')
 			{
-				if (!JSON_ParseString(json, jsonpos, jsonlen, &childstart, &childend))
+				if (!JSON_ParseString(ctx, &childstart, &childend))
 					break;
-				JSON_SkipWhite(json, jsonpos, jsonlen);
-				if (*jsonpos < jsonlen && json[*jsonpos] == ':')
+				JSON_SkipWhite(ctx);
+				if (ctx->pos < ctx->size && ctx->data[ctx->pos] == ':')
 				{
-					*jsonpos+=1;
-					if (!JSON_ParseNode(t, childstart, childend, json, jsonpos, jsonlen))
+					ctx->pos+=1;
+					if (!JSON_ParseNode(t, childstart, childend, ctx))
 						break;
 				}
-				JSON_SkipWhite(json, jsonpos, jsonlen);
+				JSON_SkipWhite(ctx);
 
-				if (*jsonpos < jsonlen && json[*jsonpos] == ',')
+				if (ctx->pos < ctx->size && ctx->data[ctx->pos] == ',')
 				{
-					*jsonpos+=1;
-					JSON_SkipWhite(json, jsonpos, jsonlen);
+					ctx->pos+=1;
+					JSON_SkipWhite(ctx);
 					continue;
 				}
 				break;
 			}
 
-			if (*jsonpos < jsonlen && json[*jsonpos] == '}')
+			if (ctx->pos < ctx->size && ctx->data[ctx->pos] == '}')
 			{
-				*jsonpos+=1;
+				ctx->pos+=1;
 				return t;
 			}
 			JSON_Destroy(t);
 		}
-		else if (json[*jsonpos] == '[')
+		else if (ctx->data[ctx->pos] == '[')
 		{
 			char idxname[MAX_QPATH];
 			unsigned int idx = 0;
-			*jsonpos+=1;
-			JSON_SkipWhite(json, jsonpos, jsonlen);
+			ctx->pos+=1;
+			JSON_SkipWhite(ctx);
 
 			t = JSON_CreateNode(t, namestart, nameend, NULL, NULL, json_type_array);
 
 			for(;;)
 			{
 				Q_snprintfz(idxname, sizeof(idxname), "%u", idx++);
-				if (!JSON_ParseNode(t, idxname, NULL, json, jsonpos, jsonlen))
+				if (!JSON_ParseNode(t, idxname, NULL, ctx))
 					break;
 
-				if (*jsonpos < jsonlen && json[*jsonpos] == ',')
+				if (ctx->pos < ctx->size && ctx->data[ctx->pos] == ',')
 				{
-					*jsonpos+=1;
-					JSON_SkipWhite(json, jsonpos, jsonlen);
+					ctx->pos+=1;
+					JSON_SkipWhite(ctx);
 					continue;
 				}
 				break;
 			}
 
-			JSON_SkipWhite(json, jsonpos, jsonlen);
-			if (*jsonpos < jsonlen && json[*jsonpos] == ']')
+			JSON_SkipWhite(ctx);
+			if (ctx->pos < ctx->size && ctx->data[ctx->pos] == ']')
 			{
-				*jsonpos+=1;
+				ctx->pos+=1;
 				return t;
 			}
 			JSON_Destroy(t);
 		}
 		else
 		{
-			if (json[*jsonpos] == '\"')
+			if (ctx->data[ctx->pos] == '\"')
 			{
-				if (JSON_ParseString(json, jsonpos, jsonlen, &childstart, &childend))
+				if (JSON_ParseString(ctx, &childstart, &childend))
 					return JSON_CreateNode(t, namestart, nameend, childstart, childend, json_type_string);
 			}
 			else
 			{
-				if (JSON_ParseString(json, jsonpos, jsonlen, &childstart, &childend))
+				if (JSON_ParseString(ctx, &childstart, &childend))
 				{
 					if (childend-childstart == 4 && !strncasecmp(childstart, "true", 4))
 						return JSON_CreateNode(t, namestart, nameend, childstart, childend, json_type_true);
@@ -498,11 +505,15 @@ json_t *JSON_ParseNode(json_t *t, const char *namestart, const char *nameend, co
 }
 json_t *JSON_Parse(const char *json)
 {
-	size_t jsonlen = strlen(json);
-	int pos = (json[0] == '\xef' && json[1] == '\xbb' && json[2] == '\xbf')?3:0;	//skip a utf-8 bom, if present, to be a bit more permissive.
-	json_t *n = JSON_ParseNode(NULL, NULL, NULL, json, &pos, jsonlen);
-	JSON_SkipWhite(json, &pos, jsonlen);
-	if (pos == jsonlen)
+	struct jsonparsectx_s ctx =
+	{
+		json,
+		strlen(json),
+		(json[0] == '\xef' && json[1] == '\xbb' && json[2] == '\xbf')?3:0,	//skip a utf-8 bom, if present, to be a bit more permissive.
+	};
+	json_t *n = JSON_ParseNode(NULL, NULL, NULL, &ctx);
+	JSON_SkipWhite(&ctx);
+	if (ctx.pos == ctx.size)
 		return n;
 	JSON_Destroy(n);	//trailing junk?... fail it.
 	return NULL;
@@ -578,6 +589,14 @@ json_t *JSON_GetIndexed(json_t *t, unsigned int idx)
 		}
 	}
 	return NULL;
+}
+
+size_t JSON_GetCount(json_t *t)
+{	//can't cope with deletions.
+	size_t count = 0;
+	while (JSON_GetIndexed(t, count))
+		count++;
+	return count;
 }
 
 

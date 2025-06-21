@@ -1,4 +1,5 @@
 #include "quakedef.h"
+#include <wctype.h>
 
 //#define COLOURMISSINGSTRINGS		//for english people to more easily see what's not translatable (text still white)
 //#define COLOURUNTRANSLATEDSTRINGS	//show empty translations as alt-text versions of the original string
@@ -10,6 +11,8 @@
 //translate is english->lang
 //untranslate is lang->english for console commands.
 
+static void FilterPurge(void);
+static void FilterInit(const char *file);
 
 int com_language;
 char sys_language[64] = "";
@@ -21,10 +24,17 @@ static void QDECL TL_LanguageChanged(struct cvar_s *var, char *oldvalue)
 	com_language = TL_FindLanguage(var->string);
 }
 
-cvar_t language = CVARAFC("lang", sys_language, "prvm_language", CVAR_USERINFO|CVAR_NORESET/*otherwise gamedir switches will be annoying*/, TL_LanguageChanged);
+cvar_t language = CVARAFCD("lang", sys_language, "prvm_language", CVAR_USERINFO|CVAR_NORESET/*otherwise gamedir switches will be annoying*/, TL_LanguageChanged, "This cvar contains the language_dialect code of your language, used to find localisation strings.");
 
+static void Filter_Reload_f(void)
+{
+	char *file = FS_MallocFile("filter.txt", FS_ROOT, NULL);
+	FilterInit(file?file:"");
+	FS_FreeFile(file);
+}
 void TranslateInit(void)
 {
+	Cmd_AddCommand("com_reloadfilter", Filter_Reload_f);
 	Cvar_Register(&language, "Internationalisation");
 }
 
@@ -44,6 +54,7 @@ void TL_Shutdown(void)
 		PO_Close(languages[j].po_qex);
 		languages[j].po_qex = NULL;
 	}
+	FilterPurge();
 }
 
 static int TL_LoadLanguage(char *lang)
@@ -621,6 +632,7 @@ void TL_Reformat(int language, char *out, size_t outsize, size_t numargs, const 
 	const char *fmt;
 	const char *a;
 	size_t alen;
+	unsigned int lastindex = 0;
 
 	fmt = (numargs>0&&arg[0])?arg[0]:"";
 	fmt = TL_Translate(language, fmt);
@@ -636,8 +648,11 @@ void TL_Reformat(int language, char *out, size_t outsize, size_t numargs, const 
 			*out++ = '}', fmt+=2, outsize--;
 		else if (*fmt == '{')
 		{
-			unsigned int index = strtoul(fmt+1, (char**)&fmt, 10)+1;
+			const char *idxstr = fmt+1;
+			unsigned int index = strtoul(idxstr, (char**)&fmt, 10)+1;
 			int size = 0;
+			if (idxstr == fmt)	//when no index value was specified, just go for the next one
+				index = lastindex+1;
 			if (*fmt == ',')
 				size = strtol(fmt+1, (char**)&fmt, 10);
 			if (*fmt == ':')
@@ -655,6 +670,8 @@ void TL_Reformat(int language, char *out, size_t outsize, size_t numargs, const 
 				a = "";
 			else
 				a = TL_Translate(language, arg[index]);
+
+			lastindex = index;
 
 			alen = strlen(a);
 			if (alen > outsize)
@@ -680,4 +697,216 @@ void TL_Reformat(int language, char *out, size_t outsize, size_t numargs, const 
 			*out++ = *fmt++, outsize--;
 	}
 	*out = 0;
+}
+
+#include <ctype.h>
+static qbyte *filter[256]; //one list per lead char, simple optimisation instead of some big decision tree.
+static qbyte *filtermem;
+static int FilterCompareWords(const void *v1, const void *v2)
+{
+	const char *s1 = *(const char*const*)v1;
+	const char *s2 = *(const char*const*)v2;
+	return strcmp(s2,s1);
+}
+static void FilterPurge(void)
+{
+	memset(filter, 0, sizeof(filter));
+	free(filtermem);
+	filtermem = NULL;
+}
+static void FilterInit(const char *file)
+{
+	qbyte *tempmemstart = malloc(strlen(file)+1);
+	qbyte *tempmem = tempmemstart;
+	const char **words;
+	size_t count = 1, i, l;
+	size_t bytes;
+	const char *c;
+
+	FilterPurge();
+
+	for (c = file; *c; c++)
+		if (*c == '\n')
+			count++;
+
+	words = malloc(sizeof(qbyte*)*count);
+	count = 0;
+	for (c = file; *c; )
+	{
+		while (*c == '\n')
+			c++;	//don't add 0-byte strings...
+		words[count] = tempmem;
+		for (; *c; c++)
+		{
+			if (*c == ' ')
+				continue; //block even if they omit the spaces.
+			if (*c == '\n')
+				break;
+			*tempmem++ = tolower(*c);
+		}
+		*tempmem++ = 0;
+		if (*words[count])
+			count++;
+	}
+	qsort(words, count, sizeof(words[0]), FilterCompareWords);	//sort by lead byte... and longest first...
+	i = 0;
+	for (i = 0, bytes = 0; i < count; i++)
+		bytes += strlen(words[i])+1;
+	bytes += countof(filter);
+	filtermem = tempmem = malloc(bytes);
+
+	for (l = countof(filter), i = 0; l-- > 0; )
+	{
+		if (i < count && words[i][0] == l)
+		{
+			filter[l] = tempmem;
+			while (i < count && *words[i] == l)
+			{	//second copy... urgh. can forget the first char and replace with a length.
+				*tempmem++ = strlen(words[i]+1);
+				memcpy(tempmem, words[i]+1, tempmem[-1]);	//just the text, no null needed. tighly packed.
+				tempmem += tempmem[-1];
+				i++;
+			}
+			*tempmem++ = 0;
+		}
+		else
+			filter[l] = NULL;
+	}
+	free(tempmemstart);
+	free(words);
+}
+#define whiteish(c) (c == ',' || c == '.' || c == ' ' || c == '\t' || c == '\r' || c == '\n')
+char *FilterObsceneString(const qbyte *in, char *outbuf, size_t bufsize)
+{	//input must be utf-8... if there's any ^ crap in there then strip it first. no bypassing filters with colour codes.
+	char *ret = outbuf;
+	if (strlen(in) >= bufsize)
+		Sys_Error("output buffer too small!");
+	if (!filtermem)
+		Filter_Reload_f();
+restart:
+	while (*in)
+	{
+		qbyte c = tolower(*in);
+		if (filter[c])
+		{
+			qbyte *m = filter[c];
+			while (*m)
+			{	//for each word starting with this letter...
+				const qbyte *test = in+1;
+				qbyte len = *m;
+				const qbyte *match = m+1;
+				m += 1+len;
+				while (*test)
+				{	//don't let 'foo bar' through when 'foobar' is a bad word.
+					if (whiteish(*test))
+					{
+						test++;
+						continue;
+					}
+
+					if (tolower(*test) == *match)
+					{
+						test++, match++;
+						if (--len == 0)
+						{	//a match.
+							if (*test && !whiteish(*test))
+								break;	//assassinate!
+							while (test > in)
+							{	//censor it.
+								*outbuf = "#*@$"[(outbuf-ret)&3];
+								outbuf++;
+								in++;
+							}
+							goto restart; //double breaks suck
+						}
+						continue;
+					}
+					break;
+				}
+			}
+		}
+		while (*in)
+		{
+			if (whiteish(*in))
+			{
+				*outbuf++ = *in++;
+				break;
+			}
+			*outbuf++ = *in++;
+		}
+	}
+	*outbuf++ = 0;	//make sure its null terminated.
+	return ret;
+}
+qboolean TL_FilterObsceneCCStringInplace(conchar_t *in, conchar_t *end)
+{	//FIXME: filters are meant to be utf-8, but our strings are not.
+	qboolean obscene = false;
+//	conchar_t *start = in;
+	conchar_t *next;
+	if (!filtermem)
+		Filter_Reload_f();
+restart:
+	while(in < end)
+	{
+		unsigned int c, cflags;
+		next = Font_Decode(in, &cflags, &c);
+		c = towlower(c);
+		if (c < 255 && filter[c])
+		{
+			qbyte *m = filter[c];
+			while (*m)
+			{	//for each word starting with this letter...
+				conchar_t *test = next;
+				qbyte len = *m;
+				const qbyte *match = m+1;
+				int err;
+				m += 1+len;
+				while(*match && test < end)
+				{	//don't let 'foo bar' through when 'foobar' is a bad word.
+					test = Font_Decode(test, &cflags, &c);
+					if (whiteish(c))
+						continue;
+
+					if (towlower(c) == utf8_decode(&err, match, (char const**)&match))
+					{
+						if (--len == 0)
+						{	//a match.
+
+							//peek the next and reject it if we're still mid word
+							if (test < end)
+								Font_Decode(test, &cflags, &c);
+							else
+								c = 0;
+							if (c && !whiteish(c))
+								break;	//assassinate!
+
+							//okay, not mid-word, obuscate the swears.
+							while (test > in)
+							{	//censor it.
+								if (*in & CON_LONGCHAR && !(*in & CON_RICHFORECOLOUR))
+									*in = CON_LONGCHAR;	//no other flags here.
+								else
+								{
+									//*in = "#@*$"[(in-start)&3] | CON_WHITEMASK;
+									*in	= 0x26a0 | CON_WHITEMASK | (*in&CON_HIDDEN);
+									obscene = true;
+								}
+								in++;
+							}
+							goto restart; //double breaks suck
+						}
+						continue;
+					}
+					break;
+				}
+			}
+		}
+		for(; next < end; next = Font_Decode(next, &cflags, &c))
+		{
+			if (whiteish(c))
+				break;
+		}
+		in = next;
+	}
+	return obscene;
 }

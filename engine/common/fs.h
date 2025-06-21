@@ -44,7 +44,7 @@ struct searchpathfuncs_s
 	void			(QDECL *ReadFile)(searchpathfuncs_t *handle, flocation_t *loc, char *buffer);	//reads the entire file in one go (size comes from loc, so make sure the loc is valid, this is for performance with compressed archives)
 	int				(QDECL *EnumerateFiles)(searchpathfuncs_t *handle, const char *match, int (QDECL *func)(const char *fname, qofs_t fsize, time_t mtime, void *parm, searchpathfuncs_t *spath), void *parm);
 
-	int				(QDECL *GeneratePureCRC) (searchpathfuncs_t *handle, int seed, int usepure);
+	int				(QDECL *GeneratePureCRC) (searchpathfuncs_t *handle, const int *seed);
 
 	vfsfile_t *		(QDECL *OpenVFS)(searchpathfuncs_t *handle, flocation_t *loc, const char *mode);
 
@@ -73,6 +73,7 @@ void FS_UnRegisterFileSystemModule(void *module);
 
 void FS_AddHashedPackage(searchpath_t **oldpaths, const char *parent_pure, const char *parent_logical, searchpath_t *search, unsigned int loadstuff, const char *pakpath, const char *qhash, const char *pakprefix, unsigned int packageflags);
 void PM_LoadPackages(searchpath_t **oldpaths, const char *parent_pure, const char *parent_logical, searchpath_t *search, unsigned int loadstuff, int minpri, int maxpri);
+qboolean PM_HandleRedirect(const char *package, char *url, size_t urlsize);
 void PM_ManifestChanged(ftemanifest_t *man);
 void *PM_GeneratePackageFromMeta(vfsfile_t *file, char *fname, size_t fnamesize, enum fs_relative *fsroot);
 void PM_FileInstalled(const char *filename, enum fs_relative fsroot, void *metainfo, qboolean enable); //we finished installing a file via some other mechanism (drag+drop or from server. insert it into the updates menu.
@@ -85,7 +86,7 @@ unsigned int PM_MarkUpdates (void);	//mark new/updated packages as needing insta
 void PM_ApplyChanges(void);	//for -install/-doinstall args
 qboolean PM_AreSourcesNew(qboolean doprompt);
 qboolean PM_FindUpdatedEngine(char *syspath, size_t syspathsize);	//names the engine we should be running
-void PM_AddManifestPackages(ftemanifest_t *man);
+void PM_AddManifestPackages(ftemanifest_t *man, qboolean mayapply);
 void Menu_Download_Update(void);
 
 typedef struct
@@ -107,7 +108,7 @@ enum modsourcetype_e
 
 	MST_UNKNOWN,	//forgot where it came from...
 };
-int FS_EnumerateKnownGames(qboolean (*callback)(void *usr, ftemanifest_t *man, enum modsourcetype_e sourcetype), void *usr);
+int FS_EnumerateKnownGames(qboolean (*callback)(void *usr, ftemanifest_t *man, enum modsourcetype_e sourcetype), void *usr, qboolean fixedbasedir);
 
 struct modlist_s
 {

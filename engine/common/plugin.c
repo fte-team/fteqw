@@ -1,6 +1,6 @@
 //This file should be easily portable.
 //The biggest strength of this plugin system is that ALL interactions are performed via
-//named functions, this makes it *really* easy to port plugins from one engine to annother.
+//named functions, this makes it *really* easy to port plugins from one engine to another.
 
 #include "quakedef.h"
 #include "fs.h"
@@ -16,7 +16,6 @@ struct q3gamecode_s *q3;
 static struct plugin_s *q3plug;
 #endif
 
-#define Q_snprintf Q_snprintfz
 #define Q_strlcpy Q_strncpyz
 #define Q_strlcat Q_strncatz
 #define Sys_Errorf Sys_Error
@@ -28,12 +27,20 @@ static struct plugin_s *q3plug;
 	#include "../engine/common/com_phys_ode.c"
 #endif
 
+#if defined(HAVE_CLIENT) && defined(STATIC_EZHUD)	//if its statically linked and loading by default then block it by default and let configs reenable it. The defaults must be maintained for deltaing configs to work, yet they're defective and should never be used in that default configuration
+cvar_t plug_sbar = CVARD("plug_sbar", "0", "Controls whether plugins are allowed to draw the hud, rather than the engine (when allowed by csqc). This is typically used to permit the ezhud plugin without needing to bother unloading it.\n=0: never use hud plugins.\n&1: Use hud plugins in deathmatch.\n&2: Use hud plugins in singleplayer/coop.\n=3: Always use hud plugins (when loaded).");
+#else
 cvar_t plug_sbar = CVARD("plug_sbar", "3", "Controls whether plugins are allowed to draw the hud, rather than the engine (when allowed by csqc). This is typically used to permit the ezhud plugin without needing to bother unloading it.\n=0: never use hud plugins.\n&1: Use hud plugins in deathmatch.\n&2: Use hud plugins in singleplayer/coop.\n=3: Always use hud plugins (when loaded).");
+#endif
 cvar_t plug_loaddefault = CVARD("plug_loaddefault", "1", "0: Load plugins only via explicit plug_load commands\n1: Load built-in plugins and those selected via the package manager\n2: Scan for misc plugins, loading all that can be found, but not built-ins.\n3: Scan for plugins, and then load any built-ins");
 
 extern qboolean Plug_Q3_Init(void);
 extern qboolean Plug_Bullet_Init(void);
 extern qboolean Plug_ODE_Init(void);
+#if defined(HAVE_CLIENT) && defined(STATIC_EZHUD)
+extern qboolean Plug_EZHud_Init(void);
+#endif
+extern qboolean Plug_OpenSSL_Init(void);
 static struct
 {
 	const char *name;
@@ -50,6 +57,12 @@ static struct
 	{"GLTF", Plug_GLTF_Init},
 #endif
 
+#ifdef STATIC_OPENSSL
+	{"openssl_internal", Plug_OpenSSL_Init},
+#endif
+#if defined(HAVE_CLIENT) && defined(STATIC_EZHUD)
+	{"EZHud_internal", Plug_EZHud_Init},
+#endif
 #ifdef STATIC_Q3
 	{"quake3", Plug_Q3_Init},
 #endif
@@ -229,14 +242,14 @@ static plugin_t *Plug_Load(const char *file)
 		{	//already postfixed, don't mess with the name given
 			//mandate the fteplug_ prefix (don't let them load random dlls)
 			if (!Q_strncasecmp(file, PLUGINPREFIX, strlen(PLUGINPREFIX)))
-				if (FS_NativePath(file, prefixes[i], newplug->filename, sizeof(newplug->filename)))
+				if (FS_SystemPath(file, prefixes[i], newplug->filename, sizeof(newplug->filename)))
 					newplug->lib = Sys_LoadLibrary(newplug->filename, funcs);
 		}
 		else
 		{	//otherwise scan for it
 			for (j = 0; j < countof(postfixes) && !newplug->lib; j++)
 			{
-				if (FS_NativePath(va(PLUGINPREFIX"%s%s", file, postfixes[j]), prefixes[i], newplug->filename, sizeof(newplug->filename)))
+				if (FS_SystemPath(va(PLUGINPREFIX"%s%s", file, postfixes[j]), prefixes[i], newplug->filename, sizeof(newplug->filename)))
 					newplug->lib = Sys_LoadLibrary(newplug->filename, funcs);
 			}
 		}
@@ -1068,7 +1081,9 @@ void Plug_Net_Close_Internal(qhandle_t handle)
 
 static int QDECL Plug_Net_Recv(qhandle_t handle, void *dest, int destlen)
 {
+#ifdef HAVE_PACKET
 	int read;
+#endif
 
 	if (handle < 0 || handle >= pluginstreamarraylen || pluginstreamarray[handle].plugin != currentplug)
 		return -2;
@@ -1098,7 +1113,9 @@ static int QDECL Plug_Net_Recv(qhandle_t handle, void *dest, int destlen)
 }
 static int QDECL Plug_Net_Send(qhandle_t handle, void *src, int srclen)
 {
+#ifdef HAVE_PACKET
 	int written;
+#endif
 	if (handle < 0 || handle >= pluginstreamarraylen || pluginstreamarray[handle].plugin != currentplug)
 		return -2;
 	switch(pluginstreamarray[handle].type)
@@ -1125,6 +1142,7 @@ static int QDECL Plug_Net_Send(qhandle_t handle, void *src, int srclen)
 		return -2;
 	}
 }
+#ifdef HAVE_PACKET
 static int QDECL Plug_Net_SendTo(qhandle_t handle, void *src, int srclen, netadr_t *address)
 {
 	int written;
@@ -1146,7 +1164,6 @@ static int QDECL Plug_Net_SendTo(qhandle_t handle, void *src, int srclen, netadr
 		return -2;
 	switch(pluginstreamarray[handle].type)
 	{
-#ifdef HAVE_PACKET
 	case STREAM_SOCKET:
 		written = sendto(pluginstreamarray[handle].socket, src, srclen, 0, (struct sockaddr*)&sockaddr, sizeof(sockaddr));
 		if (written < 0)
@@ -1159,11 +1176,11 @@ static int QDECL Plug_Net_SendTo(qhandle_t handle, void *src, int srclen, netadr
 		else if (written == 0)
 			return -2;	//closed by remote connection.
 		return written;
-#endif
 	default:
 		return -2;
 	}
 }
+#endif
 static void QDECL Plug_Net_Close(qhandle_t handle)
 {
 	if (handle < 0 || handle >= pluginstreamarraylen || pluginstreamarray[handle].plugin != currentplug)
@@ -1187,7 +1204,7 @@ void QDECL Plug_FS_EnumerateFiles(enum fs_relative fsroot, const char *match, in
 		}
 		else
 		{
-			FS_NativePath("", fsroot, base, sizeof(base));
+			FS_SystemPath("", fsroot, base, sizeof(base));
 			Sys_EnumerateFiles(base, match, callback, ctx, NULL);
 		}
 	}
@@ -1235,7 +1252,7 @@ static void Plug_Load_f(void)
 
 void Plug_Initialise(qboolean fromgamedir)
 {
-	char nat[MAX_OSPATH];
+	char sys[MAX_OSPATH], disp[MAX_OSPATH];
 
 	if (!plugfuncs)
 	{
@@ -1260,15 +1277,15 @@ void Plug_Initialise(qboolean fromgamedir)
 	{
 		if (!fromgamedir)
 		{
-			if (FS_NativePath("", FS_BINARYPATH, nat, sizeof(nat)))
+			if (FS_DisplayPath("", FS_BINARYPATH, disp, sizeof(disp)) && FS_SystemPath("", FS_BINARYPATH, sys, sizeof(sys)))
 			{
-				Con_DPrintf("Loading plugins from \"%s\"\n", nat);
-				Sys_EnumerateFiles(nat, PLUGINPREFIX"*" ARCH_CPU_POSTFIX ARCH_DL_POSTFIX, Plug_EnumeratedRoot, NULL, NULL);
+				Con_DPrintf("Loading plugins from \"%s\"\n", disp);
+				Sys_EnumerateFiles(sys, PLUGINPREFIX"*" ARCH_CPU_POSTFIX ARCH_DL_POSTFIX, Plug_EnumeratedRoot, NULL, NULL);
 			}
-			if (FS_NativePath("", FS_LIBRARYPATH, nat, sizeof(nat)))
+			if (FS_DisplayPath("", FS_LIBRARYPATH, disp, sizeof(disp)) && FS_SystemPath("", FS_BINARYPATH, sys, sizeof(sys)))
 			{
-				Con_DPrintf("Loading plugins from \"%s\"\n", nat);
-				Sys_EnumerateFiles(nat, PLUGINPREFIX"*" ARCH_CPU_POSTFIX ARCH_DL_POSTFIX, Plug_EnumeratedRoot, NULL, NULL);
+				Con_DPrintf("Loading plugins from \"%s\"\n", disp);
+				Sys_EnumerateFiles(sys, PLUGINPREFIX"*" ARCH_CPU_POSTFIX ARCH_DL_POSTFIX, Plug_EnumeratedRoot, NULL, NULL);
 			}
 		}
 	}
@@ -1538,7 +1555,7 @@ qboolean Plug_ChatMessage(char *buffer, int talkernum, int tpflags)
 	return ret; // true to display message, false to supress
 }
 
-qboolean Plug_CenterPrintMessage(char *buffer, int clientnum)
+qboolean Plug_CenterPrintMessage(const char *buffer, int clientnum)
 {
 	qboolean ret = true;
 
@@ -1664,7 +1681,7 @@ void Plug_Close_f(void)
 
 	for (plug = plugs; plug; plug = plug->next)
 	{
-		if (!strcmp(plug->name, name))
+		if (!Q_strcasecmp(plug->name, name))
 		{
 			Plug_Close(plug);
 			return;
@@ -1674,7 +1691,7 @@ void Plug_Close_f(void)
 	name = va("plugins/%s", name);
 	for (plug = plugs; plug; plug = plug->next)
 	{
-		if (!strcmp(plug->name, name))
+		if (!Q_strcasecmp(plug->name, name))
 		{
 			Plug_Close(plug);
 			return;
@@ -1760,6 +1777,7 @@ int QDECL Plug_List_Print(const char *fname, qofs_t fsize, time_t modtime, void 
 
 void Plug_List_f(void)
 {
+	char displaypath[MAX_OSPATH];
 	char binarypath[MAX_OSPATH];
 	char librarypath[MAX_OSPATH];
 	char rootpath[MAX_OSPATH];
@@ -1768,7 +1786,10 @@ void Plug_List_f(void)
 
 	Con_Printf("Loaded plugins:\n");
 	for (plug = plugs; plug; plug = plug->next)
-		Con_Printf("^[^2%s\\type\\plug_close %s\\^]: loaded\n", plug->filename, plug->name);
+		if (plug->lib && FS_DisplayPath(plug->filename, FS_SYSTEM, displaypath, sizeof(displaypath)))
+			Con_Printf("^[^2%s\\type\\plug_close %s\\^]: loaded\n", displaypath, plug->name);
+		else
+			Con_Printf("^[^2%s\\type\\plug_close %s\\^]: loaded\n", plug->filename, plug->name);
 
 	if (staticplugins[0].name)
 	{
@@ -1777,17 +1798,18 @@ void Plug_List_f(void)
 			Plug_List_Print(staticplugins[u].name, 0, 0, NULL, NULL);
 	}
 
-	if (FS_NativePath("", FS_BINARYPATH, binarypath, sizeof(binarypath)))
+	if (FS_SystemPath("", FS_BINARYPATH, binarypath, sizeof(binarypath)))
 	{
 #ifdef _WIN32
 		char *mssuck;
 		while ((mssuck=strchr(binarypath, '\\')))
 			*mssuck = '/';
 #endif
-		Con_Printf("Scanning for plugins at %s:\n", binarypath);
-		Sys_EnumerateFiles(binarypath, PLUGINPREFIX"*" ARCH_DL_POSTFIX, Plug_List_Print, binarypath, NULL);
+		if (FS_DisplayPath(binarypath, FS_SYSTEM, displaypath, sizeof(displaypath)))
+			Con_Printf("Scanning for plugins at %s:\n", displaypath);
+		Sys_EnumerateFiles(binarypath, PLUGINPREFIX"*" ARCH_DL_POSTFIX, Plug_List_Print, displaypath, NULL);
 	}
-	if (FS_NativePath("", FS_LIBRARYPATH, librarypath, sizeof(librarypath)))
+	if (FS_SystemPath("", FS_LIBRARYPATH, librarypath, sizeof(librarypath)))
 	{
 #ifdef _WIN32
 		char *mssuck;
@@ -1796,11 +1818,12 @@ void Plug_List_f(void)
 #endif
 		if (strcmp(librarypath, rootpath))
 		{
-			Con_Printf("Scanning for plugins at %s:\n", librarypath);
-			Sys_EnumerateFiles(librarypath, PLUGINPREFIX"*" ARCH_DL_POSTFIX, Plug_List_Print, librarypath, NULL);
+			if (FS_DisplayPath(librarypath, FS_SYSTEM, displaypath, sizeof(displaypath)))
+				Con_Printf("Scanning for plugins at %s:\n", displaypath);
+			Sys_EnumerateFiles(librarypath, PLUGINPREFIX"*" ARCH_DL_POSTFIX, Plug_List_Print, displaypath, NULL);
 		}
 	}
-	if (FS_NativePath("", FS_ROOT, rootpath, sizeof(rootpath)))
+	if (FS_SystemPath("", FS_ROOT, rootpath, sizeof(rootpath)))
 	{
 #ifdef _WIN32
 		char *mssuck;
@@ -1809,8 +1832,9 @@ void Plug_List_f(void)
 #endif
 		if (strcmp(binarypath, rootpath))
 		{
-			Con_DPrintf("Scanning for plugins at %s:\n", rootpath);
-			Sys_EnumerateFiles(rootpath, PLUGINPREFIX"*" ARCH_DL_POSTFIX, Plug_List_Print, rootpath, NULL);
+			if (FS_DisplayPath(rootpath, FS_SYSTEM, displaypath, sizeof(displaypath)))
+				Con_Printf("Scanning for plugins at %s:\n", displaypath);
+			Sys_EnumerateFiles(rootpath, PLUGINPREFIX"*" ARCH_DL_POSTFIX, Plug_List_Print, displaypath, NULL);
 		}
 	}
 
@@ -1948,7 +1972,7 @@ static void *QDECL PlugBI_GetEngineInterface(const char *interfacename, size_t s
 
 			FS_FLocateFile,
 			FS_OpenVFS,
-			FS_NativePath,
+			FS_SystemPath,
 
 			FS_Rename,
 			FS_Remove,
@@ -2009,6 +2033,7 @@ static void *QDECL PlugBI_GetEngineInterface(const char *interfacename, size_t s
 		if (structsize == sizeof(funcs))
 			return &funcs;
 	}
+#ifdef HAVE_PACKET
 	if (!strcmp(interfacename, plugnetfuncs_name))
 	{
 		static plugnetfuncs_t funcs =
@@ -2038,6 +2063,7 @@ static void *QDECL PlugBI_GetEngineInterface(const char *interfacename, size_t s
 		if (structsize == sizeof(funcs))
 			return &funcs;
 	}
+#endif
 	if (!strcmp(interfacename, plugworldfuncs_name))
 	{
 		static plugworldfuncs_t funcs =
@@ -2265,6 +2291,7 @@ static void *QDECL PlugBI_GetEngineInterface(const char *interfacename, size_t s
 			return &funcs;
 	}
 
+#ifdef CL_MASTER
 	if (!strcmp(interfacename, plugmasterfuncs_name))
 	{
 		static plugmasterfuncs_t funcs =
@@ -2285,6 +2312,7 @@ static void *QDECL PlugBI_GetEngineInterface(const char *interfacename, size_t s
 		if (structsize == sizeof(funcs))
 			return &funcs;
 	}
+#endif
 	if (!strcmp(interfacename, plugimagefuncs_name))
 	{
 		static plugimagefuncs_t funcs =
@@ -2374,6 +2402,7 @@ static void *QDECL PlugBI_GetEngineInterface(const char *interfacename, size_t s
 			VectorAngles,
 			AngleVectors,
 			GenMatrixPosQuat4Scale,
+			QuaternionSlerp,
 
 			Alias_ForceConvertBoneData,
 

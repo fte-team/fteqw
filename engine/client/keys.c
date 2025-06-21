@@ -944,7 +944,7 @@ void Key_DefaultLinkClicked(console_t *con, char *text, char *info)
 			if (*cl.players[player].ip)
 				Con_Footerf(con, true, "\n%s", cl.players[player].ip);
 
-			if (cl.playerview[0].spectator || cls.demoplayback==DPB_MVD||cls.demoplayback==DPB_EZTV)
+			if (cl.playerview[0].spectator || cls.demoplayback==DPB_MVD)
 			{
 				//we're spectating, or an mvd
 				Con_Footerf(con, true, " ^[Spectate\\player\\%i\\action\\spec^]", player);
@@ -1133,7 +1133,7 @@ void Key_DefaultLinkClicked(console_t *con, char *text, char *info)
 	c = Info_ValueForKey(info, "playaudio");
 	if (*c && !strchr(c, ';') && !strchr(c, '\n'))
 	{
-		Cbuf_AddText(va("\nplay \"%s\"\n", c), RESTRICT_LOCAL);
+		S_StartSound(0, 0x7ffffffe, S_PrecacheSound(c), NULL, NULL, 1, ATTN_NONE, 0, 0, CF_NOSPACIALISE);
 		return;
 	}
 	c = Info_ValueForKey(info, "desc");
@@ -2328,7 +2328,7 @@ int Key_StringToKeynum (const char *str, int *modifier)
 		for (i = 0; i < countof(mods); )
 		{
 			if (!Q_strncasecmp(mods[i].prefix, str, mods[i].len))
-				if (str[mods[i].len] == '_' || str[mods[i].len] == '+' || str[mods[i].len] == ' ')
+				if (/*str[mods[i].len] == '_' ||*/ str[mods[i].len] == '+' || str[mods[i].len] == ' ')
 				if (str[mods[i].len+1])
 				{
 					*modifier |= mods[i].mod;
@@ -2964,8 +2964,9 @@ void Key_Event (unsigned int devid, int key, unsigned int unicode, qboolean down
 		}
 	}
 
-	//yes, csqc is allowed to steal the escape key.
-	if (key != '`' && (!down || key != K_ESCAPE || (!Key_Dest_Has(~kdm_game) && !shift_down)) &&
+	//yes, csqc is allowed to steal the escape key (unless shift).
+	//it is blocked from blocking backtick (unless shift).
+	if ((key != '`'||shift_down) && (!down || key != K_ESCAPE || (!Key_Dest_Has(~kdm_game) && !shift_down)) &&
 		!Key_Dest_Has(~kdm_game))
 	{
 #ifdef CSQC_DAT
@@ -3079,23 +3080,42 @@ void Key_Event (unsigned int devid, int key, unsigned int unicode, qboolean down
 //
 // during demo playback, most keys bring up the main menu
 //
-	if (cls.demoplayback && cls.demoplayback != DPB_MVD && cls.demoplayback != DPB_EZTV && conkey && !Key_Dest_Has(~kdm_game))
+	if (cls.demoplayback && cls.demoplayback != DPB_MVD && conkey && !Key_Dest_Has(~kdm_game))
 	{
-		switch (key)
-		{	//these keys don't force the menu to appear while playing the demo reel
-		case K_LSHIFT:
-		case K_RSHIFT:
-		case K_LALT:
-		case K_RALT:
-		case K_LCTRL:
-//		case K_RCTRL:
-			break;
-		default:
-			dc = keybindings[key][modifierstate];
-			//toggleconsole or +showFOO keys should do their regular bind action
-			//demo_jump/demo_setspeed/demo_nudge should be allowed too.
-			if (!dc || (strcmp(dc, "toggleconsole") && strncmp(dc, "+show", 5) && strncmp(dc, "demo_", 5)))
-			{
+		dc = keybindings[key][modifierstate];
+		if (!dc || (strcmp(dc, "toggleconsole") && strncmp(dc, "+show", 5) && strncmp(dc, "demo_", 5)))
+		{
+			extern cvar_t cl_demospeed;
+			switch (key)
+			{	//these keys don't force the menu to appear while playing the demo reel
+			case K_LSHIFT:
+			case K_RSHIFT:
+			case K_LALT:
+			case K_RALT:
+			case K_LCTRL:
+	//		case K_RCTRL:
+				break;
+			//demo modifiers...
+			case K_DOWNARROW:
+			case K_GP_DPAD_DOWN:
+				Cvar_SetValue(&cl_demospeed, max(cl_demospeed.value - 0.1, 0));
+				Con_Printf("playback speed: %g%%\n", cl_demospeed.value*100);
+				return;
+			case K_UPARROW:
+			case K_GP_DPAD_UP:
+				Cvar_SetValue(&cl_demospeed, min(cl_demospeed.value + 0.1, 10));
+				Con_Printf("playback speed: %g%%\n", cl_demospeed.value*100);
+				return;
+			case K_LEFTARROW:
+			case K_GP_DPAD_LEFT:
+				Cbuf_AddText("demo_jump -10", RESTRICT_LOCAL);	//expensive.
+				return;
+			case K_RIGHTARROW:
+			case K_GP_DPAD_RIGHT:
+				Cbuf_AddText("demo_jump +10", RESTRICT_LOCAL);
+				return;
+			//any other key
+			default:
 				M_ToggleMenu_f ();
 				return;
 			}
@@ -3243,6 +3263,8 @@ defaultedbind:
 	if (key == K_TOUCH || (key == K_MOUSE1 && IN_Touch_MouseIsAbs(devid)))
 	{
 		const char *button = SCR_ShowPics_ClickCommand(mousecursor_x, mousecursor_y, key == K_TOUCH);
+		if (!button && cl.mouseplayerview && cl.mousenewtrackplayer>=0)
+			Cam_Lock(cl.mouseplayerview, cl.mousenewtrackplayer);
 		if (button)
 		{
 			dc = button;

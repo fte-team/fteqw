@@ -378,7 +378,7 @@ vfsfile_t *Sys_ForkServer(void)
 		close(toslave[0]);
 		dup2(tomaster[1], STDOUT_FILENO);
 
-		SSV_SetupControlPipe(Sys_GetStdInOutStream());
+		SSV_SetupControlPipe(Sys_GetStdInOutStream(), false);
 
 		FS_UnloadPackFiles();	//these handles got wiped. make sure they're all properly wiped before loading new handles.
 		NET_Shutdown();			//make sure we close any of the parent's network fds ...

@@ -239,7 +239,7 @@ void Draw_Hexen2BigFontString(int x, int y, const char *text)
 }
 #endif
 
-mpic_t *QBigFontWorks(void)
+void *QBigFontWorks(void)
 {
 	mpic_t *p;
 	int i;
@@ -250,14 +250,15 @@ mpic_t *QBigFontWorks(void)
 		"textures/mcharset.lmp",
 		NULL
 	};
+	if (font_menu)
+		return font_menu;
 	for (i = 0; names[i]; i++)
 	{
 		p = R2D_SafeCachePic (names[i]);
 		if (p && R_GetShaderSizes(p, NULL, NULL, true))
 			return p;
 	}
-
-	return (mpic_t*)font_menu;
+	return NULL;
 }
 void Draw_BigFontString(int x, int y, const char *text)
 {
@@ -480,7 +481,7 @@ static qboolean M_MouseMoved(emenu_t *menu)
 					if (opt2->common.posy + opt2->common.height > maxy)
 						maxy = opt2->common.posy + opt2->common.height;
 				}
-				maxy -= vid.height-8;
+				maxy -= vid.height;
 				framescroll += option->frame.frac * maxy;
 				ypos -= option->frame.frac * maxy;
 			}
@@ -598,7 +599,7 @@ static void MenuDrawItems(int xpos, int ypos, menuoption_t *option, emenu_t *men
 			}
 		}
 
-		if (&menu->menu == topmenu && menu->mouseitem == option && option->common.type != mt_frameend)
+		if (&menu->menu == topmenu && menu->mouseitem == option && option->common.type != mt_frameend && !Key_Dest_Has_Higher(kdm_menu))
 		{
 			float alphamax = 0.5, alphamin = 0.2;
 			R2D_ImageColours(.5,.4,0,(sin(realtime*2)+1)*0.5*(alphamax-alphamin)+alphamin);
@@ -608,12 +609,16 @@ static void MenuDrawItems(int xpos, int ypos, menuoption_t *option, emenu_t *men
 		switch(option->common.type)
 		{
 		case mt_menucursor:
+			if (Key_Dest_Has_Higher(kdm_menu))
+				break;
 			if ((int)(realtime*4)&1)
 				Draw_FunString(xpos+option->common.posx, ypos+option->common.posy, "^Ue00d");
 			break;
 		case mt_text:
 			if (!option->text.text)
 			{	//blinking cursor image hack (FIXME)
+				if (Key_Dest_Has_Higher(kdm_menu))
+					break;
 				if ((int)(realtime*4)&1)
 					Draw_FunString(xpos+option->common.posx, ypos+option->common.posy, "^Ue00d");
 			}
@@ -636,16 +641,18 @@ static void MenuDrawItems(int xpos, int ypos, menuoption_t *option, emenu_t *men
 			Draw_BigFontString(xpos+option->common.posx, ypos+option->common.posy, option->button.text);
 			break;
 		case mt_menudot:
+			if (Key_Dest_Has_Higher(kdm_menu))
+				break;
 			i = (int)(realtime * 10)%maxdots;
 			p = R2D_SafeCachePic(va(menudotstyle, i+mindot ));
-			if (R_GetShaderSizes(p, NULL, NULL, false)>0)
-				R2D_ScalePic(xpos+option->common.posx, ypos+option->common.posy+dotofs, option->common.width, option->common.height, p);
+			if (R_GetShaderSizes(p, &pw, &ph, false)>0)
+				R2D_ScalePic(xpos+option->common.posx, ypos+option->common.posy+dotofs, (pw/(float)ph)*option->common.width, option->common.height, p);
 			else if ((int)(realtime*4)&1)
 				Draw_FunString(xpos+option->common.posx, ypos+option->common.posy + (option->common.height-8)/2, "^a^Ue00d");
 			break;
 		case mt_picturesel:
 			p = NULL;
-			if (menu->selecteditem && menu->selecteditem->common.posx == option->common.posx && menu->selecteditem->common.posy == option->common.posy)
+			if (menu->selecteditem && menu->selecteditem->common.posx == option->common.posx && menu->selecteditem->common.posy == option->common.posy && !Key_Dest_Has_Higher(kdm_menu))
 			{
 				char selname[MAX_QPATH];
 				Q_strncpyz(selname, option->picture.picturename, sizeof(selname));
@@ -682,16 +689,16 @@ static void MenuDrawItems(int xpos, int ypos, menuoption_t *option, emenu_t *men
 				int maxy = option->frame.common.posy;
 				option->frame.common.width = 16;
 				option->frame.common.posx = vid.width - option->frame.common.width - xpos;
-				option->frame.common.height = vid.height-8-maxy - ypos;
+				option->frame.common.height = vid.height-maxy - ypos;
 				for (opt2 = option->common.next; opt2; opt2 = opt2->common.next)
 				{
 					if (opt2->common.posy + opt2->common.height > maxy)
 						maxy = opt2->common.posy + opt2->common.height;
 				}
-				maxy -= vid.height-8;
+				maxy -= vid.height;
 				framescrollheight = maxy;
 
-				if (maxy < 0)
+				if (maxy <= 0)
 				{
 					option->frame.mousedown = false;
 					option->frame.frac = 0;
@@ -785,7 +792,7 @@ static void MenuDrawItems(int xpos, int ypos, menuoption_t *option, emenu_t *men
 
 				if (option->check.text)
 				{
-					Draw_FunStringWidth(x, y, option->check.text, option->check.textwidth, true, !menu->cursoritem && menu->selecteditem == option);
+					Draw_FunStringWidth(x, y, option->check.text, option->check.textwidth, true, (!menu->cursoritem && menu->selecteditem == option) | ((option->check.var && (option->check.var->flags&CVAR_RENDEREROVERRIDE))?4:0));
 					x += option->check.textwidth + 3*8;
 				}
 #if 0
@@ -816,7 +823,7 @@ static void MenuDrawItems(int xpos, int ypos, menuoption_t *option, emenu_t *men
 					Draw_ApproxTextBox(x, y, 16*8, 8);
 				Draw_FunString(x, y, option->edit.text);
 
-				if (menu->selecteditem == option && (int)(realtime*4) & 1)
+				if (menu->selecteditem == option && (int)(realtime*4) & 1 && !Key_Dest_Has_Higher(kdm_menu))
 				{
 					vid.ime_allow = true;
 					vid.ime_position[0] = x;
@@ -892,7 +899,10 @@ static void MenuDrawItems(int xpos, int ypos, menuoption_t *option, emenu_t *men
 static void MenuDraw(emenu_t *menu)
 {
 	if (!menu->dontexpand)
-		menu->xpos = ((vid.width - 320)>>1);
+	{
+		menu->width = min(vid.width,320);
+		menu->xpos = ((vid.width - menu->width)>>1);
+	}
 	if (menu->predraw)
 		menu->predraw(menu);
 	if (menu->selecteditem && menu->selecteditem->common.type == mt_text)
@@ -901,7 +911,7 @@ static void MenuDraw(emenu_t *menu)
 		menu->menu.showosk = false;
 	MenuDrawItems(menu->xpos, menu->ypos, menu->options, menu);
 	// draw tooltip
-	if (menu->mouseitem && menu->tooltip && realtime > menu->tooltiptime)
+	if (menu->mouseitem && menu->tooltip && realtime > menu->tooltiptime && !Key_Dest_Has_Higher(kdm_menu))
 	{
 //		menuoption_t *option = menu->mouseitem;
 
@@ -1771,8 +1781,8 @@ void MC_CheckBox_Key(menucheck_t *option, emenu_t *menu, int key)
 			else
 				Cvar_SetValue(option->var, !option->var->value);
 		}
-		S_LocalSound ("misc/menu2.wav");
 	}
+	S_LocalSound ("misc/menu2.wav");
 }
 
 void MC_EditBox_Key(menuedit_t *edit, int key, unsigned int unicode)
@@ -1873,6 +1883,21 @@ static qboolean M_KeyEvent(menu_t *m, qboolean isdown, unsigned int devid, int k
 	{
 		if (key == K_MOUSE1 || key == K_TOUCHTAP)	//mouse clicks are deferred until the release event. this is for touch screens and aiming.
 		{
+
+			if (menu->mouseitem && menu->selecteditem != menu->mouseitem)
+			{
+				menu->selecteditem = menu->mouseitem;
+#ifdef HEXEN2
+				if (M_GameType() == MGT_HEXEN2)
+					S_LocalSound ("raven/menu1.wav");
+				else
+#endif
+					S_LocalSound ("misc/menu1.wav");
+
+				if (menu->cursoritem)
+					menu->cursoritem->common.posy = menu->selecteditem->common.posy + (menu->selecteditem->common.height-menu->cursoritem->common.height)/2;
+			}
+
 			if (menu->mouseitem && menu->mouseitem->common.type == mt_frameend)
 				menu->mouseitem->frame.mousedown = true;
 			else
@@ -2272,7 +2297,7 @@ void M_Complex_Key(emenu_t *currentmenu, int key, int unicode)
 			break;
 		if (currentmenu->mouseitem && currentmenu->selecteditem != currentmenu->mouseitem)
 		{
-			currentmenu->selecteditem = currentmenu->mouseitem;
+/*			currentmenu->selecteditem = currentmenu->mouseitem;
 #ifdef HEXEN2
 			if (M_GameType() == MGT_HEXEN2)
 				S_LocalSound ("raven/menu1.wav");
@@ -2282,7 +2307,7 @@ void M_Complex_Key(emenu_t *currentmenu, int key, int unicode)
 
 			if (currentmenu->cursoritem)
 				currentmenu->cursoritem->common.posy = currentmenu->selecteditem->common.posy + (currentmenu->selecteditem->common.height-currentmenu->cursoritem->common.height)/2;
-			break;	//require a double-click when selecting...
+*/			break;	//require a double-click when selecting... too easy to miss, and a touble-tap at least makes it easier to clarify what you meant.
 		}
 		//fall through
 	default:
@@ -2350,7 +2375,17 @@ qboolean MC_Main_Key (emenu_t *menu, int key, unsigned int unicode)	//here purly
 		//don't spam menu open+close events if we're not going to be allowing the console to appear
 		if (con_stayhidden.ival && cls.state == ca_disconnected)
 			if (!CL_TryingToConnect())
+			{
+				extern cvar_t cl_demoreel;
+				if (cl_demoreel.ival)
+				{	//start a demo instead. this should probably be on a timer...
+					cls.demonum = MAX_DEMOS;
+					CL_NextDemo();
+					if (cls.state)
+						return false;
+				}
 				return true;
+			}
 	}
 	return false;
 }
@@ -2376,10 +2411,15 @@ static int M_Main_AddExtraOptions(emenu_t *mainm, int y)
 #endif
 	}
 	if (Cmd_Exists("menu_mods"))
-	{
-		MC_AddConsoleCommandQBigFont(mainm, 72, y,	localtext("Mods          "), "menu_mods\n");	y += 20;
-		y += 20;
-	}
+		{MC_AddConsoleCommandQBigFont(mainm, 72, y,	localtext("Mods          "), "menu_mods\n");	y += 20;}
+
+	if (Cmd_Exists("sys_openfile"))
+		{MC_AddConsoleCommandQBigFont(mainm, 72, y,	localtext("Open File     "), "sys_openfile\n");	y += 20;}
+
+#ifdef FTE_TARGET_WEB
+	if (Cmd_Exists("xr_toggle"))
+		{MC_AddConsoleCommandQBigFont(mainm, 72, y,	localtext("Toggle WebXR  "), "xr_toggle\n");	y += 20;}
+#endif
 
 	return y;
 }
@@ -2678,7 +2718,9 @@ void M_Menu_Main_f (void)
 		y = 36;
 		mainm->selecteditem = (menuoption_t *)
 		//skip menu_single if we don't seem to have any content.
+#ifdef CL_MASTER
 		MC_AddConsoleCommandQBigFont	(mainm, 72, y,	localtext("Join server"),	"menu_servers\n");	y += 20;
+#endif
 		MC_AddConsoleCommandQBigFont	(mainm, 72, y,	localtext("^bOptions"),		"menu_options\n");	y += 20;
 		y = M_Main_AddExtraOptions(mainm, y);
 		MC_AddConsoleCommandQBigFont	(mainm, 72, y,	localtext("Quit"),			"menu_quit\n");		y += 20;
@@ -2691,8 +2733,10 @@ void M_Menu_Main_f (void)
 	b = NULL;
 	if (!b && !m_preset_chosen.ival)
 		b = M_FindButton(mainm, "menu_options\n");
+#ifdef PACKAGEMANAGER
 	if (!b && PM_AreSourcesNew(false))
 		b = M_FindButton(mainm, "menu_download\n");
+#endif
 	if (b)
 	{
 		mainm->selecteditem = (menuoption_t*)b;

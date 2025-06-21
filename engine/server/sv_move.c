@@ -660,6 +660,10 @@ struct waypointnetwork_s
 			int node;
 			float linkcost;//might be much lower in the case of teleports, or expensive if someone wanted it to be a lower priority link.
 			int linkflags; //LF_*
+			struct wphint_s
+			{
+				vec3_t pos[3];
+			} *hints;
 		} *neighbour;
 		size_t neighbours;
 	} waypoints[1];
@@ -675,7 +679,7 @@ void WayNet_Done(struct waypointnetwork_s *net)
 static qboolean WayNet_TokenizeLine(char **linestart)
 {
 	char *end = *linestart;
-	if (!*end)
+	if (!end || !*end)
 	{	//clear it out...
 		Cmd_TokenizeString("", false, false);
 		return false;
@@ -697,64 +701,220 @@ static struct waypointnetwork_s *WayNet_Begin(void **ctxptr, model_t *worldmodel
 	struct waypointnetwork_s *net = *ctxptr;
 	if (!net)
 	{
-		char *wf = NULL, *l, *e;
-		int numwaypoints, maxlinks, numlinks;
-		struct wpneighbour_s *nextlink;
+		char *wf = NULL;
+		qofs_t fsize = 0;
 		if (!worldmodel)
 			return NULL;
 		if (!wf && !strncmp(worldmodel->name, "maps/", 5))
 		{
 			char n[MAX_QPATH];
 			COM_StripExtension(worldmodel->name+5, n, sizeof(n));
-			wf = FS_MallocFile(va("data/%s.way", n), FS_GAME, NULL);
+			wf = FS_MallocFile(va("data/%s.way", n), FS_GAME, &fsize);
+			if (!wf)
+				wf = FS_MallocFile(va("bots/navigation/%s.nav", n), FS_GAME, &fsize);
 		}
 		if (!wf)
-			wf = FS_MallocFile(va("%s.way", worldmodel->name), FS_GAME, NULL);
-		if (!wf)
-			return NULL;
+			wf = FS_MallocFile(va("%s.way", worldmodel->name), FS_GAME, &fsize);
 
-		l = wf;
-		//read the number of waypoints
-		WayNet_TokenizeLine(&l);
-		numwaypoints = atoi(Cmd_Argv(0));
-		//count lines and guess the link count.
-		for (e = l, maxlinks=0; *e; e++)
-			if (*e == '\n')
-				maxlinks++;
-		maxlinks -= numwaypoints;
-		
-		net = Z_Malloc(sizeof(*net)-sizeof(net->waypoints) + (numwaypoints*sizeof(struct waypoint_s)) + (maxlinks*sizeof(struct wpneighbour_s)));
-		net->refs = 1;
-		net->worldmodel = worldmodel;
-		*ctxptr = net;
+		if (wf && fsize >= 8 && (
+			  (wf[0] == 'N' && wf[1] == 'A' && wf[2] == 'V' && wf[3] == '2'  &&  (wf[4]|(wf[5]<<8)|(wf[6]<<8)|(wf[7]<<8)) >= 12 && (wf[4]|(wf[5]<<8)|(wf[6]<<8)|(wf[7]<<8)) <= 17)	//q1e
+			||(wf[0] == 'N' && wf[1] == 'A' && wf[2] == 'V' && wf[3] == '3'  &&  (wf[4]|(wf[5]<<8)|(wf[6]<<8)|(wf[7]<<8)) >= 2  && (wf[4]|(wf[5]<<8)|(wf[6]<<8)|(wf[7]<<8)) <= 6)	//q2e
+			))
+		{	//rerelease's format(s)
+			sizebuf_t sb = {wf, fsize, fsize};
+			qboolean error = false;
+			unsigned int u;
+			unsigned int ver, numnodes, numlinks, numhints, numents;
+			struct wphint_s *hints;
+			struct wpneighbour_s *links;
 
-		nextlink = (struct wpneighbour_s*)(net->waypoints+numwaypoints);
+			MSG_BeginReading(&sb, msg_nullnetprim);
+			/*magic(already checked)*/MSG_ReadLong();
+			ver = MSG_ReadLong();
+			if (wf[3] == '3') ver |= 0x80000000;	//convert from q2 to q1 version numbers...
+			numnodes = MSG_ReadLong();
+			numlinks = MSG_ReadLong();
+			numhints = MSG_ReadLong();
+			if (ver >= 16)
+				/*some sort of scale?*/MSG_ReadFloat();
 
-		while (WayNet_TokenizeLine(&l) && net->numwaypoints < numwaypoints)
-		{
-			if (!Cmd_Argc())
-				continue;	//a comment line?
-			net->waypoints[net->numwaypoints].org[0] = atof(Cmd_Argv(0));
-			net->waypoints[net->numwaypoints].org[1] = atof(Cmd_Argv(1));
-			net->waypoints[net->numwaypoints].org[2] = atof(Cmd_Argv(2));
-			net->waypoints[net->numwaypoints].radius = atof(Cmd_Argv(3));
-			numlinks = bound(0, atoi(Cmd_Argv(4)), maxlinks);
+			net = Z_Malloc(sizeof(*net)-sizeof(net->waypoints) + (numnodes*sizeof(struct waypoint_s)) + (numlinks*sizeof(struct wpneighbour_s)) + (numhints*sizeof(struct wphint_s)));
+			net->numwaypoints = numnodes;
 
-			//make sure the links are valid, and clamp to avoid problems (even if we're then going to mis-parse.
-			net->waypoints[net->numwaypoints].neighbour = nextlink;
-			while (numlinks-- > 0 && WayNet_TokenizeLine(&l))
+			links = (struct wpneighbour_s*)(net->waypoints+numnodes);
+			hints = (struct wphint_s*)(links+numlinks);
+
+			for (u = 0; u < numnodes && !error; u++)
+			{
+				unsigned short flags = MSG_ReadShort();	//some sort of conditional info
+				unsigned short nodelinks = MSG_ReadShort();
+				unsigned short firstlink = MSG_ReadShort();
+				unsigned short radius = MSG_ReadShort();
+
+				(void)flags;
+				net->waypoints[u].neighbours = nodelinks;
+				net->waypoints[u].neighbour = links + firstlink;
+				net->waypoints[u].radius = radius;
+
+				if (net->waypoints[u].neighbour+net->waypoints[u].neighbours > &links[numlinks])
+					error = true;
+			}
+			for (u = 0; u < numnodes; u++)
+			{	//positions are split for some reason
+				net->waypoints[u].org[0] = MSG_ReadFloat();
+				net->waypoints[u].org[1] = MSG_ReadFloat();
+				net->waypoints[u].org[2] = MSG_ReadFloat()+24;	//rerelease waypoints are aligned to the ground.
+			}
+
+			for (u = 0; u < numlinks; u++)
+			{
+				unsigned short peernode = MSG_ReadShort();
+				unsigned short type = MSG_ReadShort();	//0=normal, 1=
+				unsigned short hint = MSG_ReadShort();	//can be ~0
+
+				links[u].linkcost = 16;
+				links[u].linkflags = 1u<<type;
+				links[u].node = peernode;
+				links[u].hints = NULL;
+				if (hint < numhints)
+					links[u].hints = hints+hint;
+				else if (hint != 0xffff)
+					error = true;
+				if (links[u].node >= numnodes)
+					error = true;
+			}
+			for (u = 0; u < numhints; u++)
+			{
+				hints[u].pos[0][0] = MSG_ReadFloat();
+				hints[u].pos[0][1] = MSG_ReadFloat();
+				hints[u].pos[0][2] = MSG_ReadFloat();
+
+				hints[u].pos[1][0] = MSG_ReadFloat();
+				hints[u].pos[1][1] = MSG_ReadFloat();
+				hints[u].pos[1][2] = MSG_ReadFloat();
+
+				hints[u].pos[2][0] = MSG_ReadFloat();
+				hints[u].pos[2][1] = MSG_ReadFloat();
+				hints[u].pos[2][2] = MSG_ReadFloat();
+
+				if (ver >= 0x80000006)
+				{
+					/*hints[u].pos[3][0] =*/ MSG_ReadFloat();
+					/*hints[u].pos[3][1] =*/ MSG_ReadFloat();
+					/*hints[u].pos[3][2] =*/ MSG_ReadFloat();
+				}
+			}
+
+			numents = MSG_ReadLong();	//grr
+			for (u = 0; u < numents; u++)
+			{
+				unsigned short link = MSG_ReadShort();
+				if (link >= numlinks)
+					error = true;	//err?.. probably we don't really care, but for the sake of sanity lets bail.
+				/*mins = */MSG_ReadFloat();
+				MSG_ReadFloat();
+				MSG_ReadFloat();
+
+				/*maxs = */MSG_ReadFloat();
+				MSG_ReadFloat();
+				MSG_ReadFloat();
+
+				if (ver <= 13)	//FIXME: true for 12, verify v13
+					;
+				else if (ver == 14)
+				{
+					/*targ*/MSG_ReadLong();
+					/*class*/MSG_ReadLong();
+				}
+				else if (ver >= 15)
+					/*entnum*/MSG_ReadLong();
+			}
+
+			for (u = 0; u < numnodes && !error; u++)
+			{	//compute costs (no reading here)
+				size_t v;
+				for (v = 0; v < net->waypoints[u].neighbours; v++)
+				{
+					vec3_t move;
+					VectorSubtract(net->waypoints[net->waypoints[u].neighbour[v].node].org, net->waypoints[u].org, move);
+					net->waypoints[u].neighbour[v].linkcost = sqrt(DotProduct(move,move));
+				}
+			}
+
+			if(msg_badread)
+				error = true;
+			MSG_ReadByte();
+			if (!msg_badread)
+				error = true;	//should have taken us over the end. there's trailing junk here.
+
+			if (error)
+			{	//some sort of corrupt
+				Z_Free(net);
+				net = NULL;
+			}
+		}
+		else if (wf)
+		{	//our qc-friendly format (predates remaster)
+			//read the number of waypoints
+			char *l=wf, *e;
+			int numwaypoints, maxlinks, numlinks;
+			struct wpneighbour_s *nextlink;
+			WayNet_TokenizeLine(&l);
+			numwaypoints = atoi(Cmd_Argv(0));
+			//count lines and guess the link count.
+			for (e = l, maxlinks=0; *e; e++)
+				if (*e == '\n')
+					maxlinks++;
+			maxlinks -= numwaypoints;
+
+			net = Z_Malloc(sizeof(*net)-sizeof(net->waypoints) + (numwaypoints*sizeof(struct waypoint_s)) + (maxlinks*sizeof(struct wpneighbour_s)));
+			net->worldmodel = worldmodel;
+
+			nextlink = (struct wpneighbour_s*)(net->waypoints+numwaypoints);
+
+			while (WayNet_TokenizeLine(&l) && net->numwaypoints < numwaypoints)
 			{
 				if (!Cmd_Argc())
 					continue;	//a comment line?
-				nextlink[net->waypoints[net->numwaypoints].neighbours].node = atoi(Cmd_Argv(0));
-				nextlink[net->waypoints[net->numwaypoints].neighbours].linkcost = atof(Cmd_Argv(1));
-				nextlink[net->waypoints[net->numwaypoints].neighbours++].linkflags = atoi(Cmd_Argv(2));
+				net->waypoints[net->numwaypoints].org[0] = atof(Cmd_Argv(0));
+				net->waypoints[net->numwaypoints].org[1] = atof(Cmd_Argv(1));
+				net->waypoints[net->numwaypoints].org[2] = atof(Cmd_Argv(2));
+				net->waypoints[net->numwaypoints].radius = atof(Cmd_Argv(3));
+				numlinks = bound(0, atoi(Cmd_Argv(4)), maxlinks);
+
+				//make sure the links are valid, and clamp to avoid problems (even if we're then going to mis-parse.
+				net->waypoints[net->numwaypoints].neighbour = nextlink;
+				while (numlinks-- > 0 && WayNet_TokenizeLine(&l))
+				{
+					if (!Cmd_Argc())
+						continue;	//a comment line?
+					nextlink[net->waypoints[net->numwaypoints].neighbours].node = atoi(Cmd_Argv(0));
+					nextlink[net->waypoints[net->numwaypoints].neighbours].linkcost = atof(Cmd_Argv(1));
+					nextlink[net->waypoints[net->numwaypoints].neighbours++].linkflags = atoi(Cmd_Argv(2));
+				}
+				maxlinks -= net->waypoints[net->numwaypoints].neighbours;
+				nextlink += net->waypoints[net->numwaypoints++].neighbours;
 			}
-			maxlinks -= net->waypoints[net->numwaypoints].neighbours;
-			nextlink += net->waypoints[net->numwaypoints++].neighbours;
 		}
 		BZ_Free(wf);
 	}
+
+	if (!*ctxptr)
+	{	//no network yet.
+		if (!net)
+		{	//don't spam reload attempts.
+			if (!worldmodel)
+				return NULL;
+			net = Z_Malloc(sizeof(*net)-sizeof(net->waypoints));
+			net->numwaypoints = 0;
+		}
+		net->worldmodel = worldmodel;
+
+		//link to the world state
+		net->refs = 1;
+		*ctxptr = net;
+	}
+
 
 	net->refs++;
 	return net;
@@ -841,10 +1001,13 @@ void Route_Calculated(void *ctx, void *data, size_t a, size_t b)
 
 	if (!route->callback)
 	{
-		BZ_Free(route->waynet->displaynode);
-		route->waynet->displaynode = BZ_Malloc(sizeof(struct resultnodes_s) * route->numresultnodes);
-		route->waynet->displaynodes = route->numresultnodes;
-		memcpy(route->waynet->displaynode, route->resultnodes, sizeof(struct resultnodes_s) * route->numresultnodes);
+		if (route->waynet)
+		{
+			BZ_Free(route->waynet->displaynode);
+			route->waynet->displaynode = BZ_Malloc(sizeof(struct resultnodes_s) * route->numresultnodes);
+			route->waynet->displaynodes = route->numresultnodes;
+			memcpy(route->waynet->displaynode, route->resultnodes, sizeof(struct resultnodes_s) * route->numresultnodes);
+		}
 	}
 	else if (route->callback && route->world->spawncount == route->spawncount/* && route->spawnid == route->ed->xv->uniquespawnid*/)
 	{
@@ -960,8 +1123,10 @@ static qboolean Route_Process(struct routecalc_s *r)
 		{
 			struct wpneighbour_s *l = &wp->neighbour[u];
 			int linkidx = l->node;
-
 			float realcost = nodecost[nodeidx] + l->linkcost;
+
+			if (l->linkflags & r->denylinkflags)
+				continue;
 #ifdef _DEBUG
 			if (linkidx < 0 || linkidx >= n->numwaypoints)
 			{
@@ -1128,6 +1293,11 @@ void QCBUILTIN PF_route_calculate (pubprogfuncs_t *prinst, struct globalvars_s *
 	VectorCopy(end, route->end);
 
 	route->waynet = WayNet_Begin(&route->world->waypoints, route->world->worldmodel);
+	if (!route->waynet)
+	{
+		Z_Free(route);
+		return;
+	}
 
 	//tracelines use some sequence info to avoid retracing the same brush multiple times.
 	//	this means that we can't reliably trace on worker threads (would break the main thread occasionally).
@@ -1151,7 +1321,12 @@ static void Route_Visualise_f(void)
 	VectorCopy(r_refdef.vieworg, route->start);
 	VectorCopy(targ, route->end);
 
-	route->waynet = WayNet_Begin(&route->world->waypoints, route->world->worldmodel);
+	route->waynet = WayNet_Begin(&route->world->waypoints, cl.worldmodel);
+	if (!route->waynet)
+	{
+		Z_Free(route);
+		return;
+	}
 
 	//tracelines use some sequence info to avoid retracing the same brush multiple times.
 	//	this means that we can't reliably trace on worker threads (would break the main thread occasionally).
@@ -1171,7 +1346,7 @@ void PR_Route_Visualise (void)
 	struct waypointnetwork_s *wn;
 	size_t u;
 
-	wn = (w && (w->waypoints || route_shownodes.ival))?WayNet_Begin(&w->waypoints, w->worldmodel):NULL;
+	wn = (w && (w->waypoints || route_shownodes.ival))?WayNet_Begin(&w->waypoints, cl.worldmodel):NULL;
 	if (wn)
 	{
 		if (route_shownodes.ival)
@@ -1203,6 +1378,7 @@ void PR_Route_Visualise (void)
 			float radius;
 			vec3_t dir;
 			//should probably use a different colour for the node you're inside.
+			int nearest = WayNet_FindNearestNode(wn, r_origin);
 			for (u = 0; u < wn->numwaypoints; u++)
 			{
 				mat[3] = wn->waypoints[u].org[0];
@@ -1214,9 +1390,9 @@ void PR_Route_Visualise (void)
 
 				VectorSubtract(wn->waypoints[u].org, r_refdef.vieworg, dir);
 				if (DotProduct(dir,dir) < radius*radius)
-					CLQ1_AddOrientedSphere(shader_in, radius, mat, 0.0, 0.1, 0, 1);
+					CLQ1_AddOrientedSphere(shader_in, radius, mat, 0.0, 0.1, (nearest==u)?0.2:0.0, 1);
 				else
-					CLQ1_AddOrientedSphere(shader_out, radius, mat, 0.2, 0.0, 0, 1);
+					CLQ1_AddOrientedSphere(shader_out, radius, mat, 0.2, 0.0, (nearest==u)?0.2:0.0, 1);
 			}
 			for (u = 0; u < wn->numwaypoints; u++)
 			{
@@ -1224,7 +1400,7 @@ void PR_Route_Visualise (void)
 				for (n = 0; n < wn->waypoints[u].neighbours; n++)
 				{
 					struct waypoint_s *r = wn->waypoints + wn->waypoints[u].neighbour[n].node;
-					CLQ1_DrawLine(shader_out, wn->waypoints[u].org, r->org, 0, 0, 1, 1);
+					CLQ1_DrawLine(shader_out, wn->waypoints[u].org, r->org, 0, 0, (nearest==u)?1:0.2, 1);
 				}
 			}
 		}

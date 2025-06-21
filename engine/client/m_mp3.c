@@ -1801,10 +1801,10 @@ static qboolean Media_WinAvi_DecodeFrame (cin_t *cin, qboolean nosound, qboolean
 			qacmStreamConvert(cin->avi.audiodecoder, &strhdr, ACM_STREAMCONVERTF_BLOCKALIGN);
 			qacmStreamUnprepareHeader(cin->avi.audiodecoder, &strhdr, 0);
 
-			S_RawAudio(-1, strhdr.pbDst, cin->avi.pWaveFormat->nSamplesPerSec, strhdr.cbDstLengthUsed/4, cin->avi.pWaveFormat->nChannels, 2, volume.value);
+			S_RawAudio(SOURCEID_CINEMATIC, strhdr.pbDst, cin->avi.pWaveFormat->nSamplesPerSec, strhdr.cbDstLengthUsed/4, cin->avi.pWaveFormat->nChannels, 2, volume.value);
 		}
 		else
-			S_RawAudio(-1, pBuffer, cin->avi.pWaveFormat->nSamplesPerSec, samples, cin->avi.pWaveFormat->nChannels, 2, volume.value);
+			S_RawAudio(SOURCEID_CINEMATIC, pBuffer, cin->avi.pWaveFormat->nSamplesPerSec, samples, cin->avi.pWaveFormat->nChannels, 2, volume.value);
 	}
 	return true;
 }
@@ -2211,71 +2211,19 @@ static qboolean Media_Roq_DecodeFrame (cin_t *cin, qboolean nosound, qboolean fo
 
 	if (doupdate)
 	{
-	//#define LIMIT(x) ((x)<0xFFFF)?(x)>>16:0xFF;
-#define LIMIT(x) ((((x) > 0xffffff) ? 0xff0000 : (((x) <= 0xffff) ? 0 : (x) & 0xff0000)) >> 16)
-		unsigned char *pa=cin->roq.roqfilm->y[0];
-		unsigned char *pb=cin->roq.roqfilm->u[0];
-		unsigned char *pc=cin->roq.roqfilm->v[0];
-		int pix=0;
-		int num_columns=(cin->roq.roqfilm->width)>>1;
-		int num_rows=cin->roq.roqfilm->height;
-		int y;
-		int x;
-
-		qbyte *framedata;
-
 		if (cin->roq.roqfilm->num_frames)
 			cin->filmpercentage = cin->roq.roqfilm->frame_num / cin->roq.roqfilm->num_frames;
 		else
 			cin->filmpercentage = 0;
 
-		{
-			framedata = cin->framedata;
-
-			for(y = 0; y < num_rows; ++y)	//roq playing doesn't give nice data. It's still fairly raw.
-			{										//convert it properly.
-				for(x = 0; x < num_columns; ++x)
-				{
-
-					int r, g, b, y1, y2, u, v, t;
-					y1 = *(pa++); y2 = *(pa++);
-					u = pb[x] - 128;
-					v = pc[x] - 128;
-
-					y1 <<= 16;
-					y2 <<= 16;
-					r = 91881 * v;
-					g = -22554 * u + -46802 * v;
-					b = 116130 * u;
-
-					t=r+y1;
-					framedata[pix] =(unsigned char) LIMIT(t);
-					t=g+y1;
-					framedata[pix+1] =(unsigned char) LIMIT(t);
-					t=b+y1;
-					framedata[pix+2] =(unsigned char) LIMIT(t);
-
-					t=r+y2;
-					framedata[pix+4] =(unsigned char) LIMIT(t);
-					t=g+y2;
-					framedata[pix+5] =(unsigned char) LIMIT(t);
-					t=b+y2;
-					framedata[pix+6] =(unsigned char) LIMIT(t);
-					pix+=8;
-
-				}
-				if(y & 0x01) { pb += num_columns; pc += num_columns; }
-			}
-		}
-
-		uploadtexture(ctx, TF_RGBX32, cin->roq.roqfilm->width, cin->roq.roqfilm->height, cin->framedata, NULL);
+		uploadtexture(ctx, TF_RGBX32, cin->roq.roqfilm->width, cin->roq.roqfilm->height, cin->roq.roqfilm->rgba[0], NULL);
 
 		if (!nosound)
 		{
 			while (cin->roq.roqfilm->audio_channels && S_HaveOutput() && cin->roq.roqfilm->aud_pos < cin->roq.roqfilm->vid_pos)
 			{
 				if (roq_read_audio(cin->roq.roqfilm)>0)		
-					S_RawAudio(-1, cin->roq.roqfilm->audio, 22050, cin->roq.roqfilm->audio_size/cin->roq.roqfilm->audio_channels, cin->roq.roqfilm->audio_channels, 2, volume.value );
+					S_RawAudio(SOURCEID_CINEMATIC, cin->roq.roqfilm->audio, 22050, cin->roq.roqfilm->audio_size/cin->roq.roqfilm->audio_channels, cin->roq.roqfilm->audio_channels, 2, volume.value );
 				else
 					break;
 			}
@@ -2308,7 +2256,6 @@ static cin_t *Media_RoQ_TryLoad(char *name)
 
 		cin->roq.roqfilm = roqfilm;
 
-		cin->framedata = BZ_Malloc(roqfilm->width*roqfilm->height*4);
 		return cin;
 	}
 	return NULL;
@@ -2642,7 +2589,7 @@ qboolean Media_StopFilm(qboolean all)
 		R_UnloadShader(videoshader);
 		videoshader = NULL;
 
-		S_RawAudio(-1, NULL, 0, 0, 0, 0, 0);
+		S_RawAudio(SOURCEID_CINEMATIC, NULL, 0, 0, 0, 0, 0);
 	}
 
 	while (pendingfilms && !videoshader)
@@ -3011,7 +2958,7 @@ static void *QDECL capture_raw_begin (char *streamname, int videorate, int width
 	else
 		Q_strncpyz(ctx->videonameextension, "tga", sizeof(ctx->videonameextension));
 
-	if (!FS_NativePath(va("%s", streamname), FS_GAMEONLY, ctx->videonameprefix, sizeof(ctx->videonameprefix)))
+	if (!FS_SystemPath(va("%s", streamname), FS_GAMEONLY, ctx->videonameprefix, sizeof(ctx->videonameprefix)))
 	{
 		Z_Free(ctx);
 		return NULL;
@@ -3023,8 +2970,7 @@ static void *QDECL capture_raw_begin (char *streamname, int videorate, int width
 	}
 	ctx->fsroot = FS_SYSTEM;
 
-	if (FS_NativePath(ctx->videonameprefix, ctx->fsroot, filename, sizeof(filename)))
-		FS_CreatePath(filename, ctx->fsroot);
+	FS_CreatePath(ctx->videonameprefix, ctx->fsroot);
 
 	ctx->audio = NULL;
 	if (*sndkhz)
@@ -3065,7 +3011,7 @@ static void QDECL capture_raw_video (void *vctx, int frame, void *data, int stri
 	{
 		char base[MAX_QPATH];
 		Q_strncpyz(base, ctx->videonameprefix, sizeof(base));
-		if (FS_NativePath(base, ctx->fsroot, filename, sizeof(filename)))
+		if (FS_SystemPath(base, ctx->fsroot, filename, sizeof(filename)))
 		{
 			quint64_t diskfree = 0;
 			if (Sys_GetFreeDiskSpace(filename, &diskfree))
@@ -3164,7 +3110,7 @@ static void *QDECL capture_avi_begin (char *streamname, int videorate, int width
 	COM_StripExtension(streamname, aviname, sizeof(aviname));
 	COM_DefaultExtension (aviname, ".avi", sizeof(aviname));
 	/*find the system location of that*/
-	FS_NativePath(aviname, FS_GAMEONLY, nativepath, sizeof(nativepath));
+	FS_SystemPath(aviname, FS_GAMEONLY, nativepath, sizeof(nativepath));
 
 	//wipe it.
 	f = fopen(nativepath, "rb");
@@ -3578,7 +3524,7 @@ void Media_RecordFrame (void)
 		Draw_FunString(0, y, capturemessage.string);
 	}
 
-	//time for annother frame?
+	//time for another frame?
 	if (!captureframeforce)
 	{
 		if (capturelastvideotime > realtime+1)
@@ -5255,7 +5201,7 @@ void Media_Init(void)
 	#endif
 
 	Cmd_AddCommandD("capture", Media_RecordFilm_f, "Captures realtime action to a named video file. Check the capture* cvars to control driver/codecs/rates.");
-	Cmd_AddCommandD("capturedemo", Media_RecordDemo_f, "capuuredemo foo.dem foo.avi - Captures a named demo to a named video file.\nDemo capturing is performed offscreen when possible, allowing arbitrary video sizes or smooth captures on underpowered hardware.");
+	Cmd_AddCommandD("capturedemo", Media_RecordDemo_f, "capturedemo foo.dem foo.avi - Captures a named demo to a named video file.\nDemo capturing is performed offscreen when possible, allowing arbitrary video sizes or smooth captures on underpowered hardware.");
 	Cmd_AddCommandD("capturestop", Media_StopRecordFilm_f, "Aborts the current video capture.");
 	Cmd_AddCommandD("capturepause", Media_CapturePause_f, "Pauses the video capture, allowing you to avoid capturing uninteresting parts. This is a toggle, so reuse the same command to resume capturing again.");
 

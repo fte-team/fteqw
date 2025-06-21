@@ -876,9 +876,27 @@ static void BIH_RecursiveTrace (struct bihtrace_s *fte_restrict tr, const struct
 			vec3_t start_l;
 			vec3_t end_l;
 
+			model_t *submod = node->data.mesh.model;
+
+			if (submod->loadstate != MLS_LOADED)
+			{
+				static float throttle;
+				COM_AssertMainThread("BIH_RecursiveTrace embedded model reloading");
+				if (submod->loadstate == MLS_NOTLOADED)	//pull it back in if it was flushed.
+				Mod_LoadModel(submod, MLV_WARN);
+				while(submod->loadstate == MLS_LOADING)
+					COM_WorkerPartialSync(submod, &submod->loadstate, MLS_LOADING);
+				if (submod->loadstate != MLS_LOADED)
+				{
+					Con_ThrottlePrintf(&throttle, 1, "BIH: embedded model %s failed to load\n", submod->name);
+					return; //something bad happened...
+				}
+				Con_DPrintf("BIH: embedded model ^[%s\\modelviewer\\%s^] now loading\n", submod->name,submod->name);
+			}
+
 			VectorSubtract (tr->startpos, node->data.mesh.tr->origin, start_l);
 			VectorSubtract (tr->endpos, node->data.mesh.tr->origin, end_l);
-			node->data.mesh.model->funcs.NativeTrace(node->data.mesh.model, 0, NULLFRAMESTATE, node->data.mesh.tr->axis, start_l, end_l, tr->size.min, tr->size.max, tr->shape==shape_iscapsule, tr->hitcontents, &sub);
+			submod->funcs.NativeTrace(submod, 0, NULLFRAMESTATE, node->data.mesh.tr->axis, start_l, end_l, tr->size.min, tr->size.max, tr->shape==shape_iscapsule, tr->hitcontents, &sub);
 
 			if (sub.truefraction < tr->trace.truefraction)
 			{
@@ -1832,6 +1850,7 @@ void BIH_Build (model_t *mod, struct bihleaf_s *leafs, size_t numleafs)
 	mod->funcs.PointContents		= BIH_PointContents;
 	mod->funcs.NativeContents		= BIH_NativeContents;
 }
+#ifdef SKELETALMODELS
 void BIH_BuildAlias (model_t *mod, galiasinfo_t *meshes)
 {
 	size_t numleafs, i;
@@ -1865,3 +1884,4 @@ void BIH_BuildAlias (model_t *mod, galiasinfo_t *meshes)
 	}
 	BIH_Build(mod, leafs, leaf-leafs);
 }
+#endif

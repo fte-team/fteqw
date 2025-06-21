@@ -445,6 +445,56 @@ static void PDECL PR_memfree (pubprogfuncs_t *ppf, void *memptr)
 	PR_memvalidate(progfuncs);
 }
 
+static void *PDECL PR_memrealloc (pubprogfuncs_t *ppf, void *memptr, unsigned int newsize)
+{
+	progfuncs_t *progfuncs = (progfuncs_t*)ppf;
+	qcmemusedblock_t *ub;
+	unsigned int ptr = memptr?((char*)memptr - progfuncs->funcs.stringtable):0;
+	void *newptr;
+	unsigned int oldsize;
+
+	/*freeing NULL is ignored*/
+	if (!ptr)	//realloc instead of malloc is accepted.
+		return PR_memalloc(ppf, newsize);
+	PR_memvalidate(progfuncs);
+	ptr -= sizeof(qcmemusedblock_t);
+	if (/*ptr < 0 ||*/ ptr >= prinst.addressableused)
+	{
+		ptr += sizeof(qcmemusedblock_t);
+		if (ptr < prinst.addressableused && !*(char*)memptr)
+		{
+			//the empty string is a point of contention. while we can detect it from fteqcc, its best to not give any special favours (other than nicer debugging, where possible)
+			//we might not actually spot it from other qccs, so warning about it where possible is probably a very good thing.
+			externs->Printf("PR_memrealloc: unable to free the non-null empty string constant at %x\n", ptr);
+		}
+		else
+			externs->Printf("PR_memrealloc: pointer invalid - out of range (%x >= %x)\n", ptr, (unsigned int)prinst.addressableused);
+		PR_StackTrace(&progfuncs->funcs, false);
+		return NULL;
+	}
+
+	//this is the used block that we're trying to free
+	ub = (qcmemusedblock_t*)(progfuncs->funcs.stringtable + ptr);
+	if (ub->marker != MARKER_USED || ub->size <= sizeof(*ub) || ptr + ub->size > (unsigned int)prinst.addressableused)
+	{
+		externs->Printf("PR_memrealloc: pointer lacks marker - double-freed?\n");
+		PR_StackTrace(&progfuncs->funcs, false);
+		return NULL;
+	}
+	oldsize = ub->size;
+	oldsize -= sizeof(qcmemusedblock_t);	//ignore the header.
+
+	newptr = PR_memalloc(ppf, newsize);
+	if (oldsize > newsize)
+		oldsize = newsize;		//don't copy it all.
+	memcpy(newptr, memptr, oldsize);
+	newsize -= oldsize;
+	memset((char*)newptr+oldsize, 0, newsize);	//clear out any extended part.
+	PR_memfree(ppf, memptr);	//free the old.
+
+	return newptr;
+}
+
 void PRAddressableFlush(progfuncs_t *progfuncs, size_t totalammount)
 {
 	prinst.addressableused = 0;
@@ -1109,7 +1159,7 @@ eval_t *PR_GetWriteTempStringPtr(progfuncs_t *progfuncs, string_t str, size_t of
 	return NULL;
 }
 
-//returns null for invalid accesses.
+//returns null for invalid accesses. WARNING: invalidates any other pointers to the same tempstring so use this before getting any read pointers (or strings!).
 void *PR_PointerToNative_Resize(pubprogfuncs_t *inst, pint_t ptr, size_t offset, size_t datasize)
 {
 	progfuncs_t *progfuncs = (progfuncs_t*)inst;
@@ -1144,6 +1194,32 @@ void *PR_PointerToNative_Resize(pubprogfuncs_t *inst, pint_t ptr, size_t offset,
 	{	//regular pointer
 		offset += ptr;
 		if (datasize > inst->stringtablesize || offset >= inst->stringtablesize-datasize || !offset)
+			return NULL;	//can't autoresize these. just fail.
+		return inst->stringtable + ptr;
+	}
+	return NULL;
+}
+void *PR_PointerToNative_MoInvalidate(pubprogfuncs_t *inst, pint_t ptr, size_t offset, size_t datasize)
+{
+	progfuncs_t *progfuncs = (progfuncs_t*)inst;
+	if (((unsigned int)ptr & STRING_SPECMASK) == STRING_TEMP)
+	{	//buffer. these auto-upsize.
+		unsigned int i = ptr & ~STRING_SPECMASK;
+		tempstr_t *temp;
+		if (i < prinst.maxtempstrings && (temp=prinst.tempstrings[i]))
+		{
+			if (datasize > temp->size || offset >= temp->size-datasize)
+			{	//access is beyond the current size. we're not allowed to break any other pointers though, so just fail and let the caller handle that.
+				return NULL;	//gotta have a cut-off point somewhere.
+			}
+			return (eval_t*)(temp->value + offset);
+		}
+		return NULL;	//nothing not allocated.
+	}
+	else
+	{	//regular pointer
+		offset += ptr;
+		if (datasize > inst->stringtablesize || offset >= inst->stringtablesize-datasize || (!offset && datasize>1))
 			return NULL;	//can't autoresize these. just fail.
 		return inst->stringtable + ptr;
 	}
@@ -1348,6 +1424,8 @@ static string_t PDECL PR_AllocTempStringLen			(pubprogfuncs_t *ppf, char **str, 
 	}
 	prinst.nexttempstring = i;
 	prinst.livetemps++;
+
+	len = ((len+3)&~3);	//round up, primarily so its safe to use loadp_i to read the last few chars of the string
 
 	prinst.tempstrings[i] = progfuncs->funcs.parms->memalloc(sizeof(tempstr_t) - sizeof(((tempstr_t*)NULL)->value) + len);
 	prinst.tempstrings[i]->size = len;
@@ -1641,6 +1719,7 @@ static pubprogfuncs_t deffuncs = {
 	QC_Decompile,
 #endif
 	0,	//callargc
+	0,
 
 	0,	//string table(pointer base address)
 	0,		//string table size
@@ -1659,6 +1738,7 @@ static pubprogfuncs_t deffuncs = {
 	ED_NewString,
 	QC_HunkAlloc,
 	PR_memalloc,
+	PR_memrealloc,
 	PR_memfree,
 	PR_AllocTempString,
 	PR_AllocTempStringLen,

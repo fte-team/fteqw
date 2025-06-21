@@ -623,13 +623,15 @@ GL_Set2D
 Setup as if the screen was 320*200
 ================
 */
-void GL_Set2D (qboolean flipped)
+void GL_Set2D (unsigned int flags)
 {
 	extern cvar_t gl_screenangle;
 	float rad, ang;
 	float tmp[16], tmp2[16];
 	float w = vid.width, h = vid.height;
 	qboolean fbo = !!*r_refdef.rt_destcolour[0].texname;
+	qboolean flipped = flags&1;
+	qboolean norotate = flags&2;
 
 	if (vid.framebuffer)
 	{
@@ -657,7 +659,7 @@ void GL_Set2D (qboolean flipped)
 
 	ang = (gl_screenangle.value>0?(gl_screenangle.value+45):(gl_screenangle.value-45))/90;
 	ang = (int)ang * 90;
-	if (ang && !fbo)
+	if (ang && !fbo && !norotate)
 	{ /*more expensive maths*/
 		rad = (ang * M_PI) / 180;
 

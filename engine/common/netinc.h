@@ -140,7 +140,7 @@
 		#include <libc.h>
 	#endif
 
-	#ifdef __linux__
+	#if defined(__linux__) || defined(HAVE_EPOLL)
 		//requires linux 2.6.27 up (and equivelent libc)
 		//note that BSD does tend to support the api, but emulated.
 		//this works around the select FD limit, and supposedly has better performance.
@@ -148,6 +148,13 @@
 		#ifdef EPOLL_CLOEXEC
 			#define HAVE_EPOLL
 		//#else too old, probably android...
+		#endif
+		#if defined(close)	//epoll-shim? stop it from breaking shit
+			#undef close
+			#undef fcntl
+			#define epoll_close epoll_shim_close
+		#else
+			#define epoll_close close
 		#endif
 	#endif
 
@@ -394,7 +401,7 @@ typedef struct ftecrypto_s
 	const struct dtlsfuncs_s *(*DTLS_InitServer)(void);	//returns NULL if there's no cert available.
 
 	//digital signature stuff. note: uses sha2_512
-	enum hashvalidation_e (*VerifyHash)(const qbyte *hashdata, size_t hashsize, const qbyte *certdata, size_t certsize, const qbyte *signdata, size_t signsize);
+	enum hashvalidation_e (*VerifyHash)(const qbyte *hashdata, size_t hashsize, const qbyte *certdata, size_t certsize, const qbyte *signdata, size_t signsize); //expect the cert in PEM format.
 	int (*GenerateSignature)(const qbyte *hashdata, size_t hashsize, qbyte *signdata, size_t signsizemax);
 } ftecrypto_t;
 #define cryptolib_count 6
@@ -442,14 +449,15 @@ void ICE_Tick(void);
 qboolean ICE_WasStun(ftenet_connections_t *col);
 void QDECL ICE_AddLCandidateConn(ftenet_connections_t *col, netadr_t *addr, int type);
 void QDECL ICE_AddLCandidateInfo(struct icestate_s *con, netadr_t *adr, int adrno, int type);
-ftenet_generic_connection_t *FTENET_ICE_EstablishConnection(ftenet_connections_t *col, const char *address, netadr_t adr);
+ftenet_generic_connection_t *FTENET_ICE_EstablishConnection(ftenet_connections_t *col, const char *address, netadr_t adr, const struct dtlspeercred_s *peerinfo);
+extern ftenet_generic_connection_t *FTENET_Datagram_EstablishConnection(ftenet_connections_t *col, const char *address, netadr_t adr, const struct dtlspeercred_s *peerinfo);
 enum icemsgtype_s
 {	//shared by rtcpeers+broker
 	ICEMSG_PEERLOST=0,	//other side dropped connection
 	ICEMSG_GREETING=1,	//master telling us our unique game name
 	ICEMSG_NEWPEER=2,	//relay established, send an offer now.
-	ICEMSG_OFFER=3,		//peer's initial details
-	ICEMSG_CANDIDATE=4,	//candidate updates. may arrive late as new ones are discovered.
+	ICEMSG_OFFER=3,		//peer->peer - peer's offer or answer details
+	ICEMSG_CANDIDATE=4,	//peer->peer - candidate updates. may arrive late as new ones are discovered.
 	ICEMSG_ACCEPT=5,	//go go go (response from offer)
 	ICEMSG_SERVERINFO=6,//server->broker (for advertising the server properly)
 	ICEMSG_SERVERUPDATE=7,//broker->browser (for querying available server lists)

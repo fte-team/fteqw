@@ -765,7 +765,7 @@ static PCCERT_CONTEXT SSPI_GetServerCertificate(void)
 		);
 	}
 	if (!ret)
-		Con_Printf(CON_ERROR"Certificate generation failed...\n");
+		Con_Printf(CON_ERROR"SChannel: Certificate generation failed...\n");	//happens in wine.
 	else
 	{
 		//this is stupid and redundant, yet apparently still needed.
@@ -1647,6 +1647,8 @@ static int SSPI_DTLS_GetPeerCertificate(void *ctx, enum certprops_e prop, char *
 			return crypt.pCertNameToStrA(cert->dwCertEncodingType, &cert->pCertInfo->Subject, CERT_X500_NAME_STR, out, outsize);
 		return -1;
 	case QCERT_LOCALCERTIFICATE:
+	case QCERT_LOBBYSTATUS:
+	case QCERT_LOBBYSENDCHAT:
 	safedefault:
 		return -1;
 	}

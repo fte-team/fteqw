@@ -626,6 +626,24 @@ miptex_t *W_GetMipTex(const char *name)
 	return NULL;
 }
 
+void WAD_ImageList_f(void)
+{
+	wadfile_t *wad;
+	int i;
+	char *match = Cmd_Argv(1);
+	Sys_LockMutex(wadmutex);
+	for (i = 0;i < numwadtextures;i++)
+	{
+		if (*match && !wildcmp(match, texwadlump[i].name))
+			continue;
+		for (wad = openwadfiles; wad; wad = wad->next)
+			if (wad->file == texwadlump[i].file)
+				break;
+		Con_Printf("^[\\img\\%s\\s\\%i\\tip\\From inside %s^] %s\n", texwadlump[i].name, 64, wad?wad->name:"<unknown>", texwadlump[i].name);
+	}
+	Sys_UnlockMutex(wadmutex);
+}
+
 typedef struct mapgroup_s {
 	char *mapname;
 	char *skyname;
@@ -927,6 +945,10 @@ void Mod_ParseInfoFromEntityLump(model_t *wmodel)	//actually, this should be in 
 		{
 			cl.skyrotate = atof(token);
 		}
+		else if (!strcmp("skyautorotate", key))	//q2ex feature
+		{
+			cl.skyautorotate = atof(token);
+		}
 		else if (!strcmp("skyaxis", key))	//q2 feature
 		{
 			char *s;
@@ -955,6 +977,7 @@ void Mod_ParseInfoFromEntityLump(model_t *wmodel)	//actually, this should be in 
 	}
 	else
 		Cvar_Set(&r_skybox_orientation, "");
+	Cvar_SetValue(&r_skybox_autorotate, cl.skyautorotate);
 
 	if (wmodel)
 	{

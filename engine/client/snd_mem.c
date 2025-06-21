@@ -37,10 +37,6 @@ typedef struct
 
 static wavinfo_t GetWavinfo (char *name, qbyte *wav, int wavlength);
 
-int			cache_full_cycle;
-
-qbyte *S_Alloc (int size);
-
 #define LINEARUPSCALE(in, inrate, insamps, out, outrate, outlshift, outrshift) \
 	{ \
 		scale = inrate / (double)outrate; \
@@ -295,11 +291,11 @@ qbyte *S_Alloc (int size);
 // SND_ResampleStream: takes a sound stream and converts with given parameters. Limited to
 // 8-16-bit signed conversions and mono-to-mono/stereo-to-stereo conversions.
 // Not an in-place algorithm.
-void SND_ResampleStream (void *in, int inrate, qaudiofmt_t informat, int inchannels, int insamps, void *out, int outrate, qaudiofmt_t outformat, int outchannels, int resampstyle)
+void SND_ResampleStream (const void *in, int inrate, qaudiofmt_t informat, int inchannels, int insamps, void *out, int outrate, qaudiofmt_t outformat, int outchannels, int resampstyle)
 {
 	double scale;
-	signed char *in8 = (signed char *)in;
-	short *in16 = (short *)in;
+	const signed char *in8 = (const signed char *)in;
+	const short *in16 = (const short *)in;
 	signed char *out8 = (signed char *)out;
 	short *out16 = (short *)out;
 	int outsamps, outnlsamps, outsampleft, outsampright;
@@ -760,12 +756,28 @@ static qboolean QDECL S_LoadWavSound (sfx_t *s, qbyte *data, size_t datalen, int
 		COM_CharBias(data + info.dataofs, info.samples*info.numchannels);
 		format = QAF_S8;
 	}
-	else if (info.format == 1 && info.bitwidth == 16)	//signed shorts
+	else if (info.format == 1 && (info.bitwidth > 8 && info.bitwidth <= 16))	//signed shorts
 	{
 		COM_SwapLittleShortBlock((short *)(data + info.dataofs), info.samples*info.numchannels);
 		format = QAF_S16;
 	}
-	else if (info.format == 1 && info.bitwidth == 32)	//24 or 32bit int audio
+	else if (info.format == 1 && (info.bitwidth > 16 && info.bitwidth <= 24))
+	{	//packed
+		short *out = (short *)(data + info.dataofs);
+		qbyte *in = (qbyte *)(data + info.dataofs);
+		int s;
+		size_t samples = info.samples*info.numchannels;
+		while(samples --> 0)
+		{
+			s  = *in++<<0;
+			s |= *in++<<8;
+			s |= *in++<<16;
+			s |= 0    <<24;
+			*out++ = s>>8;	//just drop the least significant bits.
+		}
+		format = QAF_S16;
+	}
+	else if (info.format == 1 && (info.bitwidth > 24 && info.bitwidth <= 32))	//24(padded) or 32bit int audio
 	{
 		short *out = (short *)(data + info.dataofs);
 		int *in = (int *)(data + info.dataofs);
@@ -788,6 +800,25 @@ static qboolean QDECL S_LoadWavSound (sfx_t *s, qbyte *data, size_t datalen, int
 		}
 		format = QAF_F32;
 	}
+	else if (info.format == 3 && info.bitwidth == 64)	//signed doubles, converted to floats cos doubles is just silly.
+	{
+		if (bigendian)
+		{
+			size_t i = info.samples*info.numchannels;
+			qint64_t *in = (qint64_t*)(data + info.dataofs);
+			float *out = (short *)(data + info.dataofs);
+			union {
+				qint64_t i;
+				double d;
+			} s;
+			while(i --> 0)
+			{
+				s.i = LittleI64(in[i]);
+				out[i] = s.d;
+			}
+		}
+		format = QAF_F32;
+	}
 #else
 	else if (info.format == 3 && info.bitwidth == 32)	//signed floats
 	{
@@ -798,6 +829,25 @@ static qboolean QDECL S_LoadWavSound (sfx_t *s, qbyte *data, size_t datalen, int
 		while(samples --> 0)
 		{	//in place size conversion, so we need to do it forwards.
 			t = LittleFloat(*in++) * 32767;
+			t = bound(-32768, t, 32767);
+			*out++ = t;
+		}
+		format = QAF_S16;
+	}
+	else if (info.format == 3 && info.bitwidth == 64)	//signed doubles
+	{
+		short *out = (short *)(data + info.dataofs);
+		qint64_t *in = (qint64_t *)(data + info.dataofs);
+		union {
+			qint64_t i;
+			double d;
+		} s;
+		size_t samples = info.samples*info.numchannels;
+		int t;
+		while(samples --> 0)
+		{	//in place size conversion, so we need to do it forwards.
+			s.i = LittleI64(*in++);
+			t = s.d * 32767;
 			t = bound(-32768, t, 32767);
 			*out++ = t;
 		}
@@ -814,7 +864,7 @@ static qboolean QDECL S_LoadWavSound (sfx_t *s, qbyte *data, size_t datalen, int
 		case 6/*WAVE_FORMAT_ALAW*/:				Con_Printf ("%s uses unsupported a-law format.\n", s->name); break;
 		case 7/*WAVE_FORMAT_MULAW*/:			Con_Printf ("%s uses unsupported mu-law format.\n", s->name); break;
 		case 0xfffe/*WAVE_FORMAT_EXTENSIBLE*/:
-		default:								Con_Printf ("%s has an unsupported format (%#x).\n", s->name, info.format); break;
+		default:								Con_Printf ("%s has an unsupported format (%#"PRIX16").\n", s->name, info.format); break;
 		}
 		return false;
 	}
@@ -822,9 +872,54 @@ static qboolean QDECL S_LoadWavSound (sfx_t *s, qbyte *data, size_t datalen, int
 	return ResampleSfx (s, info.rate, info.numchannels, format, info.samples, info.loopstart, data + info.dataofs);
 }
 
-qboolean QDECL S_LoadOVSound (sfx_t *s, qbyte *data, size_t datalen, int sndspeed, qboolean forcedecode);
-
 #ifdef FTE_TARGET_WEB
+#if 1
+void S_BrowserDecoded (void *ctx, void *dataptr, int frames, int channels, float rate)
+{
+	sfx_t *sfx = ctx;
+
+	//make sure we were not restarting at the time... FIXME: make stricter?
+	extern sfx_t		*known_sfx;
+	extern int			num_sfx;
+	int id = sfx-known_sfx;
+	if (id < 0 || id >= num_sfx || sfx != &known_sfx[id])
+		return; //err... don't crash out!
+
+	sfx->loopstart = -1;
+	if (dataptr)
+	{	//okay, something loaded. woo.
+		Z_Free(sfx->decoder.buf);
+		sfx->decoder.buf = NULL;
+		sfx->decoder.decodedata = NULL;
+		ResampleSfx (sfx, rate, channels, QAF_S16, frames, -1, dataptr);
+	}
+	else
+	{
+		Con_Printf(CON_WARNING"Failed to decode %s\n", sfx->name);
+		sfx->loadstate = SLS_FAILED;
+	}
+}
+static qboolean QDECL S_LoadBrowserFile (sfx_t *s, qbyte *data, size_t datalen, int sndspeed, qboolean forcedecode)
+{
+	struct sfxcache_s *buf;
+
+	if (datalen > 4 && !strncmp(data, "RIFF", 4))
+		return false;	//do NOT use this code for wav files. we have no way to read the looping flags which would break things in certain situations. we MUST fall back on our normal loader.
+
+	s->decoder.buf = buf = Z_Malloc(sizeof(*buf)+128);
+	//fill with a placeholder
+	buf->length = 128;
+	buf->speed = snd_speed;
+	buf->format = QAF_S8; //something basic
+	buf->numchannels=1;
+	buf->soundoffset = 0;
+	buf->data = (qbyte*)(buf+1);
+
+	s->loopstart = 0; //keep looping silence until it actually loads something.
+
+	return emscriptenfte_pcm_loadaudiofile(s, S_BrowserDecoded, data, datalen, sndspeed);
+}
+#else
 //web browsers contain their own decoding libraries that our openal stuff can use.
 static qboolean QDECL S_LoadBrowserFile (sfx_t *s, qbyte *data, size_t datalen, int sndspeed, qboolean forcedecode)
 {
@@ -842,6 +937,9 @@ static qboolean QDECL S_LoadBrowserFile (sfx_t *s, qbyte *data, size_t datalen, 
 	return true;
 }
 #endif
+#endif
+
+qboolean QDECL S_LoadOVSound (sfx_t *s, qbyte *data, size_t datalen, int sndspeed, qboolean forcedecode);
 
 //highest priority is last.
 static struct
@@ -1202,12 +1300,28 @@ static wavinfo_t GetWavinfo (char *name, qbyte *wav, int wavlength)
 		return info;
 	}
 	ctx.data_p += 8;
-	info.format = GetLittleShort(&ctx);
+	info.format = (unsigned short)GetLittleShort(&ctx);
 
-	info.numchannels = GetLittleShort(&ctx);
+	info.numchannels = (unsigned short)GetLittleShort(&ctx);
 	info.rate = GetLittleLong(&ctx);
-	ctx.data_p += 4+2;
-	info.bitwidth = GetLittleShort(&ctx);
+	ctx.data_p += 4;	//nAvgBytesPerSec
+	ctx.data_p += 2;	//nBlockAlign
+	info.bitwidth = (unsigned short)GetLittleShort(&ctx);	//meant to be a multiple of 8, but when its not we will treat it as 'nValidBits' and assume the lower bits are padded to bytes.
+
+	if (info.format == 0xfffe)
+	{
+		if (GetLittleShort(&ctx) >= 22) //cbSize
+		{
+			ctx.data_p += 2;	//wValidBitsPerSample. don't really care
+			ctx.data_p += 4;	//dwChannelMask. don't really care.
+			if      (!memcmp(ctx.data_p, "\x01\x00\x00\x00\x00\x00\x10\x00\x80\x00\x00\xaa\x00\x38\x9b\x71", 16))
+				info.format = 1;	//pcm(regular ints)
+			else if (!memcmp(ctx.data_p, "\x03\x00\x00\x00\x00\x00\x10\x00\x80\x00\x00\xaa\x00\x38\x9b\x71", 16))
+				info.format = 3;	//float
+			//else leave it unusable.
+			ctx.data_p += 16;	//SubFormat. convert to the real format
+		}
+	}
 
 // get cue chunk
 	chunklen = FindChunk(&ctx, "cue ");
@@ -1242,7 +1356,7 @@ static wavinfo_t GetWavinfo (char *name, qbyte *wav, int wavlength)
 	}
 
 	ctx.data_p += 8;
-	samples = (chunklen<<3) / info.bitwidth / info.numchannels;
+	samples = (chunklen<<3) / ((info.bitwidth+7)&~7) / info.numchannels;
 
 	if (info.samples)
 	{

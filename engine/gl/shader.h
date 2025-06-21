@@ -274,6 +274,8 @@ typedef struct shaderpass_s {
 		T_GEN_REFLECTMASK,	//dpreflectcube mask
 		T_GEN_DISPLACEMENT,	//displacement texture (probably half-float or something so higher precision than normalmap.a)
 		T_GEN_OCCLUSION,	//occlusion mask (instead of baking it into the texture itself, required for correct pbr)
+		T_GEN_TRANSMISSION,	//.r fancy opacity mask (still contributes its own colour over the top, for KHR_materials_transmission)
+		T_GEN_THICKNESS,	//.g depth mask (could be replaced with raytracing, for KHR_materials_volume)
 
 		T_GEN_CURRENTRENDER,//copy the current screen to a texture, and draw that
 
@@ -502,7 +504,7 @@ struct programpermu_s
 	#ifdef GLQUAKE
 		struct
 		{
-			int handle;
+			unsigned int handle;
 			qboolean usetesselation;
 		} glsl;
 	#endif
@@ -544,6 +546,7 @@ typedef struct programshared_s
 	unsigned explicitsyms:1;	//avoid defining symbol names that'll conflict with other glsl (any fte-specific names must have an fte_ prefix)
 	unsigned tess:1;			//has a tessellation control+evaluation shader
 	unsigned geom:1;			//has a geometry shader
+	unsigned rayquery:1;		//needs a top-level acceleration structure.
 	unsigned warned:1;			//one of the permutations of this shader has already been warned about. don't warn about all of them because that's potentially spammy.
 	unsigned short numsamplers;	//shader system can strip any passes above this
 	unsigned int defaulttextures;	//diffuse etc
@@ -577,12 +580,13 @@ enum
 	LSHADER_CUBE=1u<<0,		//has a cubemap filter (FIXME: use custom 2d filter on spot lights)
 	LSHADER_SMAP=1u<<1,		//filter based upon a shadowmap instead of stencil/unlit
 	LSHADER_SPOT=1u<<2,		//filter based upon a single spotlight shadowmap
+	LSHADER_RAYQUERY=1u<<3,	//hardware raytrace.
 #ifdef LFLAG_ORTHO
-	LSHADER_ORTHO=1u<<3,	//uses a parallel projection(ortho) matrix, with the light source being an entire plane instead of a singular point. which is weird. read: infinitely far away sunlight
-	LSHADER_MODES=1u<<4,
+	LSHADER_ORTHO=1u<<4,	//uses a parallel projection(ortho) matrix, with the light source being an entire plane instead of a singular point. which is weird. read: infinitely far away sunlight
+	LSHADER_MODES=1u<<5,
 #else
 	LSHADER_ORTHO=0,	//so bitmasks return false
-	LSHADER_MODES=1u<<3,
+	LSHADER_MODES=1u<<4,
 #endif
 
 	LSHADER_FAKESHADOWS=1u<<10,	//special 'light' type that isn't a light but still needs a shadowmap. ignores world+bsp shadows.
@@ -696,7 +700,9 @@ struct shader_s
 #define MATERIAL_FACTOR_BASE 0
 #define MATERIAL_FACTOR_SPEC 1
 #define MATERIAL_FACTOR_EMIT 2
-#define MATERIAL_FACTOR_COUNT 3
+#define MATERIAL_FACTOR_TRANSMISSION 3
+#define MATERIAL_FACTOR_VOLUME 4
+#define MATERIAL_FACTOR_COUNT 5
 	vec4_t factors[MATERIAL_FACTOR_COUNT];
 
 	//arranged as a series of vec4s
@@ -776,6 +782,7 @@ void Shader_NeedReload(qboolean rescanfs);
 void Shader_WriteOutGenerics_f(void);
 void Shader_RemapShader_f(void);
 void Shader_ShowShader_f(void);
+void Shader_ShaderList_f(void);
 
 program_t *Shader_FindGeneric(char *name, int qrtype);
 struct programpermu_s *Shader_LoadPermutation(program_t *prog, unsigned int p);
@@ -874,15 +881,17 @@ enum
 	S_REFLECTMASK	= 10,
 	S_DISPLACEMENT	= 11,
 	S_OCCLUSION		= 12,
-	S_LIGHTMAP0		= 13,
-	S_DELUXEMAP0	= 14,
+	S_TRANSMISSION	= 13,
+	S_THICKNESS		= 14,
+	S_LIGHTMAP0		= 15,
+	S_DELUXEMAP0	= 16,
 #if MAXRLIGHTMAPS > 1
-	S_LIGHTMAP1		= 15,
-	S_LIGHTMAP2		= 16,
-	S_LIGHTMAP3		= 17,
-	S_DELUXEMAP1	= 18,
-	S_DELUXEMAP2	= 19,
-	S_DELUXEMAP3	= 20,
+	S_LIGHTMAP1		= 17,
+	S_LIGHTMAP2		= 18,
+	S_LIGHTMAP3		= 19,
+	S_DELUXEMAP1	= 20,
+	S_DELUXEMAP2	= 21,
+	S_DELUXEMAP3	= 22,
 #endif
 };
 extern const struct sh_defaultsamplers_s
@@ -1095,5 +1104,5 @@ void CLQ1_AddOrientedCylinder(shader_t *shader, float radius, float height, qboo
 void CLQ1_AddOrientedSphere(shader_t *shader, float radius, float *matrix, float r, float g, float b, float a);
 void CLQ1_AddOrientedHalfSphere(shader_t *shader, float radius, float gap, float *matrix, float r, float g, float b, float a);
 
-extern cvar_t r_fastturb, r_fastsky, r_skyboxname, r_skybox_orientation;
+extern cvar_t r_fastturb, r_fastsky, r_skyboxname, r_skybox_orientation, r_skybox_autorotate;
 #endif

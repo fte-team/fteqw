@@ -1,4 +1,4 @@
-!!cvarf ffov
+!!cvarf ffov=0
 !!samps reflectcube
 #include "sys/defs.h"
 

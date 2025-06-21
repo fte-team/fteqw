@@ -64,16 +64,47 @@ nonstatic void(mitem_desktop desktop) M_FOpen =
 		print("fopen failure\n");
 };
 
+static string(string name) basemapname =
+{
+	if (!strncmp(name, "maps/", 5))
+		name = substring(name, 5, -1);
+	if (substring(name, -4, -1) == ".bsp")
+		name = substring(name, 0, -5);
+	return name;
+};
+static string(string name) enginemapname =
+{
+	float ofs = strstrofs(name, ":");
+	if (ofs<0)
+	{
+		if (!strncmp(name, "maps/", 5))
+			name = substring(name, 5, -1);
+		if (substring(name, -8, -1) == ".bsp.gz")
+			name = strcat(substring(name, 0, -9),"^8.gz");	//fiddle a little with its display
+		if (substring(name, -4, -1) == ".bsp")
+			name = substring(name, 0, -5);
+	}
+	else
+	{	//faff with the cullers to try to make it more readable.
+		name = sprintf("^8%s:^7%s", substring(name, 0, ofs), substring(name, ofs, -1));
+	}
+	return name;
+};
+
 #define FOURCC(a,b,c,d) ((int)(a)<<0i)|((int)(b)<<8i)|((int)(c)<<16i)|((int)(d)<<24i)
 static string(string name) getmapdesc =
 {
+	if (strstrofs(name, ":")>=0)
+	{	//FIXME: look up the package's title?
+		return strcat("^8", basemapname(name));
+	}
 	if (checkbuiltin(fread) && checkbuiltin(fseek) && checkbuiltin(memalloc) && checkbuiltin(memfree) && checkbuiltin(memgetval) && checkbuiltin(itof) && checkbuiltin(ftoi))
 	{	//we can do it, so do it.
 		filestream f = fopen(name, FILE_READ);
 		if (f < 0)
 			print(sprintf("Unable to read %s\n", name));
 		
-		name = substring(name, 5, -5);
+		name = basemapname(name);
 		if (f < 0)
 			return name;
 
@@ -156,7 +187,7 @@ class mitem_maplist : mitem_grid
 	void() mitem_maplist =
 	{
 		searchhandle searchtable;
-		searchtable = search_begin("maps/*.bsp", SB_FULLPACKAGEPATH, 0);
+		searchtable = search_begin("maps/*.bsp:maps/*.bsp.gz", SB_FULLPACKAGEPATH|SB_MULTISEARCH, 0);
 		float files = search_getsize(searchtable);
 		if (files && checkbuiltin(search_getpackagename))
 		{	//find which gamedir the first entry is in (highest-priority is first)
@@ -177,14 +208,30 @@ class mitem_maplist : mitem_grid
 		for (float count = 0; count < files; count++)
 		{
 			string n = search_getfilename(searchtable, count);
-			string shortname = substring(n, 5, -5);
-			if (!strncmp(shortname, "_", 1) || !strncmp(shortname, "b_", 2))
-				continue;	//don't add b_* names
-			bufstr_set(names, grid_numchildren, n);
-			grid_numchildren++;
+			if (!strncmp(n, "maps/_", 6) || !strncmp(n, "maps/b_", 7))
+				continue;	//don't add b_* names nor _*
+			bufstr_add(names, n, TRUE);
 		}
 		search_end(searchtable);
+
+		for (float pkg = 0; ; pkg++)
+		{
+			string n = getpackagemanagerinfo(pkg, GPMI_NAME);
+			if not(n)
+				break;	//end of list.
+			string maps = getpackagemanagerinfo(pkg, GPMI_MAPS);
+			if not(maps)
+				continue;	//none? not a mappack? don't waste time on the tokenizing.
+			float eq = strstrofs(n, "=");
+			if (eq >= 0)
+				n = substring(n, 0, eq);
+			float c = tokenize_console(maps);
+			for (float i = 0; i < c; i++)
+				bufstr_add(names, sprintf("%s:%s", n, argv(i)), TRUE);
+		}
+
 		buf_sort(names, 0, FALSE);	//make sure they're sorted now.
+		grid_numchildren = buf_getsize(names);
 		descs = buf_create();
 
 		item_resized();	//FIXME: is this needed?
@@ -206,7 +253,7 @@ class mitem_maplist : mitem_grid
 				bufstr_set(descs, idx, desc);
 			}
 		}
-		map = substring(map, 5, -5);
+		map = basemapname(map);
 
 		vector col = (map == get("map"))?[1.16, 0.54, 0.41]:'1 1 1';
 		if (item_flags & IF_MFOCUSED && idx == grid_mactive)
@@ -222,13 +269,14 @@ class mitem_maplist : mitem_grid
 	};
 	virtual float(vector pos, float scan, float chr, float down, float idx) grid_keypress =
 	{
-		if ((scan == K_ENTER || scan == K_MOUSE1) && down)
-		{
-			string map = bufstr_get(names, idx);
-			map = substring(map, 5, -5);
-			set("map", map);
-			return TRUE;
-		}
+		if (down)
+			if (ISCONFIRMKEY(scan) || ((scan == K_MOUSE1 || scan == K_TOUCHTAP) && mouseinbox(pos, this.item_size)))
+			{
+				string map = bufstr_get(names, idx);
+				map = enginemapname(map);
+				set("map", map);
+				return TRUE;
+			}
 		return FALSE;
 	};
 //	virtual void(float olditem, float newitem) grid_selectionchanged;

@@ -35,20 +35,24 @@ typedef struct bspx_header_s bspx_header_t;
 
 typedef enum {
 	SHADER_SORT_NONE,
-	SHADER_SORT_RIPPLE,
-	SHADER_SORT_DEFERREDLIGHT,
+	SHADER_SORT_RIPPLE,			//new
+	SHADER_SORT_DEFERREDLIGHT,	//new
 	SHADER_SORT_PORTAL,
-	SHADER_SORT_SKY,
+	SHADER_SORT_SKY,			//aka environment
 	SHADER_SORT_OPAQUE,
 	//fixme: occlusion tests
 	SHADER_SORT_DECAL,
 	SHADER_SORT_SEETHROUGH,
 	//then rtlights are drawn
-	SHADER_SORT_UNLITDECAL,
+	SHADER_SORT_UNLITDECAL,		//new
 	SHADER_SORT_BANNER,
+	//fog
 	SHADER_SORT_UNDERWATER,
 	SHADER_SORT_BLEND,
 	SHADER_SORT_ADDITIVE,
+	//blend2,3,6
+	//stencilshadow
+	//almostnearest
 	SHADER_SORT_NEAREST,
 
 
@@ -209,9 +213,11 @@ m*_t structures are in-memory
 #define	QWEF_FLAG1	 			(1<<4)	//only applies to qw player entities
 #define	NQEF_NODRAW				(1<<4)	//so packet entities are free to get this instead
 #define REEF_QUADLIGHT			(1<<4)
+#define TENEBRAEEF_FULLDYNAMIC	(1<<4)
 #define	QWEF_FLAG2	 			(1<<5)	//only applies to qw player entities
 #define	NQEF_ADDITIVE			(1<<5)	//so packet entities are free to get this instead
 #define REEF_PENTLIGHT			(1<<5)
+#define TENEBRAEEF_GREEN		(1<<5)
 #define	EF_BLUE					(1<<6)
 #define REEF_CANDLELIGHT		(1<<6)
 #define	EF_RED					(1<<7)
@@ -602,7 +608,7 @@ void Q1BSP_GenerateShadowMesh(struct model_s *model, struct dlight_s *dl, const 
 
 void BSPX_LightGridLoad(struct model_s *model, bspx_header_t *bspx, qbyte *mod_base);	//for q1 or q2 models.
 void BSPX_LoadEnvmaps(struct model_s *mod, bspx_header_t *bspx, void *mod_base);
-void *BSPX_FindLump(bspx_header_t *bspxheader, void *mod_base, char *lumpname, int *lumpsize);
+void *BSPX_FindLump(bspx_header_t *bspxheader, void *mod_base, char *lumpname, size_t *lumpsize);
 bspx_header_t *BSPX_Setup(struct model_s *mod, char *filebase, size_t filelen, lump_t *lumps, size_t numlumps);
 
 typedef struct fragmentdecal_s fragmentdecal_t;
@@ -892,7 +898,7 @@ typedef struct {
 //
 
 typedef enum {mod_brush, mod_sprite, mod_alias, mod_dummy, mod_halflife, mod_heightmap} modtype_t;
-typedef enum {fg_quake, fg_quake2, fg_quake3, fg_halflife, fg_new, fg_doom, fg_doom3} fromgame_t;	//useful when we have very similar model types. (eg quake/halflife bsps)
+typedef enum {fg_quake, fg_quake2, fg_quake3, fg_halflife, fg_new, fg_doom} fromgame_t;	//useful when we have very similar model types. (eg quake/halflife bsps)
 typedef enum {sb_none, sb_quake64, sb_long1, sb_long2} subbsp_t; // used to denote bsp specifics for load processing only (no runtime changes)
 
 #define	MF_ROCKET				(1u<<0)			// leave a trail
@@ -1107,14 +1113,15 @@ typedef struct model_s
 			//internally, we still use integers for lighting, with .7 bits of extra precision.
 			LM_L8,
 			LM_RGB8,
-			LM_E5BGR9
+			LM_E5BGR9,
 		} fmt;
+		enum uploadfmt prebaked;
 		qboolean deluxemapping;	//lightmaps are interleaved with deluxemap data (lightmap indicies should only be even values)
 		qboolean deluxemapping_modelspace; //deluxemaps are in modelspace - we need different glsl.
 	} lightmaps;
 
-	unsigned	checksum;
-	unsigned	checksum2;
+	unsigned	checksum;	//the legacy checksum (excludes ent lump)
+	unsigned	checksum2;	//the watervis checksum (excludes ent lump and vis stuff). this is the one that's sent over the network.
 
 	portal_t *portal;
 	unsigned int numportals;
@@ -1180,6 +1187,7 @@ unsigned int Heightmap_PointContents(model_t *model, const vec3_t axis[3], const
 struct fragmentdecal_s;
 void Terrain_ClipDecal(struct fragmentdecal_s *dec, float *center, float radius, model_t *model);
 qboolean Terr_DownloadedSection(char *fname);
+shader_t *Terr_GetShader(struct model_s *mod, struct trace_s *trace);
 
 void CL_Parse_BrushEdit(void);
 qboolean SV_Parse_BrushEdit(void);

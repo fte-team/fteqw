@@ -1,9 +1,10 @@
 !!cvardf r_glsl_turbscale_reflect=1	//simpler scaler
 !!cvardf r_glsl_turbscale_refract=1	//simpler scaler
+!!permu REFLECTCUBEMASK
 !!samps diffuse normalmap
 !!samps	refract=0	//always present
-!!samps =REFLECT	reflect=1
-!!samps !REFLECT	reflectcube
+!!samps reflect=1
+!!samps =REFLECTCUBEMASK reflectcube
 !!permu FOG
 
 #include "sys/defs.h"
@@ -34,7 +35,7 @@
 #define TINT 0.7,0.8,0.7
 #endif
 #ifndef STRENGTH
-#define STRENGTH 0.1
+#define STRENGTH 0.25
 #endif
 #ifndef TXSCALE
 #define TXSCALE 1
@@ -42,7 +43,7 @@
 
 //current values (referring to legacy defaults where needed)
 #ifndef FRESNEL_EXP
-#define FRESNEL_EXP 4.0
+#define FRESNEL_EXP 5.0
 #endif
 #ifndef FRESNEL_MIN
 #define FRESNEL_MIN 0.0
@@ -76,6 +77,7 @@ varying vec2 tc;
 varying vec4 tf;
 varying vec3 norm;
 varying vec3 eye;
+
 #ifdef VERTEX_SHADER
 void main (void)
 {
@@ -86,6 +88,7 @@ void main (void)
 	gl_Position = ftetransform();
 }
 #endif
+
 #ifdef FRAGMENT_SHADER
 #include "sys/fog.h"
 
@@ -159,11 +162,10 @@ void main (void)
 	refr = mix(refr, vec3(FOGTINT), min(depth/4096.0, 1.0));
 #endif
 
-#ifdef REFLECT
-	//reflection/diffuse
-	refl = texture2D(s_reflect, stc - n.st*float(STRENGTH_REFL)*float(r_glsl_turbscale_reflect)).rgb * vec3(TINT_REFL);
-#else
+#ifdef LQWATER
 	refl = textureCube(s_reflectcube, n).rgb;// * vec3(TINT_REFL);
+#else
+	refl = texture2D(s_reflect, stc - n.st*float(STRENGTH_REFL)*float(r_glsl_turbscale_reflect)).rgb * vec3(TINT_REFL);
 #endif
 
 	//interplate by fresnel

@@ -67,14 +67,17 @@ typedef struct vrsetup_s
 	};
 } vrsetup_t;
 
+#define VRF_OVERRIDEFRAMETIME	1	//the vr interface is responsible for determining frame intervals instead of using regular clocks (so they can fiddle with prediction etc)
+#define VRF_UIACTIVE			2	//we're actually rendering through a headset. use 3d rendering exclusively, with VR UI and stuff.
+
 //interface registered by plugins for VR stuff.
 typedef struct plugvrfuncs_s
 {
 	const char	*description;
 	qboolean	(*Prepare)	(vrsetup_t *setupinfo);	//called before graphics context init
 	qboolean	(*Init)		(vrsetup_t *setupinfo, rendererstate_t *info);	//called after graphics context init
-	qboolean	(*SyncFrame)(double *frametime);	//called in the client's main loop, to block/tweak frame times. True means the game should render as fast as possible.
-	qboolean	(*Render)	(void(*rendereye)(texid_t tex, vec4_t fovoverride, vec3_t angorg[2]));
+	unsigned int	(*SyncFrame)(double *frametime);	//called in the client's main loop, to block/tweak frame times. True means the game should render as fast as possible.
+	qboolean	(*Render)	(void(*rendereye)(texid_t tex, const pxrect_t *viewport, const vec4_t fovoverride, const float projmatrix[16], const float eyematrix[12]));
 	void		(*Shutdown)	(void);
 #define plugvrfuncs_name "VR"
 } plugvrfuncs_t;

@@ -1,7 +1,10 @@
-#include "../plugin.h"
 #include "ezquakeisms.h"
 #include "hud.h"
 #include "hud_editor.h"
+
+#ifdef FTEENGINE
+#define Plug_Init Plug_EZHud_Init
+#endif
 
 plug2dfuncs_t *drawfuncs;
 plugclientfuncs_t *clientfuncs;
@@ -201,7 +204,7 @@ void Draw_ColoredString3(float x, float y, const char *str, clrinfo_t *clr, int 
 	drawfuncs->String(x, y, str);
 	drawfuncs->Colour4f(1, 1, 1, 1);
 }
-void UI_PrintTextBlock(void)
+void UI_PrintTextBlock(float x, float y, float w, float h, char *str, int flags)
 {
 }
 void Draw_AlphaRectangleRGB(int x, int y, int w, int h, int foo, int bar, byte r, byte g, byte b, byte a)
@@ -268,7 +271,7 @@ int dehex(char nib)
 		return nib - 'A' + 10;
 	return 0;
 }
-char *TP_ParseFunChars(char *str, qbool chat)
+char *TP_ParseFunChars(char *str)
 {
 	static char resultbuf[1024];
 	char *out = resultbuf, *end = resultbuf+sizeof(resultbuf)-1;
@@ -326,7 +329,41 @@ char *TP_ParseFunChars(char *str, qbool chat)
 }
 char *TP_ItemName(unsigned int itbit)
 {
-	return "Dunno";
+	cvar_t *var = NULL;
+	switch (itbit)
+	{
+#define ITEMNAME(it, nam)	case it: var = cvarfuncs->GetNVFDG("tp_name_"#nam, #nam, 0, NULL, "Item Names"); break
+	ITEMNAME(IT_SHOTGUN,			sg);
+	ITEMNAME(IT_SUPER_SHOTGUN,		ssg);
+	ITEMNAME(IT_NAILGUN,			ng);
+	ITEMNAME(IT_SUPER_NAILGUN,		sng);
+	ITEMNAME(IT_GRENADE_LAUNCHER,	gl);
+	ITEMNAME(IT_ROCKET_LAUNCHER,	rl);
+	ITEMNAME(IT_LIGHTNING,			lg);
+//	ITEMNAME(IT_SUPER_LIGHTNING,	???);
+	ITEMNAME(IT_SHELLS,				shells);
+	ITEMNAME(IT_NAILS,				nails);
+	ITEMNAME(IT_ROCKETS,			rockets);
+	ITEMNAME(IT_CELLS,				cells);
+	ITEMNAME(IT_AXE,				axe);
+	ITEMNAME(IT_ARMOR1,				ga);
+	ITEMNAME(IT_ARMOR2,				ya);
+	ITEMNAME(IT_ARMOR3,				ra);
+	ITEMNAME(IT_SUPERHEALTH,		mh);
+//	ITEMNAME(IT_KEY1,				);
+//	ITEMNAME(IT_KEY2,				);
+	ITEMNAME(IT_INVISIBILITY,		ring);
+	ITEMNAME(IT_INVULNERABILITY,	pent);
+	ITEMNAME(IT_SUIT,				suit);
+	ITEMNAME(IT_QUAD,				quad);
+//	ITEMNAME(IT_SIGIL1,				);
+//	ITEMNAME(IT_SIGIL2,				);
+//	ITEMNAME(IT_SIGIL3,				);
+//	ITEMNAME(IT_SIGIL4,				);
+	}
+	if (var)
+		return var->string;
+	return va("it%#x", itbit);
 }
 
 void Replace_In_String(char *src, size_t strsize, char leadchar, int patterns, ...)
@@ -511,11 +548,6 @@ void EZHud_UseNquake_f(void)
 	const char *hudstr = builtin_hud_nquake;
 	cmdfuncs->AddText(hudstr, true);
 }
-
-qboolean Cmd_AddCommand	(const char *funcname, xcommand_t function)
-{
-	return cmdfuncs->AddCommand(funcname, function, NULL);
-};
 
 int IN_BestWeapon(void)
 {

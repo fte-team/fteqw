@@ -7,6 +7,8 @@
 
 #if defined(_WIN32) || defined(__DJGPP__)
 #include <malloc.h>
+#elif defined(__unix__) && !defined(__linux__) // quick hack for the bsds and other unix systems
+#include<stdlib.h>
 #else
 #include <alloca.h>
 #endif
@@ -28,9 +30,6 @@ char progssrcdir[256];
 char enginebinary[MAX_OSPATH];
 char enginebasedir[MAX_OSPATH];
 char enginecommandline[8192];
-
-pbool qcc_vfiles_changed;
-vfile_t *qcc_vfiles;
 
 //for finding symbol keywords
 extern QCC_def_t *sourcefilesdefs[];
@@ -891,10 +890,10 @@ int GUI_ParseCommandLine(const char *args, pbool keepsrcanddir)
 
 		args=next;
 	}
-	if (paramlen)
-		parameters[paramlen-1] = '\0';
-	else
-		*parameters = '\0';
+
+	while (paramlen>0 && (parameters[paramlen-1] == ' ' || parameters[paramlen-1] == '\t'))
+		paramlen--;
+	parameters[paramlen] = '\0';
 
 	qccpersisthunk = (mode!=1);
 	return mode;
@@ -940,7 +939,7 @@ void GUI_RevealOptions(void)
 
 
 
-int GUI_BuildParms(const char *args, const char **argv, pbool quick)//, char *forceoutputfile)
+int GUI_BuildParms(const char *args, const char **argv, int argv_size, pbool quick)//, char *forceoutputfile)
 {
 	static char param[2048];
 	int paramlen = 0;
@@ -1031,6 +1030,9 @@ int GUI_BuildParms(const char *args, const char **argv, pbool quick)//, char *fo
 		while (*args <= ' '&& *args)
 			args++;
 
+		if (argc >= argv_size)
+			return 0;
+
 		for (next = args; *next>' '; next++)
 			;
 		strncpy(param+paramlen, args, next-args);
@@ -1081,95 +1083,4 @@ pbool GenBuiltinsList(char *buffer, int buffersize)
 	}
 	buffer[usedbuffer] = 0;
 	return usedbuffer>0;
-}
-
-void QCC_CloseAllVFiles(void)
-{
-	vfile_t *f;
-
-	while(qcc_vfiles)
-	{
-		f = qcc_vfiles;
-		qcc_vfiles = f->next;
-
-		free(f->file);
-		free(f);
-	}
-	qcc_vfiles_changed = false;
-}
-vfile_t *QCC_FindVFile(const char *name)
-{
-	vfile_t *f;
-	for (f = qcc_vfiles; f; f = f->next)
-	{
-		if (!strcmp(f->filename, name))
-			return f;
-	}
-	//give it another go, for case
-	for (f = qcc_vfiles; f; f = f->next)
-	{
-		if (!QC_strcasecmp(f->filename, name))
-			return f;
-	}
-	return NULL;
-}
-vfile_t *QCC_AddVFile(const char *name, void *data, size_t size)
-{
-	vfile_t *f = QCC_FindVFile(name);
-	if (!f)
-	{
-		f = malloc(sizeof(vfile_t) + strlen(name));
-		f->next = qcc_vfiles;
-		strcpy(f->filename, name);
-		qcc_vfiles = f;
-	}
-	else
-		free(f->file);
-	f->file = malloc(size);
-	f->type = FT_CODE;
-	memcpy(f->file, data, size);
-	f->size = f->bufsize = size;
-
-	qcc_vfiles_changed = true;
-	return f;
-}
-void QCC_CatVFile(vfile_t *f, const char *fmt, ...)
-{
-	va_list argptr;
-	char msg[65536];
-	size_t n;
-
-	va_start (argptr,fmt);
-	QC_vsnprintf (msg,sizeof(msg)-1, fmt, argptr);
-	va_end (argptr);
-
-	n = strlen(msg);
-	if (f->size+n > f->bufsize)
-	{
-		size_t msize = f->bufsize + n + 8192;
-		f->file = realloc(f->file, msize);
-		f->bufsize = msize;
-	}
-	memcpy((char*)f->file+f->size, msg, n);
-	f->size += n;
-}
-void QCC_InsertVFile(vfile_t *f, size_t pos, const char *fmt, ...)
-{
-	va_list argptr;
-	char msg[65536];
-	size_t n;
-	va_start (argptr,fmt);
-	QC_vsnprintf (msg,sizeof(msg)-1, fmt, argptr);
-	va_end (argptr);
-
-	n = strlen(msg);
-	if (f->size+n > f->bufsize)
-	{
-		size_t msize = f->bufsize + n + 8192;
-		f->file = realloc(f->file, msize);
-		f->bufsize = msize;
-	}
-	memmove((char*)f->file+pos+n, (char*)f->file+pos, f->size-pos);
-	f->size += n;
-	memcpy((char*)f->file+pos, msg, n);
 }

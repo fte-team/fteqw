@@ -1,13 +1,5 @@
 #include "quakedef.h"
-
-#ifdef MULTITHREAD
-#include <SDL_thread.h>
-#endif
-
-#include <SDL_loadso.h>
-
 #include <emscripten/emscripten.h>
-#include "ftejslib.h"
 
 #ifndef isDedicated
 qboolean isDedicated;
@@ -45,12 +37,100 @@ qboolean Sys_RandomBytes(qbyte *string, int len)
 	return false;
 }
 
+static qboolean sys_supportsansi;
+static char ansiremap[8] = {'0', '4', '2', '6', '1', '5', '3', '7'};
+static size_t ApplyColour(char *out, size_t outsize, unsigned int chrflags)
+{
+	char *s, *e;
+	static int oldflags = CON_WHITEMASK;
+	int bg, fg;
+
+	if (!sys_supportsansi)
+		return 0;
+	if (oldflags == chrflags)
+		return 0;
+	s = out;
+	e = out+outsize;
+	oldflags = chrflags;
+
+	*out++='\x1b';
+	*out++='[';
+	*out++='0';
+	*out++=';';
+	if (chrflags & CON_BLINKTEXT)
+	{	//set blink flag
+		*out++='5';
+		*out++=';';
+	}
+
+	bg = (chrflags & CON_BGMASK) >> CON_BGSHIFT;
+	fg = (chrflags & CON_FGMASK) >> CON_FGSHIFT;
+
+	// don't handle intensive bit for background
+	// as terminals differ too much in displaying \e[1;7;3?m
+	bg &= 0x7;
+
+	if (chrflags & CON_NONCLEARBG)
+	{
+		if (fg & 0x8) // intensive bit set for foreground
+		{	// set bold/intensity ansi flag
+			*out++='1';
+			*out++=';';
+			fg &= 0x7; // strip intensive bit
+		}
+
+		// set foreground and background colors
+		*out++='3';
+		*out++=ansiremap[fg];
+		*out++=';';
+		*out++='4';
+		*out++=ansiremap[bg];
+		*out++='m';
+	}
+	else
+	{
+		switch(fg)
+		{
+		//to get around wierd defaults (like a white background) we have these special hacks for colours 0 and 7
+		case COLOR_BLACK:
+			// set inverse
+			*out++='7';
+			*out++='m';
+			break;
+		case COLOR_GREY:
+			*out++='1';
+			*out++=';';
+			*out++='3';
+			*out++='0';
+			*out++='m';
+			break;
+		case COLOR_WHITE:
+			// set nothing else
+			*out++='m';
+			break;
+		default:
+			if (fg & 0x8) // intensive bit set for foreground
+			{
+				// set bold/intensity ansi flag
+				*out++='1';
+				*out++=';';
+				fg &= 0x7; // strip intensive bit
+			}
+
+			*out++='3';
+			*out++=ansiremap[fg];
+			*out++='m';
+			break;
+		}
+	}
+	return out-s;
+}
 //print into stdout
 void Sys_Printf (char *fmt, ...)
 {
 	va_list		argptr;	
-	char text[2048];
-	conchar_t	ctext[2048], *e, *c;
+	char text[65536];
+	conchar_t	ctext[countof(text)], *e, *c;
 	unsigned int len = 0;
 	unsigned int w, codeflags;
 		
@@ -67,6 +147,10 @@ void Sys_Printf (char *fmt, ...)
 		c = Font_Decode(c, &codeflags, &w);
 		if (codeflags & CON_HIDDEN)
 			continue;
+
+		if ((codeflags&CON_RICHFORECOLOUR) || (w == '\n' && (codeflags&CON_NONCLEARBG)))
+			codeflags = CON_WHITEMASK;	//make sure we don't get annoying backgrounds on other lines.
+		len+=ApplyColour(text+len,sizeof(text)-1-len, codeflags);
 
 		//dequake it as required, so its only codepoints the browser will understand. should probably deal with linefeeds specially.
 		if (w >= 0xe000 && w < 0xe100)
@@ -89,7 +173,11 @@ void Sys_Printf (char *fmt, ...)
 	
 		len += utf8_encode(text+len, w, sizeof(text)-1-len);
 	}
+
+	len+=ApplyColour(text+len,sizeof(text)-1-len, CON_WHITEMASK);	//force it back to white at the end of the print... just in case
+
 	text[len] = 0;
+	
 
 	//now throw it at the browser's console.log.
 	emscriptenfte_print(text);
@@ -138,7 +226,7 @@ double Sys_DoubleTime (void)
 }
 #endif
 
-//create a directory
+//create a directory. we don't do dirs.
 void Sys_mkdir (const char *path)
 {
 }
@@ -160,6 +248,7 @@ qboolean Sys_Rename (const char *oldfname, const char *newfname)
 }
 qboolean Sys_GetFreeDiskSpace(const char *path, quint64_t *freespace)
 {	//not implemented. we could try querying local storage quotas, but our filesystem is otherwise purely ram so doesn't have much of a limit in 64bit browsers. hurrah for swap space.
+	*freespace = 0;	//just in case.
 	return false;
 }
 
@@ -249,9 +338,32 @@ void Sys_BrowserRedirect_f(void)
 {
 	emscriptenfte_window_location(Cmd_Argv(1));
 }
+void Sys_OpenFile_f(void)
+{
+	emscriptenfte_openfile();
+}
 
+
+static void Sys_Register_File_Associations_f(void)
+{	//we should be able to register 'web+foo://' schemes here. we can't skip the web+ part though, which is a shame.
+	const char *s;
+	char scheme[MAX_OSPATH];
+	const char *schemes = fs_manifest->schemes;
+	for (s = schemes; (s=COM_ParseOut(s,scheme,sizeof(scheme)));)
+	{
+		EM_ASM({
+			try{
+			if (navigator.registerProtocolHandler)
+			navigator.registerProtocolHandler(
+				UTF8ToString($0),
+				document.location.origin+document.location.pathname+"?%s"+document.location.hash,
+				UTF8ToString($1));
+			} catch(e){}
+			}, va("%s%s", strncmp(scheme,"web+",4)?"web+":"", scheme), fs_manifest->formalname?fs_manifest->formalname:fs_manifest->installation);
+	}
+}
 char *Sys_URIScheme_NeedsRegistering(void)
-{	//just disables the prompts that we can't honour anyway.
+{	//we have no way to query if we're registered or not. cl_main will default to bypassing this.
 	return NULL;
 }
 
@@ -264,10 +376,18 @@ void Sys_Init(void)
 	vid_width.flags &= ~CVAR_VIDEOLATCH;
 	vid_height.flags &= ~CVAR_VIDEOLATCH;
 
-	Cmd_AddCommand("sys_browserredirect", Sys_BrowserRedirect_f);
+	Cmd_AddCommandD("sys_browserredirect", Sys_BrowserRedirect_f, "Navigates the browser to a different url. For sites using quake maps as a more interesting sitemap.");
+	if (EM_ASM_INT(return window.showOpenFilePicker!=undefined;))	//doesn't work in firefox.
+		Cmd_AddCommandD("sys_openfile", Sys_OpenFile_f, "Opens a file picker");	//opens file picker
+	if (EM_ASM_INT(return Module['mayregisterscemes'] != false;))	//needs to be able to pass args via the url. don't bother adding the command if it'll fail. hurrah for checkcmd
+		Cmd_AddCommandD("sys_register_file_associations", Sys_Register_File_Associations_f, "Register this page as the default handler for web+scheme handlers.\n");
+
+	//can't really do feature detection for this... either we spit out unreadable text or we don't...
+	sys_supportsansi = EM_ASM_INT(return navigator.userAgent.indexOf("FireFox")!=-1;);
 }
 void Sys_Shutdown(void)
 {
+	emscriptenfte_setupmainloop(NULL);
 }
 
 
@@ -308,7 +428,7 @@ int Sys_MainLoop(double newtime)
 	time = newtime - oldtime;
 	if (!host_initialized)
 	{
-		Sys_Printf ("Host_Init\n");
+		Sys_Printf ("Starting "FULLENGINENAME"\n");
 		Host_Init (&parms);
 		return 1;
 	}
@@ -322,7 +442,6 @@ int Sys_MainLoop(double newtime)
 int QDECL main(int argc, char **argv)
 {
 	memset(&parms, 0, sizeof(parms));
-
 
 	parms.basedir = "";
 
@@ -364,6 +483,7 @@ void Sys_SaveClipboard(clipboardtype_t cbt, const char *text)
 }*/
 
 #ifdef MULTITHREAD
+#include <SDL_thread.h>	//FIXME: swap this out for sys_linux_threads.c (our pthreads code)
 /* Thread creation calls */
 void *Sys_CreateThread(char *name, int (*func)(void *), void *args, int priority, int stacksize)
 {

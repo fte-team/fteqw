@@ -1234,6 +1234,13 @@ static void D3D9_SetupViewPortProjection(void)
 	Matrix4x4_CM_ModelViewMatrixFromAxis(r_refdef.m_view, vpn, vright, vup, r_refdef.vieworg);
 	d3d9error(IDirect3DDevice9_SetTransform(pD3DDev9, D3DTS_VIEW, (D3DMATRIX*)r_refdef.m_view));
 
+	if (r_xflip.ival)
+	{
+		fov_x *= -1;
+		r_refdef.flipcull ^= SHADER_CULL_FLIP;
+		fovv_x *= -1;
+	}
+
 	if (r_refdef.maxdist)
 	{
 		/*d3d projection matricies scale depth to 0 to 1*/
@@ -1258,13 +1265,17 @@ static void	(D3D9_R_RenderView)				(void)
 {
 	if (!r_norefresh.value)
 	{
+		int cull = r_refdef.flipcull;
 		Surf_SetupFrame();
 
 		if (!r_refdef.globalfog.density)
 		{
+			extern cvar_t r_fog_linear;
+
 			int fogtype = ((r_refdef.flags & RDF_UNDERWATER) && cl.fog[FOGTYPE_WATER].density)?FOGTYPE_WATER:FOGTYPE_AIR;
 			CL_BlendFog(&r_refdef.globalfog, &cl.oldfog[fogtype], realtime, &cl.fog[fogtype]);
-			r_refdef.globalfog.density /= 64;	//FIXME
+			if (!r_fog_linear.ival)
+				r_refdef.globalfog.density /= 64;	//FIXME
 		}
 
 		//check if we can do underwater warp
@@ -1293,13 +1304,14 @@ static void	(D3D9_R_RenderView)				(void)
 
 		R_SetFrustum (r_refdef.m_projection_std, r_refdef.m_view);
 		RQ_BeginFrame();
-		if (!(r_refdef.flags & RDF_NOWORLDMODEL))
-		{
-			if (cl.worldmodel)
-				P_DrawParticles ();
-		}
+//		if (!(r_refdef.flags & RDF_NOWORLDMODEL))
+//		{
+//			if (!r_refdef.recurse && !(r_refdef.flags & RDF_DISABLEPARTICLES))
+//				P_DrawParticles ();
+//		}
 		Surf_DrawWorld();
 		RQ_RenderBatchClear();
+		r_refdef.flipcull = cull;
 	}
 	D3D9_Set2D ();
 }

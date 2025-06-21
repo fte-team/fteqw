@@ -349,9 +349,12 @@ typedef void (APIENTRY * PFNGLACTIVESTENCILFACEEXTPROC) (GLenum face);
 #endif
 
 
-
-
-
+#ifndef GL_VERSION_4_1
+#define GL_MAX_VERTEX_UNIFORM_VECTORS     0x8DFB
+#endif
+#ifndef GL_VERSION_2_0
+#define GL_MAX_VERTEX_UNIFORM_COMPONENTS  0x8B4A
+#endif
 
 
 #ifndef GL_ARB_vertex_program
@@ -571,7 +574,11 @@ typedef GLboolean (APIENTRYP PFNGLISPROGRAMARBPROC) (GLuint program);
 #define GL_SAMPLER_2D_RECT_ARB			0x8B63
 #define GL_SAMPLER_2D_RECT_SHADOW_ARB	0x8B64
 // dont know if these two should go somewhere better:
+#ifdef __APPLE__
+typedef void *GLhandleARB; //Royally Fucked.
+#else
 typedef unsigned int GLhandleARB;
+#endif
 typedef char         GLcharARB;
 typedef void		(APIENTRYP PFNGLDELETEOBJECTARBPROC)		(GLhandleARB obj);
 typedef GLhandleARB	(APIENTRYP PFNGLGETHANDLEARBPROC)			(GLenum pname);

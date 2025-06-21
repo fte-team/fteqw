@@ -302,7 +302,7 @@ function otherpackages {
 #fi
 
 #generic crap. much of this is needed to set up and decompress dependancies and stuff.
-debianpackages subversion make automake libtool p7zip-full zip ca-certificates || otherpackages z7 make svn || exit
+debianpackages git make automake libtool p7zip-full zip ca-certificates || otherpackages z7 make git || exit
 
 if [ "$BUILD_LINUXx86" == "y" ]; then
 	#for building linux targets

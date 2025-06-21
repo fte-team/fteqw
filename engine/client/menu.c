@@ -21,6 +21,9 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "winquake.h"
 #include "shader.h"
 #include "cl_master.h"
+#ifdef FTE_TARGET_WEB
+#include <emscripten/emscripten.h>
+#endif
 
 menu_t *topmenu;
 menu_t *promptmenu;
@@ -934,7 +937,7 @@ void M_Menu_Keys_f (void)
 	{
 #ifdef Q2CLIENT
 	case MGT_QUAKE2:
-		MC_AddCenterPicture(menu, 0, 60, "pics/m_banner_customize.pcx");
+		MC_AddCenterPicture(menu, 0, 24, "pics/m_banner_customize.pcx");
 		y = 48;
 		bindnames = q2bindnames;
 		break;
@@ -1029,7 +1032,7 @@ void M_UnbindCommand (const char *command)
 
 	l = strlen(command);
 
-	for (j=0 ; j<256 ; j++)
+	for (j=0 ; j<K_MAX ; j++)
 	{	//FIXME: not sure what to do about bindmaps here. oh well.
 		for (m = 0; m < KEY_MODIFIERSTATES; m++)
 		{
@@ -1280,7 +1283,10 @@ void M_Menu_Quit_f (void)
 	else if (!strcmp(arg, "forcesave") || cfg_save_auto.ival)
 	{
 		Cmd_ExecuteString("cfg_save", RESTRICT_LOCAL);
-		mode = 0;
+		if (!strcmp(arg, "prompt"))
+			mode = 1;
+		else
+			mode = 0;
 	}
 	else if (!strcmp(arg, "save"))
 		mode = 2;
@@ -1302,10 +1308,8 @@ void M_Menu_Quit_f (void)
 	switch(mode)
 	{
 	case 0:
-#ifndef FTE_TARGET_WEB
 		CL_Disconnect (NULL);
 		Sys_Quit ();
-#endif
 		break;
 	case 2:
 		Menu_Prompt (M_Menu_DoQuitSave, NULL, localtext("You have unsaved settings\nWould you like to\nsave them now?"), "Yes", "No", "Cancel", true);
@@ -1575,6 +1579,18 @@ void M_Init (void)
 	M_Reinit();
 }
 #endif
+
+void M_Window_ClosePrompt(void)
+{	//someone clicked our window's 'close' button or system menu or alt+f4 or etc. we blocked it for now, but don't just ignore it...
+	COM_AssertMainThread("M_Window_ClosePrompt");
+	Key_Dest_Remove(kdm_console);
+	if (Cmd_Exists("menu_quit") || Cmd_AliasExist("menu_quit", RESTRICT_LOCAL))
+		Cmd_ExecuteString("menu_quit prompt", RESTRICT_LOCAL);	//our builtin menus use this form
+	else if (Cmd_Exists("m_quit") || Cmd_AliasExist("m_quit", RESTRICT_LOCAL))
+		Cmd_ExecuteString("m_quit", RESTRICT_LOCAL);	//some menuqc mods use a different name for the command to avoid conflicts.
+	else
+		Cmd_ExecuteString("quit", RESTRICT_LOCAL);	//fall back to the engine's version
+}
 
 
 // Generic function to choose which game menu to draw

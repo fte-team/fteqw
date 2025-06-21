@@ -358,7 +358,7 @@ float(vector pos, float scan, float char, float down) mitem_vslider::item_keypre
 {
 	if (down != 1)
 	{
-		if (scan == K_MOUSE1 && ui.mgrabs == this)
+		if ((scan == K_TOUCHTAP || scan == K_MOUSE1) && ui.mgrabs == this)
 			ui.mgrabs = __NULL__;
 		return FALSE;
 	}
@@ -366,7 +366,7 @@ float(vector pos, float scan, float char, float down) mitem_vslider::item_keypre
 		val = bound(minv, val+stride, maxv);
 	else if (scan == K_MWHEELUP)
 		val = bound(minv, val-stride, maxv);
-	else if (scan == K_MOUSE1)
+	else if (scan == K_TOUCHTAP || scan == K_MOUSE1)
 		ui.mgrabs = this;
 	else
 		return FALSE;
@@ -545,7 +545,7 @@ float(vector pos, float scan, float char, float down) mitem_frame::item_keypress
 	pos[0] += item_framesize[0];
 	pos[1] += item_framesize[1];
 
-	if (scan >= K_MOUSE1 && scan <= K_MOUSE5 && scan != K_MWHEELUP && scan != K_MWHEELDOWN)
+	if ((scan >= K_MOUSE1 && scan <= K_MOUSE5 && scan != K_MWHEELUP && scan != K_MWHEELDOWN) || scan == K_TOUCHTAP)
 	{
 		if (item_exclusive)
 			ch = item_exclusive;

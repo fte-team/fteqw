@@ -1,6 +1,7 @@
 !!ver 100 150
 !!permu BUMP	//for offsetmapping rather than bumpmapping (real bumps are handled elsewhere)
 !!cvarf r_glsl_offsetmapping_scale
+!!samps diffuse specular fullbright lightmap
 !!samps 2
 
 //the final defered lighting pass.

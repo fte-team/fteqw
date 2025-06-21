@@ -2,6 +2,7 @@
 !!cvar3f r_floorcolor=0.5,0.5,0.5
 !!cvar3f r_wallcolor=0.25,0.25,0.5
 !!cvarb r_fog_exp2=true
+!!cvarb r_fog_linear=false
 !!samps 1
 #include "sys/defs.h"
 

@@ -161,8 +161,9 @@ cvar_t r_fb_bmodels							= CVARAFD("r_fb_bmodels", "1",
 													"gl_fb_bmodels", CVAR_SEMICHEAT|CVAR_RENDERERLATCH, "Enables loading lumas on the map, as well as any external bsp models.");
 cvar_t r_fb_models							= CVARAFD  ("r_fb_models", "1",
 													"gl_fb_models", CVAR_SEMICHEAT, "Enables the use of lumas on models. Note that if ruleset_allow_fbmodels is enabled, then all models are unconditionally fullbright in deathmatch, because cheaters would set up their models like that anyway, hurrah for beating them at their own game. QuakeWorld players suck.");
-cvar_t r_skin_overlays						= CVARF  ("r_skin_overlays", "1",
-													CVAR_SEMICHEAT|CVAR_RENDERERLATCH);
+cvar_t gl_overbright_models					= CVARFD("gl_overbright_models", "0", CVAR_SEMICHEAT|CVAR_ARCHIVE, "Doubles the brightness of models, to match QuakeSpasm's misfeature of the same name.");
+//cvar_t r_skin_overlays						= CVARF  ("r_skin_overlays", "1",
+//													CVAR_SEMICHEAT|CVAR_RENDERERLATCH);
 cvar_t r_globalskin_first					= CVARFD  ("r_globalskin_first", "100", CVAR_RENDERERLATCH, "Specifies the first .skin value that is a global skin. Entities within this range will use the shader/image called 'gfx/skinSKIN.lmp' instead of their regular skin. See also: r_globalskin_count.");
 cvar_t r_globalskin_count					= CVARFD  ("r_globalskin_count", "10", CVAR_RENDERERLATCH, "Specifies how many globalskins there are.");
 cvar_t r_coronas							= CVARFD ("r_coronas", "0",	CVAR_ARCHIVE, "Draw coronas on realtime lights. Overrides glquake-esque flashblends.");
@@ -248,27 +249,27 @@ cvar_t r_lightmap_average					= CVARFD ("gl_lightmap_average", "0", CVAR_ARCHIVE
 cvar_t r_lightmap_format					= CVARFCD ("r_lightmap_format", "", CVAR_ARCHIVE, R_Lightmap_Format_Changed, "Overrides the default texture format used for lightmaps. rgb9e5 is a good choice for HDR.");
 
 //otherwise it would defeat the point.
-cvar_t scr_allowsnap						= CVARF ("scr_allowsnap", "1",
-												CVAR_NOTFROMSERVER);
+cvar_t scr_allowsnap						= CVARFD ("scr_allowsnap", "0",
+												CVAR_NOTFROMSERVER, "Whether to allow server-requested screenshot requests to check for gpu driver hacks.");
 cvar_t scr_centersbar						= CVAR  ("scr_centersbar", "2");
-cvar_t scr_centertime						= CVAR  ("scr_centertime", "2");
+cvar_t scr_centertime						= CVARD  ("scr_centertime", "2", "Centerprint messages will be displayed for this long before disappearing.");
 cvar_t scr_logcenterprint					= CVARD  ("con_logcenterprint", "1", "Specifies whether to print centerprints on the console.\n0: never\n1: single-player or coop only.\n2: always.");
-cvar_t scr_conalpha							= CVARC ("scr_conalpha", "0.7",
-												Cvar_Limiter_ZeroToOne_Callback);
-cvar_t scr_consize							= CVAR  ("scr_consize", "0.5");
-cvar_t scr_conspeed							= CVAR  ("scr_conspeed", "2000");
+cvar_t scr_conalpha							= CVARCD ("scr_conalpha", "0.7",
+												Cvar_Limiter_ZeroToOne_Callback, "How opaque the console should be when there's still stuff going on behind.");
+cvar_t scr_consize							= CVARD  ("scr_consize", "0.5", "Proportion of the screen to be covered by the console when its focused. Valid range is 0ish to 1.");
+cvar_t scr_conspeed							= CVARD  ("scr_conspeed", "2000", "How fast the console careers onto the screen.");
 cvar_t scr_fov_mode							= CVARFD  ("scr_fov_mode", "4", CVAR_ARCHIVE, "Controls what the fov cvar actually controls:\n0: largest axis (ultra-wide monitors means less height will be visible).\n1: smallest axis (ultra-wide monitors will distort at the edges).\n2: horizontal axis.\n3: vertical axis.\n4: 4:3 horizontal axis, padded for wider resolutions (for a more classic fov)");
 cvar_t scr_fov								= CVARFCD("fov", "90", CVAR_ARCHIVE, SCR_Fov_Callback,
 												"field of vision, 1-170 degrees, standard fov is 90, nquake defaults to 108.");
 cvar_t scr_fov_viewmodel					= CVARFD("r_viewmodel_fov", "", CVAR_ARCHIVE,
 												"field of vision, 1-170 degrees, standard fov is 90, nquake defaults to 108.");
-cvar_t scr_printspeed						= CVAR  ("scr_printspeed", "16");
+cvar_t scr_printspeed						= CVARD  ("scr_printspeed", "16", "How rapidly each character is displayed during outro messages.");
 cvar_t scr_showpause						= CVAR  ("showpause", "1");
 cvar_t scr_showturtle						= CVARD  ("showturtle", "0", "Enables a low-framerate indicator.");
 cvar_t scr_turtlefps						= CVAR  ("scr_turtlefps", "10");
-cvar_t scr_sshot_compression				= CVAR  ("scr_sshot_compression", "75");
+cvar_t scr_sshot_compression				= CVARD  ("scr_sshot_compression", "75", "Requsted compression ratio as a percentage. For jpeg this is the quantisation quality and has a direct impact on image quality vs size. For png this ranges between 0 for best and 100 for worst with final image quality being unchanged because png is loseless.");
 cvar_t scr_sshot_type						= CVARD  ("scr_sshot_type", "png", "This specifies the default extension(and thus file format) for screenshots.\nKnown extensions are: png, jpg/jpeg, bmp, pcx, tga, ktx, dds.");
-cvar_t scr_sshot_prefix						= CVAR  ("scr_sshot_prefix", "screenshots/fte-"); 
+cvar_t scr_sshot_prefix						= CVARF  ("scr_sshot_prefix", "screenshots/fte-", CVAR_NOTFROMSERVER);
 cvar_t scr_viewsize							= CVARFC("viewsize", "100", CVAR_ARCHIVE, SCR_Viewsize_Callback);
 
 #ifdef ANDROID
@@ -280,11 +281,11 @@ cvar_t vid_conautoscale						= CVARAFD ("vid_conautoscale", "0",
 #endif
 cvar_t vid_baseheight						= CVARD ("vid_baseheight", "", "Specifies a mod's target height and used only when the 2d scale is not otherwise forced. Unlike vid_conheight the size is not fixed and will be padded to avoid inconsistent filtering.");
 cvar_t vid_minsize							= CVARFD ("vid_minsize", "320 200",
-												CVAR_NOTFROMSERVER, "Specifies a mod's minimum virtual size.");
-cvar_t vid_conheight						= CVARF ("vid_conheight", "0",
-												CVAR_ARCHIVE);
-cvar_t vid_conwidth							= CVARF ("vid_conwidth", "0",
-												CVAR_ARCHIVE | CVAR_RENDERERCALLBACK);
+												0, "Specifies a mod's minimum virtual size (to be set inside the mod's default.cfg file). The virtual size will always be at least this big. Windows may not be resized below this value either (which may reduce video mode options), but might require a vid_restart to take effect when switching between mods.");
+cvar_t vid_conheight						= CVARFD ("vid_conheight", "0",
+												CVAR_ARCHIVE, "Specifies the virtual height of the screen. If 0, will be inferred by vid_conwidth or other settings, according to aspect etc.");
+cvar_t vid_conwidth							= CVARFD ("vid_conwidth", "0",
+												CVAR_ARCHIVE | CVAR_RENDERERCALLBACK, "Specifies the virtual width of the screen. Should generally be left as 0 to allow the correct aspect to be used despite video mode changes.");
 //see R_RestartRenderer_f for the effective default 'if (newr.renderer == -1)'.
 cvar_t vid_renderer							= CVARFD ("vid_renderer", "",
 													 CVAR_ARCHIVE | CVAR_VIDEOLATCH, "Specifies which backend is used. Values that might work are: sv (dedicated server), headless (null renderer), vk (vulkan), gl (opengl), egl (opengl es), d3d9 (direct3d 9), d3d11 (direct3d 11, with default hardware rendering), d3d11 warp (direct3d 11, with software rendering).");
@@ -322,6 +323,8 @@ cvar_t vid_dpi_y							= CVARFD ("vid_dpi_y", "0", CVAR_NOSET, "For mods that ne
 cvar_t	r_stereo_separation					= CVARD("r_stereo_separation", "4", "How far apart your eyes are, in quake units. A non-zero value will enable stereoscoping rendering. You might need some of them retro 3d glasses. Hardware support is recommended, see r_stereo_context.");
 cvar_t	r_stereo_convergence				= CVARD("r_stereo_convergence", "0", "Nudges the angle of each eye inwards when using stereoscopic rendering.");
 cvar_t	r_stereo_method						= CVARFD("r_stereo_method", "0", CVAR_ARCHIVE, "Value 0 = Off.\nValue 1 = Attempt hardware acceleration. Requires vid_restart.\nValue 2 = red/cyan.\nValue 3 = red/blue.\nValue 4=red/green.\nValue 5=eye strain.");
+
+cvar_t	r_xflip = CVAR("leftisright", "0");
 
 extern cvar_t r_dodgytgafiles;
 extern cvar_t r_dodgypcxfiles;
@@ -491,6 +494,7 @@ cvar_t r_glsl_offsetmapping_scale			= CVAR  ("r_glsl_offsetmapping_scale", "0.04
 cvar_t r_glsl_offsetmapping_reliefmapping	= CVARFD("r_glsl_offsetmapping_reliefmapping", "0", CVAR_ARCHIVE|CVAR_SHADERSYSTEM, "Changes the paralax sampling mode to be a bit nicer, but noticably more expensive at high resolutions. r_glsl_offsetmapping must be set.");
 cvar_t r_glsl_turbscale_reflect				= CVARFD  ("r_glsl_turbscale_reflect", "1", CVAR_ARCHIVE, "Controls the strength of the water reflection ripples (used by the altwater glsl code).");
 cvar_t r_glsl_turbscale_refract				= CVARFD  ("r_glsl_turbscale_refract", "1", CVAR_ARCHIVE, "Controls the strength of the underwater ripples (used by the altwater glsl code).");
+cvar_t r_glsl_emissive						= CVARFD  ("r_glsl_emissive", "1", CVAR_SHADERSYSTEM, "When set, specifies that the _luma or _glow textures are emissive... When 0 they are taken as a mask for the proportion of the lightmap that will apply (for q2e compat, has issues with overbrights).");
 
 cvar_t r_fastturbcolour						= CVARFD ("r_fastturbcolour", "0.1 0.2 0.3", CVAR_ARCHIVE, "The colour to use for water surfaces draw with r_waterstyle 0.");
 cvar_t r_waterstyle							= CVARFD ("r_waterstyle", "1", CVAR_ARCHIVE|CVAR_SHADERSYSTEM, "Changes how water, and teleporters are drawn. Possible values are:\n0: fastturb-style block colour.\n1: regular q1-style water.\n2: refraction(ripply and transparent)\n3: refraction with reflection at an angle\n4: ripplemapped without reflections (requires particle effects)\n5: ripples+reflections");
@@ -507,6 +511,7 @@ cvar_t vid_desktopgamma						= CVARFD ("vid_desktopgamma", "0",
 												CVAR_ARCHIVE | CVAR_RENDERERLATCH, "Apply gamma ramps upon the desktop rather than the window.");
 
 cvar_t r_fog_cullentities					= CVARD ("r_fog_cullentities", "1", "0: Never cull entities by fog...\n1: Automatically cull entities according to fog.\n2: Force fog culling regardless ");
+cvar_t r_fog_linear							= CVARD ("r_fog_linear", "0", "0: Use Exp/Exp2 fog. 1: Use linear fog.");
 cvar_t r_fog_exp2							= CVARD ("r_fog_exp2", "1", "Expresses how fog fades with distance. 0 (matching DarkPlaces's default) is typically more realistic, while 1 (matching FitzQuake and others) is more common.");
 cvar_t r_fog_permutation					= CVARFD ("r_fog_permutation", "1", CVAR_SHADERSYSTEM, "Renders fog using a material permutation. 0 plays nicer with q3 shaders, but 1 is otherwise a better choice.");
 
@@ -580,10 +585,6 @@ void GLRenderer_Init(void)
 
 	Cvar_Register (&gl_smoothcrosshair, GRAPHICALNICETIES);
 
-#ifdef R_XFLIP
-	Cvar_Register (&r_xflip, GLRENDEREROPTIONS);
-#endif
-
 //	Cvar_Register (&gl_lightmapmode, GLRENDEREROPTIONS);
 
 	Cvar_Register (&gl_picmip, GLRENDEREROPTIONS);
@@ -602,6 +603,7 @@ void GLRenderer_Init(void)
 	Cvar_Register (&gl_overbright_all, GRAPHICALNICETIES);
 	Cvar_Register (&gl_dither, GRAPHICALNICETIES);
 	Cvar_Register (&r_fog_cullentities, GRAPHICALNICETIES);
+	Cvar_Register (&r_fog_linear, GLRENDEREROPTIONS);
 	Cvar_Register (&r_fog_exp2, GLRENDEREROPTIONS);
 	Cvar_Register (&r_fog_permutation, GLRENDEREROPTIONS);
 
@@ -768,6 +770,7 @@ void Renderer_Init(void)
 	Cmd_AddCommand("r_dumpshaders", Shader_WriteOutGenerics_f);
 	Cmd_AddCommand("r_remapshader", Shader_RemapShader_f);
 	Cmd_AddCommand("r_showshader", Shader_ShowShader_f);
+	Cmd_AddCommandD("r_shaderlist", Shader_ShaderList_f, "Prints out a list of the currently-loaded shaders.");
 
 #ifdef _DEBUG
 	Cmd_AddCommand("r_showbatches", R_ShowBatches_f);
@@ -911,6 +914,7 @@ void Renderer_Init(void)
 	Cvar_Register (&r_glsl_offsetmapping_reliefmapping, GRAPHICALNICETIES);
 	Cvar_Register (&r_glsl_turbscale_reflect, GRAPHICALNICETIES);
 	Cvar_Register (&r_glsl_turbscale_refract, GRAPHICALNICETIES);
+	Cvar_Register (&r_glsl_emissive, GRAPHICALNICETIES);
 
 	Cvar_Register(&scr_viewsize, SCREENOPTIONS);
 	Cvar_Register(&scr_fov, SCREENOPTIONS);
@@ -941,6 +945,7 @@ void Renderer_Init(void)
 	Cvar_Register (&scr_allowsnap, SCREENOPTIONS);
 	Cvar_Register (&scr_consize, SCREENOPTIONS);
 	Cvar_Register (&scr_centersbar, SCREENOPTIONS);
+	Cvar_Register (&r_xflip, GLRENDEREROPTIONS);
 
 	Cvar_Register(&r_bloodstains, GRAPHICALNICETIES);
 
@@ -1000,8 +1005,9 @@ void Renderer_Init(void)
 
 	Cvar_Register (&r_fb_bmodels, GRAPHICALNICETIES);
 	Cvar_Register (&r_fb_models, GRAPHICALNICETIES);
+	Cvar_Register (&gl_overbright_models, GRAPHICALNICETIES);
 //	Cvar_Register (&r_fullbrights, GRAPHICALNICETIES);	//dpcompat: 1 if r_fb_bmodels&&r_fb_models
-	Cvar_Register (&r_skin_overlays, GRAPHICALNICETIES);
+//	Cvar_Register (&r_skin_overlays, GRAPHICALNICETIES);
 	Cvar_Register (&r_globalskin_first, GRAPHICALNICETIES);
 	Cvar_Register (&r_globalskin_count, GRAPHICALNICETIES);
 	Cvar_Register (&r_shadows, GRAPHICALNICETIES);
@@ -1503,6 +1509,8 @@ qboolean R_ApplyRenderer_Load (rendererstate_t *newr)
 	vid.dpi_x = 96;
 	vid.dpi_y = 96;
 
+	Cvar_ApplyLatches(CVAR_RENDEREROVERRIDE, true);
+
 #ifndef CLIENTONLY
 	sv.world.lastcheckpvs = NULL;
 #endif
@@ -1547,7 +1555,11 @@ qboolean R_ApplyRenderer_Load (rendererstate_t *newr)
 		host_basepal = (qbyte *)FS_LoadMallocFile ("gfx/palette.lmp", &sz);
 		vid.fullbright = host_basepal?32:0;	//q1-like mods are assumed to have 32 fullbright pixels, even if the colormap is missing.
 		if (!host_basepal)
+		{
 			host_basepal = (qbyte *)FS_LoadMallocFile ("wad/playpal", &sz);
+			if (host_basepal && sz > 768)
+				sz = 768;
+		}
 		if (!host_basepal || sz != 768)
 		{
 #if defined(Q2CLIENT) && defined(IMAGEFMT_PCX)
@@ -1790,7 +1802,7 @@ TRACE(("dbg: R_ApplyRenderer: starting on client state\n"));
 		memcpy(&currentrendererstate, newr, sizeof(currentrendererstate));
 
 	TRACE(("dbg: R_ApplyRenderer: S_Restart_f\n"));
-	if (!isDedicated)
+	if (!isDedicated && newr)
 		S_DoRestart(true);
 
 #ifdef VM_UI
@@ -1818,7 +1830,7 @@ TRACE(("dbg: R_ApplyRenderer: starting on client state\n"));
 TRACE(("dbg: R_ApplyRenderer: reloading ALL models\n"));
 		for (i=1 ; i<MAX_PRECACHE_MODELS ; i++)
 		{
-			if (!cl.model_name[i][0])
+			if (!cl.model_name[i])
 				break;
 
 			TRACE(("dbg: R_ApplyRenderer: reloading model %s\n", cl.model_name[i]));
@@ -1840,7 +1852,7 @@ TRACE(("dbg: R_ApplyRenderer: reloading ALL models\n"));
 #ifdef HAVE_LEGACY
 		for (i=0; i < MAX_VWEP_MODELS; i++)
 		{
-			if (*cl.model_name_vwep[i])
+			if (cl.model_name_vwep[i])
 				cl.model_precache_vwep[i] = Mod_ForName (cl.model_name_vwep[i], MLV_SILENT);
 			else
 				cl.model_precache_vwep[i] = NULL;
@@ -1924,7 +1936,7 @@ TRACE(("dbg: R_ApplyRenderer: efrags\n"));
 
 void R_ReloadRenderer_f (void)
 {
-#if !defined(CLIENTONLY) && (defined(Q2BSPS) || defined(Q3BSPS))
+#if !defined(CLIENTONLY)
 	void *portalblob = NULL;
 	size_t portalsize = 0;
 #endif
@@ -2188,14 +2200,15 @@ static int QDECL R_SortRenderers(const void *av, const void *bv)
 
 void R_RestartRenderer (rendererstate_t *newr)
 {
-#if !defined(CLIENTONLY) && (defined(Q2BSPS) || defined(Q3BSPS))
+#if !defined(CLIENTONLY)
 	void *portalblob = NULL;
 	size_t portalsize = 0;
 #endif
 	rendererstate_t oldr;
 	if (r_blockvidrestart)
 	{
-		Con_TPrintf("Ignoring vid_restart from config\n");
+		if (r_blockvidrestart != 2)
+			Con_TPrintf("Unable to restart renderer at this time\n");
 		return;
 	}
 
@@ -2318,6 +2331,13 @@ void R_RestartRenderer_f (void)
 	double time;
 	rendererstate_t newr;
 
+	if (r_blockvidrestart)
+	{
+		if (r_blockvidrestart!=2)
+			Con_TPrintf("Ignoring vid_restart from config\n");
+		return;
+	}
+
 	Cvar_ApplyLatches(CVAR_VIDEOLATCH|CVAR_RENDERERLATCH, false);
 	if (!R_BuildRenderstate(&newr, vid_renderer.string))
 	{
@@ -2340,6 +2360,8 @@ static void R_EnumeratedRenderer(void *ctx, const char *devname, const char *out
 	rendererinfo_t *r = ctx;
 	char quoteddesc[1024];
 
+	qboolean iscurrent = (currentrendererstate.renderer == r && (!*devname || !strcmp(devname, currentrendererstate.subrenderer)));
+
 	const char *dev;
 	if (*outputname)
 		dev = va("%s %s %s", r->name[0], devname, outputname);
@@ -2353,14 +2375,14 @@ static void R_EnumeratedRenderer(void *ctx, const char *devname, const char *out
 		Con_Printf("^[%s (%s, %s)\\type\\/setrenderer %s^]^7: %s%s\n",
 			r->name[0], devname, outputname,	//link text
 			dev,	//link itself.
-			desc, (currentrendererstate.renderer == r)?" ^2(current)":"");
+			desc, iscurrent?" ^2(current)":"");
 	else if (*devname)
 		Con_Printf("^[%s (%s)\\type\\/setrenderer %s^]^7: %s%s\n",
 			r->name[0], devname,	//link text
 			dev,	//link itself.
-			desc, (currentrendererstate.renderer == r)?" ^2(current)":"");
+			desc, iscurrent?" ^2(current)":"");
 	else
-		Con_Printf("^[%s\\type\\/setrenderer %s^]^7: %s%s\n", r->name[0], dev, r->description, (currentrendererstate.renderer == r)?" ^2(current)":"");
+		Con_Printf("^[%s\\type\\/setrenderer %s^]^7: %s%s\n", r->name[0], dev, r->description, iscurrent?" ^2(current)":"");
 }
 
 void R_SetRenderer_f (void)
@@ -2518,12 +2540,14 @@ mspriteframe_t *R_GetSpriteFrame (entity_t *currententity)
 	{
 		float f = DotProduct(vpn,currententity->axis[0]);
 		float r = DotProduct(vright,currententity->axis[0]);
-		int dir = (atan2(r, f)+1.125*M_PI)*(4/M_PI);
-
+		float ang;
 		pspritegroup = (mspritegroup_t *)psprite->frames[frame].frameptr;
+		ang = (atan2(r, f)+M_PI)/(2*M_PI);	//to give 0 - 1 range
+		i = (ang*pspritegroup->numframes) + 0.5;
+
 //		pspriteframe = pspritegroup->frames[(int)((r_refdef.viewangles[1]-currententity->angles[1])/360*pspritegroup->numframes + 0.5-4)%pspritegroup->numframes];
 		//int dir = (int)((r_refdef.viewangles[1]-currententity->angles[1])/360*8 + 8 + 0.5-4)&7;
-		pspriteframe = pspritegroup->frames[dir&7];
+		pspriteframe = pspritegroup->frames[i%pspritegroup->numframes];
 	}
 	else
 	{
@@ -2549,72 +2573,6 @@ mspriteframe_t *R_GetSpriteFrame (entity_t *currententity)
 
 	return pspriteframe;
 }
-
-/*
-void MYgluPerspective(double fovx, double fovy, double zNear, double zFar)
-{
-	Matrix4_Projection_Far(r_refdef.m_projection, fovx, fovy, zNear, zFar);
-}
-
-void GL_InfinatePerspective(double fovx, double fovy,
-		     double zNear)
-{
-	// nudge infinity in just slightly for lsb slop
-    float nudge = 1;// - 1.0 / (1<<23);
-
-	double xmin, xmax, ymin, ymax;
-
-	ymax = zNear * tan( fovy * M_PI / 360.0 );
-	ymin = -ymax;
-
-	xmax = zNear * tan( fovx * M_PI / 360.0 );
-	xmin = -xmax;
-
-	r_projection_matrix[0] = (2*zNear) / (xmax - xmin);
-	r_projection_matrix[4] = 0;
-	r_projection_matrix[8] = (xmax + xmin) / (xmax - xmin);
-	r_projection_matrix[12] = 0;
-
-	r_projection_matrix[1] = 0;
-	r_projection_matrix[5] = (2*zNear) / (ymax - ymin);
-	r_projection_matrix[9] = (ymax + ymin) / (ymax - ymin);
-	r_projection_matrix[13] = 0;
-
-	r_projection_matrix[2] = 0;
-	r_projection_matrix[6] = 0;
-	r_projection_matrix[10] = -1  * nudge;
-	r_projection_matrix[14] = -2*zNear * nudge;
-
-	r_projection_matrix[3] = 0;
-	r_projection_matrix[7] = 0;
-	r_projection_matrix[11] = -1;
-	r_projection_matrix[15] = 0;
-}
-
-void GL_ParallelPerspective(double xmin, double xmax, double ymax, double ymin,
-		     double znear, double zfar)
-{
-	r_projection_matrix[0] = 2/(xmax-xmin);
-	r_projection_matrix[4] = 0;
-	r_projection_matrix[8] = 0;
-	r_projection_matrix[12] = (xmax+xmin)/(xmax-xmin);
-
-	r_projection_matrix[1] = 0;
-	r_projection_matrix[5] = 2/(ymax-ymin);
-	r_projection_matrix[9] = 0;
-	r_projection_matrix[13] = (ymax+ymin)/(ymax-ymin);
-
-	r_projection_matrix[2] = 0;
-	r_projection_matrix[6] = 0;
-	r_projection_matrix[10] = -2/(zfar-znear);
-	r_projection_matrix[14] = (zfar+znear)/(zfar-znear);
-
-	r_projection_matrix[3] = 0;
-	r_projection_matrix[7] = 0;
-	r_projection_matrix[11] = 0;
-	r_projection_matrix[15] = 1;
-}
-*/
 
 
 /*
@@ -2808,7 +2766,6 @@ int SignbitsForPlane (mplane_t *out)
 	}
 	return bits;
 }
-#if 1
 void R_SetFrustum (float projmat[16], float viewmat[16])
 {
 	float scale;
@@ -2915,47 +2872,6 @@ void R_SetFrustum (float projmat[16], float viewmat[16])
 		p->signbits  = SignbitsForPlane (p);
 	}
 }
-#else
-void R_SetFrustum (void)
-{
-	int		i;
-
-	if (r_novis.ival & 4)
-		return;
-
-	/*	removed - assumes fov_x == fov_y
-	if (r_refdef.fov_x == 90)
-	{
-		// front side is visible
-
-		VectorAdd (vpn, vright, frustum[0].normal);
-		VectorSubtract (vpn, vright, frustum[1].normal);
-
-		VectorAdd (vpn, vup, frustum[2].normal);
-		VectorSubtract (vpn, vup, frustum[3].normal);
-	}
-	else
-		*/
-	{
-
-		// rotate VPN right by FOV_X/2 degrees
-		RotatePointAroundVector( frustum[0].normal, vup, vpn, -(90-r_refdef.fov_x / 2 ) );
-		// rotate VPN left by FOV_X/2 degrees
-		RotatePointAroundVector( frustum[1].normal, vup, vpn, 90-r_refdef.fov_x / 2 );
-		// rotate VPN up by FOV_X/2 degrees
-		RotatePointAroundVector( frustum[2].normal, vright, vpn, 90-r_refdef.fov_y / 2 );
-		// rotate VPN down by FOV_X/2 degrees
-		RotatePointAroundVector( frustum[3].normal, vright, vpn, -( 90 - r_refdef.fov_y / 2 ) );
-	}
-
-	for (i=0 ; i<4 ; i++)
-	{
-		frustum[i].type = PLANE_ANYZ;
-		frustum[i].dist = DotProduct (r_origin, frustum[i].normal);
-		frustum[i].signbits = SignbitsForPlane (&frustum[i]);
-	}
-}
-#endif
 
 
 

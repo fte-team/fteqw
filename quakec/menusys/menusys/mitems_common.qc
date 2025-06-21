@@ -99,7 +99,7 @@ class mitem_text : mitem
 		{
 			if (!down)
 				return FALSE;
-			if (scan == K_ENTER || (scan == K_MOUSE1 && mouseinbox(pos, this.item_size)))
+			if (ISCONFIRMKEY(scan) || ((scan == K_TOUCHTAP || scan == K_MOUSE1) && mouseinbox(pos, this.item_size)))
 			{
 				item_parent.item_execcommand(this, this.item_command);
 //				localcmd(strcat(this.item_command, "\n"));
@@ -218,7 +218,7 @@ class mitem_label : mitem
 		{
 			if (!down)
 				return FALSE;
-			if (scan == K_ENTER || (scan == K_MOUSE1 && mouseinbox(pos, this.item_size)))
+			if (ISCONFIRMKEY(scan) || ((scan == K_TOUCHTAP || scan == K_MOUSE1) && mouseinbox(pos, this.item_size)))
 			{
 				item_parent.item_execcommand(this, this.item_command);
 //				localcmd(strcat(this.item_command, "\n"));
@@ -272,7 +272,7 @@ class mitem_button : mitem
 	{
 		if (!down)
 			return FALSE;
-		if (scan == K_ENTER || (scan == K_MOUSE1 && mouseinbox(pos, this.item_size)))
+		if (ISCONFIRMKEY(scan) || (scan == K_MOUSE1 && mouseinbox(pos, this.item_size)))
 			item_parent.item_execcommand(this, item_command);
 		else
 			return FALSE;

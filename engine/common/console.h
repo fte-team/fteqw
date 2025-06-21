@@ -95,6 +95,9 @@ extern conchar_t q3codemasks[MAXQ3COLOURS];
 #define CON_WARNING "^&E0"
 #define CON_ERROR   "^&C0"
 #define CON_NOTICE  "^&-1"
+#if defined(_DEBUG) || defined(FTE_TARGET_WEB)/*urgh...*/
+#define CON_DEBUG	CON_WARNING __FILE__":"STRINGIFY(__LINE__)" "
+#endif
 
 #define isextendedcode(x) ((x >= '0' && x <= '9') || (x >= 'A' && x <= 'F') || x == '-')
 #define ishexcode(x) ((x >= '0' && x <= '9') || (x >= 'A' && x <= 'F') || (x >= 'a' && x <= 'f'))
@@ -241,11 +244,14 @@ char *Con_CopyConsole(console_t *con, qboolean nomarkup, qboolean onlyiflink, qb
 void Con_Print (const char *txt);
 void Con_CenterPrint(const char *txt);
 void Con_PrintFlags(const char *text, unsigned int setflags, unsigned int clearflags);
+#ifdef HAVE_CLIENT
+void Con_HexDump(qbyte *packet, size_t len, size_t badoffset, size_t stride);
+#endif
 void VARGS Con_Printf (const char *fmt, ...) LIKEPRINTF(1);
 void VARGS Con_TPrintf (translation_t text, ...);
 void VARGS Con_DPrintf (const char *fmt, ...) LIKEPRINTF(1);	//developer>=1, for stuff that's probably actually slightly useful
 void VARGS Con_DLPrintf (int level, const char *fmt, ...) LIKEPRINTF(2);	//developer>=2, for spammy stuff
-void VARGS Con_ThrottlePrintf (float *timer, int developerlevel, const char *fmt, ...); //for spammed warnings, so they don't spam prints with every single frame/call. the timer arg should be a static local.
+void VARGS Con_ThrottlePrintf (float *timer, int developerlevel, const char *fmt, ...) LIKEPRINTF(3); //for spammed warnings, so they don't spam prints with every single frame/call. the timer arg should be a static local.
 void VARGS Con_SafePrintf (const char *fmt, ...) LIKEPRINTF(1);
 void Con_Footerf(console_t *con, qboolean append, const char *fmt, ...) LIKEPRINTF(3); 
 void Con_Clear_f (void);

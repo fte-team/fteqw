@@ -29,7 +29,7 @@ static cvar_t	sb_showtimelimit	= CVARF("sb_showtimelimit",	"0",	CVAR_ARCHIVE);
 
 static cvar_t	sb_alpha	= CVARF("sb_alpha",	"0.7",	CVAR_ARCHIVE);
 
-vrect_t joinbutton, specbutton;
+vrect_t joinbutton, streambutton, specbutton;
 static float refreshedtime;
 static int isrefreshing;
 static enum
@@ -372,7 +372,7 @@ static qboolean SL_ServerKey (menucustom_t *ths, emenu_t *menu, int key, unsigne
 			return true;
 		}
 		if (oldselection == info->selectedpos)
-			serverpreview = 1;
+			serverpreview = (server->adr.prot>=NP_STREAM)?SVPV_RULES:1;
 		return true;
 	}
 
@@ -466,6 +466,7 @@ static void SL_PostDraw	(emenu_t *menu)
 		serverinfo_t *server = selectedserver.inuse?Master_InfoForServer(&selectedserver.adr, selectedserver.brokerid):NULL;
 		int h = 0;
 		int w = 240;
+		char *qtv;
 #ifdef HAVE_PACKET
 		if (server && selectedserver.refreshtime < realtime)
 		{
@@ -706,6 +707,35 @@ static void SL_PostDraw	(emenu_t *menu)
 			Draw_FunStringWidth(lx, y + (bh-8)/2, localtext("Observe"), bw, 2, active);y+=8;
 		}
 
+		qtv = Info_ValueForKey(server->moreinfo->info, "qtvstream");
+		if (server && *qtv)
+		{
+			int lx = vid.width/2 - w/2;
+			int y = vid.height/2 - h/2 - 4 + h;
+			int bh, bw;
+			qboolean active = false;
+			bw = w+16+12;
+			bh = 24;
+//			lx += bw-12;
+			bw = strlen(localtext("Stream"))*8 + 24;
+			bw = ((bw+15)/16) * 16;	//width must be a multiple of 16
+//			lx -= bw;
+
+			streambutton.x = lx;
+			streambutton.y = y;
+			streambutton.width = bw + 16;
+			streambutton.height = bh + 16;
+			R2D_ImageColours(1,1,1,1);
+			y += 8;
+			Draw_ApproxTextBox(lx, y, bw, bh);
+
+			if (mousecursor_x >= streambutton.x && mousecursor_x <  streambutton.x+streambutton.width)
+				if (mousecursor_y >= streambutton.y && mousecursor_y < streambutton.y+streambutton.height)
+					active = true;
+
+			Draw_FunStringWidth(lx, y + (bh-8)/2, localtext("Stream"), bw, 2, active);y+=8;
+		}
+
 		{
 			int lx = vid.width/2 - w/2;
 			int y = vid.height/2 - h/2 - 4 + h;
@@ -794,6 +824,12 @@ static qboolean SL_Key	(emenu_t *menu, int key, unsigned int unicode)
 					serverpreview = SVPV_NO;
 					goto dospec;
 				}
+			if (mousecursor_x >= streambutton.x && mousecursor_x < streambutton.x+streambutton.width)
+				if (mousecursor_y >= streambutton.y && mousecursor_y < streambutton.y+streambutton.height)
+				{
+					serverpreview = SVPV_NO;
+					goto dostream;
+				}
 			return true;
 		}
 #ifdef HAVE_PACKET
@@ -839,6 +875,13 @@ static qboolean SL_Key	(emenu_t *menu, int key, unsigned int unicode)
 			return true;
 		}
 #endif
+		else if (key == 't')
+		{
+dostream:
+			Cbuf_AddText(va("qtvplay \"%s\"\n", Info_ValueForKey(server->moreinfo->info, "qtvstream")), RESTRICT_LOCAL);
+			M_RemoveAllMenus(true);
+			return true;
+		}
 		else if (key == 'b' || key == 'o' || key == 'j' || key == K_ENTER || key == K_KP_ENTER || key == K_GP_DIAMOND_CONFIRM || key == K_GP_DIAMOND_ALTCONFIRM)	//join
 		{
 			if (key == 's' || key == 'o' || key == K_GP_DIAMOND_ALTCONFIRM)
@@ -1105,7 +1148,7 @@ static void CalcFilters(emenu_t *menu)
 	Master_ClearMasks();
 
 //	Master_SetMaskInteger(false, SLKEY_PING, 0, SLIST_TEST_GREATEREQUAL);
-	Master_SetMaskInteger(false, SLKEY_BASEGAME, SS_UNKNOWN, SLIST_TEST_NOTEQUAL);
+//	Master_SetMaskInteger(false, SLKEY_BASEGAME, SS_UNKNOWN, SLIST_TEST_NOTEQUAL);
 	if (info->filter[SLFILTER_HIDENETQUAKE] && info->filter[SLFILTER_HIDEQUAKEWORLD])
 		Master_SetMaskInteger(false, SLKEY_FLAGS, SS_PROXY, SLIST_TEST_CONTAINS);	//show only proxies
 	else

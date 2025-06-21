@@ -1,5 +1,5 @@
 !!samps 4
-!!cvarf r_bloom
+!!cvarf r_bloom=1
 !!cvarf r_bloom_retain=1.0
 #include "sys/defs.h"
 //add them together

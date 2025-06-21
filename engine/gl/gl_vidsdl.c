@@ -8,7 +8,7 @@
 	#define OPENGL_SDL
 #endif
 
-#if SDL_MAJOR_VERSION >= 2
+#if SDL_VERSION_ATLEAST(2,0,0)
 	#if SDL_VERSION_ATLEAST(2,0,6)
 		#ifdef VKQUAKE
 			#include <SDL_vulkan.h>
@@ -23,6 +23,7 @@
 #else
 	SDL_Surface *sdlsurf;
 #endif
+void INS_SetOSK(int osk);
 
 #include "vr.h"
 
@@ -42,7 +43,7 @@ HWND mainwindow;
 
 extern qboolean vid_isfullscreen;
 
-#if SDL_MAJOR_VERSION < 2
+#if !SDL_VERSION_ATLEAST(2,0,0)
 unsigned short intitialgammaramps[3][256];
 #endif
 
@@ -61,7 +62,7 @@ static void *GLVID_getsdlglfunction(char *functionname)
 }
 #endif
 
-#if SDL_MAJOR_VERSION >= 2
+#if SDL_VERSION_ATLEAST(2,0,0)
 void *GLVID_CreateCursor			(const qbyte *imagedata, int width, int height, uploadfmt_t format, float hotx, float hoty, float scale)
 {
 	SDL_Cursor *curs;
@@ -310,7 +311,7 @@ static void	SDLVID_EnumerateVideoModes (const char *driver, const char *output, 
 static qboolean SDLVID_Init (rendererstate_t *info, unsigned char *palette, r_qrenderer_t qrenderer)
 {
 	int flags = 0;
-#if SDL_MAJOR_VERSION >= 2
+#if SDL_VERSION_ATLEAST(2,0,0)
 	int display = -1;
 	SDL_DisplayMode modeinfo, *usemode;
 
@@ -325,20 +326,18 @@ static qboolean SDLVID_Init (rendererstate_t *info, unsigned char *palette, r_qr
 #endif
 
 	SDL_Init(SDL_INIT_VIDEO | SDL_INIT_NOPARACHUTE);
-#if !defined(FTE_TARGET_WEB) && SDL_MAJOR_VERSION < 2
+#if !defined(FTE_TARGET_WEB) && !SDL_VERSION_ATLEAST(2,0,0)
 	SDL_SetVideoMode(0, 0, 0, 0);	//to get around some SDL bugs
 #endif
 
-#if SDL_MAJOR_VERSION >= 2
+#if SDL_VERSION_ATLEAST(2,0,0)
 	switch(qrenderer)
 	{
 	default:
 		return false;
 #ifdef OPENGL_SDL
 	case QR_OPENGL:
-	#if SDL_MAJOR_VERSION >= 2
 		SDL_GL_LoadLibrary(NULL);
-	#endif
 
 		if (info->bpp >= 32)
 		{
@@ -362,7 +361,6 @@ static qboolean SDLVID_Init (rendererstate_t *info, unsigned char *palette, r_qr
 		if (info->stereo)
 			SDL_GL_SetAttribute(SDL_GL_STEREO, 1);
 
-	#if SDL_MAJOR_VERSION >= 2
 		if (info->srgb)
 			SDL_GL_SetAttribute(SDL_GL_FRAMEBUFFER_SRGB_CAPABLE, 1);
 
@@ -394,7 +392,6 @@ static qboolean SDLVID_Init (rendererstate_t *info, unsigned char *palette, r_qr
 			SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_COMPATIBILITY);
 		else
 			SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
-	#endif
 		if (info->multisample)
 		{
 			SDL_GL_SetAttribute(SDL_GL_MULTISAMPLESAMPLES, info->multisample);
@@ -412,7 +409,7 @@ static qboolean SDLVID_Init (rendererstate_t *info, unsigned char *palette, r_qr
 	}
 	flags |= SDL_WINDOW_RESIZABLE;
 	flags |= SDL_WINDOW_INPUT_GRABBED;
-	#if SDL_PATCHLEVEL >= 1
+	#if SDL_VERSION_ATLEAST(2,0,1)
 		flags |= SDL_WINDOW_ALLOW_HIGHDPI;
 	#endif
 
@@ -456,8 +453,8 @@ static qboolean SDLVID_Init (rendererstate_t *info, unsigned char *palette, r_qr
 	}
 #endif
 
-#if SDL_PATCHLEVEL >= 4
-	SDL_GetDisplayDPI(display, NULL, &vid.dpi_x, &vid.dpi_y);
+#if SDL_VERSION_ATLEAST(2,0,4)
+	//SDL_GetDisplayDPI(display, NULL, &vid.dpi_x, &vid.dpi_y);	//unusable rubbish.
 #endif
 
 	CL_UpdateWindowTitle();
@@ -466,7 +463,7 @@ static qboolean SDLVID_Init (rendererstate_t *info, unsigned char *palette, r_qr
 	switch(qrenderer)
 	{
 #ifdef OPENGL_SDL
-#if SDL_PATCHLEVEL >= 1
+#if SDL_VERSION_ATLEAST(2,0,1)
 	case QR_OPENGL:
 		SDL_GL_GetDrawableSize(sdlwindow, &vid.pixelwidth, &vid.pixelheight);	//get the proper physical size.
 		break;
@@ -481,6 +478,14 @@ static qboolean SDLVID_Init (rendererstate_t *info, unsigned char *palette, r_qr
 		SDL_GetWindowSize(sdlwindow, &vid.pixelwidth, &vid.pixelheight);
 		break;
 	}
+
+	{	//SDL_GetDisplayDPI is unusable (depends on buggy drivers/hardware), so try and guess based on initial settings. this may cause issues with monitors using different scales though.
+		int ww,wh;
+		SDL_GetWindowSize(sdlwindow, &ww, &wh);
+		vid.dpi_x = (96 * vid.pixelwidth)/ww;
+		vid.dpi_y = (96 * vid.pixelheight)/wh;
+	}
+
 
 #ifdef OPENGL_SDL
 	if (qrenderer == QR_OPENGL)
@@ -503,9 +508,11 @@ static qboolean SDLVID_Init (rendererstate_t *info, unsigned char *palette, r_qr
 			setup.vrplatform = VR_X11_GLX;
 			break;
 #endif
-//		case SDL_SYSWM_WAYLAND:
-//			setup.vrplatform = VR_EGL;
-//			break;
+#if defined(SDL_VIDEO_DRIVER_WAYLAND) && SDL_VERSION_ATLEAST(3,0,0)
+		case SDL_SYSWM_WAYLAND:
+			setup.vrplatform = VR_EGL;
+			break;
+#endif
 		default:
 			setup.vrplatform = VR_HEADLESS; //unsupported platform...
 			break;
@@ -551,6 +558,16 @@ static qboolean SDLVID_Init (rendererstate_t *info, unsigned char *palette, r_qr
 			setup.x11_glx.glxcontext = SDL_GL_GetCurrentContext();
 			break;
 #endif
+#if defined(SDL_VIDEO_DRIVER_WAYLAND) && SDL_VERSION_ATLEAST(3,0,0)
+		case SDL_SYSWM_WAYLAND:
+			setup.vrplatform = VR_EGL;
+			setup.egl.getprocaddr = SDL_EGL_GetProcAddress;
+			setup.egl.egldisplay = SDL_EGL_GetCurrentEGLDisplay();
+			setup.egl.eglconfig = SDL_EGL_GetCurrentEGLConfig();
+			setup.egl.eglcontext = SDL_GL_GetCurrentContext();
+			break;
+
+#endif
 		default:
 			setup.vrplatform = VR_HEADLESS; //unsupported platform...
 			break;
@@ -591,32 +608,32 @@ static qboolean SDLVID_Init (rendererstate_t *info, unsigned char *palette, r_qr
 	if (vid_isfullscreen)
 		IN_ActivateMouse();
 
-#if SDL_MAJOR_VERSION < 2
-	SDL_EnableKeyRepeat(SDL_DEFAULT_REPEAT_DELAY, SDL_DEFAULT_REPEAT_INTERVAL);
-#else
+#if SDL_VERSION_ATLEAST(2,0,0)
 	SDL_DisableScreenSaver();
+#else
+	SDL_EnableKeyRepeat(SDL_DEFAULT_REPEAT_DELAY, SDL_DEFAULT_REPEAT_INTERVAL);
 #endif
 	vid_vsync.modified = true;
 
 
-	#ifdef _WIN32
+#ifdef _WIN32
 	{	//win32 apis are very insistant upon having a window context for things that have nothing to do with windowing system stuff.
-		#if SDL_MAJOR_VERSION >= 2
-			SDL_SysWMinfo info;
-			SDL_GetWindowWMInfo(sdlwindow, &info);
-			if (info.subsystem == SDL_SYSWM_WINDOWS)
-				mainwindow = info.info.win.window;
-			else
-				mainwindow = NULL;	//if we're using an x11 subsystem but running in windows then don't feck up... here, at least.
-		#else
-			SDL_SysWMinfo wmInfo;
-			SDL_GetWMInfo(&wmInfo);
-			mainwindow = wmInfo.window; //note that this is usually still null
-		#endif
-	}
+	#if SDL_VERSION_ATLEAST(2,0,0)
+		SDL_SysWMinfo info;
+		SDL_GetWindowWMInfo(sdlwindow, &info);
+		if (info.subsystem == SDL_SYSWM_WINDOWS)
+			mainwindow = info.info.win.window;
+		else
+			mainwindow = NULL;	//if we're using an x11 subsystem but running in windows then don't feck up... here, at least.
+	#else
+		SDL_SysWMinfo wmInfo;
+		SDL_GetWMInfo(&wmInfo);
+		mainwindow = wmInfo.window; //note that this is usually still null
 	#endif
+	}
+#endif
 
-#if SDL_MAJOR_VERSION >= 2
+#if SDL_VERSION_ATLEAST(2,0,0)
 	rf->VID_CreateCursor = GLVID_CreateCursor;
 	rf->VID_DestroyCursor = GLVID_DestroyCursor;
 	rf->VID_SetCursor = GLVID_SetCursor;
@@ -641,9 +658,9 @@ void GLVID_DeInit (void)
 	vid.activeapp = false;
 
 	IN_DeactivateMouse();
+	INS_SetOSK(false);
 
-
-#if SDL_MAJOR_VERSION >= 2
+#if SDL_VERSION_ATLEAST(2,0,0)
 	SDL_SetWindowGammaRamp(sdlwindow, NULL, NULL, NULL);
 
 	switch(qrenderer)
@@ -680,7 +697,7 @@ void GLVID_SwapBuffers (void)
 	{
 #ifdef OPENGL_SDL
 	case QR_OPENGL:
-#if SDL_MAJOR_VERSION >= 2
+#if SDL_VERSION_ATLEAST(2,0,0)
 		if (vid_vsync.modified)
 		{
 			if (*vid_vsync.string)
@@ -721,7 +738,7 @@ void GLVID_SwapBuffers (void)
 
 qboolean GLVID_ApplyGammaRamps (unsigned int gammarampsize, unsigned short *ramps)
 {
-#if SDL_MAJOR_VERSION >= 2
+#if SDL_VERSION_ATLEAST(2,0,0)
 	if (ramps && gammarampsize == 256)
 	{
 		switch(vid_hardwaregamma.ival)
@@ -777,7 +794,7 @@ qboolean GLVID_ApplyGammaRamps (unsigned int gammarampsize, unsigned short *ramp
 
 void GLVID_SetCaption(const char *text)
 {
-#if SDL_MAJOR_VERSION >= 2
+#if SDL_VERSION_ATLEAST(2,0,0)
 	SDL_SetWindowTitle(sdlwindow, text);
 #else
 	SDL_WM_SetCaption(text, NULL);

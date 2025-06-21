@@ -26,7 +26,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 //for msvc #pragma message lines
 #if defined(_MSC_VER)
-#define MSVC_LINE   __FILE__"("STRINGIFY(__LINE__)"):"
+#define MSVC_LINE	__FILE__"("STRINGIFY(__LINE__)"):"
 #define warningmsg(s) message(MSVC_LINE s)
 #elif __GNUC__ >=4
 #define warningmsg(s) message(s)
@@ -50,37 +50,37 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #pragma warning( 2 : 4701)
 #pragma warning(2:4132 4268)// const object not initialized
 
-#pragma warning(2:4032)     // function arg has different type from declaration
-#pragma warning(2:4092)     // 'sizeof' value too big
+#pragma warning(2:4032)		// function arg has different type from declaration
+#pragma warning(2:4092)		// 'sizeof' value too big
 #pragma warning(2:4132 4268)// const object not initialized
-//#pragma warning(2:4152)     // pointer conversion between function and data
-#pragma warning(2:4239)     // standard doesn't allow this conversion
-#pragma warning(2:4701)     // local variable used without being initialized
-//#pragma warning(2:4706)     // if (a=b) instead of (if a==b)
-#pragma warning(2:4709)     // comma in array subscript
-#pragma warning(3:4061)     // not all enum values tested in switch statement
-#pragma warning(3:4710)     // inline function was not inlined
-#pragma warning(3:4121)     // space added for structure alignment
-#pragma warning(3:4505)     // unreferenced local function removed
-#pragma warning(3:4019)     // empty statement at global scope
-//#pragma warning(3:4057)     // pointers refer to different base types
-#pragma warning(3:4125)     // decimal digit terminates octal escape
-#pragma warning(2:4131)     // old-style function declarator
-#pragma warning(3:4211)     // extern redefined as static
-//#pragma warning(3:4213)     // cast on left side of = is non-standard
-#pragma warning(3:4222)     // member function at file scope shouldn't be static
+//#pragma warning(2:4152)	// pointer conversion between function and data
+#pragma warning(2:4239)		// standard doesn't allow this conversion
+#pragma warning(2:4701)		// local variable used without being initialized
+//#pragma warning(2:4706)	// if (a=b) instead of (if a==b)
+#pragma warning(2:4709)		// comma in array subscript
+#pragma warning(3:4061)		// not all enum values tested in switch statement
+#pragma warning(3:4710)		// inline function was not inlined
+#pragma warning(3:4121)		// space added for structure alignment
+#pragma warning(3:4505)		// unreferenced local function removed
+#pragma warning(3:4019)		// empty statement at global scope
+//#pragma warning(3:4057)	// pointers refer to different base types
+#pragma warning(3:4125)		// decimal digit terminates octal escape
+#pragma warning(2:4131)		// old-style function declarator
+#pragma warning(3:4211)		// extern redefined as static
+//#pragma warning(3:4213)	// cast on left side of = is non-standard
+#pragma warning(3:4222)		// member function at file scope shouldn't be static
 #pragma warning(3:4234 4235)// keyword not supported or reserved for future
-#pragma warning(3:4504)     // type ambiguous; simplify code
-#pragma warning(3:4507)     // explicit linkage specified after default linkage
-#pragma warning(3:4515)     // namespace uses itself
+#pragma warning(3:4504)		// type ambiguous; simplify code
+#pragma warning(3:4507)		// explicit linkage specified after default linkage
+#pragma warning(3:4515)		// namespace uses itself
 #pragma warning(3:4516 4517)// access declarations are deprecated
-#pragma warning(3:4670)     // base class of thrown object is inaccessible
-#pragma warning(3:4671)     // copy ctor of thrown object is inaccessible
-#pragma warning(3:4673)     // thrown object cannot be handled in catch block
-#pragma warning(3:4674)     // dtor of thrown object is inaccessible
-#pragma warning(3:4705)     // statement has no effect (example: a+1;)
+#pragma warning(3:4670)		// base class of thrown object is inaccessible
+#pragma warning(3:4671)		// copy ctor of thrown object is inaccessible
+#pragma warning(3:4673)		// thrown object cannot be handled in catch block
+#pragma warning(3:4674)		// dtor of thrown object is inaccessible
+#pragma warning(3:4705)		// statement has no effect (example: a+1;)
 
-#pragma warning(3:4013)     // function undefined, assuming extern returning int
+#pragma warning(3:4013)		// function undefined, assuming extern returning int
 
 
 #pragma warning( 4 : 4267)	//truncation from const double to float
@@ -94,7 +94,6 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define _CRT_SECURE_NO_DEPRECATE
 #define _CRT_NONSTDC_NO_DEPRECATE
 #endif
-
 
 
 #define QUAKEDEF_H__
@@ -139,6 +138,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #endif
 #if defined(_WIN32) || defined(__DJGPP__)
 	#include <malloc.h>
+#elif defined(__unix__) && !defined(__linux__) // quick hack for the bsds and other unix systems
+	#include<stdlib.h>
 #elif !defined(alloca)	//alloca.h isn't present on bsd (stdlib.h should define it to __builtin_alloca, and we can check for that here).
 	#include <alloca.h>
 #endif
@@ -208,7 +209,7 @@ extern "C" {
 #endif
 
 #if defined(Q3CLIENT) || defined(Q3SERVER)
-#include "q3api.h"
+#include "../common/q3api.h"
 #endif
 
 #ifdef __cplusplus
@@ -368,6 +369,7 @@ extern cvar_t worker_flush;
 qboolean COM_DoWork(int thread, qboolean leavelocked);
 #define COM_MainThreadWork() while (COM_DoWork(0, false) && worker_flush.ival) /*called each frame to do any gl uploads or whatever*/
 #define COM_MainThreadFlush() while (COM_DoWork(0, false))	/*make sure the main thread has done ALL work pending*/
+unsigned int COM_HasWorkers(wgroup_t tg);
 void COM_AddWork(wgroup_t thread, void(*func)(void *ctx, void *data, size_t a, size_t b), void *ctx, void *data, size_t a, size_t b);	//low priority
 void COM_InsertWork(wgroup_t tg, void(*func)(void *ctx, void *data, size_t a, size_t b), void *ctx, void *data, size_t a, size_t b);	//high priority
 qboolean COM_HasWork(void);
@@ -385,6 +387,7 @@ void COM_AssertMainThread(const char *msg);
 #endif
 #else
 #define com_workererror false
+#define COM_HasWorkers(t) 0
 #define COM_AddWork(t,f,a,b,c,d) (f)((a),(b),(c),(d))
 #define COM_InsertWork(t,f,a,b,c,d) (f)((a),(b),(c),(d))
 #define COM_WorkerPartialSync(c,a,v)

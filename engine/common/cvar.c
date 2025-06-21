@@ -247,6 +247,8 @@ static char *Cvar_FlagToName(int flag)
 		return "";
 	case CVAR_NORESET:
 		return "noreset";
+	case CVAR_RENDEREROVERRIDE:
+		return "rendereroverride";
 	}
 
 	return NULL;
@@ -474,7 +476,7 @@ showhelp:
 			else
 				col = S_COLOR_YELLOW;	//cvar is changed, but won't be saved to a config so w/e.
 			if (cmd->flags & CVAR_NOUNSAFEEXPAND)
-				Con_Printf("^[%s%s\\type\\%s\\tip\\"S_COLOR_YELLOW"%s^]", col, cmd->name, cmd->name, cmd->description?cmd->description:"");	//cvar is changed, but won't be saved to a config so w/e.
+				Con_Printf("^[%s%s\\type\\%s\\tip\\<Current value is hidden>\n\n"S_COLOR_YELLOW"%s^]", col, cmd->name, cmd->name, cmd->description?cmd->description:"");	//cvar is changed, but won't be saved to a config so w/e.
 			else
 				Con_Printf("^[%s%s\\type\\%s %s\\tip\\Default: %s\nCurrent: %s\n\n"S_COLOR_YELLOW"%s^]", col, cmd->name, cmd->name,cmd->string, cmd->defaultstr,cmd->string, cmd->description?cmd->description:"");	//cvar is changed, but won't be saved to a config so w/e.
 			total++;
@@ -929,6 +931,8 @@ static cvar_t *Cvar_SetCore (cvar_t *var, const char *value, qboolean force)
 		latch = "variable %s will be changed after a vid_restart\n";
 	else if (var->flags & CVAR_RENDERERLATCH && qrenderer != QR_NONE)
 		latch = "variable %s will be changed after a vid_reload\n";
+	else if (var->flags & CVAR_RENDEREROVERRIDE && qrenderer != QR_NONE)
+		latch = "variable %s is not supported by the current renderer/gpu/drivers\n";
 #endif
 	else if (var->flags & CVAR_RULESETLATCH)
 		latch = "variable %s is latched due to current ruleset\n";
@@ -994,9 +998,10 @@ static cvar_t *Cvar_SetCore (cvar_t *var, const char *value, qboolean force)
 	if (var->flags & CVAR_USERINFO)
 	{
 		char *old = InfoBuf_ValueForKey(&cls.userinfo[0], var->name);
-		if (strcmp(old, value))	//only spam the server if it actually changed
+		const char *corruptval = TP_ParseFunChars(value);
+		if (strcmp(old, corruptval))	//only spam the server if it actually changed
 		{				//this helps with config execs
-			InfoBuf_SetKey (&cls.userinfo[0], var->name, value);
+			InfoBuf_SetKey (&cls.userinfo[0], var->name, corruptval);
 		}
 	}
 #endif
@@ -1066,6 +1071,10 @@ static cvar_t *Cvar_SetCore (cvar_t *var, const char *value, qboolean force)
 		}
 
 		Z_Free (latch);	// free the old value string
+
+#ifdef HAVE_SERVER
+		MSV_SendCvarChange(var);
+#endif
 	}
 
 	if (var->latched_string)	//we may as well have this here.
@@ -1459,6 +1468,7 @@ void Cvar_LockFromServer(cvar_t *var, const char *str)
 		Con_DPrintf("Server taking control of cvar %s (%s)\n", var->name, str);
 		var->flags |= CVAR_SERVEROVERRIDE;
 	}
+	var->flags &= ~CVAR_RENDEREROVERRIDE;
 
 	oldlatch = var->latched_string;
 	if (oldlatch)	//maintaining control
@@ -1471,6 +1481,20 @@ void Cvar_LockFromServer(cvar_t *var, const char *str)
 
 	Cvar_SetCore (var, str, true);	//will use all, quote included
 
+	var->latched_string = oldlatch;	//keep track of the original value.
+}
+//not all renderers support all cvars. lets latch some of them if they're unavailable.
+void Cvar_LockUnsupportedRendererCvar(cvar_t *var, const char *str)
+{
+	char *oldlatch;
+
+	if (var->latched_string)
+		return; //err... its not going to do anything anyway so just leave it.
+	if (!(var->flags & CVAR_RENDEREROVERRIDE))
+		var->flags |= CVAR_RENDEREROVERRIDE;
+
+	oldlatch = (char*)Z_StrDup(var->string);
+	Cvar_SetCore (var, str, true);	//will use all, quote included
 	var->latched_string = oldlatch;	//keep track of the original value.
 }
 
@@ -1664,7 +1688,7 @@ Writes lines containing "set variable value" for all variables
 with the archive flag set to true.
 ============
 */
-void Cvar_WriteVariables (vfsfile_t *f, qboolean all)
+void Cvar_WriteVariables (vfsfile_t *f, qboolean all, qboolean nohidden)
 {
 	qboolean writtengroupheader;
 	cvar_group_t *grp;
@@ -1681,6 +1705,8 @@ void Cvar_WriteVariables (vfsfile_t *f, qboolean all)
 			{
 				//yeah, don't force-save readonly cvars.
 				if (var->flags & (CVAR_NOSET|CVAR_NOSAVE))
+					continue;
+				if (nohidden && (var->flags & CVAR_NOUNSAFEEXPAND))
 					continue;
 
 				if (!writtengroupheader)

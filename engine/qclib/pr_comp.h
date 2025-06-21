@@ -247,7 +247,7 @@ enum qcop_e {
 	OP_LOADA_FNC,	//150
 	OP_LOADA_I,
 
-	OP_STORE_P,	//152... erm.. wait...
+	OP_STORE_P,
 	OP_LOAD_P,
 
 	OP_LOADP_F,
@@ -339,13 +339,13 @@ enum qcop_e {
 	OP_STOREF_I,	//1 non-string reference/int
 
 //r5744+
-	OP_STOREP_B,//((char*)b)[(int)c] = (int)a
-	OP_LOADP_B,	//(int)c = *(char*)
+	OP_STOREP_I8,	//((char*)b)[(int)c] = (int)a
+	OP_LOADP_U8,	//(int)c = *(unsigned char*)
 
 //r5768+
 //opcodes for 32bit uints
-	OP_LE_U,		//aka GT
-	OP_LT_U,		//aka GE
+	OP_LE_U,		//aka GE
+	OP_LT_U,		//aka GT
 	OP_DIV_U,		//don't need mul+add+sub
 	OP_RSHIFT_U,	//lshift is the same for signed+unsigned
 
@@ -359,13 +359,13 @@ enum qcop_e {
 	OP_BITXOR_I64,
 	OP_LSHIFT_I64I,
 	OP_RSHIFT_I64I,
-	OP_LE_I64,		//aka GT
-	OP_LT_I64,		//aka GE
+	OP_LE_I64,		//aka GE
+	OP_LT_I64,		//aka GT
 	OP_EQ_I64,
 	OP_NE_I64,
 //extra opcodes for 64bit uints
-	OP_LE_U64,		//aka GT
-	OP_LT_U64,		//aka GE
+	OP_LE_U64,		//aka GE
+	OP_LT_U64,		//aka GT
 	OP_DIV_U64,
 	OP_RSHIFT_U64I,
 
@@ -397,6 +397,20 @@ enum qcop_e {
 	OP_EQ_D,
 	OP_NE_D,
 
+//r6614+
+	OP_STOREP_I16, //((short*)b)[(int)c] = (int)a
+	OP_LOADP_I16,	//(int)c = *(signed short*)a   (sign extends)
+	OP_LOADP_U16,	//(unsigned int)c = *(unsigned short*)a
+	OP_LOADP_I8,	//(unsigned int)c = *(signed char*)a	(sign extends)
+	OP_BITEXTEND_I,	//sign extend (for signed bitfields)
+	OP_BITEXTEND_U,	//zero extend (for unsigned bitfields)
+	OP_BITCOPY_I,	//copy lower bits from the input to some part of the output
+	OP_CONV_UF,	//OPC.f=(float)OPA.i -- 0xffffffffu*0.5=0 otherwise.
+	OP_CONV_FU,	//OPC.i=(int)OPA.f
+	OP_CONV_U64D,	//OPC.d=(double)OPA.u64 -- useful mostly so decompilers don't do weird stuff.
+	OP_CONV_DU64,	//OPC.u64=(uint64_t)OPA.d
+	OP_CONV_U64F,	//OPC.f=(float)OPA.u64 -- useful mostly so decompilers don't do weird stuff.
+	OP_CONV_FU64,	//OPC.u64=(uint64_t)OPA.f
 
 	OP_NUMREALOPS,
 
@@ -463,10 +477,13 @@ enum qcop_e {
 	OP_ADD_FP,
 	OP_ADD_PI,
 	OP_ADD_IP,
+	OP_ADD_PU,
+	OP_ADD_UP,
 
 	OP_SUB_SI,
 	OP_SUB_PF,
 	OP_SUB_PI,
+	OP_SUB_PU,
 
 	OP_SUB_PP,
 
@@ -531,8 +548,8 @@ enum qcop_e {
 	//uint64 opcodes. they match the int32 ones so emulation is basically swapping them over.
 	OP_BITNOT_I64,	//BITXOR ~0
 	OP_BITCLR_I64,
-	OP_GE_I64,	//LT_I64
-	OP_GT_I64,	//LE_I64
+	OP_GE_I64,	//LE_I64
+	OP_GT_I64,	//LT_I64
 
 	OP_ADD_U64,
 	OP_SUB_U64,
@@ -544,8 +561,8 @@ enum qcop_e {
 	OP_BITNOT_U64,	//BITXOR ~0
 	OP_BITCLR_U64,
 	OP_LSHIFT_U64I,
-	OP_GE_U64,	//LT_U64
-	OP_GT_U64,	//LE_U64
+	OP_GE_U64,	//LE_U64
+	OP_GT_U64,	//LT_U64
 	OP_EQ_U64,
 	OP_NE_U64,
 
@@ -557,12 +574,16 @@ enum qcop_e {
 	OP_BITCLR_D,
 	OP_LSHIFT_DI,
 	OP_RSHIFT_DI,
+	OP_GE_D,	//LE_D
+	OP_GT_D,	//LT_D
 
 	OP_WSTATE,	//for the 'w' part of CWSTATE. will probably never be used, but hey, hexen2...
 
 	//special/fake opcodes used by the decompiler.
 	OPD_GOTO_FORSTART,
 	OPD_GOTO_WHILE1,
+	OPD_GOTO_BREAK,
+	OPD_GOTO_DEFAULT,
 
 	OP_NUMOPS,
 #define OP_BIT_BREAKPOINT 0x8000
@@ -616,13 +637,19 @@ typedef struct statement32_s
 typedef struct
 {
 	struct QCC_def_s *sym;
-	unsigned int ofs;
+	union
+	{
+		unsigned int ofs;
+//		unsigned int bofs;
+		signed int jumpofs;
+	};
 	struct QCC_type_s *cast;	//the entire sref is considered null if there is no cast, although it *MAY* have an ofs specified if its part of a jump instruction
 } QCC_sref_t;
 typedef struct qcc_statement_s
 {
 	unsigned short		op;
 	#define STF_LOGICOP (1u<<0)	//do not bother following when looking for uninitialised variables.
+	#define STF_NOFOLD (1u<<1)	//do not allow changing its var_c to fold the following store.
 	unsigned short		flags;
 	QCC_sref_t			a, b, c;
 	unsigned int		linenum;

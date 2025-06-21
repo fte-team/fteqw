@@ -37,14 +37,14 @@ typedef struct
 
 
 
-extern cvar_t gl_part_flame, r_fullbrightSkins, r_fb_models, ruleset_allow_fbmodels;
+extern cvar_t gl_part_flame, r_fullbrightSkins, r_fb_models, ruleset_allow_fbmodels, gl_overbright_models;
 extern cvar_t r_noaliasshadows;
 extern cvar_t r_lodscale, r_lodbias;
 
 extern cvar_t gl_ati_truform;
 extern cvar_t r_vertexdlights;
 extern cvar_t mod_md3flags;
-extern cvar_t r_skin_overlays;
+//extern cvar_t r_skin_overlays;
 extern cvar_t r_globalskin_first, r_globalskin_count;
 
 #ifndef SERVERONLY
@@ -273,6 +273,9 @@ skinid_t Mod_ReadSkinFile(const char *skinname, const char *skintext)
 #ifdef QWSKINS
 	skin->q1lower = Q1UNSPECIFIED;
 	skin->q1upper = Q1UNSPECIFIED;
+#ifdef HEXEN2
+	skin->h2class = Q1UNSPECIFIED;
+#endif
 #endif
 
 
@@ -350,7 +353,7 @@ skinid_t Mod_ReadSkinFile(const char *skinname, const char *skintext)
 		}
 		else if (!strcmp(com_token, "geomset") || !strcmp(com_token, "meshgroup"))
 		{
-			int set;
+			unsigned int set;
 			skintext = COM_ParseToken(skintext, NULL);
 			set = atoi(com_token);
 
@@ -387,6 +390,13 @@ skinid_t Mod_ReadSkinFile(const char *skinname, const char *skintext)
 			else
 				skin->q1upper = atoi(com_token);
 		}
+#ifdef HEXEN2
+		else if (!strcmp(com_token, "h2class"))
+		{
+			skintext = COM_ParseToken(skintext, NULL);
+			skin->h2class = atoi(com_token);
+		}
+#endif
 #endif
 		else
 		{
@@ -612,7 +622,12 @@ static shader_t *GL_ChooseSkin(galiasinfo_t *inf, model_t *model, int surfnum, e
 	shader_t *shader;
 	qwskin_t *plskin = NULL;
 	unsigned int subframe;
-	unsigned int tc = e->topcolour, bc = e->bottomcolour, pc;
+	unsigned int tc = e->topcolour, bc = e->bottomcolour;
+#ifdef HEXEN2
+	unsigned int pc = e->h2playerclass;
+#else
+	unsigned int pc = 0;
+#endif
 	qboolean generateupperlower = false;
 	qboolean forced;
 	extern int cl_playerindex;	//so I don't have to strcmp
@@ -649,6 +664,10 @@ static shader_t *GL_ChooseSkin(galiasinfo_t *inf, model_t *model, int surfnum, e
 				bc = e->bottomcolour = sk->q1lower;
 			if (sk->q1upper != Q1UNSPECIFIED)
 				tc = e->topcolour = sk->q1upper;
+#ifdef HEXEN2
+			if (sk->h2class != Q1UNSPECIFIED)
+				pc = sk->h2class;
+#endif
 			if (!sk->qwskin && *sk->qwskinname)
 				sk->qwskin = Skin_Lookup(sk->qwskinname);
 			plskin = sk->qwskin;
@@ -716,11 +735,6 @@ static shader_t *GL_ChooseSkin(galiasinfo_t *inf, model_t *model, int surfnum, e
 			else
 				plskin = NULL;
 		}
-#ifdef HEXEN2
-		pc = e->h2playerclass;
-#else
-		pc = 0;
-#endif
 
 		if (forced || tc != TOP_DEFAULT || bc != BOTTOM_DEFAULT || plskin)
 		{
@@ -1113,7 +1127,7 @@ static shader_t *GL_ChooseSkin(galiasinfo_t *inf, model_t *model, int surfnum, e
 
 
 					cm->texnum.paletted = R_LoadTexture(va("paletted$%x$%x$%i$%i$%i$%s", tc, bc, cm->skinnum, subframe, pc, cm->name),
-								scaled_width, scaled_height, PTI_P8, pixels8, IF_NEAREST|IF_NOMIPMAP);
+								scaled_width, scaled_height, PTI_P8, pixels8, IF_PALETTIZE|IF_NEAREST|IF_NOMIPMAP);
 
 				}
 
@@ -1359,25 +1373,27 @@ qboolean R_CalcModelLighting(entity_t *e, model_t *clmodel)
 		return e->light_known-1;
 
 	e->light_dir[0] = 0; e->light_dir[1] = 1; e->light_dir[2] = 0;
-	if ((clmodel->engineflags & MDLF_FLAME) || r_fullbright.ival)
-	{
-		e->light_avg[0] = e->light_avg[1] = e->light_avg[2] = 1;
-		e->light_range[0] = e->light_range[1] = e->light_range[2] = 0;
-		e->light_known = 2;
-		return e->light_known-1;
-	}
-	if (
 #ifdef HEXEN2
-		(e->drawflags & MLS_MASK) == MLS_FULLBRIGHT ||
-#endif
-		(e->flags & RF_FULLBRIGHT))
-	{
-		e->light_avg[0] = e->light_avg[1] = e->light_avg[2] = 1;
-		e->light_range[0] = e->light_range[1] = e->light_range[2] = 0;
+	if ((e->drawflags & MLS_MASK) == MLS_ABSLIGHT)
+	{	//per-entity fixed lighting
+		e->light_range[0] = e->light_range[1] = e->light_range[2] =
+		e->light_avg[0] = e->light_avg[1] = e->light_avg[2] = e->abslight/255.f;
 		e->light_known = 2;
 		return e->light_known-1;
 	}
-	if (r_fb_models.ival == 1 && ruleset_allow_fbmodels.ival && (clmodel->engineflags & MDLF_EZQUAKEFBCHEAT) && cls.protocol == CP_QUAKEWORLD && cl.deathmatch)
+	if ((e->drawflags & MLS_MASK) && (e->drawflags & MLS_MASK) != MLS_ADDLIGHT)
+	{	//these use some qc-defined lightstyles.
+		i = 24 + (e->drawflags & MLS_MASK); //saves knowing the proper patterns at least.
+		VectorScale(cl_lightstyle[i].colours, d_lightstylevalue[i]/255.f, e->light_range);
+		VectorScale(cl_lightstyle[i].colours, d_lightstylevalue[i]/255.f, e->light_avg);
+		e->light_known = 2;
+		return e->light_known-1;
+	}
+#endif
+	if ((clmodel->engineflags & MDLF_FLAME) ||	//stuff on fire should generally have enough light...
+		r_fullbright.ival ||	//vanila cheat
+		(e->flags & RF_FULLBRIGHT) ||	//DP feature
+		(r_fb_models.ival == 1 && ruleset_allow_fbmodels.ival && (clmodel->engineflags & MDLF_EZQUAKEFBCHEAT) && cls.protocol == CP_QUAKEWORLD && cl.deathmatch && cls.allow_fbskins>0))	//ezquake cheat
 	{
 		e->light_avg[0] = e->light_avg[1] = e->light_avg[2] = 1;
 		e->light_range[0] = e->light_range[1] = e->light_range[2] = 0;
@@ -1418,23 +1434,26 @@ qboolean R_CalcModelLighting(entity_t *e, model_t *clmodel)
 	}
 
 #ifdef HEXEN2
-	if ((e->drawflags & MLS_MASK) == MLS_ABSLIGHT)
+	if ((e->drawflags & MLS_MASK) == MLS_ADDLIGHT)
 	{
-		shadelight[0] = shadelight[1] = shadelight[2] = e->abslight;
-		ambientlight[0] = ambientlight[1] = ambientlight[2] = e->abslight;
+		ambientlight[0] += e->abslight;
+		ambientlight[1] += e->abslight;
+		ambientlight[2] += e->abslight;
+		shadelight[0] += e->abslight;
+		shadelight[1] += e->abslight;
+		shadelight[2] += e->abslight;
 	}
-	else
 #endif
 
-		if (r_softwarebanding)
+	if (r_softwarebanding)
 	{
 		//mimic software rendering as closely as possible
 		lightdir[2] = 0;	//horizontal light only.
 
-		VectorMA(vec3_origin, 0.5, shadelight, ambientlight);
-		VectorCopy(ambientlight, shadelight);
+//		VectorMA(vec3_origin, 0.5, shadelight, ambientlight);
+//		VectorCopy(ambientlight, shadelight);
 
-		if (!r_vertexdlights.ival && r_dynamic.ival > 0)
+		if (!r_vertexdlights.ival && r_dlightlightmaps)
 		{
 			float *org = e->origin;
 			if (e->flags & RF_WEAPONMODEL)
@@ -1442,7 +1461,7 @@ qboolean R_CalcModelLighting(entity_t *e, model_t *clmodel)
 			//don't do world lights, although that might be funny
 			for (i=rtlights_first; i<RTL_FIRST; i++)
 			{
-				if (cl_dlights[i].radius)
+				if (!(*cl_dlights[i].cubemapname) && cl_dlights[i].radius)
 				{
 					VectorSubtract (org,
 									cl_dlights[i].origin,
@@ -1481,18 +1500,7 @@ qboolean R_CalcModelLighting(entity_t *e, model_t *clmodel)
 	}
 	else
 	{
-#ifdef HEXEN2
-		if ((e->drawflags & MLS_MASK) == MLS_ADDLIGHT)
-		{
-			ambientlight[0] += e->abslight;
-			ambientlight[1] += e->abslight;
-			ambientlight[2] += e->abslight;
-			shadelight[0] += e->abslight;
-			shadelight[1] += e->abslight;
-			shadelight[2] += e->abslight;
-		}
-#endif
-		if (!r_vertexdlights.ival && r_dynamic.ival > 0)
+		if (!r_vertexdlights.ival && r_dlightlightmaps)
 		{
 			float *org = e->origin;
 			if (e->flags & RF_WEAPONMODEL)
@@ -1501,7 +1509,7 @@ qboolean R_CalcModelLighting(entity_t *e, model_t *clmodel)
 			//don't do world lights, although that might be funny
 			for (i=rtlights_first; i<RTL_FIRST; i++)
 			{
-				if (cl_dlights[i].radius)
+				if (!(*cl_dlights[i].cubemapname) && cl_dlights[i].radius)
 				{
 					VectorSubtract (org,
 									cl_dlights[i].origin,
@@ -1607,6 +1615,20 @@ qboolean R_CalcModelLighting(entity_t *e, model_t *clmodel)
 		}
 
 
+#if 1	//match quakespasm here.
+		if (gl_overbright_models.value > 0.f && ruleset_allow_fbmodels.ival)
+		{
+			m = (96*6) / (shadelight[0]+shadelight[1]+shadelight[2]+ambientlight[0]+ambientlight[1]+ambientlight[2]);
+			if (m > 1.0)
+				m = 1;	//we only want to let it darken here.
+			m *= 1 + min(1,gl_overbright_models.value);
+		}
+		else
+			m = 1;
+		m /= 200.0/255;	//a legacy quake fudge-factor.
+		VectorScale(shadelight, m, shadelight);
+		VectorScale(ambientlight, m, ambientlight);
+#else
 		for (i = 0; i < 3; i++)
 		{
 			if (ambientlight[i] > 128)
@@ -1615,6 +1637,7 @@ qboolean R_CalcModelLighting(entity_t *e, model_t *clmodel)
 			shadelight[i] /= 200.0/255;
 			ambientlight[i] /= 200.0/255;
 		}
+#endif
 
 		if ((e->model->flags & MF_ROTATE) && cl.hexen2pickups)
 		{
@@ -1660,6 +1683,11 @@ qboolean R_CalcModelLighting(entity_t *e, model_t *clmodel)
 	{	//overbright the models.
 		VectorScale(ambientlight, 2, e->light_avg);
 		VectorScale(shadelight, 2, e->light_range);
+	}
+	else if (1)
+	{	//calculate average and range, to allow for negative lighting dotproducts
+		VectorCopy(shadelight, e->light_avg);
+		VectorCopy(ambientlight, e->light_range);
 	}
 	else
 	{	//calculate average and range, to allow for negative lighting dotproducts
@@ -2991,7 +3019,7 @@ void BE_GenModelBatches(batch_t **batches, const dlight_t *dl, unsigned int bemo
 				if (r_drawentities.ival == 2 && cls.allow_cheats)	//2 is considered a cheat, because it can be used as a wallhack (whereas mdls are not normally considered as occluding).
 					continue;
 				if (emodel->lightmaps.maxstyle >= cl_max_lightstyles)
-					continue;
+					R_BumpLightstyles(emodel->lightmaps.maxstyle);
 				Surf_GenBrushBatches(batches, ent);
 				break;
 			case mod_alias:

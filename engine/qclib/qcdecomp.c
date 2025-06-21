@@ -61,10 +61,9 @@ extern QCC_type_t	*type_intpointer;
 extern QCC_type_t	*type_floatfield;// = {ev_field/*, &def_field*/, NULL, &type_float};
 QCC_type_t *QCC_PR_NewType (char *name, int basictype, pbool typedefed);
 
+#if 0
 
 jmp_buf decompilestatementfailure;
-
-#if 0
 
 QCC_type_t **ofstype;
 qbyte *ofsflags;

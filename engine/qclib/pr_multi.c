@@ -331,7 +331,7 @@ int PDECL QC_RegisterFieldVar(pubprogfuncs_t *ppf, unsigned int type, const char
 	{	//we just found a new fieldname inside a progs
 		prinst.field[fnum].ofs = ofs = prinst.fields_size/sizeof(pvec_t);	//add on the end
 
-		//if the progs field offset matches annother offset in the same progs, make it match up with the earlier one.
+		//if the progs field offset matches another offset in the same progs, make it match up with the earlier one.
 		if (progsofs>=0)
 		{
 			unsigned otherofs;

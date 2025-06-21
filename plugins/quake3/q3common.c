@@ -422,11 +422,11 @@ int VMQ3_Cvar_Update(q3vmcvar_t *v)
 #define STUNDEMULTIPLEX_MASK	0x40000000	//stun requires that we set this bit to avoid surprises, and ignore packets without it.
 #define FRAGMENT_MASK			0x80000000
 #define FRAGMENTATION_TRESHOLD	(MAX_PACKETLEN-100)
-void Netchan_SetupQ3(netsrc_t sock, netchan_t *chan, netadr_t *adr, int qport)
+void Netchan_SetupQ3(unsigned int flags, netchan_t *chan, netadr_t *adr, int qport)
 {
 	memset (chan, 0, sizeof(*chan));
 
-	chan->sock = sock;
+	chan->flags = flags;
 	chan->remote_address = *adr;
 	chan->last_received = realtime;
 	chan->incoming_unreliable = -1;
@@ -452,7 +452,7 @@ qboolean Netchan_ProcessQ3 (netchan_t *chan, sizebuf_t *msg)
 	msgfuncs->BeginReading(msg, msg_nullnetprim);
 	sequence = msgfuncs->ReadBits(32);
 
-	if (chan->pext_stunaware)
+	if (chan->flags & NCF_STUNAWARE)
 	{
 		sequence = ((sequence&0xff000000)>>24)|((sequence&0x00ff0000)>>8)|((sequence&0x0000ff00)<<8)|((sequence&0x000000ff)<<24);	//reinterpret it as big-endian
 		if (sequence & STUNDEMULTIPLEX_MASK)
@@ -462,7 +462,7 @@ qboolean Netchan_ProcessQ3 (netchan_t *chan, sizebuf_t *msg)
 	}
 
 	// Read the qport if we are a server
-	if (chan->sock == NS_SERVER)
+	if (!(chan->flags&NCF_CLIENT))
 	{
 		msgfuncs->ReadBits(16);
 	}
@@ -592,13 +592,12 @@ void Netchan_TransmitNextFragment(struct ftenet_connections_s *socket, netchan_t
 {
 	//'reliable' is badly named. it should be 'fragment' instead.
 	//but in the interests of a smaller netchan_t...
-	int i;
 	sizebuf_t	send;
 	qbyte		send_buf[MAX_PACKETLEN];
 	int			fragmentLength;
 
 	int sequence = chan->outgoing_sequence | FRAGMENT_MASK;
-	if (chan->pext_stunaware)
+	if (chan->flags&NCF_STUNAWARE)
 	{
 		sequence+= STUNDEMULTIPLEX_MASK;
 		sequence = ((sequence&0xff000000)>>24)|((sequence&0x00ff0000)>>8)|((sequence&0x0000ff00)<<8)|((sequence&0x000000ff)<<24);	//reinterpret it as big-endian
@@ -612,7 +611,7 @@ void Netchan_TransmitNextFragment(struct ftenet_connections_s *socket, netchan_t
 	msgfuncs->WriteLong( &send, sequence );
 #ifndef SERVERONLY
 	// Send the qport if we are a client
-	if( chan->sock == NS_CLIENT )
+	if (chan->flags&NCF_CLIENT)
 	{
 		msgfuncs->WriteShort( &send, chan->qport);
 	}
@@ -649,9 +648,9 @@ void Netchan_TransmitNextFragment(struct ftenet_connections_s *socket, netchan_t
 		chan->reliable_length = 0;
 		chan->reliable_start = 0;
 
-		i = chan->outgoing_sequence & (MAX_LATENT-1);
-		chan->outgoing_size[i] = send.cursize;
-		chan->outgoing_time[i] = realtime;
+//		i = chan->outgoing_sequence & (MAX_LATENT-1);
+//		chan->outgoing_size[i] = send.cursize;
+//		chan->outgoing_time[i] = realtime;
 	}
 }
 
@@ -662,7 +661,6 @@ Netchan_Transmit
 */
 void Netchan_TransmitQ3(struct ftenet_connections_s *socket, netchan_t *chan, int length, const qbyte *data )
 {
-	int i;
 	sizebuf_t	send;
 	qbyte		send_buf[MAX_OVERALLMSGLEN+6];
 	char		adr[MAX_ADR_SIZE];
@@ -705,7 +703,7 @@ void Netchan_TransmitQ3(struct ftenet_connections_s *socket, netchan_t *chan, in
 	}
 
 	sequence = chan->outgoing_sequence;
-	if (chan->pext_stunaware)
+	if (chan->flags & NCF_STUNAWARE)
 	{
 		sequence+= STUNDEMULTIPLEX_MASK;
 		sequence = ((sequence&0xff000000)>>24)|((sequence&0x00ff0000)>>8)|((sequence&0x0000ff00)<<8)|((sequence&0x000000ff)<<24);	//reinterpret it as big-endian
@@ -716,10 +714,8 @@ void Netchan_TransmitQ3(struct ftenet_connections_s *socket, netchan_t *chan, in
 	msgfuncs->WriteLong(&send, chan->outgoing_sequence);
 #ifndef SERVERONLY
 	// Send the qport if we are a client
-	if( chan->sock == NS_CLIENT )
-	{
+	if (chan->flags == NCF_CLIENT)
 		msgfuncs->WriteShort(&send, chan->qport);
-	}
 #endif
 	// Copy the message to the packet
 	msgfuncs->WriteData(&send, data, length);
@@ -734,9 +730,9 @@ void Netchan_TransmitQ3(struct ftenet_connections_s *socket, netchan_t *chan, in
 */
 	chan->outgoing_sequence++;
 
-	i = chan->outgoing_sequence & (MAX_LATENT-1);
-	chan->outgoing_size[i] = send.cursize;
-	chan->outgoing_time[i] = realtime;
+//	i = chan->outgoing_sequence & (MAX_LATENT-1);
+//	chan->outgoing_size[i] = send.cursize;
+//	chan->outgoing_time[i] = realtime;
 }
 
 

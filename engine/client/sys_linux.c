@@ -69,6 +69,9 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 static int noconinput = 0;
 static int nostdout = 0;
 
+static FILE *dedcon; //replaces our stdin/out when set.
+static int dedconproc = -1;
+
 extern int isPlugin;
 int sys_parentleft;
 int sys_parenttop;
@@ -82,10 +85,77 @@ static void Sys_InitClock(void);
 
 qboolean Sys_InitTerminal (void)	//we either have one or we don't.
 {
-	return isatty(STDIN_FILENO);
+	if (isatty(STDIN_FILENO))
+		return true;	//already attached to a terminal in some form. don't need another.
+
+	if (dedcon)	//already got one open... shouldn't really happen. future paranoia.
+		return true;
+	else
+	{
+		int pty = posix_openpt(O_RDWR|O_NOCTTY);
+		if (pty >= 0)
+		{
+			int fd;
+			char *slavename, window[64], buf[64];
+			grantpt(pty);
+			unlockpt(pty);
+			slavename = ptsname(pty);
+			dedcon = fopen(slavename, "r+e");
+			if (dedcon)
+			{
+				snprintf(buf, sizeof buf, "-S%s/%d", strrchr(slavename,'/')+1, pty);
+				dedconproc = fork();
+				if(!dedconproc)
+				{	//oh hey, we're the child.
+					execlp("xterm", "xterm", buf, (char *)0);
+					_exit(1);
+				}
+				close(pty);	//can close it now, we'll keep track of it with our slave fd
+				if (dedconproc >= 0)
+				{	//if the xterm fails, does this EPIPE properly?
+					fgets(window, sizeof window, dedcon);
+					//printf("window: %s\n", window);
+
+					//switch input to non-blocking, so we can actually still do stuff...
+					fd = fileno(dedcon);
+					fcntl(fd, F_SETFL, fcntl(fd, F_GETFL) | O_NONBLOCK);
+
+					#ifdef HAVE_EPOLL
+					{
+						extern int epoll_fd;
+						if (epoll_fd >= 0)
+						{
+							struct epoll_event event = {EPOLLIN, {NULL}};
+							epoll_ctl(epoll_fd, EPOLL_CTL_ADD, fd, &event);
+						}
+					}
+					#else
+						//FIXME: NET_Sleep needs to wake up on dedcon input
+					#endif
+					return true;
+				}
+				//else fork failed.
+				fclose(dedcon);
+				dedcon = NULL;
+			}
+			close(pty);
+		}
+	}
+	return false;	//nope, soz
 }
 void Sys_CloseTerminal (void)
 {
+	if (dedcon)
+	{
+#ifdef HAVE_EPOLL
+		extern int epoll_fd;
+		if (epoll_fd >= 0)
+			epoll_ctl(epoll_fd, EPOLL_CTL_DEL, fileno(dedcon), NULL);	//don't get confused if the FD# is later reopened as something else...
+#endif
+		fclose(dedcon);
+		dedcon = NULL;
+	}
+	dedconproc = -1;
 }
 
 void Sys_RecentServer(char *command, char *target, char *title, char *desc)
@@ -177,12 +247,14 @@ void Sys_Printf (char *fmt, ...)
 		va_start (argptr,fmt);
 		vsnprintf (text,sizeof(text)-1, fmt,argptr);
 		va_end (argptr);
-		SSV_PrintToMaster(text);
-		return;
+		if (SSV_PrintToMaster(text))
+			return;
 	}
 #endif
 
-	if (nostdout)
+	if (dedcon)
+		out = dedcon;
+	else if (nostdout)
 	{
 #ifdef _DEBUG
 		out = stderr;
@@ -452,7 +524,7 @@ static void Sys_Register_File_Associations_f(void)
 		if (!strcmp(iconname, "afterquake") || !strcmp(iconname, "nq"))	//hacks so that we don't need to create icons.
 			iconname = "quake";
 
-		if (FS_NativePath("icon.png", FS_PUBBASEGAMEONLY, iconsyspath, sizeof(iconsyspath)))
+		if (FS_SystemPath("icon.png", FS_PUBBASEGAMEONLY, iconsyspath, sizeof(iconsyspath)))
 			iconname = iconsyspath;
 
 		s = va("%s/applications/fte-%s.desktop", xdgbase, fs_manifest->installation);
@@ -1133,6 +1205,27 @@ char *Sys_ConsoleInput(void)
 	static char text[256];
 	char *nl;
 
+	if (dedcon)
+	{
+		int e;
+		if (fgets(text, sizeof(text), dedcon))
+			return text;
+		e = errno;
+		switch(e)
+		{
+		case EAGAIN:
+		case EINTR:	//not meant to be blocking, but can still be interrupted.
+			break;	//cos we made it non-blocking.
+		case EPIPE:	//not seen, but possible I guess.
+		case EIO:	//can happen if the other end dies.
+			Sys_CloseTerminal();
+			return "quit";	//kill the server if we were actually using the terminal... or at least try not to run silently.
+		default:
+			Sys_Printf(CON_WARNING "fgets errno %i\n", e);
+			break;
+		}
+	}
+
 	if (noconinput)
 		return NULL;
 
@@ -1215,7 +1308,7 @@ static void DoSign(const char *fname, int signtype)
 		searchpathfuncs_t *search = FS_OpenPackByExtension(f, NULL, fname, fname, prefix);
 		if (search)
 		{
-			printf("%#08x", search->GeneratePureCRC(search, 0, 0));
+			printf("%#08x", search->GeneratePureCRC(search, NULL));
 			search->ClosePath(search);
 		}
 		else
@@ -1223,7 +1316,9 @@ static void DoSign(const char *fname, int signtype)
 	}
 	else if (f)
 	{
-		hashfunc_t *h = (signtype==1)?&hash_sha2_256:&hash_sha2_512;
+		hashfunc_t *h = (signtype==1)?&hash_sha1:
+						(signtype==256)?&hash_sha2_256:
+						&hash_sha2_512;
 		size_t l, ts = 0;
 		void *ctx = alloca(h->contextsize);
 		qbyte data[65536*16];
@@ -1346,6 +1441,29 @@ static void SigCont(int code)
 		fcntl(STDIN_FILENO, F_SETFL, fl | FNDELAY);
 	noconinput &= ~2;
 }
+static void SigChldTerminalDied(int code, void *data)
+{	//our terminal dieded? restart again (this shouldn't loop infinitely...)
+	Sys_CloseTerminal();
+	Cbuf_AddText ("vid_renderer \"\"; vid_restart\n", RESTRICT_LOCAL);
+}
+static void SigChld(int code)
+{
+	int wstat;
+	pid_t	pid;
+
+	for(;;)
+	{
+		pid = wait3 (&wstat, WNOHANG, (struct rusage *)NULL);
+		if (pid == -1)
+			return;	//error
+		else if (pid == 0)
+			return;	//nothing left to report (linux seems to like errors instead)
+		else if (pid == dedconproc)
+			Cmd_AddTimer(0, SigChldTerminalDied, 0, NULL, 0);
+//		else	//forked subserver? we use pipes to track when it dies.
+//			printf ("Return code: %d\n", wstat);
+	}
+}
 #endif
 int main (int c, const char **v)
 {
@@ -1358,7 +1476,7 @@ int main (int c, const char **v)
 #ifdef _POSIX_C_SOURCE
 	signal(SIGTTIN, SIG_IGN);	//have to ignore this if we want to not lock up when running backgrounded.
 	signal(SIGCONT, SigCont);
-	signal(SIGCHLD, SIG_IGN);	//mapcluster stuff might leak zombie processes if we don't do this.
+	signal(SIGCHLD, SigChld);	//mapcluster stuff might leak zombie processes if we don't do this.
 #endif
 
 
@@ -1480,7 +1598,7 @@ int main (int c, const char **v)
 	{
 		isDedicated = true;
 		nostdout = noconinput = true;
-		SSV_SetupControlPipe(Sys_GetStdInOutStream());
+		SSV_SetupControlPipe(Sys_GetStdInOutStream(), false);
 	}
 #endif
 	if (COM_CheckParm("-dedicated"))
@@ -1527,8 +1645,8 @@ int main (int c, const char **v)
 	}
 //end
 
-	if (parms.binarydir)
-		Sys_Printf("Binary is located at \"%s\"\n", parms.binarydir);
+//	if (parms.binarydir)
+//		Sys_Printf("Binary is located at \"%s\"\n", parms.binarydir);
 
 #ifndef CLIENTONLY
 	if (isDedicated)    //compleate denial to switch to anything else - many of the client structures are not initialized.
@@ -1550,15 +1668,6 @@ int main (int c, const char **v)
 #endif
 
 	Host_Init(&parms);
-
-	for (i = 1; i < parms.argc; i++)
-	{
-		if (!parms.argv[i])
-			continue;
-		if (*parms.argv[i] == '+' || *parms.argv[i] == '-')
-			break;
-		Host_RunFile(parms.argv[i], strlen(parms.argv[i]), NULL);
-	}
 
 	oldtime = Sys_DoubleTime ();
 	while (1)

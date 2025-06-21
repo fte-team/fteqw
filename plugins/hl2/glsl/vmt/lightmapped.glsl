@@ -2,13 +2,16 @@
 !!permu FOG
 !!permu BUMP
 !!permu LIGHTSTYLED
+!!permu FULLBRIGHT
 !!permu REFLECTCUBEMASK
+!!permu NOFOG
 !!samps diffuse
 
 !!samps lightmap
 !!samps =LIGHTSTYLED lightmap1 lightmap2 lightmap3
 
 !!samps =BUMP normalmap
+!!samps =FULLBRIGHT fullbright
 
 // envmaps only
 !!samps =REFLECTCUBEMASK reflectmask reflectcube
@@ -16,6 +19,14 @@
 !!permu FAKESHADOWS
 !!cvardf r_glsl_pcf
 !!samps =FAKESHADOWS shadowmap
+
+#ifndef ENVTINT
+#define ENVTINT 1.0,1.0,1.0
+#endif
+
+#ifndef ENVSAT
+#define ENVSAT 1.0,1.0,1.0
+#endif
 
 #include "sys/defs.h"
 
@@ -98,19 +109,12 @@ varying vec2 lm1, lm2, lm3;
 #else
 		lightmaps  = LIGHTMAP * e_lmscale.rgb;
 #endif
-
-		/* the light we're getting is always too bright */
-		lightmaps *= 0.75;
-
-		/* clamp at 1.5 */
-		if (lightmaps.r > 1.5)
-			lightmaps.r = 1.5;
-		if (lightmaps.g > 1.5)
-			lightmaps.g = 1.5;
-		if (lightmaps.b > 1.5)
-			lightmaps.b = 1.5;
-
 		return lightmaps;
+	}
+
+	vec3 env_saturation(vec3 rgb, float adjustment) {
+	    vec3 intensity = vec3(dot(rgb, vec3(0.2126,0.7152,0.0722)));
+	    return mix(intensity, rgb, adjustment);
 	}
 
 	void main (void)
@@ -118,6 +122,7 @@ varying vec2 lm1, lm2, lm3;
 		vec4 diffuse_f;
 
 		diffuse_f = texture2D(s_diffuse, tex_c);
+		diffuse_f.rgb *= e_colourident.rgb;
 
 #ifdef MASKLT
 		if (diffuse_f.a < float(MASK))
@@ -137,11 +142,12 @@ varying vec2 lm1, lm2, lm3;
 	#ifdef BUMP
 		/* Source's normalmaps are in the DX format where the green channel is flipped */
 		vec4 normal_f = texture2D(s_normalmap, tex_c);
-		normal_f.g *= -1.0;
+		normal_f.g = 1.0 - normal_f.g;
 		normal_f.rgb = normalize(normal_f.rgb - 0.5);
 	#else
 		vec4 normal_f = vec4(0.0,0.0,1.0,0.0);
 	#endif
+
 
 	#if defined(ENVFROMMASK)
 		/* We have a dedicated reflectmask */
@@ -151,16 +157,36 @@ varying vec2 lm1, lm2, lm3;
 		#if defined(ENVFROMBASE) || !defined(BUMP)
 			#define refl 1.0 - diffuse_f.a
 		#else
-			#define refl normal_f.a * 0.5
+			/* when ENVFROMNORM is set, we don't invert the refl */
+			#if defined(ENVFROMNORM)
+				#define refl texture2D(s_normalmap, tex_c).a
+			#else
+				#define refl 1.0 - texture2D(s_normalmap, tex_c).a
+			#endif
 		#endif
 	#endif
+	
 
-		vec3 cube_c = reflect(normalize(-eyevector), normal_f.rgb);
+		vec3 cube_c = reflect(-eyevector, normal_f.rgb);
+		vec3 cube_tint = vec3(ENVTINT);
+		vec3 cube_sat = vec3(ENVSAT);
 		cube_c = cube_c.x * invsurface[0] + cube_c.y * invsurface[1] + cube_c.z * invsurface[2];
 		cube_c = (m_model * vec4(cube_c.xyz, 0.0)).xyz;
-		diffuse_f.rgb += (textureCube(s_reflectcube, cube_c).rgb * vec3(refl,refl,refl));
+		vec3 cube_t = env_saturation(textureCube(s_reflectcube, cube_c).rgb, cube_sat.r);
+		cube_t.r *= cube_tint.r;
+		cube_t.g *= cube_tint.g;
+		cube_t.b *= cube_tint.b;
+		diffuse_f.rgb += (cube_t * vec3(refl,refl,refl));
 #endif
 
+	#ifdef FULLBRIGHT
+		diffuse_f.rgb += texture2D(s_fullbright, tex_c).rgb * texture2D(s_fullbright, tex_c).a;
+	#endif
+
+	#ifdef NOFOG
+		gl_FragColor = diffuse_f;
+	#else
 		gl_FragColor = fog4(diffuse_f);
+	#endif
 	}
 #endif

@@ -108,14 +108,17 @@ qboolean Sys_GetDesktopParameters(int *width, int *height, int *bpp, int *refres
 	#define qatomic32_t qint32_t
 	#define FTE_Atomic32_Inc(ptr) __sync_add_and_fetch(ptr, 1)	//returns the AFTER the operation.
 	#define FTE_Atomic32_Dec(ptr) __sync_add_and_fetch(ptr, -1)	//returns the AFTER the operation.
+	#define FTE_Atomic_Insert(head, newnode, newnodenext) do newnodenext = head; while(!__sync_bool_compare_and_swap(&head, newnodenext, newnode)) //atomically insert into a linked list, being sure to not corrupt the pointers
 #elif defined(_WIN32)
 	#define qatomic32_t long
 	#define FTE_Atomic32_Inc(ptr) _InterlockedIncrement(ptr)
 	#define FTE_Atomic32_Dec(ptr) _InterlockedDecrement(ptr)
+	#define FTE_Atomic_Insert(head, newnode, newnodenext) do newnodenext = head; while(newnodenext != _InterlockedCompareExchangePointer(&head, newnode, newnodenext))
 #else
 	#define qatomic32_t qint32_t
 	#define FTE_Atomic32_Inc(ptr) FTE_Atomic32Mutex_Add(ptr, 1)
 	#define FTE_Atomic32_Dec(ptr) FTE_Atomic32Mutex_Add(ptr, -1)
+	#define FTE_Atomic_Insert(head, newnode, newnodenext) do newnodenext = head; while(!FTE_AtomicPtr_ConditionalReplace(&head, newnodenext, newnode))
 #endif
 
 

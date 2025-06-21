@@ -24,7 +24,7 @@
 		fmt=k	-- quake-style raster font with koi8-u codepage (apparently its somewhat common in the quake community)
 		fmt=h	-- halflife-style all-on-one-line raster font
 		aspect=0.5 -- raster font is squished horizontally
-		style	-- list of modifiets for inexact family font matching for system fonts
+		style	-- list of modifiers for inexact family font matching for system fonts
 */
 
 void Font_Init(void);
@@ -404,6 +404,7 @@ static struct
 } trackerimages[256];
 static int numtrackerimages;
 #define TRACKERFIRST 0xe200
+#define TRACKERCOUNT  0x100	//an upper bound. so misused codepoints won't go weird.
 int Font_RegisterTrackerImage(const char *image)
 {
 	int i;
@@ -412,7 +413,7 @@ int Font_RegisterTrackerImage(const char *image)
 		if (!strcmp(trackerimages[i].name, image))
 			return TRACKERFIRST + i;
 	}
-	if (numtrackerimages == 256)
+	if (numtrackerimages == TRACKERCOUNT)
 		return 0;
 	trackerimages[i].image = NULL;	//actually load it elsewhere, because we're lazy.
 	Q_strncpyz(trackerimages[i].name, image, sizeof(trackerimages[i].name));
@@ -1546,7 +1547,7 @@ static struct charcache_s *Font_GetChar(font_t *f, unsigned int codepoint)
 	c = Font_GetCharIfLoaded(f, charidx);
 	if (!c)
 	{
-		if (charidx >= TRACKERFIRST && charidx < TRACKERFIRST+100)
+		if (charidx >= TRACKERFIRST && charidx < TRACKERFIRST+TRACKERCOUNT)
 		{
 			static struct charcache_s tc;
 			tc.texplane = TRACKERIMAGE;
@@ -2329,7 +2330,9 @@ struct font_s *Font_LoadFont(const char *fontfilename, float vheight, float scal
 	char *parms;
 	int height = ((vheight * vid.rotpixelheight)/vid.height) + 0.5;
 	char facename[MAX_QPATH*12];
+#ifdef AVAIL_FREETYPE
 	char *styles = NULL;
+#endif
 	struct charcache_s *c;
 	float aspect = 1;
 	enum fontfmt_e fmt = FMT_AUTO;
@@ -2347,6 +2350,10 @@ struct font_s *Font_LoadFont(const char *fontfilename, float vheight, float scal
 	f = Z_Malloc(sizeof(*f));
 	f->outline = outline;
 	f->scale = scale;
+	if (height < 1)	//doesn't make sense. especially negatives...
+		height = 1;
+	if (height > 128)
+		height = 128;	//limit possible damage... we use alloca a bit so don't let the stack get abused too much.
 	f->charheight = height;
 	f->truecharheight = height;
 	f->flags = flags;
@@ -2401,6 +2408,7 @@ struct font_s *Font_LoadFont(const char *fontfilename, float vheight, float scal
 				aspect = strtod(t, &t);
 				parms = t;
 			}
+#ifdef AVAIL_FREETYPE
 			if (!strncmp(parms, "style=", 6))
 			{
 				char *t = parms+6;
@@ -2413,6 +2421,7 @@ struct font_s *Font_LoadFont(const char *fontfilename, float vheight, float scal
 				}
 				parms = t;
 			}
+#endif
 
 			while(*parms && *parms != '&')
 				parms++;
@@ -2460,17 +2469,17 @@ struct font_s *Font_LoadFont(const char *fontfilename, float vheight, float scal
 				h = 0;
 			}
 
-			f->chars[i].advance = dp->width;	/*this is how much line space the char takes*/
-			f->chars[i].left = -dp->leftoffset;
-			f->chars[i].top = -dp->topoffset;
-			f->chars[i].nextchar = 0;
-			f->chars[i].pad = 0;
-			f->chars[i].texplane = SINGLEPLANE;
+			c = Font_GetCharStore(f, i);
+			c->advance = dp->width;	/*this is how much line space the char takes*/
+			c->left = -dp->leftoffset;
+			c->top = -dp->topoffset;
+			c->nextchar = 0;
+			c->texplane = SINGLEPLANE;
 
-			f->chars[i].bmx = x;
-			f->chars[i].bmy = y;
-			f->chars[i].bmh = dp->height;
-			f->chars[i].bmw = dp->width;
+			c->bmx = x;
+			c->bmy = y;
+			c->bmh = dp->height;
+			c->bmw = dp->width;
 
 			Doom_ExpandPatch(dp, &buf[y*PLANEWIDTH + x], PLANEWIDTH);
 
@@ -2490,15 +2499,15 @@ struct font_s *Font_LoadFont(const char *fontfilename, float vheight, float scal
 		{
 			//doom doesn't have many chars, so make sure the lower case chars exist.
 			for (i = 'a'; i <= 'z'; i++)
-				f->chars[i] = f->chars[i-'a'+'A'];
+				Font_CopyChar(f, i-'a'+'A', i);
+
 			//no space char either
-			f->chars[' '].advance = 8;
+			c = Font_GetCharStore(f, ' ');
+			c->advance = 8;
 
 			f->singletexture = R_LoadTexture8("doomfont", PLANEWIDTH, PLANEHEIGHT, buf, 0, true);
 			for (i = 0xe000; i <= 0xe0ff; i++)
-			{
-				f->chars[i] = f->chars[toupper(i&0x7f)];
-			}
+				Font_CopyChar(f, toupper(i&0x7f), i);
 			return f;
 		}
 	}
@@ -2612,12 +2621,18 @@ struct font_s *Font_LoadFont(const char *fontfilename, float vheight, float scal
 
 			if (!success && !TEXLOADED(f->singletexture) && *start)
 			{
-				f->singletexture = R_LoadHiResTexture(start, "fonts:charsets", IF_PREMULTIPLYALPHA|(r_font_linear.ival?IF_LINEAR:IF_NEAREST)|IF_UIPIC|IF_NOPICMIP|IF_NOMIPMAP|IF_NOPURGE|IF_LOADNOW);
-				if (f->singletexture->status == TEX_LOADING)
-					COM_WorkerPartialSync(f->singletexture, &f->singletexture->status, TEX_LOADING);
+				const char *ext = COM_GetFileExtension(start, NULL);
+				if (!Q_strcasecmp(ext, ".ttf") || !Q_strcasecmp(ext, ".otf"))
+					;	//no, don't try loading it as an image-based font. just let it fail.
+				else
+				{
+					f->singletexture = R_LoadHiResTexture(start, "fonts:charsets", IF_PREMULTIPLYALPHA|(r_font_linear.ival?IF_LINEAR:IF_NEAREST)|IF_UIPIC|IF_NOPICMIP|IF_NOMIPMAP|IF_NOPURGE|IF_LOADNOW);
+					if (f->singletexture->status == TEX_LOADING)
+						COM_WorkerPartialSync(f->singletexture, &f->singletexture->status, TEX_LOADING);
 
-				if (!TEXLOADED(f->singletexture) && f->faces < MAX_FACES)
-					Font_LoadFontLump(f, start);
+					if (!TEXLOADED(f->singletexture) && f->faces < MAX_FACES)
+						Font_LoadFontLump(f, start);
+				}
 			}
 
 			if (end)

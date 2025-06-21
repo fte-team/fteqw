@@ -189,11 +189,11 @@ typedef struct server_s
 
 	// added to every client's reliable buffer each frame, then cleared
 	sizebuf_t	reliable_datagram;
-	qbyte		reliable_datagram_buf[MAX_QWMSGLEN];
+	qbyte		reliable_datagram_buf[MAX_QWMSGLEN*2];
 
 	// the multicast buffer is used to send a message to a set of clients
 	sizebuf_t	multicast;
-	qbyte		multicast_buf[MAX_QWMSGLEN];
+	qbyte		multicast_buf[MAX_QWMSGLEN*2];
 
 #ifdef NQPROT
 	sizebuf_t	nqdatagram;
@@ -207,14 +207,9 @@ typedef struct server_s
 #endif
 
 #ifdef Q2SERVER
-	sizebuf_t	q2datagram;
-	qbyte		q2datagram_buf[MAX_Q2DATAGRAM];
-
-	sizebuf_t	q2reliable_datagram;
-	qbyte		q2reliable_datagram_buf[MAX_Q2MSGLEN];
-
-	sizebuf_t	q2multicast;
-	qbyte		q2multicast_buf[MAX_Q2MSGLEN];
+	sizebuf_t	q2multicast[2];	//0=little/legacy coords, 1=big coords (used for q2e compat)
+	qbyte		q2multicast_lcbuf[MAX_Q2MSGLEN];
+	qbyte		q2multicast_bcbuf[MAX_Q2MSGLEN*2];
 #endif
 
 	// the master buffer is used for building log packets
@@ -408,6 +403,7 @@ enum
 	PRESPAWN_VWEPMODELLIST,		//qw ugly extension.
 #endif
 	PRESPAWN_MODELLIST,
+	PRESPAWN_NQSIGNON1,		//gotta send all the trickled model+sounds before this is sent.
 	PRESPAWN_MAPCHECK,			//wait for old prespawn command
 	PRESPAWN_PARTICLES,
 	PRESPAWN_CUSTOMTENTS,
@@ -447,6 +443,7 @@ enum serverprotocols_e
 	SCP_BAD,	//don't send (a bot)
 	SCP_QUAKEWORLD,
 	SCP_QUAKE2,
+	SCP_QUAKE2EX,
 	SCP_QUAKE3,
 	//all the below are considered netquake clients.
 	SCP_NETQUAKE,
@@ -754,7 +751,7 @@ typedef struct client_s
 
 #if defined(NQPROT) || defined(Q2SERVER) || defined(Q3SERVER)
 #define ISQWCLIENT(cl) ((cl)->protocol == SCP_QUAKEWORLD)
-#define ISQ2CLIENT(cl) ((cl)->protocol == SCP_QUAKE2)
+#define ISQ2CLIENT(cl) ((cl)->protocol >= SCP_QUAKE2 && (cl)->protocol <= SCP_QUAKE2EX)
 #define ISQ3CLIENT(cl) ((cl)->protocol == SCP_QUAKE3)
 #define ISNQCLIENT(cl) ((cl)->protocol >= SCP_NETQUAKE)
 #define ISDPCLIENT(cl) ((cl)->protocol >= SCP_DARKPLACES6)
@@ -1090,6 +1087,7 @@ extern	cvar_t	sv_mintic, sv_maxtic, sv_limittics;
 extern	cvar_t	sv_maxspeed;
 extern	cvar_t	sv_antilag;
 extern	cvar_t	sv_antilag_frac;
+extern	cvar_t	sv_nqplayerphysics;
 
 void SV_Master_ReResolve(void);
 void SV_Master_Shutdown(void);
@@ -1159,12 +1157,13 @@ void SV_AutoBanSender (int duration, char *reason);	//bans net_from
 //
 // sv_main.c
 //
-NORETURN void VARGS SV_Error (char *error, ...) LIKEPRINTF(1);
+NORETURN void VARGS SV_Error (const char *error, ...) LIKEPRINTF(1);
 void SV_Shutdown (void);
 float SV_Frame (void);
 void SV_ReadPacket(void);
 void SV_FinalMessage (char *message);
 void SV_DropClient (client_t *drop);
+void SV_DropClient_ByAddress (netadr_t *addr);
 struct quakeparms_s;
 void SV_Init (struct quakeparms_s *parms);
 void SV_ExecInitialConfigs(char *defaultexec);
@@ -1174,6 +1173,7 @@ int SV_CalcPing (client_t *cl, qboolean forcecalc);
 void SV_FullClientUpdate (client_t *client, client_t *to);
 char *SV_PlayerPublicAddress(client_t *cl);
 
+void SV_GeneratePublicServerinfo(char *info, const char *endinfo);
 const char *SV_GetProtocolVersionString(void);	//decorate the protocol version field of server queries with extra features...
 qboolean SVC_GetChallenge (qboolean respond_dp);
 int SV_NewChallenge (void);
@@ -1196,7 +1196,10 @@ typedef struct
 #endif
 	int			challenge;					//the challenge used at connect. remembered to make life harder for proxies.
 	int			mtu;						//allowed fragment size (also signifies that it supports fragmented qw packets)
-	char		userinfo[2048];				//random userinfo data. no blobs, obviously.
+	int seats;
+	struct	{
+		char		info[2048];				//random userinfo data. no blobs, obviously.
+	} seat[MAX_SPLITS];
 	char		guid[128];					//user's guid data
 	netadr_t	adr;						//the address the connect request came from (so we can check passwords before accepting)
 } svconnectinfo_t;
@@ -1235,7 +1238,7 @@ void SSV_UpdateAddresses(void);
 void SSV_InitiatePlayerTransfer(client_t *cl, const char *newserver);
 void SSV_InstructMaster(sizebuf_t *cmd);
 void SSV_CheckFromMaster(void);
-void SSV_PrintToMaster(char *s);
+qboolean SSV_PrintToMaster(char *s);
 void SSV_ReadFromControlServer(void);
 void SSV_SavePlayerStats(client_t *cl, int reason);	//initial, periodic (in case of node crashes), part
 void SSV_RequestShutdown(void); //asks the cluster to not send us new players
@@ -1244,8 +1247,14 @@ vfsfile_t *Sys_ForkServer(void);
 vfsfile_t *Sys_GetStdInOutStream(void);		//obtains a bi-directional pipe for reading/writing via stdin/stdout. make sure the system code won't be using it.
 
 qboolean MSV_NewNetworkedNode(vfsfile_t *stream, qbyte *reqstart, qbyte *buffered, size_t buffersize, const char *remoteaddr);	//call to register a pipe to a newly discovered node.
-void SSV_SetupControlPipe(vfsfile_t *stream);	//call to register the pipe.
-extern qboolean isClusterSlave;
+void SSV_SetupControlPipe(vfsfile_t *stream, qboolean remote);	//call to register the pipe.
+enum clusterslavemode_e
+{
+	CLSV_no,
+	CLSV_forked,
+	CLSV_remote
+};
+extern enum clusterslavemode_e isClusterSlave;
 #define SSV_IsSubServer() isClusterSlave
 
 
@@ -1257,6 +1266,7 @@ void SSV_Send(const char *dest, const char *src, const char *cmd, const char *ms
 qboolean MSV_ClusterLogin(svconnectinfo_t *info);
 void MSV_PollSlaves(void);
 qboolean MSV_ForwardToAutoServer(void);	//forwards console command to a default subserver. ie: whichever one our client is on.
+void MSV_SendCvarChange(cvar_t *var);	//when autooffloading, replicates the client's cvar changes to the server
 void MSV_Status(void);
 void MSV_OpenUserDatabase(void);
 #else
@@ -1266,6 +1276,7 @@ void MSV_OpenUserDatabase(void);
 #define MSV_OpenUserDatabase()
 #define MSV_PollSlaves()
 #define MSV_ForwardToAutoServer() false
+#define MSV_SendCvarChange(v)
 #endif
 
 //
@@ -1288,7 +1299,7 @@ void VARGS PFQ2_Configstring (int i, const char *val); //for engine cheats.
 void SVQ2_BuildClientFrame (client_t *client);
 void SVQ2_WriteFrameToClient (client_t *client, sizebuf_t *msg);
 #ifdef Q2SERVER
-void MSGQ2_WriteDeltaEntity (q2entity_state_t *from, q2entity_state_t *to, sizebuf_t *msg, qboolean force, qboolean newentity);
+void MSGQ2_WriteDeltaEntity (q2entity_state_t *from, q2entity_state_t *to, sizebuf_t *msg, qboolean force, qboolean newentity, qboolean q2ex);
 void SVQ2_BuildBaselines(void);
 #endif
 
@@ -1392,6 +1403,7 @@ vfsfile_t *SVM_GenerateIndex(const char *requesthost, const char *fname, const c
 void SVM_AddBrokerGame(const char *brokerid, const char *info);
 void SVM_RemoveBrokerGame(const char *brokerid);
 qboolean SVM_FixupServerAddress(netadr_t *adr, struct dtlspeercred_s *cred);
+void SVM_SelectRelay(netadr_t *benefitiary, const char *brokerid, char *out, size_t outsize);
 void FTENET_TCP_ICEResponse(struct ftenet_connections_s *col, int type, const char *cid, const char *sdp);
 
 

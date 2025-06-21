@@ -371,6 +371,31 @@ qboolean QDECL Mod_LoadHLModel (model_t *mod, void *buffer, size_t fsize)
 	model->bonectls = bonectls;
 
 #ifndef SERVERONLY
+	model->compatbones = ZG_Malloc(&mod->memgroup, header->numbones * sizeof(*model->compatbones));
+	for (i = 0; i < header->numbones; i++)
+	{
+		float matrix[12];
+		Q_strncpyz(model->compatbones[i].name, model->bones[i].name, sizeof(model->bones[i].name));
+		model->compatbones[i].parent = model->bones[i].parent;
+		model->compatbones[i].ref.org[0] = model->bones[i].value[0];
+		model->compatbones[i].ref.org[1] = model->bones[i].value[1];
+		model->compatbones[i].ref.org[2] = model->bones[i].value[2];
+		QuaternionGLAngle(model->bones[i].value+3, model->compatbones[i].ref.quat);
+		model->compatbones[i].ref.scale[0] = 1.0f;
+		model->compatbones[i].ref.scale[1] = 1.0f;
+		model->compatbones[i].ref.scale[2] = 1.0f;
+
+		//compute rel matrix
+		GenMatrixPosQuat4Scale(model->compatbones[i].ref.org, model->compatbones[i].ref.quat, model->compatbones[i].ref.scale, matrix);
+		//compute abs matrix.
+		if(model->bones[i].parent>=0)
+			R_ConcatTransforms((void*)transform_matrix[model->bones[i].parent], (void*)matrix, transform_matrix[i]);
+		else
+			memcpy(transform_matrix[i], matrix, 12 * sizeof(float));
+		//keep the ragdoll code happy with its insistance on using inverses.
+		Matrix3x4_Invert_Simple((const float*)transform_matrix[i], model->compatbones[i].inverse);
+	}
+
 	tex = (hlmdl_tex_t *) ((qbyte *) texheader + texheader->textures);
 
 	shaders = ZG_Malloc(&mod->memgroup, texheader->numtextures*sizeof(shader_t));
@@ -396,6 +421,11 @@ qboolean QDECL Mod_LoadHLModel (model_t *mod, void *buffer, size_t fsize)
 					shader = HLSHADER_FULLBRIGHT;
 					Q_snprintfz(shaders[i].name, sizeof(shaders[i].name), "common/hlmodel_fullbright");
 				}
+			}
+			else if ( (tex[i].flags & HLMDLFL_MASKED) || (tex[i].flags & (HLMDLFL_MASKED | HLMDLFL_ALPHASOLID)))
+			{
+				shader = HLSHADER_MASKED;
+				Q_snprintfz(shaders[i].name, sizeof(shaders[i].name), "common/hlmodel_masked");
 			}
 			else if (tex[i].flags & HLMDLFL_CHROME)
 			{
@@ -548,6 +578,32 @@ qboolean QDECL Mod_LoadHLModel (model_t *mod, void *buffer, size_t fsize)
 			shaders[i].atlasid = j++;
 			Q_snprintfz(texname, sizeof(texname), "%s*%i", mod->name, shaders[i].atlasid);
 			shaders[i].defaulttex.base = Image_GetTexture(texname, "", IF_NOALPHA|IF_NOREPLACE, in, pal, tex[i].w, tex[i].h, TF_8PAL24);
+		}
+		else if (tex[i].flags & HLMDLFL_MASKED)
+		{
+			int k = 0;
+			qbyte *in = (qbyte *) texheader + tex[i].offset;
+			qbyte *pal = (qbyte *) texheader + tex[i].w * tex[i].h + tex[i].offset;
+			qbyte alphaPal[1024]; /* 256 color 32-bit palette */
+
+			for (k = 0; k < 255; k+= 1) {
+				int p = k * 4;
+				int x = k * 3;
+				alphaPal[p + 0] = pal[x + 0];
+				alphaPal[p + 1] = pal[x + 1];
+				alphaPal[p + 2] = pal[x + 2];
+				alphaPal[p + 3] = 255;
+			}
+
+			/* pal index 255 = always transparent ~eukara */
+			alphaPal[255*4+0] = 0;
+			alphaPal[255*4+1] = 0;
+			alphaPal[255*4+2] = 0;
+			alphaPal[255*4+3] = 0;
+
+			shaders[i].atlasid = j++;
+			Q_snprintfz(texname, sizeof(texname), "%s*%i", mod->name, shaders[i].atlasid);
+			shaders[i].defaulttex.base = Image_GetTexture(texname, "", IF_NOREPLACE, in, alphaPal, tex[i].w, tex[i].h, TF_8PAL32);
 		}
 	}
 
@@ -1161,7 +1217,7 @@ static int HLMDL_GetBoneData_Internal(hlmodel_t *model, int firstbone, int lastb
 			lastbone = model->header->numbones;
 		if (cbone >= lastbone)
 			continue;
-		HL_SetupBones(model, fstate->g[bgroup].frame[0], cbone, lastbone, fstate->g[bgroup].subblendfrac, fstate->g[bgroup].subblend2frac, fstate->g[bgroup].frametime[0], result);	/* Setup the bones */
+		HL_SetupBones(model, fstate->g[bgroup].frame[0] & ~0x8000, cbone, lastbone, fstate->g[bgroup].subblendfrac, fstate->g[bgroup].subblend2frac, fstate->g[bgroup].frametime[0], result);	/* Setup the bones */
 		cbone = lastbone;
 	}
 	return cbone;

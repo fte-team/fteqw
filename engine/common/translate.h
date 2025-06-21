@@ -21,4 +21,6 @@ extern cvar_t language;
 #define localtext(t) PO_GetText(languages[com_language].po, t)
 int TL_FindLanguage(const char *lang);
 
+qboolean TL_FilterObsceneCCStringInplace(conchar_t *in, conchar_t *end);
+
 #endif

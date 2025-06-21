@@ -52,6 +52,8 @@ typedef struct doll_s
 	struct doll_s *next;
 
 	qboolean drawn:1;
+	int refanim; //-1 for skining pose. otherwise the first pose of the specified anim. probaly 0.
+	float refanimtime; //usually just 0
 	int numdefaultanimated;
 	int numbodies;
 	int numjoints;
@@ -349,6 +351,7 @@ static dollcreatectx_t *rag_createdoll(model_t *mod, const char *fname, int numb
 	ctx->d->next = dolllist;
 	ctx->d->name = strdup(fname);
 	ctx->d->model = mod;
+	ctx->d->refanim = -1;	//skin pose.
 	ctx->d->numbodies = 0;
 	ctx->d->body = NULL;
 	ctx->d->numjoints = 0;
@@ -376,6 +379,13 @@ static qboolean rag_dollline(dollcreatectx_t *ctx, int linenum)
 
 	if (!argc)
 	{
+	}
+	else if (argc == 2 && !stricmp(cmd, "refpose") && !strcmp(val, "skin"))
+		ctx->d->refanim = -1;
+	else if (argc == 3 && !stricmp(cmd, "refpose"))
+	{
+		ctx->d->refanim = atoi(val);
+		ctx->d->refanimtime = atoi(Cmd_Argv(2));
 	}
 	//create a new body
 	else if (argc == 3 && !stricmp(cmd, "body"))
@@ -911,7 +921,13 @@ void skel_generateragdoll_f(void)
 	if (i == 0)
 		VFS_PUTS(f, "//NO FRAME INFO\n");
 
-		//print background frame info.
+	VFS_PUTS(f, "\n//reference pose that offsets are defined in terms of\n");
+	if (mod->type == mod_halflife)
+		VFS_PUTS(f, "refpose 0 0.0 //use first anim's first pose\n");
+	else
+		VFS_PUTS(f, "refpose skin\n");
+
+	//print background frame info.
 	VFS_PUTS(f, "\n//skins are as follows:\n");
 	for (i = 0; i < 32768; i++)
 	{
@@ -1248,11 +1264,34 @@ static qboolean rag_instanciate(skelobject_t *sko, doll_t *doll, float *emat, we
 	int bone;
 	rbebody_t *body1, *body2;
 	rbejointinfo_t *j;
+	float *absolutes;
 	sko->numbodies = doll->numbodies;
 	sko->body = BZ_Malloc(sizeof(*sko->body) * sko->numbodies);
 	sko->doll = doll;
 	doll->uses++;
 	sko->numanimated = 0;
+
+	if (bones && doll->refanim)
+	{
+		framestate_t fstate = {0};
+		float *relatives = alloca(sizeof(float)*12*numbones*2);
+		fstate.g[FS_REG].frame[0] = doll->refanim;			//which anim we're using as the reference
+		fstate.g[FS_REG].frametime[0] = doll->refanimtime;	//first pose of the anim
+		fstate.g[FS_REG].lerpweight[0] = 1;
+		fstate.g[FS_REG].endbone = numbones;
+
+		absolutes = relatives+numbones*12;
+		numbones = Mod_GetBoneRelations(sko->model, 0, numbones, bones, &fstate, relatives);
+		for (i = 0; i < numbones; i++)
+		{	//compute the absolutes. not gonna make a bg3 reference here.
+			if (bones[i].parent>=0)
+				R_ConcatTransforms((void*)(absolutes+12*bones[i].parent), (void*)(relatives+12*i), (void*)(absolutes+12*i));
+			else
+				memcpy(absolutes+12*i, relatives+12*i, sizeof(float)*12);
+		}
+	}
+	else absolutes = NULL;
+
 	for (i = 0; i < sko->numbodies; i++)
 	{
 		memset(&sko->body[i], 0, sizeof(sko->body[i]));
@@ -1262,7 +1301,9 @@ static qboolean rag_instanciate(skelobject_t *sko, doll_t *doll, float *emat, we
 			sko->numanimated++;
 
 		//spawn the body in the base pose, so we can add joints etc (also ignoring the entity matrix, we'll fix all that up later).
-		if (1)
+		if (absolutes)	//we have a reference pose
+			memcpy(bodymat, absolutes+12*doll->body[i].bone, sizeof(float)*12);
+		else if (1)
 			Matrix3x4_Invert_Simple(bones[doll->body[i].bone].inverse, bodymat);
 		else
 			rag_genbodymatrix(sko, &doll->body[i], emat, bodymat);
@@ -1281,8 +1322,10 @@ static qboolean rag_instanciate(skelobject_t *sko, doll_t *doll, float *emat, we
 		bone = j->bonepivot;
 		bmat = sko->bonematrix + bone*12;
 
-		if (1)
-		{
+		if (absolutes)	//we have a reference pose
+			memcpy(worldmat, absolutes+12*doll->body[i].bone, sizeof(float)*12);
+		else if (1)
+		{	//FIXME: j->offset isn't actually used?!?
 			Matrix3x4_Invert_Simple(bones[j->bonepivot].inverse, worldmat);
 		}
 		else
@@ -1625,7 +1668,7 @@ void rag_updatedeltaent(world_t *w, entity_t *ent, lerpents_t *le)
 			sko->numanimated = 0;
 		else if (sko->doll)
 			sko->numanimated = sko->doll->numdefaultanimated;
-		Mod_GetBoneRelations(mod, 0, skorel.numbones, &ent->framestate, skorel.bonematrix);
+		Mod_GetBoneRelations(mod, 0, skorel.numbones, NULL, &ent->framestate, skorel.bonematrix);
 		skorel.modelindex = sko->modelindex;
 		skorel.model = sko->model;
 		if (sko->numanimated || sko->doll != mod->dollinfo)
@@ -1932,6 +1975,7 @@ void QCBUILTIN PF_skel_build(pubprogfuncs_t *prinst, struct globalvars_s *pr_glo
 	framestate_t fstate;
 	skelobject_t *skelobj;
 	model_t *model;
+	galiasbone_t *boneinfo;
 
 	//default to failure
 	G_FLOAT(OFS_RETURN) = 0;
@@ -1946,18 +1990,26 @@ void QCBUILTIN PF_skel_build(pubprogfuncs_t *prinst, struct globalvars_s *pr_glo
 	fstate.bonecount = 0;
 	fstate.bonestate = NULL;
 
-	numbones = Mod_GetNumBones(model, false);
-	if (!numbones)
-	{
-		return;	//this isn't a skeletal model.
-	}
-
 	if (!skelidx)
+	{
+		numbones = Mod_GetNumBones(model, false);
+		if (!numbones)
+		{
+			return;	//this isn't a skeletal model.
+		}
 		skelobj = skel_create(w, numbones);
+	}
 	else
 		skelobj = skel_get(w, skelidx);
 	if (!skelobj)
 		return;	//couldn't get one, ran out of memory or something?
+
+	if (skelobj->model)
+		boneinfo = Mod_GetBoneInfo(skelobj->model, &numbones);
+	else
+		boneinfo = NULL;
+	numbones = skelobj->numbones;
+
 
 	if (lastbone < 0)
 		lastbone = numbones;
@@ -1980,15 +2032,15 @@ void QCBUILTIN PF_skel_build(pubprogfuncs_t *prinst, struct globalvars_s *pr_glo
 
 	if (retainfrac == 0)
 	{
-		if (addition == 1) /*replace everything*/
-			Mod_GetBoneRelations(model, firstbone, lastbone, &fstate, skelobj->bonematrix);
-		else if (addition == 0) /*wipe it*/
+		if (addition == 0) /*wipe it*/
 			memset(skelobj->bonematrix + firstbone*12, 0, sizeof(float)*12*(lastbone-firstbone));
+		else if (addition == 1) /*replace everything*/
+			Mod_GetBoneRelations(model, firstbone, lastbone, boneinfo, &fstate, skelobj->bonematrix);
 		else
 		{
 			//scale new
 			float relationsbuf[MAX_BONES*12];
-			Mod_GetBoneRelations(model, firstbone, lastbone, &fstate, relationsbuf);
+			Mod_GetBoneRelations(model, firstbone, lastbone, boneinfo, &fstate, relationsbuf);
 			for (i = firstbone; i < lastbone; i++)
 			{
 				for (j = 0; j < 12; j++)
@@ -1998,6 +2050,8 @@ void QCBUILTIN PF_skel_build(pubprogfuncs_t *prinst, struct globalvars_s *pr_glo
 	}
 	else
 	{
+		float relationsbuf[MAX_BONES*12];
+
 		if (retainfrac != 1)
 		{
 			//rescale the existing bones
@@ -2007,22 +2061,19 @@ void QCBUILTIN PF_skel_build(pubprogfuncs_t *prinst, struct globalvars_s *pr_glo
 					skelobj->bonematrix[i*12+j] *= retainfrac;
 			}
 		}
+
+		//just add
+		Mod_GetBoneRelations(model, firstbone, lastbone, boneinfo, &fstate, relationsbuf);
 		if (addition == 1)
 		{
-			//just add
-			float relationsbuf[MAX_BONES*12];
-			Mod_GetBoneRelations(model, firstbone, lastbone, &fstate, relationsbuf);
 			for (i = firstbone; i < lastbone; i++)
 			{
 				for (j = 0; j < 12; j++)
 					skelobj->bonematrix[i*12+j] += relationsbuf[i*12+j];
 			}
 		}
-		else if (addition)
+		else
 		{
-			//add+scale
-			float relationsbuf[MAX_BONES*12];
-			Mod_GetBoneRelations(model, firstbone, lastbone, &fstate, relationsbuf);
 			for (i = firstbone; i < lastbone; i++)
 			{
 				for (j = 0; j < 12; j++)
@@ -2068,6 +2119,7 @@ void QCBUILTIN PF_skel_build_ptr(pubprogfuncs_t *prinst, struct globalvars_s *pr
 	int numbones, firstbone, lastbone;
 	model_t *model;
 	qboolean noadd;
+	const galiasbone_t *boneinfo = NULL;
 
 	//default to failure
 	G_FLOAT(OFS_RETURN) = 0;
@@ -2170,7 +2222,7 @@ void QCBUILTIN PF_skel_build_ptr(pubprogfuncs_t *prinst, struct globalvars_s *pr
 			}
 		}
 		else if (blends->prescale == 0) //new data only. directly replace the existing data
-			Mod_GetBoneRelations(model, firstbone, lastbone, &fstate, skelobj->bonematrix);
+			Mod_GetBoneRelations(model, firstbone, lastbone, boneinfo, &fstate, skelobj->bonematrix);
 		else
 		{
 			if (blends->prescale != 1)
@@ -2183,7 +2235,7 @@ void QCBUILTIN PF_skel_build_ptr(pubprogfuncs_t *prinst, struct globalvars_s *pr
 				}
 			}
 
-			Mod_GetBoneRelations(model, firstbone, lastbone, &fstate, relationsbuf);
+			Mod_GetBoneRelations(model, firstbone, lastbone, boneinfo, &fstate, relationsbuf);
 			for (i = firstbone; i < lastbone; i++)
 			{
 				for (j = 0; j < 12; j++)
@@ -2671,10 +2723,10 @@ void QCBUILTIN PF_frametoname (pubprogfuncs_t *prinst, struct globalvars_s *pr_g
 {
 	world_t *w = prinst->parms->user;
 	int modelindex = G_FLOAT(OFS_PARM0);
-	unsigned int skinnum = G_FLOAT(OFS_PARM1);
+	unsigned int animnum = G_FLOAT(OFS_PARM1);
 	int surfaceidx = 0;
 	model_t *mod = w->Get_CModel(w, modelindex);
-	const char *n = Mod_FrameNameForNum(mod, surfaceidx, skinnum);
+	const char *n = Mod_FrameNameForNum(mod, surfaceidx, animnum);
 
 	if (n)
 		RETURN_TSTRING(n);

@@ -157,11 +157,12 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 	#define ioctlsocket ioctl
 	#define closesocket close
 
-#elif defined(linux) || defined(ixemul) || defined(MACOSX) // I hope by adding MACOSX here it doesnt stop it from being natively built on macosx
+#elif (defined(unix) && !defined(__CYGWIN__)) || defined(ixemul) // I hope by adding MACOSX here it doesnt stop it from being natively built on macosx
 	#include <sys/time.h>
 	#include <sys/types.h>
 	#include <sys/socket.h>
 	#include <netinet/in.h>
+	#include <netinet/tcp.h>
 	#include <arpa/inet.h>
 	#include <netdb.h>
 	#include <stdarg.h>
@@ -173,6 +174,13 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 	#define ioctlsocket ioctl
 	#define closesocket close
+
+	#if defined(__linux__) && !defined(ANDROID)
+//		#define HAVE_EPOLL
+	#endif
+	#ifdef HAVE_EPOLL
+		#include <sys/epoll.h>
+	#endif
 #elif (defined(__MORPHOS__) && !defined(ixemul))
 	#include <stdlib.h>
 	#include <unistd.h>
@@ -180,6 +188,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 	#include <sys/socket.h>
 	#include <sys/ioctl.h>
 	#include <netinet/in.h>
+	#include <netinet/tcp.h>
 	#include <netdb.h>
 	#include <errno.h>
 
@@ -247,14 +256,15 @@ typedef struct
 	void (*process) (void *context, const void *data, size_t datasize);
 	void (*terminate) (unsigned char *digest, void *context);
 } hashfunc_t;
+extern hashfunc_t hash_md5;
 extern hashfunc_t hash_sha1;
 /*extern hashfunc_t hash_sha2_224;
 extern hashfunc_t hash_sha2_256;
 extern hashfunc_t hash_sha2_384;
 extern hashfunc_t hash_sha2_512;*/
-#define HMAC HMAC_quake	//stop conflicts...
 size_t CalcHash(hashfunc_t *hash, unsigned char *digest, size_t maxdigestsize, const unsigned char *string, size_t stringlen);
-size_t HMAC(hashfunc_t *hashfunc, unsigned char *digest, size_t maxdigestsize, const unsigned char *data, size_t datalen, const unsigned char *key, size_t keylen);
+unsigned int CalcHashInt(const hashfunc_t *hash, const void *data, size_t datasize);
+size_t CalcHMAC(hashfunc_t *hashfunc, unsigned char *digest, size_t maxdigestsize, const unsigned char *data, size_t datalen, const unsigned char *key, size_t keylen);
 
 
 #ifdef LIBQTV
@@ -373,22 +383,29 @@ typedef struct {
 	unsigned short	modelindex;
 	unsigned char	colormap;
 	unsigned char	skinnum;
+
 	float origin[3];
 	float angles[3];
+
 	unsigned short	effects;
-	unsigned char	alpha;
 	unsigned char	scale;
-//	unsigned char	fatness;
-//	unsigned char	abslight;
-//	unsigned char	h2flags;
-//	unsigned char	colormod[3];
-//	unsigned short	light[4];
-//	unsigned char	lightstyle;
-//	unsigned char	lightpflags;
-//	unsigned char	tagentity;
-//	unsigned char	tagindex;
+	unsigned char	fatness;
+
+	unsigned char	colormod[3];
+	unsigned char	alpha;
+
+	unsigned short	light[4];
+
+	unsigned char	lightstyle;
+	unsigned char	lightpflags;
+	unsigned char	abslight;
+	unsigned char	drawflags;
+
+	unsigned char	dpflags;
+	unsigned char	tagindex;	//networked as a short, should have been a byte to match dpp5+.
+	unsigned short	tagentity;
 } entity_state_t;
-typedef struct {
+typedef struct {	//qw does players weirdly.
 	unsigned char frame;
 	unsigned char modelindex;
 	//colormap
@@ -570,6 +587,7 @@ typedef struct tcpconnect_s
 	SOCKET sock;
 	wsrbuf_t websocket;
 	netadr_t peeraddr;
+	char *initialstreamname;
 
 	unsigned char inbuffer[MAX_PROXY_INBUFFER];
 	unsigned int inbuffersize;	//amount of data available.
@@ -666,6 +684,7 @@ struct sv_s {	//details about a server connection (also known as stream)
 	qboolean usequakeworldprotocols;
 	unsigned int pext1;
 	unsigned int pext2;
+	unsigned int pexte;
 	int challenge;
 	unsigned short qport;
 	int isconnected;
@@ -785,6 +804,8 @@ enum
 	SG_UNIX,
 	SOCKETGROUPS
 };
+
+typedef struct turnclient_s turnclient_t;
 struct cluster_s {
 	SOCKET qwdsocket[SOCKETGROUPS];	//udp + quakeworld protocols
 	SOCKET tcpsocket[SOCKETGROUPS];	//tcp listening socket (for mvd and listings and stuff)
@@ -796,6 +817,26 @@ struct cluster_s {
 	unsigned int mastersendtime;
 	unsigned int mastersequence;
 	unsigned int curtime;
+
+#ifdef HAVE_EPOLL
+	int epfd;
+#endif
+	unsigned int numrelays;
+	turnclient_t *turns;
+	char chalkey[64];		//to identify the master properly. probably kinda pointless. base64 encoded.
+	unsigned char turnkey[32];	//raw key shared with broker to prove TURN identity was given by broker. NOTE: we are not verifying each, so we depend on clockskew to prevent any longterm abuse. there's no accounts anywhere though so anyone can get a key if they ask properly.
+	qboolean turnenabled;
+	unsigned short turn_minport, turn_maxport;	//set to 0 to let the OS decide.
+	char *protocolname;
+	int protocolver;
+	unsigned char turn_ipv4[4];
+	unsigned char turn_ipv6[16];
+	unsigned int numpeers;
+	struct relaypeer_s *relaypeer;
+	unsigned int relay_lastping;
+	unsigned int relay_lastquery;
+	qboolean relayenabled;
+	qboolean pingtreeenabled;
 
 	viewer_t *viewers;
 	int numviewers;
@@ -874,7 +915,9 @@ enum {
 
 unsigned char ReadByte(netmsg_t *b);
 unsigned short ReadShort(netmsg_t *b);
+unsigned short ReadBigShort(netmsg_t *b);
 unsigned int ReadLong(netmsg_t *b);
+unsigned int ReadBigLong(netmsg_t *b);
 float ReadFloat(netmsg_t *b);
 void ReadString(netmsg_t *b, char *string, int maxlen);
 float ReadCoord(netmsg_t *b, unsigned int pext);
@@ -904,7 +947,9 @@ float ReadFloat(netmsg_t *b);
 void ReadString(netmsg_t *b, char *string, int maxlen);
 void WriteByte(netmsg_t *b, unsigned char c);
 void WriteShort(netmsg_t *b, unsigned short l);
+void WriteBigShort(netmsg_t *b, unsigned short l);
 void WriteLong(netmsg_t *b, unsigned int l);
+void WriteBigLong(netmsg_t *b, unsigned int l);
 void WriteFloat(netmsg_t *b, float f);
 void WriteCoord(netmsg_t *b, float c, unsigned int pext);
 void WriteAngle(netmsg_t *b, float a, unsigned int pext);
@@ -918,7 +963,7 @@ void ParseMessage(sv_t *tv, void *buffer, int length, int to, int mask);
 void BuildServerData(sv_t *tv, netmsg_t *msg, int servercount, viewer_t *spectatorflag);
 void BuildNQServerData(sv_t *tv, netmsg_t *msg, qboolean mvd, int servercount);
 void QW_UpdateUDPStuff(cluster_t *qtv);
-void QW_TCPConnection(cluster_t *cluster, SOCKET sock, wsrbuf_t ws);
+void QW_TCPConnection(cluster_t *cluster, oproxy_t *sock, char *initialstringname/*strduped*/);
 unsigned int Sys_Milliseconds(void);
 void Prox_SendInitialEnts(sv_t *qtv, oproxy_t *prox, netmsg_t *msg);
 qboolean QTV_ConnectStream(sv_t *qtv, char *serverurl);
@@ -1009,7 +1054,7 @@ void Fwd_SayToDownstream(sv_t *qtv, char *message);
 
 
 //httpsv.c
-void HTTPSV_GetMethod(cluster_t *cluster, oproxy_t *pend);
+char *HTTPSV_GetMethod(cluster_t *cluster, oproxy_t *pend);	//if a websocket request, return value is the stream name
 void HTTPSV_PostMethod(cluster_t *cluster, oproxy_t *pend, char *postdata);
 void tobase64(unsigned char *out, int outlen, unsigned char *in, int inlen);
 
@@ -1017,6 +1062,15 @@ void tobase64(unsigned char *out, int outlen, unsigned char *in, int inlen);
 void Menu_Enter(cluster_t *cluster, viewer_t *viewer, int buttonnum);
 void Menu_Draw(cluster_t *cluster, viewer_t *viewer);
 
+//relay.c
+void TURN_CheckFDs(cluster_t *cluster);
+void TURN_AddFDs(cluster_t *cluster, fd_set *set, int *m);
+qboolean TURN_IsRequest(cluster_t *cluster, netmsg_t *m, netadr_t *from);	//handles both TURN/STUN packets, and relays inbound qwfwd connections too.
+void Fwd_NewQWFwd(cluster_t *cluster, netadr_t *from, char *targ);			//creates a new qwfwd context.
+void TURN_RelayStatus(cmdctxt_t *ctx);
+void Fwd_PingStatus(cluster_t *cluster, netadr_t *from, qboolean ext);
+void Fwd_ParseServerList(cluster_t *cluster, netmsg_t *m, int af);
+void Fwd_PingResponse(cluster_t *cluster, netadr_t *from);
 
 #ifdef __cplusplus
 }

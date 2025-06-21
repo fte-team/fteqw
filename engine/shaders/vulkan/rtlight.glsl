@@ -11,6 +11,7 @@
 !!argb cube=0
 !!permu FOG
 !!cvarb r_fog_exp2=true
+!!cvarb r_fog_linear=false
 //!!permu FRAMEBLEND
 //!!permu SKELETAL
 
@@ -63,6 +64,9 @@ layout(location = 1) varying vec3 lightvector;
 layout(location = 2) varying vec3 eyevector;
 layout(location = 3) varying vec4 vtexprojcoord;
 layout(location = 4) varying mat3 invsurface;
+#ifdef RAY_QUERY
+layout(location = 7) varying vec3 wcoord;
+#endif
 
 
 #ifdef VERTEX_SHADER
@@ -101,6 +105,9 @@ void main ()
 		//for texture projections/shadowmapping on dlights
 		vtexprojcoord = l_cubematrix*m_model*vec4(w.xyz, 1.0);
 	}
+#ifdef RAY_QUERY
+	wcoord = vec3(m_model*vec4(w+n*0.1, 1.0));	//push it half a qu away from the face, so we're less likely to get precision errors in the rays.
+#endif
 }
 #endif
 
@@ -110,6 +117,18 @@ void main ()
 #ifdef FRAGMENT_SHADER
 #include "sys/fog.h"
 
+#ifdef RAY_QUERY
+float RayQueryFilter(void)
+{
+	rayQueryEXT rq;
+//FIXME: no ortho
+#define l_origin e_eyepos
+	rayQueryInitializeEXT(rq, toplevelaccel, gl_RayFlagsTerminateOnFirstHitEXT, 0xFF, l_lightposition, 0.0, wcoord-l_lightposition, 1.0);
+	rayQueryProceedEXT(rq);
+//TODO: filter it through blended stuff, and alpha-tested stuff.
+	return float(rayQueryGetIntersectionTypeEXT(rq, true) == gl_RayQueryCommittedIntersectionNoneEXT);
+}
+#else
 //uniform vec4 l_shadowmapproj; //light projection matrix info
 //uniform vec2 l_shadowmapscale;	//xy are the texture scale, z is 1, w is the scale.
 vec3 ShadowmapCoord(void)
@@ -217,6 +236,7 @@ float ShadowmapFilter(void)
 }
 	#endif
 }
+#endif
 
 
 #include "sys/offsetmapping.h"
@@ -295,6 +315,9 @@ void main ()
 		colorscale*=1.0-(dot(spot,spot));
 	}
 
+#ifdef RAY_QUERY
+	colorscale *= RayQueryFilter();
+#else
 	if (arg_pcf)
 	{
 		/*filter the light by the shadowmap. logically a boolean, but we allow fractions for softer shadows*/
@@ -302,6 +325,7 @@ void main ()
 		colorscale *= ShadowmapFilter();
 //		diff = ShadowmapCoord();
 	}
+#endif
 
 #if defined(PROJECTION)
 	/*2d projection, not used*/

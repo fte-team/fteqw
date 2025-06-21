@@ -158,21 +158,19 @@ float(string str) CSQC_ConsoleCommand =
 
 void(string line) CSQC_Parse_StuffCmd =
 {
-	print("stufftext: ", line);
+	print(sprintf("stufftext: %S\n", substring(line, 0, -2)));
 	localcmd(line);
 };
 float(string msg) CSQC_Parse_CenterPrint =
 {
-	print("centerprint: ");
-	print(msg);
-	print("\n");
+	print(sprintf("centerprint: %S\n", msg));
 	cprint(msg);
 	return false;
 };
 
 void(string msg, float type) CSQC_Parse_Print =
 {
-	print("print: ");
+//	print("print: ");
 	print(msg);
 
 /*	if (dbgstr)
@@ -283,10 +281,21 @@ void(entity ent) CSQC_DrawViewModel =
 //a bit of fun
 void() CSQC_Input_Frame =
 {
-/*	if (input_buttons == 1)
+/*	//swap jump/attack
+	if (input_buttons == 1)
 		input_buttons = 2;
 	else if (input_buttons == 2)
 		input_buttons = 1;*/
+
+	if (input_impulse)
+		input_buttons |= 32|64|128;
+
+	if (autocvar(test_pmove,0) & 1)
+		input_buttons |= 32;	//print server pmoves
+	if (autocvar(test_pmove,0) & 2)
+		input_buttons |= 64;	//print client pmoves
+	if (autocvar(test_pmove,0) & 4)
+		input_buttons |= 128;	//print client partials
 };
 
 void() CSQC_Delta_Remove =
@@ -409,7 +418,9 @@ void(float width, float height, float do2d) CSQC_UpdateView =
 		case 2:
 			break;
 		default:
-			if (hudtype)
+			if (autocvar(cg_imageview, "") != "")	//eg: set cg_imageview "https://www.quaddicted.com/reviews/screenshots/dmd.jpg"
+				drawpic([0,0,0], autocvar(cg_imageview, ""), [width,height], [1,1,1],1, 0);
+			else if (hudtype)
 				Hud_Draw(hudtype, show_scoreboard, width, height);
 			//quicky `project` test
 			if (player_local)

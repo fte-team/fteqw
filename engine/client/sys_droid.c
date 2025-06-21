@@ -86,6 +86,10 @@ void INS_ReInit(void)
 void INS_Shutdown(void)
 {
 }
+enum controllertype_e INS_GetControllerType(int id)
+{
+	return CONTROLLER_NONE;
+}
 void INS_Rumble(int joy, uint16_t amp_low, uint16_t amp_high, uint32_t duration)
 {
 }

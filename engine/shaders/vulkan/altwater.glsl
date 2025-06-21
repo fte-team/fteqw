@@ -1,5 +1,6 @@
 !!permu FOG
 !!cvarb r_fog_exp2=true
+!!cvarb r_fog_linear=false
 !!cvarf r_glsl_turbscale_reflect=1
 !!cvarf r_glsl_turbscale_refract=1
 !!cvarf gl_maxdist=8192

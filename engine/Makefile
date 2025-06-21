@@ -23,11 +23,11 @@
 #note: cross compiling will typically require 'make makelibs FTE_TARGET=mytarget', which avoids installing lots of extra system packages.
 
 #
-CC=gcc
-WINDRES=windres
+CC?=gcc
+WINDRES?=windres
 STRIP?=strip
 
-STRIPFLAGS=--strip-unneeded --remove-section=.comment
+STRIPFLAGS?=--strip-unneeded --remove-section=.comment
 
 VISIBILITY_FLAGS=-fvisibility=hidden	#just assume this for sanities sake. disable only for compilers that error.
 CPUOPTIMIZATIONS=-Os
@@ -48,13 +48,13 @@ endif
 
 ifeq ($(SVNREVISION),)
 	#try subversion firstly...
-    SVN_VERSION:=$(shell test -d $(BASE_DIR)/../.svn && svnversion $(BASE_DIR))
-    SVN_DATE:=$(shell test -d $(BASE_DIR)/../.svn && cd $(BASE_DIR) && svn info --show-item last-changed-date --no-newline)
-    ifeq (,$(SVN_VERSION))
-		#grab the svn version from git-svn (assuming no other modifications). this fails when there's extra commits (probably a good thing).
-        SVN_VERSION=$(shell test -d $(BASE_DIR)/../.git && git svn find-rev `git rev-parse HEAD`)
-        SVN_DATE:=$(shell test -d $(BASE_DIR)/../.git && git log -1 --format=%cs $(BASE_DIR))
-    endif
+#    SVN_VERSION:=$(shell test -d $(BASE_DIR)/../.svn && svnversion $(BASE_DIR))
+#    SVN_DATE:=$(shell test -d $(BASE_DIR)/../.svn && cd $(BASE_DIR) && svn info --show-item last-changed-date --no-newline)
+#    ifeq (,$(SVN_VERSION))
+#        #grab the svn version from git-svn (assuming no other modifications). this fails when there's extra commits (probably a good thing).
+#        SVN_VERSION=$(shell test -d $(BASE_DIR)/../.git && git svn find-rev `git rev-parse HEAD`)
+#        SVN_DATE:=$(shell test -d $(BASE_DIR)/../.git && git log -1 --format=%cs $(BASE_DIR))
+#    endif
     ifeq (,$(SVN_VERSION))
         #try to get git version info instead. this usually uses git-count-hash[-dirty] format
         SVN_VERSION:=$(shell test -d $(BASE_DIR)/../.git && cd $(BASE_DIR) && echo $$((`git rev-list HEAD --count` + 29)))
@@ -81,17 +81,19 @@ MAKE:=$(MAKE) --no-print-directory SVNREVISION="$(SVNREVISION)" SVN_VERSION="$(S
 
 #update these to download+build a different version. this assumes that the url+subdirs etc contain a consistant version everywhere.
 JPEGVER=9c
-ZLIBVER=1.3
-PNGVER=1.6.39
+ZLIBVER=1.3.1
+PNGVER=1.6.40
 OGGVER=1.3.4
-VORBISVER=1.3.6
-SDL2VER=2.26.4
+VORBISVER=1.3.7
+VULKANVER=1.3.275.0
+SDL2VER=2.30.4
 SCINTILLAVER=373
 OPUSVER=1.3.1
 SPEEXVER=1.2.0
 SPEEXDSPVER=1.2.0
 FREETYPEVER=2.10.1
 BULLETVER=2.87
+OPENSSLVER=3.0.1
 
 #cygwin's make's paths confuses non-cygwin things
 RELEASE_DIR=$(BASE_DIR)/release
@@ -121,7 +123,7 @@ endif
 FTE_CONFIG?=fteqw
 ifneq ($(findstring msvc,$(FTE_TARGET)),msvc)
 ifeq (,$(FTE_CONFIG_EXTRA))
-    export FTE_CONFIG_EXTRA := $(shell $(CC) -xc -E -P -DFTE_TARGET_$(FTE_TARGET) -DCOMPILE_OPTS $(CFLAGS) common/config_$(FTE_CONFIG).h)
+    FTE_CONFIG_EXTRA := $(shell $(CC) -xc -E -P -DFTE_TARGET_$(shell echo $(FTE_TARGET) | tr '[:lower:]' '[:upper:]') -DCOMPILE_OPTS $(CFLAGS) common/config_$(FTE_CONFIG).h)
 endif
 endif
 BRANDFLAGS+=-DCONFIG_FILE_NAME=config_$(FTE_CONFIG).h $(FTE_CONFIG_EXTRA)
@@ -135,18 +137,20 @@ endif
 ifneq (,$(findstring DLINK_QUAKE3,$(FTE_CONFIG_EXTRA)))
     LINK_QUAKE3=1
 endif
+ifeq ($(findstring web,$(FTE_TARGET)),)	#the web target uses javascript/browser loaders for common audio+image files instead of needing to embed our own, which keeps sizes down slightly.
 ifeq (,$(findstring DNO_VORBISFILE,$(FTE_CONFIG_EXTRA)))
     USE_VORBISFILE=1
-endif
-ifneq (,$(findstring DLINK_FREETYPE,$(FTE_CONFIG_EXTRA)))
-    LINK_FREETYPE=1
-    LINK_ZLIB=1
-    LINK_PNG=1
 endif
 ifneq (,$(findstring DLINK_JPEG,$(FTE_CONFIG_EXTRA)))
     LINK_JPEG=1
 endif
 ifneq (,$(findstring DLINK_PNG,$(FTE_CONFIG_EXTRA)))
+    LINK_ZLIB=1
+    LINK_PNG=1
+endif
+endif
+ifneq (,$(findstring DLINK_FREETYPE,$(FTE_CONFIG_EXTRA)))
+    LINK_FREETYPE=1
     LINK_ZLIB=1
     LINK_PNG=1
 endif
@@ -161,6 +165,12 @@ endif
 ifneq (,$(findstring DLINK_INTERNAL_BULLET,$(FTE_CONFIG_EXTRA)))
 	#bullet plugin will be built into the exe itself
     INTERNAL_BULLET=1
+endif
+ifneq (,$(findstring DLINK_EZHUD,$(FTE_CONFIG_EXTRA)))
+    LINK_EZHUD=1
+endif
+ifneq (,$(findstring DLINK_OPENSSL,$(FTE_CONFIG_EXTRA)))
+    LINK_OPENSSL=1
 endif
 
 ifeq ($(BITS),64)
@@ -247,8 +257,9 @@ DO_CMAKE=cmake -DCMAKE_C_COMPILER="$(firstword $(CC))" -DCMAKE_C_FLAGS="$(wordli
 
 ifeq ($(DROID_ARCH),)
 	#armeabi armeabi-v7a arm64-v8a x86 x86_64 mips mips64
-	DROID_ARCH=armeabi-v7a
-	DROID_ARCH+=x86
+	DROID_ARCH+=armeabi-v7a	#old 32bit android. yucky.
+	DROID_ARCH+=arm64-v8a	#modern android devices are 64bit-only. urgh.
+	DROID_ARCH+=x86			#mostly for testing...
 	#DROID_ARCH+=x86_64	#starting with DROID_API_LEVEL 21
 endif
 ifeq ($(FTE_TARGET),droid)
@@ -630,8 +641,6 @@ ifeq (win,$(findstring cyg,$(FTE_TARGET))$(findstring win,$(FTE_TARGET)))
 #	OGGVORBISLDFLAGS=$(MINGW_LIBS_DIR)/libvorbisfile.a $(MINGW_LIBS_DIR)/libvorbis.a $(MINGW_LIBS_DIR)/libogg.a
 endif
 
-OGGVORBISLDFLAGS ?= -lvorbisfile -lvorbis -logg
-
 #BASELDFLAGS=-lm  -lz
 XLDFLAGS=-L$(ARCHLIBS) $(IMAGELDFLAGS)
 
@@ -923,6 +932,7 @@ COMMON_OBJS = \
 	mathlib.o 		\
 	huff.o		\
 	md4.o 		\
+	md5.o 		\
 	sha1.o		\
 	sha2.o		\
 	log.o 		\
@@ -985,8 +995,8 @@ ifeq (1,$(LINK_QUAKE3))
 		l_struct.o	
 endif
 
-COMMONLIBFLAGS=
-COMMONLDDEPS=
+COMMONLIBFLAGS?=
+COMMONLDDEPS?=
 CLIENTLIBFLAGS=$(COMMONLIBFLAGS) $(LIBOPUS_STATIC) $(LIBSPEEX_STATIC) $(OGGVORBISFILE_STATIC)
 SERVERLIBFLAGS=$(COMMONLIBFLAGS)
 CLIENTLDDEPS=$(COMMONLDDEPS) $(LIBOPUS_LDFLAGS) $(LIBSPEEX_LDFLAGS) $(OGGVORBISLDFLAGS)
@@ -995,14 +1005,17 @@ ifeq (1,$(USE_OPUS))
     LIBOPUS_STATIC=-DOPUS_STATIC
     LIBOPUS_LDFLAGS=-lopus
     ALL_CFLAGS+=-I/usr/include/opus
+    MAKELIBS+=libs-$(ARCH)/libopus.a
 endif
 ifeq (1,$(USE_SPEEX))
     LIBSPEEX_STATIC=-DSPEEX_STATIC
     LIBSPEEX_LDFLAGS=-lspeex -lspeexdsp
+    MAKELIBS+=libs-$(ARCH)/libspeex.a libs-$(ARCH)/libspeexdsp.a
 endif
 
 ifeq (1,$(USE_VORBISFILE))
     OGGVORBISFILE_STATIC=-DLIBVORBISFILE_STATIC
+    OGGVORBISLDFLAGS ?= -lvorbisfile -lvorbis -logg
 else
     OGGVORBISLDFLAGS=
     OGGVORBISFILE_STATIC=
@@ -1040,6 +1053,7 @@ endif
 ifeq (1,$(LINK_ZLIB))
     CLIENTLIBFLAGS+=-DZLIB_STATIC
     CLIENTLDDEPS+=-lz
+	SERVERLDDEPS+=-lz
 
     #and deflate64, because why not.
     ifneq ("$(wildcard $(ARCHLIBS)/infback9.h)","")
@@ -1060,6 +1074,34 @@ ifeq (1,$(strip $(INTERNAL_BULLET)))
     LDCC=$(CXX)
     MAKELIBS+=libs-$(ARCH)/libBulletDynamics.a
 endif
+ifeq (1,$(LINK_EZHUD))
+    VPATH := $(VPATH) : $(BASE_DIR)/../plugins/ezhud
+    ALL_CFLAGS+=-DSTATIC_EZHUD #let the plugins code know it needs to add the appropriate entry.
+    CLIENT_OBJS += \
+		ezquakeisms.o	\
+		hud.o			\
+		hud_common.o	\
+		hud_editor.o
+endif
+ifeq (1,$(LINK_OPENSSL))
+    ifeq (1,$(shell $(PKGCONFIG) --atleast-version 3 openssl && echo 1))	#must exist... and if its not openssl3 then its not gpl3-compatible so refuse to use it.
+        VPATH := $(VPATH) : $(BASE_DIR)/../plugins
+        ALL_CFLAGS+=-DSTATIC_OPENSSL #let the plugins code know it needs to add the appropriate entry.
+        COMMON_OBJS += \
+            net_ssl_openssl.o
+        ALL_DFLAGS+=$(shell $(PKGCONFIG) openssl --cflags --silence-errors)
+        COMMONLDDEPS+=$(shell $(PKGCONFIG) openssl --libs --silence-errors)
+    endif
+endif
+
+ifeq (1,$(shell $(PKGCONFIG) --exists gnutls && echo 1))
+    ALL_CFLAGS+=$(shell $(PKGCONFIG) gnutls --cflags --silence-errors)
+    #ALL_CFLAGS+=-DGNUTLS_STATIC
+    #COMMONLDDEPS+=$(shell $(PKGCONFIG) gnutls --static --libs --silence-errors)	#we soft-link, so we don't need the -lgnutls stuff.
+else
+    ALL_CFLAGS+=-DNO_GNUTLS
+endif
+
 
 #the defaults for sdl come first
 #CC_MACHINE:=$(shell $(CC) -dumpmachine)
@@ -1081,7 +1123,7 @@ GLCL_OBJS=$(GL_OBJS) $(D3DGL_OBJS) $(GLQUAKE_OBJS) gl_vidsdl.o snd_sdl.o cd_sdl.
 GL_EXE_NAME=../$(EXE_NAME)-gl$(FTE_FULLTARGET)
 GLCL_EXE_NAME=../$(EXE_NAME)cl-gl$(FTE_FULLTARGET)
 
-#SDLCONFIG:=libs/sdl2_mingw/$(CC_MACHINE)/bin/sdl2-config --prefix=libs/sdl2_mingw/$(CC_MACHINE)
+#SDLCONFIG:=libs-$(ARCH)/sdl2_mingw/$(CC_MACHINE)/bin/sdl2-config --prefix=libs-$(ARCH)/sdl2_mingw/$(CC_MACHINE)
 ifdef windir
 	GL_LDFLAGS=$(GLLDFLAGS) -lmingw32 -lws2_32 `$(SDLCONFIG) --static-libs`
 	VK_LDFLAGS=$(VKLDFLAGS) -lmingw32 -lws2_32 `$(SDLCONFIG) --static-libs`
@@ -1122,11 +1164,12 @@ M_CFLAGS=-DFTE_SDL $(VKCFLAGS) $(GLCFLAGS) -DMULTITHREAD `$(SDLCONFIG) --cflags`
 QCC_DIR=qcc$(BITS)
 
 ifeq (,$(findstring NO_ZLIB,$(CFLAGS)))
-	SV_LDFLAGS+=-lz
-	GL_LDFLAGS+=-lz
-	VK_LDFLAGS+=-lz
-	M_LDFLAGS+=-lz
-	QCC_LDFLAGS+=-L$(ARCHLIBS) -lz
+    SV_LDFLAGS+=-lz
+    GL_LDFLAGS+=-lz
+    VK_LDFLAGS+=-lz
+    M_LDFLAGS+=-lz
+    QCC_LDFLAGS+=-L$(ARCHLIBS) -lz
+    QTV_LDFLAGS+=-lz
 endif
 
 
@@ -1135,80 +1178,86 @@ endif
 
 #FTE_TARGET=win32_SDL | FTE_TARGET=win64_SDL (MinGW32 + SDL | MinGW64 + SDL)
 ifeq (win_SDL,$(findstring win,$(FTE_TARGET))$(findstring _SDL,$(FTE_TARGET)))
-	DO_CMAKE+=-DCMAKE_SYSTEM_NAME=Windows -DCMAKE_FIND_ROOT_PATH_MODE_PROGRAM="NEVER"
+    DO_CMAKE+=-DCMAKE_SYSTEM_NAME=Windows -DCMAKE_FIND_ROOT_PATH_MODE_PROGRAM="NEVER"
 
-	ifneq (,$(findstring win64,$(FTE_TARGET)))
-		BITS=64
-	endif
+    ifneq (,$(findstring win64,$(FTE_TARGET)))
+        BITS=64
+    endif
 
-	EXEPOSTFIX=.exe
+    EXEPOSTFIX=.exe
 
-	CC_MACHINE:=$(shell $(CC) -dumpmachine)
-	ARCH_PREDEP=$(BASE_DIR)/libs/SDL2-$(SDL2VER)/$(CC_MACHINE)/bin/sdl2-config
-	SDLCONFIG=$(ARCH_PREDEP) --prefix=$(BASE_DIR)/libs/SDL2-$(SDL2VER)/$(CC_MACHINE)
-	ARCH_CFLAGS=`$(SDLCONFIG) --cflags`
+    ARCH_PREDEP=$(BASE_DIR)/libs-$(ARCH)/SDL2-$(SDL2VER)/$(ARCH)/bin/sdl2-config
+    SDLCONFIG=$(ARCH_PREDEP) --prefix=$(BASE_DIR)/libs-$(ARCH)/SDL2-$(SDL2VER)/$(ARCH)
+    CLIENTLIBFLAGS+=`$(SDLCONFIG) --cflags`
+
+    #the defaults for sdl come first
+    GLCL_OBJS=$(GL_OBJS) $(D3DGL_OBJS) $(GLQUAKE_OBJS) gl_vidsdl.o snd_sdl.o cd_sdl.o sys_sdl.o in_sdl.o snd_directx.o $(LTO_END) resources.o $(LTO_START)
+    GL_EXE_NAME=../$(EXE_NAME)-sdl-gl$(BITS)$(EXEPOSTFIX)
+    GLCL_EXE_NAME=../$(EXE_NAME)-sdl-glcl$(BITS)$(EXEPOSTFIX)
+    ifneq ($(SDL_STATIC),0)
+		#statically link by default. dlls suck.
+        GL_LDFLAGS=$(GLLDFLAGS) -lmingw32 -lws2_32 `$(SDLCONFIG) --static-libs`
+        VK_LDFLAGS=$(GLLDFLAGS) -lmingw32 -lws2_32 `$(SDLCONFIG) --static-libs`
+        M_LDFLAGS=$(MLDFLAGS) -lmingw32 -lws2_32 `$(SDLCONFIG) --static-libs`
+		D3D_LDFLAGS=$(MLDFLAGS) -lmingw32 -lws2_32 `$(SDLCONFIG) --static-libs`
+        SV_LDFLAGS=-lm -lmingw32 -lws2_32 -lwinmm `$(SDLCONFIG) --static-libs`
+        QCC_LDFLAGS=
+    else
+		#or dynamically link when SDL_STATIC=0
+        GL_LDFLAGS=$(IMAGELDFLAGS) -lws2_32 -lmingw32 $(SDL_LDFLAGS) -mwindows -ldxguid -lwinmm -lole32 $(GLLDFLAGS) `$(SDLCONFIG) --libs` 
+        VK_LDFLAGS=$(IMAGELDFLAGS) -lws2_32 -lmingw32 $(SDL_LDFLAGS) -mwindows -ldxguid -lwinmm -lole32 $(GLLDFLAGS) `$(SDLCONFIG) --libs` 
+        M_LDFLAGS=$(IMAGELDFLAGS) -lws2_32 -lmingw32 $(SDL_LDFLAGS) -mwindows -ldxguid -lwinmm -lole32 $(MLDFLAGS) `$(SDLCONFIG) --libs`
+		D3D_LDFLAGS=$(IMAGELDFLAGS) -lws2_32 -lmingw32 $(SDL_LDFLAGS) -mwindows -ldxguid -lwinmm -lole32 $(MLDFLAGS) `$(SDLCONFIG) --libs`
+        SV_LDFLAGS=-lm -lmingw32 -lws2_32 -lwinmm `$(SDLCONFIG) --libs`
+        QCC_LDFLAGS=
+    endif
+
+    GL_CFLAGS=-DFTE_SDL $(GLCFLAGS) $(CLIENTLIBFLAGS) $(DX7SDK)
+
+    GLB_DIR=gl_mgw_sdl$(BITS)
+    GLCL_DIR=glcl_mgw_sdl$(BITS)
 	
-	#the defaults for sdl come first
-	GLCL_OBJS=$(GL_OBJS) $(D3DGL_OBJS) $(GLQUAKE_OBJS) gl_vidsdl.o snd_sdl.o cd_sdl.o sys_sdl.o in_sdl.o snd_directx.o $(LTO_END) resources.o $(LTO_START)
-	GL_EXE_NAME=../$(EXE_NAME)-sdl-gl$(BITS)$(EXEPOSTFIX)
-	GLCL_EXE_NAME=../$(EXE_NAME)-sdl-glcl$(BITS)$(EXEPOSTFIX)
-	ifdef windir
-		GL_LDFLAGS=$(GLLDFLAGS) -lmingw32 -lws2_32 `$(SDLCONFIG) --static-libs`
-		VK_LDFLAGS=$(GLLDFLAGS) -lmingw32 -lws2_32 `$(SDLCONFIG) --static-libs`
-		M_LDFLAGS=$(MLDFLAGS) -lmingw32 -lws2_32 `$(SDLCONFIG) --static-libs`
-		SV_LDFLAGS=-lm -lmingw32 -lws2_32 -lwinmm `$(SDLCONFIG) --static-libs`
-		QCC_LDFLAGS=
-	else
-		GL_LDFLAGS=$(IMAGELDFLAGS) -lws2_32 -lmingw32 $(SDL_LDFLAGS) -mwindows -ldxguid -lwinmm -lole32 $(GLLDFLAGS) `$(SDLCONFIG) --libs` 
-		VK_LDFLAGS=$(IMAGELDFLAGS) -lws2_32 -lmingw32 $(SDL_LDFLAGS) -mwindows -ldxguid -lwinmm -lole32 $(GLLDFLAGS) `$(SDLCONFIG) --libs` 
-		M_LDFLAGS=$(IMAGELDFLAGS) -lws2_32 -lmingw32 $(SDL_LDFLAGS) -mwindows -ldxguid -lwinmm -lole32 $(MLDFLAGS) `$(SDLCONFIG) --libs`
-		SV_LDFLAGS=-lm -lmingw32 -lws2_32 -lwinmm `$(SDLCONFIG) --libs`
-		QCC_LDFLAGS=
-	endif
-	
-	GL_CFLAGS=-DFTE_SDL $(GLCFLAGS) $(CLIENTLIBFLAGS) $(DX7SDK)
-	
-	GLB_DIR=gl_mgw_sdl$(BITS)
-	GLCL_DIR=glcl_mgw_sdl$(BITS)
-	
-	SV_OBJS=$(COMMON_OBJS) $(SERVER_OBJS) $(PROGS_OBJS) $(WINDOWSSERVERONLY_OBJS) $(LTO_END) resources.o $(LTO_START)
-	SV_EXE_NAME=../$(EXE_NAME)-sdl-sv$(BITS)$(EXEPOSTFIX)
-	SV_CFLAGS=$(SERVER_ONLY_CFLAGS) -DFTE_SDL
+	#don't use sdl at all for dedicated servers. it'd break running it as a console program etc. its not officially supported, but included anyway for ease of use.
+	SV_DIR=sv_winsdl$(BITS)
+    SV_OBJS=$(COMMON_OBJS) $(SERVER_OBJS) $(PROGS_OBJS) $(WINDOWSSERVERONLY_OBJS) fs_win32.o $(LTO_END) resources.o $(LTO_START)
+    SV_EXE_NAME=../$(EXE_NAME)-sdl-sv$(BITS)$(EXEPOSTFIX)
+	SV_LDFLAGS=-lm -lole32 -lws2_32 -lwinmm
+    SV_CFLAGS=$(SERVER_ONLY_CFLAGS) -mconsole #-DFTE_SDL
 
-	MINGL_DIR=mingl_sdlwin$(BITS)
-	MINGL_EXE_NAME=../$(EXE_NAME)-sdl-mingl$(BITS)$(EXEPOSTFIX)
+    MINGL_DIR=mingl_sdlwin$(BITS)
+    MINGL_EXE_NAME=../$(EXE_NAME)-sdl-mingl$(BITS)$(EXEPOSTFIX)
 
-	MB_DIR=m_mgw_sdl$(BITS)
-	M_EXE_NAME=../$(EXE_NAME)-sdl$(BITS)$(EXEPOSTFIX)
+    MB_DIR=m_mgw_sdl$(BITS)
+    M_EXE_NAME=../$(EXE_NAME)-sdl$(BITS)$(EXEPOSTFIX)
 #with d3d...
-	#MCL_OBJS=$(D3DGL_OBJS) $(GLQUAKE_OBJS) $(SOFTWARE_OBJS) $(D3DQUAKE_OBJS) gl_vidsdl.o snd_sdl.o cd_sdl.o sys_sdl.o in_sdl.o snd_directx.o $(LTO_END) resources.o $(LTO_START)
-	#M_CFLAGS=$(D3DCFLAGS) $(VKCFLAGS) $(GLCFLAGS) -DFTE_SDL $(CLIENTLIBFLAGS) $(DX7SDK)
+    #MCL_OBJS=$(D3DGL_OBJS) $(GLQUAKE_OBJS) $(SOFTWARE_OBJS) $(D3DQUAKE_OBJS) gl_vidsdl.o snd_sdl.o cd_sdl.o sys_sdl.o in_sdl.o snd_directx.o $(LTO_END) resources.o $(LTO_START)
+    #M_CFLAGS=$(D3DCFLAGS) $(VKCFLAGS) $(GLCFLAGS) -DFTE_SDL $(CLIENTLIBFLAGS) $(DX7SDK)
 #without d3d...
-	MCL_OBJS=$(D3DGL_OBJS) $(GLQUAKE_OBJS) $(SOFTWARE_OBJS) gl_vidsdl.o snd_sdl.o cd_sdl.o sys_sdl.o in_sdl.o snd_directx.o $(LTO_END) resources.o $(LTO_START)
-	M_CFLAGS=$(VKCFLAGS) $(GLCFLAGS) -DFTE_SDL $(CLIENTLIBFLAGS) $(DX7SDK)
+    MCL_OBJS=$(D3DGL_OBJS) $(GLQUAKE_OBJS) $(SOFTWARE_OBJS) gl_vidsdl.o snd_sdl.o cd_sdl.o sys_sdl.o in_sdl.o snd_directx.o $(LTO_END) resources.o $(LTO_START)
+    M_CFLAGS=$(VKCFLAGS) $(GLCFLAGS) -DFTE_SDL $(CLIENTLIBFLAGS) $(DX7SDK)
 
-	D3DCL_OBJS=$(D3DQUAKE_OBJS) snd_sdl.o cd_sdl.o sys_sdl.o in_sdl.o snd_directx.o $(D3DGL_OBJS) $(LTO_END) resources.o $(LTO_START)
-	D3D_EXE_NAME=../$(EXE_NAME)-sdl-d3d$(BITS)$(EXEPOSTFIX)
-	D3DCL_EXE_NAME=../$(EXE_NAME)-sdl-d3dcl$(BITS)$(EXEPOSTFIX)
-	D3D_LDFLAGS=$(IMAGELDFLAGS) -lws2_32 -lmingw32 $(SDL_LDFLAGS) -mwindows -ldxguid -lwinmm -lole32
-	D3D_CFLAGS=$(D3DCFLAGS) -DFTE_SDL -DNO_XFLIP $(CLIENTLIBFLAGS) $(DX7SDK)
-	D3DB_DIR=sdl_d3d_mgw$(BITS)
-	D3DCL_DIR=sdl_d3dcl_mgw$(BITS)
+	#unsupported, video code has winmsg/input junk in it.
+    D3DCL_OBJS=$(D3DQUAKE_OBJS) snd_sdl.o cd_sdl.o sys_sdl.o in_sdl.o snd_directx.o $(D3DGL_OBJS) $(LTO_END) resources.o $(LTO_START)
+    D3D_EXE_NAME=../$(EXE_NAME)-sdl-d3d$(BITS)$(EXEPOSTFIX)
+    D3DCL_EXE_NAME=../$(EXE_NAME)-sdl-d3dcl$(BITS)$(EXEPOSTFIX)
+    D3D_CFLAGS=$(D3DCFLAGS) -DFTE_SDL -DNO_XFLIP $(CLIENTLIBFLAGS) $(DX7SDK)
+    D3DB_DIR=sdl_d3d_mgw$(BITS)
+    D3DCL_DIR=sdl_d3dcl_mgw$(BITS)
 
 
-	VKCL_OBJS=$(VKQUAKE_OBJS) gl_bloom.o gl_vidsdl.o snd_sdl.o cd_sdl.o sys_sdl.o in_sdl.o snd_directx.o $(D3DGL_OBJS) $(LTO_END) resources.o $(LTO_START)
-	VK_EXE_NAME=../$(EXE_NAME)-sdl-vk$(BITS)$(EXEPOSTFIX)
-	VKCL_EXE_NAME=../$(EXE_NAME)-sdl-vkcl$(BITS)$(EXEPOSTFIX)
-	VK_CFLAGS=$(VKCFLAGS) -DFTE_SDL -DNO_XFLIP $(CLIENTLIBFLAGS) $(DX7SDK)
-	VKB_DIR=sdl_vk_mgw$(BITS)
-	VKCL_DIR=sdl_vkcl_mgw$(BITS)
+    VKCL_OBJS=$(VKQUAKE_OBJS) gl_bloom.o gl_vidsdl.o snd_sdl.o cd_sdl.o sys_sdl.o in_sdl.o snd_directx.o $(D3DGL_OBJS) $(LTO_END) resources.o $(LTO_START)
+    VK_EXE_NAME=../$(EXE_NAME)-sdl-vk$(BITS)$(EXEPOSTFIX)
+    VKCL_EXE_NAME=../$(EXE_NAME)-sdl-vkcl$(BITS)$(EXEPOSTFIX)
+    VK_CFLAGS=$(VKCFLAGS) -DFTE_SDL -DNO_XFLIP $(CLIENTLIBFLAGS) $(DX7SDK)
+    VKB_DIR=sdl_vk_mgw$(BITS)
+    VKCL_DIR=sdl_vkcl_mgw$(BITS)
 	
-	ifeq ($(shell echo $(FTE_TARGET)|grep -E -i -v "win32.*sdl"),)
-		GL_CFLAGS+= -D_MINGW_VFPRINTF
-		VK_CFLAGS+= -D_MINGW_VFPRINTF
-		D3D_CFLAGS+= -D_MINGW_VFPRINTF
-		M_CFLAGS+= -D_MINGW_VFPRINTF
-	endif
+    ifeq ($(shell echo $(FTE_TARGET)|grep -E -i -v "win32.*sdl"),)
+        GL_CFLAGS+= -D_MINGW_VFPRINTF
+        VK_CFLAGS+= -D_MINGW_VFPRINTF
+        D3D_CFLAGS+= -D_MINGW_VFPRINTF
+        M_CFLAGS+= -D_MINGW_VFPRINTF
+    endif
 endif
 
 #FTE_TARGET=vc (Visual C)
@@ -1376,7 +1425,7 @@ ifeq (win,$(findstring win,$(FTE_TARGET))$(findstring _SDL,$(FTE_TARGET)))
 	BASELDFLAGS+=-lcomctl32
 	EXEPOSTFIX=.exe
 
-	QTV_LDFLAGS=-lws2_32 -lwinmm
+	QTV_LDFLAGS+=-lws2_32 -lwinmm
 
 	SV_EXE_NAME=../$(EXE_NAME)sv$(BITS)$(EXEPOSTFIX)
 	SV_LDFLAGS=-lws2_32 -lwinmm -lole32
@@ -1731,6 +1780,7 @@ ifeq ($(FTE_TARGET),web)
 	EMCC_CFLAGS+= -s FILESYSTEM=0					#we have our own.
 	EMCC_CFLAGS+= -s ALLOW_MEMORY_GROWTH=1			#reduce crashes...
 	EMCC_CFLAGS+= -s MAX_WEBGL_VERSION=2			#make use of what we can.
+	EMCC_CFLAGS+= -s TOTAL_STACK=5MB			#big!
    	EMCC_LDFLAGS+=-s ERROR_ON_UNDEFINED_SYMBOLS=1	#fairly obvious. no runtime errors please.
 	RELEASE_CFLAGS=-DOMIT_QCC -DGL_STATIC $(EMCC_CFLAGS)
 	DEBUG_CFLAGS=-g4 -DOMIT_QCC -DGL_STATIC $(EMCC_CFLAGS)
@@ -1759,13 +1809,14 @@ ifeq ($(FTE_TARGET),web)
 	#GLCL_OBJS=$(GL_OBJS) $(D3DGL_OBJS) $(GLQUAKE_OBJS) cd_null.o
 	#GL_LDFLAGS=$(GLLDFLAGS)
 	GLB_DIR=gl_web
+	GLCL_DIR=glcl_web
 	GL_EXE_NAME=../ftewebgl.js
+	GLCL_EXE_NAME=../ftewebglcl.js
 
 	GL_LDFLAGS=$(GLLDFLAGS) $(IMAGELDFLAGS)
-	GL_CFLAGS=$(GLCFLAGS)
+	GL_CFLAGS=$(GLCFLAGS) $(CLIENTLIBFLAGS)
 
 	IMAGELDFLAGS=
-	CLIENTLDDEPS=
 	SERVERLDDEPS=
 
 	#generate deps properly
@@ -2044,11 +2095,11 @@ m-profile:
 _qcc-tmp: $(REQDIR)
 	@$(MAKE) $(TYPE) EXE_NAME="$(EXE_NAME)$(EXEPOSTFIX)" PRECOMPHEADERS="" OUT_DIR="$(OUT_DIR)" WCFLAGS="$(QCC_CFLAGS) $(WCFLAGS)" LDFLAGS="$(LDFLAGS) $(QCC_LDFLAGS)" OBJS="QCC_OBJS SOBJS"
 qcc-rel:
-	@$(MAKE) _qcc-tmp TYPE=_out-rel REQDIR=reldir EXE_NAME="../fteqcc$(BITS)" OUT_DIR="$(RELEASE_DIR)/$(NCDIRPREFIX)$(QCC_DIR)" SOBJS="qcctui.o packager.o $(if $(findstring win,$(FTE_TARGET)),fteqcc.o)"
+	@$(MAKE) _qcc-tmp TYPE=_out-rel REQDIR=reldir EXE_NAME="../fteqcc$(BITS)" OUT_DIR="$(RELEASE_DIR)/$(NCDIRPREFIX)$(QCC_DIR)" SOBJS="qcctui.o packager.o decomp.o $(if $(findstring win,$(FTE_TARGET)),fteqcc.o)"
 qccgui-rel:
 	@$(MAKE) _qcc-tmp TYPE=_out-rel REQDIR=reldir EXE_NAME="../fteqccgui$(BITS)" LTO= OUT_DIR="$(RELEASE_DIR)/$(NCDIRPREFIX)$(QCC_DIR)gui" SOBJS="qccgui.o qccguistuff.o packager.o decomp.o fteqcc.o" LDFLAGS="$(LDFLAGS) -lole32 -lcomdlg32 -lcomctl32 -lshlwapi -mwindows"
 qcc-dbg:
-	@$(MAKE) _qcc-tmp TYPE=_out-dbg REQDIR=debugdir EXE_NAME="../fteqcc$(BITS)" OUT_DIR="$(DEBUG_DIR)/$(NCDIRPREFIX)$(QCC_DIR)" SOBJS="qcctui.o packager.o $(if $(findstring win,$(FTE_TARGET)),fteqcc.o)"
+	@$(MAKE) _qcc-tmp TYPE=_out-dbg REQDIR=debugdir EXE_NAME="../fteqcc$(BITS)" OUT_DIR="$(DEBUG_DIR)/$(NCDIRPREFIX)$(QCC_DIR)" SOBJS="qcctui.o packager.o decomp.o $(if $(findstring win,$(FTE_TARGET)),fteqcc.o)"
 qccgui-dbg:
 	@$(MAKE) _qcc-tmp TYPE=_out-dbg REQDIR=debugdir EXE_NAME="../fteqccgui$(BITS)" LTO= OUT_DIR="$(DEBUG_DIR)/$(NCDIRPREFIX)$(QCC_DIR)gui" SOBJS="qccgui.o qccguistuff.o packager.o decomp.o fteqcc.o" LDFLAGS="$(LDFLAGS) -lole32 -lcomdlg32 -lcomctl32 -lshlwapi -mwindows"
 
@@ -2072,17 +2123,24 @@ qccgui-scintilla: scintilla$(BITS)_static
 	@LTO= $(MAKE) _qcc-tmp TYPE=_out-rel REQDIR=reldir EXE_NAME="../fteqccgui$(BITS)" OUT_DIR="$(RELEASE_DIR)/$(QCC_DIR)scin" SOBJS="qccgui.o qccguistuff.o packager.o decomp.o fteqcc.o" WCFLAGS="$(WCFLAGS) -DSCISTATIC" LDFLAGS="$(LDFLAGS) $(RELEASE_DIR)/scintilla$(BITS).a -static -luuid -lole32 -limm32 -lstdc++ -loleaut32 -lcomdlg32 -lcomctl32 -lshlwapi -mwindows"
 
 ifdef windir
-debugdir:
+outdir:
+ifneq "$(OUT_DIR)" ""
 	@-mkdir -p "$(subst /,\, $(OUT_DIR))"
-reldir:
-	@-mkdir -p "$(subst /,\, $(OUT_DIR))"
+endif
+debugdir: outdir
+	@-mkdir -p "$(subst /,\, $(RELEASE_DIR))"
+reldir: outdir
+	@-mkdir -p "$(subst /,\, $(DEBUG_DIR))"
 else
-reldir:
+outdir:
+ifneq "$(OUT_DIR)" ""
+	@-mkdir -p "$(OUT_DIR)"
+endif
+debugdir: outdir
+reldir: outdir
 	@-mkdir -p "$(RELEASE_DIR)"
-	@-mkdir -p "$(OUT_DIR)"
-debugdir:
+debugdir: outdir
 	@-mkdir -p "$(DEBUG_DIR)"
-	@-mkdir -p "$(OUT_DIR)"
 endif
 
 plugins-dbg:
@@ -2142,7 +2200,6 @@ clean:
 
 distclean: clean
 	-rm -f droid/ftekeystore
-	-rm -f -r libs/SDL2-$(SDL2VER)
 
 
 
@@ -2170,15 +2227,23 @@ else
 endif
 
 web-rel:
-	@PATH="$(EMSCRIPTENPATH)" $(MAKE) gl-rel FTE_TARGET=web CC="$(EMCC)"
-	cp $(BASE_DIR)/web/fteshell.html $(RELEASE_DIR)/ftewebgl.html
+	@PATH="$(EMSCRIPTENPATH)" $(MAKE) makelibs FTE_TARGET=web CC="$(EMCC)" && PATH="$(EMSCRIPTENPATH)" $(MAKE) gl-rel FTE_TARGET=web CC="$(EMCC)"
+	@cp $(BASE_DIR)/web/fteshell.html $(RELEASE_DIR)/ftewebgl.html
 	@gzip -kf $(RELEASE_DIR)/ftewebgl.html
 	@gzip -kf $(RELEASE_DIR)/ftewebgl.js
 	@gzip -kf $(RELEASE_DIR)/ftewebgl.wasm
+webcl-rel:
+	@PATH="$(EMSCRIPTENPATH)" $(MAKE) makelibs FTE_TARGET=web CC="$(EMCC)" && PATH="$(EMSCRIPTENPATH)" $(MAKE) glcl-rel FTE_TARGET=web CC="$(EMCC)"
+	@cp $(BASE_DIR)/web/fteshell.html $(RELEASE_DIR)/ftewebglcl.html
+	@sed -i 's/ftewebgl.js/ftewebglcl.js/g' release/ftewebglcl.html	#swap out the .js filename for the client-only one.
+	@gzip -kf $(RELEASE_DIR)/ftewebglcl.html
+	@gzip -kf $(RELEASE_DIR)/ftewebglcl.js
+	@gzip -kf $(RELEASE_DIR)/ftewebglcl.wasm
+
 
 web-dbg:
 	@PATH="$(EMSCRIPTENPATH)" $(MAKE) gl-dbg FTE_TARGET=web CC="$(EMCC)"
-	cp $(BASE_DIR)/web/fteshell.html $(DEBUG_DIR)/ftewebgl.html
+	@cp $(BASE_DIR)/web/fteshell.html $(DEBUG_DIR)/ftewebgl.html
 	@gzip -kf $(DEBUG_DIR)/ftewebgl.html
 	@gzip -kf $(DEBUG_DIR)/ftewebgl.js
 	@gzip -kf $(DEBUG_DIR)/ftewebgl.wasm
@@ -2271,11 +2336,11 @@ droid-help:
 	@-echo
 	@-echo "Note that 'make droid-rel' will automatically generate a keystore. If you forget the password, just do a 'make dist-clean'."
 
-$(BASE_DIR)/libs/SDL2-$(SDL2VER)/i686-w64-mingw32/bin/sdl2-config:
+$(BASE_DIR)/libs-$(ARCH)/SDL2-$(SDL2VER)/i686-w64-mingw32/bin/sdl2-config:
 	wget http://www.libsdl.org/release/SDL2-devel-$(SDL2VER)-mingw.tar.gz -O $(BASE_DIR)/sdl2.tar.gz
-	cd $(BASE_DIR)/libs && tar -xvzf $(BASE_DIR)/sdl2.tar.gz
+	cd $(BASE_DIR)/libs-$(ARCH) && tar -xvzf $(BASE_DIR)/sdl2.tar.gz
 	rm $(BASE_DIR)/sdl2.tar.gz
-$(BASE_DIR)/libs/SDL2-$(SDL2VER)/x86_64-w64-mingw32/bin/sdl2-config: $(BASE_DIR)/libs/SDL2-$(SDL2VER)/i686-w64-mingw32/bin/sdl2-config
+$(BASE_DIR)/libs-$(ARCH)/SDL2-$(SDL2VER)/x86_64-w64-mingw32/bin/sdl2-config: $(BASE_DIR)/libs-$(ARCH)/SDL2-$(SDL2VER)/i686-w64-mingw32/bin/sdl2-config
 
 
 
@@ -2283,26 +2348,31 @@ $(BASE_DIR)/libs/SDL2-$(SDL2VER)/x86_64-w64-mingw32/bin/sdl2-config: $(BASE_DIR)
 AR?=$(ARCH)-ar
 
 
-CONFIGARGS+= -host=$(ARCH) --enable-shared=no CC="$(CC)"
+CONFIGARGS+= --host=$(ARCH) --enable-shared=no CC="$(CC)"
 CONFIGARGS:= $(CONFIGARGS)
 #--disable-silent-rules
+OPUSCONFIGARGS=$(CONFIGARGS)
+SPEEXDSPCONFIGARGS=$(CONFIGARGS)
 
 TOOLOVERRIDES+=CFLAGS="$$CFLAGS -Os"
+TOOLCONGIGUREOVERRIDES=$(TOOLOVERRIDES)
+TOOLMAKEOVERRIDES=$(TOOLOVERRIDES)
+ifeq (web,$(FTE_TARGET))
+  TOOLCONFIGUREOVERRIDES=emconfigure
+  TOOLMAKEOVERRIDES=emmake
+  OPUSCONFIGARGS=--disable-rtcd --disable-hardening --enable-stack-protector=no --enable-shared=no --host=none
+  SPEEXDSPCONFIGARGS=--disable-neon --host=none
+  CONFIGARGS=--enable-shared=no --host=none
+endif
 
 
 libs-$(ARCH)/libjpeg.a:
 	test -f jpegsrc.v$(JPEGVER).tar.gz || wget http://www.ijg.org/files/jpegsrc.v$(JPEGVER).tar.gz
-	-test -f libs-$(ARCH)/libjpeg.a || (mkdir -p libs-$(ARCH) && cd libs-$(ARCH) && tar -xvzf ../jpegsrc.v$(JPEGVER).tar.gz && cd jpeg-$(JPEGVER) && $(TOOLOVERRIDES) ./configure $(CONFIGARGS) && $(TOOLOVERRIDES) $(MAKE) && cp .libs/libjpeg.a ../ && $(TOOLOVERRIDES) $(AR) -s ../libjpeg.a && cp jconfig.h jerror.h jmorecfg.h jpeglib.h jversion.h ../ )
+	test -f libs-$(ARCH)/libjpeg.a || (mkdir -p libs-$(ARCH) && cd libs-$(ARCH) && tar -xvzf ../jpegsrc.v$(JPEGVER).tar.gz && cd jpeg-$(JPEGVER) && $(CONFIGUREOVERRIDES) ./configure $(CONFIGARGS) && $(TOOLOVERRIDES) $(MAKE) && cp .libs/libjpeg.a ../ && $(TOOLOVERRIDES) $(AR) -s ../libjpeg.a && cp jconfig.h jerror.h jmorecfg.h jpeglib.h jversion.h ../ )
 
-ifeq ($(FTE_TARGET),web)
 libs-$(ARCH)/libz.a libs-$(ARCH)/libz.pc:
-	test -f zlib-$(ZLIBVER).tar.gz || wget http://zlib.net/zlib-$(ZLIBVER).tar.gz
-	-test -f libs-$(ARCH)/libz.a || (mkdir -p libs-$(ARCH) && cd libs-$(ARCH) && tar -xvzf ../zlib-$(ZLIBVER).tar.gz && cd zlib-$(ZLIBVER) && emconfigure ./configure --static && emmake $(MAKE) libz.a CC="$(CC) $(W32_CFLAGS) -fPIC" && cp libz.a ../ && $(TOOLOVERRIDES) $(AR) -s ../libz.a && cp zlib.h zconf.h zutil.h zlib.pc ../ )
-else
-libs-$(ARCH)/libz.a libs-$(ARCH)/libz.pc:
-	test -f zlib-$(ZLIBVER).tar.gz || wget http://zlib.net/zlib-$(ZLIBVER).tar.gz
-	-test -f libs-$(ARCH)/libz.a || (mkdir -p libs-$(ARCH) && cd libs-$(ARCH) && tar -xvzf ../zlib-$(ZLIBVER).tar.gz && cd zlib-$(ZLIBVER) && $(TOOLOVERRIDES) ./configure --static && $(TOOLOVERRIDES) $(MAKE) libz.a CC="$(CC) $(W32_CFLAGS) -fPIC" && cp libz.a ../ && $(TOOLOVERRIDES) $(AR) -s ../libz.a && cp zlib.h zconf.h zutil.h zlib.pc ../ )
-endif
+	test -f zlib-$(ZLIBVER).tar.gz || wget http://zlib.net/fossils/zlib-$(ZLIBVER).tar.gz
+	test -f libs-$(ARCH)/libz.a || (mkdir -p libs-$(ARCH) && cd libs-$(ARCH) && tar -xvzf ../zlib-$(ZLIBVER).tar.gz && cd zlib-$(ZLIBVER) && $(TOOLCONFIGUREOVERRIDES) ./configure --static && $(TOOLMAKEOVERRIDES) $(MAKE) libz.a CC="$(CC) $(W32_CFLAGS) -fPIC" && cp libz.a ../ && $(TOOLOVERRIDES) $(AR) -s ../libz.a && cp zlib.h zconf.h zutil.h zlib.pc ../ )
 libs-$(ARCH)/libz9.a: libs-$(ARCH)/libz.a
 	(cd libs-$(ARCH)/zlib-$(ZLIBVER) && \
 		$(CC) -o contrib/infback9/infback9.o -c contrib/infback9/infback9.c -I.	&& \
@@ -2313,39 +2383,44 @@ libs-$(ARCH)/libz9.a: libs-$(ARCH)/libz.a
 
 libs-$(ARCH)/libpng.a libs-$(ARCH)/libpng.pc: libs-$(ARCH)/libz.a libs-$(ARCH)/libz.pc
 	test -f libpng-$(PNGVER).tar.gz || wget http://prdownloads.sourceforge.net/libpng/libpng-$(PNGVER).tar.gz?download -O libpng-$(PNGVER).tar.gz
-	-test -f libs-$(ARCH)/libpng.a || (mkdir -p libs-$(ARCH) && cd libs-$(ARCH) && tar -xvzf ../libpng-$(PNGVER).tar.gz && cd libpng-$(PNGVER) && $(TOOLOVERRIDES) ./configure CPPFLAGS=-I$(NATIVE_ABSBASE_DIR)/libs-$(ARCH)/ LDFLAGS=-L$(NATIVE_ABSBASE_DIR)/libs-$(ARCH)/ $(CONFIGARGS) --enable-static && $(TOOLOVERRIDES) $(MAKE) && cp .libs/libpng16.a ../libpng.a && cp libpng.pc png*.h ../ )
+	test -f libs-$(ARCH)/libpng.a || (mkdir -p libs-$(ARCH) && cd libs-$(ARCH) && tar -xvzf ../libpng-$(PNGVER).tar.gz && cd libpng-$(PNGVER) && $(TOOLOVERRIDES) ./configure CPPFLAGS=-I$(NATIVE_ABSBASE_DIR)/libs-$(ARCH)/ LDFLAGS=-L$(NATIVE_ABSBASE_DIR)/libs-$(ARCH)/ $(CONFIGARGS) --enable-static && $(TOOLOVERRIDES) $(MAKE) && cp .libs/libpng16.a ../libpng.a && cp libpng.pc png*.h ../ )
 
 libs-$(ARCH)/libogg.a:
 	test -f libogg-$(OGGVER).tar.gz || wget http://downloads.xiph.org/releases/ogg/libogg-$(OGGVER).tar.gz
-	-test -f libs-$(ARCH)/libogg.a || (mkdir -p libs-$(ARCH) && cd libs-$(ARCH) && tar -xvzf ../libogg-$(OGGVER).tar.gz && cd libogg-$(OGGVER) && $(TOOLOVERRIDES) ./configure $(CONFIGARGS) && $(TOOLOVERRIDES) $(MAKE) && cp src/.libs/libogg.a ../ && $(TOOLOVERRIDES) $(AR) -s ../libogg.a && mkdir ../ogg && cp include/ogg/*.h ../ogg)
+	test -f libs-$(ARCH)/libogg.a || (mkdir -p libs-$(ARCH) && cd libs-$(ARCH) && tar -xvzf ../libogg-$(OGGVER).tar.gz && cd libogg-$(OGGVER) && $(TOOLOVERRIDES) ./configure $(CONFIGARGS) && $(TOOLOVERRIDES) $(MAKE) && cp src/.libs/libogg.a ../ && $(TOOLOVERRIDES) $(AR) -s ../libogg.a && mkdir ../ogg && cp include/ogg/*.h ../ogg)
 
 libs-$(ARCH)/libvorbis.a: libs-$(ARCH)/libogg.a
 	test -f libvorbis-$(VORBISVER).tar.gz || wget http://downloads.xiph.org/releases/vorbis/libvorbis-$(VORBISVER).tar.gz
-	-test -f libs-$(ARCH)/libvorbisfile.a || (mkdir -p libs-$(ARCH) && cd libs-$(ARCH) && tar -xvzf ../libvorbis-$(VORBISVER).tar.gz && cd libvorbis-$(VORBISVER) && $(TOOLOVERRIDES) ./configure PKG_CONFIG= $(CONFIGARGS) --disable-oggtest --with-ogg-libraries=.. --with-ogg-includes=$(NATIVE_ABSBASE_DIR)/libs-$(ARCH)/libogg-$(OGGVER)/include && $(TOOLOVERRIDES) $(MAKE) && cp lib/.libs/libvorbis.a ../ && cp lib/.libs/libvorbisfile.a ../  && mkdir ../vorbis && cp include/vorbis/*.h ../vorbis)
+	test -f libs-$(ARCH)/libvorbisfile.a || (mkdir -p libs-$(ARCH) && cd libs-$(ARCH) && tar -xvzf ../libvorbis-$(VORBISVER).tar.gz && cd libvorbis-$(VORBISVER) && $(TOOLOVERRIDES) ./configure PKG_CONFIG= $(CONFIGARGS) --disable-oggtest --with-ogg-libraries=.. --with-ogg-includes=$(NATIVE_ABSBASE_DIR)/libs-$(ARCH)/libogg-$(OGGVER)/include && $(TOOLOVERRIDES) $(MAKE) && cp lib/.libs/libvorbis.a ../ && cp lib/.libs/libvorbisfile.a ../  && mkdir ../vorbis && cp include/vorbis/*.h ../vorbis)
 
 libs-$(ARCH)/libopus.a:
 	test -f opus-$(OPUSVER).tar.gz || wget https://archive.mozilla.org/pub/opus/opus-$(OPUSVER).tar.gz
-	-test -f libs-$(ARCH)/libopus.a || (mkdir -p libs-$(ARCH) && cd libs-$(ARCH) && tar -xvzf ../opus-$(OPUSVER).tar.gz && cd opus-$(OPUSVER) && CFLAGS="-D_FORTIFY_SOURCE=0 $(CFLAGS) -Os" $(TOOLOVERRIDES) ./configure $(CONFIGARGS) && $(TOOLOVERRIDES) $(MAKE) && cp .libs/libopus.a ../ && cp include/opus*.h ../)
+	test -f libs-$(ARCH)/libopus.a || (mkdir -p libs-$(ARCH) && cd libs-$(ARCH) && tar -xvzf ../opus-$(OPUSVER).tar.gz && cd opus-$(OPUSVER) && CFLAGS="-D_FORTIFY_SOURCE=0 $(CFLAGS) -Os" $(TOOLCONFIGUREOVERRIDES) ./configure $(OPUSCONFIGARGS) --disable-extra-programs && $(TOOLMAKEOVERRIDES) $(MAKE) && cp .libs/libopus.a ../ && cp include/opus*.h ../)
 
 libs-$(ARCH)/libspeex.a:
 	test -f speex-$(SPEEXVER).tar.gz || wget http://downloads.us.xiph.org/releases/speex/speex-$(SPEEXVER).tar.gz
-	-test -f libs-$(ARCH)/libspeex.a || (mkdir -p libs-$(ARCH)/speex && cd libs-$(ARCH) && tar -xvzf ../speex-$(SPEEXVER).tar.gz && cd speex-$(SPEEXVER) && CFLAGS="$(CFLAGS) -Os" $(TOOLOVERRIDES) ./configure $(CONFIGARGS) && $(TOOLOVERRIDES) $(MAKE) && cp libspeex/.libs/libspeex.a ../ && cp -r include/speex/*.h ../speex/)
+	test -f libs-$(ARCH)/libspeex.a || (mkdir -p libs-$(ARCH)/speex && cd libs-$(ARCH) && tar -xvzf ../speex-$(SPEEXVER).tar.gz && cd speex-$(SPEEXVER) && CFLAGS="$(CFLAGS) -Os" $(TOOLCONFIGUREOVERRIDES) ./configure $(CONFIGARGS) --disable-binaries && $(TOOLMAKEOVERRIDES) $(MAKE) && cp libspeex/.libs/libspeex.a ../ && cp -r include/speex/*.h ../speex/)
 
 libs-$(ARCH)/libspeexdsp.a:
 	test -f speexdsp-$(SPEEXDSPVER).tar.gz || wget http://downloads.xiph.org/releases/speex/speexdsp-$(SPEEXDSPVER).tar.gz
-	-test -f libs-$(ARCH)/libspeexdsp.a || (mkdir -p libs-$(ARCH)/speex && cd libs-$(ARCH) && tar -xvzf ../speexdsp-$(SPEEXDSPVER).tar.gz && cd speexdsp-$(SPEEXDSPVER) && CFLAGS="$(CFLAGS) -Os" $(TOOLOVERRIDES) ./configure $(CONFIGARGS) && $(TOOLOVERRIDES) $(MAKE) && cp libspeexdsp/.libs/libspeexdsp.a ../ && cp -r include/speex/*.h ../speex/)
+	test -f libs-$(ARCH)/libspeexdsp.a || (mkdir -p libs-$(ARCH)/speex && cd libs-$(ARCH) && tar -xvzf ../speexdsp-$(SPEEXDSPVER).tar.gz && cd speexdsp-$(SPEEXDSPVER) && CFLAGS="$(CFLAGS) -Os" $(TOOLCONFIGUREOVERRIDES) ./configure $(SPEEXDSPCONFIGARGS) && $(TOOLMAKEOVERRIDES) $(MAKE) && cp libspeexdsp/.libs/libspeexdsp.a ../ && cp -r include/speex/*.h ../speex/)
 
 libs-$(ARCH)/libfreetype.a libs-$(ARCH)/ft2build.h: libs-$(ARCH)/libpng.a libs-$(ARCH)/libpng.pc
 	test -f freetype-$(FREETYPEVER).tar.gz || wget https://download-mirror.savannah.gnu.org/releases/freetype/freetype-$(FREETYPEVER).tar.gz
-	-test -f libs-$(ARCH)/libfreetype.a || (mkdir -p libs-$(ARCH) && cd libs-$(ARCH) && tar -xvzf ../freetype-$(FREETYPEVER).tar.gz && cd freetype-$(FREETYPEVER) && PKG_CONFIG_LIBDIR=$(NATIVE_ABSBASE_DIR)/libs-$(ARCH) CFLAGS="$(CFLAGS) -Os" $(TOOLOVERRIDES) ./configure CPPFLAGS=-I$(NATIVE_ABSBASE_DIR)/libs-$(ARCH)/ LDFLAGS=-L$(NATIVE_ABSBASE_DIR)/libs-$(ARCH)/ $(CONFIGARGS) --with-zlib=yes --with-png=yes --with-bzip2=no --with-harfbuzz=no && $(TOOLOVERRIDES) $(MAKE) && cp objs/.libs/libfreetype.a ../ && cp -r include/* ../)
+	test -f libs-$(ARCH)/libfreetype.a || (mkdir -p libs-$(ARCH) && cd libs-$(ARCH) && tar -xvzf ../freetype-$(FREETYPEVER).tar.gz && cd freetype-$(FREETYPEVER) && PKG_CONFIG_LIBDIR=$(NATIVE_ABSBASE_DIR)/libs-$(ARCH) CFLAGS="$(CFLAGS) -Os" $(TOOLOVERRIDES) ./configure CPPFLAGS=-I$(NATIVE_ABSBASE_DIR)/libs-$(ARCH)/ LDFLAGS=-L$(NATIVE_ABSBASE_DIR)/libs-$(ARCH)/ $(CONFIGARGS) --with-zlib=yes --with-png=yes --with-bzip2=no --with-harfbuzz=no && $(TOOLOVERRIDES) $(MAKE) && cp objs/.libs/libfreetype.a ../ && cp -r include/* ../)
 
 libs-$(ARCH)/libBulletDynamics.a:
 	test -f bullet3-$(BULLETVER).tar.gz || wget https://github.com/bulletphysics/bullet3/archive/$(BULLETVER).tar.gz -O bullet3-$(BULLETVER).tar.gz
-	-test -f libs-$(ARCH)/libBulletDynamics.a || (mkdir -p libs-$(ARCH) && cd libs-$(ARCH) && tar -xvzf ../bullet3-$(BULLETVER).tar.gz && cd bullet3-$(BULLETVER) && CFLAGS="$(CFLAGS) -Os" $(TOOLOVERRIDES) $(DO_CMAKE) . && $(TOOLOVERRIDES) $(MAKE) LinearMath BulletDynamics BulletCollision && cp src/LinearMath/libLinearMath.a src/BulletDynamics/libBulletDynamics.a src/BulletCollision/libBulletCollision.a src/btBulletCollisionCommon.h src/btBulletDynamicsCommon.h ..)
+	test -f libs-$(ARCH)/libBulletDynamics.a || (mkdir -p libs-$(ARCH) && cd libs-$(ARCH) && tar -xvzf ../bullet3-$(BULLETVER).tar.gz && cd bullet3-$(BULLETVER) && CFLAGS="$(CFLAGS) -Os" $(TOOLOVERRIDES) $(DO_CMAKE) . && $(TOOLOVERRIDES) $(MAKE) LinearMath BulletDynamics BulletCollision && cp src/LinearMath/libLinearMath.a src/BulletDynamics/libBulletDynamics.a src/BulletCollision/libBulletCollision.a src/btBulletCollisionCommon.h src/btBulletDynamicsCommon.h ..)
+
+libs-$(ARCH)/vulkan/vulkan.h:
+	test -f vulkan-sdk-$(VULKANVER).tar.gz || wget https://github.com/KhronosGroup/Vulkan-Headers/archive/refs/tags/vulkan-sdk-$(VULKANVER).tar.gz  
+	cd libs-$(ARCH) && tar -xvzf ../vulkan-sdk-$(VULKANVER).tar.gz --strip-components=2 Vulkan-Headers-vulkan-sdk-$(VULKANVER)/include/
 
 ifeq ($(FTE_TARGET),web)
 makelibs: libs-$(ARCH)/libz.a $(MAKELIBS)
 else
+MAKELIBS+=libs-$(ARCH)/vulkan/vulkan.h
 makelibs: libs-$(ARCH)/libjpeg.a libs-$(ARCH)/libz9.a libs-$(ARCH)/libz.a libs-$(ARCH)/libpng.a libs-$(ARCH)/libogg.a libs-$(ARCH)/libvorbis.a libs-$(ARCH)/libopus.a libs-$(ARCH)/libspeex.a libs-$(ARCH)/libspeexdsp.a libs-$(ARCH)/libfreetype.a $(MAKELIBS)
 endif
 
@@ -2373,13 +2448,13 @@ $(RELEASE_DIR)/imgtool$(BITS)$(EXEPOSTFIX): $(IMGTOOL_OBJECTS)
 imgtool-rel: $(RELEASE_DIR)/imgtool$(BITS)$(EXEPOSTFIX)
 imgtool: imgtool-rel
 
-MASTER_OBJECTS=server/sv_sys_unix.c common/sys_linux_threads.c common/net_ssl_gnutls.c server/sv_master.c common/net_wins.c common/net_ice.c common/cvar.c common/cmd.c common/sha1.c http/httpclient.c common/log.c common/fs.c common/fs_stdio.c common/common.c common/translate.c common/zone.c qclib/hash.c
+MASTER_OBJECTS=server/sv_sys_unix.c common/sys_linux_threads.c common/net_ssl_gnutls.c server/sv_master.c common/net_wins.c common/net_ice.c common/cvar.c common/cmd.c common/sha1.c common/sha2.c http/httpclient.c common/log.c common/fs.c common/fs_stdio.c common/common.c common/translate.c common/zone.c qclib/hash.c
 $(RELEASE_DIR)/ftemaster$(BITS)$(EXEPOSTFIX): $(MASTER_OBJECTS)
 	$(CC) -o $@ $(MASTER_OBJECTS) -flto=jobserver -fvisibility=hidden -Icommon -Iclient -Iqclib -Igl -Iserver -DMASTERONLY -Dstricmp=strcasecmp -Dstrnicmp=strncasecmp -lm -ldl -lz $(RELEASE_CFLAGS) $(RELEASE_LDFLAGS)
 $(DEBUG_DIR)/ftemaster$(BITS)$(EXEPOSTFIX): $(MASTER_OBJECTS)
 	$(CC) -o $@ $(MASTER_OBJECTS) -Icommon -Iclient -Iqclib -Igl -Iserver -DMASTERONLY -Dstricmp=strcasecmp -Dstrnicmp=strncasecmp -lm -ldl -lz $(DEBUG_CFLAGS) $(DEBUG_LDFLAGS)
-master-rel: $(RELEASE_DIR)/ftemaster$(BITS)$(EXEPOSTFIX)
-master-dbg: $(DEBUG_DIR)/ftemaster$(BITS)$(EXEPOSTFIX)
+master-rel: reldir $(RELEASE_DIR)/ftemaster$(BITS)$(EXEPOSTFIX)
+master-dbg: dbgdir $(DEBUG_DIR)/ftemaster$(BITS)$(EXEPOSTFIX)
 master: master-rel
 
 QTV_OBJECTS=	\
@@ -2391,9 +2466,11 @@ QTV_OBJECTS=	\
 	bsp.c		\
 	rcon.c		\
 	mdfour.c	\
+	md5.c		\
 	crc.c		\
 	control.c	\
 	forward.c	\
+	relay.c		\
 	pmove.c		\
 	menu.c		\
 	msg.c		\

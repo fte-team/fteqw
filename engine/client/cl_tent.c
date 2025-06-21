@@ -83,15 +83,26 @@ static const char	*q2efnames[] =
 	"TEQ2_EXPLOSION1_NP",
 	"TEQ2_FLECHETTE",
 
+//RERELEASE
+	"TEQ2EX_BLUEHYPERBLASTER",
+	"TEQ2EX_BFGZAP",
+	"TEQ2EX_BERSERK_SLAM",
+	"TEQ2EX_GRAPPLE_CABLE_2",
+	"TEQ2EX_POWER_SPLASH",
+	"TEQ2EX_LIGHTNING_BEAM",
+	"TEQ2EX_EXPLOSION1_NL",
+	"TEQ2EX_EXPLOSION2_NL",
+//RERELEASE
 
-	NULL,//"TEQ2_CR_LEADERBLASTER",
-	NULL,//"TEQ2_CR_BLASTER_MUZZLEFLASH",
-	NULL,//"TEQ2_CR_BLUE_MUZZLEFLASH",
-	NULL,//"TEQ2_CR_SMART_MUZZLEFLASH",
-	NULL,//"TEQ2_CR_LEADERFIELD",
-	NULL,//"TEQ2_CR_DEATHFIELD",
-	NULL,//"TEQ2_CR_BLASTERBEAM",
-	NULL,//"TEQ2_CR_STAIN",
+
+//	NULL,//"TEQ2_CR_LEADERBLASTER",
+//	NULL,//"TEQ2_CR_BLASTER_MUZZLEFLASH",
+//	NULL,//"TEQ2_CR_BLUE_MUZZLEFLASH",
+//	NULL,//"TEQ2_CR_SMART_MUZZLEFLASH",
+//	NULL,//"TEQ2_CR_LEADERFIELD",
+//	NULL,//"TEQ2_CR_DEATHFIELD",
+//	NULL,//"TEQ2_CR_BLASTERBEAM",
+//	NULL,//"TEQ2_CR_STAIN",
 	NULL,//"TEQ2_CR_FIRE",
 	NULL,//"TEQ2_CR_CABLEGUT",
 	NULL,//"TEQ2_CR_SMOKE",
@@ -106,6 +117,7 @@ static const char	*q2efnames[] =
 	"te_splashslime",
 	"te_splashlava",
 	"te_splashblood",
+	"te_splashelect",
 
 	"TR_BLASTERTRAIL",
 	"TR_BLASTERTRAIL2",
@@ -131,6 +143,8 @@ static const char	*q2efnames[] =
 	"ev_item_respawn",
 	"ev_player_teleport",
 	"ev_footstep",
+	"ev_other_footstep",
+	"ev_ladder_step",
 };
 int pt_q2[sizeof(q2efnames)/sizeof(q2efnames[0])];
 #endif
@@ -231,6 +245,7 @@ typedef struct
 	int		type;
 	vec3_t	angles;
 	vec3_t	avel;
+	vec3_t	rgb;
 	int		flags;
 	float	gravity;
 	float	startalpha;
@@ -295,8 +310,9 @@ cvar_t  r_bluelight_colour = CVARFD("r_bluelight_colour", "0.5 0.5 3.0 200", CVA
 cvar_t  r_rocketlight_colour = CVARFD("r_rocketlight_colour", "2.0 1.0 0.25 200", CVAR_ARCHIVE, "This controls the RGB+radius values of MF_ROCKET effects.");
 cvar_t  r_muzzleflash_colour = CVARFD("r_muzzleflash_colour", "1.5 1.3 1.0 200", CVAR_ARCHIVE, "This controls the initial RGB+radius of EF_MUZZLEFLASH/svc_muzzleflash effects.");
 cvar_t  r_muzzleflash_fade = CVARFD("r_muzzleflash_fade", "1.5 0.75 0.375 1000", CVAR_ARCHIVE, "This controls the per-second RGB+radius decay of EF_MUZZLEFLASH/svc_muzzleflash effects.");
-cvar_t	cl_truelightning = CVARF("cl_truelightning", "0",	CVAR_SEMICHEAT);
-static cvar_t  cl_beam_trace = CVAR("cl_beam_trace", "0");
+cvar_t	cl_truelightning = CVARFD("cl_truelightning", "0",	CVAR_SEMICHEAT, "Manipulate the end position of the player's own beams, to hide lag. Can be set to fractional values to reduce the effect.");
+static cvar_t  cl_beam_trace = CVARD("cl_beam_trace", "0", "Clips the length of any beams according to any walls they may have impacted.");
+static cvar_t  cl_beam_alpha = CVARAFD("cl_beam_alpha", "1", "r_shaftalpha", 0, "Specifies the translucency of the lightning beam segments.");
 static cvar_t	cl_legacystains = CVARD("cl_legacystains", "1", "WARNING: this cvar will default to 0 and later removed at some point");	//FIXME: do as the description says!
 static cvar_t	cl_shaftlight = CVAR("gl_shaftlight", "0.8");
 static cvar_t	cl_part_density_fade_start = CVARD("cl_part_density_fade_start", "1024", "Specifies the distance at which ssqc's pointparticles will start to get less dense.");
@@ -439,6 +455,7 @@ void CL_InitTEnts (void)
 	Cvar_Register (&cl_expsprite, "Temporary entity control");
 	Cvar_Register (&cl_truelightning, "Temporary entity control");
 	Cvar_Register (&cl_beam_trace, "Temporary entity control");
+	Cvar_Register (&cl_beam_alpha, "Temporary entity control");
 	Cvar_Register (&r_explosionlight, "Temporary entity control");
 	Cvar_Register (&r_explosionlight_colour, "Temporary entity control");
 	Cvar_Register (&r_explosionlight_fade, "Temporary entity control");
@@ -658,6 +675,9 @@ static void CL_ClearExplosion(explosion_t *exp, vec3_t org)
 {
 	exp->endalpha = 0;
 	exp->startalpha = 1;
+	exp->rgb[0] = 1.0f;
+	exp->rgb[1] = 1.0f;
+	exp->rgb[2] = 1.0f;
 	exp->scale = 1;
 	exp->gravity = 0;
 	exp->flags = 0;
@@ -761,40 +781,37 @@ beam_t	*CL_NewBeam (int entity, int tag, tentmodels_t *btype)
 	{
 		for (i=0, b=cl_beams; i < beams_running; i++, b++)
 			if (b->entity == entity && b->tag == tag)
-			{
-				b->info = btype;
-				return b;
-			}
+				goto found;
 	}
 
 // find a free beam
 	for (i=0, b=cl_beams; i < beams_running; i++, b++)
 	{
 		if (!b->info)
-		{
-			b->info = btype;
-			return b;
-		}
+			goto found;
 	}
 
-//	if (i == beams_running && i < cl_maxbeams.ival)
+
+//	if (i >= cl_maxbeams.ival)
+//		return NULL;
+	if (i == cl_beams_max)
 	{
-		if (i == cl_beams_max)
-		{
-			int nm = (i+1)*2;
-			CL_ClearTEntParticleState();
+		int nm = (i+1)*2;
+		CL_ClearTEntParticleState();
 
-			cl_beams = BZ_Realloc(cl_beams, nm*sizeof(*cl_beams));
-			memset(cl_beams + cl_beams_max, 0, sizeof(*cl_beams)*(nm-cl_beams_max));
-			cl_beams_max = nm;
-		}
-
-		beams_running++;
-		cl_beams[i].info = btype;
-		return &cl_beams[i];
+		cl_beams = BZ_Realloc(cl_beams, nm*sizeof(*cl_beams));
+		memset(cl_beams + cl_beams_max, 0, sizeof(*cl_beams)*(nm-cl_beams_max));
+		cl_beams_max = nm;
 	}
 
-	return NULL;
+	beams_running++;
+	b = &cl_beams[i];
+
+found:
+	b->info = btype;
+	b->bflags = 0;
+	VectorClear(b->offset);
+	return b;
 }
 #define	STREAM_ATTACHTOPLAYER	1	//if owned by the viewentity then attach to camera (but don't for other entities).
 #define STREAM_JITTER			2	//moves up to 30qu forward/back (40qu per sec)
@@ -890,7 +907,9 @@ beam_t *CL_AddBeam (enum beamtype_e tent, int ent, vec3_t start, vec3_t end)	//f
 	b->tag = -1;
 	b->bflags |= /*STREAM_ATTACHED|*/STREAM_ATTACHTOPLAYER;
 	b->endtime = cl.time + 0.2;
-	b->alpha = 1;
+	b->alpha = bound(0, cl_beam_alpha.value, 1);
+	if(b->alpha < 1)
+		b->rflags |= RF_TRANSLUCENT;
 	b->skin = 0;
 	VectorCopy (start, b->start);
 	VectorCopy (end, b->end);
@@ -1964,8 +1983,6 @@ void CL_ParseTEnt_Sized (void)
 	}
 }
 
-void MSG_ReadPos (vec3_t pos);
-void MSG_ReadDir (vec3_t dir);
 typedef struct {
 	char name[64];
 	int netstyle;
@@ -2464,7 +2481,7 @@ void CL_ParseParticleEffect4 (void)
 	P_RunParticleEffect4 (org, radius, color, effect, msgcount);
 }
 
-void CL_SpawnSpriteEffect(vec3_t org, vec3_t dir, vec3_t orientationup, model_t *model, int startframe, int framecount, float framerate, float alpha, float scale, float randspin, float gravity, int traileffect, unsigned int renderflags, int skinnum)
+void CL_SpawnSpriteEffect(vec3_t org, vec3_t dir, vec3_t orientationup, model_t *model, int startframe, int framecount, float framerate, float alpha, float scale, float randspin, float gravity, int traileffect, unsigned int renderflags, int skinnum, float red, float green, float blue)
 {
 	explosion_t	*ex;
 
@@ -2477,6 +2494,9 @@ void CL_SpawnSpriteEffect(vec3_t org, vec3_t dir, vec3_t orientationup, model_t 
 	ex->skinnum = skinnum;
 	ex->traileffect = traileffect;
 	ex->scale = scale;
+	ex->rgb[0] = red;
+	ex->rgb[1] = green;
+	ex->rgb[2] = blue;
 
 	ex->flags |= renderflags;
 
@@ -2559,7 +2579,7 @@ void CL_ParseEffect (qboolean effect2)
 	framerate = MSG_ReadByte();
 
 	mod = cl.model_precache[modelindex];
-	CL_SpawnSpriteEffect(org, NULL, NULL, mod, startframe, framecount, framerate, mod->type==mod_sprite?-1:1, 1, 0, 0, P_INVALID, 0, 0);
+	CL_SpawnSpriteEffect(org, NULL, NULL, mod, startframe, framecount, framerate, mod->type==mod_sprite?-1:1, 1, 0, 0, P_INVALID, 0, 0, 1.0f, 1.0f, 1.0f);
 }
 
 #ifdef Q2CLIENT
@@ -2632,14 +2652,22 @@ void CLQ2_ParseTEnt (void)
 	int		r;
 	int		ent;
 //	int		magnitude;
-	explosion_t	*ex;
+//	explosion_t	*ex;
 
 	type = MSG_ReadByte ();
 
 	if (type <= Q2TE_MAX)
+	{
+		if (cl_shownet.ival > 1)
+			Con_Printf("\t%s\n", q2efnames[type]);
 		pt = pt_q2[type];
+	}
 	else
+	{
+		if (cl_shownet.ival > 1)
+			Con_Printf("\tTE%u\n", type);
 		pt = P_INVALID;
+	}
 	switch (type)
 	{
 	case Q2TE_GUNSHOT:	//grey tall thing with smoke+sparks
@@ -2672,9 +2700,12 @@ void CLQ2_ParseTEnt (void)
 	case Q2TE_DEBUGTRAIL:	//long lived blue trail
 	case Q2TE_BUBBLETRAIL2:	//grey rising trail
 	case Q2TE_BLUEHYPERBLASTER:	//TE_BLASTER without model+light
+	case Q2TEEX_RAILTRAIL2:
+	case Q2TEEX_BFGZAP:
 		MSG_ReadPos (pos);
 		MSG_ReadPos (pos2);
 		P_ParticleTrail(pos, pos2, pt, 1, 0, NULL, NULL);
+		P_RunParticleEffectTypeString(pos2, NULL, 1, va("%s_end", q2efnames[type]));
 		break;
 	case Q2TE_EXPLOSION1:	//column
 	case Q2TE_EXPLOSION2:	//splits
@@ -2774,16 +2805,38 @@ void CLQ2_ParseTEnt (void)
 		Con_Printf("FIXME: Q2TE_WIDOWBEAMOUT not implemented\n");
 		break;
 
-	case Q2TE_RAILTRAIL2:		/*not implemented in vanilla*/
+	//case Q2TE_RAILTRAIL2:		/*not implemented in vanilla*/
 	case Q2TE_FLAME:			/*not implemented in vanilla*/
 		Host_EndGame ("CLQ2_ParseTEnt: bad/non-implemented type %i", type);
 		break;
 
+	case Q2TEEX_BLUEHYPERBLASTER:
+	case Q2TEEX_BERSERK_SLAM:
+		MSG_ReadPos (pos);
+		MSG_ReadDir (pos2);
+		P_RunParticleEffectType(pos, dir, 1, pt);
+		break;
 
+	case Q2TEEX_GRAPPLE_CABLE_2:
+		CL_ParseBeam (BT_Q2GRAPPLE);
+		break;
+
+	case Q2TEEX_POWER_SPLASH:
+		MSGCL_ReadEntity();
+		MSG_ReadByte();
+		break;
+	case Q2TEEX_LIGHTNING_BEAM:
+		CL_ParseBeam (BT_Q2LIGHTNING);
+		break;
+	case Q2TEEX_EXPLOSION1_NL:
+	case Q2TEEX_EXPLOSION2_NL:
+		MSG_ReadPos (pos);
+		P_RunParticleEffectType(pos, NULL, 1, pt);
+		break;
 
 
 	//My old attempt at running AlienArena years ago. probably not enough now. Other engines will have other effects.
-	case CRTE_LEADERBLASTER:
+/*	case CRTE_LEADERBLASTER:
 		Host_EndGame ("CLQ2_ParseTEnt: bad/non-implemented type %i", type);
 	case CRTE_BLASTER_MUZZLEFLASH:
 		MSG_ReadPos (pos);
@@ -2825,7 +2878,7 @@ void CLQ2_ParseTEnt (void)
 		MSG_ReadPos (pos2);
 		P_ParticleTrail(pos, pos2, P_FindParticleType("q2part.TR_BLASTERTRAIL2"), 1, 0, NULL, NULL);
 		break;
-/*	case CRTE_STAIN:
+	case CRTE_STAIN:
 		Host_EndGame ("CLQ2_ParseTEnt: bad/non-implemented type %i", type);
 	case CRTE_FIRE:
 		Host_EndGame ("CLQ2_ParseTEnt: bad/non-implemented type %i", type);
@@ -3260,6 +3313,9 @@ void CL_UpdateExplosions (float frametime)
 		ent->framestate.g[FS_REG].frame[0] = of+firstframe;
 		ent->framestate.g[FS_REG].lerpweight[1] = (f - (int)f);
 		ent->framestate.g[FS_REG].lerpweight[0] = 1-ent->framestate.g[FS_REG].lerpweight[1];
+		ent->shaderRGBAf[0] = ex->rgb[0];
+		ent->shaderRGBAf[1] = ex->rgb[1];
+		ent->shaderRGBAf[2] = ex->rgb[2];
 		ent->shaderRGBAf[3] = (1.0 - f/(numframes))*(ex->startalpha-ex->endalpha) + ex->endalpha;
 		ent->flags = ex->flags;
 		ent->scale = scale*ex->scale;

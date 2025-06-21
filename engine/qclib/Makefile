@@ -1,5 +1,5 @@
 COMMON_OBJS=comprout.o hash.o qcc_cmdlib.o qcd_main.o
-QCC_OBJS=qccmain.o qcc_pr_comp.o qcc_pr_lex.o packager.o
+QCC_OBJS=qccmain.o qcc_pr_comp.o qcc_pr_lex.o packager.o decomp.o
 VM_OBJS=pr_exec.o pr_edict.o pr_multi.o initlib.o qcdecomp.o
 GTKGUI_OBJS=qcc_gtk.o qccguistuff.o
 WIN32GUI_OBJS=qccgui.o qccguistuff.o packager.o
@@ -102,10 +102,10 @@ qcvm.a: $(QCC_OBJS) $(VM_OBJS) $(COMMON_OBJS)
 test.o: test.c
 	$(DO_CC)
 
-testapp.bin: test.o qcvm.a
-	$(CC) $(BASE_CFLAGS) $(CFLAGS) -o testapp.bin -O3 $(BASE_LDFLAGS) $^ -lm -lz
+qcvm: test.o qcvm.a
+	$(CC) $(BASE_CFLAGS) $(CFLAGS) -o qcvm -O3 $(BASE_LDFLAGS) $^ -lm -lz -ggdb
 
-tests: testapp.bin
+tests: qcvm
 	@echo Running Tests...
 	@$(foreach a,$(wildcard tests/*.src), echo TEST: $a; rm progs.dat; ./testapp.bin progs.dat -srcfile $a; echo; echo)
 	@echo Tests run.

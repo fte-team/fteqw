@@ -1,7 +1,7 @@
 #include "quakedef.h"
 #ifdef MAP_PROC
 
-#ifndef SERVERONLY
+#ifdef HAVE_CLIENT
 #include "shader.h"
 #endif
 #include "com_mesh.h"
@@ -10,15 +10,9 @@
 //fixme: merge areas and static ents too somehow.
 
 void Mod_SetParent (mnode_t *node, mnode_t *parent);
-static int	D3_ClusterForPoint (struct model_s *model, vec3_t point);
+static int	D3_ClusterForPoint (struct model_s *model, const vec3_t point, int *areaout);
 
-#ifndef SERVERONLY
-void ModD3_GenAreaVBO(void *ctx, void *data, size_t a, size_t b)
-{
-	model_t *sub = ctx;
-	BE_GenBrushModelVBO(sub);
-}
-
+#ifdef HAVE_CLIENT
 static void R_BuildDefaultTexnums_Doom3(shader_t *shader)
 {
 	extern qboolean		r_loadbumpmapping;
@@ -140,6 +134,37 @@ static void R_BuildDefaultTexnums_Doom3(shader_t *shader)
 		}
 	}
 }
+static void ModD3_GenAreaVBO(void *ctx, void *data, size_t a, size_t barg)
+{
+	model_t *sub = ctx;
+	batch_t *b = sub->batches[0];
+	int surf;
+	sub->batches[0] = NULL;
+
+	for (surf = 0; surf < sub->numbatches; surf++)
+		sub->numsurfaces += b[surf].meshes;
+	sub->texinfo = ZG_Malloc(&sub->memgroup, sizeof(*sub->texinfo)*sub->numsurfaces);
+	sub->surfaces = ZG_Malloc(&sub->memgroup, sizeof(*sub->surfaces)*sub->numsurfaces);
+	sub->firstmodelsurface = sub->nummodelsurfaces = 0;
+
+	for (surf = 0; surf < sub->numbatches; surf++)
+	{
+		b[surf].shader = R_RegisterShader_Vertex(sub, b[surf].texture->name);
+		R_BuildDefaultTexnums_Doom3(b[surf].shader);
+
+		//now we know its sort key, we can link it properly. *sigh*
+		b[surf].next = sub->batches[b[surf].shader->sort];
+		sub->batches[b[surf].shader->sort] = &b[surf];
+
+		//all this extra stuff so r_showshaders works. *sigh*
+		sub->surfaces[sub->nummodelsurfaces].texinfo = &sub->texinfo[sub->nummodelsurfaces];
+		sub->surfaces[sub->nummodelsurfaces].texinfo->texture = b[surf].texture;
+		sub->surfaces[sub->nummodelsurfaces].mesh = b[surf].mesh[0];
+		sub->nummodelsurfaces++;
+	}
+
+	BE_GenBrushModelVBO(sub);
+}
 
 static qboolean Mod_LoadMap_Proc(model_t *model, char *data)
 {
@@ -186,8 +211,14 @@ static qboolean Mod_LoadMap_Proc(model_t *model, char *data)
 			if (strcmp(token, "{"))
 				return false;
 
-			data = COM_ParseOut(data, token, sizeof(token));
-			sub = Mod_FindName(va("*%s", token));
+			*token = '*';
+			data = COM_ParseOut(data, token+1, sizeof(token)-1);
+			Q_strncatz(token, ":", sizeof(token));
+			Q_strncatz(token, model->publicname, sizeof(token));
+			sub = Mod_FindName(token);
+
+			if (sub->loadstate != MLS_NOTLOADED)
+				return false;
 
 			data = COM_ParseOut(data, token, sizeof(token));
 			numsurfs = atoi(token);
@@ -241,15 +272,13 @@ static qboolean Mod_LoadMap_Proc(model_t *model, char *data)
 				b[surf].lmlightstyle[3] = INVALID_LIGHTSTYLE;
 
 				data = COM_ParseOut(data, token, sizeof(token));
-				b[surf].shader = R_RegisterShader_Vertex(token);
-				R_BuildDefaultTexnums_Doom3(b[surf].shader);
+				b[surf].texture = ZG_Malloc(&sub->memgroup, sizeof(*b[surf].texture));
+				Q_strncpyz(b[surf].texture->name, token, sizeof(b[surf].texture->name));
+
 				data = COM_ParseOut(data, token, sizeof(token));
 				numverts = atoi(token);
 				data = COM_ParseOut(data, token, sizeof(token));
 				numindicies = atoi(token);
-
-				b[surf].next = sub->batches[b[surf].shader->sort];
-				sub->batches[b[surf].shader->sort] = &b[surf];
 
 				m[surf].numvertexes = numverts;
 				m[surf].numindexes = numindicies;
@@ -334,9 +363,13 @@ static qboolean Mod_LoadMap_Proc(model_t *model, char *data)
 			if (strcmp(token, "}"))
 				return false;
 //			sub->loadstate = MLS_LOADED;
-			sub->fromgame = fg_doom3;
+			sub->fromgame = fg_new;
 			sub->type = mod_brush;
 			sub->lightmaps.surfstyles = 1;
+
+			memset(sub->batches, 0, sizeof(sub->batches));
+			sub->batches[0] = b;
+			sub->numbatches = numsurfs;
 
 			COM_AddWork(WG_MAIN, ModD3_GenAreaVBO, sub, NULL, MLS_LOADED, 0);
 			COM_AddWork(WG_MAIN, Mod_ModelLoaded, sub, NULL, MLS_LOADED, 0);
@@ -536,7 +569,7 @@ static void D3_WalkPortal(model_t *mod, int start, vec_t bounds[4], unsigned cha
 	}
 }
 
-unsigned char *D3_CalcVis(model_t *mod, vec3_t org)
+static void D3_PrepareFrame(model_t *mod, refdef_t *refdef, int inarea, int inclusters[2], pvsbuffer_t *vis, qbyte **entvis_out, qbyte **surfvis_out)
 {
 	int start;
 	static qbyte visbuf[256];
@@ -546,7 +579,7 @@ unsigned char *D3_CalcVis(model_t *mod, vec3_t org)
 	int area;
 	entity_t ent;
 
-	start = D3_ClusterForPoint(mod, org);
+	start = D3_ClusterForPoint(mod, refdef->vieworg, NULL);
 	/*figure out which area we're in*/
 	if (start < 0)
 	{
@@ -588,13 +621,25 @@ unsigned char *D3_CalcVis(model_t *mod, vec3_t org)
 			V_AddEntity(&ent);
 		}
 	}
-	return usevis;
+	*entvis_out = *surfvis_out = usevis;
 }
 
+static void D3_StainNode			(struct model_s *model, float *parms)
+{
+}
+
+static void D3_LightPointValues (struct model_s *model, const vec3_t point, vec3_t res_diffuse, vec3_t res_ambient, vec3_t res_dir)
+{
+	/*basically require rtlighting for any light*/
+	VectorClear(res_diffuse);
+	VectorClear(res_ambient);
+	VectorClear(res_dir);
+	res_dir[2] = 1;
+}
 #endif
 
 //edict system as opposed to q2 game dll system.
-static void D3_FindTouchedLeafs (struct model_s *model, struct pvscache_s *ent, vec3_t cullmins, vec3_t cullmaxs)
+static void D3_FindTouchedLeafs (struct model_s *model, struct pvscache_s *ent, const vec3_t cullmins, const vec3_t cullmaxs)
 {
 }
 static qbyte *D3_ClusterPVS (struct model_s *model, int num, pvsbuffer_t *buffer, pvsmerge_t merge)
@@ -602,12 +647,14 @@ static qbyte *D3_ClusterPVS (struct model_s *model, int num, pvsbuffer_t *buffer
 	memset(buffer->buffer, 0xff, buffer->buffersize);
 	return buffer->buffer;
 }
-static int	D3_ClusterForPoint (struct model_s *model, vec3_t point)
+static int	D3_ClusterForPoint (struct model_s *model, const vec3_t point, int *areaout)
 {
 	float p;
 	int c;
 	mnode_t *node;
 	node = model->nodes;
+	if (areaout)
+		*areaout = 0;
 	while(1)
 	{
 		p = DotProduct(point, node->plane->normal) + node->plane->dist;
@@ -618,26 +665,12 @@ static int	D3_ClusterForPoint (struct model_s *model, vec3_t point)
 	}
 	return 0;
 }
-static unsigned int D3_FatPVS (struct model_s *model, vec3_t org, pvsbuffer_t *pvsbuffer, qboolean merge)
+static unsigned int D3_FatPVS (struct model_s *model, const vec3_t org, pvsbuffer_t *pvsbuffer, qboolean merge)
 {
 	return 0;
 }
 
-static void D3_StainNode			(struct mnode_s *node, float *parms)
-{
-}
-
-static void D3_LightPointValues (struct model_s *model, vec3_t point, vec3_t res_diffuse, vec3_t res_ambient, vec3_t res_dir)
-{
-	/*basically require rtlighting for any light*/
-	VectorClear(res_diffuse);
-	VectorClear(res_ambient);
-	VectorClear(res_dir);
-	res_dir[2] = 1;
-}
-
-
-static qboolean D3_EdictInFatPVS (struct model_s *model, struct pvscache_s *edict, qbyte *pvsbuffer)
+static qboolean D3_EdictInFatPVS (struct model_s *model, const struct pvscache_s *edict, const qbyte *pvsbuffer, const int *areas)
 {
 	int i;
 	for (i = 0; i < edict->num_leafs; i++)
@@ -879,7 +912,7 @@ static void D3_InsertClipBrush(cm_node_t *node, cm_brush_t *brush)
 	node->brushlist = brush;
 }
 
-static void D3_RecursiveSurfCheck (cm_node_t *node, float p1f, float p2f, vec3_t p1, vec3_t p2)
+static void D3_RecursiveSurfCheck (cm_node_t *node, float p1f, float p2f, const vec3_t p1, const vec3_t p2)
 {
 	float		t1, t2, offset;
 	float		frac, frac2;
@@ -973,7 +1006,7 @@ return;
 	D3_RecursiveSurfCheck (node->child[side^1], midf, p2f, mid, p2);
 }
 
-static qboolean D3_Trace (struct model_s *model, int hulloverride, framestate_t *framestate, vec3_t axis[3], vec3_t p1, vec3_t p2, vec3_t mins, vec3_t maxs, qboolean capsule, unsigned int hitcontentsmask, struct trace_s *trace)
+static qboolean D3_Trace (struct model_s *model, int hulloverride, const framestate_t *framestate, const vec3_t axis[3], const vec3_t p1, const vec3_t p2, const vec3_t mins, const vec3_t maxs, qboolean capsule, unsigned int hitcontentsmask, struct trace_s *trace)
 {
 	int i;
 	float e1,e2;
@@ -1055,21 +1088,21 @@ static qboolean D3_Trace (struct model_s *model, int hulloverride, framestate_t 
 	return false;
 }
 
-static unsigned int D3_PointContents (struct model_s *model, vec3_t axis[3], vec3_t p)
+static unsigned int D3_PointContents (struct model_s *model, const vec3_t axis[3], const vec3_t p)
 {
 	cm_node_t *node = model->cnodes;
 	cm_brush_t *brush;
 	float t1;
 	unsigned int contents = 0;
 	int i;
+	vec3_t np;
 
 	if (axis)
 	{
-		vec3_t tmp;
-		VectorCopy(p, tmp);
-		p[0] = DotProduct(tmp, axis[0]);
-		p[1] = DotProduct(tmp, axis[1]);
-		p[2] = DotProduct(tmp, axis[2]);
+		np[0] = DotProduct(p, axis[0]);
+		np[1] = DotProduct(p, axis[1]);
+		np[2] = DotProduct(p, axis[2]);
+		p = np;
 	}
 
 	while(node)
@@ -1106,7 +1139,7 @@ static unsigned int D3_PointContents (struct model_s *model, vec3_t axis[3], vec
 	return contents;
 }
 
-#define ensurenewtoken(t) buf = COM_ParseOut(buf, token, sizeof(token)); if (strcmp(token, t)) break;
+#define ensurenewtoken(t) buf = COM_ParseOut(buf, token, sizeof(token)); if (strcmp(token, t)) break
 
 static int D3_ParseContents(char *str)
 {
@@ -1173,7 +1206,13 @@ qboolean QDECL D3_LoadMap_CollisionMap(model_t *mod, void *buf, size_t bufsize)
 			if (!strcmp(token, "worldMap"))
 				cmod = mod;
 			else
+			{
+				Q_strncatz(token, ":", sizeof(token));
+				Q_strncatz(token, mod->publicname, sizeof(token));
 				cmod = Mod_FindName(token);
+				if (cmod->loadstate != MLS_NOTLOADED)
+					return false;
+			}
 
 			if (filever == 3)
 			{
@@ -1298,7 +1337,7 @@ qboolean QDECL D3_LoadMap_CollisionMap(model_t *mod, void *buf, size_t bufsize)
 				ensurenewtoken(")");
 
 				buf = COM_ParseOut(buf, token, sizeof(token));
-#ifndef SERVERONLY
+#ifdef HAVE_CLIENT
 //				surf->shader = R_RegisterShader_Vertex(token);
 //				R_BuildDefaultTexnums_Doom3(NULL, surf->shader);
 #endif
@@ -1429,31 +1468,36 @@ qboolean QDECL D3_LoadMap_CollisionMap(model_t *mod, void *buf, size_t bufsize)
 
 	/*load up the .map so we can get some entities (anyone going to bother making a qc mod compatible with this?)*/
 	COM_StripExtension(mod->name, token, sizeof(token));
-	Mod_SetEntitiesString(mod, FS_LoadMallocFile(va("%s.map", token), NULL), true);
+	Q_strncatz(token, ".map", sizeof(token));
+	Mod_SetEntitiesString(mod, FS_LoadMallocFile(token, NULL), true);
 
 	mod->funcs.FindTouchedLeafs = D3_FindTouchedLeafs;
 	mod->funcs.NativeTrace = D3_Trace;
 	mod->funcs.PointContents = D3_PointContents;
 	mod->funcs.FatPVS = D3_FatPVS;
 	mod->funcs.ClusterForPoint = D3_ClusterForPoint;
-	mod->funcs.StainNode = D3_StainNode;
-	mod->funcs.LightPointValues = D3_LightPointValues;
 	mod->funcs.EdictInFatPVS = D3_EdictInFatPVS;
 	mod->funcs.ClusterPVS = D3_ClusterPVS;
+#ifdef HAVE_CLIENT
+	mod->funcs.StainNode = D3_StainNode;
+	mod->funcs.LightPointValues = D3_LightPointValues;
+	mod->funcs.PrepareFrame = D3_PrepareFrame;
+#endif
 
-	mod->fromgame = fg_doom3;
+	mod->type = mod_brush;	//err, kinda, sorta, maybe.
+	mod->fromgame = fg_new;
 
 	/*that's the physics sorted*/
-#ifndef SERVERONLY
+#ifdef HAVE_CLIENT
 	if (!isDedicated)
 	{
 		COM_StripExtension(mod->name, token, sizeof(token));
-		buf = FS_LoadMallocFile(va("%s.proc", token), NULL);
+		Q_strncatz(token, ".proc", sizeof(token));
+		buf = FS_LoadMallocFile(token, NULL);
 		Mod_LoadMap_Proc(mod, buf);
 		BZ_Free(buf);
 	}
 #endif
-
 
 	return true;
 }

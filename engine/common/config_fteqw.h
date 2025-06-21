@@ -21,6 +21,7 @@
 //#define GAME_DOWNLOADSURL		NULL			//url for the package manger to update from
 //#define GAME_DEFAULTCMDS		NULL			//a string containing the things you want to exec in order to override default.cfg 
 
+//#define ENGINE_HAS_ZIP	//when defined, the engine is effectively a self-extrating zip with the gamedata zipped onto the end (if it in turn contains nested packages then they should probably be STOREd pk3s)
 
 // Allowed renderers... There should ONLY be undefs here (other C files won't be pulled in automatically)
 //#undef GLQUAKE
@@ -36,7 +37,6 @@
 #define PSET_SCRIPT				//scriptable particles (both fte's and importing effectinfo)
 #define RTLIGHTS
 #define RUNTIMELIGHTING			//automatic generation of .lit files
-#define R_XFLIP					//old silly thing
 
 //Extra misc features.
 //#define CLIENTONLY			//
@@ -154,7 +154,7 @@
 //#define IRCCONNECT			//lame support for routing game packets via irc server. not a good idea.
 #define SUPPORT_ICE				//Internet Connectivity Establishment, for use by plugins to establish voice or game connections.
 #define CL_MASTER				//Clientside Server Browser functionality.
-#define PACKAGEMANAGER			//Allows the user to enable/disable/download(with WEBCLIENT) packages and plugins.
+#define PACKAGEMANAGER			//Allows the user to enable/disable/download(with WEBCLIENT) packages and plugins. Also handles map packages.
 
 // Audio Drivers
 #define AVAIL_OPENAL
@@ -191,22 +191,23 @@
 ////#define QTERM				//qterm... adds a console command that allows running programs from within quake - bit like xterm.
 //#define SVCHAT					//ancient lame builtin to support NPC-style chat...
 ////#define SV_MASTER			//Support running the server as a master server. Should probably not be used.
-////#define WEBSERVER			//outdated sv_http cvar. new stuff acts via sv_port_tcp instead (which also gives https).
 ////#define QUAKESPYAPI			//define this if you want the engine to be usable via gamespy/quakespy, which has been dead for a long time now. forces the client to use a single port for all outgoing connections, which hurts reconnects.
 
 
-#ifdef COMPILE_OPTS
+#ifdef COMPILE_OPTS //This is a block of hints for the makefile to decide which deps to link.
 //things to configure qclib, which annoyingly doesn't include this file itself
 //-DOMIT_QCC	//disable the built-in qcc 
 //-DSIMPLE_QCVM	//disable qc debugging and 32bit opcodes
 #ifndef AVAIL_ZLIB
 //-DNO_ZLIB	//disable zlib
 #endif
-#ifdef AVAIL_PNGLIB
--DLINK_PNG
-#endif
-#ifdef AVAIL_JPEGLIB
--DLINK_JPEG
+#ifndef FTE_TARGET_WEB
+	#ifdef AVAIL_PNGLIB
+		-DLINK_PNG
+	#endif
+	#ifdef AVAIL_JPEGLIB
+		-DLINK_JPEG
+	#endif
 #endif
 #if defined(PLUGINS) && (defined(Q3SERVER) || defined(Q3CLIENT))
 -DLINK_QUAKE3	//ask the makefile to bake the quake3 plugin into the engine itself.
@@ -217,15 +218,24 @@
 #ifndef AVAIL_BOTLIB
 -DNO_BOTLIB	//disable static botlib
 #endif
-//-DNO_VORBISFILE	//disable static vorbisfile
+#ifndef FTE_TARGET_WEB
+-DLINK_VORBISFILE	//disable static vorbisfile
+#endif
 
 
 //enable some staticaly linked libraries
+#ifndef FTE_TARGET_WEB
 -DLINK_FREETYPE		//international text requires international fonts.
+#endif
 
 #if defined(USE_INTERNAL_ODE) && !defined(ODE_DYNAMIC)
 -DLINK_ODE
 #endif
+
+#if defined(PLUGINS)
+//-DLINK_EZHUD		//uncomment this line to statically link the ezhud plugin (eg for the web-rel target).
+#endif
+//-DLINK_OPENSSL	//statically link our openssl plugin into the engine instead of being separate. NOTE: openssl<3 is a license no-go, 3 still requires gpl3 (2 prohits patent).
 
 //-Os		//optimise for size instead of speed. less cpu cache needed means that its sometimes faster anyway.
 #endif

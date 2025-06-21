@@ -21,7 +21,9 @@ typedef enum
 	Q2EV_FALL,
 	Q2EV_FALLFAR,
 	Q2EV_PLAYER_TELEPORT,
-	Q2EV_OTHER_TELEPORT
+	Q2EV_OTHER_TELEPORT,
+	Q2EXEV_OTHER_FOOTSTEP,
+	Q2EXEV_LADDER_STEP,
 } q2entity_event_t;
 
 #define Q2PMF_NO_PREDICTION	64	// temporarily disables prediction (used for grappling hook)
@@ -93,6 +95,8 @@ typedef struct q2centity_s
 	trailkey_t emitstate;
 //	float		trailcount;			// for diminishing grenade trails
 	vec3_t		lerp_origin;		// for trails (variable hz)
+	int			oldframe;
+	float		oldframetime;
 
 	float		fly_stoptime;
 } q2centity_t;
@@ -149,6 +153,12 @@ void CLQ2_EntityEvent(entity_state_t *es)
 		break;
 	case Q2EV_FALLFAR:
 		Q2S_StartSound (NULL, es->number, CHAN_AUTO, S_PrecacheSexedSound (es->number, "*fall1.wav"), 1, ATTN_NORM, 0);
+		break;
+	case Q2EXEV_OTHER_FOOTSTEP:
+		pe->RunParticleEffectState(es->origin, NULL, 1, pt_q2[Q2PT_OTHER_FOOTSTEP], NULL);
+		break;
+	case Q2EXEV_LADDER_STEP:
+		pe->RunParticleEffectState(es->origin, NULL, 1, pt_q2[Q2PT_LADDER_STEP], NULL);
 		break;
 	default:
 		Con_Printf("event %u not supported\n", es->u.q2.event);
@@ -268,14 +278,17 @@ void CLQ2_WriteDemoBaselines(sizebuf_t *buf)
 		}
 
 		MSG_WriteByte (buf, svcq2_spawnbaseline);
-		MSGQ2_WriteDeltaEntity(&nullstate, &es, buf, true, true);
+		MSGQ2_WriteDeltaEntity(&nullstate, &es, buf, true, true, cls.protocol_q2==PROTOCOL_VERSION_Q2EX);
 	}
 }
 #endif
 
 void CLQ2_ClearState(void)
 {
+	int i;
 	memset(cl_entities, 0, sizeof(cl_entities));
+	for (i = 0; i < MAX_Q2EDICTS; i++)
+		cl_entities[i].baseline = nullentitystate;
 }
 
 #include "q2m_flash.c"
@@ -658,6 +671,10 @@ void CLQ2_RunMuzzleFlash2 (int ent, int flash_number)
 // --- Xian's shit ends ---
 
   //hmm... he must take AGES on the loo.... :p
+
+	default:
+		Con_Printf(CON_WARNING"CLQ2_RunMuzzleFlash2: %i not implemented\n", flash_number);
+		break;
 	}
 }
 
@@ -851,6 +868,15 @@ void CLQ2_ParseMuzzleFlash (void)
 		break;
 // PGM
 // ======================
+
+	case Q2EXMZ_BFG2:
+	case Q2EXMZ_PHALANX2:
+	case Q2EXMZ_PROX:
+	//case Q2EXMZ_ETF_RIFLE_2:	//erk?
+		Con_Printf(CON_WARNING"CLQ2_ParseMuzzleFlash: %i not implemented\n", weapon);
+		break;
+	default:
+		Host_EndGame ("CL_ParseMuzzleFlash: bad effect index");
 	}
 }
 
@@ -864,6 +890,19 @@ void CLQ2_ParseMuzzleFlash2 (void)
 		Host_EndGame ("CL_ParseMuzzleFlash2: bad entity");
 
 	flash_number = MSG_ReadByte ();
+
+	CLQ2_RunMuzzleFlash2(ent, flash_number);
+}
+void CLQ2EX_ParseMuzzleFlash3 (void)
+{	//same as 2, but with a short for more numbers.
+	int			ent;
+	int			flash_number;
+
+	ent = (unsigned short)(short)MSG_ReadShort ();
+	if (ent < 1 || ent >= Q2MAX_EDICTS)
+		Host_EndGame ("CL_ParseMuzzleFlash3: bad entity");
+
+	flash_number = MSG_ReadUInt16 ();
 
 	CLQ2_RunMuzzleFlash2(ent, flash_number);
 }
@@ -891,9 +930,9 @@ Returns the entity number and the header bits
 =================
 */
 //static int	bitcounts[32];	/// just for protocol profiling
-static int CLQ2_ParseEntityBits (unsigned int *bits)
+static int CLQ2_ParseEntityBits (quint64_t *bits)
 {
-	unsigned	b, total;
+	quint64_t	b, total;
 //	int			i;
 	int			number;
 
@@ -914,6 +953,12 @@ static int CLQ2_ParseEntityBits (unsigned int *bits)
 		total |= b<<24;
 	}
 
+	if (total & Q2UEX_MOREBITS4)
+	{
+		b = MSG_ReadByte ();
+		total |= b<<32;
+	}
+
 	// count the bits for net profiling
 /*	for (i=0 ; i<32 ; i++)
 		if (total&(1<<i))
@@ -929,6 +974,16 @@ static int CLQ2_ParseEntityBits (unsigned int *bits)
 	return number;
 }
 
+static unsigned int MSG_ReadSizeQ2E (void)
+{
+	unsigned int solid = MSG_ReadLong();
+	if (solid != ES_SOLID_BSP && solid != ES_SOLID_NOT)
+		solid =	(((solid>>0)&0xff)<<0)
+			|	(((solid>>16)&0xff)<<8)
+			|	((((solid>>24)&0xff)+32768-32)<<16);	/*up can be negative*/
+	return solid;
+}
+
 /*
 ==================
 CL_ParseDelta
@@ -936,7 +991,7 @@ CL_ParseDelta
 Can go from either a baseline or a previous packet_entity
 ==================
 */
-static void CLQ2_ParseDelta (entity_state_t *from, entity_state_t *to, int number, int bits)
+static void CLQ2_ParseDelta (entity_state_t *from, entity_state_t *to, int number, quint64_t bits)
 {
 	// set everything to the state we are delta'ing from
 	*to = *from;
@@ -977,6 +1032,8 @@ static void CLQ2_ParseDelta (entity_state_t *from, entity_state_t *to, int numbe
 		to->frame = MSG_ReadByte ();
 	if (bits & Q2U_FRAME16)
 		to->frame = MSG_ReadUInt16();
+	if ((bits & Q2U_FRAME8) && (bits & Q2U_FRAME16))
+		Con_Printf("\t8bit AND 16bit frame?\n");
 
 	if ((bits & Q2U_SKIN8) && (bits & Q2U_SKIN16))		//used for laser colors
 		to->skinnum = MSG_ReadLong();
@@ -985,52 +1042,117 @@ static void CLQ2_ParseDelta (entity_state_t *from, entity_state_t *to, int numbe
 	else if (bits & Q2U_SKIN16)
 		to->skinnum = MSG_ReadUInt16();
 
-	if ( (bits & (Q2U_EFFECTS8|Q2U_EFFECTS16)) == (Q2U_EFFECTS8|Q2U_EFFECTS16) )
-		to->effects = MSG_ReadLong();
-	else if (bits & Q2U_EFFECTS8)
-		to->effects = MSG_ReadByte();
-	else if (bits & Q2U_EFFECTS16)
-		to->effects = MSG_ReadUInt16();
+	if (bits & (Q2U_EFFECTS8|Q2U_EFFECTS16|Q2UEX_EFFECTS64))
+	{
+		unsigned int lo = 0;
+		if (bits&Q2UEX_EFFECTS64)
+			lo = MSG_ReadLong();
+
+		if ( (bits & (Q2U_EFFECTS8|Q2U_EFFECTS16)) == (Q2U_EFFECTS8|Q2U_EFFECTS16) )
+			to->effects = MSG_ReadLong();
+		else if (bits & Q2U_EFFECTS16)
+			to->effects = MSG_ReadUInt16();
+		else
+			to->effects = MSG_ReadByte();
+
+		if (bits&Q2UEX_EFFECTS64)
+			to->effects = ((quint64_t)to->effects<<32) | lo;
+	}
 
 	if ( (bits & (Q2U_RENDERFX8|Q2U_RENDERFX16)) == (Q2U_RENDERFX8|Q2U_RENDERFX16) )
-		to->u.q2.renderfx = MSG_ReadLong() & 0x0007ffff;	//only the standard ones actually supported by vanilla q2.
+		to->u.q2.renderfx = MSG_ReadLong() & 0x07ffffff;	//only the standard ones actually supported by vanilla q2 without corrupting fte's own ones.
 	else if (bits & Q2U_RENDERFX8)
 		to->u.q2.renderfx = MSG_ReadByte();
 	else if (bits & Q2U_RENDERFX16)
 		to->u.q2.renderfx = MSG_ReadUInt16();
 
-	if (bits & Q2U_ORIGIN1)
-		to->origin[0] = MSG_ReadCoord ();
-	if (bits & Q2U_ORIGIN2)
-		to->origin[1] = MSG_ReadCoord ();
-	if (bits & Q2U_ORIGIN3)
-		to->origin[2] = MSG_ReadCoord ();
-	
-	if ((bits & Q2UX_ANGLE16) && (net_message.prim.flags & NPQ2_ANG16))
+	if (cls.protocol_q2 == PROTOCOL_VERSION_Q2EX)
 	{
+		if (bits & Q2U_SOLID)
+			to->solidsize = MSG_ReadSizeQ2E();
+
+		if (!to->solidsize)
+		{	//demos reportedly compress these.
+			if (bits & Q2U_ORIGIN1)
+				to->origin[0] = MSG_ReadCoord ();
+			if (bits & Q2U_ORIGIN2)
+				to->origin[1] = MSG_ReadCoord ();
+			if (bits & Q2U_ORIGIN3)
+				to->origin[2] = MSG_ReadCoord ();
+
+			if (bits & Q2U_OLDORIGIN)
+			{
+				to->u.q2.old_origin[0] = MSG_ReadCoord();
+				to->u.q2.old_origin[1] = MSG_ReadCoord();
+				to->u.q2.old_origin[2] = MSG_ReadCoord();
+			}
+		}
+		else
+		{
+			if (bits & Q2U_ORIGIN1)
+				to->origin[0] = MSG_ReadFloat ();
+			if (bits & Q2U_ORIGIN2)
+				to->origin[1] = MSG_ReadFloat ();
+			if (bits & Q2U_ORIGIN3)
+				to->origin[2] = MSG_ReadFloat ();
+
+			if (bits & Q2U_OLDORIGIN)
+			{
+				to->u.q2.old_origin[0] = MSG_ReadFloat();
+				to->u.q2.old_origin[1] = MSG_ReadFloat();
+				to->u.q2.old_origin[2] = MSG_ReadFloat();
+			}
+		}
+
 		if (bits & Q2U_ANGLE1)
-			to->angles[0] = MSG_ReadAngle16();
+			to->angles[0] = MSG_ReadFloat();
 		if (bits & Q2U_ANGLE2)
-			to->angles[1] = MSG_ReadAngle16();
+			to->angles[1] = MSG_ReadFloat();
 		if (bits & Q2U_ANGLE3)
-			to->angles[2] = MSG_ReadAngle16();
+			to->angles[2] = MSG_ReadFloat();
 	}
 	else
 	{
-		if (bits & Q2U_ANGLE1)
-			to->angles[0] = MSG_ReadAngle();
-		if (bits & Q2U_ANGLE2)
-			to->angles[1] = MSG_ReadAngle();
-		if (bits & Q2U_ANGLE3)
-			to->angles[2] = MSG_ReadAngle();
-	}
+		if (bits & Q2U_ORIGIN1)
+			to->origin[0] = MSG_ReadCoord ();
+		if (bits & Q2U_ORIGIN2)
+			to->origin[1] = MSG_ReadCoord ();
+		if (bits & Q2U_ORIGIN3)
+			to->origin[2] = MSG_ReadCoord ();
 
-	if (bits & Q2U_OLDORIGIN)
-		MSG_ReadPos (to->u.q2.old_origin);
+		if ((bits & Q2UX_ANGLE16) && (net_message.prim.flags & NPQ2_ANG16))
+		{
+			if (bits & Q2U_ANGLE1)
+				to->angles[0] = MSG_ReadAngle16();
+			if (bits & Q2U_ANGLE2)
+				to->angles[1] = MSG_ReadAngle16();
+			if (bits & Q2U_ANGLE3)
+				to->angles[2] = MSG_ReadAngle16();
+		}
+		else
+		{
+			if (bits & Q2U_ANGLE1)
+				to->angles[0] = MSG_ReadAngle();
+			if (bits & Q2U_ANGLE2)
+				to->angles[1] = MSG_ReadAngle();
+			if (bits & Q2U_ANGLE3)
+				to->angles[2] = MSG_ReadAngle();
+		}
+
+		if (bits & Q2U_OLDORIGIN)
+			MSG_ReadPos (to->u.q2.old_origin);
+	}
 
 	if (bits & Q2U_SOUND)
 	{
-		if (bits & Q2UX_INDEX16)
+		if (cls.protocol_q2 == PROTOCOL_VERSION_Q2EX)
+		{
+			to->u.q2.sound = MSG_ReadUInt16();
+			/*to->u.q2.soundvol =*/ (to->u.q2.sound&0x4000)?MSG_ReadByte():255;
+			/*to->u.q2.soundattn =*/ (to->u.q2.sound&0x8000)?MSG_ReadByte():3;
+			to->u.q2.sound &= 0x3fff;
+		}
+		else if (bits & Q2UX_INDEX16)
 			to->u.q2.sound = MSG_ReadUInt16();
 		else
 			to->u.q2.sound = MSG_ReadByte ();
@@ -1041,13 +1163,27 @@ static void CLQ2_ParseDelta (entity_state_t *from, entity_state_t *to, int numbe
 	else
 		to->u.q2.event = 0;
 
-	if (bits & Q2U_SOLID)
+	if (cls.protocol_q2 != PROTOCOL_VERSION_Q2EX)
 	{
-		if (net_message.prim.flags & NPQ2_SOLID32)
-			to->solidsize = MSG_ReadLong();
-		else
-			to->solidsize = MSG_ReadSize16 (&net_message);
+		if (bits & Q2U_SOLID)
+		{
+			if (net_message.prim.flags & NPQ2_SOLID32)
+				to->solidsize = MSG_ReadLong();
+			else
+				to->solidsize = MSG_ReadSize16 (&net_message);
+		}
 	}
+
+	if (bits & Q2UEX_ALPHA)
+		to->trans = MSG_ReadByte();
+	if (bits & Q2UEX_SCALE)
+		to->scale = MSG_ReadByte();
+	if (bits & Q2UEX_INSTANCE)
+		to->u.q2.instance = MSG_ReadByte();
+	if (bits & Q2UEX_OWNER)
+		to->u.q2.owner = MSG_ReadShort();
+	if (bits & Q2UEX_OLDFRAME)
+		to->u.q2.oldframe = MSG_ReadUInt16();
 }
 
 void CLQ2_ClearParticleState(void)
@@ -1067,7 +1203,7 @@ Parses deltas from the given base and adds the resulting entity
 to the current frame
 ==================
 */
-static void CLQ2_DeltaEntity (q2frame_t *frame, int newnum, entity_state_t *old, int bits)
+static void CLQ2_DeltaEntity (q2frame_t *frame, int newnum, entity_state_t *old, uint64_t bits)
 {
 	q2centity_t	*ent;
 	entity_state_t	*state;
@@ -1112,10 +1248,19 @@ static void CLQ2_DeltaEntity (q2frame_t *frame, int newnum, entity_state_t *old,
 			VectorCopy (state->u.q2.old_origin, ent->prev.origin);
 			VectorCopy (state->u.q2.old_origin, ent->lerp_origin);
 		}
+
+		ent->oldframe = state->u.q2.oldframe;
+		ent->oldframetime = cl.oldgametime;
 	}
 	else
 	{	// shuffle the last state to previous
 		ent->prev = ent->current;
+
+		if (old->frame != state->frame)
+		{
+			ent->oldframe = old->frame;
+			ent->oldframetime = cl.oldgametime;
+		}
 	}
 
 	ent->serverframe = cl.q2frame.serverframe;
@@ -1133,12 +1278,12 @@ rest of the data stream.
 static void CLQ2_ParsePacketEntities (q2frame_t *oldframe, q2frame_t *newframe)
 {
 	unsigned int		newnum;
-	unsigned int			bits;
+	quint64_t			bits;
 	entity_state_t	*oldstate=NULL;
 	unsigned int		oldindex, oldnum;
 
 	cl.validsequence = cls.netchan.incoming_sequence;
-	cl.ackedmovesequence = cl.validsequence;
+	cl.ackedmovesequence = cls.netchan.incoming_acknowledged;
 
 	cl.outframes[cl.ackedmovesequence&UPDATE_MASK].latency = realtime - cl.outframes[cl.ackedmovesequence&UPDATE_MASK].senttime;
 
@@ -1175,7 +1320,7 @@ static void CLQ2_ParsePacketEntities (q2frame_t *oldframe, q2frame_t *newframe)
 		while (oldnum < newnum)
 		{	// one or more entities from the old packet are unchanged
 			if (cl_shownet.ival == 3)
-				Con_Printf ("   unchanged: %i\n", oldnum);
+				Con_Printf ("%i:   unchanged: %i\n", MSG_GetReadCount(), oldnum);
 			CLQ2_DeltaEntity (newframe, oldnum, oldstate, 0);
 			
 			oldindex++;
@@ -1192,7 +1337,7 @@ static void CLQ2_ParsePacketEntities (q2frame_t *oldframe, q2frame_t *newframe)
 		if (bits & Q2U_REMOVE)
 		{	// the entity present in oldframe is not in the current frame
 			if (cl_shownet.ival == 3)
-				Con_Printf ("   remove: %i\n", newnum);
+				Con_Printf ("%3i:   remove: %i\n", MSG_GetReadCount(), newnum);
 			if (oldnum != newnum)
 				Con_Printf ("U_REMOVE: oldnum != newnum\n");
 
@@ -1211,7 +1356,7 @@ static void CLQ2_ParsePacketEntities (q2frame_t *oldframe, q2frame_t *newframe)
 		if (oldnum == newnum)
 		{	// delta from previous state
 			if (cl_shownet.ival == 3)
-				Con_Printf ("   delta: %i\n", newnum);
+				Con_Printf ("%3i:   delta: %i\n", MSG_GetReadCount(), newnum);
 			CLQ2_DeltaEntity (newframe, newnum, oldstate, bits);
 
 			oldindex++;
@@ -1229,7 +1374,7 @@ static void CLQ2_ParsePacketEntities (q2frame_t *oldframe, q2frame_t *newframe)
 		if (oldnum > newnum)
 		{	// delta from baseline
 			if (cl_shownet.ival == 3)
-				Con_Printf ("   baseline: %i\n", newnum);
+				Con_Printf ("%3i:   baseline: %i\n", MSG_GetReadCount(), newnum);
 			CLQ2_DeltaEntity (newframe, newnum, &cl_entities[newnum].baseline, bits);
 			continue;
 		}
@@ -1240,7 +1385,7 @@ static void CLQ2_ParsePacketEntities (q2frame_t *oldframe, q2frame_t *newframe)
 	while (oldnum != 99999)
 	{	// one or more entities from the old packet are unchanged
 		if (cl_shownet.ival == 3)
-			Con_Printf ("   unchanged: %i\n", oldnum);
+			Con_Printf ("%3i:   unchanged: %i\n", MSG_GetReadCount(), oldnum);
 		CLQ2_DeltaEntity (newframe, oldnum, oldstate, 0);
 		
 		oldindex++;
@@ -1258,15 +1403,12 @@ static void CLQ2_ParsePacketEntities (q2frame_t *oldframe, q2frame_t *newframe)
 void CLQ2_ParseBaseline (void)
 {
 	entity_state_t	*es;
-	int				bits;
+	quint64_t				bits;
 	int				newnum;
-	entity_state_t	nullstate;
-
-	memset (&nullstate, 0, sizeof(nullstate));
 
 	newnum = CLQ2_ParseEntityBits (&bits);
 	es = &cl_entities[newnum].baseline;
-	CLQ2_ParseDelta (&nullstate, es, newnum, bits);
+	CLQ2_ParseDelta (&nullentitystate, es, newnum, bits);
 }
 
 
@@ -1281,65 +1423,110 @@ void CLQ2_ParsePlayerstate (int seat, q2frame_t *oldframe, q2frame_t *newframe, 
 	q2player_state_t	*state;
 	int			i;
 	int			statbits;
+	qboolean q2e = cls.protocol_q2==PROTOCOL_VERSION_Q2EX;
 
-	state = &newframe->playerstate[seat];
+	state = &newframe->seat[seat].playerstate;
 
 	// clear to old value before delta parsing
 	if (oldframe)
 	{
-		*state = oldframe->playerstate[seat];
-		newframe->clientnum[seat] = oldframe->clientnum[seat];
+		*state = oldframe->seat[seat].playerstate;
+		newframe->seat[seat].clientnum = oldframe->seat[seat].clientnum;
 	}
 	else
 	{
 		memset (state, 0, sizeof(*state));
-		newframe->clientnum[seat] = cl.playerview[seat].playernum;
+		newframe->seat[seat].clientnum = cl.playerview[seat].playernum;
 	}
 
-	flags = (unsigned short)MSG_ReadShort ();
+	flags = MSG_ReadUInt16 ();
 	if (flags & Q2PS_EXTRABITS)
-		flags |= MSG_ReadByte()<<16;
+		flags |= (q2e?MSG_ReadUInt16():MSG_ReadByte())<<16;
 
 	//
 	// parse the pmove_state_t
 	//
 	if (flags & Q2PS_M_TYPE)
+	{
 		state->pmove.pm_type = MSG_ReadByte ();
+		if (q2e)
+		{	//sigh... q2e added some extra pmove types that we don't support.
+			switch((int)state->pmove.pm_type)
+			{
+			case Q2EPM_NORMAL: state->pmove.pm_type = Q2PM_NORMAL; break;
+			case Q2EPM_GRAPPLE: state->pmove.pm_type = Q2PM_NORMAL; break;	//FIXME: not supported
+			case Q2EPM_SPECTATOR: state->pmove.pm_type = Q2PM_SPECTATOR; break;
+			case Q2EPM_SPECTATOR2: state->pmove.pm_type = Q2PM_SPECTATOR; break;	//FIXME: not supported.
+			case Q2EPM_DEAD: state->pmove.pm_type = Q2PM_DEAD; break;
+			case Q2EPM_GIB: state->pmove.pm_type = Q2PM_GIB; break;
+			case Q2EPM_FREEZE: state->pmove.pm_type = Q2PM_FREEZE; break;
+			}
+		}
+	}
 
 	if (flags & Q2PS_M_ORIGIN)
 	{
-		state->pmove.origin[0] = MSG_ReadShort ();
-		state->pmove.origin[1] = MSG_ReadShort ();
-		if (extflags & Q2PSX_OLD)
-			state->pmove.origin[2] = MSG_ReadShort ();
+		if (q2e)
+		{
+			state->pmove.origin[0] = MSG_ReadFloat ()*8;
+			state->pmove.origin[1] = MSG_ReadFloat ()*8;
+			if (extflags & Q2PSX_OLD)
+				state->pmove.origin[2] = MSG_ReadFloat ()*8;
+		}
+		else
+		{
+			state->pmove.origin[0] = MSG_ReadShort ();
+			state->pmove.origin[1] = MSG_ReadShort ();
+			if (extflags & Q2PSX_OLD)
+				state->pmove.origin[2] = MSG_ReadShort ();
+		}
 	}
 	if (extflags & Q2PSX_M_ORIGIN2)
 		state->pmove.origin[2] = MSG_ReadShort ();
 
 	if (flags & Q2PS_M_VELOCITY)
 	{
-		state->pmove.velocity[0] = MSG_ReadShort ();
-		state->pmove.velocity[1] = MSG_ReadShort ();
-		if (extflags & Q2PSX_OLD)
-			state->pmove.velocity[2] = MSG_ReadShort ();
+		if (q2e)
+		{
+			state->pmove.velocity[0] = MSG_ReadFloat ()*8;
+			state->pmove.velocity[1] = MSG_ReadFloat ()*8;
+			if (extflags & Q2PSX_OLD)
+				state->pmove.velocity[2] = MSG_ReadFloat ()*8;
+		}
+		else
+		{
+			state->pmove.velocity[0] = MSG_ReadShort ();
+			state->pmove.velocity[1] = MSG_ReadShort ();
+			if (extflags & Q2PSX_OLD)
+				state->pmove.velocity[2] = MSG_ReadShort ();
+		}
 	}
 	if (extflags & Q2PSX_M_VELOCITY2)
 		state->pmove.velocity[2] = MSG_ReadShort ();
 
 	if (flags & Q2PS_M_TIME)
-		state->pmove.pm_time = MSG_ReadByte ();
+		state->pmove.pm_time = q2e?MSG_ReadUInt16():MSG_ReadByte ();
 
 	if (flags & Q2PS_M_FLAGS)
-		state->pmove.pm_flags = MSG_ReadByte ();
+		state->pmove.pm_flags = q2e?MSG_ReadUInt16():MSG_ReadByte ();
 
 	if (flags & Q2PS_M_GRAVITY)
 		state->pmove.gravity = MSG_ReadShort ();
 
 	if (flags & Q2PS_M_DELTA_ANGLES)
 	{
-		state->pmove.delta_angles[0] = MSG_ReadShort ();
-		state->pmove.delta_angles[1] = MSG_ReadShort ();
-		state->pmove.delta_angles[2] = MSG_ReadShort ();
+		if (q2e)
+		{
+			state->pmove.delta_angles[0] = ANGLE2SHORT(MSG_ReadFloat ());
+			state->pmove.delta_angles[1] = ANGLE2SHORT(MSG_ReadFloat ());
+			state->pmove.delta_angles[2] = ANGLE2SHORT(MSG_ReadFloat ());
+		}
+		else
+		{
+			state->pmove.delta_angles[0] = MSG_ReadShort ();
+			state->pmove.delta_angles[1] = MSG_ReadShort ();
+			state->pmove.delta_angles[2] = MSG_ReadShort ();
+		}
 	}
 
 //	if (cl.attractloop)
@@ -1350,50 +1537,103 @@ void CLQ2_ParsePlayerstate (int seat, q2frame_t *oldframe, q2frame_t *newframe, 
 	//
 	if (flags & Q2PS_VIEWOFFSET)
 	{
-		state->viewoffset[0] = MSG_ReadChar () * 0.25;
-		state->viewoffset[1] = MSG_ReadChar () * 0.25;
-		state->viewoffset[2] = MSG_ReadChar () * 0.25;
+		if (q2e)
+		{
+			state->viewoffset[0] = MSG_ReadShort () * (1/16.f);
+			state->viewoffset[1] = MSG_ReadShort () * (1/16.f);
+			state->viewoffset[2] = MSG_ReadShort () * (1/16.f);
+			state->viewoffset[2] += MSG_ReadChar();
+		}
+		else
+		{
+			state->viewoffset[0] = MSG_ReadChar () * 0.25;
+			state->viewoffset[1] = MSG_ReadChar () * 0.25;
+			state->viewoffset[2] = MSG_ReadChar () * 0.25;
+		}
 	}
 
 	if (flags & Q2PS_VIEWANGLES)
 	{
-		state->viewangles[0] = MSG_ReadAngle16 ();
-		state->viewangles[1] = MSG_ReadAngle16 ();
-		if (extflags & Q2PSX_OLD)
-			state->viewangles[2] = MSG_ReadAngle16 ();
+		if (q2e)
+		{
+			state->viewangles[0] = MSG_ReadFloat ();
+			state->viewangles[1] = MSG_ReadFloat ();
+			if (extflags & Q2PSX_OLD)
+				state->viewangles[2] = MSG_ReadFloat ();
+		}
+		else
+		{
+			state->viewangles[0] = MSG_ReadAngle16 ();
+			state->viewangles[1] = MSG_ReadAngle16 ();
+			if (extflags & Q2PSX_OLD)
+				state->viewangles[2] = MSG_ReadAngle16 ();
+		}
 	}
 	if (extflags & Q2PSX_VIEWANGLE2)
 		state->viewangles[2] = MSG_ReadAngle16 ();
 
 	if (flags & Q2PS_KICKANGLES)
 	{
-		state->kick_angles[0] = MSG_ReadChar () * 0.25;
-		state->kick_angles[1] = MSG_ReadChar () * 0.25;
-		state->kick_angles[2] = MSG_ReadChar () * 0.25;
+		if (q2e)
+		{
+			state->kick_angles[0] = MSG_ReadShort () * (1/1024.f);
+			state->kick_angles[1] = MSG_ReadShort () * (1/1024.f);
+			state->kick_angles[2] = MSG_ReadShort () * (1/1024.f);
+		}
+		else
+		{
+			state->kick_angles[0] = MSG_ReadChar () * 0.25;
+			state->kick_angles[1] = MSG_ReadChar () * 0.25;
+			state->kick_angles[2] = MSG_ReadChar () * 0.25;
+		}
 	}
 
 	if (flags & Q2PS_WEAPONINDEX)
 	{
-		if (flags & Q2PS_INDEX16)
-			state->gunindex = MSG_ReadShort ();
+		if (q2e)
+		{
+			state->gunindex = MSG_ReadUInt16 ();
+			//state->gunskin = state->gunindex>>13
+			state->gunindex &= 0x1fff;
+		}
 		else
-			state->gunindex = MSG_ReadByte ();
+		{
+			if (flags & Q2FTEPS_INDEX16)
+				state->gunindex = MSG_ReadShort ();
+			else
+				state->gunindex = MSG_ReadByte ();
+		}
 	}
 
 	if (flags & Q2PS_WEAPONFRAME)
 	{
-		if (flags & Q2PS_INDEX16)
-			state->gunframe = MSG_ReadShort ();
-		else
-			state->gunframe = MSG_ReadByte ();
-		if (extflags & Q2PSX_OLD)
+		if (q2e)
 		{
-			state->gunoffset[0] = MSG_ReadChar ()*0.25;
-			state->gunoffset[1] = MSG_ReadChar ()*0.25;
-			state->gunoffset[2] = MSG_ReadChar ()*0.25;
-			state->gunangles[0] = MSG_ReadChar ()*0.25;
-			state->gunangles[1] = MSG_ReadChar ()*0.25;
-			state->gunangles[2] = MSG_ReadChar ()*0.25;
+			unsigned int fl = MSG_ReadUInt16 ();
+			state->gunframe = fl & 0x1ff;
+			if (fl & (1<< 9)) state->gunoffset[0] = MSG_ReadFloat ();
+			if (fl & (1<<10)) state->gunoffset[1] = MSG_ReadFloat ();
+			if (fl & (1<<11)) state->gunoffset[2] = MSG_ReadFloat ();
+			if (fl & (1<<12)) state->gunangles[0] = MSG_ReadFloat ();
+			if (fl & (1<<13)) state->gunangles[1] = MSG_ReadFloat ();
+			if (fl & (1<<14)) state->gunangles[2] = MSG_ReadFloat ();
+			if (fl & (1<<15)) /*state->gunangles[2] =*/ MSG_ReadByte ();
+		}
+		else
+		{
+			if (flags & Q2FTEPS_INDEX16)
+				state->gunframe = MSG_ReadShort ();
+			else
+				state->gunframe = MSG_ReadByte ();
+			if (extflags & Q2PSX_OLD)
+			{
+				state->gunoffset[0] = MSG_ReadChar ()*0.25;
+				state->gunoffset[1] = MSG_ReadChar ()*0.25;
+				state->gunoffset[2] = MSG_ReadChar ()*0.25;
+				state->gunangles[0] = MSG_ReadChar ()*0.25;
+				state->gunangles[1] = MSG_ReadChar ()*0.25;
+				state->gunangles[2] = MSG_ReadChar ()*0.25;
+			}
 		}
 	}
 	if (extflags & Q2PSX_GUNOFFSET)
@@ -1430,13 +1670,39 @@ void CLQ2_ParsePlayerstate (int seat, q2frame_t *oldframe, q2frame_t *newframe, 
 		statbits = 0;
 	if (statbits)
 	{
-		for (i=0 ; i<Q2MAX_STATS ; i++)
+		for (i=0 ; i<min(32,Q2MAX_STATS) ; i++)
 			if (statbits & (1<<i) )
 				state->stats[i] = MSG_ReadShort();
 	}
+	if (q2e)
+	{
+		// parse stats
+		statbits = MSG_ReadLong ();
+		if (statbits)
+		{
+			for (i=0 ; i<Q2MAX_STATS-32 ; i++)
+				if (statbits & (1<<i) )
+					state->stats[32+i] = MSG_ReadShort();
+			for ( ; i<32 ; i++)
+				if (statbits & (1<<i) )
+					MSG_ReadShort();
+		}
 
-	if ((extflags & Q2PSX_CLIENTNUM) || (flags & Q2PS_CLIENTNUM))
-		newframe->clientnum[seat] = MSG_ReadByte();
+		if (flags & Q2EXPS_DAMAGEBLEND)
+		{
+			/*state->damageblend[0] = (1/255.f) */ MSG_ReadByte ();
+			/*state->damageblend[1] = (1/255.f) */ MSG_ReadByte ();
+			/*state->damageblend[2] = (1/255.f) */ MSG_ReadByte ();
+			/*state->damageblend[3] = (1/255.f) */ MSG_ReadByte ();
+		}
+		if (flags & Q2EXPS_TEAMID)
+			MSG_ReadByte();
+	}
+	else
+	{
+		if ((extflags & Q2PSX_CLIENTNUM) || (flags & Q2FTEPS_CLIENTNUM))
+			newframe->seat[seat].clientnum = MSG_ReadByte();
+	}
 }
 
 
@@ -1510,6 +1776,7 @@ void CLR1Q2_ParsePlayerUpdate(void)
 	net_message.currentbit = net_message.cursize<<3;
 }
 
+#define SHOWNET(x) if(cl_shownet.value>=2)Con_Printf ("%3i:%s\n", MSG_GetReadCount()-1, x);
 /*
 ================
 CL_ParseFrame
@@ -1521,6 +1788,7 @@ void CLQ2_ParseFrame (int extrabits)
 	int			len;
 	q2frame_t		*old;
 	int i,j, chokecount;
+	static float throttle;
 
 	memset (&cl.q2frame, 0, sizeof(cl.q2frame));
 
@@ -1557,7 +1825,7 @@ void CLQ2_ParseFrame (int extrabits)
 
 	cl.oldgametime = cl.gametime;
 	cl.oldgametimemark = cl.gametimemark;
-	cl.gametime = cl.q2frame.servertime/1000.f;
+	cl.gametime = cl.q2frame.servertime/1000.;
 	cl.gametimemark = realtime;
 
 	for (j=0 ; j<chokecount ; j++)
@@ -1581,18 +1849,17 @@ void CLQ2_ParseFrame (int extrabits)
 		old = &cl.q2frames[cl.q2frame.deltaframe & Q2UPDATE_MASK];
 		if (!old->valid)
 		{	// should never happen
-			Con_Printf ("Delta from invalid frame (not supposed to happen!).\n");
-			cl.q2frame.valid = true;		// uncompressed frame
+			Con_ThrottlePrintf (&throttle, 0, CON_WARNING"Delta from invalid frame (not supposed to happen!).\n");
 			old = NULL;
 		}
 		else if (old->serverframe != cl.q2frame.deltaframe)
 		{	// The frame that the server did the delta from
 			// is too old, so we can't reconstruct it properly.
-			Con_Printf ("Delta frame too old.\n");
+			Con_ThrottlePrintf (&throttle, 0, CON_WARNING"Delta frame too old.\n");
 		}
 		else if (cl.parse_entities - old->parse_entities > MAX_PARSE_ENTITIES-128)
 		{
-			Con_Printf ("Delta parse_entities too old.\n");
+			Con_ThrottlePrintf (&throttle, 0, CON_WARNING"Delta parse_entities too old.\n");
 		}
 		else
 			cl.q2frame.valid = true;	// valid delta parse
@@ -1604,37 +1871,69 @@ void CLQ2_ParseFrame (int extrabits)
 	else if (cl.time < (cl.q2frame.servertime - 100)/1000.0)
 		cl.time = (cl.q2frame.servertime - 100)/1000.0;
 
-	// read areabits
-	len = MSG_ReadByte ();
-	MSG_ReadData (&cl.q2frame.areabits, len);
-
-	// normally playerstate then packet entities
-	//in splitscreen we may have multiple player states, one per player.
-	if (cls.protocol_q2 != PROTOCOL_VERSION_R1Q2 && cls.protocol_q2 != PROTOCOL_VERSION_Q2PRO)
+	if (cls.protocol_q2 == PROTOCOL_VERSION_Q2EX)
 	{
-		for (cl.splitclients = 0; ; )
+		for (i = 0; i<cl.splitclients; i++)
 		{
+			len = MSG_ReadByte ();
+			if (len > countof(cl.q2frame.seat[i].areabits))
+				Host_EndGame ("CL_ParseFrame: too many areas");
+			MSG_ReadData (&cl.q2frame.seat[i].areabits, len);
+
 			cmd = MSG_ReadByte ();
-//			SHOWNET(svc_strings[cmd]);
-			if (cmd == svcq2_playerinfo && cl.splitclients < MAX_SPLITS)
-				CLQ2_ParsePlayerstate (cl.splitclients++, old, &cl.q2frame, extrabits);
-			else
-				break;
+			if (cmd != svcq2_playerinfo)
+				Host_EndGame ("CL_ParseFrame: not playerinfo");
+			SHOWNET("svcq2_playerinfo");
+			CLQ2_ParsePlayerstate (i, old, &cl.q2frame, extrabits);
 		}
-		if (!cl.splitclients)
-			Host_EndGame ("CL_ParseFrame: no playerinfo");
+		cmd = MSG_ReadByte ();
+//		SHOWNET(svc_strings[cmd]);
 		if (cmd != svcq2_packetentities)
 			Host_EndGame ("CL_ParseFrame: not packetentities");
+		SHOWNET("svcq2_packetentities");
 	}
 	else
 	{
-		cl.splitclients = 1;
-		CLQ2_ParsePlayerstate (0, old, &cl.q2frame, extrabits);
+		// read areabits
+		len = MSG_ReadByte ();
+		if (len > MAX_Q2MAP_AREAS/8)
+			Host_EndGame ("CL_ParseFrame: too many areas");
+		MSG_ReadData (&cl.q2frame.seat[0].areabits, len);
+
+		// normally playerstate then packet entities
+		//in splitscreen we may have multiple player states, one per player.
+		if (cls.protocol_q2 != PROTOCOL_VERSION_R1Q2 && cls.protocol_q2 != PROTOCOL_VERSION_Q2PRO)
+		{
+			for (cl.splitclients = 0; ; )
+			{
+				cmd = MSG_ReadByte ();
+	//			SHOWNET(svc_strings[cmd]);
+				if (cmd == svcq2_playerinfo && cl.splitclients < MAX_SPLITS)
+				{
+					if (cl.splitclients != 0)
+						memcpy(cl.q2frame.seat[cl.splitclients].areabits, cl.q2frame.seat[0].areabits, len);
+					SHOWNET("svcq2_playerinfo");
+					CLQ2_ParsePlayerstate (cl.splitclients++, old, &cl.q2frame, extrabits);
+				}
+				else
+					break;
+			}
+			if (!cl.splitclients)
+				Host_EndGame ("CL_ParseFrame: no playerinfo");
+			if (cmd != svcq2_packetentities)
+				Host_EndGame ("CL_ParseFrame: not packetentities");
+			SHOWNET("svcq2_packetentities");
+		}
+		else
+		{
+			cl.splitclients = 1;
+			CLQ2_ParsePlayerstate (0, old, &cl.q2frame, extrabits);
+		}
 	}
 	CLQ2_ParsePacketEntities (old, &cl.q2frame);
 
 	for (cmd = 0; cmd < MAX_SPLITS; cmd++)
-		cl.playerview[cmd].viewentity = cl.q2frame.clientnum[cmd]+1;
+		cl.playerview[cmd].viewentity = cl.q2frame.seat[cmd].clientnum+1;
 
 	// save the frame off in the backup array for later delta comparisons
 	cl.q2frames[cl.q2frame.serverframe & Q2UPDATE_MASK] = cl.q2frame;
@@ -1758,12 +2057,110 @@ unsigned int CLQ2_GatherSounds(vec3_t *positions, unsigned int *entnums, sfx_t *
 	return count;
 }
 
+
+static struct q2ex_rtlight_s
+{
+	qboolean dirty;
+	int key, type, res, style;
+	float radius, intensity, fade[2], cone, conedir[3];
+	vec3_t axis[3];
+	vec3_t angles;
+} q2ex_rtlight[Q2EXMAX_RTLIGHTS];
+void CLQ2EX_ParseLightConfigString(int i, const char *s)
+{
+	struct q2ex_rtlight_s *l = &q2ex_rtlight[i];
+	l->dirty = true;
+	s = COM_ParseToken(s, ";");	l->key			= atoi(com_token);	s = COM_ParseToken(s, ";");
+	s = COM_ParseToken(s, ";");	l->type			= atoi(com_token);	s = COM_ParseToken(s, ";");
+	s = COM_ParseToken(s, ";");	l->radius		= atof(com_token);	s = COM_ParseToken(s, ";");
+	s = COM_ParseToken(s, ";");	l->res			= atoi(com_token);	s = COM_ParseToken(s, ";");
+	s = COM_ParseToken(s, ";");	l->intensity	= atof(com_token);	s = COM_ParseToken(s, ";");
+	s = COM_ParseToken(s, ";");	l->fade[0]		= atof(com_token);	s = COM_ParseToken(s, ";");
+	s = COM_ParseToken(s, ";");	l->fade[1]		= atof(com_token);	s = COM_ParseToken(s, ";");
+	s = COM_ParseToken(s, ";");	l->style		= atoi(com_token);	s = COM_ParseToken(s, ";");
+	s = COM_ParseToken(s, ";");	l->cone			= atof(com_token);	s = COM_ParseToken(s, ";");
+	s = COM_ParseToken(s, ";");	l->axis[0][0]	= atof(com_token);	s = COM_ParseToken(s, ";");
+	s = COM_ParseToken(s, ";");	l->axis[0][1]	= atof(com_token);	s = COM_ParseToken(s, ";");
+	s = COM_ParseToken(s, ";");	l->axis[0][2]	= atof(com_token);	s = COM_ParseToken(s, ";");
+
+	//faff around with angles and stuff.
+	VectorVectors(l->axis[0], l->axis[1], l->axis[2]);
+	VectorNegate(l->axis[1], l->axis[1]);
+	VectorAngles(l->axis[0], l->axis[2], l->angles, false);
+}
+static void CLQ2EX_UpdateRTLight(int key, vec3_t org)
+{
+	int			i;
+	dlight_t	*dl;
+	struct q2ex_rtlight_s *l;
+
+	for (i = 0, l = q2ex_rtlight; i < countof(q2ex_rtlight); i++, l++)
+	{
+		if (l->key == key)
+		{	//okay, we found the configstring entry...
+
+			//see if its current or not...
+			dl = cl_dlights+rtlights_first;
+			for (i=rtlights_first ; i<rtlights_max ; i++, dl++)
+			{
+				if (dl->key == key)
+					break;
+			}
+
+			if (i==rtlights_max)
+			{
+				dl = CL_AllocSlight();
+				dl->flags = LFLAG_NORMALMODE|LFLAG_REALTIMEMODE;
+				dl->key = key;
+				l->dirty = true;
+			}
+
+			if (!l->dirty && !(dl->flags&LFLAG_FORCECACHE))
+			{
+				if (!VectorCompare(org, dl->origin))
+				{	//it moved :( keep the light tracking the ent and invalidate the cache.
+					VectorCopy(org, dl->origin);
+					dl->rebuildcache = true;
+				}
+			}
+			else
+			{	//LOTS of stuff changed.
+				l->dirty = false;
+				dl->flags |= LFLAG_FORCECACHE;
+
+				//ent info
+				VectorCopy(org, dl->origin);
+
+				//config string info
+				dl->radius = l->radius;
+//FIXME: we're not using the suggested resolution.
+				VectorSet(dl->color, l->intensity,l->intensity,l->intensity);
+				dl->fade[0] = l->fade[0];
+				dl->fade[1] = l->fade[1];
+				dl->style = l->style;
+
+				if (l->type)
+					dl->fov = l->cone*2;
+				VectorCopy(l->angles, dl->angles);
+				VectorCopy(l->axis[0], dl->axis[0]);
+				VectorCopy(l->axis[1], dl->axis[1]);
+				VectorCopy(l->axis[2], dl->axis[2]);
+
+				dl->corona = 0;
+				dl->rebuildcache = true;
+			}
+			break;
+		}
+	}
+}
+
 /*
 ===============
 CL_AddPacketEntities
 
 ===============
 */
+void R_AddItemTimer(vec3_t shadoworg, float yaw, float radius, float percent, vec3_t rgb);
 static void CLQ2_AddPacketEntities (q2frame_t *frame)
 {
 	entity_t			ent;
@@ -1779,6 +2176,7 @@ static void CLQ2_AddPacketEntities (q2frame_t *frame)
 	float back, fwds;
 
 	float timestep = cl.gametime-cl.oldgametime;
+	struct itemtimer_s **timerlink, *timer;
 
 	// bonus items rotate at a fixed rate
 	autorotate = anglemod(cl.time*100);
@@ -1787,6 +2185,29 @@ static void CLQ2_AddPacketEntities (q2frame_t *frame)
 	autoanim = 2*cl.time;
 
 	memset (&ent, 0, sizeof(ent));
+
+	for (timerlink = &cl.itemtimers; (timer=*timerlink); )
+	{
+		if (cl.time > timer->end)
+		{
+			*timerlink = timer->next;
+			Z_Free(timer);
+		}
+		else
+		{
+			timerlink = &(*timerlink)->next;
+			/*if (timer->entnum)
+			{
+				if (timer->entnum >= cl.maxlerpents)
+					continue;
+				le = &cl.lerpents[timer->entnum];
+				if (le->sequence != cl.lerpentssequence)
+					continue;
+//				VectorCopy(le->origin, timer->origin);
+			}*/
+			R_AddItemTimer(timer->origin, cl.time*90 + timer->origin[0] + timer->origin[1] + timer->origin[2], timer->radius, (cl.time - timer->start) / timer->duration, timer->rgb);
+		}
+	}
 
 	for (pnum = 0 ; pnum<frame->num_entities ; pnum++)
 	{
@@ -1800,7 +2221,7 @@ static void CLQ2_AddPacketEntities (q2frame_t *frame)
 		ent.rtype = RT_MODEL;
 		ent.keynum = s1->number;
 
-		ent.scale = 1;
+		ent.scale = s1->scale/16.f;
 		ent.shaderRGBAf[0] = 1;
 		ent.shaderRGBAf[1] = 1;
 		ent.shaderRGBAf[2] = 1;
@@ -1817,7 +2238,7 @@ static void CLQ2_AddPacketEntities (q2frame_t *frame)
 		ent.playerindex = -1;
 		ent.customskin = 0;
 
-			// set frame
+		// set frame
 		if (effects & Q2EF_ANIM01)
 			ent.framestate.g[FS_REG].frame[0] = autoanim & 1;
 		else if (effects & Q2EF_ANIM23)
@@ -1861,8 +2282,7 @@ static void CLQ2_AddPacketEntities (q2frame_t *frame)
 // pmm
 //======
 		ent.framestate.g[FS_REG].frame[1] = cent->prev.frame;
-		ent.framestate.g[FS_REG].lerpweight[0] = 1-cl.lerpfrac;
-		ent.framestate.g[FS_REG].lerpweight[1] = cl.lerpfrac;
+		ent.framestate.g[FS_REG].lerpweight[0] = cl.lerpfrac;
 
 		if (renderfx & (Q2RF_FRAMELERP|Q2RF_BEAM))
 		{	// step origin discretely, because the frames
@@ -1879,6 +2299,48 @@ static void CLQ2_AddPacketEntities (q2frame_t *frame)
 			}
 		}
 
+		if (ent.framestate.g[FS_REG].frame[0] != cent->oldframe)
+		{
+			ent.framestate.g[FS_REG].frame[1] = cent->oldframe;
+			ent.framestate.g[FS_REG].lerpweight[0] = 10*(cl.time - cent->oldframetime);	//anim rate is still 1ms... could guess at it, but urgh
+
+			if (ent.framestate.g[FS_REG].lerpweight[0] >= 1)
+			{
+				ent.framestate.g[FS_REG].lerpweight[0] = 1;
+				cent->oldframe = ent.framestate.g[FS_REG].frame[0];
+			}
+		}
+
+		ent.framestate.g[FS_REG].lerpweight[1] = 1-ent.framestate.g[FS_REG].lerpweight[0];
+
+		if (renderfx & Q2EXRF_FLARE)
+		{
+/*This flag marks an entity as being rendered with a flare instead of the usual entity rendering. Flares overload some fields:
+* `s.renderfx & RF_SHELL_RED` causes the flare to have an outer red rim.
+* `s.renderfx & RF_SHELL_GREEN` causes the flare to have an outer green rim.
+* `s.renderfx & RF_SHELL_BLUE` causes the flare to have an outer blue rim.
+* `s.renderfx & RF_FLARE_LOCK_ANGLE` causes the flare to not rotate towards the viewer.
+* `s.renderfx & RF_CUSTOMSKIN` causes the flare to use the custom image index in `s.frame`.
+* `s.modelindex2` is the start distance of fading the flare out.
+* `s.modelindex3` is the end distance of fading the flare out.
+* `s.skinnum` is the RGBA of the flare.*/
+			continue;
+		}
+		if (renderfx & Q2EXRF_CUSTOM_LIGHT)
+		{	//0xRRGGBBXX apparently
+			V_AddLight (ent.keynum, ent.origin,
+						ent.framestate.g[FS_REG].frame[0]/*radius*/,
+						((ent.skinnum >> 24) & 0xFF)/255.0/*r*/,
+						((ent.skinnum >> 16) & 0xFF)/255.0/*g*/,
+						((ent.skinnum >>  8) & 0xFF)/255.0/*b*/);
+			continue;	//probably modelindex 1. we don't want to actually draw that. but probably do want to lerp it.
+		}
+		if (renderfx & Q2REX_CASTSHADOW)
+		{
+			CLQ2EX_UpdateRTLight(ent.keynum, ent.origin);
+			continue;
+		}
+
 		// create a new entity
 	
 		// tweak the color of beams
@@ -1890,8 +2352,8 @@ static void CLQ2_AddPacketEntities (q2frame_t *frame)
 			ent.shaderRGBAf[2] = ((d_8to24srgbtable[ent.skinnum & 0xFF] >> 16) & 0xFF)/255.0;
 			ent.shaderRGBAf[3] = 0.30;
 			ent.model = NULL;
-			ent.framestate.g[FS_REG].lerpweight[0] = 0;
-			ent.framestate.g[FS_REG].lerpweight[1] = 1;
+			ent.framestate.g[FS_REG].lerpweight[0] = 1;
+			ent.framestate.g[FS_REG].lerpweight[1] = 0;
 			ent.rtype = RT_BEAM;
 		}
 		else
@@ -1956,6 +2418,13 @@ static void CLQ2_AddPacketEntities (q2frame_t *frame)
 		// only used for black hole model right now, FIXME: do better
 		if (renderfx == RF_TRANSLUCENT)
 			ent.shaderRGBAf[3] = 0.70;
+		else if (s1->trans != 255)
+		{
+			renderfx |= RF_TRANSLUCENT;
+			ent.shaderRGBAf[3] = s1->trans/255.0f;
+		}
+		else
+			ent.shaderRGBAf[3] = 1;
 
 		// render effects (fullbright, translucent, etc)
 		if ((effects & Q2EF_COLOR_SHELL))
@@ -2046,14 +2515,12 @@ static void CLQ2_AddPacketEntities (q2frame_t *frame)
 //pmm
 
 		/*lerp the ent now*/
-		fwds = ent.framestate.g[FS_REG].lerpweight[1];
-		back = ent.framestate.g[FS_REG].lerpweight[0];
+		fwds = ent.framestate.g[FS_REG].lerpweight[0];
+		back = ent.framestate.g[FS_REG].lerpweight[1];
 		for (i = 0; i < 3; i++)
 		{
 			ent.origin[i] = ent.origin[i]*fwds + ent.oldorigin[i]*back;
 		}
-		ent.framestate.g[FS_REG].lerpweight[0] = fwds;
-		ent.framestate.g[FS_REG].lerpweight[1] = back;
 
 		if ((renderfx & Q2RF_IR_VISIBLE) && (r_refdef.flags & Q2RDF_IRGOGGLES))
 		{
@@ -2380,6 +2847,7 @@ CL_AddViewWeapon
 static void CLQ2_AddViewWeapon (int seat, q2player_state_t *ps, q2player_state_t *ops)
 {
 	playerview_t *pv = &cl.playerview[seat];
+	struct model_s *om = pv->vm.oldmodel;
 
 	pv->vm.oldmodel = NULL;
 
@@ -2391,7 +2859,7 @@ static void CLQ2_AddViewWeapon (int seat, q2player_state_t *ps, q2player_state_t
 		return;
 
 	// don't draw gun if in wide angle view
-	if (ps->fov > 90)
+	if (ps->fov > 90 && !*scr_fov_viewmodel.string)
 		return;
 
 	//generate root matrix..
@@ -2400,15 +2868,23 @@ static void CLQ2_AddViewWeapon (int seat, q2player_state_t *ps, q2player_state_t
 	VectorInverse(r_refdef.weaponmatrix[1]);
 	memcpy(r_refdef.weaponmatrix_bob, r_refdef.weaponmatrix, sizeof(r_refdef.weaponmatrix_bob));
 
+	if (om != cl.model_precache[ps->gunindex])
+	{
+		pv->vm.prevframe = pv->vm.oldframe = ps->gunframe;
+		pv->vm.lerptime = pv->vm.oldlerptime = cl.oldgametime;
+	}
 	pv->vm.oldmodel = cl.model_precache[ps->gunindex];
 	if (!pv->vm.oldmodel)
 		return;
 
-	pv->vm.oldframe = ps->gunframe;
-	if (ps->gunindex != ops->gunindex)
+	if (ps->gunframe != pv->vm.prevframe)
+	{
+		pv->vm.oldframe = pv->vm.prevframe;
+		pv->vm.oldlerptime = pv->vm.lerptime;
+
 		pv->vm.prevframe = ps->gunframe;
-	else
-		pv->vm.prevframe = ops->gunframe;
+		pv->vm.lerptime = cl.time;
+	}
 }
 
 
@@ -2428,19 +2904,19 @@ void CLQ2_CalcViewValues (int seat)
 	playerview_t *pv = &cl.playerview[seat];
 
 	r_refdef.areabitsknown = true;
-	memcpy(r_refdef.areabits, cl.q2frame.areabits, sizeof(r_refdef.areabits));
+	memcpy(r_refdef.areabits, cl.q2frame.seat[seat].areabits, sizeof(r_refdef.areabits));
 
 	r_refdef.useperspective = true;
 	r_refdef.mindist = bound(0.1, gl_mindist.value, 4);
 	r_refdef.maxdist = gl_maxdist.value;
 
 	// find the previous frame to interpolate from
-	ps = &cl.q2frame.playerstate[seat];
+	ps = &cl.q2frame.seat[seat].playerstate;
 	i = (cl.q2frame.serverframe - 1) & Q2UPDATE_MASK;
 	oldframe = &cl.q2frames[i];
 	if (oldframe->serverframe != cl.q2frame.serverframe-1 || !oldframe->valid)
 		oldframe = &cl.q2frame;		// previous frame was dropped or involid
-	ops = &oldframe->playerstate[seat];
+	ops = &oldframe->seat[seat].playerstate;
 
 	// see if the player entity was teleported this frame
 	if ( abs(ops->pmove.origin[0] - ps->pmove.origin[0]) > 256*8
@@ -2451,7 +2927,7 @@ void CLQ2_CalcViewValues (int seat)
 	lerp = cl.lerpfrac;
 
 	// calculate the origin
-	if (cl.worldmodel && (!cl_nopred.value) && !(cl.q2frame.playerstate[seat].pmove.pm_flags & Q2PMF_NO_PREDICTION) && !cls.demoplayback)
+	if (cl.worldmodel && (!cl_nopred.value) && !(cl.q2frame.seat[seat].playerstate.pmove.pm_flags & Q2PMF_NO_PREDICTION) && !cls.demoplayback)
 	{	// use predicted values
 		float	delta;
 
@@ -2471,10 +2947,9 @@ void CLQ2_CalcViewValues (int seat)
 	else
 	{	// just use interpolated values
 		for (i=0 ; i<3 ; i++)
-			pv->simorg
-			[i] = ops->pmove.origin[i]*0.125 + ops->viewoffset[i] 
-				+ lerp * (ps->pmove.origin[i]*0.125 + ps->viewoffset[i] 
-				- (ops->pmove.origin[i]*0.125 + ops->viewoffset[i]) );
+			pv->simorg[i] =  ops->pmove.origin[i]*0.125 + ops->viewoffset[i]
+				+ lerp *	( ps->pmove.origin[i]*0.125 +  ps->viewoffset[i]
+				-			(ops->pmove.origin[i]*0.125 + ops->viewoffset[i]) );
 	}
 
 	// if not running a demo or on a locked frame, add the local angle movement
@@ -2553,6 +3028,10 @@ void CLQ2_AddEntities (void)
 
 		V_EditExternalModels(0, NULL, 0);
 	}
+#endif
+
+#ifdef RTLIGHTS
+	R_EditLights_DrawLights();
 #endif
 }
 

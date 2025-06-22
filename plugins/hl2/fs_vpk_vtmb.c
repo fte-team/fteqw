@@ -254,12 +254,15 @@ searchpathfuncs_t *QDECL FSVVPK_LoadArchive(vfsfile_t *file, searchpathfuncs_t *
 	fsize = VFS_GETLEN(file);
 	if (fsize < 9)
 		return NULL;
-	VFS_SEEK(file, fsize - 9);
-	VFS_READ(file, &num_files, 4);
-	VFS_READ(file, &ofs_files, 4);
-	VFS_READ(file, &sentinel, 1);
+	VFS_SEEK(file, fsize - ((sizeof(uint32_t) * 2) + sizeof(uint8_t)));
+	VFS_READ(file, &num_files, sizeof(num_files));
+	VFS_READ(file, &ofs_files, sizeof(ofs_files));
+	VFS_READ(file, &sentinel, sizeof(sentinel));
 	if (sentinel != 0)
 		return NULL;
+
+	num_files = LittleLong(num_files);
+	ofs_files = LittleLong(ofs_files);
 
 	// alloc
 	pak = plugfuncs->Malloc(sizeof(*pak));
@@ -272,19 +275,20 @@ searchpathfuncs_t *QDECL FSVVPK_LoadArchive(vfsfile_t *file, searchpathfuncs_t *
 		uint32_t len_name;
 		uint32_t ofs_data;
 		uint32_t len_data;
-		VFS_READ(file, &len_name, 4);
+		VFS_READ(file, &len_name, sizeof(len_name));
+		len_name = LittleLong(len_name);
 		if (len_name > MAX_QPATH - 1)
 		{
-			Con_Printf("ERROR: filename in vpk is too long\n");
+			Con_Printf("%s: filename in vpk is too long\n", filename);
 			return NULL;
 		}
 
 		VFS_READ(file, pak->files[i].name, len_name);
-		VFS_READ(file, &ofs_data, 4);
-		VFS_READ(file, &len_data, 4);
+		VFS_READ(file, &ofs_data, sizeof(ofs_data));
+		VFS_READ(file, &len_data, sizeof(len_data));
 
-		pak->files[i].ofs = ofs_data;
-		pak->files[i].len = len_data;
+		pak->files[i].ofs = LittleLong(ofs_data);
+		pak->files[i].len = LittleLong(len_data);
 	}
 
 	// setup info

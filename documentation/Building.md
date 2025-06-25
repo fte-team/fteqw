@@ -1,65 +1,3 @@
-SET(FTE_TOOL_IQM true CACHE BOOL "Compile IQM Tool.")
-
-ET(FTE_MENU_SYS true CACHE BOOL "Compile System Menu.")
-
-SET(FTE_TOOL_QTV true CACHE BOOL "Compile qtv server.")
-
-SET(FTE_TOOL_MASTER true CACHE BOOL "Compile master server.")
-
-make httpserver
-
-SET(FTE_TOOL_HTTPSV true CACHE BOOL "Compile small http server.")
-
-SET(FTE_TOOL_QCC true CACHE BOOL "Compile commandline qc compiler.")
-
-SET(FTE_MENU_SYS true CACHE BOOL "Compile System Menu.")
-
-SET(FTE_PLUG_XMPP true CACHE BOOL "Compile xmpp/jabber instant-messenger plugin.")
-
-SET(FTE_PLUG_CEF true CACHE BOOL "Compile libcef (webbrowser) plugin.")
-
-SET(FTE_PLUG_OPENXR true CACHE BOOL "Compile openxr plugin (for vr suppor
-
-SET(FTE_PLUG_TIMIDITY false CACHE BOOL "Compile timidity audio plug
-
-
-SET(FTE_PLUG_CEF true CACHE BOOL "Compile libcef (webbrowser) plugin.")
-
-SET(FTE_ENGINE_CLIENT_ONLY false CACHE BOOL "Compile ftedw-cl (client-only) engine binary.")
-
-SET(FTE_ENGINE_SERVER_ONLY true CACHE BOOL "Compile fteqw-sv (server only) engine binary.")
-
-SET(FTE_ENGINE true CACHE BOOL "Compile fteqw engine binary.")
-
-SET(FTE_ENGINE_FTEDROID true CACHE BOOL "Compile ftedroid engine shared library.")
-
-
-SET(FTE_PLUG_QUAKE3 true CACHE BOOL "Compile Quake3 plugin.")
-
-SET(FTE_PLUG_X11SV false CACHE BOOL "Compile x11 server plu
-
-SET(FTE_PLUG_MODELS true CACHE BOOL "Compile models formats plugin.")
-
-SET(FTE_PLUG_HL2 true CACHE BOOL "Compile support for hl2 file formats.
-
-SET(FTE_PLUG_ODE true CACHE STRING "Compile ODE rigid body physics plugin.")
-
-SET(FTE_PLUG_BULLET true CACHE BOOL "Compile bullet rigid body physics plugin.")
-
-SET(FTE_PLUG_MPQ false CACHE BOOL "Compile mpq 
-
-SET(FTE_PLUG_TERRAINGEN false CACHE BOOL "Compile sample terrain generation plu
-
-SET(FTE_PLUG_NAMEMAKER false CACHE BOOL "Compile namemaker plug
-
-#OPENSSL
-	#the openssl license is incompatible with the GPL, so while we have code to use it distributing the binaries built with it is not a (legal) option.
-	#note that openssl 3.0.0 upwards are apache-2 licensed, which IS gpl-3 compatible (though not gpl-2). debian has not caught up with that yet, however.
-	FIND_PACKAGE(OpenSSL)
-	IF(OPENSSL_VERSION_MAJOR LESS 3)
-		SET(FTE_PRIVATE_USE_ONLY false CACHE BOOL "Ignore license violations.")
-	ENDIF()
-
 > Yay, you found out the secrit location to download the sauce code from!
 >
 > Right, urm, now what?
@@ -173,7 +111,7 @@ It's usually as straight-forward as:
 	make m-rel
 or
 
-	CMAKE HERE
+	
 
 ### Notes
 
@@ -184,6 +122,26 @@ or
 - Not building with `makelibs` will attempt to dynamically link against your system-level versions of dependencies.
   Sometimes you want this, sometimes you don't. You definitely want that if you're trying to link against the Steam runtime.
 
+##  Renders
+
+### Vulkan
+
+	make vk-rel
+
+### OpenGL 
+
+	make gl-rel
+
+	make glcl-rel
+
+	make mingl-rel
+
+make mcl-rel
+
+### DirectX
+
+	make d3d-rel
+  
 ## Android (FTEDroid) with cygwin
 
 The phone port requires the Android SDk and can be compiled with the following command:
@@ -215,7 +173,9 @@ Finally, install the `FTEDroid.apk` file on your Android device which should be 
 - Configs may be located at:
 
 	/fte
+
 or
+
 	sdcard/fte
 
 ## Browser (emscripten)
@@ -225,7 +185,7 @@ or
 
 or
 
-	CMAKE HERE
+	-DFTE_PLUG_CEF=TRUE
 
 
 ## FTEQCC
@@ -245,14 +205,21 @@ or
 	-DFTE_TOOL_QCCGUI=TRUE
 
 
+## Standalone QCVM
+
+	
+
+or
+
+	-DFTE_TOOL_QCVM=TRUE
+
 ## FTE Dedicated Server
 
 	make sv-rel
 
 or
 
-	-DFTE_TOOL_QCCGUI=TRUE
-
+	FTE_ENGINE_SERVER_ONLY=TRUE
 
 ## FTE Master Server
 
@@ -286,32 +253,150 @@ or
 
 	-DFTE_TOOL_QTV=TRUE
 
+
+## Small HTTP Server
+
+	make httpserver
+
+or
+
+	-DFTE_TOOL_HTTPSV=TRUE
+
 ## Plugins
 
 To build all currently stable plugins, it's as simple as:
 
 	make plugins-rel
+
 or
+
 	CMAKE HERE
 
 
 You can specify which plugins get compiled by passing PLUGINS_NATIVE as an example:
 
 	make plugins-rel NATIVE_PLUGINS="ffmpeg bullet irc"
+
 or
+
 	-DFTE_PLUG_QUAKE3=TRUE
 
-The list of available plugins (Make / CMake):
+The list of available plugins:
 
-- bullet (Bullet Physics) / 
-- ezhud (EZQuake HUD Support) / 
-- ffmpeg (Various File Formats & RTMP Supported via FFMPEG) / 
-- irc (IRC Client API) / 
-- ode (ODE Physics) / 
-- openssl (OpenSSL) / -DFTE_PLUG_OPENSSL=TRUE
-- qi (Quake Injector) / -DFTE_PLUG_QI=TRUE
-- quake3 (Quake 3 Game Logic and VM Support) / 
+- Bullet Physics
+> Provides Rigid Body Physics.
+
+	bullet
+	-DFTE_PLUG_BULLET=TRUE
+
+- Call of Duty (1 & 2) Format Support
+> Provides compatability with Call Of Duty's file formats.
+
+	cod
+	-DFTE_PLUG_COD=TRUE
+
+- EzHUD
+> Provides compat with ezquake's hud scripts.
+
+	ezhud
+	-DFTE_PLUG_EZHUD=TRUE
+
+- FFMPEG Video Decoding & RTMP Streaming
+> Provides support for more audio formats, as well as video playback and better capture support.
+
+	ffmpeg
+	-DFTE_PLUG_FFMPEG=TRUE
+
+-  GnuTLS
+> Provides GnuTLS support for dtls/tls/https support. The crypto library that is actually used is controlled via the tls_provider cvar.
+
+	gnutls
+	-DFTE_PLUG_GNUTLS=TRUE
+
+- Half-Life 2
+> Adds support for reading various file formats used by Half-Life 2.
+
+	hl2
+	-DFTE_PLUG_HL2=TRUE
+
+- IRC
+> Allows you to chat on IRC without tabbing out.
+
+	irc
+	-DFTE_PLUG_IRC=TRUE
+
+- libcef(Browser) Plugin
+>This plugin provides support for an in-game web browser.
+
+	libcef
+	-DFTE_PLUG_CEF=TRUE
+
+- Name Maker Plugin
+> Provides a lame UI for selecting arbitrary non-ascii glyphs as part of your nickname.
+
+	namemaker
+	-DFTE_PLUG_NAMEMAKER=TRUE
+
+- MPQ Archive Plugin
+> Adds support for reading .mpq files (Diablo 1 + 2, World of Warcraft).
+
+	mpq
+	-DFTE_PLUG_MPQ=TRUE
+
+- ODE Physics
+> Provides Rigid Body Physics behaviours.
+
+	ode
+	-DFTE_PLUG_ODE=TRUE
+
+- OpenSSL
+> Provides OpenSSL support for dtls/tls/https support. The crypto library that is actually used is controlled via the tls_provider cvar.
+
+	openssl
+	-DFTE_PLUG_OPENSSL=TRUE
+
+- OpenXR Support
+> Provides support for Virtual Reality headsets and input devices.
+
+	openxr
+	-DFTE_PLUG_OPENXR=TRUE
+
+- Quaddicted Map Database (Quake Injector)
+> Provides easy access to the quaddicted map database. Once installed you can use eg 'map qi_dopa:start' to begin playing dopa, or load it via the menus.
+
+	qi
+	-DFTE_PLUG_QI=TRUE
+
+- Quake 3 Game Logic and VM Support
+> Provides compatability with Quake3's gamecode.
+
+	quake3
+	-DFTE_PLUG_QUAKE3=TRUE
+
+- TerrainGen Plugin
+> A lame example plugin for randomised terrain generation.
+
+	terraingen
+	-DFTE_PLUG_TERRAINGEN=TRUE
+
+- Timidity Plugin
+> Provides support for playback of midi files.
+
+	timidity
+	-DFTE_PLUG_TIMIDITY=TRUE
+
+- XMPP/Jabber Protocol Support
+> XMPP/Jabber instant messenger plugin for chatting without tabbing out.
+
+	xmpp
+	-DFTE_PLUG_XMPP=TRUE
+
+- X11 Display Server (Standalone)
+> Provides a primitive X11 server in the form of a video decoder plugin.
+
+	x11server
+	-DFTE_PLUG_X11SV=TRUE
 
 ### Notes
 
-- You will need to compile FFMPEG with additional flags on some systems, see `Dependencies.md` for more info.
+- Some plugins might require additional dependencies or flags on some systems, see `Dependencies.md` for more info.

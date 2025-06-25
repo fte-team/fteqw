@@ -14,7 +14,7 @@ Due to the vast amount of supported formats, features, and innovations inside th
 
 - Single & multi-player support
 - Supports multiple games
-- Vast amount of map, model & image formats are supported
+- Vast amount of map, model, & image formats are supported
 - Advanced console, with descriptions & autocompletion
 - Plugin support, enabling use of FFMPEG, Bullet/ODE physics & more
 - Extensive suite of QuakeC/entity debugging features
@@ -32,10 +32,10 @@ Contributions and help is always welcomed.
 ### Guidelines:
 
 - Be kind and respectful
-- GPL2 licensed contributions are preferred, but plugins can be licensed different as long as the GPL isn't violated
+- GPL2 licensed contributions are preferred, but plugins can be different but GPL-compatbile licenses
 - This codebase follows USA/EU/UK copyright laws
 - Always give credit from other codebases and make sure licenses are compatible
-- Test your changes and ensure nothing else has been broken (games/plugins/etc)
+- Test your changes and ensure nothing else has been broken (games, plugins, formats, etc)
 
 # Reporting Issues
 
@@ -43,13 +43,17 @@ Bug reports are welcomed! :)
 
 ### Required Information:
 
-- Your system information
+- Your system information such as your **Operating System** and **Hardware** (GPU/CPU)
 - If the binary is pre-built (e.g. from fteqw.org) or if it was built manually
-- What version of FTEQW you're using
-- What game/mod/plugin/etc you're having issues with, the version info for it, and how it should be behaving
+- What version of FTEQW you're using (type `version` in console)
+- If it is a supported game/mod/plugin/etc you're having issues with, then provide the version info for it, and tell us how it should be behaving
 - Make sure you have read the included documentation and ensure you have done everything right
 - Remember to double check the problem hasn't already been reported
-- Screenshots and video of the issues are generally helpful
+- Screenshots and/or video are generally desired if it is a visual malfunction
+
+**Windows Users**
+
+Please make sure you have not renamed your executable, `fteqw.exe`, to be `winquake.exe` or `glquake.exe` as Windows attempts compatability fixes that are not required for FTEQW and will cause problems.
 
 # Documentation
 
@@ -61,7 +65,7 @@ The `specs` folder is for more advanced users seeking QuakeC and idTech file for
 
 ### Matrix
 
-Join our Matrix Space here:
+Join our Matrix space here:
 
 https://matrix.to/#/#fte:matrix.org
 
@@ -96,6 +100,6 @@ Please read the `LICENSE` file for details.
 
 The latest source & binaries are always available at:
 
-    [fteqw.org](https://fteqw.org)
+[fteqw.org](https://fteqw.org)
 
-    [fteqcc.org](https://fteqcc.org)
+[fteqcc.org](https://fteqcc.org)

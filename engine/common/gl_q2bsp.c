@@ -1828,10 +1828,14 @@ static qboolean CModQ2_LoadFaces (model_t *mod, qbyte *mod_base, lump_t *l, lump
 			out->styles[i] = INVALID_LIGHTSTYLE;
 		if (lofs == ~0u)
 			out->samples = NULL;
-		else if (lightofsisdouble)
-			out->samples = mod->lightdata + (lofs/2);
 		else
+		{
+			if (lightofsisdouble)
+				lofs /= 2;
+			if (mod->lightmaps.fmt == LM_E5BGR9)
+				lofs = lofs / 3 * 4;
 			out->samples = mod->lightdata + lofs;
+		}
 
 	// set the drawing flags
 

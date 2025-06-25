@@ -2653,126 +2653,6 @@ void BSPX_LoadEnvmaps(model_t *mod, bspx_header_t *bspx, void *mod_base)
 {
 }
 #else
-/*
-void *SCR_ScreenShot_Capture(int fbwidth, int fbheight, int *stride, enum uploadfmt *fmt);
-void BSPX_RenderEnvmaps(model_t *mod)
-{
-	int c, i;
-
-	void *buffer;
-	int stride, cubesize;
-	uploadfmt_t fmt;
-	char filename[MAX_QPATH];
-	char olddrawviewmodel[64];	//hack, so we can set r_drawviewmodel to 0 so that it doesn't appear in screenshots even if the csqc is generating new data.
-	vec3_t oldangles;
-	const struct
-	{
-		vec3_t angle;
-		const char *postfix;
-		qboolean verticalflip;
-		qboolean horizontalflip;
-	} sides[] =
-	{
-		{{0, 0, 90}, "_px", true},
-		{{0, 180, -90}, "_nx", true},
-		{{0, 90, 0}, "_py", true},	//upside down
-		{{0, 270, 0}, "_ny", false, true},
-		{{-90, 0, 90}, "_pz", true},
-		{{90, 0, 90}, "_nz", true},
-	};
-	char base[MAX_QPATH];
-	COM_FileBase(cl.worldmodel->name, base, sizeof(base));
-
-	r_refdef.stereomethod = STEREO_OFF;
-	Q_strncpyz(olddrawviewmodel, r_drawviewmodel.string, sizeof(olddrawviewmodel));
-	Cvar_Set(&r_drawviewmodel, "0");
-
-	VectorCopy(cl.playerview->viewangles, oldangles);
-
-	for (c = 0; c < mod->numenvmaps; c++)
-	{
-		cubesize = mod->envmaps[c].cubesize;
-		if (cubesize < 1)
-			cubesize = 32;
-
-		VectorCopy(mod->envmaps[c].origin, r_refdef.vieworg);
-
-		for (i = 0; i < 6; i++)
-		{
-			Q_snprintfz(filename, sizeof(filename), "%s/%i_%i_%i%s.tga", base, (int)mod->envmaps[c].origin[0], (int)mod->envmaps[c].origin[1], (int)mod->envmaps[c].origin[2], sides[i].postfix);
-
-			VectorCopy(sides[i].angle, cl.playerview->simangles);
-			VectorCopy(cl.playerview->simangles, cl.playerview->viewangles);
-
-			buffer = SCR_ScreenShot_Capture(cubesize, cubesize, &stride, &fmt);
-			if (buffer)
-			{
-				char			sysname[1024];
-				if (sides[i].horizontalflip)
-				{
-					int y, x, p;
-					int pxsize;
-					char *bad = buffer;
-					char *in = buffer, *out;
-					switch(fmt)
-					{
-					case TF_RGBA32:
-					case TF_BGRA32:
-					case TF_RGBX32:
-					case TF_BGRX32:
-						pxsize = 4;
-						break;
-					case TF_RGB24:
-					case TF_BGR24:
-						pxsize = 3;
-						break;
-					case PTI_RGBA16F:
-						pxsize = 8;
-						break;
-					case PTI_RGBA32F:
-						pxsize = 16;
-						break;
-					default:	//erk!
-						pxsize = 1;
-						break;
-					}
-					buffer = out = BZ_Malloc(cubesize*cubesize*pxsize);
-					for (y = 0; y < cubesize; y++, in += abs(stride), out += cubesize*pxsize)
-					{
-						for (x = 0; x < cubesize*pxsize; x+=pxsize)
-						{
-							for (p = 0; p < pxsize; p++)
-								out[x+p] = in[(cubesize-1)*pxsize-x+p];
-						}
-					}
-					BZ_Free(bad);
-					if (stride < 0)
-						stride = -cubesize*pxsize;
-					else
-						stride = cubesize*pxsize;
-				}
-				if (sides[i].verticalflip)
-					stride = -stride;
-				if (SCR_ScreenShot(filename, FS_GAMEONLY, &buffer, 1, stride, cubesize, cubesize, fmt))
-				{
-					FS_SystemPath(filename, FS_GAMEONLY, sysname, sizeof(sysname));
-					Con_Printf ("Wrote %s\n", sysname);
-				}
-				else
-				{
-					FS_SystemPath(filename, FS_GAMEONLY, sysname, sizeof(sysname));
-					Con_Printf ("Failed to write %s\n", sysname);
-				}
-				BZ_Free(buffer);
-			}
-		}
-	}
-	Cvar_Set(&r_drawviewmodel, olddrawviewmodel);
-
-	VectorCopy(oldangles, cl.playerview->viewangles);
-}
-*/
-
 void BSPX_LoadEnvmaps(model_t *mod, bspx_header_t *bspx, void *mod_base)
 {
 	unsigned int *envidx, idx;
@@ -3094,7 +2974,10 @@ static int QDECL envmapsort(const void *av, const void *bv)
 		return 1;
 	return -1;
 }
-static void Mod_FindCubemaps_f(void)
+
+void SCR_ScreenShot_Cubemap(vec3_t origin, int size);
+
+static void Mod_FindCubemaps(qboolean build)
 {
 	struct bspxrw bspctx;
 	if (Mod_BSPXRW_Read(&bspctx, cl.worldmodel->name))
@@ -3184,6 +3067,13 @@ static void Mod_FindCubemaps_f(void)
 			Mod_BSPXRW_SetLump(&bspctx, "ENVMAP", envmap, nenvmap*sizeof(*envmap));
 			Mod_BSPXRW_SetLump(&bspctx, "SURFENVMAP", envmapidx, cl.worldmodel->numsurfaces*sizeof(*envmapidx));
 			Mod_BSPXRW_Write(&bspctx);
+
+			if (build)
+			{
+				// cubemaps present. take screenshots for each one.
+				for (i = 0; i < nenvmap; i++)
+					SCR_ScreenShot_Cubemap(envmap[i].origin, envmap[i].cubesize);
+			}
 		}
 		else
 		{
@@ -3195,6 +3085,34 @@ static void Mod_FindCubemaps_f(void)
 		Z_Free(envmap);
 	}
 }
+
+static void Mod_FindCubemaps_f(void)
+{
+	Mod_FindCubemaps(false);
+}
+
+static void Mod_BuildCubemaps_f(void)
+{
+	size_t i;
+
+	if (!cls.state || !cl.worldmodel || cl.worldmodel->loadstate != MLS_LOADED)
+	{
+		Con_Printf("Please start a map first\n");
+		return;
+	}
+
+	if (!cl.worldmodel->numenvmaps)
+	{
+		// lump is not present or is empty. attempt to find cubemaps and then take screenshots.
+		Mod_FindCubemaps(true);
+		return;
+	}
+
+	// cubemaps present. take screenshots for each one.
+	for (i = 0; i < cl.worldmodel->numenvmaps; i++)
+		SCR_ScreenShot_Cubemap(cl.worldmodel->envmaps[i].origin, cl.worldmodel->envmaps[i].cubesize);
+}
+
 static void Mod_Realign_f(void)
 {
 	struct bspxrw bspctx;
@@ -3378,6 +3296,7 @@ image_t *Mod_CubemapForOrigin(model_t *wmodel, vec3_t org)
 void Mod_BSPX_Init(void)
 {
 	Cmd_AddCommandD("mod_findcubemaps", Mod_FindCubemaps_f, "Scans the entities of a map to find reflection env_cubemap sites and determines the nearest one to each surface.");
+	Cmd_AddCommandD("mod_buildcubemaps", Mod_BuildCubemaps_f, "Automatically builds cubemaps for each env_cubemap present in the map.");
 	Cmd_AddCommandD("mod_realign", Mod_Realign_f, "Reads the named bsp and writes it back out with only alignment changes.");
 	Cmd_AddCommandD("mod_bspx_list", Mod_BSPX_List_f, "Lists all lumps (and their sizes) in the specified bsp.");
 	Cmd_AddCommandD("mod_bspx_strip", Mod_BSPX_Strip_f, "Strips a named extension lump from a bsp file.");

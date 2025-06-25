@@ -3064,14 +3064,13 @@ static void SCR_ScreenShot_VR_f(void)
 	VectorClear(r_refdef.eyeoffset);
 }
 
-void SCR_ScreenShot_Cubemap_f(void)
+static void SCR_ScreenShot_Cubemap_Internal(vec3_t origin, int size, const char *fname, const char *fnamefmt, qboolean envmap)
 {
 	void *buffer;
 	int stride, fbwidth, fbheight;
 	uploadfmt_t fmt;
 	char filename[MAX_QPATH];
 	char displayname[1024];
-	char *fname = Cmd_Argv(1);
 	int i, firstside;
 	char olddrawviewmodel[64];	//hack, so we can set r_drawviewmodel to 0 so that it doesn't appear in screenshots even if the csqc is generating new data.
 	vec3_t oldangles;
@@ -3103,6 +3102,7 @@ void SCR_ScreenShot_Cubemap_f(void)
 	};
 	const char *ext;
 	unsigned int bb, bw, bh, bd;
+	refdef_t oldrefdef;
 
 	if (!cls.state || !cl.worldmodel || cl.worldmodel->loadstate != MLS_LOADED)
 	{
@@ -3110,15 +3110,32 @@ void SCR_ScreenShot_Cubemap_f(void)
 		return;
 	}
 
-	firstside = (!strcmp(Cmd_Argv(0), "envmap"))?6:0;
+	firstside = envmap?6:0;
+
+	oldrefdef = r_refdef;
 
 	r_refdef.stereomethod = STEREO_OFF;
 	Q_strncpyz(olddrawviewmodel, r_drawviewmodel.string, sizeof(olddrawviewmodel));
 	Cvar_Set(&r_drawviewmodel, "0");
 
+	if (origin)
+	{
+		r_refdef.externalview = true;
+		r_refdef.forcevis = false;
+		r_refdef.flags |= RDF_DISABLEPARTICLES;
+		r_refdef.forcedvis = NULL;
+		r_refdef.areabitsknown = false;
+		r_refdef.sceneareas = NULL;
+		r_refdef.fixedview = true;
+		VectorCopy(origin, r_refdef.fixedvieworg);
+		// r_refdef.fixedviewangles is set below for each screenshot
+	}
+	else
+		origin = r_refdef.vieworg;
+
 	VectorCopy(cl.playerview->viewangles, oldangles);
 
-	fbheight = atoi(Cmd_Argv(2))&~1;
+	fbheight = size&~1;
 	if (fbheight < 1)
 		fbheight = 512;
 	fbwidth = fbheight;
@@ -3128,7 +3145,7 @@ void SCR_ScreenShot_Cubemap_f(void)
 	{	//generate a default filename if none exists yet.
 		char base[MAX_QPATH];
 		COM_FileBase(cl.worldmodel->name, base, sizeof(base));
-		fname = va("%s/%i_%i_%i", base, (int)r_refdef.vieworg[0], (int)r_refdef.vieworg[1], (int)r_refdef.vieworg[2]);
+		fname = va(fnamefmt, base, (int)origin[0], (int)origin[1], (int)origin[2]);
 	}
 	if (!strcmp(ext, ".ktx") || !strcmp(ext, ".dds"))
 	{
@@ -3141,8 +3158,13 @@ void SCR_ScreenShot_Cubemap_f(void)
 		bb=0;
 		for (i = 0; i < 6; i++)
 		{
-			VectorCopy(sides[i].angle, cl.playerview->aimangles);
-			VectorCopy(cl.playerview->aimangles, cl.playerview->viewangles);
+			if (r_refdef.fixedview)
+				VectorCopy(sides[i].angle, r_refdef.fixedviewangles);
+			else
+			{
+				VectorCopy(sides[i].angle, cl.playerview->aimangles);
+				VectorCopy(cl.playerview->aimangles, cl.playerview->viewangles);
+			}
 
 			//don't use hdr when saving dds files. it generally means dx10 dds files and most tools suck too much and then I get blamed for writing 'corrupt' dds files.
 			facedata = SCR_ScreenShot_Capture(fbwidth, fbheight, &stride, &fmt, true, !!strcmp(ext, ".dds"));
@@ -3217,7 +3239,7 @@ void SCR_ScreenShot_Cubemap_f(void)
 			}
 #endif
 			else
-				Con_Printf ("%s: Unknown format %s\n", Cmd_Argv(0), filename);
+				Con_Printf ("Unknown format %s\n", filename);
 		}
 		if (mips.mip[0].needfree)
 			BZ_Free(mips.mip[0].data);
@@ -3226,8 +3248,13 @@ void SCR_ScreenShot_Cubemap_f(void)
 	{
 		for (i = firstside; i < firstside+6; i++)
 		{
-			VectorCopy(sides[i].angle, cl.playerview->aimangles);
-			VectorCopy(cl.playerview->aimangles, cl.playerview->viewangles);
+			if (r_refdef.fixedview)
+				VectorCopy(sides[i].angle, r_refdef.fixedviewangles);
+			else
+			{
+				VectorCopy(sides[i].angle, cl.playerview->aimangles);
+				VectorCopy(cl.playerview->aimangles, cl.playerview->viewangles);
+			}
 
 			buffer = SCR_ScreenShot_Capture(fbwidth, fbheight, &stride, &fmt, true, false);
 			if (buffer)
@@ -3274,9 +3301,26 @@ void SCR_ScreenShot_Cubemap_f(void)
 		}
 	}
 
+	r_refdef = oldrefdef;
+
 	Cvar_Set(&r_drawviewmodel, olddrawviewmodel);
 
 	VectorCopy(oldangles, cl.playerview->viewangles);
+}
+
+void SCR_ScreenShot_Cubemap(vec3_t origin, int size)
+{
+	SCR_ScreenShot_Cubemap_Internal(origin, size, "", "env/%s_%i_%i_%i", false);
+}
+
+static void SCR_ScreenShot_Cubemap_f(void)
+{
+	SCR_ScreenShot_Cubemap_Internal(NULL, atoi(Cmd_Argv(2)), Cmd_Argv(1), "%s/%i_%i_%i", false);
+}
+
+static void SCR_ScreenShot_Envmap_f(void)
+{
+	SCR_ScreenShot_Cubemap_Internal(NULL, atoi(Cmd_Argv(2)), Cmd_Argv(1), "%s/%i_%i_%i", true);
 }
 
 #ifdef IMAGEFMT_PCX
@@ -3623,7 +3667,7 @@ void SCR_Init (void)
 	Cmd_AddCommandD ("screenshot_360",SCR_ScreenShot_Mega_f, "screenshot_360 <name> [width] [height]\nTakes an equirectangular screenshot.");
 	Cmd_AddCommandD ("screenshot_vr",SCR_ScreenShot_VR_f, "screenshot_vr <name> [width]\nTakes a spherical stereoscopic panorama image, for viewing with VR displays.");
 	Cmd_AddCommandD ("screenshot_cubemap",SCR_ScreenShot_Cubemap_f, "screenshot_cubemap <name> [size]\nTakes 6 screenshots forming a single cubemap.");
-	Cmd_AddCommandD ("envmap",SCR_ScreenShot_Cubemap_f, "Legacy name for the screenshot_cubemap command.");	//legacy 
+	Cmd_AddCommandD ("envmap",SCR_ScreenShot_Envmap_f, "Legacy name for the screenshot_cubemap command.");	//legacy 
 	Cmd_AddCommand ("screenshot",SCR_ScreenShot_f);
 
 	scr_net = R2D_SafePicFromWad ("net");

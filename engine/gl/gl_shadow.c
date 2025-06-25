@@ -999,6 +999,65 @@ next:;
 #endif
 
 #ifdef Q2BSPS
+void CategorizePlane ( mplane_t *plane );
+static void SHM_OrthoWorldLeafsQ2 (dlight_t *dl)
+{
+	int			c, i;
+	msurface_t	*surf, **mark;
+	mleaf_t		*pleaf, *plastleaf;
+
+	mplane_t orthoplanes[5];
+
+	sh_shadowframe++;
+
+	VectorCopy(dl->axis[0], orthoplanes[0].normal);
+	VectorNegate(dl->axis[0], orthoplanes[1].normal);
+	VectorCopy(dl->axis[1], orthoplanes[2].normal);
+	VectorNegate(dl->axis[1], orthoplanes[3].normal);
+	VectorNegate(dl->axis[0], orthoplanes[4].normal);
+
+	for (i = 0; i < countof(orthoplanes); i++)
+	{
+		orthoplanes[i].dist = DotProduct(dl->origin, orthoplanes[i].normal) - dl->radius;
+		CategorizePlane(&orthoplanes[i]);
+	}
+
+	for (pleaf = cl.worldmodel->leafs+1, plastleaf = cl.worldmodel->leafs+cl.worldmodel->numleafs; pleaf <= plastleaf; pleaf++)
+	{
+		for (i = 0; i < countof(orthoplanes); i++)
+			if (BOX_ON_PLANE_SIDE (pleaf->minmaxs, pleaf->minmaxs+3, &orthoplanes[i]) == 2)
+				goto next;
+
+		SHM_Shadow_Cache_Leaf(pleaf);
+
+		mark = pleaf->firstmarksurface;
+		c = pleaf->nummarksurfaces;
+
+		while (c --> 0)
+		{
+			surf = *mark++;
+
+			if (surf->flags & (SURF_DRAWALPHA | SURF_DRAWTILED | SURF_DRAWSKY))
+				continue;
+
+			if (surf->shadowframe != sh_shadowframe)
+			{
+				surf->shadowframe = sh_shadowframe;
+
+//				if (dot < 0)
+				{
+					SHM_Shadow_Cache_Surface(surf);
+				}
+//				else
+//				SHM_MeshBackOnly(surf->mesh->numvertexes, surf->mesh->xyz_array, surf->mesh->numindexes, surf->mesh->indexes);
+					SHM_MeshFrontOnly(surf->mesh->numvertexes, surf->mesh->xyz_array, surf->mesh->numindexes, surf->mesh->indexes);
+			}
+		}
+
+next:;
+	}
+}
+
 static void SHM_RecursiveWorldNodeQ2_r (dlight_t *dl, mnode_t *node)
 {
 	int			c, side;
@@ -1254,8 +1313,14 @@ static void SHM_MarkLeavesQ2(dlight_t *dl, const unsigned char *lvis)
 }
 void Q2BSP_GenerateShadowMesh(model_t *model, dlight_t *dl, const qbyte *lightvis, qbyte *litvis, void (*callback)(msurface_t *surf))
 {
-	SHM_MarkLeavesQ2(dl, lightvis);
-	SHM_RecursiveWorldNodeQ2_r(dl, model->nodes);
+	genshadowmapcallback = callback;
+	if (sh_shmesh->type == SMT_ORTHO)
+		SHM_OrthoWorldLeafsQ2(dl);
+	else
+	{
+		SHM_MarkLeavesQ2(dl, lightvis);
+		SHM_RecursiveWorldNodeQ2_r(dl, model->nodes);
+	}
 }
 #endif
 

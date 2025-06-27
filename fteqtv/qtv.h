@@ -294,14 +294,10 @@ size_t CalcHMAC(hashfunc_t *hashfunc, unsigned char *digest, size_t maxdigestsiz
 
 
 #include "protocol.h"
-
-
-
+#include <fteqw/math/scalar.h>
 
 #ifndef __cplusplus
-typedef enum {false, true} qboolean;
 #else
-typedef int qboolean;
 extern "C" {
 #endif
 

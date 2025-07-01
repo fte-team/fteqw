@@ -839,9 +839,11 @@ void Sys_Error (const char *error, ...)
 	}
 
 	Sys_Printf("\nLoading new instance of FTE...\n\n\n");
+#ifdef HAVE_SERVER
 	PR_Deinit();	//this takes a bit more mem
 #ifdef SVRANKING
 	Rank_Flush();
+#endif
 #endif
 #ifndef MINGW
 	fcloseall();	//make sure all files are written.

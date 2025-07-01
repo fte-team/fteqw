@@ -243,6 +243,9 @@ void SV_Shutdown (void)
 	}
 
 	SV_UnspawnServer();
+#ifdef SUBSERVERS
+	MSV_Shutdown();
+#endif
 
 #ifdef MVD_RECORDING
 	if (sv.mvdrecording)

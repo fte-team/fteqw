@@ -10,8 +10,10 @@
 #else
 #include <unistd.h>
 #endif
-#ifdef FTE_SDL
-#include <SDL.h>
+#if defined(FTE_SDL3)
+	#include <SDL3/SDL.h>
+#elif defined(FTE_SDL)
+	#include <SDL.h>
 #endif
 
 static void Headless_Draw_Init(void)
@@ -41,7 +43,19 @@ static void	Headless_R_DeInit					(void)
 static void	Headless_R_RenderView				(void)
 {
 }
-#if defined(_WIN32) && !defined(FTE_SDL)
+#ifdef FTE_SDL
+	#if SDL_VERSION_ATLEAST(3,0,0)
+static SDL_Tray *thetray;
+static void SDLCALL Headless_Restore(void *userdata, SDL_TrayEntry *entry)
+{
+	extern cvar_t vid_renderer;
+	if (!Q_strcasecmp(vid_renderer.string, "headless"))
+		Cbuf_AddText("vid_renderer \"\";vid_restart\n", RESTRICT_LOCAL);
+	else
+		Cbuf_AddText("vid_restart\n", RESTRICT_LOCAL);
+}
+	#endif
+#elif defined(_WIN32)
 //tray icon crap, so the user can still restore the game.
 LRESULT CALLBACK HeadlessWndProc(HWND wnd, UINT msg, WPARAM wparam, LPARAM lparam)
 {
@@ -74,7 +88,22 @@ LRESULT CALLBACK HeadlessWndProc(HWND wnd, UINT msg, WPARAM wparam, LPARAM lpara
 
 static qboolean Headless_VID_Init				(rendererstate_t *info, unsigned char *palette)
 {
-#if defined(_WIN32) && !defined(FTE_SDL)
+	memset(&sh_config, 0, sizeof(sh_config));
+
+#ifdef FTE_SDL
+	#if SDL_VERSION_ATLEAST(3,0,0)
+		thetray = SDL_CreateTray(NULL, fs_manifest->formalname);
+		if (thetray)
+		{	//don't know how to respond to direct clicks, so create a menu.
+			SDL_TrayMenu *menu = SDL_CreateTrayMenu(thetray);
+			SDL_TrayEntry *entry = SDL_InsertTrayEntryAt(menu, -1, "Restore", SDL_TRAYENTRY_BUTTON);
+			SDL_SetTrayEntryCallback(entry, Headless_Restore, NULL);
+			return true;
+		}
+		Con_Printf(CON_ERROR"Headless: Unable to create system tray icon for restoring.\n");
+		return false;
+	#endif
+#elif defined(_WIN32)
 	//tray icon crap, so the user can still restore the game.
 	extern HWND	mainwindow;
 	extern HINSTANCE	global_hInstance;
@@ -137,13 +166,16 @@ static qboolean Headless_VID_Init				(rendererstate_t *info, unsigned char *pale
 		Shell_NotifyIconA(NIM_ADD, &data);
 	}
 #endif
-
-	memset(&sh_config, 0, sizeof(sh_config));
 	return true;
 }
 static void	 Headless_VID_DeInit				(void)
 {
-#if defined(_WIN32) && !defined(FTE_SDL)
+#ifdef FTE_SDL
+	#if SDL_VERSION_ATLEAST(3,0,0)
+		SDL_DestroyTray(thetray);
+		thetray = NULL;
+	#endif
+#elif defined(_WIN32)
 	//tray icon crap, so the user can still restore the game.
 	//FIXME: remove tray icon. win95 won't do this automagically.
 	extern HWND	mainwindow;
@@ -356,7 +388,7 @@ static qboolean HeadlessVK_Init (rendererstate_t *info, unsigned char *palette)
 
 	vid.pixelwidth = 1920;
 	vid.pixelheight = 1080;
-	if (!VK_Init(info, NULL, HeadlessVK_CreateSurface, NULL))
+	if (!VK_Init(info, NULL,0, HeadlessVK_CreateSurface, NULL))
 		return false;
 	Cvar_ForceCallback(&vid_conautoscale);
 	return true;

@@ -47,7 +47,9 @@ fte_inlinebody float M_LinearToSRGB(float x, float mag);
 #ifdef AVAIL_ZLIB
 	#include <zlib.h>
 #endif
-#ifdef FTE_SDL
+#if defined(FTE_SDL3)
+	#include <SDL3/SDL.h>
+#elif defined(FTE_SDL)
 	#include <SDL.h>
 #endif
 
@@ -5703,7 +5705,12 @@ static void COM_Version_f (void)
 #endif
 	Con_Printf("\n");
 
-#ifdef FTE_SDL
+#if defined(FTE_SDL3)
+	{
+		int ver = SDL_GetVersion();
+		Con_Printf("^3SDL version:^9 %d.%d.%d -> ^7%d.%d.%d\n", SDL_MAJOR_VERSION, SDL_MINOR_VERSION, SDL_MICRO_VERSION, SDL_VERSIONNUM_MAJOR(ver), SDL_VERSIONNUM_MINOR(ver), SDL_VERSIONNUM_MICRO(ver));
+	}
+#elif defined(FTE_SDL)
 	Con_Printf("^3SDL version:^7 %d.%d.%d\n", SDL_MAJOR_VERSION, SDL_MINOR_VERSION, SDL_PATCHLEVEL);
 #endif
 

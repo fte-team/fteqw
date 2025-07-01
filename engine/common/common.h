@@ -651,10 +651,10 @@ typedef struct vfsfile_s
 
 #define VFS_ERROR_TRYLATER		0	//nothing to write/read yet.
 #define VFS_ERROR_UNSPECIFIED	-1	//no reason given
-#define VFS_ERROR_NORESPONSE	-2	//no reason given
-#define VFS_ERROR_REFUSED		-3	//no reason given
-#define VFS_ERROR_EOF			-4	//no reason given
-#define VFS_ERROR_DNSFAILURE	-5	//weird one, but oh well
+#define VFS_ERROR_NORESPONSE	-2	//tcp connection timed out without any response.
+#define VFS_ERROR_REFUSED		-3	//tcp connection got an error while connecting (woo, icmp packets actually got through for once!).
+#define VFS_ERROR_EOF			-4	//end-of-file/stream (for pipes, the other end closed it)
+#define VFS_ERROR_DNSFAILURE	-5	//weird one, but oh well.
 #define VFS_ERROR_WRONGCERT		-6	//server gave a certificate with the wrong name
 #define VFS_ERROR_UNTRUSTED		-7	//server gave a certificate with the right name, but we don't have a full chain of trust
 
@@ -844,10 +844,9 @@ struct gamepacks
 };
 void COM_Gamedir (const char *dir, const struct gamepacks *packagespaths);
 qboolean FS_PathURLCache(const char *url, char *path, size_t pathsize);	//converts a url to something that can be shoved into a filesystem
-qboolean FS_GamedirIsOkay(const char *path);
 char *FS_GetGamedir(qboolean publicpathonly);
 char *FS_GetManifestArgs(void);
-int FS_GetManifestArgv(char **argv, int maxargs);
+int FS_GetManifestArgv(const char **argv, int maxargs);
 
 struct zonegroup_s;
 void *FS_LoadMallocGroupFile(struct zonegroup_s *ctx, char *path, size_t *fsize, qboolean filters);

@@ -22,8 +22,8 @@ Due to the vast amount of supported formats, features, and innovations inside th
 - Support for split-screen local multiplayer
 - Voice-chat via Opus & Speex
 - Support for hundreds of players on a single server
-- Works on Windows, Linux, OpenBSD... & more!
-- New features are added all the time in cooperation with modders!
+- Works on Windows, Linux, OpenBSD... & more
+- New features are added all the time in cooperation with modders
 
 # Contributions
 
@@ -83,20 +83,22 @@ We have a channel on [QuakeNet](https://www.quakenet.org):
 
 ### Discord
 
-There is a semi-official Discord server that **Spike** is in, however, we really recommend you use open, secure, privacy-respecting communication platforms like the ones listed above.
+https://discord.gg/p2ag7x6Ca6
 
 # Credits
 
-Please read the `Credits.md` file.
+Please see the `Credits.md` file.
 
 # License
 
-Copyright (c) 2004-2024 FTE's team and its contributors
+Copyright (c) 2004-2025 FTE's team and its contributors
 Quake source (c) 1999 id Software
 
 FTEQW is supplied to you under the terms of the same license as the
 original Quake sources, the GNU General Public License Version 2.
 Please read the `LICENSE` file for details.
+
+# Download
 
 The latest source & binaries are always available at:
 

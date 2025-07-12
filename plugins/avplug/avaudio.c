@@ -70,9 +70,9 @@ static void S_AV_Purge(sfx_t *s)
 static void S_AV_ReadFrame(struct avaudioctx *ctx)
 {	//reads an audioframe and spits its data into the output sound file for the game engine to use.
 	qaudiofmt_t outformat = QAF_S16, informat=QAF_S16;
-	int channels = ctx->pACodecCtx->channels;
+	int channels = ctx->pACodecCtx->ch_layout.nb_channels;
 	int planes = 1, p;
-	unsigned int auddatasize = av_samples_get_buffer_size(NULL, ctx->pACodecCtx->channels, ctx->pAFrame->nb_samples, ctx->pACodecCtx->sample_fmt, 1);
+	unsigned int auddatasize = av_samples_get_buffer_size(NULL, channels, ctx->pAFrame->nb_samples, ctx->pACodecCtx->sample_fmt, 1);
 	switch(ctx->pACodecCtx->sample_fmt)
 	{	//we don't support planar audio. we just treat it as mono instead.
 	default:

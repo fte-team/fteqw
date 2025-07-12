@@ -6,7 +6,8 @@ Setting them should be fine.
 */
 #ifndef __PR_COMP_H__
 #define __PR_COMP_H__
-#include "progtype.h"
+
+#include <fteqw/math/vector.h>
 
 /*
 #ifdef USE_MSVCRT_DEBUG

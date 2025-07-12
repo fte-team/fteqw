@@ -88,11 +88,6 @@ qboolean DL_Decide(struct dl_download *dl)
 	const char *url = dl->redir;
 	if (!*url)
 		url = dl->url;
-	if (dl->postdata)
-	{	//not supported...
-		DL_Cancel(dl);
-		return false;	//safe to destroy it now
-	}
 
 	if (dl->ctx)
 	{
@@ -110,7 +105,7 @@ qboolean DL_Decide(struct dl_download *dl)
 		dl->abort = DL_Cancel;
 		dl->ctx = dl;
 
-		emscriptenfte_async_wget_data2(url, dl, DL_OnLoad, DL_OnError, DL_OnProgress);
+		emscriptenfte_async_wget_data2(url, dl->postdata, dl->postlen, dl->postmimetype, dl, DL_OnLoad, DL_OnError, DL_OnProgress);
 	}
 	else if (dl->status == DL_ACTIVE)
 	{	//canceled?
@@ -1268,11 +1263,13 @@ struct dl_download *DL_Create(const char *url)
 	newdl->qdownload.method = DL_HTTP;
 #endif
 
+#if !defined(FTE_TARGET_WEB)
 	if (!newdl->poll(newdl))
 	{
 		free(newdl);
 		newdl = NULL;
 	}
+#endif
 
 	return newdl;
 }

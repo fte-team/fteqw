@@ -1490,13 +1490,25 @@ mergeInto(LibraryManager.library,
 		return 0;
 	},
 
-	emscriptenfte_async_wget_data2 : function(url, ctx, onload, onerror, onprogress)
+	emscriptenfte_async_wget_data2 : function(url, postdata, postlen, postmimetype, ctx, onload, onerror, onprogress)
 	{
 		var _url = UTF8ToString(url);
 		var http = new XMLHttpRequest();
 		try
 		{
-			http.open('GET', _url, true);
+			if (postdata)
+			{
+				http.open('POST', _url, true);
+
+				if (postmimetype)
+					http.setRequestHeader("Content-Type", UTF8ToString(postmimetype));
+				else
+					http.setRequestHeader("Content-Type", "application/x-www-form-urlencoded");
+			}
+			else
+			{
+				http.open('GET', _url, true);
+			}
 		}
 		catch(e)
 		{
@@ -1536,7 +1548,14 @@ mergeInto(LibraryManager.library,
 
 		try	//ffs
 		{
-			http.send(null);
+			if (postdata)
+			{
+				http.send(HEAPU8.subarray(postdata, postdata+postlen));
+			}
+			else
+			{
+				http.send(null);
+			}
 		}
 		catch(e)
 		{

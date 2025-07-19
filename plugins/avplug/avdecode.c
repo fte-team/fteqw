@@ -126,12 +126,12 @@ static void AVDec_Destroy(void *vctx)
 	// Free the video stuff
 	av_free(ctx->rgb_data);
 	if (ctx->pVCodecCtx)
-		avcodec_close(ctx->pVCodecCtx);
+		avcodec_free_context(&ctx->pVCodecCtx);
 	av_free(ctx->pVFrame);
 
 	// Free the audio decoder
 	if (ctx->pACodecCtx)
-		avcodec_close(ctx->pACodecCtx);
+		avcodec_free_context(&ctx->pACodecCtx);
 	av_free(ctx->pAFrame);
 
 	// Close the video file
@@ -148,7 +148,7 @@ static void *AVDec_Create(const char *medianame)
 	struct decctx *ctx;
 
 	unsigned int             i;
-	AVCodec         *pCodec;
+	const AVCodec         *pCodec;
 	qboolean useioctx = false;
 //	const char *extension = strrchr(medianame, '.');
 
@@ -370,8 +370,8 @@ static qboolean VARGS AVDec_DisplayFrame(void *vctx, qboolean nosound, qboolean 
 			while(0==avcodec_receive_frame(ctx->pACodecCtx, ctx->pAFrame))
 			{
 				int width = 2;
-				int channels = ctx->pACodecCtx->channels;
-				unsigned int auddatasize = av_samples_get_buffer_size(NULL, ctx->pACodecCtx->channels, ctx->pAFrame->nb_samples, ctx->pACodecCtx->sample_fmt, 1);
+				int channels = ctx->pACodecCtx->ch_layout.nb_channels;
+				unsigned int auddatasize = av_samples_get_buffer_size(NULL, ctx->pACodecCtx->ch_layout.nb_channels, ctx->pAFrame->nb_samples, ctx->pACodecCtx->sample_fmt, 1);
 				void *auddata = ctx->pAFrame->data[0];
 				switch(ctx->pACodecCtx->sample_fmt)
 				{
@@ -534,8 +534,8 @@ static qboolean VARGS AVDec_DisplayFrame(void *vctx, qboolean nosound, qboolean 
 				if (okay)
 				{
 					int width = 2;
-					int channels = ctx->pACodecCtx->channels;
-					unsigned int auddatasize = av_samples_get_buffer_size(NULL, ctx->pACodecCtx->channels, ctx->pAFrame->nb_samples, ctx->pACodecCtx->sample_fmt, 1);
+					int channels = ctx->pACodecCtx->ch_layout.nb_channels;
+					unsigned int auddatasize = av_samples_get_buffer_size(NULL, ctx->pACodecCtx->ch_layout.nb_channels, ctx->pAFrame->nb_samples, ctx->pACodecCtx->sample_fmt, 1);
 					void *auddata = ctx->pAFrame->data[0];
 					switch(ctx->pACodecCtx->sample_fmt)
 					{

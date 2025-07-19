@@ -108,7 +108,7 @@ static AVFrame *alloc_frame(enum AVPixelFormat pix_fmt, int width, int height)
 	picture->height = height;
 	return picture;
 }
-static AVStream *add_video_stream(struct encctx *ctx, AVCodec *codec, int fps, int width, int height)
+static AVStream *add_video_stream(struct encctx *ctx, const AVCodec *codec, int fps, int width, int height)
 {
 	AVCodecContext *c;
 	AVStream *st;
@@ -175,7 +175,7 @@ static void close_video(struct encctx *ctx)
 	if (!ctx->video_st)
 		return;
 
-	avcodec_close(ctx->video_codec);
+	avcodec_free_context(&ctx->video_codec);
 	if (ctx->picture)
 	{
 		av_free(ctx->picture->data[0]);
@@ -188,7 +188,7 @@ static void close_video(struct encctx *ctx)
 //frame can be null on eof.
 static void AVEnc_DoEncode(AVFormatContext *fc, AVStream *stream, AVCodecContext *codec, AVFrame *frame)
 {
-	AVPacket pkt;
+	AVPacket *pkt = av_packet_alloc();
 	int err = avcodec_send_frame(codec, frame);
 	if (err)
 	{
@@ -196,24 +196,24 @@ static void AVEnc_DoEncode(AVFormatContext *fc, AVStream *stream, AVCodecContext
 		Con_Printf("avcodec_send_frame: error: %s\n", av_make_error_string(buf, sizeof(buf), err));
 	}
 
-	av_init_packet(&pkt);
-	while (!(err=avcodec_receive_packet(codec, &pkt)))
+	while (!(err=avcodec_receive_packet(codec, pkt)))
 	{
-		av_packet_rescale_ts(&pkt, codec->time_base, stream->time_base);
-		pkt.stream_index = stream->index;
-		err = av_interleaved_write_frame(fc, &pkt);
+		av_packet_rescale_ts(pkt, codec->time_base, stream->time_base);
+		pkt->stream_index = stream->index;
+		err = av_interleaved_write_frame(fc, pkt);
 		if (err)
 		{
 			char buf[512];
 			Con_Printf("av_interleaved_write_frame: error: %s\n", av_make_error_string(buf, sizeof(buf), err));
 		}
-		av_packet_unref(&pkt);
+		av_packet_unref(pkt);
 	}
 	if (err && err != AVERROR(EAGAIN) && err != AVERROR_EOF)
 	{
 		char buf[512];
 		Con_Printf("avcodec_receive_packet: error: %s\n", av_make_error_string(buf, sizeof(buf), err));
 	}
+	av_packet_free(&pkt);
 }
 #endif
 
@@ -266,15 +266,14 @@ static void AVEnc_Video (void *vctx, int frameno, void *data, int bytestride, in
 	AVEnc_DoEncode(ctx->fc, ctx->video_st, ctx->video_codec, ctx->picture);
 #else
 	{
-		AVPacket pkt;
 		int success;
 		int err;
+		AVPacket *pkt = av_packet_alloc();
 
-		av_init_packet(&pkt);
-		pkt.data = ctx->video_outbuf;
-		pkt.size = ctx->video_outbuf_size;
+		pkt->data = ctx->video_outbuf;
+		pkt->size = ctx->video_outbuf_size;
 		success = 0;
-		err = avcodec_encode_video2(ctx->video_codec, &pkt, ctx->picture, &success);
+		err = avcodec_encode_video2(ctx->video_codec, pkt, ctx->picture, &success);
 		if (err)
 		{
 			char buf[512];
@@ -282,9 +281,9 @@ static void AVEnc_Video (void *vctx, int frameno, void *data, int bytestride, in
 		}
 		else if (err == 0 && success)
 		{
-			av_packet_rescale_ts(&pkt, ctx->video_codec->time_base, ctx->video_st->time_base);
-			pkt.stream_index = ctx->video_st->index;
-			err = av_interleaved_write_frame(ctx->fc, &pkt);
+			av_packet_rescale_ts(pkt, ctx->video_codec->time_base, ctx->video_st->time_base);
+			pkt->stream_index = ctx->video_st->index;
+			err = av_interleaved_write_frame(ctx->fc, pkt);
 		
 			if (err)
 			{
@@ -292,15 +291,18 @@ static void AVEnc_Video (void *vctx, int frameno, void *data, int bytestride, in
 				Con_Printf("av_interleaved_write_frame: error: %s\n", av_make_error_string(buf, sizeof(buf), err));
 			}
 		}
+		av_packet_free(&pkt);
 	}
 #endif
 }
 
-static AVStream *add_audio_stream(struct encctx *ctx, AVCodec *codec, int *samplerate, int *bits, int channels)
+static AVStream *add_audio_stream(struct encctx *ctx, const AVCodec *codec, int *samplerate, int *bits, int channels)
 {
 	AVCodecContext *c;
 	AVStream *st;
 	int bitrate = ffmpeg_audiobitrate->value;
+	int num_sample_fmts = 0;
+	enum AVSampleFormat *sample_fmts;
 
 #if LIBAVCODEC_VERSION_INT < AV_VERSION_INT(57, 48, 101)
 	st = avformat_new_stream(ctx->fc, codec);
@@ -331,9 +333,12 @@ static AVStream *add_audio_stream(struct encctx *ctx, AVCodec *codec, int *sampl
 	c->time_base.num = 1;
 	c->time_base.den = *samplerate;
 	c->sample_rate = *samplerate;
-	c->channels = channels;
-	c->channel_layout = av_get_default_channel_layout(c->channels);
-	c->sample_fmt = codec->sample_fmts[0];
+	c->ch_layout.nb_channels = channels;
+	av_channel_layout_default(&c->ch_layout, channels);
+
+	avcodec_get_supported_config(c, codec, AV_CODEC_CONFIG_SAMPLE_FORMAT, 0, (const void **)&sample_fmts, &num_sample_fmts);
+
+	c->sample_fmt = sample_fmts[0];
 
 //	if (c->sample_fmt == AV_SAMPLE_FMT_FLTP || c->sample_fmt == AV_SAMPLE_FMT_FLT)
 //		*bits = 32;	//get the engine to mix 32bit audio instead of whatever its currently set to.
@@ -359,7 +364,7 @@ static void close_audio(struct encctx *ctx)
 	if (!ctx->audio_st)
 		return;
 
-	avcodec_close(ctx->audio_codec);
+	avcodec_free_context(&ctx->audio_codec);
 }
 static void AVEnc_Audio (void *vctx, void *data, int bytes)
 {
@@ -370,7 +375,7 @@ static void AVEnc_Audio (void *vctx, void *data, int bytes)
 
 	while (bytes)
 	{
-		int i, p, chans = ctx->audio_codec->channels;
+		int i, p, chans = ctx->audio_codec->ch_layout.nb_channels;
 		int blocksize = sizeof(float)*chans;
 		int count = bytes / blocksize;
 		int planesize = ctx->audio_codec->frame_size;
@@ -485,7 +490,7 @@ static void AVEnc_Audio (void *vctx, void *data, int bytes)
 		}
 
 		ctx->audio->nb_samples = ctx->audio_outcount;
-		avcodec_fill_audio_frame(ctx->audio, ctx->audio_codec->channels, ctx->audio_codec->sample_fmt, ctx->audio_outbuf, av_get_bytes_per_sample(ctx->audio_codec->sample_fmt)*ctx->audio_outcount*ctx->audio_codec->channels, 1);
+		avcodec_fill_audio_frame(ctx->audio, ctx->audio_codec->ch_layout.nb_channels, ctx->audio_codec->sample_fmt, ctx->audio_outbuf, av_get_bytes_per_sample(ctx->audio_codec->sample_fmt)*ctx->audio_outcount*ctx->audio_codec->ch_layout.nb_channels, 1);
 		ctx->audio->pts = ctx->audio_pts;
 		ctx->audio_pts += ctx->audio_outcount;
 		ctx->audio_outcount = 0;
@@ -494,14 +499,13 @@ static void AVEnc_Audio (void *vctx, void *data, int bytes)
 		AVEnc_DoEncode(ctx->fc, ctx->audio_st, ctx->audio_codec, ctx->audio);
 #else
 		{
-			AVPacket pkt;
 			int success;
 			int err;
-			av_init_packet(&pkt);
-			pkt.data = NULL;
-			pkt.size = 0;
+			AVPacket *pkt = av_packet_alloc();
+			pkt->data = NULL;
+			pkt->size = 0;
 			success = 0;
-			err = avcodec_encode_audio2(ctx->audio_codec, &pkt, ctx->audio, &success);
+			err = avcodec_encode_audio2(ctx->audio_codec, pkt, ctx->audio, &success);
 
 			if (err)
 			{
@@ -514,15 +518,16 @@ static void AVEnc_Audio (void *vctx, void *data, int bytes)
 		//		if(ctx->audio_codec->coded_frame->key_frame)
 		//			pkt.flags |= AV_PKT_FLAG_KEY;
 
-				av_packet_rescale_ts(&pkt, ctx->audio_codec->time_base, ctx->audio_st->time_base);
-				pkt.stream_index = ctx->audio_st->index;
-				err = av_interleaved_write_frame(ctx->fc, &pkt);
+				av_packet_rescale_ts(pkt, ctx->audio_codec->time_base, ctx->audio_st->time_base);
+				pkt->stream_index = ctx->audio_st->index;
+				err = av_interleaved_write_frame(ctx->fc, pkt);
 				if (err)
 				{
 					char buf[512];
 					Con_Printf("av_interleaved_write_frame: error: %s\n", av_make_error_string(buf, sizeof(buf), err));
 				}
 			}
+			av_packet_free(&pkt);
 		}
 #endif
 	}
@@ -531,9 +536,9 @@ static void AVEnc_Audio (void *vctx, void *data, int bytes)
 static void *AVEnc_Begin (char *streamname, int videorate, int width, int height, int *sndkhz, int *sndchannels, int *sndbits)
 {
 	struct encctx *ctx;
-	AVOutputFormat *fmt = NULL;
-	AVCodec *videocodec = NULL;
-	AVCodec *audiocodec = NULL;
+	const AVOutputFormat *fmt = NULL;
+	const AVCodec *videocodec = NULL;
+	const AVCodec *audiocodec = NULL;
 	int err;
 	char errtxt[AV_ERROR_MAX_STRING_SIZE] = {0};
 
@@ -628,6 +633,7 @@ static void *AVEnc_Begin (char *streamname, int videorate, int width, int height
 
 	//pick default codecs
 	ctx->video_st = NULL;
+	ctx->audio_st = NULL;
 	if (videocodec)
 		ctx->video_st = add_video_stream(ctx, videocodec, videorate, width, height);
 	if (audiocodec)
@@ -677,7 +683,7 @@ static void *AVEnc_Begin (char *streamname, int videorate, int width, int height
 		sz = ctx->audio_codec->frame_size;
 		if (!sz)
 			sz = VARIABLE_AUDIO_FRAME_MAX_SIZE;
-		sz *= av_get_bytes_per_sample(ctx->audio_codec->sample_fmt) * ctx->audio_codec->channels;
+		sz *= av_get_bytes_per_sample(ctx->audio_codec->sample_fmt) * ctx->audio_codec->ch_layout.nb_channels;
 		ctx->audio_outbuf = av_malloc(sz);
 
 #if LIBAVCODEC_VERSION_INT >= AV_VERSION_INT(57, 48, 101)

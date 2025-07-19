@@ -321,7 +321,7 @@ static searchpathfuncs_t *QDECL FSGMA_LoadArchive(vfsfile_t *file, searchpathfun
 		VFS_READ(file, &len, sizeof(len));
 		VFS_READ(file, &crc, sizeof(crc));
 
-		pak->files[pak->num_files].len = len;
+		pak->files[pak->num_files].len = LittleI64(len);
 		pak->files[pak->num_files].ofs = ofs;
 		ofs += len;
 

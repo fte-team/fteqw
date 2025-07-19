@@ -444,11 +444,7 @@ int QDECL QCEditor (pubprogfuncs_t *prinst, const char *filename, int *line, int
 		}
 		while(debuggerresume == -1 && !wantquit)
 		{
-#if defined(_WIN32) && !defined(FTE_SDL)
-			Sleep(10);
-#else
-			usleep(10*1000);
-#endif
+			Sys_Sleep(1.0/100);
 			SV_GetConsoleCommands();
 		}
 #else
@@ -461,11 +457,7 @@ int QDECL QCEditor (pubprogfuncs_t *prinst, const char *filename, int *line, int
 			Con_Footerf(NULL, false, "^bDebugging");
 		while(debuggerresume == -1 && !wantquit)
 		{
-#if defined(_WIN32) && !defined(FTE_SDL)
-			Sleep(10);
-#else
-			usleep(10*1000);
-#endif
+			Sys_Sleep(1.0/100);
 			Sys_SendKeyEvents();
 
 			if (qrenderer)

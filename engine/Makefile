@@ -21,6 +21,10 @@
 #win32->droid (make droid)
 #if you are cross compiling, you'll need to use FTE_TARGET=mytarget
 #note: cross compiling will typically require 'make makelibs FTE_TARGET=mytarget', which avoids installing lots of extra system packages.
+#FTE_TARGET=SDL2 is also a thing.
+#FTE_TARGET=SDL3 is also a thing.
+
+default: help
 
 #
 CC?=gcc
@@ -82,11 +86,12 @@ MAKE:=$(MAKE) --no-print-directory SVNREVISION="$(SVNREVISION)" SVN_VERSION="$(S
 #update these to download+build a different version. this assumes that the url+subdirs etc contain a consistant version everywhere.
 JPEGVER=9c
 ZLIBVER=1.3.1
-PNGVER=1.6.40
+PNGVER=1.6.45
 OGGVER=1.3.4
 VORBISVER=1.3.7
 VULKANVER=1.3.275.0
-SDL2VER=2.30.4
+SDL2VER=2.30.11
+SDL3VER=3.2.10
 SCINTILLAVER=373
 OPUSVER=1.3.1
 SPEEXVER=1.2.0
@@ -237,6 +242,9 @@ endif
 ifeq ($(FTE_TARGET),win32_sdl)
     FTE_TARGET=win32_SDL
 endif
+ifeq ($(FTE_TARGET),win64_sdl)
+	FTE_TARGET=win64_SDL
+endif
 
 USER_TARGET:=$(FTE_TARGET)
 
@@ -381,9 +389,6 @@ ifeq ($(FTE_TARGET),droid)
 endif
 
 
-ifeq ($(FTE_TARGET),win64_sdl)
-	FTE_TARGET=win64_SDL
-endif
 
 #crosscompile macosx from linux, default target ppc 32bit
 ifeq ($(FTE_TARGET),macosx)
@@ -885,6 +890,23 @@ SERVER_OBJS = 		\
 	webgen.o		\
 	ftpserver.o		\
 	httpserver.o
+MASTER_OBJS=		\
+	server/sv_master.c	\
+	common/net_wins.c	\
+	common/net_ice.c 	\
+	common/cvar.c 		\
+	common/cmd.c 		\
+	common/sha1.c 		\
+	common/sha2.c		\
+	http/httpclient.c	\
+	common/log.c		\
+	common/fs.c			\
+	common/fs_stdio.c	\
+	common/common.c		\
+	common/translate.c	\
+	common/zone.c		\
+	qclib/hash.c		\
+	common/net_ssl_gnutls.c
 
 SERVERONLY_OBJS =		\
 	sv_sys_unix.o		\
@@ -1161,6 +1183,8 @@ MCL_EXE_NAME=../$(EXE_NAME)-cl$(FTE_FULLTARGET)
 MCL_OBJS=$(D3DGL_OBJS) $(GLQUAKE_OBJS) $(SOFTWARE_OBJS) gl_vidsdl.o snd_sdl.o cd_sdl.o sys_sdl.o in_sdl.o 
 M_CFLAGS=-DFTE_SDL $(VKCFLAGS) $(GLCFLAGS) -DMULTITHREAD `$(SDLCONFIG) --cflags`
 
+MASTER_OBJECTS=$(MASTER_OBJS) server/sv_sys_unix.c common/sys_linux_threads.c
+
 QCC_DIR=qcc$(BITS)
 
 ifeq (,$(findstring NO_ZLIB,$(CFLAGS)))
@@ -1175,9 +1199,96 @@ endif
 
 
 #specific targets override those defaults as needed.
+ifneq (,$(findstring SDL3,$(FTE_TARGET))$(findstring sdl3,$(FTE_TARGET)))
+    FTE_FULLTARGET=$(subst SDL3,sdl3,$(BITS)-$(FTE_TARGET))
+    EXEPOSTFIX=
+    DIRPOSTFIX=$(subst SDL3,sdl3,$(BITS)-$(FTE_TARGET))
+
+    SDL3_PC=$(ARCHLIBS)/lib/pkgconfig/sdl3.pc
+    MAKELIBS+=$(SDL3_PC)
+    ifeq (1,$(shell $(PKGCONFIG) --exists $(SDL3_PC) sdl3 && echo 1))
+        #use the makelibs one if its there
+        SDL3_CFLAGS:=$(shell pkg-config --cflags $(SDL3_PC) sdl3)
+        SDL3_LDFLAGS:=$(shell pkg-config --libs $(SDL3_PC) sdl3)
+    else
+      ifeq (1,$(shell $(PKGCONFIG) --exists sdl3 && echo 1))
+        #maybe we have a system one
+        SDL3_CFLAGS:=$(shell pkg-config --cflags sdl3)
+        SDL3_LDFLAGS=$(shell pkg-config --libs sdl3)
+      else
+        #outright failure. fail the build (without breaking makelibs).
+        NEEDMAKELIBS=1
+      endif
+    endif
+    CLIENTLIBFLAGS+=$(SDL3_CFLAGS)
+
+    GL_CFLAGS=-DFTE_SDL3 $(GLCFLAGS) -DMULTITHREAD $(CLIENTLIBFLAGS)
+    VK_CFLAGS=-DFTE_SDL3 $(VKCFLAGS) -DMULTITHREAD $(CLIENTLIBFLAGS)
+    M_CFLAGS=-DFTE_SDL3 $(VKCFLAGS) $(GLCFLAGS) -DMULTITHREAD $(CLIENTLIBFLAGS)
+    SV_CFLAGS=-DFTE_SDL3 -DMULTITHREAD $(SDL3_CFLAGS) $(SERVER_ONLY_CFLAGS)
+    ifeq ($(BITS),32)	#we want ofs_t to actually be 64bit.
+        CL_CFLAGS+=-D_LARGEFILE64_SOURCE
+        SV_CFLAGS+=-D_LARGEFILE64_SOURCE
+    endif
+
+    GL_LDFLAGS=$(GLLDFLAGS) $(IMAGELDFLAGS) $(SDL3_LDFLAGS)
+    VK_LDFLAGS=$(VKLDFLAGS) $(IMAGELDFLAGS) $(SDL3_LDFLAGS)
+    M_LDFLAGS =$(MLDFLAGS) $(IMAGELDFLAGS) $(SDL3_LDFLAGS)
+    SV_LDFLAGS=$(SDL3_LDFLAGS)
+
+    #BASELDFLAGS+=-Wl,--warn-common #glibc is just buggy.
+    ifeq (,$(findstring NO_ZLIB,$(CFLAGS)))	#urgh, messy. this needs a better way
+        BASELDFLAGS+= -lz
+        QCC_LDFLAGS+=-L$(ARCHLIBS) -lz
+        QTV_LDFLAGS+=-lz
+    endif
+
+    GLCL_OBJS=$(GL_OBJS) $(D3DGL_OBJS) $(GLQUAKE_OBJS) gl_vidsdl.o snd_sdl.o cd_sdl.o sys_sdl.o in_sdl.o
+    VKCL_OBJS=$(VKQUAKE_OBJS) $(D3DGL_OBJS) gl_vidsdl.o snd_sdl.o cd_sdl.o sys_sdl.o in_sdl.o
+    MCL_OBJS =$(D3DGL_OBJS) $(GLQUAKE_OBJS) $(SOFTWARE_OBJS) gl_vidsdl.o snd_sdl.o cd_sdl.o sys_sdl.o in_sdl.o
+    SV_OBJS  =$(COMMON_OBJS) $(SERVER_OBJS) $(PROGS_OBJS) $(SERVERONLY_OBJS)
+
+    GL_EXE_NAME   =../$(EXE_NAME)-gl$(FTE_FULLTARGET)$(EXEPOSTFIX)
+    GLCL_EXE_NAME =../$(EXE_NAME)cl-gl$(FTE_FULLTARGET)$(EXEPOSTFIX)
+    VK_EXE_NAME   =../$(EXE_NAME)-vk$(FTE_FULLTARGET)$(EXEPOSTFIX)
+    VKCL_EXE_NAME =../$(EXE_NAME)-vkcl$(FTE_FULLTARGET)$(EXEPOSTFIX)
+    M_EXE_NAME    =../$(EXE_NAME)$(FTE_FULLTARGET)$(EXEPOSTFIX)
+    MCL_EXE_NAME  =../$(EXE_NAME)-cl$(FTE_FULLTARGET)$(EXEPOSTFIX)
+    MINGL_EXE_NAME=../$(EXE_NAME)-mingl$(FTE_FULLTARGET)$(EXEPOSTFIX)
+    SV_EXE_NAME   =../$(EXE_NAME)-sv$(FTE_FULLTARGET)$(EXEPOSTFIX)
+
+    GLB_DIR  =gl$(DIRPOSTFIX)
+    GLCL_DIR =glcl$(DIRPOSTFIX)
+    VKB_DIR  =vk$(DIRPOSTFIX)
+    VKCL_DIR =vkcl$(DIRPOSTFIX)
+    MB_DIR   =m$(DIRPOSTFIX)
+    MCL_DIR  =mcl$(DIRPOSTFIX)
+    MINGL_DIR=mingl$(DIRPOSTFIX)
+    SV_DIR   =sv$(DIRPOSTFIX)
+    QCC_DIR  =qcc$(BITS)	#doesn't actually use sdl
+
+    ifeq (win,$(findstring win,$(FTE_TARGET)))
+        ifneq (,$(findstring win64,$(FTE_TARGET)))
+            BITS?=64
+        else
+            BITS?=32
+        endif
+        DO_CMAKE      +=-DCMAKE_SYSTEM_NAME=Windows -DCMAKE_FIND_ROOT_PATH_MODE_PROGRAM="NEVER"
+        BASELDFLAGS   += -lws2_32
+        FTE_FULLTARGET =$(BITS)-sdl3
+        EXEPOSTFIX     =.exe
+
+        COMMON_OBJS   += fs_win32.o net_ssl_winsspi.o
+    endif
+
+$(SDL3_PC):
+	cd $(BASE_DIR) && wget -N http://www.libsdl.org/release/SDL3-$(SDL3VER).tar.gz
+	mkdir -p $(BASE_DIR)/libs-$(ARCH) && cd $(BASE_DIR)/libs-$(ARCH) && tar -xvzf $(BASE_DIR)/SDL3-$(SDL3VER).tar.gz
+	cd $(BASE_DIR)/libs-$(ARCH)/SDL3-$(SDL3VER) && CFLAGS="$(CFLAGS) -Os" $(TOOLOVERRIDES) $(DO_CMAKE) -DCMAKE_INSTALL_PREFIX=$(BASE_DIR)/libs-$(ARCH) -DSDL_TESTS=OFF -DSDL_EXAMPLES=OFF -DSDL_STATIC=ON -DSDL_SHARED=OFF -DSDL_RELOCATABLE=ON . && $(TOOLOVERRIDES) $(MAKE) install
+endif
 
 #FTE_TARGET=win32_SDL | FTE_TARGET=win64_SDL (MinGW32 + SDL | MinGW64 + SDL)
-ifeq (win_SDL,$(findstring win,$(FTE_TARGET))$(findstring _SDL,$(FTE_TARGET)))
+ifeq (win_SDL,$(findstring win,$(FTE_TARGET))$(findstring _SDL,$(FTE_TARGET))$(findstring _SDL3,$(FTE_TARGET)))
     DO_CMAKE+=-DCMAKE_SYSTEM_NAME=Windows -DCMAKE_FIND_ROOT_PATH_MODE_PROGRAM="NEVER"
 
     ifneq (,$(findstring win64,$(FTE_TARGET)))
@@ -1189,6 +1300,8 @@ ifeq (win_SDL,$(findstring win,$(FTE_TARGET))$(findstring _SDL,$(FTE_TARGET)))
     ARCH_PREDEP=$(BASE_DIR)/libs-$(ARCH)/SDL2-$(SDL2VER)/$(ARCH)/bin/sdl2-config
     SDLCONFIG=$(ARCH_PREDEP) --prefix=$(BASE_DIR)/libs-$(ARCH)/SDL2-$(SDL2VER)/$(ARCH)
     CLIENTLIBFLAGS+=`$(SDLCONFIG) --cflags`
+
+    COMMON_OBJS   += fs_win32.o net_ssl_winsspi.o
 
     #the defaults for sdl come first
     GLCL_OBJS=$(GL_OBJS) $(D3DGL_OBJS) $(GLQUAKE_OBJS) gl_vidsdl.o snd_sdl.o cd_sdl.o sys_sdl.o in_sdl.o snd_directx.o $(LTO_END) resources.o $(LTO_START)
@@ -1433,6 +1546,7 @@ ifeq (win,$(findstring win,$(FTE_TARGET))$(findstring _SDL,$(FTE_TARGET)))
 	SV_OBJS=$(COMMON_OBJS) $(SERVER_OBJS) $(PROGS_OBJS) $(WINDOWSSERVERONLY_OBJS) fs_win32.o $(LTO_END) resources.o $(LTO_START)
 	SV_CFLAGS=$(SERVER_ONLY_CFLAGS) $(W32_CFLAGS)
 
+	MASTER_OBJECTS=$(MASTER_OBJS) server/sv_sys_win.c common/sys_win_threads.c common/net_ssl_winsspi.c
 
 	GLCL_OBJS=$(GL_OBJS) $(D3DGL_OBJS) $(GLQUAKE_OBJS) gl_vidnt.o $(WINDOWS_OBJS)
 	GL_EXE_NAME=../fteglqw$(BITS)$(EXEPOSTFIX)
@@ -1834,7 +1948,6 @@ else
 	BASELDFLAGS:=-L$(ARCHLIBS) $(BASELDFLAGS)
 endif
 
-default: help
 -include Makefile_private
 
 all: rel
@@ -1957,6 +2070,17 @@ $(OUT_DIR)/$(EXE_NAME):   $(PRECOMPHEADERS) $(foreach fn, $(CUSTOMOBJS) $(foreac
 $(OUT_DIR)/$(EXE_NAME).db: $(PRECOMPHEADERS) $(foreach fn, $(CUSTOMOBJS) $(foreach ol, $(OBJS), $($(ol))),$(if $(findstring ltox,$(fn)),,$(OUT_DIR)/$(fn)))
 	$(DO_LD) $(foreach fn, $(CUSTOMOBJS) $(foreach ol, $(OBJS) $(LTO_END), $($(ol))),$(if $(findstring ltox,$(fn)),$(subst ltox,-x ,$(fn)),$(NATIVE_OUT_DIR)/$(fn)) ) $(LDFLAGS)
 
+ifneq (,$(NEEDMAKELIBS))
+_out-dbg:
+	@echo Dependancies missing. Use makelibs before compiling targets
+	@false
+_out-rel:
+	@echo Dependancies missing. Use makelibs before compiling targets
+	@false
+_out-profile:
+	@echo Dependancies missing. Use makelibs before compiling targets
+	@false
+else
 ifeq (,$(findstring SKIP,$(STRIP)))
 #link to a .db file
 #then strip its debug data to the non-.db release binary
@@ -1975,6 +2099,7 @@ _out-dbg: $(ARCH_PREDEP)
 
 _out-profile: $(ARCH_PREDEP)
 	@$(MAKE) $(OUT_DIR)/$(EXE_NAME) EXE_NAME="$(EXE_NAME)" OUT_DIR="$(OUT_DIR)" WCFLAGS="$(WCFLAGS) $(PROFILE_CFLAGS)" LDFLAGS="$(BASELDFLAGS) $(LDFLAGS) $(PROFILE_LDFLAGS)" OBJS="$(OBJS)"
+endif
 
 _cl-rel: reldir
 	@$(MAKE) _out-rel EXE_NAME="$(EXE_NAME)" OUT_DIR="$(OUT_DIR)" WCFLAGS="$(CLIENT_ONLY_CFLAGS) $(WCFLAGS)" LDFLAGS="$(LDFLAGS)" SOBJS="$(SOBJS)" OBJS="SOBJS COMMON_OBJS CLIENT_OBJS PROGS_OBJS"
@@ -2003,10 +2128,20 @@ sv-dbg:
 sv-profile:
 	@$(MAKE) sv-tmp TYPE=_out-profile OUT_DIR="$(PROFILE_DIR)/$(NCDIRPREFIX)$(SV_DIR)"
 
+ifeq (,$(D3D_EXE_NAME))
+d3dcl-tmp:
+	@echo "D3D builds are not supported for this platform."
+else
 d3dcl-tmp:
 	@$(MAKE) $(TYPE)   OUT_DIR="$(OUT_DIR)" EXE_NAME="$(D3DCL_EXE_NAME)" WCFLAGS="$(D3D_CFLAGS)" LDFLAGS="$(D3D_LDFLAGS) $(LDFLAGS) $(CLIENTLDDEPS)" SOBJS="$(D3DCL_OBJS)"
+endif
+ifeq (,$(D3D_EXE_NAME))
+d3d-tmp:
+	@echo "D3D builds are not supported for this platform."
+else
 d3d-tmp:
 	@$(MAKE) $(TYPE)   OUT_DIR="$(OUT_DIR)" EXE_NAME="$(D3D_EXE_NAME)" WCFLAGS="$(D3D_CFLAGS)" LDFLAGS="$(D3D_LDFLAGS) $(LDFLAGS) $(CLIENTLDDEPS)" SOBJS="$(D3DCL_OBJS)"
+endif
 
 d3dcl-rel:
 	@$(MAKE) d3dcl-tmp TYPE=_cl-rel OUT_DIR="$(RELEASE_DIR)/$(NCDIRPREFIX)$(D3DCL_DIR)"
@@ -2324,7 +2459,7 @@ droid-help:
 	@-echo "make droid-opt - compiles engine with optimisations, but does not sign package. Not useful."
 	@-echo "make droid-rel - compiles engine with optimisations, adds custom data files, signs with private key, requires password."
 	@-echo
-	@-echo "Android Settings:
+	@-echo "Android Settings:"
 	@-echo "DROID_PACKSC: specifies additional pak or pk3 files to compress into the package, which avoids extra configuration. Only used in release builds. You probably shouldn't use this except for really small packages. Any file seeks will give really poor performance."
 	@-echo "DROID_PACKSU: like DROID_PACKSC, but without compression. Faster loading times, but bigger. Use for anything that is already compressed (especially pk3s)."
 	@-echo "ANDROID_HOME: path to the android sdk install path."
@@ -2341,8 +2476,6 @@ $(BASE_DIR)/libs-$(ARCH)/SDL2-$(SDL2VER)/i686-w64-mingw32/bin/sdl2-config:
 	cd $(BASE_DIR)/libs-$(ARCH) && tar -xvzf $(BASE_DIR)/sdl2.tar.gz
 	rm $(BASE_DIR)/sdl2.tar.gz
 $(BASE_DIR)/libs-$(ARCH)/SDL2-$(SDL2VER)/x86_64-w64-mingw32/bin/sdl2-config: $(BASE_DIR)/libs-$(ARCH)/SDL2-$(SDL2VER)/i686-w64-mingw32/bin/sdl2-config
-
-
 
 #makes sure the configure scripts get the right idea.
 AR?=$(ARCH)-ar
@@ -2448,11 +2581,16 @@ $(RELEASE_DIR)/imgtool$(BITS)$(EXEPOSTFIX): $(IMGTOOL_OBJECTS)
 imgtool-rel: $(RELEASE_DIR)/imgtool$(BITS)$(EXEPOSTFIX)
 imgtool: imgtool-rel
 
-MASTER_OBJECTS=server/sv_sys_unix.c common/sys_linux_threads.c common/net_ssl_gnutls.c server/sv_master.c common/net_wins.c common/net_ice.c common/cvar.c common/cmd.c common/sha1.c common/sha2.c http/httpclient.c common/log.c common/fs.c common/fs_stdio.c common/common.c common/translate.c common/zone.c qclib/hash.c
+ifeq (win,$(findstring win,$(FTE_TARGET)))
+    MASTER_LDFLAGS=-lm -lz -lws2_32 -lwinmm -lole32
+    MASTER_OBJECTS+=common/fs_win32.c
+else
+    MASTER_LDFLAGS=-lm -ldl -lz
+endif
 $(RELEASE_DIR)/ftemaster$(BITS)$(EXEPOSTFIX): $(MASTER_OBJECTS)
-	$(CC) -o $@ $(MASTER_OBJECTS) -flto=jobserver -fvisibility=hidden -Icommon -Iclient -Iqclib -Igl -Iserver -DMASTERONLY -Dstricmp=strcasecmp -Dstrnicmp=strncasecmp -lm -ldl -lz $(RELEASE_CFLAGS) $(RELEASE_LDFLAGS)
+	$(CC) -o $@ $(MASTER_OBJECTS) -flto=jobserver -fvisibility=hidden -Icommon -Iclient -Iqclib -Igl -Iserver -DMASTERONLY -Dstricmp=strcasecmp -Dstrnicmp=strncasecmp $(MASTER_LDFLAGS) $(RELEASE_CFLAGS) $(RELEASE_LDFLAGS) $(ALL_CFLAGS)
 $(DEBUG_DIR)/ftemaster$(BITS)$(EXEPOSTFIX): $(MASTER_OBJECTS)
-	$(CC) -o $@ $(MASTER_OBJECTS) -Icommon -Iclient -Iqclib -Igl -Iserver -DMASTERONLY -Dstricmp=strcasecmp -Dstrnicmp=strncasecmp -lm -ldl -lz $(DEBUG_CFLAGS) $(DEBUG_LDFLAGS)
+	$(CC) -o $@ $(MASTER_OBJECTS) -Icommon -Iclient -Iqclib -Igl -Iserver -DMASTERONLY -Dstricmp=strcasecmp -Dstrnicmp=strncasecmp $(MASTER_LDFLAGS) $(DEBUG_CFLAGS) $(DEBUG_LDFLAGS)
 master-rel: reldir $(RELEASE_DIR)/ftemaster$(BITS)$(EXEPOSTFIX)
 master-dbg: dbgdir $(DEBUG_DIR)/ftemaster$(BITS)$(EXEPOSTFIX)
 master: master-rel

@@ -1,28 +1,27 @@
 #include "quakedef.h"
 
-#include <SDL.h>
-#ifdef MULTITHREAD
-#include <SDL_thread.h>
-#endif
-
-#include <SDL_loadso.h>
-
-
-#ifndef WIN32
-#include <fcntl.h>
-#include <sys/stat.h>
-#if defined(__unix__) || defined(__unix) ||defined(__HAIKU__) || (defined(__APPLE__) && defined(__MACH__))	//apple make everything painful.
-#include <unistd.h>
-#endif
+#ifdef FTE_SDL3
+	#include <SDL3/SDL.h>
 #else
-#include <direct.h>
+	#include <SDL.h>
+	#ifdef MULTITHREAD
+		#include <SDL_thread.h>
+	#endif
+
+	#include <SDL_loadso.h>
 #endif
 
-#ifdef FTE_TARGET_WEB
-#include <emscripten/emscripten.h>
+#ifdef _WIN32
+	#include <direct.h>
+#else
+	#include <fcntl.h>
+	#include <sys/stat.h>
+	#if defined(__unix__) || defined(__unix) ||defined(__HAIKU__) || (defined(__APPLE__) && defined(__MACH__))	//apple make everything painful.
+		#include <unistd.h>
+	#endif
 #endif
 
-#if SDL_MAJOR_VERSION >= 2
+#if SDL_VERSION_ATLEAST(2,0,0)
 extern SDL_Window *sdlwindow;
 #endif
 
@@ -43,7 +42,7 @@ void Sys_Error (const char *error, ...)
 
 	Sys_Printf ("Quake Error: %s\n", string);
 
-#if SDL_MAJOR_VERSION >= 2
+#if SDL_VERSION_ATLEAST(2,0,0)
 	SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_ERROR, "Sys_Error", string, sdlwindow);
 #endif
 
@@ -58,7 +57,28 @@ void Sys_RecentServer(char *command, char *target, char *title, char *desc)
 {
 }
 
-#if defined(__linux__) || defined(BSD)
+
+#if defined(_WIN32)
+#include <windows.h>
+#include <wincrypt.h>
+qboolean Sys_RandomBytes(qbyte *string, int len)
+{
+    HCRYPTPROV  prov;
+
+    if(!CryptAcquireContext( &prov, NULL, NULL, PROV_RSA_FULL, CRYPT_VERIFYCONTEXT))
+    {
+        return false;
+    }
+
+    if(!CryptGenRandom(prov, len, (BYTE *)string))
+    {
+        CryptReleaseContext( prov, 0);
+        return false;
+    }
+    CryptReleaseContext(prov, 0);
+    return true;
+}
+#elif defined(__linux__) || defined(BSD)
 qboolean Sys_RandomBytes(qbyte *string, int len)
 {
 	qboolean res = false;
@@ -157,6 +177,14 @@ void Sys_Printf (char *fmt, ...)
 	vsnprintf (text,sizeof(text)-1, fmt,argptr);
 	va_end (argptr);
 
+#ifdef SUBSERVERS
+	if (SSV_IsSubServer())
+	{
+		if (SSV_PrintToMaster(text))
+			return;
+	}
+#endif
+
 	if (strlen(text) > sizeof(text))
 		Sys_Error("memory overwrite in Sys_Printf");
 
@@ -213,12 +241,14 @@ void Sys_Printf (char *fmt, ...)
 	fflush(stdout);
 }
 
+//#define QCLOCK(enumname,readablename,query,frequency,initcode) //query must have t=
 
-
-
-//#define QCLOCK(e,n,q,f,i) //q must have t=
-
-#if SDL_VERSION_ATLEAST(2,0,18)	//less wrappy... still terrible precision.
+#if SDL_VERSION_ATLEAST(3,0,0)
+	#define CLOCKDEF_SDL_TICKSNS QCLOCK(TICKSNS, "ticksns", t=SDL_GetTicksNS(), SDL_NS_PER_SECOND,;)
+#else
+	#define CLOCKDEF_SDL_TICKSNS
+#endif
+#if SDL_VERSION_ATLEAST(2,0,18) && !SDL_VERSION_ATLEAST(3,0,0)	//less wrappy... still terrible precision.
 	#define CLOCKDEF_SDL_TICKS QCLOCK(TICKS, "ticks", t=SDL_GetTicks64(), 1000,;)
 #else
 	#define CLOCKDEF_SDL_TICKS QCLOCK(TICKS, "ticks", t=SDL_GetTicks(), 1000,;)
@@ -259,6 +289,7 @@ static quint64_t sdlperf_freq;
 #endif
 
 #define CLOCKDEF_ALL	\
+					 CLOCKDEF_SDL_TICKSNS /*sdl*/\
 					 CLOCKDEF_LINUX_MONOTONIC CLOCKDEF_LINUX_REALTIME /*linux-specific clocks*/\
 					 CLOCKDEF_SDL_PERF CLOCKDEF_SDL_TICKS /*sdl clocks*/\
 					 CLOCKDEF_POSIX_GTOD /*posix clocks*/
@@ -390,7 +421,9 @@ unsigned int Sys_Milliseconds (void)
 //create a directory
 void Sys_mkdir (const char *path)
 {
-#if WIN32
+#if SDL_VERSION_ATLEAST(3,0,0)
+	SDL_CreateDirectory(path);
+#elif WIN32
 	_mkdir (path);
 #else
 	//user, group, others
@@ -400,6 +433,9 @@ void Sys_mkdir (const char *path)
 
 qboolean Sys_rmdir (const char *path)
 {
+#if SDL_VERSION_ATLEAST(3,0,0)
+	return SDL_RemovePath(path);	//dir or file
+#else
 	int ret;
 #if WIN32
 	ret = _rmdir (path);
@@ -411,21 +447,30 @@ qboolean Sys_rmdir (const char *path)
 //	if (errno == ENOENT)
 //		return true;
 	return false;
+#endif
 }
 
 //unlink a file
 qboolean Sys_remove (const char *path)
 {
+#if SDL_VERSION_ATLEAST(3,0,0)
+	return SDL_RemovePath(path);	//file or dir
+#else
 	remove(path);
-
 	return true;
+#endif
 }
 
 qboolean Sys_Rename (const char *oldfname, const char *newfname)
 {
+#if SDL_VERSION_ATLEAST(3,0,0)
+	return SDL_RenamePath(oldfname, newfname);
+#else
 	return !rename(oldfname, newfname);
+#endif
 }
 
+#ifndef _WIN32
 #if _POSIX_C_SOURCE >= 200112L
 	#include <sys/statvfs.h>
 #endif
@@ -442,91 +487,55 @@ qboolean Sys_GetFreeDiskSpace(const char *path, quint64_t *freespace)
 #endif
 	return false;
 }
+#endif
 
 //someone used the 'quit' command
 void Sys_Quit (void)
 {
 	Host_Shutdown();
 
+#if !SDL_VERSION_ATLEAST(3, 0, 0)
 	SDL_free((char*)host_parms.binarydir);
+#endif
 	host_parms.binarydir = NULL;
 
 	exit (0);
 }
 
+#if SDL_VERSION_ATLEAST(3,0,0)&&!defined(_WIN32)
+int Sys_EnumerateFiles (const char *gpath, const char *match, int (*func)(const char *, qofs_t, time_t modtime, void *, searchpathfuncs_t *), void *parm, searchpathfuncs_t *spath)
+{	//SDL_GlobDirectory does seem to do wildcards in parent directories properly, at least on loonix.
+	//on wine it seems to do dumb slow shit ('*' crossing the '\\' directory seperator and enumerating the entire FS tree).
+	char file[MAX_OSPATH];
+	int i, count;
+	SDL_PathInfo st;
+	char **list = SDL_GlobDirectory(gpath, match, SDL_GLOB_CASEINSENSITIVE, &count);
+	for(i = 0; i < count; i++)
+	{
+		if (list[i][0] != '.' && !strstr(list[i], "/."))	//unfortunately seems to include hidden files (we don't like creating hidden files by mistake, so avoid warnings later by refusing to find them here).
+		{
+			Q_snprintfz(file, sizeof(file), "%s/%s", gpath, list[i]);
+
+			if (SDL_GetPathInfo(file, &st))
+			{
+				Q_snprintfz(file, sizeof(file), "%s%s", list[i], (st.type==SDL_PATHTYPE_DIRECTORY)?"/":"");
+
+				if (!func(file, st.size, st.modify_time, parm, spath))
+				{
+					SDL_free(list);
+					return false;
+				}
+			}
+		}
+	}
+	SDL_free(list);
+	return true;
+}
+
 //enumerate the files in a directory (of both gpath and match - match may not contain ..)
 //calls the callback for each one until the callback returns 0
-//SDL provides no file enumeration facilities.
-#if defined(_WIN32)
-#include <windows.h>
-//outlen is the size of out in _BYTES_.
-wchar_t *widen(wchar_t *out, size_t outbytes, const char *utf8)
-{
-	size_t outlen;
-	wchar_t *ret = out;
-	//utf-8 to utf-16, not ucs-2.
-	unsigned int codepoint;
-	int error;
-	outlen = outbytes/sizeof(wchar_t);
-	if (!outlen)
-		return L"";
-	outlen--;
-	while (*utf8)
-	{
-		codepoint = utf8_decode(&error, utf8, (void*)&utf8);
-		if (error || codepoint > 0x10FFFFu)
-			codepoint = 0xFFFDu;
-		if (codepoint > 0xffff)
-		{
-			if (outlen < 2)
-				break;
-			outlen -= 2;
-			codepoint -= 0x10000u;
-			*out++ = 0xD800 | (codepoint>>10);
-			*out++ = 0xDC00 | (codepoint&0x3ff);
-		}
-		else
-		{
-			if (outlen < 1)
-				break;
-			outlen -= 1;
-			*out++ = codepoint;
-		}
-	}
-	*out = 0;
-	return ret;
-}
-char *narrowen(char *out, size_t outlen, wchar_t *wide)
-{
-	char *ret = out;
-	int bytes;
-	unsigned int codepoint;
-	if (!outlen)
-		return "";
-	outlen--;
-	//utf-8 to utf-16, not ucs-2.
-	while (*wide)
-	{
-		codepoint = *wide++;
-		if (codepoint >= 0xD800u && codepoint <= 0xDBFFu)
-		{ //handle utf-16 surrogates
-			if (*wide >= 0xDC00u && *wide <= 0xDFFFu)
-			{
-				codepoint = (codepoint&0x3ff)<<10;
-				codepoint |= *wide++ & 0x3ff;
-			}
-			else
-				codepoint = 0xFFFDu;
-		}
-		bytes = utf8_encode(out, codepoint, outlen);
-		if (bytes <= 0)
-			break;
-		out += bytes;
-		outlen -= bytes;
-	}
-	*out = 0;
-	return ret;
-}
+//SDL2 provides no file enumeration facilities.
+#elif defined(_WIN32)
 static int Sys_EnumerateFiles2 (const char *match, int matchstart, int neststart, int (QDECL *func)(const char *fname, qofs_t fsize, time_t mtime, void *parm, searchpathfuncs_t *spath), void *parm, searchpathfuncs_t *spath)
 {
 	qboolean go;
@@ -797,6 +806,338 @@ int Sys_EnumerateFiles (const char *gpath, const char *match, int (*func)(const 
 }
 #endif
 
+#if SDL_VERSION_ATLEAST(3,0,0)
+#include "fs.h"
+
+typedef struct
+{
+	vfsfile_t f;
+	SDL_IOStream *s;
+} sdlfile_t;
+static int IOF_ReadBytes(struct vfsfile_s *file, void *buffer, int bytestoread)
+{
+	sdlfile_t *f = (void*)file;
+	int r = SDL_ReadIO(f->s, buffer, bytestoread);
+	if (!r && bytestoread)
+	{
+		SDL_IOStatus s = SDL_GetIOStatus(f->s);
+		if (s == SDL_IO_STATUS_NOT_READY)
+			return 0;
+		else if (s == SDL_IO_STATUS_EOF)
+			return VFS_ERROR_EOF;
+		else
+			return VFS_ERROR_UNSPECIFIED;
+	}
+	return r;
+}
+static int IOF_WriteBytes(struct vfsfile_s *file,const  void *buffer, int bytestowrite)
+{
+	sdlfile_t *f = (void*)file;
+	int r = SDL_WriteIO(f->s, buffer, bytestowrite);
+	if (!r && bytestowrite)
+	{
+		SDL_IOStatus s = SDL_GetIOStatus(f->s);
+		if (s == SDL_IO_STATUS_NOT_READY)
+			return 0;
+		else if (s == SDL_IO_STATUS_EOF)
+			return VFS_ERROR_EOF;
+		else
+			return VFS_ERROR_UNSPECIFIED;
+	}
+	return r;
+}
+static qboolean IOF_Seek(struct vfsfile_s *file, qofs_t pos)
+{
+	sdlfile_t *f = (void*)file;
+	Sint64 r = SDL_SeekIO(f->s, pos, SDL_IO_SEEK_SET);
+	return r == pos;
+}
+static qofs_t IOF_Tell(struct vfsfile_s *file)
+{
+	sdlfile_t *f = (void*)file;
+	return SDL_TellIO(f->s);
+}
+static qofs_t IOF_GetLen(struct vfsfile_s *file)
+{
+	sdlfile_t *f = (void*)file;
+	return SDL_GetIOSize(f->s);
+}
+static qboolean IOF_Close(struct vfsfile_s *file)
+{
+	sdlfile_t *f = (void*)file;
+	qboolean ret = SDL_CloseIO(f->s);
+	Z_Free(f);
+	return ret;
+}
+static void IOF_Flush(struct vfsfile_s *file)
+{
+	sdlfile_t *f = (void*)file;
+	SDL_FlushIO(f->s);
+}
+static vfsfile_t *IOF_Setup(sdlfile_t *r, SDL_IOStream *f)
+{
+	if (f)
+	{
+		r->s = f;
+		r->f.ReadBytes = IOF_ReadBytes;
+		r->f.WriteBytes = IOF_WriteBytes;
+		r->f.Seek = IOF_Seek;
+		r->f.Tell = IOF_Tell;
+		r->f.GetLen = IOF_GetLen;
+		r->f.Close = IOF_Close;
+		r->f.Flush = IOF_Flush;
+		r->f.seekstyle = SS_SEEKABLE;
+		return &r->f;
+	}
+	else
+		Z_Free(r);	//oops.
+	return NULL;
+}
+static vfsfile_t *IOF_AsVFS(SDL_IOStream *f)
+{
+	return IOF_Setup(Z_Malloc(sizeof(sdlfile_t)), f);
+}
+static vfsfile_t *VFSSDL_Open(const char *fname, char *mode)
+{
+	return IOF_AsVFS(SDL_IOFromFile(fname, mode));
+}
+
+static void SDLCALL FS_OpenFilePicked (void *userdata, const char * const *filelist, int filter)
+{
+	int i;
+	for(i = 0; filelist && filelist[i]; i++)
+	{
+		vfsfile_t *f = VFSSDL_Open(filelist[i], "rb");	//using this instead of VFSOS_Open, to handle platform weirdness here.
+		if (f)
+			Host_RunFile(filelist[i],strlen(filelist[i]), f);
+	}
+}
+static void FS_OpenFilePicker_f(void)
+{
+	SDL_DialogFileFilter exts[] = {
+		{"Packages", "pk3;pk4;pak"},
+		{"Demos", "mvd.gz;mvd;qwd.gz;qwd;dem.gz;dem"},
+		{"Maps", "bsp.gz;bsp;map"},
+		{"Mods", "fmf"},
+		{"All Files", "*"},
+	};
+	SDL_ShowOpenFileDialog(FS_OpenFilePicked, NULL, sdlwindow, exts, countof(exts), NULL, true);
+}
+
+#if 0
+typedef struct
+{
+	struct searchpathfuncs_s pub;
+	SDL_Storage *s;
+	qatomic32_t refs;
+} sdlsstore_t;
+static void Sys_Store_Close(searchpathfuncs_t *handle)
+{
+	sdlsstore_t *s = (sdlsstore_t*)handle;
+	if (FTE_Atomic32_Dec(&s->refs) > 0)
+		return;	//still open somewhere else.
+	SDL_CloseStorage(s->s);
+	Z_Free(s);
+}
+static void Sys_Store_AddReference(searchpathfuncs_t *handle)
+{
+	sdlsstore_t *s = (sdlsstore_t*)handle;
+	FTE_Atomic32_Inc(&s->refs);
+}
+static void Sys_Store_GetPathDetails(searchpathfuncs_t *handle, char *outdetails, size_t sizeofdetails)
+{
+	Q_snprintfz(outdetails, sizeofdetails, "b0rked");
+}
+struct buildhashctx_s
+{
+	sdlsstore_t *searchpath;
+	int depth;
+	void (QDECL *cb)(int depth, const char *fname, fsbucket_t *filehandle, void *pathhandle);
+};
+static SDL_EnumerationResult Sys_Store_BuildHash_cb(void *userdata, const char *dirname, const char *fname)
+{
+	struct buildhashctx_s *ctx = userdata;
+	SDL_PathInfo info;
+	char fullname[MAX_OSPATH];
+	if (Q_snprintfz(fullname, sizeof(fullname), "%s%s", dirname, fname))
+		return SDL_ENUM_CONTINUE;
+	if (SDL_GetStoragePathInfo(ctx->searchpath->s, fullname, &info))
+	{
+		if (info.type == SDL_PATHTYPE_DIRECTORY)
+			SDL_EnumerateStorageDirectory(ctx->searchpath->s, fullname, Sys_Store_BuildHash_cb, &ctx);
+		else if (info.type == SDL_PATHTYPE_FILE)
+			ctx->cb(ctx->depth, fullname, NULL, ctx->searchpath);
+	}
+	return SDL_ENUM_CONTINUE;
+}
+static void Sys_Store_BuildHash(searchpathfuncs_t *handle, int depth, void (QDECL *FS_AddFileHash)(int depth, const char *fname, fsbucket_t *filehandle, void *pathhandle))
+{
+	sdlsstore_t *s = (sdlsstore_t*)handle;
+	struct buildhashctx_s ctx = {s, depth, FS_AddFileHash};
+	SDL_EnumerateStorageDirectory(s->s, NULL, Sys_Store_BuildHash_cb, &ctx);
+}
+static unsigned int Sys_Store_FindFile(searchpathfuncs_t *handle, flocation_t *loc, const char *name, void *hashedresult)
+{	//create a loc that can be OpenVFSed with a "r"/"r+"/etc mode.
+	sdlsstore_t *s = (sdlsstore_t*)handle;
+	if (SDL_GetStorageFileSize(s->s, name, &loc->len))
+	{
+		loc->offset = 0;
+		loc->fhandle = NULL;	//not really useful to us, there's no freeing etc.
+		*loc->rawname = 0;	//must have a leading null, because we don't know its actual path and can't pass it to system apis to bypass the quake filesystem.
+		Q_strncpyz(loc->rawname+1, name, sizeof(loc->rawname)-1); //but we do need to keep track of the name for when it is actually opened.
+		return FF_FOUND;
+	}
+	return FF_NOTFOUND;
+}
+static qboolean Sys_Store_CreateFile(searchpathfuncs_t *handle, flocation_t *loc, const char *name)
+{	//create a loc that can be OpenVFSed with a "w" mode, even if it didn't exist before.
+	sdlsstore_t *s = (sdlsstore_t*)handle;
+	SDL_PathInfo info;
+	if (SDL_GetStoragePathInfo(s->s, name, &info) && (info.type == SDL_PATHTYPE_NONE || info.type == SDL_PATHTYPE_FILE))	//create or overwrite is fine.
+	{
+		loc->offset = 0;
+		loc->fhandle = NULL;	//not really useful to us, there's no freeing etc.
+		*loc->rawname = 0;	//must have a leading null, because we don't know its actual path and can't pass it to system apis to bypass the quake filesystem.
+		Q_strncpyz(loc->rawname+1, name, sizeof(loc->rawname)-1); //but we do need to keep track of the name for when it is actually opened.
+		return true;
+	}
+	return false;
+}
+static void Sys_Store_ReadFile(searchpathfuncs_t *handle, flocation_t *loc, char *buffer)
+{
+	vfsfile_t *f;
+	f = handle->OpenVFS(handle, loc, "rb");
+	if (!f)	//err...
+		return;
+	VFS_READ(f, buffer, loc->len);
+	VFS_CLOSE(f);
+}
+static int Sys_Store_EnumerateFiles(searchpathfuncs_t *handle, const char *match, int (QDECL *func)(const char *fname, qofs_t fsize, time_t mtime, void *parm, searchpathfuncs_t *spath), void *parm)
+{
+	//seems to accept `*/*/*` just fine.
+	sdlsstore_t *s = (sdlsstore_t*)handle;
+	int i, count;
+	char **list = SDL_GlobStorageDirectory(s->s, NULL, match, SDL_GLOB_CASEINSENSITIVE, &count);
+	SDL_PathInfo info;
+	int r = 1;
+	for(i = 0; i < count; i++)
+	{
+		if (*list[i] == '.')
+			continue; //no unix hidden files...
+		if (SDL_GetStoragePathInfo(s->s, list[i], &info))
+		{
+			if (!func(list[i], info.size, info.modify_time, parm, handle))
+			{
+				r = 0;
+				break;
+			}
+		}
+	}
+	SDL_free(list);
+	return r;
+}
+static qboolean Sys_Store_FileStat(searchpathfuncs_t *handle, flocation_t *loc, time_t *mtime)
+{
+	sdlsstore_t *s = (sdlsstore_t*)handle;
+	SDL_PathInfo info;
+	if (SDL_GetStoragePathInfo(s->s, loc->rawname+1, &info))
+	{
+		*mtime = info.modify_time;
+		return true;
+	}
+	return false;
+}
+static qboolean Sys_Store_RenameFile(searchpathfuncs_t *handle, const char *oldname, const char *newname)	//returns true on success, false if source doesn't exist, or if dest does (cached locs may refer to either new or old name).
+{
+	sdlsstore_t *s = (sdlsstore_t*)handle;
+	return SDL_RenameStoragePath(s->s, oldname, newname);
+}
+static qboolean Sys_Store_RemoveFile(searchpathfuncs_t *handle, const char *filename)	//returns true on success, false if it wasn't found or is readonly.
+{
+	sdlsstore_t *s = (sdlsstore_t*)handle;
+	return SDL_RemoveStoragePath(s->s, filename);
+}
+static vfsfile_t *	Sys_Store_OpenVFS(searchpathfuncs_t *handle, flocation_t *loc, const char *mode)
+{
+	sdlsstore_t *s = (sdlsstore_t*)handle;
+	vfsfile_t *f = NULL;
+	void *tmp;
+
+	while(*mode)
+	{
+		switch(*mode++)
+		{
+		case 'r':	//fine
+		case 'b':	//always binary
+		case 't':	//irrelevant
+		case 'p':	//persistent hint, safe to ignore (should really use the user store)
+			break;
+		case 'w':	//not writable
+		case '+':	//not updatable
+		case 'a':	//not appendable (easier though)
+		default:	//unknown.
+			return NULL;
+		}
+	}
+
+	tmp = BZ_Malloc(sizeof(*f)+loc->len);
+	if (SDL_ReadStorageFile(s->s, loc->rawname+1, tmp+1, loc->len))
+		f = IOF_Setup(tmp, SDL_IOFromConstMem(tmp+1, loc->len));	//allocates it as a single block.
+	else
+		BZ_Free(tmp);
+
+	return f;
+}
+static struct searchpathfuncs_s *Sys_OpenStore(SDL_Storage *s)
+{
+	sdlsstore_t *n;
+	if (!s)	//oops?
+		return NULL;
+
+	//this is bad.
+	while (!SDL_StorageReady(s))
+		Sys_Sleep(0.001);
+
+	n = Z_Malloc(sizeof(*n));
+	if (!n)
+	{
+		SDL_CloseStorage(s);
+		return NULL;
+	}
+	else
+	{
+		n->refs	= 1;
+		n->s	= s;
+		n->pub.fsver			= FSVER;
+		n->pub.ClosePath		= Sys_Store_Close;
+		n->pub.AddReference		= Sys_Store_AddReference; //needs an extra close call...
+		n->pub.GetPathDetails	= Sys_Store_GetPathDetails;
+		n->pub.BuildHash		= Sys_Store_BuildHash;
+		n->pub.FindFile			= Sys_Store_FindFile;
+		n->pub.ReadFile			= Sys_Store_ReadFile;
+		n->pub.EnumerateFiles	= Sys_Store_EnumerateFiles;
+//		n->pub.GeneratePureCRC	= Sys_Store_GeneratePureCRC;
+		n->pub.OpenVFS			= Sys_Store_OpenVFS;
+//		n->pub.PollChanges		= Sys_Store_PollChanges;
+		n->pub.FileStat			= Sys_Store_FileStat;
+		n->pub.CreateFile		= Sys_Store_CreateFile;
+		n->pub.RenameFile		= Sys_Store_RenameFile;
+		n->pub.RemoveFile		= Sys_Store_RemoveFile;
+
+		return &n->pub;
+	}
+}
+struct searchpathfuncs_s *Sys_OpenTitleStore(void)
+{
+	return Sys_OpenStore(SDL_OpenTitleStorage(NULL, 0));
+}
+/*struct searchpathfuncs_s *Sys_OpenUserStore(void)
+{
+	return Sys_OpenStore(SDL_OpenUserStorage(org, app, 0));
+}*/
+#endif
+#endif
+
 //blink window if possible (it's not)
 void Sys_ServerActivity(void)
 {
@@ -874,7 +1215,15 @@ char *Sys_URIScheme_NeedsRegistering(void)
 
 void Sys_Init(void)
 {
+//TODO:	SDL_SetHint(SDL_HINT_IME_IMPLEMENTED_UI, "composition,candidates");
+
+#if SDL_VERSION_ATLEAST(3,0,0)
+	Cmd_AddCommandD("sys_openfile", FS_OpenFilePicker_f,	"Select a file to open/install/etc.");
+
+	SDL_Init(SDL_INIT_EVENTS);
+#else
 	SDL_Init(SDL_INIT_TIMER | SDL_INIT_VIDEO | SDL_INIT_NOPARACHUTE);
+#endif
 	Sys_InitClock();
 }
 void Sys_Shutdown(void)
@@ -926,6 +1275,7 @@ int VARGS Sys_DebugLog(char *file, char *fmt, ...)
 };
 
 
+static qbyte nostdin;
 #ifdef _WIN32
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
@@ -995,12 +1345,12 @@ void Sys_CloseTerminal (void)
 	}
 }
 #elif defined(__unix__) && !defined(__ANDROID__)
-static qbyte noconinput;
+#include <errno.h>
 qboolean Sys_InitTerminal(void)
 {
 	if (COM_CheckParm("-nostdin"))
-		noconinput = true;
-	if (noconinput)
+		nostdin = true;
+	if (nostdin)
 		return true;	//they okayed it, let it start regardless.
 	if (isatty(STDIN_FILENO))
 		return true;
@@ -1012,7 +1362,7 @@ char *Sys_ConsoleInput(void)
 	static char text[256];
 	char *nl;
 
-	if (noconinput)
+	if (nostdin)
 		return NULL;
 
 #if defined(__linux__) && defined(_DEBUG)
@@ -1031,7 +1381,7 @@ char *Sys_ConsoleInput(void)
 		if (errno == EIO)
 		{
 			Sys_Printf(CON_WARNING "Backgrounded, ignoring stdin\n");
-			noconinput |= 2;
+			nostdin |= 2;
 		}
 		return NULL;
 	}
@@ -1060,28 +1410,32 @@ void Sys_CloseTerminal (void)
 }
 #endif
 
-#ifdef FTE_TARGET_WEB
-void Sys_MainLoop(void)
-{
-	static float oldtime;
-	float newtime, time;
-	newtime = Sys_DoubleTime ();
-	if (!oldtime)
-		oldtime = newtime;
-	time = newtime - oldtime;
-	Host_Frame (time);
-	oldtime = newtime;
-}
-#endif
+#if SDL_VERSION_ATLEAST(3,0,0)
+#define SDL_MAIN_USE_CALLBACKS
+#include <SDL3/SDL_main.h>
 
+void SDL_AppQuit(void *appstate, SDL_AppResult result)
+{
+	Host_Shutdown();
+}
+
+static double oldtime;
+SDL_AppResult SDL_AppInit(void **appstate, int argc, char **argv)
+{
+#else
 int QDECL main(int argc, char **argv)
 {
-	float time, newtime, oldtime;
+	double time, newtime, oldtime, sleeptime;
+#endif
 	quakeparms_t	parms;
 
 	memset(&parms, 0, sizeof(parms));
 
+#if SDL_VERSION_ATLEAST(3, 0, 0)
+	parms.basedir = SDL_GetCurrentDirectory();
+#else
 	parms.basedir = "./";
+#endif
 	parms.binarydir = SDL_GetBasePath();
 
 	parms.argc = argc;
@@ -1095,6 +1449,14 @@ int QDECL main(int argc, char **argv)
 #endif
 
 	COM_InitArgv (parms.argc, parms.argv);
+
+#ifdef SUBSERVERS
+	if (COM_CheckParm("-clusterslave"))
+	{
+		isDedicated = isClusterSlave = true;
+		SSV_SetupControlPipe(Sys_GetStdInOutStream(), false);
+	}
+#endif
 
 	TL_InitLanguages(parms.basedir);
 
@@ -1129,31 +1491,41 @@ int QDECL main(int argc, char **argv)
 	Host_Init (&parms);
 
 	oldtime = Sys_DoubleTime ();
+#if SDL_VERSION_ATLEAST(3,0,0)
+	return SDL_APP_CONTINUE;
+}
+
+SDL_AppResult SDL_AppIterate(void *appstate)
+{
+	double time, newtime, sleeptime;
+#else
 
 //client console should now be initialized.
 
     /* main window message loop */
 	while (1)
 	{
+#endif
+
 #ifndef CLIENTONLY
 		if (isDedicated)
 		{
-			float delay;
 		// find time passed since last cycle
 			newtime = Sys_DoubleTime ();
 			time = newtime - oldtime;
 			oldtime = newtime;
 			
-			delay = SV_Frame();
-			NET_Sleep(delay, false);
+			sleeptime = SV_Frame();
+			NET_Sleep(sleeptime, false);
 		}
 		else
 #endif
 		{
-			double sleeptime;
 
 	// yield the CPU for a little while when paused, minimized, or not the focus
-#if SDL_MAJOR_VERSION >= 2
+#if SDL_VERSION_ATLEAST(3,0,0)
+			//using the callbacks. let sdl deal with it. also sleeping sucks on windows anyway.
+#elif SDL_VERSION_ATLEAST(2,0,0)
 			if (!vid.activeapp)
 				SDL_Delay(1);
 #else
@@ -1169,6 +1541,10 @@ int QDECL main(int argc, char **argv)
 			if (sleeptime)
 				Sys_Sleep(sleeptime);
 		}
+#if SDL_VERSION_ATLEAST(3,0,0)
+	return SDL_APP_CONTINUE;
+}
+#else
 	}
 
 	return 0;
@@ -1195,10 +1571,23 @@ int WINAPI WinMain (HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLin
 	return main(argc, argv);
 }
 #endif
+#endif
 
 qboolean Sys_GetDesktopParameters(int *width, int *height, int *bpp, int *refreshrate)
 {
-#if SDL_MAJOR_VERSION >= 2
+#if SDL_VERSION_ATLEAST(3,0,0)
+	const SDL_DisplayMode *mode;
+	COM_AssertMainThread("SDL_GetDesktopDisplayMode");
+	mode = SDL_GetDesktopDisplayMode(SDL_GetPrimaryDisplay());
+	if (mode)
+	{
+		*width = mode->w;
+		*height = mode->h;
+		*bpp = (SDL_PIXELTYPE(mode->format) == SDL_PIXELTYPE_PACKED32)?32:16;
+		*refreshrate = mode->refresh_rate;
+		return true;
+	}
+#elif SDL_VERSION_ATLEAST(2,0,0)
 	SDL_DisplayMode mode;
 	if (!SDL_GetDesktopDisplayMode(0, &mode))
 	{
@@ -1214,8 +1603,10 @@ qboolean Sys_GetDesktopParameters(int *width, int *height, int *bpp, int *refres
 
 
 
-#if SDL_MAJOR_VERSION >= 2	//probably could include 1.3
+#if SDL_VERSION_ATLEAST(2,0,0)	//probably could include 1.3
+#if !SDL_VERSION_ATLEAST(3,0,0)	//probably could include 1.3
 #include <SDL_clipboard.h>
+#endif
 void Sys_Clipboard_PasteText(clipboardtype_t cbt, void (*callback)(void *cb, const char *utf8), void *ctx)
 {
 	char *txt;
@@ -1253,7 +1644,12 @@ void Sys_SaveClipboard(clipboardtype_t cbt, const char *text)
 #ifdef MULTITHREAD
 
 /*Thread management stuff*/
+#if SDL_VERSION_ATLEAST(3,0,0)
+static SDL_ThreadID mainthread;
+#else
+#define SDL_GetCurrentThreadID SDL_ThreadID
 static SDL_threadID mainthread;
+#endif
 static SDL_TLSID tls_threadinfo;
 struct threadinfo_s
 {
@@ -1264,21 +1660,24 @@ struct threadinfo_s
 
 void Sys_ThreadsInit(void)
 {
-	mainthread = SDL_ThreadID();
+	mainthread = SDL_GetCurrentThreadID();
 }
 qboolean Sys_IsThread(void *thread)
 {
-	return SDL_GetThreadID(thread) == SDL_ThreadID();
+	return SDL_GetThreadID(thread) == SDL_GetCurrentThreadID();
 }
 qboolean Sys_IsMainThread(void)
 {
-	return mainthread == SDL_ThreadID();
+	return mainthread == SDL_GetCurrentThreadID();
 }
 void Sys_ThreadAbort(void)
 {
 	//SDL_KillThread(NULL) got removed... so we have to do things the shitty way.
-
+#if SDL_VERSION_ATLEAST(3,0,0)
+	struct threadinfo_s *tinfo = SDL_GetTLS(&tls_threadinfo);
+#else
 	struct threadinfo_s *tinfo = SDL_TLSGet(tls_threadinfo);
+#endif
 	if (!tinfo)
 	{	//erk... not created via Sys_CreateThread?!?
 		SDL_Delay(10*1000);
@@ -1290,12 +1689,20 @@ static int FTESDLThread(void *args)
 {	//all for Sys_ThreadAbort
 	struct threadinfo_s *tinfo = args;
 	int r;
+#if SDL_VERSION_ATLEAST(3,0,0)
+	SDL_SetTLS(&tls_threadinfo, tinfo, NULL);
+#else
 	SDL_TLSSet(tls_threadinfo, tinfo, NULL);
+#endif
 	if (setjmp(tinfo->jmpbuf))
 		r = 0;	//aborted...
 	else
 		r = tinfo->threadfunc(tinfo->args);
+#if SDL_VERSION_ATLEAST(3,0,0)
+	SDL_SetTLS(&tls_threadinfo, NULL, NULL);
+#else
 	SDL_TLSSet(tls_threadinfo, NULL, NULL);
+#endif
 	Z_Free(tinfo);
 	return r;
 }
@@ -1319,7 +1726,7 @@ void Sys_WaitOnThread(void *thread)
 
 
 /* Mutex calls */
-#if SDL_MAJOR_VERSION >= 2
+#if SDL_VERSION_ATLEAST(2,0,0)
 void *Sys_CreateMutex(void)
 {
 	return (void *)SDL_CreateMutex();
@@ -1332,12 +1739,22 @@ qboolean Sys_TryLockMutex(void *mutex)
 
 qboolean Sys_LockMutex(void *mutex)
 {
+#if SDL_VERSION_ATLEAST(3,0,0)
+	SDL_LockMutex(mutex);
+	return true;
+#else
 	return !SDL_LockMutex(mutex);
+#endif
 }
 
 qboolean Sys_UnlockMutex(void *mutex)
 {
+#if SDL_VERSION_ATLEAST(3,0,0)
+	SDL_UnlockMutex(mutex);
+	return true;
+#else
 	return !SDL_UnlockMutex(mutex);
+#endif
 }
 
 void Sys_DestroyMutex(void *mutex)
@@ -1372,6 +1789,83 @@ void Sys_DestroyMutex(void *mutex)
 }
 #endif
 
+#if SDL_VERSION_ATLEAST(3,0,0)
+/* Conditional wait calls */
+typedef struct condvar_s
+{
+	SDL_Mutex *mutex;
+	SDL_Condition *cond;
+} condvar_t;
+
+void *Sys_CreateConditional(void)
+{
+	condvar_t *condv;
+	SDL_Mutex *mutex;
+	SDL_Condition *cond;
+
+	condv = (condvar_t *)malloc(sizeof(condvar_t));
+	if (!condv)
+		return NULL;
+
+	mutex = SDL_CreateMutex();
+	cond = SDL_CreateCondition();
+
+	if (mutex)
+	{
+		if (cond)
+		{
+			condv->cond = cond;
+			condv->mutex = mutex;
+
+			return (void *)condv;
+		}
+		else
+			SDL_DestroyMutex(mutex);
+	}
+
+	free(condv);
+	return NULL;
+}
+
+qboolean Sys_LockConditional(void *condv)
+{
+	SDL_LockMutex(((condvar_t *)condv)->mutex);
+	return true;
+}
+
+qboolean Sys_UnlockConditional(void *condv)
+{
+	SDL_UnlockMutex(((condvar_t *)condv)->mutex);
+	return true;
+}
+
+qboolean Sys_ConditionWait(void *condv)
+{
+	SDL_WaitCondition(((condvar_t *)condv)->cond, ((condvar_t *)condv)->mutex);
+	return true;
+}
+
+qboolean Sys_ConditionSignal(void *condv)
+{
+	SDL_SignalCondition(((condvar_t *)condv)->cond);
+	return true;
+}
+
+qboolean Sys_ConditionBroadcast(void *condv)
+{
+	SDL_BroadcastCondition(((condvar_t *)condv)->cond);
+	return true;
+}
+
+void Sys_DestroyConditional(void *condv)
+{
+	condvar_t *cv = (condvar_t *)condv;
+
+	SDL_DestroyCondition(cv->cond);
+	SDL_DestroyMutex(cv->mutex);
+	free(cv);
+}
+#else
 /* Conditional wait calls */
 typedef struct condvar_s
 {
@@ -1443,6 +1937,7 @@ void Sys_DestroyConditional(void *condv)
 	free(cv);
 }
 #endif
+#endif
 
 void Sys_Sleep (double seconds)
 {
@@ -1467,5 +1962,158 @@ qboolean Sys_SetUpdatedBinary(const char *fname)
 qboolean Sys_EngineMayUpdate(void)
 {
 	return false;	//sorry
+}
+#endif
+
+#ifdef SUBSERVERS
+#include <errno.h>
+static int QDECL Sys_StdoutWrite (struct vfsfile_s *file, const void *buffer, int bytestowrite)
+{
+	ssize_t r = write(STDOUT_FILENO, buffer, bytestowrite);
+	if (r == 0 && bytestowrite)
+		return -1;	//eof
+	if (r < 0)
+	{
+		int e = errno;
+		if (e == EINTR || e == EAGAIN || e == EWOULDBLOCK)
+			return 0;
+	}
+	return r;
+}
+static int QDECL Sys_StdinRead (struct vfsfile_s *file, void *buffer, int bytestoread)
+{
+#ifdef _WIN32
+	DWORD avail;
+	HANDLE input = GetStdHandle(STD_INPUT_HANDLE);
+	if (!PeekNamedPipe(input, NULL, 0, NULL, &avail, NULL))
+		return -1;	//some kind of error? EOF? Hangup? just report it as an error.
+	if (avail)
+	{
+		if (avail > bytestoread)
+			avail = bytestoread;
+		if (!ReadFile(input, buffer, avail, &avail, NULL))
+			return -1;
+	}
+	return avail;
+#else
+	//standard posix
+	ssize_t r;
+#if defined(__linux__) && defined(_DEBUG)	//this tends to g
+	int fl = fcntl (STDIN_FILENO, F_GETFL, 0);
+	if (!(fl & O_NONBLOCK))
+	{
+		fcntl(STDIN_FILENO, F_SETFL, fl | O_NONBLOCK);
+		Sys_Printf(CON_WARNING "stdin flags became blocking - gdb bug?\n");
+	}
+#endif
+	r = read(STDIN_FILENO, buffer, bytestoread);
+	if (r == 0 && bytestoread)
+		return VFS_ERROR_EOF;	//eof
+	if (r < 0)
+	{
+		int e = errno;
+		if (e == EINTR || e == EAGAIN || e == EWOULDBLOCK)
+			return 0;
+	}
+	return r;
+#endif
+}
+static qboolean QDECL Sys_StdinOutClose(vfsfile_t *fs)
+{
+	Cbuf_AddText("\nquit\n", RESTRICT_LOCAL);
+	Z_Free(fs);
+	return true;
+}
+vfsfile_t *Sys_GetStdInOutStream(void)
+{
+	vfsfile_t *stream = Z_Malloc(sizeof(*stream));	//not using extra state, so no need to subclass.
+
+	nostdin = true;	//detatch from stdin, read no more commands.
+
+#ifdef _WIN32
+#else
+	//make sure nothing bad is going to happen.
+	fcntl(STDIN_FILENO, F_SETFL, fcntl(STDIN_FILENO, F_GETFL, 0)|O_NONBLOCK);
+	fcntl(STDOUT_FILENO, F_SETFL, fcntl(STDOUT_FILENO, F_GETFL, 0)|O_NONBLOCK);
+#endif
+
+	stream->WriteBytes = Sys_StdoutWrite;
+	stream->ReadBytes = Sys_StdinRead;
+	stream->Close = Sys_StdinOutClose;
+	stream->seekstyle = SS_UNSEEKABLE;
+	return stream;
+}
+
+typedef struct
+{
+	vfsfile_t pub;
+	SDL_IOStream *in;	//attached to the stdin of the process	(writable)
+	SDL_IOStream *out;	//attached to the stdout of the process (readable)
+	SDL_Process *proc;
+} sdlsubserver_t;
+static int Sys_MSV_ReadBytes(struct vfsfile_s *file, void *buffer, int bytestoread)
+{
+	sdlsubserver_t *f = (void*)file;
+	int r = SDL_ReadIO(f->out, buffer, bytestoread);
+	if (!r && bytestoread)
+	{
+		SDL_IOStatus s = SDL_GetIOStatus(f->out);
+		if (s == SDL_IO_STATUS_NOT_READY)
+			return 0;
+		else if (s == SDL_IO_STATUS_EOF)
+			return VFS_ERROR_EOF;
+		else
+			return VFS_ERROR_UNSPECIFIED;
+	}
+	return r;
+}
+static int Sys_MSV_WriteBytes(struct vfsfile_s *file,const  void *buffer, int bytestowrite)
+{
+	sdlsubserver_t *f = (void*)file;
+	int r = SDL_WriteIO(f->in, buffer, bytestowrite);
+	if (!r && bytestowrite)
+	{
+		SDL_IOStatus s = SDL_GetIOStatus(f->in);
+		if (s == SDL_IO_STATUS_NOT_READY)
+			return 0;
+		else if (s == SDL_IO_STATUS_EOF)
+			return VFS_ERROR_EOF;
+		else
+			return VFS_ERROR_UNSPECIFIED;
+	}
+	return r;
+}
+static qboolean Sys_MSV_Close(struct vfsfile_s *file)
+{
+	sdlsubserver_t *f = (void*)file;
+	SDL_KillProcess(f->proc, false);	//let it die on its own...
+	SDL_DestroyProcess(f->proc);	//clear up any state (does not force-terminate though!).
+	Z_Free(f);
+	return true;
+}
+vfsfile_t *Sys_ForkServer(void)
+{
+	sdlsubserver_t *ctx;
+	const char *argv[64];
+	int argc = 0;
+
+	argv[argc++] = com_argv[0];	//best guess. not exactly reliable.
+	argv[argc++] = "-clusterslave";
+	argc += FS_GetManifestArgv(argv+argc, countof(argv)-argc-1);
+	argv[argc++] = NULL;
+
+	Con_DPrintf("Execing %s\n", argv[0]);
+
+	ctx = Z_Malloc(sizeof(*ctx));
+
+	ctx->proc = SDL_CreateProcess(argv, true);
+	ctx->in = SDL_GetProcessInput(ctx->proc);
+	ctx->out = SDL_GetProcessOutput(ctx->proc);
+
+	ctx->pub.ReadBytes = Sys_MSV_ReadBytes;
+	ctx->pub.WriteBytes = Sys_MSV_WriteBytes;
+	ctx->pub.Close = Sys_MSV_Close;
+	ctx->pub.seekstyle = SS_UNSEEKABLE;
+	return &ctx->pub;
 }
 #endif

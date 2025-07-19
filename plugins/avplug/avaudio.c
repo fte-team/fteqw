@@ -45,7 +45,7 @@ static void S_AV_Purge(sfx_t *s)
 
 	// Free the audio decoder
 	if (ctx->pACodecCtx)
-		avcodec_close(ctx->pACodecCtx);
+		avcodec_free_context(&ctx->pACodecCtx);
 	av_free(ctx->pAFrame);
 
 	// Close the video file
@@ -72,7 +72,7 @@ static void S_AV_ReadFrame(struct avaudioctx *ctx)
 	qaudiofmt_t outformat = QAF_S16, informat=QAF_S16;
 	int channels = ctx->pACodecCtx->ch_layout.nb_channels;
 	int planes = 1, p;
-	unsigned int auddatasize = av_samples_get_buffer_size(NULL, channels, ctx->pAFrame->nb_samples, ctx->pACodecCtx->sample_fmt, 1);
+	unsigned int auddatasize = av_samples_get_buffer_size(NULL, ctx->pACodecCtx->ch_layout.nb_channels, ctx->pAFrame->nb_samples, ctx->pACodecCtx->sample_fmt, 1);
 	switch(ctx->pACodecCtx->sample_fmt)
 	{	//we don't support planar audio. we just treat it as mono instead.
 	default:
@@ -413,7 +413,7 @@ static qboolean QDECL S_LoadAVSound (sfx_t *s, qbyte *data, size_t datalen, int 
 {
 	struct avaudioctx *ctx;
 	int i;
-	AVCodec *pCodec;
+	const AVCodec *pCodec;
 	const int iBufSize = 4 * 1024;
 
 	if (!ffmpeg_audiodecoder)

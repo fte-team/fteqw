@@ -485,7 +485,7 @@ static DWORD VerifyKnownCertificates(DWORD status, wchar_t *domain, qbyte *data,
 			probs |= CERTLOG_WRONGHOST;
 		if (status == CERT_E_UNTRUSTEDROOT || SUCCEEDED(status))
 		{
-#ifndef SERVERONLY
+#ifdef HAVE_CLIENT
 			if (CertLog_ConnectOkay(narrowen(realdomain, sizeof(realdomain), domain), data, datasize, probs))
 				status = SEC_E_OK;
 			else
@@ -515,7 +515,7 @@ static DWORD VerifyKnownCertificates(DWORD status, wchar_t *domain, qbyte *data,
 		BZ_Free(knowncert);
 	}
 
-#ifndef SERVERONLY
+#ifdef HAVE_CLIENT
 	//self-signed and expired certs are understandable in many situations.
 	//prompt and cache (although this connection attempt will fail).
 	if (status == CERT_E_UNTRUSTEDROOT || status == CERT_E_UNTRUSTEDTESTROOT)

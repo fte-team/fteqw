@@ -4757,7 +4757,7 @@ qboolean VK_EnumerateDevices (void *usercontext, void(*callback)(void *context, 
 }
 
 //initialise the vulkan instance, context, device, etc.
-qboolean VK_Init(rendererstate_t *info, const char **sysextnames, qboolean (*createSurface)(void), void (*dopresent)(struct vkframe *theframe))
+qboolean VK_Init(rendererstate_t *info, const char *const*sysextnames, unsigned int numsysext, qboolean (*createSurface)(void), void (*dopresent)(struct vkframe *theframe))
 {
 	VkQueueFamilyProperties *queueprops;
 	VkResult err;
@@ -4862,8 +4862,14 @@ qboolean VK_Init(rendererstate_t *info, const char **sysextnames, qboolean (*cre
 			}
 			else if (sysextnames)
 			{
-				for (j = 0; sysextnames[j]; j++)
+				for (j = 0; j < numsysext; j++)
 				{
+					if (!sysextnames[j])
+					{
+						if (numsysext == UINT_MAX)
+							break;
+						continue;
+					}
 					if (!strcmp(ext[i].extensionName, sysextnames[j]))
 					{
 						extensions[extensions_count++] = sysextnames[j];

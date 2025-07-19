@@ -417,7 +417,7 @@ vfsfile_t *Sys_ForkServer(void)
 
 	argv[argc++] = exename;
 	argv[argc++] = "-clusterslave";
-	argc += FS_GetManifestArgv(argv+argc, countof(argv)-argc-1);
+	argc += FS_GetManifestArgv((const char**)argv+argc, countof(argv)-argc-1);
 	argv[argc++] = NULL;
 
 #if 0

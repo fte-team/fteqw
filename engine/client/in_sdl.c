@@ -1,13 +1,21 @@
 #include "quakedef.h"
 
+#ifdef FTE_SDL3
+#include <SDL3/SDL.h>
+
+#ifdef VKQUAKE
+#include "../vk/vkrenderer.h"
+#endif
+#else
 #include <SDL.h>
 
 #if SDL_VERSION_ATLEAST(2,0,6) && defined(VKQUAKE)
 #include <SDL_vulkan.h>
 #include "../vk/vkrenderer.h"
 #endif
+#endif
 
-#if SDL_MAJOR_VERSION >=2
+#if SDL_VERSION_ATLEAST(2,0,0)
 extern SDL_Window *sdlwindow;
 #else
 extern SDL_Surface *sdlsurf;
@@ -26,14 +34,20 @@ void IN_ActivateMouse(void)
 {
 	if (mouseactive)
 		return;
+	if (!vid.activeapp)
+		return;
 
 	mouseactive = true;
+#if SDL_VERSION_ATLEAST(3,0,0)
+	SDL_HideCursor();
+	SDL_SetWindowRelativeMouseMode(sdlwindow, true);
+	SDL_SetWindowMouseGrab(sdlwindow, true);
+#elif SDL_VERSION_ATLEAST(2,0,0)
 	SDL_ShowCursor(0);
-
-#if SDL_MAJOR_VERSION >= 2
 	SDL_SetRelativeMouseMode(SDL_TRUE);
 	SDL_SetWindowGrab(sdlwindow, SDL_TRUE);
 #else
+	SDL_ShowCursor(0);
 	SDL_WM_GrabInput(SDL_GRAB_ON);
 #endif
 }
@@ -44,16 +58,21 @@ void IN_DeactivateMouse(void)
 		return;
 
 	mouseactive = false;
+#if SDL_VERSION_ATLEAST(3,0,0)
+	SDL_ShowCursor();
+	SDL_SetWindowRelativeMouseMode(sdlwindow, false);
+	SDL_SetWindowMouseGrab(sdlwindow, false);
+#elif SDL_VERSION_ATLEAST(2,0,0)
 	SDL_ShowCursor(1);
-#if SDL_MAJOR_VERSION >= 2
 	SDL_SetRelativeMouseMode(SDL_FALSE);
 	SDL_SetWindowGrab(sdlwindow, SDL_FALSE);
 #else
+	SDL_ShowCursor(1);
 	SDL_WM_GrabInput(SDL_GRAB_OFF);
 #endif
 }
 
-#if SDL_MAJOR_VERSION >= 2
+#if SDL_VERSION_ATLEAST(2,0,0)
 #define MAX_FINGERS 16 //zomg! mutant!
 static struct sdlfinger_s
 {
@@ -93,7 +112,7 @@ static uint32_t SDL_GiveFinger(SDL_JoystickID jid, SDL_TouchID tid, SDL_FingerID
 }
 #endif
 
-#if SDL_MAJOR_VERSION >= 2
+#if SDL_VERSION_ATLEAST(2,0,0)
 #define MAX_JOYSTICKS 16
 #ifndef MAXJOYAXIS
 #define MAXJOYAXIS 6
@@ -143,7 +162,11 @@ static struct sdljoy_s
 	//in sdl, controllers are some glorified version of joysticks apparently.
 	char *devname;
 	SDL_Joystick *joystick;
+#if SDL_VERSION_ATLEAST(3,0,0)
+	SDL_Gamepad *controller;
+#else
 	SDL_GameController *controller;
+#endif
 	SDL_JoystickID id;
 	unsigned int qdevid;
 
@@ -175,7 +198,16 @@ static void J_AllocateDevID(struct sdljoy_s *joy)
 
 	joy->qdevid = id;
 
-#if SDL_VERSION_ATLEAST(2,0,14)
+#if SDL_VERSION_ATLEAST(3,0,0)
+	if (joy->controller)
+	{
+		//enable some sensors if they're there. because we can.
+		if (SDL_GamepadHasSensor(joy->controller, SDL_SENSOR_ACCEL))
+			SDL_SetGamepadSensorEnabled(joy->controller, SDL_SENSOR_ACCEL, true);
+		if (SDL_GamepadHasSensor(joy->controller, SDL_SENSOR_GYRO))
+			SDL_SetGamepadSensorEnabled(joy->controller, SDL_SENSOR_GYRO, true);
+	}
+#elif SDL_VERSION_ATLEAST(2,0,14)
 	if (joy->controller)
 	{
 		//enable some sensors if they're there. because we can.
@@ -200,6 +232,15 @@ static void J_ControllerAdded(int enumid)
 	if (i == MAX_JOYSTICKS)
 		return;
 
+#if SDL_VERSION_ATLEAST(3,0,0)
+	sdljoy[i].controller = SDL_OpenGamepad(enumid);
+	if (!sdljoy[i].controller)
+		return;
+	sdljoy[i].joystick = SDL_GetGamepadJoystick(sdljoy[i].controller);
+	sdljoy[i].id = SDL_GetJoystickID(sdljoy[i].joystick);
+
+	cname = SDL_GetGamepadName(sdljoy[i].controller);
+#else
 	sdljoy[i].controller = SDL_GameControllerOpen(enumid);
 	if (!sdljoy[i].controller)
 		return;
@@ -207,6 +248,7 @@ static void J_ControllerAdded(int enumid)
 	sdljoy[i].id = SDL_JoystickInstanceID(sdljoy[i].joystick);
 
 	cname = SDL_GameControllerName(sdljoy[i].controller);
+#endif
 	if (!cname)
 		cname = "Unknown Controller";
 	Con_Printf("Found new controller (%i): %s\n", i, cname);
@@ -223,6 +265,17 @@ static void J_JoystickAdded(int enumid)
 	if (i == MAX_JOYSTICKS)
 		return;
 
+#if SDL_VERSION_ATLEAST(3,0,0)
+	if (!joy_only.ival  &&  SDL_IsGamepad(enumid))	//if its reported via the gamecontroller api then use that instead. don't open it twice.
+		return;
+
+	sdljoy[i].joystick = SDL_OpenJoystick(enumid);
+	if (!sdljoy[i].joystick)
+		return;
+	sdljoy[i].id = SDL_GetJoystickID(sdljoy[i].joystick);
+
+	cname = SDL_GetJoystickName(sdljoy[i].joystick);
+#else
 	if (!joy_only.ival  &&  SDL_IsGameController(enumid))	//if its reported via the gamecontroller api then use that instead. don't open it twice.
 		return;
 
@@ -232,6 +285,7 @@ static void J_JoystickAdded(int enumid)
 	sdljoy[i].id = SDL_JoystickInstanceID(sdljoy[i].joystick);
 
 	cname = SDL_JoystickName(sdljoy[i].joystick);
+#endif
 	if (!cname)
 		cname = "Unknown Joystick";
 	Con_Printf("Found new joystick (%i): %s\n", i, cname);
@@ -402,11 +456,30 @@ enum controllertype_e INS_GetControllerType(int id)
 	{
 		if (sdljoy[i].qdevid == id)
 		{
+#if SDL_VERSION_ATLEAST(3,0,0)
+			switch(SDL_GetGamepadTypeForID(sdljoy[i].id))
+			{	//sdl reports whether it has touchpads etc. we only really report a value for button icons.
+			case SDL_GAMEPAD_TYPE_STANDARD:	//I guess microsoft's xinput won.
+			case SDL_GAMEPAD_TYPE_XBOX360:
+			case SDL_GAMEPAD_TYPE_XBOXONE:
+				return CONTROLLER_XBOX;
+			case SDL_GAMEPAD_TYPE_PS3:
+			case SDL_GAMEPAD_TYPE_PS4:
+			case SDL_GAMEPAD_TYPE_PS5:
+				return CONTROLLER_PLAYSTATION;
+			case SDL_GAMEPAD_TYPE_NINTENDO_SWITCH_PRO:
+			case SDL_GAMEPAD_TYPE_NINTENDO_SWITCH_JOYCON_LEFT:
+			case SDL_GAMEPAD_TYPE_NINTENDO_SWITCH_JOYCON_RIGHT:
+			case SDL_GAMEPAD_TYPE_NINTENDO_SWITCH_JOYCON_PAIR:
+				return CONTROLLER_NINTENDO;
+			case SDL_GAMEPAD_TYPE_UNKNOWN:
+			case SDL_GAMEPAD_TYPE_COUNT:
+			default:
+				return CONTROLLER_UNKNOWN;
+			}
+#else
 			switch(SDL_GameControllerTypeForIndex(sdljoy[i].id))
 			{
-			default:	//for the future...
-			case SDL_CONTROLLER_TYPE_UNKNOWN:
-				return CONTROLLER_UNKNOWN;
 #if SDL_VERSION_ATLEAST(2,0,14)
 			case SDL_CONTROLLER_TYPE_VIRTUAL:	//don't really know... assume steaminput and thus steamdeck and thus xbox-like.
 				return CONTROLLER_VIRTUAL;
@@ -433,8 +506,12 @@ enum controllertype_e INS_GetControllerType(int id)
 			case SDL_CONTROLLER_TYPE_NINTENDO_SWITCH_JOYCON_RIGHT:
 			case SDL_CONTROLLER_TYPE_NINTENDO_SWITCH_JOYCON_PAIR:
 #endif
-				return CONTROLLER_NINTENDO;	//b on bottom, a('cancel') to right
+				return CONTROLLER_NINTENDO;	//b on bottom, a('cancel') to right	
+			case SDL_CONTROLLER_TYPE_UNKNOWN:
+			default:	//for the future...
+				return CONTROLLER_UNKNOWN;
 			}
+#endif
 		}
 	}
 #endif
@@ -451,7 +528,11 @@ void INS_Rumble(int id, quint16_t amp_low, quint16_t amp_high, quint32_t duratio
 	{
 		if (sdljoy[i].qdevid == id)
 		{
+#if SDL_VERSION_ATLEAST(3,0,0)
+			SDL_RumbleGamepad(SDL_GetGamepadFromID(sdljoy[i].id), amp_low, amp_high, duration);
+#else
 			SDL_GameControllerRumble(SDL_GameControllerFromInstanceID(sdljoy[i].id), amp_low, amp_high, duration);
+#endif
 			return;
 		}
 	}
@@ -471,7 +552,11 @@ void INS_RumbleTriggers(int id, quint16_t left, quint16_t right, quint32_t durat
 	{
 		if (sdljoy[i].qdevid == id)
 		{
+#if SDL_VERSION_ATLEAST(3,0,0)
+			SDL_RumbleGamepadTriggers(SDL_GetGamepadFromID(sdljoy[i].id), left, right, duration);
+#else
 			SDL_GameControllerRumbleTriggers(SDL_GameControllerFromInstanceID(sdljoy[i].id), left, right, duration);
+#endif
 			return;
 		}
 	}
@@ -493,7 +578,11 @@ void INS_SetLEDColor(int id, vec3_t color)
 	{
 		if (sdljoy[i].qdevid == id)
 		{
+#if SDL_VERSION_ATLEAST(3,0,0)
+			SDL_SetGamepadLED(SDL_GetGamepadFromID(sdljoy[i].id), (uint8_t)color[0], (uint8_t)color[1], (uint8_t)color[2]);
+#else
 			SDL_GameControllerSetLED(SDL_GameControllerFromInstanceID(sdljoy[i].id), (uint8_t)color[0], (uint8_t)color[1], (uint8_t)color[2]);
+#endif
 			return;
 		}
 	}
@@ -510,7 +599,11 @@ void INS_SetTriggerFX(int id, const void *data, size_t size)
 	{
 		if (sdljoy[i].qdevid == id)
 		{
+#if SDL_VERSION_ATLEAST(3,0,0)
+			SDL_SendGamepadEffect(SDL_GetGamepadFromID(sdljoy[i].id), &data, size);
+#else
 			SDL_GameControllerSendEffect(SDL_GameControllerFromInstanceID(sdljoy[i].id), &data, size);
+#endif
 			return;
 		}
 	}
@@ -542,8 +635,8 @@ static void J_ControllerTouchPad(SDL_JoystickID jid, int pad, int finger, int fi
 	x *= vid.pixelwidth;
 	y *= vid.pixelheight;
 	IN_MouseMove(thefinger, true, x, y, 0, pressure);
-	if (finger)
-		IN_KeyEvent(thefinger, finger>0, K_MOUSE1, 0);
+	if (fingerstate)
+		IN_KeyEvent(thefinger, fingerstate>0, K_GP_TOUCHPAD, 0);
 }
 static void J_ControllerSensor(SDL_JoystickID jid, SDL_SensorType sensor, float *data)
 {
@@ -604,12 +697,20 @@ static void J_Kill(SDL_JoystickID jid, qboolean verbose)
 	if (joy->controller)
 	{
 		Con_Printf("Controller unplugged(%i): %s\n", (int)(joy - sdljoy), joy->devname);
+#if SDL_VERSION_ATLEAST(3,0,0)
+		SDL_CloseGamepad(joy->controller);
+#else
 		SDL_GameControllerClose(joy->controller);
+#endif
 	}
 	else
 	{
 		Con_Printf("Joystick unplugged(%i): %s\n", (int)(joy - sdljoy), joy->devname);
+#if SDL_VERSION_ATLEAST(3,0,0)
+		SDL_CloseJoystick(joy->joystick);
+#else
 		SDL_JoystickClose(joy->joystick);
+#endif
 	}
 	joy->controller = NULL;
 	joy->joystick = NULL;
@@ -625,7 +726,263 @@ static void J_KillAll(void)
 }
 #endif
 
-#if SDL_MAJOR_VERSION >= 2
+#if SDL_VERSION_ATLEAST(3,0,0)
+//use SDL_GetKeyName(SDL_GetKeyFromScancode(quaketosdl[qkey])) for keybinds menu
+unsigned int MySDL_MapScancode(SDL_Scancode sdlscancode)
+{
+	switch(sdlscancode)
+	{
+	case SDL_SCANCODE_A:
+	case SDL_SCANCODE_B:
+	case SDL_SCANCODE_C:
+	case SDL_SCANCODE_D:
+	case SDL_SCANCODE_E:
+	case SDL_SCANCODE_F:
+	case SDL_SCANCODE_G:
+	case SDL_SCANCODE_H:
+	case SDL_SCANCODE_I:
+	case SDL_SCANCODE_J:
+	case SDL_SCANCODE_K:
+	case SDL_SCANCODE_L:
+	case SDL_SCANCODE_M:
+	case SDL_SCANCODE_N:
+	case SDL_SCANCODE_O:
+	case SDL_SCANCODE_P:
+	case SDL_SCANCODE_Q:
+	case SDL_SCANCODE_R:
+	case SDL_SCANCODE_S:
+	case SDL_SCANCODE_T:
+	case SDL_SCANCODE_U:
+	case SDL_SCANCODE_V:
+	case SDL_SCANCODE_W:
+	case SDL_SCANCODE_X:
+	case SDL_SCANCODE_Y:
+	case SDL_SCANCODE_Z:			return 'a' + sdlscancode-SDL_SCANCODE_A;
+	case SDL_SCANCODE_1:
+	case SDL_SCANCODE_2:
+	case SDL_SCANCODE_3:
+	case SDL_SCANCODE_4:
+	case SDL_SCANCODE_5:
+	case SDL_SCANCODE_6:
+	case SDL_SCANCODE_7:
+	case SDL_SCANCODE_8:
+	case SDL_SCANCODE_9:			return '1' + sdlscancode-SDL_SCANCODE_1;
+	case SDL_SCANCODE_0:			return '0';
+	case SDL_SCANCODE_RETURN:		return K_ENTER;
+	case SDL_SCANCODE_ESCAPE:		return K_ESCAPE;
+	case SDL_SCANCODE_BACKSPACE:	return K_BACKSPACE;
+	case SDL_SCANCODE_TAB:			return K_TAB;
+	case SDL_SCANCODE_SPACE:		return K_SPACE;
+	case SDL_SCANCODE_MINUS:		return '-';
+	case SDL_SCANCODE_EQUALS:		return '=';
+	case SDL_SCANCODE_LEFTBRACKET:	return '[';
+	case SDL_SCANCODE_RIGHTBRACKET:	return ']';
+	case SDL_SCANCODE_BACKSLASH:	return '#';
+	case SDL_SCANCODE_NONUSHASH:	return '#';
+	case SDL_SCANCODE_SEMICOLON:	return ';';
+	case SDL_SCANCODE_APOSTROPHE:	return '\'';
+	case SDL_SCANCODE_GRAVE:		return '`';
+	case SDL_SCANCODE_COMMA:		return ',';
+	case SDL_SCANCODE_PERIOD:		return '.';
+	case SDL_SCANCODE_SLASH:		return '/';
+	case SDL_SCANCODE_CAPSLOCK:		return K_CAPSLOCK;
+	case SDL_SCANCODE_F1:			return K_F1;
+	case SDL_SCANCODE_F2:			return K_F2;
+	case SDL_SCANCODE_F3:			return K_F3;
+	case SDL_SCANCODE_F4:			return K_F4;
+	case SDL_SCANCODE_F5:			return K_F5;
+	case SDL_SCANCODE_F6:			return K_F6;
+	case SDL_SCANCODE_F7:			return K_F7;
+	case SDL_SCANCODE_F8:			return K_F8;
+	case SDL_SCANCODE_F9:			return K_F9;
+	case SDL_SCANCODE_F10:			return K_F10;
+	case SDL_SCANCODE_F11:			return K_F11;
+	case SDL_SCANCODE_F12:			return K_F12;
+	case SDL_SCANCODE_PRINTSCREEN:	return K_PRINTSCREEN;
+	case SDL_SCANCODE_SCROLLLOCK:	return K_SCRLCK;
+	case SDL_SCANCODE_PAUSE:		return K_PAUSE;
+	case SDL_SCANCODE_INSERT:		return K_INS;
+	case SDL_SCANCODE_HOME:			return K_HOME;
+	case SDL_SCANCODE_PAGEUP:		return K_PGUP;
+	case SDL_SCANCODE_DELETE:		return K_DEL;
+	case SDL_SCANCODE_END:			return K_END;
+	case SDL_SCANCODE_PAGEDOWN:		return K_PGDN;
+	case SDL_SCANCODE_RIGHT:		return K_RIGHTARROW;
+	case SDL_SCANCODE_LEFT:			return K_LEFTARROW;
+	case SDL_SCANCODE_DOWN:			return K_DOWNARROW;
+	case SDL_SCANCODE_UP:			return K_UPARROW;
+	case SDL_SCANCODE_NUMLOCKCLEAR:	return K_KP_NUMLOCK;
+	case SDL_SCANCODE_KP_DIVIDE:	return K_KP_SLASH;
+	case SDL_SCANCODE_KP_MULTIPLY:	return K_KP_STAR;
+	case SDL_SCANCODE_KP_MINUS:		return K_KP_MINUS;
+	case SDL_SCANCODE_KP_PLUS:		return K_KP_PLUS;
+	case SDL_SCANCODE_KP_ENTER:		return K_KP_ENTER;
+	case SDL_SCANCODE_KP_1:			return K_KP_END;
+	case SDL_SCANCODE_KP_2:			return K_KP_DOWNARROW;
+	case SDL_SCANCODE_KP_3:			return K_KP_PGDN;
+	case SDL_SCANCODE_KP_4:			return K_KP_LEFTARROW;
+	case SDL_SCANCODE_KP_5:			return K_KP_5;
+	case SDL_SCANCODE_KP_6:			return K_KP_RIGHTARROW;
+	case SDL_SCANCODE_KP_7:			return K_KP_HOME;
+	case SDL_SCANCODE_KP_8:			return K_KP_UPARROW;
+	case SDL_SCANCODE_KP_9:			return K_KP_PGUP;
+	case SDL_SCANCODE_KP_0:			return K_KP_INS;
+	case SDL_SCANCODE_KP_PERIOD:	return K_KP_DEL;
+	case SDL_SCANCODE_NONUSBACKSLASH:	return '\\';
+	case SDL_SCANCODE_APPLICATION:		return K_APP;
+	case SDL_SCANCODE_POWER:			return K_POWER;
+	case SDL_SCANCODE_KP_EQUALS:		return K_KP_EQUALS;
+	case SDL_SCANCODE_F13:				return K_F13;
+	case SDL_SCANCODE_F14:				return K_F14;
+	case SDL_SCANCODE_F15:				return K_F15;
+//	case SDL_SCANCODE_F16:				return K_F16;
+//	case SDL_SCANCODE_F17:				return K_F17;
+//	case SDL_SCANCODE_F18:				return K_F18;
+//	case SDL_SCANCODE_F19:				return K_F19;
+//	case SDL_SCANCODE_F20:				return K_F20;
+//	case SDL_SCANCODE_F21:				return K_F21;
+//	case SDL_SCANCODE_F22:				return K_F22;
+//	case SDL_SCANCODE_F23:				return K_F23;
+//	case SDL_SCANCODE_F24:				return K_F24;
+//	case SDL_SCANCODE_EXECUTE:			return K_;
+//	case SDL_SCANCODE_HELP:				return K_;
+//	case SDL_SCANCODE_MENU:				return K_;
+//	case SDL_SCANCODE_SELECT:			return K_;
+//	case SDL_SCANCODE_STOP:				return K_;
+//	case SDL_SCANCODE_AGAIN:			return K_;
+//	case SDL_SCANCODE_UNDO:				return K_;
+//	case SDL_SCANCODE_CUT:				return K_;
+//	case SDL_SCANCODE_COPY:				return K_;
+//	case SDL_SCANCODE_PASTE:			return K_;
+//	case SDL_SCANCODE_FIND:				return K_;
+//	case SDL_SCANCODE_MUTE:				return K_;
+	case SDL_SCANCODE_VOLUMEUP:			return K_VOLUP;
+	case SDL_SCANCODE_VOLUMEDOWN:		return K_VOLDOWN;
+//	case SDL_SCANCODE_KP_COMMA:			return K_KP_;
+//	case SDL_SCANCODE_KP_EQUALSAS400:	return K_KP_;
+//	case SDL_SCANCODE_INTERNATIONAL1:	return K_;
+//	case SDL_SCANCODE_INTERNATIONAL2:	return K_;
+//	case SDL_SCANCODE_INTERNATIONAL3:	return K_;
+//	case SDL_SCANCODE_INTERNATIONAL4:	return K_;
+//	case SDL_SCANCODE_INTERNATIONAL5:	return K_;
+//	case SDL_SCANCODE_INTERNATIONAL6:	return K_;
+//	case SDL_SCANCODE_INTERNATIONAL7:	return K_;
+//	case SDL_SCANCODE_INTERNATIONAL8:	return K_;
+//	case SDL_SCANCODE_INTERNATIONAL9:	return K_;
+//	case SDL_SCANCODE_LANG1:			return K_;
+//	case SDL_SCANCODE_LANG2:			return K_;
+//	case SDL_SCANCODE_LANG3:			return K_;
+//	case SDL_SCANCODE_LANG4:			return K_;
+//	case SDL_SCANCODE_LANG5:			return K_;
+//	case SDL_SCANCODE_LANG6:			return K_;
+//	case SDL_SCANCODE_LANG7:			return K_;
+//	case SDL_SCANCODE_LANG8:			return K_;
+//	case SDL_SCANCODE_LANG9:			return K_;
+//	case SDL_SCANCODE_ALTERASE:			return K_;
+//	case SDL_SCANCODE_SYSREQ:			return K_;
+//	case SDL_SCANCODE_CANCEL:			return K_;
+//	case SDL_SCANCODE_CLEAR:			return K_;
+//	case SDL_SCANCODE_PRIOR:			return K_;
+//	case SDL_SCANCODE_RETURN2:			return K_;
+//	case SDL_SCANCODE_SEPARATOR:		return K_;
+//	case SDL_SCANCODE_OUT:				return K_;
+//	case SDL_SCANCODE_OPER:				return K_;
+//	case SDL_SCANCODE_CLEARAGAIN:		return K_;
+//	case SDL_SCANCODE_CRSEL:			return K_;
+//	case SDL_SCANCODE_EXSEL:			return K_;
+//	case SDL_SCANCODE_KP_00:				return K_KP_;
+//	case SDL_SCANCODE_KP_000:				return K_KP_;
+//	case SDL_SCANCODE_THOUSANDSSEPARATOR:	return K_KP_;
+//	case SDL_SCANCODE_DECIMALSEPARATOR:		return K_KP_;
+//	case SDL_SCANCODE_CURRENCYUNIT:			return K_KP_;
+//	case SDL_SCANCODE_CURRENCYSUBUNIT:		return K_KP_;
+//	case SDL_SCANCODE_KP_LEFTPAREN:			return K_KP_;
+//	case SDL_SCANCODE_KP_RIGHTPAREN:		return K_KP_;
+//	case SDL_SCANCODE_KP_LEFTBRACE:			return K_KP_;
+//	case SDL_SCANCODE_KP_RIGHTBRACE:		return K_KP_;
+//	case SDL_SCANCODE_KP_TAB:				return K_KP_;
+//	case SDL_SCANCODE_KP_BACKSPACE:			return K_KP_;
+//	case SDL_SCANCODE_KP_A:					return K_KP_;
+//	case SDL_SCANCODE_KP_B:					return K_KP_;
+//	case SDL_SCANCODE_KP_C:					return K_KP_;
+//	case SDL_SCANCODE_KP_D:					return K_KP_;
+//	case SDL_SCANCODE_KP_E:					return K_KP_;
+//	case SDL_SCANCODE_KP_F:					return K_KP_;
+//	case SDL_SCANCODE_KP_XOR:				return K_KP_;
+//	case SDL_SCANCODE_KP_POWER:				return K_KP_;
+//	case SDL_SCANCODE_KP_PERCENT:			return K_KP_;
+//	case SDL_SCANCODE_KP_LESS:				return K_KP_;
+//	case SDL_SCANCODE_KP_GREATER:			return K_KP_;
+//	case SDL_SCANCODE_KP_AMPERSAND:			return K_KP_;
+//	case SDL_SCANCODE_KP_DBLAMPERSAND:		return K_KP_;
+//	case SDL_SCANCODE_KP_VERTICALBAR:		return K_KP_;
+//	case SDL_SCANCODE_KP_DBLVERTICALBAR:	return K_KP_;
+//	case SDL_SCANCODE_KP_COLON:				return K_KP_;
+//	case SDL_SCANCODE_KP_HASH:				return K_KP_;
+//	case SDL_SCANCODE_KP_SPACE:				return K_KP_;
+//	case SDL_SCANCODE_KP_AT:				return K_KP_;
+//	case SDL_SCANCODE_KP_EXCLAM:			return K_KP_;
+//	case SDL_SCANCODE_KP_MEMSTORE:			return K_KP_;
+//	case SDL_SCANCODE_KP_MEMRECALL:			return K_KP_;
+//	case SDL_SCANCODE_KP_MEMCLEAR:			return K_KP_;
+//	case SDL_SCANCODE_KP_MEMADD:			return K_KP_;
+//	case SDL_SCANCODE_KP_MEMSUBTRACT:		return K_KP_;
+//	case SDL_SCANCODE_KP_MEMMULTIPLY:		return K_KP_;
+//	case SDL_SCANCODE_KP_MEMDIVIDE:			return K_KP_;
+//	case SDL_SCANCODE_KP_PLUSMINUS:			return K_KP_;
+//	case SDL_SCANCODE_KP_CLEAR:				return K_KP_;
+//	case SDL_SCANCODE_KP_CLEARENTRY:		return K_KP_;
+//	case SDL_SCANCODE_KP_BINARY:			return K_KP_;
+//	case SDL_SCANCODE_KP_OCTAL:				return K_KP_;
+//	case SDL_SCANCODE_KP_DECIMAL:			return K_KP_;
+//	case SDL_SCANCODE_KP_HEXADECIMAL:		return K_KP_;
+	case SDL_SCANCODE_LCTRL:				return K_LCTRL;
+	case SDL_SCANCODE_LSHIFT:				return K_LSHIFT;
+	case SDL_SCANCODE_LALT:					return K_LALT;
+	case SDL_SCANCODE_LGUI:					return K_LWIN;
+	case SDL_SCANCODE_RCTRL:				return K_RCTRL;
+	case SDL_SCANCODE_RSHIFT:				return K_RSHIFT;
+	case SDL_SCANCODE_RALT:					return K_RALT;
+	case SDL_SCANCODE_RGUI:					return K_RWIN;
+//	case SDL_SCANCODE_MODE:					return K_;
+//	case SDL_SCANCODE_SLEEP:				return K_;
+//	case SDL_SCANCODE_WAKE:					return K_;
+//	case SDL_SCANCODE_CHANNEL_INCREMENT:	return K_;
+//	case SDL_SCANCODE_CHANNEL_DECREMENT:	return K_;
+//	case SDL_SCANCODE_MEDIA_PLAY:			return K_;
+//	case SDL_SCANCODE_MEDIA_PAUSE:			return K_MM_TRACK_PLAYPAUSE;
+//	case SDL_SCANCODE_MEDIA_RECORD:			return K_MM_;
+//	case SDL_SCANCODE_MEDIA_FAST_FORWARD:	return K_MM_;
+//	case SDL_SCANCODE_MEDIA_REWIND:			return K_MM_;
+	case SDL_SCANCODE_MEDIA_NEXT_TRACK:		return K_MM_TRACK_NEXT;
+	case SDL_SCANCODE_MEDIA_PREVIOUS_TRACK:	return K_MM_TRACK_PREV;
+	case SDL_SCANCODE_MEDIA_STOP:			return K_MM_TRACK_STOP;
+//	case SDL_SCANCODE_MEDIA_EJECT:			return K_MM_;
+	case SDL_SCANCODE_MEDIA_PLAY_PAUSE:		return K_MM_TRACK_PLAYPAUSE;
+//	case SDL_SCANCODE_MEDIA_SELECT:			return K_MM_;
+//	case SDL_SCANCODE_AC_NEW:				return K_MM_;
+//	case SDL_SCANCODE_AC_OPEN:				return K_MM_;
+//	case SDL_SCANCODE_AC_CLOSE:				return K_MM_;
+//	case SDL_SCANCODE_AC_EXIT:				return K_MM_;
+//	case SDL_SCANCODE_AC_SAVE:				return K_MM_;
+//	case SDL_SCANCODE_AC_PRINT:				return K_MM_;
+//	case SDL_SCANCODE_AC_PROPERTIES:		return K_MM_;
+//	case SDL_SCANCODE_AC_SEARCH:			return K_MM_;
+	case SDL_SCANCODE_AC_HOME:				return K_MM_BROWSER_HOME;
+	case SDL_SCANCODE_AC_BACK:				return K_MM_BROWSER_BACK;
+	case SDL_SCANCODE_AC_FORWARD:			return K_MM_BROWSER_FORWARD;
+	case SDL_SCANCODE_AC_STOP:				return K_MM_BROWSER_STOP;
+	case SDL_SCANCODE_AC_REFRESH:			return K_MM_BROWSER_REFRESH;
+	case SDL_SCANCODE_AC_BOOKMARKS:			return K_MM_BROWSER_FAVORITES;
+//	case SDL_SCANCODE_SOFTLEFT:
+//	case SDL_SCANCODE_SOFTRIGHT:
+//	case SDL_SCANCODE_CALL:
+//	case SDL_SCANCODE_ENDCALL:
+	case SDL_SCANCODE_UNKNOWN:
+	default:				return 0;
+	}
+}
+#elif SDL_VERSION_ATLEAST(2,0,0)
 //FIXME: switch to scancodes rather than keysyms
 //use SDL_GetKeyName(SDL_GetKeyFromScancode(quaketosdl[qkey])) for keybinds menu
 unsigned int MySDL_MapKey(SDL_Keycode sdlkey)
@@ -640,12 +997,10 @@ unsigned int MySDL_MapKey(SDL_Keycode sdlkey)
 	case SDLK_TAB:			return K_TAB;
 	case SDLK_SPACE:		return K_SPACE;
 	case SDLK_EXCLAIM:
-	case SDLK_QUOTEDBL:
 	case SDLK_HASH:
 	case SDLK_PERCENT:
 	case SDLK_DOLLAR:
 	case SDLK_AMPERSAND:
-	case SDLK_QUOTE:
 	case SDLK_LEFTPAREN:
 	case SDLK_RIGHTPAREN:
 	case SDLK_ASTERISK:
@@ -676,6 +1031,8 @@ unsigned int MySDL_MapKey(SDL_Keycode sdlkey)
 	case SDLK_RIGHTBRACKET:
 	case SDLK_CARET:
 	case SDLK_UNDERSCORE:
+	case SDLK_QUOTEDBL:
+	case SDLK_QUOTE:
 	case SDLK_BACKQUOTE:
 	case SDLK_a:
 	case SDLK_b:
@@ -1044,6 +1401,14 @@ qboolean INS_KeyToLocalName(int qkey, char *buf, size_t bufsize)
 	if (!stupidtabsetup)
 	{
 		int i, k;
+#if SDL_VERSION_ATLEAST(3, 0, 0)
+		for (i = 0; i < SDL_SCANCODE_COUNT; i++)
+		{
+			k = MySDL_MapScancode(i);
+			if (k)
+				stupidtable[k] = SDL_SCANCODE_TO_KEYCODE(i);
+		}
+#else
 		for (i = 0; i < SDL_NUM_SCANCODES; i++)
 		{
 			k = MySDL_MapKey(i);
@@ -1055,6 +1420,7 @@ qboolean INS_KeyToLocalName(int qkey, char *buf, size_t bufsize)
 			if (k)
 				stupidtable[k] = SDL_SCANCODE_TO_KEYCODE(i);
 		}
+#endif
 		stupidtabsetup = true;
 	}
 
@@ -1062,6 +1428,38 @@ qboolean INS_KeyToLocalName(int qkey, char *buf, size_t bufsize)
 		keyname = SDL_GetKeyName(stupidtable[qkey]);
 	else if (qkey >= K_GP_DIAMOND_DOWN && qkey < K_GP_TOUCHPAD)
 	{
+#if SDL_VERSION_ATLEAST(3, 0, 0)
+		SDL_GamepadButton b;
+		switch(qkey)
+		{
+		case K_GP_DIAMOND_DOWN:		b = SDL_GAMEPAD_BUTTON_SOUTH;			break;
+		case K_GP_DIAMOND_RIGHT:	b = SDL_GAMEPAD_BUTTON_EAST;			break;
+		case K_GP_DIAMOND_LEFT:		b = SDL_GAMEPAD_BUTTON_WEST;			break;
+		case K_GP_DIAMOND_UP:		b = SDL_GAMEPAD_BUTTON_NORTH;			break;
+		case K_GP_BACK:				b = SDL_GAMEPAD_BUTTON_BACK;			break;
+		case K_GP_GUIDE:			b = SDL_GAMEPAD_BUTTON_GUIDE;			break;
+		case K_GP_START:			b = SDL_GAMEPAD_BUTTON_START;			break;
+		case K_GP_LEFT_STICK:		b = SDL_GAMEPAD_BUTTON_LEFT_STICK;		break;
+		case K_GP_RIGHT_STICK:		b = SDL_GAMEPAD_BUTTON_RIGHT_STICK;		break;
+		case K_GP_LEFT_SHOULDER:	b = SDL_GAMEPAD_BUTTON_LEFT_SHOULDER;	break;
+		case K_GP_RIGHT_SHOULDER:	b = SDL_GAMEPAD_BUTTON_RIGHT_SHOULDER;	break;
+		case K_GP_DPAD_UP:			b = SDL_GAMEPAD_BUTTON_DPAD_UP;			break;
+		case K_GP_DPAD_DOWN:		b = SDL_GAMEPAD_BUTTON_DPAD_DOWN;		break;
+		case K_GP_DPAD_LEFT:		b = SDL_GAMEPAD_BUTTON_DPAD_LEFT;		break;
+		case K_GP_DPAD_RIGHT:		b = SDL_GAMEPAD_BUTTON_DPAD_RIGHT;		break;
+#if SDL_VERSION_ATLEAST(2, 0, 14)
+		case K_GP_MISC1:			b = SDL_GAMEPAD_BUTTON_MISC1;			break;
+		case K_GP_PADDLE1:			b = SDL_GAMEPAD_BUTTON_RIGHT_PADDLE1;	break;
+		case K_GP_PADDLE2:			b = SDL_GAMEPAD_BUTTON_LEFT_PADDLE1;	break;
+		case K_GP_PADDLE3:			b = SDL_GAMEPAD_BUTTON_RIGHT_PADDLE2;	break;
+		case K_GP_PADDLE4:			b = SDL_GAMEPAD_BUTTON_LEFT_PADDLE2;	break;
+		case K_GP_TOUCHPAD:			b = SDL_GAMEPAD_BUTTON_TOUCHPAD;		break;
+#endif
+		default:
+			return false;
+		}
+		keyname = SDL_GetGamepadStringForButton(b);
+#else
 		SDL_GameControllerButton b;
 		switch(qkey)
 		{
@@ -1092,6 +1490,7 @@ qboolean INS_KeyToLocalName(int qkey, char *buf, size_t bufsize)
 			return false;
 		}
 		keyname = SDL_GameControllerGetStringForButton(b);
+#endif
 	}
 	else
 		return false;
@@ -1109,7 +1508,7 @@ static unsigned int tbl_sdltoquakemouse[] =
 	K_MOUSE1,
 	K_MOUSE3,
 	K_MOUSE2,
-#if SDL_MAJOR_VERSION < 2
+#if !SDL_VERSION_ATLEAST(2, 0, 0)
 	K_MWHEELUP,
 	K_MWHEELDOWN,
 #endif
@@ -1123,14 +1522,15 @@ static unsigned int tbl_sdltoquakemouse[] =
 };
 
 #ifdef HAVE_SDL_TEXTINPUT
-#ifdef __linux__
+#if SDL_VERSION_ATLEAST(3, 0, 0)
+#elif defined(__linux__)
 #include <SDL_misc.h>
 static qboolean usesteamosk;
 #endif
 
 void INS_SetOSK(int osk)
 {
-	static SDL_bool active = false;
+	static qboolean active = false;
 	if (osk && sdlwindow)
 	{
 		SDL_Rect rect;
@@ -1138,16 +1538,24 @@ void INS_SetOSK(int osk)
 		rect.y = vid.rotpixelheight/2;
 		rect.w = vid.rotpixelwidth;
 		rect.h = vid.rotpixelheight - rect.y;
+#if SDL_VERSION_ATLEAST(3, 0, 0)
+		SDL_SetTextInputArea(sdlwindow, &rect, 0);
+#else
 		SDL_SetTextInputRect(&rect);
+#endif
 
 		if (!active)
 		{
+#if SDL_VERSION_ATLEAST(3, 0, 0)
+			SDL_StartTextInput(sdlwindow);
+#else
 #ifdef __linux__
 			if (usesteamosk)
 				SDL_OpenURL("steam://open/keyboard?Mode=1");
 			else
 #endif
 				SDL_StartTextInput();
+#endif
 			active = true;
 //			Con_Printf("OSK shown...\n");
 		}
@@ -1156,12 +1564,16 @@ void INS_SetOSK(int osk)
 	{
 		if (active)
 		{
+#if SDL_VERSION_ATLEAST(3, 0, 0)
+			SDL_StopTextInput(sdlwindow);
+#else
 #ifdef __linux__
 			if (usesteamosk)
 				SDL_OpenURL("steam://close/keyboard?Mode=1");
 			else
 #endif
 				SDL_StopTextInput();
+#endif
 			active = false;
 //			Con_Printf("OSK shown... killed\n");
 		}
@@ -1172,6 +1584,230 @@ void INS_SetOSK(int osk)
 {
 }
 #endif
+
+#if SDL_VERSION_ATLEAST(3, 0, 0)
+static void INS_MouseAddRem(SDL_MouseID mid, qboolean added)
+{
+	if (added)
+		return;	//let INS_MouseID add it instead. so we're not adding devices that won't be used at low indexes
+	SDL_GiveFinger(-2, mid, -1, !added);
+}
+static int INS_MouseID(SDL_MouseID mid)
+{
+	return SDL_GiveFinger(-2, mid, -1, false);
+}
+SDL_AppResult SDLCALL SDL_AppEvent(void *appstate, SDL_Event *event)
+{
+	int which;
+	switch(event->type)
+	{
+	case SDL_EVENT_WINDOW_PIXEL_SIZE_CHANGED:
+#if defined(VKQUAKE)
+		if (qrenderer == QR_VULKAN)
+		{
+			if (vid.pixelwidth != event->window.data1 || vid.pixelheight != event->window.data2)
+				vk.neednewswapchain = true;
+			break;
+		}
+#endif
+		if (qrenderer == QR_OPENGL)
+		{
+			vid.pixelwidth = event->window.data1;
+			vid.pixelheight = event->window.data2;
+			{
+				extern cvar_t vid_conautoscale, vid_conwidth;	//make sure the screen is updated properly.
+				Cvar_ForceCallback(&vid_conautoscale);
+				Cvar_ForceCallback(&vid_conwidth);
+			}
+		}
+		break;
+	case SDL_EVENT_WINDOW_FOCUS_GAINED:
+		vid.activeapp = true;
+		break;
+	case SDL_EVENT_WINDOW_FOCUS_LOST:
+		vid.activeapp = false;
+		IN_DeactivateMouse();
+		break;
+	case SDL_EVENT_WINDOW_CLOSE_REQUESTED:
+		Cbuf_AddText("quit prompt\n", RESTRICT_LOCAL);
+		break;
+
+	case SDL_EVENT_KEY_UP:
+	case SDL_EVENT_KEY_DOWN:
+		{
+			int s = event->key.scancode;
+			int qs = MySDL_MapScancode(s);
+
+#ifdef HAVE_SDL_TEXTINPUT
+			IN_KeyEvent(0, event->key.down, qs, 0);
+#else
+			IN_KeyEvent(0, event->key.down, qs, event.key.keysym.unicode);
+#endif
+		}
+		break;
+#ifdef HAVE_SDL_TEXTINPUT
+/*	case SDL_EVENT_TEXT_EDITING:
+		{
+			event.edit;
+		}
+		break;*/
+	case SDL_EVENT_TEXT_INPUT:
+		{
+			unsigned int uc;
+			int err;
+			const char *text = event->text.text;
+			while(*text)
+			{
+				uc = utf8_decode(&err, text, &text);
+				if (uc && !err)
+				{
+					IN_KeyEvent(0, true, 0, uc);
+					IN_KeyEvent(0, false, 0, uc);
+				}
+			}
+		}
+		break;
+#endif
+
+	case SDL_EVENT_FINGER_DOWN:
+	case SDL_EVENT_FINGER_UP:
+		{
+			uint32_t thefinger = SDL_GiveFinger(-1, event->tfinger.touchID, event->tfinger.fingerID, event->type==SDL_EVENT_FINGER_UP);
+			IN_MouseMove(thefinger, true, event->tfinger.x * vid.pixelwidth, event->tfinger.y * vid.pixelheight, 0, event->tfinger.pressure);
+			IN_KeyEvent(thefinger, event->type==SDL_EVENT_FINGER_DOWN, K_TOUCH, 0);
+		}
+		break;
+	case SDL_EVENT_FINGER_MOTION:
+		{
+			uint32_t thefinger = SDL_GiveFinger(-1, event->tfinger.touchID, event->tfinger.fingerID, false);
+			IN_MouseMove(thefinger, true, event->tfinger.x * vid.pixelwidth, event->tfinger.y * vid.pixelheight, 0, event->tfinger.pressure);
+		}
+		break;
+
+	case SDL_EVENT_DROP_FILE:
+		Host_RunFile(event->drop.data, strlen(event->drop.data), NULL);
+		break;
+
+	case SDL_EVENT_MOUSE_MOTION:
+		if (event->motion.which == SDL_TOUCH_MOUSEID)
+			break;	//ignore legacy touch events.
+		which = INS_MouseID(event->motion.which);
+		if (!mouseactive)
+			IN_MouseMove(which, true, event->motion.x, event->motion.y, 0, 0);
+		else
+			IN_MouseMove(which, false, event->motion.xrel, event->motion.yrel, 0, 0);
+		break;
+
+	case SDL_EVENT_MOUSE_WHEEL:
+		if (event->motion.which == SDL_TOUCH_MOUSEID)
+			break;	//ignore legacy touch events.
+		which = INS_MouseID(event->wheel.which);
+		if (event->wheel.direction == SDL_MOUSEWHEEL_FLIPPED)
+			event->wheel.y *= -1;
+		for (; event->wheel.y > 0; event->wheel.y--)
+		{
+			IN_KeyEvent(which, true, K_MWHEELUP, 0);
+			IN_KeyEvent(which, false, K_MWHEELUP, 0);
+		}
+		for (; event->wheel.y < 0; event->wheel.y++)
+		{
+			IN_KeyEvent(which, true, K_MWHEELDOWN, 0);
+			IN_KeyEvent(which, false, K_MWHEELDOWN, 0);
+		}
+		for (; event->wheel.x > 0; event->wheel.x--)
+		{
+			IN_KeyEvent(which, true, K_MWHEELRIGHT, 0);
+			IN_KeyEvent(which, false, K_MWHEELRIGHT, 0);
+		}
+		for (; event->wheel.x < 0; event->wheel.x++)
+		{
+			IN_KeyEvent(which, true, K_MWHEELLEFT, 0);
+			IN_KeyEvent(which, false, K_MWHEELLEFT, 0);
+		}
+		break;
+
+	case SDL_EVENT_MOUSE_BUTTON_DOWN:
+	case SDL_EVENT_MOUSE_BUTTON_UP:
+		if (event->button.which == SDL_TOUCH_MOUSEID)
+			break;	//ignore legacy touch events. SDL_FINGER* events above will handle it (for multitouch)
+		which = INS_MouseID(event->button.which);
+		//Hmm. SDL allows for 255 buttons, but only defines 5...
+		if (event->button.button > sizeof(tbl_sdltoquakemouse)/sizeof(tbl_sdltoquakemouse[0]))
+			event->button.button = sizeof(tbl_sdltoquakemouse)/sizeof(tbl_sdltoquakemouse[0]);
+		IN_KeyEvent(which, event->button.down, tbl_sdltoquakemouse[event->button.button-1], 0);
+		break;
+
+	case SDL_EVENT_MOUSE_ADDED:
+		INS_MouseAddRem(event->mdevice.which, true);
+		break;
+	case SDL_EVENT_MOUSE_REMOVED:
+		INS_MouseAddRem(event->mdevice.which, false);
+		break;
+
+	case SDL_EVENT_TERMINATING:
+		Cbuf_AddText("quit force\n", RESTRICT_LOCAL);
+		return SDL_APP_SUCCESS;
+	case SDL_EVENT_QUIT:
+		Cbuf_AddText("quit\n", RESTRICT_LOCAL);
+		return SDL_APP_SUCCESS;
+
+	//actually, joysticks *should* work with sdl1 as well, but there are some differences (like no hot plugging, I think).
+	case SDL_EVENT_JOYSTICK_AXIS_MOTION:
+		J_JoystickAxis(event->jaxis.which, event->jaxis.axis, event->jaxis.value);
+		break;
+//	case SDL_EVENT_JOYSTICK_BALL_MOTION:
+//	case SDL_EVENT_JOYSTICK_HAT_MOTION:
+//		break;
+	case SDL_EVENT_JOYSTICK_BUTTON_DOWN:
+	case SDL_EVENT_JOYSTICK_BUTTON_UP:
+		J_JoystickButton(event->jbutton.which, event->jbutton.button, event->type==SDL_EVENT_JOYSTICK_BUTTON_DOWN);
+		break;
+	case SDL_EVENT_JOYSTICK_ADDED:
+		J_JoystickAdded(event->jdevice.which);
+		break;
+	case SDL_EVENT_JOYSTICK_REMOVED:
+		J_Kill(event->jdevice.which, true);
+		break;
+
+	case SDL_EVENT_GAMEPAD_AXIS_MOTION:
+		J_ControllerAxis(event->gaxis.which, event->gaxis.axis, event->gaxis.value);
+		break;
+	case SDL_EVENT_GAMEPAD_BUTTON_DOWN:
+	case SDL_EVENT_GAMEPAD_BUTTON_UP:
+		J_ControllerButton(event->gbutton.which, event->gbutton.button, event->type==SDL_EVENT_GAMEPAD_BUTTON_DOWN);
+		break;
+	case SDL_EVENT_GAMEPAD_ADDED:
+		J_ControllerAdded(event->gdevice.which);
+		break;
+	case SDL_EVENT_GAMEPAD_REMOVED:
+		J_Kill(event->gdevice.which, true);
+		break;
+//	case SDL_EVENT_GAMEPAD_REMAPPED:
+//		break;
+	case SDL_EVENT_GAMEPAD_TOUCHPAD_DOWN:
+		J_ControllerTouchPad(event->gtouchpad.which, event->gtouchpad.touchpad, event->gtouchpad.finger, 1, event->gtouchpad.x, event->gtouchpad.y, event->gtouchpad.pressure);
+		break;
+	case SDL_EVENT_GAMEPAD_TOUCHPAD_MOTION:
+		J_ControllerTouchPad(event->gtouchpad.which, event->gtouchpad.touchpad, event->gtouchpad.finger, 0, event->gtouchpad.x, event->gtouchpad.y, event->gtouchpad.pressure);
+		break;
+	case SDL_EVENT_GAMEPAD_TOUCHPAD_UP:
+		J_ControllerTouchPad(event->gtouchpad.which, event->gtouchpad.touchpad, event->gtouchpad.finger, -1, event->gtouchpad.x, event->gtouchpad.y, event->gtouchpad.pressure);
+		break;
+	case SDL_EVENT_GAMEPAD_SENSOR_UPDATE:
+		J_ControllerSensor(event->gsensor.which, event->gsensor.sensor, event->gsensor.data);
+		break;
+	}
+
+	return SDL_APP_CONTINUE;
+}
+#else
+static int INS_MouseID(Uint32 mid)
+{
+	return SDL_GiveFinger(-2, mid, -1, false);
+}
+#endif
+
+
 void Sys_SendKeyEvents(void)
 {
 	SDL_Event event;
@@ -1187,7 +1823,7 @@ void Sys_SendKeyEvents(void)
 
 #ifdef HAVE_SDL_TEXTINPUT
 	{
-		SDL_bool osk = Key_Dest_Has(kdm_console|kdm_cwindows|kdm_message);
+		qboolean osk = !!Key_Dest_Has(kdm_console|kdm_cwindows|kdm_message);
 		if (Key_Dest_Has(kdm_prompt|kdm_menu))
 		{
 			j = Menu_WantOSK();
@@ -1204,9 +1840,13 @@ void Sys_SendKeyEvents(void)
 
 	while(SDL_PollEvent(&event))
 	{
+#if SDL_VERSION_ATLEAST(3, 0, 0)
+		SDL_AppEvent(NULL, &event);
+#else
+		int which;
 		switch(event.type)
 		{
-#if SDL_MAJOR_VERSION >= 2
+#if SDL_VERSION_ATLEAST(2,0,0)
 		case SDL_WINDOWEVENT:
 			switch(event.window.event)
 			{
@@ -1276,7 +1916,7 @@ void Sys_SendKeyEvents(void)
 			{
 				int s = event.key.keysym.sym;
 				int qs;
-#if SDL_MAJOR_VERSION >= 2
+#if SDL_VERSION_ATLEAST(2,0,0)
 				qs = MySDL_MapKey(s);
 #else
 				if (s < sizeof(tbl_sdltoquake) / sizeof(tbl_sdltoquake[0]))
@@ -1320,7 +1960,7 @@ void Sys_SendKeyEvents(void)
 			break;
 #endif
 
-#if SDL_MAJOR_VERSION >= 2
+#if SDL_VERSION_ATLEAST(2,0,0)
 		case SDL_FINGERDOWN:
 		case SDL_FINGERUP:
 			{
@@ -1343,56 +1983,61 @@ void Sys_SendKeyEvents(void)
 #endif
 
 		case SDL_MOUSEMOTION:
-#if SDL_MAJOR_VERSION >= 2
+#if SDL_VERSION_ATLEAST(2,0,0)
 			if (event.motion.which == SDL_TOUCH_MOUSEID)
 				break;	//ignore legacy touch events.
 #endif
+			which = INS_MouseID(event.button.which);
 			if (!mouseactive)
-				IN_MouseMove(event.motion.which, true, event.motion.x, event.motion.y, 0, 0);
+				IN_MouseMove(which, true, event.motion.x, event.motion.y, 0, 0);
 			else
-				IN_MouseMove(event.motion.which, false, event.motion.xrel, event.motion.yrel, 0, 0);
+				IN_MouseMove(which, false, event.motion.xrel, event.motion.yrel, 0, 0);
 			break;
 
-#if SDL_MAJOR_VERSION >= 2
+#if SDL_VERSION_ATLEAST(2,0,0)
 		case SDL_MOUSEWHEEL:
+			if (event.motion.which == SDL_TOUCH_MOUSEID)
+				break;	//ignore legacy touch events.
+			which = INS_MouseID(event.button.which);
 			if (event.wheel.direction == SDL_MOUSEWHEEL_FLIPPED)
 				event.wheel.y *= -1;
 			for (; event.wheel.y > 0; event.wheel.y--)
 			{
-				IN_KeyEvent(event.button.which, true, K_MWHEELUP, 0);
-				IN_KeyEvent(event.button.which, false, K_MWHEELUP, 0);
+				IN_KeyEvent(which, true, K_MWHEELUP, 0);
+				IN_KeyEvent(which, false, K_MWHEELUP, 0);
 			}
 			for (; event.wheel.y < 0; event.wheel.y++)
 			{
-				IN_KeyEvent(event.button.which, true, K_MWHEELDOWN, 0);
-				IN_KeyEvent(event.button.which, false, K_MWHEELDOWN, 0);
+				IN_KeyEvent(which, true, K_MWHEELDOWN, 0);
+				IN_KeyEvent(which, false, K_MWHEELDOWN, 0);
 			}
 /*			for (; event.wheel.x > 0; event.wheel.x--)
 			{
-				IN_KeyEvent(event.button.which, true, K_MWHEELRIGHT, 0);
-				IN_KeyEvent(event.button.which, false, K_MWHEELRIGHT, 0);
+				IN_KeyEvent(which, true, K_MWHEELRIGHT, 0);
+				IN_KeyEvent(which, false, K_MWHEELRIGHT, 0);
 			}
 			for (; event.wheel.x < 0; event.wheel.x++)
 			{
-				IN_KeyEvent(event.button.which, true, K_MWHEELLEFT, 0);
-				IN_KeyEvent(event.button.which, false, K_MWHEELLEFT, 0);
+				IN_KeyEvent(which, true, K_MWHEELLEFT, 0);
+				IN_KeyEvent(which, false, K_MWHEELLEFT, 0);
 			}*/
 			break;
 #endif
 
 		case SDL_MOUSEBUTTONDOWN:
 		case SDL_MOUSEBUTTONUP:
-#if SDL_MAJOR_VERSION >= 2
+#if SDL_VERSION_ATLEAST(2,0,0)
 			if (event.button.which == SDL_TOUCH_MOUSEID)
 				break;	//ignore legacy touch events. SDL_FINGER* events above will handle it (for multitouch)
 #endif
+			which = INS_MouseID(event.button.which);
 			//Hmm. SDL allows for 255 buttons, but only defines 5...
 			if (event.button.button > sizeof(tbl_sdltoquakemouse)/sizeof(tbl_sdltoquakemouse[0]))
 				event.button.button = sizeof(tbl_sdltoquakemouse)/sizeof(tbl_sdltoquakemouse[0]);
-			IN_KeyEvent(event.button.which, event.button.state, tbl_sdltoquakemouse[event.button.button-1], 0);
+			IN_KeyEvent(which, event.button.state, tbl_sdltoquakemouse[event.button.button-1], 0);
 			break;
 
-#if SDL_MAJOR_VERSION >= 2
+#if SDL_VERSION_ATLEAST(2,0,0)
 		case SDL_APP_TERMINATING:
 			Cbuf_AddText("quit force\n", RESTRICT_LOCAL);
 			break;
@@ -1401,7 +2046,7 @@ void Sys_SendKeyEvents(void)
 			Cbuf_AddText("quit\n", RESTRICT_LOCAL);
 			break;
 
-#if SDL_MAJOR_VERSION >= 2
+#if SDL_VERSION_ATLEAST(2,0,0)
 		//actually, joysticks *should* work with sdl1 as well, but there are some differences (like no hot plugging, I think).
 		case SDL_JOYAXISMOTION:
 			J_JoystickAxis(event.jaxis.which, event.jaxis.axis, event.jaxis.value);
@@ -1451,6 +2096,7 @@ void Sys_SendKeyEvents(void)
 #endif
 #endif
 		}
+#endif
 	}
 
 	for (j = 0; j < MAX_JOYSTICKS; j++)
@@ -1507,20 +2153,28 @@ void INS_Shutdown (void)
 {
 	IN_DeactivateMouse();
 
-#if SDL_MAJOR_VERSION >= 2
+#if SDL_VERSION_ATLEAST(2, 0, 0)
 	J_KillAll();
-	SDL_QuitSubSystem(SDL_INIT_JOYSTICK|SDL_INIT_GAMECONTROLLER);
+	#if SDL_VERSION_ATLEAST(3, 0, 0)
+		SDL_QuitSubSystem(SDL_INIT_JOYSTICK|SDL_INIT_GAMEPAD);
+	#else
+		SDL_QuitSubSystem(SDL_INIT_JOYSTICK|SDL_INIT_GAMECONTROLLER);
+	#endif
 #endif
 }
 
 void INS_ReInit (void)
 {
-#if SDL_MAJOR_VERSION >= 2
+#if SDL_VERSION_ATLEAST(2, 0, 0)
 	unsigned int i;
 	memset(sdljoy, 0, sizeof(sdljoy));
 	for (i = 0; i < MAX_JOYSTICKS; i++)
 		sdljoy[i].qdevid = DEVID_UNSET;
-	SDL_InitSubSystem(SDL_INIT_JOYSTICK|SDL_INIT_GAMECONTROLLER);
+	#if SDL_VERSION_ATLEAST(3, 0, 0)
+		SDL_InitSubSystem(SDL_INIT_JOYSTICK|SDL_INIT_GAMEPAD);
+	#else
+		SDL_InitSubSystem(SDL_INIT_JOYSTICK|SDL_INIT_GAMECONTROLLER);
+	#endif
 #endif
 
 	IN_ActivateMouse();
@@ -1528,7 +2182,9 @@ void INS_ReInit (void)
 #ifndef HAVE_SDL_TEXTINPUT
 	SDL_EnableUNICODE(SDL_ENABLE);
 #endif
-#if SDL_MAJOR_VERSION >= 2
+#if SDL_VERSION_ATLEAST(3, 0, 0)
+	SDL_SetEventEnabled(SDL_EVENT_DROP_FILE, true);
+#elif SDL_VERSION_ATLEAST(2, 0, 0)
 	SDL_EventState(SDL_DROPFILE, SDL_ENABLE);
 #endif
 }
@@ -1545,7 +2201,8 @@ void INS_Init (void)
 	Cvar_Register (&joy_only, "input controls");
 
 #ifdef HAVE_SDL_TEXTINPUT
-#ifdef __linux__
+#if SDL_VERSION_ATLEAST(3, 0, 0)
+#elif defined(__linux__)
 	usesteamosk = SDL_GetHintBoolean("SteamDeck", false);	//looks like there's a 'SteamDeck=1' environment setting on the deck (when started via steam itself, at least), so we don't get valve's buggy-as-poop osk on windows etc.
 #endif
 #endif
@@ -1558,11 +2215,29 @@ void INS_Commands (void)	//used to Cbuf_AddText joystick button events in window
 }
 void INS_EnumerateDevices(void *ctx, void(*callback)(void *ctx, const char *type, const char *devicename, unsigned int *qdevid))
 {
-#if SDL_MAJOR_VERSION >= 2
+#if SDL_VERSION_ATLEAST(2, 0, 0)
 	unsigned int i;
 	for (i = 0; i < MAX_JOYSTICKS; i++)
 		if (sdljoy[i].controller || sdljoy[i].joystick)
 			callback(ctx, "joy", sdljoy[i].devname, &sdljoy[i].qdevid);
+
+#if SDL_VERSION_ATLEAST(3, 0, 0)
+	//pointer devices...
+	for (i = 0; i < MAX_FINGERS; i++)
+	{
+		unsigned int d = i;
+		if (!sdlfinger[i].active)
+			continue;
+		else if (sdlfinger[i].jid == -2)
+			callback(ctx, "mouse", SDL_GetMouseNameForID(sdlfinger[i].tid), &d);
+		else if (sdlfinger[i].jid == -1)
+			callback(ctx, "finger", SDL_GetTouchDeviceName(sdlfinger[i].tid), &d);
+		else
+			callback(ctx, "joypad", SDL_GetGamepadNameForID(sdlfinger[i].jid), &d);
+	}
+#endif
+
+	//sdl3 allows tracking keyboards. too lazy to deal with that.
 #endif
 }
 

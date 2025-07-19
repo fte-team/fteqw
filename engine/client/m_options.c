@@ -4572,7 +4572,10 @@ void M_Menu_Mods_f (void)
 		y = 32;
 	}
 	else
-		y = 0;
+	{
+		MC_AddRedText(menu, 64, 320, 4, "Mod List", false);
+		y = 32;
+	}
 
 	MC_AddFrameStart(menu, y);
 	for (i = 0; i<1 || Mods_GetMod(i); i++)

@@ -73,7 +73,6 @@ static uploadfmt_t ImageVTF_VtfToFTE(fmtfmt_t f)
 }
 struct pendingtextureinfo *Image_ReadVTFFile(unsigned int flags, const char *fname, qbyte *filedata, size_t filesize)
 {
-	//FIXME: cba with endian.
 	struct vtf_s
 	{
 		char magic[4];
@@ -116,6 +115,22 @@ struct pendingtextureinfo *Image_ReadVTFFile(unsigned int flags, const char *fna
 	if (memcmp(vtf->magic, "VTF\0", 4))
 		return NULL;
 
+	// erysdren: do endian swapping
+	vtf->major = LittleLong(vtf->major);
+	vtf->minor = LittleLong(vtf->minor);
+	vtf->headersize = LittleLong(vtf->headersize);
+	vtf->width = LittleShort(vtf->width);
+	vtf->height = LittleShort(vtf->height);
+	vtf->flags = LittleLong(vtf->flags);
+	vtf->numframes = LittleShort(vtf->numframes);
+	vtf->firstframe = LittleShort(vtf->firstframe);
+	vtf->pad1 = LittleLong(vtf->pad1);
+	vtf->reflectivity[0] = LittleFloat(vtf->reflectivity[0]);
+	vtf->reflectivity[1] = LittleFloat(vtf->reflectivity[1]);
+	vtf->reflectivity[2] = LittleFloat(vtf->reflectivity[2]);
+	vtf->pad2 = LittleFloat(vtf->pad2);
+	vtf->bumpmapscale = LittleFloat(vtf->bumpmapscale);
+
 	version = (vtf->major<<16)|vtf->minor;
 	if (version > 0x00070005)
 	{
@@ -123,8 +138,8 @@ struct pendingtextureinfo *Image_ReadVTFFile(unsigned int flags, const char *fna
 		return NULL;
 	}
 
-	lrfmt = (vtf->lowresfmt_misaligned[0]<<0)|(vtf->lowresfmt_misaligned[1]<<16)|(vtf->lowresfmt_misaligned[2]<<16)|(vtf->lowresfmt_misaligned[3]<<24);
-	vmffmt = vtf->imgformat;
+	lrfmt = LittleLong((vtf->lowresfmt_misaligned[0]<<0)|(vtf->lowresfmt_misaligned[1]<<16)|(vtf->lowresfmt_misaligned[2]<<16)|(vtf->lowresfmt_misaligned[3]<<24));
+	vmffmt = LittleLong(vtf->imgformat);
 
 	mips = NULL;
 	if (version >= 0x00070003)
@@ -135,13 +150,13 @@ struct pendingtextureinfo *Image_ReadVTFFile(unsigned int flags, const char *fna
 			unsigned int rtype;
 			unsigned int rdata; //usually an offset.
 		} *restable = (void*)(filedata+sizeof(*vtf));
-		for (i = 0; i < vtf->numresources; i++, restable++)
+		for (i = 0; i < LittleLong(vtf->numresources); i++, restable++)
 		{
-			if ((restable->rtype & 0x00ffffff) == 0x30)
+			if ((LittleLong(restable->rtype) & 0x00ffffff) == 0x30)
 			{
 				mips = plugfuncs->Malloc(sizeof(*mips));
 				mips->extrafree = filedata;
-				filedata += restable->rdata;
+				filedata += LittleLong(restable->rdata);
 				break;
 			}
 			//other unknown resource types.

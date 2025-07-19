@@ -1,5 +1,5 @@
 //emscripten's download mechanism lacks usable progress indicators.
-void emscriptenfte_async_wget_data2(const char *url, void *ctx, void (*onload)(void*ctx,int buf), void (*onerror)(void*ctx,int code), void (*onprogress)(void*ctx,int prog,int total));
+void emscriptenfte_async_wget_data2(const char *url, void *postdata, int postlen, char *postmimetype, void *ctx, void (*onload)(void*ctx,int buf), void (*onerror)(void*ctx,int code), void (*onprogress)(void*ctx,int prog,int total));
 
 //changes the page away from quake (oh noes!) or downloads something.
 void emscriptenfte_window_location(const char *url);

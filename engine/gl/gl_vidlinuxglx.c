@@ -4466,16 +4466,16 @@ static qboolean X11VID_Init (rendererstate_t *info, unsigned char *palette, int 
 	case PSL_VULKAN:
 #ifdef VK_USE_PLATFORM_XLIB_KHR
 		{
-			const char *extnames[] = {VK_KHR_XLIB_SURFACE_EXTENSION_NAME, NULL};
-			if (VK_Init(info, extnames, XVK_SetupSurface_XLib, NULL))
+			const char *extnames[] = {VK_KHR_XLIB_SURFACE_EXTENSION_NAME};
+			if (VK_Init(info, extnames, countof(extnames), XVK_SetupSurface_XLib, NULL))
 				break;
 			VK_Shutdown();
 		}
 #endif
 #ifdef VK_USE_PLATFORM_XCB_KHR
 		{
-			const char *extnames[] = {VK_KHR_XCB_SURFACE_EXTENSION_NAME, NULL};
-			if (x11xcb_initlib() && VK_Init(info, extnames, XVK_SetupSurface_XCB, NULL))
+			const char *extnames[] = {VK_KHR_XCB_SURFACE_EXTENSION_NAME};
+			if (x11xcb_initlib() && VK_Init(info, extnames, countof(extnames), XVK_SetupSurface_XCB, NULL))
 				break;
 			VK_Shutdown();
 		}

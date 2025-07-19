@@ -2390,7 +2390,7 @@ static char *Key_KeynumToStringRaw (int keynum)
 	
 	if (keynum < 0)
 		return "<KEY NOT FOUND>";
-	if (keynum > 32 && keynum < 127 && keynum != '\'' && keynum != '\"')
+	if (keynum > 32 && keynum < 127 && keynum != '\'' && keynum != '\"' && keynum != '\\')
 	{	// printable ascii
 		tinystr[0] = keynum;
 		tinystr[1] = 0;
@@ -2691,6 +2691,7 @@ void Key_Bind_f (void)
 
 	if (c == 2+isbindlevel)
 	{
+		const char *keyname=Key_KeynumToString(b, modifier);	//pretty it up.
 		if (modifier == ~0)	//modifier unspecified. default to no modifier
 			modifier = 0;
 		if (keybindings[b][modifier])
@@ -2716,13 +2717,13 @@ void Key_Bind_f (void)
 			if (alias)
 			{
 				COM_QuotedString(alias, quotedalias, sizeof(quotedalias), false);
-				Con_Printf ("^[\"%s\"\\type\\bind %s %s^] = ^[\"%s\"\\type\\alias %s %s^]%s\n", Cmd_Argv(1), Cmd_Argv(1), quotedbind, keybindings[b][modifier], keybindings[b][modifier], quotedalias, leveldesc);
+				Con_Printf ("^[\"%s\"\\type\\bind %s %s^] = ^[\"%s\"\\type\\alias %s %s^]%s\n", keyname, Cmd_Argv(1), quotedbind, keybindings[b][modifier], keybindings[b][modifier], quotedalias, leveldesc);
 			}
 			else
-				Con_Printf ("^[\"%s\"\\type\\bind %s %s^] = \"%s\"%s\n", Cmd_Argv(1), keybindings[b][modifier], Cmd_Argv(1), keybindings[b][modifier], leveldesc);
+				Con_Printf ("^[\"%s\"\\type\\bind %s %s^] = \"%s\"%s\n", keyname, keybindings[b][modifier], Cmd_Argv(1), keybindings[b][modifier], leveldesc);
 		}
 		else
-			Con_Printf ("\"%s\" is not bound\n", Cmd_Argv(1) );
+			Con_Printf ("\"%s\" is not bound\n", keyname);
 		return;
 	}
 
@@ -2839,6 +2840,7 @@ void Key_Init (void)
 	consolekeys[K_KP_UPARROW] = true;
 	consolekeys[K_KP_DOWNARROW] = true;
 	consolekeys[K_BACKSPACE] = true;
+	consolekeys[K_INS] = true;
 	consolekeys[K_DEL] = true;
 	consolekeys[K_KP_DEL] = true;
 	consolekeys[K_HOME] = true;

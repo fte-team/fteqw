@@ -5,7 +5,7 @@
 #include <sys/stat.h>
 #endif
 
-#if !defined(FTE_TARGET_WEB) && (!defined(_WIN32) || defined(FTE_SDL) || defined(WEBSVONLY))
+#if !defined(FTE_TARGET_WEB) && (!defined(_WIN32) || defined(WEBSVONLY))
 
 #ifdef WEBSVONLY
 	#define Z_Free free
@@ -242,7 +242,7 @@ vfsfile_t *VFSSTDIO_Open(const char *osname, const char *mode, qboolean *needsfl
 	return (vfsfile_t*)file;
 }
 
-#if !defined(_WIN32) || defined(FTE_SDL) || defined(WINRT) || defined(_XBOX)
+#if !defined(_WIN32) || defined(WINRT) || defined(_XBOX)
 vfsfile_t *VFSOS_Open(const char *osname, const char *mode)
 {
 	vfsfile_t *f;

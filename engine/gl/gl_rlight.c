@@ -2795,7 +2795,7 @@ static float *GLRecursiveLightPoint3C (model_t *mod, mnode_t *node, const vec3_t
 					deluxmap = ((surf->samples - mod->lightdata)>>2)*3 + mod->deluxdata;
 
 					lightmap += (dt * ((surf->extents[0]>>surf->lmshift)+1) + ds)<<2;
-					deluxmap += (dt * ((surf->extents[0]>>surf->lmshift)+1) + ds)<<4;
+					deluxmap += (dt * ((surf->extents[0]>>surf->lmshift)+1) + ds)*3;
 					for (maps = 0 ; maps < MAXCPULIGHTMAPS && surf->styles[maps] != INVALID_LIGHTSTYLE ; maps++)
 					{
 						unsigned int lm = *(unsigned int*)lightmap;

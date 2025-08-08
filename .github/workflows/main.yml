@@ -155,3 +155,57 @@ jobs:
             engine/release/fte*
             !engine/release/*.db
           compression-level: 9
+
+  flatpak:
+    name: make-flatpak-${{ matrix.arch.name }}
+    timeout-minutes: 30
+    strategy:
+      matrix:
+        arch:
+          - name: x86_64
+            runner: ubuntu-latest
+          - name: aarch64
+            runner: ubuntu-24.04-arm
+      fail-fast: false
+    runs-on: ${{ matrix.arch.runner }}
+    container:
+      image: ghcr.io/flathub-infra/flatpak-github-actions:kde-5.15-23.08
+      options: --privileged
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Lint metadata and build manifest
+        run: |
+          echo "::group::Lint metainfo"
+          flatpak-builder-lint \
+            --user-exceptions=dist/linux/linter-exceptions.json --exceptions \
+            appstream ./dist/linux/org.fteqw.fteqw.metainfo.xml \
+            || export FLATPAK_LINT_FAILED=1
+          echo "::endgroup::"
+          echo "::group::Lint Flatpak manifest"
+          flatpak-builder-lint \
+            --user-exceptions=dist/linux/linter-exceptions.json --exceptions \
+            manifest ./dist/linux/org.fteqw.fteqw.yml \
+            || export FLATPAK_LINT_FAILED=1
+          echo "::endgroup::"
+          if [[ ! -z "$FLATPAK_LINT_FAILED" ]]; then
+            echo "::error::Metadata linting failed"
+            exit 1
+          fi
+          git config --global --add safe.directory $(pwd)
+          echo "SHORT_SHA=`git rev-parse --short HEAD`" >> $GITHUB_ENV
+
+      - name: Build flatpak
+        uses: flatpak/flatpak-github-actions/flatpak-builder@v6
+        with:
+          bundle: org.fteqw.fteqw.${{ env.SHORT_SHA }}.flatpak
+          manifest-path: dist/linux/org.fteqw.fteqw.yml
+          cache-key: flatpak-builder-${{ matrix.arch }}-${{ env.SHORT_SHA }}
+          arch: ${{ matrix.arch.name }}
+
+      - name: Lint build directory
+        run: |
+          flatpak-builder-lint \
+            --user-exceptions=dist/linux/linter-exceptions.json --exceptions \
+            builddir flatpak_app

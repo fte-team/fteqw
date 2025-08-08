@@ -2,9 +2,9 @@
 Version=1.0
 Type=Application
 Name=FTEQW Game Engine
-Comment=Awesome First Person Shooter
+Comment=Cross-platform port for the Quake game engine
 Exec=fteqw %u
-Icon=info.triptohell.fteqw
+Icon=org.fteqw.fteqw
 Terminal=false
 Categories=Game;
 MimeType=application/x-quakeworlddemo;x-scheme-handler/quake;x-scheme-handler/qw;

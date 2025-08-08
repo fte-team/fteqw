@@ -576,7 +576,6 @@ static void Shader_GenerateFromVMT(parsestate_t *ps, vmtstate_t *st, const char 
 					Q_strlcpy(st->type, "vmt/vertexlit", sizeof(st->type));
 			}
 
-			Q_strlcatfz(script, &offset, sizeof(script),	"\tprogram \"%s%s%s%s\"\n", st->type, progargs, envmaptint, envmapsat);
 
 
 		Q_strlcatfz(script, &offset, sizeof(script),	"\tdiffusemap \"%s%s.vtf\"\n", strcmp(st->tex[0].name, "materials/")?"materials/":"", st->tex[0].name);
@@ -592,6 +591,7 @@ static void Shader_GenerateFromVMT(parsestate_t *ps, vmtstate_t *st, const char 
 #endif
 
 		Q_strlcatfz(script, &offset, sizeof(script),	"\treflectcube $cube:materials/skybox/sky_day03_06\n");
+		Q_strlcatfz(script, &offset, sizeof(script),	"\t{\n\t\tprogram \"%s%s%s%s\"\n\t\tmap $rt:$linear:rtenvsphere\n\t}\n", st->type, progargs, envmaptint, envmapsat);
 
 	}
 	else if (!Q_strcasecmp(st->type, "LightmappedGeneric"))

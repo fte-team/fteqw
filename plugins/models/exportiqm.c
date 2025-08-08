@@ -118,7 +118,6 @@ struct iqmextension
 	unsigned int ofs_extensions; // pointer to next extension. wtf is up with this? how is this not redundant due to ofs_data?
 };
 
-
 struct iqmext_fte_mesh
 {
 	unsigned int contents;		//default CONTENTS_BODY
@@ -129,6 +128,7 @@ struct iqmext_fte_mesh
 	float	mindist;
 	float	maxdist;
 };
+
 struct iqmext_fte_event
 {
 	unsigned int anim;
@@ -136,12 +136,7 @@ struct iqmext_fte_event
 	unsigned int evcode;
 	unsigned int evdata_str;	//stringtable
 };
-static void CrossProduct_ (const vec3_t v1, const vec3_t v2, vec3_t cross)
-{
-	cross[0] = v1[1]*v2[2] - v1[2]*v2[1];
-	cross[1] = v1[2]*v2[0] - v1[0]*v2[2];
-	cross[2] = v1[0]*v2[1] - v1[1]*v2[0];
-}
+
 static void Bone_To_PosQuat4(const float *matrix, float *pos, float *quat4, float *scale)
 {	//I originally ripped this function out of DP. tweaked slightly.
 	//http://www.euclideanspace.com/maths/geometry/rotations/conversions/matrixToQuaternion/index.htm
@@ -614,7 +609,7 @@ void Mod_ExportIQM(char *fname, int flags, galiasinfo_t *mesh)
 					for (i = 0; i < omesh->num_vertexes; i++)
 					{
 						VectorCopy (isdir[i], otang[i]);
-						CrossProduct_(isdir[i], inorm[i], t);
+						CrossProduct(isdir[i], inorm[i], t);
 						otang[i][3] = DotProduct(itdir[i], t)<0;	//fourth part is simply a flag that says which direction the bitangent is in, should otherwise be a nice crossproduct result.
 					}
 				}

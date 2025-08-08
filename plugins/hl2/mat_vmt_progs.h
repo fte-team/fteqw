@@ -475,8 +475,10 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "!!samps diffuse\n"
 "!!samps =BUMP normalmap\n"
 "!!samps =FULLBRIGHT fullbright\n"
+"!!samps rtenvsphere:2D=0\n"
 "!!permu FAKESHADOWS\n"
 "!!cvardf r_glsl_pcf\n"
+"!!cvardf r_glsl_rtenvsphere\n"
 "!!samps =FAKESHADOWS shadowmap\n"
 
 // envmaps only
@@ -611,15 +613,24 @@ YOU SHOULD NOT EDIT THIS FILE BY HAND
 "#endif\n"
 "#endif\n"
 
-"vec3 cube_c = reflect(-eyevector, normal_f.rgb);\n"
 "vec3 cube_tint = vec3(ENVTINT);\n"
 "vec3 cube_sat = vec3(ENVSAT);\n"
+
+"#if r_glsl_rtenvsphere == 1\n"
+"vec3 r = reflect(normalize(-eyevector), normal_f.rgb);\n"
+"vec2 sphereCoord = 0.5 + r.xy * 0.5;\n"
+"vec3 cube_t = env_saturation(texture2D(s_rtenvsphere, sphereCoord).rgb * 0.5, cube_sat.r);\n"
+"#else\n"
+"vec3 cube_c = reflect(-eyevector, normal_f.rgb);\n"
 "cube_c = cube_c.x * invsurface[0] + cube_c.y * invsurface[1] + cube_c.z * invsurface[2];\n"
 "cube_c = (m_model * vec4(cube_c.xyz, 0.0)).xyz;\n"
 "vec3 cube_t = env_saturation(textureCube(s_reflectcube, cube_c).rgb, cube_sat.r);\n"
+"#endif\n"
+
 "cube_t.r *= cube_tint.r;\n"
 "cube_t.g *= cube_tint.g;\n"
 "cube_t.b *= cube_tint.b;\n"
+
 "diffuse_f.rgb += (cube_t * vec3(refl,refl,refl));\n"
 "#endif\n"
 

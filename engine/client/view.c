@@ -169,6 +169,7 @@ static cvar_t	scr_autoid_enemycolour	= CVARD("scr_autoid_enemycolour", STRINGIFY
 cvar_t	chase_active			= CVAR("chase_active", "0");
 cvar_t	chase_back				= CVAR("chase_back", "48");
 cvar_t	chase_up				= CVAR("chase_up", "24");
+cvar_t	chase_right				= CVAR("chase_right", "0");
 
 
 extern cvar_t cl_chasecam;
@@ -1701,6 +1702,7 @@ void V_CalcRefdef (playerview_t *pv)
 			r_refdef.viewangles[1] = 0;
 		AngleVectors(r_refdef.viewangles, axis[0], axis[1], axis[2]);
 		VectorScale(axis[0], -chase_back.value, camdir);
+		VectorMA(camdir, chase_right.value, axis[1], camdir);
 		if (pv->pmovetype == PM_6DOF)
 			VectorMA(camdir, chase_up.value, axis[2], camdir);
 		else
@@ -2790,6 +2792,7 @@ void V_Init (void)
 	Cvar_Register (&chase_active, VIEWVARS);
 	Cvar_Register (&chase_back, VIEWVARS);
 	Cvar_Register (&chase_up, VIEWVARS);
+	Cvar_Register (&chase_right, VIEWVARS);
 
 #if defined(_WIN32) && !defined(MINIMAL)
 	Cvar_Register (&itburnsitburnsmakeitstop, VIEWVARS);

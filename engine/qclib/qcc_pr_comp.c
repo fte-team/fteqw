@@ -1709,7 +1709,7 @@ static pbool QCC_OPCodeValidForTarget(qcc_targetformat_t targfmt, unsigned int q
 	return false;
 }
 
-static pbool QCC_OPCodeValid(QCC_opcode_t *op)
+pbool QCC_OPCodeValid(QCC_opcode_t *op)
 {
 	return op->flags & OPF_VALID;
 }

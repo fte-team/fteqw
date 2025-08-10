@@ -808,6 +808,7 @@ QCC_type_t *QCC_PR_PointerType (QCC_type_t *pointsto);
 const char *QCC_VarAtOffset(QCC_sref_t ref);
 
 void QCC_PrioritiseOpcodes(void);
+pbool QCC_OPCodeValid(QCC_opcode_t *op);
 long QCC_PR_IntConstExpr(void);
 
 #ifndef COMMONINLINES

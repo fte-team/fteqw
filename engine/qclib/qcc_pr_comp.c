@@ -704,7 +704,7 @@ QCC_opcode_t pr_opcodes[] =
 {7, "<POP>",	"POP",		PC_NONE, ASSOC_RIGHT,		&type_float,	&type_void,		&type_void},
 
 {7, "<SWITCH_I>", "SWITCH_I",PC_NONE, ASSOC_LEFT,		&type_void, NULL, &type_void},
-{7, "<>",	"GLOAD_S",		PC_NONE, ASSOC_LEFT,		&type_float,	&type_float,	&type_float},
+{7, "<>",	"GLOAD_V",		PC_NONE, ASSOC_LEFT,		&type_float,	&type_float,	&type_float},
 
 {7, "<IF_F>",	"IF_F",		PC_NONE, ASSOC_RIGHT,		&type_float, NULL, &type_void},
 {7, "<IFNOT_F>","IFNOT_F",	PC_NONE, ASSOC_RIGHT,		&type_float, NULL, &type_void},
@@ -1709,7 +1709,7 @@ static pbool QCC_OPCodeValidForTarget(qcc_targetformat_t targfmt, unsigned int q
 	return false;
 }
 
-static pbool QCC_OPCodeValid(QCC_opcode_t *op)
+pbool QCC_OPCodeValid(QCC_opcode_t *op)
 {
 	return op->flags & OPF_VALID;
 }

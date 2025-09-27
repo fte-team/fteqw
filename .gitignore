@@ -1,4 +1,5 @@
 #misc build artifacts
+build
 *.o
 *.o.d
 engine/debug/
@@ -41,3 +42,5 @@ engine/droid/ftekeystore
 engine/droid/proguard-project.txt
 engine/droid/project.properties
 
+# Flatpak build artifacts
+.flatpak-builder

@@ -1020,7 +1020,7 @@ static qboolean CODBSP_LoadSoups (model_t *mod, qbyte *mod_base, lump_t *l)
 		mesh[i].numvertexes = LittleShort(in->vertex_count);
 
 		//cod2 sucks and is way out and results in horrible memory use. calculate what it should have been.
-		mn = ~0i;
+		mn = ~0u;
 		mx = 0;
 		for (j = 0; j < mesh[i].numindexes; j++)
 		{

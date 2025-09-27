@@ -306,7 +306,11 @@ IF(CMAKE_C_COMPILER_ID MATCHES "GNU")
 #	set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wswitch-enum")					#to warn about omitted enums despite default.
 
 	#might as well do this, public builds use the regular Makefile.
-	set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -march=native")
+	IF(CMAKE_SYSTEM_PROCESSOR MATCHES "ppc64le" OR CMAKE_SYSTEM_PROCESSOR MATCHES "ppc64")
+		SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -mcpu=native")
+	ELSE()
+		SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -march=native")
+	ENDIF()
 	IF(CMAKE_BUILD_TYPE MATCHES "Debug")
 		set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall ${FTE_WERROR_} -Wno-pointer-sign -Wno-unknown-pragmas -Wno-format-zero-length -Wno-strict-aliasing -Wno-error=cpp")
 	ELSE()

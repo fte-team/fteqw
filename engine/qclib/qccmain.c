@@ -147,6 +147,7 @@ static pbool flag_dumpsymbols;
 static pbool flag_dumpautocvars;
 static pbool flag_dumplocalisation;
 static pbool flag_dumptags;
+static pbool flag_dumpopcodes;
 
 
 struct {
@@ -448,6 +449,7 @@ compiler_flag_t compiler_flag[] = {
 	{&flag_dumplocalisation,FLAG_MIDCOMPILE,"dumplocalisation","Write a .pot file",	"Writes a .po template file from your _("") strings that can be edited (with eg gettext's tools) for translations, resulting in eg csprogs.en_US.po vs csprogs.en.po and other various other dialects vs languages."},
 	{&flag_dumptags,		FLAG_MIDCOMPILE,"dumptags",		"Write vi's tags file",	"Writes a .tags file for text editors compatible with vi to locate symbols by name. This file is unsorted and per-module, so you will need to 'cat ../*.tags|LC_COLLATE=C sort>tags' for it to be used."},
 	{&flag_dumptags,		FLAG_MIDCOMPILE|FLAG_HIDDENINGUI,"tags","aka dumptags",	"See dumptags"},
+	{&flag_dumpopcodes,		FLAG_MIDCOMPILE,"dumpopcodes",		"Write a .op.inc file with the supported opcodes in C syntax",	"Writes a .inc file for game engines to include to have opcodes defined. Executes at the end of the compile, and thus respects opcodes added via #pragma."},
 	{NULL}
 };
 
@@ -1085,6 +1087,32 @@ static void QCC_DumpTags(const char *outputname)
 				SafeWrite(h, line, strlen(line));
 			}
 		}
+	}
+	SafeClose(h);
+}
+
+static void QCC_DumpOpcodes (const char *outputname)
+{
+	char line[65536];
+	int h;
+
+	snprintf(line, sizeof(line), "%s.op.inc", outputname);
+	h = SafeOpenWrite (line, 2*1024*1024);
+	if (h >= 0)
+	{
+		snprintf(line, sizeof(line), "enum qcop_e {\n");
+		SafeWrite(h, line, strlen(line));
+		for (enum qcop_e opcode = 0; opcode < OP_NUMREALOPS; ++opcode)
+		{
+			snprintf(line, sizeof(line), "\t%sOP_%s = %d,\n",
+					QCC_OPCodeValid(&pr_opcodes[opcode]) ? "" : "// ",
+					pr_opcodes[opcode].opname, (int) opcode);
+			SafeWrite(h, line, strlen(line));
+		}
+		snprintf(line, sizeof(line), "\tOP_NUMREALOPS = %d\n", (int) OP_NUMREALOPS);
+		SafeWrite(h, line, strlen(line));
+		snprintf(line, sizeof(line), "};\n");
+		SafeWrite(h, line, strlen(line));
 	}
 	SafeClose(h);
 }
@@ -2650,6 +2678,8 @@ strofs = (strofs+3)&~3;
 		QCC_DumpLocalisation(destfile);
 	if (flag_dumptags)
 		QCC_DumpTags(destfile);
+	if (flag_dumpopcodes)
+		QCC_DumpOpcodes(destfile);
 
 	switch(outputsttype)
 	{
@@ -5638,6 +5668,7 @@ memset(pr_immediate_string, 0, sizeof(pr_immediate_string));
 		externs->Printf ("     assumeint : don't force immediates to floats, preserving precision\n");
 		externs->Printf ("     dumpautocvars : write a .cfg containing all autocvars, to be inserted into your mod's default.cfg file\n");
 		externs->Printf ("     dumplocalisation : write a localisation template file\n");
+		externs->Printf ("     dumpopcodes : write an opcodes file\n");
 		externs->Printf (" -D<MACRO>=<VALUE> : define a preprocessor macro via the commandline\n");
 		externs->Printf (" -I<PATH> : specify an alternative path to search for includes\n");
 		externs->Printf (" -std=<STD> : change default settings to be more accepting of code for other compilers\n");

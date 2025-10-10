@@ -317,6 +317,10 @@ typedef struct refdef_s
 	vec4_t		userdata[16];		/*for custom glsl*/
 
 	qboolean	warndraw;			/*buggy gamecode likes drawing outside of te drawing logic*/
+
+	qboolean	fixedview;			/*if true, use a fixed camera setup for out-of-body screenshots (usually to build cubemaps)*/
+	vec3_t		fixedvieworg;
+	vec3_t		fixedviewangles;
 } refdef_t;
 
 extern	refdef_t	r_refdef;

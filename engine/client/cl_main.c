@@ -1719,7 +1719,7 @@ static void CL_BeginServerConnect(char *chain, int port, qboolean noproxy, enum 
 			char *e = strchr(arglist, '&');
 			if (e)
 				*e=0;
-			if (!strncasecmp(arglist, "fp=", 3))
+			if (!Q_strncasecmp(arglist, "fp=", 3))
 			{
 				size_t l = 8*Base64_DecodeBlock(arglist+3, arglist+strlen(arglist), connectinfo.peercred.digest, sizeof(connectinfo.peercred.digest));
 				if (l <= 160)

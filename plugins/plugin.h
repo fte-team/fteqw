@@ -43,8 +43,8 @@
 #		define Q_snprintf snprintf
 #	endif
 #else
-#	define stricmp strcasecmp
-#	define strnicmp strncasecmp
+#	define stricmp Q_strcasecmp
+#	define strnicmp Q_strncasecmp
 #endif
 
 #include <string.h>

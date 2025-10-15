@@ -1335,7 +1335,7 @@ static qintptr_t UI_SystemCalls(void *offset, quintptr_t mask, qintptr_t fn, con
 			serverinfo_t *s1 = masterfuncs->InfoForNum(VM_LONG(arg[3]));
 			serverinfo_t *s2 = masterfuncs->InfoForNum(VM_LONG(arg[4]));
 			if (keyisstring[key])
-				ret = strcasecmp(masterfuncs->ReadKeyString(s2, q3tofte[key]), masterfuncs->ReadKeyString(s1, q3tofte[key]));
+				ret = Q_strcasecmp(masterfuncs->ReadKeyString(s2, q3tofte[key]), masterfuncs->ReadKeyString(s1, q3tofte[key]));
 			else
 			{
 				ret = masterfuncs->ReadKeyFloat(s2, q3tofte[key]) - masterfuncs->ReadKeyFloat(s1, q3tofte[key]);

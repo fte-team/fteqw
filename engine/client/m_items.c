@@ -646,7 +646,7 @@ static void MenuDrawItems(int xpos, int ypos, menuoption_t *option, emenu_t *men
 			i = (int)(realtime * 10)%maxdots;
 			p = R2D_SafeCachePic(va(menudotstyle, i+mindot ));
 			if (R_GetShaderSizes(p, &pw, &ph, false)>0)
-				R2D_ScalePic(xpos+option->common.posx, ypos+option->common.posy+dotofs, (pw/(float)ph)*option->common.width, option->common.height, p);
+				R2D_ScalePic(xpos+option->common.posx, ypos+option->common.posy+dotofs, pw, ph, p);
 			else if ((int)(realtime*4)&1)
 				Draw_FunString(xpos+option->common.posx, ypos+option->common.posy + (option->common.height-8)/2, "^a^Ue00d");
 			break;

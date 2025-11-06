@@ -15,16 +15,16 @@ This should cover most, if not all the supported systems and methods.
 
 - [Repo Layout](#repo-layout)
 - [Compiling](#compiling)
-	- [Easy Build Bot System (Linux)](#easy-build-bot-system)
-	- [Windows Systems (cygwin)](#windows)
-	- [Linux/BSD Systems](#linux-bsd)
-	- [Android (FTEDroid) with cygwin](#android)
-	- [Browser (emscripten)](#emscripten)
-	- [FTEQCC](#fteqcc)
-	- [FTEIMG](#fteimg)
-	- [FTEIQM](#fteiqm)
-	- [FTEQTV](#fteqtv)
-	- [Plugins](#plugins)
+- [Easy Build Bot System (Linux)](#easy-build-bot-system)
+- [Windows Systems (cygwin)](#windows)
+- [Linux/BSD Systems](#linux-bsd)
+- [Android (FTEDroid) with cygwin](#android)
+- [Browser (emscripten)](#emscripten)
+- [FTEQCC](#fteqcc)
+- [FTEIMG](#fteimg)
+- [FTEIQM](#fteiqm)
+- [FTEQTV](#fteqtv)
+- [Plugins](#plugins)
 
 # Repo Layout
 
@@ -95,7 +95,7 @@ If you want to compile a Win64 build in cygwin, it should be as simple as:
 
 or
 
-	CMAKE HERE
+	TODO
 
 You only should need gcc and make installed in cygwin for this.
 
@@ -111,7 +111,7 @@ It's usually as straight-forward as:
 	make m-rel
 or
 
-	
+	TODO
 
 ### Notes
 
@@ -180,13 +180,11 @@ or
 
 ## Browser (emscripten)
 
-
 	make FTE_TARGET=web web-rel
 
 or
 
 	-DFTE_PLUG_CEF=TRUE
-
 
 ## FTEQCC
 
@@ -207,7 +205,7 @@ or
 
 ## Standalone QCVM
 
-	
+	TODO
 
 or
 
@@ -253,7 +251,6 @@ or
 
 	-DFTE_TOOL_QTV=TRUE
 
-
 ## Small HTTP Server
 
 	make httpserver
@@ -270,8 +267,7 @@ To build all currently stable plugins, it's as simple as:
 
 or
 
-	CMAKE HERE
-
+	TODO
 
 You can specify which plugins get compiled by passing PLUGINS_NATIVE as an example:
 
@@ -279,9 +275,13 @@ You can specify which plugins get compiled by passing PLUGINS_NATIVE as an examp
 
 or
 
-	-DFTE_PLUG_QUAKE3=TRUE
+	-DFTE_PLUG_FFMPEG=TRUE
+	-DFTE_PLUG_BULLET=TRUE
+	-DFTE_PLUG_IRC=TRUE
 
 The list of available plugins:
+
+[!IMPORTANT] Some plugins will require additional dependencies or flags on some systems, see `Dependencies.md` for more info.
 
 - Bullet Physics
 > Provides Rigid Body Physics.
@@ -396,7 +396,3 @@ The list of available plugins:
 
 	x11server
 	-DFTE_PLUG_X11SV=TRUE
-
-### Notes
-
-- Some plugins might require additional dependencies or flags on some systems, see `Dependencies.md` for more info.

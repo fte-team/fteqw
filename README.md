@@ -65,13 +65,9 @@ The `specs` folder is for more advanced users seeking QuakeC and idTech file for
 
 ### Matrix
 
-Join our Matrix space here:
-
 https://matrix.to/#/#fte:matrix.org
 
 ### IRC
-
-We have a channel on [QuakeNet](https://www.quakenet.org):
 
 **Server:** irc.quakenet.org
 

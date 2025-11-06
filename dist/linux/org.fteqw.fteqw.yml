@@ -1,0 +1,179 @@
+---
+# Flatpak runtime version issues:
+#   - 22.08 has a slightly-too-old version of SDL2 that doesn't include SDL_misc.h
+#   - 24.08 includes ffmpeg 7.x, which fteqw fails to build against
+# 
+# Options to resolve this:
+#   - manually build ffmpeg 6.x? on the 24.08 runtime
+#   - manually build a newer SDL2 on the 22.08 runtime
+#   - update fteqw to use SDL3 and ffmpeg 7.x (which are the 24.08 runtime versions)
+
+app-id: org.fteqw.fteqw
+command: org.fteqw.fteqw.sh
+
+# runtime: org.freedesktop.Platform
+# runtime-version: "23.08"
+# sdk: org.freedesktop.Sdk
+# The KDE runtime includes Qt which is useful for building fteqccgui.
+# However, Qt 5.15 is EOL so this runtime doesn't work super well.
+runtime: org.kde.Platform
+runtime-version: "5.15-23.08"
+sdk: org.kde.Sdk
+
+finish-args:
+  # Network for multiplayer
+  - --share=network
+  # Hardware 3D and game controllers
+  - --device=all
+  # GUI
+  - --share=ipc
+  - --socket=fallback-x11
+  - --socket=wayland
+  # Audio
+  - --socket=pulseaudio
+
+cleanup:
+  - /include
+  - "*.a"
+  - /lib/cmake
+  - /lib/pkgconfig
+  - /share/aclocal
+  - /share/doc
+  - /share/man
+
+modules:
+  - name: bullet
+    buildsystem: cmake-ninja
+    config-opts:
+      - -DOpenGL_GL_PREFERENCE=GLVND
+      - -DBUILD_SHARED_LIBS=ON
+      - -DBULLET2_MULTITHREADING=ON
+      - -DUSE_GRAPHICAL_BENCHMARK=OFF
+      - -DBUILD_EGL=OFF
+      - -DBUILD_EXTRAS=OFF
+      - -DBUILD_CPU_DEMOS=OFF
+      - -DBUILD_OPENGL3_DEMOS=OFF
+      - -DBUILD_BULLET2_DEMOS=OFF
+      - -DBUILD_UNIT_TESTS=OFF
+      - -DINSTALL_LIBS=ON
+    sources:
+    - type: archive
+      url: https://github.com/bulletphysics/bullet3/archive/3.25.tar.gz
+      dest-filename: bullet.tar.gz
+      sha256: c45afb6399e3f68036ddb641c6bf6f552bf332d5ab6be62f7e6c54eda05ceb77
+      x-checker-data:
+        type: json
+        url: https://api.github.com/repos/bulletphysics/bullet3/releases/latest
+        version-query: .tag_name
+        url-query: .tarball_url
+
+  - name: ode
+    buildsystem: cmake-ninja
+    config-opts:
+      - -DODE_WITH_DEMOS=OFF
+      - -DODE_WITH_TESTS=OFF
+    cleanup:
+      - /bin/ode-config
+    sources:
+      - type: archive
+        url: https://bitbucket.org/odedevs/ode/downloads/ode-0.16.6.tar.gz
+        sha256: c91a28c6ff2650284784a79c726a380d6afec87ecf7a35c32a6be0c5b74513e8
+        x-checker-data:
+          type: anitya
+          project-id: 2532
+          url-template: https://bitbucket.org/odedevs/ode/downloads/ode-$version.tar.gz
+
+  - name: openxr
+    buildsystem: cmake-ninja
+    sources:
+      - type: archive
+        url: https://github.com/KhronosGroup/OpenXR-SDK/archive/release-1.1.47.tar.gz
+        sha256: 82c7f4e3658578a22e438b5f005ecaf22c3f724b09fe031fa0f8ffc97c30c9ba
+        x-checker-data:
+          type: json
+          url: https://api.github.com/repos/KhronosGroup/OpenXR-SDK/releases/latest
+          version-query: .tag_name | sub("release-", "")
+          url-query: .tarball_url
+
+  # libcef fails to build for reasons beyond my ability to debug
+  # - name: libcef
+  #   buildsystem: cmake-ninja
+  #   no-make-install: true
+  #   config-opts:
+  #     - -DCMAKE_BUILD_TYPE=RelWithDbgInfo
+  #   make-args:
+  #     - libcef_dll_wrapper
+  #   build-commands:
+  #     - mkdir -p /app/cef/libcef_dll_wrapper
+  #     - cp -R ./include /app/include
+  #     - cp -R ./Release /app/lib
+  #     - cp -R ./Resources /app/cef
+  #     - cp -R ./libcef_dll_wrapper/libcef_dll_wrapper.a /app/lib/libcef_dll_wrapper.a
+  #   cleanup:
+  #     - "*.a"
+  #     - "./*"
+  #   sources:
+  #     - type: archive
+  #       url: https://cdn-fastly.obsproject.com/downloads/cef_binary_4280_linux64.tar.bz2
+  #       sha256: d91c78349ecbfbfdfc18d5f882dc28b939028f1a631191c603b5d0d938ada972
+
+  # QScintilla is used by fteqccgui
+  - name: qscintilla
+    buildsystem: qmake
+    subdir: src
+    cleanup:
+      - /lib/qt5
+      - /share/qt5
+    make-install-args:
+      - DESTDIR=/app
+      - PREFIX=/app
+    config-opts:
+      - CONFIG+=release
+    sources:
+      - type: archive
+        url: https://www.riverbankcomputing.com/static/Downloads/QScintilla/2.14.1/QScintilla_src-2.14.1.tar.gz
+        sha256: dfe13c6acc9d85dfcba76ccc8061e71a223957a6c02f3c343b30a9d43a4cdd4d
+        x-checker-data:
+          type: anitya
+          project-id: 10082
+          url-template: https://www.riverbankcomputing.com/static/Downloads/QScintilla/$version/QScintilla_src-$version.tar.gz
+      - type: patch
+        path: com.riverbankcomputing.qscintilla.install.patch
+
+  - name: fteqw
+    buildsystem: cmake-ninja
+    builddir: true
+    config-opts:
+      - -DFTE_USE_SDL=true
+      - -DFTE_ENGINE_SERVER_ONLY=false
+      - -DFTE_TOOL_QTV=true
+      - -DFTE_TOOL_MASTER=true
+      - -DFTE_TOOL_HTTPSV=false
+      - -DFTE_TOOL_QCC=true
+      - -DFTE_TOOL_IQM=false
+      - -DFTE_TOOL_IMAGE=false
+      - -DFTE_INSTALL_BINDIR=bin
+    sources:
+      # Launcher script
+      - type: file
+        path: org.fteqw.fteqw.sh
+      - type: git
+        url: https://github.com/fte-team/fteqw.git
+        branch: master
+      # In an ideal world, fteqw would be built off of tagged releases so the Flatpak infra can auto-update:
+      # - type: archive
+      #   url: https://api.github.com/repos/fte-team/fteqw/zipball/v6202
+      #   dest-filename: fteqw.zip
+      #   sha256: 1955a7c7eb2e6c3ba2da689d115d10f89c6e5e261577e67cd0ad176bea1b97ef
+      #   x-checker-data:
+      #     type: json
+      #     url: https://api.github.com/repos/fte-team/fteqw/releases/latest
+      #     version-query: .tag_name | sub("^v"; "")
+      #     url-query: .zipball_url
+      # Patches to fix Flatpak sandbox compliance, currently WIP
+      - type: patch
+        path: org.fteqw.fteqw.fixdownloads.patch
+      - type: patch
+        path: org.fteqw.fteqw.fixhomedir.patch
+    post-install:
+      - install -Dm755 ${FLATPAK_BUILDER_BUILDDIR}/org.fteqw.fteqw.sh /app/bin/

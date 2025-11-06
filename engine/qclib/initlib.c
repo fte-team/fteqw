@@ -499,6 +499,10 @@ void PRAddressableFlush(progfuncs_t *progfuncs, size_t totalammount)
 {
 	prinst.addressableused = 0;
 	prinst.mfreelist = 0;
+	// Clear localstack state when flushing memory
+	prinst.localstack = NULL;
+	prinst.localstack_used = 0;
+	prinst.spushed = 0;
 
 	if (totalammount <= 0)	//flush
 	{

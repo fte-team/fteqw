@@ -1,0 +1,7 @@
+{
+    "org.fteqw.fteqw": {
+        "appstream-external-screenshot-url": "Screenshots do not need mirroring to Flathub",
+        "runtime-is-eol-org.kde.Platform-5.15-23.08": "fteqccgui needs migrating to Qt6 and fteqw to ffmpeg 7.x and SDL3 for current runtimes",
+        "module-fteqw-source-git-branch": "fteqw has no tagged releases"
+    }
+}

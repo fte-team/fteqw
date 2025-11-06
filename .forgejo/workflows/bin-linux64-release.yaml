@@ -1,0 +1,62 @@
+name: bin-linux64-release
+
+on:
+  push:
+    branches: [ master ]
+
+jobs:
+  build:
+    runs-on: docker
+
+    steps:
+    - name: clone src
+      uses: actions/checkout@v3
+      with:
+        fetch-depth: 1
+
+    - name: apt-get dependencies
+      run: |
+        apt-get -qq update
+        apt-get -qq install --no-install-recommends \
+        zip \
+        gettext \
+        libasound2-dev \
+        libgnutls28-dev \
+        libopenxr-dev \
+        libqscintilla2-qt5-dev \
+        libsdl2-dev \
+        libvulkan-dev \
+        libwayland-dev \
+        libxcursor-dev \
+        libxkbcommon-dev \
+        libxrandr-dev \
+        qtbase5-dev
+
+    - name: makelibs
+      run: cd engine && make makelibs FTE_TARGET=linux64
+
+    - name: build fteqw
+      run: cd engine && make m-rel FTE_TARGET=linux64 BRANDFLAGS="-DLINK_EZHUD=1"
+
+    - name: build fteqcc
+      run: cd engine && make qcc-rel FTE_TARGET=linux64
+
+    - name: build dedicated-server
+      run: cd engine && make sv-rel FTE_TARGET=linux64
+
+    - name: build plugins
+      run: cd engine && make plugins-rel FTE_TARGET=linux64 NATIVE_PLUGINS="ode cod ezhud hl2 irc models xmpp openxr openssl quake3 qi"
+
+    - name: build imgtool
+      run: cd engine && make imgtool FTE_TARGET=linux64
+
+    - name: build iqmtool
+      run: cd engine && make iqmtool FTE_TARGET=linux64
+
+    - name: upload release
+      uses: actions/forgejo-release@4d26949b75e208a9d85204fdd1d6685af0f876a8
+      with:
+        direction: upload
+        release-dir: ./engine/release
+        token: ${{ secrets.TOKEN }}
+        override: true

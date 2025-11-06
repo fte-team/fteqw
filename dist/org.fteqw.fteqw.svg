@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" xml:space="preserve" viewBox="0 0 270.93 270.93">
+  <defs>
+    <linearGradient id="c">
+      <stop offset="0" stop-color="#6354a8"/>
+      <stop offset=".32" stop-color="#6354a8" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="b">
+      <stop offset=".14" stop-color="#fff"/>
+      <stop offset=".85" stop-color="#5e5b67"/>
+      <stop offset=".92" stop-color="#1b1b1b"/>
+    </linearGradient>
+    <linearGradient id="a">
+      <stop offset=".15" stop-color="#c2a6f4"/>
+      <stop offset=".85" stop-color="#5f51a5"/>
+    </linearGradient>
+    <linearGradient xlink:href="#a" id="e" x1="90.22" x2="120.38" y1="133.34" y2="163.39" gradientTransform="matrix(7.74 0 0 7.74 -679.67 -1013.5)" gradientUnits="userSpaceOnUse"/>
+    <radialGradient xlink:href="#b" id="d" cx="105.3" cy="148.37" r="15.08" fx="105.3" fy="148.37" gradientTransform="matrix(7.74 0 0 7.71 -679.67 -1009.17)" gradientUnits="userSpaceOnUse"/>
+    <radialGradient xlink:href="#c" id="f" cx="105.3" cy="148.37" r="15.08" fx="105.3" fy="148.37" gradientTransform="matrix(5.65 0 0 10.05 -459.96 -1356.23)" gradientUnits="userSpaceOnUse"/>
+    <filter id="g" width="1.37" height="1.45" x="-.18" y="-.24" color-interpolation-filters="sRGB">
+      <feGaussianBlur stdDeviation="1.49"/>
+    </filter>
+  </defs>
+  <g paint-order="stroke markers fill">
+    <path fill="#fff" stroke="#000" stroke-linecap="round" stroke-linejoin="round" stroke-width="29.58" d="M251.75 134.97a116.29 115.8 0 0 1-115.82 115.8A116.29 115.8 0 0 1 19.18 135.88a116.29 115.8 0 0 1 114.9-116.7 116.29 115.8 0 0 1 117.66 113.95"/>
+    <path fill="url(#d)" stroke="url(#e)" stroke-linecap="round" stroke-linejoin="round" stroke-width="26.34" d="M239.02 134.97A103.56 103.12 0 0 1 135.88 238.1 103.56 103.12 0 0 1 31.9 135.79 103.56 103.12 0 0 1 134.24 31.86 103.56 103.12 0 0 1 239 133.34"/>
+    <path fill="url(#f)" d="M207.89 134.97a72.42 72.11 0 0 1-72.14 72.11 72.42 72.11 0 0 1-72.7-71.54 72.42 72.11 0 0 1 71.56-72.68 72.42 72.11 0 0 1 73.27 70.97"/>
+    <path fill="#6354a8" stroke="#6354a8" stroke-linecap="square" d="M94.18 147.42c.04 3.03 2.8 4.24 6.52 5.21-3.43-1.76-5.27-2.8-5.3-4.53-.02-2.75 4.71-4.53 8.93-4.79v10.03l.85 5.5.85-5.5V143.3c4.28.18 9.2 2 9.17 4.8-.02 1.72-1.86 2.77-5.3 4.53 3.74-.97 6.49-2.18 6.53-5.2.05-3.3-5.75-5.84-11.25-5.81-5 .02-11.05 2.5-11 5.8z" filter="url(#g)" style="mix-blend-mode:normal" transform="matrix(8.62 0 0 8.62 -771.99 -1149.12)"/>
+    <path d="M39.57 121.28c.4 26.08 24.1 36.56 56.26 44.92-29.62-15.17-45.46-24.23-45.64-39.05-.27-23.73 40.53-39.08 76.87-41.28v86.37l7.32 47.47 7.32-47.47V85.76c36.86 1.52 79.32 17.19 79.04 41.39-.17 14.82-16.01 23.88-45.64 39.05 32.16-8.36 55.87-18.84 56.27-44.92.43-28.42-49.59-50.22-96.99-50-43.1.2-95.25 21.58-94.81 50Z"/>
+  </g>
+</svg>

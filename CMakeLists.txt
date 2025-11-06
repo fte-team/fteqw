@@ -306,7 +306,11 @@ IF(CMAKE_C_COMPILER_ID MATCHES "GNU")
 #	set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wswitch-enum")					#to warn about omitted enums despite default.
 
 	#might as well do this, public builds use the regular Makefile.
-	set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -march=native")
+	IF(CMAKE_SYSTEM_PROCESSOR MATCHES "ppc64le" OR CMAKE_SYSTEM_PROCESSOR MATCHES "ppc64")
+		SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -mcpu=native")
+	ELSE()
+		SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -march=native")
+	ENDIF()
 	IF(CMAKE_BUILD_TYPE MATCHES "Debug")
 		set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall ${FTE_WERROR_} -Wno-pointer-sign -Wno-unknown-pragmas -Wno-format-zero-length -Wno-strict-aliasing -Wno-error=cpp")
 	ELSE()
@@ -1818,10 +1822,20 @@ INSTALL(TARGETS ${INSTALLTARGS}
 	LIBRARY DESTINATION "${CMAKE_INSTALL_FULL_LIBDIR}/${FTE_INSTALL_LIBDIR}"
 )
 
-INSTALL(FILES
-	fteqw.desktop
-	DESTINATION "${CMAKE_INSTALL_DATAROOTDIR}/applications/")
-
+IF(UNIX AND NOT APPLE)
+	INSTALL(FILES
+		${CMAKE_SOURCE_DIR}/dist/linux/org.fteqw.fteqw.desktop
+		DESTINATION "${CMAKE_INSTALL_DATAROOTDIR}/applications/")
+	INSTALL(FILES
+		${CMAKE_SOURCE_DIR}/dist/org.fteqw.fteqw.svg
+		DESTINATION "${CMAKE_INSTALL_DATAROOTDIR}/icons/hicolor/scalable/apps/")
+	INSTALL(FILES
+		${CMAKE_SOURCE_DIR}/dist/linux/org.fteqw.fteqw.metainfo.xml
+		DESTINATION "${CMAKE_INSTALL_DATAROOTDIR}/metainfo/")
+	INSTALL(DIRECTORY ${CMAKE_SOURCE_DIR}/games
+		DESTINATION "${CMAKE_INSTALL_PREFIX}/etc/xdg/fteqw"
+		FILES_MATCHING PATTERN "*.fmf")
+ENDIF()
 
 SET(FTE_MENU_SYS true CACHE BOOL "Compile System Menu.")
 IF(FTE_MENU_SYS)

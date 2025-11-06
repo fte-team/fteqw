@@ -10,8 +10,10 @@
 !!samps diffuse
 !!samps =BUMP normalmap
 !!samps =FULLBRIGHT fullbright
+!!samps rtenvsphere:2D=0
 !!permu FAKESHADOWS
 !!cvardf r_glsl_pcf
+!!cvardf r_glsl_rtenvsphere
 !!samps =FAKESHADOWS shadowmap
 
 // envmaps only
@@ -145,16 +147,25 @@ varying vec4 light;
 			#endif
 		#endif
 	#endif
-	
-		vec3 cube_c = reflect(-eyevector, normal_f.rgb);
+
 		vec3 cube_tint = vec3(ENVTINT);
 		vec3 cube_sat = vec3(ENVSAT);
+
+	#if r_glsl_rtenvsphere == 1
+		vec3 r = reflect(normalize(-eyevector), normal_f.rgb);
+		vec2 sphereCoord = 0.5 + r.xy * 0.5;
+		vec3 cube_t = env_saturation(texture2D(s_rtenvsphere, sphereCoord).rgb * 0.5, cube_sat.r);
+	#else
+		vec3 cube_c = reflect(-eyevector, normal_f.rgb);
 		cube_c = cube_c.x * invsurface[0] + cube_c.y * invsurface[1] + cube_c.z * invsurface[2];
 		cube_c = (m_model * vec4(cube_c.xyz, 0.0)).xyz;
 		vec3 cube_t = env_saturation(textureCube(s_reflectcube, cube_c).rgb, cube_sat.r);
+	#endif
+
 		cube_t.r *= cube_tint.r;
 		cube_t.g *= cube_tint.g;
 		cube_t.b *= cube_tint.b;
+		
 		diffuse_f.rgb += (cube_t * vec3(refl,refl,refl));
 #endif
 

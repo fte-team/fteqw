@@ -281,7 +281,8 @@ or
 
 The list of available plugins:
 
-[!IMPORTANT] Some plugins will require additional dependencies or flags on some systems, see `Dependencies.md` for more info.
+> [!IMPORTANT] 
+> Some plugins will require additional dependencies or flags on some systems, see `Dependencies.md` for more info.
 
 - Bullet Physics
 > Provides Rigid Body Physics.

@@ -91,9 +91,10 @@ An install of Quake should look like this for example:
 	Android/data/com.fteqw/files/id1/pak0.pak
 	Android/data/com.fteqw/files/id1/pak1.pak
 
-[!WARNING] FTEQW is included in other Android APKs such as idTech4a++,
-please consult their documentation and help forums as we do not
-provide support to these unofficial third-party ports.
+> [!WARNING] 
+> FTEQW is included in other Android APKs such as idTech4a++,
+> please consult their documentation and help forums as we do not
+> provide support to these unofficial third-party ports.
 
 ## Steam
 
@@ -219,7 +220,8 @@ to load a specific game and behaviour:
 	-halflife
 	-halflife2
 
-[!NOTE] Half-Life 1 & 2 will download the Rad-Therapy project in place of their game logic, and HL2 also requires the Source formats plugin.
+> [!NOTE]
+> Half-Life 1 & 2 will download the Rad-Therapy project in place of their game logic, and HL2 also requires the Source formats plugin.
 
 ## Understanding manifests (advanced users)
 

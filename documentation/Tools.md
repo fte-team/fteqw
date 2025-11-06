@@ -27,7 +27,8 @@ Some games (HeXen II) and the Nuclide SDK have a concept of multi-progs, meaning
 
 Full FTEQCC documentation can be found [here](https://fte.triptohell.info/moodles/fteqcc/README.html)
 
-[!TIP] You can also compile within FTEQW itself by typing `compile` in the console (must have a `src` folder in the mounted directory)
+> [!TIP]
+> You can also compile within FTEQW itself by typing `compile` in the console (must have a `src` folder in the mounted directory)
 
 ### GUI
 
@@ -94,7 +95,8 @@ The **VVM** variant was created by Vera Visions hence the name, "Vera Visions Mo
 
 Quake's model format (idTech 2). It is vertex animation based and has many limitations, therefore it's recommend to use IQM / VVM unless you are targeting stock Quake.
 
-[!WARNING] While Half-Life 1 & 2 also use the `.mdl` extension, it is a different format altogether and _not yet_ supported by IQM Tool.
+> [!WARNING]
+> While Half-Life 1 & 2 also use the `.mdl` extension, it is a different format altogether and _not yet_ supported by IQM Tool.
 
 ### Usage:
 
@@ -269,8 +271,9 @@ Supported pixel formats:
 
 	rgba8,rgb8, rgb565,rgba5551,rgba4444, l8, bc1-7, etc1,etc2,etcp,etca, astc*x*, e5bgr9
 
-[!NOTE] use of alternative formats requires a qbsp which does NOT strip this information. 
-The vanilla qbsp will work fine for this purpose, but more advanced qbsp utils have a tendancy to strip the info (including ericw's, sadly).
+> [!NOTE] 
+> Use of alternative formats requires a qbsp which does NOT strip this information. 
+> The vanilla qbsp will work fine for this purpose, but more advanced qbsp utils have a tendancy to strip the info (including ericw's sadly).
 
 	imgtool -w WADFILE *.mip
 

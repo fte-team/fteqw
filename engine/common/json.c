@@ -489,11 +489,11 @@ json_t *JSON_ParseNode(json_t *t, const char *namestart, const char *nameend, st
 			{
 				if (JSON_ParseString(ctx, &childstart, &childend))
 				{
-					if (childend-childstart == 4 && !strncasecmp(childstart, "true", 4))
+					if (childend-childstart == 4 && !Q_strncasecmp(childstart, "true", 4))
 						return JSON_CreateNode(t, namestart, nameend, childstart, childend, json_type_true);
-					else if (childend-childstart == 5 && !strncasecmp(childstart, "false", 5))
+					else if (childend-childstart == 5 && !Q_strncasecmp(childstart, "false", 5))
 						return JSON_CreateNode(t, namestart, nameend, childstart, childend, json_type_false);
-					else if (childend-childstart == 4 && !strncasecmp(childstart, "null", 4))
+					else if (childend-childstart == 4 && !Q_strncasecmp(childstart, "null", 4))
 						return JSON_CreateNode(t, namestart, nameend, childstart, childend, json_type_null);
 					else
 						return JSON_CreateNode(t, namestart, nameend, childstart, childend, json_type_number);

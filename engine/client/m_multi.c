@@ -617,7 +617,7 @@ qboolean MultiBeginGame (union menuoption_s *option,struct emenu_s *menu, int ke
 				continue;
 			break;
 		}
-		if (*shn || !*hostname || !strcasecmp(hostname, "player") || !strcasecmp(hostname, "unnamed"))	//not simple enough...
+		if (*shn || !*hostname || !Q_strcasecmp(hostname, "player") || !Q_strcasecmp(hostname, "unnamed"))	//not simple enough...
 			Cbuf_AddText(va("sv_public \"/\"\n"), RESTRICT_LOCAL);
 		else
 			Cbuf_AddText(va("sv_public \"/%s\"\n", info->hostnameedit->text), RESTRICT_LOCAL);
@@ -802,7 +802,7 @@ void M_Menu_GameOptions_f (void)
 	info->numplayers	= MC_AddCombo	(menu, 64, 160, y,			localtext("Max players"), (const char **)numplayeroptions,	players);y+=8;
 
 	info->deathmatch	= MC_AddCombo	(menu, 64, 160, y,			localtext("Deathmatch"), (const char **)deathmatchoptions,	deathmatch.value);y+=8;
-	info->teamplay		= MC_AddCombo	(menu, 64, 160, y,			localtext("Teamplay"), (!strcasecmp(FS_GetGamedir(true), "rogue")?(const char **)teamplayoptions_rogue:(const char **)teamplayoptions),		teamplay.value);y+=8;
+	info->teamplay		= MC_AddCombo	(menu, 64, 160, y,			localtext("Teamplay"), (!Q_strcasecmp(FS_GetGamedir(true), "rogue")?(const char **)teamplayoptions_rogue:(const char **)teamplayoptions),		teamplay.value);y+=8;
 	info->skill			= MC_AddCombo	(menu, 64, 160, y,			localtext("Skill"), (const char **)skilloptions,			skill.value);y+=8;
 	info->rundedicated	= MC_AddCheckBox(menu, 64, 160, y,			localtext("dedicated"), NULL, 0);y+=8;
 	y+=8;

@@ -335,7 +335,7 @@ static mpic_t *Sbar_Q2CachePic(char *name)
 
 #define	ICON_WIDTH	24
 #define	ICON_HEIGHT	24
-#define	CHAR_WIDTH	16
+#define	QCHAR_WIDTH	16
 #define	ICON_SPACE	8
 static void SCR_DrawField (float x, float y, int color, float width, int value)
 {
@@ -356,7 +356,7 @@ static void SCR_DrawField (float x, float y, int color, float width, int value)
 	l = strlen(num);
 	if (l > width)
 		l = width;
-	x += 2 + CHAR_WIDTH*(width - l);
+	x += 2 + QCHAR_WIDTH*(width - l);
 
 	ptr = num;
 	while (*ptr && l)
@@ -369,7 +369,7 @@ static void SCR_DrawField (float x, float y, int color, float width, int value)
 		p = Sbar_Q2CachePic(q2sb_nums[color][frame]);
 		if (p && R_GetShaderSizes(p, &pw, &ph, false)>0)
 			R2D_ScalePic (x,y,pw, ph, p);
-		x += CHAR_WIDTH;
+		x += QCHAR_WIDTH;
 		ptr++;
 		l--;
 	}

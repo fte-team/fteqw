@@ -1170,17 +1170,17 @@ qboolean IN_SetHandPosition(const char *devname, vec3_t org, vec3_t ang, vec3_t 
 	int dtype;
 	int seat;
 	struct vrdevinfo_s *dev;
-	if (!strncasecmp(devname, "left", 4))
+	if (!Q_strncasecmp(devname, "left", 4))
 	{
 		seat = atoi(devname+4);
 		dtype = VRDEV_LEFT;
 	}
-	else if (!strncasecmp(devname, "right", 5))
+	else if (!Q_strncasecmp(devname, "right", 5))
 	{
 		seat = atoi(devname+5);
 		dtype = VRDEV_RIGHT;
 	}
-	else if (!strncasecmp(devname, "head", 4))
+	else if (!Q_strncasecmp(devname, "head", 4))
 	{
 		seat = atoi(devname+4);
 		dtype = VRDEV_HEAD;

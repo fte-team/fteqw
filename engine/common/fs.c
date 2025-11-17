@@ -3923,7 +3923,7 @@ static int QDECL FS_SortWildDataFiles(const void *va, const void *vb)
 		return a->mtime > b->mtime;
 
 	//then fall back and sort by name
-	return strcasecmp(na, nb);
+	return Q_strcasecmp(na, nb);
 }
 static void FS_LoadWildDataFiles (filelist_t *list, wildpaks_t *wp)
 {
@@ -7741,7 +7741,7 @@ static int QDECL Mods_AddGamedir(const char *fname, qofs_t fsize, time_t mtime, 
 			desc = NULL;
 			for (u = 0; u < Cmd_Argc(); u+=2)
 			{
-				if (!strcasecmp(Cmd_Argv(u), "game"))
+				if (!Q_strcasecmp(Cmd_Argv(u), "game"))
 					desc = Cmd_Argv(u+1);
 			}
 			if (desc)

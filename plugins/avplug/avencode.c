@@ -335,9 +335,7 @@ static AVStream *add_audio_stream(struct encctx *ctx, const AVCodec *codec, int 
 	c->sample_rate = *samplerate;
 	c->ch_layout.nb_channels = channels;
 	av_channel_layout_default(&c->ch_layout, channels);
-
 	avcodec_get_supported_config(c, codec, AV_CODEC_CONFIG_SAMPLE_FORMAT, 0, (const void **)&sample_fmts, &num_sample_fmts);
-
 	c->sample_fmt = sample_fmts[0];
 
 //	if (c->sample_fmt == AV_SAMPLE_FMT_FLTP || c->sample_fmt == AV_SAMPLE_FMT_FLT)

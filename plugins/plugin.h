@@ -7,22 +7,7 @@
 	//plugin that needs fte internals
 	#include "quakedef.h"
 #else
-	//moderately generic plugin
-	#ifdef __cplusplus
-		typedef enum {qfalse, qtrue} qboolean;
-	#else
-		typedef enum {qfalse, qtrue} qboolean;
-		#define false qfalse
-		#define true qtrue
-	#endif
-	typedef float vec4_t[4];
-	typedef float vec3_t[3];
-	typedef float vec2_t[2];
-	typedef unsigned char qbyte;
-
 	#include <stdint.h>
-	#define qint64_t int64_t
-	#define quint64_t uint64_t
 	typedef quint64_t qofs_t;
 
 	typedef struct cvar_s cvar_t;

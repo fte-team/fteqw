@@ -6,9 +6,19 @@
 CMAKE_MINIMUM_REQUIRED(VERSION 3.0...3.10)
 cmake_policy(SET CMP0063 NEW)
 
+SET(CMAKE_CXX_STANDARD 11)
+SET(CMAKE_CXX_STANDARD_REQUIRED TRUE)
+SET(CMAKE_CXX_EXTENSIONS ON)
+SET(CMAKE_C_STANDARD 11)
+SET(CMAKE_C_STANDARD_REQUIRED TRUE)
+SET(CMAKE_C_EXTENSIONS ON)
+
 PROJECT(FTEQuake)
 
 INCLUDE_DIRECTORIES(
+	include/fteqw/math
+	include/fteqw
+	include
 	engine/common
 	engine/client
 	engine/qclib
@@ -449,7 +459,7 @@ ELSEIF(WIN32 AND NOT FTE_USE_SDL)
 	SET(FTE_LIBS ${FTE_LIBS} ole32 gdi32 wsock32 winmm dxguid)
 	SET(FTE_DEFINES ${FTE_DEFINES};D3D9QUAKE;D3D11QUAKE)
 	SET(FTE_ARCH_FILES 
-		engine/client/winquake.rc
+		contrib/winquake.rc
 		engine/common/sys_win_threads.c
 		engine/common/net_ssl_winsspi.c
 		engine/common/net_ssl_gnutls.c
@@ -480,7 +490,7 @@ ELSEIF(WIN32 AND NOT FTE_USE_SDL)
 	
 	SET(FTESV_LIBS ${FTESV_LIBS} wsock32 winmm)
 	SET(FTESV_ARCH_FILES 
-		engine/client/winquake.rc
+		contrib/winquake.rc
 		engine/common/sys_win_threads.c
 		engine/common/net_ssl_winsspi.c
 		engine/common/net_ssl_gnutls.c
@@ -625,12 +635,12 @@ ELSEIF(1)	#SDL2
 		SET(FTE_LIBS ${FTE_LIBS} wsock32 gdi32 ole32)
 		SET(FTE_DEFINES ${FTE_DEFINES};NO_DIRECTX)
 		SET(FTE_ARCH_FILES ${FTE_ARCH_FILES}
-			engine/client/winquake.rc
+			contrib/winquake.rc
 			engine/common/net_ssl_winsspi.c
 			engine/common/fs_win32.c
 		)
 		SET(FTESV_ARCH_FILES ${FTESV_ARCH_FILES}
-			engine/client/winquake.rc
+			contrib/winquake.rc
 			engine/common/net_ssl_winsspi.c
 			engine/common/fs_win32.c
 			engine/server/sv_sys_win.c
@@ -796,7 +806,7 @@ SET(FTE_COMMON_FILES
 	engine/common/console.h
 	engine/common/cvar.h
 	engine/common/fs.h
-	engine/common/mathlib.h
+	include/fteqw/math/vector.h
 	engine/common/net.h
 	engine/common/netinc.h
 	engine/common/particles.h
@@ -825,7 +835,6 @@ SET(FTE_COMMON_FILES
 	engine/qclib/pr_comp.h
 	engine/qclib/progsint.h
 	engine/qclib/progslib.h
-	engine/qclib/progtype.h
 	engine/qclib/qcc.h
 	engine/qclib/qcd.h
 	engine/server/progdefs.h

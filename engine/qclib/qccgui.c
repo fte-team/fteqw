@@ -1488,8 +1488,8 @@ HWND CreateAnEditControl(HWND parent, pbool *scintillaokay)
 			while(fgets(buf, sizeof(buf)-1, f))
 			{
 				int msg;
-				int lparam;
-				int wparam;
+				LPARAM lparam;
+				WPARAM wparam;
 				char *c;
 				buf[sizeof(buf)-1] = 0;
 				c = buf;

@@ -7188,6 +7188,11 @@ static struct pendingtextureinfo *Image_ReadBLPFile(unsigned int flags, const ch
 
 #ifdef IMAGEFMT_PVR
 
+typedef struct gbix {
+	uint32_t magic;
+	uint32_t len;
+} gbix_t;
+
 typedef struct pvr {
 	uint32_t magic;
 	uint32_t len_file;
@@ -7263,6 +7268,13 @@ qbyte *ReadPVRFile(qbyte *buf, int len, int *width, int *height, uploadfmt_t *fo
 {
 	int x, y;
 	pvr_t *pvr;
+
+	// skip gbix
+	if (memcmp(buf, "GBIX", 4) == 0)
+	{
+		gbix_t *gbix = (gbix_t *)buf;
+		buf += sizeof(gbix_t) + LittleLong(gbix->len);
+	}
 
 	// check magic identifier
 	pvr = (pvr_t *)buf;

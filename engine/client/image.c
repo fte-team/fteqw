@@ -7186,6 +7186,184 @@ static struct pendingtextureinfo *Image_ReadBLPFile(unsigned int flags, const ch
 }
 #endif
 
+#ifdef IMAGEFMT_PVR
+
+typedef struct pvr {
+	uint32_t magic;
+	uint32_t len_file;
+	uint32_t type;
+	uint16_t width;
+	uint16_t height;
+	uint16_t codebook[1024];
+	uint8_t indices[1];
+} pvr_t;
+
+static int pvr_log2approx(int x)
+{
+	switch (x)
+	{
+		case 8: return 3;
+		case 16: return 4;
+		case 32: return 5;
+		case 64: return 6;
+		case 128: return 7;
+		case 256: return 8;
+		case 512: return 9;
+		case 1024: return 10;
+		default: return -1;
+	}
+}
+
+static int pvr_from_xy(int x, int y, int w, int h)
+{
+	int wmax, hmax;
+	int i, idx = 0;
+
+	wmax = pvr_log2approx(w);
+	hmax = pvr_log2approx(h);
+
+	if (wmax < 0 || hmax < 0)
+		return -1;
+
+	for (i = 0; i < 10; i++)
+	{
+		if (i < wmax && i < hmax)
+		{
+			idx |= ((y >> i) & 1) << (i * 2 + 0);
+			idx |= ((x >> i) & 1) << (i * 2 + 1);
+		}
+		else if (i < wmax)
+		{
+			idx |= ((x >> i) & 1) << (i + hmax);
+		}
+		else if (i < hmax)
+		{
+			idx |= ((y >> i) & 1) << (i + wmax);
+		}
+		else
+		{
+			break;
+		}
+	}
+
+	return idx;
+}
+
+static unsigned int pvr_rgb565_to_rgba8888(unsigned short color)
+{
+	unsigned char r, g, b, a;
+	r = ((color >> 11) & 31) << 3;
+	g = ((color >> 5) & 63) << 2;
+	b = ((color >> 0) & 31) << 3;
+	a = 255;
+	return (a << 24) | (b << 16) | (g << 8) | r;
+}
+
+qbyte *ReadPVRFile(qbyte *buf, int len, int *width, int *height, uploadfmt_t *format, qboolean force_rgba8)
+{
+	int x, y;
+	pvr_t *pvr;
+
+	// check magic identifier
+	pvr = (pvr_t *)buf;
+	if (memcmp(&pvr->magic, "PVRT", sizeof(pvr->magic)) != 0)
+		return NULL;
+
+	// fix up header
+	pvr->len_file = LittleLong(pvr->len_file);
+	pvr->type = LittleLong(pvr->type);
+	pvr->width = LittleShort(pvr->width);
+	pvr->height = LittleShort(pvr->height);
+
+	if (force_rgba8)
+	{
+		// allocate rgba buffer
+		uint32_t *rgba = (uint32_t *)BZ_Malloc(pvr->width * pvr->height * sizeof(uint32_t));
+
+		// decompress image
+		for (y = 0; y < pvr->height / 2; y++)
+		{
+			for (x = 0; x < pvr->width / 2; x++)
+			{
+				uint16_t *colors;
+				int a, b, c, d;
+				int idx = pvr_from_xy(x, y, pvr->width, pvr->height);
+
+				if (idx < 0)
+				{
+					BZ_Free(rgba);
+					return NULL;
+				}
+
+				colors = &pvr->codebook[pvr->indices[idx] * 4];
+
+				a = ((y * 2) + 0) * pvr->width + ((x * 2) + 0);
+				b = ((y * 2) + 1) * pvr->width + ((x * 2) + 0);
+				c = ((y * 2) + 0) * pvr->width + ((x * 2) + 1);
+				d = ((y * 2) + 1) * pvr->width + ((x * 2) + 1);
+
+				rgba[a] = pvr_rgb565_to_rgba8888(colors[0]);
+				rgba[b] = pvr_rgb565_to_rgba8888(colors[1]);
+				rgba[c] = pvr_rgb565_to_rgba8888(colors[2]);
+				rgba[d] = pvr_rgb565_to_rgba8888(colors[3]);
+			}
+		}
+
+		// return stuff
+		if (width)
+			*width = pvr->width;
+		if (height)
+			*height = pvr->height;
+		if (format)
+			*format = PTI_RGBA8;
+		return (qbyte *)rgba;
+	}
+	else
+	{
+		// allocate rgb buffer
+		uint16_t *rgb = (uint16_t *)BZ_Malloc(pvr->width * pvr->height * sizeof(uint16_t));
+
+		// decompress image
+		for (y = 0; y < pvr->height / 2; y++)
+		{
+			for (x = 0; x < pvr->width / 2; x++)
+			{
+				uint16_t *colors;
+				int a, b, c, d;
+				int idx = pvr_from_xy(x, y, pvr->width, pvr->height);
+
+				if (idx < 0)
+				{
+					BZ_Free(rgb);
+					return NULL;
+				}
+
+				colors = &pvr->codebook[pvr->indices[idx] * 4];
+
+				a = ((y * 2) + 0) * pvr->width + ((x * 2) + 0);
+				b = ((y * 2) + 1) * pvr->width + ((x * 2) + 0);
+				c = ((y * 2) + 0) * pvr->width + ((x * 2) + 1);
+				d = ((y * 2) + 1) * pvr->width + ((x * 2) + 1);
+
+				rgb[a] = colors[0];
+				rgb[b] = colors[1];
+				rgb[c] = colors[2];
+				rgb[d] = colors[3];
+			}
+		}
+
+		// return stuff
+		if (width)
+			*width = pvr->width;
+		if (height)
+			*height = pvr->height;
+		if (format)
+			*format = PTI_RGB565;
+		return (qbyte *)rgb;
+	}
+}
+
+#endif // IMAGEFMT_PVR
 
 //This is for the version command
 void Image_PrintInputFormatVersions(void)
@@ -7299,6 +7477,10 @@ void Image_PrintInputFormatVersions(void)
 		Con_Printf(" lmp");
 	#endif
 
+	#ifdef IMAGEFMT_PVR
+		Con_Printf(" pvr");
+	#endif
+
 	//now properly registered ones.
 	for (i = 0; i < imageloader_count;  i++)
 		Con_Printf(" ^[%s^]", imageloader[i].funcs->loadername);
@@ -7351,6 +7533,11 @@ qbyte *ReadRawImageFile(qbyte *buf, int len, int *width, int *height, uploadfmt_
 		TRACE(("dbg: ReadRawImageFile: ico\n"));
 		return data;
 	}
+#endif
+
+#ifdef IMAGEFMT_PVR
+	if ((data = ReadPVRFile(buf, len, width, height, format, force_rgba8)))
+		return data;
 #endif
 
 #ifdef IMAGEFMT_PBM

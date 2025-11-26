@@ -7268,6 +7268,9 @@ qbyte *ReadPVRFile(qbyte *buf, int len, int *width, int *height, uploadfmt_t *fo
 {
 	int x, y;
 	pvr_t *pvr;
+	qbyte *ret;
+	uint32_t *rgba8888;
+	uint16_t *rgb565;
 
 	// skip gbix
 	if (memcmp(buf, "GBIX", 4) == 0)
@@ -7277,11 +7280,11 @@ qbyte *ReadPVRFile(qbyte *buf, int len, int *width, int *height, uploadfmt_t *fo
 	}
 
 	// check magic identifier
-	pvr = (pvr_t *)buf;
-	if (memcmp(&pvr->magic, "PVRT", sizeof(pvr->magic)) != 0)
+	if (memcmp(buf, "PVRT", 4) != 0)
 		return NULL;
 
 	// fix up header
+	pvr = (pvr_t *)buf;
 	pvr->len_file = LittleLong(pvr->len_file);
 	pvr->type = LittleLong(pvr->type);
 	pvr->width = LittleShort(pvr->width);
@@ -7289,53 +7292,20 @@ qbyte *ReadPVRFile(qbyte *buf, int len, int *width, int *height, uploadfmt_t *fo
 
 	if (force_rgba8)
 	{
-		// allocate rgba buffer
-		uint32_t *rgba = (uint32_t *)BZ_Malloc(pvr->width * pvr->height * sizeof(uint32_t));
-
-		// decompress image
-		for (y = 0; y < pvr->height / 2; y++)
-		{
-			for (x = 0; x < pvr->width / 2; x++)
-			{
-				uint16_t *colors;
-				int a, b, c, d;
-				int idx = pvr_from_xy(x, y, pvr->width, pvr->height);
-
-				if (idx < 0)
-				{
-					BZ_Free(rgba);
-					return NULL;
-				}
-
-				colors = &pvr->codebook[pvr->indices[idx] * 4];
-
-				a = ((y * 2) + 0) * pvr->width + ((x * 2) + 0);
-				b = ((y * 2) + 1) * pvr->width + ((x * 2) + 0);
-				c = ((y * 2) + 0) * pvr->width + ((x * 2) + 1);
-				d = ((y * 2) + 1) * pvr->width + ((x * 2) + 1);
-
-				rgba[a] = pvr_rgb565_to_rgba8888(colors[0]);
-				rgba[b] = pvr_rgb565_to_rgba8888(colors[1]);
-				rgba[c] = pvr_rgb565_to_rgba8888(colors[2]);
-				rgba[d] = pvr_rgb565_to_rgba8888(colors[3]);
-			}
-		}
-
-		// return stuff
-		if (width)
-			*width = pvr->width;
-		if (height)
-			*height = pvr->height;
-		if (format)
-			*format = PTI_RGBA8;
-		return (qbyte *)rgba;
+		ret = (qbyte *)BZ_Malloc(pvr->width * pvr->height * sizeof(uint32_t));
+		rgba8888 = (uint32_t *)ret;
+		rgb565 = NULL;
 	}
 	else
 	{
-		// allocate rgb buffer
-		uint16_t *rgb = (uint16_t *)BZ_Malloc(pvr->width * pvr->height * sizeof(uint16_t));
+		ret = (qbyte *)BZ_Malloc(pvr->width * pvr->height * sizeof(uint16_t));
+		rgba8888 = NULL;
+		rgb565 = (uint16_t *)ret;
+	}
 
-		// decompress image
+	// decompress image
+	if ((pvr->type & 0xFF00) == 0x300) // vq compressed
+	{
 		for (y = 0; y < pvr->height / 2; y++)
 		{
 			for (x = 0; x < pvr->width / 2; x++)
@@ -7346,7 +7316,7 @@ qbyte *ReadPVRFile(qbyte *buf, int len, int *width, int *height, uploadfmt_t *fo
 
 				if (idx < 0)
 				{
-					BZ_Free(rgb);
+					BZ_Free(ret);
 					return NULL;
 				}
 
@@ -7357,22 +7327,59 @@ qbyte *ReadPVRFile(qbyte *buf, int len, int *width, int *height, uploadfmt_t *fo
 				c = ((y * 2) + 0) * pvr->width + ((x * 2) + 1);
 				d = ((y * 2) + 1) * pvr->width + ((x * 2) + 1);
 
-				rgb[a] = colors[0];
-				rgb[b] = colors[1];
-				rgb[c] = colors[2];
-				rgb[d] = colors[3];
+				if (force_rgba8)
+				{
+					rgba8888[a] = pvr_rgb565_to_rgba8888(colors[0]);
+					rgba8888[b] = pvr_rgb565_to_rgba8888(colors[1]);
+					rgba8888[c] = pvr_rgb565_to_rgba8888(colors[2]);
+					rgba8888[d] = pvr_rgb565_to_rgba8888(colors[3]);
+				}
+				else
+				{
+					rgb565[a] = colors[0];
+					rgb565[b] = colors[1];
+					rgb565[c] = colors[2];
+					rgb565[d] = colors[3];
+				}
 			}
 		}
-
-		// return stuff
-		if (width)
-			*width = pvr->width;
-		if (height)
-			*height = pvr->height;
-		if (format)
-			*format = PTI_RGB565;
-		return (qbyte *)rgb;
 	}
+	else if ((pvr->type & 0xFF00) == 0x100) // twiddled
+	{
+		for (y = 0; y < pvr->height; y++)
+		{
+			for (x = 0; x < pvr->width; x++)
+			{
+				uint16_t color;
+				int idx = pvr_from_xy(x, y, pvr->width, pvr->height);
+
+				color = ((uint16_t *)pvr->codebook)[idx];
+
+				if (force_rgba8)
+				{
+					rgba8888[y * pvr->width + x] = pvr_rgb565_to_rgba8888(color);
+				}
+				else
+				{
+					rgb565[y * pvr->width + x] = color;
+				}
+			}
+		}
+	}
+	else
+	{
+		BZ_Free(ret);
+		return NULL;
+	}
+
+	// return stuff
+	if (width)
+		*width = pvr->width;
+	if (height)
+		*height = pvr->height;
+	if (format)
+		*format = force_rgba8 ? PTI_RGBA8 : PTI_RGB565;
+	return ret;
 }
 
 #endif // IMAGEFMT_PVR

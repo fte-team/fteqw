@@ -19,24 +19,52 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 */
 // mathlib.h
 
+#define BITOP_RUP1__(x)  (            (x) | (            (x) >>  1))
+#define BITOP_RUP2__(x)  (BITOP_RUP1__(x) | (BITOP_RUP1__(x) >>  2))
+#define BITOP_RUP4__(x)  (BITOP_RUP2__(x) | (BITOP_RUP2__(x) >>  4))
+#define BITOP_RUP8__(x)  (BITOP_RUP4__(x) | (BITOP_RUP4__(x) >>  8))
+#define BITOP_RUP16__(x) (BITOP_RUP8__(x) | (BITOP_RUP8__(x) >> 16))
+#define BITOP_RUP(x) (BITOP_RUP16__((uint32_t)(x) - 1) + 1)
+
+#define BITOP_LOG2__(x) (((((x) & 0xffff0000) != 0) << 4) \
+                        |((((x) & 0xff00ff00) != 0) << 3) \
+                        |((((x) & 0xf0f0f0f0) != 0) << 2) \
+                        |((((x) & 0xcccccccc) != 0) << 1) \
+                        |((((x) & 0xaaaaaaaa) != 0) << 0))
+
+#define BITOP_LOG2(x) BITOP_LOG2__(BITOP_RUP(x))
+
+#define FTE_BIT_CEIL(x) BITOP_RUP(x)
+#define FTE_IS_SCALAR(T) sizeof(T) != sizeof(T[1])
+
+enum align
+{
+	FTE_ALIGN_UNK = (0 << 0),
+	FTE_ALIGN_NUM = (1 << 0),
+	FTE_ALIGN_VEC = (1 << 1),
+	FTE_ALIGN_MAT = (1 << 2),
+	FTE_ALIGN_STD = (1 << 3), /* aligns if power 2 */
+};
+
+#define avec(T,N,A) \
+typeof(T FTE_ALIGN(((N == FTE_BIT_CEIL(N) && A != FTE_ALIGN_NUM && A != FTE_ALIGN_VEC) || ((A == FTE_ALIGN_VEC && FTE_IS_SCALAR(T)) || (A == FTE_ALIGN_MAT)) ? FTE_BIT_CEIL(N) : 1) * alignof(T))[N])
+#define vec(T,N) avec(T,N,FTE_ALIGN_STD)
+
 typedef float vec_t;
-typedef vec_t vec2_t[2];
-typedef vec_t vec3_t[3];
-typedef vec_t vec4_t[4];
-typedef vec_t vec5_t[5];
+typedef vec(vec_t, 2)                      vec2_t;
+typedef vec(vec_t, 3)                      vec3_t;
+typedef vec(vec_t, 4)                      vec4_t;
+typedef vec(vec_t, 5)                      vec5_t;
 
 typedef int ivec_t;
-typedef ivec_t ivec2_t[2];
-typedef ivec_t ivec3_t[3];
-typedef ivec_t ivec4_t[4];
-typedef ivec_t ivec5_t[5];
+typedef vec(ivec_t, 2)                    ivec2_t;
+typedef vec(ivec_t, 3)                    ivec3_t;
+typedef vec(ivec_t, 4)                    ivec4_t;
+typedef vec(ivec_t, 5)                    ivec5_t;
 
-/*16-byte aligned vectors, for auto-vectorising, should propogate to structs
-sse and altivec can unroll loops using aligned reads, which should be faster... 4 at once.
-*/
-typedef FTE_ALIGN(16) vec3_t avec3_t;
-typedef FTE_ALIGN(16) vec4_t avec4_t;
-typedef FTE_ALIGN(4) qbyte byte_vec4_t[4];
+typedef avec(vec_t, 3, FTE_ALIGN_VEC)     avec3_t;
+typedef avec(vec_t, 4, FTE_ALIGN_VEC)     avec4_t;
+typedef avec(qbyte, 4, FTE_ALIGN_VEC) byte_vec4_t;
 
 //VECV_STRIDE is used only as an argument for opengl.
 #ifdef FTE_TARGET_WEB

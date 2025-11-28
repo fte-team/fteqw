@@ -50,21 +50,21 @@ enum align
 typeof(T FTE_ALIGN(((N == FTE_BIT_CEIL(N) && A != FTE_ALIGN_NUM && A != FTE_ALIGN_VEC) || ((A == FTE_ALIGN_VEC && FTE_IS_SCALAR(T)) || (A == FTE_ALIGN_MAT)) ? FTE_BIT_CEIL(N) : 1) * alignof(T))[N])
 #define vec(T,N) avec(T,N,FTE_ALIGN_STD)
 
-typedef float vec_t;
-typedef vec(vec_t, 2)                      vec2_t;
-typedef vec(vec_t, 3)                      vec3_t;
-typedef vec(vec_t, 4)                      vec4_t;
-typedef vec(vec_t, 5)                      vec5_t;
+typedef  float vec_t;
+typedef  vec( vec_t,2)                    vec2_t;
+typedef  vec( vec_t,3)                    vec3_t;
+typedef  vec( vec_t,4)                    vec4_t;
+typedef  vec( vec_t,5)                    vec5_t;
 
-typedef int ivec_t;
-typedef vec(ivec_t, 2)                    ivec2_t;
-typedef vec(ivec_t, 3)                    ivec3_t;
-typedef vec(ivec_t, 4)                    ivec4_t;
-typedef vec(ivec_t, 5)                    ivec5_t;
+typedef  int ivec_t;
+typedef  vec(ivec_t,2)                   ivec2_t;
+typedef  vec(ivec_t,3)                   ivec3_t;
+typedef  vec(ivec_t,4)                   ivec4_t;
+typedef  vec(ivec_t,5)                   ivec5_t;
 
-typedef avec(vec_t, 3, FTE_ALIGN_VEC)     avec3_t;
-typedef avec(vec_t, 4, FTE_ALIGN_VEC)     avec4_t;
-typedef avec(qbyte, 4, FTE_ALIGN_VEC) byte_vec4_t;
+typedef avec( vec_t,3,FTE_ALIGN_VEC)     avec3_t;
+typedef avec( vec_t,4,FTE_ALIGN_VEC)     avec4_t;
+typedef avec( qbyte,4,FTE_ALIGN_VEC) byte_vec4_t;
 
 //VECV_STRIDE is used only as an argument for opengl.
 #ifdef FTE_TARGET_WEB

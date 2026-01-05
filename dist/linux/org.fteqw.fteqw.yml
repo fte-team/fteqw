@@ -153,6 +153,7 @@ modules:
       - -DFTE_TOOL_IQM=false
       - -DFTE_TOOL_IMAGE=false
       - -DFTE_INSTALL_BINDIR=bin
+      - -DFTE_PLUG_FFMPEG=false
     sources:
       # Launcher script
       - type: file

@@ -29,21 +29,3 @@ index 2d618c1b1..74a4a51b4 100644
  			Con_Printf("package manager: Can't write %s\n", buf);
  		else
  			Con_Printf("package manager: Can't update installed list\n");
-@@ -5939,7 +5943,7 @@ static void MD_Draw (int x, int y, struct menucustom_s *c, struct emenu_s *m)
- 		if (p->flags & DPF_DISPLAYVERSION)
- 			n = va("%s (%s)", n, *p->version?p->version:"unversioned");
- 
--		if (p->flags & DPF_TESTING)	//hide testing updates 
-+		if (p->flags & DPF_TESTING)	//hide testing updates
- 			n = va("^h%s", n);
- 
- 		if (!PM_CheckPackageFeatures(p))
-@@ -6264,7 +6268,7 @@ static qboolean MD_Source_Key (struct menucustom_s *c, struct emenu_s *m, int ke
- 
- static void MD_AutoUpdate_Draw (int x, int y, struct menucustom_s *c, struct emenu_s *m)
- {
--	char *settings[] = 
-+	char *settings[] =
- 	{
- 		"Off",
- 		"Stable Updates",

@@ -36,6 +36,7 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #define	TYP_SOUND		67
 #define	TYP_MIPTEX		68
 #define	TYP_HLFONT		70
+#define	TYP_PVRTEX		71
 
 //on disk representation of most q1 images.
 typedef struct

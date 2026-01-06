@@ -552,6 +552,10 @@ qbyte *W_GetTexture(const char *name, int *width, int *height, uploadfmt_t *form
 			}
 			else if (lumptype == TYP_HLFONT)
 				; //FIXME... gah
+			else if (lumptype == TYP_PVRTEX)
+			{	//hldc, pvr texture
+				return ReadPVRFile((qbyte*)p, lumpsize, width, height, format, true);
+			}
 			else
 				Con_Printf("W_GetTexture: unknown lump type\n");
 		}
@@ -572,6 +576,15 @@ qbyte *W_GetTexture(const char *name, int *width, int *height, uploadfmt_t *form
 				if (tex && VFS_READ(file, tex, texwadlump[i].size) == texwadlump[i].size)
 				{
 					Sys_UnlockMutex(wadmutex);
+
+					//hldc, pvr texture
+					if (!memcmp((qbyte*)tex, "GBIX", 4) || !memcmp((qbyte*)tex, "PVRT", 4))
+					{
+						data = ReadPVRFile((qbyte*)tex, texwadlump[i].size, width, height, format, true);
+						BZ_Free(tex);
+						return data;
+					}
+
 					tex->width = LittleLong(tex->width);
 					tex->height = LittleLong(tex->height);
 					for (j = 0;j < MIPLEVELS;j++)

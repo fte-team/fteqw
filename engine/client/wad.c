@@ -552,10 +552,12 @@ qbyte *W_GetTexture(const char *name, int *width, int *height, uploadfmt_t *form
 			}
 			else if (lumptype == TYP_HLFONT)
 				; //FIXME... gah
+#ifdef IMAGEFMT_PVR
 			else if (lumptype == TYP_PVRTEX)
 			{	//hldc, pvr texture
 				return ReadPVRFile((qbyte*)p, lumpsize, width, height, format, true);
 			}
+#endif
 			else
 				Con_Printf("W_GetTexture: unknown lump type\n");
 		}
@@ -577,6 +579,7 @@ qbyte *W_GetTexture(const char *name, int *width, int *height, uploadfmt_t *form
 				{
 					Sys_UnlockMutex(wadmutex);
 
+#ifdef IMAGEFMT_PVR
 					//hldc, pvr texture
 					if (!memcmp((qbyte*)tex, "GBIX", 4) || !memcmp((qbyte*)tex, "PVRT", 4))
 					{
@@ -584,6 +587,7 @@ qbyte *W_GetTexture(const char *name, int *width, int *height, uploadfmt_t *form
 						BZ_Free(tex);
 						return data;
 					}
+#endif
 
 					tex->width = LittleLong(tex->width);
 					tex->height = LittleLong(tex->height);

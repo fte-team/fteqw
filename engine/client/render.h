@@ -644,6 +644,9 @@ qbyte *ReadPCXFile(qbyte *buf, int length, int *width, int *height);
 void *ReadTargaFile(qbyte *buf, int length, int *width, int *height, uploadfmt_t *format, qboolean greyonly, uploadfmt_t forceformat);
 qbyte *ReadPNGFile(const char *fname, qbyte *buf, int length, int *width, int *height, uploadfmt_t *format, qboolean force_rgb32);
 qbyte *ReadPCXPalette(qbyte *buf, int len, qbyte *out);
+#ifdef IMAGEFMT_PVR
+qbyte *ReadPVRFile(qbyte *buf, int len, int *width, int *height, uploadfmt_t *format, qboolean force_rgba8);
+#endif
 
 qbyte *ReadRawImageFile(qbyte *buf, int len, int *width, int *height, uploadfmt_t *format, qboolean force_rgba8, const char *fname);
 void *Image_ResampleTexture (uploadfmt_t format, const void *in, int inwidth, int inheight, void *out,  int outwidth, int outheight);

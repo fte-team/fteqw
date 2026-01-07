@@ -299,7 +299,7 @@ size_t CalcHMAC(hashfunc_t *hashfunc, unsigned char *digest, size_t maxdigestsiz
 
 
 #ifndef __cplusplus
-typedef enum {false, true} qboolean;
+typedef enum {qfalse = (const int)false, qtrue = (const int)true} qboolean;
 #else
 typedef int qboolean;
 extern "C" {

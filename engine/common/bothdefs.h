@@ -861,8 +861,8 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 		#define strnicmp _strnicmp
 	#else
 		//Posix
-		#define stricmp strcasecmp
-		#define strnicmp strncasecmp
+		#define stricmp Q_strcasecmp
+		#define strnicmp Q_strncasecmp
 	#endif
 #endif
 

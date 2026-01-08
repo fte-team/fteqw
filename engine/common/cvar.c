@@ -52,7 +52,7 @@ void *AHash_GetInsensitive(ahashtable_t *table, const char *name)
 	if (b)
 		for (i = 0; i < b->numentries; i++)
 		{
-			if (!strcasecmp(b->entry[i].string, name))
+			if (!Q_strcasecmp(b->entry[i].string, name))
 				return b->entry[i].data;
 		}
 	return NULL;
@@ -64,7 +64,7 @@ void AHash_RemoveDataInsensitive(ahashtable_t *table, const char *name, void *da
 	size_t i;
 	for (i = 0; i < b->numentries; i++)
 	{
-		if (b->entry[i].data == data && !strcasecmp(b->entry[i].string, name))
+		if (b->entry[i].data == data && !Q_strcasecmp(b->entry[i].string, name))
 		{
 			//strip it.
 			b->numentries--;

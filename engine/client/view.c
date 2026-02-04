@@ -75,6 +75,8 @@ static cvar_t	v_deathtilt				= CVARD("v_deathtilt", "1", "Specifies whether to t
 static cvar_t	cl_bob					= CVARD("cl_bob","0.02", "Controls how much the camera position should bob up down as the player runs around.");
 static cvar_t	cl_bobcycle				= CVAR("cl_bobcycle","0.6");
 static cvar_t	cl_bobup				= CVAR("cl_bobup","0.5");
+static cvar_t	cl_bob_quake			= CVARD("cl_bob_quake", "1", "Controls whether to use the weird view bobbing from vanilla Quake.");
+static cvar_t	cl_bob_air				= CVARD("cl_bob_air", "1", "Controls whether the view should bob while the player is in the air.");
 
 static cvar_t	cl_bobmodel				= CVARD("cl_bobmodel", "0", "Controls whether the viewmodel should bob up and down as the player runs around.");
 static cvar_t	cl_bobmodel_side		= CVAR("cl_bobmodel_side", "0.15");
@@ -224,7 +226,7 @@ float V_CalcBob (playerview_t *pv, qboolean queryold)
 	if (cl_bobcycle.value <= 0 || cl.intermissionmode != IM_NONE)
 		return 0;
 
-	if (!pv->onground || cl.paused)
+	if ((!cl_bob_air.ival && !pv->onground) || cl.paused)
 	{
 		pv->bobcltime = cl.time;
 		return pv->bob;		// just use old value. FIXME: diminish over time.
@@ -244,9 +246,16 @@ float V_CalcBob (playerview_t *pv, qboolean queryold)
 	hspeed = DotProduct(pv->simvel, pv->gravitydir);
 	VectorMA(pv->simvel, -hspeed, pv->gravitydir, hvel);
 	hspeed = VectorLength(hvel);
-	hspeed = bound(0, hspeed, 400);
-	bob = hspeed * bound(0, cl_bob.value, 0.05);
+	if (cl_bob_quake.ival)
+		bob = hspeed * max (0, cl_bob.value);
+	else
+	{
+		hspeed = bound(0, hspeed, 400);
+		bob = hspeed * bound(0, cl_bob.value, 0.05);
+	}
 	pv->bob = bob*0.3 + bob*0.7*sin(cycle);
+	if (cl_bob_quake.ival)
+		pv->bob = bound (-7, pv->bob, 4);
 	return pv->bob;
 
 }
@@ -2779,6 +2788,8 @@ void V_Init (void)
 	Cvar_Register (&cl_bob, VIEWVARS);
 	Cvar_Register (&cl_bobcycle, VIEWVARS);
 	Cvar_Register (&cl_bobup, VIEWVARS);
+	Cvar_Register (&cl_bob_quake, VIEWVARS);
+	Cvar_Register (&cl_bob_air, VIEWVARS);
 
 	Cvar_Register (&cl_bobmodel, VIEWVARS);
 	Cvar_Register (&cl_bobmodel_side, VIEWVARS);

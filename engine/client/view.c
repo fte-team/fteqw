@@ -242,7 +242,7 @@ float V_CalcBob (playerview_t *pv, qboolean queryold)
 // bob is proportional to simulated velocity in the xy plane
 // (don't count Z, or jumping messes it up)
 	hspeed = DotProduct(pv->simvel, pv->gravitydir);
-	VectorMA(pv->simvel, hspeed, pv->gravitydir, hvel);
+	VectorMA(pv->simvel, -hspeed, pv->gravitydir, hvel);
 	hspeed = VectorLength(hvel);
 	hspeed = bound(0, hspeed, 400);
 	bob = hspeed * bound(0, cl_bob.value, 0.05);

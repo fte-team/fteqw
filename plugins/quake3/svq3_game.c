@@ -1046,7 +1046,8 @@ static qintptr_t Q3G_SystemCalls(void *offset, quintptr_t mask, qintptr_t fn, co
 		return !!mapentspointer;
 
 	case G_REAL_TIME:																			//	41
-		VALIDATEPOINTER(arg[0], sizeof(q3time_t));
+		if (arg[0])
+		  VALIDATEPOINTER(arg[0], sizeof(q3time_t));
 		return Q3VM_GetRealtime(VM_POINTER(arg[0]));
 	case G_SNAPVECTOR:
 		{

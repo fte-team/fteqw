@@ -1406,6 +1406,7 @@ static void SVC_GetInfo (const char *challenge, int fullstatus)
 	*resp++ = '\n';
 
 	SV_GeneratePublicServerinfo(resp, response+sizeof(response));
+	resp += strlen(resp);
 
 	if (fullstatus)
 	{

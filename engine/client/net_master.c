@@ -2367,20 +2367,20 @@ void Master_CheckPollSockets(void)
 #ifdef HAVE_IPV6
 			if (!strncmp(s, "getserversResponse6", 19) && (s[19] == '\\' || s[19] == '/'))	//parse a bit more...
 			{
-				net_message.currentbit = (c+19-1)<<3;
+				net_message.currentbit = c+((19-1)<<3);
 				CL_MasterListParse(NA_IPV6, SS_GETINFO, true);
 				continue;
 			}
 #endif
 			if (!strncmp(s, "getserversExtResponse", 21) && (s[21] == '\\' || s[21] == '/'))	//parse a bit more...
 			{
-				net_message.currentbit = (c+21-1)<<3;
+				net_message.currentbit = c+((21-1)<<3);
 				CL_MasterListParse(NA_IP, SS_GETINFO, true);
 				continue;
 			}
 			if (!strncmp(s, "getserversResponse", 18) && (s[18] == '\\' || s[18] == '/'))	//parse a bit more...
 			{
-				net_message.currentbit = (c+18-1)<<3;
+				net_message.currentbit = c+((18-1)<<3);
 				CL_MasterListParse(NA_IP, SS_GETINFO, true);
 				continue;
 			}

@@ -523,6 +523,14 @@ $(PLUG_PREFIX)cod$(PLUG_NATIVE_EXT): cod/codmod.c cod/codbsp.c cod/codmat.c cod/
 NATIVE_PLUGINS+=cod
 ######################################
 
+######################################
+#for compat with narbacular drop's file formats
+$(PLUG_PREFIX)narbdrop$(PLUG_NATIVE_EXT): narbdrop/fs_ore.c narbdrop/mod_cmf.c narbdrop/narbdrop.c plugin.c
+	$(CC) $(BASE_CFLAGS) $(CFLAGS) -DFTEPLUGIN -DMULTITHREAD -o $@ -shared $(PLUG_CFLAGS) $^ $(PLUG_DEFFILE) $(PLUG_LDFLAGS)
+	$(call EMBEDMETA,narbdrop,$@,NarbDrop Formats,Provides support for various formats used by Narbacular Drop.)
+NATIVE_PLUGINS+=narbdrop
+######################################
+
 
 
 ifeq ($(findstring win,$(FTE_TARGET)),win)

@@ -7,6 +7,9 @@
 #include <ctype.h>
 #ifdef _WIN32
 #include <windows.h>
+#ifdef CreateWindow
+#undef CreateWindow
+#endif
 #endif
 static qboolean verbose;
 void VARGS Sys_Error (const char *fmt, ...)

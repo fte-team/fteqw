@@ -20319,7 +20319,7 @@ void QCC_PR_ParseDefs (const char *classname, pbool fatal_unused)
 				pbool old_assumef64 = flag_assume_double;
 				pbool old_assumevar = flag_assumevar;
 				pbool old_subscope = pr_subscopedlocals;
-				if (!strcasecmp(pr_token, "C"))
+				if (!QC_strcasecmp(pr_token, "C"))
 				{
 					flag_qcfuncs = false;	//ignore * on funcptrs, promote varg floats to doubles, some other quirks
 					flag_cpriority = true;
@@ -20328,7 +20328,7 @@ void QCC_PR_ParseDefs (const char *classname, pbool fatal_unused)
 					flag_assumevar = true;
 					pr_subscopedlocals = true;
 				}
-				else if (!strcasecmp(pr_token, "QC"))
+				else if (!QC_strcasecmp(pr_token, "QC"))
 				{
 					flag_qcfuncs = true;	//no promotion, func references are simply references, etc
 					//flag_cpriority = false; //refrain from changing it

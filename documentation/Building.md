@@ -86,16 +86,25 @@ The setup script will install **android+emscripten** dependancies for you, so yo
 
 - The script can also be run from cygwin, but does not support compiling for Linux then.
 
-## Windows Systems (cygwin)
+## Windows Systems (cygwin or cmake)
 
 If you want to compile a Win64 build in cygwin, it should be as simple as:
 
 	make makelibs FTE_TARGET=win64
 	make gl-rel FTE_TARGET=win64
 
-or
+or to compile using the msvc toolchain that comes with Visual Studio, install the vcpkg depencies listed in the root of the repo using vcpkg the build using CMake:
 
-	TODO
+	# set VCPKG_DIR to wherever you've cloned VCPKG...
+	call "%VCPKG_DIR%\bootstrap-vcpkg.bat" -disableMetrics
+	"%VCPKG_DIR%\vcpkg.exe" install --triplet x64-windows --x-manifest-root="%FTEQW_DIR%"
+	cmake --build --preset windows-vs2026-full-allbuild
+
+The preset used above presumes VS2026. If you can compile with a different generator, feel free to submit a new preset for it in CMakePresets.json.
+
+	
+
+
 
 You only should need gcc and make installed in cygwin for this.
 

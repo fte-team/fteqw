@@ -1,0 +1,88 @@
+{
+  "version": 6,
+  "cmakeMinimumRequired": {
+    "major": 3,
+    "minor": 21,
+    "patch": 0
+  },
+  "configurePresets": [
+    {
+      "name": "windows-vs2026-min",
+      "displayName": "Windows VS2026 Minimal (fteqw-sv)",
+      "generator": "Visual Studio 18 2026",
+      "architecture": {
+        "value": "x64",
+        "strategy": "set"
+      },
+      "binaryDir": "${sourceDir}/build-vs2026-min",
+      "cacheVariables": {
+        "CMAKE_INSTALL_PREFIX": "${sourceDir}/local-install",
+        "FTE_ENGINE": "OFF",
+        "FTE_ENGINE_SERVER_ONLY": "ON",
+        "FTE_ENGINE_CLIENT_ONLY": "OFF",
+        "FTE_TOOL_QCC": "OFF",
+        "FTE_TOOL_QCCGUI": "OFF",
+        "FTE_MENU_SYS": "OFF",
+        "FTE_CSADDON": "OFF",
+        "FTE_TOOL_IQM": "OFF",
+        "FTE_TOOL_IMAGE": "OFF",
+        "FTE_TOOL_QTV": "OFF",
+        "FTE_TOOL_HTTPSV": "OFF",
+        "FTE_TOOL_MASTER": "OFF",
+        "FTE_PLUG_QUAKE3": "OFF",
+        "FTE_PLUG_COD": "OFF",
+        "FTE_PLUG_BULLET": "OFF",
+        "FTE_PLUG_ODE": "OFF",
+        "FTE_PLUG_QI": "OFF",
+        "FTE_PLUG_EZHUD": "OFF",
+        "FTE_PLUG_IRC": "OFF",
+        "FTE_PLUG_HL2": "OFF",
+        "FTE_PLUG_MODELS": "OFF",
+        "FTE_PLUG_FFMPEG": "OFF",
+        "FTE_PLUG_OPENXR": "OFF",
+        "FTE_PLUG_CEF": "OFF",
+        "FTE_PLUG_XMPP": "OFF"
+      }
+    },
+    {
+      "name": "windows-vs2026-full-vcpkg",
+      "displayName": "Windows VS2026 Full (vcpkg)",
+      "generator": "Visual Studio 18 2026",
+      "architecture": {
+        "value": "x64",
+        "strategy": "set"
+      },
+      "binaryDir": "${sourceDir}/build-vs2026-full-vcpkg",
+      "cacheVariables": {
+        "CMAKE_INSTALL_PREFIX": "${sourceDir}/local-install",
+        "CMAKE_TOOLCHAIN_FILE": "${sourceDir}/../vcpkg/scripts/buildsystems/vcpkg.cmake",
+        "VCPKG_TARGET_TRIPLET": "x64-windows"
+      },
+      "environment": {
+        "PATH": "${sourceDir}/../vcpkg/installed/x64-windows/tools/gettext/bin;$penv{PATH}"
+      }
+    }
+  ],
+  "buildPresets": [
+    {
+      "name": "windows-vs2026-min-fteqw-sv",
+      "displayName": "Build fteqw-sv (Release)",
+      "configurePreset": "windows-vs2026-min",
+      "configuration": "Release",
+      "targets": [
+        "fteqw-sv"
+      ],
+      "jobs": 4
+    },
+    {
+      "name": "windows-vs2026-full-allbuild",
+      "displayName": "Build ALL_BUILD (Release)",
+      "configurePreset": "windows-vs2026-full-vcpkg",
+      "configuration": "Release",
+      "targets": [
+        "ALL_BUILD"
+      ],
+      "jobs": 4
+    }
+  ]
+}

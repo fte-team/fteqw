@@ -44,3 +44,11 @@ engine/droid/project.properties
 
 # Flatpak build artifacts
 .flatpak-builder
+
+.vscode/
+.vs/
+build*/
+*.log
+CMakeCache.txt
+CMakeFiles/*
+vcpkg_installed/

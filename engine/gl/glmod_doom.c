@@ -842,6 +842,14 @@ qboolean Doom_Trace(model_t *model, int hulloverride, const framestate_t *frames
 					|| opentop - openbot < maxs[2] - mins[2]
 					|| openbot - (start[2] + mins[2]) > 24)
 				{	//unconditionally clipped - the wall clip below blocks horizontally.
+					if (ld->sidedef[1] != 0xffff)	//DEBUG (developer 1): skip plain one-sided walls
+						Con_DPrintf("Doom_Trace ld=%u BLOCK imp=%i fit=%i step=%i fs(f%g c%g) bs(f%g c%g) openbot=%g opentop=%g feet=%g h=%g\n",
+							(unsigned)(ld - dm->linedef),
+							(ld->flags & LINEDEF_IMPASSABLE)!=0,
+							(opentop - openbot < maxs[2]-mins[2]),
+							(openbot - (start[2]+mins[2]) > 24),
+							fs->floorheight, fs->ceilingheight, bs->floorheight, bs->ceilingheight,
+							openbot, opentop, start[2]+mins[2], maxs[2]-mins[2]);
 				}
 				else
 				{	//ensure that the side we are passing on to passes the clip (no ceiling/floor clips happened first)
@@ -917,6 +925,9 @@ qboolean Doom_Trace(model_t *model, int hulloverride, const framestate_t *frames
 						continue;
 					}
 
+					Con_DPrintf("Doom_Trace ld=%u FALLTHRU pop2=%g sec2(f%g c%g) need pop2 in (%g..%g) -> wallclip\n",
+						(unsigned)(ld - dm->linedef), pointonplane[2], sec2->floorheight, sec2->ceilingheight,
+						sec2->floorheight-mins[2], sec2->ceilingheight-maxs[2]);
 //					Con_Printf("blocked by two sided line\n");
 //					sec2->floorheight--;
 				}
@@ -3726,7 +3737,10 @@ void QuakifyThings(doommap_t *dm)
 			doom_player1_start[0] = dm->thing[i].xpos;
 			doom_player1_start[1] = dm->thing[i].ypos;
 			doom_player1_start[2] = zpos;
-			doom_player1_yaw = dm->thing[i].angle;
+			//Doom thing angle -> FTE yaw. The player spawned facing 90deg to the right of the
+			//Doom-authored direction, so add 90 (turn left/CCW). NOTE: if this overshoots to the
+			//LEFT instead, flip +90 to -90 (one-char fix) - it's a coordinate-convention offset.
+			doom_player1_yaw = dm->thing[i].angle + 90;
 		}
 
 		spawnflags = SPAWNFLAG_NOT_EASY | SPAWNFLAG_NOT_MEDIUM | SPAWNFLAG_NOT_HARD | SPAWNFLAG_NOT_DEATHMATCH;

@@ -2804,6 +2804,66 @@ static void Doom_BarrelExplode(doommap_t *dm, struct doommonster_s *barrel, cons
 //a one-sided wall, an impassable or block-monsters line, or a two-sided line whose opening is
 //too short / steps up too far blocks if the monster's circle would push past it. Touching a wall
 //at exactly radius is allowed (so it can slide along), only crossing into it blocks.
+//Canonical Doom player move check - ported from the reference ports (sdldoom / chocolate-doom
+//p_map.c: P_TryMove + P_CheckPosition + PIT_CheckLine + P_LineOpening). This is the RIGHT model:
+//it validates ONLY the XY move and reports the floor/ceiling the player would stand under; it does
+//NOT touch z (Doom never decides walls and floors in one pass - Z is handled separately, snapping
+//the player onto floorz with gravity, like P_ZMovement). Foundation for replacing the swept-AABB
+//Doom_Trace for the fg_doom player.
+//
+//Tests a box of `radius`/`height` at (nx,ny) with the mover's current feet z `feetz`. Accumulates
+//tmfloorz = highest opening floor across all touched lines (the floor you'd stand on), tmceilingz =
+//lowest opening ceiling, tmdropoffz = lowest adjacent floor. Returns false (blocked) for: a solid/
+//impassable line, an opening shorter than `height`, a step up >24, or a dropoff >24 (vanilla blocks
+//players from walking off tall ledges too). Player ignores BLOCKMONSTERS. Outputs *outfloor/*outceil.
+qboolean Doom_PlayerTryMove(doommap_t *dm, float nx, float ny, float feetz,
+	float radius, float height, float *outfloor, float *outceil)
+{
+	unsigned int j;
+	vec3_t p; msector_t *sec;
+	float tmfloorz, tmceilingz, tmdropoffz;
+	p[0]=nx; p[1]=ny; p[2]=feetz;
+	sec = Doom_SectorNearPoint(dm, p);
+	if (!sec)
+		return false;
+	tmfloorz = tmdropoffz = sec->floorheight;	//start from the destination subsector (P_CheckPosition)
+	tmceilingz = sec->ceilingheight;
+	for (j = 0; j < dm->numlinedefs; j++)
+	{
+		dlinedef_t *ld = &dm->linedef[j];
+		mdoomvertex_t *v1 = &dm->vertexes[ld->vert[0]];
+		mdoomvertex_t *v2 = &dm->vertexes[ld->vert[1]];
+		float ex = v2->xpos-v1->xpos, ey = v2->ypos-v1->ypos;
+		float len2 = ex*ex+ey*ey, t, cx, cy, ddx, ddy;
+		msector_t *fs, *bs; float ot, ob, lf;
+		if (len2 < 0.001f)
+			continue;
+		t = ((nx-v1->xpos)*ex + (ny-v1->ypos)*ey)/len2;	//closest point on the segment to (nx,ny)
+		if (t<0) t=0; else if (t>1) t=1;
+		cx = v1->xpos + t*ex; cy = v1->ypos + t*ey;
+		ddx = nx-cx; ddy = ny-cy;
+		if (ddx*ddx+ddy*ddy >= radius*radius)
+			continue;	//the box doesn't reach this line (PIT_CheckLine bbox reject)
+		if (ld->sidedef[1] == 0xffff || (ld->flags & LINEDEF_IMPASSABLE))
+			return false;	//one-sided wall or explicitly impassable (player ignores BLOCKMONSTERS)
+		//P_LineOpening: tightest opening across every touched line
+		fs = &dm->sector[dm->sidedef[ld->sidedef[0]].sector];
+		bs = &dm->sector[dm->sidedef[ld->sidedef[1]].sector];
+		ot = (fs->ceilingheight < bs->ceilingheight) ? fs->ceilingheight : bs->ceilingheight;
+		if (fs->floorheight > bs->floorheight) { ob = fs->floorheight; lf = bs->floorheight; }
+		else                                   { ob = bs->floorheight; lf = fs->floorheight; }
+		if (ot < tmceilingz) tmceilingz = ot;
+		if (ob > tmfloorz)   tmfloorz   = ob;
+		if (lf < tmdropoffz) tmdropoffz = lf;
+	}
+	*outfloor = tmfloorz;
+	*outceil  = tmceilingz;
+	if (tmceilingz - tmfloorz < height)	return false;	//doesn't fit (closed door / low gap)
+	if (tmfloorz - feetz > 24)			return false;	//step up too big
+	if (tmfloorz - tmdropoffz > 24)		return false;	//dropoff too big (vanilla blocks players)
+	return true;
+}
+
 static qboolean Doom_MonsterBlocked(doommap_t *dm, struct doommonster_s *m, float nx, float ny)
 {
 	float r = m->radius;

@@ -2262,7 +2262,10 @@ static void SV_Status_f (void)
 	#ifdef HAVE_HTTPSV
 		extern cvar_t net_enable_http, net_enable_rtcbroker, net_enable_websockets;
 	#endif
-	extern cvar_t net_enable_qizmo, net_enable_qtv;
+	extern cvar_t net_enable_qizmo;
+	#ifdef MVD_RECORDING
+		extern cvar_t net_enable_qtv;
+	#endif
 #endif
 #ifdef NQPROT
 	extern cvar_t sv_listen_nq, sv_listen_dp;
@@ -2389,8 +2392,10 @@ static void SV_Status_f (void)
 #endif
 		if (net_enable_qizmo.ival)
 			Con_TPrintf(" ^[Qizmo\\tip\\Compatible with the tcp connection feature of qizmo, equivelent to 'connect tcp://ip:port' in FTE.^]");
+#ifdef MVD_RECORDING
 		if (net_enable_qtv.ival)
 			Con_TPrintf(" ^[QTV\\tip\\Allows receiving streamed mvd data from this server.^]");
+#endif
 		Con_Printf("\n");
 #endif
 		break;

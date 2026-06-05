@@ -89,11 +89,14 @@ static qboolean AVDec_SetSize (void *vctx, int width, int height)
 static int AVIO_Read(void *opaque, uint8_t *buf, int buf_size)
 {
 	struct decctx *ctx = opaque;
-	int ammount;
-	ammount = VFS_READ(ctx->file, buf, buf_size);
-	if (ammount > 0)
-		ctx->fileofs += ammount;
-	return ammount;
+	int amount;
+	amount = VFS_READ(ctx->file, buf, buf_size);
+	if (amount > 0) {
+		ctx->fileofs += amount;
+	} else {
+		return AVERROR_EOF;
+	}
+	return amount;
 }
 static int64_t AVIO_Seek(void *opaque, int64_t offset, int whence)
 {

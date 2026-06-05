@@ -611,6 +611,8 @@ static int Doom_BoxOnLineSide(float bminx, float bminy, float bmaxx, float bmaxy
 	return (p1 == p2) ? p1 : -1;
 }
 
+qboolean Doom_PlayerTryMove(doommap_t *dm, float nx, float ny, float feetz, float radius, float height, float *outfloor, float *outceil);
+
 qboolean Doom_Trace(model_t *model, int hulloverride, const framestate_t *framestate, const vec3_t axis[3], const vec3_t start, const vec3_t end, const vec3_t mins, const vec3_t maxs, qboolean iscapsule, unsigned int contentstype, trace_t *trace)
 {
 	doommap_t *dm = model->meshinfo;
@@ -830,13 +832,16 @@ qboolean Doom_Trace(model_t *model, int hulloverride, const framestate_t *frames
 				bs = (ld->sidedef[1] != 0xffff) ? &dm->sector[dm->sidedef[ld->sidedef[1]].sector] : fs;
 				opentop = (fs->ceilingheight < bs->ceilingheight) ? fs->ceilingheight : bs->ceilingheight;
 				openbot = (fs->floorheight  > bs->floorheight)  ? fs->floorheight  : bs->floorheight;
-				//A two-sided line is a solid wall to the player if it's explicitly impassable, one-sided,
-				//the gap is too short to fit through, OR the opening's floor (a window sill / raised ledge)
-				//is more than 24u above the sector the player is standing in. That last step-up limit is
-				//what vanilla Doom enforces on the floor (it has no jump) - without it you hop out of windows.
+				//A two-sided line is a solid wall to the player only if it's explicitly impassable,
+				//one-sided, or the opening is too short to fit through (closed door / low lintel). The
+				//step-up / dropoff limit is NOT tested here per-line: the swept box brushes every line
+				//within its radius, so a per-line "step > 24" test wrongly blocks lines you merely pass
+				//NEAR (an adjacent raised sector) = invisible walls (this was the original bug). Step-up
+				//and dropoff are instead checked ONCE at the destination via Doom_PlayerTryMove (canonical
+				//P_TryMove), below - which uses the sector you actually END in, so brushing a high
+				//neighbour doesn't false-block.
 				if (ld->flags & LINEDEF_IMPASSABLE || ld->sidedef[1] == 0xffff
-					|| opentop - openbot < maxs[2] - mins[2]
-					|| openbot - ((d1 > 0) ? fs : bs)->floorheight > 24)
+					|| opentop - openbot < maxs[2] - mins[2])
 				{	//unconditionally clipped - the wall clip below blocks horizontally.
 				}
 				else
@@ -1003,6 +1008,31 @@ qboolean Doom_Trace(model_t *model, int hulloverride, const framestate_t *frames
 					trace->plane.dist = -(sec1->ceilingheight-maxs[2]);
 				}
 			}
+		}
+	}
+
+	//Canonical step-up / dropoff check at the DESTINATION (P_TryMove, ported in Doom_PlayerTryMove).
+	//Done once here - not per-line in the wall sweep above - using the sector the move actually ends
+	//in, so it can't be tripped by merely brushing a raised neighbour (that was the invisible-wall
+	//bug). feet = the player's CURRENT feet (start), since the step is measured from where they stand.
+	//Only for box (player) traces, and only if the wall sweep didn't already block (don't override a
+	//wall slide). On a too-high step / dropoff we stop the move (no wall normal -> halt, like vanilla).
+	if (maxs[0] > mins[0] && trace->fraction >= 1.0)
+	{
+		float fz, cz, feet = start[2] + mins[2];
+		if (!Doom_PlayerTryMove(dm, trace->endpos[0], trace->endpos[1], feet, maxs[0], maxs[2]-mins[2], &fz, &cz))
+		{
+			Con_DPrintf("DESTBLK end=(%.1f %.1f) feet=%.1f fz=%.1f cz=%.1f stepup=%.1f fit=%.1f\n",
+				(double)trace->endpos[0],(double)trace->endpos[1],(double)feet,(double)fz,(double)cz,
+				(double)(fz-feet),(double)(cz-fz));//DBG temp
+			trace->fraction = 0;
+			trace->allsolid = trace->startsolid = false;
+			VectorCopy(start, trace->endpos);
+			trace->plane.normal[0] = start[0]-end[0];
+			trace->plane.normal[1] = start[1]-end[1];
+			trace->plane.normal[2] = 0;
+			VectorNormalize(trace->plane.normal);
+			trace->plane.dist = DotProduct(trace->endpos, trace->plane.normal);
 		}
 	}
 

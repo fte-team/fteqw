@@ -842,14 +842,6 @@ qboolean Doom_Trace(model_t *model, int hulloverride, const framestate_t *frames
 					|| opentop - openbot < maxs[2] - mins[2]
 					|| openbot - (start[2] + mins[2]) > 24)
 				{	//unconditionally clipped - the wall clip below blocks horizontally.
-					if (ld->sidedef[1] != 0xffff)	//DEBUG (developer 1): skip plain one-sided walls
-						Con_DPrintf("Doom_Trace ld=%u BLOCK imp=%i fit=%i step=%i fs(f%g c%g) bs(f%g c%g) openbot=%g opentop=%g feet=%g h=%g\n",
-							(unsigned)(ld - dm->linedef),
-							(ld->flags & LINEDEF_IMPASSABLE)!=0,
-							(opentop - openbot < maxs[2]-mins[2]),
-							(openbot - (start[2]+mins[2]) > 24),
-							fs->floorheight, fs->ceilingheight, bs->floorheight, bs->ceilingheight,
-							openbot, opentop, start[2]+mins[2], maxs[2]-mins[2]);
 				}
 				else
 				{	//ensure that the side we are passing on to passes the clip (no ceiling/floor clips happened first)
@@ -910,26 +902,14 @@ qboolean Doom_Trace(model_t *model, int hulloverride, const framestate_t *frames
 						continue;
 					}
 
-					if (d1<0)
-						sec2 = &dm->sector[dm->sidedef[ld->sidedef[0]].sector];
-					else
-						sec2 = &dm->sector[dm->sidedef[ld->sidedef[1]].sector];
-
-					if(sec2->ceilingheight == sec2->floorheight)
-						sec2->ceilingheight += 64;
-
-					if (pointonplane[2] > sec2->floorheight-mins[2] &&
-						pointonplane[2] < sec2->ceilingheight-maxs[2])
-					{
-//						Con_Printf("Two sided passed\n");
-						continue;
-					}
-
-					Con_DPrintf("Doom_Trace ld=%u FALLTHRU pop2=%g sec2(f%g c%g) need pop2 in (%g..%g) -> wallclip\n",
-						(unsigned)(ld - dm->linedef), pointonplane[2], sec2->floorheight, sec2->ceilingheight,
-						sec2->floorheight-mins[2], sec2->ceilingheight-maxs[2]);
-//					Con_Printf("blocked by two sided line\n");
-//					sec2->floorheight--;
+					//Passable two-sided line: the block check above already validated the opening fit
+					//and the <=24 step-up against the player's FEET (vanilla P_TryMove). The old code
+					//here re-tested the player's ORIGIN z against (far floor+24 .. far ceiling-32) with
+					//strict inequalities, which required the player to ALREADY stand at the higher
+					//sector's level - so every upward step / different-floor doorway became an invisible
+					//wall. (It also mutated map data: sec2->ceilingheight += 64.) Just allow the move;
+					//the walk/gravity physics settles the player onto the destination floor.
+					continue;
 				}
 
 				if (d1<0)	//back to front.

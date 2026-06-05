@@ -635,33 +635,12 @@ qboolean Doom_Trace(model_t *model, int hulloverride, const framestate_t *frames
 
 //	Con_Printf("%i\n", sec1);
 
-	if (start[2] < sec1->floorheight-mins[2])	//whoops, started outside... ?
-	{
-		trace->fraction = 0;
-		trace->allsolid = trace->startsolid = true;
-		trace->endpos[0] = start[0];
-		trace->endpos[1] = start[1];
-		trace->endpos[2] = start[2];	//yeah, we do mean this - startsolid
-		trace->plane.normal[0] = 0;
-		trace->plane.normal[1] = 0;
-		trace->plane.normal[2] = 1;
-		trace->plane.dist = sec1->floorheight-mins[2];
-
-		return false;
-	}
-	if (start[2] > sec1->ceilingheight-maxs[2])	//whoops, started outside... ?
-	{
-		trace->fraction = 0;
-		trace->allsolid = trace->startsolid = true;
-		trace->endpos[0] = start[0];
-		trace->endpos[1] = start[1];
-		trace->endpos[2] = start[2];
-		trace->plane.normal[0] = 0;
-		trace->plane.normal[1] = 0;
-		trace->plane.normal[2] = -1;
-		trace->plane.dist = -(sec1->ceilingheight-maxs[2]);
-		return false;
-	}
+	//NOTE: we deliberately do NOT early-out with startsolid when the start is below the floor /
+	//above the ceiling here. That froze the player ("stuck" on every trace) whenever they ended up
+	//slightly below a floor - which happens constantly because the old end-of-trace floor clamp only
+	//ran when start and end shared a sector, so crossing a two-sided line into a lower area let the
+	//player sink to z~0. Instead the trace runs normally and the end clamp below always lands/lifts
+	//the player onto the sector they actually end in (vanilla keeps the thing on floorz via gravity).
 
 	VectorSubtract(end, start, delta);
 	p2f = Length(delta)+DIST_EPSILON;
@@ -952,52 +931,48 @@ qboolean Doom_Trace(model_t *model, int hulloverride, const framestate_t *frames
 
 //	VectorMA(start, p2f*trace->fraction, delta, p2);
 
-	if (end[2] != start[2])
+	//Clamp the endpoint to the floor/ceiling of the sector it ACTUALLY ends in (not just when start
+	//and end share a sector). Crossing a two-sided line into a lower area must still land the player
+	//on the new floor; otherwise they sink through it to z~0. Lands a fall, lifts a sunk player, and
+	//steps up onto a higher destination floor (<=24 already gated by the wall check). Vanilla keeps
+	//the thing on floorz; this is the trace-level equivalent.
 	{
-		if (sec1 == Doom_SectorNearPoint(dm, trace->endpos))	//special test.
-		{
-			if (end[2] <= sec1->floorheight-mins[2])	//whoops, started outside... ?
+		msector_t *esec = Doom_SectorNearPoint(dm, trace->endpos);
+		float efloor = esec->floorheight - mins[2];
+		float eceil  = esec->ceilingheight - maxs[2];
+		if (trace->endpos[2] < efloor)
+		{	//below the destination floor -> land/lift onto it
+			if (end[2] < start[2])	//descending (gravity/fall): clip the fraction at the floor
 			{
-				p1f = fabs(sec1->floorheight-mins[2] - start[2]);
-				p2f = fabs(end[2] - start[2]);
-				if (!p2f)
-					c1 = 1;
-				else
-					c1 = (p1f-DIST_EPSILON) / p2f;
+				float denom = fabs(end[2]-start[2]);
+				c1 = denom ? (fabs(efloor - start[2])-DIST_EPSILON)/denom : 1;
+				if (c1 < 0) c1 = 0; else if (c1 > 1) c1 = 1;
 				if (trace->fraction > c1)
-				{
 					trace->fraction = c1;
-					trace->allsolid = trace->startsolid = false;
-					trace->endpos[0] = start[0] + trace->fraction*(end[0]-start[0]);
-					trace->endpos[1] = start[1] + trace->fraction*(end[1]-start[1]);
-					trace->endpos[2] = start[2] + trace->fraction*(end[2]-start[2]);
-					trace->plane.normal[0] = 0;
-					trace->plane.normal[1] = 0;
-					trace->plane.normal[2] = 1;
-					trace->plane.dist = sec1->floorheight-mins[2];
-				}
 			}
-			if (end[2] >= sec1->ceilingheight-maxs[2])	//whoops, started outside... ?
+			trace->allsolid = trace->startsolid = false;
+			trace->endpos[2] = efloor;
+			trace->plane.normal[0] = 0;
+			trace->plane.normal[1] = 0;
+			trace->plane.normal[2] = 1;
+			trace->plane.dist = efloor;
+		}
+		else if (trace->endpos[2] > eceil)
+		{	//above the destination ceiling -> stop at it
+			if (end[2] > start[2])
 			{
-				p1f = fabs(sec1->ceilingheight-maxs[2] - start[2]);
-				p2f = fabs(end[2] - start[2]);
-				if (!p2f)
-					c1 = 1;
-				else
-					c1 = (p1f-DIST_EPSILON) / p2f;
+				float denom = fabs(end[2]-start[2]);
+				c1 = denom ? (fabs(eceil - start[2])-DIST_EPSILON)/denom : 1;
+				if (c1 < 0) c1 = 0; else if (c1 > 1) c1 = 1;
 				if (trace->fraction > c1)
-				{
 					trace->fraction = c1;
-					trace->allsolid = trace->startsolid = false;
-					trace->endpos[0] = start[0] + trace->fraction*(end[0]-start[0]);
-					trace->endpos[1] = start[1] + trace->fraction*(end[1]-start[1]);
-					trace->endpos[2] = start[2] + trace->fraction*(end[2]-start[2]);
-					trace->plane.normal[0] = 0;
-					trace->plane.normal[1] = 0;
-					trace->plane.normal[2] = -1;
-					trace->plane.dist = -(sec1->ceilingheight-maxs[2]);
-				}
 			}
+			trace->allsolid = trace->startsolid = false;
+			trace->endpos[2] = eceil;
+			trace->plane.normal[0] = 0;
+			trace->plane.normal[1] = 0;
+			trace->plane.normal[2] = -1;
+			trace->plane.dist = -eceil;
 		}
 	}
 

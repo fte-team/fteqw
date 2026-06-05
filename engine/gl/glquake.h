@@ -394,7 +394,9 @@ qboolean R_ImportRTLights(const char *entlump, int importmode);
 
 //doom
 #ifdef MAP_DOOM
-void R_DoomWorld();
+void R_DoomWorld(void);
+void Doom_ActivateLinedef(struct model_s *model, int linedef_idx);
+void Doom_TickDoors(struct model_s *model, float frametime);
 #endif
 #ifdef MAP_PROC
 qboolean QDECL D3_LoadMap_CollisionMap(model_t *mod, void *buf, size_t bufsize);

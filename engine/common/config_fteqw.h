@@ -54,7 +54,7 @@
 //Filesystem formats
 #define PACKAGE_PK3				//aka zips. we support utf8,zip64,spans,weakcrypto,(deflate),(bzip2),symlinks. we do not support strongcrypto nor any of the other compression schemes.
 #define PACKAGE_Q1PAK			//also q2
-//#define PACKAGE_DOOMWAD		//doom wad support (generates various file names, and adds support for doom's audio, sprites, etc)
+#define PACKAGE_DOOMWAD		//doom wad support (generates various file names, and adds support for doom's audio, sprites, etc)
 #define AVAIL_XZDEC				//.xz decompression
 #define AVAIL_GZDEC				//.gz decompression
 #define AVAIL_ZLIB				//whether pk3s can be compressed or not.
@@ -67,7 +67,7 @@
 #define Q3BSPS					//Quake3, as well as a load of other games too...
 #define RFBSPS					//qfusion's bsp format / jk2o etc.
 #define TERRAIN					//FTE's terrain, as well as .map support
-//#define DOOMWADS				//map support, filesystem support is separate.
+#define DOOMWADS				//map support, filesystem support is separate.
 //#define MAP_PROC				//doom3...
 
 //Model formats
@@ -107,11 +107,11 @@
 #define IMAGEFMT_PCX			//paletted junk. required for qw player skins, q2 and a few old skyboxes.
 #define IMAGEFMT_EXR			//openexr, via Industrial Light & Magic's rgba api, giving half-float data.
 #define IMAGEFMT_PVR			//powervr texture, used by various dreamcast games including HL and Q3
-#define AVAIL_PNGLIB			//.png image format support (read+screenshots)
-#define AVAIL_JPEGLIB			//.jpeg image format support (read+screenshots)
+#define AVAIL_PNGLIB			//.png image format support (read+screenshots) -- re-enabled: libpng now statically linked via vcpkg
+#define AVAIL_JPEGLIB			//.jpeg image format support (read+screenshots) -- re-enabled: libjpeg-turbo now statically linked via vcpkg
 //#define AVAIL_STBI			//make use of Sean T. Barrett's lightweight public domain stb_image[_write] single-file-library, to avoid libpng/libjpeg dependancies.
 #define PACKAGE_TEXWAD			//quake's image wad support
-#define AVAIL_FREETYPE			//for truetype font rendering
+#define AVAIL_FREETYPE			//for truetype font rendering -- re-enabled: freetype+fontconfig now statically linked via vcpkg
 #define DECOMPRESS_ETC2			//decompress etc2(core in gles3/gl4.3) if the graphics driver doesn't support it (eg d3d or crappy gpus with vulkan).
 #define DECOMPRESS_S3TC			//allows bc1-3 to work even when drivers don't support it. This is probably only an issue on mobile chips. WARNING: not entirely sure if all patents expired yet...
 #define DECOMPRESS_RGTC			//bc4+bc5
@@ -164,13 +164,13 @@
 #define HAVE_MIXER				//support non-openal audio drivers
 
 // Audio Formats
-#define AVAIL_OGGVORBIS			//.ogg support
+#define AVAIL_OGGVORBIS			//.ogg support -- re-enabled: system libvorbis-dev now installed
 #define AVAIL_MP3_ACM			//.mp3 support (windows only).
 
 // Other Audio Options
-#define VOICECHAT
-#define HAVE_SPEEX				//Support the speex codec.
-#define HAVE_OPUS               //Support the opus codec.
+//#define VOICECHAT				// disabled: static speex/opus headers absent, voice chat not needed for Doom
+//#define HAVE_SPEEX				//Support the speex codec.
+//#define HAVE_OPUS               //Support the opus codec.
 #define HAVE_MEDIA_DECODER		//can play cin/roq, more with plugins
 #define HAVE_MEDIA_ENCODER		//capture/capturedemo work.
 #define HAVE_CDPLAYER			//includes cd playback. actual cds. named/numbered tracks are supported regardless (though you need to use the 'music' command to play them without this).
@@ -214,19 +214,27 @@
 -DLINK_QUAKE3	//ask the makefile to bake the quake3 plugin into the engine itself.
 #endif
 
-//-DNO_OPUS
-//-DNO_SPEEX	//disable static speex
+#ifndef VOICECHAT		//opus/speex are only used by the voicechat code
+-DNO_OPUS
+-DNO_SPEEX
+#endif
 #ifndef AVAIL_BOTLIB
 -DNO_BOTLIB	//disable static botlib
 #endif
 #ifndef FTE_TARGET_WEB
--DLINK_VORBISFILE	//disable static vorbisfile
+	#ifdef AVAIL_OGGVORBIS
+		-DLINK_VORBISFILE
+	#else
+		-DNO_VORBISFILE
+	#endif
 #endif
 
 
 //enable some staticaly linked libraries
 #ifndef FTE_TARGET_WEB
--DLINK_FREETYPE		//international text requires international fonts.
+	#ifdef AVAIL_FREETYPE
+		-DLINK_FREETYPE		//international text requires international fonts.
+	#endif
 #endif
 
 #if defined(USE_INTERNAL_ODE) && !defined(ODE_DYNAMIC)

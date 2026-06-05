@@ -305,7 +305,7 @@ of the list so they override previous pack files.
 */
 searchpathfuncs_t *QDECL FSPAK_LoadArchive (vfsfile_t *file, searchpathfuncs_t *parent, const char *filename, const char *desc, const char *prefix)
 {
-	dpackheader_t	header = {};
+	dpackheader_t	header = {0};
 	int				i;
 	mpackfile_t		*newfiles;
 	int				numpackfiles;
@@ -442,7 +442,7 @@ searchpathfuncs_t *QDECL FSDWD_LoadArchive (vfsfile_t *packhandle, searchpathfun
 	{
 		VFS_READ (packhandle, &info, sizeof(info));
 
-		strcpy (filename, info.name);
+		memcpy (filename, info.name, 8);	//info.name is a fixed 8-byte field, NOT null-terminated when the name is exactly 8 chars (e.g. "COLORMAP"). strcpy here overruns and smashes the stack.
 		filename[8] = '\0';
 		Q_strlwr(filename);
 

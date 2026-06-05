@@ -200,7 +200,8 @@ static const gamemode_info_t gamemode_info[] = {
 	{"-cod",		NULL,		"FTE-CoD",				{"Main/pak0.pk3"},				NULL,	{"Main",						"*ftecod"},	"Call of Duty",					NULL,				"fteplug_cod"},
 #endif
 #if !defined(QUAKETC) && !defined(MINIMAL)
-//	{"-doom",		"doom",		"FTE-Doom",				{"doom.wad"},					NULL,	{"*",							"*ftedoom"},"Doom"},
+	{"-doom",		"doom",		"FTE-Doom",				{"doom/doom1.wad","doom1.wad"},	NULL,	{"id1",	"doom",			"*fte"},	"Doom"},
+	{"-doom2",		"doom2",	"FTE-Doom2",			{"doom2/doom2.wad","doom2/DOOM2.WAD"},	NULL,	{"id1",	"doom2",		"*fte"},	"Doom 2"},
 //	{"-doom2",		"doom2",	"FTE-Doom2",			{"doom2.wad"},					NULL,	{"*",							"*ftedoom"},"Doom2"},
 //	{"-doom3",		"doom3",	"FTE-Doom3",			{"doom3.wad"},					NULL,	{"based3",						"*ftedoom3"},"Doom3"},
 

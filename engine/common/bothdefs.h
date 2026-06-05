@@ -100,6 +100,14 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 //yup, C89 allows this (doesn't like C's token concat though).
 #include STRINGIFY(CONFIG_FILE_NAME)
 
+//Bridge the config-level DOOMWADS flag to the code-level MAP_DOOM guard.
+//The Doom map loader (glmod_doom.c) and its registration/render hooks are all
+//gated on MAP_DOOM, but the config only ever exposed DOOMWADS - nothing defined
+//MAP_DOOM, so Doom map support compiled out regardless. Wire them together here.
+#if defined(DOOMWADS) && !defined(MAP_DOOM)
+	#define MAP_DOOM
+#endif
+
 
 #ifndef MSVCLIBSPATH
 	#ifdef MSVCLIBPATH

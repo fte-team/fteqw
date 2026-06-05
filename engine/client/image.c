@@ -1363,7 +1363,7 @@ qboolean WriteTGA(const char *filename, enum fs_relative fsroot, const qbyte *ft
 	#else
 		#define LIBPNG_LOADED() 1
 		#define PSTATIC(n) = &n
-		#ifdef _MSC_VER
+		#if defined(_MSC_VER) && !defined(FTE_EXTERNAL_LIBS)
 			#ifdef _WIN64
 				#pragma comment(lib, MSVCLIBSPATH "libpng64.lib")
 			#else
@@ -2067,7 +2067,7 @@ err:
 	static dllhandle_t *libjpeg_handle;
 	#define LIBJPEG_LOADED() (libjpeg_handle != NULL)
 #else
-	#ifdef _MSC_VER
+	#if defined(_MSC_VER) && !defined(FTE_EXTERNAL_LIBS)
 		#ifdef _WIN64
 			#pragma comment(lib, MSVCLIBSPATH "libjpeg64.lib")
 		#else
@@ -7600,7 +7600,7 @@ void Image_PrintInputFormatVersions(void)
 		Con_Printf(" jpeg");
 		#ifdef DYNAMIC_LIBJPEG
 			if (!LIBJPEG_LOADED())
-				Con_Printf(S_COLOR_TRANS"(unavailable, %s)", PNG_LIBPNG_VER_STRING);
+				Con_Printf(S_COLOR_TRANS"(unavailable, %i)", JPEG_LIB_VERSION);
 			else
 				Con_Printf(S_COLOR_TRANS"(dynamic, %i, %d series)", JPEG_LIB_VERSION, ( JPEG_LIB_VERSION / 10 ) );
 		#else

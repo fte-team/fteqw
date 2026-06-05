@@ -713,8 +713,16 @@ endif
 #try to statically link
 ifeq ($(COMPILE_SYS),Darwin)
 	ifneq (,$(findstring SDL,$(FTE_TARGET)))
-		IMAGELDFLAGS := $(shell $(PKGCONFIG) libpng --variable=libdir)/libpng.a $(shell $(PKGCONFIG) libjpeg --variable=libdir)/libjpeg.a
-		OGGVORBISLDFLAGS := $(shell $(PKGCONFIG) vorbisfile --variable=libdir)/libvorbisfile.a $(shell $(PKGCONFIG) vorbis --variable=libdir)/libvorbis.a $(shell $(PKGCONFIG) ogg --variable=libdir)/libogg.a
+		BREW_LIBPNG:=$(shell brew --prefix libpng 2>/dev/null)/lib
+		BREW_LIBJPEG:=$(shell brew --prefix jpeg-turbo 2>/dev/null)/lib
+		BREW_LIBOGG:=$(shell brew --prefix libogg 2>/dev/null)/lib
+		BREW_LIBVORBIS:=$(shell brew --prefix libvorbis 2>/dev/null)/lib
+		ifneq ($(wildcard $(BREW_LIBPNG)/libpng.a),)
+			IMAGELDFLAGS := $(BREW_LIBPNG)/libpng.a $(BREW_LIBJPEG)/libjpeg.a
+		endif
+		ifneq ($(wildcard $(BREW_LIBVORBIS)/libvorbisfile.a),)
+			OGGVORBISLDFLAGS := $(BREW_LIBVORBIS)/libvorbisfile.a $(BREW_LIBVORBIS)/libvorbis.a $(BREW_LIBOGG)/libogg.a
+		endif
 	endif
 endif
 
@@ -723,9 +731,26 @@ endif
 # that can only make one assumption: SDL/AL are installed.
 # Dependencies like libjpeg9 don't exist everywhere.
 ifeq ($(FTE_TARGET),SDL2)
-	IMAGELDFLAGS:= libs-$(ARCH)/libpng.a libs-$(ARCH)/libjpeg.a
-	OGGVORBISLDFLAGS:= libs-$(ARCH)/libvorbisfile.a libs-$(ARCH)/libvorbis.a libs-$(ARCH)/libogg.a
-	BASE_CFLAGS+=-DLIBJPEG_STATIC -DLIBJPEG_STATIC -DLIBPNG_STATIC -DOPUS_STATIC -DSPEEX_STATIC -DFREETYPE_STATIC -DLIBVORBISFILE_STATIC
+	ifeq ($(shell uname -s),Darwin)
+		STRIP=SKIP
+	endif
+	# Statically link the bundled media libs only if `make makelibs` actually built them.
+	# When a feature is disabled in config_fteqw.h (or its lib was never built), skip it so
+	# the link doesn't reference a nonexistent libs-$(ARCH)/*.a.
+	ifneq (,$(wildcard libs-$(ARCH)/libpng.a))
+		IMAGELDFLAGS:= libs-$(ARCH)/libpng.a libs-$(ARCH)/libjpeg.a
+		BASE_CFLAGS+=-DLIBJPEG_STATIC -DLIBPNG_STATIC
+	endif
+	ifneq (,$(wildcard libs-$(ARCH)/libvorbisfile.a))
+		OGGVORBISLDFLAGS:= libs-$(ARCH)/libvorbisfile.a libs-$(ARCH)/libvorbis.a libs-$(ARCH)/libogg.a
+		BASE_CFLAGS+=-DLIBVORBISFILE_STATIC
+	endif
+	ifneq (,$(wildcard libs-$(ARCH)/libopus.a))
+		BASE_CFLAGS+=-DOPUS_STATIC -DSPEEX_STATIC
+	endif
+	ifneq (,$(wildcard libs-$(ARCH)/libfreetype.a))
+		BASE_CFLAGS+=-DFREETYPE_STATIC
+	endif
 endif
 
 VPATH := $(BASE_DIR) : $(CLIENT_DIR) : $(GL_DIR) : $(SW_DIR) : $(COMMON_DIR) : $(SERVER_DIR) : $(HTTP_DIR) : $(QUX_DIR) : $(PROGS_DIR) : $(D3D_DIR) : $(VK_DIR) : $(BASE_DIR)/web
@@ -2179,10 +2204,41 @@ vk-profile:
 	@$(MAKE) vk-tmp TYPE=_clsv-profile OUT_DIR="$(PROFILE_DIR)/$(NCDIRPREFIX)$(VKB_DIR)"
 
 
+# ---- in-engine Doom GL-node builder (ZDBSP) --------------------------------
+# Compile the wrapper (gl/doom_glbsp.cpp) plus the minimal ZDBSP node-builder
+# sources into an ISOLATED static lib, so zdbsp's C++ headers (wad.h, nodebuild.h
+# ...) never collide with the engine's and its flags (-DDISABLE_SSE etc) don't
+# leak into engine objects. On 64-bit SSE is baseline so we build the no-SSE
+# classifier only (matches tools/zdbsp's own CMake on a 64-bit host). Only the
+# gl-tmp target links this and defines HAVE_DOOM_GLBSP (see just below).
+ZDBSP_DIR := $(BASE_DIR)/../../tools/zdbsp
+DOOMGLBSP_ODIR := $(RELEASE_DIR)/doomglbsp
+DOOMGLBSP_LIB := $(RELEASE_DIR)/libdoomglbsp.a
+DOOMGLBSP_CXXFLAGS := -O2 -ffast-math -fno-strict-aliasing -DDISABLE_SSE -DNO_MAP_VIEWER -I$(ZDBSP_DIR)
+DOOMGLBSP_OBJS := $(DOOMGLBSP_ODIR)/doom_glbsp.o \
+	$(DOOMGLBSP_ODIR)/nodebuild.o \
+	$(DOOMGLBSP_ODIR)/nodebuild_events.o \
+	$(DOOMGLBSP_ODIR)/nodebuild_extract.o \
+	$(DOOMGLBSP_ODIR)/nodebuild_gl.o \
+	$(DOOMGLBSP_ODIR)/nodebuild_utility.o \
+	$(DOOMGLBSP_ODIR)/nodebuild_classify_nosse2.o
+
+$(DOOMGLBSP_ODIR)/doom_glbsp.o: $(GL_DIR)/doom_glbsp.cpp
+	@mkdir -p $(DOOMGLBSP_ODIR)
+	$(CXX) $(DOOMGLBSP_CXXFLAGS) -c -o $@ $<
+$(DOOMGLBSP_ODIR)/%.o: $(ZDBSP_DIR)/%.cpp
+	@mkdir -p $(DOOMGLBSP_ODIR)
+	$(CXX) $(DOOMGLBSP_CXXFLAGS) -c -o $@ $<
+
+$(DOOMGLBSP_LIB): $(DOOMGLBSP_OBJS)
+	@mkdir -p $(RELEASE_DIR)
+	ar rcs $@ $(DOOMGLBSP_OBJS)
+# ----------------------------------------------------------------------------
+
 glcl-tmp:
 	@$(MAKE) $(TYPE)   OUT_DIR="$(OUT_DIR)" EXE_NAME="$(GLCL_EXE_NAME)" WCFLAGS="$(GL_CFLAGS)" LDFLAGS="$(GL_LDFLAGS) $(LDFLAGS) $(CLIENTLDDEPS)" SOBJS="$(GLCL_OBJS)"
-gl-tmp:
-	@$(MAKE) $(TYPE)   OUT_DIR="$(OUT_DIR)" EXE_NAME="$(GL_EXE_NAME)" WCFLAGS="$(GL_CFLAGS)" LDFLAGS="$(GL_LDFLAGS) $(LDFLAGS) $(CLIENTLDDEPS)" SOBJS="$(GLCL_OBJS)"
+gl-tmp: $(DOOMGLBSP_LIB)
+	@$(MAKE) $(TYPE)   OUT_DIR="$(OUT_DIR)" EXE_NAME="$(GL_EXE_NAME)" WCFLAGS="$(GL_CFLAGS) -DHAVE_DOOM_GLBSP" LDFLAGS="$(GL_LDFLAGS) $(LDFLAGS) $(CLIENTLDDEPS) $(DOOMGLBSP_LIB) -lstdc++" SOBJS="$(GLCL_OBJS)"
 
 glcl-rel:
 	@$(MAKE) glcl-tmp TYPE=_cl-rel OUT_DIR="$(RELEASE_DIR)/$(NCDIRPREFIX)$(GLCL_DIR)"

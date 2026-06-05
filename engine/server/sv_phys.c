@@ -24,6 +24,11 @@ Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #include "pr_common.h"
 
+#ifdef MAP_DOOM
+void Doom_TickDoors(struct model_s *model, float frametime);
+void Doom_TickMonsters(struct model_s *model, float frametime, const float *playerorg, float *playerhealth, float *playerarmor);
+#endif
+
 /*
 
 
@@ -2571,7 +2576,27 @@ qboolean SV_Physics (void)
 	//keep gravity tracking the cvar properly
 	movevars.gravity = sv_gravity.value;
 
-	if (svs.gametype != GT_PROGS && svs.gametype != GT_Q1QVM && svs.gametype != GT_HALFLIFE 
+#ifdef MAP_DOOM
+	//Doom world simulation (doors opening/closing + monster AI). Must run here, OUTSIDE the
+	//gametype-specific physics below: the Doom game has no QC gamecode and so runs as GT_PROGS,
+	//whose physics path skips the non-PROGS loop where these used to live - meaning doors never
+	//animated and monsters never moved/attacked. One tick per frame (trueframetime) is plenty.
+	if (sv.world.worldmodel && sv.world.worldmodel->fromgame == fg_doom)
+	{
+		int ci;
+		Doom_TickDoors(sv.world.worldmodel, (float)trueframetime);
+		for (ci = 0; ci < svs.allocated_client_slots; ci++)
+			if (svs.clients[ci].state == cs_spawned && svs.clients[ci].edict)
+			{
+				Doom_TickMonsters(sv.world.worldmodel, (float)trueframetime,
+					svs.clients[ci].edict->v->origin, &svs.clients[ci].edict->v->health,
+					&svs.clients[ci].edict->v->armorvalue);
+				break;
+			}
+	}
+#endif
+
+	if (svs.gametype != GT_PROGS && svs.gametype != GT_Q1QVM && svs.gametype != GT_HALFLIFE
 #ifdef VM_LUA
 		&& svs.gametype != GT_LUA
 #endif
@@ -2617,6 +2642,7 @@ qboolean SV_Physics (void)
 			default:
 				break;
 			}
+
 		}
 		host_frametime = trueframetime;
 		return moved;

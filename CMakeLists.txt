@@ -173,8 +173,8 @@ IF(FTE_DEP_BZIP2)
 ENDIF()
 IF(BZIP2_FOUND)
 	SET(FTE_LIB_DEFINES ${FTE_LIB_DEFINES};AVAIL_BZLIB;BZLIB_STATIC)
-	SET(FTE_LIBS ${FTE_LIBS} bz2)
-	SET(FTESV_LIBS ${FTESV_LIBS} bz2)
+	SET(FTE_LIBS ${FTE_LIBS} ${BZIP2_LIBRARIES})
+	SET(FTESV_LIBS ${FTESV_LIBS} ${BZIP2_LIBRARIES})
 #	MESSAGE(STATUS "bzip2 library found. bz2-compressed pk3s will work for the price of extra bloat! yay!")
 ELSE()
 	MESSAGE(WARNING "bzip2 library NOT available. bz2-compressed pk3s will not be available, as if anyone cares.")
@@ -331,6 +331,35 @@ ENDIF()
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -D_FILE_OFFSET_BITS=64")
 
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -DFTE_LIBRARY_PATH=${CMAKE_INSTALL_FULL_LIBDIR}/${FTE_INSTALL_LIBDIR} -DFTE_DATA_DIR=${CMAKE_INSTALL_FULL_DATAROOTDIR}")
+
+IF(MSVC)
+	#FTE uses large stack frames (e.g. Cmd_ExecuteString ~64KB, Font_LoadFont, etc). MSVC's default 1MB stack
+	#reserve overflows during startup; mingw/web builds get 2-5MB. Reserve a generous 16MB to match.
+	ADD_LINK_OPTIONS(/STACK:16777216)
+	#CMake/vcpkg links libpng/libjpeg/etc explicitly; disable the source's bundled-libs `#pragma comment(lib, "../libs/...")` auto-linking.
+	ADD_COMPILE_DEFINITIONS(FTE_EXTERNAL_LIBS)
+ENDIF()
+
+#In-engine Doom GL-node builder: wraps ZDBSP (tools/zdbsp) so the engine can synthesise
+#glBSP-style GL nodes at map load for Doom WADs that lack them (fixes floating/partial flats).
+#Built as an isolated static lib (C++) so ZDBSP's types don't clash with the engine's C headers.
+SET(ZDBSP_DIR ${CMAKE_SOURCE_DIR}/../tools/zdbsp)
+IF(EXISTS ${ZDBSP_DIR}/nodebuild.cpp)
+	ADD_LIBRARY(fte_doomglbsp STATIC
+		${ZDBSP_DIR}/nodebuild.cpp
+		${ZDBSP_DIR}/nodebuild_events.cpp
+		${ZDBSP_DIR}/nodebuild_extract.cpp
+		${ZDBSP_DIR}/nodebuild_gl.cpp
+		${ZDBSP_DIR}/nodebuild_utility.cpp
+		${ZDBSP_DIR}/nodebuild_classify_nosse2.cpp
+		engine/gl/doom_glbsp.cpp
+	)
+	TARGET_INCLUDE_DIRECTORIES(fte_doomglbsp PRIVATE ${ZDBSP_DIR})
+	TARGET_COMPILE_DEFINITIONS(fte_doomglbsp PRIVATE DISABLE_SSE)
+	SET(FTE_LIBS ${FTE_LIBS} fte_doomglbsp)
+	SET(FTE_DEFINES ${FTE_DEFINES};HAVE_DOOM_GLBSP)
+	MESSAGE(STATUS "Doom in-engine GL-node builder enabled (ZDBSP).")
+ENDIF()
 
 FUNCTION(EMBED_PLUGIN_META PLUGNAME PLUGTITLE PLUGDESC)
 	SET_TARGET_PROPERTIES(plug_${PLUGNAME} PROPERTIES OUTPUT_NAME "${PLUGNAME}")

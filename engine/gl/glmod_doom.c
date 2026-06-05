@@ -832,11 +832,15 @@ qboolean Doom_Trace(model_t *model, int hulloverride, const framestate_t *frames
 				openbot = (fs->floorheight  > bs->floorheight)  ? fs->floorheight  : bs->floorheight;
 				//A two-sided line is a solid wall to the player if it's explicitly impassable, one-sided,
 				//the gap is too short to fit through, OR the opening's floor (a window sill / raised ledge)
-				//is more than 24u above the sector the player is standing in. That last step-up limit is
-				//what vanilla Doom enforces on the floor (it has no jump) - without it you hop out of windows.
+				//is more than 24u above the player's FEET. We compare against the actual feet z
+				//(start[2]+mins[2]), not the sector the player is "on" via d1 - because d1's sign is
+				//offset by the box radius (see planedist above), so right at the line it flips and would
+				//pick the wrong sector, blocking you from stepping DOWN off a ledge (invisible wall).
+				//This matches vanilla Doom's P_TryMove `openbottom - thing->z > 24` (no jump), and stepping
+				//down is free (feet already at/above the opening floor -> difference <= 0).
 				if (ld->flags & LINEDEF_IMPASSABLE || ld->sidedef[1] == 0xffff
 					|| opentop - openbot < maxs[2] - mins[2]
-					|| openbot - ((d1 > 0) ? fs : bs)->floorheight > 24)
+					|| openbot - (start[2] + mins[2]) > 24)
 				{	//unconditionally clipped - the wall clip below blocks horizontally.
 				}
 				else
@@ -3026,7 +3030,11 @@ void Doom_TickMonsters(model_t *model, float frametime, const vec3_t playerorg, 
 				np[1] = m->origin[1] + sin(a)*step;
 				np[2] = m->origin[2];
 				sec = Doom_SectorNearPoint(dm, np);
-				if (sec && sec->floorheight <= m->origin[2]+24 && sec->ceilingheight - sec->floorheight >= 56
+				//walkable destination: step up <=24, AND step DOWN <=24 (drop-off limit) so monsters
+				//don't walk off high ledges/cliffs and fall - vanilla Doom blocks dropoffs >24 for
+				//non-floating monsters (P_TryMove tmfloorz-tmdropoffz). Also needs headroom >=56.
+				if (sec && sec->floorheight <= m->origin[2]+24 && sec->floorheight >= m->origin[2]-24
+					&& sec->ceilingheight - sec->floorheight >= 56
 					&& !Doom_MonsterBlocked(dm, m, np[0], np[1]))
 				{
 					m->origin[0]=np[0]; m->origin[1]=np[1]; m->origin[2]=sec->floorheight;

@@ -635,12 +635,33 @@ qboolean Doom_Trace(model_t *model, int hulloverride, const framestate_t *frames
 
 //	Con_Printf("%i\n", sec1);
 
-	//NOTE: we deliberately do NOT early-out with startsolid when the start is below the floor /
-	//above the ceiling here. That froze the player ("stuck" on every trace) whenever they ended up
-	//slightly below a floor - which happens constantly because the old end-of-trace floor clamp only
-	//ran when start and end shared a sector, so crossing a two-sided line into a lower area let the
-	//player sink to z~0. Instead the trace runs normally and the end clamp below always lands/lifts
-	//the player onto the sector they actually end in (vanilla keeps the thing on floorz via gravity).
+	if (start[2] < sec1->floorheight-mins[2])	//whoops, started outside... ?
+	{
+		trace->fraction = 0;
+		trace->allsolid = trace->startsolid = true;
+		trace->endpos[0] = start[0];
+		trace->endpos[1] = start[1];
+		trace->endpos[2] = start[2];	//yeah, we do mean this - startsolid
+		trace->plane.normal[0] = 0;
+		trace->plane.normal[1] = 0;
+		trace->plane.normal[2] = 1;
+		trace->plane.dist = sec1->floorheight-mins[2];
+
+		return false;
+	}
+	if (start[2] > sec1->ceilingheight-maxs[2])	//whoops, started outside... ?
+	{
+		trace->fraction = 0;
+		trace->allsolid = trace->startsolid = true;
+		trace->endpos[0] = start[0];
+		trace->endpos[1] = start[1];
+		trace->endpos[2] = start[2];
+		trace->plane.normal[0] = 0;
+		trace->plane.normal[1] = 0;
+		trace->plane.normal[2] = -1;
+		trace->plane.dist = -(sec1->ceilingheight-maxs[2]);
+		return false;
+	}
 
 	VectorSubtract(end, start, delta);
 	p2f = Length(delta)+DIST_EPSILON;
@@ -811,15 +832,11 @@ qboolean Doom_Trace(model_t *model, int hulloverride, const framestate_t *frames
 				openbot = (fs->floorheight  > bs->floorheight)  ? fs->floorheight  : bs->floorheight;
 				//A two-sided line is a solid wall to the player if it's explicitly impassable, one-sided,
 				//the gap is too short to fit through, OR the opening's floor (a window sill / raised ledge)
-				//is more than 24u above the player's FEET. We compare against the actual feet z
-				//(start[2]+mins[2]), not the sector the player is "on" via d1 - because d1's sign is
-				//offset by the box radius (see planedist above), so right at the line it flips and would
-				//pick the wrong sector, blocking you from stepping DOWN off a ledge (invisible wall).
-				//This matches vanilla Doom's P_TryMove `openbottom - thing->z > 24` (no jump), and stepping
-				//down is free (feet already at/above the opening floor -> difference <= 0).
+				//is more than 24u above the sector the player is standing in. That last step-up limit is
+				//what vanilla Doom enforces on the floor (it has no jump) - without it you hop out of windows.
 				if (ld->flags & LINEDEF_IMPASSABLE || ld->sidedef[1] == 0xffff
 					|| opentop - openbot < maxs[2] - mins[2]
-					|| openbot - (start[2] + mins[2]) > 24)
+					|| openbot - ((d1 > 0) ? fs : bs)->floorheight > 24)
 				{	//unconditionally clipped - the wall clip below blocks horizontally.
 				}
 				else
@@ -881,14 +898,23 @@ qboolean Doom_Trace(model_t *model, int hulloverride, const framestate_t *frames
 						continue;
 					}
 
-					//Passable two-sided line: the block check above already validated the opening fit
-					//and the <=24 step-up against the player's FEET (vanilla P_TryMove). The old code
-					//here re-tested the player's ORIGIN z against (far floor+24 .. far ceiling-32) with
-					//strict inequalities, which required the player to ALREADY stand at the higher
-					//sector's level - so every upward step / different-floor doorway became an invisible
-					//wall. (It also mutated map data: sec2->ceilingheight += 64.) Just allow the move;
-					//the walk/gravity physics settles the player onto the destination floor.
-					continue;
+					if (d1<0)
+						sec2 = &dm->sector[dm->sidedef[ld->sidedef[0]].sector];
+					else
+						sec2 = &dm->sector[dm->sidedef[ld->sidedef[1]].sector];
+
+					if(sec2->ceilingheight == sec2->floorheight)
+						sec2->ceilingheight += 64;
+
+					if (pointonplane[2] > sec2->floorheight-mins[2] &&
+						pointonplane[2] < sec2->ceilingheight-maxs[2])
+					{
+//						Con_Printf("Two sided passed\n");
+						continue;
+					}
+
+//					Con_Printf("blocked by two sided line\n");
+//					sec2->floorheight--;
 				}
 
 				if (d1<0)	//back to front.
@@ -931,48 +957,52 @@ qboolean Doom_Trace(model_t *model, int hulloverride, const framestate_t *frames
 
 //	VectorMA(start, p2f*trace->fraction, delta, p2);
 
-	//Clamp the endpoint to the floor/ceiling of the sector it ACTUALLY ends in (not just when start
-	//and end share a sector). Crossing a two-sided line into a lower area must still land the player
-	//on the new floor; otherwise they sink through it to z~0. Lands a fall, lifts a sunk player, and
-	//steps up onto a higher destination floor (<=24 already gated by the wall check). Vanilla keeps
-	//the thing on floorz; this is the trace-level equivalent.
+	if (end[2] != start[2])
 	{
-		msector_t *esec = Doom_SectorNearPoint(dm, trace->endpos);
-		float efloor = esec->floorheight - mins[2];
-		float eceil  = esec->ceilingheight - maxs[2];
-		if (trace->endpos[2] < efloor)
-		{	//below the destination floor -> land/lift onto it
-			if (end[2] < start[2])	//descending (gravity/fall): clip the fraction at the floor
+		if (sec1 == Doom_SectorNearPoint(dm, trace->endpos))	//special test.
+		{
+			if (end[2] <= sec1->floorheight-mins[2])	//whoops, started outside... ?
 			{
-				float denom = fabs(end[2]-start[2]);
-				c1 = denom ? (fabs(efloor - start[2])-DIST_EPSILON)/denom : 1;
-				if (c1 < 0) c1 = 0; else if (c1 > 1) c1 = 1;
+				p1f = fabs(sec1->floorheight-mins[2] - start[2]);
+				p2f = fabs(end[2] - start[2]);
+				if (!p2f)
+					c1 = 1;
+				else
+					c1 = (p1f-DIST_EPSILON) / p2f;
 				if (trace->fraction > c1)
+				{
 					trace->fraction = c1;
+					trace->allsolid = trace->startsolid = false;
+					trace->endpos[0] = start[0] + trace->fraction*(end[0]-start[0]);
+					trace->endpos[1] = start[1] + trace->fraction*(end[1]-start[1]);
+					trace->endpos[2] = start[2] + trace->fraction*(end[2]-start[2]);
+					trace->plane.normal[0] = 0;
+					trace->plane.normal[1] = 0;
+					trace->plane.normal[2] = 1;
+					trace->plane.dist = sec1->floorheight-mins[2];
+				}
 			}
-			trace->allsolid = trace->startsolid = false;
-			trace->endpos[2] = efloor;
-			trace->plane.normal[0] = 0;
-			trace->plane.normal[1] = 0;
-			trace->plane.normal[2] = 1;
-			trace->plane.dist = efloor;
-		}
-		else if (trace->endpos[2] > eceil)
-		{	//above the destination ceiling -> stop at it
-			if (end[2] > start[2])
+			if (end[2] >= sec1->ceilingheight-maxs[2])	//whoops, started outside... ?
 			{
-				float denom = fabs(end[2]-start[2]);
-				c1 = denom ? (fabs(eceil - start[2])-DIST_EPSILON)/denom : 1;
-				if (c1 < 0) c1 = 0; else if (c1 > 1) c1 = 1;
+				p1f = fabs(sec1->ceilingheight-maxs[2] - start[2]);
+				p2f = fabs(end[2] - start[2]);
+				if (!p2f)
+					c1 = 1;
+				else
+					c1 = (p1f-DIST_EPSILON) / p2f;
 				if (trace->fraction > c1)
+				{
 					trace->fraction = c1;
+					trace->allsolid = trace->startsolid = false;
+					trace->endpos[0] = start[0] + trace->fraction*(end[0]-start[0]);
+					trace->endpos[1] = start[1] + trace->fraction*(end[1]-start[1]);
+					trace->endpos[2] = start[2] + trace->fraction*(end[2]-start[2]);
+					trace->plane.normal[0] = 0;
+					trace->plane.normal[1] = 0;
+					trace->plane.normal[2] = -1;
+					trace->plane.dist = -(sec1->ceilingheight-maxs[2]);
+				}
 			}
-			trace->allsolid = trace->startsolid = false;
-			trace->endpos[2] = eceil;
-			trace->plane.normal[0] = 0;
-			trace->plane.normal[1] = 0;
-			trace->plane.normal[2] = -1;
-			trace->plane.dist = -eceil;
 		}
 	}
 
@@ -2996,11 +3026,7 @@ void Doom_TickMonsters(model_t *model, float frametime, const vec3_t playerorg, 
 				np[1] = m->origin[1] + sin(a)*step;
 				np[2] = m->origin[2];
 				sec = Doom_SectorNearPoint(dm, np);
-				//walkable destination: step up <=24, AND step DOWN <=24 (drop-off limit) so monsters
-				//don't walk off high ledges/cliffs and fall - vanilla Doom blocks dropoffs >24 for
-				//non-floating monsters (P_TryMove tmfloorz-tmdropoffz). Also needs headroom >=56.
-				if (sec && sec->floorheight <= m->origin[2]+24 && sec->floorheight >= m->origin[2]-24
-					&& sec->ceilingheight - sec->floorheight >= 56
+				if (sec && sec->floorheight <= m->origin[2]+24 && sec->ceilingheight - sec->floorheight >= 56
 					&& !Doom_MonsterBlocked(dm, m, np[0], np[1]))
 				{
 					m->origin[0]=np[0]; m->origin[1]=np[1]; m->origin[2]=sec->floorheight;
@@ -3692,10 +3718,7 @@ void QuakifyThings(doommap_t *dm)
 			doom_player1_start[0] = dm->thing[i].xpos;
 			doom_player1_start[1] = dm->thing[i].ypos;
 			doom_player1_start[2] = zpos;
-			//Doom thing angle -> FTE yaw. The player spawned facing 90deg to the right of the
-			//Doom-authored direction, so add 90 (turn left/CCW). NOTE: if this overshoots to the
-			//LEFT instead, flip +90 to -90 (one-char fix) - it's a coordinate-convention offset.
-			doom_player1_yaw = dm->thing[i].angle + 90;
+			doom_player1_yaw = dm->thing[i].angle;
 		}
 
 		spawnflags = SPAWNFLAG_NOT_EASY | SPAWNFLAG_NOT_MEDIUM | SPAWNFLAG_NOT_HARD | SPAWNFLAG_NOT_DEATHMATCH;

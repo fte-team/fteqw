@@ -3619,6 +3619,9 @@ void SCR_DrawTwoDimensional(qboolean nohud)
 		SCR_DrawPause ();
 		SCR_ShowPics_Draw();
 		SCR_CheckDrawCenterString ();
+#ifdef MAP_DOOM
+		{ extern void Doom_DrawHUD2D(void); Doom_DrawHUD2D(); }	//Doom status bar + weapon (screen-space)
+#endif
 	}
 
 //#ifdef TEXTEDITOR

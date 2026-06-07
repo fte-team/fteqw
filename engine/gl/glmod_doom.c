@@ -11,7 +11,7 @@ static shader_t *Doom_MonsterSpriteShader(const char *lump, short *w, short *h, 
 static shader_t *Doom_SpriteShaderFor(const char *lump, texid_t tex);
 static void Doom_VoxShader(void);
 static qboolean Doom_DrawVoxelByName(const char *name, const vec3_t origin, float yawdeg, float scale);
-static void R_DoomDrawHUD(doommap_t *dm);
+void Doom_PlaySound(const vec3_t org, const char *lump);
 
 
 
@@ -331,6 +331,7 @@ typedef struct doommap_s
 		qbyte		alerted;	// 0 until the monster sees or hears the player, then it chases
 		qbyte		floating;	// 1 = moves in 3D (caco/lostsoul/pain), doesn't snap to floor
 		qbyte		exploded;	// barrels: 1 once the blast has been dealt
+		qbyte		dropped;	// 1 once this monster has dropped its item on death (former humans)
 		float		animt;		// walk-cycle animation timer (front frames A-D in shader[0..3])
 		float		deathtime;	// seconds since killed (drives the death-frame animation; <0 = alive)
 		float		paintime;	// seconds since hurt (drives the pain-frame animation; <0 = normal)
@@ -551,6 +552,13 @@ static void Doom_ApplySpecialToSector(doommap_t *dm, int si, int special, int ta
 				d->wait_max = DOOR_WAIT;
 				// Target is lowest adjacent ceiling - 4
 				d->ceil_target = (short)Doom_FindLowestCeilingSurrounding(dm, si) - 4;
+				{	//door-open sound at the linedef midpoint
+					dlinedef_t *dl=&dm->linedef[linedef_idx]; vec3_t dorg;
+					dorg[0]=(dm->vertexes[dl->vert[0]].xpos+dm->vertexes[dl->vert[1]].xpos)*0.5f;
+					dorg[1]=(dm->vertexes[dl->vert[0]].ypos+dm->vertexes[dl->vert[1]].ypos)*0.5f;
+					dorg[2]=dm->sector[si].floorheight+48;
+					Doom_PlaySound(dorg, "DSDOROPN");
+				}
 			} else if (d->state == 2 && d->repeating) {
 				d->state = 3; // close now
 			}
@@ -1727,58 +1735,8 @@ void R_DoomWorld(void)
 
 	R_DoomDrawSprites(dm);	//item/decoration billboards, over the opaque world
 	R_DoomDrawMonsters(dm);	//monsters (billboards), over the opaque world
-	R_DoomDrawHUD(dm);
-}
-
-//draw the first-person weapon sprite (HUD). Picks the lump from the player's equipped weapon
-//stat and cycles frames if they are firing.
-static void R_DoomDrawHUD(doommap_t *dm)
-{
-	int wi, fi;
-	char lump[16];
-	short w, h, xo, yo;
-	shader_t *sh;
-	mesh_t mesh;
-	vecV_t xyz[4];
-	vec2_t st[4] = {{0,0},{1,0},{1,1},{0,1}};
-	byte_vec4_t col[4];
-	index_t idx[6] = {0,1,2, 0,2,3};
-	float screen_w = (float)r_refdef.vrect.width;
-	float screen_h = (float)r_refdef.vrect.height;
-	float scale;
-	const char *anims[] = {"ABCD", "AB", "ABCD", "ABCDEFGH", "ABCDEFGHIJKL", "AB", "AB", "AB", "AB"};
-	const char *names[] = {"PUN", "SAW", "PIS", "SHT", "SHT2", "CHG", "MIS", "PLS", "BFG"};
-
-	//get equipped weapon and frame from stats
-	wi = (int)cl.playerview[r_refdef.playerview - cl.playerview].stats[STAT_ACTIVEWEAPON];
-	fi = (int)cl.playerview[r_refdef.playerview - cl.playerview].stats[STAT_WEAPONFRAME];
-	if (wi < 0 || wi >= 9) wi = 2; //pistol default
-
-	//pick frame letter from anim string
-	char frame = 'A';
-	if (fi >= 0 && (unsigned)fi < strlen(anims[wi]))
-		frame = anims[wi][fi];
-
-	Q_snprintfz(lump, sizeof(lump), "%sG%c0", names[wi], frame);
-	sh = Doom_MonsterSpriteShader(lump, &w, &h, &xo, &yo);
-	if (!sh) return;
-
-	//draw as a 2D overlay in the bottom center
-	scale = screen_h / 200.0f; //Doom internal res is 320x200
-	VectorSet(xyz[0], screen_w/2.0f - (xo*scale), screen_h - (h-yo)*scale, 0);
-	VectorSet(xyz[1], screen_w/2.0f + (w-xo)*scale, screen_h - (h-yo)*scale, 0);
-	VectorSet(xyz[2], screen_w/2.0f + (w-xo)*scale, screen_h + yo*scale, 0);
-	VectorSet(xyz[3], screen_w/2.0f - (xo*scale), screen_h + yo*scale, 0);
-
-	Vector4Set(col[0],255,255,255,255); Vector4Set(col[1],255,255,255,255);
-	Vector4Set(col[2],255,255,255,255); Vector4Set(col[3],255,255,255,255);
-	
-	memset(&mesh, 0, sizeof(mesh));
-	mesh.numvertexes=4; mesh.numindexes=6;
-	mesh.xyz_array=xyz; mesh.st_array=st; mesh.colors4b_array=col; mesh.indexes=idx;
-
-	BE_SelectMode(BEM_STANDARD);
-	BE_DrawMesh_Single(sh, &mesh, NULL, 0);
+	//the HUD (status bar + first-person weapon) is drawn later in the 2D screen pass,
+	//via Doom_DrawHUD2D() called from SCR_DrawTwoDimensional (screen space, where R2D_* works).
 }
 #endif
 
@@ -2458,6 +2416,27 @@ static void Doom_LoadThingSprites(doommap_t *dm)
 	}
 }
 
+//spawn a dropped pickup at a dead monster (former humans drop their weapon/ammo, like Doom's
+//P_KillMobj). Adds a collectable sprite to dm->sprites at the corpse location.
+static void Doom_SpawnDrop(doommap_t *dm, unsigned short type, const vec3_t org)
+{
+	const char *spr = Doom_ThingSprite(type);
+	texid_t tex; short sw,sh,sxo,syo; struct doomsprite_s *out; msector_t *sec; vec3_t p; int l;
+	if (!spr) return;
+	tex = Doom_LoadSprite(spr,&sw,&sh,&sxo,&syo);
+	if (!TEXVALID(tex)) return;
+	out = BZ_Realloc(dm->sprites, sizeof(*dm->sprites)*(dm->numsprites+1));
+	dm->sprites = out; out += dm->numsprites;
+	out->shader = Doom_SpriteShaderFor(spr, tex);
+	p[0]=org[0]; p[1]=org[1]; p[2]=0; sec = Doom_SectorNearPoint(dm,p);
+	out->origin[0]=org[0]; out->origin[1]=org[1]; out->origin[2]=sec?sec->floorheight:org[2];
+	out->w=sw; out->h=sh; out->xo=sxo; out->yo=syo;
+	out->pickup=1; out->type=type;
+	Q_strncpyz(out->voxname, spr, sizeof(out->voxname));
+	l=strlen(out->voxname); if(l>0) out->voxname[l-1]=0;
+	dm->numsprites++;
+}
+
 //////////////////////////////////////////////////////////////////////////////////////////
 //monsters: spawn from thing types, chase the player, render as billboards.
 
@@ -2564,6 +2543,141 @@ static shader_t *Doom_MonsterSpriteShader(const char *lump, short *w, short *h, 
 	texid_t tex = Doom_LoadSprite(lump, w, h, xo, yo);
 	if (!TEXVALID(tex)) return NULL;
 	return Doom_SpriteShaderFor(lump, tex);
+}
+
+//Owned-weapons bitmask, stored in the player edict's .items (so it syncs to the client for the
+//HUD). KEEP IN SYNC with the copy in sv_user.c.
+#define DWEP_FIST      1
+#define DWEP_CHAINSAW  2
+#define DWEP_PISTOL    4
+#define DWEP_SHOTGUN   8
+#define DWEP_SSG       16
+#define DWEP_CHAINGUN  32
+#define DWEP_ROCKET    64
+#define DWEP_PLASMA    128
+#define DWEP_BFG       256
+//key bits in the items mask (above the 9 weapon bits), per colour and card/skull (for the HUD + doors)
+#define DKEY_BCARD     512
+#define DKEY_YCARD     1024
+#define DKEY_RCARD     2048
+#define DKEY_BSKULL    4096
+#define DKEY_YSKULL    8192
+#define DKEY_RSKULL    16384
+
+//=============================== Doom status-bar HUD (2D) =================================
+// Faithful bottom status bar (STBAR) + first-person weapon, drawn in screen space via R2D_Image
+// from SCR_DrawTwoDimensional. Patches load from the WAD: standalone lumps are namespaced "wad/<lump>"
+// (fs_pak.c), sprites "sprites/<lump>". Layout coords are vanilla Doom (chocolate-doom st_stuff.c),
+// 320x200 virtual, scaled to the screen. Stats come from the player's STAT_* (health/armour/ammo/items).
+typedef struct { char key[28]; shader_t *sh; short w,h,xo,yo; } doomhudpic_t;
+static doomhudpic_t doomhudpics[192]; static int doomhudpiccount;
+
+static doomhudpic_t *Doom_HudPic(const char *vfspath)
+{	//load+cache a Doom picture (patch format) at vfspath as a 2D alpha-tested shader
+	int i; doomhudpic_t *p; size_t sz=0; doomimage_t *img; unsigned int *tex; texid_t t; texnums_t stn; char sn[40];
+	for (i=0;i<doomhudpiccount;i++) if(!strcmp(doomhudpics[i].key,vfspath)) return &doomhudpics[i];
+	if (doomhudpiccount>=(int)(sizeof(doomhudpics)/sizeof(doomhudpics[0]))) return NULL;
+	p=&doomhudpics[doomhudpiccount++]; memset(p,0,sizeof(*p)); Q_strncpyz(p->key,vfspath,sizeof(p->key));
+	img=(doomimage_t*)FS_LoadMallocFile(vfspath,&sz);
+	if (!img || sz<sizeof(*img)) { if(img)BZ_Free(img); return p; }	//p->sh stays NULL -> not drawn
+	p->w=img->width; p->h=img->height; p->xo=img->xpos; p->yo=img->ypos;
+	tex=BZ_Malloc(img->width*img->height*4); memset(tex,0,img->width*img->height*4);
+	Doom_ExtractPName(tex,img,sz,img->width,img->height,0,0);
+	Q_snprintfz(sn,sizeof(sn),"doom_hud_%s",vfspath);
+	t=R_LoadTexture32(sn,img->width,img->height,tex,IF_NOMIPMAP|IF_CLAMP);
+	BZ_Free(tex); BZ_Free(img);
+	memset(&stn,0,sizeof(stn)); stn.base=t;
+	p->sh=R_RegisterShader(sn,SUF_NONE,"{\nnopicmip\n{\nmap $diffuse\nalphafunc ge128\nrgbgen vertex\nalphagen vertex\n}\n}\n");
+	R_BuildDefaultTexnums(&stn,p->sh,IF_NOMIPMAP);
+	return p;
+}
+static void Doom_HudDraw(const char *vfspath, float vx, float vy, float scale, float xoff)
+{	//draw a patch with its top-left at virtual (vx-xo, vy-yo), scaled, screen-x-offset by xoff
+	doomhudpic_t *p=Doom_HudPic(vfspath);
+	if (!p || !p->sh) return;
+	R2D_Image(xoff+(vx-p->xo)*scale, (vy-p->yo)*scale, p->w*scale, p->h*scale, 0,0,1,1, p->sh);
+}
+static void Doom_HudNum(int val, float vxRight, float vy, const char *fmt, int maxd, float scale, float xoff)
+{	//right-aligned integer: rightmost digit ends at vxRight, using the fmt font (e.g. "wad/sttnum%d")
+	char nm[28]; doomhudpic_t *z; int dw, drawn=0; float x=vxRight;
+	Q_snprintfz(nm,sizeof(nm),fmt,0); z=Doom_HudPic(nm); if(!z||!z->sh) return; dw=z->w;
+	if (val<0) val=0;
+	do { int d=val%10; val/=10; Q_snprintfz(nm,sizeof(nm),fmt,d); x-=dw; Doom_HudDraw(nm,x,vy,scale,xoff); drawn++; } while (val && drawn<maxd);
+}
+void Doom_DrawHUD2D(void)
+{
+	playerview_t *pv; int *st;
+	int health,armour,ammo,items,wi,fi,i;
+	float scale, xoff;
+	static const int armbits[6]={DWEP_PISTOL, DWEP_SHOTGUN|DWEP_SSG, DWEP_CHAINGUN, DWEP_ROCKET, DWEP_PLASMA, DWEP_BFG};
+	static const char *wnames[9]={"PUN","SAW","PIS","SHT","SHT2","CHG","MIS","PLS","BFG"};
+	static const char *wanims[9]={"ABCD","AB","ABCD","ABCDEFGH","ABCDEFGHIJKL","AB","AB","AB","AB"};
+
+	if (!cl.worldmodel || cl.worldmodel->loadstate!=MLS_LOADED || cl.worldmodel->fromgame!=fg_doom)
+		return;
+	pv = r_refdef.playerview ? r_refdef.playerview : cl.playerview;
+	st = pv->stats;
+	health=st[STAT_HEALTH]; armour=st[STAT_ARMOR]; ammo=st[STAT_AMMO]; items=st[STAT_ITEMS];
+
+	scale = vid.height/200.0f;			//320x200 virtual -> screen height
+	xoff  = (vid.width - 320.0f*scale)*0.5f;	//centre the 320-wide bar
+	R2D_ImageColours(1,1,1,1);
+
+	//---- first-person weapon, just above the status bar ----
+	wi=st[STAT_ACTIVEWEAPON]; fi=st[STAT_WEAPONFRAME];
+	if (wi<0||wi>=9) wi=2;
+	{
+		char lump[24]; char frame='A'; doomhudpic_t *wp;
+		float f = Cvar_Get("doom_weaponscale","0.7",CVAR_ARCHIVE,"Doom")->value;	//view-weapon size
+		if (fi>=0 && (unsigned)fi<strlen(wanims[wi])) frame=wanims[wi][fi];
+		Q_snprintfz(lump,sizeof(lump),"sprites/%sG%c0",wnames[wi],frame);
+		wp=Doom_HudPic(lump);
+		if (wp && wp->sh)
+			//Doom weapon sprites use psprite offsets authored so that V_DrawPatch at virtual (0,0)
+			//centres them and rests the bottom on the 168-line (status-bar top). doom_weaponscale
+			//shrinks the weapon about that bottom-centre anchor (160,168) so it isn't oversized.
+			R2D_Image(xoff + (160 + (-wp->xo-160)*f)*scale, (168 - wp->h*f)*scale,
+			          wp->w*f*scale, wp->h*f*scale, 0,0,1,1, wp->sh);
+	}
+
+	//---- status bar background + arms panel ----
+	Doom_HudDraw("wad/stbar",  0, 168, scale, xoff);
+	Doom_HudDraw("wad/starms", 104, 168, scale, xoff);
+
+	//---- big red numbers: current-weapon ammo, health%, armour% ----
+	Doom_HudNum(ammo,   44, 171, "wad/sttnum%d", 3, scale, xoff);
+	Doom_HudNum(health, 90, 171, "wad/sttnum%d", 3, scale, xoff);
+	Doom_HudDraw("wad/sttprcnt", 90, 171, scale, xoff);
+	Doom_HudNum(armour, 221, 171, "wad/sttnum%d", 3, scale, xoff);
+	Doom_HudDraw("wad/sttprcnt", 221, 171, scale, xoff);
+
+	//---- small ammo amounts (yellow) + maxima (grey), rows: bullets/shells/rockets/cells ----
+	Doom_HudNum(st[STAT_NAILS],   288,173,"wad/stysnum%d",3,scale,xoff); Doom_HudNum(200,314,173,"wad/stysnum%d",3,scale,xoff);
+	Doom_HudNum(st[STAT_SHELLS],  288,179,"wad/stysnum%d",3,scale,xoff); Doom_HudNum(50, 314,179,"wad/stysnum%d",3,scale,xoff);
+	Doom_HudNum(st[STAT_ROCKETS], 288,185,"wad/stysnum%d",3,scale,xoff); Doom_HudNum(50, 314,185,"wad/stysnum%d",3,scale,xoff);
+	Doom_HudNum(st[STAT_CELLS],   288,191,"wad/stysnum%d",3,scale,xoff); Doom_HudNum(300,314,191,"wad/stysnum%d",3,scale,xoff);
+
+	//---- weapon arms (slots 2-7): yellow if owned, grey if not ----
+	for (i=0;i<6;i++)
+	{
+		int col=i%3, row=i/3; char nm[28];
+		Q_snprintfz(nm,sizeof(nm),"wad/st%snum%d",(items&armbits[i])?"ys":"g", i+2);
+		Doom_HudDraw(nm, 111+col*12, 172+row*10, scale, xoff);
+	}
+
+	//---- keys (blue/yellow/red column); skull takes priority over card ----
+	if (items&DKEY_BSKULL) Doom_HudDraw("wad/stkeys3",239,171,scale,xoff); else if(items&DKEY_BCARD) Doom_HudDraw("wad/stkeys0",239,171,scale,xoff);
+	if (items&DKEY_YSKULL) Doom_HudDraw("wad/stkeys4",239,181,scale,xoff); else if(items&DKEY_YCARD) Doom_HudDraw("wad/stkeys1",239,181,scale,xoff);
+	if (items&DKEY_RSKULL) Doom_HudDraw("wad/stkeys5",239,191,scale,xoff); else if(items&DKEY_RCARD) Doom_HudDraw("wad/stkeys2",239,191,scale,xoff);
+
+	//---- face (pain level by health; dead face at 0) ----
+	{
+		char nm[28];
+		if (health<=0) Q_strncpyz(nm,"wad/stfdead0",sizeof(nm));
+		else { int pl=(100-health)*5/101; if(pl<0)pl=0; if(pl>4)pl=4; Q_snprintfz(nm,sizeof(nm),"wad/stfst%d1",pl); }
+		Doom_HudDraw(nm, 143, 168, scale, xoff);
+	}
+	R2D_ImageColours(1,1,1,1);
 }
 
 //full death-animation frame sequence for each monster sprite, from gzdoom's zscript Death
@@ -2889,6 +3003,40 @@ static qboolean Doom_SightLine(doommap_t *dm, const vec3_t a, const vec3_t b)
 }
 
 //hurt a monster: subtract health, wake it up, and trigger the pain animation.
+//play a Doom DMX sound ("DSxxx", exposed by the WAD loader as wad/dsxxx) at a world position. Runs
+//server-side (the Doom AI/weapons tick from SV_Physics), so SV_StartSound broadcasts it to clients.
+void Doom_PlaySound(const vec3_t org, const char *lump)
+{
+	extern void SV_StartSound(int ent, vec3_t origin, float *velocity, int seenmask, int channel, const char *sample, int volume, float attenuation, float pitchadj, float timeofs, unsigned int flags);
+	char nm[24];
+	if (!lump || !*lump) return;
+	Q_snprintfz(nm, sizeof(nm), "wad/%s", lump);
+	SV_StartSound(0, (float*)org, vec3_origin, 0, CHAN_AUTO, nm, 255, 1.0f, 1.0f, 0, 0);
+}
+//per-monster sound lump for an event: 0=sight 1=pain 2=death 3=attack (NULL = silent). Some are
+//full-Doom-only (caco/baron/...) and just won't play under the shareware WAD.
+static const char *Doom_MonSound(const char *spr, int ev)
+{
+	static const struct { const char *spr; const char *s[4]; } t[] = {
+		{"POSS",{"DSPOSIT1","DSPOPAIN","DSPODTH1","DSPISTOL"}},	//zombieman
+		{"SPOS",{"DSPOSIT2","DSPOPAIN","DSPODTH2","DSSHOTGN"}},	//shotgun guy
+		{"CPOS",{"DSPOSIT2","DSPOPAIN","DSPODTH2","DSPISTOL"}},	//chaingunner
+		{"TROO",{"DSBGSIT1","DSPOPAIN","DSBGDTH1","DSFIRSHT"}},	//imp
+		{"SARG",{"DSSGTSIT","DSDMPAIN","DSSGTDTH","DSSGTATK"}},	//demon
+		{"HEAD",{"DSCACSIT","DSDMPAIN","DSCACDTH","DSFIRSHT"}},	//cacodemon
+		{"BOSS",{"DSBRSSIT","DSDMPAIN","DSBRSDTH","DSFIRSHT"}},	//baron
+		{"BOS2",{"DSBRSSIT","DSDMPAIN","DSBRSDTH","DSFIRSHT"}},	//hell knight
+		{"SKUL",{NULL,      "DSDMPAIN","DSFIRXPL","DSSGTATK"}},	//lost soul
+		{"SSWV",{"DSSSSIT", "DSPOPAIN","DSSSDTH", "DSSHOTGN"}},	//ss
+		{"SPID",{"DSSPISIT","DSDMPAIN","DSSPIDTH","DSSHOTGN"}},	//spider
+		{"CYBR",{"DSCYBSIT","DSDMPAIN","DSCYBDTH","DSRLAUNC"}},	//cyberdemon
+	};
+	int i;
+	if (!spr || ev<0 || ev>3) return NULL;
+	for (i=0;i<(int)(sizeof(t)/sizeof(t[0]));i++) if(!strcmp(t[i].spr,spr)) return t[i].s[ev];
+	return (ev==1)?"DSPOPAIN":(ev==2)?"DSPODTH1":NULL;
+}
+
 static void Doom_HurtMonster(struct doommonster_s *m, int damage)
 {
 	if (m->mstate == 2) return;
@@ -2898,11 +3046,14 @@ static void Doom_HurtMonster(struct doommonster_s *m, int damage)
 	{
 		m->mstate = 2;
 		m->deathtime = 0;
+		if (!(m->atk & MATK_BARREL))	//barrels play DSBAREXP from Doom_BarrelExplode instead
+			Doom_PlaySound(m->origin, Doom_MonSound(m->spr,2));
 	}
-	else if (m->painfr[0])
+	else
 	{
-		//trigger pain animation (100% chance for now, vanilla is random)
-		m->paintime = 0;
+		if (m->painfr[0])
+			m->paintime = 0;	//trigger pain animation (100% chance for now, vanilla is random)
+		Doom_PlaySound(m->origin, Doom_MonSound(m->spr,1));
 	}
 }
 
@@ -3103,6 +3254,7 @@ static void Doom_TickProjectiles(doommap_t *dm, float frametime, const vec3_t pl
 //here and detonate on the next tick, giving the classic chain reaction.
 static void Doom_BarrelExplode(doommap_t *dm, struct doommonster_s *barrel, const vec3_t playerorg, float *ph, float *pa)
 {
+	Doom_PlaySound(barrel->origin, "DSBAREXP");
 	Doom_RadiusDamage(dm, barrel->origin, 128, 128, playerorg, ph, pa);
 }
 
@@ -3250,18 +3402,6 @@ static qboolean Doom_MonsterBlocked(doommap_t *dm, struct doommonster_s *m, floa
 	return false;
 }
 
-//Owned-weapons bitmask, stored in the player edict's .items (so it syncs to the client for the
-//HUD). KEEP IN SYNC with the copy in sv_user.c.
-#define DWEP_FIST      1
-#define DWEP_CHAINSAW  2
-#define DWEP_PISTOL    4
-#define DWEP_SHOTGUN   8
-#define DWEP_SSG       16
-#define DWEP_CHAINGUN  32
-#define DWEP_ROCKET    64
-#define DWEP_PLASMA    128
-#define DWEP_BFG       256
-
 enum { DW_FIST, DW_CHAINSAW, DW_PISTOL, DW_SHOTGUN, DW_SSG, DW_CHAINGUN, DW_ROCKET, DW_PLASMA, DW_BFG, DW_COUNT };
 
 //Item pickups: collect any pickup billboard the player walks over (touch radius ~ the two radii
@@ -3318,7 +3458,11 @@ void Doom_TryPickups(model_t *model, const vec3_t playerorg, float *health, floa
 			case 2003: wb |= DWEP_ROCKET;   if (rockets) *rockets = min(50,*rockets+2);  nw=DW_ROCKET;  break;
 			case 2004: wb |= DWEP_PLASMA;   if (cells)   *cells   = min(300,*cells+40);  nw=DW_PLASMA;  break;
 			case 2006: wb |= DWEP_BFG;      if (cells)   *cells   = min(300,*cells+40);  nw=DW_BFG;     break;
-			default: break;	//keys/powerups: collected, no effect yet
+			//keys (stored in the items mask for the HUD)
+			case 5:  wb |= DKEY_BCARD;  break;	case 40: wb |= DKEY_BSKULL; break;
+			case 6:  wb |= DKEY_YCARD;  break;	case 39: wb |= DKEY_YSKULL; break;
+			case 13: wb |= DKEY_RCARD;  break;	case 38: wb |= DKEY_RSKULL; break;
+			default: break;	//powerups: collected, no effect yet
 			}
 			if (items)
 			{
@@ -3331,6 +3475,11 @@ void Doom_TryPickups(model_t *model, const vec3_t playerorg, float *health, floa
 					if (nw >= 0 && nw < 9 && (*weapon < 0 || *weapon >= 9 || rank_val[nw] > rank_val[(int)*weapon]))
 						*weapon = (float)nw;
 				}
+			}
+			{	//pickup sound: weapons use DSWPNUP, everything else DSITEMUP
+				unsigned short t=sp->type;
+				int isweap=(t==2001||t==82||t==2002||t==2005||t==2003||t==2004||t==2006);
+				Doom_PlaySound(playerorg, isweap?"DSWPNUP":"DSITEMUP");
 			}
 			dm->sprites[s] = dm->sprites[--dm->numsprites];
 			continue;
@@ -3430,6 +3579,15 @@ void Doom_TickMonsters(model_t *model, float frametime, const vec3_t playerorg, 
 			//detonate a freshly-killed barrel, then advance the death animation timer (no AI)
 			if ((m->atk & MATK_BARREL) && !m->exploded)
 				Doom_BarrelExplode(dm, m, playerorg, playerhealth, playerarmor);
+			if (!m->dropped)
+			{	//former humans drop their weapon/ammo on death (Doom P_KillMobj)
+				unsigned short drop=0;
+				m->dropped=1;
+				if (m->type==3004 || m->type==84) drop=2007;	//zombieman/SS -> clip
+				else if (m->type==9)  drop=2001;		//shotgun guy -> shotgun
+				else if (m->type==65) drop=2002;		//chaingunner -> chaingun
+				if (drop) Doom_SpawnDrop(dm, drop, m->origin);
+			}
 			if (m->deathtime >= 0) m->deathtime += frametime;
 			continue;
 		}
@@ -3456,7 +3614,7 @@ void Doom_TickMonsters(model_t *model, float frametime, const vec3_t playerorg, 
 
 		if (!m->alerted)
 		{	//dormant until it sees the player at moderate range or hears a shot (Doom_NoiseAlert)
-			if (dist < 1280 && sight) m->alerted = 1;
+			if (dist < 1280 && sight) { m->alerted = 1; Doom_PlaySound(m->origin, Doom_MonSound(m->spr,0)); }
 			else continue;
 		}
 		if (dist > 3000)
@@ -3516,6 +3674,7 @@ void Doom_TickMonsters(model_t *model, float frametime, const vec3_t playerorg, 
 		if (m->atk && m->atkcool <= 0 && sight)
 		{
 			m->atktime = 0; //start attack animation
+			Doom_PlaySound(m->origin, Doom_MonSound(m->spr,3));	//attack/fire sound
 			if ((m->atk & MATK_MELEE) && dist <= meleerange)
 			{	//bite/claw/fist - melee always connects in range (no spread)
 				Doom_HurtPlayer(playerhealth, playerarmor, m->meleedmg * Doom_Rand(1, m->meleerand));
@@ -4188,6 +4347,7 @@ static void Doom_Purge (struct model_s *mod)
 	dm->monsters = NULL;
 	dm->nummonsters = 0;
 	doomvoxshader = NULL;	//shader system is reset between maps; rebuilt lazily on next draw
+	doomhudpiccount = 0;	//HUD patch shaders are also reset between maps
 	BZ_Free(dm->projectiles);
 	dm->projectiles = NULL;
 	dm->numprojectiles = 0;

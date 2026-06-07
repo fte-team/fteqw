@@ -48,6 +48,7 @@ qboolean Doom_IsActivatableLinedef(int special);
 void Doom_ActivateLinedef(struct model_s *model, int linedef_idx);
 void Doom_PlayerAttack(struct model_s *model, const float *org, float yaw, int pellets, int dmgbase, float maxrange);
 void Doom_PlayerProjectile(struct model_s *model, const vec3_t org, float yaw, int type);
+void Doom_PlaySound(const vec3_t org, const char *lump);
 void Doom_ResetMap(struct model_s *model);
 qboolean Doom_TeleportThing(struct model_s *model, int linedef_idx, float *outorg, float *outyaw);
 void Doom_TryPickups(struct model_s *model, const float *playerorg, float *health, float *armor,
@@ -7969,6 +7970,11 @@ void SV_RunCmd (usercmd_t *ucmd, qboolean recurse)
 					{
 						Doom_PlayerAttack(sv.world.worldmodel, sv_player->v->origin,
 							sv_player->v->angles[1], wp->pellets, wp->dmgbase, wp->range);
+					}
+					{	//weapon fire sound (indexed by DW_*; missing lumps just stay silent)
+						static const char *wsnd[DW_COUNT]={"DSPUNCH","DSSAWFUL","DSPISTOL","DSSHOTGN",
+							"DSDSHTGN","DSPISTOL","DSRLAUNC","DSPLASMA","DSBFG"};
+						Doom_PlaySound(sv_player->v->origin, wsnd[wi]);
 					}
 					host_client->doom_refire = wp->refire;
 					host_client->doom_weapon_anim = 0; //start animation

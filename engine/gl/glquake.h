@@ -395,6 +395,8 @@ qboolean R_ImportRTLights(const char *entlump, int importmode);
 //doom
 #ifdef MAP_DOOM
 void R_DoomWorld(void);
+void Doom_DrawHUD2D(void);
+void Doom_PlaySound(const vec3_t org, const char *lump);
 void Doom_ActivateLinedef(struct model_s *model, int linedef_idx);
 void Doom_TickDoors(struct model_s *model, float frametime);
 void Doom_PlayerProjectile(struct model_s *model, const vec3_t org, float yaw, int type);

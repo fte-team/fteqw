@@ -47,10 +47,11 @@ typedef struct {
 qboolean Doom_IsActivatableLinedef(int special);
 void Doom_ActivateLinedef(struct model_s *model, int linedef_idx);
 void Doom_PlayerAttack(struct model_s *model, const float *org, float yaw, int pellets, int dmgbase, float maxrange);
+void Doom_PlayerProjectile(struct model_s *model, const vec3_t org, float yaw, int type);
 void Doom_ResetMap(struct model_s *model);
 qboolean Doom_TeleportThing(struct model_s *model, int linedef_idx, float *outorg, float *outyaw);
 void Doom_TryPickups(struct model_s *model, const float *playerorg, float *health, float *armor,
-	float *bullets, float *shells, float *rockets, float *cells, float *items);
+	float *bullets, float *shells, float *rockets, float *cells, float *items, float *weapon);
 
 // Owned-weapons bitmask in .items (KEEP IN SYNC with glmod_doom.c).
 #define DWEP_FIST 1
@@ -69,17 +70,17 @@ void Doom_TryPickups(struct model_s *model, const float *playerorg, float *healt
 enum { DW_FIST, DW_CHAINSAW, DW_PISTOL, DW_SHOTGUN, DW_SSG, DW_CHAINGUN, DW_ROCKET, DW_PLASMA, DW_BFG, DW_COUNT };
 static const struct doomweapon_s {
 	const char *name; int bit; int ammotype; int ammouse; int pellets; int dmgbase;
-	float refire; float range; qboolean projectile;
+	float refire; float range; qboolean projectile; const char *anim;
 } doomweapons[DW_COUNT] = {
-	{"Fist",      DWEP_FIST,     -1, 0,  1,  6, 0.50f,  70, false},
-	{"Chainsaw",  DWEP_CHAINSAW, -1, 0,  1,  6, 0.12f,  80, false},
-	{"Pistol",    DWEP_PISTOL,    0, 1,  1,  5, 0.40f, 2000, false},
-	{"Shotgun",   DWEP_SHOTGUN,   1, 1,  7,  5, 0.85f, 2000, false},
-	{"Super SG",  DWEP_SSG,       1, 2, 20,  5, 1.05f, 2000, false},
-	{"Chaingun",  DWEP_CHAINGUN,  0, 1,  1,  5, 0.12f, 2000, false},
-	{"Rocket",    DWEP_ROCKET,    2, 1,  0,  0, 0.80f, 2000, true},
-	{"Plasma",    DWEP_PLASMA,    3, 1,  0,  0, 0.12f, 2000, true},
-	{"BFG 9000",  DWEP_BFG,       3, 40, 0,  0, 1.00f, 2000, true},
+	{"Fist",      DWEP_FIST,     -1, 0,  1,  6, 0.50f,  70, false, "ABCD"},
+	{"Chainsaw",  DWEP_CHAINSAW, -1, 0,  1,  6, 0.12f,  80, false, "AB"},
+	{"Pistol",    DWEP_PISTOL,    0, 1,  1,  5, 0.40f, 2000, false, "ABCD"},
+	{"Shotgun",   DWEP_SHOTGUN,   1, 1,  7,  5, 0.85f, 2000, false, "ABCDEFGH"},
+	{"Super SG",  DWEP_SSG,       1, 2, 20,  5, 1.05f, 2000, false, "ABCDEFGHIJKL"},
+	{"Chaingun",  DWEP_CHAINGUN,  0, 1,  1,  5, 0.12f, 2000, false, "AB"},
+	{"Rocket",    DWEP_ROCKET,    2, 1,  0,  0, 0.80f, 2000, true,  "AB"},
+	{"Plasma",    DWEP_PLASMA,    3, 1,  0,  0, 0.12f, 2000, true,  "AB"},
+	{"BFG 9000",  DWEP_BFG,       3, 40, 0,  0, 1.00f, 2000, true,  "AB"},
 };
 
 // Map a weapon's ammotype to the matching player ammo field (NULL = no ammo, e.g. fist/chainsaw).
@@ -5781,12 +5782,15 @@ void SV_SetUpClientEdict (client_t *cl, edict_t *ent)
 	if (sv.world.worldmodel && sv.world.worldmodel->fromgame == fg_doom &&
 		(doom_player1_start[0] || doom_player1_start[1] || doom_player1_start[2]))
 	{
+		Cbuf_AddText("sv_stepheight 24.1\n", 0);
+		// VectorCopy(doom_player1_start, ent->v->origin);
 		VectorCopy(doom_player1_start, ent->v->origin);
 		ent->v->angles[1] = doom_player1_yaw;
 		ent->v->view_ofs[2] = 17;	//DOOM eye height 41, minus the 24u the origin sits above the feet (mins.z=-24)
 
 		// Enable proper physics: walk on floors, collide with walls
 		VectorSet(ent->v->mins, -16, -16, -24);
+
 		VectorSet(ent->v->maxs,  16,  16,  32);
 		ent->v->movetype = MOVETYPE_WALK;
 		ent->v->solid    = SOLID_SLIDEBOX;
@@ -7840,8 +7844,7 @@ void SV_RunCmd (usercmd_t *ucmd, qboolean recurse)
 	}
 	host_client->doom_use_pressed = sv_player->v->button2 ? true : false;
 
-	// DOOM walk-over teleporters (line specials 39 W1 / 97 WR): if the player crossed a teleport
-	// line this frame, warp to its destination landing pad and telefrag whatever's standing there.
+	// DOOM walk-over triggers (W1 / WR specials): level exits, floor traps, teleporters, etc.
 	if (sv.world.worldmodel && sv.world.worldmodel->fromgame == fg_doom && sv_player->v->health > 0)
 	{
 		doommap_sv_t *dm = (doommap_sv_t*)sv.world.worldmodel->meshinfo;
@@ -7854,25 +7857,37 @@ void SV_RunCmd (usercmd_t *ucmd, qboolean recurse)
 			{
 				dlinedef_sv_t *ld = dm->linedef + j;
 				mdoomvertex_sv_t *v1, *v2;
-				vec3_t torg; float tyaw;
-				if (ld->types != 39 && ld->types != 97)
-					continue;	//only player walk-over teleporters
+				if (ld->types == 0) continue;
+				
 				v1 = &dm->vertexes[ld->vert[0]];
 				v2 = &dm->vertexes[ld->vert[1]];
 				if (!Doom_SegCross(prv[0],prv[1], cur[0],cur[1], v1->xpos,v1->ypos, v2->xpos,v2->ypos))
 					continue;
-				if (Doom_TeleportThing(sv.world.worldmodel, j, torg, &tyaw))
-				{
-					sv_player->v->origin[0] = torg[0];
-					sv_player->v->origin[1] = torg[1];
-					sv_player->v->origin[2] = torg[2] + 24;		//origin sits 24u above the feet
-					VectorCopy(sv_player->v->origin, sv_player->v->oldorigin);
-					sv_player->v->angles[1] = tyaw;
-					sv_player->v->fixangle = 1;					//snap the client view to the new facing
-					VectorClear(sv_player->v->velocity);
-					host_client->doom_autouse_ld = -1;
-					if (ld->types == 39)
-						ld->types = 0;							//W1: one-shot, spend it
+
+				if (ld->types == 39 || ld->types == 97)
+				{	// Teleporter
+					vec3_t torg; float tyaw;
+					if (Doom_TeleportThing(sv.world.worldmodel, j, torg, &tyaw))
+					{
+						sv_player->v->origin[0] = torg[0];
+						sv_player->v->origin[1] = torg[1];
+						sv_player->v->origin[2] = torg[2] + 24;		//origin sits 24u above the feet
+						VectorCopy(sv_player->v->origin, sv_player->v->oldorigin);
+						sv_player->v->angles[1] = tyaw;
+						sv_player->v->fixangle = 1;					//snap the client view to the new facing
+						VectorClear(sv_player->v->velocity);
+						host_client->doom_autouse_ld = -1;
+						if (ld->types == 39)
+							ld->types = 0;							//W1: one-shot, spend it
+					}
+				}
+				else if (Doom_IsActivatableLinedef(ld->types))
+				{	// Generic walk-over (W1 / WR)
+					Doom_ActivateLinedef(sv.world.worldmodel, j);
+					// check if it was a one-shot type (crude: most even types are repeating, odd are one-shot?)
+					// better: hardcode common one-shot W1s
+					if (ld->types == 5 || ld->types == 19 || ld->types == 38 || ld->types == 52 || ld->types == 11)
+						ld->types = 0;
 				}
 				break;	//only one crossing handled per frame
 			}
@@ -7911,8 +7926,7 @@ void SV_RunCmd (usercmd_t *ucmd, qboolean recurse)
 				&sv_player->v->health, &sv_player->v->armorvalue,
 				&sv_player->v->ammo_nails, &sv_player->v->ammo_shells,
 				&sv_player->v->ammo_rockets, &sv_player->v->ammo_cells,
-				&sv_player->v->items);
-
+				&sv_player->v->items, &sv_player->v->weapon);
 			//weapon switch on impulse 1-7 (Doom number keys; slots 1 & 3 toggle their pair).
 			if (sv_player->v->impulse >= 1 && sv_player->v->impulse <= 7)
 			{
@@ -7928,6 +7942,8 @@ void SV_RunCmd (usercmd_t *ucmd, qboolean recurse)
 			//fire: auto-fire while held, paced by the weapon's refire rate; consume ammo.
 			if (host_client->doom_refire > 0)
 				host_client->doom_refire -= host_frametime;
+			host_client->doom_weapon_anim += host_frametime;
+
 			if (sv_player->v->button0 && host_client->doom_refire <= 0)
 			{
 				int wi = (int)sv_player->v->weapon;
@@ -7937,16 +7953,48 @@ void SV_RunCmd (usercmd_t *ucmd, qboolean recurse)
 					wi = DW_PISTOL;
 				wp = &doomweapons[wi];
 				ammo = Doom_AmmoField(sv_player, wp->ammotype);
-				if (!wp->projectile && (!ammo || *ammo >= wp->ammouse))
-				{	//hitscan/melee: spend ammo and trace the shot
+				if (!ammo || *ammo >= wp->ammouse)
+				{	//spend ammo and fire
 					if (ammo)
 						*ammo -= wp->ammouse;
-					Doom_PlayerAttack(sv.world.worldmodel, sv_player->v->origin,
-						sv_player->v->angles[1], wp->pellets, wp->dmgbase, wp->range);
+					if (wp->projectile)
+					{
+						int type = 1; //default rocket
+						if (wi == DW_PLASMA) type = 2;
+						else if (wi == DW_BFG) type = 3;
+						Doom_PlayerProjectile(sv.world.worldmodel, sv_player->v->origin,
+							sv_player->v->angles[1], type);
+					}
+					else
+					{
+						Doom_PlayerAttack(sv.world.worldmodel, sv_player->v->origin,
+							sv_player->v->angles[1], wp->pellets, wp->dmgbase, wp->range);
+					}
 					host_client->doom_refire = wp->refire;
+					host_client->doom_weapon_anim = 0; //start animation
 				}
 				else
-					host_client->doom_refire = 0.2f;	//out of ammo / projectile not wired yet: empty click delay
+					host_client->doom_refire = 0.2f;	//out of ammo: empty click delay
+			}
+
+			//update STAT_WEAPONFRAME for the HUD animation. Frame 0 is idle.
+			{
+				int wi = (int)sv_player->v->weapon;
+				if (wi >= 0 && wi < DW_COUNT)
+				{
+					const struct doomweapon_s *wp = &doomweapons[wi];
+					int len = (int)strlen(wp->anim);
+					if (host_client->doom_refire > 0)
+					{
+						//during refire, cycle through the anim string (except the first frame if it's idle)
+						//Doom weapons often have 0.1s per frame.
+						int frame = (int)(host_client->doom_weapon_anim / 0.1f);
+						if (frame >= len) frame = len - 1;
+						sv_player->v->weaponframe = frame;
+					}
+					else
+						sv_player->v->weaponframe = 0; //idle
+				}
 			}
 
 			Doom_UpdateCurrentAmmo(sv_player);	//keep the HUD ammo number on the equipped weapon

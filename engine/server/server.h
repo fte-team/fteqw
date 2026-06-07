@@ -472,7 +472,9 @@ typedef struct client_s
 	qboolean		doom_attack_pressed;// edge-detect for DOOM attack/fire
 	int				doom_autouse_ld;	// last linedef auto-opened on approach (-1=none; debounce so doors don't oscillate)
 	vec3_t			doom_prevorg;		// previous-frame origin, for walk-over teleport line crossing
-	float			doom_refire;		// time left until the equipped Doom weapon can fire again (per-weapon refire rate)
+	float                   doom_refire;            // time left until the equipped Doom weapon can fire again (per-weapon refire rate)
+	float                   doom_weapon_anim;       // drives the weapon's firing animation (seconds since fire)
+
 
 	qboolean		sendinfo;			// at end of frame, send info to all
 										// this prevents malicious multiple broadcasts

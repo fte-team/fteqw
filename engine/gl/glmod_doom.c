@@ -3438,7 +3438,11 @@ void Doom_TickMonsters(model_t *model, float frametime, const vec3_t playerorg, 
 			continue;		//Without the skip they'd get alerted into the attack state (no
 		}				//attack frames -> the sprite render leaves sh=NULL and they vanish).
 		if (m->paintime >= 0) m->paintime += frametime;
-		if (m->atktime >= 0) m->atktime += frametime;
+		if (m->atktime >= 0)
+		{	//attack animation in progress: advance it, and end it after natk frames (~0.25s each)
+			m->atktime += frametime;
+			if (m->natk > 0 && m->atktime >= m->natk*0.25f) m->atktime = -1;
+		}
 		m->animt += frametime;	//advance the walk cycle (render uses it while the monster is chasing)
 		dx = playerorg[0]-m->origin[0]; dy = playerorg[1]-m->origin[1];
 		dist = sqrt(dx*dx+dy*dy);
@@ -3538,6 +3542,12 @@ void Doom_TickMonsters(model_t *model, float frametime, const vec3_t playerorg, 
 			}
 		}
 
+		//Doom monsters run OR shoot, never both: while the attack (or pain) animation is playing the
+		//monster stands still (it still faces the player, set above). A_Chase only moves between
+		//attacks - it returns without moving when it switches to the Missile/Melee state. (chocolate-
+		//doom p_enemy.c A_Chase: P_SetMobjState(missilestate); return;)
+		if (m->atktime >= 0 || m->paintime >= 0)
+			continue;
 		if (dist <= meleerange)
 			continue;	//adjacent: hold position
 		step = m->speed * frametime;

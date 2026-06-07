@@ -332,6 +332,7 @@ typedef struct doommap_s
 		qbyte		floating;	// 1 = moves in 3D (caco/lostsoul/pain), doesn't snap to floor
 		qbyte		exploded;	// barrels: 1 once the blast has been dealt
 		qbyte		dropped;	// 1 once this monster has dropped its item on death (former humans)
+		qbyte		atkpend;	// pending attack to resolve mid-animation: MATK_* of the chosen attack
 		float		animt;		// walk-cycle animation timer (front frames A-D in shader[0..3])
 		float		deathtime;	// seconds since killed (drives the death-frame animation; <0 = alive)
 		float		paintime;	// seconds since hurt (drives the pain-frame animation; <0 = normal)
@@ -2611,7 +2612,7 @@ void Doom_DrawHUD2D(void)
 	float scale, xoff;
 	static const int armbits[6]={DWEP_PISTOL, DWEP_SHOTGUN|DWEP_SSG, DWEP_CHAINGUN, DWEP_ROCKET, DWEP_PLASMA, DWEP_BFG};
 	static const char *wnames[9]={"PUN","SAW","PIS","SHT","SHT2","CHG","MIS","PLS","BFG"};
-	static const char *wanims[9]={"ABCD","AB","ABCD","ABCDEFGH","ABCDEFGHIJKL","AB","AB","AB","AB"};
+	static const char *wanims[9]={"ABCD","AB","ABCD","ABCD","ABCDEFGHIJ","AB","AB","AB","AB"};
 
 	if (!cl.worldmodel || cl.worldmodel->loadstate!=MLS_LOADED || cl.worldmodel->fromgame!=fg_doom)
 		return;
@@ -2623,9 +2624,10 @@ void Doom_DrawHUD2D(void)
 	xoff  = (vid.width - 320.0f*scale)*0.5f;	//centre the 320-wide bar
 	R2D_ImageColours(1,1,1,1);
 
-	//---- first-person weapon, just above the status bar ----
+	//---- first-person weapon, just above the status bar (not while dead) ----
 	wi=st[STAT_ACTIVEWEAPON]; fi=st[STAT_WEAPONFRAME];
 	if (wi<0||wi>=9) wi=2;
+	if (health > 0)
 	{
 		char lump[24]; char frame='A'; doomhudpic_t *wp;
 		float f = Cvar_Get("doom_weaponscale","0.7",CVAR_ARCHIVE,"Doom")->value;	//view-weapon size
@@ -3671,34 +3673,39 @@ void Doom_TickMonsters(model_t *model, float frametime, const vec3_t playerorg, 
 
 		meleerange = m->radius + 36;	//+player radius ~16 + slack
 
-		if (m->atk && m->atkcool <= 0 && sight)
+		//Resolve a telegraphed attack partway through its animation. Doom deals the hit on the
+		//attack frame (~0.3s in), not the instant the monster decides to attack - so the damage
+		//lines up with the visible attack and the player can react / dodge by breaking line of sight.
+		//Damage amounts are vanilla (chocolate-doom p_enemy.c): hitscan ((rand%5)+1)*3 per bullet,
+		//melee meleedmg*(1..meleerand), missile misdmg*(1..8) on impact.
+		if (m->atkpend && m->atktime >= 0.28f)
 		{
-			m->atktime = 0; //start attack animation
-			Doom_PlaySound(m->origin, Doom_MonSound(m->spr,3));	//attack/fire sound
-			if ((m->atk & MATK_MELEE) && dist <= meleerange)
-			{	//bite/claw/fist - melee always connects in range (no spread)
-				Doom_HurtPlayer(playerhealth, playerarmor, m->meleedmg * Doom_Rand(1, m->meleerand));
-				m->atkcool = 1.0f; continue;
+			qbyte a = m->atkpend; m->atkpend = 0;
+			Doom_PlaySound(m->origin, Doom_MonSound(m->spr,3));	//fire sound on the attack frame
+			if (sight)
+			{
+				if (a == MATK_MELEE) {
+					if (dist <= meleerange)
+						Doom_HurtPlayer(playerhealth, playerarmor, m->meleedmg * Doom_Rand(1, m->meleerand));
+				} else if (a == MATK_HITSCAN) {
+					int b; for (b=0;b<m->bullets;b++)
+						if (Doom_HitscanHits(dist))
+							Doom_HurtPlayer(playerhealth, playerarmor, m->misdmg * Doom_Rand(1,5));
+				} else if (a == MATK_MISSILE) {
+					Doom_SpawnProjectile(dm, m->origin, playerorg, m->misdmg, m->misspeed, !!(m->atk & MATK_HOMING));
+				}
 			}
-			if (m->atk & MATK_HITSCAN)
-			{	//former human / spider chaingun: instant bullets, each rolled for accuracy
-				int b; for (b=0;b<m->bullets;b++)
-					if (Doom_HitscanHits(dist))
-						Doom_HurtPlayer(playerhealth, playerarmor, m->misdmg * Doom_Rand(1,5));	//((rand%5)+1)*3 per bullet
-				m->atkcool = 1.0f; continue;
-			}
+		}
+
+		if (m->atk && m->atkcool <= 0 && sight && !m->atkpend)
+		{	//decide to attack: start the animation now; the effect + fire sound land mid-animation (above)
+			if ((m->atk & MATK_MELEE) && dist <= meleerange) { m->atktime=0; m->atkpend=MATK_MELEE;   m->atkcool=1.0f; continue; }
+			if (m->atk & MATK_HITSCAN)                        { m->atktime=0; m->atkpend=MATK_HITSCAN; m->atkcool=1.0f; continue; }
 			if (m->atk & MATK_VILE)
-			{	//archvile: begin the hellfire cast (A_VileStart/A_VileTarget) - conjure the tracking
-				//fire at the player; the blast lands later in the cast (handled above) if LOS holds.
-				m->vilet = 0; m->atktime = 0;
-				Doom_SpawnVileFire(dm, playerorg);
-				m->atkcool = 2.0f; continue;
+			{	//archvile: begin the hellfire cast (the blast lands later, via the vilet timer above)
+				m->vilet = 0; m->atktime = 0; Doom_SpawnVileFire(dm, playerorg); m->atkcool = 2.0f; continue;
 			}
-			if (m->atk & MATK_MISSILE)
-			{	//imp/caco/baron ball, revenant homing tracer, rockets, ...
-				Doom_SpawnProjectile(dm, m->origin, playerorg, m->misdmg, m->misspeed, !!(m->atk & MATK_HOMING));
-				m->atkcool = 1.5f; continue;
-			}
+			if (m->atk & MATK_MISSILE)                        { m->atktime=0; m->atkpend=MATK_MISSILE; m->atkcool=1.5f; continue; }
 		}
 
 		//Doom monsters run OR shoot, never both: while the attack (or pain) animation is playing the

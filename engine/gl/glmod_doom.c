@@ -9,6 +9,8 @@ float  doom_player1_yaw;
 typedef struct doommap_s doommap_t;
 static shader_t *Doom_MonsterSpriteShader(const char *lump, short *w, short *h, short *xo, short *yo);
 static shader_t *Doom_SpriteShaderFor(const char *lump, texid_t tex);
+static void Doom_VoxShader(void);
+static qboolean Doom_DrawVoxelByName(const char *name, const vec3_t origin, float yawdeg, float scale);
 static void R_DoomDrawHUD(doommap_t *dm);
 
 
@@ -302,6 +304,7 @@ typedef struct doommap_s
 		short		xo, yo;		// sprite left/top offsets (the thing's hotspot)
 		qbyte		pickup;		// 1 = collectable item (removed when the player walks over it)
 		unsigned short type;	// original Doom thing type (so a pickup knows its effect)
+		char		voxname[8];	// voxel model name (sprite frame minus rotation digit, e.g. "COLUA")
 	} *sprites;
 	unsigned int numsprites;
 
@@ -350,6 +353,7 @@ typedef struct doommap_s
 		qbyte		natk;		// number of loaded attack frames
 		qbyte		npain;		// number of loaded pain frames
 		qbyte		nwalk;		// number of walk frames (1 for caco/single-frame floaters, else up to 4)
+		const char	*spr;		// sprite/voxel base name (e.g. "POSS"), for the voxel renderer
 	} *monsters;
 	unsigned int nummonsters;
 
@@ -1615,8 +1619,13 @@ static void R_DoomDrawSprites(doommap_t *dm)
 	byte_vec4_t col[4];
 	index_t idx[6] = {0,1,2, 0,2,3};
 
+	int usevox; float voxscale, voxyaw;
 	if (!dm->numsprites)
 		return;
+	usevox  = (int)Cvar_Get("doom_voxels", "1", CVAR_ARCHIVE, "Doom")->value;
+	voxscale= Cvar_Get("doom_voxscale", "1", CVAR_ARCHIVE, "Doom")->value;
+	voxyaw  = Cvar_Get("doom_voxyaw", "90", CVAR_ARCHIVE, "Doom")->value;
+	if (usevox) Doom_VoxShader();
 
 	//cylindrical billboard: sprites stay upright and turn to face the player horizontally
 	viewang[0] = 0;
@@ -1643,6 +1652,8 @@ static void R_DoomDrawSprites(doommap_t *dm)
 		float zb = s->origin[2];	//rest the sprite's bottom on the floor (Doom items sit on the ground)
 		float zt = zb + s->h;
 		vec3_t l, r;
+		if (usevox && s->voxname[0] && Doom_DrawVoxelByName(s->voxname, s->origin, voxyaw, voxscale))
+			continue;	//rendered as a voxel; otherwise fall back to the sprite billboard
 		if (!s->shader)
 			continue;
 		VectorMA(s->origin, -s->xo,        vright, l);	//left edge (origin column = leftoffset)
@@ -2441,6 +2452,8 @@ static void Doom_LoadThingSprites(doommap_t *dm)
 		out->w = sw; out->h = sh; out->xo = sxo; out->yo = syo;
 		out->pickup = Doom_IsPickup(dm->thing[i].type);
 		out->type = dm->thing[i].type;
+		Q_strncpyz(out->voxname, spr, sizeof(out->voxname));	//voxel name = sprite frame minus the rotation digit
+		{ int l=strlen(out->voxname); if(l>0) out->voxname[l-1]=0; }
 		dm->numsprites++;
 	}
 }
@@ -2650,7 +2663,7 @@ static void Doom_LoadMonsters(doommap_t *dm)
 		sec = Doom_SectorNearPoint(dm, p);
 		m->origin[0]=p[0]; m->origin[1]=p[1]; m->origin[2]=sec?sec->floorheight:0;
 		m->yaw = dm->thing[i].angle;
-		m->health=mi.health; m->radius=(qbyte)mi.radius; m->speed=mi.speed; m->type=dm->thing[i].type;
+		m->health=mi.health; m->radius=(qbyte)mi.radius; m->speed=mi.speed; m->type=dm->thing[i].type; m->spr=mi.spr;
 		m->atk=mi.atk; m->meleedmg=mi.meleedmg; m->meleerand=mi.meleerand?mi.meleerand:8; m->misdmg=mi.misdmg; m->misspeed=mi.misspeed; m->bullets=mi.bullets; m->floating=mi.floating?1:0;
 		m->atkcool = 0.5f + (rand()&255)/128.0f;
 		m->deathtime = -1; m->paintime = -1; m->atktime = -1;
@@ -2660,68 +2673,84 @@ static void Doom_LoadMonsters(doommap_t *dm)
 		
 		if (!(mi.atk & MATK_BARREL))
 		{	//load the walk frames (per-monster count) with 8 rotations each
-			int f, r; const char *wf = Doom_WalkFrames(mi.spr);
+			int f, r, f2; const char *wf = Doom_WalkFrames(mi.spr);
 			m->nwalk = 0;
 			for (f = 0; f < 4 && wf[f]; f++)
 			{
+				qboolean frame_ok = false;
 				for (r = 0; r < 8; r++)
 				{
 					char wl[16]; short ww=0, wh=0, wxo=0, wyo=0; shader_t *wsh; int mir=0, p;
-					//Doom packs the 8 view rotations into lumps that may serve TWO rotations: a
-					//combined lump "<SPR><frm><a><frm><b>" (e.g. POSSA2A8) holds rotation a as-is and
-					//rotation b MIRRORED. So to find rotation r+1 we try, in order: the standalone
-					//"<SPR><frm><r+1>"; then any combined lump with r+1 in the FIRST slot (as-is); then
-					//any combined lump with r+1 in the SECOND slot (mirrored). Old code only tried the
-					//standalone and fell back to the front view, so side/back angles all showed the front.
+					//Standalone rotation: <SPR><frm><rot>
 					Q_snprintfz(wl, sizeof(wl), "%s%c%d", mi.spr, wf[f], r+1);
 					wsh = Doom_MonsterSpriteShader(wl, &ww,&wh,&wxo,&wyo);
-					for (p = 1; !wsh && p <= 8; p++)
+					//Combined mirrored rotations: <SPR><f1><r1><f2><r2>. Doom allows different
+					//frame letters to share a lump (e.g. TROOA2B8). Try all walk frames.
+					for (f2 = 0; !wsh && f2 < 4 && wf[f2]; f2++)
 					{
-						if (p == r+1) continue;
-						Q_snprintfz(wl, sizeof(wl), "%s%c%d%c%d", mi.spr, wf[f], r+1, wf[f], p);	//r+1 first -> as-is
-						wsh = Doom_MonsterSpriteShader(wl, &ww,&wh,&wxo,&wyo);
-						if (wsh) break;
-						Q_snprintfz(wl, sizeof(wl), "%s%c%d%c%d", mi.spr, wf[f], p, wf[f], r+1);	//r+1 second -> mirrored
-						wsh = Doom_MonsterSpriteShader(wl, &ww,&wh,&wxo,&wyo);
-						if (wsh) { mir = 1; break; }
+						for (p = 1; p <= 8; p++)
+						{
+							if (f == f2 && p == r+1) continue;
+							Q_snprintfz(wl, sizeof(wl), "%s%c%d%c%d", mi.spr, wf[f], r+1, wf[f2], p);
+							wsh = Doom_MonsterSpriteShader(wl, &ww,&wh,&wxo,&wyo);
+							if (wsh) break;
+							Q_snprintfz(wl, sizeof(wl), "%s%c%d%c%d", mi.spr, wf[f2], p, wf[f], r+1);
+							wsh = Doom_MonsterSpriteShader(wl, &ww,&wh,&wxo,&wyo);
+							if (wsh) { mir = 1; break; }
+						}
 					}
-					if (!wsh) { //last resort: single-rotation sprite (suffix 0)
+					if (!wsh) { //last resort: non-rotating sprite <SPR><frm>0
 						Q_snprintfz(wl, sizeof(wl), "%s%c0", mi.spr, wf[f]);
 						wsh = Doom_MonsterSpriteShader(wl, &ww,&wh,&wxo,&wyo);
 					}
-					if (wsh) { m->shader[f][r]=wsh; m->w[f][r]=ww; m->h[f][r]=wh; m->xo[f][r]=wxo; m->yo[f][r]=wyo; m->wmir[f][r]=mir; }
+					if (wsh) {
+						m->shader[m->nwalk][r]=wsh; m->w[m->nwalk][r]=ww; m->h[m->nwalk][r]=wh;
+						m->xo[m->nwalk][r]=wxo; m->yo[m->nwalk][r]=wyo; m->wmir[m->nwalk][r]=mir;
+						frame_ok = true;
+					}
 				}
-				m->nwalk++;
+				if (frame_ok)
+				{	//ensure no NULL rotations: fallback to the first available rotation for this frame
+					int first = -1;
+					for (r = 0; r < 8; r++) if (m->shader[m->nwalk][r]) { first = r; break; }
+					for (r = 0; r < 8; r++) {
+						if (m->shader[m->nwalk][r]) continue;
+						m->shader[m->nwalk][r] = m->shader[m->nwalk][first];
+						m->w[m->nwalk][r] = m->w[m->nwalk][first]; m->h[m->nwalk][r] = m->h[m->nwalk][first];
+						m->xo[m->nwalk][r] = m->xo[m->nwalk][first]; m->yo[m->nwalk][r] = m->yo[m->nwalk][first];
+						m->wmir[m->nwalk][r] = m->wmir[m->nwalk][first];
+					}
+					m->nwalk++;
+				}
 			}
 			if (!m->nwalk) m->nwalk = 1;
-			//load the pain frame (one frame, held during the flinch), per-monster from the zscript.
+
+			//load the pain frame (one frame, held during the flinch)
 			m->npain = 0;
 			{
 				char pc = Doom_PainFrame(mi.spr);
-				for (f = 0; f < 2 && f < (int)(sizeof(m->painfr)/sizeof(m->painfr[0])); f++) {
-					char pl[16]; short pw, ph, pxo, pyo; shader_t *psh;
-					//attack/pain frames are 8-rotation (suffix 1..8 - the monster faces the player,
-					//so rotation 1 = front), unlike death frames which are single-rotation (suffix 0).
-					Q_snprintfz(pl, sizeof(pl), "%s%c1", mi.spr, pc);
-					psh = Doom_MonsterSpriteShader(pl, &pw,&ph,&pxo,&pyo);
-					if (!psh) { Q_snprintfz(pl, sizeof(pl), "%s%c0", mi.spr, pc); psh = Doom_MonsterSpriteShader(pl, &pw,&ph,&pxo,&pyo); }
-					if (psh) { m->painfr[f]=psh; m->pfw[f]=pw; m->pfh[f]=ph; m->pfxo[f]=pxo; m->npain++; }
-				}
+				char pl[16]; short pw, ph, pxo, pyo; shader_t *psh;
+				Q_snprintfz(pl, sizeof(pl), "%s%c1", mi.spr, pc); //rotated (front)
+				psh = Doom_MonsterSpriteShader(pl, &pw,&ph,&pxo,&pyo);
+				if (!psh) { Q_snprintfz(pl, sizeof(pl), "%s%c0", mi.spr, pc); psh = Doom_MonsterSpriteShader(pl, &pw,&ph,&pxo,&pyo); }
+				if (psh) { m->painfr[0]=psh; m->pfw[0]=pw; m->pfh[0]=ph; m->pfxo[0]=pxo; m->npain = 1; }
 			}
+
 			//load the attack (Missile/Melee) frames, per-monster from the zscript - in order.
 			m->natk = 0;
 			if (mi.atk & (MATK_HITSCAN|MATK_MISSILE|MATK_HOMING|MATK_VILE|MATK_MELEE))
 			{
 				const char *aseq = Doom_AttackSeq(mi.spr);
-				for (f = 0; aseq[f] && f < (int)(sizeof(m->atkfr)/sizeof(m->atkfr[0])); f++) {
+				for (f = 0; aseq[f] && m->natk < 4; f++) {
 					char al[16]; short aw, ah, axo, ayo; shader_t *ash;
-					Q_snprintfz(al, sizeof(al), "%s%c1", mi.spr, aseq[f]);	//rotated (facing player); fallback to single-rot
+					Q_snprintfz(al, sizeof(al), "%s%c1", mi.spr, aseq[f]); //rotated (front)
 					ash = Doom_MonsterSpriteShader(al, &aw,&ah,&axo,&ayo);
 					if (!ash) { Q_snprintfz(al, sizeof(al), "%s%c0", mi.spr, aseq[f]); ash = Doom_MonsterSpriteShader(al, &aw,&ah,&axo,&ayo); }
-					if (ash) { m->atkfr[f]=ash; m->afw[f]=aw; m->afh[f]=ah; m->afxo[f]=axo; m->natk++; }
+					if (ash) { m->atkfr[m->natk]=ash; m->afw[m->natk]=aw; m->afh[m->natk]=ah; m->afxo[m->natk]=axo; m->natk++; }
 				}
 			}
 		}
+
 		else
 		{	//barrel just needs frame A for all cycles (they don't walk)
 			int f, r;
@@ -3405,9 +3434,9 @@ void Doom_TickMonsters(model_t *model, float frametime, const vec3_t playerorg, 
 			continue;
 		}
 		if (m->atk & MATK_BARREL)
-			continue;	//barrels have no AI - they just sit (frame A) until shot. Without this they
-					//get alerted and pushed into the attack state, but have no attack frames, so
-					//the render's attack branch leaves sh=NULL and the barrel vanishes.
+		{	m->animt += frametime;	//idle bob (voxel BAR1 A/B); barrels otherwise have no AI
+			continue;		//Without the skip they'd get alerted into the attack state (no
+		}				//attack frames -> the sprite render leaves sh=NULL and they vanish).
 		if (m->paintime >= 0) m->paintime += frametime;
 		if (m->atktime >= 0) m->atktime += frametime;
 		m->animt += frametime;	//advance the walk cycle (render uses it while the monster is chasing)
@@ -3709,6 +3738,193 @@ void Doom_PlayerAttack(model_t *model, const vec3_t org, float yaw, int pellets,
 	Doom_NoiseAlert(dm, org);	//the gunshot wakes monsters within sound range
 }
 
+//============================ Doom voxel models (KVX) ====================================
+// Optional voxel rendering for monsters (VoxelDoom .kvx at voxels/<NAME>.kvx, e.g. POSSA.kvx).
+// One voxel per animation frame-letter, rotation-free (unlike the 8-rotation sprites), drawn as a
+// solid vertex-coloured mesh - opaque like the world geometry (which never blinks). Enabled by the
+// doom_voxels cvar (default on); the sprite path is kept as the fallback. KVX parsed per Ken
+// Silverman's spec / gzdoom R_LoadKVX. Built once per frame-name and cached.
+typedef struct doomvoxel_s {
+	char        name[16];
+	qboolean    tried;		// load attempted (true even if it produced no geometry)
+	int         nverts, nidx;
+	vecV_t      *xyz;		// LOCAL space: x,y centred on the pivot, z up from the feet
+	byte_vec4_t *col;
+	index_t     *idx;
+	float       angleoffset;	// per-voxel facing offset (deg) from VOXELDEF.txt (e.g. ammo = 270)
+} doomvoxel_t;
+static doomvoxel_t *doomvox; static int doomvoxcount, doomvoxmax;
+static shader_t *doomvoxshader;
+static vecV_t *doomvoxsxyz; static vec2_t *doomvoxsst; static int doomvoxscap;	// world-transform scratch
+typedef struct { char name[16]; float ao; } doomvoxdef_t;	// VOXELDEF.txt per-voxel options
+static doomvoxdef_t *doomvoxdef; static int doomvoxdefcount; static qboolean doomvoxdefloaded;
+
+static int   Doom_LE32(const qbyte *p){ return (int)(p[0]|(p[1]<<8)|(p[2]<<16)|((unsigned)p[3]<<24)); }
+static short Doom_LE16(const qbyte *p){ return (short)(p[0]|(p[1]<<8)); }
+static int   Doom_VoxSolid(const qbyte *s,int sx,int sy,int sz,int x,int y,int z){
+	if (x<0||y<0||z<0||x>=sx||y>=sy||z>=sz) return 0; return s[(x*sy+y)*sz+z]; }
+
+static void Doom_LoadVoxelDef(void)
+{	//parse VOXELDEF.txt (gzdoom format) for per-voxel options; we use AngleOffset (facing, degrees)
+	char *file, *data; size_t sz=0;
+	if (doomvoxdefloaded) return;
+	doomvoxdefloaded=true;
+	file=FS_LoadMallocFile("VOXELDEF.txt",&sz);
+	if (!file) return;
+	data=file;
+	for(;;)
+	{
+		char nm[16]; float ao=0;
+		data=COM_Parse(data); if(!data||!com_token[0]) break;		//entry name (frame)
+		Q_strncpyz(nm,com_token,sizeof(nm));
+		for(;;){ data=COM_Parse(data); if(!data||!com_token[0])break; if(!strcmp(com_token,"{"))break; }	//skip = "file"
+		if(!data)break;
+		for(;;){ data=COM_Parse(data); if(!data||!com_token[0]||!strcmp(com_token,"}"))break;
+			if(!Q_strcasecmp(com_token,"AngleOffset")){ data=COM_Parse(data); if(!data)break; data=COM_Parse(data); if(!data)break; ao=atof(com_token); } }
+		doomvoxdef=BZ_Realloc(doomvoxdef,(doomvoxdefcount+1)*sizeof(*doomvoxdef));
+		Q_strncpyz(doomvoxdef[doomvoxdefcount].name,nm,sizeof(doomvoxdef[0].name));
+		doomvoxdef[doomvoxdefcount].ao=ao; doomvoxdefcount++;
+		if(!data)break;
+	}
+	BZ_Free(file);
+}
+static float Doom_VoxAngleOffset(const char *name)
+{
+	int i; Doom_LoadVoxelDef();
+	for(i=0;i<doomvoxdefcount;i++) if(!Q_strcasecmp(doomvoxdef[i].name,name)) return doomvoxdef[i].ao;
+	return 0;
+}
+
+static void Doom_BuildVoxel(doomvoxel_t *v, const char *name)
+{	//parse the KVX and emit one quad per exposed voxel face, vertex-coloured from its palette
+	char path[64]; qbyte *d=NULL; size_t fsz=0;
+	int sx,sy,sz,numbytes,offsetsize,voxdatasize,x,y,z,dir,faces=0,vi=0,ii=0;
+	float px,py,pz; const qbyte *pal,*slabbase; qbyte *solid; byte_vec4_t *cgrid;
+	static const float fsh[6]={0.72f,0.72f,0.86f,0.86f,1.0f,0.5f};	//-x +x -y +y top bottom
+
+	Q_strncpyz(v->name, name, sizeof(v->name)); v->tried=true; v->nverts=v->nidx=0;
+	v->angleoffset = Doom_VoxAngleOffset(name);
+	Q_snprintfz(path,sizeof(path),"voxels/%s.kvx",name);
+	d=FS_LoadMallocFile(path,&fsz);
+	if (!d || fsz<=768+28) { if(d)BZ_Free(d); return; }
+	numbytes=Doom_LE32(d); sx=Doom_LE32(d+4); sy=Doom_LE32(d+8); sz=Doom_LE32(d+12);
+	px=Doom_LE32(d+16)/256.0f; py=Doom_LE32(d+20)/256.0f; pz=Doom_LE32(d+24)/256.0f;
+	if (sx<=0||sy<=0||sz<=0||sx>256||sy>256||sz>256) { BZ_Free(d); return; }
+	offsetsize=(sx+1)*4 + sx*(sy+1)*2;
+	voxdatasize=numbytes-24-offsetsize;
+	if (voxdatasize<0 || (size_t)(28+offsetsize+voxdatasize) > fsz) { BZ_Free(d); return; }
+	slabbase=d+28+offsetsize;
+	pal=d+fsz-768;
+
+	solid=BZ_Malloc(sx*sy*sz); memset(solid,0,sx*sy*sz);
+	cgrid=BZ_Malloc(sx*sy*sz*sizeof(byte_vec4_t));
+	for (x=0;x<sx;x++)
+	{
+		int xoff=Doom_LE32(d+28+x*4)-offsetsize;
+		for (y=0;y<sy;y++)
+		{
+			int s0=xoff+Doom_LE16(d+28+(sx+1)*4 + (x*(sy+1)+y)*2);
+			int s1=xoff+Doom_LE16(d+28+(sx+1)*4 + (x*(sy+1)+y+1)*2);
+			const qbyte *p,*pe; if (s0<0||s1>voxdatasize||s1<s0) continue;
+			p=slabbase+s0; pe=slabbase+s1;
+			while (p+3<=pe)
+			{
+				int ztop=p[0],zleng=p[1],k; const qbyte *cols=p+3; p+=3+zleng;
+				if (cols+zleng>pe) break;
+				for (k=0;k<zleng;k++){ int zz=ztop+k,gi,c; if(zz<0||zz>=sz)continue;
+					gi=(x*sy+y)*sz+zz; c=cols[k]; solid[gi]=1;
+					cgrid[gi][0]=(pal[c*3+0]<<2)|(pal[c*3+0]>>4);
+					cgrid[gi][1]=(pal[c*3+1]<<2)|(pal[c*3+1]>>4);
+					cgrid[gi][2]=(pal[c*3+2]<<2)|(pal[c*3+2]>>4); cgrid[gi][3]=255; }
+			}
+		}
+	}
+	//count exposed faces (neighbour empty), then emit
+	for (x=0;x<sx;x++) for (y=0;y<sy;y++) for (z=0;z<sz;z++){ if(!solid[(x*sy+y)*sz+z])continue;
+		if(!Doom_VoxSolid(solid,sx,sy,sz,x-1,y,z))faces++; if(!Doom_VoxSolid(solid,sx,sy,sz,x+1,y,z))faces++;
+		if(!Doom_VoxSolid(solid,sx,sy,sz,x,y-1,z))faces++; if(!Doom_VoxSolid(solid,sx,sy,sz,x,y+1,z))faces++;
+		if(!Doom_VoxSolid(solid,sx,sy,sz,x,y,z-1))faces++; if(!Doom_VoxSolid(solid,sx,sy,sz,x,y,z+1))faces++; }
+	if (faces>16250) faces=16250;	//cap: immediate-mode meshes / 16-bit indices stay under 65536 verts
+	if (faces)
+	{
+		v->xyz=BZ_Malloc(faces*4*sizeof(vecV_t));
+		v->col=BZ_Malloc(faces*4*sizeof(byte_vec4_t));
+		v->idx=BZ_Malloc(faces*6*sizeof(index_t));
+		for (x=0;x<sx;x++) for (y=0;y<sy;y++) for (z=0;z<sz;z++)
+		{
+			int gi=(x*sy+y)*sz+z; if(!solid[gi])continue;
+			if (vi+24 > faces*4) { x=sx; y=sy; break; }	//hit the cap
+			//local cube: y flipped (Build is left-handed), z up from the feet
+			float x0=x-px, x1=x0+1, y0=-(y-py), y1=y0-1, zt=pz-z, zb=zt-1;
+			for (dir=0;dir<6;dir++)
+			{
+				int nx=x,ny=y,nz=z; float q[4][3]; int j;
+				if(dir==0)nx--; else if(dir==1)nx++; else if(dir==2)ny--; else if(dir==3)ny++; else if(dir==4)nz--; else nz++;
+				if (Doom_VoxSolid(solid,sx,sy,sz,nx,ny,nz)) continue;
+				switch(dir){
+				case 0: q[0][0]=x0;q[0][1]=y0;q[0][2]=zb; q[1][0]=x0;q[1][1]=y1;q[1][2]=zb; q[2][0]=x0;q[2][1]=y1;q[2][2]=zt; q[3][0]=x0;q[3][1]=y0;q[3][2]=zt; break;
+				case 1: q[0][0]=x1;q[0][1]=y0;q[0][2]=zb; q[1][0]=x1;q[1][1]=y1;q[1][2]=zb; q[2][0]=x1;q[2][1]=y1;q[2][2]=zt; q[3][0]=x1;q[3][1]=y0;q[3][2]=zt; break;
+				case 2: q[0][0]=x0;q[0][1]=y0;q[0][2]=zb; q[1][0]=x1;q[1][1]=y0;q[1][2]=zb; q[2][0]=x1;q[2][1]=y0;q[2][2]=zt; q[3][0]=x0;q[3][1]=y0;q[3][2]=zt; break;
+				case 3: q[0][0]=x0;q[0][1]=y1;q[0][2]=zb; q[1][0]=x1;q[1][1]=y1;q[1][2]=zb; q[2][0]=x1;q[2][1]=y1;q[2][2]=zt; q[3][0]=x0;q[3][1]=y1;q[3][2]=zt; break;
+				case 4: q[0][0]=x0;q[0][1]=y0;q[0][2]=zt; q[1][0]=x1;q[1][1]=y0;q[1][2]=zt; q[2][0]=x1;q[2][1]=y1;q[2][2]=zt; q[3][0]=x0;q[3][1]=y1;q[3][2]=zt; break;
+				default:q[0][0]=x0;q[0][1]=y0;q[0][2]=zb; q[1][0]=x1;q[1][1]=y0;q[1][2]=zb; q[2][0]=x1;q[2][1]=y1;q[2][2]=zb; q[3][0]=x0;q[3][1]=y1;q[3][2]=zb; break; }
+				for (j=0;j<4;j++){ VectorCopy(q[j], v->xyz[vi+j]);
+					v->col[vi+j][0]=(qbyte)(cgrid[gi][0]*fsh[dir]); v->col[vi+j][1]=(qbyte)(cgrid[gi][1]*fsh[dir]);
+					v->col[vi+j][2]=(qbyte)(cgrid[gi][2]*fsh[dir]); v->col[vi+j][3]=255; }
+				v->idx[ii+0]=vi+0; v->idx[ii+1]=vi+1; v->idx[ii+2]=vi+2;
+				v->idx[ii+3]=vi+0; v->idx[ii+4]=vi+2; v->idx[ii+5]=vi+3;
+				vi+=4; ii+=6;
+			}
+		}
+		v->nverts=vi; v->nidx=ii;
+	}
+	BZ_Free(solid); BZ_Free(cgrid); BZ_Free(d);
+}
+
+static doomvoxel_t *Doom_GetVoxel(const char *name)
+{	//cache lookup; build on first use
+	int i;
+	for (i=0;i<doomvoxcount;i++) if(!strcmp(doomvox[i].name,name)) return &doomvox[i];
+	if (doomvoxcount>=doomvoxmax){ doomvoxmax=doomvoxmax?doomvoxmax*2:64; doomvox=BZ_Realloc(doomvox,doomvoxmax*sizeof(*doomvox)); }
+	memset(&doomvox[doomvoxcount],0,sizeof(doomvox[0]));
+	Doom_BuildVoxel(&doomvox[doomvoxcount], name);
+	return &doomvox[doomvoxcount++];
+}
+
+static void Doom_DrawVoxel(doomvoxel_t *v, const vec3_t origin, float yawdeg, float scale)
+{	//rotate the cached local mesh by yaw into world space and draw it (opaque, vertex-coloured)
+	mesh_t mesh; int i; float c,s,a=(yawdeg+v->angleoffset)*(M_PI/180.0);
+	c=cos(a); s=sin(a);
+	if (v->nverts>doomvoxscap){ doomvoxscap=v->nverts+256;
+		doomvoxsxyz=BZ_Realloc(doomvoxsxyz,doomvoxscap*sizeof(vecV_t));
+		doomvoxsst =BZ_Realloc(doomvoxsst, doomvoxscap*sizeof(vec2_t));
+		memset(doomvoxsst,0,doomvoxscap*sizeof(vec2_t)); }
+	for (i=0;i<v->nverts;i++){ float lx=v->xyz[i][0]*scale, ly=v->xyz[i][1]*scale, lz=v->xyz[i][2]*scale;
+		doomvoxsxyz[i][0]=origin[0]+lx*c-ly*s; doomvoxsxyz[i][1]=origin[1]+lx*s+ly*c; doomvoxsxyz[i][2]=origin[2]+lz; }
+	memset(&mesh,0,sizeof(mesh));
+	mesh.numvertexes=v->nverts; mesh.numindexes=v->nidx;
+	mesh.xyz_array=doomvoxsxyz; mesh.st_array=doomvoxsst; mesh.colors4b_array=v->col; mesh.indexes=v->idx;
+	BE_DrawMesh_Single(doomvoxshader,&mesh,NULL,0);
+}
+
+static void Doom_VoxShader(void)
+{	//vertex-coloured opaque shader (white 1x1 diffuse, colour from the mesh), drawn double-sided
+	texnums_t tn; unsigned int white=0xffffffff;
+	if (doomvoxshader) return;
+	doomvoxshader=R_RegisterShader("doom_voxel",SUF_NONE,"{\ncull none\n{\nmap $diffuse\nrgbgen vertex\n}\n}\n");
+	memset(&tn,0,sizeof(tn));
+	tn.base=R_LoadTexture32("doom_voxwhite",1,1,&white,IF_NOMIPMAP);
+	R_BuildDefaultTexnums(&tn,doomvoxshader,0);
+}
+
+static qboolean Doom_DrawVoxelByName(const char *name, const vec3_t origin, float yawdeg, float scale)
+{	//draw the named voxel if it exists/has geometry; returns false so the caller can fall back to a sprite
+	doomvoxel_t *v=Doom_GetVoxel(name);
+	if (!v || !v->nverts) return false;
+	Doom_DrawVoxel(v, origin, yawdeg, scale);
+	return true;
+}
+
 //draw monsters as upright camera-facing billboards (same technique as R_DoomDrawSprites).
 static void R_DoomDrawMonsters(doommap_t *dm)
 {
@@ -3721,11 +3937,16 @@ static void R_DoomDrawMonsters(doommap_t *dm)
 	byte_vec4_t col[4];
 	index_t idx[6] = {0,1,2, 0,2,3};
 
-	int sprrot, sprfreeze;
+	int sprrot, sprfreeze, usevox;
+	float voxscale, voxyaw;
 	if (!dm->nummonsters && !dm->numprojectiles)
 		return;
 	sprrot = (int)Cvar_Get("doom_sprrot", "1", CVAR_ARCHIVE, "Doom Sprites")->value;	//1=8-way+mirror, 0=front only
 	sprfreeze = (int)Cvar_Get("doom_sprfreeze", "-1", CVAR_ARCHIVE, "Doom Sprites")->value;	//>=0 holds that walk frame
+	usevox  = (int)Cvar_Get("doom_voxels", "1", CVAR_ARCHIVE, "Doom")->value;	//1=voxel models, 0=sprites
+	voxscale= Cvar_Get("doom_voxscale", "1", CVAR_ARCHIVE, "Doom")->value;		//world units per voxel
+	voxyaw  = Cvar_Get("doom_voxyaw", "90", CVAR_ARCHIVE, "Doom")->value;		//facing offset (deg) for tuning
+	if (usevox) Doom_VoxShader();
 	viewang[0]=0; viewang[1]=r_refdef.viewangles[1]; viewang[2]=0;
 	AngleVectors(viewang, vpn, vright, vup);
 	Vector4Set(col[0],255,255,255,255); Vector4Set(col[1],255,255,255,255);
@@ -3738,6 +3959,7 @@ static void R_DoomDrawMonsters(doommap_t *dm)
 	{
 		struct doommonster_s *m = &dm->monsters[i];
 		shader_t *sh = NULL; short sw=0, shh=0, sxo=0, syo=0; qboolean mirror=false;
+		const char *vbase=m->spr; char vlet=0;	//voxel name = vbase+vlet for the current frame
 		float zb, zt; vec3_t l, r;
 		if (m->mstate == 2)
 		{	//dead: play death animation - or, if an archvile is raising it, the death frames in REVERSE
@@ -3757,12 +3979,15 @@ static void R_DoomDrawMonsters(doommap_t *dm)
 			}
 			if (df < 0 || df >= m->ndeath) continue;
 			sh = m->deathfr[df]; sw = m->dfw[df]; shh = m->dfh[df]; sxo = m->dfxo[df]; syo = 0;
+			{ const char *ds=(m->atk&MATK_BARREL)?"ABCDE":Doom_DeathSeq(m->spr);
+			  if(m->atk&MATK_BARREL)vbase="BEXP"; if(ds&&df<(int)strlen(ds))vlet=ds[df]; }
 		}
 		else if (m->paintime >= 0 && m->npain > 0)
 		{	//pain: play the flinch frame for its loaded length
 			int pf = (int)(m->paintime / 0.1f);
 			if (pf >= m->npain) { m->paintime = -1; pf = 0; } //end pain
 			sh = m->painfr[pf]; sw = m->pfw[pf]; shh = m->pfh[pf]; sxo = m->pfxo[pf]; syo = 0;
+			vlet = Doom_PainFrame(m->spr);
 		}
 		else if (m->atktime >= 0 && m->natk > 0)
 		{	//attacking: play the per-monster attack sequence (Doom_AttackSeq) at ~0.25s/frame so it
@@ -3772,6 +3997,7 @@ static void R_DoomDrawMonsters(doommap_t *dm)
 			if (m->atkfr[af]) {
 				sh = m->atkfr[af]; sw = m->afw[af]; shh = m->afh[af]; sxo = m->afxo[af]; syo = 0;
 			}
+			{ const char *as=Doom_AttackSeq(m->spr); if(as&&af<(int)strlen(as))vlet=as[af]; }
 		}
 		else
 		{	//alive: pick walk frame and rotation
@@ -3783,6 +4009,17 @@ static void R_DoomDrawMonsters(doommap_t *dm)
 			if (!sprrot) rot = 0;	//doom_sprrot 0 = front view only (isolates the 8-rotation/mirror code)
 			sh = m->shader[wf][rot]; sw = m->w[wf][rot]; shh = m->h[wf][rot]; sxo = m->xo[wf][rot]; syo = m->yo[wf][rot];
 			mirror = sprrot ? m->wmir[wf][rot] : 0;
+			if (m->atk & MATK_BARREL)	//barrel idles by bobbing between BAR1 A and B (~0.17s each)
+				vlet = ((int)(m->animt/0.17f)&1) ? 'B' : 'A';
+			else { const char *ws=Doom_WalkFrames(m->spr); if(ws&&wf<(int)strlen(ws))vlet=ws[wf]; }
+		}
+		if (usevox && vlet && vbase)
+		{	//voxel model for this frame, if one exists; otherwise fall through to the sprite
+			char vn[16]; vec3_t tom;
+			VectorSubtract(m->origin, r_refdef.vieworg, tom);
+			if (DotProduct(tom, vpn) < -96) continue;	//behind the camera: skip the (heavy) voxel draw
+			Q_snprintfz(vn,sizeof(vn),"%s%c",vbase,vlet);
+			if (Doom_DrawVoxelByName(vn, m->origin, m->yaw+voxyaw, voxscale)) continue;
 		}
 		if (!sh || sw<=0 || shh<=0)	//a sprite that would blink/vanish: log it (silent otherwise)
 			Con_Printf("DOOMSPRITE-MISSING t=%i mst=%i atkt=%.2f pt=%.2f dt=%.2f rt=%.2f | nw=%i na=%i np=%i nd=%i | sh=%p w=%i h=%i\n",
@@ -3940,6 +4177,7 @@ static void Doom_Purge (struct model_s *mod)
 	BZ_Free(dm->monsters);
 	dm->monsters = NULL;
 	dm->nummonsters = 0;
+	doomvoxshader = NULL;	//shader system is reset between maps; rebuilt lazily on next draw
 	BZ_Free(dm->projectiles);
 	dm->projectiles = NULL;
 	dm->numprojectiles = 0;
